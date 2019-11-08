@@ -550,14 +550,12 @@ next
                  \<Longrightarrow> (\<And>i. i < length G2 \<Longrightarrow> snd (G2 ! i) \<le> snd (G3 ! i))"
       using nth_Cons_Suc by force
     then show ?thesis
-      using cg_let.prems cg_let.hyps cg_ctx_length le_trans
-      by fastforce
+      using cg_let cg_ctx_length le_trans by fastforce
   qed
 next
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
   then show ?case
-    using cg_ctx_length alg_ctx_jn_type_used_nondec_1 le_trans
-    by fastforce
+    using cg_ctx_length alg_ctx_jn_type_used_nondec_1 le_trans by fastforce
 next
   case (cg_iop x nt G1 n1 e1 \<tau> G2 n2 C1 e1' e2 G3 n3 C2 e2' C5)
   then show ?case
@@ -572,25 +570,10 @@ next
     using cg_ctx_length by fastforce
 qed (blast)+
 
+
 section {* Assignment Definition *}
 (* when we are assigning an unknown type a type, the assigned type should not contain any
    unknown types itself *)
-inductive is_known_type :: "type \<Rightarrow> bool" where
-known_tvar:
-  "is_known_type (TVar n)"
-| known_tfun:
-  "\<lbrakk> is_known_type t1
-   ; is_known_type t2
-   \<rbrakk> \<Longrightarrow> is_known_type (TFun t1 t2)"
-| known_tprim:
-  "is_known_type (TPrim pt)"
-| known_tproduct:
-  "\<lbrakk> is_known_type t1
-   ; is_known_type t2
-   \<rbrakk> \<Longrightarrow> is_known_type (TProduct t1 t2)"
-| known_tunit:
-  "is_known_type TUnit"
-
 fun assign_app_ty :: "(nat \<Rightarrow> type) \<Rightarrow> type \<Rightarrow> type" where
   "assign_app_ty S (TVar n)          = TVar n"
 | "assign_app_ty S (TFun t1 t2)      = TFun (assign_app_ty S t1) (assign_app_ty S t2)"
@@ -598,6 +581,7 @@ fun assign_app_ty :: "(nat \<Rightarrow> type) \<Rightarrow> type \<Rightarrow> 
 | "assign_app_ty S (TProduct t1 t2)  = TProduct (assign_app_ty S t1) (assign_app_ty S t2)"
 | "assign_app_ty S TUnit             = TUnit"
 | "assign_app_ty S (TUnknown n)      = S n"
+
 
 fun assign_app_expr :: "(nat \<Rightarrow> type) \<Rightarrow> 'f expr \<Rightarrow> 'f expr" where
   "assign_app_expr S (Var n)            = Var n" 
@@ -610,6 +594,7 @@ fun assign_app_expr :: "(nat \<Rightarrow> type) \<Rightarrow> 'f expr \<Rightar
 | "assign_app_expr S (Let e1 e2)        = Let (assign_app_expr S e1) (assign_app_expr S e2)"
 | "assign_app_expr S (If e1 e2 e3)      = If (assign_app_expr S e1) (assign_app_expr S e2) (assign_app_expr S e3)"
 | "assign_app_expr S (Sig e t)          = Sig (assign_app_expr S e) (assign_app_ty S t)"
+
 
 fun "assign_app_constr" :: "(nat \<Rightarrow> type) \<Rightarrow> constraint \<Rightarrow> constraint" where
   "assign_app_constr S (CtConj c1 c2) = CtConj (assign_app_constr S c1) (assign_app_constr S c2)"
@@ -632,6 +617,22 @@ lemma assign_app_ctx_nth:
   "\<And>i. i < length G \<Longrightarrow> 
    (assign_app_ctx S G) ! i = (\<lambda>x. if x = None then None else Some (assign_app_ty S (the x))) (G ! i)"
   by simp
+
+inductive is_known_type :: "type \<Rightarrow> bool" where
+known_tvar:
+  "is_known_type (TVar n)"
+| known_tfun:
+  "\<lbrakk> is_known_type t1
+   ; is_known_type t2
+   \<rbrakk> \<Longrightarrow> is_known_type (TFun t1 t2)"
+| known_tprim:
+  "is_known_type (TPrim pt)"
+| known_tproduct:
+  "\<lbrakk> is_known_type t1
+   ; is_known_type t2
+   \<rbrakk> \<Longrightarrow> is_known_type (TProduct t1 t2)"
+| known_tunit:
+  "is_known_type TUnit"
 
 section {* split_used (Lemma 3.1) *}
 (* Free Variables *)
