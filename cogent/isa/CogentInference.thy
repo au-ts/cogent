@@ -93,6 +93,25 @@ definition subst_ct :: "type list \<Rightarrow> constraint \<Rightarrow> constra
   "subst_ct \<delta> \<equiv> map_types_ct (subst_ty \<delta>)"
 
 
+inductive known_ty :: "type \<Rightarrow> bool" where
+known_tvar:
+  "known_ty (TVar n)"
+| known_tfun:
+  "\<lbrakk> known_ty t1
+   ; known_ty t2
+   \<rbrakk> \<Longrightarrow> known_ty (TFun t1 t2)"
+| known_tprim:
+  "known_ty (TPrim pt)"
+| known_tproduct:
+  "\<lbrakk> known_ty t1
+   ; known_ty t2
+   \<rbrakk> \<Longrightarrow> known_ty (TProduct t1 t2)"
+| known_tunit:
+  "known_ty TUnit"
+
+inductive_cases known_tfunE: "known_ty (TFun t1 t2)"
+inductive_cases known_tproductE: "known_ty (TProduct t1 t2)"
+
 locale type_infer =
   fixes type_of :: "'fnname \<Rightarrow> constraint \<times> type"
 begin
