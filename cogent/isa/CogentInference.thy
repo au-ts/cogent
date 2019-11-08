@@ -112,6 +112,35 @@ known_tvar:
 inductive_cases known_tfunE: "known_ty (TFun t1 t2)"
 inductive_cases known_tproductE: "known_ty (TProduct t1 t2)"
 
+inductive known_ct :: "constraint \<Rightarrow> bool" where
+known_ctconj:
+  "\<lbrakk> known_ct C1
+   ; known_ct C2
+   \<rbrakk> \<Longrightarrow> known_ct (CtConj C1 C2)"
+| known_ctibound:
+  "known_ty \<tau> \<Longrightarrow> known_ct (CtIBound l \<tau>)"
+| known_cteq:
+  "\<lbrakk> known_ty \<tau>
+   ; known_ty \<rho>
+   \<rbrakk> \<Longrightarrow> known_ct (CtEq \<tau> \<rho>)" 
+| known_ctsub:
+  "\<lbrakk> known_ty \<tau>
+   ; known_ty \<rho>
+   \<rbrakk> \<Longrightarrow> known_ct (CtSub \<tau> \<rho>)"
+| known_cttop:
+  "known_ct CtTop"
+| known_ctbot:
+  "known_ct CtBot"
+| known_ctshare:
+  "known_ty \<tau> \<Longrightarrow> known_ct (CtShare \<tau>)"
+| known_ctdrop:
+  "known_ty \<tau> \<Longrightarrow> known_ct (CtDrop \<tau>)"
+
+inductive_cases known_ctconjE: "known_ct (CtConj C1 C2)"
+inductive_cases known_cteqE: "known_ct (CtEq C1 C2)"
+inductive_cases known_ctsubE: "known_ct (CtSub C1 C2)"
+
+
 locale type_infer =
   fixes type_of :: "'fnname \<Rightarrow> constraint \<times> type"
 begin
