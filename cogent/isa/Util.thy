@@ -134,13 +134,13 @@ lemma map2_mapR: "List.map2 h xs (map g xs) = map (\<lambda>x. h x (g x)) xs"
   by (induction xs) (auto)
 
 lemma map2_length:
-  assumes "map2 P xs ys = zs"
+  assumes "List.map2 P xs ys = zs"
   shows "length zs = min (length xs) (length ys)"
   using assms
   by (metis length_map length_zip map2_def)
 
-lemma map2_imp_proj_nth:
-  assumes "map2 P xs ys = zs"
+lemma map2_imp_fun_nth:
+  assumes "List.map2 P xs ys = zs"
   shows "\<forall>i < length zs. P (xs ! i) (ys ! i) = (zs ! i)"
   using assms
   proof (induct zs arbitrary: xs ys)
@@ -159,16 +159,24 @@ lemma map2_imp_proj_nth:
 qed (simp)
 
 lemma map2_conv_all_nth_D1:
-  "map2 P xs ys = zs \<longrightarrow> length zs = min (length xs) (length ys) \<and> (\<forall>i < length zs. P (xs ! i) (ys ! i) = (zs ! i))"
-  using map2_length map2_imp_proj_nth by blast
+  "List.map2 P xs ys = zs \<longrightarrow> length zs = min (length xs) (length ys) \<and> (\<forall>i < length zs. P (xs ! i) (ys ! i) = (zs ! i))"
+  using map2_length map2_imp_fun_nth by blast
 
 lemma map2_conv_all_nth_D2:
-  "length zs = min (length xs) (length ys) \<and> (\<forall>i < length zs. P (xs ! i) (ys ! i) = (zs ! i)) \<longrightarrow> map2 P xs ys = zs"
-  by (rule impI, erule conjE; unfold map2_def; simp add: map_conv_all_nth)
+  "length zs = min (length xs) (length ys) \<and> (\<forall>i < length zs. P (xs ! i) (ys ! i) = (zs ! i)) \<longrightarrow> List.map2 P xs ys = zs"
+  by (simp add: map_conv_all_nth)
 
 lemma map2_conv_all_nth:
-  "map2 P xs ys = zs \<longleftrightarrow> length zs = min (length xs) (length ys) \<and> (\<forall>i < length zs. P (xs ! i) (ys ! i) = (zs ! i))"
+  "List.map2 P xs ys = zs \<longleftrightarrow> length zs = min (length xs) (length ys) \<and> (\<forall>i < length zs. P (xs ! i) (ys ! i) = (zs ! i))"
   using map2_conv_all_nth_D1 map2_conv_all_nth_D2 by blast
+
+lemma map2_fun_elem:
+  "List.map2 P xs ys = zs \<Longrightarrow> i < length zs \<Longrightarrow> zs ! i = P (xs ! i) (ys ! i)"
+  by (clarsimp simp add: map2_conv_all_nth_D1)
+
+lemma map2_nth:
+  "i < length xs \<Longrightarrow> i < length ys \<Longrightarrow> List.map2 P xs ys ! i = P (xs ! i) (ys ! i)"
+  by (simp add: map_conv_all_nth)
 
 lemma map_fst_update:
   assumes "ts ! f = (t, x)"

@@ -749,51 +749,42 @@ proof (induct n arbitrary: i m)
 qed (simp)
 
 fun ctx_restrict :: "cg_ctx \<Rightarrow> index set \<Rightarrow> ctx" (infixr "\<bar>" 60) where
-"(G\<bar>ns) = map2 (\<lambda>g i. (if i \<in> ns then Some (fst g) else None)) G (range 0 (length G))"
+"(G\<bar>ns) = List.map2 (\<lambda>g i. (if i \<in> ns then Some (fst g) else None)) G [0..<length G]"
 
 lemma ctx_restrict_len:
   "length (G\<bar>ns) = length G"
-proof -
-  have "length (G\<bar>ns) = min (length G) (length (range 0 (length G)))"
-    using map2_conv_all_nth by auto
-  then show ?thesis
-    using range_length by auto
-qed
+  by (simp; metis length_map map2_conv_all_nth map_nth min.idem)
 
 lemma ctx_restrict_nth_none:
   assumes "i \<notin> ns"
     and "i < length G"
-  shows "(G\<bar>ns)!i = None"
+  shows "(G\<bar>ns) ! i = None"
   using assms
 proof -
   let ?P="\<lambda>g i. (if i \<in> ns then Some (fst g) else None)"
-  let ?r="range 0 (length G)"
-  have "G\<bar>ns = map2 ?P G ?r"
+  let ?r="[0..<length G]"
+  have "G\<bar>ns = List.map2 ?P G ?r"
     by simp
   moreover have "\<forall>i < length (G\<bar>ns). ?P (G ! i) (?r ! i) = ((G\<bar>ns) ! i)"
-    by (rule_tac xs="G" in map2_imp_proj_nth; simp)
+    by (rule_tac xs="G" in map2_imp_fun_nth; simp)
   then show ?thesis
-    using assms
-    using range_elem ctx_restrict_len
-    by (metis add.left_neutral diff_zero gr_implies_not_zero neq0_conv)
+    using assms ctx_restrict_len by auto
 qed
      
 lemma ctx_restrict_nth_some:
   assumes "i \<in> ns"
     and "i < length G"
-  shows "(G\<bar>ns)!i = Some (fst (G ! i))"
+  shows "(G\<bar>ns) ! i = Some (fst (G ! i))"
   using assms
 proof -
   let ?P="\<lambda>g i. (if i \<in> ns then Some (fst g) else None)"
-  let ?r="range 0 (length G)"
-  have "G\<bar>ns = map2 ?P G ?r"
+  let ?r="[0..<length G]"
+  have "G\<bar>ns = List.map2 ?P G ?r"
     by simp
   moreover have "\<forall>i < length (G\<bar>ns). ?P (G ! i) (?r ! i) = ((G\<bar>ns) ! i)"
-    by (rule_tac xs="G" in map2_imp_proj_nth; simp)
+    by (rule_tac xs="G" in map2_imp_fun_nth; simp)
   then show ?thesis
-    using assms
-    using range_elem ctx_restrict_len
-    by (metis add.left_neutral diff_zero gr_implies_not_zero neq0_conv)
+    using assms ctx_restrict_len by auto
 qed
 
 lemma cg_gen_fv_elem_size:
