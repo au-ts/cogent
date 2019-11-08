@@ -220,6 +220,20 @@ lemma alg_ctx_jn_type_used_nondec_2:
   shows "snd (G1' ! i) \<le> snd (G2 ! i)"
   using assms by (clarsimp simp add: alg_ctx_jn.simps list_all3_conv_all_nth)
 
+lemma alg_ctx_jn_type_used_max:
+  assumes "G1 \<Join> G1' \<leadsto> G2 | C"
+    and "i < length G1'"
+  shows "snd (G2 ! i) = max (snd (G1 ! i)) (snd (G1' ! i))"
+  using assms by (clarsimp simp add: alg_ctx_jn.simps list_all3_conv_all_nth)
+
+lemma alg_ctx_jn_type_used_same:
+  assumes "G1 \<Join> G1' \<leadsto> G2 | C"
+    and "i < length G1'"
+    and "snd (G1 ! i) = snd (G1' ! i)"
+  shows "snd (G2 ! i) = snd (G1 ! i)"
+  using assms alg_ctx_jn_type_used_max by auto
+
+
 section {* Constraint Semantics (Fig 3.6) *}
 inductive constraint_sem :: "axm_set \<Rightarrow> constraint \<Rightarrow> bool"
           ("_ \<turnstile> _" [40, 40] 60) where
