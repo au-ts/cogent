@@ -48,7 +48,7 @@ fun abs :: "num_type \<Rightarrow> nat" where
 | "abs U64 = 2048"
 
 fun subst_ty :: "type list \<Rightarrow> type \<Rightarrow> type" where
-  "subst_ty \<delta> (TVar i)       = \<delta> ! i"
+  "subst_ty \<delta> (TVar i)       = (if i < length \<delta> then \<delta> ! i else TVar i)"
 | "subst_ty \<delta> (TFun a b)     = TFun (subst_ty \<delta> a) (subst_ty \<delta> b)"
 | "subst_ty \<delta> (TPrim p)      = TPrim p"
 | "subst_ty \<delta> (TProduct t u) = TProduct (subst_ty \<delta> t) (subst_ty \<delta> u)"
