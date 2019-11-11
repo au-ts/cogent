@@ -282,7 +282,7 @@ fun normalisation_tac ctxt
         THEN EqSubst.eqsubst_tac ctxt [0] [anormal_conv (inline_case_continuation_conv ctxt src_def)] 1
         THEN EqSubst.eqsubst_tac ctxt [0] [anormal_conv (inline_case_continuation_conv ctxt (anormal_let_conv ctxt norm_def))] 1
         (* add callee proofs -- should get trivial equality at this point *)
-        THEN simp_tac (put_simpset HOL_basic_ss ctxt addsimps callees) 1)
+        THEN simp_tac (put_simpset HOL_basic_ss ctxt addsimps callees addsimps @{thms take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t_def Let\<^sub>d\<^sub>s_def Let_def}) 1)
   val thm = Goal.prove_future ctxt [] [] (@{term Trueprop} $ prop)
               (K (TIME_TAC ("normalisation_tac: proof for " ^ f) tac))
   in thm end
