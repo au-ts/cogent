@@ -35,12 +35,12 @@ newtype IsabelleName = IsabelleName { unIsabelleName :: String }
 safeName :: IsabelleName -> IsabelleName
 safeName (IsabelleName nm) = IsabelleName $
   case isReserved nm of
-    True -> error $ "Error: function name '" ++ nm ++ "' is a reserved isabelle name" 
+    True -> error $ "Error: function name `" ++ nm ++ "' is a reserved isabelle name" 
     -- Add debug note
     False -> case "_" `isPrefixOf` nm of
-      True  -> error $ "Error: function name" ++ nm ++ "' cannot start with underscores"
+      True  -> error $ "Error: function name `" ++ nm ++ "' cannot start with underscores"
       False -> case "_" `isSuffixOf` nm of
-        True  -> error $ "Error: function name" ++ nm ++ "' cannot end with underscores"
+        True  -> error $ "Error: function name `" ++ nm ++ "' cannot end with underscores"
         False -> nm
 
 isReserved :: String -> Bool
