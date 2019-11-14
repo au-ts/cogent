@@ -2144,19 +2144,8 @@ next
         have "weakening_comp A (\<Gamma> ! i) (empty (length \<Gamma>) ! i)"
         proof (cases "\<Gamma> ! i = None")
           case False
-          assume \<Gamma>i_not_none: "\<Gamma> ! i \<noteq> None"
           then show ?thesis
-          proof (cases "snd (G ! i) = 0")
-            case True
-            then show ?thesis
-              using \<Gamma>i_not_none cg_blit.prems drop empty_none i_size by fastforce
-          next
-            case False
-            have "i \<notin> fv (Lit (LBool l))"
-              by simp
-            then show ?thesis
-              using \<Gamma>i_not_none cg_blit.prems drop empty_none i_size by fastforce
-          qed
+            using cg_blit.prems drop empty_none i_size by fastforce
         qed (simp add: local.empty_def weakening_comp.none i_size)
       }
       then show ?thesis
@@ -2165,7 +2154,7 @@ next
     moreover have "assign_app_ty S \<tau> = TPrim Bool"
       using cg_blit ct_sem_eq_iff by auto
     ultimately show ?thesis
-      using typing_sig_refl typing_blit by force
+      using typing_sig_refl typing_blit by force 
   qed
 next
   case (cg_ilit C m \<tau> G n)  
@@ -2185,19 +2174,8 @@ next
             by (simp add: local.empty_def weakening_comp.none i_size)
         next
           case False
-          assume \<Gamma>i_not_none: "\<Gamma> ! i \<noteq> None"
           then show ?thesis
-          proof (cases "snd (G ! i) = 0")
-            case True
-            then show ?thesis
-              using \<Gamma>i_not_none True cg_ilit.prems drop empty_none i_size by fastforce
-          next
-            case False
-            have "i \<notin> fv' 0 (Lit (LBool l))"
-              by simp
-            then show ?thesis
-              using \<Gamma>i_not_none False cg_ilit.prems drop empty_none i_size by fastforce
-          qed
+            using False cg_ilit.prems drop empty_none i_size by fastforce
         qed
       }
       then show ?thesis
@@ -2547,17 +2525,8 @@ next
               by (simp add: local.empty_def weakening_comp.none i_size)
           next
             case False
-            assume \<Gamma>i_not_none: "\<Gamma> ! i \<noteq> None"
             then show ?thesis
-            proof (cases "snd (G ! i) = 0")
-              case True
-              then show ?thesis
-                using \<Gamma>i_not_none True cg_tapp.prems drop empty_none i_size by fastforce
-            next
-              case False
-              then show ?thesis
-                using \<Gamma>i_not_none False cg_tapp.prems drop empty_none i_size by fastforce
-            qed
+              using cg_tapp.prems drop empty_none i_size by fastforce
           qed
         }
         then show ?thesis
