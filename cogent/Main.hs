@@ -696,7 +696,7 @@ parseArgs args = case getOpt' Permute options args of
       let stg = STGNormal
       putProgress "Normalising..."
       nfed' <- case __cogent_fnormalisation of
-        NoNF -> putProgressLn "Skipped" >> return desugared
+        NoNF -> putProgressLn "Skipped." >> return desugared
         nf -> do putProgressLn (show nf)
                  let nfed = NF.normal $ map untypeD desugared
                  if not $ verifyNormal nfed
@@ -794,15 +794,17 @@ parseArgs args = case getOpt' Permute options args of
           hscName = mkOutputName' toHsModName source (Just __cogent_suffix_of_ffi_types)
           hsName  = mkOutputName' toHsModName source (Just __cogent_suffix_of_ffi)
           cNames  = map (\n -> takeBaseName n ++ __cogent_suffix_of_pp ++ __cogent_suffix_of_inferred <.> __cogent_ext_of_c) __cogent_infer_c_func_files
-          cacheFile = __cogent_name_cache
-      cacheExists <- doesFileExist __cogent_name_cache
-      if cacheExists then putProgressLn ("Using existing name cache file: " ++ __cogent_name_cache)
-                     else putProgressLn ("No name cache file found: " ++ __cogent_name_cache)
-      mcache <- if cacheExists then do decodeResult <- decodeFileOrFail __cogent_name_cache
-                                       case decodeResult of
-                                         Left (_, err) -> hPutStrLn stderr ("Decoding name cache file failed: " ++ err) >> exitFailure
-                                         Right cache -> return $ Just cache
-                               else return Nothing
+      (mcache, decodingFailed) <- case __cogent_name_cache of
+        Nothing -> return (Nothing, False)
+        Just cacheFile -> do
+          cacheExists <- doesFileExist cacheFile
+          if not cacheExists
+            then putProgressLn ("No name cache file found: " ++ cacheFile) >> return (Nothing, False)
+            else do putProgressLn ("Using existing name cache file: " ++ cacheFile)
+                    decodeResult <- decodeFileOrFail cacheFile
+                    case decodeResult of
+                      Left (_, err) -> hPutStrLn stderr ("Decoding name cache file failed: " ++ err ++ ".\nNot using name cache.") >> return (Nothing, True)
+                      Right cache -> return (Just cache, False)
       let (h,c,atm,ct,hsc,hs,genst) = cgen hName cNames hscName hsName monoed mcache ctygen log
       when (TableAbsTypeMono `elem` cmds) $ do
         let atmfile = mkFileName source Nothing __cogent_ext_of_atm
@@ -835,8 +837,10 @@ parseArgs args = case getOpt' Permute options args of
         output cf $ flip M.hPutDoc (ppr c </> M.line)       -- .c file gen
         unless (null $ __cogent_infer_c_func_files ++ __cogent_infer_c_type_files) $
           glue cmds tced tcst typedefs fts insts genst buildinfo log
-        putProgressLn ("Writing name cache file: " ++ __cogent_name_cache)
-        encodeFile __cogent_name_cache genst
+        forM_ __cogent_name_cache $ \cacheFile -> do
+          unless decodingFailed $ do
+            putProgressLn ("Writing name cache file: " ++ cacheFile)
+            encodeFile cacheFile genst
 
     c_refinement source monoed insts log (False,False,False) = return ()
     c_refinement source monoed insts log (ac,cs,cp) = do

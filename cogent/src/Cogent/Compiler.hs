@@ -182,7 +182,7 @@ set_flag_fwrapPutInLet = writeIORef __cogent_fwrap_put_in_let_ref True
 set_flag_inferCFunc = writeIORef __cogent_infer_c_func_files_ref
 set_flag_inferCType = writeIORef __cogent_infer_c_type_files_ref
 set_flag_interactive = writeIORef __cogent_interactive_ref True
-set_flag_nameCache = writeIORef __cogent_name_cache_ref
+set_flag_nameCache = writeIORef __cogent_name_cache_ref . Just
 set_flag_O Nothing = return ()
 set_flag_O (Just n :: Maybe String)
   | n == "0" = do set_flag_fnormalisation Nothing
@@ -661,12 +661,12 @@ __cogent_interactive_ref :: IORef Bool
 {-# NOINLINE __cogent_interactive_ref #-}
 __cogent_interactive_ref = unsafePerformIO $ newIORef False
 
-__cogent_name_cache :: FilePath
+__cogent_name_cache :: Maybe FilePath
 __cogent_name_cache = unsafePerformIO $ readIORef __cogent_name_cache_ref
 
-__cogent_name_cache_ref :: IORef FilePath
+__cogent_name_cache_ref :: IORef (Maybe FilePath)
 {-# NOINLINE __cogent_name_cache_ref #-}
-__cogent_name_cache_ref = unsafePerformIO $ newIORef ".name-cache"
+__cogent_name_cache_ref = unsafePerformIO $ newIORef Nothing
 
 __cogent_output_name :: Maybe String
 __cogent_output_name = unsafePerformIO $ readIORef __cogent_output_name_ref
