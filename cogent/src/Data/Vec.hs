@@ -11,6 +11,7 @@
 {-# LANGUAGE DataKinds #-}
 {- LANGUAGE DeriveFoldable #-}
 {- LANGUAGE DeriveFunctor #-}
+{- LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -35,12 +36,14 @@ import Data.PropEq
 
 import Control.Applicative
 #if __GLASGOW_HASKELL__ >= 709
+import Data.Binary (Binary(..))
 import Data.Foldable (find)
 #else
 import Data.Foldable
 #endif
 import Data.Monoid
 import Data.Traversable
+-- import GHC.Generics (Generic)
 import Prelude hiding (length, repeat, splitAt, take, unzip, zip, zipWith)
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 
@@ -51,6 +54,10 @@ data Fin :: Nat -> * where
 deriving instance Eq   (Fin n)
 deriving instance Show (Fin n)
 deriving instance Ord  (Fin n)
+
+instance Binary (Fin 'Zero) where
+  get = __impossible "get (Fin 'Zero)"
+  put _ = __impossible "put (Fin 'Zero)"
 
 f0 = FZero
 f1 = FSuc f0

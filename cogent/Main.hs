@@ -81,6 +81,7 @@ import Control.Monad.Trans.Except (runExceptT)
 -- import Control.Monad.Cont
 -- import Control.Monad.Except (runExceptT)
 -- import Control.Monad.Trans.Either (eitherT, runEitherT)
+import Data.Binary (encodeFile, decodeFileOrFail)
 import Data.Char (isSpace)
 import Data.Either (isLeft, fromLeft)
 import Data.Foldable (fold, foldrM)
@@ -452,6 +453,7 @@ flags =
   , Option []         ["ext-types"]      1 (ReqArg set_flag_extTypes "FILE")               "give external type names to C parser"
   , Option []         ["infer-c-funcs"]  1 (ReqArg (set_flag_inferCFunc . words) "FILE..") "infer Cogent abstract function definitions"
   , Option []         ["infer-c-types"]  1 (ReqArg (set_flag_inferCType . words) "FILE..") "infer Cogent abstract type definitions"
+  , Option []         ["name-cache"]     1 (ReqArg set_flag_nameCache "FILE")              "specify the name cache file to use"
   , Option []         ["proof-input-c"]  1 (ReqArg set_flag_proofInputC "FILE")            "specify input C file to generate proofs (default to the same base name as input Cogent file)"
   , Option []         ["prune-call-graph"] 2 (ReqArg set_flag_pruneCallGraph "FILE")       "specify Cogent entry-point definitions"
   -- external programs
@@ -792,7 +794,16 @@ parseArgs args = case getOpt' Permute options args of
           hscName = mkOutputName' toHsModName source (Just __cogent_suffix_of_ffi_types)
           hsName  = mkOutputName' toHsModName source (Just __cogent_suffix_of_ffi)
           cNames  = map (\n -> takeBaseName n ++ __cogent_suffix_of_pp ++ __cogent_suffix_of_inferred <.> __cogent_ext_of_c) __cogent_infer_c_func_files
-          (h,c,atm,ct,hsc,hs,genst) = cgen hName cNames hscName hsName monoed ctygen log
+          cacheFile = __cogent_name_cache
+      cacheExists <- doesFileExist __cogent_name_cache
+      if cacheExists then putProgressLn ("Using existing name cache file: " ++ __cogent_name_cache)
+                     else putProgressLn ("No name cache file found: " ++ __cogent_name_cache)
+      mcache <- if cacheExists then do decodeResult <- decodeFileOrFail __cogent_name_cache
+                                       case decodeResult of
+                                         Left (_, err) -> hPutStrLn stderr ("Decoding name cache file failed: " ++ err) >> exitFailure
+                                         Right cache -> return $ Just cache
+                               else return Nothing
+      let (h,c,atm,ct,hsc,hs,genst) = cgen hName cNames hscName hsName monoed mcache ctygen log
       when (TableAbsTypeMono `elem` cmds) $ do
         let atmfile = mkFileName source Nothing __cogent_ext_of_atm
         putProgressLn "Generating table for monomorphised asbtract types..."
@@ -824,6 +835,8 @@ parseArgs args = case getOpt' Permute options args of
         output cf $ flip M.hPutDoc (ppr c </> M.line)       -- .c file gen
         unless (null $ __cogent_infer_c_func_files ++ __cogent_infer_c_type_files) $
           glue cmds tced tcst typedefs fts insts genst buildinfo log
+        putProgressLn ("Writing name cache file: " ++ __cogent_name_cache)
+        encodeFile __cogent_name_cache genst
 
     c_refinement source monoed insts log (False,False,False) = return ()
     c_refinement source monoed insts log (ac,cs,cp) = do

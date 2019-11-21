@@ -1,16 +1,19 @@
 -- @LICENSE(NICTA_CORE)
 
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Cogent.Common.Syntax where
 
 import Cogent.Compiler
 
+import Data.Binary (Binary)
 import Data.Data hiding (Prefix)
 #if __GLASGOW_HASKELL__ < 709
 import Data.Monoid
 #endif
 import Data.Word
+import GHC.Generics (Generic)
 import Text.PrettyPrint.ANSI.Leijen
 
 type RepName     = String
@@ -147,7 +150,9 @@ tagFail    = "Fail"    :: TagName
 -- ----------------------------------------------------------------------------
 -- custTyGen
 
-data CustTyGenInfo = CTGI  deriving (Show) -- TODO: info like field mapping, etc.
+data CustTyGenInfo = CTGI  deriving (Show, Generic) -- TODO: info like field mapping, etc.
+
+instance Binary CustTyGenInfo
 
 -- ex1 :: M.Map (Type 'Zero) (String, CustTypeGenInfo)
 -- ex1 = M.singleton (TRecord [("f1", (TCon "A" [] Unboxed, False)), 

@@ -14,6 +14,7 @@
 {-# LANGUAGE DataKinds #-}
 {- LANGUAGE DeriveDataTypeable -}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -51,10 +52,12 @@ import Data.Vec hiding (splitAt, length, zipWith, zip, unzip)
 import qualified Data.Vec as Vec
 
 import Control.Arrow hiding ((<+>))
+import Data.Binary (Binary)
 -- import Data.Data hiding (Refl)
 #if __GLASGOW_HASKELL__ < 709
 import Data.Traversable(traverse)
 #endif
+import GHC.Generics (Generic)
 import Text.PrettyPrint.ANSI.Leijen as L hiding (tupled, indent, (<$>))
 import qualified Text.PrettyPrint.ANSI.Leijen as L ((<$>))
 
@@ -75,6 +78,10 @@ data Type t
                                -- XXX | ^^^ (UntypedExpr t 'Zero VarName)  -- stick to UntypedExpr to be simple / zilinc
 #endif
   deriving (Show, Eq, Ord)
+
+deriving instance Generic (Type 'Zero)
+
+instance Binary (Type 'Zero)
 
 data SupposedlyMonoType = forall (t :: Nat). SMT (Type t)
 
@@ -123,13 +130,13 @@ data Expr t v a e
   | Put (e t v a) FieldIndex (e t v a)
   | Promote (Type t) (e t v a)  -- only for guiding the tc. rep. unchanged.
   | Cast (Type t) (e t v a)  -- only for integer casts. rep. changed
+-- \ vvv constraint no smaller than header, thus UndecidableInstances
 deriving instance (Show a, Show (e t v a), Show (e t ('Suc v) a), Show (e t ('Suc ('Suc v)) a))
   => Show (Expr t v a e)
 deriving instance (Eq a, Eq (e t v a), Eq (e t ('Suc v) a), Eq (e t ('Suc ('Suc v)) a))
   => Eq  (Expr t v a e)
 deriving instance (Ord a, Ord (e t v a), Ord (e t ('Suc v) a), Ord (e t ('Suc ('Suc v)) a))
   => Ord (Expr t v a e)
-  -- constraint no smaller than header, thus UndecidableInstances
 
 data UntypedExpr t v a = E  (Expr t v a UntypedExpr) deriving (Show, Eq, Ord)
 data TypedExpr   t v a = TE { exprType :: Type t , exprExpr :: Expr t v a TypedExpr } deriving (Show)
@@ -137,7 +144,9 @@ data TypedExpr   t v a = TE { exprType :: Type t , exprExpr :: Expr t v a TypedE
 data FunctionType = forall t. FT (Vec t Kind) (Type t) (Type t)
 deriving instance Show FunctionType
 
-data Attr = Attr { inlineDef :: Bool, fnMacro :: Bool } deriving (Eq, Ord, Show)
+data Attr = Attr { inlineDef :: Bool, fnMacro :: Bool } deriving (Eq, Ord, Show, Generic)
+
+instance Binary Attr
 
 #if __GLASGOW_HASKELL__ < 803
 instance Monoid Attr where

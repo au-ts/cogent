@@ -13,21 +13,26 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Cogent.Common.Types where
 
 import Cogent.Common.Syntax
+import Data.Binary (Binary)
 import Data.Data
 #if __GLASGOW_HASKELL__ < 709
 import Data.Monoid
 #endif
+import GHC.Generics (Generic)
 import Text.PrettyPrint.ANSI.Leijen hiding (tupled,indent)
 
 type ReadOnly = Bool  -- True for r/o
 
 data Sigil r = Boxed ReadOnly r  -- 0- or 1-kinded
              | Unboxed  -- 2-kinded
-             deriving (Show, Data, Eq, Ord, Functor)
+             deriving (Show, Data, Eq, Ord, Functor, Generic)
+
+instance Binary r => Binary (Sigil r)
 
 bangSigil :: Sigil r -> Sigil r
 bangSigil (Boxed _ r)  = Boxed True r
@@ -48,7 +53,9 @@ unboxed :: Sigil r -> Bool
 unboxed Unboxed = True
 unboxed _ = False
 
-data PrimInt = U8 | U16 | U32 | U64 | Boolean deriving (Show, Data, Eq, Ord)
+data PrimInt = U8 | U16 | U32 | U64 | Boolean deriving (Show, Data, Eq, Ord, Generic)
+
+instance Binary PrimInt
 
 isSubtypePrim :: PrimInt -> PrimInt -> Bool
 isSubtypePrim U8  U8  = True

@@ -13,6 +13,7 @@
 {- LANGUAGE AllowAmbiguousTypes -}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -50,6 +51,7 @@ import           Cogent.Isabelle.Deep
 import           Cogent.Mono                  (Instance)
 import           Cogent.Normal                (isAtom)
 import           Cogent.Util           (decap, extTup2l, extTup3r, first3, secondM, toCName, whenM, flip3)
+import           Data.Binary
 import qualified Data.DList          as DList
 import           Data.Nat            as Nat
 import           Data.Vec            as Vec hiding (repeat, zipWith)
@@ -73,6 +75,7 @@ import qualified Data.Set            as S
 import           Data.String
 import           Data.Traversable             (mapM)
 import           Data.Tuple                   (swap)
+import           GHC.Generics                 (Generic)
 #if __GLASGOW_HASKELL__ < 709
 import           Prelude             as P    hiding (mapM, mapM_)
 #else
@@ -110,7 +113,9 @@ data GenState  = GenState { _cTypeDefs    :: [(StrlType, CId)]
                             -- ^ A map containing functions that need to generate C FFI functions. 
                             --   The map is from the original function names (before prefixing with @\"ffi_\"@ to a pair of @(marshallable_arg_type, marshallable_ret_type)@.
                             --   This map is needed when we generate the Haskell side of the FFI.
-                          }
+                          } deriving (Generic)
+
+instance Binary GenState
 
 makeLenses ''GenState
 
@@ -1124,6 +1129,7 @@ genDefinition _ = return []
 -- * top-level function
 
 compile :: [Definition TypedExpr VarName]
+        -> Maybe GenState      -- cached state
         -> [(Type 'Zero, String)]
         -> ( [CExtDecl]  -- enum definitions
            , [CExtDecl]  -- type definitions
@@ -1136,22 +1142,25 @@ compile :: [Definition TypedExpr VarName]
            , [TypeName]
            , GenState
            )
-compile defs ctygen =
+compile defs mcache ctygen =
   let (tdefs, fdefs) = L.partition isTypeDef defs
+      state = case mcache of
+                Nothing -> GenState { _cTypeDefs    = []
+                                    , _cTypeDefMap  = M.empty
+                                    , _typeSynonyms = M.empty
+                                    , _typeCorres   = DList.empty
+                                    , _absTypes     = M.empty
+                                    , _custTypeGen  = M.fromList $ P.map (second $ (,CTGI)) ctygen
+                                    , _funClasses   = M.empty
+                                    , _localOracle  = 0
+                                    , _globalOracle = 0
+                                    , _varPool      = M.empty
+                                    , _ffiFuncs     = M.empty
+                                    }
+                Just cache -> cache & custTypeGen <>~ (M.fromList $ P.map (second $ (,CTGI)) ctygen)
       (extDecls, st, ()) = runRWS (runGen $
         concat <$> mapM genDefinition (fdefs ++ tdefs)  -- `fdefs' will collect the types that are used in the program, and `tdefs' can generate synonyms
-        ) Nil (GenState { _cTypeDefs    = []
-                        , _cTypeDefMap  = M.empty
-                        , _typeSynonyms = M.empty
-                        , _typeCorres   = DList.empty
-                        , _absTypes     = M.empty
-                        , _custTypeGen  = M.fromList $ P.map (second $ (,CTGI)) ctygen
-                        , _funClasses   = M.empty
-                        , _localOracle  = 0
-                        , _globalOracle = 0
-                        , _varPool      = M.empty
-                        , _ffiFuncs     = M.empty
-                        })
+        ) Nil state
       (enum, st', _) = runRWS (runGen $ (mappend <$> genLetTrueEnum <*> genEnum)) Nil st  -- `LET_TRUE', `LETBANG_TRUE' & `_tag' enums
       ((funclasses,tns), st'', _) = runRWS (runGen genFunClasses) Nil st'  -- fun_enums & dispatch functions
       (dispfs, fenums) = L.partition isFnDefn funclasses where isFnDefn (CFnDefn {}) = True; isFnDefn _ = False

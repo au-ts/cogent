@@ -139,6 +139,7 @@ library
   build-depends:
                 ansi-wl-pprint >= 0.6
               , base >= 4.10
+              , binary
               , bytestring >= 0.10 
               , containers >= 0.5.8
               , cpphs >= 1.19
@@ -208,6 +209,7 @@ Executable cogent
               , ansi-wl-pprint >= 0.6
               , atomic-write >= 0.2.0.4
               , base >= 4.10
+              , binary
               , containers >= 0.5
               , directory >=1.2
               , filepath >= 1.4.0.0
