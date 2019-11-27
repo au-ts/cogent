@@ -28,6 +28,83 @@ datatype prim_op
   | Complement num_type
 
 
+datatype usage_tag = Used | Unused
+
+instantiation usage_tag :: "{boolean_algebra, linorder}"
+begin
+
+fun uminus_usage_tag :: "usage_tag \<Rightarrow> usage_tag" where
+  "uminus_usage_tag Used   = Unused"
+| "uminus_usage_tag Unused = Used"
+
+definition top_usage_tag :: usage_tag where
+  "top_usage_tag \<equiv> Unused"
+declare top_usage_tag_def[simp]
+
+definition bot_usage_tag :: usage_tag where
+  "bot_usage_tag \<equiv> Used"
+declare bot_usage_tag_def[simp]
+
+fun inf_usage_tag :: "usage_tag \<Rightarrow> usage_tag \<Rightarrow> usage_tag" where
+  "inf_usage_tag Used   _      = Used"
+| "inf_usage_tag Unused Used   = Used"
+| "inf_usage_tag Unused Unused = Unused"
+
+fun sup_usage_tag :: "usage_tag \<Rightarrow> usage_tag \<Rightarrow> usage_tag" where
+  "sup_usage_tag Unused _      = Unused"
+| "sup_usage_tag Used   Unused = Unused"
+| "sup_usage_tag Used   Used   = Used"
+
+fun less_eq_usage_tag :: "usage_tag \<Rightarrow> usage_tag \<Rightarrow> bool" where
+  "less_eq_usage_tag _      Unused = True"
+| "less_eq_usage_tag Used   Used   = True"
+| "less_eq_usage_tag Unused Used   = False"
+
+fun less_usage_tag :: "usage_tag \<Rightarrow> usage_tag \<Rightarrow> bool" where
+  "less_usage_tag _      Used   = False"
+| "less_usage_tag Unused Unused = False"
+| "less_usage_tag Used   Unused = True"
+
+definition minus_usage_tag :: "usage_tag \<Rightarrow> usage_tag \<Rightarrow> usage_tag" where
+  "minus_usage_tag x y \<equiv> inf x (- y)"
+declare minus_usage_tag_def[simp]
+
+instance proof
+  fix x y z :: usage_tag
+
+  show "(x < y) = (x \<le> y \<and> \<not> y \<le> x)"
+    by (cases x; cases y; clarsimp)
+  show "x \<le> x"
+    by (cases x; clarsimp)
+  show "x \<le> y \<Longrightarrow> y \<le> z \<Longrightarrow> x \<le> z"
+    by (cases x; cases y; cases z; clarsimp)
+  show "x \<le> y \<Longrightarrow> y \<le> x \<Longrightarrow> x = y"
+    by (cases x; cases y; clarsimp)
+  show "inf x y \<le> x" "inf x y \<le> y"
+    by (cases x; cases y; clarsimp)+
+  show "x \<le> y \<Longrightarrow> x \<le> z \<Longrightarrow> x \<le> inf y z"
+    by (cases x; cases y; cases z; clarsimp)
+  show "x \<le> sup x y"
+    by (cases x; cases y; clarsimp)
+  show "y \<le> sup x y"
+    by (cases x; cases y; clarsimp)
+  show "y \<le> x \<Longrightarrow> z \<le> x \<Longrightarrow> sup y z \<le> x"
+    by (cases x; cases y; cases z; clarsimp)
+  show "bot \<le> x" "x \<le> top"
+    by (cases x; simp)+
+  show "sup x (inf y z) = inf (sup x y) (sup x z)"
+    by (cases x; cases y; cases z; simp)
+  show
+    "inf x (- x) = bot"
+    "sup x (- x) = top"
+    by (cases x; simp)+
+  show "x - y = inf x (- y)"
+    by simp
+  show "x \<le> y \<or> y \<le> x"
+    by (cases x; cases y; simp)
+qed
+end
+
 type_synonym name = string
 type_synonym index = nat
 
