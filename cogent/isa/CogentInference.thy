@@ -157,6 +157,7 @@ datatype constraint =
   | CtBot
   | CtShare type
   | CtDrop type
+  | CtExhausted type
 
 type_synonym axm_set = "constraint set"
 
@@ -170,6 +171,7 @@ fun map_types_ct :: "(type \<Rightarrow> type) \<Rightarrow> constraint \<Righta
 | "map_types_ct f (CtBot)         = CtBot"
 | "map_types_ct f (CtShare t)     = CtShare (f t)"
 | "map_types_ct f (CtDrop t)      = CtDrop (f t)"
+| "map_types_ct f (CtExhausted t) = CtExhausted (f t)"
 
 definition subst_ct :: "type list \<Rightarrow> constraint \<Rightarrow> constraint" where
   "subst_ct \<delta> \<equiv> map_types_ct (subst_ty \<delta>)"
