@@ -6,7 +6,7 @@ begin
 datatype num_type = U8 | U16 | U32 | U64
 
 datatype prim_type = Num num_type | Bool (* | String *)
-                                  
+
 datatype prim_op
   = Plus num_type
   | Minus num_type
@@ -146,6 +146,32 @@ fun max_type_var :: "type \<Rightarrow> nat" where
 | "max_type_var (TUnit)           = 0"
 | "max_type_var (TUnknown i)      = 0"
 | "max_type_var (TVariant Ks \<alpha>)   = Max (set (map (max_type_var \<circ> fst \<circ> snd) Ks))"
+
+
+fun variant_elem_used :: "(name \<times> type \<times> usage_tag) \<Rightarrow> (name \<times> type \<times> usage_tag)" where
+  "variant_elem_used (nm, t, _) = (nm, t, Used)"
+
+fun variant_nth_used :: "nat \<Rightarrow> type \<Rightarrow> type" where
+  "variant_nth_used n (TVar i)        = undefined"  
+| "variant_nth_used n (TFun a b)      = undefined"
+| "variant_nth_used n (TPrim p)       = undefined"
+| "variant_nth_used n (TProduct t u)  = undefined"
+| "variant_nth_used n (TUnit)         = undefined"
+| "variant_nth_used n (TUnknown i)    = undefined"
+| "variant_nth_used n (TVariant Ks \<alpha>) = TVariant (Ks[n := variant_elem_used (Ks ! n)]) \<alpha>"
+
+
+fun variant_elem_unused :: "(name \<times> type \<times> usage_tag) \<Rightarrow> (name \<times> type \<times> usage_tag)" where
+  "variant_elem_unused (nm, t, _) = (nm, t, Unused)"
+
+fun variant_nth_unused :: "nat \<Rightarrow> type \<Rightarrow> type" where
+  "variant_nth_unused n (TVar i)        = undefined"  
+| "variant_nth_unused n (TFun a b)      = undefined"
+| "variant_nth_unused n (TPrim p)       = undefined"
+| "variant_nth_unused n (TProduct t u)  = undefined"
+| "variant_nth_unused n (TUnit)         = undefined"
+| "variant_nth_unused n (TUnknown i)    = undefined"
+| "variant_nth_unused n (TVariant Ks \<alpha>) = TVariant (Ks[n := variant_elem_unused (Ks ! n)]) \<alpha>"
 
 
 datatype constraint =
@@ -517,6 +543,36 @@ typing_var:
   "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto>w empty (length \<Gamma>)
    ; \<tau> = TPrim Bool
    \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Lit (LBool l) : \<tau>"
+| typing_sub:
+  "\<lbrakk> A \<ddagger> \<Gamma> \<turnstile> e : \<tau>'
+   ; A \<turnstile> CtSub \<tau>' \<tau>
+   \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> e : \<tau>"
+| typing_vcon:
+  "\<lbrakk> i < length Ks
+   ; A \<ddagger> \<Gamma> \<turnstile> e : (fst \<circ> snd) (Ks ! i)
+   ; fst (Ks ! i) = nm
+   ; (snd \<circ> snd) (Ks ! i) = Unused
+   ; \<forall>j < length Ks. j \<noteq> i \<longrightarrow> fst (Ks ! j) \<noteq> nm
+   ; \<forall>j < length Ks. j \<noteq> i \<longrightarrow> (snd \<circ> snd) (Ks ! j) = Used
+   \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Con nm e: TVariant Ks None"
+| typing_case:
+  "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 \<box> \<Gamma>2
+   ; i < length Ks
+   ; fst (Ks ! i) = nm
+   ; A \<ddagger> \<Gamma>1 \<turnstile> e1 : variant_nth_unused i (TVariant Ks None)
+   ; A \<ddagger> (Some ((fst \<circ> snd) (Ks ! i))) # \<Gamma>2 \<turnstile> e2 : \<tau>
+   ; A \<ddagger> (Some (variant_nth_used i (TVariant Ks None))) # \<Gamma>2 \<turnstile> e3 : \<tau>
+   \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Case e1 nm e2 e3 : \<tau>" 
+| typing_irref:
+  "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 \<box> \<Gamma>2
+   ; i < length Ks
+   ; fst (Ks ! i) = nm
+   ; (snd \<circ> snd) (Ks ! i) = Unused
+   ; \<forall>j < length Ks. j \<noteq> i \<longrightarrow> fst (Ks ! i) \<noteq> nm
+   ; \<forall>j < length Ks. j \<noteq> i \<longrightarrow> (snd \<circ> snd) (Ks ! i) = Used
+   ; A \<ddagger> \<Gamma>1 \<turnstile> e1 : (TVariant Ks None)
+   ; A \<ddagger> (Some ((fst \<circ> snd) (Ks ! i))) # \<Gamma>2 \<turnstile> e2 : \<tau>
+   \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Esac e1 nm e2 : \<tau>"
 
 lemma typing_sig_refl:
   "A \<ddagger> \<Gamma> \<turnstile> e : \<tau> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Sig e \<tau> : \<tau>"
