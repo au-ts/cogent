@@ -107,6 +107,7 @@ end
 
 type_synonym name = string
 type_synonym index = nat
+type_synonym row_var = nat
 
 datatype type = TVar index
               | TFun type type
@@ -114,6 +115,8 @@ datatype type = TVar index
               | TProduct type type
               | TUnit
               | TUnknown index
+              | TVariant "(name \<times> type \<times> usage_tag) list" "row_var option"
+
 
 datatype lit = LBool bool
              | LNat nat
