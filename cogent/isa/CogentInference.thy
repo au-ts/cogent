@@ -192,6 +192,12 @@ known_tvar:
    \<rbrakk> \<Longrightarrow> known_ty (TProduct t1 t2)"
 | known_tunit:
   "known_ty TUnit"
+| known_tvariant_nil:
+  "known_ty (TVariant [] None)"
+| known_tvariant_cons:
+  "\<lbrakk> known_ty ((fst \<circ> snd) K)
+   ; known_ty (TVariant Ks None)
+   \<rbrakk> \<Longrightarrow> known_ty (TVariant (K # Ks) None)"
 
 inductive_cases known_tfunE: "known_ty (TFun t1 t2)"
 inductive_cases known_tproductE: "known_ty (TProduct t1 t2)"
@@ -219,6 +225,8 @@ known_ctconj:
   "known_ty \<tau> \<Longrightarrow> known_ct (CtShare \<tau>)"
 | known_ctdrop:
   "known_ty \<tau> \<Longrightarrow> known_ct (CtDrop \<tau>)"
+| known_ctexhausted:
+  "known_ty \<tau> \<Longrightarrow> known_ct (CtExhausted \<tau>)"
 
 inductive_cases known_ctconjE: "known_ct (CtConj C1 C2)"
 inductive_cases known_cteqE: "known_ct (CtEq C1 C2)"
@@ -711,7 +719,7 @@ lemma assign_app_ctx_len:
 lemma assign_app_ty_subst_ty_commute: 
   assumes "known_ty \<tau>"
   shows "assign_app_ty S (subst_ty xs \<tau>) = subst_ty (map (assign_app_ty S) xs) \<tau>"
-  using assms
+  using assms 
 proof (induct \<tau>)
   case (known_tfun t1 t2)
   then show ?case
@@ -720,14 +728,23 @@ next
   case (known_tproduct t1 t2)
   then show ?case
     using known_tproductE by auto
-qed (simp)+
+next
+  case known_tvariant_nil
+  then show ?case sorry
+next
+  case (known_tvariant_cons K Ks)
+  then show ?case sorry
+qed (simp)+ 
 
 lemma assign_app_constr_subst_ct_commute: 
   assumes "known_ct C"
   shows "assign_app_constr S (subst_ct xs C) = subst_ct (map (assign_app_ty S) xs) C"
   using assms
 proof (induct C)
+  case (known_ctexhausted \<tau>)
+  then show ?case sorry
 qed (auto simp add: subst_ct_def assign_app_ty_subst_ty_commute)+
+
 
 lemma ct_sem_assign_conj_foldr:
   assumes "A \<turnstile> assign_app_constr S (foldr CtConj Cs CtTop)"
