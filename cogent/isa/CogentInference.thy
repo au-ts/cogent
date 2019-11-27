@@ -652,6 +652,32 @@ cg_var1:
    ; C2 = CtConj (CtSub \<rho>' \<tau>) C'
    ; n' = n + m
    \<rbrakk> \<Longrightarrow> G,n \<turnstile> TypeApp name ts : \<tau> \<leadsto> G,n' | C2 | Sig (TypeApp name (ts @ \<beta>s)) \<tau>"
+| cg_vcon:
+  "\<lbrakk> \<alpha> = n1
+   ; \<beta> = TUnknown n2
+   ; G1,Suc(Suc n1) \<turnstile> e : \<beta> \<leadsto> G2,n2 | C | e'
+   ; C' = CtConj C (CtSub (TVariant [(nm, \<beta>, Unused)] (Some \<alpha>)) \<tau>)
+   \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Con nm e : \<tau> \<leadsto> G2,n2 | C' | Sig (Con nm e) \<tau>"
+| cg_case:
+  "\<lbrakk> \<alpha> = n1
+   ; \<beta> = TUnknown n2
+   ; G1,Suc(Suc n1) \<turnstile> e1 : TVariant [(nm, \<beta>, Unused)] (Some \<alpha>) \<leadsto> G2,n2 | C1 | e1'
+   ; ((\<beta>, 0) # G2),n2 \<turnstile> e2 : \<tau> \<leadsto> ((\<beta>, m) # G3),n3 | C2 |e2'
+   ; (((TVariant [(nm, \<beta>, Used)] (Some \<alpha>)), 0) # G2),n3 \<turnstile> e3 : \<tau> \<leadsto> (((TVariant [(nm, \<beta>, Used)] (Some \<alpha>)), l) # G3'),n4 | C3 | e3'
+   ; G3 \<Join> G3' \<leadsto> G4 | C4
+   ; if m = 0 then C5 = CtDrop \<beta> else C5 = CtTop
+   ; if l = 0 then C6 = CtDrop (TVariant [(nm, \<beta>, Used)] (Some \<alpha>)) else C6 = CtTop
+   ; C7 = CtConj (CtConj (CtConj (CtConj (CtConj C1 C2) C3) C4) C5) C6
+   \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Case e1 nm e2 e3 : \<tau> \<leadsto> G4,n4 | C7 | Sig (Case e1 nm e2 e3) \<tau>"
+| cg_irref:
+  "\<lbrakk> \<alpha> = n1
+   ; \<beta> = TUnknown n2
+   ; G1,n1 \<turnstile> e1 : (TVariant [(nm, \<beta>, Unused)] (Some \<alpha>)) \<leadsto> G2,n2 | C1 | e1'
+   ; ((\<beta>, 0) # G2),n2 \<turnstile> e2 : \<tau> \<leadsto> ((\<beta>, m) # G3),n3 | C2 | e2'
+   ; C3 = CtExhausted (TVariant [(nm, \<beta>, Used)] (Some \<alpha>))
+   ; if m = 0 then C4 = CtDrop \<beta> else C4 = CtTop
+   ; C5 = CtConj (CtConj (CtConj C1 C2) C3) C4
+   \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Esac e1 nm e2 : \<tau> \<leadsto> G3,n3 | C5 | Sig (Esac e1 nm e2) \<tau>"
 
 lemma cg_num_fresh_nondec:
   assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
@@ -666,6 +692,12 @@ proof (induct rule: constraint_gen_elab.inducts)
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
   then show ?case
     using alg_ctx_jn_length by auto
+next
+  case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
+  then show ?case sorry
+next
+  case (cg_irref \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
+  then show ?case sorry
 qed (simp+)
 
 lemma cg_ctx_idx_size:
@@ -695,6 +727,11 @@ next
   then show ?case
     using cg_ctx_length alg_ctx_jn_type_same by auto
 next
+  case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
+  then show ?case sorry
+next
+  case (cg_irref \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
+  then show ?case sorry
 qed (auto simp add: cg_ctx_length)+
 
 lemma cg_ctx_type_used_nondec:
@@ -740,6 +777,12 @@ next
   case (cg_bop x nt G1 n1 e1 \<tau> G2 n2 C1 e1' e2 G3 n3 C2 e2' C3)
   then show ?case
     using cg_ctx_length by fastforce
+next
+  case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
+  then show ?case sorry
+next
+  case (cg_irref \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
+  then show ?case sorry
 qed (blast)+
 
 
@@ -1010,6 +1053,15 @@ proof -
     case (cg_let \<alpha> n1 G1 e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4)
     then show ?case
       by (force simp add: i_fv'_suc_iff_suc_i_fv' cg_ctx_length)
+  next
+    case (cg_vcon \<alpha> n1 \<beta> n2 G1 e G2 C e' C' nm \<tau>)
+    then show ?case sorry
+  next
+    case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
+    then show ?case sorry
+  next
+    case (cg_irref \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
+    then show ?case sorry
   qed (auto simp add: cg_ctx_length split: if_splits)
 qed
 
@@ -1111,6 +1163,15 @@ next
         by (metis gr_zeroI not_le)
     qed (blast intro: cg_bop.hyps)
   qed
+next
+  case (cg_vcon \<alpha> n1 \<beta> n2 G1 e G2 C e' C' nm \<tau>)
+  then show ?case sorry
+next
+  case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
+  then show ?case sorry
+next
+  case (cg_irref \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
+  then show ?case sorry
 qed (simp)+
 
 lemma cg_gen_output_type_used_inc:
@@ -1271,13 +1332,22 @@ next
         using i_in_e1 cg_bop.hyps by force
     next
       case i_in_e2
-        have "snd (G1 ! i) \<le> snd (G2 ! i)"      
-          using i_in_e1e2 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_bop.hyps
-          by metis
-        then show ?thesis
-          using i_in_e2 cg_bop.hyps by force
-      qed
+      have "snd (G1 ! i) \<le> snd (G2 ! i)"      
+        using i_in_e1e2 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_bop.hyps
+        by metis
+      then show ?thesis
+        using i_in_e2 cg_bop.hyps by force
+    qed
   qed 
+next
+  case (cg_vcon \<alpha> n1 \<beta> n2 G1 e G2 C e' C' nm \<tau>)
+  then show ?case sorry
+next
+  case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
+  then show ?case sorry
+next
+  case (cg_irref \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
+  then show ?case sorry
 qed (simp)+
 
 lemma cg_gen_output_type_used_diff:
@@ -1420,6 +1490,15 @@ next
           cg_bop ct_sem_conjE by (metis (mono_tags, lifting) gt_or_eq_0 leD)
     qed
   qed
+next
+  case (cg_vcon \<alpha> n1 \<beta> n2 G1 e G2 C e' C' nm \<tau>)
+  then show ?case sorry
+next
+  case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
+  then show ?case sorry
+next
+  case (cg_irref \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
+  then show ?case sorry
 qed (simp)+
 
 lemma cg_gen_output_type_unused_same:
@@ -1437,6 +1516,15 @@ next
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
   then show ?case     
     using alg_ctx_jn_type_used_max cg_ctx_idx_size by simp
+next
+  case (cg_vcon \<alpha> n1 \<beta> n2 G1 e G2 C e' C' nm \<tau>)
+  then show ?case sorry
+next
+  case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
+  then show ?case sorry
+next
+  case (cg_irref \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
+  then show ?case sorry
 qed (simp add: cg_ctx_idx_size)+
 
 lemma cg_assign_type_used_nonzero_imp_share:
@@ -1574,6 +1662,15 @@ next
           cg_bop ct_sem_conjE assign_app_constr.simps by (metis (mono_tags, lifting) gt_or_eq_0 leD)
     qed
   qed
+next
+  case (cg_vcon \<alpha> n1 \<beta> n2 G1 e G2 C e' C' nm \<tau>)
+  then show ?case sorry
+next
+  case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
+  then show ?case sorry
+next
+  case (cg_irref \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
+  then show ?case sorry
 qed (simp)+
 
 lemma split_unionR:
@@ -2655,7 +2752,16 @@ next
       using cg_tapp.hyps cg_tapp.prems ct_sem_conj_iff by auto
     ultimately show ?thesis
       using typing_sig by simp
-  qed                                        
+  qed
+next
+  case (cg_vcon \<alpha> n1 \<beta> n2 G1 e G2 C e' C' nm \<tau>)
+  then show ?case sorry
+next
+  case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
+  then show ?case sorry
+next
+  case (cg_irref \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
+  then show ?case sorry
 qed
 
 lemma cg_sound:
