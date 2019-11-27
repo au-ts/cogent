@@ -687,18 +687,7 @@ lemma cg_num_fresh_nondec:
 lemma cg_ctx_length:
   assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
   shows "length G = length G'"
-  using assms
-proof (induct rule: constraint_gen_elab.inducts)
-  case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
-  then show ?case
-    using alg_ctx_jn_length by auto
-next
-  case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
-  then show ?case sorry
-next
-  case (cg_irref \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
-  then show ?case sorry
-qed (simp+)
+  using assms alg_ctx_jn_length by (induct rule: constraint_gen_elab.inducts; auto)
 
 lemma cg_ctx_idx_size:
   assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
@@ -728,10 +717,13 @@ next
     using cg_ctx_length alg_ctx_jn_type_same by auto
 next
   case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
-  then show ?case sorry
+  then show ?case
+    using cg_ctx_length alg_ctx_jn_type_same
+    by (metis Suc_mono length_Cons nth_Cons_Suc size_Cons_lem_eq)
 next
   case (cg_irref \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
-  then show ?case sorry
+  then show ?case
+    by (metis Suc_mono cg_ctx_length length_Cons nth_Cons_Suc)
 qed (auto simp add: cg_ctx_length)+
 
 lemma cg_ctx_type_used_nondec:
