@@ -360,6 +360,27 @@ ct_sem_share:
   "A \<turnstile> CtShare (TPrim pt)"
 | ct_sem_primD:
   "A \<turnstile> CtDrop (TPrim pt)"
+| ct_sem_exhaust:
+  "A \<turnstile> CtExhausted (TVariant Ks None)"
+| ct_sem_varsub_nil:
+  "A \<turnstile> CtSub (TVariant [] None) (TVariant [] None)"
+| ct_sem_varsub_cons:
+  "\<lbrakk> A \<turnstile> CtSub ((fst \<circ> snd) K1) ((fst \<circ> snd) K2)
+   ; (snd \<circ> snd) K1 \<le> (snd \<circ> snd) K2
+   ; A \<turnstile> CtSub (TVariant Ks1 None) (TVariant Ks2 None)
+   \<rbrakk> \<Longrightarrow> A \<turnstile> CtSub (TVariant (K1 # Ks1) None) (TVariant (K2 # Ks2) None)"
+| ct_sem_varshare_nil:
+  "A \<turnstile> CtShare (TVariant [] None)"
+| ct_sem_varshare_cons:
+  "\<lbrakk> (snd \<circ> snd) K = Unused \<longrightarrow> A \<turnstile> CtShare ((fst \<circ> snd) K)
+   ; A \<turnstile> CtShare (TVariant Ks None)
+   \<rbrakk> \<Longrightarrow> A \<turnstile> CtShare (TVariant (K # Ks) None)"
+| ct_sem_vardrop_nil:
+  "A \<turnstile> CtDrop (TVariant [] None)"
+| ct_sem_vardrop_cons:
+  "\<lbrakk> (snd \<circ> snd) K = Unused \<longrightarrow> A \<turnstile> CtDrop ((fst \<circ> snd) K)
+   ; A \<turnstile> CtDrop (TVariant Ks None)
+   \<rbrakk> \<Longrightarrow> A \<turnstile> CtDrop (TVariant (K # Ks) None)"
 
 inductive_cases ct_sem_conjE: "A \<turnstile> CtConj C1 C2"
 inductive_cases ct_sem_intE: "A \<turnstile> CtIBound (LNat m) (TPrim pt)"
