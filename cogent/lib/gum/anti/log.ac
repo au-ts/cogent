@@ -59,6 +59,12 @@ unit_t cogent_debug_u32_hex (u32 arg) {
         return ret;
 }
 
+unit_t cogent_debug_u32_oct (u32 arg) {
+        unit_t ret;
+        pr_debug("%o", arg);
+        return ret;
+}
+
 unit_t cogent_debug_u64_hex (u64 arg) {
         unit_t ret;
         pr_debug("%llx", arg);
@@ -119,6 +125,12 @@ unit_t cogent_debug_u64 (u64 arg) {
 unit_t cogent_debug_u32_hex (u32 arg) {
         unit_t ret;
         printf("%x", arg);
+        return ret;
+}
+
+unit_t cogent_debug_u32_oct (u32 arg) {
+        unit_t ret;
+        printf("%o", arg);
         return ret;
 }
 
