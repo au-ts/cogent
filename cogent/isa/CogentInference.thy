@@ -771,10 +771,19 @@ next
     using cg_ctx_length by fastforce
 next
   case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
-  then show ?case sorry
+  then show ?case
+  proof -
+    have "snd (G1 ! i) \<le> snd (G3 ! i)"
+      using cg_case cg_ctx_length type_infer_axioms
+      by (metis (no_types, lifting) Suc_less_eq le_trans length_Cons nth_Cons_Suc)
+    then show ?thesis
+      using alg_ctx_jn_type_used_nondec_1 cg_case cg_ctx_length
+      by (metis (no_types, lifting) Suc_less_eq le_trans length_Cons)
+  qed
 next
   case (cg_irref \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
-  then show ?case sorry
+  then show ?case
+    using Suc_mono cg_ctx_length le_trans length_Cons nth_Cons_Suc by fastforce 
 qed (blast)+
 
 
