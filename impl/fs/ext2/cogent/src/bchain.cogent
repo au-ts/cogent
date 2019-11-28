@@ -47,7 +47,12 @@ chain_put_indirect: (SysState, Chain, Indirect, Depth) -> (SysState, Chain)
 chain_put_indirect (ex, chain, indirect, depth) =
   let chain_t { indirects } = chain
   and ic = chain_t.indirect_count !chain_t
-  and _ = cogent_assert (depth < ic)
+  and _ = cogent_log (dbg_EXT2_CHAIN, "chain_put_indirect")
+  and _ = cogent_log_u32(dbg_EXT2_CHAIN, ic)
+  and _ = cogent_log (dbg_EXT2_CHAIN, ", depth ")
+  and _ = cogent_log_u32 (dbg_EXT2_CHAIN, depth) 
+  and _ = cogent_log (dbg_EXT2_CHAIN, "\n")
+--  and _ = cogent_assert (depth < ic)
   and ((ex, indirects), _) = array_replace[Indirect] #{ arr = indirects, idx = depth, elem = indirect, f = indirect_destroy2, ex }
   and chain = chain_t { indirects }
   in if depth >= ic
