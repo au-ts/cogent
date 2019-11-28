@@ -24,13 +24,30 @@ DEFNS=data/defns.txt
 PROOF_ID=Ext2
 
 # GCC version
-GCCVER=$(shell gcc -dumpversion)
-
+GCCVER:=$(shell gcc -dumpversion)
 # Standard Gum Directory
-STDGUM=$(COGENT_STD_GUM_DIR)
+STDGUM:=$(COGENT_STD_GUM_DIR)
 ifeq ($(STDGUM),)
-STDGUM=$(shell cogent --stdgum-dir)
+STDGUM:=$(shell cogent --stdgum-dir)
 endif
+
+COGENT_SOURCES := $(addprefix src/,\
+		 balloc.cogent bchain.cogent \
+		 dcommon.cogent debug.cogent \
+		 dread.cogent dwrite.cogent \
+		 ext2.cogent groupdesc.cogent \
+		 ialloc.cogent indirect.cogent \
+		 iread.cogent iwrite.cogent \
+		 path.cogent super.cogent \
+		 test.cogent util.cogent)
+C_SOURCES := $(addprefix plat/linux/, \
+		adt.h \
+		alloc.ac \
+		inode.ac \
+		module.c \
+		vfs.ac \
+		wrapper.h)
+
 # ADT headers required by Ext2fs
 AHFILES=$(wildcard $(STDGUM)/gum/anti/abstract/*.ah)
 # ADT C files required by Ext2fs
@@ -46,6 +63,8 @@ LINUX_ACFILES=$(addprefix $(STDGUM)/gum/anti/, \
 	log.ac \
 	dls.ac) \
 	plat/linux/wrapper.ac
+
+COGENT_GUM := $(wildcard $(STDGUM)/gum/*/*.cogent $(STDGUM)/gum/kernel/linux/*.cogent)
 
 # ADT C files required by verification
 VERIF_ACFILES=plat/verification/wrapper.ac
@@ -69,7 +88,8 @@ LINUX_EXTRA_CFLAGS := -I$(PWD)/plat/linux/ -I$(PWD) -I$(PWD)/src -I$(PWD)/lib -I
 VERIF_EXTRA_CFLAGS := -I$(PWD)/plat/verification/ -I$(PWD) -I$(PWD)/src -I$(PWD)/lib -I$(PWD)/abstract -I$(STDGUM) $(COMMON_CFLAGS)
 
 # COGENT flags
-COGENT_FLAGS+= -Od --fno-static-inline --fno-fncall-as-macro --ffunc-purity-attr
+COGENT_FLAGS+= -Od --fno-static-inline --fno-fncall-as-macro \
+		--ffunc-purity-attr --fno-pretty-errmsgs
 # end of configuration
 
 override COGENT_FLAGS+= -o$(OUTPUT) \
@@ -178,6 +198,11 @@ clean:
 	$(Q)find . -name $(OUTPUT).[ch] -exec rm -f {} \;
 	$(Q)find . -name *.cmd -exec rm -f {} \;
 
+TAGS: $(COGENT_SOURCES) $(C_SOURCES) $(LINUX_ACFILES) $(COGENT_GUM) Makefile
+	etags --regex='/^type *\([a^[b-zA-Z_][a-zA-Z0-9_]*\) .*= .*$$\|^\([a-zA-Z][a-zA-Z0-9_]*\) .*=.*$$/\1\2/' $(COGENT_SOURCES) $(COGENT_GUM)
+	etags --append $(filter %.c,$(C_SOURCES) $(LINUX_ACFILES))
+	etags --append -l c --regex='/^\(\$$ty:(.*) *\)?\(\$$id:\)?\([A-Za-z_][A-Za-z0-9_]*\) *(.*$$/\3/' $(filter %.ac,$(C_SOURCES) $(LINUX_ACFILES))
+
 help:
 	$(E) "** Cogent ext2fs build help **"
 	$(E) "Run 'make' to build the Linux ext2fs kernel module."
@@ -203,5 +228,4 @@ help:
 	$(E) ""
 	$(E) "* help"
 	$(E) "  Print this help."
-
 endif
