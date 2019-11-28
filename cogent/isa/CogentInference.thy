@@ -797,6 +797,7 @@ fun assign_app_ty :: "(nat \<Rightarrow> type) \<Rightarrow> type \<Rightarrow> 
 | "assign_app_ty S (TProduct t1 t2)  = TProduct (assign_app_ty S t1) (assign_app_ty S t2)"
 | "assign_app_ty S TUnit             = TUnit"
 | "assign_app_ty S (TUnknown n)      = S n"
+| "assign_app_ty S (TVariant Ks \<alpha>)   = TVariant (map (\<lambda>(nm, t, u). (nm, assign_app_ty S t, u)) Ks) \<alpha>" 
 
 
 fun assign_app_expr :: "(nat \<Rightarrow> type) \<Rightarrow> 'f expr \<Rightarrow> 'f expr" where
@@ -810,17 +811,20 @@ fun assign_app_expr :: "(nat \<Rightarrow> type) \<Rightarrow> 'f expr \<Rightar
 | "assign_app_expr S (Let e1 e2)        = Let (assign_app_expr S e1) (assign_app_expr S e2)"
 | "assign_app_expr S (If e1 e2 e3)      = If (assign_app_expr S e1) (assign_app_expr S e2) (assign_app_expr S e3)"
 | "assign_app_expr S (Sig e t)          = Sig (assign_app_expr S e) (assign_app_ty S t)"
-
+| "assign_app_expr S (Con nm e)         = Con nm (assign_app_expr S e)"
+| "assign_app_expr S (Case e1 nm e2 e3) = Case (assign_app_expr S e1) nm (assign_app_expr S e2) (assign_app_expr S e3)"
+| "assign_app_expr S (Esac e1 nm e2)    = Esac (assign_app_expr S e1) nm (assign_app_expr S e2)"
 
 fun "assign_app_constr" :: "(nat \<Rightarrow> type) \<Rightarrow> constraint \<Rightarrow> constraint" where
-  "assign_app_constr S (CtConj c1 c2) = CtConj (assign_app_constr S c1) (assign_app_constr S c2)"
-| "assign_app_constr S (CtIBound l t) = CtIBound l (assign_app_ty S t)"
-| "assign_app_constr S (CtEq t1 t2) = CtEq (assign_app_ty S t1) (assign_app_ty S t2)"
-| "assign_app_constr S (CtSub t1 t2) = CtSub (assign_app_ty S t1) (assign_app_ty S t2)"
-| "assign_app_constr S CtTop = CtTop"
-| "assign_app_constr S CtBot = CtBot"
-| "assign_app_constr S (CtShare t) = CtShare (assign_app_ty S t)"
-| "assign_app_constr S (CtDrop t) = CtDrop (assign_app_ty S t)"
+  "assign_app_constr S (CtConj c1 c2)   = CtConj (assign_app_constr S c1) (assign_app_constr S c2)"
+| "assign_app_constr S (CtIBound l t)   = CtIBound l (assign_app_ty S t)"
+| "assign_app_constr S (CtEq t1 t2)     = CtEq (assign_app_ty S t1) (assign_app_ty S t2)"
+| "assign_app_constr S (CtSub t1 t2)    = CtSub (assign_app_ty S t1) (assign_app_ty S t2)"
+| "assign_app_constr S CtTop            = CtTop"
+| "assign_app_constr S CtBot            = CtBot"
+| "assign_app_constr S (CtShare t)      = CtShare (assign_app_ty S t)"
+| "assign_app_constr S (CtDrop t)       = CtDrop (assign_app_ty S t)"
+| "assign_app_constr S (CtExhausted v)  = CtExhausted (assign_app_ty S v)"
 
 definition assign_app_ctx :: "(nat \<Rightarrow> type) \<Rightarrow> ctx \<Rightarrow> ctx" where
   "assign_app_ctx S G = map (map_option (assign_app_ty S)) G"
