@@ -354,6 +354,16 @@ toRawExpr' _ = __impossible "toRawExpr': unification variable found"
 toRawExpr :: TypedExpr -> RawExpr
 toRawExpr (TE t e _) = RE (fffmap toRawPatn . ffmap toRawIrrefPatn . fmap toRawExpr $ e)
 
+-- Will be killed in the future. / zilinc
+dummyTypedExpr :: RawExpr -> TypedExpr
+dummyTypedExpr (RE e) = TE undefined (fffmap dummyTypedPatn $ ffmap dummyTypedIrrefPatn $ fmap dummyTypedExpr e) noPos
+
+dummyTypedPatn :: RawPatn -> TypedPatn
+dummyTypedPatn (RP p) = TP (fmap dummyTypedIrrefPatn p) noPos
+
+dummyTypedIrrefPatn :: RawIrrefPatn -> TypedIrrefPatn
+dummyTypedIrrefPatn (RIP ip) = TIP (fffmap ((,undefined)) $ ffmap dummyTypedIrrefPatn $ fmap dummyTypedExpr ip) noPos
+
 toRawPatn :: TypedPatn -> RawPatn
 toRawPatn (TP p _) = RP (fmap toRawIrrefPatn p)
 

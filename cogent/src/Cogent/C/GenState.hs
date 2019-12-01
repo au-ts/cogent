@@ -112,7 +112,7 @@ data GenState  = GenState
     --   but the map gives performant reads.
 
   , _typeSynonyms :: M.Map TypeName CType
-  , _typeCorres   :: DList.DList (CId, CC.Type 'Zero)
+  , _typeCorres   :: DList.DList (CId, CC.Type 'Zero VarName)
     -- ^ C type names corresponding to Cogent types
 
   , _absTypes     :: M.Map TypeName (S.Set [CId])
@@ -120,7 +120,7 @@ data GenState  = GenState
     --   the Set of all monomorphised type argument lists
     --   which the abstract type is applied to in the program.
 
-  , _custTypeGen  :: M.Map (CC.Type 'Zero) (CId, CustTyGenInfo)
+  , _custTypeGen  :: M.Map (CC.Type 'Zero VarName) (CId, CustTyGenInfo)
   , _funClasses   :: FunClass
   , _localOracle  :: Integer
   , _globalOracle :: Integer
@@ -130,8 +130,8 @@ data GenState  = GenState
     --   The map is from the original function names (before prefixing with @\"ffi_\"@ to a pair of @(marshallable_arg_type, marshallable_ret_type)@.
     --   This map is needed when we generate the Haskell side of the FFI.
 
-  , _boxedRecordSetters :: M.Map (CC.Type 'Zero, FieldName) CExpr
-  , _boxedRecordGetters :: M.Map (CC.Type 'Zero, FieldName) CExpr
+  , _boxedRecordSetters :: M.Map (CC.Type 'Zero VarName, FieldName) CExpr
+  , _boxedRecordGetters :: M.Map (CC.Type 'Zero VarName, FieldName) CExpr
     -- ^ The expressions to call the generated setter and getter functions for the fields of boxed cogent records.
 
   , _boxedSettersAndGetters :: [CExtDecl]
@@ -169,8 +169,8 @@ genTyDecl (Function t1 t2, n) tns =
                   else [CDecl $ CTypeDecl (CIdent fty) [n]]
   where fty = if __cogent_funtyped_func_enum then untypedFuncEnum else unitT
 #ifdef BUILTIN_ARRAYS
-genTyDecl (Array t ms, n) _ = [CDecl $ CVarDecl t n True Nothing]
-genTyDecl (ArrayL _ _, n) _ = [genTySynDecl (n, CPtr (CInt False CCharT))]  -- always @uint8_t*@
+genTyDecl (Array t, n) _ = [CDecl $ CVarDecl t n True Nothing]
+genTyDecl (ArrayL _, n) _ = [genTySynDecl (n, CPtr (CInt False CCharT))]  -- always @uint8_t*@
 #endif
 genTyDecl (AbsType x, n) _ = [CMacro $ "#include <abstract/" ++ x ++ ".h>"]
 
@@ -207,7 +207,7 @@ instance Monad (Compose (Gen v) Maybe) where
   (Compose ma) >>= f = Compose (ma >>= \case Nothing -> return Nothing
                                              Just a  -> getCompose (f a))
 
-lookupTypeCId :: CC.Type 'Zero -> Gen v (Maybe CId)
+lookupTypeCId :: CC.Type 'Zero VarName -> Gen v (Maybe CId)
 lookupTypeCId (TVar     {}) = __impossible "lookupTypeCId"
 lookupTypeCId (TVarBang {}) = __impossible "lookupTypeCId"
 lookupTypeCId (TCon tn [] _) = fmap (const tn) . M.lookup tn <$> use absTypes
@@ -230,8 +230,8 @@ lookupTypeCId (TRecord fs (Boxed _ CLayout)) =
     Record <$> (mapM (\(a,(b,_)) -> (a,) <$> (Compose . lookupType) b) fs))
 lookupTypeCId cogentType@(TRecord _ (Boxed _ _)) = __impossible "lookupTypeCId: record with non-record layout"
 #ifdef BUILTIN_ARRAYS
-lookupTypeCId (TArray t n Unboxed _) = getCompose (Compose . lookupStrlTypeCId =<< Array <$> (Compose . lookupType) t <*> pure (Just $ fromIntegral n))
-lookupTypeCId (TArray t n (Boxed _ l) _) = lookupStrlTypeCId (ArrayL l (Just $ fromIntegral n))
+lookupTypeCId (TArray t n Unboxed _) = getCompose (Compose . lookupStrlTypeCId =<< Array <$> (Compose . lookupType) t)
+lookupTypeCId (TArray t n (Boxed _ l) _) = lookupStrlTypeCId (ArrayL l)
 #endif
 lookupTypeCId t = Just <$> typeCId t
 
@@ -248,7 +248,7 @@ lookupTypeCId t = Just <$> typeCId t
 -- XXX | typeCIdUsage (TRecord fs s) = getMon $ foldReduce (map ((getFirst <$>) . typeCIdUsage . fst . snd) fs :: [Gen v (Maybe CId)])
 -- XXX | typeCIdUsage t = return $ First Nothing  -- base types
 
-typeCId :: CC.Type 'Zero -> Gen v CId
+typeCId :: CC.Type 'Zero VarName -> Gen v CId
 typeCId t = use custTypeGen >>= \ctg ->
             case M.lookup t ctg of
               Just (n,_) -> return n
@@ -257,7 +257,7 @@ typeCId t = use custTypeGen >>= \ctg ->
                 when (isUnstable t) (typeCorres %= DList.cons (toCName n, t)) >>
                 return n
   where
-    typeCId' :: CC.Type 'Zero -> Gen v CId
+    typeCId' :: CC.Type 'Zero VarName -> Gen v CId
     typeCId' (TVar     {}) = __impossible "typeCId' (in typeCId)"
     typeCId' (TVarBang {}) = __impossible "typeCId' (in typeCId)"
     typeCId' (TPrim pt) | pt == Boolean = return boolT
@@ -290,11 +290,11 @@ typeCId t = use custTypeGen >>= \ctg ->
         _ -> __impossible "Tried to get the c-type of a record with a non-record layout"
     typeCId' (TUnit) = return unitT
 #ifdef BUILTIN_ARRAYS
-    typeCId' (TArray t l Unboxed _) = getStrlTypeCId =<< Array <$> genType t <*> pure (Just $ fromIntegral l)
+    typeCId' (TArray t l Unboxed _) = getStrlTypeCId =<< Array <$> genType t
     typeCId' (TArray t l (Boxed _ _) _) = __todo "typeCId'"
 #endif
 
-    typeCIdFlat :: CC.Type 'Zero -> Gen v CId
+    typeCIdFlat :: CC.Type 'Zero VarName -> Gen v CId
     typeCIdFlat (TProduct t1 t2) = do
       ts' <- mapM genType [t1,t2]
       fss <- forM (P.zip3 [p1,p2] [t1,t2] ts') $ \(f,t,t') -> case t' of
@@ -311,12 +311,12 @@ typeCId t = use custTypeGen >>= \ctg ->
       getStrlTypeCId $ Record (concat fss)
     typeCIdFlat t = typeCId' t
 
-    collFields :: FieldName -> CC.Type 'Zero -> Gen v [(CId, CType)]
+    collFields :: FieldName -> CC.Type 'Zero VarName -> Gen v [(CId, CType)]
     collFields fn (TProduct t1 t2) = concat <$> zipWithM collFields (P.map ((fn ++ "_") ++) [p1,p2]) [t1,t2]
     collFields fn (TRecord fs _) = let (fns,ts) = P.unzip (P.map (second fst) fs) in concat <$> zipWithM collFields (P.map ((fn ++ "_") ++) fns) ts
     collFields fn t = (:[]) . (fn,) <$> genType t
 
-    isUnstable :: CC.Type 'Zero -> Bool
+    isUnstable :: CC.Type 'Zero VarName -> Bool
     isUnstable (TCon {}) = True  -- NOTE: we relax the rule here to generate all abstract types in the table / zilinc (28/5/15)
     -- XXX | isUnstable (TCon _ (_:_) _) = True
     isUnstable (TProduct {}) = True
@@ -328,7 +328,7 @@ typeCId t = use custTypeGen >>= \ctg ->
     isUnstable _ = False
 
 -- Made for Glue
-absTypeCId :: CC.Type 'Zero -> Gen v CId
+absTypeCId :: CC.Type 'Zero VarName -> Gen v CId
 absTypeCId (TCon tn [] _) = return tn
 absTypeCId (TCon tn ts _) = do
   ts' <- forM ts $ \t -> (if isUnboxed t then ('u':) else id) <$> typeCId t
@@ -336,7 +336,7 @@ absTypeCId (TCon tn ts _) = do
 absTypeCId _ = __impossible "absTypeCId"
 
 -- Returns the right C type
-genType :: CC.Type 'Zero -> Gen v CType
+genType :: CC.Type 'Zero VarName -> Gen v CType
 genType t@(TRecord _ s)  | s /= Unboxed = CPtr . CIdent <$> typeCId t
   -- c.f. genTypeA
   -- This puts the pointer around boxed cogent-types
@@ -344,7 +344,7 @@ genType t@(TString)                     = CPtr . CIdent <$> typeCId t
 genType t@(TCon _ _ s)   | s /= Unboxed = CPtr . CIdent <$> typeCId t
 #ifdef BUILTIN_ARRAYS
 genType (TArray t l s _) | s /= Unboxed = CPtr <$> genType t  -- If it's heap-allocated, we don't care about the size / zilinc
-                         | otherwise    = CArray <$> genType t <*> pure (CArraySize (mkConst U32 l))  -- c.f. genTypeP
+                         | otherwise    = CArray <$> genType t <*> (CArraySize <$> genLExpr l)
 #endif
 genType t                               = CIdent <$> typeCId t
 
@@ -352,12 +352,12 @@ genType t                               = CIdent <$> typeCId t
 -- in certain scenarios
 
 -- Used when generating a type for an argument to a function
-genTypeA :: CC.Type 'Zero -> Gen v CType
+genTypeA :: CC.Type 'Zero VarName -> Gen v CType
 genTypeA t@(TRecord _ Unboxed) | __cogent_funboxed_arg_by_ref = CPtr . CIdent <$> typeCId t  -- TODO: sizeof
 genTypeA t = genType t
 
 -- It will generate a pointer type for an array, instead of the static-sized array type
-genTypeP :: CC.Type 'Zero -> Gen v CType
+genTypeP :: CC.Type 'Zero VarName -> Gen v CType
 #ifdef BUILTIN_ARRAYS
 genTypeP (TArray telm l Unboxed _) = CPtr <$> genTypeP telm  -- FIXME: what about boxed? / zilinc
 #endif
@@ -365,7 +365,7 @@ genTypeP t = genType t
 
 
 -- TODO(dagent): this seems wrong with respect to Dargent
-lookupType :: CC.Type 'Zero -> Gen v (Maybe CType)
+lookupType :: CC.Type 'Zero VarName -> Gen v (Maybe CType)
 lookupType t@(TRecord _ s)    | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
 lookupType t@(TString)                       = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
 lookupType t@(TCon _ _ s)     | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
@@ -374,6 +374,14 @@ lookupType t@(TArray _ _ s _) | s /= Unboxed = getCompose (CPtr . CIdent <$> Com
                               | otherwise    = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
 #endif
 lookupType t                                 = getCompose (       CIdent <$> Compose (lookupTypeCId t))
+
+
+
+genLExpr :: CC.LExpr 'Zero VarName -> Gen v CExpr
+genLExpr _ = __todo "genLExpr"
+
+
+
 
 -- *****************************************************************************
 -- * Helper functions to build C syntax

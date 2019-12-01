@@ -133,6 +133,7 @@ library
               , Cogent.Util
               , Data.DList
               , Data.Ex
+              , Data.Fin
               , Data.LeafTree
               , Data.Nat
               , Data.PropEq

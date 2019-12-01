@@ -14,8 +14,9 @@
 
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TupleSections #-}
 
@@ -27,15 +28,16 @@ module Cogent.Isabelle.Compound
   where
 
 import Cogent.Common.Syntax
+import Cogent.Compiler (__todo)
 import Cogent.Core
 import Cogent.Util (firstM, secondM)
+import Data.Fin
+import Data.Nat
 
 import Control.Applicative
 import qualified Data.Map as M
 import Data.Maybe
 import Prelude as P
-import Data.Nat
-import Data.Vec
 
 -- | Try to flatten a nested case into a map of alternatives
 --
@@ -49,9 +51,9 @@ import Data.Vec
 --
 -- > Just (scrut, fromList [(tag1, (n1, when_tag1)), (tag2, (n2, when_tag2)), (tag3, (n3, when_tag3))])
 --
-takeFlatCase :: TypedExpr t v VarName
-             -> Maybe ( TypedExpr t v VarName
-                      , M.Map TagName (VarName, TypedExpr t ('Suc v) VarName))
+takeFlatCase :: TypedExpr t v VarName b
+             -> Maybe ( TypedExpr t v VarName b
+                      , M.Map TagName (VarName, TypedExpr t ('Suc v) VarName b))
 takeFlatCase (TE _ e) = case e of
  -- Take top-level case separately as we need the scrutinee here,
  -- while the nested levels must have a scrutinee of (Var 0).
@@ -68,7 +70,10 @@ takeFlatCase (TE _ e) = case e of
  _ -> Nothing
 
  where
-  goAlts :: forall t u. VarName -> TypedExpr t u VarName -> (M.Map TagName (VarName, TypedExpr t u VarName)) -> Maybe (M.Map TagName (VarName, TypedExpr t u VarName))
+  goAlts :: forall t u b. VarName
+         -> TypedExpr t u VarName b
+         -> (M.Map TagName (VarName, TypedExpr t u VarName b))
+         -> Maybe (M.Map TagName (VarName, TypedExpr t u VarName b))
   -- Match a nested Case on the same scrutinee
   goAlts nscrut (TE _ (Case (TE _ (Variable (FZero, nscrut'))) tag (_, na1,ea1) (_, na2, ea2))) m
    | nscrut == nscrut'
@@ -97,42 +102,45 @@ takeFlatCase (TE _ e) = case e of
 -- If the variable is mentioned, return Nothing.
 --
 -- This function is pretty trivial, but it's a bit tedious because of the de Bruijn indices.
-expDiscardVar :: Fin ('Suc v) -> TypedExpr t ('Suc v) a -> Maybe (TypedExpr t v a)
-expDiscardVar rm0 (TE t0 e0) = TE <$> typDiscardVar rm0 t0 <*> expDiscardVar' rm0 expDiscardVar e0
+expDiscardVar :: Fin ('Suc v) -> TypedExpr t ('Suc v) a b -> Maybe (TypedExpr t v a b)
+expDiscardVar rm0 (TE t0 e0) = TE <$> typDiscardVar (finNat rm0) t0 <*> expDiscardVar' rm0 expDiscardVar e0
 
 expDiscardVar' :: Fin ('Suc v)
-               -> (forall v. Fin ('Suc v) -> e t ('Suc v) a -> Maybe (e t v a))
-               -> Expr t ('Suc v) a e -> Maybe (Expr t v a e)
+               -> (forall v. Fin ('Suc v) -> e t ('Suc v) a b -> Maybe (e t v a b))
+               -> Expr t ('Suc v) a b e -> Maybe (Expr t v a b e)
 expDiscardVar' rm0 f e = case e of
-  Variable (v, a)     -> Variable <$> ((,) <$> discardVar rm0 v <*> pure a)
-  Fun fn ts notes     -> Fun fn <$> traverse (typDiscardVar rm0) ts <*> pure notes
-  Op o ls             -> Op o <$> mapM go ls
-  App e1 e2           -> App <$> go e1 <*> go e2
-  Con tag e ty        -> Con <$> pure tag <*> go e <*> typDiscardVar rm0 ty
-  Unit                -> pure Unit
-  ILit i j            -> pure $ ILit i j
-  SLit s              -> pure $ SLit s
-  Let a e1 e2         -> Let a <$> go e1 <*> goSuc e2
-  LetBang fs a e1 e2  -> LetBang <$> mapM (mfirst $ discardVar rm0) fs <*> pure a <*> go e1 <*> goSuc e2
-  Tuple e1 e2         -> Tuple <$> go e1 <*> go e2
-  Struct fes          -> Struct <$> mapM (msecond go) fes
-  If ep et ef         -> If <$> go ep <*> go et <*> go ef
+  Variable (v, a)        -> Variable <$> ((,) <$> discardVar rm0 v <*> pure a)
+  Fun fn ts notes        -> Fun fn <$> traverse (typDiscardVar $ finNat rm0) ts <*> pure notes
+  Op o ls                -> Op o <$> mapM go ls
+  App e1 e2              -> App <$> go e1 <*> go e2
+  Con tag e ty           -> Con <$> pure tag <*> go e <*> typDiscardVar (finNat rm0) ty
+  Unit                   -> pure Unit
+  ILit i j               -> pure $ ILit i j
+  SLit s                 -> pure $ SLit s
+  Let a e1 e2            -> Let a <$> go e1 <*> goSuc e2
+  LetBang fs a e1 e2     -> LetBang <$> mapM (mfirst $ discardVar rm0) fs <*> pure a <*> go e1 <*> goSuc e2
+  Tuple e1 e2            -> Tuple <$> go e1 <*> go e2
+  Struct fes             -> Struct <$> mapM (msecond go) fes
+  If ep et ef            -> If <$> go ep <*> go et <*> go ef
   Case es tag (l1,n1,e1) (l2,n2,e2)
-                      -> Case <$> go es <*> pure tag
-                      <*> ((l1,n1,) <$> goSuc e1)
-                      <*> ((l2,n2,) <$> goSuc e2)
-  Esac es             -> Esac <$> go es
-  Split (n,n') es et  -> Split (n,n') <$> go es <*> goSuc2 et
-  Member e1 f         -> Member <$> go e1 <*> pure f
-  Take (n,n') es f et -> Take (n,n') <$> go es <*> pure f <*> goSuc2 et
-  Put e1 f e2         -> Put <$> go e1 <*> pure f <*> go e2
-  Promote t e1        -> Promote <$> typDiscardVar rm0 t <*> go e1
-  Cast t e1           -> Cast <$> typDiscardVar rm0 t <*> go e1
+                         -> Case <$> go es <*> pure tag
+                         <*> ((l1,n1,) <$> goSuc e1)
+                         <*> ((l2,n2,) <$> goSuc e2)
+  Esac es                -> Esac <$> go es
+  Split (n,n') es et     -> Split (n,n') <$> go es <*> goSuc2 et
+  Member e1 f            -> Member <$> go e1 <*> pure f
+  Take (n,n') es f et    -> Take (n,n') <$> go es <*> pure f <*> goSuc2 et
+  Put e1 f e2            -> Put <$> go e1 <*> pure f <*> go e2
+  Promote t e1           -> Promote <$> typDiscardVar (finNat rm0) t <*> go e1
+  Cast t e1              -> Cast <$> typDiscardVar (finNat rm0) t <*> go e1
 #ifdef BUILTIN_ARRAYS
-  ALit es             -> ALit <$> mapM go es
-  ArrayIndex e1 e2    -> ArrayIndex <$> go e1 <*> go e2
-  Pop (n,n') e1 e2    -> Pop (n,n') <$> go e1 <*> goSuc2 e2
-  Singleton e1        -> Singleton <$> go e1
+  ALit es                -> ALit <$> mapM go es
+  ArrayIndex e1 e2       -> ArrayIndex <$> go e1 <*> go e2
+  Pop (n,n') e1 e2       -> Pop (n,n') <$> go e1 <*> goSuc2 e2
+  Singleton e1           -> Singleton <$> go e1
+  ArrayMap2 _ _          -> __todo "expDiscardVar'"
+  ArrayTake as arr idx e -> __todo "expDiscardVar'"
+  ArrayPut arr idx v     -> __todo "expDiscardVar'"
 #endif
  where
   go     = f rm0
@@ -141,7 +149,7 @@ expDiscardVar' rm0 f e = case e of
   mfirst  g (a,b) = (,) <$> g    a <*> pure b
   msecond g (a,b) = (,) <$> pure a <*> g    b
 
-typDiscardVar :: Fin ('Suc v) -> DType t ('Suc v) a -> Maybe (DType t v a)
+typDiscardVar :: Nat -> Type t b -> Maybe (Type t b)
 typDiscardVar rm0 t = case t of
   TVar v            -> pure $ TVar v
   TVarBang v        -> pure $ TVarBang v
@@ -154,14 +162,43 @@ typDiscardVar rm0 t = case t of
   TRecord fs s      -> TRecord <$> mapM (secondM $ firstM go) fs <*> pure s
   TUnit             -> pure TUnit
 #ifdef BUILTIN_ARRAYS
-  TArray t l s mh   -> TArray <$> go t <*> pure l <*> pure s <*> mapM (uexpDiscardVar rm0) mh
+  TArray t l s mh   -> TArray <$> go t <*> pure l <*> pure s <*> mapM (lexpDiscardVar rm0) mh
 #endif
  where
   go   = typDiscardVar rm0
-  uexpDiscardVar :: Fin ('Suc v) -> UntypedExpr t ('Suc v) a -> Maybe (UntypedExpr t v a)
-  uexpDiscardVar rm (E e) = E <$> expDiscardVar' rm uexpDiscardVar e
 
-
+lexpDiscardVar :: Nat -> LExpr t b -> Maybe (LExpr t b)
+lexpDiscardVar rm0 = \case
+  LVariable (v, a)     -> LVariable <$> ((,) <$> discardVar' rm0 v <*> pure a)
+  LFun fn ts notes     -> pure $ LFun fn ts notes
+  LOp o ls             -> LOp o <$> mapM go ls
+  LApp e1 e2           -> LApp <$> go e1 <*> go e2
+  LCon tag e ty        -> LCon <$> pure tag <*> go e <*> pure ty
+  LUnit                -> pure LUnit
+  LILit i j            -> pure $ LILit i j
+  LSLit s              -> pure $ LSLit s
+  LLet a e1 e2         -> LLet a <$> go e1 <*> goSuc e2
+  LLetBang fs a e1 e2  -> LLetBang <$> mapM (mfirst $ discardVar' rm0) fs <*> pure a <*> go e1 <*> goSuc e2
+  LTuple e1 e2         -> LTuple <$> go e1 <*> go e2
+  LStruct fes          -> LStruct <$> mapM (msecond go) fes
+  LIf ep et ef         -> LIf <$> go ep <*> go et <*> go ef
+  LCase es tag (l1,n1,e1) (l2,n2,e2)
+                       -> LCase <$> go es <*> pure tag
+                       <*> ((l1,n1,) <$> goSuc e1)
+                       <*> ((l2,n2,) <$> goSuc e2)
+  LEsac es             -> LEsac <$> go es
+  LSplit (n,n') es et  -> LSplit (n,n') <$> go es <*> goSuc2 et
+  LMember e1 f         -> LMember <$> go e1 <*> pure f
+  LTake (n,n') es f et -> LTake (n,n') <$> go es <*> pure f <*> goSuc2 et
+  LPut e1 f e2         -> LPut <$> go e1 <*> pure f <*> go e2
+  LPromote t e1        -> LPromote t <$> go e1
+  LCast t e1           -> LCast t <$> go e1
+ where
+  go     = lexpDiscardVar rm0
+  goSuc  = lexpDiscardVar (Suc rm0)
+  goSuc2 = lexpDiscardVar (Suc $ Suc rm0)
+  mfirst  g (a,b) = (,) <$> g    a <*> pure b
+  msecond g (a,b) = (,) <$> pure a <*> g    b
 -- | Check if two variables are different: if so, remove first variable from second's context
 --
 -- > discard i j
@@ -181,4 +218,10 @@ discardVar (FSuc r) (FSuc v) = case (r,v) of
   (FSuc _,FZero)  -> FSuc <$> discardVar r v
   (FZero, FSuc _) -> FSuc <$> discardVar r v
   (FSuc _,FSuc _) -> FSuc <$> discardVar r v
+
+discardVar' :: Nat -> Nat -> Maybe Nat
+discardVar' Zero    Zero    = Nothing
+discardVar' (Suc r) Zero    = Just Zero
+discardVar' Zero    (Suc v) = Just v
+discardVar' (Suc r) (Suc v) = Suc <$> discardVar' r v
 

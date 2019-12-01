@@ -30,13 +30,14 @@
 
 module Cogent.Mono where
 
-import Cogent.Compiler (__impossible)
+import Cogent.Compiler (__impossible, __todo)
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Core
 import Cogent.Inference
 import Cogent.Util (Warning, first3, second3, third3, flip3)
-import Data.Nat (Nat(Zero, Suc), SNat(SZero, SSuc))
+import Data.Fin
+import Data.Nat (Nat(..), SNat(..))
 import Data.Vec as Vec hiding (head)
 
 import Control.Applicative
@@ -52,25 +53,25 @@ import Prelude as P
 -- import Debug.Trace
 
 
-type Instance = [Type 'Zero]
+type Instance b = [Type 'Zero b]
 
 -- The list of Definitions is pre-ordered, which means that we only need to visit each definition exactly once.
 -- Traversal has to start from the roots of the call trees to collect instances.
 
-type FunMono  = M.Map FunName  (M.Map Instance Int)  -- [] can never be an element in the map. mono-function should have M.empty
-type TypeMono = M.Map TypeName (S.Set Instance)      -- as above
+type FunMono  b = M.Map FunName  (M.Map (Instance b) Int)  -- [] can never be an element in the map. mono-function should have M.empty
+type TypeMono b = M.Map TypeName (S.Set (Instance b))      -- as above
 
-newtype Mono a = Mono { runMono :: RWS Instance
-                                       ([Warning], [Definition TypedExpr VarName], [(Type 'Zero, String)])
-                                       (FunMono, TypeMono)
-                                       a }
-               deriving (Functor, Applicative, Monad,
-                         MonadReader Instance,
-                         MonadWriter ([Warning], [Definition TypedExpr VarName], [(Type 'Zero, String)]),
-                         MonadState  (FunMono, TypeMono))
+newtype Mono b x = Mono { runMono :: RWS (Instance b)
+                                         ([Warning], [Definition TypedExpr VarName b], [(Type 'Zero b, String)])
+                                         (FunMono b, TypeMono b)
+                                         x }
+                 deriving (Functor, Applicative, Monad,
+                           MonadReader (Instance b),
+                           MonadWriter ([Warning], [Definition TypedExpr VarName b], [(Type 'Zero b, String)]),
+                           MonadState  (FunMono b, TypeMono b))
 
 -- Returns: (monomorphic abstract functions, poly-abs-funcs)
-absFuns :: [Definition TypedExpr VarName] -> ([FunName], [FunName])
+absFuns :: [Definition TypedExpr VarName b] -> ([FunName], [FunName])
 absFuns = (P.map getDefinitionId *** P.map getDefinitionId)
         . L.partition (\(AbsDecl _ _ ts _ _) -> case Vec.length ts of SZero -> True; _ -> False)
         . P.filter isAbsDecl
@@ -80,29 +81,30 @@ absFuns = (P.map getDefinitionId *** P.map getDefinitionId)
 -- With --entry-funcs flag, unused functions won't appear in the list
 -- Without this flag, unused functions will be numbered 0
 -- Mono-functions are always numbered -1
-absFunMono :: FunMono -> [Definition TypedExpr VarName] -> M.Map FunName Int
+absFunMono :: FunMono b -> [Definition TypedExpr VarName b] -> M.Map FunName Int
 absFunMono (M.toList -> l) (absFuns -> (ms,ps))
   = M.fromList . catMaybes $ flip P.map l $ \(fn, M.size -> num) ->
       if | fn `elem` ps -> Just (fn, num)
          | fn `elem` ms -> Just (fn, -1)
          | otherwise -> Nothing
 
-printAFM :: FunMono -> [Definition TypedExpr VarName] -> String
+printAFM :: FunMono b -> [Definition TypedExpr VarName b] -> String
 printAFM = ((unlines . P.map (\(n,i) -> n ++ ", " ++ show i) . M.toList) .) . absFunMono
 
-mono :: [Definition TypedExpr VarName]
-     -> [(SupposedlyMonoType, String)]
-     -> Maybe (FunMono, TypeMono)
-     -> ((FunMono, TypeMono), ([Warning], [Definition TypedExpr VarName], [(Type 'Zero, String)]))
+mono :: forall b. (Ord b)
+     => [Definition TypedExpr VarName b]
+     -> [(SupposedlyMonoType b, String)]
+     -> Maybe (FunMono b, TypeMono b)
+     -> ((FunMono b, TypeMono b), ([Warning], [Definition TypedExpr VarName b], [(Type 'Zero b, String)]))
 mono ds ctygen initmap = (second . second3 $ reverse) . flip3 execRWS initmap' [] . runMono $ monoDefinitions (reverse ds) >> monoCustTyGen ctygen
-  where initmap' :: (FunMono, TypeMono)  -- a map consists of all function names, each of which has no instances
+  where initmap' :: (FunMono b, TypeMono b)  -- a map consists of all function names, each of which has no instances
         initmap' = fromMaybe ( M.fromList $ P.zip (catMaybes $ P.map getFuncId ds) (P.repeat M.empty)  -- [] can never appear in the map
                              , M.empty ) initmap
 
-monoDefinitions :: [Definition TypedExpr VarName] -> Mono ()
+monoDefinitions :: (Ord b) => [Definition TypedExpr VarName b] -> Mono b ()
 monoDefinitions = mapM_ monoDefinition
 
-monoDefinition :: Definition TypedExpr VarName -> Mono ()
+monoDefinition :: (Ord b) => Definition TypedExpr VarName b -> Mono b ()
 -- monoDefinition d@(TypeDef {}) = censor (second3 $ (d:)) (return ())  -- types are all structural, no need to monomorphise
 monoDefinition d@(TypeDef _ Vec.Nil _) = censor (second3 $ (d:)) $ return ()  -- Only add non-parametric types to CG
   -- FIXME: It seems that this problem have been subsumed and fixed by #84 / zilinc (03/09/15)
@@ -126,7 +128,7 @@ monoDefinition d =
         Just is -> monoDefinitionInsts d $ M.keys is
 
 -- given instances, instantiate a function
-monoDefinitionInsts :: Definition TypedExpr VarName -> [Instance] -> Mono ()
+monoDefinitionInsts :: (Ord b) => Definition TypedExpr VarName b -> [Instance b] -> Mono b ()
 monoDefinitionInsts d [] =
   if getTypeVarNum d == 0
     then monoDefinitionInst d []  -- monomorphic function
@@ -139,7 +141,7 @@ monoName n Nothing  = unCoreFunName n
 monoName n (Just i) = unCoreFunName n ++ "_" ++ show i
 
 -- given one instance
-monoDefinitionInst :: Definition TypedExpr VarName -> Instance -> Mono ()
+monoDefinitionInst :: (Ord b) => Definition TypedExpr VarName b -> Instance b -> Mono b ()
 monoDefinitionInst (FunDef attr fn tvs t rt e) i = do
   idx <- if P.null i then return Nothing else M.lookup i . fromJust . M.lookup fn . fst <$> get
   d' <- Mono $ local (const i) (runMono $ FunDef attr (monoName (unsafeCoreFunName fn) idx) Nil <$> monoType t <*> monoType rt <*> monoExpr e)
@@ -150,11 +152,11 @@ monoDefinitionInst (AbsDecl attr fn tvs t rt) i = do
   censor (second3 $ (d':)) (return ())
 monoDefinitionInst (TypeDef tn tvs t) i = __impossible "monoDefinitionInst"
 
-getPrimInt :: TypedExpr t v VarName -> PrimInt
+getPrimInt :: TypedExpr t v VarName b -> PrimInt
 getPrimInt (TE t _) | TPrim p <- t = p
                     | otherwise = __impossible "getPrimInt"
 
-monoExpr :: TypedExpr t v VarName -> Mono (TypedExpr 'Zero v VarName)
+monoExpr :: (Ord b) => TypedExpr t v VarName b -> Mono b (TypedExpr 'Zero v VarName b)
 monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
   where
     monoExpr' (Variable var       ) = pure $ Variable var
@@ -196,7 +198,7 @@ monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
     monoExpr' (Promote ty e       ) = Promote <$> monoType ty <*> monoExpr e
     monoExpr' (Cast    ty e       ) = Cast <$> monoType ty <*> monoExpr e
 
-monoType :: Type t -> Mono (Type 'Zero)
+monoType :: (Ord b) => Type t b -> Mono b (Type 'Zero b)
 monoType (TVar v) = atList <$> ask <*> pure v
 monoType (TVarBang v) = bang <$> (atList <$> ask <*> pure v)
 monoType (TCon n [] s) = do
@@ -219,16 +221,45 @@ monoType (TProduct t1 t2) = TProduct <$> monoType t1 <*> monoType t2
 monoType (TRecord fs s) = TRecord <$> mapM (\(f,(t,b)) -> (f,) <$> (,b) <$> monoType t) fs <*> pure s
 monoType (TUnit) = pure TUnit
 #ifdef BUILTIN_ARRAYS
-monoType (TArray t l s mhole) = TArray <$> monoType t <*> pure l <*> pure s <*> pure mhole
+monoType (TArray t l s mhole) = TArray <$> monoType t <*> monoLExpr l <*> pure s <*> mapM monoLExpr mhole
 #endif
+
+
+monoLExpr :: (Ord b) => LExpr t b -> Mono b (LExpr 'Zero b)
+monoLExpr (LVariable var       ) = pure $ LVariable var
+monoLExpr (LFun      fn []  nt ) = modify (first $ M.insert (unCoreFunName fn) M.empty) >> return (LFun fn [] nt)
+monoLExpr (LFun      fn tys nt ) = do
+  tys' <- mapM monoType tys
+  modify (first $ M.insertWith (\_ m -> insertWith (flip const) tys' (M.size m) m) (unCoreFunName fn) (M.singleton tys' 0))  -- add one more instance to the env
+  idx <- M.lookup tys' . fromJust . M.lookup (unCoreFunName fn) . fst <$> get
+  return $ LFun (unsafeCoreFunName $ monoName fn idx) [] nt  -- used to be tys'
+monoLExpr (LOp      opr es     ) = LOp opr <$> mapM monoLExpr es
+monoLExpr (LApp     e1 e2      ) = LApp <$> monoLExpr e1 <*> monoLExpr e2
+monoLExpr (LCon     tag e t    ) = LCon tag <$> monoLExpr e <*> monoType t
+monoLExpr (LUnit               ) = pure LUnit
+monoLExpr (LILit    n   pt     ) = pure $ LILit n pt
+monoLExpr (LSLit    s          ) = pure $ LSLit s
+monoLExpr (LLet     a e1 e2    ) = LLet a <$> monoLExpr e1 <*> monoLExpr e2
+monoLExpr (LLetBang vs a e1 e2 ) = LLetBang vs a <$> monoLExpr e1 <*> monoLExpr e2
+monoLExpr (LTuple   e1 e2      ) = LTuple <$> monoLExpr e1 <*> monoLExpr e2
+monoLExpr (LStruct  fs         ) = let (ns,ts) = P.unzip fs in LStruct <$> zipWithM (\n t -> (n,) <$> monoLExpr t) ns ts
+monoLExpr (LIf      c e1 e2    ) = LIf <$> monoLExpr c <*> monoLExpr e1 <*> monoLExpr e2
+monoLExpr (LCase    c tag (l1,a1,e1) (l2,a2,e2)) = LCase <$> monoLExpr c <*> pure tag <*> ((l1,a1,) <$> monoLExpr e1) <*> ((l2,a2,) <$> monoLExpr e2)
+monoLExpr (LEsac    e          ) = LEsac <$> monoLExpr e
+monoLExpr (LSplit   a tp e     ) = LSplit a <$> monoLExpr tp <*> monoLExpr e
+monoLExpr (LMember  rec fld    ) = flip LMember fld <$> monoLExpr rec
+monoLExpr (LTake    a rec fld e) = LTake a <$> monoLExpr rec <*> pure fld <*> monoLExpr e
+monoLExpr (LPut     rec fld e  ) = LPut  <$> monoLExpr rec <*> pure fld <*> monoLExpr e
+monoLExpr (LPromote ty e       ) = LPromote <$> monoType ty <*> monoLExpr e
+monoLExpr (LCast    ty e       ) = LCast <$> monoType ty <*> monoLExpr e
 
 -- ----------------------------------------------------------------------------
 -- custTyGen
 
-monoCustTyGen :: [(SupposedlyMonoType, String)] -> Mono ()
+monoCustTyGen :: (Ord b) => [(SupposedlyMonoType b, String)] -> Mono b ()
 monoCustTyGen = mapM_ checkMonoType
 
-checkMonoType :: (SupposedlyMonoType, String) -> Mono ()
+checkMonoType :: (Ord b) => (SupposedlyMonoType b, String) -> Mono b ()
 checkMonoType (SMT t, cty) = monoType t >>= \t' -> censor (third3 $ ((t',cty):)) (return ())
 
 -- XXX | isMonoType :: Type t -> Bool

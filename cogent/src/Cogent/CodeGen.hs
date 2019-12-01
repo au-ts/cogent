@@ -39,8 +39,8 @@ cgen :: FilePath
      -> [FilePath]
      -> FilePath
      -> FilePath
-     -> [Definition TypedExpr VarName]
-     -> [(Type 'Zero, String)]
+     -> [Definition TypedExpr VarName VarName]
+     -> [(Type 'Zero VarName, String)]
      -> String
      -> ([C.Definition], [C.Definition], [(TypeName, S.Set [CId])], [TableCTypes], Leijen.Doc, String, GenState)
 cgen hName cNames hscName hsName defs ctygen log =

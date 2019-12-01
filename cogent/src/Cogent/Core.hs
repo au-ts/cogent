@@ -49,7 +49,8 @@ import Cogent.Dargent.Allocation (BitRange)
 import Cogent.Dargent.Core
 import Cogent.PrettyPrint hiding (associativity, primop)
 import Cogent.Util
-import Data.Nat (Nat(Zero, Suc))
+import Data.Fin
+import Data.Nat (Nat(Zero, Suc), natToInt)
 import qualified Data.Nat as Nat
 import Data.Vec hiding (splitAt, length, zipWith, zip, unzip)
 import qualified Data.Vec as Vec
@@ -64,37 +65,37 @@ import Data.Traversable(traverse)
 import Text.PrettyPrint.ANSI.Leijen as L hiding (tupled, indent, (<$>))
 import qualified Text.PrettyPrint.ANSI.Leijen as L ((<$>))
 
-data Type t v a e
+data Type t b
   = TVar (Fin t)
   | TVarBang (Fin t)
-  | TCon TypeName [Type t v a e] (Sigil ()) -- Layout will be nothing for abstract types
-  | TFun (Type t v a e) (Type t v a e)
+  | TCon TypeName [Type t b] (Sigil ()) -- Layout will be nothing for abstract types
+  | TFun (Type t b) (Type t b)
   | TPrim PrimInt
   | TString
-  | TSum [(TagName, (Type t v a e, Bool))]  -- True means taken (since 2.0.4)
-  | TProduct (Type t v a e) (Type t v a e)
-  | TRecord [(FieldName, (Type t v a e, Bool))] (Sigil (DataLayout BitRange))
+  | TSum [(TagName, (Type t b, Bool))]  -- True means taken (since 2.0.4)
+  | TProduct (Type t b) (Type t b)
+  | TRecord [(FieldName, (Type t b, Bool))] (Sigil (DataLayout BitRange))
     -- True means taken, Layout will be nothing for abstract types
   | TUnit
 #ifdef BUILTIN_ARRAYS
-  | TArray (Type t v a e) ArraySize (Sigil (DataLayout BitRange)) (Maybe (e t v a))  -- the hole
-                 -- \ ^^^ use Int for now
-    -- XXX | ^^^ (UntypedExpr t 'Zero VarName)  -- stick to UntypedExpr to be simple / zilinc
+  | TArray (Type t b) (LExpr t b) (Sigil (DataLayout BitRange)) (Maybe (LExpr t b))  -- the hole
     -- The sigil specifies the layout of the element
 #endif
   deriving (Show, Eq, Ord)
 
-data SupposedlyMonoType a = forall (t :: Nat) (v :: Nat). SMT (DType t v a)
+deriving instance Functor (Type t)
 
-isTVar :: Type t v a e -> Bool
+data SupposedlyMonoType b = forall (t :: Nat) (v :: Nat). SMT (Type t b)
+
+isTVar :: Type t b -> Bool
 isTVar (TVar _) = True
 isTVar _ = False
 
-isTFun :: Type t v a e -> Bool
+isTFun :: Type t b -> Bool
 isTFun (TFun {}) = True
 isTFun _ = False
 
-isUnboxed :: Type t v a e -> Bool
+isUnboxed :: Type t b -> Bool
 isUnboxed (TCon _ _ Unboxed) = True
 isUnboxed (TRecord _ Unboxed) =  True
 #ifdef BUILTIN_ARRAYS
@@ -105,55 +106,127 @@ isUnboxed _ = False
 data FunNote = NoInline | InlineMe | MacroCall | InlinePlease  -- order is important, larger value has stronger precedence
              deriving (Bounded, Eq, Ord, Show)
 
-data Expr t v a e
+data Expr t v a b e
   = Variable (Fin v, a)
-  | Fun CoreFunName [DType t v a] FunNote  -- here do we want to keep partial application and infer again? / zilinc
-  | Op Op [e t v a]
-  | App (e t v a) (e t v a)
-  | Con TagName (e t v a) (DType t v a)
+  | Fun CoreFunName [Type t b] FunNote  -- here do we want to keep partial application and infer again? / zilinc
+  | Op Op [e t v a b]
+  | App (e t v a b) (e t v a b)
+  | Con TagName (e t v a b) (Type t b)
   | Unit
   | ILit Integer PrimInt
   | SLit String
 #ifdef BUILTIN_ARRAYS
-  | ALit [e t v a]
-  | ArrayIndex (e t v a) (e t v a)
-  | Pop (a, a) (e t v a) (e t ('Suc ('Suc v)) a)
-  | Singleton (e t v a)  -- extracting the element out of a singleton array
-  | ArrayMap2 ((a, a), e t ('Suc ('Suc v)) a) (e t v a, e t v a)
-  | ArrayTake (a, a) (e t v a) (e t v a) (e t ('Suc ('Suc v)) a)
+  | ALit [e t v a b]
+  | ArrayIndex (e t v a b) (e t v a b)
+  | Pop (a, a) (e t v a b) (e t ('Suc ('Suc v)) a b)
+  | Singleton (e t v a b)  -- extracting the element out of a singleton array
+  | ArrayMap2 ((a, a), e t ('Suc ('Suc v)) a b) (e t v a b, e t v a b)
+  | ArrayTake (a, a) (e t v a b) (e t v a b) (e t ('Suc ('Suc v)) a b)
           -- \ ^^^ The first is the array, and the second is the taken object
-  | ArrayPut (e t v a) (e t v a) (e t v a)
+  | ArrayPut (e t v a b) (e t v a b) (e t v a b)
 #endif
-  | Let a (e t v a) (e t ('Suc v) a)
-  | LetBang [(Fin v, a)] a (e t v a) (e t ('Suc v) a)
-  | Tuple (e t v a) (e t v a)
-  | Struct [(FieldName, e t v a)]  -- unboxed record
-  | If (e t v a) (e t v a) (e t v a)   -- technically no longer needed as () + () == Bool
-  | Case (e t v a) TagName (Likelihood, a, e t ('Suc v) a) (Likelihood, a, e t ('Suc v) a)
-  | Esac (e t v a)
-  | Split (a, a) (e t v a) (e t ('Suc ('Suc v)) a)
-  | Member (e t v a) FieldIndex
-  | Take (a, a) (e t v a) FieldIndex (e t ('Suc ('Suc v)) a)
+  | Let a (e t v a b) (e t ('Suc v) a b)
+  | LetBang [(Fin v, a)] a (e t v a b) (e t ('Suc v) a b)
+  | Tuple (e t v a b) (e t v a b)
+  | Struct [(FieldName, e t v a b)]  -- unboxed record
+  | If (e t v a b) (e t v a b) (e t v a b)   -- technically no longer needed as () + () == Bool
+  | Case (e t v a b) TagName (Likelihood, a, e t ('Suc v) a b) (Likelihood, a, e t ('Suc v) a b)
+  | Esac (e t v a b)
+  | Split (a, a) (e t v a b) (e t ('Suc ('Suc v)) a b)
+  | Member (e t v a b) FieldIndex
+  | Take (a, a) (e t v a b) FieldIndex (e t ('Suc ('Suc v)) a b)
      -- \ ^^^ The first is the record, and the second is the taken field
-  | Put (e t v a) FieldIndex (e t v a)
-  | Promote (DType t v a) (e t v a)  -- only for guiding the tc. rep. unchanged.
-  | Cast (DType t v a) (e t v a)  -- only for integer casts. rep. changed
-deriving instance (Show a, Show (e t v a), Show (e t ('Suc v) a), Show (e t ('Suc ('Suc v)) a))
-  => Show (Expr t v a e)
-deriving instance (Eq a, Eq (e t v a), Eq (e t ('Suc v) a), Eq (e t ('Suc ('Suc v)) a))
-  => Eq  (Expr t v a e)
-deriving instance (Ord a, Ord (e t v a), Ord (e t ('Suc v) a), Ord (e t ('Suc ('Suc v)) a))
-  => Ord (Expr t v a e)
+  | Put (e t v a b) FieldIndex (e t v a b)
+  | Promote (Type t b) (e t v a b)  -- only for guiding the tc. rep. unchanged.
+  | Cast (Type t b) (e t v a b)  -- only for integer casts. rep. changed
+deriving instance (Show a, Show b, Show (e t v a b), Show (e t ('Suc v) a b), Show (e t ('Suc ('Suc v)) a b))
+  => Show (Expr t v a b e)
+deriving instance (Eq a, Eq b, Eq (e t v a b), Eq (e t ('Suc v) a b), Eq (e t ('Suc ('Suc v)) a b))
+  => Eq  (Expr t v a b e)
+deriving instance (Ord a, Ord b, Ord (e t v a b), Ord (e t ('Suc v) a b), Ord (e t ('Suc ('Suc v)) a b))
+  => Ord (Expr t v a b e)
   -- constraint no smaller than header, thus UndecidableInstances
 
-type DType t v a = Type t v a UntypedExpr
+data LExpr t b
+  = LVariable (Nat, b)
+  | LFun CoreFunName [Type t b] FunNote
+  | LOp Op [LExpr t b]
+  | LApp (LExpr t b) (LExpr t b)
+  | LCon TagName (LExpr t b) (Type t b)
+  | LUnit
+  | LILit Integer PrimInt
+  | LSLit String
+  | LLet b (LExpr t b) (LExpr t b)
+  | LLetBang [(Nat, b)] b (LExpr t b) (LExpr t b)
+  | LTuple (LExpr t b) (LExpr t b)
+  | LStruct [(FieldName, LExpr t b)]  -- unboxed record
+  | LIf (LExpr t b) (LExpr t b) (LExpr t b)   -- technically no longer needed as () + () == Bool
+  | LCase (LExpr t b) TagName (Likelihood, b, LExpr t b) (Likelihood, b, LExpr t b)
+  | LEsac (LExpr t b)
+  | LSplit (b, b) (LExpr t b) (LExpr t b)
+  | LMember (LExpr t b) FieldIndex
+  | LTake (b, b) (LExpr t b) FieldIndex (LExpr t b)
+     -- \ ^^^ The first is the record, and the second is the taken field
+  | LPut (LExpr t b) FieldIndex (LExpr t b)
+  | LPromote (Type t b) (LExpr t b)  -- only for guiding the tc. rep. unchanged.
+  | LCast (Type t b) (LExpr t b)  
+  deriving (Show, Eq, Ord)
 
-data UntypedExpr t v a = E  (Expr t v a UntypedExpr) deriving (Show, Eq, Ord)
-data TypedExpr   t v a = TE { exprType :: DType t v a , exprExpr :: Expr t v a TypedExpr }
-                       deriving (Show, Eq, Ord)
+deriving instance Functor (LExpr t)
 
-data FunctionType v a = forall t. FT (Vec t Kind) (DType t v a) (DType t v a)
-deriving instance Show a => Show (FunctionType v a)
+exprToLExpr :: (a -> b)
+            -> ((a -> b) -> e t v a b -> LExpr t b)
+            -> ((a -> b) -> e t ('Suc v) a b -> LExpr t b)
+            -> ((a -> b) -> e t ('Suc ('Suc v)) a b -> LExpr t b)
+            -> Expr t v a b e -> LExpr t b
+exprToLExpr fab f f1 f2 = \case
+  Variable v         -> LVariable (second fab $ first finNat v)
+  Fun fn tys nt      -> LFun fn tys nt
+  Op opr es          -> LOp opr (map f' es)
+  App e1 e2          -> LApp (f' e1) (f' e2)
+  Con cn e t         -> LCon cn (f' e) t
+  Unit               -> LUnit
+  ILit i pt          -> LILit i pt
+  SLit s             -> LSLit s
+#ifdef BUILTIN_ARRAYS
+  ALit {}            -> __impossible "array expressions in types not allowed" 
+  ArrayIndex {}      -> __impossible "array expressions in types not allowed"
+  ArrayMap2 {}       -> __impossible "array expressions in types not allowed"
+  Pop {}             -> __impossible "array expressions in types not allowed"
+  Singleton {}       -> __impossible "array expressions in types not allowed"
+  ArrayTake {}       -> __impossible "array expressions in types not allowed"
+  ArrayPut {}        -> __impossible "array expressions in types not allowed"
+#endif
+  Let a e1 e2        -> LLet (fab a) (f' e1) (f1' e2)
+  LetBang vs a e1 e2 -> LLetBang (map (second fab . first finNat) vs) (fab a) (f' e1) (f1' e2)
+  Tuple e1 e2        -> LTuple (f' e1) (f' e2)
+  Struct fs          -> LStruct (map (second f') fs)
+  If e1 e2 e3        -> LIf (f' e1) (f' e2) (f' e3)
+  Case e tn (l1,a1,e1) (l2,a2,e2) -> LCase (f' e) tn (l1, fab a1, f1' e1) (l2, fab a2, f1' e2)
+  Esac e             -> LEsac (f' e)
+  Split a e1 e2      -> LSplit (both fab a) (f' e1) (f2' e2)
+  Member rec fld     -> LMember (f' rec) fld
+  Take a rec fld e   -> LTake (both fab a) (f' rec) fld (f2' e)
+  Put rec fld v      -> LPut (f' rec) fld (f' v)
+  Promote ty e       -> LPromote ty (f' e)
+  Cast ty e          -> LCast ty (f' e)
+ where
+  f'  = f  fab
+  f1' = f1 fab
+  f2' = f2 fab
+
+texprToLExpr :: (a -> b) -> TypedExpr t v a b -> LExpr t b
+texprToLExpr f (TE _ e) = exprToLExpr f texprToLExpr texprToLExpr texprToLExpr e
+
+uexprToLExpr :: (a -> b) -> UntypedExpr t v a b -> LExpr t b
+uexprToLExpr f (E e) = exprToLExpr f uexprToLExpr uexprToLExpr uexprToLExpr e
+
+data UntypedExpr t v a b = E  (Expr t v a b UntypedExpr) deriving (Show, Eq, Ord)
+data TypedExpr   t v a b = TE { exprType :: Type t b , exprExpr :: Expr t v a b TypedExpr }
+                         deriving (Show, Eq, Ord)
+
+data FunctionType b = forall t. FT (Vec t Kind) (Type t b) (Type t b)
+deriving instance Show a => Show (FunctionType a)
 
 data Attr = Attr { inlineDef :: Bool, fnMacro :: Bool } deriving (Eq, Ord, Show)
 
@@ -169,73 +242,70 @@ instance Monoid Attr where
 #endif
 
 
-data Definition e a
-  = forall t. (Pretty a, Pretty (e t ('Suc 'Zero) a))
-           => FunDef  Attr FunName (Vec t (TyVarName, Kind)) (DType t 'Zero a) (DType t 'Zero a) (e t ('Suc 'Zero) a)
-  | forall t. (Pretty a, Pretty (e t ('Suc 'Zero) a))
-           => AbsDecl Attr FunName (Vec t (TyVarName, Kind)) (DType t 'Zero a) (DType t 'Zero a)
-  | forall t. (Pretty a, Pretty (e t ('Suc 'Zero) a))
-           => TypeDef TypeName (Vec t TyVarName) (Maybe (DType t 'Zero a))
-deriving instance Show a => Show (Definition TypedExpr   a)
-deriving instance Show a => Show (Definition UntypedExpr a)
+data Definition e a b
+  = forall t. (Pretty a, Pretty b, Pretty (e t ('Suc 'Zero) a b))
+           => FunDef  Attr FunName (Vec t (TyVarName, Kind)) (Type t b) (Type t b) (e t ('Suc 'Zero) a b)
+  | forall t. AbsDecl Attr FunName (Vec t (TyVarName, Kind)) (Type t b) (Type t b)
+  | forall t. TypeDef TypeName (Vec t TyVarName) (Maybe (Type t b))
+deriving instance (Show a, Show b) => Show (Definition TypedExpr   a b)
+deriving instance (Show a, Show b) => Show (Definition UntypedExpr a b)
 
-type CoreConst e = (VarName, e 'Zero 'Zero VarName)
+type CoreConst e = (VarName, e 'Zero 'Zero VarName VarName)
 
-getDefinitionId :: Definition e a -> String
+getDefinitionId :: Definition e a b -> String
 getDefinitionId (FunDef  _ fn _ _ _ _) = fn
 getDefinitionId (AbsDecl _ fn _ _ _  ) = fn
 getDefinitionId (TypeDef tn _ _    ) = tn
 
-getFuncId :: Definition e a -> Maybe FunName
+getFuncId :: Definition e a b -> Maybe FunName
 getFuncId (FunDef  _ fn _ _ _ _) = Just fn
 getFuncId (AbsDecl _ fn _ _ _  ) = Just fn
 getFuncId _ = Nothing
 
-getTypeVarNum :: Definition e a -> Int
+getTypeVarNum :: Definition e a b -> Int
 getTypeVarNum (FunDef  _ _ tvs _ _ _) = Nat.toInt $ Vec.length tvs
 getTypeVarNum (AbsDecl _ _ tvs _ _  ) = Nat.toInt $ Vec.length tvs
 getTypeVarNum (TypeDef _ tvs _    ) = Nat.toInt $ Vec.length tvs
 
-isDefinitionId :: String -> Definition e a -> Bool
+isDefinitionId :: String -> Definition e a b -> Bool
 isDefinitionId n d = n == getDefinitionId d
 
-isFuncId :: CoreFunName -> Definition e a -> Bool
+isFuncId :: CoreFunName -> Definition e a b -> Bool
 isFuncId n (FunDef  _ fn _ _ _ _) = unCoreFunName n == fn
 isFuncId n (AbsDecl _ fn _ _ _  ) = unCoreFunName n == fn
 isFuncId _ _ = False
 
-isAbsFun :: Definition e a -> Bool
+isAbsFun :: Definition e a b -> Bool
 isAbsFun (AbsDecl {}) = True
 isAbsFun _ = False
 
-isConFun :: Definition e a -> Bool
+isConFun :: Definition e a b -> Bool
 isConFun (FunDef {}) = True
 isConFun _ = False
 
-isTypeDef :: Definition e a -> Bool
+isTypeDef :: Definition e a b -> Bool
 isTypeDef (TypeDef {}) = True
 isTypeDef _ = False
 
-isAbsTyp :: Definition e a -> Bool
+isAbsTyp :: Definition e a b -> Bool
 isAbsTyp (TypeDef _ _ Nothing) = True
 isAbsTyp _ = False
 
 
-
-insertIdxAtUntypedExpr :: Fin ('Suc v) -> UntypedExpr t v a -> UntypedExpr t ('Suc v) a
+insertIdxAtUntypedExpr :: Fin ('Suc v) -> UntypedExpr t v a b -> UntypedExpr t ('Suc v) a b
 insertIdxAtUntypedExpr cut (E e) = E $ insertIdxAtE cut insertIdxAtUntypedExpr e
 
-insertIdxAtTypedExpr :: Fin ('Suc v) -> TypedExpr t v a -> TypedExpr t ('Suc v) a
-insertIdxAtTypedExpr cut (TE t e) = TE (insertIdxAtT cut t) (insertIdxAtE cut insertIdxAtTypedExpr e)
+insertIdxAtTypedExpr :: Fin ('Suc v) -> TypedExpr t v a b -> TypedExpr t ('Suc v) a b
+insertIdxAtTypedExpr cut (TE t e) = TE t (insertIdxAtE cut insertIdxAtTypedExpr e)
 
 insertIdxAtE :: Fin ('Suc v)
-             -> (forall v. Fin ('Suc v) -> e t v a -> e t ('Suc v) a)
-             -> (Expr t v a e -> Expr t ('Suc v) a e)
+             -> (forall v. Fin ('Suc v) -> e t v a b -> e t ('Suc v) a b)
+             -> (Expr t v a b e -> Expr t ('Suc v) a b e)
 insertIdxAtE cut f (Variable v) = Variable $ first (liftIdx cut) v
-insertIdxAtE cut f (Fun fn ts nt) = Fun fn (fmap (insertIdxAtT cut) ts) nt
+insertIdxAtE cut f (Fun fn ts nt) = Fun fn ts nt
 insertIdxAtE cut f (Op opr es) = Op opr $ map (f cut) es
 insertIdxAtE cut f (App e1 e2) = App (f cut e1) (f cut e2)
-insertIdxAtE cut f (Con tag e t) = Con tag (f cut e) (insertIdxAtT cut t)
+insertIdxAtE cut f (Con tag e t) = Con tag (f cut e) t
 insertIdxAtE cut f (Unit) = Unit
 insertIdxAtE cut f (ILit n pt) = ILit n pt
 insertIdxAtE cut f (SLit s) = SLit s
@@ -251,33 +321,23 @@ insertIdxAtE cut f (LetBang vs a e1 e2) = LetBang (map (first $ liftIdx cut) vs)
 insertIdxAtE cut f (Tuple e1 e2) = Tuple (f cut e1) (f cut e2)
 insertIdxAtE cut f (Struct fs) = Struct $ map (second $ f cut) fs
 insertIdxAtE cut f (If c e1 e2) = If (f cut c) (f cut e1) (f cut e2)
-insertIdxAtE cut f (Case c tag (l1,a1,alt) (l2,a2,alts)) =
-  Case (f cut c) tag (l1, a1, f (FSuc cut) alt) (l2, a2, f (FSuc cut) alts)
+insertIdxAtE cut f (Case c tag (l1,a1,alt) (l2,a2,alts)) = Case (f cut c) tag (l1, a1, f (FSuc cut) alt) (l2, a2, f (FSuc cut) alts)
 insertIdxAtE cut f (Esac e) = Esac (f cut e)
 insertIdxAtE cut f (Split a e1 e2) = Split a (f cut e1) (f (FSuc (FSuc cut)) e2)
 insertIdxAtE cut f (Member e fld) = Member (f cut e) fld
 insertIdxAtE cut f (Take a rec fld e) = Take a (f cut rec) fld (f (FSuc (FSuc cut)) e)
 insertIdxAtE cut f (Put rec fld e) = Put (f cut rec) fld (f cut e)
-insertIdxAtE cut f (Promote ty e) = Promote (insertIdxAtT cut ty) (f cut e)
-insertIdxAtE cut f (Cast ty e) = Cast (insertIdxAtT cut ty) (f cut e)
+insertIdxAtE cut f (Promote ty e) = Promote ty (f cut e)
+insertIdxAtE cut f (Cast ty e) = Cast ty (f cut e)
 
-insertIdxAtT :: Fin ('Suc v) -> Type t v a UntypedExpr -> Type t ('Suc v) a UntypedExpr
-insertIdxAtT cut (TVar v) = TVar v
-insertIdxAtT cut (TVarBang v) = TVarBang v
-insertIdxAtT cut (TCon tn ts s) = TCon tn (fmap (insertIdxAtT cut) ts) s
-insertIdxAtT cut (TFun t1 t2) = TFun (insertIdxAtT cut t1) (insertIdxAtT cut t2)
-insertIdxAtT cut (TPrim pt) = TPrim pt
-insertIdxAtT cut (TString) = TString
-insertIdxAtT cut (TSum alts) = TSum (fmap (second $ first $ insertIdxAtT cut) alts)
-insertIdxAtT cut (TProduct t1 t2) = TProduct (insertIdxAtT cut t1) (insertIdxAtT cut t2)
-insertIdxAtT cut (TRecord fs s) = TRecord (fmap (second $ first $ insertIdxAtT cut) fs) s
-#ifdef BUILTIN_ARRAYS
-insertIdxAtT cut (TArray t l s mh) = TArray (insertIdxAtT cut t) l s (fmap (insertIdxAtUntypedExpr cut) mh)
-#endif
 
 
 -- pre-order fold over Expr wrapper
-foldEPre :: (Monoid b) => (forall t v. e1 t v a -> Expr t v a e1) -> (forall t v. e1 t v a -> b) -> e1 t v a -> b
+foldEPre :: (Monoid m)
+         => (forall t v. e1 t v a b -> Expr t v a b e1)
+         -> (forall t v. e1 t v a b -> m)
+         -> e1 t v a b
+         -> m
 foldEPre unwrap f e = case unwrap e of
   Variable{}          -> f e
   Fun{}               -> f e
@@ -310,22 +370,8 @@ foldEPre unwrap f e = case unwrap e of
   (Promote _ e1)      -> f e `mappend` foldEPre unwrap f e1
   (Cast _ e1)         -> f e `mappend` foldEPre unwrap f e1
 
-fmapT :: (forall t v. e1 t v a -> e2 t v a) -> Type t v a e1 -> Type t v a e2
-fmapT f (TVar v)             = TVar v
-fmapT f (TVarBang v)         = TVarBang v
-fmapT f (TCon tn ts s)       = TCon tn (fmap (fmapT f) ts) s
-fmapT f (TFun t1 t2)         = TFun (fmapT f t1) (fmapT f t2)
-fmapT f (TPrim pt)           = TPrim pt
-fmapT f (TString)            = TString
-fmapT f (TSum alts)          = TSum (fmap (second $ first $ fmapT f) alts)
-fmapT f (TProduct t1 t2)     = TProduct (fmapT f t1) (fmapT f t2)
-fmapT f (TRecord fs s)       = TRecord (fmap (second $ first $ fmapT f) fs) s
-fmapT f (TUnit)              = TUnit
-#ifdef BUILTIN_ARRAYS
-fmapT f (TArray t l s mh)    = TArray (fmapT f t) l s (fmap f mh)
-#endif
 
-fmapE :: (forall t v. e1 t v a -> e2 t v a) -> Expr t v a e1 -> Expr t v a e2
+fmapE :: (forall t v. e1 t v a b -> e2 t v a b) -> Expr t v a b e1 -> Expr t v a b e2
 fmapE f (Variable v)         = Variable v
 fmapE f (Fun fn tys nt)      = Fun fn tys nt
 fmapE f (Op opr es)          = Op opr (map f es)
@@ -358,54 +404,86 @@ fmapE f (Promote ty e)       = Promote ty (f e)
 fmapE f (Cast ty e)          = Cast ty (f e)
 
 
-untypeE :: TypedExpr t v a -> UntypedExpr t v a
+untypeE :: TypedExpr t v a b -> UntypedExpr t v a b
 untypeE (TE _ e) = E $ fmapE untypeE e
 
-untypeD :: Definition TypedExpr a -> Definition UntypedExpr a
+untypeD :: Definition TypedExpr a b -> Definition UntypedExpr a b
 untypeD (FunDef  attr fn ts ti to e) = FunDef  attr fn ts ti to (untypeE e)
 untypeD (AbsDecl attr fn ts ti to  ) = AbsDecl attr fn ts ti to
 untypeD (TypeDef tn ts mt) = TypeDef tn ts mt
 
-
-instance Functor (Flip (Type t v) e) where  -- map over @a@
-  fmap f _ = undefined
-
-
-instance (Functor (e t v), Functor (e t ('Suc v)), Functor (e t ('Suc ('Suc v))))
-  => Functor (Flip (Expr t v) e) where  -- map over @a@
-  fmap f (Flip (Variable v)         )      = Flip $ Variable (second f v)
-  fmap f (Flip (Fun fn tys nt)      )      = Flip $ Fun fn (fmap (ffmap f) tys) nt
-  fmap f (Flip (Op opr es)          )      = Flip $ Op opr (map (fmap f) es)
+instance (Functor (e t v a),
+          Functor (e t ('Suc v) a),
+          Functor (e t ('Suc ('Suc v)) a))
+       => Functor (Flip (Expr t v a) e) where  -- map over @b@
+  fmap f (Flip (Variable v)         )      = Flip $ Variable v
+  fmap f (Flip (Fun fn tys nt)      )      = Flip $ Fun fn (fmap (fmap f) tys) nt
+  fmap f (Flip (Op opr es)          )      = Flip $ Op opr (fmap (fmap f) es)
   fmap f (Flip (App e1 e2)          )      = Flip $ App (fmap f e1) (fmap f e2)
-  fmap f (Flip (Con cn e t)         )      = Flip $ Con cn (fmap f e) (ffmap f t)
+  fmap f (Flip (Con cn e t)         )      = Flip $ Con cn (fmap f e) (fmap f t)
   fmap f (Flip (Unit)               )      = Flip $ Unit
   fmap f (Flip (ILit i pt)          )      = Flip $ ILit i pt
   fmap f (Flip (SLit s)             )      = Flip $ SLit s
 #ifdef BUILTIN_ARRAYS
-  fmap f (Flip (ALit es)            )      = Flip $ ALit (map (fmap f) es)
+  fmap f (Flip (ALit es)            )      = Flip $ ALit (fmap (fmap f) es)
   fmap f (Flip (ArrayIndex e i)     )      = Flip $ ArrayIndex (fmap f e) (fmap f i)
-  fmap f (Flip (ArrayMap2 (as,e) (e1,e2))) = Flip $ ArrayMap2 (both f as, fmap f e) (fmap f e1, fmap f e2)
-  fmap f (Flip (Pop as e1 e2)       )      = Flip $ Pop (both f as) (fmap f e1) (fmap f e2)
+  fmap f (Flip (ArrayMap2 (as,e) (e1,e2))) = Flip $ ArrayMap2 (as, fmap f e) (fmap f e1, fmap f e2)
+  fmap f (Flip (Pop as e1 e2)       )      = Flip $ Pop as (fmap f e1) (fmap f e2)
   fmap f (Flip (Singleton e)        )      = Flip $ Singleton (fmap f e)
-  fmap f (Flip (ArrayTake as arr fld e))   = Flip $ ArrayTake (both f as) (fmap f arr) (fmap f fld) (fmap f e)
+  fmap f (Flip (ArrayTake as arr fld e))   = Flip $ ArrayTake as (fmap f arr) (fmap f fld) (fmap f e)
   fmap f (Flip (ArrayPut     arr fld e))   = Flip $ ArrayPut (fmap f arr) (fmap f fld) (fmap f e)
 #endif
-  fmap f (Flip (Let a e1 e2)        )      = Flip $ Let (f a) (fmap f e1) (fmap f e2)
-  fmap f (Flip (LetBang vs a e1 e2) )      = Flip $ LetBang (map (second f) vs) (f a) (fmap f e1) (fmap f e2)
+  fmap f (Flip (Let a e1 e2)        )      = Flip $ Let a (fmap f e1) (fmap f e2)
+  fmap f (Flip (LetBang vs a e1 e2) )      = Flip $ LetBang vs a (fmap f e1) (fmap f e2)
   fmap f (Flip (Tuple e1 e2)        )      = Flip $ Tuple (fmap f e1) (fmap f e2)
   fmap f (Flip (Struct fs)          )      = Flip $ Struct (map (second $ fmap f) fs)
   fmap f (Flip (If e1 e2 e3)        )      = Flip $ If (fmap f e1) (fmap f e2) (fmap f e3)
-  fmap f (Flip (Case e tn (l1,a1,e1) (l2,a2,e2))) = Flip $ Case (fmap f e) tn (l1, f a1, fmap f e1) (l2, f a2, fmap f e2)
+  fmap f (Flip (Case e tn (l1,a1,e1) (l2,a2,e2))) = Flip $ Case (fmap f e) tn (l1, a1, fmap f e1) (l2, a2, fmap f e2)
   fmap f (Flip (Esac e)             )      = Flip $ Esac (fmap f e)
-  fmap f (Flip (Split a e1 e2)      )      = Flip $ Split (both f a) (fmap f e1) (fmap f e2)
+  fmap f (Flip (Split a e1 e2)      )      = Flip $ Split a (fmap f e1) (fmap f e2)
   fmap f (Flip (Member rec fld)     )      = Flip $ Member (fmap f rec) fld
-  fmap f (Flip (Take a rec fld e)   )      = Flip $ Take (both f a) (fmap f rec) fld (fmap f e)
+  fmap f (Flip (Take a rec fld e)   )      = Flip $ Take a (fmap f rec) fld (fmap f e)
   fmap f (Flip (Put rec fld v)      )      = Flip $ Put (fmap f rec) fld (fmap f v)
-  fmap f (Flip (Promote ty e)       )      = Flip $ Promote (ffmap f ty) (fmap f e)
-  fmap f (Flip (Cast ty e)          )      = Flip $ Cast (ffmap f ty) (fmap f e)
+  fmap f (Flip (Promote ty e)       )      = Flip $ Promote (fmap f ty) (fmap f e)
+  fmap f (Flip (Cast ty e)          )      = Flip $ Cast (fmap f ty) (fmap f e)
 
-instance Functor (TypedExpr t v) where
-  fmap f (TE t e) = TE (ffmap f t) (ffmap f e)
+instance (Functor (Flip (e t v) b),
+          Functor (Flip (e t ('Suc v)) b),
+          Functor (Flip (e t ('Suc ('Suc v))) b))
+       => Functor (Flip2 (Expr t v) e b) where  -- map over @a@
+  fmap f (Flip2 (Variable v)         )      = Flip2 $ Variable (second f v)
+  fmap f (Flip2 (Fun fn tys nt)      )      = Flip2 $ Fun fn tys nt
+  fmap f (Flip2 (Op opr es)          )      = Flip2 $ Op opr (fmap (ffmap f) es)
+  fmap f (Flip2 (App e1 e2)          )      = Flip2 $ App (ffmap f e1) (ffmap f e2)
+  fmap f (Flip2 (Con cn e t)         )      = Flip2 $ Con cn (ffmap f e) t
+  fmap f (Flip2 (Unit)               )      = Flip2 $ Unit
+  fmap f (Flip2 (ILit i pt)          )      = Flip2 $ ILit i pt
+  fmap f (Flip2 (SLit s)             )      = Flip2 $ SLit s
+#ifdef BUILTIN_ARRAYS
+  fmap f (Flip2 (ALit es)            )      = Flip2 $ ALit (fmap (ffmap f) es)
+  fmap f (Flip2 (ArrayIndex e i)     )      = Flip2 $ ArrayIndex (ffmap f e) (ffmap f i)
+  fmap f (Flip2 (ArrayMap2 (as,e) (e1,e2))) = Flip2 $ ArrayMap2 (both f as, ffmap f e) (ffmap f e1, ffmap f e2)
+  fmap f (Flip2 (Pop as e1 e2)       )      = Flip2 $ Pop (both f as) (ffmap f e1) (ffmap f e2)
+  fmap f (Flip2 (Singleton e)        )      = Flip2 $ Singleton (ffmap f e)
+  fmap f (Flip2 (ArrayTake as arr fld e))   = Flip2 $ ArrayTake (both f as) (ffmap f arr) (ffmap f fld) (ffmap f e)
+  fmap f (Flip2 (ArrayPut     arr fld e))   = Flip2 $ ArrayPut (ffmap f arr) (ffmap f fld) (ffmap f e)
+#endif
+  fmap f (Flip2 (Let a e1 e2)        )      = Flip2 $ Let (f a) (ffmap f e1) (ffmap f e2)
+  fmap f (Flip2 (LetBang vs a e1 e2) )      = Flip2 $ LetBang (map (second f) vs) (f a) (ffmap f e1) (ffmap f e2)
+  fmap f (Flip2 (Tuple e1 e2)        )      = Flip2 $ Tuple (ffmap f e1) (ffmap f e2)
+  fmap f (Flip2 (Struct fs)          )      = Flip2 $ Struct (map (second $ ffmap f) fs)
+  fmap f (Flip2 (If e1 e2 e3)        )      = Flip2 $ If (ffmap f e1) (ffmap f e2) (ffmap f e3)
+  fmap f (Flip2 (Case e tn (l1,a1,e1) (l2,a2,e2))) = Flip2 $ Case (ffmap f e) tn (l1, f a1, ffmap f e1) (l2, f a2, ffmap f e2)
+  fmap f (Flip2 (Esac e)             )      = Flip2 $ Esac (ffmap f e)
+  fmap f (Flip2 (Split a e1 e2)      )      = Flip2 $ Split (both f a) (ffmap f e1) (ffmap f e2)
+  fmap f (Flip2 (Member rec fld)     )      = Flip2 $ Member (ffmap f rec) fld
+  fmap f (Flip2 (Take a rec fld e)   )      = Flip2 $ Take (both f a) (ffmap f rec) fld (ffmap f e)
+  fmap f (Flip2 (Put rec fld v)      )      = Flip2 $ Put (ffmap f rec) fld (ffmap f v)
+  fmap f (Flip2 (Promote ty e)       )      = Flip2 $ Promote ty (ffmap f e)
+  fmap f (Flip2 (Cast ty e)          )      = Flip2 $ Cast ty (ffmap f e)
+
+instance Functor (Flip (TypedExpr t v) b) where  -- over @a@
+  fmap f (Flip (TE t e)) = Flip $ TE t (fffmap f e)
 
 
 -- instance Functor (Definition TypedExpr) where
@@ -425,7 +503,7 @@ fieldIndex = magenta . string . ('.':) . show
 
 -- NOTE: the precedence levels are somewhat different to those of the surface lang / zilinc
 
-instance Prec (Expr t v a e) where
+instance Prec (Expr t v a b e) where
   prec (Op opr [_,_]) = prec (associativity opr)
   prec (ILit {}) = 0
   prec (SLit {}) = 0
@@ -445,24 +523,41 @@ instance Prec (Expr t v a e) where
   prec (Cast {}) = 0
   prec _ = 100
 
-instance Prec (TypedExpr t v a) where
+instance Prec (TypedExpr t v a b) where
   prec (TE _ e) = prec e
 
-instance Prec (UntypedExpr t v a) where
+instance Prec (UntypedExpr t v a b) where
   prec (E e) = prec e
+
+instance Prec (LExpr t b) where
+  prec (LOp opr [_,_]) = prec (associativity opr)
+  prec (LILit {}) = 0
+  prec (LSLit {}) = 0
+  prec (LVariable {}) = 0
+  prec (LFun {}) = 0
+  prec (LApp {}) = 1
+  prec (LTuple {}) = 0
+  prec (LCon {}) = 0
+  prec (LEsac {}) = 0
+  prec (LMember {}) = 0
+  prec (LTake {}) = 0
+  prec (LPut {}) = 1
+  prec (LPromote {}) = 0
+  prec (LCast {}) = 0
+  prec _ = 100
 
 prettyV = dullblue  . string . ("_v" ++) . show . finInt
 prettyT = dullgreen . string . ("_t" ++) . show . finInt
 
-instance Pretty a => Pretty (TypedExpr t v a) where
+instance (Pretty a, Pretty b) => Pretty (TypedExpr t v a b) where
   pretty (TE t e) | not __cogent_fshow_types_in_pretty = pretty e
                   | otherwise = parens (pretty e <+> symbol ":" <+> pretty t)
 
-instance Pretty a => Pretty (UntypedExpr t v a) where
+instance (Pretty a, Pretty b) => Pretty (UntypedExpr t v a b) where
   pretty (E e) = pretty e
 
-instance (Pretty a, Prec (e t v a), Pretty (e t v a), Pretty (e t ('Suc v) a), Pretty (e t ('Suc ('Suc v)) a))
-         => Pretty (Expr t v a e) where
+instance (Pretty a, Pretty b, Prec (e t v a b), Pretty (e t v a b), Pretty (e t ('Suc v) a b), Pretty (e t ('Suc ('Suc v)) a b))
+         => Pretty (Expr t v a b e) where
   pretty (Op opr [a,b])
      | LeftAssoc  l <- associativity opr = prettyPrec (l+1) a <+> primop opr <+> prettyPrec l b
      | RightAssoc l <- associativity opr = prettyPrec l a <+> primop opr <+> prettyPrec (l+1)  b
@@ -516,7 +611,7 @@ instance Pretty FunNote where
   pretty MacroCall = comment "{-# FNMACRO #-}" <+> empty
   pretty InlinePlease = comment "inline" <+> empty
 
-instance (Pretty (e t v a)) => Pretty (Type t v a e) where
+instance (Pretty b) => Pretty (Type t b) where
   pretty (TVar v) = prettyT v
   pretty (TVarBang v) = prettyT v L.<> typesymbol "!"
   pretty (TPrim pt) = pretty pt
@@ -540,6 +635,43 @@ prettyTaken :: Bool -> Doc
 prettyTaken True  = symbol "*"
 prettyTaken False = empty
 
+instance (Pretty b) => Pretty (LExpr t b) where
+  pretty (LOp opr [a,b])
+     | LeftAssoc  l <- associativity opr = prettyPrec (l+1) a <+> primop opr <+> prettyPrec l b
+     | RightAssoc l <- associativity opr = prettyPrec l a <+> primop opr <+> prettyPrec (l+1)  b
+     | NoAssoc    l <- associativity opr = prettyPrec l a <+> primop opr <+> prettyPrec l  b
+  pretty (LOp opr [e]) = primop opr <+> prettyPrec 1 e
+  pretty (LOp opr es)  = primop opr <+> tupled (map pretty es)
+  pretty (LILit i pt) = literal (string $ show i) <+> symbol "::" <+> pretty pt
+  pretty (LSLit s) = literal $ string s
+  pretty (LVariable x) = pretty (snd x) L.<> angles (L.int . natToInt $ fst x)
+  pretty (LFun fn ins nt) = pretty nt L.<> funname (unCoreFunName fn) <+> pretty ins
+  pretty (LApp a b) = prettyPrec 2 a <+> prettyPrec 1 b
+  pretty (LLet a e1 e2) = align (keyword "let" <+> pretty a <+> symbol "=" <+> pretty e1 L.<$>
+                                keyword "in" <+> pretty e2)
+  pretty (LLetBang bs a e1 e2) = align (keyword "let!" <+> tupled (map (L.int . natToInt . fst) bs) <+> pretty a <+> symbol "=" <+> pretty e1 L.<$>
+                                       keyword "in" <+> pretty e2)
+  pretty (LUnit) = tupled []
+  pretty (LTuple e1 e2) = tupled (map pretty [e1, e2])
+  pretty (LStruct fs) = symbol "#" L.<> record (map (\(n,e) -> fieldname n <+> symbol "=" <+> pretty e) fs)
+  pretty (LCon tn e t) = parens (tagname tn <+> prettyPrec 1 e) <+> symbol "::" <+> pretty t
+  pretty (LIf c t e) = group . align $ (keyword "if" <+> pretty c
+                                       L.<$> indent (keyword "then" </> align (pretty t))
+                                       L.<$> indent (keyword "else" </> align (pretty e)))
+  pretty (LCase e tn (l1,v1,a1) (l2,v2,a2)) = align (keyword "case" <+> pretty e <+> keyword "of"
+                                                  L.<$> indent (tagname tn <+> pretty v1 <+> pretty l1 <+> align (pretty a1))
+                                                  L.<$> indent (pretty v2 <+> pretty l2 <+> align (pretty a2)))
+  pretty (LEsac e) = keyword "esac" <+> parens (pretty e)
+  pretty (LSplit (v1,v2) e1 e2) = align (keyword "split" <+> parens (pretty v1 <> comma <> pretty v2) <+> symbol "=" <+> pretty e1 L.<$>
+                                  keyword "in" <+> pretty e2)
+  pretty (LMember x f) = prettyPrec 1 x L.<> symbol "." L.<> fieldIndex f
+  pretty (LTake (a,b) rec f e) = align (keyword "take" <+> tupled [pretty a, pretty b] <+> symbol "="
+                                                      <+> prettyPrec 1 rec <+> record (fieldIndex f:[]) L.<$>
+                                       keyword "in" <+> pretty e)
+  pretty (LPut rec f v) = prettyPrec 1 rec <+> record [fieldIndex f <+> symbol "=" <+> pretty v]
+  pretty (LPromote t e) = prettyPrec 1 e <+> symbol ":^:" <+> pretty t
+  pretty (LCast t e) = prettyPrec 1 e <+> symbol ":::" <+> pretty t
+
 
 #if __GLASGOW_HASKELL__ < 709
 instance Pretty (TyVarName, Kind) where
@@ -553,7 +685,7 @@ instance Pretty a => Pretty (Vec t a) where
   pretty (Cons x Nil) = pretty x
   pretty (Cons x xs) = pretty x L.<> string "," <+> pretty xs
 
-instance Pretty (Definition e a) where
+instance (Pretty a, Pretty b) => Pretty (Definition e a b) where
   pretty (FunDef _ fn ts t rt e) = funname fn <+> symbol ":" <+> brackets (pretty ts) L.<> symbol "." <+>
                                    parens (pretty t) <+> symbol "->" <+> parens (pretty rt) <+> symbol "=" L.<$>
                                    pretty e

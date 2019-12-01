@@ -34,6 +34,7 @@ import Cogent.Inference
 import Cogent.Isabelle.Deep (deepDefinitions, deepTypeAbbrevs, getTypeAbbrevs, TypeAbbrevs)
 import Cogent.Isabelle.ProofGen
 import Cogent.Util (NameMod)
+import Data.Fin
 import Data.LeafTree
 import Data.Vec hiding (splitAt, length, zipWith, zip, unzip, head)
 import qualified Data.Vec as V
@@ -66,9 +67,9 @@ data TypeSplitKind = TSK_R | TSK_L | TSK_S | TSK_NS
   deriving Eq
 data TypingTree t = TyTrLeaf
                   | TyTrSplit [Maybe TypeSplitKind] (TreeCtx t) (TreeCtx t)
-type TreeCtx t = ([Maybe (Type t)], TypingTree t)
+type TreeCtx t = ([Maybe (Type t VarName)], TypingTree t)
 
-deepTypeProof :: (Pretty a) => NameMod -> Bool -> Bool -> String -> [Definition TypedExpr a] -> String -> Doc
+deepTypeProof :: (Pretty a) => NameMod -> Bool -> Bool -> String -> [Definition TypedExpr a VarName] -> String -> Doc
 deepTypeProof mod withDecls withBodies thy decls log =
   let header = (string ("(*\n" ++ log ++ "\n*)\n") <$>)
       ta = getTypeAbbrevs mod decls
@@ -164,7 +165,7 @@ flattenHintTree :: LeafTree Hints -> [TreeSteps Hints]
 flattenHintTree (Branch ths) = StepDown : concatMap flattenHintTree ths ++ [StepUp]
 flattenHintTree (Leaf h) = [Val h]
 
-proveSorry :: (Pretty a) => Definition TypedExpr a -> State TypingSubproofs [TheoryDecl I.Type I.Term]
+proveSorry :: (Pretty a) => Definition TypedExpr a VarName -> State TypingSubproofs [TheoryDecl I.Type I.Term]
 proveSorry (FunDef _ fn k ti to e) = do
   mod <- use nameMod
   let safeFn = unIsabelleName $ mkIsabelleName fn
@@ -175,7 +176,7 @@ proveSorry (FunDef _ fn k ti to e) = do
   return prf
 proveSorry _ = return []
 
-prove :: (Pretty a) => [Definition TypedExpr a] -> Definition TypedExpr a
+prove :: (Pretty a) => [Definition TypedExpr a VarName] -> Definition TypedExpr a VarName
       -> State TypingSubproofs ([TheoryDecl I.Type I.Term], [TheoryDecl I.Type I.Term])
 prove decls (FunDef _ fn k ti to e) = do
   mod <- use nameMod
@@ -187,7 +188,7 @@ prove decls (FunDef _ fn k ti to e) = do
   return (fn_typecorrect_proof, if __cogent_fml_typing_tree then formatMLTreeFinalise (mod fn) else [])
 prove _ _ = return ([], [])
 
-proofs :: (Pretty a) => [Definition TypedExpr a]
+proofs :: (Pretty a) => [Definition TypedExpr a VarName]
        -> State TypingSubproofs [TheoryDecl I.Type I.Term]
 proofs decls = do
     let (predecls,postdecls) = badHackSplitOnSorryBefore decls
@@ -195,17 +196,17 @@ proofs decls = do
     bodies <- mapM (prove decls) postdecls
     return $ concat $ bsorry ++ map fst bodies ++ map snd bodies
 
-funTypeTree :: (Pretty a) => NameMod -> TypeAbbrevs -> Definition TypedExpr a -> [TheoryDecl I.Type I.Term]
+funTypeTree :: (Pretty a) => NameMod -> TypeAbbrevs -> Definition TypedExpr a VarName -> [TheoryDecl I.Type I.Term]
 funTypeTree mod ta (FunDef _ fn _ ti _ e) = [deepTyTreeDef mod ta fn (typeTree eexpr)]
   where eexpr = pushDown (Cons (Just ti) Nil) (splitEnv (Cons (Just ti) Nil) e)
 funTypeTree _ _ _ = []
 
-funTypeTrees :: (Pretty a) => NameMod -> TypeAbbrevs -> [Definition TypedExpr a] -> [TheoryDecl I.Type I.Term]
+funTypeTrees :: (Pretty a) => NameMod -> TypeAbbrevs -> [Definition TypedExpr a VarName] -> [TheoryDecl I.Type I.Term]
 funTypeTrees mod ta decls =
   let (_, decls') = badHackSplitOnSorryBefore decls
   in concatMap (funTypeTree mod ta) decls
 
-badHackSplitOnSorryBefore :: [Definition TypedExpr a] -> ([Definition TypedExpr a], [Definition TypedExpr a])
+badHackSplitOnSorryBefore :: [Definition TypedExpr a VarName] -> ([Definition TypedExpr a VarName], [Definition TypedExpr a VarName])
 badHackSplitOnSorryBefore decls =
   if __cogent_type_proof_sorry_before == Nothing
   then ([], decls)
@@ -235,7 +236,7 @@ deepTreeSplits (tsk : tsks) = mkApp (mkId "Cons")
     [deepMaybe (fmap deepTypeSplitKind tsk), deepTreeSplits tsks]
 deepTreeSplits [] = mkList []
 
-deepCtx :: NameMod -> TypeAbbrevs -> [Maybe (Type t)] -> Term
+deepCtx :: NameMod -> TypeAbbrevs -> [Maybe (Type t VarName)] -> Term
 deepCtx mod ta = mkList . map (deepMaybeTy mod ta)
 
 deepCtxTree :: NameMod -> TypeAbbrevs -> TypingTree t -> Term
@@ -262,14 +263,14 @@ isaTypeName n =
 
 isaName = unIsabelleName . mkIsabelleName
 
-funTypeCase :: NameMod -> Definition TypedExpr a -> Maybe Term
+funTypeCase :: NameMod -> Definition TypedExpr a VarName -> Maybe Term
 funTypeCase mod (FunDef  _ fn _ _ _ _) =
   Just $ mkPair (mkId (escapedFunName (isaName fn))) (mkId (mod (isaTypeName fn)))
 funTypeCase mod (AbsDecl _ fn _ _ _  ) =
   Just $ mkPair (mkId (escapedFunName (isaName fn))) (mkId (mod (isaTypeName fn)))
 funTypeCase _ _ = Nothing
 
-funTypeEnv :: NameMod -> [Definition TypedExpr a] -> [TheoryDecl I.Type I.Term]
+funTypeEnv :: NameMod -> [Definition TypedExpr a VarName] -> [TheoryDecl I.Type I.Term]
 funTypeEnv mod fs = funTypeEnv' $ mkList $ mapMaybe (funTypeCase mod) fs
 
 funTypeEnv' upds = let unit = mkId "([], TUnit, TUnit)"
@@ -279,12 +280,12 @@ funTypeEnv' upds = let unit = mkId "([], TUnit, TUnit)"
                     in [[isaDecl| definition \<Xi> :: "$tysig"
                                   where "\<Xi> \<equiv> assoc_lookup $upds $unit" |]]
 
-funDefCase :: Definition TypedExpr a -> Maybe Term
+funDefCase :: Definition TypedExpr a VarName -> Maybe Term
 funDefCase (AbsDecl _ fn _ _ _  ) =
     Just $ mkPair (mkId $ escapedFunName fn) (mkId "(\\<lambda>_ _. False)")
 funDefCase _ = Nothing
 
-funDefEnv :: [Definition TypedExpr a] -> [TheoryDecl I.Type I.Term]
+funDefEnv :: [Definition TypedExpr a VarName] -> [TheoryDecl I.Type I.Term]
 funDefEnv fs = funDefEnv' $ mkList $ mapMaybe funDefCase fs
 
 funDefEnv' upds = let unit = mkId "(\\<lambda>_ _. False)"
@@ -306,21 +307,21 @@ setAt [] _ _ = []
 recTaken = snd . snd
 recType = fst . snd
 
-bangEnv :: [(Fin v, a)] -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t))
+bangEnv :: [(Fin v, a)] -> Vec v (Maybe (Type t VarName)) -> Vec v (Maybe (Type t VarName))
 bangEnv ((t, _):is) env = bangEnv is $ update env t $ fmap bang $ env `at` t
 bangEnv [] env = env
 
-unbangEnv :: Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t))
+unbangEnv :: Vec v (Maybe (Type t VarName)) -> Vec v (Maybe (Type t VarName)) -> Vec v (Maybe (Type t VarName))
 unbangEnv Nil Nil = Nil
 unbangEnv (Cons (Just _) bs) (Cons e es) = Cons e (unbangEnv bs es)
 unbangEnv (Cons Nothing bs)  (Cons _ es) = Cons Nothing (unbangEnv bs es)
 
-selectEnv :: [(Fin v, a)] -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t))
+selectEnv :: [(Fin v, a)] -> Vec v (Maybe (Type t VarName)) -> Vec v (Maybe (Type t VarName))
 selectEnv [] env = cleared env
 selectEnv ((v,_):vs) env = update (selectEnv vs env) v (env `at` v)
 
 -- Annotates a typed expression with the environment required to successfully execute it
-splitEnv :: (Pretty a) => Vec v (Maybe (Type t)) -> TypedExpr t v a -> EnvExpr t v a
+splitEnv :: (Pretty a) => Vec v (Maybe (Type t VarName)) -> TypedExpr t v a VarName -> EnvExpr t v a VarName
 splitEnv env (TE t Unit)          = EE t Unit          $ cleared env
 splitEnv env (TE t (ILit i t'))   = EE t (ILit i t')   $ cleared env
 splitEnv env (TE t (SLit s))      = EE t (SLit s)      $ cleared env
@@ -412,7 +413,7 @@ splitEnv env (TE t (Take a e f e2)) =
 
 -- Ensures that the environment of an expression is equal to the sum of the
 -- environments of the subexpressions.
-pushDown :: (Pretty a) => Vec v (Maybe (Type t)) -> EnvExpr t v a -> EnvExpr t v a
+pushDown :: (Pretty a) => Vec v (Maybe (Type t VarName)) -> EnvExpr t v a VarName -> EnvExpr t v a VarName
 pushDown unused (EE ty e@Unit      _) = EE ty e unused
 pushDown unused (EE ty e@(ILit {}) _) = EE ty e unused
 pushDown unused (EE ty e@(SLit {}) _) = EE ty e unused
@@ -504,14 +505,14 @@ pushDown unused (EE ty (Cast ty' e) env)
 
 pushDown _ e = __impossible $ "pushDown:" ++ show (pretty e) ++ " is not yet implemented"
 
-treeSplit :: Maybe (Type t) -> Maybe (Type t) -> Maybe (Type t) -> Maybe TypeSplitKind
+treeSplit :: Maybe (Type t VarName) -> Maybe (Type t VarName) -> Maybe (Type t VarName) -> Maybe TypeSplitKind
 treeSplit Nothing  Nothing  Nothing  = Nothing
 treeSplit (Just t) (Just _) Nothing  = Just TSK_L
 treeSplit (Just t) Nothing  (Just _) = Just TSK_R
 treeSplit (Just t) (Just _) (Just _) = Just TSK_S
 treeSplit g x y = error $ "bad split: " ++ show (g, x, y)
 
-treeSplits :: Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> Vec v (Maybe (Type t)) -> [Maybe TypeSplitKind]
+treeSplits :: Vec v (Maybe (Type t VarName)) -> Vec v (Maybe (Type t VarName)) -> Vec v (Maybe (Type t VarName)) -> [Maybe TypeSplitKind]
 treeSplits (Cons g gs) (Cons x xs) (Cons y ys) = treeSplit g x y:treeSplits gs xs ys
 treeSplits Nil         Nil         Nil         = []
 #if __GLASGOW_HASKELL__ < 711
@@ -523,7 +524,7 @@ treeBang i is (x:xs) | i `elem` is = Just TSK_NS:treeBang (i+1) is xs
                      | otherwise   = x:treeBang (i+1) is xs
 treeBang i is [] = []
 
-typeTree :: EnvExpr t v a -> TypingTree t
+typeTree :: EnvExpr t v a VarName -> TypingTree t
 typeTree (EE ty (Split a e1 e2) env) = TyTrSplit (treeSplits env (envOf e1) (peel2 $ envOf e2)) ([], typeTree e1) ([envOf e2 `at` FZero, envOf e2 `at` FSuc FZero], typeTree e2)
 typeTree (EE ty (Let a e1 e2) env) = TyTrSplit (treeSplits env (envOf e1) (peel $ envOf e2)) ([], typeTree e1) ([envOf e2 `at` FZero], typeTree e2)
 
