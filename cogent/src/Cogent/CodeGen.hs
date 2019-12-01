@@ -39,9 +39,9 @@ cgen :: FilePath
      -> [FilePath]
      -> FilePath
      -> FilePath
-     -> [Definition TypedExpr VarName]
+     -> [Definition TypedExpr VarName VarName]
      -> Maybe GenState
-     -> [(Type 'Zero, String)]
+     -> [(Type 'Zero VarName, String)]
      -> String
      -> ([C.Definition], [C.Definition], [(TypeName, S.Set [CId])], [TableCTypes], Leijen.Doc, String, GenState)
 cgen hName cNames hscName hsName defs mcache ctygen log =

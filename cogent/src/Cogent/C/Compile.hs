@@ -185,7 +185,7 @@ genFunDispatch tn (ti, to) (S.toList -> fs) = do
 
 
 -- Add a type synonym
-addSynonym :: (CC.Type 'Zero -> Gen v CType) -> CC.Type 'Zero -> TypeName -> Gen v CType
+addSynonym :: (CC.Type 'Zero VarName -> Gen v CType) -> CC.Type 'Zero VarName -> TypeName -> Gen v CType
 addSynonym f t n = do t' <- f t
                       typeSynonyms %= M.insert n t'
                       return t'
@@ -285,7 +285,7 @@ likelihood l = case l of Likely   -> likely
                          Regular  -> id
                          Unlikely -> unlikely
 
-genOp :: Syn.Op -> CC.Type 'Zero -> [CExpr] -> Gen v CExpr
+genOp :: Syn.Op -> CC.Type 'Zero VarName -> [CExpr] -> Gen v CExpr
 genOp opr (CC.TPrim pt) es =
   let oprf = case opr of
                -- binary
@@ -328,7 +328,7 @@ genOp opr (CC.TPrim pt) es =
         downcast pt e = if pt `elem` [U8, U16] then CTypeCast (CogentPrim pt) e else e
 genOp _ _ _ = __impossible "genOp"
 
-genExpr_ :: TypedExpr 'Zero v VarName -> Gen v (CExpr, [CBlockItem], [CBlockItem], VarPool)
+genExpr_ :: TypedExpr 'Zero v VarName VarName -> Gen v (CExpr, [CBlockItem], [CBlockItem], VarPool)
 genExpr_ = genExpr Nothing
 
 
@@ -350,7 +350,7 @@ genExpr
      -- Otherwise, the generated C expression
      -- is returned directly.
 
-  -> TypedExpr 'Zero v VarName
+  -> TypedExpr 'Zero v VarName VarName
      -- ^ The cogent expression to generate C code for.
 
   -> Gen v (CExpr, [CBlockItem], [CBlockItem], VarPool)
@@ -413,9 +413,9 @@ genExpr mv (TE t (ArrayMap2 (_,f) (e1,e2))) = do  -- FIXME: varpool - as above
   (i,idecl,istm) <- declareInit u32 (mkConst U32 0) M.empty
   let tarr1@(TArray telt1 l1 s1 _) = exprType e1
       tarr2@(TArray telt2 l2 s2 _) = exprType e2
-      l1' = mkConst U32 l1
-      l2' = mkConst U32 l2
-      min = CCondExpr (CBinOp C.Lt l1' l2') l1' l2'
+  l1' <- genLExpr l1
+  l2' <- genLExpr l2
+  let min = CCondExpr (CBinOp C.Lt l1' l2') l1' l2'
   tarr1' <- genType tarr1
   tarr2' <- genType tarr2
   telt1' <- genType telt1
@@ -441,7 +441,7 @@ genExpr mv (TE t (Pop _ e1 e2)) = do  -- FIXME: varpool - as above
   (e1',e1decl,e1stm,e1p) <- genExpr_ e1
   let t1@(TArray telt l s mhole) = exprType e1  -- ASSERTION: @mhole@ cannot be a hole in its head
   (v1,v1decl,v1stm,v1p) <- flip3 aNewVar e1p (mkArrIdx e1' 0) =<< genType telt
-  let trest = TArray telt (l-1) s mhole
+  let trest = TArray telt (LOp Minus [l, LILit 1 U32]) s mhole
   trest' <- genTypeP trest
   (v2,v2decl,v2stm) <- declare trest'
   -- recycleVars v1p
@@ -787,6 +787,7 @@ genExpr mv (TE t (Cast _ e)) = do   -- int promotion
   return (v, edecl++adecl, estm++astm, vp)
 
 
+
 insertSetMap :: Ord a => a -> Maybe (S.Set a) -> Maybe (S.Set a)
 insertSetMap x Nothing  = Just $ S.singleton x
 insertSetMap x (Just y) = Just $ S.insert x y
@@ -831,15 +832,15 @@ genFfiFunc rt fn [t]
 genFfiFunc _ _ _ = __impossible "genFfiFunc: generated C functions should always have 1 argument"
 
  -- NOTE: This function excessively uses `unsafeCoerce' because of existentials / zilinc
-genDefinition :: Definition TypedExpr VarName -> Gen 'Zero [CExtDecl]
+genDefinition :: Definition TypedExpr VarName VarName -> Gen 'Zero [CExtDecl]
 genDefinition (FunDef attr fn Nil t rt e) = do
   localOracle .= 0
   varPool .= M.empty
   arg <- freshLocalCId 'a'
-  t' <- addSynonym genTypeA (unsafeCoerce t :: CC.Type 'Zero) (argOf fn)
+  t' <- addSynonym genTypeA (unsafeCoerce t :: CC.Type 'Zero VarName) (argOf fn)
   (e',edecl,estm,_) <- withBindings (Cons (variable arg & if __cogent_funboxed_arg_by_ref then CDeref else id) Nil)
-                         (genExpr Nothing (unsafeCoerce e :: TypedExpr 'Zero ('Suc 'Zero) VarName))
-  rt' <- addSynonym genTypeP (unsafeCoerce rt :: CC.Type 'Zero) (retOf fn)
+                         (genExpr Nothing (unsafeCoerce e :: TypedExpr 'Zero ('Suc 'Zero) VarName VarName))
+  rt' <- addSynonym genTypeP (unsafeCoerce rt :: CC.Type 'Zero VarName) (retOf fn)
   funClasses %= M.alter (insertSetMap (fn,attr)) (Function t' rt')
   body <- case __cogent_fintermediate_vars of
     True  -> do (rv,rvdecl,rvstm) <- declareInit rt' e' M.empty
@@ -850,19 +851,19 @@ genDefinition (FunDef attr fn Nil t rt e) = do
   return $ ffifunc ++ [ CDecl $ CExtFnDecl rt' fn [(t',Nothing)] fnspec
                       , CFnDefn (rt',fn) [(t',arg)] body fnspec ]
 genDefinition (AbsDecl attr fn Nil t rt)
-  = do t'  <- addSynonym genTypeA (unsafeCoerce t  :: CC.Type 'Zero) (argOf fn)
-       rt' <- addSynonym genTypeP (unsafeCoerce rt :: CC.Type 'Zero) (retOf fn)
+  = do t'  <- addSynonym genTypeA (unsafeCoerce t  :: CC.Type 'Zero VarName) (argOf fn)
+       rt' <- addSynonym genTypeP (unsafeCoerce rt :: CC.Type 'Zero VarName) (retOf fn)
        funClasses %= M.alter (insertSetMap (fn,attr)) (Function t' rt')
        ffifunc <- if __cogent_fffi_c_functions then genFfiFunc rt' fn [t'] else return []
        return $ ffifunc ++ [CDecl $ CExtFnDecl rt' fn [(t',Nothing)] (fnSpecAttr attr noFnSpec)]
 -- NOTE: An ad hoc treatment to concrete non-parametric type synonyms / zilinc
-genDefinition (TypeDef tn ins (Just (unsafeCoerce -> ty :: CC.Type 'Zero)))
+genDefinition (TypeDef tn ins (Just (unsafeCoerce -> ty :: CC.Type 'Zero VarName)))
   -- NOTE: We need to make sure that ty doesn't consist of any function type with no function members / zilinc
   -- NOTE: If the RHS of this (the structural definition) is used at all, we generate the synonym / zilinc (26/08/15)
   | not (isTFun ty) = lookupTypeCId ty >>= mapM_ (const $ genRealSyn ty tn) >> return []
   where
     -- This function generates a type synonym to a datatype, not to a pointer
-    genRealSyn :: CC.Type 'Zero -> TypeName -> Gen v ()
+    genRealSyn :: CC.Type 'Zero VarName -> TypeName -> Gen v ()
     genRealSyn ty n = typeCId ty >>= \t -> typeSynonyms %= M.insert n (CIdent t)
 genDefinition _ = return []
 -- genDefinition (TypeDef tn ins _) = __impossible "genDefinition"
@@ -885,9 +886,9 @@ genDefinition _ = return []
 -- ----------------------------------------------------------------------------
 -- * top-level function
 
-compile :: [Definition TypedExpr VarName]
+compile :: [Definition TypedExpr VarName VarName]
         -> Maybe GenState      -- cached state
-        -> [(Type 'Zero, String)]
+        -> [(Type 'Zero VarName, String)]
         -> ( [CExtDecl]  -- enum definitions
            , [CExtDecl]  -- type definitions
            , [CExtDecl]  -- function declarations
@@ -955,7 +956,7 @@ printATM = L.concat . L.map (\(tn,S.toList -> ls) -> tn ++ "\n" ++
 -- ----------------------------------------------------------------------------
 -- * Table generator
 
-newtype TableCTypes = TableCTypes (CId, CC.Type 'Zero)
+newtype TableCTypes = TableCTypes (CId, CC.Type 'Zero VarName)
 
 table :: TableCTypes -> PP.Doc
 table (TableCTypes entry) = PP.pretty entry
@@ -965,9 +966,9 @@ printCTable h m ts log = mapM_ ((>> hPutChar h '\n') . PP.displayIO h . PP.rende
                            L.map (PP.string . ("-- " ++)) (lines log) ++ PP.line : L.map table ts
 
 #if __GLASGOW_HASKELL__ < 709
-instance PP.Pretty (CId, CC.Type 'Zero) where
+instance PP.Pretty (CId, CC.Type 'Zero VarName) where
 #else
-instance {-# OVERLAPPING #-} PP.Pretty (CId, CC.Type 'Zero) where
+instance {-# OVERLAPPING #-} PP.Pretty (CId, CC.Type 'Zero VarName) where
 #endif
   pretty (n,t) = PP.pretty (deepType id (M.empty, 0) t) PP.<+> PP.string ":=:" PP.<+> PP.pretty n
 
@@ -977,11 +978,11 @@ instance {-# OVERLAPPING #-} PP.Pretty (CId, CC.Type 'Zero) where
 
 kindcheck = runIdentity . kindcheck_ (const $ __impossible "kindcheck")
 
-isTypeLinear :: Type 'Zero -> Bool
+isTypeLinear :: Type 'Zero VarName -> Bool
 isTypeLinear = flip isTypeHasKind k1
 
-isTypeInKinds :: Type 'Zero -> [Kind] -> Bool
+isTypeInKinds :: Type 'Zero VarName -> [Kind] -> Bool
 isTypeInKinds t ks = kindcheck t `elem` ks
 
-isTypeHasKind :: Type 'Zero -> Kind -> Bool
+isTypeHasKind :: Type 'Zero VarName -> Kind -> Bool
 isTypeHasKind t k = isTypeInKinds t [k]

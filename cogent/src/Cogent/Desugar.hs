@@ -41,6 +41,7 @@ import qualified Cogent.Surface as S
 import Cogent.TypeCheck.Base as B
 import Cogent.Util
 import Data.Ex
+import Data.Fin
 import Data.Nat
 import Data.PropEq ((:=:)(Refl))
 import Data.Vec as Vec
@@ -106,7 +107,7 @@ newtype DS (t :: Nat) (v :: Nat) a = DS { runDS :: RWS (Typedefs, Constants, [Pr
 desugar :: [S.TopLevel S.RawType B.TypedPatn B.TypedExpr]
         -> [(S.RawType, String)]
         -> [Pragma]
-        -> ( ([Definition UntypedExpr VarName], [(SupposedlyMonoType VarName, String)])
+        -> ( ([Definition UntypedExpr VarName VarName], [(SupposedlyMonoType VarName, String)])
            , Last (Typedefs, Constants, [CoreConst UntypedExpr]) )
 desugar tls ctygen pragmas =
   let fundefs    = filter isFunDef     tls where isFunDef     S.FunDef     {} = True; isFunDef     _ = False
@@ -133,7 +134,7 @@ desugar' :: [S.TopLevel S.RawType B.TypedPatn B.TypedExpr]
          -> [S.TopLevel S.RawType B.TypedPatn B.TypedExpr]  -- constants
          -> [(S.RawType, String)]
          -> [Pragma]
-         -> DS 'Zero 'Zero ([Definition UntypedExpr VarName], [(SupposedlyMonoType VarName, String)])
+         -> DS 'Zero 'Zero ([Definition UntypedExpr VarName VarName], [(SupposedlyMonoType VarName, String)])
 desugar' tls constdefs ctygen pragmas = do
   defs' <- concat <$> mapM go tls
   write <- ask
@@ -146,7 +147,7 @@ desugar' tls constdefs ctygen pragmas = do
     initialState  = DsState Nil Nil 0 0 []
 
     go :: S.TopLevel S.RawType B.TypedPatn B.TypedExpr
-       -> DS 'Zero 'Zero [Definition UntypedExpr VarName]
+       -> DS 'Zero 'Zero [Definition UntypedExpr VarName VarName]
     go x = do gbl <- use oracleGbl
               put initialState
               oracleGbl .= gbl
@@ -258,7 +259,7 @@ lamLftExpr sigma f (B.TE t e l) = B.TE t <$> traverse (lamLftExpr sigma f) e <*>
 
 desugarTlv :: S.TopLevel S.RawType B.TypedPatn B.TypedExpr
            -> [Pragma]
-           -> DS 'Zero 'Zero (Definition UntypedExpr VarName)
+           -> DS 'Zero 'Zero (Definition UntypedExpr VarName VarName)
 desugarTlv (S.Include    _) _ = __impossible "desugarTlv"
 desugarTlv (S.IncludeStd _) _ = __impossible "desugarTlv"
 desugarTlv (S.TypeDec tn vs t) _ | ExI (Flip vs') <- Vec.fromList vs
@@ -289,7 +290,7 @@ desugarTlv (S.FunDef fn sigma alts) pragmas | S.PT vs t <- sigma
 desugarTlv (S.ConstDef {}) _ = __impossible "desugarTlv"
 desugarTlv (S.DocBlock _ ) _ = __impossible "desugarTlv"
 
-desugarAlts :: B.TypedExpr -> [S.Alt B.TypedPatn B.TypedExpr] -> DS t v (UntypedExpr t v VarName)
+desugarAlts :: B.TypedExpr -> [S.Alt B.TypedPatn B.TypedExpr] -> DS t v (UntypedExpr t v VarName VarName)
 desugarAlts e0 [] = __impossible "desugarAlts"
 desugarAlts e0 [S.Alt p l e] = desugarAlt e0 p e  -- Note: Likelihood is ignored here / zilinc
                                                   --       This also serves as the base case for PCon
@@ -335,11 +336,11 @@ desugarAlts e0 alts@(S.Alt _ _ e1:_) = do  -- e0 is not a var, so lift it
       m = B.TE t1 (S.Match (B.TE t0 (S.Var v) noPos) [] alts) noPos
   desugarExpr $ B.TE t1 (S.Let [b] m) noPos
 
-desugarAlt :: B.TypedExpr -> B.TypedPatn -> B.TypedExpr -> DS t v (UntypedExpr t v VarName)
+desugarAlt :: B.TypedExpr -> B.TypedPatn -> B.TypedExpr -> DS t v (UntypedExpr t v VarName VarName)
 desugarAlt e0 (B.TP p pos) = desugarAlt' e0 p
 
 -- FIXME: this function should take a position
-desugarAlt' :: B.TypedExpr -> S.Pattern B.TypedIrrefPatn -> B.TypedExpr -> DS t v (UntypedExpr t v VarName)
+desugarAlt' :: B.TypedExpr -> S.Pattern B.TypedIrrefPatn -> B.TypedExpr -> DS t v (UntypedExpr t v VarName VarName)
 desugarAlt' e0 (S.PCon tag [B.TIP (S.PVar tn) _]) e =
   E <$> (Let (fst tn) <$> (E . Esac <$> desugarExpr e0) <*> withBinding (fst tn) (desugarExpr e))
   -- Idea:
@@ -415,7 +416,7 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple ps) _)) e | __cogent_ftuples_as_
   mkTake e0' vs e 0
   where isPVar (B.TIP (S.PVar _) _) = True; isPVar _ = False
         getPVar (B.TIP (S.PVar v) _) = v; getPVar _ = __impossible "getPVar (in desugarAlt')"
-        mkTake :: UntypedExpr t v VarName -> [VarName] -> B.TypedExpr -> Int -> DS t v (UntypedExpr t v VarName)
+        mkTake :: UntypedExpr t v VarName VarName -> [VarName] -> B.TypedExpr -> Int -> DS t v (UntypedExpr t v VarName VarName)
         mkTake _ [] _ _ = __impossible "mkTake (in desugarAlt')"
         mkTake e0 [v] e idx = do
           e0' <- freshVar
@@ -493,6 +494,7 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray (B.TIP (S.PVar (v,_)) _ : ps)) p
       p1 = S.PIrrefutable $ B.TIP (S.PArray ps) pos
   e1' <- withBindings (Cons v (Cons vs Nil)) $ desugarAlt' e10 p1 e
   return $ E (Pop (v,vs) e0' e1')
+ where minus1 e = S.RE (S.PrimOp "-" [e, S.RE (S.IntLit 1)])
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray (p:ps)) pos)) e = do
   v <- freshVar
   let S.RT (S.TArray te l _ _) = B.getTypeTE e0
@@ -523,7 +525,7 @@ desugarPrimInt (S.RT (S.TCon "U64"  [] Unboxed)) = U64
 desugarPrimInt (S.RT (S.TCon "Bool" [] Unboxed)) = Boolean
 desugarPrimInt _ = __impossible "desugarPrimInt"
 
-desugarType :: S.RawType -> DS t v (DType t v a)
+desugarType :: S.RawType -> DS t v (Type t VarName)
 desugarType = \case
   S.RT (S.TCon "U8"     [] Unboxed) -> return $ TPrim U8
   S.RT (S.TCon "U16"    [] Unboxed) -> return $ TPrim U16
@@ -565,10 +567,10 @@ desugarType = \case
 #ifdef BUILTIN_ARRAYS
   S.RT (S.TArray t l Unboxed tkns) -> do
     t' <- desugarType t
-    l' <- evalAExpr l
+    l' <- uexprToLExpr id <$> desugarExpr (dummyTypedExpr l)
     mhole <- case tkns of
                [] -> return Nothing
-               [(idx,True)] -> Just <$> desugarExpr' idx
+               [(idx,True)] -> Just . uexprToLExpr id <$> desugarExpr (dummyTypedExpr idx)
                _ -> __impossible "desugarType: TArray should not have more than 1 element taken"
     return $ TArray t' l' Unboxed mhole
   S.RT (S.TArray t l sigil tkns) -> do
@@ -584,7 +586,7 @@ desugarNote :: S.Inline -> FunNote
 desugarNote S.NoInline = NoInline
 desugarNote S.Inline   = InlinePlease
 
-desugarExpr :: B.TypedExpr -> DS t v (UntypedExpr t v VarName)
+desugarExpr :: B.TypedExpr -> DS t v (UntypedExpr t v VarName VarName)
 desugarExpr (B.TE _ (S.PrimOp opr es) _) = E . Op (symbolOp opr) <$> mapM desugarExpr es
 desugarExpr (B.TE _ (S.Var vn) _) = (findIx vn <$> use varCtx) >>= \case
   Just v  -> return $ E $ Variable (v, vn)
@@ -749,27 +751,6 @@ desugarExpr (B.TE t (S.Con c es) p) = __impossible "desugarExpr (Con)"
 --   E . Con c <$> desugarExpr (B.TE tes (S.Tuple es) p)
 desugarExpr (B.TE _ (S.Put _ _) _) = __impossible "desugarExpr (Put)"
 
--- FIXME: Can we just use @desugarExpr@? / zilinc
-desugarExpr' :: S.AExpr -> DS t v (UntypedExpr t v a)
-desugarExpr' (S.RE (S.PrimOp opr es)) = E . Op (symbolOp opr) <$> mapM desugarExpr' es
-desugarExpr' (S.RE (S.Var vn)) = __impossible "desugarExpr'"
-desugarExpr' (S.RE (S.If c [] th el)) = E <$> (If <$> desugarExpr' c <*> desugarExpr' th <*> desugarExpr' el)
-desugarExpr' (S.RE (S.Unitel)) = return $ E Unit
-desugarExpr' (S.RE (S.IntLit n)) = return $ E $ ILit n U32  -- FIXME: can we ascribe U32? / zilinc
-desugarExpr' (S.RE (S.BoolLit b)) = return $ E $ ILit (if b then 1 else 0) Boolean
-desugarExpr' (S.RE (S.CharLit c)) = return $ E $ ILit (fromIntegral $ ord c) U8
-desugarExpr' (S.RE (S.StringLit s)) = return $ E $ SLit s
-#ifdef BUILTIN_ARRAYS
-desugarExpr' (S.RE (S.ArrayLit es)) = E . ALit <$> mapM desugarExpr' es
-desugarExpr' (S.RE (S.ArrayIndex e i)) = do
-  e' <- desugarExpr' e
-  i' <- desugarExpr' i
-  return $ E (ArrayIndex e' i')
-#endif
-desugarExpr' (S.RE (S.Upcast e)) = E <$> (Cast (TPrim U32) <$> desugarExpr' e)  -- FIXME: U32!!! / zilinc
-desugarExpr' (S.RE (S.Annot e tau)) = E <$> (Promote <$> desugarType' tau <*> desugarExpr' e)
-desugarExpr' _ = __todo "desugarExpr': we don't support these expressions in types right now"
-
 desugarConst :: (VarName, B.TypedExpr) -> DS 'Zero 'Zero (CoreConst UntypedExpr)
 desugarConst (n,e) = (n,) <$> desugarExpr e
 
@@ -777,111 +758,6 @@ desugarConst (n,e) = (n,) <$> desugarExpr e
 desugarConsts :: [S.TopLevel S.RawType B.TypedPatn B.TypedExpr] -> DS 'Zero 'Zero [CoreConst UntypedExpr]
 desugarConsts = mapM desugarConst . P.map (\(S.ConstDef v _ e) -> (v,e))
 
-desugarType' :: S.RawType -> DS t v (DType t v a)
-desugarType' = \case
-  S.RT (S.TCon "U8"     [] Unboxed) -> return $ TPrim U8
-  S.RT (S.TCon "U16"    [] Unboxed) -> return $ TPrim U16
-  S.RT (S.TCon "U32"    [] Unboxed) -> return $ TPrim U32
-  S.RT (S.TCon "U64"    [] Unboxed) -> return $ TPrim U64
-  S.RT (S.TCon "Bool"   [] Unboxed) -> return $ TPrim Boolean
-  S.RT (S.TCon "String" [] Unboxed) -> return $ TString
-  S.RT (S.TCon tn tvs s) -> TCon tn <$> mapM desugarType' tvs <*> pure (desugarAbstractTypeSigil s)
-  S.RT (S.TVar {}) -> __impossible "desugarType': cannot be a type var"
-  S.RT (S.TFun ti to)    -> TFun <$> desugarType' ti <*> desugarType' to
-  S.RT (S.TRecord fs Unboxed) -> TRecord <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType' t) fs <*> pure Unboxed
-  S.RT (S.TRecord fs sigil)  -> do
-    -- Making an unboxed record is necessary here because of how `desugarSigil`
-    -- is defined.
-    unboxedDesugared@(TRecord fs' Unboxed) <- desugarType' $ S.RT (S.TRecord fs Unboxed)
-    TRecord <$> pure fs' <*> pure (desugarSigil unboxedDesugared sigil)
-  S.RT (S.TVariant alts) -> TSum <$> mapM (\(c,(ts,x)) -> (c,) . (,x) <$> desugarType' (group ts)) (M.toList alts)
-    where group [] = S.RT S.TUnit
-          group (t:[]) = t
-          group ts = S.RT $ S.TTuple ts
-  S.RT (S.TTuple [])     -> __impossible "desugarType' (TTuple 0)"
-  S.RT (S.TTuple (t:[])) -> __impossible "desugarType' (TTuple 1)"
-  S.RT (S.TTuple (t1:t2:[])) | not __cogent_ftuples_as_sugar -> TProduct <$> desugarType' t1 <*> desugarType' t2
-  S.RT (S.TTuple ts@(_:_:_)) | not __cogent_ftuples_as_sugar ->
-    foldr1 (liftA2 TProduct) $ map desugarType' ts  -- right associative product repr of a list
-  S.RT (S.TTuple ts) | __cogent_ftuples_as_sugar -> do
-    let ns = P.map (('p':) . show) [1 :: Integer ..]
-    -- vvv NOTE [sorting tuple fields] / zilinc
-    --     We assume that the field names are *lexicographically* sorted! We need to
-    --     explicitly sort them here, otherwise @p10@ will be following @p9@ instead of @p1@.
-    fs <- L.sortOn fst . P.zipWith (\n t -> (n,(t, False))) ns <$> forM ts desugarType'
-    return $ TRecord fs Unboxed
-  S.RT (S.TUnit)   -> return TUnit
-#ifdef BUILTIN_ARRAYS
-  S.RT (S.TArray t l Unboxed tkns) -> do
-    t' <- desugarType' t
-    l' <- evalAExpr l
-    mhole <- case tkns of
-               [] -> return Nothing
-               [(idx,True)] -> Just <$> desugarExpr' idx
-               _ -> __impossible "desugarType': TArray should not have more than 1 element taken"
-    return $ TArray t' l' Unboxed mhole
-  S.RT (S.TArray t l sigil tkns) -> do
-    unboxedDesugared@(TArray t' l' Unboxed tkns') <- desugarType' $ S.RT (S.TArray t l Unboxed tkns)
-    TArray <$> pure t'
-           <*> pure l'
-           <*> pure (desugarSigil unboxedDesugared sigil)
-           <*> pure tkns'
-#endif
-  notInWHNF -> __impossible $ "desugarType' (type " ++ show (pretty notInWHNF) ++ " is not in WHNF)"
-
-
--- ----------------------------------------------------------------------------
--- evaludate static indices
---
-
--- FIXME: eventually must be made either dynamic or deeply embedded / zilinc
-
-evalAExpr :: S.AExpr -> DS t v Word32
-evalAExpr (S.RE (S.PrimOp op [e])) = evalPrimAExpr1 op e
-evalAExpr (S.RE (S.PrimOp op [e1,e2])) = evalPrimAExpr2 op e1 e2
-evalAExpr (S.RE (S.Var v)) = do
-  ks <- view _2
-  case ks ^. Lens.at v of
-    Just (getExpr -> S.IntLit c) -> return $ fromIntegral c
-    Just _ -> __impossible "evalAExpr: not an int-typed constant"
-    Nothing -> __impossible "evalAExpr: variable out of scope"
-evalAExpr (S.RE (S.IntLit c)) = return $ fromIntegral c
-evalAExpr (S.RE (S.Upcast e)) = evalAExpr e
-evalAExpr (S.RE (S.Annot e _)) = evalAExpr e
-evalAExpr _ = __impossible "evalAExpr: too complicated to evaluate"
-
-evalPrimAExpr1 :: OpName -> S.AExpr -> DS t v Word32
-evalPrimAExpr1 op e = evalAExprUop op <$> evalAExpr e
-
-evalPrimAExpr2 :: OpName -> S.AExpr -> S.AExpr -> DS t v Word32
-evalPrimAExpr2 op e1 e2 = evalAExprBop op <$> evalAExpr e1 <*> evalAExpr e2
-
-evalAExprBop = \case
-  "+" -> (+)
-  "-" -> (-)
-  "*" -> (*)
-  "/" -> div
-  "%" -> mod
-  -- "&&" -> (&&)
-  -- "||" -> (||)
-  -- ">=" -> (>=)
-  -- "<=" -> (<=)
-  -- ">"  -> (>)
-  -- "<"  -> (<)
-  -- "==" -> (==)
-  -- "/=" -> (/=)
-  ".&." -> (.&.)
-  ".|." -> (.|.)
-  ".^." -> xor
-  ">>" -> \x y -> x `shiftR` fromIntegral y
-  "<<" -> \x y -> x `shiftL` fromIntegral y
-
-evalAExprUop = \case
-  -- "not" -> not
-  "complement" -> complement
-
-minus1 :: S.AExpr -> S.AExpr
-minus1 e = (S.RE (S.PrimOp "-" [e, S.RE (S.IntLit 1)]))
 
 -- ----------------------------------------------------------------------------
 -- custTyGen
