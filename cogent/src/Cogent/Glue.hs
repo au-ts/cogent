@@ -131,18 +131,18 @@ data DsState = DsState { _typedefs  :: DS.Typedefs
                        , _constdefs :: DS.Constants
                        }
 
-data CoreTcState = CoreTcState { _funtypes :: Map FunName CC.FunctionType }
+data CoreTcState = CoreTcState { _funtypes :: Map FunName (CC.FunctionType VarName) }
 
-data MnState = MnState { _funMono  :: MN.FunMono
-                       , _typeMono :: MN.TypeMono
+data MnState = MnState { _funMono  :: MN.FunMono VarName
+                       , _typeMono :: MN.TypeMono VarName
                        }
 
 data CgState = CgState { _cTypeDefs    :: [(CG.StrlType, CG.CId)]
                        , _cTypeDefMap  :: M.Map CG.StrlType CG.CId
                        , _typeSynonyms :: M.Map TypeName CG.CType
-                       , _typeCorres   :: DList.DList (CG.CId, CC.Type 'Zero)
+                       , _typeCorres   :: DList.DList (CG.CId, CC.Type 'Zero VarName)
                        , _absTypes     :: M.Map TypeName (S.Set [CG.CId])
-                       , _custTypeGen  :: M.Map (CC.Type 'Zero) (CG.CId, CustTyGenInfo)
+                       , _custTypeGen  :: M.Map (CC.Type 'Zero VarName) (CG.CId, CustTyGenInfo)
                        , _funClasses   :: CG.FunClass
                        , _localOracle  :: Integer  -- FIXME: should be moved to DefnState
                        , _globalOracle :: Integer
@@ -163,7 +163,7 @@ data DefnState t = DefnState { _kenv :: Vec t (TyVarName, Kind)
                              , _ectx :: [TC.ErrorContext]
                              }
 
-data MonoState = MonoState { _inst :: (MN.Instance, Maybe Int) }  -- Either ([], Nothing), or (_:_, Just _)
+data MonoState = MonoState { _inst :: (MN.Instance VarName, Maybe Int) }  -- Either ([], Nothing), or (_:_, Just _)
 
 makeLenses ''TcState
 makeLenses ''DsState
@@ -498,14 +498,14 @@ desugarAnti m a = view kenv >>= \(fmap fst -> ts) -> lift . lift $
                      cdefs = view (dsState.constdefs) s
                   in return (fst (flip3 evalRWS (DS.DsState ts Nil 0 0 []) (tdefs, cdefs, []) $ DS.runDS $ m a), s)  -- FIXME: pragmas / zilinc
 
-coreTcAnti :: (a -> IN.TC t 'Zero b) -> a -> GlDefn t b
+coreTcAnti :: (a -> IN.TC t 'Zero VarName b) -> a -> GlDefn t b
 coreTcAnti m a = view kenv >>= \(fmap snd -> ts) -> lift . lift $
   StateT $ \s -> let reader = (ts, view (coreTcState.funtypes) s)
                   in case flip evalState Nil $ flip runReaderT reader $ runExceptT $ IN.unTC $ m a of
                        Left  e -> __impossible "coreTcAnti"
                        Right x -> return (x, s)
 
-monoAnti :: (a -> MN.Mono b) -> a -> GlMono t b
+monoAnti :: (a -> MN.Mono VarName b) -> a -> GlMono t b
 monoAnti m a = view (inst._1) >>= \is -> lift . lift . lift $
   StateT $ \s -> let fmono = view (mnState.funMono ) s
                      tmono = view (mnState.typeMono) s
@@ -544,13 +544,13 @@ tcType t = do
                            t' <- TC.validateType tvs $ SF.stripLocT t
                            TC.postT t'
 
-desugarType :: SF.RawType -> GlDefn t (CC.Type t)
+desugarType :: SF.RawType -> GlDefn t (CC.Type t VarName)
 desugarType = desugarAnti DS.desugarType
 
-monoType :: CC.Type t -> GlMono t (CC.Type 'Zero)
+monoType :: CC.Type t VarName -> GlMono t (CC.Type 'Zero VarName)
 monoType = monoAnti MN.monoType
 
-genType :: CC.Type 'Zero -> Gl CG.CType
+genType :: CC.Type 'Zero VarName -> Gl CG.CType
 genType = genAnti CG.genType
 
 -- Function calls
@@ -566,12 +566,12 @@ tcFnCall e = do
          otherwise -> throwError $ "Error: Not a function in $exp antiquote"
   f `seq` tcExp e Nothing
 
-genFn :: CC.TypedExpr 'Zero 'Zero VarName -> Gl CS.Exp
+genFn :: CC.TypedExpr 'Zero 'Zero VarName VarName -> Gl CS.Exp
 genFn = genAnti $ \case
   CC.TE t (CC.Fun fn _ _) -> return (CS.Var (CS.Id (CG.funEnum (unCoreFunName fn)) noLoc) noLoc)
   _ -> __impossible "genFn"
 
-genFnCall :: CC.Type 'Zero -> Gl CS.Exp
+genFnCall :: CC.Type 'Zero VarName -> Gl CS.Exp
 genFnCall = genAnti $ \t -> do
     enumt <- CG.typeCId t
     return (CS.Var (CS.Id (CG.funDispatch $ toCName enumt) noLoc) noLoc)
@@ -596,16 +596,16 @@ tcExp e mt = do
        -- TC.exitOnErr $ mapM_ TC.logTc logs
        TC.postE $ TC.applyE subst $ TC.assignE assign e'
 
-desugarExp :: TC.TypedExpr -> GlDefn t (CC.UntypedExpr t 'Zero VarName)
+desugarExp :: TC.TypedExpr -> GlDefn t (CC.UntypedExpr t 'Zero VarName VarName)
 desugarExp = desugarAnti DS.desugarExpr
 
-coreTcExp :: CC.UntypedExpr t 'Zero VarName -> GlDefn t (CC.TypedExpr t 'Zero VarName)
+coreTcExp :: CC.UntypedExpr t 'Zero VarName VarName -> GlDefn t (CC.TypedExpr t 'Zero VarName VarName)
 coreTcExp = coreTcAnti IN.infer
 
-monoExp :: CC.TypedExpr t 'Zero VarName -> GlMono t (CC.TypedExpr 'Zero 'Zero VarName)
+monoExp :: CC.TypedExpr t 'Zero VarName VarName -> GlMono t (CC.TypedExpr 'Zero 'Zero VarName VarName)
 monoExp = monoAnti MN.monoExpr
 
-genExp :: CC.TypedExpr 'Zero 'Zero VarName -> Gl CS.Exp
+genExp :: CC.TypedExpr 'Zero 'Zero VarName VarName -> Gl CS.Exp
 genExp = genAnti $ \e -> do (v,vdecl,vstm,_) <- CG.genExpr Nothing e
                             let bis' = L.map CG.cBlockItem (vdecl ++ vstm)
                                 v'   = CG.cExpr v
@@ -627,12 +627,12 @@ genFuncId fn loc = do
 parseTypeId :: String -> SrcLoc -> GlFile (TypeName, [TyVarName])
 parseTypeId s loc = parseAnti s ((,) <$> PS.typeConName <*> PP.many PS.variableName) loc 4
 
-genTypeId :: CC.Type 'Zero -> Gl CG.CId
+genTypeId :: CC.Type 'Zero VarName -> Gl CG.CId
 genTypeId = genAnti CG.typeCId
 
 -- Definition
 
-traversals :: [(MN.Instance, Maybe Int)] -> CS.Definition -> GlDefn t [CS.Definition]
+traversals :: [(MN.Instance VarName, Maybe Int)] -> CS.Definition -> GlDefn t [CS.Definition]
 -- No type arguments, either monomorphic Cogent function, or not defined in Cogent
 -- If any instances of a polymorphic function are not used anywhere, then no mono function will be generated
 traversals insts d = forM insts $ \inst -> flip runReaderT (MonoState inst) $ handleQuotes d
@@ -696,7 +696,7 @@ traverseOneFunc fn d loc = do
               -- E.g. if @ts = [U8,a]@ and in @mp@ we find @[U8,U32]@ and @[U8,Bool]@, we instantiate this
               --      function definition to these two types.
               --      if @ts = [U8,a]@ and @mp = ([Bool,U8],[U32,U8])@ then there's nothing we generate.
-              let match :: [CC.Type t] -> [CC.Type 'Zero] -> Bool
+              let match :: (Eq b) => [CC.Type t b] -> [CC.Type 'Zero b] -> Bool
                   match [] [] = True
                   match xs ys | L.null xs || L.null ys
                     = __impossible "match (in traverseOneFunc): number of type arguments don't match"
@@ -727,7 +727,7 @@ traverseOneType ty l d = do   -- type defined in Cogent
                                       s' <- nubByName $ S.toList s
                                       traversals (L.zip s' (repeat Nothing)) d
  where
-   nubByName :: [MN.Instance] -> GlDefn t [MN.Instance]
+   nubByName :: [MN.Instance VarName] -> GlDefn t [MN.Instance VarName]
    nubByName ins = lift . lift $
      nubByM (\i1 i2 -> do tn1 <- mapM (genAnti CG.genType) i1
                           tn2 <- mapM (genAnti CG.genType) i2
@@ -778,8 +778,8 @@ glue s typnames mode filenames = liftA (M.toList . M.fromListWith (flip (++)) . 
 mkGlState :: [SF.TopLevel SF.RawType TC.TypedPatn TC.TypedExpr]
           -> TC.TcState
           -> Last (DS.Typedefs, DS.Constants, [CC.CoreConst CC.UntypedExpr])
-          -> M.Map FunName CC.FunctionType
-          -> (MN.FunMono, MN.TypeMono)
+          -> M.Map FunName (CC.FunctionType VarName)
+          -> (MN.FunMono VarName, MN.TypeMono VarName)
           -> CG.GenState
           -> GlState
 mkGlState tced tcState (Last (Just (typedefs, constdefs, _))) ftypes (funMono, typeMono) genState =
@@ -816,6 +816,7 @@ tyVars (SF.TypeDec    _ ts _) = L.zip ts $ repeat k2
 tyVars (SF.AbsTypeDec _ ts _) = L.zip ts $ repeat k2
 tyVars _ = __impossible "tyVars"
 
+
 -- /////////////////////////////////////////////////////////////////////////////
 --
 -- A simpler compilation process for the @--entry-funcs@ file.
@@ -823,9 +824,9 @@ tyVars _ = __impossible "tyVars"
 readEntryFuncs :: [SF.TopLevel SF.RawType TC.TypedPatn TC.TypedExpr]
                -> TC.TcState
                -> Last (DS.Typedefs, DS.Constants, [CC.CoreConst CC.UntypedExpr])
-               -> M.Map FunName CC.FunctionType
+               -> M.Map FunName (CC.FunctionType VarName)
                -> [String]
-               -> IO MN.FunMono
+               -> IO (MN.FunMono VarName)
 readEntryFuncs tced tcState dsState ftypes lns
   = foldM (\m ln -> readEntryFunc ln >>= \(fn,inst) -> return $ updateFunMono m fn inst) M.empty lns
   where
@@ -833,7 +834,7 @@ readEntryFuncs tced tcState dsState ftypes lns
     updateFunMono m fn inst = M.insertWith (\_ entry -> M.insertWith (flip const) inst (M.size entry) entry) fn (M.singleton inst 0) m
 
     -- Each string is a line in the @--entry-funcs@ file.
-    readEntryFunc :: String -> IO (FunName, MN.Instance)
+    readEntryFunc :: String -> IO (FunName, MN.Instance VarName)
     readEntryFunc ln = do
       er <- runExceptT $ flip evalStateT (mkGlState [] tcState dsState mempty (mempty, mempty) undefined) $
               flip runReaderT (FileState "--entry-funcs file") $ do

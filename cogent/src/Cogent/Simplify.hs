@@ -39,6 +39,7 @@ import Cogent.Core
 import Cogent.Inference hiding (kindcheck, lookupKind, withBinding)
 import Cogent.Util (Flip(..), secondM, ifM, flip3, andM)
 import Data.Ex
+import Data.Fin
 import Data.Nat
 import Data.PropEq
 import Data.Vec as V
@@ -59,37 +60,37 @@ import Lens.Micro.TH
 -- import Debug.Trace
 import Unsafe.Coerce
 
-type InExpr  t v = TypedExpr t v (VarName, OccInfo)
-type OutExpr t v = TypedExpr t v VarName
+type InExpr  t v b = TypedExpr t v (VarName, OccInfo) b
+type OutExpr t v b = TypedExpr t v VarName            b
 
 type InVar  = Fin
 type OutVar = Fin
 
-type InAlt  t v = InExpr  t v
-type OutAlt t v = OutExpr t v
+type InAlt  t v b = InExpr  t v b
+type OutAlt t v b = OutExpr t v b
 
 -- ////////////////////////////////////////////////////////////////////////////
 -- Occurrence Analyser
 
-type OccEnv v = (FuncEnv, Vec v OccInfo)
+type OccEnv v b = (FuncEnv b, Vec v OccInfo)
 
 emptyOccVec :: SNat v -> Vec v OccInfo
 emptyOccVec = flip V.repeat Dead
 
-newtype Occ v a = Occ { unOcc :: State (OccEnv v) a }
-                deriving (Functor, Applicative, Monad,
-                          MonadState (OccEnv v))
+newtype Occ v b x = Occ { unOcc :: State (OccEnv v b) x }
+                  deriving (Functor, Applicative, Monad,
+                            MonadState (OccEnv v b))
 
-evalOcc :: OccEnv v -> Occ v a -> a
+evalOcc :: OccEnv v b -> Occ v b x -> x
 evalOcc = (. unOcc) . flip evalState
 
-execOcc :: OccEnv v -> Occ v a -> OccEnv v
+execOcc :: OccEnv v b -> Occ v b x -> OccEnv v b
 execOcc = (. unOcc) . flip execState
 
-runOcc :: OccEnv v -> Occ v a -> (a, OccEnv v)
+runOcc :: OccEnv v b -> Occ v b x -> (x, OccEnv v b)
 runOcc = (. unOcc) . flip runState
 
-parallel :: Occ v a -> Occ v b -> (OccEnv v -> OccEnv v -> OccEnv v) -> Occ v (a, b)
+parallel :: Occ v b x -> Occ v b y -> (OccEnv v b -> OccEnv v b -> OccEnv v b) -> Occ v b (x, y)
 parallel ma mb f = do s <- get
                       a <- ma
                       sa <- get
@@ -99,7 +100,7 @@ parallel ma mb f = do s <- get
                       put $ f sa sb
                       return (a, b)
 
-sequential :: SNat v -> Occ v a -> (OccEnv v -> OccEnv v -> OccEnv v) -> Occ v a
+sequential :: SNat v -> Occ v b x -> (OccEnv v b -> OccEnv v b -> OccEnv v b) -> Occ v b x
 sequential v mx f = do s@(fenv,_) <- get
                        put $ (fmap (second $ const Dead) fenv, emptyOccVec v)
                        x <- mx
@@ -115,7 +116,7 @@ data OccInfo = Dead
              | LetBanged
              deriving (Eq, Ord, Show)
 
-markOcc :: SNat v -> TypedExpr t v VarName -> Occ v (InExpr t v)
+markOcc :: SNat v -> TypedExpr t v VarName b -> Occ v b (InExpr t v b)
 markOcc sv (TE tau (Variable (v, n))) = do
   modify $ second $ modifyAt v (OnceSafe <>)
   return . TE tau $ Variable (v, (n, OnceSafe))
@@ -162,11 +163,11 @@ markOcc sv (TE tau (Put rec fld e)) = TE tau <$> (Put <$> markOcc sv rec <*> pur
 markOcc sv (TE tau (Promote t e)) = TE tau . Promote t <$> markOcc sv e
 markOcc sv (TE tau (Cast t e)) = TE tau . Cast t <$> markOcc sv e
 
-branchEnv, concatEnv :: OccEnv v -> OccEnv v -> OccEnv v
+branchEnv, concatEnv :: OccEnv v b -> OccEnv v b -> OccEnv v b
 branchEnv (fe, v) (fe', v') = (branchFuncEnv fe fe', V.zipWith parOcc v v')
 concatEnv (fe, v) (fe', v') = (concatFuncEnv fe fe', V.zipWith seqOcc v v')
 
-branchFuncEnv, concatFuncEnv :: FuncEnv -> FuncEnv -> FuncEnv
+branchFuncEnv, concatFuncEnv :: FuncEnv b -> FuncEnv b -> FuncEnv b
 branchFuncEnv = M.unionWith $ \(a,b) (_,d) -> (a, parOcc b d)
 concatFuncEnv = M.unionWith $ \(a,b) (_,d) -> (a, seqOcc b d)
 
@@ -199,51 +200,51 @@ seqOcc = (<>)
 parOcc OnceSafe OnceSafe = MultiSafe
 parOcc occ1 occ2 = occ1 `max` occ2
 
-getVOccs :: SNat v' -> Occ (v :+: v') a -> Occ v (a, OccEnv v')
+getVOccs :: SNat v' -> Occ (v :+: v') b x -> Occ v b (x, OccEnv v' b)
 getVOccs v' ma = do (fenv,venv) <- get
                     (a,(fenv',venv')) <- return $ runOcc (fenv,venv <++> emptyOccVec v') ma
                     let (venv1,venv2) = V.splitAt v' venv'
                     put (fenv',venv2)
                     return (a,(fenv',venv1))
 
-getVOcc1 :: Occ ('Suc v) a -> Occ v (a, OccInfo)
+getVOcc1 :: Occ ('Suc v) b x -> Occ v b (x, OccInfo)
 getVOcc1 ma = do (a,(_,Cons occ Nil)) <- getVOccs s1 ma
                  return (a,occ)
 
-getVOcc2 :: Occ ('Suc ('Suc v)) a -> Occ v (a, OccInfo, OccInfo)
+getVOcc2 :: Occ ('Suc ('Suc v)) b x -> Occ v b (x, OccInfo, OccInfo)
 getVOcc2 ma = do (a,(_,Cons occ1 (Cons occ2 Nil))) <- getVOccs s2 ma
                  return (a,occ1,occ2)
 
 -- ////////////////////////////////////////////////////////////////////////////
 -- Top level
 
-type FuncEnv = M.Map FunName (Definition TypedExpr VarName, OccInfo)  -- funcname |-> (def, occ)
+type FuncEnv b = M.Map FunName (Definition TypedExpr VarName b, OccInfo)  -- funcname |-> (def, occ)
 
-data SimpEnv t = SimpEnv { _funcEnv  :: FuncEnv
-                         , _kindEnv  :: Vec t Kind
-                         , _varCount :: Int
-                         }
+data SimpEnv t b = SimpEnv { _funcEnv  :: FuncEnv b
+                           , _kindEnv  :: Vec t Kind
+                           , _varCount :: Int
+                           }
 
 makeLenses ''SimpEnv
 
-newtype Simp t a = Simp { unSimp :: State (SimpEnv t) a }
-                 deriving (Functor, Applicative, Monad,
-                           MonadState (SimpEnv t))
+newtype Simp t b x = Simp { unSimp :: State (SimpEnv t b) x }
+                   deriving (Functor, Applicative, Monad,
+                             MonadState (SimpEnv t b))
 
-evalSimp :: SimpEnv t -> Simp t a -> a
+evalSimp :: SimpEnv t b -> Simp t b x -> x
 evalSimp = (. unSimp) . flip evalState
 
-execSimp :: SimpEnv t -> Simp t a -> SimpEnv t
+execSimp :: SimpEnv t b -> Simp t b x -> SimpEnv t b
 execSimp = (. unSimp) . flip execState
 
-runSimp :: SimpEnv t -> Simp t a -> (a, SimpEnv t)
+runSimp :: SimpEnv t b -> Simp t b x -> (x, SimpEnv t b)
 runSimp = (. unSimp) . flip runState
 
-simplify :: [Definition TypedExpr VarName] -> [Definition TypedExpr VarName]
+simplify :: [Definition TypedExpr VarName b] -> [Definition TypedExpr VarName b]
 simplify ds = let fenv = fmap (,Dead) . M.fromList . catMaybes $ L.map (\d -> (,d) <$> getFuncId d) ds
                in flip evalState (fenv, 0) $ mapM simplify1 ds
 
-simplify1 :: Definition TypedExpr VarName -> State (FuncEnv, Int) (Definition TypedExpr VarName)
+simplify1 :: Definition TypedExpr VarName b -> State (FuncEnv b, Int) (Definition TypedExpr VarName b)
 simplify1 (FunDef attr fn tvs ti to e) = do
   fenv <- use _1
   vcnt <- use _2
@@ -254,7 +255,7 @@ simplify1 (FunDef attr fn tvs ti to e) = do
   return d'
 simplify1 d = pure d
 
-simplifyExpr :: Int -> TypedExpr t ('Suc 'Zero) VarName -> Simp t (TypedExpr t ('Suc 'Zero) VarName)
+simplifyExpr :: Int -> TypedExpr t ('Suc 'Zero) VarName b -> Simp t b (TypedExpr t ('Suc 'Zero) VarName b)
 simplifyExpr 0 e = pure e
 simplifyExpr n e = do fenv <- use funcEnv
                       let (e',(fenv',_)) = runOcc (fenv, emptyOccVec s1) $ markOcc s1 e
@@ -264,36 +265,36 @@ simplifyExpr n e = do fenv <- use funcEnv
 -- ////////////////////////////////////////////////////////////////////////////
 -- Simplifier
 
-type Subst  t v    = Subst' t v v  -- in-var -> binding
-type Subst' t v v' = Vec v (Maybe (SubstRng t v'))
+type Subst  t v    b = Subst' t v v b  -- in-var -> binding
+type Subst' t v v' b = Vec v (Maybe (SubstRng t v' b))
 
-emptySubst :: SNat v -> Subst t v
+emptySubst :: SNat v -> Subst t v b
 emptySubst = flip V.repeat Nothing
 
-data SubstRng t v = DoneEx (OutExpr t v)
-                  | SuspEx (InExpr  t v) (Subst t v)
-                  deriving (Show)
+data SubstRng t v b = DoneEx (OutExpr t v b)
+                    | SuspEx (InExpr  t v b) (Subst t v b)
+                    deriving (Show)
 
-type InScopeSet  t v    = InScopeSet' t v v  -- out-var -> definition
-type InScopeSet' t v v' = Vec v (Maybe (VarDef t v'))
+type InScopeSet  t v    b = InScopeSet' t v v b  -- out-var -> definition
+type InScopeSet' t v v' b = Vec v (Maybe (VarDef t v' b))
 
-emptyInScopeSet :: SNat v -> InScopeSet t v
+emptyInScopeSet :: SNat v -> InScopeSet t v b
 emptyInScopeSet = flip V.repeat (Just Unknown)
 
-data VarDef t v = Unknown  -- new var introduced by other continuations that no out-expr is present
-                | BoundTo (OutExpr t v) OccInfo
-                -- \| NotAmong [TagName]
-                deriving (Show)
+data VarDef t v b = Unknown  -- new var introduced by other continuations that no out-expr is present
+                  | BoundTo (OutExpr t v b) OccInfo
+                  -- \| NotAmong [TagName]
+                  deriving (Show)
 
-data Context t v = Stop
-                 | AppCxt (InExpr t v) (Subst t v) (Context t v)            -- <hole> e
-                 | CaseCxt (InVar v) [InAlt t v] (Subst t v) (Context t v)  -- case <hole> of alt1 alt2
-                 | ArgCxt (OutExpr t v -> OutExpr t v)                      -- f <hole>
-                 | InlineCxt (Context t v)
+data Context t v b = Stop
+                   | AppCxt (InExpr t v b) (Subst t v b) (Context t v b)            -- <hole> e
+                   | CaseCxt (InVar v) [InAlt t v b] (Subst t v b) (Context t v b)  -- case <hole> of alt1 alt2
+                   | ArgCxt (OutExpr t v b -> OutExpr t v b)                        -- f <hole>
+                   | InlineCxt (Context t v b)
 
 -- FIXME: basically ignore Context for now, and just do recursion on this function, instead of mutual recursion / zilinc
 -- needs a stats as well (IO)
-simplExpr :: (v ~ 'Suc v') => SNat v -> Subst t v -> InScopeSet t v -> InExpr t v -> Context t v -> Simp t (OutExpr t v)
+simplExpr :: (v ~ 'Suc v') => SNat v -> Subst t v b -> InScopeSet t v b -> InExpr t v b -> Context t v b -> Simp t b (OutExpr t v b)
 simplExpr sv subst ins (TE tau (Variable (v,(n,o)))) cont = case subst `V.at` v of  -- `v' here is an in-var
   Nothing           -> considerInline sv ins (v,n,tau) cont  -- `v' here is an out-var
   Just (SuspEx e s) -> simplExpr sv s ins e cont
@@ -368,7 +369,7 @@ simplExpr sv subst ins (TE tau (Promote ty e)) cont = TE tau . Promote ty <$> si
 simplExpr sv subst ins (TE tau (Cast ty e)) cont = TE tau . Cast ty <$> simplExpr sv subst ins e cont
 
 -- Ininlining at occurrence site
-considerInline :: (v ~ 'Suc v') => SNat v -> InScopeSet t v -> (OutVar v, VarName, Type t) -> Context t v -> Simp t (OutExpr t v)
+considerInline :: (v ~ 'Suc v') => SNat v -> InScopeSet t v b -> (OutVar v, VarName, Type t b) -> Context t v b -> Simp t b (OutExpr t v b)
 considerInline sv ins (v,n,tau) cont = case ins `V.at` v of
   Nothing -> __impossible "considerInline"  -- not in scope
   Just (BoundTo rhs occ) -> do
@@ -378,7 +379,7 @@ considerInline sv ins (v,n,tau) cont = case ins `V.at` v of
       (rebuild (TE tau $ Variable (v,n)) cont)
   Just _ -> rebuild (TE tau $ Variable (v,n)) cont
 
-rebuild :: OutExpr t v -> Context t v -> Simp t (OutExpr t v)
+rebuild :: OutExpr t v b -> Context t v b -> Simp t b (OutExpr t v b)
 rebuild e Stop = return e
 rebuild _ _ = __todo "rebuild: not implemented yet"
 
@@ -387,7 +388,7 @@ rebuild _ _ = __todo "rebuild: not implemented yet"
 
 -- NOTE: This function has also to guarantee that linearity is preverved if the expression
 --   in question is duplicated / zilinc
-isTrivial :: OutExpr t v -> Bool
+isTrivial :: OutExpr t v b -> Bool
 isTrivial (TE _ (Variable _)) = True  -- If this var is linear, then the binder has to be linear as well
 isTrivial (TE _ (Unit)) = True
 isTrivial (TE _ (ILit {})) = True
@@ -395,7 +396,7 @@ isTrivial (TE _ (SLit {})) = True
 isTrivial (TE _ (Fun {})) = __fixme True  -- ???
 isTrivial _ = False
 
-inline :: OutExpr t v -> OccInfo -> Context t v -> Simp t Bool
+inline :: OutExpr t v b -> OccInfo -> Context t v b -> Simp t b Bool
 inline rhs OnceSafe _ = __impossible "inline"
 -- inline rhs OnceUnsafe cont = noWorkDup rhs && not (veryBoring cont)
 inline rhs MultiSafe cont = return $ inlineMulti rhs cont
@@ -405,7 +406,7 @@ inline _ _ _ = __impossible "inline"
 
 -- FIXME: these heuristics are now taking the most conservative decisions
 
-noLinear :: TypedExpr t v a -> Simp t Bool
+noLinear :: TypedExpr t v a b -> Simp t b Bool
 noLinear (TE tau e) = (&&) <$> typeNotLinear tau <*> noLinear' e
   where
     noLinear' (Variable (v,a)) = return True
@@ -430,30 +431,30 @@ noLinear (TE tau e) = (&&) <$> typeNotLinear tau <*> noLinear' e
     noLinear' (Promote ty e) = noLinear e
     noLinear' (Cast ty e) = noLinear e
 
-noWorkDup :: OutExpr t v -> Bool
+noWorkDup :: OutExpr t v b -> Bool
 noWorkDup _ = __fixme False
 
-veryBoring :: Context t v -> Bool
+veryBoring :: Context t v b -> Bool
 veryBoring _ = __fixme True
 
-inlineMulti :: OutExpr t v -> Context t v -> Bool
+inlineMulti :: OutExpr t v b -> Context t v b -> Bool
 inlineMulti rhs cont | noSizeIncrease rhs cont = True
                      | boring rhs cont = False
                      | otherwise = smallEnough rhs cont
 
-noSizeIncrease :: OutExpr t v -> Context t v -> Bool
+noSizeIncrease :: OutExpr t v b -> Context t v b -> Bool
 noSizeIncrease _ _ = __fixme False
 
-boring :: OutExpr t v -> Context t v -> Bool
+boring :: OutExpr t v b -> Context t v b -> Bool
 boring _ _ = __fixme True
 
-smallEnough :: OutExpr t v -> Context t v -> Bool
+smallEnough :: OutExpr t v b -> Context t v b -> Bool
 smallEnough _ _ = __fixme False
 
 -- ////////////////////////////////////////////////////////////////////////////
 -- misc.
 
-lowerExpr0 :: (Show a, v ~ 'Suc v') => SNat v -> TypedExpr t ('Suc v) a -> TypedExpr t v a
+lowerExpr0 :: (Show a, v ~ 'Suc v') => SNat v -> TypedExpr t ('Suc v) a b -> TypedExpr t v a b
 lowerExpr0 v = lowerExpr v f0
 
 -- lowerFin (|var|-1) idx var: if var < idx, then var; otherwise var - 1 (idx /= var)
@@ -466,7 +467,8 @@ lowerFin (SSuc (SSuc n)) (FSuc i) (FSuc v) = FSuc $ lowerFin (SSuc n) i v
 #if __GLASGOW_HASKELL__ < 711
 lowerFin _ _ _ = __ghc_t3927 "lowerFin"
 #endif
-lowerExpr :: (Show a, v ~ 'Suc v') => SNat v -> Fin ('Suc v) -> TypedExpr t ('Suc v) a -> TypedExpr t v a
+
+lowerExpr :: (Show a, v ~ 'Suc v') => SNat v -> Fin ('Suc v) -> TypedExpr t ('Suc v) a b -> TypedExpr t v a b
 lowerExpr w i (TE tau (Variable (v,a)))     = TE tau $ Variable (lowerFin w i v, a)
 lowerExpr w i (TE tau (Fun fn tys  note))   = TE tau $ Fun fn tys note
 lowerExpr w i (TE tau (Op opr es))          = TE tau $ Op opr (L.map (lowerExpr w i) es)
@@ -489,7 +491,7 @@ lowerExpr w i (TE tau (Put rec fld e))      = TE tau $ Put (lowerExpr w i rec) f
 lowerExpr w i (TE tau (Promote ty e))       = TE tau $ Promote ty (lowerExpr w i e)
 lowerExpr w i (TE tau (Cast ty e))       = TE tau $ Cast ty (lowerExpr w i e)
 
-liftExpr :: Show a => Fin ('Suc v) -> TypedExpr t v a -> TypedExpr t ('Suc v) a
+liftExpr :: Show a => Fin ('Suc v) -> TypedExpr t v a b -> TypedExpr t ('Suc v) a b
 liftExpr i (TE tau (Variable (v,a)))     = TE tau $ Variable (liftIdx i v,a)
 liftExpr i (TE tau (Fun fn tys note))    = TE tau $ Fun fn tys note
 liftExpr i (TE tau (Op opr es))          = TE tau $ Op opr (L.map (liftExpr i) es)
@@ -512,40 +514,40 @@ liftExpr i (TE tau (Put rec fld e))      = TE tau $ Put (liftExpr i rec) fld (li
 liftExpr i (TE tau (Promote ty e))       = TE tau $ Promote ty (liftExpr i e)
 liftExpr i (TE tau (Cast ty e))          = TE tau $ Cast ty (liftExpr i e)
 
-upshiftExpr :: Show a => SNat n -> SNat v -> Fin ('Suc v) -> TypedExpr t v a -> TypedExpr t (v :+: n) a
+upshiftExpr :: Show a => SNat n -> SNat v -> Fin ('Suc v) -> TypedExpr t v a b -> TypedExpr t (v :+: n) a b
 upshiftExpr SZero _ v e = e
 upshiftExpr (SSuc n) sv v e | Refl <- addSucLeft sv n
   = let a = upshiftExpr n sv v e in liftExpr (widenN v n) a
 
-extSubst :: Subst t v -> Subst t ('Suc v)
+extSubst :: Subst t v b -> Subst t ('Suc v) b
 extSubst s = Cons Nothing (fmap (fmap liftSubstRng) s)
 
-liftSubst :: Subst' t ('Suc v) v -> Subst t ('Suc v)
+liftSubst :: Subst' t ('Suc v) v b -> Subst t ('Suc v) b
 liftSubst = fmap $ fmap liftSubstRng
 
-liftSubstRng :: SubstRng t v -> SubstRng t ('Suc v)
+liftSubstRng :: SubstRng t v b -> SubstRng t ('Suc v) b
 liftSubstRng (DoneEx e  ) = DoneEx (liftExpr f0 e)
 liftSubstRng (SuspEx e s) = SuspEx (liftExpr f0 e) (extSubst s)
 
-extInScopeSet :: InScopeSet t v -> InScopeSet t ('Suc v)
+extInScopeSet :: InScopeSet t v b -> InScopeSet t ('Suc v) b
 extInScopeSet s = Cons Nothing (fmap (fmap liftVarDef) s)
 
-liftInScopeSet :: InScopeSet' t ('Suc v) v -> InScopeSet t ('Suc v)
+liftInScopeSet :: InScopeSet' t ('Suc v) v b -> InScopeSet t ('Suc v) b
 liftInScopeSet = fmap $ fmap liftVarDef
 
-liftVarDef :: VarDef t v -> VarDef t ('Suc v)
+liftVarDef :: VarDef t v b -> VarDef t ('Suc v) b
 liftVarDef (Unknown) = Unknown
 liftVarDef (BoundTo e occ) = BoundTo (liftExpr f0 e) occ
 -- liftVarDef (NotAmong tags) = NotAmong tags
 
-liftContext :: Context t v -> Context t ('Suc v)
+liftContext :: Context t v b -> Context t ('Suc v) b
 liftContext Stop = Stop
 liftContext _ = __todo "liftContext: not implemented yet"
 
 -- substFin var (|var_body|-1==idx) |var_arg| arg
 -- It performs substitution [var |-> arg], the substituted variable must be the one of largest index.
 -- Returned env is constituted by `init (var_body) ++ var_arg'
-substFin :: Fin ('Suc v') -> SNat v' -> SNat v -> TypedExpr t v VarName -> Either (Fin (v :+: v')) (TypedExpr t (v :+: v') VarName)
+substFin :: Fin ('Suc v') -> SNat v' -> SNat v -> TypedExpr t v VarName b -> Either (Fin (v :+: v')) (TypedExpr t (v :+: v') VarName b)
 substFin FZero SZero _ arg = Right arg
 substFin FZero (SSuc _) _ _ = Left FZero
 substFin (FSuc _) SZero _ _ = __impossible "substFin"  -- idx must be the largest var
@@ -554,7 +556,7 @@ substFin (FSuc v) (SSuc n') n arg = case substFin v n' n arg of
   Right e -> Right $ liftExpr f0 e
 
 -- betaR body (|var_body|-1==idx) |var_arg| arg ts
-betaR :: (v ~ 'Suc v0) => TypedExpr t' ('Suc v') VarName -> SNat v' -> SNat v -> TypedExpr t v VarName -> Vec t' (Type t) -> Simp t (TypedExpr t (v :+: v') VarName)
+betaR :: (v ~ 'Suc v0) => TypedExpr t' ('Suc v') VarName b -> SNat v' -> SNat v -> TypedExpr t v VarName b -> Vec t' (Type t b) -> Simp t b (TypedExpr t (v :+: v') VarName b)
 betaR (TE tau (Variable (v,a)))  idx n arg ts
   = case substFin v idx n arg of
       Left v' -> pure $ TE (substitute ts tau) $ Variable (v',a)
@@ -599,10 +601,10 @@ betaR (TE tau (Cast ty e))        idx n arg ts = TE (substitute ts tau) <$> (Cas
 betaR _ _ _ _ _ = __ghc_t4139 "betaR"
 #endif
 
-lookupKind :: Fin t -> Simp t Kind
+lookupKind :: Fin t -> Simp t b Kind
 lookupKind f = (`V.at` f) <$> use kindEnv
 
 kindcheck = kindcheck_ lookupKind
 
-typeNotLinear :: Type t -> Simp t Bool
+typeNotLinear :: Type t b -> Simp t b Bool
 typeNotLinear t = kindcheck t >>= \k -> return (canDiscard k && canShare k)  -- NOTE: depending on definition of linear types, judgement may change / zilinc
