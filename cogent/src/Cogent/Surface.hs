@@ -40,8 +40,6 @@ import Cogent.Dargent.Surface
 
 type DocString = String
 
-type AExpr = RawExpr  -- the expression type for statically-known array indices
-
 data IrrefutablePattern pv ip e = PVar pv
                                 | PTuple [ip]
                                 | PUnboxedRecord [Maybe (FieldName, ip)]

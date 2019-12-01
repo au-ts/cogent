@@ -13,6 +13,11 @@ import Data.PropEq
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 
 data Nat = Zero | Suc Nat
+         deriving (Show, Eq, Ord)
+
+n0 = Zero
+n1 = Suc n0
+n2 = Suc n1
 
 type family (:+:) (a :: Nat) (b :: Nat) :: Nat where
   x :+: 'Zero  = x
@@ -47,6 +52,11 @@ toInt (SSuc n) = 1 + toInt n
 sadd :: SNat v -> SNat n -> SNat (v :+: n)
 sadd m SZero = m
 sadd m (SSuc n) = SSuc (m `sadd` n)
+
+natToInt :: Nat -> Int
+natToInt Zero = 0
+natToInt (Suc n) = natToInt n + 1
+
 
 --
 -- Properties

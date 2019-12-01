@@ -189,22 +189,20 @@ data CExtDecl = CFnDefn (CType, CId) [(CType, CId)] [CBlockItem] FnSpec
 
 -- | 'StrlType' tried to unify some of the types we have in Core.
 --   It can be deemed as the C representation for Cogent types.
-data StrlType = Record  [(CId, CType)] -- ^ @(fieldname &#x21A6; fieldtype)@
+data StrlType = Record  [(CId, CType)]         -- ^ @(fieldname &#x21A6; fieldtype)@
               | RecordL (DataLayout BitRange)  -- to be laid out according to its Dargent description
-              | Product CType CType          -- ^ pair
-              | Variant (M.Map CId CType)    -- ^ one tag field, and fields for all possibilities
+              | Product CType CType            -- ^ pair
+              | Variant (M.Map CId CType)      -- ^ one tag field, and fields for all possibilities
               | Function CType CType
               | AbsType CId
-              | Array CType (Maybe Int)
-              | ArrayL (DataLayout BitRange) (Maybe Int)
+              | Array CType
+              | ArrayL (DataLayout BitRange)
               deriving (Eq, Ord, Show, Generic)
-
-instance Binary StrlType
 
 -- Custom equality for `BoxedRecord` case of `StrlType`
 -- Needed to allow us to ignore whether fields/alternatives are/aren't "taken"
 -- when deciding whether two cogent types should go to the same C type
-newtype StrlCogentType = StrlCogentType (CC.DType 'Zero 'Zero VarName)
+newtype StrlCogentType = StrlCogentType (CC.Type 'Zero VarName)
                        deriving Show
 
 instance Eq StrlCogentType where
@@ -217,7 +215,7 @@ instance Ord StrlCogentType where
 {- |
 Compares cogent types ignoring whether fields are or aren't taken
 -}
-strlCogentTypeEq :: CC.DType 'Zero v VarName -> CC.DType 'Zero v VarName -> Bool
+strlCogentTypeEq :: CC.Type 'Zero VarName -> CC.Type 'Zero VarName -> Bool
 strlCogentTypeEq (TCon n1 ts1 s1) (TCon n2 ts2 s2) = n1 == n2 && ts1 == ts2 && strlSigilEq s1 s2
 strlCogentTypeEq (TPrim p1)       (TPrim p2)       = p1 == p2
 strlCogentTypeEq (TSum alts1)     (TSum alts2)     = all (\((n1, (t1, _)), (n2, (t2, _))) -> n1 == n2 && strlCogentTypeEq t1 t2) $ zip alts1 alts2

@@ -211,7 +211,6 @@ normaliseT d (T (TRecord l s)) = do
 normaliseT d (T (TArray t n s tkns)) = do
   t' <- normaliseT d t
   s' <- normaliseS   s
-  -- n' <- normaliseE d n
   return $ T $ TArray t' n s' tkns
 #endif
 
@@ -243,9 +242,6 @@ tkNorm :: Either Taken Int -> Taken
 tkNorm (Left tk) = tk
 tkNorm (Right _) = __impossible "normaliseT: taken variable unsolved at normisation"
 
-evalSExpr :: SExpr -> Int
-evalSExpr (SE (IntLit n)) = fromIntegral n
-evalSExpr (SE _) = __todo "Post.evalSExpr"
 
 -- Normalises the layouts in sigils to remove `DataLayoutRefs`
 normaliseS :: Sigil (Maybe DataLayoutExpr) -> Post (Sigil (Maybe DataLayoutExpr))

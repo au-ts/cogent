@@ -48,7 +48,7 @@ instance Show TypeStr where
   -- show (ArrayStr)      = "array"
 
 -- | Collects type structures from a Cogent type.
-toTypeStr :: DType t v a -> [TypeStr]
+toTypeStr :: Type t a -> [TypeStr]
 toTypeStr (TVar v)         = []
 toTypeStr (TVarBang v)     = []
 toTypeStr (TUnit)          = []
@@ -69,7 +69,7 @@ toTypeStr (TArray {})      = []
 --   synonym, it will be used; otherwise we will create a unique name
 --   for the type according to the position of that type in the table.
 --   This will make the generated Isabelle files more readable by humans.
-getStrlType :: M.Map TypeStr TypeName -> [TypeStr] -> DType t v a -> DType t v a
+getStrlType :: M.Map TypeStr TypeName -> [TypeStr] -> Type t a -> Type t a
 getStrlType tsmap table (TSum ts) =
   let tstr = VariantStr (P.map fst ts)
       tps = P.map (fst . snd) ts
@@ -95,20 +95,20 @@ getStrlType _ _ t = t
 type ST = State [TypeStr]
 
 -- | Collects all the types used in a Cogent program.
-st :: [Definition TypedExpr VarName] -> [TypeStr]
+st :: [Definition TypedExpr VarName b] -> [TypeStr]
 st ds = execState (stDefinitions ds) []
 
-stDefinitions :: [Definition TypedExpr VarName] -> ST ()
+stDefinitions :: [Definition TypedExpr VarName b] -> ST ()
 stDefinitions = mapM_ stDefinition
 
 -- Since desugaring, the RHSes have been unfolded already
-stDefinition :: Definition TypedExpr VarName -> ST ()
+stDefinition :: Definition TypedExpr VarName b -> ST ()
 stDefinition (FunDef  _ fn ts ti to e) = stExpr e  -- NOTE: `ti' and `to' will be included in `e', so no need to scan them / zilinc
 stDefinition (AbsDecl _ fn ts ti to) = stType ti >> stType to
 stDefinition (TypeDef tn ts (Just t)) = stType t
 stDefinition (TypeDef tn ts Nothing) = return ()
 
-stExpr :: TypedExpr t v VarName -> ST ()
+stExpr :: TypedExpr t v VarName b -> ST ()
 stExpr (TE t e) = stExpr' e >> stType t
   where
     stExpr' (Variable v)   = return ()
@@ -143,7 +143,7 @@ stExpr (TE t e) = stExpr' e >> stType t
     stExpr' (Cast    ty e)   = stExpr e
 
 -- | Add types to the table if not existing.
-stType :: DType t v a -> ST ()
+stType :: Type t b -> ST ()
 stType (toTypeStr -> ts) = forM_ ts $ \t -> do
   table <- get
   case lookupTypeStr t table of

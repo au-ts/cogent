@@ -41,6 +41,7 @@ import Cogent.Compiler
 import Cogent.Core
 import Cogent.Util
 import Data.Ex
+import Data.Fin
 import Data.Nat
 import Data.PropEq
 import Data.Vec hiding (repeat, splitAt, length, zipWith, zip, unzip)
@@ -71,17 +72,17 @@ import qualified Unsafe.Coerce as Unsafe (unsafeCoerce)  -- NOTE: used safely to
 
 import Debug.Trace
 
-guardShow :: String -> Bool -> TC t v ()
+guardShow :: String -> Bool -> TC t v b ()
 guardShow x b = unless b $ TC (throwError $ "GUARD: " ++ x)
 
-guardShow' :: String -> [String] -> Bool -> TC t v ()
+guardShow' :: String -> [String] -> Bool -> TC t v b ()
 guardShow' mh mb b = unless b $ TC (throwError $ "GUARD: " ++ mh ++ "\n" ++ unlines mb)
 
 -- ----------------------------------------------------------------------------
 -- Type reconstruction
 
 -- Types that don't have the same representation / don't satisfy subtyping.
-isUpcastable :: Type t -> Type t -> TC t v Bool
+isUpcastable :: (Show b, Eq b) => Type t b -> Type t b -> TC t v b Bool
 isUpcastable (TPrim p1) (TPrim p2) = return $ isSubtypePrim p1 p2
 isUpcastable (TSum s1) (TSum s2) = do
   c1 <- flip allM s1 (\(c,(t,b)) -> case lookup c s2 of
@@ -91,11 +92,11 @@ isUpcastable (TSum s1) (TSum s2) = do
   return $ c1 && c2
 isUpcastable _ _ = return False
 
-isSubtype :: Type t -> Type t -> TC t v Bool
+isSubtype :: (Show b, Eq b) => Type t b -> Type t b -> TC t v b Bool
 isSubtype t1 t2 = runMaybeT (t1 `lub` t2) >>= \case Just t  -> return $ t == t2
                                                     Nothing -> return False
 
-bound :: Bound -> Type t -> Type t -> MaybeT (TC t v) (Type t)
+bound :: (Show b, Eq b) => Bound -> Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
 bound _ t1 t2 | t1 == t2 = return t1
 bound b (TRecord fs1 s1) (TRecord fs2 s2) | map fst fs1 == map fst fs2, s1 == s2 = do
   let op = case b of LUB -> (||); GLB -> (&&)
@@ -133,10 +134,10 @@ bound b (TArray t1 l1 s1 mhole1) (TArray t2 l2 s2 mhole2)
 #endif
 bound _ t1 t2 = __impossible ("bound: not comparable: " ++ show (t1,t2))
 
-lub :: Type t -> Type t -> MaybeT (TC t v) (Type t)
+lub :: (Show b, Eq b) => Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
 lub = bound LUB
 
-glb :: Type t -> Type t -> MaybeT (TC t v) (Type t)
+glb :: (Show b, Eq b) => Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
 glb = bound GLB
 
 -- checkUExpr_B :: UntypedExpr -> TC t v Bool
@@ -145,7 +146,7 @@ glb = bound GLB
 -- checkUExpr_B _ = return True
 
 
-bang :: Type t -> Type t
+bang :: Type t b -> Type t b
 bang (TVar v)         = TVarBang v
 bang (TVarBang v)     = TVarBang v
 bang (TVarUnboxed v)  = TVarUnboxed v
@@ -161,7 +162,7 @@ bang (TUnit)          = TUnit
 bang (TArray t l s tkns) = TArray (bang t) l (bangSigil s) tkns
 #endif
 
-unbox :: Type t -> Type t
+unbox :: Type t b -> Type t b
 unbox (TVar v)         = TVarUnboxed v
 unbox (TVarBang v)     = TVarUnboxed v
 unbox (TVarUnboxed v)  = TVarUnboxed v
@@ -172,7 +173,7 @@ unbox t                = t  -- NOTE that @#@ type operator behaves differently t
                             -- data type. / zilinc
 
 
-substitute :: Vec t (Type u) -> Type t -> Type u
+substitute :: Vec t (Type u b) -> Type t b -> Type u b
 substitute vs (TVar v)         = vs `at` v
 substitute vs (TVarBang v)     = bang (vs `at` v)
 substitute vs (TVarUnboxed v)  = unbox (vs `at` v)
@@ -185,43 +186,34 @@ substitute vs (TRecord ts s)   = TRecord (map (second (first $ substitute vs)) t
 substitute vs (TSum ts)        = TSum (map (second (first $ substitute vs)) ts)
 substitute _  (TUnit)          = TUnit
 #ifdef BUILTIN_ARRAYS
-substitute vs (TArray t l s mhole) = TArray (substitute vs t) l s mhole
+substitute vs (TArray t l s mhole) = TArray (substitute vs t) (substituteLE vs l) s (fmap (substituteLE vs) mhole)
 #endif
 
-substituteE :: Vec t (Type u) -> UntypedExpr t v a -> UntypedExpr u v a
-substituteE vs (E e) = E $ substE' vs e
-  where
-    substE' vs (Variable va) = Variable va
-    substE' vs (Fun fn ts notes) = undefined
-    substE' vs (Op op es) = Op op $ fmap (substituteE vs) es
-    substE' vs (App e1 e2) = undefined
-    substE' vs (Con tn e t) = undefined
-    substE' vs (Unit) = Unit
-    substE' vs (ILit n t) = ILit n t
-    substE' vs (SLit s) = SLit s
-#ifdef BUILTIN_ARRAYS
-    substE' vs (ALit es) = ALit $ fmap (substituteE vs) es
-    substE' vs (ArrayIndex e1 e2) = undefined
-    substE' vs (Pop as e1 e2) = undefined
-    substE' vs (Singleton e) = Singleton $ substituteE vs e
-    substE' vs (ArrayMap2 (as, fbody) (e1,e2)) = undefined
-    substE' vs (ArrayTake as e i e') = undefined
-    substE' vs (ArrayPut arr i e) = undefined
-#endif
-    substE' vs (Let a e e') = undefined
-    substE' vs (LetBang bs a e e') = undefined
-    substE' vs (Tuple e1 e2) = undefined
-    substE' vs (Struct fs) = undefined
-    substE' vs (If c th el) = undefined
-    substE' vs (Case e tn (l1,a1,e1) (l2,a2,e2)) = undefined
-    substE' vs (Esac e) = Esac $ substituteE vs e
-    substE' vs (Split as e e') = undefined
-    substE' vs (Member e f) = undefined
-    substE' vs (Take as rec f e') = undefined
-    substE' vs (Put rec f e) = undefined
-    substE' vs (Promote t e) = undefined
-    substE' vs (Cast t e) = undefined
-
+substituteLE :: Vec t (Type u b) -> LExpr t b -> LExpr u b
+substituteLE vs = \case
+  LVariable va       -> LVariable va
+  LFun fn ts notes   -> LFun fn (fmap (substitute vs) ts) notes
+  LOp op es          -> LOp op $ fmap go es
+  LApp e1 e2         -> LApp (go e1) (go e2)
+  LCon tn e t        -> LCon tn (go e) (substitute vs t)
+  LUnit              -> LUnit
+  LILit n t          -> LILit n t
+  LSLit s            -> LSLit s
+  LLet a e e'        -> LLet a (go e) (go e')
+  LLetBang bs a e e' -> LLetBang bs a (go e) (go e')
+  LTuple e1 e2       -> LTuple (go e1) (go e2)
+  LStruct fs         -> LStruct $ fmap (second go) fs
+  LIf c th el        -> LIf (go c) (go th) (go el)
+  LCase e tn (l1,a1,e1) (l2,a2,e2)
+                     -> LCase (go e) tn (l1,a1,go e1) (l2,a2,go e2)
+  LEsac e            -> LEsac $ go e
+  LSplit as e e'     -> LSplit as (go e) (go e')
+  LMember e f        -> LMember (go e) f
+  LTake as rec f e'  -> LTake as (go rec) f (go e')
+  LPut rec f e       -> LPut (go rec) f (go e)
+  LPromote t e       -> LPromote (substitute vs t) (go e)
+  LCast t e          -> LCast (substitute vs t) (go e)
+ where go = substituteLE vs
 
 remove :: (Eq a) => a -> [(a,b)] -> [(a,b)]
 remove k = filter ((/= k) . fst)
@@ -229,15 +221,17 @@ remove k = filter ((/= k) . fst)
 adjust :: (Eq a) => a -> (b -> b) -> [(a,b)] -> [(a,b)]
 adjust k f = map (\(a,b) -> (a,) $ if a == k then f b else b)
 
-newtype TC (t :: Nat) (v :: Nat) a = TC {unTC :: ExceptT String
-                                                         (ReaderT (Vec t Kind, Map FunName (FunctionType v a))
-                                                                  (State (Vec v (Maybe (DType t v a)))))
-                                                         a}
-                                   deriving (Functor, Applicative, Alternative, Monad, MonadPlus,
-                                             MonadReader (Vec t Kind, Map FunName (FunctionType v a)))
+
+newtype TC (t :: Nat) (v :: Nat) b x
+  = TC {unTC :: ExceptT String
+                        (ReaderT (Vec t Kind, Map FunName (FunctionType b))
+                                 (State (Vec v (Maybe (Type t b)))))
+                        x}
+  deriving (Functor, Applicative, Alternative, Monad, MonadPlus,
+            MonadReader (Vec t Kind, Map FunName (FunctionType b)))
 
 infixl 4 <||>
-(<||>) :: TC t v (a -> b) -> TC t v a -> TC t v b
+(<||>) :: TC t v b (x -> y) -> TC t v b x -> TC t v b y
 (TC a) <||> (TC b) = TC $ do x <- get
                              f <- a
                              x1 <- get
@@ -261,7 +255,7 @@ infixl 4 <||>
                              -- / v.jackson, zilinc
                              return (f arg)
 
-opType :: Op -> [Type t] -> Maybe (Type t)
+opType :: Op -> [Type t b] -> Maybe (Type t b)
 opType opr [TPrim p1, TPrim p2]
   | opr `elem` [Plus, Minus, Times, Divide, Mod,
                 BitAnd, BitOr, BitXor, LShift, RShift],
@@ -275,7 +269,7 @@ opType Not [TPrim Boolean] = Just $ TPrim Boolean
 opType Complement [TPrim p] | p /= Boolean = Just $ TPrim p
 opType opr ts = __impossible "opType"
 
-useVariable :: Fin v -> TC t v (Maybe (Type t))
+useVariable :: Fin v -> TC t v b (Maybe (Type t b))
 useVariable v = TC $ do ret <- (`at` v) <$> get
                         case ret of
                           Nothing -> return ret
@@ -284,11 +278,13 @@ useVariable v = TC $ do ret <- (`at` v) <$> get
                             unless ok $ modify (\s -> update s v Nothing)
                             return ret
 
-funType :: CoreFunName -> TC t v (Maybe FunctionType)
+funType :: CoreFunName -> TC t v b (Maybe (FunctionType b))
 funType v = TC $ (M.lookup (unCoreFunName v) . snd) <$> ask
 
-runTC :: TC t v a -> (Vec t Kind, Map FunName FunctionType) -> Vec v (Maybe (Type t))
-      -> Either String (Vec v (Maybe (Type t)), a)
+runTC :: TC t v b x
+      -> (Vec t Kind, Map FunName (FunctionType b))
+      -> Vec v (Maybe (Type t b))
+      -> Either String (Vec v (Maybe (Type t b)), x)
 runTC (TC a) readers st = case runState (runReaderT (runExceptT a) readers) st of
                             (Left x, s)  -> Left x
                             (Right x, s) -> Right (s,x)
@@ -305,15 +301,20 @@ runTC (TC a) readers st = case runState (runReaderT (runExceptT a) readers) st o
 -- XXX |     tc_debug' ((AbsDecl _ fn ts t rt):ds) reader = tc_debug' ds (M.insert fn (FT (fmap snd ts) t rt) reader)
 -- XXX |     tc_debug' (_:ds) reader = tc_debug' ds reader
 
-retype :: [Definition TypedExpr a] -> Either String [Definition TypedExpr a]
+retype :: (Show b, Eq b, Pretty b, a ~ b)
+       => [Definition TypedExpr a b]
+       -> Either String [Definition TypedExpr a b]
 retype ds = fmap fst $ tc $ map untypeD ds
 
-tc :: [Definition UntypedExpr a] -> Either String ([Definition TypedExpr a], Map FunName FunctionType)
+tc :: (Show b, Eq b, Pretty b, a ~ b)
+   => [Definition UntypedExpr a b]
+   -> Either String ([Definition TypedExpr a b], Map FunName (FunctionType b))
 tc = flip tc' M.empty
   where
-    tc' :: [Definition UntypedExpr a]
-        -> Map FunName FunctionType    -- the reader
-        -> Either String ([Definition TypedExpr a], Map FunName FunctionType)
+    tc' :: (Show b, Eq b, Pretty b, a ~ b)
+        => [Definition UntypedExpr a b]
+        -> Map FunName (FunctionType b)  -- the reader
+        -> Either String ([Definition TypedExpr a b], Map FunName (FunctionType b))
     tc' [] reader = return ([], reader)
     tc' ((FunDef attr fn ts t rt e):ds) reader =
       case runTC (infer e >>= flip typecheck rt) (fmap snd ts, reader) (Cons (Just t) Nil) of
@@ -322,23 +323,25 @@ tc = flip tc' M.empty
     tc' (d@(AbsDecl _ fn ts t rt):ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds (M.insert fn (FT (fmap snd ts) t rt) reader)
     tc' (d:ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds reader
 
-tc_ :: [Definition UntypedExpr a] -> Either String [Definition TypedExpr a]
+tc_ :: (Show b, Eq b, Pretty b, a ~ b)
+    => [Definition UntypedExpr a b]
+    -> Either String [Definition TypedExpr a b]
 tc_ = fmap fst . tc
 
 tcConsts :: [CoreConst UntypedExpr]
-         -> Map FunName FunctionType
-         -> Either String ([CoreConst TypedExpr], Map FunName FunctionType)
+         -> Map FunName (FunctionType VarName)
+         -> Either String ([CoreConst TypedExpr], Map FunName (FunctionType VarName))
 tcConsts [] reader = return ([], reader)
 tcConsts ((v,e):ds) reader =
   case runTC (infer e) (Nil, reader) Nil of
     Left x -> Left x
     Right (_,e') -> (first ((v,e'):)) <$> tcConsts ds reader
 
-withBinding :: Type t -> TC t ('Suc v) x -> TC t v x
-withBinding t a
+withBinding :: Type t b -> TC t ('Suc v) b x -> TC t v b x
+withBinding t x
   = TC $ do readers <- ask
             st      <- get
-            case runTC a readers (Cons (Just t) st) of
+            case runTC x readers (Cons (Just t) st) of
               Left e -> throwError e
               Right (Cons Nothing s,r)   -> do put s; return r
               Right (Cons (Just t) s, r) -> do
@@ -346,21 +349,21 @@ withBinding t a
                 if ok then put s >> return r
                       else throwError "Didn't use linear variable"
 
-withBindings :: Vec k (Type t) -> TC t (v :+: k) x -> TC t v x
+withBindings :: Vec k (Type t b) -> TC t (v :+: k) b x -> TC t v b x
 withBindings Nil tc = tc
 withBindings (Cons x xs) tc = withBindings xs (withBinding x tc)
 
-withBang :: [Fin v] -> TC t v x -> TC t v x
+withBang :: [Fin v] -> TC t v b x -> TC t v b x
 withBang vs (TC x) = TC $ do st <- get
                              mapM_ (\v -> modify (modifyAt v (fmap bang))) vs
                              ret <- x
                              mapM_ (\v -> modify (modifyAt v (const $ st `at` v))) vs
                              return ret
 
-lookupKind :: Fin t -> TC t v Kind
+lookupKind :: Fin t -> TC t v b Kind
 lookupKind f = TC ((`at` f) . fst <$> ask)
 
-kindcheck_ :: (Monad m) => (Fin t -> m Kind) -> Type t -> m Kind
+kindcheck_ :: (Monad m) => (Fin t -> m Kind) -> Type t a -> m Kind
 kindcheck_ f (TVar v)         = f v
 kindcheck_ f (TVarBang v)     = bangKind <$> f v
 kindcheck_ f (TVarUnboxed v)  = return mempty
@@ -380,7 +383,7 @@ kindcheck_ f (TArray t l s _) = mappend <$> kindcheck_ f t <*> pure (sigilKind s
 kindcheck = kindcheck_ lookupKind
 
 
-typecheck :: TypedExpr t v a -> Type t -> TC t v (TypedExpr t v a)
+typecheck :: (Pretty a, Show a, Eq a) => TypedExpr t v a a -> Type t a -> TC t v a (TypedExpr t v a a)
 typecheck e t = do
   let t' = exprType e
   isSub <- isSubtype t' t
@@ -389,7 +392,7 @@ typecheck e t = do
      | otherwise -> __impossible $ "Inferred type doesn't agree with the given type signature:\n" ++
                                    "Inferred type:\n" ++ show (pretty t') ++ "\nGiven type:\n" ++ show (pretty t)
 
-infer :: (Pretty a) => UntypedExpr t v a -> TC t v (TypedExpr t v a)
+infer :: (Pretty a, Show a, Eq a) => UntypedExpr t v a a -> TC t v a (TypedExpr t v a a)
 infer (E (Op o es))
    = do es' <- mapM infer es
         let Just t = opType o (map exprType es')
@@ -401,12 +404,12 @@ infer (E (ALit [])) = __impossible "We don't allow 0-size array literals"
 infer (E (ALit es))
    = do es' <- mapM infer es
         let ts = map exprType es'
-            n = fromIntegral $ length es
+            n = LILit (fromIntegral $ length es) U32
         t <- lubAll ts
         isSub <- allM (`isSubtype` t) ts
         return (TE (TArray t n Unboxed Nothing) (ALit es'))
   where
-    lubAll :: [Type t] -> TC t v (Type t)
+    lubAll :: (Show b, Eq b) => [Type t b] -> TC t v b (Type t b)
     lubAll [] = __impossible "lubAll: empty list"
     lubAll [t] = return t
     lubAll (t1:t2:ts) = do Just t <- runMaybeT $ lub t1 t2
@@ -432,20 +435,20 @@ infer (E (Pop a e1 e2))
    = do e1'@(TE t1 _) <- infer e1
         let TArray te l s tkns = t1
             thd = te
-            ttl = TArray te (l - 1) s tkns
-        guardShow "arr-pop on a singleton array" $ l > 1
+            ttl = TArray te (LOp Minus [l, LILit 1 U32]) s tkns
+        -- guardShow "arr-pop on a singleton array" $ l > 1
         e2'@(TE t2 _) <- withBindings (Cons thd (Cons ttl Nil)) $ infer e2
         return (TE t2 (Pop a e1' e2'))
 infer (E (Singleton e))
    = do e'@(TE t _) <- infer e
         let TArray te l _ _ = t
-        guardShow "singleton on a non-singleton array" $ l == 1
+        -- guardShow "singleton on a non-singleton array" $ l == 1
         return (TE te (Singleton e'))
 infer (E (ArrayTake as arr i e))
    = do arr'@(TE tarr _) <- infer arr
         i' <- infer i
         let TArray telt len s Nothing = tarr
-            tarr' = TArray telt len s (Just $ untypeE i')
+            tarr' = TArray telt len s (Just $ texprToLExpr id i')
         e'@(TE te _) <- withBindings (Cons telt (Cons tarr' Nil)) $ infer e
         return (TE te $ ArrayTake as arr' i' e')
 infer (E (ArrayPut arr i e))
@@ -630,7 +633,7 @@ infer (E (Promote ty e))
 -- A-normalisation results in a similar structure, but when squashing case expressions for the
 -- shallow embedding, we want this to apply to desugared as well as normalised.
 --
-promote :: Type t -> TypedExpr t v a -> TypedExpr t v a
+promote :: Type t b -> TypedExpr t v a b -> TypedExpr t v a b
 promote t (TE t' e) = case e of
   -- For continuation forms, push the promote into the continuations
   Let a e1 e2         -> TE t $ Let a e1 $ promote t e2
@@ -645,7 +648,4 @@ promote t (TE t' e) = case e of
   -- Otherwise, no simplification is necessary; construct a Promote expression as usual.
   _                   -> TE t $ Promote t (TE t' e)
 
-evalExpr :: (Pretty a) => TypedExpr t v a -> TC t v (Maybe Int)
-evalExpr (TE _ (ILit n _)) = return $ Just $ fromIntegral n
-evalExpr e = trace ("e = " ++ show (pretty e)) $ return Nothing
 

@@ -24,6 +24,7 @@ module Cogent.Normal where
 import Cogent.Common.Syntax (VarName)
 import Cogent.Compiler
 import Cogent.Core
+import Data.Fin
 import Data.Nat
 import Data.Vec
 import Data.PropEq
@@ -35,7 +36,7 @@ import Prelude as P
 
 -- import Debug.Trace
 
-isTrivial :: UntypedExpr t v a -> Bool
+isTrivial :: UntypedExpr t v a b -> Bool
 isTrivial (E (Variable _)) = True
 isTrivial (E (Fun {})) = True
 isTrivial (E (ILit {})) = True
@@ -53,7 +54,7 @@ isTrivial _ = False
 -- generated code, as it should affact if the C code can be generated in SSA form or
 -- something that gcc has a better chance to see optimisation candidates. / zilinc (24-Oct-19)
 
-isAtom :: UntypedExpr t v a -> Bool
+isAtom :: UntypedExpr t v a b -> Bool
 isAtom e | isTrivial e = True
 isAtom (E (Op opr es)) | all isTrivial es = True
 isAtom (E (App f arg)) | isTrivial f && isTrivial arg = True
@@ -79,7 +80,7 @@ isAtom (E (Promote t e)) | isTrivial e = True
 isAtom (E (Cast t e)) | isTrivial e = True
 isAtom _ = False
 
-isNormal :: UntypedExpr t v a -> Bool
+isNormal :: UntypedExpr t v a b -> Bool
 isNormal te | isAtom te = True
 isNormal (E (Let _ e1 e2)) | __cogent_fnormalisation == ANF && isAtom e1 && isNormal e2 = True
                             -- XXX | ANF <- __cogent_fnormalisation, __cogent_fcondition_knf && isNormal e1 && isNormal e2 = True
@@ -108,10 +109,10 @@ freshVar = do x <- get
               put (x + 1)
               return $ freshVarPrefix ++ show x
 
-normal :: [Definition UntypedExpr VarName] -> [Definition UntypedExpr VarName]
+normal :: [Definition UntypedExpr VarName b] -> [Definition UntypedExpr VarName b]
 normal = flip evalState 0 . runAN . mapM normaliseDefinition
 
-verifyNormal :: Show a => [Definition UntypedExpr a] -> Bool
+verifyNormal :: Show a => [Definition UntypedExpr a b] -> Bool
 verifyNormal [] = True
 verifyNormal (d:ds) =
   let b = case d of
@@ -119,26 +120,26 @@ verifyNormal (d:ds) =
             _ -> True
    in b && verifyNormal ds
 
-normaliseDefinition :: Definition UntypedExpr VarName -> AN (Definition UntypedExpr VarName)
+normaliseDefinition :: Definition UntypedExpr VarName b -> AN (Definition UntypedExpr VarName b)
 normaliseDefinition (FunDef attr fn ts ti to e) = FunDef attr fn ts ti to <$> (wrapPut =<< normaliseExpr s1 e)
 normaliseDefinition d = pure d
 
-normaliseExpr :: SNat v -> UntypedExpr t v VarName -> AN (UntypedExpr t v VarName)
+normaliseExpr :: SNat v -> UntypedExpr t v VarName b -> AN (UntypedExpr t v VarName b)
 normaliseExpr v e = normalise v e (\_ x -> return x)
 
-upshiftExpr :: SNat n -> SNat v -> Fin ('Suc v) -> UntypedExpr t v a -> UntypedExpr t (v :+: n) a
+upshiftExpr :: SNat n -> SNat v -> Fin ('Suc v) -> UntypedExpr t v a b -> UntypedExpr t (v :+: n) a b
 upshiftExpr SZero _ _ e = e
 upshiftExpr (SSuc n) sv v e | Refl <- addSucLeft sv n
   = let a = upshiftExpr n sv v e in insertIdxAtUntypedExpr (widenN v n) a
 
-upshiftType :: SNat n -> SNat v -> Fin ('Suc v) -> Type t v a UntypedExpr -> Type t (v :+: n) a UntypedExpr
+upshiftType :: SNat n -> SNat v -> Fin ('Suc v) -> Type t a -> Type t a
 upshiftType SZero _ _ t = t
 upshiftType (SSuc n) sv v t = undefined
 
 normalise :: SNat v
-          -> UntypedExpr t v VarName
-          -> (forall n. SNat n -> UntypedExpr t (v :+: n) VarName -> AN (UntypedExpr t (v :+: n) VarName))
-          -> AN (UntypedExpr t v VarName)
+          -> UntypedExpr t v VarName b
+          -> (forall n. SNat n -> UntypedExpr t (v :+: n) VarName b -> AN (UntypedExpr t (v :+: n) VarName b))
+          -> AN (UntypedExpr t v VarName b)
 normalise v e@(E (Variable var)) k = k s0 (E (Variable var))
 normalise v e@(E (Fun fn ts _)) k = k s0 e
 normalise v   (E (Op opr es)) k = normaliseNames v es $ \n es' -> k n (E $ Op opr es')
@@ -246,9 +247,9 @@ normalise v (E (Put rec fld e)) k
 normalise v (E (Promote ty e)) k = normaliseName v e $ \n e' -> k n (E $ Promote (upshiftType n v f0 ty) e')
 normalise v (E (Cast ty e)) k = normaliseName v e $ \n e' -> k n (E $ Cast (upshiftType n v f0 ty) e')
 
-normaliseAtom :: SNat v -> UntypedExpr t v VarName
-              -> (forall n. SNat n -> UntypedExpr t (v :+: n) VarName -> AN (UntypedExpr t (v :+: n) VarName))
-              -> AN (UntypedExpr t v VarName)
+normaliseAtom :: SNat v -> UntypedExpr t v VarName b
+              -> (forall n. SNat n -> UntypedExpr t (v :+: n) VarName b -> AN (UntypedExpr t (v :+: n) VarName b))
+              -> AN (UntypedExpr t v VarName b)
 normaliseAtom v e k = normalise v e $ \n e' -> if isAtom e' then k n e' else case e' of
   (E (Let a e1 e2)) -> freshVar >>= \a' -> E <$> (Let a e1 <$> (normaliseAtom (SSuc (sadd v n)) e2 $
      \n' e2' -> withAssocS v n n' $ \Refl -> E <$> (Let a' e2' <$> (k (SSuc (sadd n (SSuc n'))) $ E $ Variable (f0, a')))))
@@ -266,7 +267,7 @@ normaliseAtom v e k = normalise v e $ \n e' -> if isAtom e' then k n e' else cas
      withAssocSS v n n' $ \Refl -> k (sadd n (SSuc (SSuc n')))))
   _ -> __impossible "normaliseAtom"
 
-wrapPut :: UntypedExpr t v VarName -> AN (UntypedExpr t v VarName)
+wrapPut :: UntypedExpr t v VarName b -> AN (UntypedExpr t v VarName b)
 wrapPut e | not __cogent_fwrap_put_in_let = return e
 wrapPut put@(E (Put rec f e)) = freshVar >>= \a -> return $ E (Let a put (E $ Variable (f0,a)))
 wrapPut (E (Let a e1 e2)) = E <$> (Let a e1 <$> wrapPut e2)
@@ -277,21 +278,21 @@ wrapPut (E (Split a p e)) = E <$> (Split a p <$> wrapPut e)
 wrapPut (E (Take a rec fld e)) = E <$> (Take a rec fld <$> wrapPut e)
 wrapPut e = return e  -- non-normal, thus put cannot occur
 
-normaliseName :: SNat v -> UntypedExpr t v VarName
-              -> (forall n. SNat n -> UntypedExpr t (v :+: n) VarName -> AN (UntypedExpr t (v :+: n) VarName))
-              -> AN (UntypedExpr t v VarName)
+normaliseName :: SNat v -> UntypedExpr t v VarName b
+              -> (forall n. SNat n -> UntypedExpr t (v :+: n) VarName b -> AN (UntypedExpr t (v :+: n) VarName b))
+              -> AN (UntypedExpr t v VarName b)
 normaliseName v e k = freshVar >>= \a -> normaliseAtom v e $ \n e' -> if isTrivial e' then k n e' else E <$> (Let a e' <$> k (SSuc n) (E (Variable (f0,a))))
 
-normaliseNames :: SNat v -> [UntypedExpr t v VarName]
-               -> (forall n. SNat n -> [UntypedExpr t (v :+: n) VarName] -> AN (UntypedExpr t (v :+: n) VarName))
-               -> AN (UntypedExpr t v VarName)
+normaliseNames :: SNat v -> [UntypedExpr t v VarName b]
+               -> (forall n. SNat n -> [UntypedExpr t (v :+: n) VarName b] -> AN (UntypedExpr t (v :+: n) VarName b))
+               -> AN (UntypedExpr t v VarName b)
 normaliseNames v [] k = k s0 []
 normaliseNames v (e:es) k
   = normaliseName v e $ \n e' ->
       normaliseNames (sadd v n) (map (upshiftExpr n v f0) es) $ \n' es' ->
         withAssoc v n n' $ \Refl -> k (sadd n n') (upshiftExpr n' (sadd v n) f0 e':es')
 
-isCondition :: UntypedExpr t v a -> Bool
+isCondition :: UntypedExpr t v a b -> Bool
 isCondition (E (If {})) = True
 isCondition (E (Case {})) = True
 isCondition _ = False

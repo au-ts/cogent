@@ -31,10 +31,10 @@ import Isabelle.OuterAST as O hiding (Instance)
 import Control.Arrow (second)
 import Data.Map hiding (map, null)
 import System.FilePath ((</>))
-import Text.PrettyPrint.ANSI.Leijen as L (Doc, pretty, string, (<$>))
+import Text.PrettyPrint.ANSI.Leijen as L (Doc, Pretty, pretty, string, (<$>))
 
 
-monoProof :: String -> FunMono -> String -> Doc
+monoProof :: (Ord b, Pretty b) => String -> FunMono b -> String -> Doc
 monoProof source funMono log =
   let header = (L.string ("(*\n" ++ log ++ "\n*)\n") L.<$>)
       thy = mkProofName source (Just __cogent_suffix_of_mono_proof)
@@ -92,7 +92,7 @@ monoExprThms src = ContextDecl $ Context "value_sem" $ ctxBody
  - Define a HOL association-list. It will be processed into a function using AssocLookup.thy.
  - (Yes, this is actually much more efficient than writing a function definition. Don't ask.)
  -}
-rename :: FunMono -> TheoryDecl I.Type I.Term
+rename :: (Ord b, Pretty b) => FunMono b -> TheoryDecl I.Type I.Term
 rename funMono = [isaDecl| definition $alist_name :: "$sig" where "$(mkId alist_name) \<equiv> $def" |]
   where
     alist_name = __fixme "rename__assocs" -- should be parameter
@@ -103,11 +103,12 @@ rename funMono = [isaDecl| definition $alist_name :: "$sig" where "$(mkId alist_
     monoTable = concatMap mkInst . map (second toList) . toList $ funMono
 
     subscript fn num =  fn ++ "_" ++ show num
-    mkInst :: (FunName, [(Instance, Int)]) -> [(Term, Term, Term)]
+
+    mkInst :: (Ord b, Pretty b) => (FunName, [(Instance b, Int)]) -> [(Term, Term, Term)]
     mkInst (fn,insts) = let safeName = unIsabelleName $ mkIsabelleName fn
       in  if null insts
             then [([isaTerm| $(mkString safeName) |], [isaTerm| Nil |], [isaTerm| $(mkString safeName) |])]
             else map (\(tys,num) -> ([isaTerm| $(mkString safeName) |], mkTyList tys, [isaTerm| $(mkString (subscript safeName num)) |])) insts
 
-    mkTyList :: [CC.Type 'Zero] -> Term
+    mkTyList :: (Ord b, Pretty b) => [CC.Type 'Zero b] -> Term
     mkTyList = I.mkList . map (deepType id (empty, 0))
