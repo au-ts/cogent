@@ -100,7 +100,7 @@ data Value a f
   | VRecord [(FieldName, Maybe (Value a f))]
   | VVariant TagName (Value a f)
   | VProduct (Value a f) (Value a f)
-  | VFunction  FunName (TypedExpr 'Zero ('Suc 'Zero) VarName) [Type 'Zero]
+  | VFunction  FunName (TypedExpr 'Zero ('Suc 'Zero) VarName VarName) [Type 'Zero VarName]
   | VThunk (HNF a f)
   deriving (Show)
 
@@ -113,7 +113,7 @@ data HNF a f
   | VMember (Value a f) FieldName
   | VPut (Value a f) FieldName (Value a f)
   | VAbstract a
-  | VAFunction FunName f [Type 'Zero]
+  | VAFunction FunName f [Type 'Zero VarName]
   deriving (Show)
 
 instance (Prec a, Prec f, Prec (HNF a f)) => Prec (Value a f) where
@@ -174,7 +174,7 @@ newtype ReplM (v :: Nat) a f x = ReplM { unReplM :: StateT (ReplState v a f) IO 
 
 data ReplState v a f = ReplState { _gamma   :: V.Vec v (Value a f)
                                  , _absfuns :: M.Map CoreFunName (Value a f -> Value a f)
-                                 , _fundefs :: M.Map CoreFunName (Definition TypedExpr VarName)
+                                 , _fundefs :: M.Map CoreFunName (Definition TypedExpr VarName VarName)
                                  }
 
 makeLenses ''ReplState
@@ -380,9 +380,9 @@ tcExpr r e = do
   where
     knownTypes = map (, ([], Nothing)) $ words "U8 U16 U32 U64 String Bool"
 
-coreTcExpr :: [Definition TypedExpr VarName]
-           -> UntypedExpr 'Zero 'Zero VarName
-           -> IO (TypedExpr 'Zero 'Zero VarName)
+coreTcExpr :: [Definition TypedExpr VarName VarName]
+           -> UntypedExpr 'Zero 'Zero VarName VarName
+           -> IO (TypedExpr 'Zero 'Zero VarName VarName)
 coreTcExpr ds e = do
   let mkFunMap (FunDef  _ fn ps ti to _) = (fn, FT (fmap snd ps) ti to)
       mkFunMap (AbsDecl _ fn ps ti to  ) = (fn, FT (fmap snd ps) ti to)
@@ -394,7 +394,7 @@ coreTcExpr ds e = do
 
 dsExpr :: IORef PreloadS
        -> Tc.TypedExpr
-       -> IO ([Definition UntypedExpr VarName], UntypedExpr 'Zero 'Zero VarName)
+       -> IO ([Definition UntypedExpr VarName VarName], UntypedExpr 'Zero 'Zero VarName VarName)
 dsExpr r e = do
   preldS <- readIORef r
   let (tls, constdefs) = partition (not . isConstDef) (surface preldS)
@@ -489,13 +489,13 @@ evalBinOp RShift (VInt  l1) v2@(VInt  l2)
 evalBinOp op v1@(VThunk {}) v2 = VThunk $ VOp op [v1,v2]
 evalBinOp op v1 v2@(VThunk {}) = VThunk $ VOp op [v1,v2]
 
-specialise :: [Type 'Zero] -> TypedExpr t v VarName -> TypedExpr 'Zero v VarName
+specialise :: [Type 'Zero VarName] -> TypedExpr t v VarName VarName -> TypedExpr 'Zero v VarName VarName
 specialise inst e = fst $ flip3 evalRWS initmap inst $ runMono (specialiseExpr e)
   where initmap = (M.empty, M.empty)
 
 -- Mostly a duplicate of 'Mono.monoExpr', but it doesn't try to fiddle with the names
 -- of monomorphised functions.
-specialiseExpr :: TypedExpr t v VarName -> Mono (TypedExpr 'Zero v VarName)
+specialiseExpr :: TypedExpr t v VarName VarName -> Mono VarName (TypedExpr 'Zero v VarName VarName)
 specialiseExpr (TE t e) = TE <$> monoType t <*> specialiseExpr' e
   where
     specialiseExpr' (Variable var       ) = pure $ Variable var
@@ -527,7 +527,7 @@ specialiseExpr (TE t e) = TE <$> monoType t <*> specialiseExpr' e
     specialiseExpr' (Promote ty e       ) = Promote <$> monoType ty <*> specialiseExpr e
     specialiseExpr' (Cast    ty e       ) = Cast <$> monoType ty <*> specialiseExpr e
 
-eval :: TypedExpr 'Zero v VarName -> ReplM v () () (Value () ())
+eval :: TypedExpr 'Zero v VarName VarName -> ReplM v () () (Value () ())
 eval (TE _ (Variable (v,_))) = use gamma >>= return . (`V.at` v)
 eval (TE _ (Fun fn ts _)) = do
   funmap <- use fundefs

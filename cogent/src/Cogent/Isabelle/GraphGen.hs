@@ -18,6 +18,7 @@ import qualified Cogent.Common.Syntax as CS
 import Cogent.Common.Types as CT
 import Cogent.Core
 import Cogent.Normal
+import Data.Fin
 import Data.Vec
 
 #if __GLASGOW_HASKELL__ < 709
@@ -114,7 +115,7 @@ getExprType (GOp _ typ _) = typ
 getExprType (GBool _) = GBoolT
 getExprType (GNum typ _) = typ
 
-graphGen :: Show a => [Definition TypedExpr a] -> String -> IO ()
+graphGen :: (Show a, Show b) => [Definition TypedExpr a b] -> String -> IO ()
 graphGen defs log = putStrLn $ (concatMap prettyFunctionGraph d)
       ++ "\n# ==Failed functions==\n" ++ f
       ++ "\n# ==Failed Typed Functions==\n" ++ f2
@@ -124,10 +125,10 @@ graphGen defs log = putStrLn $ (concatMap prettyFunctionGraph d)
           f2 = concatMap prettyFailedTypeFunction d
           report = prettyFailureReport d
 
-graphDefinitions :: Show a => [Definition TypedExpr a] -> [FunctionGraph]
+graphDefinitions :: (Show a, Show b) => [Definition TypedExpr a b] -> [FunctionGraph]
 graphDefinitions = foldr graphDefinition []
 
-graphDefinition :: Show a => Definition TypedExpr a -> [FunctionGraph] -> [FunctionGraph]
+graphDefinition :: (Show a, Show b) => Definition TypedExpr a b -> [FunctionGraph] -> [FunctionGraph]
 graphDefinition te@(FunDef _ fn _ ti to _) gs = fg : gs
     where
         fg = case graphHelper te of
@@ -139,7 +140,7 @@ graphDefinition te@(FunDef _ fn _ ti to _) gs = fg : gs
 
 graphDefinition _ gs = gs
 
-graphTypeHelper :: Show a => DType t v a -> DType t v a -> GM ([(String, GTyp)], [(String, GTyp)])
+graphTypeHelper :: (Show b) => Type t b -> Type t b -> GM ([(String, GTyp)], [(String, GTyp)])
 graphTypeHelper ti to = do
     let v = "a@0"
     gti <- graphType ti
@@ -148,7 +149,7 @@ graphTypeHelper ti to = do
     output <- getFieldVariables (v, gto)
     return (input, output)
 
-graphHelper :: Show a => Definition TypedExpr a -> GM FunctionGraph
+graphHelper :: (Show a, Show b) => Definition TypedExpr a b -> GM FunctionGraph
 graphHelper (FunDef _ fn ks ti to e) = do
     let v = "a@0"
     gti <- graphType ti
@@ -159,7 +160,7 @@ graphHelper (FunDef _ fn ks ti to e) = do
     return (FunctionGraph fn input output g)
 graphHelper _ = undefined
 
-graphType :: Show a => DType t v a -> GM GExprGroup
+graphType :: Show b => Type t b -> GM GExprGroup
 graphType (TPrim Boolean) = return $ GEGSingle GBoolT
 graphType (TPrim U8)      = return $ GEGSingle (GWordT 8)
 graphType (TPrim U16)     = return $ GEGSingle (GWordT 16)
@@ -201,7 +202,7 @@ mkBasic s nn v xs exUpds = mkBasicVs s nn [v] xs exUpds
 mystery :: String -> Integer
 mystery s = 0 -- error ("mystery: " ++ s)
 
-graph :: Show a => Graph -> TypedExpr t v a -> Int -> NextNode -> VarEnv -> GM (Graph, Int)
+graph :: (Show a, Show b) => Graph -> TypedExpr t v a b -> Int -> NextNode -> VarEnv -> GM (Graph, Int)
 
 graph g (TE _ (Let _ (TE appTy (App (TE _ (Fun fn _ _)) arg)) e)) n ret vs = do
     let v = (freshNames !! (Prelude.length vs)) ++ "@" ++ show n
@@ -306,9 +307,9 @@ graph g te@(TE _ (Case x tag (_, _, m) (_, _, nom))) n ret vs = do
     return g5
 
 graph g te@(TE ty (App fn arg)) n ret vs =
-  graph g (TE ty (Let undefined te (TE (insertIdxAtT f0 ty) (Variable (FZero, undefined))))) n ret vs
+  graph g (TE ty (Let undefined te (TE ty (Variable (FZero, undefined))))) n ret vs
 graph g te@(TE ty (Put rec fld v)) n ret vs =
-  graph g (TE ty (Let undefined te (TE (insertIdxAtT f0 ty) (Variable (FZero, undefined))))) n ret vs
+  graph g (TE ty (Let undefined te (TE ty (Variable (FZero, undefined))))) n ret vs
 
 graph g te n ret vs = case isAtom (untypeE te) of
     True -> do
@@ -405,7 +406,7 @@ getFieldsFromConcat groups n fields = do
     let takeN = Prelude.length list2
     return (take takeN $ drop dropN fields)
 
-atom :: Show a => TypedExpr t v a -> VarEnv -> GM ([GExpr], [(String, GTyp, GExpr)])
+atom :: (Show a, Show b) => TypedExpr t v a b -> VarEnv -> GM ([GExpr], [(String, GTyp, GExpr)])
 atom (TE ty (Variable v)) vs = do
     when (finInt (fst v) >= Prelude.length vs) $ abort $ "atom: " ++ show (v, vs)
     let (nm, ggTyp) = vs !! (finInt $ fst v)
@@ -510,7 +511,7 @@ atom te@(TE _ (SLit _)) vs     = failure ("atom SLit: " ++ show te)
 
 atom (TE _ x) vs = failure ("atom: couldn't handle: " ++ show x)
 
-atomCheck :: Show a => TypedExpr t v a -> VarEnv -> GM ([GExpr], [(String, GTyp, GExpr)])
+atomCheck :: (Show a, Show b) => TypedExpr t v a b -> VarEnv -> GM ([GExpr], [(String, GTyp, GExpr)])
 atomCheck te vs = do
     res <- atom te vs
     gty <- graphType (exprType te)
@@ -519,14 +520,14 @@ atomCheck te vs = do
         $ abort $ "atomCheck: " ++ show te ++ ", " ++ show res
     return res
 
-atomNoUpds :: Show a => TypedExpr t v a -> VarEnv -> GM [GExpr]
+atomNoUpds :: (Show a, Show b) => TypedExpr t v a b -> VarEnv -> GM [GExpr]
 atomNoUpds te ve = do
     res <- atomCheck te ve
     case res of
         (xs, [])   -> return xs
         (xs, upds) -> failure ("atomNoUpds: got upds: " ++ show upds)
 
-singleAtom :: Show a => TypedExpr t v a -> VarEnv -> GM GExpr
+singleAtom :: (Show a, Show b) => TypedExpr t v a b -> VarEnv -> GM GExpr
 singleAtom te ve = do
     res <- atom te ve
     case res of

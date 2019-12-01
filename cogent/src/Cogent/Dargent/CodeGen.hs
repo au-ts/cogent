@@ -16,7 +16,7 @@
 module Cogent.Dargent.CodeGen where
 
 import Cogent.C.Syntax
-import Cogent.Common.Syntax (FieldName, Size)
+import Cogent.Common.Syntax (FieldName, VarName, Size)
 import Cogent.Common.Types (Sigil (..))
 import Cogent.Compiler
   ( __fixme
@@ -771,7 +771,7 @@ intTypeForType (CIdent t)
   | t `elem` ["u8", "u16", "u32", "u64"]  = CIdent t
 intTypeForType _                          = intTypeForPointer -- embedded boxed abstract type/record
 
-type CogentType = Type 'Zero
+type CogentType = Type 'Zero VarName
 
 intTypeForPointer = case architecture of
   X86_64 -> unsignedLongType
