@@ -109,7 +109,7 @@ Library
               , language-c-quote >= 0.10.2
               , lens >= 4.6
               , mainland-pretty >= 0.2.6
-              , monoid-subclasses >= 0.4
+              , monoid-subclasses >= 0.4 && < 1.0
               , mtl >= 2.2.1
               , parsec >= 3.1
               , pretty-show >= 1.5
