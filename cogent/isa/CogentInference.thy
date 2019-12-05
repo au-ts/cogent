@@ -1668,14 +1668,20 @@ next
   then show ?case     
     using alg_ctx_jn_type_used_max cg_ctx_idx_size by simp
 next
-  case (cg_vcon \<alpha> n1 \<beta> n2 G1 e G2 C e' C' nm \<tau>)
-  then show ?case sorry
+  case (cg_case \<alpha> n1 \<beta> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
+  then show ?case
+  proof -
+    have "i \<notin> fv e1" "(Suc i) \<notin> fv e2" "(Suc i) \<notin> fv e3"
+      using i_fv'_suc_iff_suc_i_fv' cg_case by auto
+    then moreover have "snd (G1 ! i) = snd (G3 ! i)" "snd (G3 ! i) = snd (G3' ! i)" "i < length G3"
+      using cg_case cg_ctx_length by (metis (no_types) Suc_less_eq length_Cons nth_Cons_Suc)+
+    ultimately show ?thesis
+      using alg_ctx_jn_length alg_ctx_jn_type_used_same cg_case.hyps by auto
+  qed
 next
-  case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
-  then show ?case sorry
-next
-  case (cg_irref \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
-  then show ?case sorry
+  case (cg_irref \<alpha> n1 \<beta> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
+  then show ?case
+    using cg_ctx_length i_fv'_suc_iff_suc_i_fv' by fastforce
 qed (simp add: cg_ctx_idx_size)+
 
 lemma cg_assign_type_used_nonzero_imp_share:
