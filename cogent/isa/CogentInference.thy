@@ -227,6 +227,7 @@ known_tvar:
 
 inductive_cases known_tfunE: "known_ty (TFun t1 t2)"
 inductive_cases known_tproductE: "known_ty (TProduct t1 t2)"
+inductive_cases known_tvariant_consE: "known_ty (TVariant (K # Ks) None)"
 
 inductive known_ct :: "constraint \<Rightarrow> bool" where
 known_ctconj:
@@ -857,11 +858,9 @@ next
   then show ?case
     using known_tproductE by auto
 next
-  case known_tvariant_nil
-  then show ?case sorry
-next
   case (known_tvariant_cons K Ks)
-  then show ?case sorry
+  then show ?case
+    by (simp add: case_prod_beta)
 qed (simp)+ 
 
 lemma assign_app_constr_subst_ct_commute: 
@@ -869,8 +868,6 @@ lemma assign_app_constr_subst_ct_commute:
   shows "assign_app_constr S (subst_ct xs C) = subst_ct (map (assign_app_ty S) xs) C"
   using assms
 proof (induct C)
-  case (known_ctexhausted \<tau>)
-  then show ?case sorry
 qed (auto simp add: subst_ct_def assign_app_ty_subst_ty_commute)+
 
 
