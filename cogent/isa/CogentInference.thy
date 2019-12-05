@@ -1286,13 +1286,13 @@ next
       by metis
     have snd_G2_le_G3: "snd (G2 ! i) \<le> snd (G3 ! i)"
       using i_in_e1e2e3 cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_if.hyps
-        type_infer.cg_ctx_length type_infer_axioms by metis
+        cg_ctx_length by metis
     have snd_G3_le_G4: "snd (G3 ! i) \<le> snd (G4 ! i)"
       using i_in_e1e2e3 alg_ctx_jn_type_used_nondec_1 cg_gen_fv_elem_size cg_if.hyps 
-        cg_ctx_length type_infer_axioms by metis
+        cg_ctx_length by metis
     have snd_G3'_le_G4: "snd (G3' ! i) \<le> snd (G4 ! i)"
       using i_in_e1e2e3 alg_ctx_jn_type_used_nondec_2 cg_gen_fv_elem_size cg_if.hyps 
-        cg_ctx_length type_infer_axioms by metis
+        cg_ctx_length by metis
     consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv e2" | (i_in_e3) "i \<in> fv e3"
       using i_in_e1e2e3 by blast
     then show ?thesis
@@ -1386,14 +1386,65 @@ next
     qed
   qed 
 next
-  case (cg_vcon \<alpha> n1 \<beta> n2 G1 e G2 C e' C' nm \<tau>)
-  then show ?case sorry
+  case (cg_case \<alpha> n1 \<beta> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
+  then show ?case
+  proof -
+    have i_in_e1e2e3: "i \<in> fv e1 \<or> i \<in> fv' (Suc 0) e2 \<or> i \<in> fv' (Suc 0) e3"
+      using cg_case.prems by fastforce
+    have snd_G1_le_G2: "snd (G1 ! i) \<le> snd (G2 ! i)"
+      using i_in_e1e2e3 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_case.hyps
+      by (metis i_fv'_suc_iff_suc_i_fv' length_Cons not_less_eq)
+    have snd_G2_le_G3: "snd (G2 ! i) \<le> snd (G3 ! i)"
+      using i_in_e1e2e3 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_case
+        i_fv'_suc_iff_suc_i_fv' by (metis Suc_less_eq length_Cons nth_Cons_Suc)
+    have snd_G3_le_G4: "snd (G3 ! i) \<le> snd (G4 ! i)"
+      using i_in_e1e2e3 cg_gen_fv_elem_size cg_case.hyps cg_ctx_length alg_ctx_jn_type_used_nondec_1 
+        cg_case.hyps i_fv'_suc_iff_suc_i_fv'
+      by (metis Suc_le_lessD length_Cons less_Suc_eq_le old.nat.inject)
+    have snd_G3'_le_G4: "snd (G3' ! i) \<le> snd (G4 ! i)"
+      using i_in_e1e2e3 cg_gen_fv_elem_size cg_case.hyps cg_ctx_length alg_ctx_jn_type_used_nondec_2 
+        cg_case.hyps i_fv'_suc_iff_suc_i_fv'
+      by (metis Suc_le_lessD length_Cons less_Suc_eq_le old.nat.inject)
+    consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv' (Suc 0) e2" | (i_in_e3) "i \<in> fv' (Suc 0) e3"
+      using i_in_e1e2e3 by blast
+    then show ?thesis
+    proof cases
+      case i_in_e1
+      then show ?thesis
+        using cg_case.hyps snd_G2_le_G3 snd_G3_le_G4 by fastforce
+    next
+      case i_in_e2
+      then show ?thesis
+        using snd_G1_le_G2 snd_G3_le_G4 i_fv'_suc_iff_suc_i_fv' cg_case.hyps by fastforce
+    next
+      case i_in_e3
+      then show ?thesis
+        using snd_G1_le_G2 snd_G3'_le_G4 i_fv'_suc_iff_suc_i_fv' cg_case.hyps by fastforce
+    qed
+  qed
 next
-  case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
-  then show ?case sorry
-next
-  case (cg_irref \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
-  then show ?case sorry
+  case (cg_irref \<alpha> n1 \<beta> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
+  then show ?case
+  proof -
+    consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv' (Suc 0) e2"
+      using cg_irref.prems by fastforce
+    then show ?thesis
+    proof cases
+      case i_in_e1
+      then have "snd (G2 ! i) \<le> snd (G3 ! i)"
+        using cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_irref.hyps
+        by (metis Suc_less_eq length_Cons nth_Cons_Suc)
+      then show ?thesis
+        using cg_irref.hyps i_in_e1 by force
+    next
+      case i_in_e2
+      then have "snd (G1 ! i) \<le> snd (G2 ! i)"
+        using i_in_e2 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_irref 
+          i_fv'_suc_iff_suc_i_fv' by (metis length_Cons not_less_eq)
+      then show ?thesis
+        using cg_irref.hyps i_fv'_suc_iff_suc_i_fv' i_in_e2 by fastforce
+    qed
+  qed
 qed (simp)+
 
 lemma cg_gen_output_type_used_diff:
