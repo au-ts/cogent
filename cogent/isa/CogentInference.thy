@@ -934,6 +934,9 @@ fun fv' :: "nat \<Rightarrow> 'f expr \<Rightarrow> index set" where
 | fv'_let:      "fv' n (Let e1 e2) = (fv' n e1) \<union> (fv' (Suc n) e2)"
 | fv'_if:       "fv' n (If e1 e2 e3) = (fv' n e1) \<union> (fv' n e2) \<union> (fv' n e3)"
 | fv'_sig:      "fv' n (Sig e t) = fv' n e"
+| fv'_con:      "fv' n (Con nm e) = fv' n e"
+| fv'_case:     "fv' n (Case e1 nm e2 e3) = (fv' n e1) \<union> (fv' n e2) \<union> (fv' n e3)"
+| fv'_esac:     "fv' n (Esac e1 nm e2) = (fv' n e1) \<union> (fv' n e2)"
 
 lemmas fv'_induct = fv'.induct[case_names fv'_var fv'_typeapp fv'_prim fv'_app fv'_unit fv'_lit 
                                           fv'_cast fv'_let fv'_if fv'_sig]
@@ -942,12 +945,12 @@ abbreviation fv :: "'s expr \<Rightarrow> index set" where
   "fv t \<equiv> fv' 0 t" 
 
 lemma i_fv'_suc_iff_suc_i_fv':
-  "i \<in> fv' (Suc m) e \<longleftrightarrow> Suc i \<in> fv' m e" (*
+  "i \<in> fv' (Suc m) e \<longleftrightarrow> Suc i \<in> fv' m e"
 proof (induct m e arbitrary: i rule: fv'_induct)
   case (fv'_var n i)
   then show ?case
     by (force split: if_splits)
-qed auto *) sorry
+qed auto
 
 lemma fv'_suc_eq_minus_fv':
   "fv' (Suc m) e = image (\<lambda>x. x - 1) (fv' m e - {0})"
