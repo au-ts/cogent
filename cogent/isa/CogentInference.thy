@@ -1449,17 +1449,17 @@ qed (simp)+
 
 lemma cg_gen_output_type_used_diff:
   assumes "G1,n1 \<turnstile> e : \<tau> \<leadsto> G2,n2 | C1 | e1'"
-      and "i \<in> fv(e)"
+    and "i \<in> fv(e)"
   shows "snd (G2 ! i) \<noteq> snd (G1 ! i)"
   using assms cg_gen_output_type_used_inc by fastforce
 
 lemma cg_gen_type_used_nonzero_imp_share:
   assumes "G1,n1 \<turnstile> e : \<tau> \<leadsto> G2,n2 | C1 | e1'"
-      and "i \<in> fv(e)"
-      and "snd (G1 ! i) > 0"
-      and "\<rho> = fst (G1 ! i)"
-      and "A \<turnstile> C1"
-    shows "A \<turnstile> CtShare \<rho>"
+    and "i \<in> fv(e)"
+    and "snd (G1 ! i) > 0"
+    and "\<rho> = fst (G1 ! i)"
+    and "A \<turnstile> C1"
+  shows "A \<turnstile> CtShare \<rho>"
   using assms
 proof (induct arbitrary: i rule: constraint_gen_elab.induct)
   case (cg_var2 G i \<rho> n G' C \<tau>)
@@ -1540,8 +1540,8 @@ next
     proof cases
       case i_in_e1
       then show ?thesis 
-      using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
-        cg_iop ct_sem_conjE by metis
+        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+          cg_iop ct_sem_conjE by metis
     next
       case i_in_e2
       then show ?thesis
@@ -1589,13 +1589,67 @@ next
   qed
 next
   case (cg_vcon \<alpha> n1 \<beta> n2 G1 e G2 C e' C' nm \<tau>)
-  then show ?case sorry
+  then show ?case
+    using ct_sem_conjE fv'_con by blast
 next
-  case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
-  then show ?case sorry
+  case (cg_case \<alpha> n1 \<beta> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
+  then show ?case
+  proof -
+    consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv' (Suc 0) e2" | (i_in_e3) "i \<in> fv' (Suc 0) e3"
+      using cg_case.prems by fastforce
+    then show ?thesis
+    proof cases
+      case i_in_e1
+      then show ?thesis
+        using ct_sem_conj_iff cg_case by presburger
+    next
+      case i_in_e2
+      have "0 < snd (((\<beta>, 0) # G2) ! Suc i)"
+        using cg_case i_in_e2 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size 
+          i_fv'_suc_iff_suc_i_fv' by (metis Suc_less_eq  gr_zeroI leD length_Cons nth_Cons_Suc)
+      moreover have "\<rho> = fst (((\<beta>, 0) # G2) ! Suc i)"
+        using cg_case cg_ctx_length cg_gen_fv_elem_size i_fv'_suc_iff_suc_i_fv' i_in_e2 
+          cg_ctx_type_same
+        by (metis length_Cons less_SucE list.size(4) not_add_less1 nth_Cons_Suc)
+      ultimately show ?thesis
+        using i_fv'_suc_iff_suc_i_fv' i_in_e2 cg_case ct_sem_conj_iff by metis
+    next
+      case i_in_e3
+      have "0 < snd (((TVariant [(nm, \<beta>, Used)] (Some \<alpha>), 0) # G2) ! Suc i)"
+        using cg_case i_in_e3 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size 
+          i_fv'_suc_iff_suc_i_fv' by (metis Suc_less_eq  gr_zeroI leD length_Cons nth_Cons_Suc)
+      moreover have "\<rho> = fst (((TVariant [(nm, \<beta>, Used)] (Some \<alpha>), 0) # G2) ! Suc i)"
+        using cg_case cg_ctx_length cg_gen_fv_elem_size i_fv'_suc_iff_suc_i_fv' i_in_e3
+          cg_ctx_type_same
+        by (metis length_Cons less_SucE list.size(4) not_add_less1 nth_Cons_Suc)
+      ultimately show ?thesis
+        using i_fv'_suc_iff_suc_i_fv' i_in_e3 cg_case ct_sem_conj_iff by metis
+    qed
+  qed
 next
-  case (cg_irref \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
-  then show ?case sorry
+  case (cg_irref \<alpha> n1 \<beta> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
+  then show ?case
+  proof -
+    consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv' (Suc 0) e2"
+      using cg_irref.prems by fastforce
+    then show ?thesis
+    proof cases
+      case i_in_e1
+      then show ?thesis
+        using cg_irref ct_sem_conj_iff by metis
+    next
+      case i_in_e2
+      have "snd (G1 ! i) \<le> snd (G2 ! i)"
+        using i_in_e2 cg_ctx_length cg_irref i_fv'_suc_iff_suc_i_fv' cg_ctx_type_used_nondec 
+          cg_gen_fv_elem_size by (metis Suc_less_SucD length_Cons)
+      moreover have "\<rho> = fst (((\<beta>, 0) # G2) ! Suc i)"
+        using i_in_e2 cg_ctx_length cg_irref i_fv'_suc_iff_suc_i_fv' cg_ctx_type_same 
+          cg_gen_fv_elem_size 
+        by (metis Suc_eq_plus1 length_Cons less_SucE not_add_less1 nth_Cons_Suc)
+      ultimately show ?thesis
+        using gr_zeroI leD ct_sem_conj_iff cg_irref i_fv'_suc_iff_suc_i_fv' by fastforce
+    qed
+  qed
 qed (simp)+
 
 lemma cg_gen_output_type_unused_same:
