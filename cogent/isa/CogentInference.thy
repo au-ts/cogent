@@ -660,8 +660,8 @@ cg_var1:
    ; C' = CtConj C (CtSub (TVariant [(nm, \<beta>, Unused)] (Some \<alpha>)) \<tau>)
    \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Con nm e : \<tau> \<leadsto> G2,n2 | C' | Sig (Con nm e) \<tau>"
 | cg_case:
-  "\<lbrakk> \<alpha> = n1
-   ; \<beta> = TUnknown n2
+  "\<lbrakk> \<alpha> = Suc n1
+   ; \<beta> = TUnknown n1
    ; G1,Suc(Suc n1) \<turnstile> e1 : TVariant [(nm, \<beta>, Unused)] (Some \<alpha>) \<leadsto> G2,n2 | C1 | e1'
    ; ((\<beta>, 0) # G2),n2 \<turnstile> e2 : \<tau> \<leadsto> ((\<beta>, m) # G3),n3 | C2 |e2'
    ; (((TVariant [(nm, \<beta>, Used)] (Some \<alpha>)), 0) # G2),n3 \<turnstile> e3 : \<tau> \<leadsto> (((TVariant [(nm, \<beta>, Used)] (Some \<alpha>)), l) # G3'),n4 | C3 | e3'
@@ -671,8 +671,8 @@ cg_var1:
    ; C7 = CtConj (CtConj (CtConj (CtConj (CtConj C1 C2) C3) C4) C5) C6
    \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Case e1 nm e2 e3 : \<tau> \<leadsto> G4,n4 | C7 | Sig (Case e1 nm e2 e3) \<tau>"
 | cg_irref:
-  "\<lbrakk> \<alpha> = n1
-   ; \<beta> = TUnknown n2
+  "\<lbrakk> \<alpha> = Suc n1
+   ; \<beta> = TUnknown n1
    ; G1,n1 \<turnstile> e1 : (TVariant [(nm, \<beta>, Unused)] (Some \<alpha>)) \<leadsto> G2,n2 | C1 | e1'
    ; ((\<beta>, 0) # G2),n2 \<turnstile> e2 : \<tau> \<leadsto> ((\<beta>, m) # G3),n3 | C2 | e2'
    ; C3 = CtExhausted (TVariant [(nm, \<beta>, Used)] (Some \<alpha>))
@@ -771,7 +771,7 @@ next
   then show ?case
     using cg_ctx_length by fastforce
 next
-  case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
+  case (cg_case \<alpha> n1 \<beta> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
   then show ?case
   proof -
     have "snd (G1 ! i) \<le> snd (G3 ! i)"
@@ -935,8 +935,8 @@ fun fv' :: "nat \<Rightarrow> 'f expr \<Rightarrow> index set" where
 | fv'_if:       "fv' n (If e1 e2 e3) = (fv' n e1) \<union> (fv' n e2) \<union> (fv' n e3)"
 | fv'_sig:      "fv' n (Sig e t) = fv' n e"
 | fv'_con:      "fv' n (Con nm e) = fv' n e"
-| fv'_case:     "fv' n (Case e1 nm e2 e3) = (fv' n e1) \<union> (fv' n e2) \<union> (fv' n e3)"
-| fv'_esac:     "fv' n (Esac e1 nm e2) = (fv' n e1) \<union> (fv' n e2)"
+| fv'_case:     "fv' n (Case e1 nm e2 e3) = (fv' n e1) \<union> (fv' (Suc n) e2) \<union> (fv' (Suc n) e3)"
+| fv'_esac:     "fv' n (Esac e1 nm e2) = (fv' n e1) \<union> (fv' (Suc n) e2)"
 
 lemmas fv'_induct = fv'.induct[case_names fv'_var fv'_typeapp fv'_prim fv'_app fv'_unit fv'_lit 
                                           fv'_cast fv'_let fv'_if fv'_sig]
@@ -1059,14 +1059,13 @@ proof -
     then show ?case
       by (force simp add: i_fv'_suc_iff_suc_i_fv' cg_ctx_length)
   next
-    case (cg_vcon \<alpha> n1 \<beta> n2 G1 e G2 C e' C' nm \<tau>)
-    then show ?case sorry
-  next
     case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
-    then show ?case sorry
+    then show ?case
+      by (force simp add: i_fv'_suc_iff_suc_i_fv' cg_ctx_length)
   next
     case (cg_irref \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
-    then show ?case sorry
+    then show ?case 
+      by (force simp add: i_fv'_suc_iff_suc_i_fv' cg_ctx_length)
   qed (auto simp add: cg_ctx_length split: if_splits)
 qed
 
@@ -1411,7 +1410,7 @@ next
       then show ?thesis 
         using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
           ct_sem_conjE i_fv'_suc_iff_suc_i_fv' cg_let
-        by (metis Suc_less_eq gt_or_eq_0 leD length_Cons cg_let nth_Cons_Suc)
+        by (metis Suc_less_eq gt_or_eq_0 leD length_Cons nth_Cons_Suc)
     qed
   qed
 next
