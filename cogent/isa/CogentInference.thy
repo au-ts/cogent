@@ -1089,7 +1089,7 @@ next
     proof cases
       case i_in_e1
       then show ?thesis
-        using cg_ctx_type_used_nondec cg_ctx_length cg_gen_fv_elem_size cg_let cg_let.hyps
+        using cg_ctx_type_used_nondec cg_ctx_length cg_gen_fv_elem_size cg_let
         by (metis Suc_mono gt_or_eq_0 length_Cons not_le nth_Cons_Suc)
     next
       case i_in_e2                
@@ -1168,14 +1168,56 @@ next
     qed (blast intro: cg_bop.hyps)
   qed
 next
-  case (cg_vcon \<alpha> n1 \<beta> n2 G1 e G2 C e' C' nm \<tau>)
-  then show ?case sorry
+  case (cg_case \<alpha> n1 \<beta> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
+  then show ?case
+  proof -
+    consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv' (Suc 0) e2" | (i_in_e3) "i \<in> fv' (Suc 0) e3"
+      using cg_case.prems by auto
+    then show ?thesis
+    proof cases
+      case i_in_e1
+      have "snd (G2 ! i) \<le> snd (G3 ! i)" 
+        using cg_case.hyps cg_ctx_type_used_nondec cg_gen_fv_elem_size i_in_e1 cg_ctx_length
+        by (metis Suc_less_eq length_Cons nth_Cons_Suc)
+      moreover have "snd (G3 ! i) \<le> snd (G4 ! i)"
+        using alg_ctx_jn_type_used_nondec_1 cg_case.hyps cg_ctx_length cg_gen_fv_elem_size i_in_e1 
+          by (metis Suc_less_eq length_Cons)
+      ultimately show ?thesis
+        using cg_case.hyps i_in_e1 by fastforce
+    next
+      case i_in_e2
+      have "snd (G3 ! i) \<le> snd (G4 ! i)"
+        using alg_ctx_jn_type_used_nondec_1 cg_case.hyps cg_ctx_length cg_gen_fv_elem_size i_in_e2 
+          i_fv'_suc_iff_suc_i_fv' by (metis Suc_less_eq length_Cons)
+      then show ?thesis
+        using i_fv'_suc_iff_suc_i_fv' i_in_e2 cg_case.hyps by fastforce
+    next
+      case i_in_e3
+      have "snd (G3' ! i) \<le> snd (G4 ! i)"
+        using alg_ctx_jn_type_used_nondec_2 cg_case.hyps cg_ctx_length cg_gen_fv_elem_size i_in_e3 
+          i_fv'_suc_iff_suc_i_fv' by (metis Suc_less_eq length_Cons)
+      then show ?thesis
+        using i_fv'_suc_iff_suc_i_fv' i_in_e3 cg_case.hyps by fastforce
+    qed
+  qed
 next
-  case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
-  then show ?case sorry
-next
-  case (cg_irref \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
-  then show ?case sorry
+  case (cg_irref \<alpha> n1 \<beta> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
+  then show ?case
+  proof -
+    consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv' (Suc 0) e2"
+      using cg_irref.prems by fastforce
+    then show ?thesis
+    proof cases
+      case i_in_e1
+      then show ?thesis
+        using cg_ctx_type_used_nondec cg_ctx_length cg_gen_fv_elem_size cg_irref.hyps
+        by (metis Suc_mono gt_or_eq_0 length_Cons not_le nth_Cons_Suc)
+    next
+      case i_in_e2
+      then show ?thesis
+        using cg_irref.hyps i_fv'_suc_iff_suc_i_fv' by fastforce
+    qed
+  qed
 qed (simp)+
 
 lemma cg_gen_output_type_used_inc:
