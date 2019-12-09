@@ -301,12 +301,14 @@ isAbsTyp :: Definition e a b -> Bool
 isAbsTyp (TypeDef _ _ Nothing) = True
 isAbsTyp _ = False
 
+insertIdxAtType :: Nat -> Type t b -> Type t b
+insertIdxAtType cut t = __fixme t
 
 insertIdxAtUntypedExpr :: Fin ('Suc v) -> UntypedExpr t v a b -> UntypedExpr t ('Suc v) a b
 insertIdxAtUntypedExpr cut (E e) = E $ insertIdxAtE cut insertIdxAtUntypedExpr e
 
 insertIdxAtTypedExpr :: Fin ('Suc v) -> TypedExpr t v a b -> TypedExpr t ('Suc v) a b
-insertIdxAtTypedExpr cut (TE t e) = TE t (insertIdxAtE cut insertIdxAtTypedExpr e)
+insertIdxAtTypedExpr cut (TE t e) = TE (insertIdxAtType (finNat cut) t) (insertIdxAtE cut insertIdxAtTypedExpr e)
 
 insertIdxAtE :: Fin ('Suc v)
              -> (forall v. Fin ('Suc v) -> e t v a b -> e t ('Suc v) a b)
