@@ -319,7 +319,27 @@ lookupType t                                 = getCompose (       CIdent <$> Com
 -- * LExpr generation
 
 genLExpr :: CC.LExpr 'Zero VarName -> Gen v CExpr
-genLExpr _ = __todo "genLExpr"
-
+genLExpr (LVariable var        ) = __todo "genLExpr"
+genLExpr (LFun      fn []  nt  ) = __todo "genLExpr"
+genLExpr (LFun      fn tys nt  ) = __todo "genLExpr"
+genLExpr (LOp       opr es     ) = genOp opr (CC.TPrim U32) <$> mapM genLExpr es  -- FIXME: we assume it's U32 for now / zilinc
+genLExpr (LApp      e1 e2      ) = __todo "genLExpr"
+genLExpr (LCon      tag e t    ) = __todo "genLExpr"
+genLExpr (LUnit                ) = __todo "genLExpr"
+genLExpr (LILit     n   pt     ) = pure $ mkConst pt n
+genLExpr (LSLit     s          ) = __todo "genLExpr"
+genLExpr (LLet      a e1 e2    ) = __todo "genLExpr"
+genLExpr (LLetBang  vs a e1 e2 ) = __todo "genLExpr"
+genLExpr (LTuple    e1 e2      ) = __todo "genLExpr"
+genLExpr (LStruct   fs         ) = __todo "genLExpr"
+genLExpr (LIf       c e1 e2    ) = __todo "genLExpr"
+genLExpr (LCase     c tag (l1,a1,e1) (l2,a2,e2)) = __todo "genLExpr"
+genLExpr (LEsac     e          ) = __todo "genLExpr"
+genLExpr (LSplit    a tp e     ) = __todo "genLExpr"
+genLExpr (LMember   rec fld    ) = __todo "genLExpr"
+genLExpr (LTake     a rec fld e) = __todo "genLExpr"
+genLExpr (LPut      rec fld e  ) = __todo "genLExpr"
+genLExpr (LPromote  ty e       ) = __todo "genLExpr"
+genLExpr (LCast     ty e       ) = __todo "genLExpr"
 
 
