@@ -21,7 +21,7 @@
 
 module Cogent.C.Render where
 
-import Cogent.C.GenState (primCId)
+import Cogent.C.Monad
 import Cogent.C.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler

@@ -14,7 +14,7 @@
 
 module Main where
 
-import Cogent.CodeGen (cgen)
+import Cogent.C (cgen)
 import Cogent.Common.Types (Sigil(..))
 import Cogent.Core (untypeD)
 import Cogent.Dargent.Surface

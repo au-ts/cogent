@@ -37,11 +37,12 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans -Wwarn #-}
 
-module Cogent.C.Compile where
+module Cogent.C.Expr where
 
+import           Cogent.C.Monad
 import           Cogent.C.Syntax       as C   hiding (BinOp (..), UnOp (..))
 import qualified Cogent.C.Syntax       as C   (BinOp (..), UnOp (..))
-import           Cogent.C.GenState
+import           Cogent.C.Type
 import           Cogent.Compiler
 import           Cogent.Common.Syntax  as Syn
 import           Cogent.Common.Types   as Typ
@@ -278,6 +279,11 @@ aNewVar t e p | __cogent_simpl_cg && not (isTrivialCExpr e)
 
 withBindings :: Vec v' CExpr -> Gen (v :+: v') a -> Gen v a
 withBindings vec = Gen . withRWS (\r s -> (r <++> vec, s)) . runGen
+
+
+
+-- *****************************************************************************
+-- * Expr generation
 
 likelihood :: Likelihood -> (CExpr -> CExpr)
 likelihood l = case l of Likely   -> likely

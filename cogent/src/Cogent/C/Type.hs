@@ -1,5 +1,5 @@
 --
--- Copyright 2018, Data61
+-- Copyright 2019, Data61
 -- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
 -- ABN 41 687 119 230.
 --
@@ -10,7 +10,7 @@
 -- @TAG(DATA61_GPL)
 --
 
-
+{- LANGUAGE AllowAmbiguousTypes -}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE ExistentialQuantification #-}
@@ -37,11 +37,11 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans -Wwarn #-}
 
+module Cogent.C.Type where
 
-module Cogent.C.GenState where
-
-import           Cogent.C.Syntax       as C hiding (BinOp (..), UnOp (..))
-import qualified Cogent.C.Syntax       as C (BinOp (..), UnOp (..))
+import           Cogent.C.Monad
+import           Cogent.C.Syntax       as C   hiding (BinOp (..), UnOp (..))
+import qualified Cogent.C.Syntax       as C   (BinOp (..), UnOp (..))
 import           Cogent.Compiler
 import           Cogent.Common.Syntax  as Syn
 import           Cogent.Common.Types   as Typ
@@ -50,11 +50,10 @@ import           Cogent.Inference             (kindcheck_)
 import           Cogent.Isabelle.Deep
 import           Cogent.Mono                  (Instance)
 import           Cogent.Normal                (isAtom)
-import           Cogent.Util           (decap, tupleFieldNames, toCName,
-                                        extTup2l, extTup3r, first3, flip3, secondM, whenM)
+import           Cogent.Util                  (behead, decap, extTup2l, extTup3r, first3, secondM, toCName, whenM, flip3)
 import qualified Data.DList          as DList
 import           Data.Nat            as Nat
-import           Data.Vec            as Vec hiding (repeat, zipWith)
+import           Data.Vec            as Vec   hiding (repeat, zipWith)
 
 import           Control.Applicative          hiding (empty)
 import           Control.Arrow                       ((***), (&&&), second)
@@ -64,6 +63,7 @@ import           Data.Char                    (isAlphaNum, toUpper)
 import           Data.Foldable                (mapM_)
 #endif
 import           Data.Functor.Compose
+import           Data.IntMap         as IM    (delete, mapKeys)
 import qualified Data.List           as L
 import           Data.Loc                     (noLoc)  -- FIXME: remove
 import qualified Data.Map            as M
@@ -75,78 +75,21 @@ import qualified Data.Set            as S
 import           Data.String
 import           Data.Traversable             (mapM)
 import           Data.Tuple                   (swap)
-import           Lens.Micro                  hiding (at)
-import           Lens.Micro.Mtl              hiding (assign)
-import           Lens.Micro.TH
 #if __GLASGOW_HASKELL__ < 709
-import           Prelude             as P    hiding (mapM, mapM_)
+import           Prelude             as P     hiding (mapM, mapM_)
 #else
-import           Prelude             as P    hiding (mapM)
+import           Prelude             as P     hiding (mapM)
 #endif
 import           System.IO (Handle, hPutChar)
 import qualified Text.PrettyPrint.ANSI.Leijen as PP hiding ((<$>), (<>))
-
+import           Lens.Micro                   hiding (at)
+import           Lens.Micro.Mtl               hiding (assign)
+import           Lens.Micro.TH
+import           Control.Monad.Identity (runIdentity)
 -- import Debug.Trace
 import Unsafe.Coerce (unsafeCoerce)
 
--- *****************************************************************************
--- * The state for code-generation
 
--- | A FunClass is a map from the structural types of functions to a set of all names
---   of declared functions with that structural type. It is used to generate the
---   dispatch functions needed to implement higher order functions in C.
-type FunClass  = M.Map StrlType (S.Set (FunName, Attr))  -- ^ @c_strl_type &#x21A6; funnames@
-type VarPool   = M.Map CType [CId]  -- ^ vars available @(ty_id &#x21A6; [var_id])@
-
--- | The 'i'th element of the vector is the C expression bound to the variable in scope
---   with DeBruijn index 'i'. The type parameter 'v' is the number of variables in scope.
-type GenRead v = Vec v CExpr
-
-data GenState  = GenState
-  { _cTypeDefs    :: [(StrlType, CId)]
-  , _cTypeDefMap  :: M.Map StrlType CId
-    -- ^ Maps structural types we've seen so far to the
-    --   C identifiers corresponding to the structural type.
-    --
-    --   We keep both a Map and a List because the list remembers the order,
-    --   but the map gives performant reads.
-
-  , _typeSynonyms :: M.Map TypeName CType
-  , _typeCorres   :: DList.DList (CId, CC.Type 'Zero VarName)
-    -- ^ C type names corresponding to Cogent types
-
-  , _absTypes     :: M.Map TypeName (S.Set [CId])
-    -- ^ Maps TypeNames of abstract Cogent types to
-    --   the Set of all monomorphised type argument lists
-    --   which the abstract type is applied to in the program.
-
-  , _custTypeGen  :: M.Map (CC.Type 'Zero VarName) (CId, CustTyGenInfo)
-  , _funClasses   :: FunClass
-  , _localOracle  :: Integer
-  , _globalOracle :: Integer
-  , _varPool      :: VarPool
-  , _ffiFuncs     :: M.Map FunName (CType, CType)
-    -- ^ A map containing functions that need to generate C FFI functions.
-    --   The map is from the original function names (before prefixing with @\"ffi_\"@ to a pair of @(marshallable_arg_type, marshallable_ret_type)@.
-    --   This map is needed when we generate the Haskell side of the FFI.
-
-  , _boxedRecordSetters :: M.Map (CC.Type 'Zero VarName, FieldName) CExpr
-  , _boxedRecordGetters :: M.Map (CC.Type 'Zero VarName, FieldName) CExpr
-    -- ^ The expressions to call the generated setter and getter functions for the fields of boxed cogent records.
-
-  , _boxedSettersAndGetters :: [CExtDecl]
-    -- ^ A list of the implementations of all generated setter and getter functions
-  }
-
-makeLenses ''GenState
-
-newtype Gen v a = Gen { runGen :: RWS (GenRead v) () GenState a }
-                deriving (Functor, Applicative, Monad,
-                          MonadReader (GenRead v),
-                          MonadState  GenState)
-
-
--- *****************************************************************************
 -- * Type generation
 
 genTyDecl :: (StrlType, CId) -> [TypeName] -> [CExtDecl]
@@ -176,12 +119,6 @@ genTyDecl (AbsType x, n) _ = [CMacro $ "#include <abstract/" ++ x ++ ".h>"]
 
 genTySynDecl :: (TypeName, CType) -> CExtDecl
 genTySynDecl (n,t) = CDecl $ CTypeDecl t [n]
-
-freshLocalCId :: Char -> Gen v CId
-freshLocalCId c = do (localOracle += 1); (c:) . show <$> use localOracle
-
-freshGlobalCId :: Char -> Gen v CId
-freshGlobalCId c = do (globalOracle += 1); (c:) . show <$> use globalOracle
 
 lookupStrlTypeCId :: StrlType -> Gen v (Maybe CId)
 lookupStrlTypeCId st = M.lookup st <$> use cTypeDefMap
@@ -377,141 +314,11 @@ lookupType t                                 = getCompose (       CIdent <$> Com
 
 
 
+-- *****************************************************************************
+-- * LExpr generation
+
 genLExpr :: CC.LExpr 'Zero VarName -> Gen v CExpr
 genLExpr _ = __todo "genLExpr"
 
 
 
-
--- *****************************************************************************
--- * Helper functions to build C syntax
-
-u32 :: CType
-u32 = CogentPrim U32
-
--- FIXME: more might be true / zilinc
--- isAddressableCExpr :: CExpr -> Bool
--- isAddressableCExpr (CVar {}) = True
--- isAddressableCExpr (CDeref e) = isAddressableCExpr e
--- isAddressableCExpr (CTypeCast _ e) = isAddressableCExpr e
--- isAddressableCExpr _ = False
-
-primCId :: PrimInt -> String
-primCId Boolean = "Bool"
-primCId U8  = "u8"
-primCId U16 = "u16"
-primCId U32 = "u32"
-primCId U64 = "u64"
-
-likely :: CExpr -> CExpr
-likely e = CEFnCall (CVar "likely" (Just $ CFunction CBool CBool)) [e]
-
-unlikely :: CExpr -> CExpr
-unlikely e = CEFnCall (CVar "unlikely" (Just $ CFunction CBool CBool)) [e]
-
-variable :: CId -> CExpr
-variable = flip CVar Nothing
-
-mkBoolLit :: CExpr -> CExpr
-mkBoolLit e = CCompLit (CIdent boolT) [([CDesignFld boolField], CInitE e)]
-
-true :: CExpr
-true = mkConst Boolean 1
-
-mkConst :: (Integral t) => PrimInt -> t -> CExpr
-mkConst pt (fromIntegral -> n)
-  | pt == Boolean = mkBoolLit (mkConst U8 n)
-  | otherwise = CConst $ CNumConst n (CogentPrim pt) DEC
-
--- str.fld
-strDot' :: CId -> CId -> CExpr
-strDot' str fld = strDot (variable str) fld
-
--- str->fld
-strArrow' :: CId -> CId -> CExpr
-strArrow' str fld = strArrow (variable str) fld
-
-strDot :: CExpr -> CId -> CExpr
-strDot rec fld = CStructDot rec fld
-
-strArrow :: CExpr -> CId -> CExpr
-strArrow rec fld = CStructDot (CDeref rec) fld
-
-mkArrIdx :: Integral t => CExpr -> t -> CExpr
-mkArrIdx arr idx = CArrayDeref arr (mkConst U32 idx)
-
-isTrivialCExpr :: CExpr -> Bool
-isTrivialCExpr (CBinOp {}) = False
-isTrivialCExpr (CUnOp {}) = False
-isTrivialCExpr (CCondExpr {}) = False
-isTrivialCExpr (CConst {}) = True
-isTrivialCExpr (CVar {}) = True
-isTrivialCExpr (CStructDot (CDeref e) _) = False  -- NOTE: Not sure why but we cannot do `isTrivialCExpr e && not __cogent_fintermediate_vars' / zilinc
-isTrivialCExpr (CArrayDeref e idx) = __fixme $ isTrivialCExpr e && isTrivialCExpr idx
-isTrivialCExpr (CStructDot e _) = isTrivialCExpr e && not __cogent_fintermediate_vars
-isTrivialCExpr (CDeref e) = isTrivialCExpr e && not __cogent_fintermediate_vars
-isTrivialCExpr (CAddrOf e) = isTrivialCExpr e && not __cogent_fintermediate_vars
-isTrivialCExpr (CTypeCast _ e) = isTrivialCExpr e
-isTrivialCExpr (CSizeof   e) = isTrivialCExpr e
-isTrivialCExpr (CSizeofTy _) = True
-isTrivialCExpr (CEFnCall {}) = False
-isTrivialCExpr (CCompLit _ dis) = and (map (\(ds,i) -> and (map isTrivialCDesignator ds) && isTrivialCInitializer i) dis) && __cogent_fuse_compound_literals
-isTrivialCExpr (CMKBOOL e) = isTrivialCExpr e
-
-isTrivialCInitializer :: CInitializer -> Bool
-isTrivialCInitializer (CInitE e) = isTrivialCExpr e
-isTrivialCInitializer (CInitList dis) = and $ map (\(ds,i) -> and (map isTrivialCDesignator ds) && isTrivialCInitializer i) dis
-
-isTrivialCDesignator :: CDesignator -> Bool
-isTrivialCDesignator (CDesignE e) = isTrivialCExpr e
-isTrivialCDesignator (CDesignFld _) = True
-
--- *****************************************************************************
--- ** Naming conventions
-
--- NOTE: Reserved names; users should NOT use them in Cogent programs!
---       Prefixing underscores are disliked by C-parser / zilinc
-
-
-tagsT, fieldTag :: CId
-tagsT         = "tag_t"
-fieldTag      = "tag"
-tagEnum tag   = "TAG_ENUM_" ++ tag
-
-variantT :: CId
-variantT = "variant_t"
-
--- NOTE: assume ty is given by function `genType'
-mkVariantTT :: TagName -> CType -> CId
-mkVariantTT tag (CIdent tn) = tag ++ "_" ++ tn
-mkVariantTT tag (CPtr (CIdent tn)) = tag ++ "_p" ++ tn  -- FIXME: may need to distinguish * and non-* / zilinc
-mkVariantTT _ _ = __impossible "mkVariantTT"
-
-argOf fn = fn ++ "_arg"
-retOf fn = fn ++ "_ret"
-
-unitT, dummyField :: CId
-unitT         = "unit_t"
-dummyField    = "dummy"
-
-boolT, boolField :: CId
-boolT     = "bool_t"
-boolField = "boolean"
-
-funEnum fn = "FUN_ENUM_" ++ fn
-untypedFuncEnum = "untyped_func_enum" :: CId
-funDispatch tn = "dispatch_" ++ tn  -- tn is the typename of the Enum
-funMacro f = "FUN_MACRO_" ++ f
-funDispMacro f = "FUN_DISP_MACRO_" ++ f
-
--- FIXME: we can probably merge these
-letbangTrue = "LETBANG_TRUE"
-letTrue = "LET_TRUE"
-
-p1, p2 :: CId
-p1 = tupleFieldNames !! 0
-p2 = tupleFieldNames !! 1
-
--- NOTE: use actual names instead
--- XXX | field n = 'f':show n
--- XXX | fields = map (('f':) . show) [0 :: Int ..]

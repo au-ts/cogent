@@ -12,12 +12,21 @@
 
 {-# LANGUAGE DataKinds #-}
 
-module Cogent.CodeGen where
+-- * Re-export everything in Cogent.C.*
+module Cogent.C (
+    module Cogent.C.Expr
+  , module Cogent.C.Monad
+  , module Cogent.C.Render
+  , module Cogent.C.Syntax
+  , module Cogent.C.Type
+  , cgen
+  ) where
 
-import Cogent.C.Compile (compile, TableCTypes)
-import Cogent.C.GenState (ffiFuncs, GenState)
-import Cogent.C.Render  (render)
+import Cogent.C.Expr
+import Cogent.C.Monad
+import Cogent.C.Render
 import Cogent.C.Syntax
+import Cogent.C.Type
 import Cogent.Common.Syntax
 import Cogent.Compiler
 import Cogent.Core (Definition, Type, TypedExpr)

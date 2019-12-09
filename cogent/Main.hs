@@ -27,8 +27,7 @@
 
 module Main where
 
-import Cogent.C.Compile                as CG (printCTable, printATM)
-import Cogent.CodeGen                  as CG (cgen)
+import Cogent.C                        as CG (cgen, printCTable, printATM)
 import Cogent.Common.Syntax            as SY (CoreFunName(..))
 import Cogent.Compiler
 import Cogent.Core                     as CC (isConFun, getDefinitionId, untypeD)  -- FIXME: zilinc

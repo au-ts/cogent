@@ -10,11 +10,12 @@
 -- @TAG(DATA61_GPL)
 --
 
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE ViewPatterns #-}
 
 -- | Most of the abstract syntax is derived from Absyn.ML in c-parser.
 --   Currently we just implement the smallest set used in our CG.
@@ -28,12 +29,13 @@ module Cogent.C.Syntax (
 
 import Cogent.Common.Syntax
 import Cogent.Common.Types
-import Cogent.Compiler (__impossible)
+import Cogent.Compiler
 import Cogent.Core           as CC
 import Cogent.Dargent.Allocation
+import Cogent.Util (tupleFieldNames)
 import Data.Nat              as Nat
 
-import Data.Map as M
+import Data.Map as M hiding (map)
 import qualified "language-c-quote" Language.C as C
 
 type CId = String
@@ -185,6 +187,141 @@ instance Eq StrlCogentType where
 
 instance Ord StrlCogentType where
   (StrlCogentType t1) <= (StrlCogentType t2) = strlCogentTypeEq t1 t2 || t1 <= t2
+
+
+-- *****************************************************************************
+-- * Helper functions to build C syntax
+
+u32 :: CType
+u32 = CogentPrim U32
+
+-- FIXME: more might be true / zilinc
+-- isAddressableCExpr :: CExpr -> Bool
+-- isAddressableCExpr (CVar {}) = True
+-- isAddressableCExpr (CDeref e) = isAddressableCExpr e
+-- isAddressableCExpr (CTypeCast _ e) = isAddressableCExpr e
+-- isAddressableCExpr _ = False
+
+primCId :: PrimInt -> String
+primCId Boolean = "Bool"
+primCId U8  = "u8"
+primCId U16 = "u16"
+primCId U32 = "u32"
+primCId U64 = "u64"
+
+likely :: CExpr -> CExpr
+likely e = CEFnCall (CVar "likely" (Just $ CFunction CBool CBool)) [e]
+
+unlikely :: CExpr -> CExpr
+unlikely e = CEFnCall (CVar "unlikely" (Just $ CFunction CBool CBool)) [e]
+
+variable :: CId -> CExpr
+variable = flip CVar Nothing
+
+mkBoolLit :: CExpr -> CExpr
+mkBoolLit e = CCompLit (CIdent boolT) [([CDesignFld boolField], CInitE e)]
+
+true :: CExpr
+true = mkConst Boolean 1
+
+mkConst :: (Integral t) => PrimInt -> t -> CExpr
+mkConst pt (fromIntegral -> n)
+  | pt == Boolean = mkBoolLit (mkConst U8 n)
+  | otherwise = CConst $ CNumConst n (CogentPrim pt) DEC
+
+-- str.fld
+strDot' :: CId -> CId -> CExpr
+strDot' str fld = strDot (variable str) fld
+
+-- str->fld
+strArrow' :: CId -> CId -> CExpr
+strArrow' str fld = strArrow (variable str) fld
+
+strDot :: CExpr -> CId -> CExpr
+strDot rec fld = CStructDot rec fld
+
+strArrow :: CExpr -> CId -> CExpr
+strArrow rec fld = CStructDot (CDeref rec) fld
+
+mkArrIdx :: Integral t => CExpr -> t -> CExpr
+mkArrIdx arr idx = CArrayDeref arr (mkConst U32 idx)
+
+isTrivialCExpr :: CExpr -> Bool
+isTrivialCExpr (CBinOp {}) = False
+isTrivialCExpr (CUnOp {}) = False
+isTrivialCExpr (CCondExpr {}) = False
+isTrivialCExpr (CConst {}) = True
+isTrivialCExpr (CVar {}) = True
+isTrivialCExpr (CStructDot (CDeref e) _) = False  -- NOTE: Not sure why but we cannot do `isTrivialCExpr e && not __cogent_fintermediate_vars' / zilinc
+isTrivialCExpr (CArrayDeref e idx) = __fixme $ isTrivialCExpr e && isTrivialCExpr idx
+isTrivialCExpr (CStructDot e _) = isTrivialCExpr e && not __cogent_fintermediate_vars
+isTrivialCExpr (CDeref e) = isTrivialCExpr e && not __cogent_fintermediate_vars
+isTrivialCExpr (CAddrOf e) = isTrivialCExpr e && not __cogent_fintermediate_vars
+isTrivialCExpr (CTypeCast _ e) = isTrivialCExpr e
+isTrivialCExpr (CSizeof   e) = isTrivialCExpr e
+isTrivialCExpr (CSizeofTy _) = True
+isTrivialCExpr (CEFnCall {}) = False
+isTrivialCExpr (CCompLit _ dis) = and (map (\(ds,i) -> and (map isTrivialCDesignator ds) && isTrivialCInitializer i) dis) && __cogent_fuse_compound_literals
+isTrivialCExpr (CMKBOOL e) = isTrivialCExpr e
+
+isTrivialCInitializer :: CInitializer -> Bool
+isTrivialCInitializer (CInitE e) = isTrivialCExpr e
+isTrivialCInitializer (CInitList dis) = and $ map (\(ds,i) -> and (map isTrivialCDesignator ds) && isTrivialCInitializer i) dis
+
+isTrivialCDesignator :: CDesignator -> Bool
+isTrivialCDesignator (CDesignE e) = isTrivialCExpr e
+isTrivialCDesignator (CDesignFld _) = True
+
+
+-- *****************************************************************************
+-- ** Naming conventions
+
+-- NOTE: Reserved names; users should NOT use them in Cogent programs!
+--       Prefixing underscores are disliked by C-parser / zilinc
+
+
+tagsT, fieldTag :: CId
+tagsT         = "tag_t"
+fieldTag      = "tag"
+tagEnum tag   = "TAG_ENUM_" ++ tag
+
+variantT :: CId
+variantT = "variant_t"
+
+-- NOTE: assume ty is given by function `genType'
+mkVariantTT :: TagName -> CType -> CId
+mkVariantTT tag (CIdent tn) = tag ++ "_" ++ tn
+mkVariantTT tag (CPtr (CIdent tn)) = tag ++ "_p" ++ tn  -- FIXME: may need to distinguish * and non-* / zilinc
+mkVariantTT _ _ = __impossible "mkVariantTT"
+
+argOf fn = fn ++ "_arg"
+retOf fn = fn ++ "_ret"
+
+unitT, dummyField :: CId
+unitT         = "unit_t"
+dummyField    = "dummy"
+
+boolT, boolField :: CId
+boolT     = "bool_t"
+boolField = "boolean"
+
+funEnum fn = "FUN_ENUM_" ++ fn
+untypedFuncEnum = "untyped_func_enum" :: CId
+funDispatch tn = "dispatch_" ++ tn  -- tn is the typename of the Enum
+funMacro f = "FUN_MACRO_" ++ f
+funDispMacro f = "FUN_DISP_MACRO_" ++ f
+
+-- FIXME: we can probably merge these
+letbangTrue = "LETBANG_TRUE"
+letTrue = "LET_TRUE"
+
+p1, p2 :: CId
+p1 = tupleFieldNames !! 0
+p2 = tupleFieldNames !! 1
+
+-- NOTE: use actual names instead
+-- XXX | field n = 'f':show n
+-- XXX | fields = map (('f':) . show) [0 :: Int ..]
 
 
 {- |
