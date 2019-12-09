@@ -55,7 +55,7 @@ gen-type-proof:
 	cogent $(SRC) --type-proof --root-dir=../../..
 
 gen-c-proof:
-	cogent $(SRC) --all -g --type-proof --c-refinement --root-dir=../../..
+	cogent $(SRC) --all -g --type-proof --c-refinement --root-dir=../../.. --fake-header-dir=../../lib
 
 clean:
 	rm -f $(COUTPUT) $(HOUTPUT) $(PP) $(PPINFER) $(OBJ)

@@ -35,17 +35,13 @@ newtype IsabelleName = IsabelleName { unIsabelleName :: String }
 safeName :: IsabelleName -> IsabelleName
 safeName (IsabelleName nm) = IsabelleName $
   case isReserved nm of
-    True -> nm ++ "_r"
-    _ -> case stripPrefix D.freshVarPrefix nm of
-      Just nb -> "ds" ++ subSymStr nb
-      Nothing -> case stripPrefix N.freshVarPrefix nm of
-        Just nb -> "an" ++ subSymStr nb
-        -- Add debug note
-        Nothing -> case "_" `isPrefixOf` nm of
-          True  -> dropWhile (== '_') nm ++ "_d"
-          False -> case "_" `isSuffixOf` nm of
-            True  -> nm ++ "_x"
-            False -> nm
+    True -> error $ "Error: function name `" ++ nm ++ "' is a reserved isabelle name" 
+    -- Add debug note
+    False -> case "_" `isPrefixOf` nm of
+      True  -> error $ "Error: function name `" ++ nm ++ "' cannot start with underscores"
+      False -> case "_" `isSuffixOf` nm of
+        True  -> error $ "Error: function name `" ++ nm ++ "' cannot end with underscores"
+        False -> nm
 
 isReserved :: String -> Bool
 isReserved n = n `elem` reservedWords

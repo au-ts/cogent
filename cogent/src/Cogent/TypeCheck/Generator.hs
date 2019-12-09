@@ -81,7 +81,7 @@ validateType rt@(RT t) = do
   vs <- use knownTypeVars
   ts <- lift $ use knownTypes
   case t of
-    TVar v _ | v `notElem` vs -> return (Unsat $ UnknownTypeVariable v, toTCType rt)
+    TVar v _ _  | v `notElem` vs -> return (Unsat $ UnknownTypeVariable v, toTCType rt)
     TCon t as _ | Nothing <- lookup t ts -> return (Unsat $ UnknownTypeConstructor t, toTCType rt)
                 | Just (vs, _) <- lookup t ts
                 , provided <- length as

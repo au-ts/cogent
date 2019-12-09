@@ -32,19 +32,19 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
   Sat      -> Just []
   c1 :& c2 -> Just [c1,c2]
 
-  Drop   t@(T (TVar v False)) m
+  Drop   t@(T (TVar v False False)) m
     | Just k <- lookup v axs -> 
         canDiscard k `elseDie` TypeNotDiscardable t m
-  Share  t@(T (TVar v False)) m
+  Share  t@(T (TVar v False False)) m
     | Just k <- lookup v axs -> 
         canShare k   `elseDie` TypeNotShareable t m
-  Escape t@(T (TVar v False)) m
+  Escape t@(T (TVar v False False)) m
     | Just k <- lookup v axs -> 
         canEscape k  `elseDie` TypeNotEscapable t m
 
-  Drop     (T (TVar v True)) m -> Just []
-  Share    (T (TVar v True)) m -> Just []
-  Escape t@(T (TVar v True)) m -> unsat (TypeNotEscapable t m)
+  Drop     (T (TVar v b u)) m | b || u -> Just []
+  Share    (T (TVar v b u)) m | b || u -> Just []
+  Escape t@(T (TVar v True False)) m -> unsat (TypeNotEscapable t m)
 
   Drop   t@(T (TCon n ts s)) m ->
     not (writable s) `elseDie` TypeNotDiscardable t m
@@ -162,7 +162,6 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
         c  = R r1' s1 :=: R r2' s2
     Just (c:cs ++ ds)
 
-
   T t1 :< x | unorderedType t1 -> Just [T t1 :=: x]
   x :< T t2 | unorderedType t2 -> Just [x :=: T t2]
 
@@ -187,10 +186,9 @@ unorderedType (TArray {}) = False
 #endif
 unorderedType _ = True 
 
-
-
 untakenLabelsSet :: [Entry TCType] -> S.Set FieldName
 untakenLabelsSet = S.fromList . mapMaybe (\(l, (_,t)) -> guard (not t) >> pure l)
+
 isIrrefutable :: RawPatn -> Bool
 isIrrefutable (RP (PIrrefutable _)) = True
 isIrrefutable _ = False

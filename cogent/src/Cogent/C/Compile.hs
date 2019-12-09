@@ -399,8 +399,9 @@ instance Monad (Compose (Gen v) Maybe) where
                                              Just a  -> getCompose (f a))
 
 lookupTypeCId :: CC.Type 'Zero -> Gen v (Maybe CId)
-lookupTypeCId (TVar     {}) = __impossible "lookupTypeCId"
-lookupTypeCId (TVarBang {}) = __impossible "lookupTypeCId"
+lookupTypeCId (TVar        {}) = __impossible "lookupTypeCId"
+lookupTypeCId (TVarBang    {}) = __impossible "lookupTypeCId"
+lookupTypeCId (TVarUnboxed {}) = __impossible "lookupTypeCId"
 lookupTypeCId (TCon tn [] _) = fmap (const tn) . M.lookup tn <$> use absTypes
 lookupTypeCId (TCon tn ts _) = getCompose (forM ts (\t -> (if isUnboxed t then ('u':) else id) <$> (Compose . lookupTypeCId) t) >>= \ts' ->
                                            Compose (M.lookup tn <$> use absTypes) >>= \tss ->
@@ -440,8 +441,9 @@ typeCId t = use custTypeGen >>= \ctg ->
                 return n
   where
     typeCId' :: CC.Type 'Zero -> Gen v CId
-    typeCId' (TVar     {}) = __impossible "typeCId' (in typeCId)"
-    typeCId' (TVarBang {}) = __impossible "typeCId' (in typeCId)"
+    typeCId' (TVar        {}) = __impossible "typeCId' (in typeCId)"
+    typeCId' (TVarBang    {}) = __impossible "typeCId' (in typeCId)"
+    typeCId' (TVarUnboxed {}) = __impossible "typeCId' (in typeCId)"
     typeCId' (TPrim pt) | pt == Boolean = return boolT
                         | otherwise = primCId <$> pure pt
     typeCId' (TString) = return "char"
@@ -1204,19 +1206,6 @@ instance {-# OVERLAPPING #-} PP.Pretty (CId, CC.Type 'Zero) where
 -- * misc.
 
 kindcheck = runIdentity . kindcheck_ (const $ __impossible "kindcheck")
-
--- kindcheck :: Type 'Zero -> Kind
--- kindcheck (TVar v)         = __impossible "kindcheck"
--- kindcheck (TVarBang v)     = __impossible "kindcheck"
--- kindcheck (TCon n vs)      = mempty
--- kindcheck (TFun ti to)     = mempty
--- kindcheck (TPrim i)        = mempty
--- kindcheck (TString)        = mempty
--- kindcheck (TSum ts)        = mconcat $ L.map (kindcheck . fst . snd) ts
--- kindcheck (TProduct t1 t2) = kindcheck t1 <> kindcheck t2
--- kindcheck (TRecord ts)     = mconcat $ L.map (kindcheck . fst . snd) (filter (not . snd .snd) ts)
--- kindcheck (TUnit)          = mempty
--- kindcheck (TArray e _)     = kindcheck e
 
 isTypeLinear :: Type 'Zero -> Bool
 isTypeLinear = flip isTypeHasKind k1

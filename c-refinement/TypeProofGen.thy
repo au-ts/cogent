@@ -125,7 +125,9 @@ fun cleanup_typing_tree_thm ctxt thm =
         t
        )
     |> Simplifier.simplify (put_simpset cleanup_ss ctxt)
-    (* |> Simplifier.simplify ctxt *) (* Hopefully superflous. Didn't cause any changes when run on Bilby *)
+    |> Simplifier.simplify ctxt
+      (* TODO: CorresProof requires the goal to be in a certain shape; cleanup_ss does not
+                put the goals in that shape. Investigate and move the simp rules into cleanup_ss *)
     )
   |> Thm.varifyT_global
 

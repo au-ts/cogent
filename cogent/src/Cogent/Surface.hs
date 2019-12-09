@@ -123,15 +123,16 @@ data Expr t p ip e = PrimOp OpName [e]
                    | Annot e t
                    deriving (Data, Eq, Ord, Show, Functor, Foldable, Traversable)
 
-type Banged = Bool
-type Taken  = Bool
+type Banged  = Bool
+type Unboxed = Bool
+type Taken   = Bool
 
 type Entry t = (FieldName, (t, Taken))
 
 data Type e t =
               -- They are in WHNF
                 TCon TypeName [t] (Sigil RepExpr)  -- FIXME: can polymorphise the `Representation`
-              | TVar VarName Banged
+              | TVar VarName Banged Unboxed
               | TFun t t
               | TRecord [(FieldName, (t, Taken))] (Sigil RepExpr)
               | TVariant (M.Map TagName ([t], Taken))
@@ -336,7 +337,7 @@ instance Traversable (Flip IrrefutablePattern ip) where  -- pv
 
 instance Traversable (Flip Type t) where  -- e
   traverse _ (Flip (TCon n ts s))        = pure $ Flip (TCon n ts s)
-  traverse _ (Flip (TVar v b))           = pure $ Flip (TVar v b)
+  traverse _ (Flip (TVar v b u))         = pure $ Flip (TVar v b u)
   traverse _ (Flip (TFun t1 t2))         = pure $ Flip (TFun t1 t2)
   traverse _ (Flip (TRecord fs s))       = pure $ Flip (TRecord fs s)
   traverse _ (Flip (TVariant alts))      = pure $ Flip (TVariant alts)
@@ -442,7 +443,7 @@ fvE (RE e) = foldMap fvE e
 
 fvT :: RawType -> [VarName]
 fvT (RT (TCon _ ts _)) = foldMap fvT ts
-fvT (RT (TVar _ _)) = []
+fvT (RT (TVar {})) = []
 fvT (RT (TFun t1 t2)) = fvT t1 ++ fvT t2
 fvT (RT (TRecord fs _)) = foldMap (fvT . fst . snd) fs
 fvT (RT (TVariant alts)) = foldMap (foldMap fvT . fst) alts
@@ -478,7 +479,7 @@ fcT (RT t) = foldMap fcT t
 
 tvT :: RawType -> [TyVarName]
 tvT (RT (TCon _ ts _)) = foldMap tvT ts
-tvT (RT (TVar v _)) = [v]
+tvT (RT (TVar v _ _)) = [v]
 tvT (RT (TFun t1 t2)) = tvT t1 ++ tvT t2
 tvT (RT (TRecord fs _)) = foldMap (tvT . fst . snd) fs
 tvT (RT (TVariant alts)) = foldMap (foldMap tvT . fst) alts
@@ -491,6 +492,44 @@ tvT (RT (TUnbox   t)) = tvT t
 tvT (RT (TBang    t)) = tvT t
 tvT (RT (TTake  _ t)) = tvT t
 tvT (RT (TPut   _ t)) = tvT t
+
+tvE :: RawExpr -> [TyVarName]
+tvE (RE (PrimOp op es))     = foldMap tvE es
+tvE (RE (Var v))            = []
+tvE (RE (Match e v alts))   = tvE e ++ foldMap tvA alts
+tvE (RE (TypeApp v ts nt))  = foldMap (foldMap tvT) ts
+tvE (RE (Con n es))         = foldMap tvE es
+tvE (RE (Seq e e'))         = tvE e ++ tvE e'
+tvE (RE (Lam  ip mt e))     = foldMap tvT mt ++ tvE e
+tvE (RE (LamC ip mt e vs))  = foldMap tvT mt ++ tvE e
+tvE (RE (App  e e' i))      = tvE e ++ tvE e'
+tvE (RE (Comp f g))         = tvE f ++ tvE g
+tvE (RE (AppC e e'))        = tvE e ++ tvE e'
+tvE (RE (If c vs e e'))     = tvE c ++ tvE e ++ tvE e'
+tvE (RE (MultiWayIf es el)) = foldMap (\(e1,_,_,e2) -> tvE e1 ++ tvE e2) es ++ tvE el
+tvE (RE (Member e f))       = tvE e
+tvE (RE Unitel)             = []
+tvE (RE (IntLit l))         = []
+tvE (RE (BoolLit l))        = []
+tvE (RE (CharLit l))        = []
+tvE (RE (StringLit l))      = []
+#ifdef BUILTIN_ARRAYS
+tvE (RE (ArrayLit es))      = foldMap tvE es
+tvE (RE (ArrayIndex e i))   = tvE e ++ tvE i
+#endif
+tvE (RE (Tuple es))         = foldMap tvE es
+tvE (RE (UnboxedRecord es)) = foldMap (foldMap tvE) es
+tvE (RE (Let bs e))         = foldMap tvB bs ++ tvE e
+tvE (RE (Put e es))         = tvE e ++ foldMap (foldMap $ foldMap tvE) es
+tvE (RE (Upcast e))         = tvE e
+tvE (RE (Annot e t))        = tvE e ++ tvT t
+
+tvB :: Binding RawType p ip RawExpr -> [TyVarName]
+tvB (Binding _ mt e _) = foldMap tvT mt ++ tvE e
+tvB (BindingAlts _ mt e _ alts) = foldMap tvT mt ++ tvE e ++ foldMap tvA alts
+
+tvA :: Alt p RawExpr -> [TyVarName]
+tvA (Alt _ _ e) = tvE e
 
 -- -----------------------------------------------------------------------------
 
@@ -538,3 +577,4 @@ rawToLocE l (RE e) = LocExpr l ( ffffmap (rawToLocT  l)
                                $ fffmap  (rawToLocP  l)
                                $ ffmap   (rawToLocIP l)
                                $ fmap    (rawToLocE  l) e)
+

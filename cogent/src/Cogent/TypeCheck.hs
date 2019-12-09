@@ -40,7 +40,6 @@ import Cogent.TypeCheck.Util
 import Cogent.Util (firstM)
 
 import Control.Arrow (first, second)
-
 -- import Control.Monad.Except
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
@@ -56,6 +55,7 @@ import qualified Text.PrettyPrint.ANSI.Leijen as L
 import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
 import Lens.Micro
 import Lens.Micro.Mtl
+
 -- import Debug.Trace
 
 tc :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
@@ -150,7 +150,8 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let vs' = map fst vs
         xs = vs' \\ nub vs'
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
-    let tvs = nub (tvT t)  -- type variables appearing to `t'
+    let tvs = nub (tvT t ++ foldMap tvA (fmap (fmap stripLocE) alts))
+    -- \ ^^^ type variables appearing to `t' and in the body of the function definition. see #308.
         ys = vs' \\ tvs    -- we know `vs' has no duplicates
     unless (null ys) $ logErrExit $ SuperfluousTypeVariable ys
     base <- lift . lift $ use knownConsts

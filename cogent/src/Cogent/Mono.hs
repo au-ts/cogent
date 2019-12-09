@@ -193,6 +193,7 @@ monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
 monoType :: Type t -> Mono (Type 'Zero)
 monoType (TVar v) = atList <$> ask <*> pure v
 monoType (TVarBang v) = bang <$> (atList <$> ask <*> pure v)
+monoType (TVarUnboxed v) = unbox <$> (atList <$> ask <*> pure v)
 monoType (TCon n [] s) = do
   modify . second $ M.insert n S.empty
   return $ TCon n [] s

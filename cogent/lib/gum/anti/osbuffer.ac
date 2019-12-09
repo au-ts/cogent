@@ -135,21 +135,21 @@ $ty:(RR (SysState, OSBuffer) () ()) osbuffer_read_block ($ty:((#{ex: SysState, b
 
 $ty:(Bool) osbuffer_test_bit ($ty:((OSBuffer!, U32)) args) {
 	$ty:(Bool) ret;
-	ret.boolean = -test_bit_le (args.p2, args.p1->b_data);
+	ret.boolean = test_bit_le (args.p2, args.p1->b_data);
 	return ret;
 }
 
-/* Clear a bit, return its old value.  The value of a 1-bit signed number is 0 or -1, so negate to get the0 or 1 that DSL expects. */
+/* Clear a bit, return its old value. */
 $ty:((OSBuffer, Bool)) osbuffer_clear_bit ($ty:((OSBuffer, OSBufferOffset)) args) {
 	$ty:((OSBuffer, Bool)) ret = { .p1 = args.p1 };
 	
-	ret.p2.boolean =  -__test_and_clear_bit_le (args.p2, args.p1->b_data);
+	ret.p2.boolean =  __test_and_clear_bit_le (args.p2, args.p1->b_data);
 	return ret;
 }
 
 $ty:((OSBuffer, Bool)) osbuffer_set_bit ($ty:((OSBuffer, OSBufferOffset)) args) {
 	$ty:((OSBuffer, Bool)) ret = { .p1 = args.p1 };
-	ret.p2.boolean = -__test_and_set_bit_le (args.p2, args.p1->b_data);
+	ret.p2.boolean = __test_and_set_bit_le (args.p2, args.p1->b_data);
 	return ret;
 }
 

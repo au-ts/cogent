@@ -241,7 +241,7 @@ lamLftExpr tvs f (B.TE t (S.Lam p mt e) l) = do
   e' <- lamLftExpr tvs f e
   let fn = S.FunDef f' (S.PT tvs t) [S.Alt (B.TP (S.PIrrefutable p) noPos) Regular e']  -- no let-generalisation
   lftFun %= (fn:)
-  let tvs' = map (Just . S.RT . flip S.TVar False . fst) tvs
+  let tvs' = map (Just . S.RT . flip3 S.TVar False False . fst) tvs
   return $ B.TE t (S.TypeApp f' tvs' S.NoInline) l
 lamLftExpr sigma f (B.TE t e l) = B.TE t <$> traverse (lamLftExpr sigma f) e <*> pure l
 
@@ -518,8 +518,12 @@ desugarType = \case
   S.RT (S.TCon "Bool"   [] Unboxed) -> return $ TPrim Boolean
   S.RT (S.TCon "String" [] Unboxed) -> return $ TString
   S.RT (S.TCon tn tvs s) -> TCon tn <$> mapM desugarType tvs <*> pure (desugarSigil s)
-  S.RT (S.TVar vn b)     ->
-    (findIx vn <$> use typCtx) >>= \(Just v) -> return $ if b then TVarBang v else TVar v
+  S.RT (S.TVar vn b u)   ->
+    (findIx vn <$> use typCtx) >>= \(Just v) -> return $
+      case (b,u) of
+        (_    , True ) -> TVarUnboxed v
+        (True , False) -> TVarBang v
+        (False, False) -> TVar v
   S.RT (S.TFun ti to)    -> TFun <$> desugarType ti <*> desugarType to
   S.RT (S.TRecord fs s)  -> TRecord <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType t) fs <*> pure (desugarSigil s)
   S.RT (S.TVariant alts) -> TSum <$> mapM (\(c,(ts,x)) -> (c,) . (,x) <$> desugarType (group ts)) (M.toList alts)
@@ -542,7 +546,7 @@ desugarType = \case
 #ifdef BUILTIN_ARRAYS
   S.RT (S.TArray t l) -> TArray <$> desugarType t <*> evalAExpr l  -- desugarExpr' l
 #endif
-  notInWHNF -> __impossible $ "desugarType (type" ++ show (pretty notInWHNF) ++ "is not in WHNF)"
+  notInWHNF -> __impossible $ "desugarType (type " ++ show (pretty notInWHNF) ++ " is not in WHNF)"
 
 desugarSigil :: Sigil S.RepExpr -> Sigil Representation
 desugarSigil Unboxed = Unboxed
