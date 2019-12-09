@@ -84,6 +84,7 @@ library
               , Cogent.Glue
               , Cogent.Inference
               , Cogent.Interpreter
+              , Cogent.Isabelle
               , Cogent.Isabelle.ACInstall
               , Cogent.Isabelle.AllRefine
               , Cogent.Isabelle.Compound

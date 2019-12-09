@@ -44,18 +44,7 @@ import Cogent.Haskell.Shallow          as HS
 #endif
 import Cogent.Inference                as IN (tc, tc_, tcConsts, retype)
 import Cogent.Interpreter              as Repl (replWithState)
-import Cogent.Isabelle.ACInstall       as AC (acInstallDefault)
-import Cogent.Isabelle.AllRefine       as AR (allRefine)
-import Cogent.Isabelle.CorresProof     as CP (corresProof)
-import Cogent.Isabelle.CorresSetup     as CS (corresSetup)
-import Cogent.Isabelle.Deep            as DP (deep)
-import Cogent.Isabelle.MonoProof       as MP  -- FIXME: zilinc
-import Cogent.Isabelle.NormalProof     as NP (normalProof)
-import Cogent.Isabelle.Root            as RT (root)
-import Cogent.Isabelle.Shallow         as IS (shallowConsts, shallow, shallowTuplesProof)
-import Cogent.Isabelle.ShallowTable    as ST (st, printTable)  -- for debugging only
-import Cogent.Isabelle.TypeProofs      as TP (deepTypeProof)
-import Cogent.Isabelle.GraphGen        as GG
+import Cogent.Isabelle                 as Isa
 import Cogent.Mono                     as MN (mono, printAFM)
 import Cogent.Normal                   as NF (normal, verifyNormal)
 import Cogent.Parser                   as PA (parseWithIncludes, parseCustTyGen)
@@ -942,8 +931,8 @@ parseArgs args = case getOpt' Permute options args of
 
           thy = mkProofName source Nothing
           -- Run the generators
-          (shal    ,shrd    ,scorr,shallowTypeNames) = IS.shallow False thy stg        defns log
-          (shal_tup,shrd_tup,_    ,_               ) = IS.shallow True  thy STGDesugar defns log
+          (shal    ,shrd    ,scorr,shallowTypeNames) = Isa.shallow False thy stg        defns log
+          (shal_tup,shrd_tup,_    ,_               ) = Isa.shallow True  thy STGDesugar defns log
           constsTypeCheck = IN.tcConsts ((\(a,b,c) -> c) $ fromJust $ getLast typedefs) fts
 #ifdef WITH_HASKELL
           -- Haskell shallow embedding
