@@ -132,9 +132,10 @@ upshiftExpr SZero _ _ e = e
 upshiftExpr (SSuc n) sv v e | Refl <- addSucLeft sv n
   = let a = upshiftExpr n sv v e in insertIdxAtUntypedExpr (widenN v n) a
 
-upshiftType :: SNat n -> SNat v -> Fin ('Suc v) -> Type t a -> Type t a
-upshiftType SZero _ _ t = t
-upshiftType (SSuc n) sv v t = undefined
+-- | @upshiftType n cut t@: upshift by @n@, for all the indices starting from @cut@
+upshiftType :: SNat n -> Nat -> Type t a -> Type t a
+upshiftType SZero cut t = t
+upshiftType (SSuc n) cut t = let t' = upshiftType n cut t in insertIdxAtType cut t'
 
 normalise :: SNat v
           -> UntypedExpr t v VarName b
@@ -145,13 +146,13 @@ normalise v e@(E (Fun fn ts _)) k = k s0 e
 normalise v   (E (Op opr es)) k = normaliseNames v es $ \n es' -> k n (E $ Op opr es')
 normalise v e@(E (App (E (Fun fn ts nt)) arg)) k
   = normaliseName v arg $ \n arg' ->
-      k n (E $ App (E (Fun fn (fmap (upshiftType n v f0) ts) nt)) arg')
+      k n (E $ App (E (Fun fn (fmap (upshiftType n $ finNat f0) ts) nt)) arg')
 normalise v e@(E (App f arg)) k
   = normaliseName v f $ \n f' ->
       normaliseName (sadd v n) (upshiftExpr n v f0 arg) $ \n' arg' ->
         withAssoc v n n' $ \Refl ->
           k (sadd n n') (E $ App (upshiftExpr n' (sadd v n) f0 f') arg')
-normalise v   (E (Con cn e t)) k = normaliseName v e $ \n e' -> k n (E $ Con cn e' (upshiftType n v f0 t))
+normalise v   (E (Con cn e t)) k = normaliseName v e $ \n e' -> k n (E $ Con cn e' (upshiftType n (finNat f0) t))
 normalise v e@(E (Unit)) k = k s0 e
 normalise v e@(E (ILit {})) k = k s0 e
 normalise v e@(E (SLit {})) k = k s0 e
@@ -184,8 +185,8 @@ normalise v   (E (ArrayPut arr i e)) k
         case sym $ assoc v (sadd n n') n'' of
           Refl -> case assoc (sadd v n) n' n'' of
             Refl -> k (sadd (sadd n n') n'') $ E $
-                      ArrayPut (upshiftExpr (sadd n' n'') (sadd v n) (maxFin $ sadd v n) arr')
-                               (upshiftExpr n'' (sadd v n `sadd` n') (maxFin $ sadd v n `sadd` n') i')
+                      ArrayPut (upshiftExpr (sadd n' n'') (sadd v n) f0 arr')
+                               (upshiftExpr n'' (sadd v n `sadd` n') f0 i')
                                e'
 #endif
 normalise v   (E (Let a e1 e2)) k
@@ -244,8 +245,8 @@ normalise v (E (Put rec fld e)) k
     normaliseName (sadd v n) (upshiftExpr n v f0 e) $ \n' e' ->
     withAssoc v n n' $ \Refl ->
     k (sadd n n') (E $ Put (upshiftExpr n' (sadd v n) f0 rec') fld e')
-normalise v (E (Promote ty e)) k = normaliseName v e $ \n e' -> k n (E $ Promote (upshiftType n v f0 ty) e')
-normalise v (E (Cast ty e)) k = normaliseName v e $ \n e' -> k n (E $ Cast (upshiftType n v f0 ty) e')
+normalise v (E (Promote ty e)) k = normaliseName v e $ \n e' -> k n (E $ Promote (upshiftType n (finNat f0) ty) e')
+normalise v (E (Cast ty e)) k = normaliseName v e $ \n e' -> k n (E $ Cast (upshiftType n (finNat f0) ty) e')
 
 normaliseAtom :: SNat v -> UntypedExpr t v VarName b
               -> (forall n. SNat n -> UntypedExpr t (v :+: n) VarName b -> AN (UntypedExpr t (v :+: n) VarName b))

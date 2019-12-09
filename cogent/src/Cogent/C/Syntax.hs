@@ -14,6 +14,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -28,7 +29,7 @@ module Cogent.C.Syntax (
 , C.BinOp (..), C.UnOp (..)
 ) where
 
-import Cogent.Common.Syntax
+import Cogent.Common.Syntax as Syn
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core           as CC
@@ -234,6 +235,11 @@ primCId U16 = "u16"
 primCId U32 = "u32"
 primCId U64 = "u64"
 
+likelihood :: Likelihood -> (CExpr -> CExpr)
+likelihood l = case l of Likely   -> likely
+                         Regular  -> id
+                         Unlikely -> unlikely
+
 likely :: CExpr -> CExpr
 likely e = CEFnCall (CVar "likely" (Just $ CFunction CBool CBool)) [e]
 
@@ -249,7 +255,7 @@ mkBoolLit e = CCompLit (CIdent boolT) [([CDesignFld boolField], CInitE e)]
 true :: CExpr
 true = mkConst Boolean 1
 
-mkConst :: (Integral t) => PrimInt -> t -> CExpr
+mkConst :: (Integral n) => PrimInt -> n -> CExpr
 mkConst pt (fromIntegral -> n)
   | pt == Boolean = mkBoolLit (mkConst U8 n)
   | otherwise = CConst $ CNumConst n (CogentPrim pt) DEC
@@ -296,6 +302,50 @@ isTrivialCInitializer (CInitList dis) = and $ map (\(ds,i) -> and (map isTrivial
 isTrivialCDesignator :: CDesignator -> Bool
 isTrivialCDesignator (CDesignE e) = isTrivialCExpr e
 isTrivialCDesignator (CDesignFld _) = True
+
+
+genOp :: Syn.Op -> CC.Type 'Zero VarName -> [CExpr] -> CExpr
+genOp opr (CC.TPrim pt) es =
+  let oprf = case opr of
+               -- binary
+               Plus        -> (\[e1,e2] -> downcast pt $ CBinOp C.Add  (upcast pt e1) (upcast pt e2))
+               Minus       -> (\[e1,e2] -> downcast pt $ CBinOp C.Sub  (upcast pt e1) (upcast pt e2))
+               Divide      -> (\[e1,e2] -> (if __cogent_fcheck_undefined then flip (CCondExpr e2) (mkConst pt 0) else id)
+                                              (downcast pt $ CBinOp C.Div (upcast pt e1) (upcast pt e2)))
+               Times       -> (\[e1,e2] -> downcast pt $ CBinOp C.Mul  (upcast pt e1) (upcast pt e2))
+               Mod         -> (\[e1,e2] -> (if __cogent_fcheck_undefined then flip (CCondExpr e2) (mkConst pt 0) else id)
+                                              (downcast pt $ CBinOp C.Mod (upcast pt e1) (upcast pt e2)))
+               And         -> (\[e1,e2] -> mkBoolLit (CBinOp C.Land (strDot e1 boolField) (strDot e2 boolField)))
+               Or          -> (\[e1,e2] -> mkBoolLit (CBinOp C.Lor  (strDot e1 boolField) (strDot e2 boolField)))
+               BitAnd      -> (\[e1,e2] -> downcast pt $ CBinOp C.And  (upcast pt e1) (upcast pt e2))
+               BitXor      -> (\[e1,e2] -> downcast pt $ CBinOp C.Xor  (upcast pt e1) (upcast pt e2))
+               BitOr       -> (\[e1,e2] -> downcast pt $ CBinOp C.Or   (upcast pt e1) (upcast pt e2))
+               LShift      -> (\[e1,e2] -> (if __cogent_fcheck_undefined
+                                              then CCondExpr (CBinOp C.Ge e2 (mkConst pt $ width pt)) (mkConst pt 0) else id)
+                                             (downcast pt $ CBinOp C.Lsh (upcast pt e1) (upcast pt e2)))
+               RShift      -> (\[e1,e2] -> (if __cogent_fcheck_undefined
+                                              then CCondExpr (CBinOp C.Ge e2 (mkConst pt $ width pt)) (mkConst pt 0) else id)
+                                             (downcast pt $ CBinOp C.Rsh (upcast pt e1) (upcast pt e2)))
+               Gt          -> (\[e1,e2] -> mkBoolLit $ CBinOp C.Gt e1 e2)
+               Lt          -> (\[e1,e2] -> mkBoolLit $ CBinOp C.Lt e1 e2)
+               Ge          -> (\[e1,e2] -> mkBoolLit $ CBinOp C.Ge e1 e2)
+               Le          -> (\[e1,e2] -> mkBoolLit $ CBinOp C.Le e1 e2)
+               Syn.Eq      -> (\[e1,e2] -> case pt of
+                                Boolean -> mkBoolLit (CBinOp C.Eq (strDot e1 boolField) (strDot e2 boolField))
+                                _       -> mkBoolLit (CBinOp C.Eq e1 e2))
+               Syn.NEq     -> (\[e1,e2] -> case pt of
+                                Boolean -> mkBoolLit (CBinOp C.Ne (strDot e1 boolField) (strDot e2 boolField))
+                                _       -> mkBoolLit (CBinOp C.Ne e1 e2))
+               -- unary
+               Syn.Not        -> (\[e1] -> mkBoolLit (CUnOp C.Lnot (strDot e1 boolField)))
+               Syn.Complement -> (\[e1] -> downcast pt $ CUnOp C.Not (upcast pt e1))
+   in oprf es
+  where width = \case U8 -> 8; U16 -> 16; U32 -> 32; U64 -> 64; Boolean -> 8
+        -- vvv FIXME: I don't remember why we did it this way. Is it for verification or performance? / zilinc
+        upcast, downcast :: PrimInt -> CExpr -> CExpr
+        upcast   pt e = if pt `elem` [U8, U16] then CTypeCast u32 e else e
+        downcast pt e = if pt `elem` [U8, U16] then CTypeCast (CogentPrim pt) e else e
+genOp _ _ _ = __impossible "genOp"
 
 
 -- *****************************************************************************
