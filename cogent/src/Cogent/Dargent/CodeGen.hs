@@ -15,6 +15,8 @@
 
 module Cogent.Dargent.CodeGen where
 
+import Cogent.C.Monad
+import Cogent.C.Type (genType)
 import Cogent.C.Syntax
 import Cogent.Common.Syntax (FieldName, VarName, Size)
 import Cogent.Common.Types (Sigil (..))
@@ -22,21 +24,6 @@ import Cogent.Compiler
   ( __fixme
   , __impossible
   , __todo
-  )
-import Cogent.C.GenState
-  ( Gen
-  , genType
-  , freshGlobalCId
-  , boxedSettersAndGetters
-  , boxedRecordGetters
-  , boxedRecordSetters
-  , boolField
-  , boolT
-  , unitT
-  , tagsT
-  , tagEnum
-  , fieldTag
-  , dummyField -- Field of type unitT
   )
 import Cogent.Core (Type (..))
 import Cogent.Dargent.Allocation

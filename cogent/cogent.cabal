@@ -131,11 +131,12 @@ custom-setup
 library
   hs-source-dirs: src
   exposed-modules:
-                Cogent.C.Compile
-              , Cogent.C.GenState
+                Cogent.C
+              , Cogent.C.Expr
+              , Cogent.C.Monad
               , Cogent.C.Render
               , Cogent.C.Syntax
-              , Cogent.CodeGen
+              , Cogent.C.Type
               , Cogent.Common.Syntax
               , Cogent.Common.Types
               , Cogent.Compiler
