@@ -12,8 +12,8 @@
 
 {-# LANGUAGE DataKinds #-}
 
--- * Re-export everything in Cogent.C.*
 module Cogent.C (
+  -- * Re-export everything in Cogent.C.*
     module Cogent.C.Expr
   , module Cogent.C.Monad
   , module Cogent.C.Render
