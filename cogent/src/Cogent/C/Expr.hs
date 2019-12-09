@@ -285,53 +285,6 @@ withBindings vec = Gen . withRWS (\r s -> (r <++> vec, s)) . runGen
 -- *****************************************************************************
 -- * Expr generation
 
-likelihood :: Likelihood -> (CExpr -> CExpr)
-likelihood l = case l of Likely   -> likely
-                         Regular  -> id
-                         Unlikely -> unlikely
-
-genOp :: Syn.Op -> CC.Type 'Zero VarName -> [CExpr] -> Gen v CExpr
-genOp opr (CC.TPrim pt) es =
-  let oprf = case opr of
-               -- binary
-               Plus        -> (\[e1,e2] -> downcast pt $ CBinOp C.Add  (upcast pt e1) (upcast pt e2))
-               Minus       -> (\[e1,e2] -> downcast pt $ CBinOp C.Sub  (upcast pt e1) (upcast pt e2))
-               Divide      -> (\[e1,e2] -> (if __cogent_fcheck_undefined then flip (CCondExpr e2) (mkConst pt 0) else id)
-                                              (downcast pt $ CBinOp C.Div (upcast pt e1) (upcast pt e2)))
-               Times       -> (\[e1,e2] -> downcast pt $ CBinOp C.Mul  (upcast pt e1) (upcast pt e2))
-               Mod         -> (\[e1,e2] -> (if __cogent_fcheck_undefined then flip (CCondExpr e2) (mkConst pt 0) else id)
-                                              (downcast pt $ CBinOp C.Mod (upcast pt e1) (upcast pt e2)))
-               And         -> (\[e1,e2] -> mkBoolLit (CBinOp C.Land (strDot e1 boolField) (strDot e2 boolField)))
-               Or          -> (\[e1,e2] -> mkBoolLit (CBinOp C.Lor  (strDot e1 boolField) (strDot e2 boolField)))
-               BitAnd      -> (\[e1,e2] -> downcast pt $ CBinOp C.And  (upcast pt e1) (upcast pt e2))
-               BitXor      -> (\[e1,e2] -> downcast pt $ CBinOp C.Xor  (upcast pt e1) (upcast pt e2))
-               BitOr       -> (\[e1,e2] -> downcast pt $ CBinOp C.Or   (upcast pt e1) (upcast pt e2))
-               LShift      -> (\[e1,e2] -> (if __cogent_fcheck_undefined
-                                              then CCondExpr (CBinOp C.Ge e2 (mkConst pt $ width pt)) (mkConst pt 0) else id)
-                                             (downcast pt $ CBinOp C.Lsh (upcast pt e1) (upcast pt e2)))
-               RShift      -> (\[e1,e2] -> (if __cogent_fcheck_undefined
-                                              then CCondExpr (CBinOp C.Ge e2 (mkConst pt $ width pt)) (mkConst pt 0) else id)
-                                             (downcast pt $ CBinOp C.Rsh (upcast pt e1) (upcast pt e2)))
-               Gt          -> (\[e1,e2] -> mkBoolLit $ CBinOp C.Gt e1 e2)
-               Lt          -> (\[e1,e2] -> mkBoolLit $ CBinOp C.Lt e1 e2)
-               Ge          -> (\[e1,e2] -> mkBoolLit $ CBinOp C.Ge e1 e2)
-               Le          -> (\[e1,e2] -> mkBoolLit $ CBinOp C.Le e1 e2)
-               Syn.Eq      -> (\[e1,e2] -> case pt of
-                                Boolean -> mkBoolLit (CBinOp C.Eq (strDot e1 boolField) (strDot e2 boolField))
-                                _       -> mkBoolLit (CBinOp C.Eq e1 e2))
-               Syn.NEq     -> (\[e1,e2] -> case pt of
-                                Boolean -> mkBoolLit (CBinOp C.Ne (strDot e1 boolField) (strDot e2 boolField))
-                                _       -> mkBoolLit (CBinOp C.Ne e1 e2))
-               -- unary
-               Syn.Not        -> (\[e1] -> mkBoolLit (CUnOp C.Lnot (strDot e1 boolField)))
-               Syn.Complement -> (\[e1] -> downcast pt $ CUnOp C.Not (upcast pt e1))
-   in return $ oprf es
-  where width = \case U8 -> 8; U16 -> 16; U32 -> 32; U64 -> 64; Boolean -> 8
-        -- vvv FIXME: I don't remember why we did it this way. Is it for verification or performance? / zilinc
-        upcast, downcast :: PrimInt -> CExpr -> CExpr
-        upcast   pt e = if pt `elem` [U8, U16] then CTypeCast u32 e else e
-        downcast pt e = if pt `elem` [U8, U16] then CTypeCast (CogentPrim pt) e else e
-genOp _ _ _ = __impossible "genOp"
 
 genExpr_ :: TypedExpr 'Zero v VarName VarName -> Gen v (CExpr, [CBlockItem], [CBlockItem], VarPool)
 genExpr_ = genExpr Nothing
@@ -378,7 +331,7 @@ genExpr _ (TE t (Op opr [])) = __impossible "genExpr"
 
 genExpr mv (TE t (Op opr es@(e1:_))) = do
   (es',decls,stms,ps) <- L.unzip4 <$> mapM genExpr_ es
-  e' <- genOp opr (exprType e1) es'
+  let e' = genOp opr (exprType e1) es'
   t' <- genType t
   (v,adecl,astm,vp) <- maybeAssign t' mv e' (mergePools ps)
   return (v, concat decls ++ adecl, concat stms ++ astm, vp)
