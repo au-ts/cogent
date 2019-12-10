@@ -29,3 +29,7 @@ int main(void){
   }
   return 0;
 }
+
+$ty:(CString) dummy ($ty:(CString) arg) { 
+  return arg; 
+}
