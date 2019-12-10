@@ -683,7 +683,8 @@ instance Pretty Metadata where
   pretty (UsedInMember {fieldName}) = err "the field" <+> fieldname fieldName
                                        <+> err "is being extracted without taking the field in a pattern."
 #ifdef BUILTIN_ARRAYS
-  pretty UsedInArrayIndexing = err "an element of the array is being extracted"
+  pretty UsedInArrayIndexing = err "an element of the array is being accessed"
+  pretty MultipleArrayTakePut = err "more than one array element is being taken or put"
 #endif
   pretty UsedInLetBang = err "it is being returned from such a context."
   pretty (TypeParam {functionName, typeVarName }) = err "it is required by the type of" <+> funname functionName

@@ -164,6 +164,7 @@ data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: Seq
               | UsedInMember { fieldName :: FieldName }
 #ifdef BUILTIN_ARRAYS
               | UsedInArrayIndexing
+              | MultipleArrayTakePut
 #endif
               | UsedInLetBang
               | TypeParam { functionName :: FunName, typeVarName :: TyVarName }
