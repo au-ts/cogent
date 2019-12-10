@@ -341,6 +341,7 @@ cg' (ArrayPut arr ivs) t = do
   let c = [ A alpha l (Right s) Nothing :< t
           , sigma :< A alpha l (Right s) Nothing
           , carr
+          , Drop alpha MultipleArrayTakePut
           ] ++ map fst blob1 ++ map fst blob2  -- TODO: check for bounds
   return (mconcat c, ArrayPut arr' (zip (map snd blob1) (map snd blob2)))
 #endif
