@@ -10,8 +10,14 @@
 
 $esc:(#include <stdio.h>)
 $esc:(#include <stdlib.h>)
+$esc:(#include <string.h>)
+
+#define BUG_ON(cond) do { if (cond) {} } while (0)
+
 #include "generated.c"
+#include <log.ac>
 #include <wordarray.ac>
+
 
 int main(void){
   $ty:(WordArray U32) arr = malloc (sizeof ($ty:(WordArray U32)));
@@ -28,4 +34,8 @@ int main(void){
     printf ("arr[%d] = %d\n", i, arr->values[i]);
   }
   return 0;
+}
+
+$ty:(CString) dummy ($ty:(CString) arg) { 
+  return arg; 
 }
