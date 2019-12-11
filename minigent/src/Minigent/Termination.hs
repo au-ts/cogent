@@ -27,8 +27,10 @@ import qualified Data.Set as S
 type Node  = String
 type Graph = M.Map Node [Node]
 
--- Our environment
-type Env a = FreshT VarName (State (M.Map VarName VarName)) a
+
+
+-- Our environment, a mapping between program variables and fresh variables
+type Env = M.Map VarName VarName
 
 infixr 0 :<:
 data Assertion = 
@@ -40,79 +42,75 @@ data Assertion =
 termCheck :: GlobalEnvironments -> [String]
 termCheck = undefined
 
-termAssertionGen :: Expr -> Env ([Assertion], [VarName])
-termAssertionGen expr
+termAssertionGen ::  Env -> Expr -> Fresh VarName ([Assertion], [VarName])
+termAssertionGen env expr
   = case expr of
     PrimOp _ es ->
-      join $ map termAssertionGen es
+      join $ map (termAssertionGen env) es
     Sig e _ -> 
-      termAssertionGen e
+      termAssertionGen env e
     Apply f e -> do
-      a <- termAssertionGen f
-      b <- termAssertionGen e
-      c <- getv e
-      return $ flatten [([],maybeToList c), a, b]
+      a <- termAssertionGen env f
+      b <- termAssertionGen env e
+      let c = getv env e
+      return $ flatten [([], maybeToList c), a, b]
     Struct fs ->
       let es = map snd fs 
-      in join $ map termAssertionGen es
+      in join $ map (termAssertionGen env) es
     If b e1 e2 ->
-      join $ map termAssertionGen [b, e1, e2]
+      join $ map (termAssertionGen env) [b, e1, e2]
     Let x e1 e2 -> do
       -- First evaluate the variable binding expression
-      a <- termAssertionGen e1
+      a <- termAssertionGen env e1
 
-      -- Preserve the old state
-      env <- lift $ get
       let old = M.lookup x env
 
-      -- Map our bound program variable to a new name
-      fvar <- insert x
+      -- Map our bound program variable to a new name and evaluate the rest
+      alpha <- fresh
+      let env' = M.insert x alpha env 
+      res <- termAssertionGen env' e2
 
-      -- Evaluate the rest
-      res <- termAssertionGen e2
-
-      -- Roll back the state for the program variable
-      undo x old
-
-      -- calculate the assertion for the old variable
-      env <- lift $ get
-      mv <- getv e1
-      let l = (case mv of
-                Just x' -> [fvar :~: (env M.! x')]
+      -- Generate assertion
+      let l = (case getv env e1 of
+                Just x' -> [alpha :~: (env M.! x')]
                 Nothing -> [])
-
       return $ flatten [(l,[]), res]
+    
+    LetBang vs v e1 e2 ->
+      termAssertionGen env (Let v e1 e2) -- TODO - Correct?
+    Take r' f x e1 e2 -> do
+      alpha <- fresh 
+      beta  <- fresh
+      
+      res <- termAssertionGen env e1
+
+      -- Update variable to fresh name bindings
+      let env' = M.insert r' beta (M.insert x alpha env)
+      res' <- termAssertionGen env' e2
+
+      -- generate assertions
+      let res'' = (case getv env e1 of
+                    Just x' -> [alpha :<: (env M.! x')]
+                    Nothing -> [])
+                  ++
+                  (case getv env e2 of
+                    Just x' -> [beta :~: (env M.! x')]
+                    Nothing -> [])
+
+      return $ flatten [(res'', []), res', res]
 
     _ -> return ([],[])
 
   where
 
     -- Returns the variable name from an environment if it exists, otherwise nothing
-    getv :: Expr -> Env (Maybe VarName)
-    getv e = do
-      env <- lift $ get
-      return $
-        case e of
-          Var v -> Just $ env M.! v
-          _ -> Nothing
+    getv :: Env -> Expr -> Maybe VarName
+    getv env e =
+      case e of
+        Var v -> Just $ env M.! v
+        _ -> Nothing
 
-    -- Updates an environment binding
-    insert :: VarName -> Env VarName
-    insert v = do
-      e <- lift $ get
-      n <- fresh
-      lift $ put (M.insert v n e)
-      return n
-    
-    undo :: VarName -> Maybe VarName -> Env ()
-    undo x m = do
-      env <- lift $ get 
-      lift $ put (M.delete x env)
-      case m of
-        Just v -> lift $ put (M.insert x v env)
-        _      -> return ()
-    
-    join :: [Env ([Assertion], [VarName])] -> Env ([Assertion], [VarName])
+    join :: [Fresh VarName ([Assertion], [VarName])] -> Fresh VarName ([Assertion], [VarName])
     join (e:es) = do
       (a,b) <- e
       (as,bs) <- join es
@@ -124,9 +122,6 @@ termAssertionGen expr
       let rest = flatten xs
       in (fst x ++ fst rest, snd x ++ snd rest)
     flatten [] = ([],[])
-    
-    add :: [Maybe Assertion] -> [VarName] -> ([Maybe Assertion], [VarName]) -> ([Maybe Assertion], [VarName])
-    add a g t = (a ++ fst t, g ++ snd t)
 
 hasPathTo :: Node -> Node -> Graph -> Bool
 hasPathTo src dst g
