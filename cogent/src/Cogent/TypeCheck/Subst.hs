@@ -115,6 +115,7 @@ applyC s (SemiSat w) = SemiSat (applyWarn s w)
 applyC s Sat = Sat
 applyC s (Exhaustive t ps) = Exhaustive (apply s t) ps
 applyC s (Solved t) = Solved (apply s t)
+applyC s (IsPrimType t) = IsPrimType (apply s t)
 
 applyE :: Subst -> TCExpr -> TCExpr
 applyE s (TE t e l) = TE (apply s t)

@@ -166,6 +166,7 @@ data Constraint' t = (:<) t t
                    | Sat
                    | Exhaustive t [RawPatn]
                    | Solved t
+                   | IsPrimType t
 #ifdef BUILTIN_ARRAYS
                    | Arith SExpr
 #endif

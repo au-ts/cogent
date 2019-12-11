@@ -183,7 +183,7 @@ cg' (PrimOp o [e1, e2]) t
        (c1, e1') <- cg e1 alpha
        (c2, e2') <- cg e2 alpha
        let c  = T (TCon "Bool" [] Unboxed) :=: t
-           c' = integral alpha
+           c' = IsPrimType alpha
        return (c <> c' <> c1 <> c2, PrimOp o [e1', e2'] )
 cg' (PrimOp o [e]) t
   | o == "complement"  = do

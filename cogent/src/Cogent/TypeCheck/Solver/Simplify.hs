@@ -97,7 +97,7 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
   Upcastable (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed))
     | Just n' <- elemIndex n primTypeCons
     , Just m' <- elemIndex m primTypeCons
-    , n' <= m' , m /= "String" -> Just []
+    , n' <= m' , not (m `elem` ["String","Bool"]) -> Just []
 
   -- [amos] New simplify rule:
   -- If both sides of an equality constraint are equal, we can't completely discharge it; we need to make sure all unification variables in the type are instantiated at some point
@@ -108,6 +108,8 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
 
   Solved t | isSolved t -> Just []
 
+  IsPrimType (T (TCon x _ Unboxed)) | x `elem` primTypeCons -> Just []
+  
   T (TFun t1 t2) :=: T (TFun r1 r2) -> Just [r1 :=: t1, t2 :=: r2]
   T (TFun t1 t2) :<  T (TFun r1 r2) -> Just [r1 :<  t1, t2 :<  r2]
 
