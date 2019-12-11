@@ -27,6 +27,7 @@ import Minigent.Syntax.PrettyPrint
 import Minigent.Environment
 import Minigent.Reorganiser
 import Minigent.TC
+import Minigent.Termination
 import Minigent.CG
 import Control.Monad
 import Control.Applicative
@@ -47,7 +48,7 @@ import Data.Text.Prettyprint.Doc (unAnnotateS, unAnnotate, defaultLayoutOptions,
 
 
 -- | The phases of the compiler, ordered in the order listed.
-data Phase = Lex | Parse | Reorg | TC | CG deriving (Ord, Enum, Eq)
+data Phase = Lex | Parse | Reorg | TC | Term | CG deriving (Ord, Enum, Eq)
 
 -- | The way a dump should be formatted when printed.
 data Format = PrettyColour -- ^ Print with a pretty printer and ANSI colours if printing to stdout
@@ -199,6 +200,15 @@ tcPhase colour envs
       pure []
     go (Right b) = pure [b]
 
+terminationPhase :: GlobalEnvironments -> IO ()
+terminationPhase envs 
+  = case termCheck envs of
+      [] -> do return ()
+      xs -> do -- Error
+        mapM_ (hPutStrLn stderr) xs
+        return ()
+
+
 cgPhase :: GlobalEnvironments -> IO String
 cgPhase gs = pure (cg gs)
 
@@ -298,6 +308,8 @@ compiler phase dirs files = do
     upTo TC
     binds <- tcPhase (NoColour `elem` dirs) envs
     mapM_ (tcDump binds) dirs
+    upTo Term
+    _ <- terminationPhase envs
     upTo CG
     barf <- cgPhase binds
     mapM_ (cgDump barf) dirs
