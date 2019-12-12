@@ -198,7 +198,11 @@ seqOcc = (<>)
 parOcc OnceSafe OnceSafe = MultiSafe
 parOcc occ1 occ2 = occ1 `max` occ2
 
+#if MIN_VERSION_monoid_subclasses(1,0,0)
+instance Commutative OccInfo
+#else
 instance CommutativeMonoid OccInfo
+#endif
 
 getVOccs :: SNat v' -> Occ (v :+: v') a -> Occ v (a, OccEnv v')
 getVOccs v' ma = do (fenv,venv) <- get
