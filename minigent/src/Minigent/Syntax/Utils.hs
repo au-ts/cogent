@@ -375,4 +375,3 @@ unifVars = S.fromList names
   where
     names = [ g:n | n <- nums, g <- "𝛂𝛃𝛄𝛅𝛆𝛇𝛈𝛉𝛊𝛋𝛍𝛎𝛏𝛑𝛖𝛗𝛘𝛙" ]
     nums = "":map show [1 :: Integer ..]
-
