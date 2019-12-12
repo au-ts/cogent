@@ -7,6 +7,7 @@
 --
 -- @TAG(NICTA_GPL)
 --
+include <gum/common/log.cogent>
 
 get_mode_type_str: U32 -> ()
 get_mode_type_str mode = 

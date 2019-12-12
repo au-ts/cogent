@@ -40,7 +40,7 @@ indirect_from_inode (ex, chain, inode, depth) =
     let nobuf : Option OSBuffer = None
     and indirect = indirect_t { blockptr = block, buf = nobuf, offset }
     in ((ex, chain), Success indirect)
-  | None -> ((ex, chain), Error ())
+  | None () -> ((ex, chain), Error ())
 
 --indirect_new: (BlockPtr, Option OSBuffer) -> Indirect
 malloc_Indirect: SysState -> RR SysState (Indirect take (..)) ()
@@ -95,7 +95,7 @@ indirect_dereference (maybe_buf, inode, offset) =
     osbuffer_deserialise_Ple32 (buf, offset * 4)
     | Success (ptr, _) => ptr
     | Error () -> let _ = cogent_debug ("indirect_read_blockptr_at: OOB on buffer") in 0
-  | None ->
+  | None ()->
     if offset < const_numBlockPointers then
       wordarray_get [BlockPtr] (inode.fs.block_pointers, offset)
     else
@@ -122,7 +122,7 @@ indirect_set_reference (maybe_buf, inode, offset, ptr) =
     | Error buf ->
       let _ = cogent_debug ("indirect_set_blockptr_at: OOB on buffer")
       in (Some buf, inode)
-  | None ->
+  | None ()->
     if offset < const_numBlockPointers then
       let inode_t { fs } = inode
       and fs_t { block_pointers } = fs
@@ -189,7 +189,7 @@ indirect_splice (ex, indirect, inode, iblock, num_direct, num_indirect) =
       let _ = cogent_debug ("indirect_splice: OOB on indirect buf")
       and indirect = indirect_t { buf = Some buf }
       in ((ex, indirect, inode), Error eIO) -- failed to serialise buffer
-  | None ->
+  | None ()->
     -- was from inode
     let indirect = indirect_t { buf = None }
     and inode_t { fs } = inode

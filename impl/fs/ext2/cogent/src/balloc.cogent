@@ -19,7 +19,7 @@ ext2_find_near_2 (st, state, inode, indirect) =
   -- 2) try location of indirect block, if possible
   indirect.buf
   | Some buf -> (st, osbuffer_get_blocknum buf)
-  | None ->
+  | None ()->
     -- 3) referred to from inode; use same cylinder group (colouring it)
     let bg = get_block_group_from_ino (state.super.inodes_per_group, vfs_inode_get_ino (inode))
     and bg_start = group_desc_first_block2 (state, bg)
@@ -305,7 +305,7 @@ ext2_try_to_allocate_with_bitmap3 (ex, state, group, bitmap_buf, num, goal, star
 ext2_try_to_allocate_with_bitmap2: (SysState, FsState, U32, OSBuffer, U32, Option U32, U32, U32) -> RR (SysState, FsState, OSBuffer) (U16, BlockPtr) U32
 ext2_try_to_allocate_with_bitmap2 (ex, state, group, bitmap_buf, num, maybe_goal, start, end) =
   maybe_goal
-  | None ->
+  | None ()->
     let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap2: had no goal, finding next usable block\n") 
     in find_next_usable_block (bitmap_buf, start, end) !bitmap_buf
     | Success goal ->
@@ -346,7 +346,7 @@ ext2_try_to_allocate_with_bitmap (ex, state, group, bitmap_buf, num, maybe_goal_
       and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, end) 
       and _ = cogent_log (dbg_EXT2_DIR_BALLOC, ")\n") 
       in ext2_try_to_allocate_with_bitmap2 (ex, state, group, bitmap_buf, num, maybe_goal_block, 0, end)
-  | None ->
+  | None ()->
     let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap: had no goal, using [0, ") 
     and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, end) 
     and _ = cogent_log (dbg_EXT2_DIR_BALLOC, ")\n") 
@@ -711,10 +711,10 @@ free_indirect_on_shared #{ acc = (ex, state, inode, chain), obsv, idx } =
       and ex = osbuffer_destroy (ex, buf)
 
       in ((ex, state, inode, chain), Iterate ())
-    | None ->
+    | None ()->
       -- should've been there, but whatever..
       ((ex, state, inode, chain), Iterate ())
-  | None ->
+  | None ()->
     -- should've been there, but whatever..
     ((ex, state, inode, chain), Iterate ())
 
@@ -795,7 +795,7 @@ branchnode_debug node =
   and _ = cogent_log (dbg_EXT2_DIR_BALLOC, " buf=") 
   in node.maybe_buf
   | Some buf -> cogent_log (dbg_EXT2_DIR_BALLOC, "true") 
-  | None -> cogent_log (dbg_EXT2_DIR_BALLOC, "false") 
+  | None ()-> cogent_log (dbg_EXT2_DIR_BALLOC, "false") 
 
 -- kicks off the depth limited search over some branches in the tree between [from, to)
 ext2_free_branches: (SysState, FsState, VfsInode, Option OSBuffer, U32, U32, U32) -> (SysState, FsState, VfsInode, BranchNode)
@@ -874,7 +874,7 @@ ext2_free_branch (depth, node, (ex, state, inode), maxdepth) =
 ext2_free_branch_entry: UArrayMapNoBreakF BranchNode (SysState, VfsInode, U32, Option OSBuffer) ()
 ext2_free_branch_entry #{ oelem = no_branchnode, acc = (ex, inode, idx, parent_maybe_buf), obsv } =
   no_branchnode
-  | None =>
+  | None () =>
     -- deref offset to blockptr
     parent_maybe_buf
     | Some buf =>
@@ -909,7 +909,7 @@ ext2_free_branch_entry #{ oelem = no_branchnode, acc = (ex, inode, idx, parent_m
         -- failed to read from buf, ignore
         let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: failed to deserialise from offset\n") 
         in (None, (ex, inode, idx + 1, Some buf))
-    | None ->
+    | None () ->
       if idx /= 0 then
         let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: had non-zero blockptr ") 
         and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, idx) 
@@ -958,7 +958,7 @@ ext2_free_branch_cleanup2 (ex, node, (state, inode), obsv) =
     -- bforget the buffer
     let ex = osbuffer_trash (ex, buf)
     in ext2_free_branch_cleanup3 (ex, state, inode, ptr)
-  | None ->
+  | None ()->
     ext2_free_branch_cleanup3 (ex, state, inode, ptr)
 
 ext2_free_branch_cleanup3: (SysState, FsState, VfsInode, BlockPtr) -> (SysState, (FsState, VfsInode))

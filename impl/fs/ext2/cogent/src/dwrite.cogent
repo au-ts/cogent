@@ -486,7 +486,7 @@ find_prev_dirent #{ acc = (ex, maybe_de, from_offset), obsv = (current_offset, p
             in was_valid
             | True =>
                 let reclen = ext2_rec_len_from_disk de.record_length !de
-                in ((ex, Some de, from_offset + upcast reclen), Iterate ())
+                in ((ex, Some de, from_offset +  reclen), Iterate ())
             | _ ->
                 let _ = cogent_log (dbg_EXT2_DIR_WRITE, ("had zero-length dir\n"))
                 in ((ex, Some de, from_offset), Break eIO)
