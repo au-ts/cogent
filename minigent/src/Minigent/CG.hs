@@ -55,7 +55,7 @@ cg envs = let ds = M.toList (defns envs)
     genExpr (Take v f vf e1 e2) = format "C.Let($3, $0=> C.Let(($3).$1, $2=> $4))"
                                          [v,f,vf,genExpr e1, genExpr e2]
     genExpr (Put e1 f e2) = case e1 of
-       Sig e1' (Record _ Unboxed) 
+       Sig e1' (Record _ _ Unboxed) 
          -> format "C.UPut($0,{$1:$2})"          [genExpr e1', f, genExpr e2]
        _ -> format "Object.assign($0,{$1:$2})" [genExpr e1 , f, genExpr e2]
     

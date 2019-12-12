@@ -14,7 +14,10 @@ module Minigent.Syntax.Utils
     operators
   , -- ** Operator categories
     -- | The various syntactic precendence categories of binary operators
-    prodOps, sumOps, compOps, boolOps
+    prodOps
+  , sumOps
+  , compOps
+  , boolOps
   , -- * Constraints
     flattenConstraint
   , conjunction
@@ -23,6 +26,9 @@ module Minigent.Syntax.Utils
     -- ** Applying rewrites
     traverseType
   , normaliseType
+  , unroll
+  , mapRecPars
+  , mapRecParsPT
   , -- ** Rewrites
     substUV
   , substRowV
@@ -30,11 +36,13 @@ module Minigent.Syntax.Utils
   , substTV
   , substUVs
   , substTVs
+  , substRecPar
   , -- ** Queries for type inference
     fits
   , unorderedType
   , typeUVs
   , typeVariables
+  , muTypeVariables
   , rigid
   , rootUnifVar
   , -- * Entries
@@ -49,102 +57,125 @@ module Minigent.Syntax.Utils
   )
 where
 
-import Minigent.Syntax
-import Minigent.Fresh
+import           Minigent.Syntax
+import           Minigent.Fresh
 import qualified Minigent.Syntax.Utils.Rewrite as RW
-import qualified Minigent.Syntax.Utils.Row as Row
+import qualified Minigent.Syntax.Utils.Row     as Row
 
 
-import Control.Applicative
-import Control.Monad(guard)
-import Data.Maybe (fromMaybe)
+import           Control.Applicative
+import           Control.Monad                  ( guard )
+import           Data.Maybe                     ( fromMaybe
+                                                , maybeToList
+                                                , isNothing
+                                                )
 
-import qualified Data.Stream as S
-import qualified Data.Map as M
+import qualified Data.Stream                   as S
+import qualified Data.Map                      as M
 
+import Debug.Trace
 
 -- | Returns true iff the given argument type is not subject to subtyping. That is, if @a :\< b@
 --   (subtyping) is equivalent to @a :=: b@ (equality), then this function returns true.
 --
 --   At least for now, this returns true for all types but variants, records and functions.
 unorderedType :: Type -> Bool
-unorderedType (Record {}) = False
-unorderedType (Variant {}) = False
-unorderedType (Function {}) = False
-unorderedType t = rigid t
+unorderedType (Record{}  ) = False
+unorderedType (Variant{} ) = False
+unorderedType (Function{}) = False
+unorderedType t            = rigid t
 
 -- | Return all of the unification type variables inside a type.
 typeUVs :: Type -> [VarName]
 typeUVs (UnifVar v) = [v]
-typeUVs (Record r s) = concatMap (\(Entry _ t _) -> typeUVs t) (Row.entries r)
+typeUVs (Record n r s) = concatMap (\(Entry _ t _) -> typeUVs t) (Row.entries r)
                     ++ maybe [] pure (rowVar r)
-                    ++ (case s of UnknownSigil s' -> [s']; _ -> [])
+                    ++ (case s of UnknownSigil     s' -> [s']; _ -> [])
+                    ++ (case n of UnknownParameter n' -> [n']; _ -> [])
 typeUVs (Variant r)  = concatMap (\(Entry _ t _) -> typeUVs t) (Row.entries r)
                     ++ maybe [] pure (rowVar r)
 typeUVs (AbsType _ _ ts) = concatMap typeUVs ts
 typeUVs (Function t1 t2) = typeUVs t1 ++ typeUVs t2
-typeUVs (Bang t) = typeUVs t
-typeUVs _ = []
+typeUVs (Bang t        ) = typeUVs t
+typeUVs _                = []
 
--- | Return all of the (rigid, non-unification) type variables in a type.
+-- | Return all of the (rigid, non-unification) type variables in a type. Does not include mu variables
 typeVariables :: Type -> [VarName]
-typeVariables (TypeVar v) = [v]
-typeVariables (TypeVarBang v) = [v]
-typeVariables (Record r _) = concatMap (\(Entry _ t _) -> typeVariables t) (Row.entries r)
-typeVariables (Variant r)  = concatMap (\(Entry _ t _) -> typeVariables t) (Row.entries r)
-typeVariables (AbsType _ _ ts) = concatMap typeVariables ts
-typeVariables (Function t1 t2) = typeVariables t1 ++ typeVariables t2
-typeVariables (Bang t) = typeVariables t
-typeVariables _ = []
+typeVariables t = typeVariables' t []
+ where
+    -- Ensures recursive parameters are not included in type variables
+  typeVariables' :: Type -> [VarName] -> [VarName]
+  typeVariables' (TypeVar     v) mvs = if elem v mvs then [] else [v]
+  typeVariables' (TypeVarBang v) mvs = if elem v mvs then [] else [v]
+  typeVariables' (Record mt r _) mvs = concatMap
+    (\(Entry _ t _) -> typeVariables' t ((case mt of Rec x -> [x]; _ -> []) ++ mvs))
+    (Row.entries r)
+  typeVariables' (Variant r) mvs      = concatMap (\(Entry _ t _) -> typeVariables' t mvs) (Row.entries r)
+  typeVariables' (AbsType _ _ ts) mvs = concatMap (\x -> typeVariables' x mvs) ts
+  typeVariables' (Function t1 t2) mvs = typeVariables' t1 mvs ++ typeVariables' t2 mvs
+  typeVariables' (Bang t        ) mvs = typeVariables' t mvs
+  typeVariables' _                _   = []
+
+muTypeVariables :: Type -> [VarName]
+muTypeVariables (Record mt r _) = case mt of Rec x -> [x]; _ -> []
+  ++ concatMap (\(Entry _ t _) -> muTypeVariables t) (Row.entries r)
+muTypeVariables (Variant r) =
+  concatMap (\(Entry _ t _) -> muTypeVariables t) (Row.entries r)
+muTypeVariables (AbsType _ _ ts) = concatMap muTypeVariables ts
+muTypeVariables (Function t1 t2) = muTypeVariables t1 ++ muTypeVariables t2
+muTypeVariables (Bang t        ) = muTypeVariables t
+muTypeVariables _                = []
+
 
 -- | Returns @True@ unless the given type is a unification variable or a type operator
 --   applied to a unification variable.
 rigid :: Type -> Bool
 rigid (UnifVar _)  = False
 rigid (Bang _)     = False
-rigid (Record r _) = not $ Row.justVar r
+rigid (Record _ r _) = not $ Row.justVar r
 rigid (Variant r)  = not $ Row.justVar r
 rigid _            = True
 
 -- | Return the unification variable in a non-rigid type.
 --   If the type is rigid, then returns @Nothing@.
 rootUnifVar :: Type -> Maybe VarName
-rootUnifVar (UnifVar n)  = Just n
-rootUnifVar (Bang n)     = rootUnifVar n
-rootUnifVar (Variant r)  = rowVar r
-rootUnifVar (Record r s) = rowVar r
-rootUnifVar _            = Nothing
+rootUnifVar (UnifVar n   ) = Just n
+rootUnifVar (Bang    n   ) = rootUnifVar n
+rootUnifVar (Variant r   ) = rowVar r
+rootUnifVar (Record _ r s) = rowVar r
+rootUnifVar _              = Nothing
 
 -- | A table of all operators, mapping string representations
 --   to their 'Op' values.
 operators :: [(String, Op)]
-operators = [ ("+",  Plus)
-            , ("*",  Times)
-            , ("-",  Minus)
-            , ("/",  Divide)
-            , ("%",  Mod)
-            , ("<",  Less)
-            , (">",  Greater)
-            , ("==", Equal)
-            , ("/=", NotEqual)
-            , ("<=", LessEqual)
-            , (">=", GreaterEqual)
-            , ("&&", And)
-            , ("||", Or)
-            , ("~",  Not)
-            ]
+operators =
+  [ ("+" , Plus)
+  , ("*" , Times)
+  , ("-" , Minus)
+  , ("/" , Divide)
+  , ("%" , Mod)
+  , ("<" , Less)
+  , (">" , Greater)
+  , ("==", Equal)
+  , ("/=", NotEqual)
+  , ("<=", LessEqual)
+  , (">=", GreaterEqual)
+  , ("&&", And)
+  , ("||", Or)
+  , ("~" , Not)
+  ]
 
 prodOps, sumOps, compOps, boolOps :: [Op]
 prodOps = [Times, Divide, Mod]
-sumOps  = [Plus, Minus]
-compOps = [Equal, NotEqual,Greater,Less, GreaterEqual, LessEqual]
+sumOps = [Plus, Minus]
+compOps = [Equal, NotEqual, Greater, Less, GreaterEqual, LessEqual]
 boolOps = [And, Or, Not]
 
 -- | Given a constraint, flatten it out to remove all conjunctions,
 --   returning a list of conjunction-free constraints.
 flattenConstraint :: Constraint -> [Constraint]
 flattenConstraint (a :&: b) = flattenConstraint a ++ flattenConstraint b
-flattenConstraint x = [x]
+flattenConstraint x         = [x]
 
 -- | Given a list of constraints, combine them into one constraint
 --   using constraint conjunction.
@@ -161,38 +192,40 @@ entryTypes func (Entry f t k) = Entry f (func t) k
 constraintTypes :: (Type -> Type) -> Constraint -> Constraint
 constraintTypes func constraint = go constraint
   where
-    go (c1 :&: c2)    = go c1 :&: go c2
-    go (i :<=: t)     = i :<=: func t
-    go (Share     t)  = Share     (func t)
-    go (Drop      t)  = Drop      (func t)
-    go (Escape    t)  = Escape    (func t)
-    go (Exhausted t)  = Exhausted (func t)
-    go (t1  :<  t2 )  = func t1 :< func t2
-    go (t1  :=: t2 )  = func t1 :=: func t2
-    go (Solved t)     = Solved $ func t
-    go Sat            = Sat
-    go Unsat          = Unsat
+    go (c1 :&: c2)          = go c1 :&: go c2
+    go (i :<=: t)           = i :<=: func t
+    go (Share     t)        = Share     (func t)
+    go (Drop      t)        = Drop      (func t)
+    go (Escape    t)        = Escape    (func t)
+    go (Exhausted t)        = Exhausted (func t)
+    go (t1  :<  t2 )        = func t1 :< func t2
+    go (t1  :=: t2 )        = func t1 :=: func t2
+    go (Solved t)           = Solved $ func t
+    go Sat                  = Sat
+    go (UnboxedNoRecurse t) = UnboxedNoRecurse $ func t
+    go Unsat                = Unsat
+
 
 -- | Given a function that acts on 'Type' values, produce a function
 --   that acts on the types inside an 'Expr'.
 exprTypes :: (Type -> Type) -> Expr -> Expr
 exprTypes func expr = go expr
-  where
-    go (TypeApp f ts)       = TypeApp f (map func ts)
-    go (Sig e t)            = Sig (go e) (func t)
-    go (PrimOp o es)        = PrimOp o (map go es)
-    go (Con n e)            = Con n (go e)
-    go (Apply e1 e2)        = Apply (go e1) (go e2)
-    go (Struct fs)          = Struct (map (fmap go) fs)
-    go (If e e1 e2)         = If (go e) (go e1) (go e2)
-    go (Let v e1 e2)        = Let v (go e1) (go e2)
-    go (LetBang vs v e1 e2) = LetBang vs v (go e1) (go e2)
-    go (Take r f v e1 e2)   = Take r f v (go e1) (go e2)
-    go (Put e1 f e2)        = Put (go e1) f (go e2)
-    go (Member e f)         = Member (go e) f
-    go (Case e k x e1 y e2) = Case (go e) k x (go e1) y (go e2)
-    go (Esac e k x e1)      = Esac (go e) k x (go e1)
-    go e                    = e
+ where
+  go (TypeApp f  ts     ) = TypeApp f (map func ts)
+  go (Sig     e  t      ) = Sig (go e) (func t)
+  go (PrimOp  o  es     ) = PrimOp o (map go es)
+  go (Con     n  e      ) = Con n (go e)
+  go (Apply   e1 e2     ) = Apply (go e1) (go e2)
+  go (Struct fs         ) = Struct (map (fmap go) fs)
+  go (If  e e1 e2       ) = If (go e) (go e1) (go e2)
+  go (Let v e1 e2       ) = Let v (go e1) (go e2)
+  go (LetBang vs v e1 e2) = LetBang vs v (go e1) (go e2)
+  go (Take r f v e1 e2  ) = Take r f v (go e1) (go e2)
+  go (Put e1 f e2       ) = Put (go e1) f (go e2)
+  go (Member e f        ) = Member (go e) f
+  go (Case e k x e1 y e2) = Case (go e) k x (go e1) y (go e2)
+  go (Esac e k x e1     ) = Esac (go e) k x (go e1)
+  go e                    = e
 
 -- | Given a 'RW.Rewrite' on types, apply it over every subterm in a type, i.e. recursively applying
 --   the rewrite to every subterm.
@@ -204,14 +237,15 @@ exprTypes func expr = go expr
 --   think.
 traverseType :: (RW.Rewrite Type) -> Type -> Type
 traverseType func ty = case RW.run func ty of
-  Just  t' -> t'
-  Nothing  -> case ty of
-    Record es s    -> Record (Row.mapEntries (entryTypes (traverseType func)) es) s
+  Just t' -> t'
+  Nothing -> case ty of
+    Record n es s ->
+      Record n (Row.mapEntries (entryTypes (traverseType func)) es) s
     AbsType n s ts -> AbsType n s (map (traverseType func) ts)
-    Variant es     -> Variant (Row.mapEntries (entryTypes (traverseType func)) es)
+    Variant es -> Variant (Row.mapEntries (entryTypes (traverseType func)) es)
     Function t1 t2 -> Function (traverseType func t1) (traverseType func t2)
     Bang t         -> Bang (traverseType func t)
-    _ -> ty
+    _              -> ty
 
 -- | Given a 'RW.Rewrite' on types, apply it over every subterm in a type, i.e. recursively applying
 --   the rewrite to every subterm.
@@ -224,44 +258,87 @@ traverseType func ty = case RW.run func ty of
 normaliseType :: (RW.Rewrite Type) -> Type -> Type
 normaliseType func ty =
   let t' = fromMaybe ty (RW.run func ty)
-   in case t' of
-    Record es s    -> Record (Row.mapEntries (entryTypes (normaliseType func)) es) s
-    AbsType n s ts -> AbsType n s (map (normaliseType func) ts)
-    Variant es     -> Variant (Row.mapEntries (entryTypes (normaliseType func)) es)
-    Function t1 t2 -> Function (normaliseType func t1) (normaliseType func t2)
-    Bang t         -> Bang (normaliseType func t)
-    _ -> t'
+  in
+    case t' of
+      Record n es s ->
+        Record n (Row.mapEntries (entryTypes (normaliseType func)) es) s
+      AbsType n s ts -> AbsType n s (map (normaliseType func) ts)
+      Variant es ->
+        Variant (Row.mapEntries (entryTypes (normaliseType func)) es)
+      Function t1 t2 ->
+        Function (normaliseType func t1) (normaliseType func t2)
+      Bang t -> Bang (normaliseType func t)
+      _      -> t'
+
+
+-- | Unrolls a recursive parameter to the record it references
+unroll :: Type -> Type
+unroll (RecPar n ctxt) = mapRecPars ctxt (ctxt M.! n)
+-- TODO: Should this be an error?
+unroll t = trace "Warning: Unroll called on type that is not a recursive parameter" t
+
+-- | Given a PolyType definition, changes all recursive parameter references from TypeVar to RecPar 
+mapRecParsPT :: PolyType -> PolyType
+mapRecParsPT (Forall vs cs t) = Forall vs cs $ mapRecPars M.empty t
+
+-- | Given a context, changes all recursive parameter references from TypeVar to RecPar according to the context
+mapRecPars :: M.Map VarName Type -> Type -> Type
+mapRecPars rp (AbsType n s ts)   = AbsType n s $ map (mapRecPars rp) ts
+mapRecPars rp (Variant row)      = Variant $ Row.mapEntries (\(Entry n t tk) -> Entry n (mapRecPars rp t) tk) row
+mapRecPars rp (Bang t)           = Bang $ mapRecPars rp t
+mapRecPars rp tv@(TypeVar v)     = if M.member v rp then (RecPar     v rp) else tv
+mapRecPars rp tv@(TypeVarBang v) = if M.member v rp then (RecParBang v rp) else tv
+mapRecPars rp r@(Record par row s) = 
+  Record par (Row.mapEntries (\(Entry n t tk) -> Entry n (mapRecPars (addRecPar par) t) tk) row) s
+  where addRecPar p = case p of
+                        Rec v -> (M.insert v r rp)
+                        _ -> rp
+mapRecPars rp (Function a b) = Function (mapRecPars rp a) (mapRecPars rp b)
+mapRecPars _ t = t
+
 
 -- | A rewrite that substitutes a given unification type variable for a type term in a type.
 substUV :: (VarName, Type) -> RW.Rewrite Type
-substUV (x, t) = RW.rewrite $ \ t' -> case t' of
-  (UnifVar v) | x == v -> Just t
-  _                    -> Nothing
+substUV (x, t) = RW.rewrite $
+  \t' -> case t' of
+    (UnifVar v) | x == v -> Just t
+    _                    -> Nothing
 
 -- | A rewrite that substitutes a given unification row variable for a row in a type.
 substRowV :: (VarName, Row) -> RW.Rewrite Type
-substRowV (x, (Row m' q)) = RW.rewrite $ \ t' -> case t' of
-  Variant (Row m (Just v))   | x == v -> Just (Variant (Row (M.union m m') q))
-  Record  (Row m (Just v)) s | x == v -> Just (Record  (Row (M.union m m') q) s)
-  _                                   -> Nothing
+substRowV (x, (Row m' q)) = RW.rewrite $
+  \t' -> case t' of
+    Variant (Row m (Just v)) | x == v -> Just (Variant (Row (M.union m m') q))
+    Record n (Row m (Just v)) s | x == v ->
+      Just (Record n (Row (M.union m m') q) s)
+    _ -> Nothing
 
 -- | A rewrite that substitutes a given unification sigil variable for a sigil in a type.
 substSigilV :: (VarName, Sigil) -> RW.Rewrite Type
-substSigilV (x, s) = RW.rewrite $ \ t' -> case t' of
-  Record r (UnknownSigil v) | x == v -> Just (Record r s)
-  _                                  -> Nothing
+substSigilV (x, s) = RW.rewrite $
+  \t' -> case t' of
+    Record n r (UnknownSigil v) | x == v -> Just (Record n r s)
+    _ -> Nothing
 
 -- | A rewrite that substitutes a rigid type variable for a type term in a type.
 substTV :: (VarName, Type) -> RW.Rewrite Type
-substTV (x, t) = RW.rewrite $ \ t' -> case t' of
-  (TypeVar v)     | x == v -> Just t
-  (TypeVarBang v) | x == v -> Just (Bang t)
-  _                        -> Nothing
+substTV (x, t) = RW.rewrite $
+  \t' -> case t' of
+    (TypeVar v) | x == v     -> Just t
+    (TypeVarBang v) | x == v -> Just (Bang t)
+    _                        -> Nothing
+
+-- | A rewrite that substitutes the unkown recursive parameter on a boxed record for a parameter
+substRecPar :: (VarName, RecPar) -> RW.Rewrite Type
+substRecPar (v1, v2) = RW.rewrite $
+  \t' -> case t' of
+    Record (UnknownParameter n) r s | n == v1 -> 
+      Just (Record v2 r s)
+    _ -> Nothing
 
 -- | A convenience that allows multiple substitutions to type variables to be made simulatenously.
 substTVs :: [(VarName, Type)] -> RW.Rewrite Type
 substTVs = foldMap substTV
-
 
 -- | A convenience that allows multiple substitutions to unification type variables to be made
 --   simulatenously.
@@ -284,9 +361,9 @@ fits _ _   = False
 -- | Returns @True@ if the two inputs are equal, or if either of them are an unknown sigil
 --   variable (morally, in this case the two inputs could be made equal by unification).
 sigilsCompatible :: Sigil -> Sigil -> Bool
-sigilsCompatible (UnknownSigil {}) y = True
-sigilsCompatible x (UnknownSigil {}) = True
-sigilsCompatible x y = x == y
+sigilsCompatible (UnknownSigil{}) y                = True
+sigilsCompatible x                (UnknownSigil{}) = True
+sigilsCompatible x                y                = x == y
 
 -- | Run a 'Fresh' computation with 'unifVars' as the source of fresh names.
 withUnifVars :: Fresh VarName a -> a

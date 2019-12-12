@@ -1,0 +1,32 @@
+allocNode : [a]
+            .
+            Unit -> mu t {l : <Cons {data : a,rest : rec t}#|Nil Unit> take};
+push : [a]
+       .
+       {data : a,list : mu t {l : <Cons {data : a,rest : rec t}#|Nil Unit>}}#
+       -> mu t {l : <Cons {data : a,rest : rec t}#|Nil Unit>};
+push r = let node = (allocNode[a] : Unit
+                                    -> mu t {l : <Cons {data : a,rest : rec t}#
+                                                 |Nil Unit> take}) (Unit : Unit) : mu t {l : <Cons {data : a
+                                                                                                   ,rest : rec t}#
+                                                                                             |Nil Unit> take}
+         in take r2 { data = x } = r : {data : a
+                                       ,list : mu t {l : <Cons {data : a
+                                                               ,rest : rec t}#
+                                                         |Nil Unit>}}#
+            in take r3 { list = y } = r2 : {data : a take
+                                           ,list : mu t {l : <Cons {data : a
+                                                                   ,rest : rec t}#
+                                                             |Nil Unit>}}#
+               in put node : mu t {l : <Cons {data : a,rest : rec t}#
+                                       |Nil Unit> take}.l := Cons ({data = x : a
+                                                                   ,rest = y : mu t {l : <Cons {data : a
+                                                                                               ,rest : rec t}#
+                                                                                         |Nil Unit>}} : {data : a
+                                                                                                        ,rest : rec t}#) : <Cons {data : a
+                                                                                                                                 ,rest : rec t}#
+                                                                                                                           |Nil Unit>
+                  end : mu t {l : <Cons {data : a,rest : rec t}#|Nil Unit>}
+               end : mu t {l : <Cons {data : a,rest : rec t}#|Nil Unit>}
+            end : mu t {l : <Cons {data : a,rest : rec t}#|Nil Unit>}
+         end : mu t {l : <Cons {data : a,rest : rec t}#|Nil Unit>};

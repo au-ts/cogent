@@ -21,6 +21,7 @@ module Minigent.Syntax
   , -- * Types
     Type (..)
   , Sigil (..)
+  , RecPar (..)
   , PrimType (..)
   , -- ** Entries and Rows
     Row (..)
@@ -88,14 +89,25 @@ data Row
     , rowVar :: Maybe VarName -- ^ Used only in type inference.
     } deriving (Show, Eq)
 
+-- | A recursive parameter type, for embedding in front of records.
+-- Uses of the parameter inside the embedded record can be treated as recursively
+-- referencing the record
+data RecPar
+  = None | Rec VarName
+  | UnknownParameter VarName -- ^ Used only in type inference
+  deriving (Show, Eq)
+
 -- | A type, which may contain unification variables or type operators.
 data Type
   = PrimType PrimType
-  | Record Row Sigil
+  | Record RecPar Row Sigil -- ^ A recursive parameter, field entry row and sigil
   | AbsType AbsTypeName Sigil [Type]
   | Variant Row
   | TypeVar VarName -- ^ Refers to a rigid type variable bound with a forall.
   | TypeVarBang VarName -- ^ A 'TypeVar' with 'Bang' applied.
+  -- ^ Refers to a recursive parameter, with the context of it's recursive references for Unrolling
+  | RecPar VarName (M.Map VarName Type)  
+  | RecParBang VarName (M.Map VarName Type) -- ^ A 'RecPar' with 'Bang' applied.
   | Function Type Type
   -- used in type inference:
   | UnifVar VarName -- ^ Stands for an unknown type
@@ -152,11 +164,12 @@ data Constraint
   | Type :=: Type -- ^ Type equality.
   | Integer :<=: Type -- ^ The 'fits in' relation, that says a given literal fits in the given
                       --   type. Only satisfiable if the type is a numeric type.
-  | Share Type     -- ^ The given type can be duplicated or shared freely
-  | Drop Type      -- ^ The given type can go out of scope without being used
-  | Escape Type    -- ^ The given type can be safely bound in a 'LetBang' expression
-  | Exhausted Type -- ^ The given type is a variant type where all entries are 'Taken'.
-  | Solved Type    -- ^ Constraint is satisfied when the type has no unification variables.
+  | Share Type                    -- ^ The given type can be duplicated or shared freely
+  | Drop Type                     -- ^ The given type can go out of scope without being used
+  | Escape Type                   -- ^ The given type can be safely bound in a 'LetBang' expression
+  | Exhausted Type                -- ^ The given type is a variant type where all entries are 'Taken'.
+  | Solved Type                   -- ^ Constraint is satisfied when the type has no unification variables.
+  | UnboxedNoRecurse Type         -- ^ Satisfied when either Sigil is Unboxed, or is boxed and RecPar is None
   | Sat            -- ^ Trivially true.
   | Unsat          -- ^ Trivially false.
   deriving (Show, Eq)

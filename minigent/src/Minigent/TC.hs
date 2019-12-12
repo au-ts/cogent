@@ -24,6 +24,8 @@ import Control.Monad.Reader
 import qualified Data.Map as M
 import Debug.Trace
 
+import Minigent.Syntax.PrettyPrint
+
 -- | Run type checking/inference on the given definitions under the given 'GlobalEnvironments'.
 --
 --   Returns either a list of unsolved constraints (if inference fails) or a new definition

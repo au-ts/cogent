@@ -25,7 +25,7 @@ rtrim s | Just (s', x) <- B.unsnoc s, isSpace x = rtrim s'
 updateExpected :: FilePath -> IO ()
 updateExpected f = do
   phase <- loadConfig
-  let compile = CLI.compiler phase [CLI.Dump phase CLI.Stdout CLI.PrettyPlain] [f </> "in.minigent"]
+  let compile = CLI.compiler phase [CLI.Dump phase CLI.Stdout CLI.PrettyPlain, CLI.NoColour] [f </> "in.minigent"]
   (out', (err', _)) <- redirectStdout (redirectStderr (blockExceptions compile))
   let out = trim out'
       err = trim err'
@@ -49,7 +49,7 @@ updateExpected f = do
 example :: FilePath -> IO ()
 example f = do
   phase <- loadConfig
-  let compile = CLI.compiler phase [CLI.Dump phase CLI.Stdout CLI.PrettyPlain] [f </> "in.minigent"]
+  let compile = CLI.compiler phase [CLI.Dump phase CLI.Stdout CLI.PrettyPlain, CLI.NoColour] [f </> "in.minigent"]
   (out', (err', _)) <- redirectStdout (redirectStderr (blockExceptions compile))
   let out = trim out'
       err = trim err'

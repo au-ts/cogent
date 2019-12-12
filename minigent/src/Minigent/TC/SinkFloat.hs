@@ -29,6 +29,8 @@ import qualified Data.Map as M
 
 import Data.Semigroup (First(..))
 
+-- | The sinkFloat phase propagates the structure of types containing
+--   rows (i.e. Records and Variants) through subtyping/equality constraints
 sinkFloat :: forall m. (MonadFresh VarName m, MonadWriter [Assign] m) => Rewrite.Rewrite' m [Constraint]
 sinkFloat = Rewrite.rewrite' $ \cs -> do 
                (cs',as) <- tryEach cs
@@ -51,19 +53,19 @@ sinkFloat = Rewrite.rewrite' $ \cs -> do
     genStructSubst (v :=: Bang t) = genStructSubst (v :=: t)
 
     -- records
-    genStructSubst (Record r s :< UnifVar i) = do
+    genStructSubst (Record n r s :< UnifVar i) = do
       s' <- case s of
         Unboxed -> return Unboxed -- unboxed is preserved by bang, so we may propagate it
         _       -> UnknownSigil <$> fresh
-      rowUnifRowSubs (flip Record s') i r
+      rowUnifRowSubs (flip (Record n) s') i r
 
-    genStructSubst (UnifVar i :< Record r s) = do
+    genStructSubst (UnifVar i :< Record n r s) = do
       s' <- case s of
         Unboxed -> return Unboxed -- unboxed is preserved by bang, so we may propagate it
         _       -> UnknownSigil <$> fresh
-      rowUnifRowSubs (flip Record s') i r
+      rowUnifRowSubs (flip (Record n) s') i r
 
-    genStructSubst (Record r1 s1 :< Record r2 s2)
+    genStructSubst (Record _ r1 s1 :< Record _ r2 s2)
       {-
         The most tricky case.
         Taken is the bottom of the order, Untaken is the top.
