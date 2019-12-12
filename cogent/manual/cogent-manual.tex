@@ -360,8 +360,8 @@ There are the following possibilities to construct composite types: records, tup
 
 \subsubsection{Tuple Types}
 
-A tuple type represents mathematical tuples, i.e., values with a fixed number of fields specified in a certain order. Every field may have a different type.
-A tuple type expression has the syntax:
+A tuple type represents mathematical tuples, i.e., values with a fixed number of fields specified in a certain order. 
+Every field may have a different type. A tuple type expression has the syntax:
 
 \vspace{2ex}
 \indprod{AtomType}{
@@ -425,8 +425,8 @@ has the following syntax:
   LowercaseId
 }
 
-The fields in a record type are order-sensitive. Therefore, the type expressions \code{\{a: U8, b: U16\}} and
-\code{\{b: U16, a: U8\}} denote different types.  A record type must always have atleast one field. 
+The fields in a record type are \textit{not} order-sensitive. Therefore, the type expressions \code{\{a: U8, b: U16\}} and
+\code{\{b: U16, a: U8\}} denote the same type.  A record type must always have atleast one field. 
 Other than for tuples, a record type may have a single field.
 Therefore, the type expressions \code{\{a: U8\}} and \code{U8} denote different types.
 
@@ -462,7 +462,13 @@ A variant type specifies for every variant the tag and the  types of the values,
 }
 
 The tags are given by the \textit{DataConstructor} elements.  Each variant has a sequence of values, hence the 
-ordering of the \textit{TypeA2} matters. 
+ordering of the \textit{TypeA2} matters, the value sequence is an abbreviation of the value tuple. The value sequence
+of a variant can be empty, then the variant corresponds to the single unit value.
+
+The variants in a variant type are not order-sensitive. Therefore, the type expressions \code{<Small U8 | Large U32>} and
+\code{<Large U32 | Small U8>} denote the same type.  A variant type must always have atleast one variant. A variant type
+with a single variant is not the same as the type of the variant value: The types \code{<Small U8>} and \code{U8} are
+different types.
 
 The type expression \code{<Small U8 | Large U32>} is an example for a variant type with two variants. Typical applications
 of variant types are for modelling error cases, such as in 
@@ -477,7 +483,11 @@ or for modelling optional values, such as in
   <Some U16 | None>
 \end{verbatim}
 
- 
+Variant types can also be used for modelling enumerations, such as in 
+\begin{verbatim}
+  <Red | Blue | Green | Yellow>
+\end{verbatim}
+
 Although \textit{DataConstructor}s and \textit{TypeConstructor}s have the same syntax, they constitute different namespaces.
 A \textit{CapitalizedId} can be used to denote a \textit{DataConstructor} and a \textit{TypeConstructor} in the same
 context. In the example
@@ -1190,8 +1200,7 @@ third field, and \code{v} to the remaining record of type
 \end{verbatim}
 where only the second field is still present.
 
-
-Although the ordering of fields is relevant in a record type expressionm, it is irrelevant in a record pattern. 
+As in a record type expression the ordering of fields is irrelevant in a record pattern. 
 Therefore the record pattern
 \code{\#\{fld1 = v1, fld2 = v2\}} conforms to the types
 
@@ -1201,12 +1210,10 @@ Therefore the record pattern
 \end{verbatim}
 and all other unboxed record types which have two fields named \code{fld1} and \code{fld2}.
 
-
 When a field of non-linear type is taken from a (boxed or unboxed) record value, a copy of it could remain
 in the record and could be taken again. \cogent does not allow this, non-linear fields can also be taken
 only once. This way it is possible to represent uninitialized fields in a record by specifying the record 
 type with the corresponding fields being taken.
-
 
 \subsubsection{Variant Patterns}
 
@@ -1230,12 +1237,11 @@ A variant pattern consists of a data constructor and a subpattern for every valu
 A variant pattern conforms to every variant type which has atleast a variant with the \textit{DataConstructor} as its tag. Although a variant 
 pattern matches all values of the type having only that variant, this is not true for all other conforming types. For those types the pattern 
 only matches the subset of value sequences which have been constructed with the \textit{DataConstructor} as its discriminating tag. Therefore variant 
-patterns are always refutable.  As usual, when matched with a value, the match must be exhaustive, specifying
-a pattern for every variant. 
+patterns are always refutable, even if all existing conforming types have only one variant.
+As usual, when matched with a value, the match must be exhaustive, specifying a pattern for every variant.
 
-
-When a variant pattern is (successfully) matched with a value, the subpatterns are matched with the remaining values after removing the discriminating tag.
-
+When a variant pattern is (successfully) matched with a value, the subpatterns are matched with the remaining values after
+removing the discriminating tag.
 
 The following is an exmple for a variant pattern:
 
@@ -1427,15 +1433,15 @@ An example is the record term
   #{fld1 = 15, fld2 = 'x', fld3 = 42, fld4 = ("hello", 1024)}
 \end{verbatim}
 which specifies 4 subexpressions for the fields, separated by commas. The field names must be pairwise different.
-As for record types, but other than for record patterns, the order of the field specifications is significant. Hence
+As for record types and record patterns, the order of the field specifications is not significant. Hence
 the term 
 \begin{verbatim}
   #{fld2 = 'x', fld3 = 42, fld1 = 15, fld4 = ("hello", 1024)}
 \end{verbatim}
-evaluates to a different value than the first example term.
+evaluates to the same value as the first example term.
 
-The type inferred from a record type's structure is the unboxed record type with the same number of fields in the same order 
-as are present in the expression, named according to the names given in the term. The field types are the types inferred
+The type inferred from a record type's structure is the unboxed record type with the same number of fields 
+as given in the expression, named according to the names given in the term. The field types are the types inferred
 for the subexpressions. If a subexpression has no inferred type, no type can be inferred from the record term's structure.
 
 \subsubsection{Terms for Values of Variant Types}
@@ -1679,7 +1685,7 @@ a linear type it must be taken in T. The type inferred from the structure of the
 \hspace*{1cm} T \code{put} \code{(}fld1\code{,}\ldots\code{,}fldn\code{)}\\
 where fld1,\ldots,fldn are all fields occurring in the \textit{RecordAssignments}.
 
-Unlike in a record term, the field order in a \textit{PutExpression} is not significant.
+Like in a record term, the field order in a \textit{PutExpression} is not significant.
 
 If the variable \code{r} is bound to a value of type \code{R} where
 \begin{verbatim}
@@ -1725,8 +1731,9 @@ As an operator, the dot in a \textit{MemberAccess} has the highest precedence, h
 
 Again, in \cogent the use of member access is restricted. The type inferred for the leading \textit{BasExpr} in a \textit{MemberAccess}
 must be either an unboxed record type or a readonly boxed record type. Then it is possible to use the value of only one field
-without caring about the other fields. Moreover, also the type of the accessed field must be non-linear, since
-in addition to being accessed, its value also remains in the record, hence it could be used twice.
+without caring about the other fields. Moreover, for an unboxed record also the type of the accessed field must be non-linear, since
+in addition to being accessed, its value also remains in the record, hence it could be used twice. For a readonly record all 
+its fields are also readonly, so no additional restriction is required.
 
 The type inferred from the \textit{MemberAccess} expression structure is the type of the field named by the \textit{FieldName}.
 
@@ -1788,10 +1795,9 @@ or by optionally specifying some refutable patterns followed by a final alternat
 
 The order in which alternatives are specified is irrelevant. The pattern syntax in \cogent 
 guarantees that different refutable patterns cannot partially overlap, i.e. the sets of matching values
-are disjunct or equal. Moreover, a refutable pattern may be specified in at most one alternative. Together,
+are disjunct or equal. Moreover, every refutable pattern may be specified in at most one alternative. Together,
 every value matches at most one of the refutable patterns, there is no need to resolve conflicts.
 An irrefutable pattern is only used when no refutable pattern matches.
-
 
 If the variable \code{x} is bound to a value of type \code{U8} an example for a \textit{MatchingExpression} is
 \begin{verbatim}
@@ -2607,7 +2613,7 @@ the free type variables. These types  can  be explicitly specified using the fol
 If the types are not specified or if some types are specified by \code{\_}, the compiler tries to infer them.
 If the compiler is unable to infer the types, then they must be explicitly specified. For example,
 if the compiler has difficulty with the last type argument, instead of
-\code{f \[U8, Char, <A U8\|B U16>\]}, we can write \code{f \[\_, \_, <A U8 \| B U16>\]}.
+\code{f [U8, Char, <A U8 | B U16>]}, we can write \code{f [\_, \_, <A U8 | B U16>]}.
 
 
 If \code{f} has been bound by the polymorphic definition above, example references are
