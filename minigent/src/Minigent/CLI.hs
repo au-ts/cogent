@@ -85,6 +85,7 @@ parsePhase "lexer" = pure Lex
 parsePhase "parse" = pure Parse
 parsePhase "reorg" = pure Reorg
 parsePhase "tc"    = pure TC
+parsePhase "term"  = pure Term
 parsePhase "cg"    = pure CG
 parsePhase _       = throwError "invalid phase"
 

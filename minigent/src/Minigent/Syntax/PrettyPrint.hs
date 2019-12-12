@@ -213,6 +213,9 @@ prettySimpleConstraint c = case c of
 prettyConstraint cs  = vsep (punctuate (space <> annotate S.constraintKeyword ":&:")
                          (map prettySimpleConstraint (flattenConstraint cs)))
 
+prettyAssertion c = case c of
+  (a :<: b) -> pretty a <+> annotate S.constraintKeyword ":<:" <+> pretty b
+  (a :~: b) -> pretty a <+> annotate S.constraintKeyword ":~:" <+> pretty b
 
 prettyPolyType (Forall [] [] t) = prettyType t
 prettyPolyType (Forall ts c t) = align (sep [ list (map (prettyType . TypeVar) ts)
@@ -236,6 +239,19 @@ debugAssigns
 
     newl s = s <> pretty (",\n" :: String)
    
+debugPrettyAssertions
+   = T.unpack . renderStrict
+   . layoutPretty defaultLayoutOptions
+   . vcat . map prettyAssertion
+
+debugPrettyGoals
+   = T.unpack . renderStrict
+   . layoutPretty defaultLayoutOptions
+   . vcat . map (\x -> 
+        case x of
+          Nothing -> pretty ("Nothing" :: String)
+          Just x' -> pretty (x' :: String)
+      )
 
 debugPrettyType
    = T.unpack . renderStrict
@@ -251,3 +267,18 @@ testPrettyToplevel
    = T.unpack . renderStrict . unAnnotateS
    . layoutPretty defaultLayoutOptions
    . prettyToplevel
+
+-- For debugging - a print/show combination that escape unicode characters.
+-- Taken from https://stackoverflow.com/a/14461928
+uprint :: Show a => a -> IO ()
+uprint = putStrLn . ushow
+
+ushow :: Show a => a -> String
+ushow x = con (show x) where
+  con :: String -> String
+  con [] = []
+  con li@(x:xs) | x == '\"' = '\"':str++"\""++(con rest)
+                | x == '\'' = '\'':char:'\'':(con rest')
+                | otherwise = x:con xs where
+                  (str,rest):_ = reads li
+                  (char,rest'):_ = reads li

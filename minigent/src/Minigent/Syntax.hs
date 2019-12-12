@@ -30,6 +30,8 @@ module Minigent.Syntax
   , -- * Constraints
     Constraint (..)
   , pattern (:>)
+  , -- * Assertions
+    Assertion (..)
   , -- * Expressions
     Expr (..)
   , Op (..)
@@ -173,6 +175,15 @@ data Constraint
   | Sat            -- ^ Trivially true.
   | Unsat          -- ^ Trivially false.
   deriving (Show, Eq)
+
+infixr 0 :<:
+
+-- | Termination assertions used for detecting termination
+data Assertion = 
+    VarName :<: VarName  -- ^ Structurally less than
+  | VarName :~: VarName  -- ^ Structurally equal to 
+  deriving (Eq, Ord, Show)
+
 
 pattern (:>) t1 t2 = t2 :< t1
 
