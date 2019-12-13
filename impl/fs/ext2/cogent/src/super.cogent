@@ -253,10 +253,10 @@ fs_mount #{ex, options} =
 
                                                     -- build mountinfo for vfs
                                                     and mountinfo = #{
-                                                          s_magic = upcast const_ext2Magic,
-                                                          s_flags = 0,
+                                                          s_magic = u16_to_u64 const_ext2Magic,
+                                                          s_flags = u8_to_u32 0,
                                                           s_max_links = const_ext2LinkMax,
-                                                          s_maxbytes = ext2_max_size (upcast const_blockSizeBits),
+                                                          s_maxbytes = ext2_max_size const_blockSizeBits,
                                                           s_blocksize = const_blockSize,
                                                           s_blocksize_bits = const_blockSizeBits
                                                         }
@@ -269,10 +269,14 @@ fs_mount #{ex, options} =
                                                     and ex = array_free [Indirect] #{ arr = prealloc_indirects, f = indirect_destroy2, ex }
                                                     and ex = wordarray_free [BlockPtr] (ex, prealloc_blockptrs)
                                                     and ex = wordarray_free [BlockPtr] (ex, prealloc_offsets)
-
+#ifndef SUBTYPING
+                                                    and super { .. } = super
+#endif
                                                     and ex = array_free [OSBuffer] #{arr = group_desc_array, f = osbuffer_destroy, ex}
                                                     and ex = free_Ext2Superblock (ex, super)
                                                     and ex = osbuffer_destroy (ex, buf_super)
+
+						    and state_t { superblock_num } = state_t
                                                     and ex = free_FsState (ex, state_t)
                                                     in (ex, Error eNoMem)
                                             | Error ex ->
@@ -280,7 +284,10 @@ fs_mount #{ex, options} =
                                                 let ex = free_Chain (ex, prealloc_chain)
                                                 and ex = wordarray_free [BlockPtr] (ex, prealloc_blockptrs)
                                                 and ex = wordarray_free [BlockPtr] (ex, prealloc_offsets)
-
+#ifndef SUBTYPING
+						and state_t { superblock_num } = state_t
+                                                and super { .. } = super
+#endif
                                                 and ex = array_free [OSBuffer] #{arr = group_desc_array, f = osbuffer_destroy, ex}
                                                 and ex = free_Ext2Superblock (ex, super)
                                                 and ex = osbuffer_destroy (ex, buf_super)
@@ -290,6 +297,10 @@ fs_mount #{ex, options} =
                                             -- failed to alloc
                                             let ex = wordarray_free [BlockPtr] (ex, prealloc_blockptrs)
                                             and ex = wordarray_free [BlockPtr] (ex, prealloc_offsets)
+#ifndef SUBTYPING
+				    and state_t { superblock_num } = state_t
+			            and super { .. } = super
+#endif
 
                                             and ex = array_free [OSBuffer] #{arr = group_desc_array, f = osbuffer_destroy, ex}
                                             and ex = free_Ext2Superblock (ex, super)
@@ -299,6 +310,10 @@ fs_mount #{ex, options} =
                                     | Error ex ->
                                         -- failed to alloc
                                         let ex = wordarray_free [BlockPtr] (ex, prealloc_offsets)
+#ifndef SUBTYPING
+				    and state_t { superblock_num } = state_t
+			            and super { .. } = super
+#endif
                                         
                                         and ex = array_free [OSBuffer] #{arr = group_desc_array, f = osbuffer_destroy, ex}
                                         and ex = free_Ext2Superblock (ex, super)
@@ -307,7 +322,12 @@ fs_mount #{ex, options} =
                                         in (ex, Error eNoMem)
                                 | Error ex ->
                                     -- failed to alloc
-                                    let ex = array_free [OSBuffer] #{arr = group_desc_array, f = osbuffer_destroy, ex}
+                                    let
+				    ex = array_free [OSBuffer] #{arr = group_desc_array, f = osbuffer_destroy, ex}
+#ifndef SUBTYPING
+				    and state_t { superblock_num } = state_t
+			            and super { .. } = super
+#endif
                                     and ex = free_Ext2Superblock (ex, super)
                                     and ex = osbuffer_destroy (ex, buf_super)
                                     and ex = free_FsState (ex, state_t)
@@ -315,26 +335,46 @@ fs_mount #{ex, options} =
                             | Break (group_desc_array, (ex, _)) ->
                                 -- failed to load a group desc buffer
                                 let ex = array_free [OSBuffer] #{arr = group_desc_array, f = osbuffer_destroy, ex}
+#ifndef SUBTYPING
+				and state_t { superblock_num } = state_t
+                                and super { .. } = super
+#endif
                                 and ex = free_Ext2Superblock (ex, super)
                                 and ex = osbuffer_destroy (ex, buf_super)
                                 and ex = free_FsState (ex, state_t)
                                 in (ex, Error eIO)
                         | Error ex ->
-                            let ex = free_Ext2Superblock (ex, super)
+                            let
+#ifndef SUBTYPING
+			    state_t { superblock_num } = state_t
+                            and super { .. } = super and
+#endif
+			    ex = free_Ext2Superblock (ex, super)
                             and ex = free_FsState (ex, state_t)
                             and ex = osbuffer_destroy (ex, buf_super)
                             in (ex, Error eInval)
                     else    
-                        let ex = free_Ext2Superblock (ex, super)
+                        let
+#ifndef SUBTYPING
+			state_t { superblock_num } = state_t
+                        and super { .. } = super and
+#endif
+			ex = free_Ext2Superblock (ex, super)
                         and ex = free_FsState (ex, state_t)
                         and ex = osbuffer_destroy (ex, buf_super)
                         in (ex, Error eInval)
                 | Error () ->
                     let ex = osbuffer_destroy (ex, buf_super)
+#ifndef SUBTYPING
+                    and state_t { superblock_num } = state_t
+#endif
                     and ex = free_FsState (ex, state_t)
                     in (ex, Error eIO)
             | Error () -> 
                 let ex = osbuffer_destroy (ex, buf_super)
+#ifndef SUBTYPING
+ 	        and state_t { superblock_num } = state_t
+#endif
                 and ex = free_FsState (ex, state_t)
                 in (ex, Error eIO)
         | Error () ->
@@ -363,8 +403,24 @@ free_option_indirects (ex, maybe_indirects) =
     | None -> ex
 
 fs_unmount: #{ex: SysState, state: FsState} -> SysState
+#ifdef SUBTYPING
 fs_unmount #{ex, state} = 
-    let state_t { super, group_desc_array, super_buf, prealloc_offsets, prealloc_indirects, prealloc_chain, prealloc_blockptrs } = state
+#else
+fs_unmount (#{ex = ex, ..}) = 
+#endif
+    let state_t { super, group_desc_array, super_buf,
+    		  prealloc_offsets, prealloc_indirects,
+		  prealloc_chain, prealloc_blockptrs,
+		  -- rest aren't used, have to be 'taken' for consistency
+		  superblock_num,
+		  inode_tables_per_group,
+		  flags,
+		  cur_overhead,
+		  group_count
+		  } = state
+#ifndef SUBTYPYING
+    and super { .. } = super
+#endif
     and ex = free_Ext2Superblock (ex, super)
     and ex = array_free [OSBuffer] #{arr = group_desc_array, f = osbuffer_destroy, ex}
     and ex = osbuffer_destroy (ex, super_buf)

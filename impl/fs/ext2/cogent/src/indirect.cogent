@@ -54,7 +54,7 @@ indirect_from_chain (ex, chain, idx) =
 
   in maybe_indirect
   | Some indirect =>
-    let indirect_t { buf } = indirect
+    let indirect_t { buf, blockptr, offset } = indirect
     in buf
     | Some buf ->
       let ex = osbuffer_destroy (ex, buf)
@@ -138,7 +138,7 @@ indirect_set_reference (maybe_buf, inode, offset, ptr) =
 
 indirect_destroy2: (SysState, Indirect) -> SysState
 indirect_destroy2 (ex, indirect) =
-  let indirect_t { buf } = indirect
+  let indirect_t { buf, blockptr, offset } = indirect
   and ex = free_Indirect (ex, indirect_t)
   in buf
   | Some buf -> osbuffer_destroy (ex, buf)

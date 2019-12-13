@@ -167,8 +167,12 @@ chain_init (state, path) =
     in (state, Error path)
 
 chain_restore: (SysState, FsState, Chain) -> (SysState, FsState, Path)
-chain_restore (ex, state, chain) = 
+chain_restore (ex, state, chain) =
+#ifdef SUBTYPING
   let chain_t { path, indirects } = chain
+#else
+  let chain_t { .. } = chain
+#endif
   and state_t { prealloc_chain, prealloc_indirects } = state
 
   -- free old ones if there
@@ -338,14 +342,14 @@ type BlocksToAllocateObsv = (U64, U32, Chain)
 chain_blocks_to_allocate: (Chain!, U32, U64, U32) -> U64
 chain_blocks_to_allocate (chain, indirect, blocks, boundary) = 
   if indirect > 0 then
-    if blocks < upcast boundary + 1 then
+    if blocks <  boundary + 1 then
       blocks
     else
-      upcast boundary + 1
+      boundary + 1
   else
     -- count zero'd blocks down to (incl) boundary
     let count:U64 = 1
-    and bound = min_u64 (blocks, upcast boundary + 1)
+    and bound = min_u64 (blocks, boundary + 1)
     and (count, _) = seq64 [U64, BlocksToAllocateObsv, ()] #{
       frm  = count,
       to   = bound,
@@ -360,7 +364,7 @@ chain_blocks_to_allocate (chain, indirect, blocks, boundary) =
 chain_blocks_to_allocate2: Seq64_body U64 BlocksToAllocateObsv ()
 chain_blocks_to_allocate2 #{acc = count, obsv = (blocks, boundary, chain), idx} =
   if count < blocks && 
-     count <= upcast boundary &&
+     count <=  boundary &&
      chain_get_indirect_blockptr (chain, u64_to_u32 count) == 0 then
     (count + 1, Iterate ())
   else

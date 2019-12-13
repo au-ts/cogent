@@ -105,7 +105,7 @@ ext2_prepare_chunk (ex, state, page, pos, len) =
     let _ = cogent_log (dbg_EXT2_BLOCK, "ext2_prepare_chunk: prepare over [")
     and _ = cogent_log_u64 (dbg_EXT2_BLOCK, pos)
     and _ = cogent_log (dbg_EXT2_BLOCK, ", ")
-    and _ = cogent_log_u64 (dbg_EXT2_BLOCK, pos + upcast len)
+    and _ = cogent_log_u64 (dbg_EXT2_BLOCK, pos + len)
     and _ = cogent_log (dbg_EXT2_BLOCK, ")\n")
     in ospage_write_prepare (ex, state, page, pos, len)
 
@@ -132,13 +132,13 @@ ext2_commit_chunk (ex, state, page, pos, len) =
     let _ = cogent_log (dbg_EXT2_BLOCK, "ext2_commit_chunk: commit over [")
     and _ = cogent_log_u64 (dbg_EXT2_BLOCK, pos)
     and _ = cogent_log (dbg_EXT2_BLOCK, ", ")
-    and _ = cogent_log_u64 (dbg_EXT2_BLOCK, pos + upcast len)
+    and _ = cogent_log_u64 (dbg_EXT2_BLOCK, pos + len)
     and _ = cogent_log (dbg_EXT2_BLOCK, ")\n")
 
     and (ex, state, page) = ospage_write_commit (ex, state, page, pos, len)
     and inode = ospage_get_host page !page
     and cur_size = vfs_inode_get_size inode !inode
-    and new_size = pos + upcast len
+    and new_size = pos + len
     and over_size = new_size > cur_size
     in if over_size then
         -- wrote past current directory end; update

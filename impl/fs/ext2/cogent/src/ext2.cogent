@@ -207,7 +207,7 @@ ext2_reg_file_ops = #{
 -- We need to be 1 filesystem block less than the 2^32 sector limit.
 ext2_max_size: U64 -> U64
 ext2_max_size bits = 
-  let res = upcast const_numDirectBlocks
+  let res =  const_numDirectBlocks
   and upper_limit = (1 << 32) - 1
   -- total blocks in fs block size
   and upper_limit = upper_limit >> (bits - 9) 
@@ -232,21 +232,21 @@ ext2_max_size bits =
 
 give_extinfo: (SysState, FsState, VfsExtendedInfo take (..)) -> (SysState, FsState, VfsExtendedInfo)
 give_extinfo (ex, state, info_t) =
-  let blocks_total = upcast state.super.block_count - upcast state.cur_overhead !state
-  and blocks_free  = upcast state.super.free_block_count !state
+  let blocks_total = state.super.block_count - state.cur_overhead !state
+  and blocks_free  = state.super.free_block_count !state
 
   and info = info_t { 
-        fs_type = upcast const_ext2Magic,
-        best_blocksize = upcast const_blockSize,
+        fs_type = const_ext2Magic,
+        best_blocksize = const_blockSize,
 
         blocks_total,
         blocks_free,
         blocks_available = blocks_free,  -- ignore reserved blocks (TODO: include them in count)
 
-        files_total = upcast state.super.inode_count,
-        files_free  = upcast state.super.free_inode_count,
+        files_total = state.super.inode_count,
+        files_free  = state.super.free_inode_count,
 
-        max_namelen = upcast const_maxNameLen
+        max_namelen = const_maxNameLen
       } !state
 
   in (ex, state, info)

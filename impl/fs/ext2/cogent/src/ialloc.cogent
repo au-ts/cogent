@@ -114,8 +114,8 @@ ext2_inode_create2 (ex, state, parent_inode, mode, group) =
                     | Success (ex, inode_t) ->
                         let mem_inode = #{
                             block_pointers, 
-                            dir_start_lookup = 0,
-                            dtime = 0
+                            dir_start_lookup = u8_to_u64 0,
+                            dtime = u8_to_u32 0
                         }
 
                         and inode = inode_t { fs = mem_inode }
@@ -198,7 +198,7 @@ above_average_blockgroup #{ acc = (ex, state, best_group, best_free_blocks), obs
         and _ = cogent_log_u16 (dbg_EXT2_INODE_ALLOC, best_free_blocks)
         and _ = cogent_log (dbg_EXT2_INODE_ALLOC, "\n")
 
-        and was_better = this_free_inodes > 0 && upcast this_free_inodes >= avg_free_inodes && (this_free_blocks > best_free_blocks || best_group == 0)
+        and was_better = this_free_inodes > 0 && this_free_inodes >= avg_free_inodes && (this_free_blocks > best_free_blocks || best_group == 0)
         in if was_better then
             let _ = cogent_log (dbg_EXT2_INODE_ALLOC, "\t** found new best **\n")
             in ((ex, state, group, this_free_blocks), Iterate ())

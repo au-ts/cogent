@@ -110,7 +110,7 @@ ext2_write_new_block (ex, state, inode, group_desc_buf, block_group, group_desc,
   and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, dest_block) 
   and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
 
-  and num32 : U32 = upcast num
+  and num32 : U32 = num
 
   -- check if we're allocating it over a system block
   and was_invalid = in_range_u32 (group_desc.block_bitmap, dest_block, dest_block + num32) || 
@@ -133,7 +133,7 @@ ext2_write_new_block (ex, state, inode, group_desc_buf, block_group, group_desc,
     let (ex, bitmap_buf) = osbuffer_dirty (ex, bitmap_buf)
 
     -- update inode i_blocks and i_bytes (latter is linux only)
-    and inode = vfs_inode_add_bytes (inode, upcast num << upcast const_blockSizeBits)
+    and inode = vfs_inode_add_bytes (inode, num << const_blockSizeBits)
 
     and outside_block_count = dest_block > state.super.block_count !state
     in outside_block_count
@@ -603,7 +603,7 @@ ext2_truncate_blocks2: (SysState, FsState, VfsInode, U64) -> RR (SysState, FsSta
 ext2_truncate_blocks2 (ex, state, inode, offset) =
     --let addr_per_block  = const_addrPerBlock
     --let blocksize = const_blockSize
-    let iblock = (offset + upcast const_blockSize - 1) >> upcast const_blockSizeBits
+    let iblock = (offset + const_blockSize - 1) >> const_blockSizeBits
 
     and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_truncate_blocks2: getting path to logical block ") 
     and _ = cogent_log_u64 (dbg_EXT2_DIR_BALLOC, iblock) 
@@ -697,12 +697,18 @@ free_indirect_on_shared #{ acc = (ex, state, inode, chain), obsv, idx } =
   let (chain, maybe_indirect, indirect_idx) = chain_pop_indirect (chain)
   in maybe_indirect
   | Some indirect =>
+#ifdef SUBTYPING
     let indirect_t { blockptr, buf } = indirect
-
+#else
+    let indirect_t { .. } = indirect
+#endif
     -- buf should exist, it's an indirect
     and (ex, state, inode, root) = ext2_free_branches (ex, state, inode, buf, blockptr + 1, const_addrPerBlock, chain.path.depth - chain.indirect_count) !chain
+#ifdef SUBTYPING
     and root_t { maybe_buf } = root
-
+#else
+    and root_t { .. } = root
+#endif
     and (ex, chain) = indirect_restore_taken (ex, chain, indirect_t, indirect_idx)
 
     in maybe_buf
@@ -900,15 +906,15 @@ ext2_free_branch_entry #{ oelem = no_branchnode, acc = (ex, inode, idx, parent_m
           | Error () ->
             -- if no buffer, warn and iterate
             let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: failed to get new block\n") 
-            in (None, (ex, inode, idx + 1, parent_maybe_buf))
+            in (None (), (ex, inode, idx + 1, parent_maybe_buf))
         else
           -- if no blockptr, ignore
           let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: null blockptr WITH parent buffer\n") 
-          in (None, (ex, inode, idx + 1, Some buf))
+          in (None (), (ex, inode, idx + 1, Some buf))
       | Error () ->
         -- failed to read from buf, ignore
         let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: failed to deserialise from offset\n") 
-        in (None, (ex, inode, idx + 1, Some buf))
+        in (None (), (ex, inode, idx + 1, Some buf))
     | None () ->
       if idx /= 0 then
         let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: had non-zero blockptr ") 
@@ -920,15 +926,15 @@ ext2_free_branch_entry #{ oelem = no_branchnode, acc = (ex, inode, idx, parent_m
         and (ex, res) = ext2_get_block (ex, idx)
         in res
         | Success child_buf =>
-          (Some #{ maybe_buf = Some child_buf, ptr = idx, offset_from = 0, offset_to = const_addrPerBlock }, (ex, inode, idx + 1, None))
+          (Some #{ maybe_buf = Some child_buf, ptr = idx, offset_from = 0, offset_to = const_addrPerBlock }, (ex, inode, idx + 1, None ()))
         | Error () ->
           let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: failed to get new block\n") 
-          in (None, (ex, inode, idx + 1, None))
+          in (None (), (ex, inode, idx + 1, None ()))
       else
         let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: null blockptr with NO parent buffer\n") 
 
         -- was null blockptr
-        in (None, (ex, inode, idx + 1, None))
+        in (None (), (ex, inode, idx + 1, None ()))
   | Some bn ->
     let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch_entry: had non-null branchnode? impossible?\n") 
 
@@ -1082,7 +1088,7 @@ ext2_free_blocks (ex, state, inode, block, count) =
 
     in if freed > 0 then
       -- update block count
-      let inode = vfs_inode_sub_bytes (inode, upcast freed << upcast const_blockSizeBits)
+      let inode = vfs_inode_sub_bytes (inode, freed << const_blockSizeBits)
 
       -- dirty it
       and (ex, inode) = vfs_inode_mark_dirty (ex, inode)

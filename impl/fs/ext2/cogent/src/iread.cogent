@@ -80,24 +80,24 @@ deserialise_Ext2Inode (ex, inode_t, buf, idx) =
                                                         -- fill out abstract type
                                                         let mem_inode = #{
                                                             block_pointers,
-                                                            dir_start_lookup = 0,
+                                                            dir_start_lookup = u8_to_u64 0,
                                                             dtime = deletion_time
                                                         }
 
                                                         and inode = inode_t { fs = mem_inode }
 
-                                                        and u32_mode = upcast mode
+                                                        and u32_mode = mode
 
                                                         and inode = vfs_inode_set_mode   (inode, u32_mode)
-                                                        and inode = vfs_inode_set_nlink  (inode, upcast link_count)
-                                                        and inode = vfs_inode_set_size   (inode, upcast size)
+                                                        and inode = vfs_inode_set_nlink  (inode, link_count)
+                                                        and inode = vfs_inode_set_size   (inode, size)
                                                         and inode = vfs_inode_set_atime  (inode, #{tv_sec = access_time, tv_nsec = 0})
                                                         and inode = vfs_inode_set_mtime  (inode, #{tv_sec = modified_time, tv_nsec = 0})
                                                         and inode = vfs_inode_set_ctime  (inode, #{tv_sec = creation_time, tv_nsec = 0})
-                                                        and inode = vfs_inode_set_uid    (inode, upcast uid_low)
-                                                        and inode = vfs_inode_set_gid    (inode, upcast gid_low)
+                                                        and inode = vfs_inode_set_uid    (inode, uid_low)
+                                                        and inode = vfs_inode_set_gid    (inode, gid_low)
                                                         and inode = vfs_inode_set_flags  (inode, flags)
-                                                        and inode = vfs_inode_set_blocks (inode, upcast num_physical_blocks)
+                                                        and inode = vfs_inode_set_blocks (inode, num_physical_blocks)
                                                         --and (ex, inode_t) = fs_inode_set_generation (#{ex, inode = inode_t, val = generation})
 
                                                         in deserialise_Ext2Inode_2 (ex, inode, u32_mode)
