@@ -22,6 +22,8 @@ import Cogent.Normal as N (freshVarPrefix)
 import Data.List (stripPrefix, isPrefixOf, isSuffixOf)
 import Data.Char (isDigit)
 
+import Cogent.Compiler (__fixme)
+
 
 newtype IsabelleName = IsabelleName { unIsabelleName :: String }
   deriving (Eq, Show, Ord)
@@ -35,12 +37,12 @@ newtype IsabelleName = IsabelleName { unIsabelleName :: String }
 safeName :: IsabelleName -> IsabelleName
 safeName (IsabelleName nm) = IsabelleName $
   case isReserved nm of
-    True -> error $ "Error: function name `" ++ nm ++ "' is a reserved isabelle name" 
+    True -> __fixme nm -- "Error: function name `" ++ nm ++ "' is a reserved isabelle name" 
     -- Add debug note
     False -> case "_" `isPrefixOf` nm of
-      True  -> error $ "Error: function name `" ++ nm ++ "' cannot start with underscores"
+      True  ->  __fixme nm  -- "Error: function name `" ++ nm ++ "' cannot start with underscores"
       False -> case "_" `isSuffixOf` nm of
-        True  -> error $ "Error: function name `" ++ nm ++ "' cannot end with underscores"
+        True  -> __fixme nm -- "Error: function name `" ++ nm ++ "' cannot end with underscores"
         False -> nm
 
 isReserved :: String -> Bool
