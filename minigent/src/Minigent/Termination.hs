@@ -10,7 +10,10 @@
 --
 -- May be used qualified or unqualified.
 module Minigent.Termination
-  ( termCheck ) where
+  ( termCheck
+  , genGraphDotFile
+  , Assertion (..) 
+  ) where
 
 import Minigent.Fresh
 import Minigent.Syntax
@@ -35,42 +38,42 @@ type Graph = M.Map Node [Node]
 type FreshVar = String
 type Env = M.Map VarName FreshVar
 
-termCheck :: GlobalEnvironments -> [String]
-termCheck genvs = M.foldrWithKey go [] (defns genvs)
+termCheck :: GlobalEnvironments -> ([String], [(FunName, [Assertion], String)])
+termCheck genvs = M.foldrWithKey go ([],[]) (defns genvs)
   where
-    go :: FunName -> (VarName, Expr) -> [String] -> [String]
-    go f (x,e) errs =  
-      if fst $ runFresh unifVars (init f x e) then
-        errs
-      else
-        ("Error: Function " ++ f ++ " cannot be shown to terminate.") : errs
+    go :: FunName -> (VarName, Expr) -> ([String], [(FunName, [Assertion], String)]) -> ([String], [(FunName, [Assertion], String)])
+    go f (x,e) (errs, dumps) =  
+      let (pass, g, d) = fst $ runFresh unifVars (init f x e)
+          er =  if pass then
+                  errs
+                else
+                  ("Error: Function " ++ f ++ " cannot be shown to terminate.") : errs
+        in 
+          (er, (f, g, d):dumps)
 
     -- Maps the function argument to a name, then runs the termination
     -- assertion generator.
     -- Return true if the function terminates
-    init :: FunName -> VarName -> Expr -> Fresh VarName Bool
+    init :: FunName -> VarName -> Expr -> Fresh VarName (Bool, [Assertion], String)
     init f x e = do
       alpha <- fresh
       let env = M.insert x alpha M.empty
       (a,c) <- termAssertionGen env e
 
-      -- If any goals are Nothing, we cannot proceed.
-      traceM "Goals:"
-      traceM $ debugPrettyGoals c
-      traceM ""
-
-      traceM "Assertions:"
-      traceM $ debugPrettyAssertions a
-      traceM ""
-
       let graph = toGraph a
       let goals = noNothing c
-      
-      traceM $ ushow $ genDotFile f graph
 
+      -- If any goals are nothing, or our path condition is not met, then we cannot determine if the function terminates
+      let terminates = length goals == length c 
+                       && all (\goal -> hasPathTo alpha goal graph
+                                        && (not $ hasPathTo goal alpha graph)
+                              ) goals
       return $ 
-        -- If any goals are nothing, or our path condition is not met, then we cannot determine if the function terminates
-        length goals == length c && all (\goal -> hasPathTo alpha goal graph && (not $ hasPathTo goal alpha graph)) goals
+        (
+          terminates,
+          a,
+          genGraphDotFile f graph
+        )
 
     noNothing :: [Maybe a] -> [a]
     noNothing = foldr (\m l -> 
@@ -243,8 +246,8 @@ hasPathTo src dst g
 -- To use:
 --   run `dot -Tpdf graph.dot -o outfile.pdf`
 -- where graph.dot is the output from this function.
-genDotFile :: String -> Graph -> String
-genDotFile name g = 
+genGraphDotFile :: String -> Graph -> String
+genGraphDotFile name g = 
   "digraph " ++ name ++ " {\n" ++ intercalate "\n" (edges g) ++ "\n}"
   where
     pairs :: Graph -> [(Node,Node)]
