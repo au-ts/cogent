@@ -18,4 +18,4 @@ export PATH="${DIR}/isabelle/bin:$PATH"
 
 # Run the tests from the script directory.
 cd ${DIR}
-python ./regression/run_tests.py "$@" -x autocorres -x isabelle -x cogent_corres --limit 50
+python ./regression/run_tests.py "$@" -x autocorres -x isabelle -x c-refinement --limit 50

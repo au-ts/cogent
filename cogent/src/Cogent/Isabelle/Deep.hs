@@ -207,7 +207,7 @@ deepDefinition mod ta defs (FunDef _ fn ks ti to e) decls =
   let ty = deepPolyType mod ta $ FT (fmap snd ks) ti to
       tn = case editIsabelleName (mkIsabelleName fn) (++ "_type")  of
             Just n  -> unIsabelleName n
-            Nothing -> error "Error - unable to generate name for isabelle function " ++ fn
+            Nothing -> error ("Error - unable to generate name for isabelle function '" ++ fn ++ "'")
       tysig = [isaType| Cogent.kind list \<times> Cogent.type \<times> Cogent.type |]
       tydecl = [isaDecl| definition $tn :: "$tysig" where "$(mkId tn) \<equiv> $ty" |]
       e' = deepExpr mod ta defs e
@@ -219,7 +219,7 @@ deepDefinition mod ta _ (AbsDecl _ fn ks ti to) decls =
     let ty = deepPolyType mod ta $ FT (fmap snd ks) ti to
         tn = case editIsabelleName (mkIsabelleName fn) (++ "_type") of 
             Just n  -> unIsabelleName n
-            Nothing -> error "Error - unable to generate name for isabelle function " ++ fn
+            Nothing -> error ("Error - unable to generate name for isabelle function '" ++ fn ++ "'")
         tysig = [isaType| Cogent.kind list \<times> Cogent.type \<times> Cogent.type |]
         tydecl = [isaDecl| definition $tn :: "$tysig" where "$(mkId tn) \<equiv> $ty" |]
      in tydecl:decls

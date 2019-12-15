@@ -53,7 +53,7 @@ isInvalid n =
   isDigit (head n) || "_" `isPrefixOf` n || "_" `isSuffixOf` n
 
 badName :: String -> Bool
-badName s = isReserved s || isInvalid s
+badName s = __fixme False -- isReserved s || isInvalid s
 
 {- 
  - Generates a name that can be used in the isabelle embedding.
