@@ -1,0 +1,3 @@
+bad: mu k { f: < Some U8 | Chain k! > } 
+    -> mu k { f: < Some U8 | Chain k > };
+bad x = x;
