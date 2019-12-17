@@ -26,9 +26,15 @@ import qualified Data.Map as M
 
 import Debug.Trace
 
+import Minigent.Syntax.PrettyPrint
+
 -- | The equate phase, which finds subtyping constraints that can be safely converted to equalities.
 equate :: Rewrite.Rewrite [Constraint]
 equate = Rewrite.withTransform findEquatable (pure . map toEquality)
+                          --  (\x -> 
+                          --   let c = toEquality x 
+                          --   in trace ("About to simpliy:\n" ++ debugPrettyConstraints [c]) c)
+                          --  )
   where
     findEquatable cs = let
          mentions             = getMentions cs
@@ -83,15 +89,16 @@ findEquateCandidates mentions (c:cs) = let
                        , Row.justVar r1 
                        , canEquate fst a t
                       -> (c:sups, subs, others)
-       Record r1 s :< t | Just a <- rowVar r1
-                        , Row.justVar r1 
+      -- TODO: Rethink record equation with recpars
+       Record n r1 s :< t | Just a <- rowVar r1
+                        , Row.justVar r1
                         , canEquate fst a t
                        -> (c:sups, subs, others)
        t :< Variant r1 | Just a <- rowVar r1
                        , Row.justVar r1
                        , canEquate snd a t
                       -> (sups, c : subs, others)
-       t :< Record r1 s | Just a <- rowVar r1
+       t :< Record n r1 s | Just a <- rowVar r1
                         , Row.justVar r1
                         , canEquate snd a t
                        -> (sups, c : subs, others)

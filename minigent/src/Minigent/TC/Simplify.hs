@@ -21,10 +21,14 @@ import qualified Data.Set as S
 import qualified Data.Map as M
 import Data.Foldable (toList)
 
+import Minigent.Syntax.PrettyPrint
+import Debug.Trace 
+
 -- | Rewrite a set of constraints, removing all trivially satisfiable constraints
 --   and breaking down large constraints into smaller ones.
 simplify :: [Constraint] -> Rewrite.Rewrite [Constraint]
-simplify axs = Rewrite.pickOne $ \c -> case c of
+simplify axs = Rewrite.pickOne $ \c -> -- trace ("About to simpliy:\n" ++ debugPrettyConstraints [c]) $ 
+  case c of
   c | c `elem` axs                    -> Just []
   Sat                                 -> Just []
   c1 :&: c2                           -> Just [c1,c2]
@@ -36,6 +40,9 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
   Escape (Function _ _)               -> Just []
   Drop   (TypeVarBang _)              -> Just []
   Share  (TypeVarBang _)              -> Just []
+  Drop   (RecParBang _ _)             -> Just []
+  Share  (RecParBang _ _)             -> Just []
+  -- TODO: Drop/Share RecParBang?
   Share  (Variant es)                 -> guard (rowVar es == Nothing)
                                       >> Just (map Share  (Row.untakenTypes es))
   Drop   (Variant es)                 -> guard (rowVar es == Nothing)
@@ -48,13 +55,13 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
                                       >> Just (map Drop   ts)
   Escape (AbsType n s ts)             -> guard (s == Writable || s == Unboxed)
                                       >> Just (map Escape ts)
-  Share  (Record es s)                -> guard (s == ReadOnly || s == Unboxed)
+  Share  (Record n es s)              -> guard (s == ReadOnly || s == Unboxed)
                                       >> guard (rowVar es == Nothing)
                                       >> Just (map Share (Row.untakenTypes es))
-  Drop   (Record es s)                -> guard (s == ReadOnly || s == Unboxed)
+  Drop   (Record n es s)              -> guard (s == ReadOnly || s == Unboxed)
                                       >> guard (rowVar es == Nothing)
                                       >> Just (map Drop (Row.untakenTypes es))
-  Escape (Record es s)                -> guard (s == Writable || s == Unboxed)
+  Escape (Record n es s)              -> guard (s == Writable || s == Unboxed)
                                       >> guard (rowVar es == Nothing)
                                       >> Just (map Escape (Row.untakenTypes es))
   Exhausted (Variant es)              -> guard (null (Row.untakenTypes es) && rowVar es == Nothing)
@@ -79,11 +86,11 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
         c   = Variant r1' :< Variant r2'
     Just (c:cs)
 
-  Record r1 s1   :< Record r2 s2 ->
-    if Row.null r1 && Row.null r2 && s1 == s2 then Just []
+  Record n1 r1 s1  :< Record n2 r2 s2 ->
+    if Row.null r1 && Row.null r2 && s1 == s2 && n1 == n2 then Just []
     else if Row.null r1 && null (Row.entries r2)
          || Row.null r2 && null (Row.entries r1)  
-         then Just [Record r1 s1 :=: Record r2 s2]
+         then Just [Record n1 r1 s1 :=: Record n2 r2 s2]
     else do
     let commons  = Row.common r1 r2
         (ls, rs) = unzip commons
@@ -92,8 +99,39 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
     let (r1',r2') = Row.withoutCommon r1 r2
         cs = map (\(Entry _ t _, Entry _ t' _) -> t :< t') commons
         ds = map Drop (Row.typesFor (untakenLabels ls S.\\ untakenLabels rs) r1)
-        c   = Record r1' s1 :< Record r2' s2
+        c  = Record n1 r1' s1 :< Record n2 r2' s2
     Just (c:cs ++ ds)
+
+  {-
+   - Recursive Parameters:
+   - If we are reasoning about two recursive parameters, check if their context references
+   - are equal
+   -}
+  RecPar n ctxt :< RecPar n' ctxt'  -> guard (ctxt M.! n == ctxt M.! n') >> Just []
+  RecPar n ctxt :=: RecPar n' ctxt' -> guard (ctxt M.! n == ctxt M.! n') >> Just []
+  RecParBang n ctxt :< RecParBang n' ctxt'  -> guard (ctxt M.! n == ctxt M.! n') >> Just []
+  RecParBang n ctxt :=: RecParBang n' ctxt' -> guard (ctxt M.! n == ctxt M.! n') >> Just []
+
+  -- We need this here as otherwise it triggers the cases below
+  RecParBang n ctxt :< RecPar n' ctxt'  ->  Nothing 
+  RecPar n ctxt :< RecParBang n' ctxt'  ->  Nothing 
+  RecParBang n ctxt :=: RecPar n' ctxt' ->  Nothing 
+  RecPar n ctxt :=: RecParBang n' ctxt' ->  Nothing 
+
+  {-
+   - otherwise:
+   - If we are reasoning about a recursive parameter and a type, unroll the parameter
+   - and reason about the type and the unrolled parameter
+   -}
+  RecPar n ctxt :< t  -> Just [ unroll (RecPar n ctxt) :< t]
+  t :< RecPar n ctxt  -> Just [t :< unroll (RecPar n ctxt)]
+  RecPar n ctxt :=: t -> Just [unroll (RecPar n ctxt) :=: t]
+  t :=: RecPar n ctxt -> Just [t :=: unroll (RecPar n ctxt)]
+
+  RecParBang n ctxt :< t  -> Just [Bang (unroll (RecPar n ctxt)) :< t]
+  t :< RecParBang n ctxt  -> Just [t :< Bang (unroll (RecPar n ctxt))]
+  RecParBang n ctxt :=: t -> Just [Bang (unroll (RecPar n ctxt)) :=: t]
+  t :=: RecParBang n ctxt -> Just [t :=: Bang (unroll (RecPar n ctxt))]
 
   t :< t'  -> guard (unorderedType t || unorderedType t') >> Just [t :=: t']
 
@@ -113,10 +151,10 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
         c   = Variant r1' :=: Variant r2'
     Just (c:cs)
 
-  Record r1 s1   :=: Record r2 s2 ->
-    if Row.null r1 && Row.null r2 && s1 == s2 then Just []
-    else if Row.justVar r1 && Row.justVar r2 && s1 == s2 && r1 == r2 
-         then Just [Solved (Record r1 s1)]
+  Record n1 r1 s1   :=: Record n2 r2 s2 ->
+    if Row.null r1 && Row.null r2 && s1 == s2 && n1 == n2 then Just []
+    else if Row.justVar r1 && Row.justVar r2 && s1 == s2 && r1 == r2 && n1 == n2
+         then Just [Solved (Record n1 r1 s1)]
     else do
     let commons  = Row.common r1 r2
         (ls, rs) = unzip commons
@@ -124,14 +162,21 @@ simplify axs = Rewrite.pickOne $ \c -> case c of
     guard (untakenLabels rs == untakenLabels ls)
     let (r1',r2') = Row.withoutCommon r1 r2
         cs = map (\(Entry _ t _, Entry _ t' _) -> t :=: t') commons
-        c   = Record r1' s1 :=: Record r2' s2
+        c   = Record n1 r1' s1 :=: Record n2 r2' s2
     Just (c:cs)
-  
+    
   t :=: t' -> guard (t == t') >> if typeUVs t == [] then Just [] 
                                                     else Just [Solved t] 
   Solved t -> guard (typeUVs t == []) >> Just []
 
+  -- If an unboxed record has no recursive parameter, sat
+  UnboxedNoRecurse (Record None _ Unboxed) -> Just []
+  -- If a boxed record, sat
+  UnboxedNoRecurse (Record _ _ c) | (c == ReadOnly || c == Writable) -> Just []
+
   _ -> Nothing
+
+  
 
   where
 

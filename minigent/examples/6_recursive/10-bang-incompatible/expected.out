@@ -1,0 +1,1 @@
+bad : mu k {f : <Chain rec k!|Some U8>} -> mu k {f : <Chain rec k|Some U8>};
