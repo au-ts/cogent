@@ -1,20 +1,22 @@
 sumList : mu t {l : <Cons {data : U32,rest : rec t!}#|Nil Unit>}! -> U32;
-sumList r = case (r : mu t {l : <Cons {data : U32,rest : rec t!}#
-                                |Nil Unit>}!).l : <Cons {data : U32
-                                                        ,rest : rec t!}#
-                                                  |Nil Unit> of
-              Nil u -> 0 : U32
-            | v2 -> case v2 : <Cons {data : U32,rest : rec t!}#
-                              |Nil Unit take> of
-                      Cons s -> ((s : {data : U32
-                                      ,rest : rec t!}#).data : U32) + ((sumList[  ] : mu t {l : <Cons {data : U32
-                                                                                                      ,rest : rec t!}#
-                                                                                                |Nil Unit>}!
-                                                                                      -> U32) ((s : {data : U32
-                                                                                                    ,rest : mu t {l : <Cons {data : U32
-                                                                                                                            ,rest : rec t!}#
-                                                                                                                      |Nil Unit>}!}#).rest : mu t {l : <Cons {data : U32
-                                                                                                                                                             ,rest : rec t!}#
-                                                                                                                                                       |Nil Unit>}!) : U32) : U32
-                    end : U32
+sumList r = take r2 { l = z } = r : mu t {l : <Cons {data : U32,rest : rec t!}#
+                                              |Nil Unit>}!
+            in case z : <Cons {data : U32,rest : rec t!}#|Nil Unit> of
+                 Nil u -> 0 : U32
+               | v2 -> case v2 : <Cons {data : U32,rest : rec t!}#
+                                 |Nil Unit take> of
+                         Cons s -> take s2 { rest = x } = s : {data : U32
+                                                              ,rest : mu t {l : <Cons {data : U32
+                                                                                      ,rest : rec t!}#
+                                                                                |Nil Unit>}!}#
+                                   in ((s : {data : U32
+                                            ,rest : rec t!}#).data : U32) + ((sumList[  ] : mu t {l : <Cons {data : U32
+                                                                                                            ,rest : rec t!}#
+                                                                                                      |Nil Unit>}!
+                                                                                            -> U32) (x : mu t {l : <Cons {data : U32
+                                                                                                                         ,rest : rec t!}#
+                                                                                                                   |Nil Unit>}!) : U32) : U32
+                                   end : U32
+                       end : U32
+               end : U32
             end : U32;

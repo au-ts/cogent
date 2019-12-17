@@ -329,7 +329,6 @@ cgDump _ _ = mempty
 compiler :: Phase -> [Directive] -> [FilePath] -> IO ()
 compiler phase dirs [] = die "no input files given"
 compiler phase dirs files = do
-    traceM $ show dirs
     input <- unlines <$> mapM readFile files
     upTo Lex
     toks <- lexerPhase input
