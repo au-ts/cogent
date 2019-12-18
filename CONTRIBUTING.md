@@ -18,3 +18,17 @@ space and don't want to sign a CLA for that, please file an issue in the github
 issue tracker, we'll usually be happy to do the change for you and attribute
 your idea by linking to the github issue in the change set comment.
 
+
+Git conventions:
+* Commit subject line starts with a short tag, indicating the area of the work. E.g.
+  `compiler`, `doc`, `c-refinement`, `ci`, `bilby`. These are not predefined; you can
+  make up new ones as long as they make sense.
+* Refer to the relevant GitHub tickets, if any.
+* Use a `[skip ci]` tag (see: https://docs.travis-ci.com/user/customizing-the-build/#skipping-a-build)
+  in the body of the commit message (not in the subject line), if your changes don't
+  require the Travis regression test.
+* Use a `[skip lemma]` tag in the body of the commit message, if your changes don't involve
+  Isabelle/HOL specifications and proofs.
+* Don't worry if you are unsure what to put. We'll amend the messages accordingly when we
+  "merge" pull requests.
+* Don't `merge`. We prefer a linear history with `git rebase`.
