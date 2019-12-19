@@ -2,8 +2,17 @@
 Meta-Documentation
 ==================
 
-How to build this documentation?
-================================
+How to build and publish this documentation?
+============================================
+
+Nothing really. Currently this documentation is hosted on https://cogent.readthedocs.io/.
+Everything is carefully taken care of by `Read The Docs`_.
+Just edit the source files and configuration files and everything should be automatic.
+
+.. _Read The Docs: https://readthedocs.org/
+
+How to build this documentation locally?
+========================================
 
 1. We use the Sphinx-rtd-theme from https://github.com/readthedocs/sphinx_rtd_theme.
    The theme files are not included in this repository, so if you want to build the

@@ -20,11 +20,11 @@
 # -- Project information -----------------------------------------------------
 
 project = u'Cogent'
-copyright = u'2019, Zilin Chen'
-author = u'Zilin Chen'
+copyright = u'2019, CSIRO\'s Data61'
+author = u'The Cogent Team'
 
 # The short X.Y version
-version = u''
+version = u'2.9'
 # The full version, including alpha/beta/rc tags
 release = u'2.9'
 
@@ -71,6 +71,7 @@ exclude_patterns = []
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = None
 
+highlight_language = "haskell"
 
 # -- Options for HTML output -------------------------------------------------
 
@@ -100,6 +101,28 @@ html_static_path = ['_static']
 # 'searchbox.html']``.
 #
 # html_sidebars = {}
+
+html_logo = "../cogent/static/logo.png"
+
+html_theme_options = {
+    'logo_only': False,
+    'display_version': True,
+    'prev_next_buttons_location': 'both',
+    'style_external_links': False,
+    # Toc options
+    'collapse_navigation': False,
+    'sticky_navigation': True,
+    'navigation_depth': 4,
+    'titles_only': False
+}
+
+html_context = {
+    "display_github": True, # Integrate GitHub
+    "github_user": "NICTA", # Username
+    "github_repo": "cogent", # Repo name
+    "github_version": "master", # Version
+    "conf_py_path": "/docs/", # Path in the checkout to the docs root
+}
 
 
 # -- Options for HTMLHelp output ---------------------------------------------
@@ -133,7 +156,7 @@ latex_elements = {
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
     (master_doc, 'Cogent.tex', u'Cogent Documentation',
-     u'Zilin Chen', 'manual'),
+     u'The Cogent Team', 'manual'),
 ]
 
 
@@ -178,6 +201,9 @@ epub_exclude_files = ['search.html']
 
 
 # -- Extension configuration -------------------------------------------------
+
+# TODO: add an extension (an customised role) to allow hyperlinks to github files.
+# c.f. https://docs.espressif.com/projects/esp-idf/en/latest/contribute/documenting-code.html#linking-examples 
 
 # -- Options for todo extension ----------------------------------------------
 

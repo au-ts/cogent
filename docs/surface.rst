@@ -2,13 +2,22 @@
 Cogent Surface Syntax
 =====================
 
+.. note:: For new users of this language, this section is not intended to be a
+          tutorial for the language. It merely introduces its surface syntax and
+          should be used as a reference while using the language.
+
+.. note:: As described in `#324 <https://github.com/NICTA/cogent/issues/324>`_,
+          we are in the progress of revising the surface sytnax. So it's subject
+          to change in near future.
+
+
 Types
 =====
 
 All type names must begin with an uppercase letter. Tuple, Function,
 Record and Variant types have special syntax.
 
-Record Types
+Record types
 ------------
 
 Now indicated by a series of typing declarations inside braces, e.g
@@ -24,7 +33,7 @@ If a field ``f`` is removed by ``take``, the postfix type operator
 
     {x : A, y : B} take x
 
-This works, even if the type on the LHS is a type synonym.
+This works, even if the type on the LHS is a type synonym (c.f. :ref:`typedefs`).
 
 Sugar: Taking multiple fields:
 
@@ -45,14 +54,11 @@ syntax. ``put`` is dual to ``take``. One common usage would be
 
     ({x : A, y : B, z : C, u : D, w : E} take (..)) put x
 
-Note that the parens around the record and first ``take`` is mandatory.
+Note that the parentheses around the record and first ``take`` is mandatory.
 Arbitrary many levels of nestings is possible.
 
-Unboxed Records
+Unboxed records
 ---------------
-
-Note: For new users of this language, it's recommended to skip over this
-subsection and come back later.
 
 Unboxed records are pretty much like regular records, except that their
 wrappers (i.e. the unboxed container) are lightweight that no allocation
@@ -63,20 +69,22 @@ type. ``take``, ``put`` operations (and punning) and member extraction
 are of exactly the same syntax as regular records. As a consequence of
 its lightweightness, we can construct and deconstruct (by means of
 pattern matching) unboxed records, just as what we do on tuples (see
-below for tuples).
+:ref:`product-types` for tuples).
 
 E.g.,
 
 ::
 
-    #{x : A, y : B}  -- type
+    #{x : A, y : B}    -- type
     #{x = e1, y = e2}  -- expression or pattern
-    a.x  -- member
-    a {x = f}  -- take and put, same as regular records
+    a.x                -- member
+    a {x = f}          -- take and put, same as regular records
 
-About its kinding rules: the wrapper per se has non-linear kind (K2). If
+About its *permission* rules (see :ref:`permissions`):
+the wrapper per se is non-linear (i.e. shareable
+and discardable). If
 any linear fields are present (untaken), then the unboxed record becomes
-linear (K1). Member operation can only be used if there're no linear
+linear. Member operation can only be used if there're no linear
 fields inside, or the unboxed record is banged (``!``).
 
 Unboxed abstract types
@@ -95,41 +103,36 @@ generating C code, boxed abstract types will be pointers, unboxed are
 not. It's the users' responsibility to keep the C code consistent, as
 these types are abstract.
 
-N.B. It's the current design, we can fix it if problems pop up.
+Bang (``!``)
+------------
 
-Bang
-----
-
-Record types and abstract types have sigils, but outwardly, a Write
-Sigil is just a plain record type / abstract type, and an Observe sigil
-would be indicated with a postfix bang, for example:
-
-::
-
-    {x : A, y : B}!
-    C!
+Record types and abstract types have *sigils*, but outwardly, a *Write*
+sigil is just a plain record type / abstract type, and an *Observe* (or *Readonly*) sigil
+would be indicated with a postfix bang, for example: ``{x : A, y : B}!``, ``C!``.
 
 The postfix bang operator can be applied to any type, which converts all
-write sigils to observer sigils internally (and any type variables to
-observer type variables).
+write sigils to readonly sigils internally (and any type variables to
+readonly type variables).
 
-To bang a parametric type, the type must be surrounded by parens,
+To bang a parametric type, the type must be surrounded by parentheses,
 otherwise ``!`` will be applied to the type parameter right before the
 ``!`` symbol.
+
+.. _product-types:
 
 Product Types
 -------------
 
 Nameless, unboxed tuples may be used everywhere you like. Their syntax
 is identical to Haskell. A unit type (which is freely discardable and
-not linear) also exists, ``()`` with a value ``()``. Tuples are right
-associative, namely ``(a, b, c, d) == (a, (b, (c, d)))``, just as in
-Isabelle.
+not linear) also exists, ``()`` with a value ``()``. Tuples are not
+associative, namely ``(a, b, c, d) /= (a, (b, (c, d)))`` and
+``(a, b, c, d) /= (((a, b), c), d)``, just as in Haskell.
 
 Variant Types
 -------------
 
-Variant types look like this now.
+Variant types look like this.
 
 ::
 
@@ -151,51 +154,54 @@ tuples of all the arguments. E.g.:
 
     <Ok Obj U8 | Fail >  -- equiv to <Ok (Obj, U8) | Fail ()>
 
-Polymorphic types:
-------------------
+Polymorphic types
+-----------------
 
 Types can contain variables. Functions may be declared as having
 polymorphic type.
 
 ::
 
-    size : all (k, v). Map k v -> Int 
+    size : all (k, v). Map k v -> U32
 
 Monomorphic functions are first class, but to get a monomorphic function
 from a polymorphic function requires instantiation, e.g ``length[Int]``.
 Since Cogent-2.0.9, explicit type applications are not mandatory,
 although in some cases they must be supplied to guide the type inference
 engine. Type applications can be partial, or with type holes. For
-example, ``foo [_, A, B]``. See
-``cogent/tests/pass_partial-typeapp.cogent``.
+example, ``foo [_, A, B]``; ``foo [S, T, _]`` is equivalent to ``foo [S,T]``.
 
 A type variable under observation (i.e ``let!``-ed) is annotated with a
-postfix bang (e.g ``a!``)
+prefix bang (e.g ``!a``)
+
+.. _permissions:
 
 Permissions
 ~~~~~~~~~~~
 
-Permissions (they used to be called "kinds") are provided for
+*Permissions* (they used to be called "kinds") are provided for
 polymorphic signatures as follows:
 
 ::
 
-    length : all (a :< k). Array a -> Int 
+    length : all (a :< k). Array a -> U32
 
 Permissions are internally a set of three booleans: whether or not the
 type can be:
 
--  ``D`` for Discarded (i.e by weakening)
--  ``S`` for Shared (i.e by contraction)
--  ``E`` for Escaped (i.e returned from ``let!``)
+-  ``D`` for Discard (i.e by weakening)
+-  ``S`` for Share   (i.e by contraction)
+-  ``E`` for Escape  (i.e returned from ``let!``)
 
 The permission signature on a type variable is more like a constraint.
-They are some combination of those three letters. If no kind constraint
+They are some combination of those three letters. If no permission
 is provided, it is assumed that none of those permissions are required,
 and the value will be linear and cannot escape a ``let!``.
 
-Typedefs
-========
+.. _typedefs:
+
+Type synonyms
+=============
 
 Type synonyms may be provided using the ``type`` keyword as follows:
 
@@ -214,8 +220,8 @@ take parameters. This corresponds to a family of types in C.
     type Buffer
     type Array a
 
-Constants and toplevel definitions
-==================================
+Constants and top-level definitions
+===================================
 
 Constants are mono-typed.
 
@@ -226,32 +232,35 @@ Constants are mono-typed.
 
 But the right hand side can be much more expressive now, with let
 bindings and whatnot. We must be able to prevent users from doing
-side-effects like allocation in the top-level – see next section.
+side-effects like allocation in the top-level---see :ref:`effects`.
 
 To make the syntax easier to parse, a function or constant's body must
 be indented by at least one space. This means that any non-indented
 bareword is the start of a new definition or signature.
 
+.. _effects:
+
 Effects
 =======
 
 Most effects are currently (successfully) modelled via linear types. For
-allocation, Cogent does not anything about it. Memory management
+allocation, Cogent does not know anything about it. Memory management
 involves the heap. I propose modelling the heap as an explicit linear
 value, just as with any other state.
 
-Allocation functions must now take and return a linear heap, as they
+Allocation functions must take and return a linear heap, as they
 modify it:
 
 ::
 
-    allocateobj : Heap -> <Ok Obj Heap | Fail Heap >
+    allocateObj : Heap -> < Ok Obj Heap | Fail Heap >
 
 Special syntax for allocation functions and automating heap-threading
 are nice to have, so I welcome proposals.
 
-Expression Language:
-====================
+
+Expression language
+===================
 
 Matching and Error Handling
 ---------------------------
@@ -272,7 +281,7 @@ alignment of the bars.
 
 The rightward arrows for each case can either be ``=>`` or ``->``.
 ``=>`` indicates that that branch is likely, to enable compiler
-optimisations. ~> can also be used to indicate an unlikely branch.
+optimisations. ``~>`` can also be used to indicate an unlikely branch.
 
 A pattern may be ``_`` but only if the kind of the value allows it to be
 discarded.
@@ -280,9 +289,9 @@ discarded.
 Biased pattern matching
 -----------------------
 
-The syntax above poses a problem if many levels of nestings occur — you
+The syntax above poses a problem if many levels of nestings occur---you
 will end up with cascading matches which indent a lot. To solve this
-problem, we allow a syntax for early exit, which is inspired by Idris.
+problem, we allow a syntax for early exit, which is inspired by `Idris <https://www.idris-lang.org/>`_.
 The syntax looks like:
 
 ::
@@ -315,11 +324,11 @@ pattern (``Alt1 3``) inside another refutable pattern (``Ok (Alt1 3)``).
 This is forbidden to make compilation much more straightforward in the
 presence of linear types.
 
-Let binding
+Let-binding
 -----------
 
 Let expressions take the form of ML. They are not ever recursive.
-Multiple let bindings can be introduced by separating them with ``and``:
+Multiple let-bindings can be introduced by separating them with ``and``:
 
 ::
 
@@ -335,7 +344,7 @@ Is equivalent to:
             in let y = 4 
                 in foo (x,y)
 
-Irrefutable single patterns may occur on the left hand side of let, but
+Irrefutable single patterns may occur on the left hand side of let-binding, but
 refutable patterns must use regular pattern matching.
 
 To force inference to go the way you want, a type signature can be
@@ -357,7 +366,7 @@ Variables may be observed using ``!``:
     f (x, y) = let (a,b) = foo (x, y) !x !y
                 in bar (a, b)
 
-Postfix ``!`` annotations can be used inline with pattern matching also:
+Prefix ``!`` annotations can be used inline with pattern matching also:
 
 ::
 
@@ -369,11 +378,11 @@ If
 --
 
 Conditionals can be expressed in the form of if-expressions. They are in
-the form of ``if c !v1 !v2 ... then e1 else e2``. The ``!v``'s are
+the form of ``if c !v1 !v2 ... then e1 else e2``. The ``!v``\ s are
 similar to the ``!`` syntax introduced above, allowing for temporary
-access to linear objects in the conditions.
+access to linear objects in the condition.
 
-Apart from the normal if-then-else sytnax, Cogent offers a multi-way if
+Apart from the normal if-then-else syntax, Cogent offers a multi-way if
 syntax, inspired by GHC/Haskell. For example,
 
 ::
@@ -386,14 +395,14 @@ syntax, inspired by GHC/Haskell. For example,
 In the code snippet above, the conditions are Boolean **expressions**,
 instead of patterns as one might think. The final ``else`` is part of
 the syntax. The pipes have to be aligned. The arrows, as usual, can be
-any of ``=>``, ``->`` or ``\~>``, which have the same semantics as used
-in alternatives. Postfix ``!``'s can be added after each condition (but
+any of ``=>``, ``->`` or ``~>``, which have the same semantics as used
+in alternatives. Prefix ``!``\ s can be added after each condition (but
 not after the ``else`` keyword), like ``| cond_1 !v1 !v2 => e``.
 
 Sequencing
 ----------
 
-Occasionally, it is useful to free a bunch of things, and using let for
+Occasionally, it is useful to free a bunch of things, and using ``let`` for
 this purpose can be somewhat annoying:
 
 ::
@@ -412,10 +421,6 @@ So, a little sugar is added for a series of discarding let bindings:
 
 These two expressions are equivalent.
 
-*Note*: I'm not sure if this still applies given our explicit heap model
-described above, but it can't hurt to have this as some additional
-syntax.
-
 Take/put
 --------
 
@@ -427,8 +432,8 @@ for ``put``:
     f : {a : Foo, b : Bar} -> {a : Foo, b : Bar}
     f (r {a = ra, b = rb}) = r {a = ra, b = rb}
 
-Note: ``take`` is always in patterns (i.e. LHS of ``=``), whereas
-``put`` is always in expressions (i.e. RHS of ``=``).
+.. note:: ``take`` is always in patterns (i.e. LHS of ``=``), whereas
+          ``put`` is always in expressions (i.e. RHS of ``=``).
 
 Punning is also allowed:
 
@@ -437,14 +442,15 @@ Punning is also allowed:
     f : {a : Foo, b : Bar} -> {a : Foo, b : Bar}
     f (r {a, b}) = r {a, b}
 
-(where just ``a`` is equivalent to ``a=a``)
+(where just ``a`` is equivalent to ``a = a``)
 
 Arithmetic and comparison operators
 -----------------------------------
 
 Currently Cogent will use the smallest type possible for integer
 literals and generate upcasts (but not downcasts) automatically when
-used in a context where they are required.
+used in a context where they are required. For non-literals, an explicit
+``upcast`` primitive may be needed.
 
 Type annotations
 ----------------
@@ -452,19 +458,39 @@ Type annotations
 To guide the type inference engine, the user can give type annotations
 to any expressions. The syntax is ``e : t``.
 
-Static arrays (alpha)
----------------------
+
+Experimental features
+=====================
+
+.. warning:: Experimental features, as they are called, are indeed experimental,
+             which means they are not stable, and may fail, terribly. Don't rely on them
+             until they become stable.
+
+.. _static-arrays:
+
+Static arrays
+-------------
+
+.. note:: This feature is not implemented on the ``master`` branch. It's implemented
+          on the ``array`` branch and needs to be enabled by the ``--builtin-arrays`` flag 
+          (see :ref:`optional-features` for more information on how to do that).
 
 Array literals can be introduced using square brackets, like
 ``[a, b, c]``. This syntax can also be used as patterns. Array types can
 be defined like ``U8[3]``, similar to C. Indexing can be made with the
-``@`` operator. E.g.: ``arr @ 3``.
+``@`` operator. E.g.: ``arr @ 3``. Arrays can also be ``take``\ n and ``put``.
+The type-level ``take`` and ``put`` operators are spelt as ``@take`` and ``@put``
+respectively. On the term level, it's written as ``arr @{ @idx = val }``---
+just prefix the open bracket and the indices with ``@`` symbols, and the rest
+are the same as those for records.
 
-Lambda expressions (alpha)
---------------------------
 
-We only allow for a very limited form of lambda expressions. An lambda
+Lambda expressions
+------------------
+
+We only allow for a very limited form of lambda expressions. A lambda
 expression has the syntax ``\irref => exp``, where ``irref`` is an
 irrefutable pattern, and ``exp`` is an expression which does not refer
 to any variables outside the lambda binding (no free variables). The
 bound variables have to be non-linear.
+

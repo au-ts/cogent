@@ -1,4 +1,5 @@
 [![Build Status](https://api.travis-ci.org/NICTA/cogent.svg?branch=master)](https://travis-ci.org/NICTA/cogent)
+[![Documentation Status](https://readthedocs.org/projects/cogent/badge/?version=latest)](https://cogent.readthedocs.io/en/latest/?badge=latest)
 
 # Cogent: Code and Proof Co-Generation
 
@@ -7,6 +8,9 @@
 For general context of this project, motivation, an overview, and published papers, see
 our [project homepage](http://ts.data61.csiro.au/projects/TS/cogent.pml).
 
+## Online documentation
+
+https://cogent.readthedocs.io
 
 ## Installation
 
@@ -20,12 +24,10 @@ sudo apt-get install python-lxml python-psutil python-pycparser # regression tes
 
 To install the Cogent compiler, consult file [cogent/README.md](./cogent/README.md) for details. 
 
-[`isabelle`](https://github.com/seL4/isabelle) and [`z3`](https://github.com/Z3Prover/z3)
-are submodules that the Cogent framework depends on. To get them: `git submodule update --init --recursive`.
-
-If you already have them on your machine, you can use your local copies, by checking out the compatible revisions:
-* `isabelle`: any Isabelle2018 revision
-* `z3`: see [cogent/INSTALL.md](./cogent/INSTALL.md) for more information
+The Cogent framework depends on [Isabelle-2019](https://isabelle.in.tum.de/).
+If you already have them on your machine, you can use your local copy.
+Otherwise you can either obtain it from their website or from the `isabelle` submodule, via
+`git submodule update --init --recursive -- isabelle`.
 
 Add `isabelle/bin` to your PATH: `export PATH="$(pwd)/isabelle/bin:$PATH"`
 If you have an existing Isabelle install, you may want to set `ISABELLE_IDENTIFIER` instead of `PATH`.

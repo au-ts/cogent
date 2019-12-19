@@ -10,11 +10,13 @@ Welcome to Cogent's documentation!
    :maxdepth: 2
    :numbered:
 
-   overview
+   preamble
    quickstart
    install
    surface
    antiquote
+   compiler
+   verification
    meta
 
 Indices and tables

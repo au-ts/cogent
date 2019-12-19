@@ -7,21 +7,23 @@ Antiquoted C
 checks. So please follow the guide closely otherwise debugging could be
 a huge pain.
 
-Cheatsheet (new users: please skip this section)
-================================================
+Cheatsheet
+==========
 
-``$id``: for function identifiers or type identifiers when defining them
+.. note::  New users: please skip this section.
 
-``$ty``: refer to a Cogent type
+==========      =====================
+Antiquotes      Explanation
+----------      ---------------------
+``$id``         for function identifiers or type identifiers when defining them
+``$ty``         refer to a Cogent type
+``$exp``        call a Cogent function, which has to have exactly one
+                argument, as in Cogent; any Cogent expressions
+``$spec``       specify the Cogent type of a C function (using typecast
+                syntax), which is applied to exactly one argument
+``$esc``        macros that should not be preprocessed before antiquoted C is compiled
+==========      =====================
 
-``$exp``: call a Cogent function, which has to have exactly one
-argument, as in Cogent; any Cogent expressions
-
-``$spec``: specify the Cogent type of a C function (using typecast
-syntax), which is applied to exactly one argument
-
-``$esc``: macros that should not be preprocessed before antiquoted C is
-compiled
 
 Overview
 ========
@@ -40,13 +42,13 @@ structurally types, whereas C is monomorphic and nominally typed. What
 it means is that the Cogent compiler will generate "random" names for
 the generated interfaces (of course they are not truly random, they are
 just so random that a programmer can barely guess what they will be; see
-https://github.com/NICTA/cogent/issues/322 for more details). To make
+`#322 <https://github.com/NICTA/cogent/issues/322>`_ for more details). To make
 the names on both sides coincide, Cogent provides a way for programmers
 correctly "guess" the generated names—antiquotations. That's why the C
 components one write for a Cogent program is generally referred to as
 **antiquoted C** (it's because we borrow the syntax of antiquotes; see
 G. Mainland, `Why it's nice to be quoted: quasiquoting for
-Haskell <https://www.cs.tufts.edu/comp/150FP/archive/geoff-mainland/quasiquoting.pdf>`__).
+Haskell <https://www.cs.tufts.edu/comp/150FP/archive/geoff-mainland/quasiquoting.pdf>`_).
 And for accessing Cogent code from C, programmers also need a way to
 refer to the Cogent names. In a nutshell, in antiquoted C, programmers
 can write Cogent snippets (e.g. Cogent types, polymorphic function
@@ -75,22 +77,22 @@ For example, in Cogent we have:
 
 ::
 
-    foo : all (a, b). a -> b
+  foo : all (a, b). a -> b
 
 Then in C, we can define function ``foo`` by
 
-::
+.. code-block:: c
+    
+  $ty:b $id:foo ($ty:a arg) {
+    // ...
+  }
 
-    $ty:b $id:foo ($ty:a arg) {
-      // ...
-    }
-
-``$id``, ``$ty`` are antiquoters for identifiers and types respectively.
+``$id``, ``$ty`` are antiquotes for identifiers and types respectively.
 If the antiquoted code consists of only one single identifier **starting
-with a lower-case letter**, then no parens are required (e.g.
-``$ty:acc``), otherwise we have to write parens around it, like
+with a lower-case letter**, then no parenthesis are required (e.g.
+``$ty:acc``), otherwise we have to write parentheses around it, like
 ``$ty:(R a b)`` and ``$ty:(U32)``. Note: If the antiquoted type is unit
-or a tuple, then we have to have at least two pairs of parens, the inner
+or a tuple, then we have to have at least two pairs of parentheses, the inner
 one for the tuple, and the outer one for antiquotation.
 
 Functions defined using antiquotation have to be parametrically
@@ -119,19 +121,19 @@ its argument are usually not given by Cogent antiquotes (i.e. they are C
 expressions), we cannot directly call it using the ``$exp``
 antiquotation as above. E.g. we have the following scenario:
 
-::
+.. code-block:: c
 
-    void foo ($ty:((A -> B, A)) arg) {
-      // ...
-    }
+  void foo ($ty:((A -> B, A)) arg) {
+    // ...
+  }
 
 To apply the first component of the pair ``arg.p1`` to the second
 ``arg.p2``, in order to generate the dispatch function, we have to give
 the type of the function – ``arg.p1`` – to the compiler. We write
 
-::
+.. code-block:: c
 
-    (($spec:(A -> B)) arg.p1) (arg.p2);  // the parens around type specifier and function is necessary!
+  (($spec:(A -> B)) arg.p1) (arg.p2);  // the parens around type specifier and function is necessary!
 
 The syntax is actually for typecasting in C, we hijack (or better,
 embed) our semantics in it. This satisfies our principle that everything
@@ -139,7 +141,7 @@ inside an antiquote is valid Cogent code.
 
 One thing also worth mentioning here is that, antiquoted functions (no
 matter first order or higher order) can only be applied to exactly one
-argument, as in Cogent. Otherwise it will generate totally non-sensical
+argument, as in Cogent. Otherwise it will generate totally nonsensical
 code and the error message from the C compiler will not help in general.
 We are trying to implement some sanity checks in the antiquotation part.
 
@@ -151,30 +153,32 @@ For example,
 
 ::
 
-    -- Cogent
-    type R a b
-    type T a b c
+  -- Cogent
+  type R a b
+  type T a b c
 
-    // C
-    struct $id:(R a b) {
-      // ...
-    };
+.. code-block:: c
+  
+  // Antiquoted-C
+  struct $id:(R a b) {
+    // ...
+  };
 
-    typedef struct $id:(T x y z) {
-      // ...
-    } $id:(T x y z);
+  typedef struct $id:(T x y z) {
+    // ...
+  } $id:(T x y z);
 
-    typedef struct $id:(R a b) $id:(R a b);
+  typedef struct $id:(R a b) $id:(R a b);
 
 Most of the knowledge about it can be deduced from previous section,
 which will not be repeated here. One difference is that users need to
-write fully applied type constructors, namely with type arguements, and
+write fully applied type constructors, namely with type arguments, and
 they have to be identical to those given in Cogent. When using
 ``typedef``, only one synonym can be given, if it's antiquoted. And it
 has to be the same as the type it is defined to. Something like
 ``typedef struct $id:(X a) $id:(Y a)`` is invalid.
 
-Non-parametric abstrct types cannot be used in this way, otherwise they
+Non-parametric abstract types cannot be used in this way, otherwise they
 will be put to the wrong output file. In order to refer to any Cogent
 types in the definition, what the users can do is to **NOT** antiquote
 the type name, and use it in the function mode, as the type name in C
@@ -186,9 +190,11 @@ E.g.,
     -- Cogent
     type R
 
-    -- C
+.. code-block:: c
+    
+    // Antiquoted-C
     struct $id:(C) { ... };  // wrong!
-    struct C { ... };  // correct!
+    struct C { ... };        // correct!
 
 Escape sequences
 ================
@@ -198,9 +204,9 @@ Any C code which is beyond the reach of the Haskell C parser
 by a ``$esc``. In particular, if you have any ``#include``'ed files that
 don't want to be preprocessed (usually for the reason that they contain
 some language extensions which our C parser does not support), use
-``$esc`` antiquoter to escape.
+``$esc`` antiquote to escape.
 
-Cogent also suppports conditional compilation in the style of cpp (C
+Cogent also supports conditional compilation in the style of cpp (C
 preprocessor). Directives (e.g. ``#define``, ``#if``, etc.) should also
 be wrapped in ``$esc`` so that they are left to the C compiler, instead
 of (mistakenly) being processed by Cogent's C preprocessor. For
