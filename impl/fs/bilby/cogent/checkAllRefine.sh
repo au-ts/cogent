@@ -17,6 +17,8 @@ export ISABELLE_BUILD_JAVA_OPTIONS="-Xms2048m -Xmx12288m -Xss4m";
 
 export REPO_ROOT="../../../.."
 
+export ISABELLE_IDENTIFIER="BilbyFs2019Benchmark"
+
 time isabelle build -D plat/verification \
                     -d $REPO_ROOT/cogent/isa \
                     -d $REPO_ROOT/autocorres \
