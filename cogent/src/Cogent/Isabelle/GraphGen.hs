@@ -170,7 +170,7 @@ graphType (TProduct t u)  = do
     gt <- graphType t
     gu <- graphType u
     return $ GEGTuple gt gu
-graphType (TRecord e s)   = do
+graphType (TRecord _ e s)   = do
     res <- mapM (\x -> liftM (\y -> (fst x, y)) (graphType $ (fst . snd) x)) e
     return $ GEGStruct res IsUnboxed
 graphType (TUnit)         = return $ GEGUnit
@@ -240,14 +240,14 @@ graph g (TE tp (Take _ (TE recTy (Variable v)) fld e)) n ret vs = do
                  then return (namePrefix prevNm' ++ "@" ++ show n)
                  else abort ("graph: take: type mismatch: " ++ show (recTy, aggTy))
     newTy <- case recTy of
-        TRecord flds s -> graphType $ fst (snd (flds !! fld))
+        TRecord _ flds s -> graphType $ fst (snd (flds !! fld))
         otherwise -> failure ("graph: take: not a record")
     prevFlds <- case recTy of
-        TRecord _ Unboxed -> do
+        TRecord _ _ Unboxed -> do
             gfv <- getFieldVariable (prevNm, aggTy) fld
             res <- fmap (\z -> map (\(x,y) -> GVariable x y) z) (getFieldVariables gfv)
             return res
-        TRecord flds (Boxed _ _) -> do
+        TRecord _ flds (Boxed _ _) -> do
             mko <- mkFieldOffset (GVariable prevNm ptrGTyp, aggTy) fld
             res <- getFieldAccesses mko
             return res
@@ -462,7 +462,7 @@ atom (TE _ (Struct flds)) vs = do
     gexprs <- mapM (flip atomNoUpds vs) (map snd flds)
     return (concat gexprs, [])
 
-atom te@(TE _ (Member (rec @ (TE (TRecord flds s) _)) ix)) vs = do
+atom te@(TE _ (Member (rec @ (TE (TRecord _ flds s) _)) ix)) vs = do
     recFields <- atomNoUpds rec vs
     tys <- mapM (\(_,(t,_)) -> graphType t) flds
     flds <- getFieldsFromConcat tys ix recFields
@@ -475,7 +475,7 @@ atom te@(TE fldTy (Member rec ix)) vs = do
     accs <-getFieldAccesses ptr
     return (accs, [])
 
-atom (TE (TRecord flds s) (Put rec fld v)) vs = do
+atom (TE (TRecord _ flds s) (Put rec fld v)) vs = do
     recFields <- atomNoUpds rec vs
     vFields <- atomNoUpds v vs
     tys <- mapM (\(_,(t,_)) -> graphType t) (take fld flds)

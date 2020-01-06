@@ -475,20 +475,20 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec [Just (f, B.TIP (S.PVar v) _)
   --   Ind. step: A) e0 | rec {f = p} in e ==> let rec {f = PVar v} = e0 and p = v in e
   --              B) e0 | rec (fp:fps) in e ==> let e1 {f = p} = e0 and rec = e1 {fps} in e
   t <- desugarType (B.getTypeTE e0)
-  let TRecord fs _ = t
+  let TRecord _ fs _ = t
       Just fldIdx = elemIndex f (P.map fst fs)
   E <$> (Take (fst v, fst rec) <$> desugarExpr e0 <*> pure fldIdx <*> (withBindings (Cons (fst v) (Cons (fst rec) Nil)) $ desugarExpr e))
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec [Just (f,p)]) pos)) e = do
   v <- freshVar
-  let B.DT (S.TRecord fts _) = snd rec
+  let B.DT (S.TRecord _ fts _) = snd rec
       Just (ft,_) = P.lookup f fts  -- the type of the taken field
       b1 = S.Binding (B.TIP (S.PTake rec [Just (f, B.TIP (S.PVar (v,ft)) noPos)]) pos) Nothing e0 []
       b2 = S.Binding p Nothing (B.TE ft (S.Var v) noPos) []  -- FIXME: someone wrote "wrong!" here. Why? check!
   desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b1,b2] e) noPos
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec (fp:fps)) pos)) e = do
   e1 <- freshVar
-  let B.DT (S.TRecord fts s) = snd rec
-      t1 = B.DT $ S.TRecord (P.map (\ft@(f,(t,x)) -> if f == fst (fromJust fp) then (f,(t,True)) else ft) fts) s  -- type of e1
+  let B.DT (S.TRecord rp fts s) = snd rec
+      t1 = B.DT $ S.TRecord rp (P.map (\ft@(f,(t,x)) -> if f == fst (fromJust fp) then (f,(t,True)) else ft) fts) s  -- type of e1
       b0 = S.Binding (B.TIP (S.PTake (e1, t1) [fp]) noPos) Nothing e0 []
       bs = S.Binding (B.TIP (S.PTake rec fps) pos) Nothing (B.TE t1 (S.Var e1) noPos) []
   desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b0,bs] e) noPos
@@ -568,12 +568,12 @@ desugarType = \case
         (True , False) -> TVarBang v
         (False, False) -> TVar v
   B.DT (S.TFun ti to)    -> TFun <$> desugarType ti <*> desugarType to
-  B.DT (S.TRecord fs Unboxed) -> TRecord <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType t) fs <*> pure Unboxed
-  B.DT (S.TRecord fs sigil)  -> do
+  B.DT (S.TRecord rp fs Unboxed) -> TRecord rp <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType t) fs <*> pure Unboxed
+  B.DT (S.TRecord rp fs sigil)  -> do
     -- Making an unboxed record is necessary here because of how `desugarSigil`
     -- is defined.
-    TRecord fs' Unboxed <- desugarType $ B.DT (S.TRecord fs Unboxed)
-    TRecord <$> pure fs' <*> desugarSigil sigil
+    TRecord rp fs' Unboxed <- desugarType $ B.DT (S.TRecord fs Unboxed)
+    TRecord rp <$> pure fs' <*> desugarSigil sigil
   B.DT (S.TVariant alts) -> TSum <$> mapM (\(c,(ts,x)) -> (c,) . (,x) <$> desugarType (group ts)) (M.toList alts)
     where group [] = B.DT S.TUnit
           group (t:[]) = t
@@ -589,7 +589,7 @@ desugarType = \case
     --     We assume that the field names are *lexicographically* sorted! We need to
     --     explicitly sort them here, otherwise @p10@ will be following @p9@ instead of @p1@.
     fs <- L.sortOn fst . P.zipWith (\n t -> (n,(t, False))) ns <$> forM ts desugarType
-    return $ TRecord fs Unboxed
+    return $ TRecord NonRec fs Unboxed
   B.DT (S.TUnit)   -> return TUnit
 #ifdef BUILTIN_ARRAYS
   B.DT (S.TArray t l Unboxed tkns) -> do
@@ -723,7 +723,7 @@ desugarExpr (B.TE t (S.MultiWayIf es el) pos) =  -- FIXME: likelihood is ignored
         go ((c,bs,_,e):es) el = S.If c bs e (B.TE t (go es el) pos)
 desugarExpr (B.TE _ (S.Member e fld) _) = do
   t <- desugarType $ B.getTypeTE e
-  let TRecord fs _ = t
+  let TRecord _ fs _ = t
       Just f' = elemIndex fld (P.map fst fs)
   E <$> (Member <$> desugarExpr e <*> pure f')
 desugarExpr (B.TE _ (S.Unitel) _) = return $ E Unit
@@ -796,13 +796,13 @@ desugarExpr (B.TE _ (S.Put e []) _) = desugarExpr e
 desugarExpr (B.TE t (S.Put e [Nothing]) _) = __impossible "desugarExpr (Put)"
 desugarExpr (B.TE t (S.Put e [Just (f,a)]) _) = do
   t' <- desugarType t
-  let TRecord fs _ = t'
+  let TRecord _ fs _ = t'
       Just f' = elemIndex f (P.map fst fs)
   E <$> (Put <$> desugarExpr e <*> pure f' <*> desugarExpr a)
 desugarExpr (B.TE t (S.Put e (fa@(Just (f0,_)):fas)) l) = do
-  let B.DT (S.TRecord fs s) = t
+  let B.DT (S.TRecord rp fs s) = t
       fs' = map (\ft@(f,(t,b)) -> if f == f0 then (f,(t,False)) else ft) fs
-      t' = B.DT (S.TRecord fs' s)
+      t' = B.DT (S.TRecord rp fs' s)
   desugarExpr $ B.TE t (S.Put (B.TE t' (S.Put e [fa]) l) fas) l
 desugarExpr (B.TE t (S.Upcast e) _) = E <$> (Cast <$> desugarType t <*> desugarExpr e)
 -- desugarExpr (B.TE t (S.Widen  e) _) = E <$> (Cast <$> desugarType t <*> desugarExpr e)

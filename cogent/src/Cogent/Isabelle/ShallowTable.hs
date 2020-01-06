@@ -56,7 +56,8 @@ toTypeStr (TProduct t1 t2) = nub $ toTypeStr t1 ++ toTypeStr t2
 toTypeStr (TSum ts)        = nub $ VariantStr (P.map fst ts) : concat (P.map (toTypeStr . fst . snd) ts)
    -- \ ^^^ NOTE: alternatives are ordered throughout the compiler / zilinc
 toTypeStr (TFun ti to)     = nub $ toTypeStr ti ++ toTypeStr to
-toTypeStr (TRecord ts _)   = nub $ RecordStr (P.map fst ts) : concatMap (toTypeStr . fst . snd) ts
+-- TODO: Should recpars be part of type strings?
+toTypeStr (TRecord _ ts _)   = nub $ RecordStr (P.map fst ts) : concatMap (toTypeStr . fst . snd) ts
 toTypeStr (TPrim i)        = []
 toTypeStr (TString)        = []
 toTypeStr (TCon n ts _)    = nub $ concatMap toTypeStr ts
@@ -79,7 +80,8 @@ getStrlType tsmap table (TSum ts) =
       in TCon ('T':show idx) tps Unboxed
     Just tn ->
       TCon tn tps Unboxed
-getStrlType tsmap table (TRecord fs s) =
+-- TODO: recPars part of type strings?
+getStrlType tsmap table (TRecord _ fs s) =
   let tstr = RecordStr (P.map fst fs)
       tps = P.map (fst . snd) fs
   in case M.lookup tstr tsmap of

@@ -104,6 +104,7 @@ data TypeError = FunctionNotFound VarName
                | PutToNonRecordOrVariant    (Maybe [FieldName]) TCType
                | TakeNonExistingField FieldName TCType
                | PutNonExistingField  FieldName TCType
+               | RecursiveUnboxedRecord RecursiveParameter (Sigil RepExpr) -- A record that is unboxed yet has a recursive parameter
                | DiscardWithoutMatch TagName
                | RequiredTakenTag TagName
 #ifdef BUILTIN_ARRAYS
@@ -201,6 +202,7 @@ data Constraint' t l = (:<) t t
                      | SemiSat TypeWarning
                      | Sat
                      | Exhaustive t [RawPatn]
+                     | UnboxedNotRecursive RP (Either (Sigil ()) Int)
                      | Solved t
                      | IsPrimType t
 #ifdef BUILTIN_ARRAYS
@@ -333,6 +335,22 @@ warnToConstraint f w | f = SemiSat w
 data TCType         = T (Type TCSExpr TCDataLayout TCType)
                     | U Int  -- unifier
                     | R (Row TCType) (Either (Sigil (Maybe TCDataLayout)) Int)
+
+data RP = Mu VarName | None | UP Int
+          deriving (Show, Eq, Ord)
+
+coerceRP :: RecursiveParameter -> RP
+coerceRP (Rec v) = Mu v
+coerceRP NonRec  = None 
+
+unCoerceRp :: RP -> RecursiveParameter
+unCoerceRp (Mu v) = Rec v
+unCoerceRp None   = NonRec
+unCoerceRp (UP i)      = __impossible $ "Tried to coerce unification parameter (?" ++ show i ++ ") in core recursive type to surface recursive type"
+
+data TCType         = T (Type TCSExpr TCType)
+                    | U Int  -- unifier
+                    | R RP (Row TCType) (Either (Sigil (Maybe TCDataLayout)) Int)
                     | V (Row TCType)
 #ifdef BUILTIN_ARRAYS
                     | A TCType TCSExpr (Either (Sigil (Maybe TCDataLayout)) Int) (Either (Maybe TCSExpr) Int)
@@ -358,6 +376,17 @@ instance Bifoldable SExpr where
 instance Bitraversable SExpr where
   bitraverse f g (SE t e) = SE <$> f t <*> pentatraverse f (traverse f) (traverse f) g (bitraverse f g) e
   bitraverse f g (SU t x) = SU <$> f t <*> pure x
+
+-- TODO: Is this still in use?
+rigid :: TCType -> Bool 
+rigid (T (TBang {})) = False
+rigid (T (TTake {})) = False
+rigid (T (TPut {})) = False
+rigid (U {}) = False
+rigid (Synonym {}) = False
+rigid (R _ r _) = not $ Row.justVar r
+rigid (V r) = not $ Row.justVar r
+rigid _ = True
 
 data FuncOrVar = MustFunc | MustVar | FuncOrVar deriving (Eq, Ord, Show)
 
@@ -633,7 +662,7 @@ exitOnErr ma = do a <- ma
 substType :: [(VarName, TCType)] -> TCType -> TCType
 substType vs (U x) = U x
 substType vs (V x) = V (fmap (substType vs) x)
-substType vs (R x s) = R (fmap (substType vs) x) s
+substType vs (R rp x s) = R rp (fmap (substType vs) x) s
 #ifdef BUILTIN_ARRAYS
 substType vs (A t l s tkns) = A (substType vs t) l s tkns
 #endif
@@ -705,9 +734,11 @@ unifVars (Synonym n ts) = concatMap unifVars ts
 unifVars (V r)
   | Just x <- Row.var r = [x] ++ concatMap unifVars (Row.allTypes r)
   | otherwise = concatMap unifVars (Row.allTypes r)
-unifVars (R r s)
+unifVars (R rp r s)
   | Just x <- Row.var r = [x] ++ concatMap unifVars (Row.allTypes r) ++ rights [s]
+                       ++ case rp of UP i -> [i]; _    -> []
   | otherwise = concatMap unifVars (Row.allTypes r) ++ rights [s]
+                       ++ case rp of UP i -> [i]; _    -> []
 #ifdef BUILTIN_ARRAYS
 unifVars (A t l s tkns) = unifVars t ++ rights [s] ++ rights [tkns]
 #endif

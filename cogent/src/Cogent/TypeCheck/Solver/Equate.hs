@@ -88,7 +88,7 @@ findEquateCandidates mentions (c:cs) =
          , Row.justVar r1
          , canEquate fst a t
          -> (c : sups, subs, others)
-       R r1 s :< t
+       R _ r1 s :< t
          | Just a <- Row.var r1
          , Row.justVar r1
          , canEquate fst a t
@@ -107,7 +107,7 @@ findEquateCandidates mentions (c:cs) =
          , Row.justVar r1
          , canEquate snd a t
          -> (sups, c : subs, others)
-       t :< R r1 s
+       t :< R _ r1 s
          | Just a <- Row.var r1
          , Row.justVar r1
          , canEquate snd a t
