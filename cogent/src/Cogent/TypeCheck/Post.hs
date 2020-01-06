@@ -104,7 +104,8 @@ normaliseT d (T (TUnbox t)) = do
    t' <- normaliseT d t
    case t' of
      (T (TCon x ps _)) -> normaliseT d (T (TCon x ps Unboxed))
-     (T (TRecord l _)) -> normaliseT d (T (TRecord l Unboxed))
+     -- Cannot have an unboxed record with a recursive parameter
+     (T (TRecord NonRec l _)) -> normaliseT d (T (TRecord NonRec l Unboxed))
      (T (TVar v b u))  -> normaliseT d (T (TVar v b True))
      (T o)             -> normaliseT d =<< normaliseT d (T $ fmap (T . TUnbox) o)
      _                 -> __impossible "normaliseT (TUnbox)"
@@ -114,8 +115,8 @@ normaliseT d (T (TBang t)) = do
    case t' of
      (T (TCon x ps s)) -> mapM (normaliseT d . T . TBang) ps >>= \ps' ->
                           normaliseT d (T (TCon x ps' (bangSigil s)))
-     (T (TRecord l s)) -> mapM ((secondM . firstM) (normaliseT d . T . TBang)) l >>= \l' ->
-                          normaliseT d (T (TRecord l' (bangSigil s)))
+     (T (TRecord rp l s)) -> mapM ((secondM . firstM) (normaliseT d . T . TBang)) l >>= \l' ->
+                          normaliseT d (T (TRecord rp l' (bangSigil s)))
      (T (TVar v b u))  -> normaliseT d (T (TVar v True u))
      (T (TFun a b))    -> T <$> (TFun <$> normaliseT d a <*> normaliseT d b)
      (T o)             -> normaliseT d =<< normaliseT d (T $ fmap (T . TBang) o)
@@ -124,7 +125,7 @@ normaliseT d (T (TBang t)) = do
 normaliseT d (T (TTake fs t)) = do
    t' <- normaliseT d t
    case t' of
-     (T (TRecord l s)) -> takeFields fs l t >>= \r -> normaliseT d (T (TRecord r s))
+     (T (TRecord rp l s)) -> takeFields fs l t >>= \r -> normaliseT d (T (TRecord rp r s))
      (T (TVariant ts)) -> takeFields fs (M.toList ts) t' >>= \r -> normaliseT d (T (TVariant (M.fromList r)))
      _                 -> if __cogent_flax_take_put then return t
                                                     else logErrExit (TakeFromNonRecordOrVariant fs t)
@@ -139,7 +140,7 @@ normaliseT d (T (TTake fs t)) = do
 normaliseT d (T (TPut fs t)) = do
    t' <- normaliseT d t
    case t' of
-     (T (TRecord l s)) -> putFields fs l t >>= \r -> normaliseT d (T (TRecord r s))
+     (T (TRecord rp l s)) -> putFields fs l t >>= \r -> normaliseT d (T (TRecord rp r s))
      (T (TVariant ts)) -> putFields fs (M.toList ts) t' >>= \r -> normaliseT d (T (TVariant (M.fromList r)))
      _                 -> if __cogent_flax_take_put then return t'
                                                     else logErrExit (PutToNonRecordOrVariant fs t)
@@ -160,8 +161,9 @@ normaliseT d (Synonym n ts) =
     Just (ts', Just b) -> normaliseT d (substType (zip ts' ts) b)
     _ -> __impossible ("normaliseT: unresolved synonym " ++ show n)
 normaliseT d (V x) = T . TVariant . M.fromList . Row.toEntryList . fmap (:[]) <$> traverse (normaliseT d) x
-normaliseT d (R x (Left s)) = T . flip TRecord (fmap (const noRepE) s) . Row.toEntryList <$> traverse (normaliseT d) x
-normaliseT d (R x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
+-- TODO: Fix this
+normaliseT d (R rp x (Left s)) = T . flip (TRecord (unCoerceRp rp)) (fmap (const noRepE) s) . Row.toEntryList <$> traverse (normaliseT d) x
+normaliseT d (R _ x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
 normaliseT d (U x) = __impossible ("normaliseT: invalid type (?" ++ show x ++ ")")
 normaliseT d (T x) = T <$> traverse (normaliseT d) x
 

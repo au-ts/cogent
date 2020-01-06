@@ -57,7 +57,7 @@ assignE a (TE t e l) = TE (assignT a t)
 assignT :: Assignment -> TCType -> TCType
 assignT a (T t) = T $ ffmap (assign a) $ fmap (assignT a) t
 assignT a (V x) = V $ fmap (assignT a) x
-assignT a (R x s) = flip R s $ fmap (assignT a) x
+assignT a (R rp x s) = flip (R rp) s $ fmap (assignT a) x
 assignT a (U n) = U n
 assignT a (Synonym n ts) = Synonym n $ fmap (assignT a) ts
 

@@ -90,9 +90,10 @@ validateType rt@(RT t) = do
                -> return (Unsat $ TypeArgumentMismatch t provided required, toTCType rt)
                 |  Just (vs, Just x) <- lookup t ts
                -> second (Synonym t) <$> fmapFoldM validateType as  
-    TRecord fs s | fields  <- map fst fs
+    -- TODO: Need to change recPars here or earlier
+    TRecord rp fs s | fields  <- map fst fs
                  , fields' <- nub fields
-                -> let toRow (T (TRecord fs s)) = R (Row.fromList fs) (Left (fmap (const ()) s)) 
+                -> let toRow (T (TRecord rp fs s)) = R (coerceRP rp) (Row.fromList fs) (Left (fmap (const ()) s)) 
                    in if fields' == fields
                    then second (toRow . T . ffmap toSExpr) <$> fmapFoldM validateType t
                    else return (Unsat $ DuplicateRecordFields (fields \\ fields'), toTCType rt)
@@ -358,7 +359,7 @@ cg' (UnboxedRecord fes) t = do
   (ts, c', es') <- cgMany es
 
   let e = UnboxedRecord (zip fs es')
-      r = R (Row.fromList (zip fs (map (, False) ts))) (Left Unboxed)
+      r = R None (Row.fromList (zip fs (map (, False) ts))) (Left Unboxed)
       c = r :< t
   traceTc "gen" (text "cg for unboxed record:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
@@ -407,9 +408,10 @@ cg' (Member e f) t =  do
   (c', e') <- cg e alpha
   U rest <- freshTVar
   U sigil <- freshTVar
+  rp <- freshRPVar
   let f' = Member e' f
       row = Row.incomplete [(f, (t, False))] rest
-      x = R row (Right sigil)
+      x = R rp row (Right sigil)
       c = alpha :< x <> Drop x (UsedInMember f)
   traceTc "gen" (text "cg for member:" <+> prettyE f'
            L.<$> text "of type" <+> pretty t <> semi
@@ -454,15 +456,17 @@ cg' (Put e ls) t | not (any isNothing ls) = do
   (ts, cs, es') <- cgMany es
   U rest <- freshTVar
   U sigil <- freshTVar
-  let row  = R (Row.incomplete (zip fs (map (,True ) ts)) rest) (Right sigil)
-      row' = R (Row.incomplete (zip fs (map (,False) ts)) rest) (Right sigil) 
+  rp <- freshRPVar
+  let row  = R rp (Row.incomplete (zip fs (map (,True ) ts)) rest) (Right sigil)
+      row' = R rp (Row.incomplete (zip fs (map (,False) ts)) rest) (Right sigil) 
       c1 = row' :< t
       c2 = alpha :< row
+      c3 = UnboxedNotRecursive rp (Right sigil)
       r = Put e' (map Just (zip fs es'))
   traceTc "gen" (text "cg for put:" <+> prettyE r
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint:" <+> prettyC c1 <+> text "and" <+> prettyC c2)
-  return (c1 <> c' <> cs <> c2, r)
+  return (c1 <> c' <> cs <> c2 <> c3, r)
 
   | otherwise = first (<> Unsat RecordWildcardsNotSupported) <$> cg' (Put e (filter isJust ls)) t
 cg' (Let bs e) t = do
@@ -577,8 +581,8 @@ match' (PUnboxedRecord fs) t | not (any isNothing fs) = do
   let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
       row = Row.incomplete (zip ns (map (,False) vs)) rest
       row' = Row.incomplete (zip ns (map (,True) vs)) rest
-      t' = R row (Left Unboxed)
-      d  = Drop (R row' (Left Unboxed)) Suppressed
+      t' = R None row (Left Unboxed)
+      d  = Drop (R None row' (Left Unboxed)) Suppressed
       p' = PUnboxedRecord (map Just (zip ns ps'))
       c = t :< t'
       co = case overlapping ss of
@@ -596,12 +600,13 @@ match' (PTake r fs) t | not (any isNothing fs) = do
   (vs, blob) <- unzip <$> mapM (\p -> do v <- freshTVar; (v,) <$> match p v) ps
   U rest <- freshTVar
   U sigil <- freshTVar
+  rp <- freshRPVar
   let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
-      s  = M.fromList [(r, (R row' (Right sigil), ?loc, Seq.empty))]
+      s  = M.fromList [(r, (R rp row' (Right sigil), ?loc, Seq.empty))]
       row = Row.incomplete (zip ns (map (,False) vs)) rest
       row' = Row.incomplete (zip ns (map (,True) vs)) rest
-      t' = R row (Right sigil)
-      p' = PTake (r, R row' (Right sigil)) (map Just (zip ns ps'))
+      t' = R rp row (Right sigil)
+      p' = PTake (r, R rp row' (Right sigil)) (map Just (zip ns ps'))
       c = t :< t'
       co = case overlapping (s:ss) of
         Left (v:_) -> Unsat $ DuplicateVariableInPattern v  -- p'
@@ -644,6 +649,15 @@ freshEVar = fresh (ExpressionAt ?loc)
       i <- flexes <<%= succ  -- FIXME: do we need a different variable?
       flexOrigins %= IM.insert i ctx
       return $ SU i
+
+freshRPVar :: (?loc :: SourcePos) => CG RP
+freshRPVar = fresh (ExpressionAt ?loc)
+  where
+    fresh :: VarOrigin -> CG RP
+    fresh ctx = do
+      i <- flexes <<%= succ  -- FIXME: do we need a different variable?
+      flexOrigins %= IM.insert i ctx
+      return $ UP i
       
 integral :: TCType -> Constraint
 integral = Upcastable (T (TCon "U8" [] Unboxed))

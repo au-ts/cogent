@@ -568,7 +568,7 @@ eval (TE _ (LetBang _ a e e')) = do
   withBinding v (eval e')
 eval (TE _ (Tuple e1 e2)) = VProduct <$> eval e1 <*> eval e2
 eval (TE t (Struct fs)) = do
-  let TRecord fts _ = t
+  let TRecord _ fts _ = t
   fvs <- mapM (secondM eval) fs
   let fvs' = for fts $ \(fn,(t,b)) ->
                if b then (fn, Nothing)
@@ -602,14 +602,14 @@ eval (TE _ (Split (a1,a2) e e')) = do
                     abs2 = VThunk $ VAbstract ()
                  in withBindings (V.Cons abs1 (V.Cons abs2 V.Nil)) (eval e')
 eval (TE _ (Member e f)) = do
-  let TRecord fs _ = exprType e
+  let TRecord _ fs _ = exprType e
       fn = fst $ fs !! f
   rec <- eval e
   case rec of
     VRecord fvs -> return . fromJust . snd $ fvs !! f
     VThunk _ -> return $ VThunk $ VMember rec fn
 eval (TE t (Take bs rec f e)) = do
-  let TRecord fs _ = exprType rec
+  let TRecord _ fs _ = exprType rec
       fn = fst $ fs !! f
   vrec <- eval rec
   case vrec of
@@ -623,7 +623,7 @@ eval (TE t (Take bs rec f e)) = do
           vfld  = VThunk $ VAbstract ()
        in withBindings (V.Cons vfld (V.Cons vrec' V.Nil)) $ eval e
 eval (TE _ (Put rec f e)) = do
-  let TRecord fs _ = exprType rec
+  let TRecord _ fs _ = exprType rec
       fn = fst $ fs !! f
   vrec <- eval rec
   v    <- eval e

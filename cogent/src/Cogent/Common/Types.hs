@@ -34,6 +34,10 @@ data Sigil r = Boxed ReadOnly r  -- 0- or 1-kinded
 
 instance Binary r => Binary (Sigil r)
 
+data RecursiveParameter = Rec VarName | NonRec deriving (Data, Show, Eq, Ord, Generic)
+
+instance Binary RecursiveParameter
+
 bangSigil :: Sigil r -> Sigil r
 bangSigil (Boxed _ r)  = Boxed True r
 bangSigil Unboxed      = Unboxed

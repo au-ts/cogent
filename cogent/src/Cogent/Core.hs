@@ -71,7 +71,7 @@ data Type t
   | TString
   | TSum [(TagName, (Type t, Bool))]  -- True means taken (since 2.0.4)
   | TProduct (Type t) (Type t)
-  | TRecord [(FieldName, (Type t, Bool))] (Sigil Representation)  -- True means taken
+  | TRecord RecursiveParameter [(FieldName, (Type t, Bool))] (Sigil Representation)  -- True means taken
   | TUnit
 #ifdef BUILTIN_ARRAYS
   | TArray (Type t) ArraySize  -- use Int for now
@@ -96,7 +96,7 @@ isTFun _ = False
 
 isUnboxed :: Type t -> Bool
 isUnboxed (TCon _ _ Unboxed) = True
-isUnboxed (TRecord _ Unboxed) =  True
+isUnboxed (TRecord _ _ Unboxed) =  True
 isUnboxed _ = False
 
 data FunNote = NoInline | InlineMe | MacroCall | InlinePlease  -- order is important, larger value has stronger precedence
@@ -444,7 +444,7 @@ instance Pretty (Type t) where
   pretty (TFun t1 t2) = prettyT' t1 <+> typesymbol "->" <+> pretty t2
      where prettyT' e@(TFun {}) = parens (pretty e)
            prettyT' e           = pretty e
-  pretty (TRecord fs s) = record (map (\(f,(t,b)) -> fieldname f <+> symbol ":" L.<> prettyTaken b <+> pretty t) fs)
+  pretty (TRecord rp fs s) = pretty rp <+> record (map (\(f,(t,b)) -> fieldname f <+> symbol ":" L.<> prettyTaken b <+> pretty t) fs)
                           <> pretty s
   pretty (TCon tn [] s) = typename tn <> pretty s
   pretty (TCon tn ts s) = typename tn <> pretty s <+> typeargs (map pretty ts)

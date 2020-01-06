@@ -72,13 +72,13 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
   Escape (V r) m
     | isNothing (Row.var r) -> Just (map (flip Escape m) (Row.untakenTypes r))
 
-  Share  (R r (Left s)) m
+  Share  (R _ r (Left s)) m
     | isNothing (Row.var r)
     , not (writable s) -> Just (map (flip Share  m) (Row.untakenTypes r))
-  Drop   (R r (Left s)) m
+  Drop   (R _ r (Left s)) m
     | isNothing (Row.var r)
     , not (writable s) -> Just (map (flip Drop   m) (Row.untakenTypes r))
-  Escape (R r (Left s)) m
+  Escape (R _ r (Left s)) m
     | isNothing (Row.var r)
     , not (readonly s) -> Just (map (flip Escape m) (Row.untakenTypes r))
 
@@ -139,8 +139,9 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
         c   = V r1' :=: V r2'
     Just (c:cs)
 
-  R r1 s1 :< R r2 s2 | Row.null r1 && Row.null r2 && s1 == s2 -> Just []
-                     | Just (r1',r2') <- extractVariableEquality r1 r2 -> Just [R r1' s1 :=: R r2' s2]
+  R rp1 r1 s1 :< R rp2 r2 s2 
+                     | Row.null r1 && Row.null r2 && s1 == s2 && rp1 == rp2 -> Just []
+                     | Just (r1',r2') <- extractVariableEquality r1 r2 -> Just [R rp1 r1' s1 :=: R rp2 r2' s2]
                      | otherwise -> do
     let commons  = Row.common r1 r2
         (ls, rs) = unzip commons
@@ -149,10 +150,11 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
     let (r1',r2') = Row.withoutCommon r1 r2
         cs = map (\ ((_, e),(_,e')) -> fst e :< fst e') commons
         ds = map (flip Drop ImplicitlyTaken) $ Row.typesFor (untakenLabelsSet ls S.\\ untakenLabelsSet rs) r1
-        c  = R r1' s1 :< R r2' s2
+        c  = R rp1 r1' s1 :< R rp2 r2' s2
     Just (c:cs ++ ds)
 
-  R r1 s1 :=: R r2 s2 | Row.null r1 && Row.null r2 && s1 == s2 -> Just []
+  R rp1 r1 s1 :=: R rp2 r2 s2 
+                      | Row.null r1 && Row.null r2 && s1 == s2 && rp1 == rp2 -> Just []
                       | otherwise -> do
     let commons  = Row.common r1 r2
         (ls, rs) = unzip commons
@@ -161,7 +163,7 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
     let (r1',r2') = Row.withoutCommon r1 r2
         cs = map (\ ((_, e),(_,e')) -> fst e :=: fst e') commons
         ds = map (flip Drop ImplicitlyTaken) $ Row.typesFor (untakenLabelsSet ls S.\\ untakenLabelsSet rs) r1
-        c  = R r1' s1 :=: R r2' s2
+        c  = R rp1 r1' s1 :=: R rp2 r2' s2
     Just (c:cs ++ ds)
 
   T t1 :< x | unorderedType t1 -> Just [T t1 :=: x]

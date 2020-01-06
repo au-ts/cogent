@@ -416,7 +416,8 @@ lookupTypeCId (TCon tn ts _) = getCompose (forM ts (\t -> (if isUnboxed t then (
 lookupTypeCId (TProduct t1 t2) = getCompose (Compose . lookupStrlTypeCId =<< Record <$> (P.zip [p1,p2] <$> mapM (Compose . lookupType) [t1,t2]) <*> pure True)
 lookupTypeCId (TSum fs) = getCompose (Compose . lookupStrlTypeCId =<< Variant . M.fromList <$> mapM (secondM (Compose . lookupType) . second fst) fs)
 lookupTypeCId (TFun t1 t2) = getCompose (Compose . lookupStrlTypeCId =<< Function <$> (Compose . lookupType) t1 <*> (Compose . lookupType) t2)  -- Use the enum type for function dispatching
-lookupTypeCId (TRecord fs _) = getCompose (Compose . lookupStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> (Compose . lookupType) b) fs) <*> pure True)
+-- TOOD: Fix
+lookupTypeCId (TRecord _ fs _) = getCompose (Compose . lookupStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> (Compose . lookupType) b) fs) <*> pure True)
 
 #ifdef BUILTIN_ARRAYS
 lookupTypeCId (TArray t l) = getCompose (Compose . lookupStrlTypeCId =<< Array <$> (Compose . lookupType) t <*> pure (Just $ fromIntegral l))
@@ -471,7 +472,8 @@ typeCId t = use custTypeGen >>= \ctg ->
     typeCId' (TProduct t1 t2) = getStrlTypeCId =<< Record <$> (P.zip [p1,p2] <$> mapM genType [t1,t2]) <*> pure True
     typeCId' (TSum fs) = getStrlTypeCId =<< Variant . M.fromList <$> mapM (secondM genType . second fst) fs
     typeCId' (TFun t1 t2) = getStrlTypeCId =<< Function <$> genType t1 <*> genType t2  -- Use the enum type for function dispatching
-    typeCId' (TRecord fs _) = getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs) <*> pure True
+    -- TODO: Fix
+    typeCId' (TRecord _ fs _) = getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs) <*> pure True
     typeCId' (TUnit) = return unitT
 #ifdef BUILTIN_ARRAYS
     typeCId' (TArray t l) = getStrlTypeCId =<< Array <$> genType t <*> pure (Just $ fromIntegral l)
@@ -485,7 +487,7 @@ typeCId t = use custTypeGen >>= \ctg ->
         _      -> collFields f t
       getStrlTypeCId $ Record (concat fss) True
     -- typeCIdFlat (TSum fs) = __todo  -- Don't flatten variants for now. It's not clear how to incorporate with --funion-for-variants
-    typeCIdFlat (TRecord fs _) = do
+    typeCIdFlat (TRecord _ fs _) = do
       let (fns,ts) = P.unzip $ P.map (second fst) fs
       ts' <- mapM genType ts
       fss <- forM (P.zip3 fns ts ts') $ \(f,t,t') -> case t' of
@@ -496,7 +498,7 @@ typeCId t = use custTypeGen >>= \ctg ->
 
     collFields :: FieldName -> CC.Type 'Zero -> Gen v [(CId, CType)]
     collFields fn (TProduct t1 t2) = concat <$> zipWithM collFields (P.map ((fn ++ "_") ++) [p1,p2]) [t1,t2]
-    collFields fn (TRecord fs _) = let (fns,ts) = P.unzip (P.map (second fst) fs) in concat <$> zipWithM collFields (P.map ((fn ++ "_") ++) fns) ts
+    collFields fn (TRecord _ fs _) = let (fns,ts) = P.unzip (P.map (second fst) fs) in concat <$> zipWithM collFields (P.map ((fn ++ "_") ++) fns) ts
     collFields fn t = (:[]) . (fn,) <$> genType t
 
     isUnstable :: CC.Type 'Zero -> Bool
@@ -512,7 +514,7 @@ typeCId t = use custTypeGen >>= \ctg ->
 
 -- Returns the right C type
 genType :: CC.Type 'Zero -> Gen v CType
-genType t@(TRecord _ s) | s /= Unboxed = CPtr . CIdent <$> typeCId t  -- c.f. genTypeA
+genType t@(TRecord _ _ s) | s /= Unboxed = CPtr . CIdent <$> typeCId t  -- c.f. genTypeA
 genType t@(TString)                    = CPtr . CIdent <$> typeCId t
 genType t@(TCon _ _ s)  | s /= Unboxed = CPtr . CIdent <$> typeCId t
 #ifdef BUILTIN_ARRAYS
@@ -525,7 +527,7 @@ genType t                              = CIdent <$> typeCId t
 
 -- Used when generating a type for an argument to a function
 genTypeA :: CC.Type 'Zero -> Gen v CType
-genTypeA t@(TRecord _ Unboxed) | __cogent_funboxed_arg_by_ref = CPtr . CIdent <$> typeCId t  -- TODO: sizeof
+genTypeA t@(TRecord _ _ Unboxed) | __cogent_funboxed_arg_by_ref = CPtr . CIdent <$> typeCId t  -- TODO: sizeof
 genTypeA t = genType t
 
 -- It will generate a pointer type for an array, instead of the static-sized array type
@@ -542,7 +544,7 @@ genTypeALit (TArray t l) = CArray <$> (genType t) <*> pure (CArraySize (mkConst 
 genTypeALit t = genType t
 
 lookupType :: CC.Type 'Zero -> Gen v (Maybe CType)
-lookupType t@(TRecord _ s) | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
+lookupType t@(TRecord _ _ s) | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
 lookupType t@(TString)                    = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
 lookupType t@(TCon _ _ s)  | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
 #ifdef BUILTIN_ARRAYS
@@ -819,7 +821,7 @@ genExpr mv (TE t (Take _ rec fld e)) = do
   --       updated. Similarly, the field can be `rec.f' instead of a new one / zilinc
   (rec',recdecl,recstm,recp) <- genExpr_ rec
   let rect = exprType rec
-      TRecord fs s = rect
+      TRecord _ fs s = rect
   (rec'',recdecl',recstm',recp') <- flip3 aNewVar recp rec' =<< genType rect
   ft <- genType . fst . snd $ fs!!fld
   (f',fdecl,fstm,fp) <- (case __cogent_fintermediate_vars of
@@ -837,7 +839,7 @@ genExpr mv (TE t (Put rec fld val)) = do
   -- > let x' = x {f = fv}  -- x is an unboxed record
   -- >  in (x', x)
   -- >  -- x shouldn't change its field f to fv
-  let TRecord fs s = exprType rec
+  let TRecord _ fs s = exprType rec
   (rec',recdecl,recstm,recp) <- genExpr_ rec
   (rec'',recdecl',recstm') <- declareInit t' rec' recp
   (val',valdecl,valstm,valp) <- genExpr_ val
@@ -931,7 +933,7 @@ genExpr mv (TE t (Con tag e tau)) = do  -- `tau' and `t' should be compatible
   return (variable v, edecl ++ vdecl ++ a1decl ++ a2decl, estm ++ vstm ++ a1stm ++ a2stm, ep)
 
 genExpr mv (TE t (Member rec fld)) = do
-  let TRecord fs s = exprType rec
+  let TRecord _ fs s = exprType rec
   (rec',recdecl,recstm,recp) <- genExpr_ rec
   let e' = (if s == Unboxed then strDot else strArrow) rec' (fst $ fs!!fld)
   t' <- genType t

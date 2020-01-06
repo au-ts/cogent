@@ -80,6 +80,7 @@ data TypeError = FunctionNotFound VarName
                | PutToNonRecordOrVariant    (Maybe [FieldName]) TCType
                | TakeNonExistingField FieldName TCType
                | PutNonExistingField  FieldName TCType
+               | RecursiveUnboxedRecord RecursiveParameter (Sigil RepExpr) -- A record that is unboxed yet has a recursive parameter
                | DiscardWithoutMatch TagName
                | RequiredTakenTag TagName
 #ifdef BUILTIN_ARRAYS
@@ -165,6 +166,7 @@ data Constraint' t = (:<) t t
                    | SemiSat TypeWarning
                    | Sat
                    | Exhaustive t [RawPatn]
+                   | UnboxedNotRecursive RP (Either (Sigil ()) Int)
                    | Solved t
                    | IsPrimType t
 #ifdef BUILTIN_ARRAYS
@@ -235,10 +237,21 @@ warnToConstraint f w | f = SemiSat w
 -- Types for constraint generation and solving
 -- -----------------------------------------------------------------------------
 
+data RP = Mu VarName | None | UP Int
+          deriving (Show, Eq, Ord)
+
+coerceRP :: RecursiveParameter -> RP
+coerceRP (Rec v) = Mu v
+coerceRP NonRec  = None 
+
+unCoerceRp :: RP -> RecursiveParameter
+unCoerceRp (Mu v) = Rec v
+unCoerceRp None   = NonRec
+unCoerceRp (UP i)      = __impossible $ "Tried to coerce unification parameter (?" ++ show i ++ ") in core recursive type to surface recursive type"
 
 data TCType         = T (Type SExpr TCType)
                     | U Int  -- unifier
-                    | R (Row TCType) (Either (Sigil ()) Int)
+                    | R RP (Row TCType) (Either (Sigil ()) Int)
                     | V (Row TCType) 
                     | Synonym TypeName [TCType]
                     deriving (Show, Eq, Ord)
@@ -253,7 +266,7 @@ rigid (T (TTake {})) = False
 rigid (T (TPut {})) = False
 rigid (U {}) = False
 rigid (Synonym {}) = False
-rigid (R r _) = not $ Row.justVar r
+rigid (R _ r _) = not $ Row.justVar r
 rigid (V r) = not $ Row.justVar r
 rigid _ = True
 data FuncOrVar = MustFunc | MustVar | FuncOrVar deriving (Eq, Ord, Show)
@@ -452,7 +465,7 @@ exitOnErr ma = do a <- ma
 substType :: [(VarName, TCType)] -> TCType -> TCType
 substType vs (U x) = U x
 substType vs (V x) = V (fmap (substType vs) x)
-substType vs (R x s) = R (fmap (substType vs) x) s
+substType vs (R rp x s) = R rp (fmap (substType vs) x) s
 substType vs (Synonym n ts) = Synonym n (fmap (substType vs) ts)
 substType vs (T (TVar v b u)) | Just x <- lookup v vs
   = case (b,u) of
@@ -479,12 +492,15 @@ validateType' vs (RT t) = do
                -> throwE (TypeArgumentMismatch t provided required)
                 |  Just (_, Just x) <- lookup t ts
                -> Synonym t <$> mapM (validateType' vs) as  
-    TRecord fs s | fields  <- map fst fs
+    TRecord rp fs s | fields  <- map fst fs
                  , fields' <- nub fields
-                -> let toRow (T (TRecord fs s)) = R (Row.fromList fs) (Left (fmap (const ()) s)) 
-                   in if fields' == fields
-                   then (toRow . T . ffmap toSExpr) <$> mapM (validateType' vs) t
-                   else throwE (DuplicateRecordFields (fields \\ fields'))
+                -> let toRow (T (TRecord rp fs s)) = R (coerceRP rp) (Row.fromList fs) (Left (fmap (const ()) s)) 
+                   in 
+                   if rp /= NonRec && s == Unboxed 
+                   then throwE (RecursiveUnboxedRecord rp s)
+                   else if fields' == fields
+                    then (toRow . T . ffmap toSExpr) <$> mapM (validateType' vs) t
+                    else throwE (DuplicateRecordFields (fields \\ fields'))
     TVariant fs  -> do let tuplize [] = T TUnit
                            tuplize [x] = x 
                            tuplize xs  = T (TTuple xs)
@@ -529,11 +545,15 @@ unifVars (Synonym n ts) = concatMap unifVars ts
 unifVars (V r)  
   | Just x <- Row.var r = [x] ++ concatMap unifVars (Row.allTypes r)
   | otherwise = concatMap unifVars (Row.allTypes r)
-unifVars (R r s) 
+unifVars (R rp r s) 
   | Just x <- Row.var r = [x] ++ concatMap unifVars (Row.allTypes r)
                        ++ case s of Left s -> [] 
                                     Right y -> [y] 
+                       ++ case rp of UP i -> [i]
+                                     _   -> []
   | otherwise = concatMap unifVars (Row.allTypes r)
                        ++ case s of Left s -> [] 
                                     Right y -> [y] 
+                       ++ case rp of UP i -> [i]
+                                     _   -> []
 unifVars (T x) = foldMap unifVars x

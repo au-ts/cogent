@@ -468,6 +468,10 @@ instance Pretty SExpr where
   pretty (SE e) = pretty e
   pretty (SU n) = warn ('?':show n)
 
+instance Pretty RecursiveParameter where
+  pretty (Rec p) = typesymbol "mu" <+> pretty p
+  pretty NonRec  = empty
+
 prettyT' :: (TypeType t, Pretty t) => t -> Doc
 prettyT' t | not $ isAtomic t = parens (pretty t)
            | otherwise        = pretty t
@@ -486,12 +490,12 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
 #ifdef BUILTIN_ARRAYS
   pretty (TArray t l) = prettyT' t <> brackets (pretty l)
 #endif
-  pretty (TRecord ts s)
+  pretty (TRecord rp ts s)
     | not . or $ map (snd . snd) ts = (if | s == Unboxed -> (typesymbol "#" <>)
                                           | readonly s -> (<> typesymbol "!")
                                           | otherwise -> id) $
-        record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts)  -- all untaken
-    | otherwise = pretty (TRecord (map (second . second $ const False) ts) s :: Type e t)
+        pretty rp <+> record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts)  -- all untaken
+    | otherwise = pretty (TRecord rp (map (second . second $ const False) ts) s :: Type e t)
               <+> typesymbol "take" <+> tupled1 (map fieldname tk)
         where tk = map fst $ filter (snd . snd) ts
   pretty (TVariant ts) | any snd ts = let
@@ -522,11 +526,15 @@ instance Pretty RawType where
 instance Pretty TCType where
   pretty (T t) = pretty t
   pretty t@(V v) = symbol "V <" <+> pretty v <+> symbol ">"
-  pretty t@(R v s) =
+  pretty t@(R rp v s) =
     let sigilPretty = case s of
                         Left s -> pretty s
                         Right n -> symbol $ "(?" ++ show n ++ ")"
-     in symbol "R {" <+> pretty v <+> symbol "}" <+> sigilPretty
+        rpPretty    = case rp of
+                        Mu v -> typesymbol "mu" <+> pretty v
+                        None -> empty
+                        UP p -> symbol $ "(?" ++ show p ++ ")"
+     in symbol "R" <+> rpPretty <+> symbol "{" <+> pretty v <+> symbol "}" <+> sigilPretty
   pretty (U v) = warn ('?':show v)
   pretty (Synonym n ts) = warn ('S':show n) <+> spaceList (map pretty ts)
 --  pretty (RemoveCase a b) = pretty a <+> string "(without pattern" <+> pretty b <+> string ")"

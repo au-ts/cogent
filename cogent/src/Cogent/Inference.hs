@@ -99,7 +99,7 @@ isSubtype t1 t2 = runMaybeT (t1 `lub` t2) >>= \case Just t  -> return $ t == t2
 
 bound :: Bound -> Type t -> Type t -> MaybeT (TC t v) (Type t)
 bound _ t1 t2 | t1 == t2 = return t1
-bound b (TRecord fs1 s1) (TRecord fs2 s2) | map fst fs1 == map fst fs2, s1 == s2 = do
+bound b (TRecord rp1 fs1 s1) (TRecord rp2 fs2 s2) | map fst fs1 == map fst fs2, s1 == s2, rp1 == rp2 = do
   let op = case b of LUB -> (||); GLB -> (&&)
   blob <- flip3 zipWithM fs2 fs1 $ \(f1,(t1,b1)) (_, (t2,b2)) -> do
     t <- bound b t1 t2
@@ -107,7 +107,7 @@ bound b (TRecord fs1 s1) (TRecord fs2 s2) | map fst fs1 == map fst fs2, s1 == s2
                              else kindcheck t >>= \k -> return (canDiscard k)
     return ((f1, (t, b1 `op` b2)), ok)
   let (fs, oks) = unzip blob
-  if and oks then return $ TRecord fs s1
+  if and oks then return $ TRecord rp1 fs s1
              else MaybeT (return Nothing)
 bound b (TSum s1) (TSum s2) | s1' <- M.fromList s1, s2' <- M.fromList s2, M.keys s1' == M.keys s2' = do
   let op = case b of LUB -> (&&); GLB -> (||)
@@ -134,46 +134,46 @@ glb = bound GLB
 
 
 bang :: Type t -> Type t
-bang (TVar v)         = TVarBang v
-bang (TVarBang v)     = TVarBang v
-bang (TVarUnboxed v)  = TVarUnboxed v
-bang (TCon n ts s)    = TCon n (map bang ts) (bangSigil s)
-bang (TFun ti to)     = TFun ti to
-bang (TPrim i)        = TPrim i
-bang (TString)        = TString
-bang (TSum ts)        = TSum (map (second $ first bang) ts)
-bang (TProduct t1 t2) = TProduct (bang t1) (bang t2)
-bang (TRecord ts s)   = TRecord (map (second $ first bang) ts) (bangSigil s)
-bang (TUnit)          = TUnit
+bang (TVar v)          = TVarBang v
+bang (TVarBang v)      = TVarBang v
+bang (TVarUnboxed v)   = TVarUnboxed v
+bang (TCon n ts s)     = TCon n (map bang ts) (bangSigil s)
+bang (TFun ti to)      = TFun ti to
+bang (TPrim i)         = TPrim i
+bang (TString)         = TString
+bang (TSum ts)         = TSum (map (second $ first bang) ts)
+bang (TProduct t1 t2)  = TProduct (bang t1) (bang t2)
+bang (TRecord rp ts s) = TRecord rp (map (second $ first bang) ts) (bangSigil s)
+bang (TUnit)           = TUnit
 #ifdef BUILTIN_ARRAYS
-bang (TArray t l)     = TArray (bang t) l
+bang (TArray t l)      = TArray (bang t) l
 #endif
 
 unbox :: Type t -> Type t
-unbox (TVar v)         = TVarUnboxed v
-unbox (TVarBang v)     = TVarUnboxed v
-unbox (TVarUnboxed v)  = TVarUnboxed v
-unbox (TCon n ts s)    = TCon n ts (unboxSigil s)
-unbox (TRecord ts s)   = TRecord ts (unboxSigil s)
-unbox t                = t  -- NOTE that @#@ type operator behaves differently to @!@.
-                            -- The application of @#@ should NOT be pushed inside of a
-                            -- data type. / zilinc
+unbox (TVar v)            = TVarUnboxed v
+unbox (TVarBang v)        = TVarUnboxed v
+unbox (TVarUnboxed v)     = TVarUnboxed v
+unbox (TCon n ts s)       = TCon n ts (unboxSigil s)
+unbox (TRecord rp ts s)   = TRecord rp ts (unboxSigil s)
+unbox t                   = t  -- NOTE that @#@ type operator behaves differently to @!@.
+                               -- The application of @#@ should NOT be pushed inside of a
+                               -- data type. / zilinc
 
 
 substitute :: Vec t (Type u) -> Type t -> Type u
-substitute vs (TVar v)         = vs `at` v
-substitute vs (TVarBang v)     = bang (vs `at` v)
-substitute vs (TVarUnboxed v)  = unbox (vs `at` v)
-substitute vs (TCon n ts s)    = TCon n (map (substitute vs) ts) s
-substitute vs (TFun ti to)     = TFun (substitute vs ti) (substitute vs to)
-substitute _  (TPrim i)        = TPrim i
-substitute _  (TString)        = TString
-substitute vs (TProduct t1 t2) = TProduct (substitute vs t1) (substitute vs t2)
-substitute vs (TRecord ts s)   = TRecord (map (second (first $ substitute vs)) ts) s
-substitute vs (TSum ts)        = TSum (map (second (first $ substitute vs)) ts)
-substitute _  (TUnit)          = TUnit
+substitute vs (TVar v)          = vs `at` v
+substitute vs (TVarBang v)      = bang (vs `at` v)
+substitute vs (TVarUnboxed v)   = unbox (vs `at` v)
+substitute vs (TCon n ts s)     = TCon n (map (substitute vs) ts) s
+substitute vs (TFun ti to)      = TFun (substitute vs ti) (substitute vs to)
+substitute _  (TPrim i)         = TPrim i
+substitute _  (TString)         = TString
+substitute vs (TProduct t1 t2)  = TProduct (substitute vs t1) (substitute vs t2)
+substitute vs (TRecord rp ts s) = TRecord rp (map (second (first $ substitute vs)) ts) s
+substitute vs (TSum ts)         = TSum (map (second (first $ substitute vs)) ts)
+substitute _  (TUnit)           = TUnit
 #ifdef BUILTIN_ARRAYS
-substitute vs (TArray t l)     = TArray (substitute vs t) l
+substitute vs (TArray t l)      = TArray (substitute vs t) l
 #endif
 
 remove :: (Eq a) => a -> [(a,b)] -> [(a,b)]
@@ -321,7 +321,7 @@ kindcheck_ f (TFun ti to)     = return mempty
 kindcheck_ f (TPrim i)        = return mempty
 kindcheck_ f (TString)        = return mempty
 kindcheck_ f (TProduct t1 t2) = mappend <$> kindcheck_ f t1 <*> kindcheck_ f t2
-kindcheck_ f (TRecord ts s)   = mconcat <$> ((sigilKind s :) <$> mapM (kindcheck_ f . fst . snd) (filter (not . snd . snd) ts))
+kindcheck_ f (TRecord _ ts s) = mconcat <$> ((sigilKind s :) <$> mapM (kindcheck_ f . fst . snd) (filter (not . snd . snd) ts))
 kindcheck_ f (TSum ts)        = mconcat <$> mapM (kindcheck_ f . fst . snd) (filter (not . snd . snd) ts)
 kindcheck_ f (TUnit)          = return mempty
 
@@ -470,7 +470,7 @@ infer (E (Split a e1 e2))
         return $ TE (exprType e2') (Split a e1' e2')
 infer (E (Member e f))
    = do e'@(TE t _) <- infer e  -- canShare
-        let TRecord fs _ = t
+        let TRecord _ fs _ = t
         guardShow "member-1" . canShare =<< kindcheck t
         guardShow "member-2" $ f < length fs
         let (_,(tau,c)) = fs !! f
@@ -480,20 +480,20 @@ infer (E (Struct fs))
    = do let (ns,es) = unzip fs
         es' <- mapM infer es
         let ts' = zipWith (\n e' -> (n, (exprType e', False))) ns es'
-        return $ TE (TRecord (sortBy (compare `on` fst) ts') Unboxed) $ Struct $ zip ns es'
+        return $ TE (TRecord NonRec (sortBy (compare `on` fst) ts') Unboxed) $ Struct $ zip ns es'
 infer (E (Take a e f e2))
    = do e'@(TE t _) <- infer e
-        let TRecord ts s = t
+        let TRecord rp ts s = t
         -- a common cause of this error is taking a field when you could have used member
         guardShow "take: sigil not readonly" $ not (readonly s)
         guardShow "take-1" $ f < length ts
         let (init, (fn,(tau,False)):rest) = splitAt f ts
         k <- kindcheck tau
-        e2' <- withBindings (Cons tau (Cons (TRecord (init ++ (fn,(tau,True)):rest) s) Nil)) (infer e2)  -- take that field regardless of its shareability
+        e2' <- withBindings (Cons tau (Cons (TRecord rp (init ++ (fn,(tau,True)):rest) s) Nil)) (infer e2)  -- take that field regardless of its shareability
         return $ TE (exprType e2') (Take a e' f e2')
 infer (E (Put e1 f e2))
    = do e1'@(TE t1 _) <- infer e1
-        let TRecord ts s = t1
+        let TRecord rp ts s = t1
         guardShow "put: sigil not readonly" $ not (readonly s)
         guardShow "put-1" $ f < length ts
         let (init, (fn,(tau,taken)):rest) = splitAt f ts
@@ -503,7 +503,7 @@ infer (E (Put e1 f e2))
         isSub <- t2 `isSubtype` tau
         guardShow "put-3" isSub
         let e2'' = if t2 /= tau then promote tau e2' else e2'
-        return $ TE (TRecord (init ++ (fn,(tau,False)):rest) s) (Put e1' f e2'')  -- put it regardless
+        return $ TE (TRecord rp (init ++ (fn,(tau,False)):rest) s) (Put e1' f e2'')  -- put it regardless
 infer (E (Cast ty e))
    = do (TE t e') <- infer e
         guardShow ("cast: " ++ show t ++ " <<< " ++ show ty) =<< t `isUpcastable` ty

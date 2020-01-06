@@ -134,7 +134,7 @@ data Type e t =
                 TCon TypeName [t] (Sigil RepExpr)  -- FIXME: can polymorphise the `Representation`
               | TVar VarName Banged Unboxed
               | TFun t t
-              | TRecord [(FieldName, (t, Taken))] (Sigil RepExpr)
+              | TRecord RecursiveParameter [(FieldName, (t, Taken))] (Sigil RepExpr)
               | TVariant (M.Map TagName ([t], Taken))
               | TTuple [t]
               | TUnit
@@ -339,7 +339,7 @@ instance Traversable (Flip Type t) where  -- e
   traverse _ (Flip (TCon n ts s))        = pure $ Flip (TCon n ts s)
   traverse _ (Flip (TVar v b u))         = pure $ Flip (TVar v b u)
   traverse _ (Flip (TFun t1 t2))         = pure $ Flip (TFun t1 t2)
-  traverse _ (Flip (TRecord fs s))       = pure $ Flip (TRecord fs s)
+  traverse _ (Flip (TRecord rp fs s))    = pure $ Flip (TRecord rp fs s)
   traverse _ (Flip (TVariant alts))      = pure $ Flip (TVariant alts)
   traverse _ (Flip (TTuple ts))          = pure $ Flip (TTuple ts)
   traverse _ (Flip (TUnit))              = pure $ Flip (TUnit)
@@ -445,7 +445,7 @@ fvT :: RawType -> [VarName]
 fvT (RT (TCon _ ts _)) = foldMap fvT ts
 fvT (RT (TVar {})) = []
 fvT (RT (TFun t1 t2)) = fvT t1 ++ fvT t2
-fvT (RT (TRecord fs _)) = foldMap (fvT . fst . snd) fs
+fvT (RT (TRecord _ fs _)) = foldMap (fvT . fst . snd) fs
 fvT (RT (TVariant alts)) = foldMap (foldMap fvT . fst) alts
 fvT (RT (TTuple ts)) = foldMap fvT ts
 fvT (RT (TUnit)) = []
@@ -481,7 +481,7 @@ tvT :: RawType -> [TyVarName]
 tvT (RT (TCon _ ts _)) = foldMap tvT ts
 tvT (RT (TVar v _ _)) = [v]
 tvT (RT (TFun t1 t2)) = tvT t1 ++ tvT t2
-tvT (RT (TRecord fs _)) = foldMap (tvT . fst . snd) fs
+tvT (RT (TRecord _ fs _)) = foldMap (tvT . fst . snd) fs
 tvT (RT (TVariant alts)) = foldMap (foldMap tvT . fst) alts
 tvT (RT (TTuple ts)) = foldMap tvT ts
 tvT (RT (TUnit)) = []

@@ -23,7 +23,11 @@ import Data.Monoid hiding (Alt)
 import Prelude hiding (lookup)
 import qualified Cogent.TypeCheck.Row as Row 
 
-data AssignResult = Type TCType | Sigil (Sigil ()) | Row (Row.Row TCType)
+-- TODO: Add RP here
+data AssignResult = Type TCType 
+                  | Sigil (Sigil ())
+                  | Row (Row.Row TCType)
+                  | RecPar RP
  deriving Show
 
 newtype Subst = Subst (M.IntMap AssignResult)
@@ -37,6 +41,9 @@ ofRow i t = Subst (M.fromList [(i, Row t)])
 
 ofSigil :: Int -> Sigil () -> Subst 
 ofSigil i t = Subst (M.fromList [(i, Sigil t)])
+
+ofRecPar :: Int -> RP -> Subst
+ofRecPar i t = Subst (M.fromList [(i, RecPar t)])
 
 
 null :: Subst -> Bool
@@ -63,14 +70,28 @@ apply (Subst f) (U x)
   = U x
 apply (Subst f) t@(V (Row.Row m' (Just x))) 
   | Just (Row (Row.Row m q)) <- M.lookup x f = apply (Subst f) (V (Row.Row (DM.union m m') q))
-apply (Subst f) t@(R (Row.Row m' (Just x)) s) 
-  | Just (Row (Row.Row m q)) <- M.lookup x f = apply (Subst f) (R (Row.Row (DM.union m m') q) s)
-apply (Subst f) t@(R r (Right x))
-  | Just (Sigil s) <- M.lookup x f = apply (Subst f) (R r (Left s))
+apply (Subst f) t@(R rp (Row.Row m' (Just x)) s) 
+  | Just (Row (Row.Row m q)) <- M.lookup x f = apply (Subst f) (R rp (Row.Row (DM.union m m') q) s)
+apply f t@(R rp r s@(Right x)) = apply f (R rp r (applySigil f s))
 apply f (V x) = V (fmap (apply f) x) 
-apply f (R x s) = R (fmap (apply f) x) s
+apply f (R rp@(UP i) x s) = R (applyRP f rp) x s
+apply f (R rp x s) = R rp (fmap (apply f) x) s
 apply f (T x) = T (fmap (apply f) x)
 apply f (Synonym n ts) = Synonym n (fmap (apply f) ts)
+
+applySigil :: Subst -> Either (Sigil ()) Int -> Either (Sigil ()) Int
+applySigil (Subst f) (Right x)
+  | Just (Sigil s) <- M.lookup x f
+  = Left s
+  | otherwise
+  = Right x
+
+applyRP :: Subst -> RP -> RP
+applyRP (Subst f) (UP x) 
+  | Just (RecPar rp) <- M.lookup x f
+  = rp
+  | otherwise
+  = UP x
 
 applyAlts :: Subst -> [Alt TCPatn TCExpr] -> [Alt TCPatn TCExpr]
 applyAlts = map . applyAlt
@@ -114,6 +135,7 @@ applyC s (Unsat e) = Unsat (applyErr s e)
 applyC s (SemiSat w) = SemiSat (applyWarn s w)
 applyC s Sat = Sat
 applyC s (Exhaustive t ps) = Exhaustive (apply s t) ps
+applyC s (UnboxedNotRecursive rp sig) = UnboxedNotRecursive (applyRP s rp) (applySigil s sig)
 applyC s (Solved t) = Solved (apply s t)
 applyC s (IsPrimType t) = IsPrimType (apply s t)
 
