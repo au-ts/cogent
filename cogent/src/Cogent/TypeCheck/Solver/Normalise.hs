@@ -45,8 +45,8 @@ normaliseRWT = rewrite' $ \case
     T (TBang (T (TCon t ts s))) -> pure (T (TCon t (fmap (T . TBang) ts) (bangSigil s)))
     T (TBang (T (TVar v b u))) -> pure (T (TVar v True u))
     T (TBang (T (TFun x y))) -> pure (T (TFun x y))
-    T (TBang (R r (Left s))) | Row.isComplete r ->
-      pure (R (fmap (T . TBang) r) (Left (bangSigil s)))
+    T (TBang (R rp r (Left s))) | Row.isComplete r ->
+      pure (R rp (fmap (T . TBang) r) (Left (bangSigil s)))
     T (TBang (V r)) | Row.isComplete r ->
       pure (V (fmap (T . TBang) r))
     T (TBang (T (TTuple ts))) -> pure (T (TTuple (map (T . TBang) ts)))
@@ -57,7 +57,7 @@ normaliseRWT = rewrite' $ \case
 
     T (TUnbox (T (TVar v b u))) -> pure (T (TVar v b True))
     T (TUnbox (T (TCon t ts s))) -> pure (T (TCon t ts Unboxed))
-    T (TUnbox (R r _)) -> pure (R r (Left Unboxed))
+    T (TUnbox (R rp r _)) -> pure (R rp r (Left Unboxed))
 #ifdef BUILTIN_ARRAYS
     T (TUnbox (A t l _ tkns)) -> pure (A t l (Left Unboxed) tkns)  -- FIXME
 #endif
@@ -69,24 +69,25 @@ normaliseRWT = rewrite' $ \case
               MaybeT $ Just <$> whnf (substType (zip as' as) b)
             _ -> __impossible "normaliseRWT: missing type synonym"
 
-    T (TTake fs (R r s)) | Row.isComplete r ->
+    T (TTake fs (R rp r s)) | Row.isComplete r ->
       case fs of
-        Nothing -> pure $ R (Row.takeAll r) s
-        Just fs -> pure $ R (Row.takeMany fs r) s
+        Nothing -> pure $ R rp (Row.takeAll r) s
+        Just fs -> pure $ R rp (Row.takeMany fs r) s
     T (TTake fs (V r)) | Row.isComplete r ->
       case fs of
         Nothing -> pure $ V (Row.takeAll r)
         Just fs -> pure $ V (Row.takeMany fs r)
     T (TTake fs t) | __cogent_flax_take_put -> return t
-    T (TPut fs (R r s)) | Row.isComplete r ->
+    T (TPut fs (R rp r s)) | Row.isComplete r ->
       case fs of
-        Nothing -> pure $ R (Row.putAll r) s
-        Just fs -> pure $ R (Row.putMany fs r) s
+        Nothing -> pure $ R rp (Row.putAll r) s
+        Just fs -> pure $ R rp (Row.putMany fs r) s
     T (TPut fs (V r)) | Row.isComplete r ->
       case fs of
         Nothing -> pure $ V (Row.putAll r)
         Just fs -> pure $ V (Row.putMany fs r)
     T (TPut fs t) | __cogent_flax_take_put -> return t
+
 #ifdef BUILTIN_ARRAYS
     T (TATake [idx] (A t l s (Right _))) ->
       __impossible "normaliseRW: TATake over a hole variable"

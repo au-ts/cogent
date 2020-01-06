@@ -118,7 +118,8 @@ normaliseT d (T (TUnbox t)) = do
    case t' of
      (T (TCon x ps _))    -> normaliseT d (T (TCon x ps Unboxed))
      (T (TVar v b u))     -> normaliseT d (T (TVar v b True))
-     (T (TRecord l _))    -> normaliseT d (T (TRecord l Unboxed))
+     -- Cannot have an unboxed record with a recursive parameter
+     (T (TRecord NonRec l _)) -> normaliseT d (T (TRecord NonRec l Unboxed))
 #ifdef BUILTIN_ARRAYS
      (T (TArray t e _ h)) -> normaliseT d (T (TArray t e Unboxed h))
 #endif
@@ -130,8 +131,8 @@ normaliseT d (T (TBang t)) = do
    case t' of
      (T (TCon x ps s)) -> mapM (normaliseT d . T . TBang) ps >>= \ps' ->
                           normaliseT d (T (TCon x ps' (bangSigil s)))
-     (T (TRecord l s)) -> mapM ((secondM . firstM) (normaliseT d . T . TBang)) l >>= \l' ->
-                          normaliseT d (T (TRecord l' (bangSigil s)))
+     (T (TRecord rp l s)) -> mapM ((secondM . firstM) (normaliseT d . T . TBang)) l >>= \l' ->
+                          normaliseT d (T (TRecord rp l' (bangSigil s)))
 #ifdef BUILTIN_ARRAYS
      (T (TArray t e (Boxed False l) h)) -> normaliseT d (T (TArray t e (Boxed True l) h))
 #endif
@@ -143,7 +144,7 @@ normaliseT d (T (TBang t)) = do
 normaliseT d (T (TTake fs t)) = do
    t' <- normaliseT d t
    case t' of
-     (T (TRecord l s)) -> takeFields fs l t >>= \r -> normaliseT d (T (TRecord r s))
+     (T (TRecord rp l s)) -> takeFields fs l t >>= \r -> normaliseT d (T (TRecord rp r s))
      (T (TVariant ts)) -> takeFields fs (M.toList ts) t' >>= \r -> normaliseT d (T (TVariant (M.fromList r)))
      _                 -> if __cogent_flax_take_put then return t
                                                     else logErrExit (TakeFromNonRecordOrVariant fs t)
@@ -158,7 +159,7 @@ normaliseT d (T (TTake fs t)) = do
 normaliseT d (T (TPut fs t)) = do
    t' <- normaliseT d t
    case t' of
-     (T (TRecord l s)) -> putFields fs l t >>= \r -> normaliseT d (T (TRecord r s))
+     (T (TRecord rp l s)) -> putFields fs l t >>= \r -> normaliseT d (T (TRecord rp r s))
      (T (TVariant ts)) -> putFields fs (M.toList ts) t' >>= \r -> normaliseT d (T (TVariant (M.fromList r)))
      _                 -> if __cogent_flax_take_put then return t'
                                                     else logErrExit (PutToNonRecordOrVariant fs t)
@@ -245,11 +246,11 @@ normaliseT d (V x) =
   T . TVariant . M.fromList .
   map (\e -> (Row.fname e, ([Row.payload e], Row.taken e))) .
   Row.entries <$> traverse (normaliseT d) x
-normaliseT d (R x (Left s)) =
-  T . flip TRecord (__fixme $ fmap (const Nothing) s) .
+normaliseT d (R rp x (Left s)) =
+  T . flip TRecord (unCoerceRp rp) (__fixme $ fmap (const Nothing) s) .
   map (\e -> (Row.fname e, (Row.payload e, Row.taken e))) .
   Row.entries <$> traverse (normaliseT d) x
-normaliseT d (R x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
+normaliseT d (R _ x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
 #ifdef BUILTIN_ARRAYS
 normaliseT d (A t n (Left s) (Left mhole)) = do
   t' <- normaliseT d t
@@ -259,7 +260,6 @@ normaliseT d (A t n (Left s) (Left mhole)) = do
 normaliseT d (A t n (Right s) mhole) = __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
 normaliseT d (A t n s (Right h)) = __impossible ("normaliseT: invalid hole (?" ++ show h ++ ")")
 #endif
-normaliseT d (U x) = __impossible ("normaliseT: invalid type (?" ++ show x ++ ")")
 normaliseT d (T x) = T <$> traverse (normaliseT d) x
 
 tkNorm :: Either Taken Int -> Taken

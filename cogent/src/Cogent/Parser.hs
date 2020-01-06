@@ -66,7 +66,7 @@ language = haskellStyle
 #endif
                                  ,"->","=>","~>","<=","|","|>"]
            , T.reservedNames   = ["let","in","type","include","all","take","put","inline","upcast"
-                                 ,"variant","record","at","layout","pointer"
+                                 ,"variant","record","at","rec","layout","pointer"
                                  ,"if","then","else","not","complement","and","True","False","o"
 #ifdef BUILTIN_ARRAYS
                                  ,"array","map2","@take","@put"]
@@ -473,8 +473,9 @@ atomtype = avoidInitial >> LocType <$> getPosition <*> (
           return $ TCon tn [] s)
   -- <|> TCon <$> typeConName <*> pure [] <*> pure Writable
   <|> tuple <$> parens (commaSep monotype)
-  <|> (\fs -> TRecord fs (Boxed False Nothing))
-      <$> braces (commaSep1 ((\a b c -> (a,(b,c))) <$> variableName <* reservedOp ":" <*> monotype <*> pure False))
+  <|> (\rp -> (\fs -> TRecord rp fs (Boxed False Nothing)))
+      <$> recPar
+      <*> braces (commaSep1 ((\a b c -> (a,(b,c))) <$> variableName <* reservedOp ":" <*> monotype <*> pure False))
   <|> TVariant . M.fromList <$> angles (((,) <$> typeConName <*> fmap ((,False)) (many typeA2)) `sepBy` reservedOp "|")
 #ifdef REFINEMENT_TYPES
   <|> (brackets (TRefine <$> variableName <* reservedOp ":" <*> monotype <* reservedOp "|" <*> expr 1)))
@@ -485,6 +486,9 @@ atomtype = avoidInitial >> LocType <$> getPosition <*> (
       tuple [] = TUnit
       tuple [e] = typeOfLT e
       tuple es  = TTuple es
+
+      recPar = Rec <$> (reserved "mu" *> variableName)
+           <|> return NonRec
 
 monotype = do avoidInitial
               t1 <- typeA1

@@ -103,20 +103,20 @@ validateType (RT t) = do
                -> second (Synonym t) <$> fmapFoldM validateType as
                 | otherwise -> (second T) <$> fmapFoldM validateType (TCon t as (fmap (fmap toTCDL) s))
 
-    TRecord fs s | fields  <- map fst fs
-                 , fields' <- nub fields
-                -> let toRow (T (TRecord fs s)) = R (Row.complete $ Row.toEntryList fs) (Left (fmap (const ()) s))
-                   in if fields' == fields
-                        then case s of
-                          Boxed _ (Just dlexpr)
-                            | Left (anError : _) <- runExcept $ tcDataLayoutExpr layouts lvs dlexpr  -- layout is bad
-                            -> freshTVar >>= \t' -> return (Unsat $ DataLayoutError anError, t')
-                          _ -> -- layout is good, or no layout
-                               -- We have to pattern match on 'TRecord' otherwise it's a type error.
-                               do (c, TRecord fs' s') <- fmapFoldM validateType t
-                                  return (c, toRow . T $ TRecord fs' (fmap (fmap toTCDL) s'))
-                        else freshTVar >>= \t' -> return (Unsat $ DuplicateRecordFields (fields \\ fields'), t')
-                  | otherwise -> (second T) <$> fmapFoldM validateType (TRecord fs (fmap (fmap toTCDL) s))
+    TRecord rp fs s | fields  <- map fst fs
+                    , fields' <- nub fields
+                   -> let toRow (T (TRecord fs s)) = R (Row.complete $ Row.toEntryList fs) (Left (fmap (const ()) s))
+                      in if fields' == fields
+                           then case s of
+                             Boxed _ (Just dlexpr)
+                               | Left (anError : _) <- runExcept $ tcDataLayoutExpr layouts lvs dlexpr  -- layout is bad
+                               -> freshTVar >>= \t' -> return (Unsat $ DataLayoutError anError, t')
+                             _ -> -- layout is good, or no layout
+                                  -- We have to pattern match on 'TRecord' otherwise it's a type error.
+                                  do (c, TRecord fs' s') <- fmapFoldM validateType t
+                                     return (c, toRow . T $ TRecord fs' (fmap (fmap toTCDL) s'))
+                           else freshTVar >>= \t' -> return (Unsat $ DuplicateRecordFields (fields \\ fields'), t')
+                    | otherwise -> (second T) <$> fmapFoldM validateType (TRecord rp fs (fmap (fmap toTCDL) s))
 
     TVariant fs  -> do let tuplize [] = T TUnit
                            tuplize [x] = x
@@ -593,7 +593,7 @@ cg' (UnboxedRecord fes) t = do
   (ts, c', es') <- cgMany es
 
   let e = UnboxedRecord (zip fs es')
-      r = R (Row.complete $ zipWith3 mkEntry fs ts (repeat False)) (Left Unboxed)
+      r = R None (Row.complete $ zipWith3 mkEntry fs ts (repeat False)) (Left Unboxed)
       c = r :< t
   traceTc "gen" (text "cg for unboxed record:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
@@ -651,9 +651,10 @@ cg' (Member e f) t =  do
   (c', e') <- cg e alpha
   U rest <- freshTVar
   U sigil <- freshTVar
+  rp <- freshRPVar
   let f' = Member e' f
       row = Row.incomplete [Row.mkEntry f t False] rest
-      x = R row (Right sigil)
+      x = R rp row (Right sigil)
       c = alpha :< x <> Drop x (UsedInMember f)
   traceTc "gen" (text "cg for member:" <+> prettyE f'
            L.<$> text "of type" <+> pretty t <> semi
@@ -697,15 +698,17 @@ cg' (Put e ls) t | not (any isNothing ls) = do
   (ts, cs, es') <- cgMany es
   U rest <- freshTVar
   U sigil <- freshTVar
-  let row  = R (Row.incomplete (zipWith3 mkEntry fs ts (repeat True)) rest) (Right sigil)
-      row' = R (Row.incomplete (zipWith3 mkEntry fs ts (repeat False)) rest) (Right sigil) 
+  rp <- freshRPVar
+  let row  = R rp (Row.incomplete (zipWith3 mkEntry fs ts (repeat True)) rest) (Right sigil)
+      row' = R rp (Row.incomplete (zipWith3 mkEntry fs ts (repeat False)) rest) (Right sigil) 
       c1 = row' :< t
       c2 = alpha :< row
+      c3 = UnboxedNotRecursive rp (Right sigil)
       r = Put e' (map Just (zip fs es'))
   traceTc "gen" (text "cg for put:" <+> prettyE r
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint:" <+> prettyC c1 <+> text "and" <+> prettyC c2)
-  return (c1 <> c' <> cs <> c2, r)
+  return (c1 <> c' <> cs <> c2 <> c3, r)
 
   | otherwise = first (<> Unsat RecordWildcardsNotSupported) <$> cg' (Put e (filter isJust ls)) t
 
@@ -823,8 +826,8 @@ match' (PUnboxedRecord fs) t | not (any isNothing fs) = do
   let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
       row = Row.incomplete (zipWith3 mkEntry ns vs (repeat False)) rest
       row' = Row.incomplete (zipWith3 mkEntry ns vs (repeat True)) rest
-      t' = R row (Left Unboxed)
-      d  = Drop (R row' (Left Unboxed)) Suppressed
+      t' = R None row (Left Unboxed)
+      d  = Drop (R None row' (Left Unboxed)) Suppressed
       p' = PUnboxedRecord (map Just (zip ns ps'))
       c = t :< t'
       co = case overlapping ss of
@@ -842,12 +845,13 @@ match' (PTake r fs) t | not (any isNothing fs) = do
   (vs, blob) <- unzip <$> mapM (\p -> do v <- freshTVar; (v,) <$> match p v) ps
   U rest <- freshTVar
   U sigil <- freshTVar
+  rp <- freshRPVar
   let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
-      s  = M.fromList [(r, (R row' (Right sigil), ?loc, Seq.empty))]
+      s  = M.fromList [(r, (R rp row' (Right sigil), ?loc, Seq.empty))]
       row = Row.incomplete (zipWith3 mkEntry ns vs (repeat False)) rest
       row' = Row.incomplete (zipWith3 mkEntry ns vs (repeat True)) rest
-      t' = R row (Right sigil)
-      p' = PTake (r, R row' (Right sigil)) (map Just (zip ns ps'))
+      t' = R rp row (Right sigil)
+      p' = PTake (r, R rp row' (Right sigil)) (map Just (zip ns ps'))
       c = t :< t'
       co = case overlapping (s:ss) of
         Left (v:_) -> Unsat $ DuplicateVariableInPattern v  -- p'
@@ -916,6 +920,9 @@ freshEVar t = SU t <$> freshVar
 freshLVar :: (?loc :: SourcePos) => CG TCDataLayout
 freshLVar = TLU <$> freshVar
 
+freshRPVar :: (?loc :: SourcePos) => CG RP
+freshRPVar = UP <$> freshVar
+      
 integral :: TCType -> Constraint
 integral = Upcastable (T (TCon "U8" [] Unboxed))
 

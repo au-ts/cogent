@@ -513,6 +513,10 @@ instance (Pretty t, Pretty l) => Pretty (SExpr t l) where
   pretty (SU t n) | __cogent_fshow_types_in_pretty = parens $ warn ('?':show n) <+> comment "::" <+> pretty t
                   | otherwise = warn ('?':show n)
 
+instance Pretty RecursiveParameter where
+  pretty (Rec p) = typesymbol "mu" <+> pretty p
+  pretty NonRec  = empty
+
 prettyT' :: (TypeType t, Pretty t) => t -> Doc
 prettyT' t | not $ isAtomic t = parens (pretty t)
            | otherwise        = pretty t
@@ -561,7 +565,7 @@ instance (Pretty t, TypeType t, Pretty e, Pretty l, Eq l) => Pretty (Type e l t)
           (sigilPretty, layoutPretty) = case s of
             Unboxed     -> ((typesymbol "#" <>), id)
             Boxed rw ml -> (if rw then (<> typesymbol "!") else id, case ml of Just l -> (<+> pretty l); _ -> id)
-       in layoutPretty . tkUntkPretty . sigilPretty $ recordPretty
+       in pretty rp <+> layoutPretty . tkUntkPretty . sigilPretty $ recordPretty
   pretty (TVariant ts) | any snd ts = let
      names = map fst $ filter (snd . snd) $ M.toList ts
    in pretty (TVariant $ fmap (second (const False)) ts :: Type e l t)
@@ -595,11 +599,15 @@ instance Pretty DepType where
 instance Pretty TCType where
   pretty (T t) = pretty t
   pretty t@(V v) = symbol "V <" <+> pretty v <+> symbol ">"
-  pretty t@(R v s) =
+  pretty t@(R rp v s) =
     let sigilPretty = case s of
                         Left s -> pretty s
-                        Right n -> parens (warn $ '?' : show n)
-     in symbol "R {" <+> pretty v <+> symbol "}" <+> sigilPretty
+                        Right n -> symbol $ "(?" ++ show n ++ ")"
+        rpPretty    = case rp of
+                        Mu v -> typesymbol "mu" <+> pretty v
+                        None -> empty
+                        UP p -> symbol $ "(?" ++ show p ++ ")"
+     in symbol "R" <+> rpPretty <+> symbol "{" <+> pretty v <+> symbol "}" <+> sigilPretty
 #ifdef BUILTIN_ARRAYS
   pretty (A t l s row) =
     let sigilPretty = case s of

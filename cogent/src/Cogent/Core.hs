@@ -78,7 +78,7 @@ data Type t b
   | TString
   | TSum [(TagName, (Type t b, Bool))]  -- True means taken (since 2.0.4)
   | TProduct (Type t b) (Type t b)
-  | TRecord [(FieldName, (Type t b, Bool))] (Sigil (DataLayout BitRange))
+  | TRecord RecursiveParameter [(FieldName, (Type t b, Bool))] (Sigil (DataLayout BitRange))
     -- True means taken, Layout will be nothing for abstract types
   | TUnit
 -- #ifdef BUILTIN_ARRAYS
@@ -105,7 +105,7 @@ isTFun _ = False
 
 isUnboxed :: Type t b -> Bool
 isUnboxed (TCon _ _ Unboxed) = True
-isUnboxed (TRecord _ Unboxed) =  True
+isUnboxed (TRecord _ _ Unboxed) =  True
 #ifdef BUILTIN_ARRAYS
 isUnboxed (TArray _ _ Unboxed _) = True
 #endif
@@ -651,7 +651,7 @@ instance (Pretty b) => Pretty (Type t b) where
   pretty (TFun t1 t2) = prettyT' t1 <+> typesymbol "->" <+> pretty t2
      where prettyT' e@(TFun {}) = parens (pretty e)
            prettyT' e           = pretty e
-  pretty (TRecord fs s) = record (map (\(f,(t,b)) -> fieldname f <+> symbol ":" L.<> prettyTaken b <+> pretty t) fs)
+  pretty (TRecord rp fs s) = pretty rp <+> record (map (\(f,(t,b)) -> fieldname f <+> symbol ":" L.<> prettyTaken b <+> pretty t) fs)
                           <> pretty s
   pretty (TCon tn [] s) = typename tn <> pretty s
   pretty (TCon tn ts s) = typename tn <> pretty s <+> typeargs (map pretty ts)

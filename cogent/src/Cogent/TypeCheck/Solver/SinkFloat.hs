@@ -74,19 +74,19 @@ sinkfloat = Rewrite.rewrite' $ \gs ->
 
     genStructSubst :: M.Map Int (Int,Int) -> Constraint -> MaybeT TcSolvM Subst.Subst
     -- record rows
-    genStructSubst _ (R r s :< U i) = do
+    genStructSubst _ (R rp r s :< U i) = do
       s' <- case s of
         Left Unboxed -> return $ Left Unboxed -- unboxed is preserved by bang and TUnbox, so we may propagate it
         _            -> Right <$> lift solvFresh
-      makeRowUnifSubsts (flip R s') (filter Row.taken (Row.entries r)) i
-    genStructSubst _ (U i :< R r s) = do
+      makeRowUnifSubsts (flip (R rp) s') (filter Row.taken (Row.entries r)) i
+    genStructSubst _ (U i :< R rp r s) = do
       s' <- case s of
         Left Unboxed -> return $ Left Unboxed -- unboxed is preserved by bang and TUnbox, so we may propagate it
         _            ->  Right <$> lift solvFresh
       -- Subst. a record structure for the unifier with only present entries of
       -- the record r (respecting the lattice order for records).
-      makeRowUnifSubsts (flip R s') (filter (not . Row.taken) (Row.entries r)) i
-    genStructSubst mentions (R r1 s1 :< R r2 s2)
+      makeRowUnifSubsts (flip (R rp) s') (filter (not . Row.taken) (Row.entries r)) i
+    genStructSubst mentions (R _ r1 s1 :< R _ r2 s2)
       {- The most tricky case.
          For Records, present is the bottom of the order, taken is the top.
          If present things are in r2, then we can infer they must be in r1.
@@ -199,6 +199,18 @@ sinkfloat = Rewrite.rewrite' $ \gs ->
     genStructSubst _ (U i :< t@(T TUnit)) = return $ Subst.ofType i t
     genStructSubst _ (t@(T TUnit) :=: U i) = return $ Subst.ofType i t
     genStructSubst _ (U i :=: t@(T TUnit)) = return $ Subst.ofType i t
+
+    -- layout
+    genStructSubst (R r s :~~ U i) = do
+      s' <- case s of
+              Left Unboxed -> return $ Left Unboxed
+              _            -> Right <$> lift solvFresh
+      makeRowUnifSubsts (flip R s') r i
+    genStructSubst (U i :~~ R r s) = do
+      s' <- case s of
+              Left Unboxed -> return $ Left Unboxed
+              _            -> Right <$> lift solvFresh
+      makeRowUnifSubsts (flip R s') r i
 
     -- default
     genStructSubst _ _ = empty

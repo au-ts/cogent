@@ -37,8 +37,8 @@ import Cogent.Compiler
 import Cogent.Core as CC
 import Cogent.Desugar as D (freshVarPrefix)
 import Cogent.Isabelle.Compound (takeFlatCase)
-import Cogent.Isabelle.ShallowTable (TypeStr(..), st, getStrlType, toTypeStr)
 import Cogent.Isabelle.IsabelleName
+import Cogent.Isabelle.ShallowTable (TypeStr(..), st, getStrlType, toTypeStr)
 
 import Cogent.Normal as N (freshVarPrefix)
 import Cogent.Util (NameMod, Stage(..), Warning)
@@ -117,12 +117,12 @@ shallowType (TPrim pt) = pure $ shallowPrimType pt
 shallowType (TString) = pure $ I.AntiType "string"
 shallowType (TSum alts) = shallowTypeWithName (TSum alts)
 shallowType (TProduct t1 t2) = I.TyTuple <$> shallowType t1 <*> shallowType t2
-shallowType (TRecord fs s) = do
+shallowType (TRecord rp fs s) = do
   tuples <- asks recoverTuples
   if tuples && isRecTuple (map fst fs) then
     shallowRecTupleType fs
   else
-    shallowTypeWithName (TRecord fs s)
+    shallowTypeWithName (TRecord rp fs s)
 shallowType (TUnit) = return $ I.AntiType "unit"
 #ifdef BUILTIN_ARRAYS
 shallowType (TArray t _ _ _) = I.TyDatatype "list" <$> mapM shallowType [t]
@@ -350,7 +350,7 @@ shallowGetter :: TypedExpr t v VarName b -> Int -> Term -> SG Term
 shallowGetter rec idx rect = mkApp <$> (mkId <$> getRecordFieldName (exprType rec) idx) <*> pure [rect]
 
 getRecordFieldName :: CC.Type t b -> Int -> SG FieldName
-getRecordFieldName t@(TRecord fs _) ind = do
+getRecordFieldName t@(TRecord _ fs _) ind = do
   tn <- findTypeSyn t
   let fnms = map fst fs
   tuples <- asks recoverTuples
@@ -363,7 +363,7 @@ typarUpd typar v = v {typeVars = typar}
 -- Clear out all taken annotations and mark all sigil as unboxed.
 sanitizeType :: CC.Type t b -> CC.Type t b
 sanitizeType (TSum ts) = TSum (map (\(tn,(t,_)) -> (tn,(sanitizeType t,False))) ts)
-sanitizeType (TRecord ts _) = TRecord (map (\(tn, (t,_)) -> (tn, (sanitizeType t, False))) ts) Unboxed
+sanitizeType (TRecord rp ts _) = TRecord rp (map (\(tn, (t,_)) -> (tn, (sanitizeType t, False))) ts) Unboxed
 sanitizeType (TCon tn ts _) = TCon tn (map sanitizeType ts) Unboxed
 sanitizeType (TFun ti to) = TFun (sanitizeType ti) (sanitizeType to)
 sanitizeType (TProduct t t') = TProduct (sanitizeType t) (sanitizeType t')
@@ -373,7 +373,7 @@ sanitizeType t = t
 --   taken entries or sigils do not.
 hashType :: (Show b) => CC.Type t b -> String
 hashType (TSum ts)      = show (sanitizeType $ TSum ts)
-hashType (TRecord ts s) = show (sanitizeType $ TRecord ts s)
+hashType (TRecord rp ts s) = show (sanitizeType $ TRecord rp ts s)
 hashType _              = error "hashType: should only pass Variant and Record types"
 
 -- | A subscript @T@ will be added when generating type synonyms.
@@ -391,7 +391,7 @@ shallowTypeDefSaveSyn tn ps r = do
 -- | Generates @type_synonym@ definitions for types.
 shallowTypeDef :: (Show b) => TypeName -> [TyVarName] -> CC.Type t b -> SG [TheoryDecl I.Type I.Term]
 shallowTypeDef tn ps (TPrim p)      = pure [TypeSynonym (TypeSyn tn (shallowPrimType p) ps)]
-shallowTypeDef tn ps (TRecord fs s) = shallowTypeDefSaveSyn tn ps (TRecord fs s)
+shallowTypeDef tn ps (TRecord rp fs s) = shallowTypeDefSaveSyn tn ps (TRecord rp fs s)
 shallowTypeDef tn ps (TSum ts)      = shallowTypeDefSaveSyn tn ps (TSum ts)
 shallowTypeDef tn ps t = do
   st <- shallowType t
@@ -516,7 +516,7 @@ stsyn :: [Definition TypedExpr VarName b] -> MapTypeName
 stsyn decls = M.fromList . filterDuplicates . concat $ P.map synAllTypeStr decls
 
 synAllTypeStr :: Definition TypedExpr VarName b -> [(TypeStr, TypeName)]
-synAllTypeStr (TypeDef tn _ (Just (TRecord fs _))) = [(RecordStr $ P.map fst fs, tn)]
+synAllTypeStr (TypeDef tn _ (Just (TRecord _ fs _))) = [(RecordStr $ P.map fst fs, tn)]
 synAllTypeStr (TypeDef tn _ (Just (TSum alts))) = [(VariantStr $ P.map fst alts, tn)]
 synAllTypeStr _ = []
 

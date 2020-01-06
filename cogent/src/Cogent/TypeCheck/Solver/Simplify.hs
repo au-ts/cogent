@@ -107,13 +107,13 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   Escape (V r) m | Row.isComplete r ->
     Just (map (flip Escape m) (Row.presentPayloads r))
 
-  Share  (R r (Left s)) m
+  Share  (R _ r (Left s)) m
     | Row.isComplete r
     , not (writable s) -> Just (map (flip Share  m) (Row.presentPayloads r))
-  Drop   (R r (Left s)) m
+  Drop   (R _ r (Left s)) m
     | Row.isComplete r
     , not (writable s) -> Just (map (flip Drop   m) (Row.presentPayloads r))
-  Escape (R r (Left s)) m
+  Escape (R _ r (Left s)) m
     | Row.isComplete r
     , not (readonly s) -> Just (map (flip Escape m) (Row.presentPayloads r))
 
@@ -276,21 +276,24 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
     do guard (not (null commons))
        hoistMaybe $ Just $ map (\(e,e') -> Row.payload e :=: Row.payload e') commons
 
-  R r1 s1 :< R r2 s2 | Row.isEmpty r1 && Row.isEmpty r2, Right c <- doSigilMatch s1 s2 -> Just c
-                     | Row.isComplete r1 && Row.isComplete r2 && psub r2 r1 ->
-    let commons  = Row.common r1 r2 in
-    do guard (not (null commons))
-       let cs = map (\ (e,e') -> Row.payload e :< Row.payload e') commons
-           ds = map (flip Drop ImplicitlyTaken) $ Row.extract (pdiff r1 r2) r1
-       hoistMaybe $ Just (cs ++ ds)
+  R rp1 r1 s1 :< R rp2 r2 s2
+    | Row.isEmpty r1 && Row.isEmpty r2, Right c <- doSigilMatch s1 s2, rp1 == rp2 -> Just c
+    | Row.isComplete r1 && Row.isComplete r2 && psub r2 r1 ->
+      let commons  = Row.common r1 r2 in
+      do guard (not (null commons))
+         let cs = map (\ (e,e') -> Row.payload e :< Row.payload e') commons
+             ds = map (flip Drop ImplicitlyTaken) $ Row.extract (pdiff r1 r2) r1
+         hoistMaybe $ Just (cs ++ ds)
 
-  R r1 s1 :=: R r2 s2 | Row.isEmpty r1 && Row.isEmpty r2, Right c <- doSigilMatch s1 s2 -> Just c
-                      | Row.isComplete r1 && Row.isComplete r2 && peq r1 r2 ->
-    let commons  = Row.common r1 r2 in
-    do guard (not (null commons))
-       let cs = map (\ (e,e') -> Row.payload e :=: Row.payload e') commons
-           ds = map (flip Drop ImplicitlyTaken) $ Row.extract (pdiff r1 r2) r1
-       hoistMaybe $ Just (cs ++ ds)
+  R rp1 r1 s1 :=: R rp2 r2 s2
+    | Row.isEmpty r1 && Row.isEmpty r2, Right c <- doSigilMatch s1 s2, rp1 == rp2 -> Just c
+    | Row.isComplete r1 && Row.isComplete r2 && peq r1 r2 ->
+      let commons  = Row.common r1 r2 in
+      do guard (not (null commons))
+         let cs = map (\ (e,e') -> Row.payload e :=: Row.payload e') commons
+             ds = map (flip Drop ImplicitlyTaken) $ Row.extract (pdiff r1 r2) r1
+         hoistMaybe $ Just (cs ++ ds)
+
 
 #ifdef BUILTIN_ARRAYS
   -- See [NOTE: solving 'A' types] in Cogent.Solver.Unify

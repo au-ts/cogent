@@ -42,6 +42,7 @@ data AssignResult = Type TCType
                   | Hole (Maybe TCSExpr)
                   | Expr TCSExpr
 #endif
+                  | RecPar RP
                   deriving Show
 
 newtype Subst = Subst (M.IntMap AssignResult)
@@ -75,6 +76,9 @@ ofExpr i e = Subst (M.fromList [(i, Expr e)])
 ofLayout :: Int -> TCDataLayout -> Subst
 ofLayout i l = Subst (M.fromList [(i, Layout' l)])
 
+ofRecPar :: Int -> RP -> Subst
+ofRecPar i t = Subst (M.fromList [(i, RecPar t)])
+
 null :: Subst -> Bool
 null (Subst x) = M.null x
 
@@ -104,16 +108,17 @@ apply sub@(Subst f) (V r)
     case e of
       Left r' -> apply sub (V (Row.expand r r'))
       Right sh -> apply sub (V (Row.close r sh))
-apply sub@(Subst f) (R r s)
+apply sub@(Subst f) (R rp r s)
   | Just rv <- Row.var r
   , Just (Row e) <- M.lookup rv f =
     case e of
       Left r' -> apply sub (R (Row.expand r r') s)
       Right sh -> apply sub (R (Row.close r sh) s)
-apply (Subst f) t@(R r (Right x))
-  | Just (Sigil s) <- M.lookup x f = apply (Subst f) (R r (Left s))
+apply (Subst f) t@(R rp r (Right x))
+  | Just (Sigil s) <- M.lookup x f = apply (Subst f) (R rp r (Left s))
 apply f (V x) = V (fmap (apply f) x)
-apply f (R x s) = R (fmap (apply f) x) s
+apply f (R rp@(UP i) x s) = R (applyRP f rp) (fmap (apply f) x) s
+apply f (R rp x s) = R rp (fmap (apply f) x) s
 #ifdef BUILTIN_ARRAYS
 apply (Subst f) (A t l (Right x) mhole)
   | Just (Sigil s) <- M.lookup x f = apply (Subst f) (A t l (Left s) mhole)
@@ -125,6 +130,21 @@ apply f (T x) = T (fffmap (applySE f) $ fmap (apply f) x)
 apply f (T x) = T (fmap (apply f) x)
 #endif
 apply f (Synonym n ts) = Synonym n (fmap (apply f) ts)
+
+
+applySigil :: Subst -> Either (Sigil ()) Int -> Either (Sigil ()) Int
+applySigil (Subst f) (Right x)
+  | Just (Sigil s) <- M.lookup x f
+  = Left s
+  | otherwise
+  = Right x
+
+applyRP :: Subst -> RP -> RP
+applyRP (Subst f) (UP x) 
+  | Just (RecPar rp) <- M.lookup x f
+  = rp
+  | otherwise
+  = UP x
 
 applyAlts :: Subst -> [Alt TCPatn TCExpr] -> [Alt TCPatn TCExpr]
 applyAlts = map . applyAlt
@@ -181,6 +201,7 @@ applyC s (Unsat e) = Unsat $ applyErr s e
 applyC s (SemiSat w) = SemiSat (applyWarn s w)
 applyC s Sat = Sat
 applyC s (Exhaustive t ps) = Exhaustive (apply s t) ps
+applyC s (UnboxedNotRecursive rp sig) = UnboxedNotRecursive (applyRP s rp) (applySigil s sig)
 applyC s (Solved t) = Solved (apply s t)
 applyC s (IsPrimType t) = IsPrimType (apply s t)
 applyC s (l :~  t) = applyL s l :~  apply s t
