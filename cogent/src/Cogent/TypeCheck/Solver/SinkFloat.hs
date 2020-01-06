@@ -62,17 +62,17 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do {- MaybeT TcSolvM -}
   genStructSubst (v              :=: T (TUnbox t))  = genStructSubst (v :=: t)
 
   -- record rows
-  genStructSubst (R r s :< U i) = do
+  genStructSubst (R rp r s :< U i) = do
     s' <- case s of
             Left Unboxed -> return $ Left Unboxed -- unboxed is preserved by bang and TUnbox, so we may propagate it
             _            ->  Right <$> lift solvFresh
-    makeRowUnifSubsts (flip R s') r i
-  genStructSubst (U i :< R r s) = do
+    makeRowUnifSubsts (flip (R rp) s') r i
+  genStructSubst (U i :< R rp r s) = do
     s' <- case s of
             Left Unboxed -> return $ Left Unboxed -- unboxed is preserved by bang and TUnbox, so we may propagate it
             _            ->  Right <$> lift solvFresh
-    makeRowUnifSubsts (flip R s') r i
-  genStructSubst (R r1 s1 :< R r2 s2)
+    makeRowUnifSubsts (flip (R rp) s') r i
+  genStructSubst (R _ r1 s1 :< R _ r2 s2)
     {-
       The most tricky case.
       For Records, untaken is the bottom of the order, taken is the top.

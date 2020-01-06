@@ -109,13 +109,13 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   Escape (V r) m
     | isNothing (Row.var r) -> hoistMaybe $ Just (map (flip Escape m) (Row.untakenTypes r))
 
-  Share  (R r (Left s)) m
+  Share  (R _ r (Left s)) m
     | isNothing (Row.var r)
     , not (writable s) -> hoistMaybe $ Just (map (flip Share  m) (Row.untakenTypes r))
-  Drop   (R r (Left s)) m
+  Drop   (R _ r (Left s)) m
     | isNothing (Row.var r)
     , not (writable s) -> hoistMaybe $ Just (map (flip Drop   m) (Row.untakenTypes r))
-  Escape (R r (Left s)) m
+  Escape (R _ r (Left s)) m
     | isNothing (Row.var r)
     , not (readonly s) -> hoistMaybe $ Just (map (flip Escape m) (Row.untakenTypes r))
 
@@ -286,30 +286,32 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
         c   = V r1' :=: V r2'
     hoistMaybe $ Just (c:cs)
 
-  R r1 s1 :< R r2 s2 | Row.null r1 && Row.null r2, (Just c) <- doSigilMatch s1 s2 -> hoistMaybe $ Just c
-                     | Just (r1',r2') <- extractVariableEquality r1 r2 -> hoistMaybe $ Just [R r1' s1 :=: R r2' s2]
-                     | otherwise -> do
-    let commons  = Row.common r1 r2
-        (ls, rs) = unzip commons
-    guard (not (L.null commons))
-    guard (untakenLabelsSet rs `S.isSubsetOf` untakenLabelsSet ls)
-    let (r1',r2') = Row.withoutCommon r1 r2
-        cs = map (\ ((_, e),(_,e')) -> fst e :< fst e') commons
-        ds = map (flip Drop ImplicitlyTaken) $ Row.typesFor (untakenLabelsSet ls S.\\ untakenLabelsSet rs) r1
-        c  = R r1' s1 :< R r2' s2
-    hoistMaybe $ Just (c:cs ++ ds)
+  R rp1 r1 s1 :< R rp2 r2 s2
+    | Row.null r1 && Row.null r2, (Just c) <- doSigilMatch s1 s2, rp1 == rp2 -> hoistMaybe $ Just c
+    | Just (r1',r2') <- extractVariableEquality r1 r2 -> hoistMaybe $ Just [R r1' s1 :=: R r2' s2]
+    | otherwise -> do
+      let commons  = Row.common r1 r2
+          (ls, rs) = unzip commons
+      guard (not (L.null commons))
+      guard (untakenLabelsSet rs `S.isSubsetOf` untakenLabelsSet ls)
+      let (r1',r2') = Row.withoutCommon r1 r2
+          cs = map (\ ((_, e),(_,e')) -> fst e :< fst e') commons
+          ds = map (flip Drop ImplicitlyTaken) $ Row.typesFor (untakenLabelsSet ls S.\\ untakenLabelsSet rs) r1
+          c  = R rp1 r1' s1 :< R rp2 r2' s2
+      hoistMaybe $ Just (c:cs ++ ds)
 
-  R r1 s1 :=: R r2 s2 | Row.null r1 && Row.null r2, (Just c) <- doSigilMatch s1 s2 -> hoistMaybe $ Just c
-                      | otherwise -> do
-    let commons  = Row.common r1 r2
-        (ls, rs) = unzip commons
-    guard (not (L.null commons))
-    guard (untakenLabelsSet rs == untakenLabelsSet ls)
-    let (r1',r2') = Row.withoutCommon r1 r2
-        cs = map (\ ((_, e),(_,e')) -> fst e :=: fst e') commons
-        ds = map (flip Drop ImplicitlyTaken) $ Row.typesFor (untakenLabelsSet ls S.\\ untakenLabelsSet rs) r1
-        c  = R r1' s1 :=: R r2' s2
-    hoistMaybe $ Just (c:cs ++ ds)
+  R rp1 r1 s1 :=: R rp2 r2 s2
+    | Row.null r1 && Row.null r2, (Just c) <- doSigilMatch s1 s2, rp1 == rp2 -> hoistMaybe $ Just c
+    | otherwise -> do
+      let commons  = Row.common r1 r2
+          (ls, rs) = unzip commons
+      guard (not (L.null commons))
+      guard (untakenLabelsSet rs == untakenLabelsSet ls)
+      let (r1',r2') = Row.withoutCommon r1 r2
+          cs = map (\ ((_, e),(_,e')) -> fst e :=: fst e') commons
+          ds = map (flip Drop ImplicitlyTaken) $ Row.typesFor (untakenLabelsSet ls S.\\ untakenLabelsSet rs) r1
+          c  = R rp1 r1' s1 :=: R rp2 r2' s2
+      hoistMaybe $ Just (c:cs ++ ds)
 
 #ifdef BUILTIN_ARRAYS
   -- See [NOTE: solving 'A' types] in Cogent.Solver.Unify

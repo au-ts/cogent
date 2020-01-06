@@ -541,7 +541,7 @@ genExpr mv (TE t (Take _ rec fld e)) = do
   -- 2. Declare a new C local variable `rec''` with the C type `rect` of the record,
   --    initialsed to the C expression `rec'`
   let rect = exprType rec
-      TRecord fs s = rect
+      TRecord _ fs s = rect
 
   cachedTypes <- use cTypeDefs
   (rec'',recdecl',recstm',recp') <- flip3 aNewVar recp rec' =<< genType rect
@@ -582,7 +582,7 @@ genExpr mv (TE t (Put rec fld val)) = do
   -- > let x' = x {f = fv}  -- x is an unboxed record
   -- >  in (x', x)
   -- >  -- x shouldn't change its field f to fv
-  let TRecord fs s = exprType rec
+  let TRecord _ fs s = exprType rec
   (rec',recdecl,recstm,recp) <- genExpr_ rec
   (rec'',recdecl',recstm') <- declareInit t' rec' recp
   (val',valdecl,valstm,valp) <- genExpr_ val
@@ -685,7 +685,7 @@ genExpr mv (TE t (Con tag e tau)) = do  -- `tau' and `t' should be compatible
   return (variable v, edecl ++ vdecl ++ a1decl ++ a2decl, estm ++ vstm ++ a1stm ++ a2stm, ep)
 
 genExpr mv (TE t (Member rec fld)) = do
-  let TRecord fs s = exprType rec
+  let TRecord _ fs s = exprType rec
   (rec',recdecl,recstm,recp) <- genExpr_ rec
 
   let fieldName = fst $ fs !! fld
