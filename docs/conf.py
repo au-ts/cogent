@@ -68,6 +68,17 @@ language = None
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = ['_build']
 
+# Add the magic `Cogent' small-capitalisation.
+rst_prolog = '''
+.. role:: raw-html(raw)
+   :format: html
+.. role:: raw-latex(raw)
+   :format: latex
+
+.. |cogent| replace:: \
+:raw-latex:`\\textsc{Cogent}`\\ \
+:raw-html:`<span style="font-variant:small-caps">Cogent</span>`
+'''
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = None
