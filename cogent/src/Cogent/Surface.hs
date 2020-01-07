@@ -135,11 +135,18 @@ data Type e l t =
                 -- of the type they act on / zilinc, mdimeglio
                 | TUnbox   t
                 | TBang    t
+                -- Will be inserted before typechecking
+                | TRPar VarName (RecContext t)
+                -- The context for a recursive type, i.e. a mapping from
                 -- Used for both field names in records and tag names in variants
                 | TTake (Maybe [FieldName]) t
                 | TPut  (Maybe [FieldName]) t
                 | TLayout l t
                 deriving (Show, Functor, Data, Eq, Ord, Foldable, Traversable)
+
+-- recursive parameter names to the type it recursively references
+type RecContext t = M.Map VarName t 
+
 
 -- A few commonly used typed
 u8   = TCon "U8"   [] Unboxed

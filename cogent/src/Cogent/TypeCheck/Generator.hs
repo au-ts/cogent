@@ -677,7 +677,7 @@ cg' (Put e ls) t | not (any isNothing ls) = do
       row' = R rp (Row.incomplete (zip fs (map (,False) ts)) rest) (Right sigil)
       c1 = row' :< t
       c2 = alpha :< row
-      c3 = UnboxedNotRecursive rp (Right sigil)
+      c3 = UnboxedNotRecursive row
       r = Put e' (map Just (zip fs es'))
   traceTc "gen" (text "cg for put:" <+> prettyE r
            L.<$> text "of type" <+> pretty t <> semi
