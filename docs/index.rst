@@ -10,7 +10,7 @@ Welcome to Cogent's documentation!
    :maxdepth: 2
    :numbered:
 
-   preamble
+   overview
    quickstart
    install
    surface
