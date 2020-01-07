@@ -62,6 +62,7 @@ import           Data.Maybe (fromMaybe)
 -- * expand sink/float to all types, and map under all type-operators
 -- * remove join/meet
 
+
 solve :: [(TyVarName, Kind)] -> [(DLVarName, TCType)] -> Constraint -> TcSolvM [Goal]
 solve ks ms c = let gs     = makeGoals [] c
                             -- Simplify does a lot of very small steps so it's slightly nicer for tracing to run it in a nested fixpoint

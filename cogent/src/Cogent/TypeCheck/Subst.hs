@@ -42,7 +42,7 @@ data AssignResult = Type TCType
                   | Hole (Maybe TCSExpr)
                   | Expr TCSExpr
 #endif
-                  | RecPar RP
+                  | RecP RP
                   deriving Show
 
 newtype Subst = Subst (M.IntMap AssignResult)
@@ -77,7 +77,7 @@ ofLayout :: Int -> TCDataLayout -> Subst
 ofLayout i l = Subst (M.fromList [(i, Layout' l)])
 
 ofRecPar :: Int -> RP -> Subst
-ofRecPar i t = Subst (M.fromList [(i, RecPar t)])
+ofRecPar i t = Subst (M.fromList [(i, RecP t)])
 
 null :: Subst -> Bool
 null (Subst x) = M.null x
@@ -117,7 +117,8 @@ apply sub@(Subst f) (R rp r s)
 apply (Subst f) t@(R rp r (Right x))
   | Just (Sigil s) <- M.lookup x f = apply (Subst f) (R rp r (Left s))
 apply f (V x) = V (fmap (apply f) x)
-apply f (R rp@(UP i) x s) = R (applyRP f rp) (fmap (apply f) x) s
+apply (Subst f) (R (UP x) r s)
+  | Just (RecP rp) <- M.lookup x f = apply (Subst f) (R rp r s)
 apply f (R rp x s) = R rp (fmap (apply f) x) s
 #ifdef BUILTIN_ARRAYS
 apply (Subst f) (A t l (Right x) mhole)
@@ -138,13 +139,6 @@ applySigil (Subst f) (Right x)
   = Left s
   | otherwise
   = Right x
-
-applyRP :: Subst -> RP -> RP
-applyRP (Subst f) (UP x) 
-  | Just (RecPar rp) <- M.lookup x f
-  = rp
-  | otherwise
-  = UP x
 
 applyAlts :: Subst -> [Alt TCPatn TCExpr] -> [Alt TCPatn TCExpr]
 applyAlts = map . applyAlt
@@ -201,7 +195,7 @@ applyC s (Unsat e) = Unsat $ applyErr s e
 applyC s (SemiSat w) = SemiSat (applyWarn s w)
 applyC s Sat = Sat
 applyC s (Exhaustive t ps) = Exhaustive (apply s t) ps
-applyC s (UnboxedNotRecursive rp sig) = UnboxedNotRecursive (applyRP s rp) (applySigil s sig)
+applyC s (UnboxedNotRecursive r) = UnboxedNotRecursive (apply s r)
 applyC s (Solved t) = Solved (apply s t)
 applyC s (IsPrimType t) = IsPrimType (apply s t)
 applyC s (l :~  t) = applyL s l :~  apply s t

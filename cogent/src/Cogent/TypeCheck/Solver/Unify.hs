@@ -35,11 +35,9 @@ import Data.Foldable (asum)
 import qualified Data.IntMap as IM (null)
 import Lens.Micro
 import Lens.Micro.Mtl
-import Text.PrettyPrint.ANSI.Leijen (text, pretty, (<+>))
-
+import Text.PrettyPrint.ANSI.Leijen hiding (empty, indent, tupled, (<$>))
 
 import Debug.Trace
-import Text.PrettyPrint.ANSI.Leijen hiding (empty, indent, tupled, (<$>))
 
 -- | The unify phase, which seeks out equality constraints to solve via substitution.
 unify :: Rewrite.RewriteT TcSolvM [Goal]
@@ -129,13 +127,17 @@ assignOf (R rp1 _ _ :=: R rp2 _ _)
       (None, UP x) -> pure [Subst.ofRecPar x rp1]
       _            -> empty 
 
-assignOf (R rp1 _ _ :< R rp2 _ _)
+assignOf (R rp1 _ _ :< R rp2 _ _ )
   = case (rp1,rp2) of
       (Mu _, UP x) -> pure [Subst.ofRecPar x rp1]
       (UP x, Mu _) -> pure [Subst.ofRecPar x rp2]
       (UP x, None) -> pure [Subst.ofRecPar x rp2]
       (None, UP x) -> pure [Subst.ofRecPar x rp1]
       _            -> empty 
+
+-- Unboxed records are not recursive
+assignOf (UnboxedNotRecursive (R (UP x) _ (Left Unboxed))) 
+  = pure [Subst.ofRecPar x None]
 
 assignOf _ = empty
 
