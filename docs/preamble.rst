@@ -34,13 +34,7 @@ How to read this documentation?
 ===============================
 
 :doc:`quickstart` should lead you to setup the environment needed by Cogent, and
-it will walk you through a few small examples to allow you to write your own code
+it will walk you through a few small examples to allow you write your own code
 using Cogent and run it. For a more detailed and systematic reference, later sections
 of this document are there for you to consult. The :doc:`quickstart` contains links
 to the relevant sections with more details.
-
-
-Other Materials
-===============
-
-.. todo:: Add pointers to other docs.

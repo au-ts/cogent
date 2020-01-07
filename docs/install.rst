@@ -142,10 +142,6 @@ Test Cogent
       $> cabal build
       $> cabal test
 
-
-
-.. _install-macos-hints
-
 Testing on macOS
 ~~~~~~~~~~~~~~~~
 
