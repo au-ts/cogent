@@ -514,7 +514,7 @@ instance (Pretty t, Pretty l) => Pretty (SExpr t l) where
                   | otherwise = warn ('?':show n)
 
 instance Pretty RecursiveParameter where
-  pretty (Rec p) = typesymbol "mu" <+> pretty p
+  pretty (Rec p) = typesymbol "mu" <+> symbol p
   pretty NonRec  = empty
 
 prettyT' :: (TypeType t, Pretty t) => t -> Doc
@@ -604,7 +604,7 @@ instance Pretty TCType where
                         Left s -> pretty s
                         Right n -> symbol $ "(?" ++ show n ++ ")"
         rpPretty    = case rp of
-                        Mu v -> typesymbol "mu" <+> pretty v
+                        Mu v -> typesymbol "mu" <+> symbol v
                         None -> empty
                         UP p -> symbol $ "(?" ++ show p ++ ")"
      in symbol "R" <+> rpPretty <+> symbol "{" <+> pretty v <+> symbol "}" <+> sigilPretty

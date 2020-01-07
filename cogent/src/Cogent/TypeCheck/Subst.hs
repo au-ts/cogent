@@ -42,7 +42,7 @@ data AssignResult = Type TCType
                   | Hole (Maybe TCSExpr)
                   | Expr TCSExpr
 #endif
-                  | RecPar RP
+                  | RecP RP
                   deriving Show
 
 newtype Subst = Subst (M.IntMap AssignResult)
@@ -77,7 +77,7 @@ ofLayout :: Int -> TCDataLayout -> Subst
 ofLayout i l = Subst (M.fromList [(i, Layout' l)])
 
 ofRecPar :: Int -> RP -> Subst
-ofRecPar i t = Subst (M.fromList [(i, RecPar t)])
+ofRecPar i t = Subst (M.fromList [(i, RecP t)])
 
 null :: Subst -> Bool
 null (Subst x) = M.null x
@@ -101,14 +101,15 @@ apply (Subst f) (U x)
   = U x
 apply (Subst f) (V (Row.Row m' (Just x)))
   | Just (Row (Row.Row m q)) <- M.lookup x f = apply (Subst f) (V (Row.Row (DM.union m m') q))
+apply f (V x) = V (applyToRow f x)
 apply (Subst f) (R rp (Row.Row m' (Just x)) s)
   | Just (Row (Row.Row m q)) <- M.lookup x f = apply (Subst f) (R rp (Row.Row (DM.union m m') q) s)
 apply (Subst f) (R rp r (Right x))
   | Just (Sigil s) <- M.lookup x f = apply (Subst f) (R rp r (Left s))
-apply f (V x) = V (applyToRow f x)
-apply f (R x s) = R (applyToRow f x) s
-apply f (R rp@(UP i) x s) = R (applyRP f rp) (applyToRow x) s
-apply f (R rp x s) = R rp (applyToRow x) s
+apply (Subst f) (R (UP x) r s)
+  | Just (RecP rp) <- M.lookup x f
+    = apply (Subst f) (R rp r s)
+apply f (R rp x s) = R rp (applyToRow f x) s
 #ifdef BUILTIN_ARRAYS
 apply (Subst f) (A t l (Right x) mhole)
   | Just (Sigil s) <- M.lookup x f = apply (Subst f) (A t l (Left s) mhole)
@@ -135,13 +136,6 @@ applySigil (Subst f) (Right x)
   = Left s
   | otherwise
   = Right x
-
-applyRP :: Subst -> RP -> RP
-applyRP (Subst f) (UP x) 
-  | Just (RecPar rp) <- M.lookup x f
-  = rp
-  | otherwise
-  = UP x
 
 applyAlts :: Subst -> [Alt TCPatn TCExpr] -> [Alt TCPatn TCExpr]
 applyAlts = map . applyAlt
@@ -198,7 +192,7 @@ applyC s (Unsat e) = Unsat $ applyErr s e
 applyC s (SemiSat w) = SemiSat (applyWarn s w)
 applyC s Sat = Sat
 applyC s (Exhaustive t ps) = Exhaustive (apply s t) ps
-applyC s (UnboxedNotRecursive rp sig) = UnboxedNotRecursive (applyRP s rp) (applySigil s sig)
+applyC s (UnboxedNotRecursive r) = UnboxedNotRecursive (apply s r)
 applyC s (Solved t) = Solved (apply s t)
 applyC s (IsPrimType t) = IsPrimType (apply s t)
 applyC s (l :~  t) = applyL s l :~  apply s t

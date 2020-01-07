@@ -202,7 +202,7 @@ data Constraint' t l = (:<) t t
                      | SemiSat TypeWarning
                      | Sat
                      | Exhaustive t [RawPatn]
-                     | UnboxedNotRecursive RP (Either (Sigil ()) Int)
+                     | UnboxedNotRecursive t
                      | Solved t
                      | IsPrimType t
 #ifdef BUILTIN_ARRAYS
@@ -376,17 +376,6 @@ instance Bifoldable SExpr where
 instance Bitraversable SExpr where
   bitraverse f g (SE t e) = SE <$> f t <*> pentatraverse f (traverse f) (traverse f) g (bitraverse f g) e
   bitraverse f g (SU t x) = SU <$> f t <*> pure x
-
--- TODO: Is this still in use?
-rigid :: TCType -> Bool 
-rigid (T (TBang {})) = False
-rigid (T (TTake {})) = False
-rigid (T (TPut {})) = False
-rigid (U {}) = False
-rigid (Synonym {}) = False
-rigid (R _ r _) = not $ Row.justVar r
-rigid (V r) = not $ Row.justVar r
-rigid _ = True
 
 data FuncOrVar = MustFunc | MustVar | FuncOrVar deriving (Eq, Ord, Show)
 
@@ -819,7 +808,7 @@ rigid (T (TTake {})) = False
 rigid (T (TPut {})) = False
 rigid (T (TLayout {})) = False
 rigid (Synonym {}) = False  -- why? / zilinc
-rigid (R r _) = not $ Row.justVar r
+rigid (R _ r _) = not $ Row.justVar r
 rigid (V r) = not $ Row.justVar r
 #ifdef BUILTIN_ARRAYS
 rigid (A t l _ _) = True  -- rigid t && null (unknownsE l) -- FIXME: is it correct? / zilinc
