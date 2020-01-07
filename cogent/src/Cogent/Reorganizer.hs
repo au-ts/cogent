@@ -20,6 +20,7 @@ import qualified Cogent.Common.Syntax as Syn
 import Cogent.Compiler (__impossible)
 import Cogent.Surface
 import Cogent.Util
+import Cogent.Common.Types
 
 import Control.Arrow
 import Control.Monad (forM, forM_)
@@ -139,6 +140,45 @@ checkNoNameClashes ((s,d):xs) bindings
                         RepName   _ -> DuplicateRepDefinition
                         DocBlock' _ -> __impossible "checkNoNameClashes"
 
+embedRecPars :: [TopLevel LocType LocPatn LocExpr] -> [TopLevel LocType LocPatn LocExpr]
+embedRecPars = map check
+  where
+    -- We need to check: Type definitions, function polytypes
+    check :: TopLevel LocType LocPatn LocExpr -> TopLevel LocType LocPatn LocExpr
+    check (TypeDec n tvs t) =
+      TypeDec n tvs (embedRecPar tvs t)
+    check (FunDef  n (PT tvs t) y) =
+      FunDef n (PT tvs (embedRecPar (map fst tvs) t)) y
+    -- TODO: Consts?
+    check t = t
+
+embedRecPar :: [Syn.TyVarName] -> LocType -> LocType
+embedRecPar tvs t = erp M.empty t
+  where
+    erp :: RecContext LocType -> LocType -> LocType 
+    erp ctxt orig@(LocType p ty) =
+      LocType p $ case ty of
+    -- If we find a type variable that is in our context, we replace it with a recursive parameter
+      (TVar n _ _) | M.member n ctxt -> TRPar n ctxt
+      -- If we find a record, add it's recursive parameter to the context if it exists and recurse
+      (TRecord rp fs s) -> 
+        let ctxt' = case rp of 
+                      Rec v -> M.insert v orig ctxt
+                      _     -> ctxt
+        in TRecord rp (map (\(n,(x, y)) -> (n, (erp ctxt' x, y))) fs) s
+
+      (TFun t1 t2)  -> TFun (erp ctxt t1) (erp ctxt t2) 
+      (TVariant ts) -> TVariant $ M.map (\(ts', x) -> (map (erp ctxt) ts', x)) ts
+      (TTuple ts)   -> TTuple (map (erp ctxt) ts)
+#ifdef BUILTIN_ARRAYS
+      (TArray t e)  -> TArray (erp ctxt t) e
+#endif
+      (TUnbox t)    -> TUnbox (erp ctxt t)
+      (TBang t)     -> TBang (erp ctxt t)
+      (TTake fs t)  -> TTake fs (erp ctxt t)
+      (TPut fs t)   -> TPut fs (erp ctxt t)
+      t             -> t
+
 -- Note: it doesn't make much sense to check for unused definitions as they may be used
 -- by the FFI. / zilinc
 reorganize :: Maybe [String]
@@ -151,6 +191,9 @@ reorganize mes bs = do let m = classify bs
                        checkNoNameClashes (map (second fst3) m) M.empty
                        -- FIXME: it might be good to preserve the original order as much as possible
                        -- see file `tests/pass_wf-take-put-tc-2.cogent` as a bad-ish example / zilinc
+
+                       -- TODO: Strictly positive check and recPar embedding
+
                        forM cs $ \case
                          G.AcyclicSCC i -> Right $ case lookup i m of
                                                      Nothing -> __impossible $ "reorganize: " ++ show i

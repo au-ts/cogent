@@ -74,6 +74,9 @@ import           Lens.Micro
 import           Lens.Micro.TH
 import           Lens.Micro.Mtl
 
+-- TODO: Remove
+import Debug.Trace
+
 
 solve :: [(TyVarName, Kind)] -> Constraint -> TcSolvM [Goal]
 solve ks c = let gs     = makeGoals [] c

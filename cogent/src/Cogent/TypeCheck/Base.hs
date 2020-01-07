@@ -166,7 +166,7 @@ data Constraint' t = (:<) t t
                    | SemiSat TypeWarning
                    | Sat
                    | Exhaustive t [RawPatn]
-                   | UnboxedNotRecursive RP (Either (Sigil ()) Int)
+                   | UnboxedNotRecursive t
                    | Solved t
                    | IsPrimType t
 #ifdef BUILTIN_ARRAYS
