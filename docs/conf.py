@@ -134,31 +134,20 @@ htmlhelp_basename = 'Cogentdoc'
 
 # -- Options for LaTeX output ------------------------------------------------
 
+latex_engine = 'lualatex'
 latex_elements = {
-    # The paper size ('letterpaper' or 'a4paper').
-    #
-    # 'papersize': 'letterpaper',
-
-    # The font size ('10pt', '11pt' or '12pt').
-    #
-    # 'pointsize': '10pt',
-
-    # Additional stuff for the LaTeX preamble.
-    #
-    # 'preamble': '',
-
-    # Latex figure (float) alignment
-    #
-    # 'figure_align': 'htbp',
+    'papersize': 'a4paper',
+    'pointsize': '12pt',
+    'fontpkg':   '''
+% Sans-serifs, in Libertinus; serifs, in Crimson; monospace, in Latin Modern.
+% Order matters: Libertinus replaces rm, sf, tt, and we only want sf.
+% Likewise `lmodern' replaces rm, sf, tt, so we only do the `renewcommand'.
+\\usepackage{sectsty, libertinus, crimson}
+\\renewcommand{\\ttdefault}{lmtt}
+\\allsectionsfont{\\normalfont\\sffamily\\bfseries}
+''',
+    'fncychap':  '',
 }
-
-# Grouping the document tree into LaTeX files. List of tuples
-# (source start file, target name, title,
-#  author, documentclass [howto, manual, or own class]).
-latex_documents = [
-    (master_doc, 'Cogent.tex', u'Cogent Documentation',
-     u'The Cogent Team', 'manual'),
-]
 
 
 # -- Options for manual page output ------------------------------------------
