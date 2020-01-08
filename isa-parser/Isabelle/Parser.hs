@@ -420,7 +420,7 @@ datatypeL = do
   tyvars <- tyParamsL
   name  <- nameL
   stringL "="
-  cons <- many1 dtConsL
+  cons <- sepBy1 dtConsL (stringL "|")   
   return $ Datatype name cons tyvars
 
 thmDeclL :: ParserM TheoremDecl
