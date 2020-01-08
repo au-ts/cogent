@@ -1,0 +1,26 @@
+
+include  <gum/common/iterator.cogent>
+ 
+@ fib_gen --- calculate the next Fibonacci number, unless we're finished.
+@ Accumulator contains (n-1)th and nth Fibonacci numbers, and n in third place.
+@ The accumulator returned by GeneratorResult has the same pattern; no value is returned for Stop / Yield etc.
+ 
+fib_gen : #{acc : (U32, U32, U32), obsv : U32} -> GeneratorResult () () () (U32, U32, U32)
+fib_gen #{acc = (n1, n2, n), obsv} =
+  if | n == obsv -> ((n1, n2, n), Stop ())
+     | else      -> ((n2, n1+n2, n+1), Yield ())
+ 
+@ fib_consume is a verbos no-op.
+fib_consume : #{obj : (), acc : (U32, U32, U32), obsv : U32} -> ConsumerResult () () (U32, U32, U32)
+fib_consume #{obj, acc, obsv} = (acc, Next)
+ 
+@ fibonacci instantiates Iterate with the triple described above as accumulator, then invokes it.
+fibonacci : U32 -> U32
+fibonacci n =
+   let ((_, fibn, _), _) = iterate #{
+       gen = fib_gen,
+       cons = fib_consume,
+       acc = (0, 1, 1),
+       obsv = n
+       }
+   in fibn
