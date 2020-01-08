@@ -16,7 +16,7 @@ COUTPUT=$(addsuffix .c, $(OUTPUT))
 HOUTPUT=$(addsuffix .h, $(OUTPUT))
 
 STDGUM=$(shell cogent --stdgum-dir)
-AHFILES=List.ah
+AHFILES=list.ah
 ACFILES=main.ac
 
 PP=$(ACFILES:.ac=_pp.ac)
