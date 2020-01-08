@@ -20,7 +20,7 @@
 # -- Project information -----------------------------------------------------
 
 project = u'Cogent'
-copyright = u'2019, CSIRO\'s Data61'
+copyright = u'2020, CSIRO\'s Data61'
 author = u'The Cogent Team'
 
 # The short X.Y version
@@ -42,6 +42,7 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.mathjax',
     'sphinx.ext.githubpages',
+    'sphinx.ext.graphviz',
 ]
 
 # Add any paths that contain templates here, relative to this directory.

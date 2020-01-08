@@ -1,4 +1,135 @@
 Verification
 ============
 
-.. todo:: We need docs for verification.
+.. highlight:: sh
+
+A compiled Cogent program produces many Isabelle/HOL theory files to assist in verification.
+
+Dependencies
+------------
+
+Compiled Cogent theory files have several dependencies:
+
+* `Isabelle/HOL 2019`_, the proof assistant used for generated theory files (.thy)
+* AutoCorres_, an Isabelle/HOL tool to extract C code into an Isabelle/HOL embedding
+* `C refinement theories`_, included in the Cogent repository
+* `Cogent theories`_, included in the Cogent repository
+
+C refinement and Cogent theories are properly linked to compiled files using the
+``--root-dir=PATH`` compiler flag, which should specify the root directory of the
+`Cogent repository`_. 
+
+Generated Theory Files
+----------------------
+
+Compiling a program with the ``-A`` flag produces all verification files, including:
+
+TypeProof
+    A proof of type correctness for the compiled program
+ShallowShared
+    The shared components of the shallow embedding
+Shallow_Normal
+    The compiled shallow embedding in normal form
+Shallow_Desugar
+    The compiled shallow embedding from the desugared compiler code
+ShallowSharedTuples, Shallow_Normal_Tuples, Shallow_Desugar_Tuples
+    Shallow embedding files that feature tuples instead of desugared records 
+SCorres_Normal
+    Various value relations for each type from the compiled Cogent program
+Deep_Normal
+    The deep embedding for the compiled file, in normal form
+NormalProof
+    The proof that the compiled shallow embedding is in normal form
+ACInstall
+    Creates an embedding of the generated C code via AutoCorres_
+CorresSetup
+    Various lemmas needed for the correspondance proof
+CorresProof
+    Creates the correspondance proof between the Isabelle/HOL embedding and the C code
+MonoProof
+    Proving the equivalence of polymorphic functions and specialised monomorphic functions
+AllRefine
+    The final proof that shows the generated C code is a refinement of the generated shallow embedding
+
+The generated files depend on each other in a hierarchy, depicted below:
+
+.. graphviz:: assets/dependencies.dot
+
+In addition to the theory files, a ``ROOT`` file is produced for building the
+files. You can reproduce this file by running the compiler with the ``--root``
+flag.
+
+Building/Running The Generated Files
+------------------------------------
+
+Before using the generated theory files, ensure you have built the AutoCorres heap like so::
+
+    L4V_ARCH=X64 isabelle build -v -b -d $AUTOCORRES_DIR AutoCorres
+
+Where ``AUTOCORRES_DIR`` is the root directory of AutoCorres.
+
+In Jedit
+^^^^^^^^
+
+Launch the Jedit editor with the following command::
+
+    L4V_ARCH=X64 isabelle jedit -d $AUTOCORRES_DIR -l AutoCorres
+
+Where again, ``AUTOCORRES_DIR`` is the root directory of AutoCorres.
+
+Then, simply open any file you wish to view.
+
+On the command line
+^^^^^^^^^^^^^^^^^^^
+
+Using the generated ``ROOT`` file, you can build the suite of files like so::
+
+    isabelle build -D $GENERATED_FILES_DIR \
+                   -d $REPO_ROOT/cogent/isa \
+                   -d $AUTOCORRES_DIR
+
+This will:
+
+* Select the root file located in the directory specified by ``GENERATED_FILES_DIR`` and evaluate it, which is the directory where your ROOT file and generated theory files are located
+* Include the cogent theory files in ``$REPO_ROOT/cogent/isa``, where ``REPO_ROOT`` is the root directory of the `Cogent Repository`_
+* Include AutoCorres theories located in ``AUTOCORRES_DIR``
+
+Common Errors
+-------------
+
+ACInstall
+^^^^^^^^^
+
+You may see the following error from AutoCorres when running this file::
+
+    ### In file included from file.c:3:
+    ### file.h:6:10: fatal error: cogent-defns.h: No such file or directory
+    ###  #include <cogent-defns.h>
+
+This is due to ``cpp`` being unable to find the Cogent C header, which is located in the `Cogent repository`_ 
+in ``cogent/lib/cogent-defns.h``. Adding the compiler flag ``--fake-header-dir=$REPO_ROOT/cogent/lib`` will fix this.
+
+
+.. highlight:: none
+
+You may also see the following error::
+
+    *** Undeclared constant: "??.\<Gamma>"
+    *** At command "autocorres" (line 14 of "ACInstall.thy")
+
+This can be due to several reasons:
+
+* You have not specified entrypoint functions via the compiler flag ``--entry-funcs=FILE``
+* Your source file/entrypoiint functions contain only polymorphic functions. Concrete C functions will only be generated when these polymorphic functions are instantiated by your Cogent source file or your entrypoint file. You can do so in the entrypoint file like so: ``functionName[TypeName]``
+
+
+
+
+
+
+
+.. _AutoCorres: https://ts.data61.csiro.au/projects/TS/autocorres/
+.. _`Isabelle/HOL 2019`: https://isabelle.in.tum.de/
+.. _`C refinement theories`: https://github.com/NICTA/cogent/tree/master/c-refinement
+.. _`Cogent theories`: https://github.com/NICTA/cogent/tree/master/cogent/isa/
+.. _`Cogent repository`: https://github.com/NICTA/cogent

@@ -43,3 +43,11 @@ impl/fs/vfat_orig/
 impl/fs/vfat/cogent/misc/
 .cache.mk
 autocorres/
+
+# Documentation
+docs/.vscode/
+docs/_build/
+docs/assets/
+docs/doctrees/
+docs/html/
+docs/pseudoxml/
