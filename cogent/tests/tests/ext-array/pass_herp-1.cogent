@@ -1,9 +1,9 @@
 prim_not : Bool -> Bool
 type Double
-send_c1 : (U32[1], U32) -> Bool
-recv_c1 : (U32[1], U32) -> Bool
-send_c2 : (U32[1], U32) -> Bool
-recv_c2 : (U32[1], U32) -> Bool
+send_c1 : (U32#[1], U32) -> Bool
+recv_c1 : (U32#[1], U32) -> Bool
+send_c2 : (U32#[1], U32) -> Bool
+recv_c2 : (U32#[1], U32) -> Bool
 even : #{ x : U32 } -> Bool
 even #{ x } =
    let y : U32 = upcast x % 2
@@ -11,8 +11,8 @@ even #{ x } =
 type State_dummy =
    < State_dummy_0
    | State_dummy_1 >
-type Vars_dummy = { c1 : U32[1]
-                  , c2 : U32[1] }
+type Vars_dummy = { c1 : U32#[1]
+                  , c2 : U32#[1] }
 delta_dummy : (State_dummy
               , #Vars_dummy) -> < Left < Failure
                                        | Success >
@@ -47,8 +47,8 @@ type State_p1 = < State_p1_10
                 | State_p1_7
                 | State_p1_8
                 | State_p1_9 >
-type Vars_p1 = { c1 : U32[1]
-               , c2 : U32[1]
+type Vars_p1 = { c1 : U32#[1]
+               , c2 : U32#[1]
                , x : U32 }
 delta_p1 : (State_p1
            , #Vars_p1) -> < Left < Failure
@@ -121,8 +121,8 @@ type State_p2 = < State_p2_21
                 | State_p2_34
                 | State_p2_35
                 | State_p2_36 >
-type Vars_p2 = { c1 : U32[1]
-               , c2 : U32[1]
+type Vars_p2 = { c1 : U32#[1]
+               , c2 : U32#[1]
                , x : U32 }
 delta_p2 : (State_p2
            , #Vars_p2) -> < Left < Failure
