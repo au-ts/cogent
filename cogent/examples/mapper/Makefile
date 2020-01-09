@@ -24,7 +24,7 @@ ACFILES=main.ac
 PP=$(ACFILES:.ac=_pp.ac)
 PPINFER=$(ACFILES:.ac=_pp_inferred.c)
 
-ABSDIR=./abstract
+ABSDIR=./
 
 OBJ=$(PPINFER:.c=.o)
 

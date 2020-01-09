@@ -598,7 +598,8 @@ The build command (in a Makefile) is:
 		--entry-funcs=entrypoints.cfg
 
 ``$(ABSDIR)`` is the directory containing the generated definitions of parametric types.
-It defaults to ``abstract`` in the current folder. ``$(AHFILES)`` needs to include all the
+All the generated header files will be placed in ``$(ABSDIR)/abstract``, which
+must already exist before this command is run. ``$(AHFILES)`` needs to include all the
 needed ``.ah`` files, and ``$(ACFILES)`` here is only the ``main.ac``, since the other ``.ac`` files
 are already included in ``main.ac``.
 
