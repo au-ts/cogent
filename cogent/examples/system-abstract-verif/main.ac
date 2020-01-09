@@ -1,0 +1,38 @@
+$esc:(#include <stdio.h>)
+$esc:(#include <stdlib.h>)
+#include <cogent-defns.h>
+
+// The definition of our abstract type
+typedef struct kernelState {
+    u64 magicNumber;
+} KernelState;
+
+// Our compiled C code
+#include "Kernel.c"
+
+// Our two abstract functions
+$ty:(U64) memMagicNumber($ty:(KernelState!) arg) {
+    return arg->magicNumber;
+}
+
+$ty:(()) kernelPanic($ty:(KernelState) arg) {
+    printf("Fatal error! dying...\n");
+
+    free(arg);
+    exit(1);
+
+    struct unit_t u;
+    return u;
+}
+
+int main(void)
+{
+    $ty:(KernelState) state = malloc(sizeof (struct kernelState*));
+    state->magicNumber = 0xdeadbeef;
+
+    $ty:(Result KernelState) res = kernelStatusCheck(state);
+    printf("Kernel is ok!\n");
+    free(state);
+
+    return 0;
+}

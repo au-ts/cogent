@@ -142,6 +142,16 @@ Next, we'll create a file and import our shallow embedding, then prove it's corr
     :language: isabelle
 
 
+A More Involved Example
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Naturally when writing Cogent code, you'll interface with C code frequently. This C code must go through AutoCorres for
+the refinement proof, so we'll need to put a bit more effort to set up the verification chain for such Cogent programs.
+
+This time, we'll be using abstract functions and types to represent the C functions and types we wish to call and use.
+Our program will take in a toy ``KernelState`` type, and check the status of a magic number in this type. If the number
+has been corrupted, we'll cause a kernel panic, otherwise, continue on.
+
 Common Errors
 -------------
 

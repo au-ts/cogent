@@ -1,0 +1,23 @@
+-- template
+
+-- An abstract type representing the state of the kernel
+type KernelState
+
+-- Some functions to operate on the kernel state
+memMagicNumber : KernelState! -> U64 
+kernelPanic : KernelState -> ()
+
+type Result a = < Success a | Error > 
+
+magicOk : KernelState! -> Bool
+magicOk state = let n = memMagicNumber state
+                in n | 0xdeadbeef -> True
+                     | _          -> False
+
+kernelStatusCheck : KernelState -> Result KernelState
+kernelStatusCheck state = 
+    let b = (magicOk state) !state in 
+    if b then
+      Success state
+    else -- Will crash
+      let _ = kernelPanic state in Error
