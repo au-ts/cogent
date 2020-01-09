@@ -26,7 +26,7 @@ PPINFER=$(ACFILES:.ac=_pp_inferred.c)
 
 OBJ=$(PPINFER:.c=.o)
 
-CFLAGS=-I. -I$(STDGUM) -std=c99  # -I../plat/console -I$(STDGUM)/gum/anti
+CFLAGS=-I. -I$(STDGUM) -std=c99
 
 .PHONY: default clean gen-anti
 .SECONDARY:

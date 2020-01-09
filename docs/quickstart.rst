@@ -213,7 +213,10 @@ can be given.
   and ``-std`` for specific C standards. We use GNU C99. ``$COGENT_STDLIB`` points to the directory containing
   the standard Cogent libraries. The source of the standard library is located in https://github.com/NICTA/cogent/tree/master/cogent/lib,
   but it will be installed (i.e. copied) to a build directory depending on how you installed your Cogent compiler.
-  See more information in :doc:`install`.
+  See more information in :doc:`install`. In this example, even no types or functions from the standard library is used,
+  the generated program still needs the definition for the primitive types, which are defined in
+  `cogent-defns.h <https://github.com/NICTA/cogent/blob/master/cogent/lib/cogent-defns.h>`_ in
+  the ``$COGENT_STDLIB`` folder.
 
 * ``--ext-types`` passes in a file named ``types.cfg`` containing a list of externally declared C types. We have explained earlier why
   a list of types are needed in order to parse C file correctly. In this case there's no type that are unknown
@@ -395,12 +398,102 @@ The building process is very similar to the previous example (c.f. :ref:`first-p
 The complete code and Makefile for this example can be found
 `here <https://github.com/NICTA/cogent/tree/master/cogent/examples/fib>`__.
 
+
+A trickier to build example
+===========================
+
+In the previous example, we have shown some of the ``libgum`` functions---they are
+*abstract functions*, in the sense that we only declare them in Cogent, and defer
+their definitions to C. Cogent also offers *abstract types*. An abstract type is a 
+type that only gets declared in Cogent, but is defined in C.
+
+If we want to declare two abstract types ``A`` and ``B``, we write in Cogent:
+
+.. code-block:: haskell
+
+  type A
+  type B
+
+Cogent assumes nothing but that they are boxed types, allocated on the heap and is access by a pointer.
+Boxed abstract types are by definition linear in Cogent's type system. Whenever you use a value of type
+``A`` in Cogent, it will always be a pointer to type ``A`` in the generated C code.
+
+In C, we can give concrete definitions for these types, for example:
+
+.. code-block:: c
+
+  typedef char A;
+  typedef struct { int b; } B;
+
+.. note:: If in your Cogent source file, there're only type definitions and no function definitions, then
+          Cogent will not generate any types in the C file. And Cogent will only generate types that
+          get used by at least one function.
+
+Now we need to add some Cogent functions to work on these types.
+For example, we define a very simple Cogent function::
+
+  swapDrop : all (a, b, c :< DS). (a, b, c) -> (b, a)
+  swapDrop (a, b, c) = (b, a)
+
+``swapDrop``, as its name suggests, it swaps the first two components in the argument tuple,
+and drops the last element. ``all (a, b, c :< DS)`` universally quantifies type variables
+``a``, ``b`` and ``c``. Additionally, it says that ``c`` is constrained to have ``DS`` permissions
+(see more details in :ref:`permissions`). ``D`` and ``S`` mean that the type ``c`` has to be
+``D``\ iscardable and ``S``\ hareable respectively, i.e. non-linear, and that's why the third component in the tuple
+can be dropped (or, discarded). Strictly speaking, ``S`` is not needed here, as we don't share it.
+But it's more conventional to use ``DS`` together, as ``D`` and ``S`` together denote linearity.
+
+The ``main.ac`` file has some trickiness:
+
+.. code-block:: c
+  :linenos:
+  :emphasize-lines: 4,5,7,17
+
+  $esc:(#include <stdlib.h>)
+  $esc:(#include <stdio.h>)
+  
+  typedef char A;
+  typedef struct { int b; } B;
+  
+  #include "swap-drop.c"
+  
+  int main() {
+    A *a = (A*)malloc(2 * sizeof(char));
+    B *b = (B*)malloc(sizeof(B));
+    a[0] = '!';
+    a[1] = '\0';
+    b->b = 42;
+  
+    $ty:((A,B,U32)) arg = { .p1 = a, .p2 = b, .p3 = 12 };
+    $ty:((B,A)) ret = $exp:(swapDrop[A,B,U32])(arg);
+    
+    printf("fst = %u\n", ret.p1->b);
+    printf("snd = %s\n", ret.p2);
+    return 0;
+  }
+
+On line 4 and 5, we give definitions for types ``A`` and ``B``, as we have discussed above.
+It's worthy noting that on line 7, we include the generated C file. It has to come after
+the definitions of ``A`` and ``B``, as the generated C code rely on the definition of them.
+Finally on line 17, we use an antiquote ``$exp`` to refer to the Cogent function ``swapDrop``.
+The type arguments of this function have to be fully applied, as in this ``main.ac`` file,
+the Cogent compiler doesn't know what instantiation it has, thus unable to infer.
+
+As before, we need an ``entrypoints.cfg`` file to pass to the ``--entry-funcs`` argument. In this
+file, the only function needs to be included is ``swapDrop[A,B,U32]``. Again, for the same reason,
+the type arguments have to be fully applied. As the programmer, you are responsible for ensuring
+that the ones passed to ``--entry-funcs`` are consistent with what get used in the antiquoted C files.
+The Cogent compiler doesn't perform any sanity checks.
+
+
 Example: polymorphic abstract types
 ===================================
 
+.. todo:: this example is tricky.
 
 Example: building Isabelle proofs
 =================================
 
-.. todo:: An example doing verification.
+.. todo:: An example doing verification. Maybe focus on how to write the Makefile
+          for verification and code generation, rather on the Isabelle proofs themselves.
 
