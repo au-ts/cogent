@@ -22,34 +22,35 @@ C refinement and Cogent theories are properly linked to compiled files using the
 Generated Theory Files
 ----------------------
 
-Compiling a program with the ``-A`` flag produces all verification files, including:
+Compiling a program with the ``-A`` flag produces all verification files. You can
+optionally generate each individual file using it's relevant flag. The files are:
 
 TypeProof
-    A proof of type correctness for the compiled program
+    A proof of type correctness for the compiled program, generated with ``--typeproof``.
 ShallowShared
-    The shared components of the shallow embedding
+    The shared components of the shallow embedding, generated with any following shallow flag.
 Shallow_Normal
-    The compiled shallow embedding in normal form
+    The compiled shallow embedding in normal form, generated with ``--shallow-normal``.
 Shallow_Desugar
-    The compiled shallow embedding from the desugared compiler code
+    The compiled shallow embedding from the desugared compiler code, generated with ``--shallow-desugar``.
 ShallowSharedTuples, Shallow_Normal_Tuples, Shallow_Desugar_Tuples
-    Shallow embedding files that feature tuples instead of desugared records 
+    Shallow embedding files that feature tuples instead of desugared records, generated with ``--shallow-desugar-tuples``.
 SCorres_Normal
-    Various value relations for each type from the compiled Cogent program
+    Various value relations for each type from the compiled Cogent program, generated with ``--scorres-normal``. Can also come in monomorphised and desugared form.
 Deep_Normal
-    The deep embedding for the compiled file, in normal form
+    The deep embedding for the compiled file, in normal form, generated with ``--deep-normal``. Can also come in monomorphised and desugared form.
 NormalProof
-    The proof that the compiled shallow embedding is in normal form
+    The proof that the compiled shallow embedding is in normal form, generated with ``--normal-proof``.
 ACInstall
-    Creates an embedding of the generated C code via AutoCorres_
+    Creates an embedding of the generated C code via AutoCorres_, generated with ``--ac-install``.
 CorresSetup
-    Various lemmas needed for the correspondance proof
+    Various lemmas needed for the correspondance proof, generated with ``--corres-setup``.
 CorresProof
-    Creates the correspondance proof between the Isabelle/HOL embedding and the C code
+    Creates the correspondance proof between the Isabelle/HOL embedding and the C code, generated with ``--corres-proof``.
 MonoProof
-    Proving the equivalence of polymorphic functions and specialised monomorphic functions
+    Proving the equivalence of polymorphic functions and specialised monomorphic functions, generated with ``--mono-proof``.
 AllRefine
-    The final proof that shows the generated C code is a refinement of the generated shallow embedding
+    The final proof that shows the generated C code is a refinement of the generated shallow embedding, generated with ``--all-refine``.
 
 The generated files depend on each other in a hierarchy, depicted below:
 
@@ -100,6 +101,8 @@ Common Errors
 ACInstall
 ^^^^^^^^^
 
+.. highlight:: none
+
 You may see the following error from AutoCorres when running this file::
 
     ### In file included from file.c:3:
@@ -108,9 +111,7 @@ You may see the following error from AutoCorres when running this file::
 
 This is due to ``cpp`` being unable to find the Cogent C header, which is located in the `Cogent repository`_ 
 in ``cogent/lib/cogent-defns.h``. Adding the compiler flag ``--fake-header-dir=$REPO_ROOT/cogent/lib`` will fix this.
-
-
-.. highlight:: none
+A similar error may occur for stdgum, which can be fixed by supplying the ``--stdgum-dir=PATH`` option.
 
 You may also see the following error::
 
