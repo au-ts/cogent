@@ -11,12 +11,11 @@
 NAME=mapper
 
 SRC=Mapper.cogent
-OUTPUT=generated # $(SRC:.cogent=-gen)
+OUTPUT=$(NAME)
 COUTPUT=$(addsuffix .c, $(OUTPUT))
 HOUTPUT=$(addsuffix .h, $(OUTPUT))
 
 STDGUM=$(shell cogent --stdgum-dir)
-PLATLIBGUM=../plat/console/libgum
 
 AHFILES=$(STDGUM)gum/anti/abstract/WordArray.ah \
 				$(STDGUM)gum/anti/abstract/View.ah
@@ -31,7 +30,7 @@ OBJ=$(PPINFER:.c=.o)
 
 CFLAGS+=-I. -I../plat/console -I$(STDGUM) -I$(STDGUM)/gum/anti -std=gnu99
 
-.PHONY: default cogent clean gen-anti test
+.PHONY: default clean gen-anti
 .SECONDARY:
 
 default: all
@@ -39,18 +38,15 @@ default: all
 all: gen-anti $(OBJ)
 	$(CC) -o $(NAME) $(OBJ)
 
-test: gen-anti $(OBJ)
-
 $(OBJ): $(PPINFER)
 
 gen-anti:
 	mkdir -p $(ABSDIR)
-	cogent $(SRC) -g -Od -ogenerated --fno-fncall-as-macro --ffunc-purity-attr \
+	cogent $(SRC) -g -o$(OUTPUT) \
 		--infer-c-types="$(AHFILES)" \
-		--Wno-warn --infer-c-funcs="$(ACFILES)" \
+		--infer-c-funcs="$(ACFILES)" \
 		--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
-		--ext-types=types.cfg \
-		--entry-funcs=entrypoints.cfg
+		--entry-funcs=entrypoints.cfg --Wmono
 
 clean:
 	rm -f $(COUTPUT) $(HOUTPUT) $(PP) $(PPINFER) $(OBJ)
