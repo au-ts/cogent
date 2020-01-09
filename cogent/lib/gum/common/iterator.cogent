@@ -28,9 +28,9 @@ type IterationResult acc r s = (acc, <Return r | Stop s>)
 {-# cinline iterate #-}
 {-# fnmacro iterate #-}
 iterate : all (y, r, s, acc, obsv).
-  #{ gen  : Generator y r s acc obsv!,
-   , cons : Consumer y r s acc obsv!,
-   , acc  : acc,
+  #{ gen  : Generator y r s acc obsv!
+   , cons : Consumer y r s acc obsv!
+   , acc  : acc
    , obsv : obsv! } -> IterationResult acc r s
 
 {-# cinline iterate_do #-}
