@@ -12,10 +12,7 @@ $esc:(#include <stdio.h>)
 $esc:(#include <stdlib.h>)
 $esc:(#include <string.h>)
 
-#define BUG_ON(cond) do { if (cond) {} } while (0)
-
 #include "mapper.c"
-#include <log.ac>
 #include <wordarray.ac>
 
 

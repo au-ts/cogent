@@ -350,7 +350,10 @@ updated accumulator, and either ``Return``, ``Stop`` or ``Next``. ``Return`` and
 meaning as mentioned above; ``Next`` means it will enter the next iteration. The overall ``iterate`` function
 will return the final accumulator, paired with the payload of either ``Return`` or ``Stop``, of different
 types. As we can see, this iterator is very general, and there are more specific looping or recursion functions
-defined in other files in the ``libgum``.
+defined in other files in the ``libgum``. The Cogent FFI of these types and functions can be found
+in `cogent/lib/gum/common/iterator.cogent <https://github.com/NICTA/cogent/blob/master/cogent/lib/gum/common/iterator.cogent>`__
+and the underlying C definitions in
+`cogent/lib/gum/anti/iterator.ac <https://github.com/NICTA/cogent/blob/master/cogent/lib/gum/anti/iterator.ac>`__.
 
 In the code snippet above, all the work is done in the generator function; the consumer function
 just returns the accumulator unchanged, together with a ``Next`` tag to keep looping.
@@ -399,8 +402,8 @@ The complete code and Makefile for this example can be found
 `here <https://github.com/NICTA/cogent/tree/master/cogent/examples/fib>`__.
 
 
-A trickier to build example
-===========================
+Example: abstract types and polymorphic functions
+=================================================
 
 In the previous example, we have shown some of the ``libgum`` functions---they are
 *abstract functions*, in the sense that we only declare them in Cogent, and defer
@@ -489,7 +492,118 @@ The Cogent compiler doesn't perform any sanity checks.
 Example: polymorphic abstract types
 ===================================
 
-.. todo:: this example is tricky.
+Now let's explore some more advanced features of Cogent. Cogent allows types to be parametric, including
+abstract types. Typical examples include containers: arrays, lists, trees, etc.
+Functions operating on these parametric abstract types are polymorphic, and share the same interface.
+These functions are normally parametrically polymorphic, meaning that they are generic over types.
+
+.. note:: Cogent allows for ad hoc definitions of some instances of a polymorphic function,
+          but we won't go into it in this example. We only consider parametric polymorphism here.
+
+.. code-block:: haskell
+
+  include <gum/common/wordarray.cogent>
+  
+  map : WordArray U32 -> WordArray U32
+  map arr = let view = wordarray_view (arr, 3, 6, 1)
+            and view' = wordarray_map_view (view, triple)
+             in wordarray_unview view'
+  
+  triple : U32 -> U32
+  triple x = 3 * x
+
+In this example, we write a small Cogent function ``map`` which maps a slice
+of a wordarray. A wordarray is a dynamically allocated array in C, with
+unsigned integers (of the same type) as its elements. ``WordArray a`` is an abstract
+type defined in `cogent/lib/gum/common/wordarray.cogent <https://github.com/NICTA/cogent/blob/master/cogent/lib/gum/common/wordarray.cogent>`__, where ``a`` is the element type of that array.
+``wordarray_view (arr, fr, to, st)`` is a polymorphic function over the element type ``a``, creating a
+writable *view* into a slice of an array ``arr``, starting from the ``fr``-th element (inclusive), with step
+``st``, and ending at the ``to``-th element (exclusive).
+``wordarray_map_view`` maps over every element in the view, and returns the updated slice. The updates
+are performed in-place, resulting in more performant C code. Finally ``wordarray_unview`` converts a view
+back to a regular array. This piece of Cogent program is relatively simple. 
+
+In the companion ``main.ac`` file, the ``main`` function is straightforward: we call the Cogent ``map``
+function as ``map (arr)``. Here we don't even need to use the ``$exp`` antiquote, as we can already
+know that the generated C function name of ``map`` is identical to its Cogent name, given that
+this function is monomorphic. 
+
+The antiquoted C file giving the definitions of the abstract functions for wordarray can be found
+in `cogent/lib/gum/anti/wordarray.ac <https://github.com/NICTA/cogent/blob/master/cogent/lib/gum/anti/wordarray.ac>`__
+and is standard. What's not so obvious is how to define the abstract type of wordarray.
+
+Unlike the previous example that we could define the (monomorphic) abstract types in the ``main.ac`` file,
+here we need to create another type of antiquoted file---a ``.ah`` file---antiquoted header file.
+The antiquoted header files are passed to the ``--infer-c-types`` argument, contrary to the ``--infer-c-funcs`` argument.
+The reason why ``.ah`` files are different from ``.ac`` files is that, we know what
+types a polymorphic function should be instantiated to according to the explicit type applications in the ``.ac`` file,
+as in ``$exp:(swapDrop[A,B,U32])`` in the previous example. For types, however, we
+work out the instantiations depending on what instances are **used** in your Cogent functions.
+
+.. note:: It's only used if it's a dependency of at least one function specified in ``--entry-funcs``.
+
+The definition of ``WordArray a`` is given below (also in the repository in
+`cogent/lib/gum/anti/abstract/WordArray.ah <https://github.com/NICTA/cogent/blob/master/cogent/lib/gum/anti/abstract/WordArray.ah>`__):
+
+.. code-block:: c
+
+  struct $id:(WordArray a) {
+  	int len;
+  	$ty:a* values;
+  };
+  
+  typedef struct $id:(WordArray a) $id:(WordArray a);
+
+In the Cogent standard library, a wordarray is defined to be a struct, consisting of two fields:
+``len`` stores the length of the wordarray, and ``values`` is a C array holding the contents.
+
+Let's come back to the ``main.ac`` file. The first few lines look like:
+
+.. code-block:: c
+
+  $esc:(#include <stdio.h>)
+  $esc:(#include <stdlib.h>)
+  $esc:(#include <string.h>)
+  
+  #include "mapper.c"
+  #include <wordarray.ac>
+
+We only need to include the ``.ac`` files, as the ``.ah`` files will be automatically
+included in the generated ``mapper.h`` file. After all, the function declarations and definitions
+there rely on the definitions of the abstract types.
+
+We can have a brief look at how they are included:
+
+.. code-block:: c
+
+  #include <abstract/WordArray_u32.h>
+  #include <abstract/View_WordArray_u32.h>
+  struct t2 {
+      View_WordArray_u32 p1;
+      t1 p2;
+  } ;
+
+Once the parametric abstract type is needed, the Cogent compiler will generate lines
+to include the monomorphised definitions of the parametric types. 
+
+The build command (in a Makefile) is:
+
+.. code-block:: make
+
+	cogent $(SRC) -g -o$(OUTPUT) \
+		--abs-type-dir="$(ABSDIR)" \
+		--infer-c-types="$(AHFILES)" \
+		--infer-c-funcs="$(ACFILES)" \
+		--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
+		--entry-funcs=entrypoints.cfg
+
+``$(ABSDIR)`` is the directory containing the generated definitions of parametric types.
+It defaults to ``abstract`` in the current folder. ``$(AHFILES)`` needs to include all the
+needed ``.ah`` files, and ``$(ACFILES)`` here is only the ``main.ac``, since the other ``.ac`` files
+are already included in ``main.ac``.
+
+The code for this example can be found in the `repository <https://github.com/NICTA/cogent/tree/master/cogent/examples/mapper>`__.
+
 
 Example: building Isabelle proofs
 =================================

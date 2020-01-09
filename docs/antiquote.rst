@@ -63,7 +63,7 @@ We have two different modes for handling antiquotation. One is *type
 mode*, with command-line argument ``--infer-c-type``. In this mode,
 users can only define abstract parametric Cogent types. The output will
 be placed to pre-defined directory, one file per monomorphised type.
-Each file is ``#include``'ed by the generated ``.h`` file. Another mode
+Each file is ``#include``\ -d by the generated ``.h`` file. Another mode
 is *function mode*, which is enabled by ``--infer-c-func`` flag to the
 compiler (note: these two modes are not mutually exclusive). This mode
 is for everything else, and the output filename is derived from the
@@ -95,8 +95,9 @@ with a lower-case letter**, then no parenthesis are required (e.g.
 or a tuple, then we have to have at least two pairs of parentheses, the inner
 one for the tuple, and the outer one for antiquotation.
 
-Functions defined using antiquotation have to be parametrically
-polymorphic or monomorphic. ``$id`` is needed for poly-functions only.
+Functions defined using antiquotation can be parametrically
+polymorphic, ad hoc polymorphic or monomorphic.
+``$id`` is mostly needed by poly-functions only. [#id-mono]_
 The reason behind it is, a mono-function will be generated to a C
 function with exactly the same name (modulo unsupported identifier
 characters), thus the function name will stay intact. For a
@@ -218,3 +219,19 @@ Expressions
 
 We can antiquote any valid Cogent expressions, using ``$exp`` antiquote.
 They will be turned to **statement-expression** in C.
+
+.. rubric:: Footnotes
+
+.. [#id-mono] One special case is that, if you have an abstract monomorphic function which
+              uses a parametric abstract type (but instantiated, of course) that is not used anywhere else in
+              your Cogent program, and if ``$id`` is not used on the function name, 
+              then this function will not be processed by the monomorphiser, thus always
+              dumped to the final artifact. But the parametric type, because no Cogent
+              function uses it (or no Cogent function specified in the ``--entry-funcs`` flag uses it),
+              it will not be generated in the C code, leading to a used-but-not-defined type.
+              It happens when you import such a library, which contains functions that you
+              never use.
+              In this case, use the ``$id`` antiquote on the function name. It will treat the
+              function as a poly-function, thus processed by the monomorphiser. The compiler can then know
+              that you indeed don't use this function and won't produce it in the final C program.
+

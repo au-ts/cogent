@@ -28,7 +28,7 @@ ABSDIR=./abstract
 
 OBJ=$(PPINFER:.c=.o)
 
-CFLAGS+=-I. -I../plat/console -I$(STDGUM) -I$(STDGUM)/gum/anti -std=gnu99
+CFLAGS+=-I. -I$(STDGUM) -I$(STDGUM)/gum/anti -std=gnu99
 
 .PHONY: default clean gen-anti
 .SECONDARY:
@@ -43,13 +43,14 @@ $(OBJ): $(PPINFER)
 gen-anti:
 	mkdir -p $(ABSDIR)
 	cogent $(SRC) -g -o$(OUTPUT) \
+		--abs-type-dir="$(ABSDIR)" \
 		--infer-c-types="$(AHFILES)" \
 		--infer-c-funcs="$(ACFILES)" \
 		--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
-		--entry-funcs=entrypoints.cfg --Wmono
+		--entry-funcs=entrypoints.cfg
 
 clean:
 	rm -f $(COUTPUT) $(HOUTPUT) $(PP) $(PPINFER) $(OBJ)
 	@# rm -f *-gen.*
 	rm -f $(ABSDIR)/*.h
-	rm -f $(NAME)
+	rm -f $(NME)
