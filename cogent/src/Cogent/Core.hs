@@ -130,7 +130,7 @@ data Expr t v a b e
   | Singleton (e t v a b)  -- extracting the element out of a singleton array
   | ArrayMap2 ((a, a), e t ('Suc ('Suc v)) a b) (e t v a b, e t v a b)
   | ArrayTake (a, a) (e t v a b) (e t v a b) (e t ('Suc ('Suc v)) a b)
-          -- \ ^^^ The first is the array, and the second is the taken object
+          -- \ ^^^ The first is the taken object, and the second is the array
   | ArrayPut (e t v a b) (e t v a b) (e t v a b)
 #endif
   | Let a (e t v a b) (e t ('Suc v) a b)
@@ -143,7 +143,7 @@ data Expr t v a b e
   | Split (a, a) (e t v a b) (e t ('Suc ('Suc v)) a b)
   | Member (e t v a b) FieldIndex
   | Take (a, a) (e t v a b) FieldIndex (e t ('Suc ('Suc v)) a b)
-     -- \ ^^^ The first is the record, and the second is the taken field
+     -- \ ^^^ The first is the taken field, and the second is the record
   | Put (e t v a b) FieldIndex (e t v a b)
   | Promote (Type t b) (e t v a b)  -- only for guiding the tc. rep. unchanged.
   | Cast (Type t b) (e t v a b)  -- only for integer casts. rep. changed
