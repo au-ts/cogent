@@ -3,11 +3,15 @@
 // The implementation doesn't actually matter, as we want to treat
 // these functions as a black box
 
-typedef struct _file {
+typedef struct filedummy {
     int dummy;
 } FILE;
 
 void fprintf(FILE * stream, char * str) {
+    // do nothing
+}
+
+void malloc(int size) {
     // do nothing
 }
 
@@ -19,6 +23,8 @@ void exit(int num) {
     // do nothing
 }
 
+FILE * stdout = (FILE*) 0x0;
+
 #include <cogent-defns.h>
 
 // The definition of our abstract type
@@ -29,7 +35,7 @@ typedef struct kernelState {
 
 
 // Now, include our compiled code
-#include <Kernel.c>
+#include "Kernel.c"
 
 // Prototypes of our abstract functions are inserted into Kernel.c above
 // Now we define our two abstract functions

@@ -12,7 +12,7 @@ typedef struct kernelState {
 
 
 // Now, include our compiled code
-#include <Kernel.c>
+#include "Kernel.c"
 
 // Prototypes of our abstract functions are inserted into Kernel.c above
 // Now we define our two abstract functions

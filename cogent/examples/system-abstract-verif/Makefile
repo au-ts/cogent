@@ -30,6 +30,7 @@ VERIF_ACFILES=plat/verification/wrapper.ac
 # Compile with the right file depending on what we want to build
 system: ACFILES=$(SYSTEM_ACFILES)
 verification: ACFILES=$(VERIF_ACFILES)
+clean: ACFILES=$(VERIF_ACFILES) $(SYSTEM_ACFILES)
 
 # Preprocessed and inferred antiquoted C files
 PP=$(ACFILES:.ac=_pp.ac)
@@ -44,6 +45,7 @@ CFLAGS=-I. -I$(STDGUM) -I$(STDGUM)/gum/anti -std=gnu99
 .PHONY: default clean system verification
 .SECONDARY:
 
+all: $(OBJ) system
 
 # Build all our objects
 $(OBJ): $(PPINFER)
@@ -62,6 +64,7 @@ system: $(OBJ)
 	$(CC) -o $(NAME) $(OBJ)
 
 verification:
+	# Compile cogent source and build all verification files
 	cogent $(SRC) -g -o$(OUTPUT) \
 		--dist-dir=plat/verification \
 		--root-dir="$(REPO)" \
@@ -77,6 +80,7 @@ clean:
 	rm -f plat/verification/$(COUTPUT) plat/verification/$(HOUTPUT) plat/verification/$(PP) plat/verification/$(PPINFER) plat/verification/$(OBJ)
 	@# rm -f *-gen.*
 	rm -f plat/verification/$(NAME)_*.thy
+	rm -rf $(NAME)
 	rm -f plat/verification/ROOT
 	rm -f plat/verification/Kernel.table
 	rm -f plat/verification/BUILD_INFO
