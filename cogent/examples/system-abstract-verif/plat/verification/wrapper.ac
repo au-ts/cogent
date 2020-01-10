@@ -39,6 +39,6 @@ typedef struct kernelState {
 
 
 // Now, include our compiled code
-#include "Kernel.c"
+#include "kernel.c"
 
 #include <main.ac>

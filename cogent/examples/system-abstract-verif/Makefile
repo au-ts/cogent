@@ -16,7 +16,7 @@ REPO="../../.."
 
 # Our input source file, output targets
 SRC=Kernel.cogent
-OUTPUT=Kernel # $(SRC:.cogent=-gen)
+OUTPUT=kernel # $(SRC:.cogent=-gen)
 COUTPUT=$(addsuffix .c, $(OUTPUT))
 HOUTPUT=$(addsuffix .h, $(OUTPUT))
 
@@ -27,7 +27,7 @@ STDGUM=$(shell cogent --stdgum-dir)
 SYSTEM_ACFILES=plat/system/wrapper.ac
 VERIF_ACFILES=plat/verification/wrapper.ac
 
-# Compile with the right file depending on what we want to build
+# Compile with the right wrapper file depending on what we want to build
 ifeq ($(findstring system,${MAKECMDGOALS}),system)
   ACFILES := ${SYSTEM_ACFILES}
 else
@@ -53,14 +53,17 @@ OBJ     := $(PPINFER:.c=.o)
 CFLAGS=-I. -I$(STDGUM) -I$(STDGUM)/gum/anti -std=gnu99
 
 # Common flags for the cogent compiler
-COGENT_FLAGS=--Wno-warn --root-dir="$(REPO)" --cpp-args="\$$CPPIN -o \$$CPPOUT -P $(CFLAGS)" --ext-types=types.cfg --entry-funcs=entrypoints.cfg
+COGENT_FLAGS=--Wno-warn \
+			 --root-dir="$(REPO)" \
+			 --cpp-args="\$$CPPIN -o \$$CPPOUT -P $(CFLAGS)" \
+			 --ext-types=types.cfg \
+			 --entry-funcs=entrypoints.cfg
 
 .PHONY: clean # system verification
 
 # Compile the actual code for running
 system: .system ${OBJ}
-    # Compile the C code
-	$(CC) -o $(NAME) ${OBJ}
+	$(CC) -o $(OUTPUT) ${OBJ}
 
 ${OBJ}: ${PPINFER}
 ${PPINFER}: .system
@@ -81,14 +84,12 @@ verification:
 		-A
 
 clean:
-	@echo $(PP) $(PPINFER)
 	rm -f plat/system/$(COUTPUT) plat/system/$(HOUTPUT)
 	rm -f plat/verification/$(COUTPUT) plat/verification/$(HOUTPUT)
 	rm -f $(PP) $(PPINFER) $(OBJ)
-	@# rm -f *-gen.*
 	rm -f plat/verification/$(NAME)_*.thy
-	rm -rf $(NAME)
+	rm -f $(OUTPUT)
 	rm -f plat/verification/ROOT
-	rm -f plat/verification/Kernel.table
+	rm -f plat/verification/kernel.table
 	rm -f plat/verification/BUILD_INFO
 	rm -f plat/system/BUILD_INFO

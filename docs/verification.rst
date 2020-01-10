@@ -145,12 +145,86 @@ Next, we'll create a file and import our shallow embedding, then prove it's corr
 A More Involved Example
 ^^^^^^^^^^^^^^^^^^^^^^^
 
+The code for this example is more involved than the previous, so follow along with the source located
+`here <https://github.com/NICTA/cogent/tree/master/cogent/examples/system-abstract-verif>`_.
+
 Naturally when writing Cogent code, you'll interface with C code frequently. This C code must go through AutoCorres for
 the refinement proof, so we'll need to put a bit more effort to set up the verification chain for such Cogent programs.
 
 This time, we'll be using abstract functions and types to represent the C functions and types we wish to call and use.
 Our program will take in a toy ``KernelState`` type, and check the status of a magic number in this type. If the number
 has been corrupted, we'll cause a kernel panic, otherwise, continue on.
+
+The C code this time will involve the C standard library, which we don't want to pass into AutoCorres as it often
+causes errors. In realistic situations, the same issue can potentially be caused by system code included into Cogent programs that
+man not directly be verified along with the Cogent code (such as linux kernel headers), so we need a way to work around this.
+
+Note that, as we will use types from the standard library that are not implemented in our antiquoted C or Cogent code, we
+must inform the compiler of the existence of these types. We do this with the flag ``--ext-type=types.cfg``, which points
+to the file in our example directory. As we'll use the file stream type, the only line in this file is ``FILE``.
+
+We'll write two wrapper files, each called ``wrapper.ac`` that contain different definitions of various library types and functions
+in order to work around AutoCorres. Observe the sample source code directory layout::
+
+    .
+    ├── entrypoints.cfg
+    ├── Kernel.cogent
+    ├── main.ac
+    ├── Makefile
+    ├── plat
+    │   ├── system
+    │   │   └── wrapper.ac
+    │   └── verification
+    │       └── wrapper.ac
+    └── types.cfg
+
+You'll notice in our platform folder (``plat``), we have a ``system`` folder and a ``verification`` folder each with it's own wrapper file.
+
+In the system folder, the wrapper file includes the C library for execution, defines the abstract types used in the Cogent code,
+and finally includes our to be compiled Cogent code followed by the main code. You may also notice that we define two messages as
+string literals in variables (``KERNEL_PANIC_MESSAGE``, ``KERNEL_OK_MESSAGE``). AutoCorres won't accept string literals in C code,
+so it's important to abstract them out of the main code. Finally, the wrapper includes the implementations of our abstract functions
+(``kernelPanic``, ``memMagicNumer``) that our Cogent code uses, and a ``main`` function to test the Cogent code, all located in ``main.ac``.
+
+.. literalinclude:: ../cogent/examples/system-abstract-verif/plat/system/wrapper.ac
+    :language: c
+
+In the ``verification`` folder however, we must provide definitions of the standard library types and functions we use
+(``FILE``, ``fprintf``, ``malloc``, ``free``, ``exit``, ``stdout``). During verification we'll treat these functions like a black box,
+so the actual implementation doesn't matter (as long as AutoCorres can parse them). For example, we can give the following
+definitions to the FILE type and fprintf:
+
+.. code-block:: c
+
+    typedef struct filedummy {
+        int dummy;
+    } FILE;
+
+    int fprintf(FILE * stream, char * str) {
+        // do nothing
+        return 0;
+    }
+
+We can also give dummy definitions to our string literal placeholder variables at this time too:
+
+.. code-block:: c
+
+    char * KERNEL_PANIC_MESSAGE = 0x0;
+    char * KERNEL_OK_MESSAGE    = 0x0;
+
+Now AutoCorres will be happy with our code!
+
+To make the verification build chain simpler, in our ``Makefile`` we simply change which ``wrapper.ac`` is supplied to
+the compiler depending on whether or not we want to build for verification or to build the system to run.
+
+Finally, we're left with our Cogent code:
+
+.. literalinclude:: ../cogent/examples/system-abstract-verif/Kernel.cogent
+    :language: haskell
+
+
+To run this example, run ``make system`` to compile the code into an executable called ``kernel``, or run 
+``make verification`` to build all Isabelle/HOL verification files and C code suited for AutoCorres.
 
 Common Errors
 -------------
