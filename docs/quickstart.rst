@@ -205,9 +205,9 @@ can be given.
   by the preprocessor, which should always be used as the next stage of the compilation doesn't support
   linemarkers. ``$CFLAGS`` is defined as:
 
-.. code-block:: bash
+  .. code-block:: bash
 
-    CFLAGS=-I. -I$COGENT_STDLIB -std=gnu99
+      CFLAGS=-I. -I$COGENT_STDLIB -std=gnu99
 
   It just contains other standard flags that ``gcc`` and ``cpp`` demands. Normally ``-I`` for search paths,
   and ``-std`` for specific C standards. We use GNU C99. ``$COGENT_STDLIB`` points to the directory containing
