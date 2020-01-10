@@ -7,23 +7,27 @@ typedef struct filedummy {
     int dummy;
 } FILE;
 
-void fprintf(FILE * stream, char * str) {
+int fprintf(FILE * stream, char * str) {
+    // do nothing
+    return 0;
+}
+
+void* malloc(int size) {
+    // do nothing
+    return (void*)0x0;
+}
+
+int free(void * mem) {
     // do nothing
 }
 
-void malloc(int size) {
+int exit(int num) {
     // do nothing
 }
 
-void free(void * mem) {
-    // do nothing
-}
-
-void exit(int num) {
-    // do nothing
-}
-
-FILE * stdout = (FILE*) 0x0;
+FILE * stdout               = (FILE*) 0x0;
+char * KERNEL_PANIC_MESSAGE = 0x0;
+char * KERNEL_OK_MESSAGE    = 0x0;
 
 #include <cogent-defns.h>
 
@@ -37,39 +41,4 @@ typedef struct kernelState {
 // Now, include our compiled code
 #include "Kernel.c"
 
-// Prototypes of our abstract functions are inserted into Kernel.c above
-// Now we define our two abstract functions
-$ty:(U64) memMagicNumber($ty:(KernelState!) arg) {
-    return arg->magicNumber;
-}
-
-$ty:(()) kernelPanic($ty:(KernelState) arg) {
-    fprintf(arg->kernelLogStream, "Fatal error! dying...\n");
-
-    free(arg);
-    exit(1);
-
-    struct unit_t u;
-    return u;
-}
-
-// Our main function, to test
-int main(void)
-{
-    $ty:(KernelState) state = malloc(sizeof (struct kernelState*));
-    state->magicNumber = 0xdeadbeef;
-    state->kernelLogStream = stdout;
-
-    $ty:(Result KernelState) res = kernelStatusCheck(state);
-    if (res.tag == TAG_ENUM_Error) {
-        // We should have kernel panicked by now
-    } else {
-        // Collect the state back from the function
-        state = res.Success;
-    }
-
-    fprintf(state->kernelLogStream, "Kernel is ok!\n");
-    free(state);
-
-    return 0;
-}
+#include <main.ac>

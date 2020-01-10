@@ -28,56 +28,63 @@ SYSTEM_ACFILES=plat/system/wrapper.ac
 VERIF_ACFILES=plat/verification/wrapper.ac
 
 # Compile with the right file depending on what we want to build
-system: ACFILES=$(SYSTEM_ACFILES)
-verification: ACFILES=$(VERIF_ACFILES)
-clean: ACFILES=$(VERIF_ACFILES) $(SYSTEM_ACFILES)
+ifeq ($(findstring system,${MAKECMDGOALS}),system)
+  ACFILES := ${SYSTEM_ACFILES}
+else
+  ifeq ($(findstring verification,${MAKECMDGOALS}),verification)
+    ACFILES := ${VERIF_ACFILES}
+  else
+    ifeq ($(findstring clean,${MAKECMDGOALS}),clean)
+      ACFILES := ${SYSTEM_ACFILES} ${VERIF_ACFILES}
+	else
+      $(error Must compile either 'system' or 'verification' targets.)
+    endif
+  endif
+endif
 
 # Preprocessed and inferred antiquoted C files
-PP=$(ACFILES:.ac=_pp.ac)
-PPINFER=$(ACFILES:.ac=_pp_inferred.c)
+PP      := $(ACFILES:.ac=_pp.ac)
+PPINFER := $(ACFILES:.ac=_pp_inferred.c)
 
 # Compilation objects
-OBJ=$(PPINFER:.c=.o)
+OBJ     := $(PPINFER:.c=.o)
 
 # Extra flags for the C compiler
 CFLAGS=-I. -I$(STDGUM) -I$(STDGUM)/gum/anti -std=gnu99
 
-.PHONY: default clean system verification
-.SECONDARY:
+# Common flags for the cogent compiler
+COGENT_FLAGS=--Wno-warn --root-dir="$(REPO)" --cpp-args="\$$CPPIN -o \$$CPPOUT -P $(CFLAGS)" --ext-types=types.cfg --entry-funcs=entrypoints.cfg
 
-all: $(OBJ) system
+.PHONY: clean # system verification
 
-# Build all our objects
-$(OBJ): $(PPINFER)
+# Compile the actual code for running
+system: .system ${OBJ}
+    # Compile the C code
+	$(CC) -o $(NAME) ${OBJ}
 
-system: $(OBJ)
+${OBJ}: ${PPINFER}
+${PPINFER}: .system
+.system:
 	# Compile the Cogent source
 	cogent $(SRC) -g -o$(OUTPUT) \
+		$(COGENT_FLAGS) \
 		--dist-dir=plat/system \
-		--root-dir="$(REPO)" \
-		--Wno-warn --infer-c-funcs="$(SYSTEM_ACFILES)" \
-		--cpp-args="\$$CPPIN -o \$$CPPOUT -P $(CFLAGS)" \
-		--ext-types=types.cfg \
-		--entry-funcs=entrypoints.cfg
+		--infer-c-funcs="$(SYSTEM_ACFILES)" 
 
-    # Compile the C code
-	$(CC) -o $(NAME) $(OBJ)
-
+# Compile cogent source and generate all verification files
 verification:
-	# Compile cogent source and build all verification files
 	cogent $(SRC) -g -o$(OUTPUT) \
+		$(COGENT_FLAGS) \
 		--dist-dir=plat/verification \
-		--root-dir="$(REPO)" \
-		--Wno-warn --infer-c-funcs="$(VERIF_ACFILES)" \
-		--cpp-args="\$$CPPIN -o \$$CPPOUT -P $(CFLAGS)" \
-		--ext-types=types.cfg \
-		--entry-funcs=entrypoints.cfg \
+		--infer-c-funcs="$(VERIF_ACFILES)" \
 		--proof-input-c=wrapper_pp_inferred.c \
 		-A
 
 clean:
-	rm -f plat/system/$(COUTPUT) plat/system/$(HOUTPUT) plat/system/$(PP) plat/system/$(PPINFER) plat/system/$(OBJ)
-	rm -f plat/verification/$(COUTPUT) plat/verification/$(HOUTPUT) plat/verification/$(PP) plat/verification/$(PPINFER) plat/verification/$(OBJ)
+	@echo $(PP) $(PPINFER)
+	rm -f plat/system/$(COUTPUT) plat/system/$(HOUTPUT)
+	rm -f plat/verification/$(COUTPUT) plat/verification/$(HOUTPUT)
+	rm -f $(PP) $(PPINFER) $(OBJ)
 	@# rm -f *-gen.*
 	rm -f plat/verification/$(NAME)_*.thy
 	rm -rf $(NAME)
