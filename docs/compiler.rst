@@ -51,6 +51,14 @@ influencing the compiler's behaviour as it works.
    -O LEVEL, --optimisation=LEVEL  \
        set optimisation level (0, 1, 2, d, n, s or u; default -Od)
 
+.. highlight:: bash
+
+A typical invocation might be::
+
+  $ cogent -g -o generated \
+           --infer-c-funcs=main.ac \
+           --infer-c-types=abstract/Grid.ah \
+           mandelbrot.cogent
 
 Commands
 ^^^^^^^^^^^^^^^^^^^^^^^^
