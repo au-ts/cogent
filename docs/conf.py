@@ -150,11 +150,24 @@ latex_elements = {
     'papersize': 'a4paper',
     'pointsize': '12pt',
     'fontpkg':   '''
+\\usepackage{iftex}
 % Sans-serifs, in Libertinus; serifs, in Crimson; monospace, in Latin Modern.
-% Order matters: Libertinus replaces rm, sf, tt, and we only want sf.
-% Likewise `lmodern' replaces rm, sf, tt, so we only do the `renewcommand'.
-\\usepackage{sectsty, libertinus, crimson}
+% Order matters: both Latin Modern and Libertinus replace rm, sf, tt,
+% and we only want tt and sf, respectively.
+%
+% Read The Docs uses an ancient TeX Live which ships without Libertinus,
+% and uses pdfLaTeX to render its output; so fall back to lmss.
+\\usepackage{lmodern}
+\\ifTUTeX
+  \\usepackage{libertinus}
+\\else
+  % \\sfdefault is lmss.
+\\fi
+
+\\usepackage{crimson}
 \\renewcommand{\\ttdefault}{lmtt}
+
+\\usepackage{sectsty}
 \\allsectionsfont{\\normalfont\\sffamily\\bfseries}
 ''',
     'fncychap':  '',
