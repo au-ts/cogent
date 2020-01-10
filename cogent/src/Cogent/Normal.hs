@@ -92,6 +92,7 @@ isNormal (E (Case e tn (l1,_,e1) (l2,_,e2))) | isTrivial e && isNormal e1 && isN
 isNormal (E (If  c th el)) | isTrivial c  && isNormal th && isNormal el = True
 #ifdef BUILTIN_ARRAYS
 isNormal (E (Pop _ e1 e2)) | isTrivial e1 && isNormal e2 = True
+isNormal (E (ArrayTake _ arr i e)) | isTrivial arr && isTrivial i && isNormal e = True
 #endif
 isNormal (E (Split _ p e)) | isTrivial p  && isNormal e  = True
   -- \| ANF <- __cogent_fnormalisation, isTrivial  p && isNormal e = True
@@ -188,6 +189,19 @@ normalise v   (E (ArrayPut arr i e)) k
                       ArrayPut (upshiftExpr (sadd n' n'') (sadd v n) f0 arr')
                                (upshiftExpr n'' (sadd v n `sadd` n') f0 i')
                                e'
+normalise v   (E (ArrayTake (o, ca) pa i e)) k
+  = normaliseName v pa $ \n pa' ->
+    normaliseName (sadd v n) (upshiftExpr n v f0 i) $ \n' i' ->
+      withSSAssoc v n n' $ \Refl ->
+        withAssoc v n n' $ \Refl ->
+          E <$> (ArrayTake (o, ca)
+                (upshiftExpr n' (sadd v n) f0 pa')
+                i')
+            <$> (normalise (SSuc $ SSuc (sadd (sadd v n) n')) (upshiftExpr (sadd n n') (SSuc $ SSuc v) f2 e) $
+                \n'' -> case sym $ assoc v (sadd n n') n'' of
+                    Refl -> case sym $ addSucLeft (SSuc $ sadd (sadd v n) n') n'' of
+                        Refl -> case sym $ addSucLeft (sadd (sadd v n) n') n'' of
+                            Refl -> k (SSuc $ SSuc (sadd (sadd n n') n'')))
 #endif
 normalise v   (E (Let a e1 e2)) k
   | __cogent_fnormalisation `elem` [KNF, LNF]  -- \ || (__cogent_fnormalisation == ANF && __cogent_fcondition_knf && isCondition e1)
