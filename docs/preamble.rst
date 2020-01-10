@@ -6,14 +6,6 @@ Preamble
 The purpose of this documentation
 =================================
 
-This documentation is for anyone who wants to try out Cogent or use Cogent.
-We assume that you have a basic understanding of the Cogent project already,
-including what Cogent is about, the approach that we take in this research,
-and what Cogent brings you. If you don't, you may want to first read about
-the `Cogent project`_.
-
-.. _Cogent project: http://ts.data61.csiro.au/projects/TS/cogent.pml
-
 This document should be able to get you started as a user. For more advanced
 usage, or experimental features, some of them may be buried in the
 `GitHub issue tracker`_. You may also consider joining our Slack channel. The channel
