@@ -8,53 +8,76 @@
 # @TAG(NICTA_GPL)
 #
 
+# The name of our source file
 NAME=Kernel
 
+# Location of the Cogent repository
 REPO="../../.."
 
+# Our input source file, output targets
 SRC=Kernel.cogent
 OUTPUT=Kernel # $(SRC:.cogent=-gen)
 COUTPUT=$(addsuffix .c, $(OUTPUT))
 HOUTPUT=$(addsuffix .h, $(OUTPUT))
 
+# Location of Cogent stdlib
 STDGUM=$(shell cogent --stdgum-dir)
 
-ACFILES=main.ac
+# The wrapper files for compiling our system/verification
+SYSTEM_ACFILES=plat/system/wrapper.ac
+VERIF_ACFILES=plat/verification/wrapper.ac
 
+# Compile with the right file depending on what we want to build
+system: ACFILES=$(SYSTEM_ACFILES)
+verification: ACFILES=$(VERIF_ACFILES)
+
+# Preprocessed and inferred antiquoted C files
 PP=$(ACFILES:.ac=_pp.ac)
 PPINFER=$(ACFILES:.ac=_pp_inferred.c)
 
+# Compilation objects
 OBJ=$(PPINFER:.c=.o)
 
-CFLAGS=-I. -I$(STDGUM) -I$(STDGUM)/gum/anti -std=gnu99  # -I../plat/console 
+# Extra flags for the C compiler
+CFLAGS=-I. -I$(STDGUM) -I$(STDGUM)/gum/anti -std=gnu99
 
-.PHONY: default clean gen-anti
+.PHONY: default clean system verification
 .SECONDARY:
 
-default: all
 
-all: gen-anti $(OBJ) gen-verif
-	$(CC) -o $(NAME) $(OBJ)
-
+# Build all our objects
 $(OBJ): $(PPINFER)
 
-gen-anti:
+system: $(OBJ)
+	# Compile the Cogent source
 	cogent $(SRC) -g -o$(OUTPUT) \
+		--dist-dir=plat/system \
 		--root-dir="$(REPO)" \
-		--Wno-warn --infer-c-funcs="$(ACFILES)" \
+		--Wno-warn --infer-c-funcs="$(SYSTEM_ACFILES)" \
 		--cpp-args="\$$CPPIN -o \$$CPPOUT -P $(CFLAGS)" \
+		--ext-types=types.cfg \
 		--entry-funcs=entrypoints.cfg
 
-gen-verif:
+    # Compile the C code
+	$(CC) -o $(NAME) $(OBJ)
+
+verification:
 	cogent $(SRC) -g -o$(OUTPUT) \
+		--dist-dir=plat/verification \
 		--root-dir="$(REPO)" \
-		--shallow-normal \
-		--entry-funcs=entrypoints.cfg
+		--Wno-warn --infer-c-funcs="$(VERIF_ACFILES)" \
+		--cpp-args="\$$CPPIN -o \$$CPPOUT -P $(CFLAGS)" \
+		--ext-types=types.cfg \
+		--entry-funcs=entrypoints.cfg \
+		--proof-input-c=wrapper_pp_inferred.c \
+		-A
 
 clean:
-	rm -f $(COUTPUT) $(HOUTPUT) $(PP) $(PPINFER) $(OBJ)
+	rm -f plat/system/$(COUTPUT) plat/system/$(HOUTPUT) plat/system/$(PP) plat/system/$(PPINFER) plat/system/$(OBJ)
+	rm -f plat/verification/$(COUTPUT) plat/verification/$(HOUTPUT) plat/verification/$(PP) plat/verification/$(PPINFER) plat/verification/$(OBJ)
 	@# rm -f *-gen.*
-	rm -f $(NAME)
-	rm -f $(NAME)_*.thy
-	rm -f ROOT
-	rm -f BUILD_INFO
+	rm -f plat/verification/$(NAME)_*.thy
+	rm -f plat/verification/ROOT
+	rm -f plat/verification/Kernel.table
+	rm -f plat/verification/BUILD_INFO
+	rm -f plat/system/BUILD_INFO

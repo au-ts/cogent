@@ -1,0 +1,52 @@
+// First, include the stdlib for use
+$esc:(#include <stdio.h>)
+$esc:(#include <stdlib.h>)
+
+#include <cogent-defns.h>
+
+// The definition of our abstract type
+typedef struct kernelState {
+    u64 magicNumber;
+    FILE * kernelLogStream;
+} KernelState;
+
+
+// Now, include our compiled code
+#include <Kernel.c>
+
+// Prototypes of our abstract functions are inserted into Kernel.c above
+// Now we define our two abstract functions
+$ty:(U64) memMagicNumber($ty:(KernelState!) arg) {
+    return arg->magicNumber;
+}
+
+$ty:(()) kernelPanic($ty:(KernelState) arg) {
+    fprintf(arg->kernelLogStream, "Fatal error! dying...\n");
+
+    free(arg);
+    exit(1);
+
+    struct unit_t u;
+    return u;
+}
+
+// Our main function, to test
+int main(void)
+{
+    $ty:(KernelState) state = malloc(sizeof (struct kernelState*));
+    state->magicNumber = 0xdeadbeef;
+    state->kernelLogStream = stdout;
+
+    $ty:(Result KernelState) res = kernelStatusCheck(state);
+    if (res.tag == TAG_ENUM_Error) {
+        // We should have kernel panicked by now
+    } else {
+        // Collect the state back from the function
+        state = res.Success;
+    }
+
+    fprintf(state->kernelLogStream, "Kernel is ok!\n");
+    free(state);
+
+    return 0;
+}

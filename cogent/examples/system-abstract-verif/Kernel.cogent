@@ -1,4 +1,6 @@
--- template
+-- Kernel
+-- A toy program that demonstrates the use of abstract types and functions
+-- in the verification toolchain.
 
 -- An abstract type representing the state of the kernel
 type KernelState
@@ -7,17 +9,21 @@ type KernelState
 memMagicNumber : KernelState! -> U64 
 kernelPanic : KernelState -> ()
 
+-- An option type representing the result of a computation
 type Result a = < Success a | Error > 
 
 magicOk : KernelState! -> Bool
 magicOk state = let n = memMagicNumber state
+                -- Check the magic number is equal to what we expect
                 in n | 0xdeadbeef -> True
                      | _          -> False
 
 kernelStatusCheck : KernelState -> Result KernelState
 kernelStatusCheck state = 
+    -- pass a readonly copy of state to magicOk
     let b = (magicOk state) !state in 
     if b then
+      -- Check passed, return the state back
       Success state
     else -- Will crash
       let _ = kernelPanic state in Error
