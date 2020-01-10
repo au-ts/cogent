@@ -317,6 +317,7 @@ insertIdxAtE cut f (ArrayIndex e l) = ArrayIndex (f cut e) (f cut l)
 insertIdxAtE cut f (Pop a e1 e2) = Pop a (f cut e1) (f (FSuc (FSuc cut)) e2)
 insertIdxAtE cut f (Singleton e) = Singleton (f cut e)
 insertIdxAtE cut f (ArrayPut arr i e) = ArrayPut (f cut arr) (f cut i) (f cut e)
+insertIdxAtE cut f (ArrayTake (o, ca) pa i e) = ArrayTake (o, ca) (f cut pa) (f cut i) (f (FSuc (FSuc cut)) e)
 #endif
 insertIdxAtE cut f (Let a e1 e2) = Let a (f cut e1) (f (FSuc cut) e2)
 insertIdxAtE cut f (LetBang vs a e1 e2) = LetBang (map (first $ liftIdx cut) vs) a (f cut e1) (f (FSuc cut) e2)
@@ -578,6 +579,8 @@ instance (Pretty a, Pretty b, Prec (e t v a b), Pretty (e t v a b), Pretty (e t 
                                 keyword "in"  <+> pretty e2)
   pretty (Singleton e) = keyword "singleton" <+> parens (pretty e)
   pretty (ArrayPut arr i e) = prettyPrec 1 arr <+> symbol "@" <> record [symbol "@" <> pretty i <+> symbol "=" <+> pretty e]
+  pretty (ArrayTake (o, ca) pa i e) = align (keyword "take" <+> pretty ca <+> symbol "@" <> record [symbol "@" <> pretty i <+>
+                                             symbol "=" <+> pretty o] <+> symbol "=" <+> (prettyPrec 1 pa) L.<$> keyword "in" <+> pretty e)
 #endif
   pretty (Variable x) = pretty (snd x) L.<> angles (prettyV $ fst x)
   pretty (Fun fn ins nt) = pretty nt L.<> funname (unCoreFunName fn) <+> pretty ins
