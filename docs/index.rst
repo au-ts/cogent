@@ -11,7 +11,7 @@ Welcome to Cogent's documentation!
 
 Cogent is a restricted, polymorphic,
 higher-order and purely functional language
-with linear types
+with uniqueness types
 and without the need for a trusted runtime
 or garbage collector.
 
@@ -38,11 +38,11 @@ and the result of a function is deterministically defined
 by the arguments to the function,
 just like a mathematical function.
 
-**Cogent has linear types**:
+**Cogent has uniqueness types**:
 as a means to control references,
 every linear object
 (roughly equivalent to heap-allocated object)
-can be referenced exactly once.
+can only have one unique reference.
 
 **Cogent has no trusted runtime.**
 Cogent compiler generates C code,
@@ -53,6 +53,12 @@ the C runtime system.
 Since Cogent compiler generates C code,
 we would manage memory manually,
 like we do in any C program.
+
+**Cogent has a certifying compiler.**
+Cogent is designed for writing and formally
+verifying systems code. That's why we compromise
+on language expressiveness for verifiability.
+
 
 This documentation is for anyone who wants to try out or use Cogent.
 We assume that you have a basic understanding of the Cogent project already,
