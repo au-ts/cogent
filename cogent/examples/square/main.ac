@@ -1,0 +1,10 @@
+$esc:(#include <stdio.h>)
+#include "square.c"
+
+int main(void)
+{
+   u64 n;
+   n = $exp:square(10);
+   printf("10! = %u\n", n);
+   return 0;
+}
