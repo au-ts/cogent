@@ -32,7 +32,7 @@ of this document are there for you to consult. The :doc:`quickstart` contains li
 to the relevant sections with more details.
 
 
-Other Materials
+Other materials
 ===============
 
 .. todo:: Add pointers to other docs.

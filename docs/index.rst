@@ -8,6 +8,7 @@
 :Repository:	<https://github.com/NICTA/cogent>
 
 Welcome to Cogent's documentation!
+==================================
 
 Cogent is a restricted, polymorphic,
 higher-order and purely functional language
@@ -28,7 +29,7 @@ This is similar to templates in C++,
 or generics in Rust.
 
 **Cogent is higher-order.**
-Functions are values --- they can be function arguments.
+Functions are values---they can be function arguments.
 
 **Cogent is purely functional,**
 in the sense of
@@ -71,6 +72,7 @@ the `Cogent project`_.
 .. _Cogent project: http://ts.data61.csiro.au/projects/TS/cogent.pml
 
 .. toctree::
+   :caption: Table of contents
    :maxdepth: 2
    :numbered:
 
