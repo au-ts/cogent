@@ -401,6 +401,7 @@ The building process is very similar to the previous example (c.f. :ref:`first-p
 The complete code and Makefile for this example can be found
 `here <https://github.com/NICTA/cogent/tree/master/cogent/examples/fib>`__.
 
+.. _poly-function-example:
 
 Example: abstract types and polymorphic functions
 =================================================

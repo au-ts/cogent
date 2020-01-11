@@ -12,41 +12,43 @@ Compiled Cogent theory files have several dependencies:
 
 * `Isabelle/HOL 2019`_, the proof assistant used for generated theory files (.thy)
 * AutoCorres_, an Isabelle/HOL tool to extract C code into an Isabelle/HOL embedding
-* `C refinement theories`_, included in the Cogent repository
 * `Cogent theories`_, included in the Cogent repository
+* `C refinement theories`_, included in the Cogent repository
 
-C refinement and Cogent theories are properly linked to compiled files using the
+Cogent theories and C refinement theories are properly linked to compiled files using the
 ``--root-dir=PATH`` compiler flag, which should specify the root directory of the
 `Cogent repository`_. 
 
 Generated Theory Files
 ----------------------
 
-Compiling a program with the ``-A`` flag produces all verification files. You can
+Compiling a program with the ``-A`` flag produces all needed verification files (among with other
+output files). You can
 optionally generate each individual file using it's relevant flag. The files are:
 
 TypeProof
     A proof of type correctness for the compiled program, generated with ``--typeproof``.
 ShallowShared
-    The shared components of the shallow embedding, generated with any following shallow flag.
-Shallow_Normal
-    The compiled shallow embedding in normal form, generated with ``--shallow-normal``.
+    The shared components of the shallow embedding, generated with either ``--shallow-desugar`` or
+    ``--shallow-normal``.
 Shallow_Desugar
     The compiled shallow embedding from the desugared compiler code, generated with ``--shallow-desugar``.
-ShallowSharedTuples, Shallow_Normal_Tuples, Shallow_Desugar_Tuples
-    Shallow embedding files that feature tuples instead of desugared records, generated with ``--shallow-desugar-tuples``.
+Shallow_Normal
+    The compiled shallow embedding in normal form, generated with ``--shallow-normal``.
+ShallowShared_Tuples, Shallow_Desugar_Tuples
+    Shallow embedding files that feature tuples instead of records, generated with ``--shallow-desugar-tuples``.
 SCorres_Normal
-    Various value relations for each type from the compiled Cogent program, generated with ``--scorres-normal``. Can also come in monomorphised and desugared form.
+    Various value relations for each type from the compiled Cogent program, generated with ``--scorres-normal``. Can also come in desugared and monomorphised form.
 Deep_Normal
-    The deep embedding for the compiled file, in normal form, generated with ``--deep-normal``. Can also come in monomorphised and desugared form.
+    The deep embedding for the compiled file, in normal form, generated with ``--deep-normal``. Can also come in desugared and monomorphised form.
 NormalProof
     The proof that the compiled shallow embedding is in normal form, generated with ``--normal-proof``.
 ACInstall
-    Creates an embedding of the generated C code via AutoCorres_, generated with ``--ac-install``.
+    Creates a shallow embedding of the generated C code via AutoCorres_, generated with ``--ac-install``.
 CorresSetup
-    Various lemmas needed for the correspondance proof, generated with ``--corres-setup``.
+    Various lemmas needed for the correspondence proof, generated with ``--corres-setup``.
 CorresProof
-    Creates the correspondance proof between the Isabelle/HOL embedding and the C code, generated with ``--corres-proof``.
+    Creates the correspondence proof between the Cogent deep embedding and the C shallow embedding, generated with ``--corres-proof``.
 MonoProof
     Proving the equivalence of polymorphic functions and specialised monomorphic functions, generated with ``--mono-proof``.
 AllRefine
@@ -65,18 +67,18 @@ Building/Running The Generated Files
 
 Before using the generated theory files, ensure you have built the AutoCorres heap like so::
 
-    L4V_ARCH=X64 isabelle build -v -b -d $AUTOCORRES_DIR AutoCorres
+    L4V_ARCH=X64 isabelle build -v -b -d $AC_DIR AutoCorres
 
-Where ``AUTOCORRES_DIR`` is the root directory of AutoCorres.
+Where ``$AC_DIR`` is the root directory of AutoCorres.
 
 In Jedit
 ^^^^^^^^
 
 Launch the Jedit editor with the following command::
 
-    L4V_ARCH=X64 isabelle jedit -d $AUTOCORRES_DIR -l AutoCorres
+    L4V_ARCH=X64 isabelle jedit -d $AC_DIR -l AutoCorres
 
-Where again, ``AUTOCORRES_DIR`` is the root directory of AutoCorres.
+Where again, ``$AC_DIR`` is the root directory of AutoCorres.
 
 Then, simply open any file you wish to view.
 
@@ -87,13 +89,16 @@ Using the generated ``ROOT`` file, you can build the suite of files like so::
 
     isabelle build -D $GENERATED_FILES_DIR \
                    -d $REPO_ROOT/cogent/isa \
-                   -d $AUTOCORRES_DIR
+                   -d $AC_DIR
 
 This will:
 
-* Select the root file located in the directory specified by ``GENERATED_FILES_DIR`` and evaluate it, which is the directory where your ROOT file and generated theory files are located
-* Include the cogent theory files in ``$REPO_ROOT/cogent/isa``, where ``REPO_ROOT`` is the root directory of the `Cogent Repository`_
-* Include AutoCorres theories located in ``AUTOCORRES_DIR``
+* Select the root file located in the directory specified by ``$GENERATED_FILES_DIR``
+  and evaluate it, which is the directory where your ``ROOT`` file and generated
+  theory files are located;
+* Include the Cogent theory files in ``$REPO_ROOT/cogent/isa``, where ``$REPO_ROOT``
+  is the root directory of the Cogent repository;
+* Include AutoCorres theories located in ``$AC_DIR``.
 
 Examples
 --------
@@ -101,7 +106,8 @@ Examples
 A Simple Example
 ^^^^^^^^^^^^^^^^
 
-In this example, we're going to write a function that squares a ``U64``, and prove the correctness of the embedding in Isabelle.
+In this example, we're going to write a function that squares a ``U64``, and prove
+the correctness of the embedding in Isabelle/HOL.
 
 You can find all the code for this example in our `repository <https://github.com/NICTA/cogent/tree/master/cogent/examples/square>`_
 
@@ -110,14 +116,16 @@ We'll use the following Cogent code:
 .. literalinclude:: ../cogent/examples/square/square.cogent
     :language: haskell
 
-And we'll build a shallow embedding using the following command::
+And we'll build a shallow embedding using the following command:
+
+.. code-block:: bash
 
     cogent square.cogent -g -o square\
         --root-dir="../../.." \
         --shallow-normal \
         --entry-funcs=entrypoints.cfg
 
-Which gives us the following shallow embedding:
+which gives us the following shallow embedding:
 
 .. code-block:: isabelle
 
@@ -136,7 +144,8 @@ Which gives us the following shallow embedding:
 
     end
 
-Next, we'll create a file and import our shallow embedding, then prove it's correctness against Isabelle's implementation of square:
+Next, we'll create a file and import our shallow embedding, then prove its
+correctness against the specification of square in Isabelle/HOL:
 
 .. literalinclude:: ../cogent/examples/square/SquareProof.thy
     :language: isabelle
@@ -152,15 +161,15 @@ Naturally when writing Cogent code, you'll interface with C code frequently. Thi
 the refinement proof, so we'll need to put a bit more effort to set up the verification chain for such Cogent programs.
 
 This time, we'll be using abstract functions and types to represent the C functions and types we wish to call and use.
-Our program will take in a toy ``KernelState`` type, and check the status of a magic number in this type. If the number
-has been corrupted, we'll cause a kernel panic, otherwise, continue on.
+Our program will take in a toy ``KernelState`` type, and check the status of a magic number in an object of this type. If the number
+has been corrupted, we'll cause a kernel panic; otherwise, continue on.
 
 The C code this time will involve the C standard library, which we don't want to pass into AutoCorres as it often
 causes errors. In realistic situations, the same issue can potentially be caused by system code included into Cogent programs that
-man not directly be verified along with the Cogent code (such as linux kernel headers), so we need a way to work around this.
+may not directly be verified along with the Cogent code (such as Linux kernel headers), so we need a way to work around this.
 
 Note that, as we will use types from the standard library that are not implemented in our antiquoted C or Cogent code, we
-must inform the compiler of the existence of these types. We do this with the flag ``--ext-type=types.cfg``, which points
+must inform the compiler of the existence of these types. We do this with the flag ``--ext-type=types.cfg`` (we have explained this flag in :ref:`first-program`), which points
 to the file in our example directory. As we'll use the file stream type, the only line in this file is ``FILE``.
 
 We'll write two wrapper files, each called ``wrapper.ac`` that contain different definitions of various library types and functions
@@ -240,9 +249,9 @@ You may see the following error from AutoCorres when running this file::
     ### file.h:6:10: fatal error: cogent-defns.h: No such file or directory
     ###  #include <cogent-defns.h>
 
-This is due to ``cpp`` being unable to find the Cogent C header, which is located in the `Cogent repository`_ 
-in ``cogent/lib/cogent-defns.h``. Adding the compiler flag ``--fake-header-dir=$REPO_ROOT/cogent/lib`` will fix this.
-You can aditionally set this directory to the result of ``cogent --stdgum-dir``, which will print the location of the Cogent
+This is due to ``cpp`` being unable to find the Cogent C header, which is located in the Cogent repository 
+in `cogent/lib/cogent-defns.h <https://github.com/NICTA/cogent/blob/master/cogent/lib/cogent-defns.h>`_. Adding the compiler flag ``--fake-header-dir=$REPO_ROOT/cogent/lib`` will fix this.
+You can additionally set this directory to the result of ``cogent --stdgum-dir``, which will print the location of the Cogent
 standard library directory.
 
 You may also see the following error::
@@ -252,8 +261,10 @@ You may also see the following error::
 
 This can be due to several reasons:
 
-* You have not specified entrypoint functions via the compiler flag ``--entry-funcs=FILE``
-* Your source file/entrypoiint functions contain only polymorphic functions. Concrete C functions will only be generated when these polymorphic functions are instantiated by your Cogent source file or your entrypoint file. You can do so in the entrypoint file like so: ``functionName[TypeName]``
+* You have not specified entrypoint functions via the compiler flag ``--entry-funcs=FILE``.
+* Your source file/entrypoiint functions contain only polymorphic functions. Concrete C functions
+  will only be generated when these polymorphic functions are instantiated by your Cogent
+  source file or your entrypoint file. You can do so in the entrypoint file like so: ``functionName[TypeName]`` (also see :ref:`poly-function-example` for more explanation).
 
 
 
@@ -263,6 +274,6 @@ This can be due to several reasons:
 
 .. _AutoCorres: https://ts.data61.csiro.au/projects/TS/autocorres/
 .. _`Isabelle/HOL 2019`: https://isabelle.in.tum.de/
-.. _`C refinement theories`: https://github.com/NICTA/cogent/tree/master/c-refinement
 .. _`Cogent theories`: https://github.com/NICTA/cogent/tree/master/cogent/isa/
+.. _`C refinement theories`: https://github.com/NICTA/cogent/tree/master/c-refinement
 .. _`Cogent repository`: https://github.com/NICTA/cogent
