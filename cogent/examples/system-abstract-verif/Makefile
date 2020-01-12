@@ -60,8 +60,8 @@ all: system verification
 system: $(BUILD_DIR)/${OBJ} .system
 	$(CC) -o $(OUTPUT) $<
 
-$(BUILD_DIR)/$(OBJ): $(BUILD_DIR)/$(PPINFER) .system
-	$(CC) -c -o $@ $<  $(CFLAGS)
+$(BUILD_DIR)/$(OBJ): .system
+	$(CC) -c -o $@ $(BUILD_DIR)/$(PPINFER)  $(CFLAGS)
 
 .system:
 	mkdir -p $(BUILD_DIR)
