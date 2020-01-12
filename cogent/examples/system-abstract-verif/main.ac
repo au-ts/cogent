@@ -5,7 +5,7 @@ $ty:(U64) memMagicNumber($ty:(KernelState!) arg) {
 }
 
 $ty:(()) kernelPanic($ty:(KernelState) arg) {
-    fprintf(arg->kernelLogStream, KERNEL_PANIC_MESSAGE);
+    fprintf(arg->kernelLogStream, "%s\n", KERNEL_PANIC_MESSAGE);
 
     free(arg);
     exit(1);
@@ -29,7 +29,7 @@ int main(void)
         state = res.Success;
     }
 
-    fprintf(state->kernelLogStream, KERNEL_OK_MESSAGE);
+    fprintf(state->kernelLogStream, "%s\n", KERNEL_OK_MESSAGE);
     free(state);
 
     return 0;

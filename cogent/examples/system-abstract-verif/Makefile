@@ -12,84 +12,73 @@
 NAME=Kernel
 
 # Location of the Cogent repository
-REPO="../../.."
+REPO=../../..
 
 # Our input source file, output targets
-SRC=Kernel.cogent
-OUTPUT=kernel # $(SRC:.cogent=-gen)
+SRC=$(NAME).cogent
+OUTPUT=kernel
 COUTPUT=$(addsuffix .c, $(OUTPUT))
 HOUTPUT=$(addsuffix .h, $(OUTPUT))
+
+# Location of output files
+BUILD_DIR=build
 
 # Location of Cogent stdlib
 STDGUM=$(shell cogent --stdgum-dir)
 
-# The wrapper files for compiling our system/verification
-SYSTEM_ACFILES=plat/system/wrapper.ac
-VERIF_ACFILES=plat/verification/wrapper.ac
-
 # Compile with the right wrapper file depending on what we want to build
-ifeq ($(findstring system,${MAKECMDGOALS}),system)
-  ACFILES := ${SYSTEM_ACFILES}
-else
-  ifeq ($(findstring verification,${MAKECMDGOALS}),verification)
-    ACFILES := ${VERIF_ACFILES}
-  else
-    ifeq ($(findstring clean,${MAKECMDGOALS}),clean)
-      ACFILES := ${SYSTEM_ACFILES} ${VERIF_ACFILES}
-	else
-      $(error Must compile either 'system' or 'verification' targets.)
-    endif
-  endif
-endif
+system: PLAT_DIR = plat/system/
+verification: PLAT_DIR = plat/verification/
+
+ACFILES = wrapper.ac
 
 # Preprocessed and inferred antiquoted C files
-PP      := $(ACFILES:.ac=_pp.ac)
-PPINFER := $(ACFILES:.ac=_pp_inferred.c)
+PP      = $(ACFILES:.ac=_pp.ac)
+PPINFER = $(ACFILES:.ac=_pp_inferred.c)
 
 # Compilation objects
-OBJ     := $(PPINFER:.c=.o)
+OBJ     = $(PPINFER:.c=.o)
 
 # Extra flags for the C compiler
-CFLAGS=-I. -I$(STDGUM) -I$(STDGUM)/gum/anti -std=gnu99
+CFLAGS=-I. -I$(STDGUM) -I$(STDGUM)/gum/anti -std=gnu99 -I$(BUILD_DIR)
 
 # Common flags for the cogent compiler
 COGENT_FLAGS=--Wno-warn \
 			 --root-dir="$(REPO)" \
+			 --dist-dir=$(BUILD_DIR) \
 			 --cpp-args="\$$CPPIN -o \$$CPPOUT -P $(CFLAGS)" \
 			 --ext-types=types.cfg \
 			 --entry-funcs=entrypoints.cfg
 
-.PHONY: clean # system verification
+.PHONY: default all clean system verification
+
+default: all
+
+all: system verification
 
 # Compile the actual code for running
-system: .system ${OBJ}
-	$(CC) -o $(OUTPUT) ${OBJ}
+system: $(BUILD_DIR)/${OBJ} .system
+	$(CC) -o $(OUTPUT) $<
 
-${OBJ}: ${PPINFER}
-${PPINFER}: .system
+$(BUILD_DIR)/$(OBJ): $(BUILD_DIR)/$(PPINFER) .system
+	$(CC) -c -o $@ $<  $(CFLAGS)
+
 .system:
+	mkdir -p $(BUILD_DIR)
 	# Compile the Cogent source
 	cogent $(SRC) -g -o$(OUTPUT) \
 		$(COGENT_FLAGS) \
-		--dist-dir=plat/system \
-		--infer-c-funcs="$(SYSTEM_ACFILES)" 
+		--infer-c-funcs="$(PLAT_DIR)/$(ACFILES)" 
 
 # Compile cogent source and generate all verification files
 verification:
-	cogent $(SRC) -g -o$(OUTPUT) \
+	mkdir -p $(BUILD_DIR)
+	cogent $(SRC) -A -o$(OUTPUT) \
 		$(COGENT_FLAGS) \
-		--dist-dir=plat/verification \
-		--infer-c-funcs="$(VERIF_ACFILES)" \
+		--infer-c-funcs="$(PLAT_DIR)/$(ACFILES)" \
 		--proof-input-c=wrapper_pp_inferred.c \
-		-A
+		--proof-name=$(NAME) \
 
 clean:
-	rm -f plat/system/$(COUTPUT) plat/system/$(HOUTPUT)
-	rm -f plat/verification/$(COUTPUT) plat/verification/$(HOUTPUT)
-	rm -f $(PP) $(PPINFER) $(OBJ)
-	rm -f plat/verification/$(NAME)_*.thy
-	rm -f $(OUTPUT)
-	rm -f plat/verification/ROOT
-	rm -f plat/verification/kernel.table
-	rm -f plat/verification/BUILD_INFO
-	rm -f plat/system/BUILD_INFO
+	rm -rf $(BUILD_DIR)
+	rm -rf $(OUTPUT)

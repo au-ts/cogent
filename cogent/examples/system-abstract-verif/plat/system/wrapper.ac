@@ -2,8 +2,8 @@
 $esc:(#include <stdio.h>)
 $esc:(#include <stdlib.h>)
 
-char * KERNEL_PANIC_MESSAGE = "Fatal error! dying...\n";
-char * KERNEL_OK_MESSAGE    = "Kernel is ok!\n";
+char * KERNEL_PANIC_MESSAGE = "Fatal error! dying...";
+char * KERNEL_OK_MESSAGE    = "Kernel is ok!";
 
 #include <cogent-defns.h>
 
