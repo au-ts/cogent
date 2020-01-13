@@ -24,14 +24,12 @@ module Cogent.TypeCheck (
 
 import Cogent.Compiler
 import qualified Cogent.Context as C
-import Cogent.Dargent.TypeCheck
 import Cogent.PrettyPrint (prettyC)
 import Cogent.Surface
 import Cogent.TypeCheck.Assignment (assignT, assignE, assignAlts)
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Errors
-import Cogent.TypeCheck.Generator hiding (validateType)
-import qualified Cogent.TypeCheck.Generator as B (validateType)
+import Cogent.TypeCheck.Generator
 import Cogent.TypeCheck.Post (postT, postE, postA)
 import Cogent.TypeCheck.Solver
 import Cogent.TypeCheck.Subst (apply, applyE, applyAlts)
@@ -76,25 +74,48 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
   (Include _) -> __impossible "checkOne"
   (IncludeStd _) -> __impossible "checkOne"
   (DocBlock s) -> return $ DocBlock s
-  (TypeDec n ps (stripLocT -> t)) -> do
+  (TypeDec n vs (stripLocT -> t)) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
     traceTc "tc" (text "typecheck type definition" <+> pretty n)
-    let xs = ps \\ nub ps
+    let xs = ps \\ nub vs
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
-    t' <- validateType ps t
-    lift . lift $ knownTypes %= ( <> [(n, (ps, Just t'))])
-    t'' <- postT t'
-    return $ TypeDec n ps t''
+    base <- lift . lift $ use knownConsts
+    let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
+    let ?loc = loc
+    ((ct,t'), flx, os) <- runCG ctx vs $ validateType t
+    traceTc "tc" (text "constraint for type decl" <+> pretty n <+> text "is"
+                  L.<$> prettyC ct)
+    let ps = zip vs (repeat k2)
+    (gs, subst) <- runSolver (solve ps $ ct) flx
+    traceTc "tc" (text "substs for type decl" <+> pretty n <+> text "is"
+                  L.<$> pretty subst)
+    exitOnErr $ toErrors os gs
+    let t'' = apply subst t'
+    lift . lift $ knownTypes %= ( <> [(n, (vs, Just t''))])
+    t''' <- postT t''
+    return $ TypeDec n vs t'''
 
-  (AbsTypeDec n ps (map stripLocT -> ts)) -> do
+  (AbsTypeDec n vs (map stripLocT -> ts)) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
     traceTc "tc" (text "typecheck abstract type definition" <+> pretty n)
     let xs = ps \\ nub ps
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
-    ts' <- mapM (validateType ps) ts
-    ts'' <- mapM postT ts'
-    lift . lift $ knownTypes %= (<> [(n, (ps, Nothing))])
-    return $ AbsTypeDec n ps ts''
+    base <- lift . lift $ use knowConsts
+    let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
+    let ?loc = loc
+    (blob, flx, os) <- runCG ctx vs $ mapM validateType t
+    let (cts,ts') = unzip blob
+    traceTc "tc" (text "constraint for abstract type decl" <+> pretty n <+> text "is"
+                  L.<$> prettyC cts)
+    let ps = zip vs (repeat k2)
+    (gs, subst) <- runSolver (solve vs $ cts) flx
+    traceTc "tc" (text "substs for abstract type decl" <+> pretty n <+> text "is"
+                  L.<$> pretty subst)
+    exitOnErr $ toErrors os gs
+    let ts'' = fmap (apply subst) ts'
+    ts''' <- mapM postT ts''
+    lift . lift $ knownTypes %= (<> [(n, (vs, Nothing))])
+    return $ AbsTypeDec n vs ts'''
 
   (AbsDec n (PT ps (stripLocT -> t))) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
@@ -105,10 +126,20 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let tvs = nub (tvT t)  -- type variables appearing to `t'
         ys = vs \\ tvs     -- we know `vs' has no duplicates
     unless (null ys) $ logErrExit $ SuperfluousTypeVariable ys
-    t' <- validateType (map fst ps) t
-    lift . lift $ knownFuns %= M.insert n (PT ps t')
-    t'' <- postT t'
-    return $ AbsDec n (PT ps t'')
+    base <- lift . lift $ use knownConsts
+    let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
+    let ?loc = loc
+    ((ct,t'), flx, os) <- runCG ctx vs $ validateType t
+    traceTc "tc" (text "constraint for abstract function" <+> pretty n <+> text "is"
+                  L.<$> prettyC ct)
+    (gs, subst) <- runSolver (solve ps $ ct) flx
+    traceTc "tc" (text "substs for abstract function" <+> pretty n <+> text "is"
+                  L.<$> pretty subst)
+    exitOnErr $ toErrors os gs
+    let t'' = apply subst t'
+    lift . lift $ knownFuns %= M.insert n (PT ps t'')
+    t''' <- postT t''
+    return $ AbsDec n (PT ps t''')
 
   (RepDef decl@(DataLayoutDecl pos name expr)) -> do
     traceTc "tc" (text "typecheck rep decl" <+> pretty name)
@@ -128,14 +159,14 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     base <- lift . lift $ use knownConsts
     let ctx = C.addScope (fmap (\(t,_,p) -> (t,p, Seq.singleton p)) base) C.empty  -- for consts, the definition is the first use
     (((ct,t'),(c,e')), flx, os) <- runCG ctx []
-                                      (do x@(ct,t') <- B.validateType t
+                                      (do x@(ct,t') <- validateType t
                                           y <- cg e t'
                                           pure (x,y))
     let c' = ct <> c <> Share t' (Constant n)
     traceTc "tc" (text "constraint for const definition" <+> pretty n <+> text "is"
                   L.<$> prettyC c')
-    (cs, subst) <- runSolver (solve [] c') flx
-    exitOnErr $ toErrors os cs
+    (gs, subst) <- runSolver (solve [] c') flx
+    exitOnErr $ toErrors os cg
     let assn = mempty
     -- mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx >>= \c' -> return (c++c',l))) logs
     traceTc "tc" (text "substs for const definition" <+> pretty n <+> text "is"
@@ -161,16 +192,16 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
     (((ct,t'),(c,alts')), flx, os) <- runCG ctx (map fst vs)
-             (do x@(ct,t') <- B.validateType t
+             (do x@(ct,t') <- validateType t
                  y <- cgFunDef alts t'
                  pure (x,y))
     traceTc "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
                   L.<$> prettyC c)
-    (cs, subst) <- runSolver (solve vs $ ct <> c) flx
+    (gs, subst) <- runSolver (solve vs $ ct <> c) flx
     --exitOnErr $ mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx) >>= \c' -> return (c++c',l)) logs
     traceTc "tc" (text "substs for fun definition" <+> pretty f <+> text "is"
                   L.<$> pretty subst)
-    exitOnErr $ toErrors os cs
+    exitOnErr $ toErrors os gs
     let t'' = apply subst t'
     lift . lift $ knownFuns %= M.insert f (PT vs t'')
     alts'' <- postA $ applyAlts subst alts'
@@ -188,5 +219,12 @@ typecheckCustTyGen = mapM . firstM $ \t -> do
     then logErrExit (CustTyGenIsPolymorphic $ toTCType t')
     else lift (lift $ isSynonym t') >>= \case
            True -> logErrExit (CustTyGenIsSynonym $ toTCType t')
-           _    -> validateType [] t' >>= postT
+           _    -> do base <- lift . lift $ use knownConsts
+                      let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
+                      let ?loc = loc
+                      ((ct,t''), flx, os) <- runCG ctx [] $ validateType t'
+                      (gs, subst) <- runSolver (solve [] $ ct) flx
+                      exitOnErr $ toErrors os gs
+                      postT $ apply subst t''
+
 

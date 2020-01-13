@@ -80,7 +80,7 @@ import Debug.Trace
 
 type TypeVars t = Vec t TyVarName
 type TermVars v = Vec v VarName
-type Typedefs   = M.Map TypeName ([VarName], S.RawType)  -- typenames |-> typeargs * strltype
+type Typedefs   = M.Map TypeName ([VarName], B.DepType)  -- typenames |-> typeargs * strltype
 type Constants  = M.Map VarName  B.TypedExpr  -- This shares namespace with `TermVars'
 type Enumerator = Int
 
@@ -88,7 +88,7 @@ data DsState t v = DsState { _typCtx :: TypeVars t
                            , _varCtx :: TermVars v
                            , _oracleLcl :: Enumerator
                            , _oracleGbl :: Enumerator
-                           , _lftFun :: [S.TopLevel S.RawType B.TypedPatn B.TypedExpr]  -- reversed
+                           , _lftFun :: [S.TopLevel B.DepType B.TypedPatn B.TypedExpr]  -- reversed
                            }
 
 makeLenses ''DsState
@@ -104,8 +104,8 @@ newtype DS (t :: Nat) (v :: Nat) a = DS { runDS :: RWS (Typedefs, Constants, [Pr
                                              MonadState  (DsState t v))
 
 
-desugar :: [S.TopLevel S.RawType B.TypedPatn B.TypedExpr]
-        -> [(S.RawType, String)]
+desugar :: [S.TopLevel B.DepType B.TypedPatn B.TypedExpr]
+        -> [(B.DepType, String)]
         -> [Pragma]
         -> ( ([Definition UntypedExpr VarName VarName], [(SupposedlyMonoType VarName, String)])
            , Last (Typedefs, Constants, [CoreConst UntypedExpr]) )
@@ -130,9 +130,9 @@ desugar tls ctygen pragmas =
     fromConstDef _ = __impossible "fromConstDef (in desguarProgram)"
 
 
-desugar' :: [S.TopLevel S.RawType B.TypedPatn B.TypedExpr]
-         -> [S.TopLevel S.RawType B.TypedPatn B.TypedExpr]  -- constants
-         -> [(S.RawType, String)]
+desugar' :: [S.TopLevel B.DepType B.TypedPatn B.TypedExpr]
+         -> [S.TopLevel B.DepType B.TypedPatn B.TypedExpr]  -- constants
+         -> [(B.DepType, String)]
          -> [Pragma]
          -> DS 'Zero 'Zero ([Definition UntypedExpr VarName VarName], [(SupposedlyMonoType VarName, String)])
 desugar' tls constdefs ctygen pragmas = do
@@ -146,7 +146,7 @@ desugar' tls constdefs ctygen pragmas = do
   where
     initialState  = DsState Nil Nil 0 0 []
 
-    go :: S.TopLevel S.RawType B.TypedPatn B.TypedExpr
+    go :: S.TopLevel B.DepType B.TypedPatn B.TypedExpr
        -> DS 'Zero 'Zero [Definition UntypedExpr VarName VarName]
     go x = do gbl <- use oracleGbl
               put initialState
@@ -222,8 +222,8 @@ pragmaToNote (_:pragmas) fn note = pragmaToNote pragmas fn note
 -- Lambda lifting
 -- -----------------------------------------------------------------------------
 
-lamLftTlv :: S.TopLevel S.RawType B.TypedPatn B.TypedExpr
-          -> DS t v (S.TopLevel S.RawType B.TypedPatn B.TypedExpr)
+lamLftTlv :: S.TopLevel B.DepType B.TypedPatn B.TypedExpr
+          -> DS t v (S.TopLevel B.DepType B.TypedPatn B.TypedExpr)
 lamLftTlv (S.FunDef fn sigma@(S.PT tvs _) alts) = S.FunDef fn sigma <$> mapM (lamLftAlt tvs fn) alts
 lamLftTlv d = return d
 
@@ -243,7 +243,7 @@ lamLftExpr tvs f (B.TE t (S.Lam p mt e) l) = do
   e' <- lamLftExpr tvs f e
   let fn = S.FunDef f' (S.PT tvs t) [S.Alt (B.TP (S.PIrrefutable p) noPos) Regular e']  -- no let-generalisation
   lftFun %= (fn:)
-  let tvs' = map (Just . S.RT . flip S.TVar False . fst) tvs
+  let tvs' = map (Just . B.DT . flip S.TVar False . fst) tvs
   return $ B.TE t (S.TypeApp f' tvs' S.NoInline) l
 lamLftExpr sigma f (B.TE t e l) = B.TE t <$> traverse (lamLftExpr sigma f) e <*> pure l
 
@@ -257,7 +257,7 @@ lamLftExpr sigma f (B.TE t e l) = B.TE t <$> traverse (lamLftExpr sigma f) e <*>
 
 
 
-desugarTlv :: S.TopLevel S.RawType B.TypedPatn B.TypedExpr
+desugarTlv :: S.TopLevel B.DepType B.TypedPatn B.TypedExpr
            -> [Pragma]
            -> DS 'Zero 'Zero (Definition UntypedExpr VarName VarName)
 desugarTlv (S.Include    _) _ = __impossible "desugarTlv"
@@ -281,7 +281,7 @@ desugarTlv (S.FunDef fn sigma alts) pragmas | S.PT vs t <- sigma
                                             , ExI (Flip vs') <- Vec.fromList vs
                                             , Refl <- zeroPlusNEqualsN $ Vec.length vs'
   = withTypeBindings (fmap fst vs') $ do
-      let (S.RT (S.TFun ti _)) = t
+      let (B.DT (S.TFun ti _)) = t
       TFun ti' to' <- desugarType t
       v <- freshVar
       let e0 = B.TE ti (S.Var v) noPos
@@ -304,14 +304,14 @@ desugarAlts e0@(B.TE t v@(S.Var _) _) (S.Alt (B.TP p1 pos1) l1 e1 : alts) =  -- 
   case p1 of
     S.PCon cn1 [B.TIP (S.PVar v1) _] -> do  -- this is A) for PCon
       e0' <- freshVar
-      let S.RT (S.TVariant talts) = t
-          t0' = S.RT $ S.TVariant (M.delete cn1 talts)  -- type of e0 without alternative cn
+      let B.DT (S.TVariant talts) = t
+          t0' = B.DT $ S.TVariant (M.delete cn1 talts)  -- type of e0 without alternative cn
       e1' <- withBinding (fst v1) $ desugarExpr e1
       e2' <- withBinding e0' $ desugarAlts (B.TE t0' (S.Var e0') noPos) alts
       E <$> (Case <$> desugarExpr e0 <*> pure cn1 <*> pure (l1,fst v1,e1') <*> pure (mempty,e0',e2'))
     S.PCon cn1 [p1'] -> do  -- This is B) for PCon
       v1 <- freshVar
-      let S.RT (S.TVariant talts) = t
+      let B.DT (S.TVariant talts) = t
           p1'' = B.TIP (S.PVar (v1,t1)) noPos
           Just ([t1], False)  = M.lookup cn1 talts  -- type of v1
           b   = S.Binding p1' Nothing (B.TE t1 (S.Var v1) noPos) []
@@ -349,7 +349,7 @@ desugarAlt' e0 (S.PCon tag [B.TIP (S.PVar tn) _]) e =
   --              B) e0 | PCon vn ps  in e ==> e0 | PCon vn [PTuple ps] in e
 desugarAlt' e0 (S.PCon tag [p]) e = do  -- Ind. step A)
   v <- freshVar
-  let S.RT (S.TVariant alts) = B.getTypeTE e0
+  let B.DT (S.TVariant alts) = B.getTypeTE e0
       Just ([t], False) = M.lookup tag alts
       -- b0 = S.Binding (S.PVar (v,t)) Nothing (B.TE t $ Esac e0) []
       b1 = S.Binding p Nothing (B.TE t (S.Var v) noPos) []
@@ -391,7 +391,7 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple [B.TIP (S.PVar tn1) _, B.TIP (S.
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple [p1,p2]) _)) e | not __cogent_ftuples_as_sugar = do
   v1 <- freshVar
   v2 <- freshVar
-  let S.RT (S.TTuple [t1,t2]) = B.getTypeTE e0
+  let B.DT (S.TTuple [t1,t2]) = B.getTypeTE e0
       b0 = S.Binding (B.TIP (S.PTuple [B.TIP (S.PVar (v1,t1)) noPos, B.TIP (S.PVar (v2,t2)) noPos]) noPos) Nothing e0 []
       b1 = S.Binding p1 Nothing (B.TE t1 (S.Var v1) (B.getLocTIP p1)) []
       b2 = S.Binding p2 Nothing (B.TE t2 (S.Var v2) (B.getLocTIP p2)) []
@@ -425,7 +425,7 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple ps) _)) e | __cogent_ftuples_as_
           e0' <- freshVar
           E . Take (v,e0') e0 idx <$> withBindings (Cons v (Cons e0' Nil)) (mkTake (E $ Variable (f1, e0')) vs e (idx + 1))
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple ps) _)) e | __cogent_ftuples_as_sugar = do
-  let S.RT (S.TTuple ts) = B.getTypeTE e0
+  let B.DT (S.TTuple ts) = B.getTypeTE e0
   __assert (P.length ps == P.length ts) $ "desugarAlt': |ps| /= |ts|\nps = " ++ show ps ++ "\nts = " ++ show ts
   let pts = P.zip ps ts
   vpts <- forM pts $ \(p,t) -> case p of B.TIP (S.PVar (v,_)) _ -> return (v,p,t); _ -> (,p,t) <$> freshVar
@@ -455,15 +455,15 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec [Just (f, B.TIP (S.PVar v) _)
   E <$> (Take (fst v, fst rec) <$> desugarExpr e0 <*> pure fldIdx <*> (withBindings (Cons (fst v) (Cons (fst rec) Nil)) $ desugarExpr e))
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec [Just (f,p)]) pos)) e = do
   v <- freshVar
-  let S.RT (S.TRecord fts _) = snd rec
+  let B.DT (S.TRecord fts _) = snd rec
       Just (ft,_) = P.lookup f fts  -- the type of the taken field
       b1 = S.Binding (B.TIP (S.PTake rec [Just (f, B.TIP (S.PVar (v,ft)) noPos)]) pos) Nothing e0 []
       b2 = S.Binding p Nothing (B.TE ft (S.Var v) noPos) []  -- FIXME: someone wrote "wrong!" here. Why? check!
   desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b1,b2] e) noPos
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec (fp:fps)) pos)) e = do
   e1 <- freshVar
-  let S.RT (S.TRecord fts s) = snd rec
-      t1 = S.RT $ S.TRecord (P.map (\ft@(f,(t,x)) -> if f == fst (fromJust fp) then (f,(t,True)) else ft) fts) s  -- type of e1
+  let B.DT (S.TRecord fts s) = snd rec
+      t1 = B.DT $ S.TRecord (P.map (\ft@(f,(t,x)) -> if f == fst (fromJust fp) then (f,(t,True)) else ft) fts) s  -- type of e1
       b0 = S.Binding (B.TIP (S.PTake (e1, t1) [fp]) noPos) Nothing e0 []
       bs = S.Binding (B.TIP (S.PTake rec fps) pos) Nothing (B.TE t1 (S.Var e1) noPos) []
   desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b0,bs] e) noPos
@@ -478,7 +478,7 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray [p]) pos)) e = do
   --    e0 | [p] in e ~~> let [v] = e0; p = v in e
   v <- freshVar
   let B.TE te0 _ _ = e0
-      S.RT (S.TArray telt l _ _) = te0
+      B.DT (S.TArray telt l _ _) = te0
       b1 = S.Binding (B.TIP (S.PVar (v,telt)) pos) Nothing e0 []
       b2 = S.Binding p Nothing (B.TE telt (S.Var v) pos) []
   desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b1,b2] e) pos
@@ -488,16 +488,18 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray (B.TIP (S.PVar (v,_)) _ : ps)) p
   --   Ind. case: e0 | p:@ps in e ==> let v:@ps = e0; p = v in e
   vs <- freshVar
   e0' <- desugarExpr e0
-  let S.RT (S.TArray te le s tkns) = B.getTypeTE e0
-      tvs = S.RT (S.TArray te (minus1 le) s (map (first minus1) tkns))
+  let B.DT (S.TArray te le s tkns) = B.getTypeTE e0
+      tvs = B.DT (S.TArray te (minus1 le) s (map (first minus1) tkns))
       e10 = B.TE tvs (S.Var vs) pos
       p1 = S.PIrrefutable $ B.TIP (S.PArray ps) pos
   e1' <- withBindings (Cons v (Cons vs Nil)) $ desugarAlt' e10 p1 e
   return $ E (Pop (v,vs) e0' e1')
- where minus1 e = S.RE (S.PrimOp "-" [e, S.RE (S.IntLit 1)])
+  where minus1 :: B.RawTypedExpr -> B.RawTypedExpr
+        minus1 e = B.TE u32 (S.PrimOp "-" [e, B.TE u32 (S.IntLit 1) noPos]) S.noPos
+        u32 = S.RT (S.TCon "U32" [] Unboxed)
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray (p:ps)) pos)) e = do
   v <- freshVar
-  let S.RT (S.TArray te l _ _) = B.getTypeTE e0
+  let B.DT (S.TArray te l _ _) = B.getTypeTE e0
       b1 = S.Binding (B.TIP (S.PArray ((B.TIP (S.PVar (v,te)) pos):ps)) pos) Nothing e0 []
       b2 = S.Binding p Nothing (B.TE te (S.Var v) pos) []
   desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b1,b2] e) pos
@@ -509,7 +511,7 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArrayTake (arr,_) [(i, B.TIP (S.PVar (
   return $ E (ArrayTake (v,arr) e0' i' e')
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArrayTake arr [(i,ip)]) pos)) e = do
   v <- freshVar
-  let S.RT (S.TArray telt _ _ _) = snd arr
+  let B.DT (S.TArray telt _ _ _) = snd arr
       b1 = S.Binding (B.TIP (S.PArrayTake arr [(i, B.TIP (S.PVar (v,telt)) (getLocTIP ip))]) pos) Nothing e []
       b2 = S.Binding ip Nothing (B.TE telt (S.Var v) pos) []
   desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b1,b2] e) pos
@@ -517,59 +519,59 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArrayTake arr ips) pos)) e = __todo "d
 #endif
 desugarAlt' _ _ _ = __impossible "desugarAlt' (_)"  -- literals
 
-desugarPrimInt :: S.RawType -> PrimInt
-desugarPrimInt (S.RT (S.TCon "U8"   [] Unboxed)) = U8
-desugarPrimInt (S.RT (S.TCon "U16"  [] Unboxed)) = U16
-desugarPrimInt (S.RT (S.TCon "U32"  [] Unboxed)) = U32
-desugarPrimInt (S.RT (S.TCon "U64"  [] Unboxed)) = U64
-desugarPrimInt (S.RT (S.TCon "Bool" [] Unboxed)) = Boolean
+desugarPrimInt :: DepType -> PrimInt
+desugarPrimInt (B.DT (S.TCon "U8"   [] Unboxed)) = U8
+desugarPrimInt (B.DT (S.TCon "U16"  [] Unboxed)) = U16
+desugarPrimInt (B.DT (S.TCon "U32"  [] Unboxed)) = U32
+desugarPrimInt (B.DT (S.TCon "U64"  [] Unboxed)) = U64
+desugarPrimInt (B.DT (S.TCon "Bool" [] Unboxed)) = Boolean
 desugarPrimInt _ = __impossible "desugarPrimInt"
 
-desugarType :: S.RawType -> DS t v (Type t VarName)
+desugarType :: DepType -> DS t v (Type t VarName)
 desugarType = \case
-  S.RT (S.TCon "U8"     [] Unboxed) -> return $ TPrim U8
-  S.RT (S.TCon "U16"    [] Unboxed) -> return $ TPrim U16
-  S.RT (S.TCon "U32"    [] Unboxed) -> return $ TPrim U32
-  S.RT (S.TCon "U64"    [] Unboxed) -> return $ TPrim U64
-  S.RT (S.TCon "Bool"   [] Unboxed) -> return $ TPrim Boolean
-  S.RT (S.TCon "String" [] Unboxed) -> return $ TString
-  S.RT (S.TCon tn tvs s) -> TCon tn <$> mapM desugarType tvs <*> pure (desugarAbstractTypeSigil s)
-  S.RT (S.TVar vn b)     -> (findIx vn <$> use typCtx) >>= \(Just v) -> return $ if b then TVarBang v else TVar v
-  S.RT (S.TFun ti to)    -> TFun <$> desugarType ti <*> desugarType to
-  S.RT (S.TRecord fs Unboxed) -> TRecord <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType t) fs <*> pure Unboxed
-  S.RT (S.TRecord fs sigil)  -> do
+  B.DT (S.TCon "U8"     [] Unboxed) -> return $ TPrim U8
+  B.DT (S.TCon "U16"    [] Unboxed) -> return $ TPrim U16
+  B.DT (S.TCon "U32"    [] Unboxed) -> return $ TPrim U32
+  B.DT (S.TCon "U64"    [] Unboxed) -> return $ TPrim U64
+  B.DT (S.TCon "Bool"   [] Unboxed) -> return $ TPrim Boolean
+  B.DT (S.TCon "String" [] Unboxed) -> return $ TString
+  B.DT (S.TCon tn tvs s) -> TCon tn <$> mapM desugarType tvs <*> pure (desugarAbstractTypeSigil s)
+  B.DT (S.TVar vn b)     -> (findIx vn <$> use typCtx) >>= \(Just v) -> return $ if b then TVarBang v else TVar v
+  B.DT (S.TFun ti to)    -> TFun <$> desugarType ti <*> desugarType to
+  B.DT (S.TRecord fs Unboxed) -> TRecord <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType t) fs <*> pure Unboxed
+  B.DT (S.TRecord fs sigil)  -> do
     -- Making an unboxed record is necessary here because of how `desugarSigil`
     -- is defined.
-    unboxedDesugared@(TRecord fs' Unboxed) <- desugarType $ S.RT (S.TRecord fs Unboxed)
+    unboxedDesugared@(TRecord fs' Unboxed) <- desugarType $ B.DT (S.TRecord fs Unboxed)
     TRecord <$> pure fs' <*> pure (desugarSigil unboxedDesugared sigil)
-  S.RT (S.TVariant alts) -> TSum <$> mapM (\(c,(ts,x)) -> (c,) . (,x) <$> desugarType (group ts)) (M.toList alts)
-    where group [] = S.RT S.TUnit
+  B.DT (S.TVariant alts) -> TSum <$> mapM (\(c,(ts,x)) -> (c,) . (,x) <$> desugarType (group ts)) (M.toList alts)
+    where group [] = B.DT S.TUnit
           group (t:[]) = t
-          group ts = S.RT $ S.TTuple ts
-  S.RT (S.TTuple [])     -> __impossible "desugarType (TTuple 0)"
-  S.RT (S.TTuple (t:[])) -> __impossible "desugarType (TTuple 1)"
-  S.RT (S.TTuple (t1:t2:[])) | not __cogent_ftuples_as_sugar -> TProduct <$> desugarType t1 <*> desugarType t2
-  S.RT (S.TTuple ts@(_:_:_)) | not __cogent_ftuples_as_sugar ->
+          group ts = B.DT $ S.TTuple ts
+  B.DT (S.TTuple [])     -> __impossible "desugarType (TTuple 0)"
+  B.DT (S.TTuple (t:[])) -> __impossible "desugarType (TTuple 1)"
+  B.DT (S.TTuple (t1:t2:[])) | not __cogent_ftuples_as_sugar -> TProduct <$> desugarType t1 <*> desugarType t2
+  B.DT (S.TTuple ts@(_:_:_)) | not __cogent_ftuples_as_sugar ->
     foldr1 (liftA2 TProduct) $ map desugarType ts  -- right associative product repr of a list
-  S.RT (S.TTuple ts) | __cogent_ftuples_as_sugar -> do
+  B.DT (S.TTuple ts) | __cogent_ftuples_as_sugar -> do
     let ns = P.map (('p':) . show) [1 :: Integer ..]
     -- vvv NOTE [sorting tuple fields] / zilinc
     --     We assume that the field names are *lexicographically* sorted! We need to
     --     explicitly sort them here, otherwise @p10@ will be following @p9@ instead of @p1@.
     fs <- L.sortOn fst . P.zipWith (\n t -> (n,(t, False))) ns <$> forM ts desugarType
     return $ TRecord fs Unboxed
-  S.RT (S.TUnit)   -> return TUnit
+  B.DT (S.TUnit)   -> return TUnit
 #ifdef BUILTIN_ARRAYS
-  S.RT (S.TArray t l Unboxed tkns) -> do
+  B.DT (S.TArray t l Unboxed tkns) -> do
     t' <- desugarType t
-    l' <- uexprToLExpr id <$> desugarExpr (dummyTypedExpr l)
+    l' <- uexprToLExpr id <$> desugarExpr (fmap rawToDepType l)
     mhole <- case tkns of
                [] -> return Nothing
-               [(idx,True)] -> Just . uexprToLExpr id <$> desugarExpr (dummyTypedExpr idx)
+               [(idx,True)] -> Just . uexprToLExpr id <$> desugarExpr (fmap rawToDepType idx)
                _ -> __impossible "desugarType: TArray should not have more than 1 element taken"
     return $ TArray t' l' Unboxed mhole
-  S.RT (S.TArray t l sigil tkns) -> do
-    unboxedDesugared@(TArray t' l' Unboxed tkns') <- desugarType $ S.RT (S.TArray t l Unboxed tkns)
+  B.DT (S.TArray t l sigil tkns) -> do
+    unboxedDesugared@(TArray t' l' Unboxed tkns') <- desugarType $ B.DT (S.TArray t l Unboxed tkns)
     TArray <$> pure t'
            <*> pure l'
            <*> pure (desugarSigil unboxedDesugared sigil)
@@ -606,12 +608,12 @@ desugarExpr (B.TE t (S.Con c [e]) _) = do
   e' <- desugarExpr e
   let ts' = map (\(c',(t,b)) -> if c' == c then (c',(t,b)) else (c',(t,True))) ts
   return (E $ Con c e' (TSum ts'))  -- the smallest type for `Con c [e]', which should be a subtype of `t'
-desugarExpr (B.TE t@(S.RT (S.TVariant ts)) (S.Con c es) l) = do
+desugarExpr (B.TE t@(B.DT (S.TVariant ts)) (S.Con c es) l) = do
     let Just (tes, False) = M.lookup c ts
     desugarExpr (B.TE t (S.Con c [B.TE (group tes) (S.Tuple es) l]) l)
-  where group [] = S.RT S.TUnit
+  where group [] = B.DT S.TUnit
         group (t:[]) = t
-        group ts = S.RT $ S.TTuple ts
+        group ts = B.DT $ S.TTuple ts
 desugarExpr (B.TE _ (S.Seq e1 e2) _) = do
   v <- freshVar
   E <$> (Let v <$> desugarExpr e1 <*> withBinding v (desugarExpr e2))
@@ -620,8 +622,8 @@ desugarExpr (B.TE _ (S.App e1 e2 _) _) = E <$> (App <$> desugarExpr e1 <*> desug
 desugarExpr (B.TE t (S.Comp f g) l) = do
   v <- freshVar
   compf <- freshVar
-  let S.RT (S.TFun t1 t3) = t
-      S.RT (S.TFun _  t2) = B.getTypeTE g
+  let B.DT (S.TFun t1 t3) = t
+      B.DT (S.TFun _  t2) = B.getTypeTE g
       tv = t1
       p = B.TIP (S.PVar (v,tv)) l
       v' = B.TE tv (S.Var v) (B.getLocTE g)
@@ -662,7 +664,7 @@ desugarExpr (B.TE _ (S.ArrayIndex e i) _) = do
 desugarExpr (B.TE _ (S.ArrayMap2 ((p1,p2), fbody) (e1,e2)) _) = do
   e1' <- desugarExpr e1
   e2' <- desugarExpr e2
-  let S.RT (S.TTuple [telt1, telt2]) = B.getTypeTE fbody
+  let B.DT (S.TTuple [telt1, telt2]) = B.getTypeTE fbody
   -- Idea:
   --   \ p1 p2 -> fbody ~~> \ v1 v2 -> let p1 = v1; p2 = v2 in fbody
   v1 <- freshVar
@@ -670,7 +672,7 @@ desugarExpr (B.TE _ (S.ArrayMap2 ((p1,p2), fbody) (e1,e2)) _) = do
   let b1 = S.Binding p1 Nothing (B.TE telt1 (S.Var v1) (B.getLocTIP p1)) []
       b2 = S.Binding p2 Nothing (B.TE telt2 (S.Var v2) (B.getLocTIP p2)) []
   fbody' <- withBindings (Cons v2 $ Cons v1 Nil) $
-              desugarExpr $ B.TE (S.RT $ S.TTuple [telt1, telt2]) (S.Let [b1,b2] fbody) (B.getLocTE fbody)
+              desugarExpr $ B.TE (B.DT $ S.TTuple [telt1, telt2]) (S.Let [b1,b2] fbody) (B.getLocTE fbody)
   return $ E (ArrayMap2 ((v1,v2), fbody') (e1',e2'))
 desugarExpr (B.TE _ (S.ArrayPut arr []) _) = desugarExpr arr
 desugarExpr (B.TE _ (S.ArrayPut arr [(i,e)]) _) = do
@@ -679,7 +681,7 @@ desugarExpr (B.TE _ (S.ArrayPut arr [(i,e)]) _) = do
   e'   <- desugarExpr e
   return $ E (ArrayPut arr' i' e')
 desugarExpr (B.TE t (S.ArrayPut arr (e:es)) l) =
-  let t' = S.RT $ S.TAPut [B.toRawExpr $ fst e] (B.getTypeTE arr)
+  let t' = B.DT $ S.TAPut [toRawTypedExpr $ fst e] (B.getTypeTE arr)
       arr' = B.TE t' (S.ArrayPut arr [e]) l
    in desugarExpr $ B.TE t (S.ArrayPut arr' es) l
 #endif
@@ -722,9 +724,9 @@ desugarExpr (B.TE t (S.Put e [Just (f,a)]) _) = do
       Just f' = elemIndex f (P.map fst fs)
   E <$> (Put <$> desugarExpr e <*> pure f' <*> desugarExpr a)
 desugarExpr (B.TE t (S.Put e (fa@(Just (f0,_)):fas)) l) = do
-  let S.RT (S.TRecord fs s) = t
+  let B.DT (S.TRecord fs s) = t
       fs' = map (\ft@(f,(t,b)) -> if f == f0 then (f,(t,False)) else ft) fs
-      t' = S.RT (S.TRecord fs' s)
+      t' = B.DT (S.TRecord fs' s)
   desugarExpr $ B.TE t (S.Put (B.TE t' (S.Put e [fa]) l) fas) l
 desugarExpr (B.TE t (S.Upcast e) _) = E <$> (Cast <$> desugarType t <*> desugarExpr e)
 -- desugarExpr (B.TE t (S.Widen  e) _) = E <$> (Cast <$> desugarType t <*> desugarExpr e)
@@ -750,13 +752,13 @@ desugarConst :: (VarName, B.TypedExpr) -> DS 'Zero 'Zero (CoreConst UntypedExpr)
 desugarConst (n,e) = (n,) <$> desugarExpr e
 
 -- NOTE: assume the first argument consists of constants only
-desugarConsts :: [S.TopLevel S.RawType B.TypedPatn B.TypedExpr] -> DS 'Zero 'Zero [CoreConst UntypedExpr]
+desugarConsts :: [S.TopLevel B.DepType B.TypedPatn B.TypedExpr] -> DS 'Zero 'Zero [CoreConst UntypedExpr]
 desugarConsts = mapM desugarConst . P.map (\(S.ConstDef v _ e) -> (v,e))
 
 
 -- ----------------------------------------------------------------------------
 -- custTyGen
 
-desugarCustTyGen :: [(S.RawType, String)] -> DS t v [(SupposedlyMonoType VarName, String)]
+desugarCustTyGen :: [(B.DepType, String)] -> DS t v [(SupposedlyMonoType VarName, String)]
 desugarCustTyGen = mapM $ firstM (return . SMT <=< desugarType)
 

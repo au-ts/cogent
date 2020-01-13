@@ -30,6 +30,7 @@ import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
 import qualified Cogent.Context as C
+import Cogent.Dargent.TypeCheck
 import Cogent.PrettyPrint (prettyC)
 import Cogent.Surface
 import Cogent.TypeCheck.ARow as ARow hiding (null)
@@ -78,42 +79,57 @@ runCG g vs ma = do
 -- -----------------------------------------------------------------------------
 
 validateType :: RawType -> CG (Constraint, TCType)
-validateType rt@(RT t) = do
+validateType (RT t) = do
   vs <- use knownTypeVars
   ts <- lift $ use knownTypes
+  layouts <- lift $ use knownDataLayouts
   case t of
-    TVar v _ | v `notElem` vs -> return (Unsat $ UnknownTypeVariable v, toTCType rt)
-    TCon t as _ | Nothing <- lookup t ts -> return (Unsat $ UnknownTypeConstructor t, toTCType rt)
-                | Just (vs, _) <- lookup t ts
+    TVar v _ | v `notElem` vs -> freshTVar >>= \t' -> return (Unsat $ UnknownTypeVariable v, t')
+    TCon t as _ | Nothing <- lookup t ts -> freshTVar >>= \t' -> return (Unsat $ UnknownTypeConstructor t, t')
+                | Just (vs', _) <- lookup t ts
                 , provided <- length as
-                , required <- length vs
+                , required <- length vs'
                 , provided /= required
-               -> return (Unsat $ TypeArgumentMismatch t provided required, toTCType rt)
-                |  Just (vs, Just x) <- lookup t ts
+               -> freshTVar >>= \t' -> return (Unsat $ TypeArgumentMismatch t provided required, t')
+                | Just (vs, Just x) <- lookup t ts
                -> second (Synonym t) <$> fmapFoldM validateType as
     TRecord fs s | fields  <- map fst fs
                  , fields' <- nub fields
                 -> let toRow (T (TRecord fs s)) = R (Row.fromList fs) (Left s)
                    in if fields' == fields
-                   then second (toRow . T . ffmap toSExpr) <$> fmapFoldM validateType t
-                   else return (Unsat $ DuplicateRecordFields (fields \\ fields'), toTCType rt)
+                        then case s of
+                          Boxed _ (Just dlexpr)
+                            | Left (anError : _) <- runExcept $ tcDataLayoutExpr layouts dlexpr  -- layout is bad
+                            -> freshTVar >>= \t' -> return (Unsat $ DataLayoutError anError, t')
+                          _ -> fmapFoldM validateType t  -- layout is good, or no layout
+                        else freshTVar >>= \t' -> return (Unsat $ DuplicateRecordFields (fields \\ fields'), t')
     TVariant fs  -> do let tuplize [] = T TUnit
                            tuplize [x] = x
                            tuplize xs  = T (TTuple xs)
-                       (c, TVariant fs') <- second (ffmap toSExpr) <$> fmapFoldM validateType t
+                       (c, TVariant fs') <- fmapFoldM validateType t
                        pure (c, V (Row.fromMap (fmap (first tuplize) fs')))
 #ifdef BUILTIN_ARRAYS
     TArray te l s tkns -> do
-      let l' = toSExpr l
+      x <- freshEVar (T (TCon "U32" [] Unboxed))
       (ctkn,mhole) <- case tkns of
                         [] -> return (Sat, Nothing)
-                        [(i,True)] -> return (Sat, Just $ toSExpr i)
+                        [(i,True)] -> freshEVar (T (TCon "U32" [] Unboxed)) >>= \y -> return (Sat, Just y)
                         _  -> return (Unsat $ OtherTypeError "taking more than one element from arrays not supported", Nothing)
-      let cl = Arith (SE $ PrimOp ">" [l', SE $ IntLit 0])
+      let cl = Arith (SE $ PrimOp ">" [x, SE $ IntLit 0])
       (c,te') <- validateType te
-      return (c <> ctkn <> cl, A te' l' (Left s) mhole)
+      return (c <> ctkn <> cl, A te' x (Left s) mhole)
 #endif
-    _ -> second (T . ffmap toSExpr) <$> fmapFoldM validateType t
+    TLayout l t -> do
+      _ <- case runExcept $ tcDataLayoutExpr layouts l of
+        Left (e:_) -> throwE $ DataLayoutError e
+        Right _    -> return ()
+      (ct,t') <- validateType t
+      pure (ct, T $ TLayout l t')
+    _ -> __fixme $ fmapFoldM validateType t
+    -- With (TCon _ _ l), and (TRecord _ l), must check l == Nothing iff it is contained in a TUnbox.
+    -- This can't be done in the current setup because validateType' has no context for the type it is validating.
+    -- Not implementing this now, because a new syntax for types is needed anyway, which may make this issue redundant.
+    -- /mdimeglio
 
 validateTypes :: (Traversable t) => t RawType -> CG (Constraint, t TCType)
 validateTypes = fmapFoldM validateType
@@ -272,10 +288,10 @@ cg' (ArrayLit es) t = do
 
 cg' (ArrayIndex e i) t = do
   alpha <- freshTVar
-  n <- freshEVar
+  n <- freshEVar (T (TCon "U32" [] Unboxed))
   r <- freshVar
   s <- freshVar
-  idx <- freshEVar
+  idx <- freshEVar (T (TCon "U32" [] Unboxed))
   let ta = A alpha n (Right s) (Just idx)  -- FIXME: we need to create a new TCType for arrays / zilinc
   (ce, e') <- cg e ta
   (ci, i') <- cg i (T $ TCon "U32" [] Unboxed)
@@ -295,8 +311,8 @@ cg' (ArrayMap2 ((p1,p2), fbody) (arr1,arr2)) t = __fixme $ do  -- FIXME: more ac
   alpha2 <- freshTVar
   x1 <- freshVar
   x2 <- freshVar
-  len1 <- freshEVar
-  len2 <- freshEVar
+  len1 <- freshEVar (T (TCon "U32" [] Unboxed))
+  len2 <- freshEVar (T (TCon "U32" [] Unboxed))
   (s1,cp1,p1') <- match p1 alpha1
   (s2,cp2,p2') <- match p2 alpha2
   context %= C.addScope (s1 `M.union` s2)  -- domains of s1 and s2 don't overlap
@@ -316,7 +332,7 @@ cg' (ArrayMap2 ((p1,p2), fbody) (arr1,arr2)) t = __fixme $ do  -- FIXME: more ac
 cg' (ArrayPut arr [(idx,v)]) t = do
   alpha <- freshTVar  -- the element type
   sigma <- freshTVar  -- the original array type
-  l <- freshEVar  -- the length of the array
+  l <- freshEVar (T (TCon "U32" [] Unboxed))  -- the length of the array
   s <- freshVar   -- the unifier for the sigil
   (carr,arr') <- cg arr sigma
   (cidx,idx') <- cg idx $ T (TCon "U32" [] Unboxed)
@@ -332,7 +348,7 @@ cg' (ArrayPut arr [(idx,v)]) t = do
 cg' (ArrayPut arr ivs) t = do
   alpha <- freshTVar  -- the elemenet type
   sigma <- freshTVar  -- the original array type
-  l <- freshEVar  -- the length of the array
+  l <- freshEVar (T (TCon "U32" [] Unboxed))  -- the length of the array
   s <- freshVar  -- sigil
   (carr,arr') <- cg arr sigma
   let (idxs,vs) = unzip ivs
@@ -695,7 +711,7 @@ match' (PArray ps) t = do
 
 match' (PArrayTake arr [(idx,p)]) t = do
   alpha <- freshTVar  -- array elmt type
-  len   <- freshEVar  -- array length
+  len   <- freshEVar (T (TCon "U32" [] Unboxed))  -- array length
   sigil <- freshVar   -- sigil
   (cidx,idx') <- cg idx $ T (TCon "U32" [] Unboxed)
   (sp,cp,p') <- match p alpha
@@ -727,8 +743,8 @@ freshVar = fresh (ExpressionAt ?loc)
 freshTVar :: (?loc :: SourcePos) => CG TCType
 freshTVar = U  <$> freshVar
 
-freshEVar :: (?loc :: SourcePos) => CG SExpr
-freshEVar = SU <$> freshVar
+freshEVar :: (?loc :: SourcePos) => TCType -> CG TCSExpr
+freshEVar t = SU t <$> freshVar
 
 integral :: TCType -> Constraint
 integral = Upcastable (T (TCon "U8" [] Unboxed))

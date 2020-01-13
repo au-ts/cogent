@@ -29,9 +29,9 @@ data AssignResult = Type TCType
                   | Sigil (Sigil (Maybe DataLayoutExpr))
                   | Row (Row.Row TCType)
 #ifdef BUILTIN_ARRAYS
-                  | ARow (ARow.ARow SExpr)
+                  | ARow (ARow.ARow TCExpr)
+                  | Expr TCSExpr
 #endif
-                  | Expr SExpr
                   deriving Show
 
 newtype Subst = Subst (M.IntMap AssignResult)
@@ -43,14 +43,18 @@ ofType i t = Subst (M.fromList [(i, Type t)])
 ofRow :: Int -> Row.Row TCType -> Subst
 ofRow i t = Subst (M.fromList [(i, Row t)])
 
-ofARow :: Int -> ARow.ARow SExpr -> Subst
+#ifdef BUILTIN_ARRAYS
+ofARow :: Int -> ARow.ARow TCExpr -> Subst
 ofARow i t = Subst (M.fromList [(i, ARow t)])
+#endif
 
 ofSigil :: Int -> Sigil (Maybe DataLayoutExpr) -> Subst
 ofSigil i t = Subst (M.fromList [(i, Sigil t)])
 
-ofExpr :: Int -> SExpr -> Subst
+#ifdef BUILTIN_ARRAYS
+ofExpr :: Int -> TCSExpr -> Subst
 ofExpr i e = Subst (M.fromList [(i, Expr e)])
+#endif
 
 substToAssign :: Subst -> Assignment
 substToAssign (Subst m) = Assignment . M.map unExpr $ M.filter isAssign m
