@@ -10,13 +10,16 @@ import Data.Monoid hiding (Alt)
 import qualified Data.IntMap as M
 import Prelude as P hiding (lookup)
 
-newtype Assignment = Assignment (M.IntMap SExpr)
+newtype Assignment = Assignment (M.IntMap TCSExpr)
 
+assign :: Assignment -> TCSExpr -> TCSExpr
+assign = undefined
 
-lookup :: Assignment -> Int -> SExpr
+{-
+lookup :: Assignment -> Int -> TCExpr
 lookup a@(Assignment m) i = maybe (SU i) (assign a) (M.lookup i m)
 
-singleton :: Int -> SExpr -> Assignment
+singleton :: Int -> TCExpr -> Assignment
 singleton i e = Assignment (M.fromList [(i, e)])
 
 null :: Assignment -> Bool
@@ -33,11 +36,11 @@ instance Monoid Assignment where
   mempty = Assignment M.empty
 #endif
 
-forUnknowns :: (Int -> SExpr) -> SExpr -> SExpr
-forUnknowns f (SU x) = f x
-forUnknowns f (SE x) = SE (fmap (forUnknowns f) x)
+forUnknowns :: (Int -> TCExpr) -> TCExpr -> TCExpr
+forUnknowns f (SU t x  ) = f x
+forUnknowns f (SE t x l) = SE t (fmap (forUnknowns f) x) l
 
-assign :: Assignment -> SExpr -> SExpr
+assign :: Assignment -> TCExpr -> TCExpr
 assign = forUnknowns . lookup
 
 assignAlts :: Assignment -> [Alt TCPatn TCExpr] -> [Alt TCPatn TCExpr]
@@ -91,3 +94,4 @@ assignWarn a w = w  -- TODO
 assignCtx :: Assignment -> ErrorContext -> ErrorContext
 assignCtx a c = c  -- TODO
 
+-}

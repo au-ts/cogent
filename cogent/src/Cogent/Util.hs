@@ -92,6 +92,7 @@ tttraverse f = fmap unflip2 . traverse f . Flip2
 ttttraverse :: (Traversable (Flip3 f d c b), Applicative m) => (a -> m a') -> f a b c d -> m (f a' b c d)
 ttttraverse f = fmap unflip3 . traverse f . Flip3
 
+
 --
 -- name conversion
 
