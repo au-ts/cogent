@@ -200,8 +200,8 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
     let drop = case (r1,r2) of
                  (r1, r2) | r1 == r2 -> Sat
                  (Nothing, Just i2) -> Drop t1 ImplicitlyTaken
-                 (Just i1, Just i2) -> Arith (SE $ PrimOp "==" [i1,i2])
-    Just [Arith (SE $ PrimOp "==" [l1,l2]), t1 :< t2, drop]
+                 (Just i1, Just i2) -> Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [i1,i2]) (getLocSE i1))
+    Just [Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [l1,l2]) noPos), t1 :< t2, drop]
 
   A t1 l1 s1 r1 :=: A t2 l2 s2 r2 | s1 == s2 -> do
     Nothing
@@ -210,10 +210,10 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
 
   -- TODO: Here we will call a SMT procedure to simplify all the Arith constraints.
   -- The only things left will be non-trivial predicates. / zilinc
-  Arith (SE (PrimOp "==" [e1, e2])) | e1 == e2 -> Just []
+  Arith (SE _ (PrimOp "==" [e1, e2]) _) | e1 == e2 -> Just []
   -- The following rules don't make any sense. They are just here to discharge the constraints.
-  Arith (SE (PrimOp op [e])) -> Just []
-  Arith (SE (PrimOp op [e1,e2])) | op /= "==" -> Just []
+  Arith (SE _ (PrimOp op [e]) _) -> Just []
+  Arith (SE _ (PrimOp op [e1,e2]) _) | op /= "==" -> Just []
 #endif
 
   T t1 :< x | unorderedType t1 -> Just [T t1 :=: x]
@@ -258,7 +258,7 @@ isSolved t = L.null (unifVars t)
 #endif
 
 
-normaliseSExpr :: SExpr -> Maybe Int
-normaliseSExpr (SU x) = Nothing
-normaliseSExpr (SE (IntLit n)) = Just $ fromIntegral n
-normaliseSExpr (SE _) = __todo "normaliseSExpr"
+normaliseSExpr :: TCSExpr -> Maybe Int
+normaliseSExpr (SU _ x) = Nothing
+normaliseSExpr (SE _ (IntLit n) _) = Just $ fromIntegral n
+normaliseSExpr (SE {}) = __todo "normaliseSExpr"

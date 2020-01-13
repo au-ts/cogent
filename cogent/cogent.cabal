@@ -180,7 +180,10 @@ library
     cpp-options: -DWITH_HASKELL
     build-depends: haskell-src-exts >= 1.19, pretty
   if flag(builtin-arrays)
-    build-depends: sbv >= 7.6 && < 7.13
+    exposed-modules: 
+                     Cogent.TypeCheck.SMT
+                   , Cogent.TypeCheck.Solver.SMT
+    build-depends: smtlib2 >= 1.0
     cpp-options: -DBUILTIN_ARRAYS
   if flag(docgent)
     cpp-options: -DWITH_DOCGENT

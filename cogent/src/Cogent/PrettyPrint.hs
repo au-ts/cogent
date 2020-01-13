@@ -181,9 +181,9 @@ instance Prec LocExpr where
 instance Prec (TExpr t) where
   prec (TE _ e _) = prec e
 
-instance Prec SExpr where
-  prec (SE e) = prec e
-  prec (SU _) = 0
+instance Prec (SExpr t) where
+  prec (SE _ e _) = prec e
+  prec (SU {}) = 0
 
 -- NOTE: the difference from the definition of the fixity of Constraint
 instance Prec Constraint where
@@ -216,9 +216,9 @@ instance ExprType LocExpr where
 instance ExprType (TExpr t) where
   isVar (TE _ e _) = isVar e
 
-instance ExprType SExpr where
-  isVar (SE e) = isVar e
-  isVar (SU _) = const False
+instance ExprType (SExpr t) where
+  isVar (SE _ e _) = isVar e
+  isVar (SU {}) = const False
 
 -- ------------------------------------
 
@@ -314,6 +314,12 @@ instance TypeType RawType where
   isTakePut (RT t) = isTakePut t
   isFun     (RT t) = isFun     t
   isAtomic  (RT t) = isAtomic  t
+
+instance TypeType DepType where
+  isCon     (DT t) = isCon     t
+  isTakePut (DT t) = isTakePut t
+  isFun     (DT t) = isFun     t
+  isAtomic  (DT t) = isAtomic  t
 
 instance TypeType TCType where
   isCon     (T t) = isCon t
@@ -493,9 +499,11 @@ instance Pretty t => Pretty (TExpr t) where
   pretty (TE t e _) | __cogent_fshow_types_in_pretty = parens $ pretty e <+> comment "::" <+> pretty t
                     | otherwise = pretty e
 
-instance Pretty SExpr where
-  pretty (SE e) = pretty e
-  pretty (SU n) = warn ('?':show n)
+instance Pretty t => Pretty (SExpr t) where
+  pretty (SE t e _) | __cogent_fshow_types_in_pretty = parens $ pretty e <+> comment "::" <+> pretty t
+                    | otherwise = pretty e
+  pretty (SU t n)   | __cogent_fshow_types_in_pretty = parens $ warn ('?':show n) <+> comment "::" <+> pretty t
+                    | otherwise = warn ('?':show n)
 
 prettyT' :: (TypeType t, Pretty t) => t -> Doc
 prettyT' t | not $ isAtomic t = parens (pretty t)
@@ -569,6 +577,9 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
 
 instance Pretty RawType where
   pretty (RT t) = pretty t
+
+instance Pretty DepType where
+  pretty (DT t) = pretty t
 
 instance Pretty TCType where
   pretty (T t) = pretty t
