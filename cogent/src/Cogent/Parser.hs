@@ -121,7 +121,7 @@ repExpr = DL <$> repExpr'
           ((Record <$ reserved "record" <*> braces (commaSep recordRepr))
       <|> (Variant <$ reserved "variant" <*> parens repExpr' <*> braces (commaSep variantRepr))
 #ifdef BUILTIN_ARRAYS
-      <|> (Array <$ reserved "array" <*> parens repExpr <*> getPosition)
+      <|> (Array <$ reserved "array" <*> brackets repExpr <*> getPosition)
 #endif
       <|> (RepRef <$> typeConName)
       <|> (Prim <$> repSize)

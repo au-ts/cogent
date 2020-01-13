@@ -425,6 +425,15 @@ genExpr mv (TE t (ArrayPut arr i e)) = do
   (assdecl,assstm) <- assign telt' (CArrayDeref arr' i') e'
   (v,vdecl,vstm,vp) <- maybeAssign t' mv arr' M.empty
   return (v, arrdecl++idecl++edecl++assdecl++vdecl, arrstm++istm++estm++assstm++vstm, M.empty)
+
+genExpr mv (TE t (ArrayTake _ arr i e)) = do  -- FIXME: varpool - as above
+  (arr',arrdecl,arrstm,arrp) <- genExpr_ arr
+  (i',idecl,istm,ip) <- genExpr_ i
+  let (TArray telt _ _ _) = exprType arr
+  telt' <- genType telt
+  (v,vdecl,vstm) <- declareInit telt' (CArrayDeref arr' i') M.empty
+  (e',edecl,estm,ep) <- withBindings (Cons (variable v) (Cons arr' Nil)) $ genExpr mv e
+  return (e', arrdecl++idecl++vdecl++edecl, arrstm++istm++vstm++estm, M.empty)
 #endif
 
 genExpr mv (TE t (Unit)) = do
