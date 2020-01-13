@@ -109,10 +109,11 @@ normaliseT :: TypeDict -> TCType -> Post TCType
 normaliseT d (T (TUnbox t)) = do
    t' <- normaliseT d t
    case t' of
-     (T (TCon x ps _)) -> normaliseT d (T (TCon x ps Unboxed))
-     (T (TRecord l _)) -> normaliseT d (T (TRecord l Unboxed))
-     (T o)             -> normaliseT d =<< normaliseT d (T $ fmap (T . TUnbox) o)
-     _                 -> __impossible "normaliseT (TUnbox)"
+     (T (TCon x ps _))    -> normaliseT d (T (TCon x ps Unboxed))
+     (T (TRecord l _))    -> normaliseT d (T (TRecord l Unboxed))
+     (T (TArray t e _ s)) -> normaliseT d (T (TArray t e Unboxed s))
+     (T o)                -> normaliseT d =<< normaliseT d (T $ fmap (T . TUnbox) o)
+     _                    -> __impossible "normaliseT (TUnbox)"
 
 normaliseT d (T (TBang t)) = do
    t' <- normaliseT d t
