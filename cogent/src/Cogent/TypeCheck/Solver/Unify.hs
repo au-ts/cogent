@@ -98,9 +98,9 @@ assignOf (R r1 s1 :=: R r2 s2)
 #ifdef BUILTIN_ARRAYS
 -- TODO: This will be moved to a separately module for SMT-solving. Eventually the results
 -- returned from the solver will be a Subst object. / zilinc
-assignOf (Arith (SE (PrimOp "==" [SU x, e]))) | null (unknownsE e)
+assignOf (Arith (SE t (PrimOp "==" [SU _ x, e]) l)) | null (unknownsE e)
   = pure [ Subst.ofExpr x e ]
-assignOf (Arith (SE (PrimOp "==" [e, SU x]))) | null (unknownsE e)
+assignOf (Arith (SE t (PrimOp "==" [e, SU _ x]) l)) | null (unknownsE e)
   = pure [ Subst.ofExpr x e ]
 #endif
 

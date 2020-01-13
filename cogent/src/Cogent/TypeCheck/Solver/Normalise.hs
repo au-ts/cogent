@@ -125,9 +125,9 @@ whnf input = do
 -- | Normalise all types within a set of constraints
 normaliseTypes :: [Goal] -> TcSolvM [Goal]
 normaliseTypes = mapM $ \g -> do
-   c' <- traverse whnf (g ^. goal)
-   pure $ set goal c' g
+  c' <- mapM whnf (g ^. goal)
+  pure $ set goal c' g
 
-normaliseSExpr :: SExpr -> Int
-normaliseSExpr (SE (IntLit n)) = fromIntegral n
+normaliseSExpr :: TCSExpr -> Int
+normaliseSExpr (SE _ (IntLit n) _) = fromIntegral n
 normaliseSExpr _ = __todo "normaliseSExpr"
