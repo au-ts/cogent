@@ -10,6 +10,7 @@
 -- @TAG(DATA61_GPL)
 --
 
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE LambdaCase #-}
@@ -45,9 +46,12 @@ import Control.Monad.Trans.Maybe
 import Control.Monad.Writer hiding (Alt)
 import Control.Monad.Reader
 import Data.Bifunctor (bimap, first, second)
+import Data.Data (Data)
 import Data.Foldable (all)
 import Data.Maybe (fromJust, isJust)
 import Data.Either (either, isLeft)
+import Data.Functor.Const
+import Data.Functor.Identity
 import qualified Data.IntMap as IM
 import Data.List (nub, (\\))
 import qualified Data.Map as M
@@ -97,9 +101,9 @@ data TypeError = FunctionNotFound VarName
                | DiscardWithoutMatch TagName
                | RequiredTakenTag TagName
 #ifdef BUILTIN_ARRAYS
-               | ArithConstraintsUnsatisfiable [SExpr] String
-               | TakeElementsFromNonArrayType [SExpr] TCType
-               | PutElementsToNonArrayType [SExpr] TCType
+               | ArithConstraintsUnsatisfiable [TCExpr] String
+               | TakeElementsFromNonArrayType [TCExpr] TCType
+               | PutElementsToNonArrayType [TCExpr] TCType
 #endif
                | CustTyGenIsPolymorphic TCType
                | CustTyGenIsSynonym TCType
@@ -146,7 +150,7 @@ isCtxConstraint _ = False
 
 data VarOrigin = ExpressionAt SourcePos
                | BoundOf TCType TCType Bound
-               | EqualIn SExpr SExpr TCType TCType
+               | EqualIn TCExpr TCExpr TCType TCType
                deriving (Eq, Show, Ord)
 
 
@@ -188,7 +192,7 @@ data Constraint' t = (:<) t t
                    | Solved t
                    | IsPrimType t
 #ifdef BUILTIN_ARRAYS
-                   | Arith SExpr
+                   | Arith (SExpr t)
 #endif
                    deriving (Eq, Show, Ord, Functor, Foldable, Traversable)
 
@@ -199,30 +203,30 @@ arithTCType (T (TCon n [] Unboxed)) | n `elem` ["U8", "U16", "U32", "U64", "Bool
 arithTCType (U _) = False
 arithTCType _ = False
 
-arithTCExpr :: TCExpr -> Bool
-arithTCExpr (TE _ (PrimOp _ es) _) | length es `elem` [1,2] = all arithTCExpr es
-arithTCExpr (TE _ (Var _      ) _) = True
-arithTCExpr (TE _ (IntLit _   ) _) = True
-arithTCExpr (TE _ (BoolLit _  ) _) = True
-arithTCExpr (TE _ (Upcast e   ) _) = arithTCExpr e
-arithTCExpr (TE _ (Annot e _  ) _) = arithTCExpr e
+arithTCExpr :: TCSExpr -> Bool
+arithTCExpr (SE _ (PrimOp _ es) _) | length es `elem` [1,2] = all arithTCExpr es
+arithTCExpr (SE _ (Var _      ) _) = True
+arithTCExpr (SE _ (IntLit _   ) _) = True
+arithTCExpr (SE _ (BoolLit _  ) _) = True
+arithTCExpr (SE _ (Upcast e   ) _) = arithTCExpr e
+arithTCExpr (SE _ (Annot e _  ) _) = arithTCExpr e
 arithTCExpr _ = False
 
 #ifdef BUILTIN_ARRAYS
-splitArithConstraints :: Constraint -> ([SExpr], Constraint)
-splitArithConstraints (c1 :& c2)
-  = let (e1,c1') = splitArithConstraints c1
-        (e2,c2') = splitArithConstraints c2
-     in (e1 <> e2, c1' <> c2')
-splitArithConstraints (c :@ ctx )
-  = let (e,c') = splitArithConstraints c
-     in (e, c' :@ ctx)
-splitArithConstraints (Arith e ) = ([e], Sat)
-splitArithConstraints c          = ([], c)
+-- splitArithConstraints :: Constraint -> ([SExpr], Constraint)
+-- splitArithConstraints (c1 :& c2)
+--   = let (e1,c1') = splitArithConstraints c1
+--         (e2,c2') = splitArithConstraints c2
+--      in (e1 <> e2, c1' <> c2')
+-- splitArithConstraints (c :@ ctx )
+--   = let (e,c') = splitArithConstraints c
+--      in (e, c' :@ ctx)
+-- splitArithConstraints (Arith e ) = ([e], Sat)
+-- splitArithConstraints c          = ([], c)
 
-andSExprs :: [SExpr] -> SExpr
-andSExprs [] = SE $ BoolLit True
-andSExprs (e:es) = SE $ PrimOp "&&" [e, andSExprs es]
+-- andSExprs :: [SExpr] -> SExpr
+-- andSExprs [] = SE $ BoolLit True
+-- andSExprs (e:es) = SE $ PrimOp "&&" [e, andSExprs es]
 #endif
 
 #if __GLASGOW_HASKELL__ < 803	
@@ -255,19 +259,31 @@ warnToConstraint f w | f = SemiSat w
 -- Types for constraint generation and solving
 -- -----------------------------------------------------------------------------
 
-data TCType         = T (Type SExpr TCType)
+data TCType         = T (Type TCSExpr TCType)
                     | U Int  -- unifier
                     | R (Row TCType) (Either (Sigil (Maybe DataLayoutExpr)) Int)
                     | V (Row TCType)
 #ifdef BUILTIN_ARRAYS
-                    | A TCType SExpr (Either (Sigil (Maybe DataLayoutExpr)) Int) (Maybe SExpr)
+                    | A TCType TCSExpr (Either (Sigil (Maybe DataLayoutExpr)) Int) (Maybe TCSExpr)
 #endif
                     | Synonym TypeName [TCType]
                     deriving (Show, Eq, Ord)
 
-data SExpr          = SE (Expr RawType RawPatn RawIrrefPatn SExpr)
-                    | SU Int
+data SExpr t        = SE { getTypeSE :: t, getExprSE :: Expr t (TPatn t) (TIrrefPatn t) (SExpr t), getLocSE :: SourcePos }
+                    | SU t Int
                     deriving (Show, Eq, Ord)
+
+type TCSExpr = SExpr TCType
+
+instance Functor SExpr where
+  fmap f (SE t e l) = SE (f t) (ffffmap f $ fffmap (fmap f) $ ffmap (fmap f) $ fmap (fmap f) e) l
+  fmap f (SU t x  ) = SU (f t) x
+instance Foldable SExpr where
+  foldMap f e = getConst $ traverse (Const . f) e
+instance Traversable SExpr where
+  mapM f (SE t e l) = SE <$> f t <*> (ttttraverse f =<< tttraverse (traverse f) =<< ttraverse (traverse f) =<< traverse (traverse f) e) <*> pure l
+  mapM f (SU t x)   = SU <$> f t <*> pure x
+
 
 data FuncOrVar = MustFunc | MustVar | FuncOrVar deriving (Eq, Ord, Show)
 
@@ -283,16 +299,19 @@ data TExpr      t = TE { getTypeTE :: t, getExpr :: Expr t (TPatn t) (TIrrefPatn
 deriving instance Eq   t => Eq   (TExpr t)
 deriving instance Ord  t => Ord  (TExpr t)
 deriving instance Show t => Show (TExpr t)
+deriving instance Data t => Data (TExpr t)
 
 data TPatn      t = TP { getPatn :: Pattern (TIrrefPatn t), getLocTP :: SourcePos }
 deriving instance Eq   t => Eq   (TPatn t)
 deriving instance Ord  t => Ord  (TPatn t)
 deriving instance Show t => Show (TPatn t)
+deriving instance Data t => Data (TPatn t)
 
 data TIrrefPatn t = TIP { getIrrefPatn :: IrrefutablePattern (VarName, t) (TIrrefPatn t) (TExpr t), getLocTIP :: SourcePos }
 deriving instance Eq   t => Eq   (TIrrefPatn t)
 deriving instance Ord  t => Ord  (TIrrefPatn t)
 deriving instance Show t => Show (TIrrefPatn t)
+deriving instance Data t => Data (TIrrefPatn t)
 
 instance Functor TExpr where
   fmap f (TE t e l) = TE (f t) (ffffmap f $ fffmap (fmap f) $ ffmap (fmap f) $ fmap (fmap f) e) l  -- Hmmm!
@@ -301,34 +320,44 @@ instance Functor TPatn where
 instance Functor TIrrefPatn where
   fmap f (TIP ip l) = TIP (fffmap (second f) $ ffmap (fmap f) $ fmap (fmap f) ip) l
 
+instance Traversable TExpr where
+  traverse f e = undefined
+instance Traversable TPatn where
+  traverse f (TP p l) = TP <$> traverse (traverse f) p <*> pure l
+instance Traversable TIrrefPatn where
+  mapM f (TIP ip l) = TIP <$> (tttraverse (secondM f) =<< ttraverse (traverse f) =<< traverse (traverse f) ip) <*> pure l
+
+instance Foldable TExpr where
+  foldMap f e  = getConst $ traverse (Const . f) e
+instance Foldable TPatn where
+  foldMap f p  = getConst $ traverse (Const . f) p
+instance Foldable TIrrefPatn where
+  foldMap f ip = getConst $ traverse (Const . f) ip
+
 type TCName = (VarName, TCType)
 type TCExpr = TExpr TCType
 type TCPatn = TPatn TCType
 type TCIrrefPatn = TIrrefPatn TCType
 
-type TypedName = (VarName, RawType)
-type TypedExpr = TExpr RawType
-type TypedPatn = TPatn RawType
-type TypedIrrefPatn = TIrrefPatn RawType
+data DepType = DT { unDT :: Type RawTypedExpr DepType } deriving (Data, Eq, Ord, Show)
 
+type TypedName = (VarName, DepType)
+type TypedExpr = TExpr DepType
+type TypedPatn = TPatn DepType
+type TypedIrrefPatn = TIrrefPatn DepType
+
+type RawTypedExpr = TExpr RawType
+type RawTypedPatn = TPatn RawType
+type RawTypedIrrefPatn = TIrrefPatn RawType
 
 -- --------------------------------
 -- And their convertion functions
 -- --------------------------------
 
-toTCType :: RawType -> TCType
-toTCType (RT x) = T (fmap toTCType $ ffmap toSExpr x)
-
-toSExpr :: RawExpr -> SExpr
-toSExpr (RE e) = SE (fmap toSExpr e)
-
-tcToSExpr :: TCExpr -> SExpr
-tcToSExpr = toSExpr . toRawExpr . toTypedExpr
-
 -- Precondition: No unification variables left in the type
 toLocType :: SourcePos -> TCType -> LocType
-toLocType l (T x) = LocType l (fmap (toLocType l) $ ffmap (rawToLocE l . toRawExpr') x)
-toLocType l _ = error "panic: unification variable found"
+toLocType l (T x) = LocType l (fmap (toLocType l) $ ffmap (toLocExpr toLocType . toTCExpr) x)
+toLocType l _ = __impossible "toLocType: unification variable found"
 
 toLocExpr :: (SourcePos -> t -> LocType) -> TExpr t -> LocExpr
 toLocExpr f (TE t e l) = LocExpr l (ffffmap (f l) $ fffmap (toLocPatn f) $ ffmap (toLocIrrefPatn f) $ fmap (toLocExpr f) e)
@@ -340,38 +369,57 @@ toLocIrrefPatn :: (SourcePos -> t -> LocType) -> TIrrefPatn t -> LocIrrefPatn
 toLocIrrefPatn f (TIP p l) = LocIrrefPatn l (fffmap fst $ ffmap (toLocIrrefPatn f) $ fmap (toLocExpr f) p)
 
 toTypedExpr :: TCExpr -> TypedExpr
-toTypedExpr = fmap toRawType
+toTypedExpr = fmap toDepType
 
 toTypedAlts :: [Alt TCPatn TCExpr] -> [Alt TypedPatn TypedExpr]
-toTypedAlts = fmap (ffmap (fmap toRawType) . fmap (fmap toRawType))
+toTypedAlts = fmap (ffmap (fmap toDepType) . fmap toTypedExpr)
+
+toDepType :: TCType -> DepType
+toDepType (T x) = DT (ffmap (fmap toRawType . toTCExpr) $ fmap toDepType x)
+toDepType _ = __impossible "toDepType: unification variable found"
 
 toRawType :: TCType -> RawType
-toRawType (T x) = RT (ffmap toRawExpr' $ fmap toRawType x)
-toRawType _ = error "panic: unification variable found"
+toRawType (T x) = RT (ffmap (toRawExpr' . toTCExpr) $ fmap toRawType x)
+toRawType _ = __impossible "toRawType: unification variable found"
 
-toRawExpr' :: SExpr -> RawExpr
-toRawExpr' (SE e) = RE (fmap toRawExpr' e)
-toRawExpr' _ = __impossible "toRawExpr': unification variable found"
+toRawType' :: DepType -> RawType
+toRawType' (DT t) = RT (ffmap toRawExpr'' $ fmap toRawType' t)
+
+-- This function although is partial, it should be ok, as we statically know that 
+-- we won't run into those undefined cases. / zilinc
+rawToDepType :: RawType -> DepType
+rawToDepType (RT t) = DT $ __todo "rawToDepType"
+
+toRawTypedExpr :: TypedExpr -> RawTypedExpr
+toRawTypedExpr (TE t e l) = TE (toRawType' t) (ffffmap toRawType' $ fffmap (fmap toRawType') $ ffmap (fmap toRawType') $ fmap (fmap toRawType') e) l
+
+toRawExpr'' :: RawTypedExpr -> RawExpr
+toRawExpr'' (TE _ e _) = RE (fffmap toRawPatn' $ ffmap toRawIrrefPatn' $ fmap toRawExpr'' e)
+
+toRawExpr' :: TCExpr -> RawExpr
+toRawExpr' = toRawExpr . toTypedExpr
 
 toRawExpr :: TypedExpr -> RawExpr
-toRawExpr (TE t e _) = RE (fffmap toRawPatn . ffmap toRawIrrefPatn . fmap toRawExpr $ e)
+toRawExpr = toRawExpr'' . toRawTypedExpr
 
--- Will be killed in the future. / zilinc
-dummyTypedExpr :: RawExpr -> TypedExpr
-dummyTypedExpr (RE e) = TE undefined (fffmap dummyTypedPatn $ ffmap dummyTypedIrrefPatn $ fmap dummyTypedExpr e) noPos
+toTCSExpr :: TCExpr -> TCSExpr
+toTCSExpr (TE t e l) = SE t (fmap toTCSExpr e) l
 
-dummyTypedPatn :: RawPatn -> TypedPatn
-dummyTypedPatn (RP p) = TP (fmap dummyTypedIrrefPatn p) noPos
-
-dummyTypedIrrefPatn :: RawIrrefPatn -> TypedIrrefPatn
-dummyTypedIrrefPatn (RIP ip) = TIP (fffmap ((,undefined)) $ ffmap dummyTypedIrrefPatn $ fmap dummyTypedExpr ip) noPos
+toTCExpr :: TCSExpr -> TCExpr
+toTCExpr (SE t e l) = TE t (fmap toTCExpr e) l
+toTCExpr (SU _ x  ) = __impossible $ "toTCExpr: unification term variable ?" ++ show x ++ " found"
 
 toRawPatn :: TypedPatn -> RawPatn
 toRawPatn (TP p _) = RP (fmap toRawIrrefPatn p)
 
+toRawPatn' :: RawTypedPatn -> RawPatn
+toRawPatn' (TP p _) = RP (fmap toRawIrrefPatn' p)
+
 toRawIrrefPatn :: TypedIrrefPatn -> RawIrrefPatn
 toRawIrrefPatn (TIP ip _) = RIP (fffmap fst $ ffmap toRawIrrefPatn $ fmap toRawExpr ip)
 
+toRawIrrefPatn' :: RawTypedIrrefPatn -> RawIrrefPatn
+toRawIrrefPatn' (TIP ip _) = RIP (fffmap fst $ ffmap toRawIrrefPatn' $ fmap toRawExpr'' ip)
 
 
 -- -----------------------------------------------------------------------------
@@ -489,10 +537,7 @@ substType vs (T (TVar v b u)) | Just x <- lookup v vs
       (_    , True ) -> T (TUnbox x)
 substType vs (T t) = T (fmap (substType vs) t)
 
--- Check for type well-formedness
-validateType :: [VarName] -> RawType -> TcM TCType
-validateType vs t = either (\e -> logErr e >> exitErr) return =<< lift (lift $ runExceptT $ validateType' vs t)
-
+{-
 -- don't log errors, but instead return them
 validateType' :: [VarName] -> RawType -> TcErrM TypeError TCType
 validateType' vs (RT t) = do
@@ -520,17 +565,17 @@ validateType' vs (RT t) = do
                           | Left (anError : _) <- runExcept $ tcDataLayoutExpr layouts dlexpr
                           -> throwE $ DataLayoutError anError
                         _ -> -- the layout is good, or it or a layout
-                          toRow . T . ffmap toSExpr <$> mapM (validateType' vs) t
+                          toRow . T . ffmap toTCExpr <$> mapM (validateType' vs) t
                     else throwE (DuplicateRecordFields (fields \\ fields'))
 
     TVariant fs  -> do let tuplize [] = T TUnit
                            tuplize [x] = x
                            tuplize xs  = T (TTuple xs)
-                       TVariant fs' <- ffmap toSExpr <$> mapM (validateType' vs) t
+                       TVariant fs' <- ffmap toTCExpr <$> mapM (validateType' vs) t
                        pure (V (Row.fromMap (fmap (first tuplize) fs')))
 #ifdef BUILTIN_ARRAYS
     TArray te l s [] -> -- TODO: do the checks
-      A <$> validateType' vs te <*> pure (toSExpr l) <*> pure (Left s) <*> pure Nothing
+      A <$> validateType' vs te <*> pure (toTCExpr l) <*> pure (Left s) <*> pure Nothing
 #endif
     TLayout l t  -> do
       layouts <- use knownDataLayouts
@@ -540,7 +585,7 @@ validateType' vs (RT t) = do
       t' <- validateType' vs t
       pure (T $ TLayout l t')
     _ -> __fixme $
-      T <$> (mmapM (return . toSExpr) <=< mapM (validateType' vs)) t
+      T <$> (mmapM (return . toTCExpr) <=< mapM (validateType' vs)) t
     -- With (TCon _ _ l), and (TRecord _ l), must check l == Nothing iff it is contained in a TUnbox.
     -- This can't be done in the current setup because validateType' has no context for the type it is validating.
     -- Not implementing this now, because a new syntax for types is needed anyway, which may make this issue redundant.
@@ -549,7 +594,7 @@ validateType' vs (RT t) = do
 
 validateTypes' :: (Traversable t) => [VarName] -> t RawType -> TcErrM TypeError (t TCType)
 validateTypes' vs = mapM (validateType' vs)
-
+-}
 
 flexOf (U x) = Just x
 flexOf (T (TTake _ t))   = flexOf t
@@ -609,13 +654,13 @@ unknowns (R r s) = concatMap unknowns (Row.allTypes r)
 unknowns (A t l s tkns) = unknowns t ++ unknownsE l ++ foldMap unknownsE tkns
 unknowns (T x) = foldMap unknowns x
 
-unknownsE :: SExpr -> [Int]
-unknownsE (SU x) = [x]
-unknownsE (SE e) = foldMap unknownsE e
+unknownsE :: TCSExpr -> [Int]
+unknownsE (SU _ x  ) = [x]
+unknownsE (SE _ e _) = foldMap unknownsE e
 
-isKnown :: SExpr -> Bool
-isKnown (SU _) = False
-isKnown (SE e) = all isKnown e
+isKnown :: TCSExpr -> Bool
+isKnown (SU _ _  ) = False
+isKnown (SE _ e _) = all isKnown e
 #endif
 
 -- What's the spec of this function? / zilinc
