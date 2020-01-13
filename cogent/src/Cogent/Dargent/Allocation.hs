@@ -157,7 +157,7 @@ singletonAllocation b = Allocation [b]
 overlaps :: BitRange -> BitRange -> Bool
 overlaps (BitRange s1 o1) (BitRange s2 o2) =
   not $ (o1 <= o2  ==>  o1 + s1 <= o2) &&
-        (o2 <= o1  ==>  o2 + s1 <= o1)
+        (o2 <= o1  ==>  o2 + s2 <= o1)
 
 isZeroSizedAllocation :: Allocation' p -> Bool
 isZeroSizedAllocation = all (isZeroSizedBR . fst) . unAllocation
