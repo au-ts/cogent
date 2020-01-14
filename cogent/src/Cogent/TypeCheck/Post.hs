@@ -112,7 +112,9 @@ normaliseT d (T (TUnbox t)) = do
      (T (TCon x ps _))    -> normaliseT d (T (TCon x ps Unboxed))
      (T (TVar v b u))     -> normaliseT d (T (TVar v b True))
      (T (TRecord l _))    -> normaliseT d (T (TRecord l Unboxed))
-     (T (TArray t e _ s)) -> normaliseT d (T (TArray t e Unboxed s))
+#ifdef BUILTIN_ARRAYS
+     (T (TArray t e _ h)) -> normaliseT d (T (TArray t e Unboxed h))
+#endif
      (T o)                -> normaliseT d =<< normaliseT d (T $ fmap (T . TUnbox) o)
      _                    -> __impossible "normaliseT (TUnbox)"
 
@@ -123,6 +125,9 @@ normaliseT d (T (TBang t)) = do
                           normaliseT d (T (TCon x ps' (bangSigil s)))
      (T (TRecord l s)) -> mapM ((secondM . firstM) (normaliseT d . T . TBang)) l >>= \l' ->
                           normaliseT d (T (TRecord l' (bangSigil s)))
+#ifdef BUILTIN_ARRAYS
+     (T (TArray t e (Boxed False l) h)) -> normaliseT d (T (TArray t e (Boxed True l) h))
+#endif
      (T (TVar v b u))  -> normaliseT d (T (TVar v True u))
      (T (TFun a b))    -> T <$> (TFun <$> normaliseT d a <*> normaliseT d b)
      (T o)             -> normaliseT d =<< normaliseT d (T $ fmap (T . TBang) o)
