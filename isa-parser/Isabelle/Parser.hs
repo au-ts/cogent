@@ -604,21 +604,34 @@ termL = buildExpressionParser table restL
                                            ; return (TermUnOp u) }))
 
 
-    restL =  antiquoteTermL <||> parensTermL <||> constTermL <||> (TermIdent <$> innerIdentL) <||> caseOfTermL
+    restL =  antiquoteTermL <||> parensTermL <||> constTermL <||> (TermIdent <$> innerIdentL) <||> caseOfTermL <||> recordUpdTermL
     parensTermL = parensL termL
 
 caseOfTermL :: ParserM Term
 caseOfTermL = do { stringL "case"
-             ; term <- termL
-             ; stringL "of"
-             ; alts <- sepBy1 (try altTermL) (stringL "|") 
-             ; return $ CaseOf term alts }
+                 ; term <- termL
+                 ; stringL "of"
+                 ; alts <- sepBy1 (try altTermL) (stringL "|") 
+                 ; return $ CaseOf term alts }
 
 altTermL :: ParserM (Term, Term)
 altTermL = do { term1 <- termL
-         ; stringL "\\<Rightarrow>"
-         ; term2 <- termL
-         ; return (term1, term2) }
+              ; stringL "\\<Rightarrow>"
+              ; term2 <- termL
+              ; return (term1, term2) }
+
+recordUpdTermL :: ParserM Term 
+recordUpdTermL = do { term <- termL
+                    ; stringL "\\<lparr>"
+                    ; upds <- sepBy1 (try updTermL) (stringL ",")
+                    ; stringL "\\<rparr>"
+                    ; return $ RecordUpd term upds }
+
+updTermL :: ParserM (Term, Term)
+updTermL = do { term1 <- termL 
+              ; stringL ":="
+              ; term2 <- termL 
+              ; return (term1, term2) }
 
 innerIdentL :: ParserM Ident
 innerIdentL = (Id <$> identL) <||> wildcardL <||> parensL typedIdentL
