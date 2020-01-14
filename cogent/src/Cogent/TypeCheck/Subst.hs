@@ -14,7 +14,6 @@ import Cogent.Common.Types
 import Cogent.Compiler (__impossible)
 import Cogent.Surface
 import qualified Cogent.TypeCheck.ARow as ARow
-import Cogent.TypeCheck.Assignment
 import Cogent.TypeCheck.Base
 import qualified Cogent.TypeCheck.Row as Row
 import Cogent.Util
@@ -56,11 +55,6 @@ ofExpr :: Int -> TCSExpr -> Subst
 ofExpr i e = Subst (M.fromList [(i, Expr e)])
 #endif
 
-substToAssign :: Subst -> Assignment
-substToAssign (Subst m) = Assignment . M.map unExpr $ M.filter isAssign m
-  where isAssign (Expr _) = True; isAssign _ = False
-        unExpr   (Expr x) = x   ; unExpr   _ = __impossible "unExpr"
-
 null :: Subst -> Bool
 null (Subst x) = M.null x
 
@@ -94,7 +88,7 @@ apply (Subst f) (A t l (Right x) mhole)
 apply f (V x) = V (fmap (apply f) x)
 apply f (R x s) = R (fmap (apply f) x) s
 #ifdef BUILTIN_ARRAYS
-apply f (A x l s tkns) = A (apply f x) (assign (substToAssign f) l) s (fmap (assign $ substToAssign f) tkns)
+apply f (A x l s tkns) = A (apply f x) (applySE f l) s (fmap (applySE f) tkns)
 #endif
 apply f (T x) = T (fmap (apply f) x)
 apply f (Synonym n ts) = Synonym n (fmap (apply f) ts)
@@ -135,14 +129,27 @@ applyC s (Share t m) = Share (apply s t) m
 applyC s (Drop t m) = Drop (apply s t) m
 applyC s (Escape t m) = Escape (apply s t) m
 #ifdef BUILTIN_ARRAYS
-applyC s (Arith e) = Arith $ assign (substToAssign s) e
+applyC s (Arith e) = Arith $ applySE s e
 #endif
-applyC s (Unsat e) = Unsat (applyErr s e)
+applyC s (Unsat e) = Unsat $ applyErr s e
 applyC s (SemiSat w) = SemiSat (applyWarn s w)
 applyC s Sat = Sat
 applyC s (Exhaustive t ps) = Exhaustive (apply s t) ps
 applyC s (Solved t) = Solved (apply s t)
 applyC s (IsPrimType t) = IsPrimType (apply s t)
+
+applySE :: Subst -> TCSExpr -> TCSExpr
+applySE (Subst f) (SU t x)
+  | Just (Expr e) <- M.lookup x f
+  = applySE (Subst f) e
+  | otherwise
+  = SU t x
+applySE s (SE t e l) = SE (apply s t)
+                          ( fmap (fmap (apply s))
+                          $ ffmap (fmap (apply s))
+                          $ fffmap (fmap (apply s))
+                          $ ffffmap (apply s) e)
+                          l
 
 applyE :: Subst -> TCExpr -> TCExpr
 applyE s (TE t e l) = TE (apply s t)

@@ -27,7 +27,6 @@ import Cogent.Compiler
 import Cogent.Reorganizer (ReorganizeError(..), SourceObject(..))
 import Cogent.Surface
 -- import Cogent.TypeCheck --hiding (context)
-import Cogent.TypeCheck.Assignment hiding (null)
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Subst hiding (null)
 import qualified Cogent.TypeCheck.ARow as ARow
@@ -893,9 +892,6 @@ instance (Pretty e, Show e) => Pretty (ARow.ARow e) where
           all = case a of Nothing -> empty
                           Just True  -> (symbol " |" <+> text "all taken")
                           Just False -> (symbol " |" <+> text "all put"  )
-
-instance Pretty Assignment where
-  pretty (Assignment m) = pretty m
 
 instance Pretty a => Pretty (I.IntMap a) where
   pretty = align . vcat . map (\(k,v) -> pretty k <+> text "|->" <+> pretty v) . I.toList
