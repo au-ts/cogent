@@ -195,7 +195,7 @@ continueGetLines l
   | ";"  `isSuffixOf` l = False
 continueGetLines l = True
 
-data PreloadS = PreloadS { surface  :: [S.TopLevel S.RawType Tc.TypedPatn Tc.TypedExpr]
+data PreloadS = PreloadS { surface  :: [S.TopLevel Tc.DepType Tc.TypedPatn Tc.TypedExpr]
                          , tcState  :: Tc.TcState
                          , lastFile :: Maybe FilePath
                          }
