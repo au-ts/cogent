@@ -102,12 +102,12 @@ data TypeError = FunctionNotFound VarName
                | DiscardWithoutMatch TagName
                | RequiredTakenTag TagName
 #ifdef BUILTIN_ARRAYS
-               | ArithConstraintsUnsatisfiable [TCExpr] String
-               | TakeElementsFromNonArrayType [TCExpr] TCType
-               | PutElementsToNonArrayType [TCExpr] TCType
+               | ArithConstraintsUnsatisfiable [TCSExpr] String
+               | TakeElementsFromNonArrayType [TCSExpr] TCType
+               | PutElementsToNonArrayType [TCSExpr] TCType
 #endif
-               | CustTyGenIsPolymorphic TCType
-               | CustTyGenIsSynonym TCType
+               | CustTyGenIsPolymorphic LocType
+               | CustTyGenIsSynonym LocType
                | TypeWarningAsError TypeWarning
                | DataLayoutError DataLayoutTcError
                | LayoutOnNonRecordOrCon TCType
@@ -204,30 +204,30 @@ arithTCType (T (TCon n [] Unboxed)) | n `elem` ["U8", "U16", "U32", "U64", "Bool
 arithTCType (U _) = False
 arithTCType _ = False
 
-arithTCExpr :: TCSExpr -> Bool
-arithTCExpr (SE _ (PrimOp _ es) _) | length es `elem` [1,2] = all arithTCExpr es
-arithTCExpr (SE _ (Var _      ) _) = True
-arithTCExpr (SE _ (IntLit _   ) _) = True
-arithTCExpr (SE _ (BoolLit _  ) _) = True
-arithTCExpr (SE _ (Upcast e   ) _) = arithTCExpr e
-arithTCExpr (SE _ (Annot e _  ) _) = arithTCExpr e
+arithTCExpr :: TCExpr -> Bool
+arithTCExpr (TE _ (PrimOp _ es) _) | length es `elem` [1,2] = all arithTCExpr es
+arithTCExpr (TE _ (Var _      ) _) = True
+arithTCExpr (TE _ (IntLit _   ) _) = True
+arithTCExpr (TE _ (BoolLit _  ) _) = True
+arithTCExpr (TE _ (Upcast e   ) _) = arithTCExpr e
+arithTCExpr (TE _ (Annot e _  ) _) = arithTCExpr e
 arithTCExpr _ = False
 
 #ifdef BUILTIN_ARRAYS
--- splitArithConstraints :: Constraint -> ([SExpr], Constraint)
--- splitArithConstraints (c1 :& c2)
---   = let (e1,c1') = splitArithConstraints c1
---         (e2,c2') = splitArithConstraints c2
---      in (e1 <> e2, c1' <> c2')
--- splitArithConstraints (c :@ ctx )
---   = let (e,c') = splitArithConstraints c
---      in (e, c' :@ ctx)
--- splitArithConstraints (Arith e ) = ([e], Sat)
--- splitArithConstraints c          = ([], c)
+splitArithConstraints :: Constraint -> ([TCSExpr], Constraint)
+splitArithConstraints (c1 :& c2)
+  = let (e1,c1') = splitArithConstraints c1
+        (e2,c2') = splitArithConstraints c2
+     in (e1 <> e2, c1' <> c2')
+splitArithConstraints (c :@ ctx)
+  = let (e,c') = splitArithConstraints c
+     in (e, c' :@ ctx)
+splitArithConstraints (Arith e ) = ([e], Sat)
+splitArithConstraints c          = ([], c)
 
--- andSExprs :: [SExpr] -> SExpr
--- andSExprs [] = SE $ BoolLit True
--- andSExprs (e:es) = SE $ PrimOp "&&" [e, andSExprs es]
+andTCSExprs :: [TCSExpr] -> TCSExpr
+andTCSExprs [] = SE (T bool) (BoolLit True) noPos
+andTCSExprs (e:es) = SE (T bool) (PrimOp "&&" [e, andTCSExprs es]) noPos
 #endif
 
 #if __GLASGOW_HASKELL__ < 803	
@@ -537,65 +537,6 @@ substType vs (T (TVar v b u)) | Just x <- lookup v vs
       (True , False) -> T (TBang x)
       (_    , True ) -> T (TUnbox x)
 substType vs (T t) = T (fmap (substType vs) t)
-
-{-
--- don't log errors, but instead return them
-validateType' :: [VarName] -> RawType -> TcErrM TypeError TCType
-validateType' vs (RT t) = do
-  ts      <- use knownTypes
-  layouts <- use knownDataLayouts
-  case t of
-    TVar v _ _  | v `notElem` vs         -> throwE (UnknownTypeVariable v)
-    TCon t as _ | Nothing <- lookup t ts -> throwE (UnknownTypeConstructor t)
-                | Just (vs', _) <- lookup t ts
-                , provided <- length as
-                , required <- length vs'
-                , provided /= required
-               -> throwE (TypeArgumentMismatch t provided required)
-                |  Just (_, Just x) <- lookup t ts
-               -> Synonym t <$> mapM (validateType' vs) as  
-
-    TRecord fs s | fields  <- map fst fs
-                 , fields' <- nub fields
-                -> let toRow (T (TRecord fs s)) = R (Row.complete $ Row.toEntryList fs) (Left (fmap (const ()) s)) 
-                   in
-                    if fields' == fields
-                    then
-                      case s of
-                        Boxed _ (Just dlexpr) -- the layout is bad
-                          | Left (anError : _) <- runExcept $ tcDataLayoutExpr layouts dlexpr
-                          -> throwE $ DataLayoutError anError
-                        _ -> -- the layout is good, or it or a layout
-                          toRow . T . ffmap toTCExpr <$> mapM (validateType' vs) t
-                    else throwE (DuplicateRecordFields (fields \\ fields'))
-
-    TVariant fs  -> do let tuplize [] = T TUnit
-                           tuplize [x] = x
-                           tuplize xs  = T (TTuple xs)
-                       TVariant fs' <- ffmap toTCExpr <$> mapM (validateType' vs) t
-                       pure (V (Row.fromMap (fmap (first tuplize) fs')))
-#ifdef BUILTIN_ARRAYS
-    TArray te l s [] -> -- TODO: do the checks
-      A <$> validateType' vs te <*> pure (toTCExpr l) <*> pure (Left s) <*> pure Nothing
-#endif
-    TLayout l t  -> do
-      layouts <- use knownDataLayouts
-      _ <- case runExcept $ tcDataLayoutExpr layouts l of
-        Left (e:_) -> throwE $ DataLayoutError e
-        Right _    -> return ()
-      t' <- validateType' vs t
-      pure (T $ TLayout l t')
-    _ -> __fixme $
-      T <$> (mmapM (return . toTCExpr) <=< mapM (validateType' vs)) t
-    -- With (TCon _ _ l), and (TRecord _ l), must check l == Nothing iff it is contained in a TUnbox.
-    -- This can't be done in the current setup because validateType' has no context for the type it is validating.
-    -- Not implementing this now, because a new syntax for types is needed anyway, which may make this issue redundant.
-    -- /mdimeglio
-
-
-validateTypes' :: (Traversable t) => [VarName] -> t RawType -> TcErrM TypeError (t TCType)
-validateTypes' vs = mapM (validateType' vs)
--}
 
 flexOf (U x) = Just x
 flexOf (T (TTake _ t))   = flexOf t

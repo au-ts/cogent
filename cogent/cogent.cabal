@@ -182,7 +182,6 @@ library
               , Cogent.Surface
               , Cogent.TypeCheck
               , Cogent.TypeCheck.ARow
-              , Cogent.TypeCheck.Assignment
               , Cogent.TypeCheck.Base
               , Cogent.TypeCheck.Errors
               , Cogent.TypeCheck.Generator

@@ -50,11 +50,11 @@ import Text.PrettyPrint.ANSI.Leijen as P hiding ((<>), (<$>))
 
 type Post a = TcM a
 
-postT :: TCType -> Post RawType
+postT :: TCType -> Post DepType
 postT t = do
   d <- lift . lift $ use knownTypes
   traceTc "post" (text "type" <+> pretty t)
-  toRawType <$> normaliseT d t
+  toDepType <$> normaliseT d t
 
 postE :: TCExpr -> Post TypedExpr
 postE e = do
