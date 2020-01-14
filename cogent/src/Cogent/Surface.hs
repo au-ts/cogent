@@ -136,7 +136,7 @@ data Type e l t =
                 | TUnbox   t
                 | TBang    t
                 -- Will be inserted before typechecking
-                | TRPar VarName (RecContext t)
+                | TRPar RecParName (RecContext t)
                 -- The context for a recursive type, i.e. a mapping from
                 -- Used for both field names in records and tag names in variants
                 | TTake (Maybe [FieldName]) t
@@ -146,7 +146,6 @@ data Type e l t =
 
 -- recursive parameter names to the type it recursively references
 type RecContext t = M.Map VarName t 
-
 
 -- A few commonly used typed
 u8   = TCon "U8"   [] Unboxed
