@@ -149,7 +149,7 @@ data Type e t =
               | TUnbox   t
               | TBang    t
               -- Will be inserted before typechecking
-              | TRPar VarName (RecContext t)
+              | TRPar RecParName (RecContext t)
               -- Used for both field names in records and tag names in variants
               | TTake (Maybe [FieldName]) t
               | TPut  (Maybe [FieldName]) t

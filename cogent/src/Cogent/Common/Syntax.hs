@@ -23,6 +23,7 @@ type FunName     = String
 type ConstName   = String
 type VarName     = String
 type TyVarName   = String
+type RecParName  = String
 type TypeName    = String
 
 newtype CoreFunName = CoreFunName { unCoreFunName :: String }
