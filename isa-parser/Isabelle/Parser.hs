@@ -69,14 +69,17 @@ type ParserM a = Parsec String () a
 --
 -- FIXME: Don't duplicate the names here and elsewhere. Define as one constant in one place.
 --
+
 reservedWords :: [String]
 reservedWords = [
-  "and", "apply", "apply_end", "assumes", "begin", "by", "chapter", "class", "consts",
+  "abbreviation", "and", "apply", "apply_end", "assumes", "begin", "by", "chapter", "class", "consts",
   "datatype", "definition", "defs", "domintros", "done", "end", "fixes", "for", "fun",
   "function", "imports", "instance", "instantiation", "is", "keywords", "lemma", "lemmas",
   "no_translations", "open", "overloaded", "primrec", "record ", "section", "sequential", "sorry",
   "subsection", "subsubsection", "termination", "text", "theorems", "theory", "translations",
   "type_synonym", "typedecl", "unchecked", "uses", "where" ]
+
+reservedWordsInner = ["case", "of", "if", "then", "else"]
 
 ---------------------------------------------------------------
 -- Utility functions and combinators
@@ -122,6 +125,7 @@ parensL p = do { stringL "("; r <- p; stringL ")"; return r }
 
 quotedL :: ParserM a -> ParserM a
 quotedL p = do { stringL "\""; r <- p; stringL "\""; return r }
+
 
 --------------------------------------------------------------------------------
 -- Primitive parsers
@@ -180,7 +184,13 @@ identS :: ParserM String
 identS = letterS <++> manyP quasiletterS
 
 identL :: ParserM String
-identL = lexeme identS
+identL = lexeme . try $
+  do { s <- identS
+     ; if s `elem` reservedWordsInner
+       then unexpected ("'" ++ s ++ "' is a reserved word")
+       else return s }
+
+
 
 antiquoteS :: ParserM String 
 antiquoteS = char '$' >> lookAhead anyChar >>= \case
@@ -342,9 +352,19 @@ sigL = do
 
 abbreviationL :: ParserM (L Abbrev)
 abbreviationL = do
-  mbSig <- mb sigL
-  t     <- quotedTermL
-  return (Abbrev mbSig t)
+  reserved "abbreviation"
+  res <- alt1 <||> alt2
+  return res
+
+  where
+    alt1 = do
+      t <- quotedTermL
+      return (Abbrev Nothing t) 
+    alt2 = do
+      sig <- sigL
+      reserved "where"
+      t     <- quotedTermL
+      return $ Abbrev (Just sig) t
 
 lemmaL :: ParserM (L Lemma)
 lemmaL = do 
@@ -503,6 +523,7 @@ methodWithArgsL = do
           return $ n ++ mbColon
         argL = lexeme argS
 
+
 quotedTermL :: ParserM Term
 quotedTermL = quotedL termL
 
@@ -560,7 +581,7 @@ antiquoteTermL =  AntiTerm <$> antiquoteL
 -- unary operators.  The quantifier plus the identifiers that follow
 -- it are considered as a unary operator. (.e.g. "\<exists>x y z." is
 -- considered to be a unary operator which is applied to a term.)
--- 
+--
 termL :: ParserM Term
 termL = buildExpressionParser table restL
   where
@@ -583,8 +604,21 @@ termL = buildExpressionParser table restL
                                            ; return (TermUnOp u) }))
 
 
-    restL =  antiquoteTermL <||> parensTermL <||> constTermL <||> (TermIdent <$> innerIdentL)
+    restL =  antiquoteTermL <||> parensTermL <||> constTermL <||> (TermIdent <$> innerIdentL) <||> caseOfTermL
     parensTermL = parensL termL
+
+caseOfTermL :: ParserM Term
+caseOfTermL = do { stringL "case"
+             ; term <- termL
+             ; stringL "of"
+             ; alts <- sepBy1 (try altTermL) (stringL "|") 
+             ; return $ CaseOf term alts }
+
+altTermL :: ParserM (Term, Term)
+altTermL = do { term1 <- termL
+         ; stringL "\\<Rightarrow>"
+         ; term2 <- termL
+         ; return (term1, term2) }
 
 innerIdentL :: ParserM Ident
 innerIdentL = (Id <$> identL) <||> wildcardL <||> parensL typedIdentL
@@ -644,7 +678,7 @@ multiParamDatatypeL = do
 tyVarL :: ParserM Type
 tyVarL = do
   char '\''
-  v <- identL -- FIXME: Could be wrong
+  v <- lexeme (letterS <++> manyP quasiletterS)
   return $ TyVar v
 
 stripTyVar = map (\t -> let (TyVar v) = t in v)
