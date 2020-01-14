@@ -31,6 +31,7 @@ import Data.Functor.Compose
 import qualified Data.Graph.Wrapper as G
 import Data.List as L
 import qualified Data.Map as M
+import qualified Data.Set as S
 import qualified Data.Maybe as Maybe
 import Text.Parsec.Pos
 
@@ -40,6 +41,8 @@ data ReorganizeError = CyclicDependency
                      | DuplicateTypeDefinition
                      | DuplicateValueDefinition
                      | DuplicateRepDefinition
+                     | NonStrictlyPositive
+                     | RecParShadowsTyVar 
 
 data SourceObject = TypeName  Syn.TypeName
                   | ValName   Syn.VarName
@@ -146,69 +149,178 @@ checkNoNameClashes ((s,d):xs) bindings
                         RepName   _ -> DuplicateRepDefinition
                         DocBlock' _ -> __impossible "checkNoNameClashes"
 
-embedRecPars :: [TopLevel LocType LocPatn LocExpr] -> [TopLevel LocType LocPatn LocExpr]
-embedRecPars = map check
+-- Maps recursive parameters parsed as type variables to actual recursive parameters in the AST
+embedRecPars :: [(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)] 
+             -> [(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)]
+embedRecPars = map (\(s,d,t) -> (s,d,check t))
   where
     -- We need to check: Type definitions, function polytypes
     check :: TopLevel LocType LocPatn LocExpr -> TopLevel LocType LocPatn LocExpr
     check (TypeDec n tvs t) =
-      TypeDec n tvs (embedRecPar tvs t)
+      TypeDec n tvs (embedRecPar t)
     check (FunDef  n (PT tvs t) y) =
-      FunDef n (PT tvs (embedRecPar (map fst tvs) t)) y
+      FunDef n (PT tvs (embedRecPar t)) y
     -- TODO: Consts?
     check t = t
 
-embedRecPar :: [Syn.TyVarName] -> LocType -> LocType
-embedRecPar tvs t = erp M.empty t
+embedRecPar :: LocType -> LocType
+embedRecPar t = erp M.empty t
   where
     erp :: RecContext LocType -> LocType -> LocType 
     erp ctxt orig@(LocType p ty) =
       LocType p $ case ty of
-    -- If we find a type variable that is in our context, we replace it with a recursive parameter
-      (TVar n _ _) | M.member n ctxt -> TRPar n ctxt
-      -- If we find a record, add it's recursive parameter to the context if it exists and recurse
-      (TRecord rp fs s) -> 
-        let ctxt' = case rp of 
-                      Rec v -> M.insert v orig ctxt
-                      _     -> ctxt
-        in TRecord rp (map (\(n,(x, y)) -> (n, (erp ctxt' x, y))) fs) s
+        -- If we find a type variable that is in our context, we replace it with a recursive parameter
+        TVar n _ _ | M.member n ctxt -> TRPar n ctxt
+        -- If we find a record, add it's recursive parameter to the context if it exists and recurse
+        TRecord rp fs s -> 
+          let ctxt' = case rp of 
+                        Rec v -> M.insert v orig ctxt
+                        _     -> ctxt
+          in TRecord rp (map (\(n,(x, y)) -> (n, (erp ctxt' x, y))) fs) s
 
-      (TFun t1 t2)  -> TFun (erp ctxt t1) (erp ctxt t2) 
-      (TVariant ts) -> TVariant $ M.map (\(ts', x) -> (map (erp ctxt) ts', x)) ts
-      (TTuple ts)   -> TTuple (map (erp ctxt) ts)
+        TFun t1 t2  -> TFun (erp ctxt t1) (erp ctxt t2) 
+        TVariant ts -> TVariant $ M.map (\(ts', x) -> (map (erp ctxt) ts', x)) ts
+        TTuple ts   -> TTuple (map (erp ctxt) ts)
+        TCon n ts s     ->
+          TCon n (map (erp ctxt) ts) s
 #ifdef BUILTIN_ARRAYS
-      (TArray t e)  -> TArray (erp ctxt t) e
+        TArray t e  -> TArray (erp ctxt t) e
 #endif
-      (TUnbox t)    -> TUnbox (erp ctxt t)
-      (TBang t)     -> TBang (erp ctxt t)
-      (TTake fs t)  -> TTake fs (erp ctxt t)
-      (TPut fs t)   -> TPut fs (erp ctxt t)
-      t             -> t
+        TUnbox t    -> TUnbox (erp ctxt t)
+        TBang t     -> TBang (erp ctxt t)
+        TTake fs t  -> TTake fs (erp ctxt t)
+        TPut fs t   -> TPut fs (erp ctxt t)
+        t             -> t
+
+allEither :: [Either a ()] -> Either a ()
+allEither []             = Right ()
+allEither ((Right _):xs) = allEither xs
+allEither ((Left x):_)   = Left x
+
+-- Checks that no recursive parameters shadow type variables
+checkNoShadowing :: [TopLevel LocType LocPatn LocExpr] 
+                 -> Either (ReorganizeError, [(SourceObject, SourcePos)]) ()
+checkNoShadowing [] = return ()
+checkNoShadowing (t:ts) = do
+  check t
+  checkStrictlyPositive ts
+  where
+    check x = 
+      case x of 
+        TypeDec _ tvs t       -> ns tvs t
+        FunDef _ (PT tvs t) y -> ns (map fst tvs) t
+        tl                    -> Right ()
+
+    srcObj = sourceObject t
+  
+    ns :: [Syn.TyVarName] -> LocType -> Either (ReorganizeError, [(SourceObject, SourcePos)]) ()
+    ns tvs (LocType p ty) = 
+      case ty of
+        TRecord (Rec v) fs _ | v `elem` tvs 
+                            -> Left (RecParShadowsTyVar, [(srcObj, p)])
+        TRecord _ fs _      -> allEither $ map (\(_,(x,_)) -> ns tvs x) fs
+        TFun t1 t2  -> do
+          ns tvs t1
+          ns tvs t2
+        TVariant ts -> 
+          allEither $ map (\(ts', _) -> (allEither $ map (\t -> ns tvs t) ts')) $ M.elems ts
+        TTuple   ts -> allEither $ map (ns tvs) ts
+        TCon n ts s     ->
+          allEither $ map (ns tvs) ts
+#ifdef BUILTIN_ARRAYS
+        TArray t e  -> ns tvs t
+#endif
+        TUnbox t    -> ns tvs t
+        TBang t     -> ns tvs t
+        TTake fs t  -> ns tvs t
+        TPut fs t   -> ns tvs t
+        t           -> Right ()
+
+-- Checks that all types are strictly positive
+checkStrictlyPositive :: [TopLevel LocType LocPatn LocExpr]
+                      -> Either (ReorganizeError, [(SourceObject, SourcePos)]) ()
+checkStrictlyPositive []     = Right ()
+checkStrictlyPositive (t:ts) = do
+  check t
+  checkStrictlyPositive ts
+  where
+    check x = 
+      case x of 
+        TypeDec _ _ t       -> sp S.empty S.empty t 
+        FunDef _ (PT _ t) y -> sp S.empty S.empty t
+        tl                  -> Right ()
+
+    srcObj = sourceObject t
+
+    sp :: S.Set Syn.RecParName 
+        -> S.Set Syn.RecParName
+        -> LocType -> Either (ReorganizeError, [(SourceObject, SourcePos)]) ()
+    sp s b (LocType p ty) = 
+      case ty of
+        -- If we find a recursive parameter in our 'negative' set, error
+        TRPar v _       -> if v `S.member` s then Left (NonStrictlyPositive, [(srcObj, p)]) else Right ()
+        TRecord rp fs _ -> 
+          let b' = (case rp of Rec v -> S.insert v b; _ -> b) in
+            allEither $ map (\(_,(x,_)) -> sp s b' x) fs
+        TFun t1 t2      -> do
+          sp (s `S.union` b) b t1
+          sp s b t2
+        TVariant ts     -> 
+          allEither $ map (\(ts', _) -> (allEither $ map (\t -> sp s b t) ts')) $ M.elems ts
+        TTuple ts       ->
+          (allEither . map (sp s b)) ts
+        TCon _ ts _     ->
+          (allEither . map (sp s b)) ts
+
+#ifdef BUILTIN_ARRAYS
+        TArray t e      -> sp s b t
+#endif
+        TUnbox  t       -> sp s b t
+        TBang   t       -> sp s b t
+        TTake _ t       -> sp s b t
+        TPut  _ t       -> sp s b t
+        _               -> Right ()
+
+
+
+
+          
 
 -- Note: it doesn't make much sense to check for unused definitions as they may be used
 -- by the FFI. / zilinc
 reorganize :: Maybe [String]
            -> [(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)]
            -> Either (ReorganizeError, [(SourceObject, SourcePos)]) [(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)]
-reorganize mes bs = do let m = classify bs
-                           cs = G.stronglyConnectedComponents $ case mes of
-                                   Nothing -> dependencyGraph_ m
-                                   Just es -> dependencyGraph (map parseSourceObject es) m
-                       checkNoNameClashes (map (second fst3) m) M.empty
-                       -- FIXME: it might be good to preserve the original order as much as possible
-                       -- see file `tests/pass_wf-take-put-tc-2.cogent` as a bad-ish example / zilinc
+reorganize mes bs = do 
+                let m = classify bs
+                    cs = G.stronglyConnectedComponents $ case mes of
+                            Nothing -> dependencyGraph_ m
+                            Just es -> dependencyGraph (map parseSourceObject es) m
+                    rs = embedRecPars bs
+                checkNoNameClashes (map (second fst3) m) M.empty
+                -- FIXME: it might be good to preserve the original order as much as possible
+                -- see file `tests/pass_wf-take-put-tc-2.cogent` as a bad-ish example / zilinc
 
-                       -- TODO: Strictly positive check and recPar embedding
+                -- TODO: Strictly positive check and recPar embedding
 
-                       forM cs $ \case
-                         G.AcyclicSCC i -> Right $ case lookup i m of
-                                                     Nothing -> __impossible $ "reorganize: " ++ show i
-                                                     Just x  -> x
-                         G.CyclicSCC is -> Left  $ (CyclicDependency, map (id &&& getSourcePos m) is)
+                cs' <- forM cs $ \case
+                          G.AcyclicSCC i -> Right $ case lookup i m of
+                                                      Nothing -> __impossible $ "reorganize: " ++ show i
+                                                      Just x  -> x
+                          G.CyclicSCC is -> Left  $ (CyclicDependency, map (id &&& getSourcePos m) is)
+
+                -- Check recursive parameters are used correctly
+                let rs = embedRecPars cs'
+                checkNoShadowing      (map thd rs)
+                checkStrictlyPositive (map thd rs)
+
+                return rs
+                        
   where getSourcePos m i | Just (p,_,_) <- lookup i m = p
                          | otherwise = __impossible "getSourcePos (in reorganize)"
         -- FIXME: proper parsing / zilinc
         parseSourceObject :: String -> SourceObject
         parseSourceObject (c:cs) | isUpper c = TypeName (c:cs)
                                  | otherwise = ValName  (c:cs)
+        thd (_,_,x) = x
 
