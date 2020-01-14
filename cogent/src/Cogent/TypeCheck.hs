@@ -22,11 +22,12 @@ module Cogent.TypeCheck (
 , typecheck
 ) where
 
+import Cogent.Common.Types (k2)
 import Cogent.Compiler
 import qualified Cogent.Context as C
+import Cogent.Dargent.TypeCheck
 import Cogent.PrettyPrint (prettyC)
 import Cogent.Surface
-import Cogent.TypeCheck.Assignment (assignT, assignE, assignAlts)
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Errors
 import Cogent.TypeCheck.Generator
@@ -58,18 +59,18 @@ import Lens.Micro.Mtl
 
 tc :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
    -> [(LocType, String)]
-   -> IO ((Maybe ([TopLevel RawType TypedPatn TypedExpr], [(RawType, String)]), TcLogState), TcState)
+   -> IO ((Maybe ([TopLevel DepType TypedPatn TypedExpr], [(DepType, String)]), TcLogState), TcState)
 tc ds cts = runTc (TcState M.empty knownTypes M.empty M.empty) ((,) <$> typecheck ds <*> typecheckCustTyGen cts)
   where
     knownTypes = map (, ([], Nothing)) $ words "U8 U16 U32 U64 String Bool"
 
 typecheck :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
-          -> TcM [TopLevel RawType TypedPatn TypedExpr]
+          -> TcM [TopLevel DepType TypedPatn TypedExpr]
 typecheck = mapM (uncurry checkOne)
 
 -- TODO: Check for prior definition
 checkOne :: SourcePos -> TopLevel LocType LocPatn LocExpr
-         -> TcM (TopLevel RawType TypedPatn TypedExpr)
+         -> TcM (TopLevel DepType TypedPatn TypedExpr)
 checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
   (Include _) -> __impossible "checkOne"
   (IncludeStd _) -> __impossible "checkOne"
@@ -77,7 +78,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
   (TypeDec n vs (stripLocT -> t)) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
     traceTc "tc" (text "typecheck type definition" <+> pretty n)
-    let xs = ps \\ nub vs
+    let xs = vs \\ nub vs
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
     base <- lift . lift $ use knownConsts
     let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
@@ -98,17 +99,17 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
   (AbsTypeDec n vs (map stripLocT -> ts)) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
     traceTc "tc" (text "typecheck abstract type definition" <+> pretty n)
-    let xs = ps \\ nub ps
+    let xs = vs \\ nub vs
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
-    base <- lift . lift $ use knowConsts
+    base <- lift . lift $ use knownConsts
     let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
-    (blob, flx, os) <- runCG ctx vs $ mapM validateType t
+    (blob, flx, os) <- runCG ctx vs $ mapM validateType ts
     let (cts,ts') = unzip blob
     traceTc "tc" (text "constraint for abstract type decl" <+> pretty n <+> text "is"
-                  L.<$> prettyC cts)
+                  L.<$> prettyC (mconcat cts))
     let ps = zip vs (repeat k2)
-    (gs, subst) <- runSolver (solve vs $ cts) flx
+    (gs, subst) <- runSolver (solve ps $ mconcat cts) flx
     traceTc "tc" (text "substs for abstract type decl" <+> pretty n <+> text "is"
                   L.<$> pretty subst)
     exitOnErr $ toErrors os gs
@@ -158,6 +159,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     traceTc "tc" (text "typecheck const definition" <+> pretty n)
     base <- lift . lift $ use knownConsts
     let ctx = C.addScope (fmap (\(t,_,p) -> (t,p, Seq.singleton p)) base) C.empty  -- for consts, the definition is the first use
+    let ?loc = loc
     (((ct,t'),(c,e')), flx, os) <- runCG ctx []
                                       (do x@(ct,t') <- validateType t
                                           y <- cg e t'
@@ -166,16 +168,13 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     traceTc "tc" (text "constraint for const definition" <+> pretty n <+> text "is"
                   L.<$> prettyC c')
     (gs, subst) <- runSolver (solve [] c') flx
-    exitOnErr $ toErrors os cg
-    let assn = mempty
+    exitOnErr $ toErrors os gs
     -- mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx >>= \c' -> return (c++c',l))) logs
     traceTc "tc" (text "substs for const definition" <+> pretty n <+> text "is"
-                  L.<$> pretty subst
-                  L.<$> text "assigns for const definition" <+> pretty n <+> text "is"
-                  L.<$> pretty assn)
-    let t'' = assignT assn $ apply subst t'
+                  L.<$> pretty subst)
+    let t'' = apply subst t'
     lift . lift $ knownConsts %= M.insert n (t'', e', loc)
-    e'' <- postE $ applyE subst $ assignE assn e'
+    e'' <- postE $ applyE subst e'
     t''' <- postT t''
     return (ConstDef n t''' e'')
 
@@ -211,17 +210,17 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
 -- ----------------------------------------------------------------------------
 -- custTyGen
 
-typecheckCustTyGen :: [(LocType, String)] -> TcM [(RawType, String)]
+typecheckCustTyGen :: [(LocType, String)] -> TcM [(DepType, String)]
 typecheckCustTyGen = mapM . firstM $ \t -> do
+  let ?loc = posOfT t
   let t' = stripLocT t
   lift $ errCtx .= [CustomisedCodeGen t]
   if not (isMonoType t')
-    then logErrExit (CustTyGenIsPolymorphic $ toTCType t')
+    then logErrExit (CustTyGenIsPolymorphic t)
     else lift (lift $ isSynonym t') >>= \case
-           True -> logErrExit (CustTyGenIsSynonym $ toTCType t')
+           True -> logErrExit (CustTyGenIsSynonym t)
            _    -> do base <- lift . lift $ use knownConsts
                       let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
-                      let ?loc = loc
                       ((ct,t''), flx, os) <- runCG ctx [] $ validateType t'
                       (gs, subst) <- runSolver (solve [] $ ct) flx
                       exitOnErr $ toErrors os gs

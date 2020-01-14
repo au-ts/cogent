@@ -51,7 +51,7 @@ import Data.Maybe (catMaybes, isNothing, isJust)
 import Data.Monoid ((<>))
 import qualified Data.Sequence as Seq
 import Text.Parsec.Pos
-import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
+import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>), bool)
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 import Lens.Micro.TH
 import Lens.Micro
@@ -78,7 +78,8 @@ runCG g vs ma = do
 -- Type-level constraints
 -- -----------------------------------------------------------------------------
 
-validateType :: RawType -> CG (Constraint, TCType)
+-- TODO: we don't yet check the expressions in these types / zilinc
+validateType :: (?loc :: SourcePos) => RawType -> CG (Constraint, TCType)
 validateType (RT t) = do
   vs <- use knownTypeVars
   ts <- lift $ use knownTypes
@@ -101,7 +102,7 @@ validateType (RT t) = do
                           Boxed _ (Just dlexpr)
                             | Left (anError : _) <- runExcept $ tcDataLayoutExpr layouts dlexpr  -- layout is bad
                             -> freshTVar >>= \t' -> return (Unsat $ DataLayoutError anError, t')
-                          _ -> fmapFoldM validateType t  -- layout is good, or no layout
+                          _ -> __todo "validateType"  -- layout is good, or no layout
                         else freshTVar >>= \t' -> return (Unsat $ DuplicateRecordFields (fields \\ fields'), t')
     TVariant fs  -> do let tuplize [] = T TUnit
                            tuplize [x] = x
@@ -110,28 +111,28 @@ validateType (RT t) = do
                        pure (c, V (Row.fromMap (fmap (first tuplize) fs')))
 #ifdef BUILTIN_ARRAYS
     TArray te l s tkns -> do
-      x <- freshEVar (T (TCon "U32" [] Unboxed))
+      x <- freshEVar (T u32)
       (ctkn,mhole) <- case tkns of
                         [] -> return (Sat, Nothing)
-                        [(i,True)] -> freshEVar (T (TCon "U32" [] Unboxed)) >>= \y -> return (Sat, Just y)
+                        [(i,True)] -> freshEVar (T u32) >>= \y -> return (Sat, Just y)
                         _  -> return (Unsat $ OtherTypeError "taking more than one element from arrays not supported", Nothing)
-      let cl = Arith (SE $ PrimOp ">" [x, SE $ IntLit 0])
+      let cl = Arith (SE (T bool) (PrimOp ">" [x, SE (T u32) (IntLit 0) ?loc]) ?loc)
       (c,te') <- validateType te
       return (c <> ctkn <> cl, A te' x (Left s) mhole)
 #endif
     TLayout l t -> do
-      _ <- case runExcept $ tcDataLayoutExpr layouts l of
-        Left (e:_) -> throwE $ DataLayoutError e
-        Right _    -> return ()
+      let cl = case runExcept $ tcDataLayoutExpr layouts l of
+                 Left (e:_) -> Unsat $ DataLayoutError e
+                 Right _    -> Sat
       (ct,t') <- validateType t
-      pure (ct, T $ TLayout l t')
-    _ -> __fixme $ fmapFoldM validateType t
+      pure (cl <> ct, T $ TLayout l t')
+    _ -> __todo "validateType" -- fmapFoldM validateType t
     -- With (TCon _ _ l), and (TRecord _ l), must check l == Nothing iff it is contained in a TUnbox.
     -- This can't be done in the current setup because validateType' has no context for the type it is validating.
     -- Not implementing this now, because a new syntax for types is needed anyway, which may make this issue redundant.
     -- /mdimeglio
 
-validateTypes :: (Traversable t) => t RawType -> CG (Constraint, t TCType)
+validateTypes :: (?loc :: SourcePos, Traversable t) => t RawType -> CG (Constraint, t TCType)
 validateTypes = fmapFoldM validateType
 
 -- -----------------------------------------------------------------------------
@@ -199,12 +200,12 @@ cg' (PrimOp o [e1, e2]) t
   | o `elem` words "&& ||"
   = do (c1, e1') <- cg e1 t
        (c2, e2') <- cg e2 t
-       return (T (TCon "Bool" [] Unboxed) :=: t <> c1 <> c2, PrimOp o [e1', e2'] )
+       return (T bool :=: t <> c1 <> c2, PrimOp o [e1', e2'] )
   | o `elem` words "== /= >= <= > <"
   = do alpha <- freshTVar
        (c1, e1') <- cg e1 alpha
        (c2, e2') <- cg e2 alpha
-       let c  = T (TCon "Bool" [] Unboxed) :=: t
+       let c  = T bool :=: t
            c' = integral alpha
        return (c <> c' <> c1 <> c2, PrimOp o [e1', e2'] )
 cg' (PrimOp o [e]) t
@@ -213,7 +214,7 @@ cg' (PrimOp o [e]) t
       return (integral t :& c, PrimOp o [e'])
   | o == "not"         = do
       (c, e') <- cg e t
-      return (T (TCon "Bool" [] Unboxed) :=: t :& c, PrimOp o [e'])
+      return (T bool :=: t :& c, PrimOp o [e'])
 cg' (PrimOp _ _) _ = __impossible "cg': unimplemented primops"
 cg' (Var n) t = do
   let e = Var n  -- it has a different type than the above `Var n' pattern
@@ -248,12 +249,12 @@ cg' (Upcast e) t = do
   return (c, Upcast e1')
 
 cg' (BoolLit b) t = do
-  let c = T (TCon "Bool" [] Unboxed) :=: t
+  let c = T bool :=: t
       e = BoolLit b
   return (c,e)
 
 cg' (CharLit l) t = do
-  let c = T (TCon "U8" [] Unboxed) :=: t
+  let c = T u8 :=: t
       e = CharLit l
   return (c,e)
 
@@ -281,24 +282,24 @@ cg' (ArrayLit es) t = do
   alpha <- freshTVar
   blob <- forM es $ flip cg alpha
   let (cs,es') = unzip blob
-      n = SE . IntLit . fromIntegral $ length es
-      cz = Arith (SE $ PrimOp ">" [n, SE (IntLit 0)])
+      n = SE (T u32) (IntLit . fromIntegral $ length es) ?loc
+      cz = Arith (SE (T bool) (PrimOp ">" [n, SE (T u32) (IntLit 0) ?loc]) ?loc)
   beta <- freshVar
   return (mconcat cs <> cz <> (A alpha n (Left Unboxed) Nothing) :< t, ArrayLit es')
 
 cg' (ArrayIndex e i) t = do
   alpha <- freshTVar
-  n <- freshEVar (T (TCon "U32" [] Unboxed))
+  n <- freshEVar (T u32)
   r <- freshVar
   s <- freshVar
-  idx <- freshEVar (T (TCon "U32" [] Unboxed))
+  idx <- freshEVar (T u32)
   let ta = A alpha n (Right s) (Just idx)  -- FIXME: we need to create a new TCType for arrays / zilinc
   (ce, e') <- cg e ta
-  (ci, i') <- cg i (T $ TCon "U32" [] Unboxed)
+  (ci, i') <- cg i (T u32)
   let c = alpha :< t
         <> Share ta UsedInArrayIndexing
-        <> Arith (SE (PrimOp "<" [toSExpr $ stripLocE i, n]))  -- FIXME!
-        <> Arith (SE (PrimOp "/=" [toSExpr $ stripLocE i, idx]))
+        <> Arith (SE (T bool) (PrimOp "<"  [toTCSExpr i', n  ]) ?loc)  -- FIXME!
+        <> Arith (SE (T bool) (PrimOp "/=" [toTCSExpr i', idx]) ?loc)
         -- <> Arith (SE (PrimOp ">=" [toSExpr i, SE (IntLit 0)]))  -- as we don't have negative values
   traceTc "gen" (text "array indexing" <> colon
                  L.<$> text "index is" <+> pretty (stripLocE i) <> semi
@@ -311,8 +312,8 @@ cg' (ArrayMap2 ((p1,p2), fbody) (arr1,arr2)) t = __fixme $ do  -- FIXME: more ac
   alpha2 <- freshTVar
   x1 <- freshVar
   x2 <- freshVar
-  len1 <- freshEVar (T (TCon "U32" [] Unboxed))
-  len2 <- freshEVar (T (TCon "U32" [] Unboxed))
+  len1 <- freshEVar (T u32)
+  len2 <- freshEVar (T u32)
   (s1,cp1,p1') <- match p1 alpha1
   (s2,cp2,p2') <- match p2 alpha2
   context %= C.addScope (s1 `M.union` s2)  -- domains of s1 and s2 don't overlap
@@ -332,27 +333,26 @@ cg' (ArrayMap2 ((p1,p2), fbody) (arr1,arr2)) t = __fixme $ do  -- FIXME: more ac
 cg' (ArrayPut arr [(idx,v)]) t = do
   alpha <- freshTVar  -- the element type
   sigma <- freshTVar  -- the original array type
-  l <- freshEVar (T (TCon "U32" [] Unboxed))  -- the length of the array
+  l <- freshEVar (T u32)  -- the length of the array
   s <- freshVar   -- the unifier for the sigil
   (carr,arr') <- cg arr sigma
-  (cidx,idx') <- cg idx $ T (TCon "U32" [] Unboxed)
+  (cidx,idx') <- cg idx $ T u32
   (cv,v') <- cg v alpha
-  let idx'' = tcToSExpr idx'
-      c = [ A alpha l (Right s) Nothing :< t
-          , sigma :< A alpha l (Right s) (Just idx'')
+  let c = [ A alpha l (Right s) Nothing :< t
+          , sigma :< A alpha l (Right s) (Just $ toTCSExpr idx')
           , carr, cidx, cv
-          -- , Arith (SE $ PrimOp ">=" [idx'', SE (IntLit 0)])  -- FIXME: we don't check for bounds for now / zilinc
-          -- , Arith (SE $ PrimOp "<" [idx'', l])
+          -- , Arith (SE $ PrimOp ">=" [idx', SE (IntLit 0)])  -- FIXME: we don't check for bounds for now / zilinc
+          -- , Arith (SE $ PrimOp "<" [idx', l])
           ]
   return (mconcat c, ArrayPut arr' [(idx',v')])
 cg' (ArrayPut arr ivs) t = do
   alpha <- freshTVar  -- the elemenet type
   sigma <- freshTVar  -- the original array type
-  l <- freshEVar (T (TCon "U32" [] Unboxed))  -- the length of the array
+  l <- freshEVar (T u32)  -- the length of the array
   s <- freshVar  -- sigil
   (carr,arr') <- cg arr sigma
   let (idxs,vs) = unzip ivs
-  blob1 <- forM idxs $ \idx -> cg idx (T $ TCon "U32" [] Unboxed)
+  blob1 <- forM idxs $ \idx -> cg idx (T u32)
   blob2 <- forM vs $ \v -> cg v alpha
   let c = [ A alpha l (Right s) Nothing :< t
           , sigma :< A alpha l (Right s) Nothing
@@ -369,11 +369,10 @@ cg' exp@(Lam pat mt e) t = do
     Nothing -> return (Sat, alpha)
     Just t' -> do
       tvs <- use knownTypeVars
-      lift (runExceptT $ validateType' tvs (stripLocT t')) >>= \case
-        Left  e   -> return (Unsat e, alpha)
-        Right t'' -> return (alpha :< t'', t'')
+      (ct',t'') <- validateType (stripLocT t')
+      return (ct' <> alpha :< t'', t'')
   (s, cp, pat') <- match pat alpha'
-  let fvs = fvE $ stripLocE (LocExpr noPos $ Lam pat mt e)
+  let fvs = fvE $ stripLocE (LocExpr ?loc $ Lam pat mt e)
   ctx <- use context
   let fvs' = filter (C.contains ctx) fvs  -- including (bad) vars that are not in scope
   context %= C.addScope s
@@ -424,8 +423,8 @@ cg' (Con k [e]) t =  do
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c)
   return (c' <> c, e)
-cg' (Con k []) t = cg' (Con k [LocExpr noPos $ Unitel]) t
-cg' (Con k es) t = cg' (Con k [LocExpr noPos $ Tuple es]) t
+cg' (Con k []) t = cg' (Con k [LocExpr ?loc $ Unitel]) t
+cg' (Con k es) t = cg' (Con k [LocExpr ?loc $ Tuple es]) t
 cg' (Tuple es) t = do
   (ts, c', es') <- cgMany es
 
@@ -502,15 +501,15 @@ cg' (Member e f) t =  do
 -- FIXME: This is very hacky. But since we don't yet have implications in our
 -- constraint system, ... / zilinc
 cg' (If e1 bs e2 e3) t = do
-  (c1, e1') <- letBang bs (cg e1) (T (TCon "Bool" [] Unboxed))
+  (c1, e1') <- letBang bs (cg e1) (T bool)
   (c, [(c2, e2'), (c3, e3')]) <- parallel' [(ThenBranch, cg e2 t), (ElseBranch, cg e3 t)]
   let e = If e1' bs e2' e3'
 #ifdef BUILTIN_ARRAYS
       ((c2',cc2),(c3',cc3)) = if arithTCExpr e1' then
         let (ca2,cc2) = splitArithConstraints c2
             (ca3,cc3) = splitArithConstraints c3
-            c2' = Arith (SE $ PrimOp "||" [SE $ PrimOp "not" [tcToSExpr e1'], andSExprs ca2])
-            c3' = Arith (SE $ PrimOp "||" [tcToSExpr e1', andSExprs ca3])
+            c2' = Arith (SE (T bool) (PrimOp "||" [SE (T bool) (PrimOp "not" [toTCSExpr e1']) ?loc, andTCSExprs ca2]) ?loc)
+            c3' = Arith (SE (T bool) (PrimOp "||" [toTCSExpr e1', andTCSExprs ca3]) ?loc)
          in ((c2',cc2),(c3',cc3))
       else ((c2,Sat),(c3,Sat))
 #else
@@ -520,7 +519,7 @@ cg' (If e1 bs e2 e3) t = do
   return (c1 <> c <> c2' <> c3' <> cc2 <> cc3, e)
 
 cg' (MultiWayIf es el) t = do
-  conditions <- forM es $ \(c,bs,_,_) -> letBang bs (cg c) (T (TCon "Bool" [] Unboxed))
+  conditions <- forM es $ \(c,bs,_,_) -> letBang bs (cg c) (T bool)
   let (cconds, conds') = unzip conditions
       ctxs = map NthBranch [1..length es] ++ [ElseBranch]
   (c,bodies) <- parallel' $ zip ctxs (map (\(_,_,_,e) -> cg e t) es ++ [cg el t])
@@ -566,9 +565,8 @@ cg' (Match e bs alts) t = do
 cg' (Annot e tau) t = do
   tvs <- use knownTypeVars
   let t' = stripLocT tau
-  (c, t'') <- lift (runExceptT $ validateType' tvs t') >>= \case
-    Left  e'' -> return (Unsat e'', t)
-    Right t'' -> return (t'' :< t, t'')
+  (c, t'') <- do (ct',t'') <- validateType t'
+                 return (ct' <> t'' :< t, t'')
   (c', e') <- cg e t''
   return (c <> c', Annot e' t'')
 
@@ -615,10 +613,10 @@ matchA' (PIntLit i) t = do
   return (M.empty, c, PIntLit i, t)
 
 matchA' (PBoolLit b) t =
-  return (M.empty, t :=: T (TCon "Bool" [] Unboxed), PBoolLit b, t)
+  return (M.empty, t :=: T bool, PBoolLit b, t)
 
 matchA' (PCharLit c) t =
-  return (M.empty, t :=: T (TCon "U8" [] Unboxed), PCharLit c, t)
+  return (M.empty, t :=: T u8, PCharLit c, t)
 
 match :: LocIrrefPatn -> TCType -> CG (M.Map VarName (C.Assumption TCType), Constraint, TCIrrefPatn)
 match x@(LocIrrefPatn l ip) t = do
@@ -705,22 +703,21 @@ match' (PArray ps) t = do
   blob  <- mapM (`match` alpha) ps
   r <- freshVar
   let (ss,cs,ps') = unzip3 blob
-      l = SE . IntLit . fromIntegral $ length ps
+      l = SE (T u32) (IntLit . fromIntegral $ length ps) ?loc
       c = t :< (A alpha l (__fixme $ Left Unboxed) Nothing)  -- FIXME: can be boxed as well / zilinc
   return (M.unions ss, mconcat cs <> c, PArray ps')
 
 match' (PArrayTake arr [(idx,p)]) t = do
   alpha <- freshTVar  -- array elmt type
-  len   <- freshEVar (T (TCon "U32" [] Unboxed))  -- array length
+  len   <- freshEVar (T u32)  -- array length
   sigil <- freshVar   -- sigil
-  (cidx,idx') <- cg idx $ T (TCon "U32" [] Unboxed)
+  (cidx,idx') <- cg idx $ T u32
   (sp,cp,p') <- match p alpha
-  let idx'' = tcToSExpr idx'
-      tarr = A alpha len (Right sigil) (Just idx'')  -- type of the newly introduced @arr'@ variable
+  let tarr = A alpha len (Right sigil) (Just $ toTCSExpr idx')  -- type of the newly introduced @arr'@ variable
       s = M.fromList [(arr, (tarr, ?loc, Seq.empty))]
       c = [ t :< A alpha len (Right sigil) Nothing
-          , Arith (SE $ PrimOp ">=" [idx'', SE (IntLit 0)])
-          , Arith (SE $ PrimOp "<" [idx'', len])
+          , Arith (SE (T bool) (PrimOp ">=" [toTCSExpr idx', SE (T u32) (IntLit 0) ?loc]) ?loc)
+          , Arith (SE (T bool) (PrimOp "<"  [toTCSExpr idx', len]) ?loc)
           ]
   return (s `M.union` sp, cp `mappend` mconcat c, PArrayTake (arr, tarr) [(idx',p')])
 
@@ -788,11 +785,8 @@ withBindings (Binding pat tau e0 bs : xs) e top = do
   (c0, e0') <- letBang bs (cg e0) alpha
   (ct, alpha') <- case tau of
     Nothing -> return (Sat, alpha)
-    Just tau' -> do
-      tvs <- use knownTypeVars
-      lift (runExceptT $ validateType' tvs (stripLocT tau')) >>= \case
-        Left  e -> return (Unsat e, alpha)
-        Right t -> return (alpha :< t, t)
+    Just tau' -> do (ctau',tau'') <- validateType (stripLocT tau')
+                    return (ctau' <> alpha :< tau'', tau'')
   (s, cp, pat') <- match pat alpha'
   context %= C.addScope s
   (c', xs', e') <- withBindings xs e top
@@ -816,9 +810,8 @@ withBindings (BindingAlts pat tau e0 bs alts : xs) e top = do
     Nothing -> return (Sat, alpha)
     Just tau' -> do
       tvs <- use knownTypeVars
-      lift (runExceptT $ validateType' tvs (stripLocT tau')) >>= \case
-        Left  e -> return (Unsat e, alpha)
-        Right t -> return (alpha :< t, t)
+      (ctau,tau'') <- validateType (stripLocT tau')
+      return (ctau <> alpha :< tau'', tau'')
   (calts, alts') <- cgAlts (Alt pat Regular (LocExpr (posOfE e) (Let xs e)) : alts) top alpha'
   let c = c0 <> ct <> calts
       (Alt pat' _ (TE _ (Let xs' e') _)) : altss' = alts'

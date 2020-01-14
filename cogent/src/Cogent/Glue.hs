@@ -46,9 +46,9 @@ import qualified Cogent.Mono      as MN
 import qualified Cogent.Parser    as PS
 import           Cogent.PrettyPrint
 import qualified Cogent.Surface   as SF
-import qualified Cogent.TypeCheck.Assignment as TC
 import qualified Cogent.TypeCheck.Base       as TC
-import qualified Cogent.TypeCheck.Generator  as TC hiding (validateType)
+import qualified Cogent.TypeCheck.Errors     as TC
+import qualified Cogent.TypeCheck.Generator  as TC
 import qualified Cogent.TypeCheck.Post       as TC
 import qualified Cogent.TypeCheck.Solver     as TC
 import qualified Cogent.TypeCheck.Subst      as TC
@@ -159,7 +159,7 @@ data CgState = CgState { _cTypeDefs    :: [(CG.StrlType, CG.CId)]
                        , _globalOracle :: Integer
                        }
 
-data GlState = GlState { _tcDefs   :: [SF.TopLevel SF.RawType TC.TypedPatn TC.TypedExpr]
+data GlState = GlState { _tcDefs   :: [SF.TopLevel TC.DepType TC.TypedPatn TC.TypedExpr]
                        , _tcState  :: TcState
                        , _dsState  :: DsState
                        , _coreTcState  :: CoreTcState
@@ -271,14 +271,20 @@ parseType :: String -> SrcLoc -> GlFile SF.LocType
 parseType s loc = parseAnti s PS.monotype loc 4
 
 
-tcType :: SF.LocType -> GlDefn t SF.RawType
+tcType :: SF.LocType -> GlDefn t TC.DepType
 tcType t = do
+  let ?loc = SF.posOfT t
   tvs <- L.map fst <$> (Vec.cvtToList <$> view kenv)
   flip tcAnti t $ \t -> do TC.errCtx %= (TC.AntiquotedType t :)
-                           t' <- TC.validateType tvs $ SF.stripLocT t
-                           TC.postT t'
+                           base <- lift . lift $ use TC.knownConsts
+                           let ctx = Ctx.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) Ctx.empty
+                           ((ct,t'), flx, os) <- TC.runCG ctx tvs $ TC.validateType $ SF.stripLocT t
+                           (gs, subst) <- TC.runSolver (TC.solve (L.zip tvs $ repeat k2) $ ct) flx 
+                           TC.exitOnErr $ TC.toErrors os gs
+                           let t'' = TC.apply subst t'
+                           TC.postT t''
 
-desugarType :: SF.RawType -> GlDefn t (CC.Type t VarName)
+desugarType :: TC.DepType -> GlDefn t (CC.Type t VarName)
 desugarType = desugarAnti DS.desugarType
 
 monoType :: CC.Type t VarName -> GlMono t (CC.Type 'Zero VarName)
@@ -369,9 +375,8 @@ tcExp e mt = do
        ((c,e'),flx,os) <- TC.runCG ctx (L.map fst vs) (TC.cg e =<< maybe TC.freshTVar return mt)
        (cs, subst) <- TC.runSolver (TC.solve vs c) flx
        TC.exitOnErr $ TC.toErrors os cs
-       let assign = mempty
        -- TC.exitOnErr $ mapM_ TC.logTc logs
-       TC.postE $ TC.applyE subst $ TC.assignE assign e'
+       TC.postE $ TC.applyE subst e'
 
 desugarExp :: TC.TypedExpr -> GlDefn t (CC.UntypedExpr t 'Zero VarName VarName)
 desugarExp = desugarAnti DS.desugarExpr
@@ -632,7 +637,7 @@ glue s typnames mode filenames = liftA (M.toList . M.fromListWith (flip (++)) . 
                   in return [ (replaceExtension ((replaceBaseName filename (takeBaseName filename ++ __cogent_suffix_of_inferred))) ext
                             , L.map fst ds') ]
 
-mkGlState :: [SF.TopLevel SF.RawType TC.TypedPatn TC.TypedExpr]
+mkGlState :: [SF.TopLevel TC.DepType TC.TypedPatn TC.TypedExpr]
           -> TC.TcState
           -> Last (DS.Typedefs, DS.Constants, [CC.CoreConst CC.UntypedExpr])
           -> M.Map FunName (CC.FunctionType VarName)
@@ -665,7 +670,7 @@ mkGlState _ _ _ _ _ _ = __impossible "mkGlState"
 
 -- Misc.
 
-tyVars :: SF.TopLevel SF.RawType pv e -> [(TyVarName, Kind)]
+tyVars :: SF.TopLevel TC.DepType pv e -> [(TyVarName, Kind)]
 tyVars (SF.FunDef _ (SF.PT ts _) _) = ts
 tyVars (SF.AbsDec _ (SF.PT ts _)  ) = ts
 tyVars (SF.TypeDec    _ ts _) = L.zip ts $ repeat k2
@@ -721,7 +726,7 @@ collectAll = mapM_ collectOne
 --
 -- A simpler compilation process for the @--entry-funcs@ file.
 
-readEntryFuncs :: [SF.TopLevel SF.RawType TC.TypedPatn TC.TypedExpr]
+readEntryFuncs :: [SF.TopLevel TC.DepType TC.TypedPatn TC.TypedExpr]
                -> TC.TcState
                -> Last (DS.Typedefs, DS.Constants, [CC.CoreConst CC.UntypedExpr])
                -> M.Map FunName (CC.FunctionType VarName)

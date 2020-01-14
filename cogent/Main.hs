@@ -878,10 +878,8 @@ parseArgs args = case getOpt' Permute options args of
         earlyExit :: Bool -> IO ()
         earlyExit x = if x then return () else exitFailure
 
-    -- genAst :: Stage -> [Definition TypedExpr VarName] -> IO ()
     genAst stg defns = lessPretty stdout defns >> exitSuccess
 
-    -- genPretty :: Stage -> [Definition TypedExpr VarName] -> IO ()
     genPretty stg defns = pretty stdout defns >> exitSuccess
 
     genDeep cmds source stg defns typedefs fts log = do

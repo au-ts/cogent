@@ -134,7 +134,13 @@ data Type e t =
               | TTake (Maybe [FieldName]) t
               | TPut  (Maybe [FieldName]) t
               | TLayout DataLayoutExpr t
-              deriving (Show, Functor, Data, Eq, Foldable, Traversable, Ord)
+              deriving (Show, Functor, Data, Eq, Ord, Foldable, Traversable)
+
+-- A few commonly used typed
+u8   = TCon "U8"   [] Unboxed
+u32  = TCon "U32"  [] Unboxed
+bool = TCon "Bool" [] Unboxed
+
 
 data Polytype t = PT [(TyVarName, Kind)] t deriving (Data, Eq, Show, Functor, Foldable, Traversable, Ord)
 
@@ -161,14 +167,14 @@ absTyDeclId _ _ = False
 
 
 data LocExpr = LocExpr { posOfE :: SourcePos, exprOfLE :: Expr LocType LocPatn LocIrrefPatn LocExpr }
-             deriving (Data, Eq, Show)
+             deriving (Data, Eq, Ord, Show)
 data LocPatn = LocPatn { posOfP :: SourcePos, patnOfLP :: Pattern LocIrrefPatn }
-             deriving (Data, Eq, Show)
+             deriving (Data, Eq, Ord, Show)
 data LocIrrefPatn = LocIrrefPatn { posOfIP :: SourcePos, irpatnOfLIP :: IrrefutablePattern VarName LocIrrefPatn LocExpr }
-                  deriving (Data, Eq, Show)
+                  deriving (Data, Eq, Ord, Show)
 data LocType = LocType { posOfT :: SourcePos, typeOfLT' :: Type LocExpr LocType }
              | Documentation String LocType
-             deriving (Data, Eq, Show)
+             deriving (Data, Eq, Ord, Show)
 
 typeOfLT (LocType _ t) = t
 typeOfLT (Documentation s t) = typeOfLT t
