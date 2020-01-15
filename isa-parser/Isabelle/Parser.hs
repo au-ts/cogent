@@ -607,6 +607,26 @@ termL = buildExpressionParser table restL
     restL =  antiquoteTermL <||> parensTermL <||> constTermL <||> (TermIdent <$> innerIdentL) <||> caseOfTermL <||> recordUpdTermL
     parensTermL = parensL termL
 
+recordUpdTermL :: ParserM Term 
+recordUpdTermL = do { stringL "\\<lparr>"
+                    ; upds <- sepBy1 (try updTermL) (stringL ",")
+                    ; stringL "\\<rparr>"
+                    ; return $ RecordUpd upds }
+
+updTermL :: ParserM (Term, Term)
+updTermL = do { term1 <- fieldL
+              ; stringL ":="
+              ; term2 <- termL
+              ; return (AntiTerm term1, term2) }
+
+fieldL :: ParserM String 
+fieldL = notReservedLexeme fieldS 
+
+fieldS :: ParserM String 
+fieldS = letterS <++> manyP fieldLetters
+    where 
+      fieldLetters = ((letterS <||> digitS <||> charString '_') <||> charString '\'' <||> charString '.') <?> "quasi-letter"
+
 caseOfTermL :: ParserM Term
 caseOfTermL = do { stringL "case"
                  ; term <- termL
