@@ -640,19 +640,6 @@ altTermL = do { term1 <- termL
               ; term2 <- termL
               ; return (term1, term2) }
 
-recordUpdTermL :: ParserM Term 
-recordUpdTermL = do { term <- termL
-                    ; stringL "\\<lparr>"
-                    ; upds <- sepBy1 (try updTermL) (stringL ",")
-                    ; stringL "\\<rparr>"
-                    ; return $ RecordUpd term upds }
-
-updTermL :: ParserM (Term, Term)
-updTermL = do { term1 <- termL 
-              ; stringL ":="
-              ; term2 <- termL 
-              ; return (term1, term2) }
-
 innerIdentL :: ParserM Ident
 innerIdentL = (Id <$> identL) <||> wildcardL <||> parensL typedIdentL
 
