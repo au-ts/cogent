@@ -161,9 +161,9 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let ctx = C.addScope (fmap (\(t,_,p) -> (t,p, Seq.singleton p)) base) C.empty  -- for consts, the definition is the first use
     let ?loc = loc
     (((ct,t'),(c,e')), flx, os) <- runCG ctx []
-                                      (do x@(ct,t') <- validateType t
-                                          y <- cg e t'
-                                          pure (x,y))
+                                     (do x@(ct,t') <- validateType t
+                                         y <- cg e t'
+                                         pure (x,y))
     let c' = ct <> c <> Share t' (Constant n)
     traceTc "tc" (text "constraint for const definition" <+> pretty n <+> text "is"
                   L.<$> prettyC c')
@@ -191,9 +191,9 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
     (((ct,t'),(c,alts')), flx, os) <- runCG ctx (map fst vs)
-             (do x@(ct,t') <- validateType t
-                 y <- cgFunDef alts t'
-                 pure (x,y))
+                                        (do x@(ct,t') <- validateType t
+                                            y <- cgFunDef alts t'
+                                            pure (x,y))
     traceTc "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
                   L.<$> prettyC c)
     (gs, subst) <- runSolver (solve vs $ ct <> c) flx
