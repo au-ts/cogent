@@ -321,6 +321,7 @@ instance Traversable (Flip2 Type t l) where  -- e
   traverse _ (Flip2 (TTake fs t))         = pure $ Flip2 (TTake fs t)
   traverse _ (Flip2 (TPut  fs t))         = pure $ Flip2 (TPut  fs t)
   traverse _ (Flip2 (TLayout l t))        = pure $ Flip2 (TLayout l t)
+  traverse _ (Flip2 (TRPar v env))        = pure $ Flip2 (TRPar v env)
 
 instance Traversable (Flip (TopLevel t) e) where  -- p
   traverse _ (Flip (Include s))           = pure $ Flip (Include s)

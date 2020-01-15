@@ -459,6 +459,7 @@ typeA2' = avoidInitial >>
   where
     unbox = avoidInitial >> reservedOp "#" >> return (\x -> LocType (posOfT x) (TUnbox x))
     bang  = avoidInitial >> reservedOp "!" >> return (\x -> LocType (posOfT x) (TBang x))
+ 
 
 atomtype = avoidInitial >> LocType <$> getPosition <*> (
       TVar <$> variableName <*> pure False <*> pure False
@@ -487,7 +488,7 @@ atomtype = avoidInitial >> LocType <$> getPosition <*> (
       tuple [e] = typeOfLT e
       tuple es  = TTuple es
 
-      recPar = Rec <$> (reserved "mu" *> variableName)
+      recPar = Rec <$> (reserved "rec" *> variableName)
            <|> return NonRec
 
 monotype = do avoidInitial
