@@ -356,6 +356,7 @@ instance Traversable (Flip Type t) where  -- e
   traverse _ (Flip (TBang t))            = pure $ Flip (TBang t)
   traverse _ (Flip (TTake fs t))         = pure $ Flip (TTake fs t)
   traverse _ (Flip (TPut  fs t))         = pure $ Flip (TPut  fs t)
+  traverse _ (Flip (TRPar v env))        = pure $ Flip (TRPar v env)
 
 instance Traversable (Flip (TopLevel t) e) where  -- p
   traverse _ (Flip (Include s))           = pure $ Flip (Include s)

@@ -62,7 +62,7 @@ language = haskellStyle
                                   "@","@@","->","=>","~>","<=","|","|>"]
            , T.reservedNames   = ["let","in","type","include","all","take","put","inline","upcast",
                                   "repr","variant","record","at","mu",
-                                  "if","then","else","not","complement","and","True","False","o"]
+                                  "if","then","else","not","complement","and","True","False","o", "rec"]
            , T.identStart = letter
            }
 
@@ -369,7 +369,7 @@ monotype = do avoidInitial
     tuple [e] = typeOfLT e
     tuple es  = TTuple es
 
-    recPar = Rec <$> (reserved "mu" *> variableName)
+    recPar = Rec <$> (reserved "rec" *> variableName)
          <|> return NonRec
 
 

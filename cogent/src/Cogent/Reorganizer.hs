@@ -155,7 +155,7 @@ embedRecPars = map (\(s,d,t) -> (s,d,check t))
     check (FunDef  n (PT tvs t) y) =
       FunDef n (PT tvs (embedRecPar t)) y
     -- TODO: Consts?
-    check t = t
+    check t = traceShow t t
 
 embedRecPar :: LocType -> LocType
 embedRecPar t = erp M.empty t
@@ -184,7 +184,7 @@ embedRecPar t = erp M.empty t
         TBang t     -> TBang (erp ctxt t)
         TTake fs t  -> TTake fs (erp ctxt t)
         TPut fs t   -> TPut fs (erp ctxt t)
-        t             -> t
+        t           -> t
 
 allEither :: [Either a ()] -> Either a ()
 allEither []             = Right ()
@@ -275,11 +275,6 @@ checkStrictlyPositive (t:ts) = do
         TPut  _ t       -> sp s b t
         _               -> Right ()
 
-
-
-
-          
-
 -- Note: it doesn't make much sense to check for unused definitions as they may be used
 -- by the FFI. / zilinc
 reorganize :: Maybe [String]
@@ -304,6 +299,7 @@ reorganize mes bs = do
                           G.CyclicSCC is -> Left  $ (CyclicDependency, map (id &&& getSourcePos m) is)
 
                 -- Check recursive parameters are used correctly
+
                 let rs = embedRecPars cs'
                 checkNoShadowing      (map thd rs)
                 checkStrictlyPositive (map thd rs)

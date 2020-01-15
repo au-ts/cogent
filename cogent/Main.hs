@@ -111,7 +111,6 @@ import Text.PrettyPrint.Mainland as M (ppr, hPutDoc, line, string, (</>))
 #endif
 import Text.Show.Pretty (ppShow)
 import Lens.Micro((^.))
--- import Debug.Trace
 
 -- Major modes of operation.
 data Mode = ModeAstC

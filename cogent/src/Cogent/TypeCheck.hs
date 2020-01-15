@@ -56,12 +56,14 @@ import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
 import Lens.Micro
 import Lens.Micro.Mtl
 
--- import Debug.Trace
+import Debug.Trace
 
 tc :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
    -> [(LocType, String)]
    -> IO ((Maybe ([TopLevel RawType TypedPatn TypedExpr], [(RawType, String)]), TcLogState), TcState)
-tc ds cts = runTc (TcState M.empty knownTypes M.empty M.empty) ((,) <$> typecheck ds <*> typecheckCustTyGen cts)
+tc ds cts =
+  traceShow (map snd ds) $
+    runTc (TcState M.empty knownTypes M.empty M.empty) ((,) <$> typecheck ds <*> typecheckCustTyGen cts)
   where 
     knownTypes = map (, ([], Nothing)) $ words "U8 U16 U32 U64 String Bool"
 

@@ -54,7 +54,7 @@ import qualified Text.PrettyPrint.ANSI.Leijen as L
 import Lens.Micro.TH
 import Lens.Micro
 import Lens.Micro.Mtl
--- import Debug.Trace
+import Debug.Trace
 
 data GenState = GenState { _context :: C.Context TCType
                          , _knownTypeVars :: [TyVarName]
