@@ -70,6 +70,7 @@ data TermBinOp =
                | Conj
                | Disj
                | Implies
+               | DollarSignApp
   deriving (Data, Typeable, Eq, Ord, Show)
 
 data TermUnOp =
@@ -161,10 +162,11 @@ termBinOpRec b = case b of
   Conj      -> BinOpRec AssocRight 35 "\\<and>"
   Disj      -> BinOpRec AssocRight 30 "\\<or>"
   Implies   -> BinOpRec AssocRight 25 "\\<longrightarrow>"
+  DollarSignApp -> BinOpRec AssocRight 10 "$"
 
 -- You must include all binary operators in this list. Miss one and it doesn't get parsed.
 -- Order does NOT matter. They are sorted by precedence.
-binOps = [Equiv, MetaImp, Eq, NotEq, Iff, Conj, Disj, Implies]
+binOps = [Equiv, MetaImp, Eq, NotEq, Iff, Conj, Disj, Implies, DollarSignApp]
 
 termBinOpPrec :: TermBinOp -> Precedence
 termBinOpPrec b = if p >= termAppPrec

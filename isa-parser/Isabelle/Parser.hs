@@ -324,8 +324,29 @@ theoryDeclL = (Definition <$> definitionL) <||>
               (TypeDeclDecl <$> typeDeclL) <||>
               (ConstsDecl <$> constsL) <||>
               (RecordDecl <$> recordL) <||>
-              (DataTypeDecl <$> datatypeL)
+              (DataTypeDecl <$> datatypeL) <||>
+              (PrimRec <$> primRecL)
 
+primRecL :: ParserM (L Prc)
+primRecL = do 
+  reserved "primrec"
+  res <- alt1 <||> alt2
+  return res
+
+  where
+    alt1 = do
+      t <- sepBy1 (try $ quotedL eqTermL) (stringL "|")
+      return (Prc Nothing t)
+    alt2 = do
+      sig <- sigL
+      reserved "where"
+      alts <- sepBy1 (try $ quotedL eqTermL) (stringL "|")
+      return $ Prc (Just sig) alts
+
+eqTermL :: ParserM (Term, Term)
+eqTermL = do
+  TermBinOp Eq term1 term2 <- termL
+  return (term1, term2)
 
 definitionL :: ParserM (L Def)
 definitionL = do

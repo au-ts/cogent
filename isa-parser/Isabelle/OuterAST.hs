@@ -62,7 +62,10 @@ data TheoryDecl types terms = Definition    (Def types terms)
                             | InstanceDecl (Instance types terms)
                             | FunFunction  Bool (FunFunc types terms)  -- True is fun / False is function
                             | TheoryString String
+                            | PrimRec      (Prc types terms)
                             deriving (Data, Typeable, Show)
+
+data Prc types terms = Prc { prcSig :: Maybe (Sig types), recCases :: [(terms, terms)] } deriving (Data, Typeable, Show)
 
 data Def types terms = Def { defSig :: Maybe (Sig types), defTerm :: terms} deriving (Data, Typeable, Show)
 
@@ -212,10 +215,18 @@ instance (Pretty terms, Pretty types) => Pretty (TheoryDecl types terms) where
     DataTypeDecl dt     -> pretty dt
     FunFunction ff f    -> (if ff then string "fun" else string "function") <+> pretty f
     TheoryString s      -> string s
+    PrimRec pr          -> pretty pr
 
 instance (Pretty terms, Pretty types) => Pretty (Context types terms) where
   pretty (Context name cDecls) = string "context" <+> string name <+> string "begin" <$$> 
                                  prettyThyDecls cDecls <> string "end"
+
+instance (Pretty terms, Pretty types) => Pretty (Prc types terms) where
+  pretty (Prc thmDecl recCases) =  string "prim_rec" <+> 
+    pretty thmDecl <+> string ":" <+> sep (punctuate (text "|") (map prettyRec recCases))
+
+prettyRec :: (Pretty terms) => (terms, terms) -> Doc
+prettyRec (p, e) = pretty p <+> pretty "=" <+> pretty e
 
 instance (Pretty terms, Pretty types) => Pretty (Lemma types terms) where
   pretty (Lemma schematic thmDecl props proof) = string (if schematic then "schematic_lemma" else "lemma") <+>
