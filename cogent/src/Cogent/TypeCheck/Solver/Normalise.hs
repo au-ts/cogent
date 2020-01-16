@@ -126,7 +126,7 @@ whnf input = do
 normaliseTypes :: [Goal] -> TcSolvM [Goal]
 normaliseTypes = mapM $ \g -> do
   _ <- trace ("@@@@" ++ show g) $ return ()
-  c' <- traverse whnf (g ^. goal)
+  c' <- mapM whnf (g ^. goal)
   _ <- trace ("****") $ return ()
   pure $ set goal c' g
 
