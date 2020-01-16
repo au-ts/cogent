@@ -604,8 +604,21 @@ termL = buildExpressionParser table restL
                                            ; return (TermUnOp u) }))
 
 
-    restL =  antiquoteTermL <||> parensTermL <||> constTermL <||> (TermIdent <$> innerIdentL) <||> caseOfTermL <||> recordUpdTermL
+    restL =  antiquoteTermL <||> parensTermL <||> constTermL <||> (TermIdent <$> innerIdentL) <||> 
+             caseOfTermL <||> recordUpdTermL <||> recordDclTermL
     parensTermL = parensL termL
+
+recordDclTermL :: ParserM Term 
+recordDclTermL = do { stringL "\\<lparr>"
+                    ; dcls <- sepBy1 (try dclTermL) (stringL ",")
+                    ; stringL "\\<rparr>"
+                    ; return $ RecordDcl dcls }
+
+dclTermL :: ParserM (Term, Term)
+dclTermL = do { term1 <- fieldL
+              ; stringL "="
+              ; term2 <- termL
+              ; return (AntiTerm term1, term2) }
 
 recordUpdTermL :: ParserM Term 
 recordUpdTermL = do { stringL "\\<lparr>"

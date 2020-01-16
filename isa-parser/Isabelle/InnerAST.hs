@@ -42,6 +42,7 @@ data Term = TermIdent      Ident
           | ListTerm       String     [Term]  String
           | CaseOf         Term       [(Term, Term)]
           | RecordUpd                 [(Term, Term)]
+          | RecordDcl                 [(Term, Term)]
   deriving (Data, Typeable, Eq, Ord, Show)
 
 data Const = TrueC | FalseC
@@ -254,10 +255,11 @@ prettyTerm p t = case t of
   ConstTerm const       -> pretty const
   AntiTerm str          -> pretty str  -- FIXME: zilinc
   CaseOf e alts         -> parens (string "case" <+> pretty e <+> string "of" <+> sep (punctuate (text "|") (map prettyAlt alts)))
-  RecordUpd upds        -> string "\\<lparr>" <+> sep (punctuate (text ",") (map prettyUpds upds)) <+> string "\\<rparr>"
+  RecordUpd upds        -> string "\\<lparr>" <+> sep (punctuate (text ",") (map (prettyAssis ":=") upds)) <+> string "\\<rparr>"
+  RecordDcl dcls        -> string "\\<lparr>" <+> sep (punctuate (text ",") (map (prettyAssis "=") dcls)) <+> string "\\<rparr>"
 
-prettyUpds :: (Term, Term) -> Doc 
-prettyUpds (p, e) = pretty p <+> pretty ":=" <+> pretty e
+prettyAssis :: String -> (Term, Term) -> Doc 
+prettyAssis s (p, e) = pretty p <+> pretty s <+> pretty e
 
 prettyAlt :: (Term, Term) -> Doc
 prettyAlt (p, e) = pretty p <+> pretty "\\<Rightarrow>" <+> pretty e
