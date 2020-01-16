@@ -19,9 +19,15 @@
 --   3. the original package is huge but we only need a tiny bit within it
 
 
-{-# LANGUAGE DataKinds, FlexibleContexts, LambdaCase, PolyKinds, TupleSections, ViewPatterns #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Cogent.Util where
 
@@ -38,7 +44,9 @@ import Control.Monad
 import Control.Monad.Writer
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.Except (ExceptT(ExceptT))
-import Data.Bifunctor (second)
+import Data.Bifoldable
+import Data.Bifunctor
+import Data.Bitraversable
 import Data.Char
 import Data.Foldable (foldrM)
 import Data.IntMap as IM (IntMap, mapKeys, delete)
@@ -91,6 +99,27 @@ tttraverse f = fmap unflip2 . traverse f . Flip2
 
 ttttraverse :: (Traversable (Flip3 f d c b), Applicative m) => (a -> m a') -> f a b c d -> m (f a' b c d)
 ttttraverse f = fmap unflip3 . traverse f . Flip3
+
+-- bifunctors
+
+newtype Rotate3 f (a :: a') (b :: b') (c :: c') (d :: d') = Rotate3 { unrotate3 :: f d a b c }
+
+instance Bifunctor (Rotate3 (,,,) b c) where
+  bimap f g (Rotate3 (a,b,c,d)) = Rotate3 (g a, b, c, f d)
+instance Bifoldable (Rotate3 (,,,) b c) where
+  bifoldMap f g (Rotate3 (a,b,c,d)) = g a <> f d
+instance Bitraversable (Rotate3 (,,,) b c) where
+  bitraverse f g (Rotate3 (a,b,c,d)) = Rotate3 <$> ((,,,) <$> g a <*> pure b <*> pure c <*> f d)
+
+
+class Quadritraversable t where
+  quadritraverse :: Applicative f
+                 => (a -> f a')
+                 -> (b -> f b')
+                 -> (c -> f c')
+                 -> (d -> f d')
+                 -> t a b c d
+                 -> f (t a' b' c' d')
 
 
 --
@@ -207,7 +236,7 @@ both :: (a -> b) -> (a, a) -> (b, b)
 both = (Lens.Micro.both %~)
 
 bothM :: Applicative f => (a -> f a') -> (a, a) -> f (a', a')
-bothM f (a, b) = (,) <$> f a <*> f b
+bothM f = bitraverse f f
 
 first3 :: (a -> a') -> (a, b, c) -> (a', b, c)
 first3 = (_1 %~)

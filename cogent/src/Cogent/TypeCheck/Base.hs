@@ -40,12 +40,14 @@ import qualified Cogent.TypeCheck.Row as Row
 -- import Cogent.TypeCheck.Util
 import Cogent.Util
 
+import Control.Applicative (liftA)
 import Control.Monad.State
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Control.Monad.Writer hiding (Alt)
 import Control.Monad.Reader
 import Data.Bifunctor (bimap, first, second)
+import Data.Bitraversable (bitraverse)
 import Data.Data (Data)
 import Data.Foldable (all)
 import Data.Maybe (fromJust, isJust)
@@ -282,9 +284,8 @@ instance Functor SExpr where
 instance Foldable SExpr where
   foldMap f e = getConst $ traverse (Const . f) e
 instance Traversable SExpr where
-  mapM f (SE t e l) = SE <$> f t <*> (ttttraverse f =<< tttraverse (traverse f) =<< ttraverse (traverse f) =<< traverse (traverse f) e) <*> pure l
-  mapM f (SU t x)   = SU <$> f t <*> pure x
-
+  traverse f (SU t x  ) = SU <$> f t <*> pure x
+  traverse f (SE t e l) = SE <$> f t <*> quadritraverse f (traverse f) (traverse f) (traverse f) e <*> pure l
 
 data FuncOrVar = MustFunc | MustVar | FuncOrVar deriving (Eq, Ord, Show)
 
@@ -326,7 +327,22 @@ instance Traversable TExpr where
 instance Traversable TPatn where
   traverse f (TP p l) = TP <$> traverse (traverse f) p <*> pure l
 instance Traversable TIrrefPatn where
-  mapM f (TIP ip l) = TIP <$> (tttraverse (secondM f) =<< ttraverse (traverse f) =<< traverse (traverse f) ip) <*> pure l
+  traverse f (TIP ip l) = TIP <$> tritraverse f ip <*> pure l
+    where tritraverse :: Applicative f
+                      => (a -> f b)
+                      -> IrrefutablePattern (VarName, a) (TIrrefPatn a) (TExpr a)
+                      -> f (IrrefutablePattern (VarName, b) (TIrrefPatn b) (TExpr b))
+          tritraverse f (PVar v)            = PVar <$> traverse f v
+          tritraverse f (PTuple ips)        = PTuple <$> traverse (traverse f) ips
+          tritraverse f (PUnboxedRecord fs) = PUnboxedRecord <$> traverse (traverse (traverse (traverse f))) fs
+          tritraverse f (PUnderscore)       = pure $ PUnderscore
+          tritraverse f (PUnitel)           = pure $ PUnitel
+          tritraverse f (PTake pv fs)       = PTake <$> traverse f pv <*> traverse (traverse (traverse (traverse f))) fs
+#ifdef BUILTIN_ARRAYS
+          tritraverse f (PArray ips)        = PArray <$> traverse (traverse f) ips
+          tritraverse f (PArrayTake pv is)  = PArrayTake <$> traverse f pv <*> traverse (bitraverse (traverse f) (traverse f)) is
+#endif
+
 
 instance Foldable TExpr where
   foldMap f e  = getConst $ traverse (Const . f) e
