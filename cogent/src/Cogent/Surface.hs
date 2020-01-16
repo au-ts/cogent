@@ -25,6 +25,9 @@ import Cogent.Util
 
 import Control.Applicative
 import Control.Arrow (first)
+import Data.Bifunctor
+import Data.Bifoldable
+import Data.Bitraversable
 import Data.Data
 import Data.Functor.Compose
 import Data.Functor.Identity
@@ -60,7 +63,7 @@ data Pattern ip = PCon TagName [ip]
                 | PIrrefutable ip
                 deriving (Data, Eq, Ord, Show, Functor, Foldable, Traversable)
 
-data Alt p e = Alt p Likelihood e deriving (Data, Eq, Ord, Show, Functor, Foldable,Traversable)
+data Alt p e = Alt p Likelihood e deriving (Data, Eq, Ord, Show, Functor, Foldable, Traversable)
 
 data Binding t p ip e = Binding ip (Maybe t) e [VarName]
                       | BindingAlts p (Maybe t) e [VarName] [Alt p e]
@@ -424,6 +427,52 @@ instance Functor (Flip (TopLevel t) e) where
   fmap f x = runIdentity (traverse (Identity . f) x)
 instance Functor (Flip2 TopLevel e p) where
   fmap f x = runIdentity (traverse (Identity . f) x)
+
+
+instance Bifunctor Alt where
+  bimap f g alt = undefined
+instance Bifoldable Alt where
+  bifoldMap f g alt = undefined
+instance Bitraversable Alt where
+  bitraverse f g (Alt p l e) = Alt <$> f p <*> pure l <*> g e
+
+
+instance Quadritraversable Binding where
+  quadritraverse fa fb fc fd (Binding ip mt e vs) = Binding <$> fc ip <*> traverse fa mt <*> fd e <*> pure vs
+  quadritraverse fa fb fc fd (BindingAlts p mt e vs alts) = BindingAlts <$> fb p <*> traverse fa mt <*> fd e <*> pure vs <*> traverse (bitraverse fb fd) alts
+
+instance Quadritraversable Expr where
+  quadritraverse fa fb fc fd (PrimOp op es)      = PrimOp op <$> traverse fd es
+  quadritraverse fa fb fc fd (Var v)             = pure $ Var v
+  quadritraverse fa fb fc fd (Match e vs as)     = Match <$> fd e <*> pure vs <*> traverse (bitraverse fb fd) as
+  quadritraverse fa fb fc fd (TypeApp fn ts n)   = TypeApp fn <$> traverse (traverse fa) ts <*> pure n
+  quadritraverse fa fb fc fd (Con n es)          = Con n <$> traverse fd es
+  quadritraverse fa fb fc fd (Seq e1 e2)         = Seq <$> fd e1 <*> fd e2
+  quadritraverse fa fb fc fd (Lam ip mt e)       = Lam <$> fc ip <*> traverse fa mt <*> fd e
+  quadritraverse fa fb fc fd (App e1 e2 inf)     = App <$> fd e1 <*> fd e2 <*> pure inf
+  quadritraverse fa fb fc fd (Comp e1 e2)        = Comp <$> fd e1 <*> fd e2
+  quadritraverse fa fb fc fd (LamC ip mt e vs)   = LamC <$> fc ip <*> traverse fa mt <*> fd e <*> pure vs
+  quadritraverse fa fb fc fd (AppC e1 e2)        = AppC <$> fd e1 <*> fd e2
+  quadritraverse fa fb fc fd (If e vs e1 e2)     = If <$> fd e <*> pure vs <*> fd e1 <*> fd e2
+  quadritraverse fa fb fc fd (MultiWayIf alts e) = MultiWayIf <$> traverse (liftA unrotate3 . bitraverse fd fd . Rotate3) alts <*> fd e
+  quadritraverse fa fb fc fd (Member e f)        = Member <$> fd e <*> pure f
+  quadritraverse fa fb fc fd (Unitel)            = pure $ Unitel
+  quadritraverse fa fb fc fd (IntLit    n)       = pure $ IntLit    n
+  quadritraverse fa fb fc fd (BoolLit   b)       = pure $ BoolLit   b
+  quadritraverse fa fb fc fd (CharLit   c)       = pure $ CharLit   c
+  quadritraverse fa fb fc fd (StringLit s)       = pure $ StringLit s
+#ifdef BUILTIN_ARRAYS
+  quadritraverse fa fb fc fd (ArrayLit es)       = ArrayLit <$> traverse fd es
+  quadritraverse fa fb fc fd (ArrayIndex e1 e2)  = ArrayIndex <$> fd e1 <*> fd e2
+  quadritraverse fa fb fc fd (ArrayMap2 p es) = ArrayMap2 <$> bitraverse (bothM fc) fd p <*> bothM fd es
+  quadritraverse fa fb fc fd (ArrayPut e es)     = ArrayPut <$> fd e <*> traverse (bothM fd) es
+#endif
+  quadritraverse fa fb fc fd (Tuple es)          = Tuple <$> traverse fd es
+  quadritraverse fa fb fc fd (UnboxedRecord fs)  = UnboxedRecord <$> traverse (traverse fd) fs
+  quadritraverse fa fb fc fd (Let bs e)          = Let <$> traverse (quadritraverse fa fb fc fd) bs <*> fd e
+  quadritraverse fa fb fc fd (Put e fs)          = Put <$> fd e <*> traverse (traverse (traverse fd)) fs
+  quadritraverse fa fb fc fd (Upcast e)          = Upcast <$> fd e
+  quadritraverse fa fb fc fd (Annot e t)         = Annot <$> fd e <*> fa t
 
 -- -----------------------------------------------------------------------------
 
