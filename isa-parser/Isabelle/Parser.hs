@@ -640,28 +640,32 @@ ifThenElseTermL = do
   return $ IfThenElse cond case1 case2
 
 recordDclTermL :: ParserM Term 
-recordDclTermL = do { stringL "\\<lparr>"
-                    ; dcls <- sepBy1 (try dclTermL) (stringL ",")
-                    ; stringL "\\<rparr>"
-                    ; return $ RecordDcl dcls }
+recordDclTermL = do  
+  stringL "\\<lparr>"
+  dcls <- sepBy1 (try dclTermL) (stringL ",")
+  stringL "\\<rparr>"
+  return $ RecordDcl dcls 
 
 dclTermL :: ParserM (Term, Term)
-dclTermL = do { term1 <- fieldL
-              ; stringL "="
-              ; term2 <- termL
-              ; return (AntiTerm term1, term2) }
+dclTermL = do
+  term1 <- fieldL
+  stringL "="
+  term2 <- termL
+  return (AntiTerm term1, term2) 
 
 recordUpdTermL :: ParserM Term 
-recordUpdTermL = do { stringL "\\<lparr>"
-                    ; upds <- sepBy1 (try updTermL) (stringL ",")
-                    ; stringL "\\<rparr>"
-                    ; return $ RecordUpd upds }
+recordUpdTermL = do 
+  stringL "\\<lparr>"
+  upds <- sepBy1 (try updTermL) (stringL ",")
+  stringL "\\<rparr>"
+  return $ RecordUpd upds 
 
 updTermL :: ParserM (Term, Term)
-updTermL = do { term1 <- fieldL
-              ; stringL ":="
-              ; term2 <- termL
-              ; return (AntiTerm term1, term2) }
+updTermL = do
+  term1 <- fieldL
+  stringL ":="
+  term2 <- termL
+  return (AntiTerm term1, term2) 
 
 fieldL :: ParserM String 
 fieldL = notReservedLexeme fieldS 
@@ -672,17 +676,19 @@ fieldS = letterS <++> manyP fieldLetters
       fieldLetters = ((letterS <||> digitS <||> charString '_') <||> charString '\'' <||> charString '.') <?> "quasi-letter"
 
 caseOfTermL :: ParserM Term
-caseOfTermL = do { reserved "case"
-                 ; term <- termL
-                 ; reserved "of"
-                 ; alts <- sepBy1 (try altTermL) (stringL "|") 
-                 ; return $ CaseOf term alts }
+caseOfTermL = do 
+  reserved "case"
+  term <- termL
+  reserved "of"
+  alts <- sepBy1 (try altTermL) (stringL "|") 
+  return $ CaseOf term alts 
 
 altTermL :: ParserM (Term, Term)
-altTermL = do { term1 <- termL
-              ; stringL "\\<Rightarrow>"
-              ; term2 <- termL
-              ; return (term1, term2) }
+altTermL = do 
+  term1 <- termL
+  stringL "\\<Rightarrow>"
+  term2 <- termL
+  return (term1, term2) 
 
 innerIdentL :: ParserM Ident
 innerIdentL = (Id <$> identL) <||> wildcardL <||> parensL typedIdentL
