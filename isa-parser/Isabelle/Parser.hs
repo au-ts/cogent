@@ -626,8 +626,18 @@ termL = buildExpressionParser table restL
 
 
     restL =  antiquoteTermL <||> parensTermL <||> constTermL <||> (TermIdent <$> innerIdentL) <||> 
-             caseOfTermL <||> recordUpdTermL <||> recordDclTermL
+             caseOfTermL <||> recordUpdTermL <||> recordDclTermL <||> ifThenElseTermL 
     parensTermL = parensL termL
+  
+ifThenElseTermL :: ParserM Term
+ifThenElseTermL = do
+  reserved "if"
+  cond <- termL 
+  reserved "then"
+  case1 <- termL
+  reserved "else"
+  case2 <- termL
+  return $ IfThenElse cond case1 case2
 
 recordDclTermL :: ParserM Term 
 recordDclTermL = do { stringL "\\<lparr>"
@@ -662,9 +672,9 @@ fieldS = letterS <++> manyP fieldLetters
       fieldLetters = ((letterS <||> digitS <||> charString '_') <||> charString '\'' <||> charString '.') <?> "quasi-letter"
 
 caseOfTermL :: ParserM Term
-caseOfTermL = do { stringL "case"
+caseOfTermL = do { reserved "case"
                  ; term <- termL
-                 ; stringL "of"
+                 ; reserved "of"
                  ; alts <- sepBy1 (try altTermL) (stringL "|") 
                  ; return $ CaseOf term alts }
 
@@ -695,10 +705,12 @@ typedTermL = do
   return (TermWithType t ty)
   
 constTermL :: ParserM Term
-constTermL = ConstTerm <$> (trueL <||> falseL)  -- TODO: only support very limited forms of constants / zilinc
+constTermL = ConstTerm <$> (trueL <||> falseL <||> (IntLiteral <$> intL))  -- TODO: only support very limited forms of constants / zilinc
   where
     trueL  = stringL "True" >> return TrueC
     falseL = stringL "False" >> return FalseC
+    intL = read <$> natL
+
 
 antiquoteTypeL :: ParserM Type 
 antiquoteTypeL = AntiType <$> antiquoteL
