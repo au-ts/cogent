@@ -23,8 +23,8 @@ import CogentTests.Dargent.Desugar
 import CogentTests.Dargent.CodeGen
 
 main = do
-  compileSanityCheck
-  isSuccess <- foldr <$> pure (&&) <*> pure True <*> sequenceA
+  -- compileSanityCheck  -- it just prints the C code for manual inspection
+  isSuccess <- and <$> sequenceA
       [ CogentTests.Dargent.TypeCheck.testAll
       , CogentTests.Dargent.Core.testAll
       , CogentTests.Dargent.Desugar.testAll

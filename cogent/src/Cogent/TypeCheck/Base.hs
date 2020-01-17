@@ -366,7 +366,7 @@ type RawTypedPatn = TPatn RawType
 type RawTypedIrrefPatn = TIrrefPatn RawType
 
 -- --------------------------------
--- And their convertion functions
+-- And their conversion functions
 -- --------------------------------
 
 -- Precondition: No unification variables left in the type
@@ -403,7 +403,22 @@ toRawType' (DT t) = RT (ffmap toRawExpr'' $ fmap toRawType' t)
 -- This function although is partial, it should be ok, as we statically know that 
 -- we won't run into those undefined cases. / zilinc
 rawToDepType :: RawType -> DepType
-rawToDepType (RT t) = DT $ __todo "rawToDepType"
+rawToDepType (RT t) = DT $ go t
+  where go :: Type RawExpr RawType -> Type RawTypedExpr DepType
+        go t = let f = rawToDepType
+                in case t of
+                     TCon tn ts s  -> TCon tn (fmap f ts) s
+                     TVar v b      -> TVar v b
+                     TRecord fs s  -> TRecord (fmap (second $ first f) fs) s
+                     TVariant alts -> TVariant (fmap (first $ fmap f) alts)
+                     TTuple ts     -> TTuple $ fmap f ts
+                     TUnit         -> TUnit
+                     TUnbox t      -> TUnbox $ f t
+                     TBang t       -> TBang $ f t
+                     TTake mfs t   -> TTake mfs $ f t
+                     TPut mfs t    -> TPut mfs $ f t
+                     TLayout l t   -> TLayout l $ f t
+                     _             -> __impossible $ "rawToDepType: we don't allow higher-order refinement types"
 
 toRawTypedExpr :: TypedExpr -> RawTypedExpr
 toRawTypedExpr (TE t e l) = TE (toRawType' t) (ffffmap toRawType' $ fffmap (fmap toRawType') $ ffmap (fmap toRawType') $ fmap (fmap toRawType') e) l

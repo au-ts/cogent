@@ -12,21 +12,17 @@
 
 module CogentTests.Dargent.Surface where
 
-import Data.Set (Set, union, empty, intersection)
-import qualified Data.Set as S
-
+import Control.Monad (guard)
 import Data.Map (Map)
 import qualified Data.Map as M
-
-import Control.Monad (guard)
-
-import Test.QuickCheck
+import Data.Set (Set, union, empty, intersection)
+import qualified Data.Set as S
 import Text.Parsec.Pos (SourcePos)
+import Test.QuickCheck
 
 import Cogent.Common.Syntax (FieldName, TagName, Size)
 import Cogent.Dargent.Surface
 import CogentTests.Dargent.TypeCheck (bitSizeToDataLayoutSize)
-
 
 instance Arbitrary DataLayoutSize where
   arbitrary = sized $
