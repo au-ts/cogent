@@ -22,8 +22,8 @@ import Language.SMTLib2 as SMT
 
 
 sexprToSmt :: (Backend b) => TCSExpr -> SMT b (SMT.Expr b BoolType)
-sexprToSmt (SU t x  ) = undefined  -- declareVarNamed bool ('?':show x)
-sexprToSmt (SE t e _) = undefined  -- exprToSmt t e
+sexprToSmt (SU t x) = undefined  -- declareVarNamed bool ('?':show x)
+sexprToSmt (SE t e) = undefined  -- exprToSmt t e
   -- where
   --   exprToSmt :: (Backend b) => S.Expr RawType RawPatn RawIrrefPatn SExpr -> SMT b (SMT.Expr b t)
   --   exprToSmt (PrimOp op es)

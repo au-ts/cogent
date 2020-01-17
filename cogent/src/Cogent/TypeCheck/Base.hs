@@ -226,8 +226,8 @@ splitArithConstraints (Arith e ) = ([e], Sat)
 splitArithConstraints c          = ([], c)
 
 andTCSExprs :: [TCSExpr] -> TCSExpr
-andTCSExprs [] = SE (T bool) (BoolLit True) noPos
-andTCSExprs (e:es) = SE (T bool) (PrimOp "&&" [e, andTCSExprs es]) noPos
+andTCSExprs [] = SE (T bool) (BoolLit True)
+andTCSExprs (e:es) = SE (T bool) (PrimOp "&&" [e, andTCSExprs es])
 #endif
 
 #if __GLASGOW_HASKELL__ < 803	
@@ -270,20 +270,20 @@ data TCType         = T (Type TCSExpr TCType)
                     | Synonym TypeName [TCType]
                     deriving (Show, Eq, Ord)
 
-data SExpr t        = SE { getTypeSE :: t, getExprSE :: Expr t (TPatn t) (TIrrefPatn t) (SExpr t), getLocSE :: SourcePos }
+data SExpr t        = SE { getTypeSE :: t, getExprSE :: Expr t (TPatn t) (TIrrefPatn t) (SExpr t) }
                     | SU t Int
                     deriving (Show, Eq, Ord)
 
 type TCSExpr = SExpr TCType
 
 instance Functor SExpr where
-  fmap f (SE t e l) = SE (f t) (ffffmap f $ fffmap (fmap f) $ ffmap (fmap f) $ fmap (fmap f) e) l
-  fmap f (SU t x  ) = SU (f t) x
+  fmap f (SE t e) = SE (f t) (ffffmap f $ fffmap (fmap f) $ ffmap (fmap f) $ fmap (fmap f) e)
+  fmap f (SU t x) = SU (f t) x
 instance Foldable SExpr where
   foldMap f e = getConst $ traverse (Const . f) e
 instance Traversable SExpr where
-  traverse f (SU t x  ) = SU <$> f t <*> pure x
-  traverse f (SE t e l) = SE <$> f t <*> quadritraverse f (traverse f) (traverse f) (traverse f) e <*> pure l
+  traverse f (SE t e) = SE <$> f t <*> quadritraverse f (traverse f) (traverse f) (traverse f) e
+  traverse f (SU t x) = SU <$> f t <*> pure x
 
 data FuncOrVar = MustFunc | MustVar | FuncOrVar deriving (Eq, Ord, Show)
 
@@ -418,11 +418,11 @@ toRawExpr :: TypedExpr -> RawExpr
 toRawExpr = toRawExpr'' . toRawTypedExpr
 
 toTCSExpr :: TCExpr -> TCSExpr
-toTCSExpr (TE t e l) = SE t (fmap toTCSExpr e) l
+toTCSExpr (TE t e l) = SE t (fmap toTCSExpr e)
 
 toTCExpr :: TCSExpr -> TCExpr
-toTCExpr (SE t e l) = TE t (fmap toTCExpr e) l
-toTCExpr (SU _ x  ) = __impossible $ "toTCExpr: unification term variable ?" ++ show x ++ " found"
+toTCExpr (SE t e) = TE t (fmap toTCExpr e) noPos
+toTCExpr (SU _ x) = __impossible $ "toTCExpr: unification term variable ?" ++ show x ++ " found"
 
 toRawPatn :: TypedPatn -> RawPatn
 toRawPatn (TP p _) = RP (fmap toRawIrrefPatn p)
@@ -609,12 +609,12 @@ unknowns (A t l s tkns) = unknowns t ++ unknownsE l ++ foldMap unknownsE tkns
 unknowns (T x) = foldMap unknowns x
 
 unknownsE :: TCSExpr -> [Int]
-unknownsE (SU _ x  ) = [x]
-unknownsE (SE _ e _) = foldMap unknownsE e
+unknownsE (SU _ x) = [x]
+unknownsE (SE _ e) = foldMap unknownsE e
 
 isKnown :: TCSExpr -> Bool
-isKnown (SU _ _  ) = False
-isKnown (SE _ e _) = all isKnown e
+isKnown (SU _ _) = False
+isKnown (SE _ e) = all isKnown e
 #endif
 
 -- What's the spec of this function? / zilinc
