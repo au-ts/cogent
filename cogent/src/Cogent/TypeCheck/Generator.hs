@@ -79,7 +79,6 @@ runCG g vs ma = do
 -- Type-level constraints
 -- -----------------------------------------------------------------------------
 
--- TODO: we don't yet check the expressions in these types / zilinc
 validateType :: (?loc :: SourcePos) => RawType -> CG (Constraint, TCType)
 validateType (RT t) = do
   vs <- use knownTypeVars

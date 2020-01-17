@@ -19,7 +19,6 @@ import CogentTests.Dargent.Core
 import CogentTests.Dargent.TypeCheck (undesugarDataLayout)
 import CogentTests.Core (genLayoutableType)
 import Cogent.Dargent.Core
-import Cogent.Dargent.CoreTypeCheck (matchesDataLayout, checkDataLayout)
 import Cogent.Dargent.Desugar
 
 prop_returnTrip :: Property
@@ -27,14 +26,6 @@ prop_returnTrip =
   forAll (genDataLayout size) $ \(Layout layout, _) ->  -- FIXME: CLayout / zilinc
     desugarDataLayout (undesugarDataLayout layout) == Layout layout
   where size = 30
-
-prop_constructDataLayoutMatchingLayout =
-  forAll (sized genLayoutableType) $ \coreType ->
-    matchesDataLayout coreType (constructDataLayout coreType)
-
-prop_constructDataLayoutProducesValidLayout =
-  forAll (sized genLayoutableType) $ \coreType ->
-    checkDataLayout (constructDataLayout coreType)
 
 return []
 testAll = $quickCheckAll
