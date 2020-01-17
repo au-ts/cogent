@@ -185,7 +185,7 @@ identS = letterS <++> manyP quasiletterS
 
 identL :: ParserM String
 identL = lexeme . try $
-  do { s <- identS
+  do { s <- identS 
      ; if s `elem` reservedWordsInner
        then unexpected ("'" ++ s ++ "' is a reserved word")
        else return s }
@@ -232,7 +232,7 @@ greekS = oneStringOf ["\\<alpha>",  "\\<beta>", "\\<gamma>", "\\<delta>",
 
 
 quasiletterS :: ParserM String
-quasiletterS = ((letterS <||> digitS <||> charString '_') <||> charString '\'') <?> "quasi-letter"
+quasiletterS = ((letterS <||> digitS <||> charString '_') <||> charString '\'' <||> charString '.') <?> "quasi-letter"
 
 digitS :: ParserM String
 digitS =  s $ oneOf "0123456789"
@@ -615,7 +615,7 @@ termL = buildExpressionParser table restL
     appParser  = (termAppPrec, Infix (do { return TermApp }) AssocLeft)
     typedTermParser = (typeAnnotationPrec, Postfix (do { stringL "::"; ty <- typeL
                                                        ; return (\t -> TermWithType t ty) }))
-    quantifierParser q = (quantifierPrec q, Prefix (do { try (stringL (quantifierSym q))
+    quantifierParser q = (quantifierPrec q, Prefix (try $ do { try (stringL (quantifierSym q))
                                                        ; is <- many1 innerIdentL
                                                        -- note that string "." must be followed by at least one space
                                                        ; string "." 
