@@ -16,6 +16,7 @@
 module CogentTests.Dargent.TypeCheck where
 
 import Control.Monad (guard)
+import Control.Monad.Trans.Except (runExcept)
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Set (Set, union, empty, intersection)
@@ -36,7 +37,7 @@ import CogentTests.Dargent.Core
 
 prop_allocationConj :: Allocation -> Allocation -> Bool
 prop_allocationConj a b = case a /\ b of
-  ([], c)  ->
+  Right c ->
     (toSet a) `disjoint` (toSet b) &&
     (toSet a) `union`    (toSet b) == toSet c 
   _ -> not (toSet a `disjoint` toSet b)
@@ -47,9 +48,9 @@ prop_overlaps a b = overlaps a b == not (toSet a `disjoint` toSet b)
 prop_typeCheckValidGivesNoErrors :: Property
 prop_typeCheckValidGivesNoErrors =
   forAll (genDataLayout size) $ \(Layout layout, alloc) ->  -- FIXME: not considering CLayout for now / zilinc
-    case tcDataLayoutExpr M.empty (undesugarDataLayout layout) of
-      ([], alloc')  -> toSet alloc == toSet alloc'
-      _             -> False
+    case runExcept $ tcDataLayoutExpr M.empty (undesugarDataLayout layout) of
+      Right alloc' -> toSet alloc == toSet alloc'
+      _            -> False
   where size = 30
 
 {-+ INVERSE FUNCTIONS
@@ -86,6 +87,9 @@ undesugarDataLayout (SumLayout tagBitRange alternatives) =
 instance Arbitrary DataLayoutPath where
   arbitrary = InDecl <$> arbitrary <*> arbitrary
     
+instance Arbitrary p => Arbitrary (Allocation' p) where
+  arbitrary = Allocation <$> arbitrary
+
 
 {- SET UTIL FUNCTIONS -}
 disjoint :: Ord a => Set a -> Set a -> Bool
@@ -98,7 +102,7 @@ instance SetLike BitRange where
   toSet (BitRange size offset) = S.fromList [offset..offset + size - 1]
 
 instance SetLike Allocation where
-  toSet = foldr union empty . fmap (toSet . fst)
+  toSet (Allocation a) = foldr union empty $ fmap (toSet . fst) a
     
 return []
 testAll = $quickCheckAll

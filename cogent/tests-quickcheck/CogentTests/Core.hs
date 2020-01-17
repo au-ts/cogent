@@ -23,7 +23,7 @@ genConName :: Gen TagName
 genConName = (:) <$> elements ['A'..'Z'] <*> listOf (elements (['A'..'Z'] ++ ['a'..'z'] ++ ['0'..'9']))
 
 
-genLayoutableType :: Int -> Gen (Type 'Zero)
+genLayoutableType :: Int -> Gen (Type 'Zero b)
 genLayoutableType size = 
 	oneof
 	[ TCon     <$> genConName <*> pure [] <*> (Boxed <$> arbitrary <*> pure ())
@@ -35,12 +35,12 @@ genLayoutableType size =
 	, pure TUnit
 	]
 	where
-		genLayoutableAlternative :: Int -> Gen (TagName, (Type 'Zero, Bool))
+		genLayoutableAlternative :: Int -> Gen (TagName, (Type 'Zero b, Bool))
 		genLayoutableAlternative size = do
 			altSize <- choose (0, size - 1)
 			(,) <$> arbitrary <*> ((,) <$> genLayoutableType altSize <*> arbitrary)
 
-		genLayoutableField :: Int -> Gen (FieldName, (Type 'Zero, Bool))
+		genLayoutableField :: Int -> Gen (FieldName, (Type 'Zero b, Bool))
 		genLayoutableField size = do
 			fieldSize <- choose (0, size - 1)
 			(,) <$> arbitrary <*> ((,) <$> genLayoutableType fieldSize <*> arbitrary)
