@@ -129,5 +129,5 @@ normaliseTypes = mapM $ \g -> do
   pure $ set goal c' g
 
 normaliseSExpr :: TCSExpr -> Int
-normaliseSExpr (SE _ (IntLit n) _) = fromIntegral n
+normaliseSExpr (SE _ (IntLit n)) = fromIntegral n
 normaliseSExpr _ = __todo "normaliseSExpr"
