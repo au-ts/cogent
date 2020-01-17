@@ -46,8 +46,6 @@ import qualified Text.Parsec.Token as T
 import System.Directory
 import System.FilePath
 
--- import Debug.Trace
-
 
 type Parser a = ParsecT String S Identity a
 
@@ -62,7 +60,7 @@ language = haskellStyle
                                   "@","@@","->","=>","~>","<=","|","|>"]
            , T.reservedNames   = ["let","in","type","include","all","take","put","inline","upcast",
                                   "repr","variant","record","at","mu",
-                                  "if","then","else","not","complement","and","True","False","o", "rec"]
+                                  "if","then","else","not","complement","and","True","False","o","rec"]
            , T.identStart = letter
            }
 

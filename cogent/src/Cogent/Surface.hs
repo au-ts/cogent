@@ -131,7 +131,7 @@ type Entry t = (FieldName, (t, Taken))
 
 -- The context for a recursive type, i.e. a mapping from
 -- recursive parameter names to the type it recursively references
-type RecContext t = M.Map VarName t 
+type RecContext t = M.Map RecParName t 
 
 data Type e t =
               -- They are in WHNF

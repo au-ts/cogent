@@ -154,6 +154,8 @@ embedRecPars = map (\(s,d,t) -> (s,d,check t))
       TypeDec n tvs (embedRecPar t)
     check (FunDef  n (PT tvs t) y) =
       FunDef n (PT tvs (embedRecPar t)) y
+    check (AbsDec n (PT tvs t)) =
+      AbsDec n (PT tvs (embedRecPar t))
     -- TODO: Consts?
     check t = traceShow t t
 

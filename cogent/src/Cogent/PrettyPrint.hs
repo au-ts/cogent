@@ -469,7 +469,7 @@ instance Pretty SExpr where
   pretty (SU n) = warn ('?':show n)
 
 instance Pretty RecursiveParameter where
-  pretty (Rec p) = typesymbol "mu" <+> symbol p
+  pretty (Rec p) = typesymbol "rec" <+> symbol p
   pretty NonRec  = empty
 
 prettyT' :: (TypeType t, Pretty t) => t -> Doc
@@ -511,6 +511,7 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
                      | otherwise = pretty e
   pretty (TUnbox t) = (typesymbol "#" <> prettyT' t) & (if __cogent_fdisambiguate_pp then (<+> comment "{- unbox -}") else id)
   pretty (TBang t) = (prettyT' t <> typesymbol "!") & (if __cogent_fdisambiguate_pp then (<+> comment "{- bang -}") else id)
+  pretty (TRPar v _) = keyword "rec" <+> typevar v
   pretty (TTake fs x) = (prettyT' x <+> typesymbol "take"
                                     <+> case fs of Nothing  -> tupled (fieldname ".." : [])
                                                    Just fs' -> tupled1 (map fieldname fs'))
@@ -531,11 +532,12 @@ instance Pretty TCType where
                         Left s -> pretty s
                         Right n -> symbol $ "(?" ++ show n ++ ")"
         rpPretty    = case rp of
-                        Mu v -> typesymbol "mu" <+> symbol v
+                        Mu v -> typesymbol "rec" <+> symbol v
                         None -> empty
                         UP p -> symbol $ "(?" ++ show p ++ ")"
      in symbol "R" <+> rpPretty <+> symbol "{" <+> pretty v <+> symbol "}" <+> sigilPretty
   pretty (U v) = warn ('?':show v)
+  pretty (RPar v _) = keyword "rec" <+> typevar v
   pretty (Synonym n ts) = warn ('S':show n) <+> spaceList (map pretty ts)
 --  pretty (RemoveCase a b) = pretty a <+> string "(without pattern" <+> pretty b <+> string ")"
 
@@ -764,6 +766,8 @@ instance Pretty Constraint where
   pretty (Unsat e)        = err  "Unsat"
   pretty (SemiSat w)      = warn "SemiSat"
   pretty (Sat)            = warn "Sat"
+  pretty (UnboxedNotRecursive t) 
+                          = warn "UnboxedNotRecursive" <+> pretty t
   pretty (Exhaustive t p) = warn "Exhaustive" <+> pretty t <+> pretty p
   pretty (Solved t)       = warn "Solved" <+> pretty t
   pretty (IsPrimType t)   = warn "IsPrimType" <+> pretty t

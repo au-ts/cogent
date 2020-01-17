@@ -81,6 +81,7 @@ apply f (V x) = V (fmap (apply f) x)
 apply (Subst f) (R (UP x) r s)
   | Just (RecP rp) <- M.lookup x f
     = apply (Subst f) (R rp r s)
+apply f (RPar v m) = RPar v (fmap (apply f) m)
 apply f (R rp x s) = R rp (fmap (apply f) x) s
 apply f (T x) = T (fmap (apply f) x)
 apply f (Synonym n ts) = Synonym n (fmap (apply f) ts)

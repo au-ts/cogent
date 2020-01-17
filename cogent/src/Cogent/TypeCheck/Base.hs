@@ -50,6 +50,9 @@ import Lens.Micro
 import Lens.Micro.TH
 import Lens.Micro.Mtl
 
+-- TODO: Remove
+import Debug.Trace
+
 -- -----------------------------------------------------------------------------
 -- Typecheck errors, warnings and context
 -- -----------------------------------------------------------------------------
@@ -237,7 +240,7 @@ warnToConstraint f w | f = SemiSat w
 -- Types for constraint generation and solving
 -- -----------------------------------------------------------------------------
 
-data RP = Mu VarName | None | UP Int
+data RP = Mu RecParName | None | UP Int
           deriving (Show, Eq, Ord)
 
 coerceRP :: RecursiveParameter -> RP
@@ -247,12 +250,13 @@ coerceRP NonRec  = None
 unCoerceRp :: RP -> RecursiveParameter
 unCoerceRp (Mu v) = Rec v
 unCoerceRp None   = NonRec
-unCoerceRp (UP i)      = __impossible $ "Tried to coerce unification parameter (?" ++ show i ++ ") in core recursive type to surface recursive type"
+unCoerceRp (UP i) = __impossible $ "Tried to coerce unification parameter (?" ++ show i ++ ") in core recursive type to surface recursive type"
 
 data TCType         = T (Type SExpr TCType)
                     | U Int  -- unifier
                     | R RP (Row TCType) (Either (Sigil ()) Int)
                     | V (Row TCType) 
+                    | RPar RecParName (RecContext TCType)
                     | Synonym TypeName [TCType]
                     deriving (Show, Eq, Ord)
 
@@ -467,6 +471,7 @@ substType vs (U x) = U x
 substType vs (V x) = V (fmap (substType vs) x)
 substType vs (R rp x s) = R rp (fmap (substType vs) x) s
 substType vs (Synonym n ts) = Synonym n (fmap (substType vs) ts)
+substType vs (RPar v m) = RPar v (fmap (substType vs) m)
 substType vs (T (TVar v b u)) | Just x <- lookup v vs
   = case (b,u) of
       (False, False) -> x
@@ -501,11 +506,14 @@ validateType' vs (RT t) = do
                    else if fields' == fields
                     then (toRow . T . ffmap toSExpr) <$> mapM (validateType' vs) t
                     else throwE (DuplicateRecordFields (fields \\ fields'))
-    TVariant fs  -> do let tuplize [] = T TUnit
-                           tuplize [x] = x 
-                           tuplize xs  = T (TTuple xs)
-                       TVariant fs' <- ffmap toSExpr <$> mapM (validateType' vs) t 
-                       pure (V (Row.fromMap (fmap (first tuplize) fs')))
+    TVariant fs -> do let tuplize [] = T TUnit
+                          tuplize [x] = x 
+                          tuplize xs  = T (TTuple xs)
+                      TVariant fs' <- ffmap toSExpr <$> mapM (validateType' vs) t 
+                      pure (V (Row.fromMap (fmap (first tuplize) fs')))
+    -- Add rec par name here to type variable list to prevent untransformed recPars being
+    -- mistaken as type variables
+    TRPar v m   -> RPar v <$> mapM (validateType' (M.keys m ++ vs)) m
     -- TArray te l -> check l >= 0  -- TODO!!!
     _ -> T <$> (mmapM (return . toSExpr) <=< mapM (validateType' vs)) t
 
@@ -556,4 +564,5 @@ unifVars (R rp r s)
                                     Right y -> [y] 
                        ++ case rp of UP i -> [i]
                                      _   -> []
+unifVars (RPar v m) = concat $ fmap unifVars m
 unifVars (T x) = foldMap unifVars x

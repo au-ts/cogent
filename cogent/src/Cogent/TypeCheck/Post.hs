@@ -165,5 +165,6 @@ normaliseT d (V x) = T . TVariant . M.fromList . Row.toEntryList . fmap (:[]) <$
 normaliseT d (R rp x (Left s)) = T . flip (TRecord (unCoerceRp rp)) (fmap (const noRepE) s) . Row.toEntryList <$> traverse (normaliseT d) x
 normaliseT d (R _ x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
 normaliseT d (U x) = __impossible ("normaliseT: invalid type (?" ++ show x ++ ")")
+normaliseT d (RPar v m) = RPar v <$> mapM (normaliseT d) m
 normaliseT d (T x) = T <$> traverse (normaliseT d) x
 
