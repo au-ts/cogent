@@ -181,7 +181,7 @@ instance Prec (TExpr t) where
   prec (TE _ e _) = prec e
 
 instance Prec (SExpr t) where
-  prec (SE _ e _) = prec e
+  prec (SE _ e) = prec e
   prec (SU {}) = 0
 
 -- NOTE: the difference from the definition of the fixity of Constraint
@@ -216,7 +216,7 @@ instance ExprType (TExpr t) where
   isVar (TE _ e _) = isVar e
 
 instance ExprType (SExpr t) where
-  isVar (SE _ e _) = isVar e
+  isVar (SE _ e) = isVar e
   isVar (SU {}) = const False
 
 -- ------------------------------------
@@ -499,10 +499,10 @@ instance Pretty t => Pretty (TExpr t) where
                     | otherwise = pretty e
 
 instance Pretty t => Pretty (SExpr t) where
-  pretty (SE t e _) | __cogent_fshow_types_in_pretty = parens $ pretty e <+> comment "::" <+> pretty t
-                    | otherwise = pretty e
-  pretty (SU t n)   | __cogent_fshow_types_in_pretty = parens $ warn ('?':show n) <+> comment "::" <+> pretty t
-                    | otherwise = warn ('?':show n)
+  pretty (SE t e) | __cogent_fshow_types_in_pretty = parens $ pretty e <+> comment "::" <+> pretty t
+                  | otherwise = pretty e
+  pretty (SU t n) | __cogent_fshow_types_in_pretty = parens $ warn ('?':show n) <+> comment "::" <+> pretty t
+                  | otherwise = warn ('?':show n)
 
 prettyT' :: (TypeType t, Pretty t) => t -> Doc
 prettyT' t | not $ isAtomic t = parens (pretty t)
