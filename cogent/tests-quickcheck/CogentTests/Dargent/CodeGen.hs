@@ -12,10 +12,10 @@
 
 module CogentTests.Dargent.CodeGen where
 
+import Cogent.Dargent.Allocation
 import Cogent.Dargent.CodeGen
 import Cogent.Dargent.Core
 import Cogent.C.Render
-import Cogent.C.Compile
 import Cogent.C.Syntax
 import Control.Monad
 import Text.PrettyPrint.Mainland.Class as M (pprint)

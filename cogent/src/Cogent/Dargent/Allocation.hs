@@ -19,7 +19,7 @@
 -- internal invariants
 
 module Cogent.Dargent.Allocation
-  ( BitRange(bitSizeBR,bitOffsetBR)
+  ( BitRange (..)
   , newBitRangeFromTo
   , newBitRangeBaseSize
   , emptyBitRange
@@ -27,26 +27,27 @@ module Cogent.Dargent.Allocation
   , pointerBitRange
   , isZeroSizedBR
   , AllocationBlock
-  , OverlappingAllocationBlocks(unOverlappingAllocationBlocks)
+  , OverlappingAllocationBlocks (..)
   , Allocation
-  , Allocation'(unAllocation)
+  , Allocation' (..)
   , emptyAllocation
   , singletonAllocation
   , (\/)
   , (/\)
+  , overlaps
   , isZeroSizedAllocation
-  , AlignedBitRange(bitSizeABR, bitOffsetABR, wordOffsetABR)
+  , AlignedBitRange (..)
   , alignSize
   , alignOffsettable
   , rangeToAlignedRanges
   )
 where
 
-import Control.Monad (guard)
-import Data.Bifunctor (first)
 
 import Control.Applicative
 import Control.Monad.Trans.Writer
+import Control.Monad (guard)
+import Data.Bifunctor (first)
 
 import Cogent.Common.Types
 import Cogent.Common.Syntax
@@ -72,7 +73,7 @@ data BitRange = BitRange { bitSizeBR :: Size, bitOffsetBR :: Size }
   deriving (Eq, Show, Ord)
 
 instance Offsettable BitRange where
-  offset n range@(BitRange { bitOffsetBR }) | n >= 0    = range { bitOffsetBR = bitOffsetBR + n}
+  offset n range@(BitRange { bitOffsetBR }) | n >= 0    = range { bitOffsetBR = bitOffsetBR + n }
                                             | otherwise = error "offset from Offsettable called with n<0"
 
 {- basic checked constructors for BitRange -}
@@ -108,7 +109,7 @@ isZeroSizedBR BitRange { bitSizeBR, bitOffsetBR } = bitSizeBR == 0
 type AllocationBlock p = (BitRange, p)
 
 newtype OverlappingAllocationBlocks p =
-  OverlappingAllocationBlocks { unOverlappingAllocationBlocks :: (AllocationBlock p,AllocationBlock p) }
+  OverlappingAllocationBlocks { unOverlappingAllocationBlocks :: (AllocationBlock p, AllocationBlock p) }
   deriving (Eq, Show, Ord, Functor)
 
 -- | A set of bit indices into a data type.
