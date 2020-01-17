@@ -305,9 +305,10 @@ test-suite test-quickcheck
   build-depends:
                 cogent
               , base >= 4.7
-              , QuickCheck >= 2.11.3
-              , containers >= 0.5
               , Cabal >= 1.9.2
-              , parsec >= 3.1
+              , containers >= 0.5
               , mainland-pretty >= 0.2.6
+              , parsec >= 3.1
+              , QuickCheck >= 2.11.3
+              , transformers
 

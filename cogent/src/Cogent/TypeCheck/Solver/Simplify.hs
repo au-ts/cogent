@@ -211,7 +211,6 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
   -- TODO: Here we will call a SMT procedure to simplify all the Arith constraints.
   -- The only things left will be non-trivial predicates. / zilinc
   Arith (SE _ (PrimOp "==" [e1, e2])) | e1 == e2 -> Just []
-  -- The following rules don't make any sense. They are just here to discharge the constraints.
   Arith (SE _ (PrimOp op [e])) -> Just []
   Arith (SE _ (PrimOp op [e1,e2])) | op /= "==" -> Just []
 #endif

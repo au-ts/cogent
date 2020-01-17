@@ -78,7 +78,7 @@ instance Arbitrary BitRange where
 genDataLayout
   :: Size -- For sizing
   -> Gen (DataLayout BitRange, Allocation)
-genDataLayout n = first Layout <$> genDataLayout' (fromIntegral n) n []
+genDataLayout n = first Layout <$> genDataLayout' (fromIntegral n) n (Allocation [])
 
 genDataLayout'
   :: Size -- max allowed allocated bit index
@@ -112,7 +112,7 @@ genSumLayout maxBitIndex maxSize alloc =
   do
     let maxTagSize = min 4 maxSize
     (tagBitRange, alloc') <- genBitRange maxBitIndex maxTagSize alloc
-    let alloc''            = mapOntoPaths InTag alloc'
+    let alloc''            = fmap InTag alloc'
     let maxNumAlternatives = 2^(bitSizeBR tagBitRange)
     (alts, alloc''') <- genAlts (maxSize - maxTagSize) 0 maxNumAlternatives alloc''
     return (SumLayout tagBitRange alts, alloc''')
@@ -133,8 +133,8 @@ genSumLayout maxBitIndex maxSize alloc =
       (remainingAlts, remainingAlloc) <- genAlts (maxSize - altSize) (tagValue + 1) maxTagValue alloc
       let altName = show tagValue
       (altLayout, altAlloc) <- genDataLayout' maxBitIndex altSize alloc
-      let altAlloc' = mapOntoPaths (InAlt altName sourcePos) altAlloc
-      return $ (M.insert altName (tagValue, altLayout, sourcePos) remainingAlts, altAlloc' ++ remainingAlloc)
+      let altAlloc' = fmap (InAlt altName sourcePos) altAlloc
+      return (M.insert altName (tagValue, altLayout, sourcePos) remainingAlts, altAlloc' \/ remainingAlloc)
 
 
 genRecordLayout
@@ -160,7 +160,7 @@ genRecordLayout maxBitIndex maxSize alloc =
       (remainingFields, alloc') <- genFields (maxSize - fieldSize) (name + 1) alloc
       let fieldName = show name
       (fieldLayout, alloc'') <- genDataLayout' maxBitIndex fieldSize alloc'
-      let alloc''' = mapOntoPaths (InField fieldName sourcePos) alloc''
+      let alloc''' = fmap (InField fieldName sourcePos) alloc''
       return $ (M.insert fieldName (fieldLayout, sourcePos) remainingFields, alloc''')
 
 
@@ -192,8 +192,8 @@ allNonAllocatedRanges
   -> [(BitRange, Allocation)] -- All possible new (range, allocation) pairs
 allNonAllocatedRanges maxBitIndex alloc = do
   range <- allNonEmptyRanges maxBitIndex
-  case [(range, PathEnd)] /\ alloc of
-    ([], newAlloc) -> return (range, newAlloc)
+  case Allocation [(range, PathEnd)] /\ alloc of
+    Right newAlloc -> return (range, newAlloc)
     _              -> []
 
 {- Arbitrary instances -}
