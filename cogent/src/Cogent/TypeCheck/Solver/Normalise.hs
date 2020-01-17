@@ -33,7 +33,7 @@ import Control.Monad.Trans.Maybe
 import Lens.Micro.Mtl
 import Lens.Micro
 
-import Debug.Trace
+-- import Debug.Trace
 
 normaliseRW :: RewriteT TcSolvM TCType
 normaliseRW = rewrite' $ \t -> case t of
@@ -120,9 +120,7 @@ whnf input = do
 -- | Normalise all types within a set of constraints
 normaliseTypes :: [Goal] -> TcSolvM [Goal]
 normaliseTypes = mapM $ \g -> do
-  _ <- trace ("@@@@" ++ show g) $ return ()
   c' <- mapM whnf (g ^. goal)
-  _ <- trace ("****") $ return ()
   pure $ set goal c' g
 
 normaliseSExpr :: TCSExpr -> Int
