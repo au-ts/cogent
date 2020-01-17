@@ -174,6 +174,21 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
 
   T t1 :=: T t2 | t1 == t2 -> Just []
 
+  -- Recursive types
+
+  RPar v1 m1 :<  RPar v2 m2 -> guard (m1 M.! v1 == m2 M.! v2) >> Just []
+  RPar v1 m1 :=: RPar v2 m2 -> guard (m1 M.! v1 == m2 M.! v2) >> Just []
+
+  RPar v m :< x  -> Just [unroll v m :< x]
+  x :< RPar v m  -> Just [x :< unroll v m]
+  x :=: RPar v m -> Just [x :=: unroll v m]
+  RPar v m :=: x -> Just [unroll v m :=: x]
+
+  -- TODO: Remaining cases
+
+  UnboxedNotRecursive (R None _ (Left Unboxed))     -> Just []
+  UnboxedNotRecursive (R _ _    (Left (Boxed _ _))) -> Just []
+
   _ -> Nothing
 
 unorderedType :: Type e t -> Bool 

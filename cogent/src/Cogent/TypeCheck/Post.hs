@@ -99,6 +99,7 @@ normaliseIP d tip@(TIP ip l) = do
         normaliseIP' :: TypeDict -> IrrefutablePattern TCName TCIrrefPatn -> Post (IrrefutablePattern TCName TCIrrefPatn)
         normaliseIP' d = traverse (normaliseIP d) >=> ttraverse (secondM (normaliseT d))
 
+-- postcondition: only types should remain in the TCType after running (aka 'T' constructors)
 normaliseT :: TypeDict -> TCType -> Post TCType
 normaliseT d (T (TUnbox t)) = do
    t' <- normaliseT d t
@@ -165,6 +166,6 @@ normaliseT d (V x) = T . TVariant . M.fromList . Row.toEntryList . fmap (:[]) <$
 normaliseT d (R rp x (Left s)) = T . flip (TRecord (unCoerceRp rp)) (fmap (const noRepE) s) . Row.toEntryList <$> traverse (normaliseT d) x
 normaliseT d (R _ x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
 normaliseT d (U x) = __impossible ("normaliseT: invalid type (?" ++ show x ++ ")")
-normaliseT d (RPar v m) = RPar v <$> mapM (normaliseT d) m
+normaliseT d (RPar v m) = T <$> (TRPar v <$> mapM (normaliseT d) m)
 normaliseT d (T x) = T <$> traverse (normaliseT d) x
 

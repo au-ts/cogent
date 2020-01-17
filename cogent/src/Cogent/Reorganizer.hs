@@ -156,8 +156,12 @@ embedRecPars = map (\(s,d,t) -> (s,d,check t))
       FunDef n (PT tvs (embedRecPar t)) y
     check (AbsDec n (PT tvs t)) =
       AbsDec n (PT tvs (embedRecPar t))
+    check (AbsTypeDec n tvs ts)
+      = AbsTypeDec n tvs (map embedRecPar ts)
+    check (ConstDef n t e)
+      = ConstDef n (embedRecPar t) e
     -- TODO: Consts?
-    check t = traceShow t t
+    check t = t
 
 embedRecPar :: LocType -> LocType
 embedRecPar t = erp M.empty t
@@ -199,18 +203,21 @@ checkNoShadowing :: [TopLevel LocType LocPatn LocExpr]
 checkNoShadowing [] = return ()
 checkNoShadowing (t:ts) = do
   check t
-  checkStrictlyPositive ts
+  checkNoShadowing ts
   where
     check x = 
       case x of 
         TypeDec _ tvs t       -> ns tvs t
         FunDef _ (PT tvs t) y -> ns (map fst tvs) t
+        AbsTypeDec _ tvs ts   -> allEither $ map (ns tvs) ts
+        AbsDec _ (PT tvs t)   -> ns (map fst tvs) t
+        ConstDef _ t _        -> ns [] t
         tl                    -> Right ()
 
     srcObj = sourceObject t
   
     ns :: [Syn.TyVarName] -> LocType -> Either (ReorganizeError, [(SourceObject, SourcePos)]) ()
-    ns tvs (LocType p ty) = 
+    ns tvs (LocType p ty) =
       case ty of
         TRecord (Rec v) fs _ | v `elem` tvs 
                             -> Left (RecParShadowsTyVar, [(srcObj, p)])
@@ -244,6 +251,9 @@ checkStrictlyPositive (t:ts) = do
       case x of 
         TypeDec _ _ t       -> sp S.empty S.empty t 
         FunDef _ (PT _ t) y -> sp S.empty S.empty t
+        AbsDec _ (PT _ t)   -> sp S.empty S.empty t 
+        AbsTypeDec _ _ ts   -> allEither $ map (sp S.empty S.empty) ts
+        ConstDef _ t _      -> sp S.empty S.empty t
         tl                  -> Right ()
 
     srcObj = sourceObject t
