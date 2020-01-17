@@ -122,10 +122,10 @@ validateType (RT t) = do
                         [] -> return (Sat, Nothing)
                         [(i,True)] -> do y <- freshEVar (T u32)
                                          let c = __todo "ctkn"
-                                         return (c, Just y)
+                                         return (Sat, Just y)
                         _  -> return (Unsat $ OtherTypeError "taking more than one element from arrays not supported", Nothing)
       let cl = Arith (SE (T bool) (PrimOp ">" [x, SE (T u32) (IntLit 0) ?loc]) ?loc)
-            <> __todo "cl: on l"
+            -- <> Arith (SE (T bool) (PrimOp "==" [x, l]) ?loc)
       (c,te') <- validateType te
       return (c <> ctkn <> cl, A te' x (Left s) mhole)
     -- TODO: need to add `l` and `i` into the constraint set / zilinc
