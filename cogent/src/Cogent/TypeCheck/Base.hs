@@ -337,7 +337,7 @@ data TCType         = T (Type TCSExpr TCDataLayout TCType)
                     | U Int  -- unifier
                     | R (Row TCType) (Either (Sigil (Maybe TCDataLayout)) Int)
 
-data RP = Mu VarName | None | UP Int
+data RP = Mu RecParName | None | UP Int
           deriving (Show, Eq, Ord)
 
 coerceRP :: RecursiveParameter -> RP
@@ -347,7 +347,7 @@ coerceRP NonRec  = None
 unCoerceRp :: RP -> RecursiveParameter
 unCoerceRp (Mu v) = Rec v
 unCoerceRp None   = NonRec
-unCoerceRp (UP i)      = __impossible $ "Tried to coerce unification parameter (?" ++ show i ++ ") in core recursive type to surface recursive type"
+unCoerceRp (UP i) = __impossible $ "Tried to coerce unification parameter (?" ++ show i ++ ") in core recursive type to surface recursive type"
 
 data TCType         = T (Type TCSExpr TCType)
                     | U Int  -- unifier
@@ -657,6 +657,7 @@ substType vs (R rp x s) = R rp (fmap (substType vs) x) s
 substType vs (A t l s tkns) = A (substType vs t) l s tkns
 #endif
 substType vs (Synonym n ts) = Synonym n (fmap (substType vs) ts)
+substType vs (RPar v m) = RPar v (fmap (substType vs) m)
 substType vs (T (TVar v b u)) | Just x <- lookup v vs
   = case (b,u) of
       (False, False) -> x
@@ -683,24 +684,6 @@ substLayout vs (R x s) = R (substLayout vs <$> x) (bimap (fmap (fmap (substLayou
 substLayout vs (A t l s tkns) = A (substLayout vs t) l (bimap (fmap (fmap (substLayoutL vs))) id s) tkns
 #endif
 substLayout vs (Synonym n ts) = Synonym n $ substLayout vs <$> ts
-
-substLayoutC :: [(DLVarName, TCDataLayout)] -> Constraint -> Constraint
-substLayoutC vs (c1 :& c2) = substLayoutC vs c1 :& substLayoutC vs c2
-substLayoutC vs (t1 :< t2) = substLayout vs t1 :< substLayout vs t2
-substLayoutC vs (t1 :=: t2) = substLayout vs t1 :=: substLayout vs t2
-substLayoutC vs (Upcastable t1 t2) = Upcastable (substLayout vs t1) (substLayout vs t2)
-substLayoutC vs (Share t m) = Share (substLayout vs t) m
-substLayoutC vs (Drop t m) = Drop (substLayout vs t) m
-substLayoutC vs (c :@ ctx) = substLayoutC vs c :@ ctx
-substLayoutC vs (Unsat e) = Unsat e
-substLayoutC vs Sat = Sat
-substLayoutC vs (Exhaustive t p) = Exhaustive (substLayout vs t) p
-substLayoutC vs (Solved t) = Solved (substLayout vs t)
-substLayoutC vs (IsPrimType t) = IsPrimType (substLayout vs t)
-#ifdef BUILTIN_ARRAYS
-substLayoutC vs (Arith e) = Arith e  -- i don't think there will exist layout vars in SExpr
-substLayoutC vs (c1 :-> c2) = substLayoutC vs c1 :-> substLayoutC vs c2
-#endif
 
 flexOf (U x) = Just x
 flexOf (T (TTake _ t))   = flexOf t
@@ -746,6 +729,7 @@ unifVars (R rp r s) =
 #ifdef REFINEMENT_TYPES
 unifVars (A t l s tkns) = unifVars t ++ rights [s] ++ rights [tkns]
 #endif
+unifVars (RPar v m) = concat $ fmap unifVars m
 unifVars (T x) = foldMap unifVars x
 
 unifLVars :: TCDataLayout -> [Int]
@@ -872,3 +856,4 @@ isTypeLayoutExprCompatible env t (TLRepRef n s) =
     Nothing        -> False  -- TODO(dargent): this really shoud be an exceptional state
 isTypeLayoutExprCompatible _ t (TLVar n) = True -- FIXME
 isTypeLayoutExprCompatible _ t l = trace ("t = " ++ show t ++ "\nl = " ++ show l) False
+

@@ -124,6 +124,11 @@ validateType (RT t) = do
                        (c, TVariant fs') <- fmapFoldM validateType t
                        pure (c, V (Row.fromMap (fmap (first tuplize) fs')))
 
+    -- Add rec par name here to type variable list to prevent untransformed recPars being
+    -- mistaken as type variables
+    TRPar v m   -> do knownTypeVars %= (M.keys m ++)
+                      (second (RPar v)) <$> fmapFoldM validateType m
+
 #ifdef BUILTIN_ARRAYS
     TArray te l s tkns -> do
       x <- freshEVar (T u32)
@@ -208,6 +213,7 @@ validateType (RT t) = do
     -- This can't be done in the current setup because validateType' has no context for the type it is validating.
     -- Not implementing this now, because a new syntax for types is needed anyway, which may make this issue redundant.
     -- /mdimeglio
+
 
 validateTypes :: (?loc :: SourcePos, Traversable t) => t RawType -> CG (Constraint, t TCType)
 validateTypes = fmapFoldM validateType
