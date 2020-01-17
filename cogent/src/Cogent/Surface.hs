@@ -225,115 +225,22 @@ instance Foldable (Flip2 TopLevel p e) where
   foldMap f a = getConst $ traverse (Const . f) a
 
 instance Traversable (Flip Alt e) where  -- p
-  traverse f (Flip (Alt p b e)) = Flip <$> (Alt <$> f p <*> pure b <*> pure e)
+  traverse f (Flip alt) = Flip <$> bitraverse f pure alt
 
 instance Traversable (Flip (Binding t p) e) where  -- ip
-  traverse f (Flip (Binding ip mt e vs)) = Flip <$> (Binding <$> f ip <*> pure mt <*> pure e <*> pure vs)
-  traverse f (Flip (BindingAlts p mt e vs alts)) = pure $ Flip (BindingAlts p mt e vs alts)
+  traverse f (Flip  b) = Flip  <$> quadritraverse pure pure f pure b
 instance Traversable (Flip2 (Binding t) e ip) where  -- p
-  traverse f (Flip2 (Binding ip mt e vs)) = pure $ Flip2 (Binding ip mt e vs)
-  traverse f (Flip2 (BindingAlts p mt e vs alts)) = Flip2 <$> (BindingAlts <$> f p <*> pure mt <*> pure e <*> pure vs <*> traverse (ttraverse f) alts)
+  traverse f (Flip2 b) = Flip2 <$> quadritraverse pure f pure pure b
 instance Traversable (Flip3 Binding e ip p) where  -- t
-  traverse f (Flip3 (Binding ip mt e vs)) = Flip3 <$> (Binding ip <$> traverse f mt <*> pure e <*> pure vs)
-  traverse f (Flip3 (BindingAlts p mt e vs alts)) = Flip3 <$> (BindingAlts p <$> traverse f mt <*> pure e <*> pure vs <*> pure alts)
+  traverse f (Flip3 b) = Flip3 <$> quadritraverse f pure pure pure b
 
 instance Traversable (Flip (Expr t p) e) where  -- ip
-  traverse _ (Flip (PrimOp op e))       = pure $ Flip (PrimOp op e)
-  traverse _ (Flip (Var v))             = pure $ Flip (Var v)
-  traverse _ (Flip (Match e v alt))     = pure $ Flip (Match e v alt)
-  traverse _ (Flip (TypeApp v ts nt))   = pure $ Flip (TypeApp v ts nt)
-  traverse _ (Flip (Con n e))           = pure $ Flip (Con n e)
-  traverse _ (Flip (Seq e e'))          = pure $ Flip (Seq e e')
-  traverse f (Flip (Lam  ip mt e))      = Flip <$> (Lam  <$> f ip <*> pure mt <*> pure e)
-  traverse f (Flip (LamC ip mt e vs))   = Flip <$> (LamC <$> f ip <*> pure mt <*> pure e <*> pure vs)
-  traverse _ (Flip (App  e e' i))       = pure $ Flip (App  e e' i)
-  traverse _ (Flip (Comp f g))          = pure $ Flip (Comp f g)
-  traverse _ (Flip (AppC e e'))         = pure $ Flip (AppC e e')
-  traverse _ (Flip (If c vs e e'))      = pure $ Flip (If c vs e e')
-  traverse _ (Flip (MultiWayIf es el))  = pure $ Flip (MultiWayIf es el)
-  traverse _ (Flip (Member e f))        = pure $ Flip (Member e f)
-  traverse _ (Flip Unitel)              = pure $ Flip Unitel
-  traverse _ (Flip (IntLit l))          = pure $ Flip (IntLit l)
-  traverse _ (Flip (BoolLit l))         = pure $ Flip (BoolLit l)
-  traverse _ (Flip (CharLit l))         = pure $ Flip (CharLit l)
-  traverse _ (Flip (StringLit l))       = pure $ Flip (StringLit l)
-#ifdef BUILTIN_ARRAYS
-  traverse _ (Flip (ArrayLit es))       = pure $ Flip (ArrayLit es)
-  traverse _ (Flip (ArrayIndex e i))    = pure $ Flip (ArrayIndex e i)
-  traverse f (Flip (ArrayMap2 m es))    = Flip <$> (ArrayMap2 <$> firstM (bothM f) m <*> pure es)
-  traverse _ (Flip (ArrayPut e es))     = pure $ Flip (ArrayPut e es)
-#endif
-  traverse _ (Flip (Tuple es))          = pure $ Flip (Tuple es)
-  traverse _ (Flip (UnboxedRecord es))  = pure $ Flip (UnboxedRecord es)
-  traverse f (Flip (Let bs e))          = Flip <$> (Let <$> (traverse (ttraverse f) bs) <*> pure e)
-  traverse _ (Flip (Put e es))          = pure $ Flip (Put e es)
-  traverse _ (Flip (Upcast e))          = pure $ Flip (Upcast e)
-  traverse _ (Flip (Annot e t))         = pure $ Flip (Annot e t)
+  traverse f (Flip  e) = Flip  <$> quadritraverse pure pure f pure e
 instance Traversable (Flip2 (Expr t) e ip) where  -- p
-  traverse _ (Flip2 (PrimOp op e))      = pure $ Flip2 (PrimOp op e)
-  traverse _ (Flip2 (Var v))            = pure $ Flip2 (Var v)
-  traverse f (Flip2 (Match e v alt))    = Flip2 <$> (Match e v <$> traverse (ttraverse f) alt)
-  traverse _ (Flip2 (TypeApp v ts nt))  = pure $ Flip2 (TypeApp v ts nt)
-  traverse _ (Flip2 (Con n e))          = pure $ Flip2 (Con n e)
-  traverse _ (Flip2 (Seq e e'))         = pure $ Flip2 (Seq e e')
-  traverse _ (Flip2 (Lam  ip mt e))     = pure $ Flip2 (Lam  ip mt e)
-  traverse _ (Flip2 (LamC ip mt e vs))  = pure $ Flip2 (LamC ip mt e vs)
-  traverse _ (Flip2 (App  e e' i))      = pure $ Flip2 (App  e e' i)
-  traverse _ (Flip2 (Comp f g))         = pure $ Flip2 (Comp f g)
-  traverse _ (Flip2 (AppC e e'))        = pure $ Flip2 (AppC e e')
-  traverse _ (Flip2 (If c vs e e'))     = pure $ Flip2 (If c vs e e')
-  traverse _ (Flip2 (MultiWayIf es el)) = pure $ Flip2 (MultiWayIf es el)
-  traverse _ (Flip2 (Member e f))       = pure $ Flip2 (Member e f)
-  traverse _ (Flip2 Unitel)             = pure $ Flip2 Unitel
-  traverse _ (Flip2 (IntLit l))         = pure $ Flip2 (IntLit l)
-  traverse _ (Flip2 (BoolLit l))        = pure $ Flip2 (BoolLit l)
-  traverse _ (Flip2 (CharLit l))        = pure $ Flip2 (CharLit l)
-  traverse _ (Flip2 (StringLit l))      = pure $ Flip2 (StringLit l)
-#ifdef BUILTIN_ARRAYS
-  traverse _ (Flip2 (ArrayLit es))      = pure $ Flip2 (ArrayLit es)
-  traverse _ (Flip2 (ArrayIndex e i))   = pure $ Flip2 (ArrayIndex e i)
-  traverse _ (Flip2 (ArrayMap2 f es))   = pure $ Flip2 (ArrayMap2 f es)
-  traverse _ (Flip2 (ArrayPut e es))    = pure $ Flip2 (ArrayPut e es)
-#endif
-  traverse _ (Flip2 (Tuple es))         = pure $ Flip2 (Tuple es)
-  traverse _ (Flip2 (UnboxedRecord es)) = pure $ Flip2 (UnboxedRecord es)
-  traverse f (Flip2 (Let bs e))         = Flip2 <$> (Let <$> traverse (tttraverse f) bs <*> pure e)
-  traverse _ (Flip2 (Put e es))         = pure $ Flip2 (Put e es)
-  traverse _ (Flip2 (Upcast e))         = pure $ Flip2 (Upcast e)
-  traverse _ (Flip2 (Annot e t))        = pure $ Flip2 (Annot e t)
+  traverse f (Flip2 e) = Flip2 <$> quadritraverse pure f pure pure e
 instance Traversable (Flip3 Expr e ip p) where  -- t
-  traverse _ (Flip3 (PrimOp op e))       = pure $ Flip3 (PrimOp op e)
-  traverse _ (Flip3 (Var v))             = pure $ Flip3 (Var v)
-  traverse _ (Flip3 (Match e v alt))     = pure $ Flip3 (Match e v alt)
-  traverse f (Flip3 (TypeApp v ts nt))   = Flip3 <$> (TypeApp v <$> traverse (traverse f) ts <*> pure nt)
-  traverse _ (Flip3 (Con n e))           = pure $ Flip3 (Con n e)
-  traverse _ (Flip3 (Seq e e'))          = pure $ Flip3 (Seq e e')
-  traverse f (Flip3 (Lam  ip mt e))      = Flip3 <$> (Lam  ip <$> traverse f mt <*> pure e)
-  traverse f (Flip3 (LamC ip mt e vs))   = Flip3 <$> (LamC ip <$> traverse f mt <*> pure e <*> pure vs)
-  traverse _ (Flip3 (App  e e' i))       = pure $ Flip3 (App  e e' i)
-  traverse _ (Flip3 (Comp f g))          = pure $ Flip3 (Comp f g)
-  traverse _ (Flip3 (AppC e e'))         = pure $ Flip3 (AppC e e')
-  traverse _ (Flip3 (If c vs e e'))      = pure $ Flip3 (If c vs e e')
-  traverse _ (Flip3 (MultiWayIf es el))  = pure $ Flip3 (MultiWayIf es el)
-  traverse _ (Flip3 (Member e f))        = pure $ Flip3 (Member e f)
-  traverse _ (Flip3 Unitel)              = pure $ Flip3 Unitel
-  traverse _ (Flip3 (IntLit l))          = pure $ Flip3 (IntLit l)
-  traverse _ (Flip3 (BoolLit l))         = pure $ Flip3 (BoolLit l)
-  traverse _ (Flip3 (CharLit l))         = pure $ Flip3 (CharLit l)
-  traverse _ (Flip3 (StringLit l))       = pure $ Flip3 (StringLit l)
-#ifdef BUILTIN_ARRAYS
-  traverse _ (Flip3 (ArrayLit es))       = pure $ Flip3 (ArrayLit es)
-  traverse _ (Flip3 (ArrayIndex e i))    = pure $ Flip3 (ArrayIndex e i)
-  traverse _ (Flip3 (ArrayMap2 f es))    = pure $ Flip3 (ArrayMap2 f es) 
-  traverse _ (Flip3 (ArrayPut e es))     = pure $ Flip3 (ArrayPut e es)
-#endif
-  traverse _ (Flip3 (Tuple es))          = pure $ Flip3 (Tuple es)
-  traverse _ (Flip3 (UnboxedRecord es))  = pure $ Flip3 (UnboxedRecord es)
-  traverse f (Flip3 (Let bs e))          = Flip3 <$> (Let <$> (traverse (ttttraverse f) bs) <*> pure e)
-  traverse _ (Flip3 (Put e es))          = pure $ Flip3 (Put e es)
-  traverse _ (Flip3 (Upcast e))          = pure $ Flip3 (Upcast e)
-  traverse f (Flip3 (Annot e t))         = Flip3 <$> (Annot <$> pure e <*> f t)
-
+  traverse f (Flip3 e) = Flip3 <$> quadritraverse f pure pure pure e
+  
 instance Traversable (Flip (IrrefutablePattern pv) e) where  -- ip
   traverse f (Flip (PVar pv))             = pure $ Flip (PVar pv)
   traverse f (Flip (PTuple ips))          = Flip <$> (PTuple <$> traverse f ips)
@@ -430,9 +337,9 @@ instance Functor (Flip2 TopLevel e p) where
 
 
 instance Bifunctor Alt where
-  bimap f g alt = undefined
+  bimap f g = runIdentity . bitraverse (Identity . f) (Identity . g)
 instance Bifoldable Alt where
-  bifoldMap f g alt = undefined
+  bifoldMap f g = getConst . bitraverse (Const . f) (Const . g)
 instance Bitraversable Alt where
   bitraverse f g (Alt p l e) = Alt <$> f p <*> pure l <*> g e
 
