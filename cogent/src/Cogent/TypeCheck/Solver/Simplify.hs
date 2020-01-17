@@ -313,6 +313,20 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
     hoistMaybe $ Just ([Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [l1,l2])), t1 :=: t2, drop] <> c)
 
   a :-> b -> __fixme $ hoistMaybe $ Just [b]  -- FIXME: cuerently we ignore the impls. / zilinc
+  
+  -- Recursive types
+  RPar v1 m1 :<  RPar v2 m2 -> guard (m1 M.! v1 == m2 M.! v2) >> hoistMaybe $ Just []
+  RPar v1 m1 :=: RPar v2 m2 -> guard (m1 M.! v1 == m2 M.! v2) >> hoistMaybe $ Just []
+
+  RPar v m :< x  -> hoistMaybe $ Just [unroll v m :< x]
+  x :< RPar v m  -> hoistMaybe $ Just [x :< unroll v m]
+  x :=: RPar v m -> hoistMaybe $ Just [x :=: unroll v m]
+  RPar v m :=: x -> hoistMaybe $ Just [unroll v m :=: x]
+
+  -- TODO: Remaining cases
+
+  UnboxedNotRecursive (R None _ (Left Unboxed))     -> hoistMaybe $ Just []
+  UnboxedNotRecursive (R _ _    (Left (Boxed _ _))) -> hoistMaybe $ Just []
 
   -- TODO: Here we will call a SMT procedure to simplify all the Arith constraints.
   -- The only things left will be non-trivial predicates. / zilinc
