@@ -911,6 +911,8 @@ instance Pretty ReorganizeError where
   pretty DuplicateTypeDefinition = err "duplicate type definition"
   pretty DuplicateValueDefinition = err "duplicate value definition"
   pretty DuplicateRepDefinition = err "duplicate repr definition"
+  pretty NonStrictlyPositive = err "non strictly positive occurence of recursive type"
+  pretty RecParShadowsTyVar = err "recursive parameter shadows type variable"
 
 instance Pretty Subst where
   pretty (Subst m) = pretty m

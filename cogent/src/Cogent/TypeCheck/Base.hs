@@ -348,6 +348,17 @@ unCoerceRp (Mu v) = Rec v
 unCoerceRp None   = NonRec
 unCoerceRp (UP i) = __impossible $ "Tried to coerce unification parameter (?" ++ show i ++ ") in core recursive type to surface recursive type"
 
+unroll :: VarName -> RecContext TCType -> TCType
+unroll v ctxt = embedRecPar' ctxt (ctxt M.! v)
+  where
+    embedRecPar' ctxt (T (TVar v _ _)) | v `elem` M.keys ctxt = RPar v ctxt
+    embedRecPar' ctxt (T t) = T $ fmap (embedRecPar' ctxt) t
+    embedRecPar' ctxt t@(R rp r s) = let ctxt' = (case rp of (Mu v) -> M.insert v t ctxt; _ -> ctxt)
+                                    in R rp (fmap (embedRecPar' ctxt') r) s
+    embedRecPar' ctxt (V r) = V $ fmap (embedRecPar' ctxt) r
+    embedRecPar' ctxt (Synonym t ts) = Synonym t $ map (embedRecPar' ctxt) ts
+    embedRecPar' ctxt t = t
+
 data TCType         = T (Type TCSExpr TCType)
                     | U Int  -- unifier
                     | R RP (Row TCType) (Either (Sigil (Maybe TCDataLayout)) Int)
