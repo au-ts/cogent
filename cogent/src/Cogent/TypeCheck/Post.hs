@@ -259,6 +259,8 @@ normaliseT d (A t n (Left s) (Left mhole)) = do
 normaliseT d (A t n (Right s) mhole) = __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
 normaliseT d (A t n s (Right h)) = __impossible ("normaliseT: invalid hole (?" ++ show h ++ ")")
 #endif
+normaliseT d (U x) = __impossible ("normaliseT: invalid type (?" ++ show x ++ ")")
+normaliseT d (RPar v m) = RPar v <$> mapM (normaliseT d) m
 normaliseT d (T x) = T <$> traverse (normaliseT d) x
 
 tkNorm :: Either Taken Int -> Taken

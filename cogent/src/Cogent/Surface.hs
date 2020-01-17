@@ -145,7 +145,7 @@ data Type e l t =
                 deriving (Show, Functor, Data, Eq, Ord, Foldable, Traversable)
 
 -- recursive parameter names to the type it recursively references
-type RecContext t = M.Map VarName t 
+type RecContext t = M.Map RecParName t 
 
 -- A few commonly used typed
 u8   = TCon "U8"   [] Unboxed

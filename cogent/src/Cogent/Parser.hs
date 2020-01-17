@@ -47,8 +47,6 @@ import qualified Text.Parsec.Token as T
 import System.Directory
 import System.FilePath
 
--- import Debug.Trace
-
 
 type Parser a = ParsecT String S Identity a
 
