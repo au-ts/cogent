@@ -119,17 +119,18 @@ validateType (RT t) = do
 #ifdef BUILTIN_ARRAYS
     TArray te l s tkns -> do
       x <- freshEVar (T u32)
+      (lc,l') <- cg (rawToLocE ?loc l) (T u32)
       (ctkn,mhole) <- case tkns of
                         [] -> return (Sat, Nothing)
                         [(i,True)] -> do y <- freshEVar (T u32)
-                                         let c = __todo "ctkn"
-                                         return (Sat, Just y)
+                                         (ic,i') <- cg (rawToLocE ?loc i) (T u32)
+                                         let c = Arith $ SE (T bool) (PrimOp "==" [toTCSExpr i', y])
+                                         return (c <> ic, Just y)
                         _  -> return (Unsat $ OtherTypeError "taking more than one element from arrays not supported", Nothing)
-      let cl = Arith (SE (T bool) (PrimOp ">" [x, SE (T u32) (IntLit 0) ?loc]) ?loc)
-            -- <> Arith (SE (T bool) (PrimOp "==" [x, l]) ?loc)
+      let cl = Arith (SE (T bool) (PrimOp ">" [x, SE (T u32) (IntLit 0)]))
+            <> Arith (SE (T bool) (PrimOp "==" [toTCSExpr l', x]))
       (c,te') <- validateType te
       return (c <> ctkn <> cl, A te' x (Left s) mhole)
-    -- TODO: need to add `l` and `i` into the constraint set / zilinc
     -- TATake es t -> undefined
     -- TAPut  es t -> undefined
 #endif
@@ -302,8 +303,8 @@ cg' (ArrayLit es) t = do
   alpha <- freshTVar
   blob <- forM es $ flip cg alpha
   let (cs,es') = unzip blob
-      n = SE (T u32) (IntLit . fromIntegral $ length es) ?loc
-      cz = Arith (SE (T bool) (PrimOp ">" [n, SE (T u32) (IntLit 0) ?loc]) ?loc)
+      n = SE (T u32) (IntLit . fromIntegral $ length es)
+      cz = Arith (SE (T bool) (PrimOp ">" [n, SE (T u32) (IntLit 0)]))
   beta <- freshVar
   return (mconcat cs <> cz <> (A alpha n (Left Unboxed) Nothing) :< t, ArrayLit es')
 
@@ -318,8 +319,8 @@ cg' (ArrayIndex e i) t = do
   (ci, i') <- cg i (T u32)
   let c = alpha :< t
         <> Share ta UsedInArrayIndexing
-        <> Arith (SE (T bool) (PrimOp "<"  [toTCSExpr i', n  ]) ?loc)  -- FIXME!
-        <> Arith (SE (T bool) (PrimOp "/=" [toTCSExpr i', idx]) ?loc)
+        <> Arith (SE (T bool) (PrimOp "<"  [toTCSExpr i', n  ]))  -- FIXME!
+        <> Arith (SE (T bool) (PrimOp "/=" [toTCSExpr i', idx]))
         -- <> Arith (SE (PrimOp ">=" [toSExpr i, SE (IntLit 0)]))  -- as we don't have negative values
   traceTc "gen" (text "array indexing" <> colon
                  L.<$> text "index is" <+> pretty (stripLocE i) <> semi
@@ -528,8 +529,8 @@ cg' (If e1 bs e2 e3) t = do
       ((c2',cc2),(c3',cc3)) = if arithTCExpr e1' then
         let (ca2,cc2) = splitArithConstraints c2
             (ca3,cc3) = splitArithConstraints c3
-            c2' = Arith (SE (T bool) (PrimOp "||" [SE (T bool) (PrimOp "not" [toTCSExpr e1']) ?loc, andTCSExprs ca2]) ?loc)
-            c3' = Arith (SE (T bool) (PrimOp "||" [toTCSExpr e1', andTCSExprs ca3]) ?loc)
+            c2' = Arith (SE (T bool) (PrimOp "||" [SE (T bool) (PrimOp "not" [toTCSExpr e1']), andTCSExprs ca2]))
+            c3' = Arith (SE (T bool) (PrimOp "||" [toTCSExpr e1', andTCSExprs ca3]))
          in ((c2',cc2),(c3',cc3))
       else ((c2,Sat),(c3,Sat))
 #else
@@ -723,7 +724,7 @@ match' (PArray ps) t = do
   blob  <- mapM (`match` alpha) ps
   r <- freshVar
   let (ss,cs,ps') = unzip3 blob
-      l = SE (T u32) (IntLit . fromIntegral $ length ps) ?loc
+      l = SE (T u32) (IntLit . fromIntegral $ length ps)
       c = t :< (A alpha l (__fixme $ Left Unboxed) Nothing)  -- FIXME: can be boxed as well / zilinc
   return (M.unions ss, mconcat cs <> c, PArray ps')
 
@@ -736,8 +737,8 @@ match' (PArrayTake arr [(idx,p)]) t = do
   let tarr = A alpha len (Right sigil) (Just $ toTCSExpr idx')  -- type of the newly introduced @arr'@ variable
       s = M.fromList [(arr, (tarr, ?loc, Seq.empty))]
       c = [ t :< A alpha len (Right sigil) Nothing
-          , Arith (SE (T bool) (PrimOp ">=" [toTCSExpr idx', SE (T u32) (IntLit 0) ?loc]) ?loc)
-          , Arith (SE (T bool) (PrimOp "<"  [toTCSExpr idx', len]) ?loc)
+          , Arith (SE (T bool) (PrimOp ">=" [toTCSExpr idx', SE (T u32) (IntLit 0)]))
+          , Arith (SE (T bool) (PrimOp "<"  [toTCSExpr idx', len]))
           ]
   return (s `M.union` sp, cp `mappend` mconcat c, PArrayTake (arr, tarr) [(idx',p')])
 

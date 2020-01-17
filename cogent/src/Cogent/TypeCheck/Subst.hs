@@ -27,6 +27,8 @@ import Data.Maybe
 import Data.Monoid hiding (Alt)
 import Prelude hiding (lookup)
 
+import Debug.Trace
+
 data AssignResult = Type TCType
                   | Sigil (Sigil (Maybe DataLayoutExpr))
                   | Row (Either (Row.Row TCType) Row.Shape)
@@ -160,16 +162,15 @@ applySE (Subst f) (SU t x)
   = applySE (Subst f) e
   | otherwise
   = SU t x
-applySE s (SE t e l) = SE (apply s t)
-                          ( fmap (fmap (apply s))
+applySE s (SE t e) = SE (apply s t)
+                          ( fmap (applySE s)
                           $ ffmap (fmap (apply s))
                           $ fffmap (fmap (apply s))
                           $ ffffmap (apply s) e)
-                          l
 
 applyE :: Subst -> TCExpr -> TCExpr
 applyE s (TE t e l) = TE (apply s t)
-                         ( fmap (fmap (apply s))
+                         ( fmap (applyE s)
                          $ ffmap (fmap (apply s))
                          $ fffmap (fmap (apply s))
                          $ ffffmap (apply s) e)
