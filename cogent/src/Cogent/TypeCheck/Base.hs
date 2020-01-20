@@ -274,6 +274,10 @@ data SExpr t        = SE { getTypeSE :: t, getExprSE :: Expr t (TPatn t) (TIrref
                     | SU t Int
                     deriving (Show, Eq, Ord)
 
+typeOfSE :: SExpr t -> t
+typeOfSE (SE t _) = t
+typeOfSE (SU t _) = t
+
 type TCSExpr = SExpr TCType
 
 instance Functor SExpr where

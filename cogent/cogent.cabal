@@ -181,7 +181,7 @@ library
     exposed-modules: 
                      Cogent.TypeCheck.SMT
                    , Cogent.TypeCheck.Solver.SMT
-    build-depends: smtlib2 >= 1.0
+    build-depends: sbv
     cpp-options: -DBUILTIN_ARRAYS
   if flag(docgent)
     cpp-options: -DWITH_DOCGENT
