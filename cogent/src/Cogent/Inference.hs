@@ -40,6 +40,7 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core
 import Cogent.Util
+import Cogent.PrettyPrint (indent')
 import Data.Ex
 import Data.Fin
 import Data.Nat
@@ -389,8 +390,13 @@ typecheck e t = do
   isSub <- isSubtype t' t
   if | t == t' -> return e
      | isSub -> return (promote t e)
-     | otherwise -> __impossible $ "Inferred type doesn't agree with the given type signature:\n" ++
-                                   "Inferred type:\n" ++ show (pretty t') ++ "\nGiven type:\n" ++ show (pretty t)
+     | otherwise -> __impossible $ "Inferred type of\n" ++
+                                   show (indent' $ pretty e) ++
+                                   "\ndoesn't agree with the given type signature:\n" ++
+                                   "Inferred type:\n" ++
+                                   show (indent' $ pretty t') ++
+                                   "\nGiven type:\n" ++
+                                   show (indent' $ pretty t) ++ "\n"
 
 infer :: (Pretty a, Show a, Eq a) => UntypedExpr t v a a -> TC t v a (TypedExpr t v a a)
 infer (E (Op o es))
@@ -453,13 +459,13 @@ infer (E (ArrayTake as arr i e))
         return (TE te $ ArrayTake as arr' i' e')
 infer (E (ArrayPut arr i e))
    = do arr'@(TE tarr _) <- infer arr
-        i'   <- infer i
+        i' <- infer i
         e'@(TE te _)   <- infer e
         -- FIXME: all the checks are disabled here, for the lack of a proper
         -- refinement type system. Also, we cannot know the exact index that
         -- is being put, thus there's no way that we can infer the precise type
         -- for the new array (tarr').
-        -- XXX | let TArray telm len s tkns = tarr
+        let TArray telm len s tkns = tarr
         -- XXX | mi <- evalExpr i'
         -- XXX | guardShow "@put index not a integral constant" $ isJust mi
         -- XXX | let Just i'' = mi
@@ -467,8 +473,8 @@ infer (E (ArrayPut arr i e))
         -- XXX | let Just itkn = IM.lookup i'' tkns
         -- XXX | k <- kindcheck telm
         -- XXX | unless itkn $ guardShow "@put a non-Discardable untaken element" $ canDiscard k
-        -- XXX | let tarr' = TArray telm len s (IM.adjust (const False) i' tkns)
-        return (TE tarr (ArrayPut arr' i' e'))
+        let tarr' = TArray telm len s Nothing
+        return (TE tarr' (ArrayPut arr' i' e'))
 #endif
 infer (E (Variable v))
    = do Just t <- useVariable (fst v)
@@ -478,7 +484,7 @@ infer (E (Fun f ts note))
    = do myMap <- ask
         x <- funType f
         case x of
-          Just (FT ks ti to) -> 
+          Just (FT ks ti to) ->
             ( case Vec.length ts' =? Vec.length ks
                 of Just Refl -> let ti' = substitute ts' ti
                                     to' = substitute ts' to
