@@ -92,7 +92,7 @@ apply f (R x s) = R (fmap (apply f) x) s
 #ifdef BUILTIN_ARRAYS
 apply f (A x l s tkns) = A (apply f x) (applySE f l) s (fmap (applySE f) tkns)
 #endif
-apply f (T x) = T (fmap (apply f) x)
+apply f (T x) = T (ffmap (applySE f) $ fmap (apply f) x)
 apply f (Synonym n ts) = Synonym n (fmap (apply f) ts)
 
 applyAlts :: Subst -> [Alt TCPatn TCExpr] -> [Alt TCPatn TCExpr]
