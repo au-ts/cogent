@@ -602,8 +602,10 @@ isVariantType _ = False
 
 isMonoType :: RawType -> Bool
 isMonoType (RT (TVar {})) = False
-isMonoType (RT t) = getAll $ foldMap (All . isMonoType) t
+isMonoType (RT t) = all isMonoType t
 
+
+-- TODO: not yet counting the higher-rank types / zilinc
 unifVars :: TCType -> [Int]
 unifVars (U v) = [v]
 unifVars (Synonym n ts) = concatMap unifVars ts
@@ -627,13 +629,24 @@ unknowns (R r s) = concatMap unknowns (Row.allTypes r)
 unknowns (A t l s tkns) = unknowns t ++ unknownsE l ++ foldMap unknownsE tkns
 unknowns (T x) = foldMap unknowns x
 
-unknownsE :: TCSExpr -> [Int]
+unknownsE :: SExpr t -> [Int]
 unknownsE (SU _ x) = [x]
 unknownsE (SE _ e) = foldMap unknownsE e
 
-isKnown :: TCSExpr -> Bool
+isKnown :: SExpr t -> Bool
 isKnown (SU _ _) = False
 isKnown (SE _ e) = all isKnown e
+
+isTrivialSE :: TCSExpr -> Bool
+isTrivialSE (SU {})  = False
+isTrivialSE (SE t e) = go e
+  where go (Var {})   = False
+        go (Con {})   = False
+        go (Match {}) = False
+        go (Lam {})   = False
+        go (LamC {})  = False
+        go (Let {})   = False
+        go e          = all isTrivialSE e
 #endif
 
 -- What's the spec of this function? / zilinc
@@ -647,7 +660,7 @@ rigid (Synonym {}) = False  -- why? / zilinc
 rigid (R r _) = not $ Row.justVar r
 rigid (V r) = not $ Row.justVar r
 #ifdef BUILTIN_ARRAYS
-rigid (A t l _ _) = True -- rigid t && null (unknownsE l) -- FIXME: is it correct? / zilinc
+rigid (A t l _ _) = rigid t -- && null (unknownsE l) -- FIXME: is it correct? / zilinc
 #endif
 rigid _ = True
 
