@@ -48,7 +48,7 @@ import           Cogent.Compiler
 import           Cogent.Common.Syntax  as Syn
 import           Cogent.Common.Types   as Typ
 import           Cogent.Core           as CC
-import           Cogent.Dargent.CodeGen       (genBoxedGetSetField, GetOrSet(..))
+import           Cogent.Dargent.CodeGen       (genBoxedGetSetField, genBoxedArrayGetSet, GetOrSet(..))
 import           Cogent.Inference             (kindcheck_)
 import           Cogent.Isabelle.Deep
 import           Cogent.Mono                  (Instance)
@@ -359,9 +359,19 @@ genExpr mv (TE t (ALit es)) = do
 
 genExpr mv (TE t (ArrayIndex e i)) = do  -- FIXME: varpool - as above
   (e',edecl,estm,ep) <- genExpr_ e
-  (i',idecl,istm,ep) <- genExpr_ i
+  (i',idecl,istm,ip) <- genExpr_ i
   t' <- genType t
-  (v,adecl,astm,vp) <- maybeAssign t' mv (CArrayDeref e' i') ep
+  let tarr@(TArray telt _ s _) = exprType e
+  drexpr <- case s of
+    -- unboxed array
+    Unboxed -> return $ CArrayDeref e' i'
+    -- boxed array of boxed types / boxed array of unboxed types without layout specification
+    Boxed _ CLayout -> return $ CArrayDeref e' i'
+    -- boxed array of unboxed type
+    _ -> do
+      elemGetter <- genBoxedArrayGetSet tarr Get
+      return $ CEFnCall elemGetter [e', i']
+  (v,adecl,astm,vp) <- maybeAssign t' mv drexpr ep
   return (v, edecl++idecl++adecl, estm++istm++astm, vp)
 
 genExpr mv (TE t (ArrayMap2 (_,f) (e1,e2))) = do  -- FIXME: varpool - as above
@@ -379,11 +389,21 @@ genExpr mv (TE t (ArrayMap2 (_,f) (e1,e2))) = do  -- FIXME: varpool - as above
   tarr2' <- genType tarr2
   telt1' <- genType telt1
   telt2' <- genType telt2
-  (f',fdecl,fstm,fp) <- withBindings (Cons (CArrayDeref e2' (variable i))
-                                           (Cons (CArrayDeref e1' (variable i)) Nil)) $
-                                     genExpr_ f
-  (a1decl,a1stm) <- assign telt1' (CArrayDeref e1' (variable i)) (strDot f' p1)
-  (a2decl,a2stm) <- assign telt1' (CArrayDeref e2' (variable i)) (strDot f' p2)
+
+  let drexp s e t i = case s of
+                        Unboxed -> return $ CArrayDeref e i
+                        Boxed _ CLayout -> return $ CArrayDeref e i
+                        _ -> do f <- genBoxedArrayGetSet t Get; return $ CEFnCall f [e, i]
+  drexp1 <- drexp s1 e1' tarr1 (variable i)
+  drexp2 <- drexp s2 e2' tarr2 (variable i)
+  (f',fdecl,fstm,fp) <- withBindings (Cons drexp2 (Cons drexp1 Nil)) $ genExpr_ f
+  let assdns s et at a i e = case s of
+                               Unboxed -> assign et (CArrayDeref a i) e
+                               Boxed _ CLayout -> assign et (CArrayDeref a i) e
+                               _ -> do f <- genBoxedArrayGetSet at Set; return $ ([], [CBIStmt $ CAssignFnCall Nothing f [a, i, e]])
+  (a1decl,a1stm) <- assdns s1 telt1' tarr1 e1' (variable i) (strDot f' p1)
+  (a2decl,a2stm) <- assdns s2 telt2' tarr2 e2' (variable i) (strDot f' p2)
+
   (incdecl,incstm) <- assign u32 (variable i) (CBinOp C.Add (variable i) (mkConst U32 1))  -- i++
   let lbody = fdecl++a1decl++a2decl++incdecl++
               fstm++a1stm++a2stm++incstm
@@ -420,18 +440,29 @@ genExpr mv (TE t (ArrayPut arr i e)) = do
   (i',idecl,istm,ip) <- genExpr_ i
   (e',edecl,estm,ep) <- genExpr_ e
   t' <- genType t
-  let (TArray telt _ _ _) = t
+  let (TArray telt _ s _) = t
   telt' <- genType telt
-  (assdecl,assstm) <- assign telt' (CArrayDeref arr' i') e'
+  (assdecl,assstm) <- case s of
+    Unboxed -> assign telt' (CArrayDeref arr' i') e'
+    Boxed _ CLayout -> assign telt' (CArrayDeref arr' i') e'
+    _ -> do
+      elemSetter <- genBoxedArrayGetSet t Set
+      return $ ([], [CBIStmt $ CAssignFnCall Nothing elemSetter [arr', i', e']])
   (v,vdecl,vstm,vp) <- maybeAssign t' mv arr' M.empty
   return (v, arrdecl++idecl++edecl++assdecl++vdecl, arrstm++istm++estm++assstm++vstm, M.empty)
 
 genExpr mv (TE t (ArrayTake _ arr i e)) = do  -- FIXME: varpool - as above
   (arr',arrdecl,arrstm,arrp) <- genExpr_ arr
   (i',idecl,istm,ip) <- genExpr_ i
-  let (TArray telt _ _ _) = exprType arr
+  let tarr@(TArray telt _ s _) = exprType arr
+  drexpr <- case s of
+    Unboxed -> return $ CArrayDeref arr' i'
+    Boxed _ CLayout -> return $ CArrayDeref arr' i'
+    _ -> do
+      elemGetter <- genBoxedArrayGetSet tarr Get
+      return $ CEFnCall elemGetter [arr', i']
   telt' <- genType telt
-  (v,vdecl,vstm) <- declareInit telt' (CArrayDeref arr' i') M.empty
+  (v,vdecl,vstm) <- declareInit telt' drexpr M.empty
   (e',edecl,estm,ep) <- withBindings (Cons (variable v) (Cons arr' Nil)) $ genExpr mv e
   return (e', arrdecl++idecl++vdecl++edecl, arrstm++istm++vstm++estm, M.empty)
 #endif
@@ -884,6 +915,10 @@ compile defs mcache ctygen =
                                     , _ffiFuncs     = M.empty
                                     , _boxedRecordSetters = M.empty
                                     , _boxedRecordGetters = M.empty
+                                    , _boxedArraySetters = M.empty
+                                    , _boxedArrayGetters = M.empty
+                                    , _boxedArrayElemSetters = M.empty
+                                    , _boxedArrayElemGetters = M.empty
                                     , _boxedSettersAndGetters = []
                                     }
   Just cache -> cache & custTypeGen <>~ (M.fromList $ P.map (second $ (,CTGI)) ctygen)
