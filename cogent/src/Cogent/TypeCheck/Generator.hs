@@ -124,11 +124,6 @@ validateType (RT t) = do
                        (c, TVariant fs') <- fmapFoldM validateType t
                        pure (c, V (Row.fromMap (fmap (first tuplize) fs')))
 
-    -- Add rec par name here to type variable list to prevent untransformed recPars being
-    -- mistaken as type variables
-    TRPar v m   -> do knownTypeVars %= (M.keys m ++)
-                      (second (RPar v)) <$> fmapFoldM validateType m
-
 #ifdef BUILTIN_ARRAYS
     TArray te l s tkns -> do
       x <- freshEVar (T u32)
@@ -202,6 +197,7 @@ validateType (RT t) = do
       pure (cl <> ct <> l' :~ t', T $ TLayout l' t')
 
     -- vvv The uninteresting cases; but we still have to match each of them to convince the typechecker / zilinc
+    TRPar v b ctxt -> (second T) <$> fmapFoldM validateType (TRPar v b ctxt)
     TFun t1 t2 -> (second T) <$> fmapFoldM validateType (TFun t1 t2)
     TTuple ts  -> (second T) <$> fmapFoldM validateType (TTuple ts)
     TUnit -> return (mempty, T TUnit)

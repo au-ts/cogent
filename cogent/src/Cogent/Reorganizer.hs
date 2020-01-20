@@ -170,32 +170,34 @@ embedRecPars = map (\(s,d,t) -> (s,d,check t))
     check t = t
 
 embedRecPar :: LocType -> LocType
-embedRecPar t = erp M.empty t
+embedRecPar t = erp False (Just M.empty) t
   where
-    erp :: RecContext LocType -> LocType -> LocType 
-    erp ctxt orig@(LocType p ty) =
+    -- Bool represents whether or not we are in a context
+    erp :: Bool -> RecContext LocType -> LocType -> LocType 
+    erp b ctxt@(Just c) orig@(LocType p ty) =
       LocType p $ case ty of
         -- If we find a type variable that is in our context, we replace it with a recursive parameter
-        TVar n _ _ | M.member n ctxt -> TRPar n ctxt
+        -- However if we are currently changing a recursive context (b == True), don't infinitely insert the context
+        TVar n _ _ | M.member n c -> TRPar n (if b then Nothing else Just (M.map (erp True ctxt) c))
         -- If we find a record, add it's recursive parameter to the context if it exists and recurse
         TRecord rp fs s -> 
-          let ctxt' = case rp of 
-                        Rec v -> M.insert v orig ctxt
-                        _     -> ctxt
-          in TRecord rp (map (\(n,(x, y)) -> (n, (erp ctxt' x, y))) fs) s
+          let c' = case rp of 
+                        Rec v -> M.insert v orig c
+                        _     -> c
+          in TRecord rp (map (\(n,(x, y)) -> (n, (erp b (Just c') x, y))) fs) s
 
-        TFun t1 t2  -> TFun (erp ctxt t1) (erp ctxt t2) 
-        TVariant ts -> TVariant $ M.map (\(ts', x) -> (map (erp ctxt) ts', x)) ts
-        TTuple ts   -> TTuple (map (erp ctxt) ts)
+        TFun t1 t2  -> TFun (erp b ctxt t1) (erp b ctxt t2) 
+        TVariant ts -> TVariant $ M.map (\(ts', x) -> (map (erp b ctxt) ts', x)) ts
+        TTuple ts   -> TTuple (map (erp b ctxt) ts)
         TCon n ts s     ->
-          TCon n (map (erp ctxt) ts) s
+          TCon n (map (erp b ctxt) ts) s
 #ifdef BUILTIN_ARRAYS
-        TArray t e  -> TArray (erp ctxt t) e
+        TArray t e  -> TArray (erp b ctxt t) e
 #endif
-        TUnbox t    -> TUnbox (erp ctxt t)
-        TBang t     -> TBang (erp ctxt t)
-        TTake fs t  -> TTake fs (erp ctxt t)
-        TPut fs t   -> TPut fs (erp ctxt t)
+        TUnbox t    -> TUnbox (erp b ctxt t)
+        TBang t     -> TBang (erp b ctxt t)
+        TTake fs t  -> TTake fs (erp b ctxt t)
+        TPut fs t   -> TPut fs (erp b ctxt t)
         t           -> t
 
 allEither :: [Either a ()] -> Either a ()
