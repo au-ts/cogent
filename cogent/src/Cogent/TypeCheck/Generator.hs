@@ -86,7 +86,8 @@ validateType (RT t) = do
   layouts <- lift $ use knownDataLayouts
   case t of
     TVar v b u  | v `notElem` vs -> freshTVar >>= \t' -> return (Unsat $ UnknownTypeVariable v, t')
-                | otherwise -> return (mempty, T $ TVar v b u)
+                | otherwise -> return (mempty, T $ TVar v b)
+
     TCon t as s | Nothing <- lookup t ts -> freshTVar >>= \t' -> return (Unsat $ UnknownTypeConstructor t, t')
                 | Just (vs', _) <- lookup t ts
                 , provided <- length as
@@ -96,6 +97,7 @@ validateType (RT t) = do
                 | Just (vs, Just x) <- lookup t ts
                -> second (Synonym t) <$> fmapFoldM validateType as
                 | otherwise -> (second T) <$> fmapFoldM validateType (TCon t as s)
+
     TRecord fs s | fields  <- map fst fs
                  , fields' <- nub fields
                 -> let toRow (T (TRecord fs s)) = R (Row.complete $ Row.toEntryList fs) (Left (fmap (const ()) s))
@@ -110,35 +112,55 @@ validateType (RT t) = do
                                   return (c, toRow . T $ TRecord fs' s')
                         else freshTVar >>= \t' -> return (Unsat $ DuplicateRecordFields (fields \\ fields'), t')
                   | otherwise -> (second T) <$> fmapFoldM validateType (TRecord fs s)
+
     TVariant fs  -> do let tuplize [] = T TUnit
                            tuplize [x] = x
                            tuplize xs  = T (TTuple xs)
                        (c, TVariant fs') <- fmapFoldM validateType t
                        pure (c, V (Row.fromMap (fmap (first tuplize) fs')))
+
 #ifdef BUILTIN_ARRAYS
     TArray te l s tkns -> do
       x <- freshEVar (T u32)
-      (lc,l') <- cg (rawToLocE ?loc l) (T u32)
+      (cl,l') <- cg (rawToLocE ?loc l) (T u32)
       (ctkn,mhole) <- case tkns of
                         [] -> return (Sat, Nothing)
                         [(i,True)] -> do y <- freshEVar (T u32)
-                                         (ic,i') <- cg (rawToLocE ?loc i) (T u32)
+                                         (ci,i') <- cg (rawToLocE ?loc i) (T u32)
                                          let c = Arith $ SE (T bool) (PrimOp "==" [toTCSExpr i', y])
-                                         return (c <> ic, Just y)
+                                         return (c <> ci, Just y)
                         _  -> return (Unsat $ OtherTypeError "taking more than one element from arrays not supported", Nothing)
-      let cl = Arith (SE (T bool) (PrimOp ">" [x, SE (T u32) (IntLit 0)]))
-            <> Arith (SE (T bool) (PrimOp "==" [toTCSExpr l', x]))
+      let cl' = Arith (SE (T bool) (PrimOp ">" [x, SE (T u32) (IntLit 0)]))
+             <> Arith (SE (T bool) (PrimOp "==" [toTCSExpr l', x]))
       (c,te') <- validateType te
-      return (c <> ctkn <> cl, A te' x (Left s) mhole)
-    -- TATake es t -> undefined
-    -- TAPut  es t -> undefined
+      return (cl <> ctkn <> cl' <> c, A te' x (Left s) mhole)
+
+    TATake es t -> do
+      blob <- forM es $ \e -> do
+        x <- freshEVar (T u32)
+        (ce,e') <- cg (rawToLocE ?loc e) (T u32)
+        return (ce <> Arith (SE (T bool) (PrimOp "==" [toTCSExpr e', x])), e', x)
+      let (ces,es',xs) = unzip3 blob
+      (ct,t') <- validateType t
+      return (mconcat ces <> ct, T $ TATake xs t')
+
+    TAPut  es t -> do
+      blob <- forM es $ \e -> do
+        x <- freshEVar (T u32)
+        (ce,e') <- cg (rawToLocE ?loc e) (T u32)
+        return (ce <> Arith (SE (T bool) (PrimOp "==" [toTCSExpr e', x])), e', x)
+      let (ces,es',xs) = unzip3 blob
+      (ct,t') <- validateType t
+      return (mconcat ces <> ct, T $ TAPut xs t')
 #endif
+
     TLayout l t -> do
       let cl = case runExcept $ tcDataLayoutExpr layouts l of
                  Left (e:_) -> Unsat $ DataLayoutError e
                  Right _    -> Sat
       (ct,t') <- validateType t
       pure (cl <> ct, T $ TLayout l t')
+
     -- vvv The uninteresting cases; but we still have to match each of them to convince the typechecker / zilinc
     TFun t1 t2 -> (second T) <$> fmapFoldM validateType (TFun t1 t2)
     TTuple ts  -> (second T) <$> fmapFoldM validateType (TTuple ts)
