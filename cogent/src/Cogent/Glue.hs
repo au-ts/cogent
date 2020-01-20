@@ -524,6 +524,10 @@ genAnti m a =
                                           , CG._ffiFuncs     = M.empty
                                           , CG._boxedRecordSetters     = M.empty
                                           , CG._boxedRecordGetters     = M.empty
+                                          , CG._boxedArraySetters      = M.empty
+                                          , CG._boxedArrayGetters      = M.empty
+                                          , CG._boxedArrayElemSetters  = M.empty
+                                          , CG._boxedArrayElemGetters  = M.empty
                                           , CG._boxedSettersAndGetters = []
                                           }
                   in return (fst $ evalRWS (CG.runGen $ m a) reader state, s)

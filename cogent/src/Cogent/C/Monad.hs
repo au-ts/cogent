@@ -134,6 +134,11 @@ data GenState  = GenState
   , _boxedRecordGetters :: M.Map (CC.Type 'Zero VarName, FieldName) CExpr
     -- ^ The expressions to call the generated setter and getter functions for the fields of boxed cogent records.
 
+  , _boxedArraySetters :: M.Map (CC.Type 'Zero VarName) CExpr
+  , _boxedArrayGetters :: M.Map (CC.Type 'Zero VarName) CExpr
+  , _boxedArrayElemSetters :: M.Map (CC.Type 'Zero VarName) CExpr
+  , _boxedArrayElemGetters :: M.Map (CC.Type 'Zero VarName) CExpr
+
   , _boxedSettersAndGetters :: [CExtDecl]
     -- ^ A list of the implementations of all generated setter and getter functions
   }
