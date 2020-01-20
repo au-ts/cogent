@@ -1,7 +1,0 @@
-type Option a = <Some a | None>
-type Foo
-
-create_foo : all a. () -> Option Foo
-
-foo: () -> Option Foo
-foo _ = create_foo ()

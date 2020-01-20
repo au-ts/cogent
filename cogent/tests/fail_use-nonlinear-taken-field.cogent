@@ -1,4 +1,0 @@
-type R = {f1 : U8}
-
-f : #R -> U8
-f r{f1} = r.f1

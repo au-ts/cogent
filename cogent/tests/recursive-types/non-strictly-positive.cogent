@@ -1,0 +1,5 @@
+-- Tests strict positivity check
+
+-- type NSP = rec t { l: t -> () }
+
+silly : rec t { l: (< Var t | None > -> U8) -> () }

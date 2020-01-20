@@ -1,6 +1,0 @@
-type A
-f: all(a). #a -> a
-ff: all(b,c). (b->c) -> ()
-
-g: () -> ()
-g () = ff[#A,A](f)

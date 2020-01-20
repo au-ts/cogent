@@ -1,9 +1,0 @@
-type R a b c = <A a | B b | C c>
-
-type A
-type B
-type C
-
-foo : R A B C -> R A B C
-foo | A a -> A a
-    | C c -> C c

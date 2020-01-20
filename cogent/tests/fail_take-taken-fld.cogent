@@ -1,8 +1,0 @@
-type A
-
-free : A -> ()
-
-f : {f1 : A} -> {f1 : A} take f1
-f r = let r {f1=a} = r
-      and r {f1=b} = r
-       in r

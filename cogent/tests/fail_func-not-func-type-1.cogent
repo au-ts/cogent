@@ -1,7 +1,0 @@
-type A = {f1 : U32, f2 : B}
-type B
-
-bar : () -> A
-
-foo : A
-foo _ = bar ()

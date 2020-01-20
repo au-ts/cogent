@@ -1,2 +1,0 @@
-toU32 : all a. a -> U32
-const : all (a, b). (a, b) -> a

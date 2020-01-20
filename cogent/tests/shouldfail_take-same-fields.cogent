@@ -1,7 +1,0 @@
-type R = {f1 : A, f2 : B}
-
-type A
-type B
-
-foo : R -> (R take f1, A, A)
-foo r {f1 = x, f1 = y} = (r, x, y)

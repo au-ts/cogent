@@ -1,3 +1,0 @@
-foo : all t. () -> ()
-foo x = let v = x
-         in ()

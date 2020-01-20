@@ -1,5 +1,0 @@
-type A
-type B a
-
-f : #(B A)  -> ()
-f b = ()

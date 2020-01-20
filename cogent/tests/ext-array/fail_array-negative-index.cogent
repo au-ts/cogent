@@ -1,2 +1,0 @@
-foo : U32[4] -> U32
-foo arr = arr @ (3 - 5)

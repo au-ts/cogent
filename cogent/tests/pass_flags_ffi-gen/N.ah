@@ -1,5 +1,0 @@
-struct $id:(N a) {
-  int dummy;
-};
-
-typedef struct $id:(N a) $id:(N a);

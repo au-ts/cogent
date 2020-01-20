@@ -1,9 +1,0 @@
-type T = <T1 | T2>
-type A a b = T
-
-f : A U8 Bool -> A () ()
-f | T1 -> T1
-  | T2 -> T2
-
-g : A U8 Bool -> A () ()
-g x = x
