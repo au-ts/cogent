@@ -45,11 +45,11 @@ printPretty = show . pretty
 -- | For debugging, prints the contents of the rewrite to the console, with a string prefix.
 --   Returns empty result and counts as no progress.
 debugFail :: (MonadIO m) => String -> (a -> String) -> RewriteT m a
-debugFail pfx show = Rewrite (\cs -> traceTc "rewrite" (text pfx <$$> text (show cs)) >> empty)
+debugFail pfx show = RewriteT (\cs -> traceTc "rewrite" (text pfx <$$> text (show cs)) >> empty)
 
 -- | Print debugging information as above, but counts as a successful rewrite.
 --   Useful for putting debugging after another rewrite, if you only want to print on success.
 debugPass :: (MonadIO m) => String -> (a -> String) -> RewriteT m a
-debugPass pfx show = Rewrite (\cs -> traceTc "rewrite" (text pfx <$$> text (show cs)) >> return cs)
+debugPass pfx show = RewriteT (\cs -> traceTc "rewrite" (text pfx <$$> text (show cs)) >> return cs)
 
 
