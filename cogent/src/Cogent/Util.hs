@@ -335,6 +335,12 @@ unionWithKeyM f m1 m2 =
 -- useful monad things
 --
 
+-- Copied from https://hackage.haskell.org/package/errors-2.3.0/docs/src/Control.Error.Util.html
+-- | Lift a 'Maybe' to the 'MaybeT' monad
+hoistMaybe :: (Monad m) => Maybe b -> MaybeT m b
+hoistMaybe = MaybeT . return
+
+
 type WriterMaybe e a = MaybeT (Writer e) a
 
 tellEmpty :: Monoid e => e -> WriterMaybe e a
