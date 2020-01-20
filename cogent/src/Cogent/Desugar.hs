@@ -64,7 +64,7 @@ import Data.Char (ord)
 -- import Data.Foldable
 import Data.IntMap as IM (fromList, filterWithKey)
 import Data.List as L (elemIndex, sortOn)
-import Data.Map as M hiding (filter, map, (\\))
+import qualified Data.Map as M hiding (filter, (\\))
 import Data.Maybe
 import Data.Word (Word32)
 import Prelude as P
@@ -572,8 +572,8 @@ desugarType = \case
   B.DT (S.TRecord rp fs sigil)  -> do
     -- Making an unboxed record is necessary here because of how `desugarSigil`
     -- is defined.
-    TRecord rp fs' Unboxed <- desugarType $ B.DT (S.TRecord fs Unboxed)
-    TRecord rp <$> pure fs' <*> desugarSigil sigil
+    unboxedDesugared@(TRecord rp' fs' Unboxed) <- desugarType $ B.DT (S.TRecord rp fs Unboxed)
+    TRecord rp' <$> pure fs' <*> pure (desugarSigil unboxedDesugared sigil)
   B.DT (S.TVariant alts) -> TSum <$> mapM (\(c,(ts,x)) -> (c,) . (,x) <$> desugarType (group ts)) (M.toList alts)
     where group [] = B.DT S.TUnit
           group (t:[]) = t
@@ -590,7 +590,10 @@ desugarType = \case
     --     explicitly sort them here, otherwise @p10@ will be following @p9@ instead of @p1@.
     fs <- L.sortOn fst . P.zipWith (\n t -> (n,(t, False))) ns <$> forM ts desugarType
     return $ TRecord NonRec fs Unboxed
-  B.DT (S.TUnit)   -> return TUnit
+  S.RT (S.TUnit)     -> return TUnit
+  S.RT (S.TRPar v m) -> do
+    m' <- mapM id (fmap (\x -> mapM id (M.map desugarType x)) m)
+    return $ TRPar v m'
 #ifdef BUILTIN_ARRAYS
   B.DT (S.TArray t l Unboxed tkns) -> do
     t' <- desugarType t

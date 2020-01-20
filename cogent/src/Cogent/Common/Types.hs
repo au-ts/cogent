@@ -21,6 +21,7 @@ module Cogent.Common.Types where
 import Cogent.Common.Syntax
 import Data.Binary (Binary)
 import Data.Data
+import Data.Map as M
 #if __GLASGOW_HASKELL__ < 709
 import Data.Monoid
 #endif
@@ -36,6 +37,10 @@ data Sigil r = Boxed ReadOnly r  -- 0- or 1-kinded
 instance Binary r => Binary (Sigil r)
 
 data RecursiveParameter = Rec VarName | NonRec deriving (Data, Show, Eq, Ord, Generic)
+
+-- The context for a recursive type, i.e. a mapping from
+-- recursive parameter names to the type it recursively references
+type RecContext t = Maybe (M.Map RecParName t)
 
 instance Binary RecursiveParameter
 
