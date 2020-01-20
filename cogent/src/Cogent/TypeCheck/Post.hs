@@ -261,7 +261,10 @@ normaliseT d (A t n (Right s) mhole) = __impossible ("normaliseT: invalid sigil 
 normaliseT d (A t n s (Right h)) = __impossible ("normaliseT: invalid hole (?" ++ show h ++ ")")
 #endif
 normaliseT d (U x) = __impossible ("normaliseT: invalid type (?" ++ show x ++ ")")
-normaliseT d (RPar v m) = T <$> (TRPar v <$> mapM (normaliseT d) m)
+normaliseT d (RPar v m) = do
+  m' <- mapM id (fmap (\x -> mapM id (M.map (normaliseT d) x)) m)
+  return $ T (TRPar v m')
+  --T <$> (TRPar v <$> Just (mapM (normaliseT d) m))
 normaliseT d (T x) = T <$> traverse (normaliseT d) x
 
 tkNorm :: Either Taken Int -> Taken

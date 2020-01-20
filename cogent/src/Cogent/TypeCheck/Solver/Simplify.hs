@@ -361,8 +361,22 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   T (TCon n ts s) :=: T (TCon n' us s')
     | s == s', n == n' -> hoistMaybe $ Just (zipWith (:=:) ts us)
 
-  t -> hoistMaybe Nothing
+  -- Recursive types
 
+  RPar v1 (Just m1) :<  RPar v2 (Just m2) -> guard (m1 M.! v1 == m2 M.! v2) >> hoistMaybe $ Just []
+  RPar v1 (Just m1) :=: RPar v2 (Just m2) -> guard (m1 M.! v1 == m2 M.! v2) >> hoistMaybe $ Just []
+
+  RPar v m :< x  -> hoistMaybe $ Just [unroll v m :< x]
+  x :< RPar v m  -> hoistMaybe $ Just [x :< unroll v m]
+  x :=: RPar v m -> hoistMaybe $ Just [x :=: unroll v m]
+  RPar v m :=: x -> hoistMaybe $ Just [unroll v m :=: x]
+
+  -- TODO: Remaining cases
+
+  UnboxedNotRecursive (R None _ (Left Unboxed))     -> hoistMaybe $ Just []
+  UnboxedNotRecursive (R _ _    (Left (Boxed _ _))) -> hoistMaybe $ Just []
+
+  t -> hoistMaybe $ Nothing
 
 -- | Returns 'True' iff the given argument type is not subject to subtyping. That is, if @a :\< b@
 --   (subtyping) is equivalent to @a :=: b@ (equality), then this function returns true.

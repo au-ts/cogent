@@ -81,6 +81,7 @@ data Type t b
   | TRecord RecursiveParameter [(FieldName, (Type t b, Bool))] (Sigil (DataLayout BitRange))
     -- True means taken, Layout will be nothing for abstract types
   | TUnit
+  | TRPar RecParName (RecContext (Type t))
 -- #ifdef BUILTIN_ARRAYS
   | TArray (Type t b) (LExpr t b) (Sigil (DataLayout BitRange)) (Maybe (LExpr t b))  -- the hole
   | TRefine (Type t b) (LExpr t b)
