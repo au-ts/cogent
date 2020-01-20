@@ -31,6 +31,7 @@ import Cogent.Dargent.Core
   ( DataLayout' (..)
   , DataLayout (..)
   , alignLayout'
+  , dataLayoutSizeInBytes'
   )
 import Cogent.Dargent.Util
 import Data.Nat
@@ -91,7 +92,7 @@ genBoxedGetSetField cogentType fieldName getOrSet = do
             let fieldType       = fst $ (fromList fieldTypes) ! fieldName
                 fieldLayout     = alignLayout' $ fst $ fieldLayouts ! fieldName
             boxCType            <- genType cogentType
-            getSetFieldFunction <- genBoxedGetterSetter boxCType fieldType fieldLayout [fieldName] getOrSet
+            getSetFieldFunction <- genBoxedGetterSetter True boxCType fieldType fieldLayout [fieldName] getOrSet
             ((case getOrSet of Get -> boxedRecordGetters; Set -> boxedRecordSetters) . at (cogentType, fieldName))
                                 ?= getSetFieldFunction
             return getSetFieldFunction
@@ -105,7 +106,10 @@ Returns a getter/setter function C expression for a part of a boxed record.
 Will always generate the getter/setter function and record it in the GenState.
 -}
 genBoxedGetterSetter
-  :: CType
+  :: IsStruct
+     -- ^ Whether the c-type of the box is of struct or of byte-array
+
+  -> CType
      -- ^
      -- The CType for the root boxed type which contains
      -- the embedded value that we would like to extract.
@@ -132,58 +136,112 @@ genBoxedGetterSetter
      -- Use this 'CExpr' as the first argument of 'CEFnCall' when you want
      -- to call this getter function.
 
-genBoxedGetterSetter boxType embeddedType@(TCon _ _ _) PrimLayout{bitsDL = bitRanges} path getOrSet =
-  genComposedAlignedRangeGetterSetter bitRanges boxType embeddedType path getOrSet
+genBoxedGetterSetter isStruct boxType embeddedType@(TCon _ _ _) PrimLayout{bitsDL = bitRanges} path getOrSet =
+  genComposedAlignedRangeGetterSetter isStruct bitRanges boxType embeddedType path getOrSet
 
-genBoxedGetterSetter boxType embeddedType@(TPrim _) (PrimLayout bitRanges) path getOrSet =
-  genComposedAlignedRangeGetterSetter bitRanges boxType embeddedType path getOrSet
+genBoxedGetterSetter isStruct boxType embeddedType@(TPrim _) (PrimLayout bitRanges) path getOrSet =
+  genComposedAlignedRangeGetterSetter isStruct bitRanges boxType embeddedType path getOrSet
 
-genBoxedGetterSetter boxType embeddedType@(TRecord fields Boxed{}) (PrimLayout bitRanges) path getOrSet =
-  genComposedAlignedRangeGetterSetter bitRanges boxType embeddedType path getOrSet
+genBoxedGetterSetter isStruct boxType embeddedType@(TRecord fields Boxed{}) (PrimLayout bitRanges) path getOrSet =
+  genComposedAlignedRangeGetterSetter isStruct bitRanges boxType embeddedType path getOrSet
 
-genBoxedGetterSetter boxType embeddedTypeCogent@(TSum alternatives) SumLayout{tagDL, alternativesDL} path getOrSet = do
+genBoxedGetterSetter isStruct boxType embeddedTypeCogent@(TSum alternatives) SumLayout{tagDL, alternativesDL} path getOrSet = do
   embeddedTypeC               <- genType embeddedTypeCogent
   functionName                <- genGetterSetterName path getOrSet
-  tagGetterSetter             <- genComposedAlignedRangeGetterSetter' tagDL boxType unsignedIntType (path ++ ["tag"]) getOrSet -- Must add check to restrict number of alternatives to MAX_INT)
+  tagGetterSetter             <- genComposedAlignedRangeGetterSetter' isStruct tagDL boxType unsignedIntType (path ++ ["tag"]) getOrSet -- Must add check to restrict number of alternatives to MAX_INT)
   alternativesGettersSetters  <-
       mapM
       (\(alternativeName, (alternativeType, _)) -> do
           let (boxedTagValue, alternativeLayout, _) = alternativesDL ! alternativeName
-          getterSetter <- genBoxedGetterSetter boxType alternativeType alternativeLayout (path ++ [alternativeName]) getOrSet
+          getterSetter <- genBoxedGetterSetter isStruct boxType alternativeType alternativeLayout (path ++ [alternativeName]) getOrSet
           return (alternativeName, boxedTagValue, getterSetter)
       )
       alternatives
   declareSetterOrGetter $ variantGetterSetter tagGetterSetter alternativesGettersSetters boxType embeddedTypeC functionName getOrSet
   return (CVar functionName Nothing)
 
-genBoxedGetterSetter boxType embeddedTypeCogent@(TRecord fields Unboxed) RecordLayout{ fieldsDL } path getOrSet = do
+genBoxedGetterSetter isStruct boxType embeddedTypeCogent@(TRecord fields Unboxed) RecordLayout{ fieldsDL } path getOrSet = do
   embeddedTypeC         <- genType embeddedTypeCogent
   functionName          <- genGetterSetterName path getOrSet
   fieldGettersSetters   <-
     mapM
       (\(fieldName, (fieldType, _)) -> do
           let fieldLayout = fst $ fieldsDL ! fieldName
-          getterSetter <- genBoxedGetterSetter boxType fieldType fieldLayout (path ++ [fieldName]) getOrSet
+          getterSetter <- genBoxedGetterSetter isStruct boxType fieldType fieldLayout (path ++ [fieldName]) getOrSet
           return (fieldName, getterSetter)
       )
       fields
   declareSetterOrGetter $ recordGetterSetter fieldGettersSetters boxType embeddedTypeC functionName getOrSet
   return (CVar functionName Nothing)
 
-genBoxedGetterSetter boxType TUnit UnitLayout path getOrSet = do
+genBoxedGetterSetter isStruct boxType TUnit UnitLayout path getOrSet = do
   functionName  <- genGetterSetterName path getOrSet
   declareSetterOrGetter $ unitGetterSetter boxType functionName getOrSet
   return (CVar functionName Nothing)
 
 #ifdef BUILTIN_ARRAYS
-genBoxedGetterSetter box tau@(TArray t l (Boxed {}) _) (PrimLayout ranges) path getOrSet =
-  genComposedAlignedRangeGetterSetter ranges box tau path getOrSet
+genBoxedGetterSetter isStruct box tau@(TArray t l (Boxed {}) _) (PrimLayout ranges) path getOrSet =
+  genComposedAlignedRangeGetterSetter isStruct ranges box tau path getOrSet
 #endif
 
-genBoxedGetterSetter boxType _ _ _ _ = __impossible $
+genBoxedGetterSetter isStruct boxType _ _ _ _ = __impossible $
   "Cogent.Dargent.CodeGen: genBoxedGetterSetter: Type checking should restrict the types which can be embedded in boxed records," ++
   "and ensure that the data layouts match the types."
 
+
+{-|
+Returns a getter/setter function C expression for a part of a boxed array.
+
+We want all layout definition aligned to bytes and we don't want padding bytes between elements,
+thus we use bytearray here.
+-}
+genBoxedArrayGetSet
+  :: CogentType
+     -- ^
+     -- CogentType for the array.
+  -> GetOrSet
+     -- ^
+     -- The type of function to generate.
+  -> Gen v CExpr
+     -- ^
+     -- The 'CExpr' which is the name of the getter/setter function
+     -- for the field of the record.
+     --
+     -- Use this 'CExpr' as the first argument of 'CEFnCall' when you want
+     -- to call this getter/setter function.
+genBoxedArrayGetSet cogentType getOrSet = do
+  mf <- use ((case getOrSet of Get -> boxedArrayGetters; Set -> boxedArraySetters) . at cogentType)
+  case mf of
+    Just f  -> return f
+    Nothing ->
+      case cogentType of
+        -- NOTE: do we need to check layout within elt here?
+        TArray elemType _ (Boxed _ (Layout (ArrayLayout elemLayout _))) _ -> do
+          let elemSize = dataLayoutSizeInBytes' elemLayout
+              elemLayout' = alignLayout' elemLayout
+          arrCType <- genType cogentType
+          f' <- genArrayGetterSetter arrCType elemType elemSize elemLayout' getOrSet
+          ((case getOrSet of Get -> boxedArrayGetters; Set -> boxedArraySetters) . at cogentType) ?= f'
+          return f'
+        _ -> __impossible $
+          "Cogent.Dargent.CodeGen: genBoxedArrayGetSet: this function should only be called with boxed array with boxed types " ++
+          "with layout provided, check caller."
+
+genArrayGetterSetter
+  :: CType
+  -> CogentType
+  -> Size
+  -> DataLayout' [AlignedBitRange]
+  -> GetOrSet
+  -> Gen v CExpr
+genArrayGetterSetter arrCType elemType elemSize elemLayout' getOrSet = do
+  functionIdentifier <- genGetterSetterName [] getOrSet
+  elemCType <- genType elemType
+  elemGetterSetter <- genBoxedGetterSetter False (CPtr CChar) elemType elemLayout' [] getOrSet
+  ((case getOrSet of Get -> boxedArrayElemGetters; Set -> boxedArrayElemSetters) . at elemType)
+    ?= elemGetterSetter
+  declareSetterOrGetter $ arrayGetterSetter arrCType elemCType elemSize functionIdentifier elemGetterSetter getOrSet
+  return (CVar functionIdentifier Nothing)
 
 {-|
 Declares in the Gen state a C function which gets/sets the contents
@@ -192,15 +250,15 @@ a value of the given embedded type.
 
 Calls the function `composedAlignedRangeGetterSetter` to generate the function.
 -}
-genComposedAlignedRangeGetterSetter :: [AlignedBitRange] -> CType -> CogentType -> [String] -> GetOrSet -> Gen v CExpr
-genComposedAlignedRangeGetterSetter bitRanges boxType embeddedTypeCogent path getOrSet = do
+genComposedAlignedRangeGetterSetter :: IsStruct -> [AlignedBitRange] -> CType -> CogentType -> [String] -> GetOrSet -> Gen v CExpr
+genComposedAlignedRangeGetterSetter isStruct bitRanges boxType embeddedTypeCogent path getOrSet = do
   embeddedTypeC   <- genType embeddedTypeCogent
-  genComposedAlignedRangeGetterSetter' bitRanges boxType embeddedTypeC path getOrSet
+  genComposedAlignedRangeGetterSetter' isStruct bitRanges boxType embeddedTypeC path getOrSet
 
-genComposedAlignedRangeGetterSetter' :: [AlignedBitRange] -> CType -> CType -> [String] -> GetOrSet -> Gen v CExpr
-genComposedAlignedRangeGetterSetter' bitRanges boxType embeddedTypeC path getOrSet = do
+genComposedAlignedRangeGetterSetter' :: IsStruct -> [AlignedBitRange] -> CType -> CType -> [String] -> GetOrSet -> Gen v CExpr
+genComposedAlignedRangeGetterSetter' isStruct bitRanges boxType embeddedTypeC path getOrSet = do
   functionName    <- genGetterSetterName path getOrSet
-  rangesGetters   <- mapM (\(range, index) -> genAlignedRangeGetterSetter boxType (path ++ ["part" ++ show index]) getOrSet range) (zip bitRanges [0..])
+  rangesGetters   <- mapM (\(range, index) -> genAlignedRangeGetterSetter isStruct boxType (path ++ ["part" ++ show index]) getOrSet range) (zip bitRanges [0..])
   declareSetterOrGetter $ composedAlignedRangeGetterSetter (zip bitRanges rangesGetters) boxType embeddedTypeC functionName getOrSet
   return (CVar functionName Nothing)
 
@@ -211,10 +269,10 @@ AlignedBitRange from/in a Cogent boxed type.
 
 Calls the function `alignedRangeGetterSetter` to generate the function.
 -}
-genAlignedRangeGetterSetter :: CType -> [String] -> GetOrSet -> AlignedBitRange -> Gen v CExpr
-genAlignedRangeGetterSetter boxType path getOrSet bitRange = do
+genAlignedRangeGetterSetter :: IsStruct -> CType -> [String] -> GetOrSet -> AlignedBitRange -> Gen v CExpr
+genAlignedRangeGetterSetter isStruct boxType path getOrSet bitRange = do
   functionIdentifier <- genGetterSetterName path getOrSet
-  declareSetterOrGetter $ alignedRangeGetterSetter boxType bitRange functionIdentifier getOrSet
+  declareSetterOrGetter $ alignedRangeGetterSetter isStruct boxType bitRange functionIdentifier getOrSet
   return (CVar functionIdentifier Nothing)
 
 {-|
@@ -587,6 +645,12 @@ static inline unsigned int get`functionNameIdentifier`(`boxType` p) {
   return (p.data[`wordOffsetABR`] >> `bitOffsetABR`) & `mask bitSizeABR`;
 }
 @
+or
+@
+static inline unsigned int get`functionNameIdentifier`(char *p) {
+  return (p[`wordOffsetABR` * 4] >> `bitOffsetABR`) & `mask bitSizeABR`;
+}
+@
 
 @alignedRangeSetter boxType AlignedBitRange { bitSizeABR, bitOffsetABR, wordOffsetABR} functionNameIdentifier Set@
 should be the C function
@@ -603,11 +667,21 @@ static inline void set`functionNameIdentifier`(`boxType` p, unsigned int v) {
     | ((`sizeToMask bitSizeABR` & v) << `bitOffsetABR`);
 }
 @
+or
+@
+static inline void set`functionNameIdentifier`(char *p, unsigned int v) {
+  p[`wordOffsetABR` * 4]
+    = p[`wordOffsetABR` * 4]
+    & ~(`sizeToMask bitSizeABR` << `bitOffsetABR`)
+    | ((`sizeToMask bitSizeABR` & v) << `bitOffsetABR`);
+}
+@
 -}
-alignedRangeGetterSetter :: CType -> AlignedBitRange -> CId -> GetOrSet -> CExtDecl
+alignedRangeGetterSetter :: IsStruct -> CType -> AlignedBitRange -> CId -> GetOrSet -> CExtDecl
 alignedRangeGetterSetter
+  isStruct
   boxType
-  algnBR 
+  algnBR
   functionName
   getOrSet
   =
@@ -615,7 +689,7 @@ alignedRangeGetterSetter
     -- Get statements
     [ CBIStmt $ CReturn $ Just
       ( CBinOp And
-        ( CBinOp Rsh ( genBoxWordExpr boxVariable wordOffsetABR' ) bitOffsetLiteral )
+        ( CBinOp Rsh dataLocExpr bitOffsetLiteral )
         maskLiteral
       )
     ]
@@ -623,10 +697,10 @@ alignedRangeGetterSetter
     -- Set statements
     [ CBIStmt
       ( CAssign
-        ( genBoxWordExpr boxVariable wordOffsetABR' )
+        dataLocExpr
         ( CBinOp Or
           ( CBinOp And
-            ( genBoxWordExpr boxVariable wordOffsetABR' )
+            dataLocExpr
             ( CUnOp Not ( CBinOp Lsh maskLiteral bitOffsetLiteral ) )
           )
           ( CBinOp Lsh
@@ -642,6 +716,9 @@ alignedRangeGetterSetter
     wordOffsetABR'   = wordOffsetABR algnBR
     bitOffsetLiteral = unsignedIntLiteral bitOffsetABR'
     maskLiteral      = unsignedIntMask $ sizeToMask bitSizeABR'
+    dataLocExpr      = case isStruct of
+                         True -> genBoxWordExpr boxVariable wordOffsetABR'
+                         False -> CArrayDeref boxVariable (unsignedIntLiteral $ wordOffsetABR' * 4)
 
 -- | Returns a function declaration for setter or getter.
 getterSetterDecl
@@ -671,6 +748,52 @@ getterSetterDecl boxType embeddedType functionName Set _ setStatements =
     ]
 
     setStatements
+    staticInlineFnSpec
+  )
+
+arrayGetterSetter
+  :: CType
+  -> CType
+  -> Size
+  -> CId
+  -> CExpr
+  -> GetOrSet
+  -> CExtDecl
+arrayGetterSetter arrType elemType elemSize functionName elemGetterSetter Get =
+  ( CFnDefn
+    ( elemType, functionName )  -- (return type, function name)
+    -- [(param type, param name)]
+    [ ( arrType, arrIdentifier )
+    , ( unsignedIntType, idxIdentifier ) -- NOTE: type unverified
+    ]
+    [ CBIStmt $ CReturn $ Just
+      ( CEFnCall elemGetterSetter
+        [( CBinOp Add
+          ( CTypeCast (CPtr CChar) ( strArrow arrVariable "data" ) )
+          ( CBinOp Mul idxVariable ( unsignedIntLiteral elemSize ) )
+        )]
+      )
+    ]
+    staticInlineFnSpec
+  )
+arrayGetterSetter arrType elemType elemSize functionName elemGetterSetter Set =
+  ( CFnDefn
+    ( CVoid, functionName ) -- (return type, function name)
+    -- [(param type, param name)]
+    [ ( arrType, arrIdentifier )
+    , ( unsignedIntType, idxIdentifier )
+    , ( elemType, valueIdentifier )
+    ]
+    [ CBIStmt $ CReturn $ Just
+      ( CEFnCall elemGetterSetter
+        [ ( CBinOp Add
+            ( CTypeCast (CPtr CChar) ( strArrow arrVariable "data" ) )
+            ( CBinOp Mul idxVariable ( unsignedIntLiteral elemSize ) )
+          )
+        , valueVariable
+        ]
+      )
+    ]
     staticInlineFnSpec
   )
 
@@ -715,6 +838,13 @@ boxVariable   = CVar boxIdentifier Nothing
 {- | The second parameter to setters -}
 valueIdentifier = "v"
 valueVariable   = CVar valueIdentifier Nothing
+
+-- | Below for array related operations
+arrIdentifier = "a"
+arrVariable   = CVar arrIdentifier Nothing
+idxIdentifier = "i"
+idxVariable   = CVar idxIdentifier Nothing
+
 
 -- | Produces a C expression for an unsigned integer literal with the given integer value.
 unsignedIntLiteral :: Integer -> CExpr
@@ -766,3 +896,4 @@ intTypeForPointer = case architecture of
   ARM32  -> unsignedIntType
 
 data GetOrSet = Get | Set
+type IsStruct = Bool
