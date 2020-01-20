@@ -165,12 +165,23 @@ normaliseT d (T (TPut fs t)) = do
                                  return (f, (t,  (f `notElem` fs) && b))
 
 #ifdef BUILTIN_ARRAYS
+-- TODO: we also need to check that the taken indices are in bounds / zilinc
 normaliseT d (T (TATake is t)) = do
   t' <- normaliseT d t
   case t' of
     (T (TArray elt l s [])) -> normaliseT d (T (TArray elt l s $ map (,True) is))
     (T (TArray _ _ _ _)) -> __impossible "normaliseT: TArray can have at most one taken element"
     _ -> logErrExit (TakeElementsFromNonArrayType is t')
+
+normaliseT d (T (TAPut is t)) = do
+  -- FIXME: dodgy implementation / zilinc
+  t' <- normaliseT d t
+  case t' of
+    (T (TArray elt l s [])) -> normaliseT d t'  -- no hole. no-op.
+    (T (TArray elt l s [(h, True)])) ->  -- one hole
+      normaliseT d (T (TArray elt l s []))  -- becomes no hole
+    (T (TArray _ _ _ _)) -> __impossible "normaliseT: TArray can have at most one taken element"
+    _ -> logErrExit (PutElementsToNonArrayType is t')
 #endif
 
 normaliseT d (T (TLayout l t)) = do
