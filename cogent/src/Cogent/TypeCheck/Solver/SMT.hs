@@ -15,7 +15,5 @@ module Cogent.TypeCheck.Solver.SMT where
 import Cogent.TypeCheck.Base
 import Cogent.Surface
 
-import Language.SMTLib2
-
 
 
