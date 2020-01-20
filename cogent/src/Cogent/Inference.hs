@@ -94,8 +94,34 @@ isUpcastable (TSum s1) (TSum s2) = do
 isUpcastable _ _ = return False
 
 isSubtype :: Type t -> Type t -> TC t v Bool
-isSubtype t1 t2 = runMaybeT (t1 `lub` t2) >>= \case Just t  -> return $ t == t2
+isSubtype t1 t2 = runMaybeT (t1 `lub` t2) >>= \case Just t  -> do 
+                                                      traceM ("\n")
+                                                      traceM (show t)
+                                                      traceM ("\n")
+                                                      traceM (show t2)
+                                                      traceM ("\n")
+                                                      return $ t == t2
                                                     Nothing -> return False
+
+
+unroll :: RecParName -> RecContext (Type t) -> Type t
+unroll v (Just ctxt) = erp (Just ctxt) (ctxt M.! v)
+  where
+    -- Embed rec pars
+    erp :: RecContext (Type t) -> Type t -> Type t
+    erp c (TCon n ts s) = TCon n (map (erp c) ts) s
+    erp c (TFun t1 t2) = TFun (erp c t1) (erp c t2)
+    erp c (TSum r) = TSum $ map (\(a,(t,b)) -> (a, (erp c t, b))) r
+    erp c (TProduct t1 t2) = TProduct (erp c t1) (erp c t2)
+    erp (Just c) t@(TRecord rp fs s) =
+      let c' = case rp of Rec v -> M.insert v t c; _ -> c
+      in TRecord rp (map (\(a,(t,b)) -> (a, (erp (Just c') t, b))) fs) s
+    -- Context must be Nothing at this point
+    erp c (TRPar v Nothing) = TRPar v c
+#ifdef BUILTIN_ARRAYS
+    erp c (TArray t s) = TArray (erp c t) s
+#endif
+    erp _ t = t
 
 bound :: Bound -> Type t -> Type t -> MaybeT (TC t v) (Type t)
 bound _ t1 t2 | t1 == t2 = return t1
@@ -116,6 +142,9 @@ bound b (TSum s1) (TSum s2) | s1' <- M.fromList s1, s2' <- M.fromList s2, M.keys
 bound b (TProduct t11 t12) (TProduct t21 t22) = TProduct <$> bound b t11 t21 <*> bound b t12 t22
 bound b (TCon c1 t1 s1) (TCon c2 t2 s2) | c1 == c2, s1 == s2 = TCon c1 <$> zipWithM (bound b) t1 t2 <*> pure s1
 bound b (TFun t1 s1) (TFun t2 s2) = TFun <$> bound (theOtherB b) t1 t2 <*> bound b s1 s2
+-- At this point, we can assume recursive parameters and records agree
+bound b t1@(TRecord rp fs s) t2@(TRPar v ctxt)    = return t2
+bound b t1@(TRPar v ctxt)    t2@(TRecord rp fs s) = return t1
 #ifdef BUILTIN_ARRAYS
 bound b (TArray t1 l1) (TArray t2 l2) | l1 == l2 = TArray <$> bound b t1 t2 <*> pure l1
 #endif
@@ -172,6 +201,7 @@ substitute vs (TProduct t1 t2)  = TProduct (substitute vs t1) (substitute vs t2)
 substitute vs (TRecord rp ts s) = TRecord rp (map (second (first $ substitute vs)) ts) s
 substitute vs (TSum ts)         = TSum (map (second (first $ substitute vs)) ts)
 substitute _  (TUnit)           = TUnit
+substitute vs (TRPar v m)       = TRPar v $ fmap (M.map (substitute vs)) m
 #ifdef BUILTIN_ARRAYS
 substitute vs (TArray t l)      = TArray (substitute vs t) l
 #endif
@@ -324,6 +354,7 @@ kindcheck_ f (TProduct t1 t2) = mappend <$> kindcheck_ f t1 <*> kindcheck_ f t2
 kindcheck_ f (TRecord _ ts s) = mconcat <$> ((sigilKind s :) <$> mapM (kindcheck_ f . fst . snd) (filter (not . snd . snd) ts))
 kindcheck_ f (TSum ts)        = mconcat <$> mapM (kindcheck_ f . fst . snd) (filter (not . snd . snd) ts)
 kindcheck_ f (TUnit)          = return mempty
+kindcheck_ f (TRPar _ _)      = return mempty
 
 #ifdef BUILTIN_ARRAYS
 kindcheck_ f (TArray t l)     = kindcheck_ f t

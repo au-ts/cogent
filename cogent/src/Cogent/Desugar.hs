@@ -57,7 +57,7 @@ import Data.Bits
 import Data.Char (ord)
 -- import Data.Foldable
 import Data.List as L (elemIndex, sortOn)
-import Data.Map as M hiding (filter, map, (\\))
+import qualified Data.Map as M hiding (filter, (\\))
 import Data.Maybe
 import Data.Word (Word32)
 import Prelude as P
@@ -522,10 +522,11 @@ desugarType = \case
   S.RT (S.TCon tn tvs s) -> TCon tn <$> mapM desugarType tvs <*> pure (desugarSigil s)
   S.RT (S.TVar vn b u)   ->
     (findIx vn <$> use typCtx) >>= \(Just v) -> return $
-      case (b,u) of
-        (_    , True ) -> TVarUnboxed v
-        (True , False) -> TVarBang v
-        (False, False) -> TVar v
+        case (b,u) of
+          (_    , True ) -> TVarUnboxed v
+          (True , False) -> TVarBang v
+          (False, False) -> TVar v
+
   S.RT (S.TFun ti to)    -> TFun <$> desugarType ti <*> desugarType to
   -- TODO: Fix
   S.RT (S.TRecord rp fs s)  -> TRecord rp <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType t) fs <*> pure (desugarSigil s)
@@ -545,7 +546,10 @@ desugarType = \case
     --     explicitly sort them here, otherwise @p10@ will be following @p9@ instead of @p1@.
     fs <- L.sortOn fst . P.zipWith (\n t -> (n,(t, False))) ns <$> forM ts desugarType
     return $ TRecord NonRec fs Unboxed
-  S.RT (S.TUnit)   -> return TUnit
+  S.RT (S.TUnit)     -> return TUnit
+  S.RT (S.TRPar v m) -> do
+    m' <- mapM id (fmap (\x -> mapM id (M.map desugarType x)) m)
+    return $ TRPar v m'
 #ifdef BUILTIN_ARRAYS
   S.RT (S.TArray t l) -> TArray <$> desugarType t <*> evalAExpr l  -- desugarExpr' l
 #endif

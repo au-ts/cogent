@@ -73,6 +73,7 @@ data Type t
   | TProduct (Type t) (Type t)
   | TRecord RecursiveParameter [(FieldName, (Type t, Bool))] (Sigil Representation)  -- True means taken
   | TUnit
+  | TRPar RecParName (RecContext (Type t))
 #ifdef BUILTIN_ARRAYS
   | TArray (Type t) ArraySize  -- use Int for now
                                -- XXX | ^^^ (UntypedExpr t 'Zero VarName)  -- stick to UntypedExpr to be simple / zilinc

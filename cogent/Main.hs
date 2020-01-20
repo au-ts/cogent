@@ -86,7 +86,7 @@ import Data.Char (isSpace)
 import Data.Either (isLeft, fromLeft)
 import Data.Foldable (fold, foldrM)
 import Data.List as L (find, intersect, isPrefixOf, nub, partition)
-import Data.Map (empty, fromList)
+import Data.Map (empty)
 import Data.Maybe (fromJust, isJust)
 import Data.Monoid (getLast)
 import Data.Time
