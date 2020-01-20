@@ -1,5 +1,0 @@
-foo : (U64, U16, U64[3]) -> (U64[2], U64[4])
-foo (a,b,cs) = let xs = [a, upcast b, a, upcast b]
-               and ys = cs
-               and [x1,x2,x3,x4] = xs
-                in (ys,xs)

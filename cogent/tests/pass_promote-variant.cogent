@@ -1,8 +1,0 @@
-type A
-
-mkA : () -> A
-
-m : <A A> -> A
-m | A a -> a
-  | rest -> rest : <A A> | A a -> a
-                         | _   -> mkA ()

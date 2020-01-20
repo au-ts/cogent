@@ -1,0 +1,13 @@
+test:
+  - files: 
+      - list_type.cogent
+    flags: 
+      - "--mono"
+    shouldpass: "yes"
+
+  - files:
+      - non-strictly-positive.cogent
+      - recpar-shadows-typevar.cogent
+    flags:
+      - "--parse"
+    shouldpass: "no"

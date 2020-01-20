@@ -1,4 +1,0 @@
-type A
-g: A take (..) -> A
-f: A take (..) -> A
-f arr = g arr

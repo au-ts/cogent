@@ -1,4 +1,0 @@
-type A
-
-foo : A -> <Left U8 | Right A>
-foo a = if True then Right a 8 else Right a

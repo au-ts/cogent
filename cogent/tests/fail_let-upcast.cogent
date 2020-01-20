@@ -1,3 +1,0 @@
-f : U8 -> U32
-f a = let b:U32 = a
-       in b

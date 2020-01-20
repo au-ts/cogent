@@ -1,5 +1,0 @@
-type Maybe t = <Some t | Nothing>
-
-foo : Maybe Bool -> U8
-foo | (Some a) -> 1
-    | Nothing -> 0

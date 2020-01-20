@@ -1,8 +1,0 @@
-someA : all a. () -> a
-
-f : all a. (a -> a) -> a
-f x = x $ someA ()
-
-g : all a. (a -> a) -> (a -> a)
-g x = x
-

@@ -1,4 +1,0 @@
-The element is: 1;
-The element is: 5;
-The element is: 9;
-The element is: 5;

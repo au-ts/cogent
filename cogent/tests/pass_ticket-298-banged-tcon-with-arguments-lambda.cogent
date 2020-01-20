@@ -1,9 +1,0 @@
-
-type A
-type G a 
-type R = { f1 : (G A)! }
-
-f : R -> R
-f r =
-  let t = (\s => if True then s else s) r
-  in if True then t else t

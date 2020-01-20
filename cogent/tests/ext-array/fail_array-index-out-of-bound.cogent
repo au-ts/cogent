@@ -1,7 +1,0 @@
-foo : (U64, U16, U64[3]) -> (U64[3], U64)
-foo (a,b,cs) = let xs = [a, upcast b, a, upcast b]
-               and ys = cs
-                in (ys,xs@index)
-
-index : U32
-index = 3 + 4

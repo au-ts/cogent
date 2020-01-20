@@ -1,7 +1,0 @@
-type A
-
-foo : #A -> U32
-foo a = let x = bar !b
-         in x
-
-bar : #A -> U32

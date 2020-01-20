@@ -1,0 +1,9 @@
+-- Tests recursive types
+
+type List a          = rec t { l: < Nil | Cons (a,t) > }
+type EmptyListNode a = (List a) take (..)
+
+allocListNode : all a. () -> EmptyListNode a
+
+cons : all a. (a, List a) -> List a
+cons (x, list) = (allocListNode ()) { l = Cons (x,list) }

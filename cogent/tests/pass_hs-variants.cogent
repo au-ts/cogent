@@ -1,6 +1,0 @@
-type V a b = <Success a | Error b>
-type U a b c = <Success a | Error b | Unknown c>
-
-foo : V Bool U8 -> U Bool U8 ()
-foo | Success x -> Success x
-    | Error   x -> Error x

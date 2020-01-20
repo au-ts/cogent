@@ -1,3 +1,0 @@
-
-foo : (U32,  U8[10]) -> U8
-foo (idx, arr) = if idx > 9 then 0 else arr @ idx
