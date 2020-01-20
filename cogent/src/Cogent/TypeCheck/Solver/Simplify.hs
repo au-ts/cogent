@@ -20,13 +20,16 @@ import           Cogent.Compiler
 import           Cogent.TypeCheck.ARow as ARow
 import           Cogent.TypeCheck.Base
 import qualified Cogent.TypeCheck.Row as Row
+import           Cogent.TypeCheck.Solver.SMT (smtSat)
 import           Cogent.TypeCheck.Solver.Goal
 import           Cogent.TypeCheck.Solver.Monad
 import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
 import           Cogent.Surface
+import           Cogent.Util (hoistMaybe)
 
 import           Control.Applicative
 import           Control.Monad
+import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.Trans.Class (lift)
 import qualified Data.Foldable as F (any)
@@ -50,19 +53,22 @@ import           Cogent.TypeCheck.Solver.Monad
 import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
 import           Cogent.Surface
 
-onGoal :: (Constraint -> Maybe [Constraint]) -> Goal -> Maybe [Goal]
+onGoal :: (Monad m) => (Constraint -> MaybeT m [Constraint]) -> Goal -> MaybeT m [Goal]
 onGoal f g = fmap (map (derivedGoal g)) (f (g ^. goal))
 
-unsat :: TypeError -> Maybe [Constraint]
-unsat x = Just [Unsat x]
+unsat :: (Monad m) => TypeError -> MaybeT m [Constraint]
+unsat x = hoistMaybe $ Just [Unsat x]
 
-elseDie :: Bool -> TypeError -> Maybe [Constraint]
-elseDie b e = (guard b >> Just []) <|> unsat e
+elseDie :: (Monad m) => Bool -> TypeError -> MaybeT m [Constraint]
+elseDie b e = (hoistMaybe $ guard b >> Just []) <|> unsat e
 
-simplify :: [(TyVarName, Kind)] -> Rewrite.Rewrite [Goal]
-simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
-  Sat      -> Just []
-  c1 :& c2 -> Just [c1,c2]
+liftTcSolvM :: Rewrite.RewriteT IO a -> Rewrite.RewriteT TcSolvM a
+liftTcSolvM (Rewrite.RewriteT m) = Rewrite.RewriteT (\a -> MaybeT $ liftIO $ runMaybeT (m a))
+
+simplify :: [(TyVarName, Kind)] -> Rewrite.RewriteT IO [Goal]
+simplify axs = Rewrite.pickOne' $ onGoal $ \c -> case c of
+  Sat      -> hoistMaybe $ Just []
+  c1 :& c2 -> hoistMaybe $ Just [c1,c2]
 
   Drop   t@(T (TVar v False)) m
     | Just k <- lookup v axs ->
@@ -74,8 +80,8 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
     | Just k <- lookup v axs ->
         canEscape k  `elseDie` TypeNotEscapable t m
 
-  Drop     (T (TVar v b u)) m | b || u -> Just []
-  Share    (T (TVar v b u)) m | b || u -> Just []
+  Drop     (T (TVar v b u)) m | b || u -> hoistMaybe $ Just []
+  Share    (T (TVar v b u)) m | b || u -> hoistMaybe $ Just []
   Escape t@(T (TVar v True False)) m -> unsat (TypeNotEscapable t m)
 
   Drop   t@(T (TCon n ts s)) m ->
@@ -85,49 +91,49 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
   Escape t@(T (TCon n ts s)) m ->
     not (readonly s) `elseDie` TypeNotEscapable t m
 
-  Drop   (T (TFun {})) _ -> Just []
-  Share  (T (TFun {})) _ -> Just []
-  Escape (T (TFun {})) _ -> Just []
+  Drop   (T (TFun {})) _ -> hoistMaybe $ Just []
+  Share  (T (TFun {})) _ -> hoistMaybe $ Just []
+  Escape (T (TFun {})) _ -> hoistMaybe $ Just []
 
-  Drop   (T TUnit) _ -> Just []
-  Share  (T TUnit) _ -> Just []
-  Escape (T TUnit) _ -> Just []
+  Drop   (T TUnit) _ -> hoistMaybe $ Just []
+  Share  (T TUnit) _ -> hoistMaybe $ Just []
+  Escape (T TUnit) _ -> hoistMaybe $ Just []
 
-  Drop   (T (TTuple xs)) m -> Just (map (flip Drop   m) xs)
-  Share  (T (TTuple xs)) m -> Just (map (flip Share  m) xs)
-  Escape (T (TTuple xs)) m -> Just (map (flip Escape m) xs)
+  Drop   (T (TTuple xs)) m -> hoistMaybe $ Just (map (flip Drop   m) xs)
+  Share  (T (TTuple xs)) m -> hoistMaybe $ Just (map (flip Share  m) xs)
+  Escape (T (TTuple xs)) m -> hoistMaybe $ Just (map (flip Escape m) xs)
 
   Share  (V r) m
-    | isNothing (Row.var r) -> Just (map (flip Share  m) (Row.untakenTypes r))
+    | isNothing (Row.var r) -> hoistMaybe $ Just (map (flip Share  m) (Row.untakenTypes r))
   Drop   (V r) m
-    | isNothing (Row.var r) -> Just (map (flip Drop   m) (Row.untakenTypes r))
+    | isNothing (Row.var r) -> hoistMaybe $ Just (map (flip Drop   m) (Row.untakenTypes r))
   Escape (V r) m
-    | isNothing (Row.var r) -> Just (map (flip Escape m) (Row.untakenTypes r))
+    | isNothing (Row.var r) -> hoistMaybe $ Just (map (flip Escape m) (Row.untakenTypes r))
 
   Share  (R r (Left s)) m
     | isNothing (Row.var r)
-    , not (writable s) -> Just (map (flip Share  m) (Row.untakenTypes r))
+    , not (writable s) -> hoistMaybe $ Just (map (flip Share  m) (Row.untakenTypes r))
   Drop   (R r (Left s)) m
     | isNothing (Row.var r)
-    , not (writable s) -> Just (map (flip Drop   m) (Row.untakenTypes r))
+    , not (writable s) -> hoistMaybe $ Just (map (flip Drop   m) (Row.untakenTypes r))
   Escape (R r (Left s)) m
     | isNothing (Row.var r)
-    , not (readonly s) -> Just (map (flip Escape m) (Row.untakenTypes r))
+    , not (readonly s) -> hoistMaybe $ Just (map (flip Escape m) (Row.untakenTypes r))
 
 #ifdef BUILTIN_ARRAYS
-  Share  (A t _ (Left s) _) m | not (writable s) -> Just [Share  t m]  -- TODO: deal with the taken fields!!! / zilinc
-  Drop   (A t _ (Left s) _) m | not (writable s) -> Just [Drop   t m]  -- TODO
-  Escape (A t _ (Left s) _) m | not (readonly s) -> Just [Escape t m]  -- TODO
+  Share  (A t _ (Left s) _) m | not (writable s) -> hoistMaybe $ Just [Share  t m]  -- TODO: deal with the taken fields!!! / zilinc
+  Drop   (A t _ (Left s) _) m | not (writable s) -> hoistMaybe $ Just [Drop   t m]  -- TODO
+  Escape (A t _ (Left s) _) m | not (readonly s) -> hoistMaybe $ Just [Escape t m]  -- TODO
 #endif
 
-  Exhaustive t ps | any isIrrefutable ps -> Just []
+  Exhaustive t ps | any isIrrefutable ps -> hoistMaybe $ Just []
   Exhaustive (V r) []
     | isNothing (Row.var r) ->
       L.null (Row.untakenTypes r)
         `elseDie` PatternsNotExhaustive (V r) (Row.untakenLabels r)
   Exhaustive (V r) (RP (PCon t _):ps)
     | isNothing (Row.var r) ->
-      Just [Exhaustive (V (Row.take t r)) ps]
+      hoistMaybe $ Just [Exhaustive (V (Row.take t r)) ps]
 
   Exhaustive tau@(T (TCon "Bool" [] Unboxed)) [RP (PBoolLit t), RP (PBoolLit f)]
     -> (not (t && f) && (t || f)) `elseDie` PatternsNotExhaustive tau []
@@ -135,28 +141,25 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
   Upcastable (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed))
     | Just n' <- elemIndex n primTypeCons
     , Just m' <- elemIndex m primTypeCons
-    , n' <= m' , not (m `elem` ["String","Bool"]) -> Just []
+    , n' <= m' , not (m `elem` ["String","Bool"]) -> hoistMaybe $ Just []
 
   -- [amos] New simplify rule:
   -- If both sides of an equality constraint are equal, we can't completely discharge it;
   -- we need to make sure all unification variables in the type are instantiated at some point
-  t :=: u | t == u ->
-    if isSolved t
-    then Just []
-    else Just [Solved t]
+  t :=: u | t == u -> hoistMaybe $ if isSolved t then Just [] else Just [Solved t]
 
-  Solved t | isSolved t -> Just []
+  Solved t | isSolved t -> hoistMaybe $ Just []
 
-  IsPrimType (T (TCon x _ Unboxed)) | x `elem` primTypeCons -> Just []
+  IsPrimType (T (TCon x _ Unboxed)) | x `elem` primTypeCons -> hoistMaybe $ Just []
 
-  T (TFun t1 t2) :=: T (TFun r1 r2) -> Just [r1 :=: t1, t2 :=: r2]
-  T (TFun t1 t2) :<  T (TFun r1 r2) -> Just [r1 :<  t1, t2 :<  r2]
+  T (TFun t1 t2) :=: T (TFun r1 r2) -> hoistMaybe $ Just [r1 :=: t1, t2 :=: r2]
+  T (TFun t1 t2) :<  T (TFun r1 r2) -> hoistMaybe $ Just [r1 :<  t1, t2 :<  r2]
 
-  T (TTuple ts) :<  T (TTuple us) | length ts == length us -> Just (zipWith (:< ) ts us)
-  T (TTuple ts) :=: T (TTuple us) | length ts == length us -> Just (zipWith (:=:) ts us)
+  T (TTuple ts) :<  T (TTuple us) | length ts == length us -> hoistMaybe $ Just (zipWith (:< ) ts us)
+  T (TTuple ts) :=: T (TTuple us) | length ts == length us -> hoistMaybe $ Just (zipWith (:=:) ts us)
 
-  V r1 :< V r2 | Row.null r1 && Row.null r2 -> Just []
-               | Just (r1',r2') <- extractVariableEquality r1 r2 -> Just [V r1' :=: V r2']
+  V r1 :< V r2 | Row.null r1 && Row.null r2 -> hoistMaybe $ Just []
+               | Just (r1',r2') <- extractVariableEquality r1 r2 -> hoistMaybe $ Just [V r1' :=: V r2']
                | otherwise -> do
     let commons  = Row.common r1 r2
         (ls, rs) = unzip commons
@@ -165,9 +168,9 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
     let (r1',r2') = Row.withoutCommon r1 r2
         cs = map (\ ((_, e),(_,e')) -> fst e :< fst e') commons
         c   = V r1' :< V r2'
-    Just (c:cs)
+    hoistMaybe $ Just (c:cs)
 
-  V r1 :=: V r2 | Row.null r1 && Row.null r2 -> Just []
+  V r1 :=: V r2 | Row.null r1 && Row.null r2 -> hoistMaybe $ Just []
                 | otherwise -> do
     let commons  = Row.common r1 r2
         (ls, rs) = unzip commons
@@ -176,10 +179,10 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
     let (r1',r2') = Row.withoutCommon r1 r2
         cs = map (\ ((_, e),(_,e')) -> fst e :=: fst e') commons
         c   = V r1' :=: V r2'
-    Just (c:cs)
+    hoistMaybe $ Just (c:cs)
 
-  R r1 s1 :< R r2 s2 | Row.null r1 && Row.null r2 && s1 == s2 -> Just []
-                     | Just (r1',r2') <- extractVariableEquality r1 r2 -> Just [R r1' s1 :=: R r2' s2]
+  R r1 s1 :< R r2 s2 | Row.null r1 && Row.null r2 && s1 == s2 -> hoistMaybe $ Just []
+                     | Just (r1',r2') <- extractVariableEquality r1 r2 -> hoistMaybe $ Just [R r1' s1 :=: R r2' s2]
                      | otherwise -> do
     let commons  = Row.common r1 r2
         (ls, rs) = unzip commons
@@ -189,9 +192,9 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
         cs = map (\ ((_, e),(_,e')) -> fst e :< fst e') commons
         ds = map (flip Drop ImplicitlyTaken) $ Row.typesFor (untakenLabelsSet ls S.\\ untakenLabelsSet rs) r1
         c  = R r1' s1 :< R r2' s2
-    Just (c:cs ++ ds)
+    hoistMaybe $ Just (c:cs ++ ds)
 
-  R r1 s1 :=: R r2 s2 | Row.null r1 && Row.null r2 && s1 == s2 -> Just []
+  R r1 s1 :=: R r2 s2 | Row.null r1 && Row.null r2 && s1 == s2 -> hoistMaybe $ Just []
                       | otherwise -> do
     let commons  = Row.common r1 r2
         (ls, rs) = unzip commons
@@ -201,7 +204,7 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
         cs = map (\ ((_, e),(_,e')) -> fst e :=: fst e') commons
         ds = map (flip Drop ImplicitlyTaken) $ Row.typesFor (untakenLabelsSet ls S.\\ untakenLabelsSet rs) r1
         c  = R r1' s1 :=: R r2' s2
-    Just (c:cs ++ ds)
+    hoistMaybe $ Just (c:cs ++ ds)
 
 #ifdef BUILTIN_ARRAYS
   -- See [NOTE: solving 'A' types] in Cogent.Solver.Unify
@@ -211,25 +214,29 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
                  (r1, r2) | r1 == r2 -> Sat
                  (Nothing, Just i2) -> Drop t1 ImplicitlyTaken
                  (Just i1, Just i2) -> Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [i1,i2]))
-    Just [Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [l1,l2])), t1 :< t2, drop]
+    hoistMaybe $ Just [Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [l1,l2])), t1 :< t2, drop]
 
   A t1 l1 s1 r1 :=: A t2 l2 s2 r2 | s1 == s2 -> do
-    Nothing
+    hoistMaybe $ Nothing
     -- TODO
     -- Just [t1 :=: t2, Arith (SE $ PrimOp "==" [l1,l2])]
 
   -- TODO: Here we will call a SMT procedure to simplify all the Arith constraints.
   -- The only things left will be non-trivial predicates. / zilinc
-  Arith (SE _ (PrimOp "==" [e1, e2])) | e1 == e2 -> Just []
+  Arith e | isTrivialSE e -> do
+              r <- lift $ smtSat e 
+              if r then hoistMaybe $ Just []
+                   else hoistMaybe $ Nothing
+          | otherwise -> hoistMaybe $ Nothing
 #endif
 
-  T t1 :< x | unorderedType t1 -> Just [T t1 :=: x]
-  x :< T t2 | unorderedType t2 -> Just [x :=: T t2]
+  T t1 :< x | unorderedType t1 -> hoistMaybe $ Just [T t1 :=: x]
+  x :< T t2 | unorderedType t2 -> hoistMaybe $ Just [x :=: T t2]
 
   (T (TCon n ts s)) :=: (T (TCon n' us s'))
-    | s == s', n == n' -> Just (zipWith (:=:) ts us)
+    | s == s', n == n' -> hoistMaybe $ Just (zipWith (:=:) ts us)
 
-  t -> Nothing
+  t -> hoistMaybe $ Nothing
 
 -- | Returns 'True' iff the given argument type is not subject to subtyping. That is, if @a :\< b@
 --   (subtyping) is equivalent to @a :=: b@ (equality), then this function returns true.
@@ -269,3 +276,4 @@ normaliseSExpr :: TCSExpr -> Maybe Int
 normaliseSExpr (SU _ x) = Nothing
 normaliseSExpr (SE _ (IntLit n)) = Just $ fromIntegral n
 normaliseSExpr (SE {}) = __todo "normaliseSExpr"
+
