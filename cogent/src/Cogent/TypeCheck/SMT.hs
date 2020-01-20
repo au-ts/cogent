@@ -51,6 +51,7 @@ sexprToSmt (SE t (PrimOp op [e1,e2])) = liftA2 (bopToSmt op) (sexprToSmt e1) (se
 sexprToSmt (SE t (Var vn)) = return $ svUninterpreted (typeToSmt t) vn Nothing []  -- For now we make variables uninterpreted
 sexprToSmt (SE t (IntLit i)) = return $ svInteger (typeToSmt t) i
 sexprToSmt (SE t (BoolLit b)) = return $ svBool b
+sexprToSmt (SE t (If e _ th el)) = svIte <$> sexprToSmt e <*> sexprToSmt th <*> sexprToSmt el
 sexprToSmt (SE t (Upcast e)) = sexprToSmt e
 sexprToSmt (SE t (Annot e _)) = sexprToSmt e
 sexprToSmt e = __todo $ "sexprToSmt: unsupported expression in SMT:\n" ++ show (indent' $ pretty e)

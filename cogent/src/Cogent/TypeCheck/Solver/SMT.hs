@@ -13,7 +13,15 @@
 module Cogent.TypeCheck.Solver.SMT where
 
 import Cogent.TypeCheck.Base
+import Cogent.TypeCheck.SMT
 import Cogent.Surface
 
+import Data.SBV (SatResult (..), SMTResult (..), z3)
+import Data.SBV.Dynamic (satWith)
 
-
+smtSat :: TCSExpr -> IO Bool
+smtSat e = do
+  SatResult s <- satWith z3 (sexprToSmt e)
+  case s of
+    Satisfiable {} -> return True
+    _              -> return False
