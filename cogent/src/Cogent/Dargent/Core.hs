@@ -81,6 +81,8 @@ endAllocatedBits = foldr (\range start -> max (bitOffsetBR range + bitSizeBR ran
 dataLayoutSizeBytes :: DataLayout BitRange -> Size
 dataLayoutSizeBytes = (`div` wordSizeBits) . (alignSize wordSizeBits) . endAllocatedBits
 
+dataLayoutSizeInBytes' :: DataLayout' BitRange -> Size
+dataLayoutSizeInBytes' = (`div` 8) . (alignSize 8) . endAllocatedBits'
 
 alignLayout' :: DataLayout' BitRange -> DataLayout' [AlignedBitRange]
 alignLayout' = fmap rangeToAlignedRanges

@@ -572,9 +572,14 @@ desugarType = \case
     return $ TArray t' l' Unboxed mhole
   B.DT (S.TArray t l sigil tkns) -> do
     unboxedDesugared@(TArray t' l' Unboxed tkns') <- desugarType $ B.DT (S.TArray t l Unboxed tkns)
+    -- NOTE: if the user specify boxed array containing boxed types with layout defined as pointer,
+    --       we simply turn that into CLayout to avoid generating extra getters & setters
+    let ds = case sigil of
+               Boxed ro (Just (S.DLArray S.DLPtr _)) -> Boxed ro CLayout
+               _ -> desugarSigil unboxedDesugared sigil
     TArray <$> pure t'
            <*> pure l'
-           <*> pure (desugarSigil unboxedDesugared sigil)
+           <*> pure ds
            <*> pure tkns'
 #endif
   notInWHNF -> __impossible $ "desugarType (type " ++ show (pretty notInWHNF) ++ " is not in WHNF)"
