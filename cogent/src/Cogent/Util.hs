@@ -304,6 +304,9 @@ takeWhileM' c1 c2 (ma : mas) = do
 fmapFold :: (Monoid m, Traversable t) => (a -> (m, b)) -> t a -> (m, t b)
 fmapFold f = foldMap (fst . f) &&& fmap (snd . f)
 
+-- NOTE: We need to first apply 'f' so that we are sure 'f' is only executed once;
+-- If we follow the style of the above 'fmapFold' function, which has 'f' twice,
+-- in this monadic function the computation will happen twice, which is undesirable. / zilinc
 fmapFoldM :: (Monoid m, Traversable t, Monad f) => (a -> f (m, b)) -> t a -> f (m, t b)
 fmapFoldM f x = do t <- traverse f x
                    return (foldMap fst t, snd <$> t)
