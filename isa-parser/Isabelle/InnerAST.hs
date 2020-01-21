@@ -45,6 +45,7 @@ data Term = TermIdent      Ident
           | RecordDcl                 [(Term, Term)]
           | IfThenElse     Term       Term    Term
           | List                      [Term]
+          | Tuple                     [Term]
   deriving (Data, Typeable, Eq, Ord, Show)
 
 data Const = TrueC | FalseC
@@ -262,6 +263,8 @@ prettyTerm p t = case t of
   RecordUpd upds        -> string "\\<lparr>" <+> sep (punctuate (text ",") (map (prettyAssis ":=") upds)) <+> string "\\<rparr>"
   RecordDcl dcls        -> string "\\<lparr>" <+> sep (punctuate (text ",") (map (prettyAssis "=") dcls)) <+> string "\\<rparr>"
   IfThenElse cond c1 c2 -> string "if" <+> prettyTerm p cond <+> string "then" <+> prettyTerm p c1 <+> string "else" <+> prettyTerm p c2 
+  List eles             -> string "[" <+> sep (punctuate (text ",") (map pretty eles)) <+> string "]"
+  Tuple eles            -> string "(" <+> sep (punctuate (text ",") (map pretty eles)) <+> string ")"
 
 prettyAssis :: String -> (Term, Term) -> Doc 
 prettyAssis s (p, e) = pretty p <+> pretty s <+> pretty e

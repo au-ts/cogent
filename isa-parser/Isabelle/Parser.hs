@@ -627,9 +627,23 @@ termL = buildExpressionParser table restL
 
     restL =  antiquoteTermL <||> parensTermL <||> constTermL <||> (TermIdent <$> innerIdentL) <||> 
              caseOfTermL <||> recordUpdTermL <||> recordDclTermL <||> ifThenElseTermL <||> 
-             listTermL
+             listTermL <||> tupleTermL
     parensTermL = parensL termL
 
+tupleTermL :: ParserM Term 
+tupleTermL = do 
+  stringL "("
+  res <- alt1 <||> alt2 
+  return res
+
+  where 
+    alt1 = do 
+      eles <- sepBy1 termL (stringL ",")
+      stringL ")"
+      return $ Tuple eles
+    alt2 = do 
+      stringL ")"
+      return $ Tuple []
 
 listTermL :: ParserM Term 
 listTermL = do  
