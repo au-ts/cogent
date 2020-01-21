@@ -83,6 +83,7 @@ validateType (RT t) = do
   vs <- use knownTypeVars
   ts <- lift $ use knownTypes
   layouts <- lift $ use knownDataLayouts
+  traceTc "gen" (text "validate type" <+> pretty t)
   case t of
     TVar v b u  | v `notElem` vs -> freshTVar >>= \t' -> return (Unsat $ UnknownTypeVariable v, t')
                 | otherwise -> return (mempty, T $ TVar v b)
@@ -121,18 +122,28 @@ validateType (RT t) = do
 #ifdef BUILTIN_ARRAYS
     TArray te l s tkns -> do
       x <- freshEVar (T u32)
+      traceTc "gen" (text "unifier for array length" <+> pretty l L.<$> 
+                     text "is" <+> pretty x)
       (cl,l') <- cg (rawToLocE ?loc l) (T u32)
       (ctkn,mhole) <- case tkns of
                         [] -> return (Sat, Nothing)
                         [(i,True)] -> do y <- freshEVar (T u32)
+                                         traceTc "gen" (text "unifier for array hole" <+> pretty i L.<$>
+                                                        text "is" <+> pretty y)
                                          (ci,i') <- cg (rawToLocE ?loc i) (T u32)
-                                         let c = Arith $ SE (T bool) (PrimOp "==" [toTCSExpr i', y])
+                                         let c = Arith (SE (T bool) (PrimOp "==" [toTCSExpr i', y]))
+                                              -- <> Arith (SE (T bool) (PrimOp ">=" [y, SE (T u32) (IntLit 0)]))
+                                              <> Arith (SE (T bool) (PrimOp "<" [y, x]))
+                                         traceTc "gen" (text "cg for array hole" <+> pretty i L.<$>
+                                                        text "generate constraint" <+> prettyC (c <> ci))
                                          return (c <> ci, Just y)
                         _  -> return (Unsat $ OtherTypeError "taking more than one element from arrays not supported", Nothing)
       let cl' = Arith (SE (T bool) (PrimOp ">" [x, SE (T u32) (IntLit 0)]))
              <> Arith (SE (T bool) (PrimOp "==" [toTCSExpr l', x]))
+      traceTc "gen" (text "cg for array length" <+> pretty x L.<$>
+                     text "generate constraint" <+> prettyC (cl <> cl'))
       (c,te') <- validateType te
-      return (cl <> ctkn <> cl' <> c, A te' x (Left s) mhole)
+      return (cl <> cl' <> ctkn <> c, A te' x (Left s) mhole)
 
     TATake es t -> do
       blob <- forM es $ \e -> do
@@ -140,6 +151,8 @@ validateType (RT t) = do
         (ce,e') <- cg (rawToLocE ?loc e) (T u32)
         return (ce <> Arith (SE (T bool) (PrimOp "==" [toTCSExpr e', x])), e', x)
       let (ces,es',xs) = unzip3 blob
+      traceTc "gen" (text "cg for @take" <+> parens (prettyList es) L.<$>
+                     text "generate constraint" <+> prettyC (mconcat ces))
       (ct,t') <- validateType t
       return (mconcat ces <> ct, T $ TATake xs t')
 
@@ -149,6 +162,8 @@ validateType (RT t) = do
         (ce,e') <- cg (rawToLocE ?loc e) (T u32)
         return (ce <> Arith (SE (T bool) (PrimOp "==" [toTCSExpr e', x])), e', x)
       let (ces,es',xs) = unzip3 blob
+      traceTc "gen" (text "cg for @put" <+> parens (prettyList es) L.<$>
+                     text "generate constraint" <+> prettyC (mconcat ces))
       (ct,t') <- validateType t
       return (mconcat ces <> ct, T $ TAPut xs t')
 #endif
@@ -325,26 +340,30 @@ cg' (ArrayLit es) t = do
   let (cs,es') = unzip blob
       n = SE (T u32) (IntLit . fromIntegral $ length es)
       cz = Arith (SE (T bool) (PrimOp ">" [n, SE (T u32) (IntLit 0)]))
+  traceTc "gen" (text "cg for array literal length" L.<$>
+                 text "generate constraint" <+> prettyC cz L.<$>
+                 text "which should always be trivially true")
   beta <- freshVar
   return (mconcat cs <> cz <> (A alpha n (Left Unboxed) Nothing) :< t, ArrayLit es')
 
 cg' (ArrayIndex e i) t = do
-  alpha <- freshTVar
-  n <- freshEVar (T u32)
-  r <- freshVar
-  s <- freshVar
-  idx <- freshEVar (T u32)
-  let ta = A alpha n (Right s) (Just idx)  -- FIXME: we need to create a new TCType for arrays / zilinc
+  alpha <- freshTVar        -- element type
+  n <- freshEVar (T u32)    -- length
+  s <- freshVar             -- sigil
+  idx <- freshEVar (T u32)  -- index
+  let ta = A alpha n (Right s) (Just idx)  -- this is the biggest type 'e' can ever have -- with a hole
+                                           -- at a location other than 'i'
   (ce, e') <- cg e ta
   (ci, i') <- cg i (T u32)
   let c = alpha :< t
         <> Share ta UsedInArrayIndexing
-        <> Arith (SE (T bool) (PrimOp "<"  [toTCSExpr i', n  ]))  -- FIXME!
+        <> Arith (SE (T bool) (PrimOp "<"  [toTCSExpr i', n  ]))
+        <> Arith (SE (T bool) (PrimOp "<"  [idx         , n  ]))
         <> Arith (SE (T bool) (PrimOp "/=" [toTCSExpr i', idx]))
         -- <> Arith (SE (PrimOp ">=" [toSExpr i, SE (IntLit 0)]))  -- as we don't have negative values
   traceTc "gen" (text "array indexing" <> colon
                  L.<$> text "index is" <+> pretty (stripLocE i) <> semi
-                 L.<$> text "bound is" <+> pretty n <> semi
+                 L.<$> text "upper bound (excl.) is" <+> pretty n <> semi
                  L.<$> text "generate constraint" <+> prettyC c)
   return (ce <> ci <> c, ArrayIndex e' i')
 
@@ -382,25 +401,32 @@ cg' (ArrayPut arr [(idx,v)]) t = do
   let c = [ A alpha l (Right s) Nothing :< t
           , sigma :< A alpha l (Right s) (Just $ toTCSExpr idx')
           , carr, cidx, cv
-          -- , Arith (SE $ PrimOp ">=" [idx', SE (IntLit 0)])  -- FIXME: we don't check for bounds for now / zilinc
-          -- , Arith (SE $ PrimOp "<" [idx', l])
+          -- , Arith (SE (T bool) (PrimOp ">=" [idx', SE (IntLit 0)]))
+          , Arith (SE (T bool) (PrimOp "<" [toTCSExpr idx', l]))
           ]
+  traceTc "gen" (text "cg for array put" L.<$>
+                 text "elemenet type is" <+> pretty alpha L.<$>
+                 text "array type is" <+> pretty sigma L.<$>
+                 text "length is" <+> pretty l L.<$>
+                 text "sigil is" <+> pretty s L.<$>
+                 text "generate constraint" <+> prettyC (mconcat c))
   return (mconcat c, ArrayPut arr' [(idx',v')])
 cg' (ArrayPut arr ivs) t = do
-  alpha <- freshTVar  -- the elemenet type
-  sigma <- freshTVar  -- the original array type
-  l <- freshEVar (T u32)  -- the length of the array
-  s <- freshVar  -- sigil
-  (carr,arr') <- cg arr sigma
-  let (idxs,vs) = unzip ivs
-  blob1 <- forM idxs $ \idx -> cg idx (T u32)
-  blob2 <- forM vs $ \v -> cg v alpha
-  let c = [ A alpha l (Right s) Nothing :< t
-          , sigma :< A alpha l (Right s) Nothing
-          , carr
-          , Drop alpha MultipleArrayTakePut
-          ] ++ map fst blob1 ++ map fst blob2  -- TODO: check for bounds
-  return (mconcat c, ArrayPut arr' (zip (map snd blob1) (map snd blob2)))
+  __todo "cg': array put multiple elements: not yet allowed"
+  -- alpha <- freshTVar  -- the elemenet type
+  -- sigma <- freshTVar  -- the original array type
+  -- l <- freshEVar (T u32)  -- the length of the array
+  -- s <- freshVar  -- sigil
+  -- (carr,arr') <- cg arr sigma
+  -- let (idxs,vs) = unzip ivs
+  -- blob1 <- forM idxs $ \idx -> cg idx (T u32)
+  -- blob2 <- forM vs $ \v -> cg v alpha
+  -- let c = [ A alpha l (Right s) Nothing :< t
+  --         , sigma :< A alpha l (Right s) Nothing
+  --         , carr
+  --         , Drop alpha MultipleArrayTakePut
+  --         ] ++ map fst blob1 ++ map fst blob2  -- TODO: check for bounds
+  -- return (mconcat c, ArrayPut arr' (zip (map snd blob1) (map snd blob2)))
 #endif
 
 cg' exp@(Lam pat mt e) t = do
@@ -740,12 +766,15 @@ match' (PTake r fs) t | not (any isNothing fs) = do
 
 #ifdef BUILTIN_ARRAYS
 match' (PArray ps) t = do
-  alpha <- freshTVar
+  alpha <- freshTVar  -- element type
   blob  <- mapM (`match` alpha) ps
-  r <- freshVar
   let (ss,cs,ps') = unzip3 blob
-      l = SE (T u32) (IntLit . fromIntegral $ length ps)
-      c = t :< (A alpha l (__fixme $ Left Unboxed) Nothing)  -- FIXME: can be boxed as well / zilinc
+      l = SE (T u32) (IntLit . fromIntegral $ length ps)  -- length of the array
+      c = t :< (A alpha l (Left Unboxed) Nothing)
+  traceTc "gen" (text "match on array literal pattern" L.<$>
+                 text "element type is" <+> pretty alpha L.<$>
+                 text "length is" <+> pretty l L.<$>
+                 text "generate constraint" <+> prettyC c)
   return (M.unions ss, mconcat cs <> c, PArray ps')
 
 match' (PArrayTake arr [(idx,p)]) t = do
@@ -757,9 +786,14 @@ match' (PArrayTake arr [(idx,p)]) t = do
   let tarr = A alpha len (Right sigil) (Just $ toTCSExpr idx')  -- type of the newly introduced @arr'@ variable
       s = M.fromList [(arr, (tarr, ?loc, Seq.empty))]
       c = [ t :< A alpha len (Right sigil) Nothing
-          , Arith (SE (T bool) (PrimOp ">=" [toTCSExpr idx', SE (T u32) (IntLit 0)]))
+          -- , Arith (SE (T bool) (PrimOp ">=" [toTCSExpr idx', SE (T u32) (IntLit 0)]))
           , Arith (SE (T bool) (PrimOp "<"  [toTCSExpr idx', len]))
           ]
+  traceTc "gen" (text "match on array take" L.<$>
+                 text "element type is" <+> pretty alpha L.<$>
+                 text "length is" <+> pretty len L.<$>
+                 text "sigil is" <+> pretty sigil L.<$>
+                 text "generate constraint" <+> prettyC (mconcat c))
   return (s `M.union` sp, cp `mappend` mconcat c, PArrayTake (arr, tarr) [(idx',p')])
 
 match' (PArrayTake arr _) t = __todo "match': taking multiple elements from array is not supported"
