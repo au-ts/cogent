@@ -183,6 +183,9 @@ reserved = lexeme . reservedS
 identS :: ParserM String
 identS = letterS <++> manyP quasiletterS
 
+identSL :: ParserM String
+identSL = letterS <++> manyP quasiletterSL
+
 identL :: ParserM String
 identL = lexeme . try $
   do { s <- identS 
@@ -190,7 +193,12 @@ identL = lexeme . try $
        then unexpected ("'" ++ s ++ "' is a reserved word")
        else return s }
 
-
+identLL :: ParserM String
+identLL = lexeme . try $
+  do { s <- identSL 
+     ; if s `elem` reservedWordsInner
+       then unexpected ("'" ++ s ++ "' is a reserved word")
+       else return s }
 
 antiquoteS :: ParserM String 
 antiquoteS = char '$' >> lookAhead anyChar >>= \case
@@ -233,6 +241,9 @@ greekS = oneStringOf ["\\<alpha>",  "\\<beta>", "\\<gamma>", "\\<delta>",
 
 quasiletterS :: ParserM String
 quasiletterS = ((letterS <||> digitS <||> charString '_') <||> charString '\'') <?> "quasi-letter"
+
+quasiletterSL :: ParserM String
+quasiletterSL = ((letterS <||> digitS <||> charString '_') <||> charString '\'' <||> charString '.') <?> "quasi-letterL"
 
 digitS :: ParserM String
 digitS =  s $ oneOf "0123456789"
@@ -625,10 +636,38 @@ termL = buildExpressionParser table restL
                                            ; return (TermUnOp u) }))
 
 
-    restL =  antiquoteTermL <||> parensTermL <||> constTermL <||> (TermIdent <$> innerIdentL) <||> 
+    restL =  antiquoteTermL <||> parensTermL <||> constTermL <||> (TermIdent <$> innerIdentLL) <||> 
              caseOfTermL <||> recordUpdTermL <||> recordDclTermL <||> ifThenElseTermL <||> 
-             listTermL <||> tupleTermL <||> doBlockTermL 
+             listTermL <||> tupleTermL <||> doBlockTermL <||> setTermL 
     parensTermL = parensL termL
+ 
+setTermL :: ParserM Term
+setTermL = do 
+  stringL "{"
+  st <- (try st1) <||> (try st2) <||> (try st3) <||> (try st4) 
+  return $ Set st
+
+  where 
+    st1 = do 
+      stringL "}"
+      return $ Listing []
+    st2 = do 
+      eles <- sepBy1 termL (stringL ",") 
+      stringL "}"
+      return $ Listing eles 
+    st3 = do 
+      term1 <- try termL 
+      stringL ".."
+      term2 <- termL
+      stringL "}"
+      return $ Range term1 term2
+    st4 = do 
+      q <- try termL  
+      stringL "."
+      c <- termL
+      stringL "}" 
+      return $ Quant q c 
+
 
 -- FIXME: Does not check if return exists 
 doBlockTermL :: ParserM Term 
@@ -746,6 +785,10 @@ altTermL = do
 
 innerIdentL :: ParserM Ident
 innerIdentL = (Id <$> identL) <||> wildcardL <||> parensL typedIdentL
+
+
+innerIdentLL :: ParserM Ident
+innerIdentLL = (Id <$> identLL) <||> wildcardL <||> parensL typedIdentL
 
 wildcardL :: ParserM Ident
 wildcardL = do { char '_'; return Wildcard }

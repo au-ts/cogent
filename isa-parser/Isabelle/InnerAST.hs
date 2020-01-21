@@ -51,7 +51,13 @@ data Term = TermIdent      Ident
           | Tuple                     [Term]
           | DoBlock                   [Term]
           | DoItem                    Term    Term 
+          | Set            SetType    
   deriving (Data, Typeable, Eq, Ord, Show)
+
+data SetType = Quant Term Term 
+             | Listing [Term]
+             | Range Term Term
+ deriving (Data, Typeable, Eq, Ord, Show)
 
 data Const = TrueC | FalseC
            | IntLiteral    Integer
@@ -81,6 +87,8 @@ data TermBinOp =
                | DollarSignApp
                | Bind
                | Image
+               | Union 
+               | Ge 
   deriving (Data, Typeable, Eq, Ord, Show)
 
 data TermUnOp =
@@ -176,10 +184,12 @@ termBinOpRec b = case b of
   DollarSignApp -> BinOpRec AssocRight 10 "$"
   Bind      -> BinOpRec AssocRight 60 ">>="
   Image     -> BinOpRec AssocRight 90 "`"
+  Union     -> BinOpRec AssocLeft  65 "\\<union>"
+  Ge        -> BinOpRec AssocRight 50 "\\<ge>"
 
 -- You must include all binary operators in this list. Miss one and it doesn't get parsed.
 -- Order does NOT matter. They are sorted by precedence.
-binOps = [Equiv, MetaImp, Eq, NotEq, Iff, Conj, Disj, Implies, DollarSignApp, Bind, Image]
+binOps = [Equiv, MetaImp, Eq, NotEq, Iff, Conj, Disj, Implies, DollarSignApp, Bind, Image, Union, Ge]
 
 termBinOpPrec :: TermBinOp -> Precedence
 termBinOpPrec b = if p >= termAppPrec
@@ -278,6 +288,10 @@ prettyTerm p t = case t of
   Tuple eles            -> string "(" <+> sep (punctuate (text ",") (map pretty eles)) <+> string ")"
   DoBlock dos           -> string "do" <$> sep (punctuate (text ";") (map pretty dos)) <$> string "od"
   DoItem  a b           -> pretty a <+> string "\\<leftarrow>" <+> pretty b 
+  Set st                -> string "{" <+> (case st of 
+                              Quant q c -> pretty q <> string "." <+> pretty c
+                              Range a b -> pretty a <> string ".." <> pretty b 
+                              Listing lst -> sep (punctuate (text ",") (map pretty lst))) <+> string "}"
 
 prettyAssis :: String -> (Term, Term) -> Doc 
 prettyAssis s (p, e) = pretty p <+> pretty s <+> pretty e
