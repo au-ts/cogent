@@ -305,10 +305,8 @@ fmapFold :: (Monoid m, Traversable t) => (a -> (m, b)) -> t a -> (m, t b)
 fmapFold f = foldMap (fst . f) &&& fmap (snd . f)
 
 fmapFoldM :: (Monoid m, Traversable t, Monad f) => (a -> f (m, b)) -> t a -> f (m, t b)
-fmapFoldM f = foldMapM ((fst <$>) . f) /|\ traverse ((snd <$>) . f)
-  where
-   (/|\) :: Monad m => (a -> m b) -> (a -> m c) -> a -> m (b,c)
-   (f /|\ g) a = (,) <$> f a <*> g a
+fmapFoldM f x = do t <- traverse f x
+                   return (foldMap fst t, snd <$> t)
 
 foldMapM :: (Monoid m, Foldable t, Monad f) => (a -> f m) -> t a -> f m
 foldMapM f x = foldrM f' mempty x
