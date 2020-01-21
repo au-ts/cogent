@@ -660,7 +660,7 @@ rigid (Synonym {}) = False  -- why? / zilinc
 rigid (R r _) = not $ Row.justVar r
 rigid (V r) = not $ Row.justVar r
 #ifdef BUILTIN_ARRAYS
-rigid (A t l _ _) = rigid t -- && null (unknownsE l) -- FIXME: is it correct? / zilinc
+rigid (A t l _ _) = True  -- rigid t && null (unknownsE l) -- FIXME: is it correct? / zilinc
 #endif
 rigid _ = True
 
