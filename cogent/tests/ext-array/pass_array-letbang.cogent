@@ -19,11 +19,3 @@ foo arr = let _ = (let a1 = arr@1
                     in read a1) !arr
            in arr
 
-
--- NOTE: This problem is ill-typed. Although a1 is not used
--- in conjection with arr, it could. In that case, a1 is an
--- alias to arr, which is writable. / zilinc
-
--- bar : A[2] -> A[2]
--- bar arr = let a1 = arr@1 !arr
---            in arr

@@ -412,21 +412,20 @@ cg' (ArrayPut arr [(idx,v)]) t = do
                  text "generate constraint" <+> prettyC (mconcat c))
   return (mconcat c, ArrayPut arr' [(idx',v')])
 cg' (ArrayPut arr ivs) t = do
-  __todo "cg': array put multiple elements: not yet allowed"
-  -- alpha <- freshTVar  -- the elemenet type
-  -- sigma <- freshTVar  -- the original array type
-  -- l <- freshEVar (T u32)  -- the length of the array
-  -- s <- freshVar  -- sigil
-  -- (carr,arr') <- cg arr sigma
-  -- let (idxs,vs) = unzip ivs
-  -- blob1 <- forM idxs $ \idx -> cg idx (T u32)
-  -- blob2 <- forM vs $ \v -> cg v alpha
-  -- let c = [ A alpha l (Right s) Nothing :< t
-  --         , sigma :< A alpha l (Right s) Nothing
-  --         , carr
-  --         , Drop alpha MultipleArrayTakePut
-  --         ] ++ map fst blob1 ++ map fst blob2  -- TODO: check for bounds
-  -- return (mconcat c, ArrayPut arr' (zip (map snd blob1) (map snd blob2)))
+  alpha <- freshTVar  -- the elemenet type
+  sigma <- freshTVar  -- the original array type
+  l <- freshEVar (T u32)  -- the length of the array
+  s <- freshVar  -- sigil
+  (carr,arr') <- cg arr sigma
+  let (idxs,vs) = unzip ivs
+  blob1 <- forM idxs $ \idx -> cg idx (T u32)
+  blob2 <- forM vs $ \v -> cg v alpha
+  let c = [ A alpha l (Right s) Nothing :< t
+          , sigma :< A alpha l (Right s) Nothing
+          , carr
+          , Drop alpha MultipleArrayTakePut
+          ] ++ map fst blob1 ++ map fst blob2  -- TODO: check for bounds
+  return (mconcat c, ArrayPut arr' (zip (map snd blob1) (map snd blob2)))
 #endif
 
 cg' exp@(Lam pat mt e) t = do
