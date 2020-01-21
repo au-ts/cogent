@@ -232,7 +232,7 @@ greekS = oneStringOf ["\\<alpha>",  "\\<beta>", "\\<gamma>", "\\<delta>",
 
 
 quasiletterS :: ParserM String
-quasiletterS = ((letterS <||> digitS <||> charString '_') <||> charString '\'' <||> charString '.') <?> "quasi-letter"
+quasiletterS = ((letterS <||> digitS <||> charString '_') <||> charString '\'') <?> "quasi-letter"
 
 digitS :: ParserM String
 digitS =  s $ oneOf "0123456789"
@@ -615,7 +615,7 @@ termL = buildExpressionParser table restL
     appParser  = (termAppPrec, Infix (do { return TermApp }) AssocLeft)
     typedTermParser = (typeAnnotationPrec, Postfix (do { stringL "::"; ty <- typeL
                                                        ; return (\t -> TermWithType t ty) }))
-    quantifierParser q = (quantifierPrec q, Prefix (try $ do { try (stringL (quantifierSym q))
+    quantifierParser q = (quantifierPrec q, Prefix (do { try (stringL (quantifierSym q))
                                                        ; is <- many1 innerIdentL
                                                        -- note that string "." must be followed by at least one space
                                                        ; string "." 
@@ -626,9 +626,26 @@ termL = buildExpressionParser table restL
 
 
     restL =  antiquoteTermL <||> parensTermL <||> constTermL <||> (TermIdent <$> innerIdentL) <||> 
-             caseOfTermL <||> recordUpdTermL <||> recordDclTermL <||> ifThenElseTermL 
+             caseOfTermL <||> recordUpdTermL <||> recordDclTermL <||> ifThenElseTermL <||> 
+             listTermL
     parensTermL = parensL termL
-  
+
+
+listTermL :: ParserM Term 
+listTermL = do  
+  stringL "["
+  res <- alt1 <||> alt2 
+  return res
+
+  where 
+    alt1 = do 
+      eles <- sepBy1 termL (stringL ",")
+      stringL "]"
+      return $ List eles
+    alt2 = do 
+      stringL "]"
+      return $ List []
+
 ifThenElseTermL :: ParserM Term
 ifThenElseTermL = do
   reserved "if"

@@ -44,6 +44,7 @@ data Term = TermIdent      Ident
           | RecordUpd                 [(Term, Term)]
           | RecordDcl                 [(Term, Term)]
           | IfThenElse     Term       Term    Term
+          | List                      [Term]
   deriving (Data, Typeable, Eq, Ord, Show)
 
 data Const = TrueC | FalseC
