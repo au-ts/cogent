@@ -16,7 +16,7 @@
 module Cogent.Dargent.CodeGen where
 
 import Cogent.C.Monad
-import Cogent.C.Type (genType)
+import Cogent.C.Type (genType, simplifyType)
 import Cogent.C.Syntax
 import Cogent.Common.Syntax (FieldName, VarName, Size)
 import Cogent.Common.Types (Sigil (..))
@@ -219,26 +219,28 @@ genBoxedArrayGetSet cogentType getOrSet = do
         TArray elemType _ (Boxed _ (Layout (ArrayLayout elemLayout _))) _ -> do
           let elemSize = dataLayoutSizeInBytes' elemLayout
               elemLayout' = alignLayout' elemLayout
-          arrCType <- genType cogentType
-          f' <- genArrayGetterSetter arrCType elemType elemSize elemLayout' getOrSet
-          ((case getOrSet of Get -> boxedArrayGetters; Set -> boxedArraySetters) . at cogentType) ?= f'
+              -- we get rid of unused info here, e.g. array length, hole location
+          f' <- genArrayGetterSetter cogentType elemType elemSize elemLayout' getOrSet
+          ((case getOrSet of Get -> boxedArrayGetters; Set -> boxedArraySetters) . at (simplifyType cogentType))
+            ?= f'
           return f'
         _ -> __impossible $
           "Cogent.Dargent.CodeGen: genBoxedArrayGetSet: this function should only be called with boxed array with boxed types " ++
           "with layout provided, check caller."
 
 genArrayGetterSetter
-  :: CType
+  :: CogentType
   -> CogentType
   -> Size
   -> DataLayout' [AlignedBitRange]
   -> GetOrSet
   -> Gen v CExpr
-genArrayGetterSetter arrCType elemType elemSize elemLayout' getOrSet = do
+genArrayGetterSetter arrType elemType elemSize elemLayout' getOrSet = do
   functionIdentifier <- genGetterSetterName [] getOrSet
+  arrCType <- genType arrType
   elemCType <- genType elemType
   elemGetterSetter <- genBoxedGetterSetter False (CPtr CChar) elemType elemLayout' [] getOrSet
-  ((case getOrSet of Get -> boxedArrayElemGetters; Set -> boxedArrayElemSetters) . at elemType)
+  ((case getOrSet of Get -> boxedArrayElemGetters; Set -> boxedArrayElemSetters) . at (simplifyType arrType))
     ?= elemGetterSetter
   declareSetterOrGetter $ arrayGetterSetter arrCType elemCType elemSize functionIdentifier elemGetterSetter getOrSet
   return (CVar functionIdentifier Nothing)
