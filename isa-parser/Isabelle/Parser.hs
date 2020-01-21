@@ -702,10 +702,10 @@ tupleTermL = do
     alt1 = do 
       eles <- sepBy1 termL (stringL ",")
       stringL ")"
-      return $ Tuple eles
+      return $ TupleTerm eles
     alt2 = do 
       stringL ")"
-      return $ Tuple []
+      return $ TupleTerm []
 
 listTermL :: ParserM Term 
 listTermL = do  
