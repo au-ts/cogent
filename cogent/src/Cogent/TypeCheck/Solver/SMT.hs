@@ -14,14 +14,21 @@ module Cogent.TypeCheck.Solver.SMT where
 
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.SMT
+import Cogent.TypeCheck.Util (traceTc)
+import Cogent.PrettyPrint (indent')
 import Cogent.Surface
 
 import Data.SBV (SatResult (..), SMTResult (..), z3)
 import Data.SBV.Dynamic (satWith)
+import Text.PrettyPrint.ANSI.Leijen as L
 
 smtSat :: TCSExpr -> IO Bool
 smtSat e = do
   SatResult s <- satWith z3 (sexprToSmt e)
+  traceTc "sol/smt" (text "Running SMT on expression"
+                     L.<$> indent' (pretty e)
+                     L.<$> text "gives result"
+                     L.<$> indent' (text . show $ SatResult s))
   case s of
     Satisfiable {} -> return True
     _              -> return False
