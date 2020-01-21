@@ -174,8 +174,7 @@ data StrlType = Record  [(CId, CType)]         -- ^ @(fieldname &#x21A6; fieldty
               | Function CType CType
               | AbsType CId
               | Array CType
-              | ArrayL (DataLayout BitRange) CExpr
-              --                             ^^^ currently we treat (#A)[3] and (#A)[5] as different types
+              | ArrayL (DataLayout BitRange)
               deriving (Eq, Ord, Show)
 
 -- Custom equality for `BoxedRecord` case of `StrlType`
