@@ -79,7 +79,7 @@ reservedWords = [
   "subsection", "subsubsection", "termination", "text", "theorems", "theory", "translations",
   "type_synonym", "typedecl", "unchecked", "uses", "where" ]
 
-reservedWordsInner = ["case", "of", "if", "then", "else"]
+reservedWordsInner = ["case", "of", "if", "then", "else", "do", "od"]
 
 ---------------------------------------------------------------
 -- Utility functions and combinators
@@ -627,8 +627,31 @@ termL = buildExpressionParser table restL
 
     restL =  antiquoteTermL <||> parensTermL <||> constTermL <||> (TermIdent <$> innerIdentL) <||> 
              caseOfTermL <||> recordUpdTermL <||> recordDclTermL <||> ifThenElseTermL <||> 
-             listTermL <||> tupleTermL
+             listTermL <||> tupleTermL <||> doBlockTermL 
     parensTermL = parensL termL
+
+-- FIXME: Does not check if return exists 
+doBlockTermL :: ParserM Term 
+doBlockTermL = do 
+  reserved "do"
+  dos <- sepBy1 (try dosTermL) (stringL ";") 
+  reserved "od"
+  return $ DoBlock dos
+
+dosTermL :: ParserM Term
+dosTermL = do 
+  res <- do1 <||> do2 
+  return res 
+  
+  where 
+    do1 = try $ do 
+      term1 <- termL
+      stringL "\\<leftarrow>"
+      term2 <- termL
+      return $ DoItem term1 term2
+    do2 = do 
+      term <- termL 
+      return term
 
 tupleTermL :: ParserM Term 
 tupleTermL = do 

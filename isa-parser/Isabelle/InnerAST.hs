@@ -20,6 +20,9 @@ import Text.Parsec.Expr (Assoc(..))
 import Text.PrettyPrint.ANSI.Leijen
 import Data.Char (ord)
 import Text.Printf (printf)
+#if __GLASGOW_HASKELL__ >= 709
+import Prelude hiding ((<$>))
+#endif
 
 -- friends
 import Isabelle.PrettyHelper
@@ -46,6 +49,8 @@ data Term = TermIdent      Ident
           | IfThenElse     Term       Term    Term
           | List                      [Term]
           | Tuple                     [Term]
+          | DoBlock                   [Term]
+          | DoItem                    Term    Term 
   deriving (Data, Typeable, Eq, Ord, Show)
 
 data Const = TrueC | FalseC
@@ -74,11 +79,14 @@ data TermBinOp =
                | Disj
                | Implies
                | DollarSignApp
+               | Bind
+               | Image
   deriving (Data, Typeable, Eq, Ord, Show)
 
 data TermUnOp =
-  -- Isabelle/HOL
-  Not deriving (Data, Typeable, Eq, Ord, Show)
+            -- Isabelle/HOL
+                Not
+              | Uminus deriving (Data, Typeable, Eq, Ord, Show)
 
 type Id = String
 
@@ -166,10 +174,12 @@ termBinOpRec b = case b of
   Disj      -> BinOpRec AssocRight 30 "\\<or>"
   Implies   -> BinOpRec AssocRight 25 "\\<longrightarrow>"
   DollarSignApp -> BinOpRec AssocRight 10 "$"
+  Bind      -> BinOpRec AssocRight 60 ">>="
+  Image     -> BinOpRec AssocRight 90 "`"
 
 -- You must include all binary operators in this list. Miss one and it doesn't get parsed.
 -- Order does NOT matter. They are sorted by precedence.
-binOps = [Equiv, MetaImp, Eq, NotEq, Iff, Conj, Disj, Implies, DollarSignApp]
+binOps = [Equiv, MetaImp, Eq, NotEq, Iff, Conj, Disj, Implies, DollarSignApp, Bind, Image]
 
 termBinOpPrec :: TermBinOp -> Precedence
 termBinOpPrec b = if p >= termAppPrec
@@ -193,14 +203,15 @@ termBinOpAssoc = binOpRecAssoc . termBinOpRec
 --
 termUnOpRec :: TermUnOp -> UnOpRec
 termUnOpRec u = case u of
-  Not -> UnOpRec 40 "\\<not>"
+  Not    -> UnOpRec 40 "\\<not>"
+  Uminus -> UnOpRec 81 "-" 
 
 termUnOpPrec = unOpRecPrec . termUnOpRec
 termUnOpSym = unOpRecSym . termUnOpRec
 
 -- You must include all unary operators in this list. Miss one and it doesn't get parsed.
 -- Order does NOT matter. They are sorted by precedence.
-termUnOps = [Not]
+termUnOps = [Not, Uminus]
 
 
 data QuantifierRec = QuantifierRec { quantifierRecPrecedence :: Precedence, quantifierRecSymbol :: String }
@@ -259,18 +270,17 @@ prettyTerm p t = case t of
   ListTerm l ts r       -> pretty l <> hcat (intersperse (string ", ") (map (prettyTerm termAppPrec) ts)) <> pretty r
   ConstTerm const       -> pretty const
   AntiTerm str          -> pretty str  -- FIXME: zilinc
-  CaseOf e alts         -> parens (string "case" <+> pretty e <+> string "of" <+> sep (punctuate (text "|") (map prettyAlt alts)))
+  CaseOf e alts         -> parens (string "case" <+> pretty e <+> string "of" <$> sep (punctuate (text "|") (map (prettyAssis "\\<Rightarrow>") alts)))
   RecordUpd upds        -> string "\\<lparr>" <+> sep (punctuate (text ",") (map (prettyAssis ":=") upds)) <+> string "\\<rparr>"
   RecordDcl dcls        -> string "\\<lparr>" <+> sep (punctuate (text ",") (map (prettyAssis "=") dcls)) <+> string "\\<rparr>"
   IfThenElse cond c1 c2 -> string "if" <+> prettyTerm p cond <+> string "then" <+> prettyTerm p c1 <+> string "else" <+> prettyTerm p c2 
   List eles             -> string "[" <+> sep (punctuate (text ",") (map pretty eles)) <+> string "]"
   Tuple eles            -> string "(" <+> sep (punctuate (text ",") (map pretty eles)) <+> string ")"
+  DoBlock dos           -> string "do" <$> sep (punctuate (text ";") (map pretty dos)) <$> string "od"
+  DoItem  a b           -> pretty a <+> string "\\<leftarrow>" <+> pretty b 
 
 prettyAssis :: String -> (Term, Term) -> Doc 
 prettyAssis s (p, e) = pretty p <+> pretty s <+> pretty e
-
-prettyAlt :: (Term, Term) -> Doc
-prettyAlt (p, e) = pretty p <+> pretty "\\<Rightarrow>" <+> pretty e
 
 prettyBinOpTerm :: Precedence -> TermBinOp -> Term -> Term -> Doc
 prettyBinOpTerm p b = prettyBinOp p prettyTerm (termBinOpRec b) prettyTerm
