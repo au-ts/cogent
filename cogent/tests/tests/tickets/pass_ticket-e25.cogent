@@ -1,0 +1,30 @@
+type Result a b = <Success a | Error b>
+
+type Ext2Superblock = {
+    inode_count             : U32,
+    block_count             : U32,
+    magic                   : U16
+}
+
+type Idx = U32
+
+osbuffer_deserialise_Ple32: () -> Result U32 ()
+osbuffer_deserialise_Ple16: () -> Result U16 ()
+
+deserialise_into_Ext2Superblock: Ext2Superblock take (..) -> Result Ext2Superblock (Ext2Superblock take (..))
+deserialise_into_Ext2Superblock obj_t =
+    osbuffer_deserialise_Ple32 ()
+    | Success inode_count ->
+        osbuffer_deserialise_Ple32 ()
+        | Success block_count ->
+            osbuffer_deserialise_Ple16 ()
+            | Success magic ->
+                let obj = obj_t { inode_count
+                                , block_count
+                                , magic
+                                }
+                in Success obj
+            | Error () -> Error obj_t
+        | Error () -> Error obj_t
+    | Error () -> Error obj_t
+

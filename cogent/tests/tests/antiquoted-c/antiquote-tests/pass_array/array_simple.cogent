@@ -1,0 +1,90 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+include <gum/common/array.cogent>
+include <gum/common/log.cogent>
+include <gum/test/test.cogent>
+
+const_arraySize: U32
+const_arraySize = 4
+
+type CoolType = {
+  a: U32,
+  b: U32
+}
+
+malloc_CoolType: SysState -> R (SysState, CoolType take (..)) SysState
+free_CoolType: (SysState, CoolType take (..)) -> SysState
+
+set_array_item: ArrayModifyF CoolType (SysState, Option CoolType)
+set_array_item (r { oelem, acc = (ex, val) }) =
+  oelem
+  | Some elem ->
+    let ex = free_CoolType (ex, elem)
+    and _ = test_stack_probe ()
+    and _ = cogent_debug "had some previous element?\n"
+    in #{oelem = val, acc = (ex, None)}
+  | _ -> #{oelem = val, acc = (ex, None)}
+
+free_array_item: FreeF CoolType
+free_array_item (ex, elem) =
+  let _ = cogent_debug ("freeing some element\n")
+  in free_CoolType (ex, elem)
+
+caller: SysState -> R SysState SysState
+caller ex =
+  array_create [CoolType] (ex, const_arraySize)
+  | Success (ex, arr) ->
+    -- make a new thing
+    malloc_CoolType ex
+    | Success (ex, thing_t) ->
+      let thing = thing_t { a = 42, b = 43 }
+      and updater = array_modify[_, (SysState, Option CoolType)]
+      in updater #{arr, idx = const_arraySize - 1, f = set_array_item, acc = (ex, Some thing)}
+      | r { arr, acc = (ex, should_not_val) } ->
+        -- and get a shared copy back out
+        should_not_val
+        | None ->
+          array_remove [CoolType] (arr,  const_arraySize - 1)
+          | (arr, maybe_item) ->
+            maybe_item
+            | Some item ->
+              let _ = cogent_debug "got item with a = "
+              and _ = cogent_debug_u32 item.a !item
+              and _ = cogent_debug " and b = "
+              and _ = test_stack_probe ()
+              and _ = cogent_debug_u32 item.b !item
+              and _ = cogent_debug "\n"
+              -- put in slot 0
+              in updater #{arr, idx = 0, f = set_array_item, acc = (ex, Some item)}
+              | r { arr, acc = (ex, should_not_val) } ->
+                should_not_val
+                | None ->
+                  let ex = array_free[CoolType] #{arr, f = free_array_item, ex}
+                  and _ = test_stack_probe ()
+                  in Success ex
+                | Some val ->
+                  -- should not happen
+                  let ex = free_CoolType (ex, val)
+                  and ex = array_free[CoolType] #{arr, f = free_array_item, ex}
+                  in Error ex
+            | _ ->
+              let _ = cogent_debug "item not in arr?"
+              and ex = array_free[CoolType] #{arr, f = free_array_item, ex}
+              in Error (ex)
+        | Some val ->
+          -- should not happen
+          let ex = free_CoolType (ex, val)
+          and ex = array_free[CoolType] #{arr, f = free_array_item, ex}
+          in Error ex
+    | Error ex ->
+      let ex = array_free[CoolType] #{arr, f = free_array_item, ex}
+      in Error ex
+  | Error ex -> Error ex

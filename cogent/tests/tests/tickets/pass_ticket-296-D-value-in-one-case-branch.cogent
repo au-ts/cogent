@@ -1,0 +1,7 @@
+
+type Option a = <Some a | None>
+
+failFun : all(a:<D). (Option a, a) -> a
+failFun (x,y) = x
+   | None -> y
+   | Some x' -> x'

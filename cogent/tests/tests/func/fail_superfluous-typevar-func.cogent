@@ -1,0 +1,8 @@
+type Option a = <Some a | None>
+type Foo
+
+create_foo : all a. () -> Option Foo
+create_foo _ = None
+
+foo: () -> Option Foo
+foo _ = create_foo ()

@@ -1,0 +1,31 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+-- removed debug function calls for c-refinement test
+include <gum/common/wordarray.cogent>
+include <gum/test/test.cogent>
+
+const_arraySize: U32
+const_arraySize = 4
+
+caller: (SysState) -> (SysState)
+caller (h) =
+    -- make it
+    wordarray_create[U32] (h, const_arraySize)
+    | Success (h, wordarray) ->
+        -- put 42 in first index
+        wordarray_put[U32] (#{arr = wordarray, idx = u8_to_u32(0), val = u8_to_u32(42)})
+        | Success (wordarray) ->
+            -- get it out again
+            let v = wordarray_get[U32] (wordarray, 0) !wordarray
+            in wordarray_free[U32] (h, wordarray) -- free it
+        | Error (wordarray) ->
+            wordarray_free[U32] (h, wordarray)
+    | Error (h) -> (h)

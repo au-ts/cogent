@@ -1,0 +1,2 @@
+foo : all e. <Success U32 | Error e>
+foo _ = Success 0

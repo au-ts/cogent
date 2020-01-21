@@ -1,0 +1,6 @@
+type A
+type B
+
+foo : A -> ()
+foo _ = ()
+

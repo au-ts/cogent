@@ -1,0 +1,4 @@
+
+
+foo : () -> < Wrap < X | Y > >
+foo () = Wrap X

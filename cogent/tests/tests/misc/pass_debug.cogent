@@ -1,0 +1,30 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+-- compile with `cogent -g tests/pass_debug.cogent  --cogent-pp-args="-DDEBUG --nomacro --noline"'
+-- and without the `-DDEBUG'.
+
+foo : () -> U32
+foo x = 3
+
+bar : U32 -> ()
+#if DEBUG
+bar x = let v = x in ()
+#else
+bar _ = ()
+#endif
+
+quux : U32 -> U32
+quux x = let _ = bar x
+         -- and f = bar   -- (1)
+         -- and t = f 5   -- (2)
+         and b = bar x
+         and _ = foo b
+         in 3

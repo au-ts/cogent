@@ -1,0 +1,14 @@
+
+type V a b = <Success a | Error b>
+type A
+
+mkA : () -> V A U8
+freeA : A -> ()
+
+foo : () -> U8
+foo _ = mkA ()
+       | Success a ->
+           let _ = freeA a
+            in 0
+       | Error e -> e
+

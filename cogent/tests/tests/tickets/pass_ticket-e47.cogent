@@ -1,0 +1,6 @@
+type RbtNode k v
+
+rbtFTrue: all(k:< DS, v :<DS, acc, obsv). (#{elem:RbtNode k v, acc:acc, obsv:obsv!})! -> Bool
+rbtFTrue _ = True
+
+

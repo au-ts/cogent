@@ -1,0 +1,53 @@
+/*
+ * Copyright 2018, Data61
+ * Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+ * ABN 41 687 119 230.
+
+ * This software may be distributed and modified according to the terms of
+ * the GNU General Public License version 2. Note that NO WARRANTY is provided.
+ * See "LICENSE_GPLv2.txt" for details.
+
+ * @TAG(DATA61_GPL)
+ */
+
+$esc:(#include <stdio.h>)
+$esc:(#include <stdlib.h>)
+#include <cogent-defns.h>
+#include "../plat/console/anti/common.ac"
+#include "generated.c"
+
+$ty:(SysState) printA ($ty:((SysState, A!)) args)
+{
+  $ty:(U8) f = args.p2->f;
+  printf ("The element is: %d;\n", f);
+  return args.p1;
+}
+
+$ty:(RR SysState A ()) mallocA ($ty:(SysState) args)
+{
+  $ty:(RR SysState A ()) ret;
+  ret.p1 = args;
+  $ty:(A) a = ($ty:(A))malloc (sizeof (a));
+  if (!a) {
+    ret.p2.tag = TAG_ENUM_Error;
+    ret.p2.Error = $exp:(());
+    return ret;
+  }
+  ret.p2.tag = TAG_ENUM_Success;
+  ret.p2.Success = a;
+  return ret;
+}
+
+$ty:(SysState) freeA ($ty:((SysState, A)) args)
+{
+  free (args.p2);
+  return args.p1;
+}
+
+
+int main(void)
+{
+  $ty:(SysState) st;
+  st = $exp:caller(st);
+  return 0;
+}

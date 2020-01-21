@@ -1,0 +1,10 @@
+#include "include_pass_cpp.cogent"
+
+foo : U32 -> Bool
+foo x = if x < MAX_SOMETHING
+           then True
+#if SOMETHING_ON
+           else False
+#else
+           else True
+#endif

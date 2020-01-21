@@ -1,0 +1,10 @@
+
+foo : U8 -> (U8 -> U8)
+foo x = \a => a | 1 -> 42
+                | v -> v + 4
+
+bar : U8 -> U8
+bar x = (foo x) (x + 1)
+
+quux : U8 -> (U8 -> U8)
+quux a = if a < 10 then bar else foo a

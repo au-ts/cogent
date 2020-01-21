@@ -1,0 +1,20 @@
+type A = #{f1 : U8, f2 : Bool, f3 : X}
+type X = {g1 : Y, g2 : U8}
+
+type Y
+
+foo : A -> ()
+foo #{f1, f2, f3} = let f3_t { g1 } = f3
+                    and _ = free_Y g1
+                    and _ = free_X f3_t
+                     in ()
+
+-- bar : X -> ()
+-- bar x = let x_t { g1 } = x
+--         and _ = free_Y g1
+--         and _ = free_X x_t
+--          in ()
+
+free_X : X take (..) -> ()
+free_Y : Y           -> ()
+

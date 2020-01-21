@@ -1,0 +1,6 @@
+type RbtElemAO k v acc obsv
+type RbtConsumeF k v acc obsv = RbtElemAO k v acc obsv -> acc
+type RbtCondF k v acc obsv = (RbtElemAO k v acc obsv)! -> Bool
+
+rbtFTrue: all(k:< DS, v :<DS, acc, obsv). RbtCondF k v acc obsv
+rbtFTrue _ = True

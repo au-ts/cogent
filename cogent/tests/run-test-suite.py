@@ -39,7 +39,7 @@ class TestResult:
     # Printing test results
     def display(self, isVerbose):
         acc = ""
-        print("{}: ".format(self.name), end="")
+        print("{}: ".format(os.path.relpath(self.fullname)), end="")
         (status, output, expected) = self.test()
 
         if status == "error" and expected != "error":

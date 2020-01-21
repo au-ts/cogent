@@ -1,0 +1,6 @@
+-- this file is being included.
+
+#define MAX_SOMETHING 200
+
+bar : U32 -> ()
+bar x = ()

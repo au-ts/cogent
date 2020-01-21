@@ -1,0 +1,6 @@
+-- #308
+
+g: all(a).() -> a
+h: all(a). a -> ()
+f: all(t).() -> ()
+f () = let x:t = g[t]() in h[t](x)

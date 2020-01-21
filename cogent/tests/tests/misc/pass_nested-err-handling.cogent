@@ -1,0 +1,22 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+app : () -> < Fail (U32, U8, U8) | Success (U8, U8) >
+
+bad_return_fail : () -> < Fail U32 | Success U8 >
+bad_return_fail () =
+   (app ()
+    | Success (res, suc) -> Success (res, suc)
+    | Fail (e, result, success) -> e == 10
+       | True -> Success (result, success)
+       | False -> Fail e
+   ) : <Fail U32 | Success (U8, U8)>
+     | Success (res, suc) -> Success 8
+     | Fail e -> Fail e

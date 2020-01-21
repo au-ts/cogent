@@ -1,0 +1,30 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+f : U32 -> U32
+{-# INLINE f #-}
+f x = x + 2
+
+g : U32 -> U32
+g x = let y = f x in y + 3
+{-# CINLINE g #-}
+
+f' : U32 -> U32
+f' x = x - 2
+
+g' : U32 -> U32
+g' x = let y = inline f x in y + 3
+-- type U32
+
+-- type A
+-- type A
+
+-- inline : U32 -> U32
+

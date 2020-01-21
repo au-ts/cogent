@@ -1,0 +1,16 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+type T a b c = <A a | B b | C c>
+
+-- used to inherit a from the last definition
+type S e f = <A a | E e | F f>
+
+

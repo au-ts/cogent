@@ -1,0 +1,11 @@
+mask1 : U32
+mask1 = 15
+
+mask2 : U32
+mask2 = 16
+
+foo : U32 -> U32
+foo s = let x = s + 1
+         in if | (x .&. mask1) == 0 -> 0
+               | (x .&. mask2) == 0 -> 1
+               | else -> 2

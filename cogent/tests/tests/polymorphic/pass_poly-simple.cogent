@@ -1,0 +1,32 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+length : all x :< DES. x -> U32
+
+length' : all x :< DES. x -> U32
+length'  x = length[x] x 
+
+type A = Bool
+
+foo : (A -> U32, A) -> U32
+foo (f, a) = f a
+
+foo' : A -> U32
+foo' a = foo (length[A], a)
+
+bar : (U16 -> U32, U16) -> U32
+bar (f, a) = f a
+
+bar' : U16 -> U32
+bar' a = bar (length[U16], a)
+
+
+xxx : () -> U32
+xxx () = bar' 4 + foo' True

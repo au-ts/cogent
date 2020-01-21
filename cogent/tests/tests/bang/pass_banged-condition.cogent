@@ -1,0 +1,18 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+type A
+
+getBool : A! -> Bool
+
+foo : A -> #{f1 : A, f2 : U8}
+foo a = let x = if getBool a !a then 1 else 0
+         in #{f1 = a, f2 = x}
+
