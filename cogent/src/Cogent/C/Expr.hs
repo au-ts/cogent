@@ -399,7 +399,9 @@ genExpr mv (TE t (ArrayMap2 (_,f) (e1,e2))) = do  -- FIXME: varpool - as above
   let assdns s et at a i e = case s of
                                Unboxed -> assign et (CArrayDeref a i) e
                                Boxed _ CLayout -> assign et (CArrayDeref a i) e
-                               _ -> do f <- genBoxedArrayGetSet at Set; return $ ([], [CBIStmt $ CAssignFnCall Nothing f [a, i, e]])
+                               _ -> do
+                                 f <- genBoxedArrayGetSet at Set
+                                 return $ ([], [CBIStmt $ CAssignFnCall Nothing f [a, i, e]])
   (a1decl,a1stm) <- assdns s1 telt1' tarr1 e1' (variable i) (strDot f' p1)
   (a2decl,a2stm) <- assdns s2 telt2' tarr2 e2' (variable i) (strDot f' p2)
 

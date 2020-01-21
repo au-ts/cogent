@@ -50,6 +50,7 @@ import           Cogent.Inference             (kindcheck_)
 import           Cogent.Isabelle.Deep
 import           Cogent.Mono                  (Instance)
 import           Cogent.Normal                (isAtom)
+import           Cogent.Surface               (noPos)
 import           Cogent.Util                  (behead, decap, extTup2l, extTup3r, first3, secondM, toCName, whenM, flip3)
 import qualified Data.DList          as DList
 import           Data.Nat            as Nat
@@ -113,13 +114,12 @@ genTyDecl (Function t1 t2, n) tns =
   where fty = if __cogent_funtyped_func_enum then untypedFuncEnum else unitT
 #ifdef BUILTIN_ARRAYS
 genTyDecl (Array t, n) _ = [CDecl $ CVarDecl t n True Nothing]
-genTyDecl (ArrayL layout len, n) _ =
+genTyDecl (ArrayL layout, n) _ =
   let elemSize = dataLayoutSizeBytes layout
-      arrSize  = CBinOp C.Mul len (CConst $ CNumConst elemSize (CInt False CIntT) DEC)
-      arrType  = CArray (CInt False CIntT) (CArraySize arrSize)
+      dataType = CPtr (CInt False CIntT)
    in if elemSize == 0
          then []
-         else [CDecl $ CStructDecl n [(arrType, Just "data")], genTySynDecl (n, CStruct n)]
+         else [CDecl $ CStructDecl n [(dataType, Just "data")], genTySynDecl (n, CStruct n)]
 #endif
 genTyDecl (AbsType x, n) _ = [CMacro $ "#include <abstract/" ++ x ++ ".h>"]
 
@@ -174,7 +174,7 @@ lookupTypeCId (TRecord fs (Boxed _ CLayout)) =
 lookupTypeCId cogentType@(TRecord _ (Boxed _ _)) = __impossible "lookupTypeCId: record with non-record layout"
 #ifdef BUILTIN_ARRAYS
 lookupTypeCId (TArray t n Unboxed _) = getCompose (Compose . lookupStrlTypeCId =<< Array <$> (Compose . lookupType) t)
-lookupTypeCId (TArray t n (Boxed _ l) _) = genLExpr n >>= (\x -> lookupStrlTypeCId (ArrayL l x))
+lookupTypeCId (TArray t n (Boxed _ l) _) = lookupStrlTypeCId (ArrayL l)
 #endif
 lookupTypeCId t = Just <$> typeCId t
 
@@ -236,7 +236,7 @@ typeCId t = use custTypeGen >>= \ctg ->
     typeCId' (TArray t l Unboxed _) = getStrlTypeCId =<< Array <$> genType t
     typeCId' (TArray t l (Boxed _ al) _) =
       case al of
-        Layout ArrayLayout {} -> genLExpr l >>= (\x -> getStrlTypeCId (ArrayL al x))
+        Layout ArrayLayout {} -> getStrlTypeCId (ArrayL al)
         CLayout -> getStrlTypeCId =<< Array <$> genType t
         _ -> __impossible "Tried to get the c-type of an array with a non-array record"
 #endif
@@ -292,10 +292,19 @@ genType t@(TCon _ _ s)   | s /= Unboxed = CPtr . CIdent <$> typeCId t
 #ifdef BUILTIN_ARRAYS
 genType t@(TArray elt l s _)
   | (Boxed _ CLayout) <- s = CPtr <$> genType elt  -- If it's heap-allocated without layout specified
-  | (Boxed _ al)      <- s = CPtr . CIdent <$> typeCId t -- we are going to declare it as a type
+  -- we get rid of unused info here, e.g. array length, hole location
+  | (Boxed _ al)      <- s = CPtr . CIdent <$> typeCId (simplifyType t) -- we are going to declare it as a type
   | otherwise              = CArray <$> genType elt <*> (CArraySize <$> genLExpr l)
 #endif
 genType t                               = CIdent <$> typeCId t
+
+-- Helper function for remove unnecessary info for cogent types
+simplifyType :: CC.Type 'Zero VarName -> CC.Type 'Zero VarName
+#ifdef BUILTIN_ARRAYS
+simplifyType (TArray elt _ (Boxed _ (Layout (ArrayLayout l _))) _) =
+    TArray elt (LILit 0 U32) (Boxed undefined (Layout (ArrayLayout l noPos))) Nothing
+#endif
+simplifyType x = x
 
 -- The following two functions have different behaviours than the `genType' function
 -- in certain scenarios
