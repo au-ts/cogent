@@ -1,0 +1,4 @@
+foo : U64[4] -> U64
+foo [a1,a2,a3,a4] = 
+  let [] = a1
+   in a1

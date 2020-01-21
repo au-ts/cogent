@@ -1,0 +1,24 @@
+type Result a b = <Success a | Error b>
+
+type WordArray a
+
+type FsState = {
+    superblock_num   : U32,
+    prealloc_offsets : WordArray U32
+}
+
+wordarray_create : all (a :< DS). () -> Result (WordArray a) ()
+
+free_FsState : FsState take (..) -> ()
+
+fs_mount: FsState take (..) -> Result FsState U32
+fs_mount state_t =
+    let state_t = state_t { superblock_num = 1 }
+    in wordarray_create ()
+            | Success prealloc_offsets =>
+                Success (state_t { prealloc_offsets })
+            | Error _ ->
+                let _ = free_FsState state_t
+                in Error 1
+
+

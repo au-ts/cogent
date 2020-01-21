@@ -1,0 +1,13 @@
+
+type WordArray a
+
+type Buffer = {
+    data : WordArray U8,
+    bound : U32
+}
+
+foo : (Buffer, U32, U32) -> Buffer
+foo (buf {data}, frm, len) =
+  let frm = frm
+  and len = (if frm < buf.bound then len else buf.bound - frm) !buf
+  in buf {data}

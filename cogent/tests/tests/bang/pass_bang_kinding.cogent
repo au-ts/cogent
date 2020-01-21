@@ -1,0 +1,15 @@
+
+type X = {
+  a: (),
+  b: ()
+}
+
+eat : all a. a -> ()
+
+foo: X -> #X
+foo x =
+  let y = #{
+      a = x.a,
+      b = x.b } !x
+  and _ = eat x
+  in y

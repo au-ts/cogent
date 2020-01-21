@@ -1,0 +1,23 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+type A
+type B
+type C
+type D
+
+type T = {a : A!, b : B!, c: C!, d : D!}
+
+-- use_t: (T take (a,b)) take(c,d) -> ()
+use_t : T take (..) -> ()
+
+foo : T -> ()
+foo (t {b,c,a,d}) = use_t(t)
+

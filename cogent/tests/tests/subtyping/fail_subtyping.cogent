@@ -1,0 +1,23 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+type A
+
+foo : (U8, A) -> (U32, A)
+foo a = a  -- This line causes error
+-- foo (a, b) = (a, b)  -- This line is OK though
+
+type X = <A U8>
+type Y = <A U16 | B A>
+
+bar : <A U8 | B X> -> <A U32 | B Y>
+bar | A a -> A a
+    | B b -> B b
+-- bar x = x  -- This line is equiv to the above definition

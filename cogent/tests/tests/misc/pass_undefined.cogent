@@ -1,0 +1,16 @@
+-- avoid naming it `undefined' in case it conflicts with the 
+-- Haskell one.
+undef : all (a, b). a -> b
+
+foo : A -> B
+foo a = undef a
+
+bar : (A, B, #A) -> #{f1 : A, f2 : A}
+bar a = undef a
+
+baz : (U16, #A) -> B
+baz _ = undef ()
+
+
+type A
+type B

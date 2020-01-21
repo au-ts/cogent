@@ -1,0 +1,4 @@
+type X x = <X x>
+
+undefined : all a. () -> a
+undefined () = X () | X x -> x

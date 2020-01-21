@@ -1,0 +1,25 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+type T2 = { a2 : U32 } take ()
+
+type T1 = { a1 : U32 } take ()
+
+type T3 = { a3 : T2, b : T1 } take ()
+
+f: (T1!, T2) -> < Fail (U32, T2) | Success (T2) >
+
+xxx : (T1!, T3) -> < Fail (U32, { a3 : T2, b : T1 } take ()) 
+                   | Success ({ a3 : T2, b : T1 } take ()) >
+xxx (x, y3) =
+   let yh { a3 } = y3
+   in f (x, a3)
+      | Success (a3) -> Success (let (y3) = yh { a3 } in (y3))
+      | Fail (e, a3) -> let (y3) = yh { a3 } in Fail (e, y3)

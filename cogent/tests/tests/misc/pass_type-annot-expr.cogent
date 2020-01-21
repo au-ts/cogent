@@ -1,0 +1,27 @@
+type OstoreState
+
+type Obj
+
+type R a b = <Success a | Error b>
+type RR c a b = (c, R a b)
+
+type BufOffs = U32
+deep_freeObj: Obj -> ()
+get_Obj : () -> Obj
+
+type ObjAddr
+index_get_addr : () -> #ObjAddr
+
+success : all (b, a). a -> R a b
+success a = Success a
+
+ostore_read: OstoreState -> RR OstoreState Obj ()
+ostore_read ostore_st =
+  let addr = index_get_addr ()
+  and (ostore_st, r) = 
+     (let obj = get_Obj ()
+      in (ostore_st, success[U8] obj) : RR OstoreState Obj U8) : RR OstoreState Obj U8 
+  in (r : R Obj U8)
+  | Success obj -> let _ = deep_freeObj obj in (ostore_st : OstoreState, Error ())
+  | Error _ -> (ostore_st, Error (() : ()) : R Obj ())
+

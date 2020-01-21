@@ -1,0 +1,11 @@
+type A
+type B
+type C
+
+f1 : A -> B
+f2 : B -> (U8, C)
+f3 : (U8, C) -> Bool
+
+foo : A -> Bool
+foo x = let bar = f3 o f2 o f1
+         in bar x

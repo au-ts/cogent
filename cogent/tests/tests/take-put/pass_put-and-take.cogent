@@ -1,0 +1,15 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+type A = { x : U8, y : U32, z : Bool }
+
+foo : A take x -> A take x
+foo a = let a' {x=v} = a {x=3}
+        in a'

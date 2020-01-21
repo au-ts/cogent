@@ -1,0 +1,13 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+mark_used_modifier: #{elem: U8, acc: U32, obsv: () } -> #{elem: U8, acc: U32}
+mark_used_modifier #{elem=_, acc=nb_free_eb, obsv=_} =
+  #{elem=1, acc=nb_free_eb - 1}

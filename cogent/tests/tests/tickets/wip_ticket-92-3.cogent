@@ -1,0 +1,59 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+-- Endoscopy for LNF pass.
+
+-- The desired output from LNF is that every subexpression appears
+-- exactly once, in order.
+-- Hence we expect to see the integers constants appear exactly
+-- once and in increasing order within each normalised function def.
+
+-- Example test:
+-- for pre in 1 2 3; do
+--   diff <(grep -owE $pre'[0-9][0-9]' prog.cogent) \
+--        <(cogent --pretty-normal --fnormalisation=lnf prog.cogent | grep -owE $pre'[0-9][0-9]');
+-- done
+
+lnf1: <A U32 | B U32> -> <A U32 | B U32>
+lnf1 x = let x' = (x
+                   | A a -> if a == 101 then A (a + 102) else B (a + 103)
+                   | B b -> if b == 104 then A (b + 105) else B (b + 106))
+                  | A a -> if a == 107 then A (a + 108) else B (a + 109)
+                  | B b -> if b == 110 then A (b + 111) else B (b + 112)
+         in if x'
+               | A a -> a == 113
+               | B b -> b == 114
+            then x'
+                 | A a -> A (a + 115)
+                 | B b -> B (b + 116)
+            else x
+                 | A a -> A (a + 117)
+                 | B b -> B (b + 118)
+
+lnf2: {a: U32, b: U32} -> {a: U32, b: U32}
+lnf2 r = let (a, b) = r.a + 201
+                      | 202 -> (r.a + 203, r.b + 204)
+                      | _   -> (r.a + 205, r.b + 206)
+                      !r
+         and r' = r{a = if (a | 207 -> b == 208
+                              | _   -> b == 209) then a + 210 else b + 211
+                        | 212 -> a + 213
+                        | _  -> b + 214 }
+         in r'{b = 215}
+
+lnf3: #{a: U32, b: U32} -> U32
+lnf3 r = let (a, b) = r.a + 301
+                      | 302 -> (r.a + 303, r.b + 304)
+                      | _   -> (r.a + 305, r.b + 306)
+                      !r
+         in 307 * (r{a = if (a | 308 -> b == 309
+                               | _   -> b == 310) then a + 311 else b + 312
+                         | 313 -> a + 314
+                         | _   -> b + 315 }).a + 316

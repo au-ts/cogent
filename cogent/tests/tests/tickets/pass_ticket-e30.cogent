@@ -1,0 +1,14 @@
+type A
+type B
+
+type R = #{f : A -> B}
+
+rec : R
+rec = #{f = a_to_b}
+
+a_to_b : A -> B
+
+bar : R! -> ()
+
+foo : () -> ()
+foo _ = bar rec

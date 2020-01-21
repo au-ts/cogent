@@ -1,0 +1,17 @@
+
+#define X86
+
+#ifdef X86
+foo : U32 -> U32
+#else
+foo : U64 -> U64
+#endif
+foo a = a
+
+#define VERSION 1700
+
+#if VERSION <= 1500
+bar : (U32, Bool) -> U32
+#else
+bar : (Bool, U32) -> U32
+#endif

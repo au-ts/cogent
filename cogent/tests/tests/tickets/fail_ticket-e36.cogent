@@ -1,0 +1,7 @@
+foo : all a. (a, a!) -> a
+
+type A
+
+bar : (A, A) -> A
+bar (a,a') = let a'' = foo (a, a') !a'
+              in a''

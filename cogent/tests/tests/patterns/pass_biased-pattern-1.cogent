@@ -1,0 +1,12 @@
+
+type V a = <Wrap a>
+type A
+
+mkA : () -> V A
+freeA : A -> ()
+
+foo : () -> U8
+foo _ = let Wrap a <= mkA ()
+        and _ = freeA a
+         in 0
+

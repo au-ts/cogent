@@ -1,0 +1,14 @@
+type R a b = <Success a | Error b>
+
+success : all (a, b). a -> <Success a | Error b>
+error   : all (a, b). b -> <Success a | Error b>
+
+type A
+
+foo : R A A -> R (A, ()) (U8, A)
+foo r = let x = r 
+                | Success a -> success[_,B] a
+                | Error   a -> success a
+         in x
+            | Success a -> error (1,a)
+            | Error   a -> success (a,()) 

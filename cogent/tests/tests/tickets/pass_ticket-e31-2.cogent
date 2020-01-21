@@ -1,0 +1,95 @@
+type ExState
+
+type OstoreState = {
+  next_inum : U32
+, rbuf : Buffer
+, wbuf_eb : U32
+, wbuf : Buffer
+, used : U32
+, opad : Obj
+, ubi_vol : UbiVol
+, index_st : IndexState
+}
+
+type ObjId = U64
+
+type RR c a b = (c, R a b)
+type R a b = <Success a | Error b>
+
+success : all (a, b). a -> R a b
+error   : all (a, b). b -> R a b
+
+type Obj
+type ErrCode = U32
+
+type Buffer = {
+    bound : BufOffs
+}
+
+read_obj_pages_in_buf: (ExState, MountState!, UbiVol!, Buffer, ObjAddr!) -> RR (ExState, Buffer) () ErrCode
+
+type UbiVol
+type ObjAddr = #{ ebnum : U32, offs : U32, len : U32, sqnum : U64 }
+
+type MountState = {
+  eb_recovery: U32,
+  eb_recovery_offs: U32,
+  super : ObjSuper,
+  super_offs: U32,
+  no_summary : Bool
+}
+
+get_obj_oid: Obj! -> ObjId
+deep_freeObj: (ExState, Obj) -> ExState
+deserialise_Obj: (ExState, Buffer!, BufOffs) -> R (ExState, Obj, BufOffs) (ErrCode, ExState)
+
+type ObjSuper = { nb_eb : U32
+                , eb_size : U32
+                , io_size : U32
+                , nb_reserved_gc : U32
+                , nb_reserved_del : U32
+                , cur_eb : U32
+                , cur_offs : U32
+                , last_inum : U32
+                , next_sqnum : U64
+}
+
+type BufOffs = U32
+
+index_get_addr : (IndexState!, ObjId) -> R ObjAddr ErrCode
+type IndexState
+
+ostore_read: (ExState, MountState!, OstoreState, ObjId) -> RR (ExState, OstoreState) Obj ErrCode
+ostore_read (ex, mount_st, ostore_st, oid) =
+  index_get_addr (ostore_st.index_st, oid) !ostore_st
+  | Error err -> ((ex, ostore_st), error err) 
+  | Success addr ->
+    let wbuf_eb = ostore_st.wbuf_eb !ostore_st
+    and ((ex, ostore_st), r) = (if addr.ebnum == wbuf_eb then
+      let ostore_st {wbuf} = ostore_st
+      and wbuf = wbuf {bound=ostore_st.used} !ostore_st
+      in deserialise_Obj (ex, wbuf, addr.offs) !wbuf
+      | Error (e, ex) ->
+        let wbuf = wbuf {bound=mount_st.super.eb_size}
+        in ((ex, ostore_st {wbuf}), error[Obj] e)  -- has to explicitly apply `Obj'
+      | Success (ex, obj, sz) ->
+        let wbuf = wbuf {bound=mount_st.super.eb_size}
+        in ((ex, ostore_st {wbuf}), success[Obj, ErrCode] obj)
+     else
+       let ostore_st {rbuf} = ostore_st
+       and ((ex, rbuf), r) = read_obj_pages_in_buf (ex, mount_st, ostore_st.ubi_vol, rbuf, addr) !ostore_st
+       in r
+       | Error e ->
+         ((ex, ostore_st {rbuf}), error[Obj] e)
+       | Success () -> deserialise_Obj (ex, rbuf, addr.offs) !rbuf
+         | Error (e, ex) -> ((ex, ostore_st {rbuf}), error[Obj] e)
+         | Success (ex, obj, sz) -> ((ex, ostore_st {rbuf}), success[Obj, ErrCode] obj)
+    )
+    in r
+    | Success obj ->
+    -- Sanity check to ensure that what we read from medium is the right object
+      let oid' = get_obj_oid obj !obj
+      in if oid == oid' then
+        ((ex, ostore_st), Success obj)
+      else ((deep_freeObj (ex, obj), ostore_st), Error 1)
+    | Error e -> ((ex, ostore_st), Error e)

@@ -1,0 +1,8 @@
+type A
+
+foo : () -> A
+
+bar : A -> U8
+
+baz : () -> U8
+baz a = (\x => bar x + 2) ((\x => foo x) a)

@@ -1,0 +1,4 @@
+f : {f1 : U8} -> {f1 : U8}
+f r = let r = r{f1=3}
+      and r = r{f1=4}
+       in r

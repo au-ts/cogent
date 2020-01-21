@@ -1,0 +1,10 @@
+type Bool = < T | F >
+
+type U8 = < A | B >
+
+f : Bool -> Bool
+f | T -> F
+  | _ -> T
+
+g : () -> U8
+g _ = A

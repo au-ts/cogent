@@ -1,0 +1,10 @@
+foo : U8 -> U8
+foo x = 'a'
+
+bar : U8-> U8
+bar | 'a' -> 0
+    | _   -> 1
+
+baz : U8 -> U64
+baz | 1 -> upcast 'a'
+    | _ -> upcast 'b'

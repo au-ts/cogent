@@ -1,0 +1,101 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+type USynonym = U8
+type Foo
+type Buf
+
+type SimpleObj = { a : U8, b : U8, c : Foo } take ()
+
+type Index = U16
+
+buf_create : (U8) -> < Fail (U32) | Success (Buf) >
+
+buf_free : (Buf) -> ()
+
+simpleobj_serialise : (Buf, SimpleObj!, Index) -> < Fail (U32, Buf) 
+                                                  | Success (Buf, Index) >
+
+simpleobj_new : (U8, U8) -> < Fail (U32) | Success (SimpleObj) >
+
+simpleobj_unserialise : (Buf!, SimpleObj, Index) -> < Fail (U32, SimpleObj) 
+                                                    | Success (SimpleObj) >
+
+simpleobj_free : (SimpleObj) -> ()
+
+print : (SimpleObj!) -> ()
+
+const_STRING_TEST : String!
+const_STRING_TEST = "Hello"
+
+const_BUF_SIZE : U8
+const_BUF_SIZE = 42
+
+const_B : U8
+const_B = 10
+
+const_C : U8
+const_C = B
+
+simpleobj_example2 : (SimpleObj) -> < Fail (U32, SimpleObj) 
+                                    | Success (SimpleObj) >
+simpleobj_example2 (so) =
+   buf_create (42)
+   | Success (buf) -> simpleobj_serialise (buf
+                                          , so
+                                          , 0) !so
+      | Success (buf
+                , i) -> simpleobj_new ('_', 0)
+         | Success (so2) -> simpleobj_unserialise (buf
+                                                  , so2
+                                                  , 0) !buf
+            | Success (so2) -> let (ok) = (so.a == so2.a && so.b == so2.b) !so !so2
+               in let () = buf_free (buf)
+                  in (not ok)
+                     | True -> let () = simpleobj_free (so2) in Fail (32, so)
+                     | False -> Success (let () = simpleobj_free (so) in (so2))
+            | Fail (code, so2) -> let () = buf_free (buf)
+               in let () = simpleobj_free (so2)
+                  in Fail (code, so)
+         | Fail (code) -> let () = buf_free (buf) in Fail (code, so)
+      | Fail (code, buf) -> let () = buf_free (buf) in Fail (code, so)
+   | Fail (code) -> Fail (code, so)
+
+simpleobj_example : (SimpleObj) -> < Fail (U32
+                                          , { a : U8
+                                            , b : U8
+                                            , c : Foo } take ()) 
+                                   | Success ({ a : U8
+                                              , b : U8
+                                              , c : Foo } take ()) >
+simpleobj_example (so) =
+   buf_create (const_BUF_SIZE)
+   | Success (buf) -> simpleobj_serialise (buf, so, 0) !so
+      | Success (buf, i) -> simpleobj_new ('_', 0)
+         | Success (so2) -> simpleobj_unserialise (buf, so2, 0) !buf
+            | Success (so2) -> let so' { a, b } = so
+               in let so2' { a = a2, b = b2 } = so2
+                  in (not (a == a2 && b == b2))
+                     | True -> let (so2) = so2' { a = a2, b = b2 }
+                        in let (so) = so' { a, b }
+                           in let () = simpleobj_free (so2)
+                              in let () = buf_free (buf)
+                                 in Fail (32, so)
+                     | False -> Success (let (so2) = so2' { a = a2, b = b2 }
+                        in let (so) = so' { a, b }
+                           in let () = simpleobj_free (so)
+                              in let () = buf_free (buf)
+                                 in (so2))
+            | Fail (code, so2) -> let () = buf_free (buf)
+               in let () = simpleobj_free (so2)
+                  in Fail (code, so)
+         | Fail (code) -> let () = buf_free (buf) in Fail (code, so)
+      | Fail (code, buf) -> let () = buf_free (buf) in Fail (code, so)
+   | Fail (code) -> Fail (code, so)

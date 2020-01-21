@@ -1,0 +1,12 @@
+
+type WordArray a
+
+wordarray_length: all(a :< DSE). (WordArray a)! -> U32
+
+type Buffer = {
+  data  : WordArray U8
+, bound : U32
+}
+
+buf_length: Buffer! -> U32
+buf_length buf = wordarray_length (buf.data)

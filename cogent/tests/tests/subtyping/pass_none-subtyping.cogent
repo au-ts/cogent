@@ -1,0 +1,12 @@
+type Option a = <Some a | None>
+
+type A = {f1 : Obj, f2 : U8}
+type Obj
+
+freeObj : Obj -> ()
+
+foo : Option A -> Option (A take (..))
+foo | Some a -> let a_t {f1,f2} = a
+                and _ = freeObj f1
+                in Some a_t
+    | None -> None -- can't use none -> none anymore, because they have different types.
