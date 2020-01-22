@@ -133,7 +133,11 @@ repExpr = DL <$> repExpr'
 -- TODO: add support for patterns like `_ {f1, f2}', where the record name is anonymous / zilinc
 irrefutablePattern :: Parser LocIrrefPatn
 irrefutablePattern = avoidInitial >> LocIrrefPatn <$> getPosition <*>
+#ifdef BUILTIN_ARRAYS
             (variableOrRecordOrArray <$> variableName <*> optionMaybe recOrArray
+#else
+            (variableOrRecord <$> variableName <*> optionMaybe rec
+#endif
          <|> tuple <$> parens (commaSep irrefutablePattern)
 #ifdef BUILTIN_ARRAYS
          <|> PArray <$> brackets (commaSep1 irrefutablePattern)
@@ -145,6 +149,7 @@ irrefutablePattern = avoidInitial >> LocIrrefPatn <$> getPosition <*>
         tuple [LocIrrefPatn _ p] = p
         tuple ps  = PTuple ps
 
+#ifdef BUILTIN_ARRAYS
         recOrArray = do { x <- between (reservedOp "@{") (symbol "}") arrayAssigns
                         ; return $ Right x
                         }
@@ -152,10 +157,14 @@ irrefutablePattern = avoidInitial >> LocIrrefPatn <$> getPosition <*>
                      do { x <- braces recAssignsAndOrWildcard
                         ; return $ Left x
                         }
-
         variableOrRecordOrArray v Nothing = PVar v
         variableOrRecordOrArray v (Just (Left  x)) = PTake v x
         variableOrRecordOrArray v (Just (Right x)) = PArrayTake v x
+#else
+        rec = braces recAssignsAndOrWildcard
+        variableOrRecord v (Just x) = PTake v x
+        variableOrRecord v Nothing  = PVar v
+#endif
         recordAssignment = (\p n m -> (n, fromMaybe (LocIrrefPatn p $ PVar n) m))
                         <$> getPosition <*> variableName <*> optionMaybe (reservedOp "=" *> irrefutablePattern)
                         <?> "record assignment pattern"
@@ -396,10 +405,14 @@ monotype = do avoidInitial
                          let t' = (case op of
                                       Nothing -> t
                                       Just f  -> f t)
+#ifdef BUILTIN_ARRAYS
                          aop <- optionMaybe arrTakeput
                          let ta = (case aop of
                                      Nothing -> t'
                                      Just f  -> f t')
+#else
+                         let ta = t'
+#endif
                          l <- optionMaybe layout
                          let t'' = (case l of
                                       Nothing -> ta
@@ -432,11 +445,13 @@ monotype = do avoidInitial
     takeput = avoidInitial >>
              ((reservedOp "take" >> fList >>= \fs -> return (\x -> LocType (posOfT x) (TTake fs x)))
           <|> (reservedOp "put"  >> fList >>= \fs -> return (\x -> LocType (posOfT x) (TPut  fs x))))
+#ifdef BUILTIN_ARRAYS
     -- vvv TODO: add the @take(..) syntax for taking all elements / zilinc
     arrTakeput = avoidInitial >>
               ((reservedOp "@take" >> parens (commaSep (expr 1)) >>= \idxs -> return (\x -> LocType (posOfT x) (TATake idxs x))))
            -- Currently disable @\@put@ as it's not very useful / zilinc
            -- XXX | <|> (reservedOp "@put"  >> parens (commaSep (expr 1)) >>= \idxs -> return (\x -> LocType (posOfT x) (TAPut  idxs x))))
+#endif
     -- either we have an actual layout, or the name of a layout synonym
     layout = avoidInitial >> reservedOp "layout" >> repExpr
       >>= \l -> return (\x -> LocType (posOfT x) (TLayout l x))

@@ -81,17 +81,16 @@ data Type t b
   | TRecord [(FieldName, (Type t b, Bool))] (Sigil (DataLayout BitRange))
     -- True means taken, Layout will be nothing for abstract types
   | TUnit
-#ifdef BUILTIN_ARRAYS
+-- #ifdef BUILTIN_ARRAYS
   | TArray (Type t b) (LExpr t b) (Sigil (DataLayout BitRange)) (Maybe (LExpr t b))  -- the hole
+-- #endif
     -- The sigil specifies the layout of the element
-#endif
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Functor)
 
 deriving instance Generic (Type 'Zero)
 
 instance Binary (Type 'Zero)
 
-deriving instance Functor (Type t)
 
 data SupposedlyMonoType b = forall (t :: Nat) (v :: Nat). SMT (Type t b)
 
@@ -155,6 +154,9 @@ deriving instance (Eq a, Eq b, Eq (e t v a b), Eq (e t ('Suc v) a b), Eq (e t ('
 deriving instance (Ord a, Ord b, Ord (e t v a b), Ord (e t ('Suc v) a b), Ord (e t ('Suc ('Suc v)) a b))
   => Ord (Expr t v a b e)
 
+-- NOTE: We leave these logic expressions here even when the --builtin-arrays
+-- flag is off. The reason is that, without it, the type class instance
+-- derivings don't work. It's very misterious to me. / zilinc
 data LExpr t b
   = LVariable (Nat, b)
   | LFun CoreFunName [Type t b] FunNote
@@ -178,10 +180,11 @@ data LExpr t b
   | LPut (LExpr t b) FieldIndex (LExpr t b)
   | LPromote (Type t b) (LExpr t b)  -- only for guiding the tc. rep. unchanged.
   | LCast (Type t b) (LExpr t b)  
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Functor)
 
-deriving instance Functor (LExpr t)
+-- deriving instance Functor (LExpr t)
 
+#ifdef BUILTIN_ARRAYS
 exprToLExpr :: (a -> b)
             -> ((a -> b) -> e t v a b -> LExpr t b)
             -> ((a -> b) -> e t ('Suc v) a b -> LExpr t b)
@@ -196,7 +199,6 @@ exprToLExpr fab f f1 f2 = \case
   Unit               -> LUnit
   ILit i pt          -> LILit i pt
   SLit s             -> LSLit s
-#ifdef BUILTIN_ARRAYS
   ALit {}            -> __impossible "array expressions in types not allowed" 
   ArrayIndex {}      -> __impossible "array expressions in types not allowed"
   ArrayMap2 {}       -> __impossible "array expressions in types not allowed"
@@ -204,7 +206,6 @@ exprToLExpr fab f f1 f2 = \case
   Singleton {}       -> __impossible "array expressions in types not allowed"
   ArrayTake {}       -> __impossible "array expressions in types not allowed"
   ArrayPut {}        -> __impossible "array expressions in types not allowed"
-#endif
   Let a e1 e2        -> LLet (fab a) (f' e1) (f1' e2)
   LetBang vs a e1 e2 -> LLetBang (map (second fab . first finNat) vs) (fab a) (f' e1) (f1' e2)
   Tuple e1 e2        -> LTuple (f' e1) (f' e2)
@@ -228,6 +229,7 @@ texprToLExpr f (TE _ e) = exprToLExpr f texprToLExpr texprToLExpr texprToLExpr e
 
 uexprToLExpr :: (a -> b) -> UntypedExpr t v a b -> LExpr t b
 uexprToLExpr f (E e) = exprToLExpr f uexprToLExpr uexprToLExpr uexprToLExpr e
+#endif
 
 data UntypedExpr t v a b = E  (Expr t v a b UntypedExpr) deriving (Show, Eq, Ord)
 data TypedExpr   t v a b = TE { exprType :: Type t b , exprExpr :: Expr t v a b TypedExpr }
@@ -542,6 +544,7 @@ instance Prec (TypedExpr t v a b) where
 instance Prec (UntypedExpr t v a b) where
   prec (E e) = prec e
 
+#ifdef BUILTIN_ARRAYS
 instance Prec (LExpr t b) where
   prec (LOp opr [_,_]) = prec (associativity opr)
   prec (LILit {}) = 0
@@ -558,6 +561,7 @@ instance Prec (LExpr t b) where
   prec (LPromote {}) = 0
   prec (LCast {}) = 0
   prec _ = 100
+#endif
 
 prettyV = dullblue  . string . ("_v" ++) . show . finInt
 prettyT = dullgreen . string . ("_t" ++) . show . finInt
@@ -651,6 +655,7 @@ prettyTaken :: Bool -> Doc
 prettyTaken True  = symbol "*"
 prettyTaken False = empty
 
+#ifdef BUILTIN_ARRAYS
 instance (Pretty b) => Pretty (LExpr t b) where
   pretty (LOp opr [a,b])
      | LeftAssoc  l <- associativity opr = prettyPrec (l+1) a <+> primop opr <+> prettyPrec l b
@@ -687,6 +692,7 @@ instance (Pretty b) => Pretty (LExpr t b) where
   pretty (LPut rec f v) = prettyPrec 1 rec <+> record [fieldIndex f <+> symbol "=" <+> pretty v]
   pretty (LPromote t e) = prettyPrec 1 e <+> symbol ":^:" <+> pretty t
   pretty (LCast t e) = prettyPrec 1 e <+> symbol ":::" <+> pretty t
+#endif
 
 
 #if __GLASGOW_HASKELL__ < 709

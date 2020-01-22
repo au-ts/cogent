@@ -91,8 +91,10 @@ apply f (V x) = V (fmap (apply f) x)
 apply f (R x s) = R (fmap (apply f) x) s
 #ifdef BUILTIN_ARRAYS
 apply f (A x l s tkns) = A (apply f x) (applySE f l) s (fmap (applySE f) tkns)
-#endif
 apply f (T x) = T (ffmap (applySE f) $ fmap (apply f) x)
+#else
+apply f (T x) = T (fmap (apply f) x)
+#endif
 apply f (Synonym n ts) = Synonym n (fmap (apply f) ts)
 
 applyAlts :: Subst -> [Alt TCPatn TCExpr] -> [Alt TCPatn TCExpr]
@@ -140,6 +142,7 @@ applyC s (Exhaustive t ps) = Exhaustive (apply s t) ps
 applyC s (Solved t) = Solved (apply s t)
 applyC s (IsPrimType t) = IsPrimType (apply s t)
 
+#ifdef BUILTIN_ARRAYS
 applySE :: Subst -> TCSExpr -> TCSExpr
 applySE (Subst f) (SU t x)
   | Just (Expr e) <- M.lookup x f
@@ -151,6 +154,7 @@ applySE s (SE t e) = SE (apply s t)
                           $ ffmap (fmap (apply s))
                           $ fffmap (fmap (apply s))
                           $ ffffmap (apply s) e)
+#endif
 
 applyE :: Subst -> TCExpr -> TCExpr
 applyE s (TE t e l) = TE (apply s t)
