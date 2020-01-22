@@ -26,7 +26,7 @@ CONFIG_FILE_NAME = "config.yaml"
 # Represents the result of a test
 # Takes in a function which returns
 #   (status, errormsg, expected)
-# where status, expected :: "passed" | "failed" | "error"
+# where status, expected :: "pass" | "fail" | "error" | "wip"
 class TestResult: 
 
     block_len = 15
@@ -42,12 +42,17 @@ class TestResult:
         print("{}: ".format(os.path.relpath(self.fullname)), end="")
         (status, output, expected) = self.test()
 
+        if expected == "wip":
+            acc += colored("WIP (Pass by defualt)\n", "green")
+            print(acc, end="")
+            return True
+
         if status == "error" and expected != "error":
             acc += colored("Error? ", "yellow") + "Reason:\n" + output + "\n"
         elif status == expected:
-            if status == "passed":
+            if status == "pass":
                 acc += colored("Passed\n", "green")
-            elif status == "failed":
+            elif status == "fail":
                 acc += colored("Failed (as expected)\n", "green")
             elif status == "error":
                 acc += colored("Error (as expected)\n", "green")
@@ -58,16 +63,14 @@ class TestResult:
         else:
             if expected == "error":
                 acc += coloured("Test ran but was expected to error", "red")
-            elif expected == "passed":
+            elif expected == "pass":
                 acc += colored("Failed", "red") + "\n" 
-            elif expected == "failed":
+            elif expected == "fail":
                 acc += colored("Failed (expected fail, got pass)", "red") + "\n" 
 
             acc += ("=" * self.block_len + "Test Output" + "=" * self.block_len) + "\n"
             acc += output
             acc += ("=" * self.block_len + len("Test Output") * "=" + "=" * self.block_len) + "\n"
-
-        acc.replace(r'\n+', "\n")
 
         print(acc, end="")
         return status == expected
@@ -80,7 +83,7 @@ class InvalidConfigError(Exception):
 # Can perform multiple actions according to the layout of the file
 class TestConfiguration:
 
-    valid_test_fields = ["files", "flags", "shouldpass"]
+    valid_test_fields = ["files", "flags", "expected_result"]
 
     # file path must be ABSOLUTE
     def __init__(self, filepath):
@@ -103,15 +106,15 @@ class TestConfiguration:
                 raise InvalidConfigError("Test {} must contain mandatory field 'files'".format(i))
             if not "flags" in f.keys():
                 raise InvalidConfigError("Test {} must contain mandatory field 'flags'".format(i))
-            if not "shouldpass" in f.keys():
-                raise InvalidConfigError("Test {} must contain mandatory field 'shouldpass'".format(i))
+            if not "expected_result" in f.keys():
+                raise InvalidConfigError("Test {} must contain mandatory field 'expected_result'".format(i))
 
             if len(f["files"]) == 0:
                 raise InvalidConfigError("Test {} must have at least 1 test file".format(i))
             if len(f["flags"]) == 0:
                 raise InvalidConfigError("Test {} must have at least 1 compiler flag".format(i))
-            if f["shouldpass"] != "error" and f["shouldpass"] != "yes" and f["shouldpass"] != "no":
-                raise InvalidConfigError("Field 'shouldpass' must be one of 'yes', 'no' or 'error' in test {}".format(i))
+            if f["expected_result"] not in ["error", "pass", "fail", "wip"]:
+                raise InvalidConfigError("""Field 'expected_result' must be one of 'pass', 'fail', 'error' or 'wip' in test {0}. Actual value: {1}""".format(i, str(f["expected_result"])))
 
             for k in f.keys():
                 if k not in self.valid_test_fields:
@@ -125,28 +128,22 @@ class TestConfiguration:
         fname = os.path.join(self.dir, name)
         # Check file exists and error gracefully
         if not os.path.exists(fname):
-            f = lambda: ("error", "Source file '{}' not found".format(fname), d['shouldpass'])
+            f = lambda: ("error", "Source file '{}' not found".format(fname), d['expected_result'])
             return TestResult(name, f, fname)
 
         # function that runs our test
         def test():
             res = subprocess.run(["cogent"] + flags + [fname], capture_output=True, text=True)
-            status = "passed"
+            status = "pass"
 
-            # The haskell process crashes/errors
-            if res.returncode == 1:
-                status = "error"
             # The compiler returns an error code
-            elif res.returncode == 134:
-                status = "failed"
+            if res.returncode == 134:
+                status = "fail"
+            # The haskell process crashes/errors
+            elif res.returncode != 0:
+                status = "error"
 
-            expected = "passed"
-            if d['shouldpass'] == "no":
-                expected = "failed"
-            elif d['shouldpass'] == "error":
-                expected = "error"
-
-            return (status, res.stderr, expected)
+            return (status, res.stderr, d["expected_result"])
 
         return TestResult(name, test, fname)
 
@@ -172,11 +169,7 @@ def get_cfg_from_test_file(f):
 
 
 # Run tests for each provided test
-def run_tests(files, verbose):
-    for f in files:
-        if not os.path.exists(f):
-            print("Error - file '{}' does not exist".format(f))
-            sys.exit(1)
+def run_tests(files):
     results = []
     for f in files:
         try:
@@ -185,21 +178,25 @@ def run_tests(files, verbose):
             res = conf.run_one(name)
             results.append(res)
         except OSError:
-            print("Error - Could not find config file for file {}".format(f))
+            print("error - could not find config file for test file {}".format(f))
     
     return results
 
 
 # Find all configuration files in the test directory
 def get_configs():
-    cfgs = Path(".").rglob(CONFIG_FILE_NAME)
-    cfgs = [os.path.abspath(x) for x in cfgs]
-    try:
-        cfgs = [TestConfiguration(x) for x in cfgs]
-        return cfgs
-    except OSError as err:
-        print(err)
-        sys.exit(1)
+    files = Path(".").rglob(CONFIG_FILE_NAME)
+    files = [os.path.abspath(x) for x in files]
+    cfgs = []
+    for x in files:
+        try:
+            cfgs.append(TestConfiguration(x))
+        except InvalidConfigError as e:
+            print(colored("Config error: ", "red"), e)
+        except OSError as err:
+            print("error - could not find config file for test file {}".format(x))
+            sys.exit(1)
+    return cfgs
 
 
 if __name__ == "__main__":

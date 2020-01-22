@@ -10,9 +10,7 @@ In the event of an unexpected failure or error, the compiler output will be prin
 
 ## Writing tests
 
-Place your test in the relevent folder (or make a new one), and write a `config.yaml` file for your test.
-
-Config files can be placed anywhere below the testing directly, as long as the test files (`*.cogent` files) are in the same directory.
+Place your test in any folder that is a subdirectory of the directory that contains the testing script, and write a `config.yaml` file for your test. This config file MUST be placed in the same directory of the Cogent files it tests.
 
 ## Configuration file structure
 
@@ -34,12 +32,12 @@ test:
     #   (useful for tests that are currently broken).
     # "wip" means the test hasn't been completed.
     #   it will be run and the output will be ignored and marked as passing
-    shouldpass: ( "yes" | "no" | "error" | "wip" )
+    expected_result: ( "pass" | "fail" | "error" | "wip" )
   }
   - { ... }
 ```
 
-There are 3 testing methods the script supports; Observing compiler output, verification output, and running an arbitrary command. Each test support only ONE of these commands at once.
+There are 3 testing methods the script supports; Observing compiler output, verification output, and running an arbitrary command. Each test supports only ONE of these commands at once.
 
 ### Testing compiler output
 
@@ -56,7 +54,7 @@ test:
     flags:
       - "--fpretty-errmsgs"
       - "--typecheck"
-    shouldpass: "yes"
+    expected_result: "yes"
 ```
 
 ### Testing Verification Output
@@ -88,7 +86,7 @@ To test generated verification files, supply a field `verification` that contain
 * Optionally `entryfuncs`, the path of a file which will be given as input to the `--entry-funcs` flag
 * Optionally `autocorres`, the path of the AutoCorrs directory. Running any files that use or depend on a file that uses AutoCorres requires this flag to be present.
 
-Here's an example configuration that runs verification on the generated AllRefine file of a cogent program:
+Here's an example configuration that runs verification on the generated AllRefine file of a Cogent program:
 
 ```yaml
 test:
@@ -100,7 +98,7 @@ test:
       entryfuncs: "entryfuncs.cfg"
       autocorres: "/home/user/autocorres"
 
-    shouldpass: "no"
+    expected_result: "no"
 ```
 
 ### Running Arbitrary Tests
@@ -111,7 +109,7 @@ To run an arbitrary script as a test, supply the field `command` which contains 
 that will be executed in the shell. If the command returns `0` as it's exit code, the test
 succeeds. Otherwise, the test fails.
 
-The `error` value in the field `shouldpass` is not supported for this method of testing.
+The `error` value in the field `expected_result` is not supported for this method of testing.
 
 Note that the `files` field is still necessary as they are used to name the test, however the files themselves need not exist.
 
