@@ -25,13 +25,14 @@ test:
       - [ FILE.cogent ... ]
 
     # The expected test result. 
-    # "yes" means the file should successfully compile.
-    # "no" means the compiler should successfully finish, 
-    #   but the code shouldn't compile successfully.
+    # "pass" means the file should successfully compile or
+    #   the test should successfully run
+    # "fail" means the compiler should successfully finish, 
+    #   but the code shouldn't compile successfully or the test failed
     # "error" means the compiler is expected to crash 
     #   (useful for tests that are currently broken).
     # "wip" means the test hasn't been completed.
-    #   it will be run and the output will be ignored and marked as passing
+    #   It will be run and the output will be ignored and marked as passing
     expected_result: ( "pass" | "fail" | "error" | "wip" )
   }
   - { ... }
@@ -97,8 +98,7 @@ test:
       types: "types.cfg"
       entryfuncs: "entryfuncs.cfg"
       autocorres: "/home/user/autocorres"
-
-    expected_result: "no"
+    expected_result: "fail"
 ```
 
 ### Running Arbitrary Tests
@@ -120,7 +120,7 @@ test:
   - files:
       - scriptTest.cogent
     command: "L4V_ARCH=ARM ./testScript.sh"
-    shouldpass: "no"
+    expected_result: "fail"
 ```
 
 ## Test script arguments
