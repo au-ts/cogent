@@ -946,9 +946,9 @@ instance Pretty a => Pretty (DataLayout' a) where
   pretty RecordLayout {fieldsDL} =
     record (map prettyField $ M.toList fieldsDL)
     where prettyField (f,(l,_)) = fieldname f <> colon <> pretty l
-
-  pretty (ArrayLayout l _) =
-    brackets (pretty l)
+#ifdef BUILTIN_ARRAYS
+  pretty (ArrayLayout l _) = brackets (pretty l)
+#endif
 
 instance Pretty BitRange where
   pretty br = literal (pretty $ bitSizeBR br) <> symbol "b" <+> symbol "at" <+> literal (pretty $ bitOffsetBR br) <> symbol "b"
