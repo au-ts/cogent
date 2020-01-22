@@ -238,12 +238,14 @@ greekS = oneStringOf ["\\<alpha>",  "\\<beta>", "\\<gamma>", "\\<delta>",
                            "\\<Lambda>", "\\<Xi>", "\\<Pi>", "\\<Sigma>",
                            "\\<Upsilon>", "\\<Phi>", "\\<Psi>", "\\<Omega>" ]
 
+symbolS :: ParserM String 
+symbolS = oneStringOf ["\\<^sub>"]
 
 quasiletterS :: ParserM String
-quasiletterS = ((letterS <||> digitS <||> charString '_') <||> charString '\'') <?> "quasi-letter"
+quasiletterS = ((letterS <||> digitS <||> charString '_' <||> symbolS) <||> charString '\'') <?> "quasi-letter"
 
 quasiletterSL :: ParserM String
-quasiletterSL = ((letterS <||> digitS <||> charString '_') <||> charString '\'' <||> charString '.') <?> "quasi-letterL"
+quasiletterSL = ((letterS <||> digitS <||> charString '_' <||> symbolS) <||> charString '\'' <||> charString '.') <?> "quasi-letterL"
 
 digitS :: ParserM String
 digitS =  s $ oneOf "0123456789"
@@ -679,12 +681,12 @@ doBlockTermL = do
 
 dosTermL :: ParserM Term
 dosTermL = do 
-  res <- do1 <||> do2 
+  res <- (try do1) <||> do2 
   return res 
   
   where 
-    do1 = try $ do 
-      term1 <- termL
+    do1 = do 
+      term1 <- try termL
       stringL "\\<leftarrow>"
       term2 <- termL
       return $ DoItem term1 term2
