@@ -3,11 +3,17 @@ test:
       - list_type.cogent
     flags: 
       - "--mono"
-    shouldpass: "yes"
+    expected_result: "pass"
 
   - files:
       - non-strictly-positive.cogent
       - recpar-shadows-typevar.cogent
     flags:
       - "--parse"
-    shouldpass: "no"
+    expected_result: "fail"
+
+  - files:
+      - tmp.cogent
+    flags:
+      - "--awdad"
+    expected_result: "wip"
