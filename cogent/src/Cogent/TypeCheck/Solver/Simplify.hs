@@ -20,7 +20,9 @@ import           Cogent.Compiler
 import           Cogent.TypeCheck.ARow as ARow
 import           Cogent.TypeCheck.Base
 import qualified Cogent.TypeCheck.Row as Row
+#ifdef BUILTIN_ARRAYS
 import           Cogent.TypeCheck.Solver.SMT (smtSat)
+#endif
 import           Cogent.TypeCheck.Solver.Goal
 import           Cogent.TypeCheck.Solver.Monad
 import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
