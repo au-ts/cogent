@@ -37,13 +37,17 @@ class TestResult:
         self.fullname = fullname
 
     # Printing test results
-    def display(self, isVerbose):
+    def display(self, is_verbose):
         acc = ""
         print("{}: ".format(os.path.relpath(self.fullname)), end="")
         (status, output, expected) = self.test()
 
         if expected == "wip":
             acc += colored("WIP (Pass by defualt)\n", "green")
+            if is_verbose:
+                acc += ("=" * self.block_len + "Test Output" + "=" * self.block_len) + "\n"
+                acc += output
+                acc += ("=" * self.block_len + len("Test Output") * "=" + "=" * self.block_len) + "\n"
             print(acc, end="")
             return True
 
@@ -56,7 +60,7 @@ class TestResult:
                 acc += colored("Failed (as expected)\n", "green")
             elif status == "error":
                 acc += colored("Error (as expected)\n", "green")
-            if isVerbose:
+            if is_verbose:
                 acc += ("=" * self.block_len + "Test Output" + "=" * self.block_len) + "\n"
                 acc += output
                 acc += ("=" * self.block_len + len("Test Output") * "=" + "=" * self.block_len) + "\n"
@@ -177,6 +181,8 @@ def run_tests(files):
             name = os.path.basename(f)
             res = conf.run_one(name)
             results.append(res)
+        except InvalidConfigError as e:
+            print(colored("Config error: ", "red"), e)
         except OSError:
             print("error - could not find config file for test file {}".format(f))
     
@@ -215,20 +221,24 @@ if __name__ == "__main__":
     if args.verbose is not None:
         verbose = [os.path.join(os.path.abspath("."), v) for v in args.verbose]
 
-    try:
-        results = []
-        # If we're only running specific tests
-        if args.only_test is not None:
-            run_tests(args.only_test)
-        # Otherwise, run all possible tests
-        else:
-            configs = get_configs()
-            for c in configs:
-                for res in c.run_all():
-                    results.append(res)
+    results = []
+    # If we're only running specific tests
+    if args.only_test is not None:
+        run_tests(args.only_test)
+    # Otherwise, run all possible tests
+    else:
+        configs = get_configs()
+        for c in configs:
+            for res in c.run_all():
+                results.append(res)
 
-        for res in results:
-            res.display(verbose is not None and (verbose == [] or res.fullname in verbose))
+    all_passed = True
 
-    except InvalidConfigError as e:
-        print(colored("Config error: ", "red"), e)
+    final_results = []
+
+    for res in results:
+        p = res.display(verbose is not None and (verbose == [] or res.fullname in verbose))
+        final_results.append(p)
+    
+    if all(final_results):
+        sys.exit(1)
