@@ -36,7 +36,7 @@ import qualified Data.Map as M
 import Data.Maybe
 import Data.Ord (comparing)
 #if MIN_VERSION_pandoc(2,0,0)
-import Data.Text (pack)
+import Data.Text (pack, unpack)
 #else
 #endif
 import Data.String
@@ -75,7 +75,11 @@ markdown s = case T.readMarkdown def s of
 #endif
 
 handleInline :: (?knowns :: [(String, SourcePos)]) => T.Inline -> T.Inline
+#if MIN_VERSION_pandoc_types(1,20,0)
+handleInline x@(T.Code a str) | Just p <- lookup (unpack str) ?knowns = T.Link ("", map pack $ classesFor (unpack str), []) [x] (pack $ fileNameFor p ++ "#" ++ unpack str,str)
+#else
 handleInline x@(T.Code a str) | Just p <- lookup str ?knowns = T.Link ("", classesFor str, []) [x] (fileNameFor p ++ "#" ++ str,str)
+#endif
 handleInline x = x
 
 classesFor :: String -> [String]
