@@ -95,11 +95,6 @@ isUpcastable _ _ = return False
 
 isSubtype :: Type t -> Type t -> TC t v Bool
 isSubtype t1 t2 = runMaybeT (t1 `lub` t2) >>= \case Just t  -> do 
-                                                      traceM ("\n")
-                                                      traceM (show t)
-                                                      traceM ("\n")
-                                                      traceM (show t2)
-                                                      traceM ("\n")
                                                       return $ t == t2
                                                     Nothing -> return False
 
@@ -144,7 +139,7 @@ bound b (TCon c1 t1 s1) (TCon c2 t2 s2) | c1 == c2, s1 == s2 = TCon c1 <$> zipWi
 bound b (TFun t1 s1) (TFun t2 s2) = TFun <$> bound (theOtherB b) t1 t2 <*> bound b s1 s2
 -- At this point, we can assume recursive parameters and records agree
 bound b t1@(TRecord rp fs s) t2@(TRPar v ctxt)    = return t2
-bound b t1@(TRPar v ctxt)    t2@(TRecord rp fs s) = return t1
+bound b t1@(TRPar v ctxt)    t2@(TRecord rp fs s) = return t2
 #ifdef BUILTIN_ARRAYS
 bound b (TArray t1 l1) (TArray t2 l2) | l1 == l2 = TArray <$> bound b t1 t2 <*> pure l1
 #endif
@@ -298,7 +293,9 @@ tc = flip tc' M.empty
         -> Either String ([Definition TypedExpr a], Map FunName FunctionType)
     tc' [] reader = return ([], reader)
     tc' ((FunDef attr fn ts t rt e):ds) reader =
-      case runTC (infer e >>= flip typecheck rt) (fmap snd ts, reader) (Cons (Just t) Nil) of
+      -- Enable recursion by inserting this function's type into the function type dictionary
+      let ft = FT (fmap snd ts) t rt in
+      case runTC (infer e >>= flip typecheck rt) (fmap snd ts, M.insert fn ft reader ) (Cons (Just t) Nil) of
         Left x -> Left x
         Right (_, e') -> (first (FunDef attr fn ts t rt e':)) <$> tc' ds (M.insert fn (FT (fmap snd ts) t rt) reader)
     tc' (d@(AbsDecl _ fn ts t rt):ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds (M.insert fn (FT (fmap snd ts) t rt) reader)

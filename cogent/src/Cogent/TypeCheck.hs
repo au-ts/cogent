@@ -156,10 +156,13 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
         ys = vs' \\ tvs    -- we know `vs' has no duplicates
     unless (null ys) $ logErrExit $ SuperfluousTypeVariable ys
     base <- lift . lift $ use knownConsts
+
     let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
     (((ct,t'),(c,alts')), flx, os) <- runCG ctx (map fst vs)
              (do x@(ct,t') <- B.validateType t 
+                 -- we add our function to the known functions here so they can be recursive
+                 lift $ knownFuns %= M.insert f (PT vs t')
                  y <- cgFunDef alts t'
                  pure (x,y))
     traceTc "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
@@ -174,9 +177,13 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
                   L.<$> text "assigns for fun definition" <+> pretty f <+> text "is"
                   L.<$> pretty assn)
     let t'' = assignT assn $ apply subst t'
+
+    -- Replace our previous definition with the typechecker's updated type
+    lift . lift $ knownFuns %= M.delete f
     lift . lift $ knownFuns %= M.insert f (PT vs t'')
+
     alts'' <- postA $ applyAlts subst $ assignAlts assn alts'
-    t'''    <- postT t''
+    t'''   <- postT t''
     return (FunDef f (PT vs t''') alts'')
 
 -- ----------------------------------------------------------------------------

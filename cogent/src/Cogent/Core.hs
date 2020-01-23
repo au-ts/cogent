@@ -449,6 +449,7 @@ instance Pretty (Type t) where
                           <> pretty s
   pretty (TCon tn [] s) = typename tn <> pretty s
   pretty (TCon tn ts s) = typename tn <> pretty s <+> typeargs (map pretty ts)
+  pretty (TRPar v m) = keyword "rec" <+> typevar v
 #ifdef BUILTIN_ARRAYS
   pretty (TArray t l) = pretty t <> brackets (pretty l)
 #endif
