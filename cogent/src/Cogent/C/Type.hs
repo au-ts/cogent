@@ -301,8 +301,8 @@ genType t                               = CIdent <$> typeCId t
 -- Helper function for remove unnecessary info for cogent types
 simplifyType :: CC.Type 'Zero VarName -> CC.Type 'Zero VarName
 #ifdef BUILTIN_ARRAYS
-simplifyType (TArray elt _ (Boxed _ (Layout (ArrayLayout l _))) _) =
-    TArray elt (LILit 0 U32) (Boxed undefined (Layout (ArrayLayout l noPos))) Nothing
+simplifyType (TArray elt _ (Boxed rw (Layout (ArrayLayout l _))) _) =
+    TArray elt (LILit 0 U32) (Boxed rw (Layout (ArrayLayout l noPos))) Nothing
 #endif
 simplifyType x = x
 

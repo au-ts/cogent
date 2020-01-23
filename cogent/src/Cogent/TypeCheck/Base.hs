@@ -326,7 +326,7 @@ instance Functor TIrrefPatn where
   fmap f (TIP ip l) = TIP (fffmap (second f) $ ffmap (fmap f) $ fmap (fmap f) ip) l
 
 instance Traversable TExpr where
-  traverse f e = undefined
+  traverse f (TE t e l) = TE <$> f t <*> quadritraverse f (traverse f) (traverse f) (traverse f) e <*> pure l
 instance Traversable TPatn where
   traverse f (TP p l) = TP <$> traverse (traverse f) p <*> pure l
 instance Traversable TIrrefPatn where
