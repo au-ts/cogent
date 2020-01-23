@@ -137,7 +137,11 @@ class TestConfiguration:
 
         # function that runs our test
         def test():
-            res = subprocess.run(["cogent"] + flags + [fname], capture_output=True, text=True)
+            res = subprocess.run(["cogent"] + flags + [fname], 
+                                 text=True,
+                                 stderr=subprocess.STDOUT,
+                                 stdout=subprocess.PIPE,
+                                 cwd=self.dir)
             status = "pass"
 
             # The compiler returns an error code
@@ -147,7 +151,7 @@ class TestConfiguration:
             elif res.returncode != 0:
                 status = "error"
 
-            return (status, res.stderr, d["expected_result"])
+            return (status, res.stdout, d["expected_result"])
 
         return TestResult(name, test, fname)
 
@@ -240,5 +244,5 @@ if __name__ == "__main__":
         p = res.display(verbose is not None and (verbose == [] or res.fullname in verbose))
         final_results.append(p)
     
-    if all(final_results):
+    if not all(final_results):
         sys.exit(1)

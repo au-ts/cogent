@@ -2,7 +2,15 @@ test:
   - files: 
       - list_type.cogent
     flags: 
-      - "--mono"
+      - "-g"
+      - "--entry-funcs=entry-funcs-list.cfg"
+    expected_result: "wip"
+
+  - files:
+      - factorial.cogent
+    flags:
+      - "-g"
+      - "--entry-funcs=entry-funcs-factorial.cfg"
     expected_result: "wip"
 
   - files:
