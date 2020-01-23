@@ -139,7 +139,7 @@ bound b (TCon c1 t1 s1) (TCon c2 t2 s2) | c1 == c2, s1 == s2 = TCon c1 <$> zipWi
 bound b (TFun t1 s1) (TFun t2 s2) = TFun <$> bound (theOtherB b) t1 t2 <*> bound b s1 s2
 -- At this point, we can assume recursive parameters and records agree
 bound b t1@(TRecord rp fs s) t2@(TRPar v ctxt)    = return t2
-bound b t1@(TRPar v ctxt)    t2@(TRecord rp fs s) = return t1
+bound b t1@(TRPar v ctxt)    t2@(TRecord rp fs s) = return t2
 #ifdef BUILTIN_ARRAYS
 bound b (TArray t1 l1 s1 mhole1) (TArray t2 l2 s2 mhole2)
   | l1 == l2, s1 == s2 = do
@@ -379,8 +379,10 @@ tc = flip tc' M.empty
         -> Map FunName (FunctionType b)  -- the reader
         -> Either String ([Definition TypedExpr a b], Map FunName (FunctionType b))
     tc' [] reader = return ([], reader)
-    tc' ((FunDef attr fn ks ts t rt e):ds) reader =
-      case runTC (infer e >>= flip typecheck rt) (fmap snd ks, reader) (Cons (Just t) Nil) of
+    tc' ((FunDef attr fn ts t rt e):ds) reader =
+      -- Enable recursion by inserting this function's type into the function type dictionary
+      let ft = FT (fmap snd ts) t rt in
+      case runTC (infer e >>= flip typecheck rt) (fmap snd ts, M.insert fn ft reader ) (Cons (Just t) Nil) of
         Left x -> Left x
         Right (_, e') -> (first (FunDef attr fn ks ts t rt e':)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ts) t rt) reader)
     tc' (d@(AbsDecl _ fn ks ts t rt):ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ts) t rt) reader)

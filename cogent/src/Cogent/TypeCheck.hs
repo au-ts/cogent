@@ -211,11 +211,14 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
         stvs = ltvs \\ vs
     unless (null stvs) $ logErrExit $ TypeVariableNotDeclared stvs
     base <- lift . lift $ use knownConsts
+
     let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
     (((clt,lts),(ct,t'),(c,alts')), flx, os) <- runCG ctx vs vs'
                                         (do x <- validateTypes (stripLocT . snd <$> ls)
                                             y@(ct,t') <- validateType t
+                                            -- we add our function to the known functions here so they can be recursive
+                                            lift $ knownFuns %= M.insert f (PT vs t')
                                             z <- cgFunDef alts t'
                                             pure (x,y,z))
     traceTc "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
@@ -227,7 +230,11 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
                   L.<$> pretty subst)
     exitOnErr $ toErrors os gs
     let t'' = apply subst t'
+
+    -- Replace our previous definition with the typechecker's updated type
+    lift . lift $ knownFuns %= M.delete f
     lift . lift $ knownFuns %= M.insert f (PT ps ls' t'')
+
     alts'' <- postA $ applyAlts subst alts'
     t'''   <- postT t''
     lts' <- mapM postT (snd <$> ls')
