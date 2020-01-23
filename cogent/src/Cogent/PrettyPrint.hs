@@ -184,10 +184,13 @@ instance Prec (SExpr t) where
   prec (SE _ e) = prec e
   prec (SU {}) = 0
 
--- NOTE: the difference from the definition of the fixity of Constraint
+-- NOTE: they differ from the definition of the fixity of Constraint
 instance Prec Constraint where
-  prec (_ :&  _) = 2
-  prec (_ :@  _) = 1
+  prec (_ :&  _) = 3
+  prec (_ :@  _) = 2
+#ifdef BUILTIN_ARRAYS
+  prec (_ :-> _) = 1
+#endif
   prec _ = 0
 
 -- ------------------------------------
@@ -820,7 +823,7 @@ analyseLeftover c os = case c of
 instance Pretty Constraint where
   pretty (a :< b)         = pretty a </> warn ":<" </> pretty b
   pretty (a :=: b)        = pretty a </> warn ":=:" </> pretty b
-  pretty (a :& b)         = prettyPrec 3 a </> warn ":&" </> prettyPrec 2 b
+  pretty (a :& b)         = prettyPrec 4 a </> warn ":&" </> prettyPrec 3 b
   pretty (Upcastable a b) = pretty a </> warn "~>" </> pretty b
   pretty (Share  t m)     = warn "Share" <+> pretty t
   pretty (Drop   t m)     = warn "Drop" <+> pretty t
@@ -833,14 +836,18 @@ instance Pretty Constraint where
   pretty (x :@ _)         = pretty x
 #ifdef BUILTIN_ARRAYS
   pretty (Arith e)        = pretty e
+  pretty (a :-> b)        = prettyPrec 2 a </> warn ":->" </> prettyPrec 1 b
 #endif
 
 -- a more verbose version of constraint pretty-printer which is mostly used for debugging
 prettyC :: Constraint -> Doc
 prettyC (Unsat e) = errbd "Unsat" <$> pretty e
 prettyC (SemiSat w) = warn "SemiSat" -- <$> pretty w
-prettyC (a :& b) = prettyCPrec 3 a </> warn ":&" <$> prettyCPrec 2 b
-prettyC (c :@ e) = prettyCPrec 2 c & (if __cogent_ddump_tc_ctx then (</> prettyCtx e False) else (</> warn ":@ ..."))
+prettyC (a :& b) = prettyCPrec 4 a </> warn ":&" <$> prettyCPrec 3 b
+prettyC (c :@ e) = prettyCPrec 3 c & (if __cogent_ddump_tc_ctx then (</> prettyCtx e False) else (</> warn ":@ ..."))
+#ifdef BUILTIN_ARRAYS
+prettyC (a :-> b) = prettyCPrec 2 a </> warn ":->" </> prettyCPrec 1 b
+#endif
 prettyC c = pretty c
 
 prettyCPrec :: Int -> Constraint -> Doc

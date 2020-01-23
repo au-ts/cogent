@@ -38,6 +38,7 @@ import           Cogent.TypeCheck.Solver.JoinMeet
 import           Cogent.TypeCheck.Solver.Equate
 import           Cogent.TypeCheck.Solver.Default
 import           Cogent.TypeCheck.Solver.SinkFloat
+import           Cogent.TypeCheck.Solver.SMT (smt)
 import           Cogent.TypeCheck.Solver.Util
 import qualified Cogent.TypeCheck.Subst as Subst
 import           Cogent.TypeCheck.Subst (Subst(..))
@@ -81,7 +82,8 @@ solve ks c = let gs     = makeGoals [] c
                           debugL "Equate"     printC equate <>
                           debug  "Sink/Float" printC sinkfloat <>
                           debug  "JoinMeet"   printC joinMeet <>
-                          debugL "Defaults"   printC defaults
+                          debugL "Defaults"   printC defaults <>
+                          debug  "SMT"        printC smt
   -- [amos] Type-solver changes I made:
   -- - Simplify rule for `t :=: t` to `Solved t` (see Solver/Simplify.hs)
   --    A constraint like "?a :=: ?a" is almost trivial, except that you need the `Solved` constraint to make sure ?a is given a concrete assignment eventually

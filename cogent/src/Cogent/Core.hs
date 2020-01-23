@@ -174,8 +174,6 @@ data LExpr t b
   | LCast (Type t b) (LExpr t b)  
   deriving (Show, Eq, Ord, Functor)
 
--- deriving instance Functor (LExpr t)
-
 #ifdef BUILTIN_ARRAYS
 exprToLExpr :: (a -> b)
             -> ((a -> b) -> e t v a b -> LExpr t b)

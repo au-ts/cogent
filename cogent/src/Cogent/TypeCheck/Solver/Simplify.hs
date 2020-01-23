@@ -211,6 +211,8 @@ simplify axs = Rewrite.pickOne' $ onGoal $ \c -> case c of
     -- TODO
     -- Just [t1 :=: t2, Arith (SE $ PrimOp "==" [l1,l2])]
 
+  a :-> b -> hoistMaybe $ Just [b]  -- FIXME: cuerently we ignore the impls. / zilinc
+
   -- TODO: Here we will call a SMT procedure to simplify all the Arith constraints.
   -- The only things left will be non-trivial predicates. / zilinc
   Arith e | isTrivialSE e -> do
