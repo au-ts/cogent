@@ -656,6 +656,7 @@ instance (Pretty b) => Pretty (Type t b) where
                           <> pretty s
   pretty (TCon tn [] s) = typename tn <> pretty s
   pretty (TCon tn ts s) = typename tn <> pretty s <+> typeargs (map pretty ts)
+  pretty (TRPar v m) = keyword "rec" <+> typevar v
 #ifdef BUILTIN_ARRAYS
   pretty (TArray t l s mhole) = (pretty t <> brackets (pretty l) <+> pretty s) &
     (case mhole of Nothing -> id; Just hole -> (<+> keyword "take" <+> parens (pretty hole)))
