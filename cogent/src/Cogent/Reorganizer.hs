@@ -310,17 +310,23 @@ reorganize mes bs = do
                 -- FIXME: it might be good to preserve the original order as much as possible
                 -- see file `tests/pass_wf-take-put-tc-2.cogent` as a bad-ish example / zilinc
 
-                -- TODO: Strictly positive check and recPar embedding
+                let fnames = funNames (map thd bs)
 
                 cs' <- forM cs $ \case
-                          G.AcyclicSCC i -> Right $ case lookup i m of
+                          G.AcyclicSCC i ->  Right $ case lookup i m of
                                                       Nothing -> __impossible $ "reorganize: " ++ show i
-                                                      Just x  -> x
-                          G.CyclicSCC is -> Left  $ (CyclicDependency, map (id &&& getSourcePos m) is)
+                                                      Just x  -> [x]
+                                            -- Only functions can be recursively defined
+                          G.CyclicSCC is -> if all (`elem` fnames) is then
+                                              Right $ concatMap (\i -> case lookup i m of
+                                                Nothing -> __impossible $ "reorganize: " ++ show i
+                                                Just x  -> [x]) is
+                                            else
+                                              Left $ (CyclicDependency, map (id &&& getSourcePos m) is)
 
                 -- Check recursive parameters are used correctly
 
-                let rs = embedRecPars cs'
+                let rs = embedRecPars (concat cs')
                 checkNoShadowing      (map thd rs)
                 checkStrictlyPositive (map thd rs)
 
@@ -328,9 +334,15 @@ reorganize mes bs = do
                         
   where getSourcePos m i | Just (p,_,_) <- lookup i m = p
                          | otherwise = __impossible "getSourcePos (in reorganize)"
+
+        funNames :: [TopLevel LocType LocPatn LocExpr] -> [SourceObject]
+        funNames ((FunDef n _ _):tls) = [ValName n] ++ funNames tls
+        funNames ((AbsDec n _):tls) = [ValName n] ++ funNames tls
+        funNames (t:tls) = funNames tls
+        funNames [] = []
+
         -- FIXME: proper parsing / zilinc
         parseSourceObject :: String -> SourceObject
         parseSourceObject (c:cs) | isUpper c = TypeName (c:cs)
                                  | otherwise = ValName  (c:cs)
         thd (_,_,x) = x
-

@@ -226,6 +226,9 @@ monoType (TSum alts) = do
 monoType (TProduct t1 t2) = TProduct <$> monoType t1 <*> monoType t2
 monoType (TRecord rp fs s) = TRecord rp <$> mapM (\(f,(t,b)) -> (f,) <$> (,b) <$> monoType t) fs <*> monoSigil s
 monoType (TUnit) = pure TUnit
+monoType (TRPar v m) =  do
+  m' <- mapM (mapM monoType) m
+  return $ TRPar v m'
 #ifdef BUILTIN_ARRAYS
 monoType (TArray t l s mhole) = TArray <$> monoType t <*> monoLExpr l <*> monoSigil s <*> mapM monoLExpr mhole
 #endif
