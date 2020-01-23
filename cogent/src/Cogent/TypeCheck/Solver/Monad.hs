@@ -14,13 +14,12 @@ module Cogent.TypeCheck.Solver.Monad where
 
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Subst
+ 
+import qualified Control.Monad.State as S (get)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.RWS
 
-import Control.Monad.Reader
-import Control.Monad.State
-import Control.Monad.Trans
-import Control.Monad.Writer
-
-type TcSolvM = WriterT [Subst] (StateT Int (ReaderT TcState IO))
+type TcSolvM = RWST TcState [Subst] Int IO
 
 solvFresh :: TcSolvM Int
 solvFresh = do
@@ -33,5 +32,5 @@ solvFreshes 0 = pure []
 solvFreshes n = (:) <$> solvFresh <*> solvFreshes (n-1)
 
 runSolver :: TcSolvM a -> Int -> TcM (a, Subst)
-runSolver act i = do st <- lift (lift get)
-                     fmap mconcat . fst <$> lift (lift (lift (runReaderT (runStateT (runWriterT act) i) st)))
+runSolver act i = do st <- lift (lift S.get)
+                     fmap mconcat <$> (lift . lift . lift $ evalRWST act st i)

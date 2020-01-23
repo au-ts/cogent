@@ -419,13 +419,17 @@ cg' (ArrayPut arr ivs) t = do
   s <- freshVar  -- sigil
   (carr,arr') <- cg arr sigma
   let (idxs,vs) = unzip ivs
-  blob1 <- forM idxs $ \idx -> cg idx (T u32)
+  blob1 <- forM idxs $ \idx -> do
+    (cidx,idx') <- cg idx (T u32)
+    let c = Arith (SE (T bool) (PrimOp "<" [toTCSExpr idx', l]))
+    return (cidx <> c, idx')
+  -- TODO: holes distinct from each other / zilinc
   blob2 <- forM vs $ \v -> cg v alpha
   let c = [ A alpha l (Right s) Nothing :< t
           , sigma :< A alpha l (Right s) Nothing
           , carr
           , Drop alpha MultipleArrayTakePut
-          ] ++ map fst blob1 ++ map fst blob2  -- TODO: check for bounds
+          ] ++ map fst blob1 ++ map fst blob2
   return (mconcat c, ArrayPut arr' (zip (map snd blob1) (map snd blob2)))
 #endif
 
@@ -572,18 +576,16 @@ cg' (If e1 bs e2 e3) t = do
   (c, [(c2, e2'), (c3, e3')]) <- parallel' [(ThenBranch, cg e2 t), (ElseBranch, cg e3 t)]
   let e = If e1' bs e2' e3'
 #ifdef BUILTIN_ARRAYS
-      ((c2',cc2),(c3',cc3)) = if arithTCExpr e1' then
-        let (ca2,cc2) = splitArithConstraints c2
-            (ca3,cc3) = splitArithConstraints c3
-            c2' = Arith (SE (T bool) (PrimOp "||" [SE (T bool) (PrimOp "not" [toTCSExpr e1']), andTCSExprs ca2]))
-            c3' = Arith (SE (T bool) (PrimOp "||" [toTCSExpr e1', andTCSExprs ca3]))
-         in ((c2',cc2),(c3',cc3))
-      else ((c2,Sat),(c3,Sat))
+      (c2',c3') = if arithTCExpr e1' then
+        let c2' = Arith (toTCSExpr e1') :-> c2
+            c3' = Arith (SE (T bool) (PrimOp "not" [toTCSExpr e1'])) :-> c3
+         in (c2',c3')
+      else (c2,c3)
 #else
-      ((c2',cc2),(c3',cc3)) = ((c2,Sat),(c3,Sat))
+      (c2',c3') = (c2,c3)
 #endif
   traceTc "gen" (text "cg for if:" <+> prettyE e)
-  return (c1 <> c <> c2' <> c3' <> cc2 <> cc3, e)
+  return (c1 <> c <> c2' <> c3', e)
 
 cg' (MultiWayIf es el) t = do
   conditions <- forM es $ \(c,bs,_,_) -> letBang bs (cg c) (T bool)

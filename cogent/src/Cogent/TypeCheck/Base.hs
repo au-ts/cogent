@@ -196,6 +196,7 @@ data Constraint' t = (:<) t t
                    | IsPrimType t
 #ifdef BUILTIN_ARRAYS
                    | Arith (SExpr t)
+                   | (:->) (Constraint' t) (Constraint' t)
 #endif
                    deriving (Eq, Show, Ord, Functor, Foldable, Traversable)
 
