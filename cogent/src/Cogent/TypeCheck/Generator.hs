@@ -547,10 +547,11 @@ cg' (TypeApp f as i) t = do
   tvs <- use knownTypeVars
   (ct, getCompose -> as') <- validateTypes (stripLocT <$> Compose as)
   lift (use $ knownFuns.at f) >>= \case
-    Just (PT vs tau) -> let
+    Just (PT vs _ tau) -> let
+    -- FIXME FIXME FIXME
         match :: [(TyVarName, Kind)] -> [Maybe TCType] -> CG ([(TyVarName, TCType)], Constraint)
         match [] []    = return ([], Sat)
-        match [] (_:_) = return ([], Unsat (TooManyTypeArguments f (PT vs tau)))
+        match [] (_:_) = return ([], Unsat (TooManyTypeArguments f (PT vs [] tau)))
         match vs []    = freshTVar >>= match vs . return . Just
         match (v:vs) (Nothing:as) = freshTVar >>= \a -> match (v:vs) (Just a:as)
         match ((v,k):vs) (Just a:as) = do
@@ -563,7 +564,7 @@ cg' (TypeApp f as i) t = do
             e = TypeApp f (map (Just . snd) ts) i
         traceTc "gen" (text "cg for typeapp:" <+> prettyE e
                  L.<$> text "of type" <+> pretty t <> semi
-                 L.<$> text "type signature is" <+> pretty (PT vs tau) <> semi
+                 L.<$> text "type signature is" <+> pretty (PT vs [] tau) <> semi
                  L.<$> text "generate constraint" <+> prettyC c)
         return (ct <> c' <> c, e)
 
@@ -659,6 +660,7 @@ cg' (Annot e tau) t = do
   (c', e') <- cg e t'
   return (c <> c', Annot e' t')
 
+cg' (LayoutApp x l) t = error "unimplemented"
 
 -- -----------------------------------------------------------------------------
 -- Pattern constraints
