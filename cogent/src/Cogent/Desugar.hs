@@ -224,7 +224,7 @@ pragmaToNote (_:pragmas) fn note = pragmaToNote pragmas fn note
 
 lamLftTlv :: S.TopLevel B.DepType B.TypedPatn B.TypedExpr
           -> DS t v (S.TopLevel B.DepType B.TypedPatn B.TypedExpr)
-lamLftTlv (S.FunDef fn sigma@(S.PT tvs _) alts) = S.FunDef fn sigma <$> mapM (lamLftAlt tvs fn) alts
+lamLftTlv (S.FunDef fn sigma@(S.PT tvs _ _) alts) = S.FunDef fn sigma <$> mapM (lamLftAlt tvs fn) alts
 lamLftTlv d = return d
 
 lamLftAlt :: [(TyVarName, Kind)] -> FunName -> S.Alt B.TypedPatn B.TypedExpr -> DS t v (S.Alt B.TypedPatn B.TypedExpr)
@@ -241,7 +241,7 @@ lamLftExpr tvs f (B.TE t (S.Lam p mt e) l) = do
       -- p' = B.TP (S.PIrrefutable $ B.TIP (PTuple ps) noPos) noPos
   -- sigma <- sel1 <$> get
   e' <- lamLftExpr tvs f e
-  let fn = S.FunDef f' (S.PT tvs t) [S.Alt (B.TP (S.PIrrefutable p) noPos) Regular e']  -- no let-generalisation
+  let fn = S.FunDef f' (S.PT tvs [] t) [S.Alt (B.TP (S.PIrrefutable p) noPos) Regular e']  -- no let-generalisation
   lftFun %= (fn:)
   let tvs' = map (Just . B.DT . flip S.TVar False . fst) tvs
   return $ B.TE t (S.TypeApp f' tvs' S.NoInline) l
@@ -268,7 +268,7 @@ desugarTlv (S.TypeDec tn vs t) _ | ExI (Flip vs') <- Vec.fromList vs
   t' <- withTypeBindings vs' $ desugarType t
   return $ TypeDef tn vs' (Just t')
 desugarTlv (S.AbsTypeDec tn vs _) _ | ExI (Flip vs') <- Vec.fromList vs = return $ TypeDef tn vs' Nothing
-desugarTlv (S.AbsDec fn sigma) pragmas | S.PT vs t <- sigma
+desugarTlv (S.AbsDec fn sigma) pragmas | S.PT vs _ t <- sigma
                                        , ExI (Flip vs') <- Vec.fromList vs
                                        , Refl <- zeroPlusNEqualsN $ Vec.length vs'
   = do
@@ -277,7 +277,7 @@ desugarTlv (S.AbsDec fn sigma) pragmas | S.PT vs t <- sigma
         TFun ti' to' ->
           return $ AbsDecl (pragmaToAttr pragmas fn mempty) fn vs' ti' to'
         _ -> error "Cogent does not allow FFI constants"
-desugarTlv (S.FunDef fn sigma alts) pragmas | S.PT vs t <- sigma
+desugarTlv (S.FunDef fn sigma alts) pragmas | S.PT vs _ t <- sigma
                                             , ExI (Flip vs') <- Vec.fromList vs
                                             , Refl <- zeroPlusNEqualsN $ Vec.length vs'
   = withTypeBindings (fmap fst vs') $ do

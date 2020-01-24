@@ -20,7 +20,7 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import qualified Cogent.Preprocess as PP
 import Cogent.Surface
-import Cogent.Util (getStdIncFullPath, (.*), (.**))
+import Cogent.Util (getStdIncFullPath, (.*), (.**), fst3, snd3, thd3)
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative hiding (many, (<|>), optional)
@@ -59,7 +59,7 @@ language :: LanguageDef st
 language = haskellStyle
            { T.reservedOpNames = ["+","*","/","%","&&","||",">=","<=",">","<","==","/="
                                  ,".&.",".|.",".^.",">>","<<"
-                                 ,":","=","!",":<",".","_","..","#","$","::"
+                                 ,":","=","!",":<",".","_","..","#","$","::",":~"
                                  ,"@","@@"  -- DocGent
 #ifdef BUILTIN_ARRAYS
                                  ,"@{"
@@ -67,7 +67,7 @@ language = haskellStyle
                                  ,"->","=>","~>","<=","|","|>"]
            , T.reservedNames   = ["let","in","type","include","all","take","put","inline","upcast"
                                  ,"variant","record","at","layout","pointer"
-                                 ,"if","then","else","not","complement","and","True","False","o"
+                                 ,"if","then","else","not","complement","and","True","False","o","@layout"
 #ifdef BUILTIN_ARRAYS
                                  ,"array","map2","@take","@put"]
 #else
@@ -316,12 +316,8 @@ basicExpr' = avoidInitial >> buildExpressionParser
         postfix :: Parser (LocExpr -> LocExpr) -> Operator String S Identity LocExpr
         postfix p = Postfix . chainl1 p $ return (flip (.))
 
-term = avoidInitial >> (LocExpr <$> getPosition <*>
-          (var <$> optionMaybe (reserved "inline")
-               <*> variableName
-               <*> optionMaybe (brackets (commaSep1 ((char '_' >> return Nothing)
-                                                 <|> (Just <$> monotype))))
-       <|> BoolLit <$> boolean
+term = avoidInitial >> (var <|> (LocExpr <$> getPosition <*>
+          (BoolLit <$> boolean
        <|> Con <$> typeConName <*> pure []
        <|> IntLit <$> natural
        <|> CharLit <$> charLiteral
@@ -331,12 +327,26 @@ term = avoidInitial >> (LocExpr <$> getPosition <*>
        <|> ArrayLit <$> brackets (commaSep1 $ expr 1)
 #endif
        <|> UnboxedRecord <$ reservedOp "#" <*> braces (commaSep1 recordAssignment)))
-    <?> "term"
+    <?> "term")
 
-var Nothing  v Nothing = Var v
-var (Just _) v Nothing = TypeApp v [] Inline
-var Nothing  v (Just ts) = TypeApp v ts NoInline
-var (Just _) v (Just ts) = TypeApp v ts Inline
+var = do
+  p <- getPosition
+  e <- var'
+  la <- optionMaybe (braces (commaSep1 ((char '_' >> return Nothing) <|> (Just <$> repExpr))))
+  return $ case la of
+    Nothing -> e
+    Just l  -> LocExpr p $ LayoutApp e l
+
+var' = LocExpr <$> getPosition <*> do
+  nt <- optionMaybe (reserved "inline")
+  v <- variableName
+  ta <- optionMaybe (brackets (commaSep1 ((char '_' >> return Nothing) <|> (Just <$> monotype))))
+  return $ f nt v ta
+    where
+      f Nothing  v Nothing = Var v
+      f (Just _) v Nothing = TypeApp v [] Inline
+      f Nothing  v (Just ts) = TypeApp v ts NoInline
+      f (Just _) v (Just ts) = TypeApp v ts Inline
 
 tuple [] = Unitel
 tuple [e] = exprOfLE e
@@ -364,7 +374,8 @@ arrayAssignment = do p <- getPosition
                   <?> "array assignment"
 
 arrayAssigns = commaSep arrayAssignment
-                
+
+layoutApp = between (reservedOp "{") (symbol "}") repExpr
 
 -- monotype ::= typeA1 ("->" typeA1)?
 -- typeA1   ::= Con typeA2*
@@ -480,12 +491,26 @@ monotype = do avoidInitial
     fList = (Just . (:[])) <$> identifier
         <|> parens ((reservedOp ".." >> return Nothing) <|> (commaSep identifier >>= return . Just))
 
-polytype = PT <$ reserved "all" <*> (((:[]) <$> kindSignature) <|> parens (commaSep1 kindSignature)) <* reservedOp "." <*> monotype
-       <|> PT [] <$> monotype
+polytype = polytype' <|> PT [] [] <$> monotype
+  where
+    polytype' = do
+      reserved "all"
+      hs <- ((:[]) <$> klSignature) <|> parens (commaSep1 klSignature)
+      reservedOp "."
+      t <- monotype
+      return $ PT (hs >>= flt1) (hs >>= flt2) t
+    flt1 x | Just v <- snd3 x = pure (fst3 x, v)
+           | otherwise        = mempty
+    flt2 x | Just v <- thd3 x = pure (fst3 x, v)
+           | otherwise        = mempty
 
-kindSignature = do n <- variableName
-                   (n,) <$> (reservedOp ":<" *> (kind <?> "kind")
-                          <|> pure (K False False False))
+klSignature = do n <- variableName
+                 k <- optionMaybe (reservedOp ":<" *> kind <?> "kind")
+                 l <- optionMaybe (reservedOp ":~" *> identifier <?> "type name")
+                 if k == Nothing && l == Nothing then
+                    pure (n, Just $ K False False False, l)
+                 else
+                    pure (n, k, l)
   where kind = do x <- identifier
                   determineKind x (K False False False)
         determineKind ('D':xs) k =  determineKind xs (k { canDiscard = True })
@@ -518,8 +543,8 @@ toplevel' = do
                                                ++ "` does not match the name in the equation, `" ++ n' ++ "`." )
                   let fundef = FunDef n tau <$> (functionAlts <|> (:[]) <$> functionSingle)
                   case tau of
-                    PT [] t -> (ConstDef n t <$ reservedOp "=" <*> expr 1 <|> fundef)
-                    _       -> fundef
+                    PT [] _ t -> (ConstDef n t <$ reservedOp "=" <*> expr 1 <|> fundef)
+                    _         -> fundef
                 <|> pure (AbsDec n tau))
   where
     typeDec n vs (Left  t ) = TypeDec n vs t

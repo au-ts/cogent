@@ -77,6 +77,8 @@ data Expr t p ip e = PrimOp OpName [e]
                    | Var VarName
                    | Match e [VarName] [Alt p e]
                    | TypeApp FunName [Maybe t] Inline
+                   | LayoutApp e [Maybe DataLayoutExpr]
+                     -- ^ e could only be either Var or TypeApp
                    | Con TagName [e]
                    | Seq e e
                    | Lam ip (Maybe t) e
@@ -145,9 +147,10 @@ u32  = TCon "U32"  [] Unboxed
 bool = TCon "Bool" [] Unboxed
 
 
-data Polytype t = PT [(TyVarName, Kind)] t deriving (Data, Eq, Show, Functor, Foldable, Traversable, Ord)
+data Polytype t = PT [(TyVarName, Kind)] [(LoVarName, TypeName)] t
+  deriving (Data, Eq, Show, Functor, Foldable, Traversable, Ord)
 
-numOfArgs (PT x _) = length x
+numOfArgs (PT x _ _) = length x
 
 data TopLevel t p e = Include    String
                     | IncludeStd String
@@ -352,6 +355,7 @@ instance Quadritraversable Expr where
   quadritraverse fa fb fc fd (Var v)             = pure $ Var v
   quadritraverse fa fb fc fd (Match e vs as)     = Match <$> fd e <*> pure vs <*> traverse (bitraverse fb fd) as
   quadritraverse fa fb fc fd (TypeApp fn ts n)   = TypeApp fn <$> traverse (traverse fa) ts <*> pure n
+  quadritraverse fa fb fc fd (LayoutApp e l)     = LayoutApp <$> fd e <*> pure l
   quadritraverse fa fb fc fd (Con n es)          = Con n <$> traverse fd es
   quadritraverse fa fb fc fd (Seq e1 e2)         = Seq <$> fd e1 <*> fd e2
   quadritraverse fa fb fc fd (Lam ip mt e)       = Lam <$> fc ip <*> traverse fa mt <*> fd e
@@ -405,6 +409,7 @@ fvIP (RIP (PUnboxedRecord mfs)) = foldMap (fvIP . snd) $ Compose mfs
 fvIP (RIP (PTake pv mfs)) = foldMap (fvIP . snd) $ Compose mfs
 #ifdef BUILTIN_ARRAYS
 fvIP (RIP (PArray ips)) = foldMap fvIP ips
+fvIP (RIP (PArrayTake pv hs)) = error "unimplemented" -- TODO?
 #endif
 fvIP _ = []
 
