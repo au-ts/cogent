@@ -38,7 +38,9 @@ import           Cogent.TypeCheck.Solver.JoinMeet
 import           Cogent.TypeCheck.Solver.Equate
 import           Cogent.TypeCheck.Solver.Default
 import           Cogent.TypeCheck.Solver.SinkFloat
+#ifdef BUILTIN_ARRAYS
 import           Cogent.TypeCheck.Solver.SMT (smt)
+#endif
 import           Cogent.TypeCheck.Solver.Util
 import qualified Cogent.TypeCheck.Subst as Subst
 import           Cogent.TypeCheck.Subst (Subst(..))
