@@ -53,7 +53,7 @@ smtSolve axs =
     -- TODO: currently we don't use the axiom set / zilinc
     SmtState c <- get
     b <- liftIO $ smtSat $ andTCSExprs c
-    case b of True  -> hoistMaybe $ Just []
+    case b of True  -> hoistMaybe $ Just gs
               False -> hoistMaybe $ Nothing
    )
     
@@ -62,8 +62,11 @@ collLogic :: RewriteT SmtM [Goal]
 collLogic = pickOne' $ \g -> do
   let c = g ^. goal
       (es,c') = splitArithConstraints c
-  modify (\(SmtState c) -> SmtState (c++es))
-  hoistMaybe $ Just [g & goal .~ c']
+  if null es then
+    hoistMaybe $ Nothing
+  else do
+    modify (\(SmtState c) -> SmtState (c++es))
+    hoistMaybe $ Just [g & goal .~ c']
 
 smtSat :: TCSExpr -> IO Bool
 smtSat e = do
