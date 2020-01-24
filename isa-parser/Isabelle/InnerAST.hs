@@ -91,12 +91,16 @@ data TermBinOp =
                | Ge 
                | Alt
                | Append
+               | Greater
+               | Minus
+               | Less
   deriving (Data, Typeable, Eq, Ord, Show)
 
 data TermUnOp =
             -- Isabelle/HOL
                 Not
-              | Uminus deriving (Data, Typeable, Eq, Ord, Show)
+              | Uminus
+  deriving (Data, Typeable, Eq, Ord, Show)
 
 type Id = String
 
@@ -190,10 +194,16 @@ termBinOpRec b = case b of
   Ge        -> BinOpRec AssocRight 50 "\\<ge>"
   Alt       -> BinOpRec AssocRight 20 "\\<sqinter>"
   Append    -> BinOpRec AssocLeft  65 "@"
+  Greater   -> BinOpRec AssocRight 50 ">"
+  Minus     -> BinOpRec AssocLeft  65 "-"
+  Less      -> BinOpRec AssocLeft  50 "<"
 
 -- You must include all binary operators in this list. Miss one and it doesn't get parsed.
 -- Order does NOT matter. They are sorted by precedence.
-binOps = [Equiv, MetaImp, Eq, NotEq, Iff, Conj, Disj, Implies, DollarSignApp, Bind, Image, Union, Ge, Alt, Append]
+binOps = [Equiv, MetaImp, Eq,      NotEq,         Iff,
+          Conj,  Disj,    Implies, DollarSignApp, Bind, 
+          Image, Union,   Ge,      Alt,           Append, 
+          Greater, Minus, Less]
 
 termBinOpPrec :: TermBinOp -> Precedence
 termBinOpPrec b = if p >= termAppPrec

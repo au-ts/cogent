@@ -688,7 +688,7 @@ dosTermL = do
     do1 = do 
       term1 <- try termL
       stringL "\\<leftarrow>"
-      term2 <- termL
+      term2 <- try termL
       return $ DoItem term1 term2
     do2 = do 
       term <- termL 
