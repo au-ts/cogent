@@ -87,6 +87,8 @@ symbol = string
 kindsig = red . string
 typeargs [] = empty
 typeargs xs = encloseSep lbracket rbracket (comma <> space) xs
+layoutargs [] = empty
+layoutargs xs = encloseSep lbrace rbrace (comma <> space) xs
 array = encloseSep lbracket rbracket (comma <> space)
 record = encloseSep (lbrace <> space) (space <> rbrace) (comma <> space)
 variant = encloseSep (langle <> space) rangle (symbol "|" <> space) . map (<> space)
@@ -136,6 +138,7 @@ instance Prec (Expr t p ip e) where
   -- vvv terms
   prec (Var {}) = 0
   prec (TypeApp {}) = 0
+  prec (LayoutApp {}) = 9
   prec (BoolLit {}) = 0
   prec (Con _ []) = 0
   prec (IntLit {}) = 0
@@ -431,6 +434,7 @@ instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Prett
   pretty (Var x)             = varname x
   pretty (TypeApp x ts note) = pretty note <> varname x
                                  <> typeargs (map (\case Nothing -> symbol "_"; Just t -> pretty t) ts)
+  pretty (LayoutApp e l)     = pretty e <> layoutargs (map (\case Nothing -> symbol "_"; Just t -> pretty t) l)
   pretty (Member x f)        = prettyPrec 9 x <> symbol "." <> fieldname f
   pretty (IntLit i)          = literal (string $ show i)
   pretty (BoolLit b)         = literal (string $ show b)
@@ -614,13 +618,14 @@ instance Pretty TCType where
 instance Pretty LocType where
   pretty t = pretty (stripLocT t)
 
-renderPolytypeHeader vs = keyword "all" <> tupled (map prettyKS vs) <> symbol "."
+renderPolytypeHeader vs ts = keyword "all" <> tupled (map prettyKS vs ++ map prettyTS ts) <> symbol "."
     where prettyKS (v,K False False False) = typevar v
           prettyKS (v,k) = typevar v <+> symbol ":<" <+> pretty k
+          prettyTS (v,t) = typevar v <+> symbol ":~" <+> pretty t
 
 instance Pretty t => Pretty (Polytype t) where
-  pretty (PT [] t) = pretty t
-  pretty (PT vs t) = renderPolytypeHeader vs <+> pretty t
+  pretty (PT [] [] t) = pretty t
+  pretty (PT vs ts t) = renderPolytypeHeader vs ts <+> pretty t
 
 renderTypeDecHeader n vs = keyword "type" <+> typename n <> hcat (map ((space <>) . typevar) vs)
                                           <+> symbol "="
