@@ -116,7 +116,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     lift . lift $ knownTypes %= (<> [(n, (vs, Nothing))])
     return $ AbsTypeDec n vs ts'''
 
-  (AbsDec n (PT ps (stripLocT -> t))) -> do
+  (AbsDec n (PT ps ts (stripLocT -> t))) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
     traceTc "tc" (text "typecheck abstract function" <+> pretty n)
     let vs = map fst ps
@@ -136,9 +136,9 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
                   L.<$> pretty subst)
     exitOnErr $ toErrors os gs
     let t'' = apply subst t'
-    lift . lift $ knownFuns %= M.insert n (PT ps t'')
+    lift . lift $ knownFuns %= M.insert n (PT ps ts t'')
     t''' <- postT t''
-    return $ AbsDec n (PT ps t''')
+    return $ AbsDec n (PT ps ts t''')
 
   (RepDef decl@(DataLayoutDecl pos name expr)) -> do
     traceTc "tc" (text "typecheck rep decl" <+> pretty name)
@@ -176,7 +176,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     t''' <- postT t''
     return (ConstDef n t''' e'')
 
-  (FunDef f (PT vs (stripLocT -> t)) alts) -> do
+  (FunDef f (PT vs ts (stripLocT -> t)) alts) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
     traceTc "tc" (text "typecheck fun definition" <+> pretty f)
     let vs' = map fst vs
@@ -201,10 +201,10 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
                   L.<$> pretty subst)
     exitOnErr $ toErrors os gs
     let t'' = apply subst t'
-    lift . lift $ knownFuns %= M.insert f (PT vs t'')
+    lift . lift $ knownFuns %= M.insert f (PT vs ts t'')
     alts'' <- postA $ applyAlts subst alts'
     t'''    <- postT t''
-    return (FunDef f (PT vs t''') alts'')
+    return (FunDef f (PT vs ts t''') alts'')
 
 -- ----------------------------------------------------------------------------
 -- custTyGen
