@@ -529,7 +529,7 @@ desugarPrimInt (B.DT (S.TCon "U16"  [] Unboxed)) = U16
 desugarPrimInt (B.DT (S.TCon "U32"  [] Unboxed)) = U32
 desugarPrimInt (B.DT (S.TCon "U64"  [] Unboxed)) = U64
 desugarPrimInt (B.DT (S.TCon "Bool" [] Unboxed)) = Boolean
-desugarPrimInt _ = __impossible "desugarPrimInt"
+desugarPrimInt t = __impossible $ "desugarPrimInt: " ++ show t
 
 desugarType :: DepType -> DS t v (Type t VarName)
 desugarType = \case
