@@ -771,7 +771,7 @@ arrayGetterSetter arrType elemType elemSize functionName elemGetterSetter Get =
     [ CBIStmt $ CReturn $ Just
       ( CEFnCall elemGetterSetter
         [( CBinOp Add
-          ( CTypeCast (CPtr CChar) ( strArrow arrVariable "data" ) )
+          ( CTypeCast (CPtr CChar) arrVariable )
           ( CBinOp Mul idxVariable ( unsignedIntLiteral elemSize ) )
         )]
       )
@@ -789,7 +789,7 @@ arrayGetterSetter arrType elemType elemSize functionName elemGetterSetter Set =
     [ CBIStmt $ CReturn $ Just
       ( CEFnCall elemGetterSetter
         [ ( CBinOp Add
-            ( CTypeCast (CPtr CChar) ( strArrow arrVariable "data" ) )
+            ( CTypeCast (CPtr CChar) arrVariable )
             ( CBinOp Mul idxVariable ( unsignedIntLiteral elemSize ) )
           )
         , valueVariable
