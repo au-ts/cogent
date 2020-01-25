@@ -116,10 +116,10 @@ genTyDecl (Function t1 t2, n) tns =
 genTyDecl (Array t, n) _ = [CDecl $ CVarDecl t n True Nothing]
 genTyDecl (ArrayL layout, n) _ =
   let elemSize = dataLayoutSizeBytes layout
-      dataType = CPtr (CInt False CIntT)
+      dataType = CPtr $ CInt False CIntT
    in if elemSize == 0
          then []
-         else [CDecl $ CStructDecl n [(dataType, Just "data")], genTySynDecl (n, CStruct n)]
+         else [genTySynDecl (n, dataType)]
 #endif
 genTyDecl (AbsType x, n) _ = [CMacro $ "#include <abstract/" ++ x ++ ".h>"]
 
@@ -293,7 +293,7 @@ genType t@(TCon _ _ s)   | s /= Unboxed = CPtr . CIdent <$> typeCId t
 genType t@(TArray elt l s _)
   | (Boxed _ CLayout) <- s = CPtr <$> genType elt  -- If it's heap-allocated without layout specified
   -- we get rid of unused info here, e.g. array length, hole location
-  | (Boxed _ al)      <- s = CPtr . CIdent <$> typeCId (simplifyType t) -- we are going to declare it as a type
+  | (Boxed _ al)      <- s = CIdent <$> typeCId (simplifyType t) -- we are going to declare it as a type
   | otherwise              = CArray <$> genType elt <*> (CArraySize <$> genLExpr l)
 #endif
 genType t                               = CIdent <$> typeCId t
