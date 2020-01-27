@@ -47,8 +47,6 @@ data Term = TermIdent      Ident
           | RecordUpd                 [(Term, Term)]
           | RecordDcl                 [(Term, Term)]
           | IfThenElse     Term       Term    Term
-          | List                      [Term]
-          | TupleTerm                 [Term]
           | DoBlock                   [Term]
           | DoItem                    Term    Term 
           | Set            SetType    
@@ -298,8 +296,6 @@ prettyTerm p t = case t of
   RecordUpd upds        -> string "\\<lparr>" <+> sep (punctuate (text ",") (map (prettyAssis ":=") upds)) <+> string "\\<rparr>"
   RecordDcl dcls        -> string "\\<lparr>" <+> sep (punctuate (text ",") (map (prettyAssis "=") dcls)) <+> string "\\<rparr>"
   IfThenElse cond c1 c2 -> string "if" <+> prettyTerm p cond <+> string "then" <+> prettyTerm p c1 <+> string "else" <+> prettyTerm p c2 
-  List eles             -> string "[" <+> sep (punctuate (text ",") (map pretty eles)) <+> string "]"
-  TupleTerm eles        -> string "(" <+> sep (punctuate (text ",") (map pretty eles)) <+> string ")"
   DoBlock dos           -> string "do" <$> sep (punctuate (text ";") (map pretty dos)) <$> string "od"
   DoItem  a b           -> pretty a <+> string "\\<leftarrow>" <+> pretty b 
   Set st                -> string "{" <+> (case st of 

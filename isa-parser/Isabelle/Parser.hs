@@ -640,7 +640,7 @@ termL = buildExpressionParser table restL
 
     restL =  antiquoteTermL <||> parensTermL <||> constTermL <||> (TermIdent <$> innerIdentLL) <||> 
              caseOfTermL <||> recordUpdTermL <||> recordDclTermL <||> ifThenElseTermL <||> 
-             listTermL <||> tupleTermL <||> doBlockTermL <||> setTermL 
+             listTermL <||> doBlockTermL <||> setTermL 
     parensTermL = parensL termL
  
 setTermL :: ParserM Term
@@ -694,35 +694,47 @@ dosTermL = do
       term <- termL 
       return term
 
-tupleTermL :: ParserM Term 
-tupleTermL = do 
-  stringL "("
-  res <- alt1 <||> alt2 
-  return res
-
-  where 
-    alt1 = do 
-      eles <- sepBy1 termL (stringL ",")
-      stringL ")"
-      return $ TupleTerm eles
-    alt2 = do 
-      stringL ")"
-      return $ TupleTerm []
-
 listTermL :: ParserM Term 
 listTermL = do  
-  stringL "["
-  res <- alt1 <||> alt2 
-  return res
-
+  lstt <- list <||> tuple <||> pair
+  return lstt
   where 
-    alt1 = do 
-      eles <- sepBy1 termL (stringL ",")
+    list = do 
+      stringL "["
+      res <- alt1 <||> alt2 
+      return $ ListTerm "[" res "]"
+      where 
+        alt1 = do 
+          eles <- sepBy1 termL (stringL ",")
+          stringL "]"
+          return eles
+        alt2 = do 
+          stringL "]"
+          return []
+    
+    tuple = do 
+      stringL "("
+      res <- alt1 <||> alt2 
+      return $ ListTerm "(" res ")"
+      where 
+        alt1 = do 
+          eles <- sepBy1 termL (stringL ",")
+          stringL ")"
+          return eles
+        alt2 = do 
+          stringL ")"
+          return []
+    
+    pair = do 
+      stringL "("
+      stringL "["
+      e1 <- termL 
+      stringL ","
+      e2 <- termL 
       stringL "]"
-      return $ List eles
-    alt2 = do 
-      stringL "]"
-      return $ List []
+      stringL ")"
+      return $ ListTerm "(" [e1, e2] ")"
+
 
 ifThenElseTermL :: ParserM Term
 ifThenElseTermL = do
