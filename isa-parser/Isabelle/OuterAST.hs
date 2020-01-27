@@ -63,7 +63,10 @@ data TheoryDecl types terms = Definition    (Def types terms)
                             | FunFunction  Bool (FunFunc types terms)  -- True is fun / False is function
                             | TheoryString String
                             | PrimRec      (Prc types terms)
+                            | Declare      (Dcl types terms)
                             deriving (Data, Typeable, Show)
+
+data Dcl types terms = Dcl { dclName :: String, dclRules :: [String]} deriving (Data, Typeable, Show)
 
 data Prc types terms = Prc { prcSig :: Maybe (Sig types), recCases :: [(terms, terms)] } deriving (Data, Typeable, Show)
 

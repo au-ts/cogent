@@ -77,7 +77,7 @@ reservedWords = [
   "function", "imports", "instance", "instantiation", "is", "keywords", "lemma", "lemmas",
   "no_translations", "open", "overloaded", "primrec", "record ", "section", "sequential", "sorry",
   "subsection", "subsubsection", "termination", "text", "theorems", "theory", "translations",
-  "type_synonym", "typedecl", "unchecked", "uses", "where" ]
+  "type_synonym", "typedecl", "unchecked", "uses", "where", "declare"]
 
 reservedWordsInner = ["case", "of", "if", "then", "else", "do", "od"]
 
@@ -343,7 +343,15 @@ theoryDeclL = (Definition <$> definitionL) <||>
               (ConstsDecl <$> constsL) <||>
               (RecordDecl <$> recordL) <||>
               (DataTypeDecl <$> datatypeL) <||>
-              (PrimRec <$> primRecL)
+              (PrimRec <$> primRecL) <||>
+              (Declare <$> declareL)
+
+declareL :: ParserM (L Dcl)
+declareL = do 
+  reserved "declare"
+  name <- nameL 
+  rules <- bracketL $ sepBy1 nameL (stringL ",")
+  return $ Dcl name rules 
 
 primRecL :: ParserM (L Prc)
 primRecL = do 
