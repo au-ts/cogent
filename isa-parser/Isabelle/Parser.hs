@@ -126,6 +126,11 @@ parensL p = do { stringL "("; r <- p; stringL ")"; return r }
 quotedL :: ParserM a -> ParserM a
 quotedL p = do { stringL "\""; r <- p; stringL "\""; return r }
 
+bracketL :: ParserM a -> ParserM a 
+bracketL p = do { stringL "["; r <- p; stringL "]"; return r }
+
+bracesL :: ParserM a -> ParserM a 
+bracesL p = do { stringL "{"; r <- p; stringL "}"; return r }
 
 --------------------------------------------------------------------------------
 -- Primitive parsers
