@@ -80,6 +80,7 @@ reservedWords = [
   "type_synonym", "typedecl", "unchecked", "uses", "where", "declare"]
 
 reservedWordsInner = ["case", "of", "if", "then", "else", "do", "od"]
+--  "let", "in"]
 
 ---------------------------------------------------------------
 -- Utility functions and combinators
@@ -654,7 +655,23 @@ termL = buildExpressionParser table restL
     restL =  antiquoteTermL <||> parensTermL <||> constTermL <||> doBlockTermL <||> funUpdTermL <||>
              caseOfTermL <||> recordUpdTermL <||> recordDclTermL <||> ifThenElseTermL <||> 
              listTermL <||> setTermL <||> (TermIdent <$> innerIdentLL) 
+            --  <||> letInTermL
     parensTermL = parensL termL
+
+-- letInTermL :: ParserM Term 
+-- letInTermL = do 
+--   reserved "let"
+--   eles <- sepBy1 dclTermL (stringL ";")
+--   reserved "in"
+--   i <- termL
+--   return $ LetIn eles i 
+
+-- letTermL :: ParserM (Term, Term) 
+-- letTermL = do 
+--   term1 <- try (parensL $ TermIdent <$> innerIdentLL) <||> (TermIdent <$> innerIdentLL) 
+--   stringL "="
+--   term2 <- termL
+--   return (term1, term2) 
 
 funUpdTermL :: ParserM Term 
 funUpdTermL = do 
@@ -664,11 +681,9 @@ funUpdTermL = do
   where 
     alt1 = do
       stringL "("
-      x <- termL
-      stringL ":="
-      v <- termL
+      eles <- sepBy1 fupdTermL (stringL ",")
       stringL ")"
-      return $ ListTerm "(" [x,v] ")"
+      return $ ListTerm "(" eles ")"
     alt2 = do 
       stringL "("
       eles <- sepBy1 mapsToTermL (stringL ",") 
@@ -676,11 +691,16 @@ funUpdTermL = do
       return $ ListTerm "(" eles ")"
     alt3 = do 
       stringL "["
-      x <- termL
-      stringL ":="
-      v <- termL
+      eles <- sepBy1 fupdTermL (stringL ",")
       stringL "]"
-      return $ ListTerm "(" [x,v] ")"
+      return $ ListTerm "(" eles ")"
+
+fupdTermL :: ParserM Term
+fupdTermL = do
+  term1 <- termL
+  stringL ":="
+  term2 <- termL
+  return $ ListTerm "(" [term1, term2] ")"
 
 mapsToTermL :: ParserM Term
 mapsToTermL = do 
@@ -804,7 +824,7 @@ dclTermL = do
   term1 <- fieldL
   stringL "="
   term2 <- termL
-  return (AntiTerm term1, term2) 
+  return (TermIdent $ Id term1, term2) 
 
 recordUpdTermL :: ParserM Term 
 recordUpdTermL = do 
@@ -818,7 +838,7 @@ updTermL = do
   term1 <- fieldL
   stringL ":="
   term2 <- termL
-  return (AntiTerm term1, term2) 
+  return (TermIdent $ Id term1, term2) 
 
 fieldL :: ParserM String 
 fieldL = notReservedLexeme fieldS 

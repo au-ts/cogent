@@ -50,6 +50,7 @@ data Term = TermIdent      Ident
           | DoBlock                   [Term]
           | DoItem                    Term    Term 
           | Set            SetType    
+          -- | LetIn          [(Term, Term)]     Term
   deriving (Data, Typeable, Eq, Ord, Show)
 
 data SetType = Quant Term Term 
@@ -324,6 +325,7 @@ prettyTerm p t = case t of
                               Quant q c -> pretty q <> string "." <+> pretty c
                               Range a b -> pretty a <> string ".." <> pretty b 
                               Listing lst -> sep (punctuate (text ",") (map pretty lst))) <+> string "}"
+  -- LetIn lt i            -> string "let" <+> sep (punctuate (text ";") (map (prettyAssis "=") lt)) <+> string "in" <+> pretty i
 
 prettyAssis :: String -> (Term, Term) -> Doc 
 prettyAssis s (p, e) = pretty p <+> pretty s <+> pretty e
