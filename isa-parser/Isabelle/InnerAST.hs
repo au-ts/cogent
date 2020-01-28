@@ -93,6 +93,8 @@ data TermBinOp =
                | Minus
                | Less
                | In 
+               | Add
+               | Times 
   deriving (Data, Typeable, Eq, Ord, Show)
 
 data TermUnOp =
@@ -196,14 +198,17 @@ termBinOpRec b = case b of
   Greater   -> BinOpRec AssocRight 50 ">"
   Minus     -> BinOpRec AssocLeft  65 "-"
   Less      -> BinOpRec AssocLeft  50 "<"
-  In        -> BinOpRec AssocRight  50 "\\<in>"
+  In        -> BinOpRec AssocRight 50 "\\<in>"
+  Add       -> BinOpRec AssocLeft  65 "+"
+  Times     -> BinOpRec AssocLeft  70 "*"
 
 -- You must include all binary operators in this list. Miss one and it doesn't get parsed.
 -- Order does NOT matter. They are sorted by precedence.
 binOps = [Equiv, MetaImp, Eq,      NotEq,         Iff,
           Conj,  Disj,    Implies, DollarSignApp, Bind, 
           Image, Union,   Ge,      Alt,           Append, 
-          Greater, Minus, Less,    In]
+          Greater, Minus, Less,    In,            Add, 
+          Times]
 
 termBinOpPrec :: TermBinOp -> Precedence
 termBinOpPrec b = if p >= termAppPrec
