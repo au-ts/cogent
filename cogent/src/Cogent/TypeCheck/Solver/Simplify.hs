@@ -287,7 +287,7 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
     hoistMaybe $ Just (c:cs)
 
   R rp1 r1 s1 :< R rp2 r2 s2
-    | Row.null r1 && Row.null r2, (Just c) <- doSigilMatch s1 s2, rp1 == rp2 -> hoistMaybe $ Just c
+    | Row.null r1 && Row.null r2, (Just c) <- doSigilMatch s1 s2, sameRecursive rp1 rp2 -> hoistMaybe $ Just c
     | Just (r1',r2') <- extractVariableEquality r1 r2 -> hoistMaybe $ Just [R r1' s1 :=: R r2' s2]
     | otherwise -> do
       let commons  = Row.common r1 r2
@@ -301,7 +301,7 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
       hoistMaybe $ Just (c:cs ++ ds)
 
   R rp1 r1 s1 :=: R rp2 r2 s2
-    | Row.null r1 && Row.null r2, (Just c) <- doSigilMatch s1 s2, rp1 == rp2 -> hoistMaybe $ Just c
+    | Row.null r1 && Row.null r2, (Just c) <- doSigilMatch s1 s2, sameRecursive rp1 rp2 -> hoistMaybe $ Just c
     | otherwise -> do
       let commons  = Row.common r1 r2
           (ls, rs) = unzip commons
@@ -363,15 +363,16 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
 
   -- Recursive types
 
-  RPar v1 (Just m1) :<  RPar v2 (Just m2) -> guard (m1 M.! v1 == m2 M.! v2) >> hoistMaybe $ Just []
-  RPar v1 (Just m1) :=: RPar v2 (Just m2) -> guard (m1 M.! v1 == m2 M.! v2) >> hoistMaybe $ Just []
+  T (TRPar v1 (Just m1)) :<  T (TRPar v2 (Just m2)) -> hoistMaybe $ Just [ (m1 M.! v1) :< (m2 M.! v2) ]
+  T (TRPar v1 (Just m1)) :=: T (TRPar v2 (Just m2)) -> hoistMaybe $ Just [ (m1 M.! v1) :=: (m2 M.! v2) ]
 
-  RPar v m :< x  -> hoistMaybe $ Just [unroll v m :< x]
-  x :< RPar v m  -> hoistMaybe $ Just [x :< unroll v m]
-  x :=: RPar v m -> hoistMaybe $ Just [x :=: unroll v m]
-  RPar v m :=: x -> hoistMaybe $ Just [unroll v m :=: x]
+  T (TRPar v1 Nothing) :<  T (TRPar v2 Nothing) -> hoistMaybe $ Just []
+  T (TRPar v1 Nothing) :=: T (TRPar v2 Nothing) -> hoistMaybe $ Just []
 
-  -- TODO: Remaining cases
+  T (TRPar v m) :< x  -> hoistMaybe $ Just [unroll v m :< x]
+  x :< T (TRPar v m)  -> hoistMaybe $ Just [x :< unroll v m]
+  x :=: T (TRPar v m) -> hoistMaybe $ Just [x :=: unroll v m]
+  T (TRPar v m) :=: x -> hoistMaybe $ Just [unroll v m :=: x]
 
   UnboxedNotRecursive (R None _ (Left Unboxed))     -> hoistMaybe $ Just []
   UnboxedNotRecursive (R _ _    (Left (Boxed _ _))) -> hoistMaybe $ Just []

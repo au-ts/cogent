@@ -348,10 +348,15 @@ unCoerceRp (Mu v) = Rec v
 unCoerceRp None   = NonRec
 unCoerceRp (UP i) = __impossible $ "Tried to coerce unification parameter (?" ++ show i ++ ") in core recursive type to surface recursive type"
 
+sameRecursive :: RP -> RP -> Bool
+sameRecursive (Mu _) (Mu _) = True
+sameRecursive None    None = True
+sameRecursive _ _ = False
+
 unroll :: VarName -> RecContext TCType -> TCType
 unroll v (Just ctxt) = embedRecPar' (Just ctxt) (ctxt M.! v)
   where
-    embedRecPar' ctxt (RPar v Nothing) = RPar v ctxt
+    embedRecPar' ctxt (T (TRPar v Nothing)) = T (TRPar v ctxt)
     embedRecPar' ctxt (T t) = T $ fmap (embedRecPar' ctxt) t
     embedRecPar' (Just ctxt) t@(R rp r s) = let ctxt' = (case rp of (Mu v) -> M.insert v t ctxt; _ -> ctxt)
                                     in R rp (fmap (embedRecPar' $ Just ctxt') r) s
@@ -667,7 +672,6 @@ substType vs (R rp x s) = R rp (fmap (substType vs) x) s
 substType vs (A t l s tkns) = A (substType vs t) l s tkns
 #endif
 substType vs (Synonym n ts) = Synonym n (fmap (substType vs) ts)
-substType vs (RPar v m) = RPar v (fmap (fmap (substType vs)) m)
 substType vs (T (TVar v b u)) | Just x <- lookup v vs
   = case (b,u) of
       (False, False) -> x

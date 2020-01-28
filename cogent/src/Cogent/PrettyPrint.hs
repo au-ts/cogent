@@ -579,7 +579,7 @@ instance (Pretty t, TypeType t, Pretty e, Pretty l, Eq l) => Pretty (Type e l t)
                      | otherwise = pretty e
   pretty (TUnbox t) = (typesymbol "#" <> prettyT' t) & (if __cogent_fdisambiguate_pp then (<+> comment "{- unbox -}") else id)
   pretty (TBang t) = (prettyT' t <> typesymbol "!") & (if __cogent_fdisambiguate_pp then (<+> comment "{- bang -}") else id)
-  pretty (TRPar v _) = (if __cogent_fdisambiguate_pp then (comment "{- rec -}" <+> ) else id) $ typevar v
+  pretty (TRPar v m) = (if __cogent_fdisambiguate_pp then (comment "{- rec -}" <+> ) else id) $ typevar v <+> comment (case m of Just _ -> "Just"; _ -> "Nothing")
   pretty (TTake fs x) = (prettyT' x <+> typesymbol "take"
                                     <+> case fs of Nothing  -> tupled (fieldname ".." : [])
                                                    Just fs' -> tupled1 (map fieldname fs'))
@@ -624,7 +624,6 @@ instance Pretty TCType where
   pretty (U v) = warn ('?':show v)
   pretty (Synonym n []) = warn ("syn:" ++ n)
   pretty (Synonym n ts) = warn ("syn:" ++ n) <+> spaceList (map pretty ts)
-  pretty (RPar v _) = keyword "rec" <+> typevar v
 
 instance Pretty LocType where
   pretty t = pretty (stripLocT t)
