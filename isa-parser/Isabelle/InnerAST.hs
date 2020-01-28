@@ -82,7 +82,7 @@ data TermBinOp =
                | Conj
                | Disj
                | Implies
-               | DollarSignApp
+               | DollarApp
                | Bind
                | Image
                | Union 
@@ -94,7 +94,14 @@ data TermBinOp =
                | Less
                | In 
                | Add
-               | Times 
+               | Times
+               | BitAND 
+               | BitOR 
+               | BitXOR 
+               | Shiftl
+               | Shiftr    
+               | TestBit 
+               | Nth
   deriving (Data, Typeable, Eq, Ord, Show)
 
 data TermUnOp =
@@ -180,35 +187,43 @@ subSymStr = foldl (\s v -> s ++ subSym ++ [v]) []
 --
 termBinOpRec :: TermBinOp -> BinOpRec
 termBinOpRec b = case b of
-  Equiv     -> BinOpRec AssocRight 2  "\\<equiv>"
-  MetaImp   -> BinOpRec AssocRight 1  "\\<Longrightarrow>"
-  Eq        -> BinOpRec AssocLeft  50 "="
-  NotEq     -> BinOpRec AssocLeft  50 "\\<noteq>"
-  Iff       -> BinOpRec AssocRight 24 "\\<Leftrightarrow>"
-  Conj      -> BinOpRec AssocRight 35 "\\<and>"
-  Disj      -> BinOpRec AssocRight 30 "\\<or>"
-  Implies   -> BinOpRec AssocRight 25 "\\<longrightarrow>"
-  DollarSignApp -> BinOpRec AssocRight 10 "$"
-  Bind      -> BinOpRec AssocRight 60 ">>="
-  Image     -> BinOpRec AssocRight 90 "`"
-  Union     -> BinOpRec AssocLeft  65 "\\<union>"
-  Ge        -> BinOpRec AssocRight 50 "\\<ge>"
-  Alt       -> BinOpRec AssocRight 20 "\\<sqinter>"
-  Append    -> BinOpRec AssocLeft  65 "@"
-  Greater   -> BinOpRec AssocRight 50 ">"
-  Minus     -> BinOpRec AssocLeft  65 "-"
-  Less      -> BinOpRec AssocLeft  50 "<"
-  In        -> BinOpRec AssocRight 50 "\\<in>"
-  Add       -> BinOpRec AssocLeft  65 "+"
-  Times     -> BinOpRec AssocLeft  70 "*"
+  Equiv     -> BinOpRec AssocRight 2   "\\<equiv>"
+  MetaImp   -> BinOpRec AssocRight 1   "\\<Longrightarrow>"
+  Eq        -> BinOpRec AssocLeft  50  "="
+  NotEq     -> BinOpRec AssocLeft  50  "\\<noteq>"
+  Iff       -> BinOpRec AssocRight 24  "\\<Leftrightarrow>"
+  Conj      -> BinOpRec AssocRight 35  "\\<and>"
+  Disj      -> BinOpRec AssocRight 30  "\\<or>"
+  Implies   -> BinOpRec AssocRight 25  "\\<longrightarrow>"
+  DollarApp -> BinOpRec AssocRight 10  "$"
+  Bind      -> BinOpRec AssocRight 60  ">>="
+  Image     -> BinOpRec AssocRight 90  "`"
+  Union     -> BinOpRec AssocLeft  65  "\\<union>"
+  Ge        -> BinOpRec AssocRight 50  "\\<ge>"
+  Alt       -> BinOpRec AssocRight 20  "\\<sqinter>"
+  Append    -> BinOpRec AssocLeft  65  "@"
+  Greater   -> BinOpRec AssocRight 50  ">"
+  Minus     -> BinOpRec AssocLeft  65  "-"
+  Less      -> BinOpRec AssocLeft  50  "<"
+  In        -> BinOpRec AssocRight 50  "\\<in>"
+  Add       -> BinOpRec AssocLeft  65  "+"
+  Times     -> BinOpRec AssocLeft  70  "*"
+  BitAND    -> BinOpRec AssocLeft  64  "AND"
+  BitOR     -> BinOpRec AssocLeft  59  "OR"
+  BitXOR    -> BinOpRec AssocLeft  59  "XOR"
+  Shiftl    -> BinOpRec AssocLeft  55  "<<"
+  Shiftr    -> BinOpRec AssocLeft  55  ">>"
+  TestBit   -> BinOpRec AssocLeft  100 "!!"
+  Nth       -> BinOpRec AssocLeft  100 "!"
 
 -- You must include all binary operators in this list. Miss one and it doesn't get parsed.
 -- Order does NOT matter. They are sorted by precedence.
-binOps = [Equiv, MetaImp, Eq,      NotEq,         Iff,
-          Conj,  Disj,    Implies, DollarSignApp, Bind, 
-          Image, Union,   Ge,      Alt,           Append, 
-          Greater, Minus, Less,    In,            Add, 
-          Times]
+binOps = [Equiv,   MetaImp, Eq,      NotEq,         Iff,
+          Conj,    Disj,    Implies, DollarApp,     Bind, 
+          Image,   Union,   Ge,      Alt,           Append, 
+          Greater, Minus,   Less,    In,            Add, 
+          Times,   BitAND,  BitOR,   BitXOR,        Shiftl,
+          Shiftr,  TestBit, Nth]
 
 termBinOpPrec :: TermBinOp -> Precedence
 termBinOpPrec b = if p >= termAppPrec
