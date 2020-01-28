@@ -621,7 +621,9 @@ instance Pretty LocType where
 renderPolytypeHeader vs ts = keyword "all" <> tupled (map prettyKS vs ++ map prettyTS ts) <> symbol "."
     where prettyKS (v,K False False False) = typevar v
           prettyKS (v,k) = typevar v <+> symbol ":<" <+> pretty k
-          prettyTS (v,t) = typevar v <+> symbol ":~" <+> pretty t
+          prettyTS (v,t) = typevar v <+> symbol ":~" <+> prettyID t
+          prettyID (Left x) = pretty x
+          prettyID (Right x) = pretty x
 
 instance Pretty t => Pretty (Polytype t) where
   pretty (PT [] [] t) = pretty t
