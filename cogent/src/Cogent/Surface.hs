@@ -149,7 +149,7 @@ u32  = TCon "U32"  [] Unboxed
 bool = TCon "Bool" [] Unboxed
 
 
-data Polytype t = PT [(TyVarName, Kind)] [(LoVarName, TypeName)] t
+data Polytype t = PT [(TyVarName, Kind)] [(LoVarName, Either TypeName TyVarName)] t
   deriving (Data, Eq, Show, Functor, Foldable, Traversable, Ord)
 
 numOfArgs (PT x _ _) = length x
