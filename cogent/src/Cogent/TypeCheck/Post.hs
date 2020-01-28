@@ -162,13 +162,8 @@ normaliseT d (Synonym n ts) =
     Just (ts', Just b) -> normaliseT d (substType (zip ts' ts) b)
     _ -> __impossible ("normaliseT: unresolved synonym " ++ show n)
 normaliseT d (V x) = T . TVariant . M.fromList . Row.toEntryList . fmap (:[]) <$> traverse (normaliseT d) x
--- TODO: Fix this
 normaliseT d (R rp x (Left s)) = T . flip (TRecord (unCoerceRp rp)) (fmap (const noRepE) s) . Row.toEntryList <$> traverse (normaliseT d) x
 normaliseT d (R _ x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
 normaliseT d (U x) = __impossible ("normaliseT: invalid type (?" ++ show x ++ ")")
-normaliseT d (RPar v m) = do
-  m' <- mapM id (fmap (\x -> mapM id (M.map (normaliseT d) x)) m)
-  return $ T (TRPar v m')
-  --T <$> (TRPar v <$> Just (mapM (normaliseT d) m))
 normaliseT d (T x) = T <$> traverse (normaliseT d) x
 

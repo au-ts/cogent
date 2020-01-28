@@ -50,6 +50,7 @@ import Data.Nat (Nat(Zero, Suc))
 import qualified Data.Nat as Nat
 import Data.Vec hiding (splitAt, length, zipWith, zip, unzip)
 import qualified Data.Vec as Vec
+import qualified Data.Map as M
 
 import Control.Arrow hiding ((<+>))
 import Data.Binary (Binary)
@@ -99,6 +100,27 @@ isUnboxed :: Type t -> Bool
 isUnboxed (TCon _ _ Unboxed) = True
 isUnboxed (TRecord _ _ Unboxed) =  True
 isUnboxed _ = False
+
+unroll :: RecParName -> RecContext (Type t) -> Type t
+unroll v (Just ctxt) = erp (Just ctxt) (ctxt M.! v)
+  where
+    -- Embed rec pars
+    erp :: RecContext (Type t) -> Type t -> Type t
+    erp c (TCon n ts s) = TCon n (map (erp c) ts) s
+    erp c (TFun t1 t2) = TFun (erp c t1) (erp c t2)
+    erp c (TSum r) = TSum $ map (\(a,(t,b)) -> (a, (erp c t, b))) r
+    erp c (TProduct t1 t2) = TProduct (erp c t1) (erp c t2)
+    erp (Just c) t@(TRecord rp fs s) =
+      let c' = case rp of Rec v -> M.insert v t c; _ -> c
+      in TRecord rp (map (\(a,(t,b)) -> (a, (erp (Just c') t, b))) fs) s
+    -- Context must be Nothing at this point
+    erp c (TRPar v Nothing) = TRPar v c
+#ifdef BUILTIN_ARRAYS
+    erp c (TArray t s) = TArray (erp c t) s
+#endif
+    erp _ t = t
+unroll v _ = __impossible "unroll in core given an empty context - this usually means a recursive parameter was not unrolled before being used"
+
 
 data FunNote = NoInline | InlineMe | MacroCall | InlinePlease  -- order is important, larger value has stronger precedence
              deriving (Bounded, Eq, Ord, Show)

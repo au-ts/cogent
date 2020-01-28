@@ -98,18 +98,21 @@ type FunClass  = M.Map StrlType (S.Set (FunName, Attr))  -- ^ @c_strl_type &#x21
 type VarPool   = M.Map CType [CId]  -- ^ vars available @(ty_id &#x21A6; [var_id])@
 type GenRead v = Vec v CExpr
 
-data GenState  = GenState { _cTypeDefs    :: [(StrlType, CId)]
-                          , _cTypeDefMap  :: M.Map StrlType CId
-                          , _typeSynonyms :: M.Map TypeName CType
-                          , _typeCorres   :: DList.DList (CId, CC.Type 'Zero)
+data GenState  = GenState { _cTypeDefs       :: [(StrlType, CId)]
+                          , _cTypeDefMap     :: M.Map StrlType CId
+                          , _typeSynonyms    :: M.Map TypeName CType
+                          , _typeCorres      :: DList.DList (CId, CC.Type 'Zero)
                             -- ^ C type names corresponding to Cogent types
-                          , _absTypes     :: M.Map TypeName (S.Set [CId])
-                          , _custTypeGen  :: M.Map (CC.Type 'Zero) (CId, CustTyGenInfo)
-                          , _funClasses   :: FunClass
-                          , _localOracle  :: Integer
-                          , _globalOracle :: Integer
-                          , _varPool      :: VarPool
-                          , _ffiFuncs     :: M.Map FunName (CType, CType)
+                          , _absTypes        :: M.Map TypeName (S.Set [CId])
+                          , _custTypeGen     :: M.Map (CC.Type 'Zero) (CId, CustTyGenInfo)
+                          , _recParCIds      :: M.Map (CC.Type 'Zero) CId
+                          , _recParRecordIds :: M.Map RecParName CId
+                            -- ^ Maps a recursive parameter to the CId of the record it references
+                          , _funClasses      :: FunClass
+                          , _localOracle     :: Integer
+                          , _globalOracle    :: Integer
+                          , _varPool         :: VarPool
+                          , _ffiFuncs        :: M.Map FunName (CType, CType)
                             -- ^ A map containing functions that need to generate C FFI functions. 
                             --   The map is from the original function names (before prefixing with @\"ffi_\"@ to a pair of @(marshallable_arg_type, marshallable_ret_type)@.
                             --   This map is needed when we generate the Haskell side of the FFI.
@@ -353,22 +356,23 @@ genFunDispatch tn (ti, to) (S.toList -> fs) = do
     genBreakWithFnCall :: Bool -> CStmt -> CStmt
     genBreakWithFnCall fm s = if fm then CBlock [CBIStmt s, CBIStmt CBreak] else s
 
-genTyDecl :: (StrlType, CId) -> [TypeName] -> [CExtDecl]
-genTyDecl (Record x _, n) _ = [CDecl $ CStructDecl n (map (second Just . swap) x), genTySynDecl (n, CStruct n)]
-genTyDecl (Product t1 t2, n) _ = [CDecl $ CStructDecl n [(t1, Just p1), (t2, Just p2)]]
+genTyDecl :: (StrlType, CId) -> [TypeName] -> ([CExtDecl], [CExtDecl])
+genTyDecl (Record x _, n) _ = ([CDecl $ CStructDecl n (map (second Just . swap) x)], [genTySynDecl (n, CStruct n)])
+genTyDecl (Product t1 t2, n) _ = ([CDecl $ CStructDecl n [(t1, Just p1), (t2, Just p2)]], [])
 genTyDecl (Variant x, n) _ = case __cogent_funion_for_variants of
-  False -> [CDecl $ CStructDecl n ((CIdent tagsT, Just fieldTag) : map (second Just . swap) (M.toList x)),
-            genTySynDecl (n, CStruct n)]
-  True  -> [CDecl $ CStructDecl n [(CIdent tagsT, Just fieldTag), (CUnion Nothing $ Just (map swap (M.toList x)), Nothing)],
-            genTySynDecl (n, CStruct n)]
+  False -> ([CDecl $ CStructDecl n ((CIdent tagsT, Just fieldTag) : map (second Just . swap) (M.toList x))],
+            [genTySynDecl (n, CStruct n)])
+  True  -> ([CDecl $ CStructDecl n [(CIdent tagsT, Just fieldTag), (CUnion Nothing $ Just (map swap (M.toList x)), Nothing)]],
+            [genTySynDecl (n, CStruct n)])
 genTyDecl (Function t1 t2, n) tns =
-  if n `elem` tns then []
-                  else [CDecl $ CTypeDecl (CIdent fty) [n]]
+  if n `elem` tns then ([],[])
+                  else ([], [CDecl $ CTypeDecl (CIdent fty) [n]])
   where fty = if __cogent_funtyped_func_enum then untypedFuncEnum else unitT
+-- TODO: This is dodgy
 #ifdef BUILTIN_ARRAYS
-genTyDecl (Array t ms, n) _ = [CDecl $ CVarDecl t n True Nothing]
+genTyDecl (Array t ms, n) _ = ([CDecl $ CVarDecl t n True Nothing],[])
 #endif
-genTyDecl (AbsType x, n) _ = [CMacro $ "#include <abstract/" ++ x ++ ".h>"]
+genTyDecl (AbsType x, n) _ = ([CMacro $ "#include <abstract/" ++ x ++ ".h>"],[])
 
 genTySynDecl :: (TypeName, CType) -> CExtDecl
 genTySynDecl (n,t) = CDecl $ CTypeDecl t [n]
@@ -382,14 +386,24 @@ freshGlobalCId c = do (globalOracle += 1); (c:) . show <$> use globalOracle
 lookupStrlTypeCId :: StrlType -> Gen v (Maybe CId)
 lookupStrlTypeCId st = M.lookup st <$> use cTypeDefMap
 
+genNewCId :: CId -> StrlType -> Gen v CId
+genNewCId t st = do 
+  cTypeDefs %= ((st,t):)  -- NOTE: add a new entry at the front
+  cTypeDefMap %= M.insert st t
+  return t
+
 -- Lookup a structure and return its name, or create a new entry.
 getStrlTypeCId :: StrlType -> Gen v CId
 getStrlTypeCId st = do lookupStrlTypeCId st >>= \case
-                         Nothing -> do t <- freshGlobalCId 't'
-                                       cTypeDefs %= ((st,t):)  -- NOTE: add a new entry at the front
-                                       cTypeDefMap %= M.insert st t
-                                       return t
+                         Nothing -> do 
+                            t <- freshGlobalCId 't'
+                            genNewCId t st
                          Just t  -> return t
+
+getStrlTypeWithCId :: CId -> StrlType -> Gen v CId
+getStrlTypeWithCId t st = do lookupStrlTypeCId st >>= \case
+                                Nothing -> genNewCId t st
+                                Just t  -> return t
 
 {-# RULES
 "monad-left-id" [~] forall x k. return x >>= k = k x
@@ -472,8 +486,29 @@ typeCId t = use custTypeGen >>= \ctg ->
     typeCId' (TProduct t1 t2) = getStrlTypeCId =<< Record <$> (P.zip [p1,p2] <$> mapM genType [t1,t2]) <*> pure True
     typeCId' (TSum fs) = getStrlTypeCId =<< Variant . M.fromList <$> mapM (secondM genType . second fst) fs
     typeCId' (TFun t1 t2) = getStrlTypeCId =<< Function <$> genType t1 <*> genType t2  -- Use the enum type for function dispatching
-    -- TODO: Fix
-    typeCId' (TRecord _ fs _) = getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs) <*> pure True
+    typeCId' t@(TRecord (Rec v) fs _) = do
+      newId <- freshGlobalCId 't'
+      recParRecordIds %= M.insert v newId
+      strlType <- Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs) <*> pure True
+      res      <- lookupStrlTypeCId strlType
+      recParRecordIds %= M.delete v
+      case res of
+        Nothing -> do
+          getStrlTypeWithCId newId strlType
+        Just x ->  do 
+          globalOracle -= 1
+          return x
+    typeCId' t@(TRecord NonRec fs _) = getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs) <*> pure True
+    typeCId' t@(TRPar v (Just m)) = do
+      recId <- M.lookup (m M.! v) <$> use recParCIds
+      case recId of 
+        Nothing -> do
+          Just res <- M.lookup v <$> use recParRecordIds
+          recParCIds %= (M.insert (m M.! v) res)
+          return res 
+        Just x -> 
+          return x
+
     typeCId' (TUnit) = return unitT
 #ifdef BUILTIN_ARRAYS
     typeCId' (TArray t l) = getStrlTypeCId =<< Array <$> genType t <*> pure (Just $ fromIntegral l)
@@ -515,8 +550,9 @@ typeCId t = use custTypeGen >>= \ctg ->
 -- Returns the right C type
 genType :: CC.Type 'Zero -> Gen v CType
 genType t@(TRecord _ _ s) | s /= Unboxed = CPtr . CIdent <$> typeCId t  -- c.f. genTypeA
-genType t@(TString)                    = CPtr . CIdent <$> typeCId t
-genType t@(TCon _ _ s)  | s /= Unboxed = CPtr . CIdent <$> typeCId t
+genType t@(TString)                      = CPtr . CIdent <$> typeCId t
+genType t@(TCon _ _ s)  | s /= Unboxed   = CPtr . CIdent <$> typeCId t
+genType t@(TRPar _ _)                    = CPtr . CIdent <$> typeCId t
 #ifdef BUILTIN_ARRAYS
 genType   (TArray t l)                 = CArray <$> genType t <*> pure (CArraySize (mkConst U32 l))  -- c.f. genTypeP
 #endif
@@ -1153,6 +1189,8 @@ compile defs mcache ctygen =
                                     , _typeCorres   = DList.empty
                                     , _absTypes     = M.empty
                                     , _custTypeGen  = M.fromList $ P.map (second $ (,CTGI)) ctygen
+                                    , _recParCIds   = M.empty
+                                    , _recParRecordIds = M.empty
                                     , _funClasses   = M.empty
                                     , _localOracle  = 0
                                     , _globalOracle = 0
@@ -1171,9 +1209,9 @@ compile defs mcache ctygen =
       tsyns' = M.toList $ st ^. typeSynonyms
       absts' = M.toList $ st ^. absTypes
       tycorr = reverse $ DList.toList $ st ^. typeCorres
-      tdefs'' = concat (map (flip genTyDecl tns) tdefs')
+      (tdefs'', tdecls'') = (concat *** concat) $ P.unzip (map (flip genTyDecl tns) tdefs')
   in ( enum ++ fenums
-     , tdefs''  -- type definitions
+     , tdecls'' ++ tdefs''  -- type definitions
      , fndecls  -- Ext function decl's (generated by CodeGen monad)
      , dispfs
      , map genTySynDecl tsyns'  -- type synonyms

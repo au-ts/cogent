@@ -18,6 +18,8 @@ import Control.Monad.Trans.Class (lift)
 import qualified Data.Set as S
 import qualified Data.Map as M
 
+import Debug.Trace
+
 onGoal :: (Constraint -> Maybe [Constraint]) -> Goal -> Maybe [Goal]
 onGoal f g = fmap (map (derivedGoal g)) (f (g ^. goal))
 
@@ -140,7 +142,7 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
     Just (c:cs)
 
   R rp1 r1 s1 :< R rp2 r2 s2 
-                     | Row.null r1 && Row.null r2 && s1 == s2 && rp1 == rp2 -> Just []
+                     | Row.null r1 && Row.null r2 && s1 == s2 && sameRecursive rp1 rp2 -> Just []
                      | Just (r1',r2') <- extractVariableEquality r1 r2 -> Just [R rp1 r1' s1 :=: R rp2 r2' s2]
                      | otherwise -> do
     let commons  = Row.common r1 r2
@@ -154,7 +156,7 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
     Just (c:cs ++ ds)
 
   R rp1 r1 s1 :=: R rp2 r2 s2 
-                      | Row.null r1 && Row.null r2 && s1 == s2 && rp1 == rp2 -> Just []
+                      | Row.null r1 && Row.null r2 && s1 == s2 && sameRecursive rp1 rp2 -> Just []
                       | otherwise -> do
     let commons  = Row.common r1 r2
         (ls, rs) = unzip commons
@@ -176,13 +178,16 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
 
   -- Recursive types
 
-  RPar v1 (Just m1) :<  RPar v2 (Just m2) -> guard (m1 M.! v1 == m2 M.! v2) >> Just []
-  RPar v1 (Just m1) :=: RPar v2 (Just m2) -> guard (m1 M.! v1 == m2 M.! v2) >> Just []
+  T (TRPar v1 (Just m1)) :<  T (TRPar v2 (Just m2)) -> Just [ (m1 M.! v1) :< (m2 M.! v2) ]
+  T (TRPar v1 (Just m1)) :=: T (TRPar v2 (Just m2)) -> Just [ (m1 M.! v1) :=: (m2 M.! v2) ]
 
-  RPar v m :< x  -> Just [unroll v m :< x]
-  x :< RPar v m  -> Just [x :< unroll v m]
-  x :=: RPar v m -> Just [x :=: unroll v m]
-  RPar v m :=: x -> Just [unroll v m :=: x]
+  T (TRPar v1 Nothing) :<  T (TRPar v2 Nothing) -> Just []
+  T (TRPar v1 Nothing) :=: T (TRPar v2 Nothing) -> Just []
+
+  T (TRPar v m) :< x  -> Just [unroll v m :< x]
+  x :< T (TRPar v m)  -> Just [x :< unroll v m]
+  x :=: T (TRPar v m) -> Just [x :=: unroll v m]
+  T (TRPar v m) :=: x -> Just [unroll v m :=: x]
 
   UnboxedNotRecursive (R None _ (Left Unboxed))     -> Just []
   UnboxedNotRecursive (R _ _    (Left (Boxed _ _))) -> Just []

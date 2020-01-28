@@ -488,6 +488,7 @@ tvT (RT (TRecord _ fs _)) = foldMap (tvT . fst . snd) fs
 tvT (RT (TVariant alts)) = foldMap (foldMap tvT . fst) alts
 tvT (RT (TTuple ts)) = foldMap tvT ts
 tvT (RT (TUnit)) = []
+tvT (RT (TRPar _ m)) = foldMap (foldMap tvT) m
 #ifdef BUILTIN_ARRAYS
 tvT (RT (TArray t e)) = tvT t  -- TODO: tvE
 #endif

@@ -183,7 +183,7 @@ data CExtDecl = CFnDefn (CType, CId) [(CType, CId)] [CBlockItem] FnSpec
 
 -- | 'StrlType' tried to unify some of the types we have in Core.
 --   It can be deemed as the C representation for Cogent types.
-data StrlType = Record  [(CId, CType)] Bool  -- ^ @(fieldname &#x21A6; fieldtype) * is_unboxed@
+data StrlType = Record [(CId, CType)] Bool  -- ^ @(fieldname &#x21A6; fieldtype) * is_unboxed@
               | Product CType CType          -- ^ pair
               | Variant (M.Map CId CType)    -- ^ one tag field, and fields for all possibilities
               | Function CType CType

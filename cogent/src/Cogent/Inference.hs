@@ -99,25 +99,6 @@ isSubtype t1 t2 = runMaybeT (t1 `lub` t2) >>= \case Just t  -> do
                                                     Nothing -> return False
 
 
-unroll :: RecParName -> RecContext (Type t) -> Type t
-unroll v (Just ctxt) = erp (Just ctxt) (ctxt M.! v)
-  where
-    -- Embed rec pars
-    erp :: RecContext (Type t) -> Type t -> Type t
-    erp c (TCon n ts s) = TCon n (map (erp c) ts) s
-    erp c (TFun t1 t2) = TFun (erp c t1) (erp c t2)
-    erp c (TSum r) = TSum $ map (\(a,(t,b)) -> (a, (erp c t, b))) r
-    erp c (TProduct t1 t2) = TProduct (erp c t1) (erp c t2)
-    erp (Just c) t@(TRecord rp fs s) =
-      let c' = case rp of Rec v -> M.insert v t c; _ -> c
-      in TRecord rp (map (\(a,(t,b)) -> (a, (erp (Just c') t, b))) fs) s
-    -- Context must be Nothing at this point
-    erp c (TRPar v Nothing) = TRPar v c
-#ifdef BUILTIN_ARRAYS
-    erp c (TArray t s) = TArray (erp c t) s
-#endif
-    erp _ t = t
-
 bound :: Bound -> Type t -> Type t -> MaybeT (TC t v) (Type t)
 bound _ t1 t2 | t1 == t2 = return t1
 bound b (TRecord rp1 fs1 s1) (TRecord rp2 fs2 s2) | map fst fs1 == map fst fs2, s1 == s2, rp1 == rp2 = do

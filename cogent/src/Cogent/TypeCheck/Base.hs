@@ -252,10 +252,15 @@ unCoerceRp (Mu v) = Rec v
 unCoerceRp None   = NonRec
 unCoerceRp (UP i) = __impossible $ "Tried to coerce unification parameter (?" ++ show i ++ ") in core recursive type to surface recursive type"
 
+sameRecursive :: RP -> RP -> Bool
+sameRecursive (Mu _) (Mu _) = True
+sameRecursive None    None = True
+sameRecursive _ _ = False
+
 unroll :: VarName -> RecContext TCType -> TCType
 unroll v (Just ctxt) = embedRecPar' (Just ctxt) (ctxt M.! v)
   where
-    embedRecPar' ctxt (RPar v Nothing) = RPar v ctxt
+    embedRecPar' ctxt (T (TRPar v Nothing)) = T (TRPar v ctxt)
     embedRecPar' ctxt (T t) = T $ fmap (embedRecPar' ctxt) t
     embedRecPar' (Just ctxt) t@(R rp r s) = let ctxt' = (case rp of (Mu v) -> M.insert v t ctxt; _ -> ctxt)
                                     in R rp (fmap (embedRecPar' $ Just ctxt') r) s
@@ -267,7 +272,6 @@ data TCType         = T (Type SExpr TCType)
                     | U Int  -- unifier
                     | R RP (Row TCType) (Either (Sigil ()) Int)
                     | V (Row TCType) 
-                    | RPar RecParName (RecContext TCType)
                     | Synonym TypeName [TCType]
                     deriving (Show, Eq, Ord)
 
@@ -482,7 +486,6 @@ substType vs (U x) = U x
 substType vs (V x) = V (fmap (substType vs) x)
 substType vs (R rp x s) = R rp (fmap (substType vs) x) s
 substType vs (Synonym n ts) = Synonym n (fmap (substType vs) ts)
-substType vs (RPar v m) = RPar v (fmap (fmap (substType vs)) m)
 substType vs (T (TVar v b u)) | Just x <- lookup v vs
   = case (b,u) of
       (False, False) -> x
@@ -522,8 +525,6 @@ validateType' vs (RT t) = do
                           tuplize xs  = T (TTuple xs)
                       TVariant fs' <- ffmap toSExpr <$> mapM (validateType' vs) t 
                       pure (V (Row.fromMap (fmap (first tuplize) fs')))
-    TRPar v (Just m) -> RPar v <$> Just <$> (mapM (validateType' vs) m)
-    TRPar v _        -> pure $ RPar v Nothing
     -- TArray te l -> check l >= 0  -- TODO!!!
     _ -> T <$> (mmapM (return . toSExpr) <=< mapM (validateType' vs)) t
 
@@ -574,6 +575,4 @@ unifVars (R rp r s)
                                     Right y -> [y] 
                        ++ case rp of UP i -> [i]
                                      _   -> []
-unifVars (RPar v (Just m)) = concat $ M.map unifVars m
-unifVars (RPar _ _) = []
 unifVars (T x) = foldMap unifVars x
