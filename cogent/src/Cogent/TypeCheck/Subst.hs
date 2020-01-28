@@ -109,7 +109,6 @@ apply (Subst f) (R rp r (Right x))
 apply (Subst f) (R (UP x) r s)
   | Just (RecP rp) <- M.lookup x f
     = apply (Subst f) (R rp r s)
-apply f (RPar v m) = RPar v (fmap (fmap (apply f)) m)
 apply f (R rp x s) = R rp (applyToRow f x) s
 #ifdef BUILTIN_ARRAYS
 apply (Subst f) (A t l (Right x) mhole)
