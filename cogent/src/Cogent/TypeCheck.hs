@@ -121,7 +121,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
   (AbsDec n (PT ps ts (stripLocT -> t))) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
     traceTc "tc" (text "typecheck abstract function" <+> pretty n)
-    let vs = map fst ps
+    let vs = map fst ps <> ((snd <$> ts) >>= (either (\x -> []) (\x -> [x])))
         xs = vs \\ nub vs
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
     let tvs = nub (tvT t)  -- type variables appearing to `t'
@@ -181,7 +181,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
   (FunDef f (PT vs ts (stripLocT -> t)) alts) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
     traceTc "tc" (text "typecheck fun definition" <+> pretty f)
-    let vs' = map fst vs
+    let vs' = map fst vs <> ((snd <$> ts) >>= (either (\_ -> []) (\x -> [x])))
         xs = vs' \\ nub vs'
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
     let tvs = nub (tvT t)  -- type variables appearing to `t'
@@ -190,7 +190,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     base <- lift . lift $ use knownConsts
     let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
-    (((ct,t'),(c,alts')), flx, os) <- runCG ctx (map fst vs)
+    (((ct,t'),(c,alts')), flx, os) <- runCG ctx vs'
                                         (do x@(ct,t') <- validateType t
                                             y <- cgFunDef alts t'
                                             pure (x,y))

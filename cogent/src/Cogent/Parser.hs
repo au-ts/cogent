@@ -20,7 +20,7 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import qualified Cogent.Preprocess as PP
 import Cogent.Surface
-import Cogent.Util (getStdIncFullPath, (.*), (.**), fst3, snd3, thd3)
+import Cogent.Util (getStdIncFullPath, (.*), (.**))
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative hiding (many, (<|>), optional)
@@ -499,18 +499,14 @@ polytype = polytype' <|> PT [] [] <$> monotype
       reservedOp "."
       t <- monotype
       return $ PT (hs >>= flt1) (hs >>= flt2) t
-    flt1 x | Just v <- snd3 x = pure (fst3 x, v)
+    flt1 x | Left v <- snd x  = pure (fst x, v)
            | otherwise        = mempty
-    flt2 x | Just v <- thd3 x = pure (fst3 x, v)
+    flt2 x | Right v <- snd x = pure (fst x, v)
            | otherwise        = mempty
 
-klSignature = do n <- variableName
-                 k <- optionMaybe (reservedOp ":<" *> kind <?> "kind")
-                 l <- optionMaybe (reservedOp ":~" *> identifier <?> "type name")
-                 if k == Nothing && l == Nothing then
-                    pure (n, Just $ K False False False, l)
-                 else
-                    pure (n, k, l)
+klSignature = (,) <$> variableName <*> (Left <$> (reservedOp ":<" *> kind <?> "kind")
+                  <|> Right <$> (reservedOp ":~" *> typeid <?> "typeid")
+                  <|> Left <$> (pure $ K False False False))
   where kind = do x <- identifier
                   determineKind x (K False False False)
         determineKind ('D':xs) k =  determineKind xs (k { canDiscard = True })
@@ -518,6 +514,7 @@ klSignature = do n <- variableName
         determineKind ('E':xs) k =  determineKind xs (k { canEscape = True })
         determineKind [] k = return k
         determineKind _ k = fail "Kinds are made of three letters: D, S, E"
+        typeid = (Left <$> typeConName) <|> (Right <$> variableName) <?> "typeid"
 
 -- NOTE: use "string" instead of "reservedOp" so that it allows no spaces after "@@" / zilinc
 docBlock = do whiteSpace; _ <- try (string "@@"); x <- manyTill anyChar newline; whiteSpace; return x
