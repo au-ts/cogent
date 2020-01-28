@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 
-import os, subprocess, sys, importlib
+import os, subprocess, sys, importlib, re, shutil, argparse
 from collections import OrderedDict
-import argparse
 
 def check_import(name):
     try:
@@ -11,8 +10,7 @@ def check_import(name):
     except ImportError as exc:
         print("Dependancy module '{}' not installed - please install via pip3".format(name))
 
-importok = (check_import("ruamel") and 
-            check_import("termcolor"))
+importok = (check_import("ruamel") and check_import("termcolor"))
 
 if not importok:
     sys.exit(1)
@@ -22,6 +20,16 @@ from ruamel.yaml import YAML
 from termcolor import colored
 
 CONFIG_FILE_NAME = "config.yaml"
+
+TEST_DIST_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), "dist")
+
+def clean_dist():
+    shutil.rmtree(TEST_DIST_DIR, ignore_errors=True)
+
+def setup_dist():
+    if os.path.exists(TEST_DIST_DIR):
+        clean_dist()
+    os.mkdir(TEST_DIST_DIR)
 
 # Represents the result of a test
 # Takes in a function which returns
@@ -99,6 +107,7 @@ class TestConfiguration:
     
     # Checks a given config file is valid
     def validate_config(self):
+        relpath = os.path.relpath(self.filepath)
         if (not isinstance(self.settings, OrderedDict)) or (not "test" in self.settings.keys()):
             raise InvalidConfigError("{}: Config files must start with a single 'test' field at the top level".format(self.filepath))
         if not isinstance(self.settings["test"], list):
@@ -107,22 +116,27 @@ class TestConfiguration:
         i = 1
         for f in self.settings["test"]:
             if not "files" in f.keys():
-                raise InvalidConfigError("Test {} must contain mandatory field 'files'".format(i))
+                raise InvalidConfigError("Test {0} in {1} must contain mandatory field 'files'".format(i, relpath))
             if not "flags" in f.keys():
-                raise InvalidConfigError("Test {} must contain mandatory field 'flags'".format(i))
+                raise InvalidConfigError("Test {0} in {1} must contain mandatory field 'flags'".format(i, relpath))
             if not "expected_result" in f.keys():
-                raise InvalidConfigError("Test {} must contain mandatory field 'expected_result'".format(i))
+                raise InvalidConfigError("Test {0} in {1} must contain mandatory field 'expected_result'".format(i, relpath))
 
             if len(f["files"]) == 0:
-                raise InvalidConfigError("Test {} must have at least 1 test file".format(i))
+                raise InvalidConfigError("Test {0} in {1} must have at least 1 test file".format(i, relpath))
             if len(f["flags"]) == 0:
-                raise InvalidConfigError("Test {} must have at least 1 compiler flag".format(i))
+                raise InvalidConfigError("Test {0} in {1} must have at least 1 compiler flag".format(i, relpath))
             if f["expected_result"] not in ["error", "pass", "fail", "wip"]:
-                raise InvalidConfigError("""Field 'expected_result' must be one of 'pass', 'fail', 'error' or 'wip' in test {0}. Actual value: {1}""".format(i, str(f["expected_result"])))
+                raise InvalidConfigError("""Field 'expected_result' must be one of 'pass', 'fail', 'error' or 'wip' in test {0} in {1}\n. Actual value: {2}"""
+                                            .format(i, relpath, str(f["expected_result"])))
 
             for k in f.keys():
                 if k not in self.valid_test_fields:
-                    raise InvalidConfigError("Field '{0}' not a valid field in test {1}".format(k, i))
+                    raise InvalidConfigError("Field '{0}' not a valid field in test {1} in {2}".format(k, i, relpath))
+
+            for flag in f["flags"]:
+                if re.compile(r'^\s*--dist-dir').match(flag):
+                    raise InvalidConfigError("The use of the '--dist-dir' flag is prohibited in test flags (test {}, in {})".format(i, relpath))
 
 
             i += 1
@@ -137,7 +151,8 @@ class TestConfiguration:
 
         # function that runs our test
         def test():
-            res = subprocess.run(["cogent"] + flags + [fname], 
+            setup_dist()
+            res = subprocess.run(["cogent"] + flags + ["--dist-dir={}".format(TEST_DIST_DIR)] + [fname], 
                                  text=True,
                                  stderr=subprocess.STDOUT,
                                  stdout=subprocess.PIPE,
@@ -192,7 +207,6 @@ def run_tests(files):
     
     return results
 
-
 # Find all configuration files in the test directory
 def get_configs():
     files = Path(".").rglob(CONFIG_FILE_NAME)
@@ -228,7 +242,7 @@ if __name__ == "__main__":
     results = []
     # If we're only running specific tests
     if args.only_test is not None:
-        run_tests(args.only_test)
+        results = run_tests(args.only_test)
     # Otherwise, run all possible tests
     else:
         configs = get_configs()
@@ -239,6 +253,8 @@ if __name__ == "__main__":
     all_passed = True
 
     final_results = []
+
+    setup_dist()
 
     for res in results:
         p = res.display(verbose is not None and (verbose == [] or res.fullname in verbose))

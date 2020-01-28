@@ -13,8 +13,7 @@ cons (x, list) = (allocListNode ()) { l = Cons (x,list) }
 append : all a. (List a, List a) -> List a
 append (head { l = x }, b) =
   x | Nil -> 
-        let _ = freeListNode head
-        in b
+        let _ = freeListNode head in b
     | Cons (elem, tail) -> 
         let rest = append (tail, b)
         in head { l = Cons (elem, rest) }
