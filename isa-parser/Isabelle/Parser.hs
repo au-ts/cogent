@@ -639,7 +639,7 @@ termL = buildExpressionParser table restL
 
     -- Think of application as an infix operator which is the empty string!
     appParser  = (termAppPrec, Infix (do { return TermApp }) AssocLeft)
-    typedTermParser = (typeAnnotationPrec, Postfix (do { stringL "::"; ty <- typeL
+    typedTermParser = (typeAnnotationPrec, Postfix (try$ do { stringL "::"; ty <- typeL
                                                        ; return (\t -> TermWithType t ty) }))
     quantifierParser q = (quantifierPrec q, Prefix (do { try (stringL (quantifierSym q))
                                                        ; is <- many1 innerIdentL
@@ -651,11 +651,44 @@ termL = buildExpressionParser table restL
                                            ; return (TermUnOp u) }))
 
 
-    restL =  antiquoteTermL <||> parensTermL <||> constTermL <||> (TermIdent <$> innerIdentLL) <||> 
+    restL =  antiquoteTermL <||> parensTermL <||> constTermL <||> doBlockTermL <||> funUpdTermL <||>
              caseOfTermL <||> recordUpdTermL <||> recordDclTermL <||> ifThenElseTermL <||> 
-             listTermL <||> doBlockTermL <||> setTermL 
+             listTermL <||> setTermL <||> (TermIdent <$> innerIdentLL) 
     parensTermL = parensL termL
- 
+
+funUpdTermL :: ParserM Term 
+funUpdTermL = do 
+  f <- nameL 
+  res <- alt1 <||> alt2 <||> alt3
+  return $ TermApp (TermIdent $ Id "fun_upd") (TermApp (TermIdent $ Id f) res)
+  where 
+    alt1 = do
+      stringL "("
+      x <- termL
+      stringL ":="
+      v <- termL
+      stringL ")"
+      return $ ListTerm "(" [x,v] ")"
+    alt2 = do 
+      stringL "("
+      eles <- sepBy1 mapsToTermL (stringL ",") 
+      stringL ")"
+      return $ ListTerm "(" eles ")"
+    alt3 = do 
+      stringL "["
+      x <- termL
+      stringL ":="
+      v <- termL
+      stringL "]"
+      return $ ListTerm "(" [x,v] ")"
+
+mapsToTermL :: ParserM Term
+mapsToTermL = do 
+  term1 <- termL 
+  stringL "\\<mapsto>"
+  term2 <- termL 
+  return $ ListTerm "(" [term1, term2] ")"
+
 setTermL :: ParserM Term
 setTermL = do 
   stringL "{"
