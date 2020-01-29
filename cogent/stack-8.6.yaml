@@ -1,0 +1,13 @@
+resolver: lts-14.22             # ghc-8.6.5; 2020-01-25
+packages:
+  - '.'
+  - '../isa-parser'
+
+flags:
+  language-c-quote:
+    full-haskell-antiquotes: false
+
+extra-package-dbs: []
+extra-deps:
+  - haskell-exp-parser-0.1.1
+  - pretty-show-ansi-wl-1.9.2.1
