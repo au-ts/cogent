@@ -1,13 +1,1 @@
-resolver: lts-14.22
-packages:
-  - '.'
-  - '../isa-parser'
-
-flags:
-  language-c-quote:
-    full-haskell-antiquotes: false
-
-extra-package-dbs: []
-extra-deps:
-  - haskell-exp-parser-0.1.1      # from Hackage
-  - pretty-show-ansi-wl-1.9.2.1   # from Hackage
+stack-8.6.yaml
