@@ -10,5 +10,7 @@ flags:
 extra-package-dbs: []
 extra-deps:
   - sbv-8.3                     # for the `array' branches
+  - microlens-0.4.9.1           # we use (<>~), new in 0.4.9
+  - microlens-ghc-0.4.9.1
   - haskell-exp-parser-0.1.1
   - pretty-show-ansi-wl-1.9.2.1
