@@ -2,28 +2,39 @@
 
 import os, subprocess, sys, importlib, re, shutil, argparse
 from collections import OrderedDict
+from pathlib import Path
 
+# Check version is at least python 3.7
+if sys.version_info[0] < 3:
+    print(">= python 3.6 is required to run the testing script")
+    print("Your version: {0}.{1}.{2}".format(sys.version_info[0], sys.version_info[1], sys.version_info[2]))
+    sys.exit(1)
+
+
+PYTHON_V37 = sys.version_info[0] == 3 and sys.version_info[1] >= 7
+
+# Check all our dependancies are installed
 def check_import(name):
     try:
         importlib.import_module(name)
         return True
     except ImportError as exc:
         print("Dependancy module '{}' not installed - please install via pip3".format(name))
+        return False
 
-importok = (check_import("ruamel") and check_import("termcolor"))
+importok = [check_import("ruamel.yaml"), check_import("termcolor")]
 
-if not importok:
+if not all(importok):
     sys.exit(1)
 
-from pathlib import Path
 from ruamel.yaml import YAML
 from termcolor import colored
 
 CONFIG_FILE_NAME = "config.yaml"
-
 TEST_DIST_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), "dist")
 
 def clean_dist():
+    # rm -rf
     shutil.rmtree(TEST_DIST_DIR, ignore_errors=True)
 
 def setup_dist():
@@ -152,11 +163,13 @@ class TestConfiguration:
         # function that runs our test
         def test():
             setup_dist()
+
             res = subprocess.run(["cogent"] + flags + ["--dist-dir={}".format(TEST_DIST_DIR)] + [fname], 
-                                 text=True,
-                                 stderr=subprocess.STDOUT,
-                                 stdout=subprocess.PIPE,
-                                 cwd=self.dir)
+                                    stderr=subprocess.STDOUT,
+                                    stdout=subprocess.PIPE,
+                                    cwd=self.dir)
+
+
             status = "pass"
 
             # The compiler returns an error code
@@ -166,7 +179,7 @@ class TestConfiguration:
             elif res.returncode != 0:
                 status = "error"
 
-            return (status, res.stdout, d["expected_result"])
+            return (status, res.stdout.decode("utf-8"), d["expected_result"])
 
         return TestResult(name, test, fname)
 
@@ -175,7 +188,8 @@ class TestConfiguration:
         results = []
         for test in self.settings['test']:
             if test_name in test['files']:
-                return self.run_cogent(test_name, test['flags'], test)
+                results.append(self.run_cogent(test_name, test['flags'], test))
+        return results
 
     # Run all tests in the configuration file
     def run_all(self):
@@ -199,7 +213,7 @@ def run_tests(files):
             conf = TestConfiguration(get_cfg_from_test_file(f))
             name = os.path.basename(f)
             res = conf.run_one(name)
-            results.append(res)
+            results += res
         except InvalidConfigError as e:
             print(colored("Config error: ", "red"), e)
         except OSError:
@@ -224,6 +238,13 @@ def get_configs():
 
 
 if __name__ == "__main__":
+
+    # Check if cogent is installed
+    cogent = shutil.which("cogent")
+    if cogent is None:
+        print("Could not find cogent compiler on PATH - Please install cogent and place it on the PATH")
+        sys.exit(1)
+
     ap = argparse.ArgumentParser(
             description="Cogent Testing Framework",
             epilog="Test configurations must be stored in a '{}' file".format(CONFIG_FILE_NAME)
