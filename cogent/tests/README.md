@@ -135,3 +135,7 @@ Run the script with `-h` or `--help` for a more detailed explanation.
 The test script depends on the following python modules:
 * [ruamel](https://yaml.readthedocs.io/en/latest/)
 * [termcolor](https://pypi.org/project/termcolor/)
+
+## Future improvements/feature suggestions
+
+* Give clusters/groups of tests a name so they can be run by name
