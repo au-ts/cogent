@@ -122,9 +122,9 @@ Cogent (see below for instructions).
 
 There are three ways of building the Cogent compiler:
 
-  * Makefile
-  * Cabal
-  * Stack
+  * Makefile (simple, but can be fragile)
+  * Cabal (more advanced)
+  * Stack (simple, more robust)
 
 Detailed instructions for each of them are given below:
 
@@ -160,13 +160,15 @@ Alternatively, the flags can be overwritten if something like
 ``--flags="flag1 flag2"`` is given when running ``cabal configure`` and
 ``cabal install``.
 
+
 Build with Stack (simple, more robust)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-`Stack <https://github.com/commercialhaskell/stack>`__ is a modern
-cross-platform program for developing Haskell projects, that enhances
-the functionality provided by Cabal. To build Cogent with Stack, just
-run ``stack build`` and ``stack install``.
+Stack_ is a cross-platform program for developing Haskell projects.
+To build Cogent with Stack, simply run ``stack build``.
+
+.. _Stack: https://docs.haskellstack.org/
+
 
 Test your installation
 ----------------------
