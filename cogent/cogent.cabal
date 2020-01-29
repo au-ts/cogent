@@ -149,8 +149,8 @@ library
               , isa-parser >= 0.1.0.0
               , language-c-quote >= 0.10.2
               , mainland-pretty >= 0.2.6
-              , microlens >= 0.4.8
-              , microlens-ghc >= 0.4.8
+              , microlens >= 0.4.9
+              , microlens-ghc >= 0.4.9
               , microlens-mtl >= 0.1.11
               , microlens-th >= 0.4.1
               , mtl >= 2.2.1
