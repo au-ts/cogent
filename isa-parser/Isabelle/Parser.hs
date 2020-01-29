@@ -463,8 +463,15 @@ recFieldL :: ParserM (L RecField)
 recFieldL = do
   name  <- nameL
   stringL "::"
-  typ <- quotedL typeL
+  typ <- alt1 <||> alt2 
   return $ RecField name typ
+    where 
+      alt1 = do 
+        res <- try (quotedL typeL)
+        return res 
+      alt2 = do 
+        res <- (TyVar <$> identL)
+        return res
 
 recordL :: ParserM (L Record)
 recordL = do

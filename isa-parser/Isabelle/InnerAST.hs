@@ -103,6 +103,8 @@ data TermBinOp =
                | Shiftr    
                | TestBit 
                | Nth
+               | SubSetEq
+               | RestrictMp
   deriving (Data, Typeable, Eq, Ord, Show)
 
 data TermUnOp =
@@ -216,6 +218,8 @@ termBinOpRec b = case b of
   Shiftr    -> BinOpRec AssocLeft  55  ">>"
   TestBit   -> BinOpRec AssocLeft  100 "!!"
   Nth       -> BinOpRec AssocLeft  100 "!"
+  SubSetEq  -> BinOpRec AssocRight 50  "\\<subseteq>"
+  RestrictMp-> BinOpRec AssocRight 110 "|`"
 
 -- You must include all binary operators in this list. Miss one and it doesn't get parsed.
 -- Order does NOT matter. They are sorted by precedence.
@@ -224,7 +228,7 @@ binOps = [Equiv,   MetaImp, Eq,      NotEq,         Iff,
           Image,   Union,   Ge,      Alt,           Append, 
           Greater, Minus,   Less,    In,            Add, 
           Times,   BitAND,  BitOR,   BitXOR,        Shiftl,
-          Shiftr,  TestBit, Nth]
+          Shiftr,  TestBit, Nth,     SubSetEq,      RestrictMp]
 
 termBinOpPrec :: TermBinOp -> Precedence
 termBinOpPrec b = if p >= termAppPrec
