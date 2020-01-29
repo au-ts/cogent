@@ -1,0 +1,22 @@
+$esc:(#include <stdlib.h>)
+$esc:(#include <stdio.h>)
+
+typedef char A;
+typedef struct { int b; } B;
+
+#include "swap-drop.c"
+
+int main() {
+  A *a = (A*)malloc(2 * sizeof(char));
+  B *b = (B*)malloc(sizeof(B));
+  a[0] = '!';
+  a[1] = '\0';
+  b->b = 42;
+
+  $ty:((A,B,U32)) arg = { .p1 = a, .p2 = b, .p3 = 12 };
+  $ty:((B,A)) ret = $exp:(swapDrop[A,B,U32])(arg);
+  
+  printf("fst = %u\n", ret.p1->b);
+  printf("snd = %s\n", ret.p2);
+  return 0;
+}

@@ -64,7 +64,7 @@
             "patterns": [
                 {
                     "name": "keyword.cogent",
-					"match": "\\b(let|in|type|include|all|take|put|inline|upcast|repr|variant|record|at|if|then|else|not|complement|and|True|False|o)\\b"
+					"match": "\\b(let|in|type|include|all|take|put|inline|upcast|repr|variant|record|at|if|then|else|not|complement|and|True|False|o|rec)\\b"
                 }
             ]
         },
@@ -96,7 +96,7 @@
             "patterns": [
                 {
                     "name": "variable.name",
-                    "match": "\\b[a-z][a-zA-Z0-9]*\\b"
+                    "match": "\\b([a-z][a-zA-Z0-9_]*[a-zA-Z0-9]|[a-z])\\b"
                 }
             ]
         }

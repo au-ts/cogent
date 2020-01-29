@@ -406,7 +406,7 @@ $ty:(WordArrayView a) $id:wordarray_map_view ($ty:((WordArrayView a, a -> a)) ar
 }
 
 unit_t
-wordarray_print(WordArray_u8 *arg)
+$id:wordarray_print ($ty:(WordArray U8) *arg)
 {
 	char s[arg->len + 1];
 	/* Couldn't convince myself that

@@ -11,23 +11,22 @@
 --
 
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveFunctor #-}
-{- LANGUAGE FlexibleContexts -}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE LambdaCase #-}
-{- LANGUAGE LiberalTypeSynonyms -}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE MultiWayIf #-}
-{- LANGUAGE OverlappingInstances -}
 {-# LANGUAGE PackageImports #-}
-{- LANGUAGE RankNTypes -}
-{- LANGUAGE ScopedTypeVariables -}
-{- LANGUAGE StandaloneDeriving -}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wwarn #-}
 
@@ -54,7 +53,7 @@ import qualified Cogent.TypeCheck.Post       as TC
 import qualified Cogent.TypeCheck.Solver     as TC
 import qualified Cogent.TypeCheck.Subst      as TC
 import qualified Cogent.TypeCheck.Errors     as TC
--- import qualified Cogent.TypeCheck.Util      as TC
+
 import           Cogent.Util
 import qualified Data.DList as DList
 import           Data.Ex
@@ -69,22 +68,20 @@ import           Control.Monad.RWS.Strict
 import           Control.Monad.State
 import           Control.Monad.Trans.Except
 import           Control.Monad.Trans.Maybe
--- import Control.Monad.Writer
+
 import qualified Data.ByteString.Char8 as B
--- import Data.Either (lefts)
-import           Data.Data
-import           Data.Generics
--- import qualified Data.IntMap as IM
 import           Data.Loc
 import           Data.List as L
 import           Data.Map as M
 import           Data.Maybe (fromJust, fromMaybe, isJust, maybe)
 import qualified Data.Sequence as Seq
 import           Data.Set as S
+
+import           GHC.Generics
+
 import           Language.C.Parser as CP hiding (parseExp, parseType)
--- import Language.C.Parser.Tokens as CT
 import           Language.C.Syntax as CS
-import           Lens.Micro
+import           Lens.Micro hiding (to)
 import           Lens.Micro.Mtl
 import           Lens.Micro.TH
 import           System.FilePath (replaceBaseName, replaceExtension, takeBaseName, takeExtension, (<.>))
@@ -95,7 +92,7 @@ import           Unsafe.Coerce
 
 import           Debug.Trace
 
--- Parsing
+-- Parse the anti-quoted C source code to produce a sequence of C definitions.
 
 parseFile :: [Extensions] -> [String] -> FilePath -> ExceptT String IO [CS.Definition]
 parseFile exts deftypnames filename = do
@@ -119,17 +116,6 @@ defaultTypnames = []
 getTypnames :: FilePath -> IO [String]
 getTypnames = liftA lines . readFile
 
-
--- Another parser
-{-
-parseFile' :: FilePath -> ExceptT String IO CTranslUnit
-parseFile' filename = do
-  instream <- lift $ readInputStream filename
-  let pos = initPos filename
-  case parseC instream pos of
-    Left err -> throwE $ "Error: Failed to parse C: " ++ show err
-    Right u  -> return u
--}
 
 -- Desugaring, Monomorphising, and CG
 
@@ -165,6 +151,7 @@ data GlState = GlState { _tcDefs   :: [SF.TopLevel SF.RawType TC.TypedPatn TC.Ty
                        , _coreTcState  :: CoreTcState
                        , _mnState  :: MnState
                        , _cgState  :: CgState
+                       , _defns  :: Map CS.Definition String -- C definitions mapped to their Cogent type name                       
                        }
 
 data FileState = FileState { _file :: FilePath }
@@ -191,6 +178,286 @@ type GlFile   = ReaderT (FileState  ) (Gl      )
 type Gl       = StateT  (GlState    ) (GlErr   )
 type GlErr    = ExceptT (String     ) (IO      )
 
+
+{-- The purpose of this module is to parse anti-quoted C source code,
+ -- parsing the embedded Cogent fragments into C.
+
+ -- We define two type classes for handling anti-quotes via generic
+ -- representations. Thus any type with a generic representation can be
+ -- given the default implementation for handling anti-quotes. --}
+
+class Monad m => HandleQuotes1 f m where
+  handleQuotes1 :: f p -> m (f p)
+
+defaultHandleQuotes :: (Generic a, Monad m, HandleQuotes1 (Rep a) m) => a -> m a
+defaultHandleQuotes x = to <$> handleQuotes1 (from x)
+
+instance Monad m => HandleQuotes1 V1 m where
+  handleQuotes1 x = return x
+
+instance Monad m => HandleQuotes1 U1 m where
+  handleQuotes1 x = return x
+
+instance (Monad m, HandleQuotes c m) => HandleQuotes1 (K1 i c) m where
+  handleQuotes1 x = K1 <$> handleQuotes (unK1 x)
+
+instance (Monad m, HandleQuotes1 f m) => HandleQuotes1 (M1 i c f) m where
+  handleQuotes1 (M1 x) = M1 <$> handleQuotes1 x
+
+instance (Monad m, HandleQuotes1 f m, HandleQuotes1 g m) => HandleQuotes1 (f :+: g) m where
+  handleQuotes1 (L1 x) = L1 <$> handleQuotes1 x
+  handleQuotes1 (R1 x) = R1 <$> handleQuotes1 x
+
+instance (Monad m, HandleQuotes1 f m, HandleQuotes1 g m) => HandleQuotes1 (f :*: g) m where
+  handleQuotes1 (f :*: g) = (:*:) <$> (handleQuotes1 f) <*> (handleQuotes1 g)
+
+class Monad m => HandleQuotes a m where
+  handleQuotes :: a -> m a
+  default handleQuotes :: (Generic a, Monad m, HandleQuotes1 (Rep a) m) => a -> m a
+  handleQuotes = defaultHandleQuotes
+
+
+{-- Automatically derive generic representations for the C AST. -}
+deriving instance Generic CS.AsmIn
+deriving instance Generic CS.ArraySize
+deriving instance Generic CS.Attr
+deriving instance Generic CS.BlockItem
+deriving instance Generic CS.BlockType
+deriving instance Generic CS.CEnum
+deriving instance Generic CS.Decl
+deriving instance Generic CS.DeclSpec
+deriving instance Generic CS.Definition
+deriving instance Generic CS.Designation
+deriving instance Generic CS.Designator
+deriving instance Generic CS.Exp
+deriving instance Generic CS.ExeConfig
+deriving instance Generic CS.Field
+deriving instance Generic CS.FieldGroup
+deriving instance Generic CS.Func
+deriving instance Generic CS.Init
+deriving instance Generic CS.InitGroup
+deriving instance Generic CS.Initializer
+deriving instance Generic CS.Param
+deriving instance Generic CS.Params
+deriving instance Generic CS.Stm
+deriving instance Generic CS.Type
+deriving instance Generic CS.Typedef
+deriving instance Generic CS.TypeQual
+deriving instance Generic CS.TypeSpec
+
+{-- Terminal instances of anti-quote handling. --}
+instance Monad m => HandleQuotes AsmOut m where
+  handleQuotes x = return x
+
+instance Monad m => HandleQuotes AssignOp m where
+  handleQuotes x = return x
+
+instance Monad m => HandleQuotes BinOp m where
+  handleQuotes x = return x
+
+instance Monad m => HandleQuotes Bool m where
+  handleQuotes x = return x
+
+instance Monad m => HandleQuotes Char m where
+  handleQuotes x = return x
+
+instance Monad m => HandleQuotes CS.Const m where
+  handleQuotes x = return x
+
+instance Monad m => HandleQuotes CS.Id m where
+  handleQuotes x = return x
+
+instance Monad m => HandleQuotes CS.LambdaIntroducer m where
+  handleQuotes x = return x
+
+instance Monad m => HandleQuotes CS.LambdaDeclarator m where
+  handleQuotes x = return x
+
+instance Monad m => HandleQuotes CS.ObjCArg m where
+  handleQuotes x = return x
+
+instance Monad m => HandleQuotes CS.ObjCCatch m where
+  handleQuotes x = return x
+
+instance Monad m => HandleQuotes CS.ObjCDictElem m where
+  handleQuotes x = return x
+
+instance Monad m => HandleQuotes CS.ObjCIfaceDecl m where
+  handleQuotes x = return x
+
+instance Monad m => HandleQuotes CS.ObjCRecv m where
+  handleQuotes x = return x
+
+instance Monad m => HandleQuotes CS.ObjCIvarDecl m where
+  handleQuotes x = return x
+
+instance Monad m => HandleQuotes CS.ObjCMethodProto m where
+  handleQuotes x = return x
+
+instance Monad m => HandleQuotes CS.Sign m where
+  handleQuotes x = return x
+
+instance Monad m => HandleQuotes SrcLoc m where
+  handleQuotes x = return x
+
+instance Monad m => HandleQuotes CS.Storage m where
+  handleQuotes x = return x
+
+instance Monad m => HandleQuotes CS.StringLit m where
+  handleQuotes x = return x
+
+instance Monad m => HandleQuotes CS.UnOp m where
+  handleQuotes x = return x
+
+instance (Monad m, HandleQuotes a m, HandleQuotes b m) => HandleQuotes (a,b) m
+
+{-- Leverage the generic representations to automatically derive
+ -- instances of anti-quote handling for the C AST components. -}
+instance HandleQuotes CS.AsmIn (GlMono t)
+instance HandleQuotes CS.ArraySize (GlMono t)
+instance HandleQuotes CS.Attr (GlMono t)
+instance HandleQuotes CS.BlockItem (GlMono t)
+instance HandleQuotes CS.BlockType (GlMono t)
+instance HandleQuotes CS.CEnum (GlMono t)
+instance HandleQuotes CS.Designation (GlMono t)
+instance HandleQuotes CS.Designator (GlMono t)
+instance HandleQuotes CS.ExeConfig (GlMono t)
+instance HandleQuotes CS.Field (GlMono t)
+instance HandleQuotes CS.FieldGroup (GlMono t)
+instance HandleQuotes CS.Func (GlMono t)
+instance HandleQuotes CS.Init (GlMono t)
+instance HandleQuotes CS.InitGroup (GlMono t)
+instance HandleQuotes CS.Initializer (GlMono t)
+instance HandleQuotes CS.Param (GlMono t)
+instance HandleQuotes CS.Params (GlMono t)
+instance HandleQuotes CS.Typedef (GlMono t)
+instance HandleQuotes CS.TypeQual (GlMono t)
+
+instance (Monad m, HandleQuotes a m) => HandleQuotes (Maybe a) m
+
+instance HandleQuotes (Either CS.InitGroup (Maybe Exp)) (GlMono t)
+{--
+ where
+  handleQuotes (Left initgrp) = Left <$> handleQuotes initgrp
+  handleQuotes (Right (Just e)) = Right $ Just <$> handleQuotes e
+  handleQuotes (Right Nothing) = return $ Right Nothing
+-}
+
+instance (Monad m, HandleQuotes a m) => HandleQuotes [a] m
+
+--instance (Monad m,HandleQuotes 
+
+{-- Now we define the interesting cases for a C Definition. --}
+
+-- Handling quotations in a C function definition relies on the GlMono
+-- monad for reading from the environment and performing the
+-- appropriate liftings.
+instance HandleQuotes CS.Definition (GlMono t) where
+  handleQuotes (CS.FuncDef (CS.Func dcsp (CS.AntiId fn loc2) decl ps body loc1) loc0) = do
+    idx <- view (inst._2)
+    (fnName, _) <- lift . lift $ genFuncId fn loc2
+    let fnNameInC = toCName $ MN.monoName (unsafeNameToCoreFunName fnName) idx
+        func = CS.Func dcsp (CS.Id fnNameInC loc2) decl ps body loc1
+        def = CS.FuncDef func loc0
+    -- Now handle anti-quotes in all other sub-terms.
+    defaultHandleQuotes def
+  handleQuotes (CS.AntiEsc s l) = return $ CS.EscDef s l
+  handleQuotes (CS.DecDef initgrp loc0)
+    | CS.InitGroup dcsp attr0 init loc1 <- initgrp
+    , CS.DeclSpec store tyqual tysp loc2 <- dcsp
+    , CS.Tstruct mid fldgrp attr1 loc3 <- tysp
+    , Just (CS.AntiId ty loc4) <- mid = do
+        tn' <- (lift . lift) (parseType ty loc4) >>= lift . tcType  >>=
+          lift . desugarType >>= monoType >>= lift . lift. lift . genTypeId
+        let mid' = Just (CS.Id (toCName tn') loc4)
+            tysp' = CS.Tstruct mid' fldgrp attr1 loc3
+            dcsp' = CS.DeclSpec store tyqual tysp' loc2
+            initgrp' = CS.InitGroup dcsp' attr0 init loc1
+        -- Handle quotes from any sub-terms of the definition.
+        decdef <- defaultHandleQuotes (CS.DecDef initgrp' loc0)
+        -- Update the mapping of C definitions to their generated type names
+        lift . lift . lift $ StateT $ \s -> return (decdef , over defns (M.insert decdef tn') s)
+  handleQuotes (CS.DecDef initgrp loc0)
+    | CS.TypedefGroup dcsp attr0 [tydef] loc1 <- initgrp
+    , CS.DeclSpec store tyqual tysp loc2 <- dcsp
+    , CS.Tstruct mid fldgrp attr1 loc3 <- tysp
+    , Just (CS.AntiId ty loc4) <- mid
+    , CS.Typedef (CS.AntiId syn loc6) decl attr2 loc5 <- tydef = do
+        tn'  <- (lift . lift) (parseType ty  loc4) >>= lift . tcType >>=
+          lift . desugarType >>= monoType >>= lift . lift . lift . genTypeId
+        syn' <- (lift . lift) (parseType syn loc6) >>= lift . tcType >>=
+          lift . desugarType >>= monoType >>= lift . lift . lift . genTypeId
+        when (tn' /= syn') $ throwError $
+          "Error: Type synonyms `" ++ syn ++ "' is somewhat different from the type `" ++ ty ++ "'"
+        let tydef' = CS.Typedef (CS.Id (toCName syn') loc6) decl attr2 loc5
+            mid' = Just (CS.Id (toCName tn') loc4)
+            tysp' = CS.Tstruct mid' fldgrp attr1 loc3
+            dcsp' = CS.DeclSpec store tyqual tysp' loc2
+            initgrp' = CS.TypedefGroup dcsp' attr0 [tydef'] loc1
+        decdef <- defaultHandleQuotes (CS.DecDef initgrp' loc0)
+        lift . lift . lift $ StateT $ \s -> return (decdef , over defns (M.insert decdef tn') s)
+  handleQuotes (CS.DecDef initgrp loc0)
+    | CS.TypedefGroup dcsp attr0 [tydef] loc1 <- initgrp
+    , CS.Typedef (CS.AntiId syn loc6) decl attr2 loc5 <- tydef = do
+        syn' <- (lift . lift) (parseType syn loc6) >>= lift . tcType >>=
+          lift . desugarType >>= monoType >>= lift . lift . lift . genTypeId
+        let tydef' = CS.Typedef (CS.Id (toCName syn') loc6) decl attr2 loc5
+            initgrp' = CS.TypedefGroup dcsp attr0 [tydef'] loc1
+        decdef <- defaultHandleQuotes (CS.DecDef initgrp' loc0)
+        lift . lift . lift $ StateT $ \s -> return (decdef , over defns (M.insert decdef syn') s)
+  handleQuotes x = defaultHandleQuotes x
+
+
+-- Any monad instance is compatible with quotation handling for C
+-- statements since we just need return to be defined.
+instance HandleQuotes CS.Stm (GlMono t) where
+  handleQuotes (CS.AntiEscStm s l) = return $ CS.EscStm s l
+  handleQuotes x = defaultHandleQuotes x
+
+instance HandleQuotes CS.Exp (GlMono t) where
+  handleQuotes (CS.FnCall (CS.AntiExp fn loc1) [e] loc0) = do
+    e'  <- lift . lift . lift . genFn =<< monoExp =<< lift . coreTcExp =<<
+           lift . desugarExp =<< lift . tcFnCall =<< (lift . lift) (parseFnCall fn loc1)
+    fn' <- lift . lift . lift . genFnCall =<< return . CC.exprType =<< monoExp =<< lift . coreTcExp =<<
+           lift . desugarExp =<< lift . tcFnCall =<< (lift . lift) (parseFnCall fn loc1)
+    defaultHandleQuotes $ CS.FnCall fn' [e',e] loc0
+  handleQuotes (CS.FnCall (CS.Cast ty e1 loc1) [e2] loc0)
+    | CS.Type dcsp decl loc2 <- ty
+    , CS.AntiDeclSpec s loc3 <- dcsp = do
+        disp <- lift . lift . lift . genFnCall =<< monoType =<< lift . desugarType =<<
+                lift . tcType =<< (lift . lift) (parseType s loc3)
+        defaultHandleQuotes (CS.FnCall disp [e1,e2] loc0)
+  handleQuotes (CS.AntiExp s loc) = (lift . lift) (parseExp s loc) >>=
+    lift . flip tcExp Nothing >>= lift . desugarExp >>= lift . coreTcExp >>=
+    monoExp >>= lift . lift . lift . genExp
+  handleQuotes e = defaultHandleQuotes e
+
+{-- Handle anti-quotes within C type declarations. --}
+
+instance HandleQuotes CS.DeclSpec (GlMono t) where
+  handleQuotes (CS.AntiTypeDeclSpec strg qual s l) = do
+    CS.DeclSpec [] [] tysp loc <- (fst . CG.splitCType) <$> (lift . lift . lift . genType =<<
+      monoType =<< lift . desugarType =<< lift . tcType =<< (lift . lift) (parseType s l))
+    defaultHandleQuotes (CS.DeclSpec strg qual tysp loc)
+  handleQuotes x = defaultHandleQuotes x
+
+instance HandleQuotes CS.Decl (GlMono t) where
+  handleQuotes (CS.AntiTypeDecl s l) = (snd . CG.splitCType) <$>
+    (lift . lift . lift . genType =<< monoType =<< lift . desugarType =<< lift . tcType =<< (lift . lift) (parseType s l))
+  handleQuotes x = defaultHandleQuotes x
+
+instance HandleQuotes CS.Type (GlMono t) where
+  handleQuotes (CS.AntiType s l) = CG.cType <$>
+    (lift . lift . lift . genType =<< monoType =<< lift . desugarType =<< lift . tcType =<< (lift . lift) (parseType s l))
+  handleQuotes x = defaultHandleQuotes x
+
+instance HandleQuotes CS.TypeSpec (GlMono t) where
+  handleQuotes (CS.Tstruct mid fldgrp attr loc0)
+    | Just (CS.AntiId ty loc1) <- mid = do
+        tn' <- (lift . lift) (parseType ty loc1) >>= lift . tcType >>=
+               lift . desugarType >>= monoType >>= lift . lift . lift . genTypeId
+        defaultHandleQuotes (CS.Tstruct (Just $ CS.Id (toCName tn') loc1) fldgrp attr loc0)
+  handleQuotes x = defaultHandleQuotes x
 
 -- Monad transformers
 
@@ -259,10 +526,6 @@ genAnti m a =
                                           }
                   in return (fst $ evalRWS (CG.runGen $ m a) reader state, s)
 
-traverseAnti :: (Typeable a, Data b, Monad m) => (a -> m a) -> b -> m b
-traverseAnti m = everywhereM $ mkM $ m
-
-
 -- Types
 
 parseType :: String -> SrcLoc -> GlFile SF.LocType
@@ -284,27 +547,6 @@ monoType = monoAnti MN.monoType
 
 genType :: CC.Type 'Zero -> Gl CG.CType
 genType = genAnti CG.genType
-
-transDeclSpec :: CS.DeclSpec -> GlMono t CS.DeclSpec
-transDeclSpec (CS.AntiTypeDeclSpec strg qual s l) = do
-  CS.DeclSpec [] [] tysp loc <- (fst . CG.splitCType) <$> (lift . lift . lift . genType =<<
-    monoType =<< lift . desugarType =<< lift . tcType =<< (lift . lift) (parseType s l))
-  return $ CS.DeclSpec strg qual tysp loc
-transDeclSpec x = return x
-
-transDecl :: CS.Decl -> GlMono t CS.Decl
-transDecl (CS.AntiTypeDecl s l) =
-  (snd . CG.splitCType) <$> (lift . lift . lift . genType =<< monoType =<< lift . desugarType =<< lift . tcType =<< (lift . lift) (parseType s l))
-transDecl x = return x
-
-transType :: CS.Type -> GlMono t CS.Type
-transType (CS.AntiType s l) =
-  CG.cType <$> (lift . lift . lift . genType =<< monoType =<< lift . desugarType =<< lift . tcType =<< (lift . lift) (parseType s l))
-transType x = return x
-
-traverseDeclSpec = traverseAnti transDeclSpec
-traverseDecl     = traverseAnti transDecl
-traverseType     = traverseAnti transType
 
 -- Function calls
 
@@ -328,28 +570,6 @@ genFnCall :: CC.Type 'Zero -> Gl CS.Exp
 genFnCall = genAnti $ \t -> do
     enumt <- CG.typeCId t
     return (CS.Var (CS.Id (CG.funDispatch $ toCName enumt) noLoc) noLoc)
-
-transFnCall :: CS.Exp -> GlMono t CS.Exp
-transFnCall (CS.FnCall (CS.AntiExp fn loc1) [e] loc0) = do
-  e'  <- lift . lift . lift . genFn =<< monoExp =<< lift . coreTcExp =<<
-         lift . desugarExp =<< lift . tcFnCall =<< (lift . lift) (parseFnCall fn loc1)
-  fn' <- lift . lift . lift . genFnCall =<< return . CC.exprType =<< monoExp =<< lift . coreTcExp =<<
-         lift . desugarExp =<< lift . tcFnCall =<< (lift . lift) (parseFnCall fn loc1)
-  return $ CS.FnCall fn' [e',e] loc0
-transFnCall e = return e
-
-transDispatch :: CS.Exp -> GlMono t CS.Exp
-transDispatch (CS.FnCall (CS.Cast ty e1 loc1) [e2] loc0)
-  | CS.Type dcsp decl loc2 <- ty
-  , CS.AntiDeclSpec s loc3 <- dcsp = do
-    disp <- lift . lift . lift . genFnCall =<< monoType =<< lift . desugarType =<<
-            lift . tcType =<< (lift . lift) (parseType s loc3)
-    return $ CS.FnCall disp [e1,e2] loc0
-transDispatch e = return e
-
-traverseFnCall   = traverseAnti transFnCall
-traverseDispatch = traverseAnti transDispatch
-
 
 -- Expressions
 
@@ -386,21 +606,7 @@ genExp = genAnti $ \e -> do (v,vdecl,vstm,_) <- CG.genExpr Nothing e
                                 v'   = CG.cExpr v
                             return $ CS.StmExpr (bis' ++ [CS.BlockStm (CS.Exp (Just v') noLoc)]) noLoc
 
-transExp :: CS.Exp -> GlMono t CS.Exp
-transExp (CS.AntiExp s loc) = (lift . lift) (parseExp s loc) >>= lift . flip tcExp Nothing >>=
-                              lift . desugarExp >>= lift . coreTcExp >>= monoExp >>= lift . lift . lift . genExp
-transExp e = return e
-
-traverseExp = traverseAnti transExp
-
 -- Function Id
-
-transFuncId :: CS.Definition -> GlMono t CS.Definition
-transFuncId (CS.FuncDef (CS.Func dcsp (CS.AntiId fn loc2) decl ps body loc1) loc0) =
-  view (inst._2) >>= \idx -> do
-    (fnName, _) <- lift . lift $ genFuncId fn loc2
-    return $ CS.FuncDef (CS.Func dcsp (CS.Id (toCName $ MN.monoName (unsafeNameToCoreFunName fnName) idx) loc2) decl ps body loc1) loc0
-transFuncId d = return d
 
 genFuncId :: String -> SrcLoc -> GlFile (FunName, [Maybe SF.LocType])
 genFuncId fn loc = do
@@ -419,81 +625,14 @@ parseTypeId s loc = parseAnti s ((,) <$> PS.typeConName <*> PP.many PS.variableN
 genTypeId :: CC.Type 'Zero -> Gl CG.CId
 genTypeId = genAnti CG.typeCId
 
-transTypeId :: CS.Definition -> GlMono t (CS.Definition, Maybe String)
-transTypeId (CS.DecDef initgrp loc0)
-  | CS.InitGroup dcsp attr0 init loc1 <- initgrp
-  , CS.DeclSpec store tyqual tysp loc2 <- dcsp
-  , CS.Tstruct mid fldgrp attr1 loc3 <- tysp
-  , Just (CS.AntiId ty loc4) <- mid = do
-    tn' <- (lift . lift) (parseType ty loc4) >>= lift . tcType  >>= lift . desugarType >>= monoType >>= lift . lift. lift . genTypeId
-    let mid' = Just (CS.Id (toCName tn') loc4)
-        tysp' = CS.Tstruct mid' fldgrp attr1 loc3
-        dcsp' = CS.DeclSpec store tyqual tysp' loc2
-        initgrp' = CS.InitGroup dcsp' attr0 init loc1
-    return (CS.DecDef initgrp' loc0, Just tn')
-transTypeId (CS.DecDef initgrp loc0)
-  | CS.TypedefGroup dcsp attr0 [tydef] loc1 <- initgrp
-  , CS.DeclSpec store tyqual tysp loc2 <- dcsp
-  , CS.Tstruct mid fldgrp attr1 loc3 <- tysp
-  , Just (CS.AntiId ty loc4) <- mid
-  , CS.Typedef (CS.AntiId syn loc6) decl attr2 loc5 <- tydef = do
-    tn'  <- (lift . lift) (parseType ty  loc4) >>= lift . tcType >>= lift . desugarType >>= monoType >>= lift . lift . lift . genTypeId
-    syn' <- (lift . lift) (parseType syn loc6) >>= lift . tcType >>= lift . desugarType >>= monoType >>= lift . lift . lift . genTypeId
-    when (tn' /= syn') $ throwError $ "Error: Type synonyms `" ++ syn ++ "' is somewhat different from the type `" ++ ty ++ "'"
-    let tydef' = CS.Typedef (CS.Id (toCName syn') loc6) decl attr2 loc5
-        mid' = Just (CS.Id (toCName tn') loc4)
-        tysp' = CS.Tstruct mid' fldgrp attr1 loc3
-        dcsp' = CS.DeclSpec store tyqual tysp' loc2
-        initgrp' = CS.TypedefGroup dcsp' attr0 [tydef'] loc1
-    return (CS.DecDef initgrp' loc0, Just tn')
-transTypeId (CS.DecDef initgrp loc0)
-  | CS.TypedefGroup dcsp attr0 [tydef] loc1 <- initgrp
-  , CS.Typedef (CS.AntiId syn loc6) decl attr2 loc5 <- tydef = do
-    syn' <- (lift . lift) (parseType syn loc6) >>= lift . tcType >>= lift . desugarType >>= monoType >>= lift . lift . lift . genTypeId
-    let tydef' = CS.Typedef (CS.Id (toCName syn') loc6) decl attr2 loc5
-        initgrp' = CS.TypedefGroup dcsp attr0 [tydef'] loc1
-    return (CS.DecDef initgrp' loc0, Just syn')
-transTypeId d = return (d, Nothing)
-
-transTypeId' :: CS.TypeSpec -> GlMono t CS.TypeSpec
-transTypeId' (CS.Tstruct mid fldgrp attr loc0)
-  | Just (CS.AntiId ty loc1) <- mid = do
-    tn' <- (lift . lift) (parseType ty loc1) >>= lift . tcType >>= lift . desugarType >>= monoType >>= lift . lift . lift . genTypeId
-    return (CS.Tstruct (Just $ CS.Id (toCName tn') loc1) fldgrp attr loc0)
-transTypeId' x = return x
-
-traverseTypeId' :: CS.Definition -> GlMono t CS.Definition
-traverseTypeId' (CS.DecDef initgrp loc) = CS.DecDef <$> traverseAnti transTypeId' initgrp <*> pure loc
-traverseTypeId' d = return d
-
-
--- External definition
-
-transEsc :: CS.Definition -> CS.Definition
-transEsc (CS.AntiEsc s l) = CS.EscDef s l
-transEsc d = d
-
-transEscStm :: CS.Stm -> CS.Stm
-transEscStm (CS.AntiEscStm s l) = CS.EscStm s l
-transEscStm d = d
-
-traverseEscStm :: CS.Definition -> GlMono t CS.Definition
-traverseEscStm = traverseAnti $ return . transEscStm
-
 -- Definition
 
-traversals :: [(MN.Instance, Maybe Int)] -> CS.Definition -> GlDefn t [(CS.Definition, Maybe String)]
+traversals :: [(MN.Instance, Maybe Int)] -> CS.Definition -> GlDefn t [CS.Definition]
 -- No type arguments, either monomorphic Cogent function, or not defined in Cogent
 -- If any instances of a polymorphic function are not used anywhere, then no mono function will be generated
-traversals insts d = forM insts $ \inst ->
-                       flip runReaderT (MonoState inst) $
-                         (traverseDecl >=> traverseDeclSpec >=> traverseType >=>
-                         traverseFnCall >=> traverseDispatch >=> traverseExp >=>
-                           -- NOTE: `traverseExp' has to be after `traverseFnCall' because they overlap / zilinc
-                         return . transEsc >=> traverseEscStm >=>
-                         transFuncId >=> transTypeId >=> firstM traverseTypeId') d
+traversals insts d = forM insts $ \inst -> flip runReaderT (MonoState inst) $ handleQuotes d
 
-traverseOneFunc :: String -> CS.Definition -> SrcLoc -> GlFile [(CS.Definition, Maybe String)]
+traverseOneFunc :: String -> CS.Definition -> SrcLoc -> GlFile [CS.Definition]
 traverseOneFunc fn d loc = do
   -- First we need to __parse__ the function name, get the function name and the optional explicit type arguments.
   -- If the function has no explicit type arguments, then we treat it as a poly-definition;
@@ -564,7 +703,7 @@ traverseOneFunc fn d loc = do
               traversals instantiations d
 
 
-traverseOneType :: String -> SrcLoc -> CS.Definition -> GlFile [(CS.Definition, Maybe String)]
+traverseOneType :: String -> SrcLoc -> CS.Definition -> GlFile [CS.Definition]
 traverseOneType ty l d = do   -- type defined in Cogent
   monos <- lift $ use $ mnState.typeMono
   defs  <- lift $ use tcDefs
@@ -589,7 +728,7 @@ traverseOneType ty l d = do   -- type defined in Cogent
                           tn2 <- mapM (genAnti CG.genType) i2
                           return (tn1 == tn2)) ins
 
-traverseOne :: CS.Definition -> GlFile [(CS.Definition, Maybe String)]
+traverseOne :: CS.Definition -> GlFile [CS.Definition]
 traverseOne d@(CS.FuncDef (CS.Func _ (CS.AntiId fn loc) _ _ _ _) _) = traverseOneFunc fn d loc
 traverseOne d@(CS.DecDef initgrp _)
   | CS.InitGroup dcsp _ _ _ <- initgrp
@@ -602,12 +741,13 @@ traverseOne d@(CS.DecDef initgrp _)
   , Just (CS.AntiId ty l) <- mid = traverseOneType ty l d
   | CS.TypedefGroup _ _ [tydef] _ <- initgrp
   , CS.Typedef (CS.AntiId ty l) _ _ _ <- tydef = traverseOneType ty l d
-traverseOne d = flip runReaderT (DefnState Nil [TC.InAntiquotedCDefn $ show d]) $ traversals [([], Nothing)] d  -- anything not defined in Cogent
+traverseOne d =
+  flip runReaderT (DefnState Nil [TC.InAntiquotedCDefn $ show d]) $ traversals [([], Nothing)] d  -- anything not defined in Cogent
 
 -- | This function returns a list of pairs, of each the second component is the type name if
 --   the first component is a type definition. We use the type name to generate a dedicated @.h@
 --   file for that type. If the first is a function definition, then the second is always 'Nothing'.
-traverseAll :: [CS.Definition] -> GlFile [(CS.Definition, Maybe String)]
+traverseAll :: [CS.Definition] -> GlFile [CS.Definition]
 traverseAll ds = concat <$> mapM traverseOne ds
 
 
@@ -619,16 +759,16 @@ glue :: GlState -> [TypeName] -> GlueMode -> [FilePath] -> ExceptT String IO [(F
 glue s typnames mode filenames = liftA (M.toList . M.fromListWith (flip (++)) . concat) .
   forM filenames $ \filename -> do
     ds <- parseFile defaultExts typnames filename
-    ds' <- flip evalStateT s . flip runReaderT (FileState filename) $ traverseAll ds
+    (ds', s') <- flip runStateT s . flip runReaderT (FileState filename) $ {-# SCC traverseAll_ds #-} traverseAll ds
     case mode of
-      TypeMode -> forM ds' $ \(d, mbf) -> case mbf of
+      TypeMode -> forM ds' $ \d -> case M.lookup d (_defns s') of
         Nothing -> throwE $ "Error: Cannot define functions in type mode (" ++ show d ++ ")"
         Just f  -> return (__cogent_abs_type_dir ++ "/abstract/" ++ f <.> __cogent_ext_of_h, [d])
       FuncMode -> let ext = if | takeExtension filename == __cogent_ext_of_ah -> __cogent_ext_of_h
                                | takeExtension filename == __cogent_ext_of_ac -> __cogent_ext_of_c
                                | otherwise -> __cogent_ext_of_c
                   in return [ (replaceExtension ((replaceBaseName filename (takeBaseName filename ++ __cogent_suffix_of_inferred))) ext
-                            , L.map fst ds') ]
+                            , ds') ]
 
 mkGlState :: [SF.TopLevel SF.RawType TC.TypedPatn TC.TypedExpr]
           -> TC.TcState
@@ -656,6 +796,7 @@ mkGlState tced tcState (Last (Just (typedefs, constdefs, _))) ftypes (funMono, t
                                , _localOracle  = view CG.localOracle  genState
                                , _globalOracle = view CG.globalOracle genState
                                }
+          , _defns = M.empty
           }
 mkGlState _ _ _ _ _ _ = __impossible "mkGlState"
 
@@ -668,51 +809,6 @@ tyVars (SF.AbsDec _ (SF.PT ts _)  ) = ts
 tyVars (SF.TypeDec    _ ts _) = L.zip ts $ repeat k2
 tyVars (SF.AbsTypeDec _ ts _) = L.zip ts $ repeat k2
 tyVars _ = __impossible "tyVars"
-
-
--- ////////////////////////////////////////////////////////////////////////////
---
-
-collect :: GlState -> [TypeName] -> GlueMode -> [FilePath] -> ExceptT String IO (MN.FunMono, MN.TypeMono)
-collect s typnames mode filenames = do
-  ds <- liftA concat . forM filenames $ parseFile defaultExts typnames
-  fmap (view (mnState.funMono) &&& view (mnState.typeMono)) (flip execStateT s $ collectAll ds)
-      -- NOTE: Lens doesn't support Arrow. See http://www.reddit.com/r/haskell/comments/1nwetz/lenses_that_work_with_arrows/ / zilinc
-
-collectAnti :: (Data a, Typeable b, Monoid r) => (b -> Gl r) -> a -> Gl r
-collectAnti f a = everything (\a b -> mappend <$> a <*> b) (mkQ (pure mempty) f) a
-
-collectFuncId :: CS.Definition -> Gl [(String, SrcLoc)]
--- collectFuncId (CS.FuncDef (CS.Func _ (CS.AntiId fn loc) _ _ bis _) _) = (fn, loc) : collectAnti collectFnCall bis
-collectFuncId (CS.FuncDef (CS.Func _ (CS.Id _ _) _ _ bis _) _) = collectAnti collectFnCall bis  -- NOTE: we restrict entry points have to be C functions
-collectFuncId d = return []
-
-collectFnCall :: CS.Exp -> Gl [(String, SrcLoc)]
-collectFnCall (CS.FnCall (CS.Var (CS.AntiId fn loc) _) args _) = return [(fn, loc)]
-collectFnCall _ = return []
-
-analyseFuncId :: [(String, SrcLoc)] -> GlDefn t [(FunName, MN.Instance)]
-analyseFuncId ss = forM ss $ \(fn, loc) -> flip runReaderT (MonoState ([], Nothing)) $ do
-  (CC.TE _ (CC.Fun fn' ts _)) <- monoExp =<< lift . coreTcExp =<< lift . desugarExp =<<
-                                 lift . tcFnCall =<< (lift . lift) (parseFnCall fn loc)
-  return (unCoreFunName fn', ts)
-
-collectOneFunc :: CS.Definition -> Gl ()
-collectOneFunc d = do
-  ss <- collectFuncId d
-  fins <- flip runReaderT (FileState "") . flip runReaderT (DefnState Nil []) $ analyseFuncId ss
-  forM_ fins $ \(fn, inst) -> do
-    case inst of
-      [] -> mnState.funMono %= (M.insert fn M.empty)
-      ts -> mnState.funMono %= (M.insertWith (\_ m -> insertWith (flip const) ts (M.size m) m) fn (M.singleton ts 0))
-
-collectOne :: CS.Definition -> Gl ()
-collectOne d@(CS.FuncDef {}) = collectOneFunc d
-collectOne _ = return ()
-
-collectAll :: [CS.Definition] -> Gl ()
-collectAll = mapM_ collectOne
-
 
 -- /////////////////////////////////////////////////////////////////////////////
 --

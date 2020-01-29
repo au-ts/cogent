@@ -1,0 +1,19 @@
+// First, include the stdlib for use
+$esc:(#include <stdio.h>)
+$esc:(#include <stdlib.h>)
+
+char * KERNEL_PANIC_MESSAGE = "Fatal error! dying...";
+char * KERNEL_OK_MESSAGE    = "Kernel is ok!";
+
+#include <cogent-defns.h>
+
+// The definition of our abstract type
+typedef struct kernelState {
+    u64 magicNumber;
+    FILE * kernelLogStream;
+} KernelState;
+
+// Now, include our compiled code
+#include "kernel.c"
+
+#include <main.ac>

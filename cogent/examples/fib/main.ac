@@ -1,0 +1,12 @@
+$esc:(#include <stdio.h>)
+#include "fib.c"
+#include <gum/anti/iterator.ac>
+ 
+int main(void)
+{
+   u32 n;
+   n = $exp:fibonacci(10);
+   printf("10th Fibonacci is %u\n", n);
+   return 0;
+}
+

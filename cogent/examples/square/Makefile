@@ -8,49 +8,53 @@
 # @TAG(NICTA_GPL)
 #
 
-NAME=mapper
+NAME=square
 
-SRC=Mapper.cogent
-OUTPUT=$(NAME)
+REPO="../../.."
+
+SRC=square.cogent
+OUTPUT=square # $(SRC:.cogent=-gen)
 COUTPUT=$(addsuffix .c, $(OUTPUT))
 HOUTPUT=$(addsuffix .h, $(OUTPUT))
 
 STDGUM=$(shell cogent --stdgum-dir)
 
-AHFILES=$(STDGUM)gum/anti/abstract/WordArray.ah \
-				$(STDGUM)gum/anti/abstract/View.ah
 ACFILES=main.ac
 
 PP=$(ACFILES:.ac=_pp.ac)
 PPINFER=$(ACFILES:.ac=_pp_inferred.c)
 
-ABSDIR=./
-
 OBJ=$(PPINFER:.c=.o)
 
-CFLAGS+=-I. -I$(STDGUM) -I$(STDGUM)/gum/anti -std=gnu99
+CFLAGS=-I. -I$(STDGUM) -I$(STDGUM)/gum/anti -std=gnu99  # -I../plat/console 
 
 .PHONY: default clean gen-anti
 .SECONDARY:
 
 default: all
 
-all: gen-anti $(OBJ)
+all: gen-anti $(OBJ) gen-verif
 	$(CC) -o $(NAME) $(OBJ)
 
 $(OBJ): $(PPINFER)
 
 gen-anti:
-	mkdir -p $(ABSDIR)
 	cogent $(SRC) -g -o$(OUTPUT) \
-		--abs-type-dir="$(ABSDIR)" \
-		--infer-c-types="$(AHFILES)" \
-		--infer-c-funcs="$(ACFILES)" \
-		--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
+		--root-dir="$(REPO)" \
+		--Wno-warn --infer-c-funcs="$(ACFILES)" \
+		--cpp-args="\$$CPPIN -o \$$CPPOUT -P $(CFLAGS)" \
+		--entry-funcs=entrypoints.cfg
+
+gen-verif:
+	cogent $(SRC) -g -o$(OUTPUT) \
+		--root-dir="$(REPO)" \
+		--shallow-normal \
 		--entry-funcs=entrypoints.cfg
 
 clean:
 	rm -f $(COUTPUT) $(HOUTPUT) $(PP) $(PPINFER) $(OBJ)
 	@# rm -f *-gen.*
-	rm -f $(ABSDIR)/*.h
-	rm -f $(NME)
+	rm -f $(NAME)
+	rm -f Square_*.thy
+	rm -f ROOT
+	rm -f BUILD_INFO

@@ -3,7 +3,7 @@
 
 Cogent builds with the Glasgow Haskell Compiler (GHC)
 
-See [INSTALL.md](./INSTALL.md) for details.
+See the [Installation Guide](https://cogent.readthedocs.io/en/latest/install.html) for details.
 
 
 ## Command-line Options
@@ -23,6 +23,7 @@ Run `. misc/cogent_autocomplete.sh` for bash auto-complete support. (The script 
 * [lib](./lib): C library for generated C code
 * [Setup.hs](./Setup.hs): runhaskell entry.
 * [doc](./doc): The Cogent compiler documentation.
+* [manual](./manual): A Cogent language manual.
 * [misc](./misc): Miscellaneous helper scripts (Emacs/Vim syntax, Bash autocompletion, cabal.config files).
 * [tests](./tests): Cogent test files.
 * [examples](./examples): Some tiny but self-contained examples that newcomers should have a look.

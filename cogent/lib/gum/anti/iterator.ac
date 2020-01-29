@@ -14,7 +14,7 @@ $id:iterate ($ty:(#{
 	cons: Consumer y r s acc obsv!,
 	acc: acc,
 	obsv: obsv!}) args) {
-	$ty:(#{acc: acc, obsv: obsv!}) generator_args = { .acc = args.acc, .obsv = args.obsv };	
+	$ty:(#{acc: acc, obsv: obsv!}) generator_args = { .acc = args.acc, .obsv = args.obsv };
 	$ty:(#{obj: y, acc: acc, obsv: obsv!}) consumer_args = { .obsv = args.obsv };
 
 	$ty:(IterationResult acc r s) ret;
