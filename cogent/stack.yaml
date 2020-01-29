@@ -1,12 +1,12 @@
 flags:
- language-c-quote:
-   full-haskell-antiquotes: false
+  language-c-quote:
+    full-haskell-antiquotes: false
 extra-package-dbs: []
 packages:
-- '.'
-- '../isa-parser'
+  - '.'
+  - '../isa-parser'
 extra-deps:
-- haskell-exp-parser-0.1.1
-- pretty-show-ansi-wl-1.9.2.1
+  - haskell-exp-parser-0.1.1
+  - pretty-show-ansi-wl-1.9.2.1
 resolver: lts-12.20
 allow-newer: true
