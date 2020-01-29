@@ -171,10 +171,10 @@ mkTuple :: [Term] -> Term
 mkTuple xs = ListTerm "(" xs ")"
 
 lamTerm :: [Ident] -> Term -> Term
-lamTerm ids t = QuantifiedTerm Lambda (map (TermIdent <$>) ids) t
+lamTerm ids t = QuantifiedTerm Lambda (map TermIdent ids) t
 
 mkLambda :: [Id] -> Term -> Term
-mkLambda vs t = lamTerm (map mkId vs) t
+mkLambda vs t = lamTerm (map Id vs) t
 
 subSym :: String
 subSym = "\\<^sub>"

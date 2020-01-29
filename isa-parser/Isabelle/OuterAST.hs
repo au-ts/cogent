@@ -219,10 +219,15 @@ instance (Pretty terms, Pretty types) => Pretty (TheoryDecl types terms) where
     FunFunction ff f    -> (if ff then string "fun" else string "function") <+> pretty f
     TheoryString s      -> string s
     PrimRec pr          -> pretty pr
+    Declare dc          -> pretty dc
 
 instance (Pretty terms, Pretty types) => Pretty (Context types terms) where
   pretty (Context name cDecls) = string "context" <+> string name <+> string "begin" <$$> 
                                  prettyThyDecls cDecls <> string "end"
+
+instance (Pretty terms, Pretty types) => Pretty (Dcl types terms) where
+  pretty (Dcl dclName dclRules) =  string "declare" <+> 
+    pretty dclName <> string "_def[" <> sep (punctuate (text ",") (map pretty dclRules)) <> string "]"
 
 instance (Pretty terms, Pretty types) => Pretty (Prc types terms) where
   pretty (Prc thmDecl recCases) =  string "prim_rec" <+> 
