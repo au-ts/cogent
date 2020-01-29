@@ -37,7 +37,7 @@ import Isabelle.PrettyHelper
 data Term = TermIdent      Ident
           | TermApp                   Term    Term
           | TermWithType              Term    Type  -- A :: bool
-          | QuantifiedTerm Quantifier [Ident] Term  -- \\<
+          | QuantifiedTerm Quantifier [Term]  Term  -- \\<
           | TermUnOp       TermUnOp   Term
           | TermBinOp      TermBinOp  Term    Term
           | AntiTerm       String
@@ -168,11 +168,11 @@ mkList xs = ListTerm "[" xs "]"
 mkTuple :: [Term] -> Term
 mkTuple xs = ListTerm "(" xs ")"
 
-lamTerm :: [Ident] -> Term -> Term
-lamTerm ids t = QuantifiedTerm Lambda ids t
+-- lamTerm :: [Ident] -> Term -> Term
+-- lamTerm ids t = QuantifiedTerm Lambda ids t
 
-mkLambda :: [Id] -> Term -> Term
-mkLambda vs t = lamTerm (map Id vs) t
+-- mkLambda :: [Id] -> Term -> Term
+-- mkLambda vs t = lamTerm (map Id vs) t
 
 subSym :: String
 subSym = "\\<^sub>"
@@ -352,9 +352,9 @@ prettyMetaImp p t t' = case t' of
       (hsep . punctuate semi . map (prettyTerm (p'+1)) . reverse $ ts) <>
       string "\\<rbrakk>" <+> string (termBinOpSym MetaImp) <+> prettyTerm p' t
 
-prettyQuantifier :: Precedence -> Quantifier -> [Ident] -> Term -> Doc
+prettyQuantifier :: Precedence -> Quantifier -> [Term] -> Term -> Doc
 prettyQuantifier p q is t = prettyParen (p > quantifierPrec q) $ string (quantifierSym q) <>
-                              (hsep . map pretty $ is) <> char '.' <+> pretty t
+                              (hsep . map (prettyTerm 0) $ is) <> char '.' <+> pretty t
 
 instance Pretty Ident where
   pretty ident = case ident of

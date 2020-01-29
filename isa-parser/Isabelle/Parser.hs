@@ -642,7 +642,7 @@ termL = buildExpressionParser table restL
     typedTermParser = (typeAnnotationPrec, Postfix (try$ do { stringL "::"; ty <- typeL
                                                        ; return (\t -> TermWithType t ty) }))
     quantifierParser q = (quantifierPrec q, Prefix (do { try (stringL (quantifierSym q))
-                                                       ; is <- many1 innerIdentL
+                                                       ; is <- many1 (try listTermL <||> (TermIdent <$> innerIdentL))
                                                        -- note that string "." must be followed by at least one space
                                                        ; string "." 
                                                        ; many1 (satisfy isSpace)
