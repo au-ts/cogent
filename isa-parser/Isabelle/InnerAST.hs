@@ -170,8 +170,8 @@ mkList xs = ListTerm "[" xs "]"
 mkTuple :: [Term] -> Term
 mkTuple xs = ListTerm "(" xs ")"
 
-lamTerm :: [Term] -> Term -> Term
-lamTerm ids t = QuantifiedTerm Lambda ids t
+lamTerm :: [Ident] -> Term -> Term
+lamTerm ids t = QuantifiedTerm Lambda (map (TermIdent <$>) ids) t
 
 mkLambda :: [Id] -> Term -> Term
 mkLambda vs t = lamTerm (map mkId vs) t
