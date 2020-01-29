@@ -168,11 +168,11 @@ mkList xs = ListTerm "[" xs "]"
 mkTuple :: [Term] -> Term
 mkTuple xs = ListTerm "(" xs ")"
 
--- lamTerm :: [Ident] -> Term -> Term
--- lamTerm ids t = QuantifiedTerm Lambda ids t
+lamTerm :: [Term] -> Term -> Term
+lamTerm ids t = QuantifiedTerm Lambda ids t
 
--- mkLambda :: [Id] -> Term -> Term
--- mkLambda vs t = lamTerm (map Id vs) t
+mkLambda :: [Id] -> Term -> Term
+mkLambda vs t = lamTerm (map mkId vs) t
 
 subSym :: String
 subSym = "\\<^sub>"
