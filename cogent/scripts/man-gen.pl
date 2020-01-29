@@ -1,87 +1,140 @@
-#!/usr/bin/perl
-
-use File::Which qw(which);
-use warnings qw(all);
-
+#!/usr/bin/env perl
 #
 # Copyright 2017, NICTA
 #
-# This software may be distributed and modified according to the terms of
-# the GNU General Public License version 2. Note that NO WARRANTY is provided.
-# See "LICENSE_GPLv2.txt" for details.
+# This software may be distributed and modified according to the
+# terms of the GNU General Public License version 2. Note that
+# NO WARRANTY is provided.  See "LICENSE_GPLv2.txt" for details.
 #
 # @TAG(NICTA_GPL)
 #
 
-$mandir = $ARGV[0];
-$cogent = $ARGV[1];
-$manfile = "cogent.1";
-$file = "$mandir/$manfile";
+use strict;
+use warnings;
 
+use File::Path qw(make_path);
+use File::Which qw(which);
+use IO::Handle;
+use Time::Piece;
 
-system ("which $cogent >/dev/null");
-print "Cannot find cogent executable.\n" and die unless (defined $?);
+die "usage: $0 <output-dir> <cogent-binary>\n"
+  unless scalar @ARGV == 2;
 
-$version = `$cogent -v`;
+my $output_dir = shift;
+my $cogent_bin = shift;
+my $filename = 'cogent.1';
+my $output_file = $output_dir . '/' . $filename;
+
+make_path $output_dir unless (-d $output_dir);
+
+open my $out, '>', $output_file
+	or die "can't write to $output_file: $!";
+
+system "which $cogent_bin >/dev/null";
+die "couldn't find Cogent executable" unless defined $?;
+
+my $version = `$cogent_bin -v`;
 $version =~ /: (.*)/;
 $version = $1;
 
-# print "$version\n";
+my $date = localtime->strftime('%B %d, %Y');
 
-$date = `date -R`;
-$date =~ /^.{3}, (.{11})/;
-$date = $1;
+$out->print(<<__EOF__ =~ s/\n\n/\n/gmr);
+.\\"
+.\\" Manual page for Cogent.
+.\\"
+.\\" Copyright 2017, NICTA
+.\\"
+.\\" This software may be distributed and modified according to the
+.\\" terms of the GNU General Public License version 2. Note that
+.\\" NO WARRANTY is provided.  See "LICENSE_GPLv2.txt" for details.
+.\\"
+.\\" \@TAG(NICTA_GPL)
+.\\"
 
-# print "$date\n";
+.Dd $date
+.Dt COGENT 1
+.Os Data61
 
-$help = `$cogent -h4`;
+.Sh NAME
+.Nm cogent
+.Nd a compiler for building high-assurance file-systems
 
-# print "$help\n";
+.Sh SYNOPSIS
+.Nm
+.Ar COMMAND...
+.Bq Ar FLAG...
+.Ar FILENAME
 
-$synopsis = $help;
-$synopsis =~ /^Usage: (.*)/;
-$synopsis = $1;
+.Sh DESCRIPTION
+The
+.Nm
+compiler takes a set of commands,
+with a list of optional flags,
+and an input file.
+It is used to compile Cogent source code
+and generate C code,
+plus Isabelle/HOL specifications and proofs
+to show that the generated C code
+has the same semantics as the source program
+(and its shallow HOL embedding).
+The
+.Nm
+compiler supports FFI to interact with existing C code.
+The user needs to write a thin wrapper in C,
+with antiquoted Cogent identifiers,
+in order to access Cogent functions and datatypes.
 
-@man_body = split (/\n/, $help);
+__EOF__
 
-shift(@man_body);
-$man_body = join("\n", @man_body);
-$man_body =~ s/^(COMMANDS):/.SH $1/;
-$man_body =~ s/\n(FLAGS):/.SH $1/;
+open my $fh, "$cogent_bin -h4 |"
+	or die "couldn't run '$cogent_bin': $!";
+while (<$fh>) {
+	chomp;
 
-$man_head = << "EOF";
-.\\" Manpage for Cogent.
-.TH man 1 "$date" "$version" "Cogent man page"
-.SH NAME
-cogent -\\ a compiler for building high-assurance file-systems.
-.SH SYNOPSIS
-$synopsis
-.SH DESCRIPTION
-Cogent compiler takes a set of compatible options (actions), with a list of optional flags and an input file.
-It is used to compile Cogent source code and generate C code, plus Isabelle/HOL specifications and proofs to
-show that the generated C code has the same semantics as the source program (and its shallow HOL embedding).
-Cogent compiler comes with an FFI to interact with existing C code. The user needs to write a thin wrapper
-in C, with antiquoted Cogent identifiers, in order to access Cogent functions and datatypes. 
-EOF
+	# Drop the blank line.
+	next if $_ eq '';
 
+	# Transform headers.
+	$out->print(".Sh $1\n") and next
+		if /\A(COMMANDS|FLAGS):\Z/;
 
-$man_tail = << "EOF";
-.SH RESOURCES
+	# TODO(jashank): munge options into mandoc format
+	$out->print("$_\n");
+}
+$fh->close;
 
-* https://ts.data61.csiro.au/projects/TS/cogent.pml
+$out->print(<<__EOF__ =~ s/\n\n/\n/gmr);
+.\\" .Sh ENVIRONMENT
+.\\" .Sh FILES
+.\\" .Sh EXIT STATUS
+.\\" .Sh EXAMPLES
+.\\" .Sh DIAGNOSTICS
 
-* Source code available at https://github.com/NICTA/cogent
+.Sh SEE ALSO
+The full documentation for
+.Nm
+is maintained online.
+.Bl -dash -compact
+.It
+.Lk https://cogent.readthedocs.io/
+.It
+.Lk https://ts.data61.csiro.au/projects/TS/cogent.pml
+.It
+.Lk https://github.com/NICTA/cogent
+.El
 
-.SH AUTHOR
-Trustworthy Systems, Data61
-EOF
+.\\" .Sh STANDARDS
 
-unlink "$file" if (-e $file);
-# print "$file\n";
+.\\" .Sh HISTORY
 
-open($fh, '>>', "$file") or die;
-print $fh "$man_head\n\n";
-print $fh "$man_body\n\n";
-print $fh "$man_tail\n\n";
-undef $fh;       # automatically closes the file
+.Sh AUTHORS
+.An Trustworthy Systems at Data61, CSIRO
 
+.\\" .Sh CAVEATS
+
+.\\" .Sh BUGS
+
+__EOF__
+
+$out->close;
