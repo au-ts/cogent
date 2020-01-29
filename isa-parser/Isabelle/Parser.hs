@@ -79,8 +79,7 @@ reservedWords = [
   "subsection", "subsubsection", "termination", "text", "theorems", "theory", "translations",
   "type_synonym", "typedecl", "unchecked", "uses", "where", "declare"]
 
-reservedWordsInner = ["case", "of", "if", "then", "else", "do", "od"]
---  "let", "in"]
+reservedWordsInner = ["case", "of", "if", "then", "else", "do", "od", "let", "in"]
 
 ---------------------------------------------------------------
 -- Utility functions and combinators
@@ -655,23 +654,23 @@ termL = buildExpressionParser table restL
     restL =  antiquoteTermL <||> parensTermL <||> constTermL <||> doBlockTermL <||> funUpdTermL <||>
              caseOfTermL <||> recordUpdTermL <||> recordDclTermL <||> ifThenElseTermL <||> 
              listTermL <||> setTermL <||> (TermIdent <$> innerIdentLL) 
-            --  <||> letInTermL
+             <||> letInTermL
     parensTermL = parensL termL
 
--- letInTermL :: ParserM Term 
--- letInTermL = do 
---   reserved "let"
---   eles <- sepBy1 dclTermL (stringL ";")
---   reserved "in"
---   i <- termL
---   return $ LetIn eles i 
+letInTermL :: ParserM Term 
+letInTermL = do 
+  reserved "let"
+  eles <- sepBy1 letTermL (stringL ";")
+  reserved "in"
+  i <- termL
+  return $ LetIn eles i 
 
--- letTermL :: ParserM (Term, Term) 
--- letTermL = do 
---   term1 <- try (parensL $ TermIdent <$> innerIdentLL) <||> (TermIdent <$> innerIdentLL) 
---   stringL "="
---   term2 <- termL
---   return (term1, term2) 
+letTermL :: ParserM (Term, Term) 
+letTermL = do 
+  term1 <- try listTermL <||> (TermIdent <$> innerIdentLL) 
+  stringL "="
+  term2 <- termL
+  return (term1, term2) 
 
 funUpdTermL :: ParserM Term 
 funUpdTermL = do 
