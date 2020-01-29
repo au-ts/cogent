@@ -217,3 +217,37 @@ A solution:
      examples will ensure that the correct version of ``cpp`` is used.
 
 Running ``make examples`` should now be successful.
+
+
+Common Issues and Troubleshooting
+=================================
+
+Cabal Version
+-------------
+
+Cogent currently relies on ``cabal >= 2.4.*``. Please ensure that you are not using version 3. 
+
+Missing Dependencies
+--------------------
+
+Before trying to build Cogent, ensure that ``happy`` and ``alex`` are installed with cabal/stack::
+
+  cabal install happy
+  cabal install alex
+
+Could not resolve dependency ``isa-parser``
+-------------------------------------------
+
+You may see the following error message::
+
+  Resolving dependencies...
+  cabal: Could not resolve dependencies:
+  [__0] trying: cogent-2.9.0.0 (user goal)
+  [__1] unknown package: isa-parser (dependency of cogent)
+  [__1] fail (backjumping, conflict set: cogent, isa-parser)
+  After searching the rest of the dependency tree exhaustively, these were the
+  goals I've had most trouble fulfilling: cogent, isa-parser
+
+``isa-parser`` must be installed manually in this case. Change to the directory ``isa-parser`` at
+the root of the repository, and run ``cabal install``. Then, retry installing/building Cogent.
+

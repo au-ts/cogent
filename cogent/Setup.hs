@@ -28,7 +28,7 @@ import Distribution.Simple.Utils
 import Distribution.PackageDescription
 import Distribution.Verbosity (Verbosity)
 
-import System.Directory(removeFile)
+import System.Directory(removeFile, doesDirectoryExist)
 import System.Exit
 import System.FilePath ((</>), (<.>), takeExtension)
 import qualified System.FilePath.Posix as Px
@@ -102,15 +102,28 @@ copyGumHdrs verbosity pkg lbi copy = do
   let hdrsdest = datadir (L.absoluteInstallDirs pkg lbi copy) </> "include"
   putStrLn $ "Installing Gum headers in `" ++ hdrsdest ++ "'..."
   createDirectoryIfMissingVerbose verbosity True hdrsdest
-  installDirectoryContents verbosity "lib" hdrsdest
+  errorMsg <- installDirectoryContents verbosity "lib" hdrsdest
+  case errorMsg of 
+    Nothing -> return ()
+    Just x  -> do putStrLn x; putStrLn "Are you using cabal2.4?"
     where
       -- This function is copied from Cabal-1.24.2.0 and modified
-      installDirectoryContents :: Verbosity -> FilePath -> FilePath -> IO ()
+      installDirectoryContents :: Verbosity -> FilePath -> FilePath -> IO (Maybe String)
       installDirectoryContents verbosity srcDir destDir = do
         info verbosity ("copy directory '" ++ srcDir ++ "' to '" ++ destDir ++ "'...")
-        srcFiles <- getDirectoryContentsRecursive srcDir
-        let srcFiles' = filter ((`elem` [".ac", ".ah", ".h", ".cogent", ".c"]) . takeExtension) srcFiles
-        installOrdinaryFiles verbosity destDir [ (srcDir, f) | f <- srcFiles' ]
+        b <- doesDirectoryExist srcDir
+        b' <- doesDirectoryExist destDir
+        if not b then do
+          return $ Just $ "Error: Source directory '" ++ srcDir ++ "' not found"
+        else do
+          if not b' then do
+            return $ Just $ "Error: Destination directory '" ++ destDir ++ "' not found"
+          else do
+            srcFiles <- getDirectoryContentsRecursive srcDir
+            let srcFiles' = filter ((`elem` [".ac", ".ah", ".h", ".cogent", ".c"]) . takeExtension) srcFiles
+            installOrdinaryFiles verbosity destDir [ (srcDir, f) | f <- srcFiles' ]
+            return Nothing
+               
 
 installManPage :: Verbosity -> PackageDescription -> LocalBuildInfo -> CopyDest -> IO ()
 installManPage verbosity pkg lbi copy = do
