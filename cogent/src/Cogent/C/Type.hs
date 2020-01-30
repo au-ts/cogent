@@ -97,7 +97,7 @@ import Unsafe.Coerce (unsafeCoerce)
 genTyDecl :: (StrlType, CId) -> [TypeName] -> [CExtDecl]
 genTyDecl (Record x, n) _ = [CDecl $ CStructDecl n (map (second Just . swap) x), genTySynDecl (n, CStruct n)]
 genTyDecl (RecordL layout, n) _ =
-  let size      = dataLayoutSizeBytes layout
+  let size      = dataLayoutSizeInWords layout
       arrayType = CArray (CInt False CIntT) (CArraySize $ CConst $ CNumConst size (CInt False CIntT) DEC)
   in
     if size == 0
@@ -116,7 +116,7 @@ genTyDecl (Function t1 t2, n) tns =
 #ifdef BUILTIN_ARRAYS
 genTyDecl (Array t, n) _ = [CDecl $ CVarDecl t n True Nothing]
 genTyDecl (ArrayL layout, n) _ =
-  let elemSize = dataLayoutSizeBytes layout
+  let elemSize = dataLayoutSizeInWords layout
       dataType = CPtr $ CInt False CIntT
    in if elemSize == 0
          then []
