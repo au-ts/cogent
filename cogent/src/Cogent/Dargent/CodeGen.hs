@@ -31,6 +31,7 @@ import Cogent.Dargent.Core
   ( DataLayout' (..)
   , DataLayout (..)
   , alignLayout'
+  , alignLayoutToBytes'
   , dataLayoutSizeInBytes'
   )
 import Cogent.Dargent.Util
@@ -218,7 +219,7 @@ genBoxedArrayGetSet cogentType getOrSet = do
         -- NOTE: do we need to check layout within elt here?
         TArray elemType _ (Boxed _ (Layout (ArrayLayout elemLayout _))) _ -> do
           let elemSize = dataLayoutSizeInBytes' elemLayout
-              elemLayout' = alignLayout' elemLayout
+              elemLayout' = alignLayoutToBytes' elemLayout
               -- we get rid of unused info here, e.g. array length, hole location
           f' <- genArrayGetterSetter cogentType elemType elemSize elemLayout' getOrSet
           ((case getOrSet of Get -> boxedArrayGetters; Set -> boxedArraySetters) . at (simplifyType cogentType))
@@ -239,7 +240,7 @@ genArrayGetterSetter arrType elemType elemSize elemLayout' getOrSet = do
   functionIdentifier <- genGetterSetterName [] getOrSet
   arrCType <- genType arrType
   elemCType <- genType elemType
-  elemGetterSetter <- genBoxedGetterSetter False (CPtr CChar) elemType elemLayout' [] getOrSet
+  elemGetterSetter <- genBoxedGetterSetter False (CPtr unsignedCharType) elemType elemLayout' [] getOrSet
   ((case getOrSet of Get -> boxedArrayElemGetters; Set -> boxedArrayElemSetters) . at (simplifyType arrType))
     ?= elemGetterSetter
   declareSetterOrGetter $ arrayGetterSetter arrCType elemCType elemSize functionIdentifier elemGetterSetter getOrSet
@@ -720,7 +721,7 @@ alignedRangeGetterSetter
     maskLiteral      = unsignedIntMask $ sizeToMask bitSizeABR'
     dataLocExpr      = case isStruct of
                          True -> genBoxWordExpr boxVariable wordOffsetABR'
-                         False -> CArrayDeref boxVariable (unsignedIntLiteral $ wordOffsetABR' * 4)
+                         False -> CArrayDeref boxVariable (unsignedIntLiteral $ wordOffsetABR')
 
 -- | Returns a function declaration for setter or getter.
 getterSetterDecl
@@ -771,7 +772,7 @@ arrayGetterSetter arrType elemType elemSize functionName elemGetterSetter Get =
     [ CBIStmt $ CReturn $ Just
       ( CEFnCall elemGetterSetter
         [( CBinOp Add
-          ( CTypeCast (CPtr CChar) arrVariable )
+          ( CTypeCast ( CPtr unsignedCharType ) arrVariable )
           ( CBinOp Mul idxVariable ( unsignedIntLiteral elemSize ) )
         )]
       )
@@ -789,7 +790,7 @@ arrayGetterSetter arrType elemType elemSize functionName elemGetterSetter Set =
     [ CBIStmt $ CReturn $ Just
       ( CEFnCall elemGetterSetter
         [ ( CBinOp Add
-            ( CTypeCast (CPtr CChar) arrVariable )
+            ( CTypeCast ( CPtr unsignedCharType ) arrVariable )
             ( CBinOp Mul idxVariable ( unsignedIntLiteral elemSize ) )
           )
         , valueVariable
