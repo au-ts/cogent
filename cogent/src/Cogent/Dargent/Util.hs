@@ -20,6 +20,9 @@ import Text.Parsec.Pos (SourcePos)
 wordSizeBits :: Size
 wordSizeBits = 32
 
+byteSizeBits :: Size
+byteSizeBits = 8
+
 data Architecture = X86_64 | X86_32 | ARM32
 
 architecture :: Architecture
