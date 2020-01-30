@@ -3,17 +3,34 @@
 type List a          = rec t { l: < Nil | Cons (a,t) > }
 type EmptyListNode a = (List a) take (..)
 
-allocListNode : all a. () -> EmptyListNode a
-freeListNode : all a. EmptyListNode a -> ()
-freeList : all a. List a -> ()
+alloc_list_node : all a. () -> EmptyListNode a
+free_list_node : all a. EmptyListNode a -> ()
+free_list : all a. List a -> ()
 
-cons : all a. (a, List a) -> List a
-cons (x, list) = (allocListNode ()) { l = Cons (x,list) }
+list_cons : all a. (a, List a) -> List a
+list_cons (x, list) = (alloc_list_node ()) { l = Cons (x,list) }
 
-append : all a. (List a, List a) -> List a
-append (head { l = x }, b) =
+list_append : all a. (List a, List a) -> List a
+list_append (head { l = x }, b) =
   x | Nil -> 
-        let _ = freeListNode head in b
+        let _ = free_list_node head in b
     | Cons (elem, tail) -> 
-        let rest = append (tail, b)
+        let rest = list_append (tail, b)
         in head { l = Cons (elem, rest) }
+
+list_is_empty : all a. (List a)! -> Bool
+list_is_empty (head { l = x }) =
+  x | Nil -> True
+    | _   -> False
+
+list_length : all a. (List a)! -> U32
+list_length (head { l = x }) =
+  x | Nil -> 0
+    | Cons (_, tail) -> 1 + list_length tail
+
+list_map : all a. ((a! -> b), (List a)!) -> List b
+list_map (f, head { l = x }) =
+  let node = alloc_list_node () in
+    x | Nil -> node { l = Nil }
+      | Cons (elem, tail) ->
+          node { l = Cons (f elem, listMap (f, tail)) }
