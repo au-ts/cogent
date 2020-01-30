@@ -1,12 +1,14 @@
 #!/usr/bin/env perl
 #
-# Copyright 2017, NICTA
+# Copyright 2020, Data61
+# Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+# ABN 41 687 119 230.
 #
-# This software may be distributed and modified according to the
-# terms of the GNU General Public License version 2. Note that
-# NO WARRANTY is provided.  See "LICENSE_GPLv2.txt" for details.
+# This software may be distributed and modified according to the terms
+# of the GNU General Public License version 2.  Note that NO WARRANTY is
+# provided.  See "LICENSE_GPLv2.txt" for details.
 #
-# @TAG(NICTA_GPL)
+# @TAG(DATA61_GPL)
 #
 
 use strict;
@@ -43,13 +45,16 @@ $out->print(<<__EOF__ =~ s/\n\n/\n/gmr);
 .\\"
 .\\" Manual page for Cogent.
 .\\"
-.\\" Copyright 2017, NICTA
 .\\"
-.\\" This software may be distributed and modified according to the
-.\\" terms of the GNU General Public License version 2. Note that
-.\\" NO WARRANTY is provided.  See "LICENSE_GPLv2.txt" for details.
+.\\" Copyright 2020, Data61
+.\\" Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+.\\" ABN 41 687 119 230.
 .\\"
-.\\" \@TAG(NICTA_GPL)
+.\\" This software may be distributed and modified according to the terms
+.\\" of the GNU General Public License version 2.  Note that NO WARRANTY is
+.\\" provided.  See "LICENSE_GPLv2.txt" for details.
+.\\"
+.\\" \@TAG(DATA61_GPL)
 .\\"
 
 .Dd $date
