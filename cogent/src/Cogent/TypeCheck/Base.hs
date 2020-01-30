@@ -648,6 +648,15 @@ isTrivialSE (SE t e) = go e
         go (LamC {})  = False
         go (Let {})   = False
         go e          = all isTrivialSE e
+
+simpleTE :: TExpr t -> Bool
+simpleTE (TE _ e _) = case e of
+                 ArrayLit   {} -> False
+                 ArrayIndex {} -> False
+                 ArrayMap2  {} -> False
+                 ArrayPut   {} -> False
+                 _             -> all simpleTE e
+
 #endif
 
 -- What's the spec of this function? / zilinc
