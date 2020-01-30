@@ -488,4 +488,6 @@ infixr 8 .**
 behead :: IntMap a -> IntMap a
 behead = IM.mapKeys ((-) 1) . IM.delete 1
 
-
+infixl 9 .>
+(.>) :: (a -> b) -> (b -> c) -> (a -> c)
+(.>) = flip (.)
