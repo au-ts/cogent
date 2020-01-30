@@ -70,6 +70,8 @@ instance Monad m => Monoid (RewriteT m a) where
   mempty = RewriteT (const empty)
 #endif
 
+
+
 -- | Run a function to pre-process a rewrite's input.
 pre :: (Monad m) => (a -> m a) -> RewriteT m a -> RewriteT m a
 pre op (RewriteT f) = RewriteT (\a -> T.lift (op a) >>= f)

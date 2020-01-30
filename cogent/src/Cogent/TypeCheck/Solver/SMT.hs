@@ -13,7 +13,7 @@
 module Cogent.TypeCheck.Solver.SMT where
 
 import Cogent.Common.Syntax
-import Cogent.TypeCheck.Base
+import Cogent.TypeCheck.Base as Tc
 import Cogent.TypeCheck.SMT
 import Cogent.TypeCheck.Solver.Goal
 import Cogent.TypeCheck.Solver.Monad (TcSolvM)
@@ -21,43 +21,51 @@ import Cogent.TypeCheck.Solver.Rewrite as Rewrite hiding (lift)
 import Cogent.TypeCheck.Util (traceTc)
 import Cogent.PrettyPrint (indent')
 import Cogent.Surface
-import Cogent.Util (hoistMaybe)
+import Cogent.Util (hoistMaybe, (.>))
 
 import Control.Monad.IO.Class
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.RWS (RWST (..))
+import qualified Data.Map as M (Map, map, toList)
 import Data.SBV (SatResult (..), SMTResult (..), z3)
 import Data.SBV.Dynamic (satWith)
 import Lens.Micro
+import Lens.Micro.Mtl (view)
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 
-data SmtState = SmtState { constraints :: [TCSExpr] }
+data SmtState = SmtState { constraints :: [TCSExpr]
+                         , knownConsts :: M.Map VarName (TCType, TCExpr)
+                         }
 
 type SmtM = StateT SmtState IO
 
-trans :: RewriteT SmtM [Goal] -> RewriteT TcSolvM [Goal]
+trans :: RewriteT SmtM a -> RewriteT TcSolvM a
 trans (RewriteT m) =
   RewriteT $ \a ->
     case m a of
       MaybeT (StateT m') ->
-        MaybeT $ RWST (\r s -> m' (SmtState []) >>= \(a',_) -> return (a',s,[]))
+        MaybeT $ RWST (\r s -> m' (SmtState [] (r ^. Tc.knownConsts & M.map (\(a,b,c) -> (a,b)))) >>= \(a',_) -> return (a',s,[]))
 
 smt :: RewriteT TcSolvM [Goal]
-smt = trans $ smtSolve []
+smt = trans $ smtSolve
 
-smtSolve :: [(VarName, TCExpr)] -> RewriteT SmtM [Goal]
-smtSolve axs = 
+smtSolve :: RewriteT SmtM [Goal]
+smtSolve = 
   collLogic `andThen`
   (rewrite' $ \gs -> do
-    -- TODO: currently we don't use the axiom set / zilinc
-    SmtState c <- get
-    b <- liftIO $ smtSat $ andTCSExprs c
+    SmtState c ks <- get
+    let ks' = constEquations ks
+    traceTc "sol/smt" (L.text "Constants" L.<> L.colon L.<$> L.prettyList ks')
+    b <- liftIO $ smtSat $ andTCSExprs (c++ks')
     case b of True  -> hoistMaybe $ Just gs
               False -> hoistMaybe $ Nothing
    )
     
-   
+constEquations :: M.Map VarName (TCType, TCExpr) -> [TCSExpr]
+constEquations = M.toList .> map (\(v,(t,e)) -> SE (T bool) (PrimOp "==" [SE t (Var v), toTCSExpr e]))
+
+
 collLogic :: RewriteT SmtM [Goal]
 collLogic = pickOne' $ \g -> do
   let c = g ^. goal
@@ -65,7 +73,7 @@ collLogic = pickOne' $ \g -> do
   if null es then
     hoistMaybe $ Nothing
   else do
-    modify (\(SmtState c) -> SmtState (c++es))
+    modify (\(SmtState c ks) -> SmtState (c++es) ks)
     hoistMaybe $ Just [g & goal .~ c']
 
 smtSat :: TCSExpr -> IO Bool
