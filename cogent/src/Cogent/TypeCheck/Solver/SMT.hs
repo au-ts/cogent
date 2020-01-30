@@ -63,8 +63,10 @@ smtSolve =
    )
     
 constEquations :: M.Map VarName (TCType, TCExpr) -> [TCSExpr]
-constEquations = M.toList .> map (\(v,(t,e)) -> SE (T bool) (PrimOp "==" [SE t (Var v), toTCSExpr e]))
-
+constEquations = M.toList .>
+                 filter simpleExpr .>
+                 map (\(v,(t,e)) -> SE (T bool) (PrimOp "==" [SE t (Var v), toTCSExpr e]))
+  where simpleExpr (_, (_, e)) = simpleTE e
 
 collLogic :: RewriteT SmtM [Goal]
 collLogic = pickOne' $ \g -> do
