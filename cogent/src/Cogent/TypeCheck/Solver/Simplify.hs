@@ -140,6 +140,10 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
     , Just m' <- elemIndex m primTypeCons
     , n' <= m' , not (m `elem` ["String","Bool"]) -> hoistMaybe $ Just []
 
+  -- Dropping for recPars
+  -- TODO: Share? Escape?
+  Drop (T (TRPar _ True _)) m -> Just []
+
   -- [amos] New simplify rule:
   -- If both sides of an equality constraint are equal, we can't completely discharge it;
   -- we need to make sure all unification variables in the type are instantiated at some point
@@ -344,16 +348,16 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
 
   -- Recursive types
 
-  T (TRPar v1 (Just m1)) :<  T (TRPar v2 (Just m2)) -> hoistMaybe $ Just [ (m1 M.! v1) :< (m2 M.! v2) ]
-  T (TRPar v1 (Just m1)) :=: T (TRPar v2 (Just m2)) -> hoistMaybe $ Just [ (m1 M.! v1) :=: (m2 M.! v2) ]
+  T (TRPar v1 b1 (Just m1)) :<  T (TRPar v2 b2 (Just m2)) -> hoistMaybe $ Just [ ifBang b1 (m1 M.! v1) :< ifBang b2 (m2 M.! v2) ]
+  T (TRPar v1 b1 (Just m1)) :=: T (TRPar v2 b2 (Just m2)) -> hoistMaybe $ Just [ ifBang b1 (m1 M.! v1) :=: ifBang b2 (m2 M.! v2) ]
 
-  T (TRPar v1 Nothing) :<  T (TRPar v2 Nothing) -> hoistMaybe $ Just []
-  T (TRPar v1 Nothing) :=: T (TRPar v2 Nothing) -> hoistMaybe $ Just []
+  T (TRPar v1 b1 Nothing) :<  T (TRPar v2 b2 Nothing) | b1 == b2 -> hoistMaybe $ Just []
+  T (TRPar v1 b1 Nothing) :=: T (TRPar v2 b2 Nothing) | b1 == b2 -> hoistMaybe $ Just []
 
-  T (TRPar v m) :< x  -> hoistMaybe $ Just [unroll v m :< x]
-  x :< T (TRPar v m)  -> hoistMaybe $ Just [x :< unroll v m]
-  x :=: T (TRPar v m) -> hoistMaybe $ Just [x :=: unroll v m]
-  T (TRPar v m) :=: x -> hoistMaybe $ Just [unroll v m :=: x]
+  T (TRPar v b m) :< x  -> hoistMaybe $ Just [unroll v b m :< x]
+  x :< T (TRPar v b m)  -> hoistMaybe $ Just [x :< unroll v b m]
+  x :=: T (TRPar v b m) -> hoistMaybe $ Just [x :=: unroll v b m]
+  T (TRPar v b m) :=: x -> hoistMaybe $ Just [unroll v b m :=: x]
 
   UnboxedNotRecursive (R None _ (Left Unboxed))     -> hoistMaybe $ Just []
   UnboxedNotRecursive (R _ _    (Left (Boxed _ _))) -> hoistMaybe $ Just []

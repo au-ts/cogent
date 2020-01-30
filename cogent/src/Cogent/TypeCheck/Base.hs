@@ -354,10 +354,11 @@ sameRecursive (Mu _) (Mu _) = True
 sameRecursive None    None = True
 sameRecursive _ _ = False
 
-unroll :: VarName -> RecContext TCType -> TCType
-unroll v (Just ctxt) = embedRecPar' (Just ctxt) (ctxt M.! v)
+unroll :: VarName -> Banged -> RecContext TCType -> TCType
+unroll v b (Just ctxt) = 
+    ifBang b $ embedRecPar' (Just ctxt) (ctxt M.! v)
   where
-    embedRecPar' ctxt (T (TRPar v Nothing)) = T (TRPar v ctxt)
+    embedRecPar' ctxt (T (TRPar v b Nothing)) = T (TRPar v b ctxt)
     embedRecPar' ctxt (T t) = T $ fmap (embedRecPar' ctxt) t
     embedRecPar' (Just ctxt) t@(R rp r s) = let ctxt' = (case rp of (Mu v) -> M.insert v t ctxt; _ -> ctxt)
                                     in R rp (fmap (embedRecPar' $ Just ctxt') r) s
@@ -393,6 +394,10 @@ instance Bifoldable SExpr where
 instance Bitraversable SExpr where
   bitraverse f g (SE t e) = SE <$> f t <*> pentatraverse f (traverse f) (traverse f) g (bitraverse f g) e
   bitraverse f g (SU t x) = SU <$> f t <*> pure x
+
+ifBang :: Banged -> TCType -> TCType
+ifBang True t = T (TBang t)
+ifBang _    t = t
 
 data FuncOrVar = MustFunc | MustVar | FuncOrVar deriving (Eq, Ord, Show)
 

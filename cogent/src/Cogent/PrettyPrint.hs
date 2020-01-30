@@ -579,7 +579,7 @@ instance (Pretty t, TypeType t, Pretty e, Pretty l, Eq l) => Pretty (Type e l t)
                      | otherwise = pretty e
   pretty (TUnbox t) = (typesymbol "#" <> prettyT' t) & (if __cogent_fdisambiguate_pp then (<+> comment "{- unbox -}") else id)
   pretty (TBang t) = (prettyT' t <> typesymbol "!") & (if __cogent_fdisambiguate_pp then (<+> comment "{- bang -}") else id)
-  pretty (TRPar v m) = (if __cogent_fdisambiguate_pp then (comment "{- rec -}" <+> ) else id) $ typevar v <+> comment (case m of Just _ -> "Just"; _ -> "Nothing")
+  pretty (TRPar v b m) = (if __cogent_fdisambiguate_pp then (comment "{- rec -}" <+> ) else id) $ typevar v <> (if b then typesymbol "!" else mempty)
   pretty (TTake fs x) = (prettyT' x <+> typesymbol "take"
                                     <+> case fs of Nothing  -> tupled (fieldname ".." : [])
                                                    Just fs' -> tupled1 (map fieldname fs'))
@@ -929,6 +929,12 @@ instance Pretty AssignResult where
                       Nothing -> empty
                       Just h' -> keyword "@take" <+> parens (pretty h')
 #endif
+  pretty (RecP r) = pretty r
+
+instance Pretty RP where
+  pretty (Mu t) = typevar t
+  pretty (None) = pretty "None"
+  pretty (UP i) = warn ('?':show i)
 
 instance Pretty r => Pretty (Sigil r) where
   pretty (Boxed False l) = keyword "[W]" <+> parens (pretty l)

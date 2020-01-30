@@ -51,6 +51,7 @@ normaliseRWT = rewrite' $ \case
       pure (V (fmap (T . TBang) r))
     T (TBang (T (TTuple ts))) -> pure (T (TTuple (map (T . TBang) ts)))
     T (TBang (T TUnit)) -> pure (T TUnit)
+    T (TBang (T (TRPar v _ m))) -> pure (T (TRPar v True m))
 #ifdef BUILTIN_ARRAYS
     T (TBang (A t l (Left s) tkns)) -> pure (A (T . TBang $ t) l (Left (bangSigil s)) tkns)  -- FIXME
 #endif

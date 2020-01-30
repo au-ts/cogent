@@ -136,7 +136,7 @@ data Type e l t =
                 | TUnbox   t
                 | TBang    t
                 -- Will be inserted before typechecking
-                | TRPar RecParName (RecContext t)
+                | TRPar RecParName Banged (RecContext t)
                 -- The context for a recursive type, i.e. a mapping from
                 -- Used for both field names in records and tag names in variants
                 | TTake (Maybe [FieldName]) t
@@ -321,7 +321,7 @@ instance Traversable (Flip2 Type t l) where  -- e
   traverse _ (Flip2 (TTake fs t))         = pure $ Flip2 (TTake fs t)
   traverse _ (Flip2 (TPut  fs t))         = pure $ Flip2 (TPut  fs t)
   traverse _ (Flip2 (TLayout l t))        = pure $ Flip2 (TLayout l t)
-  traverse _ (Flip2 (TRPar v env))        = pure $ Flip2 (TRPar v env)
+  traverse _ (Flip2 (TRPar v b env))      = pure $ Flip2 (TRPar v b env)
 
 instance Traversable (Flip (TopLevel t) e) where  -- p
   traverse _ (Flip (Include s))           = pure $ Flip (Include s)
@@ -526,7 +526,7 @@ tvT (RT (TRecord _ fs _)) = foldMap (tvT . fst . snd) fs
 tvT (RT (TVariant alts)) = foldMap (foldMap tvT . fst) alts
 tvT (RT (TTuple ts)) = foldMap tvT ts
 tvT (RT (TUnit)) = []
-tvT (RT (TRPar _ m)) = foldMap (foldMap tvT) m
+tvT (RT (TRPar _ _ m)) = foldMap (foldMap tvT) m
 #ifdef BUILTIN_ARRAYS
 tvT (RT (TArray t e _ tkns)) = tvT t ++ tvE e ++ foldMap (tvE . fst) tkns
 tvT (RT (TATake idxs t)) = tvT t ++ foldMap tvE idxs
