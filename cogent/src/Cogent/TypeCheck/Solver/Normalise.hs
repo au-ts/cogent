@@ -43,6 +43,8 @@ normaliseRW = rewrite' $ \t -> case t of
     T (TUnbox (T (TCon t ts s))) -> pure (T (TCon t ts Unboxed))
     T (TUnbox (R rp row _)) -> pure (R rp row (Left Unboxed))
 
+    T (TBang (T (TRPar v _ m))) -> pure (T (TRPar v True m))
+
     Synonym n as -> do 
         table <- view knownTypes
         case lookup n table of 

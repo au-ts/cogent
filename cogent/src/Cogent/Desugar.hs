@@ -547,9 +547,9 @@ desugarType = \case
     fs <- L.sortOn fst . P.zipWith (\n t -> (n,(t, False))) ns <$> forM ts desugarType
     return $ TRecord NonRec fs Unboxed
   S.RT (S.TUnit)     -> return TUnit
-  S.RT (S.TRPar v m) -> do
+  S.RT (S.TRPar v b m) -> do
     m' <- mapM id (fmap (\x -> mapM id (M.map desugarType x)) m)
-    return $ TRPar v m'
+    return $ __todo "Dodgy hack: RecParBang" (TRPar v m')
 #ifdef BUILTIN_ARRAYS
   S.RT (S.TArray t l) -> TArray <$> desugarType t <*> evalAExpr l  -- desugarExpr' l
 #endif

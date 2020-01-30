@@ -172,7 +172,7 @@ embedRecPar t = erp False (Just M.empty) t
       LocType p $ case ty of
         -- If we find a type variable that is in our context, we replace it with a recursive parameter
         -- However if we are currently changing a recursive context (b == True), don't infinitely insert the context
-        TVar n _ _ | M.member n c -> TRPar n (if b then Nothing else Just (M.map (erp True ctxt) c))
+        TVar n b' _ | M.member n c -> TRPar n b' (if b then Nothing else Just (M.map (erp True ctxt) c))
         -- If we find a record, add it's recursive parameter to the context if it exists and recurse
         TRecord rp fs s -> 
           let c' = case rp of 
@@ -266,7 +266,7 @@ checkStrictlyPositive (t:ts) = do
     sp s b (LocType p ty) = 
       case ty of
         -- If we find a recursive parameter in our 'negative' set, error
-        TRPar v _       -> if v `S.member` s then Left (NonStrictlyPositive, [(srcObj, p)]) else Right ()
+        TRPar v _ _       -> if v `S.member` s then Left (NonStrictlyPositive, [(srcObj, p)]) else Right ()
         TRecord rp fs _ -> 
           let b' = (case rp of Rec v -> S.insert v b; _ -> b) in
             allEither $ map (\(_,(x,_)) -> sp s b' x) fs

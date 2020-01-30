@@ -18,8 +18,6 @@ import Control.Monad.Trans.Class (lift)
 import qualified Data.Set as S
 import qualified Data.Map as M
 
-import Debug.Trace
-
 onGoal :: (Constraint -> Maybe [Constraint]) -> Goal -> Maybe [Goal]
 onGoal f g = fmap (map (derivedGoal g)) (f (g ^. goal))
 
@@ -101,6 +99,10 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
     , Just m' <- elemIndex m primTypeCons
     , n' <= m' , not (m `elem` ["String","Bool"]) -> Just []
 
+  -- Dropping for recPars
+  -- TODO: Share? Escape?
+  Drop (T (TRPar _ True _)) m -> Just []
+
   -- [amos] New simplify rule:
   -- If both sides of an equality constraint are equal, we can't completely discharge it; we need to make sure all unification variables in the type are instantiated at some point
   t :=: u | t == u ->
@@ -178,16 +180,16 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
 
   -- Recursive types
 
-  T (TRPar v1 (Just m1)) :<  T (TRPar v2 (Just m2)) -> Just [ (m1 M.! v1) :< (m2 M.! v2) ]
-  T (TRPar v1 (Just m1)) :=: T (TRPar v2 (Just m2)) -> Just [ (m1 M.! v1) :=: (m2 M.! v2) ]
+  T (TRPar v1 b1 (Just m1)) :<  T (TRPar v2 b2 (Just m2)) -> Just [ ifBang b1 (m1 M.! v1) :< ifBang b2 (m2 M.! v2) ]
+  T (TRPar v1 b1 (Just m1)) :=: T (TRPar v2 b2 (Just m2)) -> Just [ ifBang b1 (m1 M.! v1) :=: ifBang b2 (m2 M.! v2) ]
 
-  T (TRPar v1 Nothing) :<  T (TRPar v2 Nothing) -> Just []
-  T (TRPar v1 Nothing) :=: T (TRPar v2 Nothing) -> Just []
+  T (TRPar v1 b1 Nothing) :<  T (TRPar v2 b2 Nothing) | b1 == b2 -> Just []
+  T (TRPar v1 b1 Nothing) :=: T (TRPar v2 b2 Nothing) | b1 == b2 -> Just []
 
-  T (TRPar v m) :< x  -> Just [unroll v m :< x]
-  x :< T (TRPar v m)  -> Just [x :< unroll v m]
-  x :=: T (TRPar v m) -> Just [x :=: unroll v m]
-  T (TRPar v m) :=: x -> Just [unroll v m :=: x]
+  T (TRPar v b m) :< x  -> Just [unroll v b m :< x]
+  x :< T (TRPar v b m)  -> Just [x :< unroll v b m]
+  x :=: T (TRPar v b m) -> Just [x :=: unroll v b m]
+  T (TRPar v b m) :=: x -> Just [unroll v b m :=: x]
 
   UnboxedNotRecursive (R None _ (Left Unboxed))     -> Just []
   UnboxedNotRecursive (R _ _    (Left (Boxed _ _))) -> Just []

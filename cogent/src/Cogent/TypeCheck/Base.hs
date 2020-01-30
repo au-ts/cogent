@@ -257,10 +257,11 @@ sameRecursive (Mu _) (Mu _) = True
 sameRecursive None    None = True
 sameRecursive _ _ = False
 
-unroll :: VarName -> RecContext TCType -> TCType
-unroll v (Just ctxt) = embedRecPar' (Just ctxt) (ctxt M.! v)
+unroll :: VarName -> Banged -> RecContext TCType -> TCType
+unroll v b (Just ctxt) = 
+    ifBang b $ embedRecPar' (Just ctxt) (ctxt M.! v)
   where
-    embedRecPar' ctxt (T (TRPar v Nothing)) = T (TRPar v ctxt)
+    embedRecPar' ctxt (T (TRPar v b Nothing)) = T (TRPar v b ctxt)
     embedRecPar' ctxt (T t) = T $ fmap (embedRecPar' ctxt) t
     embedRecPar' (Just ctxt) t@(R rp r s) = let ctxt' = (case rp of (Mu v) -> M.insert v t ctxt; _ -> ctxt)
                                     in R rp (fmap (embedRecPar' $ Just ctxt') r) s
@@ -278,6 +279,10 @@ data TCType         = T (Type SExpr TCType)
 data SExpr          = SE (Expr RawType RawPatn RawIrrefPatn SExpr)
                     | SU Int
                     deriving (Show, Eq, Ord)
+
+ifBang :: Banged -> TCType -> TCType
+ifBang True t = T (TBang t)
+ifBang _    t = t
 
 rigid :: TCType -> Bool 
 rigid (T (TBang {})) = False

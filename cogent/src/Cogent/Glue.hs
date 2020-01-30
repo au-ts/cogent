@@ -511,18 +511,19 @@ monoAnti m a = view (inst._1) >>= \is -> lift . lift . lift $
 genAnti :: (a -> CG.Gen 'Zero b) -> a -> Gl b
 genAnti m a =
   StateT $ \s -> let reader = Nil
-                     state  = CG.GenState { CG._cTypeDefs    = view (cgState.cTypeDefs   ) s
-                                          , CG._cTypeDefMap  = view (cgState.cTypeDefMap ) s
-                                          , CG._typeSynonyms = view (cgState.typeSynonyms) s
-                                          , CG._typeCorres   = view (cgState.typeCorres  ) s
-                                          , CG._absTypes     = view (cgState.absTypes    ) s
-                                          , CG._custTypeGen  = view (cgState.custTypeGen ) s
-                                          , CG._recParCIds   = M.empty
-                                          , CG._funClasses   = view (cgState.funClasses  ) s
-                                          , CG._localOracle  = view (cgState.localOracle ) s   -- FIXME
-                                          , CG._globalOracle = view (cgState.globalOracle) s
-                                          , CG._varPool      = M.empty
-                                          , CG._ffiFuncs     = M.empty
+                     state  = CG.GenState { CG._cTypeDefs       = view (cgState.cTypeDefs   ) s
+                                          , CG._cTypeDefMap     = view (cgState.cTypeDefMap ) s
+                                          , CG._typeSynonyms    = view (cgState.typeSynonyms) s
+                                          , CG._typeCorres      = view (cgState.typeCorres  ) s
+                                          , CG._absTypes        = view (cgState.absTypes    ) s
+                                          , CG._custTypeGen     = view (cgState.custTypeGen ) s
+                                          , CG._recParCIds      = M.empty
+                                          , CG._recParRecordIds = M.empty
+                                          , CG._funClasses      = view (cgState.funClasses  ) s
+                                          , CG._localOracle     = view (cgState.localOracle ) s   -- FIXME
+                                          , CG._globalOracle    = view (cgState.globalOracle) s
+                                          , CG._varPool         = M.empty
+                                          , CG._ffiFuncs        = M.empty
                                           }
                   in return (fst $ evalRWS (CG.runGen $ m a) reader state, s)
 

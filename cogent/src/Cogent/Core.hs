@@ -62,6 +62,7 @@ import GHC.Generics (Generic)
 import Text.PrettyPrint.ANSI.Leijen as L hiding (tupled, indent, (<$>))
 import qualified Text.PrettyPrint.ANSI.Leijen as L ((<$>))
 
+
 data Type t
   = TVar (Fin t)
   | TVarBang (Fin t)

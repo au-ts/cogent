@@ -145,7 +145,7 @@ data Type e t =
               | TUnbox   t
               | TBang    t
               -- Will be inserted before typechecking
-              | TRPar RecParName (RecContext t)
+              | TRPar RecParName Banged (RecContext t)
               -- Used for both field names in records and tag names in variants
               | TTake (Maybe [FieldName]) t
               | TPut  (Maybe [FieldName]) t
@@ -352,7 +352,7 @@ instance Traversable (Flip Type t) where  -- e
   traverse _ (Flip (TBang t))            = pure $ Flip (TBang t)
   traverse _ (Flip (TTake fs t))         = pure $ Flip (TTake fs t)
   traverse _ (Flip (TPut  fs t))         = pure $ Flip (TPut  fs t)
-  traverse _ (Flip (TRPar v env))        = pure $ Flip (TRPar v env)
+  traverse _ (Flip (TRPar v b env))        = pure $ Flip (TRPar v b env)
 
 instance Traversable (Flip (TopLevel t) e) where  -- p
   traverse _ (Flip (Include s))           = pure $ Flip (Include s)
@@ -488,7 +488,7 @@ tvT (RT (TRecord _ fs _)) = foldMap (tvT . fst . snd) fs
 tvT (RT (TVariant alts)) = foldMap (foldMap tvT . fst) alts
 tvT (RT (TTuple ts)) = foldMap tvT ts
 tvT (RT (TUnit)) = []
-tvT (RT (TRPar _ m)) = foldMap (foldMap tvT) m
+tvT (RT (TRPar _ _ m)) = foldMap (foldMap tvT) m
 #ifdef BUILTIN_ARRAYS
 tvT (RT (TArray t e)) = tvT t  -- TODO: tvE
 #endif
