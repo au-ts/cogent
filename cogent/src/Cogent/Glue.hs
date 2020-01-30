@@ -517,7 +517,6 @@ genAnti m a =
                                           , CG._typeCorres   = view (cgState.typeCorres  ) s
                                           , CG._absTypes     = view (cgState.absTypes    ) s
                                           , CG._custTypeGen  = view (cgState.custTypeGen ) s
-                                          , CG._recParCIds   = M.empty
                                           , CG._funClasses   = view (cgState.funClasses  ) s
                                           , CG._localOracle  = view (cgState.localOracle ) s   -- FIXME
                                           , CG._globalOracle = view (cgState.globalOracle) s
