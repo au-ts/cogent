@@ -192,7 +192,11 @@ type Allocation = Allocation' DataLayoutPath
 --
 --   All heap allocated structures are a multiple of a word in size (malloc guarantees this?)
 --   and will be word aligned. Hence accesses to an aligned bitrange of a heap-allocated
---   datastructure will be word aligned.
+--   data structure should usually be word aligned.
+--
+--   While array is the special case here since we use bytearray for dargent arrays i.e. array
+--   elements are aligned to bytes instead of words. We still use this structure to represent
+--   data layout aligned to bytes and here "word" in "wordOffset" can refer to a single byte.
 --
 --   Suppose a 2 Word data type is represented using the following array of 'AlignedBitRange's:
 --
@@ -239,13 +243,14 @@ alignOffsettable alignBitSize minBitOffset = offset (alignSize alignBitSize minB
 -- | Splits a 'BitRange' into an equivalent collection of 'AlignedBitRange's
 -- satisfying the conditions listed on 'AlignedBitRange'.
 rangeToAlignedRanges
-  :: BitRange
+  :: Integer
+  -> BitRange
     -- Assumes 'bitSizeBR range >= 1'. If 'bitSizeBR range == 0', will return '[]'.
   -> [AlignedBitRange]
-rangeToAlignedRanges (BitRange size offset) =
+rangeToAlignedRanges alignSize (BitRange size offset) =
   let
-    offsetWords = offset `div` wordSizeBits
-    offsetBits  = offset `mod` wordSizeBits
+    offsetWords = offset `div` alignSize
+    offsetBits  = offset `mod` alignSize
   in
     rangeToAlignedRanges' offsetWords offsetBits size
   where
@@ -253,7 +258,7 @@ rangeToAlignedRanges (BitRange size offset) =
     rangeToAlignedRanges'           _          _                 0 = []
     rangeToAlignedRanges' offsetWords offsetBits remainingSizeBits =
       let
-        currSizeBits = min remainingSizeBits (wordSizeBits - offsetBits)
+        currSizeBits = min remainingSizeBits (alignSize - offsetBits)
       in
         AlignedBitRange
         { bitSizeABR    = currSizeBits

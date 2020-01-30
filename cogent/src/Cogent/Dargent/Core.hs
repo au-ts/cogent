@@ -78,14 +78,20 @@ endAllocatedBits' = foldr (\range start -> max (bitOffsetBR range + bitSizeBR ra
 endAllocatedBits :: DataLayout BitRange -> Size
 endAllocatedBits = foldr (\range start -> max (bitOffsetBR range + bitSizeBR range) start) 0
 
-dataLayoutSizeBytes :: DataLayout BitRange -> Size
-dataLayoutSizeBytes = (`div` wordSizeBits) . (alignSize wordSizeBits) . endAllocatedBits
+dataLayoutSizeInWords :: DataLayout BitRange -> Size
+dataLayoutSizeInWords = (`div` wordSizeBits) . (alignSize wordSizeBits) . endAllocatedBits
 
 dataLayoutSizeInBytes' :: DataLayout' BitRange -> Size
-dataLayoutSizeInBytes' = (`div` 8) . (alignSize 8) . endAllocatedBits'
+dataLayoutSizeInBytes' = (`div` byteSizeBits) . (alignSize byteSizeBits) . endAllocatedBits'
 
 alignLayout' :: DataLayout' BitRange -> DataLayout' [AlignedBitRange]
-alignLayout' = fmap rangeToAlignedRanges
+alignLayout' = fmap (rangeToAlignedRanges wordSizeBits)
 
 alignLayout :: DataLayout BitRange -> DataLayout [AlignedBitRange]
-alignLayout = fmap rangeToAlignedRanges
+alignLayout = fmap (rangeToAlignedRanges wordSizeBits)
+
+alignLayoutToBytes' :: DataLayout' BitRange -> DataLayout' [AlignedBitRange]
+alignLayoutToBytes' = fmap (rangeToAlignedRanges byteSizeBits)
+
+alignLayoutToBytes :: DataLayout BitRange -> DataLayout [AlignedBitRange]
+alignLayoutToBytes = fmap (rangeToAlignedRanges byteSizeBits)
