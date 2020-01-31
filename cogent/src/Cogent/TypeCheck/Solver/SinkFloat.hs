@@ -65,15 +65,15 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do {- MaybeT TcSolvM -}
   genStructSubst (R r1 s1 :< R r2 s2)
     {-
       The most tricky case.
-      For Records, Taken is the bottom of the order, Untaken is the top.
-      If taken things are in r2, then we can infer they must be in r1.
-      If untaken things are in r1, then we can infer they must be in r2.
+      For Records, untaken is the bottom of the order, taken is the top.
+      If untaken things are in r2, then we can infer they must be in r1.
+      If taken things are in r1, then we can infer they must be in r2.
     -}
-    | r1new <- Row.takenEntries r2 `M.difference` Row.entries r1
+    | r1new <- Row.untakenEntries r2 `M.difference` Row.entries r1
     , not $ M.null r1new
     , Just r1var <- Row.var r1
       = makeRowRowVarSubsts r1new r1var
-    | r2new <- Row.untakenEntries r1 `M.difference` Row.entries r2
+    | r2new <- Row.takenEntries r1 `M.difference` Row.entries r2
     , not $ M.null r2new
     , Just r2var <- Row.var r2
       = makeRowRowVarSubsts r2new r2var
@@ -86,9 +86,9 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do {- MaybeT TcSolvM -}
   genStructSubst (V r1 :< V r2)
     {-
       The most tricky case.
-      For variants, Untaken is the bottom of the order, Taken is the top.
-      If untaken things are in r2, then we can infer they must be in r1.
-      If taken things are in r1, then we can infer they must be in r2.
+      For variants, taken is the bottom of the order, taken is the top.
+      If taken things are in r2, then we can infer they must be in r1.
+      If untaken things are in r1, then we can infer they must be in r2.
     -}
     | r2new <- Row.takenEntries r1 `M.difference` Row.entries r2
     , not $ M.null r2new
