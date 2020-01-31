@@ -23,12 +23,13 @@ list_is_empty (head { l = x }) =
   x | Nil -> True
     | _   -> False
 
+-- TODO: Fix compiler to be able to compile this
 list_length : all a. (List a)! -> U32
 list_length (head { l = x }) =
   x | Nil -> 0
     | Cons (_, tail) -> 1 + list_length tail
 
-list_map : all a. ((a! -> b), (List a)!) -> List b
+list_map : all (a, b). ((a! -> b), (List a)!) -> List b
 list_map (f, head { l = x }) =
   let node = alloc_list_node () in
     x | Nil -> node { l = Nil }
