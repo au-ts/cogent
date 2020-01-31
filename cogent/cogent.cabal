@@ -351,25 +351,25 @@ test-suite test-util
               , filepath >= 1.4.0.0
               , mtl >= 2.2.1
 
--- test-suite test-quickcheck
---  type: exitcode-stdio-1.0
---  default-language: Haskell2010
---  default-extensions: CPP
---  main-is: tests-quickcheck-run.hs
---  hs-source-dirs: tests-quickcheck
---  other-modules:
---                CogentTests.Dargent.Core
---              , CogentTests.Dargent.Surface
---              , CogentTests.Dargent.TypeCheck
---              , CogentTests.Dargent.Desugar
---              , CogentTests.Dargent.CodeGen
---              , CogentTests.Core
---  build-depends:
---                cogent
---              , base >= 4.7
---              , QuickCheck >= 2.11.3
---              , containers >= 0.5
---              , Cabal >= 1.9.2
---              , parsec >= 3.1
---              , mainland-pretty >= 0.2.6
+test-suite test-quickcheck
+  type: exitcode-stdio-1.0
+  default-language: Haskell2010
+  default-extensions: CPP
+  main-is: tests-quickcheck-run.hs
+  hs-source-dirs: tests-quickcheck
+  other-modules:
+                CogentTests.Dargent.Core
+              , CogentTests.Dargent.Surface
+              , CogentTests.Dargent.TypeCheck
+              , CogentTests.Dargent.Desugar
+              , CogentTests.Dargent.CodeGen
+              , CogentTests.Core
+  build-depends:
+                cogent
+              , base >= 4.7
+              , QuickCheck >= 2.11.3
+              , containers >= 0.5
+              , Cabal >= 1.9.2
+              , parsec >= 3.1
+              , mainland-pretty >= 0.2.6
 
