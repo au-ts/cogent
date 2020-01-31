@@ -190,6 +190,7 @@ genBoxedGetterSetter isStruct boxType _ _ _ _ = __impossible $
   "and ensure that the data layouts match the types."
 
 
+#ifdef BUILTIN_ARRAYS
 {-|
 Returns a getter/setter function C expression for a part of a boxed array.
 
@@ -245,6 +246,7 @@ genArrayGetterSetter arrType elemType elemSize elemLayout' getOrSet = do
     ?= elemGetterSetter
   declareSetterOrGetter $ arrayGetterSetter arrCType elemCType elemSize functionIdentifier elemGetterSetter getOrSet
   return (CVar functionIdentifier Nothing)
+#endif
 
 {-|
 Declares in the Gen state a C function which gets/sets the contents

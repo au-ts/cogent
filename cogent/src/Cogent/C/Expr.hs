@@ -48,7 +48,11 @@ import           Cogent.Compiler
 import           Cogent.Common.Syntax  as Syn
 import           Cogent.Common.Types   as Typ
 import           Cogent.Core           as CC
+#ifdef BUILTIN_ARRAYS
 import           Cogent.Dargent.CodeGen       (genBoxedGetSetField, genBoxedArrayGetSet, GetOrSet(..))
+#else
+import           Cogent.Dargent.CodeGen       (genBoxedGetSetField, GetOrSet(..))
+#endif
 import           Cogent.Inference             (kindcheck_)
 import           Cogent.Isabelle.Deep
 import           Cogent.Mono                  (Instance)
