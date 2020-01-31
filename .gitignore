@@ -44,6 +44,9 @@ impl/fs/vfat/cogent/misc/
 .cache.mk
 autocorres/
 
+# Testing
+cogent/tests/dist
+
 # Documentation
 docs/.vscode/
 docs/_build/

@@ -139,3 +139,4 @@ The test script depends on the following python modules:
 ## Future improvements/feature suggestions
 
 * Give clusters/groups of tests a name so they can be run by name
+* Only run one config file

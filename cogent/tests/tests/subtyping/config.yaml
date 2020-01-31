@@ -1,0 +1,16 @@
+test:
+  - files: 
+      - pass_none-subtyping.cogent
+      - pass_subtyping-con-promote.cogent
+      - pass_subtyping-records.cogent
+      - pass_unboxed-rec-subtyping.cogent
+      - pass_none-subtyping-2.cogent
+      - pass_subtyping.cogent
+      - pass_subtyping-member.cogent
+      - pass_subtyping-variant-con.cogent
+      - pass_variant_subtyping.cogent
+      - sinkfloat_promotion_test.cogent
+    expected_result: pass
+    flags:
+      - --typecheck
+      - --ddump-tc
