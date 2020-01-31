@@ -368,7 +368,7 @@ arrayAssigns = commaSep arrayAssignment
 
 -- monotype ::= typeA1 ("->" typeA1)?
 -- typeA1   ::= Con typeA2*
---            | typeA2 (take fList | put fList)?
+--            | typeA2 (take fList | put fList)? (@take eList | @put eList)? layout?
 -- typeA2   ::= "#" atomtype
 --            | atomtype "!"?
 --            | atomtype "[" int-expr "]"
