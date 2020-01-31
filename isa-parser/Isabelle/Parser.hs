@@ -79,7 +79,7 @@ reservedWords = [
   "subsection", "subsubsection", "termination", "text", "theorems", "theory", "translations",
   "type_synonym", "typedecl", "unchecked", "uses", "where", "declare"]
 
-reservedWordsInner = ["case", "of", "if", "then", "else", "do", "od", "let", "in"]
+reservedWordsInner = ["case", "of", "if", "then", "else", "do", "od", "let", "in", "o"]
 
 ---------------------------------------------------------------
 -- Utility functions and combinators
@@ -615,6 +615,7 @@ mkBinOpTable :: (b -> BinOpRec) -> (b -> t -> t -> t) -> [b] -> [(Int, OperatorM
 mkBinOpTable f con binOps = map binOpParser binOps
   where
     binOpParser b = (binOpRecPrec rec, Infix (do { try (stringL (binOpRecSym rec))
+                                                --  ; notFollowedBy quasiletterS
                                                  ; return (con b) }) (binOpRecAssoc rec))
       where
         rec = f b 
@@ -640,9 +641,13 @@ termL :: ParserM Term
 termL = buildExpressionParser table restL
   where
     table =  sortExprParserTable $
-              appParser:typedTermParser:(mkBinOpTable termBinOpRec TermBinOp binOps ++ 
-                                         map quantifierParser quantifiers ++
-                                         map unOpParser termUnOps)
+               compParser      :
+               appParser       :
+               typedTermParser :
+               (  mkBinOpTable termBinOpRec TermBinOp binOps
+               ++ map quantifierParser quantifiers
+               ++ map unOpParser termUnOps
+                )
 
     -- Think of application as an infix operator which is the empty string!
     appParser  = (termAppPrec, Infix (do { return TermApp }) AssocLeft)
@@ -663,6 +668,14 @@ termL = buildExpressionParser table restL
              listTermL <||> setTermL <||> (TermIdent <$> innerIdentLL) 
              <||> letInTermL
     parensTermL = parensL termL
+    compParser :: (Precedence, OperatorM Term)
+    compParser = ( termBinOpPrec Comp
+                 , Infix ((try (char 'o' >>
+                               notFollowedBy quasiletterS >>
+                               many (satisfy isSpace))) >>
+                          return (TermBinOp Comp))
+                         (termBinOpAssoc Comp)
+                 )
 
 letInTermL :: ParserM Term 
 letInTermL = do 

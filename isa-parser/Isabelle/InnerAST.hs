@@ -105,6 +105,7 @@ data TermBinOp =
                | Nth
                | SubSetEq
                | RestrictMp
+               | Comp
   deriving (Data, Typeable, Eq, Ord, Show)
 
 data TermUnOp =
@@ -220,6 +221,7 @@ termBinOpRec b = case b of
   Nth       -> BinOpRec AssocLeft  100 "!"
   SubSetEq  -> BinOpRec AssocRight 50  "\\<subseteq>"
   RestrictMp-> BinOpRec AssocRight 110 "|`"
+  Comp      -> BinOpRec AssocRight 55  "o"
 
 -- You must include all binary operators in this list. Miss one and it doesn't get parsed.
 -- Order does NOT matter. They are sorted by precedence.

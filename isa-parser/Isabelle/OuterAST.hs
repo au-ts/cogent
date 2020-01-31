@@ -230,11 +230,11 @@ instance (Pretty terms, Pretty types) => Pretty (Dcl types terms) where
     pretty dclName <> string "_def[" <> sep (punctuate (text ",") (map pretty dclRules)) <> string "]"
 
 instance (Pretty terms, Pretty types) => Pretty (Prc types terms) where
-  pretty (Prc thmDecl recCases) =  string "prim_rec" <+> 
-    pretty thmDecl <+> string ":" <+> sep (punctuate (text "|") (map prettyRec recCases))
+  pretty (Prc thmDecl recCases) =  string "primrec" <+> 
+    pretty thmDecl <$$> string "where" <$$> sep (punctuate (text "|") (map prettyRec recCases))
 
 prettyRec :: (Pretty terms) => (terms, terms) -> Doc
-prettyRec (p, e) = pretty p <+> pretty "=" <+> pretty e
+prettyRec (p, e) = quote (pretty p <+> pretty "=" <+> pretty e)
 
 instance (Pretty terms, Pretty types) => Pretty (Lemma types terms) where
   pretty (Lemma schematic thmDecl props proof) = string (if schematic then "schematic_lemma" else "lemma") <+>
@@ -383,13 +383,13 @@ instance Pretty types => Pretty (Sig types) where
                     Nothing  -> empty
 
 instance (Pretty terms, Pretty types) => Pretty (Abbrev types terms) where
-  pretty a = string "abbreviation" <+> mbSig <$$> pretty (abbrevTerm a)
+  pretty a = string "abbreviation" <+> mbSig <$$> (indent 2 (quote (pretty (abbrevTerm a))))
     where mbSig = case abbrevSig a of 
-                    Just sig -> pretty sig <+> string "where" 
+                    Just sig -> pretty sig <$$> string "where" 
                     Nothing  -> empty
 
 instance Pretty TheoryImports where
-  pretty (TheoryImports is) = string "imports" <+> fillSep (map (quote . string) is)
+  pretty (TheoryImports is) = string "imports" <+> fillSep (map string is)
 
 -- smart constructor
 
