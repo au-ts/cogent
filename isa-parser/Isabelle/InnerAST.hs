@@ -106,6 +106,8 @@ data TermBinOp =
                | SubSetEq
                | RestrictMp
                | Comp
+               | MapsTo
+               | MapUpd
   deriving (Data, Typeable, Eq, Ord, Show)
 
 data TermUnOp =
@@ -222,6 +224,9 @@ termBinOpRec b = case b of
   SubSetEq  -> BinOpRec AssocRight 50  "\\<subseteq>"
   RestrictMp-> BinOpRec AssocRight 110 "|`"
   Comp      -> BinOpRec AssocRight 55  "o"
+  MapsTo    -> BinOpRec AssocRight 100 "\\<mapsto>"
+  MapUpd    -> BinOpRec AssocRight 100 ":="
+
 
 -- You must include all binary operators in this list. Miss one and it doesn't get parsed.
 -- Order does NOT matter. They are sorted by precedence.
@@ -230,7 +235,8 @@ binOps = [Equiv,   MetaImp, Eq,      NotEq,         Iff,
           Image,   Union,   Ge,      Alt,           Append, 
           Greater, Minus,   Less,    In,            Add, 
           Times,   BitAND,  BitOR,   BitXOR,        Shiftl,
-          Shiftr,  TestBit, Nth,     SubSetEq,      RestrictMp]
+          Shiftr,  TestBit, Nth,     SubSetEq,      RestrictMp,
+          MapsTo,  MapUpd]
 
 termBinOpPrec :: TermBinOp -> Precedence
 termBinOpPrec b = if p >= termAppPrec
@@ -324,13 +330,13 @@ prettyTerm p t = case t of
   CaseOf e alts         -> parens (string "case" <+> pretty e <+> string "of" <$> sep (punctuate (text "|") (map (prettyAssis "\\<Rightarrow>") alts)))
   RecordUpd upds        -> string "\\<lparr>" <+> sep (punctuate (text ",") (map (prettyAssis ":=") upds)) <+> string "\\<rparr>"
   RecordDcl dcls        -> string "\\<lparr>" <+> sep (punctuate (text ",") (map (prettyAssis "=") dcls)) <+> string "\\<rparr>"
-  IfThenElse cond c1 c2 -> string "if" <+> prettyTerm p cond <+> string "then" <+> prettyTerm p c1 <+> string "else" <+> prettyTerm p c2 
+  IfThenElse cond c1 c2 -> parens (string "if" <+> prettyTerm p cond <+> string "then" <+> prettyTerm p c1 <+> string "else" <+> prettyTerm p c2)
   DoBlock dos           -> string "do" <$> sep (punctuate (text ";") (map pretty dos)) <$> string "od"
   DoItem  a b           -> pretty a <+> string "\\<leftarrow>" <+> pretty b 
-  Set st                -> string "{" <+> (case st of 
+  Set st                -> string "{" <> (case st of 
                               Quant q c -> pretty q <> string "." <+> pretty c
                               Range a b -> pretty a <> string ".." <> pretty b 
-                              Listing lst -> sep (punctuate (text ",") (map pretty lst))) <+> string "}"
+                              Listing lst -> sep (punctuate (text ",") (map pretty lst))) <> string "}"
   LetIn lt i            -> string "let" <+> sep (punctuate (text ";") (map (prettyAssis "=") lt)) <+> string "in" <+> pretty i
 
 prettyAssis :: String -> (Term, Term) -> Doc 

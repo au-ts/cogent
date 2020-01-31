@@ -467,10 +467,10 @@ recFieldL = do
   return $ RecField name typ
     where 
       alt1 = do 
-        res <- try (quotedL typeL)
+        res <- quotedL typeL
         return res 
       alt2 = do 
-        res <- (TyVar <$> identL)
+        res <- (TyDatatype <$> identL <*> pure [])
         return res
 
 recordL :: ParserM (L Record)
@@ -615,7 +615,6 @@ mkBinOpTable :: (b -> BinOpRec) -> (b -> t -> t -> t) -> [b] -> [(Int, OperatorM
 mkBinOpTable f con binOps = map binOpParser binOps
   where
     binOpParser b = (binOpRecPrec rec, Infix (do { try (stringL (binOpRecSym rec))
-                                                --  ; notFollowedBy quasiletterS
                                                  ; return (con b) }) (binOpRecAssoc rec))
       where
         rec = f b 
@@ -663,7 +662,7 @@ termL = buildExpressionParser table restL
                                            ; return (TermUnOp u) }))
 
 
-    restL =  antiquoteTermL <||> parensTermL <||> constTermL <||> doBlockTermL <||> funUpdTermL <||>
+    restL =  antiquoteTermL <||> parensTermL <||> constTermL <||> doBlockTermL <||> 
              caseOfTermL <||> recordUpdTermL <||> recordDclTermL <||> ifThenElseTermL <||> 
              listTermL <||> setTermL <||> (TermIdent <$> innerIdentLL) 
              <||> letInTermL
@@ -691,42 +690,6 @@ letTermL = do
   stringL "="
   term2 <- termL
   return (term1, term2) 
-
-funUpdTermL :: ParserM Term 
-funUpdTermL = do 
-  f <- nameL 
-  res <- alt1 <||> alt2 <||> alt3
-  return $ TermApp (TermIdent $ Id "fun_upd") (TermApp (TermIdent $ Id f) res)
-  where 
-    alt1 = do
-      stringL "("
-      eles <- sepBy1 fupdTermL (stringL ",")
-      stringL ")"
-      return $ ListTerm "(" eles ")"
-    alt2 = do 
-      stringL "("
-      eles <- sepBy1 mapsToTermL (stringL ",") 
-      stringL ")"
-      return $ ListTerm "(" eles ")"
-    alt3 = do 
-      stringL "["
-      eles <- sepBy1 fupdTermL (stringL ",")
-      stringL "]"
-      return $ ListTerm "(" eles ")"
-
-fupdTermL :: ParserM Term
-fupdTermL = do
-  term1 <- termL
-  stringL ":="
-  term2 <- termL
-  return $ ListTerm "(" [term1, term2] ")"
-
-mapsToTermL :: ParserM Term
-mapsToTermL = do 
-  term1 <- termL 
-  stringL "\\<mapsto>"
-  term2 <- termL 
-  return $ ListTerm "(" [term1, term2] ")"
 
 setTermL :: ParserM Term
 setTermL = do 
