@@ -27,7 +27,9 @@ type TyVarName   = String
 type TypeName    = String
 
 newtype CoreFunName = CoreFunName { unCoreFunName :: String }
-  deriving (Eq, Show, Ord)
+  deriving (Eq, Show, Ord, Generic)
+
+instance Binary CoreFunName
 
 funNameToCoreFunName :: FunName -> CoreFunName
 funNameToCoreFunName = CoreFunName
@@ -51,7 +53,9 @@ data Op
   | Not | And | Or
   | Gt | Lt | Le | Ge | Eq | NEq
   | BitAnd | BitOr | BitXor | LShift | RShift | Complement
-  deriving (Data, Eq, Ord, Show)
+  deriving (Data, Eq, Ord, Show, Generic)
+
+instance Binary Op
 
 data Pragma = InlinePragma FunName
             | CInlinePragma FunName

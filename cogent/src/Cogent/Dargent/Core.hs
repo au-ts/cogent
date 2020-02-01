@@ -12,19 +12,22 @@
 
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
 module Cogent.Dargent.Core where
 
+import Data.Binary
 import Data.IntMap as IM hiding (foldr)
 import Data.Map (Map)
-
+import GHC.Generics (Generic)
 import Text.Parsec.Pos (SourcePos)
 
 import Cogent.Common.Syntax (TagName, FieldName, Size)
 import Cogent.Common.Types (PrimInt (..))
 import Cogent.Dargent.Allocation
 import Cogent.Dargent.Util
+import Cogent.Util
 
 {- * Core datalayout types -}
 
@@ -43,32 +46,36 @@ data DataLayout' bits
     }
   | SumLayout
     { tagDL           :: bits
-    , alternativesDL  :: Map TagName (Integer, DataLayout' bits, SourcePos)
+    , alternativesDL  :: Map TagName (Integer, DataLayout' bits)
       -- ^ The 'Integer' is the tag's value
     }
   | RecordLayout
-    { fieldsDL        :: Map FieldName (DataLayout' bits, SourcePos)
+    { fieldsDL        :: Map FieldName (DataLayout' bits)
     }
 #ifdef BUILTIN_ARRAYS
-  | ArrayLayout (DataLayout' bits) SourcePos
+  | ArrayLayout (DataLayout' bits)
 #endif
-  deriving (Show, Eq, Functor, Foldable)
+  deriving (Show, Eq, Functor, Foldable, Generic)
 
 deriving instance Ord bits => Ord (DataLayout' bits)
 
 instance Offsettable a => Offsettable (DataLayout' a) where
   offset n = fmap (offset n)
 
+instance Binary a => Binary (DataLayout' a)
+
 -- The DataLayout wrapper type
 data DataLayout bits
   = Layout (DataLayout' bits) -- this type has this layout
   | CLayout  -- defer the layout of this type to C
-  deriving (Show, Eq, Functor, Foldable)
+  deriving (Show, Eq, Functor, Foldable, Generic)
 
 deriving instance Ord bits => Ord (DataLayout bits)
 
 instance Offsettable a => Offsettable (DataLayout a) where
   offset n = fmap (offset n)
+
+instance Binary a => Binary (DataLayout a)
 
 {- * @DataLayout BitRange@ helpers -}
 

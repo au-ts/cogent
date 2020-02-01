@@ -39,7 +39,7 @@ import Data.Nat              as Nat
 
 import Data.Binary (Binary)
 import Data.Map as M hiding (map)
-import GHC.Generics (Generic)
+import GHC.Generics (Generic, Generic1)
 import qualified "language-c-quote" Language.C as C
 
 type CId = String
@@ -187,8 +187,7 @@ data CExtDecl = CFnDefn (CType, CId) [(CType, CId)] [CBlockItem] FnSpec
               | CDecl (CDeclaration EXD)
               | CMacro String
               | CFnMacro CId [CId] [CBlockItem]
-              deriving (Show)
-
+              deriving (Show, Generic)
 
 -- | 'StrlType' tried to unify some of the types we have in Core.
 --   It can be deemed as the C representation for Cogent types.
@@ -201,6 +200,8 @@ data StrlType = Record  [(CId, CType)]         -- ^ @(fieldname &#x21A6; fieldty
               | Array CType
               | ArrayL (DataLayout BitRange)
               deriving (Eq, Ord, Show, Generic)
+
+instance Binary StrlType
 
 -- Custom equality for `BoxedRecord` case of `StrlType`
 -- Needed to allow us to ignore whether fields/alternatives are/aren't "taken"

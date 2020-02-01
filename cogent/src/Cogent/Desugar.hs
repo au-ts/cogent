@@ -243,11 +243,7 @@ lamLftExpr tvs f (B.TE t (S.Lam p mt e) l) = do
   e' <- lamLftExpr tvs f e
   let fn = S.FunDef f' (S.PT tvs t) [S.Alt (B.TP (S.PIrrefutable p) noPos) Regular e']  -- no let-generalisation
   lftFun %= (fn:)
-<<<<<<< HEAD
-  let tvs' = map (Just . S.RT . flip3 S.TVar False False . fst) tvs
-=======
-  let tvs' = map (Just . B.DT . flip S.TVar False . fst) tvs
->>>>>>> compiler.array: [wip] get many types right
+  let tvs' = map (Just . B.DT . flip3 S.TVar False False . fst) tvs
   return $ B.TE t (S.TypeApp f' tvs' S.NoInline) l
 lamLftExpr sigma f (B.TE t e l) = B.TE t <$> traverse (lamLftExpr sigma f) e <*> pure l
 
