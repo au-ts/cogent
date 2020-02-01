@@ -1,5 +1,6 @@
 
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE StandaloneDeriving #-}
@@ -8,12 +9,16 @@
 
 module Data.Nat where
 
+import Data.Binary
 import Data.PropEq
+import GHC.Generics (Generic)
 
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 
 data Nat = Zero | Suc Nat
-         deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+
+instance Binary Nat
 
 n0 = Zero
 n1 = Suc n0

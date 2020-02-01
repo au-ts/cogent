@@ -53,6 +53,7 @@ import Data.IntMap as IM (IntMap, mapKeys, delete)
 import qualified Data.Map as M
 import Data.Version (showVersion)
 import qualified Data.List as L
+import GHC.Generics (Generic)
 import System.Environment
 import System.FilePath.Posix
 import Lens.Micro
@@ -491,3 +492,4 @@ behead = IM.mapKeys ((-) 1) . IM.delete 1
 infixl 9 .>
 (.>) :: (a -> b) -> (b -> c) -> (a -> c)
 (.>) = flip (.)
+

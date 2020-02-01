@@ -193,7 +193,7 @@ substitute vs (TArray t l s mhole) = TArray (substitute vs t) (substituteLE vs l
 substituteLE :: Vec t (Type u b) -> LExpr t b -> LExpr u b
 substituteLE vs = \case
   LVariable va       -> LVariable va
-  LFun fn ts notes   -> LFun fn (fmap (substitute vs) ts) notes
+  LFun fn ts         -> LFun fn (fmap (substitute vs) ts)
   LOp op es          -> LOp op $ fmap go es
   LApp e1 e2         -> LApp (go e1) (go e2)
   LCon tn e t        -> LCon tn (go e) (substitute vs t)
@@ -205,8 +205,8 @@ substituteLE vs = \case
   LTuple e1 e2       -> LTuple (go e1) (go e2)
   LStruct fs         -> LStruct $ fmap (second go) fs
   LIf c th el        -> LIf (go c) (go th) (go el)
-  LCase e tn (l1,a1,e1) (l2,a2,e2)
-                     -> LCase (go e) tn (l1,a1,go e1) (l2,a2,go e2)
+  LCase e tn (a1,e1) (a2,e2)
+                     -> LCase (go e) tn (a1,go e1) (a2,go e2)
   LEsac e            -> LEsac $ go e
   LSplit as e e'     -> LSplit as (go e) (go e')
   LMember e f        -> LMember (go e) f

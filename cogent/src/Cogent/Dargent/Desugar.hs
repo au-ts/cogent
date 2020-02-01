@@ -117,7 +117,7 @@ desugarDataLayout l = Layout $ desugarDataLayout' l
 
     desugarDataLayout' (DLRecord fields) =
       RecordLayout $ M.fromList fields'
-      where fields' = fmap (\(fname, pos, layout) -> (fname, (desugarDataLayout' layout, pos))) fields
+      where fields' = fmap (\(fname, pos, layout) -> (fname, (desugarDataLayout' layout))) fields
 
     desugarDataLayout' (DLVariant tagExpr alts) =
       SumLayout tagBitRange $ M.fromList alts'
@@ -127,10 +127,10 @@ desugarDataLayout l = Layout $ desugarDataLayout' l
           UnitLayout       -> __impossible $ "desugarDataLayout: zero sized bit range for a tag"
           _                -> __impossible $ "desugarDataLayout (Called after typecheck, tag layouts known to be single range)"
 
-        alts' = fmap (\(aname, pos, size, layout) -> (aname, (size, desugarDataLayout' layout, pos))) alts
+        alts' = fmap (\(aname, pos, size, layout) -> (aname, (size, desugarDataLayout' layout))) alts
     desugarDataLayout' DLPtr = PrimLayout pointerBitRange
 #ifdef BUILTIN_ARRAYS
-    desugarDataLayout' (DLArray e s) = ArrayLayout (desugarDataLayout' e) s
+    desugarDataLayout' (DLArray e _) = ArrayLayout (desugarDataLayout' e)
 #endif
 
 {- * CONSTRUCTING 'DataLayout's -}
@@ -150,20 +150,20 @@ constructDataLayout' (TSum alternatives)
           => (Size, Integer) -- ^ Offset and tag value for this alternative.
           -> (TagName, (Type t a, Bool))
           -> ((Size, Integer) -- Offset and tag value for next alternative.
-            ,(TagName, (Integer, DataLayout' BitRange, SourcePos)))
+            ,(TagName, (Integer, DataLayout' BitRange)))
 
         constructAlternativeLayout (minBitOffset, tagValue) (name, (coreType, _)) =
           let layout :: DataLayout' BitRange
               layout = alignOffsettable wordSizeBits minBitOffset $ constructDataLayout' coreType
-          in  ((endAllocatedBits' layout, tagValue + 1), (name, (tagValue, layout, dummyPos)))
+          in  ((endAllocatedBits' layout, tagValue + 1), (name, (tagValue, layout)))
 
 constructDataLayout' (TRecord _ (Boxed {})) = PrimLayout pointerBitRange
 constructDataLayout' (TRecord fields Unboxed) = RecordLayout . fromList . snd $ mapAccumL go 0 fields
   where
-    go :: Show a => Size -> (FieldName, (Type t a, Bool)) -> (Size, (FieldName, (DataLayout' BitRange, SourcePos)))
+    go :: Show a => Size -> (FieldName, (Type t a, Bool)) -> (Size, (FieldName, DataLayout' BitRange))
     go minBitOffset (name, (coreType, _)) =
       let layout = alignOffsettable wordSizeBits minBitOffset $ go' coreType
-      in (endAllocatedBits' layout, (name, (layout, dummyPos)))
+      in (endAllocatedBits' layout, (name, layout))
 
     -- Equations for boxed embedded types
     go' :: Show a => Type t a -> DataLayout' BitRange

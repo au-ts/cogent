@@ -229,12 +229,12 @@ monoType (TArray t l s mhole) = TArray <$> monoType t <*> monoLExpr l <*> pure s
 
 monoLExpr :: (Ord b) => LExpr t b -> Mono b (LExpr 'Zero b)
 monoLExpr (LVariable var       ) = pure $ LVariable var
-monoLExpr (LFun      fn []  nt ) = modify (first $ M.insert (unCoreFunName fn) M.empty) >> return (LFun fn [] nt)
-monoLExpr (LFun      fn tys nt ) = do
+monoLExpr (LFun      fn []     ) = modify (first $ M.insert (unCoreFunName fn) M.empty) >> return (LFun fn [])
+monoLExpr (LFun      fn tys    ) = do
   tys' <- mapM monoType tys
   modify (first $ M.insertWith (\_ m -> insertWith (flip const) tys' (M.size m) m) (unCoreFunName fn) (M.singleton tys' 0))  -- add one more instance to the env
   idx <- M.lookup tys' . fromJust . M.lookup (unCoreFunName fn) . fst <$> get
-  return $ LFun (unsafeCoreFunName $ monoName fn idx) [] nt  -- used to be tys'
+  return $ LFun (unsafeCoreFunName $ monoName fn idx) []  -- used to be tys'
 monoLExpr (LOp      opr es     ) = LOp opr <$> mapM monoLExpr es
 monoLExpr (LApp     e1 e2      ) = LApp <$> monoLExpr e1 <*> monoLExpr e2
 monoLExpr (LCon     tag e t    ) = LCon tag <$> monoLExpr e <*> monoType t
@@ -246,7 +246,7 @@ monoLExpr (LLetBang vs a e1 e2 ) = LLetBang vs a <$> monoLExpr e1 <*> monoLExpr 
 monoLExpr (LTuple   e1 e2      ) = LTuple <$> monoLExpr e1 <*> monoLExpr e2
 monoLExpr (LStruct  fs         ) = let (ns,ts) = P.unzip fs in LStruct <$> zipWithM (\n t -> (n,) <$> monoLExpr t) ns ts
 monoLExpr (LIf      c e1 e2    ) = LIf <$> monoLExpr c <*> monoLExpr e1 <*> monoLExpr e2
-monoLExpr (LCase    c tag (l1,a1,e1) (l2,a2,e2)) = LCase <$> monoLExpr c <*> pure tag <*> ((l1,a1,) <$> monoLExpr e1) <*> ((l2,a2,) <$> monoLExpr e2)
+monoLExpr (LCase    c tag (a1,e1) (a2,e2)) = LCase <$> monoLExpr c <*> pure tag <*> ((a1,) <$> monoLExpr e1) <*> ((a2,) <$> monoLExpr e2)
 monoLExpr (LEsac    e          ) = LEsac <$> monoLExpr e
 monoLExpr (LSplit   a tp e     ) = LSplit a <$> monoLExpr tp <*> monoLExpr e
 monoLExpr (LMember  rec fld    ) = flip LMember fld <$> monoLExpr rec

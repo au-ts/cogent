@@ -954,13 +954,13 @@ instance Pretty a => Pretty (DataLayout' a) where
 
   pretty SumLayout {tagDL, alternativesDL} =
     parens (pretty tagDL) <> variant (map prettyAlt $ M.toList alternativesDL)
-    where prettyAlt (n,(v,l,_)) = tagname n <> parens (integer $ fromIntegral v) <> colon <> pretty l
+    where prettyAlt (n,(v,l)) = tagname n <> parens (integer $ fromIntegral v) <> colon <> pretty l
 
   pretty RecordLayout {fieldsDL} =
     record (map prettyField $ M.toList fieldsDL)
-    where prettyField (f,(l,_)) = fieldname f <> colon <> pretty l
+    where prettyField (f,l) = fieldname f <> colon <> pretty l
 #ifdef BUILTIN_ARRAYS
-  pretty (ArrayLayout l _) = brackets (pretty l)
+  pretty (ArrayLayout l) = brackets (pretty l)
 #endif
 
 instance Pretty BitRange where

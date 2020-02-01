@@ -70,13 +70,13 @@ simplify axs = Rewrite.pickOne' $ onGoal $ \c -> case c of
   Sat      -> hoistMaybe $ Just []
   c1 :& c2 -> hoistMaybe $ Just [c1,c2]
 
-  Drop   t@(T (TVar v False)) m
+  Drop   t@(T (TVar v False False)) m
     | Just k <- lookup v axs ->
         canDiscard k `elseDie` TypeNotDiscardable t m
-  Share  t@(T (TVar v False)) m
+  Share  t@(T (TVar v False False)) m
     | Just k <- lookup v axs ->
         canShare k   `elseDie` TypeNotShareable t m
-  Escape t@(T (TVar v False)) m
+  Escape t@(T (TVar v False False)) m
     | Just k <- lookup v axs ->
         canEscape k  `elseDie` TypeNotEscapable t m
 

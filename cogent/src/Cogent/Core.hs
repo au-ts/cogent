@@ -87,9 +87,9 @@ data Type t b
     -- The sigil specifies the layout of the element
   deriving (Show, Eq, Ord, Functor)
 
-deriving instance Generic (Type 'Zero)
+deriving instance Generic b => Generic (Type 'Zero b)
 
-instance Binary (Type 'Zero)
+instance (Generic b, Binary b) => Binary (Type 'Zero b)
 
 
 data SupposedlyMonoType b = forall (t :: Nat) (v :: Nat). SMT (Type t b)
@@ -159,7 +159,7 @@ deriving instance (Ord a, Ord b, Ord (e t v a b), Ord (e t ('Suc v) a b), Ord (e
 -- derivings don't work. It's very misterious to me. / zilinc
 data LExpr t b
   = LVariable (Nat, b)
-  | LFun CoreFunName [Type t b] FunNote
+  | LFun CoreFunName [Type t b]
   | LOp Op [LExpr t b]
   | LApp (LExpr t b) (LExpr t b)
   | LCon TagName (LExpr t b) (Type t b)
@@ -171,7 +171,7 @@ data LExpr t b
   | LTuple (LExpr t b) (LExpr t b)
   | LStruct [(FieldName, LExpr t b)]  -- unboxed record
   | LIf (LExpr t b) (LExpr t b) (LExpr t b)   -- technically no longer needed as () + () == Bool
-  | LCase (LExpr t b) TagName (Likelihood, b, LExpr t b) (Likelihood, b, LExpr t b)
+  | LCase (LExpr t b) TagName (b, LExpr t b) (b, LExpr t b)
   | LEsac (LExpr t b)
   | LSplit (b, b) (LExpr t b) (LExpr t b)
   | LMember (LExpr t b) FieldIndex
@@ -180,7 +180,9 @@ data LExpr t b
   | LPut (LExpr t b) FieldIndex (LExpr t b)
   | LPromote (Type t b) (LExpr t b)  -- only for guiding the tc. rep. unchanged.
   | LCast (Type t b) (LExpr t b)  
-  deriving (Show, Eq, Ord, Functor)
+  deriving (Show, Eq, Ord, Functor, Generic)
+
+instance (Binary b, Generic b, Generic (Fin 'Zero), Binary (Fin 'Zero)) => Binary (LExpr 'Zero b)
 
 #ifdef BUILTIN_ARRAYS
 exprToLExpr :: (a -> b)

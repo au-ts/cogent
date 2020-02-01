@@ -13,6 +13,7 @@
 
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -46,35 +47,38 @@ import           Cogent.Compiler
 import           Cogent.Common.Syntax  as Syn
 import           Cogent.Common.Types   as Typ
 import           Cogent.Core           as CC
-import           Cogent.Inference             (kindcheck_)
+import           Cogent.Inference            (kindcheck_)
 import           Cogent.Isabelle.Deep
-import           Cogent.Mono                  (Instance)
-import           Cogent.Normal                (isAtom)
-import           Cogent.Util           (decap, tupleFieldNames, toCName,
+import           Cogent.Mono                 (Instance)
+import           Cogent.Normal               (isAtom)
+import           Cogent.Util                 (decap, tupleFieldNames, toCName,
                                         extTup2l, extTup3r, first3, flip3, secondM, whenM)
 import qualified Data.DList          as DList
+import           Data.Fin                    (Fin (..))
 import           Data.Nat            as Nat
-import           Data.Vec            as Vec hiding (repeat, zipWith)
+import           Data.Vec            as Vec  hiding (repeat, zipWith)
 
-import           Control.Applicative          hiding (empty)
-import           Control.Arrow                       ((***), (&&&), second)
-import           Control.Monad.RWS.Strict     hiding (mapM, mapM_, Dual, (<>), Product, Sum)
-import           Data.Char                    (isAlphaNum, toUpper)
+import           Control.Applicative         hiding (empty)
+import           Control.Arrow                      ((***), (&&&), second)
+import           Control.Monad.RWS.Strict    hiding (mapM, mapM_, Dual, (<>), Product, Sum)
+import           Data.Binary
+import           Data.Char                   (isAlphaNum, toUpper)
 #if __GLASGOW_HASKELL__ < 709
-import           Data.Foldable                (mapM_)
+import           Data.Foldable               (mapM_)
 #endif
 import           Data.Functor.Compose
 import qualified Data.List           as L
-import           Data.Loc                     (noLoc)  -- FIXME: remove
+import           Data.Loc                    (noLoc)  -- FIXME: remove
 import qualified Data.Map            as M
-import           Data.Maybe                   (catMaybes, fromJust)
-import           Data.Monoid                  ((<>))
+import           Data.Maybe                  (catMaybes, fromJust)
+import           Data.Monoid                 ((<>))
 -- import           Data.Semigroup.Monad
--- import           Data.Semigroup.Reducer       (foldReduce)
+-- import           Data.Semigroup.Reducer      (foldReduce)
 import qualified Data.Set            as S
 import           Data.String
-import           Data.Traversable             (mapM)
-import           Data.Tuple                   (swap)
+import           Data.Traversable            (mapM)
+import           Data.Tuple                  (swap)
+import           GHC.Generics                (Generic)
 import           Lens.Micro                  hiding (at)
 import           Lens.Micro.Mtl              hiding (assign)
 import           Lens.Micro.TH
@@ -133,21 +137,20 @@ data GenState  = GenState
   , _boxedRecordSetters :: M.Map (CC.Type 'Zero VarName, FieldName) CExpr
   , _boxedRecordGetters :: M.Map (CC.Type 'Zero VarName, FieldName) CExpr
     -- ^ The expressions to call the generated setter and getter functions for the fields of boxed cogent records.
-
   , _boxedArraySetters :: M.Map (CC.Type 'Zero VarName) CExpr
   , _boxedArrayGetters :: M.Map (CC.Type 'Zero VarName) CExpr
   , _boxedArrayElemSetters :: M.Map (CC.Type 'Zero VarName) CExpr
   , _boxedArrayElemGetters :: M.Map (CC.Type 'Zero VarName) CExpr
+  } deriving (Generic)
 
-  , _boxedSettersAndGetters :: [CExtDecl]
-    -- ^ A list of the implementations of all generated setter and getter functions
-  }
+instance Binary GenState
 
 makeLenses ''GenState
 
-newtype Gen v a = Gen { runGen :: RWS (GenRead v) () GenState a }
+newtype Gen v a = Gen { runGen :: RWS (GenRead v) [CExtDecl] GenState a }
                 deriving (Functor, Applicative, Monad,
                           MonadReader (GenRead v),
+                          MonadWriter [CExtDecl],
                           MonadState  GenState)
 
 freshLocalCId :: Char -> Gen v CId

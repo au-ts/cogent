@@ -98,6 +98,6 @@ main = do
             Left err -> error "Core Tc failed"
             Right (anProg', _) -> do
               let ((fnMono, tyMono), (_, mnProg, _)) = mono anProg' [] Nothing
-                  (h,c,_,_,_,_,_) = cgen "can_frame_1.h" [] "" "" mnProg [] ""
+                  (h,c,_,_,_,_,_) = cgen "can_frame_1.h" [] "" "" mnProg Nothing [] ""
                in M.putDoc (ppr h </> M.line </> ppr c </> M.line)
 
