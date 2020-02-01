@@ -30,10 +30,10 @@ import Cogent.Dargent.Util
 {- PROPERTIES -}
 
 prop_sizePreserved range =
-  foldr (\x -> (+) (bitSizeABR x)) 0 (rangeToAlignedRanges range) == bitSizeBR range
+  foldr (\x -> (+ bitSizeABR x)) 0 (rangeToAlignedRanges wordSizeBits range) == bitSizeBR range
 
 prop_roundTrip range =
-  case (alignedRangesToRanges . rangeToAlignedRanges) range of
+  case (alignedRangesToRanges . rangeToAlignedRanges wordSizeBits) range of
     [range'] -> range == range'
     _        -> False
 
@@ -122,7 +122,7 @@ genSumLayout maxBitIndex maxSize alloc =
       -> Size -- tag value for alternative
       -> Size -- max number of alternatives
       -> Allocation -- existing allocation
-      -> Gen (Map TagName (Size, DataLayout' BitRange, SourcePos), Allocation)
+      -> Gen (Map TagName (Size, DataLayout' BitRange), Allocation)
 
     genAlts 0 _ _ alloc          = return (M.empty, alloc)
     genAlts _ m n alloc | m == n = return (M.empty, alloc)
@@ -134,7 +134,7 @@ genSumLayout maxBitIndex maxSize alloc =
       let altName = show tagValue
       (altLayout, altAlloc) <- genDataLayout' maxBitIndex altSize alloc
       let altAlloc' = fmap (InAlt altName sourcePos) altAlloc
-      return (M.insert altName (tagValue, altLayout, sourcePos) remainingAlts, altAlloc' \/ remainingAlloc)
+      return (M.insert altName (tagValue, altLayout) remainingAlts, altAlloc' \/ remainingAlloc)
 
 
 genRecordLayout
@@ -151,7 +151,7 @@ genRecordLayout maxBitIndex maxSize alloc =
       :: Size -- max allowed total bit size for remaining fields
       -> Size -- for generating unique field names
       -> Allocation -- existing allocation
-      -> Gen (Map FieldName (DataLayout' BitRange, SourcePos), Allocation)
+      -> Gen (Map FieldName (DataLayout' BitRange), Allocation)
 
     genFields 0 _ alloc = return (M.empty, alloc)
     genFields maxSize name alloc = do
@@ -161,7 +161,7 @@ genRecordLayout maxBitIndex maxSize alloc =
       let fieldName = show name
       (fieldLayout, alloc'') <- genDataLayout' maxBitIndex fieldSize alloc'
       let alloc''' = fmap (InField fieldName sourcePos) alloc''
-      return $ (M.insert fieldName (fieldLayout, sourcePos) remainingFields, alloc''')
+      return $ (M.insert fieldName fieldLayout remainingFields, alloc''')
 
 
 -- Generates an unallocated BitRange
