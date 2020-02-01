@@ -31,6 +31,7 @@ import Cogent.Dargent.Surface
 import Cogent.Dargent.Core
 import Cogent.Dargent.TypeCheck
 import Cogent.Dargent.Util
+import Cogent.Surface (noPos)
 import CogentTests.Dargent.Core
 
 {- PROPERTIES -}
@@ -77,11 +78,11 @@ undesugarDataLayout  :: DataLayout' BitRange -> DataLayoutExpr
 undesugarDataLayout UnitLayout = DL $ Prim (Bits 0)
 undesugarDataLayout (PrimLayout bitRange) = undesugarBitRange bitRange
 undesugarDataLayout (RecordLayout fields) =
-  DL . Record $ fmap (\(name, (layout, pos)) -> (name, pos, (undesugarDataLayout  layout))) (M.toList fields)
+  DL . Record $ fmap (\(name, layout) -> (name, noPos, (undesugarDataLayout  layout))) (M.toList fields)
 undesugarDataLayout (SumLayout tagBitRange alternatives) =
   DL $ Variant
     (unDataLayoutExpr $ undesugarBitRange tagBitRange)
-    (fmap (\(tagName, (tagValue, altLayout, altPos)) -> (tagName, altPos, tagValue, (undesugarDataLayout  altLayout))) (M.toList alternatives))
+    (fmap (\(tagName, (tagValue, altLayout)) -> (tagName, noPos, tagValue, (undesugarDataLayout  altLayout))) (M.toList alternatives))
     
 {- ARBITRARY INSTANCES -}
 instance Arbitrary DataLayoutPath where
