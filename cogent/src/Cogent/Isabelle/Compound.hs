@@ -170,7 +170,7 @@ typDiscardVar rm0 t = case t of
 lexpDiscardVar :: Nat -> LExpr t b -> Maybe (LExpr t b)
 lexpDiscardVar rm0 = \case
   LVariable (v, a)     -> LVariable <$> ((,) <$> discardVar' rm0 v <*> pure a)
-  LFun fn ts notes     -> pure $ LFun fn ts notes
+  LFun fn ts           -> pure $ LFun fn ts
   LOp o ls             -> LOp o <$> mapM go ls
   LApp e1 e2           -> LApp <$> go e1 <*> go e2
   LCon tag e ty        -> LCon <$> pure tag <*> go e <*> pure ty
@@ -182,10 +182,10 @@ lexpDiscardVar rm0 = \case
   LTuple e1 e2         -> LTuple <$> go e1 <*> go e2
   LStruct fes          -> LStruct <$> mapM (msecond go) fes
   LIf ep et ef         -> LIf <$> go ep <*> go et <*> go ef
-  LCase es tag (l1,n1,e1) (l2,n2,e2)
+  LCase es tag (n1,e1) (n2,e2)
                        -> LCase <$> go es <*> pure tag
-                       <*> ((l1,n1,) <$> goSuc e1)
-                       <*> ((l2,n2,) <$> goSuc e2)
+                       <*> ((n1,) <$> goSuc e1)
+                       <*> ((n2,) <$> goSuc e2)
   LEsac es             -> LEsac <$> go es
   LSplit (n,n') es et  -> LSplit (n,n') <$> go es <*> goSuc2 et
   LMember e1 f         -> LMember <$> go e1 <*> pure f

@@ -414,7 +414,7 @@ rawToDepType (RT t) = DT $ go t
         go t = let f = rawToDepType
                 in case t of
                      TCon tn ts s  -> TCon tn (fmap f ts) s
-                     TVar v b      -> TVar v b
+                     TVar v b u    -> TVar v b u
                      TRecord fs s  -> TRecord (fmap (second $ first f) fs) s
                      TVariant alts -> TVariant (fmap (first $ fmap f) alts)
                      TTuple ts     -> TTuple $ fmap f ts

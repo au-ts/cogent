@@ -11,6 +11,7 @@
 --
 
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -48,6 +49,8 @@ import Control.Applicative
 import Control.Monad.Trans.Writer
 import Control.Monad (guard)
 import Data.Bifunctor (first)
+import Data.Binary
+import GHC.Generics (Generic)
 
 import Cogent.Common.Types
 import Cogent.Common.Syntax
@@ -70,11 +73,13 @@ import Cogent.Util
 --
 --  We keep an internal invariant that @bitSizeBR >= 0@ and @bitOffsetBR >= 0@
 data BitRange = BitRange { bitSizeBR :: Size, bitOffsetBR :: Size }
-  deriving (Eq, Show, Ord)
+  deriving (Eq, Show, Ord, Generic)
 
 instance Offsettable BitRange where
   offset n range@(BitRange { bitOffsetBR }) | n >= 0    = range { bitOffsetBR = bitOffsetBR + n }
                                             | otherwise = error "offset from Offsettable called with n<0"
+
+instance Binary BitRange
 
 {- basic checked constructors for BitRange -}
 

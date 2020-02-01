@@ -37,6 +37,7 @@ import Data.Nat
 -- import Data.PropEq
 
 import Control.Applicative
+import Data.Binary
 #if __GLASGOW_HASKELL__ >= 709
 import Data.Foldable (find)
 #else
@@ -44,6 +45,7 @@ import Data.Foldable
 #endif
 import Data.Monoid
 import Data.Traversable
+import GHC.Generics (Generic, Rep, V1)
 import Prelude hiding (length, repeat, splitAt, take, unzip, zip, zipWith)
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 
@@ -54,6 +56,11 @@ data Fin :: Nat -> * where
 deriving instance Eq   (Fin n)
 deriving instance Show (Fin n)
 deriving instance Ord  (Fin n)
+
+instance Generic (Fin 'Zero) where
+  type instance Rep (Fin 'Zero) = V1
+instance Binary (Fin 'Zero) where
+  -- These functions don't need to be defined, as 'Fin \'Zero' has no inhabitants.
 
 f0 = FZero
 f1 = FSuc f0

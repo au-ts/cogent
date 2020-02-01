@@ -37,6 +37,7 @@ import Cogent.Dargent.Core
 import Cogent.Dargent.Util
 import Data.Nat
 
+import Control.Monad.Writer.Class (tell)
 import Data.List (foldl', scanl')
 import Data.Map
   ( (!)
@@ -91,7 +92,7 @@ genBoxedGetSetField cogentType fieldName getOrSet = do
         TRecord fieldTypes (Boxed _ (Layout (RecordLayout fieldLayouts))) ->
           do
             let fieldType       = fst $ (fromList fieldTypes) ! fieldName
-                fieldLayout     = alignLayout' $ fst $ fieldLayouts ! fieldName
+                fieldLayout     = alignLayout' $ fieldLayouts ! fieldName
             boxCType            <- genType cogentType
             getSetFieldFunction <- genBoxedGetterSetter True boxCType fieldType fieldLayout [fieldName] getOrSet
             ((case getOrSet of Get -> boxedRecordGetters; Set -> boxedRecordSetters) . at (cogentType, fieldName))
@@ -153,7 +154,7 @@ genBoxedGetterSetter isStruct boxType embeddedTypeCogent@(TSum alternatives) Sum
   alternativesGettersSetters  <-
       mapM
       (\(alternativeName, (alternativeType, _)) -> do
-          let (boxedTagValue, alternativeLayout, _) = alternativesDL ! alternativeName
+          let (boxedTagValue, alternativeLayout) = alternativesDL ! alternativeName
           getterSetter <- genBoxedGetterSetter isStruct boxType alternativeType alternativeLayout (path ++ [alternativeName]) getOrSet
           return (alternativeName, boxedTagValue, getterSetter)
       )
@@ -167,7 +168,7 @@ genBoxedGetterSetter isStruct boxType embeddedTypeCogent@(TRecord fields Unboxed
   fieldGettersSetters   <-
     mapM
       (\(fieldName, (fieldType, _)) -> do
-          let fieldLayout = fst $ fieldsDL ! fieldName
+          let fieldLayout = fieldsDL ! fieldName
           getterSetter <- genBoxedGetterSetter isStruct boxType fieldType fieldLayout (path ++ [fieldName]) getOrSet
           return (fieldName, getterSetter)
       )
@@ -818,7 +819,7 @@ Saves the given setter or getter function
 C syntax tree into the Gen state.
 -}
 declareSetterOrGetter :: CExtDecl -> Gen v ()
-declareSetterOrGetter function = boxedSettersAndGetters %= (function :)
+declareSetterOrGetter function = tell [function]
 
 
 {-|
