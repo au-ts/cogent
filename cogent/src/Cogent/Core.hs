@@ -182,7 +182,7 @@ data LExpr t b
   | LCast (Type t b) (LExpr t b)  
   deriving (Show, Eq, Ord, Functor, Generic)
 
-instance (Binary b, Generic b, Generic (Fin 'Zero), Binary (Fin 'Zero)) => Binary (LExpr 'Zero b)
+instance (Binary b, Generic b) => Binary (LExpr 'Zero b)
 
 #ifdef BUILTIN_ARRAYS
 exprToLExpr :: (a -> b)
@@ -192,7 +192,7 @@ exprToLExpr :: (a -> b)
             -> Expr t v a b e -> LExpr t b
 exprToLExpr fab f f1 f2 = \case
   Variable v         -> LVariable (second fab $ first finNat v)
-  Fun fn tys nt      -> LFun fn tys nt
+  Fun fn tys nt      -> LFun fn tys
   Op opr es          -> LOp opr (map f' es)
   App e1 e2          -> LApp (f' e1) (f' e2)
   Con cn e t         -> LCon cn (f' e) t
@@ -211,7 +211,7 @@ exprToLExpr fab f f1 f2 = \case
   Tuple e1 e2        -> LTuple (f' e1) (f' e2)
   Struct fs          -> LStruct (map (second f') fs)
   If e1 e2 e3        -> LIf (f' e1) (f' e2) (f' e3)
-  Case e tn (l1,a1,e1) (l2,a2,e2) -> LCase (f' e) tn (l1, fab a1, f1' e1) (l2, fab a2, f1' e2)
+  Case e tn (l1,a1,e1) (l2,a2,e2) -> LCase (f' e) tn (fab a1, f1' e1) (fab a2, f1' e2)
   Esac e             -> LEsac (f' e)
   Split a e1 e2      -> LSplit (both fab a) (f' e1) (f2' e2)
   Member rec fld     -> LMember (f' rec) fld
@@ -666,7 +666,7 @@ instance (Pretty b) => Pretty (LExpr t b) where
   pretty (LILit i pt) = literal (string $ show i) <+> symbol "::" <+> pretty pt
   pretty (LSLit s) = literal $ string s
   pretty (LVariable x) = pretty (snd x) L.<> angles (L.int . natToInt $ fst x)
-  pretty (LFun fn ins nt) = pretty nt L.<> funname (unCoreFunName fn) <+> pretty ins
+  pretty (LFun fn ins) = funname (unCoreFunName fn) <+> pretty ins
   pretty (LApp a b) = prettyPrec 2 a <+> prettyPrec 1 b
   pretty (LLet a e1 e2) = align (keyword "let" <+> pretty a <+> symbol "=" <+> pretty e1 L.<$>
                                 keyword "in" <+> pretty e2)
@@ -679,9 +679,9 @@ instance (Pretty b) => Pretty (LExpr t b) where
   pretty (LIf c t e) = group . align $ (keyword "if" <+> pretty c
                                        L.<$> indent (keyword "then" </> align (pretty t))
                                        L.<$> indent (keyword "else" </> align (pretty e)))
-  pretty (LCase e tn (l1,v1,a1) (l2,v2,a2)) = align (keyword "case" <+> pretty e <+> keyword "of"
-                                                  L.<$> indent (tagname tn <+> pretty v1 <+> pretty l1 <+> align (pretty a1))
-                                                  L.<$> indent (pretty v2 <+> pretty l2 <+> align (pretty a2)))
+  pretty (LCase e tn (v1,a1) (v2,a2)) = align (keyword "case" <+> pretty e <+> keyword "of"
+                                               L.<$> indent (tagname tn <+> pretty v1 <+> symbol "->" <+> align (pretty a1))
+                                               L.<$> indent (pretty v2 <+> symbol "->" <+> align (pretty a2)))
   pretty (LEsac e) = keyword "esac" <+> parens (pretty e)
   pretty (LSplit (v1,v2) e1 e2) = align (keyword "split" <+> parens (pretty v1 <> comma <> pretty v2) <+> symbol "=" <+> pretty e1 L.<$>
                                   keyword "in" <+> pretty e2)

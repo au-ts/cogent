@@ -66,9 +66,9 @@ compileSanityCheck = do
     putStrLn "Cogent aligned range:"
     putStrLn $ show alignedBitRange
     putStrLn "Pretty C getter:"
-    pprint $ cExtDecl $ alignedRangeGetterSetter (CStruct "boxType") alignedBitRange "getFoo" Get
+    pprint $ cExtDecl $ alignedRangeGetterSetter True (CStruct "boxType") alignedBitRange "getFoo" Get
     putStrLn "Pretty C setter:"
-    pprint $ cExtDecl $ alignedRangeGetterSetter (CStruct "boxType") alignedBitRange "setFoo" Set
+    pprint $ cExtDecl $ alignedRangeGetterSetter True (CStruct "boxType") alignedBitRange "setFoo" Set
     putStrLn ""
   putStrLn "List of cogent aligned ranges:"
   putStrLn $ show alignedBitRangeExamples
