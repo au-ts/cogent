@@ -86,7 +86,7 @@ validateType (RT t) = do
   traceTc "gen" (text "validate type" <+> pretty t)
   case t of
     TVar v b u  | v `notElem` vs -> freshTVar >>= \t' -> return (Unsat $ UnknownTypeVariable v, t')
-                | otherwise -> return (mempty, T $ TVar v b)
+                | otherwise -> return (mempty, T $ TVar v b u)
 
     TCon t as s | Nothing <- lookup t ts -> freshTVar >>= \t' -> return (Unsat $ UnknownTypeConstructor t, t')
                 | Just (vs', _) <- lookup t ts
