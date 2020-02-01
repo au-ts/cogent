@@ -219,7 +219,7 @@ genBoxedArrayGetSet cogentType getOrSet = do
     Nothing ->
       case cogentType of
         -- NOTE: do we need to check layout within elt here?
-        TArray elemType _ (Boxed _ (Layout (ArrayLayout elemLayout _))) _ -> do
+        TArray elemType _ (Boxed _ (Layout (ArrayLayout elemLayout))) _ -> do
           let elemSize = dataLayoutSizeInBytes' elemLayout
               elemLayout' = alignLayoutToBytes' elemLayout
               -- we get rid of unused info here, e.g. array length, hole location
