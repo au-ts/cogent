@@ -124,7 +124,7 @@ install:
      echo "==== cabal build-cache MISS (or error) ====";
      rm -rf $HOME/.cabsnap;
      # mkdir -p $HOME/.ghc $HOME/.cabal/lib $HOME/.cabal/share $HOME/.cabal/bin;
-     cabal install --only-dependencies --force-reinstalls --flags="haskell-backend docgent";  # --enable-tests;
+     travis_wait cabal install --only-dependencies --force-reinstalls --flags="builtin-arrays haskell-backend docgent";  # --enable-tests;
    fi
 
 # snapshot package-db on cache miss
