@@ -39,7 +39,7 @@ import Cogent.Compiler (__fixme)
 
 data TypeStr = RecordStr  [FieldName]
              | VariantStr [TagName]
-           -- | ArrayStr
+           -- \ | ArrayStr
              deriving (Eq, Ord)
 
 instance Show TypeStr where
