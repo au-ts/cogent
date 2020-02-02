@@ -58,7 +58,7 @@ deriving instance Show (Fin n)
 deriving instance Ord  (Fin n)
 
 instance Generic (Fin 'Zero) where
-  type instance Rep (Fin 'Zero) = V1
+  type Rep (Fin 'Zero) = V1
 instance Binary (Fin 'Zero) where
   -- These functions don't need to be defined, as 'Fin \'Zero' has no inhabitants.
 
