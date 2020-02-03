@@ -113,7 +113,7 @@ type Taken   = Bool
 
 data Type e t =
               -- They are in WHNF
-                TCon TypeName [t] (Sigil (Maybe DataLayoutExpr))  -- FIXME: can polymorphise the `Representation`
+                TCon TypeName [t] (Sigil (Maybe DataLayoutExpr))  -- FIXME: can polymorphise the `DataLayoutExpr`
               | TVar VarName Banged Unboxed
               | TFun t t
               | TRecord [(FieldName, (t, Taken))] (Sigil (Maybe DataLayoutExpr))
@@ -475,9 +475,9 @@ tvT (RT (TVariant alts)) = foldMap (foldMap tvT . fst) alts
 tvT (RT (TTuple ts)) = foldMap tvT ts
 tvT (RT (TUnit)) = []
 #ifdef BUILTIN_ARRAYS
-tvT (RT (TArray t e _ tkns)) = tvT t  -- TODO: tvE
-tvT (RT (TATake idxs t)) = tvT t   -- TODO: tvE
-tvT (RT (TAPut  idxs t)) = tvT t   -- TODO: tvE
+tvT (RT (TArray t e _ tkns)) = tvT t ++ tvE e ++ foldMap (tvE . fst) tkns
+tvT (RT (TATake idxs t)) = tvT t ++ foldMap tvE idxs
+tvT (RT (TAPut  idxs t)) = tvT t ++ foldMap tvE idxs
 #endif
 tvT (RT (TUnbox   t)) = tvT t
 tvT (RT (TBang    t)) = tvT t
@@ -508,6 +508,8 @@ tvE (RE (StringLit l))      = []
 #ifdef BUILTIN_ARRAYS
 tvE (RE (ArrayLit es))      = foldMap tvE es
 tvE (RE (ArrayIndex e i))   = tvE e ++ tvE i
+tvE (RE (ArrayMap2 (as,fn) (e1,e2))) = foldMap tvE [fn,e1,e2]
+tvE (RE (ArrayPut arr ivs)) = tvE arr ++ foldMap (\(i,v) -> foldMap tvE [i,v]) ivs
 #endif
 tvE (RE (Tuple es))         = foldMap tvE es
 tvE (RE (UnboxedRecord es)) = foldMap (foldMap tvE) es
