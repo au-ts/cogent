@@ -12,7 +12,6 @@
 
 module Cogent.TypeCheck.Solver.Util where
 
--- import Cogent.PrettyPrint
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Solver.Goal
 import Cogent.TypeCheck.Solver.Rewrite
@@ -36,7 +35,7 @@ debugF nm = debugFail ("=== " ++ nm ++ " ===")
 printC :: [Goal] -> String
 printC gs =
  let gs' = map (P.nest 2 . pretty . _goal) gs
- in show (P.line <> P.indent 2 (P.list gs'))
+ in show (P.line P.<> P.indent 2 (P.list gs'))
 
 printPretty :: (Pretty a) => a -> String
 printPretty = show . pretty
