@@ -25,7 +25,7 @@ type ConstName   = String
 type VarName     = String
 type TyVarName   = String
 type TypeName    = String
-type LoVarName   = String
+type DLVarName   = String
 
 newtype CoreFunName = CoreFunName { unCoreFunName :: String }
   deriving (Eq, Show, Ord, Generic)

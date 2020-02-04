@@ -369,7 +369,7 @@ tcExpr r e = do
   st <- readIORef r
   Tc.runTc (tcState st) $
     do
-      ((c,e'), flx, os) <- (Tc.runCG Ctx.empty [] (do
+      ((c,e'), flx, os) <- (Tc.runCG Ctx.empty [] [] (do
         let ?loc = S.posOfE e
         t <- freshTVar
         y <- Tc.cg e t

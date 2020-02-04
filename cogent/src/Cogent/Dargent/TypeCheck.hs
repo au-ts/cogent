@@ -24,7 +24,7 @@ import Data.Maybe (fromJust)
 import Control.Monad (guard, foldM)
 import Control.Monad.Trans.Except
 
-import Cogent.Common.Syntax (FieldName, TagName, DataLayoutName, Size)
+import Cogent.Common.Syntax (FieldName, TagName, DataLayoutName, Size, DLVarName)
 import Cogent.Common.Types (Sigil)
 import Cogent.Compiler (__fixme, __impossible)
 import Cogent.Dargent.Allocation
@@ -44,22 +44,22 @@ import Debug.Trace
 --
 -- This includes that relevant blocks of bits don't overlap
 -- And tag values are in the right ranges
-tcDataLayoutExpr :: NamedDataLayouts -> DataLayoutExpr -> Except [DataLayoutTcError] Allocation
-tcDataLayoutExpr env (DLRepRef n) =
+tcDataLayoutExpr :: NamedDataLayouts -> [DLVarName] -> DataLayoutExpr -> Except [DataLayoutTcError] Allocation
+tcDataLayoutExpr env _ (DLRepRef n) =
   case M.lookup n env of
     Just (_, Just allocation) -> mapPaths (InDecl n) $ return allocation
     Just (_, Nothing)         -> throwE [BadDataLayout n PathEnd]
     Nothing                   -> throwE [UnknownDataLayout n PathEnd]
 
-tcDataLayoutExpr _ (DLPrim size) = return $ singletonAllocation (bitRange, PathEnd)
+tcDataLayoutExpr _ _ (DLPrim size) = return $ singletonAllocation (bitRange, PathEnd)
   where
     bitSize  = evalSize size
     bitRange = fromJust $ newBitRangeBaseSize 0 bitSize {- 0 <= bitSize -}
 
-tcDataLayoutExpr env (DLOffset dataLayoutExpr offsetSize) =
-  offset (evalSize offsetSize) <$> tcDataLayoutExpr env (DL dataLayoutExpr)
+tcDataLayoutExpr env vs (DLOffset dataLayoutExpr offsetSize) =
+  offset (evalSize offsetSize) <$> tcDataLayoutExpr env vs (DL dataLayoutExpr)
 
-tcDataLayoutExpr env (DLRecord fields) = foldM tcField emptyAllocation fields
+tcDataLayoutExpr env vs (DLRecord fields) = foldM tcField emptyAllocation fields
   where
     tcField
       :: Allocation -- The accumulated allocation from previous alternatives
@@ -67,10 +67,10 @@ tcDataLayoutExpr env (DLRecord fields) = foldM tcField emptyAllocation fields
       -> Except [DataLayoutTcError] Allocation
 
     tcField accumAlloc (fieldName, pos, dataLayoutExpr) = do
-      fieldsAlloc <- mapPaths (InField fieldName pos) (tcDataLayoutExpr env dataLayoutExpr)
+      fieldsAlloc <- mapPaths (InField fieldName pos) (tcDataLayoutExpr env vs dataLayoutExpr)
       except $ first (fmap OverlappingBlocks) $ accumAlloc /\ fieldsAlloc
 
-tcDataLayoutExpr env (DLVariant tagExpr alternatives) =
+tcDataLayoutExpr env vs (DLVariant tagExpr alternatives) =
   case primitiveBitRange (DL tagExpr) of
     Just tagBits | isZeroSizedBR tagBits -> throwE [ZeroSizedBitRange (InTag PathEnd)]
                  | otherwise ->
@@ -86,7 +86,7 @@ tcDataLayoutExpr env (DLVariant tagExpr alternatives) =
       -> Except [DataLayoutTcError] (Allocation, Map Size TagName)
 
     tcAlternative range (accumAlloc, accumTagValues) (tagName, pos, tagValue, dataLayoutExpr) = do
-      alloc     <- (\/) accumAlloc <$> mapPaths (InAlt tagName pos) (tcDataLayoutExpr env dataLayoutExpr)
+      alloc     <- (\/) accumAlloc <$> mapPaths (InAlt tagName pos) (tcDataLayoutExpr env vs dataLayoutExpr)
       tagValues <- checkedTagValues
       return (alloc, tagValues)
       where
@@ -105,10 +105,14 @@ tcDataLayoutExpr env (DLVariant tagExpr alternatives) =
     primitiveBitRange _                    = Nothing
 
 #ifdef BUILTIN_ARRAYS
-tcDataLayoutExpr env (DLArray e p) = mapPaths (InElmt p) $ tcDataLayoutExpr env e
+tcDataLayoutExpr env vs (DLArray e p) = mapPaths (InElmt p) $ tcDataLayoutExpr env vs e
 #endif
-tcDataLayoutExpr env DLPtr = return $ singletonAllocation (pointerBitRange, PathEnd)
-tcDataLayoutExpr env l = __impossible $ "tcDataLayoutExpr; tried to typecheck unexpected layout: " ++ show l
+tcDataLayoutExpr _ _ DLPtr = return $ singletonAllocation (pointerBitRange, PathEnd)
+tcDataLayoutExpr _ vs (DLVar n) =
+  case n `elem` vs of
+    True -> return $ emptyAllocation -- FIXME
+    False -> throwE [UnknownDataLayoutVar n PathEnd]
+tcDataLayoutExpr _ _ l = __impossible $ "tcDataLayoutExpr; tried to typecheck unexpected layout: " ++ show l
 
 
 -- NOTE: the check for type-layout compatibility is in Cogent.TypeCheck.Base
@@ -163,6 +167,7 @@ data DataLayoutTcErrorP p
   -- ^ The layout contains a bit range of size zero.
   -- This could generate an array of length 0, which is disallowed by C
 
+  | UnknownDataLayoutVar    DLVarName p
   deriving (Eq, Show, Ord, Functor)
 
 
@@ -193,7 +198,7 @@ data DataLayoutTypeMatchErrorP p
 {- * Other exported functions -}
 tcDataLayoutDecl :: NamedDataLayouts -> DataLayoutDecl -> Except [DataLayoutTcError] Allocation
 tcDataLayoutDecl env (DataLayoutDecl pos name expr) =
-  mapPaths (InDecl name) (tcDataLayoutExpr env expr)
+  mapPaths (InDecl name) (tcDataLayoutExpr env [] expr)
 
 normaliseDataLayoutDecl :: NamedDataLayouts -> DataLayoutDecl -> DataLayoutDecl
 normaliseDataLayoutDecl env (DataLayoutDecl pos name expr) =

@@ -78,6 +78,7 @@ import Debug.Trace
 
 data TypeError = FunctionNotFound VarName
                | TooManyTypeArguments FunName (Polytype TCType)
+               | TooManyLayoutArguments FunName (Polytype TCType)
                | NotInScope FuncOrVar VarName
                | DuplicateVariableInPattern VarName  -- (Pattern TCName)
                | DifferingNumberOfConArgs TagName Int Int
@@ -97,6 +98,8 @@ data TypeError = FunctionNotFound VarName
                | DuplicateRecordFields [FieldName]
                | DuplicateTypeVariable [VarName]
                | SuperfluousTypeVariable [VarName]
+               | DuplicateLayoutVariable [DLVarName]
+               | SuperfluousLayoutVariable [DLVarName]
                | TakeFromNonRecordOrVariant (Maybe [FieldName]) TCType
                | PutToNonRecordOrVariant    (Maybe [FieldName]) TCType
                | TakeNonExistingField FieldName TCType
@@ -174,6 +177,7 @@ data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: Seq
 #endif
               | UsedInLetBang
               | TypeParam { functionName :: FunName, typeVarName :: TyVarName }
+              | LayoutParam { expression :: TCExpr, layoutVarName :: DLVarName }
               | ImplicitlyTaken
               | Constant { constName :: ConstName }
               deriving (Eq, Show, Ord)
@@ -187,6 +191,7 @@ data Constraint' t = (:<) t t
                    | Share t Metadata
                    | Drop t Metadata
                    | Escape t Metadata
+                   -- | LApply TCDataLayout Metadata
                    | (:@) (Constraint' t) ErrorContext
                    | Unsat TypeError
                    | SemiSat TypeWarning
@@ -261,6 +266,10 @@ kindToConstraint k t m = (if canEscape  k then Escape t m else Sat)
                       <> (if canDiscard k then Drop   t m else Sat)
                       <> (if canShare   k then Share  t m else Sat)
 
+-- FIXME
+layoutMatchConstraint :: TCDataLayout -> Metadata -> Constraint
+layoutMatchConstraint l m = Sat
+
 warnToConstraint :: Bool -> TypeWarning -> Constraint
 warnToConstraint f w | f = SemiSat w
                      | otherwise = Sat
@@ -269,17 +278,17 @@ warnToConstraint f w | f = SemiSat w
 -- Types for constraint generation and solving
 -- -----------------------------------------------------------------------------
 
-data TCType         = T (Type TCSExpr TCType)
+data TCType         = T (Type TCSExpr TCDataLayout TCType)
                     | U Int  -- unifier
-                    | R (Row TCType) (Either (Sigil (Maybe DataLayoutExpr)) Int)
+                    | R (Row TCType) (Either (Sigil (Maybe TCDataLayout)) Int)
                     | V (Row TCType)
 #ifdef BUILTIN_ARRAYS
-                    | A TCType TCSExpr (Either (Sigil (Maybe DataLayoutExpr)) Int) (Either (Maybe TCSExpr) Int)
+                    | A TCType TCSExpr (Either (Sigil (Maybe TCDataLayout)) Int) (Either (Maybe TCSExpr) Int)
 #endif
                     | Synonym TypeName [TCType]
                     deriving (Show, Eq, Ord)
 
-data SExpr t        = SE { getTypeSE :: t, getExprSE :: Expr t (TPatn t) (TIrrefPatn t) (SExpr t) }
+data SExpr t        = SE { getTypeSE :: t, getExprSE :: Expr t (TPatn t) (TIrrefPatn t) TCDataLayout (SExpr t) }
                     | SU t Int
                     deriving (Show, Eq, Ord)
 
@@ -290,12 +299,12 @@ typeOfSE (SU t _) = t
 type TCSExpr = SExpr TCType
 
 instance Functor SExpr where
-  fmap f (SE t e) = SE (f t) (ffffmap f $ fffmap (fmap f) $ ffmap (fmap f) $ fmap (fmap f) e)
+  fmap f (SE t e) = SE (f t) (fffffmap f $ ffffmap (fmap f) $ fffmap (fmap f) $ fmap (fmap f) e)
   fmap f (SU t x) = SU (f t) x
 instance Foldable SExpr where
   foldMap f e = getConst $ traverse (Const . f) e
 instance Traversable SExpr where
-  traverse f (SE t e) = SE <$> f t <*> quadritraverse f (traverse f) (traverse f) (traverse f) e
+  traverse f (SE t e) = SE <$> f t <*> pentatraverse f (traverse f) (traverse f) pure (traverse f) e
   traverse f (SU t x) = SU <$> f t <*> pure x
 
 data FuncOrVar = MustFunc | MustVar | FuncOrVar deriving (Eq, Ord, Show)
@@ -308,7 +317,7 @@ funcOrVar (T (TBang  _)) = FuncOrVar
 funcOrVar (T (TFun {})) = MustFunc
 funcOrVar _ = MustVar
 
-data TExpr      t = TE { getTypeTE :: t, getExpr :: Expr t (TPatn t) (TIrrefPatn t) (TExpr t), getLocTE :: SourcePos }
+data TExpr      t = TE { getTypeTE :: t, getExpr :: Expr t (TPatn t) (TIrrefPatn t) TCDataLayout (TExpr t), getLocTE :: SourcePos }
 deriving instance Eq   t => Eq   (TExpr t)
 deriving instance Ord  t => Ord  (TExpr t)
 deriving instance Show t => Show (TExpr t)
@@ -327,14 +336,14 @@ deriving instance Show t => Show (TIrrefPatn t)
 deriving instance Data t => Data (TIrrefPatn t)
 
 instance Functor TExpr where
-  fmap f (TE t e l) = TE (f t) (ffffmap f $ fffmap (fmap f) $ ffmap (fmap f) $ fmap (fmap f) e) l  -- Hmmm!
+  fmap f (TE t e l) = TE (f t) (fffffmap f $ ffffmap (fmap f) $ fffmap (fmap f) $ fmap (fmap f) e) l  -- Hmmmm!
 instance Functor TPatn where
   fmap f (TP p l) = TP (fmap (fmap f) p) l
 instance Functor TIrrefPatn where
   fmap f (TIP ip l) = TIP (fffmap (second f) $ ffmap (fmap f) $ fmap (fmap f) ip) l
 
 instance Traversable TExpr where
-  traverse f (TE t e l) = TE <$> f t <*> quadritraverse f (traverse f) (traverse f) (traverse f) e <*> pure l
+  traverse f (TE t e l) = TE <$> f t <*> pentatraverse f (traverse f) (traverse f) pure (traverse f) e <*> pure l
 instance Traversable TPatn where
   traverse f (TP p l) = TP <$> traverse (traverse f) p <*> pure l
 instance Traversable TIrrefPatn where
@@ -367,7 +376,7 @@ type TCExpr = TExpr TCType
 type TCPatn = TPatn TCType
 type TCIrrefPatn = TIrrefPatn TCType
 
-data DepType = DT { unDT :: Type RawTypedExpr DepType } deriving (Data, Eq, Ord, Show)
+data DepType = DT { unDT :: Type RawTypedExpr DataLayoutExpr DepType } deriving (Data, Eq, Ord, Show)
 
 type TypedName = (VarName, DepType)
 type TypedExpr = TExpr DepType
@@ -384,11 +393,14 @@ type RawTypedIrrefPatn = TIrrefPatn RawType
 
 -- Precondition: No unification variables left in the type
 toLocType :: SourcePos -> TCType -> LocType
-toLocType l (T x) = LocType l (fmap (toLocType l) $ ffmap (toLocExpr toLocType . toTCExpr) x)
+toLocType l (T x) = LocType l (fmap (toLocType l) $ ffmap toDLExpr $ fffmap (toLocExpr toLocType . toTCExpr) x)
 toLocType l _ = __impossible "toLocType: unification variable found"
 
 toLocExpr :: (SourcePos -> t -> LocType) -> TExpr t -> LocExpr
-toLocExpr f (TE t e l) = LocExpr l (ffffmap (f l) $ fffmap (toLocPatn f) $ ffmap (toLocIrrefPatn f) $ fmap (toLocExpr f) e)
+toLocExpr f (TE t e l) = LocExpr l (fffffmap (f l)
+                                  $ ffffmap (toLocPatn f)
+                                  $ fffmap (toLocIrrefPatn f)
+                                  $ ffmap toDLExpr $ fmap (toLocExpr f) e)
 
 toLocPatn :: (SourcePos -> t -> LocType) -> TPatn t -> LocPatn
 toLocPatn f (TP p l) = LocPatn l (fmap (toLocIrrefPatn f) p)
@@ -403,21 +415,45 @@ toTypedAlts :: [Alt TCPatn TCExpr] -> [Alt TypedPatn TypedExpr]
 toTypedAlts = fmap (ffmap (fmap toDepType) . fmap toTypedExpr)
 
 toDepType :: TCType -> DepType
-toDepType (T x) = DT (ffmap (fmap toRawType . toTCExpr) $ fmap toDepType x)
+toDepType (T x) = DT (fffmap (fmap toRawType . toTCExpr) $ ffmap toDLExpr $ fmap toDepType x)
 toDepType _ = __impossible "toDepType: unification variable found"
 
 toRawType :: TCType -> RawType
-toRawType (T x) = RT (ffmap (toRawExpr' . toTCExpr) $ fmap toRawType x)
+toRawType (T x) = RT (fffmap (toRawExpr' . toTCExpr) $ ffmap toDLExpr $ fmap toRawType x)
 toRawType _ = __impossible "toRawType: unification variable found"
 
 toRawType' :: DepType -> RawType
-toRawType' (DT t) = RT (ffmap toRawExpr'' $ fmap toRawType' t)
+toRawType' (DT t) = RT (fffmap toRawExpr'' $ fmap toRawType' t)
+
+toDLExpr :: TCDataLayout -> DataLayoutExpr
+toDLExpr (TLPrim n) = DLPrim n
+toDLExpr (TLRecord fs) = DLRecord ((\(x,y,z) -> (x,y,toDLExpr z)) <$> fs)
+toDLExpr (TLVariant e fs) = DLVariant (unDataLayoutExpr (toDLExpr (TL e))) ((\(x,y,z,v) -> (x,y,z,toDLExpr v)) <$> fs)
+#ifdef BUILTIN_ARRAYS
+toDLExpr (TLArray e p) = DLArray (toDLExpr e) p
+#endif
+toDLExpr (TLOffset e s) = DLOffset (unDataLayoutExpr (toDLExpr (TL e))) s
+toDLExpr (TLRepRef n) = DLRepRef n
+toDLExpr (TLVar n) = DLVar n
+toDLExpr TLPtr = DLPtr
+
+toTCDL :: DataLayoutExpr -> TCDataLayout
+toTCDL (DLPrim n) = TLPrim n
+toTCDL (DLRecord fs) = TLRecord ((\(x,y,z) -> (x,y,toTCDL z)) <$> fs)
+toTCDL (DLVariant e fs) = TLVariant (unTCDataLayout (toTCDL (DL e))) ((\(x,y,z,v) -> (x,y,z,toTCDL v)) <$> fs)
+#ifdef BUILTIN_ARRAYS
+toTCDL (DLArray e p) = TLArray (toTCDL e) p
+#endif
+toTCDL (DLOffset e s) = TLOffset (unTCDataLayout (toTCDL (DL e))) s
+toTCDL (DLRepRef n) = TLRepRef n
+toTCDL (DLVar n) = TLVar n
+toTCDL DLPtr = TLPtr
 
 -- This function although is partial, it should be ok, as we statically know that 
 -- we won't run into those undefined cases. / zilinc
 rawToDepType :: RawType -> DepType
 rawToDepType (RT t) = DT $ go t
-  where go :: Type RawExpr RawType -> Type RawTypedExpr DepType
+  where go :: Type RawExpr DataLayoutExpr RawType -> Type RawTypedExpr DataLayoutExpr DepType
         go t = let f = rawToDepType
                 in case t of
                      TCon tn ts s  -> TCon tn (fmap f ts) s
@@ -434,10 +470,10 @@ rawToDepType (RT t) = DT $ go t
                      _             -> __impossible $ "rawToDepType: we don't allow higher-order refinement types"
 
 toRawTypedExpr :: TypedExpr -> RawTypedExpr
-toRawTypedExpr (TE t e l) = TE (toRawType' t) (ffffmap toRawType' $ fffmap (fmap toRawType') $ ffmap (fmap toRawType') $ fmap (fmap toRawType') e) l
+toRawTypedExpr (TE t e l) = TE (toRawType' t) (fffffmap toRawType' $ ffffmap (fmap toRawType') $ fffmap (fmap toRawType') $ fmap (fmap toRawType') e) l
 
 toRawExpr'' :: RawTypedExpr -> RawExpr
-toRawExpr'' (TE _ e _) = RE (fffmap toRawPatn' $ ffmap toRawIrrefPatn' $ fmap toRawExpr'' e)
+toRawExpr'' (TE _ e _) = RE (ffffmap toRawPatn' $ fffmap toRawIrrefPatn' $ ffmap toDLExpr $ fmap toRawExpr'' e)
 
 toRawExpr' :: TCExpr -> RawExpr
 toRawExpr' = toRawExpr . toTypedExpr
@@ -580,6 +616,30 @@ substType vs (T (TVar v b u)) | Just x <- lookup v vs
       (_    , True ) -> T (TUnbox x)
 substType vs (T t) = T (fmap (substType vs) t)
 
+substLayout' :: [(DLVarName, TCDataLayout)] -> TCDataLayout -> TCDataLayout
+substLayout' vs (TLVar n) | Just x <- lookup n vs = x
+substLayout' vs (TLRecord fs) = TLRecord $ (\(x,y,z) -> (x,y,substLayout' vs z)) <$> fs
+substLayout' vs (TLVariant e fs) = TLVariant e $ (\(x,y,z,v) -> (x,y,z,substLayout' vs v)) <$> fs
+#ifdef BUILTIN_ARRAYS
+substLayout' vs (TLArray e p) = TLArray (substLayout' vs e) p
+#endif
+substLayout' vs l = l
+
+substLayoutS :: [(DLVarName, TCDataLayout)] -> Either (Sigil (Maybe TCDataLayout)) Int -> Either (Sigil (Maybe TCDataLayout)) Int
+substLayoutS vs (Left (Boxed _ (Just l))) = error "unimplemented"
+substLayoutS vs s = error "unimplemented"
+
+substLayout :: [(DLVarName, TCDataLayout)] -> TCType -> TCType
+substLayout vs (T (TLayout l t)) = T (TLayout (substLayout' vs l) t)
+substLayout vs (T t) = T (fmap (substLayout vs) t)
+substLayout vs (U x) = U x
+substLayout vs (V x) = V $ substLayout vs <$> x
+substLayout vs (R x s) = R (substLayout vs <$> x) (substLayoutS vs s)
+#ifdef BUILTIN_ARRAYS
+substLayout vs (A t l s tkns) = A (substLayout vs t) l (substLayoutS vs s) tkns
+#endif
+substLayout vs (Synonym n ts) = Synonym n $ substLayout vs <$> ts
+
 -- only for error reporting
 flexOf (U x) = Just x
 flexOf (T (TTake _ t))   = flexOf t
@@ -631,10 +691,10 @@ unifVars (T x) = foldMap unifVars x
 #ifdef BUILTIN_ARRAYS
 unifVarsE :: TCSExpr -> [Int]
 unifVarsE (SE t e) = unifVars t ++ foldMap unifVarsE e
-                                ++ ffoldMap (foldMap unifVars) e
                                 ++ fffoldMap (foldMap unifVars) e
-                                ++ ffffoldMap unifVars e
-unifVarE (SU t _) = unifVars t
+                                ++ ffffoldMap (foldMap unifVars) e
+                                ++ fffffoldMap unifVars e
+unifVarsE (SU t _) = unifVars t
 
 unknowns :: TCType -> [Int]
 unknowns (U _) = []
@@ -692,9 +752,9 @@ rigid _ = True
 -- Dargent
 --
 
-isTypeLayoutExprCompatible :: NamedDataLayouts -> TCType -> DataLayoutExpr -> Bool
-isTypeLayoutExprCompatible env (T (TCon n [] Boxed{})) DLPtr = True
-isTypeLayoutExprCompatible env (T (TCon n [] Unboxed)) (DLPrim rs) =
+isTypeLayoutExprCompatible :: NamedDataLayouts -> TCType -> TCDataLayout -> Bool
+isTypeLayoutExprCompatible env (T (TCon n [] Boxed{})) (TLPtr) = True
+isTypeLayoutExprCompatible env (T (TCon n [] Unboxed)) (TLPrim rs) =
   let s  = evalSize rs
       s' = (case n of
             "U8"  -> 8
@@ -703,14 +763,14 @@ isTypeLayoutExprCompatible env (T (TCon n [] Unboxed)) (DLPrim rs) =
             "U64" -> 64
             "Bool" -> 1)
    in s' <= s
-isTypeLayoutExprCompatible env (T (TRecord fs1 Boxed{})) DLPtr = True
-isTypeLayoutExprCompatible env (T (TRecord fs1 Unboxed)) (DLRecord fs2) =
+isTypeLayoutExprCompatible env (T (TRecord fs1 Boxed{})) (TLPtr) = True
+isTypeLayoutExprCompatible env (T (TRecord fs1 Unboxed)) (TLRecord fs2) =
   all
     (\((n1,(t,_)),(n2,_,l)) -> n1 == n2 && isTypeLayoutExprCompatible env t l)
     (zip (sortOn fst fs1) (sortOn fst3 fs2))
-isTypeLayoutExprCompatible env (T (TTuple fs1)) (DLRecord fs2) =
+isTypeLayoutExprCompatible env (T (TTuple fs1)) (TLRecord fs2) =
   all (\(t,(_,_,l)) -> isTypeLayoutExprCompatible env t l) (zip fs1 fs2)
-isTypeLayoutExprCompatible env (T (TVariant ts1)) (DLVariant _ ts2) =
+isTypeLayoutExprCompatible env (T (TVariant ts1)) (TLVariant _ ts2) =
   all
     (\((n1,(ts,_)),(n2,_,_,l)) ->
       n1 == n2 && isTypeLayoutExprCompatible env (tuplise ts) l)
@@ -720,13 +780,14 @@ isTypeLayoutExprCompatible env (T (TVariant ts1)) (DLVariant _ ts2) =
     tuplise [t] = t
     tuplise ts = T (TTuple ts)
 #ifdef BUILTIN_ARRAYS
-isTypeLayoutExprCompatible env (T (TArray t _ (Boxed {}) _)) DLPtr = True
-isTypeLayoutExprCompatible env (T (TArray t _ Unboxed _)) (DLArray l _) = isTypeLayoutExprCompatible env t l
+isTypeLayoutExprCompatible env (T (TArray t _ (Boxed {}) _)) (TLPtr) = True
+isTypeLayoutExprCompatible env (T (TArray t _ Unboxed _)) (TLArray l _) = isTypeLayoutExprCompatible env t l
 #endif
-isTypeLayoutExprCompatible env t (DLOffset l _) = isTypeLayoutExprCompatible env t (DL l)
-isTypeLayoutExprCompatible env t (DLRepRef n)   =
+isTypeLayoutExprCompatible env t (TLOffset l _) = isTypeLayoutExprCompatible env t (TL l)
+isTypeLayoutExprCompatible env t (TLRepRef n)   =
   case M.lookup n env of
-    Just (l, _) -> isTypeLayoutExprCompatible env t l
+    Just (l, _) -> isTypeLayoutExprCompatible env t (toTCDL l)
     Nothing     -> False  -- TODO(dargent): this really shoud be an exceptional state
+isTypeLayoutExprCompatible _ t (TLVar n) = True -- FIXME
 isTypeLayoutExprCompatible _ t l = trace ("t = " ++ show t ++ "\nl = " ++ show l) False
 

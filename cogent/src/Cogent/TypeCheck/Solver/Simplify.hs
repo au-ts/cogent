@@ -247,7 +247,7 @@ simplify axs = Rewrite.pickOne' $ onGoal $ \c -> case c of
 
 -- | Returns 'True' iff the given argument type is not subject to subtyping. That is, if @a :\< b@
 --   (subtyping) is equivalent to @a :=: b@ (equality), then this function returns true.
-unorderedType :: Type e t -> Bool
+unorderedType :: Type e l t -> Bool
 unorderedType (TCon {}) = True
 unorderedType (TVar {}) = True
 unorderedType (TUnit)   = True
