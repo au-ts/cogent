@@ -355,7 +355,7 @@ sameRecursive None    None = True
 sameRecursive _ _ = False
 
 unroll :: VarName -> Banged -> RecContext TCType -> TCType
-unroll v b (Just ctxt) = 
+unroll v b (Just ctxt) =
     ifBang b $ embedRecPar' (Just ctxt) (ctxt M.! v)
   where
     embedRecPar' ctxt (T (TRPar v b Nothing)) = T (TRPar v b ctxt)

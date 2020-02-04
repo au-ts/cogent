@@ -64,6 +64,7 @@ toTypeStr (TCon n ts _)    = nub $ concatMap toTypeStr ts
 #ifdef BUILTIN_ARRAYS
 toTypeStr (TArray {})      = []
 #endif
+toTypeStr (TRPar v m)      = []
 
 -- | Given a map for type synonyms, the table, and a type @t@, returns
 --   a type in the form of a 'TCon', which means that if there's a type
