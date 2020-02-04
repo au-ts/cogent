@@ -17,11 +17,12 @@ free_list : all a. (List a, a -> ()) -> ()
 free_list (r { list = x }, f) = free_list' (x, f)
 
 free_list' : all a. (ListNode a, a -> ()) -> ()
-free_list' (r { head = l }) =
-  let _ = free_list_node r in
-    l | Nil               -> ()
+free_list' (r, f) =
+  let r2 { l = x } = r
+  and _ = free_list_node r2 in
+    x | Nil               -> ()
       | Cons (elem, rest) ->
-        let _ = f elem in free_list_node (rest, f)
+        let _ = f elem in free_list' (rest, f)
 
 ------------- List basic -------------
 
@@ -41,7 +42,7 @@ list_append' (head { l = x }, b) =
   x | Nil -> 
         let _ = free_list_node head in b
     | Cons (elem, tail) -> 
-        let rest = list_append (tail, b)
+        let rest = list_append' (tail, b)
         in head { l = Cons (elem, rest) }
 
 
@@ -61,6 +62,12 @@ list_append' (head { l = x }, b) =
 --     x | Nil -> node { l = Nil }
 --       | Cons (elem, tail) ->
 --           node { l = Cons (f elem, list_map' (f, tail)) }
+
+list_map_boxed' : all (a :< E). ((a -> a), (ListNode a)) -> ListNode a
+list_map_boxed' (f, head { l = x }) =
+    x | Nil -> head { l = Nil }
+      | Cons (elem, tail) ->
+          head { l = Cons (f elem, list_map_boxed' (f, tail)) }
 
 ------------- List Qualities -------------
 
