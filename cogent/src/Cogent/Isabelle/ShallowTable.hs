@@ -58,6 +58,7 @@ toTypeStr (TRecord _ ts _)   = nub $ RecordStr (P.map fst ts) : concatMap (toTyp
 toTypeStr (TPrim i)        = []
 toTypeStr (TString)        = []
 toTypeStr (TCon n ts _)    = nub $ concatMap toTypeStr ts
+toTypeStr (TRPar v m)      = []
 
 -- | Given a map for type synonyms, the table, and a type @t@, returns
 --   a type in the form of a 'TCon', which means that if there's a type

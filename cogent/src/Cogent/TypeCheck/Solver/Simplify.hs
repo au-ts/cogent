@@ -25,7 +25,7 @@ unsat :: TypeError -> Maybe [Constraint]
 unsat x = Just [Unsat x]
 
 elseDie :: Bool -> TypeError -> Maybe [Constraint]
-elseDie b e = (guard b >> Just []) <|> unsat e 
+elseDie b e = (guard b >> Just []) <|> unsat e
 
 simplify :: [(TyVarName, Kind)] -> Rewrite.Rewrite [Goal]
 simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of 

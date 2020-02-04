@@ -549,7 +549,7 @@ desugarType = \case
   S.RT (S.TUnit)     -> return TUnit
   S.RT (S.TRPar v b m) -> do
     m' <- mapM id (fmap (\x -> mapM id (M.map desugarType x)) m)
-    return $ __todo "Dodgy hack: RecParBang" (TRPar v m')
+    return $ __fixme {- Dodgy hack: RecPar's 'Banged' field is ignored -} (TRPar v m')
 #ifdef BUILTIN_ARRAYS
   S.RT (S.TArray t l) -> TArray <$> desugarType t <*> evalAExpr l  -- desugarExpr' l
 #endif
