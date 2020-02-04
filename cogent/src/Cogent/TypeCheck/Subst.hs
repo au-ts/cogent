@@ -31,7 +31,7 @@ import Prelude hiding (lookup)
 import Debug.Trace
 
 data AssignResult = Type TCType
-                  | Sigil (Sigil (Maybe DataLayoutExpr))
+                  | Sigil (Sigil (Maybe TCDataLayout))
                   | Row (Row.Row TCType)
                   | Taken Taken
 #ifdef BUILTIN_ARRAYS
@@ -47,9 +47,6 @@ newtype Subst = Subst (M.IntMap AssignResult)
 ofType :: Int -> TCType -> Subst
 ofType i t = Subst (M.fromList [(i, Type t)])
 
-ofSigil :: Int -> Sigil (Maybe DataLayoutExpr) -> Subst
-ofSigil i t = Subst (M.fromList [(i, Sigil t)])
-
 ofRow :: Int -> Row.Row TCType -> Subst
 ofRow i t = Subst (M.fromList [(i, Row t)])
 
@@ -61,8 +58,11 @@ ofHole :: Int -> Maybe TCSExpr -> Subst
 ofHole i h = Subst (M.fromList [(i, Hole h)])
 #endif
 
-ofTaken :: Int -> Taken -> Subst 
+ofTaken :: Int -> Taken -> Subst
 ofTaken i tk = Subst (M.fromList [(i, Taken tk)])
+
+ofSigil :: Int -> Sigil (Maybe TCDataLayout) -> Subst
+ofSigil i t = Subst (M.fromList [(i, Sigil t)])
 
 #ifdef BUILTIN_ARRAYS
 ofExpr :: Int -> TCSExpr -> Subst
@@ -103,7 +103,7 @@ apply (Subst f) (A t l (Right x) mhole)
 apply (Subst f) (A t l s (Right x))
   | Just (Hole mh) <- M.lookup x f = apply (Subst f) (A t l s (Left mh))
 apply f (A x l s tkns) = A (apply f x) (applySE f l) s (left (fmap $ applySE f) tkns)
-apply f (T x) = T (ffmap (applySE f) $ fmap (apply f) x)
+apply f (T x) = T (fffmap (applySE f) $ fmap (apply f) x)
 #else
 apply f (T x) = T (fmap (apply f) x)
 #endif
@@ -171,16 +171,16 @@ applySE (Subst f) (SU t x)
   = SU t x
 applySE s (SE t e) = SE (apply s t)
                           ( fmap (applySE s)
-                          $ ffmap (fmap (apply s))
                           $ fffmap (fmap (apply s))
-                          $ ffffmap (apply s) e)
+                          $ ffffmap (fmap (apply s))
+                          $ fffffmap (apply s) e)
 #endif
 
 applyE :: Subst -> TCExpr -> TCExpr
 applyE s (TE t e l) = TE (apply s t)
                          ( fmap (applyE s)
-                         $ ffmap (fmap (apply s))
                          $ fffmap (fmap (apply s))
-                         $ ffffmap (apply s) e)
+                         $ ffffmap (fmap (apply s))
+                         $ fffffmap (apply s) e)
                          l
 

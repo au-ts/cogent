@@ -125,7 +125,8 @@ repExpr = DL <$> repExpr'
 #endif
       <|> (RepRef <$> typeConName)
       <|> (Prim <$> repSize)
-      <|> (Ptr <$ reserved "pointer"))
+      <|> (Ptr <$ reserved "pointer")
+      <|> (LVar <$> variableName))
     recordRepr = (,,) <$> variableName <*> getPosition <* reservedOp ":" <*> repExpr
     variantRepr = (,,,) <$> typeConName <*> getPosition <*> parens (fromIntegral <$> natural) <* reservedOp ":" <*> repExpr
 
