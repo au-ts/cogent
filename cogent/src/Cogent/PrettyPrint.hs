@@ -85,9 +85,9 @@ fieldname = magenta . string
 tagname = dullmagenta . string
 symbol = string
 kindsig = red . string
-typeargs [] = empty
+typeargs [] = brackets empty
 typeargs xs = encloseSep lbracket rbracket (comma <> space) xs
-layoutargs [] = empty
+layoutargs [] = braces empty
 layoutargs xs = encloseSep lbrace rbrace (comma <> space) xs
 array = encloseSep lbracket rbracket (comma <> space)
 record = encloseSep (lbrace <> space) (space <> rbrace) (comma <> space)
@@ -134,7 +134,7 @@ instance Prec Associativity where
   prec (NoAssoc    i) = i
   prec (Prefix)       = 9  -- as in the expression builder
 
-instance Prec (Expr t p ip e) where
+instance Prec (Expr t p ip l e) where
   -- vvv terms
   prec (Var {}) = 0
   prec (TypeApp {}) = 0
@@ -209,7 +209,7 @@ prettyPrec l x | prec x < l = pretty x
 class ExprType a where
   isVar :: a -> VarName -> Bool
 
-instance ExprType (Expr t p ip e) where
+instance ExprType (Expr t p ip l e) where
   isVar (Var n) s = (n == s)
   isVar _ _ = False
 
@@ -297,7 +297,7 @@ class TypeType t where
   isFun :: t -> Bool
   isAtomic :: t -> Bool
 
-instance TypeType (Type e t) where
+instance TypeType (Type e l t) where
   isCon     (TCon {})  = True
   isCon     _          = False
   isFun     (TFun {})  = True
@@ -429,8 +429,8 @@ instance Pretty Inline where
   pretty Inline = keyword "inline" <+> empty
   pretty NoInline = empty
 
-instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Pretty ip, Pretty e) =>
-         Pretty (Expr t p ip e) where
+instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Pretty ip, Pretty e, Pretty l) =>
+         Pretty (Expr t p ip l e) where
   pretty (Var x)             = varname x
   pretty (TypeApp x ts note) = pretty note <> varname x
                                  <> typeargs (map (\case Nothing -> symbol "_"; Just t -> pretty t) ts)
@@ -460,7 +460,7 @@ instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Prett
   pretty (Upcast e)          = keyword "upcast" <+> prettyPrec 9 e
   pretty (Lam p mt e)        = string "\\" <> pretty p <>
                                (case mt of Nothing -> empty; Just t -> space <> symbol ":" <+> pretty t) <+> symbol "=>" <+> prettyPrec 101 e
-  pretty (LamC p mt e _)     = pretty (Lam p mt e :: Expr t p ip e)
+  pretty (LamC p mt e _)     = pretty (Lam p mt e :: Expr t p ip l e)
   pretty (App  a b False)    = prettyPrec 10 a <+> prettyPrec 9 b
   pretty (App  a b True )    = prettyPrec 31 a <+> symbol "$" <+> prettyPrec 32 b
   pretty (Comp f g)          = prettyPrec 10 f <+> symbol "o" <+> prettyPrec 9 g
@@ -516,7 +516,7 @@ prettyT' :: (TypeType t, Pretty t) => t -> Doc
 prettyT' t | not $ isAtomic t = parens (pretty t)
            | otherwise        = pretty t
 
-instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
+instance (Pretty t, TypeType t, Pretty e, Pretty l, Eq l) => Pretty (Type e l t) where
   pretty (TCon n [] s) = (if | readonly s -> (<> typesymbol "!")
                              | s == Unboxed && n `notElem` primTypeCons -> (typesymbol "#" <>)
                              | otherwise -> id) $ typename n
@@ -563,7 +563,7 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
        in layoutPretty . tkUntkPretty . sigilPretty $ recordPretty
   pretty (TVariant ts) | any snd ts = let
      names = map fst $ filter (snd . snd) $ M.toList ts
-   in pretty (TVariant $ fmap (second (const False)) ts :: Type e t)
+   in pretty (TVariant $ fmap (second (const False)) ts :: Type e l t)
         <+> typesymbol "take"
         <+> tupled1 (map fieldname names)
   pretty (TVariant ts) = variant (map (\(a,bs) -> case bs of
@@ -683,9 +683,14 @@ instance Pretty d => Pretty (DataLayoutExpr' d) where
   pretty (Array e s) = keyword "array" <+> parens (pretty e) <+> keyword "at" <+> pretty s
 #endif
   pretty Ptr = keyword "pointer"
+  pretty (LVar n) = varname n
 
 instance Pretty DataLayoutExpr where
   pretty (DL l) = pretty l
+
+instance Pretty TCDataLayout where
+  pretty (TL l) = pretty l
+  pretty (TLU n) = text "?" <> pretty n
 
 instance Pretty Metadata where
   pretty (Constant {constName})              = err "the binding" <+> funname constName <$> err "is a global constant"
@@ -719,6 +724,8 @@ instance Pretty Metadata where
   pretty (TypeParam {functionName, typeVarName }) = err "it is required by the type of" <+> funname functionName
                                                       <+> err "(type variable" <+> typevar typeVarName <+> err ")"
   pretty ImplicitlyTaken = err "it is implicitly taken via subtyping."
+  pretty (LayoutParam exp lv) = err "it is required by the expression" <+> pretty exp
+                            <+> err "(layout variable" <+> varname lv <+> err ")"
 
 instance Pretty FuncOrVar where
   pretty MustFunc  = err "Function"
@@ -730,10 +737,14 @@ instance Pretty TypeError where
                                         <+> err "invoked with differing number of arguments (" <> int n <> err " vs " <> int m <> err ")"
   pretty (DuplicateTypeVariable vs)      = err "Duplicate type variable(s)" <+> commaList (map typevar vs)
   pretty (SuperfluousTypeVariable vs)    = err "Superfluous type variable(s)" <+> commaList (map typevar vs)
+  pretty (DuplicateLayoutVariable vs)    = err "Duplicate layout variable(s)" <+> commaList (map typevar vs)
+  pretty (SuperfluousLayoutVariable vs)  = err "Superfluous layout variable(s)" <+> commaList (map typevar vs)
   pretty (DuplicateRecordFields fs)      = err "Duplicate record field(s)" <+> commaList (map fieldname fs)
   pretty (FunctionNotFound fn)           = err "Function" <+> funname fn <+> err "not found"
   pretty (TooManyTypeArguments fn pt)    = err "Too many type arguments to function"
-                                           <+> funname fn  <+> err "of type" <+> pretty pt
+                                           <+> funname fn <+> err "of type" <+> pretty pt
+  pretty (TooManyLayoutArguments fn pt)  = err "Too many layout arguments to function"
+                                           <+> funname fn <+> err "of type" <+> pretty pt
   pretty (NotInScope fov vn)             = pretty fov <+> varname vn <+> err "not in scope"
   pretty (UnknownTypeVariable vn)        = err "Unknown type variable" <+> typevar vn
   pretty (UnknownTypeConstructor tn)     = err "Unknown type constructor" <+> typename tn
@@ -949,6 +960,8 @@ instance Pretty DataLayoutTcError where
   pretty (ZeroSizedBitRange context) =
     err "Zero-sized bit range" <$$>
     indent (pretty context)
+  pretty (UnknownDataLayoutVar n ctx) =
+    err "Undeclared data layout variable" <+> varname n <$$> indent (pretty ctx)
 
 instance Pretty DataLayoutPath where
   pretty (InField n po ctx) = context' "for field" <+> fieldname n <+> context' "(" <> pretty po <> context' ")" </> pretty ctx

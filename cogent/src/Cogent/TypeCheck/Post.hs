@@ -81,12 +81,16 @@ normaliseE d te@(TE t e l) = do
   where
     ctx = InExpression (toLocExpr toLocType te) t
     normaliseE' :: TypeDict
-                -> Expr TCType TCPatn TCIrrefPatn TCExpr
-                -> Post (Expr TCType TCPatn TCIrrefPatn TCExpr)
+                -> Expr TCType TCPatn TCIrrefPatn TCDataLayout TCExpr
+                -> Post (Expr TCType TCPatn TCIrrefPatn TCDataLayout TCExpr)
     normaliseE' d =   traverse (normaliseE d)
-                  >=> ttraverse (normaliseIP d)
-                  >=> tttraverse (normaliseP d)
-                  >=> ttttraverse (normaliseT d)
+                  >=> ttraverse (normaliseL d)
+                  >=> tttraverse (normaliseIP d)
+                  >=> ttttraverse (normaliseP d)
+                  >=> tttttraverse (normaliseT d)
+
+normaliseL :: a -> b -> Post b
+normaliseL d a = pure a
 
 normaliseP :: TypeDict -> TCPatn -> Post TCPatn
 normaliseP d tp@(TP p l) = do
@@ -193,20 +197,20 @@ normaliseT d (T (TLayout l t)) = do
       t'' <- normPartT Unboxed
       if isTypeLayoutExprCompatible env t'' l
         then normPartT . Boxed p $ Just l
-        else logErrExit (LayoutDoesNotMatchType l t)
+        else logErrExit (LayoutDoesNotMatchType (toDLExpr l) t)
     (T (TCon n ts (Boxed p Nothing)))  -> do
       let normPartT = normaliseT d . T . TCon n ts
       t'' <- normPartT Unboxed
       if isTypeLayoutExprCompatible env t'' l
         then normPartT . Boxed p $ Just l
-        else logErrExit (LayoutDoesNotMatchType l t)
+        else logErrExit (LayoutDoesNotMatchType (toDLExpr l) t)
 #ifdef BUILTIN_ARRAYS
     (T (TArray telt n (Boxed p Nothing) tkns)) -> do
       let normPartT s = normaliseT d . T $ TArray telt n s tkns
       t'' <- normPartT Unboxed
       if isTypeLayoutExprCompatible env t'' l
         then normPartT . Boxed p $ Just l
-        else logErrExit (LayoutDoesNotMatchType l t)
+        else logErrExit (LayoutDoesNotMatchType (toDLExpr l) t)
 #endif
     _ -> logErrExit (LayoutOnNonRecordOrCon t)
 
@@ -262,8 +266,9 @@ tkNorm (Right _) = __impossible "normaliseT: taken variable unsolved at normisat
 
 
 -- Normalises the layouts in sigils to remove `DataLayoutRefs`
-normaliseS :: Sigil (Maybe DataLayoutExpr) -> Post (Sigil (Maybe DataLayoutExpr))
+normaliseS :: Sigil (Maybe TCDataLayout) -> Post (Sigil (Maybe TCDataLayout))
 normaliseS sigil = do
   layouts <- lift . lift $ use knownDataLayouts
-  return $ normaliseSigil layouts sigil
+  let sigil' = fmap (fmap toDLExpr) sigil
+  return . fmap (fmap toTCDL) $ normaliseSigil layouts sigil'
 

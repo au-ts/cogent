@@ -61,6 +61,7 @@ import Lens.Micro.Mtl
 
 data GenState = GenState { _context :: C.Context TCType
                          , _knownTypeVars :: [TyVarName]
+                         , _knownDataLayoutVars :: [DLVarName]
                          , _flexes :: Int
                          , _flexOrigins :: IM.IntMap VarOrigin
                          }
@@ -69,9 +70,9 @@ makeLenses ''GenState
 
 type CG a = TcConsM GenState a
 
-runCG :: C.Context TCType -> [TyVarName] -> CG a -> TcM (a, Int, IM.IntMap VarOrigin)
-runCG g vs ma = do
-  (a, GenState _ _ f os) <- withTcConsM (GenState g vs 0 mempty) ((,) <$> ma <*> get)
+runCG :: C.Context TCType -> [TyVarName] -> [DLVarName] -> CG a -> TcM (a, Int, IM.IntMap VarOrigin)
+runCG g tvs lvs ma = do
+  (a, GenState _ _ _ f os) <- withTcConsM (GenState g tvs lvs 0 mempty) ((,) <$> ma <*> get)
   return (a,f,os)
 
 
@@ -84,6 +85,7 @@ validateType (RT t) = do
   vs <- use knownTypeVars
   ts <- lift $ use knownTypes
   layouts <- lift $ use knownDataLayouts
+  lvs <- use knownDataLayoutVars
   traceTc "gen" (text "validate type" <+> pretty t)
   case t of
     TVar v b u  | v `notElem` vs -> freshTVar >>= \t' -> return (Unsat $ UnknownTypeVariable v, t')
@@ -97,7 +99,7 @@ validateType (RT t) = do
                -> freshTVar >>= \t' -> return (Unsat $ TypeArgumentMismatch t provided required, t')
                 | Just (vs, Just x) <- lookup t ts
                -> second (Synonym t) <$> fmapFoldM validateType as
-                | otherwise -> (second T) <$> fmapFoldM validateType (TCon t as s)
+                | otherwise -> (second T) <$> fmapFoldM validateType (TCon t as (fmap (fmap toTCDL) s))
 
     TRecord fs s | fields  <- map fst fs
                  , fields' <- nub fields
@@ -105,14 +107,14 @@ validateType (RT t) = do
                    in if fields' == fields
                         then case s of
                           Boxed _ (Just dlexpr)
-                            | Left (anError : _) <- runExcept $ tcDataLayoutExpr layouts dlexpr  -- layout is bad
+                            | Left (anError : _) <- runExcept $ tcDataLayoutExpr layouts lvs dlexpr  -- layout is bad
                             -> freshTVar >>= \t' -> return (Unsat $ DataLayoutError anError, t')
                           _ -> -- layout is good, or no layout
                                -- We have to pattern match on 'TRecord' otherwise it's a type error.
                                do (c, TRecord fs' s') <- fmapFoldM validateType t
-                                  return (c, toRow . T $ TRecord fs' s')
+                                  return (c, toRow . T $ TRecord fs' (fmap (fmap toTCDL) s'))
                         else freshTVar >>= \t' -> return (Unsat $ DuplicateRecordFields (fields \\ fields'), t')
-                  | otherwise -> (second T) <$> fmapFoldM validateType (TRecord fs s)
+                  | otherwise -> (second T) <$> fmapFoldM validateType (TRecord fs (fmap (fmap toTCDL) s))
 
     TVariant fs  -> do let tuplize [] = T TUnit
                            tuplize [x] = x
@@ -144,7 +146,7 @@ validateType (RT t) = do
       traceTc "gen" (text "cg for array length" <+> pretty x L.<$>
                      text "generate constraint" <+> prettyC (cl <> cl'))
       (c,te') <- validateType te
-      return (cl <> cl' <> ctkn <> c, A te' x (Left s) (Left mhole))
+      return (cl <> cl' <> ctkn <> c, A te' x (Left $ fmap (fmap toTCDL) s) (Left mhole))
 
     TATake es t -> do
       blob <- forM es $ \e -> do
@@ -185,11 +187,11 @@ validateType (RT t) = do
 #endif
 
     TLayout l t -> do
-      let cl = case runExcept $ tcDataLayoutExpr layouts l of
+      let cl = case runExcept $ tcDataLayoutExpr layouts lvs l of
                  Left (e:_) -> Unsat $ DataLayoutError e
                  Right _    -> Sat
       (ct,t') <- validateType t
-      pure (cl <> ct, T $ TLayout l t')
+      pure (cl <> ct, T $ TLayout (toTCDL l) t')
 
     -- vvv The uninteresting cases; but we still have to match each of them to convince the typechecker / zilinc
     TFun t1 t2 -> (second T) <$> fmapFoldM validateType (TFun t1 t2)
@@ -208,6 +210,19 @@ validateTypes :: (?loc :: SourcePos, Traversable t) => t RawType -> CG (Constrai
 validateTypes = fmapFoldM validateType
 
 -- --------------------------------------------------------------------------
+
+validateLayout :: DataLayoutExpr -> CG (Constraint, DataLayoutExpr)
+validateLayout l = do
+  ls <- lift $ use knownDataLayouts
+  vs <- use knownDataLayoutVars
+  case runExcept $ tcDataLayoutExpr ls vs l of
+    Left (e:_) -> pure (Unsat $ DataLayoutError e, l)
+    Right _    -> pure (Sat, l)
+
+validateLayouts :: Traversable t => t DataLayoutExpr -> CG (Constraint, t DataLayoutExpr)
+validateLayouts = fmapFoldM validateLayout
+
+-- -----------------------------------------------------------------------------
 -- Term-level constraints
 -- --------------------------------------------------------------------------
 
@@ -263,7 +278,7 @@ cg x@(LocExpr l e) t = do
   (c, e') <- cg' e t
   return (c :@ InExpression x t, TE t e' l)
 
-cg' :: (?loc :: SourcePos) => Expr LocType LocPatn LocIrrefPatn LocExpr -> TCType -> CG (Constraint, Expr TCType TCPatn TCIrrefPatn TCExpr)
+cg' :: (?loc :: SourcePos) => Expr LocType LocPatn LocIrrefPatn DataLayoutExpr LocExpr -> TCType -> CG (Constraint, Expr TCType TCPatn TCIrrefPatn TCDataLayout TCExpr)
 cg' (PrimOp o [e1, e2]) t
   | o `elem` words "+ - * / % .&. .|. .^. >> <<"
   = do (c1, e1') <- cg e1 t
@@ -548,11 +563,10 @@ cg' (TypeApp f as i) t = do
   tvs <- use knownTypeVars
   (ct, getCompose -> as') <- validateTypes (stripLocT <$> Compose as)
   lift (use $ knownFuns.at f) >>= \case
-    Just (PT vs _ tau) -> let
-    -- FIXME FIXME FIXME
+    Just (PT vs ls tau) -> let
         match :: [(TyVarName, Kind)] -> [Maybe TCType] -> CG ([(TyVarName, TCType)], Constraint)
         match [] []    = return ([], Sat)
-        match [] (_:_) = return ([], Unsat (TooManyTypeArguments f (PT vs [] tau)))
+        match [] (_:_) = return ([], Unsat (TooManyTypeArguments f (PT vs ls tau)))
         match vs []    = freshTVar >>= match vs . return . Just
         match (v:vs) (Nothing:as) = freshTVar >>= \a -> match (v:vs) (Just a:as)
         match ((v,k):vs) (Just a:as) = do
@@ -565,7 +579,7 @@ cg' (TypeApp f as i) t = do
             e = TypeApp f (map (Just . snd) ts) i
         traceTc "gen" (text "cg for typeapp:" <+> prettyE e
                  L.<$> text "of type" <+> pretty t <> semi
-                 L.<$> text "type signature is" <+> pretty (PT vs [] tau) <> semi
+                 L.<$> text "type signature is" <+> pretty (PT vs ls tau) <> semi
                  L.<$> text "generate constraint" <+> prettyC c)
         return (ct <> c' <> c, e)
 
@@ -661,7 +675,36 @@ cg' (Annot e tau) t = do
   (c', e') <- cg e t'
   return (c <> c', Annot e' t')
 
-cg' (LayoutApp x l) t = error "unimplemented"
+cg' (LayoutApp e ls) t = do
+  -- tvs <- use knownTypeVars
+  (cl, el) <- validateLayouts (ls >>= (\case Nothing -> []; Just l -> [l]))
+  (c', e') <- cg e t
+  let f = case getExpr e' of
+            Var n -> n
+            TypeApp n _ _ -> n
+            _ -> __impossible "check parser"
+  lift (use $ knownFuns.at f) >>= \case
+    Just (PT tvs lvs tau) -> do
+      let match :: [(DLVarName, Either TypeName TyVarName)] -> [Maybe TCDataLayout] -> CG (Constraint, [(DLVarName, TCDataLayout)])
+          match [] [] = pure (Sat, [])
+          match [] _  = pure (Unsat $ TooManyLayoutArguments f (PT tvs lvs tau), [])
+          match ts [] = freshLVar >>= match ts . return . Just
+          match (t':t'') (Nothing:l') = freshLVar >>= match (t':t'') . (:l') . Just
+          match (t':t'') (Just l:l') = do
+            (c, ps) <- match t'' l'
+            let (k, v) = t'
+            return (c <> layoutMatchConstraint l (LayoutParam e' k), (k, l):ps)
+      (c'', ps) <- match lvs (fmap (fmap toTCDL) ls)
+      let fc = substLayout ps tau :< t
+          fe = LayoutApp e' ((Just . snd) <$> ps)
+      traceTc "gen" (text "cg for layoutapp:" <+> prettyE fe
+               L.<$> text "of type" <+> pretty t <> semi
+               L.<$> text "type signature is" <+> pretty (PT tvs lvs tau) <> semi
+               L.<$> text "generate constraint" <+> prettyC fc)
+      return (cl <> c' <> c'' <> fc, fe)
+    Nothing -> do
+      let ls' = (fmap toTCDL) <$> ls
+      return (Unsat (FunctionNotFound f) <> cl, LayoutApp e' ls')
 
 -- -----------------------------------------------------------------------------
 -- Pattern constraints
@@ -843,6 +886,9 @@ freshTVar = U  <$> freshVar
 freshEVar :: (?loc :: SourcePos) => TCType -> CG TCSExpr
 freshEVar t = SU t <$> freshVar
 
+freshLVar :: (?loc :: SourcePos) => CG TCDataLayout
+freshLVar = TLU <$> freshVar
+
 integral :: TCType -> Constraint
 integral = Upcastable (T (TCon "U8" [] Unboxed))
 
@@ -943,7 +989,7 @@ validateVariable v = do
 -- pp for debugging
 -- ----------------------------------------------------------------------------
 
-prettyE :: Expr TCType TCPatn TCIrrefPatn TCExpr -> Doc
+prettyE :: Expr TCType TCPatn TCIrrefPatn TCDataLayout TCExpr -> Doc
 prettyE = pretty
 
 -- prettyP :: Pattern TCIrrefPatn -> Doc

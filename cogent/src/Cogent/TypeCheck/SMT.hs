@@ -49,13 +49,13 @@ type SmtTransM = StateT SmtTransState Symbolic
 
 typeToSmt :: TCType -> SMT.Kind
 typeToSmt (T (TCon "Bool" [] Unboxed)) = KBool
+typeToSmt (T (TCon "String" [] Unboxed)) = KString
 typeToSmt (T (TCon n [] Unboxed))
   = let w = if | n == "U8"  -> 8
                | n == "U16" -> 16
                | n == "U32" -> 32
                | n == "U64" -> 64
      in KBounded False w
-typeToSmt (T (TCon "String" [] Unboxed)) = KString
 typeToSmt (T (TTuple ts))  = KTuple $ P.map typeToSmt ts
 typeToSmt (T (TUnit))      = KTuple []
 typeToSmt t = __impossible $ "typeToSmt: unsupported type in SMT:\n" ++ show (indent' $ pretty t)
