@@ -17,25 +17,25 @@ Place your test in any folder that is a subdirectory of the directory that conta
 Each configuration file is a YAML file that starts with one root field called `test`. This field contains a list of tests, with the overall structure shaped like this:
 
 ```yaml
-test:
-    # A list of files to test. Can contain one or more test files
-  - { 
-    files: 
-      - FILE.cogent
-      - [ FILE.cogent ... ]
+# A list of files to test. Can contain one or more test files
+- { 
+  test_name: sample-test
+  files: 
+    - FILE.cogent
+    - [ FILE.cogent ... ]
 
-    # The expected test result. 
-    # "pass" means the file should successfully compile or
-    #   the test should successfully run
-    # "fail" means the compiler should successfully finish, 
-    #   but the code shouldn't compile successfully or the test failed
-    # "error" means the compiler is expected to crash 
-    #   (useful for tests that are currently broken).
-    # "wip" means the test hasn't been completed.
-    #   It will be run and the output will be ignored and marked as passing
-    expected_result: ( "pass" | "fail" | "error" | "wip" )
-  }
-  - { ... }
+  # The expected test result. 
+  # "pass" means the file should successfully compile or
+  #   the test should successfully run
+  # "fail" means the compiler should successfully finish, 
+  #   but the code shouldn't compile successfully or the test failed
+  # "error" means the compiler is expected to crash 
+  #   (useful for tests that are currently broken).
+  # "wip" means the test hasn't been completed.
+  #   It will be run and the output will be ignored and marked as passing
+  expected_result: ( "pass" | "fail" | "error" | "wip" )
+}
+- { ... }
 ```
 
 There are 3 testing methods the script supports; Observing compiler output, verification output, and running an arbitrary command. Each test supports only ONE of these commands at once.
@@ -49,13 +49,13 @@ The use of the `--dist-dir` flag is not supported and will cause an error if sup
 If we wanted to test a single Cogent file up to typechecking with pretty error messages, and we expect this test to pass, we can make the following test configuration:
 
 ```yaml
-test:
-  - files: 
-      - example.cogent
-    flags:
-      - "--fpretty-errmsgs"
-      - "--typecheck"
-    expected_result: "yes"
+- test_name: example
+  files: 
+    - example.cogent
+  flags:
+    - "--fpretty-errmsgs"
+    - "--typecheck"
+  expected_result: "yes"
 ```
 
 ### Testing Verification Output
@@ -90,15 +90,15 @@ To test generated verification files, supply a field `verification` that contain
 Here's an example configuration that runs verification on the generated AllRefine file of a Cogent program:
 
 ```yaml
-test:
-  - files:
-      - verificationTest.cogent
-    verification: 
-      stage: "AllRefine"
-      types: "types.cfg"
-      entryfuncs: "entryfuncs.cfg"
-      autocorres: "/home/user/autocorres"
-    expected_result: "fail"
+- test_name: verification 
+  files:
+    - verificationTest.cogent
+  verification: 
+    stage: "AllRefine"
+    types: "types.cfg"
+    entryfuncs: "entryfuncs.cfg"
+    autocorres: "/home/user/autocorres"
+  expected_result: "fail"
 ```
 
 ### Running Arbitrary Tests
@@ -111,16 +111,12 @@ succeeds. Otherwise, the test fails.
 
 The `error` value in the field `expected_result` is not supported for this method of testing.
 
-Note that the `files` field is still necessary as they are used to name the test, however the files themselves need not exist.
-
 The following example runs a provided script, which is expected to fail (i.e. expecting the script to return a non-0 exit code):
 
 ```yaml
-test:
-  - files:
-      - scriptTest.cogent
-    command: "L4V_ARCH=ARM ./testScript.sh"
-    expected_result: "fail"
+- test_name: script-test
+  command: "L4V_ARCH=ARM ./testScript.sh"
+  expected_result: "fail"
 ```
 
 ## Test script arguments
