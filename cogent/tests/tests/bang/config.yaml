@@ -1,0 +1,11 @@
+- test_name: let-bang
+  files:
+    - pass_banged-condition.cogent
+    - pass_bang_kinding.cogent
+    - pass_func-bang-arg.cogent
+    - pass_bang_fn_unboxed.cogent
+    - pass_bang-param-type.cogent
+    - pass_tricky-banged-match.cogent
+  expected_result: pass
+  flags:
+    - "-g"

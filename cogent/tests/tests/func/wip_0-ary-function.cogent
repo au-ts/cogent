@@ -4,7 +4,7 @@ foo = let x = bar 1
 
 bar : U32 -> U32
 
--- poly : all a. a
--- poly = poly'[a] ()
--- 
--- poly' : all a. () -> a
+poly : all a. a
+poly = poly'[a] ()
+
+poly' : all a. () -> a

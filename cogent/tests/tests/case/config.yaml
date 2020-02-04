@@ -1,0 +1,19 @@
+- test_name: case-pass
+  files:
+    - pass_case-default.cogent
+    - pass_case-default-constructor.cogent
+    - pass_case-literal-default.cogent
+    - pass_case-return-alt.cogent
+    - pass_letbang-case.cogent
+    - pass_reconstruct-case.cogent
+    - pass_simple-case.cogent
+  expected_result: pass
+  flags:
+    - "-g"
+
+- test_name: case-fail
+  files:
+    - fail_unmatched-case.cogent
+  expected_result: fail
+  flags:
+    - "-t"
