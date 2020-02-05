@@ -1,19 +1,20 @@
 -- @LICENSE(NICTA_CORE)
 
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Cogent.Common.Syntax where
 
 import Cogent.Compiler
 
+import Data.Binary (Binary)
 import Data.Data hiding (Prefix)
 #if __GLASGOW_HASKELL__ < 709
 import Data.Monoid
 #endif
 import Data.Word
-import Data.Char (isDigit)
+import GHC.Generics (Generic)
 import Text.PrettyPrint.ANSI.Leijen
-import Isabelle.Parser (reservedWords)
 
 type RepName     = String
 type FieldName   = String
@@ -26,35 +27,6 @@ type TypeName    = String
 
 newtype CoreFunName = CoreFunName { unCoreFunName :: String }
   deriving (Eq, Show, Ord)
-
-newtype IsabelleName = IsabelleName { unIsabelleName :: String }
-  deriving (Eq, Show, Ord)
-
-isReserved :: IsabelleName -> Bool
-isReserved (IsabelleName n) = n `elem` reservedWords
-
-isInvalid :: IsabelleName -> Bool
-isInvalid (IsabelleName n) =
-  isDigit (head n) && head n == '_' 
-
-unsafeMakeIsabelleName :: String -> IsabelleName
-unsafeMakeIsabelleName = mkIsabelleName . CoreFunName
-
-{-
- - We change the name of the embedding as follows so:
- - 1) We don't use a reserved word for a function name (e.g. 'function' or 'open')
- - 2) We don't generate invalid names (like _free, free_, 1free, etc.)
- - 3) We don't take a name in the Isabelle standard proof library (e.g. 'map')
--}
-mkIsabelleName :: CoreFunName -> IsabelleName
-mkIsabelleName (CoreFunName s) = IsabelleName ("cogent_" ++ s ++ "'")
-
-editIsabelleName :: IsabelleName -> (String -> String) -> Maybe IsabelleName
-editIsabelleName (IsabelleName n) f  = 
-  if (not (isReserved (IsabelleName $ f n) || isInvalid (IsabelleName $ f n))) then
-    Just $ IsabelleName (f n)
-  else 
-    Nothing
 
 funNameToCoreFunName :: FunName -> CoreFunName
 funNameToCoreFunName = CoreFunName
@@ -178,7 +150,9 @@ tagFail    = "Fail"    :: TagName
 -- ----------------------------------------------------------------------------
 -- custTyGen
 
-data CustTyGenInfo = CTGI  deriving (Show) -- TODO: info like field mapping, etc.
+data CustTyGenInfo = CTGI  deriving (Show, Generic) -- TODO: info like field mapping, etc.
+
+instance Binary CustTyGenInfo
 
 -- ex1 :: M.Map (Type 'Zero) (String, CustTypeGenInfo)
 -- ex1 = M.singleton (TRecord [("f1", (TCon "A" [] Unboxed, False)), 

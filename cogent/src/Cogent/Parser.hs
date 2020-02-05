@@ -352,7 +352,7 @@ monotype = do avoidInitial
           <|> (reservedOp "put"  >> fList >>= \fs -> return (\x -> LocType (posOfT x) (TPut  fs x))))
     atomtype = avoidInitial >>
                LocType <$> getPosition <*>
-                 (TVar <$> variableName <*> pure False
+                 (TVar <$> variableName <*> pure False <*> pure False
               <|> (do tn <- typeConName
                       let s = if tn `elem` primTypeCons  -- give correct sigil to primitive types
                                 then Unboxed

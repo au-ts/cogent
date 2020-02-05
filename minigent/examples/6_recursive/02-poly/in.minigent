@@ -1,0 +1,9 @@
+allocNode : [a]. Unit -> mu t { l: < Nil Unit | Cons { data: a, rest: t }# > take };
+
+createEmptyList : [a]. U8 -> mu t { l : < Nil Unit | Cons { data : a, rest : t }# >};
+createEmptyList a = 
+    let node = allocNode Unit in
+        put node.l := Nil Unit end
+    end;
+
+

@@ -250,7 +250,7 @@ static inline int debug_print_objs(struct bilbyfs_info *bi, u32 lnum)
         struct bilbyfs_rbuf rbuf;
         int nbo, nbo2;
 
-        bilbyfs_debug("ostore_scan_obj() : alloc = %u\n", sizeof(*olist) * NOBJ);
+        bilbyfs_debug("ostore_scan_obj() : alloc = %lu\n", (unsigned long)(sizeof(*olist) * NOBJ));
         olist = kmalloc(sizeof(*olist) * NOBJ);
         if (!olist)
                 return -ENOMEM;

@@ -1,0 +1,21 @@
+version: 2
+
+# Use the default for now
+formats: []
+
+build:
+  image: latest
+
+python:
+  version: 3.7
+
+# Build documentation in the docs/ directory with Sphinx
+sphinx:
+  builder: html
+  configuration: docs/conf.py
+  fail_on_warning: false
+
+submodules:
+  exclude: all
+  recursive: false
+

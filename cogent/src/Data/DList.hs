@@ -8,10 +8,14 @@
 -- @TAG(NICTA_GPL)
 --
 
+{-# LANGUAGE DeriveGeneric #-}
+
 module Data.DList (DList(..), empty, cons, fromList, toList) where
 
+import Data.Binary
 import qualified Data.Set as S
 import Data.List (foldl')
+import GHC.Generics (Generic)
 
 {-
  - Distinct list.
@@ -19,6 +23,9 @@ import Data.List (foldl')
  - but don't need to be stored multiple times.
  -}
 data DList a = DList ![a] !(S.Set a)
+             deriving (Generic)
+
+instance Binary a => Binary (DList a)
 
 -- Just implement functions that we currently use.
 empty :: DList a

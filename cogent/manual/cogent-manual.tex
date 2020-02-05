@@ -78,7 +78,7 @@
 
 \title{A \cogent Manual}
 \author{Gunnar Teege\\ gunnar.teege{@}unibw.de}
-\date{Version 0.9}
+\date{Version 0.9.1}
 
 \maketitle
 
@@ -433,10 +433,11 @@ Therefore, the type expressions \code{\{a: U8\}} and \code{U8} denote different 
 \subsubsection{Variant Types}
 
 A variant type is similar to a union in C, or an algebraic data type in Haskell. As in Haskell, and
-unlike in C, a variant type is a \textit{discriminated} union:  each alternative value set is tagged with 
-the variant it belongs to. 
+unlike in C, a variant type is a \textit{discriminated} union:  each value is tagged with 
+the alternative it belongs to. 
 
-A variant type specifies for every variant the tag and the  types of the values,  hence it has the syntax:
+Depending on the tag, every value may have a ``payload'' which is a sequence of values, as in a tuple.
+A variant type specifies for every alternative the tag and the types of the payload values,  hence it has the syntax:
 
 \vspace{2ex}
 \indprod{AtomType}{
@@ -461,10 +462,11 @@ A variant type specifies for every variant the tag and the  types of the values,
   CapitalizedId
 }
 
-The tags are given by the \textit{DataConstructor} elements.  Each variant has a sequence of values, hence the 
+The tags are given by the \textit{DataConstructor} elements.  Since the payload is a sequence of values the 
 ordering of the \textit{TypeA2} matters. 
 
-The type expression \code{<Small U8 | Large U32>} is an example for a variant type with two variants. Typical applications
+The type expression \code{<Small U8 | Large U32>} is an example for a variant type with two alternatives, where the 
+payloads are single values of type \code{U8} and \code{U32}, respectively. Typical applications
 of variant types are for modelling error cases, such as in 
 
 \begin{verbatim}
@@ -720,7 +722,7 @@ its expansion is inspected using the following rules:
 \item Primitive types are regular.
 \item Record types are linear.
 \item Tuple types are linear if they contain at least one field with a linear type.
-\item Variant types are linear if they contain at least one variant with a linear type.
+\item Variant types are linear if they contain at least one alternative with a payload of linear type.
 \item Function types are regular.
 \item Parameterized and non-generic abstract types are linear.
 \end{itemize}
@@ -1210,7 +1212,7 @@ type with the corresponding fields being taken.
 
 \subsubsection{Variant Patterns}
 
-A variant pattern consists of a data constructor and a subpattern for every value in the corresponding variant:
+A variant pattern consists of a data constructor and a subpattern for every payload value in the corresponding alternative:
 
 \vspace{2ex}
 \indprod{Pattern}{
@@ -1227,14 +1229,14 @@ A variant pattern consists of a data constructor and a subpattern for every valu
    DataConstructor \{IrrefutablePattern\}
 }
 
-A variant pattern conforms to every variant type which has atleast a variant with the \textit{DataConstructor} as its tag. Although a variant 
-pattern matches all values of the type having only that variant, this is not true for all other conforming types. For those types the pattern 
+A variant pattern conforms to every variant type which has atleast an alternative with the \textit{DataConstructor} as its tag. Although a variant 
+pattern matches all values of the type having only that alternative, this is not true for all other conforming types. For those types the pattern 
 only matches the subset of value sequences which have been constructed with the \textit{DataConstructor} as its discriminating tag. Therefore variant 
 patterns are always refutable.  As usual, when matched with a value, the match must be exhaustive, specifying
-a pattern for every variant. 
+a pattern for every alternative. 
 
 
-When a variant pattern is (successfully) matched with a value, the subpatterns are matched with the remaining values after removing the discriminating tag.
+When a variant pattern is (successfully) matched with a value, the subpatterns are matched with the payload values.
 
 
 The following is an exmple for a variant pattern:
@@ -1249,8 +1251,13 @@ It conforms, e.g., to the variant type
   <TwoDim U32 U32 | ThreeDim U32 U32 U32>
 \end{verbatim}
 and generally to every type with a variant tagged with \code{TwoDim} and having two values. When it is matched 
-with a value tagged with \code{TwoDim} the first value is bound to \code{x} and the second value is bound to \code{y}.
-
+with a value tagged with \code{TwoDim} the first payload value is bound to \code{x} and the second payload value is bound to \code{y}. 
+The pattern also conforms to the variant type
+\begin{verbatim}
+  <TwoDim U32 U32>
+\end{verbatim}
+Although it matches all values of this type, it is still a refutable pattern, even if no other variant types with \code{TwoDim}
+exist in the program.
 
 \section{Expressions}
 
@@ -1440,7 +1447,7 @@ for the subexpressions. If a subexpression has no inferred type, no type can be 
 
 \subsubsection{Terms for Values of Variant Types}
 
-A term for a value of a variant type specifies the discriminating tag and the actual  values:
+A term for a value of a variant type specifies the discriminating tag and the actual payload values:
 
 \vspace{2ex}
 \indprod{Term}{
@@ -1782,7 +1789,7 @@ the \textit{Pattern}.
 
 All \textit{Pattern}s in the \textit{Alternative}s must conform to the type T inferred for the leading expression.
 The \textit{Pattern}s together must be exhaustive for T, that means, every value of type T must match one of them. This
-may be accomplished by using an exhaustive set of refutable patterns, such as one for every variant in a variant type,
+may be accomplished by using an exhaustive set of refutable patterns, such as one for every alternative in a variant type,
 or by optionally specifying some refutable patterns followed by a final alternative with an irrefutable pattern.
 
 

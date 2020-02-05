@@ -81,7 +81,7 @@ validateType rt@(RT t) = do
   vs <- use knownTypeVars
   ts <- lift $ use knownTypes
   case t of
-    TVar v _ | v `notElem` vs -> return (Unsat $ UnknownTypeVariable v, toTCType rt)
+    TVar v _ _  | v `notElem` vs -> return (Unsat $ UnknownTypeVariable v, toTCType rt)
     TCon t as _ | Nothing <- lookup t ts -> return (Unsat $ UnknownTypeConstructor t, toTCType rt)
                 | Just (vs, _) <- lookup t ts
                 , provided <- length as
@@ -183,7 +183,7 @@ cg' (PrimOp o [e1, e2]) t
        (c1, e1') <- cg e1 alpha
        (c2, e2') <- cg e2 alpha
        let c  = T (TCon "Bool" [] Unboxed) :=: t
-           c' = integral alpha
+           c' = IsPrimType alpha
        return (c <> c' <> c1 <> c2, PrimOp o [e1', e2'] )
 cg' (PrimOp o [e]) t
   | o == "complement"  = do

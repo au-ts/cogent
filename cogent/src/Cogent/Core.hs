@@ -14,6 +14,7 @@
 {-# LANGUAGE DataKinds #-}
 {- LANGUAGE DeriveDataTypeable -}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -51,16 +52,19 @@ import Data.Vec hiding (splitAt, length, zipWith, zip, unzip)
 import qualified Data.Vec as Vec
 
 import Control.Arrow hiding ((<+>))
+import Data.Binary (Binary)
 -- import Data.Data hiding (Refl)
 #if __GLASGOW_HASKELL__ < 709
 import Data.Traversable(traverse)
 #endif
+import GHC.Generics (Generic)
 import Text.PrettyPrint.ANSI.Leijen as L hiding (tupled, indent, (<$>))
 import qualified Text.PrettyPrint.ANSI.Leijen as L ((<$>))
 
 data Type t
   = TVar (Fin t)
   | TVarBang (Fin t)
+  | TVarUnboxed (Fin t)
   | TCon TypeName [Type t] (Sigil Representation)
   | TFun (Type t) (Type t)
   | TPrim PrimInt
@@ -75,8 +79,13 @@ data Type t
 #endif
   deriving (Show, Eq, Ord)
 
+deriving instance Generic (Type 'Zero)
+
+instance Binary (Type 'Zero)
+
 data SupposedlyMonoType = forall (t :: Nat). SMT (Type t)
 
+-- See Glue.hs. But I don't know why it's defined this way. / zilinc
 isTVar :: Type t -> Bool
 isTVar (TVar _) = True
 isTVar _ = False
@@ -121,13 +130,13 @@ data Expr t v a e
   | Put (e t v a) FieldIndex (e t v a)
   | Promote (Type t) (e t v a)  -- only for guiding the tc. rep. unchanged.
   | Cast (Type t) (e t v a)  -- only for integer casts. rep. changed
+-- \ vvv constraint no smaller than header, thus UndecidableInstances
 deriving instance (Show a, Show (e t v a), Show (e t ('Suc v) a), Show (e t ('Suc ('Suc v)) a))
   => Show (Expr t v a e)
 deriving instance (Eq a, Eq (e t v a), Eq (e t ('Suc v) a), Eq (e t ('Suc ('Suc v)) a))
   => Eq  (Expr t v a e)
 deriving instance (Ord a, Ord (e t v a), Ord (e t ('Suc v) a), Ord (e t ('Suc ('Suc v)) a))
   => Ord (Expr t v a e)
-  -- constraint no smaller than header, thus UndecidableInstances
 
 data UntypedExpr t v a = E  (Expr t v a UntypedExpr) deriving (Show, Eq, Ord)
 data TypedExpr   t v a = TE { exprType :: Type t , exprExpr :: Expr t v a TypedExpr } deriving (Show)
@@ -135,7 +144,9 @@ data TypedExpr   t v a = TE { exprType :: Type t , exprExpr :: Expr t v a TypedE
 data FunctionType = forall t. FT (Vec t Kind) (Type t) (Type t)
 deriving instance Show FunctionType
 
-data Attr = Attr { inlineDef :: Bool, fnMacro :: Bool } deriving (Eq, Ord, Show)
+data Attr = Attr { inlineDef :: Bool, fnMacro :: Bool } deriving (Eq, Ord, Show, Generic)
+
+instance Binary Attr
 
 #if __GLASGOW_HASKELL__ < 803
 instance Monoid Attr where
@@ -401,9 +412,9 @@ instance (Pretty a, Prec (e t v a), Pretty (e t v a), Pretty (e t ('Suc v) a), P
   pretty (If c t e) = group . align $ (keyword "if" <+> pretty c
                                        L.<$> indent (keyword "then" </> align (pretty t))
                                        L.<$> indent (keyword "else" </> align (pretty e)))
-  pretty (Case e tn (l1,_,a1) (l2,_,a2)) = align (keyword "case" <+> pretty e <+> keyword "of"
-                                                  L.<$> indent (tagname tn <+> pretty l1 <+> align (pretty a1))
-                                                  L.<$> indent (symbol "*" <+> pretty l2 <+> align (pretty a2)))
+  pretty (Case e tn (l1,v1,a1) (l2,v2,a2)) = align (keyword "case" <+> pretty e <+> keyword "of"
+                                                  L.<$> indent (tagname tn <+> pretty v1 <+> pretty l1 <+> align (pretty a1))
+                                                  L.<$> indent (pretty v2 <+> pretty l2 <+> align (pretty a2)))
   pretty (Esac e) = keyword "esac" <+> parens (pretty e)
   pretty (Split (v1,v2) e1 e2) = align (keyword "split" <+> parens (pretty v1 <> comma <> pretty v2) <+> symbol "=" <+> pretty e1 L.<$>
                                   keyword "in" <+> pretty e2)
@@ -424,6 +435,7 @@ instance Pretty FunNote where
 instance Pretty (Type t) where
   pretty (TVar v) = prettyT v
   pretty (TVarBang v) = prettyT v L.<> typesymbol "!"
+  pretty (TVarUnboxed v) = typesymbol "#" <> prettyT v
   pretty (TPrim pt) = pretty pt
   pretty (TString) = typename "String"
   pretty (TUnit) = typename "()"

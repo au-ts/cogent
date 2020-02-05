@@ -19,7 +19,7 @@ begin
 context update_sem_init
 begin
 
-ML{* fun mk_lems file_nm ctxt  =
+ML\<open> fun mk_lems file_nm ctxt  =
  let
   val thy = Proof_Context.theory_of ctxt;
   val uvals                 = read_table file_nm thy;
@@ -46,9 +46,9 @@ ML{* fun mk_lems file_nm ctxt  =
       in hd xs end
     )
  end;
-*}
+\<close>
 
-ML{* (* local_setup_take_put_member_case_esac_specialised_lemmas *)
+ML\<open> (* local_setup_take_put_member_case_esac_specialised_lemmas *)
 local
 
 fun prove_put_in_bucket_non_esac_especialised_lemma ((lem:lem), lthy:local_theory) =
@@ -99,8 +99,7 @@ fun local_setup_take_put_member_case_esac_specialised_lemmas file_nm lthy =
  end;
 
 end
-*}
-
+\<close>
 end
 
 end

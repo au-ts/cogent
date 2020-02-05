@@ -60,7 +60,7 @@ begin
  * by making our rules omit the \<lambda>-abstraction. (See the comment for anormal_prepare_FO_conv.)
  *)
 
-ML {*
+ML \<open>
 (* Inline an\<^sub>X\<^sub>X variables. *)
 fun anormal_let_conv ctxt thm =
   Conv.bottom_conv (fn _ => fn ct => case Thm.term_of ct of
@@ -73,9 +73,9 @@ fun anormal_let_conv ctxt thm =
           | _ => Conv.all_conv ct)
     ctxt
   |> (fn conv => Conv.fconv_rule conv thm)
-*}
+\<close>
 
-ML {*
+ML \<open>
 (* Like above, but only inline lets introduced as case expression continuations *)
 (* This is a separate function because we need to do it on both levels *)
 (* TODO: might need to change compiler to generate a fresher name than v_g prefix *)
@@ -86,11 +86,11 @@ fun inline_case_continuation_conv ctxt thm =
           | _ => Conv.all_conv ct)
     ctxt
   |> (fn conv => Conv.fconv_rule conv thm)
-*}
+\<close>
 
 (* Various utilities. *)
 lemmas meta_ext = eq_reflection [OF ext]
-ML {*
+ML \<open>
 (*
  * Add @{term "op $"} to all function applications in the given term,
  * except those that are in continuation position of @{term If}.
@@ -143,7 +143,7 @@ fun conv_to_simproc conv = fn _ => fn _ => fn ct => let
   val dummy_thm = @{thm TrueI}
   val thm = ct |> Conv.else_conv (conv, K dummy_thm)
   in if Thm.eq_thm (thm, dummy_thm) then NONE else SOME thm end
-*}
+\<close>
 
 (* Conditional normalisation rules for Let and If; guarded by in_continuation *)
 lemma cogent_anormal_if_distribs:
@@ -164,7 +164,7 @@ lemma cogent_anormal_let_distrib:
   "\<And>x y z. ((Let\<^sub>d\<^sub>s $ x) $ y) $ z \<equiv> (Let\<^sub>d\<^sub>s $ x) $ (\<lambda>v. y v $ z)"
   by (auto simp: Let\<^sub>d\<^sub>s_def)
 
-ML {*
+ML \<open>
 (* Apply rules only in non-continuation position. *)
 fun in_continuation (t as _ $ _) = (case t of
         Const (@{const_name fun_app}, _) $
@@ -282,7 +282,7 @@ fun normalisation_tac ctxt
         THEN EqSubst.eqsubst_tac ctxt [0] [anormal_conv (inline_case_continuation_conv ctxt src_def)] 1
         THEN EqSubst.eqsubst_tac ctxt [0] [anormal_conv (inline_case_continuation_conv ctxt (anormal_let_conv ctxt norm_def))] 1
         (* add callee proofs -- should get trivial equality at this point *)
-        THEN simp_tac (put_simpset HOL_basic_ss ctxt addsimps callees) 1)
+        THEN simp_tac (put_simpset HOL_basic_ss ctxt addsimps callees addsimps @{thms take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t_def Let\<^sub>d\<^sub>s_def Let_def}) 1)
   val thm = Goal.prove_future ctxt [] [] (@{term Trueprop} $ prop)
               (K (TIME_TAC ("normalisation_tac: proof for " ^ f) tac))
   in thm end
@@ -298,6 +298,6 @@ fun normalisation_tac_all ctxt
         in thm :: thms end) functions [])
   |> Symtab.make
 end
-*}
+\<close>
 
 end

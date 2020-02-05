@@ -16,7 +16,7 @@ imports
  Read_Table
 begin
 
-ML{* (* type_rel_def *)
+ML\<open> (* type_rel_def *)
 
 local
 
@@ -125,6 +125,6 @@ fun type_rel_def file_name uval ctxt =
  in lthy' end;
 
 end;
-*}
+\<close>
 
 end

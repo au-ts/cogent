@@ -32,6 +32,7 @@ module Minigent.Syntax.Utils.Rewrite
   , withTransform
   , -- * Debugging
     debug
+  , debugNewline
   ) where
 import Control.Monad.Identity
 import Control.Monad.Trans.Maybe
@@ -136,3 +137,8 @@ lift (Rewrite f) = rewrite (runIdentity . runMaybeT . f)
 debug :: (Monad m) => String -> (a -> String) -> Rewrite' m a
 debug pfx show = Rewrite (\cs -> case () of () | trace (pfx ++ ": " ++ show cs) False -> undefined
                                                | otherwise                            -> empty )
+
+-- | For debugging, prints the contents of the rewrite to the console, with a string prefix.
+debugNewline :: (Monad m) => String -> (a -> String) -> Rewrite' m a
+debugNewline pfx show = Rewrite (\cs -> case () of () | trace (pfx ++ ":\n " ++ show cs) False -> undefined
+                                                      | otherwise                              -> empty )

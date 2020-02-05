@@ -480,7 +480,7 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
                              | s == Unboxed -> ((typesymbol "#" <>) . parens)
                              | otherwise -> id) $
                          typename n <+> hsep (map prettyT' as)
-  pretty (TVar n b)  = typevar n <> (if b then typesymbol "!" else empty)
+  pretty (TVar n b u) = (if u then typesymbol "#" else empty) <> typevar n <> (if b then typesymbol "!" else empty)
   pretty (TTuple ts) = tupled (map pretty ts)
   pretty (TUnit)     = typesymbol "()" & (if __cogent_fdisambiguate_pp then (<+> comment "{- unit -}") else id)
 #ifdef BUILTIN_ARRAYS
@@ -643,8 +643,9 @@ instance Pretty TypeError where
   pretty (NotInScope fov vn)             = pretty fov <+> varname vn <+> err "not in scope"
   pretty (UnknownTypeVariable vn)        = err "Unknown type variable" <+> typevar vn
   pretty (UnknownTypeConstructor tn)     = err "Unknown type constructor" <+> typename tn
-  pretty (TypeArgumentMismatch tn i1 i2) = typename tn <+> err "expects"
-                                           <+> int i1 <+> err "arguments, but has been given" <+> int i2
+  pretty (TypeArgumentMismatch tn provided required)
+                                         = typename tn <+> err "expects"
+                                           <+> int required <+> err "arguments, but has been given" <+> int provided
   pretty (TypeMismatch t1 t2)            = err "Mismatch between" <$> indent' (pretty t1)
                                            <$> err "and" <$> indent' (pretty t2)
   pretty (RequiredTakenField f t)        = err "Field" <+> fieldname f <+> err "of type" <+> pretty t
@@ -757,6 +758,7 @@ instance Pretty Constraint where
   pretty (Sat)            = warn "Sat"
   pretty (Exhaustive t p) = warn "Exhaustive" <+> pretty t <+> pretty p
   pretty (Solved t)       = warn "Solved" <+> pretty t
+  pretty (IsPrimType t)   = warn "IsPrimType" <+> pretty t
   pretty (x :@ _)         = pretty x
 #ifdef BUILTIN_ARRAYS
   pretty (Arith e)        = pretty e

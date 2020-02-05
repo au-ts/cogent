@@ -1,0 +1,6 @@
+
+type A
+type G a 
+
+f : (G A)! -> (G A)!
+f r = (\s => s) r

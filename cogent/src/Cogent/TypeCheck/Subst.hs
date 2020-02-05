@@ -25,9 +25,9 @@ import qualified Cogent.TypeCheck.Row as Row
 
 data AssignResult = Type TCType | Sigil (Sigil ()) | Row (Row.Row TCType)
  deriving Show
+
 newtype Subst = Subst (M.IntMap AssignResult)
  deriving Show
-
 
 ofType :: Int -> TCType -> Subst
 ofType i t = Subst (M.fromList [(i, Type t)])
@@ -115,6 +115,7 @@ applyC s (SemiSat w) = SemiSat (applyWarn s w)
 applyC s Sat = Sat
 applyC s (Exhaustive t ps) = Exhaustive (apply s t) ps
 applyC s (Solved t) = Solved (apply s t)
+applyC s (IsPrimType t) = IsPrimType (apply s t)
 
 applyE :: Subst -> TCExpr -> TCExpr
 applyE s (TE t e l) = TE (apply s t)

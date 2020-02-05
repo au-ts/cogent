@@ -1,0 +1,12 @@
+listop : Unit -> 
+    mu t { 
+        f : < Left U8 
+            | Midde Unit 
+            | Right { 
+                a : U64, 
+                b: (((U8 -> t) -> U8) -> Unit)
+            } 
+        >
+    };
+
+listop a = { f = Middle Unit };

@@ -8,7 +8,12 @@
  * @TAG(NICTA_GPL)
  */
 
+#include <linux/version.h>
 #include <bilbyfs.h>
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,0,0)
+#include <uapi/linux/mount.h>
+#endif
 
 /**
  * bilbyfs_set_inode_flags - set VFS inode flags.
@@ -158,7 +163,7 @@ static int trans_commit_inodes(struct bilbyfs_info *bi, struct inode *dir,
 int fsop_link(struct bilbyfs_info *bi, struct inode *inode, struct inode *dir,
               const char *name)
 {
-        struct timespec mtime, ctime;
+        struct timespec64 mtime, ctime;
         struct obj_dentarr *dentarr;
         obj_id id;
         int sz_change;
@@ -208,7 +213,7 @@ int fsop_link(struct bilbyfs_info *bi, struct inode *inode, struct inode *dir,
  * @dir: pointer to the directory inode, is NULL iff we allocate root.
  * @mode: type + permissions of the inode
  *
- * The function returns a pointer to the inode or a negative error-code.
+ * The function returns zero or a negative error-code.
  */
 static int init_inode(struct bilbyfs_info *bi, struct inode *dir,
                       struct inode *inode, umode_t mode)
@@ -250,7 +255,7 @@ static int init_inode(struct bilbyfs_info *bi, struct inode *dir,
 int fsop_create(struct bilbyfs_info *bi, struct inode *dir, const char *name,
                 umode_t mode, int excl, struct inode *inode)
 {
-        struct timespec mtime, ctime;
+        struct timespec64 mtime, ctime;
         struct obj_dentarr *dentarr;
         obj_id id;
         int sz_change;
@@ -363,7 +368,7 @@ int fsop_rmdir(struct bilbyfs_info *bi, struct inode *dir, const char *name,
                struct inode *inode)
 {
         struct bilbyfs_inode *binode = inode_to_binode(inode);
-        struct timespec mtime, ctime;
+        struct timespec64 mtime, ctime;
         struct obj_dentarr *dentarr;
         obj_id id;
         int sz_change;
@@ -416,7 +421,7 @@ int fsop_rmdir(struct bilbyfs_info *bi, struct inode *dir, const char *name,
 int fsop_mkdir(struct bilbyfs_info *bi, struct inode *dir, const char *name,
                umode_t mode, struct inode *inode)
 {
-        struct timespec mtime, ctime;
+        struct timespec64 mtime, ctime;
         struct obj_dentarr *dentarr;
         obj_id id;
         int sz_change;
@@ -536,7 +541,7 @@ void fsop_dir_release(struct fsop_readdir_ctx *rdx)
 int fsop_symlink(struct bilbyfs_info *bi, struct inode *dir, const char *name,
                  const char *symname, struct inode *inode)
 {
-        struct timespec mtime, ctime;
+        struct timespec64 mtime, ctime;
         struct obj_dentarr *dentarr;
         obj_id id;
         struct obj_data *data;
@@ -570,7 +575,7 @@ int fsop_symlink(struct bilbyfs_info *bi, struct inode *dir, const char *name,
                         id = data_id_init(inode->i_ino, 0);
                         pack_obj_data(data, id, sz_data, symname);
                         obj_list[1] = data;
-
+			inode->i_link = NULL;
                         inode->i_size = sz_obj_data;
                         dir->i_size += sz_change;
                         /* We don't undo the next line??? */
@@ -793,11 +798,11 @@ int fsop_readpage(struct bilbyfs_info *bi, struct inode *inode, pgoff_t block, v
         pgoff_t limit = i_size_read(inode) >> BILBYFS_BLOCK_SHIFT;
         int err;
 
-        bilbyfs_assert(PAGE_CACHE_SIZE == BILBYFS_BLOCK_SIZE);
-        bilbyfs_assert(PAGE_CACHE_SHIFT == BILBYFS_BLOCK_SHIFT);
+        bilbyfs_assert(PAGE_SIZE == BILBYFS_BLOCK_SIZE);
+        bilbyfs_assert(PAGE_SHIFT == BILBYFS_BLOCK_SHIFT);
         bilbyfs_debug("[S] bilbyfs_readpage(block=%lu, limit=%lu)\n", block, limit);
         if (block > limit) {
-                memset(addr, 0, PAGE_CACHE_SIZE);
+                memset(addr, 0, PAGE_SIZE);
                 return -ENOENT;
         }
         if (block == limit && (i_size_read(inode) % BILBYFS_BLOCK_SIZE == 0))
@@ -819,7 +824,7 @@ int fsop_write_begin(struct bilbyfs_info *bi, struct inode *inode, int pos,
         if (bi->is_ro)
                 return -EROFS;
 
-        bilbyfs_assert(len <= PAGE_CACHE_SIZE);
+        bilbyfs_assert(len <= PAGE_SIZE);
         bilbyfs_debug("[S] fsop_write_begin()\n");
         err = fsop_readpage(bi, inode, pos >> BILBYFS_BLOCK_SHIFT, addr);
         if (err == -ENOENT)
@@ -831,10 +836,10 @@ int fsop_write_end(struct bilbyfs_info *bi, struct inode *inode, int pos,
                    int len, void *addr)
 {
         pgoff_t block = pos >> BILBYFS_BLOCK_SHIFT;
-        uint32_t start = pos & (PAGE_CACHE_SIZE - 1);
+        uint32_t start = pos & (PAGE_SIZE - 1);
         unsigned int end = start + len;
         unsigned int inode_size;
-        struct timespec mtime;
+        struct timespec64 mtime;
         struct obj_inode ino;
         obj_id id;
         int err;
@@ -885,7 +890,7 @@ static int fsop_truncate(struct bilbyfs_info *bi, struct inode *inode,
                          struct iattr *attr)
 {
         loff_t old_size, new_size, new_aligned_size;
-        struct timespec ctime, mtime;
+        struct timespec64 ctime, mtime;
         struct obj_inode ino;
         struct obj_del del;
         void *data;

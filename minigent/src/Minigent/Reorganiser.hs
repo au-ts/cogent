@@ -25,19 +25,27 @@ module Minigent.Reorganiser
 import Minigent.Syntax
 import Minigent.Syntax.Utils
 import Minigent.Environment
+import qualified Minigent.Syntax.Utils.Row as Row
+import Minigent.Syntax.Utils (mapRecPars)
 
 import Control.Monad.Trans.Writer.Strict
 import qualified Data.Map as M
+import qualified Data.Set as S
 import Data.List (nub, (\\), intersperse )
 
 type Error = String
 
 sanityCheckType :: [VarName] -> Type -> Writer [Error] ()
 sanityCheckType tvs t = do 
-   let leftovers = nub (typeVariables t) \\ tvs
-   if null leftovers 
-      then return ()
-      else tell ["Type variables used unquantified:" ++ concat (intersperse ", " leftovers)]
+  -- TODO: Potentially do a single pass over the type and change all recursive parameters from TV's to
+  --   Recursive Parameter variables
+  let leftovers = nub (typeVariables t) \\ tvs
+  let nsp = nonStrictlyPositiveVars t
+  if leftovers /= [] then
+    tell ["Type variables used unquantified:" ++ concat (intersperse ", " leftovers)]
+  else if nsp /= [] then
+    tell ["Variables occuring non-strictly positive: " ++ concat (intersperse ", " nsp)]
+  else return ()
 
 sanityCheckExpr :: GlobalEnvironments -> [VarName] -> [VarName] -> Expr -> Writer [Error] Expr
 sanityCheckExpr envs tvs vs exp = check vs exp
@@ -108,7 +116,7 @@ reorganiseTopLevel (TypeSig f pt@(Forall tvs c t)) envs = do
      then tell ["Duplicate quantified type variable in type signature for " ++ f] 
      else return ()
    sanityCheckType (nub tvs) t
-   return (envs { types = M.insert f pt (types envs) })
+   return (envs { types = M.insert f (mapRecParsPT pt) (types envs) })
 
 reorganiseTopLevel (Equation f x e) envs = do 
    case M.lookup f (defns envs) of 
@@ -120,6 +128,37 @@ reorganiseTopLevel (Equation f x e) envs = do
    e' <- sanityCheckExpr envs tvs [x] e
    return (envs { defns = M.insert f (x,e') (defns envs) })
 
+
+nonStrictlyPositiveVars :: Type -> [VarName] 
+nonStrictlyPositiveVars t = sp t M.empty
+  where
+    -- Map if variables in scope are in argument position
+    sp ::  Type -> M.Map VarName Bool -> [VarName]
+    sp (PrimType _) vs = []
+    sp (AbsType _ _ ts) vs = concatMap (\t -> sp t vs) ts
+    sp (Variant r) vs = 
+      concatMap (\(Entry _ t _) -> sp t vs) (Row.entries r)
+    sp (Bang t) vs = sp t vs
+
+    -- If we encounter a type variable, check if it occurs non-strictly positive
+    sp (TypeVar v)     vs = concat $ M.elems $ M.mapWithKey (\t p -> if p && v == t then [v] else []) vs
+    sp (TypeVarBang v) vs = concat $ M.elems $ M.mapWithKey (\t p -> if p && v == t then [v] else []) vs
+
+    -- Records are special - only here can we pick up recursive parameters
+    sp (Record m r _) vs =
+      let vs' = case m of
+                  (Rec mt) -> M.insert mt False vs
+                  _         -> vs
+      -- Shadow old recursive variables if they exist too
+      in concatMap (\(Entry _ t _) -> sp t vs') (Row.entries r)
+
+    -- Only in functions can the sp check be violated
+    sp (Function a b) vs = 
+      -- No recursive parameters in a non sp position
+      -- As we enter a function argument, we mark all existing mu vars in a non-sp position
+      sp a (fmap (const True) vs) ++ sp b vs
+    
+    sp _ _ = error "strictlyPositive"
 
 reorganise :: [RawTopLevel] -> GlobalEnvironments -> Writer [Error] GlobalEnvironments
 reorganise []     envs = return envs

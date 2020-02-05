@@ -1,0 +1,44 @@
+// This time, we don't want to include the stdlib to focus on verification.
+// Instead, we'll define a 'dummy' type and 'dummy' functions
+// The implementation doesn't actually matter, as we want to treat
+// these functions as a black box
+
+typedef struct filedummy {
+    int dummy;
+} FILE;
+
+int fprintf(FILE * stream, char * str) {
+    // do nothing
+    return 0;
+}
+
+void* malloc(int size) {
+    // do nothing
+    return (void*)0x0;
+}
+
+int free(void * mem) {
+    // do nothing
+}
+
+int exit(int num) {
+    // do nothing
+}
+
+FILE * stdout               = (FILE*) 0x0;
+char * KERNEL_PANIC_MESSAGE = 0x0;
+char * KERNEL_OK_MESSAGE    = 0x0;
+
+#include <cogent-defns.h>
+
+// The definition of our abstract type
+typedef struct kernelState {
+    u64 magicNumber;
+    FILE * kernelLogStream;
+} KernelState;
+
+
+// Now, include our compiled code
+#include "kernel.c"
+
+#include <main.ac>

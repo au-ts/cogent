@@ -29,8 +29,8 @@ import Lens.Micro
 
 normaliseRW :: Rewrite' TcSolvM TCType
 normaliseRW = rewrite' $ \t -> case t of
-    T (TBang (T (TCon t ts s))) -> pure (T (TCon t ts (bangSigil s)))
-    T (TBang (T (TVar v b))) -> pure (T (TVar v True))
+    T (TBang (T (TCon t ts s))) -> pure (T (TCon t (fmap (T . TBang) ts) (bangSigil s)))
+    T (TBang (T (TVar v b u))) -> pure (T (TVar v True u))
     T (TBang (T (TFun x y))) -> pure (T (TFun x y))
     T (TBang (R row (Left s))) 
       | isNothing (Row.var row) -> pure (R (fmap (T . TBang) row) (Left (bangSigil s)))
@@ -39,6 +39,7 @@ normaliseRW = rewrite' $ \t -> case t of
     T (TBang (T (TTuple ts))) -> pure (T (TTuple (map (T . TBang) ts)))
     T (TBang (T TUnit)) -> pure (T TUnit)
 
+    T (TUnbox (T (TVar v b u))) -> pure (T (TVar v b True))
     T (TUnbox (T (TCon t ts s))) -> pure (T (TCon t ts Unboxed))
     T (TUnbox (R row _)) -> pure (R row (Left Unboxed))
 
@@ -56,6 +57,7 @@ normaliseRW = rewrite' $ \t -> case t of
       | isNothing (Row.var row) -> case fs of 
         Nothing -> pure $ V (Row.takeAll row)
         Just fs -> pure $ V (Row.takeMany fs row)
+    T (TTake fs t) | __cogent_flax_take_put -> return t
     T (TPut fs (R row s)) 
       | isNothing (Row.var row) -> case fs of 
         Nothing -> pure $ R (Row.putAll row) s
@@ -64,6 +66,7 @@ normaliseRW = rewrite' $ \t -> case t of
       | isNothing (Row.var row) -> case fs of 
         Nothing -> pure $ V (Row.putAll row)
         Just fs -> pure $ V (Row.putMany fs row)
+    T (TPut fs t) | __cogent_flax_take_put -> return t
     _ -> empty 
 
 #ifdef BUILTIN_ARRAYS

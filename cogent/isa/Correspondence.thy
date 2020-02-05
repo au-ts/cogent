@@ -839,7 +839,7 @@ proof -
             case 0       with u_v_matches_none show ?thesis by ( cases "length \<Gamma>"
                                                                , simp_all add: empty_def )
        next case (Suc n)
-         moreover with u_v_matches_none have "\<Gamma>' = empty (length \<Gamma> - 1) [n := Some \<tau>]"
+         moreover with u_v_matches_none have "\<Gamma>' = (empty (length \<Gamma> - 1))[n := Some \<tau>]"
                                          by (cases "length \<Gamma>", simp_all add: empty_def)
          moreover with u_v_matches_none have "length \<Gamma> = Suc (length \<Gamma>')"
                                          by (simp add: empty_def)
@@ -1836,7 +1836,7 @@ next
           by (metis case_prod_conv prod.case_distrib)
       next
         have "map ((\<lambda>(cs, t, b). (cs, type_repr t)) \<circ> (\<lambda>(cs, t, b). (cs, instantiate \<tau>s t, b))) ts
-            = map ((\<lambda>(cs, t, b). (cs, type_repr t)) \<circ> (\<lambda>(cs, t, b). (cs, instantiate \<tau>s t, b))) ts [i := ((\<lambda>(cs, t, b). (cs, type_repr t)) \<circ> (\<lambda>(cs, t, b). (cs, instantiate \<tau>s t, b))) (tag', t, Unchecked)]"
+            = (map ((\<lambda>(cs, t, b). (cs, type_repr t)) \<circ> (\<lambda>(cs, t, b). (cs, instantiate \<tau>s t, b))) ts)[i := ((\<lambda>(cs, t, b). (cs, type_repr t)) \<circ> (\<lambda>(cs, t, b). (cs, instantiate \<tau>s t, b))) (tag', t, Unchecked)]"
           by (metis (no_types) list_update_id map_update ts_at_i)
         then have "map ((\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) \<circ> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts
                   = map ((\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) \<circ> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) (tagged_list_update tag' (t, Checked) ts)"

@@ -53,7 +53,7 @@ lemma length_eval_simps:
 
 
 (* Generate type system lemma buckets *)
-ML {*
+ML \<open>
 
 (* identify judgements related to typing *)
 fun is_typing t = head_of t |>
@@ -125,7 +125,9 @@ fun cleanup_typing_tree_thm ctxt thm =
         t
        )
     |> Simplifier.simplify (put_simpset cleanup_ss ctxt)
-    (* |> Simplifier.simplify ctxt *) (* Hopefully superflous. Didn't cause any changes when run on Bilby *)
+    |> Simplifier.simplify ctxt
+      (* TODO: CorresProof requires the goal to be in a certain shape; cleanup_ss does not
+                put the goals in that shape. Investigate and move the simp rules into cleanup_ss *)
     )
   |> Thm.varifyT_global
 
@@ -199,6 +201,6 @@ fun get_all_typing_details_future debug ctxt name script
 
 fun resolve_future_typecorrect ctxt details
     = resolve_tac ctxt (#1 (Future.join details : details)) 1
-*}
+\<close>
 
 end

@@ -21,7 +21,7 @@ begin
 context update_sem_init
 begin
 
-ML{* fun corres_take_boxed_tac ctxt = let
+ML\<open> fun corres_take_boxed_tac ctxt = let
     val val_rels   = ValRelSimp.get ctxt;
     val type_rels  = TypeRelSimp.get ctxt;
     val is_valids  = IsValidSimp.get ctxt;
@@ -43,9 +43,9 @@ ML{* fun corres_take_boxed_tac ctxt = let
         THEN_ALL_NEW (ftac (get "all_heap_rel_ptrD") THEN' atac)
         THEN_ALL_NEW clarsimp_tac (ctxt addsimps type_rels addsimps val_rels)
     ) ] end
-*}
+\<close>
 
-ML{* fun corres_put_boxed_tac ctxt = let
+ML\<open> fun corres_put_boxed_tac ctxt = let
     val gets = Proof_Context.get_thms ctxt
     val get  = Proof_Context.get_thm ctxt
     val type_rels  = TypeRelSimp.get ctxt;
@@ -104,9 +104,9 @@ ML{* fun corres_put_boxed_tac ctxt = let
      )
     ]
   end
-*}
+\<close>
 
-ML{* fun corres_let_put_boxed_tac ctxt = let
+ML\<open> fun corres_let_put_boxed_tac ctxt = let
     val gets = Proof_Context.get_thms ctxt
     val get  = Proof_Context.get_thm ctxt
     val type_rels  = TypeRelSimp.get ctxt;
@@ -160,9 +160,9 @@ ML{* fun corres_let_put_boxed_tac ctxt = let
      )
     ]
   end
-*}
+\<close>
 
-ML{* fun corres_take_unboxed_tac ctxt = let
+ML\<open> fun corres_take_unboxed_tac ctxt = let
       val get = Proof_Context.get_thm ctxt
   in asm_full_simp_tac (put_simpset HOL_basic_ss ctxt addsimps (ValRelSimp.get ctxt)) 1
      THEN (REPEAT_ALL_NEW (eresolve_tac ctxt @{thms exE conjE}) 1)
@@ -170,9 +170,9 @@ ML{* fun corres_take_unboxed_tac ctxt = let
      THEN ALLGOALS (TRY o atac)
      THEN ALLGOALS (clarsimp_tac (ctxt addsimps ValRelSimp.get ctxt @ TypeRelSimp.get ctxt))
   end
-*}
+\<close>
 
-ML{* fun corres_case_tac ctxt = SUBGOAL (fn (t, i) => let
+ML\<open> fun corres_case_tac ctxt = SUBGOAL (fn (t, i) => let
     val vr_simps = ValRelSimp.get ctxt
     val vr_simp_idx = make_thm_index scrape_C_types vr_simps
     val vr_simps = lookup_thm_index vr_simp_idx (scrape_C_types_term t)
@@ -190,7 +190,7 @@ ML{* fun corres_case_tac ctxt = SUBGOAL (fn (t, i) => let
     THEN_ALL_NEW (TRY o REPEAT_ALL_NEW (etac @{thm disjE}))
     THEN_ALL_NEW clarsimp_tac (ctxt addsimps vr_simps addsimps tag_simps)
     end i)
-*}
+\<close>
 
 end
 

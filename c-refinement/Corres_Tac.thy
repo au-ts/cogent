@@ -66,7 +66,7 @@ lemma cogent_C_unused_return_L:
    (do (_ :: 'a) \<leftarrow> condition C L'' (do R; return undefined od); X' od)"
   apply (simp add: cogent_C_unused_return__internal_def)
   (* goal assumptions cause normal monad_eq to loop *)
-  apply (tactic {* simp_tac (@{context} addsimps (MonadEqThms.get @{context})) 1 *})
+  apply (tactic \<open> simp_tac (@{context} addsimps (MonadEqThms.get @{context})) 1 \<close>)
   apply blast
   done
 
@@ -87,12 +87,12 @@ schematic_goal
            (do _ \<leftarrow>
                  condition C2
                    (do _ \<leftarrow> gets (\<lambda>_. r1);
-                       gets (\<lambda>_. ()) od) (* <-- *)
+                       gets (\<lambda>_. ()) od)   \<comment> \<open> <-- \<close>
                    bla1;
-               gets (\<lambda>_. ()) od)         (* <-- *)
+               gets (\<lambda>_. ()) od)           \<comment> \<open> <-- \<close>
            bla2;
        _ \<leftarrow>
-         condition C3 stuff3 stuff4;     (* no change *)
+         condition C3 stuff3 stuff4;       \<comment> \<open> no change \<close>
        stuff5 od)
     = ?A"
   (* expected output *)
@@ -126,7 +126,7 @@ lemma cogent_corres_unused_return:
    corres srel c m \<xi> \<gamma> \<Xi> \<Gamma> \<sigma> s"
   by simp
 
-ML {*
+ML \<open>
 fun cogent_C_unused_return_tac ctxt = let
   (* import into ctxt's locale *)
   val corres_rule = Proof_Context.get_thm ctxt "cogent_corres_unused_return"
@@ -135,11 +135,11 @@ fun cogent_C_unused_return_tac ctxt = let
       THEN SOLVES (REPEAT_DETERM
              (resolve_tac ctxt @{thms cogent_C_unused_return_L cogent_C_unused_return_step
                                       cogent_C_unused_return__internal refl} n)) end
-*}
+\<close>
 end
 
 
-ML {*
+ML \<open>
 (* Create derivative equations that only apply in a given context.
  *
  *   make_contextual_eq_thms "f" ["a = b", "c = d"] ctxt
@@ -164,30 +164,30 @@ fun make_contextual_eq_thms (context : term) (eq_thms : thm list) ctxt : thm lis
                       (K (simp_tac (ctxt addsimps [thm]) 1))
            handle ERROR msg => raise TERM ("make_contextual_eq_thms proof failed:\n" ^ msg, [prop']) end
   in map make_eq_thm eq_thms end
-*}
+\<close>
 
 lemma simp_trivial_gets:
   "do x \<leftarrow> gets (\<lambda>_. v); B x od = B v"
   by simp
 (* Limit simp_trivial_gets to the top level *)
-local_setup {*
+local_setup \<open>
 fn ctxt =>
 Local_Theory.note
   ((Binding.name "corres_simp_gets", []),
    (make_contextual_eq_thms @{term "\<lambda>m. update_sem_init.corres abs_typing abs_repr srel c m \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"} @{thms simp_trivial_gets} ctxt))
   ctxt |> snd
-*}
+\<close>
 
 lemma simp_condition_bind:
   "do retval \<leftarrow> condition b x y; gets (\<lambda>s. retval) od = condition b x y" by simp
 
-local_setup {*
+local_setup \<open>
 fn ctxt =>
 Local_Theory.note
   ((Binding.name "corres_simp_cond_gets", []),
    (make_contextual_eq_thms @{term "\<lambda>m. update_sem_init.corres abs_typing abs_repr srel c m \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"} @{thms simp_condition_bind} ctxt))
   ctxt |> snd
-*}
+\<close>
 
 lemma ucast_up_lesseq[OF refl]:
   "upcast = ucast
@@ -280,7 +280,7 @@ lemma ucast_up_sle_disgusting[OF refl]:
 
 (* Corres tactic *)
 
-ML {*
+ML \<open>
 (* Used to decode Cogent Var indices *)
 fun decode_isa_nat @{term "0 :: nat"} = 0
   | decode_isa_nat (@{term Suc} $ n) = decode_isa_nat n + 1
@@ -873,16 +873,16 @@ in
                   cogent_C_unused_return_tac ctxt 1 st))
   THEN corres_tac_rec typing_tree 0
 end
-*}
+\<close>
 
-ML{*
+ML\<open>
 fun peel_two tree =  hd (tree_rest (hd (tree_rest (hd tree))));
-*}
+\<close>
 
 
 
 (* Analyse the program and generate proofs based on its call tree. *)
-ML {*
+ML \<open>
 fun partition _ [] = ([], [])
   | partition P (x::xs) = let val (ps, ns) = partition P xs in
                           if P x then (x::ps, ns) else (ps, x::ns) end
@@ -1359,6 +1359,6 @@ fun map_annotations f (CogentCallTree (a, ty, name, calls)) =
         map (fn c => case c of FirstOrderCall a => FirstOrderCall (map_annotations f a)
                              | SecondOrderCall (a, bs) =>
                                  SecondOrderCall (map_annotations f a, map (apsnd (map_annotations f)) bs)))
-*}
+\<close>
 
 end

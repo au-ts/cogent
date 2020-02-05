@@ -1,0 +1,6 @@
+kernel.c
+kernel.h
+plat/verification/*.thy
+plat/verification/ROOT
+plat/verification/BUILD_INFO
+plat/verification/kernel.table

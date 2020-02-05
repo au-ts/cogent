@@ -19,7 +19,7 @@ theory Cogent_Corres_Sanity_Check imports
   "../cogent/isa/Cogent"
 begin
 
-ML {*
+ML \<open>
 structure Cogent_Corres_Sanity_Check = struct
 
 (* Indirect calls are not supported. *)
@@ -48,23 +48,23 @@ fun maximum [] = error "maximum: empty list"
   | maximum [x] = x
   | maximum (x::xs) = max x (maximum xs)
 
-fun Cogent_function_order (Const (@{const_name TFun}, _) $ argT $ retT) =
+fun Cogent_function_order (Const (@{const_name TFun}, _) $ argT $ _) =
       Cogent_function_order argT + 1
-  | Cogent_function_order (Const (@{const_name TVar}, _) $ idx) =
+  | Cogent_function_order (Const (@{const_name TVar}, _) $ _) =
       error "Impossible: monomorphised program should have no TVars"
-  | Cogent_function_order (Const (@{const_name TVarBang}, _) $ idx) =
+  | Cogent_function_order (Const (@{const_name TVarBang}, _) $ _) =
       error "Impossible: monomorphised program should have no TVars"
   | Cogent_function_order (Const (@{const_name TCon}, _) $ _ $ _ $ _) =
       (* Abstract types can contain function pointers. However, let's not
        * worry about that for now. *)
       0
-  | Cogent_function_order (Const (@{const_name TPrim}, _) $ primT) =
+  | Cogent_function_order (Const (@{const_name TPrim}, _) $ _) =
       0
   | Cogent_function_order (Const (@{const_name TSum}, _) $ variants) =
       HOLogic.dest_list variants |> map (HOLogic.dest_prod #> snd #> HOLogic.dest_prod #> fst #> Cogent_function_order) |> maximum
   | Cogent_function_order (Const (@{const_name TProduct}, _) $ T1 $ T2) =
       max (Cogent_function_order T1) (Cogent_function_order T2)
-  | Cogent_function_order (Const (@{const_name TRecord}, _) $ fields $ sigil) =
+  | Cogent_function_order (Const (@{const_name TRecord}, _) $ fields $ _) =
       HOLogic.dest_list fields |> map (HOLogic.dest_prod #> snd #> HOLogic.dest_prod #> fst #> Cogent_function_order) |> maximum
   | Cogent_function_order (Const (@{const_name TUnit}, _)) =
       0
@@ -82,7 +82,7 @@ fun check_function_order functions max_order ctxt = let
                val fT = Proof_Context.get_thm ctxt (f ^ "_type_def")
                         |> Simplifier.rewrite_rule ctxt type_abbrevs
                         |> Thm.prop_of |> rhs_of_eq
-               val (fTEnv, (fArgT, fRetT)) = HOLogic.dest_prod fT |> apsnd HOLogic.dest_prod
+               val fArgT = HOLogic.dest_prod fT |> snd |> HOLogic.dest_prod |> fst
                val ord = Cogent_function_order fArgT
                in if ord <= max_order then [] else [(f, ord)] end)
      |> map (fn (f, ord) => "Not supported: function " ^ f ^ " is order-" ^ string_of_int ord ^
@@ -93,7 +93,7 @@ fun check_function_order functions max_order ctxt = let
 (* Cogent allows function names to contain the prime symbol (').
  * But the prime mark isn't legal in C, so the compiler mangles it to "_prime".
  * Unfortunately, parts of the verification tools aren't aware of this yet. *)
-fun check_function_names all_functions ctxt =
+fun check_function_names all_functions _ =
   all_functions
   |> filter (fn f => member op= (String.explode f) #"'")
   |> map (fn f => "Not supported: name of function " ^ f ^ " contains prime mark (')")
@@ -112,6 +112,6 @@ fun check_all Cogent_functions abstract_functions ctxt = let
        | errs => error (space_implode "\n" errs) end
 
 end
-*}
+\<close>
 
 end

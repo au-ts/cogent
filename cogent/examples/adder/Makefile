@@ -11,7 +11,7 @@
 NAME=adder
 
 SRC=Adder.cogent
-OUTPUT=generated # $(SRC:.cogent=-gen)
+OUTPUT=generated  # $(SRC:.cogent=-gen)
 COUTPUT=$(addsuffix .c, $(OUTPUT))
 HOUTPUT=$(addsuffix .h, $(OUTPUT))
 
@@ -28,7 +28,7 @@ ABSDIR=./abstract
 
 OBJ=$(PPINFER:.c=.o)
 
-CFLAGS+=-I. -I../plat/console -I$(STDGUM) -I$(STDGUM)/gum/anti -std=gnu99
+CFLAGS=-I. -I$(STDGUM) -std=gnu99  # -I../plat/console -I$(STDGUM)/gum/anti
 
 .PHONY: default cogent clean gen-anti test
 .SECONDARY:
@@ -44,10 +44,9 @@ $(OBJ): $(PPINFER)
 
 gen-anti:
 	mkdir -p $(ABSDIR)
-	cogent $(SRC) -g -Od -ogenerated --fno-fncall-as-macro --ffunc-purity-attr \
-		--infer-c-types="$(AHFILES)" \
+	cogent $(SRC) -g -ogenerated \
 		--Wno-warn --infer-c-funcs="$(ACFILES)" \
-		--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
+		--cpp-args="\$$CPPIN -o \$$CPPOUT -P $(CFLAGS)" \
 		--ext-types=types.cfg \
 		--entry-funcs=entrypoints.cfg
 
@@ -55,10 +54,13 @@ gen-type-proof:
 	cogent $(SRC) --type-proof --root-dir=../../..
 
 gen-c-proof:
-	cogent $(SRC) --all -g --type-proof --c-refinement --root-dir=../../..
+	cogent $(SRC) --all -g --type-proof --c-refinement --root-dir=../../.. --fake-header-dir=../../lib
 
 clean:
 	rm -f $(COUTPUT) $(HOUTPUT) $(PP) $(PPINFER) $(OBJ)
 	@# rm -f *-gen.*
 	rm -f $(ABSDIR)/*.h
 	rm -f $(NAME)
+	rm -f *.thy
+	rm -f ROOT
+	rm -f BUILD_INFO

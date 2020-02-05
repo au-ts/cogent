@@ -14,7 +14,7 @@ module Cogent.TypeCheck.Solver.SinkFloat ( sinkfloat ) where
 -- these.
 --
 
-import Cogent.Compiler (__impossible)
+import Cogent.Common.Types
 import Cogent.Surface (Type(..))
 import Cogent.TypeCheck.Base 
 import Cogent.TypeCheck.Solver.Goal 
@@ -22,6 +22,7 @@ import Cogent.TypeCheck.Solver.Monad
 import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
 import qualified Cogent.TypeCheck.Row as Row
 import qualified Cogent.TypeCheck.Subst as Subst
+import Cogent.Util (firstM, secondM)
 
 import Control.Applicative (empty)
 import Control.Monad.Writer
@@ -34,116 +35,111 @@ import Lens.Micro
 sinkfloat :: Rewrite.Rewrite' TcSolvM [Goal]
 sinkfloat = Rewrite.rewrite' $ \gs -> do {- MaybeT TcSolvM -}
   a <- MaybeT $ do {- TcSolvM -}
-    let genGoalSubst = uncurry genStructSubst <=< splitConstraint . _goal
-    msubsts <- traverse (runMaybeT . genGoalSubst) gs  -- a list of 'Maybe' substitutions.
+    msubsts <- traverse (runMaybeT . genStructSubst . _goal) gs  -- a list of 'Maybe' substitutions.
     return . getFirst . mconcat $ First <$> msubsts  -- only return the first 'Just' substitution.
   tell [a]
   return $ map (goal %~ Subst.applyC a) gs
  where
-  splitConstraint :: Constraint -> MaybeT TcSolvM (TCType, TCType)
-  splitConstraint (ta :<  tb) = return (ta, tb)
-  splitConstraint (ta :=: tb) = return (ta, tb)
-  splitConstraint _           = empty
-
-  genStructSubst :: TCType -> TCType -> MaybeT TcSolvM Subst.Subst
+  genStructSubst :: Constraint -> MaybeT TcSolvM Subst.Subst
   -- remove type operators first
-  genStructSubst (T (TBang t))   v               = genStructSubst t v
-  genStructSubst v               (T (TBang t))   = genStructSubst t v
-  genStructSubst (T (TUnbox t))  v               = genStructSubst t v
-  genStructSubst v               (T (TUnbox t))  = genStructSubst t v
-  genStructSubst (T (TTake _ t)) v               = genStructSubst t v
-  genStructSubst v               (T (TTake _ t)) = genStructSubst t v
-  genStructSubst (T (TPut _ t))  v               = genStructSubst t v
-  genStructSubst v               (T (TPut _ t))  = genStructSubst t v
+  genStructSubst (T (TBang t)    :<  v          )   = genStructSubst (t :< v)
+  genStructSubst (v              :<  T (TBang t))   = genStructSubst (v :< t)
+  genStructSubst (T (TBang t)    :=: v          )   = genStructSubst (t :=: v)
+  genStructSubst (v              :=: T (TBang t))   = genStructSubst (v :=: t)
+  genStructSubst (T (TUnbox t)   :<  v          )   = genStructSubst (t :< v)
+  genStructSubst (v              :<  T (TUnbox t))  = genStructSubst (v :< t)
+  genStructSubst (T (TUnbox t)   :=: v          )   = genStructSubst (t :=: v)
+  genStructSubst (v              :=: T (TUnbox t))  = genStructSubst (v :=: t)
 
   -- record rows
-  genStructSubst (R r _) v
-    | fs <- discard_common v $ Row.entries r
-    , not $ M.null fs
-    , rowTypeRelOk v
-    = do
-      sigilI <- lift solvFresh
-      makeRowStructureSubsts (flip R (Right sigilI)) fs v
-  genStructSubst v (R r _)
-    | fs <- discard_common v $ Row.entries r
-    , not $ M.null fs
-    , rowTypeRelOk v
-    = do
-      sigilI <- lift solvFresh
-      makeRowStructureSubsts (flip R (Right sigilI)) fs v
+  genStructSubst (R r s :< U i) = do
+    s' <- case s of
+            Left Unboxed -> return $ Left Unboxed -- unboxed is preserved by bang and TUnbox, so we may propagate it
+            _            ->  Right <$> lift solvFresh
+    makeRowUnifSubsts (flip R s') r i
+  genStructSubst (U i :< R r s) = do
+    s' <- case s of
+            Left Unboxed -> return $ Left Unboxed -- unboxed is preserved by bang and TUnbox, so we may propagate it
+            _            ->  Right <$> lift solvFresh
+    makeRowUnifSubsts (flip R s') r i
+  genStructSubst (R r1 s1 :< R r2 s2)
+    {-
+      The most tricky case.
+      For Records, Taken is the bottom of the order, Untaken is the top.
+      If taken things are in r2, then we can infer they must be in r1.
+      If untaken things are in r1, then we can infer they must be in r2.
+    -}
+    | r1new <- Row.takenEntries r2 `M.difference` Row.entries r1
+    , not $ M.null r1new
+    , Just r1var <- Row.var r1
+      = makeRowRowVarSubsts r1new r1var
+    | r2new <- Row.untakenEntries r1 `M.difference` Row.entries r2
+    , not $ M.null r2new
+    , Just r2var <- Row.var r2
+      = makeRowRowVarSubsts r2new r2var
+    | Left Unboxed <- s1 , Right i <- s2 = return $ Subst.ofSigil i Unboxed
+    | Right i <- s1 , Left Unboxed <- s2 = return $ Subst.ofSigil i Unboxed
 
   -- variant rows
-  genStructSubst (V r) v
-    | fs <- discard_common v $ Row.entries r
-    , not $ M.null fs
-    , rowTypeRelOk v
-    = makeRowStructureSubsts V fs v
-  genStructSubst v (V r)
-    | fs <- discard_common v $ Row.entries r
-    , not $ M.null fs
-    , rowTypeRelOk v
-    = makeRowStructureSubsts V fs v
+  genStructSubst (V r :< U i) = makeRowUnifSubsts V r i
+  genStructSubst (U i :< V r) = makeRowUnifSubsts V r i
+  genStructSubst (V r1 :< V r2)
+    {-
+      The most tricky case.
+      For variants, Untaken is the bottom of the order, Taken is the top.
+      If untaken things are in r2, then we can infer they must be in r1.
+      If taken things are in r1, then we can infer they must be in r2.
+    -}
+    | r2new <- Row.takenEntries r1 `M.difference` Row.entries r2
+    , not $ M.null r2new
+    , Just r2var <- Row.var r2
+      = makeRowRowVarSubsts r2new r2var
+    | r1new <- Row.untakenEntries r2 `M.difference` Row.entries r1
+    , not $ M.null r1new
+    , Just r1var <- Row.var r1
+      = makeRowRowVarSubsts r1new r1var
 
   -- tuples
-  genStructSubst (T (TTuple ts)) v | tupleTypeRelOk v = genStructSubstTuple ts v
-  genStructSubst v (T (TTuple ts)) | tupleTypeRelOk v = genStructSubstTuple ts v
+  genStructSubst (T (TTuple ts) :< U i) = makeTupleUnifSubsts ts i
+  genStructSubst (U i :< T (TTuple ts)) = makeTupleUnifSubsts ts i
+  genStructSubst (T (TTuple ts) :=: U i) = makeTupleUnifSubsts ts i
+  genStructSubst (U i :=: T (TTuple ts)) = makeTupleUnifSubsts ts i
 
   -- tcon
-  genStructSubst (T (TCon n ts s)) v | tconTypeRelOk v = genStructSubstTCon n ts s v
-  genStructSubst v (T (TCon n ts s)) | tconTypeRelOk v = genStructSubstTCon n ts s v
+  genStructSubst (T (TCon n ts s) :< U i) = makeTConUnifSubsts n ts s i
+  genStructSubst (U i :< T (TCon n ts s)) = makeTConUnifSubsts n ts s i
+  genStructSubst (T (TCon n ts s) :=: U i) = makeTConUnifSubsts n ts s i
+  genStructSubst (U i :=: T (TCon n ts s)) = makeTConUnifSubsts n ts s i
 
   -- tunit
-  genStructSubst t@(T TUnit) (U i) = return $ Subst.ofType i t
-  genStructSubst (U i) t@(T TUnit) = return $ Subst.ofType i t
+  genStructSubst (t@(T TUnit) :< U i) = return $ Subst.ofType i t
+  genStructSubst (U i :< t@(T TUnit)) = return $ Subst.ofType i t
+  genStructSubst (t@(T TUnit) :=: U i) = return $ Subst.ofType i t
+  genStructSubst (U i :=: t@(T TUnit)) = return $ Subst.ofType i t
 
   -- default
-  genStructSubst _ _ = empty
+  genStructSubst _ = empty
 
+  --
+  -- Helper Functions
+  --
+  makeRowUnifSubsts frow r i = do
+    es' <- traverse (secondM (firstM (const $ U <$> lift solvFresh))) $ Row.entries r
+    rv' <- traverse (const (lift solvFresh)) $ Row.var r
+    let r' = Row.Row es' rv'
+    return $ Subst.ofType i (frow r')
 
-  rowTypeRelOk (U _)   = True
-  rowTypeRelOk (R r _) | Just _ <- Row.var r = True
-  rowTypeRelOk (V r)   | Just _ <- Row.var r = True
-  rowTypeRelOk _       = False
+  makeRowRowVarSubsts rnew rv = do
+    rv' <- Just <$> lift solvFresh
+    rnew' <- traverse (secondM (firstM (const (U <$> lift solvFresh)))) rnew
+    return $ Subst.ofRow rv $ Row.Row rnew' rv'
 
-  makeRowStructureSubsts frow fs v = do
-    rowI <- lift solvFresh
-    ts <- traverse (secondFirstF (const (U <$> lift solvFresh))) fs
-    let r' = Row.Row ts (Just rowI)
-    return $ case v of
-      U v' -> Subst.ofType v' (frow r')
-      R r _ | Just v' <- Row.var r -> Subst.ofRow v' r'
-      V r   | Just v' <- Row.var r -> Subst.ofRow v' r'
-      _ -> __impossible "makeRowStructureSubsts: case on v got a bad case which is not banned by rowTypeRelOk"
-    where
-      secondFirstF :: forall f a b c b'. Functor f => (b -> f b') -> (a,(b,c)) -> f (a,(b',c))
-      secondFirstF f (a,(b,c)) = (\b' -> (a,(b',c))) <$> f b
-
-  tupleTypeRelOk (U _) = True
-  tupleTypeRelOk _     = False
-
-  genStructSubstTuple ts (U v') = do
+  makeTupleUnifSubsts ts i = do
     tus <- traverse (const (U <$> lift solvFresh)) ts
     let t = T (TTuple tus)
-    return $ Subst.ofType v' t
-  genStructSubstTuple _ _ =
-    __impossible "genStructSubstTuple: case on v got a bad case which is not banned by tupleTypeRelOk"
+    return $ Subst.ofType i t
 
-  tconTypeRelOk (U _) = True
-  tconTypeRelOk _     = False
-
-  genStructSubstTCon n ts s (U v') = do
+  makeTConUnifSubsts n ts s i = do
     tus <- traverse (const (U <$> lift solvFresh)) ts
     let t = T (TCon n tus s) -- FIXME: n.b. only one type of sigil, so this is fine?
-    return $ Subst.ofType v' t
-  genStructSubstTCon _ _ _ _ =
-    __impossible "genStructSubstTCon: case on v got a bad case which is not banned by tconTypeRelOk"
-
-  -- get_taken    = get_fields True
-  -- get_present  = get_fields False
-  -- get_fields t = M.filter (\(_,(_,t')) -> t == t') . Row.entries
-
-  discard_common (U _) fs   = fs
-  discard_common (R r _) fs = M.difference fs $ Row.entries r
-  discard_common (V r)   fs = M.difference fs $ Row.entries r
-  discard_common _ _        = M.empty
-
+    return $ Subst.ofType i t

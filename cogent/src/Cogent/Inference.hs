@@ -136,6 +136,7 @@ glb = bound GLB
 bang :: Type t -> Type t
 bang (TVar v)         = TVarBang v
 bang (TVarBang v)     = TVarBang v
+bang (TVarUnboxed v)  = TVarUnboxed v
 bang (TCon n ts s)    = TCon n (map bang ts) (bangSigil s)
 bang (TFun ti to)     = TFun ti to
 bang (TPrim i)        = TPrim i
@@ -148,9 +149,21 @@ bang (TUnit)          = TUnit
 bang (TArray t l)     = TArray (bang t) l
 #endif
 
+unbox :: Type t -> Type t
+unbox (TVar v)         = TVarUnboxed v
+unbox (TVarBang v)     = TVarUnboxed v
+unbox (TVarUnboxed v)  = TVarUnboxed v
+unbox (TCon n ts s)    = TCon n ts (unboxSigil s)
+unbox (TRecord ts s)   = TRecord ts (unboxSigil s)
+unbox t                = t  -- NOTE that @#@ type operator behaves differently to @!@.
+                            -- The application of @#@ should NOT be pushed inside of a
+                            -- data type. / zilinc
+
+
 substitute :: Vec t (Type u) -> Type t -> Type u
 substitute vs (TVar v)         = vs `at` v
 substitute vs (TVarBang v)     = bang (vs `at` v)
+substitute vs (TVarUnboxed v)  = unbox (vs `at` v)
 substitute vs (TCon n ts s)    = TCon n (map (substitute vs) ts) s
 substitute vs (TFun ti to)     = TFun (substitute vs ti) (substitute vs to)
 substitute _  (TPrim i)        = TPrim i
@@ -183,7 +196,21 @@ infixl 4 <||>
                              put x
                              arg <- b
                              x2 <- get
-                             unTC $ guardShow "<||>" $ x1 == x2
+                             -- XXX | unTC $ guardShow "<||>" $ x1 == x2
+                             -- \ ^^^ NOTE: This check is taken out to fix
+                             -- #296.  The issue here is that, if we define a
+                             -- variable of permission D alone (w/o S), it will
+                             -- be marked as used after it's been used, which
+                             -- is correct. But when it is used in one branch
+                             -- but not in the other one, which is allowed as
+                             -- it's droppable, it will be marked as used in
+                             -- the context of one branch but not the other and
+                             -- render the two contexts different. The formal
+                             -- specification requires that both contexts are
+                             -- the same, but it is tantamount to merging two
+                             -- differerent (correct) contexts correctly, which
+                             -- can be established in the typing proof.
+                             -- / v.jackson, zilinc
                              return (f arg)
 
 opType :: Op -> [Type t] -> Maybe (Type t)
@@ -288,7 +315,8 @@ lookupKind f = TC ((`at` f) . fst <$> ask)
 kindcheck_ :: (Monad m) => (Fin t -> m Kind) -> Type t -> m Kind
 kindcheck_ f (TVar v)         = f v
 kindcheck_ f (TVarBang v)     = bangKind <$> f v
-kindcheck_ f (TCon n vs s)    = mconcat <$> ((sigilKind s :) <$> mapM (kindcheck_ f) vs)
+kindcheck_ f (TVarUnboxed v)  = return mempty
+kindcheck_ f (TCon n vs s)    = return $ sigilKind s
 kindcheck_ f (TFun ti to)     = return mempty
 kindcheck_ f (TPrim i)        = return mempty
 kindcheck_ f (TString)        = return mempty

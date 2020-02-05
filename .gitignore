@@ -45,3 +45,11 @@ impl/fs/vfat/cogent/misc/
 autocorres/
 cogent/scripts/*.dat
 cogent/scripts/*.png
+
+# Documentation
+docs/.vscode/
+docs/_build/
+docs/assets/
+docs/doctrees/
+docs/html/
+docs/pseudoxml/

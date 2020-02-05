@@ -10,22 +10,26 @@
 
 $esc:(#include <stdio.h>)
 $esc:(#include <stdlib.h>)
-#include "generated.c"
+$esc:(#include <string.h>)
+
+#include "mapper.c"
 #include <wordarray.ac>
+
 
 int main(void){
   $ty:(WordArray U32) arr = malloc (sizeof ($ty:(WordArray U32)));
-  u32 arr_values[15];
+  u32 arr_values[10];
   int i;
-  for (i = 0; i < 15; i++) {
+  for (i = 0; i < 10; i++) {
     arr_values[i] = i;
   }
   arr->values = arr_values;
   arr->len = 15;
 
   arr = map (arr);
-  for (i = 0; i < 15; i++) {
+  for (i = 0; i < 10; i++) {
     printf ("arr[%d] = %d\n", i, arr->values[i]);
   }
   return 0;
 }
+

@@ -10,6 +10,7 @@
 -- @TAG(DATA61_GPL)
 --
 
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE StandaloneDeriving #-}
@@ -27,18 +28,24 @@ module Cogent.C.Syntax (
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 
+import Data.Binary (Binary)
 import Data.Map as M
+import GHC.Generics (Generic)
 import qualified "language-c-quote" Language.C as C
 
 type CId = String
 
 data CIntType = CCharT | CShortT | CIntT | CLongT | CLongLongT
-              deriving (Eq, Ord, Show)
+              deriving (Eq, Ord, Show, Generic)
+
+instance Binary CIntType
 
 data CArraySize = CArraySize CExpr
                 | CNoArraySize
                 | CPtrToArray
-                deriving (Eq, Ord, Show)
+                deriving (Eq, Ord, Show, Generic)
+
+instance Binary CArraySize
 
 -- The type parameter has been striped off
 data CType = CInt Bool CIntType      -- ^ 'True' is signed
@@ -54,15 +61,21 @@ data CType = CInt Bool CIntType      -- ^ 'True' is signed
            | CIdent CId
            | CFunction CType CType
            | CVoid
-           deriving (Eq, Ord, Show)
+           deriving (Eq, Ord, Show, Generic)
+
+instance Binary CType
 
 data Radix = BIN | OCT | DEC | HEX
-              deriving (Eq, Ord, Show)
+              deriving (Eq, Ord, Show, Generic)
+
+instance Binary Radix
 
 data CLitConst = CNumConst Integer CType Radix
                | CCharConst Char
                | CStringConst String
-               deriving (Eq, Ord, Show)
+               deriving (Eq, Ord, Show, Generic)
+
+instance Binary CLitConst
 
 data CExpr = CBinOp CBinOp CExpr CExpr
            | CUnOp  CUnOp CExpr
@@ -80,20 +93,32 @@ data CExpr = CBinOp CBinOp CExpr CExpr
            | CCompLit CType [([CDesignator], CInitializer)]
            -- \ | CArbitrary (CType CExpr)
            | CMKBOOL CExpr
-           deriving (Eq, Ord, Show)
+           deriving (Eq, Ord, Show, Generic)
 
+instance Binary CExpr
 
 data CInitializer = CInitE CExpr
                   | CInitList [([CDesignator], CInitializer)]
-                  deriving (Eq, Ord, Show)
+                  deriving (Eq, Ord, Show, Generic)
 
+instance Binary CInitializer
 
 data CDesignator = CDesignE CExpr
                  | CDesignFld CId
-                 deriving (Eq, Ord, Show)
+                 deriving (Eq, Ord, Show, Generic)
+
+instance Binary CDesignator
 
 type CBinOp    = C.BinOp
 type CUnOp     = C.UnOp
+
+-- Orphans
+
+deriving instance Generic C.BinOp
+deriving instance Generic C.UnOp
+
+instance Binary C.BinOp
+instance Binary C.UnOp
 
 -- data CTrappable = CBreakT | CContinueT
 
@@ -164,5 +189,7 @@ data StrlType = Record  [(CId, CType)] Bool  -- ^ @(fieldname &#x21A6; fieldtype
               | Function CType CType
               | AbsType CId
               | Array CType (Maybe Int)
-              deriving (Eq, Ord, Show)
+              deriving (Eq, Ord, Show, Generic)
+
+instance Binary StrlType
 

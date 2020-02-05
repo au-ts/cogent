@@ -1,16 +1,1 @@
-flags:
- language-c-quote:
-   full-haskell-antiquotes: false
-extra-package-dbs: []
-packages:
-- '.'
-- '../isa-parser'
-extra-deps:
-- haskell-exp-parser-0.1.1
-- pretty-show-ansi-wl-1.9.2.1
-resolver: lts-12.20
-allow-newer: true
-package-indices:
-  - name: HackageOrig
-    download-prefix: https://hackage.haskell.org/package/
-    http: https://hackage.haskell.org/01-index.tar.gz
+stack-8.6.yaml

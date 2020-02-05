@@ -27,6 +27,7 @@ import Minigent.Syntax.PrettyPrint
 import Minigent.Environment
 import Minigent.Reorganiser
 import Minigent.TC
+import Minigent.Termination
 import Minigent.CG
 import Control.Monad
 import Control.Applicative
@@ -39,31 +40,35 @@ import System.FilePath
 import System.Directory
 import qualified Data.Map as M
 import qualified Data.Text as T
+import Data.List (intercalate)
 
 import Text.Earley
 
 import Data.Text.Prettyprint.Doc.Render.Terminal
 import Data.Text.Prettyprint.Doc (unAnnotateS, unAnnotate, defaultLayoutOptions, layoutPretty, vcat, (<+>), pretty)
 
+import Debug.Trace
+
 
 -- | The phases of the compiler, ordered in the order listed.
-data Phase = Lex | Parse | Reorg | TC | CG deriving (Ord, Enum, Eq)
+data Phase = Lex | Parse | Reorg | TC | Term | CG deriving (Ord, Enum, Eq, Show)
 
 -- | The way a dump should be formatted when printed.
 data Format = PrettyColour -- ^ Print with a pretty printer and ANSI colours if printing to stdout
             | PrettyPlain  -- ^ Print with a pretty printer and no colours
             | Raw          -- ^ Print the raw abstract syntax tree (with 'Show')
-  deriving (Eq)
+  deriving (Eq, Show)
 
 -- | Where a dump should be output
 data Output = File FilePath | Stdout
-  deriving (Eq)
+  deriving (Eq, Show)
 
 -- | The various command line arguments of the compiler.
-data Directive 
+data Directive
   = Dump Phase Output Format
   | NoColour
-  deriving (Eq)
+  | GenTermGraph FilePath
+  deriving (Eq, Show)
 
 
 singleToken :: MonadError String m => (String -> m a) -> [String] -> m ([String],a)
@@ -84,6 +89,7 @@ parsePhase "lexer" = pure Lex
 parsePhase "parse" = pure Parse
 parsePhase "reorg" = pure Reorg
 parsePhase "tc"    = pure TC
+parsePhase "term"  = pure Term
 parsePhase "cg"    = pure CG
 parsePhase _       = throwError "invalid phase"
 
@@ -107,7 +113,11 @@ parseDirectives ("--dump-stdout":rest) = do
   pure (Dump phase Stdout format: dirs, files)
 parseDirectives ("--no-colour":rest) = do
   (dirs, files) <- parseDirectives rest
-  pure (NoColour:dirs, files) 
+  pure (NoColour:dirs, files)
+parseDirectives ("--gen-term-graph":rest) = do
+  (rest', outFile) <- singleToken parseOutputFilePath rest
+  (dirs, files) <- parseDirectives rest'
+  pure ((GenTermGraph outFile):dirs, files)
 parseDirectives ("--dump":rest) = do
   (rest', phase) <- singleToken parsePhase rest
   (rest'', format) <- singleToken parseFormat rest' <|> pure (rest', PrettyPlain)
@@ -139,6 +149,7 @@ printHelp = putStrLn $ unlines
   , "  DIRECTIVES - one of: "
   , "    --dump PHASE [FORMAT] FILE     (writes the output of the given phase to the given file)"
   , "    --dump-stdout PHASE [FORMAT]   (writes the output of the given phase to stdout)"
+  , "    --gen-term-graph FILE          (generates a DOT graph for each function and writes them to the given file)"
   , ""
   , "    FORMAT - one of: pretty, pretty-plain, raw"
   , "             If not provided, --dump will use pretty-plain and --dump-stdout will use pretty"
@@ -186,7 +197,7 @@ reorgPhase x =
          die ("Reorg failed.\n" ++ unlines errs ++ "\n\n")
 
 tcPhase :: Bool -> GlobalEnvironments -> IO GlobalEnvironments
-tcPhase colour envs 
+tcPhase colour envs
   = let rs = withUnifVars (tc envs (M.toList (defns envs)))
      in GlobalEnvs <$> (M.fromList . concat <$> mapM go rs)
                    <*> pure (types envs)
@@ -198,6 +209,16 @@ tcPhase colour envs
       hPutStrLn stderr ""
       pure []
     go (Right b) = pure [b]
+
+terminationPhase :: Bool -> GlobalEnvironments -> IO [(FunName, [Assertion], String)]
+terminationPhase b envs
+  = let (errs, dumps) = termCheck envs in
+      case errs of
+        [] -> return dumps
+        xs -> do -- Error
+          mapM_ (hPutStrLn stderr) xs
+          return dumps
+
 
 cgPhase :: GlobalEnvironments -> IO String
 cgPhase gs = pure (cg gs)
@@ -272,12 +293,36 @@ tcDump tops (Dump TC out fmt) =
                         . prettyGlobalEnvs
 tcDump _ _ = return ()
 
+termDump :: [(FunName, [Assertion], String)] -> Directive -> IO ()
+termDump dumps (Dump Term out fmt) = do
+    write out $ intercalate "\n" $ map (\(f, as, _) -> "Function " ++ f ++ ":\n" ++ format fmt as) dumps
+    return ()
+  where
+    write (File f) = writeFile f
+    write (Stdout) = putStrLn
+
+    format Raw          = ushow -- Necessary for showing unicode
+    format PrettyColour = T.unpack
+                        . renderStrict
+                        . layoutPretty defaultLayoutOptions
+                        . vcat . map prettyAssertion 
+    format PrettyPlain  = T.unpack
+                        . renderStrict
+                        . unAnnotateS
+                        . layoutPretty defaultLayoutOptions
+                        . vcat . map prettyAssertion
+termDump dumps (GenTermGraph f) = do
+    writeFile f $ intercalate "\n" $ map (\(_, _, g) -> g) dumps
+    return ()
+termDump _ _ = return ()
+
 cgDump :: String -> Directive -> IO ()
 cgDump s (Dump CG out fmt) = write out s
   where
     write (File f) = writeFile f
     write (Stdout) = putStrLn
-   
+cgDump _ _ = mempty
+
 
 -- | Compile the given files up to the given phase, dumping
 --   output according to the given directives.
@@ -295,8 +340,11 @@ compiler phase dirs files = do
     envs <- reorgPhase ast
     mapM_ (reorgDump envs) dirs
     upTo TC
-    binds <- tcPhase (NoColour `elem` dirs) envs
+    binds <- tcPhase (NoColour `notElem` dirs) envs
     mapM_ (tcDump binds) dirs
+    upTo Term
+    funDumps <- terminationPhase False envs
+    mapM_ (termDump funDumps) dirs
     upTo CG
     barf <- cgPhase binds
     mapM_ (cgDump barf) dirs

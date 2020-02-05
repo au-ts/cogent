@@ -1,0 +1,17 @@
+type A
+type R = #{ x : A, b : Bool }
+
+-- quux : R -> R 
+-- quux r = r {b = let y = f ( r.x ) !r in y}
+
+f : (A!) -> Bool
+g : A    -> Bool
+
+-- passes both surface and core!
+bar :  A -> Bool
+bar a = (let y = f a !a in y) && g a 
+
+-- passes surface, crashes core!
+foo :  A -> Bool
+foo a = g a && (let y = f a !a in y)
+

@@ -405,3 +405,14 @@ $ty:(WordArrayView a) $id:wordarray_map_view ($ty:((WordArrayView a, a -> a)) ar
         return view;
 }
 
+unit_t
+$id:wordarray_print ($ty:(WordArray U8) *arg)
+{
+	char s[arg->len + 1];
+	/* Couldn't convince myself that
+	 * cogent WordArrays were NUL terminated
+	 */
+	strncpy(s, arg->values, arg->len);
+	s[arg->len] = 0;
+	return cogent_debug(s);
+}

@@ -18,11 +18,13 @@ import Minigent.Fresh
 import Minigent.Environment
 
 import Control.Monad.Reader
+import Control.Monad.Fail
 import Control.Monad.State.Strict
 
 import qualified Data.Map as M
 import Data.Stream (Stream)
 
+import Minigent.Syntax.PrettyPrint
 import Debug.Trace
 
 -- | A monad that is a combination of a state monad for the current type context,
@@ -109,7 +111,10 @@ cg e tau = case e of
         withSig (PrimOp o [e1', e2'], 0 :<=: tau :&: c1 :&: c2)
 
   (TypeApp f ts) -> do
-    Just (Forall vs cs t) <- M.lookup f . types <$> ask
+    pt <- M.lookup f . types <$> ask
+    let (vs, cs, t) = case pt of
+                        Just (Forall vs cs t) -> (vs, cs, t)
+                        _ -> error "cg: TypeApp did not have a type in types"
     as <- freshes (length vs - length ts)
     let ts'   = ts ++ map UnifVar as
         subst = zip vs ts'
@@ -179,42 +184,54 @@ cg e tau = case e of
   (Member e f) -> do
     row <- Row.incomplete [Entry f tau False]
     sigil <- fresh
-    let alpha = Record row (UnknownSigil sigil)
+    recPar <- UnknownParameter <$> fresh
+    -- TODO: Member is supposed to be on nonlinear records, will these ever have a recursive parameter
+    -- (i.e. are they *always* unboxed records?)
+    let alpha = Record recPar row (UnknownSigil sigil)
     (e', c1) <- cg e alpha
-    let c2 = Drop (Record (Row.take f row) (UnknownSigil sigil))
+    let c2 = Drop (Record recPar (Row.take f row) (UnknownSigil sigil))
     withSig (Member e' f, c1 :&: c2)
 
+  -- Remaining record, field name, extracted contents var, record extrating from, following expression 
   (Take x f y e1 e2) -> do
     beta <- UnifVar <$> fresh
     row <- Row.incomplete [Entry f beta False]
-    sigil <- fresh
-    let alpha = Record row (UnknownSigil sigil)
+    sigil  <- fresh
+    recPar <- UnknownParameter <$> fresh
+    let alpha = Record recPar row (UnknownSigil sigil)
+    let c0    = UnboxedNoRecurse alpha
 
     (e1', c1) <- cg e1 alpha
     modify (push (y, beta))
-    modify (push (x, Record (Row.take f row) (UnknownSigil sigil)))
+    modify (push (x, Record recPar (Row.take f row) (UnknownSigil sigil)))
     (e2', c2) <- cg e2 tau
     xUsed <- topUsed <$> get
-    let c3 = if xUsed then Sat else Drop (Record (Row.take f row) (UnknownSigil sigil))
+    let c3 = if xUsed then Sat else Drop (Record recPar (Row.take f row) (UnknownSigil sigil))
     modify pop
     yUsed <- topUsed <$> get
     let c4 = if yUsed then Sat else Drop beta
     modify pop
-    withSig (Take x f y e1' e2', c1 :&: c2 :&: c3 :&: c4)
+    withSig (Take x f y e1' e2', c0 :&: c1 :&: c2 :&: c3 :&: c4)-- :&: c5)
 
   (Put e1 f e2) -> do
     beta <- UnifVar <$> fresh
-    row  <- Row.incomplete [Entry f beta True]
     sigil <- fresh
-    let alpha = Record row (UnknownSigil sigil)
+    recPar <- UnknownParameter <$> fresh
+    row  <- Row.incomplete [Entry f beta True]
+
+    let alpha = Record recPar row (UnknownSigil sigil)
     (e1', c1) <- cg e1 alpha
     (e2', c2) <- cg e2 beta
-    let c3 = Record (Row.put f row) (UnknownSigil sigil) :< tau
-    withSig (Put e1' f e2', c1 :&: c2 :&: c3)
+
+    let c0 = UnboxedNoRecurse alpha
+
+    let c3 = Record recPar (Row.put f row) (UnknownSigil sigil) :< tau
+
+    withSig (Put e1' f e2', c0 :&: c1 :&: c2 :&: c3)
 
   (Struct fs) -> do
     (fs', ts, cs) <- cgStruct fs
-    withSig (Struct fs', conjunction cs :&: Record (Row.fromList ts) Unboxed :< tau )
+    withSig (Struct fs', conjunction cs :&: Record None (Row.fromList ts) Unboxed :< tau )
 
   where
 
@@ -230,16 +247,19 @@ cg e tau = case e of
     withSig :: (Expr, Constraint) -> CG (Expr, Constraint)
     withSig (e, c) = pure (Sig e tau, c)
 
+    -- | Looks up a variable and increases it's usage count, adding the
+    --   constraint that it is shareable if it's been used more than once
     lookupVar :: VarName -> CG (Type, Constraint)
     lookupVar v = do
       (rho, used, ctx') <- use v <$> get
       put ctx'
       return (rho, if used then Share rho else Sat)
 
+
 -- | Used for constraint generation for top-level functions.
 --   Given a function name, argument name and a function body expression,
 --   return an annotated function body along with the constraint that would make
---   it well typed. Also included in the first componenet of the return value
+--   it well typed. Also included in the first component of the return value
 --   are the axioms (constraints placed by the user in the type signature)
 --   about polymorphic type variables.
 cgFunction :: FunName -> VarName -> Expr -> CG ([Constraint], Expr, Constraint)
@@ -256,4 +276,7 @@ cgFunction f x e = do
   let (c'',axs) = case M.lookup f (types envs) of
                        Nothing -> (Sat, [])
                        Just (Forall vs cs tau) -> (proposedType :< tau, cs)
+  -- Inferred constraints for return type 
+  -- && proposed function type is subtype of inferred function type
+  -- && Argument to function is used or droppable
   pure (axs, e', c :&: c'' :&: c')

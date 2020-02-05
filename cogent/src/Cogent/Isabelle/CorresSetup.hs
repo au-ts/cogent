@@ -79,8 +79,8 @@ cHeapTypeClass =
 
 localSetup :: String -> [String]
 localSetup cfile =
-  [ "local_setup {* local_setup_val_rel_type_rel_put_them_in_buckets \"" ++ cfile ++ "\" *}"
-  , "local_setup {* local_setup_instantiate_cogent_C_heaps_store_them_in_buckets \"" ++ cfile ++ "\" *}"
+  [ "local_setup \\<open> local_setup_val_rel_type_rel_put_them_in_buckets \"" ++ cfile ++ "\" \\<close>"
+  , "local_setup \\<open> local_setup_instantiate_cogent_C_heaps_store_them_in_buckets \"" ++ cfile ++ "\" \\<close>"
   ]
 
 locale :: String -> String -> [String]
@@ -105,7 +105,7 @@ locale thy cfile =
   , "  \"heap_rel_ptr = heap_rel_meta is_valid heap\""
   , "  by (simp add: heap_rel_ptr_def[abs_def] heap_rel_meta_def[abs_def])"
   , ""
-  , "local_setup {* local_setup_heap_rel \"" ++ cfile ++ "\" *}"
+  , "local_setup \\<open> local_setup_heap_rel \"" ++ cfile ++ "\" \\<close>"
   , ""
   , "definition state_rel :: \"((funtyp, abstyp, ptrtyp) store \\<times> lifted_globals) set\""
   , "where"
@@ -128,8 +128,8 @@ locale thy cfile =
   , ""
   , "(* Generating the specialised take and put lemmas *)"
   , ""
-  , "local_setup {* local_setup_take_put_member_case_esac_specialised_lemmas \"" ++ cfile ++ "\" *}"
-  , "local_setup {* fold tidy_C_fun_def' Cogent_functions *}"
+  , "local_setup \\<open> local_setup_take_put_member_case_esac_specialised_lemmas \"" ++ cfile ++ "\" \\<close>"
+  , "local_setup \\<open> fold tidy_C_fun_def' Cogent_functions \\<close>"
   , ""
   , "end (* of locale *)"
   ]

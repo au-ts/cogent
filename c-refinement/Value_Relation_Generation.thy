@@ -16,7 +16,7 @@ imports
   "Specialised_Lemma_Utils"
 begin
 
-ML{* (* val_rel_def *)
+ML\<open> (* val_rel_def *)
 local
 
 fun mk_rhs_pro _ (field_info:HeapLiftBase.field_info list) =
@@ -109,15 +109,15 @@ fun val_rel_def file_name uval ctxt =
  in lthy' end;
 
 end;
-*}
+\<close>
 
-ML{* fun guess_val_rel_type thm = case Thm.prop_of thm of
+ML\<open> fun guess_val_rel_type thm = case Thm.prop_of thm of
        Const ("Pure.eq", _) $ (val_rel $ uv $ x) $ rhs =>
          (case type_of x of
              Type (c_typ, _) => String.tokens (fn x => x = #".") c_typ
                                 |> filter (String.isSuffix "_C") |> take 1
            | _ => [])
      | _ => []
-*}
+\<close>
 
 end

@@ -1,0 +1,4 @@
+-- This is a Cogent implementation of square.
+
+square : U64 -> U64
+square x = x * x

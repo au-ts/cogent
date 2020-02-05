@@ -213,7 +213,7 @@ lemma list_all2_record_kind_subty_cons_drop:
   using assms
   by (simp add: list_all2_cons supersumption(1))
 
-ML {*
+ML \<open>
 
 structure TTyping_Tactics = struct
 
@@ -690,9 +690,9 @@ fun tactic_debug_tac ctxt tacs = let
 in inner 0 tacs end
 
 end (* end TTyping_Tactics *)
-*}
+\<close>
 
-ML {*
+ML \<open>
 val _ =
   Outer_Syntax.command @{command_keyword "ML_quiet"} "ML text within theory or local theory"
     (Parse.ML_source >> (fn source =>
@@ -700,6 +700,6 @@ val _ =
         (ML_Context.exec (fn () =>
             ML_Context.eval_source (ML_Compiler.verbose false ML_Compiler.flags) source) #>
           Local_Theory.propagate_ml_env)));
-*}
+\<close>
 
 end

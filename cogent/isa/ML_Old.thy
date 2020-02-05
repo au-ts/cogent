@@ -23,7 +23,7 @@ begin
 
 declare [[ML_debugger=true]]
 
-ML {*
+ML \<open>
   val schematic_term_setup =
   let
     val name_inner_syntax = Args.name_token >> Token.inner_syntax_of
@@ -37,11 +37,11 @@ ML {*
   in
     ML_Antiquotation.inline @{binding "schematic_term"} (parser >> schematic_term)
   end
-  *}
+  \<close>
 
-setup {* schematic_term_setup *}
+setup \<open> schematic_term_setup \<close>
 
-ML {*
+ML \<open>
   fun rtac rl = resolve0_tac [rl];
   fun etac rl = eresolve0_tac [rl];
 
@@ -49,9 +49,9 @@ ML {*
 
   fun forward0_tac rls = resolve0_tac (map make_elim rls) THEN' atac;
   fun ftac rl = forward0_tac [rl];
-*}
+\<close>
 
-ML {*
+ML \<open>
   fun gen_all maxidx0 th =
   let
     val thy = Thm.theory_of_thm th;
@@ -60,9 +60,9 @@ ML {*
     fun elim (x, T) =
       Thm.forall_elim (Thm.global_cterm_of thy (Var ((x, maxidx + 1), T)));
   in fold elim (Drule.outer_params prop) th end;
-*}
+\<close>
 
-ML {*
+ML \<open>
 fun debug_print_to_file pathstr s = File.write (Path.explode pathstr) s
 
 val LOG_FILE = Path.basic "TypeProofTactic.json"
@@ -105,6 +105,26 @@ fun logTacticOnUse (tacName : string) (tac : unit -> 'a) =
   in
      res
   end
-*}
+\<close>
+
+ML \<open>
+
+val permute_tac = PRIMITIVE oo Thm.permute_prems;
+
+fun distinct_tac (i, k) =
+  permute_tac 0 (i - 1) THEN
+  permute_tac 1 (k - 1) THEN
+  PRIMITIVE (fn st => Drule.comp_no_flatten (st, 0) 1 Drule.distinct_prems_rl) THEN
+  permute_tac 1 (1 - k) THEN
+  permute_tac 0 (1 - i);
+
+fun distinct_subgoal_tac i st =
+  (case drop (i - 1) (Thm.prems_of st) of
+    [] => no_tac st
+  | A :: Bs =>
+      st |> EVERY (fold (fn (B, k) =>
+        if A aconv B then cons (distinct_tac (i, k)) else I) (Bs ~~ (1 upto length Bs)) []));
+
+\<close>
 
 end

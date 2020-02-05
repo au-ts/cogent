@@ -81,6 +81,7 @@ import Control.Monad.Trans.Except (runExceptT)
 -- import Control.Monad.Cont
 -- import Control.Monad.Except (runExceptT)
 -- import Control.Monad.Trans.Either (eitherT, runEitherT)
+import Data.Binary (encodeFile, decodeFileOrFail)
 import Data.Char (isSpace)
 import Data.Either (isLeft, fromLeft)
 import Data.Foldable (fold, foldrM)
@@ -134,7 +135,6 @@ data Command = AstC
              | CorresSetup
              | CorresProof
              | Documentation
-             | CRefinement  -- !
              | Ast       Stage
              | Pretty    Stage
              | HsShallow
@@ -144,7 +144,6 @@ data Command = AstC
              | Shallow   Stage
              | ShallowTuples -- STGDesugar
              | SCorres   Stage
-             | Embedding Stage  -- ! (excl. HsShallow*)
              | ShallowConsts Stage
              | ShallowConstsTuples -- STGDesugar
              | TableCType
@@ -160,6 +159,8 @@ data Command = AstC
              | Root
              | BuildInfo
              | All  -- ! (excl. Hs stuff)
+             | CRefinement  -- !
+             | FunctionalCorrectness  -- !
              | QuickCheck  -- !
              | StdGumDir
              | Help Verbosity
@@ -248,7 +249,6 @@ setActions c@(Deep      stg) = setActions (Compile stg) ++ [c]
 setActions c@(Shallow   stg) = setActions (Compile stg) ++ [c]
 setActions c@(ShallowTuples) = setActions (Compile STGDesugar) ++ [c]
 setActions c@(SCorres   stg) = setActions (Compile stg) ++ [c]
-setActions c@(Embedding stg) = setActions (Compile stg) ++ [Deep stg, Shallow stg, SCorres stg]
 setActions c@(ShallowConsts stg) = setActions (Compile stg) ++ [c]
 setActions c@ShallowConstsTuples = setActions (Compile STGDesugar) ++ [c]
 setActions c@(TableShallow ) = setActions (Compile STGDesugar) ++ [c]
@@ -265,27 +265,38 @@ setActions c@(MonoProof    ) = setActions (Compile STGMono)    ++ [c]
 setActions c@(ACInstall    ) = setActions (Compile STGMono)    ++ [c]
 setActions c@(CorresSetup  ) = setActions (Compile STGMono)    ++ [c]
 setActions c@(CorresProof  ) = setActions (Compile STGMono)    ++ [c]
-setActions c@(CRefinement  ) = setActions (Compile STGMono)    ++ [ACInstall, CorresSetup, CorresProof]
 setActions c@(AllRefine    ) = setActions (Compile STGMono)    ++ [c]
 setActions c@(Root         ) = setActions (Compile STGMono)    ++ [c]  -- FIXME: can be earlier / zilinc
-setActions c@(BuildInfo    ) = setActions (Compile STGMono)    ++ [c]
+setActions c@(BuildInfo    ) = [c]
 setActions c@(GraphGen     ) = setActions (Compile STGMono)    ++ [c]
+-- NOTE: The --c-refinement flag generates almost all the things C refinement proof needs, but the
+-- proof is actually done in AllRefine, which also relies on the functional correctness proof. It
+-- means that, unfortunately, we can't simply split up the thing into two halves cleanly. We have to generate
+-- everything even when only part of it is needed. / zilinc
+setActions c@(CRefinement  ) = nub $ setActions (CodeGen) ++
+                                     setActions (Deep STGNormal) ++
+                                     setActions (Shallow STGNormal) ++
+                                     setActions (SCorres STGNormal) ++
+                                     setActions (TypeProof STGMono) ++
+                                     setActions (MonoProof) ++  -- although technically only needed for C-refinement,
+                                                                -- it's only invoked in AllRefine.
+                                     setActions (TableCType) ++
+                                     setActions (Root) ++
+                                     [ACInstall, CorresSetup, CorresProof, BuildInfo]
+setActions c@(FunctionalCorrectness) = nub $ setActions (ShallowTuplesProof) ++
+                                             setActions (NormalProof) ++
+                                             setActions (Root) ++
+                                             [BuildInfo]
 setActions c@(QuickCheck   ) = nub $ setActions (HsFFIGen) ++
                                      setActions (CodeGen) ++
                                      setActions (HsShallow) ++
                                      setActions (HsShallowTuples) ++
-                                     setActions (ShallowTuplesProof)
-setActions c@(All          ) = nub $ setActions (TableCType) ++
-                                     setActions (CodeGen) ++
                                      setActions (ShallowTuplesProof) ++
-                                     setActions (Embedding STGNormal) ++
-                                     setActions (TypeProof STGMono) ++
-                                     setActions (NormalProof) ++
-                                     setActions (MonoProof) ++
-                                     setActions (AllRefine) ++
+                                     [BuildInfo]
+setActions c@(All          ) = nub $ setActions (CodeGen) ++
                                      setActions (CRefinement) ++
-                                     setActions (Root) ++
-                                     setActions (BuildInfo)
+                                     setActions (FunctionalCorrectness) ++
+                                     setActions (AllRefine)
 setActions c = [c]  -- -h, -v
 
 type Flags = [IO ()]
@@ -329,11 +340,11 @@ options = [
   -- C
     Option []         ["ast-c"]           3 (NoArg AstC)                   "parse C file with Cogent antiquotation and print AST"
   -- stack usage
-  , Option ['u']      ["stack-usage"]     3 (OptArg StackUsage "FILE")     "parse stack usage .su file generated by gcc"
+  , Option []         ["stack-usage"]     3 (OptArg StackUsage "FILE")     "parse stack usage .su file generated by gcc"
   -- compilation
   , Option []         ["parse"]           0 (NoArg $ Compile STGParse)     "parse Cogent source code"
   , Option ['t']      ["typecheck"]       0 (NoArg $ Compile STGTypeCheck) "typecheck surface program"
-  , Option []         ["desugar"]         0 (NoArg $ Compile STGDesugar)   "desugar surface program and re-type it"
+  , Option ['d']      ["desugar"]         0 (NoArg $ Compile STGDesugar)   "desugar surface program and re-type it"
   , Option []         ["normal"]          0 (NoArg $ Compile STGNormal)    "normalise core language and re-type it"
   , Option []         ["simplify"]        1 (NoArg $ Compile STGSimplify)  "simplify core language and re-type it"
   , Option []         ["mono"]            0 (NoArg $ Compile STGMono)      "monomorphise core language and re-type it"
@@ -346,7 +357,7 @@ options = [
   , Option []         ["ast-simpl"]       2 (NoArg $ Ast STGSimplify)       (astMsg STGSimplify)
   , Option []         ["ast-mono"]        2 (NoArg $ Ast STGMono)           (astMsg STGMono)
   -- interpreter
-  , Option ['i']      ["repl"]            0 (NoArg $ Interpret)             "run Cogent REPL"
+  , Option ['i']      ["repl"]            1 (NoArg $ Interpret)             "run Cogent REPL"
   -- documentation
 #ifdef WITH_DOCGENT
   , Option []         ["docgent"]         2 (NoArg $ Documentation)         "generate HTML documentation"
@@ -354,9 +365,9 @@ options = [
   , Option []         ["docgent"]         2 (NoArg $ Documentation)         "generate HTML documentation [disabled in this build]"
 #endif
   -- pretty
-  , Option ['p']      ["pretty-parse"]    2 (NoArg $ Pretty STGParse)       (prettyMsg STGParse)
-  , Option []         ["pretty-tc"]       2 (NoArg $ Pretty STGTypeCheck)   (prettyMsg STGTypeCheck)
-  , Option ['c']      ["pretty-desugar"]  2 (NoArg $ Pretty STGDesugar)     (prettyMsg STGDesugar)
+  , Option []         ["pretty-parse"]    2 (NoArg $ Pretty STGParse)       (prettyMsg STGParse)
+  , Option ['T']      ["pretty-tc"]       2 (NoArg $ Pretty STGTypeCheck)   (prettyMsg STGTypeCheck)
+  , Option ['D']      ["pretty-desugar"]  2 (NoArg $ Pretty STGDesugar)     (prettyMsg STGDesugar)
   , Option []         ["pretty-normal"]   2 (NoArg $ Pretty STGNormal)      (prettyMsg STGNormal)
   , Option []         ["pretty-simpl"]    2 (NoArg $ Pretty STGSimplify)    (prettyMsg STGSimplify)
   , Option []         ["pretty-mono"]     2 (NoArg $ Pretty STGMono)        (prettyMsg STGMono)
@@ -374,22 +385,18 @@ options = [
 #endif
   -- deep
 
-  , Option ['D']      ["deep-desugar"]    1 (NoArg (Deep STGDesugar))       (deepMsg STGDesugar)
-  , Option ['N']      ["deep-normal"]     1 (NoArg (Deep STGNormal ))       (deepMsg STGNormal)
-  , Option ['M']      ["deep-mono"]       1 (NoArg (Deep STGMono   ))       (deepMsg STGMono)
+  , Option []         ["deep-desugar"]    1 (NoArg (Deep STGDesugar))       (deepMsg STGDesugar)
+  , Option []         ["deep-normal"]     1 (NoArg (Deep STGNormal ))       (deepMsg STGNormal)
+  , Option []         ["deep-mono"]       1 (NoArg (Deep STGMono   ))       (deepMsg STGMono)
   -- shallow
-  , Option ['d']      ["shallow-desugar"] 1 (NoArg (Shallow STGDesugar))    (shallowMsg STGDesugar False)
-  , Option ['n']      ["shallow-normal"]  1 (NoArg (Shallow STGNormal ))    (shallowMsg STGNormal  False)
-  , Option ['m']      ["shallow-mono"]    1 (NoArg (Shallow STGMono   ))    (shallowMsg STGMono    False)
+  , Option []         ["shallow-desugar"] 1 (NoArg (Shallow STGDesugar))    (shallowMsg STGDesugar False)
+  , Option []         ["shallow-normal"]  1 (NoArg (Shallow STGNormal ))    (shallowMsg STGNormal  False)
+  , Option []         ["shallow-mono"]    1 (NoArg (Shallow STGMono   ))    (shallowMsg STGMono    False)
   , Option []         ["shallow-desugar-tuples"] 1 (NoArg ShallowTuples)    (shallowMsg STGDesugar True)
   -- s-corres
   , Option []         ["scorres-desugar"] 1 (NoArg (SCorres STGDesugar))    (scorresMsg STGDesugar)
   , Option []         ["scorres-normal"]  1 (NoArg (SCorres STGNormal ))    (scorresMsg STGNormal)
   , Option []         ["scorres-mono"]    1 (NoArg (SCorres STGMono   ))    (scorresMsg STGMono)
-  -- embedding
-  , Option []         ["embedding-desugar"] 1 (NoArg (Embedding STGDesugar)) (embeddingMsg STGDesugar)
-  , Option []         ["embedding-normal"]  1 (NoArg (Embedding STGNormal )) (embeddingMsg STGNormal)
-  , Option []         ["embedding-mono"]    1 (NoArg (Embedding STGMono   )) (embeddingMsg STGMono)
   -- shallow consts
   , Option []         ["shallow-consts-desugar"] 1 (NoArg (ShallowConsts STGDesugar)) (shallowConstsMsg STGDesugar False)
   , Option []         ["shallow-consts-normal"]  1 (NoArg (ShallowConsts STGNormal )) (shallowConstsMsg STGNormal  False)
@@ -407,20 +414,22 @@ options = [
   , Option []         ["corres-proof"]      1 (NoArg CorresProof)         "generate Isabelle proof of c-refinement"
   -- type proof
   , Option []         ["type-proof-normal"] 1 (NoArg (TypeProof STGNormal)) "generate Isabelle proof of type correctness of normalised AST"
-  , Option ['P']      ["type-proof"]        1 (NoArg (TypeProof STGMono  )) "generate Isabelle proof of type correctness of normal-mono AST"
+  , Option []         ["type-proof"]        1 (NoArg (TypeProof STGMono  )) "generate Isabelle proof of type correctness of normal-mono AST"
+  -- top-level theory
+  , Option []         ["all-refine"]      1 (NoArg AllRefine)          "[COLLECTIVE] generate shallow-to-C refinement proof"
   -- misc.
   , Option []         ["root"]              1 (NoArg Root)                ("generate Isabelle " ++ __cogent_root_name ++ " file")
   , Option []         ["table-c-types"]     1 (NoArg TableCType)          "generate a table of Cogent and C type correspondence"
-  , Option []         ["table-shallow"]     2 (NoArg TableShallow)        "generate a table of type synonyms for shallow embedding"
-  , Option []         ["table-abs-func-mono"] 1 (NoArg TableAbsFuncMono)  "generate a table of monomorphised abstract functions"
-  , Option []         ["table-abs-type-mono"] 1 (NoArg TableAbsTypeMono)  "generate a table of monomorphised abstract types"
-  , Option ['G']      ["graph-gen"]       1 (NoArg GraphGen)              "generate graph for graph-refine"
-  , Option []         ["build-info"]      2 (NoArg BuildInfo)             ("generate " ++ __cogent_build_info_name ++ " file")
+  , Option []         ["table-shallow"]     1 (NoArg TableShallow)        "generate a table of type synonyms for shallow embedding"
+  , Option []         ["table-abs-func-mono"] 3 (NoArg TableAbsFuncMono)  "generate a table of monomorphised abstract functions"
+  , Option []         ["table-abs-type-mono"] 3 (NoArg TableAbsTypeMono)  "generate a table of monomorphised abstract types"
+  , Option ['G']      ["graph-gen"]       3 (NoArg GraphGen)              "generate graph for graph-refine"
+  , Option []         ["build-info"]      0 (NoArg BuildInfo)             ("log how cogent is being invoked by generating " ++ __cogent_build_info_name ++ " file; implied by any collective commands")
   -- top level
-  , Option ['r']      ["c-refinement"]    1 (NoArg CRefinement)        "[COLLECTIVE] implies --ac-install --corres-setup --corres-proof"
-  , Option []         ["all-refine"]      1 (NoArg AllRefine)          "[COLLECTIVE] generate shallow-to-C refinement proof"
+  , Option ['C']      ["c-refinement"]    0 (NoArg CRefinement)        "[COLLECTIVE] generate all files needed for the C refinement proof"
+  , Option ['F']      ["functional-correctness"] 0 (NoArg FunctionalCorrectness) "[COLLECTIVE] generate all files needed for the functional correctness proof"
   , Option ['A']      ["all"]             0 (NoArg All)                "[COLLECTIVE] generate everything"
-  , Option ['Q']      ["quickcheck"]      2 (NoArg QuickCheck)         "[COLLECTIVE] generate QuickCheck related artifacts"
+  , Option ['Q']      ["quickcheck"]      1 (NoArg QuickCheck)         "[COLLECTIVE] generate QuickCheck related artifacts"
   -- info.
   , Option []         ["stdgum-dir"]      0 (NoArg StdGumDir)          "display directory where standard gum headers are installed (can be set by COGENT_STD_GUM_DIR environment variable)"
   , Option ['h','?']  ["help"]            0 (OptArg (Help . maybe 1 read) "VERBOSITY")  "display help message (VERBOSITY=0..4, default to 1)"
@@ -432,7 +441,7 @@ flags =
   [
   -- names
     Option ['o']      ["output-name"]     1 (ReqArg set_flag_outputName "NAME")            "specify base name for output files (default is derived from source Cogent file)"
-  , Option ['y']      ["proof-name"]      1 (ReqArg set_flag_proofName "NAME")             "specify Isabelle theory file name (default is derived from source Cogent file)"
+  , Option []         ["proof-name"]      1 (ReqArg set_flag_proofName "NAME")             "specify Isabelle theory file name (default is derived from source Cogent file)"
   -- dir specification
   , Option []         ["abs-type-dir"]    1 (ReqArg set_flag_absTypeDir "PATH")            "abstract type definitions will be in $DIR/abstract/, which must exist (default=./)"
   , Option []         ["dist-dir"]        1 (ReqArg set_flag_distDir "PATH")               "specify path to all output files (default=./)"
@@ -444,6 +453,7 @@ flags =
   , Option []         ["ext-types"]      1 (ReqArg set_flag_extTypes "FILE")               "give external type names to C parser"
   , Option []         ["infer-c-funcs"]  1 (ReqArg (set_flag_inferCFunc . words) "FILE..") "infer Cogent abstract function definitions"
   , Option []         ["infer-c-types"]  1 (ReqArg (set_flag_inferCType . words) "FILE..") "infer Cogent abstract type definitions"
+  , Option []         ["name-cache"]     1 (ReqArg set_flag_nameCache "FILE")              "specify the name cache file to use"
   , Option []         ["proof-input-c"]  1 (ReqArg set_flag_proofInputC "FILE")            "specify input C file to generate proofs (default to the same base name as input Cogent file)"
   , Option []         ["type-proof-timing"] 1 (NoArg set_flag_proofTiming)                  "Log type proof timings in the generated isabelle embedding to ~/TypeProofTacticTiming.json"
   , Option []         ["prune-call-graph"] 2 (ReqArg set_flag_pruneCallGraph "FILE")       "specify Cogent entry-point definitions"
@@ -457,6 +467,7 @@ flags =
   , Option []         ["ddump-tc-ctx"]     3 (NoArg set_flag_ddumpTcCtx)                   "dump surface typechecking with context"
   , Option []         ["ddump-tc-filter"]  3 (ReqArg set_flag_ddumpTcFilter "KEYWORDS")    "a space-separated list of keywords to indicate which groups of info to display (gen, sol, post, tc)"
   , Option []         ["ddump-to-file"]    3 (ReqArg set_flag_ddumpToFile "FILE")          "dump debugging output to specific file instead of terminal"
+  , Option []         ["ddump-pretty-ds-no-tc"]  3 (NoArg set_flag_ddumpPrettyDsNoTc)                "dump the pretty printed desugared expression before typechecking"
   -- behaviour
   , Option []         ["fcheck-undefined"]    2 (NoArg set_flag_fcheckUndefined)           "(default) check for undefined behaviours in C"
   , Option ['B']      ["fdisambiguate-pp"]    3 (NoArg set_flag_fdisambiguatePp)           "when pretty-printing, also display internal representation as comments"
@@ -502,13 +513,13 @@ flags =
   , Option []         ["fpretty-errmsgs"]     3 (NoArg set_flag_fprettyErrmsgs)            "(default) pretty-print error messages (requires ANSI support)"
   , Option []         ["freverse-tc-errors"]  1 (NoArg set_flag_freverseTcErrors)          "Print type errors in reverse order"
   , Option []         ["fshare-linear-vars"]  2 (NoArg set_flag_fshareLinearVars)          "reuse C variables for linear objects"
-  , Option ['T']      ["fshow-types-in-pretty"] 2 (NoArg set_flag_fshowTypesInPretty)      "show inferred types of each AST node when doing pretty-printing"
+  , Option []         ["fshow-types-in-pretty"] 2 (NoArg set_flag_fshowTypesInPretty)      "show inferred types of each AST node when doing pretty-printing"
   , Option []         ["fsimplifier"]         1 (NoArg set_flag_fsimplifier)               "enable simplifier on core language"
   , Option []         ["fsimplifier-level"]   1 (ReqArg (set_flag_fsimplifierIterations . read) "NUMBER")  "number of iterations simplifier does (default=4)"
   , Option []         ["fstatic-inline"]      2 (NoArg set_flag_fstaticInline)             "(default) generate static-inlined functions in C"
   , Option []         ["ftuples-as-sugar"]    2 (NoArg set_flag_ftuplesAsSugar)            "(default) treat tuples as syntactic sugar to unboxed records, which gives better performance"
-  , Option ['C']      ["ftc-ctx-constraints"] 3 (NoArg set_flag_ftcCtxConstraints)         "display constraints in type errors"
-  , Option ['l']      ["ftc-ctx-len"]         1 (ReqArg (set_flag_ftcCtxLen . read) "NUMBER")   "set the depth for printing error context in typechecker (default=3)"
+  , Option []         ["ftc-ctx-constraints"] 3 (NoArg set_flag_ftcCtxConstraints)         "display constraints in type errors"
+  , Option []         ["ftc-ctx-len"]         3 (ReqArg (set_flag_ftcCtxLen . read) "NUMBER")   "set the depth for printing error context in typechecker (default=3)"
   , Option []         ["ftp-with-bodies"]     2 (NoArg set_flag_ftpWithBodies)             "(default) generate type proof with bodies"
   , Option []         ["ftp-with-decls"]      2 (NoArg set_flag_ftpWithDecls)              "(default) generate type proof with declarations"
   , Option []         ["funion-for-variants"] 2 (NoArg set_flag_funionForVariants)         "use union types for variants in C code (cannot be verified)"
@@ -534,7 +545,7 @@ flags =
   -- misc
   , Option ['q']      ["quiet"]            1 (NoArg set_flag_quiet)                        "do not display compilation progress"
   , Option ['x']      ["fdump-to-stdout"]  1 (NoArg set_flag_fdumpToStdout)                "dump all output to stdout"
-  , Option ['i']      ["interactive"]      3 (NoArg set_flag_interactive)                  "interactive compiler mode"
+  , Option []         ["interactive"]      3 (NoArg set_flag_interactive)                  "interactive compiler mode"
   , Option []         ["type-proof-sorry-before"]  1 (ReqArg set_flag_type_proof_sorry_before "FUN_NAME")            "bad hack: sorry all type proofs for functions that precede given function name"
   ]
 
@@ -663,6 +674,7 @@ parseArgs args = case getOpt' Permute options args of
       let stg = STGDesugar
       putProgressLn "Desugaring and typing..."
       let ((desugared,ctygen'),typedefs) = DS.desugar tced ctygen pragmas
+      when __cogent_ddump_pretty_ds_no_tc $ pretty stdout desugared
       case IN.tc desugared of
         Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
         Right (desugared',fts) -> do
@@ -685,7 +697,7 @@ parseArgs args = case getOpt' Permute options args of
       let stg = STGNormal
       putProgress "Normalising..."
       nfed' <- case __cogent_fnormalisation of
-        NoNF -> putProgressLn "Skipped" >> return desugared
+        NoNF -> putProgressLn "Skipped." >> return desugared
         nf -> do putProgressLn (show nf)
                  let nfed = NF.normal $ map untypeD desugared
                  if not $ verifyNormal nfed
@@ -783,7 +795,18 @@ parseArgs args = case getOpt' Permute options args of
           hscName = mkOutputName' toHsModName source (Just __cogent_suffix_of_ffi_types)
           hsName  = mkOutputName' toHsModName source (Just __cogent_suffix_of_ffi)
           cNames  = map (\n -> takeBaseName n ++ __cogent_suffix_of_pp ++ __cogent_suffix_of_inferred <.> __cogent_ext_of_c) __cogent_infer_c_func_files
-          (h,c,atm,ct,hsc,hs,genst) = cgen hName cNames hscName hsName monoed ctygen log
+      (mcache, decodingFailed) <- case __cogent_name_cache of
+        Nothing -> return (Nothing, False)
+        Just cacheFile -> do
+          cacheExists <- doesFileExist cacheFile
+          if not cacheExists
+            then putProgressLn ("No name cache file found: " ++ cacheFile) >> return (Nothing, False)
+            else do putProgressLn ("Using existing name cache file: " ++ cacheFile)
+                    decodeResult <- decodeFileOrFail cacheFile
+                    case decodeResult of
+                      Left (_, err) -> hPutStrLn stderr ("Decoding name cache file failed: " ++ err ++ ".\nNot using name cache.") >> return (Nothing, True)
+                      Right cache -> return (Just cache, False)
+      let (h,c,atm,ct,hsc,hs,genst) = cgen hName cNames hscName hsName monoed mcache ctygen log
       when (TableAbsTypeMono `elem` cmds) $ do
         let atmfile = mkFileName source Nothing __cogent_ext_of_atm
         putProgressLn "Generating table for monomorphised asbtract types..."
@@ -815,6 +838,10 @@ parseArgs args = case getOpt' Permute options args of
         output cf $ flip M.hPutDoc (ppr c </> M.line)       -- .c file gen
         unless (null $ __cogent_infer_c_func_files ++ __cogent_infer_c_type_files) $
           glue cmds tced tcst typedefs fts insts genst buildinfo log
+        forM_ __cogent_name_cache $ \cacheFile -> do
+          unless decodingFailed $ do
+            putProgressLn ("Writing name cache file: " ++ cacheFile)
+            encodeFile cacheFile genst
 
     c_refinement source monoed insts log (False,False,False) = return ()
     c_refinement source monoed insts log (ac,cs,cp) = do

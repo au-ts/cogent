@@ -21,6 +21,7 @@ OUTPUT=vfat
 SRC=src/super.cogent
 TYPES=data/types.txt
 DEFNS=data/defns.txt
+PROOF_ID=Vfat
 
 # GCC version
 GCCVER=$(shell gcc -dumpversion)

@@ -1,0 +1,5 @@
+type A
+type B
+
+swapDrop : all (a, b, c :< DS). (a, b, c) -> (b, a)
+swapDrop (a, b, c) = (b, a)

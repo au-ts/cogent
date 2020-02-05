@@ -10,17 +10,22 @@
 -- @TAG(DATA61_GPL)
 --
 
+{-# LANGUAGE DeriveGeneric #-}
 module Cogent.Common.Repr where
 
 import Cogent.Common.Syntax
 -- import qualified Cogent.Surface as S
 
+import Data.Binary (Binary)
 import qualified Data.Map as M
+import GHC.Generics (Generic)
 
 data Representation = Bits { allocSize :: Int, allocOffset :: Int } -- in bits 
                     | Variant { tagSize :: Int, tagOffset :: Int, alternatives :: M.Map TagName (Integer, Representation) }
                     | Record { fields :: M.Map FieldName Representation }
-                    deriving (Show, Eq, Ord)
+                    deriving (Show, Eq, Ord, Generic)
+
+instance Binary Representation
 
 -- Once we have repr in the surface lang, this can be removed.
 dummyRepr = Bits 0 0

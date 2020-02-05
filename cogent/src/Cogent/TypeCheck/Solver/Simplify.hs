@@ -23,6 +23,7 @@ onGoal f g = fmap (map (derivedGoal g)) (f (g ^. goal))
 
 unsat :: TypeError -> Maybe [Constraint]
 unsat x = Just [Unsat x]
+
 elseDie :: Bool -> TypeError -> Maybe [Constraint]
 elseDie b e = (guard b >> Just []) <|> unsat e 
 
@@ -31,19 +32,19 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
   Sat      -> Just []
   c1 :& c2 -> Just [c1,c2]
 
-  Drop   t@(T (TVar v False)) m
+  Drop   t@(T (TVar v False False)) m
     | Just k <- lookup v axs -> 
         canDiscard k `elseDie` TypeNotDiscardable t m
-  Share  t@(T (TVar v False)) m
+  Share  t@(T (TVar v False False)) m
     | Just k <- lookup v axs -> 
         canShare k   `elseDie` TypeNotShareable t m
-  Escape t@(T (TVar v False)) m
+  Escape t@(T (TVar v False False)) m
     | Just k <- lookup v axs -> 
         canEscape k  `elseDie` TypeNotEscapable t m
 
-  Drop     (T (TVar v True)) m -> Just []
-  Share    (T (TVar v True)) m -> Just []
-  Escape t@(T (TVar v True)) m -> unsat (TypeNotEscapable t m)
+  Drop     (T (TVar v b u)) m | b || u -> Just []
+  Share    (T (TVar v b u)) m | b || u -> Just []
+  Escape t@(T (TVar v True False)) m -> unsat (TypeNotEscapable t m)
 
   Drop   t@(T (TCon n ts s)) m ->
     not (writable s) `elseDie` TypeNotDiscardable t m
@@ -96,7 +97,7 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
   Upcastable (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed))
     | Just n' <- elemIndex n primTypeCons
     , Just m' <- elemIndex m primTypeCons
-    , n' <= m' , m /= "String" -> Just []
+    , n' <= m' , not (m `elem` ["String","Bool"]) -> Just []
 
   -- [amos] New simplify rule:
   -- If both sides of an equality constraint are equal, we can't completely discharge it; we need to make sure all unification variables in the type are instantiated at some point
@@ -107,6 +108,8 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
 
   Solved t | isSolved t -> Just []
 
+  IsPrimType (T (TCon x _ Unboxed)) | x `elem` primTypeCons -> Just []
+  
   T (TFun t1 t2) :=: T (TFun r1 r2) -> Just [r1 :=: t1, t2 :=: r2]
   T (TFun t1 t2) :<  T (TFun r1 r2) -> Just [r1 :<  t1, t2 :<  r2]
 
@@ -161,7 +164,6 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
         c  = R r1' s1 :=: R r2' s2
     Just (c:cs ++ ds)
 
-
   T t1 :< x | unorderedType t1 -> Just [T t1 :=: x]
   x :< T t2 | unorderedType t2 -> Just [x :=: T t2]
 
@@ -186,10 +188,9 @@ unorderedType (TArray {}) = False
 #endif
 unorderedType _ = True 
 
-
-
 untakenLabelsSet :: [Entry TCType] -> S.Set FieldName
 untakenLabelsSet = S.fromList . mapMaybe (\(l, (_,t)) -> guard (not t) >> pure l)
+
 isIrrefutable :: RawPatn -> Bool
 isIrrefutable (RP (PIrrefutable _)) = True
 isIrrefutable _ = False

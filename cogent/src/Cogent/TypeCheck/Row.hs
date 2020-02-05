@@ -22,8 +22,13 @@ module Cogent.TypeCheck.Row
   , compatible
   , null
   , justVar
-  , untakenTypes
+  , takenEntries
+  , untakenEntries
+  , takenLabels
   , untakenLabels
+  , takenTypes
+  , untakenTypes
+  , takenLabelsSet
   , untakenLabelsSet
   , typesFor
   , allTypes
@@ -109,17 +114,42 @@ compatible (Row m1 Nothing) (Row m2 (Just _)) = M.keysSet m2 `S.isSubsetOf` M.ke
 compatible (Row m1 (Just _)) (Row m2 Nothing) = M.keysSet m1 `S.isSubsetOf` M.keysSet m2
 compatible (Row m1 (Just x)) (Row m2 (Just y)) = x /= y || M.keysSet m1 == M.keysSet m2
 
--- | Returns all types not marked as 'Taken' in the row.
-untakenTypes :: Row t -> [t]
-untakenTypes = mapMaybe (\(_,(t, x)) -> guard (not x) >> Just t) . M.elems . entries
+-- | Returns a list of all mappings marked as 'Taken' in the row.
+takenEntries :: Row t -> M.Map FieldName (Entry t)
+takenEntries = M.filter (snd . snd) . entries
+
+-- | Returns all mappings not marked as 'Taken' in the row.
+untakenEntries :: Row t -> M.Map FieldName (Entry t)
+untakenEntries = M.filter (not . snd . snd) . entries
+
+
+-- | All labels marked as 'Taken' in the row.
+takenLabels :: Row t -> [FieldName]
+takenLabels = M.keys . takenEntries
 
 -- | All labels not marked as 'Taken' in the row.
 untakenLabels :: Row t -> [FieldName]
-untakenLabels = mapMaybe (\(t,(_, x)) -> guard (not x) >> Just t) . M.elems . entries
+untakenLabels = M.keys . untakenEntries
+
+
+-- | Returns all types marked as 'Taken' in the row.
+takenTypes :: Row t -> [t]
+takenTypes = M.elems . fmap (fst . snd) . takenEntries
+
+-- | Returns all types not marked as 'Taken' in the row.
+untakenTypes :: Row t -> [t]
+untakenTypes = M.elems . fmap (fst . snd) . untakenEntries
+
+
+-- | All labels marked as 'Taken' in the row.
+takenLabelsSet :: Row t -> S.Set FieldName
+takenLabelsSet = S.fromList . takenLabels
 
 -- | All labels not marked as 'Taken' in the row.
 untakenLabelsSet :: Row t -> S.Set FieldName
-untakenLabelsSet = S.fromList . mapMaybe (\(t,(_, x)) -> guard (not x) >> Just t) . M.elems . entries
+untakenLabelsSet = S.fromList . untakenLabels
+
+
 -- | Manipulate each entry inside a row. It is assumed that the given function
 --   does not change the field or constructor name in the entry. Don't do that.
 mapEntries :: (Entry t -> Entry t) -> Row t -> Row t
