@@ -129,7 +129,7 @@ Run the script with `-h` or `--help` for a more detailed explanation.
 ## Dependancies
 
 The test script depends on the following python modules:
-* [ruamel](https://yaml.readthedocs.io/en/latest/)
+* [ruamel.yaml](https://yaml.readthedocs.io/en/latest/)
 * [termcolor](https://pypi.org/project/termcolor/)
 
 ## Future improvements/feature suggestions

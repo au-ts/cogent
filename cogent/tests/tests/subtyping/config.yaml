@@ -1,4 +1,4 @@
-- test_name: subtyping-tests
+- test_name: pass-subtyping
   files: 
     - pass_none-subtyping.cogent
     - pass_subtyping-con-promote.cogent
@@ -12,4 +12,4 @@
     - sinkfloat_promotion_test.cogent
   expected_result: pass
   flags:
-    - --typecheck
+    - -t

@@ -1,0 +1,25 @@
+- test_name: pass-if
+  files:
+    - pass_if-prmt-int.cogent
+    - pass_multiway-if.cogent
+    - pass_multiway-if-linear.cogent
+  expected_result: pass
+  flags:
+    - -g
+
+- test_name: fail-if
+  files:
+    - fail_herp-if-non-arith.cogent
+    - fail_multiway-if-linear.cogent
+    - fail_multiway-if-no-else.cogent
+    - fail_multiway-if-one-branch.cogent
+  expected_result: fail
+  flags:
+    - -t
+
+- test_name: reftypes-if
+  files:
+    - wip_herp-if-if.cogent
+  expected_result: wip
+  flags:
+    - -g

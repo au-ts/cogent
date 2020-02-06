@@ -1,4 +1,4 @@
-- test_name: case-pass
+- test_name: pass-case
   files:
     - pass_case-default.cogent
     - pass_case-default-constructor.cogent
@@ -11,7 +11,7 @@
   flags:
     - "-g"
 
-- test_name: case-fail
+- test_name: fail-case
   files:
     - fail_unmatched-case.cogent
   expected_result: fail

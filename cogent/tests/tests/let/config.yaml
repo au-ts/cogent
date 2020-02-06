@@ -1,0 +1,22 @@
+- test_name: pass-let
+  files:
+    - pass_let-if.cogent
+    - pass_simple-let.cogent
+  expected_result: pass
+  flags:
+    - -g
+
+- test_name: fail-let
+  files:
+    - fail_let-upcast.cogent
+  expected_result: fail
+  flags:
+    - -t
+
+- test_name: wip-let
+  files:
+    - wip_let-let.cogent
+  expected_result: wip
+  flags:
+    - -g
+

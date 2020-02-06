@@ -1,0 +1,20 @@
+- test_name: pass-letbang
+  files: 
+    - pass_anormal-letbang.cogent
+    - pass_deep-letbang-on-tag-union.cogent
+    - pass_inline-func-letbang.cogent
+    - pass_letbang.cogent
+    - pass_letbang-cond-type-annot.cogent
+    - pass_letbang-not-escape-fix.cogent
+    - pass_letbang-not-used-in-subexpr.cogent
+  expected_result: pass
+  flags:
+    - -g
+
+- test_name: fail-letbang
+  files:
+    - fail_extra_letbang.cogent
+    - fail_letbang-not-escape.cogent
+  expected_result: fail
+  flags:
+    - -t
