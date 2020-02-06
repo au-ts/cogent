@@ -159,7 +159,7 @@ typDiscardVar rm0 t = case t of
   TString           -> pure TString
   TSum alts         -> TSum <$> mapM (secondM $ firstM go) alts
   TProduct t1 t2    -> TProduct <$> go t1 <*> go t2
-  TRecord fs s      -> TRecord <$> mapM (secondM $ firstM go) fs <*> pure s
+  TRecord rp fs s   -> TRecord rp <$> mapM (secondM $ firstM go) fs <*> pure s
   TUnit             -> pure TUnit
 #ifdef BUILTIN_ARRAYS
   TArray t l s mh   -> TArray <$> go t <*> pure l <*> pure s <*> mapM (lexpDiscardVar rm0) mh

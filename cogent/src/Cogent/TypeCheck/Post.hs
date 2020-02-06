@@ -196,8 +196,8 @@ normaliseT d (T (TLayout l t)) = do
   t' <- normaliseT d t
   env <- lift . lift $ use knownDataLayouts
   case t' of
-    (T (TRecord fs (Boxed p Nothing))) -> do
-      let normPartT = normaliseT d . T . TRecord fs
+    (T (TRecord rp fs (Boxed p Nothing))) -> do
+      let normPartT = normaliseT d . T . TRecord rp fs
       t'' <- normPartT Unboxed
       if isTypeLayoutExprCompatible env t'' l
         then normPartT . Boxed p $ Just l
@@ -227,10 +227,10 @@ normaliseT d (T (TCon n ts b)) =
       ts' <- mapM (normaliseT d) ts
       return $ T (TCon n ts' b)
 
-normaliseT d (T (TRecord l s)) = do
+normaliseT d (T (TRecord rp l s)) = do
   s' <- normaliseS s
   l' <- mapM ((secondM . firstM) (normaliseT d)) l
-  return (T (TRecord l' s'))
+  return (T (TRecord rp l' s'))
 
 #ifdef BUILTIN_ARRAYS
 normaliseT d (T (TArray t n s tkns)) = do
@@ -248,7 +248,7 @@ normaliseT d (V x) =
   map (\e -> (Row.fname e, ([Row.payload e], Row.taken e))) .
   Row.entries <$> traverse (normaliseT d) x
 normaliseT d (R rp x (Left s)) =
-  T . flip TRecord (unCoerceRp rp) (__fixme $ fmap (const Nothing) s) .
+  T . flip (TRecord $ unCoerceRp rp) (__fixme $ fmap (const Nothing) s) .
   map (\e -> (Row.fname e, (Row.payload e, Row.taken e))) .
   Row.entries <$> traverse (normaliseT d) x
 normaliseT d (R _ x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")

@@ -39,11 +39,11 @@ tyCanId = [decl|type CanId = { id : U32, eff : U32, rtr : U32, err : U32 }|]
 tyCanFrame = [decl|type CanFrame = { ident : CanId, prio : U8, dlc : U8, data : SArr }|]
 
 tyCanId' = let TypeDec n vs t = tyCanId
-               RT (TRecord fs _) = stripLocT t
-            in TypeDec n vs $ dummyLocT $ RT $ TRecord fs (Boxed False $ Just (Layout lCanId))
+               RT (TRecord rp fs _) = stripLocT t
+            in TypeDec n vs $ dummyLocT $ RT $ TRecord rp fs (Boxed False $ Just (Layout lCanId))
 tyCanFrame' = let TypeDec n vs t = tyCanFrame
-                  RT (TRecord fs _) = stripLocT t
-               in TypeDec n vs $ dummyLocT $ RT $ TRecord fs (Boxed False $ Just (Layout lCanFrame))
+                  RT (TRecord rp fs _) = stripLocT t
+               in TypeDec n vs $ dummyLocT $ RT $ TRecord rp fs (Boxed False $ Just (Layout lCanFrame))
 
 _b = Bits
 _B = Bytes

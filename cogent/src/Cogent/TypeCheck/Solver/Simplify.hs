@@ -140,9 +140,8 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
     , Just m' <- elemIndex m primTypeCons
     , n' <= m' , not (m `elem` ["String","Bool"]) -> hoistMaybe $ Just []
 
-  -- Dropping for recPars
-  -- TODO: Share? Escape?
-  Drop (T (TRPar _ True _)) m -> Just []
+  Drop  (T (TRPar _ True _)) m -> hoistMaybe $ Just []
+  Share (T (TRPar _ True _)) m -> hoistMaybe $ Just []
 
   -- [amos] New simplify rule:
   -- If both sides of an equality constraint are equal, we can't completely discharge it;

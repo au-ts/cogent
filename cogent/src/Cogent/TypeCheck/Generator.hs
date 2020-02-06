@@ -105,7 +105,7 @@ validateType (RT t) = do
 
     TRecord rp fs s | fields  <- map fst fs
                     , fields' <- nub fields
-                   -> let toRow (T (TRecord fs s)) = R (Row.complete $ Row.toEntryList fs) (Left (fmap (const ()) s))
+                   -> let toRow (T (TRecord fs s)) = R (coerceRP rp) (Row.complete $ Row.toEntryList fs) (Left (fmap (const ()) s))
                       in if fields' == fields
                            then case s of
                              Boxed _ (Just dlexpr)
@@ -113,8 +113,8 @@ validateType (RT t) = do
                                -> freshTVar >>= \t' -> return (Unsat $ DataLayoutError anError, t')
                              _ -> -- layout is good, or no layout
                                   -- We have to pattern match on 'TRecord' otherwise it's a type error.
-                                  do (c, TRecord fs' s') <- fmapFoldM validateType t
-                                     return (c, toRow . T $ TRecord fs' (fmap (fmap toTCDL) s'))
+                                  do (c, TRecord rp' fs' s') <- fmapFoldM validateType t
+                                     return (c, toRow . T $ TRecord rp' fs' (fmap (fmap toTCDL) s'))
                            else freshTVar >>= \t' -> return (Unsat $ DuplicateRecordFields (fields \\ fields'), t')
                     | otherwise -> (second T) <$> fmapFoldM validateType (TRecord rp fs (fmap (fmap toTCDL) s))
 

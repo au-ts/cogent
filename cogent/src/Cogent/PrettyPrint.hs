@@ -556,7 +556,7 @@ instance (Pretty t, TypeType t, Pretty e, Pretty l, Eq l) => Pretty (Type e l t)
 #ifdef REFINEMENT_TYPES
   pretty (TRefine v t e) = reftype (varname v) (pretty t) (pretty e)
 #endif
-  pretty (TRecord ts s) =
+  pretty (TRecord rp ts s) =
       let recordPretty = record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts) -- all untaken
           tk = map fst $ filter (snd . snd) ts
           tkUntkPretty = (if or $ map (snd . snd) ts
@@ -565,7 +565,7 @@ instance (Pretty t, TypeType t, Pretty e, Pretty l, Eq l) => Pretty (Type e l t)
           (sigilPretty, layoutPretty) = case s of
             Unboxed     -> ((typesymbol "#" <>), id)
             Boxed rw ml -> (if rw then (<> typesymbol "!") else id, case ml of Just l -> (<+> pretty l); _ -> id)
-       in pretty rp <+> layoutPretty . tkUntkPretty . sigilPretty $ recordPretty
+       in pretty rp <+> (layoutPretty . tkUntkPretty . sigilPretty $ recordPretty)
   pretty (TVariant ts) | any snd ts = let
      names = map fst $ filter (snd . snd) $ M.toList ts
    in pretty (TVariant $ fmap (second (const False)) ts :: Type e l t)
