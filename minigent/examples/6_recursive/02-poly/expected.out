@@ -1,18 +1,19 @@
 allocNode : [a]
             .
-            Unit -> mu t {l : <Cons {data : a,rest : rec t}#|Nil Unit> take};
+            Unit -> rec t {l : <Cons {data : a,rest : rec t}#|Nil Unit> take};
 createEmptyList : [a]
                   .
-                  U8 -> mu t {l : <Cons {data : a,rest : rec t}#|Nil Unit>};
+                  U8 -> rec t {l : <Cons {data : a,rest : rec t}#|Nil Unit>};
 createEmptyList a = let node = (allocNode[a] : Unit
-                                               -> mu t {l : <Cons {data : a
-                                                                  ,rest : rec t}#
-                                                            |Nil Unit> take}) (Unit : Unit) : mu t {l : <Cons {data : a
-                                                                                                              ,rest : rec t}#
-                                                                                                        |Nil Unit> take}
-                    in put node : mu t {l : <Cons {data : a,rest : rec t}#
-                                            |Nil Unit> take}.l := Nil (Unit : Unit) : <Cons {data : a
-                                                                                            ,rest : rec t}#
-                                                                                      |Nil Unit>
-                       end : mu t {l : <Cons {data : a,rest : rec t}#|Nil Unit>}
-                    end : mu t {l : <Cons {data : a,rest : rec t}#|Nil Unit>};
+                                               -> rec t {l : <Cons {data : a
+                                                                   ,rest : rec t}#
+                                                             |Nil Unit> take}) (Unit : Unit) : rec t {l : <Cons {data : a
+                                                                                                                ,rest : rec t}#
+                                                                                                          |Nil Unit> take}
+                    in put node : rec t {l : <Cons {data : a,rest : rec t}#
+                                             |Nil Unit> take}.l := Nil (Unit : Unit) : <Cons {data : a
+                                                                                             ,rest : rec t}#
+                                                                                       |Nil Unit>
+                       end : rec t {l : <Cons {data : a,rest : rec t}#
+                                        |Nil Unit>}
+                    end : rec t {l : <Cons {data : a,rest : rec t}#|Nil Unit>};

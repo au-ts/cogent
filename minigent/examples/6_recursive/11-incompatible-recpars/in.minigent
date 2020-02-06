@@ -1,9 +1,9 @@
-genTree : Unit -> mu t { f: < Leaf Unit | Node { left: t, right: t, data: U64 }# > };
+genTree : Unit -> rec t { f: < Leaf Unit | Node { left: t, right: t, data: U64 }# > };
 
-deallocList: mu t { l: < Nil Unit | Cons { data: U64, rest: t }# > } -> Unit;
+deallocList: rec t { l: < Nil Unit | Cons { data: U64, rest: t }# > } -> Unit;
 
-incompatible : mu t { l: < Nil Unit | Cons { data: U64, rest: t }# > } 
-            -> mu t { l: < Nil Unit | Cons { data: U64, rest: t }# > };
+incompatible : rec t { l: < Nil Unit | Cons { data: U64, rest: t }# > } 
+            -> rec t { l: < Nil Unit | Cons { data: U64, rest: t }# > };
 incompatible list =
   take emptyList { l = node } = list in
     case node of

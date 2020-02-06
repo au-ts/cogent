@@ -26,9 +26,9 @@ module Minigent.Syntax.Utils
     -- ** Applying rewrites
     traverseType
   , normaliseType
+  , sameRecursive
   , unroll
   , mapRecPars
-  , mapRecParsPT
   , -- ** Rewrites
     substUV
   , substRowV
@@ -42,7 +42,7 @@ module Minigent.Syntax.Utils
   , unorderedType
   , typeUVs
   , typeVariables
-  , muTypeVariables
+  , recursiveParameterNames
   , rigid
   , rootUnifVar
   , -- * Entries
@@ -72,8 +72,6 @@ import           Data.Maybe                     ( fromMaybe
 
 import qualified Data.Stream                   as S
 import qualified Data.Map                      as M
-
-import Debug.Trace
 
 -- | Returns true iff the given argument type is not subject to subtyping. That is, if @a :\< b@
 --   (subtyping) is equivalent to @a :=: b@ (equality), then this function returns true.
@@ -116,15 +114,15 @@ typeVariables t = typeVariables' t []
   typeVariables' (Bang t        ) mvs = typeVariables' t mvs
   typeVariables' _                _   = []
 
-muTypeVariables :: Type -> [VarName]
-muTypeVariables (Record mt r _) = case mt of Rec x -> [x]; _ -> []
-  ++ concatMap (\(Entry _ t _) -> muTypeVariables t) (Row.entries r)
-muTypeVariables (Variant r) =
-  concatMap (\(Entry _ t _) -> muTypeVariables t) (Row.entries r)
-muTypeVariables (AbsType _ _ ts) = concatMap muTypeVariables ts
-muTypeVariables (Function t1 t2) = muTypeVariables t1 ++ muTypeVariables t2
-muTypeVariables (Bang t        ) = muTypeVariables t
-muTypeVariables _                = []
+recursiveParameterNames :: Type -> [VarName]
+recursiveParameterNames (Record mt r _) = case mt of Rec x -> [x]; _ -> []
+  ++ concatMap (\(Entry _ t _) -> recursiveParameterNames t) (Row.entries r)
+recursiveParameterNames (Variant r) =
+  concatMap (\(Entry _ t _) -> recursiveParameterNames t) (Row.entries r)
+recursiveParameterNames (AbsType _ _ ts) = concatMap recursiveParameterNames ts
+recursiveParameterNames (Function t1 t2) = recursiveParameterNames t1 ++ recursiveParameterNames t2
+recursiveParameterNames (Bang t        ) = recursiveParameterNames t
+recursiveParameterNames _                = []
 
 
 -- | Returns @True@ unless the given type is a unification variable or a type operator
@@ -192,18 +190,18 @@ entryTypes func (Entry f t k) = Entry f (func t) k
 constraintTypes :: (Type -> Type) -> Constraint -> Constraint
 constraintTypes func constraint = go constraint
   where
-    go (c1 :&: c2)          = go c1 :&: go c2
-    go (i :<=: t)           = i :<=: func t
-    go (Share     t)        = Share     (func t)
-    go (Drop      t)        = Drop      (func t)
-    go (Escape    t)        = Escape    (func t)
-    go (Exhausted t)        = Exhausted (func t)
-    go (t1  :<  t2 )        = func t1 :< func t2
-    go (t1  :=: t2 )        = func t1 :=: func t2
-    go (Solved t)           = Solved $ func t
-    go Sat                  = Sat
-    go (UnboxedNoRecurse t) = UnboxedNoRecurse $ func t
-    go Unsat                = Unsat
+    go (c1 :&: c2)             = go c1 :&: go c2
+    go (i :<=: t)              = i :<=: func t
+    go (Share     t)           = Share     (func t)
+    go (Drop      t)           = Drop      (func t)
+    go (Escape    t)           = Escape    (func t)
+    go (Exhausted t)           = Exhausted (func t)
+    go (t1  :<  t2 )           = func t1 :< func t2
+    go (t1  :=: t2 )           = func t1 :=: func t2
+    go (Solved t)              = Solved $ func t
+    go Sat                     = Sat
+    go (UnboxedNoRecurse rp s) = Sat
+    go Unsat                   = Unsat
 
 
 -- | Given a function that acts on 'Type' values, produce a function
@@ -271,30 +269,35 @@ normaliseType func ty =
       _      -> t'
 
 
--- | Unrolls a recursive parameter to the record it references
-unroll :: Type -> Type
-unroll (RecPar n ctxt) = mapRecPars ctxt (ctxt M.! n)
--- TODO: Should this be an error?
-unroll t = trace "Warning: Unroll called on type that is not a recursive parameter" t
+-- | Checks if two recursive parameter bindings are the same type
+sameRecursive :: RecPar -> RecPar -> Bool
+sameRecursive (Rec _) (Rec _) = True
+sameRecursive None    None    = True
+sameRecursive _       _       = False
 
--- | Given a PolyType definition, changes all recursive parameter references from TypeVar to RecPar 
-mapRecParsPT :: PolyType -> PolyType
-mapRecParsPT (Forall vs cs t) = Forall vs cs $ mapRecPars M.empty t
+-- | Unrolls a recursive parameter to the record it references
+unroll :: RecParName -> RecContext -> Type
+unroll n (Just ctxt) = mapRecPars (Just ctxt)  (ctxt M.! n)
+-- TODO: Should this be an error?
+unroll _ _ = error "Impossible: cannot unroll a recursive parameter with an empty context"
 
 -- | Given a context, changes all recursive parameter references from TypeVar to RecPar according to the context
-mapRecPars :: M.Map VarName Type -> Type -> Type
-mapRecPars rp (AbsType n s ts)   = AbsType n s $ map (mapRecPars rp) ts
-mapRecPars rp (Variant row)      = Variant $ Row.mapEntries (\(Entry n t tk) -> Entry n (mapRecPars rp t) tk) row
-mapRecPars rp (Bang t)           = Bang $ mapRecPars rp t
-mapRecPars rp tv@(TypeVar v)     = if M.member v rp then (RecPar     v rp) else tv
-mapRecPars rp tv@(TypeVarBang v) = if M.member v rp then (RecParBang v rp) else tv
-mapRecPars rp r@(Record par row s) = 
+mapRecPars :: RecContext -> Type -> Type
+mapRecPars ctxt (AbsType n s ts)   = AbsType n s $ map (mapRecPars ctxt) ts
+mapRecPars ctxt (Variant row)      = Variant $ Row.mapEntries (\(Entry n t tk) -> Entry n (mapRecPars ctxt t) tk) row
+mapRecPars ctxt (Bang t)           = Bang $ mapRecPars ctxt t
+mapRecPars ctxt (RecPar n Nothing    ) = RecPar n ctxt
+mapRecPars ctxt (RecParBang n Nothing) = RecParBang n ctxt
+mapRecPars ctxt (RecPar n _    ) = error "Impossible: mapRecPars found a recursive parameter with a context inside a context"
+mapRecPars ctxt (RecParBang n _) = error "Impossible: mapRecPars found a recursive parameter (banged) with a context inside a context"
+mapRecPars (Just ctxt) r@(Record par row s) = 
   Record par (Row.mapEntries (\(Entry n t tk) -> Entry n (mapRecPars (addRecPar par) t) tk) row) s
-  where addRecPar p = case p of
-                        Rec v -> (M.insert v r rp)
-                        _ -> rp
-mapRecPars rp (Function a b) = Function (mapRecPars rp a) (mapRecPars rp b)
+  where addRecPar p = Just $ case p of
+                        Rec v -> (M.insert v r ctxt)
+                        _ -> ctxt
+mapRecPars ctxt (Function a b) = Function (mapRecPars ctxt a) (mapRecPars ctxt b)
 mapRecPars _ t = t
+
 
 
 -- | A rewrite that substitutes a given unification type variable for a type term in a type.

@@ -49,7 +49,7 @@ prettySigil (UnknownSigil s)  = annotate S.sigil (pretty s)
 prettySigil _ = mempty
 
 prettyRecPar None                 = mempty
-prettyRecPar (Rec x)              = annotate S.typeVar (annotate S.keyword "mu" <+> pretty x) <+> mempty
+prettyRecPar (Rec x)              = annotate S.typeVar (annotate S.keyword "rec" <+> pretty x) <+> mempty
 prettyRecPar (UnknownParameter x) = annotate S.unifVar (pretty x) <+> mempty
 
 prettyVRow r@(Row _ Nothing)  = encloseSep langle rangle pipe (map prettyVEntry (Row.entries r))
@@ -207,7 +207,8 @@ prettySimpleConstraint c = case c of
   (t1 :=:   t2) -> prettyType t1 <+> annotate S.constraintKeyword ":=:" <+> prettyType t2
   (Sat)         -> annotate S.constraintKeyword "Sat"
   (Unsat)       -> annotate S.constraintKeyword "Unsat"
-  (UnboxedNoRecurse t)       -> annotate S.constraintKeyword "UnboxedNoRecurse" <+> prettyType t
+  (UnboxedNoRecurse rp s)
+                -> annotate S.constraintKeyword "UnboxedNoRecurse" <+> parens (prettyRecPar rp) <+> parens (prettySigil s)
   _             -> error "prettySimpleConstraint called on non-simple constraint"
 
 prettyConstraint cs  = vsep (punctuate (space <> annotate S.constraintKeyword ":&:")

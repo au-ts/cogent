@@ -16,11 +16,13 @@ module Minigent.Syntax
     VarName
   , FunName
   , ConName
+  , RecParName
   , AbsTypeName
   , FieldName
   , -- * Types
     Type (..)
   , Sigil (..)
+  , RecContext
   , RecPar (..)
   , PrimType (..)
   , -- ** Entries and Rows
@@ -56,6 +58,7 @@ type FieldName = String
 type VarName = String
 type ConName = String
 type FunName = String
+type RecParName = String
 type AbsTypeName = String
 
 -- | A field or alternative is marked /taken/ if it is unpacked with a 'Take' expression
@@ -91,12 +94,19 @@ data Row
     , rowVar :: Maybe VarName -- ^ Used only in type inference.
     } deriving (Show, Eq)
 
+-- | A recursive context.
+--   Maps a recursive parameter name to the record type which binds it
+--   Recursive parameters that exist within the context should have 'Nothing' as their
+--   context, to prevent infinite unrolling of the context.
+type RecContext = Maybe (M.Map RecParName Type)
+
 -- | A recursive parameter type, for embedding in front of records.
--- Uses of the parameter inside the embedded record can be treated as recursively
--- referencing the record
+--   Uses of the parameter inside the embedded record can be treated as recursively
+--   referencing the record
 data RecPar
-  = None | Rec VarName
-  | UnknownParameter VarName -- ^ Used only in type inference
+  = None           -- ^ A regular non-recursive record
+  | Rec RecParName -- ^ A recursive record
+  | UnknownParameter RecParName -- ^ Used only in type inference (a unification variable)
   deriving (Show, Eq)
 
 -- | A type, which may contain unification variables or type operators.
@@ -108,8 +118,8 @@ data Type
   | TypeVar VarName -- ^ Refers to a rigid type variable bound with a forall.
   | TypeVarBang VarName -- ^ A 'TypeVar' with 'Bang' applied.
   -- ^ Refers to a recursive parameter, with the context of it's recursive references for Unrolling
-  | RecPar VarName (M.Map VarName Type)  
-  | RecParBang VarName (M.Map VarName Type) -- ^ A 'RecPar' with 'Bang' applied.
+  | RecPar VarName RecContext     -- ^ A recursive parameter.
+  | RecParBang VarName RecContext -- ^ A 'RecPar' with 'Bang' applied.
   | Function Type Type
   -- used in type inference:
   | UnifVar VarName -- ^ Stands for an unknown type
@@ -171,7 +181,7 @@ data Constraint
   | Escape Type                   -- ^ The given type can be safely bound in a 'LetBang' expression
   | Exhausted Type                -- ^ The given type is a variant type where all entries are 'Taken'.
   | Solved Type                   -- ^ Constraint is satisfied when the type has no unification variables.
-  | UnboxedNoRecurse Type         -- ^ Satisfied when either Sigil is Unboxed, or is boxed and RecPar is None
+  | UnboxedNoRecurse RecPar Sigil -- ^ Satisfied when either Sigil is boxed, or is unboxed and RecPar is None
   | Sat            -- ^ Trivially true.
   | Unsat          -- ^ Trivially false.
   deriving (Show, Eq)
