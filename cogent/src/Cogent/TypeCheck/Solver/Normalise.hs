@@ -101,10 +101,11 @@ normaliseRWT = rewrite' $ \case
        in pure $ A t l s (Left Nothing)
 #endif
 
-    T (TLayout l (R row (Left (Boxed p _)))) ->
-      pure $ R row $ Left $ Boxed p (Just l)
-    T (TLayout l (R row (Right i))) ->
+    T (TLayout l (R rp row (Left (Boxed p _)))) ->
+      pure $ R rp row $ Left $ Boxed p (Just l)
       __impossible "normaliseRWT: TLayout over a sigil variable (R)"
+    T (TLayout l (R _ row (Right i))) ->
+      __impossible "normaliseRW: TLayout over a sigil variable (R)"
 #ifdef BUILTIN_ARRAYS
     T (TLayout l (A t n (Left (Boxed p _)) tkns)) ->
       pure $ A t n (Left (Boxed p (Just l))) tkns

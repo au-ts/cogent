@@ -590,8 +590,8 @@ desugarType = \case
     --     explicitly sort them here, otherwise @p10@ will be following @p9@ instead of @p1@.
     fs <- L.sortOn fst . P.zipWith (\n t -> (n,(t, False))) ns <$> forM ts desugarType
     return $ TRecord NonRec fs Unboxed
-  S.RT (S.TUnit)     -> return TUnit
-  S.RT (S.TRPar v b m) -> do
+  B.DT (S.TUnit)     -> return TUnit
+  B.DT (S.TRPar v b m) -> do
     m' <- mapM id (fmap (\x -> mapM id (M.map desugarType x)) m)
     return $ __fixme {- Dodgy hack: RecPar's 'Banged' field is ignored -} (TRPar v m')
 #ifdef BUILTIN_ARRAYS

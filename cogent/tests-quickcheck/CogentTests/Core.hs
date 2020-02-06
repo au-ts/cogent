@@ -16,22 +16,22 @@ import Cogent.Core
 import Test.QuickCheck
 import "cogent" Data.Nat (Nat(..))
 import Cogent.Common.Syntax (FieldName, TagName, RepName, Size)
-import Cogent.Common.Types (Sigil (..), PrimInt (..))
+import Cogent.Common.Types (Sigil (..), PrimInt (..), RecursiveParameter (..))
 import Cogent.Compiler (__fixme)
 
 genConName :: Gen TagName
 genConName = (:) <$> elements ['A'..'Z'] <*> listOf (elements (['A'..'Z'] ++ ['a'..'z'] ++ ['0'..'9']))
 
-
 genLayoutableType :: Int -> Gen (Type 'Zero b)
 genLayoutableType size = 
 	oneof
-	[ TCon     <$> genConName <*> pure [] <*> (Boxed <$> arbitrary <*> pure ())
-	, TPrim    <$> arbitrary
-	, TSum     <$> resize size (listOf (genLayoutableAlternative size))
-	, TRecord  <$> resize size (listOf (genLayoutableField size)) <*> pure (__fixme Unboxed)
+	[ TCon            <$> genConName <*> pure [] <*> (Boxed <$> arbitrary <*> pure ())
+	, TPrim           <$> arbitrary
+	, TSum            <$> resize size (listOf (genLayoutableAlternative size))
+	, TRecord NonRec  <$> resize size (listOf (genLayoutableField size)) <*> pure (__fixme Unboxed)
 		-- ^ If size == 0, no recursive call will happen as it generates an empty list
 		-- ^ FIXME: Need to sometimes generate Boxed TProducts with DataLayout coming from Cogent.Desugar (constructLayout) /mdimgelio
+		-- ^ FIXME: Needs to generate recursive types properly and generate recursive parameters only if inside a recursive record. /emmet-m
 	, pure TUnit
 	]
 	where

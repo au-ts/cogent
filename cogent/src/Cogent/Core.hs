@@ -82,7 +82,7 @@ data Type t b
   | TRecord RecursiveParameter [(FieldName, (Type t b, Bool))] (Sigil (DataLayout BitRange))
     -- True means taken, Layout will be nothing for abstract types
   | TUnit
-  | TRPar RecParName (RecContext (Type t))
+  | TRPar RecParName (RecContext (Type t b))
 -- #ifdef BUILTIN_ARRAYS
   | TArray (Type t b) (LExpr t b) (Sigil (DataLayout BitRange)) (Maybe (LExpr t b))  -- the hole
   | TRefine (Type t b) (LExpr t b)
@@ -116,11 +116,11 @@ isUnboxed (TRefine t _) = isUnboxed t
 #endif
 isUnboxed _ = False
 
-unroll :: RecParName -> RecContext (Type t) -> Type t
+unroll :: RecParName -> RecContext (Type t b) -> Type t b
 unroll v (Just ctxt) = erp (Just ctxt) (ctxt M.! v)
   where
     -- Embed rec pars
-    erp :: RecContext (Type t) -> Type t -> Type t
+    erp :: RecContext (Type t b) -> Type t b -> Type t b
     erp c (TCon n ts s) = TCon n (map (erp c) ts) s
     erp c (TFun t1 t2) = TFun (erp c t1) (erp c t2)
     erp c (TSum r) = TSum $ map (\(a,(t,b)) -> (a, (erp c t, b))) r

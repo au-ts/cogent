@@ -104,7 +104,7 @@ data TypeError = FunctionNotFound VarName
                | PutToNonRecordOrVariant    (Maybe [FieldName]) TCType
                | TakeNonExistingField FieldName TCType
                | PutNonExistingField  FieldName TCType
-               | RecursiveUnboxedRecord RecursiveParameter (Sigil RepExpr) -- A record that is unboxed yet has a recursive parameter
+               | RecursiveUnboxedRecord RecursiveParameter (Sigil (Maybe DataLayoutExpr)) -- A record that is unboxed yet has a recursive parameter
                | DiscardWithoutMatch TagName
                | RequiredTakenTag TagName
 #ifdef BUILTIN_ARRAYS
@@ -343,10 +343,10 @@ coerceRP :: RecursiveParameter -> RP
 coerceRP (Rec v) = Mu v
 coerceRP NonRec  = None 
 
-unCoerceRp :: RP -> RecursiveParameter
-unCoerceRp (Mu v) = Rec v
-unCoerceRp None   = NonRec
-unCoerceRp (UP i) = __impossible $ "Tried to coerce unification parameter (?" ++ show i ++ ") in core recursive type to surface recursive type"
+unCoerceRP :: RP -> RecursiveParameter
+unCoerceRP (Mu v) = Rec v
+unCoerceRP None   = NonRec
+unCoerceRP (UP i) = __impossible $ "Tried to coerce unification parameter (?" ++ show i ++ ") in core recursive type to surface recursive type"
 
 sameRecursive :: RP -> RP -> Bool
 sameRecursive (Mu _) (Mu _) = True
@@ -524,18 +524,18 @@ rawToDepType (RT t) = DT $ go t
   where go :: Type RawExpr DataLayoutExpr RawType -> Type RawTypedExpr DataLayoutExpr DepType
         go t = let f = rawToDepType
                 in case t of
-                     TCon tn ts s  -> TCon tn (fmap f ts) s
-                     TVar v b u    -> TVar v b u
-                     TRecord fs s  -> TRecord (fmap (second $ first f) fs) s
-                     TVariant alts -> TVariant (fmap (first $ fmap f) alts)
-                     TTuple ts     -> TTuple $ fmap f ts
-                     TUnit         -> TUnit
-                     TUnbox t      -> TUnbox $ f t
-                     TBang t       -> TBang $ f t
-                     TTake mfs t   -> TTake mfs $ f t
-                     TPut mfs t    -> TPut mfs $ f t
-                     TLayout l t   -> TLayout l $ f t
-                     _             -> __impossible $ "rawToDepType: we don't allow higher-order refinement types"
+                     TCon tn ts s    -> TCon tn (fmap f ts) s
+                     TVar v b u      -> TVar v b u
+                     TRecord rp fs s -> TRecord rp (fmap (second $ first f) fs) s
+                     TVariant alts   -> TVariant (fmap (first $ fmap f) alts)
+                     TTuple ts       -> TTuple $ fmap f ts
+                     TUnit           -> TUnit
+                     TUnbox t        -> TUnbox $ f t
+                     TBang t         -> TBang $ f t
+                     TTake mfs t     -> TTake mfs $ f t
+                     TPut mfs t      -> TPut mfs $ f t
+                     TLayout l t     -> TLayout l $ f t
+                     _               -> __impossible $ "rawToDepType: we don't allow higher-order refinement types"
 
 toRawTypedExpr :: TypedExpr -> RawTypedExpr
 toRawTypedExpr (TE t e l) = TE (toRawType' t) (fffffmap toRawType' $ ffffmap (fmap toRawType') $ fffmap (fmap toRawType') $ fmap (fmap toRawType') e) l
@@ -852,8 +852,8 @@ isTypeLayoutExprCompatible env (T (TCon n [] Unboxed)) (TLPrim rs) =
             "U64" -> 64
             "Bool" -> 1)
    in s' <= s
-isTypeLayoutExprCompatible env (T (TRecord fs1 Boxed{})) (TLPtr) = True
-isTypeLayoutExprCompatible env (T (TRecord fs1 Unboxed)) (TLRecord fs2) =
+isTypeLayoutExprCompatible env (T (TRecord _ fs1 Boxed{})) (TLPtr) = True
+isTypeLayoutExprCompatible env (T (TRecord _ fs1 Unboxed)) (TLRecord fs2) =
   all
     (\((n1,(t,_)),(n2,_,l)) -> n1 == n2 && isTypeLayoutExprCompatible env t l)
     (zip (sortOn fst fs1) (sortOn fst3 fs2))
