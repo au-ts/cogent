@@ -8,6 +8,8 @@
 -- @TAG(NICTA_GPL)
 --
 
+#include "debug.cogent.h"
+
 -- last field overloaded for Break type too
 type FindFreeInoAcc = (SysState, FsState, U32)
 type FindFreeInoBrk = R (U32, U32, Ext2GroupDescriptor, OSBuffer) ()

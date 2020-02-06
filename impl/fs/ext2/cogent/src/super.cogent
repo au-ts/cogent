@@ -48,6 +48,8 @@ include "iwrite.cogent"
 include "debug.cogent"
 include "test.cogent"
 
+#include "debug.cogent.h"
+
 ---------------------------------------------------------------
 
 -- in-memory version of superblock

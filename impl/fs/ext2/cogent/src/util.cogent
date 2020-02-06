@@ -8,6 +8,8 @@
 -- @TAG(NICTA_GPL)
 --
 
+#include "debug.cogent.h"
+
 dbg_EXT2_INODE: U32
 dbg_EXT2_INODE = 1
 

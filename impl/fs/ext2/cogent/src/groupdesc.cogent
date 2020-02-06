@@ -8,6 +8,8 @@
 -- @TAG(NICTA_GPL)
 --
 
+#include "debug.cogent.h"
+
 type Ext2GroupDescriptor = #{
     block_bitmap        : U32,
     inode_bitmap        : U32,

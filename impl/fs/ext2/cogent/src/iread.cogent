@@ -8,6 +8,8 @@
 -- @TAG(NICTA_GPL)
 --
 
+#include "debug.cogent.h"
+
 -- if this fails, try (SysState, VfsInode) and return Success from caller
 deserialise_Ext2Inode_2: (SysState, VfsInode, U32) -> RR (SysState) VfsInode (VfsInode take fs)
 deserialise_Ext2Inode_2 (ex, inode, mode) =
@@ -164,7 +166,7 @@ deserialise_Inode (ex, buf, offset, num) =
             let ex = vfs_inode_bad_taken #{ex, inode = inode_t}
             in (ex, Error ())       
     | None () ->
-        let _ = cogent_warn "deserialise_Inode: VFS gave us no inode (no memory?)"
+        let _ = cogent_warn ("deserialise_Inode: VFS gave us no inode (no memory?)")
         in (ex, Error ()) -- eNoMem
 
 
@@ -215,9 +217,9 @@ ext2_inode_get_buf (ex, state, inode_num) =
                 and _ = cogent_log (dbg_EXT2_INODE_READ, "\n")
                 in ((ex, state), Error eIO)
         | Error () ->
-            let _ = cogent_warn "ext2_inode_get_buf: couldn't get group descriptor\n"
-            and _ = cogent_warn_u32 block_group_num
-            and _ = cogent_warn "\n"
+            let _ = cogent_warn ("ext2_inode_get_buf: couldn't get group descriptor\n")
+            and _ = cogent_warn_u32 (block_group_num)
+            and _ = cogent_warn ("\n")
 
             in ((ex, state), Error eIO)
     else

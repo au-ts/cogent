@@ -8,6 +8,8 @@
 -- @TAG(NICTA_GPL)
 --
 
+#include "debug.cogent.h"
+
 type DirentsInPageAcc = (SysState, Option Ext2DirEnt, OSPageBuffer, VfsDirContext, U64)
 type DirentsInPageAccNoDEnt = (SysState, OSPageBuffer, VfsDirContext, U64)
 type DirentsInPageObsv = U64
