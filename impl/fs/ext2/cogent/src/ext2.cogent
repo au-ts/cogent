@@ -8,6 +8,8 @@
 -- @TAG(NICTA_GPL)
 --
 
+#include "debug.cogent.h"
+
 type Ext2Inode = {
     mode                : U16,
     uid_low             : U16,

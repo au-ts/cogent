@@ -8,6 +8,8 @@
 -- @TAG(NICTA_GPL)
 --
 
+#include "debug.cogent.h"
+
 serialise_ext2_VfsInode: (SysState, FsState!, OSBuffer, VfsInode!, U32, Bool) -> RR (SysState) (OSBuffer, U32) (OSBuffer, U32)
 serialise_ext2_VfsInode (ex, state, buf, inode, idx, sync) =
     let uid = vfs_inode_get_uid (inode)
@@ -259,29 +261,29 @@ fsop_inode_free (ex, state, inode_t) =
                         let ((ex, state), _) = put_group_desc_buf_in_array (ex, state, group, group_buf)
                         in fsop_inode_free2 (ex, state, inode_t)
                 | _ ->
-                    let _ = cogent_warn "fsop_inode_free: ERROR: bit already cleared for ino "
+                    let _ = cogent_warn ("fsop_inode_free: ERROR: bit already cleared for ino ")
                     and _ = cogent_warn_u32 (vfs_inode_get_ino2 (inode_t)) !inode_t
-                    and _ = cogent_warn "\n"
+                    and _ = cogent_warn ("\n")
 
                     and ex = osbuffer_destroy (ex, bitmap_buf)
                     and ((ex, state), _) = put_group_desc_buf_in_array (ex, state, group, group_buf)
                     in (ex, state, inode_t)
             | Error () ->
-                let _ = cogent_warn "fsop_inode_free: ERROR: failed to get inode bitmap block "
-                and _ = cogent_warn_u32 group_desc.inode_bitmap !group_desc
-                and _ = cogent_warn "\n"
+                let _ = cogent_warn ("fsop_inode_free: ERROR: failed to get inode bitmap block ")
+                and _ = cogent_warn_u32 (group_desc.inode_bitmap) !group_desc
+                and _ = cogent_warn ("\n")
 
                 and ((ex, state), _) = put_group_desc_buf_in_array (ex, state, group, group_buf)
                 in (ex, state, inode_t)
         | Error () ->
-            let _ = cogent_warn "fsop_inode_free: ERROR: failed to get group descriptor "
-            and _ = cogent_warn_u32 group
-            and _ = cogent_warn "\n"
+            let _ = cogent_warn ("fsop_inode_free: ERROR: failed to get group descriptor ")
+            and _ = cogent_warn_u32 (group)
+            and _ = cogent_warn ("\n")
             in (ex, state, inode_t)
     | _ ->
-        let _ = cogent_warn "fsop_inode_free: ERROR: reserved/invalid ino "
-        and _ = cogent_warn_u32 ino
-        and _ = cogent_warn "\n"
+        let _ = cogent_warn ("fsop_inode_free: ERROR: reserved/invalid ino ")
+        and _ = cogent_warn_u32 (ino)
+        and _ = cogent_warn ("\n")
 
         in (ex, state, inode_t)
 

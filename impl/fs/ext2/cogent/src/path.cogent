@@ -8,6 +8,8 @@
 -- @TAG(NICTA_GPL)
 --
 
+#include "debug.cogent.h"
+
 type BlockOffset = U32
 type Depth = U32
 type Boundary = U32

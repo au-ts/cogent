@@ -8,6 +8,8 @@
 -- @TAG(NICTA_GPL)
 --
 
+#include "debug.cogent.h"
+
 ------------------------------------------------------------------------------
 -- block goal rules
 ------------------------------------------------------------------------------
@@ -119,11 +121,11 @@ ext2_write_new_block (ex, state, inode, group_desc_buf, block_group, group_desc,
                     in_range_u32 (dest_block + num32 - 1, group_desc.inode_table, group_desc.inode_table + state.inode_tables_per_group) !state 
   in was_invalid
   | True ->
-    let _ = cogent_warn "ext2_write_new_block: ERROR: wanted to allocate at block "
-    and _ = cogent_warn_u32 dest_block
-    and _ = cogent_warn " but in system zone of block group "
-    and _ = cogent_warn_u32 block_group
-    and _ = cogent_warn "!\n"
+    let _ = cogent_warn ("ext2_write_new_block: ERROR: wanted to allocate at block ")
+    and _ = cogent_warn_u32 (dest_block)
+    and _ = cogent_warn (" but in system zone of block group ")
+    and _ = cogent_warn_u32 (block_group)
+    and _ = cogent_warn ("!\n")
 
     and ((ex, state), _) = put_group_desc_buf_in_array (ex, state, block_group, group_desc_buf)
     and ex = osbuffer_destroy (ex, bitmap_buf)
@@ -164,9 +166,9 @@ ext2_write_new_block (ex, state, inode, group_desc_buf, block_group, group_desc,
       -- finished
       in ((ex, state, inode), Success (num32, dest_block))
     | True ->
-      let _ = cogent_warn "ext2_write_new_block: ERROR: block num "
-      and _ = cogent_warn_u32 dest_block
-      and _ = cogent_warn " outside superblock's block count\n"
+      let _ = cogent_warn ("ext2_write_new_block: ERROR: block num ")
+      and _ = cogent_warn_u32 (dest_block)
+      and _ = cogent_warn (" outside superblock's block count\n")
 
       and ((ex, state), _) = put_group_desc_buf_in_array (ex, state, block_group, group_desc_buf)
       and ex = osbuffer_destroy (ex, bitmap_buf)
@@ -198,11 +200,11 @@ find_first_free_block_in_chunk (bitmap_buf, goal_bit) =
 
 -- second half of find_next_usable_block
 find_next_usable_block2: (OSBuffer!, U32, U32) -> R U32 ()
-find_next_usable_block2 (bitmap_buf, goal_bit, end) =
+find_next_usable_block2 (bitmap_buf, goal_bit, fin) =
   let remainder_offset = goal_bit >> 3
-  and empty_chunk_offset = osbuffer_find (bitmap_buf, 0, remainder_offset, ((end + 7) >> 3) - (goal_bit >> 3)) !bitmap_buf
+  and empty_chunk_offset = osbuffer_find (bitmap_buf, 0, remainder_offset, ((fin + 7) >> 3) - (goal_bit >> 3)) !bitmap_buf
   and free_block_chunk = (empty_chunk_offset - remainder_offset) << 3
-  in if free_block_chunk < end && free_block_chunk >= goal_bit then
+  in if free_block_chunk < fin && free_block_chunk >= goal_bit then
     let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "find_next_usable_block2: found free block chunk before it(?) at ") 
     and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, free_block_chunk) 
     and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
@@ -212,8 +214,8 @@ find_next_usable_block2 (bitmap_buf, goal_bit, end) =
     -- no byte chunk free; try each individual bit
     let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "find_next_usable_block2: no byte chunk free, trying each individual bit\n") 
 
-    and free_block = osbuffer_find_next_zero_bit (bitmap_buf, end, goal_bit) !bitmap_buf
-    in if free_block < end then
+    and free_block = osbuffer_find_next_zero_bit (bitmap_buf, fin, goal_bit) !bitmap_buf
+    in if free_block < fin then
       let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "find_next_usable_block2: found one at bit ") 
       and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, free_block) 
       and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
@@ -223,10 +225,10 @@ find_next_usable_block2 (bitmap_buf, goal_bit, end) =
       in Error ()
 
 find_next_usable_block: (OSBuffer!, U32, U32) -> R U32 ()
-find_next_usable_block (bitmap_buf, goal_bit, end) =
+find_next_usable_block (bitmap_buf, goal_bit, fin) =
   if goal_bit > 0 then
     let end_goal = (goal_bit + 63) .&. complement 63 -- FIXME: does this belong in here? masks for 64 bit
-    and end_goal = if end_goal > end then end else end_goal
+    and end_goal = if end_goal > fin then fin else end_goal
 
     and goal_bit = osbuffer_find_next_zero_bit (bitmap_buf, end_goal, goal_bit) !bitmap_buf
     in if goal_bit < end_goal then
@@ -234,13 +236,13 @@ find_next_usable_block (bitmap_buf, goal_bit, end) =
       in Success goal_bit
     else
       let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "find_next_usable_block: found goal bit not found near goal; searching again\n") 
-      in find_next_usable_block2 (bitmap_buf, goal_bit, end)
+      in find_next_usable_block2 (bitmap_buf, goal_bit, fin)
   else
-    find_next_usable_block2 (bitmap_buf, goal_bit, end)
+    find_next_usable_block2 (bitmap_buf, goal_bit, fin)
 
 allocate_many_in_group: Seq32_body (OSBuffer, U32, U32) U32 ()
-allocate_many_in_group #{ acc = (buf, allocated, goal), obsv = end, idx } =
-  if goal < end then
+allocate_many_in_group #{ acc = (buf, allocated, goal), obsv = fin, idx } =
+  if goal < fin then
     -- try to set bit
     let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "allocate_many_in_group: trying bit ") 
     and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, goal) 
@@ -269,13 +271,13 @@ allocate_find_first #{ acc = (buf, allocated, _), obsv, idx } =
 -- NOTE: we do *not* handle retrying block allocation as Linux does, since we expect that there is a single
 -- thread running this code. if this becomes not the case, you must implement a check when doing set_bit. see balloc.c:718
 ext2_try_to_allocate_with_bitmap3: (SysState, FsState, U32, OSBuffer, U32, U32, U32, U32) -> RR (SysState, FsState, OSBuffer) (U16, BlockPtr) U32
-ext2_try_to_allocate_with_bitmap3 (ex, state, group, bitmap_buf, num, goal, start, end) =
+ext2_try_to_allocate_with_bitmap3 (ex, state, group, bitmap_buf, num, goal, start, fin) =
   let allocated:U32 = 0
 
   -- find first one we can definitely allocate
   and ((bitmap_buf, allocated, goal), res) = seq32 [(OSBuffer, U32, U32), (), ()] #{
     frm  = goal,
-    to   = end,
+    to   = fin,
     step = 1,
     f    = allocate_find_first,
     acc  = (bitmap_buf, allocated, goal),
@@ -294,7 +296,7 @@ ext2_try_to_allocate_with_bitmap3 (ex, state, group, bitmap_buf, num, goal, star
       step = 1,
       f    = allocate_many_in_group,
       acc  = (bitmap_buf, allocated, goal + 1),
-      obsv = (end) }
+      obsv = (fin) }
     
     -- XXX: oh man these casts/these ladders https://www.youtube.com/watch?v=ggB33d0BLcY
     in ((ex, state, bitmap_buf), Success (u32_to_u16 allocated, goal - allocated))
@@ -303,11 +305,11 @@ ext2_try_to_allocate_with_bitmap3 (ex, state, group, bitmap_buf, num, goal, star
     in ((ex, state, bitmap_buf), Success (0, goal))
 
 ext2_try_to_allocate_with_bitmap2: (SysState, FsState, U32, OSBuffer, U32, Option U32, U32, U32) -> RR (SysState, FsState, OSBuffer) (U16, BlockPtr) U32
-ext2_try_to_allocate_with_bitmap2 (ex, state, group, bitmap_buf, num, maybe_goal, start, end) =
+ext2_try_to_allocate_with_bitmap2 (ex, state, group, bitmap_buf, num, maybe_goal, start, fin) =
   maybe_goal
   | None ->
     let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap2: had no goal, finding next usable block\n") 
-    in find_next_usable_block (bitmap_buf, start, end) !bitmap_buf
+    in find_next_usable_block (bitmap_buf, start, fin) !bitmap_buf
     | Success goal ->
       let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap2: got goal bit ") 
       and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, goal) 
@@ -320,37 +322,37 @@ ext2_try_to_allocate_with_bitmap2 (ex, state, group, bitmap_buf, num, maybe_goal
       and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, goal) 
       and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
 
-      in ext2_try_to_allocate_with_bitmap3 (ex, state, group, bitmap_buf, num, goal, goal, end)
+      in ext2_try_to_allocate_with_bitmap3 (ex, state, group, bitmap_buf, num, goal, goal, fin)
     | Error () ->
       -- failed to find anything
       let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap2: ERROR: no usable block\n") 
       in ((ex, state, bitmap_buf), Success (0, 0))
   | Some goal ->
-    ext2_try_to_allocate_with_bitmap3 (ex, state, group, bitmap_buf, num, goal, goal, end)
+    ext2_try_to_allocate_with_bitmap3 (ex, state, group, bitmap_buf, num, goal, goal, fin)
 
 -- try to allocate at `num' blocks in a given block group
 ext2_try_to_allocate_with_bitmap: (SysState, FsState, U32, OSBuffer, U32, Option U32) -> RR (SysState, FsState, OSBuffer) (U16, BlockPtr) U32
 ext2_try_to_allocate_with_bitmap (ex, state, group, bitmap_buf, num, maybe_goal_block) =
-  let end = state.super.blocks_per_group !state
+  let fin = state.super.blocks_per_group !state
   in maybe_goal_block
   | Some goal_block ->
-    if goal_block > 0 then -- FIXME: why? these branches are the same? is it < end instead?
+    if goal_block > 0 then -- FIXME: why? these branches are the same? is it < fin instead?
       let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap: had goal and > 0, using [") 
       and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, goal_block) 
       and _ = cogent_log (dbg_EXT2_DIR_BALLOC, ", ") 
-      and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, end) 
+      and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, fin) 
       and _ = cogent_log (dbg_EXT2_DIR_BALLOC, ")\n") 
-      in ext2_try_to_allocate_with_bitmap2 (ex, state, group, bitmap_buf, num, maybe_goal_block, goal_block, end)
+      in ext2_try_to_allocate_with_bitmap2 (ex, state, group, bitmap_buf, num, maybe_goal_block, goal_block, fin)
     else 
       let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap: had goal but == 0, using [0, ") 
-      and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, end) 
+      and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, fin) 
       and _ = cogent_log (dbg_EXT2_DIR_BALLOC, ")\n") 
-      in ext2_try_to_allocate_with_bitmap2 (ex, state, group, bitmap_buf, num, maybe_goal_block, 0, end)
+      in ext2_try_to_allocate_with_bitmap2 (ex, state, group, bitmap_buf, num, maybe_goal_block, 0, fin)
   | None ->
     let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_try_to_allocate_with_bitmap: had no goal, using [0, ") 
-    and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, end) 
+    and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, fin) 
     and _ = cogent_log (dbg_EXT2_DIR_BALLOC, ")\n") 
-    in ext2_try_to_allocate_with_bitmap2 (ex, state, group, bitmap_buf, num, maybe_goal_block, 0, end)
+    in ext2_try_to_allocate_with_bitmap2 (ex, state, group, bitmap_buf, num, maybe_goal_block, 0, fin)
 
 -- loop through the rest of the groups to find a free block
 ext2_new_block2: (SysState, FsState, VfsInode, U32, U32) -> RR (SysState, FsState, VfsInode) (U32, BlockPtr) U32
@@ -471,9 +473,9 @@ ext2_new_blocks (ex, state, inode, goal, num) =
 
       in ext2_new_block2 (ex, state, inode, goal_block_group, num)
   | Error () ->
-    let _ = cogent_warn "ext2_new_block: ERROR: did not get group_desc/buf from block group "
-    and _ = cogent_warn_u32 goal_block_group
-    and _ = cogent_warn "\n"
+    let _ = cogent_warn ("ext2_new_block: ERROR: did not get group_desc/buf from block group ")
+    and _ = cogent_warn_u32 (goal_block_group)
+    and _ = cogent_warn ("\n")
 
     in ((ex, state, inode), Error eIO)
 
@@ -1063,11 +1065,11 @@ ext2_free_blocks (ex, state, inode, block, count) =
    block + count < block || -- wrap around
    block + count > state.super.block_count !state then
 
-    let _ = cogent_warn "freeing blocks not in datazone; block ="
-    and _ = cogent_warn_u32 block
-    and _ = cogent_warn ", count = "
-    and _ = cogent_warn_u32 count
-    and _ = cogent_warn "\n"
+    let _ = cogent_warn ("freeing blocks not in datazone; block =")
+    and _ = cogent_warn_u32 (block)
+    and _ = cogent_warn (", count = ")
+    and _ = cogent_warn_u32 (count)
+    and _ = cogent_warn ("\n")
 
     in (ex, state, inode)
   else
@@ -1129,11 +1131,11 @@ ext2_free_blocks3 (ex, state, overflow, block, block_group, bit, count, freed) =
         in_range_u32 (block, group_desc.inode_table, group_desc.inode_table + state.inode_tables_per_group) ||
         in_range_u32 (block + count - 1, group_desc.inode_table, group_desc.inode_table + state.inode_tables_per_group) !state then
 
-          let _ = cogent_warn "freeing blocks in system zones; block = "
-          and _ = cogent_warn_u32 block
-          and _ = cogent_warn ", count = "
-          and _ = cogent_warn_u32 count
-          and _ = cogent_warn "\n"
+          let _ = cogent_warn ("freeing blocks in system zones; block = ")
+          and _ = cogent_warn_u32 (block)
+          and _ = cogent_warn (", count = ")
+          and _ = cogent_warn_u32 (count)
+          and _ = cogent_warn ("\n")
 
           and ex = osbuffer_destroy (ex, bitmap_buf)
           and ((ex, state), _) = put_group_desc_buf_in_array (ex, state, block_group, group_desc_buf)
@@ -1179,15 +1181,15 @@ ext2_free_blocks3 (ex, state, overflow, block, block_group, bit, count, freed) =
         else
           ((ex, state, block, count, freed), Break ()) -- finished
     | Error () ->
-      let _ = cogent_warn "ext2_free_blocks3: could not get bitmap buf from block "
-      and _ = cogent_warn_u32 group_desc.block_bitmap
-      and _ = cogent_warn "\n"
+      let _ = cogent_warn ("ext2_free_blocks3: could not get bitmap buf from block ")
+      and _ = cogent_warn_u32 (group_desc.block_bitmap)
+      and _ = cogent_warn ("\n")
 
       and ((ex, state), _) = put_group_desc_buf_in_array (ex, state, block_group, group_desc_buf)
       in ((ex, state, block, count, freed), Break ()) -- error_return      
   | Error () ->
     let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_blocks3: failed to get group desc for block group ") 
-    and _ = cogent_warn_u32 block_group
+    and _ = cogent_warn_u32 (block_group)
     and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
     in ((ex, state, block, count, freed), Break ()) -- error_return
 
@@ -1216,8 +1218,8 @@ free_block_group #{ acc = (buf, group_freed), obsv = (block, bit), idx } =
   in if res then
     ((buf, group_freed + 1), Iterate ())
   else
-    let _ = cogent_warn "free_block_group: bit already cleared on block "
+    let _ = cogent_warn ("free_block_group: bit already cleared on block ")
     and _ = cogent_warn_u32 (block + idx)
-    and _ = cogent_warn "\n"
+    and _ = cogent_warn ("\n")
 
     in ((buf, group_freed), Iterate ())
