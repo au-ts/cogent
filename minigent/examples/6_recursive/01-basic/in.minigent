@@ -1,6 +1,6 @@
-alloc : Unit -> mu t { l : < End Unit | Cons { d : U8, r : t }# > take };
+alloc : Unit -> rec t { l : < End Unit | Cons { d : U8, r : t }# > take };
 
-makeEmptyList : Unit -> mu t { l : < End Unit | Cons { d : U8, r : t }# > };
+makeEmptyList : Unit -> rec t { l : < End Unit | Cons { d : U8, r : t }# > };
 makeEmptyList a = 
             let r = alloc Unit in
                 put r.l := End Unit end

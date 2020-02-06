@@ -25,7 +25,7 @@ data Bracket = Paren | Brace | Square
      deriving (Show, Eq)
 
 
-data Keyword = Case | Of | If | Then | Else | Take | Put | Let | In | End | Mu
+data Keyword = Case | Of | If | Then | Else | Take | Put | Let | In | End | Rec
      deriving (Show, Eq)
 
 data Token
@@ -61,7 +61,7 @@ toToken "take" = Keyword Take
 toToken "put"  = Keyword Put 
 toToken "let"  = Keyword Let
 toToken "in"   = Keyword In 
-toToken "mu"   = Keyword Mu
+toToken "rec"   = Keyword Rec
 toToken (x:xs) | isLower x = LowerIdent (x:xs)
                | otherwise = UpperIdent (x:xs)  
 

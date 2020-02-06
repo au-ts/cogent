@@ -37,14 +37,12 @@ type Error = String
 
 sanityCheckType :: [VarName] -> Type -> Writer [Error] ()
 sanityCheckType tvs t = do 
-  -- TODO: Potentially do a single pass over the type and change all recursive parameters from TV's to
-  --   Recursive Parameter variables
   let leftovers = nub (typeVariables t) \\ tvs
   let nsp = nonStrictlyPositiveVars t
   if leftovers /= [] then
     tell ["Type variables used unquantified:" ++ concat (intersperse ", " leftovers)]
   else if nsp /= [] then
-    tell ["Variables occuring non-strictly positive: " ++ concat (intersperse ", " nsp)]
+    tell ["Recursive parameters occuring non-strictly positive: " ++ concat (intersperse ", " nsp)]
   else return ()
 
 sanityCheckExpr :: GlobalEnvironments -> [VarName] -> [VarName] -> Expr -> Writer [Error] Expr
@@ -108,15 +106,17 @@ sanityCheckExpr envs tvs vs exp = check vs exp
       e           -> pure e
 
 reorganiseTopLevel :: RawTopLevel -> GlobalEnvironments -> Writer [Error] GlobalEnvironments
-reorganiseTopLevel (TypeSig f pt@(Forall tvs c t)) envs = do 
-   case M.lookup f (types envs) of 
-        Just _ -> tell ["Duplicate type signature for " ++ f] 
-        Nothing -> return ()
-   if nub tvs /= tvs
-     then tell ["Duplicate quantified type variable in type signature for " ++ f] 
-     else return ()
-   sanityCheckType (nub tvs) t
-   return (envs { types = M.insert f (mapRecParsPT pt) (types envs) })
+reorganiseTopLevel (TypeSig f pt@(Forall _ _ t)) envs = do 
+  case M.lookup f (types envs) of 
+    Just _ -> tell ["Duplicate type signature for " ++ f] 
+    Nothing -> return ()
+  -- Embed recursive parameters
+  let pt'@(Forall tvs c t) = embedRecPars pt
+  if nub tvs /= tvs
+    then tell ["Duplicate quantified type variable in type signature for " ++ f] 
+    else return ()
+  sanityCheckType (nub tvs) t
+  return (envs { types = M.insert f pt' (types envs) })
 
 reorganiseTopLevel (Equation f x e) envs = do 
    case M.lookup f (defns envs) of 
@@ -128,35 +128,69 @@ reorganiseTopLevel (Equation f x e) envs = do
    e' <- sanityCheckExpr envs tvs [x] e
    return (envs { defns = M.insert f (x,e') (defns envs) })
 
+-- | Given a PolyType definition, changes all recursive parameter references from TypeVar to RecPar 
+embedRecPars :: PolyType -> PolyType
+embedRecPars (Forall vs cs t) = Forall vs cs $ erp False M.empty t
+  where
+    erp :: Bool -> M.Map RecParName Type -> Type -> Type
+    erp b c (AbsType n s ts)    = AbsType n s $ map (erp b c) ts
+    erp b c (Variant row)       = Variant $ Row.mapEntries (\(Entry n t tk) -> Entry n (erp b c t) tk) row
+    erp b c (Bang t)            = Bang $ erp b c t 
+    -- Check add (if it exists), the recursive parameter to the context
+    erp b c r@(Record rp row s) = 
+      Record rp (Row.mapEntries (\(Entry n t tk) -> Entry n (erp b (addRecPar rp) t) tk) row) s
+      where addRecPar p = case p of
+                            Rec v -> (M.insert v r c)
+                            _ -> c
+    erp b c (Function x y)      = Function (erp b c x) (erp b c y)
+    -- Here, we insert `Nothing' if we are embedding a recursive parameter inside a context
+    --   (indicated by `b'), and the context otherwise
+    erp b c (TypeVar n) 
+      | M.member n c = RecPar  n (if b then Nothing else Just (M.map (erp True c) c))
+      | otherwise    = TypeVar n
+    erp b c (TypeVarBang n) 
+      | M.member n c = RecParBang  n (if b then Nothing else Just (M.map (erp True c) c))
+      | otherwise    = TypeVarBang n
 
+    erp _ _ t = t
+
+-- | Checks that variables only occur strictly positive.
+--   We check the argument and result of the function seperately so as not to
+--   trigger the strictly positive case for everything that is an argument.
 nonStrictlyPositiveVars :: Type -> [VarName] 
 nonStrictlyPositiveVars t = sp t M.empty
   where
     -- Map if variables in scope are in argument position
-    sp ::  Type -> M.Map VarName Bool -> [VarName]
-    sp (PrimType _) vs = []
-    sp (AbsType _ _ ts) vs = concatMap (\t -> sp t vs) ts
-    sp (Variant r) vs = 
-      concatMap (\(Entry _ t _) -> sp t vs) (Row.entries r)
-    sp (Bang t) vs = sp t vs
+    -- Bool is True if we are in the argument position of some function currently
+    sp ::  Type -> M.Map RecParName Bool -> [VarName]
+    sp (PrimType _)     m = []
+    sp (AbsType _ _ ts) m = concatMap (\t -> sp t m) ts
+    sp (Variant r)      m = 
+      concatMap (\(Entry _ t _) -> sp t m) (Row.entries r)
+    sp (Bang t)         m = sp t m
 
-    -- If we encounter a type variable, check if it occurs non-strictly positive
-    sp (TypeVar v)     vs = concat $ M.elems $ M.mapWithKey (\t p -> if p && v == t then [v] else []) vs
-    sp (TypeVarBang v) vs = concat $ M.elems $ M.mapWithKey (\t p -> if p && v == t then [v] else []) vs
+    -- Type variables have been replaced with embedded recursive parameters at this point
+    sp (TypeVar v)     m = []
+    sp (TypeVarBang v) m = []
 
     -- Records are special - only here can we pick up recursive parameters
-    sp (Record m r _) vs =
-      let vs' = case m of
-                  (Rec mt) -> M.insert mt False vs
-                  _         -> vs
-      -- Shadow old recursive variables if they exist too
-      in concatMap (\(Entry _ t _) -> sp t vs') (Row.entries r)
+    sp (Record rp r _) m =
+      concatMap (\(Entry _ t _) -> sp t (addRecPar rp)) (Row.entries r)
+      where addRecPar p = case p of
+                            Rec v -> (M.insert v False m)
+                            _ -> m
 
-    -- Only in functions can the sp check be violated
-    sp (Function a b) vs = 
-      -- No recursive parameters in a non sp position
-      -- As we enter a function argument, we mark all existing mu vars in a non-sp position
-      sp a (fmap (const True) vs) ++ sp b vs
+    -- Mark that we are in the argument position for all variables in the context
+    sp (Function x y) m = 
+      sp x (M.map (const True) m) ++ sp y m
+
+    -- If we are in the argument position then return the recursive parameter name
+    sp (RecPar n _) m
+      | Just True <- M.lookup n m = [n]
+      | otherwise                 = []
+    sp (RecParBang n _) m
+      | Just True <- M.lookup n m = [n]
+      | otherwise                 = []
     
     sp _ _ = error "strictlyPositive"
 

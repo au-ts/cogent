@@ -1,7 +1,7 @@
-alloc : [x]. Unit -> mu t { l: < Nil Unit | Cons { data: x, rest: t }# > take };
+alloc : [x]. Unit -> rec t { l: < Nil Unit | Cons { data: x, rest: t }# > take };
 
-map : [a,b]. { list: mu t { l: < Nil Unit | Cons { data: a, rest: t }# > }!, f: (a -> b) }#
-              -> mu t { l: < Nil Unit | Cons { data: b, rest: t }# >};
+map : [a,b]. { list: rec t { l: < Nil Unit | Cons { data: a, rest: t }# > }!, f: (a -> b) }#
+              -> rec t { l: < Nil Unit | Cons { data: b, rest: t }# >};
 map l = 
   take l2 { list = node } = l in
     take l3 { f = fun } = l2 in
