@@ -22,15 +22,13 @@ import Minigent.Environment
 import Minigent.Syntax.PrettyPrint
 
 import Control.Monad.State.Strict
-import Data.Maybe (maybeToList)
+import Data.Maybe (maybeToList, catMaybes)
 
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.List
 
-import Debug.Trace
-
--- A directed graph
+-- A directed graph maps a node name to all reachable nodes from that node
 type Node  = String
 type Graph = M.Map Node [Node]
 
@@ -38,22 +36,29 @@ type Graph = M.Map Node [Node]
 type FreshVar = String
 type Env = M.Map VarName FreshVar
 
-termCheck :: GlobalEnvironments -> ([String], [(FunName, [Assertion], String)])
+type Error    = String
+type DotGraph = String
+
+termCheck :: GlobalEnvironments -> ([Error], [(FunName, [Assertion], String)])
 termCheck genvs = M.foldrWithKey go ([],[]) (defns genvs)
   where
-    go :: FunName -> (VarName, Expr) -> ([String], [(FunName, [Assertion], String)]) -> ([String], [(FunName, [Assertion], String)])
+    go :: FunName -> (VarName, Expr) -> ([Error], [(FunName, [Assertion], DotGraph)]) -> ([Error], [(FunName, [Assertion], DotGraph)])
     go f (x,e) (errs, dumps) =  
-      let (pass, g, d) = fst $ runFresh unifVars (init f x e)
-          er =  if pass then
-                  errs
-                else
-                  ("Error: Function " ++ f ++ " cannot be shown to terminate.") : errs
+      let (terminates, g, dotGraph) = fst $ runFresh unifVars (init f x e)
+          errs' = if terminates then
+                    errs
+                  else
+                    ("Error: Function " ++ f ++ " cannot be shown to terminate.") : errs
         in 
-          (er, (f, g, d):dumps)
+          (errs', (f, g, dotGraph) : dumps)
 
     -- Maps the function argument to a name, then runs the termination
     -- assertion generator.
-    -- Return true if the function terminates
+    -- Returns: 
+    --  ( true if the function terminates
+    --  , the list of assertions produced from the function
+    --  , the `dot' graph file for this particular termination graph
+    --  )
     init :: FunName -> VarName -> Expr -> Fresh VarName (Bool, [Assertion], String)
     init f x e = do
       alpha <- fresh
@@ -61,26 +66,20 @@ termCheck genvs = M.foldrWithKey go ([],[]) (defns genvs)
       (a,c) <- termAssertionGen env e
 
       let graph = toGraph a
-      let goals = noNothing c
+      let goals = catMaybes c
 
-      -- If any goals are nothing, or our path condition is not met, then we cannot determine if the function terminates
+      -- If all goals are not nothing, and our path condition is met, then the function terminates
+      -- Otherwise, we cannot say anything about the function
       let terminates = length goals == length c 
-                       && all (\goal -> hasPathTo alpha goal graph
-                                        && (not $ hasPathTo goal alpha graph)
-                              ) goals
+                    && all (\goal -> hasPathTo alpha goal graph
+                                  && (not $ hasPathTo goal alpha graph)
+                           ) goals
       return $ 
         (
           terminates,
           a,
-          genGraphDotFile f graph
+          genGraphDotFile f graph [alpha] goals
         )
-
-    noNothing :: [Maybe a] -> [a]
-    noNothing = foldr (\m l -> 
-      case m of
-        Nothing -> l
-        Just x -> x:l
-      ) []
 
 termAssertionGen ::  Env -> Expr -> Fresh VarName ([Assertion], [Maybe FreshVar])
 termAssertionGen env expr
@@ -107,8 +106,6 @@ termAssertionGen env expr
       -- First evaluate the variable binding expression
       a <- termAssertionGen env e1
 
-      let old = M.lookup x env
-
       -- Map our bound program variable to a new name and evaluate the rest
       alpha <- fresh
       let env' = M.insert x alpha env 
@@ -119,7 +116,7 @@ termAssertionGen env expr
       return $ flatten [(l,[]), res]
     
     LetBang vs v e1 e2 ->
-      termAssertionGen env (Let v e1 e2) -- TODO - Correct?
+      termAssertionGen env (Let v e1 e2)
 
     Take r' f x e1 e2 -> do
       alpha <- fresh 
@@ -131,7 +128,7 @@ termAssertionGen env expr
       let env' = M.insert r' beta (M.insert x alpha env)
       res' <- termAssertionGen env' e2
 
-      -- generate assertions
+      -- Generate assertions
       let assertions = toAssertion env e1 (alpha :<:)
                     ++ toAssertion env e1 (beta :~:)
 
@@ -246,12 +243,22 @@ hasPathTo src dst g
 -- To use:
 --   run `dot -Tpdf graph.dot -o outfile.pdf`
 -- where graph.dot is the output from this function.
-genGraphDotFile :: String -> Graph -> String
-genGraphDotFile name g = 
-  "digraph " ++ name ++ " {\n" ++ intercalate "\n" (edges g) ++ "\n}"
+genGraphDotFile :: String -> Graph -> [Node] -> [Node] -> String
+genGraphDotFile name g args goals = 
+  "digraph " ++ name ++ 
+    " {\n"
+      ++ "\tforcelabels=true;\n" 
+      ++ highlight "blue" "argument" args
+      ++ highlight "red"  "goal"     goals
+      ++ intercalate "\n" (edges g) 
+      ++ "\n}"
   where
     pairs :: Graph -> [(Node,Node)]
     pairs = concatMap (\(a, bs) -> map (\b -> (a,b)) bs) . M.assocs
 
     edges :: Graph -> [String]
     edges = map (\(a,b) -> "\t" ++ a ++ " -> " ++ b ++ ";") . pairs
+
+    highlight :: String -> String -> [Node] -> String
+    highlight color label nodes = "\t" ++ (concat . intersperse "\n" $
+                                  map (\n -> n ++ " [ color = " ++ color ++ ", xlabel = " ++ label ++ " ];\n") nodes)
