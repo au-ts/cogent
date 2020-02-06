@@ -342,7 +342,7 @@ $ty:((WordArray b, acc)) $id:wordarray_map' ($ty:((WordArray a, (acc, obsv, a) -
         return ret;
 }
 
-$ty:(WordArray a) $id:wordarray_map_ ($ty:((WordArray a, a -> a)) args)
+$ty:(WordArray a) $id:wordarray_map_simple ($ty:((WordArray a, a -> a)) args)
 {
         u32 i;
 
@@ -406,7 +406,7 @@ $ty:(WordArrayView a) $id:wordarray_map_view ($ty:((WordArrayView a, a -> a)) ar
 }
 
 unit_t
-$id:wordarray_print ($ty:(WordArray U8) *arg)
+$id:wordarray_print ($ty:(WordArray U8) arg)
 {
 	char s[arg->len + 1];
 	/* Couldn't convince myself that

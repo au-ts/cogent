@@ -898,12 +898,12 @@ type Wordarray_map'_RetT a acc obsv = (WordArray a, acc)
 wordarray_map' :: Wordarray_map'_ArgT a acc obsv -> Wordarray_map'_RetT a acc obsv
 wordarray_map' = undefined
 
-type Wordarray_map__ArgT a = (WordArray a, a -> a)
+type Wordarray_map_simple_ArgT a = (WordArray a, a -> a)
 
-type Wordarray_map__RetT a = WordArray a
+type Wordarray_map_simple_RetT a = WordArray a
 
-wordarray_map_ :: Wordarray_map__ArgT a -> Wordarray_map__RetT a
-wordarray_map_ = undefined
+wordarray_map_simple :: Wordarray_map_simple_ArgT a -> Wordarray_map_simple_RetT a
+wordarray_map_simple = undefined
 
 type Wordarray_put2_ArgT a = R41 (WordArray a) Word32 a
 

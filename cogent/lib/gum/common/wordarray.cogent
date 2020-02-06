@@ -176,7 +176,7 @@ wordarray_map' : all (a :< DSE, acc, obsv :< DS).
                  (WordArray a, (acc, obsv, a) -> (acc, a), acc, obsv) -> (WordArray a, acc)
 
 -- A very simple map function
-wordarray_map_ : all (a :< DSE). (WordArray a, a -> a) -> WordArray a
+wordarray_map_simple : all (a :< DSE). (WordArray a, a -> a) -> WordArray a
 
 wordarray_take : all (a :< DSE). ((WordArray a)!, WordArrayIndex) -> (WordArray a)!
 
