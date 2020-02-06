@@ -105,58 +105,63 @@ desugarDataLayout (Variant tagExpr alts) =
 
 {- * CONSTRUCTING 'DataLayout's -}
 
-constructDataLayout :: Type t -> DataLayout BitRange
-
--- Equations for unboxed embedded types
-constructDataLayout (TUnit        ) = UnitLayout
-constructDataLayout (TPrim primInt) = PrimLayout $ primBitRange primInt
-
-constructDataLayout (TSum alternatives)
-  | length alternatives > 2 ^ wordSizeBits = __impossible $ "constructDataLayout (Type check should prevent more alternatives than can fit in a word for sum types embedded in a boxed type with default layout)"
+constructDataLayout' :: Show a => Type t a -> DataLayout' BitRange
+constructDataLayout' (TUnit        ) = UnitLayout
+constructDataLayout' (TPrim primInt) = PrimLayout $ primBitRange primInt
+constructDataLayout' (TSum alternatives)
+  | length alternatives > 2 ^ wordSizeBits = __impossible $ "constructDataLayout' (Type check should prevent more alternatives than can fit in a word for sum types embedded in a boxed type with default layout)"
   | otherwise                              = SumLayout tagLayout alternativesLayout
       where
-        tagLayout          = BitRange { bitSizeBR = wordSizeBits, bitOffsetBR = 0}
+        tagLayout          = fromJust $ newBitRangeBaseSize 0 wordSizeBits {- 0 <= wordSizeBits -}
         alternativesLayout = fromList . snd $ mapAccumL constructAlternativeLayout (wordSizeBits, 0) alternatives
 
         constructAlternativeLayout
-          :: (Size, Integer) -- ^ Offset and tag value for this alternative.
-          -> (TagName, (Type t, Bool))
+          :: Show a 
+          => (Size, Integer) -- ^ Offset and tag value for this alternative.
+          -> (TagName, (Type t a, Bool))
           -> ((Size, Integer) -- Offset and tag value for next alternative.
-             ,(TagName, (Integer, DataLayout BitRange, SourcePos)))
+            ,(TagName, (Integer, DataLayout' BitRange)))
 
         constructAlternativeLayout (minBitOffset, tagValue) (name, (coreType, _)) =
-          let layout = alignOffsettable wordSizeBits minBitOffset $ constructDataLayout coreType
-          in  ((endAllocatedBits layout, tagValue + 1), (name, (tagValue, layout, dummyPos)))
+          let layout :: DataLayout' BitRange
+              layout = alignOffsettable wordSizeBits minBitOffset $ constructDataLayout' coreType
+          in  ((endAllocatedBits' layout, tagValue + 1), (name, (tagValue, layout)))
 
-
-constructDataLayout (TRecord fields Unboxed) = RecordLayout . fromList . snd $ mapAccumL constructFieldLayout 0 fields
+constructDataLayout' (TRecord _ (Boxed {})) = PrimLayout pointerBitRange
+constructDataLayout' (TRecord fields Unboxed) = RecordLayout . fromList . snd $ mapAccumL go 0 fields
   where
-    constructFieldLayout :: Size -> (FieldName, (Type t, Bool)) -> (Size, (FieldName, (DataLayout BitRange, SourcePos)))
-    constructFieldLayout minBitOffset (name, (coreType, _)) =
-      let layout = alignOffsettable wordSizeBits minBitOffset $ constructDataLayout coreType
-      in (endAllocatedBits layout, (name, (layout, dummyPos)))
+    go :: Show a => Size -> (FieldName, (Type t a, Bool)) -> (Size, (FieldName, DataLayout' BitRange))
+    go minBitOffset (name, (coreType, _)) =
+      let layout = alignOffsettable wordSizeBits minBitOffset $ go' coreType
+      in (endAllocatedBits' layout, (name, layout))
 
--- Equations for boxed embedded types
-constructDataLayout (TRecord fields (Boxed _ _)) = PrimLayout $ pointerBitRange
-constructDataLayout (TCon    _ _    (Boxed _ _)) = PrimLayout $ pointerBitRange
+    -- Equations for boxed embedded types
+    go' :: Show a => Type t a -> DataLayout' BitRange
+    go' (TRecord _ _    (Boxed _ _)) = PrimLayout pointerBitRange
+    go' (TCon    _ _    (Boxed _ _)) = PrimLayout pointerBitRange
 
--- Equations for as yet unsupported embedded types
-constructDataLayout (TCon _ _ Unboxed) = __impossible $ "constructDataLayout (Type check should fail on boxed types containing embedded unboxed abstract types)"
-constructDataLayout (TVar         _  ) = __impossible $ "constructDataLayout (Type check should fail on boxed types containing type variables)"
-constructDataLayout (TVarBang     _  ) = __impossible $ "constructDataLayout (Type check should fail on boxed types containing type variables)"
-constructDataLayout (TFun         _ _) = __impossible $ "constructDataLayout (Type check should fail on boxed types containing functions)"
-constructDataLayout (TString         ) = __impossible $ "constructDataLayout (Type check should fail on boxed types containing strings)"
+    -- Equations for as yet unsupported embedded types
+    go' (TCon n _ Unboxed) = __impossible $ "go' (Type check should fail on boxed types containing embedded unboxed abstract types)\n Failed on TCon type: " ++ n
+    go' (TVar         _  ) = __impossible $ "go' (Type check should fail on boxed types containing type variables)"
+    go' (TVarBang     _  ) = __impossible $ "go' (Type check should fail on boxed types containing type variables)"
+    go' (TFun         _ _) = __impossible $ "go' (Type check should fail on boxed types containing functions)"
+    go' (TString         ) = __impossible $ "go' (Type check should fail on boxed types containing strings)"
 #if BUILTIN_ARRAYS
-constructDataLayout (TArray       _ _) = __impossible $ "constructDataLayout (Type check should fail on boxed types containing arrays)"
+    go' (TArray   _ _ _ _) = __impossible $ "go' (Type check should fail on boxed types containing arrays)"
 #endif
-constructDataLayout (TProduct     _ _) = __impossible $ "constructDataLayout (Type check should fail on boxed types containing pairs)"
-  -- TODO: implement matching data layouts with types so that the above mentioned type check fails actually occur /mdimeglio
-  -- TODO: implement layout polymorphism to handle boxed types containing type variables /mdimeglio
-  -- TODO: implement layouts for TProduct and TArray types /mdimeglio
-  -- TODO: maybe implement layouts for function types like other boxed (pointer) layouts /mdimeglio
+    go' (TProduct     _ _) = __impossible $ "go' (Type check should fail on boxed types containing pairs)"
+      -- TODO(dargent): implement matching data layouts with types so that the above mentioned type check fails actually occur /mdimeglio
+      -- TODO(dargent): implement layout polymorphism to handle boxed types containing type variables /mdimeglio
+      -- TODO(dargent): implement layouts for TProduct and TArray types /mdimeglio
+      -- TODO(dargent): maybe implement layouts for function types like other boxed (pointer) layouts /mdimeglio
+    go' t = __impossible $ "go': type not handled " ++ show t
 
-dummyPos = __fixme $ newPos "Dummy Pos" 0 0 -- FIXME: Not sure what SourcePos to give for layouts generated automatically.
+constructDataLayout' (TCon _  _ (Boxed {})) = PrimLayout pointerBitRange
+constructDataLayout' (TCon tn _ Unboxed) = __impossible "constructDataLayout': unboxed TCon not yet supported"
+constructDataLayout' _ = __impossible "constructDataLayout': unhandled type"
 
-
+-- constructs a default layout
+constructDataLayout :: Show a => Type t a -> DataLayout BitRange
+constructDataLayout = Layout . constructDataLayout'
 
 

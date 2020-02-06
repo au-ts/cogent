@@ -98,11 +98,11 @@ isSubtype :: (Show b, Eq b) => Type t b -> Type t b -> TC t v b Bool
 isSubtype t1 t2 = runMaybeT (t1 `lub` t2) >>= \case Just t  -> return $ t == t2
                                                     Nothing -> return False
 
-unroll :: RecParName -> RecContext (Type t) -> Type t
+unroll :: RecParName -> RecContext (Type t b) -> Type t b
 unroll v (Just ctxt) = erp (Just ctxt) (ctxt M.! v)
   where
     -- Embed rec pars
-    erp :: RecContext (Type t) -> Type t -> Type t
+    erp :: RecContext (Type t b) -> Type t b -> Type t b
     erp c (TCon n ts s) = TCon n (map (erp c) ts) s
     erp c (TFun t1 t2) = TFun (erp c t1) (erp c t2)
     erp c (TSum r) = TSum $ map (\(a,(t,b)) -> (a, (erp c t, b))) r

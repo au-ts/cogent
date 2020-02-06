@@ -90,7 +90,7 @@ genBoxedGetSetField cogentType fieldName getOrSet = do
     Just getSetFieldFunction -> return getSetFieldFunction
     Nothing                  ->
       case cogentType of
-        TRecord fieldTypes (Boxed _ (Layout (RecordLayout fieldLayouts))) ->
+        TRecord _ fieldTypes (Boxed _ (Layout (RecordLayout fieldLayouts))) ->
           do
             let fieldType       = fst $ (fromList fieldTypes) ! fieldName
                 fieldLayout     = alignLayout' $ fieldLayouts ! fieldName
@@ -99,7 +99,7 @@ genBoxedGetSetField cogentType fieldName getOrSet = do
             ((case getOrSet of Get -> boxedRecordGetters; Set -> boxedRecordSetters) . at (cogentType, fieldName))
                                 ?= getSetFieldFunction
             return getSetFieldFunction
-        TRecord fieldTypes (Boxed _ CLayout) ->
+        TRecord _ fieldTypes (Boxed _ CLayout) ->
           error "genBoxedGetSetField: tried to gen a getter/setter for a c-type"
 
 
@@ -145,7 +145,7 @@ genBoxedGetterSetter isStruct boxType embeddedType@(TCon _ _ _) PrimLayout{bitsD
 genBoxedGetterSetter isStruct boxType embeddedType@(TPrim _) (PrimLayout bitRanges) path getOrSet =
   genComposedAlignedRangeGetterSetter isStruct bitRanges boxType embeddedType path getOrSet
 
-genBoxedGetterSetter isStruct boxType embeddedType@(TRecord fields Boxed{}) (PrimLayout bitRanges) path getOrSet =
+genBoxedGetterSetter isStruct boxType embeddedType@(TRecord _ fields Boxed{}) (PrimLayout bitRanges) path getOrSet =
   genComposedAlignedRangeGetterSetter isStruct bitRanges boxType embeddedType path getOrSet
 
 genBoxedGetterSetter isStruct boxType embeddedTypeCogent@(TSum alternatives) SumLayout{tagDL, alternativesDL} path getOrSet = do
@@ -163,7 +163,7 @@ genBoxedGetterSetter isStruct boxType embeddedTypeCogent@(TSum alternatives) Sum
   declareSetterOrGetter $ variantGetterSetter tagGetterSetter alternativesGettersSetters boxType embeddedTypeC functionName getOrSet
   return (CVar functionName Nothing)
 
-genBoxedGetterSetter isStruct boxType embeddedTypeCogent@(TRecord fields Unboxed) RecordLayout{ fieldsDL } path getOrSet = do
+genBoxedGetterSetter isStruct boxType embeddedTypeCogent@(TRecord _ fields Unboxed) RecordLayout{ fieldsDL } path getOrSet = do
   embeddedTypeC         <- genType embeddedTypeCogent
   functionName          <- genGetterSetterName path getOrSet
   fieldGettersSetters   <-

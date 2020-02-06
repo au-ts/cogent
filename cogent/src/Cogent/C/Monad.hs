@@ -124,6 +124,11 @@ data GenState  = GenState
     --   the Set of all monomorphised type argument lists
     --   which the abstract type is applied to in the program.
 
+  , _recParCIds      :: M.Map (CC.Type 'Zero VarName) CId
+  -- ^ Maps a global recursive parameter type to a cid
+  , _recParRecordIds :: M.Map RecParName CId
+  -- ^ Maps a local recursive parameter name to the CId of the record it references.
+
   , _custTypeGen  :: M.Map (CC.Type 'Zero VarName) (CId, CustTyGenInfo)
   , _funClasses   :: FunClass
   , _localOracle  :: Integer

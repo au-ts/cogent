@@ -105,8 +105,7 @@ validateType (RT t) = do
     TRecord rp fs s | fields  <- map fst fs
                     , fields' <- nub fields
                     -> let toRow (T (TRecord rp fs s)) = R (coerceRP rp) (Row.fromList fs) (Left s)
-                       in if | rp /= NonRec && s == Unboxed -> return (Unsat $ RecursiveUnboxedRecord rp s)
-                             | fields' == fields -> case s of
+                       in if | fields' == fields -> case s of
                                  Boxed _ (Just dlexpr)
                                    | Left (anError : _) <- runExcept $ tcDataLayoutExpr layouts lvs dlexpr  -- layout is bad
                                    -> freshTVar >>= \t' -> return (Unsat $ DataLayoutError anError, t') 
