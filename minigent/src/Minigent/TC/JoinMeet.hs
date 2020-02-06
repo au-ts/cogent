@@ -35,8 +35,6 @@ data Candidate = Meet Type Type Type
 joinMeet :: (Monad m, MonadFresh VarName m) => Rewrite.Rewrite' m [Constraint]
 joinMeet = Rewrite.withTransform find $ \c -> case c of
 
--- TODO: Fix this
-
   Meet v (Function t1 t2) (Function r1 r2) -> do
     b1 <- UnifVar <$> fresh
     b2 <- UnifVar <$> fresh
@@ -80,9 +78,8 @@ joinMeet = Rewrite.withTransform find $ \c -> case c of
     n <- UnknownParameter <$> fresh
     pure [Record n r s :< v, Record n1 r1 s1 :< Record n r s, Record n2 r2 s2 :< Record n r s]
 
-  -- TODO: Check if the recursive parameters need to be compared?
-  Join v (Record n1 r1 s1) (Record n2 r2 s2) | r1 == r2 && s1 == s2 && n1 == n2 -> do
-    pure [Record n1 r1 s1 :< v]
+  Join v (Record rp1 r1 s1) (Record rp2 r2 s2) | r1 == r2 && s1 == s2 && sameRecursive rp1 rp2 -> do
+    pure [Record rp1 r1 s1 :< v]
 
   Join v (Function t1 t2) (Function r1 r2) -> do
     b1 <- UnifVar <$> fresh

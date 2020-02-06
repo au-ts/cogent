@@ -278,7 +278,6 @@ sameRecursive _       _       = False
 -- | Unrolls a recursive parameter to the record it references
 unroll :: RecParName -> RecContext -> Type
 unroll n (Just ctxt) = mapRecPars (Just ctxt)  (ctxt M.! n)
--- TODO: Should this be an error?
 unroll _ _ = error "Impossible: cannot unroll a recursive parameter with an empty context"
 
 -- | Given a context, changes all recursive parameter references from TypeVar to RecPar according to the context

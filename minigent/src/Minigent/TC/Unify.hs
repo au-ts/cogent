@@ -55,11 +55,6 @@ assignOf (Record _ _ s :< Record _ _ (UnknownSigil v))
   | s `elem` [ReadOnly, Unboxed, Writable]
   = pure [ SigilAssign v s ]
 
--- TODO: Check this
-assignOf (Record (UnknownParameter x) _ s :< Record _ _ Unboxed) 
-  = pure [RecParAssign x None]
-
-
 -- N.B. we know from the previous phase that common alternatives have been factored out.
 assignOf (Variant r1 :=: Variant r2)
   | rowVar r1 /= rowVar r2
