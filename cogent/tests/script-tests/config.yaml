@@ -1,0 +1,27 @@
+- test_name: simple-pass
+  files:
+    - simple_pass.cogent
+  flags: 
+    - "--typecheck"
+  expected_result: "pass"
+
+- test_name: simple-error
+  files:
+    - non_existant_file.cogent
+  flags:
+    - "--typecheck"
+  expected_result: "error"
+wdawhdgyawdvy
+- test_name: simple-fail
+  files:
+    - simple_fail.cogent
+  flags:
+    - "--typecheck"
+  expected_result: "fail  "
+
+- test_name: script-test
+  files:
+    - dawdawd
+  flags:
+    - "--parse"
+  expected_result: "wip"

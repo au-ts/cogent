@@ -1,0 +1,2 @@
+f : all (a, b). a -> b
+f x = x

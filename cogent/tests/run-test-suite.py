@@ -201,7 +201,7 @@ class TestConfiguration:
         fname = os.path.join(self.dir, filename)
         # Check file exists and error gracefully
         if not os.path.exists(fname):
-            def f(): return ("error", "Source file '{}' not found".format(
+            def f(): return ("error", "Source file '{}' not found\n".format(
                 fname), test_info['expected_result'])
             return TestResult(f(), fname, test_info['test_name'])
 
@@ -401,21 +401,21 @@ if __name__ == "__main__":
 
         if expected == "wip":
             wips += 1
-        elif not p and expected == "error":
+        elif not p and status == "error":
             errs += 1
         elif p:
             passes += 1
         else:
             fails += 1
     
-    print("-"*15 + " Final results: " + "-" * 15)
+    print("-"*20 + " Final results: " + "-" * 20)
     print()
 
-    print("{:>16}{:>16}".format("Result", "Amount"))
-    print("{:>16}{:>16}".format("Errors", errs))
-    print("{:>16}{:>16}".format("Passes", passes))
-    print("{:>16}{:>16}".format("Fails", fails))
-    print("{:>16}{:>16}".format("Work In Progress", wips))
+    print("{:>20}{:>20}".format("Result", "Amount"))
+    print("{:>20}{:>20}".format("Errors", errs))
+    print("{:>20}{:>20}".format("Passes", passes))
+    print("{:>20}{:>20}".format("Fails", fails))
+    print("{:>20}{:>20}".format("Work In Progress", wips))
     print()
 
     if not all(final_results):
