@@ -106,7 +106,7 @@ sanityCheckExpr envs tvs vs exp = check vs exp
       e           -> pure e
 
 reorganiseTopLevel :: RawTopLevel -> GlobalEnvironments -> Writer [Error] GlobalEnvironments
-reorganiseTopLevel (TypeSig f pt@(Forall _ _ t)) envs = do 
+reorganiseTopLevel (TypeSig f pt) envs = do 
   case M.lookup f (types envs) of 
     Just _ -> tell ["Duplicate type signature for " ++ f] 
     Nothing -> return ()
@@ -155,8 +155,6 @@ embedRecPars (Forall vs cs t) = Forall vs cs $ erp False M.empty t
     erp _ _ t = t
 
 -- | Checks that variables only occur strictly positive.
---   We check the argument and result of the function seperately so as not to
---   trigger the strictly positive case for everything that is an argument.
 nonStrictlyPositiveVars :: Type -> [VarName] 
 nonStrictlyPositiveVars t = sp t M.empty
   where
