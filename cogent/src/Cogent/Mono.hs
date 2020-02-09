@@ -73,7 +73,7 @@ newtype Mono b x = Mono { runMono :: RWS (Instance b)
 -- Returns: (monomorphic abstract functions, poly-abs-funcs)
 absFuns :: [Definition TypedExpr VarName b] -> ([FunName], [FunName])
 absFuns = (P.map getDefinitionId *** P.map getDefinitionId)
-        . L.partition (\(AbsDecl _ _ ts _ _) -> case Vec.length ts of SZero -> True; _ -> False)
+        . L.partition (\(AbsDecl _ _ ts _ _ _) -> case Vec.length ts of SZero -> True; _ -> False)
         . P.filter isAbsDecl
   where isAbsDecl (AbsDecl {}) = True; isAbsDecl _ = False
 
@@ -142,13 +142,13 @@ monoName n (Just i) = unCoreFunName n ++ "_" ++ show i
 
 -- given one instance
 monoDefinitionInst :: (Ord b) => Definition TypedExpr VarName b -> Instance b -> Mono b ()
-monoDefinitionInst (FunDef attr fn tvs t rt e) i = do
+monoDefinitionInst (FunDef attr fn tvs lvs t rt e) i = do
   idx <- if P.null i then return Nothing else M.lookup i . fromJust . M.lookup fn . fst <$> get
-  d' <- Mono $ local (const i) (runMono $ FunDef attr (monoName (unsafeCoreFunName fn) idx) Nil <$> monoType t <*> monoType rt <*> monoExpr e)
+  d' <- Mono $ local (const i) (runMono $ FunDef attr (monoName (unsafeCoreFunName fn) idx) Nil Nil <$> monoType t <*> monoType rt <*> monoExpr e)
   censor (second3 $ (d':)) (return ())
-monoDefinitionInst (AbsDecl attr fn tvs t rt) i = do
+monoDefinitionInst (AbsDecl attr fn tvs lvs t rt) i = do
   idx <- if P.null i then return Nothing else M.lookup i . fromJust . M.lookup fn . fst <$> get
-  d' <- Mono $ local (const i) (runMono $ AbsDecl attr (monoName (unsafeCoreFunName fn) idx) Nil <$> monoType t <*> monoType rt)
+  d' <- Mono $ local (const i) (runMono $ AbsDecl attr (monoName (unsafeCoreFunName fn) idx) Nil Nil <$> monoType t <*> monoType rt)
   censor (second3 $ (d':)) (return ())
 monoDefinitionInst (TypeDef tn tvs t) i = __impossible "monoDefinitionInst"
 
@@ -159,31 +159,31 @@ getPrimInt (TE t _) | TPrim p <- t = p
 monoExpr :: (Ord b) => TypedExpr t v VarName b -> Mono b (TypedExpr 'Zero v VarName b)
 monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
   where
-    monoExpr' (Variable var       ) = pure $ Variable var
-    monoExpr' (Fun      fn []  nt ) = modify (first $ M.insert (unCoreFunName fn) M.empty) >> return (Fun fn [] nt)
-    monoExpr' (Fun      fn tys nt ) = do
-      tys' <- mapM monoType tys
-      modify (first $ M.insertWith (\_ m -> insertWith (flip const) tys' (M.size m) m) (unCoreFunName fn) (M.singleton tys' 0))  -- add one more instance to the env
-      idx <- M.lookup tys' . fromJust . M.lookup (unCoreFunName fn) . fst <$> get
-      return $ Fun (unsafeCoreFunName $ monoName fn idx) [] nt  -- used to be tys'
-    monoExpr' (Op      opr es     ) = Op opr <$> mapM monoExpr es
-    monoExpr' (App     e1 e2      ) = App <$> monoExpr e1 <*> monoExpr e2
-    monoExpr' (Con     tag e t    ) = Con tag <$> monoExpr e <*> monoType t
-    monoExpr' (Unit               ) = pure Unit
-    monoExpr' (ILit    n   pt     ) = pure $ ILit n pt
-    monoExpr' (SLit    s          ) = pure $ SLit s
+    monoExpr' (Variable var        ) = pure $ Variable var
+    monoExpr' (Fun      fn [] ls nt) = modify (first $ M.insert (unCoreFunName fn) M.empty) >> return (Fun fn [] ls nt)
+    monoExpr' (Fun      fn ts ls nt) = do
+      ts' <- mapM monoType ts
+      modify (first $ M.insertWith (\_ m -> insertWith (flip const) ts' (M.size m) m) (unCoreFunName fn) (M.singleton ts' 0))  -- add one more instance to the env
+      idx <- M.lookup ts' . fromJust . M.lookup (unCoreFunName fn) . fst <$> get
+      return $ Fun (unsafeCoreFunName $ monoName fn idx) [] [] nt  -- used to be ts'
+    monoExpr' (Op      opr es      ) = Op opr <$> mapM monoExpr es
+    monoExpr' (App     e1 e2       ) = App <$> monoExpr e1 <*> monoExpr e2
+    monoExpr' (Con     tag e t     ) = Con tag <$> monoExpr e <*> monoType t
+    monoExpr' (Unit                ) = pure Unit
+    monoExpr' (ILit    n   pt      ) = pure $ ILit n pt
+    monoExpr' (SLit    s           ) = pure $ SLit s
 #ifdef BUILTIN_ARRAYS
-    monoExpr' (ALit    es         ) = ALit <$> mapM monoExpr es
-    monoExpr' (ArrayIndex e i     ) = ArrayIndex <$> monoExpr e <*> monoExpr i
+    monoExpr' (ALit    es          ) = ALit <$> mapM monoExpr es
+    monoExpr' (ArrayIndex e i      ) = ArrayIndex <$> monoExpr e <*> monoExpr i
     monoExpr' (ArrayMap2 (as,f) (e1,e2)) = do
       f'  <- monoExpr f
       e1' <- monoExpr e1
       e2' <- monoExpr e2
       return $ ArrayMap2 (as,f') (e1',e2')
-    monoExpr' (Pop     a e1 e2    ) = Pop a <$> monoExpr e1 <*> monoExpr e2
-    monoExpr' (Singleton e        ) = Singleton <$> monoExpr e
-    monoExpr' (ArrayPut arr i e   ) = ArrayPut <$> monoExpr arr <*> monoExpr i <*> monoExpr e
-    monoExpr' (ArrayTake a arr i e) = ArrayTake a <$> monoExpr arr <*> monoExpr i <*> monoExpr e
+    monoExpr' (Pop     a e1 e2     ) = Pop a <$> monoExpr e1 <*> monoExpr e2
+    monoExpr' (Singleton e         ) = Singleton <$> monoExpr e
+    monoExpr' (ArrayPut arr i e    ) = ArrayPut <$> monoExpr arr <*> monoExpr i <*> monoExpr e
+    monoExpr' (ArrayTake a arr i e ) = ArrayTake a <$> monoExpr arr <*> monoExpr i <*> monoExpr e
 #endif
     monoExpr' (Let     a e1 e2    ) = Let a <$> monoExpr e1 <*> monoExpr e2
     monoExpr' (LetBang vs a e1 e2 ) = LetBang vs a <$> monoExpr e1 <*> monoExpr e2
@@ -229,12 +229,12 @@ monoType (TArray t l s mhole) = TArray <$> monoType t <*> monoLExpr l <*> pure s
 
 monoLExpr :: (Ord b) => LExpr t b -> Mono b (LExpr 'Zero b)
 monoLExpr (LVariable var       ) = pure $ LVariable var
-monoLExpr (LFun      fn []     ) = modify (first $ M.insert (unCoreFunName fn) M.empty) >> return (LFun fn [])
-monoLExpr (LFun      fn tys    ) = do
-  tys' <- mapM monoType tys
-  modify (first $ M.insertWith (\_ m -> insertWith (flip const) tys' (M.size m) m) (unCoreFunName fn) (M.singleton tys' 0))  -- add one more instance to the env
-  idx <- M.lookup tys' . fromJust . M.lookup (unCoreFunName fn) . fst <$> get
-  return $ LFun (unsafeCoreFunName $ monoName fn idx) []  -- used to be tys'
+monoLExpr (LFun      fn [] ls  ) = modify (first $ M.insert (unCoreFunName fn) M.empty) >> return (LFun fn [] ls)
+monoLExpr (LFun      fn ts ls  ) = do
+  ts' <- mapM monoType ts
+  modify (first $ M.insertWith (\_ m -> insertWith (flip const) ts' (M.size m) m) (unCoreFunName fn) (M.singleton ts' 0))  -- add one more instance to the env
+  idx <- M.lookup ts' . fromJust . M.lookup (unCoreFunName fn) . fst <$> get
+  return $ LFun (unsafeCoreFunName $ monoName fn idx) [] [] -- used to be ts'
 monoLExpr (LOp      opr es     ) = LOp opr <$> mapM monoLExpr es
 monoLExpr (LApp     e1 e2      ) = LApp <$> monoLExpr e1 <*> monoLExpr e2
 monoLExpr (LCon     tag e t    ) = LCon tag <$> monoLExpr e <*> monoType t

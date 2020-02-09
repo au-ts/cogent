@@ -201,7 +201,7 @@ findTypeSyn t = findType t >>= \(TCon nm _ _) -> pure nm
 
 shallowExpr :: (Show b) => TypedExpr t v VarName b -> SG Term
 shallowExpr (TE _ (Variable (_,v))) = pure $ mkId (snm v)
-shallowExpr (TE _ (Fun fn ts _)) = pure $ mkId $ snm $ unCoreFunName fn  -- only prints the fun name
+shallowExpr (TE _ (Fun fn ts ls _)) = pure $ mkId $ snm $ unCoreFunName fn  -- only prints the fun name
 shallowExpr (TE _ (Op opr es)) = shallowPrimOp <$> pure opr <*> (mapM shallowExpr es)
 shallowExpr (TE _ (App f arg)) = mkApp <$> shallowExpr f <*> (mapM shallowExpr [arg])
 shallowExpr (TE t (Con cn e _))  = do
@@ -733,7 +733,7 @@ toCaseLemma (SCCN {..}) = let
        return $ O.LemmaDecl (O.Lemma False (Just (TheoremDecl (Just thmName) [])) [thmProp] $ Proof methods ProofDone)
 
 scorresCaseDef :: MapTypeName -> Definition TypedExpr VarName b -> S.Set SCorresCaseData
-scorresCaseDef m (FunDef _ fn ps ti to e) = scorresCaseExpr m e
+scorresCaseDef m (FunDef _ fn ts ls ti to e) = scorresCaseExpr m e
 scorresCaseDef m (_) = S.empty
 
 
@@ -789,7 +789,7 @@ scorresFieldLemmas types tmap =
 
 -- Left is concrete funs, Right is shared
 shallowDefinition :: (Show b) => Definition TypedExpr VarName b -> SG ([Either (TheoryDecl I.Type I.Term) (TheoryDecl I.Type I.Term)], Maybe FunName)
-shallowDefinition (FunDef _ fn ps ti to e) =
+shallowDefinition (FunDef _ fn ps _ ti to e) =
     local (typarUpd typar) $ do
     e' <- shallowExpr e
     types <- shallowType $ TFun ti to
@@ -798,7 +798,7 @@ shallowDefinition (FunDef _ fn ps ti to e) =
   where fn'   = mkId (snm fn)
         arg0  = mkId $ snm $ D.freshVarPrefix ++ "0"
         typar = map fst $ Vec.cvtToList ps
-shallowDefinition (AbsDecl _ fn ps ti to) =
+shallowDefinition (AbsDecl _ fn ps _ ti to) =
     local (typarUpd typar) $ do
       types <- shallowType $ TFun ti to
       pure ([Right $ ConstsDecl $ Consts (Sig (snm fn) (Just types))], Nothing)
@@ -1087,7 +1087,7 @@ shallowTuplesProof baseName sharedDefThy defThy tupSharedDefThy tupDefThy typeMa
     indent k = map (replicate k ' ' ++)
 
     proofs = concatMap makeProof defs
-      where makeProof (FunDef _ (snm -> funName) _ _ _ _) = let
+      where makeProof (FunDef _ (snm -> funName) _ _ _ _ _) = let
               fullName = defThy ++ "." ++ funName
               funDef = snm fullName ++ "_def"
               tupleFullName = tupDefThy ++ "." ++ funName
@@ -1103,7 +1103,7 @@ shallowTuplesProof baseName sharedDefThy defThy tupSharedDefThy tupDefThy typeMa
                  , "           " ++ proofBucket ++ " " ++ proofBucket ++ "[THEN shallow_tuples_rel_funD])+"
                  ]
 
-            makeProof (AbsDecl _ (snm -> funName) _ _ _) = let
+            makeProof (AbsDecl _ (snm -> funName) _ _ _ _) = let
               fullName = sharedDefThy ++ "." ++ funName
               tupleFullName = tupSharedDefThy ++ "." ++ funName
               in return $ TheoryString $ unlines $

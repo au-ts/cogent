@@ -120,9 +120,9 @@ markOcc :: SNat v -> TypedExpr t v VarName b -> Occ v b (InExpr t v b)
 markOcc sv (TE tau (Variable (v, n))) = do
   modify $ second $ modifyAt v (OnceSafe <>)
   return . TE tau $ Variable (v, (n, OnceSafe))
-markOcc sv (TE tau (Fun fn ts note)) = do
+markOcc sv (TE tau (Fun fn ts ls note)) = do
   modify (first $ M.adjust (second $ (OnceSafe <>)) (unCoreFunName fn))
-  return . TE tau $ Fun fn ts note
+  return . TE tau $ Fun fn ts ls note
 markOcc sv (TE tau (Op opr es)) = TE tau . Op opr <$> mapM (markOcc sv) es
 markOcc sv (TE tau (App f e)) = TE tau <$> (App <$> markOcc sv f <*> markOcc sv e)
 markOcc sv (TE tau (Con tag e t)) = TE tau <$> (Con tag <$> markOcc sv e <*> pure t)
@@ -245,10 +245,10 @@ simplify ds = let fenv = fmap (,Dead) . M.fromList . catMaybes $ L.map (\d -> (,
                in flip evalState (fenv, 0) $ mapM simplify1 ds
 
 simplify1 :: Definition TypedExpr VarName b -> State (FuncEnv b, Int) (Definition TypedExpr VarName b)
-simplify1 (FunDef attr fn tvs ti to e) = do
+simplify1 (FunDef attr fn tvs lvs ti to e) = do
   fenv <- use _1
   vcnt <- use _2
-  (d',env) <- return $ runSimp (SimpEnv fenv (fmap snd tvs) vcnt) (FunDef attr fn tvs ti to <$> simplifyExpr __cogent_fsimplifier_iterations e)
+  (d',env) <- return $ runSimp (SimpEnv fenv (fmap snd tvs) vcnt) (FunDef attr fn tvs lvs ti to <$> simplifyExpr __cogent_fsimplifier_iterations e)
   _1 .= env^.funcEnv
   _1 %= M.adjust (first $ const d') (getDefinitionId d')
   _2 .= env^.varCount
@@ -301,19 +301,19 @@ simplExpr sv subst ins (TE tau (Variable (v,(n,o)))) cont = case subst `V.at` v 
   Just (DoneEx e)   -> do fenv <- use funcEnv
                           simplExpr sv (emptySubst sv) ins (evalOcc (fenv, emptyOccVec sv) $ markOcc sv e) cont
 -- NOTE: We cannot do anything here. Function inlining has to happen at App (Fun _) _ because lack of lambda / zilinc
-simplExpr sv subst ins (TE tau (Fun fn tys note)) cont = return (TE tau (Fun fn tys note))
+simplExpr sv subst ins (TE tau (Fun fn ts ls note)) cont = return (TE tau (Fun fn ts ls note))
 simplExpr sv subst ins (TE tau (Op opr es)) cont = TE tau . Op opr <$> mapM (flip (simplExpr sv subst ins) cont) es
-simplExpr sv subst ins (TE tau (App (TE tau1 (Fun fn tys note)) e2)) cont
+simplExpr sv subst ins (TE tau (App (TE tau1 (Fun fn tys lvs note)) e2)) cont
   | note `elem` [InlineMe, InlinePlease], ExI (Flip tys') <- V.fromList tys = do
   e2' <- simplExpr sv subst ins e2 cont
   def <- fst . fromJust . M.lookup (unCoreFunName fn) <$> use funcEnv
   case def of
-    FunDef attr fn ts ti to fb -> do
+    FunDef attr fn ts ls ti to fb -> do
       env <- get
       fb' <- return $ evalSimp (SimpEnv (env^.funcEnv) (fmap snd ts) (env^.varCount)) $
                simplExpr s1 (emptySubst s1) (emptyInScopeSet s1) (evalOcc (env^.funcEnv, emptyOccVec s1) $ markOcc s1 fb) Stop
       betaR fb' s0 sv e2' (unsafeCoerce tys')  -- FIXME
-    AbsDecl attr fn ts ti to    -> return $ TE tau $ App (TE tau1 (Fun (unsafeCoreFunName fn) tys note)) e2'
+    AbsDecl attr fn ts ls ti to    -> return $ TE tau $ App (TE tau1 (Fun (unsafeCoreFunName fn) tys lvs note)) e2'  -- FIXME
     _ -> __impossible "simplExpr"
 simplExpr sv subst ins (TE tau (App e1 e2))  cont = TE tau <$> (App <$> simplExpr sv subst ins e1 cont <*> simplExpr sv subst ins e2 cont)
 simplExpr sv subst ins (TE tau (Con cn e t)) cont = TE tau <$> (Con cn <$> simplExpr sv subst ins e cont <*> pure t)
@@ -470,7 +470,7 @@ lowerFin _ _ _ = __ghc_t3927 "lowerFin"
 
 lowerExpr :: (Show a, v ~ 'Suc v') => SNat v -> Fin ('Suc v) -> TypedExpr t ('Suc v) a b -> TypedExpr t v a b
 lowerExpr w i (TE tau (Variable (v,a)))     = TE tau $ Variable (lowerFin w i v, a)
-lowerExpr w i (TE tau (Fun fn tys  note))   = TE tau $ Fun fn tys note
+lowerExpr w i (TE tau (Fun fn ts ls note))  = TE tau $ Fun fn ts ls note
 lowerExpr w i (TE tau (Op opr es))          = TE tau $ Op opr (L.map (lowerExpr w i) es)
 lowerExpr w i (TE tau (App e1 e2))          = TE tau $ App (lowerExpr w i e1) (lowerExpr w i e2)
 lowerExpr w i (TE tau (Con cn e t))         = TE tau $ Con cn (lowerExpr w i e) t
@@ -493,7 +493,7 @@ lowerExpr w i (TE tau (Cast ty e))       = TE tau $ Cast ty (lowerExpr w i e)
 
 liftExpr :: Show a => Fin ('Suc v) -> TypedExpr t v a b -> TypedExpr t ('Suc v) a b
 liftExpr i (TE tau (Variable (v,a)))     = TE tau $ Variable (liftIdx i v,a)
-liftExpr i (TE tau (Fun fn tys note))    = TE tau $ Fun fn tys note
+liftExpr i (TE tau (Fun fn ts ls note))  = TE tau $ Fun fn ts ls note
 liftExpr i (TE tau (Op opr es))          = TE tau $ Op opr (L.map (liftExpr i) es)
 liftExpr i (TE tau (App e1 e2))          = TE tau $ App (liftExpr i e1) (liftExpr i e2)
 liftExpr i (TE tau (Con cn e t))         = TE tau $ Con cn (liftExpr i e) t
@@ -561,7 +561,7 @@ betaR (TE tau (Variable (v,a)))  idx n arg ts
   = case substFin v idx n arg of
       Left v' -> pure $ TE (substitute ts tau) $ Variable (v',a)
       Right e -> pure e
-betaR (TE tau (Fun fn tys note)) idx n arg ts = pure . TE (substitute ts tau) $ Fun fn (L.map (substitute ts) tys) note
+betaR (TE tau (Fun fn tvs lvs nt)) idx n arg ts = pure . TE (substitute ts tau) $ Fun fn (L.map (substitute ts) tvs) lvs nt
 betaR (TE tau (Op opr es))       idx n arg ts = TE (substitute ts tau) <$> (Op opr <$> mapM (\x -> betaR x idx n arg ts) es)
 
 betaR (TE tau (App e1 e2))       idx n arg ts = TE (substitute ts tau) <$> (App <$> betaR e1 idx n arg ts <*> betaR e2 idx n arg ts)

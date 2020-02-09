@@ -108,10 +108,8 @@ tcDataLayoutExpr env vs (DLVariant tagExpr alternatives) =
 tcDataLayoutExpr env vs (DLArray e p) = mapPaths (InElmt p) $ tcDataLayoutExpr env vs e
 #endif
 tcDataLayoutExpr _ _ DLPtr = return $ singletonAllocation (pointerBitRange, PathEnd)
-tcDataLayoutExpr _ vs (DLVar n) =
-  case n `elem` vs of
-    True -> return $ emptyAllocation -- FIXME
-    False -> throwE [UnknownDataLayoutVar n PathEnd]
+tcDataLayoutExpr _ vs (DLVar n) = if n `elem` vs then return undeterminedAllocation
+                                                 else throwE [UnknownDataLayoutVar n PathEnd]
 tcDataLayoutExpr _ _ l = __impossible $ "tcDataLayoutExpr; tried to typecheck unexpected layout: " ++ show l
 
 

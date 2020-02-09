@@ -34,6 +34,7 @@ data AssignResult = Type TCType
                   | Sigil (Sigil (Maybe TCDataLayout))
                   | Row (Either (Row.Row TCType) Row.Shape)
                   | Taken Taken
+                  -- | Layout TCDataLayout
 #ifdef BUILTIN_ARRAYS
                   | ARow (ARow.ARow TCExpr)
                   | Hole (Maybe TCSExpr)
@@ -164,6 +165,7 @@ applyC s Sat = Sat
 applyC s (Exhaustive t ps) = Exhaustive (apply s t) ps
 applyC s (Solved t) = Solved (apply s t)
 applyC s (IsPrimType t) = IsPrimType (apply s t)
+applyC s (l :~ t) = l :~ (apply s t)
 
 #ifdef BUILTIN_ARRAYS
 applySE :: Subst -> TCSExpr -> TCSExpr

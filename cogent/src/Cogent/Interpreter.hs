@@ -33,6 +33,8 @@ import           Cogent.Compiler
 import qualified Cogent.Context     as Ctx
 import           Cogent.Core        as Core
 import qualified Cogent.Desugar     as Ds
+import           Cogent.Dargent.Core
+import           Cogent.Dargent.Allocation
 import qualified Cogent.Inference   as Core
 import           Cogent.Mono
 import qualified Cogent.Parser      as Parser
@@ -143,7 +145,7 @@ instance (Pretty a, Pretty f, Prec (Value a f), Pretty (HNF a f)) => Pretty (Val
   pretty (VRecord fs) = record $ fmap (\(f,mv) -> fieldname f <+> symbol "=" <+> (case mv of Nothing -> symbol "●"; Just v -> pretty v)) fs
   pretty (VVariant tag v) = tagname tag <+> prettyPrec 1 v
   pretty (VProduct v1 v2) = Pretty.tupled [pretty v1, pretty v2]
-  pretty (VFunction  fn e ts) = funname fn <> typeargs (fmap pretty ts)
+  pretty (VFunction fn e ts) = funname fn <> typeargs (fmap pretty ts)
   pretty (VThunk nf) = pretty nf
 
 instance (Pretty a, Pretty f, Prec a, Prec f, Pretty (Value a f), Prec (HNF a f))
@@ -384,8 +386,8 @@ coreTcExpr :: [Definition TypedExpr VarName VarName]
            -> UntypedExpr 'Zero 'Zero VarName VarName
            -> IO (TypedExpr 'Zero 'Zero VarName VarName)
 coreTcExpr ds e = do
-  let mkFunMap (FunDef  _ fn ps ti to _) = (fn, FT (fmap snd ps) ti to)
-      mkFunMap (AbsDecl _ fn ps ti to  ) = (fn, FT (fmap snd ps) ti to)
+  let mkFunMap (FunDef  _ fn ps ls ti to _) = (fn, FT (fmap snd ps) ti to)
+      mkFunMap (AbsDecl _ fn ps ls ti to  ) = (fn, FT (fmap snd ps) ti to)
       mkFunMap _ = __impossible "coreTcExpr: mkFunMap: not a function definition"
   let funmap = M.fromList $ fmap mkFunMap $ filter (not . isTypeDef) ds
   case fmap snd $ Core.runTC (Core.infer e) (V.Nil, funmap) V.Nil of
@@ -499,8 +501,8 @@ specialiseExpr :: TypedExpr t v VarName VarName -> Mono VarName (TypedExpr 'Zero
 specialiseExpr (TE t e) = TE <$> monoType t <*> specialiseExpr' e
   where
     specialiseExpr' (Variable var       ) = pure $ Variable var
-    specialiseExpr' (Fun fn [] notes    ) = pure $ Fun fn [] notes
-    specialiseExpr' (Fun fn ts notes    ) = Fun fn <$> mapM monoType ts <*> pure notes
+    specialiseExpr' (Fun fn [] ls notes ) = pure $ Fun fn [] ls notes
+    specialiseExpr' (Fun fn ts ls notes ) = Fun fn <$> mapM monoType ts <*> pure ls <*> pure notes
     specialiseExpr' (Op      opr es     ) = Op opr <$> mapM specialiseExpr es
     specialiseExpr' (App     e1 e2      ) = App <$> specialiseExpr e1 <*> specialiseExpr e2
     specialiseExpr' (Con     tag e t    ) = Con tag <$> specialiseExpr e <*> monoType t
@@ -529,11 +531,11 @@ specialiseExpr (TE t e) = TE <$> monoType t <*> specialiseExpr' e
 
 eval :: TypedExpr 'Zero v VarName VarName -> ReplM v () () (Value () ())
 eval (TE _ (Variable (v,_))) = use gamma >>= return . (`V.at` v)
-eval (TE _ (Fun fn ts _)) = do
+eval (TE _ (Fun fn ts ls _)) = do
   funmap <- use fundefs
   absfunmap <- use absfuns
   case M.lookup fn funmap of
-    Just (FunDef  _ _ _ ti to e) -> return $ VFunction  (unCoreFunName fn) (specialise ts e) ts
+    Just (FunDef  _ _ _ _ ti to e) -> return $ VFunction  (unCoreFunName fn) (specialise ts e) ts
     Nothing  -> case M.lookup fn absfunmap of
       Just af -> return $ VThunk $ VAFunction (unCoreFunName fn) () ts
       Nothing -> __impossible $ "eval: function name " ++ show fn ++ " not found"
