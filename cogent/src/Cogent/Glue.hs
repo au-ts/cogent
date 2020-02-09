@@ -574,7 +574,7 @@ tcFnCall e = do
 
 genFn :: CC.TypedExpr 'Zero 'Zero VarName VarName -> Gl CS.Exp
 genFn = genAnti $ \case
-  CC.TE t (CC.Fun fn _ _) -> return (CS.Var (CS.Id (CG.funEnum (unCoreFunName fn)) noLoc) noLoc)
+  CC.TE t (CC.Fun fn _ _ _) -> return (CS.Var (CS.Id (CG.funEnum (unCoreFunName fn)) noLoc) noLoc)
   _ -> __impossible "genFn"
 
 genFnCall :: CC.Type 'Zero VarName -> Gl CS.Exp
@@ -692,10 +692,10 @@ traverseOneFunc fn d loc = do
               -- Then we can continue the normal compilation process.
               let SrcLoc (Loc (Pos filepath line col _) _) = loc
                   pos = newPos filepath line col
-              CC.TE _ (CC.Fun _ coreTargs _) <- (flip tcExp (Nothing) >=>
-                                                 desugarExp >=>
-                                                 coreTcExp) $
-                                                (SF.LocExpr pos (SF.TypeApp fnName targs' SF.NoInline))
+              CC.TE _ (CC.Fun _ coreTargs _ _) <- (flip tcExp (Nothing) >=>
+                                                   desugarExp >=>
+                                                   coreTcExp) $
+                                                  (SF.LocExpr pos (SF.TypeApp fnName targs' SF.NoInline))
               -- Matching @coreTargs@ with @ts@. More specifically: match them in @mp@, and trim
               -- those in @mp@ that don't match up @coreTargs@.
               -- E.g. if @ts = [U8,a]@ and in @mp@ we find @[U8,U32]@ and @[U8,Bool]@, we instantiate this

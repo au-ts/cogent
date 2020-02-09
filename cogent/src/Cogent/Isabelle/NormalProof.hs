@@ -144,9 +144,9 @@ anormalCaseRules variants = let
 
 genDesugarNormalProof :: String -> String -> MapTypeName -> [Definition TypedExpr VarName b] -> [O.TheoryDecl I.Type I.Term]
 genDesugarNormalProof sdthy snthy typeMap defs =
-  let getPromotes (FunDef _ _ _ _ _ e) = getInlinedShallowPromotes typeMap e
+  let getPromotes (FunDef _ _ _ _ _ _ e) = getInlinedShallowPromotes typeMap e
       getPromotes _ = S.empty
-      getCases (FunDef _ _ _ _ _ e) = getShallowCases typeMap e
+      getCases (FunDef _ _ _ _ _ _ e) = getShallowCases typeMap e
       getCases _ = S.empty
 
       promotes = S.unions $ map getPromotes defs

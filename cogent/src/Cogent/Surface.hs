@@ -548,6 +548,7 @@ tvE (RE (PrimOp op es))     = foldMap tvE es
 tvE (RE (Var v))            = []
 tvE (RE (Match e v alts))   = tvE e ++ foldMap tvA alts
 tvE (RE (TypeApp v ts nt))  = foldMap (foldMap tvT) ts
+tvE (RE (LayoutApp e ls))   = tvE e
 tvE (RE (Con n es))         = foldMap tvE es
 tvE (RE (Seq e e'))         = tvE e ++ tvE e'
 tvE (RE (Lam  ip mt e))     = foldMap tvT mt ++ tvE e

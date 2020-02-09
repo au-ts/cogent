@@ -674,34 +674,36 @@ cg' (Annot e tau) t = do
 
 cg' (LayoutApp e ls) t = do
   -- tvs <- use knownTypeVars
+  let ls' = fmap toTCDL <$> ls
   (cl, el) <- validateLayouts (ls >>= (\case Nothing -> []; Just l -> [l]))
   (c', e') <- cg e t
-  let f = case getExpr e' of
-            Var n -> n
-            TypeApp n _ _ -> n
-            _ -> __impossible "check parser"
+  let (TypeApp f _ _) = getExpr e'
   lift (use $ knownFuns.at f) >>= \case
     Just (PT tvs lvs tau) -> do
-      let match :: [(DLVarName, Either TypeName TyVarName)] -> [Maybe TCDataLayout] -> CG (Constraint, [(DLVarName, TCDataLayout)])
-          match [] [] = pure (Sat, [])
-          match [] _  = pure (Unsat $ TooManyLayoutArguments f (PT tvs lvs tau), [])
+      let match :: [(DLVarName, Either TypeName TyVarName)] -> [Maybe TCDataLayout] -> CG (Constraint, [(DLVarName, TCDataLayout)], [(TyVarName, TCType)])
+          match [] [] = pure (Sat, [], [])
+          match [] _  = pure (Unsat $ TooManyLayoutArguments f (PT tvs lvs tau), [], [])
           match ts [] = freshLVar >>= match ts . return . Just
           match (t':t'') (Nothing:l') = freshLVar >>= match (t':t'') . (:l') . Just
           match (t':t'') (Just l:l') = do
-            (c, ps) <- match t'' l'
+            (c, lps, tps) <- match t'' l'
             let (k, v) = t'
-            return (c <> layoutMatchConstraint l (LayoutParam e' k), (k, l):ps)
-      (c'', ps) <- match lvs (fmap (fmap toTCDL) ls)
-      let fc = substLayout ps tau :< t
-          fe = LayoutApp e' ((Just . snd) <$> ps)
-      traceTc "gen" (text "cg for layoutapp:" <+> prettyE fe
+            case v of
+              Left tn -> return (c <> layoutMatchConstraint (Left ()) l, (k, l):lps, tps)
+              Right tv -> do
+                fv <- freshTVar
+                return (c <> layoutMatchConstraint (Right fv) l, (k, l):lps, (tv, fv):tps)
+      (cs, lps, tps) <- match lvs ls'
+      let ft = substType tps (substLayout lps tau)
+          lc = ft :< t
+          le = LayoutApp e' (Just . snd <$> lps)
+      traceTc "gen" (text "cg for layoutapp:" <+> prettyE le
                L.<$> text "of type" <+> pretty t <> semi
                L.<$> text "type signature is" <+> pretty (PT tvs lvs tau) <> semi
-               L.<$> text "generate constraint" <+> prettyC fc)
-      return (cl <> c' <> c'' <> fc, fe)
-    Nothing -> do
-      let ls' = (fmap toTCDL) <$> ls
-      return (Unsat (FunctionNotFound f) <> cl, LayoutApp e' ls')
+               L.<$> text "generate constraint" <+> prettyC lc)
+      let c'' = substLayoutC lps c'
+      return (cl <> cs <> lc <> c'', le)
+    Nothing -> return (Unsat (FunctionNotFound f) <> cl, LayoutApp e' ls')
 
 -- -----------------------------------------------------------------------------
 -- Pattern constraints

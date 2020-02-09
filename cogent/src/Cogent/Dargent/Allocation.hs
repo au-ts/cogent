@@ -33,6 +33,7 @@ module Cogent.Dargent.Allocation
   , Allocation' (..)
   , emptyAllocation
   , singletonAllocation
+  , undeterminedAllocation
   , (\/)
   , (/\)
   , overlaps
@@ -54,6 +55,7 @@ import GHC.Generics (Generic)
 
 import Cogent.Common.Types
 import Cogent.Common.Syntax
+import Cogent.Compiler
 import Cogent.Dargent.Util
 import Cogent.Util
 
@@ -133,6 +135,9 @@ emptyAllocation = Allocation []
 
 singletonAllocation :: AllocationBlock p -> Allocation' p
 singletonAllocation b = Allocation [b]
+
+undeterminedAllocation :: Allocation' p
+undeterminedAllocation = __fixme $ Allocation [] -- FIXME: we may need different rep
 
 -- | Disjunction of allocations
 --

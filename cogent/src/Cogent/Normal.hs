@@ -117,12 +117,12 @@ verifyNormal :: Show a => [Definition UntypedExpr a b] -> Bool
 verifyNormal [] = True
 verifyNormal (d:ds) =
   let b = case d of
-            FunDef _ _ _ _ _ e -> isNormal e
+            FunDef _ _ _ _ _ _ e -> isNormal e
             _ -> True
    in b && verifyNormal ds
 
 normaliseDefinition :: Definition UntypedExpr VarName b -> AN (Definition UntypedExpr VarName b)
-normaliseDefinition (FunDef attr fn ts ti to e) = FunDef attr fn ts ti to <$> (wrapPut =<< normaliseExpr s1 e)
+normaliseDefinition (FunDef attr fn ts ls ti to e) = FunDef attr fn ts ls ti to <$> (wrapPut =<< normaliseExpr s1 e)
 normaliseDefinition d = pure d
 
 normaliseExpr :: SNat v -> UntypedExpr t v VarName b -> AN (UntypedExpr t v VarName b)
@@ -143,11 +143,11 @@ normalise :: SNat v
           -> (forall n. SNat n -> UntypedExpr t (v :+: n) VarName b -> AN (UntypedExpr t (v :+: n) VarName b))
           -> AN (UntypedExpr t v VarName b)
 normalise v e@(E (Variable var)) k = k s0 (E (Variable var))
-normalise v e@(E (Fun fn ts _)) k = k s0 e
+normalise v e@(E (Fun{})) k = k s0 e
 normalise v   (E (Op opr es)) k = normaliseNames v es $ \n es' -> k n (E $ Op opr es')
-normalise v e@(E (App (E (Fun fn ts nt)) arg)) k
+normalise v e@(E (App (E (Fun fn ts ls nt)) arg)) k
   = normaliseName v arg $ \n arg' ->
-      k n (E $ App (E (Fun fn (fmap (upshiftType n $ finNat f0) ts) nt)) arg')
+      k n (E $ App (E (Fun fn (fmap (upshiftType n $ finNat f0) ts) ls nt)) arg')
 normalise v e@(E (App f arg)) k
   = normaliseName v f $ \n f' ->
       normaliseName (sadd v n) (upshiftExpr n v f0 arg) $ \n' arg' ->
