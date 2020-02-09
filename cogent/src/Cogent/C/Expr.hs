@@ -492,11 +492,11 @@ genExpr mv (TE t (Variable v)) = do  -- NOTE: this `v' could be a higher-order f
   -- --------------------------------------------------------------------------
   maybeAssign t' mv e' p
 
-genExpr mv (TE t (Fun f _ _)) = do  -- it is a function identifier
+genExpr mv (TE t (Fun f _ _ _)) = do  -- it is a function identifier
   t' <- genType t
   maybeAssign t' mv (variable $ funEnum (unCoreFunName f)) M.empty
 
-genExpr mv (TE t (App e1@(TE _ (Fun f _ MacroCall)) e2)) | __cogent_ffncall_as_macro = do  -- first-order function application
+genExpr mv (TE t (App e1@(TE _ (Fun f _ _ MacroCall)) e2)) | __cogent_ffncall_as_macro = do  -- first-order function application
   (e2',e2decl,e2stm,e2p) <- genExpr_ e2
   t' <- genType t
   (v,vdecl,vstm) <- maybeDecl mv t'
@@ -504,7 +504,7 @@ genExpr mv (TE t (App e1@(TE _ (Fun f _ MacroCall)) e2)) | __cogent_ffncall_as_m
   recycleVars e2p
   return (variable v, e2decl ++ vdecl, e2stm ++ vstm ++ call, M.empty)
 
-genExpr mv (TE t (App e1@(TE _ (Fun f _ _)) e2)) = do  -- first-order function application
+genExpr mv (TE t (App e1@(TE _ (Fun f _ _ _)) e2)) = do  -- first-order function application
   (e2',e2decl,e2stm,e2p) <- genExpr_ e2
   t' <- genType t
   (v,adecl,astm,vp) <- maybeAssign t' mv (CEFnCall (variable (unCoreFunName f)) [e2']) e2p
@@ -838,7 +838,7 @@ genFfiFunc _ _ _ = __impossible "genFfiFunc: generated C functions should always
 
  -- NOTE: This function excessively uses `unsafeCoerce' because of existentials / zilinc
 genDefinition :: Definition TypedExpr VarName VarName -> Gen 'Zero [CExtDecl]
-genDefinition (FunDef attr fn Nil t rt e) = do
+genDefinition (FunDef attr fn Nil Nil t rt e) = do
   localOracle .= 0
   varPool .= M.empty
   arg <- freshLocalCId 'a'
@@ -855,7 +855,7 @@ genDefinition (FunDef attr fn Nil t rt e) = do
   let fnspec = ((if __cogent_ffunc_purity_attr then fnSpecKind t rt else id) $ fnSpecAttr attr noFnSpec)
   return $ ffifunc ++ [ CDecl $ CExtFnDecl rt' fn [(t',Nothing)] fnspec
                       , CFnDefn (rt',fn) [(t',arg)] body fnspec ]
-genDefinition (AbsDecl attr fn Nil t rt)
+genDefinition (AbsDecl attr fn Nil Nil t rt)
   = do t'  <- addSynonym genTypeA (unsafeCoerce t  :: CC.Type 'Zero VarName) (argOf fn)
        rt' <- addSynonym genTypeP (unsafeCoerce rt :: CC.Type 'Zero VarName) (retOf fn)
        funClasses %= M.alter (insertSetMap (fn,attr)) (Function t' rt')

@@ -129,7 +129,7 @@ graphDefinitions :: (Show a, Show b) => [Definition TypedExpr a b] -> [FunctionG
 graphDefinitions = foldr graphDefinition []
 
 graphDefinition :: (Show a, Show b) => Definition TypedExpr a b -> [FunctionGraph] -> [FunctionGraph]
-graphDefinition te@(FunDef _ fn _ ti to _) gs = fg : gs
+graphDefinition te@(FunDef _ fn _ _ ti to _) gs = fg : gs
     where
         fg = case graphHelper te of
             (Right x) -> x
@@ -150,7 +150,7 @@ graphTypeHelper ti to = do
     return (input, output)
 
 graphHelper :: (Show a, Show b) => Definition TypedExpr a b -> GM FunctionGraph
-graphHelper (FunDef _ fn ks ti to e) = do
+graphHelper (FunDef _ fn _ _ ti to e) = do
     let v = "a@0"
     gti <- graphType ti
     gto <- graphType to
@@ -204,7 +204,7 @@ mystery s = 0 -- error ("mystery: " ++ s)
 
 graph :: (Show a, Show b) => Graph -> TypedExpr t v a b -> Int -> NextNode -> VarEnv -> GM (Graph, Int)
 
-graph g (TE _ (Let _ (TE appTy (App (TE _ (Fun fn _ _)) arg)) e)) n ret vs = do
+graph g (TE _ (Let _ (TE appTy (App (TE _ (Fun fn _ _ _)) arg)) e)) n ret vs = do
     let v = (freshNames !! (Prelude.length vs)) ++ "@" ++ show n
     ty <- graphType appTy
     lhs <- getFieldVariables (v, ty)
@@ -505,7 +505,7 @@ atom te@(TE _ (Esac x)) vs = do
     sumFields <- atomNoUpds x vs
     return (Prelude.tail sumFields, [])
 
-atom te@(TE _ (Fun _ _ _)) vs  = failure ("atom Fun")
+atom te@(TE _ (Fun _ _ _ _)) vs  = failure ("atom Fun")
 atom te@(TE _ (App _ _)) vs    = failure ("atom App: " ++ show te)
 atom te@(TE _ (SLit _)) vs     = failure ("atom SLit: " ++ show te)
 

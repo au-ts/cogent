@@ -100,6 +100,7 @@ data TypeError = FunctionNotFound VarName
                | SuperfluousTypeVariable [VarName]
                | DuplicateLayoutVariable [DLVarName]
                | SuperfluousLayoutVariable [DLVarName]
+               | TypeVariableNotDeclared [TyVarName]
                | TakeFromNonRecordOrVariant (Maybe [FieldName]) TCType
                | PutToNonRecordOrVariant    (Maybe [FieldName]) TCType
                | TakeNonExistingField FieldName TCType
@@ -177,7 +178,7 @@ data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: Seq
 #endif
               | UsedInLetBang
               | TypeParam { functionName :: FunName, typeVarName :: TyVarName }
-              | LayoutParam { expression :: TCExpr, layoutVarName :: DLVarName }
+              -- | LayoutParam { expression :: TCExpr, layoutVarName :: DLVarName }
               | ImplicitlyTaken
               | Constant { constName :: ConstName }
               deriving (Eq, Show, Ord)
@@ -191,7 +192,7 @@ data Constraint' t = (:<) t t
                    | Share t Metadata
                    | Drop t Metadata
                    | Escape t Metadata
-                   -- | LApply TCDataLayout Metadata
+                   | (:~) TCDataLayout TCType
                    | (:@) (Constraint' t) ErrorContext
                    | Unsat TypeError
                    | SemiSat TypeWarning
@@ -267,8 +268,9 @@ kindToConstraint k t m = (if canEscape  k then Escape t m else Sat)
                       <> (if canShare   k then Share  t m else Sat)
 
 -- FIXME
-layoutMatchConstraint :: TCDataLayout -> Metadata -> Constraint
-layoutMatchConstraint l m = Sat
+layoutMatchConstraint :: Either () TCType -> TCDataLayout -> Constraint
+layoutMatchConstraint (Left ()) l = Sat
+layoutMatchConstraint (Right n) l = l :~ n
 
 warnToConstraint :: Bool -> TypeWarning -> Constraint
 warnToConstraint f w | f = SemiSat w
@@ -616,21 +618,21 @@ substType vs (T (TVar v b u)) | Just x <- lookup v vs
       (_    , True ) -> T (TUnbox x)
 substType vs (T t) = T (fmap (substType vs) t)
 
-substLayout' :: [(DLVarName, TCDataLayout)] -> TCDataLayout -> TCDataLayout
-substLayout' vs (TLVar n) | Just x <- lookup n vs = x
-substLayout' vs (TLRecord fs) = TLRecord $ (\(x,y,z) -> (x,y,substLayout' vs z)) <$> fs
-substLayout' vs (TLVariant e fs) = TLVariant e $ (\(x,y,z,v) -> (x,y,z,substLayout' vs v)) <$> fs
+substLayoutL :: [(DLVarName, TCDataLayout)] -> TCDataLayout -> TCDataLayout
+substLayoutL vs (TLVar n) | Just x <- lookup n vs = x
+substLayoutL vs (TLRecord fs) = TLRecord $ (\(x,y,z) -> (x,y,substLayoutL vs z)) <$> fs
+substLayoutL vs (TLVariant e fs) = TLVariant e $ (\(x,y,z,v) -> (x,y,z,substLayoutL vs v)) <$> fs
 #ifdef BUILTIN_ARRAYS
-substLayout' vs (TLArray e p) = TLArray (substLayout' vs e) p
+substLayoutL vs (TLArray e p) = TLArray (substLayoutL vs e) p
 #endif
-substLayout' vs l = l
+substLayoutL vs l = l
 
 substLayoutS :: [(DLVarName, TCDataLayout)] -> Either (Sigil (Maybe TCDataLayout)) Int -> Either (Sigil (Maybe TCDataLayout)) Int
-substLayoutS vs (Left (Boxed _ (Just l))) = error "unimplemented"
-substLayoutS vs s = error "unimplemented"
+substLayoutS vs (Left (Boxed r (Just l))) = Left $ Boxed r (Just $ substLayoutL vs l)
+substLayoutS vs s = s
 
 substLayout :: [(DLVarName, TCDataLayout)] -> TCType -> TCType
-substLayout vs (T (TLayout l t)) = T (TLayout (substLayout' vs l) t)
+substLayout vs (T (TLayout l t)) = T (TLayout (substLayoutL vs l) t)
 substLayout vs (T t) = T (fmap (substLayout vs) t)
 substLayout vs (U x) = U x
 substLayout vs (V x) = V $ substLayout vs <$> x
@@ -639,6 +641,24 @@ substLayout vs (R x s) = R (substLayout vs <$> x) (substLayoutS vs s)
 substLayout vs (A t l s tkns) = A (substLayout vs t) l (substLayoutS vs s) tkns
 #endif
 substLayout vs (Synonym n ts) = Synonym n $ substLayout vs <$> ts
+
+substLayoutC :: [(DLVarName, TCDataLayout)] -> Constraint -> Constraint
+substLayoutC vs (c1 :& c2) = substLayoutC vs c1 :& substLayoutC vs c2
+substLayoutC vs (t1 :< t2) = substLayout vs t1 :< substLayout vs t2
+substLayoutC vs (t1 :=: t2) = substLayout vs t1 :=: substLayout vs t2
+substLayoutC vs (Upcastable t1 t2) = Upcastable (substLayout vs t1) (substLayout vs t2)
+substLayoutC vs (Share t m) = Share (substLayout vs t) m
+substLayoutC vs (Drop t m) = Drop (substLayout vs t) m
+substLayoutC vs (c :@ ctx) = substLayoutC vs c :@ ctx
+substLayoutC vs (Unsat e) = Unsat e
+substLayoutC vs Sat = Sat
+substLayoutC vs (Exhaustive t p) = Exhaustive (substLayout vs t) p
+substLayoutC vs (Solved t) = Solved (substLayout vs t)
+substLayoutC vs (IsPrimType t) = IsPrimType (substLayout vs t)
+#ifdef BUILTIN_ARRAYS
+substLayoutC vs (Arith e) = Arith e  -- i don't think there will exist layout vars in SExpr
+substLayoutC vs (c1 :-> c2) = substLayoutC vs c1 :-> substLayoutC vs c2
+#endif
 
 -- only for error reporting
 flexOf (U x) = Just x

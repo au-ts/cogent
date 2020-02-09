@@ -341,8 +341,8 @@ lookupType t                                 = getCompose (       CIdent <$> Com
 
 genLExpr :: CC.LExpr 'Zero VarName -> Gen v CExpr
 genLExpr (LVariable var        ) = __todo "genLExpr"
-genLExpr (LFun      fn []      ) = __todo "genLExpr"
-genLExpr (LFun      fn tys     ) = __todo "genLExpr"
+genLExpr (LFun      fn [] ls   ) = __todo "genLExpr"
+genLExpr (LFun      fn ts ls   ) = __todo "genLExpr"
 genLExpr (LOp       opr es     ) = genOp opr (CC.TPrim U32) <$> mapM genLExpr es  -- FIXME: we assume it's U32 for now / zilinc
 genLExpr (LApp      e1 e2      ) = __todo "genLExpr"
 genLExpr (LCon      tag e t    ) = __todo "genLExpr"
