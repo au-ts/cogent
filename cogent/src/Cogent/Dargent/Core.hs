@@ -23,7 +23,7 @@ import Data.Map (Map)
 import GHC.Generics (Generic)
 import Text.Parsec.Pos (SourcePos)
 
-import Cogent.Common.Syntax (TagName, FieldName, Size)
+import Cogent.Common.Syntax (TagName, FieldName, Size, DLVarName)
 import Cogent.Common.Types (PrimInt (..))
 import Cogent.Dargent.Allocation
 import Cogent.Dargent.Util
@@ -67,6 +67,7 @@ instance Binary a => Binary (DataLayout' a)
 -- The DataLayout wrapper type
 data DataLayout bits
   = Layout (DataLayout' bits) -- this type has this layout
+  | LayoutVar DLVarName
   | CLayout  -- defer the layout of this type to C
   deriving (Show, Eq, Functor, Foldable, Generic)
 

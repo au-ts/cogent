@@ -83,6 +83,7 @@ funname = green . string
 funname' = underline . green . string
 fieldname = magenta . string
 tagname = dullmagenta . string
+dlvarname = dullblue . string
 symbol = string
 kindsig = red . string
 typeargs [] = brackets empty
@@ -618,12 +619,14 @@ instance Pretty TCType where
 instance Pretty LocType where
   pretty t = pretty (stripLocT t)
 
+instance Pretty (Either TypeName TyVarName) where
+  pretty (Left n) = pretty n
+  pretty (Right n) = pretty n
+
 renderPolytypeHeader vs ts = keyword "all" <> tupled (map prettyKS vs ++ map prettyTS ts) <> symbol "."
     where prettyKS (v,K False False False) = typevar v
           prettyKS (v,k) = typevar v <+> symbol ":<" <+> pretty k
-          prettyTS (v,t) = typevar v <+> symbol ":~" <+> prettyID t
-          prettyID (Left x) = pretty x
-          prettyID (Right x) = pretty x
+          prettyTS (v,t) = typevar v <+> symbol ":~" <+> pretty t
 
 instance Pretty t => Pretty (Polytype t) where
   pretty (PT [] [] t) = pretty t
@@ -724,8 +727,8 @@ instance Pretty Metadata where
   pretty (TypeParam {functionName, typeVarName }) = err "it is required by the type of" <+> funname functionName
                                                       <+> err "(type variable" <+> typevar typeVarName <+> err ")"
   pretty ImplicitlyTaken = err "it is implicitly taken via subtyping."
-  pretty (LayoutParam exp lv) = err "it is required by the expression" <+> pretty exp
-                            <+> err "(layout variable" <+> varname lv <+> err ")"
+  -- pretty (LayoutParam exp lv) = err "it is required by the expression" <+> pretty exp
+                            -- <+> err "(layout variable" <+> dlvarname lv <+> err ")"
 
 instance Pretty FuncOrVar where
   pretty MustFunc  = err "Function"
@@ -737,8 +740,9 @@ instance Pretty TypeError where
                                         <+> err "invoked with differing number of arguments (" <> int n <> err " vs " <> int m <> err ")"
   pretty (DuplicateTypeVariable vs)      = err "Duplicate type variable(s)" <+> commaList (map typevar vs)
   pretty (SuperfluousTypeVariable vs)    = err "Superfluous type variable(s)" <+> commaList (map typevar vs)
-  pretty (DuplicateLayoutVariable vs)    = err "Duplicate layout variable(s)" <+> commaList (map typevar vs)
-  pretty (SuperfluousLayoutVariable vs)  = err "Superfluous layout variable(s)" <+> commaList (map typevar vs)
+  pretty (DuplicateLayoutVariable vs)    = err "Duplicate layout variable(s)" <+> commaList (map dlvarname vs)
+  pretty (SuperfluousLayoutVariable vs)  = err "Superfluous layout variable(s)" <+> commaList (map dlvarname vs)
+  pretty (TypeVariableNotDeclared vs)    = err "Type variable(s) not declared" <+> commaList (map typevar vs)
   pretty (DuplicateRecordFields fs)      = err "Duplicate record field(s)" <+> commaList (map fieldname fs)
   pretty (FunctionNotFound fn)           = err "Function" <+> funname fn <+> err "not found"
   pretty (TooManyTypeArguments fn pt)    = err "Too many type arguments to function"
@@ -866,6 +870,7 @@ instance Pretty Constraint where
   pretty (Arith e)        = pretty e
   pretty (a :-> b)        = prettyPrec 2 a </> warn ":->" </> prettyPrec 1 b
 #endif
+  pretty (l :~ n)        = pretty l <+> warn ":~" <+> pretty n
 
 -- a more verbose version of constraint pretty-printer which is mostly used for debugging
 prettyC :: Constraint -> Doc
@@ -957,7 +962,7 @@ instance Pretty DataLayoutTcError where
     err "Zero-sized bit range" <$$>
     indent (pretty context)
   pretty (UnknownDataLayoutVar n ctx) =
-    err "Undeclared data layout variable" <+> varname n <$$> indent (pretty ctx)
+    err "Undeclared data layout variable" <+> dlvarname n <$$> indent (pretty ctx)
 
 instance Pretty DataLayoutPath where
   pretty (InField n po ctx) = context' "for field" <+> fieldname n <+> context' "(" <> pretty po <> context' ")" </> pretty ctx

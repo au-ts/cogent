@@ -193,7 +193,7 @@ substitute vs (TArray t l s mhole) = TArray (substitute vs t) (substituteLE vs l
 substituteLE :: Vec t (Type u b) -> LExpr t b -> LExpr u b
 substituteLE vs = \case
   LVariable va       -> LVariable va
-  LFun fn ts         -> LFun fn (fmap (substitute vs) ts)
+  LFun fn ts ls      -> LFun fn (fmap (substitute vs) ts) ls
   LOp op es          -> LOp op $ fmap go es
   LApp e1 e2         -> LApp (go e1) (go e2)
   LCon tn e t        -> LCon tn (go e) (substitute vs t)
@@ -317,11 +317,11 @@ tc = flip tc' M.empty
         -> Map FunName (FunctionType b)  -- the reader
         -> Either String ([Definition TypedExpr a b], Map FunName (FunctionType b))
     tc' [] reader = return ([], reader)
-    tc' ((FunDef attr fn ts t rt e):ds) reader =
+    tc' ((FunDef attr fn ts ls t rt e):ds) reader =
       case runTC (infer e >>= flip typecheck rt) (fmap snd ts, reader) (Cons (Just t) Nil) of
         Left x -> Left x
-        Right (_, e') -> (first (FunDef attr fn ts t rt e':)) <$> tc' ds (M.insert fn (FT (fmap snd ts) t rt) reader)
-    tc' (d@(AbsDecl _ fn ts t rt):ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds (M.insert fn (FT (fmap snd ts) t rt) reader)
+        Right (_, e') -> (first (FunDef attr fn ts ls t rt e':)) <$> tc' ds (M.insert fn (FT (fmap snd ts) t rt) reader)
+    tc' (d@(AbsDecl _ fn ts ls t rt):ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds (M.insert fn (FT (fmap snd ts) t rt) reader)
     tc' (d:ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds reader
 
 tc_ :: (Show b, Eq b, Pretty b, a ~ b)
@@ -479,7 +479,7 @@ infer (E (ArrayPut arr i e))
 infer (E (Variable v))
    = do Just t <- useVariable (fst v)
         return (TE t (Variable v))
-infer (E (Fun f ts note))
+infer (E (Fun f ts ls note))
    | ExI (Flip ts') <- Vec.fromList ts
    = do myMap <- ask
         x <- funType f
@@ -491,7 +491,7 @@ infer (E (Fun f ts note))
                                 in do forM_ (Vec.zip ts' ks) $ \(t, k) -> do
                                         k' <- kindcheck t
                                         when ((k <> k') /= k) $ __impossible "kind not matched in type instantiation"
-                                      return $ TE (TFun ti' to') (Fun f ts note)
+                                      return $ TE (TFun ti' to') (Fun f ts ls note)
                    Nothing -> __impossible "lengths don't match")
           _        -> error $ "Something went wrong in lookup of function type: '" ++ unCoreFunName f ++ "'"
 infer (E (App e1 e2))

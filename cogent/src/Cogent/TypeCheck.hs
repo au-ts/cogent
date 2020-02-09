@@ -119,7 +119,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
   (AbsDec n (PT ps ls (stripLocT -> t))) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
     traceTc "tc" (text "typecheck abstract function" <+> pretty n)
-    let vs = map fst ps <> ((snd <$> ls) >>= either (const []) (:[]))
+    let vs = map fst ps
         xs = vs \\ nub vs
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
     let tvs = nub (tvT t)  -- type variables appearing to `t'
@@ -131,6 +131,9 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let lvs = nub (lvT t)  -- layout variables in 't'
         ys' = vs' \\ lvs
     unless (null ys') $ logErrExit $ SuperfluousLayoutVariable ys'
+    let ltvs = (snd <$> ls) >>= either (const []) (:[])
+        stvs = ltvs \\ vs
+    unless (null stvs) $ logErrExit $ TypeVariableNotDeclared stvs
     base <- lift . lift $ use knownConsts
     let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
@@ -185,7 +188,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
   (FunDef f (PT ps ls (stripLocT -> t)) alts) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
     traceTc "tc" (text "typecheck fun definition" <+> pretty f)
-    let vs = map fst ps <> ((snd <$> ls) >>= either (const []) (:[]))
+    let vs = map fst ps
         xs = vs \\ nub vs
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
     let tvs = nub (tvT t ++ foldMap tvA (fmap (fmap stripLocE) alts))
@@ -198,6 +201,9 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let lvs = nub (lvT t)  -- layout variables in 't'
         ys' = vs' \\ lvs
     unless (null ys') $ logErrExit $ SuperfluousLayoutVariable ys'
+    let ltvs = (snd <$> ls) >>= either (const []) (:[])
+        stvs = ltvs \\ vs
+    unless (null stvs) $ logErrExit $ TypeVariableNotDeclared stvs
     base <- lift . lift $ use knownConsts
     let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc

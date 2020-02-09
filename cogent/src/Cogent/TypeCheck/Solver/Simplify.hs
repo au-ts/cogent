@@ -160,6 +160,9 @@ simplify axs = Rewrite.pickOne' $ onGoal $ \c -> case c of
   T (TTuple ts) :<  T (TTuple us) | length ts == length us -> hoistMaybe $ Just (zipWith (:< ) ts us)
   T (TTuple ts) :=: T (TTuple us) | length ts == length us -> hoistMaybe $ Just (zipWith (:=:) ts us)
 
+  T (TLayout (TLVar _) t1) :<  t2 -> hoistMaybe $ Just [t1 :<  t2]
+  T (TLayout (TLVar _) t1) :=: t2 -> hoistMaybe $ Just [t1 :=: t2]
+
   V r1 :< V r2 | Row.null r1 && Row.null r2 -> hoistMaybe $ Just []
                | Just (r1',r2') <- extractVariableEquality r1 r2 -> hoistMaybe $ Just [V r1' :=: V r2']
                | otherwise -> do

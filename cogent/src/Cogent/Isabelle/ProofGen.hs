@@ -291,8 +291,8 @@ typing xi k (EE t (Variable i) env) = tacSequence [
   return [simp_solve]                     -- i < length Γ
   ]
 
-typing xi k (EE t' (Fun f ts _) env) = case findfun (unCoreFunName f) xi of
-    AbsDecl _ _ ks' t u ->
+typing xi k (EE t' (Fun f ts _ _) env) = case findfun (unCoreFunName f) xi of
+    AbsDecl _ _ ks' _ t u ->
       let ks = fmap snd ks' in tacSequence [
         return [rule "typing_afun'"],  -- Ξ, K, Γ ⊢ AFun f ts : TFun t' u'
         do ta <- use tsTypeAbbrevs
@@ -308,7 +308,7 @@ typing xi k (EE t' (Fun f ts _) env) = case findfun (unCoreFunName f) xi of
         consumed k env             -- K ⊢ Γ consumed
         ]
 
-    FunDef _ _ ks' t u _ ->
+    FunDef _ _ ks' _ t u _ ->
       let ks = fmap snd ks' in tacSequence [
         return [rule "typing_fun'"],  -- Ξ, K, Γ ⊢ Fun f ts : t' if
         do ta <- use tsTypeAbbrevs
@@ -324,8 +324,8 @@ typing xi k (EE t' (Fun f ts _) env) = case findfun (unCoreFunName f) xi of
 
     _ -> error $ "ProofGen Fun: bad function call " ++ show f
 
-  where findfun f (def@(FunDef _ fn _ _ _ _):fs) | f == fn = def
-        findfun f (def@(AbsDecl _ fn _ _ _) :fs) | f == fn = def
+  where findfun f (def@(FunDef _ fn _ _ _ _ _):fs) | f == fn = def
+        findfun f (def@(AbsDecl _ fn _ _ _ _) :fs) | f == fn = def
         findfun f (_:fs) = findfun f fs
         findfun f [] = error $ "ProofGen Fun: no such function " ++ show f
 

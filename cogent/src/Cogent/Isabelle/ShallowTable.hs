@@ -103,8 +103,8 @@ stDefinitions = mapM_ stDefinition
 
 -- Since desugaring, the RHSes have been unfolded already
 stDefinition :: Definition TypedExpr VarName b -> ST ()
-stDefinition (FunDef  _ fn ts ti to e) = stExpr e  -- NOTE: `ti' and `to' will be included in `e', so no need to scan them / zilinc
-stDefinition (AbsDecl _ fn ts ti to) = stType ti >> stType to
+stDefinition (FunDef  _ fn ts ls ti to e) = stExpr e  -- NOTE: `ti' and `to' will be included in `e', so no need to scan them / zilinc
+stDefinition (AbsDecl _ fn ts ls ti to) = stType ti >> stType to
 stDefinition (TypeDef tn ts (Just t)) = stType t
 stDefinition (TypeDef tn ts Nothing) = return ()
 
@@ -112,7 +112,7 @@ stExpr :: TypedExpr t v VarName b -> ST ()
 stExpr (TE t e) = stExpr' e >> stType t
   where
     stExpr' (Variable v)   = return ()
-    stExpr' (Fun fn tys _) = mapM_ stType tys
+    stExpr' (Fun fn ts _ _) = __fixme $ mapM_ stType ts
     stExpr' (Op opr es)    = mapM_ stExpr es
     stExpr' (App e1 e2)    = stExpr e1 >> stExpr e2
     stExpr' (Con cn e _)   = stExpr e

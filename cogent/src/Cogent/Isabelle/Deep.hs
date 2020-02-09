@@ -132,7 +132,7 @@ deepPrimOp CS.Complement t = mkApp (mkId "Complement") [deepNumType t]
 
 deepExpr :: (Pretty a, Ord b, Pretty b) => NameMod -> TypeAbbrevs -> [Definition TypedExpr a b] -> TypedExpr t v a b -> Term
 deepExpr mod ta defs (TE _ (Variable v)) = mkApp (mkId "Var") [deepIndex (fst v)]
-deepExpr mod ta defs (TE _ (Fun fn ts _))
+deepExpr mod ta defs (TE _ (Fun fn ts ls _))  -- FIXME
   | concreteFun fn = mkApp (mkId "Fun")  [mkId (mod (unIsabelleName $ mkIsabelleName $ unCoreFunName fn)), mkList (map (deepType mod ta) ts)]
   | otherwise      = mkApp (mkId "AFun") [mkString (unIsabelleName $ mkIsabelleName $ unCoreFunName fn), mkList (map (deepType mod ta) ts)]
   where
@@ -209,7 +209,7 @@ deepDefinition :: (Pretty a, Ord b, Pretty b)
                -> Definition TypedExpr a b
                -> [TheoryDecl I.Type I.Term]
                -> [TheoryDecl I.Type I.Term]
-deepDefinition mod ta defs (FunDef _ fn ks ti to e) decls =
+deepDefinition mod ta defs (FunDef _ fn ks _ ti to e) decls =
   let ty = deepPolyType mod ta $ FT (fmap snd ks) ti to
       tn = case editIsabelleName (mkIsabelleName fn) (++ "_type")  of
             Just n  -> unIsabelleName n
@@ -221,7 +221,7 @@ deepDefinition mod ta defs (FunDef _ fn ks ti to e) decls =
       fn' = unIsabelleName (mkIsabelleName fn)
       decl = [isaDecl| definition $fn' :: "$fntysig" where "$(mkId fn') \<equiv> $e'" |]
      in tydecl:decl:decls
-deepDefinition mod ta _ (AbsDecl _ fn ks ti to) decls =
+deepDefinition mod ta _ (AbsDecl _ fn ks _ ti to) decls =
     let ty = deepPolyType mod ta $ FT (fmap snd ks) ti to
         tn = case editIsabelleName (mkIsabelleName fn) (++ "_type") of 
             Just n  -> unIsabelleName n
@@ -240,10 +240,10 @@ deepDefinitions mod ta defs = foldr (deepDefinition mod ta defs) [] defs ++
                                "\\<close>"
                               ]
   where absFuns [] = []
-        absFuns (AbsDecl _ fn _ _ _ : fns) = fn : absFuns fns
+        absFuns (AbsDecl _ fn _ _ _ _ : fns) = fn : absFuns fns
         absFuns (_ : fns) = absFuns fns
         cogentFuns [] = []
-        cogentFuns (FunDef _ fn _ _ _ _ : fns) = fn : cogentFuns fns
+        cogentFuns (FunDef _ fn _ _ _ _ _ : fns) = fn : cogentFuns fns
         cogentFuns (_ : fns) = cogentFuns fns
 
         showStrings :: [String] -> String
@@ -267,7 +267,7 @@ addTypeAbbrev mod t ta = case Map.lookup term (fst ta) of
     term = deepTypeInner mod ta t
 
 getDefTypeAbbrevs :: (Ord b) => NameMod -> Definition TypedExpr a b -> TypeAbbrevs -> TypeAbbrevs
-getDefTypeAbbrevs mod (FunDef _ _ _ ti to e) ta = foldr (addTypeAbbrev mod) ta
+getDefTypeAbbrevs mod (FunDef _ _ _ _ ti to e) ta = foldr (addTypeAbbrev mod) ta
     (scanAggregates ti ++ scanAggregates to)
 getDefTypeAbbrevs _ _ ta = ta
 

@@ -119,7 +119,7 @@ data FunNote = NoInline | InlineMe | MacroCall | InlinePlease  -- order is impor
 
 data Expr t v a b e
   = Variable (Fin v, a)
-  | Fun CoreFunName [Type t b] FunNote  -- here do we want to keep partial application and infer again? / zilinc
+  | Fun CoreFunName [Type t b] [DataLayout BitRange] FunNote  -- here do we want to keep partial application and infer again? / zilinc
   | Op Op [e t v a b]
   | App (e t v a b) (e t v a b)
   | Con TagName (e t v a b) (Type t b)
@@ -163,7 +163,7 @@ deriving instance (Ord a, Ord b, Ord (e t v a b), Ord (e t ('Suc v) a b), Ord (e
 -- derivings don't work. It's very misterious to me. / zilinc
 data LExpr t b
   = LVariable (Nat, b)
-  | LFun CoreFunName [Type t b]
+  | LFun CoreFunName [Type t b] [DataLayout BitRange]
   | LOp Op [LExpr t b]
   | LApp (LExpr t b) (LExpr t b)
   | LCon TagName (LExpr t b) (Type t b)
@@ -196,7 +196,7 @@ exprToLExpr :: (a -> b)
             -> Expr t v a b e -> LExpr t b
 exprToLExpr fab f f1 f2 = \case
   Variable v         -> LVariable (second fab $ first finNat v)
-  Fun fn tys nt      -> LFun fn tys
+  Fun fn ts ls nt    -> LFun fn ts ls
   Op opr es          -> LOp opr (map f' es)
   App e1 e2          -> LApp (f' e1) (f' e2)
   Con cn e t         -> LCon cn (f' e) t
@@ -259,9 +259,9 @@ instance Monoid Attr where
 
 
 data Definition e a b
-  = forall t. (Pretty a, Pretty b, Pretty (e t ('Suc 'Zero) a b))
-           => FunDef  Attr FunName (Vec t (TyVarName, Kind)) (Type t b) (Type t b) (e t ('Suc 'Zero) a b)
-  | forall t. AbsDecl Attr FunName (Vec t (TyVarName, Kind)) (Type t b) (Type t b)
+  = forall t l. (Pretty a, Pretty b, Pretty (e t ('Suc 'Zero) a b))
+           => FunDef  Attr FunName (Vec t (TyVarName, Kind)) (Vec l (DLVarName, Either TypeName TyVarName)) (Type t b) (Type t b) (e t ('Suc 'Zero) a b)
+  | forall t l. AbsDecl Attr FunName (Vec t (TyVarName, Kind)) (Vec l (DLVarName, Either TypeName TyVarName)) (Type t b) (Type t b)
   | forall t. TypeDef TypeName (Vec t TyVarName) (Maybe (Type t b))
 deriving instance (Show a, Show b) => Show (Definition TypedExpr   a b)
 deriving instance (Show a, Show b) => Show (Definition UntypedExpr a b)
@@ -269,26 +269,26 @@ deriving instance (Show a, Show b) => Show (Definition UntypedExpr a b)
 type CoreConst e = (VarName, e 'Zero 'Zero VarName VarName)
 
 getDefinitionId :: Definition e a b -> String
-getDefinitionId (FunDef  _ fn _ _ _ _) = fn
-getDefinitionId (AbsDecl _ fn _ _ _  ) = fn
+getDefinitionId (FunDef  _ fn _ _ _ _ _) = fn
+getDefinitionId (AbsDecl _ fn _ _ _ _  ) = fn
 getDefinitionId (TypeDef tn _ _    ) = tn
 
 getFuncId :: Definition e a b -> Maybe FunName
-getFuncId (FunDef  _ fn _ _ _ _) = Just fn
-getFuncId (AbsDecl _ fn _ _ _  ) = Just fn
+getFuncId (FunDef  _ fn _ _ _ _ _) = Just fn
+getFuncId (AbsDecl _ fn _ _ _ _  ) = Just fn
 getFuncId _ = Nothing
 
 getTypeVarNum :: Definition e a b -> Int
-getTypeVarNum (FunDef  _ _ tvs _ _ _) = Nat.toInt $ Vec.length tvs
-getTypeVarNum (AbsDecl _ _ tvs _ _  ) = Nat.toInt $ Vec.length tvs
+getTypeVarNum (FunDef  _ _ tvs _ _ _ _) = Nat.toInt $ Vec.length tvs
+getTypeVarNum (AbsDecl _ _ tvs _ _ _  ) = Nat.toInt $ Vec.length tvs
 getTypeVarNum (TypeDef _ tvs _    ) = Nat.toInt $ Vec.length tvs
 
 isDefinitionId :: String -> Definition e a b -> Bool
 isDefinitionId n d = n == getDefinitionId d
 
 isFuncId :: CoreFunName -> Definition e a b -> Bool
-isFuncId n (FunDef  _ fn _ _ _ _) = unCoreFunName n == fn
-isFuncId n (AbsDecl _ fn _ _ _  ) = unCoreFunName n == fn
+isFuncId n (FunDef  _ fn _ _ _ _ _) = unCoreFunName n == fn
+isFuncId n (AbsDecl _ fn _ _ _ _  ) = unCoreFunName n == fn
 isFuncId _ _ = False
 
 isAbsFun :: Definition e a b -> Bool
@@ -320,7 +320,7 @@ insertIdxAtE :: Fin ('Suc v)
              -> (forall v. Fin ('Suc v) -> e t v a b -> e t ('Suc v) a b)
              -> (Expr t v a b e -> Expr t ('Suc v) a b e)
 insertIdxAtE cut f (Variable v) = Variable $ first (liftIdx cut) v
-insertIdxAtE cut f (Fun fn ts nt) = Fun fn ts nt
+insertIdxAtE cut f (Fun fn ts ls nt) = Fun fn ts ls nt
 insertIdxAtE cut f (Op opr es) = Op opr $ map (f cut) es
 insertIdxAtE cut f (App e1 e2) = App (f cut e1) (f cut e2)
 insertIdxAtE cut f (Con tag e t) = Con tag (f cut e) t
@@ -392,7 +392,7 @@ foldEPre unwrap f e = case unwrap e of
 
 fmapE :: (forall t v. e1 t v a b -> e2 t v a b) -> Expr t v a b e1 -> Expr t v a b e2
 fmapE f (Variable v)         = Variable v
-fmapE f (Fun fn tys nt)      = Fun fn tys nt
+fmapE f (Fun fn ts ls nt)    = Fun fn ts ls nt
 fmapE f (Op opr es)          = Op opr (map f es)
 fmapE f (App e1 e2)          = App (f e1) (f e2)
 fmapE f (Con cn e t)         = Con cn (f e) t
@@ -427,8 +427,8 @@ untypeE :: TypedExpr t v a b -> UntypedExpr t v a b
 untypeE (TE _ e) = E $ fmapE untypeE e
 
 untypeD :: Definition TypedExpr a b -> Definition UntypedExpr a b
-untypeD (FunDef  attr fn ts ti to e) = FunDef  attr fn ts ti to (untypeE e)
-untypeD (AbsDecl attr fn ts ti to  ) = AbsDecl attr fn ts ti to
+untypeD (FunDef  attr fn ts ls ti to e) = FunDef  attr fn ts ls ti to (untypeE e)
+untypeD (AbsDecl attr fn ts ls ti to  ) = AbsDecl attr fn ts ls ti to
 untypeD (TypeDef tn ts mt) = TypeDef tn ts mt
 
 instance (Functor (e t v a),
@@ -436,7 +436,7 @@ instance (Functor (e t v a),
           Functor (e t ('Suc ('Suc v)) a))
        => Functor (Flip (Expr t v a) e) where  -- map over @b@
   fmap f (Flip (Variable v)         )      = Flip $ Variable v
-  fmap f (Flip (Fun fn tys nt)      )      = Flip $ Fun fn (fmap (fmap f) tys) nt
+  fmap f (Flip (Fun fn ts ls nt)    )      = Flip $ Fun fn (fmap (fmap f) ts) ls nt
   fmap f (Flip (Op opr es)          )      = Flip $ Op opr (fmap (fmap f) es)
   fmap f (Flip (App e1 e2)          )      = Flip $ App (fmap f e1) (fmap f e2)
   fmap f (Flip (Con cn e t)         )      = Flip $ Con cn (fmap f e) (fmap f t)
@@ -471,7 +471,7 @@ instance (Functor (Flip (e t v) b),
           Functor (Flip (e t ('Suc ('Suc v))) b))
        => Functor (Flip2 (Expr t v) e b) where  -- map over @a@
   fmap f (Flip2 (Variable v)         )      = Flip2 $ Variable (second f v)
-  fmap f (Flip2 (Fun fn tys nt)      )      = Flip2 $ Fun fn tys nt
+  fmap f (Flip2 (Fun fn ts ls nt)    )      = Flip2 $ Fun fn ts ls nt
   fmap f (Flip2 (Op opr es)          )      = Flip2 $ Op opr (fmap (ffmap f) es)
   fmap f (Flip2 (App e1 e2)          )      = Flip2 $ App (ffmap f e1) (ffmap f e2)
   fmap f (Flip2 (Con cn e t)         )      = Flip2 $ Con cn (ffmap f e) t
@@ -601,7 +601,7 @@ instance (Pretty a, Pretty b, Prec (e t v a b), Pretty (e t v a b), Pretty (e t 
                                              symbol "=" <+> pretty o] <+> symbol "=" <+> (prettyPrec 1 pa) L.<$> keyword "in" <+> pretty e)
 #endif
   pretty (Variable x) = pretty (snd x) L.<> angles (prettyV $ fst x)
-  pretty (Fun fn ins nt) = pretty nt L.<> funname (unCoreFunName fn) <+> pretty ins
+  pretty (Fun fn ts ls nt) = pretty nt L.<> funname (unCoreFunName fn) <+> pretty ts <+> pretty ls
   pretty (App a b) = prettyPrec 2 a <+> prettyPrec 1 b
   pretty (Let a e1 e2) = align (keyword "let" <+> pretty a <+> symbol "=" <+> pretty e1 L.<$>
                                 keyword "in" <+> pretty e2)
@@ -673,7 +673,7 @@ instance (Pretty b) => Pretty (LExpr t b) where
   pretty (LILit i pt) = literal (string $ show i) <+> symbol "::" <+> pretty pt
   pretty (LSLit s) = literal $ string s
   pretty (LVariable x) = pretty (snd x) L.<> angles (L.int . natToInt $ fst x)
-  pretty (LFun fn ins) = funname (unCoreFunName fn) <+> pretty ins
+  pretty (LFun fn ts ls) = funname (unCoreFunName fn) <+> pretty ts <+> pretty ls
   pretty (LApp a b) = prettyPrec 2 a <+> prettyPrec 1 b
   pretty (LLet a e1 e2) = align (keyword "let" <+> pretty a <+> symbol "=" <+> pretty e1 L.<$>
                                 keyword "in" <+> pretty e2)
@@ -715,11 +715,11 @@ instance Pretty a => Pretty (Vec t a) where
   pretty (Cons x xs) = pretty x L.<> string "," <+> pretty xs
 
 instance (Pretty a, Pretty b) => Pretty (Definition e a b) where
-  pretty (FunDef _ fn ts t rt e) = funname fn <+> symbol ":" <+> brackets (pretty ts) L.<> symbol "." <+>
-                                   parens (pretty t) <+> symbol "->" <+> parens (pretty rt) <+> symbol "=" L.<$>
-                                   pretty e
-  pretty (AbsDecl _ fn ts t rt) = funname fn <+> symbol ":" <+> brackets (pretty ts) L.<> symbol "." <+>
-                                  parens (pretty t) <+> symbol "->" <+> parens (pretty rt)
+  pretty (FunDef _ fn ts ls t rt e) = funname fn <+> symbol ":" <+> brackets (pretty ts) <+> braces (pretty ls) L.<> symbol "." <+>
+                                      parens (pretty t) <+> symbol "->" <+> parens (pretty rt) <+> symbol "=" L.<$>
+                                      pretty e
+  pretty (AbsDecl _ fn ts ls t rt) = funname fn <+> symbol ":" <+> brackets (pretty ts) <+> braces (pretty ls) L.<> symbol "." <+>
+                                     parens (pretty t) <+> symbol "->" <+> parens (pretty rt)
   pretty (TypeDef tn ts Nothing) = keyword "type" <+> typename tn <+> pretty ts
   pretty (TypeDef tn ts (Just t)) = keyword "type" <+> typename tn <+> pretty ts <+>
                                     symbol "=" <+> pretty t
