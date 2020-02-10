@@ -545,7 +545,7 @@ tcType t = do
                            base <- lift . lift $ use TC.knownConsts
                            let ctx = Ctx.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) Ctx.empty
                            ((ct,t'), flx, os) <- TC.runCG ctx tvs [] $ TC.validateType $ SF.stripLocT t
-                           (gs, subst) <- TC.runSolver (TC.solve (L.zip tvs $ repeat k2) $ ct) flx 
+                           (gs, subst) <- TC.runSolver (TC.solve (L.zip tvs $ repeat k2) [] $ ct) flx 
                            TC.exitOnErr $ TC.toErrors os gs
                            let t'' = TC.apply subst t'
                            TC.postT t''
@@ -596,7 +596,7 @@ tcExp e mt = do
     do let ?loc = SF.posOfE e
        TC.errCtx %= (TC.AntiquotedExpr e :)
        ((c,e'),flx,os) <- TC.runCG ctx (L.map fst vs) [] (TC.cg e =<< maybe TC.freshTVar return mt)
-       (cs, subst) <- TC.runSolver (TC.solve vs c) flx
+       (cs, subst) <- TC.runSolver (TC.solve vs [] c) flx
        TC.exitOnErr $ TC.toErrors os cs
        -- TC.exitOnErr $ mapM_ TC.logTc logs
        TC.postE $ TC.applyE subst e'

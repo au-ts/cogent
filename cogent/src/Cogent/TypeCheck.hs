@@ -85,7 +85,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     traceTc "tc" (text "constraint for type decl" <+> pretty n <+> text "is"
                   L.<$> prettyC ct)
     let ps = zip vs (repeat k2)
-    (gs, subst) <- runSolver (solve ps $ ct) flx
+    (gs, subst) <- runSolver (solve ps [] ct) flx
     traceTc "tc" (text "substs for type decl" <+> pretty n <+> text "is"
                   L.<$> pretty subst)
     exitOnErr $ toErrors os gs
@@ -107,7 +107,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     traceTc "tc" (text "constraint for abstract type decl" <+> pretty n <+> text "is"
                   L.<$> prettyC (mconcat cts))
     let ps = zip vs (repeat k2)
-    (gs, subst) <- runSolver (solve ps $ mconcat cts) flx
+    (gs, subst) <- runSolver (solve ps [] $ mconcat cts) flx
     traceTc "tc" (text "substs for abstract type decl" <+> pretty n <+> text "is"
                   L.<$> pretty subst)
     exitOnErr $ toErrors os gs
@@ -131,23 +131,29 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let lvs = nub (lvT t)  -- layout variables in 't'
         ys' = vs' \\ lvs
     unless (null ys') $ logErrExit $ SuperfluousLayoutVariable ys'
-    let ltvs = (snd <$> ls) >>= either (const []) (:[])
+    let ltvs = concat $ tvT <$> (stripLocT <$> (snd <$> ls))
         stvs = ltvs \\ vs
     unless (null stvs) $ logErrExit $ TypeVariableNotDeclared stvs
     base <- lift . lift $ use knownConsts
     let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
-    ((ct,t'), flx, os) <- runCG ctx vs vs' $ validateType t
+    (((clt,lts),(ct,t')), flx, os) <- runCG ctx vs vs'
+                                        (do x <- validateTypes (stripLocT . snd <$> ls)
+                                            y <- validateType t
+                                            pure (x,y))
     traceTc "tc" (text "constraint for abstract function" <+> pretty n <+> text "is"
                   L.<$> prettyC ct)
-    (gs, subst) <- runSolver (solve ps $ ct) flx
+    let ls' = zip (fst <$> ls) lts
+    (gs, subst) <- runSolver (solve ps ls' $ clt <> ct) flx
     traceTc "tc" (text "substs for abstract function" <+> pretty n <+> text "is"
                   L.<$> pretty subst)
     exitOnErr $ toErrors os gs
     let t'' = apply subst t'
-    lift . lift $ knownFuns %= M.insert n (PT ps ls t'')
+    lift . lift $ knownFuns %= M.insert n (PT ps ls' t'')
     t''' <- postT t''
-    return $ AbsDec n (PT ps ls t''')
+    lts' <- mapM postT (snd <$> ls')
+    let ls'' = zip (fst <$> ls') lts'
+    return $ AbsDec n (PT ps ls'' t''')
 
   (RepDef decl@(DataLayoutDecl pos name expr)) -> do
     traceTc "tc" (text "typecheck rep decl" <+> pretty name)
@@ -174,7 +180,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let c' = ct <> c <> Share t' (Constant n)
     traceTc "tc" (text "constraint for const definition" <+> pretty n <+> text "is"
                   L.<$> prettyC c')
-    (gs, subst) <- runSolver (solve [] c') flx
+    (gs, subst) <- runSolver (solve [] [] c') flx
     exitOnErr $ toErrors os gs
     -- mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx >>= \c' -> return (c++c',l))) logs
     traceTc "tc" (text "substs for const definition" <+> pretty n <+> text "is"
@@ -201,28 +207,32 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let lvs = nub (lvT t)  -- layout variables in 't'
         ys' = vs' \\ lvs
     unless (null ys') $ logErrExit $ SuperfluousLayoutVariable ys'
-    let ltvs = (snd <$> ls) >>= either (const []) (:[])
+    let ltvs = concat $ tvT <$> (stripLocT <$> (snd <$> ls))
         stvs = ltvs \\ vs
     unless (null stvs) $ logErrExit $ TypeVariableNotDeclared stvs
     base <- lift . lift $ use knownConsts
     let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
-    (((ct,t'),(c,alts')), flx, os) <- runCG ctx vs vs'
-                                        (do x@(ct,t') <- validateType t
-                                            y <- cgFunDef alts t'
-                                            pure (x,y))
+    (((clt,lts),(ct,t'),(c,alts')), flx, os) <- runCG ctx vs vs'
+                                        (do x <- validateTypes (stripLocT . snd <$> ls)
+                                            y@(ct,t') <- validateType t
+                                            z <- cgFunDef alts t'
+                                            pure (x,y,z))
     traceTc "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
                   L.<$> prettyC c)
-    (gs, subst) <- runSolver (solve ps $ ct <> c) flx
+    let ls' = zip (fst <$> ls) lts
+    (gs, subst) <- runSolver (solve ps ls' $ clt <> ct <> c) flx
     --exitOnErr $ mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx) >>= \c' -> return (c++c',l)) logs
     traceTc "tc" (text "substs for fun definition" <+> pretty f <+> text "is"
                   L.<$> pretty subst)
     exitOnErr $ toErrors os gs
     let t'' = apply subst t'
-    lift . lift $ knownFuns %= M.insert f (PT ps ls t'')
+    lift . lift $ knownFuns %= M.insert f (PT ps ls' t'')
     alts'' <- postA $ applyAlts subst alts'
-    t'''    <- postT t''
-    return (FunDef f (PT ps ls t''') alts'')
+    t'''   <- postT t''
+    lts' <- mapM postT (snd <$> ls')
+    let ls'' = zip (fst <$> ls') lts'
+    return (FunDef f (PT ps ls'' t''') alts'')
 
 -- ----------------------------------------------------------------------------
 -- custTyGen
@@ -239,7 +249,7 @@ typecheckCustTyGen = mapM . firstM $ \t -> do
            _    -> do base <- lift . lift $ use knownConsts
                       let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
                       ((ct,t''), flx, os) <- runCG ctx [] [] $ validateType t'
-                      (gs, subst) <- runSolver (solve [] $ ct) flx
+                      (gs, subst) <- runSolver (solve [] [] ct) flx
                       exitOnErr $ toErrors os gs
                       postT $ apply subst t''
 

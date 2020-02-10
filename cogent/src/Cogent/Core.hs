@@ -239,7 +239,7 @@ data UntypedExpr t v a b = E  (Expr t v a b UntypedExpr) deriving (Show, Eq, Ord
 data TypedExpr   t v a b = TE { exprType :: Type t b , exprExpr :: Expr t v a b TypedExpr }
                          deriving (Show, Eq, Ord)
 
-data FunctionType b = forall t. FT (Vec t Kind) (Type t b) (Type t b)
+data FunctionType b = forall t l. FT (Vec t Kind) (Vec l (Type t b)) (Type t b) (Type t b)
 deriving instance Show a => Show (FunctionType a)
 
 data Attr = Attr { inlineDef :: Bool, fnMacro :: Bool } deriving (Eq, Ord, Show, Generic)
@@ -260,8 +260,8 @@ instance Monoid Attr where
 
 data Definition e a b
   = forall t l. (Pretty a, Pretty b, Pretty (e t ('Suc 'Zero) a b))
-           => FunDef  Attr FunName (Vec t (TyVarName, Kind)) (Vec l (DLVarName, Either TypeName TyVarName)) (Type t b) (Type t b) (e t ('Suc 'Zero) a b)
-  | forall t l. AbsDecl Attr FunName (Vec t (TyVarName, Kind)) (Vec l (DLVarName, Either TypeName TyVarName)) (Type t b) (Type t b)
+           => FunDef  Attr FunName (Vec t (TyVarName, Kind)) (Vec l (DLVarName, Type t b)) (Type t b) (Type t b) (e t ('Suc 'Zero) a b)
+  | forall t l. AbsDecl Attr FunName (Vec t (TyVarName, Kind)) (Vec l (DLVarName, Type t b)) (Type t b) (Type t b)
   | forall t. TypeDef TypeName (Vec t TyVarName) (Maybe (Type t b))
 deriving instance (Show a, Show b) => Show (Definition TypedExpr   a b)
 deriving instance (Show a, Show b) => Show (Definition UntypedExpr a b)

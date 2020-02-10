@@ -196,8 +196,8 @@ deepKind :: Kind -> Term
 deepKind (K e s d) = ListTerm "{" [ mkId str | (sig, str) <- [(e, "E"), (s, "S"), (d, "D")], sig ] "}"
 
 deepPolyType :: (Ord b, Pretty b) => NameMod -> TypeAbbrevs -> FunctionType b -> Term
-deepPolyType mod ta (FT ks ti to) = mkPair (mkList $ map deepKind $ cvtToList ks)
-                                           (mkPair (deepType mod ta ti) (deepType mod ta to))
+deepPolyType mod ta (FT ks ts ti to) = mkPair (mkList $ map deepKind $ cvtToList ks)  -- FIXME
+                                              (mkPair (deepType mod ta ti) (deepType mod ta to))
 
 imports :: TheoryImports
 imports = TheoryImports $ [__cogent_root_dir </> "cogent/isa/Cogent"]
@@ -209,8 +209,8 @@ deepDefinition :: (Pretty a, Ord b, Pretty b)
                -> Definition TypedExpr a b
                -> [TheoryDecl I.Type I.Term]
                -> [TheoryDecl I.Type I.Term]
-deepDefinition mod ta defs (FunDef _ fn ks _ ti to e) decls =
-  let ty = deepPolyType mod ta $ FT (fmap snd ks) ti to
+deepDefinition mod ta defs (FunDef _ fn ks ts ti to e) decls =
+  let ty = deepPolyType mod ta $ FT (fmap snd ks) (fmap snd ts) ti to
       tn = case editIsabelleName (mkIsabelleName fn) (++ "_type")  of
             Just n  -> unIsabelleName n
             Nothing -> error ("Error - unable to generate name for isabelle function '" ++ fn ++ "'")
@@ -221,8 +221,8 @@ deepDefinition mod ta defs (FunDef _ fn ks _ ti to e) decls =
       fn' = unIsabelleName (mkIsabelleName fn)
       decl = [isaDecl| definition $fn' :: "$fntysig" where "$(mkId fn') \<equiv> $e'" |]
      in tydecl:decl:decls
-deepDefinition mod ta _ (AbsDecl _ fn ks _ ti to) decls =
-    let ty = deepPolyType mod ta $ FT (fmap snd ks) ti to
+deepDefinition mod ta _ (AbsDecl _ fn ks ts ti to) decls =
+    let ty = deepPolyType mod ta $ FT (fmap snd ks) (fmap snd ts) ti to
         tn = case editIsabelleName (mkIsabelleName fn) (++ "_type") of 
             Just n  -> unIsabelleName n
             Nothing -> error ("Error - unable to generate name for isabelle function '" ++ fn ++ "'")

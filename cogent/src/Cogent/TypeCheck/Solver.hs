@@ -87,16 +87,16 @@ import           Lens.Micro.Mtl
 -- * expand sink/float to all types, and map under all type-operators
 -- * remove join/meet
 
-solve :: [(TyVarName, Kind)] -> Constraint -> TcSolvM [Goal]
-solve ks c = let gs     = makeGoals [] c
-                          -- Simplify does a lot of very small steps so it's slightly nicer for tracing to run it in a nested fixpoint
-                 stages = (Rewrite.untilFixedPoint $ debug "Simplify" printC $ liftTcSolvM $ simplify ks)
-                          <> debug  "Unify"      printC unify
-                          <> debugL "Equate"     printC equate
-                          <> debug  "Sink/Float" printC sinkfloat
-                          <> debugL "Defaults"   printC defaults
+solve :: [(TyVarName, Kind)] -> [(DLVarName, TCType)] -> Constraint -> TcSolvM [Goal]
+solve ks ms c = let gs     = makeGoals [] c
+                            -- Simplify does a lot of very small steps so it's slightly nicer for tracing to run it in a nested fixpoint
+                    stages = Rewrite.untilFixedPoint (debug "Simplify" printC $ liftTcSolvM $ simplify ks)
+                             <> debug  "Unify"      printC unify
+                             <> debugL "Equate"     printC equate
+                             <> debug  "Sink/Float" printC sinkfloat
+                             <> debugL "Defaults"   printC defaults
 #ifdef BUILTIN_ARRAYS
-                          <> debug  "SMT"        printC smt
+                             <> debug  "SMT"        printC smt
 #endif
   -- [amos] Type-solver changes I made:
   -- - Simplify rule for `t :=: t` to `Solved t` (see Solver/Simplify.hs)
@@ -107,7 +107,7 @@ solve ks c = let gs     = makeGoals [] c
   --    Choosing the smallest size for integer literals, when there are multiple upcast constraints on same unification variable
   -- - Reorder Equate stage before JoinMeet:
   --    The new Sink/float stage can apply when Equate does, but Sink/float introduces potentially many new constraints, while Equate is simpler and just replaces a subtyping constraint with equality.
-                 rw     = debugF "Initial constraints" printC <>
-                          Rewrite.untilFixedPoint (Rewrite.pre normaliseTypes stages)
-              in fmap (fromMaybe gs) (runMaybeT (Rewrite.runRewriteT rw gs))
+                    rw     = debugF "Initial constraints" printC <>
+                             Rewrite.untilFixedPoint (Rewrite.pre normaliseTypes stages)
+                 in fmap (fromMaybe gs) (runMaybeT (Rewrite.runRewriteT rw gs))
 

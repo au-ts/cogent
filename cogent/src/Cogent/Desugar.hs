@@ -271,26 +271,27 @@ desugarTlv (S.AbsTypeDec tn vs _) _ | ExI (Flip vs') <- Vec.fromList vs = return
 desugarTlv (S.AbsDec fn sigma) pragmas | S.PT vs ls t <- sigma
                                        , ExI (Flip vs') <- Vec.fromList vs
                                        , Refl <- zeroPlusNEqualsN $ Vec.length vs'
-                                       , ExI (Flip ls') <- Vec.fromList ls
-                                       , Refl <- zeroPlusNEqualsN $ Vec.length ls'
   = do
       t <- withTypeBindings (fmap fst vs') $ desugarType t
-      case t of
-        TFun ti' to' ->
-          return $ AbsDecl (pragmaToAttr pragmas fn mempty) fn vs' ls' ti' to'
-        _ -> error "Cogent does not allow FFI constants"
+      ls' <- mapM (secondM (withTypeBindings (fmap fst vs') . desugarType)) ls
+      case Vec.fromList ls' of
+        ExI (Flip ls'') ->
+          case t of
+            TFun ti' to' -> return $ AbsDecl (pragmaToAttr pragmas fn mempty) fn vs' ls'' ti' to'
+            _ -> error "Cogent does not allow FFI constants"
 desugarTlv (S.FunDef fn sigma alts) pragmas | S.PT vs ls t <- sigma
                                             , ExI (Flip vs') <- Vec.fromList vs
                                             , Refl <- zeroPlusNEqualsN $ Vec.length vs'
-                                            , ExI (Flip ls') <- Vec.fromList ls
-                                            , Refl <- zeroPlusNEqualsN $ Vec.length ls'
-  = withTypeBindings (fmap fst vs') $ do
-      let (B.DT (S.TFun ti _)) = t
-      TFun ti' to' <- desugarType t
-      v <- freshVar
-      let e0 = B.TE ti (S.Var v) noPos
-      e <- withBinding v $ desugarAlts e0 alts
-      return $ FunDef (pragmaToAttr pragmas fn mempty) fn vs' ls' ti' to' e
+  = do
+      ls' <- mapM (secondM (withTypeBindings (fmap fst vs') . desugarType)) ls
+      withTypeBindings (fmap fst vs') $ do
+        let (B.DT (S.TFun ti _)) = t
+        TFun ti' to' <- desugarType t
+        v <- freshVar
+        let e0 = B.TE ti (S.Var v) noPos
+        e <- withBinding v $ desugarAlts e0 alts
+        case Vec.fromList ls' of
+          ExI (Flip ls'') -> return $ FunDef (pragmaToAttr pragmas fn mempty) fn vs' ls'' ti' to' e
 desugarTlv (S.ConstDef {}) _ = __impossible "desugarTlv"
 desugarTlv (S.DocBlock _ ) _ = __impossible "desugarTlv"
 
@@ -618,10 +619,10 @@ desugarExpr (B.TE _ (S.TypeApp v ts note) _) = do
   pragmas <- view _3
   E <$> (Fun (funNameToCoreFunName v) <$> mapM desugarType (map fromJust ts) <*> pure [] <*> pure (pragmaToNote pragmas v $ desugarNote note))  -- FIXME: fromJust
 desugarExpr (B.TE t (S.LayoutApp e ls) _) = do
-  e' <- desugarExpr e
-  -- get function
-  -- subst all the layouts
-  error "unimplemented"
+  E (Fun fn ts _ nt) <- desugarExpr e
+  -- ls' <- fmap desugarLayout <$> ls
+  error "implement desugarLayout!"
+  return $ E (Fun fn ts [] nt)
 desugarExpr (B.TE t (S.Con c [e]) _) = do
   t'@(TSum ts) <- desugarType t
   e' <- desugarExpr e

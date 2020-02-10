@@ -619,10 +619,6 @@ instance Pretty TCType where
 instance Pretty LocType where
   pretty t = pretty (stripLocT t)
 
-instance Pretty (Either TypeName TyVarName) where
-  pretty (Left n) = pretty n
-  pretty (Right n) = pretty n
-
 renderPolytypeHeader vs ts = keyword "all" <> tupled (map prettyKS vs ++ map prettyTS ts) <> symbol "."
     where prettyKS (v,K False False False) = typevar v
           prettyKS (v,k) = typevar v <+> symbol ":<" <+> pretty k
