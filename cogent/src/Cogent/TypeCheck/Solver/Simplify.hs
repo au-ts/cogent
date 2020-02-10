@@ -10,13 +10,14 @@
 -- @TAG(DATA61_GPL)
 --
 
-{-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Cogent.TypeCheck.Solver.Simplify where
 
 import           Cogent.Common.Syntax
 import           Cogent.Common.Types
 import           Cogent.Compiler
+import           Cogent.Dargent.TypeCheck
 import           Cogent.TypeCheck.ARow as ARow
 import           Cogent.TypeCheck.Base
 import qualified Cogent.TypeCheck.Row as Row
@@ -66,7 +67,7 @@ liftTcSolvM :: Rewrite.RewriteT IO a -> Rewrite.RewriteT TcSolvM a
 liftTcSolvM (Rewrite.RewriteT m) = Rewrite.RewriteT (\a -> MaybeT $ liftIO $ runMaybeT (m a))
 
 simplify :: [(TyVarName, Kind)] -> Rewrite.RewriteT IO [Goal]
-simplify axs = Rewrite.pickOne' $ onGoal $ \c -> case c of
+simplify axs = Rewrite.pickOne' $ onGoal $ \case
   Sat      -> hoistMaybe $ Just []
   c1 :& c2 -> hoistMaybe $ Just [c1,c2]
 

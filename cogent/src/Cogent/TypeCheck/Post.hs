@@ -20,8 +20,8 @@ module Cogent.TypeCheck.Post (
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
-import Cogent.Dargent.TypeCheck (normaliseSigil)
-import Cogent.PrettyPrint ()
+import Cogent.Dargent.TypeCheck
+import Cogent.PrettyPrint
 import Cogent.Surface
 import Cogent.TypeCheck.ARow as ARow
 import Cogent.TypeCheck.Base
@@ -269,6 +269,7 @@ tkNorm (Right _) = __impossible "normaliseT: taken variable unsolved at normisat
 normaliseS :: Sigil (Maybe TCDataLayout) -> Post (Sigil (Maybe TCDataLayout))
 normaliseS sigil = do
   layouts <- lift . lift $ use knownDataLayouts
-  let sigil' = fmap (fmap toDLExpr) sigil
-  return . fmap (fmap toTCDL) $ normaliseSigil layouts sigil'
+  return $ normaliseSigil layouts sigil
+  -- let sigil' = fmap (fmap toDLExpr) sigil
+  -- return . fmap (fmap toTCDL) $ normaliseSigil layouts sigil'
 

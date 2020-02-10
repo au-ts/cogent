@@ -14,6 +14,7 @@ module Cogent.TypeCheck.Subst where
 
 import Cogent.Common.Types
 import Cogent.Compiler (__impossible)
+import Cogent.Dargent.TypeCheck
 import Cogent.Surface
 import qualified Cogent.TypeCheck.ARow as ARow
 import Cogent.TypeCheck.Base

@@ -10,9 +10,11 @@
 -- @TAG(DATA61_GPL)
 --
 
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TupleSections #-}
 
 module Cogent.Dargent.TypeCheck where
@@ -33,10 +35,54 @@ import Cogent.Dargent.Util
 import Cogent.Util (WriterMaybe, tellEmpty, mapTells)
 import Cogent.Surface (Type(..))
 
+import Data.Data
 import Data.Bifunctor (bimap, first, second)
 import Text.Parsec.Pos (SourcePos)
 
 import Debug.Trace
+
+{- * Definition for datalayout representation in typechecker -}
+
+data TCDataLayout   = TL { unTCDataLayout :: DataLayoutExpr' TCDataLayout }
+                    | TLU Int
+                    deriving (Show, Data, Eq, Ord)
+
+pattern TLPrim s       = TL (Prim s)
+pattern TLRecord ps    = TL (Record ps)
+pattern TLVariant t ps = TL (Variant t ps)
+#ifdef BUILTIN_ARRAYS
+pattern TLArray e s    = TL (Array e s)
+#endif
+pattern TLOffset e s   = TL (Offset e s)
+pattern TLRepRef n     = TL (RepRef n)
+pattern TLVar n        = TL (LVar n)
+pattern TLPtr          = TL Ptr
+
+{- * Utility functions -}
+
+toDLExpr :: TCDataLayout -> DataLayoutExpr
+toDLExpr (TLPrim n) = DLPrim n
+toDLExpr (TLRecord fs) = DLRecord ((\(x,y,z) -> (x,y,toDLExpr z)) <$> fs)
+toDLExpr (TLVariant e fs) = DLVariant (unDataLayoutExpr (toDLExpr (TL e))) ((\(x,y,z,v) -> (x,y,z,toDLExpr v)) <$> fs)
+#ifdef BUILTIN_ARRAYS
+toDLExpr (TLArray e p) = DLArray (toDLExpr e) p
+#endif
+toDLExpr (TLOffset e s) = DLOffset (unDataLayoutExpr (toDLExpr (TL e))) s
+toDLExpr (TLRepRef n) = DLRepRef n
+toDLExpr (TLVar n) = DLVar n
+toDLExpr TLPtr = DLPtr
+
+toTCDL :: DataLayoutExpr -> TCDataLayout
+toTCDL (DLPrim n) = TLPrim n
+toTCDL (DLRecord fs) = TLRecord ((\(x,y,z) -> (x,y,toTCDL z)) <$> fs)
+toTCDL (DLVariant e fs) = TLVariant (unTCDataLayout (toTCDL (DL e))) ((\(x,y,z,v) -> (x,y,z,toTCDL v)) <$> fs)
+#ifdef BUILTIN_ARRAYS
+toTCDL (DLArray e p) = TLArray (toTCDL e) p
+#endif
+toTCDL (DLOffset e s) = TLOffset (unTCDataLayout (toTCDL (DL e))) s
+toTCDL (DLRepRef n) = TLRepRef n
+toTCDL (DLVar n) = TLVar n
+toTCDL DLPtr = TLPtr
 
 {- * Important exported functions -}
 
@@ -131,6 +177,19 @@ normaliseDataLayoutExpr env (DLArray e pos) = DLArray (normaliseDataLayoutExpr e
 #endif
 normaliseDataLayoutExpr _ r = r
 
+normaliseTCDataLayout :: NamedDataLayouts -> TCDataLayout -> TCDataLayout
+normaliseTCDataLayout env (TLRepRef n) =
+  case M.lookup n env of
+    Just (expr, _) -> toTCDL $ normaliseDataLayoutExpr env expr
+    Nothing        -> __impossible $ "normaliseTCDataLayout (RepRef " ++ show n ++ " already known to exist)"
+normaliseTCDataLayout env (TLRecord fs) = TLRecord $ (\(n, p, l) -> (n, p, normaliseTCDataLayout env l)) <$> fs
+normaliseTCDataLayout env (TLVariant t as) = TLVariant t $ (\(n, p, s, l) -> (n, p, s, normaliseTCDataLayout env l)) <$> as
+normaliseTCDataLayout env (TLOffset l n) = TLOffset (unTCDataLayout $ normaliseTCDataLayout env (TL l)) n
+#ifdef BUILTIN_ARRAYS
+normaliseTCDataLayout env (TLArray l p) = TLArray (normaliseTCDataLayout env l) p
+#endif
+normaliseTCDataLayout _ l = l
+
 {- * Types -}
 type NamedDataLayouts = Map DataLayoutName (DataLayoutExpr, Maybe Allocation)
 type DataLayoutTcError = DataLayoutTcErrorP DataLayoutPath
@@ -203,8 +262,8 @@ normaliseDataLayoutDecl env (DataLayoutDecl pos name expr) =
   DataLayoutDecl pos name (normaliseDataLayoutExpr env expr)
 
 -- Normalises the layout in the sigil to remove references to named layouts
-normaliseSigil :: NamedDataLayouts -> Sigil (Maybe DataLayoutExpr) -> Sigil (Maybe DataLayoutExpr)
-normaliseSigil env = fmap (fmap (normaliseDataLayoutExpr env))
+normaliseSigil :: NamedDataLayouts -> Sigil (Maybe TCDataLayout) -> Sigil (Maybe TCDataLayout)
+normaliseSigil env = fmap (fmap (normaliseTCDataLayout env))
 
 {- * Other functions -}
 evalSize :: DataLayoutSize -> Size
