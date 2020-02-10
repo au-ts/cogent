@@ -15,12 +15,6 @@
 
 module Cogent.Dargent.Surface
   ( module Cogent.Dargent.Surface
-  , TCDataLayout ( TLPrim, TLRecord, TLVariant, TLOffset, TLRepRef, TLPtr, TLVar
-#ifdef BUILTIN_ARRAYS
-                 , TLArray)
-#else
-                 )
-#endif
   , DataLayoutExpr ( DLPrim, DLRecord, DLVariant, DLOffset, DLRepRef, DLPtr, DLVar
 #ifdef BUILTIN_ARRAYS
                    , DLArray)
@@ -67,10 +61,6 @@ data DataLayoutExpr' e
 newtype DataLayoutExpr = DL { unDataLayoutExpr :: DataLayoutExpr' DataLayoutExpr }
   deriving (Show, Data, Eq, Ord)
 
-data TCDataLayout = TL { unTCDataLayout :: DataLayoutExpr' TCDataLayout }
-                  | TLU Int
-                  deriving (Show, Data, Eq, Ord)
-
 pattern DLPrim s       = DL (Prim s)
 pattern DLRecord ps    = DL (Record ps)
 pattern DLVariant t ps = DL (Variant t ps)
@@ -81,14 +71,3 @@ pattern DLOffset e s   = DL (Offset e s)
 pattern DLRepRef n     = DL (RepRef n)
 pattern DLVar n        = DL (LVar n)
 pattern DLPtr          = DL Ptr
-
-pattern TLPrim s       = TL (Prim s)
-pattern TLRecord ps    = TL (Record ps)
-pattern TLVariant t ps = TL (Variant t ps)
-#ifdef BUILTIN_ARRAYS
-pattern TLArray e s    = TL (Array e s)
-#endif
-pattern TLOffset e s   = TL (Offset e s)
-pattern TLRepRef n     = TL (RepRef n)
-pattern TLVar n        = TL (LVar n)
-pattern TLPtr          = TL Ptr

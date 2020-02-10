@@ -99,16 +99,29 @@ isSubtype t1 t2 = runMaybeT (t1 `lub` t2) >>= \case Just t  -> return $ t == t2
 
 bound :: (Show b, Eq b) => Bound -> Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
 bound _ t1 t2 | t1 == t2 = return t1
-bound b (TRecord fs1 s1) (TRecord fs2 s2) | map fst fs1 == map fst fs2, s1 == s2 = do
-  let op = case b of LUB -> (||); GLB -> (&&)
-  blob <- flip3 zipWithM fs2 fs1 $ \(f1,(t1,b1)) (_, (t2,b2)) -> do
-    t <- bound b t1 t2
-    ok <- lift $ if b1 == b2 then return True
-                             else kindcheck t >>= \k -> return (canDiscard k)
-    return ((f1, (t, b1 `op` b2)), ok)
-  let (fs, oks) = unzip blob
-  if and oks then return $ TRecord fs s1
-             else MaybeT (return Nothing)
+bound b (TRecord fs1 s1) (TRecord fs2 s2)
+  | map fst fs1 == map fst fs2
+  , (Boxed _ (LayoutVar n1)) <- s1
+  , (Boxed _ (LayoutVar n2)) <- s2
+    = error "undetermined"
+  | map fst fs1 == map fst fs2
+  , (Boxed _ (LayoutVar _)) <- s1
+    = bound b (TRecord fs1 s2) (TRecord fs2 s2)
+  | map fst fs1 == map fst fs2
+  , (Boxed _ (LayoutVar _)) <- s2
+    = bound b (TRecord fs2 s2) (TRecord fs1 s1)
+  | map fst fs1 == map fst fs2
+  , s1 == s2
+    = do
+        let op = case b of LUB -> (||); GLB -> (&&)
+        blob <- flip3 zipWithM fs2 fs1 $ \(f1,(t1,b1)) (_, (t2,b2)) -> do
+          t <- bound b t1 t2
+          ok <- lift $ if b1 == b2 then return True
+                                   else kindcheck t >>= \k -> return (canDiscard k)
+          return ((f1, (t, b1 `op` b2)), ok)
+        let (fs, oks) = unzip blob
+        if and oks then return $ TRecord fs s1
+                   else MaybeT (return Nothing)
 bound b (TSum s1) (TSum s2) | s1' <- M.fromList s1, s2' <- M.fromList s2, M.keys s1' == M.keys s2' = do
   let op = case b of LUB -> (&&); GLB -> (||)
   s <- flip3 unionWithKeyM s2' s1' $ \k (t1,b1) (t2,b2) -> (,) <$> bound b t1 t2 <*> pure (b1 `op` b2)
@@ -317,11 +330,11 @@ tc = flip tc' M.empty
         -> Map FunName (FunctionType b)  -- the reader
         -> Either String ([Definition TypedExpr a b], Map FunName (FunctionType b))
     tc' [] reader = return ([], reader)
-    tc' ((FunDef attr fn ts ls t rt e):ds) reader =
-      case runTC (infer e >>= flip typecheck rt) (fmap snd ts, reader) (Cons (Just t) Nil) of
+    tc' ((FunDef attr fn ks ts t rt e):ds) reader =
+      case runTC (infer e >>= flip typecheck rt) (fmap snd ks, reader) (Cons (Just t) Nil) of
         Left x -> Left x
-        Right (_, e') -> (first (FunDef attr fn ts ls t rt e':)) <$> tc' ds (M.insert fn (FT (fmap snd ts) t rt) reader)
-    tc' (d@(AbsDecl _ fn ts ls t rt):ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds (M.insert fn (FT (fmap snd ts) t rt) reader)
+        Right (_, e') -> (first (FunDef attr fn ks ts t rt e':)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ts) t rt) reader)
+    tc' (d@(AbsDecl _ fn ks ts t rt):ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ts) t rt) reader)
     tc' (d:ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds reader
 
 tc_ :: (Show b, Eq b, Pretty b, a ~ b)
@@ -484,7 +497,7 @@ infer (E (Fun f ts ls note))
    = do myMap <- ask
         x <- funType f
         case x of
-          Just (FT ks ti to) ->
+          Just (FT ks lts ti to) ->
             ( case Vec.length ts' =? Vec.length ks
                 of Just Refl -> let ti' = substitute ts' ti
                                     to' = substitute ts' to
@@ -492,7 +505,7 @@ infer (E (Fun f ts ls note))
                                         k' <- kindcheck t
                                         when ((k <> k') /= k) $ __impossible "kind not matched in type instantiation"
                                       return $ TE (TFun ti' to') (Fun f ts ls note)
-                   Nothing -> __impossible "lengths don't match")
+                   Nothing -> __impossible "lengths don't match" )
           _        -> error $ "Something went wrong in lookup of function type: '" ++ unCoreFunName f ++ "'"
 infer (E (App e1 e2))
    = do e1'@(TE (TFun ti to) _) <- infer e1
