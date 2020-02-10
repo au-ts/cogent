@@ -99,6 +99,7 @@ desugarSize :: DataLayoutSize -> Size
 desugarSize = evalSize
 
 desugarDataLayout :: DataLayoutExpr -> DataLayout BitRange
+desugarDataLayout (DLVar n) = LayoutVar n
 desugarDataLayout l = Layout $ desugarDataLayout' l
   where
     desugarDataLayout' :: DataLayoutExpr -> DataLayout' BitRange

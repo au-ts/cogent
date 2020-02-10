@@ -506,13 +506,13 @@ polytype = polytype' <|> PT [] [] <$> monotype
       reservedOp "."
       t <- monotype
       return $ PT (hs >>= flt1) (hs >>= flt2) t
-    flt1 x | Left v <- snd x  = pure (fst x, v)
-           | otherwise        = mempty
-    flt2 x | Right v <- snd x = pure (fst x, v)
-           | otherwise        = mempty
+    flt1 (x, y) | Left v <- y  = pure (x, v)
+                | otherwise    = mempty
+    flt2 (x, y) | Right v <- y = pure (x, v)
+                | otherwise    = mempty
 
 klSignature = (,) <$> variableName <*> (Left <$> (reservedOp ":<" *> kind <?> "kind")
-                  <|> Right <$> (reservedOp ":~" *> typeid <?> "typeid")
+                  <|> Right <$> (reservedOp ":~" *> monotype <?> "typeid")
                   <|> Left <$> (pure $ K False False False))
   where kind = do x <- identifier
                   determineKind x (K False False False)
@@ -521,7 +521,6 @@ klSignature = (,) <$> variableName <*> (Left <$> (reservedOp ":<" *> kind <?> "k
         determineKind ('E':xs) k =  determineKind xs (k { canEscape = True })
         determineKind [] k = return k
         determineKind _ k = fail "Kinds are made of three letters: D, S, E"
-        typeid = (Left <$> typeConName) <|> (Right <$> variableName) <?> "typeid"
 
 -- NOTE: use "string" instead of "reservedOp" so that it allows no spaces after "@@" / zilinc
 docBlock = do whiteSpace; _ <- try (string "@@"); x <- manyTill anyChar newline; whiteSpace; return x

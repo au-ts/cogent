@@ -21,14 +21,7 @@
 module Cogent.TypeCheck.Base where
 
 import Cogent.Dargent.Allocation
-import Cogent.Dargent.TypeCheck ( NamedDataLayouts
-                                , DataLayoutTcError
-                                , tcDataLayoutExpr
-                                , evalSize
-                                )
-import Cogent.Dargent.Core      ( DataLayout (..)
-                                , DataLayout'(..)
-                                )
+import Cogent.Dargent.TypeCheck
 
 import Cogent.Common.Syntax
 import Cogent.Common.Types
@@ -267,10 +260,8 @@ kindToConstraint k t m = (if canEscape  k then Escape t m else Sat)
                       <> (if canDiscard k then Drop   t m else Sat)
                       <> (if canShare   k then Share  t m else Sat)
 
--- FIXME
-layoutMatchConstraint :: Either () TCType -> TCDataLayout -> Constraint
-layoutMatchConstraint (Left ()) l = Sat
-layoutMatchConstraint (Right n) l = l :~ n
+layoutMatchConstraint :: TCType -> TCDataLayout -> Constraint
+layoutMatchConstraint t l = l :~ t
 
 warnToConstraint :: Bool -> TypeWarning -> Constraint
 warnToConstraint f w | f = SemiSat w
@@ -426,30 +417,6 @@ toRawType _ = __impossible "toRawType: unification variable found"
 
 toRawType' :: DepType -> RawType
 toRawType' (DT t) = RT (fffmap toRawExpr'' $ fmap toRawType' t)
-
-toDLExpr :: TCDataLayout -> DataLayoutExpr
-toDLExpr (TLPrim n) = DLPrim n
-toDLExpr (TLRecord fs) = DLRecord ((\(x,y,z) -> (x,y,toDLExpr z)) <$> fs)
-toDLExpr (TLVariant e fs) = DLVariant (unDataLayoutExpr (toDLExpr (TL e))) ((\(x,y,z,v) -> (x,y,z,toDLExpr v)) <$> fs)
-#ifdef BUILTIN_ARRAYS
-toDLExpr (TLArray e p) = DLArray (toDLExpr e) p
-#endif
-toDLExpr (TLOffset e s) = DLOffset (unDataLayoutExpr (toDLExpr (TL e))) s
-toDLExpr (TLRepRef n) = DLRepRef n
-toDLExpr (TLVar n) = DLVar n
-toDLExpr TLPtr = DLPtr
-
-toTCDL :: DataLayoutExpr -> TCDataLayout
-toTCDL (DLPrim n) = TLPrim n
-toTCDL (DLRecord fs) = TLRecord ((\(x,y,z) -> (x,y,toTCDL z)) <$> fs)
-toTCDL (DLVariant e fs) = TLVariant (unTCDataLayout (toTCDL (DL e))) ((\(x,y,z,v) -> (x,y,z,toTCDL v)) <$> fs)
-#ifdef BUILTIN_ARRAYS
-toTCDL (DLArray e p) = TLArray (toTCDL e) p
-#endif
-toTCDL (DLOffset e s) = TLOffset (unTCDataLayout (toTCDL (DL e))) s
-toTCDL (DLRepRef n) = TLRepRef n
-toTCDL (DLVar n) = TLVar n
-toTCDL DLPtr = TLPtr
 
 -- This function although is partial, it should be ok, as we statically know that 
 -- we won't run into those undefined cases. / zilinc
