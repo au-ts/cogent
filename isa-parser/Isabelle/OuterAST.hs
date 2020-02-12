@@ -8,7 +8,8 @@
 -- @TAG(NICTA_GPL)
 --
 
-{-# LANGUAGE DeriveDataTypeable, FlexibleContexts #-}
+{-# LANGUAGE DeriveDataTypeable, FlexibleContexts, DeriveFunctor, StandaloneDeriving, PolyKinds, FlexibleInstances, 
+             NamedFieldPuns, RecordWildCards #-}
 
 module Isabelle.OuterAST where
 
@@ -23,6 +24,12 @@ import Prelude hiding ((<$>))
 
 import Isabelle.InnerAST (Arity, prettyTypeVars, Type(TyVar))
 import Isabelle.PrettyHelper (BinOpRec(..), prettyBinOp)
+
+
+newtype Flip f (a :: a') (b :: b') = Flip { unflip :: f b a }
+
+ffmap :: (Functor (Flip f a)) => (b -> b') -> f b a -> f b' a
+ffmap f = unflip . fmap f . Flip
 
 --
 -- A note on the design of this AST
@@ -40,7 +47,11 @@ type Name = String
 -- language and one for the term language, respectively.
 --
 data Theory types terms = Theory { thyName :: String, thyImports :: TheoryImports, thyBody :: [TheoryDecl types terms] } 
-                        deriving (Data, Typeable, Show)
+                        deriving (Data, Typeable, Show, Functor)
+
+instance Functor (Flip Theory term) where
+  fmap f (Flip (Theory { thyName, thyImports, thyBody = thyBody' })) =
+    (Flip (Theory { thyName, thyImports, thyBody = fmap (ffmap f) thyBody' }))
 
 newtype TheoryImports = TheoryImports [TheoryImport] deriving (Data, Typeable, Show)
 
@@ -64,74 +75,151 @@ data TheoryDecl types terms = Definition    (Def types terms)
                             | TheoryString String
                             | PrimRec      (Prc types terms)
                             | Declare      (Dcl types terms)
-                            deriving (Data, Typeable, Show)
+                            deriving (Data, Typeable, Show, Functor)
 
-data Dcl types terms = Dcl { dclName :: String, dclRules :: [String]} deriving (Data, Typeable, Show)
+instance Functor (Flip TheoryDecl terms) where
+  fmap f (Flip (Definition        x)) = Flip $ Definition        $ ffmap f x
+  fmap f (Flip (OverloadedDef x tys)) = Flip $ OverloadedDef (ffmap f x) (fmap f tys)
+  fmap f (Flip (Abbreviation      x)) = Flip $ Abbreviation      $ ffmap f x
+  fmap f (Flip (ContextDecl       x)) = Flip $ ContextDecl       $ ffmap f x
+  fmap f (Flip (LemmaDecl         x)) = Flip $ LemmaDecl         $ ffmap f x
+  fmap f (Flip (LemmasDecl        x)) = Flip $ LemmasDecl        $ ffmap f x
+  fmap f (Flip (TypeSynonym       x)) = Flip $ TypeSynonym       $ ffmap f x
+  fmap f (Flip (TypeDeclDecl      x)) = Flip $ TypeDeclDecl      $ ffmap f x
+  fmap f (Flip (ConstsDecl        x)) = Flip $ ConstsDecl        $ ffmap f x
+  fmap f (Flip (RecordDecl        x)) = Flip $ RecordDecl        $ ffmap f x
+  fmap f (Flip (DataTypeDecl      x)) = Flip $ DataTypeDecl      $ ffmap f x
+  fmap f (Flip (ClassDecl         x)) = Flip $ ClassDecl         $ ffmap f x
+  fmap f (Flip (InstantiationDecl x)) = Flip $ InstantiationDecl $ ffmap f x
+  fmap f (Flip (InstanceDecl      x)) = Flip $ InstanceDecl      $ ffmap f x
+  fmap f (Flip (FunFunction     b x)) = Flip $ FunFunction     b $ ffmap f x
+  fmap f (Flip (TheoryString      s)) = Flip (TheoryString s)
+  fmap f (Flip (PrimRec           x)) = Flip $ PrimRec           $ ffmap f x
+  fmap f (Flip (Declare           x)) = Flip $ Declare           $ ffmap f x
 
-data Prc types terms = Prc { prcSig :: Maybe (Sig types), recCases :: [(terms, terms)] } deriving (Data, Typeable, Show)
 
-data Def types terms = Def { defSig :: Maybe (Sig types), defTerm :: terms} deriving (Data, Typeable, Show)
+data Dcl types terms = Dcl { dclName :: String, dclRules :: [String]} deriving (Data, Typeable, Show, Functor)
 
-data Sig types = Sig { sigName :: String, sigType :: Maybe types } deriving (Data, Typeable, Show)
+instance Functor (Flip Dcl terms) where
+  fmap f (Flip (Dcl { dclName, dclRules })) = Flip (Dcl { dclName, dclRules })
+  
+data Prc types terms = Prc { prcSig :: Maybe (Sig types), recCases :: [(terms, terms)] } deriving (Data, Typeable, Show, Functor)
 
-data Abbrev types terms = Abbrev { abbrevSig :: Maybe (Sig types), abbrevTerm :: terms } deriving (Data, Typeable, Show)
+instance Functor (Flip Prc terms) where
+  fmap f (Flip (r@Prc{ prcSig = prcSig', .. })) = Flip $ r { prcSig = fmap (fmap f) prcSig' }
+
+data Def types terms = Def { defSig :: Maybe (Sig types), defTerm :: terms} deriving (Data, Typeable, Show, Functor)
+
+instance Functor (Flip Def terms) where
+  fmap f (Flip (r@Def{ defSig = defSig', .. })) = Flip $ r { defSig = fmap (fmap f) defSig' }
+
+data Sig types = Sig { sigName :: String, sigType :: Maybe types } deriving (Data, Typeable, Show, Functor)
+
+data Abbrev types terms = Abbrev { abbrevSig :: Maybe (Sig types), abbrevTerm :: terms } deriving (Data, Typeable, Show, Functor)
+
+instance Functor (Flip Abbrev terms) where
+  fmap f (Flip (r@Abbrev{ abbrevSig = abbrevSig', .. })) = Flip $ r { abbrevSig = fmap (fmap f) abbrevSig' }
 
 data Lemma types terms = Lemma { lemmaSchematic :: Bool
                                , lemmaThmDecl :: Maybe TheoremDecl
                                , lemmaProps :: [terms]
-                               , lemmaProof :: Proof } deriving (Data, Typeable, Show)
+                               , lemmaProof :: Proof } deriving (Data, Typeable, Show, Functor)
+
+instance Functor (Flip Lemma terms) where
+  fmap f (Flip (Lemma { lemmaSchematic, lemmaThmDecl, lemmaProps, lemmaProof })) 
+        = Flip (Lemma { lemmaSchematic, lemmaThmDecl, lemmaProps, lemmaProof })
 
 -- not all TheoryDecls are legal in Contexts, but most
 data Context types terms = Context { cName :: String
                                    , cBody :: [TheoryDecl types terms]
-                                   } deriving (Data, Typeable, Show)
+                                   } deriving (Data, Typeable, Show, Functor)
+
+instance Functor (Flip Context terms) where
+  fmap f (Flip (r@Context{ cBody = cBody', .. })) = Flip $ r { cBody = fmap (ffmap f) cBody' }
 
 data Lemmas types terms = Lemmas { lemmasName :: TheoremDecl
-                                 , lemmasThms :: [TheoremDecl] } deriving (Data, Typeable, Show)
+                                 , lemmasThms :: [TheoremDecl] } deriving (Data, Typeable, Show, Functor)
+
+instance Functor (Flip Lemmas terms) where
+  fmap f (Flip (Lemmas { lemmasName, lemmasThms })) = Flip (Lemmas { lemmasName, lemmasThms })
 
 data TypeSyn types terms = TypeSyn { typeName :: Name
                                    , synonym :: types
                                    , tsTypeVars :: [String]
-                                   } deriving (Data, Typeable, Show)
+                                   } deriving (Data, Typeable, Show, Functor)
+
+instance Functor (Flip TypeSyn terms) where
+  fmap f (Flip (r@TypeSyn{ synonym = synonym', .. })) = Flip $ r { synonym = f synonym' }
 
 data TypeDecl types terms = TypeDecl { tdeclName :: Name
                                      , tdeclTypeVars :: [String]
-                                     } deriving (Data, Typeable, Show)
+                                     } deriving (Data, Typeable, Show, Functor)
 
-data Consts types terms = Consts { constsSig :: Sig types } deriving (Data, Typeable, Show)
+instance Functor (Flip TypeDecl terms) where
+  fmap f (Flip (TypeDecl { tdeclName, tdeclTypeVars })) = Flip (TypeDecl { tdeclName, tdeclTypeVars })
+
+data Consts types terms = Consts { constsSig :: Sig types } deriving (Data, Typeable, Show, Functor)
+
+instance Functor (Flip Consts terms) where
+  fmap f (Flip (r@Consts{ constsSig = constsSig', .. })) = Flip $ r { constsSig = fmap f constsSig' }
 
 data RecField types terms = RecField { fieldName :: Name
                                      , fieldType :: types
-                                     } deriving (Data, Typeable, Show)
+                                     } deriving (Data, Typeable, Show, Functor)
+
+instance Functor (Flip RecField terms) where
+  fmap f (Flip (r@RecField{ fieldType = fieldType', .. })) = Flip $ r { fieldType = f fieldType' }
 
 data Record types terms = Record { recName :: Name
                                  , recFields :: [RecField types terms]
                                  , recTypeVars :: [String]
-                                 } deriving (Data, Typeable, Show)
+                                 } deriving (Data, Typeable, Show, Functor)
+
+instance Functor (Flip Record terms) where
+  fmap f (Flip (r@Record{ recFields = recFields', .. })) = Flip $ r { recFields = fmap (ffmap f) recFields' }
 
 data DTCons types terms = DTCons { conName :: Name
                                  , conTypes :: [types]
-                                 } deriving (Data, Typeable, Show)
+                                 } deriving (Data, Typeable, Show, Functor)
+
+instance Functor (Flip DTCons terms) where
+  fmap f (Flip (r@DTCons{ conTypes = conTypes', .. })) = Flip $ r { conTypes = fmap f conTypes' }
 
 data Datatype types terms = Datatype { dtName :: Name
                                      , dtCons :: [DTCons types terms]
                                      , dtTypeVars :: [String]
-                                     } deriving (Data, Typeable, Show)
+                                     } deriving (Data, Typeable, Show, Functor)
+
+instance Functor (Flip Datatype terms) where
+  fmap f (Flip (r@Datatype{ dtCons = dtCons', .. })) = Flip $ r { dtCons = fmap (ffmap f) dtCons' }
 
 data Class types terms = Class { clSpec :: ClassSpec types terms
                                , clBody :: [TheoryDecl types terms] 
-                               } deriving (Data, Typeable, Show)
+                               } deriving (Data, Typeable, Show, Functor)
 
-data ClassSpec types terms = ClassSpec deriving (Data, Typeable, Show)  -- TODO: zilinc
+instance Functor (Flip Class terms) where
+  fmap f (Flip (r@Class{ clSpec = clSpec', clBody = clBody'}))
+        = Flip $ r { clSpec = ffmap f clSpec', clBody = fmap (ffmap f) clBody' }
+
+data ClassSpec types terms = ClassSpec deriving (Data, Typeable, Show, Functor)  -- TODO: zilinc
+
+instance Functor (Flip ClassSpec terms) where 
+  fmap f (Flip ClassSpec) = Flip $ ClassSpec 
 
 data Instantiation types terms = Instantiation { instnNames :: [Name]
                                                , instnArity :: Arity 
                                                , instnBody  :: [TheoryDecl types terms]
-                                               } deriving (Data, Typeable, Show)
+                                               } deriving (Data, Typeable, Show, Functor)
+
+instance Functor (Flip Instantiation terms) where
+  fmap f (Flip (r@Instantiation{ instnBody = instnBody', .. })) = Flip $ r { instnBody = fmap (ffmap f) instnBody' }
 
 data Instance types terms = Instance { instHead :: InstanceHead
                                      , instBody :: [TheoryDecl types terms] }
-                          deriving (Data, Typeable, Show)
+                          deriving (Data, Typeable, Show, Functor)
+
+instance Functor (Flip Instance terms) where
+  fmap f (Flip (r@Instance{ instBody = instBody', .. })) = Flip $ r { instBody = fmap (ffmap f) instBody' }
 
 data InstanceHead = InstanceHeadNo
                   | InstanceHeadTh { ihThNames :: [Name]
@@ -147,9 +235,16 @@ data ClassRel = ClassLessThan | ClassSubsetOf deriving (Data, Typeable, Show)
 
 data FunFunc types terms = FunFunc { funSig :: [Sig types]
                                    , funDef :: Equations types terms
-                                   } deriving (Data, Typeable, Show)
+                                   } deriving (Data, Typeable, Show, Functor)
 
-data Equations types terms = Equations [terms] deriving (Data, Typeable, Show)
+instance Functor (Flip FunFunc terms) where
+  fmap f (Flip (r@FunFunc{ funSig = funSig', funDef = funDef' })) 
+        = Flip $ r { funSig = fmap (fmap f) funSig', funDef = ffmap f funDef' }
+
+data Equations types terms = Equations [terms] deriving (Data, Typeable, Show, Functor)
+
+instance Functor (Flip Equations terms) where 
+  fmap f (Flip (Equations t)) = Flip $ Equations t
 
 data TheoremDecl = TheoremDecl { thmName :: Maybe Name, thmAttributes :: [Attribute] }
   deriving (Data, Typeable, Show)
