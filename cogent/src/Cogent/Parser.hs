@@ -394,58 +394,39 @@ layoutApp = between (reservedOp "{") (symbol "}") repExpr
 -- NOTE: use "string" instead of "reservedOp" so that it allows no spaces after "@" / zilinc
 docHunk = do whiteSpace; _ <- try (string "@"); x <- manyTill anyChar newline; whiteSpace; return x
 
-monotype = do avoidInitial
-              t1 <- typeA1
-              t2 <- optionMaybe (reservedOp "->" >> typeA1)
-              case t2 of
-                Nothing -> return t1
-                Just t2' -> return $ LocType (posOfT t1) $ TFun t1 t2'
-  where
-    typeA1 = do
-      x <- typeA1'
-      t2 <- optionMaybe (avoidInitial >> docHunk)
-      case t2 of Nothing -> return x; Just doc -> do
-                    return (Documentation doc x)
-    typeA2 = do
-      x <- typeA2'
-      t2 <- optionMaybe (avoidInitial >> docHunk)
-      case t2 of Nothing -> return x; Just doc -> do
-                    return (Documentation doc x)
-    typeA1' = do avoidInitial
-                 try paramtype
-                 <|> (do t <- typeA2'
-                         op <- optionMaybe takeput
-                         let t' = (case op of
-                                      Nothing -> t
-                                      Just f  -> f t)
-#ifdef BUILTIN_ARRAYS
-                         aop <- optionMaybe arrTakeput
-                         let ta = (case aop of
-                                     Nothing -> t'
-                                     Just f  -> f t')
-#else
-                         let ta = t'
-#endif
-                         l <- optionMaybe layout
-                         let t'' = (case l of
-                                      Nothing -> ta
-                                      Just fl -> fl ta)
-                         return t''
-                     )
-    typeA2' = avoidInitial >>
-               ((unbox >>= \op -> atomtype >>= \at -> return (op at))
-#ifdef BUILTIN_ARRAYS
-           <|>  try ( do { t <- atomtype
-                         ; mu <- optionMaybe unbox
-                         ; l <- brackets $ expr 1
-                         ; mb <- optionMaybe bang
-                         ; let fu = case mu of Nothing -> id; Just u -> u
-                               fb = case mb of Nothing -> id; Just b -> b
-                         ; return . fb . fu $ (LocType (posOfT t) $ TArray t l (Boxed False Nothing) [])
-                         } )
-#endif
-           <|>  (atomtype >>= \t -> optionMaybe bang >>= \op -> case op of Nothing -> return t; Just f -> return (f t)))
+typeA1 = do
+  x <- typeA1'
+  t2 <- optionMaybe (avoidInitial >> docHunk)
+  case t2 of Nothing -> return x; Just doc -> do
+                return (Documentation doc x)
+typeA2 = do
+  x <- typeA2'
+  t2 <- optionMaybe (avoidInitial >> docHunk)
+  case t2 of Nothing -> return x; Just doc -> do
+                return (Documentation doc x)
 
+typeA1' = do avoidInitial
+             try paramtype
+             <|> (do t <- typeA2'
+                     op <- optionMaybe takeput
+                     let t' = (case op of
+                                  Nothing -> t
+                                  Just f  -> f t)
+#ifdef BUILTIN_ARRAYS
+                     aop <- optionMaybe arrTakeput
+                     let ta = (case aop of
+                                 Nothing -> t'
+                                 Just f  -> f t')
+#else
+                     let ta = t'
+#endif
+                     l <- optionMaybe layout
+                     let t'' = (case l of
+                                  Nothing -> ta
+                                  Just fl -> fl ta)
+                     return t''
+                 )
+  where
     paramtype = avoidInitial >> LocType <$> getPosition <*>
       -- If the type `typeConName` refers to an abstract type, its sigil should be `Boxed`
       -- and should have no associated layout.
@@ -453,8 +434,6 @@ monotype = do avoidInitial
       -- because the actual sigil comes from the aliased type. /mdimeglio
       (TCon <$> typeConName <*> many1 typeA2 <*> pure (Boxed False Nothing))
 
-    unbox = avoidInitial >> reservedOp "#" >> return (\x -> LocType (posOfT x) (TUnbox x))
-    bang  = avoidInitial >> reservedOp "!" >> return (\x -> LocType (posOfT x) (TBang x))
     takeput = avoidInitial >>
              ((reservedOp "take" >> fList >>= \fs -> return (\x -> LocType (posOfT x) (TTake fs x)))
           <|> (reservedOp "put"  >> fList >>= \fs -> return (\x -> LocType (posOfT x) (TPut  fs x))))
@@ -469,34 +448,58 @@ monotype = do avoidInitial
     layout = avoidInitial >> reservedOp "layout" >> repExpr
       >>= \l -> return (\x -> LocType (posOfT x) (TLayout l x))
 
-    atomtype = avoidInitial >> LocType <$> getPosition <*> (
-          TVar <$> variableName <*> pure False <*> pure False
-      <|> (do tn <- typeConName
-              let s = if tn `elem` primTypeCons  -- give correct sigil to primitive types
-                        then Unboxed
-                       -- If the type `typeConName` refers to an abstract type, its sigil should be `Boxed`
-                       -- and should have no associated layout.
-                       -- If the type `typeConName` is a type alias, the sigil we choose here is ignored
-                       -- because the actual sigil comes from the aliased type. /mdimeglio
-                        else Boxed False Nothing
-              return $ TCon tn [] s)
-      -- <|> TCon <$> typeConName <*> pure [] <*> pure Writable
-      <|> tuple <$> parens (commaSep monotype)
-      <|> (\fs -> TRecord fs (Boxed False Nothing))
-          <$> braces (commaSep1 ((\a b c -> (a,(b,c))) <$> variableName <* reservedOp ":" <*> monotype <*> pure False))
-      <|> TVariant . M.fromList <$> angles (((,) <$> typeConName <*> fmap ((,False)) (many typeA2)) `sepBy` reservedOp "|")
-#ifdef REFINEMENT_TYPES
-      <|> (brackets (TRefine <$> variableName <* reservedOp ":" <*> monotype <* reservedOp "|" <*> expr 1)))
-#else
-      )
-#endif
-
-    tuple [] = TUnit
-    tuple [e] = typeOfLT e
-    tuple es  = TTuple es
-
     fList = (Just . (:[])) <$> identifier
         <|> parens ((reservedOp ".." >> return Nothing) <|> (commaSep identifier >>= return . Just))
+
+typeA2' = avoidInitial >>
+           ((unbox >>= \op -> atomtype >>= \at -> return (op at))
+#ifdef BUILTIN_ARRAYS
+       <|>  try ( do { t <- atomtype
+                     ; mu <- optionMaybe unbox
+                     ; l <- brackets $ expr 1
+                     ; mb <- optionMaybe bang
+                     ; let fu = case mu of Nothing -> id; Just u -> u
+                           fb = case mb of Nothing -> id; Just b -> b
+                     ; return . fb . fu $ (LocType (posOfT t) $ TArray t l (Boxed False Nothing) [])
+                     } )
+#endif
+       <|>  (atomtype >>= \t -> optionMaybe bang >>= \op -> case op of Nothing -> return t; Just f -> return (f t)))
+  where
+    unbox = avoidInitial >> reservedOp "#" >> return (\x -> LocType (posOfT x) (TUnbox x))
+    bang  = avoidInitial >> reservedOp "!" >> return (\x -> LocType (posOfT x) (TBang x))
+
+atomtype = avoidInitial >> LocType <$> getPosition <*> (
+      TVar <$> variableName <*> pure False <*> pure False
+  <|> (do tn <- typeConName
+          let s = if tn `elem` primTypeCons  -- give correct sigil to primitive types
+                    then Unboxed
+                   -- If the type `typeConName` refers to an abstract type, its sigil should be `Boxed`
+                   -- and should have no associated layout.
+                   -- If the type `typeConName` is a type alias, the sigil we choose here is ignored
+                   -- because the actual sigil comes from the aliased type. /mdimeglio
+                    else Boxed False Nothing
+          return $ TCon tn [] s)
+  -- <|> TCon <$> typeConName <*> pure [] <*> pure Writable
+  <|> tuple <$> parens (commaSep monotype)
+  <|> (\fs -> TRecord fs (Boxed False Nothing))
+      <$> braces (commaSep1 ((\a b c -> (a,(b,c))) <$> variableName <* reservedOp ":" <*> monotype <*> pure False))
+  <|> TVariant . M.fromList <$> angles (((,) <$> typeConName <*> fmap ((,False)) (many typeA2)) `sepBy` reservedOp "|")
+#ifdef REFINEMENT_TYPES
+  <|> (brackets (TRefine <$> variableName <* reservedOp ":" <*> monotype <* reservedOp "|" <*> expr 1)))
+#else
+  )
+#endif
+    where
+      tuple [] = TUnit
+      tuple [e] = typeOfLT e
+      tuple es  = TTuple es
+
+monotype = do avoidInitial
+              t1 <- typeA1
+              t2 <- optionMaybe (reservedOp "->" >> typeA1)
+              case t2 of
+                Nothing -> return t1
+                Just t2' -> return $ LocType (posOfT t1) $ TFun t1 t2'
 
 polytype = polytype' <|> PT [] [] <$> monotype
   where
@@ -512,7 +515,7 @@ polytype = polytype' <|> PT [] [] <$> monotype
                 | otherwise    = mempty
 
 klSignature = (,) <$> variableName <*> (Left <$> (reservedOp ":<" *> kind <?> "kind")
-                  <|> Right <$> (reservedOp ":~" *> monotype <?> "typeid")
+                  <|> Right <$> (reservedOp ":~" *> atomtype <?> "typeid")
                   <|> Left <$> (pure $ K False False False))
   where kind = do x <- identifier
                   determineKind x (K False False False)
