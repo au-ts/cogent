@@ -132,10 +132,10 @@ listTypes ts = let row x = let t = prettyType x Nothing in [shamlet|<tr><td>#{t}
                 in [shamlet|<table>#{rows}<td></td>|]
 
 prettyPT :: (?knowns :: [(String, SourcePos)]) => Polytype LocType -> Html
-prettyPT (PT [] t) = prettyType t Nothing
-prettyPT (PT vs t) = let top = fst $ runState (displayHTML (prettyPrint id [renderPolytypeHeader vs])) defaultState
-                         bottom = prettyType t Nothing
-                      in [shamlet| <table><tr><td>#{top}</td><td></td></tr><tr><td>#{bottom}</td></tr>|]
+prettyPT (PT [] [] t) = prettyType t Nothing
+prettyPT (PT ts ls t) = let top = fst $ runState (displayHTML (prettyPrint id [renderPolytypeHeader ts ls])) defaultState
+                            bottom = prettyType t Nothing
+                         in [shamlet| <table><tr><td>#{top}</td><td></td></tr><tr><td>#{bottom}</td></tr>|]
 
 prettyType :: (?knowns :: [(String, SourcePos)]) => LocType -> Maybe Html -> Html
 prettyType x y | not (containsDocumentation x)  =  case y of
@@ -205,7 +205,7 @@ withLinking s t = case lookup t s of
                      Nothing -> H.toHtml t
   where file p = fileNameFor p
 
-data DocExpr = DE { unDE :: Expr RawType RawPatn RawIrrefPatn DocExpr }
+data DocExpr = DE { unDE :: Expr RawType RawPatn RawIrrefPatn DataLayoutExpr DocExpr }
              | DocFnCall FunName [Maybe RawType] Inline deriving Show
 
 instance ExprType DocExpr where
@@ -320,7 +320,7 @@ genDoc (p,s,x@(AbsDec n pt)) = do
                 #{md} |]
 genDoc (p,s,(ConstDef n t as)) =
      let n' x = [shamlet|<table><td class='fg-Vivid-Green'><a name='#{n}'><b>#{n}</b></a> </td><td class='spaced'>:</td><td class='spaced'>#{x}</td> |]
-         pt' = prettyPT (PT [] t)
+         pt' = prettyPT (PT [] [] t)
          md     = markdown s
          str = runState (displayHTML (prettyPrint id $ return $ prettyConstDef False n t $ resolveNames [] $ stripLocE as) ) defaultState
          source = makeHtml $ fst str

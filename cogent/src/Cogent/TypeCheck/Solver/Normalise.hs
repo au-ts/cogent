@@ -10,6 +10,7 @@
 -- @TAG(DATA61_GPL)
 --
 
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TupleSections #-}
 
 module Cogent.TypeCheck.Solver.Normalise where
@@ -36,7 +37,7 @@ import Lens.Micro
 -- import Debug.Trace
 
 normaliseRW :: RewriteT TcSolvM TCType
-normaliseRW = rewrite' $ \t -> case t of
+normaliseRW = rewrite' $ \case
     T (TBang (T (TCon t ts s))) -> pure (T (TCon t (fmap (T . TBang) ts) (bangSigil s)))
     T (TBang (T (TVar v b u))) -> pure (T (TVar v True u))
     T (TBang (T (TFun x y))) -> pure (T (TFun x y))
@@ -135,3 +136,7 @@ normaliseTypes = mapM $ \g -> do
 normaliseSExpr :: TCSExpr -> Int
 normaliseSExpr (SE _ (IntLit n)) = fromIntegral n
 normaliseSExpr _ = __todo "normaliseSExpr"
+
+-- | Normalise all layouts within a set of constraints
+normaliseLayouts :: [Goal] -> TcSolvM [Goal]
+normaliseLayouts = __todo "normaliseLayouts"

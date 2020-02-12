@@ -90,7 +90,7 @@ import           Lens.Micro.Mtl
 solve :: [(TyVarName, Kind)] -> [(DLVarName, TCType)] -> Constraint -> TcSolvM [Goal]
 solve ks ms c = let gs     = makeGoals [] c
                             -- Simplify does a lot of very small steps so it's slightly nicer for tracing to run it in a nested fixpoint
-                    stages = Rewrite.untilFixedPoint (debug "Simplify" printC $ liftTcSolvM $ simplify ks)
+                    stages = Rewrite.untilFixedPoint (debug "Simplify" printC $ liftTcSolvM $ simplify ks ms)
                              <> debug  "Unify"      printC unify
                              <> debugL "Equate"     printC equate
                              <> debug  "Sink/Float" printC sinkfloat
@@ -108,6 +108,7 @@ solve ks ms c = let gs     = makeGoals [] c
   -- - Reorder Equate stage before JoinMeet:
   --    The new Sink/float stage can apply when Equate does, but Sink/float introduces potentially many new constraints, while Equate is simpler and just replaces a subtyping constraint with equality.
                     rw     = debugF "Initial constraints" printC <>
+                             -- TODO: rewrite for normalising layouts
                              Rewrite.untilFixedPoint (Rewrite.pre normaliseTypes stages)
                  in fmap (fromMaybe gs) (runMaybeT (Rewrite.runRewriteT rw gs))
 

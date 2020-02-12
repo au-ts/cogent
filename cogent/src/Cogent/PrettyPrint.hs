@@ -682,7 +682,7 @@ instance Pretty d => Pretty (DataLayoutExpr' d) where
   pretty (Array e s) = keyword "array" <+> parens (pretty e) <+> keyword "at" <+> pretty s
 #endif
   pretty Ptr = keyword "pointer"
-  pretty (LVar n) = varname n
+  pretty (LVar n) = dlvarname n
 
 instance Pretty DataLayoutExpr where
   pretty (DL l) = pretty l
@@ -866,7 +866,8 @@ instance Pretty Constraint where
   pretty (Arith e)        = pretty e
   pretty (a :-> b)        = prettyPrec 2 a </> warn ":->" </> prettyPrec 1 b
 #endif
-  pretty (l :~ n)        = pretty l <+> warn ":~" <+> pretty n
+  pretty (l :~ n)         = pretty l <+> warn ":~" <+> pretty n
+  pretty (l :~: m)        = pretty l <+> warn ":~:" <+> pretty m
 
 -- a more verbose version of constraint pretty-printer which is mostly used for debugging
 prettyC :: Constraint -> Doc
@@ -901,6 +902,7 @@ instance Pretty AssignResult where
   pretty (Type t) = pretty t
   pretty (Sigil s) = pretty s
   pretty (Row r) = pretty r
+  pretty (Layout' l) = pretty l
 #ifdef BUILTIN_ARRAYS
   pretty (ARow r) = pretty r
   pretty (Expr e) = pretty e
@@ -972,6 +974,7 @@ instance Pretty DataLayoutPath where
 
 instance Pretty a => Pretty (DataLayout a) where
   pretty (Layout l) = symbol "layout" <+> pretty l
+  pretty (LayoutVar n) = symbol "layout-v" <+> dlvarname n
   pretty CLayout = symbol "c-layout"
 
 instance Pretty a => Pretty (DataLayout' a) where

@@ -185,7 +185,8 @@ data Constraint' t = (:<) t t
                    | Share t Metadata
                    | Drop t Metadata
                    | Escape t Metadata
-                   | (:~) TCDataLayout TCType
+                   | (:~) TCDataLayout t
+                   | (:~:) TCDataLayout TCDataLayout
                    | (:@) (Constraint' t) ErrorContext
                    | Unsat TypeError
                    | SemiSat TypeWarning
@@ -608,24 +609,6 @@ substLayout vs (R x s) = R (substLayout vs <$> x) (substLayoutS vs s)
 substLayout vs (A t l s tkns) = A (substLayout vs t) l (substLayoutS vs s) tkns
 #endif
 substLayout vs (Synonym n ts) = Synonym n $ substLayout vs <$> ts
-
-substLayoutC :: [(DLVarName, TCDataLayout)] -> Constraint -> Constraint
-substLayoutC vs (c1 :& c2) = substLayoutC vs c1 :& substLayoutC vs c2
-substLayoutC vs (t1 :< t2) = substLayout vs t1 :< substLayout vs t2
-substLayoutC vs (t1 :=: t2) = substLayout vs t1 :=: substLayout vs t2
-substLayoutC vs (Upcastable t1 t2) = Upcastable (substLayout vs t1) (substLayout vs t2)
-substLayoutC vs (Share t m) = Share (substLayout vs t) m
-substLayoutC vs (Drop t m) = Drop (substLayout vs t) m
-substLayoutC vs (c :@ ctx) = substLayoutC vs c :@ ctx
-substLayoutC vs (Unsat e) = Unsat e
-substLayoutC vs Sat = Sat
-substLayoutC vs (Exhaustive t p) = Exhaustive (substLayout vs t) p
-substLayoutC vs (Solved t) = Solved (substLayout vs t)
-substLayoutC vs (IsPrimType t) = IsPrimType (substLayout vs t)
-#ifdef BUILTIN_ARRAYS
-substLayoutC vs (Arith e) = Arith e  -- i don't think there will exist layout vars in SExpr
-substLayoutC vs (c1 :-> c2) = substLayoutC vs c1 :-> substLayoutC vs c2
-#endif
 
 -- only for error reporting
 flexOf (U x) = Just x

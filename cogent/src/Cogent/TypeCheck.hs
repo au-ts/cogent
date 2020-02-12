@@ -138,7 +138,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
     (((clt,lts),(ct,t')), flx, os) <- runCG ctx vs vs'
-                                        (do x <- validateTypes (stripLocT . snd <$> ls)
+                                        (do x <- validateTypes (stripLocT . snd <$> ls) >>= normaliseTypes
                                             y <- validateType t
                                             pure (x,y))
     traceTc "tc" (text "constraint for abstract function" <+> pretty n <+> text "is"
@@ -214,7 +214,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
     (((clt,lts),(ct,t'),(c,alts')), flx, os) <- runCG ctx vs vs'
-                                        (do x <- validateTypes (stripLocT . snd <$> ls)
+                                        (do x <- validateTypes (stripLocT . snd <$> ls) >>= normaliseTypes
                                             y@(ct,t') <- validateType t
                                             z <- cgFunDef alts t'
                                             pure (x,y,z))
