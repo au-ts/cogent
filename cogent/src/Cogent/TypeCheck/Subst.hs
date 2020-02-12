@@ -35,7 +35,8 @@ data AssignResult = Type TCType
                   | Sigil (Sigil (Maybe TCDataLayout))
                   | Row (Row.Row TCType)
                   | Taken Taken
-                  -- | Layout TCDataLayout
+                  | Layout' TCDataLayout
+                    --    ^ to distinguish with Layout from Cogent.Dargent.Core
 #ifdef BUILTIN_ARRAYS
                   | ARow (ARow.ARow TCExpr)
                   | Hole (Maybe TCSExpr)
@@ -70,6 +71,9 @@ ofSigil i t = Subst (M.fromList [(i, Sigil t)])
 ofExpr :: Int -> TCSExpr -> Subst
 ofExpr i e = Subst (M.fromList [(i, Expr e)])
 #endif
+
+ofLayout :: Int -> TCDataLayout -> Subst
+ofLayout i l = Subst (M.fromList [(i, Layout' l)])
 
 null :: Subst -> Bool
 null (Subst x) = M.null x

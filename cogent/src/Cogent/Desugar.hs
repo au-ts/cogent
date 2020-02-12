@@ -36,6 +36,7 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core
 import Cogent.Dargent.Desugar
+import Cogent.Dargent.TypeCheck (toDLExpr)
 import Cogent.PrettyPrint ()
 import qualified Cogent.Surface as S
 import Cogent.TypeCheck.Base as B
@@ -620,9 +621,8 @@ desugarExpr (B.TE _ (S.TypeApp v ts note) _) = do
   E <$> (Fun (funNameToCoreFunName v) <$> mapM desugarType (map fromJust ts) <*> pure [] <*> pure (pragmaToNote pragmas v $ desugarNote note))  -- FIXME: fromJust
 desugarExpr (B.TE t (S.LayoutApp e ls) _) = do
   E (Fun fn ts _ nt) <- desugarExpr e
-  -- ls' <- fmap desugarLayout <$> ls
-  error "implement desugarLayout!"
-  return $ E (Fun fn ts [] nt)
+  let ls' = desugarDataLayout . toDLExpr <$> (fromJust <$> ls)
+  return $ E (Fun fn ts ls' nt)
 desugarExpr (B.TE t (S.Con c [e]) _) = do
   t'@(TSum ts) <- desugarType t
   e' <- desugarExpr e
