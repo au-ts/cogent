@@ -186,7 +186,8 @@ data Constraint' t = (:<) t t
                    | Share t Metadata
                    | Drop t Metadata
                    | Escape t Metadata
-                   | (:~) TCDataLayout TCType
+                   | (:~) TCDataLayout t
+                   | (:~:) TCDataLayout TCDataLayout
                    | (:@) (Constraint' t) ErrorContext
                    | Unsat TypeError
                    | SemiSat TypeWarning

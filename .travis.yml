@@ -171,9 +171,9 @@ install:
 script:
  - cd $REPO/cogent
  # - echo 'Configuring Cogent'
- - cabal configure --flags="haskell-backend docgent"  # --enable-tests  # or -v2 to provide useful information for debugging
+ - cabal configure --flags="haskell-backend docgent builtin-arrays"  # --enable-tests  # or -v2 to provide useful information for debugging
  # - echo 'Installing Cogent'
- - cabal install --force-reinstalls --flags="haskell-backend docgent" # --enable-tests
+ - cabal install --force-reinstalls --flags="haskell-backend docgent builtin-arrays" # --enable-tests
  # - cabal build   # this builds all libraries and executables (including tests/benchmarks)
  - cabal test test-quickcheck  # the other test is rarely affacted, so not enabled / zilinc
  # - cabal check

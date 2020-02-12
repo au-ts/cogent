@@ -25,6 +25,7 @@ module Cogent.TypeCheck.Generator
   , freshTVar
   , validateType
   , validateTypes
+  , normaliseTypes
   ) where
 
 import Cogent.Common.Syntax
@@ -192,7 +193,8 @@ validateType (RT t) = do
                  Left (e:_) -> Unsat $ DataLayoutError e
                  Right _    -> Sat
       (ct,t') <- validateType t
-      pure (cl <> ct, T $ TLayout (toTCDL l) t')
+      let l' = toTCDL $ normaliseDataLayoutExpr layouts l
+      pure (cl <> ct <> l' :~ t', T $ TLayout l' t')
 
     -- vvv The uninteresting cases; but we still have to match each of them to convince the typechecker / zilinc
     TFun t1 t2 -> (second T) <$> fmapFoldM validateType (TFun t1 t2)
@@ -212,15 +214,41 @@ validateTypes = fmapFoldM validateType
 
 -- --------------------------------------------------------------------------
 
-validateLayout :: DataLayoutExpr -> CG (Constraint, DataLayoutExpr)
+normaliseType :: (?loc :: SourcePos) => TCType -> CG TCType
+normaliseType t = do
+  ts <- lift $ use knownTypes
+  case t of
+    Synonym tn as ->
+      case lookup tn ts of
+        Just (as', Just b) -> pure (substType (zip as' as) b)
+        _ -> __impossible "normaliseType: missing synonym"
+    R r s -> R <$> mapM normaliseType r <*> pure s
+    V r -> V <$> mapM normaliseType r
+#ifdef BUILTIN_ARRAYS
+    A t e s e' -> A <$> normaliseType t <*> pure e <*> pure s <*> pure e'
+#endif
+    T (TLayout l t) -> T . TLayout l <$> normaliseType t
+    T (TFun t1 t2) -> T <$> (TFun <$> normaliseType t1 <*> normaliseType t2)
+    T (TTuple ts) -> T . TTuple <$> mapM normaliseType ts
+    T (TUnbox t) -> T . TUnbox <$> normaliseType t
+    T (TBang t) -> T . TBang <$> normaliseType t
+    _ -> pure t
+
+normaliseTypes :: (?loc :: SourcePos, Traversable t) => (Constraint, t TCType) -> CG (Constraint, t TCType)
+normaliseTypes (c, ts) = do
+  ts' <- mapM normaliseType ts
+  pure (c, ts')
+
+validateLayout :: DataLayoutExpr -> CG (Constraint, TCDataLayout)
 validateLayout l = do
   ls <- lift $ use knownDataLayouts
   vs <- use knownDataLayoutVars
+  let l' = toTCDL $ normaliseDataLayoutExpr ls l
   case runExcept $ tcDataLayoutExpr ls vs l of
-    Left (e:_) -> pure (Unsat $ DataLayoutError e, l)
-    Right _    -> pure (Sat, l)
+    Left (e:_) -> pure (Unsat $ DataLayoutError e, l')
+    Right _    -> pure (Sat, l')
 
-validateLayouts :: Traversable t => t DataLayoutExpr -> CG (Constraint, t DataLayoutExpr)
+validateLayouts :: Traversable t => t DataLayoutExpr -> CG (Constraint, t TCDataLayout)
 validateLayouts = fmapFoldM validateLayout
 
 -- -----------------------------------------------------------------------------
@@ -678,8 +706,7 @@ cg' (Annot e tau) t = do
 
 cg' (LayoutApp e ls) t = do
   -- tvs <- use knownTypeVars
-  let ls' = fmap toTCDL <$> ls
-  (cl, el) <- validateLayouts (ls >>= (\case Nothing -> []; Just l -> [l]))
+  (cl, getCompose -> ls') <- validateLayouts (Compose ls)
   (c', e') <- cg e t
   let (TypeApp f _ _) = getExpr e'
   lift (use $ knownFuns.at f) >>= \case

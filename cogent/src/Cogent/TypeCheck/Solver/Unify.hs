@@ -14,6 +14,8 @@ module Cogent.TypeCheck.Solver.Unify where
 
 import           Cogent.Common.Syntax
 import           Cogent.Common.Types
+import           Cogent.Compiler
+import           Cogent.Dargent.TypeCheck
 import           Cogent.Surface
 import qualified Cogent.TypeCheck.ARow           as ARow
 import           Cogent.TypeCheck.Base
@@ -23,11 +25,13 @@ import           Cogent.TypeCheck.Solver.Monad
 import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
 import qualified Cogent.TypeCheck.Subst          as Subst
 import           Cogent.TypeCheck.Util
+import           Cogent.Util
 
 import Control.Applicative
 import Control.Monad.Trans.Maybe
 import Control.Monad.Writer
 import Data.Foldable (asum)
+import Data.List ((\\))
 import qualified Data.IntMap as IM (null)
 import Lens.Micro
 import Lens.Micro.Mtl
@@ -60,6 +64,9 @@ assignOf (R _ (Left s) :< R _ (Right v))
 -- N.B. Only rows with a unification variable and no known entries lead to
 -- equality constraints (see Equate phase). Hence, the collection of common
 -- fields is necessarily empty.
+assignOf (R _ (Left s1) :=: R _ (Left s2)) = assignOfS s1 s2
+assignOf (R _ (Left s1) :<  R _ (Left s2)) = assignOfS s1 s2
+
 #ifdef BUILTIN_ARRAYS
 -- [NOTE: solving 'A' types]
 -- For 'A' types, we need to first solve the sigil, and later it can get
@@ -76,6 +83,9 @@ assignOf (A _ _ _ (Left h) :=: A _ _ _ (Right v))
   = pure [ Subst.ofHole v h ]
 assignOf (A _ _ _ (Right v) :=: A _ _ _ (Left h))
   = pure [ Subst.ofHole v h ]
+
+assignOf (A _ _ (Left s1) _ :=: A _ _ (Left s2) _) = assignOfS s1 s2
+assignOf (A _ _ (Left s1) _ :<  A _ _ (Left s2) _) = assignOfS s1 s2
 #endif
 assignOf (V r1 :=: V r2)
   | Row.var r1 /= Row.var r2
@@ -99,6 +109,9 @@ assignOf (R r1 s1 :=: R r2 s2)
          pure [ Subst.ofRow x (Row.incomplete (Row.entries r2) v)
               , Subst.ofRow y (Row.incomplete (Row.entries r1) v)
               ]
+
+assignOf (l1 :~: l2) = assignOfL l1 l2
+
 #ifdef BUILTIN_ARRAYS
 -- TODO: This will be moved to a separately module for SMT-solving. Eventually the results
 -- returned from the solver will be a Subst object. / zilinc
@@ -110,6 +123,28 @@ assignOf (Arith (SE t (PrimOp "==" [e, SU _ x]))) | null (unknownsE e)
 
 assignOf _ = empty
 
+assignOfS :: Sigil (Maybe TCDataLayout) -> Sigil (Maybe TCDataLayout) -> MaybeT TcSolvM [Subst.Subst]
+assignOfS (Boxed _ (Just l1)) (Boxed _ (Just l2)) = assignOfL l1 l2
+assignOfS _ _ = empty
+
+assignOfL :: TCDataLayout -> TCDataLayout -> MaybeT TcSolvM [Subst.Subst]
+assignOfL (TLU n) (TL l) = pure [Subst.ofLayout n (TL l)]
+assignOfL (TL l) (TLU n) = pure [Subst.ofLayout n (TL l)]
+assignOfL (TLU _) (TLU _) = empty
+assignOfL (TLRecord fs1) (TLRecord fs2)
+  | f1 <- fmap fst3 fs1
+  , f2 <- fmap fst3 fs2
+  , null (f1 \\ f2) && null (f2 \\ f1)
+  = __todo "assignOfL"  -- TODO: we may need data structures for all these operations
+assignOfL (TLVariant e1 fs1) (TLVariant e2 fs2)
+  | f1 <- fmap fst4 fs1
+  , f2 <- fmap fst4 fs2
+  , null (f1 \\ f2) && null (f2 \\ f1)
+  = __todo "assignOfL"
+#ifdef BUILTIN_ARRAYS
+assignOfL (TLArray e1 _) (TLArray e2 _) = assignOfL e1 e2
+#endif
+assignOfL _ _ = empty
 
 notOccurs :: Int -> TCType -> Bool
 notOccurs a tau = a `notElem` unifVars tau

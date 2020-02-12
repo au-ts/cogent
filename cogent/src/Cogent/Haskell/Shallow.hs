@@ -230,7 +230,7 @@ shallowTypeDef tn tvs t = do
   pure $ TypeDecl () (mkDeclHead (mkName tn) (P.map (mkName . snm) tvs)) t'
 
 shallowDefinition :: CC.Definition TypedExpr VarName b -> SG [Decl ()]
-shallowDefinition (CC.FunDef _ fn ps ti to e) =
+shallowDefinition (CC.FunDef _ fn ps _ ti to e) = __fixme $  -- FIXME: dlvars ignored here
   local (typarUpd typar) $ do
     ti' <- shallowType ti
     to' <- shallowType to
@@ -249,7 +249,7 @@ shallowDefinition (CC.FunDef _ fn ps ti to e) =
   where fn'   = snm fn
         arg0  = mkName $ snm $ D.freshVarPrefix ++ "0"
         typar = map fst $ Vec.cvtToList ps
-shallowDefinition (CC.AbsDecl _ fn ps ti to) =
+shallowDefinition (CC.AbsDecl _ fn ps _ ti to) = __fixme $  -- FIXME: dlvars ignored here
   local (typarUpd typar) $ do
     ti' <- shallowType ti
     to' <- shallowType to
@@ -495,7 +495,7 @@ shallowExpr (TE _ (CC.Variable (_,v))) = do
              Just v' -> v'
   pure . var . mkName $ snm v'
 
-shallowExpr (TE _ (CC.Fun fn ts _)) = pure $ var $ mkName $ snm $  unCoreFunName fn  -- only prints the fun name
+shallowExpr (TE _ (CC.Fun fn _ _ _)) = pure $ var $ mkName $ snm $  unCoreFunName fn  -- only prints the fun name
 
 shallowExpr (TE _ (CC.Op opr es)) = shallowPrimOp <$> pure opr <*> (mapM shallowExpr es)
 

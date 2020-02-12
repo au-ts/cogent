@@ -13,7 +13,7 @@
 {-# OPTIONS_GHC -Werror -Wall #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Cogent.TypeCheck.Solver.SinkFloat ( sinkfloat ) where 
+module Cogent.TypeCheck.Solver.SinkFloat ( sinkfloat ) where
 
 --
 -- Sink/Float is a type inference phase which pushes structural information
@@ -29,7 +29,7 @@ module Cogent.TypeCheck.Solver.SinkFloat ( sinkfloat ) where
 import Cogent.Common.Types
 import Cogent.Surface (Type(..))
 import Cogent.TypeCheck.Base
-import Cogent.TypeCheck.Solver.Goal 
+import Cogent.TypeCheck.Solver.Goal
 import Cogent.TypeCheck.Solver.Monad
 import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
 import qualified Cogent.TypeCheck.Row as Row

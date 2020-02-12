@@ -264,12 +264,9 @@ tkNorm :: Either Taken Int -> Taken
 tkNorm (Left tk) = tk
 tkNorm (Right _) = __impossible "normaliseT: taken variable unsolved at normisation"
 
-
 -- Normalises the layouts in sigils to remove `DataLayoutRefs`
 normaliseS :: Sigil (Maybe TCDataLayout) -> Post (Sigil (Maybe TCDataLayout))
 normaliseS sigil = do
   layouts <- lift . lift $ use knownDataLayouts
   return $ normaliseSigil layouts sigil
-  -- let sigil' = fmap (fmap toDLExpr) sigil
-  -- return . fmap (fmap toTCDL) $ normaliseSigil layouts sigil'
 
