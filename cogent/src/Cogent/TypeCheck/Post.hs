@@ -243,12 +243,13 @@ normaliseT d (R x (Left s)) =
     traverse (normaliseT d) x
 normaliseT d (R x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
 #ifdef BUILTIN_ARRAYS
-normaliseT d (A t n (Left s) mhole) = do
+normaliseT d (A t n (Left s) (Left mhole)) = do
   t' <- normaliseT d t
   s' <- normaliseS s
   let tkns = case mhole of Nothing -> []; Just idx -> [(idx,True)]
   return $ T $ TArray t' n s' tkns
 normaliseT d (A t n (Right s) mhole) = __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
+normaliseT d (A t n s (Right h)) = __impossible ("normaliseT: invalid hole (?" ++ show h ++ ")")
 #endif
 normaliseT d (U x) = __impossible ("normaliseT: invalid type (?" ++ show x ++ ")")
 normaliseT d (T x) = T <$> traverse (normaliseT d) x

@@ -101,6 +101,12 @@ tttraverse f = fmap unflip2 . traverse f . Flip2
 ttttraverse :: (Traversable (Flip3 f d c b), Applicative m) => (a -> m a') -> f a b c d -> m (f a' b c d)
 ttttraverse f = fmap unflip3 . traverse f . Flip3
 
+ffoldMap :: (Foldable (Flip f b), Monoid m) => (a -> m) -> f a b -> m
+ffoldMap   f = foldMap f . Flip
+fffoldMap  f = foldMap f . Flip2
+ffffoldMap f = foldMap f . Flip3
+
+
 -- bifunctors
 
 newtype Rotate3 f (a :: a') (b :: b') (c :: c') (d :: d') = Rotate3 { unrotate3 :: f d a b c }

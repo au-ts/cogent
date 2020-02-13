@@ -81,12 +81,16 @@ normaliseRW = rewrite' $ \t -> case t of
         Just fs -> pure $ V (Row.putMany fs row)
     T (TPut fs t) | __cogent_flax_take_put -> return t
 #ifdef BUILTIN_ARRAYS
-    T (TATake [idx] (A t l s Nothing)) -> 
+    T (TATake [idx] (A t l s (Right _))) ->
+      __impossible "normaliseRW: TATake over a hole variable"
+    T (TATake [idx] (A t l s (Left Nothing))) ->
       let l' = normaliseSExpr l
-       in pure $ A t l s (Just idx)
-    T (TAPut [idx] (A t l s (Just idx'))) | idx == idx' -> 
+       in pure $ A t l s (Left $ Just idx)
+    T (TAPut [idx] (A t l s (Right _))) ->
+      __impossible "normaliseRW: TAPut over a hole variable"
+    T (TAPut [idx] (A t l s (Left (Just idx')))) | idx == idx' -> 
       let l' = normaliseSExpr l
-       in pure $ A t l s Nothing
+       in pure $ A t l s (Left Nothing)
 #endif
 
     T (TLayout l (R row (Left (Boxed p _)))) ->
