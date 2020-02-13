@@ -88,7 +88,7 @@ html_static_path = ['_static']
 #
 # html_sidebars = {}
 
-html_logo = '../cogent/static/logo.png'
+html_logo = '_static/cogent-logo.png'
 
 html_theme_options = {
     'logo_only': False,
