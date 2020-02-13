@@ -27,12 +27,15 @@ import Control.Monad.IO.Class
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.RWS (RWST (..))
-import qualified Data.Map as M (Map, map, toList)
-import Data.SBV (SatResult (..), SMTResult (..), z3)
-import Data.SBV.Dynamic (satWith)
+import qualified Data.IntMap as IM (empty)
+import qualified Data.Map as M (Map, empty, map, toList)
+import Data.SBV (SatResult (..), ThmResult (..), SMTResult (..), z3)
+import Data.SBV.Dynamic (satWith, proveWith, SMTConfig (..))
 import Lens.Micro
 import Lens.Micro.Mtl (view)
 import qualified Text.PrettyPrint.ANSI.Leijen as L
+
+import Debug.Trace
 
 data SmtState = SmtState { constraints :: [TCSExpr]
                          , knownConsts :: M.Map VarName (TCType, TCExpr)
@@ -57,7 +60,7 @@ smtSolve =
     SmtState c ks <- get
     let ks' = constEquations ks
     traceTc "sol/smt" (L.text "Constants" L.<> L.colon L.<$> L.prettyList ks')
-    b <- liftIO $ smtSat $ andTCSExprs (c++ks')
+    b <- liftIO $ smtSat $ implTCSExpr (andTCSExprs ks') (andTCSExprs c)
     case b of True  -> hoistMaybe $ Just gs
               False -> hoistMaybe $ Nothing
    )
@@ -80,7 +83,7 @@ collLogic = pickOne' $ \g -> do
 
 smtSat :: TCSExpr -> IO Bool
 smtSat e = do
-  SatResult s <- satWith z3 (sexprToSmt e)
+  SatResult s <- satWith (z3 { verbose = True }) (evalStateT (sexprToSmt e) (SmtTransState IM.empty M.empty))
   traceTc "sol/smt" (L.text "Running SMT on expression"
                      L.<$> indent' (L.pretty e)
                      L.<$> L.text "gives result"

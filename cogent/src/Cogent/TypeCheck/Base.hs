@@ -46,12 +46,13 @@ import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Control.Monad.Writer hiding (Alt)
 import Control.Monad.Reader
+import Data.Bifoldable (bifoldMap)
 import Data.Bifunctor (bimap, first, second)
 import Data.Bitraversable (bitraverse)
 import Data.Data (Data)
 import Data.Foldable (all)
 import Data.Maybe (fromJust, isJust)
-import Data.Either (either, isLeft)
+import Data.Either (either, isLeft, lefts, rights)
 import Data.Functor.Const
 import Data.Functor.Identity
 import qualified Data.IntMap as IM
@@ -230,6 +231,12 @@ splitArithConstraints c          = ([], c)
 andTCSExprs :: [TCSExpr] -> TCSExpr
 andTCSExprs [] = SE (T bool) (BoolLit True)
 andTCSExprs (e:es) = SE (T bool) (PrimOp "&&" [e, andTCSExprs es])
+
+implTCSExpr :: TCSExpr -> TCSExpr -> TCSExpr
+implTCSExpr e1 e2 = SE (T bool) (PrimOp "||" [notTCSExpr e1, e2])
+
+notTCSExpr :: TCSExpr -> TCSExpr
+notTCSExpr e = SE (T bool) (PrimOp "not" [e])
 #endif
 
 #if __GLASGOW_HASKELL__ < 803	
@@ -267,7 +274,7 @@ data TCType         = T (Type TCSExpr TCType)
                     | R (Row TCType) (Either (Sigil (Maybe DataLayoutExpr)) Int)
                     | V (Row TCType)
 #ifdef BUILTIN_ARRAYS
-                    | A TCType TCSExpr (Either (Sigil (Maybe DataLayoutExpr)) Int) (Maybe TCSExpr)
+                    | A TCType TCSExpr (Either (Sigil (Maybe DataLayoutExpr)) Int) (Either (Maybe TCSExpr) Int)
 #endif
                     | Synonym TypeName [TCType]
                     deriving (Show, Eq, Ord)
@@ -614,24 +621,27 @@ unifVars (V r)
   | Just x <- Row.var r = [x] ++ concatMap unifVars (Row.allTypes r)
   | otherwise = concatMap unifVars (Row.allTypes r)
 unifVars (R r s)
-  | Just x <- Row.var r = [x] ++ concatMap unifVars (Row.allTypes r)
-                       ++ case s of Left s -> []
-                                    Right y -> [y]
-  | otherwise = concatMap unifVars (Row.allTypes r)
-                       ++ case s of Left s -> []
-                                    Right y -> [y]
+  | Just x <- Row.var r = [x] ++ concatMap unifVars (Row.allTypes r) ++ rights [s]
+  | otherwise = concatMap unifVars (Row.allTypes r) ++ rights [s]
 #ifdef BUILTIN_ARRAYS
-unifVars (A t l s tkns) = unifVars t ++ (case s of Left s -> []; Right y -> [y])
+unifVars (A t l s tkns) = unifVars t ++ rights [s] ++ rights [tkns]
 #endif
 unifVars (T x) = foldMap unifVars x
 
 #ifdef BUILTIN_ARRAYS
+unifVarsE :: TCSExpr -> [Int]
+unifVarsE (SE t e) = unifVars t ++ foldMap unifVarsE e
+                                ++ ffoldMap (foldMap unifVars) e
+                                ++ fffoldMap (foldMap unifVars) e
+                                ++ ffffoldMap unifVars e
+unifVarE (SU t _) = unifVars t
+
 unknowns :: TCType -> [Int]
 unknowns (U _) = []
 unknowns (Synonym n ts) = concatMap unknowns ts
 unknowns (V r) = concatMap unknowns (Row.allTypes r)
 unknowns (R r s) = concatMap unknowns (Row.allTypes r)
-unknowns (A t l s tkns) = unknowns t ++ unknownsE l ++ foldMap unknownsE tkns
+unknowns (A t l s tkns) = unknowns t ++ unknownsE l ++ bifoldMap (foldMap unknownsE) (const mempty) tkns
 unknowns (T x) = foldMap unknowns x
 
 unknownsE :: SExpr t -> [Int]

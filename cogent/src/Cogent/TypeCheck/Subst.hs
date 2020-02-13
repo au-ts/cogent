@@ -20,6 +20,7 @@ import Cogent.TypeCheck.Base
 import qualified Cogent.TypeCheck.Row as Row
 import Cogent.Util
 
+import Control.Arrow (left)
 import qualified Data.IntMap as M
 import qualified Data.Map as DM
 import Data.Bifunctor (second)
@@ -35,6 +36,7 @@ data AssignResult = Type TCType
                   | Taken Taken
 #ifdef BUILTIN_ARRAYS
                   | ARow (ARow.ARow TCExpr)
+                  | Hole (Maybe TCSExpr)
                   | Expr TCSExpr
 #endif
                   deriving Show
@@ -45,16 +47,19 @@ newtype Subst = Subst (M.IntMap AssignResult)
 ofType :: Int -> TCType -> Subst
 ofType i t = Subst (M.fromList [(i, Type t)])
 
+ofSigil :: Int -> Sigil (Maybe DataLayoutExpr) -> Subst
+ofSigil i t = Subst (M.fromList [(i, Sigil t)])
+
 ofRow :: Int -> Row.Row TCType -> Subst
 ofRow i t = Subst (M.fromList [(i, Row t)])
 
 #ifdef BUILTIN_ARRAYS
 ofARow :: Int -> ARow.ARow TCExpr -> Subst
 ofARow i t = Subst (M.fromList [(i, ARow t)])
-#endif
 
-ofSigil :: Int -> Sigil (Maybe DataLayoutExpr) -> Subst
-ofSigil i t = Subst (M.fromList [(i, Sigil t)])
+ofHole :: Int -> Maybe TCSExpr -> Subst
+ofHole i h = Subst (M.fromList [(i, Hole h)])
+#endif
 
 ofTaken :: Int -> Taken -> Subst 
 ofTaken i tk = Subst (M.fromList [(i, Taken tk)])
@@ -95,7 +100,9 @@ apply f (R x s) = R (applyToRow f x) s
 #ifdef BUILTIN_ARRAYS
 apply (Subst f) (A t l (Right x) mhole)
   | Just (Sigil s) <- M.lookup x f = apply (Subst f) (A t l (Left s) mhole)
-apply f (A x l s tkns) = A (apply f x) (applySE f l) s (fmap (applySE f) tkns)
+apply (Subst f) (A t l s (Right x))
+  | Just (Hole mh) <- M.lookup x f = apply (Subst f) (A t l s (Left mh))
+apply f (A x l s tkns) = A (apply f x) (applySE f l) s (left (fmap $ applySE f) tkns)
 apply f (T x) = T (ffmap (applySE f) $ fmap (apply f) x)
 #else
 apply f (T x) = T (fmap (apply f) x)
