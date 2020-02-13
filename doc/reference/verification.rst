@@ -170,7 +170,7 @@ causes errors. In realistic situations, the same issue can potentially be caused
 may not directly be verified along with the Cogent code (such as Linux kernel headers), so we need a way to work around this.
 
 Note that, as we will use types from the standard library that are not implemented in our antiquoted C or Cogent code, we
-must inform the compiler of the existence of these types. We do this with the flag ``--ext-type=types.cfg`` (we have explained this flag in :ref:`first-program`), which points
+must inform the compiler of the existence of these types. We do this with the flag ``--ext-type=types.cfg`` (we have explained this flag in :doc:`../introduction/first-program`), which points
 to the file in our example directory. As we'll use the file stream type, the only line in this file is ``FILE``.
 
 We'll write two wrapper files, each called ``wrapper.ac`` that contain different definitions of various library types and functions
@@ -265,7 +265,7 @@ This can be due to several reasons:
 * You have not specified entrypoint functions via the compiler flag ``--entry-funcs=FILE``.
 * Your source file/entrypoiint functions contain only polymorphic functions. Concrete C functions
   will only be generated when these polymorphic functions are instantiated by your Cogent
-  source file or your entrypoint file. You can do so in the entrypoint file like so: ``functionName[TypeName]`` (also see :ref:`poly-function-example` for more explanation).
+  source file or your entrypoint file. You can do so in the entrypoint file like so: ``functionName[TypeName]`` (also see :doc:`../introduction/abstract` for more explanation).
 
 
 

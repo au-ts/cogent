@@ -11,4 +11,5 @@
    reference/programs
    reference/antiquoted-c
    reference/compiler
+   reference/installation
    reference/verification
