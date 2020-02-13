@@ -120,6 +120,8 @@ htmlhelp_basename = 'cogent'
 # -- Options for LaTeX output ------------------------------------------
 
 latex_engine = 'lualatex'
+latex_toplevel_sectioning = 'part'
+
 latex_elements = {
     'papersize': 'a4paper',
     'pointsize': '12pt',
