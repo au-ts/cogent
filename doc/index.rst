@@ -8,9 +8,7 @@
 :Repository:	<https://github.com/NICTA/cogent>
 
 
-Welcome to |cogent|'s documentation!
-*************************************************************************
-
+Welcome!
 |cogent| is a restricted, polymorphic,
 higher-order and purely functional language
 with uniqueness types
