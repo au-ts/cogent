@@ -589,14 +589,19 @@ instance Pretty TCType where
   pretty t@(R v s) =
     let sigilPretty = case s of
                         Left s -> pretty s
-                        Right n -> symbol $ "(?" ++ show n ++ ")"
+                        Right n -> parens (warn $ '?' : show n)
      in symbol "R {" <+> pretty v <+> symbol "}" <+> sigilPretty
 #ifdef BUILTIN_ARRAYS
   pretty (A t l s row) =
     let sigilPretty = case s of
                         Left s -> pretty s
-                        Right n -> symbol $ "(?" ++ show n ++ ")"
-     in (symbol "A" <+> pretty t <+> symbol "[" <> pretty l <> symbol "]" <+> sigilPretty <+> pretty row)
+                        Right n -> parens (warn $ '?' : show n)
+        holePretty = case row of
+                       Left Nothing  -> empty
+                       Left (Just e) -> space <> keyword "@take" <+> parens (pretty e)
+                       Right n       -> space <> warn ('?' : show n)
+                       
+     in (symbol "A" <+> pretty t <+> symbol "[" <> pretty l <> symbol "]" <+> sigilPretty <> holePretty)
 #endif
   pretty (U v) = warn ('?':show v)
   pretty (Synonym n []) = warn ("syn:" ++ n)
@@ -877,6 +882,9 @@ instance Pretty AssignResult where
 #ifdef BUILTIN_ARRAYS
   pretty (ARow r) = pretty r
   pretty (Expr e) = pretty e
+  pretty (Hole h) = case h of
+                      Nothing -> empty
+                      Just h' -> keyword "@take" <+> parens (pretty h')
 #endif
 
 instance Pretty r => Pretty (Sigil r) where

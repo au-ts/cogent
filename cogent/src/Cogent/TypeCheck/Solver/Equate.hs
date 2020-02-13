@@ -79,7 +79,13 @@ findEquateCandidates mentions (c:cs) =
          , canEquate fst a t
          -> (c : sups, subs, others)
 #ifdef BUILTIN_ARRAYS
-       -- TODO
+       -- NOTE: This is Ok and we don't need to look into unifVars in
+       -- elt1, len1 and s1, because h here is the only thing which
+       -- plays a role in array subtyping. If h is the only occurrence
+       -- of a unifVar, then we can equate it. / zilinc
+       A elt1 len1 s1 (Right h) :< t
+         | canEquate fst h t
+         -> (c : sups, subs, others)
 #endif
        t :< V r1
          | Just a <- Row.var r1
@@ -92,7 +98,9 @@ findEquateCandidates mentions (c:cs) =
          , canEquate snd a t
          -> (sups, c : subs, others)
 #ifdef BUILTIN_ARRAYS
-       -- TODO
+       t :< A elt2 len2 s2 (Right h)
+         | canEquate snd h t
+         -> (sups, c : subs, others)
 #endif
        _ -> (sups, subs, c : others)
 

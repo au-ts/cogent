@@ -72,6 +72,10 @@ assignOf (A _ _ (Left s) _ :< A _ _ (Right v) _)
   = pure [ Subst.ofSigil v s ]
 assignOf (A _ _ (Right v) _ :< A _ _ (Left s) _)
   = pure [ Subst.ofSigil v s ]
+assignOf (A _ _ _ (Left h) :=: A _ _ _ (Right v))
+  = pure [ Subst.ofHole v h ]
+assignOf (A _ _ _ (Right v) :=: A _ _ _ (Left h))
+  = pure [ Subst.ofHole v h ]
 #endif
 assignOf (V r1 :=: V r2)
   | Row.var r1 /= Row.var r2

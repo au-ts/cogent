@@ -144,7 +144,7 @@ validateType (RT t) = do
       traceTc "gen" (text "cg for array length" <+> pretty x L.<$>
                      text "generate constraint" <+> prettyC (cl <> cl'))
       (c,te') <- validateType te
-      return (cl <> cl' <> ctkn <> c, A te' x (Left s) mhole)
+      return (cl <> cl' <> ctkn <> c, A te' x (Left s) (Left mhole))
 
     TATake es t -> do
       blob <- forM es $ \e -> do
@@ -345,18 +345,21 @@ cg' (ArrayLit es) t = do
                  text "generate constraint" <+> prettyC cz L.<$>
                  text "which should always be trivially true")
   beta <- freshVar
-  return (mconcat cs <> cz <> (A alpha n (Left Unboxed) Nothing) :< t, ArrayLit es')
+  return (mconcat cs <> cz <> (A alpha n (Left Unboxed) (Left Nothing)) :< t, ArrayLit es')
 
 cg' (ArrayIndex e i) t = do
   alpha <- freshTVar        -- element type
   n <- freshEVar (T u32)    -- length
   s <- freshVar             -- sigil
   idx <- freshEVar (T u32)  -- index
-  let ta = A alpha n (Right s) (Just idx)  -- this is the biggest type 'e' can ever have -- with a hole
-                                           -- at a location other than 'i'
-  (ce, e') <- cg e ta
+  h <- freshVar             -- hole
+  let ta = A alpha n (Right s) (Left $ Just idx)  -- this is the biggest type 'e' can ever have -- with a hole
+                                                  -- at a location other than 'i'
+      ta' = A alpha n (Right s) (Right h)
+  (ce, e') <- cg e ta'
   (ci, i') <- cg i (T u32)
   let c = alpha :< t
+        <> ta' :< ta
         <> Share ta UsedInArrayIndexing
         <> Arith (SE (T bool) (PrimOp "<"  [toTCSExpr i', n  ]))
         <> Arith (SE (T bool) (PrimOp "<"  [idx         , n  ]))
@@ -381,8 +384,8 @@ cg' (ArrayMap2 ((p1,p2), fbody) (arr1,arr2)) t = __fixme $ do  -- FIXME: more ac
   (cbody, fbody') <- cg fbody (T $ TTuple [alpha1, alpha2])
   -- TODO: also need to check that all other variables `fbody` refers to must be non-linear / zilinc
   rs <- context %%= C.dropScope
-  let tarr1 = A alpha1 len1 (Right x1) Nothing
-      tarr2 = A alpha2 len2 (Right x2) Nothing
+  let tarr1 = A alpha1 len1 (Right x1) (Left Nothing)
+      tarr2 = A alpha2 len2 (Right x2) (Left Nothing)
   (carr1, arr1') <- cg arr1 tarr1
   (carr2, arr2') <- cg arr2 tarr2
   let unused = flip foldMap (M.toList rs) $ \(v,(_,_,us)) ->
@@ -399,8 +402,8 @@ cg' (ArrayPut arr [(idx,v)]) t = do
   (carr,arr') <- cg arr sigma
   (cidx,idx') <- cg idx $ T u32
   (cv,v') <- cg v alpha
-  let c = [ A alpha l (Right s) Nothing :< t
-          , sigma :< A alpha l (Right s) (Just $ toTCSExpr idx')
+  let c = [ A alpha l (Right s) (Left Nothing) :< t
+          , sigma :< A alpha l (Right s) (Left . Just $ toTCSExpr idx')
           , carr, cidx, cv
           -- , Arith (SE (T bool) (PrimOp ">=" [idx', SE (IntLit 0)]))
           , Arith (SE (T bool) (PrimOp "<" [toTCSExpr idx', l]))
@@ -425,8 +428,8 @@ cg' (ArrayPut arr ivs) t = do
     return (cidx <> c, idx')
   -- TODO: holes distinct from each other / zilinc
   blob2 <- forM vs $ \v -> cg v alpha
-  let c = [ A alpha l (Right s) Nothing :< t
-          , sigma :< A alpha l (Right s) Nothing
+  let c = [ A alpha l (Right s) (Left Nothing) :< t
+          , sigma :< A alpha l (Right s) (Left Nothing)
           , carr
           , Drop alpha MultipleArrayTakePut
           ] ++ map fst blob1 ++ map fst blob2
@@ -633,11 +636,14 @@ cg' (Match e bs alts) t = do
 
 cg' (Annot e tau) t = do
   tvs <- use knownTypeVars
-  let t' = stripLocT tau
-  (c, t'') <- do (ct',t'') <- validateType t'
-                 return (ct' <> t'' :< t, t'')
-  (c', e') <- cg e t''
-  return (c <> c', Annot e' t'')
+  let tau' = stripLocT tau
+  (c, t') <- do (ctau,tau'') <- validateType tau'
+                traceTc "gen" (text "cg for type annotation"
+                               L.<$> text "generate constraint" <+> prettyC (tau'' :< t)
+                               L.<$> text "and others")
+                return (ctau <> tau'' :< t, tau'')
+  (c', e') <- cg e t'
+  return (c <> c', Annot e' t')
 
 
 -- -----------------------------------------------------------------------------
@@ -772,7 +778,7 @@ match' (PArray ps) t = do
   blob  <- mapM (`match` alpha) ps
   let (ss,cs,ps') = unzip3 blob
       l = SE (T u32) (IntLit . fromIntegral $ length ps)  -- length of the array
-      c = t :< (A alpha l (Left Unboxed) Nothing)
+      c = t :< (A alpha l (Left Unboxed) (Left Nothing))
   traceTc "gen" (text "match on array literal pattern" L.<$>
                  text "element type is" <+> pretty alpha L.<$>
                  text "length is" <+> pretty l L.<$>
@@ -785,9 +791,9 @@ match' (PArrayTake arr [(idx,p)]) t = do
   sigil <- freshVar   -- sigil
   (cidx,idx') <- cg idx $ T u32
   (sp,cp,p') <- match p alpha
-  let tarr = A alpha len (Right sigil) (Just $ toTCSExpr idx')  -- type of the newly introduced @arr'@ variable
+  let tarr = A alpha len (Right sigil) (Left . Just $ toTCSExpr idx')  -- type of the newly introduced @arr'@ variable
       s = M.fromList [(arr, (tarr, ?loc, Seq.empty))]
-      c = [ t :< A alpha len (Right sigil) Nothing
+      c = [ t :< A alpha len (Right sigil) (Left Nothing)
           -- , Arith (SE (T bool) (PrimOp ">=" [toTCSExpr idx', SE (T u32) (IntLit 0)]))
           , Arith (SE (T bool) (PrimOp "<"  [toTCSExpr idx', len]))
           ]
