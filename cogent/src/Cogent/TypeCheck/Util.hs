@@ -53,8 +53,8 @@ traceTcBracket :: MonadIO m => String -> Doc -> m a -> (a -> Doc) -> m a
 traceTcBracket s d1 m f
   | Just ws <- __cogent_ddump_tc_filter, s `notElem` ws = m
   | otherwise = do
-      liftIO . dumpMsg $ indent (text ("[dump-tc/" ++ s ++ "]") <+> d1)
+      liftIO . dumpTcMsg $ indent (text ("[dump-tc/" ++ s ++ "]") <+> d1)
       a <- m
-      liftIO . dumpMsg $ indent (f a) L.<$> line
+      liftIO . dumpTcMsg $ indent (f a) L.<$> line
       return a
 
