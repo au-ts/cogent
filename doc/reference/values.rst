@@ -2,28 +2,57 @@
                           Working with Values
 ************************************************************************
 
-The main part of a |cogent| program is usually about specifying values, typically the result values of functions, depending on argument values. 
+The main part of a |cogent| program
+is usually about specifying values,
+typically the result values of functions,
+depending on argument values.
+
 
 Patterns
 ====================================
 
-Functional programming languages typically use the concept of *pattern matching*, which covers several concepts from imperative or 
-object oriented languages, such as binding values to variables, accessing components of a value, or testing for alternatives. In |cogent| 
-patterns are the most important language construct for working with composite values.
+Functional programming languages
+typically use the concept of *pattern matching*,
+which covers several concepts from
+imperative or object-oriented languages,
+such as binding values to variables,
+accessing components of a value,
+or testing for alternatives.
+In |cogent|, patterns are
+the most important language construct
+for working with composite values.
 
-A pattern is a syntactical language construct which can be *matched* against values. A pattern may contain *variables*, 
-then matching it with a value has the effect of *binding* the contained variables to components of the matched value. In |cogent|, 
-as  in languages like Haskell or Scala, a variable may occur at most once in a pattern. Hence it is not possible to construct patterns 
-which restrict matching values to have some parts which are equal to each other.
+A pattern is a language construct
+which can be *matched* against values.
+A pattern may contain *variables*;
+matching a variable with a value
+has the effect of *binding* the contained variables
+to components of the matched value.
+In |cogent|,  as in languages like Haskell or Scala,
+a variable may occur at most once in a pattern;
+hence, it is not possible to construct patterns
+which restrict matching values
+to have some parts which are equal to each other.
 
-A pattern *conforms* to a type, if it matches at least one value of the type. A pattern can conform to several different types. 
-A pattern is *irrefutable*, if it matches all values of all its conforming types. Irrefutable patterns cannot be used to discriminate 
-between different sets of values, they can only be used to bind contained variables.  If a pattern is matched
-against a value, the match must always be exhaustive, i.e. alternative patterns must be specified which together cover
-the value's type. 
+A pattern *conforms* to a type,
+if it matches at least one value of the type.
+A pattern can conform to several different types.
 
-The conforming types of a pattern can always be inferred from the syntactical structure of the pattern. Therefore type expressions are not
-needed as part of patterns.
+A pattern is *irrefutable*,
+if it matches all values of all its conforming types.
+Irrefutable patterns cannot be used
+to discriminate between different sets of values:
+they can only be used to bind contained variables.
+
+If a pattern is matched against a value,
+the match must always be exhaustive:
+alternative patterns must be specified
+which together cover the value's type.
+
+The conforming types of a pattern
+can always be inferred from
+the syntactical structure of the pattern;
+therefore, type expressions are not needed as part of patterns.
 
 Syntactically, patterns may be put in parentheses for grouping:
 
