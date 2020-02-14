@@ -1,10 +1,7 @@
 ************************************************************************
-                     How To Use The |cogent| Compiler
+                      Using the |cogent| Compiler
 ************************************************************************
 
-
-Command-line Arguments
-====================================
 
 The |cogent| compiler accepts
 a large number of command-line arguments,
@@ -63,7 +60,7 @@ A typical invocation might be::
            mandelbrot.cogent
 
 Commands
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+====================================
 
 --ast-c  \
     parse C file with |cogent| antiquotation and print AST
@@ -197,7 +194,7 @@ Commands
 
 
 All Flags
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+====================================
 
 -o NAME, --output-name=NAME  \
     specify base name for output files;
