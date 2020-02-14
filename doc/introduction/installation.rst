@@ -9,7 +9,7 @@ enough to be able to write and compile code.
 To do anything more complex,
 including working on proofs,
 you should also read the
-`full installation instructions <../reference/installation>`_.
+:doc:`full installation instructions <../reference/installation>`.
 
 Cogent's compiler is still a work in progress:
 we don't (yet) provide compiled executables,
@@ -65,3 +65,7 @@ To find out where the compiler is, run:
 For much of this document,
 we'll assume that you can just run ``cogent``
 to invoke the Cogent compiler.
+
+
+For more information, check out the
+:doc:`detailed installation instructions <../reference/installation>`.
