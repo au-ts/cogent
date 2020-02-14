@@ -12,6 +12,7 @@
 
 module Cogent.TypeCheck.Solver.SMT where
 
+import Cogent.Compiler
 import Cogent.Common.Syntax
 import Cogent.TypeCheck.Base as Tc
 import Cogent.TypeCheck.SMT
@@ -19,7 +20,7 @@ import Cogent.TypeCheck.Solver.Goal
 import Cogent.TypeCheck.Solver.Monad (TcSolvM)
 import Cogent.TypeCheck.Solver.Rewrite as Rewrite hiding (lift)
 import Cogent.TypeCheck.Util (traceTc)
-import Cogent.PrettyPrint (indent')
+import Cogent.PrettyPrint (indent', warn)
 import Cogent.Surface
 import Cogent.Util (hoistMaybe, (.>))
 
@@ -29,6 +30,7 @@ import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.RWS (RWST (..))
 import qualified Data.IntMap as IM (empty)
 import qualified Data.Map as M (Map, empty, map, toList)
+import Data.Maybe (fromMaybe)
 import Data.SBV (SatResult (..), ThmResult (..), SMTResult (..), z3)
 import Data.SBV.Dynamic (satWith, proveWith, SMTConfig (..))
 import Lens.Micro
@@ -83,7 +85,12 @@ collLogic = pickOne' $ \g -> do
 
 smtSat :: TCSExpr -> IO Bool
 smtSat e = do
-  SatResult s <- satWith (z3 { verbose = True }) (evalStateT (sexprToSmt e) (SmtTransState IM.empty M.empty))
+  dumpMsgIfTrue __cogent_ddump_smt (warn "SMT solving:" L.<+> L.pretty e L.<> L.hardline)
+  SatResult s <- satWith (z3 { verbose = __cogent_ddump_smt
+                             , redirectVerbose = Just $ fromMaybe "/dev/stderr" __cogent_ddump_to_file })
+                         (evalStateT (sexprToSmt e)
+                         (SmtTransState IM.empty M.empty))
+  dumpMsgIfTrue __cogent_ddump_smt (L.text (replicate 80 '-') L.<> L.hardline)
   traceTc "sol/smt" (L.text "Running SMT on expression"
                      L.<$> indent' (L.pretty e)
                      L.<$> L.text "gives result"
