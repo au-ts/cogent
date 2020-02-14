@@ -904,12 +904,15 @@ postDump = readIORef __cogent_dump_handle >>= \h ->
                     (not <$> hIsTerminalDevice h)) $
              (hClose =<< readIORef __cogent_dump_handle)
 
-dumpMsg :: Doc -> IO ()
-dumpMsg d
-  | __cogent_ddump_tc = do
+dumpMsgIfTrue :: Bool -> Doc -> IO ()
+dumpMsgIfTrue dumpOn d
+  | dumpOn = do
       h <- readIORef __cogent_dump_handle
       b <- hIsTerminalDevice h
       displayIO h (d & (renderPretty 1.0 120 . if b then id else plain))
       hFlush h
   | otherwise = return ()
+
+dumpTcMsg :: Doc -> IO ()
+dumpTcMsg = dumpMsgIfTrue __cogent_ddump_tc
 
