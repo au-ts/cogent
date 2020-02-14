@@ -244,7 +244,7 @@ Effects
 =======
 
 Most effects are currently (successfully) modelled via linear types. For
-allocation, Cogent does not know anything about it. Memory management
+allocation, |cogent| does not know anything about it. Memory management
 involves the heap. I propose modelling the heap as an explicit linear
 value, just as with any other state.
 
@@ -382,7 +382,7 @@ the form of ``if c !v1 !v2 ... then e1 else e2``. The ``!v``\ s are
 similar to the ``!`` syntax introduced above, allowing for temporary
 access to linear objects in the condition.
 
-Apart from the normal if-then-else syntax, Cogent offers a multi-way if
+Apart from the normal if-then-else syntax, |cogent| offers a multi-way if
 syntax, inspired by GHC/Haskell. For example,
 
 ::
@@ -447,7 +447,7 @@ Punning is also allowed:
 Arithmetic and comparison operators
 -----------------------------------
 
-Currently Cogent will use the smallest type possible for integer
+Currently |cogent| will use the smallest type possible for integer
 literals and generate upcasts (but not downcasts) automatically when
 used in a context where they are required. For non-literals, an explicit
 ``upcast`` primitive may be needed.

@@ -2,7 +2,7 @@
 				Programs
 ************************************************************************
 
-A |cogent| program is a sequence of toplevel definitions and include statements.
+A |cogent| program is a sequence of toplevel definitions and include staatements.
 There is no main program, it must always be implemented externally in C.
 
   *Program*:

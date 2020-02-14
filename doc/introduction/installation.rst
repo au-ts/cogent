@@ -1,17 +1,17 @@
 ************************************************************************
-                      Getting the Cogent Compiler
+                      Getting the |cogent| Compiler
 ************************************************************************
 
 
 What follows is a *very* quick guide
-to setting up the Cogent compiler,
+to setting up the |cogent| compiler,
 enough to be able to write and compile code.
 To do anything more complex,
 including working on proofs,
 you should also read the
 :doc:`full installation instructions <../reference/installation>`.
 
-Cogent's compiler is still a work in progress:
+|cogent|'s compiler is still a work in progress:
 we don't (yet) provide compiled executables,
 and it's not (yet) available in package managers,
 so to install it, you'll need to do some work.
@@ -29,14 +29,14 @@ some of the GNU development tools.
 
 Install Haskell_.  An easy way to do this
 is using the `Haskell Stack`_ tool.
-If you're not planning on actively developing Cogent,
+If you're not planning on actively developing |cogent|,
 this is an excellent option.
 
 .. _Haskell:         https://www.haskell.org/
 .. _`Haskell Stack`: https://www.haskellstack.org/
 
 Once you've installed Stack,
-get the Cogent source code using Git:
+get the |cogent| source code using Git:
 
 .. code-block:: bash
 
@@ -64,7 +64,7 @@ To find out where the compiler is, run:
 
 For much of this document,
 we'll assume that you can just run ``cogent``
-to invoke the Cogent compiler.
+to invoke the |cogent| compiler.
 
 
 For more information, check out the

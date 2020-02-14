@@ -315,7 +315,7 @@ where a type is allowed.
 Note that in the definition of a generic type, all type variables occurring in the type expression on the right-hand
 side must be type parameters, declared on the left-hand side, i.e., they must all be bound in the type definition. 
 The other way round, a type parameter need not occur as type variable in the type expression. In Haskell, this
-is called a "phantom type". Other than in Haskell in Cogent these types are not checked by the type checker, hence for::
+is called a "phantom type". Other than in Haskell in |cogent| these types are not checked by the type checker, hence for::
 
   type A a = U8
 

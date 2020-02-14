@@ -555,7 +555,7 @@ consists of a term for the function and a second term for the argument:
     | *BasExpr* *BasExpr*
 
 The argument Expression is simply put after the Expression for the function. This is common in functional programming languages, whereas in
-imperative and object oriented languages (and in mathematics) the argument is usually put in parentheses like in :math:`f(x)`. In Cogent
+imperative and object oriented languages (and in mathematics) the argument is usually put in parentheses like in :math:`f(x)`. In |cogent|
 this is allowed, since a *BasExpr* may be an expression in parentheses, but it is not necessary.
 
 The syntax here is ambiguous. Several *BasExpr* in a row are interpreted as left associative. Therefore the following

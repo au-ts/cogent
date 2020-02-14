@@ -4,9 +4,9 @@
 
 .. todo:: (jashankj, 2020-02-13): document the core syntax
 
-Cogent's 'core' language is not directly exposed to programmers.
+|cogent|'s 'core' language is not directly exposed to programmers.
 Nonetheless, it's extremely useful to know how
-Cogent turns its more expressive surface syntax
+|cogent| turns its more expressive surface syntax
 into the core language used for proofs and code generation.
 
 
