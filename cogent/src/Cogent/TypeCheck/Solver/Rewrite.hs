@@ -94,6 +94,9 @@ rewrite' = RewriteT
 run :: Rewrite a -> a -> Maybe a
 run rw = runIdentity . runMaybeT . runRewriteT rw
 
+run' :: RewriteT m a -> a -> m (Maybe a)
+run' rw = runMaybeT . runRewriteT rw
+
 -- | A rewrite that exhausts itself only when it cannot rewrite anymore
 untilFixedPoint :: Monad m => RewriteT m a -> RewriteT m a
 untilFixedPoint rw = (rw `andThen` untilFixedPoint rw) <> rw

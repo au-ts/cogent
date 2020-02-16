@@ -209,6 +209,10 @@ validateType (RT t) = do
     -- This can't be done in the current setup because validateType' has no context for the type it is validating.
     -- Not implementing this now, because a new syntax for types is needed anyway, which may make this issue redundant.
     -- /mdimeglio
+    -- In addition to the above: We have an UnboxedNotRecursive constraint now, which checks something similar 
+    -- (that recursive parameters are not used on unboxed records).
+    -- We can potentially generalise this constraint to also solve the above issue (or create a similar constraint).
+    -- /emmetm
 
 
 validateTypes :: (?loc :: SourcePos, Traversable t) => t RawType -> CG (Constraint, t TCType)
