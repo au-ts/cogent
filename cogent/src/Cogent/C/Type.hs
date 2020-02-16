@@ -130,14 +130,24 @@ genTySynDecl (n,t) = CDecl $ CTypeDecl t [n]
 lookupStrlTypeCId :: StrlType -> Gen v (Maybe CId)
 lookupStrlTypeCId st = M.lookup st <$> use cTypeDefMap
 
+genNewCId :: CId -> StrlType -> Gen v CId
+genNewCId t st = do 
+  cTypeDefs %= ((st,t):)  -- NOTE: add a new entry at the front
+  cTypeDefMap %= M.insert st t
+  return t
+
 -- Lookup a structure and return its name, or create a new entry.
 getStrlTypeCId :: StrlType -> Gen v CId
 getStrlTypeCId st = do lookupStrlTypeCId st >>= \case
-                         Nothing -> do t <- freshGlobalCId 't'
-                                       cTypeDefs %= ((st,t):)  -- NOTE: add a new entry at the front
-                                       cTypeDefMap %= M.insert st t
-                                       return t
+                         Nothing -> do
+                           t <- freshGlobalCId 't'
+                           genNewCId t st
                          Just t  -> return t
+
+getStrlTypeWithCId :: CId -> StrlType -> Gen v CId
+getStrlTypeWithCId t st = do lookupStrlTypeCId st >>= \case
+                                Nothing -> genNewCId t st
+                                Just t  -> return t
 
 {-# RULES
 "monad-left-id" [~] forall x k. return x >>= k = k x
@@ -226,12 +236,41 @@ typeCId t = use custTypeGen >>= \ctg ->
     typeCId' (TProduct t1 t2) = getStrlTypeCId =<< Record <$> (P.zip [p1,p2] <$> mapM genType [t1,t2])
     typeCId' (TSum fs) = getStrlTypeCId =<< Variant . M.fromList <$> mapM (secondM genType . second fst) fs
     typeCId' (TFun t1 t2) = getStrlTypeCId =<< Function <$> genType t1 <*> genType t2  -- Use the enum type for function dispatching
-    typeCId' (TRecord _ fs Unboxed) = getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
-    typeCId' (TRecord _ fs (Boxed _ l)) =
+    typeCId' (TRecord NonRec fs Unboxed) = getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
+    typeCId' (TRecord NonRec fs (Boxed _ l)) =
       case l of
         Layout RecordLayout {} -> getStrlTypeCId (RecordL l)
         CLayout -> getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
         _ -> __impossible "Tried to get the c-type of a record with a non-record layout"
+    typeCId' (TRecord (Rec v) fs (Boxed _ l)) =
+      case l of
+        Layout RecordLayout {} ->
+          getStrlTypeCId (RecordL l)
+        CLayout -> do
+          -- Map a in-scope recursive parameter back to the ID of the 
+          -- Record we're about to generate
+          newId <- freshGlobalCId 't'
+          recParRecordIds %= M.insert v newId
+          strlType <- Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
+          res      <- lookupStrlTypeCId strlType
+          recParRecordIds %= M.delete v
+          case res of
+            Nothing -> do
+              getStrlTypeWithCId newId strlType
+            Just x ->  do 
+              -- HACK
+              globalOracle -= 1
+              return x
+    typeCId' t@(TRPar v (Just m)) = do
+      recId <- M.lookup (m M.! v) <$> use recParCIds
+      case recId of 
+        Nothing -> do
+          Just res <- M.lookup v <$> use recParRecordIds
+          recParCIds %= M.insert (m M.! v) res
+          return res 
+        Just x -> 
+          return x
+
     typeCId' (TUnit) = return unitT
 #ifdef BUILTIN_ARRAYS
     typeCId' (TArray t l Unboxed _) = getStrlTypeCId =<< Array <$> genType t
