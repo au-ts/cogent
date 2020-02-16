@@ -31,6 +31,7 @@ import           Cogent.TypeCheck.Solver.SMT (smtSat)
 import           Cogent.TypeCheck.Solver.Goal
 import           Cogent.TypeCheck.Solver.Monad
 import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
+import qualified Cogent.TypeCheck.Solver.Normalise as Normalise
 import           Cogent.Surface
 import           Cogent.Util (hoistMaybe)
 
@@ -148,7 +149,12 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   -- [amos] New simplify rule:
   -- If both sides of an equality constraint are equal, we can't completely discharge it;
   -- we need to make sure all unification variables in the type are instantiated at some point
-  t :=: u | t == u -> hoistMaybe $ if isSolved t then Just [] else Just [Solved t]
+  t :=: u | t == u -> 
+    if isSolved t then 
+      hoistMaybe $ Just [] 
+    else do
+      t' <- fullyNormalise t
+      pure Just [Solved t']
 
   Solved t | isSolved t -> hoistMaybe $ Just []
 
@@ -422,6 +428,9 @@ isPrimType (T (TCon n [] Unboxed))
 isPrimType (T (TBang t)) = isPrimType t
 isPrimType (T (TUnbox t)) = isPrimType t
 isPrimType _ = False
+
+fullyNormalise :: Type -> Rewrite.RewriteT TcSolvM TCType
+fullyNormalise t = undefined
 
 isBoxedType :: TCType -> Bool
 isBoxedType (R _ (Left (Boxed _ _))) = True
