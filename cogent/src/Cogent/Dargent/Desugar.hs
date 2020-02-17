@@ -18,7 +18,7 @@ module Cogent.Dargent.Desugar
  ( desugarAbstractTypeSigil
  , desugarSigil
  -- Remaining exports for testing only
- , desugarDataLayout
+ -- , desugarDataLayout
  , constructDataLayout
  ) where
 
@@ -44,8 +44,8 @@ import Cogent.Dargent.Core
 import Cogent.Dargent.Surface       ( DataLayoutSize(Bytes, Bits, Add)
                                     , DataLayoutExpr(..)
                                     , DataLayoutExpr'(..)
+                                    , evalSize
                                     )
-import Cogent.Dargent.TypeCheck     ( evalSize )
 import Cogent.Dargent.Util
 import Cogent.Core                  ( Type(..) )
 
@@ -89,8 +89,9 @@ desugarSigil
 
 desugarSigil t = fmap desugarMaybeLayout
   where
-    desugarMaybeLayout Nothing  = CLayout -- default to a CLayout
-    desugarMaybeLayout (Just l) = desugarDataLayout l
+    desugarMaybeLayout _ = __fixme $ CLayout  -- FIXME: desugarLayout to be implemented in Cogent.Desugar with DS monad
+    -- desugarMaybeLayout Nothing  = CLayout -- default to a CLayout
+    -- desugarMaybeLayout (Just l) = desugarDataLayout l
 
 
 {- * Desugaring 'DataLayout's -}
@@ -99,7 +100,6 @@ desugarSize :: DataLayoutSize -> Size
 desugarSize = evalSize
 
 desugarDataLayout :: DataLayoutExpr -> DataLayout BitRange
-desugarDataLayout (DLVar n) = LayoutVar n
 desugarDataLayout l = Layout $ desugarDataLayout' l
   where
     desugarDataLayout' :: DataLayoutExpr -> DataLayout' BitRange
@@ -107,7 +107,7 @@ desugarDataLayout l = Layout $ desugarDataLayout' l
     desugarDataLayout' (DLPrim size)
       | bitSize <- desugarSize size
       , bitSize > 0
-        = PrimLayout (fromJust $ newBitRangeBaseSize 0 bitSize) {- 0 <= bitSize -}
+        = PrimLayout (fromJust $ newBitRangeBaseSize 0 bitSize) -- 0 <= bitSize
       | bitSize <- desugarSize size
       , bitSize < 0
         = __impossible "desugarDataLayout: DLPrim has a negative size"
@@ -133,6 +133,7 @@ desugarDataLayout l = Layout $ desugarDataLayout' l
 #ifdef BUILTIN_ARRAYS
     desugarDataLayout' (DLArray e _) = ArrayLayout (desugarDataLayout' e)
 #endif
+    desugarDataLayout' (DLVar _) = __todo "core data layout"
 
 {- * CONSTRUCTING 'DataLayout's -}
 

@@ -197,20 +197,20 @@ normaliseT d (T (TLayout l t)) = do
       t'' <- normPartT Unboxed
       if isTypeLayoutExprCompatible env t'' l
         then normPartT . Boxed p $ Just l
-        else logErrExit (LayoutDoesNotMatchType (toDLExpr l) t)
+        else logErrExit (LayoutDoesNotMatchType l t)
     (T (TCon n ts (Boxed p Nothing)))  -> do
       let normPartT = normaliseT d . T . TCon n ts
       t'' <- normPartT Unboxed
       if isTypeLayoutExprCompatible env t'' l
         then normPartT . Boxed p $ Just l
-        else logErrExit (LayoutDoesNotMatchType (toDLExpr l) t)
+        else logErrExit (LayoutDoesNotMatchType l t)
 #ifdef BUILTIN_ARRAYS
     (T (TArray telt n (Boxed p Nothing) tkns)) -> do
       let normPartT s = normaliseT d . T $ TArray telt n s tkns
       t'' <- normPartT Unboxed
       if isTypeLayoutExprCompatible env t'' l
         then normPartT . Boxed p $ Just l
-        else logErrExit (LayoutDoesNotMatchType (toDLExpr l) t)
+        else logErrExit (LayoutDoesNotMatchType l t)
 #endif
     _ -> logErrExit (LayoutOnNonRecordOrCon t)
 

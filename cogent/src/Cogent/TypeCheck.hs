@@ -35,7 +35,7 @@ import Cogent.TypeCheck.Post (postT, postE, postA)
 import Cogent.TypeCheck.Solver
 import Cogent.TypeCheck.Subst (apply, applyE, applyAlts)
 import Cogent.TypeCheck.Util
-import Cogent.Util (firstM)
+import Cogent.Util (firstM, secondM)
 
 import Control.Arrow (first, second)
 import Control.Monad.State
@@ -138,9 +138,10 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
     (((clt,lts),(ct,t')), flx, os) <- runCG ctx vs vs'
-                                        (do x <- validateTypes (stripLocT . snd <$> ls) >>= normaliseTypes
+                                        (do x <- validateTypes (stripLocT . snd <$> ls)
+                                            x' <- secondM normaliseTypes x
                                             y <- validateType t
-                                            pure (x,y))
+                                            pure (x',y))
     traceTc "tc" (text "constraint for abstract function" <+> pretty n <+> text "is"
                   L.<$> prettyC ct)
     let ls' = zip (fst <$> ls) lts
@@ -214,10 +215,11 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
     (((clt,lts),(ct,t'),(c,alts')), flx, os) <- runCG ctx vs vs'
-                                        (do x <- validateTypes (stripLocT . snd <$> ls) >>= normaliseTypes
+                                        (do x <- validateTypes (stripLocT . snd <$> ls)
+                                            x' <- secondM normaliseTypes x
                                             y@(ct,t') <- validateType t
                                             z <- cgFunDef alts t'
-                                            pure (x,y,z))
+                                            pure (x',y,z))
     traceTc "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
                   L.<$> prettyC c)
     let ls' = zip (fst <$> ls) lts

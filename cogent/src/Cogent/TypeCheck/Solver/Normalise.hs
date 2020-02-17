@@ -18,6 +18,7 @@ module Cogent.TypeCheck.Solver.Normalise where
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Surface
+import Cogent.Dargent.TypeCheck
 import qualified Cogent.TypeCheck.ARow as ARow
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Solver.Goal
@@ -25,10 +26,13 @@ import Cogent.TypeCheck.Solver.Monad
 import Cogent.TypeCheck.Solver.Rewrite
 import Cogent.TypeCheck.Solver.Util
 import qualified Cogent.TypeCheck.Row as Row
+import Cogent.Util
 
 import Control.Applicative
+import Data.Bitraversable
 import qualified Data.IntMap as IM
 import Data.Maybe
+import qualified Data.Map as M
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
 import Lens.Micro.Mtl
@@ -36,8 +40,8 @@ import Lens.Micro
 
 -- import Debug.Trace
 
-normaliseRW :: RewriteT TcSolvM TCType
-normaliseRW = rewrite' $ \case
+normaliseRWT :: RewriteT TcSolvM TCType
+normaliseRWT = rewrite' $ \case
     T (TBang (T (TCon t ts s))) -> pure (T (TCon t (fmap (T . TBang) ts) (bangSigil s)))
     T (TBang (T (TVar v b u))) -> pure (T (TVar v True u))
     T (TBang (T (TFun x y))) -> pure (T (TFun x y))
@@ -61,7 +65,7 @@ normaliseRW = rewrite' $ \case
         table <- view knownTypes
         case lookup n table of
             Just (as', Just b) -> pure (substType (zip as' as) b)
-            _ -> __impossible "normaliseRW: missing synonym"
+            _ -> __impossible "normaliseRWT: missing type synonym"
 
     T (TTake fs (R row s))
       | isNothing (Row.var row) -> case fs of
@@ -97,12 +101,12 @@ normaliseRW = rewrite' $ \case
     T (TLayout l (R row (Left (Boxed p _)))) ->
       pure $ R row $ Left $ Boxed p (Just l)
     T (TLayout l (R row (Right i))) ->
-      __impossible "normaliseRW: TLayout over a sigil variable (R)"
+      __impossible "normaliseRWT: TLayout over a sigil variable (R)"
 #ifdef BUILTIN_ARRAYS
     T (TLayout l (A t n (Left (Boxed p _)) tkns)) ->
       pure $ A t n (Left (Boxed p (Just l))) tkns
     T (TLayout l (A t n (Right i) tkns)) ->
-      __impossible "normaliseRW: TLayout over a sigil variable (A)"
+      __impossible "normaliseRWT: TLayout over a sigil variable (A)"
 #endif
     T (TLayout l _) -> -- TODO(dargent): maybe handle this later
       empty
@@ -125,18 +129,34 @@ whnf input = do
         T (TUnbox    t') -> T . TUnbox    <$> whnf t'
         T (TLayout l t') -> T . TLayout l <$> whnf t'
         _                -> pure input
-    fromMaybe step <$> runMaybeT (runRewriteT (untilFixedPoint $ debug "Normalise Type" printPretty normaliseRW) step)
+    fromMaybe step <$> runMaybeT (runRewriteT (untilFixedPoint $ debug "Normalise Type" printPretty normaliseRWT) step)
 
--- | Normalise all types within a set of constraints
-normaliseTypes :: [Goal] -> TcSolvM [Goal]
-normaliseTypes = mapM $ \g -> do
-  c' <- mapM whnf (g ^. goal)
+normaliseRWL :: RewriteT TcSolvM TCDataLayout
+normaliseRWL = rewrite' $ \case
+  TLRepRef n -> do
+    ls <- view knownDataLayouts
+    case M.lookup n ls of
+      Just (expr, _) -> pure $ toTCDL $ normaliseDataLayoutExpr ls expr
+      _ -> __impossible "normaliseRWL: missing layout synonym"
+  _ -> empty
+
+normL :: TCDataLayout -> TcSolvM TCDataLayout
+normL l = do
+  step <- case l of
+    TLArray e p -> TLArray <$> normL e <*> pure p
+    TLRecord fs -> TLRecord <$> mapM (third3M normL) fs
+    TLVariant l fs -> TLVariant <$> (unTCDataLayout <$> normL (TL l)) <*> mapM (fourth4M normL) fs
+    TLOffset l n -> TLOffset <$> (unTCDataLayout <$> normL (TL l)) <*> pure n
+    _ -> pure l
+  fromMaybe step <$> runMaybeT (runRewriteT (untilFixedPoint $ debug "Normalise Layout" printPretty normaliseRWL) step)
+
+-- | Normalise both types and layouts within a set of constraints
+normalise :: [Goal] -> TcSolvM [Goal]
+normalise = mapM $ \g -> do
+  c' <- bimapM whnf normL (g ^. goal)
   pure $ set goal c' g
 
 normaliseSExpr :: TCSExpr -> Int
 normaliseSExpr (SE _ (IntLit n)) = fromIntegral n
 normaliseSExpr _ = __todo "normaliseSExpr"
 
--- | Normalise all layouts within a set of constraints
-normaliseLayouts :: [Goal] -> TcSolvM [Goal]
-normaliseLayouts = __todo "normaliseLayouts"

@@ -34,6 +34,8 @@ import Cogent.Compiler (__impossible, __todo)
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Core
+import Cogent.Dargent.Allocation
+import Cogent.Dargent.Core
 import Cogent.Inference
 import Cogent.Util (Warning, first3, second3, third3, flip3)
 import Data.Fin
@@ -53,22 +55,23 @@ import Prelude as P
 -- import Debug.Trace
 
 
+-- type Instance b = [(Type 'Zero b, DataLayout BitRange)]
 type Instance b = [Type 'Zero b]
 
 -- The list of Definitions is pre-ordered, which means that we only need to visit each definition exactly once.
 -- Traversal has to start from the roots of the call trees to collect instances.
 
 type FunMono  b = M.Map FunName  (M.Map (Instance b) Int)  -- [] can never be an element in the map. mono-function should have M.empty
-type TypeMono b = M.Map TypeName (S.Set (Instance b))      -- as above
+type InstMono b = M.Map TypeName (S.Set (Instance b))      -- as above
 
 newtype Mono b x = Mono { runMono :: RWS (Instance b)
                                          ([Warning], [Definition TypedExpr VarName b], [(Type 'Zero b, String)])
-                                         (FunMono b, TypeMono b)
+                                         (FunMono b, InstMono b)
                                          x }
                  deriving (Functor, Applicative, Monad,
                            MonadReader (Instance b),
                            MonadWriter ([Warning], [Definition TypedExpr VarName b], [(Type 'Zero b, String)]),
-                           MonadState  (FunMono b, TypeMono b))
+                           MonadState  (FunMono b, InstMono b))
 
 -- Returns: (monomorphic abstract functions, poly-abs-funcs)
 absFuns :: [Definition TypedExpr VarName b] -> ([FunName], [FunName])
@@ -94,10 +97,10 @@ printAFM = ((unlines . P.map (\(n,i) -> n ++ ", " ++ show i) . M.toList) .) . ab
 mono :: forall b. (Ord b)
      => [Definition TypedExpr VarName b]
      -> [(SupposedlyMonoType b, String)]
-     -> Maybe (FunMono b, TypeMono b)
-     -> ((FunMono b, TypeMono b), ([Warning], [Definition TypedExpr VarName b], [(Type 'Zero b, String)]))
+     -> Maybe (FunMono b, InstMono b)
+     -> ((FunMono b, InstMono b), ([Warning], [Definition TypedExpr VarName b], [(Type 'Zero b, String)]))
 mono ds ctygen initmap = (second . second3 $ reverse) . flip3 execRWS initmap' [] . runMono $ monoDefinitions (reverse ds) >> monoCustTyGen ctygen
-  where initmap' :: (FunMono b, TypeMono b)  -- a map consists of all function names, each of which has no instances
+  where initmap' :: (FunMono b, InstMono b)  -- a map consists of all function names, each of which has no instances
         initmap' = fromMaybe ( M.fromList $ P.zip (catMaybes $ P.map getFuncId ds) (P.repeat M.empty)  -- [] can never appear in the map
                              , M.empty ) initmap
 
@@ -163,6 +166,7 @@ monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
     monoExpr' (Fun      fn [] ls nt) = modify (first $ M.insert (unCoreFunName fn) M.empty) >> return (Fun fn [] ls nt)
     monoExpr' (Fun      fn ts ls nt) = do
       ts' <- mapM monoType ts
+      -- ls' <- mapM monoLayout ls
       modify (first $ M.insertWith (\_ m -> insertWith (flip const) ts' (M.size m) m) (unCoreFunName fn) (M.singleton ts' 0))  -- add one more instance to the env
       idx <- M.lookup ts' . fromJust . M.lookup (unCoreFunName fn) . fst <$> get
       return $ Fun (unsafeCoreFunName $ monoName fn idx) [] [] nt  -- used to be ts'
@@ -226,6 +230,8 @@ monoType (TUnit) = pure TUnit
 monoType (TArray t l s mhole) = TArray <$> monoType t <*> monoLExpr l <*> pure s <*> mapM monoLExpr mhole
 #endif
 
+monoLayout :: (Ord b) => DataLayout BitRange -> Mono b (DataLayout BitRange)
+monoLayout _ = pure CLayout
 
 monoLExpr :: (Ord b) => LExpr t b -> Mono b (LExpr 'Zero b)
 monoLExpr (LVariable var       ) = pure $ LVariable var

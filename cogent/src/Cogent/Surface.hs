@@ -76,9 +76,7 @@ data Inline = Inline
 data Expr t p ip l e = PrimOp OpName [e]
                      | Var VarName
                      | Match e [VarName] [Alt p e]
-                     | TypeApp FunName [Maybe t] Inline
-                     | LayoutApp e [Maybe l]
-                       -- ^ e could only be either Var or TypeApp
+                     | TLApp FunName [Maybe t] [Maybe l] Inline
                      | Con TagName [e]
                      | Seq e e
                      | Lam ip (Maybe t) e
@@ -396,8 +394,7 @@ instance Pentatraversable Expr where
   pentatraverse fa fb fc fd fe (PrimOp op es)      = PrimOp op <$> traverse fe es
   pentatraverse fa fb fc fd fe (Var v)             = pure $ Var v
   pentatraverse fa fb fc fd fe (Match e vs as)     = Match <$> fe e <*> pure vs <*> traverse (bitraverse fb fe) as
-  pentatraverse fa fb fc fd fe (TypeApp fn ts n)   = TypeApp fn <$> traverse (traverse fa) ts <*> pure n
-  pentatraverse fa fb fc fd fe (LayoutApp e l)     = LayoutApp <$> fe e <*> traverse (traverse fd) l
+  pentatraverse fa fb fc fd fe (TLApp fn ts ls n)  = TLApp fn <$> traverse (traverse fa) ts <*> traverse (traverse fd) ls <*> pure n
   pentatraverse fa fb fc fd fe (Con n es)          = Con n <$> traverse fe es
   pentatraverse fa fb fc fd fe (Seq e1 e2)         = Seq <$> fe e1 <*> fe e2
   pentatraverse fa fb fc fd fe (Lam ip mt e)       = Lam <$> fc ip <*> traverse fa mt <*> fe e
@@ -458,8 +455,7 @@ fvIP _ = []
 fvE :: RawExpr -> [VarName]
 fvE (RE (Var v)) = [v]
 fvE (RE (Match e _ alts)) = fvE e ++ foldMap fvA alts
-fvE (RE (TypeApp v ts _)) = v : foldMap (foldMap fvT) ts
-fvE (RE (LayoutApp e _)) = fvE e
+fvE (RE (TLApp v ts _ _)) = v : foldMap (foldMap fvT) ts
 fvE (RE (Lam  p t e)) = filter (`notElem` fvIP p) (foldMap fvT t ++ fvE e)
 fvE (RE (LamC _ _ _ vs)) = vs  -- FIXME
 fvE (RE (Let (b:bs) e)) = let (locals, fvs) = fvB b
@@ -505,7 +501,7 @@ fcB (BindingAlts _ t e _ alts) = foldMap fcT t ++ fcE e ++ foldMap fcA alts
 fcE :: RawExpr -> [TagName]
 fcE (RE (Let bs e)) = fcE e ++ foldMap fcB bs
 fcE (RE (Match e _ as)) = fcE e ++ foldMap fcA as
-fcE (RE (TypeApp _ ts _)) = foldMap fcT (Compose ts)
+fcE (RE (TLApp _ ts _ _)) = foldMap fcT (Compose ts)
 fcE (RE (Annot e t)) = fcE e ++ fcT t
 fcE (RE e) = foldMap fcE e
 
@@ -547,8 +543,7 @@ tvE :: RawExpr -> [TyVarName]
 tvE (RE (PrimOp op es))     = foldMap tvE es
 tvE (RE (Var v))            = []
 tvE (RE (Match e v alts))   = tvE e ++ foldMap tvA alts
-tvE (RE (TypeApp v ts nt))  = foldMap (foldMap tvT) ts
-tvE (RE (LayoutApp e ls))   = tvE e
+tvE (RE (TLApp v ts _ nt))  = foldMap (foldMap tvT) ts
 tvE (RE (Con n es))         = foldMap tvE es
 tvE (RE (Seq e e'))         = tvE e ++ tvE e'
 tvE (RE (Lam  ip mt e))     = foldMap tvT mt ++ tvE e
@@ -624,7 +619,7 @@ dvT _ = []
 dvE :: RawExpr -> [RepName]
 dvE (RE (Let bs e)) = dvE e ++ foldMap dvB bs
 dvE (RE (Match e _ as)) = dvE e ++ foldMap dvA as
-dvE (RE (TypeApp _ ts _)) = foldMap dvT (Compose ts)
+dvE (RE (TLApp _ ts _ _)) = foldMap dvT (Compose ts)
 dvE (RE (Annot e t)) = dvE e ++ dvT t
 dvE (RE e) = foldMap dvE e
 

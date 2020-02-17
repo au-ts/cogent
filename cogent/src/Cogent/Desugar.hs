@@ -35,11 +35,14 @@ import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core
+import Cogent.Dargent.Allocation
+import Cogent.Dargent.Core
+import Cogent.Dargent.Surface
 import Cogent.Dargent.Desugar
-import Cogent.Dargent.TypeCheck (toDLExpr)
+import Cogent.Dargent.TypeCheck
 import Cogent.PrettyPrint ()
 import qualified Cogent.Surface as S
-import Cogent.TypeCheck.Base as B
+import qualified Cogent.TypeCheck.Base as B
 import Cogent.Util
 import Data.Ex
 import Data.Fin
@@ -80,29 +83,32 @@ import Debug.Trace
 -- -----------------------------------------------------------------------------
 
 type TypeVars t = Vec t TyVarName
+type LayoutVars l = Vec l DLVarName
 type TermVars v = Vec v VarName
 type Typedefs   = M.Map TypeName ([VarName], B.DepType)  -- typenames |-> typeargs * strltype
 type Constants  = M.Map VarName  B.TypedExpr  -- This shares namespace with `TermVars'
 type Enumerator = Int
 
-data DsState t v = DsState { _typCtx :: TypeVars t
-                           , _varCtx :: TermVars v
-                           , _oracleLcl :: Enumerator
-                           , _oracleGbl :: Enumerator
-                           , _lftFun :: [S.TopLevel B.DepType B.TypedPatn B.TypedExpr]  -- reversed
-                           }
+data DsState t l v = DsState { _typCtx :: TypeVars t
+                             , _layCtx :: LayoutVars l
+                             , _varCtx :: TermVars v
+                             , _oracleLcl :: Enumerator
+                             , _oracleGbl :: Enumerator
+                             , _lftFun :: [S.TopLevel B.DepType B.TypedPatn B.TypedExpr]  -- reversed
+                             }
 
 makeLenses ''DsState
 
-newtype DS (t :: Nat) (v :: Nat) a = DS { runDS :: RWS (Typedefs, Constants, [Pragma])
-                                                       (Last (Typedefs, Constants, [CoreConst UntypedExpr]))
-                                                       -- \^ NOTE: it's a hack to export the reader! / zilinc
-                                                       (DsState t v)
-                                                       a }
-                                   deriving (Functor, Applicative, Monad,
-                                             MonadReader (Typedefs, Constants, [Pragma]),
-                                             MonadWriter (Last (Typedefs, Constants, [CoreConst UntypedExpr])),
-                                             MonadState  (DsState t v))
+newtype DS (t :: Nat) (l :: Nat) (v :: Nat) a =
+  DS { runDS :: RWS (Typedefs, Constants, [Pragma])
+                    (Last (Typedefs, Constants, [CoreConst UntypedExpr]))
+                    -- \^ NOTE: it's a hack to export the reader! / zilinc
+                    (DsState t l v)
+                    a }
+  deriving (Functor, Applicative, Monad,
+            MonadReader (Typedefs, Constants, [Pragma]),
+            MonadWriter (Last (Typedefs, Constants, [CoreConst UntypedExpr])),
+            MonadState  (DsState t l v))
 
 
 desugar :: [S.TopLevel B.DepType B.TypedPatn B.TypedExpr]
@@ -120,7 +126,7 @@ desugar tls ctygen pragmas =
       initialReader = ( M.fromList $ P.map fromTypeDec  typedecs
                       , M.fromList $ P.map fromConstDef constdefs
                       , pragmas )
-      initialState = DsState Nil Nil 0 0 []
+      initialState = DsState Nil Nil Nil 0 0 []
    in flip3 evalRWS initialState initialReader . runDS $
         desugar' (abstydecs ++ typedecs ++ absdecs ++ fundefs) constdefs ctygen pragmas
   where
@@ -128,14 +134,14 @@ desugar tls ctygen pragmas =
     fromTypeDec  _ = __impossible "fromTypeDec (in desugarProgram)"
 
     fromConstDef (S.ConstDef vn t e) = (vn,e)
-    fromConstDef _ = __impossible "fromConstDef (in desguarProgram)"
+    fromConstDef _ = __impossible "fromConstDef (in desugarProgram)"
 
 
 desugar' :: [S.TopLevel B.DepType B.TypedPatn B.TypedExpr]
          -> [S.TopLevel B.DepType B.TypedPatn B.TypedExpr]  -- constants
          -> [(B.DepType, String)]
          -> [Pragma]
-         -> DS 'Zero 'Zero ([Definition UntypedExpr VarName VarName], [(SupposedlyMonoType VarName, String)])
+         -> DS 'Zero 'Zero 'Zero ([Definition UntypedExpr VarName VarName], [(SupposedlyMonoType VarName, String)])
 desugar' tls constdefs ctygen pragmas = do
   defs' <- concat <$> mapM go tls
   write <- ask
@@ -145,10 +151,10 @@ desugar' tls constdefs ctygen pragmas = do
   return (defs',ctygen')
 
   where
-    initialState  = DsState Nil Nil 0 0 []
+    initialState  = DsState Nil Nil Nil 0 0 []
 
     go :: S.TopLevel B.DepType B.TypedPatn B.TypedExpr
-       -> DS 'Zero 'Zero [Definition UntypedExpr VarName VarName]
+       -> DS 'Zero 'Zero 'Zero [Definition UntypedExpr VarName VarName]
     go x = do gbl <- use oracleGbl
               put initialState
               oracleGbl .= gbl
@@ -174,36 +180,36 @@ freshVarPrefix = "x__ds_var_"
 freshFunPrefix = "x__lft_f_"
 
 
-freshVar :: DS t v VarName
+freshVar :: DS t l v VarName
 freshVar = P.head <$> freshVars 1
 
-freshVars :: Int -> DS t v [VarName]
+freshVars :: Int -> DS t l v [VarName]
 freshVars n = do x <- oracleLcl <<%= (+n)
                  return $ P.map ((++) freshVarPrefix . show) $ P.take n (iterate (+1) x)
 
-freshFun :: FunName -> DS t v FunName
+freshFun :: FunName -> DS t l v FunName
 freshFun f = do x <- oracleGbl <<%= (+1)
                 return $ freshFunPrefix ++ f ++ "_" ++ show x
 
-withTypeBinding :: TyVarName -> DS ('Suc t) v a -> DS t v a
+withTypeBinding :: TyVarName -> DS ('Suc t) l v a -> DS t l v a
 withTypeBinding t ds = do readers <- ask
                           st <- get
                           let (a, st', _) = flip3 runRWS (st & typCtx %~ Cons t) readers $ runDS ds
                           put $ st' & typCtx .~ st^.typCtx & oracleLcl .~ st^.oracleLcl
                           return a
 
-withTypeBindings :: Vec k TyVarName -> DS (t :+: k) v a -> DS t v a
+withTypeBindings :: Vec k TyVarName -> DS (t :+: k) l v a -> DS t l v a
 withTypeBindings Nil ds = ds
 withTypeBindings (Cons x xs) ds = withTypeBindings xs (withTypeBinding x ds)
 
-withBinding :: VarName -> DS t ('Suc v) a -> DS t v a
+withBinding :: VarName -> DS t l ('Suc v) a -> DS t l v a
 withBinding v ds = do readers <- ask
                       st <- get
                       let (a, st', _) = flip3 runRWS (st & varCtx %~ Cons v) readers $ runDS ds
                       put $ st' & varCtx .~ st^.varCtx & oracleLcl .~ st^.oracleLcl
                       return a
 
-withBindings :: Vec k VarName -> DS t (v :+: k) x -> DS t v x
+withBindings :: Vec k VarName -> DS t l (v :+: k) x -> DS t l v x
 withBindings Nil ds = ds
 withBindings (Cons x xs) ds = withBindings xs (withBinding x ds)
 
@@ -224,14 +230,14 @@ pragmaToNote (_:pragmas) fn note = pragmaToNote pragmas fn note
 -- -----------------------------------------------------------------------------
 
 lamLftTlv :: S.TopLevel B.DepType B.TypedPatn B.TypedExpr
-          -> DS t v (S.TopLevel B.DepType B.TypedPatn B.TypedExpr)
+          -> DS t l v (S.TopLevel B.DepType B.TypedPatn B.TypedExpr)
 lamLftTlv (S.FunDef fn sigma@(S.PT tvs _ _) alts) = S.FunDef fn sigma <$> mapM (lamLftAlt tvs fn) alts
 lamLftTlv d = return d
 
-lamLftAlt :: [(TyVarName, Kind)] -> FunName -> S.Alt B.TypedPatn B.TypedExpr -> DS t v (S.Alt B.TypedPatn B.TypedExpr)
+lamLftAlt :: [(TyVarName, Kind)] -> FunName -> S.Alt B.TypedPatn B.TypedExpr -> DS t l v (S.Alt B.TypedPatn B.TypedExpr)
 lamLftAlt tvs f (S.Alt p l e) = S.Alt p l <$> lamLftExpr tvs f e
 
-lamLftExpr :: [(TyVarName, Kind)] -> FunName -> B.TypedExpr -> DS t v B.TypedExpr
+lamLftExpr :: [(TyVarName, Kind)] -> FunName -> B.TypedExpr -> DS t l v B.TypedExpr
 lamLftExpr tvs f (B.TE t (S.Lam p mt e) l) = do
   f' <- freshFun f
   -- v <- freshVar
@@ -245,7 +251,7 @@ lamLftExpr tvs f (B.TE t (S.Lam p mt e) l) = do
   let fn = S.FunDef f' (S.PT tvs [] t) [S.Alt (B.TP (S.PIrrefutable p) noPos) Regular e']  -- no let-generalisation
   lftFun %= (fn:)
   let tvs' = map (Just . B.DT . flip3 S.TVar False False . fst) tvs
-  return $ B.TE t (S.TypeApp f' tvs' S.NoInline) l
+  return $ B.TE t (S.TLApp f' tvs' [] S.NoInline) l
 lamLftExpr sigma f (B.TE t e l) = B.TE t <$> traverse (lamLftExpr sigma f) e <*> pure l
 
 -- freeVars :: B.TypedExpr -> Vec v VarName -> [(VarName, S.RawType)]
@@ -260,7 +266,7 @@ lamLftExpr sigma f (B.TE t e l) = B.TE t <$> traverse (lamLftExpr sigma f) e <*>
 
 desugarTlv :: S.TopLevel B.DepType B.TypedPatn B.TypedExpr
            -> [Pragma]
-           -> DS 'Zero 'Zero (Definition UntypedExpr VarName VarName)
+           -> DS 'Zero 'Zero 'Zero (Definition UntypedExpr VarName VarName)
 desugarTlv (S.Include    _) _ = __impossible "desugarTlv"
 desugarTlv (S.IncludeStd _) _ = __impossible "desugarTlv"
 desugarTlv (S.TypeDec tn vs t) _ | ExI (Flip vs') <- Vec.fromList vs
@@ -296,7 +302,7 @@ desugarTlv (S.FunDef fn sigma alts) pragmas | S.PT vs ls t <- sigma
 desugarTlv (S.ConstDef {}) _ = __impossible "desugarTlv"
 desugarTlv (S.DocBlock _ ) _ = __impossible "desugarTlv"
 
-desugarAlts :: B.TypedExpr -> [S.Alt B.TypedPatn B.TypedExpr] -> DS t v (UntypedExpr t v VarName VarName)
+desugarAlts :: B.TypedExpr -> [S.Alt B.TypedPatn B.TypedExpr] -> DS t l v (UntypedExpr t v VarName VarName)
 desugarAlts e0 [] = __impossible "desugarAlts"
 desugarAlts e0 [S.Alt p l e] = desugarAlt e0 p e  -- Note: Likelihood is ignored here / zilinc
                                                   --       This also serves as the base case for PCon
@@ -342,11 +348,11 @@ desugarAlts e0 alts@(S.Alt _ _ e1:_) = do  -- e0 is not a var, so lift it
       m = B.TE t1 (S.Match (B.TE t0 (S.Var v) noPos) [] alts) noPos
   desugarExpr $ B.TE t1 (S.Let [b] m) noPos
 
-desugarAlt :: B.TypedExpr -> B.TypedPatn -> B.TypedExpr -> DS t v (UntypedExpr t v VarName VarName)
+desugarAlt :: B.TypedExpr -> B.TypedPatn -> B.TypedExpr -> DS t l v (UntypedExpr t v VarName VarName)
 desugarAlt e0 (B.TP p pos) = desugarAlt' e0 p
 
 -- FIXME: this function should take a position
-desugarAlt' :: B.TypedExpr -> S.Pattern B.TypedIrrefPatn -> B.TypedExpr -> DS t v (UntypedExpr t v VarName VarName)
+desugarAlt' :: B.TypedExpr -> S.Pattern B.TypedIrrefPatn -> B.TypedExpr -> DS t l v (UntypedExpr t v VarName VarName)
 desugarAlt' e0 (S.PCon tag [B.TIP (S.PVar tn) _]) e =
   E <$> (Let (fst tn) <$> (E . Esac <$> desugarExpr e0) <*> withBinding (fst tn) (desugarExpr e))
   -- Idea:
@@ -402,7 +408,7 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple [p1,p2]) _)) e | not __cogent_ft
       b1 = S.Binding p1 Nothing (B.TE t1 (S.Var v1) (B.getLocTIP p1)) []
       b2 = S.Binding p2 Nothing (B.TE t2 (S.Var v2) (B.getLocTIP p2)) []
   desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b0,b1,b2] e) noPos  -- Mutual recursion here
-desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple (p1:p2:ps)) pos)) e | not __cogent_ftuples_as_sugar = 
+desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple (p1:p2:ps)) pos)) e | not __cogent_ftuples_as_sugar =
   let p2' = B.TIP (S.PTuple (p2:ps)) pos
       p'  = S.PIrrefutable $ B.TIP (S.PTuple [p1, p2']) pos
   in desugarAlt' e0 p' e
@@ -422,7 +428,7 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple ps) _)) e | __cogent_ftuples_as_
   mkTake e0' vs e 0
   where isPVar (B.TIP (S.PVar _) _) = True; isPVar _ = False
         getPVar (B.TIP (S.PVar v) _) = v; getPVar _ = __impossible "getPVar (in desugarAlt')"
-        mkTake :: UntypedExpr t v VarName VarName -> [VarName] -> B.TypedExpr -> Int -> DS t v (UntypedExpr t v VarName VarName)
+        mkTake :: UntypedExpr t v VarName VarName -> [VarName] -> B.TypedExpr -> Int -> DS t l v (UntypedExpr t v VarName VarName)
         mkTake _ [] _ _ = __impossible "mkTake (in desugarAlt')"
         mkTake e0 [v] e idx = do
           e0' <- freshVar
@@ -518,14 +524,14 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArrayTake (arr,_) [(i, B.TIP (S.PVar (
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArrayTake arr [(i,ip)]) pos)) e = do
   v <- freshVar
   let B.DT (S.TArray telt _ _ _) = snd arr
-      b1 = S.Binding (B.TIP (S.PArrayTake arr [(i, B.TIP (S.PVar (v,telt)) (getLocTIP ip))]) pos) Nothing e []
+      b1 = S.Binding (B.TIP (S.PArrayTake arr [(i, B.TIP (S.PVar (v,telt)) (B.getLocTIP ip))]) pos) Nothing e []
       b2 = S.Binding ip Nothing (B.TE telt (S.Var v) pos) []
   desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b1,b2] e) pos
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArrayTake arr ips) pos)) e = __todo "desugarAlts': taking multiple elements out of an array is currently not supported"
 #endif
 desugarAlt' _ _ _ = __impossible "desugarAlt' (_)"  -- literals
 
-desugarPrimInt :: DepType -> PrimInt
+desugarPrimInt :: B.DepType -> PrimInt
 desugarPrimInt (B.DT (S.TCon "U8"   [] Unboxed)) = U8
 desugarPrimInt (B.DT (S.TCon "U16"  [] Unboxed)) = U16
 desugarPrimInt (B.DT (S.TCon "U32"  [] Unboxed)) = U32
@@ -533,7 +539,7 @@ desugarPrimInt (B.DT (S.TCon "U64"  [] Unboxed)) = U64
 desugarPrimInt (B.DT (S.TCon "Bool" [] Unboxed)) = Boolean
 desugarPrimInt t = __impossible $ "desugarPrimInt: " ++ show t
 
-desugarType :: DepType -> DS t v (Type t VarName)
+desugarType :: B.DepType -> DS t l v (Type t VarName)
 desugarType = \case
   B.DT (S.TCon "U8"     [] Unboxed) -> return $ TPrim U8
   B.DT (S.TCon "U16"    [] Unboxed) -> return $ TPrim U16
@@ -575,10 +581,10 @@ desugarType = \case
 #ifdef BUILTIN_ARRAYS
   B.DT (S.TArray t l Unboxed tkns) -> do
     t' <- desugarType t
-    l' <- uexprToLExpr id <$> desugarExpr (fmap rawToDepType l)
+    l' <- uexprToLExpr id <$> desugarExpr (fmap B.rawToDepType l)
     mhole <- case tkns of
                [] -> return Nothing
-               [(idx,True)] -> Just . uexprToLExpr id <$> desugarExpr (fmap rawToDepType idx)
+               [(idx,True)] -> Just . uexprToLExpr id <$> desugarExpr (fmap B.rawToDepType idx)
                _ -> __impossible "desugarType: TArray should not have more than 1 element taken"
     return $ TArray t' l' Unboxed mhole
   B.DT (S.TArray t l sigil tkns) -> do
@@ -595,11 +601,14 @@ desugarType = \case
 #endif
   notInWHNF -> __impossible $ "desugarType (type " ++ show (pretty notInWHNF) ++ " is not in WHNF)"
 
+desugarLayout :: TCDataLayout -> DS t l v (DataLayout BitRange)
+desugarLayout _ = __fixme $ pure CLayout -- FIXME: desugarLayout
+
 desugarNote :: S.Inline -> FunNote
 desugarNote S.NoInline = NoInline
 desugarNote S.Inline   = InlinePlease
 
-desugarExpr :: B.TypedExpr -> DS t v (UntypedExpr t v VarName VarName)
+desugarExpr :: B.TypedExpr -> DS t l v (UntypedExpr t v VarName VarName)
 desugarExpr (B.TE _ (S.PrimOp opr es) _) = E . Op (symbolOp opr) <$> mapM desugarExpr es
 desugarExpr (B.TE _ (S.Var vn) _) = (findIx vn <$> use varCtx) >>= \case
   Just v  -> return $ E $ Variable (v, vn)
@@ -616,13 +625,10 @@ desugarExpr (B.TE _ (S.Match e vs alts) l) = do
   let vs' = P.map (fromJust . flip findIx venv &&& id) vs
   e' <- withBinding v $ desugarAlts (B.TE (B.getTypeTE e) (S.Var v) l) alts
   E <$> (LetBang vs' v <$> desugarExpr e <*> pure e')
-desugarExpr (B.TE _ (S.TypeApp v ts note) _) = do
+desugarExpr (B.TE _ (S.TLApp v ts ls note) _) = do
   pragmas <- view _3
-  E <$> (Fun (funNameToCoreFunName v) <$> mapM desugarType (map fromJust ts) <*> pure [] <*> pure (pragmaToNote pragmas v $ desugarNote note))  -- FIXME: fromJust
-desugarExpr (B.TE t (S.LayoutApp e ls) _) = do
-  E (Fun fn ts _ nt) <- desugarExpr e
-  let ls' = desugarDataLayout . toDLExpr <$> (fromJust <$> ls)
-  return $ E (Fun fn ts ls' nt)
+  E <$> (Fun (funNameToCoreFunName v) <$> mapM (desugarType . fromJust) ts
+    <*> mapM (desugarLayout . fromJust) ls <*> pure (pragmaToNote pragmas v $ desugarNote note))  -- FIXME: fromJust
 desugarExpr (B.TE t (S.Con c [e]) _) = do
   t'@(TSum ts) <- desugarType t
   e' <- desugarExpr e
@@ -701,7 +707,7 @@ desugarExpr (B.TE _ (S.ArrayPut arr [(i,e)]) _) = do
   e'   <- desugarExpr e
   return $ E (ArrayPut arr' i' e')
 desugarExpr (B.TE t (S.ArrayPut arr (e:es)) l) =
-  let t' = B.DT $ S.TAPut [toRawTypedExpr $ fst e] (B.getTypeTE arr)
+  let t' = B.DT $ S.TAPut [B.toRawTypedExpr $ fst e] (B.getTypeTE arr)
       arr' = B.TE t' (S.ArrayPut arr [e]) l
    in desugarExpr $ B.TE t (S.ArrayPut arr' es) l
 #endif
@@ -768,17 +774,17 @@ desugarExpr (B.TE t (S.Con c es) p) = __impossible "desugarExpr (Con)"
 --   E . Con c <$> desugarExpr (B.TE tes (S.Tuple es) p)
 desugarExpr (B.TE _ (S.Put _ _) _) = __impossible "desugarExpr (Put)"
 
-desugarConst :: (VarName, B.TypedExpr) -> DS 'Zero 'Zero (CoreConst UntypedExpr)
+desugarConst :: (VarName, B.TypedExpr) -> DS 'Zero 'Zero 'Zero (CoreConst UntypedExpr)
 desugarConst (n,e) = (n,) <$> desugarExpr e
 
 -- NOTE: assume the first argument consists of constants only
-desugarConsts :: [S.TopLevel B.DepType B.TypedPatn B.TypedExpr] -> DS 'Zero 'Zero [CoreConst UntypedExpr]
+desugarConsts :: [S.TopLevel B.DepType B.TypedPatn B.TypedExpr] -> DS 'Zero 'Zero 'Zero [CoreConst UntypedExpr]
 desugarConsts = mapM desugarConst . P.map (\(S.ConstDef v _ e) -> (v,e))
 
 
 -- ----------------------------------------------------------------------------
 -- custTyGen
 
-desugarCustTyGen :: [(B.DepType, String)] -> DS t v [(SupposedlyMonoType VarName, String)]
+desugarCustTyGen :: [(B.DepType, String)] -> DS t l v [(SupposedlyMonoType VarName, String)]
 desugarCustTyGen = mapM $ firstM (return . SMT <=< desugarType)
 

@@ -29,6 +29,8 @@ import Cogent.Dargent.Allocation
 import Cogent.Dargent.Util
 import Cogent.Util
 
+import Data.Nat
+
 {- * Core datalayout types -}
 
 -- | A specification of the bit layout of a Cogent type
@@ -55,6 +57,7 @@ data DataLayout' bits
 #ifdef BUILTIN_ARRAYS
   | ArrayLayout (DataLayout' bits)
 #endif
+  | VarLayout Nat
   deriving (Show, Eq, Functor, Foldable, Generic)
 
 deriving instance Ord bits => Ord (DataLayout' bits)
@@ -67,7 +70,6 @@ instance Binary a => Binary (DataLayout' a)
 -- The DataLayout wrapper type
 data DataLayout bits
   = Layout (DataLayout' bits) -- this type has this layout
-  | LayoutVar DLVarName
   | CLayout  -- defer the layout of this type to C
   deriving (Show, Eq, Functor, Foldable, Generic)
 
