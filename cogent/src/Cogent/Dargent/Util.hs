@@ -12,27 +12,26 @@
 
 module Cogent.Dargent.Util where
 
+import Cogent.Compiler
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 
 import Text.Parsec.Pos (SourcePos)
 
 wordSizeBits :: Size
-wordSizeBits = 32
+wordSizeBits = case architecture of
+                 X86_32 -> 32
+                 X86_64 -> 64
+                 ARM32  -> 32
 
 byteSizeBits :: Size
 byteSizeBits = 8
 
-data Architecture = X86_64 | X86_32 | ARM32
-
 architecture :: Architecture
-architecture = ARM32 -- TODO(dargent): compiler flag
+architecture = __cogent_arch
 
 pointerSizeBits :: Size
-pointerSizeBits = case architecture of
-  X86_32 -> 32
-  X86_64 -> 64
-  ARM32  -> 32
+pointerSizeBits = wordSizeBits
 
 primIntSizeBits :: PrimInt -> Size
 primIntSizeBits U8      = 8
