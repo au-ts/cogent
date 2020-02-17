@@ -190,6 +190,7 @@ library
               , Cogent.TypeCheck.Base
               , Cogent.TypeCheck.Errors
               , Cogent.TypeCheck.Generator
+              , Cogent.TypeCheck.LRow
               , Cogent.TypeCheck.Post
               , Cogent.TypeCheck.Row
               , Cogent.TypeCheck.Solver

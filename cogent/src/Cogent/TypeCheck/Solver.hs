@@ -108,7 +108,6 @@ solve ks ms c = let gs     = makeGoals [] c
   -- - Reorder Equate stage before JoinMeet:
   --    The new Sink/float stage can apply when Equate does, but Sink/float introduces potentially many new constraints, while Equate is simpler and just replaces a subtyping constraint with equality.
                     rw     = debugF "Initial constraints" printC <>
-                             -- TODO: rewrite for normalising layouts
-                             Rewrite.untilFixedPoint (Rewrite.pre normaliseTypes stages)
+                             Rewrite.untilFixedPoint (Rewrite.pre normalise stages)
                  in fmap (fromMaybe gs) (runMaybeT (Rewrite.runRewriteT rw gs))
 

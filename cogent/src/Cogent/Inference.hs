@@ -100,16 +100,16 @@ isSubtype t1 t2 = runMaybeT (t1 `lub` t2) >>= \case Just t  -> return $ t == t2
 bound :: (Show b, Eq b) => Bound -> Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
 bound _ t1 t2 | t1 == t2 = return t1
 bound b (TRecord fs1 s1) (TRecord fs2 s2)
-  | map fst fs1 == map fst fs2
-  , (Boxed _ (LayoutVar n1)) <- s1
-  , (Boxed _ (LayoutVar n2)) <- s2
-    = error "undetermined"
-  | map fst fs1 == map fst fs2
-  , (Boxed _ (LayoutVar _)) <- s1
-    = bound b (TRecord fs1 s2) (TRecord fs2 s2)
-  | map fst fs1 == map fst fs2
-  , (Boxed _ (LayoutVar _)) <- s2
-    = bound b (TRecord fs2 s2) (TRecord fs1 s1)
+  -- | map fst fs1 == map fst fs2
+  -- , (Boxed _ (LayoutVar n1)) <- s1
+  -- , (Boxed _ (LayoutVar n2)) <- s2
+    -- = error "undetermined"
+  -- | map fst fs1 == map fst fs2
+  -- , (Boxed _ (LayoutVar _)) <- s1
+    -- = bound b (TRecord fs1 s2) (TRecord fs2 s2)
+  -- | map fst fs1 == map fst fs2
+  -- , (Boxed _ (LayoutVar _)) <- s2
+    -- = bound b (TRecord fs2 s2) (TRecord fs1 s1)
   | map fst fs1 == map fst fs2
   , s1 == s2
     = do

@@ -131,7 +131,7 @@ data DsState = DsState { _typedefs  :: DS.Typedefs
 data CoreTcState = CoreTcState { _funtypes :: Map FunName (CC.FunctionType VarName) }
 
 data MnState = MnState { _funMono  :: MN.FunMono VarName
-                       , _typeMono :: MN.TypeMono VarName
+                       , _typeMono :: MN.InstMono VarName
                        }
 
 data CgState = CgState { _cTypeDefs    :: [(CG.StrlType, CG.CId)]
@@ -489,11 +489,11 @@ tcAnti f a = lift . lift $
                                               flip runStateT mempty .
                                               runMaybeT $ f a)
 
-desugarAnti :: (a -> DS.DS t 'Zero b) -> a -> GlDefn t b
+desugarAnti :: (a -> DS.DS t 'Zero 'Zero b) -> a -> GlDefn t b
 desugarAnti m a = view kenv >>= \(fmap fst -> ts) -> lift . lift $
   StateT $ \s -> let tdefs = view (dsState.typedefs ) s
                      cdefs = view (dsState.constdefs) s
-                  in return (fst (flip3 evalRWS (DS.DsState ts Nil 0 0 []) (tdefs, cdefs, []) $ DS.runDS $ m a), s)  -- FIXME: pragmas / zilinc
+                  in return (fst (flip3 evalRWS (DS.DsState ts Nil Nil 0 0 []) (tdefs, cdefs, []) $ DS.runDS $ m a), s)  -- FIXME: pragmas / zilinc
 
 coreTcAnti :: (a -> IN.TC t 'Zero VarName b) -> a -> GlDefn t b
 coreTcAnti m a = view kenv >>= \(fmap snd -> ts) -> lift . lift $
@@ -567,7 +567,7 @@ parseFnCall s loc = parseAnti s PS.basicExpr' loc 4
 tcFnCall :: SF.LocExpr -> GlDefn t TC.TypedExpr
 tcFnCall e = do
   f <- case e of
-         SF.LocExpr _ (SF.TypeApp f ts _) -> return f  -- TODO: make use of Inline to perform glue code inlining / zilinc
+         SF.LocExpr _ (SF.TLApp f ts _ _) -> return f  -- TODO: make use of Inline to perform glue code inlining / zilinc
          SF.LocExpr _ (SF.Var f) -> return f
          otherwise -> throwError $ "Error: Not a function in $exp antiquote"
   f `seq` tcExp e Nothing
@@ -622,7 +622,7 @@ genFuncId :: String -> SrcLoc -> GlFile (FunName, [Maybe SF.LocType])
 genFuncId fn loc = do
   surfaceFn <- parseFnCall fn loc
   case surfaceFn of
-    SF.LocExpr _ (SF.TypeApp f ts _) -> return (f, ts)
+    SF.LocExpr _ (SF.TLApp f ts _ _) -> return (f, ts)
     SF.LocExpr _ (SF.Var f)          -> return (f, [])
     _ -> throwError $ "Error: `" ++ fn ++
                       "' is not a valid function Id (with optional type arguments) in a $id antiquote"
@@ -695,7 +695,7 @@ traverseOneFunc fn d loc = do
               CC.TE _ (CC.Fun _ coreTargs _ _) <- (flip tcExp (Nothing) >=>
                                                    desugarExp >=>
                                                    coreTcExp) $
-                                                  (SF.LocExpr pos (SF.TypeApp fnName targs' SF.NoInline))
+                                                  (SF.LocExpr pos (SF.TLApp fnName targs' [] SF.NoInline))
               -- Matching @coreTargs@ with @ts@. More specifically: match them in @mp@, and trim
               -- those in @mp@ that don't match up @coreTargs@.
               -- E.g. if @ts = [U8,a]@ and in @mp@ we find @[U8,U32]@ and @[U8,Bool]@, we instantiate this
@@ -784,7 +784,7 @@ mkGlState :: [SF.TopLevel TC.DepType TC.TypedPatn TC.TypedExpr]
           -> TC.TcState
           -> Last (DS.Typedefs, DS.Constants, [CC.CoreConst CC.UntypedExpr])
           -> M.Map FunName (CC.FunctionType VarName)
-          -> (MN.FunMono VarName, MN.TypeMono VarName)
+          -> (MN.FunMono VarName, MN.InstMono VarName)
           -> CG.GenState
           -> GlState
 mkGlState tced tcState (Last (Just (typedefs, constdefs, _))) ftypes (funMono, typeMono) genState =

@@ -193,7 +193,7 @@ validateType (RT t) = do
                  Left (e:_) -> Unsat $ DataLayoutError e
                  Right _    -> Sat
       (ct,t') <- validateType t
-      let l' = toTCDL $ normaliseDataLayoutExpr layouts l
+      let l' = toTCDL l
       pure (cl <> ct <> l' :~ t', T $ TLayout l' t')
 
     -- vvv The uninteresting cases; but we still have to match each of them to convince the typechecker / zilinc
@@ -234,16 +234,14 @@ normaliseType t = do
     T (TBang t) -> T . TBang <$> normaliseType t
     _ -> pure t
 
-normaliseTypes :: (?loc :: SourcePos, Traversable t) => (Constraint, t TCType) -> CG (Constraint, t TCType)
-normaliseTypes (c, ts) = do
-  ts' <- mapM normaliseType ts
-  pure (c, ts')
+normaliseTypes :: (?loc :: SourcePos, Traversable t) => t TCType -> CG (t TCType)
+normaliseTypes = mapM normaliseType
 
 validateLayout :: DataLayoutExpr -> CG (Constraint, TCDataLayout)
 validateLayout l = do
   ls <- lift $ use knownDataLayouts
   vs <- use knownDataLayoutVars
-  let l' = toTCDL $ normaliseDataLayoutExpr ls l
+  let l' = toTCDL l
   case runExcept $ tcDataLayoutExpr ls vs l of
     Left (e:_) -> pure (Unsat $ DataLayoutError e, l')
     Right _    -> pure (Sat, l')
@@ -340,7 +338,7 @@ cg' (Var n) t = do
     -- Variable not found, see if the user meant a function.
     Nothing ->
       lift (use $ knownFuns.at n) >>= \case
-        Just _  -> cg' (TypeApp n [] NoInline) t
+        Just _  -> cg' (TLApp n [] [] NoInline) t
         Nothing -> return (Unsat (NotInScope (funcOrVar t) n), e)
 
     -- Variable used for the first time, mark the use, and continue
@@ -588,34 +586,42 @@ cg' (Seq e1 e2) t = do
       c = c1 <> Drop alpha Suppressed <> c2
   return (c, e)
 
-cg' (TypeApp f as i) t = do
-  tvs <- use knownTypeVars
-  (ct, getCompose -> as') <- validateTypes (stripLocT <$> Compose as)
+cg' (TLApp f ts ls i) t = do
+  -- tvs <- use knownTypeVars
+  (ct, getCompose -> ts') <- validateTypes (stripLocT <$> Compose ts)
+  (cl, getCompose -> ls') <- validateLayouts (Compose ls)
   lift (use $ knownFuns.at f) >>= \case
-    Just (PT vs ls tau) -> let
-        match :: [(TyVarName, Kind)] -> [Maybe TCType] -> CG ([(TyVarName, TCType)], Constraint)
-        match [] []    = return ([], Sat)
-        match [] (_:_) = return ([], Unsat (TooManyTypeArguments f (PT vs ls tau)))
-        match vs []    = freshTVar >>= match vs . return . Just
-        match (v:vs) (Nothing:as) = freshTVar >>= \a -> match (v:vs) (Just a:as)
-        match ((v,k):vs) (Just a:as) = do
-          (ts, c) <- match vs as
-          return ((v,a):ts, kindToConstraint k a (TypeParam f v) <> c)
-      in do
-        (ts,c') <- match vs as'
-
-        let c = substType ts tau :< t
-            e = TypeApp f (map (Just . snd) ts) i
-        traceTc "gen" (text "cg for typeapp:" <+> prettyE e
-                 L.<$> text "of type" <+> pretty t <> semi
-                 L.<$> text "type signature is" <+> pretty (PT vs ls tau) <> semi
-                 L.<$> text "generate constraint" <+> prettyC c)
-        return (ct <> c' <> c, e)
-
+    Just (PT tvs lvs tau) -> do
+      let matchT :: [(TyVarName, Kind)] -> [Maybe TCType] -> CG (Constraint, [(TyVarName, TCType)])
+          matchT [] [] = pure (Sat, [])
+          matchT [] _  = pure (Unsat (TooManyTypeArguments f (PT tvs lvs tau)), [])
+          matchT vs [] = freshTVar >>= matchT vs . return . Just
+          matchT (v:vs) (Nothing:as) = freshTVar >>= \a -> matchT (v:vs) (Just a:as)
+          matchT ((v,k):vs) (Just a:as) = do
+            (c, ps) <- matchT vs as
+            return (kindToConstraint k a (TypeParam f v) <> c, (v,a):ps)
+          matchL :: [(DLVarName, TCType)] -> [Maybe TCDataLayout] -> CG (Constraint, [(DLVarName, TCDataLayout)])
+          matchL [] [] = pure (Sat, [])
+          matchL [] _  = pure (Unsat $ TooManyLayoutArguments f (PT tvs lvs tau), [])
+          matchL ts [] = freshLVar >>= matchL ts . return . Just
+          matchL (t':t'') (Nothing:l') = freshLVar >>= matchL (t':t'') . (:l') . Just
+          matchL ((v,t):t'') (Just l:l') = do
+            (c, ps) <- matchL t'' l'
+            return (c <> layoutMatchConstraint t l, (v, l):ps)
+      (cts, tps) <- matchT tvs ts'
+      (cls, lps) <- matchL lvs ls'
+      let rt = substLayout lps $ substType tps tau
+          rc = rt :< t
+          re = TLApp f (Just . snd <$> tps) (Just . snd <$> lps) i
+      traceTc "gen" (text "cg for tlapp:" <+> prettyE re
+               L.<$> text "of type" <+> pretty t <> semi
+               L.<$> text "type signature is" <+> pretty (PT tvs lvs tau) <> semi
+               L.<$> text "generate constraint" <+> prettyC rc)
+      return (ct <> cl <> cts <> cls <> rc, re)
     Nothing -> do
-      let e = TypeApp f as' i
+      let e = TLApp f ts' ls' i
           c = Unsat (FunctionNotFound f)
-      return (ct <> c, e)
+      return (ct <> cl <> c, e)
 
 cg' (Member e f) t =  do
   alpha <- freshTVar
@@ -704,32 +710,35 @@ cg' (Annot e tau) t = do
   (c', e') <- cg e t'
   return (c <> c', Annot e' t')
 
-cg' (LayoutApp e ls) t = do
-  -- tvs <- use knownTypeVars
-  (cl, getCompose -> ls') <- validateLayouts (Compose ls)
-  (c', e') <- cg e t
-  let (TypeApp f _ _) = getExpr e'
-  lift (use $ knownFuns.at f) >>= \case
-    Just (PT tvs lvs tau) -> do
-      let match :: [(DLVarName, TCType)] -> [Maybe TCDataLayout] -> CG (Constraint, [(DLVarName, TCDataLayout)])
-          match [] [] = pure (Sat, [])
-          match [] _  = pure (Unsat $ TooManyLayoutArguments f (PT tvs lvs tau), [])
-          match ts [] = freshLVar >>= match ts . return . Just
-          match (t':t'') (Nothing:l') = freshLVar >>= match (t':t'') . (:l') . Just
-          match (t':t'') (Just l:l') = do
-            (c, ps) <- match t'' l'
-            let (k, v) = t'
-            return (c <> layoutMatchConstraint v l, (k, l):ps)
-      (cs, ps) <- match lvs ls'
-      let ft = substLayout ps tau
-          lc = ft :< t
-          le = LayoutApp e' (Just . snd <$> ps)
-      traceTc "gen" (text "cg for layoutapp:" <+> prettyE le
-               L.<$> text "of type" <+> pretty t <> semi
-               L.<$> text "type signature is" <+> pretty (PT tvs lvs tau) <> semi
-               L.<$> text "generate constraint" <+> prettyC lc)
-      return (cl <> cs <> lc <> c', le)
-    Nothing -> return (Unsat (FunctionNotFound f) <> cl, LayoutApp e' ls')
+{-
+ - cg' (LayoutApp e ls) t = do
+ -   -- tvs <- use knownTypeVars
+ -   (cl, getCompose -> ls') <- validateLayouts (Compose ls)
+ -   alpha <- freshTVar
+ -   (c', e') <- cg e alpha
+ -   let (TypeApp f _ _) = getExpr e'
+ -   lift (use $ knownFuns.at f) >>= \case
+ -     Just (PT tvs lvs tau) -> do
+ -       let match :: [(DLVarName, TCType)] -> [Maybe TCDataLayout] -> CG (Constraint, [(DLVarName, TCDataLayout)])
+ -           match [] [] = pure (Sat, [])
+ -           match [] _  = pure (Unsat $ TooManyLayoutArguments f (PT tvs lvs tau), [])
+ -           match ts [] = freshLVar >>= match ts . return . Just
+ -           match (t':t'') (Nothing:l') = freshLVar >>= match (t':t'') . (:l') . Just
+ -           match (t':t'') (Just l:l') = do
+ -             (c, ps) <- match t'' l'
+ -             let (k, v) = t'
+ -             return (c <> layoutMatchConstraint v l, (k, l):ps)
+ -       (cs, ps) <- match lvs ls'
+ -       let ft = substLayout ps tau
+ -           lc = ft :< t
+ -           le = LayoutApp e' (Just . snd <$> ps)
+ -       traceTc "gen" (text "cg for layoutapp:" <+> prettyE le
+ -                L.<$> text "of type" <+> pretty t <> semi
+ -                L.<$> text "type signature is" <+> pretty (PT tvs lvs tau) <> semi
+ -                L.<$> text "generate constraint" <+> prettyC lc)
+ -       return (cl <> cs <> lc <> c', le)
+ -     Nothing -> return (Unsat (FunctionNotFound f) <> cl, LayoutApp e' ls')
+ -}
 
 -- -----------------------------------------------------------------------------
 -- Pattern constraints
@@ -862,7 +871,7 @@ match' (PArray ps) t = do
   alpha <- freshTVar  -- element type
   blob  <- mapM (`match` alpha) ps
   let (ss,cs,ps') = unzip3 blob
-      l = SE (T u32) (IntLit . fromIntegral $ length ps)  -- length of the array
+      l = SE (T u32) (IntLit . fromIntegral $ length ps) :: TCSExpr -- length of the array
       c = t :< (A alpha l (Left Unboxed) (Left Nothing))
   traceTc "gen" (text "match on array literal pattern" L.<$>
                  text "element type is" <+> pretty alpha L.<$>

@@ -19,6 +19,7 @@ import           Cogent.Dargent.TypeCheck
 import           Cogent.Surface
 import qualified Cogent.TypeCheck.ARow           as ARow
 import           Cogent.TypeCheck.Base
+import qualified Cogent.TypeCheck.LRow           as LRow
 import qualified Cogent.TypeCheck.Row            as Row
 import           Cogent.TypeCheck.Solver.Goal
 import           Cogent.TypeCheck.Solver.Monad
@@ -31,7 +32,6 @@ import Control.Applicative
 import Control.Monad.Trans.Maybe
 import Control.Monad.Writer
 import Data.Foldable (asum)
-import Data.List ((\\))
 import qualified Data.IntMap as IM (null)
 import Lens.Micro
 import Lens.Micro.Mtl
@@ -131,16 +131,6 @@ assignOfL :: TCDataLayout -> TCDataLayout -> MaybeT TcSolvM [Subst.Subst]
 assignOfL (TLU n) (TL l) = pure [Subst.ofLayout n (TL l)]
 assignOfL (TL l) (TLU n) = pure [Subst.ofLayout n (TL l)]
 assignOfL (TLU _) (TLU _) = empty
-assignOfL (TLRecord fs1) (TLRecord fs2)
-  | f1 <- fmap fst3 fs1
-  , f2 <- fmap fst3 fs2
-  , null (f1 \\ f2) && null (f2 \\ f1)
-  = __todo "assignOfL"  -- TODO: we may need data structures for all these operations
-assignOfL (TLVariant e1 fs1) (TLVariant e2 fs2)
-  | f1 <- fmap fst4 fs1
-  , f2 <- fmap fst4 fs2
-  , null (f1 \\ f2) && null (f2 \\ f1)
-  = __todo "assignOfL"
 #ifdef BUILTIN_ARRAYS
 assignOfL (TLArray e1 _) (TLArray e2 _) = assignOfL e1 e2
 #endif

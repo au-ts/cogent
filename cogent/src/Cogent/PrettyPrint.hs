@@ -138,8 +138,7 @@ instance Prec Associativity where
 instance Prec (Expr t p ip l e) where
   -- vvv terms
   prec (Var {}) = 0
-  prec (TypeApp {}) = 0
-  prec (LayoutApp {}) = 9
+  prec (TLApp {}) = 0
   prec (BoolLit {}) = 0
   prec (Con _ []) = 0
   prec (IntLit {}) = 0
@@ -185,7 +184,7 @@ instance Prec LocExpr where
 instance Prec (TExpr t) where
   prec (TE _ e _) = prec e
 
-instance Prec (SExpr t) where
+instance Prec (SExpr t l) where
   prec (SE _ e) = prec e
   prec (SU {}) = 0
 
@@ -223,7 +222,7 @@ instance ExprType LocExpr where
 instance ExprType (TExpr t) where
   isVar (TE _ e _) = isVar e
 
-instance ExprType (SExpr t) where
+instance ExprType (SExpr t l) where
   isVar (SE _ e) = isVar e
   isVar (SU {}) = const False
 
@@ -433,9 +432,9 @@ instance Pretty Inline where
 instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Pretty ip, Pretty e, Pretty l) =>
          Pretty (Expr t p ip l e) where
   pretty (Var x)             = varname x
-  pretty (TypeApp x ts note) = pretty note <> varname x
-                                 <> typeargs (map (\case Nothing -> symbol "_"; Just t -> pretty t) ts)
-  pretty (LayoutApp e l)     = pretty e <> layoutargs (map (\case Nothing -> symbol "_"; Just t -> pretty t) l)
+  pretty (TLApp x ts ls note) = pretty note <> varname x
+                                  <> typeargs (map (\case Nothing -> symbol "_"; Just t -> pretty t) ts)
+                                  <> layoutargs (map (\case Nothing -> symbol "_"; Just t -> pretty t) ls)
   pretty (Member x f)        = prettyPrec 9 x <> symbol "." <> fieldname f
   pretty (IntLit i)          = literal (string $ show i)
   pretty (BoolLit b)         = literal (string $ show b)
@@ -507,7 +506,7 @@ instance Pretty t => Pretty (TExpr t) where
   pretty (TE t e _) | __cogent_fshow_types_in_pretty = parens $ pretty e <+> comment "::" <+> pretty t
                     | otherwise = pretty e
 
-instance Pretty t => Pretty (SExpr t) where
+instance (Pretty t, Pretty l) => Pretty (SExpr t l) where
   pretty (SE t e) | __cogent_fshow_types_in_pretty = parens $ pretty e <+> comment "::" <+> pretty t
                   | otherwise = pretty e
   pretty (SU t n) | __cogent_fshow_types_in_pretty = parens $ warn ('?':show n) <+> comment "::" <+> pretty t
@@ -802,7 +801,9 @@ instance Pretty TypeError where
   pretty (LayoutOnNonRecordOrCon t) = err "Tried to put a layout onto something that isn't a record or abstract type:" <$> indent' (pretty t)
   pretty (LayoutDoesNotMatchType l t) = err "Layout " <$$> indent' (pretty l)
                                           <$$> err " does not match type " <$$> indent' (pretty t)
-  pretty (TypeWarningAsError w)          = pretty w
+  pretty (LayoutsNotCompatible l1 l2) = err "Layout " <$$> indent' (pretty l1)
+                                          <$$> err " is not compatible with layout " <$$> indent' (pretty l2)
+  pretty (TypeWarningAsError w)       = pretty w
 
 instance Pretty TypeWarning where
   pretty (UnusedLocalBind v) = warn "[--Wunused-local-binds]" <$$> indent' (warn "Defined but not used:" <+> pretty v)
@@ -978,7 +979,6 @@ instance Pretty DataLayoutPath where
 
 instance Pretty a => Pretty (DataLayout a) where
   pretty (Layout l) = symbol "layout" <+> pretty l
-  pretty (LayoutVar n) = symbol "layout-v" <+> dlvarname n
   pretty CLayout = symbol "c-layout"
 
 instance Pretty a => Pretty (DataLayout' a) where
