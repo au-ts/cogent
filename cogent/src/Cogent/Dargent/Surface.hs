@@ -25,7 +25,8 @@ module Cogent.Dargent.Surface
 where
 
 import Cogent.Common.Syntax (FieldName, TagName, RepName, Size, DLVarName)
-import Cogent.Compiler (__fixme)
+import Cogent.Compiler (__fixme, __todo, __impossible)
+import Cogent.Dargent.Util
 
 import Data.Data
 import Text.Parsec.Pos (SourcePos)
@@ -35,7 +36,15 @@ data DataLayoutSize
   | Bits  Size
   | Add   DataLayoutSize DataLayoutSize
   -- Future options, sizeof, offsetof, "after"
-  deriving (Show, Data, Eq, Ord)
+  deriving (Show, Data, Ord)
+
+instance Eq DataLayoutSize where
+  (==) n m = evalSize n == evalSize m
+
+evalSize :: DataLayoutSize -> Size
+evalSize (Bytes b) = b * 8
+evalSize (Bits b)  = b
+evalSize (Add a b) = evalSize a + evalSize b
 
 data DataLayoutDecl
   = DataLayoutDecl SourcePos RepName DataLayoutExpr
@@ -71,3 +80,7 @@ pattern DLOffset e s   = DL (Offset e s)
 pattern DLRepRef n     = DL (RepRef n)
 pattern DLVar n        = DL (LVar n)
 pattern DLPtr          = DL Ptr
+
+instance DataLayoutComparable DataLayoutExpr where
+  testEqual = __todo "testEqual for DataLayoutExpr"
+

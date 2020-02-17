@@ -13,6 +13,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -39,9 +40,9 @@ import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Control.Monad.Writer hiding (Alt)
 import Control.Monad.Reader
-import Data.Bifoldable (bifoldMap)
-import Data.Bifunctor (bimap, first, second)
-import Data.Bitraversable (bitraverse)
+import Data.Bifoldable
+import Data.Bifunctor
+import Data.Bitraversable
 import Data.Data (Data)
 import Data.Foldable (all)
 import Data.Maybe (fromJust, isJust)
@@ -110,7 +111,8 @@ data TypeError = FunctionNotFound VarName
                | TypeWarningAsError TypeWarning
                | DataLayoutError DataLayoutTcError
                | LayoutOnNonRecordOrCon TCType
-               | LayoutDoesNotMatchType DataLayoutExpr TCType
+               | LayoutDoesNotMatchType TCDataLayout TCType
+               | LayoutsNotCompatible TCDataLayout TCDataLayout
                | OtherTypeError String
                deriving (Eq, Show, Ord)
 
@@ -178,29 +180,29 @@ data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: Seq
 
 (>:) = flip (:<)
 
-data Constraint' t = (:<) t t
-                   | (:=:) t t
-                   | (:&) (Constraint' t) (Constraint' t)
-                   | Upcastable t t
-                   | Share t Metadata
-                   | Drop t Metadata
-                   | Escape t Metadata
-                   | (:~) TCDataLayout t
-                   | (:~:) TCDataLayout TCDataLayout
-                   | (:@) (Constraint' t) ErrorContext
-                   | Unsat TypeError
-                   | SemiSat TypeWarning
-                   | Sat
-                   | Exhaustive t [RawPatn]
-                   | Solved t
-                   | IsPrimType t
+data Constraint' t l = (:<) t t
+                     | (:=:) t t
+                     | (:&) (Constraint' t l) (Constraint' t l)
+                     | Upcastable t t
+                     | Share t Metadata
+                     | Drop t Metadata
+                     | Escape t Metadata
+                     | (:~) l t
+                     | (:~:) l l
+                     | (:@) (Constraint' t l) ErrorContext
+                     | Unsat TypeError
+                     | SemiSat TypeWarning
+                     | Sat
+                     | Exhaustive t [RawPatn]
+                     | Solved t
+                     | IsPrimType t
 #ifdef BUILTIN_ARRAYS
-                   | Arith (SExpr t)
-                   | (:->) (Constraint' t) (Constraint' t)
+                     | Arith (SExpr t l)
+                     | (:->) (Constraint' t l) (Constraint' t l)
 #endif
-                   deriving (Eq, Show, Ord, Functor, Foldable, Traversable)
+                     deriving (Eq, Show, Ord)
 
-type Constraint = Constraint' TCType
+type Constraint = Constraint' TCType TCDataLayout
 
 arithTCType :: TCType -> Bool
 arithTCType (T (TCon n [] Unboxed)) | n `elem` ["U8", "U16", "U32", "U64", "Bool"] = True
@@ -240,7 +242,7 @@ notTCSExpr e = SE (T bool) (PrimOp "not" [e])
 #endif
 
 #if __GLASGOW_HASKELL__ < 803	
-instance Monoid (Constraint' x) where	
+instance Monoid (Constraint' x y) where
   mempty = Sat	
   mappend Sat x = x	
   mappend x Sat = x	
@@ -248,13 +250,60 @@ instance Monoid (Constraint' x) where
   -- mappend x (Unsat r) = Unsat r	
   mappend x y = x :& y	
 #else
-instance Semigroup (Constraint' x) where
+instance Semigroup (Constraint' x y) where
   Sat <> x = x
   x <> Sat = x
   x <> y = x :& y
-instance Monoid (Constraint' x) where
+instance Monoid (Constraint' x y) where
   mempty = Sat
 #endif
+
+instance Bifunctor Constraint' where
+  bimap f g (t1 :<  t2)        = (f t1) :<  (f t2)
+  bimap f g (t1 :=: t2)        = (f t1) :=: (f t2)
+  bimap f g (c1 :&  c2)        = (bimap f g c1) :& (bimap f g c2)
+  bimap f g (Upcastable t1 t2) = Upcastable (f t1) (f t2)
+  bimap f g (Share t m)        = Share (f t) m
+  bimap f g (Drop t m)         = Drop (f t) m
+  bimap f g (Escape t m)       = Escape (f t) m
+  bimap f g (l  :~  t)         = (g l) :~ (f t)
+  bimap f g (l1 :~: l2)        = (g l1) :~: (g l2)
+  bimap f g (c  :@  e)         = (bimap f g c) :@ e
+  bimap f g (Exhaustive t ps)  = Exhaustive (f t) ps
+  bimap f g (Solved t)         = Solved (f t)
+  bimap f g (IsPrimType t)     = IsPrimType (f t)
+#ifdef BUILTIN_ARRAYS
+  bimap f g (Arith se)         = Arith (bimap f g se)
+  bimap f g (c1 :-> c2)        = (bimap f g c1) :-> (bimap f g c2)
+#endif
+  bimap f g Sat                = Sat
+  bimap f g (SemiSat w)        = SemiSat w
+  bimap f g (Unsat e)          = Unsat e
+
+instance Bifoldable Constraint' where
+  bifoldMap f g cs = getConst $ bitraverse (Const . f) (Const . g) cs
+
+instance Bitraversable Constraint' where
+  bitraverse f g (t1 :<  t2)        = (:<)  <$> f t1 <*> f t2
+  bitraverse f g (t1 :=: t2)        = (:=:) <$> f t1 <*> f t2
+  bitraverse f g (c1 :&  c2)        = (:&)  <$> bitraverse f g c1 <*> bitraverse f g c2
+  bitraverse f g (Upcastable t1 t2) = Upcastable <$> f t1 <*> f t2
+  bitraverse f g (Share t m)        = Share <$> f t <*> pure m
+  bitraverse f g (Drop t m)         = Drop  <$> f t <*> pure m
+  bitraverse f g (Escape t m)       = Escape <$> f t <*> pure m
+  bitraverse f g (l  :~  t)         = (:~)  <$> g l <*> f t
+  bitraverse f g (l1 :~: l2)        = (:~:) <$> g l1 <*> g l2
+  bitraverse f g (c  :@  e)         = (:@)  <$> bitraverse f g c <*> pure e
+  bitraverse f g (Exhaustive t ps)  = Exhaustive <$> f t <*> pure ps
+  bitraverse f g (Solved t)         = Solved <$> f t
+  bitraverse f g (IsPrimType t)     = IsPrimType <$> f t
+#ifdef BUILTIN_ARRAYS
+  bitraverse f g (Arith se)         = Arith <$> bitraverse f g se
+  bitraverse f g (c1 :-> c2)        = (:->) <$> bitraverse f g c1 <*> bitraverse f g c2
+#endif
+  bitraverse f g Sat                = pure Sat
+  bitraverse f g (SemiSat w)        = pure $ SemiSat w
+  bitraverse f g (Unsat e)          = pure $ Unsat e
 
 kindToConstraint :: Kind -> TCType -> Metadata -> Constraint
 kindToConstraint k t m = (if canEscape  k then Escape t m else Sat)
@@ -282,24 +331,24 @@ data TCType         = T (Type TCSExpr TCDataLayout TCType)
                     | Synonym TypeName [TCType]
                     deriving (Show, Eq, Ord)
 
-data SExpr t        = SE { getTypeSE :: t, getExprSE :: Expr t (TPatn t) (TIrrefPatn t) TCDataLayout (SExpr t) }
+data SExpr t l      = SE { getTypeSE :: t, getExprSE :: Expr t (TPatn t) (TIrrefPatn t) l (SExpr t l) }
                     | SU t Int
                     deriving (Show, Eq, Ord)
 
-typeOfSE :: SExpr t -> t
+typeOfSE :: SExpr t l -> t
 typeOfSE (SE t _) = t
 typeOfSE (SU t _) = t
 
-type TCSExpr = SExpr TCType
+type TCSExpr = SExpr TCType TCDataLayout
 
-instance Functor SExpr where
-  fmap f (SE t e) = SE (f t) (fffffmap f $ ffffmap (fmap f) $ fffmap (fmap f) $ fmap (fmap f) e)
-  fmap f (SU t x) = SU (f t) x
-instance Foldable SExpr where
-  foldMap f e = getConst $ traverse (Const . f) e
-instance Traversable SExpr where
-  traverse f (SE t e) = SE <$> f t <*> pentatraverse f (traverse f) (traverse f) pure (traverse f) e
-  traverse f (SU t x) = SU <$> f t <*> pure x
+instance Bifunctor SExpr where
+  bimap f g (SE t e) = SE (f t) (fffffmap f $ ffffmap (fmap f) $ fffmap (fmap f) $ ffmap g $ fmap (bimap f g) e)
+  bimap f g (SU t x) = SU (f t) x
+instance Bifoldable SExpr where
+  bifoldMap f g e = getConst $ bitraverse (Const . f) (Const . g) e
+instance Bitraversable SExpr where
+  bitraverse f g (SE t e) = SE <$> f t <*> pentatraverse f (traverse f) (traverse f) g (bitraverse f g) e
+  bitraverse f g (SU t x) = SU <$> f t <*> pure x
 
 data FuncOrVar = MustFunc | MustVar | FuncOrVar deriving (Eq, Ord, Show)
 
@@ -674,11 +723,11 @@ unknowns (R r s) = concatMap unknowns (Row.allTypes r)
 unknowns (A t l s tkns) = unknowns t ++ unknownsE l ++ bifoldMap (foldMap unknownsE) (const mempty) tkns
 unknowns (T x) = foldMap unknowns x
 
-unknownsE :: SExpr t -> [Int]
+unknownsE :: SExpr t l -> [Int]
 unknownsE (SU _ x) = [x]
 unknownsE (SE _ e) = foldMap unknownsE e
 
-isKnown :: SExpr t -> Bool
+isKnown :: SExpr t l -> Bool
 isKnown (SU _ _) = False
 isKnown (SE _ e) = all isKnown e
 

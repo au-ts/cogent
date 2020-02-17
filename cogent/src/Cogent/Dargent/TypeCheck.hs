@@ -28,12 +28,13 @@ import Control.Monad.Trans.Except
 
 import Cogent.Common.Syntax (FieldName, TagName, DataLayoutName, Size, DLVarName)
 import Cogent.Common.Types (Sigil)
-import Cogent.Compiler (__fixme, __impossible)
+import Cogent.Compiler (__fixme, __impossible, __todo)
 import Cogent.Dargent.Allocation
 import Cogent.Dargent.Surface
 import Cogent.Dargent.Util
 import Cogent.Util (WriterMaybe, tellEmpty, mapTells)
 import Cogent.Surface (Type(..))
+import qualified Cogent.TypeCheck.LRow as LRow
 
 import Data.Data
 import Data.Bifunctor (bimap, first, second)
@@ -57,6 +58,29 @@ pattern TLOffset e s   = TL (Offset e s)
 pattern TLRepRef n     = TL (RepRef n)
 pattern TLVar n        = TL (LVar n)
 pattern TLPtr          = TL Ptr
+
+instance DataLayoutComparable TCDataLayout where
+  testEqual (TLRepRef _) (TLRepRef _) = __impossible "TLRepRef should be normalised before"
+  testEqual (TLVar v1) (TLVar v2) = v1 == v2
+  -- testEqual (TLVar _) (TLU _) = False
+  -- testEqual (TLVar _) _ = True
+  -- testEqual (TLU _) (TLVar _) = False
+  -- testEqual _ (TLVar _) = True
+  testEqual (TLPrim n1) (TLPrim n2) = n1 == n2
+  testEqual (TLOffset e1 n1) (TLOffset e2 n2) = testEqual (TL e1) (TL e2) && n1 == n2
+  testEqual (TLRecord fs1) (TLRecord fs2) =
+    let r1 = LRow.fromList $ map (\(a,b,c) -> (a,c,())) fs1
+        r2 = LRow.fromList $ map (\(a,b,c) -> (a,c,())) fs2
+     in LRow.identical r1 r2
+  testEqual (TLVariant e1 fs1) (TLVariant e2 fs2) =
+    let r1 = LRow.fromList $ map (\(a,b,c,d) -> (a,d,c)) fs1
+        r2 = LRow.fromList $ map (\(a,b,c,d) -> (a,d,c)) fs2
+     in LRow.identical r1 r2 && testEqual (TL e1) (TL e2)
+#ifdef BUILTIN_ARRAYS
+  testEqual (TLArray e1 _) (TLArray e2 _) = testEqual e1 e2
+#endif
+  -- testEqual l1 l2 = error $ "testEqual unhandled " ++ show l1 ++ " , " ++ show l2
+  testEqual _ _ = False -- pass it to next normalise step
 
 {- * Utility functions -}
 
@@ -191,6 +215,7 @@ normaliseTCDataLayout env (TLArray l p) = TLArray (normaliseTCDataLayout env l) 
 normaliseTCDataLayout _ l = l
 
 {- * Types -}
+-- TODO: we may change the type of NamedDataLayouts
 type NamedDataLayouts = Map DataLayoutName (DataLayoutExpr, Maybe Allocation)
 type DataLayoutTcError = DataLayoutTcErrorP DataLayoutPath
 -- type DataLayoutTypeMatchError = DataLayoutTcErrorP DataLayoutPath -- TODO: needed to implement `tcDataLayoutTypeMatch`
@@ -264,12 +289,6 @@ normaliseDataLayoutDecl env (DataLayoutDecl pos name expr) =
 -- Normalises the layout in the sigil to remove references to named layouts
 normaliseSigil :: NamedDataLayouts -> Sigil (Maybe TCDataLayout) -> Sigil (Maybe TCDataLayout)
 normaliseSigil env = fmap (fmap (normaliseTCDataLayout env))
-
-{- * Other functions -}
-evalSize :: DataLayoutSize -> Size
-evalSize (Bytes b) = b * 8
-evalSize (Bits b)  = b
-evalSize (Add a b) = evalSize a + evalSize b
 
 mapPaths
   :: (DataLayoutPath -> DataLayoutPath)
