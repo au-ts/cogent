@@ -105,6 +105,12 @@ mkThyFileName src suf =
 data Cogent_WarningSwitch = Flag_w | Flag_Wwarn | Flag_Werror
 
 set_flag_absTypeDir = writeIORef __cogent_abs_type_dir_ref
+set_flag_arch s = writeIORef __cogent_arch_ref $
+  case s of
+    "arm32"  -> ARM32
+    "x86_64" -> X86_64
+    "x86"    -> X86_32
+    _        -> error $ "unrecognised architecture: " ++ s
 set_flag_cogentPpArgs = writeIORef __cogent_cogent_pp_args_ref . words
 set_flag_cpp = writeIORef __cogent_cpp_ref
 set_flag_cppArgs = writeIORef __cogent_cpp_args_ref
@@ -237,6 +243,15 @@ __cogent_abs_type_dir = unsafePerformIO $ readIORef __cogent_abs_type_dir_ref
 __cogent_abs_type_dir_ref :: IORef FilePath
 {-# NOINLINE __cogent_abs_type_dir_ref #-}
 __cogent_abs_type_dir_ref = unsafePerformIO $ newIORef "."
+
+data Architecture = X86_64 | X86_32 | ARM32
+
+__cogent_arch :: Architecture
+__cogent_arch = unsafePerformIO $ readIORef __cogent_arch_ref
+
+__cogent_arch_ref :: IORef Architecture
+{-# LANGUAGE __cogent_arch_ref #-}
+__cogent_arch_ref = unsafePerformIO $ newIORef ARM32
 
 __cogent_cogent_pp_args :: [String]
 __cogent_cogent_pp_args = unsafePerformIO $ readIORef __cogent_cogent_pp_args_ref
