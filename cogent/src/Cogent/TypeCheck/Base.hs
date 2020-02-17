@@ -295,6 +295,17 @@ rigid (V r) = not $ Row.justVar r
 rigid _ = True
 data FuncOrVar = MustFunc | MustVar | FuncOrVar deriving (Eq, Ord, Show)
 
+floppy :: TCType -> Bool
+floppy = not . rigid
+
+-- returns true if a type has a (TBang | TTake | TPut) wrapping it
+wobbly :: TCType -> Bool
+wobbly (T (TBang {})) = True
+wobbly (T (TTake {})) = True
+wobbly (T (TPut {})) = True
+wobbly _ = False
+
+
 funcOrVar :: TCType -> FuncOrVar
 funcOrVar (U _) = FuncOrVar
 funcOrVar (T (TVar  {})) = FuncOrVar

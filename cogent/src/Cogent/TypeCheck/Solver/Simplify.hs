@@ -183,13 +183,15 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
   T (TRPar v1 b1 (Just m1)) :<  T (TRPar v2 b2 (Just m2)) -> Just [ ifBang b1 (m1 M.! v1) :< ifBang b2 (m2 M.! v2) ]
   T (TRPar v1 b1 (Just m1)) :=: T (TRPar v2 b2 (Just m2)) -> Just [ ifBang b1 (m1 M.! v1) :=: ifBang b2 (m2 M.! v2) ]
 
-  T (TRPar v1 b1 Nothing) :<  T (TRPar v2 b2 Nothing) | b1 == b2 -> Just []
+  T (TRPar v1 b1 Nothing) :<  T (TRPar v2 b2 Nothing) | b1 == b2  -> Just []
+                                                      | otherwise -> Nothing
   T (TRPar v1 b1 Nothing) :=: T (TRPar v2 b2 Nothing) | b1 == b2 -> Just []
+                                                      | otherwise -> Nothing
 
-  T (TRPar v b m) :< x  -> Just [unroll v b m :< x]
-  x :< T (TRPar v b m)  -> Just [x :< unroll v b m]
-  x :=: T (TRPar v b m) -> Just [x :=: unroll v b m]
-  T (TRPar v b m) :=: x -> Just [unroll v b m :=: x]
+  T (TRPar v b m) :< x  | not $ wobbly x -> Just [unroll v b m :< x]
+  x :< T (TRPar v b m)  | not $ wobbly x -> Just [x :< unroll v b m]
+  x :=: T (TRPar v b m) | not $ wobbly x -> Just [x :=: unroll v b m]
+  T (TRPar v b m) :=: x | not $ wobbly x -> Just [unroll v b m :=: x]
 
   UnboxedNotRecursive (R None _ (Left Unboxed))     -> Just []
   UnboxedNotRecursive (R _ _    (Left (Boxed _ _))) -> Just []
