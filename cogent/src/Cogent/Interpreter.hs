@@ -402,7 +402,7 @@ dsExpr r e = do
   let (tls, constdefs) = partition (not . isConstDef) (surface preldS)
       tls' = filter isDefn tls
   return . fst
-         . flip3 evalRWS (Ds.DsState V.Nil V.Nil 0 0 [])
+         . flip3 evalRWS (Ds.DsState V.Nil V.Nil V.Nil 0 0 [])
                          (M.empty, M.empty, [])
          . Ds.runDS
          $ (,) <$> (fmap fst $ Ds.desugar' tls' constdefs [] []) <*> Ds.desugarExpr e

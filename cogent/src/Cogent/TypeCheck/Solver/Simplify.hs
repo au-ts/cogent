@@ -11,16 +11,20 @@
 --
 
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Cogent.TypeCheck.Solver.Simplify where
 
 import           Cogent.Common.Syntax
 import           Cogent.Common.Types
 import           Cogent.Compiler
+import           Cogent.Dargent.Surface
 import           Cogent.Dargent.TypeCheck
-import qualified Cogent.TypeCheck.ARow as ARow
+import           Cogent.Dargent.Util
 import           Cogent.TypeCheck.Base
+import qualified Cogent.TypeCheck.LRow as LRow
 import qualified Cogent.TypeCheck.Row as Row
+import           Cogent.TypeCheck.Row (Entry)
 #ifdef BUILTIN_ARRAYS
 import           Cogent.TypeCheck.Solver.SMT (smtSat)
 #endif
@@ -44,17 +48,8 @@ import qualified Data.Set as S
 import           Data.Word (Word32)
 import           Lens.Micro
 
-import           Cogent.Common.Syntax
-import           Cogent.Common.Types
-import           Cogent.Compiler
-import           Cogent.TypeCheck.ARow as ARow
-import           Cogent.TypeCheck.Base
-import qualified Cogent.TypeCheck.Row as Row
-import           Cogent.TypeCheck.Row (Entry)
-import           Cogent.TypeCheck.Solver.Goal 
-import           Cogent.TypeCheck.Solver.Monad
-import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
-import           Cogent.Surface
+
+type TCSigil = Either (Sigil (Maybe TCDataLayout)) Int  -- local synonym
 
 onGoal :: (Monad m) => (Constraint -> MaybeT m [Constraint]) -> Goal -> MaybeT m [Goal]
 onGoal f g = fmap (map (derivedGoal g)) (f (g ^. goal))
@@ -155,13 +150,55 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
 
   IsPrimType (T (TCon x _ Unboxed)) | x `elem` primTypeCons -> hoistMaybe $ Just []
 
-  TLVar n :~ tau | Just t <- lookup n ts ->
-    if testEqualLayoutT tau t then hoistMaybe $ Just []
-                              else hoistMaybe Nothing
-  l :~ tau -> __todo "layout match type"
+  TLVar n        :~ tau | Just t <- lookup n ts
+                        , testEqualLayoutT tau t
+                        -> hoistMaybe $ Just []
+  TLRepRef _     :~ tau -> __impossible "TLRepRef should be normalised before"
+  TLRecord fs    :~ R _ (Left (Boxed _ (Just l))) -> hoistMaybe $ Just [TLRecord fs :~: l]
+  TLRecord fs    :~ R r (Left (Boxed _ Nothing))
+    | ls <- LRow.entries $ LRow.fromList $ (\(a,b,c) -> (a,c,())) <$> fs
+    , rs <- Row.entries r
+    -> hoistMaybe $ Just $ (\((_,e,_),(_,(t,_))) -> e :~ t) <$> M.elems (M.intersectionWith (,) ls rs)
+  TLRecord _     :~ R _ (Right _) -> __todo "TLRecord fs :~ R r1 (Right n) => is this possible?"
+  TLVariant _ _  :~ tau -> __todo "TLVariant e fs :~ tau => is this possible?"
+#ifdef BUILTIN_ARRAYS
+  TLArray e _    :~ A _ _ (Left (Boxed _ (Just l))) _ -> hoistMaybe $ Just [e :~: l]
+  TLArray e _    :~ A t _ (Left (Boxed _ Nothing)) _ -> hoistMaybe $ Just [e :~ t]
+  TLArray e _    :~ A _ _ (Right _) _ -> __todo "TLArray e p :~ A t l (Right n) h => is this possible?"
+#endif
+  TLOffset e _   :~ tau -> hoistMaybe $ Just [TL e :~ tau]
+  TLPrim n       :~ tau
+    | isPrimitiveType tau
+    , primitiveTypeSize tau <= evalSize n
+    -> hoistMaybe $ Just []
+    | isBoxedType tau
+    , evalSize n == pointerSizeBits
+    -> hoistMaybe $ Just []
+  TLPtr          :~ tau
+    | isBoxedType tau -> hoistMaybe $ Just []
+  l              :~ T (TBang tau) -> hoistMaybe $ Just [l :~ tau]
+  _              :~ Synonym _ _ -> hoistMaybe Nothing
+  l              :~ tau -> unsat $ LayoutDoesNotMatchType l tau
 
-  l1 :~: l2 -> if testEqualLayoutL l1 l2 then hoistMaybe $ Just []
-                                         else hoistMaybe Nothing
+  TLRepRef _       :~: TLRepRef _ -> hoistMaybe Nothing
+  TLRepRef _       :~: _          -> hoistMaybe Nothing
+  _                :~: TLRepRef _ -> hoistMaybe Nothing
+  TLVar v1         :~: TLVar v2       | v1 == v2 -> hoistMaybe $ Just []
+  TLPrim n1        :~: TLPrim n2      | n1 == n2 -> hoistMaybe $ Just []
+  TLOffset e1 n1   :~: TLOffset e2 n2 | n1 == n2 -> hoistMaybe $ Just [TL e1 :~: TL e2]
+  TLRecord fs1     :~: TLRecord fs2
+    | r1 <- LRow.fromList $ map (\(a,b,c) -> (a,c,())) fs1
+    , r2 <- LRow.fromList $ map (\(a,b,c) -> (a,c,())) fs2
+    -> hoistMaybe $ Just $ (\((_,l1,_),(_,l2,_)) -> l1 :~: l2) <$> LRow.common r1 r2
+  TLVariant e1 fs1 :~: TLVariant e2 fs2
+    | r1 <- LRow.fromList $ map (\(a,b,c,d) -> (a,d,c)) fs1
+    , r2 <- LRow.fromList $ map (\(a,b,c,d) -> (a,d,c)) fs2
+    , LRow.identicalFields r1 r2
+    -> hoistMaybe $ Just $ ((\((_,l1,_),(_,l2,_)) -> l1 :~: l2) <$> LRow.common r1 r2) <> [TL e1 :~: TL e2]
+#ifdef BUILTIN_ARRAYS
+  TLArray e1 _     :~: TLArray e2 _ -> hoistMaybe $ Just [e1 :~: e2]
+#endif
+  l1               :~: l2 -> unsat $ LayoutsNotCompatible l1 l2
 
   T (TLayout l1 t1) :=: T (TLayout l2 t2) -> hoistMaybe $ Just [l1 :~: l2, t1 :=: t2, l1 :~ t1, l2 :~ t2]
   T (TLayout l1 t1) :<  T (TLayout l2 t2) -> hoistMaybe $ Just [l1 :~: l2, t1 :<  t2, l1 :~ t1, l2 :~ t2]
@@ -195,8 +232,7 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
         c   = V r1' :=: V r2'
     hoistMaybe $ Just (c:cs)
 
-  R r1 s1 :< R r2 s2 | Row.null r1 && Row.null r2 && s1 == s2 -> hoistMaybe $ Just []
-                     | Row.null r1 && Row.null r2 -> __todo "match on sigil"
+  R r1 s1 :< R r2 s2 | Row.null r1 && Row.null r2, (Right c) <- doSigilMatch s1 s2 -> hoistMaybe $ Just [c]
                      | Just (r1',r2') <- extractVariableEquality r1 r2 -> hoistMaybe $ Just [R r1' s1 :=: R r2' s2]
                      | otherwise -> do
     let commons  = Row.common r1 r2
@@ -209,8 +245,7 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
         c  = R r1' s1 :< R r2' s2
     hoistMaybe $ Just (c:cs ++ ds)
 
-  R r1 s1 :=: R r2 s2 | Row.null r1 && Row.null r2 && s1 == s2 -> hoistMaybe $ Just []
-                      | Row.null r1 && Row.null r2 -> __todo "match on sigil"
+  R r1 s1 :=: R r2 s2 | Row.null r1 && Row.null r2, (Right c) <- doSigilMatch s1 s2 -> hoistMaybe $ Just [c]
                       | otherwise -> do
     let commons  = Row.common r1 r2
         (ls, rs) = unzip commons
@@ -224,23 +259,20 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
 
 #ifdef BUILTIN_ARRAYS
   -- See [NOTE: solving 'A' types] in Cogent.Solver.Unify
-  A t1 l1 s1 (Left r1) :<  A t2 l2 s2 (Left r2) | s1 == s2 -> do
-    -- guard (isJust r1 && isJust r2 || isNothing r1 && isNothing r2)
+  A t1 l1 s1 (Left r1) :<  A t2 l2 s2 (Left r2) | (Right c) <- doSigilMatch s1 s2 -> do
     guard (not $ isJust r1 && isNothing r2)
     let drop = case (r1,r2) of
                  (r1, r2) | r1 == r2 -> Sat
                  (Nothing, Just i2) -> Drop t1 ImplicitlyTaken
                  (Just i1, Just i2) -> Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [i1,i2]))
-    hoistMaybe $ Just [Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [l1,l2])), t1 :< t2, drop]
-  A t1 l1 s1 r1 :<  A t2 l2 s2 r2 -> __todo "match on sigil"
+    hoistMaybe $ Just [Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [l1,l2])), t1 :< t2, drop, c]
 
-  A t1 l1 s1 (Left r1) :=: A t2 l2 s2 (Left r2) | s1 == s2 -> do
+  A t1 l1 s1 (Left r1) :=: A t2 l2 s2 (Left r2) | (Right c) <- doSigilMatch s1 s2 -> do
     guard (isJust r1 && isJust r2 || isNothing r1 && isNothing r2)
     let drop = case (r1,r2) of
                  (r1, r2) | r1 == r2 -> Sat
                  (Just i1, Just i2) -> Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [i1,i2]))
-    hoistMaybe $ Just [Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [l1,l2])), t1 :=: t2, drop]
-  A t1 l1 s1 r1 :=: A t2 l2 s2 r2 -> __todo "match on sigil"
+    hoistMaybe $ Just [Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [l1,l2])), t1 :=: t2, drop, c]
 
   a :-> b -> hoistMaybe $ Just [b]  -- FIXME: cuerently we ignore the impls. / zilinc
 
@@ -256,10 +288,11 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   T t1 :< x | unorderedType t1 -> hoistMaybe $ Just [T t1 :=: x]
   x :< T t2 | unorderedType t2 -> hoistMaybe $ Just [x :=: T t2]
 
-  (T (TCon n ts s)) :=: (T (TCon n' us s'))
+  T (TCon n ts s) :=: T (TCon n' us s')
     | s == s', n == n' -> hoistMaybe $ Just (zipWith (:=:) ts us)
 
-  t -> hoistMaybe $ Nothing
+  t -> hoistMaybe Nothing
+
 
 -- | Returns 'True' iff the given argument type is not subject to subtyping. That is, if @a :\< b@
 --   (subtyping) is equivalent to @a :=: b@ (equality), then this function returns true.
@@ -294,6 +327,60 @@ isSolved t = L.null (unifVars t)
           && L.null (unknowns t)
 #endif
 
+isPrimitiveType :: TCType -> Bool
+isPrimitiveType (T (TCon n [] Unboxed))
+  | n `elem` words "U8 U16 U32 U64 Bool" = True
+  | otherwise = False
+isPrimitiveType (T (TBang t)) = isPrimitiveType t
+isPrimitiveType (T (TUnbox t)) = isPrimitiveType t
+isPrimitiveType _ = False
+
+isBoxedType :: TCType -> Bool
+isBoxedType (R _ (Left (Boxed _ _))) = True
+#ifdef BUILTIN_ARRAYS
+isBoxedType (A _ _ (Left (Boxed _ _)) _) = True
+#endif
+isBoxedType _ = False
+
+primitiveTypeSize :: TCType -> Size
+primitiveTypeSize (T (TCon "U8"   [] Unboxed)) = 8
+primitiveTypeSize (T (TCon "U16"  [] Unboxed)) = 16
+primitiveTypeSize (T (TCon "U32"  [] Unboxed)) = 32
+primitiveTypeSize (T (TCon "U64"  [] Unboxed)) = 64
+primitiveTypeSize (T (TCon "Bool" [] Unboxed)) = 8
+primitiveTypeSize (T (TBang t))                = primitiveTypeSize t
+primitiveTypeSize (T (TUnbox t))               = primitiveTypeSize t
+primitiveTypeSize _                            = __impossible "call primitiveTypeSize on non-primitive types"
+
+{-
+ - testLayoutMatchType :: TCDataLayout -> TCType -> Bool
+ - testLayoutMatchType (TLOffset e _) tau = testLayoutMatchType (TL e) tau
+ - testLayoutMatchType (TLPrim n)     tau
+ -   | isPrimitiveType tau
+ -   , primitiveTypeSize tau <= evalSize n
+ -   = True
+ -   | isBoxedType tau
+ -   , evalSize n == pointerSizeBits
+ -   = True
+ - testLayoutMatchType TLPtr          tau
+ -   | isBoxedType tau = True
+ - testLayoutMatchType l              tau = error $ show l ++ " :~ " ++ show tau
+ - -- testLayoutMatchType _              _  = False
+ -}
+
+doSigilMatch :: TCSigil -> TCSigil -> Either Bool Constraint
+doSigilMatch s1 s2
+  | s1 == s2 = Right Sat
+  | Left Unboxed <- s1, Left (Boxed _ _) <- s2 = Left False
+  | Left (Boxed _ _) <- s1, Left Unboxed <- s2 = Left False
+  | Left (Boxed _ (Just (TLVar n))) <- s1
+  , Left (Boxed _ (Just l)) <- s2
+  = Right (TLVar n :~: l)
+  | Left (Boxed _ (Just l)) <- s1
+  , Left (Boxed _ (Just (TLVar n))) <- s2
+  = Right (l :~: TLVar n)
+  | otherwise = __todo $ "unhandled for sigil " ++ show s1 ++ " matches " ++ show s2
+
 testEqualLayoutT :: TCType -> TCType -> Bool
 testEqualLayoutT (T (TVar n1 _ _)) (T (TVar n2 _ _)) = n1 == n2
 testEqualLayoutT (T (TBang t1)) t2 = testEqualLayoutT t1 t2
@@ -304,20 +391,16 @@ testEqualLayoutT (A t1 _ s1 _) (A t2 _ s2 _) = testEqualLayoutT t1 t2 && testEqu
 #endif
 testEqualLayoutT t1 t2 = t1 == t2
 
-testEqualLayoutL :: TCDataLayout -> TCDataLayout -> Bool
-testEqualLayoutL (TLRepRef _) (TLRepRef _) = error "normaliseLayouts should filter TLRepRef out"
-testEqualLayoutL _ _ = __todo "testEqualLayoutL"
-
 testEqualLayoutR :: Row.Row TCType -> Row.Row TCType -> Bool
 testEqualLayoutR r1 r2
   | (r1', r2') <- Row.withoutCommon r1 r2
-  , Row.null r1'
-  , Row.null r2'
+  , Row.null r1' && Row.null r2'
   = let rs = Row.common r1 r2
      in all (\((_, (t1, tk1)), (_, (t2, tk2))) -> tk1 == tk2 && testEqualLayoutT t1 t2) rs
 testEqualLayoutR _ _ = False
 
-testEqualLayoutS :: Either (Sigil (Maybe TCDataLayout)) Int -> Either (Sigil (Maybe TCDataLayout)) Int -> Bool
+testEqualLayoutS :: TCSigil -> TCSigil -> Bool
 testEqualLayoutS (Left (Boxed _ Nothing)) (Left (Boxed _ Nothing)) = True
+testEqualLayoutS (Left (Boxed _ (Just l1))) (Left (Boxed _ (Just l2))) = testEqual l1 l2
 testEqualLayoutS _ _ = False
 

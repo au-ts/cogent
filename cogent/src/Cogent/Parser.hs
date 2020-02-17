@@ -330,24 +330,18 @@ term = avoidInitial >> (var <|> (LocExpr <$> getPosition <*>
        <|> UnboxedRecord <$ reservedOp "#" <*> braces (commaSep1 recordAssignment)))
     <?> "term")
 
-var = do
-  p <- getPosition
-  e <- var'
-  la <- optionMaybe (braces (commaSep1 ((char '_' >> return Nothing) <|> (Just <$> repExpr))))
-  return $ case la of
-    Nothing -> e
-    Just l  -> LocExpr p $ LayoutApp e l
-
-var' = LocExpr <$> getPosition <*> do
+var = LocExpr <$> getPosition <*> do
   nt <- optionMaybe (reserved "inline")
   v <- variableName
   ta <- optionMaybe (brackets (commaSep1 ((char '_' >> return Nothing) <|> (Just <$> monotype))))
-  return $ f nt v ta
+  la <- optionMaybe (braces (commaSep1 ((char '_' >> return Nothing) <|> (Just <$> repExpr))))
+  return $ f nt v ta la
     where
-      f Nothing  v Nothing = Var v
-      f (Just _) v Nothing = TypeApp v [] Inline
-      f Nothing  v (Just ts) = TypeApp v ts NoInline
-      f (Just _) v (Just ts) = TypeApp v ts Inline
+      f Nothing  v Nothing Nothing = Var v
+      f (Just _) v ta la = TLApp v (g ta) (g la) Inline
+      f Nothing  v ta la = TLApp v (g ta) (g la) NoInline
+      g (Just s) = s
+      g Nothing = []
 
 tuple [] = Unitel
 tuple [e] = exprOfLE e

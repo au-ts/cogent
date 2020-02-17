@@ -240,6 +240,12 @@ firstM f (x,y) = (,y) <$> f x
 secondM :: Functor f => (b -> f c) -> (a, b) -> f (a, c)
 secondM f (x,y) = (x,) <$> f y
 
+third3M :: Functor f => (c -> f d) -> (a, b, c) -> f (a, b, d)
+third3M f (x,y,z) = (x,y,) <$> f z
+
+fourth4M :: Functor f => (d -> f e) -> (a, b, c, d) -> f (a, b, c, e)
+fourth4M f (x,y,z,w) = (x,y,z,) <$> f w
+
 fst3 :: (a,b,c) -> a
 fst3 (a,b,c) = a
 
