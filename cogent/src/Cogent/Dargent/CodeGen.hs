@@ -24,6 +24,7 @@ import Cogent.Compiler
   ( __fixme
   , __impossible
   , __todo
+  , Architecture (..)
   )
 import Cogent.Core (Type (..))
 import Cogent.Dargent.Allocation
