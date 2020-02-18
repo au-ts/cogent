@@ -35,11 +35,12 @@ import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core
-import Cogent.Dargent.Allocation
+import qualified Cogent.Dargent.Allocation as DA
 import Cogent.Dargent.Core
 import Cogent.Dargent.Surface
-import Cogent.Dargent.Desugar
+import qualified Cogent.Dargent.Desugar as DD
 import Cogent.Dargent.TypeCheck
+import Cogent.Dargent.Util
 import Cogent.PrettyPrint ()
 import qualified Cogent.Surface as S
 import qualified Cogent.TypeCheck.Base as B
@@ -202,6 +203,17 @@ withTypeBindings :: Vec k TyVarName -> DS (t :+: k) l v a -> DS t l v a
 withTypeBindings Nil ds = ds
 withTypeBindings (Cons x xs) ds = withTypeBindings xs (withTypeBinding x ds)
 
+withLayoutBinding :: DLVarName -> DS t ('Suc l) v a -> DS t l v a
+withLayoutBinding l ds = do readers <- ask
+                            st <- get
+                            let (a, st', _) = flip3 runRWS (st & layCtx %~ Cons l) readers $ runDS ds
+                            put $ st' & layCtx .~ st^.layCtx & oracleLcl .~ st^.oracleLcl
+                            return a
+
+withLayoutBindings :: Vec k DLVarName -> DS t (l :+: k) v a -> DS t l v a
+withLayoutBindings Nil ds = ds
+withLayoutBindings (Cons x xs) ds = withLayoutBindings xs (withLayoutBinding x ds)
+
 withBinding :: VarName -> DS t l ('Suc v) a -> DS t l v a
 withBinding v ds = do readers <- ask
                       st <- get
@@ -279,11 +291,11 @@ desugarTlv (S.AbsDec fn sigma) pragmas | S.PT vs ls t <- sigma
                                        , ExI (Flip vs') <- Vec.fromList vs
                                        , Refl <- zeroPlusNEqualsN $ Vec.length vs'
   = do
-      t <- withTypeBindings (fmap fst vs') $ desugarType t
       ls' <- mapM (secondM (withTypeBindings (fmap fst vs') . desugarType)) ls
       case Vec.fromList ls' of
-        ExI (Flip ls'') ->
-          case t of
+        ExI (Flip ls'') -> do
+          t' <- withTypeBindings (fmap fst vs') $ withLayoutBindings (fmap fst ls'') $ desugarType t
+          case t' of
             TFun ti' to' -> return $ AbsDecl (pragmaToAttr pragmas fn mempty) fn vs' ls'' ti' to'
             _ -> error "Cogent does not allow FFI constants"
 desugarTlv (S.FunDef fn sigma alts) pragmas | S.PT vs ls t <- sigma
@@ -291,14 +303,15 @@ desugarTlv (S.FunDef fn sigma alts) pragmas | S.PT vs ls t <- sigma
                                             , Refl <- zeroPlusNEqualsN $ Vec.length vs'
   = do
       ls' <- mapM (secondM (withTypeBindings (fmap fst vs') . desugarType)) ls
-      withTypeBindings (fmap fst vs') $ do
-        let (B.DT (S.TFun ti _)) = t
-        TFun ti' to' <- desugarType t
-        v <- freshVar
-        let e0 = B.TE ti (S.Var v) noPos
-        e <- withBinding v $ desugarAlts e0 alts
-        case Vec.fromList ls' of
-          ExI (Flip ls'') -> return $ FunDef (pragmaToAttr pragmas fn mempty) fn vs' ls'' ti' to' e
+      case Vec.fromList ls' of
+        ExI (Flip ls'') -> do
+          withTypeBindings (fmap fst vs') $ withLayoutBindings (fmap fst ls'') $ do
+            let (B.DT (S.TFun ti _)) = t
+            TFun ti' to' <- desugarType t
+            v <- freshVar
+            let e0 = B.TE ti (S.Var v) noPos
+            e <- withBinding v $ desugarAlts e0 alts
+            return $ FunDef (pragmaToAttr pragmas fn mempty) fn vs' ls'' ti' to' e
 desugarTlv (S.ConstDef {}) _ = __impossible "desugarTlv"
 desugarTlv (S.DocBlock _ ) _ = __impossible "desugarTlv"
 
@@ -547,7 +560,7 @@ desugarType = \case
   B.DT (S.TCon "U64"    [] Unboxed) -> return $ TPrim U64
   B.DT (S.TCon "Bool"   [] Unboxed) -> return $ TPrim Boolean
   B.DT (S.TCon "String" [] Unboxed) -> return $ TString
-  B.DT (S.TCon tn tvs s) -> TCon tn <$> mapM desugarType tvs <*> pure (desugarAbstractTypeSigil s)
+  B.DT (S.TCon tn tvs s) -> TCon tn <$> mapM desugarType tvs <*> pure (DD.desugarAbstractTypeSigil s)
   B.DT (S.TVar vn b u)   ->
     (findIx vn <$> use typCtx) >>= \(Just v) -> return $
       case (b,u) of
@@ -559,8 +572,8 @@ desugarType = \case
   B.DT (S.TRecord fs sigil)  -> do
     -- Making an unboxed record is necessary here because of how `desugarSigil`
     -- is defined.
-    unboxedDesugared@(TRecord fs' Unboxed) <- desugarType $ B.DT (S.TRecord fs Unboxed)
-    TRecord <$> pure fs' <*> pure (desugarSigil unboxedDesugared sigil)
+    TRecord fs' Unboxed <- desugarType $ B.DT (S.TRecord fs Unboxed)
+    TRecord <$> pure fs' <*> desugarSigil sigil
   B.DT (S.TVariant alts) -> TSum <$> mapM (\(c,(ts,x)) -> (c,) . (,x) <$> desugarType (group ts)) (M.toList alts)
     where group [] = B.DT S.TUnit
           group (t:[]) = t
@@ -588,12 +601,12 @@ desugarType = \case
                _ -> __impossible "desugarType: TArray should not have more than 1 element taken"
     return $ TArray t' l' Unboxed mhole
   B.DT (S.TArray t l sigil tkns) -> do
-    unboxedDesugared@(TArray t' l' Unboxed tkns') <- desugarType $ B.DT (S.TArray t l Unboxed tkns)
+    TArray t' l' Unboxed tkns' <- desugarType $ B.DT (S.TArray t l Unboxed tkns)
     -- NOTE: if the user specify boxed array containing boxed types with layout defined as pointer,
     --       we simply turn that into CLayout to avoid generating extra getters & setters
-    let ds = case sigil of
-               Boxed ro (Just (S.DLArray S.DLPtr _)) -> Boxed ro CLayout
-               _ -> desugarSigil unboxedDesugared sigil
+    ds <- case sigil of
+            Boxed ro (Just (S.DLArray S.DLPtr _)) -> pure $ Boxed ro CLayout
+            _ -> desugarSigil sigil
     TArray <$> pure t'
            <*> pure l'
            <*> pure ds
@@ -601,8 +614,45 @@ desugarType = \case
 #endif
   notInWHNF -> __impossible $ "desugarType (type " ++ show (pretty notInWHNF) ++ " is not in WHNF)"
 
-desugarLayout :: TCDataLayout -> DS t l v (DataLayout BitRange)
-desugarLayout _ = __fixme $ pure CLayout -- FIXME: desugarLayout
+desugarLayout :: TCDataLayout -> DS t l v (DataLayout DA.BitRange)
+desugarLayout l = Layout <$> desugarLayout' l
+  where
+    desugarLayout' :: TCDataLayout -> DS t l v (DataLayout' DA.BitRange)
+    desugarLayout' = \case
+      TLRepRef _ -> __impossible "desugarLayout: TLRepRef should already be normalised"
+      TLPrim n
+        | sz <- DD.desugarSize n
+        , sz > 0 -> pure $ PrimLayout (fromJust $ DA.newBitRangeBaseSize 0 sz)
+        | DD.desugarSize n < 0 -> __impossible "desugarLayout: TLPrim has a negative size"
+        | otherwise            -> pure UnitLayout
+      TLOffset e n -> do
+        e' <- desugarLayout' (TL e)
+        pure $ offset (DD.desugarSize n) e'
+      TLRecord fs -> do
+        let f (n,_,l) = desugarLayout' l >>= pure . (n,)
+        fs' <- mapM f fs
+        pure $ RecordLayout (M.fromList fs')
+      TLVariant te alts -> do
+        te' <- desugarLayout' (TL te)
+        let tr = case te' of
+                   PrimLayout range -> range
+                   UnitLayout       -> __impossible $ "desugarLayout: zero sized bit range for variant tag"
+                   _                -> __impossible $ "desugarLayout: tag layout known to be a single range"
+        let f (n,_,s,l) = desugarLayout' l >>= pure . (n,) . (s,)
+        alts' <- mapM f alts
+        pure $ SumLayout tr (M.fromList alts')
+      TLPtr -> pure $ PrimLayout DA.pointerBitRange
+#ifdef BUILTIN_ARRAYS
+      TLArray e _ -> ArrayLayout <$> desugarLayout' e
+#endif
+      TLVar n -> (findIx n <$> use layCtx) >>= \case
+        Just v -> pure $ VarLayout (finNat v)
+        Nothing -> __impossible "desugarLayout: unexpected layout variable - check typecheck"
+
+desugarSigil :: Sigil (Maybe DataLayoutExpr) -> DS t l v (Sigil (DataLayout DA.BitRange))
+desugarSigil (Boxed b Nothing)  = pure $ Boxed b CLayout
+desugarSigil (Boxed b (Just l)) = Boxed b <$> desugarLayout (toTCDL l)
+desugarSigil Unboxed            = pure Unboxed
 
 desugarNote :: S.Inline -> FunNote
 desugarNote S.NoInline = NoInline

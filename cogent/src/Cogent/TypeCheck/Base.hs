@@ -419,6 +419,7 @@ type TCExpr = TExpr TCType
 type TCPatn = TPatn TCType
 type TCIrrefPatn = TIrrefPatn TCType
 
+-- TODO: change DataLayoutExpr into TCDataLayout
 data DepType = DT { unDT :: Type RawTypedExpr DataLayoutExpr DepType } deriving (Data, Eq, Ord, Show)
 
 type TypedName = (VarName, DepType)
