@@ -707,8 +707,8 @@ traverseOneFunc fn d loc = do
                     = __impossible "match (in traverseOneFunc): number of type arguments don't match"
                   -- We for now ignore 'TVarBang's, and treat them as not matching anything.
                   match (x:xs) (y:ys) = (unsafeCoerce x == y || CC.isTVar x) && match xs ys
-              let instantiations = if L.null ts then [([], Nothing)]
-                                   else L.filter (\(ms,_) -> match coreTargs ms)
+              let instantiations = if L.null ts then [(([], []), Nothing)]
+                                   else L.filter (\((ms,_),_) -> match coreTargs ms)
                                         $ L.map (second Just) (M.toList mp)
               traversals instantiations d
 
@@ -734,8 +734,8 @@ traverseOneType ty l d = do   -- type defined in Cogent
  where
    nubByName :: [MN.Instance VarName] -> GlDefn t [MN.Instance VarName]
    nubByName ins = lift . lift $
-     nubByM (\i1 i2 -> do tn1 <- mapM (genAnti CG.genType) i1
-                          tn2 <- mapM (genAnti CG.genType) i2
+     nubByM (\i1 i2 -> do tn1 <- mapM (genAnti CG.genType) (fst i1)
+                          tn2 <- mapM (genAnti CG.genType) (fst i2)
                           return (tn1 == tn2)) ins
 
 traverseOne :: CS.Definition -> GlFile [CS.Definition]
@@ -752,7 +752,7 @@ traverseOne d@(CS.DecDef initgrp _)
   | CS.TypedefGroup _ _ [tydef] _ <- initgrp
   , CS.Typedef (CS.AntiId ty l) _ _ _ <- tydef = traverseOneType ty l d
 traverseOne d =
-  flip runReaderT (DefnState Nil [TC.InAntiquotedCDefn $ show d]) $ traversals [([], Nothing)] d  -- anything not defined in Cogent
+  flip runReaderT (DefnState Nil [TC.InAntiquotedCDefn $ show d]) $ traversals [(([], []), Nothing)] d  -- anything not defined in Cogent
 
 -- | This function returns a list of pairs, of each the second component is the type name if
 --   the first component is a type definition. We use the type name to generate a dedicated @.h@
@@ -835,8 +835,8 @@ readEntryFuncs :: [SF.TopLevel TC.DepType TC.TypedPatn TC.TypedExpr]
 readEntryFuncs tced tcState dsState ftypes lns
   = foldM (\m ln -> readEntryFunc ln >>= \(fn,inst) -> return $ updateFunMono m fn inst) M.empty lns
   where
-    updateFunMono m fn []   = M.insertWith (\_ entry -> entry) fn M.empty m
-    updateFunMono m fn inst = M.insertWith (\_ entry -> M.insertWith (flip const) inst (M.size entry) entry) fn (M.singleton inst 0) m
+    updateFunMono m fn ([],[]) = M.insertWith (\_ entry -> entry) fn M.empty m
+    updateFunMono m fn inst    = M.insertWith (\_ entry -> M.insertWith (flip const) inst (M.size entry) entry) fn (M.singleton inst 0) m
 
     -- Each string is a line in the @--entry-funcs@ file.
     readEntryFunc :: String -> IO (FunName, MN.Instance VarName)
@@ -848,8 +848,8 @@ readEntryFuncs tced tcState dsState ftypes lns
                           case mt of
                             Nothing -> throwError "No wildcard allowed."
                             Just t  -> flip runReaderT (DefnState Vec.Nil []) $
-                                         flip runReaderT (MonoState ([], Nothing))
+                                         flip runReaderT (MonoState (([], []), Nothing))
                                                          (lift . tcType >=> lift . desugarType >=> monoType $ t)
                 return (fnName, inst)
-      case er of Left s  -> putStrLn s >> return (ln, [])
-                 Right r -> return r
+      case er of Left s  -> putStrLn s >> return (ln, ([], []))
+                 Right r -> return $ (fst r,) (snd r, [])

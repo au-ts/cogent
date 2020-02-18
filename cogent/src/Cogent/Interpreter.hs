@@ -492,7 +492,7 @@ evalBinOp op v1@(VThunk {}) v2 = VThunk $ VOp op [v1,v2]
 evalBinOp op v1 v2@(VThunk {}) = VThunk $ VOp op [v1,v2]
 
 specialise :: [Type 'Zero VarName] -> TypedExpr t v VarName VarName -> TypedExpr 'Zero v VarName VarName
-specialise inst e = fst $ flip3 evalRWS initmap inst $ runMono (specialiseExpr e)
+specialise inst e = __fixme $ fst . fst $ flip3 evalRWS initmap (inst, []) $ runMono (specialiseExpr e >>= pure . (,[]))
   where initmap = (M.empty, M.empty)
 
 -- Mostly a duplicate of 'Mono.monoExpr', but it doesn't try to fiddle with the names
