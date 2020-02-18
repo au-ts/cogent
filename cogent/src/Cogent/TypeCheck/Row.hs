@@ -11,7 +11,8 @@
 --
 {-# LANGUAGE FlexibleContexts, DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 module Cogent.TypeCheck.Row
-  ( Row (..) 
+  ( Row (..)
+  , Entry
   , -- * Constructors
     fromList
   , fromMap
@@ -52,30 +53,53 @@ module Cogent.TypeCheck.Row
   ) where
 
 
+import qualified Data.Foldable as F
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Prelude hiding (take, null)
+import Data.Bifunctor (second)
+import Data.Either (isRight)
 import Data.Maybe (mapMaybe)
 import Cogent.Surface
 import Cogent.Common.Syntax
 import Control.Monad (guard)
-import qualified Data.Foldable as F
+
+type Entry t = (FieldName, (t, Either Taken Int))
+
 data Row t = Row { entries :: M.Map FieldName (Entry t)
                  , var :: Maybe Int
                  }  deriving (Show, Eq, Ord, Functor, Foldable,Traversable)
+
+
 -- | Given a list of entries, produce a complete row without a unification row variable.
-fromList :: [Entry t] -> Row t
-fromList es = Row (M.fromList (map (\e@(f, _ )-> (f,e)) es)) Nothing
+fromList :: [(FieldName, (t, Taken))] -> Row t
+fromList es = Row (M.fromList (map (\e@(f,(t,tk))-> (f,(f,(t,Left tk)))) es)) Nothing
+
+
+fromListWithTkVars :: [Entry t] -> Row t
+fromListWithTkVars es = Row (M.fromList (map (\e@(f,_)-> (f,e)) es)) Nothing
 
 -- | Every entry in the row in list form.
 toEntryList :: Row t -> [Entry t]
 toEntryList r = F.toList (entries r)
+
 -- | Given a map of entries, produce a complete row without a unification row variable.
 fromMap :: M.Map FieldName (t, Bool) -> Row t
-fromMap es = Row (M.mapWithKey (,) es) Nothing
+fromMap es = Row (M.mapWithKey (,) (second Left <$> es)) Nothing
+
+-- | Given a map of entries, with taken variables,
+-- | produce a complete row without a unification row variable.
+fromMapWithTkVars :: M.Map FieldName (t, Either Taken Int) -> Row t
+fromMapWithTkVars es = Row (M.mapWithKey (,) es) Nothing
+
 -- | Given a list of entries, produce an incomplete row with a fresh unification row variable.
-incomplete :: [Entry t] -> Int -> Row t
+incomplete :: [(FieldName, (t, Taken))] -> Int -> Row t
 incomplete es u = (fromList es) { var = Just u }
+
+-- | Given a list of entries, with taken variables,
+-- | produce an incomplete row with a fresh unification row variable.
+incompleteWithTkVars :: [Entry t] -> Int -> Row t
+incompleteWithTkVars es u = (fromListWithTkVars es) { var = Just u }
 
 
 -- | Returns those pairs of entries in the input rows that have the same field/constructor
@@ -116,11 +140,15 @@ compatible (Row m1 (Just x)) (Row m2 (Just y)) = x /= y || M.keysSet m1 == M.key
 
 -- | Returns a list of all mappings marked as 'Taken' in the row.
 takenEntries :: Row t -> M.Map FieldName (Entry t)
-takenEntries = M.filter (snd . snd) . entries
+takenEntries = M.filter ((== Left True) . snd . snd) . entries
 
 -- | Returns all mappings not marked as 'Taken' in the row.
 untakenEntries :: Row t -> M.Map FieldName (Entry t)
-untakenEntries = M.filter (not . snd . snd) . entries
+untakenEntries = M.filter ((== Left False) . snd . snd) . entries
+
+-- | Returns all mappings not marked as 'Taken' in the row.
+vartakenEntries :: Row t -> M.Map FieldName (Entry t)
+vartakenEntries = M.filter (isRight . snd . snd) . entries
 
 
 -- | All labels marked as 'Taken' in the row.
@@ -157,28 +185,29 @@ mapEntries func (Row m e) = Row (fmap func m) e
 
 -- | Given a field name, mark is as taken in the row (if it exists).
 take :: FieldName -> Row t -> Row t
-take f (Row m e) = Row (M.adjust (\(f, (t, _)) -> (f, (t, True))) f m) e
+take f (Row m e) = Row (M.adjust (\(f, (t, _)) -> (f, (t, Left True))) f m) e
 
 takeMany :: [FieldName] -> Row t -> Row t 
 takeMany fs r = foldr take r fs
 
 takeAll :: Row t -> Row t 
-takeAll (Row m e) = Row (fmap (fmap (fmap (const True))) m) e
+takeAll (Row m e) = Row (fmap (fmap (fmap (const $ Left True))) m) e
 
 -- | Given a field name, unmark is as taken in the row (if it exists).
 put :: FieldName -> Row t -> Row t
-put f (Row m e) = Row (M.adjust (\(f, (t, _)) -> (f, (t, False))) f m) e
+put f (Row m e) = Row (M.adjust (\(f, (t, _)) -> (f, (t, Left False))) f m) e
 
 putMany :: [FieldName] -> Row t -> Row t 
 putMany fs r = foldr put r fs
 
 putAll :: Row t -> Row t 
-putAll (Row m e) = Row (fmap (fmap (fmap (const False))) m) e
+putAll (Row m e) = Row (fmap (fmap (fmap (const $ Left False))) m) e
+
 -- | Returns true iff the field is taken in the given row.
 takenIn :: FieldName -> Row t -> Bool
 takenIn f (Row m _) = case M.lookup f m of
-   Nothing -> False
-   Just (_, (_, b)) -> b
+   Just (_, (_, Left b)) -> b
+   otherwise -> False
 
 {-
 -- | A @UnionMethod@ is a function that, given a particular field/constructor name,

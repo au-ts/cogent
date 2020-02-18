@@ -127,8 +127,6 @@ type Banged  = Bool
 type Unboxed = Bool
 type Taken   = Bool
 
-type Entry t = (FieldName, (t, Taken))
-
 data Type e t =
               -- They are in WHNF
                 TCon TypeName [t] (Sigil RepExpr)  -- FIXME: can polymorphise the `Representation`

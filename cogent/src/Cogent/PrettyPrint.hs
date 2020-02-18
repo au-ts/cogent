@@ -802,10 +802,11 @@ instance Pretty (Sigil r) where
 instance (Pretty t) => Pretty (Row.Row t) where 
   pretty (Row.Row m t) =
     let rowFieldToDoc (_, (n, (ty, tk))) =
-          let tkStr = case tk of
-                        True -> "taken"
-                        False -> "present"
-          in text n <+> text ":" <+> pretty ty <+> text "(" <> text tkStr <> text ")"
+          let tkDoc = case tk of
+                        Left True  -> text "taken"
+                        Left False -> text "present"
+                        Right i -> text "?" <> pretty i
+          in text n <+> text ":" <+> pretty ty <+> text "(" <> tkDoc <> text ")"
         rowFieldsDoc = hsep $ punctuate (text ",") $ map rowFieldToDoc (M.toList m)
      in rowFieldsDoc <+> symbol "|" <+> pretty t
 instance Pretty Assignment where

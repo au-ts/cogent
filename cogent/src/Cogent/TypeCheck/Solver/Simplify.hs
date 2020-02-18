@@ -4,6 +4,7 @@ import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
 import Cogent.TypeCheck.Solver.Goal 
 import Cogent.TypeCheck.Solver.Monad
 import qualified Cogent.TypeCheck.Row as Row
+import Cogent.TypeCheck.Row (Entry)
 import Cogent.Surface
 import Cogent.TypeCheck.Base 
 import Cogent.Common.Types
@@ -189,7 +190,7 @@ unorderedType (TArray {}) = False
 unorderedType _ = True 
 
 untakenLabelsSet :: [Entry TCType] -> S.Set FieldName
-untakenLabelsSet = S.fromList . mapMaybe (\(l, (_,t)) -> guard (not t) >> pure l)
+untakenLabelsSet = S.fromList . mapMaybe (\(l, (_,t)) -> guard (either not (const False) t) >> pure l)
 
 isIrrefutable :: RawPatn -> Bool
 isIrrefutable (RP (PIrrefutable _)) = True

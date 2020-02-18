@@ -481,7 +481,7 @@ validateType' vs (RT t) = do
                -> Synonym t <$> mapM (validateType' vs) as  
     TRecord fs s | fields  <- map fst fs
                  , fields' <- nub fields
-                -> let toRow (T (TRecord fs s)) = R (Row.fromList fs) (Left (fmap (const ()) s)) 
+                -> let toRow (T (TRecord fs s)) = R (Row.fromList fs) (Left (fmap (const ()) s))
                    in if fields' == fields
                    then (toRow . T . ffmap toSExpr) <$> mapM (validateType' vs) t
                    else throwE (DuplicateRecordFields (fields \\ fields'))

@@ -28,6 +28,7 @@ import qualified Cogent.TypeCheck.Row as Row
 import Cogent.Util
 
 -- import Control.Arrow (first)
+import Data.Bifunctor
 import Control.Monad
 import Lens.Micro
 import Lens.Micro.Mtl
@@ -159,9 +160,16 @@ normaliseT d (Synonym n ts) =
   case lookup n d of
     Just (ts', Just b) -> normaliseT d (substType (zip ts' ts) b)
     _ -> __impossible ("normaliseT: unresolved synonym " ++ show n)
-normaliseT d (V x) = T . TVariant . M.fromList . Row.toEntryList . fmap (:[]) <$> traverse (normaliseT d) x
-normaliseT d (R x (Left s)) = T . flip TRecord (fmap (const noRepE) s) . Row.toEntryList <$> traverse (normaliseT d) x
+normaliseT d (V x) =
+  T . TVariant . M.map (second tkNorm . snd) . Row.entries . fmap (:[]) <$>
+    traverse (normaliseT d) x
+normaliseT d (R x (Left s)) =
+  T . flip TRecord (fmap (const noRepE) s) . map (second (second tkNorm)). Row.toEntryList <$>
+    traverse (normaliseT d) x
 normaliseT d (R x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
 normaliseT d (U x) = __impossible ("normaliseT: invalid type (?" ++ show x ++ ")")
 normaliseT d (T x) = T <$> traverse (normaliseT d) x
 
+tkNorm :: Either Taken Int -> Taken
+tkNorm (Left tk) = tk
+tkNorm (Right _) = __impossible "normaliseT: taken variable unsolved at normisation"

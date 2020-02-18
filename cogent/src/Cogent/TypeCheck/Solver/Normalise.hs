@@ -52,7 +52,7 @@ normaliseRW = rewrite' $ \t -> case t of
     T (TTake fs (R row s)) 
       | isNothing (Row.var row) -> case fs of 
         Nothing -> pure $ R (Row.takeAll row) s
-        Just fs -> pure $ R (Row.takeMany fs row) s 
+        Just fs -> pure $ R (Row.takeMany fs row) s
     T (TTake fs (V row)) 
       | isNothing (Row.var row) -> case fs of 
         Nothing -> pure $ V (Row.takeAll row)
