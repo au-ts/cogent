@@ -125,6 +125,35 @@ fun distinct_subgoal_tac i st =
       st |> EVERY (fold (fn (B, k) =>
         if A aconv B then cons (distinct_tac (i, k)) else I) (Bs ~~ (1 upto length Bs)) []));
 
+(* 
+ * Logs a Timing.timing in LOG_FILE in JSON format:
+ * {
+ *   tacticName: "string"
+ *   time: { elapsed: float, cpu: float, gc: float }
+ * }
+ *)
+fun logTime tacName ({elapsed, cpu, gc} : Timing.timing) =
+  File.append LOG_FILE (
+    "{ \"tacticName\": \"" ^ tacName ^ "\"," ^
+    " \"time\": { "
+      ^ "\"elapsed\": " ^ (Int.toString (Time.toMicroseconds elapsed)) ^ ", "
+      ^ "\"cpu\": "     ^ (Int.toString (Time.toMicroseconds cpu)) ^ ", "
+      ^ "\"gc\": "      ^ (Int.toString (Time.toMicroseconds gc))
+      ^ "}"
+  ^ "}\n"
+  )
+
+(* 
+ * Runs a tactic, logging it's total time in LOG_FILE
+ *)
+fun logTacticOnUse (tacName : string) (tac : unit -> 'a) =
+  let 
+    val s = Timing.start ();
+    val res = tac ();
+    val _ = logTime tacName (Timing.result s)
+  in
+     res
+  end
 \<close>
 
 end

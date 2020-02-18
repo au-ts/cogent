@@ -1,0 +1,18 @@
+- test_name: pass-polymorphic
+  files:
+    - pass_poly-simple.cogent
+  expected_result: pass
+  flags:
+    - -g
+
+- test_name: fail-polymorphic
+  files:
+    - fail_dup-poly-var.cogent
+    - fail_flags_ffi-gen-poly
+    - fail_poly-const.cogent
+    - fail_poly-put-all.cogent
+    - fail_poly-take-all.cogent
+    - fail_poly-take-f1.cogent
+  expected_result: fail
+  flags:
+    - -t

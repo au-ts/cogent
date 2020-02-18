@@ -1,0 +1,21 @@
+- test_name: pass-patterns
+  files:
+    - pass_biased-pattern-1.cogent
+    - pass_biased-pattern-1-compare.cogent
+    - pass_biased-pattern-2.cogent
+    - pass_biased-pattern-2-compare.cogent
+    - pass_biased-pattern-3.cogent
+    - pass_biased-pattern-3-compare.cogent
+    - pass_pattern-in-parens.cogent
+  expected_result: pass
+  flags:
+    - -g
+
+- test_name: fail-patterns
+  files:
+    - fail_char-pattern.cogent
+    - fail_conflict-pattern-var-1.cogent
+    - fail_conflict-pattern-var-2.cogent
+  expected_result: fail
+  flags:
+    - -t

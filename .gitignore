@@ -46,6 +46,9 @@ autocorres/
 cogent/scripts/*.dat
 cogent/scripts/*.png
 
+# Testing
+cogent/tests/dist
+
 # Documentation
 docs/.vscode/
 docs/_build/
@@ -53,3 +56,6 @@ docs/assets/
 docs/doctrees/
 docs/html/
 docs/pseudoxml/
+
+cogent/scripts/*.dat
+cogent/scripts/*.png

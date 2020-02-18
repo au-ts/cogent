@@ -1,0 +1,3 @@
+-- Tests type variable shadowing check
+
+bad : all t. rec t { f: U8 }

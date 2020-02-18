@@ -1,0 +1,65 @@
+- test_name: pass-tickets
+  files:
+    - pass_ticket-224.cogent
+    - pass_ticket-226.cogent
+    - pass_ticket-22.cogent
+    - pass_ticket-23.cogent
+    - pass_ticket-28.cogent
+    - pass_ticket-296-D-value-in-one-case-branch.cogent
+    - pass_ticket-298-banged-tcon-with-arguments-lambda-2.cogent
+    - pass_ticket-298-banged-tcon-with-arguments-lambda.cogent
+    - pass_ticket-29.cogent
+    - pass_ticket-306.cogent
+    - pass_ticket-309.cogent
+    - pass_ticket-30-nested-take.cogent
+    - pass_ticket-30-take-all.cogent
+    - pass_ticket-30-take-reorder.cogent
+    - pass_ticket-63.cogent
+    - pass_ticket-84.cogent
+    - pass_ticket-e22-1.cogent
+    - pass_ticket-e22-2.cogent
+    - pass_ticket-e22-3.cogent
+    - pass_ticket-e22-4.cogent
+    - pass_ticket-e22-5.cogent
+    - pass_ticket-e22-6.cogent
+    - pass_ticket-e22-7.cogent
+    - pass_ticket-e25.cogent
+    - pass_ticket-e29-ascribed.cogent
+    - pass_ticket-e29-inferred.cogent
+    - pass_ticket-e30.cogent
+    - pass_ticket-e31-2.cogent
+    - pass_ticket-e31.cogent
+    - pass_ticket-e47-1.cogent
+    - pass_ticket-e47.cogent
+  expected_result: pass
+  flags:
+    - -g
+
+- test_name: fail-tickets
+  files:
+    - fail_ticket-38.cogent
+    - fail_ticket-e198.cogent
+    - fail_ticket-e28-banged.cogent
+    - fail_ticket-e28-func.cogent
+    - fail_ticket-e28-var.cogent
+    - fail_ticket-e31-3-bad.cogent
+    - fail_ticket-e31-3-good.cogent
+    - fail_ticket-e36.cogent
+  expected_result: fail
+  flags:
+    - -t
+
+- test_name: wip-tickets
+  files:
+    - fixme_ticket-262.cogent
+    - wip_ticket-259-1.cogent
+    - wip_ticket-260.cogent
+    - wip_ticket-261.cogent
+    - wip_ticket-281.cogent
+    - wip_ticket-92-1.cogent
+    - wip_ticket-92-2.cogent
+    - wip_ticket-92-3.cogent
+    - wip_ticket-e29.cogent
+  expected_result: wip
+  flags:
+    - -t

@@ -1,0 +1,18 @@
+- test_name: pass-tuples
+  files:
+    - pass_big-tuple.cogent
+    - pass_instantiate-nested-tuples.cogent
+    - pass_match-tuples-sort.cogent
+    - pass_n-tuple.cogent
+    - pass_subtyping-tuples.cogent
+    - pass_typeinfer-sinkfloats-tuples.cogent
+  expected_result: pass
+  flags:
+    - -g
+
+- test_name: fail-tuples
+  files:
+    - fail_tuple-equiv.cogent
+  expected_result: fail
+  flags:
+    - -t

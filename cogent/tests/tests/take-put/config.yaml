@@ -1,0 +1,54 @@
+
+- test_name: pass-take-put
+  files:
+    -  pass_put-and-take.cogent
+    -  pass_put-discardable-field.cogent
+    -  pass_put-nonlinear-more-than-once.cogent
+    -  pass_put-untaken-nonlinear.cogent
+    -  pass_put-wildcard-promote.cogent
+    -  pass_simple-put.cogent
+    -  pass_simple-take.cogent
+    -  pass_simple-take-put.cogent
+    -  pass_take-put-all.cogent
+    -  pass_take-put-return-fail.cogent
+    -  pass_take-put-variant.cogent
+    -  pass_take-put-verbose.cogent
+    -  pass_wf-take-idem-1.cogent
+    -  pass_wf-take-idem-2.cogent
+    -  pass_wf-take-put-tc-1.cogent
+    -  pass_wf-take-put-tc-2.cogent
+    -  pass_wf-take-put-tc-3.cogent
+    -  pass_yet-another-take-put.cogent
+  expected_result: pass
+  flags:
+    - -g
+
+- test_name: fail-take-put
+  files:
+    -  fail_lax-take-put.cogent
+    -  fail_no-need-to-take-all.cogent
+    -  fail_taken-inner.cogent
+    -  fail_take-nonexist-field.cogent
+    -  fail_take-put-parser-1.cogent
+    -  fail_take-put-parser-2.cogent
+    -  fail_take-put-parser-3.cogent
+    -  fail_take-put-parser-4.cogent
+    -  fail_take-taken-fld.cogent
+    -  fail_use-nonlinear-taken-field.cogent
+    -  fail_wf-take-nonexisting-field.cogent
+    -  fail_wf-take-nothing-nonrec.cogent
+    -  fail_wf-take-something-nonrec.cogent
+    -  fail_wf-take-tyvar.cogent
+    -  shouldfail_put-linear-more-than-once.cogent
+    -  shouldfail_take-linear-more-than-once.cogent
+    -  shouldfail_take-nonlinear-more-than-once.cogent
+  expected_result: fail
+  flags:
+    - -t
+     
+- test_name: shouldfail-take-put
+  files:
+    -  shouldfail_take-same-fields.cogent
+  expected_result: wip
+  flags:
+    - -t

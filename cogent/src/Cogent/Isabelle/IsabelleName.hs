@@ -22,6 +22,8 @@ import Cogent.Normal as N (freshVarPrefix)
 import Data.List (stripPrefix, isPrefixOf, isSuffixOf)
 import Data.Char (isDigit)
 
+import Cogent.Compiler (__fixme)
+
 
 newtype IsabelleName = IsabelleName { unIsabelleName :: String }
   deriving (Eq, Show, Ord)
@@ -33,15 +35,16 @@ newtype IsabelleName = IsabelleName { unIsabelleName :: String }
  - 3) We don't take a name in the Isabelle standard proof library (e.g. 'map')
 -}
 safeName :: IsabelleName -> IsabelleName
-safeName (IsabelleName nm) = IsabelleName $
-  case isReserved nm of
-    True -> error $ "Error: function name `" ++ nm ++ "' is a reserved isabelle name" 
-    -- Add debug note
-    False -> case "_" `isPrefixOf` nm of
-      True  -> error $ "Error: function name `" ++ nm ++ "' cannot start with underscores"
-      False -> case "_" `isSuffixOf` nm of
-        True  -> error $ "Error: function name `" ++ nm ++ "' cannot end with underscores"
-        False -> nm
+safeName = __fixme . id
+-- safeName (IsabelleName nm) = IsabelleName $
+--   case isReserved nm of
+--     True -> __fixme nm  -- error "Error: function name `" ++ nm ++ "' is a reserved Isabelle name" 
+--     -- Add debug note
+--     False -> case "_" `isPrefixOf` nm of
+--       True  ->  __fixme nm  -- "Error: function name `" ++ nm ++ "' cannot start with underscores"
+--       False -> case "_" `isSuffixOf` nm of
+--         True  -> __fixme nm -- "Error: function name `" ++ nm ++ "' cannot end with underscores"
+--         False -> nm
 
 isReserved :: String -> Bool
 isReserved n = n `elem` reservedWords

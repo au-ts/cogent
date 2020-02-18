@@ -42,7 +42,6 @@ simplify axs = Rewrite.pickOne $ \c -> -- trace ("About to simpliy:\n" ++ debugP
   Share  (TypeVarBang _)              -> Just []
   Drop   (RecParBang _ _)             -> Just []
   Share  (RecParBang _ _)             -> Just []
-  -- TODO: Drop/Share RecParBang?
   Share  (Variant es)                 -> guard (rowVar es == Nothing)
                                       >> Just (map Share  (Row.untakenTypes es))
   Drop   (Variant es)                 -> guard (rowVar es == Nothing)
