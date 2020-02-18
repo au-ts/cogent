@@ -281,7 +281,12 @@ getFuncId _ = Nothing
 getTypeVarNum :: Definition e a b -> Int
 getTypeVarNum (FunDef  _ _ tvs _ _ _ _) = Nat.toInt $ Vec.length tvs
 getTypeVarNum (AbsDecl _ _ tvs _ _ _  ) = Nat.toInt $ Vec.length tvs
-getTypeVarNum (TypeDef _ tvs _    ) = Nat.toInt $ Vec.length tvs
+getTypeVarNum (TypeDef _ tvs _        ) = Nat.toInt $ Vec.length tvs
+
+getLayoutVarNum :: Definition e a b -> Int
+getLayoutVarNum (FunDef  _ _ _ lvs _ _ _) = Nat.toInt $ Vec.length lvs
+getLayoutVarNum (AbsDecl _ _ _ lvs _ _  ) = Nat.toInt $ Vec.length lvs
+getLayoutVarNum (TypeDef _ _ _          ) = 0
 
 isDefinitionId :: String -> Definition e a b -> Bool
 isDefinitionId n d = n == getDefinitionId d
