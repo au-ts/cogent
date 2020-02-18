@@ -39,6 +39,7 @@ import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core
+import Cogent.Dargent.Allocation
 import Cogent.Util
 import Cogent.PrettyPrint (indent')
 import Data.Ex
@@ -197,6 +198,41 @@ substitute _  (TUnit)          = TUnit
 #ifdef BUILTIN_ARRAYS
 substitute vs (TArray t l s mhole) = TArray (substitute vs t) (substituteLE vs l) s (fmap (substituteLE vs) mhole)
 #endif
+
+substituteL :: [DataLayout BitRange] -> Type t b -> Type t b
+substituteL ls (TCon n ts s)    = TCon n (map (substituteL ls) ts) s
+substituteL ls (TFun ti to)     = TFun (substituteL ls ti) (substituteL ls to)
+substituteL ls (TProduct t1 t2) = TProduct (substituteL ls t1) (substituteL ls t2)
+substituteL ls (TRecord ts s)   = TRecord (map (second (first $ substituteL ls)) ts) (substituteS ls s)
+substituteL ls (TSum ts)        = TSum (map (second (first $ substituteL ls)) ts)
+#ifdef BUILTIN_ARRAYS
+substituteL ls (TArray t l s mhole) = TArray (substituteL ls t) l (substituteS ls s) mhole
+#endif
+substituteL _  t                = t
+
+substituteS :: [DataLayout BitRange] -> Sigil (DataLayout BitRange) -> Sigil (DataLayout BitRange)
+substituteS ls Unboxed = Unboxed
+substituteS ls (Boxed b CLayout) = Boxed b CLayout
+substituteS ls (Boxed b (Layout l)) = Boxed b . Layout $ substituteS' ls l
+  where
+    substituteS' :: [DataLayout BitRange] -> DataLayout' BitRange -> DataLayout' BitRange
+    substituteS' ls l = case l of
+      VarLayout n -> case ls !! (natToInt n) of
+                       CLayout -> __impossible "substituteS in Inference: CLayout shouldn't be here"
+                       Layout l -> l
+      SumLayout tag alts ->
+        let altl = M.toList alts
+            fns = fmap fst altl
+            fis = fmap fst $ fmap snd altl
+            fes = fmap snd $ fmap snd altl
+         in SumLayout tag $ M.fromList (zip fns $ zip fis (fmap (substituteS' ls) fes))
+      RecordLayout fs ->
+        let fsl = M.toList fs
+            fns = fmap fst fsl
+            fes = fmap snd fsl
+         in RecordLayout $ M.fromList (zip fns (fmap (substituteS' ls) fes))
+      ArrayLayout e -> ArrayLayout $ substituteS' ls e
+      _ -> l
 
 substituteLE :: Vec t (Type u b) -> LExpr t b -> LExpr u b
 substituteLE vs = \case
@@ -494,8 +530,8 @@ infer (E (Fun f ts ls note))
         case x of
           Just (FT ks lts ti to) ->
             ( case Vec.length ts' =? Vec.length ks
-                of Just Refl -> let ti' = substitute ts' ti
-                                    to' = substitute ts' to
+                of Just Refl -> let ti' = substitute ts' $ substituteL ls ti
+                                    to' = substitute ts' $ substituteL ls to
                                 in do forM_ (Vec.zip ts' ks) $ \(t, k) -> do
                                         k' <- kindcheck t
                                         when ((k <> k') /= k) $ __impossible "kind not matched in type instantiation"
