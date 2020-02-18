@@ -150,11 +150,10 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   -- If both sides of an equality constraint are equal, we can't completely discharge it;
   -- we need to make sure all unification variables in the type are instantiated at some point
   t :=: u | t == u -> 
-    if isSolved t then 
-      hoistMaybe $ Just [] 
+    hoistMaybe $ if isSolved t then 
+      Just [] 
     else
-      --t' <- fullyNormalise t
-      hoistMaybe $ Just [Solved t]
+      Just [Solved t]
 
   Solved t | isSolved t -> hoistMaybe $ Just []
 
