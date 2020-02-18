@@ -1,4 +1,3 @@
-
 --
 -- Copyright 2018, Data61
 -- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
@@ -16,9 +15,8 @@
 
 module Cogent.Dargent.Desugar
  ( desugarAbstractTypeSigil
- , desugarSigil
+ , desugarSize
  -- Remaining exports for testing only
- -- , desugarDataLayout
  , constructDataLayout
  ) where
 
@@ -49,7 +47,7 @@ import Cogent.Dargent.Surface       ( DataLayoutSize(Bytes, Bits, Add)
 import Cogent.Dargent.Util
 import Cogent.Core                  ( Type(..) )
 
-{- * Desugaring 'Sigil's -}
+{- * Helper functions used in Core.Desugar -}
 
 -- | After WH-normalisation, @TCon _ _ _@ values only represent primitive and abstract types.
 --   Primitive types have no sigil, and abstract types may be boxed or unboxed but have no layout.
@@ -62,78 +60,9 @@ desugarAbstractTypeSigil = fmap desugarMaybeLayout
     desugarMaybeLayout Nothing = ()
     desugarMaybeLayout _       = __impossible $ "desugarAbstractTypeSigil (Called on TCon after normalisation, only for case when it is an abstract type)"
 
-
--- | If a 'DataLayoutExpr' was provided, desugars the 'DataLayoutExpr' to a @DataLayout BitRange@
---   Otherwise, constructs a @DataLayout BitRange@ which matches the type.
---   TODO: Layout polymorphism and layout inference will require changing the second behavior /mdimeglio
---
---   Should not be used to desugar sigils associated with @TCon _ _ _@ types, ie. abstract types.
-desugarSigil
-  :: (Type t a)
-      -- ^ This type should be obtained by
-      --
-      --   1. Start with the raw type that the 'Sigil' is attached to
-      --   2. Replace the top level sigil with @Unboxed@
-      --   3. Desugar the resulting type
-      --
-      --   Explanation of why:
-      --   The generation algorithm will lay out the internals of unboxed records,
-      --   but give boxed records a 'PrimLayout' of pointer size. However, we want to layout
-      --   the internals of the top level record.
-
-  -> Sigil (Maybe DataLayoutExpr)
-      -- ^ Since desugarSigil is only called for normalising boxed records (and later, boxed variants),
-      --   the @Maybe DataLayoutExpr@ should always be in the @Just layout@ alternative.
-
-  -> Sigil (DataLayout BitRange)
-
-desugarSigil t = fmap desugarMaybeLayout
-  where
-    desugarMaybeLayout _ = __fixme $ CLayout  -- FIXME: desugarLayout to be implemented in Cogent.Desugar with DS monad
-    -- desugarMaybeLayout Nothing  = CLayout -- default to a CLayout
-    -- desugarMaybeLayout (Just l) = desugarDataLayout l
-
-
-{- * Desugaring 'DataLayout's -}
-
 desugarSize :: DataLayoutSize -> Size
 desugarSize = evalSize
 
-desugarDataLayout :: DataLayoutExpr -> DataLayout BitRange
-desugarDataLayout l = Layout $ desugarDataLayout' l
-  where
-    desugarDataLayout' :: DataLayoutExpr -> DataLayout' BitRange
-    desugarDataLayout' (DLRepRef _) = __impossible "desugarDataLayout (Called after normalisation)"
-    desugarDataLayout' (DLPrim size)
-      | bitSize <- desugarSize size
-      , bitSize > 0
-        = PrimLayout (fromJust $ newBitRangeBaseSize 0 bitSize) -- 0 <= bitSize
-      | bitSize <- desugarSize size
-      , bitSize < 0
-        = __impossible "desugarDataLayout: DLPrim has a negative size"
-      | otherwise = UnitLayout
-
-    desugarDataLayout' (DLOffset dataLayoutExpr offsetSize) =
-      offset (desugarSize offsetSize) (desugarDataLayout' (DL dataLayoutExpr))
-
-    desugarDataLayout' (DLRecord fields) =
-      RecordLayout $ M.fromList fields'
-      where fields' = fmap (\(fname, pos, layout) -> (fname, (desugarDataLayout' layout))) fields
-
-    desugarDataLayout' (DLVariant tagExpr alts) =
-      SumLayout tagBitRange $ M.fromList alts'
-      where
-        tagBitRange = case desugarDataLayout' (DL tagExpr) of
-          PrimLayout range -> range
-          UnitLayout       -> __impossible $ "desugarDataLayout: zero sized bit range for a tag"
-          _                -> __impossible $ "desugarDataLayout (Called after typecheck, tag layouts known to be single range)"
-
-        alts' = fmap (\(aname, pos, size, layout) -> (aname, (size, desugarDataLayout' layout))) alts
-    desugarDataLayout' DLPtr = PrimLayout pointerBitRange
-#ifdef BUILTIN_ARRAYS
-    desugarDataLayout' (DLArray e _) = ArrayLayout (desugarDataLayout' e)
-#endif
-    desugarDataLayout' (DLVar _) = __todo "core data layout"
 
 {- * CONSTRUCTING 'DataLayout's -}
 

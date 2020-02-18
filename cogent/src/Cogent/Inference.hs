@@ -100,16 +100,9 @@ isSubtype t1 t2 = runMaybeT (t1 `lub` t2) >>= \case Just t  -> return $ t == t2
 bound :: (Show b, Eq b) => Bound -> Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
 bound _ t1 t2 | t1 == t2 = return t1
 bound b (TRecord fs1 s1) (TRecord fs2 s2)
-  -- | map fst fs1 == map fst fs2
-  -- , (Boxed _ (LayoutVar n1)) <- s1
-  -- , (Boxed _ (LayoutVar n2)) <- s2
-    -- = error "undetermined"
-  -- | map fst fs1 == map fst fs2
-  -- , (Boxed _ (LayoutVar _)) <- s1
-    -- = bound b (TRecord fs1 s2) (TRecord fs2 s2)
-  -- | map fst fs1 == map fst fs2
-  -- , (Boxed _ (LayoutVar _)) <- s2
-    -- = bound b (TRecord fs2 s2) (TRecord fs1 s1)
+  | map fst fs1 == map fst fs2
+  , (Boxed _ (Layout (VarLayout _))) <- s2
+    = bound b (TRecord fs1 s2) (TRecord fs2 s2)
   | map fst fs1 == map fst fs2
   , s1 == s2
     = do
@@ -131,6 +124,8 @@ bound b (TCon c1 t1 s1) (TCon c2 t2 s2) | c1 == c2, s1 == s2 = TCon c1 <$> zipWi
 bound b (TFun t1 s1) (TFun t2 s2) = TFun <$> bound (theOtherB b) t1 t2 <*> bound b s1 s2
 #ifdef BUILTIN_ARRAYS
 bound b (TArray t1 l1 s1 mhole1) (TArray t2 l2 s2 mhole2)
+  | l1 == l2, (Boxed _ (Layout (VarLayout _))) <- s2
+    = bound b (TArray t1 l1 s2 mhole1) (TArray t2 l2 s2 mhole2)
   | l1 == l2, s1 == s2 = do
       t <- bound b t1 t2
       ok <- lift $ case (mhole1, mhole2) of
