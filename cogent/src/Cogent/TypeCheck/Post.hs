@@ -84,13 +84,15 @@ normaliseE d te@(TE t e l) = do
                 -> Expr TCType TCPatn TCIrrefPatn TCDataLayout TCExpr
                 -> Post (Expr TCType TCPatn TCIrrefPatn TCDataLayout TCExpr)
     normaliseE' d =   traverse (normaliseE d)
-                  >=> ttraverse (normaliseL d)
+                  >=> ttraverse normaliseL
                   >=> tttraverse (normaliseIP d)
                   >=> ttttraverse (normaliseP d)
                   >=> tttttraverse (normaliseT d)
 
-normaliseL :: a -> b -> Post b
-normaliseL d a = pure a
+normaliseL :: TCDataLayout -> Post TCDataLayout
+normaliseL l = do
+  layouts <- lift . lift $ use knownDataLayouts
+  return $ normaliseTCDataLayout layouts l
 
 normaliseP :: TypeDict -> TCPatn -> Post TCPatn
 normaliseP d tp@(TP p l) = do

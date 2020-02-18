@@ -49,6 +49,7 @@ import Prelude hiding (foldr)
 #else
 import Prelude hiding ((<$>), foldr)
 #endif
+import Data.Nat (natToInt)
 import Data.Word (Word32)
 import System.FilePath (takeFileName)
 import Text.Parsec.Pos
@@ -994,6 +995,7 @@ instance Pretty a => Pretty (DataLayout' a) where
 #ifdef BUILTIN_ARRAYS
   pretty (ArrayLayout l) = brackets (pretty l)
 #endif
+  pretty (VarLayout n) = parens (dullcyan . string . ("_l" ++) . show . natToInt $ n)
 
 instance Pretty BitRange where
   pretty br = literal (pretty $ bitSizeBR br) <> symbol "b" <+> symbol "at" <+> literal (pretty $ bitOffsetBR br) <> symbol "b"
