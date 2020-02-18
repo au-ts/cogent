@@ -103,13 +103,9 @@ Here's an example configuration that runs verification on the generated AllRefin
 
 ### Running Arbitrary Tests
 
-**CURRENTLY NOT SUPPORTED**
-
 To run an arbitrary script as a test, supply the field `command` which contains a string
 that will be executed in the shell. If the command returns `0` as it's exit code, the test
-succeeds. Otherwise, the test fails.
-
-The `error` value in the field `expected_result` is not supported for this method of testing.
+succeeds, if it returns `1`, it fails, and if it returns `2`, it errors.
 
 The following example runs a provided script, which is expected to fail (i.e. expecting the script to return a non-0 exit code):
 
@@ -118,6 +114,8 @@ The following example runs a provided script, which is expected to fail (i.e. ex
   command: "L4V_ARCH=ARM ./testScript.sh"
   expected_result: "fail"
 ```
+
+Note that it is the users responsibility to clean the testing directorty up after the command is run.
 
 ## Test script arguments
 

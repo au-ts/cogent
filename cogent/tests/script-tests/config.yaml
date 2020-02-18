@@ -11,17 +11,13 @@
   flags:
     - "--typecheck"
   expected_result: "error"
-wdawhdgyawdvy
 - test_name: simple-fail
   files:
     - simple_fail.cogent
   flags:
     - "--typecheck"
-  expected_result: "fail  "
+  expected_result: "fail"
 
 - test_name: script-test
-  files:
-    - dawdawd
-  flags:
-    - "--parse"
-  expected_result: "wip"
+  command: "./script-example.sh"
+  expected_result: "pass"

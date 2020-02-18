@@ -2,6 +2,7 @@
 
 from termcolor import colored
 from ruamel.yaml import YAML
+from ruamel.yaml.scanner import ScannerError
 import os
 import subprocess
 import sys
@@ -136,7 +137,8 @@ class InvalidConfigError(Exception):
 
 class TestConfiguration:
 
-    valid_test_fields = ["files", "flags", "expected_result", "test_name"]
+    valid_test_fields = ["files", "expected_result", "test_name"]
+    valid_test_types = ["flags", "command", "verification"]
 
     header_block_len = 20
 
@@ -160,35 +162,54 @@ class TestConfiguration:
             if not "test_name" in f.keys():
                 raise InvalidConfigError(
                     "Test {0} in {1} must contain mandatory field 'test_name', specifying the (unique) name of the test".format(i, self.relpath))
-            if not "files" in f.keys():
+
+            test_types = [value for value in f.keys() if value in self.valid_test_types]
+            if len(test_types) > 1:
                 raise InvalidConfigError(
-                    "Test {0} in {1} must contain mandatory field 'files', a list with at least 1 test".format(i, self.relpath))
-            if not "flags" in f.keys():
+                    "Test {0} in {1} must specify only one test type ('flags', 'command' or 'verification')".format(i, self.relpath))
+
+
+            # Check each test type is valid
+            if "flags" in f.keys():
+                if not "files" in f.keys():
+                    raise InvalidConfigError(
+                        "Test {0} in {1} must contain mandatory field 'files', specifying test files".format(i, self.relpath))
+
+                if len(f["files"]) == 0:
+                    raise InvalidConfigError(
+                        "Test {0} in {1} must have at least 1 test file".format(i, self.relpath))
+                if len(f["flags"]) == 0:
+                    raise InvalidConfigError(
+                        "Test {0} in {1} must have at least 1 compiler flag".format(i, self.relpath))
+
+                for flag in f["flags"]:
+                    if re.compile(r'^\s*--dist-dir').match(flag):
+                        raise InvalidConfigError(
+                            "The use of the '--dist-dir' flag is prohibited in test flags (test {}, in {})".format(i, self.relpath))
+            elif "command" in f.keys():
+                if "files" in f:
+                    raise InvalidConfigError(
+                        "Test {0} in {1} cannot specify field 'files' for 'command' test type".format(i, self.relpath))
+            elif "verification" in f.keys():
                 raise InvalidConfigError(
-                    "Test {0} in {1} must contain mandatory field 'flags', specifying ".format(i, self.relpath))
+                    "Test {0} in {1}: 'verification' field currently not supported".format(i, self.relpath))
+            else:
+                raise InvalidConfigError(
+                    "Test {0} in {1} must specify a test type ('flags', 'command' or 'verification')".format(i, self.relpath))
+
+
+            # Check expected result
             if not "expected_result" in f.keys():
                 raise InvalidConfigError(
                     "Test {0} in {1} must contain mandatory field 'expected_result'".format(i, self.relpath))
-
-            if len(f["files"]) == 0:
-                raise InvalidConfigError(
-                    "Test {0} in {1} must have at least 1 test file".format(i, self.relpath))
-            if len(f["flags"]) == 0:
-                raise InvalidConfigError(
-                    "Test {0} in {1} must have at least 1 compiler flag".format(i, self.relpath))
             if f["expected_result"] not in ["error", "pass", "fail", "wip"]:
-                raise InvalidConfigError("""Field 'expected_result' must be one of 'pass', 'fail', 'error' or 'wip' in test {0} in {1}\n. Actual value: {2}"""
+                raise InvalidConfigError("""Field 'expected_result' must be one of 'pass', 'fail', 'error' or 'wip' in test {0} in {1}.\n Actual value: '{2}'"""
                                          .format(i, self.relpath, str(f["expected_result"])))
 
             for k in f.keys():
-                if k not in self.valid_test_fields:
+                if (k not in self.valid_test_fields) and (k not in self.valid_test_types):
                     raise InvalidConfigError(
                         "Field '{0}' not a valid field in test {1} in {2}".format(k, i, self.relpath))
-
-            for flag in f["flags"]:
-                if re.compile(r'^\s*--dist-dir').match(flag):
-                    raise InvalidConfigError(
-                        "The use of the '--dist-dir' flag is prohibited in test flags (test {}, in {})".format(i, self.relpath))
 
             i += 1
 
@@ -196,7 +217,7 @@ class TestConfiguration:
         return [x['test_name'] for x in self.settings ]
 
 
-    # Run the cogent compiler with the given flags, under test schema d
+    # Run the cogent compiler with the given flags, under test schema test_info
     def run_cogent(self, filename, flags, test_info):
         fname = os.path.join(self.dir, filename)
         # Check file exists and error gracefully
@@ -227,10 +248,48 @@ class TestConfiguration:
 
         return TestResult(test(), fname, test_info['test_name'])
 
+    # Runs a shell command
+    def run_command(self, test_info):
+        command = test_info['command']
+
+        def test():
+            res = subprocess.run(command,
+                                 stderr=subprocess.STDOUT,
+                                 stdout=subprocess.PIPE,
+                                 cwd=self.dir,
+                                 shell=True)
+            
+            status = "pass"
+            if res.returncode == 1:
+                status = "fail"
+            if res.returncode == 2:
+                status = "error"
+
+            return (status, res.stdout.decode("utf-8"), test_info["expected_result"])
+        
+        return TestResult(test(), test_info['test_name'], test_info['test_name'])
+
+
     def print_test_header(self, test_name):
         print("-" * self.header_block_len,
               " {} ".format(test_name),
               "-" * self.header_block_len)
+
+    # dispatches a test according to its type
+    def run_test(self, test):
+        results = []
+        if "flags" in test.keys():
+            for f in test['files']:
+                results.append(self.run_cogent(f, test['flags'], test))
+        elif "command" in test.keys():
+            results.append(self.run_command(test))
+        elif "verification" in test.keys():
+            # This should error
+            pass
+        else:
+            # Should be impossible
+            pass
+        return results
 
     # Run one test by name
     def run_one(self, test_name):
@@ -238,8 +297,7 @@ class TestConfiguration:
         for test in self.settings:
             if test_name == test['test_name']:
                 self.print_test_header(test_name)
-                for f in test['files']:
-                    results.append(self.run_cogent(f, test['flags'], test))
+                results += self.run_test(test)
                 print()
                 break
         return results
@@ -249,8 +307,7 @@ class TestConfiguration:
         results = []
         for test in self.settings:
             self.print_test_header(test['test_name'])
-            for f in test['files']:
-                results.append(self.run_cogent(f, test['flags'], test))
+            results += self.run_test(test)
             print()
         return results
 
@@ -264,38 +321,44 @@ def get_cfg_from_test_name(f):
     return None
 
 
-# Find and run one test
-def run_test(test_name):
-    conf = get_cfg_from_test_name(test_name)
-    if conf is None:
-        print(colored("Cannot find config file containing test name {}".format(test_name), "red"))
-        sys.exit(1)
-    res = conf.run_one(test_name)
+# Finds and runs a list of tests
+def run_tests(test_names):
+    res = []
+    for name in test_names:
+        conf = get_cfg_from_test_name(name)
+        if conf is None:
+            print(colored("Cannot find config file containing test name {}".format(name), "red"))
+            sys.exit(1)
+        res += conf.run_one(name)
     return res
 
 # Find all configuration files in the test directory
-
-
 def get_configs_with_errors():
     files = Path(".").rglob(CONFIG_FILE_NAME)
     files = [os.path.abspath(x) for x in files]
     cfgs = []
     errored = False
     for x in files:
+        xname = os.path.relpath(x)
         try:
             cfgs.append(TestConfiguration(x))
         except InvalidConfigError as e:
             print(colored("Config error: ", "red"), e)
             errored = True
+        except ScannerError as e:
+            print(colored("Error", "red"), "- syntax error in test file {}".format(xname))
+            errored = True
         except OSError as err:
-            print(colored("error - could not find config file for test file {}".format(x), "red"))
+            print(colored("Error", "red"), "- could not find config file for test file {}".format(xname))
             errored = True
     return (cfgs, errored)
 
+# Finds all configuration files, ignoring errors
 def get_configs():
     cfgs, _ = get_configs_with_errors()
     return cfgs
 
+# Checks if all configuration files are valid
 def validate():
     # Will implicitly run the configuration check
     cfgs, err = get_configs_with_errors()
@@ -328,7 +391,6 @@ def validate():
 
 
 if __name__ == "__main__":
-
     # Check if cogent is installed
     cogent = shutil.which("cogent")
     if cogent is None:
@@ -341,9 +403,11 @@ if __name__ == "__main__":
             CONFIG_FILE_NAME),
         allow_abbrev=False
     )
-    ap.add_argument("--only", "-o", dest="only_test",
+    ap.add_argument(dest="only_test",
+                    type=str,
                     help="only run specified tests", 
-                    metavar="TEST_NAME")
+                    metavar="TEST_NAME",
+                    nargs='*')
     ap.add_argument("--verbose", "-v", 
                     dest="verbose",
                     help="print output for given tests even if they pass (none supplied = all tests)",
@@ -371,22 +435,20 @@ if __name__ == "__main__":
     if args.verbose is not None:
         verbose_test_names = args.verbose
 
+    # clean the dist dir
+    setup_dist()
+
     results = []
     # If we're only running specific tests
-    if args.only_test is not None:
-        results = run_test(args.only_test)
+    if args.only_test != []:
+        results = run_tests(args.only_test)
     # Otherwise, run all possible tests
     else:
         configs = get_configs()
         for c in configs:
-            for res in c.run_all():
-                results.append(res)
-
-    all_passed = True
+            results += c.run_all()
 
     final_results = []
-
-    setup_dist()
 
     errs   = 0
     passes = 0
