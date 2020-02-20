@@ -11,14 +11,13 @@
  *)
 
 theory Type_Args
-imports Main "HOL-Word.Word"
+imports Main "HOL-Word.Word" "AutoCorres.AutoCorres"
 begin
 type_synonym funtyp = "char list"
 
 (* Placeholder. We will need to add proper abstract value representations later on. *)
 type_synonym abstyp = unit
 
-(* FIXME this changes depending on L4V_ARCH ! *)
-type_synonym ptrtyp = "32 word"
+type_synonym ptrtyp = addr
 
 end
