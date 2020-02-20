@@ -2,30 +2,51 @@
                                  Types
 ************************************************************************
 
-The |cogent| language is a strongly typed language, where every term and variable in a program has a 
-specific type. Like some other strongly typed languages, such as Scala and several functional languages
-types are often automatically inferred and need not be specified explicitly.  Although possible
-in many cases, |cogent| never infers types for toplevel definitions (see Section~\ref{toplevel-def}), they
-must always be specified explicitly.
+The |cogent| language is a strongly typed language,
+where every term and variable in a program
+has a specific type.
+Like some other strongly typed languages,
+such as Haskell, Scala, and several other functional languages,
+types are often automatically inferred
+and need not be specified explicitly.
+Although possible in many cases,
+|cogent| never infers types for top-level definitions
+(see Section~\ref{toplevel-def}):
+they must always be specified explicitly.
 
-In most typed programming languages a type only determines a set of values and the operations which 
-can be applied to these values. As a main feature of |cogent|, types are extended to also represent 
-the way how values can be used in a program.
+In most typed programming languages,
+a type only determines a set of values
+and the operations which can be
+applied to these values.
+As a main feature of |cogent|,
+types are extended to represent
+the way values may be *used* in a program.
 
 
 Type Basics
 ====================================
 
-We will first look at the basic features of the |cogent| type system, which are similar to those of types
-in most other programming languages. There are some predefined *primitive* types and there
-are ways to construct *composite* types from existing types.
+We will first look at
+the basic features of the |cogent| type system,
+which are similar to those of
+type systems in many other programming languages.
+There are some predefined *primitive* types,
+and there are ways to construct *composite* types
+from existing types.
 
-Note that in |cogent| types can always be specified (e.g.~for variables or function arguments) by 
-arbitrarily complex *type expressions*. It is possible to use a *type definition* 
-to give a type a name, but it is not necessary to do so. In particular, types are matched by structural 
-equality, hence if the same type expression is specified in different places it means the same type.
+Note that, in |cogent|,
+types can always be specified
+(e.g., for variables or function arguments)
+by arbitrarily complex *type expressions*.
+It is possible to use a *type definition*
+to give a type a name,
+but it is not necessary to do so.
+In particular, types are matched by structural equality:
+hence, if the same type expression
+is specified in different places,
+it refers to the same type.
 
-The general syntactical levels of type expressions are as follows:
+The general syntax of type expressions are as follows:
 
   *MonoType*:
     | *TypeA1*
@@ -43,17 +64,27 @@ The general syntactical levels of type expressions are as follows:
     | ``(`` *MonoType* ``)``
     | ...
 
-By putting an arbitrary *MonoType* expression in parentheses it can be used wherever an *AtomType* is 
-allowed in a type expression.
+By putting
+an arbitrary *MonoType* expression
+in parentheses,
+it can be used wherever
+an *AtomType* is allowed
+in a type expression.
 
 
 Primitive Types
 ------------------------------
 
-Since |cogent| is intended as a system programming language, the predefined primitive types are mainly bitstring types.
-Additionally, there is a type for boolean values and an auxiliary string type.
+Since |cogent| is intended as
+a system programming language,
+the predefined primitive types are
+mainly bitstring types.
+Additionally, there is a type for Boolean values,
+and an auxiliary string type.
 
-Syntactically, a primitive type is specified as a nullary type constructor:
+Syntactically,
+a primitive type is specified as
+a nullary type constructor:
 
   *AtomType*:
     | ``(`` *MonoType* ``)``
@@ -74,11 +105,18 @@ They denote strings of 8, 16, 32, or 64 bits, respectively.
    % , and ``Char``.
    % , the type ``Char`` is a synonym for ``U8``.
 
-The usual bitstring operations can be applied to values of the bitstring types, such as bitwise boolean 
-operations and shifting. Alternatively, bitstring values can be interpreted as unsigned binary represented
-numbers and the corresponding numerical operations can be applied. All numerical operations are done modulo the
-first value that is no more included in the corresponding type. E.g., numerical operations for values of
-type ``U8`` are done modulo :math:`2^8 = 256`.
+The usual bitstring operations
+can be applied to values of the bitstring types,
+such as bitwise boolean operations and shifting.
+Alternatively, bitstring values can be interpreted as
+unsigned binary represented numbers,
+and the corresponding numerical operations can be applied.
+All numerical operations are done
+modulo the first value
+that is no more included in the corresponding type:
+for example, numerical operations
+for values of type ``U8``
+are done modulo :math:`2^8 = 256`.
 
 .. todo:: application of ``&&`` and ``||``?
 
@@ -86,21 +124,33 @@ type ``U8`` are done modulo :math:`2^8 = 256`.
 Other Primitive Types
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The other primitive types are ``Bool`` and ``String``. Type ``Bool`` has the two values ``True``
-and ``False`` with the boolean operations. Type ``String`` can only be used for specifying string literals,
-it supports no operations.
+The other primitive types
+are ``Bool`` and ``String``.
+
+The type ``Bool`` has
+the two values ``True`` and ``False``
+with conventional boolean operations.
+
+The ``String`` type can only be used
+for specifying string literals;
+it supports no operations,
+and cannot currently participate in verification..
 
 
 Composite Types
 ------------------------------
 
-There are the following possibilities to construct composite types: records, tuples, variants, and functions. 
+Cogent's composite types are
+records, tuples, variants, and functions.
 
 
 Tuple Types
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-A tuple type represents mathematical tuples, i.e., values with a fixed number of fields specified in a certain order. Every field may have a different type.
+A tuple type represents mathematical tuples:
+values with a fixed number of fields,
+specified in a certain order.
+Every field may have a different type.
 A tuple type expression has the syntax:
 
   *AtomType*:
@@ -113,17 +163,27 @@ A tuple type expression has the syntax:
     | ``()``
     | ``(`` *MonoType* ``,`` *MonoType* { ``,`` *MonoType* } ``)``
 
-The empty tuple type ``()`` is also called the *unit* type. It has the empty tuple as its only value.
+The empty tuple type, ``()``,
+is also called the *unit* type.
+It has the empty tuple as its only value.
 
-Note that there is no 1-tuple type, a tuple type must either be the unit type or have at least two fields. Conceptually,
-a 1-tuple is equivalent to its single field. Syntactically the form ``(`` *MonoType* ``)`` is used for
-grouping. 
+Note that there is no 1-tuple type.
+A tuple type may not have one field;
+it must have either exactly zero, or two or more fields.
+Conceptually, a 1-tuple is equivalent to its single field.
+Syntactically the form ``(`` *MonoType* ``)`` is used for grouping.
 
 The type expression ``(U8, U16, U16)`` is an example for a tuple type with three fields.
 
 .. ::
-   Tuple types in |cogent| are right associative: If the rightmost field in a tuple type T again has a tuple type, the type T is equivalent 
-   to the flattened type where the rightmost field is replaced by the fields according to its type. As an example, all the following types are equivalent::
+   Tuple types in |cogent| are right associative:
+   If the rightmost field in a tuple type T
+   again has a tuple type,
+   the type T is equivalent to
+   the flattened type
+   where the rightmost field is replaced by
+   the fields according to its type.
+   As an example, all the following types are equivalent::
 
      (U8, (U16, U16), (U8, Bool, U32))
      (U8, (U16, U16), U8, (Bool, U32))
@@ -131,12 +191,15 @@ The type expression ``(U8, U16, U16)`` is an example for a tuple type with three
      (U8, (U16, U16), (U8, (Bool, U32)))
      (U8, ((U16, U16), U8, Bool, U32))
 
+
 Record Types
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-A record type is similar to a C struct, or a Haskell data type in record syntax. It consist of
-arbitrary many *fields*, where each field has a name and a type. Accordingly, a record type expression
-has the following syntax:
+A record type is similar to a C ``struct``,
+or a Haskell data type in record syntax.
+It consist of arbitrarily many *fields*,
+where each field has a name and a type.
+A record type expression has the following syntax:
 
   *AtomType*:
     | ``(`` *MonoType* ``)``
@@ -151,21 +214,38 @@ has the following syntax:
   *FieldName*:
     | *LowercaseID*
 
-The fields in a record type are order-sensitive. Therefore, the type expressions ``{a: U8, b: U16}`` and
-``{b: U16, a: U8}`` denote different types.  A record type must always have at least one field. 
-Other than for tuples, a record type may have a single field.
-Therefore, the type expressions ``{a: U8}`` and ``U8`` denote different types.
+The fields in a record type are order-sensitive.
+Therefore, the type expressions
+``{a: U8, b: U16}`` and
+``{b: U16, a: U8}`` denote different types.
+A record type must have one or more fields.
+Other than for tuples,
+a record type may have a single field.
+Therefore,
+the type expressions ``{a: U8}`` and ``U8``
+denote different types.
 
 
 Variant Types
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-A variant type is similar to a union in C, or an algebraic data type in Haskell. As in Haskell, and
-unlike in C, a variant type is a *discriminated* union:  each value is tagged with 
-the alternative it belongs to. 
+A variant type is similar to a tagged ``union`` in C,
+or an algebraic data type in Haskell.
+As in Haskell, and unlike in C,
+a variant type is a *discriminated* union:
+each value is tagged with
+the alternative it belongs to.
 
-Depending on the tag, every value may have a "payload" which is a sequence of values, as in a tuple.
-A variant type specifies for every alternative the tag and the types of the payload values,  hence it has the syntax:
+Also unlike C,
+each value of the variant type
+may have its own "payload",
+taking the form of a sequence of values,
+as in a tuple.
+
+A variant type specifies,
+for every alternative,
+a tag, and the types of each payload value.
+It has the syntax:
 
   *AtomType*:
     | ``(`` *MonoType* ``)``
@@ -181,12 +261,16 @@ A variant type specifies for every alternative the tag and the types of the payl
   *DataConstructor*:
     | *CapitalizedID*
 
-The tags are given by the *DataConstructor* elements.  Since the payload is a sequence of values the 
-ordering of the *TypeA2* matters. 
+The tags are given by the *DataConstructor* elements.
+Since the payload is a sequence of values,
+the ordering of the *TypeA2* matters.
 
-The type expression ``<Small U8 | Large U32>`` is an example for a variant type with two alternatives, where the 
-payloads are single values of type \code{U8} and \code{U32}, respectively. Typical applications
-of variant types are for modelling error cases, such as in::
+The type expression ``<Small U8 | Large U32>``
+is a variant type with two alternatives,
+where the payloads are single values of type ``U8`` and ``U32``, respectively.
+
+A typical application of variant types
+is for modelling error cases, such as::
 
   <Ok U16 U32 U8 | Error U8>
 
@@ -194,20 +278,29 @@ or for modelling optional values, such as in::
 
   <Some U16 | None>
 
-Although *DataConstructor*\ s and *TypeConstructor*\ s have the same syntax, they constitute different namespaces.
-A *CapitalizedID* can be used to denote a *DataConstructor* and a *TypeConstructor* in the same
-context. In the example::
+Although *DataConstructor*\ s
+and *TypeConstructor*\ s
+have the same syntax,
+they constitute different namespaces.
+A *CapitalizedID* can be used
+to denote a *DataConstructor* and
+a *TypeConstructor* in the same context.
+In the example::
 
   <Int U32 | Bool U8>
 
-the name of the predefined primitive type ``Bool`` is also used as a tag in a variant type.
+the name of the predefined primitive type ``Bool``
+is also used as a tag in a variant type.
 
 
 Function Types
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-A function type corresponds to the usual concept of function types in functional programming languages, as it is even 
-available in C. A function type has the syntax:
+A function type corresponds to
+the usual concept of function types
+in functional programming languages,
+as it is even available in C.
+A function type has the syntax:
 
   *MonoType*:
     | *TypeA1*
@@ -216,15 +309,29 @@ available in C. A function type has the syntax:
   *FunctionType*:
     | *TypeA1* ``->`` *TypeA1*
 
-A function with type ``U8 -> U16`` maps values of type ``U8`` to values of type ``U16``.
+A function with type ``U8 -> U16``
+maps values of type ``U8``
+to values of type ``U16``.
 
-Note, that a *TypeA1*  cannot be a function type. Hence, to specify a higher order function type in |cogent|, which 
-takes a function as argument or returns a functions as result, the argument or result type must be put in parentheses.
+Note that a *TypeA1* cannot be a function type.
+To specify a higher order function type in |cogent| ---
+a function that takes a function as an argument,
+or returns a functions as a result ---
+the argument or result type must be parenthesised.
 
-In particular, the type expression ``U8 -> U8 -> U16``, which is the usual way of specifying the type of a binary function in Haskell through
-currying, is illegal in |cogent|. Strictly speaking, function types always describe unary functions. To specify the corresponding type 
-in |cogent| use ``U8 -> (U8 -> U16)``. Alternatively, a type expression for a binary function can
-be specified as ``(U8,U8) -> U16`` in |cogent|, which is a different type.
+Function types always describe unary functions;
+therefore, type expressions like ``U8 -> U8 -> U16``
+are illegal in |cogent|.
+In other functional languages,
+this would be the usual way of
+specifying the type of a binary function,
+taking advantage of currying.
+To realise a function of this type in |cogent|,
+it would either have type ``U8 -> (U8 -> U16)`` ---
+explicitly, a function that returns a function ---
+or, more idiomatically,
+such a binary function would have
+the type ``(U8,U8) -> U16``.
 
 
 Type Definitions
