@@ -1,5 +1,5 @@
 ########################################################################
-                        Cogent Reference Manual
+                       |cogent| Reference Manual
 ########################################################################
 
 This part of the manual is not intended as
