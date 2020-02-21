@@ -56,7 +56,7 @@ import Lens.Micro.Mtl
   , (?=)
   , use
   )
-import Debug.Trace (trace)
+import Debug.Trace
 
 -- * Getter/setter generation
 
@@ -187,9 +187,9 @@ genBoxedGetterSetter isStruct box tau@(TArray t l (Boxed {}) _) (PrimLayout rang
   genComposedAlignedRangeGetterSetter isStruct ranges box tau path getOrSet
 #endif
 
-genBoxedGetterSetter isStruct boxType _ _ _ _ = __impossible $
-  "Cogent.Dargent.CodeGen: genBoxedGetterSetter: Type checking should restrict the types which can be embedded in boxed records," ++
-  "and ensure that the data layouts match the types."
+genBoxedGetterSetter isStruct boxType tau range _ _ = do
+  traceM $ show tau ++ ", " ++ show range
+  __impossible $ "Cogent.Dargent.CodeGen: genBoxedGetterSetter: Type checking should restrict the types which can be embedded in boxed records, and ensure that the data layouts match the types."
 
 
 #ifdef BUILTIN_ARRAYS
