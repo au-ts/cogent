@@ -380,10 +380,10 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
                                                       | otherwise -> hoistMaybe $ Nothing
 
 
-  T (TRPar v b m) :< x  | not $ wobbly x -> hoistMaybe $ Just [unroll v b m :< x]
-  x :< T (TRPar v b m)  | not $ wobbly x -> hoistMaybe $ Just [x :< unroll v b m]
-  x :=: T (TRPar v b m) | not $ wobbly x -> hoistMaybe $ Just [x :=: unroll v b m]
-  T (TRPar v b m) :=: x | not $ wobbly x -> hoistMaybe $ Just [unroll v b m :=: x]
+  T (TRPar v b m) :< x@(R _ _ _)  -> hoistMaybe $ Just [unroll v b m :< x]
+  x@(R _ _ _) :< T (TRPar v b m)  -> hoistMaybe $ Just [x :< unroll v b m]
+  x@(R _ _ _) :=: T (TRPar v b m) -> hoistMaybe $ Just [x :=: unroll v b m]
+  T (TRPar v b m) :=: x@(R _ _ _) -> hoistMaybe $ Just [unroll v b m :=: x]
 
   UnboxedNotRecursive (R None _ (Left Unboxed))     -> hoistMaybe $ Just []
   UnboxedNotRecursive (R _ _    (Left (Boxed _ _))) -> hoistMaybe $ Just []

@@ -840,13 +840,6 @@ rigid _ = True
 floppy :: TCType -> Bool
 floppy = not . rigid
 
--- returns true if a type has a (TBang | TTake | TPut) wrapping it
-wobbly :: TCType -> Bool
-wobbly (T (TBang {})) = True
-wobbly (T (TTake {})) = True
-wobbly (T (TPut {})) = True
-wobbly _ = False
-
 --
 -- Dargent
 --
