@@ -83,10 +83,9 @@ assignOf (A _ _ _ (Left h) :=: A _ _ _ (Right v))
   = pure [ Subst.ofHole v h ]
 assignOf (A _ _ _ (Right v) :=: A _ _ _ (Left h))
   = pure [ Subst.ofHole v h ]
-
-assignOf (A _ _ (Left s1) _ :=: A _ _ (Left s2) _) = assignOfS s1 s2
-assignOf (A _ _ (Left s1) _ :<  A _ _ (Left s2) _) = assignOfS s1 s2
 #endif
+
+-- N.B. we know from the previous phase that common alternatives have been factored out.
 assignOf (V r1 :=: V r2)
   | Row.var r1 /= Row.var r2
   , [] <- Row.common r1 r2
@@ -122,10 +121,6 @@ assignOf (Arith (SE t (PrimOp "==" [e, SU _ x]))) | null (unknownsE e)
 #endif
 
 assignOf _ = empty
-
-assignOfS :: Sigil (Maybe TCDataLayout) -> Sigil (Maybe TCDataLayout) -> MaybeT TcSolvM [Subst.Subst]
-assignOfS (Boxed _ (Just l1)) (Boxed _ (Just l2)) = assignOfL l1 l2
-assignOfS _ _ = empty
 
 assignOfL :: TCDataLayout -> TCDataLayout -> MaybeT TcSolvM [Subst.Subst]
 assignOfL (TLU n) (TL l) = pure [Subst.ofLayout n (TL l)]

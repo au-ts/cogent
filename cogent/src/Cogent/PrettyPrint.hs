@@ -870,6 +870,7 @@ instance Pretty Constraint where
 #endif
   pretty (l :~ n)         = pretty l <+> warn ":~" <+> pretty n
   pretty (l :~: m)        = pretty l <+> warn ":~:" <+> pretty m
+  pretty (a :~~ b)        = pretty a </> warn ":~~" </> pretty b
 
 -- a more verbose version of constraint pretty-printer which is mostly used for debugging
 prettyC :: Constraint -> Doc

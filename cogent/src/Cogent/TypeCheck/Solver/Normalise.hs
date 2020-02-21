@@ -161,4 +161,3 @@ normalise = mapM $ \g -> do
 normaliseSExpr :: TCSExpr -> Int
 normaliseSExpr (SE _ (IntLit n)) = fromIntegral n
 normaliseSExpr _ = __todo "normaliseSExpr"
-

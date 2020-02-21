@@ -25,7 +25,6 @@ module Cogent.TypeCheck.Generator
   , freshTVar
   , validateType
   , validateTypes
-  , normaliseTypes
   ) where
 
 import Cogent.Common.Syntax
@@ -59,7 +58,8 @@ import qualified Text.PrettyPrint.ANSI.Leijen as L
 import Lens.Micro.TH
 import Lens.Micro
 import Lens.Micro.Mtl
--- import Debug.Trace
+
+import Debug.Trace
 
 data GenState = GenState { _context :: C.Context TCType
                          , _knownTypeVars :: [TyVarName]
@@ -609,7 +609,7 @@ cg' (TLApp f ts ls i) t = do
             (c, ps) <- matchL t'' l'
             return (c <> layoutMatchConstraint t l, (v, l):ps)
       (cts, tps) <- matchT tvs ts'
-      (cls, lps) <- matchL lvs ls'
+      (cls, lps) <- matchL (second (substType tps) <$> lvs) ls'
       let rt = substLayout lps $ substType tps tau
           rc = rt :< t
           re = TLApp f (Just . snd <$> tps) (Just . snd <$> lps) i
@@ -709,36 +709,6 @@ cg' (Annot e tau) t = do
                 return (ctau <> tau'' :< t, tau'')
   (c', e') <- cg e t'
   return (c <> c', Annot e' t')
-
-{-
- - cg' (LayoutApp e ls) t = do
- -   -- tvs <- use knownTypeVars
- -   (cl, getCompose -> ls') <- validateLayouts (Compose ls)
- -   alpha <- freshTVar
- -   (c', e') <- cg e alpha
- -   let (TypeApp f _ _) = getExpr e'
- -   lift (use $ knownFuns.at f) >>= \case
- -     Just (PT tvs lvs tau) -> do
- -       let match :: [(DLVarName, TCType)] -> [Maybe TCDataLayout] -> CG (Constraint, [(DLVarName, TCDataLayout)])
- -           match [] [] = pure (Sat, [])
- -           match [] _  = pure (Unsat $ TooManyLayoutArguments f (PT tvs lvs tau), [])
- -           match ts [] = freshLVar >>= match ts . return . Just
- -           match (t':t'') (Nothing:l') = freshLVar >>= match (t':t'') . (:l') . Just
- -           match (t':t'') (Just l:l') = do
- -             (c, ps) <- match t'' l'
- -             let (k, v) = t'
- -             return (c <> layoutMatchConstraint v l, (k, l):ps)
- -       (cs, ps) <- match lvs ls'
- -       let ft = substLayout ps tau
- -           lc = ft :< t
- -           le = LayoutApp e' (Just . snd <$> ps)
- -       traceTc "gen" (text "cg for layoutapp:" <+> prettyE le
- -                L.<$> text "of type" <+> pretty t <> semi
- -                L.<$> text "type signature is" <+> pretty (PT tvs lvs tau) <> semi
- -                L.<$> text "generate constraint" <+> prettyC lc)
- -       return (cl <> cs <> lc <> c', le)
- -     Nothing -> return (Unsat (FunctionNotFound f) <> cl, LayoutApp e' ls')
- -}
 
 -- -----------------------------------------------------------------------------
 -- Pattern constraints
