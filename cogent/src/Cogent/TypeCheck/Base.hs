@@ -189,6 +189,7 @@ data Constraint' t l = (:<) t t
                      | Escape t Metadata
                      | (:~) l t
                      | (:~:) l l
+                     | (:~~) t t
                      | (:@) (Constraint' t l) ErrorContext
                      | Unsat TypeError
                      | SemiSat TypeWarning
@@ -268,6 +269,7 @@ instance Bifunctor Constraint' where
   bimap f g (Escape t m)       = Escape (f t) m
   bimap f g (l  :~  t)         = (g l) :~ (f t)
   bimap f g (l1 :~: l2)        = (g l1) :~: (g l2)
+  bimap f g (t1 :~~ t2)        = (f t1) :~~ (f t2)
   bimap f g (c  :@  e)         = (bimap f g c) :@ e
   bimap f g (Exhaustive t ps)  = Exhaustive (f t) ps
   bimap f g (Solved t)         = Solved (f t)
@@ -293,6 +295,7 @@ instance Bitraversable Constraint' where
   bitraverse f g (Escape t m)       = Escape <$> f t <*> pure m
   bitraverse f g (l  :~  t)         = (:~)  <$> g l <*> f t
   bitraverse f g (l1 :~: l2)        = (:~:) <$> g l1 <*> g l2
+  bitraverse f g (t1 :~~ t2)        = (:~~) <$> f t1 <*> f t2
   bitraverse f g (c  :@  e)         = (:@)  <$> bitraverse f g c <*> pure e
   bitraverse f g (Exhaustive t ps)  = Exhaustive <$> f t <*> pure ps
   bitraverse f g (Solved t)         = Solved <$> f t

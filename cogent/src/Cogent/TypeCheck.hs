@@ -131,7 +131,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let lvs = nub (lvT t)  -- layout variables in 't'
         ys' = vs' \\ lvs
     unless (null ys') $ logErrExit $ SuperfluousLayoutVariable ys'
-    let ltvs = concat $ tvT <$> (stripLocT <$> (snd <$> ls))
+    let ltvs = nub . concat $ tvT <$> (stripLocT <$> (snd <$> ls))
         stvs = ltvs \\ vs
     unless (null stvs) $ logErrExit $ TypeVariableNotDeclared stvs
     base <- lift . lift $ use knownConsts
@@ -139,9 +139,8 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let ?loc = loc
     (((clt,lts),(ct,t')), flx, os) <- runCG ctx vs vs'
                                         (do x <- validateTypes (stripLocT . snd <$> ls)
-                                            x' <- secondM normaliseTypes x
                                             y <- validateType t
-                                            pure (x',y))
+                                            pure (x,y))
     traceTc "tc" (text "constraint for abstract function" <+> pretty n <+> text "is"
                   L.<$> prettyC ct)
     let ls' = zip (fst <$> ls) lts
@@ -208,7 +207,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let lvs = nub (lvT t)  -- layout variables in 't'
         ys' = vs' \\ lvs
     unless (null ys') $ logErrExit $ SuperfluousLayoutVariable ys'
-    let ltvs = concat $ tvT <$> (stripLocT <$> (snd <$> ls))
+    let ltvs = nub . concat $ tvT <$> (stripLocT <$> (snd <$> ls))
         stvs = ltvs \\ vs
     unless (null stvs) $ logErrExit $ TypeVariableNotDeclared stvs
     base <- lift . lift $ use knownConsts
@@ -216,10 +215,9 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let ?loc = loc
     (((clt,lts),(ct,t'),(c,alts')), flx, os) <- runCG ctx vs vs'
                                         (do x <- validateTypes (stripLocT . snd <$> ls)
-                                            x' <- secondM normaliseTypes x
                                             y@(ct,t') <- validateType t
                                             z <- cgFunDef alts t'
-                                            pure (x',y,z))
+                                            pure (x,y,z))
     traceTc "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
                   L.<$> prettyC c)
     let ls' = zip (fst <$> ls) lts

@@ -149,6 +149,19 @@ applyWarn :: Subst -> TypeWarning -> TypeWarning
 applyWarn s (UnusedLocalBind v) = UnusedLocalBind v
 applyWarn _ w = w
 
+applyL :: Subst -> TCDataLayout -> TCDataLayout
+applyL (Subst m) (TLU n)
+  | Just (Layout' l) <- M.lookup n m = applyL (Subst m) l
+  | otherwise = TLU n
+applyL s (TLRecord fs) = TLRecord $ (\(a,b,c) -> (a,b,applyL s c)) <$> fs
+applyL s (TLVariant e fs) = TLVariant (unTCDataLayout $ applyL s $ TL e) $
+                                      (\(a,b,c,d) -> (a,b,c,applyL s d)) <$> fs
+#ifdef BUILTIN_ARRAYS
+applyL s (TLArray e p) = TLArray (applyL s e) p
+#endif
+applyL s (TLOffset e n) = TLOffset (unTCDataLayout $ applyL s $ TL e) n
+applyL s l = l
+
 applyC :: Subst -> Constraint -> Constraint
 applyC s (a :< b) = apply s a :< apply s b
 applyC s (a :=: b) = apply s a :=: apply s b
@@ -167,7 +180,9 @@ applyC s Sat = Sat
 applyC s (Exhaustive t ps) = Exhaustive (apply s t) ps
 applyC s (Solved t) = Solved (apply s t)
 applyC s (IsPrimType t) = IsPrimType (apply s t)
-applyC s (l :~ t) = l :~ (apply s t)
+applyC s (l :~  t) = applyL s l :~  apply s t
+applyC s (l :~: m) = applyL s l :~: applyL s m
+applyC s (a :~~ b) = apply s a :~~ apply s b
 
 #ifdef BUILTIN_ARRAYS
 applySE :: Subst -> TCSExpr -> TCSExpr
@@ -186,6 +201,7 @@ applySE s (SE t e) = SE (apply s t)
 applyE :: Subst -> TCExpr -> TCExpr
 applyE s (TE t e l) = TE (apply s t)
                          ( fmap (applyE s)
+                         $ ffmap (applyL s)
                          $ fffmap (fmap (apply s))
                          $ ffffmap (fmap (apply s))
                          $ fffffmap (apply s) e)
