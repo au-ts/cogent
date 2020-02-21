@@ -49,9 +49,15 @@ datatype prim_op
 
 section {* Types *}
 
-datatype ptr_layout = PtrBits int int
-                    | PtrVariant int int "(name \<times> int \<times> ptr_layout) list"
-                    | PtrRecord "(name \<times> ptr_layout) list"
+datatype ptr_layout =
+(* [PtrBits n1 n2] : n1 bits at n2 *)
+    PtrBits int int 
+(* [PtrVariant n1 n2 [("name", n, l), ..]] :
+n1 bits at bit n2, 
+The constructor with tag "name" corresponds to value n *)
+  | PtrVariant int int "(name \<times> int \<times> ptr_layout) list"
+         (* one layout per field *)
+  | PtrRecord "(name \<times> ptr_layout) list"
 
 datatype access_perm = ReadOnly | Writable
 
@@ -909,13 +915,21 @@ inductive_cases a_normal_TakeE:  "a_normal (Take x f e)"
 section {* Representation Types (for use in C-refinement) *}
 
 
-datatype repr = RPtr repr
+
+(* TODO: update to contain mininimal layout information *)
+(*  [repr] is a cleared version of [type].
+minimal representation of types for C-refinement.
+Equal [repr] should match the same C-type, contrary to 
+[type]
+ *)
+datatype repr = RPtr repr ptr_layout
               | RCon name "repr list"
               | RFun
               | RPrim prim_type
               | RSum "(name \<times> repr) list"
               | RProduct "repr" "repr"
               | RRecord "repr list"
+              (* | RArray *)
               | RUnit
 
 fun type_repr :: "type \<Rightarrow> repr" where
@@ -924,9 +938,10 @@ fun type_repr :: "type \<Rightarrow> repr" where
 | "type_repr (TSum ts)            = RSum (map (\<lambda>(a,b,_).(a, type_repr b)) ts)"
 | "type_repr (TProduct a b)       = RProduct (type_repr a) (type_repr b)"
 | "type_repr (TCon n ts Unboxed)  = RCon n (map type_repr ts)"
-| "type_repr (TCon n ts _)        = RPtr (RCon n (map type_repr ts))"
+| "type_repr (TCon n ts (Boxed _ lay))        = RPtr (RCon n (map type_repr ts)) lay"
 | "type_repr (TRecord ts Unboxed) = RRecord (map (\<lambda>(_,b,_). type_repr b) ts)"
-| "type_repr (TRecord ts _)       = RPtr (RRecord (map (\<lambda>(_,b,_). type_repr b) ts))"
+(* Here, the layout is droped, but it should play an important role *)
+| "type_repr (TRecord ts (Boxed _ lay))       = RPtr (RRecord (map (\<lambda>(_,b,_). type_repr b) ts)) lay"
 | "type_repr (TUnit)              = RUnit"
 
 
