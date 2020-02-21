@@ -334,7 +334,7 @@ var = LocExpr <$> getPosition <*> do
   nt <- optionMaybe (reserved "inline")
   v <- variableName
   ta <- optionMaybe (brackets (commaSep1 ((char '_' >> return Nothing) <|> (Just <$> monotype))))
-  la <- optionMaybe (braces (commaSep1 ((char '_' >> return Nothing) <|> (Just <$> repExpr))))
+  la <- optionMaybe (braces $ braces (commaSep1 ((char '_' >> return Nothing) <|> (Just <$> repExpr))))
   return $ f nt v ta la
     where
       f Nothing  v Nothing Nothing = Var v
