@@ -427,7 +427,7 @@ next
     moreover have "\<Xi>, \<xi>, \<gamma>, [], t\<Gamma>3, TRecord ts s T\<turnstile> (\<sigma>, x) \<Down>! (\<sigma>'', UPtr p r' ptrl)"
       using u_sem_take.hyps(2) u_sem_take.prems ttyping_take matches1 snd_t\<Gamma>3_is by auto
     ultimately show "\<Xi>, \<xi>, \<gamma>, [], \<Gamma>, \<tau> T\<turnstile> (\<sigma>, Take x f e) \<Down>! (\<sigma>', v)"
-      using ttyping_take uptr_p_elim_lemmas
+      using ttyping_take uptr_p_elim_lemmas ptrl_simp
       by (force intro!: u_tt_sem_pres_take)
   qed (simp add: composite_anormal_expr_def)
 next
