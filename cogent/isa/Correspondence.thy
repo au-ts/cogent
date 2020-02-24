@@ -1435,7 +1435,7 @@ and     "l \<notin> w \<union> r"
 and     "rp = (RRecord (map (type_repr \<circ> fst \<circ> snd) ts)) "
 and     "s = Boxed Writable ptrl"
 and     "distinct (map fst ts)"
-shows   "\<Xi>, \<sigma> \<turnstile> UPtr l rp \<sim> VRecord fs' : TRecord ts s \<langle> r, insert l w \<rangle>"
+shows   "\<Xi>, \<sigma> \<turnstile> UPtr l rp ptrl \<sim> VRecord fs' : TRecord ts s \<langle> r, insert l w \<rangle>"
   using assms by (auto intro: u_v_p_rec_w)
 
 theorem correspondence:

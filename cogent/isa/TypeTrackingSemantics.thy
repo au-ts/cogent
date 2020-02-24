@@ -63,11 +63,12 @@ where
                            ; \<Xi>, \<xi> , \<gamma>, K, (if b then \<Gamma>3 else \<Gamma>4), \<tau> T\<turnstile> (\<sigma>', if b then t else e) \<Down>! st
                            \<rbrakk> \<Longrightarrow> \<Xi>, \<xi> , \<gamma>, K, \<Gamma>, \<tau> T\<turnstile> (\<sigma>, If x t e) \<Down>! st"
 
-| u_tt_sem_pres_take    : "\<lbrakk> s = Boxed Writable l
+| u_tt_sem_pres_take    : "\<lbrakk> s = Boxed Writable ptrl
                            ; ttsplit K \<Gamma> sps [] \<Gamma>1 [Some f_ty, Some (TRecord tak_fs s)] \<Gamma>2
-                           ; \<Xi>, \<xi> , \<gamma>, K, \<Gamma>1, TRecord ts s T\<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', UPtr p rp)
+                           ; \<Xi>, \<xi> , \<gamma>, K, \<Gamma>1, TRecord ts s T\<turnstile> (\<sigma>, x) \<Down>! 
+                                        (\<sigma>', UPtr p rp ptrl)
                            ; \<sigma>' p = Some (URecord fs)
-                           ; \<Xi>, \<xi> , (fst (fs ! f) # UPtr p rp # \<gamma>), K, \<Gamma>2, \<tau> T\<turnstile> (\<sigma>', e) \<Down>! st
+                           ; \<Xi>, \<xi> , (fst (fs ! f) # UPtr p rp ptrl # \<gamma>), K, \<Gamma>2, \<tau> T\<turnstile> (\<sigma>', e) \<Down>! st
                            \<rbrakk> \<Longrightarrow> \<Xi>, \<xi> , \<gamma>, K, \<Gamma>, \<tau> T\<turnstile> (\<sigma>, Take x f e) \<Down>! st"
 
 | u_tt_sem_pres_take_ub : "\<lbrakk> ttsplit K \<Gamma> sps [] \<Gamma>1 [Some f_ty, Some (TRecord tak_ts Unboxed)] \<Gamma>2
@@ -294,7 +295,7 @@ next
     qed simp+
   qed (simp add: composite_anormal_expr_def)
 next
-  case (u_sem_take \<xi> \<gamma> \<sigma> x \<sigma>'' p r' fs f e)
+  case (u_sem_take \<xi> \<gamma> \<sigma> x \<sigma>'' p r' ptrl fs f e)
 
   show ?case
     using u_sem_take.prems(1)
@@ -321,7 +322,7 @@ next
     have "\<Xi>, [], \<Gamma>1 \<turnstile> x : TRecord ts s"
       using snd_t\<Gamma>3_is ttyping_imp_typing ttyping_take by fastforce
     then obtain r1' w1'
-      where uptr_p_under_\<sigma>'': "\<Xi>, \<sigma>'' \<turnstile> UPtr p r' :u TRecord ts s \<langle>r1', w1'\<rangle>"
+      where uptr_p_under_\<sigma>'': "\<Xi>, \<sigma>'' \<turnstile> UPtr p r' ptrl :u TRecord ts s \<langle>r1', w1'\<rangle>"
         and r1'_sub: "r1' \<subseteq> r1"
         and frame1: "frame \<sigma> w1 \<sigma>'' w1'"
       using preservation(1)[where \<tau>s=Nil, simplified]
@@ -332,14 +333,14 @@ next
       using matches2 frame1 matches_ptrs_frame w1_w2_disjoint w1_r2_noalias
       by blast
 
-    obtain w1'' ptrl
+    obtain w1'' ptrl'
       where uptr_p_elim_lemmas:
         "w1' = insert p w1''"
         "\<Xi>, \<sigma>'' \<turnstile>* fs :ur ts \<langle>r1', w1''\<rangle>"
         "\<sigma>'' p = Some (URecord fs)"
         "r' = RRecord (map (type_repr \<circ> fst \<circ> snd) ts)"
         "distinct (map fst ts)"
-        "s = Boxed Writable ptrl"
+        "s = Boxed Writable ptrl'"
         "p \<notin> w1''"
         "p \<notin> r1'"
       using uptr_p_under_\<sigma>'' ttyping_take u_sem_take.hyps
@@ -353,6 +354,11 @@ next
         and "wf \<inter> w1a = {}"
       using uval_typing_record_take u_t_p_rec_w ttyping_take
       by (blast dest!: kinding_to_wellformedD)
+
+    have ptrl_simp:
+      "ptrl = ptrl'"
+      using uptr_p_elim_lemmas uptr_p_under_\<sigma>''
+      by auto
 
     have disjointness_lemmas:
       "({p} \<union> wf \<union> w1a) \<inter> w2 = {}"
@@ -376,14 +382,14 @@ next
       apply blast
       done
 
-    have "\<Xi>, \<xi>, fst (fs ! f) # UPtr p r' # \<gamma>, [], t\<Gamma>4, \<tau> T\<turnstile> (\<sigma>'', e) \<Down>! (\<sigma>', v)"
+    have "\<Xi>, \<xi>, fst (fs ! f) # UPtr p r' ptrl # \<gamma>, [], t\<Gamma>4, \<tau> T\<turnstile> (\<sigma>'', e) \<Down>! (\<sigma>', v)"
     proof (cases taken)
       case Taken
 
       show ?thesis
         using u_sem_take.prems ttyping_take
       proof (intro u_sem_take.hyps(5))
-        show "\<Xi>, \<sigma>'' \<turnstile> fst (fs ! f) # UPtr p r' # \<gamma> matches snd t\<Gamma>4 \<langle>rf \<union> (r1a \<union> r2), wf \<union> (insert p w1a \<union> w2)\<rangle>"
+        show "\<Xi>, \<sigma>'' \<turnstile> fst (fs ! f) # UPtr p r' ptrl # \<gamma> matches snd t\<Gamma>4 \<langle>rf \<union> (r1a \<union> r2), wf \<union> (insert p w1a \<union> w2)\<rangle>"
           using ut_fs_at_f matches2_under_\<sigma>'' disjointness_lemmas
         proof (simp only: snd_t\<Gamma>4_is append_Cons append.left_neutral, intro matches_ptrs_some[OF _ matches_ptrs_some])
           have "\<Xi>, \<sigma>'' \<turnstile>* fs :ur ts[f := (n, t, taken)] \<langle>r1a, w1a\<rangle>"
@@ -391,8 +397,8 @@ next
           moreover have "r' = RRecord (map (type_repr \<circ> fst \<circ> snd) (ts[f := (n, t, taken)]))"
               using Taken type_repr_uval_repr uptr_p_elim_lemmas ut_fs_taken_f
               by (metis (full_types))
-          ultimately show "\<Xi>, \<sigma>'' \<turnstile> UPtr p r' :u TRecord (ts[f := (n, t, taken)]) s \<langle>r1a, insert p w1a\<rangle>"
-            using uptr_p_elim_lemmas ut_fs_taken_f r1'_is w1''_is
+          ultimately show "\<Xi>, \<sigma>'' \<turnstile> UPtr p r' ptrl :u TRecord (ts[f := (n, t, taken)]) s \<langle>r1a, insert p w1a\<rangle>"
+            using uptr_p_elim_lemmas ut_fs_taken_f r1'_is w1''_is ptrl_simp
             by (simp, intro u_t_p_rec_w';
                 fastforce
                 simp add: uptr_p_elim_lemmas ttyping_take map_update
@@ -408,17 +414,17 @@ next
       show ?thesis
         using u_sem_take.prems ttyping_take
       proof (intro u_sem_take.hyps(5))
-        show "\<Xi>, \<sigma>'' \<turnstile> fst (fs ! f) # UPtr p r' # \<gamma> matches snd t\<Gamma>4 \<langle>rf \<union> ((rf \<union> r1a) \<union> r2), {} \<union> (insert p w1a \<union> w2)\<rangle>"
+        show "\<Xi>, \<sigma>'' \<turnstile> fst (fs ! f) # UPtr p r' ptrl # \<gamma> matches snd t\<Gamma>4 \<langle>rf \<union> ((rf \<union> r1a) \<union> r2), {} \<union> (insert p w1a \<union> w2)\<rangle>"
           using ut_fs_at_f matches2_under_\<sigma>'' disjointness_lemmas wf_empty
         proof (simp only: snd_t\<Gamma>4_is append_Cons append.left_neutral, intro matches_ptrs_some[OF _ matches_ptrs_some])
           have "ts[f := (n, t, Present)] = ts"
             by (simp add: list_helper ttyping_take)
-          thus "\<Xi>, \<sigma>'' \<turnstile> UPtr p r' :u TRecord (ts[f := (n, t, taken)]) s \<langle>rf \<union> r1a, insert p w1a\<rangle>"
+          thus "\<Xi>, \<sigma>'' \<turnstile> UPtr p r' ptrl :u TRecord (ts[f := (n, t, taken)]) s \<langle>rf \<union> r1a, insert p w1a\<rangle>"
             using uptr_p_elim_lemmas wf_empty r1'_is uptr_p_under_\<sigma>'' w1''_is Present by auto
         qed fast+
       qed simp+
     qed
-    moreover have "\<Xi>, \<xi>, \<gamma>, [], t\<Gamma>3, TRecord ts s T\<turnstile> (\<sigma>, x) \<Down>! (\<sigma>'', UPtr p r')"
+    moreover have "\<Xi>, \<xi>, \<gamma>, [], t\<Gamma>3, TRecord ts s T\<turnstile> (\<sigma>, x) \<Down>! (\<sigma>'', UPtr p r' ptrl)"
       using u_sem_take.hyps(2) u_sem_take.prems ttyping_take matches1 snd_t\<Gamma>3_is by auto
     ultimately show "\<Xi>, \<xi>, \<gamma>, [], \<Gamma>, \<tau> T\<turnstile> (\<sigma>, Take x f e) \<Down>! (\<sigma>', v)"
       using ttyping_take uptr_p_elim_lemmas

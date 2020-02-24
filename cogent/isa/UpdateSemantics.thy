@@ -559,7 +559,8 @@ next
     by (force intro: uval_typing_uval_typing_record.intros bang_wellformed abs_typing_bang[where s = Unboxed, simplified])
 next
   case (u_t_p_rec_ro \<Xi> \<sigma> fs ts r l ptrl)
-  moreover have "\<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (type_repr \<circ> fst \<circ> snd \<circ> apsnd (apfst bang)) ts)) ptrl :u TRecord (map (apsnd (apfst bang)) ts) (Boxed ReadOnly ptrl) \<langle>insert l r, {}\<rangle>"
+  moreover have "\<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (type_repr \<circ> fst \<circ> snd \<circ> apsnd (apfst bang)) ts)) ptrl 
+   :u TRecord (map (apsnd (apfst bang)) ts) (Boxed ReadOnly ptrl) \<langle>insert l r, {}\<rangle>"
     using u_t_p_rec_ro
     by (fastforce dest: uval_typing_to_wellformed(2) uval_typing_uval_typing_record.u_t_p_rec_ro)
   ultimately show ?case
@@ -2351,7 +2352,7 @@ next
       where typing_e_elim_lemmas:
         "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
         "\<Xi>, K, \<Gamma>1 \<turnstile> x : TRecord ts s"
-        "\<And>l. s \<noteq> Boxed ReadOnly l"
+        "\<And>ptrl. s \<noteq> Boxed ReadOnly ptrl"
         "f' < length ts"
         "ts ! f' = (n, t, Present)"
         "K \<turnstile> t :\<kappa> k"

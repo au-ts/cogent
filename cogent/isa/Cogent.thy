@@ -70,13 +70,13 @@ datatype sigil = Boxed access_perm ptr_layout
                | Unboxed
 
 lemma sigil_cases:
-  obtains (SBoxRo) r where "x = Boxed ReadOnly r"
-  | (SBoxWr) r where "x = Boxed Writable r"
+  obtains (SBoxRo) ptrl where "x = Boxed ReadOnly ptrl"
+  | (SBoxWr) ptrl where "x = Boxed Writable ptrl"
   | (SUnbox) "x = Unboxed"
 proof (cases x)
-  case (Boxed p r)
-  moreover assume "(\<And>r. x = Boxed ReadOnly r \<Longrightarrow> thesis)"
-    and "(\<And>r. x = Boxed Writable r \<Longrightarrow> thesis)"
+  case (Boxed p ptrl)
+  moreover assume "(\<And>ptrl. x = Boxed ReadOnly ptrl \<Longrightarrow> thesis)"
+    and "(\<And>ptrl. x = Boxed Writable ptrl \<Longrightarrow> thesis)"
   ultimately show ?thesis
     by (cases p, simp+)
 qed simp
@@ -446,8 +446,8 @@ lemmas kinding_defs = kinding_def kinding_all_def kinding_variant_def kinding_re
 section {* Observation and type instantiation *}
 
 fun bang_sigil :: "sigil \<Rightarrow> sigil" where
-  "bang_sigil (Boxed ReadOnly r) = Boxed ReadOnly r"
-| "bang_sigil (Boxed Writable r) = Boxed ReadOnly r"
+  "bang_sigil (Boxed ReadOnly ptrl) = Boxed ReadOnly ptrl"
+| "bang_sigil (Boxed Writable ptrl) = Boxed ReadOnly ptrl"
 | "bang_sigil Unboxed            = Unboxed"
 
 fun bang :: "type \<Rightarrow> type" where
@@ -938,10 +938,10 @@ fun type_repr :: "type \<Rightarrow> repr" where
 | "type_repr (TSum ts)            = RSum (map (\<lambda>(a,b,_).(a, type_repr b)) ts)"
 | "type_repr (TProduct a b)       = RProduct (type_repr a) (type_repr b)"
 | "type_repr (TCon n ts Unboxed)  = RCon n (map type_repr ts)"
-| "type_repr (TCon n ts (Boxed _ lay))        = RPtr (RCon n (map type_repr ts)) lay"
+| "type_repr (TCon n ts (Boxed _ ptrl))        = RPtr (RCon n (map type_repr ts)) ptrl"
 | "type_repr (TRecord ts Unboxed) = RRecord (map (\<lambda>(_,b,_). type_repr b) ts)"
 (* Here, the layout is droped, but it should play an important role *)
-| "type_repr (TRecord ts (Boxed _ lay))       = RPtr (RRecord (map (\<lambda>(_,b,_). type_repr b) ts)) lay"
+| "type_repr (TRecord ts (Boxed _ ptrl))       = RPtr (RRecord (map (\<lambda>(_,b,_). type_repr b) ts)) ptrl"
 | "type_repr (TUnit)              = RUnit"
 
 
@@ -1246,7 +1246,7 @@ qed (force simp add: kinding_defs)
 
 lemma sigil_kind_writable:
   assumes "sigil_perm s = Some Writable"
-    and "\<And>r. k \<subseteq> sigil_kind (Boxed Writable r)"
+    and "\<And>ptrl. k \<subseteq> sigil_kind (Boxed Writable ptrl)"
   shows "k \<subseteq> sigil_kind s"
   using assms
   by (case_tac s rule: sigil_cases, auto)
