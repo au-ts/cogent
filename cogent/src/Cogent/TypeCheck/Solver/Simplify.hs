@@ -21,7 +21,7 @@ import           Cogent.TypeCheck.ARow as ARow
 import           Cogent.TypeCheck.Base
 import qualified Cogent.TypeCheck.Row as Row
 #ifdef BUILTIN_ARRAYS
-import           Cogent.TypeCheck.Solver.SMT (smtSat)
+import           Cogent.TypeCheck.Solver.SMT (smtSimp)
 #endif
 import           Cogent.TypeCheck.Solver.Goal
 import           Cogent.TypeCheck.Solver.Monad
@@ -231,7 +231,7 @@ simplify axs = Rewrite.pickOne' $ onGoal $ \c -> case c of
   -- TODO: Here we will call a SMT procedure to simplify all the Arith constraints.
   -- The only things left will be non-trivial predicates. / zilinc
   Arith e | isTrivialSE e -> do
-              r <- lift $ smtSat e 
+              r <- lift $ smtSimp e 
               if r then hoistMaybe $ Just []
                    else hoistMaybe $ Nothing
           | otherwise -> hoistMaybe $ Nothing
