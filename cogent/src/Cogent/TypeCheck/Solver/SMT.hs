@@ -10,6 +10,8 @@
 -- @TAG(DATA61_GPL)
 --
 
+{-# LANGUAGE LambdaCase #-}
+
 module Cogent.TypeCheck.Solver.SMT where
 
 import Cogent.Compiler
@@ -62,7 +64,7 @@ smtSolve =
     SmtState c ks <- get
     let ks' = constEquations ks
     traceTc "sol/smt" (L.text "Constants" L.<> L.colon L.<$> L.prettyList ks')
-    b <- liftIO $ smtSat $ implTCSExpr (andTCSExprs ks') (andTCSExprs c)
+    b <- liftIO $ smtSimp $ implTCSExpr (andTCSExprs ks') (andTCSExprs c)
     case b of True  -> hoistMaybe $ Just gs
               False -> hoistMaybe $ Nothing
    )
@@ -83,9 +85,10 @@ collLogic = pickOne' $ \g -> do
     modify (\(SmtState c ks) -> SmtState (c++es) ks)
     hoistMaybe $ Just [g & goal .~ c']
 
-smtSat :: TCSExpr -> IO Bool
+smtSat :: TCSExpr -> IO SMTResult
 smtSat e = do
   dumpMsgIfTrue __cogent_ddump_smt (warn "SMT solving:" L.<+> L.pretty e L.<> L.hardline)
+  -- NOTE: sbv will perform Skolemisation to reduce existentials, while preserving satisfiability. / zilinc
   SatResult s <- satWith (z3 { verbose = __cogent_ddump_smt
                              , redirectVerbose = Just $ fromMaybe "/dev/stderr" __cogent_ddump_to_file })
                          (evalStateT (sexprToSmt e)
@@ -95,6 +98,10 @@ smtSat e = do
                      L.<$> indent' (L.pretty e)
                      L.<$> L.text "gives result"
                      L.<$> indent' (L.text . show $ SatResult s))
-  case s of
+  return s
+
+smtSimp :: TCSExpr -> IO Bool
+smtSimp e = 
+  smtSat e >>= \case
     Satisfiable {} -> return True
-    _              -> return False
+    _ -> return False
