@@ -593,7 +593,11 @@ desugarType = \case
   B.DT (S.TUnit)     -> return TUnit
   B.DT (S.TRPar v b m) -> do
     m' <- mapM id (fmap (\x -> mapM id (M.map desugarType x)) m)
-    return $ __fixme {- Dodgy hack: RecPar's 'Banged' field is ignored -} (TRPar v m')
+    return $ 
+      if b then
+        TRParBang v m'
+      else
+        TRPar v m'
 #ifdef BUILTIN_ARRAYS
   B.DT (S.TArray t l Unboxed tkns) -> do
     t' <- desugarType t

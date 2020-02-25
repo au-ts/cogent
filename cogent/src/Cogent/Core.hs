@@ -82,7 +82,8 @@ data Type t b
   | TRecord RecursiveParameter [(FieldName, (Type t b, Bool))] (Sigil (DataLayout BitRange))
     -- True means taken, Layout will be nothing for abstract types
   | TUnit
-  | TRPar RecParName (RecContext (Type t b))
+  | TRPar     RecParName (RecContext (Type t b))
+  | TRParBang RecParName (RecContext (Type t b))
 -- #ifdef BUILTIN_ARRAYS
   | TArray (Type t b) (LExpr t b) (Sigil (DataLayout BitRange)) (Maybe (LExpr t b))  -- the hole
   | TRefine (Type t b) (LExpr t b)
@@ -135,7 +136,6 @@ unroll v (Just ctxt) = erp (Just ctxt) (ctxt M.! v)
 #endif
     erp _ t = t
 unroll v _ = __impossible "unroll in core given an empty context - this usually means a recursive parameter was not unrolled before being used"
-
 
 data FunNote = NoInline | InlineMe | MacroCall | InlinePlease  -- order is important, larger value has stronger precedence
              deriving (Bounded, Eq, Ord, Show)
