@@ -1,4 +1,4 @@
-$ty:(Option (EmptyListNode a)) $id:alloc_list_node($ty:(()) unit) {
+$ty:(Option (EmptyListNode a)) $id:list_alloc_node($ty:(()) unit) {
     $ty:(List a) node = malloc(sizeof(*node));
     $ty:(Option (EmptyListNode a)) ret;
 
