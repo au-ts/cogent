@@ -229,6 +229,9 @@ monoType (TUnit) = pure TUnit
 monoType (TRPar v m) =  do
   m' <- mapM (mapM monoType) m
   return $ TRPar v m'
+monoType (TRParBang v m) =  do
+  m' <- mapM (mapM monoType) m
+  return $ TRParBang v m'
 #ifdef BUILTIN_ARRAYS
 monoType (TArray t l s mhole) = TArray <$> monoType t <*> monoLExpr l <*> monoSigil s <*> mapM monoLExpr mhole
 #endif

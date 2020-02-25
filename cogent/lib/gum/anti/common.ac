@@ -14,68 +14,68 @@
 /*
 #define ALIGN(x,a) ((x) % (a) ? (x) + (a) - ((x) % (a)) : (x))
 
-u32 align32($ty:((U32, U32)) args)
+$ty:(U32) align32($ty:((U32, U32)) args)
 {
 	return ALIGN(args.p1, args.p2);
 }
 
-u64 align64($ty:((U64, U64)) args)
+$ty:(U64) align64($ty:((U64, U64)) args)
 {
 	return ALIGN(args.p1, args.p2);
 }
 */
 
 //u8_to_u16: U8 -> U16
-u16 u8_to_u16 (u8 x) {
-	return (u16)x;
+$ty:(U16) u8_to_u16($ty:(U8) x) {
+	return ($ty:(U16))x;
 }
 
 //u8_to_u32: U8 -> U32
-u32 u8_to_u32 (u8 x) {
-	return (u32)x;
+$ty:(U32) u8_to_u32($ty:(U8) x) {
+	return ($ty:(U32))x;
 }
 
 //u8_to_u64: U8 -> U64
-u64 u8_to_u64 (u8 x) {
-	return (u64)x;
+$ty:(U64) u8_to_u64($ty:(U8) x) {
+	return ($ty:(U64))x;
 }
 
 //u16_to_u8: U16 -> U8
-u8 u16_to_u8 (u16 x) {
-	return (u8)x;
+$ty:(U8) u16_to_u8($ty:(U16) x) {
+	return ($ty:(U8))x;
 }
 
 //u16_to_u32: U16 -> U32
-u32 u16_to_u32 (u16 x) {
-	return (u32)x;
+$ty:(U32) u16_to_u32($ty:(U16) x) {
+	return ($ty:(U32))x;
 }
 
 //u32_to_u8: U32 -> U8
-u8 u32_to_u8 (u32 x) {
-	return (u8)x;
+$ty:(U8) u32_to_u8($ty:(U32) x) {
+	return ($ty:(U8))x;
 }
 
 //u32_to_u16: U32 -> U16
-u16 u32_to_u16 (u32 x) {
-	return (u16)x;
+$ty:(U16) u32_to_u16($ty:(U32) x) {
+	return ($ty:(U16))x;
 }
 
 //u32_to_u64: U32 -> U64
-u64 u32_to_u64 (u32 x) {
-	return (u64)x;
+$ty:(U64) u32_to_u64($ty:(U32) x) {
+	return ($ty:(U64))x;
 }
 
 //u64_to_u32: U64 -> U32
-u32 u64_to_u32 (u64 x) {
-	return (u32)x;
+$ty:(U32) u64_to_u32($ty:(U64) x) {
+	return ($ty:(U32))x;
 }
 
-u8 u64_to_u8(u64 x)
+$ty:(U8) u64_to_u8($ty:(U64) x)
 {
-        return (u8)x;
+        return ($ty:(U8))x;
 }
 
-u16 u64_to_u16(u64 x)
+$ty:(U16) u64_to_u16($ty:(U64) x)
 {
-        return (u16)x;
+        return ($ty:(U16))x;
 }

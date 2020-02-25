@@ -88,7 +88,7 @@ import           Lens.Micro                   hiding (at)
 import           Lens.Micro.Mtl               hiding (assign)
 import           Lens.Micro.TH
 import           Control.Monad.Identity (runIdentity)
--- import Debug.Trace
+import Debug.Trace
 import Unsafe.Coerce (unsafeCoerce)
 
 
@@ -262,11 +262,20 @@ typeCId t = use custTypeGen >>= \ctg ->
               globalOracle -= 1
               return x
     typeCId' t@(TRPar v (Just m)) = do
-      recId <- M.lookup (m M.! v) <$> use recParCIds
+      recId <- M.lookup (simplifyType $ m M.! v) <$> use recParCIds
       case recId of 
         Nothing -> do
           Just res <- M.lookup v <$> use recParRecordIds
-          recParCIds %= M.insert (m M.! v) res
+          recParCIds %= M.insert (simplifyType $ m M.! v) res
+          return res 
+        Just x ->
+          return x
+    typeCId' t@(TRParBang v (Just m)) = do
+      recId <- M.lookup (simplifyType $ m M.! v) <$> use recParCIds
+      case recId of 
+        Nothing -> do
+          Just res <- M.lookup v <$> use recParRecordIds
+          recParCIds %= M.insert (simplifyType $ m M.! v) res
           return res 
         Just x -> 
           return x
@@ -329,6 +338,8 @@ genType t@(TRecord _ _ s)  | s /= Unboxed = CPtr . CIdent <$> typeCId t
   -- This puts the pointer around boxed cogent-types
 genType t@(TString)                     = CPtr . CIdent <$> typeCId t
 genType t@(TCon _ _ s)   | s /= Unboxed = CPtr . CIdent <$> typeCId t
+genType t@(TRPar _ _)                   = CPtr . CIdent <$> typeCId t
+genType t@(TRParBang _ _)               = CPtr . CIdent <$> typeCId t
 #ifdef BUILTIN_ARRAYS
 genType t@(TArray elt l s _)
   | (Boxed _ CLayout) <- s = CPtr <$> genType elt  -- If it's heap-allocated without layout specified
@@ -344,7 +355,11 @@ simplifyType :: CC.Type 'Zero VarName -> CC.Type 'Zero VarName
 simplifyType (TArray elt _ (Boxed rw (Layout (ArrayLayout l))) _) =
     TArray elt (LILit 0 U32) (Boxed rw (Layout (ArrayLayout l))) Nothing
 #endif
+-- In the C code, we don't care whether records are readonly or not (at least for recursive types). Thus, we only generate one type of record /emmetm
+simplifyType (TRecord rp fs s) =
+    TRecord rp fs (Boxed False CLayout)
 simplifyType x = x
+
 
 -- The following two functions have different behaviours than the `genType' function
 -- in certain scenarios
