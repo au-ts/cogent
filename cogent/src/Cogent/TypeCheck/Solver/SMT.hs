@@ -41,52 +41,57 @@ import qualified Text.PrettyPrint.ANSI.Leijen as L
 
 import Debug.Trace
 
-data SmtState = SmtState { constraints :: [TCSExpr]
-                         , knownConsts :: M.Map VarName (TCType, TCExpr)
-                         }
+data SmtState = SmtState { constraints :: [TCSExpr] }
 
-type SmtM = StateT SmtState IO
+type SmtM = StateT SmtState TcSolvM
 
-trans :: RewriteT SmtM a -> RewriteT TcSolvM a
-trans (RewriteT m) =
-  RewriteT $ \a ->
-    case m a of
-      MaybeT (StateT m') ->
-        MaybeT $ RWST (\r s -> m' (SmtState [] (r ^. Tc.knownConsts & M.map (\(a,b,c) -> (a,b)))) >>= \(a',_) -> return (a',s,[]))
-
+-- | Top-level rewrite function for solving constraints using an SMT-solver.
 smt :: RewriteT TcSolvM [Goal]
 smt = trans $ smtSolve
 
+-- | Transforms a 'RewriteT SmtM a' computation to a 'RewriteT TcSolvM a' computation.:
+trans :: RewriteT SmtM a -> RewriteT TcSolvM a
+trans (RewriteT m) = RewriteT $ \a ->
+  let MaybeT (StateT m') = m a
+   in MaybeT $ fst <$> m' (SmtState [])
+
+-- | Extracts all logical predicates from goals and then,
+--   simplifies them using the knowledge of constant definitions.
 smtSolve :: RewriteT SmtM [Goal]
 smtSolve = 
-  collLogic `andThen`
+  extractPredicates `andThen`
   (rewrite' $ \gs -> do
-    SmtState c ks <- get
+    ks <- M.map (\(a,b,c) -> (a,b)) <$> view knownConsts
+    SmtState c <- get
     let ks' = constEquations ks
     traceTc "sol/smt" (L.text "Constants" L.<> L.colon L.<$> L.prettyList ks')
-    b <- liftIO $ smtSimp $ implTCSExpr (andTCSExprs ks') (andTCSExprs c)
+    b <- liftIO $ smtSat $ implTCSExpr (andTCSExprs ks') (andTCSExprs c)
     case b of True  -> hoistMaybe $ Just gs
               False -> hoistMaybe $ Nothing
    )
-    
+
+-- | Converts the store of known constants to equality constraints.
 constEquations :: M.Map VarName (TCType, TCExpr) -> [TCSExpr]
 constEquations = M.toList .>
                  filter simpleExpr .>
                  map (\(v,(t,e)) -> SE (T bool) (PrimOp "==" [SE t (Var v), toTCSExpr e]))
-  where simpleExpr (_, (_, e)) = simpleTE e
+  where simpleExpr (_,(_,e)) = simpleTE e
 
-collLogic :: RewriteT SmtM [Goal]
-collLogic = pickOne' $ \g -> do
+-- | Finds and stores in 'StmM' all logical predicates from constraints, and remove them
+--   from the 'SolvM' store.
+extractPredicates :: RewriteT SmtM [Goal]
+extractPredicates = pickOne' $ \g -> do
   let c = g ^. goal
       (es,c') = splitArithConstraints c
   if null es then
     hoistMaybe $ Nothing
   else do
-    modify (\(SmtState c ks) -> SmtState (c++es) ks)
+    modify (\(SmtState es') -> SmtState (es'++es))
     hoistMaybe $ Just [g & goal .~ c']
 
-smtSat :: TCSExpr -> IO SMTResult
-smtSat e = do
+-- | Returns a detailed result of satisfiability of a logical predicate.
+smtSatResult :: TCSExpr -> IO SMTResult
+smtSatResult e = do
   dumpMsgIfTrue __cogent_ddump_smt (warn "SMT solving:" L.<+> L.pretty e L.<> L.hardline)
   -- NOTE: sbv will perform Skolemisation to reduce existentials, while preserving satisfiability. / zilinc
   SatResult s <- satWith (z3 { verbose = __cogent_ddump_smt
@@ -100,8 +105,9 @@ smtSat e = do
                      L.<$> indent' (L.text . show $ SatResult s))
   return s
 
-smtSimp :: TCSExpr -> IO Bool
-smtSimp e = 
-  smtSat e >>= \case
+-- | Only returns 'True' or 'False'.
+smtSat :: TCSExpr -> IO Bool
+smtSat e = 
+  smtSatResult e >>= \case
     Satisfiable {} -> return True
     _ -> return False
