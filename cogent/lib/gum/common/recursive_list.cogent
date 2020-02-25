@@ -1,0 +1,302 @@
+--
+-- Copyright 2019, Data61
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+#ifndef COGENT_LIST_LIB
+#define COGENT_LIST_LIB
+
+include <gum/common/common.cogent>
+
+type ListNode a = 
+  rec t { 
+    l: < 
+      Nil 
+    | Cons (a,t) 
+    > 
+  }
+
+type EmptyListNode a = (ListNode a) take (..)
+
+type List a = 
+  #{
+    size: U64,
+    list: ListNode a
+  }
+
+------------- Allocation and deallocation -------------
+
+list_alloc_node : all a. () -> Option (EmptyListNode a)
+list_free_node  : all a. EmptyListNode a -> ()
+
+-- Deallocates an entire list and all the elements inside
+list_free : all a. (List a, a -> ()) -> ()
+list_free (r { list = x }, f) = list_free' (x, f)
+
+list_free' : all a. (ListNode a, a -> ()) -> ()
+list_free' (r, f) =
+  let r2 { l = x } = r
+  and _ = list_free_node[a] r2 in
+    x | Nil               -> ()
+      | Cons (elem, rest) ->
+        f elem;
+        list_free' (rest, f)
+
+list_new : all a. () -> Option (List a)
+list_new () =
+  list_alloc_node ()
+    | None   -> None
+    | Some n ->
+      Some #{ 
+        size = 0, 
+        list = n { l = Nil }
+      }
+
+------------- List basic -------------
+
+-- Adds an element to the front of the list
+-- Returns the updated list
+list_cons : all a. (a, List a) -> (List a, Option a)
+list_cons (x, #{ list, size }) = 
+  list_alloc_node ()
+    | None   -> (#{ list, size }, Some x)
+    | Some n ->
+      (#{ 
+        list = (n { l = Cons (x,list) }),
+        size = size + 1
+      },
+      None)
+
+-- Removes the first element of the list if it exists
+-- Returns the element if it exists and the resulting list
+list_head : all a. List a -> (Option a, List a)
+list_head #{ list, size } =
+  let list' { l = x } = list in
+  x | Nil -> (None, #{ list = (list' { l = Nil }), size })
+    | Cons (elem, rest) ->
+      list_free_node[a] list';
+      (Some elem, #{ list = rest, size = size-1 })
+
+-- Appends two lists (the second on the end of the first)
+-- Returns the appended list
+list_append : all a. (List a, List a) -> List a
+list_append (#{ size = s1, list = l1 }, #{ size = s2, list = l2 }) =
+  let appended = list_append' (l1,l2)
+  in #{ size = s1 + s2, list = appended }
+
+list_append' : all a. (ListNode a, ListNode a) -> ListNode a
+list_append' (head { l = x }, b) =
+  x | Nil -> 
+      list_free_node[a] head;
+      b
+    | Cons (elem, tail) -> 
+      let rest = list_append' (tail, b)
+      in head { l = Cons (elem, rest) }
+
+
+------------- List Transformations -------------
+
+-- Maps all elements in a list to a new element
+-- Returns the updated list
+-- This reallocates every node in the list
+list_map : all (a, b). (a -> b, List a) -> Result (List b) (List a)
+list_map (f, #{ list, size }) = 
+  list_map' (f, list)
+    | Error   list -> Error #{ list, size }
+    | Success list -> Success #{ list, size }
+
+list_map' : all (a, b). ((a -> b), (ListNode a)) -> Result (ListNode b) (ListNode a)
+list_map' (f, head { l }) =
+  list_alloc_node[b] () 
+  | None ->
+      -- No memory, fail gracefully
+      Error head { l }
+  | Some n ->
+      l | Nil ->
+          -- Success
+          list_free_node[a] head;
+          Success n { l = Nil }
+        | Cons (elem, tail) ->
+          -- Get rest of list allocated first so we don't fail halfway
+          list_map'[a,b] (f, tail)
+            | Error tail -> 
+              list_free_node[b] n;
+              Error head { l = Cons (elem, tail) }
+            | Success tail' ->
+              list_free_node[a] head;
+              Success n { l = Cons (f elem, tail') }
+
+list_r_map : all (a, b). (a! -> b, (List a)!) -> Option (List b)
+list_r_map (f, #{ list, size }) =
+  list_r_map'[a,b] (f, list) 
+    | Some list -> Some #{ list, size }
+    | None      -> None
+
+list_r_map' : all (a, b). (a! -> b, (ListNode a)!) -> Option (ListNode b) 
+list_r_map' (f, head) =
+  list_alloc_node[b] ()
+    | None   -> None
+    | Some n -> 
+      head.l 
+        | Nil -> Some n { l = Nil }
+        | Cons (elem, tail) ->
+          list_r_map'[a,b] (f, tail) 
+          | None ->
+              list_free_node[b] n;
+              None
+          | Some rest ->
+            Some n { l = Cons (f elem, rest) }
+
+-- Maps all elements in place, requiring that the mapped elements are the same type
+-- Returns the updated list
+-- This does NOT allocate a new list
+list_map_in_place : all (a :< E). ((a -> a), (List a)) -> List a
+list_map_in_place (f, #{ size, list }) =
+  let list = list_map_in_place'[a] (f,list)
+  in  #{ list, size }
+
+list_map_in_place' : all (a :< E). ((a -> a), (ListNode a)) -> ListNode a
+list_map_in_place' (f, head) =
+    let head { l = x } = head in 
+      x | Nil -> head { l = Nil }
+        | Cons (elem, tail) ->
+          head { l = Cons (f elem, list_map_in_place'[a] (f, tail)) }
+
+type Direction = < Left | Right >
+
+-- Folds a list starting from the left, consuming all the elements
+-- Returns the accumulated result
+list_foldl : all (a,b). ((b,a) -> b, b, List a) -> b
+list_foldl (f, acc, #{ list }) = list_fold'[a,b] (f, acc, list, Left)
+
+-- Folds a list starting from the right, consuming all the elements
+-- Returns the accumulated result
+list_foldr : all (a,b). ((b,a) -> b, b, List a) -> b
+list_foldr (f, acc, #{ list }) = list_fold'[a,b] (f, acc, list, Right)
+
+list_fold' : all (a,b). ((b,a) -> b, b, ListNode a, Direction) -> b
+list_fold' (f, acc, node { l }, d) =
+  list_free_node[a] node;
+  l | Nil -> acc
+    | Cons (elem, rest) ->
+      d | Left  ->
+          let acc = f (acc, elem) in
+          list_fold'[a,b] (f, acc, rest, d)
+        | Right ->
+          let acc = list_fold'[a,b] (f, acc, rest, d)
+          in f (acc, elem)
+
+-- Folds a list starting from the right
+-- Returns the accumulated result
+list_r_foldl : all (a,b). ((b,a!) -> b, b, (List a)!) -> b
+list_r_foldl (f, acc, #{ list }) = list_r_fold'[a,b] (f, acc, list, Left)
+
+-- Folds a list starting from the right
+-- Returns the accumulated result
+list_r_foldr : all (a,b). ((b,a!) -> b, b, (List a)!) -> b
+list_r_foldr (f, acc, #{ list }) = list_r_fold'[a,b] (f, acc, list, Right)
+
+list_r_fold' : all (a,b). ((b,a!) -> b, b, (ListNode a)!, Direction) -> b
+list_r_fold' (f, acc, node, d) =
+  node.l | Nil -> acc
+         | Cons (elem, rest) ->
+           d | Left  ->
+               let acc = f (acc, elem) in
+               list_r_fold'[a,b] (f, acc, rest, d)
+             | Right ->
+               let acc = list_r_fold'[a,b] (f, acc, rest, d)
+               in f (acc, elem)
+
+-- Reverses a list
+-- Returns the reversed list
+list_reverse : all a. List a -> Result (List a) (List a)
+list_reverse #{ size, list } = 
+  list_alloc_node[a] ()
+    | None -> Error #{ size, list }
+    | Some n ->
+      let list = list_reverse'[a] (list, n { l = Nil })
+      in Success #{ size, list }
+
+list_reverse' : all a. (ListNode a, ListNode a) -> ListNode a
+list_reverse' (head { l }, acc) =
+  l | Nil  -> 
+      list_free_node[a] head;
+      acc
+    | Cons (elem, rest) ->
+      list_reverse'[a] (rest, head { l = Cons (elem, acc) } )
+
+------------- List Qualities -------------
+
+-- Returns true if a list is empty
+list_empty : all a. (List a)! -> Bool
+list_empty r = let #{ size } = r in size == 0
+
+-- Returns the length of the list
+list_length : all a. (List a)! -> U64
+list_length r = let #{ size } = r in size
+
+-- Checks if two lists are equal given an element comparison function
+-- Returns True if they are equal, false otherwise
+list_equal : all a. ((List a)!, (List a)!, (a!,a!) -> Bool) -> Bool
+list_equal (x, y, f) = 
+  let #{ size = s1, list = l1 } = x
+  and #{ size = s2, list = l2 } = y
+  in (s1 == s2) | False -> False
+                | True  -> list_equal'[a] (l1, l2, f)
+
+list_equal' : all a. ((ListNode a)!, (ListNode a)!, (a!,a!) -> Bool) -> Bool
+list_equal' (x, y, f) =
+  x.l | Nil -> 
+        y.l | Nil -> True
+            | _   -> False
+      | Cons (e1, rest1) ->
+        y.l | Nil -> False
+            | Cons (e2, rest2) -> 
+              if f (e1,e2) then
+                list_equal'[a] (rest1, rest2, f)
+              else 
+                False
+
+-- Given a search function and a list, finds the first element that the function returns true for
+-- Returns None if no such element is found
+list_find : all a. ((List a)!, a! -> Bool) -> Option U64
+list_find (#{ list }, f) = 
+  list_find'[a] (list, f, 0)
+
+list_find' : all a. ((ListNode a)!, a! -> Bool, U64) -> Option U64
+list_find' (node, f, i) =
+  node.l | Nil -> None
+         | Cons (elem, rest) ->
+           if f elem then
+             Some i
+           else 
+             list_find'[a] (rest, f, i+1)
+
+
+-- Finds and removes the element in the list at the provided index. 
+-- Returns None if the index is out of range, with the list unchanged, otherwise returns the element and the updated list
+list_at : all a. (List a, U64) -> (List a, Option a)
+list_at (#{ size, list }, ind) =
+  if ind >= size then
+    (#{ size, list }, None)
+  else
+    let (list, res) = list_at'[a] (list, ind)
+    in (#{ size, list }, res)
+
+list_at' : all a. (ListNode a, U64) -> (ListNode a, Option a)
+list_at' (node { l }, ind) = 
+  l | Nil -> (node { l = Nil }, None)
+    | Cons (elem, rest) ->
+      if ind == 0 then
+        list_free_node[a] node;
+        (rest, Some elem)
+      else
+        let (rest', res) = list_at'[a] (rest, ind-1)
+        in (node { l = Cons (elem, rest')}, res)
+
+#endif -- COGENT_LIST_LIB
