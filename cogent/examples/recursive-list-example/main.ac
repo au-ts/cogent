@@ -2,9 +2,9 @@ $esc:(#include <stdio.h>)
 $esc:(#include <stdlib.h>)
 
 $esc:(#include "cogent_main.c")
+$esc:(#include "../list_node_free.c")
 
 #include <common.ac>
-#include <recursive_list.ac>
 
 
 $ty:(()) $id:print_string($ty:(String) str) {
@@ -14,8 +14,8 @@ $ty:(()) $id:print_string($ty:(String) str) {
     return u;
 }
 
-$ty:(()) $id:print_number($ty:(U32) num) {
-    printf("%d", str);
+$ty:(()) $id:print_u32($ty:(U32) num) {
+    printf("%d", num);
 
     $ty:(()) u;
     return u;

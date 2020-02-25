@@ -25,7 +25,7 @@ print_statistics (sum, amount, mean, min, max) =
   print_string "\n";
 
   print_string "Maximum number: ";
-  print_u32 sum;
+  print_u32 max;
   print_string "\n"
 
 read_numbers : () -> Option (List U32)
@@ -55,15 +55,14 @@ cogent_main _ =
     | Some numbers ->
       let is_empty = list_empty numbers !numbers in
       if is_empty then
-        print_string "Please enter more than one number\n";
-        list_free (numbers, drop)
+        list_free (numbers, drop);
+        print_string "Please enter more than one number\n"
       else
-        let sum    = list_r_foldl[U32,U32] ((\(x,y) => x + y), 0, numbers) !numbers
-        and amount = (u64_to_u32 o list_length) numbers                    !numbers
-        and mean   = sum / amount                                          !sum !amount
-        --and median = list_at numbers                                       !numbers
-        and min    = list_r_foldl[U32,U32] (min_u32, word32Max, numbers)   !numbers
-        and max    = list_r_foldl[U32,U32] (max_u32, 0, numbers)           !numbers
-        in 
+        let sum      = list_r_foldl[U32,U32] ((\(x,y) => x + y), 0, numbers) !numbers
+        and amount   = (u64_to_u32 o list_length) numbers                    !numbers
+        and mean     = sum / amount                                          !sum !amount
+        and min      = list_r_foldl[U32,U32] (min_u32, word32Max, numbers)   !numbers
+        and max      = list_r_foldl[U32,U32] (max_u32, 0, numbers)           !numbers
+        in
           list_free (numbers, drop);
           print_statistics (sum, amount, mean, min, max)
