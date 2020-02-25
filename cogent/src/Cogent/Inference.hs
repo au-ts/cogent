@@ -140,6 +140,7 @@ bound b (TFun t1 s1) (TFun t2 s2) = TFun <$> bound (theOtherB b) t1 t2 <*> bound
 -- At this point, we can assume recursive parameters and records agree
 bound b t1@(TRecord rp fs s) t2@(TRPar v ctxt)    = return t2
 bound b t1@(TRPar v ctxt)    t2@(TRecord rp fs s) = return t2
+bound b t1@(TRPar v1 c1)     t2@(TRPar v2 c2)     = return t2
 #ifdef BUILTIN_ARRAYS
 bound b (TArray t1 l1 s1 mhole1) (TArray t2 l2 s2 mhole2)
   | l1 == l2, s1 == s2 = do
@@ -172,17 +173,18 @@ glb = bound GLB
 
 
 bang :: Type t b -> Type t b
-bang (TVar v)         = TVarBang v
-bang (TVarBang v)     = TVarBang v
-bang (TVarUnboxed v)  = TVarUnboxed v
-bang (TCon n ts s)    = TCon n (map bang ts) (bangSigil s)
-bang (TFun ti to)     = TFun ti to
-bang (TPrim i)        = TPrim i
-bang (TString)        = TString
-bang (TSum ts)        = TSum (map (second $ first bang) ts)
-bang (TProduct t1 t2) = TProduct (bang t1) (bang t2)
-bang (TRecord rp ts s)= TRecord rp (map (second $ first bang) ts) (bangSigil s)
-bang (TUnit)          = TUnit
+bang (TVar v)          = TVarBang v
+bang (TVarBang v)      = TVarBang v
+bang (TVarUnboxed v)   = TVarUnboxed v
+bang (TCon n ts s)     = TCon n (map bang ts) (bangSigil s)
+bang (TFun ti to)      = TFun ti to
+bang (TPrim i)         = TPrim i
+bang (TString)         = TString
+bang (TSum ts)         = TSum (map (second $ first bang) ts)
+bang (TProduct t1 t2)  = TProduct (bang t1) (bang t2)
+bang (TRecord rp ts s) = TRecord rp (map (second $ first bang) ts) (bangSigil s)
+bang (TRPar n ctxt)    = TRPar n ctxt
+bang (TUnit)           = TUnit
 #ifdef BUILTIN_ARRAYS
 bang (TArray t l s tkns) = TArray (bang t) l (bangSigil s) tkns
 #endif
