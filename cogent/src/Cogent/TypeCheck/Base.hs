@@ -711,6 +711,30 @@ unifVars (A t l s tkns) = unifVars t ++ rights [s] ++ rights [tkns]
 #endif
 unifVars (T x) = foldMap unifVars x
 
+unifLVars :: TCDataLayout -> [Int]
+unifLVars (TLRecord ps) = concatMap unifLVars (thd3 <$> ps)
+unifLVars (TLVariant _ ps) = concatMap unifLVars ((\(_,_,_,a) -> a) <$> ps)
+#ifdef BUILTIN_ARRAYS
+unifLVars (TLArray e _) = unifLVars e
+#endif
+unifLVars (TLOffset e _) = unifLVars e
+unifLVars _ = []
+
+unifLVarsS :: Either (Sigil (Maybe TCDataLayout)) Int -> [Int]
+unifLVarsS (Left (Boxed _ (Just l))) = unifLVars l
+unifLVarsS _ = []
+
+unifLVarsT :: TCType -> [Int]
+unifLVarsT (Synonym _ ts) = concatMap unifLVarsT ts
+unifLVarsT (R r s) = unifLVarsS s <> nub (concatMap unifLVarsT $ Row.allTypes r)
+unifLVarsT (V r) = nub (concatMap unifLVarsT $ Row.allTypes r)
+#ifdef BUILTIN_ARRAYS
+unifLVarsT (A t _ s _) = unifLVarsT t <> unifLVarsS s
+#endif
+unifLVarsT (T (TUnbox t)) = unifLVarsT t
+unifLVarsT (T (TBang t)) = unifLVarsT t
+unifLVarsT t = trace ("unifLVars on type " ++ show t ++ " not handled") []
+
 #ifdef BUILTIN_ARRAYS
 unifVarsE :: TCSExpr -> [Int]
 unifVarsE (SE t e) = unifVars t ++ foldMap unifVarsE e
