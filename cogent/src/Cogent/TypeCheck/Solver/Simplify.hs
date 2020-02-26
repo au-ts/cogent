@@ -152,8 +152,6 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
                         -> case doLayoutMatchT tau t of
                              Right c -> hoistMaybe $ Just c
                              Left () -> hoistMaybe Nothing
-                        -- -> if testEqualLayoutT tau t then hoistMaybe $ Just []
-                                                     -- else hoistMaybe Nothing
   TLRepRef _     :~ _ -> hoistMaybe Nothing
   TLRecord fs    :~ R _ (Left (Boxed _ (Just l))) -> hoistMaybe $ Just [TLRecord fs :~: l]
   TLRecord fs    :~ R r (Left (Boxed _ Nothing))
@@ -299,12 +297,12 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
                  (Just i1, Just i2) -> Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [i1,i2]))
     hoistMaybe $ Just ([Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [l1,l2])), t1 :=: t2, drop] <> c)
 
-  a :-> b -> hoistMaybe $ Just [b]  -- FIXME: cuerently we ignore the impls. / zilinc
+  a :-> b -> __fixme $ hoistMaybe $ Just [b]  -- FIXME: cuerently we ignore the impls. / zilinc
 
   -- TODO: Here we will call a SMT procedure to simplify all the Arith constraints.
   -- The only things left will be non-trivial predicates. / zilinc
   Arith e | isTrivialSE e -> do
-              r <- lift $ smtSat e 
+              r <- lift $ smtSat e
               if r then hoistMaybe $ Just []
                    else hoistMaybe $ Nothing
           | otherwise -> hoistMaybe $ Nothing
@@ -341,7 +339,7 @@ isIrrefutable (RP (PIrrefutable _)) = True
 isIrrefutable _ = False
 
 isSolved :: TCType -> Bool
-isSolved t = __fixme $ L.null (unifVars t)  -- FIXME: TLU not checked here
+isSolved t = L.null (unifVars t) && L.null (unifLVars t)
 #ifdef BUILTIN_ARRAYS
           && L.null (unknowns t)
 #endif
@@ -422,27 +420,4 @@ doSigilMatch s1 s2
   , Left (Boxed _ (Just l2)) <- s2
   = Right [l1 :~: l2]
   | otherwise = trace ("s1: " ++ show s1 ++ "\ns2: " ++ show s2) $ __impossible "doSigilMatch"
-
-testEqualLayoutT :: TCType -> TCType -> Bool
-testEqualLayoutT (T (TVar n1 _ _)) (T (TVar n2 _ _)) = n1 == n2
-testEqualLayoutT (T (TBang t1)) t2 = testEqualLayoutT t1 t2
-testEqualLayoutT (R r1 s1) (R r2 s2) = testEqualLayoutR r1 r2 && testEqualLayoutS s1 s2
-testEqualLayoutT (V r1) (V r2) = testEqualLayoutR r1 r2
-#ifdef BUILTIN_ARRAYS
-testEqualLayoutT (A t1 _ s1 _) (A t2 _ s2 _) = testEqualLayoutT t1 t2 && testEqualLayoutS s1 s2
-#endif
-testEqualLayoutT t1 t2 = t1 == t2
-
-testEqualLayoutR :: Row.Row TCType -> Row.Row TCType -> Bool
-testEqualLayoutR r1 r2
-  | (r1', r2') <- Row.withoutCommon r1 r2
-  , Row.null r1' && Row.null r2'
-  = let rs = Row.common r1 r2
-     in all (\((_, (t1, _)), (_, (t2, _))) -> testEqualLayoutT t1 t2) rs
-testEqualLayoutR _ _ = False
-
-testEqualLayoutS :: TCSigil -> TCSigil -> Bool
-testEqualLayoutS (Left (Boxed _ Nothing)) (Left (Boxed _ Nothing)) = True
-testEqualLayoutS (Left (Boxed _ (Just l1))) (Left (Boxed _ (Just l2))) = testEqual l1 l2
-testEqualLayoutS _ _ = False
 
