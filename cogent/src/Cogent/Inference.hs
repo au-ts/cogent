@@ -121,6 +121,10 @@ bound b (TFun t1 s1) (TFun t2 s2) = TFun <$> bound (theOtherB b) t1 t2 <*> bound
 -- At this point, we can assume recursive parameters and records agree
 bound b t1@(TRecord rp fs s) t2@(TRPar v ctxt)    = return t2
 bound b t1@(TRPar v ctxt)    t2@(TRecord rp fs s) = return t2
+bound b t1@(TRPar _ _)       t2@(TRPar _ _)       = return t2
+bound b t1@(TRecord rp fs s) t2@(TRParBang _ _)   = return t2
+bound b t1@(TRParBang _ _)   t2@(TRecord rp fs s) = return t2
+bound b t1@(TRParBang _ _)   t2@(TRParBang _ _)   = return t2
 #ifdef BUILTIN_ARRAYS
 bound b (TArray t1 l1) (TArray t2 l2) | l1 == l2 = TArray <$> bound b t1 t2 <*> pure l1
 #endif
@@ -150,6 +154,9 @@ bang (TSum ts)         = TSum (map (second $ first bang) ts)
 bang (TProduct t1 t2)  = TProduct (bang t1) (bang t2)
 bang (TRecord rp ts s) = TRecord rp (map (second $ first bang) ts) (bangSigil s)
 bang (TUnit)           = TUnit
+bang (TRPar v m)       = TRParBang v m
+bang (TRParBang v m)   = TRParBang v m
+
 #ifdef BUILTIN_ARRAYS
 bang (TArray t l)      = TArray (bang t) l
 #endif
@@ -178,6 +185,7 @@ substitute vs (TRecord rp ts s) = TRecord rp (map (second (first $ substitute vs
 substitute vs (TSum ts)         = TSum (map (second (first $ substitute vs)) ts)
 substitute _  (TUnit)           = TUnit
 substitute vs (TRPar v m)       = TRPar v $ fmap (M.map (substitute vs)) m
+substitute vs (TRParBang v m)   = TRParBang v $ fmap (M.map (substitute vs)) m
 #ifdef BUILTIN_ARRAYS
 substitute vs (TArray t l)      = TArray (substitute vs t) l
 #endif
@@ -333,6 +341,7 @@ kindcheck_ f (TRecord _ ts s) = mconcat <$> ((sigilKind s :) <$> mapM (kindcheck
 kindcheck_ f (TSum ts)        = mconcat <$> mapM (kindcheck_ f . fst . snd) (filter (not . snd . snd) ts)
 kindcheck_ f (TUnit)          = return mempty
 kindcheck_ f (TRPar _ _)      = return mempty
+kindcheck_ f (TRParBang _ _)  = return mempty
 
 #ifdef BUILTIN_ARRAYS
 kindcheck_ f (TArray t l)     = kindcheck_ f t

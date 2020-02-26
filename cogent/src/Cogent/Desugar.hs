@@ -528,7 +528,6 @@ desugarType = \case
           (False, False) -> TVar v
 
   S.RT (S.TFun ti to)    -> TFun <$> desugarType ti <*> desugarType to
-  -- TODO: Fix
   S.RT (S.TRecord rp fs s)  -> TRecord rp <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType t) fs <*> pure (desugarSigil s)
   S.RT (S.TVariant alts) -> TSum <$> mapM (\(c,(ts,x)) -> (c,) . (,x) <$> desugarType (group ts)) (M.toList alts)
     where group [] = S.RT S.TUnit
@@ -549,7 +548,10 @@ desugarType = \case
   S.RT (S.TUnit)     -> return TUnit
   S.RT (S.TRPar v b m) -> do
     m' <- mapM id (fmap (\x -> mapM id (M.map desugarType x)) m)
-    return $ __fixme {- Dodgy hack: RecPar's 'Banged' field is ignored -} (TRPar v m')
+    return $ if b then
+      TRPar v m'
+    else 
+      TRParBang v m'
 #ifdef BUILTIN_ARRAYS
   S.RT (S.TArray t l) -> TArray <$> desugarType t <*> evalAExpr l  -- desugarExpr' l
 #endif

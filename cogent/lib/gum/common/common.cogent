@@ -54,6 +54,9 @@ first (f, (a, b)) = (f a, b)
 second : all (a, b, b'). (b -> b', (a, b)) -> (a, b')
 second (f, (a, b)) = (a, f b)
 
+drop : all (a :< D). a -> ()
+drop x = ()
+
 -- type synonyms
 
 type ErrCode = U32
@@ -198,6 +201,16 @@ min_u32 (a, b) = if a < b then a else b
 {-# inline min_u64 #-}
 min_u64: (U64, U64) -> (U64)
 min_u64 (a, b) = if a < b then a else b
+
+{-# cinline max_u32 #-}
+{-# inline max_u32 #-}
+max_u32: (U32, U32) -> (U32)
+max_u32 (a, b) = if a < b then b else a
+
+{-# cinline max_u64 #-}
+{-# inline max_u64 #-}
+max_u64: (U64, U64) -> (U64)
+max_u64 (a, b) = if a < b then b else a
 
 {-# cinline in_range_u32 #-}
 {-# inline in_range_u32 #-}

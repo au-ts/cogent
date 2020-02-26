@@ -500,11 +500,20 @@ typeCId t = use custTypeGen >>= \ctg ->
           return x
     typeCId' t@(TRecord NonRec fs _) = getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs) <*> pure True
     typeCId' t@(TRPar v (Just m)) = do
-      recId <- M.lookup (m M.! v) <$> use recParCIds
+      recId <- M.lookup (simplifyType $ m M.! v) <$> use recParCIds
       case recId of 
         Nothing -> do
           Just res <- M.lookup v <$> use recParRecordIds
-          recParCIds %= (M.insert (m M.! v) res)
+          recParCIds %= M.insert (simplifyType $ m M.! v) res
+          return res 
+        Just x ->
+          return x
+    typeCId' t@(TRParBang v (Just m)) = do
+      recId <- M.lookup (simplifyType $ m M.! v) <$> use recParCIds
+      case recId of 
+        Nothing -> do
+          Just res <- M.lookup v <$> use recParRecordIds
+          recParCIds %= M.insert (simplifyType $ m M.! v) res
           return res 
         Just x -> 
           return x
@@ -547,12 +556,20 @@ typeCId t = use custTypeGen >>= \ctg ->
 #endif
     isUnstable _ = False
 
+-- In the C code, we don't care whether records are readonly or not (at least for recursive types). 
+-- Thus, we only generate one type of record, irrespective of whether it is readonly or writable /emmetm
+simplifyType :: CC.Type 'Zero -> CC.Type 'Zero
+simplifyType (TRecord rp fs (Boxed _ x)) =
+    TRecord rp fs (Boxed False x)
+simplifyType x = x
+
 -- Returns the right C type
 genType :: CC.Type 'Zero -> Gen v CType
 genType t@(TRecord _ _ s) | s /= Unboxed = CPtr . CIdent <$> typeCId t  -- c.f. genTypeA
 genType t@(TString)                      = CPtr . CIdent <$> typeCId t
 genType t@(TCon _ _ s)  | s /= Unboxed   = CPtr . CIdent <$> typeCId t
 genType t@(TRPar _ _)                    = CPtr . CIdent <$> typeCId t
+genType t@(TRParBang _ _)                = CPtr . CIdent <$> typeCId t
 #ifdef BUILTIN_ARRAYS
 genType   (TArray t l)                 = CArray <$> genType t <*> pure (CArraySize (mkConst U32 l))  -- c.f. genTypeP
 #endif

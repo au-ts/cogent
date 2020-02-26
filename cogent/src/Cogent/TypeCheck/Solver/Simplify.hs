@@ -101,7 +101,8 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
 
   -- Dropping for recPars
   -- TODO: Share? Escape?
-  Drop (T (TRPar _ True _)) m -> Just []
+  Drop (T (TRPar _ True _))  _ -> Just []
+  Share (T (TRPar _ True _)) _ -> Just []
 
   -- [amos] New simplify rule:
   -- If both sides of an equality constraint are equal, we can't completely discharge it; we need to make sure all unification variables in the type are instantiated at some point
@@ -188,10 +189,10 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
   T (TRPar v1 b1 Nothing) :=: T (TRPar v2 b2 Nothing) | b1 == b2 -> Just []
                                                       | otherwise -> Nothing
 
-  T (TRPar v b m) :< x@(R _ _ _)  -> hoistMaybe $ Just [unroll v b m :< x]
-  x@(R _ _ _) :< T (TRPar v b m)  -> hoistMaybe $ Just [x :< unroll v b m]
-  x@(R _ _ _) :=: T (TRPar v b m) -> hoistMaybe $ Just [x :=: unroll v b m]
-  T (TRPar v b m) :=: x@(R _ _ _) -> hoistMaybe $ Just [unroll v b m :=: x]
+  T (TRPar v b m) :< x@(R _ _ _)  -> Just [unroll v b m :< x]
+  x@(R _ _ _) :< T (TRPar v b m)  -> Just [x :< unroll v b m]
+  x@(R _ _ _) :=: T (TRPar v b m) -> Just [x :=: unroll v b m]
+  T (TRPar v b m) :=: x@(R _ _ _) -> Just [unroll v b m :=: x]
 
   UnboxedNotRecursive (R None _ (Left Unboxed))     -> Just []
   UnboxedNotRecursive (R _ _    (Left (Boxed _ _))) -> Just []
