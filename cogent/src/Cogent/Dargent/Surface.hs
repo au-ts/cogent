@@ -47,7 +47,7 @@ evalSize (Bits b)  = b
 evalSize (Add a b) = evalSize a + evalSize b
 
 data DataLayoutDecl
-  = DataLayoutDecl SourcePos RepName DataLayoutExpr
+  = DataLayoutDecl SourcePos RepName [DLVarName] DataLayoutExpr
   deriving (Show, Data, Eq, Ord)
 
 -- 'holes' are where subexpressions define the shape of the layout.
@@ -56,12 +56,12 @@ data DataLayoutDecl
 data DataLayoutExpr' e
   = Prim    DataLayoutSize
   | Record  [(FieldName, SourcePos, e)]
-  | Variant (DataLayoutExpr' e) [(TagName, SourcePos, Size, e)]
+  | Variant e [(TagName, SourcePos, Size, e)]
 #ifdef BUILTIN_ARRAYS
   | Array   e SourcePos
 #endif
-  | Offset  (DataLayoutExpr' e) DataLayoutSize
-  | RepRef  RepName
+  | Offset  e DataLayoutSize
+  | RepRef  RepName [e]
   | LVar    DLVarName
   | Ptr
   deriving (Show, Data, Eq, Ord)
@@ -77,7 +77,7 @@ pattern DLVariant t ps = DL (Variant t ps)
 pattern DLArray e s    = DL (Array e s)
 #endif
 pattern DLOffset e s   = DL (Offset e s)
-pattern DLRepRef n     = DL (RepRef n)
+pattern DLRepRef n s   = DL (RepRef n s)
 pattern DLVar n        = DL (LVar n)
 pattern DLPtr          = DL Ptr
 

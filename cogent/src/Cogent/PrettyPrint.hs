@@ -664,7 +664,7 @@ instance Pretty SourcePos where
            | otherwise = position $ show $ setSourceName p (takeFileName $ sourceName p)
 
 instance Pretty DataLayoutDecl where
-  pretty (DataLayoutDecl _ n e) = keyword "layout" <+> reprname n <+> indent (symbol "=" </> pretty e)
+  pretty (DataLayoutDecl _ n v e) = keyword "layout" <+> reprname n <+> hsep (fmap varname v) <+> indent (symbol "=" </> pretty e)
 
 instance Pretty DataLayoutSize where
   pretty (Bits b) = literal (string (show b ++ "b"))
@@ -672,7 +672,7 @@ instance Pretty DataLayoutSize where
   pretty (Add a b) = pretty a <+> symbol "+" <+> pretty b
 
 instance Pretty d => Pretty (DataLayoutExpr' d) where
-  pretty (RepRef n) = reprname n
+  pretty (RepRef n s) = reprname n <+> hsep (fmap pretty s)
   pretty (Prim sz) = pretty sz
   pretty (Offset e s) = pretty e <+> keyword "at" <+> pretty s
   pretty (Record fs) = keyword "record" <+> record (map (\(f,_,e) -> fieldname f <> symbol ":" <+> pretty e ) fs)
@@ -968,6 +968,10 @@ instance Pretty DataLayoutTcError where
     indent (pretty context)
   pretty (UnknownDataLayoutVar n ctx) =
     err "Undeclared data layout variable" <+> dlvarname n <$$> indent (pretty ctx)
+  pretty (TooFewDataLayoutArgs n ctx) =
+    err "Too few arguments data layout synonym" <+> reprname n <$$> indent (pretty ctx)
+  pretty (TooManyDataLayoutArgs n ctx) =
+    err "Too many arguments for data layout synonym" <+> reprname n <$$> indent (pretty ctx)
 
 instance Pretty DataLayoutPath where
   pretty (InField n po ctx) = context' "for field" <+> fieldname n <+> context' "(" <> pretty po <> context' ")" </> pretty ctx
@@ -1057,7 +1061,7 @@ prettyCtx (InDefinition p tl) _ = context "in the definition at (" <> pretty p <
         helper (AbsDec n _) = context "abstract function" <+> varname n
         helper (ConstDef v _ _) = context "constant" <+> varname v
         helper (FunDef v _ _) = context "function" <+> varname v
-        helper (RepDef (DataLayoutDecl _ n _)) = context "representation" <+> reprname n
+        helper (RepDef (DataLayoutDecl _ n v _)) = context "representation" <+> reprname n <+> hsep (fmap varname v)
         helper _  = __impossible "helper"
 prettyCtx (AntiquotedType t) i = (if i then (<$> indent' (pretty (stripLocT t))) else id)
                                (context "in the antiquoted type at (" <> pretty (posOfT t) <> context ")" )
