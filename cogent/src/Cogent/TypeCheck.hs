@@ -53,7 +53,7 @@ import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
 import Lens.Micro
 import Lens.Micro.Mtl
 
--- import Debug.Trace
+import Debug.Trace
 
 tc :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
    -> [(LocType, String)]
@@ -155,7 +155,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let ls'' = zip (fst <$> ls') lts'
     return $ AbsDec n (PT ps ls'' t''')
 
-  (RepDef decl@(DataLayoutDecl pos name expr)) -> do
+  (RepDef decl@(DataLayoutDecl pos name vars expr)) -> do
     traceTc "tc" (text "typecheck rep decl" <+> pretty name)
     namedLayouts            <- lift . lift $ use knownDataLayouts
     allocation <- case runExcept $ tcDataLayoutDecl namedLayouts decl of
@@ -163,7 +163,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
                     Right alloc -> return $ Just alloc
     -- We add the decl to the knownDataLayouts regarldess of error, so we can continue
     -- typechecking DataLayoutExprs which might contain the decl.
-    lift . lift $ knownDataLayouts %= M.insert name (expr, allocation)
+    lift . lift $ knownDataLayouts %= M.insert name (vars, expr, allocation)
     let decl' = normaliseDataLayoutDecl namedLayouts decl
     return $ RepDef decl'
 

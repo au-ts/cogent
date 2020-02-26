@@ -133,10 +133,10 @@ whnf input = do
 
 normaliseRWL :: RewriteT TcSolvM TCDataLayout
 normaliseRWL = rewrite' $ \case
-  TLRepRef n -> do
+  TLRepRef n s -> do
     ls <- view knownDataLayouts
     case M.lookup n ls of
-      Just (expr, _) -> pure $ toTCDL $ normaliseDataLayoutExpr ls expr
+      Just (vars, expr, _) -> pure $ normaliseTCDataLayout ls (substTCDataLayout (zip vars s) (toTCDL expr))
       _ -> __impossible "normaliseRWL: missing layout synonym"
   _ -> empty
 
@@ -145,8 +145,8 @@ normL l = do
   step <- case l of
     TLArray e p -> TLArray <$> normL e <*> pure p
     TLRecord fs -> TLRecord <$> mapM (third3M normL) fs
-    TLVariant l fs -> TLVariant <$> (unTCDataLayout <$> normL (TL l)) <*> mapM (fourth4M normL) fs
-    TLOffset l n -> TLOffset <$> (unTCDataLayout <$> normL (TL l)) <*> pure n
+    TLVariant l fs -> TLVariant <$> normL l <*> mapM (fourth4M normL) fs
+    TLOffset l n -> TLOffset <$> normL l <*> pure n
     _ -> pure l
   fromMaybe step <$> runMaybeT (runRewriteT (untilFixedPoint $ debug "Normalise Layout" printPretty normaliseRWL) step)
 

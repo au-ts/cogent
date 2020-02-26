@@ -448,7 +448,7 @@ fvIP (RIP (PUnboxedRecord mfs)) = foldMap (fvIP . snd) $ Compose mfs
 fvIP (RIP (PTake pv mfs)) = foldMap (fvIP . snd) $ Compose mfs
 #ifdef BUILTIN_ARRAYS
 fvIP (RIP (PArray ips)) = foldMap fvIP ips
-fvIP (RIP (PArrayTake pv hs)) = error "unimplemented" -- TODO?
+fvIP (RIP (PArrayTake pv hs)) = __todo "fvIP: PArrayTake unimplemented" -- TODO?
 #endif
 fvIP _ = []
 
@@ -580,15 +580,7 @@ tvA :: Alt p RawExpr -> [TyVarName]
 tvA (Alt _ _ e) = tvE e
 
 lvT :: RawType -> [DLVarName]
-lvT (RT (TLayout l _)) = local l
-  where local (DLVar n) = [n]
-        local (DLOffset e _) = local $ DL e
-        local (DLRecord fs) = foldMap (\(_, _, x) -> local x) fs
-        local (DLVariant t alt) = local (DL t) <> foldMap (\(_, _, _, x) -> local x) alt
-#ifdef BUILTIN_ARRAYS
-        local (DLArray e _) = local e
-#endif
-        local _ = []
+lvT (RT (TLayout l _)) = lvL l
 lvT (RT (TFun t1 t2)) = lvT t1 ++ lvT t2
 lvT (RT (TRecord fs _)) = foldMap (lvT . fst . snd) fs
 lvT (RT (TVariant alts)) = foldMap (foldMap lvT . fst) alts
@@ -603,6 +595,17 @@ lvT (RT (TBang    t)) = lvT t
 lvT (RT (TTake  _ t)) = lvT t
 lvT (RT (TPut   _ t)) = lvT t
 lvT (RT _) = []
+
+lvL :: DataLayoutExpr -> [DLVarName]
+lvL (DLVar n) = [n]
+lvL (DLOffset e _) = lvL e
+lvL (DLRecord fs) = foldMap (\(_, _, x) -> lvL x) fs
+lvL (DLVariant t alt) = lvL t <> foldMap (\(_, _, _, x) -> lvL x) alt
+#ifdef BUILTIN_ARRAYS
+lvL (DLArray e _) = lvL e
+#endif
+lvL (DLRepRef _ s) = concatMap lvL s
+lvL _ = []
 
 -- Dargent variables
 
@@ -628,12 +631,13 @@ allRepRefs (DL d) = allRepRefs' d
   where
     allRepRefs' (Prim _) = []
     allRepRefs' (Record fs) = concatMap (allRepRefs . thd3) fs
-    allRepRefs' (Variant tag cs) = allRepRefs' tag ++ concatMap (\(_,_,_,e) -> allRepRefs e) cs
+    allRepRefs' (Variant tag cs) = allRepRefs tag ++ concatMap (\(_,_,_,e) -> allRepRefs e) cs
 #ifdef BUILTIN_ARRAYS
     allRepRefs' (Array e _) = allRepRefs e
 #endif
-    allRepRefs' (Offset e _) = allRepRefs' e
-    allRepRefs' (RepRef n) = [n]
+    allRepRefs' (Offset e _) = allRepRefs e
+    allRepRefs' (RepRef n s) = [n] ++ concatMap allRepRefs s
+    allRepRefs' (LVar _) = []
     allRepRefs' Ptr = []
 
 

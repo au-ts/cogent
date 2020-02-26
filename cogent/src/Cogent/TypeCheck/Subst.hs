@@ -154,12 +154,12 @@ applyL (Subst m) (TLU n)
   | Just (Layout' l) <- M.lookup n m = applyL (Subst m) l
   | otherwise = TLU n
 applyL s (TLRecord fs) = TLRecord $ (\(a,b,c) -> (a,b,applyL s c)) <$> fs
-applyL s (TLVariant e fs) = TLVariant (unTCDataLayout $ applyL s $ TL e) $
+applyL s (TLVariant e fs) = TLVariant (applyL s e) $
                                       (\(a,b,c,d) -> (a,b,c,applyL s d)) <$> fs
 #ifdef BUILTIN_ARRAYS
 applyL s (TLArray e p) = TLArray (applyL s e) p
 #endif
-applyL s (TLOffset e n) = TLOffset (unTCDataLayout $ applyL s $ TL e) n
+applyL s (TLOffset e n) = TLOffset (applyL s e) n
 applyL s l = l
 
 applyC :: Subst -> Constraint -> Constraint

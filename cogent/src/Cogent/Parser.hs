@@ -107,7 +107,7 @@ avoidInitial = do
 
 
 repDecl :: Parser DataLayoutDecl
-repDecl = DataLayoutDecl <$> getPosition <*> typeConName <* reservedOp "=" <*> repExpr
+repDecl = DataLayoutDecl <$> getPosition <*> typeConName <*> many variableName <* reservedOp "=" <*> repExpr
 
 repSize :: Parser DataLayoutSize
 repSize = avoidInitial >> buildExpressionParser [[Infix (reservedOp "+" *> pure Add) AssocLeft]] (do
@@ -115,21 +115,36 @@ repSize = avoidInitial >> buildExpressionParser [[Infix (reservedOp "+" *> pure 
                (Bits <$ reserved "b" <*> pure x <|> Bytes <$ reserved "B" <*> pure x))
 
 repExpr :: Parser DataLayoutExpr
-repExpr = DL <$> repExpr'
+repExpr = parens repExpr' <|> repExpr'
   where
-    repExpr' = avoidInitial >> buildExpressionParser [[Postfix (flip Offset <$ reserved "at" <*> repSize)]]
-          ((Record <$ reserved "record" <*> braces (commaSep recordRepr))
-      <|> (Variant <$ reserved "variant" <*> parens repExpr' <*> braces (commaSep variantRepr))
+    repExpr' = avoidInitial >> buildExpressionParser [[Postfix (flip DLOffset <$ reserved "at" <*> repSize)]] (DL <$> repExpr'')
+    repExpr'' = (Record <$ reserved "record" <*> braces (commaSep recordRepr))
+      <|> (Variant <$ reserved "variant" <*> parens repExpr <*> braces (commaSep variantRepr))
 #ifdef BUILTIN_ARRAYS
       <|> (Array <$ reserved "array" <*> brackets repExpr <*> getPosition)
 #endif
-      <|> (RepRef <$> typeConName)
+      <|> (RepRef <$> typeConName <*> many repExprS)
       <|> (Prim <$> repSize)
       <|> (Ptr <$ reserved "pointer")
-      <|> (LVar <$> variableName))
+      <|> (LVar <$> variableName)
     recordRepr = (,,) <$> variableName <*> getPosition <* reservedOp ":" <*> repExpr
     variantRepr = (,,,) <$> typeConName <*> getPosition <*> parens (fromIntegral <$> natural) <* reservedOp ":" <*> repExpr
 
+repExprS :: Parser DataLayoutExpr
+repExprS = parens repExprS' <|> repExprS'
+  where
+    repExprS' = avoidInitial >> buildExpressionParser [[Postfix (flip DLOffset <$ reserved "at" <*> repSize)]] (DL <$> repExprS'')
+    repExprS'' = (Record <$ reserved "record" <*> braces (commaSep recordRepr))
+      <|> (Variant <$ reserved "variant" <*> parens repExpr <*> braces (commaSep variantRepr))
+#ifdef BUILTIN_ARRAYS
+      <|> (Array <$ reserved "array" <*> brackets repExpr <*> getPosition)
+#endif
+      <|> (RepRef <$> typeConName <*> pure [])
+      <|> (Prim <$> repSize)
+      <|> (Ptr <$ reserved "pointer")
+      <|> (LVar <$> variableName)
+    recordRepr = (,,) <$> variableName <*> getPosition <* reservedOp ":" <*> repExpr
+    variantRepr = (,,,) <$> typeConName <*> getPosition <*> parens (fromIntegral <$> natural) <* reservedOp ":" <*> repExpr
 
 -- TODO: add support for patterns like `_ {f1, f2}', where the record name is anonymous / zilinc
 irrefutablePattern :: Parser LocIrrefPatn

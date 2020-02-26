@@ -713,7 +713,7 @@ unifVars (T x) = foldMap unifVars x
 
 unifLVars :: TCDataLayout -> [Int]
 unifLVars (TLRecord ps) = concatMap unifLVars (thd3 <$> ps)
-unifLVars (TLVariant _ ps) = concatMap unifLVars ((\(_,_,_,a) -> a) <$> ps)
+unifLVars (TLVariant t ps) = unifLVars t <> concatMap unifLVars ((\(_,_,_,a) -> a) <$> ps)
 #ifdef BUILTIN_ARRAYS
 unifLVars (TLArray e _) = unifLVars e
 #endif
@@ -731,9 +731,7 @@ unifLVarsT (V r) = nub (concatMap unifLVarsT $ Row.allTypes r)
 #ifdef BUILTIN_ARRAYS
 unifLVarsT (A t _ s _) = unifLVarsT t <> unifLVarsS s
 #endif
-unifLVarsT (T (TUnbox t)) = unifLVarsT t
-unifLVarsT (T (TBang t)) = unifLVarsT t
-unifLVarsT t = trace ("unifLVars on type " ++ show t ++ " not handled") []
+unifLVarsT (T x) = foldMap unifLVarsT x
 
 #ifdef BUILTIN_ARRAYS
 unifVarsE :: TCSExpr -> [Int]
@@ -830,11 +828,10 @@ isTypeLayoutExprCompatible env (T (TVariant ts1)) (TLVariant _ ts2) =
 isTypeLayoutExprCompatible env (T (TArray t _ (Boxed {}) _)) (TLPtr) = True
 isTypeLayoutExprCompatible env (T (TArray t _ Unboxed _)) (TLArray l _) = isTypeLayoutExprCompatible env t l
 #endif
-isTypeLayoutExprCompatible env t (TLOffset l _) = isTypeLayoutExprCompatible env t (TL l)
-isTypeLayoutExprCompatible env t (TLRepRef n)   =
+isTypeLayoutExprCompatible env t (TLOffset l _) = isTypeLayoutExprCompatible env t l
+isTypeLayoutExprCompatible env t (TLRepRef n s) =
   case M.lookup n env of
-    Just (l, _) -> isTypeLayoutExprCompatible env t (toTCDL l)
-    Nothing     -> False  -- TODO(dargent): this really shoud be an exceptional state
+    Just (v, l, _) -> isTypeLayoutExprCompatible env t (substTCDataLayout (zip v s) (toTCDL l))
+    Nothing        -> False  -- TODO(dargent): this really shoud be an exceptional state
 isTypeLayoutExprCompatible _ t (TLVar n) = True -- FIXME
 isTypeLayoutExprCompatible _ t l = trace ("t = " ++ show t ++ "\nl = " ++ show l) False
-
