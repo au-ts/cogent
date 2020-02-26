@@ -154,7 +154,7 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
                         -> case doLayoutMatchT tau t of
                              Right c -> hoistMaybe $ Just c
                              Left () -> hoistMaybe Nothing
-  TLRepRef _     :~ _ -> hoistMaybe Nothing
+  TLRepRef _ _   :~ _ -> hoistMaybe Nothing
   TLRecord fs    :~ R _ (Left (Boxed _ (Just l))) -> hoistMaybe $ Just [TLRecord fs :~: l]
   TLRecord fs    :~ R r (Left (Boxed _ Nothing))
     | ls <- LRow.entries $ LRow.fromList $ (\(a,b,c) -> (a,c,())) <$> fs
@@ -172,7 +172,7 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   TLArray e _    :~ A t _ (Left (Boxed _ Nothing)) _ -> hoistMaybe $ Just [e :~ t]
   TLArray e _    :~ A _ _ (Right _) _ -> __todo "TLArray e p :~ A t l (Right n) h => is this possible?"
 #endif
-  TLOffset e _   :~ tau -> hoistMaybe $ Just [TL e :~ tau]
+  TLOffset e _   :~ tau -> hoistMaybe $ Just [e :~ tau]
   TLPrim n       :~ tau
     | isPrimitiveType tau
     , primitiveTypeSize tau <= evalSize n
@@ -193,12 +193,12 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   l              :~ tau | TLU _ <- l -> hoistMaybe Nothing
                         | otherwise  -> unsat $ LayoutDoesNotMatchType l tau
 
-  TLRepRef _       :~: TLRepRef _ -> hoistMaybe Nothing
-  TLRepRef _       :~: _          -> hoistMaybe Nothing
-  _                :~: TLRepRef _ -> hoistMaybe Nothing
+  TLRepRef _ _     :~: TLRepRef _ _ -> hoistMaybe Nothing
+  TLRepRef _ _     :~: _            -> hoistMaybe Nothing
+  _                :~: TLRepRef _ _ -> hoistMaybe Nothing
   TLVar v1         :~: TLVar v2       | v1 == v2 -> hoistMaybe $ Just []
   TLPrim n1        :~: TLPrim n2      | n1 == n2 -> hoistMaybe $ Just []
-  TLOffset e1 n1   :~: TLOffset e2 n2 | n1 == n2 -> hoistMaybe $ Just [TL e1 :~: TL e2]
+  TLOffset e1 n1   :~: TLOffset e2 n2 | n1 == n2 -> hoistMaybe $ Just [e1 :~: e2]
   TLRecord fs1     :~: TLRecord fs2
     | r1 <- LRow.fromList $ map (\(a,b,c) -> (a,c,())) fs1
     , r2 <- LRow.fromList $ map (\(a,b,c) -> (a,c,())) fs2
@@ -207,7 +207,7 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
     | r1 <- LRow.fromList $ map (\(a,b,c,d) -> (a,d,c)) fs1
     , r2 <- LRow.fromList $ map (\(a,b,c,d) -> (a,d,c)) fs2
     , LRow.identicalFields r1 r2
-    -> hoistMaybe $ Just $ ((\((_,l1,_),(_,l2,_)) -> l1 :~: l2) <$> LRow.common r1 r2) <> [TL e1 :~: TL e2]
+    -> hoistMaybe $ Just $ ((\((_,l1,_),(_,l2,_)) -> l1 :~: l2) <$> LRow.common r1 r2) <> [e1 :~: e2]
 #ifdef BUILTIN_ARRAYS
   TLArray e1 _     :~: TLArray e2 _ -> hoistMaybe $ Just [e1 :~: e2]
 #endif
@@ -364,7 +364,7 @@ extractVariableEquality (Row.Row m1 v1) (Row.Row m2 v2)
  = Nothing
 
 isSolved :: TCType -> Bool
-isSolved t = L.null (unifVars t) && L.null (unifLVars t)
+isSolved t = L.null (unifVars t) && L.null (unifLVarsT t)
 #ifdef BUILTIN_ARRAYS
           && L.null (unknowns t)
 #endif

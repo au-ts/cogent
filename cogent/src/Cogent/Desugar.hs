@@ -619,21 +619,21 @@ desugarLayout l = Layout <$> desugarLayout' l
   where
     desugarLayout' :: TCDataLayout -> DS t l v (DataLayout' DA.BitRange)
     desugarLayout' = \case
-      TLRepRef _ -> __impossible "desugarLayout: TLRepRef should already be normalised"
+      TLRepRef _ _ -> __impossible "desugarLayout: TLRepRef should be normalised before"
       TLPrim n
         | sz <- DD.desugarSize n
         , sz > 0 -> pure $ PrimLayout (fromJust $ DA.newBitRangeBaseSize 0 sz)
         | DD.desugarSize n < 0 -> __impossible "desugarLayout: TLPrim has a negative size"
         | otherwise            -> pure UnitLayout
       TLOffset e n -> do
-        e' <- desugarLayout' (TL e)
+        e' <- desugarLayout' e
         pure $ offset (DD.desugarSize n) e'
       TLRecord fs -> do
         let f (n,_,l) = desugarLayout' l >>= pure . (n,)
         fs' <- mapM f fs
         pure $ RecordLayout (M.fromList fs')
       TLVariant te alts -> do
-        te' <- desugarLayout' (TL te)
+        te' <- desugarLayout' te
         let tr = case te' of
                    PrimLayout range -> range
                    UnitLayout       -> __impossible $ "desugarLayout: zero sized bit range for variant tag"
