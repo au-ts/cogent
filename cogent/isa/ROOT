@@ -37,5 +37,35 @@ session Deep_C_Static = Shallow_Deep_Static +
 
 session Type_Proof = "HOL-Word" +
   theories
-    "../../c-refinement/TypeProofGen"
+    "TypeProofGen"
     "AssocLookup"
+
+(* New sessions *)
+
+session Cogent = AutoCorres +
+  theories
+    "AssocLookup"
+    "CogentHelper"
+    "Cogent"
+    "Correspondence"
+    "Data"
+    "ML_Old"
+    "Mono_Tac"
+    "Mono"
+    "ProofTrace"
+    "StringMap"
+    "Subtyping"
+    "TypeProofGen"
+    "TypeTrackingSemantics"
+    "TypeTrackingTyping"
+    "UpdateSemantics"
+    "Util"
+    "ValueSemantics"
+
+session CogentShallow = Cogent +
+  theories
+    "Shallow_Normalisation_Tac"
+    "Shallow_Tac"
+    "Shallow"
+    "ShallowTuples"
+    "ShallowUtil"
