@@ -11,7 +11,7 @@
  *)
 
 theory Shallow_Tac
-imports Shallow "../ML_Old"
+imports Shallow "Cogent.ML_Old"
 begin
 
 locale shallow = value_sem

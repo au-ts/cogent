@@ -11,12 +11,12 @@
  *)
 
 theory Cogent_Corres
-imports
-  "Value_Relation"
-  "../cogent/isa/UpdateSemantics"
-  "../cogent/isa/TypeTrackingSemantics"
-  "../cogent/isa/Util"
-  "../cogent/isa/AssocLookup"
+  imports
+    "Cogent.AssocLookup"
+    "Cogent.TypeTrackingSemantics"
+    "Cogent.UpdateSemantics"
+    "Cogent.Util"
+    "Value_Relation"
 begin
 
 locale update_sem_init = update_sem +

@@ -14,7 +14,7 @@
 theory Tidy
   imports
     "AutoCorres.AutoCorres"
-    "../cogent/isa/ML_Old"
+    "Cogent.ML_Old"
 begin
 
 (* Each Cogent_Corres rule expects (at most) one guard *)

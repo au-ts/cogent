@@ -11,7 +11,7 @@
  *)
 
 theory Shallow_Normalisation_Tac imports
-  "../ML_Old"
+  "Cogent.ML_Old"
   ShallowUtil
 begin
 

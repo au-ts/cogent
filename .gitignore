@@ -35,7 +35,6 @@ impl/fs/bilby/cogent/plat/linux/bilbyfs.[ch]
 BUILD_INFO
 TypeProofTactic.log
 umm_types.txt
-ROOT
 generated.*
 *_flymake.hs
 cogent/examples/inprogress/

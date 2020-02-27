@@ -10,7 +10,10 @@
  * @TAG(DATA61_BSD)
  *)
 
-theory ShallowUtil imports "../Util" "HOL-Word.Word"
+theory ShallowUtil
+  imports
+    "HOL-Word.Word"
+    "Cogent.Util"
 begin
 
 definition
