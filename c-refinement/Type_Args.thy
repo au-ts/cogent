@@ -11,7 +11,7 @@
  *)
 
 theory Type_Args
-imports Main "HOL-Word.Word"
+imports "HOL-Word.Word"
 begin
 type_synonym funtyp = "char list"
 
