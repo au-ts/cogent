@@ -9,7 +9,8 @@ flags:
 
 extra-package-dbs: []
 extra-deps:
-  - sbv-8.3                     # for the `array' branches
+  - sbv-7.12                    # for the `array' branches
+  - crackNum-2.3                # for `sbv' on old GHC
   - microlens-0.4.9.1           # we use (<>~), new in 0.4.9
   - microlens-ghc-0.4.9.1
   - haskell-exp-parser-0.1.1

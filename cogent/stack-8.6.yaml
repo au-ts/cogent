@@ -9,5 +9,6 @@ flags:
 
 extra-package-dbs: []
 extra-deps:
+  - sbv-7.12                    # for the `array' branches
   - haskell-exp-parser-0.1.1
   - pretty-show-ansi-wl-1.9.2.1
