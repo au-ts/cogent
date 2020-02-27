@@ -152,5 +152,5 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do {- MaybeT TcSolvM -}
 
   makeTConUnifSubsts n ts s i = do
     tus <- traverse (const (U <$> lift solvFresh)) ts
-    let t = T (TCon n tus s) -- FIXME: n.b. only one type of sigil, so this is fine?
+    let t = T (TCon n tus s)  -- FIXME: A[R] :< (?0)! will break if ?0 ~> A[W] is needed somewhere else
     return $ Subst.ofType i t
