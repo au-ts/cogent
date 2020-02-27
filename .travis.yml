@@ -78,15 +78,27 @@ before_install:
   - >-
     [ -z ${WITH_BUILTIN_ARRAYS} ] ||
     STACK_FLAGS="${STACK_FLAGS} --flag cogent:builtin-arrays"
+
+  # Pandoc causes Stack to choke; so, with Docgent enabled, no fish.
+  # - <https://github.com/commercialhaskell/stack/issues/3989>
+  # - <https://github.com/commercialhaskell/stack/issues/4428>
+  #
+  # `haskell-src-exts' causes Haddock to choke (by segfaulting?!)
+  # - <https://travis-ci.org/NICTA/cogent/jobs/656011492>
   - >-
-    export STACK_FLAGS
+    if [ -z ${WITH_DOCGENT} ] && [ -z ${WITH_HASKELL_BACKEND} ];
+    then
+      STACK_FLAGS="${STACK_FLAGS} --haddock --haddock-deps";
+    fi
+
   - >-
+    export STACK_FLAGS;
     echo $STACK_FLAGS
 
 install:
   # Build dependencies
   - cd $REPO/cogent
-  - stack --no-terminal --install-ghc test --haddock --haddock-deps --only-dependencies $STACK_FLAGS
+  - stack --no-terminal --install-ghc test --only-dependencies $STACK_FLAGS
 
 jobs:
   fast_finish: true
@@ -133,7 +145,7 @@ jobs:
 script:
   # Build the package, its tests, and run the tests
   - cd $REPO/cogent
-  - stack --no-terminal test --haddock --haddock-deps $STACK_FLAGS
+  - stack --no-terminal test $STACK_FLAGS
   - cogent_bin=$(stack --no-terminal exec -- which cogent)
   - install -m 755 ${cogent_bin} ~/.local/bin
 
