@@ -1050,8 +1050,8 @@ proof (clarsimp simp: corres_def in_monad snd_bind snd_modify snd_state_assert, 
   then have x_boxed_lemmas:
     "is_valid s x'"
     "(\<sigma>(p \<mapsto> URecord (fs[f := (\<gamma> ! e, snd (fs ! f))])), h s) \<in> srel"
-    using x_boxed assms' uval_typing1_elim_lemmas \<gamma>_x rec_elim1_lemmas use\<Gamma>3'_lemmas
-    by metis+
+    using x_boxed assms' uval_typing1_elim_lemmas \<gamma>_x rec_elim1_lemmas use\<Gamma>3'_lemmas sigil_wr
+    by auto
 
   have upd_matches2:
     "\<Xi>, \<sigma>(p \<mapsto> URecord (fs[f := (\<gamma> ! e, snd (fs ! f))])) \<turnstile> \<gamma> ! x # \<gamma> matches Some (TRecord (typ[f := (fst (typ ! f), fst (snd (typ ! f)), Present)]) sgl) # \<Gamma>2 \<langle>r1' \<union> r2, (insert p w1') \<union> w2\<rangle>"
@@ -1574,8 +1574,6 @@ lemma corres_member_boxed:
           (do _ \<leftarrow> guard (\<lambda>s. is_valid' s x');
              gets (\<lambda>s. f' s )
           od) \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
-  oops
-(*
   using assms
   apply (monad_eq simp: corres_def val_rel_ptr_def)
   apply (rename_tac r w)
@@ -1598,7 +1596,7 @@ lemma corres_member_boxed:
    apply (fastforce intro!: u_sem_memb_b u_sem_var elim: subst)
   using shareable_not_writable(1) apply fastforce
   done
-*)
+
 lemma corres_fun:
   "val_rel (UFunction f []) (fun_tag' :: 32 signed word) \<Longrightarrow>
    corres srel (Fun f []) (gets (\<lambda>_. fun_tag')) \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
