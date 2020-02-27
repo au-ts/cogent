@@ -22,7 +22,7 @@ import Cogent.TypeCheck.Solver.Goal
 import Cogent.TypeCheck.Solver.Monad (TcSolvM)
 import Cogent.TypeCheck.Solver.Rewrite as Rewrite hiding (lift)
 import Cogent.TypeCheck.Util (traceTc)
-import Cogent.PrettyPrint (indent', warn)
+import Cogent.PrettyPrint (indent', warn, prettyC)
 import Cogent.Surface
 import Cogent.Util (hoistMaybe, (.>))
 
@@ -39,7 +39,7 @@ import Lens.Micro
 import Lens.Micro.Mtl (view)
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 
-import Debug.Trace
+-- import Debug.Trace
 
 data SmtState = SmtState { constraints :: [TCSExpr] }
 
@@ -58,7 +58,7 @@ trans (RewriteT m) = RewriteT $ \a ->
 -- | Extracts all logical predicates from goals and then,
 --   simplifies them using the knowledge of constant definitions.
 smtSolve :: RewriteT SmtM [Goal]
-smtSolve = 
+smtSolve =
   extractPredicates `andThen`
   (rewrite' $ \gs -> do
     ks <- M.map (\(a,b,c) -> (a,b)) <$> view knownConsts
@@ -66,8 +66,9 @@ smtSolve =
     let ks' = constEquations ks
     traceTc "sol/smt" (L.text "Constants" L.<> L.colon L.<$> L.prettyList ks')
     res <- liftIO $ smtSatResult $ implTCSExpr (andTCSExprs ks') (andTCSExprs c)
-    case res of (_ , _, []) -> hoistMaybe $ Nothing   -- returns no models
-                (False, False, [m]) -> hoistMaybe $ Just gs  -- TODO: only one model, we should generate assignment
+    case res of (_ , _, []) -> hoistMaybe $ Nothing   -- returns no models, meaning it's unsat.
+                (False, False, [m]) -> hoistMaybe $ Just gs  -- TODO: only one model, we should generate assignment (but
+                                                             -- the assignment can be empty)
                 (_, _, ms) -> hoistMaybe $ Just gs  -- TODO: multiple models. check if the unifs are
                                                     -- the only occurrences. if so, then generate assignment.
    )
@@ -79,17 +80,19 @@ constEquations = M.toList .>
                  map (\(v,(t,e)) -> SE (T bool) (PrimOp "==" [SE t (Var v), toTCSExpr e]))
   where simpleExpr (_,(_,e)) = simpleTE e
 
--- | Finds and stores in 'StmM' all logical predicates from constraints, and remove them
+-- | Finds and stores in 'StmM' *all* logical predicates from constraints, and remove them
 --   from the 'SolvM' store.
 extractPredicates :: RewriteT SmtM [Goal]
-extractPredicates = pickOne' $ \g -> do
-  let c = g ^. goal
-      (es,c') = splitArithConstraints c
+extractPredicates = rewrite' $ \gs -> do
+  let blob = map (\g -> splitArithConstraints (g ^. goal)) gs
+      (ess,cs) = unzip blob
+      es = mconcat ess
   if null es then
     hoistMaybe $ Nothing
   else do
     modify (\(SmtState es') -> SmtState (es'++es))
-    hoistMaybe $ Just [g & goal .~ c']
+    let gs' = zipWith (\g c -> g & goal .~ c) gs cs
+    hoistMaybe $ Just gs'
 
 -- | Returns a detailed result of satisfiability of a logical predicate.
 smtSatResult :: TCSExpr -> IO (Bool, Bool, [SMTResult])
@@ -98,7 +101,9 @@ smtSatResult e = do
   -- NOTE: sbv will perform Skolemisation to reduce existentials, while preserving satisfiability. / zilinc
   res@(AllSatResult (limit, _, unknown, models)) <-
     allSatWith (z3 { verbose = __cogent_ddump_smt
-                   , redirectVerbose = Just $ fromMaybe "/dev/stderr" __cogent_ddump_to_file })
+                   , redirectVerbose = Just $ fromMaybe "/dev/stderr" __cogent_ddump_to_file
+                   , allSatMaxModelCount = Just 2
+                   })
                (evalStateT (sexprToSmt e)
                (SmtTransState IM.empty M.empty))
   dumpMsgIfTrue __cogent_ddump_smt (L.text (replicate 80 '-') L.<> L.hardline)

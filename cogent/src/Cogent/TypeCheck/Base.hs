@@ -225,7 +225,7 @@ splitArithConstraints (c1 :& c2)
 splitArithConstraints (c :@ ctx)
   = let (e,c') = splitArithConstraints c
      in (e, c' :@ ctx)
-splitArithConstraints (Arith e ) = ([e], Sat)
+splitArithConstraints (Arith e)  = ([e], Sat)
 splitArithConstraints c          = ([], c)
 
 andTCSExprs :: [TCSExpr] -> TCSExpr

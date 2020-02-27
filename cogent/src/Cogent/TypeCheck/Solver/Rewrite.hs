@@ -9,7 +9,7 @@
 --
 -- @TAG(DATA61_GPL)
 --
-
+{-# LANGUAGE ScopedTypeVariables #-}
 module Cogent.TypeCheck.Solver.Rewrite
   ( -- * Types
     Rewrite
@@ -37,8 +37,6 @@ import Control.Monad.Trans.Maybe
 import qualified Control.Monad.Trans as T
 import Data.Monoid ((<>))
 import Text.PrettyPrint.ANSI.Leijen (text, (<+>), (<$$>))
-
-import Debug.Trace
 
 -- | Intuitively a @Rewrite a@ is a partial function from @a@ to @a@.
 --   It can be composed disjuctively using the 'Semigroup' instance, or
@@ -76,7 +74,7 @@ pre op (RewriteT f) = RewriteT (\a -> T.lift (op a) >>= f)
 --   succeeds, rewrite the result with @s@. If either @r@ or @s@ fails to rewrite, the whole thing
 --   fails to rewrite.
 andThen :: Monad m => RewriteT m a -> RewriteT m a -> RewriteT m a
-andThen (RewriteT f) (RewriteT g) = RewriteT $ \x -> f x >>= g
+andThen (RewriteT f) (RewriteT g) = RewriteT $ f >=> g
 
 -- | Given a partial function from @a@ to @a@, produce a @RewriteT@ value.
 rewrite :: Applicative m => (a -> Maybe a) -> RewriteT m a
