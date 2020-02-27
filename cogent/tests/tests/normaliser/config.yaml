@@ -1,0 +1,7 @@
+- test_name: pass-normaliser
+  files:
+    - pass_synonym-bang.cogent
+    - pass_synonym-take.cogent
+  expected_result: pass
+  flags:
+    - -g
