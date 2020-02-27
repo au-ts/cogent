@@ -46,7 +46,7 @@ normaliseRW = rewrite' $ \t -> case t of
     Synonym n as -> do 
         table <- view knownTypes
         case lookup n table of 
-            Just (as', Just b) -> MaybeT $ Just <$> whnf $ substType (zip as' as) b
+            Just (as', Just b) -> MaybeT $ Just <$> whnf (substType (zip as' as) b)
             _ -> __impossible "normaliseRW: missing synonym"
 
     T (TTake fs (R row s)) 
