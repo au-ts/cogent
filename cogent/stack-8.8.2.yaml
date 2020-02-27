@@ -1,0 +1,19 @@
+# /!\ HERE BE DRAGONS /!\ ##############################################
+#
+# As at 2020-02-23, GHC 8.8 support is aspirational: both Cabal 3.0 and
+# changes to `base' mean Cogent is unlikely to build.
+
+resolver: lts-15.1              # ghc-8.8.2; 2020-02-23
+packages:
+  - '.'
+  - '../isa-parser'
+
+flags:
+  language-c-quote:
+    full-haskell-antiquotes: false
+
+extra-package-dbs: []
+extra-deps:
+  - sbv-7.12                    # for the `array' branches
+  - haskell-exp-parser-0.1.1
+  - pretty-show-ansi-wl-1.9.2.1
