@@ -66,11 +66,17 @@ smtSolve =
     let ks' = constEquations ks
     traceTc "sol/smt" (L.text "Constants" L.<> L.colon L.<$> L.prettyList ks')
     res <- liftIO $ smtSatResult $ implTCSExpr (andTCSExprs ks') (andTCSExprs c)
-    case res of (_ , _, []) -> hoistMaybe $ Nothing   -- returns no models, meaning it's unsat.
-                (False, False, [m]) -> hoistMaybe $ Just gs  -- TODO: only one model, we should generate assignment (but
-                                                             -- the assignment can be empty)
-                (_, _, ms) -> hoistMaybe $ Just gs  -- TODO: multiple models. check if the unifs are
-                                                    -- the only occurrences. if so, then generate assignment.
+    case res of (_ , _, []) -> hoistMaybe $ Nothing
+                -- \ ^^^ Returns no models, meaning it's unsat.
+                (False, False, [m]) -> hoistMaybe $ Just gs
+                -- \ ^^^ Only one model (or unique up to prefix existentials). We should
+                -- generate assignment (but the assignment can be empty).
+                (_, _, [m]) -> hoistMaybe $ Just gs
+                -- \ ^^^ Multiple models. Since all arithmetic constraints
+                -- are here, and the assignment of arithmetic unification variables
+                -- shouldn't affect the satisfiability of other typing constraints,
+                -- we can choose an arbitrary assignment. (TODO) / zilinc
+                _ -> __impossible "smtSolve: I only asked for one result, and you give me more!?"
    )
 
 -- | Converts the store of known constants to equality constraints.
@@ -102,7 +108,7 @@ smtSatResult e = do
   res@(AllSatResult (limit, _, unknown, models)) <-
     allSatWith (z3 { verbose = __cogent_ddump_smt
                    , redirectVerbose = Just $ fromMaybe "/dev/stderr" __cogent_ddump_to_file
-                   , allSatMaxModelCount = Just 2
+                   , allSatMaxModelCount = Just 1
                    })
                (evalStateT (sexprToSmt e)
                (SmtTransState IM.empty M.empty))
