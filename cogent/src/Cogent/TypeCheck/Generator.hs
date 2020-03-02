@@ -156,7 +156,7 @@ validateType (RT t) = do
       (ct,t') <- validateType t
       return (mconcat ces <> ct, T $ TATake xs t')
 
-    TAPut  es t -> do
+    TAPut es t -> do
       blob <- forM es $ \e -> do
         x <- freshEVar (T u32)
         (ce,e') <- cg (rawToLocE ?loc e) (T u32)
@@ -166,6 +166,21 @@ validateType (RT t) = do
                      text "generate constraint" <+> prettyC (mconcat ces))
       (ct,t') <- validateType t
       return (mconcat ces <> ct, T $ TAPut xs t')
+#endif
+
+#ifdef REFINEMENT_TYPES
+    TRefine v t e -> do
+      (ct,t') <- validateType t
+      c <- use context
+      context %= C.addScope (M.fromList [(v, (t', ?loc, Seq.empty))])
+      (ce,e') <- cg (rawToLocE ?loc e) (T bool)
+      rs <- context %%= C.dropScope
+      let unused = flip foldMap (M.toList rs) $ \(v,(_,_,us)) ->
+            case us of Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v); _ -> Sat
+          c = ct <> ce <> unused
+      traceTc "gen" (text "cg for reftype" L.<$>
+                     text "generate constraint" <+> prettyC c)
+      return (c, T $ TRefine v t' (toTCSExpr e'))
 #endif
 
     TLayout l t -> do
