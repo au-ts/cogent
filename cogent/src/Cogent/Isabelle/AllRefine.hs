@@ -28,7 +28,7 @@ allRefine source log =
                             , thy ++ __cogent_suffix_of_scorres ++ __cogent_suffix_of_stage STGNormal
                             , thy ++ __cogent_suffix_of_corres_proof
                             , thy ++ __cogent_suffix_of_mono_proof
-                            , __cogent_root_dir </> "c-refinement/Cogent_Corres_Shallow_C"]
+                            , "CogentCRefinement.Cogent_Corres_Shallow_C"]
     body   = typeProof thy : exportThms thy :
              initFinalLocale thy output : sublocales thy : contextFinal thy : []
     thy    = mkProofName source Nothing
@@ -107,7 +107,7 @@ initFinalLocale :: String -> String -> TheoryDecl I.Type I.Term
 initFinalLocale thy output = TheoryString $ unlines
   [ "(* Initialise final locale. *)"
   , "locale " ++ thy ++ "_cogent_shallow ="
-  , "  \"" ++ output ++ "\" _ upd_abs_typing abs_repr + correspondence +"
+  , "  \"" ++ output ++ "\" + correspondence +"
   , "  constrains val_abs_typing :: \"'b \\<Rightarrow> name \\<Rightarrow> type list \\<Rightarrow> bool\""
   , "         and upd_abs_typing :: \"abstyp \\<Rightarrow> name \\<Rightarrow> type list \\<Rightarrow> sigil \\<Rightarrow> ptrtyp set \\<Rightarrow> ptrtyp set \\<Rightarrow> bool\""
   , "         and abs_repr       :: \"abstyp \\<Rightarrow> name \\<times> repr list\""
