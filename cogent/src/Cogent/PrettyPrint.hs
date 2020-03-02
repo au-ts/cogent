@@ -90,6 +90,7 @@ typeargs xs = encloseSep lbracket rbracket (comma <> space) xs
 array = encloseSep lbracket rbracket (comma <> space)
 record = encloseSep (lbrace <> space) (space <> rbrace) (comma <> space)
 variant = encloseSep (langle <> space) rangle (symbol "|" <> space) . map (<> space)
+reftype v t e = lbracket <+> v <+> symbol ":" <+> t <+> symbol "|" <+> e <+> rbracket
 
 -- combinators, helpers
 
@@ -542,6 +543,9 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
     = (prettyT' t <+> typesymbol "@put"
                   <+> tupled (map pretty idxs))
       & (if __cogent_fdisambiguate_pp then (<+> comment "{- @put -}") else id)
+#endif
+#ifdef REFINEMENT_TYPES
+  pretty (TRefine v t e) = reftype (varname v) (pretty t) (pretty e)
 #endif
   pretty (TRecord ts s) =
       let recordPretty = record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts) -- all untaken

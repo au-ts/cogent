@@ -375,6 +375,7 @@ arrayAssigns = commaSep arrayAssignment
 -- atomtype ::= "(" monotype* ")"  -- comma-separated list
 --            | "{" fieldname ":" monotype "," ... "}"
 --            | "<" Con typeA2 "|" ... ">"
+--            | "[" id ":" monotype "|" expr "]"
 --            | var
 --            | Con
 
@@ -471,7 +472,12 @@ monotype = do avoidInitial
       <|> tuple <$> parens (commaSep monotype)
       <|> (\fs -> TRecord fs (Boxed False Nothing))
           <$> braces (commaSep1 ((\a b c -> (a,(b,c))) <$> variableName <* reservedOp ":" <*> monotype <*> pure False))
-      <|> TVariant . M.fromList <$> angles (((,) <$> typeConName <*> fmap ((,False)) (many typeA2)) `sepBy` reservedOp "|"))
+      <|> TVariant . M.fromList <$> angles (((,) <$> typeConName <*> fmap ((,False)) (many typeA2)) `sepBy` reservedOp "|")
+#ifdef REFINEMENT_TYPES
+      <|> (brackets (TRefine <$> variableName <* reservedOp ":" <*> monotype <* reservedOp "|" <*> expr 1)))
+#else
+      )
+#endif
 
     tuple [] = TUnit
     tuple [e] = typeOfLT e
