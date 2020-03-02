@@ -38,9 +38,9 @@ corresProof thy cfile fns ent log =
 imports :: String -> TheoryImports
 imports thy = TheoryImports
   [ thy ++ __cogent_suffix_of_corres_setup
-  , __cogent_root_dir </> "c-refinement/Corres_Tac"
-  , __cogent_root_dir </> "c-refinement/CogentHigherOrder"
-  , __cogent_root_dir </> "c-refinement/Cogent_Corres_Sanity_Check"
+  , "CogentCRefinement.Corres_Tac"
+  , "CogentCRefinement.CogentHigherOrder"
+  , "CogentCRefinement.Cogent_Corres_Sanity_Check"
   ]
 
 sanityCheck :: [String]

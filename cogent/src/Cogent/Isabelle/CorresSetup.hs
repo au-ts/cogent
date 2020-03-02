@@ -31,11 +31,11 @@ corresSetup thy cfile log =
 
 imports :: String -> TheoryImports
 imports thy = TheoryImports $
-  [ __cogent_root_dir </> "c-refinement/Deep_Embedding_Auto"
-  , __cogent_root_dir </> "c-refinement/Cogent_Corres"
-  , __cogent_root_dir </> "c-refinement/Tidy"
-  , __cogent_root_dir </> "c-refinement/Heap_Relation_Generation"
-  , __cogent_root_dir </> "c-refinement/Type_Relation_Generation"
+  [ "CogentCRefinement.Deep_Embedding_Auto"
+  , "CogentCRefinement.Cogent_Corres"
+  , "CogentCRefinement.Tidy"
+  , "CogentCRefinement.Heap_Relation_Generation"
+  , "CogentCRefinement.Type_Relation_Generation"
   , thy ++ __cogent_suffix_of_ac_install
   , thy ++ __cogent_suffix_of_type_proof
   ]
