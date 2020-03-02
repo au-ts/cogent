@@ -41,7 +41,7 @@ normalProof thy typeMap defs log =
 
 imports :: String -> TheoryImports
 imports thy =
-  TheoryImports $ [ __cogent_root_dir </> "cogent/isa/shallow/Shallow_Normalisation_Tac"
+  TheoryImports $ [ "CogentShallow.Shallow_Normalisation_Tac"
                   , thy ++ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage STGDesugar
                   , thy ++ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage STGNormal
                   ]

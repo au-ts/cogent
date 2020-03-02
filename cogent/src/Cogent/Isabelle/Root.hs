@@ -38,7 +38,7 @@ root source log =
       all_refine = thy ++ __cogent_suffix_of_all_refine
   in ["(*"] ++ lines log ++ ["*)"] ++
      [ ""
-     , "session " ++ shal_tuples ++ " = Deep_C_Static +"
+     , "session " ++ shal_tuples ++ " = CogentCRefinement +"
      , "  theories"
      , "    \"" ++ shal_shrd ++ "\""
      , "    \"" ++ shal_shrd_tup ++ "\""
@@ -62,7 +62,7 @@ root source log =
      , "  theories [condition = \"SKIP_SCORRES_PROOF\", skip_proofs, quick_and_dirty] \"" ++ scor_norm ++ "\""
      , "  theories [quick_and_dirty] \"" ++ scor_norm ++ "\""
      , ""
-     , "session " ++ ac_install ++ " = Deep_C_Static +"
+     , "session " ++ ac_install ++ " = CogentCRefinement +"
      , "  theories \"" ++ ac_install ++ "\""
      -- Isabelle session file no longer supports this "files" keyword.
      -- , "  files \"" ++ inputc ++ "\"" ++ maybe "" (\f -> " \"" ++ f ++ "\"") inputh

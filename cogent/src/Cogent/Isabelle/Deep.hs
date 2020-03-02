@@ -201,7 +201,7 @@ deepPolyType mod ta (FT ks ts ti to) = mkPair (mkList $ map deepKind $ cvtToList
                                               (mkPair (deepType mod ta ti) (deepType mod ta to))
 
 imports :: TheoryImports
-imports = TheoryImports $ [__cogent_root_dir </> "cogent/isa/Cogent"]
+imports = TheoryImports $ ["Cogent.Cogent"]
 
 deepDefinition :: (Pretty a, Ord b, Pretty b)
                => NameMod
