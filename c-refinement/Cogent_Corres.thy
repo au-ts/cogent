@@ -1126,7 +1126,7 @@ lemma corres_put_boxed:
   assumes sigil_wr: "sgl = Boxed Writable ptrl"
 (* CHANGE: Changed to use sgl *)
   assumes x_sigil: "\<Gamma>!x = Some (TRecord typ sgl)"
-  assumes \<gamma>_x: "\<gamma>!x = UPtr p repr ptrl"
+  assumes \<gamma>_x: "\<gamma>!x = UPtr p repr ptrl'"
   assumes split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
 (* CHANGE: Changed to take field names; Changed to use sgl *)
   assumes typing_put: "\<Xi>, [], \<Gamma> \<turnstile> Put (Var x) f (Var e) : TRecord (typ[f := (fst (typ ! f), fst (snd (typ ! f)), Present)]) sgl"
@@ -1134,9 +1134,11 @@ lemma corres_put_boxed:
   assumes x_boxed:
   "\<And>fs r w r' w'.
     \<lbrakk>(\<sigma>,s)\<in> srel; \<sigma> p = Some (URecord fs);
-    \<Xi>, \<sigma> \<turnstile> UPtr p repr ptrl :u TRecord typ sgl \<langle>r, w\<rangle>;
-    \<Xi>, \<sigma>(p := Some (URecord (fs [f := (\<gamma>!e, snd (fs ! f))]))) \<turnstile> UPtr p repr ptrl :u TRecord typ sgl \<langle>r', w'\<rangle>\<rbrakk> \<Longrightarrow>
-   is_valid s x' \<and> val_rel (UPtr p repr ptrl) x' \<and> (\<sigma>(p := Some (URecord (fs [f := (\<gamma>!e, snd (fs ! f))]))), h s) \<in> srel"
+    \<Xi>, \<sigma> \<turnstile> UPtr p repr ptrl :u TRecord typ sgl \<langle>r, w\<rangle>; 
+    \<Xi>, \<sigma>(p := Some (URecord (fs [f := (\<gamma>!e, snd (fs ! f))]))) \<turnstile> UPtr p repr ptrl' :u TRecord typ sgl \<langle>r', w'\<rangle>\<rbrakk> \<Longrightarrow>
+   is_valid s x' \<and> 
+   val_rel (UPtr p repr ptrl') x' \<and> 
+    (\<sigma>(p := Some (URecord (fs [f := (\<gamma>!e, snd (fs ! f))]))), h s) \<in> srel"
   shows "corres srel
            (Put (Var x) f (Var e))
            (do _ \<leftarrow> guard (\<lambda>s. is_valid s x'); _ \<leftarrow> modify h; gets (\<lambda>_. x') od) \<xi> \<gamma> \<Xi> \<Gamma> \<sigma> s"
@@ -1170,7 +1172,9 @@ lemma corres_put_boxed:
   apply clarsimp
   apply (rename_tac rnfs wnfs)
   apply (frule(1) x_boxed)
-    apply (fastforce intro!: u_t_p_rec_w')
+    apply (subgoal_tac "ptrl = ptrl'")
+     apply (fastforce intro!: u_t_p_rec_w') 
+    apply (simp add: sigil_wr)
    apply (simp add: sigil_wr)
    apply (rule_tac fs="fs [f := (\<gamma> ! e, snd (fs ! f))]" in u_t_p_rec_w')
        apply (simp only: list_helper)
