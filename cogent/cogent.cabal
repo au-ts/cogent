@@ -34,6 +34,11 @@ flag builtin-arrays
   manual: True
   default: False
 
+flag refinement-types
+  description: Enable experimental refinement types features
+  manual: True
+  default: False
+
 flag docgent
   description: Enable documentation generator (drastically embiggens build time)
   manual: True
@@ -177,12 +182,15 @@ library
                    , Cogent.Haskell.Shallow
     cpp-options: -DWITH_HASKELL
     build-depends: haskell-src-exts >= 1.19, pretty
-  if flag(builtin-arrays)
+  if flag(builtin-arrays) || flag(refinement-types)
     exposed-modules: 
                      Cogent.TypeCheck.SMT
                    , Cogent.TypeCheck.Solver.SMT
     build-depends: sbv >= 8.0
+  if flag(builtin-arrays)
     cpp-options: -DBUILTIN_ARRAYS
+  if flag(refinement-types)
+    cpp-options: -DREFINEMENT_TYPES
   if flag(docgent)
     cpp-options: -DWITH_DOCGENT
     build-depends: ansi-terminal >= 0.6
