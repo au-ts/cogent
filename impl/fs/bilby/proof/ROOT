@@ -8,11 +8,13 @@
  * @TAG(NICTA_GPL)
  *)
 
+(*
 session CogentUtil = "Word_Lib" +
   sessions "Eisbach"
-  theories "../../../../cogent/isa/Util"
+  theories "Cogent.Util"
+*)
 
-session "BilbyFsCode" (main) = "CogentUtil" +
+session "BilbyFsCode" (main) = CogentCRefinement +
   description {* BilbyFs implementation *}
   theories
   "impl/BilbyFs_Shallow_Desugar_Tuples"

@@ -20,7 +20,7 @@ export REPO_ROOT="../../../.."
 export ISABELLE_IDENTIFIER="BilbyFs2019Benchmark"
 
 time isabelle build -d plat/verification \
-                    -d $REPO_ROOT/cogent/isa \
+                    -d $REPO_ROOT \
                     -d $REPO_ROOT/autocorres \
                     -b -o process_output_limit=999 \
                      BilbyFs_AllRefine;
