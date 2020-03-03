@@ -231,7 +231,9 @@ substituteS ls (Boxed b (Layout l)) = Boxed b . Layout $ substituteS' ls l
             fns = fmap fst fsl
             fes = fmap snd fsl
          in RecordLayout $ M.fromList (zip fns (fmap (substituteS' ls) fes))
+#ifdef BUILTIN_ARRAYS
       ArrayLayout e -> ArrayLayout $ substituteS' ls e
+#endif
       _ -> l
 
 substituteLE :: Vec t (Type u b) -> LExpr t b -> LExpr u b

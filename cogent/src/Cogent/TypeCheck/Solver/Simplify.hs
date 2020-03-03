@@ -46,6 +46,7 @@ import qualified Data.Set as S
 import           Data.Word (Word32)
 import           Lens.Micro
 
+import           Debug.Trace
 
 type TCSigil = Either (Sigil (Maybe TCDataLayout)) Int  -- local synonym
 
@@ -419,5 +420,8 @@ doSigilMatch s1 s2
   | Left (Boxed _ (Just l1)) <- s1
   , Left (Boxed _ (Just l2)) <- s2
   = Right [l1 :~: l2]
+  | Left Unboxed <- s1
+  , Left Unboxed <- s2
+  = Right []
   | otherwise = trace ("s1: " ++ show s1 ++ "\ns2: " ++ show s2) $ __impossible "doSigilMatch"
 
