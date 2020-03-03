@@ -60,7 +60,7 @@ genDataLayoutExpr size = oneof
     genVariant :: Int -> Gen DataLayoutExpr
     genVariant size = do
       tagSize <- choose (0, size)
-      DL tagExpr <- genPrim tagSize
+      tagExpr <- genPrim tagSize
       alternatives <- genAlternatives (size - tagSize)
       return $ DL $ Variant tagExpr alternatives
 
@@ -78,5 +78,5 @@ genDataLayoutExpr size = oneof
           return $ (altName, sourcePos, altValue, altDataLayoutExpr) : otherAlts
 
     genOffset :: Int -> Gen DataLayoutExpr
-    genOffset size = DL <$> (Offset <$> (unDataLayoutExpr <$> genDataLayoutExpr size) <*> arbitrary)
+    genOffset size = DL <$> (Offset <$> genDataLayoutExpr size <*> arbitrary)
 
