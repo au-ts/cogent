@@ -108,6 +108,11 @@ sinkFloat = Rewrite.rewrite' $ \cs -> do
       , Just r2var <- rowVar r2
         = makeRowRowVarSubsts r2new r2var
 
+    -- tfun
+    genStructSubst (Function _ _ :< UnifVar i)  = makeFunUnifSubsts i
+    genStructSubst (UnifVar i :< Function _ _)  = makeFunUnifSubsts i
+    genStructSubst (Function _ _ :=: UnifVar i) = makeFunUnifSubsts i
+    genStructSubst (UnifVar i :=: Function _ _) = makeFunUnifSubsts i
 
     -- primitive types
     genStructSubst (t@(PrimType _) :< UnifVar i) = pure [TyAssign i t]
@@ -133,3 +138,8 @@ sinkFloat = Rewrite.rewrite' $ \cs -> do
     absTypeSubs n s ts i = do 
       ts' <- mapM (const (UnifVar <$> fresh)) ts
       return [TyAssign i (AbsType n s ts')]
+
+    makeFunUnifSubsts i = do
+      t' <- UnifVar <$> fresh
+      u' <- UnifVar <$> fresh
+      return [TyAssign i $ Function t' u']

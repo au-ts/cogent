@@ -21,7 +21,6 @@ import Minigent.TC.Normalise
 import Minigent.TC.Simplify
 import Minigent.TC.Unify
 import Minigent.TC.Equate
-import Minigent.TC.JoinMeet
 import Minigent.TC.SinkFloat
 import Minigent.TC.Assign
 import Minigent.Fresh
@@ -71,9 +70,7 @@ solve axs cs = do
           -- Rewrite.debugNewline "[equate]" debugPrettyConstraints <>
           Rewrite.lift equate <>
           -- Rewrite.debugNewline "[sink/float]" debugPrettyConstraints <>
-          sinkFloat <>
-          -- Rewrite.debugNewline "[join/meet]" debugPrettyConstraints <>
-          joinMeet)
+          sinkFloat)
 
 -- | Run a solver computation.
 runSolver :: Solver a -> FreshT VarName IO (a,[Assign])
