@@ -13,7 +13,7 @@ include ../../../../build-env.mk
 COGENT_FLAGS ?=
 
 all: cogent
-	$(ISABELLE) build -v -d . -b BilbyFs
+	L4V_ARCH=ARM $(ISABELLE) build -v -d . -d $(BUILD_ENV_MK_DIR) -d $(BUILD_ENV_MK_DIR)/autocorres -b BilbyFs
 
 cogent:
 	cogent --shallow-consts-desugar-tuples --shallow-desugar-tuples --proof-name=BilbyFs \
