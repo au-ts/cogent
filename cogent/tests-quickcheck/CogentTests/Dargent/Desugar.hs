@@ -19,13 +19,21 @@ import CogentTests.Dargent.Core
 import CogentTests.Dargent.TypeCheck (undesugarDataLayout)
 import CogentTests.Core (genLayoutableType)
 import Cogent.Dargent.Core
-import Cogent.Dargent.Desugar
+import Cogent.Dargent.TypeCheck
+import Cogent.Desugar
+import Cogent.Util
+
+import Control.Monad.RWS.Strict
+import qualified Data.Map as M
+import Data.Vec
 
 prop_returnTrip :: Property
 prop_returnTrip =
   forAll (genDataLayout size) $ \(Layout layout, _) ->  -- FIXME: CLayout / zilinc
-    desugarDataLayout (undesugarDataLayout layout) == Layout layout
+    fst (flip3 evalRWS state reader (runDS $ desugarLayout (toTCDL $ undesugarDataLayout layout))) == Layout layout
   where size = 30
+        reader = (M.empty, M.empty, [])
+        state = DsState Nil Nil Nil 0 0 []
 
 return []
 testAll = $quickCheckAll
