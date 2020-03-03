@@ -253,7 +253,9 @@ monoLayout (Layout l) = Layout <$> monoLayout' l
           fes = fmap snd fsl
       fes' <- mapM monoLayout' fes
       RecordLayout <$> pure (M.fromList $ P.zip fns fes')
+#ifdef BUILTIN_ARRAYS
     monoLayout' (ArrayLayout e) = ArrayLayout <$> monoLayout' e
+#endif
     monoLayout' l = pure l
 
 monoSigil :: (Ord b) => Sigil (DataLayout BitRange) -> Mono b (Sigil (DataLayout BitRange))

@@ -143,7 +143,9 @@ normaliseRWL = rewrite' $ \case
 normL :: TCDataLayout -> TcSolvM TCDataLayout
 normL l = do
   step <- case l of
+#ifdef BUILTIN_ARRAYS
     TLArray e p -> TLArray <$> normL e <*> pure p
+#endif
     TLRecord fs -> TLRecord <$> mapM (third3M normL) fs
     TLVariant l fs -> TLVariant <$> normL l <*> mapM (fourth4M normL) fs
     TLOffset l n -> TLOffset <$> normL l <*> pure n

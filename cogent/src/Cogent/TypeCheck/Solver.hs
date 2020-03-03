@@ -26,7 +26,6 @@ module Cogent.TypeCheck.Solver (runSolver, solve) where
 import           Cogent.Common.Syntax
 import           Cogent.Common.Types
 import           Cogent.Compiler
-import           Cogent.PrettyPrint (prettyC)
 import           Cogent.Surface
 import           Cogent.TypeCheck.Base
 import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
@@ -41,38 +40,14 @@ import           Cogent.TypeCheck.Solver.SinkFloat
 import           Cogent.TypeCheck.Solver.SMT (smt)
 #endif
 import           Cogent.TypeCheck.Solver.Util
-import qualified Cogent.TypeCheck.Subst as Subst
-import           Cogent.TypeCheck.Subst (Subst(..))
 import           Cogent.TypeCheck.Util
 import           Cogent.TypeCheck.Solver.Goal
-import           Cogent.Util (fst3, u32MAX, Bound(..))
 
-import           Control.Applicative
-import           Control.Arrow (first, second)
-import           Control.Monad.State hiding (modify)
-import           Control.Monad.Trans.Except
 import           Control.Monad.Trans.Maybe
-import           Control.Monad.Trans.State (modify)
-import           Data.Either (either)
-import qualified Data.Foldable as F
-import           Data.Function (on)
-import           Data.Functor.Compose (Compose(..))
-import qualified Data.IntMap as IM
-import qualified Data.IntSet as IS
---import qualified Data.List as L
-import           Data.List (elemIndex)
-import qualified Data.Map as M
-import           Data.Maybe (fromMaybe, mapMaybe)
-import           Data.Monoid
+import           Data.Maybe (fromMaybe)
 #ifdef BUILTIN_ARRAYS
 -- import Z3 stuff...
 #endif
-import qualified Data.Set as S
-import qualified Text.PrettyPrint.ANSI.Leijen as P
-import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
-import           Lens.Micro
-import           Lens.Micro.TH
-import           Lens.Micro.Mtl
 
 -- [amos] Type-solver changes I made:
 -- - Simplify rule for `t :=: t` to `Solved t` (see Solver/Simplify.hs)
