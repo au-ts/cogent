@@ -384,13 +384,13 @@ lemma alg_ctx_jn_type_same2:
   using assms 
   by (clarsimp simp add: alg_ctx_jn.simps list_all3_conv_all_nth list_all2_conv_all_nth) 
 
-lemma alg_ctx_jn_type_used_nondec_1:
+lemma alg_ctx_jn_type_used_nondec1:
   assumes "G1 \<Join> G1' \<leadsto> G2 | C"
     and "i < length G1" 
   shows "snd (G1 ! i) \<le> snd (G2 ! i)"
   using assms by (clarsimp simp add: alg_ctx_jn.simps list_all3_conv_all_nth)
 
-lemma alg_ctx_jn_type_used_nondec_2:
+lemma alg_ctx_jn_type_used_nondec2:
   assumes "G1 \<Join> G1' \<leadsto> G2 | C"
     and "i < length G1'"
   shows "snd (G1' ! i) \<le> snd (G2 ! i)"
@@ -811,7 +811,7 @@ next
 next
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
   then show ?case
-    using cg_ctx_length alg_ctx_jn_type_used_nondec_1 le_trans by fastforce
+    using cg_ctx_length alg_ctx_jn_type_used_nondec1 le_trans by fastforce
 next
   case (cg_iop x nt G1 n1 e1 \<tau> G2 n2 C1 e1' e2 G3 n3 C2 e2' C5)
   then show ?case
@@ -832,7 +832,7 @@ next
       using cg_case cg_ctx_length type_infer_axioms
       by (metis (no_types, lifting) Suc_less_eq le_trans length_Cons nth_Cons_Suc)
     then show ?thesis
-      using alg_ctx_jn_type_used_nondec_1 cg_case cg_ctx_length
+      using alg_ctx_jn_type_used_nondec1 cg_case cg_ctx_length
       by (metis (no_types, lifting) Suc_less_eq le_trans length_Cons)
   qed
 next
@@ -1161,17 +1161,17 @@ next
     proof cases
       case i_in_e1
       then show ?thesis
-        using cg_if.hyps alg_ctx_jn_type_used_nondec_2 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size
+        using cg_if.hyps alg_ctx_jn_type_used_nondec2 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size
         by (metis le_less not_le not_less0)
     next
       case i_in_e2
       then show ?thesis 
-        using cg_if.hyps not_less0 alg_ctx_jn_type_used_nondec_1 cg_ctx_length cg_gen_fv_elem_size
+        using cg_if.hyps not_less0 alg_ctx_jn_type_used_nondec1 cg_ctx_length cg_gen_fv_elem_size
         by (metis le_less not_le not_less0)
     next
       case i_in_e3
       then show ?thesis 
-        using cg_if.hyps not_less0 alg_ctx_jn_type_used_nondec_2 cg_ctx_length cg_gen_fv_elem_size
+        using cg_if.hyps not_less0 alg_ctx_jn_type_used_nondec2 cg_ctx_length cg_gen_fv_elem_size
         by (metis (full_types) neq0_conv not_le)
     qed
   qed
@@ -1234,21 +1234,21 @@ next
         using cg_case.hyps cg_ctx_type_used_nondec cg_gen_fv_elem_size i_in_e1 cg_ctx_length
         by (metis Suc_less_eq length_Cons nth_Cons_Suc)
       moreover have "snd (G3 ! i) \<le> snd (G4 ! i)"
-        using alg_ctx_jn_type_used_nondec_1 cg_case.hyps cg_ctx_length cg_gen_fv_elem_size i_in_e1 
+        using alg_ctx_jn_type_used_nondec1 cg_case.hyps cg_ctx_length cg_gen_fv_elem_size i_in_e1 
           by (metis Suc_less_eq length_Cons)
       ultimately show ?thesis
         using cg_case.hyps i_in_e1 by fastforce
     next
       case i_in_e2
       have "snd (G3 ! i) \<le> snd (G4 ! i)"
-        using alg_ctx_jn_type_used_nondec_1 cg_case.hyps cg_ctx_length cg_gen_fv_elem_size i_in_e2 
+        using alg_ctx_jn_type_used_nondec1 cg_case.hyps cg_ctx_length cg_gen_fv_elem_size i_in_e2 
           i_fv'_suc_iff_suc_i_fv' by (metis Suc_less_eq length_Cons)
       then show ?thesis
         using i_fv'_suc_iff_suc_i_fv' i_in_e2 cg_case.hyps by fastforce
     next
       case i_in_e3
       have "snd (G3' ! i) \<le> snd (G4 ! i)"
-        using alg_ctx_jn_type_used_nondec_2 cg_case.hyps cg_ctx_length cg_gen_fv_elem_size i_in_e3 
+        using alg_ctx_jn_type_used_nondec2 cg_case.hyps cg_ctx_length cg_gen_fv_elem_size i_in_e3 
           i_fv'_suc_iff_suc_i_fv' by (metis Suc_less_eq length_Cons)
       then show ?thesis
         using i_fv'_suc_iff_suc_i_fv' i_in_e3 cg_case.hyps by fastforce
@@ -1342,10 +1342,10 @@ next
       using i_in_e1e2e3 cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_if.hyps
         cg_ctx_length by metis
     have snd_G3_le_G4: "snd (G3 ! i) \<le> snd (G4 ! i)"
-      using i_in_e1e2e3 alg_ctx_jn_type_used_nondec_1 cg_gen_fv_elem_size cg_if.hyps 
+      using i_in_e1e2e3 alg_ctx_jn_type_used_nondec1 cg_gen_fv_elem_size cg_if.hyps 
         cg_ctx_length by metis
     have snd_G3'_le_G4: "snd (G3' ! i) \<le> snd (G4 ! i)"
-      using i_in_e1e2e3 alg_ctx_jn_type_used_nondec_2 cg_gen_fv_elem_size cg_if.hyps 
+      using i_in_e1e2e3 alg_ctx_jn_type_used_nondec2 cg_gen_fv_elem_size cg_if.hyps 
         cg_ctx_length by metis
     consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv e2" | (i_in_e3) "i \<in> fv e3"
       using i_in_e1e2e3 by blast
@@ -1452,11 +1452,11 @@ next
       using i_in_e1e2e3 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_case
         i_fv'_suc_iff_suc_i_fv' by (metis Suc_less_eq length_Cons nth_Cons_Suc)
     have snd_G3_le_G4: "snd (G3 ! i) \<le> snd (G4 ! i)"
-      using i_in_e1e2e3 cg_gen_fv_elem_size cg_case.hyps cg_ctx_length alg_ctx_jn_type_used_nondec_1 
+      using i_in_e1e2e3 cg_gen_fv_elem_size cg_case.hyps cg_ctx_length alg_ctx_jn_type_used_nondec1 
         cg_case.hyps i_fv'_suc_iff_suc_i_fv'
       by (metis Suc_le_lessD length_Cons less_Suc_eq_le old.nat.inject)
     have snd_G3'_le_G4: "snd (G3' ! i) \<le> snd (G4 ! i)"
-      using i_in_e1e2e3 cg_gen_fv_elem_size cg_case.hyps cg_ctx_length alg_ctx_jn_type_used_nondec_2 
+      using i_in_e1e2e3 cg_gen_fv_elem_size cg_case.hyps cg_ctx_length alg_ctx_jn_type_used_nondec2 
         cg_case.hyps i_fv'_suc_iff_suc_i_fv'
       by (metis Suc_le_lessD length_Cons less_Suc_eq_le old.nat.inject)
     consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv' (Suc 0) e2" | (i_in_e3) "i \<in> fv' (Suc 0) e3"
