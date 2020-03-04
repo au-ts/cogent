@@ -2860,6 +2860,65 @@ proof -
     by auto
 qed
 
+lemma split_used_case_extR:
+  assumes "e = Case e1 nm e2 e3"
+    and "G1,n1 \<turnstile> e1 : \<alpha> \<leadsto> G2,n2 | C1 | e1'"
+    and "(\<beta>, 0) # G2,n2 \<turnstile> e2 : \<tau> \<leadsto> (\<beta>, m) # G3,n3 | C2 | e2'"
+    and "((\<gamma>, 0) # G2),n3 \<turnstile> e3 : \<tau> \<leadsto> ((\<gamma>, l) # G3'),n4 | C3 | e3'"
+    and "A \<turnstile> assign_app_constr S S' C2"
+    and "A \<turnstile> assign_app_constr S S' C3"
+    and "\<forall>i. known_ty (S i)"
+    and "\<And>i. i < length G1 \<Longrightarrow>
+            if i \<in> fv e
+              then \<Gamma> ! i = Some (assign_app_ty S S' (fst (G1 ! i)))
+              else \<Gamma> ! i = None \<or> \<Gamma> ! i = Some (assign_app_ty S S' (fst (G1 ! i)))"
+    and "length G1 = length \<Gamma>"
+    and "idxs = Set.filter (\<lambda>x. x \<notin> fv e \<and> \<Gamma> ! x \<noteq> None) {0..<length G1}"
+    and "dec_fv_e2 = image (\<lambda>x. x-1) (fv e2 - {0})"
+    and "dec_fv_e3 = image (\<lambda>x. x-1) (fv e3 - {0})"
+  shows "A \<turnstile> \<Gamma> \<leadsto> assign_app_ctx S S' (G1\<bar>fv e1) \<box> assign_app_ctx S S' (G2\<bar>(dec_fv_e2 \<union> dec_fv_e3) \<union> idxs)"
+  using assms
+proof -
+  have "A \<turnstile> assign_app_ctx S S' (G1\<bar>fv e) \<leadsto> assign_app_ctx S S' (G1\<bar>fv e1) \<box> assign_app_ctx S S' (G2\<bar>(dec_fv_e2 \<union> dec_fv_e3))"
+    using split_used_case assms by meson
+  then have "A \<turnstile> assign_app_ctx S S' (G1\<bar>fv e \<union> idxs) \<leadsto> assign_app_ctx S S' (G1\<bar>fv e1) \<box> assign_app_ctx S S' (G2\<bar>(dec_fv_e2 \<union> dec_fv_e3) \<union> idxs)"
+    using fv'_suc_eq_minus_fv' assms by (rule_tac split_unionR; auto intro: cg_ctx_type_same1)
+  moreover have "\<Gamma> = assign_app_ctx S S' (G1\<bar>fv e \<union> idxs)"
+  proof -
+    have "length \<Gamma> = length (assign_app_ctx S S' (G1\<bar>fv e \<union> idxs))"
+      using assign_app_ctx_len assms ctx_restrict_def by auto
+    moreover { 
+      fix i :: nat
+      assume i_size: "i < length \<Gamma>"
+      consider (case_1) "i \<in> fv e" | (case_2) "i \<notin> fv e" "\<Gamma> ! i = None" | (case_3) "i \<notin> fv e" "\<Gamma> ! i \<noteq> None"
+        by fast
+      then have "\<Gamma> ! i = assign_app_ctx S S' (G1 \<bar> fv e \<union> idxs) ! i"
+      proof cases
+        case case_1
+        then show ?thesis
+          using assms i_size by (metis (no_types, lifting) Un_iff assign_app_ctx_restrict_some)
+      next
+        case case_2
+        have "i \<notin> fv e \<union> idxs"
+          using case_2 assms by auto
+        then show ?thesis
+          using case_2 assign_app_ctx_none_iff assms ctx_restrict_len ctx_restrict_nth_none i_size 
+          by (metis (no_types, lifting))
+      next
+        case case_3
+        have "i \<in> fv e \<union> idxs"
+          using case_3 assms i_size by auto 
+        then show ?thesis
+          using case_3 i_size assms assign_app_ctx_restrict_some by (metis (no_types, lifting))
+      qed
+    }
+    ultimately show ?thesis
+      using nth_equalityI by blast
+  qed
+  ultimately show ?thesis
+    by auto
+qed
+
 
 section {* Soundness of Generation (Thm 3.2) *}
 lemma cg_sound_induction:
