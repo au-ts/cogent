@@ -467,6 +467,8 @@ inductive_cases ct_sem_conjE: "A \<turnstile> CtConj C1 C2"
 inductive_cases ct_sem_intE: "A \<turnstile> CtIBound (LNat m) (TPrim pt)"
 inductive_cases ct_sem_funE: "A \<turnstile> CtSub (TFun \<tau>1 \<tau>2) (TFun \<rho>1 \<rho>2)"
 inductive_cases ct_sem_exhaust: "A \<turnstile> CtExhausted (TVariant Ks None)"
+inductive_cases ct_sem_varsubE1: "A \<turnstile> CtSub (TVariant Ks \<alpha>) \<tau>"
+inductive_cases ct_sem_varsubE2: "A \<turnstile> CtSub \<tau> (TVariant Ks \<alpha>)"
 
 lemma ct_sem_conj_iff: "A \<turnstile> CtConj C1 C2 \<longleftrightarrow> A \<turnstile> C1 \<and> A \<turnstile> C2"
   using ct_sem_conj ct_sem_conjE by blast
@@ -508,6 +510,19 @@ lemma ct_sem_exhaust_all_used:
   assumes "A \<turnstile> CtExhausted (TVariant Ks None)"
   shows "\<forall>i < length Ks. (snd \<circ> snd) (Ks ! i) = Used"
   using assms ct_sem_exhaust by auto
+
+lemma ct_sem_varsub_exI: "A \<turnstile> CtSub (TVariant Ks None) \<tau> \<Longrightarrow> \<exists>Ks'. \<tau> = TVariant Ks' None"
+  using ct_sem_varsubE1 ct_sem_eq_iff by metis
+
+lemma ct_sem_varsub_cons_exI: 
+  assumes "A \<turnstile> CtSub (TVariant (K # Ks) None) (TVariant Ks' None)"
+  shows "\<exists>K' Ks''. Ks' = K' # Ks''"
+  using assms ct_sem_eq_iff ct_sem_varsubE1 type.inject by metis
+
+lemma ct_sem_varsub_cons_exI2: 
+  assumes "A \<turnstile> CtSub (TVariant Ks None) (TVariant (K' # Ks') None)"
+  shows "\<exists>K' Ks''. Ks = K' # Ks''"
+  using assms ct_sem_eq_iff ct_sem_varsubE1 type.inject by metis
 
 
 section {* Context relations (Fig 3.2) *}
