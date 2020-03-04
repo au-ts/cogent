@@ -371,11 +371,18 @@ lemma alg_ctx_jn_length:
    and  "length G1 = length G2"
   using assms by (metis (no_types, lifting) alg_ctx_jn.simps list_all3_conv_all_nth)+
 
-lemma alg_ctx_jn_type_same:
+lemma alg_ctx_jn_type_same1:
   assumes "G1 \<Join> G1' \<leadsto> G2 | C"
     and "i < length G1"
   shows "fst (G1 ! i) = fst (G2 ! i)"
   using assms by (clarsimp simp add: alg_ctx_jn.simps list_all3_conv_all_nth)
+
+lemma alg_ctx_jn_type_same2:
+  assumes "G1 \<Join> G1' \<leadsto> G2 | C"
+    and "i < length G1'"
+  shows "fst (G1' ! i) = fst (G2 ! i)"
+  using assms 
+  by (clarsimp simp add: alg_ctx_jn.simps list_all3_conv_all_nth list_all2_conv_all_nth) 
 
 lemma alg_ctx_jn_type_used_nondec_1:
   assumes "G1 \<Join> G1' \<leadsto> G2 | C"
@@ -762,11 +769,11 @@ next
 next
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
   then show ?case
-    using cg_ctx_length alg_ctx_jn_type_same by auto
+    using cg_ctx_length alg_ctx_jn_type_same1 by auto
 next
   case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
   then show ?case
-    using cg_ctx_length alg_ctx_jn_type_same
+    using cg_ctx_length alg_ctx_jn_type_same1
     by (metis Suc_mono length_Cons nth_Cons_Suc size_Cons_lem_eq)
 next
   case (cg_irref \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
@@ -965,7 +972,7 @@ proof -
   moreover then have "A \<turnstile> assign_app_constr S ((\<lambda>x y. if snd x = snd y then CtTop else CtDrop (fst x)) (G1 ! i) (G1' ! i))"
     using i_size by (clarsimp simp add: map2_nth)
   ultimately show ?thesis
-    using alg_ctx_jn_type_same assms by auto
+    using alg_ctx_jn_type_same1 assms by auto
 qed
 
 section {* split_used (Lemma 3.1) *}
@@ -2763,7 +2770,7 @@ next
                   cg_gen_output_type_unused_same by metis
             qed (force)+
             then show ?thesis
-              using cg_if.hyps assign_app_ctx_restrict_some i_in_e3 alg_ctx_jn_type_same 
+              using cg_if.hyps assign_app_ctx_restrict_some i_in_e3 alg_ctx_jn_type_same1 
                 cg_ctx_length cg_ctx_type_same i_size by (auto simp add: False)
           next
             case i_in_idxs
@@ -2807,7 +2814,7 @@ next
                   cg_gen_output_type_unused_same by metis
             qed (force)+
             then show ?thesis
-              using cg_if.hyps assign_app_ctx_restrict_some i_in_e2 alg_ctx_jn_type_same 
+              using cg_if.hyps assign_app_ctx_restrict_some i_in_e2 alg_ctx_jn_type_same1 
                 cg_ctx_length cg_ctx_type_same i_size by (auto simp add: False)
           next
             case i_in_idxs
