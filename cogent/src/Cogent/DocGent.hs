@@ -225,8 +225,8 @@ resolveNamesA :: [String] -> Alt RawPatn RawExpr -> Alt RawPatn DocExpr
 resolveNamesA lcls (Alt p l e) = Alt p l $ resolveNames (lcls ++ fvP p) e
 
 resolveNames :: [String] -> RawExpr -> DocExpr
-resolveNames lcls (RE (TypeApp v ts i)) | v `notElem` lcls = DocFnCall v ts i
-                                        | otherwise        = DE (TypeApp v ts i)
+resolveNames lcls (RE (TLApp v ts ls i)) | v `notElem` lcls = __fixme $ DocFnCall v ts i  -- FIXME: DocFnCall
+                                         | otherwise        = DE (TLApp v ts ls i)
 resolveNames lcls (RE (Var v)) | v `notElem` lcls = DocFnCall v [] NoInline
                                | otherwise = DE (Var v)
 resolveNames lcls (RE (Match e t alts)) = DE (Match (resolveNames lcls e) t (map (resolveNamesA lcls) alts))
