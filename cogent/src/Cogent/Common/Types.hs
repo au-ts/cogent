@@ -11,8 +11,10 @@
 --
 
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveTraversable #-}
 
 module Cogent.Common.Types where
 
@@ -29,7 +31,7 @@ type ReadOnly = Bool  -- True for r/o
 
 data Sigil r = Boxed ReadOnly r  -- 0- or 1-kinded
              | Unboxed  -- 2-kinded
-             deriving (Show, Data, Eq, Ord, Functor, Generic)
+             deriving (Show, Data, Eq, Ord, Foldable, Functor, Generic, Traversable)
 
 instance Binary r => Binary (Sigil r)
 

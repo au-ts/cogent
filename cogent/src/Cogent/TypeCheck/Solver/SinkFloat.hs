@@ -90,6 +90,17 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do {- MaybeT TcSolvM -}
     | Left Unboxed <- s1 , Right i <- s2 = return $ Subst.ofSigil i Unboxed
     | Right i <- s1 , Left Unboxed <- s2 = return $ Subst.ofSigil i Unboxed
 
+  genStructSubst (R r s :~~ U i) = do
+    s' <- case s of
+            Left Unboxed -> return $ Left Unboxed
+            _            -> Right <$> lift solvFresh
+    makeRowUnifSubsts (flip R s') r i
+  genStructSubst (U i :~~ R r s) = do
+    s' <- case s of
+            Left Unboxed -> return $ Left Unboxed
+            _            -> Right <$> lift solvFresh
+    makeRowUnifSubsts (flip R s') r i
+
   -- variant rows
   genStructSubst (V r :< U i) = makeRowUnifSubsts V r i
   genStructSubst (U i :< V r) = makeRowUnifSubsts V r i
@@ -108,6 +119,9 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do {- MaybeT TcSolvM -}
     , not $ M.null r1new
     , Just r1var <- Row.var r1
       = makeRowRowVarSubsts r1new r1var
+
+  genStructSubst (V r :~~ U i) = makeRowUnifSubsts V r i
+  genStructSubst (U i :~~ V r) = makeRowUnifSubsts V r i
 
   -- tuples
   genStructSubst (T (TTuple ts) :< U i) = makeTupleUnifSubsts ts i
