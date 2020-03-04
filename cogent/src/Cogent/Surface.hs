@@ -273,21 +273,16 @@ instance Traversable (Flip2 IrrefutablePattern e ip) where  -- pv
   traverse f (Flip2 (PArrayTake pv ivs))  = Flip2 <$> (PArrayTake <$> f pv <*> pure ivs)
 #endif
 
-appSigil :: (Applicative f) => (a -> f b) -> Sigil (Maybe a) -> f (Sigil (Maybe b))  -- local helper function
-appSigil f Unboxed = pure $ Unboxed
-appSigil f (Boxed b (Just l)) = Boxed b <$> (Just <$> f l)
-appSigil f (Boxed b Nothing) = pure $ Boxed b Nothing
-
 instance Traversable (Flip (Type e) t) where  -- l
-  traverse f (Flip (TCon n ts s))        = Flip <$> (TCon n ts <$> appSigil f s)
+  traverse f (Flip (TCon n ts s))        = Flip <$> (TCon n ts <$> traverse (traverse f) s)
   traverse _ (Flip (TVar v b u))         = pure $ Flip (TVar v b u)
   traverse _ (Flip (TFun t1 t2))         = pure $ Flip (TFun t1 t2)
-  traverse f (Flip (TRecord fs s))       = Flip <$> (TRecord fs <$> appSigil f s)
+  traverse f (Flip (TRecord fs s))       = Flip <$> (TRecord fs <$> traverse (traverse f) s)
   traverse _ (Flip (TVariant alts))      = pure $ Flip (TVariant alts)
   traverse _ (Flip (TTuple ts))          = pure $ Flip (TTuple ts)
   traverse _ (Flip (TUnit))              = pure $ Flip (TUnit)
 #ifdef BUILTIN_ARRAYS
-  traverse f (Flip (TArray t e s tkns))  = Flip <$> (TArray t e <$> appSigil f s <*> pure tkns)
+  traverse f (Flip (TArray t e s tkns))  = Flip <$> (TArray t e <$> traverse (traverse f) s <*> pure tkns)
   traverse _ (Flip (TATake idxs t))      = pure $ Flip (TATake idxs t)
   traverse _ (Flip (TAPut  idxs t))      = pure $ Flip (TAPut  idxs t)
 #endif
