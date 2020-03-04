@@ -466,6 +466,7 @@ ct_sem_share:
 inductive_cases ct_sem_conjE: "A \<turnstile> CtConj C1 C2"
 inductive_cases ct_sem_intE: "A \<turnstile> CtIBound (LNat m) (TPrim pt)"
 inductive_cases ct_sem_funE: "A \<turnstile> CtSub (TFun \<tau>1 \<tau>2) (TFun \<rho>1 \<rho>2)"
+inductive_cases ct_sem_exhaust: "A \<turnstile> CtExhausted (TVariant Ks None)"
 
 lemma ct_sem_conj_iff: "A \<turnstile> CtConj C1 C2 \<longleftrightarrow> A \<turnstile> C1 \<and> A \<turnstile> C2"
   using ct_sem_conj ct_sem_conjE by blast
@@ -502,6 +503,11 @@ lemma ct_sem_int_imp: "A \<turnstile> CtIBound (LNat m) \<tau> \<Longrightarrow>
 
 lemma ct_sem_int_not_bool: "A \<turnstile> CtIBound (LNat m) \<tau> \<Longrightarrow> \<tau> \<noteq> TPrim Bool"
   using ct_sem_intE by blast
+
+lemma ct_sem_exhaust_all_used: 
+  assumes "A \<turnstile> CtExhausted (TVariant Ks None)"
+  shows "\<forall>i < length Ks. (snd \<circ> snd) (Ks ! i) = Used"
+  using assms ct_sem_exhaust by auto
 
 
 section {* Context relations (Fig 3.2) *}
