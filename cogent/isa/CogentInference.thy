@@ -841,15 +841,16 @@ typing_var:
    ; A \<turnstile> CtSub \<tau>' \<tau>
    \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> e : \<tau>"
 | typing_vcon:
-  "\<lbrakk> i < length Ks
-   ; A \<ddagger> \<Gamma> \<turnstile> e : (fst \<circ> snd) (Ks ! i)
+  "\<lbrakk> distinct (map fst Ks)
+   ; i < length Ks
    ; fst (Ks ! i) = nm
-   ; (snd \<circ> snd) (Ks ! i) = Unused
-   ; \<forall>j < length Ks. j \<noteq> i \<longrightarrow> fst (Ks ! j) \<noteq> nm
-   ; \<forall>j < length Ks. j \<noteq> i \<longrightarrow> (snd \<circ> snd) (Ks ! j) = Used
-   \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Con nm e: TVariant Ks None"
+   ; \<forall>j < length Ks. if j = i then (snd \<circ> snd) (Ks ! j) = Unused else (snd \<circ> snd) (Ks ! j) = Used
+   ; A \<ddagger> \<Gamma> \<turnstile> e : (fst \<circ> snd) (Ks ! i)
+   ; \<tau> = TVariant Ks None
+   \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Con nm e: \<tau>"
 | typing_case:
   "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 \<box> \<Gamma>2
+   ; distinct (map fst Ks)
    ; i < length Ks
    ; fst (Ks ! i) = nm
    ; A \<ddagger> \<Gamma>1 \<turnstile> e1 : variant_nth_unused i (TVariant Ks None)
@@ -858,11 +859,10 @@ typing_var:
    \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Case e1 nm e2 e3 : \<tau>" 
 | typing_irref:
   "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 \<box> \<Gamma>2
+   ; distinct (map fst Ks)
    ; i < length Ks
    ; fst (Ks ! i) = nm
-   ; (snd \<circ> snd) (Ks ! i) = Unused
-   ; \<forall>j < length Ks. j \<noteq> i \<longrightarrow> fst (Ks ! i) \<noteq> nm
-   ; \<forall>j < length Ks. j \<noteq> i \<longrightarrow> (snd \<circ> snd) (Ks ! i) = Used
+   ; \<forall>j < length Ks. if j = i then (snd \<circ> snd) (Ks ! j) = Unused else (snd \<circ> snd) (Ks ! j) = Used
    ; A \<ddagger> \<Gamma>1 \<turnstile> e1 : (TVariant Ks None)
    ; A \<ddagger> (Some ((fst \<circ> snd) (Ks ! i))) # \<Gamma>2 \<turnstile> e2 : \<tau>
    \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Esac e1 nm e2 : \<tau>"
