@@ -3880,8 +3880,100 @@ next
       using ks_def ks_hd_type typing_sig_refl typing_case[where Ks="Ks" and i="0"] by simp
   qed
 next
-  case (cg_irref \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
-  then show ?case sorry
+  case (cg_irref \<alpha> n2 \<beta> n1 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
+  then show ?case
+  proof -
+    let ?e="Esac e1 nm e2"
+    let ?dec_fv_e2="image (\<lambda>x. x-1) (fv e2 - {0})"
+    let ?idxs="Set.filter (\<lambda>x. x \<notin> fv ?e \<and> \<Gamma> ! x \<noteq> None) {0..<length G1}"
+    obtain Ks where ks_def: "TVariant Ks None = assign_app_ty S S' (TVariant [(nm, \<beta>, Used)] (Some \<alpha>))"
+      by simp
+    obtain Ks' where ks'_def: "Ks' = Ks[0 := variant_elem_unused (Ks ! 0)]" by blast 
+    have "TVariant Ks' None = assign_app_ty S S' (TVariant [(nm, \<beta>, Unused)] (Some \<alpha>))"
+      using ks'_def ks_def by auto
+    moreover have "A \<turnstile> \<Gamma> \<leadsto> assign_app_ctx S S' (G1\<bar>fv e1) \<box> assign_app_ctx S S' (G2\<bar>?dec_fv_e2 \<union> ?idxs)"
+      using cg_irref ct_sem_conj_iff assign_prop_def 
+    proof (rule_tac split_used_irref_extR) 
+      {
+        fix i :: nat
+        assume i_size: "i < length G1"
+        show "if i \<in> fv ?e 
+              then \<Gamma> ! i = Some (assign_app_ty S S' (fst (G1 ! i)))
+              else \<Gamma> ! i = None \<or> \<Gamma> ! i = Some (assign_app_ty S S' (fst (G1 ! i)))"
+          using cg_irref.prems i_size by meson
+      }
+    qed (fastforce)+
+    moreover have "distinct (map fst Ks')"
+    proof -
+      have "distinct (map fst Ks)"
+        using cg_irref.prems ks_def assign_prop_def by metis
+      then show ?thesis
+        using ks'_def variant_elem_unused_nm_eq by (metis list_update_id map_update)
+    qed
+    moreover have "\<forall>i<length Ks'. if i = 0 then (snd \<circ> snd) (Ks' ! i) = Unused 
+                                           else (snd \<circ> snd) (Ks' ! i) = Used"
+    proof -
+      have ks_all_used: "\<forall>i < length Ks. (snd \<circ> snd) (Ks ! i) = Used"
+        using ks_def ct_sem_exhaust_all_used cg_irref ct_sem_conj_iff assign_app_constr.simps by force
+      then show ?thesis
+        using ks'_def ks_all_used variant_elem_unused_usage_unused by auto
+    qed
+    moreover have "A \<ddagger> assign_app_ctx S S' (G1\<bar>fv e1) \<turnstile> assign_app_expr S S' e1' : assign_app_ty S S' (TVariant [(nm, \<beta>, Unused)] (Some \<alpha>))"
+      using cg_irref ct_sem_conj_iff assign_app_ctx_restrict_none assign_app_ctx_restrict_some
+        assign_app_ctx_len ctx_restrict_len by force
+    moreover have "A \<ddagger> Some ((fst \<circ> snd) (Ks' ! 0)) # assign_app_ctx S S' (G2\<bar>?dec_fv_e2 \<union> ?idxs) \<turnstile> assign_app_expr S S' e2' : assign_app_ty S S' \<tau>"
+      using cg_irref ct_sem_conj_iff ctx_restrict_len assign_app_ctx_len nth_Cons_0
+    proof (rule_tac cg_irref.hyps(6))
+      {
+        fix i :: nat
+        assume i_size: "i < length ((\<beta>, 0) # G2)"
+        consider (i_zero) "i = 0" | (i_nonzero) "i > 0" by fast
+        then show "if i \<in> fv e2
+              then (Some ((fst \<circ> snd) (Ks' ! 0)) # assign_app_ctx S S' (G2\<bar>?dec_fv_e2 \<union> ?idxs)) ! i =
+                      Some (assign_app_ty S S' (fst (((\<beta>, 0) # G2) ! i)))
+              else (Some ((fst \<circ> snd) (Ks' ! 0)) # assign_app_ctx S S' (G2\<bar>?dec_fv_e2 \<union> ?idxs)) ! i =
+                      None \<or>
+                   (Some ((fst \<circ> snd) (Ks' ! 0)) # assign_app_ctx S S' (G2\<bar>?dec_fv_e2 \<union> ?idxs)) ! i =
+                      Some (assign_app_ty S S' (fst (((\<beta>, 0) # G2) ! i))) \<and>
+                    A \<turnstile> assign_app_constr S S' (CtDrop (fst (((\<beta>, 0) # G2) ! i)))"
+        proof cases
+          case i_zero
+          have "i \<notin> fv e2 \<Longrightarrow> m = 0"
+            using cg_gen_output_type_unused_same[where ?G1.0="(\<beta>, 0) # G2" and ?G2.0="(\<beta>, m) # G3"] 
+              cg_irref.hyps i_zero by fastforce
+          moreover have "m = 0 \<Longrightarrow> A \<turnstile> assign_app_constr S S' (CtDrop \<beta>)"
+            using cg_irref ct_sem_conj_iff i_zero by force
+          ultimately show ?thesis
+            using i_zero ks_def ks'_def by force
+        next
+          case i_nonzero
+          consider (i_in_e2) "i \<in> fv e2" | (i_in_idxs) "i \<notin> fv e2" "i - 1 \<in> ?idxs" | (i_in_neither) "i \<notin> fv e2" "i - 1 \<notin> ?idxs" by blast
+          then show ?thesis
+          proof cases
+            case i_in_e2
+            then show ?thesis
+              using i_nonzero assign_app_ctx_restrict_some i_size by fastforce
+          next
+            case i_in_idxs
+            then have "A \<turnstile> CtDrop (assign_app_ty S S' (fst (G2 ! (i - 1))))"
+              using cg_ctx_type_same1[where G="G1" and G'="G2"] cg_irref i_nonzero by fastforce
+            then show ?thesis
+              using assign_app_ctx_restrict_some cg_ctx_length i_in_idxs i_nonzero cg_irref i_size 
+                i_nonzero by force
+          next
+            case i_in_neither
+            then have "i - 1 \<notin> ?dec_fv_e2 \<union> ?idxs"
+              using fv'_suc_eq_minus_fv' i_fv'_suc_iff_suc_i_fv' i_nonzero
+              by (metis (no_types, lifting) UnE Suc_pred')
+            then show ?thesis
+              using i_nonzero i_size assign_app_ctx_restrict_none by auto
+          qed
+        qed
+      }
+    qed (force)+
+    ultimately show ?thesis
+      using typing_sig_refl typing_irref[where Ks="Ks'" and i="0"] ks'_def ks_def by auto
+  qed
 qed
 
 lemma cg_sound:
