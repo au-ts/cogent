@@ -187,6 +187,28 @@ fun variant_nth_used :: "nat \<Rightarrow> type \<Rightarrow> type" where
 fun variant_elem_unused :: "(name \<times> type \<times> usage_tag) \<Rightarrow> (name \<times> type \<times> usage_tag)" where
   "variant_elem_unused (nm, t, _) = (nm, t, Unused)"
 
+lemma variant_elem_unused_nm_eq: "y = variant_elem_unused x \<Longrightarrow> fst y = fst x"
+  by (metis fst_conv variant_elem_unused.elims)
+
+lemma variant_elem_unused_type_eq: "y = variant_elem_unused x \<Longrightarrow> (fst \<circ> snd) y = (fst \<circ> snd) x"
+  by (metis comp_apply fst_conv snd_conv surjective_pairing variant_elem_unused.simps)
+
+lemma variant_elem_unused_usage_unused: "y = variant_elem_unused x \<Longrightarrow> (snd \<circ> snd) y = Unused"
+  by (metis comp_apply snd_conv variant_elem_unused.elims)
+
+lemma variant_elem_unused_usage_noninc: 
+  assumes "y = variant_elem_unused x"
+  shows "(snd \<circ> snd) y \<ge> (snd \<circ> snd) x"
+  using assms
+proof (cases "(snd \<circ> snd) x = Used")
+  case True
+  then show ?thesis using assms using less_eq_usage_tag.elims by auto
+next
+  case False
+  then show ?thesis using assms variant_elem_unused_usage_unused by auto
+qed
+
+
 fun variant_nth_unused :: "nat \<Rightarrow> type \<Rightarrow> type" where
   "variant_nth_unused n (TVar i)        = undefined"  
 | "variant_nth_unused n (TFun a b)      = undefined"
