@@ -744,10 +744,10 @@ qed
 
 section {* Context relations (Fig 3.2) *}
 inductive ctx_split_comp :: "axm_set \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" where
-  none  : "ctx_split_comp K None None None"
-| left  : "ctx_split_comp K (Some \<tau>) (Some \<tau>) None"
-| right : "ctx_split_comp K (Some \<tau>) None (Some \<tau>)"
-| share : "\<lbrakk> A \<turnstile> CtShare \<tau> \<rbrakk> \<Longrightarrow> ctx_split_comp K (Some \<tau>) (Some \<tau>) (Some \<tau>)"
+  ctx_split_none  : "ctx_split_comp K None None None"
+| ctx_split_left  : "ctx_split_comp K (Some \<tau>) (Some \<tau>) None"
+| ctx_split_right : "ctx_split_comp K (Some \<tau>) None (Some \<tau>)"
+| ctx_split_share : "\<lbrakk> A \<turnstile> CtShare \<tau> \<rbrakk> \<Longrightarrow> ctx_split_comp K (Some \<tau>) (Some \<tau>) (Some \<tau>)"
 
 definition context_splitting :: "axm_set \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool"
            ("_ \<turnstile> _ \<leadsto> _ \<box> _" [30,0,0,30] 60) where
@@ -2276,8 +2276,8 @@ proof -
     have "(i \<notin> (fv e1)) \<and> (i \<notin> (fv e2))"
       using assms i_not_in_e by simp
     then show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
-      using ctx_split_comp.none
-      using i_not_in_e i_size no_i_in_e1_SG1e1_none no_i_in_e2_SG2e2_none no_i_in_e_SG1e_none by auto
+      using ctx_split_none i_not_in_e i_size no_i_in_e1_SG1e1_none no_i_in_e2_SG2e2_none 
+        no_i_in_e_SG1e_none by auto
   qed
   moreover have "\<And>i. i < length G1 \<Longrightarrow> i \<in> (fv e) \<Longrightarrow> ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
   proof -
@@ -2291,7 +2291,7 @@ proof -
       assume i_in_e1: "i \<in> (fv e1)"
       assume i_not_in_e2: "i \<notin> (fv e2)"
       then show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
-        using ctx_split_comp.left i_in_e i_in_e1 i_size no_i_in_e2_SG2e2_none ctx_restrict_len 
+        using ctx_split_left i_in_e i_in_e1 i_size no_i_in_e2_SG2e2_none ctx_restrict_len 
           ctx_restrict_nth_some assign_app_ctx_def by auto
     qed
     moreover have "i \<notin> (fv e1) \<and> i \<in> (fv e2) \<Longrightarrow> ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
@@ -2300,7 +2300,7 @@ proof -
       assume i_in_e2: "i \<in> (fv e2)"
       then show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
         using assms cg_ctx_type_same1 i_in_e i_in_e2_SG2e2_some i_in_e_SG1e_some i_not_in_e1 i_size
-          no_i_in_e1_SG1e1_none right by auto
+          no_i_in_e1_SG1e1_none ctx_split_right by auto
     qed
     moreover have "i \<in> (fv e1) \<and> i \<in> (fv e2) \<Longrightarrow> ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
     proof (erule conjE)
@@ -2316,8 +2316,8 @@ proof -
         using assms assign_app_ctx_def i_in_e1 i_in_e2 i_size G1_G2_length cg_ctx_type_same1 
           ctx_restrict_len ctx_restrict_nth_some by (metis (no_types, lifting) nth_map)
       ultimately show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
-        using G1_G2_length i_in_e2 i_size ctx_restrict_len ctx_restrict_nth_some share assign_app_ctx_def
-        by auto
+        using G1_G2_length i_in_e2 i_size ctx_restrict_len ctx_restrict_nth_some ctx_split_share 
+          assign_app_ctx_def by auto
     qed
     ultimately show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
       by blast
@@ -2374,7 +2374,7 @@ proof -
     have "(i \<notin> (fv e1)) \<and> (i \<notin> ?dec_fv_e2)"
       using fv_e i_not_in_e by auto
     then show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
-      using ctx_split_comp.none fv'_suc_eq_minus_fv' i_fv'_suc_iff_suc_i_fv' i_not_in_e i_size 
+      using ctx_split_none fv'_suc_eq_minus_fv' i_fv'_suc_iff_suc_i_fv' i_not_in_e i_size 
         no_i_in_e1_SG1e1_none no_i_in_e2_SG2e2_none no_i_in_e_SG1e_none by metis
   qed
   moreover have "\<And>i. i < length G1 \<Longrightarrow> i \<in> (fv e) \<Longrightarrow> ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
@@ -2389,7 +2389,7 @@ proof -
       assume i_in_e1: "i \<in> (fv e1)"
       assume i_not_in_e2: "i \<notin> ?dec_fv_e2"
       then show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
-        using ctx_split_comp.left fv'_suc_eq_minus_fv' i_fv'_suc_iff_suc_i_fv' i_in_e i_in_e1 
+        using ctx_split_left fv'_suc_eq_minus_fv' i_fv'_suc_iff_suc_i_fv' i_in_e i_in_e1 
           i_size no_i_in_e2_SG2e2_none i_in_e1_SG1e1_some i_in_e_SG1e_some by metis
     qed
     moreover have "i \<notin> (fv e1) \<and> i \<in> ?dec_fv_e2 \<Longrightarrow> ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
@@ -2397,7 +2397,8 @@ proof -
       assume i_not_in_e1: "i \<notin> (fv e1)"
       assume i_in_e2: "i \<in> ?dec_fv_e2"
       then show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
-        by (metis G1_G2_length assign_app_ctx_restrict_some assms(2) cg_ctx_type_same1 i_in_e i_not_in_e1 i_size no_i_in_e1_SG1e1_none right)
+        using assms G1_G2_length assign_app_ctx_restrict_some cg_ctx_type_same1 i_in_e i_not_in_e1
+          i_size no_i_in_e1_SG1e1_none ctx_split_right by metis
     qed
     moreover have "i \<in> (fv e1) \<and> i \<in> ?dec_fv_e2 \<Longrightarrow> ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
     proof (erule conjE)
@@ -2414,8 +2415,8 @@ proof -
         using assms assign_app_ctx_def i_in_e1 i_in_e2 i_size G1_G2_length cg_ctx_type_same1 
           ctx_restrict_len ctx_restrict_nth_some by (metis (no_types, lifting) nth_map)
       ultimately show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
-        using G1_G2_length i_in_e2 i_size ctx_restrict_len ctx_restrict_nth_some share assign_app_ctx_def
-        by auto
+        using G1_G2_length i_in_e2 i_size ctx_restrict_len ctx_restrict_nth_some ctx_split_share 
+          assign_app_ctx_def by auto
     qed
     ultimately show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
       by blast
@@ -2462,7 +2463,7 @@ proof -
     have "(i \<notin> fv e1) \<and> (i \<notin> fv e2 \<union> fv e3)"
       using assms i_not_in_e by simp
     then show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2e3 ! i)"
-      using ctx_split_comp.none i_not_in_e i_size no_i_in_e1_SG1e1_none no_i_in_e2_SG2e2e3_none 
+      using ctx_split_none i_not_in_e i_size no_i_in_e1_SG1e1_none no_i_in_e2_SG2e2e3_none 
         no_i_in_e_SG1e_none by auto
   qed
   moreover have "\<And>i. i < length G1 \<Longrightarrow> i \<in> (fv e) \<Longrightarrow> ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2e3 ! i)"
@@ -2477,7 +2478,7 @@ proof -
       assume i_in_e1: "i \<in> (fv e1)"
       assume i_not_in_e2e3: "i \<notin> (fv e2 \<union> fv e3)"
       then show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2e3 ! i)"
-        using ctx_split_comp.left i_in_e i_in_e1 i_size no_i_in_e2_SG2e2e3_none ctx_restrict_len 
+        using ctx_split_left i_in_e i_in_e1 i_size no_i_in_e2_SG2e2e3_none ctx_restrict_len 
           ctx_restrict_nth_some assign_app_ctx_def by auto
     qed
     moreover have "i \<notin> (fv e1) \<and> i \<in> (fv e2 \<union> fv e3) \<Longrightarrow> ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2e3 ! i)"
@@ -2486,7 +2487,7 @@ proof -
       assume i_in_e2: "i \<in> (fv e2 \<union> fv e3)"
       then show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2e3 ! i)"
         by (metis assign_app_ctx_restrict_some assms(2) i_in_e i_in_e2_SG2e2_some i_not_in_e1 i_size
-            no_i_in_e1_SG1e1_none type_infer.cg_ctx_type_same1 type_infer.right type_infer_axioms)
+            no_i_in_e1_SG1e1_none type_infer.cg_ctx_type_same1 ctx_split_right type_infer_axioms)
     qed
     moreover have "i \<in> (fv e1) \<and> i \<in> (fv e2 \<union> fv e3) \<Longrightarrow> ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2e3 ! i)"
     proof (erule conjE)
@@ -2503,7 +2504,7 @@ proof -
         using assms assign_app_ctx_def i_in_e1 i_in_e2e3 i_size G1_G2_length cg_ctx_type_same1 
           ctx_restrict_len ctx_restrict_nth_some by (metis (no_types, lifting) nth_map)
       ultimately show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2e3 ! i)"
-        using G1_G2_length i_in_e2e3 i_size ctx_restrict_len ctx_restrict_nth_some share 
+        using G1_G2_length i_in_e2e3 i_size ctx_restrict_len ctx_restrict_nth_some ctx_split_share 
           i_in_e2_SG2e2_some by auto
     qed
     ultimately show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2e3 ! i)"
@@ -2555,9 +2556,11 @@ proof -
       have "i \<in> fv e1 \<or> i \<in> dec_fv_e2 \<union> dec_fv_e3"
         using True fv_e by auto
       moreover have "i \<in> fv e1 \<Longrightarrow> i \<notin> dec_fv_e2 \<union> dec_fv_e3 \<Longrightarrow> ?thesis"
-        using left True i_in_e_SG1e_some i_in_e1_SG1e1_some no_i_in_e2e3_SG2e2e3_none by auto
+        using ctx_split_left True i_in_e_SG1e_some i_in_e1_SG1e1_some no_i_in_e2e3_SG2e2e3_none 
+          by auto
       moreover have "i \<notin> fv e1 \<Longrightarrow> i \<in> dec_fv_e2 \<union> dec_fv_e3 \<Longrightarrow> ?thesis"
-        using right True i_in_e_SG1e_some no_i_in_e1_SG1e1_none i_in_e2e3_SG2e2e3_some by presburger
+        using ctx_split_right True i_in_e_SG1e_some no_i_in_e1_SG1e1_none i_in_e2e3_SG2e2e3_some 
+          by presburger
       moreover have "i \<in> fv e1 \<Longrightarrow> i \<in> dec_fv_e2 \<union> dec_fv_e3 \<Longrightarrow> ?thesis"
       proof -
         assume i_in_e1: "i \<in> fv e1"
@@ -2586,7 +2589,7 @@ proof -
           qed
         qed
         then show "?thesis"
-          using share True i_in_e1 i_in_e2e3 i_in_e_SG1e_some i_in_e1_SG1e1_some 
+          using ctx_split_share True i_in_e1 i_in_e2e3 i_in_e_SG1e_some i_in_e1_SG1e1_some 
             i_in_e2e3_SG2e2e3_some by presburger
       qed
       ultimately show ?thesis
@@ -2596,8 +2599,8 @@ proof -
       have "i \<notin> fv e1" "i \<notin> dec_fv_e2 \<union> dec_fv_e3"
         using fv_e False by blast+
       then show ?thesis
-        using ctx_split_comp.none False no_i_in_e2e3_SG2e2e3_none 
-          no_i_in_e1_SG1e1_none no_i_in_e_SG1e_none by presburger
+        using ctx_split_none False no_i_in_e2e3_SG2e2e3_none no_i_in_e1_SG1e1_none 
+          no_i_in_e_SG1e_none by presburger
     qed
   }
   then show ?thesis
@@ -2643,9 +2646,11 @@ proof -
       then have "i \<in> fv e1 \<or> i \<in> dec_fv_e2"
         using fv_e by simp
       moreover have "i \<in> fv e1 \<Longrightarrow> i \<notin> dec_fv_e2 \<Longrightarrow> ?thesis"
-        using left True i_in_e_SG1e_some i_in_e1_SG1e1_some no_i_in_e2_SG2e2_none by presburger
+        using ctx_split_left True i_in_e_SG1e_some i_in_e1_SG1e1_some no_i_in_e2_SG2e2_none 
+          by presburger
       moreover have "i \<notin> fv e1 \<Longrightarrow> i \<in> dec_fv_e2 \<Longrightarrow> ?thesis"
-        using right True i_in_e_SG1e_some no_i_in_e1_SG1e1_none i_in_e2_SG2e2_some by presburger
+        using ctx_split_right True i_in_e_SG1e_some no_i_in_e1_SG1e1_none i_in_e2_SG2e2_some 
+          by presburger
       moreover have "i \<in> fv e1 \<Longrightarrow> i \<in> dec_fv_e2 \<Longrightarrow> ?thesis"
       proof -
         assume i_in_e1: "i \<in> fv e1"
@@ -2661,15 +2666,15 @@ proof -
             using G1_G2_length cg_ctx_type_same1 i_size assms by force
         qed
         then show ?thesis
-          using share True i_in_e1 i_in_e2 i_in_e_SG1e_some i_in_e1_SG1e1_some i_in_e2_SG2e2_some 
-          by presburger
+          using ctx_split_share True i_in_e1 i_in_e2 i_in_e_SG1e_some i_in_e1_SG1e1_some 
+            i_in_e2_SG2e2_some by presburger
       qed
       ultimately show ?thesis
         by fast
     next
       case False
       then show ?thesis
-        using ctx_split_comp.none fv_e no_i_in_e2_SG2e2_none no_i_in_e1_SG1e1_none no_i_in_e_SG1e_none 
+        using ctx_split_none fv_e no_i_in_e2_SG2e2_none no_i_in_e1_SG1e1_none no_i_in_e_SG1e_none 
         by auto
     qed
   }
