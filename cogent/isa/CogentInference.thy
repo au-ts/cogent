@@ -2514,6 +2514,97 @@ proof -
     by (metis (full_types) list_all3_conv_all_nth)
 qed 
 
+lemma split_used_case:
+  assumes "e = Case e1 nm e2 e3"
+    and "G1,n1 \<turnstile> e1 : \<alpha> \<leadsto> G2,n2 | C1 | e1'"
+    and "(\<beta>, 0) # G2,n2 \<turnstile> e2 : \<tau> \<leadsto> (\<beta>, m) # G3,n3 | C2 | e2'"
+    and "((\<gamma>, 0) # G2),n3 \<turnstile> e3 : \<tau> \<leadsto> ((\<gamma>, l) # G3'),n4 | C3 | e3'"
+    and "A \<turnstile> assign_app_constr S S' C2"
+    and "A \<turnstile> assign_app_constr S S' C3"
+    and "\<forall>i. known_ty (S i)"
+    and "dec_fv_e2 = image (\<lambda>x. x-1) (fv e2 - {0})"
+    and "dec_fv_e3 = image (\<lambda>x. x-1) (fv e3 - {0})"
+  shows "A \<turnstile> assign_app_ctx S S' (G1\<bar>(fv e)) \<leadsto> assign_app_ctx S S' (G1\<bar>(fv e1)) \<box> assign_app_ctx S S' (G2\<bar>dec_fv_e2 \<union> dec_fv_e3)"
+  using assms 
+proof -
+  let ?SG1e = "assign_app_ctx S S' (G1\<bar>(fv e))"
+  let ?SG1e1 = "assign_app_ctx S S' (G1\<bar>(fv e1))"
+  let ?SG2e2e3 = "assign_app_ctx S S' (G2\<bar>dec_fv_e2 \<union> dec_fv_e3)"
+  have fv_e: "fv e = fv e1 \<union> dec_fv_e2 \<union> dec_fv_e3"
+    using assms fv'_suc_eq_minus_fv' by auto
+  have G1_G2_length: "length G1 = length G2"
+    using assms by (rule_tac cg_ctx_length; simp)
+  {
+    fix i :: nat
+    assume i_size: "i < length G1"
+    have no_i_in_e_SG1e_none: "i \<notin> fv e \<Longrightarrow> ?SG1e ! i = None"
+      using assign_app_ctx_restrict_none i_size by blast
+    have i_in_e_SG1e_some: "i \<in> fv e \<Longrightarrow> ?SG1e ! i = Some (assign_app_ty S S' (fst (G1 ! i)))"
+      using assign_app_ctx_restrict_some i_size by force
+    have no_i_in_e1_SG1e1_none: "i \<notin> fv e1 \<Longrightarrow> ?SG1e1 ! i = None"
+      using assign_app_ctx_restrict_none i_size by blast
+    have i_in_e1_SG1e1_some: "i \<in> fv e1 \<Longrightarrow> ?SG1e1 ! i = Some (assign_app_ty S S' (fst (G1 ! i)))"
+      using assign_app_ctx_restrict_some i_size by force 
+    have no_i_in_e2e3_SG2e2e3_none: "i \<notin> dec_fv_e2 \<union> dec_fv_e3 \<Longrightarrow> ?SG2e2e3 ! i = None"
+      using G1_G2_length assign_app_ctx_restrict_none i_size by auto
+    have i_in_e2e3_SG2e2e3_some: "i \<in> dec_fv_e2 \<union> dec_fv_e3 \<Longrightarrow> ?SG2e2e3 ! i = Some (assign_app_ty S S' (fst (G1 ! i)))"
+      using G1_G2_length assign_app_ctx_restrict_some i_size cg_ctx_type_same1 assms by auto
+    have "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2e3 ! i)"
+    proof (cases "i \<in> fv e")
+      case True
+      have "i \<in> fv e1 \<or> i \<in> dec_fv_e2 \<union> dec_fv_e3"
+        using True fv_e by auto
+      moreover have "i \<in> fv e1 \<Longrightarrow> i \<notin> dec_fv_e2 \<union> dec_fv_e3 \<Longrightarrow> ?thesis"
+        using left True i_in_e_SG1e_some i_in_e1_SG1e1_some no_i_in_e2e3_SG2e2e3_none by auto
+      moreover have "i \<notin> fv e1 \<Longrightarrow> i \<in> dec_fv_e2 \<union> dec_fv_e3 \<Longrightarrow> ?thesis"
+        using right True i_in_e_SG1e_some no_i_in_e1_SG1e1_none i_in_e2e3_SG2e2e3_some by presburger
+      moreover have "i \<in> fv e1 \<Longrightarrow> i \<in> dec_fv_e2 \<union> dec_fv_e3 \<Longrightarrow> ?thesis"
+      proof -
+        assume i_in_e1: "i \<in> fv e1"
+        assume i_in_e2e3: "i \<in> dec_fv_e2 \<union> dec_fv_e3"
+        have "A \<turnstile> CtShare (assign_app_ty S S' (fst (G1 ! i)))"
+        proof -
+          have i_type_used: "snd (G2 ! i) > 0"
+            using cg_gen_output_type_used_nonzero assms i_in_e1 by auto
+          consider (suc_i_in_e2) "Suc i \<in> fv e2" | (suc_i_in_e3) "Suc i \<in> fv e3"
+            using i_in_e2e3 fv'_suc_eq_minus_fv'  assms by fastforce
+          then show ?thesis
+          proof cases
+            case suc_i_in_e2
+            have "A \<turnstile> CtShare (assign_app_ty S S' (fst (((\<beta>, 0) # G2) ! Suc i)))"
+              using assms suc_i_in_e2 cg_assign_type_used_nonzero_imp_share i_type_used 
+                nth_Cons_Suc by metis
+            then show ?thesis
+              using G1_G2_length cg_ctx_type_same1 i_size assms by force
+          next
+            case suc_i_in_e3
+            have "A \<turnstile> CtShare (assign_app_ty S S' (fst (((\<gamma>, 0) # G2) ! Suc i)))"
+              using assms suc_i_in_e3 cg_assign_type_used_nonzero_imp_share i_type_used 
+                nth_Cons_Suc by metis
+            then show ?thesis
+              using G1_G2_length cg_ctx_type_same1 i_size assms by force
+          qed
+        qed
+        then show "?thesis"
+          using share True i_in_e1 i_in_e2e3 i_in_e_SG1e_some i_in_e1_SG1e1_some 
+            i_in_e2e3_SG2e2e3_some by presburger
+      qed
+      ultimately show ?thesis
+        using True by argo
+    next
+      case False
+      have "i \<notin> fv e1" "i \<notin> dec_fv_e2 \<union> dec_fv_e3"
+        using fv_e False by blast+
+      then show ?thesis
+        using ctx_split_comp.none False no_i_in_e2e3_SG2e2e3_none 
+          no_i_in_e1_SG1e1_none no_i_in_e_SG1e_none by presburger
+    qed
+  }
+  then show ?thesis
+    using context_splitting_def assign_app_ctx_len ctx_restrict_len G1_G2_length assms
+    by (simp add: list_all3_conv_all_nth)
+      qed
+
 lemma split_used_extR:
   assumes "fv e = (fv e1) \<union> (fv e2)"
     and "G1,n1 \<turnstile> e1 : \<tau> \<leadsto> G2,n2 | C1 | e1'"
