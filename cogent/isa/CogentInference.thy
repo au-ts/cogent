@@ -274,6 +274,7 @@ inductive_cases known_tfunE: "known_ty (TFun t1 t2)"
 inductive_cases known_tproductE: "known_ty (TProduct t1 t2)"
 inductive_cases known_tvariant_consE: "known_ty (TVariant (K # Ks) None)"
 
+
 inductive known_ct :: "constraint \<Rightarrow> bool" where
 known_ctconj:
   "\<lbrakk> known_ct C1
@@ -357,6 +358,7 @@ inductive alg_ctx_jn :: "cg_ctx \<Rightarrow> cg_ctx \<Rightarrow> cg_ctx \<Righ
   ("_ \<Join> _ \<leadsto> _ | _" [30,0,0,30] 60) where
   alg_ctx_jn: 
   "\<lbrakk> map fst G = map fst G'
+   ; list_all2 (\<lambda>g g'. fst g = fst g') G G'
    ; list_all3 (\<lambda>m g g'. m = max (snd g) (snd g')) M G G'
    ; list_all3 (\<lambda>g2 g m. g2 = (fst g, m)) G2 G M
    ; C = List.map2 (\<lambda>g g'. if (snd g) = (snd g') then CtTop else CtDrop (fst g)) G G'
