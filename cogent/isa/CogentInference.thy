@@ -527,7 +527,7 @@ lemma ct_sem_exhaust_all_used:
 lemma ct_sem_varsub_exI: "A \<turnstile> CtSub (TVariant Ks None) \<tau> \<Longrightarrow> \<exists>Ks'. \<tau> = TVariant Ks' None"
   using ct_sem_varsubE1 ct_sem_eq_iff by metis
 
-lemma ct_sem_varsub_cons_exI: 
+lemma ct_sem_varsub_cons_exI1: 
   assumes "A \<turnstile> CtSub (TVariant (K # Ks) None) (TVariant Ks' None)"
   shows "\<exists>K' Ks''. Ks' = K' # Ks''"
   using assms ct_sem_eq_iff ct_sem_varsubE1 type.inject by metis
@@ -708,7 +708,7 @@ next
       next
         case var_nil2
         then show ?thesis
-          using Cons.prems ct_sem_varsub_cons_exI k1_ks1_def var_cons by blast
+          using Cons.prems ct_sem_varsub_cons_exI1 k1_ks1_def var_cons by blast
       next
         case var_cons2
         obtain K3 Ks3 where k3_ks3_def: "\<tau>3 = TVariant (K3 # Ks3) None"
