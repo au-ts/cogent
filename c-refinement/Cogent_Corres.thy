@@ -690,7 +690,7 @@ lemma corres_take_boxed':
   assumes sigil_wr: "sgl = Boxed Writable ptrl"
 (* CHANGE: Changed to use sgl *)
   assumes x_sigil: "\<Gamma>!x = Some (TRecord typ sgl)"
-  assumes \<gamma>_x: "\<gamma>!x = UPtr p repr ptrl"
+  assumes \<gamma>_x: "\<gamma>!x = UPtr p repr ptrl'"
   assumes split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
   assumes val_rel_x: "val_rel (\<gamma>!x) (x'::('a::cogent_C_val))"
   assumes typing_stat: "\<Xi>, [], \<Gamma> \<turnstile> Take (Var x) f e : te"
@@ -705,7 +705,7 @@ lemma corres_take_boxed':
   assumes x_boxed:
     "\<And> fs r w.
     \<lbrakk>(\<sigma>,s)\<in>srel; \<sigma> p = Some (URecord fs);
-    \<Xi>, \<sigma> \<turnstile> UPtr p repr ptrl :u TRecord typ sgl \<langle>r, w\<rangle>\<rbrakk> \<Longrightarrow>
+    \<Xi>, \<sigma> \<turnstile> UPtr p repr ptrl' :u TRecord typ sgl \<langle>r, w\<rangle>\<rbrakk> \<Longrightarrow>
       is_valid s x' \<and>
       corres srel e (e' (f' s)) \<xi> (fst(fs!f)# (\<gamma>!x)# \<gamma>) \<Xi> (Some (fst (snd (typ!f))) # Some (TRecord (typ [f := (fst (typ!f), fst (snd (typ!f)),taken)]) sgl) # \<Gamma>2) \<sigma> s"
   shows
@@ -760,11 +760,13 @@ proof -
       apply (rule_tac x= "rrr' \<union> (rr'\<union> r'')" in exI, rule_tac x= "ww' \<union> ((insert p w')\<union> w'')" in exI)
       apply (rule matches_ptrs_some, simp)
          apply (rule matches_ptrs_some)
-             apply (rule u_t_p_rec_w', (simp+)[3])
-              apply (simp add: map_update)
-              apply (subst map_list_update_id)
-                 apply (simp+)[4]
-             apply (force simp add: distinct_fst_tags_update)
+             apply(subgoal_tac "ptrl = ptrl'")
+              apply (rule u_t_p_rec_w', (simp+)[3])
+               apply (simp add: map_update)
+               apply (subst map_list_update_id)
+                  apply (simp+)[4]
+              apply (force simp add: distinct_fst_tags_update)
+    using sigil_wr apply blast
             apply blast
            apply blast
           apply auto[1]
@@ -801,7 +803,7 @@ lemma corres_take_boxed:
   assumes sigil_wr: "sgl = Boxed Writable ptrl"
 (* CHANGE: Changed to use sgl *)
   assumes x_sigil: "\<Gamma>!x = Some (TRecord typ sgl)"
-  assumes \<gamma>_x: "\<gamma>!x = UPtr p repr ptrl"
+  assumes \<gamma>_x: "\<gamma>!x = UPtr p repr ptrl'"
   assumes split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
   assumes val_rel_x: "val_rel (\<gamma>!x) (x'::('a::cogent_C_val) ptr)"
   assumes typing_stat: "\<Xi>, [], \<Gamma> \<turnstile> Take (Var x) f e : te"
@@ -813,7 +815,7 @@ lemma corres_take_boxed:
   assumes shareable_or_taken: "S \<in> k \<or> taken = Taken"
 U(* CHANGE: Changed to take field names; Changed to use sgl *)
   assumes x_boxed:
-  "\<And> fs r w. \<lbrakk>(\<sigma>, s)\<in> srel; \<sigma> p = Some (URecord fs); \<Xi>, \<sigma> \<turnstile> UPtr p repr ptrl :u TRecord typ sgl \<langle>r, w\<rangle>\<rbrakk> \<Longrightarrow>
+  "\<And> fs r w. \<lbrakk>(\<sigma>, s)\<in> srel; \<sigma> p = Some (URecord fs); \<Xi>, \<sigma> \<turnstile> UPtr p repr ptrl' :u TRecord typ sgl \<langle>r, w\<rangle>\<rbrakk> \<Longrightarrow>
    is_valid s x' \<and> val_rel (fst(fs!f)) ((f' s)::'bb::cogent_C_val)"
 (* CHANGE: Changed to take field names; Changed to use sgl *)
   assumes corres_cont:
@@ -894,7 +896,7 @@ lemma corres_let_put_boxed:
   assumes sigil_wr: "sgl = Boxed Writable ptrl"
 (* CHANGE: Changed to use sgl *)
   assumes x_sigil: "\<Gamma> ! x = Some (TRecord typ sgl)"
-  assumes \<gamma>_x: "\<gamma> ! x = UPtr p repr ptrl"
+  assumes \<gamma>_x: "\<gamma> ! x = UPtr p repr ptrl'"
   assumes split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
   assumes typing_stat: "\<Xi>, [], \<Gamma> \<turnstile> expr.Let (Put (Var x) f (Var e)) y : ts"
 (* CHANGE: Changed to take field names; Changed to use sgl *)
@@ -906,8 +908,8 @@ lemma corres_let_put_boxed:
   "\<And>fs r w r' w'.
     \<lbrakk> (\<sigma>,s)\<in> srel
     ; \<sigma> p = Some (URecord fs)
-    ; \<Xi>, \<sigma> \<turnstile> UPtr p repr ptrl :u TRecord typ sgl \<langle>r, w\<rangle>
-    ; \<Xi>, \<sigma>(p := Some (URecord (fs [f := (\<gamma>!e,  snd (fs ! f))]))) \<turnstile> UPtr p repr ptrl :u TRecord typ sgl \<langle>r', w'\<rangle>
+    ; \<Xi>, \<sigma> \<turnstile> UPtr p repr ptrl' :u TRecord typ sgl \<langle>r, w\<rangle>
+    ; \<Xi>, \<sigma>(p := Some (URecord (fs [f := (\<gamma>!e,  snd (fs ! f))]))) \<turnstile> UPtr p repr ptrl' :u TRecord typ sgl \<langle>r', w'\<rangle>
     \<rbrakk> \<Longrightarrow> is_valid s x' \<and> (\<sigma>(p := Some (URecord (fs [f := (\<gamma>!e,  snd (fs ! f))]))), h s) \<in> srel"
   shows "corres srel
            (Let (Put (Var x) f (Var e)) y)
@@ -1000,8 +1002,11 @@ proof (clarsimp simp: corres_def in_monad snd_bind snd_modify snd_state_assert, 
     using use\<Gamma>3'_lemmas(2) typing_put_elim_lems
     by (cases rule: uval_typing.cases; clarsimp simp add: \<gamma>_x sigil_wr split: prod.splits)
 
+  have peq : "ptrl = ptrl'"
+    using \<gamma>_x sigil_wr use\<Gamma>3'_lemmas(2) by auto
+
   have "\<xi>, \<gamma> \<turnstile> (\<sigma>, Var x) \<Down>! (\<sigma>, UPtr p repr ptrl)"
-    using \<gamma>_x u_sem_var
+    using \<gamma>_x u_sem_var peq
     by metis
   then obtain r1' w1p'
     where preserve_mono_on_put_lemmas:
@@ -1050,14 +1055,14 @@ proof (clarsimp simp: corres_def in_monad snd_bind snd_modify snd_state_assert, 
   then have x_boxed_lemmas:
     "is_valid s x'"
     "(\<sigma>(p \<mapsto> URecord (fs[f := (\<gamma> ! e, snd (fs ! f))])), h s) \<in> srel"
-    using x_boxed assms' uval_typing1_elim_lemmas \<gamma>_x rec_elim1_lemmas use\<Gamma>3'_lemmas sigil_wr
+    using x_boxed assms' uval_typing1_elim_lemmas \<gamma>_x rec_elim1_lemmas use\<Gamma>3'_lemmas sigil_wr peq
     by auto
 
   have upd_matches2:
     "\<Xi>, \<sigma>(p \<mapsto> URecord (fs[f := (\<gamma> ! e, snd (fs ! f))])) \<turnstile> \<gamma> ! x # \<gamma> matches Some (TRecord (typ[f := (fst (typ ! f), fst (snd (typ ! f)), Present)]) sgl) # \<Gamma>2 \<langle>r1' \<union> r2, (insert p w1') \<union> w2\<rangle>"
   proof (intro matches_ptrs_some)
     show "\<Xi>, \<sigma>(p \<mapsto> URecord (fs[f := (\<gamma> ! e, snd (fs ! f))])) \<turnstile> \<gamma> ! x :u TRecord (typ[f := (fst (typ ! f), fst (snd (typ ! f)), Present)]) sgl \<langle>r1', insert p w1'\<rangle>"
-      using preserve_mono_on_put_lemmas rec_elim1_lemmas sigil_wr \<gamma>_x
+      using preserve_mono_on_put_lemmas rec_elim1_lemmas sigil_wr \<gamma>_x peq
       by argo
   next
     show "\<Xi>, \<sigma>(p \<mapsto> URecord (fs[f := (\<gamma> ! e, snd (fs ! f))])) \<turnstile> \<gamma> matches \<Gamma>2 \<langle>r2, w2\<rangle>"
