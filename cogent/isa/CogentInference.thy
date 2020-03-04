@@ -121,6 +121,7 @@ datatype type = TVar index
 datatype lit = LBool bool
              | LNat nat
 
+
 fun abs :: "num_type \<Rightarrow> nat" where
 "abs U8 = 256"
 | "abs U16 = 512"
@@ -150,6 +151,28 @@ fun max_type_var :: "type \<Rightarrow> nat" where
 
 fun variant_elem_used :: "(name \<times> type \<times> usage_tag) \<Rightarrow> (name \<times> type \<times> usage_tag)" where
   "variant_elem_used (nm, t, _) = (nm, t, Used)"
+
+lemma variant_elem_used_nm_eq: "y = variant_elem_used x \<Longrightarrow> fst y = fst x"
+  by (metis fst_conv variant_elem_used.elims)
+
+lemma variant_elem_used_type_eq: "y = variant_elem_used x \<Longrightarrow> (fst \<circ> snd) y = (fst \<circ> snd) x"
+  by (metis comp_apply fst_conv snd_conv surjective_pairing variant_elem_used.simps)
+
+lemma variant_elem_used_usage_used: "y = variant_elem_used x \<Longrightarrow> (snd \<circ> snd) y = Used"
+  by (metis comp_apply snd_conv variant_elem_used.elims)
+
+lemma variant_elem_used_usage_nondec: 
+  assumes "y = variant_elem_used x"
+  shows "(snd \<circ> snd) y \<le> (snd \<circ> snd) x"
+  using assms
+proof (cases "(snd \<circ> snd) x = Used")
+  case True
+  then show ?thesis using assms variant_elem_used_usage_used by auto 
+next
+  case False
+  then show ?thesis using less_eq_usage_tag.elims by blast
+qed
+
 
 fun variant_nth_used :: "nat \<Rightarrow> type \<Rightarrow> type" where
   "variant_nth_used n (TVar i)        = undefined"  
