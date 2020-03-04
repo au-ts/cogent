@@ -2605,6 +2605,79 @@ proof -
     by (simp add: list_all3_conv_all_nth)
       qed
 
+lemma split_used_irref:
+  assumes "e = Esac e1 nm e2"
+    and "G1,n1 \<turnstile> e1 : \<alpha> \<leadsto> G2,n2 | C1 | e1'"
+    and "(\<beta>, 0) # G2,n2 \<turnstile> e2 : \<tau> \<leadsto> (\<beta>, m) # G3,n3 | C2 | e2'"
+    and "A \<turnstile> assign_app_constr S S' C2"
+    and "\<forall>i. known_ty (S i)"
+    and "dec_fv_e2 = image (\<lambda>x. x-1) (fv e2 - {0})"
+  shows "A \<turnstile> assign_app_ctx S S' (G1\<bar>(fv e)) \<leadsto> assign_app_ctx S S' (G1\<bar>(fv e1)) \<box> assign_app_ctx S S' (G2\<bar>dec_fv_e2)"
+  using assms 
+proof -
+  let ?SG1e = "assign_app_ctx S S' (G1\<bar>(fv e))"
+  let ?SG1e1 = "assign_app_ctx S S' (G1\<bar>(fv e1))"
+  let ?SG2e2 = "assign_app_ctx S S' (G2\<bar>dec_fv_e2)"
+  have fv_e: "fv e = fv e1 \<union> dec_fv_e2"
+    using assms fv'_suc_eq_minus_fv' by auto
+  have G1_G2_length: "length G1 = length G2"
+    using assms by (rule_tac cg_ctx_length; simp)
+  {
+    fix i :: nat
+    assume i_size: "i < length G1"
+    have no_i_in_e_SG1e_none: "i \<notin> fv e \<Longrightarrow> ?SG1e ! i = None"
+      using assign_app_ctx_restrict_none i_size by blast
+    have i_in_e_SG1e_some: "i \<in> fv e \<Longrightarrow> ?SG1e ! i = Some (assign_app_ty S S' (fst (G1 ! i)))"
+      using assign_app_ctx_restrict_some i_size by force
+    have no_i_in_e1_SG1e1_none: "i \<notin> fv e1 \<Longrightarrow> ?SG1e1 ! i = None"
+      using assign_app_ctx_restrict_none i_size by blast
+    have i_in_e1_SG1e1_some: "i \<in> fv e1 \<Longrightarrow> ?SG1e1 ! i = Some (assign_app_ty S S' (fst (G1 ! i)))"
+      using assign_app_ctx_restrict_some i_size by force
+    have no_i_in_e2_SG2e2_none: "i \<notin> dec_fv_e2 \<Longrightarrow> ?SG2e2 ! i = None"
+      using G1_G2_length assign_app_ctx_restrict_none i_size cg_ctx_type_same1 assms by metis
+    have i_in_e2_SG2e2_some: "i \<in> dec_fv_e2 \<Longrightarrow> ?SG2e2 ! i = Some (assign_app_ty S S' (fst (G1 ! i)))"
+      using G1_G2_length assign_app_ctx_restrict_some i_size cg_ctx_type_same1 assms by metis
+    have "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
+    proof (cases "i \<in> fv e")
+      case True
+      then have "i \<in> fv e1 \<or> i \<in> dec_fv_e2"
+        using fv_e by simp
+      moreover have "i \<in> fv e1 \<Longrightarrow> i \<notin> dec_fv_e2 \<Longrightarrow> ?thesis"
+        using left True i_in_e_SG1e_some i_in_e1_SG1e1_some no_i_in_e2_SG2e2_none by presburger
+      moreover have "i \<notin> fv e1 \<Longrightarrow> i \<in> dec_fv_e2 \<Longrightarrow> ?thesis"
+        using right True i_in_e_SG1e_some no_i_in_e1_SG1e1_none i_in_e2_SG2e2_some by presburger
+      moreover have "i \<in> fv e1 \<Longrightarrow> i \<in> dec_fv_e2 \<Longrightarrow> ?thesis"
+      proof -
+        assume i_in_e1: "i \<in> fv e1"
+        assume i_in_e2: "i \<in> dec_fv_e2"
+        have "A \<turnstile> CtShare (assign_app_ty S S' (fst (G1 ! i)))"
+        proof -
+          have i_type_used: "snd (G2 ! i) > 0"
+            using cg_gen_output_type_used_nonzero assms i_in_e1 by auto
+          then have "A \<turnstile> CtShare (assign_app_ty S S' (fst (((\<beta>, 0) # G2) ! Suc i)))"
+            using assms fv'_suc_eq_minus_fv' i_fv'_suc_iff_suc_i_fv' i_in_e2 
+            cg_assign_type_used_nonzero_imp_share nth_Cons_Suc by (metis nth_Cons_Suc)
+          then show ?thesis
+            using G1_G2_length cg_ctx_type_same1 i_size assms by force
+        qed
+        then show ?thesis
+          using share True i_in_e1 i_in_e2 i_in_e_SG1e_some i_in_e1_SG1e1_some i_in_e2_SG2e2_some 
+          by presburger
+      qed
+      ultimately show ?thesis
+        by fast
+    next
+      case False
+      then show ?thesis
+        using ctx_split_comp.none fv_e no_i_in_e2_SG2e2_none no_i_in_e1_SG1e1_none no_i_in_e_SG1e_none 
+        by auto
+    qed
+  }
+  then show ?thesis
+    using context_splitting_def assign_app_ctx_len ctx_restrict_len G1_G2_length assms
+    by (simp add: list_all3_conv_all_nth)
+      qed
+
 lemma split_used_extR:
   assumes "fv e = (fv e1) \<union> (fv e2)"
     and "G1,n1 \<turnstile> e1 : \<tau> \<leadsto> G2,n2 | C1 | e1'"
