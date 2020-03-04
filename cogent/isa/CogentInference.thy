@@ -3666,8 +3666,219 @@ next
         ks'_def ks_def by fastforce
   qed
 next
-  case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
-  then show ?case sorry
+  case (cg_case \<alpha> n2 \<beta> n1 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
+  then show ?case
+  proof -
+    let ?e="Case e1 nm e2 e3"
+    let ?dec_fv_e2="image (\<lambda>x. x-1) (fv e2 - {0})"
+    let ?dec_fv_e3="image (\<lambda>x. x-1) (fv e3 - {0})"
+    let ?idxs="Set.filter (\<lambda>x. x \<notin> fv ?e \<and> \<Gamma> ! x \<noteq> None) {0..<length G1}"
+    obtain Ks where ks_def: "TVariant Ks None = assign_app_ty S S' (TVariant [(nm, \<beta>, Unused)] (Some \<alpha>))"
+      by simp
+    have ks_hd_type: "(fst \<circ> snd) (Ks ! 0) = S n1"
+      using ks_def cg_case.hyps by auto
+    have "A \<turnstile> \<Gamma> \<leadsto> assign_app_ctx S S' (G1\<bar>fv e1) \<box> assign_app_ctx S S' (G2\<bar>?dec_fv_e2  \<union> ?dec_fv_e3 \<union> ?idxs)"
+      using cg_case ct_sem_conj_iff assign_prop_def
+    proof (rule_tac split_used_case_extR) 
+      show "\<And>i. i < length G1 \<Longrightarrow> 
+            if i \<in> fv' 0 ?e 
+              then \<Gamma> ! i = Some (assign_app_ty S S' (fst (G1 ! i)))
+              else \<Gamma> ! i = None \<or> \<Gamma> ! i = Some (assign_app_ty S S' (fst (G1 ! i)))"
+        using cg_case by metis
+    qed (fastforce)+
+    moreover have "distinct (map fst Ks)" 
+      using cg_case.prems ks_def assign_prop_def by metis
+    moreover have "A \<ddagger> assign_app_ctx S S' (G1\<bar>fv e1) \<turnstile> assign_app_expr S S' e1' : assign_app_ty S S' (TVariant [(nm, \<beta>, Unused)] (Some \<alpha>))"
+      using cg_case ctx_restrict_len assign_app_ctx_len 
+    proof (rule_tac cg_case.hyps(4))
+      show "A \<turnstile> assign_app_constr S S' C1"
+        using cg_case ct_sem_conj_iff by force
+    qed (auto simp add: assign_app_ctx_restrict_none assign_app_ctx_restrict_some)
+    moreover have "A \<ddagger> Some (S n1) # assign_app_ctx S S' (G2\<bar>?dec_fv_e2  \<union> ?dec_fv_e3 \<union> ?idxs) \<turnstile> assign_app_expr S S' e2' : assign_app_ty S S' \<tau>"
+      using cg_case ct_sem_conj_iff ctx_restrict_len assign_app_ctx_len
+    proof (rule_tac cg_case.hyps(6))
+      {
+        fix i :: nat
+        assume i_size: "i < length ((\<beta>, 0) # G2)"
+        show "if i \<in> fv e2
+         then (Some (S n1) # assign_app_ctx S S' (G2\<bar>?dec_fv_e2 \<union> ?dec_fv_e3 \<union> ?idxs)) ! i =
+              Some (assign_app_ty S S' (fst (((\<beta>, 0) # G2) ! i)))
+         else (Some (S n1) # assign_app_ctx S S' (G2\<bar>?dec_fv_e2 \<union> ?dec_fv_e3 \<union> ?idxs)) ! i =
+              None \<or>
+              (Some (S n1) # assign_app_ctx S S' (G2\<bar>?dec_fv_e2 \<union> ?dec_fv_e3 \<union> ?idxs)) ! i =
+              Some (assign_app_ty S S' (fst (((\<beta>, 0) # G2) ! i))) \<and>
+              A \<turnstile> assign_app_constr S S' (CtDrop (fst (((\<beta>, 0) # G2) ! i)))"
+        proof -
+          consider (i_zero) "i = 0" | (i_nonzero) "i \<noteq> 0"
+            by blast
+          then show ?thesis
+          proof cases
+            case i_zero
+            have "i \<notin> fv e2 \<Longrightarrow> m = 0"
+              using cg_gen_output_type_unused_same cg_case.hyps i_zero 
+              by (metis i_size nth_Cons_0 snd_conv)
+            moreover have "m = 0 \<Longrightarrow> A \<turnstile> assign_app_constr S S' (CtDrop \<beta>)"
+              using cg_case ct_sem_conj_iff i_zero by auto
+            ultimately show ?thesis
+              using i_zero cg_case.hyps by force
+          next
+            case i_nonzero
+            have G1_G2_type_same: "fst (G1 ! (i - 1)) = fst (G2 ! (i - 1))"
+              using cg_ctx_type_same2 cg_case.hyps i_size i_nonzero by auto
+            have G2_G3_type_same: "(fst (G2 ! (i - 1))) = (fst (G3 ! (i - 1)))"
+              using cg_case.hyps cg_ctx_type_same1[where G="(\<beta>, 0) # G2" and G'="(\<beta>, m) # G3"]  
+                i_nonzero i_size by fastforce
+            have G3_G4_type_same: "(fst (G3 ! (i - 1))) = (fst (G4 ! (i - 1)))"
+              using cg_case.hyps cg_ctx_length[where G="(\<beta>, 0) # G2" and G'="(\<beta>, m) # G3"] i_size
+                i_nonzero alg_ctx_jn_type_same1 by simp
+            consider (i_in_e2) "i \<in> fv e2" | (i_not_in_e2) "i \<notin> fv e2" by blast
+            then show ?thesis
+            proof cases
+              case i_in_e2
+              then show ?thesis
+                using i_nonzero i_size by (simp; rule_tac assign_app_ctx_restrict_some; force)
+            next
+              case i_not_in_e2
+              consider (i_in_e3) "i \<in> fv e3" | (i_in_idxs) "i - 1 \<in> ?idxs" | 
+                (i_in_neither) "i \<notin> fv e3 \<and> i - 1 \<notin> ?idxs" by blast
+              then show ?thesis
+              proof cases
+                case i_in_e3
+                have "A \<turnstile> CtDrop (assign_app_ty S S' (fst (G2 ! (i - Suc 0))))"
+                proof -
+                  have "A \<turnstile> CtDrop (assign_app_ty S S' (fst (G4 ! (i - Suc 0))))"
+                    using cg_case ct_sem_conj_iff
+                  proof (rule_tac alg_ctx_jn_type_used_diff[where ?G1.0=G3 and ?G1'=G3' and ?C=C4])
+                    show "i - Suc 0 < length G3'"
+                      using cg_ctx_length i_nonzero i_size cg_case.hyps(7) by fastforce
+                    have "snd (G3 ! (i - 1)) = snd (G2 ! (i - 1))"
+                      using cg_gen_output_type_unused_same cg_case.hyps i_not_in_e2 i_size i_nonzero
+                      by (metis (mono_tags, hide_lams) nth_Cons')
+                    moreover have "snd (G3' ! (i - 1)) \<noteq> snd (G2 ! (i - 1))"
+                      using cg_gen_output_type_used_diff cg_case.hyps i_in_e3 i_size i_nonzero
+                      by (metis (mono_tags, hide_lams) nth_Cons')
+                    ultimately show "snd (G3 ! (i - Suc 0)) \<noteq> snd (G3' ! (i - Suc 0))"
+                      by fastforce
+                  qed (force)+
+                  then show ?thesis
+                    using G2_G3_type_same G3_G4_type_same by fastforce
+                qed
+                then show ?thesis 
+                  using i_not_in_e2 i_in_e3 i_size apply auto
+                  using i_nonzero assign_app_ctx_restrict_some_val by auto
+              next
+                case i_in_idxs
+                have "A \<turnstile> CtDrop (assign_app_ty S S' (fst (G2 ! (i - 1))))"
+                  using i_in_idxs cg_case.prems G1_G2_type_same by force
+                then show ?thesis
+                  using i_not_in_e2 i_size apply auto
+                  using assign_app_ctx_restrict_some_val i_nonzero by auto
+              next
+                case i_in_neither
+                then show ?thesis
+                  using assign_app_ctx_restrict_none fv'_suc_eq_minus_fv' i_fv'_suc_iff_suc_i_fv' 
+                    i_nonzero i_not_in_e2 i_size One_nat_def Suc_less_eq Suc_pred UnE length_Cons
+                    neq0_conv nth_Cons' by (metis (no_types, lifting))
+              qed
+            qed 
+          qed
+        qed
+      }
+    qed (force)+
+    moreover have "A \<ddagger> Some (variant_nth_used 0 (TVariant Ks None)) # assign_app_ctx S S' (G2\<bar>?dec_fv_e2  \<union> ?dec_fv_e3 \<union> ?idxs) \<turnstile> assign_app_expr S S' e3' : assign_app_ty S S' \<tau>"
+      using cg_case ct_sem_conj_iff ctx_restrict_len assign_app_ctx_len
+    proof (rule_tac cg_case.hyps(8))
+      {
+        let ?TVar\<beta>\<alpha>="TVariant [(nm, \<beta>, Used)] (Some \<alpha>)"
+        let ?TVarKs="Some (variant_nth_used 0 (TVariant Ks None))"
+        let ?SG2e2e3idxs="assign_app_ctx S S' (G2 \<bar> ?dec_fv_e2 \<union> ?dec_fv_e3 \<union> ?idxs)"
+        fix i :: nat
+        assume i_size: "i < length ((?TVar\<beta>\<alpha>, 0) # G2)"
+        show "if i \<in> fv e3
+          then (?TVarKs # ?SG2e2e3idxs) ! i = Some (assign_app_ty S S' (fst (((?TVar\<beta>\<alpha>, 0) # G2) ! i)))
+          else (?TVarKs # ?SG2e2e3idxs) ! i = None \<or>
+               (?TVarKs # ?SG2e2e3idxs) ! i = Some (assign_app_ty S S' (fst (((?TVar\<beta>\<alpha>, 0) # G2) ! i))) \<and>
+               A \<turnstile> assign_app_constr S S' (CtDrop (fst (((?TVar\<beta>\<alpha>, 0) # G2) ! i)))"
+        proof -
+          consider (i_zero) "i = 0" | (i_nonzero) "i \<noteq> 0"
+            by blast
+          then show ?thesis
+          proof cases
+            case i_zero
+            have "i \<notin> fv e3 \<Longrightarrow> l = 0"
+              using cg_gen_output_type_unused_same cg_case.hyps i_zero 
+              by (metis i_size nth_Cons_0 snd_conv)
+            moreover have "l = 0 \<Longrightarrow> A \<turnstile> CtDrop (assign_app_ty S S' (fst (((?TVar\<beta>\<alpha>, 0) # G2) ! i)))"
+              using cg_case ct_sem_conj_iff i_zero by auto
+            ultimately show ?thesis
+              using i_zero ks_def by force
+          next
+            case i_nonzero
+            have G1_G2_type_same: "fst (G1 ! (i - 1)) = fst (G2 ! (i - 1))"
+              using cg_ctx_type_same2 cg_case.hyps i_size i_nonzero by auto
+            have G2_G3'_type_same: "(fst (G2 ! (i - 1))) = (fst (G3' ! (i - 1)))"
+              using cg_ctx_type_same1[where G="(?TVar\<beta>\<alpha>, 0) # G2" and G'="(?TVar\<beta>\<alpha>, l) # G3'"]  
+                cg_case.hyps i_nonzero i_size by fastforce
+            have G3'_G4_type_same: "(fst (G3' ! (i - 1))) = (fst (G4 ! (i - 1)))"
+              using cg_ctx_length[where G="(?TVar\<beta>\<alpha>, 0) # G2" and G'="(?TVar\<beta>\<alpha>, l) # G3'"]
+                i_size cg_case.hyps i_nonzero alg_ctx_jn_type_same2 by force
+            consider (i_in_e3) "i \<in> fv e3" | (i_not_in_e3) "i \<notin> fv e3" by blast
+            then show ?thesis
+            proof cases
+              case i_in_e3
+              then show ?thesis
+                using i_nonzero i_size by (simp; rule_tac assign_app_ctx_restrict_some; force)
+            next
+              case i_not_in_e3
+              consider (i_in_e2) "i \<in> fv e2" | (i_in_idxs) "i - 1 \<in> ?idxs" | 
+                (i_in_neither) "i \<notin> fv e2 \<and> i - 1 \<notin> ?idxs" by blast
+              then show ?thesis
+              proof cases
+                case i_in_e2
+                have "A \<turnstile> CtDrop (assign_app_ty S S' (fst (G2 ! (i - Suc 0))))"
+                proof -
+                  have "A \<turnstile> CtDrop (assign_app_ty S S' (fst (G4 ! (i - Suc 0))))"
+                    using cg_case ct_sem_conj_iff
+                  proof (rule_tac alg_ctx_jn_type_used_diff[where ?G1.0=G3 and ?G1'=G3' and ?C=C4])
+                    show "i - Suc 0 < length G3'"
+                      using cg_ctx_length i_nonzero i_size cg_case.hyps(7) by fastforce
+                    have "snd (G3' ! (i - 1)) = snd (G2 ! (i - 1))"
+                      using cg_gen_output_type_unused_same cg_case.hyps i_not_in_e3 i_size i_nonzero
+                      by (metis (mono_tags, hide_lams) nth_Cons')
+                    moreover have "snd (G3 ! (i - 1)) \<noteq> snd (G2 ! (i - 1))"
+                      using cg_gen_output_type_used_diff cg_case.hyps i_in_e2 i_size i_nonzero
+                      by (metis (mono_tags, hide_lams) nth_Cons')
+                    ultimately show "snd (G3 ! (i - Suc 0)) \<noteq> snd (G3' ! (i - Suc 0))"
+                      by fastforce
+                  qed (force)+
+                  then show ?thesis
+                    using G2_G3'_type_same G3'_G4_type_same by fastforce
+                qed
+                then show ?thesis 
+                  using i_not_in_e3 i_in_e2 i_size apply auto
+                  using i_nonzero assign_app_ctx_restrict_some_val by auto
+              next
+                case i_in_idxs
+                have "A \<turnstile> CtDrop (assign_app_ty S S' (fst (G2 ! (i - 1))))"
+                  using i_in_idxs cg_case.prems G1_G2_type_same by force
+                then show ?thesis
+                  using i_not_in_e3 i_size apply auto
+                  using assign_app_ctx_restrict_some_val i_nonzero by auto
+              next
+                case i_in_neither
+                then show ?thesis
+                  using assign_app_ctx_restrict_none fv'_suc_eq_minus_fv' i_fv'_suc_iff_suc_i_fv' 
+                    i_nonzero i_not_in_e3 i_size One_nat_def Suc_less_eq Suc_pred UnE length_Cons
+                    neq0_conv nth_Cons' by (metis (no_types, lifting))
+              qed
+            qed 
+          qed
+        qed
+      }
+    qed (force)+
+    ultimately show ?thesis
+      using ks_def ks_hd_type typing_sig_refl typing_case[where Ks="Ks" and i="0"] by simp
+  qed
 next
   case (cg_irref \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
   then show ?case sorry
