@@ -71,6 +71,10 @@ ML\<open> fun corres_put_boxed_tac ctxt = let
         addsimps type_rels),
     (ftac (get "all_heap_rel_ptrD") THEN' atac)
         THEN_ALL_NEW asm_full_simp_tac (ctxt addsimps type_rels),
+    (* The following two lines are not in the ORELSE' branch
+       (that is the only difference between the two branches)
+       TODO factorize
+     *)
     clarsimp_tac ctxt,
     REPEAT_ALL_NEW (rtac @{thm conjI})
         THEN_ALL_NEW ((rtac (get "all_heap_rel_updE") THEN' atac THEN' atac)
@@ -113,6 +117,10 @@ ML\<open> fun corres_let_put_boxed_tac ctxt = let
     val val_rels   = ValRelSimp.get ctxt;
     val is_valids  = IsValidSimp.get ctxt;
     val heap_simps = HeapSimp.get ctxt;
+(* TODO factorize with take_boxed_tac and put_boxed
+   facts2 corresponds to facts of take_boxed
+   facts3 to facts'
+*)
     val facts1 = get "val_rel_ptr_def" :: @{thms gets_to_return return_bind}
     val facts2 = maps gets
         ["state_rel_def", "heap_rel_def", "val_rel_ptr_def", "type_rel_ptr_def", "heap_rel_ptr_meta"]
@@ -130,6 +138,10 @@ ML\<open> fun corres_let_put_boxed_tac ctxt = let
     (ftac (get "all_heap_rel_ptrD") THEN' atac)
         THEN_ALL_NEW asm_full_simp_tac (ctxt addsimps type_rels),
     clarsimp_tac ctxt,
+  (* as for put_boxed, the only difference with the ORELSE' branch
+    is the two following lines 
+    TODO: factorize
+*)
     REPEAT_ALL_NEW (rtac @{thm conjI})
         THEN_ALL_NEW ((rtac (get "all_heap_rel_updE") THEN' atac THEN' atac)
             THEN_ALL_NEW distinct_subgoal_tac
