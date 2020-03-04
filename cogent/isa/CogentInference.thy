@@ -556,6 +556,48 @@ lemma ct_sem_varsub_imp_subcons:
 proof (rule ct_sem_varsubE1) 
 qed (simp add: ct_sem_eq_iff ct_sem_equal)+
 
+lemma ct_sem_varsub_conv_all_nth:
+  "A \<turnstile> CtSub (TVariant Ks1 None) (TVariant Ks2 None) \<longleftrightarrow> length Ks1 = length Ks2 \<and>
+                         (\<forall>i < length Ks1. fst (Ks1 ! i) = fst (Ks2 ! i)
+                                         \<and> A \<turnstile> CtSub ((fst \<circ> snd) (Ks1 ! i)) ((fst \<circ> snd) (Ks2 ! i))
+                                         \<and> ((snd \<circ> snd) (Ks1 ! i)) \<le> ((snd \<circ> snd) (Ks2 ! i)))"
+proof (induct Ks1 arbitrary: Ks2)
+case Nil
+  then show ?case
+    using ct_sem_varsub_cons_exI2 ct_sem_equal ct_sem_refl
+    by (metis length_0_conv neq_Nil_conv not_less_zero)
+next
+  case (Cons K Ks1)
+  show ?case
+  proof (rule iffI)
+    assume "A \<turnstile> CtSub (TVariant (K # Ks1) None) (TVariant Ks2 None)"
+    then show "length (K # Ks1) = length Ks2 \<and> 
+               (\<forall>i<length (K # Ks1). fst ((K # Ks1) ! i) = fst (Ks2 ! i) 
+                                   \<and> A \<turnstile> CtSub ((fst \<circ> snd) ((K # Ks1) ! i)) ((fst \<circ> snd) (Ks2 ! i)) 
+                                   \<and> (snd \<circ> snd) ((K # Ks1) ! i) \<le> (snd \<circ> snd) (Ks2 ! i))"
+    proof (induct rule: constraint_sem.cases)
+      case ct_sem_equal
+      then show ?thesis
+        using constraint_sem.ct_sem_equal ct_sem_eq_iff by force
+    next
+      case (ct_sem_varsub_cons K2 Ks2)
+      then show ?thesis
+        using Cons.hyps less_Suc_eq_0_disj by auto
+    qed (simp)+
+  next
+    assume ks1_ks2_props: "length (K # Ks1) = length Ks2 \<and> 
+               (\<forall>i<length (K # Ks1). fst ((K # Ks1) ! i) = fst (Ks2 ! i) 
+                                   \<and> A \<turnstile> CtSub ((fst \<circ> snd) ((K # Ks1) ! i)) ((fst \<circ> snd) (Ks2 ! i)) 
+                                   \<and> (snd \<circ> snd) ((K # Ks1) ! i) \<le> (snd \<circ> snd) (Ks2 ! i))"
+    then obtain K2 Ks2' where ks2_def: "Ks2 = K2 # Ks2'" by (metis length_Suc_conv)
+    moreover have "A \<turnstile> CtSub (TVariant Ks1 None) (TVariant Ks2' None)"
+      using Cons.hyps[where ?Ks2.0 = Ks2'] ks1_ks2_props ks2_def by fastforce
+    ultimately show "A \<turnstile> CtSub (TVariant (K # Ks1) None) (TVariant Ks2 None)"
+      using ct_sem_varsub_cons ks1_ks2_props
+      by (metis length_greater_0_conv list.distinct(1) nth_Cons_0)
+  qed
+qed
+
 
 section {* Context relations (Fig 3.2) *}
 inductive ctx_split_comp :: "axm_set \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" where
