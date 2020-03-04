@@ -2977,10 +2977,16 @@ qed
 
 
 section {* Soundness of Generation (Thm 3.2) *}
+definition assign_prop :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow> (string \<times> type \<times> usage_tag) list) \<Rightarrow> bool" where
+  "assign_prop S S' \<equiv> (\<forall>i. known_ty (S i)) & 
+                      (\<forall>Ks Ks' m. assign_app_ty S S' (TVariant Ks (Some m)) = TVariant Ks' None 
+                                  \<longrightarrow> distinct (map fst Ks')) &
+                      (\<forall>i j. j < length (S' i) \<longrightarrow> known_ty ((fst \<circ> snd) ((S' i) ! j)))"
+
 lemma cg_sound_induction:
   assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
     and "A \<turnstile> assign_app_constr S S' C" 
-    and "\<forall>i. known_ty (S i)"
+    and "assign_prop S S'"
     and "\<And>i. i < length G \<Longrightarrow>
             if i \<in> fv e
               then \<Gamma> ! i = Some (assign_app_ty S S' (fst (G ! i)))
@@ -2989,10 +2995,10 @@ lemma cg_sound_induction:
     and "length G = length \<Gamma>"
   shows "A \<ddagger> \<Gamma> \<turnstile> (assign_app_expr S S' e') : (assign_app_ty S S' \<tau>)"
   using assms 
-proof (induct arbitrary: S \<Gamma> rule: constraint_gen_elab.inducts)
-case (cg_var1 G i \<rho> G' C \<tau> n)
+proof (induct arbitrary: S S' \<Gamma> rule: constraint_gen_elab.inducts)
+  case (cg_var1 G i \<rho> G' C \<tau> n)
   then show ?case
- proof -
+  proof -
     have "A \<ddagger> \<Gamma> \<turnstile> Var i : (assign_app_ty S S' \<rho>)"
     proof -
       have "A \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i (assign_app_ty S S' \<rho>)"
@@ -3003,11 +3009,22 @@ case (cg_var1 G i \<rho> G' C \<tau> n)
                         weakening_comp A (\<Gamma> ! ia) 
                         (singleton (length \<Gamma>) i (assign_app_ty S S' \<rho>) ! ia))"
         proof -
-          have "\<Gamma> ! i = Some (assign_app_ty S S' (fst (G ! i)))"
-            using cg_var1.hyps cg_var1.prems by fastforce
-          then show "\<And>ia. ia < length \<Gamma> \<Longrightarrow> ?thesis ia"
-            using cg_var1 weakening_comp.simps
-            by (case_tac "ia = i"; fastforce simp add: keep singleton_some singleton_none)
+          {
+            fix ia :: nat
+            assume ia_size: "ia < length \<Gamma>"
+            show "?thesis ia"
+            proof (cases "ia = i")
+              case True
+              have "\<Gamma> ! i = Some (assign_app_ty S S' (fst (G ! i)))"
+                using cg_var1.hyps cg_var1.prems by fastforce
+              then show ?thesis
+                using True cg_var1.hyps ia_size keep singleton_some by auto
+            next
+              case False
+              then show ?thesis 
+                using ia_size cg_var1 singleton_none weakening_comp.simps by fastforce
+            qed
+          }
         qed
         ultimately show ?thesis
           using cg_var1.hyps cg_var1.prems weakening_def
@@ -3079,14 +3096,18 @@ next
 next
   case (cg_app \<alpha> n1 G1 e1 \<tau> G2 n2 C1 e1' e2 G3 n3 C2 e2' C3)
   then show ?case
-      proof -
+  proof -
     let ?e="App e1 e2"
     let ?idxs="Set.filter (\<lambda>x. x \<notin> fv ?e \<and> \<Gamma> ! x \<noteq> None) {0..<length G1}"
     have "A \<turnstile> \<Gamma> \<leadsto> assign_app_ctx S S' (G1\<bar>fv e1) \<box> assign_app_ctx S S' (G2\<bar>fv e2 \<union> ?idxs)"
-      using cg_app 
+      using cg_app assign_prop_def
     proof (rule_tac split_used_extR[where ?e="?e"])
       show "A \<turnstile> assign_app_constr S S' C2"
         using cg_app assign_app_constr.simps ct_sem_conjE by metis
+      show "\<And>i. i < length G1 \<Longrightarrow> if i \<in> fv' 0 (App e1 e2) 
+                                   then \<Gamma> ! i = Some (assign_app_ty S S' (fst (G1 ! i)))
+                                   else \<Gamma> ! i = None \<or> \<Gamma> ! i = Some (assign_app_ty S S' (fst (G1 ! i)))"
+        using cg_app by meson
     qed (fastforce)+
     moreover have "A \<ddagger>  assign_app_ctx S S' (G1 \<bar> fv e1) \<turnstile> assign_app_expr S S' e1' : assign_app_ty S S' (TFun \<alpha> \<tau>)"
       using cg_app
@@ -3126,10 +3147,14 @@ next
     let ?dec_fv_e2="image (\<lambda>x. x-1) (fv e2 - {0})"
     let ?idxs="Set.filter (\<lambda>x. x \<notin> fv ?e \<and> \<Gamma> ! x \<noteq> None) {0..<length G1}"
     have "A \<turnstile> \<Gamma> \<leadsto> assign_app_ctx S S' (G1\<bar>fv e1) \<box> assign_app_ctx S S' (G2\<bar>?dec_fv_e2 \<union> ?idxs)"
-      using cg_let
+      using cg_let assign_prop_def
     proof (rule_tac split_used_let_extR)
       show "A \<turnstile> assign_app_constr S S' C2"
         using cg_let assign_app_constr.simps ct_sem_conjE by metis
+      show "\<And>i. i < length G1 \<Longrightarrow> if i \<in> fv ?e 
+                                   then \<Gamma> ! i = Some (assign_app_ty S S' (fst (G1 ! i)))
+                                   else \<Gamma> ! i = None \<or> \<Gamma> ! i = Some (assign_app_ty S S' (fst (G1 ! i)))"
+        using cg_let by meson
     qed (fastforce)+
     moreover have "A \<ddagger> assign_app_ctx S S' (G1 \<bar> fv e1) \<turnstile> assign_app_expr S S' e1' : assign_app_ty S S' \<alpha>"
       using cg_let
@@ -3142,7 +3167,7 @@ next
              assign_app_ctx S S' (G1 \<bar> fv e1) ! i = Some (assign_app_ty S S' (fst (G1 ! i))) \<and> 
              A \<turnstile> assign_app_constr S S' (CtDrop (fst (G1 ! i)))"
         using assign_app_ctx_none_iff assign_app_ctx_restrict_some i_size ctx_restrict_def by auto
-    qed (simp add: ct_sem_conj_iff assign_app_ctx_len ctx_restrict_def)+
+    qed (force simp add: ct_sem_conj_iff assign_app_ctx_len ctx_restrict_def)+
     moreover have "A \<ddagger> Some (S n1) # assign_app_ctx S S' (G2 \<bar> ?dec_fv_e2 \<union> ?idxs) \<turnstile> assign_app_expr S S' e2' : assign_app_ty S S' \<tau>"
       using cg_let
     proof (intro cg_let.hyps(5))
@@ -3256,7 +3281,13 @@ next
         using cg_if assign_app_constr.simps ct_sem_conjE by metis
       show "A \<turnstile> assign_app_constr S S' C3"
         using cg_if assign_app_constr.simps ct_sem_conjE by metis
-    qed (fastforce)+
+      show "\<forall>i. known_ty (S i)"
+        using cg_if assign_prop_def by meson
+      show "\<And>i. i < length G1 \<Longrightarrow> if i \<in> fv ?e 
+                                  then \<Gamma> ! i = Some (assign_app_ty S S' (fst (G1 ! i)))
+                                  else \<Gamma> ! i = None \<or> \<Gamma> ! i = Some (assign_app_ty S S' (fst (G1 ! i)))"
+        using cg_if.prems by meson
+    qed (blast)+
     moreover have "A \<ddagger> assign_app_ctx S S' (G1\<bar>fv e1) \<turnstile> assign_app_expr S S' e1' : assign_app_ty S S' (TPrim Bool)"
       using cg_if
     proof (intro cg_if.hyps(2))
@@ -3373,6 +3404,12 @@ next
     proof (rule_tac split_used_extR[where ?e="?e"])
       show "A \<turnstile> assign_app_constr S S' C2"
         using cg_iop assign_app_constr.simps ct_sem_conjE by metis
+      show "\<forall>i. known_ty (S i)"
+        using cg_iop assign_prop_def by metis
+      show "\<And>i. i < length G1 \<Longrightarrow> if i \<in> fv ?e 
+                                   then \<Gamma> ! i = Some (assign_app_ty S S' (fst (G1 ! i)))
+                                   else \<Gamma> ! i = None \<or> \<Gamma> ! i = Some (assign_app_ty S S' (fst (G1 ! i)))"
+        using cg_iop by meson
     qed (fastforce)+
     moreover have "assign_app_ty S S' \<tau> \<noteq> TPrim Bool"
       using ct_sem_int_not_bool cg_iop ct_sem_conj_iff assign_app_constr.simps by metis
@@ -3421,6 +3458,12 @@ next
     proof (rule_tac split_used_extR[where ?e="?e"])
       show "A \<turnstile> assign_app_constr S S' C2"
         using cg_cop assign_app_constr.simps ct_sem_conjE by metis
+      show "\<forall>i. known_ty (S i)"
+        using cg_cop assign_prop_def by meson
+      show "\<And>i. i < length G1 \<Longrightarrow> if i \<in> fv' 0 (Prim x [e1, e2]) 
+                                   then \<Gamma> ! i = Some (assign_app_ty S S' (fst (G1 ! i)))
+                                   else \<Gamma> ! i = None \<or> \<Gamma> ! i = Some (assign_app_ty S S' (fst (G1 ! i)))"
+        using cg_cop by meson
     qed (fastforce)+
     moreover have "S n1 \<noteq> TPrim Bool" 
       using ct_sem_int_not_bool cg_cop ct_sem_conj_iff assign_app_constr.simps by auto
@@ -3469,6 +3512,12 @@ next
     proof (rule_tac split_used_extR[where ?e="?e"])
       show "A \<turnstile> assign_app_constr S S' C2"
         using cg_bop assign_app_constr.simps ct_sem_conjE by metis
+      show "\<forall>i. known_ty (S i)"
+        using cg_bop assign_prop_def by metis
+      show "\<And>i. i < length G1 \<Longrightarrow> if i \<in> fv' 0 (Prim x [e1, e2]) 
+                                   then \<Gamma> ! i = Some (assign_app_ty S S' (fst (G1 ! i)))
+                                   else \<Gamma> ! i = None \<or> \<Gamma> ! i = Some (assign_app_ty S S' (fst (G1 ! i)))"
+        using cg_bop by meson
     qed (fastforce)+
     moreover have "x \<in> {BitAnd nt, BitOr nt}"
       using cg_bop.hyps by simp
@@ -3563,7 +3612,7 @@ lemma cg_sound:
   assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
     and "G = []"
     and "A \<turnstile> assign_app_constr S S' C"      
-    and "\<forall>i. known_ty (S i)" 
+    and "assign_prop S S'"  
   shows "A \<ddagger> [] \<turnstile> (assign_app_expr S S' e') : (assign_app_ty S S' \<tau>)"
   using assms cg_sound_induction by force
 
