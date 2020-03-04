@@ -762,9 +762,9 @@ lemma context_splitting_none:
   by (clarsimp simp add: context_splitting_def list_all3_conv_all_nth; auto)
 
 inductive weakening_comp :: "axm_set \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" where
-  none : "weakening_comp K None None"
-| keep : "weakening_comp K (Some \<tau>) (Some \<tau>)"
-| drop : "\<lbrakk> A \<turnstile> CtDrop \<tau> \<rbrakk> \<Longrightarrow> weakening_comp K (Some \<tau>) None"
+  weak_none : "weakening_comp K None None"
+| weak_keep : "weakening_comp K (Some \<tau>) (Some \<tau>)"
+| weak_drop : "\<lbrakk> A \<turnstile> CtDrop \<tau> \<rbrakk> \<Longrightarrow> weakening_comp K (Some \<tau>) None"
 
 definition weakening :: "axm_set \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" 
            ("_ \<turnstile> _ \<leadsto>w _" [40,0,40] 60) where
@@ -3023,7 +3023,7 @@ proof (induct arbitrary: S S' \<Gamma> rule: constraint_gen_elab.inducts)
               have "\<Gamma> ! i = Some (assign_app_ty S S' (fst (G ! i)))"
                 using cg_var1.hyps cg_var1.prems by fastforce
               then show ?thesis
-                using True cg_var1.hyps ia_size keep singleton_some by auto
+                using True cg_var1.hyps ia_size weak_keep singleton_some by auto
             next
               case False
               then show ?thesis 
@@ -3063,10 +3063,10 @@ next
                                singleton (length \<Gamma>) i (assign_app_ty S S' \<rho>) ! ia = None"
             by (simp add: singleton_none)
           moreover have "\<And>ia. ia < length \<Gamma> \<Longrightarrow> ia \<noteq> i \<Longrightarrow> ?thesis ia"
-            using assign_app_constr.simps(8) calculation cg_var2.hyps cg_var2.prems diff_zero drop 
-              weakening_comp.none fv'_var by (metis leI less_nat_zero_code singletonD)
+            using assign_app_constr.simps(8) calculation cg_var2.hyps cg_var2.prems diff_zero 
+              weak_drop weak_none fv'_var by (metis leI less_nat_zero_code singletonD)
           ultimately show "\<And>ia. ia < length \<Gamma> \<Longrightarrow> ?thesis ia"
-            using cg_var2.hyps keep singleton_some by fastforce
+            using cg_var2.hyps weak_keep singleton_some by fastforce
         qed
         ultimately show ?thesis
           using cg_var2.hyps cg_var2.prems weakening_def by (metis list_all2_all_nthI)
@@ -3236,7 +3236,7 @@ next
         fix i :: nat
         assume i_size: "i < length \<Gamma>"
         have "weakening_comp A (\<Gamma> ! i) (empty (length \<Gamma>) ! i)"
-          using empty_def none i_size cg_blit.prems drop empty_none
+          using empty_def weak_none i_size cg_blit.prems weak_drop empty_none
           by (case_tac "\<Gamma> ! i = None"; fastforce)
       }
       then show ?thesis
@@ -3259,7 +3259,7 @@ next
         fix i :: nat
         assume i_size: "i < length \<Gamma>"
         have "weakening_comp A (\<Gamma> ! i) (empty (length \<Gamma>) ! i)"
-          using empty_def none i_size cg_ilit.prems drop empty_none
+          using empty_def weak_none i_size cg_ilit.prems weak_drop empty_none
           by (case_tac "\<Gamma> ! i = None"; fastforce)
       }
       then show ?thesis
@@ -3586,7 +3586,7 @@ next
           fix i :: nat
           assume i_size: "i < length \<Gamma>"
           have "weakening_comp A (\<Gamma> ! i) (empty (length \<Gamma>) ! i)"
-            using local.empty_def weakening_comp.none i_size cg_tapp.prems drop empty_none i_size
+            using local.empty_def weak_none i_size cg_tapp.prems weak_drop empty_none i_size
             by (case_tac "\<Gamma> ! i = None"; fastforce)
         }
         then show ?thesis
