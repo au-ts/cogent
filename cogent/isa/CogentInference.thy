@@ -466,7 +466,8 @@ ct_sem_share:
 
 inductive_cases ct_sem_conjE: "A \<turnstile> CtConj C1 C2"
 inductive_cases ct_sem_intE: "A \<turnstile> CtIBound (LNat m) (TPrim pt)"
-inductive_cases ct_sem_funE: "A \<turnstile> CtSub (TFun \<tau>1 \<tau>2) (TFun \<rho>1 \<rho>2)"
+inductive_cases ct_sem_funE1: "A \<turnstile> CtSub (TFun \<tau>1 \<tau>2) \<rho>"
+inductive_cases ct_sem_funE2: "A \<turnstile> CtSub \<rho> (TFun \<tau>1 \<tau>2)"
 inductive_cases ct_sem_exhaust: "A \<turnstile> CtExhausted (TVariant Ks None)"
 inductive_cases ct_sem_varsubE1: "A \<turnstile> CtSub (TVariant Ks \<alpha>) \<tau>"
 inductive_cases ct_sem_varsubE2: "A \<turnstile> CtSub \<tau> (TVariant Ks \<alpha>)"
@@ -506,6 +507,16 @@ lemma ct_sem_int_imp: "A \<turnstile> CtIBound (LNat m) \<tau> \<Longrightarrow>
 
 lemma ct_sem_int_not_bool: "A \<turnstile> CtIBound (LNat m) \<tau> \<Longrightarrow> \<tau> \<noteq> TPrim Bool"
   using ct_sem_intE by blast
+
+lemma ct_sem_fun_exI1: 
+  assumes "A \<turnstile> CtSub (TFun \<tau>1 \<tau>2) \<rho>"
+  shows "\<exists>\<rho>1 \<rho>2. \<rho> = TFun \<rho>1 \<rho>2"
+  using assms ct_sem_eq_iff ct_sem_funE1 by metis
+
+lemma ct_sem_fun_exI2: 
+  assumes "A \<turnstile> CtSub \<rho> (TFun \<tau>1 \<tau>2)"
+  shows "\<exists>\<rho>1 \<rho>2. \<rho> = TFun \<rho>1 \<rho>2"
+  using assms ct_sem_eq_iff ct_sem_funE2 by metis
 
 lemma ct_sem_exhaust_all_used: 
   assumes "A \<turnstile> CtExhausted (TVariant Ks None)"
