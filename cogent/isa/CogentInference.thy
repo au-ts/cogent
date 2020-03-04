@@ -2256,74 +2256,66 @@ proof -
   let ?SG2e2 = "assign_app_ctx S S' (G2\<bar>(fv e2))"
   have G1_G2_length: "length G1 = length G2"
     using assms cg_ctx_length by blast
-  have no_i_in_e_SG1e_none: "\<And>i. i < length G1 \<Longrightarrow> i \<notin> fv e \<Longrightarrow> ?SG1e ! i = None"
-    using ctx_restrict_len ctx_restrict_nth_none assign_app_ctx_def by auto
-  have i_in_e_SG1e_some: "\<And>i. i < length G1 \<Longrightarrow> i \<in> fv e \<Longrightarrow> ?SG1e ! i = Some (assign_app_ty S S' (fst (G1!i)))"
-    using ctx_restrict_len ctx_restrict_nth_some assign_app_ctx_def by auto
-  have no_i_in_e1_SG1e1_none: "\<And>i. i < length G1 \<Longrightarrow> i \<notin> fv e1 \<Longrightarrow> ?SG1e1 ! i = None"
-    using ctx_restrict_len ctx_restrict_nth_none assign_app_ctx_def by auto
-  have i_in_e1_SG1e1_some: "\<And>i. i < length G1 \<Longrightarrow> i \<in> fv e1 \<Longrightarrow> ?SG1e1 ! i = Some (assign_app_ty S S' (fst (G1!i)))"
-    using ctx_restrict_len ctx_restrict_nth_some assign_app_ctx_def by auto
-  have no_i_in_e2_SG2e2_none: "\<And>i. i < length G1 \<Longrightarrow> i \<notin> fv e2 \<Longrightarrow> ?SG2e2 ! i = None"
-    using G1_G2_length ctx_restrict_len ctx_restrict_nth_none assign_app_ctx_def by auto
-  have i_in_e2_SG2e2_some: "\<And>i. i < length G1 \<Longrightarrow> i \<in> fv e2 \<Longrightarrow> ?SG2e2 ! i = Some (assign_app_ty S S' (fst (G2!i)))"
-    using G1_G2_length ctx_restrict_len ctx_restrict_nth_some assign_app_ctx_def by auto
-  have "\<And>i. i < length G1 \<Longrightarrow> i \<notin> (fv e) \<Longrightarrow> ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
-  proof -
-    fix i :: nat 
-    assume i_size: "i < length G1"
-    assume i_not_in_e: "i \<notin> (fv e)"
-    have "(i \<notin> (fv e1)) \<and> (i \<notin> (fv e2))"
-      using assms i_not_in_e by simp
-    then show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
-      using ctx_split_none i_not_in_e i_size no_i_in_e1_SG1e1_none no_i_in_e2_SG2e2_none 
-        no_i_in_e_SG1e_none by auto
-  qed
-  moreover have "\<And>i. i < length G1 \<Longrightarrow> i \<in> (fv e) \<Longrightarrow> ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
-  proof -
+  moreover {
     fix i :: nat
     assume i_size: "i < length G1"
-    assume i_in_e: "i \<in> (fv e)" 
-    have "i \<in> (fv e1) \<or> i \<in> (fv e2)"
-      using assms i_in_e by auto
-    moreover have "i \<in> (fv e1) \<and> i \<notin> (fv e2) \<Longrightarrow> ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
-    proof (erule conjE)
-      assume i_in_e1: "i \<in> (fv e1)"
-      assume i_not_in_e2: "i \<notin> (fv e2)"
-      then show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
-        using ctx_split_left i_in_e i_in_e1 i_size no_i_in_e2_SG2e2_none ctx_restrict_len 
-          ctx_restrict_nth_some assign_app_ctx_def by auto
-    qed
-    moreover have "i \<notin> (fv e1) \<and> i \<in> (fv e2) \<Longrightarrow> ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
-    proof (erule conjE)
-      assume i_not_in_e1: "i \<notin> (fv e1)"
-      assume i_in_e2: "i \<in> (fv e2)"
-      then show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
-        using assms cg_ctx_type_same1 i_in_e i_in_e2_SG2e2_some i_in_e_SG1e_some i_not_in_e1 i_size
-          no_i_in_e1_SG1e1_none ctx_split_right by auto
-    qed
-    moreover have "i \<in> (fv e1) \<and> i \<in> (fv e2) \<Longrightarrow> ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
-    proof (erule conjE)
-      assume i_in_e1: "i \<in> (fv e1)"
-      assume i_in_e2: "i \<in> (fv e2)"
-      have i_type_used: "snd (G2!i) > 0"
-        using cg_gen_output_type_used_nonzero assms i_in_e1 by auto
-      then have i_type_share: "A \<turnstile> CtShare (assign_app_ty S S' (fst (G2!i)))"
-        using assms i_in_e2 cg_assign_type_used_nonzero_imp_share by simp
-      moreover have "(?SG1e ! i) = (?SG1e1 ! i)"
-        using i_in_e i_in_e1 i_size ctx_restrict_len ctx_restrict_nth_some assign_app_ctx_def by auto
-      moreover have "(?SG1e1 ! i) = (?SG2e2 ! i)"
-        using assms assign_app_ctx_def i_in_e1 i_in_e2 i_size G1_G2_length cg_ctx_type_same1 
-          ctx_restrict_len ctx_restrict_nth_some by (metis (no_types, lifting) nth_map)
-      ultimately show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
-        using G1_G2_length i_in_e2 i_size ctx_restrict_len ctx_restrict_nth_some ctx_split_share 
-          assign_app_ctx_def by auto
-    qed
-    ultimately show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
+    have no_i_in_e_SG1e_none: "i \<notin> fv e \<Longrightarrow> ?SG1e ! i = None"
+      using ctx_restrict_len ctx_restrict_nth_none assign_app_ctx_def i_size by auto
+    have i_in_e_SG1e_some: "i \<in> fv e \<Longrightarrow> ?SG1e ! i = Some (assign_app_ty S S' (fst (G1!i)))"
+      using ctx_restrict_len ctx_restrict_nth_some assign_app_ctx_def i_size by auto
+    have no_i_in_e1_SG1e1_none: "i \<notin> fv e1 \<Longrightarrow> ?SG1e1 ! i = None"
+      using ctx_restrict_len ctx_restrict_nth_none assign_app_ctx_def i_size by auto
+    have i_in_e1_SG1e1_some: "i \<in> fv e1 \<Longrightarrow> ?SG1e1 ! i = Some (assign_app_ty S S' (fst (G1!i)))"
+      using ctx_restrict_len ctx_restrict_nth_some assign_app_ctx_def i_size by auto
+    have no_i_in_e2_SG2e2_none: "i \<notin> fv e2 \<Longrightarrow> ?SG2e2 ! i = None"
+      using G1_G2_length ctx_restrict_len ctx_restrict_nth_none assign_app_ctx_def i_size by auto
+    have i_in_e2_SG2e2_some: "i \<in> fv e2 \<Longrightarrow> ?SG2e2 ! i = Some (assign_app_ty S S' (fst (G2!i)))"
+      using G1_G2_length ctx_restrict_len ctx_restrict_nth_some assign_app_ctx_def i_size by auto
+    consider (i_in_e) "i \<in> fv e" | (i_not_in_e) "i \<notin> fv e"
       by blast
-  qed
+    then have "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
+    proof cases
+      case i_in_e
+      consider (case_1) "i \<in> fv e1" "i \<notin> fv e2" | (case_2) "i \<notin> fv e1" "i \<in> fv e2"
+        |   (case_3) "i \<in> fv e1" "i \<in> fv e2"
+        using assms i_in_e by blast
+      then show ?thesis
+      proof cases
+        case case_1
+        then show ?thesis
+          using ctx_split_left i_in_e i_size no_i_in_e2_SG2e2_none ctx_restrict_len 
+            ctx_restrict_nth_some assign_app_ctx_def by auto
+      next
+        case case_2
+        then show ?thesis
+          using assms cg_ctx_type_same1 i_in_e i_in_e2_SG2e2_some i_in_e_SG1e_some i_size
+            no_i_in_e1_SG1e1_none ctx_split_right by auto
+      next
+        case case_3
+        have i_type_used: "snd (G2!i) > 0"
+          using cg_gen_output_type_used_nonzero assms case_3 by auto
+        then have i_type_share: "A \<turnstile> CtShare (assign_app_ty S S' (fst (G2!i)))"
+          using assms case_3 cg_assign_type_used_nonzero_imp_share by simp
+        moreover have "(?SG1e ! i) = (?SG1e1 ! i)"
+          using i_in_e case_3 i_size ctx_restrict_len ctx_restrict_nth_some assign_app_ctx_def by auto
+        moreover have "(?SG1e1 ! i) = (?SG2e2 ! i)"
+          using assms assign_app_ctx_def case_3 i_size G1_G2_length cg_ctx_type_same1 
+            ctx_restrict_len ctx_restrict_nth_some by (metis (no_types, lifting) nth_map)
+        ultimately show ?thesis 
+          using G1_G2_length case_3 i_size ctx_restrict_len ctx_restrict_nth_some ctx_split_share 
+            assign_app_ctx_def by auto
+      qed
+    next
+      case i_not_in_e
+      have "(i \<notin> (fv e1)) \<and> (i \<notin> (fv e2))"
+        using assms i_not_in_e by simp
+      then show ?thesis
+        using ctx_split_none i_not_in_e i_size no_i_in_e1_SG1e1_none no_i_in_e2_SG2e2_none 
+          no_i_in_e_SG1e_none by auto
+    qed
+  }
   ultimately show ?thesis
-    using G1_G2_length context_splitting_def assign_app_ctx_len ctx_restrict_len
+    using context_splitting_def assign_app_ctx_len ctx_restrict_len
     by (metis (full_types) list_all3_conv_all_nth)
 qed
 
