@@ -411,8 +411,7 @@ lemma alg_ctx_jn_type_used_same:
 
 
 section {* Constraint Semantics (Fig 3.6) *}
-inductive constraint_sem :: "axm_set \<Rightarrow> constraint \<Rightarrow> bool"
-          ("_ \<turnstile> _" [40, 40] 60) where
+inductive constraint_sem :: "axm_set \<Rightarrow> constraint \<Rightarrow> bool" ("_ \<turnstile> _" [40, 40] 60) where
 ct_sem_share:
   "CtShare \<rho> \<in> A \<Longrightarrow> A \<turnstile> CtShare \<rho>"
 | ct_sem_drop:
@@ -465,7 +464,7 @@ ct_sem_share:
    \<rbrakk> \<Longrightarrow> A \<turnstile> CtDrop (TVariant (K # Ks) None)"
 
 inductive_cases ct_sem_conjE: "A \<turnstile> CtConj C1 C2"
-inductive_cases ct_sem_intE: "A \<turnstile> CtIBound (LNat m) (TPrim pt)"
+inductive_cases ct_sem_intE: "A \<turnstile> CtIBound (LNat m) \<tau>"
 inductive_cases ct_sem_reflE: "A \<turnstile> CtEq \<tau> \<rho>" 
 inductive_cases ct_sem_funE1: "A \<turnstile> CtSub (TFun \<tau>1 \<tau>2) \<rho>"
 inductive_cases ct_sem_funE2: "A \<turnstile> CtSub \<rho> (TFun \<tau>1 \<tau>2)"
@@ -494,14 +493,13 @@ proof (induct Cs arbitrary: i)
 qed (simp)
 
 lemma ct_sem_eq_iff: "A \<turnstile> CtEq \<tau> \<rho> \<longleftrightarrow> \<tau> = \<rho>"
-  using constraint_sem.cases ct_sem_refl by fastforce
+  using ct_sem_reflE ct_sem_refl by fastforce
 
 lemma ct_sem_int_iff: "A \<turnstile> CtIBound (LNat m) (TPrim pt) \<longleftrightarrow> (\<exists>n. pt = Num n \<and> m < abs n)"
   using ct_sem_intE ct_sem_int by blast
 
 lemma ct_sem_int_exI: "A \<turnstile> CtIBound (LNat m) \<tau> \<Longrightarrow> \<exists>pt. \<tau> = TPrim pt"
-proof (induct \<tau>)
-qed (fastforce intro: constraint_sem.cases)+
+  using ct_sem_intE by meson
 
 lemma ct_sem_int_imp: "A \<turnstile> CtIBound (LNat m) \<tau> \<Longrightarrow> \<exists>n. \<tau> = TPrim (Num n) \<and> m < abs n"
   using ct_sem_int_iff ct_sem_int_exI by metis
