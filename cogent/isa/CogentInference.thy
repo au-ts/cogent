@@ -988,7 +988,7 @@ lemma cg_ctx_idx_size:
   shows "i < length G'"
   using assms cg_ctx_length by auto
 
-lemma cg_ctx_type_same:
+lemma cg_ctx_type_same1:
   assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
   shows "\<And>i. i < length G \<Longrightarrow> fst (G ! i) = fst (G' ! i)"
   using assms
@@ -1018,6 +1018,11 @@ next
   then show ?case
     by (metis Suc_mono cg_ctx_length length_Cons nth_Cons_Suc)
 qed (auto simp add: cg_ctx_length)+
+
+lemma cg_ctx_type_same2:
+  assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
+  shows "\<And>i. i < length G' \<Longrightarrow> fst (G ! i) = fst (G' ! i)"
+  using assms cg_ctx_type_same1 cg_ctx_idx_size cg_ctx_length by metis
 
 lemma cg_ctx_type_used_nondec:
   assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
@@ -1775,7 +1780,7 @@ next
     next
       case i_in_e2
       then show ?thesis 
-        using cg_ctx_type_same cg_ctx_type_used_nondec cg_ctx_length cg_gen_fv_elem_size
+        using cg_ctx_type_same1 cg_ctx_type_used_nondec cg_ctx_length cg_gen_fv_elem_size
           cg_app by (metis neq0_conv not_le ct_sem_conjE)
     qed
   qed
@@ -1793,7 +1798,7 @@ next
     next
       case i_in_e2
       then show ?thesis 
-        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+        using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
           ct_sem_conjE i_fv'_suc_iff_suc_i_fv' cg_let
         by (metis Suc_less_eq gt_or_eq_0 leD length_Cons nth_Cons_Suc)
     qed
@@ -1808,17 +1813,17 @@ next
     proof cases
       case i_in_e1
       then show ?thesis 
-        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+        using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
           cg_if ct_sem_conjE by metis
     next
       case i_in_e2
       then show ?thesis 
-        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+        using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
           cg_if ct_sem_conjE by (metis (no_types, lifting) gt_or_eq_0 leD)
     next
       case i_in_e3
       then show ?thesis 
-        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+        using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
           cg_if ct_sem_conjE by (metis (no_types, lifting) gt_or_eq_0 leD)
     qed
   qed
@@ -1832,12 +1837,12 @@ next
     proof cases
       case i_in_e1
       then show ?thesis 
-        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+        using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
           cg_iop ct_sem_conjE by metis
     next
       case i_in_e2
       then show ?thesis
-        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+        using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
           cg_iop ct_sem_conjE by (metis (mono_tags, lifting) gt_or_eq_0 leD)
     qed
   qed
@@ -1851,12 +1856,12 @@ next
     proof cases
       case i_in_e1
       then show ?thesis 
-        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+        using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
           cg_cop ct_sem_conjE by metis
     next
       case i_in_e2
       then show ?thesis 
-        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+        using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
           cg_cop ct_sem_conjE by (metis (mono_tags, lifting) gt_or_eq_0 leD)
     qed
   qed
@@ -1870,12 +1875,12 @@ next
     proof cases
       case i_in_e1
       then show ?thesis 
-        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+        using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
           cg_bop ct_sem_conjE by metis
     next
       case i_in_e2
       then show ?thesis
-        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+        using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
           cg_bop ct_sem_conjE by (metis (mono_tags, lifting) gt_or_eq_0 leD)
     qed
   qed
@@ -1901,7 +1906,7 @@ next
           i_fv'_suc_iff_suc_i_fv' by (metis Suc_less_eq  gr_zeroI leD length_Cons nth_Cons_Suc)
       moreover have "\<rho> = fst (((\<beta>, 0) # G2) ! Suc i)"
         using cg_case cg_ctx_length cg_gen_fv_elem_size i_fv'_suc_iff_suc_i_fv' i_in_e2 
-          cg_ctx_type_same
+          cg_ctx_type_same1
         by (metis length_Cons less_SucE list.size(4) not_add_less1 nth_Cons_Suc)
       ultimately show ?thesis
         using i_fv'_suc_iff_suc_i_fv' i_in_e2 cg_case ct_sem_conj_iff by metis
@@ -1912,7 +1917,7 @@ next
           i_fv'_suc_iff_suc_i_fv' by (metis Suc_less_eq  gr_zeroI leD length_Cons nth_Cons_Suc)
       moreover have "\<rho> = fst (((TVariant [(nm, \<beta>, Used)] (Some \<alpha>), 0) # G2) ! Suc i)"
         using cg_case cg_ctx_length cg_gen_fv_elem_size i_fv'_suc_iff_suc_i_fv' i_in_e3
-          cg_ctx_type_same
+          cg_ctx_type_same1
         by (metis length_Cons less_SucE list.size(4) not_add_less1 nth_Cons_Suc)
       ultimately show ?thesis
         using i_fv'_suc_iff_suc_i_fv' i_in_e3 cg_case ct_sem_conj_iff by metis
@@ -1935,7 +1940,7 @@ next
         using i_in_e2 cg_ctx_length cg_irref i_fv'_suc_iff_suc_i_fv' cg_ctx_type_used_nondec 
           cg_gen_fv_elem_size by (metis Suc_less_SucD length_Cons)
       moreover have "\<rho> = fst (((\<beta>, 0) # G2) ! Suc i)"
-        using i_in_e2 cg_ctx_length cg_irref i_fv'_suc_iff_suc_i_fv' cg_ctx_type_same 
+        using i_in_e2 cg_ctx_length cg_irref i_fv'_suc_iff_suc_i_fv' cg_ctx_type_same1 
           cg_gen_fv_elem_size 
         by (metis Suc_eq_plus1 length_Cons less_SucE not_add_less1 nth_Cons_Suc)
       ultimately show ?thesis
@@ -2007,7 +2012,7 @@ next
     next
       case i_in_e2
       then show ?thesis 
-        using cg_ctx_type_same cg_ctx_type_used_nondec cg_ctx_length cg_gen_fv_elem_size
+        using cg_ctx_type_same1 cg_ctx_type_used_nondec cg_ctx_length cg_gen_fv_elem_size
           cg_app assign_app_constr.simps by (metis (no_types, lifting) gt_or_eq_0 leD ct_sem_conjE)
     qed
   qed
@@ -2025,7 +2030,7 @@ next
     next
       case i_in_e2
       then show ?thesis 
-        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+        using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
           ct_sem_conjE i_fv'_suc_iff_suc_i_fv' cg_let assign_app_constr.simps
         by (metis (no_types, lifting) Suc_less_eq gr0I leD length_Cons nth_Cons_Suc)
     qed
@@ -2040,17 +2045,17 @@ next
     proof cases
       case i_in_e1
       then show ?thesis 
-        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+        using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
           cg_if ct_sem_conjE assign_app_constr.simps by metis
     next
       case i_in_e2
       then show ?thesis 
-        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+        using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
           cg_if ct_sem_conjE assign_app_constr.simps by (metis (no_types, lifting) leD not_gr_zero)
     next
       case i_in_e3
       then show ?thesis 
-        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+        using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
           cg_if ct_sem_conjE assign_app_constr.simps by (metis (no_types, lifting) gt_or_eq_0 leD)
     qed
   qed
@@ -2064,12 +2069,12 @@ next
     proof cases
       case i_in_e1
       then show ?thesis 
-        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+        using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
           cg_iop ct_sem_conjE assign_app_constr.simps by metis
     next
       case i_in_e2
       then show ?thesis 
-        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+        using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
           cg_iop ct_sem_conjE assign_app_constr.simps by (metis (mono_tags, lifting) gt_or_eq_0 leD)
     qed
   qed
@@ -2083,12 +2088,12 @@ next
     proof cases
       case i_in_e1
       then show ?thesis 
-        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+        using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
           cg_cop ct_sem_conjE assign_app_constr.simps by metis
     next
       case i_in_e2
       then show ?thesis 
-        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+        using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
           cg_cop ct_sem_conjE assign_app_constr.simps by (metis (mono_tags, lifting) gt_or_eq_0 leD)
     qed
   qed
@@ -2102,12 +2107,12 @@ next
     proof cases
       case i_in_e1
       then show ?thesis 
-        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+        using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
           cg_bop ct_sem_conjE assign_app_constr.simps by metis
     next
       case i_in_e2
       then show ?thesis 
-        using cg_ctx_length cg_ctx_type_same cg_ctx_type_used_nondec cg_gen_fv_elem_size
+        using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
           cg_bop ct_sem_conjE assign_app_constr.simps by (metis (mono_tags, lifting) gt_or_eq_0 leD)
     qed
   qed
@@ -2133,7 +2138,7 @@ next
           i_fv'_suc_iff_suc_i_fv' by (metis Suc_less_eq  gr_zeroI leD length_Cons nth_Cons_Suc)
       moreover have "\<rho> = fst (((\<beta>, 0) # G2) ! Suc i)"
         using cg_case cg_ctx_length cg_gen_fv_elem_size i_fv'_suc_iff_suc_i_fv' i_in_e2 
-          cg_ctx_type_same
+          cg_ctx_type_same1
         by (metis length_Cons less_SucE list.size(4) not_add_less1 nth_Cons_Suc)
       ultimately show ?thesis
         using i_fv'_suc_iff_suc_i_fv' i_in_e2 cg_case ct_sem_conj_iff assign_app_constr.simps 
@@ -2145,7 +2150,7 @@ next
           i_fv'_suc_iff_suc_i_fv' by (metis Suc_less_eq  gr_zeroI leD length_Cons nth_Cons_Suc)
       moreover have "\<rho> = fst (((TVariant [(nm, \<beta>, Used)] (Some \<alpha>), 0) # G2) ! Suc i)"
         using cg_case cg_ctx_length cg_gen_fv_elem_size i_fv'_suc_iff_suc_i_fv' i_in_e3
-          cg_ctx_type_same
+          cg_ctx_type_same1
         by (metis length_Cons less_SucE list.size(4) not_add_less1 nth_Cons_Suc)
       moreover have "A \<turnstile> assign_app_constr S C3"
         using cg_case ct_sem_conj_iff assign_app_constr.simps by metis
@@ -2170,7 +2175,7 @@ next
         using i_in_e2 cg_ctx_length cg_irref i_fv'_suc_iff_suc_i_fv' cg_ctx_type_used_nondec 
           cg_gen_fv_elem_size by (metis Suc_less_SucD length_Cons)
       moreover have "\<rho> = fst (((\<beta>, 0) # G2) ! Suc i)"
-        using i_in_e2 cg_ctx_length cg_irref i_fv'_suc_iff_suc_i_fv' cg_ctx_type_same 
+        using i_in_e2 cg_ctx_length cg_irref i_fv'_suc_iff_suc_i_fv' cg_ctx_type_same1 
           cg_gen_fv_elem_size 
         by (metis Suc_eq_plus1 length_Cons less_SucE not_add_less1 nth_Cons_Suc)
       ultimately show ?thesis
@@ -2289,7 +2294,7 @@ proof -
       assume i_not_in_e1: "i \<notin> (fv e1)"
       assume i_in_e2: "i \<in> (fv e2)"
       then show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
-        using assms cg_ctx_type_same i_in_e i_in_e2_SG2e2_some i_in_e_SG1e_some i_not_in_e1 i_size
+        using assms cg_ctx_type_same1 i_in_e i_in_e2_SG2e2_some i_in_e_SG1e_some i_not_in_e1 i_size
           no_i_in_e1_SG1e1_none right by auto
     qed
     moreover have "i \<in> (fv e1) \<and> i \<in> (fv e2) \<Longrightarrow> ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
@@ -2303,7 +2308,7 @@ proof -
       moreover have "(?SG1e ! i) = (?SG1e1 ! i)"
         using i_in_e i_in_e1 i_size ctx_restrict_len ctx_restrict_nth_some assign_app_ctx_def by auto
       moreover have "(?SG1e1 ! i) = (?SG2e2 ! i)"
-        using assms assign_app_ctx_def i_in_e1 i_in_e2 i_size G1_G2_length cg_ctx_type_same 
+        using assms assign_app_ctx_def i_in_e1 i_in_e2 i_size G1_G2_length cg_ctx_type_same1 
           ctx_restrict_len ctx_restrict_nth_some by (metis (no_types, lifting) nth_map)
       ultimately show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
         using G1_G2_length i_in_e2 i_size ctx_restrict_len ctx_restrict_nth_some share assign_app_ctx_def
@@ -2387,7 +2392,7 @@ proof -
       assume i_not_in_e1: "i \<notin> (fv e1)"
       assume i_in_e2: "i \<in> ?dec_fv_e2"
       then show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
-        by (metis G1_G2_length assign_app_ctx_restrict_some assms(2) cg_ctx_type_same i_in_e i_not_in_e1 i_size no_i_in_e1_SG1e1_none right)
+        by (metis G1_G2_length assign_app_ctx_restrict_some assms(2) cg_ctx_type_same1 i_in_e i_not_in_e1 i_size no_i_in_e1_SG1e1_none right)
     qed
     moreover have "i \<in> (fv e1) \<and> i \<in> ?dec_fv_e2 \<Longrightarrow> ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
     proof (erule conjE)
@@ -2401,7 +2406,7 @@ proof -
       moreover have "(?SG1e ! i) = (?SG1e1 ! i)"
         using i_in_e i_in_e1 i_size ctx_restrict_len ctx_restrict_nth_some assign_app_ctx_def by auto
       moreover have "(?SG1e1 ! i) = (?SG2e2 ! i)"
-        using assms assign_app_ctx_def i_in_e1 i_in_e2 i_size G1_G2_length cg_ctx_type_same 
+        using assms assign_app_ctx_def i_in_e1 i_in_e2 i_size G1_G2_length cg_ctx_type_same1 
           ctx_restrict_len ctx_restrict_nth_some by (metis (no_types, lifting) nth_map)
       ultimately show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2 ! i)"
         using G1_G2_length i_in_e2 i_size ctx_restrict_len ctx_restrict_nth_some share assign_app_ctx_def
@@ -2476,7 +2481,7 @@ proof -
       assume i_in_e2: "i \<in> (fv e2 \<union> fv e3)"
       then show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2e3 ! i)"
         by (metis assign_app_ctx_restrict_some assms(2) i_in_e i_in_e2_SG2e2_some i_not_in_e1 i_size
-            no_i_in_e1_SG1e1_none type_infer.cg_ctx_type_same type_infer.right type_infer_axioms)
+            no_i_in_e1_SG1e1_none type_infer.cg_ctx_type_same1 type_infer.right type_infer_axioms)
     qed
     moreover have "i \<in> (fv e1) \<and> i \<in> (fv e2 \<union> fv e3) \<Longrightarrow> ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2e3 ! i)"
     proof (erule conjE)
@@ -2490,7 +2495,7 @@ proof -
         using i_in_e i_in_e1 i_size ctx_restrict_len ctx_restrict_nth_some assign_app_ctx_def
         by auto
       moreover have "(?SG1e1 ! i) = (?SG2e2e3 ! i)"
-        using assms assign_app_ctx_def i_in_e1 i_in_e2e3 i_size G1_G2_length cg_ctx_type_same 
+        using assms assign_app_ctx_def i_in_e1 i_in_e2e3 i_size G1_G2_length cg_ctx_type_same1 
           ctx_restrict_len ctx_restrict_nth_some by (metis (no_types, lifting) nth_map)
       ultimately show "ctx_split_comp A (?SG1e ! i) (?SG1e1 ! i) (?SG2e2e3 ! i)"
         using G1_G2_length i_in_e2e3 i_size ctx_restrict_len ctx_restrict_nth_some share 
@@ -2522,7 +2527,7 @@ proof -
   have "A \<turnstile> assign_app_ctx S (G1\<bar>fv e) \<leadsto> assign_app_ctx S (G1\<bar>fv e1) \<box> assign_app_ctx S (G2\<bar>fv e2)"
     using split_used assms by blast
   then have "A \<turnstile> assign_app_ctx S (G1\<bar>fv e \<union> idxs) \<leadsto> assign_app_ctx S (G1\<bar>fv e1) \<box> assign_app_ctx S (G2\<bar>fv e2 \<union> idxs)"
-    using assms by (rule_tac split_unionR; force intro: cg_ctx_type_same)
+    using assms by (rule_tac split_unionR; force intro: cg_ctx_type_same1)
   moreover have "\<Gamma> = assign_app_ctx S (G1\<bar>fv e \<union> idxs)"
   proof (rule nth_equalityI)
     show "length \<Gamma> = length (assign_app_ctx S (G1\<bar>fv e \<union> idxs))"
@@ -2582,7 +2587,7 @@ proof -
   have "A \<turnstile> assign_app_ctx S (G1\<bar>fv e) \<leadsto> assign_app_ctx S (G1\<bar>fv e1) \<box> assign_app_ctx S (G2\<bar>dec_fv_e2)"
     using split_used_let assms by blast
   then have "A \<turnstile> assign_app_ctx S (G1\<bar>fv e \<union> idxs) \<leadsto> assign_app_ctx S (G1\<bar>fv e1) \<box> assign_app_ctx S (G2\<bar>dec_fv_e2 \<union> idxs)"
-    using assms fv'_suc_eq_minus_fv' by (rule_tac split_unionR; auto intro: cg_ctx_type_same)
+    using assms fv'_suc_eq_minus_fv' by (rule_tac split_unionR; auto intro: cg_ctx_type_same1)
   moreover have "\<Gamma> = assign_app_ctx S (G1\<bar>fv e \<union> idxs)"
   proof (rule nth_equalityI)
     show "length \<Gamma> = length (assign_app_ctx S (G1\<bar>fv e \<union> idxs))"
@@ -2644,7 +2649,7 @@ proof -
   have "A \<turnstile> assign_app_ctx S (G1\<bar>fv e) \<leadsto> assign_app_ctx S (G1\<bar>fv e1) \<box> assign_app_ctx S (G2\<bar>(fv e2 \<union> fv e3))"
     using split_used_if assms by meson
   then have "A \<turnstile> assign_app_ctx S (G1\<bar>fv e \<union> idxs) \<leadsto> assign_app_ctx S (G1\<bar>fv e1) \<box> assign_app_ctx S (G2\<bar>(fv e2 \<union> fv e3) \<union> idxs)"
-    using assms by (rule_tac split_unionR; auto intro: cg_ctx_type_same)
+    using assms by (rule_tac split_unionR; auto intro: cg_ctx_type_same1)
   moreover have "\<Gamma> = assign_app_ctx S (G1\<bar>fv e \<union> idxs)"
   proof (intro nth_equalityI)
     show "length \<Gamma> = length (assign_app_ctx S (G1\<bar>fv e \<union> idxs))"
@@ -2823,7 +2828,7 @@ next
          else assign_app_ctx S (G2 \<bar> fv e2 \<union> ?idxs) ! i = None \<or>
               assign_app_ctx S (G2 \<bar> fv e2 \<union> ?idxs) ! i = Some (assign_app_ty S (fst (G2 ! i))) \<and>
               A \<turnstile> assign_app_constr S (CtDrop (fst (G2 ! i)))"
-        using cg_app cg_ctx_type_same i_size ctx_restrict_def
+        using cg_app cg_ctx_type_same1 i_size ctx_restrict_def
         by (auto split: if_splits; clarsimp simp add: assign_app_ctx_nth; metis option.distinct(1) option.sel)
     qed (simp add: ct_sem_conj_iff ctx_restrict_len assign_app_ctx_len)+
     ultimately show ?thesis
@@ -2896,7 +2901,7 @@ next
             then have "A \<turnstile> assign_app_constr S (CtDrop (fst (G1 ! (i - 1))))"
               by (meson atLeastLessThan_iff cg_let.prems(3) dec_i_in_idxs member_filter)
             then have "A \<turnstile> assign_app_constr S (CtDrop (fst (G2 ! (i - 1))))"
-              using cg_ctx_type_same cg_let.hyps dec_i_in_idxs by auto
+              using cg_ctx_type_same1 cg_let.hyps dec_i_in_idxs by auto
           }
           ultimately show ?thesis
             using assign_app_ctx_restrict_some i_nonzero i_size 
@@ -3009,11 +3014,11 @@ next
             qed (force)+
             then show ?thesis
               using cg_if.hyps assign_app_ctx_restrict_some i_in_e3 alg_ctx_jn_type_same1 
-                cg_ctx_length cg_ctx_type_same i_size by (auto simp add: False)
+                cg_ctx_length cg_ctx_type_same1 i_size by (auto simp add: False)
           next
             case i_in_idxs
             have "A \<turnstile> CtDrop (assign_app_ty S (fst (G2 ! i)))"
-              using cg_if assign_app_constr.simps cg_ctx_length cg_ctx_type_same i_in_idxs i_size 
+              using cg_if assign_app_constr.simps cg_ctx_length cg_ctx_type_same1 i_in_idxs i_size 
                 member_filter by (metis (mono_tags, lifting))
             then show ?thesis
               using assign_app_ctx_restrict_some i_in_idxs i_size False by simp
@@ -3053,11 +3058,11 @@ next
             qed (force)+
             then show ?thesis
               using cg_if.hyps assign_app_ctx_restrict_some i_in_e2 alg_ctx_jn_type_same1 
-                cg_ctx_length cg_ctx_type_same i_size by (auto simp add: False)
+                cg_ctx_length cg_ctx_type_same1 i_size by (auto simp add: False)
           next
             case i_in_idxs
             have "A \<turnstile> CtDrop (assign_app_ty S (fst (G2 ! i)))"
-              using cg_if assign_app_constr.simps cg_ctx_length cg_ctx_type_same i_in_idxs i_size 
+              using cg_if assign_app_constr.simps cg_ctx_length cg_ctx_type_same1 i_in_idxs i_size 
                 member_filter by (metis (mono_tags, lifting))
             then show ?thesis
               using assign_app_ctx_restrict_some i_in_idxs i_size False by simp
@@ -3106,7 +3111,7 @@ next
               map_option (assign_app_ty S) ((G2 \<bar> fv e2 \<union> ?idxs) ! i) =
               Some (assign_app_ty S (fst (G2 ! i))) \<and>
               A \<turnstile> assign_app_constr S (CtDrop (fst (G2 ! i)))"
-         using cg_iop cg_ctx_type_same i_size ctx_restrict_def by fastforce
+         using cg_iop cg_ctx_type_same1 i_size ctx_restrict_def by fastforce
         then show "if i \<in> fv e2
          then assign_app_ctx S (G2 \<bar> fv e2 \<union> ?idxs) ! i =
               Some (assign_app_ty S (fst (G2 ! i)))
@@ -3152,7 +3157,7 @@ next
           then have "i \<in> ?idxs"
             using assign_app_ctx_restrict_some_ex i_size i_not_in_e2 by fastforce
           then have "A \<turnstile> CtDrop (assign_app_ty S (fst (G2 ! i)))"
-            using cg_cop.hyps(3) cg_cop.prems(3) cg_ctx_type_same by fastforce
+            using cg_cop.hyps(3) cg_cop.prems(3) cg_ctx_type_same1 by fastforce
         }
         then show "if i \<in> fv e2
          then assign_app_ctx S (G2\<bar>fv e2 \<union> ?idxs) ! i =
@@ -3209,7 +3214,7 @@ next
           then have "i \<in> ?idxs"
             using assign_app_ctx_restrict_some_ex i_size i_not_in_e2 by fastforce
           then have "A \<turnstile> CtDrop (assign_app_ty S (fst (G2 ! i)))"
-            using cg_bop.hyps(2) cg_bop.prems(3) cg_ctx_type_same by fastforce
+            using cg_bop.hyps(2) cg_bop.prems(3) cg_ctx_type_same1 by fastforce
         }
         then show "if i \<in> fv e2
           then assign_app_ctx S (G2 \<bar> fv e2 \<union> ?idxs) ! i =
