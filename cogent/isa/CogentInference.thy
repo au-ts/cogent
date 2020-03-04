@@ -466,6 +466,7 @@ ct_sem_share:
 
 inductive_cases ct_sem_conjE: "A \<turnstile> CtConj C1 C2"
 inductive_cases ct_sem_intE: "A \<turnstile> CtIBound (LNat m) (TPrim pt)"
+inductive_cases ct_sem_reflE: "A \<turnstile> CtEq \<tau> \<rho>" 
 inductive_cases ct_sem_funE1: "A \<turnstile> CtSub (TFun \<tau>1 \<tau>2) \<rho>"
 inductive_cases ct_sem_funE2: "A \<turnstile> CtSub \<rho> (TFun \<tau>1 \<tau>2)"
 inductive_cases ct_sem_exhaust: "A \<turnstile> CtExhausted (TVariant Ks None)"
@@ -606,6 +607,139 @@ next
     ultimately show "A \<turnstile> CtSub (TVariant (K # Ks1) None) (TVariant Ks2 None)"
       using ct_sem_varsub_cons ks1_ks2_props
       by (metis length_greater_0_conv list.distinct(1) nth_Cons_0)
+  qed
+qed
+
+inductive_cases ct_sem_tvarsubE: "A \<turnstile> CtSub (TVar x) \<tau>"                                
+inductive_cases ct_sem_tprimsubE: "A \<turnstile> CtSub (TPrim x) \<tau>"
+inductive_cases ct_sem_tproductsubE: "A \<turnstile> CtSub (TProduct \<tau>1 \<tau>2) \<rho>"
+inductive_cases ct_sem_tunitsubE: "A \<turnstile> CtSub TUnit \<tau>"
+inductive_cases ct_sem_tunknownsubE: "A \<turnstile> CtSub (TUnknown n) \<tau>"
+lemma ct_sem_sub_trans:
+  assumes "A \<turnstile> CtSub \<tau>1 \<tau>2"
+    and "A \<turnstile> CtSub \<tau>2 \<tau>3"
+  shows "A \<turnstile> CtSub \<tau>1 \<tau>3"
+  using assms
+proof (induct \<tau>2 arbitrary: \<tau>1 \<tau>3)
+  case (TVar x)
+  then show ?case
+    using ct_sem_tvarsubE ct_sem_eq_iff by auto
+next
+  case (TFun \<rho> \<rho>')
+  then show ?case
+  proof -
+    obtain \<tau> \<tau>' where \<tau>_\<tau>'_def: "\<tau>1 = TFun \<tau> \<tau>'"
+      using TFun.prems ct_sem_fun_exI2 by blast
+    obtain \<mu> \<mu>' where \<mu>_\<mu>'_def: "\<tau>3 = TFun \<mu> \<mu>'"
+      using TFun.prems ct_sem_fun_exI1 by blast
+    consider (equal) "A \<turnstile> CtEq (TFun \<tau> \<tau>') (TFun \<rho> \<rho>')" | (sub) "A \<turnstile> CtSub \<rho> \<tau>" "A \<turnstile> CtSub \<tau>' \<rho>'"
+      using \<tau>_\<tau>'_def TFun.prems ct_sem_funE1 by blast
+    then show ?thesis
+    proof cases
+      case equal
+      then show ?thesis
+        using ct_sem_eq_iff TFun.prems \<tau>_\<tau>'_def by metis
+    next
+      case sub
+      consider (equal2) "A \<turnstile> CtEq (TFun \<rho> \<rho>') (TFun \<mu> \<mu>')" | (sub2) "A \<turnstile> CtSub \<mu> \<rho>" "A \<turnstile> CtSub \<rho>' \<mu>'"
+        using \<mu>_\<mu>'_def TFun.prems ct_sem_funE1 by blast
+      then show ?thesis 
+      proof cases
+        case equal2
+        then show ?thesis
+          using ct_sem_eq_iff TFun.prems \<mu>_\<mu>'_def by force
+      next
+        case sub2
+        then show ?thesis
+          using sub TFun ct_sem_fun \<tau>_\<tau>'_def \<mu>_\<mu>'_def by blast
+      qed
+    qed
+  qed
+next
+  case (TPrim x)
+  then show ?case
+    using ct_sem_tprimsubE ct_sem_eq_iff by auto
+next
+  case (TProduct \<tau>11 \<tau>12)
+  then show ?case
+    using ct_sem_tproductsubE ct_sem_eq_iff by metis
+next
+  case TUnit
+  then show ?case 
+    using ct_sem_tunitsubE ct_sem_eq_iff by auto
+next
+  case (TUnknown x)
+  then show ?case
+    using ct_sem_tunknownsubE ct_sem_eq_iff by auto
+next
+  case (TVariant Ks \<alpha>)
+  then show ?case
+  proof (induct Ks arbitrary: \<tau>1 \<tau>3)
+    case Nil
+    then show ?case
+      using ct_sem_varsubE1 ct_sem_reflE by fast
+  next
+    case (Cons K2 Ks2)
+    consider (equal) "A \<turnstile> CtEq \<tau>1 (TVariant (K2 # Ks2) \<alpha>)" | 
+             (var_nil) "\<alpha> = None" "\<tau>1 = TVariant [] None" |
+             (var_cons) "\<alpha> = None" "\<exists>K Ks. \<tau>1 = TVariant (K # Ks) None"
+      using Cons.prems ct_sem_varsubE2 by metis
+    then show ?case
+    proof cases
+      case equal
+      then show ?thesis
+        using Cons.prems ct_sem_eq_iff by metis
+    next
+      case var_nil
+      then show ?thesis
+        using Cons.prems ct_sem_varsub_cons_exI2 by blast
+    next
+      case var_cons
+      obtain K1 Ks1 where k1_ks1_def: "\<tau>1 = TVariant (K1 # Ks1) None"
+        using var_cons by presburger
+      consider (equal2) "A \<turnstile> CtEq (TVariant (K2 # Ks2) None) \<tau>3" | (var_nil2) "\<tau>3 = TVariant [] None" |
+        (var_cons2) "\<exists>K3 Ks3. \<tau>3 = TVariant (K3 # Ks3) None"
+        using Cons.prems ct_sem_varsubE1 k1_ks1_def var_cons by blast
+      then show ?thesis
+      proof cases
+        case equal2
+        then show ?thesis
+          using Cons.prems ct_sem_reflE k1_ks1_def var_cons by blast
+      next
+        case var_nil2
+        then show ?thesis
+          using Cons.prems ct_sem_varsub_cons_exI k1_ks1_def var_cons by blast
+      next
+        case var_cons2
+        obtain K3 Ks3 where k3_ks3_def: "\<tau>3 = TVariant (K3 # Ks3) None"
+          using var_cons2 by presburger
+        moreover have "fst K1 = fst K3"
+          using ct_sem_varsub_imp_nm_eq Cons.prems k1_ks1_def k3_ks3_def var_cons by simp
+        moreover have "A \<turnstile> CtSub ((fst \<circ> snd) K1) ((fst \<circ> snd) K3)"
+        proof -
+          have "A \<turnstile> CtSub ((fst \<circ> snd) K1) ((fst \<circ> snd) K2)"
+            using ct_sem_varsub_imp_subhdtype Cons.prems k1_ks1_def var_cons by blast
+          moreover have "A \<turnstile> CtSub ((fst \<circ> snd) K2) ((fst \<circ> snd) K3)"
+            using ct_sem_varsub_imp_subhdtype Cons.prems k1_ks1_def k3_ks3_def var_cons by blast
+          ultimately show ?thesis
+            by (metis Cons.prems(1) comp_def fsts.intros list.set_intros(1) snds.intros)
+        qed
+        moreover have "(snd \<circ> snd) K1 \<le> (snd \<circ> snd) K3"
+        proof - 
+          have "(snd \<circ> snd) K1 \<le> (snd \<circ> snd) K2"
+            using ct_sem_varsub_imp_usage_nondec Cons.prems k1_ks1_def var_cons by blast
+          moreover have "(snd \<circ> snd) K2 \<le> (snd \<circ> snd) K3"
+            using ct_sem_varsub_imp_usage_nondec Cons.prems k1_ks1_def k3_ks3_def var_cons by blast
+          ultimately show ?thesis
+            by fastforce
+        qed
+        moreover have "A \<turnstile> CtSub (TVariant Ks1 None) (TVariant Ks3 None)"
+          using Cons ct_sem_varsub_imp_subcons k1_ks1_def k3_ks3_def
+          by (metis (no_types, lifting) list.set_intros(2) var_cons(1))
+        ultimately show ?thesis
+          by (simp add: ct_sem_varsub_cons k1_ks1_def)
+      qed
+    qed
   qed
 qed
 
