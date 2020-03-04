@@ -3604,7 +3604,67 @@ next
   qed
 next
   case (cg_vcon \<alpha> n2 \<beta> n1 G1 e G2 C e' C' nm \<tau>)
-  then show ?case sorry
+  then show ?case
+  proof -
+    obtain Ks where ks_def: "TVariant Ks None = assign_app_ty S S' (TVariant [(nm, \<beta>, Unused)] (Some \<alpha>))"
+      by simp
+    obtain Ks' where ks'_def: "Ks' = (map variant_elem_used Ks)[0 := Ks ! 0]" by blast
+    have ks'_hd_type: "(fst \<circ> snd) (Ks' ! 0) = S n1"
+      using ks'_def ks_def cg_vcon.hyps by force
+    have ks'_ks_prop: "length Ks' = length Ks \<and> (\<forall>i < length Ks'. fst (Ks' ! i) = fst (Ks ! i)
+                                          \<and> A \<turnstile> CtSub ((fst \<circ> snd) (Ks' ! i)) ((fst \<circ> snd) (Ks ! i))
+                                          \<and> (snd \<circ> snd) (Ks' ! i) \<le> (snd \<circ> snd) (Ks ! i))"
+    proof - 
+      {
+        fix i :: nat
+        assume i_size: "i < length Ks'"
+        then have "fst (Ks' ! i) = fst (Ks ! i) \<and> 
+                   A \<turnstile> CtSub ((fst \<circ> snd) (Ks' ! i)) ((fst \<circ> snd) (Ks ! i)) \<and> 
+                   (snd \<circ> snd) (Ks' ! i) \<le> (snd \<circ> snd) (Ks ! i)"
+        proof (cases "i = 0")
+          case True
+          then show ?thesis 
+            using i_size ks'_def ct_sem_equal ct_sem_refl by force
+        next
+          case False
+          then show ?thesis
+            using ks'_def map_conv_all_nth ct_sem_equal ct_sem_refl i_size variant_elem_used_nm_eq 
+              variant_elem_used_type_eq variant_elem_used_usage_nondec by auto
+        qed
+      } then show ?thesis using ks'_def by fastforce
+    qed
+    have "distinct (map fst Ks')"
+      using ks'_ks_prop cg_vcon.prems ks'_def ks_def assign_prop_def
+      by (metis (no_types, lifting)  map_eq_iff_nth_eq)
+    moreover have "\<forall>i<length Ks'. if i = 0 then (snd \<circ> snd) (Ks' ! i) = Unused 
+                                           else (snd \<circ> snd) (Ks' ! i) = Used"
+    proof -
+      {
+        fix i :: nat
+        assume i_size: "i < length Ks'"
+        then have "if i = 0 then (snd \<circ> snd) (Ks' ! i) = Unused else (snd \<circ> snd) (Ks' ! i) = Used"
+          using ks'_def ks_def
+        proof (cases "i = 0")
+          case False
+          then show ?thesis
+            using variant_elem_used_usage_used i_size ks'_def by auto
+        qed (simp)
+      } then show ?thesis by blast
+    qed
+    moreover have "A \<ddagger> \<Gamma> \<turnstile> assign_app_expr S S' e' : assign_app_ty S S' \<beta>"
+      using cg_vcon ct_sem_conj_iff by auto
+    moreover have "A \<turnstile> CtSub (TVariant Ks' None) (assign_app_ty S S' \<tau>)"
+      using cg_vcon
+    proof -
+      have "A \<turnstile> CtSub (TVariant Ks None) (assign_app_ty S S' \<tau>)"
+        using cg_vcon ct_sem_conj_iff ks_def by simp
+      then show ?thesis
+        using ks'_ks_prop ct_sem_varsub_conv_all_nth ct_sem_sub_trans by blast
+    qed
+    ultimately show ?thesis
+      using typing_sig typing_vcon[where Ks="Ks'" and i="0"] ks'_hd_type cg_vcon.hyps 
+        ks'_def ks_def by fastforce
+  qed
 next
   case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
   then show ?case sorry
