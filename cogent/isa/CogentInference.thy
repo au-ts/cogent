@@ -1167,7 +1167,6 @@ lemma assign_app_constr_subst_ct_commute:
 proof (induct C)
 qed (auto simp add: subst_ct_def assign_app_ty_subst_ty_commute)+
 
-
 lemma ct_sem_assign_conj_foldr:
   assumes "A \<turnstile> assign_app_constr S S' (foldr CtConj Cs CtTop)"
     and  "i < length Cs" 
@@ -1317,7 +1316,13 @@ lemma ctx_restrict_un_elem_same:
   assumes "i \<notin> ns'"
     and "i < length G"
   shows "(G\<bar>ns) ! i = (G\<bar>ns \<union> ns') ! i"
-  by (metis Un_iff assms(1) assms(2) ctx_restrict_nth_none ctx_restrict_nth_some)
+  by (metis Un_iff assms ctx_restrict_nth_none ctx_restrict_nth_some)
+
+lemma assign_app_ctx_restrict_none:
+  assumes "i \<notin> ns"
+    and "i < length G"
+  shows "assign_app_ctx S S' (G\<bar>ns) ! i = None"
+  by (simp add: assign_app_ctx_def assms ctx_restrict_len ctx_restrict_nth_none)
 
 lemma assign_app_ctx_restrict_some:
   assumes "i \<in> ns"
