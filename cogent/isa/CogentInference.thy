@@ -446,7 +446,8 @@ ct_sem_share:
 | ct_sem_varsub_nil:
   "A \<turnstile> CtSub (TVariant [] None) (TVariant [] None)"
 | ct_sem_varsub_cons:
-  "\<lbrakk> A \<turnstile> CtSub ((fst \<circ> snd) K1) ((fst \<circ> snd) K2)
+  "\<lbrakk> fst K1 = fst K2
+   ; A \<turnstile> CtSub ((fst \<circ> snd) K1) ((fst \<circ> snd) K2)
    ; (snd \<circ> snd) K1 \<le> (snd \<circ> snd) K2
    ; A \<turnstile> CtSub (TVariant Ks1 None) (TVariant Ks2 None)
    \<rbrakk> \<Longrightarrow> A \<turnstile> CtSub (TVariant (K1 # Ks1) None) (TVariant (K2 # Ks2) None)"
@@ -523,6 +524,37 @@ lemma ct_sem_varsub_cons_exI2:
   assumes "A \<turnstile> CtSub (TVariant Ks None) (TVariant (K' # Ks') None)"
   shows "\<exists>K' Ks''. Ks = K' # Ks''"
   using assms ct_sem_eq_iff ct_sem_varsubE1 type.inject by metis
+
+lemma ct_sem_varsub_imp_nm_eq:
+  assumes "A \<turnstile> CtSub (TVariant (K1 # Ks1) None) (TVariant (K2 # Ks2) None)" 
+  shows "fst K1 = fst K2"
+  using assms
+proof (induct rule: constraint_sem.cases)
+  case (ct_sem_equal A \<tau> \<rho>)
+  then show ?case
+    using ct_sem_eq_iff by force
+qed (fast)+
+
+lemma ct_sem_varsub_imp_subhdtype:
+  assumes "A \<turnstile> CtSub (TVariant (K1 # Ks1) None) (TVariant (K2 # Ks2) None)" 
+  shows "A \<turnstile> CtSub ((fst \<circ> snd) K1) ((fst \<circ> snd) K2)"
+  using assms 
+proof (rule ct_sem_varsubE1)
+qed (simp add: ct_sem_eq_iff ct_sem_equal)+
+
+lemma ct_sem_varsub_imp_usage_nondec:
+  assumes "A \<turnstile> CtSub (TVariant (K1 # Ks1) None) (TVariant (K2 # Ks2) None)" 
+  shows "(snd \<circ> snd) K1 \<le> (snd \<circ> snd) K2"
+  using assms
+proof (rule ct_sem_varsubE1)
+qed (simp add: ct_sem_eq_iff)+
+
+lemma ct_sem_varsub_imp_subcons: 
+  assumes "A \<turnstile> CtSub (TVariant (K1 # Ks1) None) (TVariant (K2 # Ks2) None)" 
+  shows "A \<turnstile> CtSub (TVariant Ks1 None) (TVariant Ks2 None)"
+  using assms
+proof (rule ct_sem_varsubE1) 
+qed (simp add: ct_sem_eq_iff ct_sem_equal)+
 
 
 section {* Context relations (Fig 3.2) *}
