@@ -442,7 +442,7 @@ ct_sem_share:
 | ct_sem_primD:
   "A \<turnstile> CtDrop (TPrim pt)"
 | ct_sem_exhaust:
-  "A \<turnstile> CtExhausted (TVariant Ks None)"
+  "\<lbrakk> \<forall>i < length Ks. ((snd \<circ> snd) (Ks ! i) = Used) \<rbrakk> \<Longrightarrow> A \<turnstile> CtExhausted (TVariant Ks None)"
 | ct_sem_varsub_nil:
   "A \<turnstile> CtSub (TVariant [] None) (TVariant [] None)"
 | ct_sem_varsub_cons:
