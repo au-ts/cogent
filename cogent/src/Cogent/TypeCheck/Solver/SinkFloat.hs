@@ -41,7 +41,7 @@ import Control.Monad.Trans.Maybe
 import qualified Data.Map as M
 import Lens.Micro
 
-sinkfloat :: Rewrite.Rewrite' TcSolvM [Goal]
+sinkfloat :: Rewrite.RewriteT TcSolvM [Goal]
 sinkfloat = Rewrite.rewrite' $ \gs ->
   let mentions = getMentions gs
       cs = map (strip . _goal) gs in

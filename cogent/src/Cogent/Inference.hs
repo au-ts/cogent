@@ -527,18 +527,19 @@ infer (E (Variable v))
         return (TE t (Variable v))
 infer (E (Fun f ts ls note))
    | ExI (Flip ts') <- Vec.fromList ts
+   , ExI (Flip ls') <- Vec.fromList ls
    = do myMap <- ask
         x <- funType f
         case x of
           Just (FT ks lts ti to) ->
-            ( case Vec.length ts' =? Vec.length ks
-                of Just Refl -> let ti' = substitute ts' $ substituteL ls ti
-                                    to' = substitute ts' $ substituteL ls to
-                                in do forM_ (Vec.zip ts' ks) $ \(t, k) -> do
-                                        k' <- kindcheck t
-                                        when ((k <> k') /= k) $ __impossible "kind not matched in type instantiation"
-                                      return $ TE (TFun ti' to') (Fun f ts ls note)
-                   Nothing -> __impossible "lengths don't match" )
+            case (Vec.length ts' =? Vec.length ks, Vec.length ls' =? Vec.length lts)
+              of (Just Refl, Just Refl) -> let ti' = substitute ts' $ substituteL ls ti
+                                               to' = substitute ts' $ substituteL ls to
+                                            in do forM_ (Vec.zip ts' ks) $ \(t, k) -> do
+                                                    k' <- kindcheck t
+                                                    when ((k <> k') /= k) $ __impossible "kind not matched in type instantiation"
+                                                  return $ TE (TFun ti' to') (Fun f ts ls note)
+                 _ -> __impossible "lengths don't match"
           _        -> error $ "Something went wrong in lookup of function type: '" ++ unCoreFunName f ++ "'"
 infer (E (App e1 e2))
    = do e1'@(TE (TFun ti to) _) <- infer e1

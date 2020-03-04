@@ -150,9 +150,7 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   IsPrimType (T (TCon x _ Unboxed)) | x `elem` primTypeCons -> hoistMaybe $ Just []
 
   TLVar n        :~ tau | Just t <- lookup n ts
-                        -> case doLayoutMatchT tau t of
-                             Right c -> hoistMaybe $ Just c
-                             Left () -> hoistMaybe Nothing
+                        -> hoistMaybe $ Just [tau :~~ t]
   TLRepRef _ _   :~ _ -> hoistMaybe Nothing
   TLRecord fs    :~ R _ (Left (Boxed _ (Just l))) -> hoistMaybe $ Just [TLRecord fs :~: l]
   TLRecord fs    :~ R r (Left (Boxed _ Nothing))
@@ -173,8 +171,8 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
 #endif
   TLOffset e _   :~ tau -> hoistMaybe $ Just [e :~ tau]
   TLPrim n       :~ tau
-    | isPrimitiveType tau
-    , primitiveTypeSize tau <= evalSize n
+    | isPrimType tau
+    , primTypeSize tau <= evalSize n
     -> hoistMaybe $ Just []
     | isBoxedType tau
     , evalSize n == pointerSizeBits
@@ -216,16 +214,20 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
     traceM ("l1: " ++ show l1 ++ "\nl2: " ++ show l2 ++ "\n")
     unsat $ LayoutsNotCompatible l1 l2
 
-  R r1 s1 :~~ R r2 s2 | Row.null r1 && Row.null r2, (Right c) <- doSigilMatch s1 s2 -> hoistMaybe $ Just c
+  T (TVar n1 _ _) :~~ T (TVar n2 _ _) | n1 == n2 -> hoistMaybe $ Just []
+  Synonym _ _     :~~ _               -> hoistMaybe Nothing
+  _               :~~ Synonym _ _     -> hoistMaybe Nothing
+
+  R r1 s1 :~~ R r2 s2 | Row.null r1, (Just c) <- doSigilMatch (rmF s1) (rmF s2) -> hoistMaybe $ Just c
                       | Just (r1',r2') <- extractVariableEquality r1 r2 -> hoistMaybe $ Just [R r1' s1 :~~ R r2' s2]
                       | otherwise -> do
     let commons  = Row.common r1 r2
     guard (not (L.null commons))
     let (r1',r2') = Row.withoutCommon r1 r2
-        cs = map (\ ((_, e),(_,e')) -> fst e :< fst e') commons
-        c  = R r1' s1 :< R r2' s2
+        cs = map (\ ((_, e),(_,e')) -> fst e :~~ fst e') commons
+        c  = R r1' s1 :~~ R r2' s2
     hoistMaybe $ Just (c:cs)
-  V r1 :~~ V r2 | Row.null r1 && Row.null r2 -> hoistMaybe $ Just []
+  V r1 :~~ V r2 | Row.null r1 -> hoistMaybe $ Just []
                 | Just (r1',r2') <- extractVariableEquality r1 r2 -> hoistMaybe $ Just [V r1' :~~ V r2']
                 | otherwise -> do
     let commons = Row.common r1 r2
@@ -236,10 +238,15 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
         c = V r1' :~~ V r2'
     hoistMaybe $ Just (c:cs)
 #ifdef BUILTIN_ARRAYS
-  A t1 _ s1 _ :~~ A t2 _ s2 _ | (Right c) <- doSigilMatch s1 s2
+  A t1 _ s1 _ :~~ A t2 _ s2 _ | (Just c) <- doSigilMatch (rmF s1) (rmF s2)
                               -> hoistMaybe $ Just ((t1 :~~ t2):c)
+                              | otherwise -> hoistMaybe Nothing
 #endif
   t1 :~~ t2 | t1 == t2 -> hoistMaybe $ Just []
+            | isPrimType t1 && isPrimType t2
+            , primTypeSize t1 <= primTypeSize t2
+            -> hoistMaybe $ Just []
+            | otherwise -> unsat $ TypesNotFit t1 t2
 
   T (TLayout l1 t1) :=: T (TLayout l2 t2) -> hoistMaybe $ Just [l1 :~: l2, t1 :=: t2, l1 :~ t1, l2 :~ t2]
   T (TLayout l1 t1) :<  T (TLayout l2 t2) -> hoistMaybe $ Just [l1 :~: l2, t1 :<  t2, l1 :~ t1, l2 :~ t2]
@@ -283,7 +290,7 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
 
 #ifdef BUILTIN_ARRAYS
   -- See [NOTE: solving 'A' types] in Cogent.Solver.Unify
-  A t1 l1 s1 (Left r1) :<  A t2 l2 s2 (Left r2) | (Right c) <- doSigilMatch s1 s2 -> do
+  A t1 l1 s1 (Left r1) :<  A t2 l2 s2 (Left r2) | (Just c) <- doSigilMatch s1 s2 -> do
     guard (not $ isJust r1 && isNothing r2)
     let drop = case (r1,r2) of
                  (r1, r2) | r1 == r2 -> Sat
@@ -291,7 +298,7 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
                  (Just i1, Just i2) -> Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [i1,i2]))
     hoistMaybe $ Just ([Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [l1,l2])), t1 :< t2, drop] <> c)
 
-  A t1 l1 s1 (Left r1) :=: A t2 l2 s2 (Left r2) | (Right c) <- doSigilMatch s1 s2 -> do
+  A t1 l1 s1 (Left r1) :=: A t2 l2 s2 (Left r2) | (Just c) <- doSigilMatch s1 s2 -> do
     guard (isJust r1 && isJust r2 || isNothing r1 && isNothing r2)
     let drop = case (r1,r2) of
                  (r1, r2) | r1 == r2 -> Sat
@@ -345,13 +352,13 @@ isSolved t = L.null (unifVars t) && L.null (unifLVarsT t)
           && L.null (unknowns t)
 #endif
 
-isPrimitiveType :: TCType -> Bool
-isPrimitiveType (T (TCon n [] Unboxed))
-  | n `elem` words "U8 U16 U32 U64 Bool" = True
+isPrimType :: TCType -> Bool
+isPrimType (T (TCon n [] Unboxed))
+  | n `elem` primTypeCons = True
   | otherwise = False
-isPrimitiveType (T (TBang t)) = isPrimitiveType t
-isPrimitiveType (T (TUnbox t)) = isPrimitiveType t
-isPrimitiveType _ = False
+isPrimType (T (TBang t)) = isPrimType t
+isPrimType (T (TUnbox t)) = isPrimType t
+isPrimType _ = False
 
 isBoxedType :: TCType -> Bool
 isBoxedType (R _ (Left (Boxed _ _))) = True
@@ -368,60 +375,26 @@ toBoxedType (A t l (Left Unboxed) h) = A t l (Left (Boxed undefined Nothing)) h
 toBoxedType (T (TUnbox t)) = toBoxedType t
 toBoxedType t = t
 
-primitiveTypeSize :: TCType -> Size
-primitiveTypeSize (T (TCon "U8"   [] Unboxed)) = 8
-primitiveTypeSize (T (TCon "U16"  [] Unboxed)) = 16
-primitiveTypeSize (T (TCon "U32"  [] Unboxed)) = 32
-primitiveTypeSize (T (TCon "U64"  [] Unboxed)) = 64
-primitiveTypeSize (T (TCon "Bool" [] Unboxed)) = 8
-primitiveTypeSize (T (TBang t))                = primitiveTypeSize t
-primitiveTypeSize (T (TUnbox t))               = primitiveTypeSize t
-primitiveTypeSize _                            = __impossible "call primitiveTypeSize on non-primitive types"
+primTypeSize :: TCType -> Size
+primTypeSize (T (TCon "U8"   [] Unboxed)) = 8
+primTypeSize (T (TCon "U16"  [] Unboxed)) = 16
+primTypeSize (T (TCon "U32"  [] Unboxed)) = 32
+primTypeSize (T (TCon "U64"  [] Unboxed)) = 64
+primTypeSize (T (TCon "Bool" [] Unboxed)) = 1   -- XXX: 1 or 8?
+primTypeSize (T (TBang t))                = primTypeSize t
+primTypeSize (T (TUnbox t))               = primTypeSize t
+primTypeSize _                            = __impossible "call primTypeSize on non-prim types"
 
-(<<>>) :: (Semigroup b) => Either a b -> Either a b -> Either a b
-(<<>>) (Left a) b = (Left a)
-(<<>>) a (Left b) = (Left b)
-(<<>>) (Right a) (Right b) = Right (a <> b)
+rmF :: TCSigil -> TCSigil
+rmF (Left (Boxed _ l)) = Left (Boxed True l)
+rmF s = s
 
-doLayoutMatchT :: TCType -> TCType -> Either () [Constraint]
-doLayoutMatchT (T (TVar n1 _ _)) (T (TVar n2 _ _)) = if n1 == n2 then Right []
-                                                                 else Left ()
-doLayoutMatchT (T (TBang t1)) (T (TBang t2)) = doLayoutMatchT t1 t2
-doLayoutMatchT (T (TBang t1)) t2 = doLayoutMatchT t1 t2
-doLayoutMatchT t1 (T (TBang t2)) = doLayoutMatchT t1 t2
-doLayoutMatchT (R r1 s1) (R r2 s2) = doLayoutMatchR r1 r2 <<>> doSigilMatch s1 s2
-doLayoutMatchT (V r1) (V r2) = doLayoutMatchR r1 r2
-#ifdef BUILTIN_ARRAYS
-doLayoutMatchT (A t1 _ s1 _) (A t2 _ s2 _) = doLayoutMatchT t1 t2 <<>> doSigilMatch s1 s2
-#endif
-doLayoutMatchT t1@(Synonym{}) t2 = Right [t1 :~~ t2]
-doLayoutMatchT t1 t2@(Synonym{}) = Right [t1 :~~ t2]
-doLayoutMatchT t1 t2 | t1 == t2 = Right []
-                     | otherwise = trace (show t1 ++ "\n" ++ show t2) $ Left ()
-
-doLayoutMatchR :: Row.Row TCType -> Row.Row TCType -> Either () [Constraint]
-doLayoutMatchR r1 r2
-  | (r1', r2') <- Row.withoutCommon r1 r2
-  , Row.null r1' && Row.null r2'
-  , rs <- Row.common r1 r2
-  = foldr (<<>>) (Right []) $ (\((_, (t1, _)), (_, (t2, _))) -> doLayoutMatchT t1 t2) <$> rs
-
-doSigilMatch :: TCSigil -> TCSigil -> Either () [Constraint]
+doSigilMatch :: TCSigil -> TCSigil -> Maybe [Constraint]
 doSigilMatch s1 s2
-  | Left (Boxed _ Nothing) <- s1
-  , Left (Boxed _ Nothing) <- s2
-  = Right []
-  | Left Unboxed <- s1
-  , Left (Boxed _ _) <- s2
-  = Left ()
-  | Left (Boxed _ _) <- s1
-  , Left Unboxed <- s2
-  = Left ()
   | Left (Boxed _ (Just l1)) <- s1
   , Left (Boxed _ (Just l2)) <- s2
-  = Right [l1 :~: l2]
-  | Left Unboxed <- s1
-  , Left Unboxed <- s2
-  = Right []
-  | otherwise = trace ("s1: " ++ show s1 ++ "\ns2: " ++ show s2) $ __impossible "doSigilMatch"
+  = Just [l1 :~: l2]
+  | s1 == s2
+  = Just []
+  | otherwise = trace ("s1: " ++ show s1 ++ "\ns2: " ++ show s2) Nothing
 

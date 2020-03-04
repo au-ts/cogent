@@ -113,6 +113,7 @@ data TypeError = FunctionNotFound VarName
                | DataLayoutError DataLayoutTcError
                | LayoutOnNonRecordOrCon TCType
                | LayoutDoesNotMatchType TCDataLayout TCType
+               | TypesNotFit TCType TCType
                | LayoutsNotCompatible TCDataLayout TCDataLayout
                | OtherTypeError String
                deriving (Eq, Show, Ord)
