@@ -510,7 +510,7 @@ specialiseExpr (TE t e) = TE <$> monoType t <*> specialiseExpr' e
     specialiseExpr' (Unit               ) = pure Unit
     specialiseExpr' (ILit    n   pt     ) = pure $ ILit n pt
     specialiseExpr' (SLit    s          ) = pure $ SLit s
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
     specialiseExpr' (ALit    es         ) = ALit <$> mapM specialiseExpr es
     specialiseExpr' (ArrayIndex e i     ) = ArrayIndex <$> specialiseExpr e <*> specialiseExpr i
     specialiseExpr' (Pop     a e1 e2    ) = Pop a <$> specialiseExpr e1 <*> specialiseExpr e2
@@ -557,7 +557,7 @@ eval (TE _ (ILit n t))
   | U64 <- t = return $ VInt (LU64 $ fromIntegral n)
   | Boolean <- t = return $ VBool (if n == 0 then False else True)
 eval (TE _ (SLit s)) = return $ VString s
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 eval (TE _ (ALit es)) = undefined
 eval (TE _ (ArrayIndex arr idx)) = undefined
 eval (TE _ (Pop (a1, a2) e e')) = undefined

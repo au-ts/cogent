@@ -141,7 +141,7 @@ bound b (TFun t1 s1) (TFun t2 s2) = TFun <$> bound (theOtherB b) t1 t2 <*> bound
 bound b t1@(TRecord rp fs s) t2@(TRPar v ctxt)    = return t2
 bound b t1@(TRPar v ctxt)    t2@(TRecord rp fs s) = return t2
 bound b t1@(TRPar v1 c1)     t2@(TRPar v2 c2)     = return t2
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 bound b (TArray t1 l1 s1 mhole1) (TArray t2 l2 s2 mhole2)
   | l1 == l2, s1 == s2 = do
       t <- bound b t1 t2
@@ -186,7 +186,7 @@ bang (TProduct t1 t2)  = TProduct (bang t1) (bang t2)
 bang (TRecord rp ts s) = TRecord rp (map (second $ first bang) ts) (bangSigil s)
 bang (TRPar n ctxt)    = TRPar n ctxt
 bang (TUnit)           = TUnit
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 bang (TArray t l s tkns) = TArray (bang t) l (bangSigil s) tkns
 #endif
 
@@ -214,7 +214,7 @@ substitute vs (TRecord rp ts s) = TRecord rp (map (second (first $ substitute vs
 substitute vs (TSum ts)         = TSum (map (second (first $ substitute vs)) ts)
 substitute _  (TUnit)           = TUnit
 substitute vs (TRPar v m)       = TRPar v $ fmap (M.map (substitute vs)) m
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 substitute vs (TArray t l s mhole) = TArray (substitute vs t) (substituteLE vs l) s (fmap (substituteLE vs) mhole)
 #endif
 
@@ -450,7 +450,7 @@ kindcheck_ f (TSum ts)        = mconcat <$> mapM (kindcheck_ f . fst . snd) (fil
 kindcheck_ f (TUnit)          = return mempty
 kindcheck_ f (TRPar _ _)      = return mempty
 
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 kindcheck_ f (TArray t l s _) = mappend <$> kindcheck_ f t <*> pure (sigilKind s)
 #endif
 
@@ -478,7 +478,7 @@ infer (E (Op o es))
         return (TE t (Op o es'))
 infer (E (ILit i t)) = return (TE (TPrim t) (ILit i t))
 infer (E (SLit s)) = return (TE TString (SLit s))
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 infer (E (ALit [])) = __impossible "We don't allow 0-size array literals"
 infer (E (ALit es))
    = do es' <- mapM infer es

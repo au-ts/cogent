@@ -12,6 +12,7 @@
 
 module Cogent.TypeCheck.Solver.Util where
 
+import Cogent.PrettyPrint
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Solver.Goal
 import Cogent.TypeCheck.Solver.Rewrite
@@ -20,6 +21,7 @@ import Cogent.TypeCheck.Util
 import Control.Applicative
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Maybe
+import Lens.Micro ((^.))
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>), empty)
 
@@ -34,8 +36,10 @@ debugF nm = debugFail ("=== " ++ nm ++ " ===")
 
 printC :: [Goal] -> String
 printC gs =
- let gs' = map (P.nest 2 . pretty . _goal) gs
- in show (P.line P.<> P.indent 2 (P.list gs'))
+ let gs' = map (\g -> P.nest 2 $ prettyGoalEnv (g ^. goalEnv) P.<+> P.string "⊢" P.<+>
+                      pretty (g ^. goal)) gs
+ in flip displayS "" . P.renderPretty 1 100 $
+      P.line P.<> P.indent 2 (P.vcat . punctuate semi $ map pretty gs')
 
 printPretty :: (Pretty a) => a -> String
 printPretty = show . pretty

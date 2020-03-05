@@ -26,6 +26,8 @@ module Cogent.TypeCheck.Solver (runSolver, solve) where
 import           Cogent.Common.Syntax
 import           Cogent.Common.Types
 import           Cogent.Compiler
+import qualified Cogent.Context as C
+import           Cogent.PrettyPrint (prettyC)
 import           Cogent.Surface
 import           Cogent.TypeCheck.Base
 import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
@@ -36,7 +38,7 @@ import           Cogent.TypeCheck.Solver.Unify
 import           Cogent.TypeCheck.Solver.Equate
 import           Cogent.TypeCheck.Solver.Default
 import           Cogent.TypeCheck.Solver.SinkFloat
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 import           Cogent.TypeCheck.Solver.SMT (smt)
 #endif
 import           Cogent.TypeCheck.Solver.Util
@@ -45,9 +47,7 @@ import           Cogent.TypeCheck.Solver.Goal
 
 import           Control.Monad.Trans.Maybe
 import           Data.Maybe (fromMaybe)
-#ifdef BUILTIN_ARRAYS
--- import Z3 stuff...
-#endif
+
 
 -- [amos] Type-solver changes I made:
 -- - Simplify rule for `t :=: t` to `Solved t` (see Solver/Simplify.hs)
@@ -64,14 +64,14 @@ import           Data.Maybe (fromMaybe)
 
 
 solve :: [(TyVarName, Kind)] -> [(DLVarName, TCType)] -> Constraint -> TcSolvM [Goal]
-solve ks ms c = let gs     = makeGoals [] c
+solve ks ms c = let gs     = makeGoals [] (M.empty, []) c
                             -- Simplify does a lot of very small steps so it's slightly nicer for tracing to run it in a nested fixpoint
                     stages = Rewrite.untilFixedPoint (debug "Simplify" printC $ liftTcSolvM $ simplify ks ms)
                              <> debug  "Unify"      printC unify
                              <> debugL "Equate"     printC equate
                              <> debug  "Sink/Float" printC sinkfloat
                              <> debugL "Defaults"   printC defaults
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
                              <> debug  "SMT"        printC smt
 #endif
   -- [amos] Type-solver changes I made:

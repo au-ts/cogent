@@ -124,7 +124,7 @@ shallowType (TRecord rp fs s) = do
   else
     shallowTypeWithName (TRecord rp fs s)
 shallowType (TUnit) = return $ I.AntiType "unit"
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 shallowType (TArray t _ _ _) = I.TyDatatype "list" <$> mapM shallowType [t]
 #endif
 
@@ -211,7 +211,7 @@ shallowExpr (TE t (Con cn e _))  = do
 shallowExpr (TE _ (Unit)) = pure $ mkId "()"
 shallowExpr (TE _ (ILit n pt)) = pure $ shallowILit n pt
 shallowExpr (TE _ (SLit s)) = pure $ mkString s
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 shallowExpr (TE _ (ALit es)) = mkList <$> mapM shallowExpr es
 shallowExpr (TE _ (ArrayIndex arr idx)) = do
   arr' <- shallowExpr arr

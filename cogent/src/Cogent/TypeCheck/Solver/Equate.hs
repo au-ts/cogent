@@ -27,7 +27,12 @@ import Control.Monad.Writer
 import Data.Foldable (asum)
 import qualified Data.IntMap as IM
 import Data.Maybe
+import qualified Data.Set as S
 import Lens.Micro
+
+import Cogent.PrettyPrint
+import Text.PrettyPrint.ANSI.Leijen (pretty)
+import Debug.Trace
 
 -- | The equate phase, which finds subtyping constraints that can be safely converted to equalities.
 equate :: Rewrite.Rewrite [Goal]
@@ -41,14 +46,13 @@ equate = Rewrite.withTransform findEquatable (pure . map toEquality)
          -- If we have constraint system (T :< a :&: a :< U), either subtyping constraint are convertible
          -- to equalities without changing the satisfiability of the constraint system, however converting
          -- both makes the constraint system unsatisfiable.
-         -- Thus, we convert LHS constraints if possible first, and only convert RHS if there are no available
-         -- LHSes.
-         allEqs = if null sups then subs else sups
+         -- Thus, we convert LHS constraints if possible first, and only convert LHS if there are no available.
+         allEqs = if null sups then subs else sups 
          allOthers = (if null sups then [] else subs) ++ others
       in guard (not (null allEqs)) >> pure (allEqs, allOthers)
 
     toEquality :: Goal -> Goal
-    toEquality (Goal c (a :< b)) = Goal c $ a :=: b
+    toEquality (Goal c env (a :< b)) = Goal c env $ a :=: b
     toEquality c = c
 
 findEquateCandidates :: IM.IntMap (Int,Int) -> [Goal] -> ([Goal], [Goal], [Goal])
@@ -63,43 +67,43 @@ findEquateCandidates mentions (c:cs) =
      = False
   in case c ^. goal of
        U a :< b
-         | canEquate fst a b
+         | canEquate (\m -> m^._1 + m^._2) a b
          -> (c : sups, subs, others)
        a :< U b
-         | canEquate snd b a
+         | canEquate (^._3) b a
          -> (sups, c : subs, others)
        V r1 :< t
          | Just a <- Row.var r1
          , Row.justVar r1
-         , canEquate fst a t
+         , canEquate (^._2) a t
          -> (c : sups, subs, others)
        R _ r1 s :< t
          | Just a <- Row.var r1
          , Row.justVar r1
-         , canEquate fst a t
+         , canEquate (^._2) a t
          -> (c : sups, subs, others)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
        -- NOTE: This is Ok and we don't need to look into unifVars in
        -- elt1, len1 and s1, because h here is the only thing which
        -- plays a role in array subtyping. If h is the only occurrence
        -- of a unifVar, then we can equate it. / zilinc
        A elt1 len1 s1 (Right h) :< t
-         | canEquate fst h t
+         | canEquate (^._2) h t
          -> (c : sups, subs, others)
 #endif
        t :< V r1
          | Just a <- Row.var r1
          , Row.justVar r1
-         , canEquate snd a t
+         , canEquate (^._3) a t
          -> (sups, c : subs, others)
        t :< R _ r1 s
          | Just a <- Row.var r1
          , Row.justVar r1
-         , canEquate snd a t
+         , canEquate (^._3) a t
          -> (sups, c : subs, others)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
        t :< A elt2 len2 s2 (Right h)
-         | canEquate snd h t
+         | canEquate (^._2) h t
          -> (sups, c : subs, others)
 #endif
        _ -> (sups, subs, c : others)

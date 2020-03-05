@@ -18,12 +18,14 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Cogent.TypeCheck.Base where
 
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
+import qualified Cogent.Context as C
 import Cogent.Dargent.Allocation
 import Cogent.Dargent.TypeCheck
 import Cogent.Surface
@@ -43,9 +45,8 @@ import Data.Bifoldable
 import Data.Bifunctor
 import Data.Bitraversable
 import Data.Data (Data)
-import Data.Foldable (all)
-import Data.Maybe (fromJust, isJust)
 import Data.Either (either, isLeft, lefts, rights)
+import Data.Foldable (all)
 import Data.Functor.Const
 import Data.Functor.Identity
 import qualified Data.IntMap as IM
@@ -55,9 +56,9 @@ import Data.Maybe (maybeToList)
 #if __GLASGOW_HASKELL__ < 803
 import Data.Monoid ((<>))
 #endif
-import Data.List (sortOn)
+import Data.List (lookup, sortOn)
 import qualified Data.Sequence as Seq
--- import qualified Data.Set as S
+import qualified Data.Set as S
 import Text.Parsec.Pos
 import Lens.Micro
 import Lens.Micro.TH
@@ -86,7 +87,7 @@ data TypeError = FunctionNotFound VarName
                | TypeNotEscapable TCType Metadata
                | TypeNotDiscardable TCType Metadata
                | PatternsNotExhaustive TCType [TagName]
-               | UnsolvedConstraint Constraint (IM.IntMap VarOrigin)
+               | UnsolvedConstraint ConstraintEnv Constraint (IM.IntMap VarOrigin)
                | RecordWildcardsNotSupported
                | NotAFunctionType TCType
                | DuplicateRecordFields [FieldName]
@@ -102,7 +103,7 @@ data TypeError = FunctionNotFound VarName
                | RecursiveUnboxedRecord RecursiveParameter (Sigil (Maybe DataLayoutExpr)) -- A record that is unboxed yet has a recursive parameter
                | DiscardWithoutMatch TagName
                | RequiredTakenTag TagName
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
                | ArithConstraintsUnsatisfiable [TCSExpr] String
                | TakeElementsFromNonArrayType [TCSExpr] TCType
                | PutElementsToNonArrayType [TCSExpr] TCType
@@ -169,7 +170,7 @@ data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: Seq
               | UnusedInThisBranch  { varName :: VarName, boundAt :: SourcePos, usedAt :: Seq.Seq SourcePos }
               | Suppressed
               | UsedInMember { fieldName :: FieldName }
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
               | UsedInArrayIndexing
               | MultipleArrayTakePut
 #endif
@@ -204,10 +205,45 @@ data Constraint' t l = (:<) t t
 #ifdef BUILTIN_ARRAYS
                      | Arith (SExpr t l)
                      | (:->) (Constraint' t l) (Constraint' t l)
+                     | (:|-) (C.Context t) (Constraint' t)
 #endif
-                     deriving (Eq, Show, Ord)
+                     deriving (Eq, Show, Ord, Functor, Foldable, Traversable)
 
-type Constraint = Constraint' TCType TCDataLayout
+infix 9 :<
+infix 9 :=:
+infixl 1 :&
+infixl 3 :@
+-- infix 5 :->
+infix 4 :|-
+
+
+data Constraint' t = (:<) t t
+                   | (:=:) t t
+                   | (:&) (Constraint' t) (Constraint' t)
+                   | Upcastable t t
+                   | Share t Metadata
+                   | Drop t Metadata
+                   | Escape t Metadata
+                   | (:@) (Constraint' t) ErrorContext
+                   | Unsat TypeError
+                   | SemiSat TypeWarning
+                   | Sat
+                   | Exhaustive t [RawPatn]
+                   | Solved t
+                   | IsPrimType t
+#ifdef REFINEMENT_TYPES
+                   | Arith (SExpr t)
+                   -- | (:->) (Constraint' t) (Constraint' t)
+                   | (:|-) (M.Map VarName (t, Int), [SExpr t]) (Constraint' t)
+#endif
+                   deriving (Eq, Show, Ord, Functor, Foldable, Traversable)
+
+type Constraint = Constraint' TCType
+type ConstraintEnv = (M.Map VarName (TCType, Int), [TCSExpr])
+
+-- Right-biased, as the inner environment is the more relevant one.
+mergeConstraintEnvs :: ConstraintEnv -> ConstraintEnv -> ConstraintEnv
+mergeConstraintEnvs (ctx1, es1) (ctx2, es2) = (M.union ctx1 ctx2, es1 ++ es2)  -- left-biased
 
 arithTCType :: TCType -> Bool
 arithTCType (T (TCon n [] Unboxed)) | n `elem` ["U8", "U16", "U32", "U64", "Bool"] = True
@@ -223,18 +259,7 @@ arithTCExpr (TE _ (Upcast e   ) _) = arithTCExpr e
 arithTCExpr (TE _ (Annot e _  ) _) = arithTCExpr e
 arithTCExpr _ = False
 
-#ifdef BUILTIN_ARRAYS
-splitArithConstraints :: Constraint -> ([TCSExpr], Constraint)
-splitArithConstraints (c1 :& c2)
-  = let (e1,c1') = splitArithConstraints c1
-        (e2,c2') = splitArithConstraints c2
-     in (e1 <> e2, c1' <> c2')
-splitArithConstraints (c :@ ctx)
-  = let (e,c') = splitArithConstraints c
-     in (e, c' :@ ctx)
-splitArithConstraints (Arith e)  = ([e], Sat)
-splitArithConstraints c          = ([], c)
-
+#ifdef REFINEMENT_TYPES
 andTCSExprs :: [TCSExpr] -> TCSExpr
 andTCSExprs [] = SE (T bool) (BoolLit True)
 andTCSExprs (e:es) = SE (T bool) (PrimOp "&&" [e, andTCSExprs es])
@@ -323,7 +348,7 @@ layoutMatchConstraint :: TCType -> TCDataLayout -> Constraint
 layoutMatchConstraint t l = l :~ t
 
 warnToConstraint :: Bool -> TypeWarning -> Constraint
-warnToConstraint f w | f = SemiSat w
+warnToConstraint f w | f         = SemiSat w
                      | otherwise = Sat
 
 -- -----------------------------------------------------------------------------
@@ -336,7 +361,7 @@ data TCType         = T (Type TCSExpr TCDataLayout TCType)
                     | U Int  -- unifier
                     | R RP (Row TCType) TCSigil
                     | V (Row TCType)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
                     | A TCType TCSExpr TCSigil (Either (Maybe TCSExpr) Int)
 #endif
                     | Synonym TypeName [TCType]
@@ -447,7 +472,7 @@ instance Traversable TIrrefPatn where
           tritraverse f (PUnderscore)       = pure $ PUnderscore
           tritraverse f (PUnitel)           = pure $ PUnitel
           tritraverse f (PTake pv fs)       = PTake <$> traverse f pv <*> traverse (traverse (traverse (traverse f))) fs
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
           tritraverse f (PArray ips)        = PArray <$> traverse (traverse f) ips
           tritraverse f (PArrayTake pv is)  = PArrayTake <$> traverse f pv <*> traverse (bitraverse (traverse f) (traverse f)) is
 #endif
@@ -662,16 +687,48 @@ exitOnErr ma = do a <- ma
                   if not (any isLeft $ map snd log) then return a else exitErr
 
 
+-- ----------------------------------------------------------------------------
+-- Logical predicate extraction
+-- ----------------------------------------------------------------------------
+
+#ifdef REFINEMENT_TYPES
+splitArithConstraints :: Constraint -> ([TCSExpr], Constraint)
+splitArithConstraints (c1 :& c2)
+  = let (e1,c1') = splitArithConstraints c1
+        (e2,c2') = splitArithConstraints c2
+     in (e1 <> e2, c1' <> c2')
+splitArithConstraints (c :@ ctx)
+  = let (e,c') = splitArithConstraints c
+     in (e, c' :@ ctx)
+splitArithConstraints (Arith e) | null (unifVarsE e) = ([e], Sat)
+-- splitArithConstraints (c1 :-> c2)
+--   = let (e1,c1') = splitArithConstraints c1
+--         (e2,c2') = splitArithConstraints c2
+--      in ([implTCSExpr (andTCSExprs e1) (andTCSExprs e2)], c1 :-> c2')
+splitArithConstraints ((g,e1) :|- c2)
+  = let (e2,c2') = splitArithConstraints c2
+     in ([implTCSExpr (andTCSExprs $ extractGamma g ++ e1) (andTCSExprs e2)], (g,e1) :|- c2')
+splitArithConstraints c         = ([], c)
+
+extractGamma :: M.Map VarName (TCType, Int) -> [TCSExpr]
+extractGamma m = go $ M.toList m
+  where 
+    go [] = []
+    go ((x, (T (TRefine v beta phi),_)):xs) | null (unifVars beta) =
+      substExpr [(v, SE beta (Var x))] phi : go xs
+    go ((x,_):xs) = go xs
+#endif
+
 -- -----------------------------------------------------------------------------
 -- Functions operating on types. Type wellformedness checks
 -- -----------------------------------------------------------------------------
 
 
-substType :: [(VarName, TCType)] -> TCType -> TCType
+substType :: [(TyVarName, TCType)] -> TCType -> TCType
 substType vs (U x) = U x
 substType vs (V x) = V (fmap (substType vs) x)
 substType vs (R rp x s) = R rp (fmap (substType vs) x) s
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 substType vs (A t l s tkns) = A (substType vs t) l s tkns
 #endif
 substType vs (Synonym n ts) = Synonym n (fmap (substType vs) ts)
@@ -702,13 +759,18 @@ substLayout vs (A t l s tkns) = A (substLayout vs t) l (bimap (fmap (fmap (subst
 #endif
 substLayout vs (Synonym n ts) = Synonym n $ substLayout vs <$> ts
 
+substExpr :: [(VarName, TCSExpr)] -> TCSExpr -> TCSExpr
+substExpr vs (SU t x) = SU t x
+substExpr vs (SE t (Var x)) | Just e' <- lookup x vs = e'
+substExpr vs (SE t e) = SE t $ fmap (substExpr vs) e
+
 flexOf (U x) = Just x
 flexOf (T (TTake _ t))   = flexOf t
 flexOf (T (TPut  _ t))   = flexOf t
 flexOf (T (TLayout _ t)) = flexOf t
 flexOf (T (TBang  t))    = flexOf t
 flexOf (T (TUnbox t))    = flexOf t
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 flexOf (T (TATake _ t))  = flexOf t
 flexOf (T (TAPut  _ t))  = flexOf t
 #endif
@@ -751,7 +813,7 @@ unifVars (T x) = foldMap unifVars x
 unifLVars :: TCDataLayout -> [Int]
 unifLVars (TLRecord ps) = concatMap unifLVars (thd3 <$> ps)
 unifLVars (TLVariant t ps) = unifLVars t <> concatMap unifLVars ((\(_,_,_,a) -> a) <$> ps)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 unifLVars (TLArray e _) = unifLVars e
 #endif
 unifLVars (TLOffset e _) = unifLVars e
@@ -765,18 +827,23 @@ unifLVarsT :: TCType -> [Int]
 unifLVarsT (Synonym _ ts) = concatMap unifLVarsT ts
 unifLVarsT (R _ r s) = unifLVarsS s <> nub (concatMap unifLVarsT $ Row.payloads r)
 unifLVarsT (V r) = nub (concatMap unifLVarsT $ Row.payloads r)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 unifLVarsT (A t _ s _) = unifLVarsT t <> unifLVarsS s
 #endif
 unifLVarsT (T x) = foldMap unifLVarsT x
 
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 unifVarsE :: TCSExpr -> [Int]
 unifVarsE (SE t e) = unifVars t ++ foldMap unifVarsE e
                                 ++ fffoldMap (foldMap unifVars) e
                                 ++ ffffoldMap (foldMap unifVars) e
                                 ++ fffffoldMap unifVars e
 unifVarsE (SU t _) = unifVars t
+
+unifVarsEnv :: ConstraintEnv -> [Int]
+unifVarsEnv (gamma, es) = unifVarsGamma gamma ++ foldMap unifVarsE es
+  where
+    unifVarsGamma = foldMap (unifVars . fst)
 
 unknowns :: TCType -> [Int]
 unknowns (U _) = []
@@ -796,7 +863,7 @@ isKnown (SE _ e) = all isKnown e
 
 isTrivialSE :: TCSExpr -> Bool
 isTrivialSE (SU {})  = False
-isTrivialSE (SE t e) = go e
+isTrivialSE (SE t e) = null (unifVarsE $ SE t e) && go e
   where go (Var {})   = False
         go (Con {})   = False
         go (Match {}) = False
@@ -813,6 +880,26 @@ simpleTE (TE _ e _) = case e of
                  ArrayPut   {} -> False
                  _             -> all simpleTE e
 
+
+progVars :: TCType -> S.Set VarName
+progVars (U _) = S.empty
+progVars (T (TRefine v _ e)) = v `S.delete` progVarsE e 
+progVars (T t) = foldMap progVars t
+progVars (R row _) = foldMap progVars row
+progVars (V row) = foldMap progVars row
+progVars (A t l _ h) = progVars t `S.union` progVarsE l `S.union` either (foldMap progVarsE) (const S.empty) h
+progVars (Synonym _ ts) = foldMap progVars ts
+
+progVarsE :: SExpr t -> S.Set VarName
+progVarsE (SU {}) = S.empty
+progVarsE (SE t (Var x)) = S.singleton x
+progVarsE (SE t e) = foldMap progVarsE e
+
+progVarsC :: Constraint -> S.Set VarName
+progVarsC (r :< s) = progVars r `S.union` progVars s
+progVarsC (Arith e) = progVarsE e
+progVarsC _ = S.empty
+
 #endif
 
 -- What's the spec of this function? / zilinc
@@ -825,8 +912,9 @@ rigid (T (TLayout {})) = False
 rigid (Synonym {}) = False  -- why? / zilinc
 rigid (R _ r _) = not $ Row.justVar r
 rigid (V r) = not $ Row.justVar r
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 rigid (A t l _ _) = True  -- rigid t && null (unknownsE l) -- FIXME: is it correct? / zilinc
+rigid (T (TRefine v t e)) = True  -- ???
 #endif
 rigid _ = True
 
@@ -865,7 +953,7 @@ isTypeLayoutExprCompatible env (T (TVariant ts1)) (TLVariant _ ts2) =
     tuplise [] = T TUnit
     tuplise [t] = t
     tuplise ts = T (TTuple ts)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 isTypeLayoutExprCompatible env (T (TArray t _ (Boxed {}) _)) (TLPtr) = True
 isTypeLayoutExprCompatible env (T (TArray t _ Unboxed _)) (TLArray l _) = isTypeLayoutExprCompatible env t l
 #endif
@@ -877,3 +965,8 @@ isTypeLayoutExprCompatible env t (TLRepRef n s) =
 isTypeLayoutExprCompatible _ t (TLVar n) = True -- FIXME
 isTypeLayoutExprCompatible _ t l = trace ("t = " ++ show t ++ "\nl = " ++ show l) False
 
+
+-- ----------------------------------------------------------------------------
+-- Naming conventions
+
+refVarName = "_v"

@@ -1,0 +1,4 @@
+type Pos = [x : U8 | x > 0]
+
+foo : U8 -> Pos
+foo x = if x > 3 then x - 3 else 3 - x

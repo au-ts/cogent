@@ -16,7 +16,7 @@
 module Cogent.Dargent.Surface
   ( module Cogent.Dargent.Surface
   , DataLayoutExpr ( DLPrim, DLRecord, DLVariant, DLOffset, DLRepRef, DLPtr, DLVar
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
                    , DLArray)
 #else
                    )
@@ -59,8 +59,13 @@ data DataLayoutDecl
 data DataLayoutExpr' e
   = Prim    DataLayoutSize
   | Record  [(FieldName, SourcePos, e)]
+<<<<<<< HEAD
   | Variant e [(TagName, SourcePos, Size, e)]
 #ifdef BUILTIN_ARRAYS
+=======
+  | Variant (DataLayoutExpr' e) [(TagName, SourcePos, Size, e)]
+#ifdef REFINEMENT_TYPES
+>>>>>>> d76ab8a1... compiler.reftypes: more solving
   | Array   e SourcePos
 #endif
   | Offset  e DataLayoutSize
@@ -76,7 +81,7 @@ newtype DataLayoutExpr = DL { unDataLayoutExpr :: DataLayoutExpr' DataLayoutExpr
 pattern DLPrim s       = DL (Prim s)
 pattern DLRecord ps    = DL (Record ps)
 pattern DLVariant t ps = DL (Variant t ps)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 pattern DLArray e s    = DL (Array e s)
 #endif
 pattern DLOffset e s   = DL (Offset e s)

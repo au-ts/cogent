@@ -12,8 +12,10 @@
 
 module Cogent.TypeCheck.Subst where
 
+import Cogent.Common.Syntax (VarName)
 import Cogent.Common.Types
 import Cogent.Compiler (__impossible)
+import qualified Cogent.Context as C
 import Cogent.Dargent.TypeCheck
 import Cogent.Surface
 import qualified Cogent.TypeCheck.ARow as ARow
@@ -21,10 +23,10 @@ import Cogent.TypeCheck.Base
 import qualified Cogent.TypeCheck.Row as Row
 import Cogent.Util
 
-import Control.Arrow (left)
-import qualified Data.IntMap as M
-import qualified Data.Map as DM
+import Control.Arrow (first, left)
 import Data.Bifunctor (second)
+import qualified Data.IntMap as IM
+import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid hiding (Alt)
 import Prelude hiding (lookup)
@@ -37,7 +39,7 @@ data AssignResult = Type TCType
                   | Taken Taken
                   | Layout' TCDataLayout
                     --    ^ to distinguish with Layout from Cogent.Dargent.Core
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
                   | ARow (ARow.ARow TCExpr)
                   | Hole (Maybe TCSExpr)
                   | Expr TCSExpr
@@ -45,21 +47,21 @@ data AssignResult = Type TCType
                   | RecP RP
                   deriving Show
 
-newtype Subst = Subst (M.IntMap AssignResult)
+newtype Subst = Subst (IM.IntMap AssignResult)
               deriving Show
 
 ofType :: Int -> TCType -> Subst
-ofType i t = Subst (M.fromList [(i, Type t)])
+ofType i t = Subst (IM.fromList [(i, Type t)])
 
 ofRow :: Int -> Row.Row TCType -> Subst 
 ofRow i t = Subst (M.fromList [(i, Row $ Left t)])
 
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 ofARow :: Int -> ARow.ARow TCExpr -> Subst
-ofARow i t = Subst (M.fromList [(i, ARow t)])
+ofARow i t = Subst (IM.fromList [(i, ARow t)])
 
 ofHole :: Int -> Maybe TCSExpr -> Subst
-ofHole i h = Subst (M.fromList [(i, Hole h)])
+ofHole i h = Subst (IM.fromList [(i, Hole h)])
 #endif
 
 ofShape :: Int -> Row.Shape -> Subst
@@ -68,9 +70,9 @@ ofShape i t = Subst (M.fromList [(i, Row $ Right t)])
 ofSigil :: Int -> Sigil (Maybe TCDataLayout) -> Subst
 ofSigil i t = Subst (M.fromList [(i, Sigil t)])
 
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 ofExpr :: Int -> TCSExpr -> Subst
-ofExpr i e = Subst (M.fromList [(i, Expr e)])
+ofExpr i e = Subst (IM.fromList [(i, Expr e)])
 #endif
 
 ofLayout :: Int -> TCDataLayout -> Subst
@@ -80,22 +82,22 @@ ofRecPar :: Int -> RP -> Subst
 ofRecPar i t = Subst (M.fromList [(i, RecP t)])
 
 null :: Subst -> Bool
-null (Subst x) = M.null x
+null (Subst x) = IM.null x
 
 #if __GLASGOW_HASKELL__ < 803
 instance Monoid Subst where
-  mempty = Subst M.empty
+  mempty = Subst IM.empty
   mappend (Subst a) (Subst b) = Subst (a <> b)
 #else
 instance Semigroup Subst where
   Subst a <> Subst b = Subst (a <> b)
 instance Monoid Subst where
-  mempty = Subst M.empty
+  mempty = Subst IM.empty
 #endif
 
 apply :: Subst -> TCType -> TCType
 apply (Subst f) (U x)
-  | Just (Type t) <- M.lookup x f
+  | Just (Type t) <- IM.lookup x f
   = apply (Subst f) t
   | otherwise
   = U x
@@ -120,18 +122,17 @@ apply f (V x) = V (fmap (apply f) x)
 apply (Subst f) (R (UP x) r s)
   | Just (RecP rp) <- M.lookup x f = apply (Subst f) (R rp r s)
 apply f (R rp x s) = R rp (fmap (apply f) x) s
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 apply (Subst f) (A t l (Right x) mhole)
-  | Just (Sigil s) <- M.lookup x f = apply (Subst f) (A t l (Left s) mhole)
+  | Just (Sigil s) <- IM.lookup x f = apply (Subst f) (A t l (Left s) mhole)
 apply (Subst f) (A t l s (Right x))
-  | Just (Hole mh) <- M.lookup x f = apply (Subst f) (A t l s (Left mh))
+  | Just (Hole mh) <- IM.lookup x f = apply (Subst f) (A t l s (Left mh))
 apply f (A x l s tkns) = A (apply f x) (applySE f l) s (left (fmap $ applySE f) tkns)
 apply f (T x) = T (fffmap (applySE f) $ fmap (apply f) x)
 #else
 apply f (T x) = T (fmap (apply f) x)
 #endif
 apply f (Synonym n ts) = Synonym n (fmap (apply f) ts)
-
 
 
 applyAlts :: Subst -> [Alt TCPatn TCExpr] -> [Alt TCPatn TCExpr]
@@ -152,7 +153,7 @@ applyErr s (TypeNotShareable t m)   = TypeNotShareable (apply s t) m
 applyErr s (TypeNotEscapable t m)   = TypeNotEscapable (apply s t) m
 applyErr s (TypeNotDiscardable t m) = TypeNotDiscardable (apply s t) m
 applyErr s (PatternsNotExhaustive t ts) = PatternsNotExhaustive (apply s t) ts
-applyErr s (UnsolvedConstraint c os) = UnsolvedConstraint (applyC s c) os
+applyErr s (UnsolvedConstraint env c os) = UnsolvedConstraint (applyGoalEnv s env) (applyC s c) os
 applyErr s (NotAFunctionType t) = NotAFunctionType (apply s t)
 applyErr s e = e
 
@@ -173,6 +174,11 @@ applyL s (TLArray e p) = TLArray (applyL s e) p
 applyL s (TLOffset e n) = TLOffset (applyL s e) n
 applyL s l = l
 
+applyGoalEnv :: Subst -> ConstraintEnv -> ConstraintEnv
+applyGoalEnv s (g, es) = (applyGamma s g, fmap (applySE s) es)
+  where
+    applyGamma s m = fmap (first $ apply s) m
+
 applyC :: Subst -> Constraint -> Constraint
 applyC s (a :< b) = apply s a :< apply s b
 applyC s (a :=: b) = apply s a :=: apply s b
@@ -182,8 +188,10 @@ applyC s (Upcastable a b) = apply s a `Upcastable` apply s b
 applyC s (Share t m) = Share (apply s t) m
 applyC s (Drop t m) = Drop (apply s t) m
 applyC s (Escape t m) = Escape (apply s t) m
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 applyC s (Arith e) = Arith $ applySE s e
+-- applyC s (a :-> b) = applyC s a :-> applyC s b
+applyC s (env :|- a) = applyGoalEnv s env :|- applyC s a
 #endif
 applyC s (Unsat e) = Unsat $ applyErr s e
 applyC s (SemiSat w) = SemiSat (applyWarn s w)
@@ -200,10 +208,10 @@ applyC s (l :~  t) = applyL s l :~  apply s t
 applyC s (l :~< m) = applyL s l :~< applyL s m
 applyC s (a :~~ b) = apply s a :~~ apply s b
 
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 applySE :: Subst -> TCSExpr -> TCSExpr
 applySE (Subst f) (SU t x)
-  | Just (Expr e) <- M.lookup x f
+  | Just (Expr e) <- IM.lookup x f
   = applySE (Subst f) e
   | otherwise
   = SU t x

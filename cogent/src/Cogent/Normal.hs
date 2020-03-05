@@ -62,7 +62,7 @@ isAtom (E (Con cn x _)) | isVar x = True
 isAtom (E (Unit)) = True
 isAtom (E (ILit {})) = True
 isAtom (E (SLit _)) = True
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 isAtom (E (ALit es)) | all isVar es = True
 isAtom (E (ArrayIndex e i)) | isVar e && isVar i = True
 isAtom (E (ArrayMap2 (_,f) (e1,e2)))
@@ -91,7 +91,7 @@ isNormal (E (Case e tn (l1,_,e1) (l2,_,e2))) | isVar e && isNormal e1 && isNorma
   -- \| ANF <- __cogent_fnormalisation, isVar  e && isNormal e1 && isNormal e2 = True
   -- \| KNF <- __cogent_fnormalisation, isAtom e && isNormal e1 && isNormal e2 = True
 isNormal (E (If  c th el)) | isVar c  && isNormal th && isNormal el = True
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 isNormal (E (Pop _ e1 e2)) | isVar e1 && isNormal e2 = True
 isNormal (E (ArrayTake _ arr i e)) | isVar arr && isVar i && isNormal e = True
 #endif
@@ -158,7 +158,7 @@ normalise v   (E (Con cn e t)) k = normaliseName v e $ \n e' -> k n (E $ Con cn 
 normalise v e@(E (Unit)) k = k s0 e
 normalise v e@(E (ILit {})) k = k s0 e
 normalise v e@(E (SLit {})) k = k s0 e
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 normalise v   (E (ALit es)) k = normaliseNames v es $ \n es' -> k n (E $ ALit es')
 normalise v   (E (ArrayIndex e i)) k
   = normaliseName v e $ \n e' ->

@@ -32,7 +32,7 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import qualified Cogent.Context as C
 import Cogent.Dargent.TypeCheck
-import Cogent.PrettyPrint (prettyC)
+import Cogent.PrettyPrint (prettyC, symbol)
 import Cogent.Surface
 import Cogent.TypeCheck.ARow as ARow hiding (null)
 import Cogent.TypeCheck.Base hiding (validateType)
@@ -127,7 +127,7 @@ validateType (RT t) = do
                        (c, TVariant fs') <- fmapFoldM validateType t
                        pure (c, V (Row.fromMap (fmap (first tuplize) fs')))
 
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
     TArray te l s tkns -> do
       x <- freshEVar (T u32)
       traceTc "gen" (text "unifier for array length" <+> pretty l L.<$> 
@@ -216,7 +216,8 @@ validateType (RT t) = do
     -- /emmetm
 
 
-validateTypes :: (?loc :: SourcePos, Traversable t) => t RawType -> CG (Constraint, t TCType)
+validateTypes :: (?loc :: SourcePos, Traversable t)
+              => t RawType -> CG (Constraint, t TCType)
 validateTypes = fmapFoldM validateType
 
 -- --------------------------------------------------------------------------
@@ -238,7 +239,10 @@ validateLayouts = fmapFoldM validateLayout
 -- Term-level constraints
 -- --------------------------------------------------------------------------
 
-cgFunDef :: (?loc :: SourcePos) => [Alt LocPatn LocExpr] -> TCType -> CG (Constraint, [Alt TCPatn TCExpr])
+cgFunDef :: (?loc :: SourcePos)
+         => [Alt LocPatn LocExpr]
+         -> TCType
+         -> CG (Constraint, [Alt TCPatn TCExpr])
 cgFunDef alts t = do
   alpha1 <- freshTVar
   alpha2 <- freshTVar
@@ -248,7 +252,11 @@ cgFunDef alts t = do
 
 -- cgAlts alts out_type in_type
 -- NOTE the order of arguments!
-cgAlts :: (?isRefType :: Bool) => [Alt LocPatn LocExpr] -> TCType -> TCType -> CG (Constraint, [Alt TCPatn TCExpr])
+cgAlts :: (?isRefType :: Bool)
+       => [Alt LocPatn LocExpr]
+       -> TCType
+       -> TCType
+       -> CG (Constraint, [Alt TCPatn TCExpr])
 cgAlts alts top alpha = do
   let
     altPattern (Alt p _ _) = p
@@ -257,10 +265,11 @@ cgAlts alts top alpha = do
       (s, c, p',t') <- matchA p t
       context %= C.addScope s
       (c', e') <- cg e top
+      let c'' = (fmap (\(t,_,occ) -> (t, Seq.length occ)) s, []) :|- c'
       rs <- context %%= C.dropScope
       let unused = flip foldMap (M.toList rs) $ \(v,(_,_,us)) ->
             case us of Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v); _ -> Sat
-      return (t', (c <> c' <> dropConstraintFor rs <> unused, Alt p' l e'))
+      return (t', (c <> c'' <> dropConstraintFor rs <> unused, Alt p' l e'))
 
     jobs = map (\(n, alt) -> (NthAlternative n (altPattern alt), f alt)) (zip [1..] alts)
 
@@ -275,7 +284,8 @@ cgAlts alts top alpha = do
 -- Expression constraints
 -- -----------------------------------------------------------------------------
 
-cgMany :: (?loc :: SourcePos, ?isRefType :: Bool) => [LocExpr] -> CG ([TCType], Constraint, [TCExpr])
+cgMany :: (?loc :: SourcePos, ?isRefType :: Bool)
+       => [LocExpr] -> CG ([TCType], Constraint, [TCExpr])
 cgMany es = do
   let each (ts,c,es') e = do
         alpha    <- freshTVar
@@ -296,20 +306,32 @@ cg' :: (?loc :: SourcePos)
     -> CG (Constraint, Expr TCType TCPatn TCIrrefPatn TCDataLayout TCExpr)
 cg' (PrimOp o [e1, e2]) t
   | o `elem` words "+ - * / % .&. .|. .^. >> <<"
-  = do (c1, e1') <- cg e1 t
-       (c2, e2') <- cg e2 t
-       return (integral t <> c1 <> c2, PrimOp o [e1', e2'] )
+  = if ?isRefType then do
+      beta <- freshTVar
+      gamma <- use context
+      (c1, e1') <- cg e1 beta
+      (c2, e2') <- cg e2 beta
+      let phi = SE (T bool) $ PrimOp "==" [SE beta (Var refVarName), SE beta (PrimOp o [toTCSExpr e1', toTCSExpr e2'])]
+          rho = T $ TRefine refVarName beta phi
+          c = rho :< t
+      traceTc "gen" (text "[ref-types] cg for primitive op" <+> symbol o L.<$>
+                     text "generate constraint" <+> prettyC c)
+      return (integral beta <> c <> c1 <> c2, PrimOp o [e1', e2'])
+    else do
+      (c1, e1') <- cg e1 t
+      (c2, e2') <- cg e2 t
+      return (integral t <> c1 <> c2, PrimOp o [e1', e2'])
   | o `elem` words "&& ||"
   = do (c1, e1') <- cg e1 t
        (c2, e2') <- cg e2 t
-       return (T bool :=: t <> c1 <> c2, PrimOp o [e1', e2'] )
+       return (T bool :=: t <> c1 <> c2, PrimOp o [e1', e2'])
   | o `elem` words "== /= >= <= > <"
   = do alpha <- freshTVar
        (c1, e1') <- cg e1 alpha
        (c2, e2') <- cg e2 alpha
        let c  = T bool :=: t
            c' = IsPrimType alpha
-       return (c <> c' <> c1 <> c2, PrimOp o [e1', e2'] )
+       return (c <> c' <> c1 <> c2, PrimOp o [e1', e2'])
 cg' (PrimOp o [e]) t
   | o == "complement"  = do
       (c, e') <- cg e t
@@ -329,20 +351,24 @@ cg' (Var n) t = do
         Just _  -> cg' (TLApp n [] [] NoInline) t
         Nothing -> return (Unsat (NotInScope (funcOrVar t) n), e)
 
-    -- Variable used for the first time, mark the use, and continue
-    Just (t', _, Seq.Empty) -> do
+    Just (t', p, used) -> do
       context %= C.use n ?loc
+      -- c <- if ?isRefType then
+      --        do beta <- freshTVar
+      --           let rho = T $ TRefine refVarName beta (SE (T bool) (PrimOp "==" [SE beta (Var refVarName), SE beta (Var n)]))
+      --           return (t' :< t <> rho :< t')
+      --      else return $ t' :< t
       let c = t' :< t
-      traceTc "gen" (text "variable" <+> pretty n <+> text "used for the first time" <> semi
-               L.<$> text "generate constraint" <+> prettyC c)
-      return (c, e)
-
-    -- Variable already used before, emit a Share constraint.
-    Just (t', p, us)  -> do
-      context %= C.use n ?loc
-      traceTc "gen" (text "variable" <+> pretty n <+> text "used before" <> semi
-               L.<$> text "generate constraint" <+> prettyC (t' :< t) <+> text "and share constraint")
-      return (Share t' (Reused n p us) <> t' :< t, e)
+      share <- case used of
+                 Seq.Empty -> do  -- Variable used for the first time, mark the use, and continue
+                   traceTc "gen" (text "variable" <+> pretty n <+> text "used for the first time" <> semi
+                            L.<$> text "generate constraint" <+> prettyC c)
+                   return Sat
+                 us -> do  -- Variable already used before, emit a Share constraint.
+                   traceTc "gen" (text "variable" <+> pretty n <+> text "used before" <> semi
+                            L.<$> text "generate constraint" <+> prettyC (t' :< t) <+> text "and share constraint")
+                   return (Share t' $ Reused n p us)
+      return (c <> share, e)
 
 cg' (Upcast e) t = do
   alpha <- freshTVar
@@ -377,15 +403,16 @@ cg' (IntLit i) t = do
                       | otherwise      = "U64"
       e = IntLit i
   c <- if ?isRefType then
-         do tau <- freshTVar
-            let v = refVarName
-                c = T (TRefine v tau (SE (T bool) (PrimOp "==" [SE tau (Var v), SE tau e]))) :< t <>
-                    Upcastable (T (TCon minimumBitwidth [] Unboxed)) t
+         do beta <- freshTVar
+            let c = T (TRefine refVarName beta (SE (T bool) (PrimOp "==" [SE beta (Var refVarName), SE beta e]))) :< t <>
+                    Upcastable (T (TCon minimumBitwidth [] Unboxed)) beta
             return c
        else return $ Upcastable (T (TCon minimumBitwidth [] Unboxed)) t
+  traceTc "gen" (text "cg for int literal" <+> integer i L.<$>
+                 text "generate constraint" <+> prettyC c)
   return (c,e)
 
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 cg' (ArrayLit es) t = do
   alpha <- freshTVar
   blob <- forM es $ flip cg alpha
@@ -402,20 +429,23 @@ cg' (ArrayIndex e i) t = do
   alpha <- freshTVar        -- element type
   n <- freshEVar (T u32)    -- length
   s <- freshVar             -- sigil
-  idx <- freshEVar (T u32)  -- index
+  idx <- freshEVar (T u32)  -- index of a potential hole
   h <- freshVar             -- hole
-  let ta = A alpha n (Right s) (Left $ Just idx)  -- this is the biggest type 'e' can ever have -- with a hole
-                                                  -- at a location other than 'i'
+  let -- NOTE: for now, we just assume that there cannot be a hole, to simplify the constraint solving. / zilinc
+      -- XXX | ta = A alpha n (Right s) (Left $ Just idx)  -- this is the biggest type 'e' can ever have---with a hole
+      -- XXX |                                             -- at a location other than 'i'
+      ta = A alpha n (Right s) (Left Nothing)
       ta' = A alpha n (Right s) (Right h)
+      idxInBounds = -- XXX | SE (T bool) (PrimOp "&&"
+                    -- XXX |   [ SE (T bool) (PrimOp "<"  [SE (T u32) (Var refVarName), n  ])
+                    -- XXX |   , SE (T bool) (PrimOp "/=" [SE (T u32) (Var refVarName), idx])
+                    -- XXX |   ])
+                    SE (T bool) (PrimOp "<" [SE (T u32) (Var refVarName), n])
   (ce, e') <- cg e ta'
-  (ci, i') <- cg i (T u32)
+  (ci, i') <- cg i (T $ TRefine refVarName (T u32) idxInBounds)
   let c = alpha :< t
         <> ta' :< ta
         <> Share ta UsedInArrayIndexing
-        <> Arith (SE (T bool) (PrimOp "<"  [toTCSExpr i', n  ]))
-        <> Arith (SE (T bool) (PrimOp "<"  [idx         , n  ]))
-        <> Arith (SE (T bool) (PrimOp "/=" [toTCSExpr i', idx]))
-        -- <> Arith (SE (PrimOp ">=" [toSExpr i, SE (IntLit 0)]))  -- as we don't have negative values
   traceTc "gen" (text "array indexing" <> colon
                  L.<$> text "index is" <+> pretty (stripLocE i) <> semi
                  L.<$> text "upper bound (excl.) is" <+> pretty n <> semi
@@ -638,10 +668,10 @@ cg' (If e1 bs e2 e3) t = do
   (c1, e1') <- letBang bs (cg e1) (T bool)
   (c, [(c2, e2'), (c3, e3')]) <- parallel' [(ThenBranch, cg e2 t), (ElseBranch, cg e3 t)]
   let e = If e1' bs e2' e3'
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
       (c2',c3') = if arithTCExpr e1' then
-        let c2' = Arith (toTCSExpr e1') :-> c2
-            c3' = Arith (SE (T bool) (PrimOp "not" [toTCSExpr e1'])) :-> c3
+        let c2' = (M.empty, [toTCSExpr e1']) :|- c2
+            c3' = (M.empty, [SE (T bool) (PrimOp "not" [toTCSExpr e1'])]) :|- c3
          in (c2',c3')
       else (c2,c3)
 #else
@@ -710,7 +740,10 @@ cg' (Annot e tau) t = do
 -- Pattern constraints
 -- -----------------------------------------------------------------------------
 
-matchA :: (?isRefType :: Bool) => LocPatn -> TCType -> CG (M.Map VarName (C.Assumption TCType), Constraint, TCPatn, TCType)
+matchA :: (?isRefType :: Bool)
+       => LocPatn
+       -> TCType
+       -> CG (M.Map VarName (C.Assumption TCType), Constraint, TCPatn, TCType)
 matchA x@(LocPatn l p) t = do
   let ?loc = l
   (s,c,p',t') <- matchA' p t
@@ -753,7 +786,10 @@ matchA' (PBoolLit b) t =
 matchA' (PCharLit c) t =
   return (M.empty, t :=: T u8, PCharLit c, t)
 
-match :: (?isRefType :: Bool) => LocIrrefPatn -> TCType -> CG (M.Map VarName (C.Assumption TCType), Constraint, TCIrrefPatn)
+match :: (?isRefType :: Bool)
+      => LocIrrefPatn
+      -> TCType
+      -> CG (M.Map VarName (C.Assumption TCType), Constraint, TCIrrefPatn)
 match x@(LocIrrefPatn l ip) t = do
   let ?loc = l
   (s,c,ip') <- match' ip t
@@ -833,7 +869,7 @@ match' (PTake r fs) t | not (any isNothing fs) = do
   return (M.unions (s:ss), co <> mconcat cs <> c, p')
   | otherwise = second3 (:& Unsat RecordWildcardsNotSupported) <$> match' (PTake r (filter isJust fs)) t
 
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 match' (PArray ps) t = do
   alpha <- freshTVar  -- element type
   blob  <- mapM (`match` alpha) ps
@@ -872,7 +908,6 @@ match' (PArrayTake arr _) t = __todo "match': taking multiple elements from arra
 -- Auxiliaries
 -- -----------------------------------------------------------------------------
 
-refVarName = "_v"
 
 freshVar :: (?loc :: SourcePos) => CG Int
 freshVar = fresh (ExpressionAt ?loc)
@@ -947,7 +982,8 @@ withBindings (Binding pat tau e0 bs : xs) e top = do
         case us of
           Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v)
           _ -> Sat
-      c = ct <> c0 <> c' <> cp <> dropConstraintFor rs <> unused
+      c'' = (fmap (\(t,_,occ) -> (t, Seq.length occ)) s, []) :|- c'
+      c = ct <> c0 <> c'' <> cp <> dropConstraintFor rs <> unused
       b' = Binding pat' (fmap (const alpha) tau) e0' bs
   traceTc "gen" (text "bound expression" <+> pretty e0' <+>
                  text "with banged" <+> pretty bs
@@ -970,7 +1006,11 @@ withBindings (BindingAlts pat tau e0 bs alts : xs) e top = do
       b0' = BindingAlts pat' (fmap (const alpha) tau) e0' bs altss'
   return (c, b0':xs', e')
 
-letBang :: (?loc :: SourcePos) => [VarName] -> (TCType -> CG (Constraint, TCExpr)) -> TCType -> CG (Constraint, TCExpr)
+letBang :: (?loc :: SourcePos)
+        => [VarName]
+        -> (TCType -> CG (Constraint, TCExpr))
+        -> TCType
+        -> CG (Constraint, TCExpr)
 letBang [] f t = f t
 letBang bs f t = do
   c <- fold <$> mapM validateVariable bs
@@ -985,6 +1025,8 @@ letBang bs f t = do
            L.<$> text "generate constraint" <+> prettyC c'')
   return (c <> c' <> c'', e)
 
+-- FIXME: Now we have a context in constraints, do we still need to
+-- generate this constraint? / zilinc
 validateVariable :: VarName -> CG Constraint
 validateVariable v = do
   x <- use context

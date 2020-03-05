@@ -58,6 +58,9 @@ typeToSmt (T (TCon n [] Unboxed))
      in KBounded False w
 typeToSmt (T (TTuple ts))  = KTuple $ P.map typeToSmt ts
 typeToSmt (T (TUnit))      = KTuple []
+#ifdef REFINEMENT_TYPES
+typeToSmt (T (TRefine _ b _)) = typeToSmt b
+#endif
 typeToSmt t = __impossible $ "typeToSmt: unsupported type in SMT:\n" ++ show (indent' $ pretty t)
 
 sexprToSmt :: TCSExpr -> SmtTransM SVal
@@ -81,6 +84,8 @@ sexprToSmt (SE t (Var vn)) = do
   --       of like existentials, that if it's *possible* that something is true, then it's satisfiable.
   --       Only when it derives a contradiction it says it's unsat. / zilinc
   -- XXX | return $ svUninterpreted (typeToSmt t) vn Nothing []
+sexprToSmt (SE t (TypeApp f mts _)) = undefined
+sexprToSmt (SE t (App e1 e2 _)) = undefined
 sexprToSmt (SE t (IntLit i)) = return $ svInteger (typeToSmt t) i
 sexprToSmt (SE t (BoolLit b)) = return $ svBool b
 sexprToSmt (SE t (If e _ th el)) = (liftA3 svIte) (sexprToSmt e) (sexprToSmt th) (sexprToSmt el)
@@ -116,7 +121,6 @@ uopToSmt :: OpName -> (SVal -> SVal)
 uopToSmt = \case
   "not"        -> svNot
   "complement" -> svNot
-
 
 -- ----------------------------------------------------------------------------
 -- Helpers

@@ -107,7 +107,7 @@ constructDataLayout' (TRecord rp fields Unboxed) = RecordLayout . fromList . snd
     go' (TVarBang     _  ) = __impossible $ "go' (Type check should fail on boxed types containing type variables)"
     go' (TFun         _ _) = __impossible $ "go' (Type check should fail on boxed types containing functions)"
     go' (TString         ) = __impossible $ "go' (Type check should fail on boxed types containing strings)"
-#if BUILTIN_ARRAYS
+#if REFINEMENT_TYPES
     go' (TArray   _ _ _ _) = __impossible $ "go' (Type check should fail on boxed types containing arrays)"
 #endif
     go' (TProduct     _ _) = __impossible $ "go' (Type check should fail on boxed types containing pairs)"

@@ -1,0 +1,4 @@
+type OneToFive = [x : U32 | 1 <= x && x < 5]
+
+foo : (U8[4]!, OneToFive) -> U8
+foo (arr, x) = let y = x - 1 in arr @ y

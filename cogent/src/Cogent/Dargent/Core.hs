@@ -54,7 +54,7 @@ data DataLayout' bits
   | RecordLayout
     { fieldsDL        :: Map FieldName (DataLayout' bits)
     }
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   | ArrayLayout (DataLayout' bits)
 #endif
   | VarLayout Nat

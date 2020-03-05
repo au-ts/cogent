@@ -176,7 +176,7 @@ monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
     monoExpr' (Unit                ) = pure Unit
     monoExpr' (ILit    n   pt      ) = pure $ ILit n pt
     monoExpr' (SLit    s           ) = pure $ SLit s
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
     monoExpr' (ALit    es          ) = ALit <$> mapM monoExpr es
     monoExpr' (ArrayIndex e i      ) = ArrayIndex <$> monoExpr e <*> monoExpr i
     monoExpr' (ArrayMap2 (as,f) (e1,e2)) = do
@@ -232,7 +232,7 @@ monoType (TRPar v m) =  do
 monoType (TRParBang v m) =  do
   m' <- mapM (mapM monoType) m
   return $ TRParBang v m'
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 monoType (TArray t l s mhole) = TArray <$> monoType t <*> monoLExpr l <*> monoSigil s <*> mapM monoLExpr mhole
 #endif
 

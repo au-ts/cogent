@@ -7,7 +7,7 @@ import Lens.Micro.Mtl
 import qualified Data.IntMap as IM
 
 toErrors :: IM.IntMap VarOrigin -> [Goal] -> TcM ()
-toErrors os = mapM_ $ \(Goal ctx c) -> case c of
+toErrors os = mapM_ $ \(Goal _ env c) -> case c of
     Sat -> return ()
     Unsat e -> logErr e
-    c -> logErr (UnsolvedConstraint c os)
+    c -> logErr (UnsolvedConstraint env c os)

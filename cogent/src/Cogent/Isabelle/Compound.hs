@@ -133,7 +133,7 @@ expDiscardVar' rm0 f e = case e of
   Put e1 f e2            -> Put <$> go e1 <*> pure f <*> go e2
   Promote t e1           -> Promote <$> typDiscardVar (finNat rm0) t <*> go e1
   Cast t e1              -> Cast <$> typDiscardVar (finNat rm0) t <*> go e1
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   ALit es                -> ALit <$> mapM go es
   ArrayIndex e1 e2       -> ArrayIndex <$> go e1 <*> go e2
   Pop (n,n') e1 e2       -> Pop (n,n') <$> go e1 <*> goSuc2 e2
@@ -161,7 +161,7 @@ typDiscardVar rm0 t = case t of
   TProduct t1 t2    -> TProduct <$> go t1 <*> go t2
   TRecord rp fs s   -> TRecord rp <$> mapM (secondM $ firstM go) fs <*> pure s
   TUnit             -> pure TUnit
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   TArray t l s mh   -> TArray <$> go t <*> pure l <*> pure s <*> mapM (lexpDiscardVar rm0) mh
 #endif
  where

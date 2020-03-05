@@ -59,14 +59,14 @@ language = haskellStyle
                                  ,".&.",".|.",".^.",">>","<<","{{","}}"
                                  ,":","=","!",":<",".","_","..","#","$","::",":~"
                                  ,"@","@@"  -- DocGent
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
                                  ,"@{"
 #endif
                                  ,"->","=>","~>","<=","|","|>"]
            , T.reservedNames   = ["let","in","type","include","all","take","put","inline","upcast"
                                  ,"variant","record","at","rec","layout","pointer"
                                  ,"if","then","else","not","complement","and","True","False","o"
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
                                  ,"array","map2","@take","@put"]
 #else
                                  ]
@@ -121,7 +121,7 @@ repExpr = repExpr' repRefM <|> parens repExpr
     repExpr' p = avoidInitial >> buildExpressionParser [[Postfix (flip DLOffset <$ reserved "at" <*> repSize)]] (DL <$>
          ((Record <$ reserved "record" <*> braces (commaSep recordRepr))
       <|> (Variant <$ reserved "variant" <*> parens repExpr <*> braces (commaSep variantRepr))
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
       <|> (Array <$ reserved "array" <*> brackets repExpr <*> getPosition)
 #endif
       <|> (Prim <$> repSize)
@@ -134,13 +134,13 @@ repExpr = repExpr' repRefM <|> parens repExpr
 -- TODO: add support for patterns like `_ {f1, f2}', where the record name is anonymous / zilinc
 irrefutablePattern :: Parser LocIrrefPatn
 irrefutablePattern = avoidInitial >> LocIrrefPatn <$> getPosition <*>
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
             (variableOrRecordOrArray <$> variableName <*> optionMaybe recOrArray
 #else
             (variableOrRecord <$> variableName <*> optionMaybe rec
 #endif
          <|> tuple <$> parens (commaSep irrefutablePattern)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
          <|> PArray <$> brackets (commaSep1 irrefutablePattern)
 #endif
          <|> PUnboxedRecord <$ reservedOp "#" <*> braces recAssignsAndOrWildcard
@@ -150,7 +150,7 @@ irrefutablePattern = avoidInitial >> LocIrrefPatn <$> getPosition <*>
         tuple [LocIrrefPatn _ p] = p
         tuple ps  = PTuple ps
 
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
         recOrArray = do { x <- between (reservedOp "@{") (symbol "}") arrayAssigns
                         ; return $ Right x
                         }
@@ -213,7 +213,7 @@ expr m = do avoidInitial
                           <*  reserved "then" <*> expr m <* reserved "else" <*> expr m))
               <|> Lam <$ string "\\" <*> irrefutablePattern <*> optionMaybe (reservedOp ":" *> monotype)
                       <* reservedOp "=>" <*> expr m
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
               <|> do { reserved "map2"
                      ; f <- parens $ do { string "\\"
                                         ; p1 <- irrefutablePattern
@@ -284,12 +284,12 @@ basicExpr' = avoidInitial >> buildExpressionParser
               , Prefix (getPosition >>= \p -> reserved "not" *> pure (LocExpr p . PrimOp "not" . (:[])))
               , Infix funapp AssocLeft
               , Postfix ((\rs x -> LocExpr (posOfE x) (Put x rs)) <$> braces recAssignsAndOrWildcard)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
               , Postfix ((\rs x -> LocExpr (posOfE x) (ArrayPut x rs)) <$> between (reservedOp "@{") (symbol "}") arrayAssigns)
 #endif
               ]
 
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
             , [Infix (try (avoidInitial >> reservedOp "@") *> pure (\e i -> LocExpr (posOfE e) (ArrayIndex e i))) AssocLeft,
                Infix (reserved "o" *> pure (\f g -> LocExpr (posOfE f) (Comp f g))) AssocRight]
 #else
@@ -324,7 +324,7 @@ term = avoidInitial >> (var <|> (LocExpr <$> getPosition <*>
        <|> CharLit <$> charLiteral
        <|> StringLit <$> stringLiteral
        <|> tuple <$> parens (commaSep $ expr 1)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
        <|> ArrayLit <$> brackets (commaSep1 $ expr 1)
 #endif
        <|> UnboxedRecord <$ reservedOp "#" <*> braces (commaSep1 recordAssignment)))
@@ -404,7 +404,7 @@ typeA1' = do avoidInitial
                      let t' = (case op of
                                   Nothing -> t
                                   Just f  -> f t)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
                      aop <- optionMaybe arrTakeput
                      let ta = (case aop of
                                  Nothing -> t'
@@ -429,7 +429,7 @@ typeA1' = do avoidInitial
     takeput = avoidInitial >>
              ((reservedOp "take" >> fList >>= \fs -> return (\x -> LocType (posOfT x) (TTake fs x)))
           <|> (reservedOp "put"  >> fList >>= \fs -> return (\x -> LocType (posOfT x) (TPut  fs x))))
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
     -- vvv TODO: add the @take(..) syntax for taking all elements / zilinc
     arrTakeput = avoidInitial >>
               ((reservedOp "@take" >> parens (commaSep (expr 1)) >>= \idxs -> return (\x -> LocType (posOfT x) (TATake idxs x))))
@@ -444,7 +444,7 @@ typeA1' = do avoidInitial
 
 typeA2' = avoidInitial >>
            ((unbox >>= \op -> atomtype >>= \at -> return (op at))
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
        <|>  try ( do { t <- atomtype
                      ; mu <- optionMaybe unbox
                      ; l <- brackets $ expr 1

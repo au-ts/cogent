@@ -121,7 +121,7 @@ normaliseT d (T (TUnbox t)) = do
      (T (TVar v b u))     -> normaliseT d (T (TVar v b True))
      -- Cannot have an unboxed record with a recursive parameter
      (T (TRecord NonRec l _)) -> normaliseT d (T (TRecord NonRec l Unboxed))
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
      (T (TArray t e _ h)) -> normaliseT d (T (TArray t e Unboxed h))
 #endif
      (T o)                -> normaliseT d =<< normaliseT d (T $ fmap (T . TUnbox) o)
@@ -134,7 +134,7 @@ normaliseT d (T (TBang t)) = do
                           normaliseT d (T (TCon x ps' (bangSigil s)))
      (T (TRecord rp l s)) -> mapM ((secondM . firstM) (normaliseT d . T . TBang)) l >>= \l' ->
                              normaliseT d (T (TRecord rp l' (bangSigil s)))
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
      (T (TArray t e (Boxed False l) h)) -> do
        t' <- normaliseT d $ T $ TBang t
        normaliseT d (T (TArray t' e (Boxed True l) h))
@@ -174,7 +174,7 @@ normaliseT d (T (TPut fs t)) = do
      forM fs' $ \(f,(t,b)) -> do when (f `elem` fs && not b && __cogent_wdodgy_take_put) $ logWarn (PutUntakenField f t')
                                  return (f, (t,  (f `notElem` fs) && b))
 
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 -- TODO: we also need to check that the taken indices are in bounds / zilinc
 normaliseT d (T (TATake is t)) = do
   t' <- normaliseT d t
@@ -210,7 +210,7 @@ normaliseT d (T (TLayout l t)) = do
       if isTypeLayoutExprCompatible env t'' l
         then normPartT . Boxed p $ Just l
         else logErrExit (LayoutDoesNotMatchType l t)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
     (T (TArray telt n (Boxed p Nothing) tkns)) -> do
       let normPartT s = normaliseT d . T $ TArray telt n s tkns
       t'' <- normPartT Unboxed
@@ -234,7 +234,7 @@ normaliseT d (T (TRecord rp l s)) = do
   l' <- mapM ((secondM . firstM) (normaliseT d)) l
   return (T (TRecord rp l' s'))
 
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 normaliseT d (T (TArray t n s tkns)) = do
   t' <- normaliseT d t
   s' <- normaliseS   s
@@ -254,7 +254,7 @@ normaliseT d (R rp x (Left s)) = do
   s' <- normaliseS s
   return $ T $ TRecord (unCoerceRP rp) x' s'
 normaliseT d (R _ x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 normaliseT d (A t n (Left s) (Left mhole)) = do
   t' <- normaliseT d t
   s' <- normaliseS s

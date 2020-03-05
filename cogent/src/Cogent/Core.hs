@@ -84,7 +84,7 @@ data Type t b
   | TUnit
   | TRPar     RecParName (RecContext (Type t b))
   | TRParBang RecParName (RecContext (Type t b))
--- #ifdef BUILTIN_ARRAYS
+-- #ifdef REFINEMENT_TYPES
   | TArray (Type t b) (LExpr t b) (Sigil (DataLayout BitRange)) (Maybe (LExpr t b))  -- the hole
   | TRefine (Type t b) (LExpr t b)
 -- #endif
@@ -122,7 +122,7 @@ recordFields _ = __impossible "recordsFields: not a record type"
 isUnboxed :: Type t b -> Bool
 isUnboxed (TCon _ _ Unboxed) = True
 isUnboxed (TRecord _ _ Unboxed) =  True
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 isUnboxed (TArray _ _ Unboxed _) = True
 #endif
 #ifdef REFINEMENT_TYPES
@@ -162,7 +162,7 @@ data Expr t v a b e
   | Unit
   | ILit Integer PrimInt
   | SLit String
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   | ALit [e t v a b]
   | ArrayIndex (e t v a b) (e t v a b)
   | Pop (a, a) (e t v a b) (e t ('Suc ('Suc v)) a b)
@@ -224,7 +224,7 @@ data LExpr t b
 
 instance (Binary b, Generic b) => Binary (LExpr 'Zero b)
 
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 exprToLExpr :: (a -> b)
             -> ((a -> b) -> e t v a b -> LExpr t b)
             -> ((a -> b) -> e t ('Suc v) a b -> LExpr t b)
@@ -368,7 +368,7 @@ insertIdxAtE cut f (Con tag e t) = Con tag (f cut e) t
 insertIdxAtE cut f (Unit) = Unit
 insertIdxAtE cut f (ILit n pt) = ILit n pt
 insertIdxAtE cut f (SLit s) = SLit s
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 insertIdxAtE cut f (ALit es) = ALit $ map (f cut) es
 insertIdxAtE cut f (ArrayIndex e l) = ArrayIndex (f cut e) (f cut l)
 insertIdxAtE cut f (Pop a e1 e2) = Pop a (f cut e1) (f (FSuc (FSuc cut)) e2)
@@ -407,7 +407,7 @@ foldEPre unwrap f e = case unwrap e of
   Unit                -> f e
   ILit {}             -> f e
   SLit {}             -> f e
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   ALit es             -> mconcat $ f e : map (foldEPre unwrap f) es
   ArrayIndex e i      -> mconcat [f e, f i]
   Pop as e1 e2        -> mconcat [f e1, f e2]
@@ -440,7 +440,7 @@ fmapE f (Con cn e t)         = Con cn (f e) t
 fmapE f (Unit)               = Unit
 fmapE f (ILit i pt)          = ILit i pt
 fmapE f (SLit s)             = SLit s
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 fmapE f (ALit es)            = ALit (map f es)
 fmapE f (ArrayIndex e i)     = ArrayIndex (f e) (f i)
 fmapE f (ArrayMap2 (as,e) (e1,e2)) = ArrayMap2 (as, f e) (f e1, f e2)
@@ -484,7 +484,7 @@ instance (Functor (e t v a),
   fmap f (Flip (Unit)               )      = Flip $ Unit
   fmap f (Flip (ILit i pt)          )      = Flip $ ILit i pt
   fmap f (Flip (SLit s)             )      = Flip $ SLit s
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   fmap f (Flip (ALit es)            )      = Flip $ ALit (fmap (fmap f) es)
   fmap f (Flip (ArrayIndex e i)     )      = Flip $ ArrayIndex (fmap f e) (fmap f i)
   fmap f (Flip (ArrayMap2 (as,e) (e1,e2))) = Flip $ ArrayMap2 (as, fmap f e) (fmap f e1, fmap f e2)
@@ -519,7 +519,7 @@ instance (Functor (Flip (e t v) b),
   fmap f (Flip2 (Unit)               )      = Flip2 $ Unit
   fmap f (Flip2 (ILit i pt)          )      = Flip2 $ ILit i pt
   fmap f (Flip2 (SLit s)             )      = Flip2 $ SLit s
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   fmap f (Flip2 (ALit es)            )      = Flip2 $ ALit (fmap (ffmap f) es)
   fmap f (Flip2 (ArrayIndex e i)     )      = Flip2 $ ArrayIndex (ffmap f e) (ffmap f i)
   fmap f (Flip2 (ArrayMap2 (as,e) (e1,e2))) = Flip2 $ ArrayMap2 (both f as, ffmap f e) (ffmap f e1, ffmap f e2)
@@ -567,7 +567,7 @@ instance Prec (Expr t v a b e) where
   prec (Op opr [_,_]) = prec (associativity opr)
   prec (ILit {}) = 0
   prec (SLit {}) = 0
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   prec (ALit {}) = 0
 #endif
   prec (Variable {}) = 0
@@ -589,7 +589,7 @@ instance Prec (TypedExpr t v a b) where
 instance Prec (UntypedExpr t v a b) where
   prec (E e) = prec e
 
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 instance Prec (LExpr t b) where
   prec (LOp opr [_,_]) = prec (associativity opr)
   prec (LILit {}) = 0
@@ -628,7 +628,7 @@ instance (Pretty a, Pretty b, Prec (e t v a b), Pretty (e t v a b), Pretty (e t 
   pretty (Op opr es)  = primop opr <+> tupled (map pretty es)
   pretty (ILit i pt) = literal (string $ show i) <+> symbol "::" <+> pretty pt
   pretty (SLit s) = literal $ string s
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   pretty (ALit es) = array $ map pretty es
   pretty (ArrayIndex arr idx) = prettyPrec 2 arr <+> symbol "@" <+> prettyPrec 2 idx
   pretty (ArrayMap2 ((v1,v2),f) (e1,e2)) = keyword "map2" <+>
@@ -692,7 +692,7 @@ instance (Pretty b) => Pretty (Type t b) where
   pretty (TCon tn [] s) = typename tn <> pretty s
   pretty (TCon tn ts s) = typename tn <> pretty s <+> typeargs (map pretty ts)
   pretty (TRPar v m) = keyword "rec" <+> typevar v
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   pretty (TArray t l s mhole) = (pretty t <> brackets (pretty l) <+> pretty s) &
     (case mhole of Nothing -> id; Just hole -> (<+> keyword "take" <+> parens (pretty hole)))
 #endif
@@ -704,7 +704,7 @@ prettyTaken :: Bool -> Doc
 prettyTaken True  = symbol "*"
 prettyTaken False = empty
 
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 instance (Pretty b) => Pretty (LExpr t b) where
   pretty (LOp opr [a,b])
      | LeftAssoc  l <- associativity opr = prettyPrec (l+1) a <+> primop opr <+> prettyPrec l b

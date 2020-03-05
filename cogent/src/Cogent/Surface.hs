@@ -50,7 +50,7 @@ data IrrefutablePattern pv ip e = PVar pv
                                 | PUnitel
                                 | PTake pv [Maybe (FieldName, ip)]
                                     -- ^^^ Note: `Nothing' will be desugared to `Just' in TypeCheck / zilinc
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
                                 | PArray [ip]
                                 | PArrayTake pv [(e, ip)]
 #endif
@@ -93,7 +93,7 @@ data Expr t p ip l e = PrimOp OpName [e]
                      | BoolLit Bool
                      | CharLit Char
                      | StringLit String
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
                      | ArrayLit [e]
                      | ArrayIndex e e
                      | ArrayMap2 ((ip, ip), e) (e, e)
@@ -120,14 +120,12 @@ data Type e l t =
                 | TVariant (M.Map TagName ([t], Taken))
                 | TTuple [t]
                 | TUnit
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
                 | TArray t e (Sigil (Maybe l)) [(e, Taken)]
                                                        -- \ ^^^ a list of taken/put indices
                 -- The TATake and TAPut type-operators will be normalised away.
                 | TATake [e] t
                 | TAPut  [e] t
-#endif
-#ifdef REFINEMENT_TYPES
                 | TRefine VarName t e
 #endif
                 -- In TypeCheck.Post, the TUnbox and TBang type-operators
@@ -259,7 +257,7 @@ instance Traversable (Flip (IrrefutablePattern pv) e) where  -- ip
   traverse _ (Flip (PUnderscore))         = pure $ Flip PUnderscore
   traverse f (Flip (PUnitel))             = pure $ Flip (PUnitel)
   traverse f (Flip (PTake pv mfs))        = Flip <$> (PTake pv <$> traverse (traverse $ traverse f) mfs)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   traverse f (Flip (PArray ips))          = Flip <$> (PArray <$> traverse f ips)
   traverse f (Flip (PArrayTake pv eps))   = Flip <$> (PArrayTake pv <$> traverse (traverse f) eps)
 #endif
@@ -271,7 +269,7 @@ instance Traversable (Flip2 IrrefutablePattern e ip) where  -- pv
   traverse _ (Flip2 PUnderscore)          = pure $ Flip2 PUnderscore
   traverse _ (Flip2 PUnitel)              = pure $ Flip2 PUnitel
   traverse f (Flip2 (PTake pv mfs))       = Flip2 <$> (PTake <$> f pv <*> pure mfs)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   traverse _ (Flip2 (PArray ips))         = pure $ Flip2 (PArray ips)
   traverse f (Flip2 (PArrayTake pv ivs))  = Flip2 <$> (PArrayTake <$> f pv <*> pure ivs)
 #endif
@@ -284,12 +282,10 @@ instance Traversable (Flip (Type e) t) where  -- l
   traverse _ (Flip (TVariant alts))      = pure $ Flip (TVariant alts)
   traverse _ (Flip (TTuple ts))          = pure $ Flip (TTuple ts)
   traverse _ (Flip (TUnit))              = pure $ Flip (TUnit)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   traverse f (Flip (TArray t e s tkns))  = Flip <$> (TArray t e <$> traverse (traverse f) s <*> pure tkns)
   traverse _ (Flip (TATake idxs t))      = pure $ Flip (TATake idxs t)
   traverse _ (Flip (TAPut  idxs t))      = pure $ Flip (TAPut  idxs t)
-#endif
-#ifdef REFINEMENT_TYPES
   traverse _ (Flip (TRefine v t e))      = pure $ Flip (TRefine v t e)
 #endif
   traverse _ (Flip (TUnbox t))           = pure $ Flip (TUnbox t)
@@ -410,7 +406,7 @@ instance Pentatraversable Expr where
   pentatraverse fa fb fc fd fe (BoolLit   b)       = pure $ BoolLit   b
   pentatraverse fa fb fc fd fe (CharLit   c)       = pure $ CharLit   c
   pentatraverse fa fb fc fd fe (StringLit s)       = pure $ StringLit s
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   pentatraverse fa fb fc fd fe (ArrayLit es)       = ArrayLit <$> traverse fe es
   pentatraverse fa fb fc fd fe (ArrayIndex e1 e2)  = ArrayIndex <$> fe e1 <*> fe e2
   pentatraverse fa fb fc fd fe (ArrayMap2 p es) = ArrayMap2 <$> bitraverse (bothM fc) fe p <*> bothM fe es
@@ -446,7 +442,7 @@ fvIP (RIP (PVar pv)) = [pv]
 fvIP (RIP (PTuple ips)) = foldMap fvIP ips
 fvIP (RIP (PUnboxedRecord mfs)) = foldMap (fvIP . snd) (Compose mfs)
 fvIP (RIP (PTake pv mfs)) = pv : foldMap (fvIP . snd) (Compose mfs)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 fvIP (RIP (PArray ips)) = foldMap fvIP ips
 fvIP (RIP (PArrayTake pv hs)) = __todo "fvIP: PArrayTake unimplemented" -- TODO?
 #endif
@@ -461,7 +457,7 @@ fvE (RE (LamC _ _ _ vs)) = vs  -- FIXME
 fvE (RE (Let (b:bs) e)) = let (locals, fvs) = fvB b
                               fvs' = filter (`notElem` locals) (fvE (RE (Let bs e)))
                            in fvs ++ fvs'
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 fvE (RE (ArrayLit es)) = foldMap fvE es
 fvE (RE (ArrayIndex e i)) = fvE e ++ fvE i
 fvE (RE (ArrayMap2 ((p1,p2),f) (e1,e2))) = filter (`notElem` fvIP p1 ++ fvIP p2) $ fvE f ++ fvE e1 ++ fvE e2
@@ -478,12 +474,10 @@ fvT (RT (TVariant alts)) = foldMap (foldMap fvT . fst) alts
 fvT (RT (TTuple ts)) = foldMap fvT ts
 fvT (RT (TUnit)) = []
 fvT (RT (TRPar _ _ rc)) = __fixme [] -- FIXME: check this
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 fvT (RT (TArray t e _ tkns)) = fvT t ++ fvE e ++ foldMap (fvE . fst) tkns
 fvT (RT (TATake idxs t)) = fvT t ++ foldMap fvE idxs
 fvT (RT (TAPut  idxs t)) = fvT t ++ foldMap fvE idxs
-#endif
-#ifdef REFINEMENT_TYPES
 fvT (RT (TRefine v t e)) = fvT t ++ filter (/= v) (fvE e)
 #endif
 fvT (RT (TUnbox   t)) = fvT t
@@ -508,7 +502,7 @@ fcE (RE e) = foldMap fcE e
 
 fcT :: RawType -> [TagName]
 fcT (RT (TCon n ts _)) = n : foldMap fcT ts
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 fcT (RT (TArray t e _ tkns)) = fcT t ++ fcE e ++ foldMap (fcE . fst) tkns
 fcT (RT (TATake idxs t)) = foldMap fcE idxs ++ fcT t
 fcT (RT (TAPut  idxs t)) = foldMap fcE idxs ++ fcT t
@@ -526,13 +520,11 @@ tvT (RT (TRecord _ fs _)) = foldMap (tvT . fst . snd) fs
 tvT (RT (TVariant alts)) = foldMap (foldMap tvT . fst) alts
 tvT (RT (TTuple ts)) = foldMap tvT ts
 tvT (RT (TUnit)) = []
-tvT (RT (TRPar _ _ m)) = __fixme $ foldMap (foldMap tvT) m -- FIXME: check this
-#ifdef BUILTIN_ARRAYS
+tvT (RT (TRPar _ _ m)) = foldMap (foldMap tvT) m
+#ifdef REFINEMENT_TYPES
 tvT (RT (TArray t e _ tkns)) = tvT t ++ tvE e ++ foldMap (tvE . fst) tkns
 tvT (RT (TATake idxs t)) = tvT t ++ foldMap tvE idxs
 tvT (RT (TAPut  idxs t)) = tvT t ++ foldMap tvE idxs
-#endif
-#ifdef REFINEMENT_TYPES
 tvT (RT (TRefine _ t e)) = tvT t ++ tvE e
 #endif
 tvT (RT (TUnbox   t)) = tvT t
@@ -561,7 +553,7 @@ tvE (RE (IntLit l))         = []
 tvE (RE (BoolLit l))        = []
 tvE (RE (CharLit l))        = []
 tvE (RE (StringLit l))      = []
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 tvE (RE (ArrayLit es))      = foldMap tvE es
 tvE (RE (ArrayIndex e i))   = tvE e ++ tvE i
 tvE (RE (ArrayMap2 (as,fn) (e1,e2))) = foldMap tvE [fn,e1,e2]
@@ -635,7 +627,7 @@ allRepRefs (DL d) = allRepRefs' d
     allRepRefs' (Prim _) = []
     allRepRefs' (Record fs) = concatMap (allRepRefs . thd3) fs
     allRepRefs' (Variant tag cs) = allRepRefs tag ++ concatMap (\(_,_,_,e) -> allRepRefs e) cs
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
     allRepRefs' (Array e _) = allRepRefs e
 #endif
     allRepRefs' (Offset e _) = allRepRefs e

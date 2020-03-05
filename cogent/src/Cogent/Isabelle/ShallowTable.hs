@@ -61,7 +61,7 @@ toTypeStr (TRecord _ ts _)   = nub $ RecordStr (P.map fst ts) : concatMap (toTyp
 toTypeStr (TPrim i)        = []
 toTypeStr (TString)        = []
 toTypeStr (TCon n ts _)    = nub $ concatMap toTypeStr ts
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 toTypeStr (TArray {})      = []
 #endif
 toTypeStr (TRPar v m)      = []
@@ -122,7 +122,7 @@ stExpr (TE t e) = stExpr' e >> stType t
     stExpr' (Unit)         = return ()
     stExpr' (ILit i pt)    = return ()
     stExpr' (SLit s)       = return ()
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
     stExpr' (ALit es)      = mapM_ stExpr es
     stExpr' (ArrayIndex e1 e2) = mapM_ stExpr [e1,e2]
     stExpr' (Pop _ e1 e2)  = stExpr e1 >> stExpr e2

@@ -8,12 +8,15 @@
 -- @TAG(NICTA_GPL)
 --
 
+{-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
+
 module Cogent.Context
-  ( Context
+  ( Context (..)
   , Assumption
   , addScope
   , contains
   , dropScope
+  , collapse
   , empty
   , lookup
   , merge
@@ -34,7 +37,7 @@ import Text.Parsec.Pos
 
 type Assumption t = (t, SourcePos, Seq.Seq SourcePos)
 --                                 ^------ the locations where it's used; serves as an use count
-newtype Context t = Context [M.Map VarName (Assumption t)] deriving (Eq)
+newtype Context t = Context [M.Map VarName (Assumption t)] deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 empty :: Context t
 empty = Context []
@@ -59,6 +62,11 @@ addScope m (Context ms) = Context (m:ms)
 dropScope :: Context t -> (M.Map VarName (Assumption t), Context t)
 dropScope (Context (m:ms)) = (m, Context ms)
 dropScope (Context [])     = error "dropScope of empty context!"
+
+-- collapses a context into a single-scope context which contains all the bindings,
+-- and removes the shadowed entries.
+collapse :: Context t -> Context t
+collapse (Context ms) = Context [M.unions ms]
 
 mode' :: M.Map VarName x -> [VarName] -> (x -> x) -> (M.Map VarName x, M.Map VarName x -> M.Map VarName x)
 mode' c vs f =

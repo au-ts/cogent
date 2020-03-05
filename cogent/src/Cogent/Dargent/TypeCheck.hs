@@ -159,7 +159,7 @@ tcDataLayoutExpr env vs (DLVariant tagExpr alternatives) =
     primitiveBitRange (DLOffset expr size) = offset (evalSize size) <$> primitiveBitRange expr
     primitiveBitRange _                    = Nothing
 
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 tcDataLayoutExpr env vs (DLArray e p) = mapPaths (InElmt p) $ tcDataLayoutExpr env vs e
 #endif
 tcDataLayoutExpr _ _ DLPtr = return $ singletonAllocation (pointerBitRange, PathEnd)
@@ -183,7 +183,7 @@ normaliseDataLayoutExpr env (DLVariant tag alts) =
   DLVariant (normaliseDataLayoutExpr env tag) $
     fmap (\(tn, pos, size, expr) -> (tn, pos, size, normaliseDataLayoutExpr env expr)) alts
 normaliseDataLayoutExpr env (DLOffset expr size) = DLOffset (normaliseDataLayoutExpr env expr) size
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 normaliseDataLayoutExpr env (DLArray e pos) = DLArray (normaliseDataLayoutExpr env e) pos
 #endif
 normaliseDataLayoutExpr _ r = r

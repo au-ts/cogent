@@ -1,0 +1,16 @@
+- test_name: pass-reftypes
+  files:
+    - pass_if.cogent
+    - pass_ref-type-simple-1.cogent
+    - pass_ref-type-simple-fun.cogent
+    - pass_array-index-in-bounds.cogent
+  expected_result: pass
+  flags:
+    - -t
+
+- test_name: fail-reftypes
+  files:
+    - fail_if.cogent
+  expected_result: fail
+  flags:
+    - -t

@@ -39,7 +39,7 @@ import Lens.Micro
 import Lens.Micro.Mtl (view)
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 
--- import Debug.Trace
+import Debug.Trace
 
 data SmtState = SmtState { constraints :: [TCSExpr] }
 
@@ -58,26 +58,7 @@ trans (RewriteT m) = RewriteT $ \a ->
 -- | Extracts all logical predicates from goals and then,
 --   simplifies them using the knowledge of constant definitions.
 smtSolve :: RewriteT SmtM [Goal]
-smtSolve =
-  extractPredicates `andThen`
-  (rewrite' $ \gs -> do
-    ks <- M.map (\(a,b,c) -> (a,b)) <$> view knownConsts
-    SmtState c <- get
-    let ks' = constEquations ks
-    traceTc "sol/smt" (L.text "Constants" L.<> L.colon L.<$> L.prettyList ks')
-    res <- liftIO $ smtSatResult $ implTCSExpr (andTCSExprs ks') (andTCSExprs c)
-    case res of (_ , _, []) -> hoistMaybe $ Nothing
-                -- \ ^^^ Returns no models, meaning it's unsat.
-                (False, False, [m]) -> hoistMaybe $ Just gs
-                -- \ ^^^ Only one model (or unique up to prefix existentials). We should
-                -- generate assignment (but the assignment can be empty).
-                (_, _, [m]) -> hoistMaybe $ Just gs
-                -- \ ^^^ Multiple models. Since all arithmetic constraints
-                -- are here, and the assignment of arithmetic unification variables
-                -- shouldn't affect the satisfiability of other typing constraints,
-                -- we can choose an arbitrary assignment. (TODO) / zilinc
-                _ -> __impossible "smtSolve: I only asked for one result, and you give me more!?"
-   )
+smtSolve = pickOne' $ extractPredicates >=> simp >=> (return . (:[]))
 
 -- | Converts the store of known constants to equality constraints.
 constEquations :: M.Map VarName (TCType, TCExpr) -> [TCSExpr]
@@ -86,19 +67,43 @@ constEquations = M.toList .>
                  map (\(v,(t,e)) -> SE (T bool) (PrimOp "==" [SE t (Var v), toTCSExpr e]))
   where simpleExpr (_,(_,e)) = simpleTE e
 
--- | Finds and stores in 'StmM' *all* logical predicates from constraints, and remove them
---   from the 'SolvM' store.
-extractPredicates :: RewriteT SmtM [Goal]
-extractPredicates = rewrite' $ \gs -> do
-  let blob = map (\g -> splitArithConstraints (g ^. goal)) gs
-      (ess,cs) = unzip blob
-      es = mconcat ess
-  if null es then
+-- | FIXME: the state is not useful. we can try `withTransform`. / zilinc
+extractPredicates :: Goal -> MaybeT SmtM Goal
+extractPredicates g = do
+  let (es,c) = splitArithConstraints (g ^. goal)
+      (gamma, pred) = g ^. goalEnv
+      gs = extractGamma gamma
+      g' = g & goal .~ c
+  -- traceM $ "#### es = " ++ show (L.pretty es)
+  -- traceM $ "#### gamma = " ++ show gamma
+  -- traceM $ "#### gs = " ++ show gs ++ "\n#### pred = " ++ show pred
+  if null es || not (null $ concatMap unifVarsE gs ++
+                            concatMap unifVarsE pred) then
     hoistMaybe $ Nothing
   else do
-    modify (\(SmtState es') -> SmtState (es'++es))
-    let gs' = zipWith (\g c -> g & goal .~ c) gs cs
-    hoistMaybe $ Just gs'
+    modify (\(SmtState es') -> SmtState (map (\e -> implTCSExpr (andTCSExprs $ gs ++ pred) e) es))
+    hoistMaybe $ Just g'
+
+simp :: Goal -> MaybeT SmtM Goal
+simp g = do
+  ks <- M.map (\(a,b,c) -> (a,b)) <$> view knownConsts
+  SmtState c <- get
+  let ks' = constEquations ks
+  traceTc "sol/smt" (L.text "Constants" L.<> L.colon L.<$> L.prettyList ks')
+  res <- liftIO $ smtSatResult $ implTCSExpr (andTCSExprs ks') (andTCSExprs c)
+  case res of (_ , _, []) -> hoistMaybe $ Nothing
+              -- \ ^^^ Returns no models, meaning it's unsat.
+              (False, False, [m]) -> hoistMaybe $ Just g
+              -- \ ^^^ Only one model (or unique up to prefix existentials). We should
+              -- generate assignment (but the assignment can be empty).
+              (_, _, [m]) -> hoistMaybe $ Just g
+              -- \ ^^^ Multiple models. Since all arithmetic constraints
+              -- are here, and the assignment of arithmetic unification variables
+              -- shouldn't affect the satisfiability of other typing constraints,
+              -- we can choose an arbitrary assignment. (TODO) / zilinc
+              _ -> __impossible "smtSolve: I only asked for one result, and you give me more!?"
+
+
 
 -- | Returns a detailed result of satisfiability of a logical predicate.
 smtSatResult :: TCSExpr -> IO (Bool, Bool, [SMTResult])

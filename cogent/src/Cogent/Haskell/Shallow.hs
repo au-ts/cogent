@@ -471,7 +471,7 @@ shallowType (CC.TRecord rp fs s) = do  -- FIXME: @rp@ / zilinc
   else
     shallowTypeNominal (CC.TRecord rp fs s)
 shallowType (CC.TUnit) = pure $ TyCon () $ Special () $ UnitCon ()
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 shallowType (CC.TArray t _ _ _) = mkListT <$> shallowType t
 #endif
 
@@ -510,7 +510,7 @@ shallowExpr (TE _ (CC.Unit)) = pure $ HS.Con () $ Special () $ UnitCon ()
 shallowExpr (TE _ (CC.ILit n pt)) = pure $ shallowILit n pt
 shallowExpr (TE _ (CC.SLit s)) = pure $ Lit () $ String () s s
 
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 shallowExpr (TE _ (CC.ALit es)) = listE <$> mapM shallowExpr es
 shallowExpr (TE _ (CC.ArrayIndex arr idx)) = infixApp <$> shallowExpr arr <*> pure (op $ sym "!!") <*> shallowExpr idx
 shallowExpr (TE _ (CC.Pop {})) = __todo "shallowExpr: array pop"

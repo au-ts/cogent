@@ -186,7 +186,7 @@ genBoxedGetterSetter isStruct boxType TUnit UnitLayout path getOrSet = do
   declareSetterOrGetter $ unitGetterSetter boxType functionName getOrSet
   return functionName
 
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 genBoxedGetterSetter isStruct box tau@(TArray t l (Boxed {}) _) (PrimLayout ranges) path getOrSet =
   genComposedAlignedRangeGetterSetter isStruct ranges box tau path getOrSet
 #endif
@@ -196,7 +196,7 @@ genBoxedGetterSetter isStruct boxType tau range _ _ = do
   __impossible $ "Cogent.Dargent.CodeGen: genBoxedGetterSetter: Type checking should restrict the types which can be embedded in boxed records, and ensure that the data layouts match the types."
 
 
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 {-|
 Returns a getter/setter function C expression for a part of a boxed array.
 

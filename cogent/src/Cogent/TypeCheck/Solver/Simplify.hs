@@ -18,14 +18,14 @@ module Cogent.TypeCheck.Solver.Simplify where
 import           Cogent.Common.Syntax
 import           Cogent.Common.Types
 import           Cogent.Compiler
+import qualified Cogent.Context as C
 import           Cogent.Dargent.Surface
 import           Cogent.Dargent.TypeCheck
 import           Cogent.Dargent.Util
 import           Cogent.TypeCheck.Base
 import qualified Cogent.TypeCheck.LRow as LRow
 import qualified Cogent.TypeCheck.Row as Row
-import           Cogent.TypeCheck.Row (Entry)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 import           Cogent.TypeCheck.Solver.SMT (smtSat)
 #endif
 import           Cogent.TypeCheck.Solver.Goal
@@ -49,6 +49,10 @@ import           Lens.Micro
 
 import           Debug.Trace
 
+-- import           Cogent.PrettyPrint (prettyC)
+-- import qualified Text.PrettyPrint.ANSI.Leijen as P
+-- import Debug.Trace
+
 onGoal :: (Monad m) => (Constraint -> MaybeT m [Constraint]) -> Goal -> MaybeT m [Goal]
 onGoal f g = fmap (map (derivedGoal g)) (f (g ^. goal))
 
@@ -63,6 +67,7 @@ liftTcSolvM (Rewrite.RewriteT m) = Rewrite.RewriteT (\a -> MaybeT $ liftIO $ run
 
 simplify :: [(TyVarName, Kind)] -> [(DLVarName, TCType)] -> Rewrite.RewriteT IO [Goal]
 simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
+  -- _ | trace ("####### c = " ++ show (prettyC c)) $ False -> undefined
   Sat      -> hoistMaybe $ Just []
   c1 :& c2 -> hoistMaybe $ Just [c1,c2]
 
@@ -116,10 +121,14 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
     | Row.isComplete r
     , not (readonly s) -> hoistMaybe $ Just (map (flip Escape m) (Row.presentPayloads r))
 
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   Share  (A t _ (Left s) _) m | not (writable s) -> hoistMaybe $ Just [Share  t m]  -- TODO: deal with the taken fields!!! / zilinc
   Drop   (A t _ (Left s) _) m | not (writable s) -> hoistMaybe $ Just [Drop   t m]  -- TODO
   Escape (A t _ (Left s) _) m | not (readonly s) -> hoistMaybe $ Just [Escape t m]  -- TODO
+
+  Share  (T (TRefine _ b _)) m -> hoistMaybe $ Just [Share  b m]
+  Drop   (T (TRefine _ b _)) m -> hoistMaybe $ Just [Drop   b m]
+  Escape (T (TRefine _ b _)) m -> hoistMaybe $ Just [Escape b m]
 #endif
 
   Exhaustive t ps | any isIrrefutable ps -> hoistMaybe $ Just []
@@ -145,11 +154,8 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   -- [amos] New simplify rule:
   -- If both sides of an equality constraint are equal, we can't completely discharge it;
   -- we need to make sure all unification variables in the type are instantiated at some point
-  t :=: u | t == u -> 
-    hoistMaybe $ if isSolved t then 
-      Just [] 
-    else
-      Just [Solved t]
+  t :=: u | t == u -> hoistMaybe $ if isSolved t then Just [] else Just [Solved t]
+  t :<  u | t == u -> hoistMaybe $ if isSolved t then Just [] else Just [Solved t]
 
   Solved t | isSolved t -> hoistMaybe $ Just []
 
@@ -321,9 +327,9 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
              ds = map (flip Drop ImplicitlyTaken) $ Row.extract (pdiff r1 r2) r1
          hoistMaybe $ Just (c ++ cs ++ ds)
 
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   -- See [NOTE: solving 'A' types] in Cogent.Solver.Unify
-  A t1 l1 s1 (Left r1) :<  A t2 l2 s2 (Left r2) | (Just c) <- doSigilMatch s1 s2 -> do
+  A t1 l1 s1 (Left r1) :<  A t2 l2 s2 (Left r2) | Just c <- doSigilMatch s1 s2 -> do
     guard (not $ isJust r1 && isNothing r2)
     let drop = case (r1,r2) of
                  (r1, r2) | r1 == r2 -> Sat
@@ -331,22 +337,23 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
                  (Just i1, Just i2) -> Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [i1,i2]))
     hoistMaybe $ Just ([Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [l1,l2])), t1 :< t2, drop] <> c)
 
-  A t1 l1 s1 (Left r1) :=: A t2 l2 s2 (Left r2) | (Just c) <- doSigilMatch s1 s2 -> do
+  A t1 l1 s1 (Left r1) :=: A t2 l2 s2 (Left r2) | Just c <- doSigilMatch s1 s2 -> do
     guard (isJust r1 && isJust r2 || isNothing r1 && isNothing r2)
     let drop = case (r1,r2) of
                  (r1, r2) | r1 == r2 -> Sat
                  (Just i1, Just i2) -> Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [i1,i2]))
     hoistMaybe $ Just ([Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [l1,l2])), t1 :=: t2, drop] <> c)
 
-  a :-> b -> __fixme $ hoistMaybe $ Just [b]  -- FIXME: cuerently we ignore the impls. / zilinc
-  
-  -- TODO: Here we will call a SMT procedure to simplify all the Arith constraints.
-  -- The only things left will be non-trivial predicates. / zilinc
-  Arith e | isTrivialSE e -> do
-              r <- lift $ smtSat e
-              if r then hoistMaybe $ Just []
-                   else hoistMaybe $ Nothing
-          | otherwise -> hoistMaybe $ Nothing
+  T (TRefine v1 b1 e1) :< T (TRefine v2 b2 e2) -> do
+    let e1' = substExpr [(v1, SE b1 (Var refVarName))] e1
+        e2' = substExpr [(v2, SE b2 (Var refVarName))] e2
+    return [b1 :=: b2, Arith (SE (T bool) (PrimOp "||" [SE (T bool) (PrimOp "not" [e1']), e2']))]
+
+  t1@(T (TRefine {})) :< t2@(T {}) ->  -- @t2@ is not a refinement type
+    return [t1 :< T (TRefine refVarName t2 (SE (T bool) (BoolLit True)))]
+
+  t1@(T {}) :< t2@(T (TRefine {})) ->  -- @t1@ is not a refinement type
+    return [T (TRefine refVarName t1 (SE (T bool) (BoolLit True))) :< t2]
 #endif
 
   T t1 :< x | unorderedType t1 -> hoistMaybe $ Just [T t1 :=: x]
@@ -381,9 +388,9 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
 -- | Returns 'True' iff the given argument type is not subject to subtyping. That is, if @a :\< b@
 --   (subtyping) is equivalent to @a :=: b@ (equality), then this function returns true.
 unorderedType :: Type e l t -> Bool
--- #ifdef REFINEMENT_TYPES
--- unorderedType (TCon tn [] Unboxed) | tn `elem` primTypeCons = False
--- #endif
+#ifdef REFINEMENT_TYPES
+unorderedType (TCon tn [] Unboxed) | tn `elem` primTypeCons = False
+#endif
 unorderedType (TCon {}) = True
 unorderedType (TVar {}) = True
 unorderedType (TUnit)   = True
@@ -404,7 +411,7 @@ isIrrefutable _ = False
 
 isSolved :: TCType -> Bool
 isSolved t = L.null (unifVars t) && L.null (unifLVarsT t)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
           && L.null (unknowns t)
 #endif
 

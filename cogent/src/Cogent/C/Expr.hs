@@ -48,7 +48,7 @@ import           Cogent.Compiler
 import           Cogent.Common.Syntax  as Syn
 import           Cogent.Common.Types   as Typ
 import           Cogent.Core           as CC
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 import           Cogent.Dargent.CodeGen       (genBoxedGetSetField, genBoxedArrayGetSet, GetOrSet(..))
 #else
 import           Cogent.Dargent.CodeGen       (genBoxedGetSetField, GetOrSet(..))
@@ -351,7 +351,7 @@ genExpr mv (TE t (ILit n pt)) = do
 genExpr mv (TE t (SLit s)) = do
   t' <- genType t
   maybeAssign t' mv (CConst $ CStringConst s) M.empty
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 genExpr mv (TE t (ALit es)) = do
   blob <- mapM genExpr_ es
   let TArray telt _ _ _ = t
@@ -658,7 +658,7 @@ genExpr mv (TE t (Struct fs)) = do
   t' <- genType t
   ts' <- mapM (genType . exprType) es
   -- See note: compound initialisers below
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   (v,vdecl,vstm) <- maybeDecl mv t'
   blob <- forM (zip3 ns ts' es') $ \(n,t',e') -> assign t' (strDot' v n) e'
   let (adecls, astms) = P.unzip blob
@@ -686,7 +686,7 @@ genExpr mv (TE t (Con tag e tau)) = do  -- `tau' and `t' should be compatible
   -- For Cons, this means we need to use a compound initialiser, because it sets all unspecified fields to 0.
   -- However, the compound initialisers apparently conflict with code generation for arrays in some way.
   -- Arrays aren't verified at the moment, so we can use compound initialisers without arrays, and just field sets with arrays
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   (a1decl,a1stm) <- assign (CIdent tagsT) (strDot' v fieldTag) (variable $ tagEnum tag)
   (a2decl,a2stm) <- assign te' (strDot' v tag) e'
 #else

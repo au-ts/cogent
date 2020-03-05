@@ -52,14 +52,13 @@ normaliseRWT = rewrite' $ \case
     T (TBang (T (TTuple ts))) -> pure (T (TTuple (map (T . TBang) ts)))
     T (TBang (T TUnit)) -> pure (T TUnit)
     T (TBang (T (TRPar v _ m))) -> pure (T (TRPar v True m))
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
     T (TBang (A t l (Left s) tkns)) -> pure (A (T . TBang $ t) l (Left (bangSigil s)) tkns)  -- FIXME
 #endif
 
     T (TUnbox (T (TVar v b u))) -> pure (T (TVar v b True))
     T (TUnbox (T (TCon t ts s))) -> pure (T (TCon t ts Unboxed))
     T (TUnbox (R rp r _)) -> pure (R rp r (Left Unboxed))
-#ifdef BUILTIN_ARRAYS
     T (TUnbox (A t l _ tkns)) -> pure (A t l (Left Unboxed) tkns)  -- FIXME
 #endif
 
@@ -89,7 +88,7 @@ normaliseRWT = rewrite' $ \case
         Just fs -> pure $ V (Row.putMany fs r)
     T (TPut fs t) | __cogent_flax_take_put -> return t
 
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
     T (TATake [idx] (A t l s (Right _))) ->
       __impossible "normaliseRW: TATake over a hole variable"
     T (TATake [idx] (A t l s (Left Nothing))) ->
@@ -106,7 +105,7 @@ normaliseRWT = rewrite' $ \case
       pure $ R rp row $ Left $ Boxed p (Just l)
     T (TLayout l (R _ row (Right i))) ->
       __impossible "normaliseRW: TLayout over a sigil variable (R)"
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
     T (TLayout l (A t n (Left (Boxed p _)) tkns)) ->
       pure $ A t n (Left (Boxed p (Just l))) tkns
     T (TLayout l (A t n (Right i) tkns)) ->
@@ -125,7 +124,7 @@ whnf input = do
     step <- case input of
         T (TTake  fs t') -> T . TTake fs  <$> whnf t'
         T (TPut   fs t') -> T . TPut  fs  <$> whnf t'
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
         T (TATake fs t') -> T . TATake fs <$> whnf t'
         T (TAPut  fs t') -> T . TAPut  fs <$> whnf t'
 #endif

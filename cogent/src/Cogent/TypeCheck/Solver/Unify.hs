@@ -35,19 +35,27 @@ import Data.Foldable (asum)
 import qualified Data.IntMap as IM (null)
 import Lens.Micro
 import Lens.Micro.Mtl
-import Text.PrettyPrint.ANSI.Leijen hiding (empty, indent, tupled, (<$>))
+import Text.PrettyPrint.ANSI.Leijen as P hiding (empty)
 
-import Debug.Trace
+-- import Debug.Trace
 
 -- | The unify phase, which seeks out equality constraints to solve via substitution.
 unify :: Rewrite.RewriteT TcSolvM [Goal]
 unify = Rewrite.rewrite' $ \cs -> do
            as <- asum (map (assignOf . view goal) cs)
            tell as
-           traceTc "solver" (text "Unify writes subst:" <+> pretty as)
-           pure (foldr (\a -> map (goal %~ Subst.applyC a)) cs as)
+           traceTc "solver" (text "Unify writes subst:" P.<$> 
+                             P.indent 2 (vcat $ map pretty as))
+           let applySubst a = (goalEnv %~ (Subst.applyGoalEnv a)) .
+                              (goal %~ Subst.applyC a)
+           pure (foldr (map . applySubst) cs as)
 
 assignOf :: Constraint -> MaybeT TcSolvM [Subst.Subst]
+
+#ifdef REFINEMENT_TYPES
+assignOf (gamma :|- c) = assignOf c
+#endif
+
 assignOf (U a :=: tau) | rigid tau, a `notOccurs` tau = pure [Subst.ofType a tau]
 assignOf (tau :=: U a) | rigid tau, a `notOccurs` tau = pure [Subst.ofType a tau]
 
@@ -62,7 +70,7 @@ assignOf (R _ _ (Left s) :< R _ _ (Right v))
 -- N.B. Only rows with a unification variable and no known entries lead to
 -- equality constraints (see Equate phase). Hence, the collection of common
 -- fields is necessarily empty.
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 -- [NOTE: solving 'A' types]
 -- For 'A' types, we need to first solve the sigil, and later it can get
 -- simplified to constraints about the element types and lengths. / zilinc
@@ -124,7 +132,7 @@ assignOf (R rp1 _ _ :< R rp2 _ _ )
 
 assignOf (l1 :~< l2) = assignOfL l1 l2
 
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 -- TODO: This will be moved to a separately module for SMT-solving. Eventually the results
 -- returned from the solver will be a Subst object. / zilinc
 assignOf (Arith (SE t (PrimOp "==" [SU _ x, e]))) | null (unknownsE e)

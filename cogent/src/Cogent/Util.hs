@@ -247,16 +247,16 @@ fourth4M :: Functor f => (d -> f e) -> (a, b, c, d) -> f (a, b, c, e)
 fourth4M f (x,y,z,w) = (x,y,z,) <$> f w
 
 fst3 :: (a,b,c) -> a
-fst3 (a,b,c) = a
+fst3 = (^._1)
 
 snd3 :: (a,b,c) -> b
-snd3 (a,b,c) = b
+snd3 = (^._2)
 
 thd3 :: (a,b,c) -> c
-thd3 (a,b,c) = c
+thd3 = (^._3)
 
 fst4 :: (a,b,c,d) -> a
-fst4 (a,b,c,d) = a
+fst4 = (^._1)
 
 for :: [a] -> (a -> b) -> [b]
 for = flip map

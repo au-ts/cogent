@@ -52,7 +52,7 @@ data DataLayoutPath
   = InField FieldName SourcePos DataLayoutPath
   | InTag   DataLayoutPath
   | InAlt   TagName SourcePos DataLayoutPath
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   | InElmt  SourcePos DataLayoutPath
 #endif
   | InDecl  DataLayoutName DataLayoutPath

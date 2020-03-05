@@ -16,39 +16,51 @@
 
 module Cogent.TypeCheck.Solver.Goal where
 
+<<<<<<< HEAD
 import qualified Data.IntMap as IM
+=======
+import qualified Cogent.Context as C
+>>>>>>> compiler.reftypes: more constraint gen and solve
 import           Cogent.TypeCheck.Base
 import           Cogent.PrettyPrint
-import qualified Text.PrettyPrint.ANSI.Leijen as P
-import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
+
+import qualified Data.Map as M
 import qualified Data.Foldable as F
 import           Lens.Micro
 import           Lens.Micro.TH
+import qualified Text.PrettyPrint.ANSI.Leijen as P
+import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 
 -- A more efficient implementation would be a term net
 
+
 data Goal = Goal { _goalContext :: [ErrorContext]
-                 , _goal :: Constraint
+                 , _goalEnv     :: ConstraintEnv
+                 , _goal        :: Constraint
                  }  -- high-level context at the end of _goalContext
 
 instance Show Goal where
-  show (Goal c g) = show big
-    where big = (small P.<$> (P.vcat $ map (`prettyCtx` True) c))
+  show (Goal c (ctx,es) g) = show big
+    where big   = pretty ctx P.<> P.comma P.<+>
+                  commaList (map pretty es) P.<+> warn "⊢" P.<+> 
+                  small P.<$> (P.vcat $ map (`prettyCtx` True) c)
           small = pretty g
 
 makeLenses ''Goal
 
-makeGoals :: [ErrorContext] -> Constraint -> [Goal]
-makeGoals ctx (constraint :@ c) = makeGoals (c:ctx) constraint
-makeGoals ctx (c1 :& c2) = makeGoals ctx c1 ++ makeGoals ctx c2
-makeGoals ctx g = pure $ Goal ctx g
+makeGoals :: [ErrorContext] -> ConstraintEnv -> Constraint -> [Goal]
+makeGoals ctx env (constraint :@ c) = makeGoals (c:ctx) env constraint
+makeGoals ctx env (g :|- c) = makeGoals ctx (g `mergeConstraintEnvs` env) c
+makeGoals ctx env (c1 :& c2) = makeGoals ctx env c1 ++ makeGoals ctx env c2
+makeGoals ctx env g = pure $ Goal ctx env g
 
-makeGoal :: [ErrorContext] -> Constraint -> Goal
-makeGoal ctx (constraint :@ c) = makeGoal (c:ctx) constraint
-makeGoal ctx g = Goal ctx g
+makeGoal :: [ErrorContext] -> ConstraintEnv -> Constraint -> Goal
+makeGoal ctx env (constraint :@ c) = makeGoal (c:ctx) env constraint
+makeGoal ctx env (g :|- c) = makeGoal ctx (g `mergeConstraintEnvs` env) c
+makeGoal ctx env g = Goal ctx env g
 
 derivedGoal :: Goal -> Constraint -> Goal
-derivedGoal (Goal c g) g' = makeGoal (SolvingConstraint g:c) g'
+derivedGoal (Goal c env g) g' = makeGoal (SolvingConstraint g:c) env g'
 
 getMentions :: [Goal] -> IM.IntMap (Int,Int)
 getMentions gs =

@@ -10,11 +10,14 @@
 -- @TAG(DATA61_GPL)
 --
 
-{-# OPTIONS_GHC -Werror -Wall #-}
+{-# LANGUAGE TupleSections #-}
+{-# OPTIONS_GHC -Wall #-}
 
 module Cogent.TypeCheck.Solver.Default ( defaults ) where
 
 import Cogent.Common.Types
+import Cogent.Compiler
+import qualified Cogent.Context as C
 import Cogent.Surface
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Solver.Goal
@@ -23,8 +26,13 @@ import Cogent.Util
 
 import Control.Monad.Writer
 import Control.Monad.Trans.Maybe
+import qualified Data.IntMap as IM
 import Data.List (elemIndex)
+import qualified Data.Map as M
+import Data.Maybe (catMaybes)
+import Lens.Micro ((^.))
 
+-- import Debug.Trace
 
 -- | Default upcast constraints to the max of all mentioned sizes:
 --
@@ -36,36 +44,43 @@ import Data.List (elemIndex)
 --
 -- U16 :=: ?a
 --
-defaults ::  Rewrite.Rewrite [Goal]
-defaults = Rewrite.rewrite' go
- where
-  go gs = do
-    (bots,top) <- maybeT $ findUpcasts gs
-    case bots of
-     [] -> maybeT Nothing
-     (b:bots') -> do
-      bot <- maybeT $ foldM (primGuess LUB) b bots'
-      return (Goal [] (bot :=: U top) : gs)
 
+defaults :: Rewrite.Rewrite [Goal]
+defaults = Rewrite.withTransform findUpcasts (pure . catMaybes . map toEquality . IM.toList)
 
-findUpcasts :: [Goal] -> Maybe ([TCType],Int)
-findUpcasts gs = get $ map _goal gs
- where
-  get [] = Nothing
-  get (Upcastable b (U t) : gs') = collect [b] t gs'
-  get (_ : gs') = get gs'
+toEquality :: (Int, [TCType]) -> Maybe Goal
+toEquality (x, []) = __impossible "defaults: toEquality"
+toEquality (x, bot:bots) = do
+  bot' <- foldM (primGuess LUB) bot bots
+  return $ Goal [] (M.empty, []) (bot' :=: U x)
 
-  collect bots top [] = Just (bots, top)
-  collect bots top (g:gs')
-   | Upcastable b (U t) <- g
-   , t == top
-   = collect (b : bots) top gs'
-   | otherwise
-   = collect bots top gs'
+getMentions :: [Goal] -> IM.IntMap Int
+getMentions gs = foldl (IM.unionWith (+)) IM.empty $ fmap (\g -> occ (g ^. goal)) gs
+  where
+    occ :: Constraint -> IM.IntMap Int 
+    occ (a :<  b) = IM.unionsWith (+) $ fmap (flip IM.singleton 1) $ unifVars a ++ unifVars b
+    occ (a :=: b) = IM.unionsWith (+) $ fmap (flip IM.singleton 1) $ unifVars a ++ unifVars b
+    -- occ (a :-> b) = IM.unionWith (+) (occ a) (occ b)
+    occ (g :|- c) = occ c
+    occ c         = IM.empty
 
+-- | It returns a pair:
+--   * The first component is an IntMap, from unification variables to
+--     a list of `bot` types from goals of the form @bot :~> U top@;
+--   * The second component is the rest goals, that are not @Upcastable@.
+findUpcasts :: [Goal] -> Maybe (IM.IntMap [TCType], [Goal])
+findUpcasts gs = do
+    let (ms, gs') = foldl go (IM.empty, []) gs
+    guard (not $ IM.null ms)
+    pure (ms, gs')
+  where
+    mentions = getMentions gs
 
-maybeT :: Monad m => Maybe a -> MaybeT m a
-maybeT = MaybeT . return
+    go (m,gs) g@(Goal _ _ (Upcastable t (U x))) = 
+      case x `IM.lookup` mentions of
+        Nothing -> (IM.insertWith (++) x [t] m, gs)
+        Just n  -> (m, g : gs)  -- @n@ cannot be 0
+    go (m,gs) g = (m, g : gs)
 
 primGuess :: Bound -> TCType -> TCType -> Maybe TCType
 primGuess d (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed))

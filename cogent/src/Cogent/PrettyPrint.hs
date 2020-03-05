@@ -24,6 +24,7 @@ import qualified Cogent.Common.Syntax as S (associativity)
 import Cogent.Common.Syntax hiding (associativity)
 import Cogent.Common.Types
 import Cogent.Compiler
+import qualified Cogent.Context as C
 import Cogent.Reorganizer (ReorganizeError(..), SourceObject(..))
 import Cogent.Surface
 -- import Cogent.TypeCheck --hiding (context)
@@ -147,7 +148,7 @@ instance Prec (Expr t p ip l e) where
   prec (StringLit {}) = 0
   prec (Unitel) = 0
   prec (Tuple {}) = 0
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   prec (ArrayLit {}) = 0
   prec (ArrayMap2 {}) = 9
 #endif
@@ -159,7 +160,7 @@ instance Prec (Expr t p ip l e) where
   prec (AppC {}) = 9
   prec (Con _ _) = 9
   prec (Put {}) = 9
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   prec (ArrayIndex {}) = 10
   prec (ArrayPut {}) = 9
 #endif
@@ -190,11 +191,12 @@ instance Prec (SExpr t l) where
   prec (SU {}) = 0
 
 -- NOTE: they differ from the definition of the fixity of Constraint
-instance Prec Constraint where
+instance Prec (Constraint' t) where
   prec (_ :&  _) = 3
   prec (_ :@  _) = 2
-#ifdef BUILTIN_ARRAYS
-  prec (_ :-> _) = 1
+#ifdef REFINEMENT_TYPES
+  -- prec (_ :-> _) = 1
+  prec (_ :|- _) = 1
 #endif
   prec _ = 0
 
@@ -305,7 +307,7 @@ instance TypeType (Type e l t) where
   isFun     _          = False
   isTakePut (TTake {}) = True
   isTakePut (TPut  {}) = True
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   isTakePut (TATake {}) = True
   isTakePut (TAPut  {}) = True
 #endif
@@ -374,7 +376,7 @@ instance (PrettyName pv, PatnType ip, Pretty ip, Pretty e) => Pretty (Irrefutabl
   pretty (PUnderscore) = symbol "_"
   pretty (PUnitel) = string "()"
   pretty (PTake v fs) = prettyName v <+> record (fmap handleTakeAssign fs)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   pretty (PArray ps) = array $ map pretty ps
   pretty (PArrayTake v ips) = prettyName v <+> string "@" <>
                               record (map (\(i,p) -> symbol "@" <> pretty i <+> symbol "=" <+> pretty p) ips)
@@ -441,7 +443,7 @@ instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Prett
   pretty (BoolLit b)         = literal (string $ show b)
   pretty (CharLit c)         = literal (string $ show c)
   pretty (StringLit s)       = literal (string $ show s)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   pretty (ArrayLit es)       = array $ map pretty es
   pretty (ArrayIndex e i)    = prettyPrec 11 e <+> symbol "@" <+> prettyPrec 10 i
   pretty (ArrayMap2 ((p1,p2),f) (e1,e2)) = keyword "map2"
@@ -532,7 +534,7 @@ instance (Pretty t, TypeType t, Pretty e, Pretty l, Eq l) => Pretty (Type e l t)
   pretty (TVar n b u) = (if u then typesymbol "#" else empty) <> typevar n <> (if b then typesymbol "!" else empty)
   pretty (TTuple ts) = tupled (map pretty ts)
   pretty (TUnit)     = typesymbol "()" & (if __cogent_fdisambiguate_pp then (<+> comment "{- unit -}") else id)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   pretty (TArray t l s tkns) =
     let (sigilPretty, layoutPretty) = case s of
           Unboxed     -> ((typesymbol "#" <>), id)
@@ -610,6 +612,7 @@ instance Pretty TCType where
                         UP p -> parens (symbol "?" <> pretty p) <+> empty
      in symbol "R" <+> rpPretty <> pretty v <+> sigilPretty
 #ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   pretty (A t l s row) =
     let sigilPretty = case s of
                         Left s -> pretty s
@@ -687,7 +690,7 @@ instance Pretty d => Pretty (DataLayoutExpr' d) where
   pretty (Record fs) = keyword "record" <+> record (map (\(f,_,e) -> fieldname f <> symbol ":" <+> pretty e ) fs)
   pretty (Variant e vs) = keyword "variant" <+> parens (pretty e)
                                                  <+> record (map (\(f,_,i,e) -> tagname f <+> tupled [literal $ string $ show i] <> symbol ":" <+> pretty e) vs)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   pretty (Array e s) = keyword "array" <+> parens (pretty e) <+> keyword "at" <+> pretty s
 #endif
   pretty Ptr = keyword "pointer"
@@ -724,7 +727,7 @@ instance Pretty Metadata where
   pretty Suppressed = err "a binder for a value of this type is being suppressed."
   pretty (UsedInMember {fieldName}) = err "the field" <+> fieldname fieldName
                                        <+> err "is being extracted without taking the field in a pattern."
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   pretty UsedInArrayIndexing = err "an element of the array is being accessed"
   pretty MultipleArrayTakePut = err "more than one array element is being taken or put"
 #endif
@@ -739,6 +742,11 @@ instance Pretty FuncOrVar where
   pretty MustFunc  = err "Function"
   pretty MustVar   = err "Variable"
   pretty FuncOrVar = err "Variable or function"
+
+instance Pretty t => Pretty (C.Context t) where
+  pretty (C.Context ms) = list $ map (\m -> list $ map prettyEntry (M.toList m)) ms
+    where prettyEntry (v, (t, _, _)) = varname v <+> symbol ":" <+> pretty t
+
 
 instance Pretty TypeError where
   pretty (DifferingNumberOfConArgs f n m) = err "Constructor" <+> tagname f
@@ -771,7 +779,7 @@ instance Pretty TypeError where
                                            <+> err "but this is needed as" <+> pretty m
   pretty (PatternsNotExhaustive t tags)  = err "Patterns not exhaustive for type" <+> pretty t
                                            <$> err "cases not matched" <+> tupled1 (map tagname tags)
-  pretty (UnsolvedConstraint c os)       = analyseLeftover c os
+  pretty (UnsolvedConstraint env c os)   = analyseLeftover env c os
   pretty (RecordWildcardsNotSupported)   = err "Record wildcards are not supported"
   pretty (NotAFunctionType t)            = err "Type" <+> pretty t <+> err "is not a function type"
   pretty (DuplicateVariableInPattern vn) = err "Duplicate variable" <+> varname vn <+> err "in pattern"
@@ -795,7 +803,7 @@ instance Pretty TypeError where
                                       <+> fieldname f <+> err "into record/variant" <$> indent' (pretty t)
   pretty (DiscardWithoutMatch t)    = err "Variant tag"<+> tagname t <+> err "cannot be discarded without matching on it."
   pretty (RequiredTakenTag t)       = err "Required variant" <+> tagname t <+> err "but it has already been matched."
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   pretty (ArithConstraintsUnsatisfiable es msg) = err "The following arithmetic constraints are unsatisfiable" <> colon
                                               <$> indent' (vsep (map ((<> semi) . pretty) es))
                                               <$> err "The SMT-solver comments" <> colon
@@ -831,7 +839,7 @@ instance Pretty VarOrigin where
   pretty (ExpressionAt l) = warn ("the term at location " ++ show l)
   pretty (BoundOf a b d) = warn ("taking the " ++ show d ++ " of") <$> pretty a <$> warn "and" <$> pretty b
 
-analyseLeftover :: Constraint -> I.IntMap VarOrigin -> Doc
+analyseLeftover :: ConstraintEnv -> Constraint -> I.IntMap VarOrigin -> Doc
 {-
 analyseLeftover c@(F t :< F u) os
     | Just t' <- flexOf t
@@ -851,16 +859,27 @@ analyseLeftover c@(F t :< F u) os
         _   -> err "A subtyping constraint" <+>  pretty c
            <+> err "can't be solved because the RHS is unknown and uses non-injective operators (like !).")
              : map (\i -> warn "• The unknown" <+> pretty (U i) <+> warn "originates from" <+> pretty (I.lookup i os)) ([u']) -}
-analyseLeftover c os = case c of
+
+analyseLeftover env c os = case c of
     Share x m  | Just x' <- flexOf x -> msg x' m
     Drop x m   | Just x' <- flexOf x -> msg x' m
     Escape x m | Just x' <- flexOf x -> msg x' m
-    _ -> err "Leftover constraint!" <$> pretty c
+    _ -> err "Leftover constraint!" <$> prettyGoalEnv env <+> warn "⊢" <+> pretty c
   where msg i m = err "Constraint" <+> pretty c <+> err "can't be solved as it constrains an unknown."
                 <$$> indent' (vcat [ warn "• The unknown" <+> pretty (U i) <+> warn "originates from" <+> pretty (I.lookup i os)
                                    , err "The constraint was emitted as" <+> pretty m])
 
-instance Pretty Constraint where
+instance (Pretty t) => Pretty (M.Map VarName (t, Int)) where
+  pretty m | M.null m  = warn "∅"
+           | otherwise = commaList . flip fmap (M.toList m) $ \(v,(t,occ)) ->
+                           varname v <+> colon <> angles (int occ) <+> pretty t
+
+prettyGoalEnv :: (Pretty t) => (M.Map VarName (t, Int), [SExpr t]) -> Doc
+prettyGoalEnv (g,es) = pretty g <> comma <+> prettyExprs es
+  where prettyExprs [] = warn "∅"
+        prettyExprs es = commaList $ map pretty es
+
+instance Pretty t => Pretty (Constraint' t) where
   pretty (a :< b)         = pretty a </> warn ":<" </> pretty b
   pretty (a :=: b)        = pretty a </> warn ":=:" </> pretty b
   pretty (a :& b)         = prettyPrec 4 a </> warn ":&" </> prettyPrec 3 b
@@ -880,26 +899,28 @@ instance Pretty Constraint where
   pretty (Solved t)       = warn "Solved" <+> pretty t
   pretty (IsPrimType t)   = warn "IsPrimType" <+> pretty t
   pretty (x :@ _)         = pretty x
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   pretty (Arith e)        = pretty e
-  pretty (a :-> b)        = prettyPrec 2 a </> warn ":->" </> prettyPrec 1 b
+  -- pretty (a :-> b)        = prettyPrec 2 a </> warn ":->" </> prettyPrec 1 b
+  pretty (env :|- a)      = prettyGoalEnv env <+> warn "⊢" <+> prettyPrec 1 a
 #endif
   pretty (l :~ n)         = pretty l </> warn ":~" </> pretty n
   pretty (l :~< m)        = pretty l </> warn ":~<" </> pretty m
   pretty (a :~~ b)        = pretty a </> warn ":~~" </> pretty b
 
 -- a more verbose version of constraint pretty-printer which is mostly used for debugging
-prettyC :: Constraint -> Doc
+prettyC :: Pretty t => Constraint' t -> Doc
 prettyC (Unsat e) = errbd "Unsat" <$> pretty e
 prettyC (SemiSat w) = warn "SemiSat" -- <$> pretty w
 prettyC (a :& b) = prettyCPrec 4 a </> warn ":&" <$> prettyCPrec 3 b
 prettyC (c :@ e) = prettyCPrec 3 c & (if __cogent_ddump_tc_ctx then (</> prettyCtx e False) else (</> warn ":@ ..."))
-#ifdef BUILTIN_ARRAYS
-prettyC (a :-> b) = prettyCPrec 2 a </> warn ":->" </> prettyCPrec 1 b
+#ifdef REFINEMENT_TYPES
+-- prettyC (a :-> b) = prettyCPrec 2 a </> warn ":->" </> prettyCPrec 1 b
+prettyC (env :|- a) = prettyGoalEnv env <+> warn "⊢" <+> prettyCPrec 1 a
 #endif
 prettyC c = pretty c
 
-prettyCPrec :: Int -> Constraint -> Doc
+prettyCPrec :: (Pretty t) => Int -> Constraint' t -> Doc
 prettyCPrec l x | prec x < l = prettyC x
                 | otherwise  = parens (indent (prettyC x))
 
@@ -925,12 +946,12 @@ instance Pretty AssignResult where
   pretty (Row (Left r)) = pretty r
   pretty (Row (Right sh)) = pretty sh
   pretty (Layout' l) = pretty l
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   pretty (ARow r) = pretty r
   pretty (Expr e) = pretty e
   pretty (Hole h) = case h of
-                      Nothing -> empty
-                      Just h' -> keyword "@take" <+> parens (pretty h')
+                      Nothing -> keyword "<no hole>"
+                      Just h' -> keyword "<hole at" <+> pretty h' <> keyword ">"
 #endif
   pretty (RecP r) = pretty r
 
@@ -968,7 +989,7 @@ instance (Pretty e, Show e) => Pretty (ARow.ARow e) where
                           Just False -> (symbol " |" <+> text "all put"  )
 
 instance Pretty a => Pretty (I.IntMap a) where
-  pretty = align . vcat . map (\(k,v) -> pretty k <+> text "|->" <+> pretty v) . I.toList
+  pretty = align . vcat . map (\(k,v) -> pretty k <+> text "↦" <+> pretty v) . I.toList
 
 
 instance Pretty DataLayoutTcError where
@@ -1003,7 +1024,7 @@ instance Pretty DataLayoutPath where
   pretty (InField n po ctx) = context' "for field" <+> fieldname n <+> context' "(" <> pretty po <> context' ")" </> pretty ctx
   pretty (InTag ctx)        = context' "for the variant tag block" </> pretty ctx
   pretty (InAlt t po ctx)   = context' "for the constructor" <+> tagname t <+> context' "(" <> pretty po <> context' ")" </> pretty ctx
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   pretty (InElmt po ctx)    = context' "in the array element (" <> pretty po <> context' ")" </> pretty ctx
 #endif
   pretty (InDecl n p)       = context' "in the representation" <+> reprname n <+> context' "(" <> pretty p <> context' ")"
@@ -1027,7 +1048,7 @@ instance Pretty a => Pretty (DataLayout' a) where
   pretty RecordLayout {fieldsDL} =
     record (map prettyField $ M.toList fieldsDL)
     where prettyField (f,l) = fieldname f <> colon <> pretty l
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   pretty (ArrayLayout l) = brackets (pretty l)
 #endif
   pretty (VarLayout n) = parens (dullcyan . string . ("_l" ++) . show . natToInt $ n)

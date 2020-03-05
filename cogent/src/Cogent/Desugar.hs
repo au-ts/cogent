@@ -492,7 +492,7 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec (fp:fps)) pos)) e = do
       b0 = S.Binding (B.TIP (S.PTake (e1, t1) [fp]) noPos) Nothing e0 []
       bs = S.Binding (B.TIP (S.PTake rec fps) pos) Nothing (B.TE t1 (S.Var e1) noPos) []
   desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b0,bs] e) noPos
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray []) pos)) e = __impossible "desugarAlts' (PSequence [] p)"
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray [B.TIP (S.PVar (v,_)) _]) _)) e = do
   e0' <- desugarExpr e0
@@ -595,7 +595,7 @@ desugarType = \case
         TRParBang v m'
       else
         TRPar v m'
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   B.DT (S.TArray t l Unboxed tkns) -> do
     t' <- desugarType t
     l' <- uexprToLExpr id <$> desugarExpr (fmap B.rawToDepType l)
@@ -735,7 +735,7 @@ desugarExpr (B.TE t (S.IntLit n) _) = return $ E . ILit n $ desugarPrimInt t
 desugarExpr (B.TE _ (S.BoolLit b) _) = return $ E $ ILit (if b then 1 else 0) Boolean
 desugarExpr (B.TE _ (S.CharLit c) _) = return $ E $ ILit (fromIntegral $ ord c) U8
 desugarExpr (B.TE _ (S.StringLit s) _) = return $ E $ SLit s
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 desugarExpr (B.TE _ (S.ArrayLit es) _) = E . ALit <$> mapM desugarExpr es
 desugarExpr (B.TE _ (S.ArrayIndex e i) _) = do
   e' <- desugarExpr e
