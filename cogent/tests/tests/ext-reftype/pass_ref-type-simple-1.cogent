@@ -1,0 +1,6 @@
+type Lt5 = [v : U8 | v < 5]
+type Ge10Lt15 = [v : U8 | v < 15 && v >= 10]
+
+foo : Lt5 -> Ge10Lt15
+-- foo : U8 -> U8
+foo x = x + 10
