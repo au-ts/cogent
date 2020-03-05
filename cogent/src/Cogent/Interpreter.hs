@@ -373,6 +373,7 @@ tcExpr r e = do
     do
       ((c,e'), flx, os) <- (Tc.runCG Ctx.empty [] [] (do
         let ?loc = S.posOfE e
+        let ?isRefType = False  -- FIXME / zilinc
         t <- freshTVar
         y <- Tc.cg e t
         pure y))

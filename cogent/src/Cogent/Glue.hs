@@ -599,6 +599,7 @@ tcExp e mt = do
   vs <- Vec.cvtToList <$> view kenv
   flip tcAnti e $ \e ->
     do let ?loc = SF.posOfE e
+       let ?isRefType = False  -- FIXME: zilinc
        TC.errCtx %= (TC.AntiquotedExpr e :)
        ((c,e'),flx,os) <- TC.runCG ctx (L.map fst vs) [] (TC.cg e =<< maybe TC.freshTVar return mt)
        (cs, subst) <- TC.runSolver (TC.solve vs [] c) flx

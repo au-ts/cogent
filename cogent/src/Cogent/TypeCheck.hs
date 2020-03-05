@@ -69,7 +69,7 @@ typecheck = mapM (uncurry checkOne)
 -- TODO: Check for prior definition
 checkOne :: SourcePos -> TopLevel LocType LocPatn LocExpr
          -> TcM (TopLevel DepType TypedPatn TypedExpr)
-checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
+checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> let ?isRefType = True in case d of
   (Include _) -> __impossible "checkOne"
   (IncludeStd _) -> __impossible "checkOne"
   (DocBlock s) -> return $ DocBlock s

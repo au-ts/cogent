@@ -89,6 +89,7 @@ validateType (RT t) = do
   layouts <- lift $ use knownDataLayouts
   lvs <- use knownDataLayoutVars
   traceTc "gen" (text "validate type" <+> pretty t)
+  let ?isRefType = False
   case t of
     TVar v b u  | v `notElem` vs -> freshTVar >>= \t' -> return (Unsat $ UnknownTypeVariable v, t')
                 | otherwise -> return (mempty, T $ TVar v b u)
@@ -175,7 +176,6 @@ validateType (RT t) = do
       return (mconcat ces <> ct, T $ TAPut xs t')
 #endif
 
-#ifdef REFINEMENT_TYPES
     TRefine v t e -> do
       (ct,t') <- validateType t
       c <- use context
@@ -188,7 +188,6 @@ validateType (RT t) = do
       traceTc "gen" (text "cg for reftype" L.<$>
                      text "generate constraint" <+> prettyC c)
       return (c, T $ TRefine v t' (toTCSExpr e'))
-#endif
 
     TLayout l t -> do
       let cl = case runExcept $ tcDataLayoutExpr layouts lvs l of
@@ -243,12 +242,13 @@ cgFunDef :: (?loc :: SourcePos) => [Alt LocPatn LocExpr] -> TCType -> CG (Constr
 cgFunDef alts t = do
   alpha1 <- freshTVar
   alpha2 <- freshTVar
+  let ?isRefType = True
   (c, alts') <- cgAlts alts alpha2 alpha1
   return (c <> (T (TFun alpha1 alpha2)) :< t, alts')
 
 -- cgAlts alts out_type in_type
 -- NOTE the order of arguments!
-cgAlts :: [Alt LocPatn LocExpr] -> TCType -> TCType -> CG (Constraint, [Alt TCPatn TCExpr])
+cgAlts :: (?isRefType :: Bool) => [Alt LocPatn LocExpr] -> TCType -> TCType -> CG (Constraint, [Alt TCPatn TCExpr])
 cgAlts alts top alpha = do
   let
     altPattern (Alt p _ _) = p
@@ -275,7 +275,7 @@ cgAlts alts top alpha = do
 -- Expression constraints
 -- -----------------------------------------------------------------------------
 
-cgMany :: (?loc :: SourcePos) => [LocExpr] -> CG ([TCType], Constraint, [TCExpr])
+cgMany :: (?loc :: SourcePos, ?isRefType :: Bool) => [LocExpr] -> CG ([TCType], Constraint, [TCExpr])
 cgMany es = do
   let each (ts,c,es') e = do
         alpha    <- freshTVar
@@ -284,14 +284,16 @@ cgMany es = do
   (ts, c', es') <- foldM each ([], Sat, []) es  -- foldM is the same as foldlM
   return (reverse ts, c', reverse es')
 
-
-cg :: LocExpr -> TCType -> CG (Constraint, TCExpr)
+cg :: (?isRefType :: Bool) => LocExpr -> TCType -> CG (Constraint, TCExpr)
 cg x@(LocExpr l e) t = do
   let ?loc = l
   (c, e') <- cg' e t
   return (c :@ InExpression x t, TE t e' l)
 
-cg' :: (?loc :: SourcePos) => Expr LocType LocPatn LocIrrefPatn DataLayoutExpr LocExpr -> TCType -> CG (Constraint, Expr TCType TCPatn TCIrrefPatn TCDataLayout TCExpr)
+cg' :: (?loc :: SourcePos)
+    => Expr LocType LocPatn LocIrrefPatn DataLayoutExpr LocExpr
+    -> TCType
+    -> CG (Constraint, Expr TCType TCPatn TCIrrefPatn TCDataLayout TCExpr)
 cg' (PrimOp o [e1, e2]) t
   | o `elem` words "+ - * / % .&. .|. .^. >> <<"
   = do (c1, e1') <- cg e1 t
@@ -373,8 +375,14 @@ cg' (IntLit i) t = do
                       | i < u16MAX     = "U16"
                       | i < u32MAX     = "U32"
                       | otherwise      = "U64"
-      c = Upcastable (T (TCon minimumBitwidth [] Unboxed)) t
       e = IntLit i
+  c <- if ?isRefType then
+         do tau <- freshTVar
+            let v = refVarName
+                c = T (TRefine v tau (SE (T bool) (PrimOp "==" [SE tau (Var v), SE tau e]))) :< t <>
+                    Upcastable (T (TCon minimumBitwidth [] Unboxed)) t
+            return c
+       else return $ Upcastable (T (TCon minimumBitwidth [] Unboxed)) t
   return (c,e)
 
 #ifdef BUILTIN_ARRAYS
@@ -702,13 +710,13 @@ cg' (Annot e tau) t = do
 -- Pattern constraints
 -- -----------------------------------------------------------------------------
 
-matchA :: LocPatn -> TCType -> CG (M.Map VarName (C.Assumption TCType), Constraint, TCPatn, TCType)
+matchA :: (?isRefType :: Bool) => LocPatn -> TCType -> CG (M.Map VarName (C.Assumption TCType), Constraint, TCPatn, TCType)
 matchA x@(LocPatn l p) t = do
   let ?loc = l
   (s,c,p',t') <- matchA' p t
   return (s, c :@ InPattern x, TP p' l, t')
 
-matchA' :: (?loc :: SourcePos)
+matchA' :: (?loc :: SourcePos, ?isRefType :: Bool)
        => Pattern LocIrrefPatn -> TCType
        -> CG (M.Map VarName (C.Assumption TCType), Constraint, Pattern TCIrrefPatn, TCType)
 
@@ -745,13 +753,13 @@ matchA' (PBoolLit b) t =
 matchA' (PCharLit c) t =
   return (M.empty, t :=: T u8, PCharLit c, t)
 
-match :: LocIrrefPatn -> TCType -> CG (M.Map VarName (C.Assumption TCType), Constraint, TCIrrefPatn)
+match :: (?isRefType :: Bool) => LocIrrefPatn -> TCType -> CG (M.Map VarName (C.Assumption TCType), Constraint, TCIrrefPatn)
 match x@(LocIrrefPatn l ip) t = do
   let ?loc = l
   (s,c,ip') <- match' ip t
   return (s, c :@ InIrrefutablePattern x, TIP ip' l)
 
-match' :: (?loc :: SourcePos)
+match' :: (?loc :: SourcePos, ?isRefType :: Bool)
        => IrrefutablePattern VarName LocIrrefPatn LocExpr
        -> TCType
        -> CG (M.Map VarName (C.Assumption TCType), Constraint, IrrefutablePattern TCName TCIrrefPatn TCExpr)
@@ -864,6 +872,8 @@ match' (PArrayTake arr _) t = __todo "match': taking multiple elements from arra
 -- Auxiliaries
 -- -----------------------------------------------------------------------------
 
+refVarName = "_v"
+
 freshVar :: (?loc :: SourcePos) => CG Int
 freshVar = fresh (ExpressionAt ?loc)
   where
@@ -914,7 +924,7 @@ parallel ((ct,f):xs) acc = do
 
 
 
-withBindings :: (?loc::SourcePos)
+withBindings :: (?loc::SourcePos, ?isRefType :: Bool)
   => [Binding LocType LocPatn LocIrrefPatn LocExpr]
   -> LocExpr -- expression e to be checked with the bindings
   -> TCType  -- the type for e

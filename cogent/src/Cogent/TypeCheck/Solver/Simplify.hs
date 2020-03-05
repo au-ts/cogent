@@ -381,6 +381,9 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
 -- | Returns 'True' iff the given argument type is not subject to subtyping. That is, if @a :\< b@
 --   (subtyping) is equivalent to @a :=: b@ (equality), then this function returns true.
 unorderedType :: Type e l t -> Bool
+-- #ifdef REFINEMENT_TYPES
+-- unorderedType (TCon tn [] Unboxed) | tn `elem` primTypeCons = False
+-- #endif
 unorderedType (TCon {}) = True
 unorderedType (TVar {}) = True
 unorderedType (TUnit)   = True
