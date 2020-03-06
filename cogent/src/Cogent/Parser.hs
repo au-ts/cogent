@@ -58,7 +58,7 @@ newtype S = ParserState { avoidInit :: Bool }
 language :: LanguageDef st
 language = haskellStyle
            { T.reservedOpNames = ["+","*","/","%","&&","||",">=","<=",">","<","==","/="
-                                 ,".&.",".|.",".^.",">>","<<"
+                                 ,".&.",".|.",".^.",">>","<<","{{","}}"
                                  ,":","=","!",":<",".","_","..","#","$","::",":~"
                                  ,"@","@@"  -- DocGent
 #ifdef BUILTIN_ARRAYS
@@ -335,7 +335,7 @@ var = LocExpr <$> getPosition <*> do
   nt <- optionMaybe (reserved "inline")
   v <- variableName
   ta <- optionMaybe (brackets (commaSep1 ((char '_' >> return Nothing) <|> (Just <$> monotype))))
-  la <- optionMaybe (braces $ braces (commaSep1 ((char '_' >> return Nothing) <|> (Just <$> repExpr))))
+  la <- optionMaybe (between (reservedOp "{{") (reservedOp "}}") (commaSep1 ((char '_' >> return Nothing) <|> (Just <$> repExpr))))
   return $ f nt v ta la
     where
       f Nothing  v Nothing Nothing = Var v
