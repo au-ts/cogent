@@ -223,6 +223,28 @@ validateLayout l = do
 validateLayouts :: Traversable t => t DataLayoutExpr -> CG (Constraint, t TCDataLayout)
 validateLayouts = fmapFoldM validateLayout
 
+cgSubstedType :: TCType -> CG Constraint
+cgSubstedType (T (TLayout l t)) = cgSubstedLayout l
+cgSubstedType (T t) = foldMapM cgSubstedType t
+cgSubstedType (U x) = pure Sat
+cgSubstedType (V x) = foldMapM cgSubstedType x
+cgSubstedType (R x s) = (<>) <$> foldMapM cgSubstedType x <*> cgSubstedSigil s
+#ifdef BUILTIN_ARRAYS
+cgSubstedType (A t l s tkns) = (<>) <$> cgSubstedType t <*> cgSubstedSigil s
+#endif
+cgSubstedType (Synonym n ts) = foldMapM cgSubstedType ts
+
+cgSubstedSigil :: Either (Sigil (Maybe TCDataLayout)) Int -> CG Constraint
+cgSubstedSigil (Left (Boxed _ (Just l))) = cgSubstedLayout l
+cgSubstedSigil _ = pure Sat
+
+cgSubstedLayout :: TCDataLayout -> CG Constraint
+cgSubstedLayout l = do
+  ls <- lift $ use knownDataLayouts
+  case runExcept $ tcTCDataLayout ls l of
+    Left (e:_) -> pure $ Unsat (DataLayoutError e)
+    Right _    -> pure Sat
+
 -- -----------------------------------------------------------------------------
 -- Term-level constraints
 -- -----------------------------------------------------------------------------
@@ -587,11 +609,12 @@ cg' (TLApp f ts ls i) t = do
       let rt = substLayout lps $ substType tps tau
           rc = rt :< t
           re = TLApp f (Just . snd <$> tps) (Just . snd <$> lps) i
+      sc <- cgSubstedType rt
       traceTc "gen" (text "cg for tlapp:" <+> prettyE re
                L.<$> text "of type" <+> pretty t <> semi
                L.<$> text "type signature is" <+> pretty (PT tvs lvs tau) <> semi
                L.<$> text "generate constraint" <+> prettyC rc)
-      return (ct <> cl <> cts <> cls <> rc, re)
+      return (ct <> cl <> cts <> cls <> rc <> sc, re)
     Nothing -> do
       let e = TLApp f ts' ls' i
           c = Unsat (FunctionNotFound f)

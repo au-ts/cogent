@@ -244,6 +244,7 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
                               -> hoistMaybe $ Just ((t1 :~~ t2):c)
                               | otherwise -> hoistMaybe Nothing
 #endif
+  T (TVar n1 _ _) :~~ T (TVar n2 _ _) | n1 == n2 -> hoistMaybe $ Just []
   t1 :~~ t2 | t1 == t2 -> hoistMaybe $ Just []
             | isPrimType t1 && isPrimType t2
             , primTypeSize t1 <= primTypeSize t2
