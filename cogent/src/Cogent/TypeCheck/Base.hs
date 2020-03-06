@@ -650,18 +650,14 @@ substLayoutL vs (TLArray e p) = TLArray (substLayoutL vs e) p
 #endif
 substLayoutL vs l = l
 
-substLayoutS :: [(DLVarName, TCDataLayout)] -> Either (Sigil (Maybe TCDataLayout)) Int -> Either (Sigil (Maybe TCDataLayout)) Int
-substLayoutS vs (Left (Boxed r (Just l))) = Left $ Boxed r (Just $ substLayoutL vs l)
-substLayoutS vs s = s
-
 substLayout :: [(DLVarName, TCDataLayout)] -> TCType -> TCType
 substLayout vs (T (TLayout l t)) = T (TLayout (substLayoutL vs l) t)
 substLayout vs (T t) = T (fmap (substLayout vs) t)
 substLayout vs (U x) = U x
 substLayout vs (V x) = V $ substLayout vs <$> x
-substLayout vs (R x s) = R (substLayout vs <$> x) (substLayoutS vs s)
+substLayout vs (R x s) = R (substLayout vs <$> x) (bimap (fmap (fmap (substLayoutL vs))) id s)
 #ifdef BUILTIN_ARRAYS
-substLayout vs (A t l s tkns) = A (substLayout vs t) l (substLayoutS vs s) tkns
+substLayout vs (A t l s tkns) = A (substLayout vs t) l (bimap (fmap (fmap (substLayoutL vs))) id s) tkns
 #endif
 substLayout vs (Synonym n ts) = Synonym n $ substLayout vs <$> ts
 
