@@ -131,15 +131,15 @@ simplify axs = Rewrite.pickOne $ \c -> -- trace ("About to simpliy:\n" ++ debugP
    - If we are reasoning about a recursive parameter and a type, unroll the parameter
    - and reason about the type and the unrolled parameter
    -}
-  RecPar n ctxt :< t  -> Just [unroll n ctxt :< t]
-  t :< RecPar n ctxt  -> Just [t :< unroll n ctxt]
-  RecPar n ctxt :=: t -> Just [unroll n ctxt :=: t]
-  t :=: RecPar n ctxt -> Just [t :=: unroll n ctxt]
+  RecPar n ctxt :< t@Record{}  -> Just [unroll n ctxt :< t]
+  t@Record{} :< RecPar n ctxt  -> Just [t :< unroll n ctxt]
+  RecPar n ctxt :=: t@Record{} -> Just [unroll n ctxt :=: t]
+  t@Record{} :=: RecPar n ctxt -> Just [t :=: unroll n ctxt]
 
-  RecParBang n ctxt :< t  -> Just [Bang (unroll n ctxt) :< t]
-  t :< RecParBang n ctxt  -> Just [t :< Bang (unroll n ctxt)]
-  RecParBang n ctxt :=: t -> Just [Bang (unroll n ctxt) :=: t]
-  t :=: RecParBang n ctxt -> Just [t :=: Bang (unroll n ctxt)]
+  RecParBang n ctxt :< t@Record{}  -> Just [Bang (unroll n ctxt) :< t]
+  t@Record{} :< RecParBang n ctxt  -> Just [t :< Bang (unroll n ctxt)]
+  RecParBang n ctxt :=: t@Record{} -> Just [Bang (unroll n ctxt) :=: t]
+  t@Record{} :=: RecParBang n ctxt -> Just [t :=: Bang (unroll n ctxt)]
 
   t :< t'  -> guard (unorderedType t || unorderedType t') >> Just [t :=: t']
 
