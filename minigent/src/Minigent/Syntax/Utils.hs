@@ -368,8 +368,8 @@ sigilsCompatible x                (UnknownSigil{}) = True
 sigilsCompatible x                y                = x == y
 
 -- | Run a 'Fresh' computation with 'unifVars' as the source of fresh names.
-withUnifVars :: Fresh VarName a -> a
-withUnifVars = fst <$> runFresh unifVars
+withUnifVars :: Monad m => FreshT VarName m a -> m a
+withUnifVars fr = evalFreshT unifVars fr
 
 -- | A stream of greek unification variable names.
 unifVars :: S.Stream VarName

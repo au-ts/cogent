@@ -40,7 +40,7 @@ import Debug.Trace
 
 -- | A monad that combines writer effects for accumulating assignments to
 --   unification variables, and fresh variables.
-newtype Solver a = Solver (WriterT [Assign] (Fresh VarName) a)
+newtype Solver a = Solver (WriterT [Assign] (FreshT VarName IO) a)
         deriving ( Monad, Applicative, Functor
                  , MonadFresh VarName, MonadWriter [Assign]
                  )
@@ -76,5 +76,5 @@ solve axs cs = do
           joinMeet)
 
 -- | Run a solver computation.
-runSolver :: Solver a -> Fresh VarName (a,[Assign])
+runSolver :: Solver a -> FreshT VarName IO (a,[Assign])
 runSolver (Solver x) = runWriterT x

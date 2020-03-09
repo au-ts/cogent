@@ -197,10 +197,9 @@ reorgPhase x =
          die ("Reorg failed.\n" ++ unlines errs)
 
 tcPhase :: Bool -> GlobalEnvironments -> IO GlobalEnvironments
-tcPhase colour envs
-  = let rs = withUnifVars (tc envs (M.toList (defns envs)))
-     in GlobalEnvs <$> (M.fromList . concat <$> mapM go rs)
-                   <*> pure (types envs)
+tcPhase colour envs = do
+  rs <- withUnifVars (tc envs (M.toList (defns envs)))
+  GlobalEnvs <$> (M.fromList . concat <$> mapM go rs) <*> pure (types envs)
   where
     handleColour = if not colour then unAnnotate else id
     go (Left (f, cs)) = do
