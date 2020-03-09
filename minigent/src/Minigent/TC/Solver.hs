@@ -30,6 +30,7 @@ import Minigent.Syntax.PrettyPrint
 
 import qualified Minigent.Syntax.Utils.Rewrite as Rewrite
 
+import Control.Applicative
 import Control.Monad.Trans.Maybe
 import Control.Monad.State
 import Control.Monad.Writer
@@ -63,11 +64,11 @@ solve axs cs = do
     solverRewrites = Rewrite.untilFixedPoint $
       -- Rewrite.debugNewline "SOLV" debugPrettyConstraints <>
       Rewrite.pre normaliseConstraints (
-          -- Rewrite.debugNewline "[simp]" debugPrettyConstraints <>
+          -- debugStr "[simp]" <>
           Rewrite.lift (simplify axs) <>
-          -- Rewrite.debugNewline "[unify]" debugPrettyConstraints <>
+          -- debugStr "[unify]" <>
           unify <>
-          -- Rewrite.debugNewline "[equate]" debugPrettyConstraints <>
+          -- debugStr "[equate]" <>
           Rewrite.lift equate <>
           -- Rewrite.debugNewline "[sink/float]" debugPrettyConstraints <>
           sinkFloat)
@@ -75,3 +76,8 @@ solve axs cs = do
 -- | Run a solver computation.
 runSolver :: Solver a -> FreshT VarName IO (a,[Assign])
 runSolver (Solver x) = runWriterT x
+
+debugStr :: String -> Rewrite.Rewrite' Solver a
+debugStr s = Rewrite.Rewrite $ \cs -> do
+  _ <- (lift . Solver . lift . lift . traceIO $ s :: MaybeT Solver ())
+  empty
