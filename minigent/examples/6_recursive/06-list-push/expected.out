@@ -14,18 +14,13 @@ push r = let node = (allocNode[a] : Unit
                                        ,list : rec t {l : <Cons {data : a
                                                                 ,rest : rec t}#
                                                           |Nil Unit>}}#
-            in take r3 { list = y } = r2 : {data : a take
-                                           ,list : rec t {l : <Cons {data : a
-                                                                    ,rest : rec t}#
-                                                              |Nil Unit>}}#
+            in take r3 { list = y } = r2 : {data : a take,list : rec t}#
                in put node : rec t {l : <Cons {data : a,rest : rec t}#
                                         |Nil Unit> take}.l := Cons ({data = x : a
-                                                                    ,rest = y : rec t {l : <Cons {data : a
-                                                                                                 ,rest : rec t}#
-                                                                                           |Nil Unit>}} : {data : a
-                                                                                                          ,rest : rec t}#) : <Cons {data : a
-                                                                                                                                   ,rest : rec t}#
-                                                                                                                             |Nil Unit>
+                                                                    ,rest = y : rec t} : {data : a
+                                                                                         ,rest : rec t}#) : <Cons {data : a
+                                                                                                                  ,rest : rec t}#
+                                                                                                            |Nil Unit>
                   end : rec t {l : <Cons {data : a,rest : rec t}#|Nil Unit>}
                end : rec t {l : <Cons {data : a,rest : rec t}#|Nil Unit>}
             end : rec t {l : <Cons {data : a,rest : rec t}#|Nil Unit>}

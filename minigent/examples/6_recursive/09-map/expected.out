@@ -50,25 +50,21 @@ map l = take l2 { list = node } = l : {f : a -> b
                                                                                                                             ,list : rec t {l : <Cons {data : a
                                                                                                                                                      ,rest : rec t}#
                                                                                                                                                |Nil Unit>}!}#
-                                                                                                                            -> rec t {l : <Cons {data : b
-                                                                                                                                                ,rest : rec t}#
-                                                                                                                                          |Nil Unit>}) ({list = (remaining2 : {data : a take
-                                                                                                                                                                              ,rest : rec t {l : <Cons {data : a
-                                                                                                                                                                                                       ,rest : rec t}#
-                                                                                                                                                                                                 |Nil Unit>}!}#).rest : rec t {l : <Cons {data : a
-                                                                                                                                                                                                                                         ,rest : rec t}#
-                                                                                                                                                                                                                                   |Nil Unit>}!
-                                                                                                                                                        ,f = fun : a
-                                                                                                                                                                   -> b} : {f : a
-                                                                                                                                                                                -> b
-                                                                                                                                                                           ,list : rec t {l : <Cons {data : a
-                                                                                                                                                                                                    ,rest : rec t}#
-                                                                                                                                                                                              |Nil Unit>}!}#) : rec t {l : <Cons {data : b
+                                                                                                                            -> rec t) ({list = (remaining2 : {data : a take
+                                                                                                                                                             ,rest : rec t {l : <Cons {data : a
+                                                                                                                                                                                      ,rest : rec t}#
+                                                                                                                                                                                |Nil Unit>}!}#).rest : rec t {l : <Cons {data : a
+                                                                                                                                                                                                                        ,rest : rec t}#
+                                                                                                                                                                                                                  |Nil Unit>}!
+                                                                                                                                       ,f = fun : a
+                                                                                                                                                  -> b} : {f : a
+                                                                                                                                                               -> b
+                                                                                                                                                          ,list : rec t {l : <Cons {data : a
+                                                                                                                                                                                   ,rest : rec t}#
+                                                                                                                                                                             |Nil Unit>}!}#) : rec t} : {data : b
+                                                                                                                                                                                                        ,rest : rec t}#) : <Cons {data : b
                                                                                                                                                                                                                                  ,rest : rec t}#
-                                                                                                                                                                                                                           |Nil Unit>}} : {data : b
-                                                                                                                                                                                                                                          ,rest : rec t}#) : <Cons {data : b
-                                                                                                                                                                                                                                                                   ,rest : rec t}#
-                                                                                                                                                                                                                                                             |Nil Unit>
+                                                                                                                                                                                                                           |Nil Unit>
                                                    end : rec t {l : <Cons {data : b
                                                                           ,rest : rec t}#
                                                                     |Nil Unit>}
