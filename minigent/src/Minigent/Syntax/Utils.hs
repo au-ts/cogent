@@ -199,8 +199,8 @@ constraintTypes func constraint = go constraint
     go (t1  :<  t2 )           = func t1 :< func t2
     go (t1  :=: t2 )           = func t1 :=: func t2
     go (Solved t)              = Solved $ func t
+    go (UnboxedNoRecurse rp s) = UnboxedNoRecurse rp s
     go Sat                     = Sat
-    go (UnboxedNoRecurse rp s) = Sat
     go Unsat                   = Unsat
 
 
