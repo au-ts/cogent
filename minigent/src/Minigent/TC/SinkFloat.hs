@@ -36,7 +36,7 @@ sinkFloat = Rewrite.rewrite' $ \cs -> do
                (cs',as) <- tryEach cs
                tell as
                pure (map (constraintTypes (traverseType (foldMap substAssign as))) cs')
-  where 
+  where
     tryEach :: [Constraint] -> MaybeT m ([Constraint], [Assign])
     tryEach cs =
       MaybeT $ do
