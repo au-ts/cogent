@@ -70,7 +70,7 @@ solve axs cs = do
           unify <>
           -- debugStr "[equate]" <>
           Rewrite.lift equate <>
-          -- Rewrite.debugNewline "[sink/float]" debugPrettyConstraints <>
+          -- debugStr "[sink/float]" <>
           sinkFloat)
 
 -- | Run a solver computation.
