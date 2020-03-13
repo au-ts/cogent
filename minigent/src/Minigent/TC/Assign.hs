@@ -10,7 +10,9 @@
 -- May be imported unqualified.
 module Minigent.TC.Assign
   ( Assign (..) 
-  , substAssign 
+  , substAssign
+  , substsToMaps
+  , substConstraint'
   ) where 
 
 import Minigent.Syntax
