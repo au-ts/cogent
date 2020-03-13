@@ -34,7 +34,7 @@ sinkFloat = Rewrite.rewrite' $ \cs -> MaybeT $ do
               tell substs
               if null substs
               then return Nothing
-              else let (m1,m2,m3,m4) = substsToMaps substs
+              else let (m1,m2,m3,m4) = substsToMapsDisjoint substs
                       -- n.b. if a substitution was generated, that
                       --      substitution will change the constraints when applied
                     in return . Just $ map (substConstraint' m1 m2 m3 m4) cs

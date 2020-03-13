@@ -12,6 +12,7 @@ module Minigent.TC.Assign
   ( Assign (..) 
   , substAssign
   , substsToMaps
+  , substsToMapsDisjoint
   , substConstraint'
   ) where 
 
@@ -43,16 +44,35 @@ substsToMaps :: [Assign] -> (M.Map VarName Type, M.Map VarName RecPar, M.Map Var
 substsToMaps [] = (M.empty, M.empty, M.empty, M.empty)
 substsToMaps (TyAssign v t : substs) =
   let (munif, mrp, mrow, ms) = substsToMaps substs
-   in (M.insert v t munif, mrp, mrow, ms)
+      t' = substType' munif mrp mrow ms t
+   in (M.insert v t' munif, mrp, mrow, ms)
 substsToMaps (RowAssign v r : substs) =
   let (munif, mrp, mrow, ms) = substsToMaps substs
       r' = substRow' munif mrp mrow ms r
    in (munif, mrp, M.insert v r' mrow, ms)
 substsToMaps (SigilAssign v s : substs) =
   let (munif, mrp, mrow, ms) = substsToMaps substs
-   in (munif, mrp, mrow, M.insert v s ms)
+      s' = substSigil' ms s
+   in (munif, mrp, mrow, M.insert v s' ms)
 substsToMaps (RecParAssign v rp : substs) =
   let (munif, mrp, mrow, ms) = substsToMaps substs
+      rp' = substRecPar' mrp rp
+   in (munif, M.insert v rp' mrp, mrow, ms)
+
+-- Assumes that no variable which is substituted for occurs in the output of the substitution
+substsToMapsDisjoint :: [Assign] -> (M.Map VarName Type, M.Map VarName RecPar, M.Map VarName Row, M.Map VarName Sigil)
+substsToMapsDisjoint [] = (M.empty, M.empty, M.empty, M.empty)
+substsToMapsDisjoint (TyAssign v t : substs) =
+  let (munif, mrp, mrow, ms) = substsToMapsDisjoint substs
+   in (M.insert v t munif, mrp, mrow, ms)
+substsToMapsDisjoint (RowAssign v r : substs) =
+  let (munif, mrp, mrow, ms) = substsToMapsDisjoint substs
+   in (munif, mrp, M.insert v r mrow, ms)
+substsToMapsDisjoint (SigilAssign v s : substs) =
+  let (munif, mrp, mrow, ms) = substsToMapsDisjoint substs
+   in (munif, mrp, mrow, M.insert v s ms)
+substsToMapsDisjoint (RecParAssign v rp : substs) =
+  let (munif, mrp, mrow, ms) = substsToMapsDisjoint substs
    in (munif, M.insert v rp mrp, mrow, ms)
 
 
