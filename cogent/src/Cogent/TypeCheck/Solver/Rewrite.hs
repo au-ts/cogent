@@ -32,6 +32,7 @@ module Cogent.TypeCheck.Solver.Rewrite
   , -- * Debugging
     debugFail
   , debugPass
+  , debugStr
   ) where
 
 import Control.Monad.Identity
@@ -147,3 +148,8 @@ debugFail pfx show = Rewrite (\cs -> traceTc "rewrite" (text pfx <$$> text (show
 --   Useful for putting debugging after another rewrite, if you only want to print on success.
 debugPass :: (Monad m, T.MonadIO m) => String -> (a -> String) -> Rewrite' m a
 debugPass pfx show = Rewrite (\cs -> traceTc "rewrite" (text pfx <$$> text (show cs)) >> return cs)
+
+-- | Print debugging information as above, but counts as a successful rewrite.
+--   Useful for putting debugging after another rewrite, if you only want to print on success.
+debugStr :: (Monad m, T.MonadIO m) => String -> String -> Rewrite' m a
+debugStr ctx msg = Rewrite (const $ traceTc ctx (text msg) >> empty)

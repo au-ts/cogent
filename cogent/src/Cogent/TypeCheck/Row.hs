@@ -25,6 +25,7 @@ module Cogent.TypeCheck.Row
   , justVar
   , takenEntries
   , untakenEntries
+  , labels
   , takenLabels
   , untakenLabels
   , takenTypes
@@ -150,6 +151,10 @@ untakenEntries = M.filter ((== Left False) . snd . snd) . entries
 vartakenEntries :: Row t -> M.Map FieldName (Entry t)
 vartakenEntries = M.filter (isRight . snd . snd) . entries
 
+
+-- | All labels in the row.
+labels :: Row t -> [FieldName]
+labels = M.keys . entries
 
 -- | All labels marked as 'Taken' in the row.
 takenLabels :: Row t -> [FieldName]
