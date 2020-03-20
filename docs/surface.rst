@@ -421,6 +421,18 @@ So, a little sugar is added for a series of discarding let bindings:
 
 These two expressions are equivalent.
 
+
+Records
+--------
+Unboxed records are initialized as follows:
+
+::
+    #{x = e1, y = e2} 
+
+Boxed records are allocated on the heap. They are typically initialized by 
+first calling the external C malloc function and then updating the record 
+using the put operation.
+
 Take/put
 --------
 
