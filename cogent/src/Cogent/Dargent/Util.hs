@@ -59,6 +59,3 @@ data DataLayoutPath
   | PathEnd
   deriving (Eq, Show, Ord)
 
-class DataLayoutComparable t where
-  testEqual :: t -> t -> Bool
-

@@ -152,20 +152,22 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   TLVar n        :~ tau | Just t <- lookup n ts
                         -> hoistMaybe $ Just [tau :~~ t]
   TLRepRef _ _   :~ _ -> hoistMaybe Nothing
-  TLRecord fs    :~ R _ (Left (Boxed _ (Just l))) -> hoistMaybe $ Just [TLRecord fs :~: l]
+  TLRecord fs    :~ R _ (Left (Boxed _ (Just l))) -> hoistMaybe $ Just [l :~< TLRecord fs]
   TLRecord fs    :~ R r (Left (Boxed _ Nothing))
     | ls <- LRow.entries $ LRow.fromList $ (\(a,b,c) -> (a,c,())) <$> fs
     , rs <- Row.entries r
-    -> hoistMaybe $ Just $ (\((_,e,_),(_,(t,_))) -> e :~ toBoxedType t)
-                    <$> M.elems (M.intersectionWith (,) ls rs)
+    , cs <- M.intersectionWith (,) ls rs
+    , M.null $ M.difference rs cs
+    -> hoistMaybe $ Just $ (\((_,e,_),(_,(t,_))) -> e :~ toBoxedType t) <$> M.elems cs
   TLRecord _     :~ R _ (Right _) -> __todo "TLRecord fs :~ R r1 (Right n) => is this possible?"
   TLVariant _ fs :~ V r
     | ls <- LRow.entries $ LRow.fromList $ (\(a,b,c,d) -> (a,d,c)) <$> fs
     , rs <- Row.entries r
-    -> hoistMaybe $ Just $ (\((_,e,_),(_,(t,_))) -> e :~ toBoxedType t)
-                    <$> M.elems (M.intersectionWith (,) ls rs)
+    , cs <- M.intersectionWith (,) ls rs
+    , M.null $ M.difference rs cs
+    -> hoistMaybe $ Just $ (\((_,e,_),(_,(t,_))) -> e :~ toBoxedType t) <$> M.elems cs
 #ifdef BUILTIN_ARRAYS
-  TLArray e _    :~ A _ _ (Left (Boxed _ (Just l))) _ -> hoistMaybe $ Just [e :~: l]
+  TLArray e _    :~ A _ _ (Left (Boxed _ (Just l))) _ -> hoistMaybe $ Just [l :~< e]
   TLArray e _    :~ A t _ (Left (Boxed _ Nothing)) _ -> hoistMaybe $ Just [e :~ t]
   TLArray e _    :~ A _ _ (Right _) _ -> __todo "TLArray e p :~ A t l (Right n) h => is this possible?"
 #endif
@@ -190,25 +192,26 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   l              :~ tau | TLU _ <- l -> hoistMaybe Nothing
                         | otherwise  -> unsat $ LayoutDoesNotMatchType l tau
 
-  TLRepRef _ _     :~: TLRepRef _ _ -> hoistMaybe Nothing
-  TLRepRef _ _     :~: _            -> hoistMaybe Nothing
-  _                :~: TLRepRef _ _ -> hoistMaybe Nothing
-  TLVar v1         :~: TLVar v2       | v1 == v2 -> hoistMaybe $ Just []
-  TLPrim n1        :~: TLPrim n2      | n1 == n2 -> hoistMaybe $ Just []
-  TLOffset e1 n1   :~: TLOffset e2 n2 | n1 == n2 -> hoistMaybe $ Just [e1 :~: e2]
-  TLRecord fs1     :~: TLRecord fs2
+  TLRepRef _ _     :~< TLRepRef _ _  -> hoistMaybe Nothing
+  TLRepRef _ _     :~< _             -> hoistMaybe Nothing
+  _                :~< TLRepRef _ _  -> hoistMaybe Nothing
+  TLVar v1         :~< TLVar v2      | v1 == v2 -> hoistMaybe $ Just []
+  TLPrim n1        :~< TLPrim n2     | n1 <= n2 -> hoistMaybe $ Just []
+  TLOffset e1 _    :~< TLOffset e2 _ -> hoistMaybe $ Just [e1 :~< e2]
+  TLRecord fs1     :~< TLRecord fs2
     | r1 <- LRow.fromList $ map (\(a,b,c) -> (a,c,())) fs1
     , r2 <- LRow.fromList $ map (\(a,b,c) -> (a,c,())) fs2
-    -> hoistMaybe $ Just $ (\((_,l1,_),(_,l2,_)) -> l1 :~: l2) <$> LRow.common r1 r2
-  TLVariant e1 fs1 :~: TLVariant e2 fs2
+    , r1 `LRow.isSubRow` r2
+    -> hoistMaybe $ Just $ (\((_,l1,_),(_,l2,_)) -> l1 :~< l2) <$> LRow.common r1 r2
+  TLVariant e1 fs1 :~< TLVariant e2 fs2
     | r1 <- LRow.fromList $ map (\(a,b,c,d) -> (a,d,c)) fs1
     , r2 <- LRow.fromList $ map (\(a,b,c,d) -> (a,d,c)) fs2
-    , LRow.identicalFields r1 r2
-    -> hoistMaybe $ Just $ ((\((_,l1,_),(_,l2,_)) -> l1 :~: l2) <$> LRow.common r1 r2) <> [e1 :~: e2]
+    , r1 `LRow.isSubRow` r2
+    -> hoistMaybe $ Just $ ((\((_,l1,_),(_,l2,_)) -> l1 :~< l2) <$> LRow.common r1 r2) <> [e1 :~< e2]
 #ifdef BUILTIN_ARRAYS
-  TLArray e1 _     :~: TLArray e2 _ -> hoistMaybe $ Just [e1 :~: e2]
+  TLArray e1 _     :~< TLArray e2 _ -> hoistMaybe $ Just [e1 :~< e2]
 #endif
-  l1               :~: l2 | TLU _ <- l1 -> hoistMaybe Nothing
+  l1               :~< l2 | TLU _ <- l1 -> hoistMaybe Nothing
                           | TLU _ <- l2 -> hoistMaybe Nothing
                           | otherwise   -> do
     traceM ("l1: " ++ show l1 ++ "\nl2: " ++ show l2 ++ "\n")
@@ -249,8 +252,8 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
             -> hoistMaybe $ Just []
             | otherwise -> unsat $ TypesNotFit t1 t2
 
-  T (TLayout l1 t1) :=: T (TLayout l2 t2) -> hoistMaybe $ Just [l1 :~: l2, t1 :=: t2, l1 :~ t1, l2 :~ t2]
-  T (TLayout l1 t1) :<  T (TLayout l2 t2) -> hoistMaybe $ Just [l1 :~: l2, t1 :<  t2, l1 :~ t1, l2 :~ t2]
+  T (TLayout l1 t1) :=: T (TLayout l2 t2) -> hoistMaybe $ Just [l1 :~< l2, t1 :=: t2, l1 :~ t1, l2 :~ t2]
+  T (TLayout l1 t1) :<  T (TLayout l2 t2) -> hoistMaybe $ Just [l1 :~< l2, t1 :<  t2, l1 :~ t1, l2 :~ t2]
 
   T (TFun t1 t2) :=: T (TFun r1 r2) -> hoistMaybe $ Just [r1 :=: t1, t2 :=: r2]
   T (TFun t1 t2) :<  T (TFun r1 r2) -> hoistMaybe $ Just [r1 :<  t1, t2 :<  r2]
@@ -381,7 +384,7 @@ primTypeSize (T (TCon "U8"   [] Unboxed)) = 8
 primTypeSize (T (TCon "U16"  [] Unboxed)) = 16
 primTypeSize (T (TCon "U32"  [] Unboxed)) = 32
 primTypeSize (T (TCon "U64"  [] Unboxed)) = 64
-primTypeSize (T (TCon "Bool" [] Unboxed)) = 1   -- XXX: 1 or 8?
+primTypeSize (T (TCon "Bool" [] Unboxed)) = 1
 primTypeSize (T (TBang t))                = primTypeSize t
 primTypeSize (T (TUnbox t))               = primTypeSize t
 primTypeSize _                            = __impossible "call primTypeSize on non-prim types"
@@ -394,7 +397,7 @@ doSigilMatch :: TCSigil -> TCSigil -> Maybe [Constraint]
 doSigilMatch s1 s2
   | Left (Boxed _ (Just l1)) <- s1
   , Left (Boxed _ (Just l2)) <- s2
-  = Just [l1 :~: l2]
+  = Just [l1 :~< l2]
   | s1 == s2
   = Just []
   | otherwise = trace ("s1: " ++ show s1 ++ "\ns2: " ++ show s2) Nothing

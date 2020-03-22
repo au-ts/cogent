@@ -59,23 +59,6 @@ pattern TLRepRef n s   = TL (RepRef n s)
 pattern TLVar n        = TL (LVar n)
 pattern TLPtr          = TL Ptr
 
-instance DataLayoutComparable TCDataLayout where
-  testEqual (TLVar v1) (TLVar v2) = v1 == v2
-  testEqual (TLPrim n1) (TLPrim n2) = n1 == n2
-  testEqual (TLOffset e1 n1) (TLOffset e2 n2) = testEqual e1 e2 && n1 == n2
-  testEqual (TLRecord fs1) (TLRecord fs2) =
-    let r1 = LRow.fromList $ map (\(a,b,c) -> (a,c,())) fs1
-        r2 = LRow.fromList $ map (\(a,b,c) -> (a,c,())) fs2
-     in LRow.identical r1 r2
-  testEqual (TLVariant e1 fs1) (TLVariant e2 fs2) =
-    let r1 = LRow.fromList $ map (\(a,b,c,d) -> (a,d,c)) fs1
-        r2 = LRow.fromList $ map (\(a,b,c,d) -> (a,d,c)) fs2
-     in LRow.identical r1 r2 && testEqual e1 e2
-#ifdef BUILTIN_ARRAYS
-  testEqual (TLArray e1 _) (TLArray e2 _) = testEqual e1 e2
-#endif
-  testEqual _ _ = False -- pass it to next normalise step
-
 {- * Utility functions -}
 
 toDLExpr :: TCDataLayout -> DataLayoutExpr
