@@ -181,7 +181,7 @@ applyC s (Exhaustive t ps) = Exhaustive (apply s t) ps
 applyC s (Solved t) = Solved (apply s t)
 applyC s (IsPrimType t) = IsPrimType (apply s t)
 applyC s (l :~  t) = applyL s l :~  apply s t
-applyC s (l :~: m) = applyL s l :~: applyL s m
+applyC s (l :~< m) = applyL s l :~< applyL s m
 applyC s (a :~~ b) = apply s a :~~ apply s b
 
 #ifdef BUILTIN_ARRAYS

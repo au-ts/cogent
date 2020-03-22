@@ -291,7 +291,7 @@ basicExpr' = avoidInitial >> buildExpressionParser
               ]
 
 #ifdef BUILTIN_ARRAYS
-            , [Infix (reservedOp "@" *> pure (\e i -> LocExpr (posOfE e) (ArrayIndex e i))) AssocLeft,
+            , [Infix (try (avoidInitial >> reservedOp "@") *> pure (\e i -> LocExpr (posOfE e) (ArrayIndex e i))) AssocLeft,
                Infix (reserved "o" *> pure (\f g -> LocExpr (posOfE f) (Comp f g))) AssocRight]
 #else
             , [Infix (reserved "o" *> pure (\f g -> LocExpr (posOfE f) (Comp f g))) AssocRight]
