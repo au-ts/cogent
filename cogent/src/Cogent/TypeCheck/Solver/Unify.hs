@@ -100,7 +100,7 @@ assignOf (R r1 s1 :=: R r2 s2)
                                  , Subst.ofRow y (r1 { Row.var = Just v })
                                  ]
 
-assignOf (l1 :~: l2) = assignOfL l1 l2
+assignOf (l1 :~< l2) = assignOfL l1 l2
 
 #ifdef BUILTIN_ARRAYS
 -- TODO: This will be moved to a separately module for SMT-solving. Eventually the results
