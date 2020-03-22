@@ -36,10 +36,13 @@ data DataLayoutSize
   | Bits  Size
   | Add   DataLayoutSize DataLayoutSize
   -- Future options, sizeof, offsetof, "after"
-  deriving (Show, Data, Ord)
+  deriving (Show, Data)
 
 instance Eq DataLayoutSize where
   (==) n m = evalSize n == evalSize m
+
+instance Ord DataLayoutSize where
+  (<=) n m = evalSize n <= evalSize m
 
 evalSize :: DataLayoutSize -> Size
 evalSize (Bytes b) = b * 8
@@ -80,7 +83,4 @@ pattern DLOffset e s   = DL (Offset e s)
 pattern DLRepRef n s   = DL (RepRef n s)
 pattern DLVar n        = DL (LVar n)
 pattern DLPtr          = DL Ptr
-
-instance DataLayoutComparable DataLayoutExpr where
-  testEqual = __todo "testEqual for DataLayoutExpr"
 

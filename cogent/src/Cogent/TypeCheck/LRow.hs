@@ -31,11 +31,11 @@ import qualified Data.Map as M
 
 import Prelude hiding (null)
 
-data LRow e s = LRow { entries :: M.Map FieldName (FieldName, e, s) }
-                deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
+newtype LRow e s = LRow { entries :: M.Map FieldName (FieldName, e, s) }
+                   deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 empty :: LRow e s
-empty = LRow $ M.empty
+empty = LRow M.empty
 
 fromList :: [(FieldName, e, s)] -> LRow e s
 fromList s = LRow . M.fromList $ zip (fst3 <$> s) s
@@ -47,19 +47,9 @@ withoutCommon :: LRow e s -> LRow e s -> (LRow e s, LRow e s)
 withoutCommon r1@(entries -> es1) r2@(entries -> es2) =
   (LRow $ M.withoutKeys es1 $ M.keysSet es2, LRow $ M.withoutKeys es2 $ M.keysSet es1)
 
-identicalFields :: (Eq s) => LRow e s -> LRow e s -> Bool
-identicalFields r1 r2
-  | (r1', r2') <- withoutCommon r1 r2
-  , null r1' && null r2'
-  = all (\((n1,_,s1), (n2,_,s2)) -> n1 == n2 && s1 == s2) $ common r1 r2
-
-identical :: (DataLayoutComparable e, Eq s) => LRow e s -> LRow e s -> Bool
-identical r1 r2
-  | (r1', r2') <- withoutCommon r1 r2
-  , null r1' && null r2'
-  = all (\((n1,e1,s1), (n2,e2,s2)) -> n1 == n2 && testEqual e1 e2 && s1 == s2) $ common r1 r2
-identical r1 r2 = False
+isSubRow :: LRow e s -> LRow e s -> Bool
+isSubRow r1@(entries -> es1) r2@(entries -> es2) = M.null $ M.difference es1 es2
 
 null :: LRow e s -> Bool
-null r@(entries -> es) = L.null $ M.elems es
+null r@(entries -> es) = M.null es
 
