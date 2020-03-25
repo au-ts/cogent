@@ -72,7 +72,7 @@ ML\<open> fun corres_put_boxed_tac ctxt = let
     (ftac (get "all_heap_rel_ptrD") THEN' atac)
         THEN_ALL_NEW asm_full_simp_tac (ctxt addsimps type_rels),
     (* The following two lines are not in the ORELSE' branch
-       (that is the only difference between the two branches)
+       (that is the only difference between the two branches, with the nested ORELSE' branch)
        TODO factorize
      *)
     clarsimp_tac ctxt,
@@ -99,7 +99,8 @@ ML\<open> fun corres_put_boxed_tac ctxt = let
         addsimps type_rels),
     (ftac (get "all_heap_rel_ptrD") THEN' atac)
         THEN_ALL_NEW asm_full_simp_tac (ctxt addsimps type_rels),
-    ((rtac (get "all_heap_rel_updE") THEN' atac THEN' atac)
+    (((rtac (get "all_heap_rel_updE") THEN' atac THEN' atac) 
+         ORELSE' (Tactic.forward_tac ctxt (gets "all_heap_rel_updE") THEN' atac))
         THEN_ALL_NEW distinct_subgoal_tac
         THEN_ALL_NEW asm_simp_tac (ctxt addsimps val_rels @ type_rels)
         THEN_ALL_NEW asm_simp_tac (ctxt addsimps @{thms map_update list_update_eq_id}
@@ -162,8 +163,9 @@ ML\<open> fun corres_let_put_boxed_tac ctxt = let
     clarsimp_tac (ctxt addSDs (gets "type_repr_uval_repr")
         addsimps type_rels),
     (ftac (get "all_heap_rel_ptrD") THEN' atac)
-        THEN_ALL_NEW asm_full_simp_tac (ctxt addsimps type_rels),
-    ((rtac (get "all_heap_rel_updE") THEN' atac THEN' atac)
+        THEN_ALL_NEW asm_full_simp_tac (ctxt addsimps type_rels),   
+    (((rtac (get "all_heap_rel_updE") THEN' atac THEN' atac) 
+         ORELSE' (Tactic.forward_tac ctxt (gets "all_heap_rel_updE") THEN' atac))
         THEN_ALL_NEW distinct_subgoal_tac
         THEN_ALL_NEW asm_simp_tac (ctxt addsimps val_rels @ type_rels)
         THEN_ALL_NEW asm_simp_tac (ctxt addsimps @{thms map_update list_update_eq_id}
