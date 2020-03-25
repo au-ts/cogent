@@ -1,0 +1,79 @@
+-- Tests recursive types
+
+type ListNode a      = rec t { l: < Nil | Cons (a,t) > }
+type EmptyListNode a = (ListNode a) take (..)
+
+type List a = #{
+  size: U64,
+  list: ListNode a
+}
+
+------------- Allocation and deallocation -------------
+
+alloc_list_node : all a. () -> EmptyListNode a
+free_list_node : all a. EmptyListNode a -> ()
+
+free_list : all a. (List a, a -> ()) -> ()
+free_list (r { list = x }, f) = free_list' (x, f)
+
+free_list' : all a. (ListNode a, a -> ()) -> ()
+free_list' (r, f) =
+  let r2 { l = x } = r
+  and _ = free_list_node r2 in
+    x | Nil               -> ()
+      | Cons (elem, rest) ->
+        let _ = f elem in free_list' (rest, f)
+
+------------- List basic -------------
+
+list_cons : all a. (a, List a) -> List a
+list_cons (x, r) = 
+  let #{ list = y, size = s } = r
+  and node = (alloc_list_node ()) { l = Cons (x,y) }
+  in #{ list = node, size = s + 1 }
+
+list_append : all a. (List a, List a) -> List a
+list_append (r1 { size = s1, list = l1 }, r2 { size = s2, list = l2 }) =
+  let appended = list_append' (l1,l2)
+  in #{ size = s1 + s2, list = appended }
+
+list_append' : all a. (ListNode a, ListNode a) -> ListNode a
+list_append' (head { l = x }, b) =
+  x | Nil -> 
+        let _ = free_list_node head in b
+    | Cons (elem, tail) -> 
+        let rest = list_append' (tail, b)
+        in head { l = Cons (elem, rest) }
+
+
+------------- List Transformations -------------
+
+-- TODO: The compiler currently doesn't let us write functions like this
+
+-- list_map : all (a, b). ((a! -> b), (List a)!) -> List b
+-- list_map (f, r) = 
+--   let #{ list = y } = r
+--   and x = list_map' (f, y)
+--   in r { list = x }
+
+-- list_map' : all (a, b). ((a! -> b), (ListNode a)!) -> ListNode b
+-- list_map' (f, head { l = x }) =
+--   let node = alloc_list_node () in
+--     x | Nil -> node { l = Nil }
+--       | Cons (elem, tail) ->
+--           node { l = Cons (f elem, list_map' (f, tail)) }
+
+list_map_boxed' : all (a :< E). ((a -> a), (ListNode a)) -> ListNode a
+list_map_boxed' (f, head { l = x }) =
+    x | Nil -> head { l = Nil }
+      | Cons (elem, tail) ->
+          head { l = Cons (f elem, list_map_boxed' (f, tail)) }
+
+------------- List Qualities -------------
+
+list_is_empty : all a. (List a)! -> Bool
+list_is_empty (r { size = s }) = s == 0
+
+-- TODO: Fix compiler to be able to compile this
+list_length : all a. (List a)! -> U64
+list_length (r { size = s }) = s

@@ -42,7 +42,6 @@ simplify axs = Rewrite.pickOne $ \c -> -- trace ("About to simpliy:\n" ++ debugP
   Share  (TypeVarBang _)              -> Just []
   Drop   (RecParBang _ _)             -> Just []
   Share  (RecParBang _ _)             -> Just []
-  -- TODO: Drop/Share RecParBang?
   Share  (Variant es)                 -> guard (rowVar es == Nothing)
                                       >> Just (map Share  (Row.untakenTypes es))
   Drop   (Variant es)                 -> guard (rowVar es == Nothing)
@@ -105,12 +104,21 @@ simplify axs = Rewrite.pickOne $ \c -> -- trace ("About to simpliy:\n" ++ debugP
   {-
    - Recursive Parameters:
    - If we are reasoning about two recursive parameters, check if their context references
-   - are equal
+   - are equal. We *do not* unroll here, and if we arrive at the same position where the contexts
+   - are both `Nothing', then the RecPars are truly equal.
+   -
+   - N.B. recursive parameters need only be *alpha* equivalent, hence we do not check if the names are equal
    -}
-  RecPar n ctxt :< RecPar n' ctxt'  -> guard (ctxt M.! n == ctxt M.! n') >> Just []
-  RecPar n ctxt :=: RecPar n' ctxt' -> guard (ctxt M.! n == ctxt M.! n') >> Just []
-  RecParBang n ctxt :< RecParBang n' ctxt'  -> guard (ctxt M.! n == ctxt M.! n') >> Just []
-  RecParBang n ctxt :=: RecParBang n' ctxt' -> guard (ctxt M.! n == ctxt M.! n') >> Just []
+  RecPar n     (Just ctxt) :<  RecPar n'     (Just ctxt') -> Just [(ctxt M.! n) :<  (ctxt M.! n')]
+  RecPar n     (Just ctxt) :=: RecPar n'     (Just ctxt') -> Just [(ctxt M.! n) :=: (ctxt M.! n')]
+  RecParBang n (Just ctxt) :<  RecParBang n' (Just ctxt') -> Just [(ctxt M.! n) :<  (ctxt M.! n')]
+  RecParBang n (Just ctxt) :=: RecParBang n' (Just ctxt') -> Just [(ctxt M.! n) :=: (ctxt M.! n')]
+
+  RecPar n     Nothing :<  RecPar n'     Nothing -> Just []
+  RecPar n     Nothing :=: RecPar n'     Nothing -> Just []
+  RecParBang n Nothing :<  RecParBang n' Nothing -> Just []
+  RecParBang n Nothing :=: RecParBang n' Nothing -> Just []
+
 
   -- We need this here as otherwise it triggers the cases below
   RecParBang n ctxt :< RecPar n' ctxt'  ->  Nothing 
@@ -123,15 +131,15 @@ simplify axs = Rewrite.pickOne $ \c -> -- trace ("About to simpliy:\n" ++ debugP
    - If we are reasoning about a recursive parameter and a type, unroll the parameter
    - and reason about the type and the unrolled parameter
    -}
-  RecPar n ctxt :< t  -> Just [ unroll (RecPar n ctxt) :< t]
-  t :< RecPar n ctxt  -> Just [t :< unroll (RecPar n ctxt)]
-  RecPar n ctxt :=: t -> Just [unroll (RecPar n ctxt) :=: t]
-  t :=: RecPar n ctxt -> Just [t :=: unroll (RecPar n ctxt)]
+  RecPar n ctxt :< t  -> Just [unroll n ctxt :< t]
+  t :< RecPar n ctxt  -> Just [t :< unroll n ctxt]
+  RecPar n ctxt :=: t -> Just [unroll n ctxt :=: t]
+  t :=: RecPar n ctxt -> Just [t :=: unroll n ctxt]
 
-  RecParBang n ctxt :< t  -> Just [Bang (unroll (RecPar n ctxt)) :< t]
-  t :< RecParBang n ctxt  -> Just [t :< Bang (unroll (RecPar n ctxt))]
-  RecParBang n ctxt :=: t -> Just [Bang (unroll (RecPar n ctxt)) :=: t]
-  t :=: RecParBang n ctxt -> Just [t :=: Bang (unroll (RecPar n ctxt))]
+  RecParBang n ctxt :< t  -> Just [Bang (unroll n ctxt) :< t]
+  t :< RecParBang n ctxt  -> Just [t :< Bang (unroll n ctxt)]
+  RecParBang n ctxt :=: t -> Just [Bang (unroll n ctxt) :=: t]
+  t :=: RecParBang n ctxt -> Just [t :=: Bang (unroll n ctxt)]
 
   t :< t'  -> guard (unorderedType t || unorderedType t') >> Just [t :=: t']
 
@@ -151,10 +159,10 @@ simplify axs = Rewrite.pickOne $ \c -> -- trace ("About to simpliy:\n" ++ debugP
         c   = Variant r1' :=: Variant r2'
     Just (c:cs)
 
-  Record n1 r1 s1   :=: Record n2 r2 s2 ->
-    if Row.null r1 && Row.null r2 && s1 == s2 && n1 == n2 then Just []
-    else if Row.justVar r1 && Row.justVar r2 && s1 == s2 && r1 == r2 && n1 == n2
-         then Just [Solved (Record n1 r1 s1)]
+  Record rp1 r1 s1   :=: Record rp2 r2 s2 ->
+    if Row.null r1 && Row.null r2 && s1 == s2 && sameRecursive rp1 rp2 then Just []
+    else if Row.justVar r1 && Row.justVar r2 && s1 == s2 && r1 == r2 && sameRecursive rp1 rp2
+         then Just [Solved (Record rp1 r1 s1)]
     else do
     let commons  = Row.common r1 r2
         (ls, rs) = unzip commons
@@ -162,7 +170,7 @@ simplify axs = Rewrite.pickOne $ \c -> -- trace ("About to simpliy:\n" ++ debugP
     guard (untakenLabels rs == untakenLabels ls)
     let (r1',r2') = Row.withoutCommon r1 r2
         cs = map (\(Entry _ t _, Entry _ t' _) -> t :=: t') commons
-        c   = Record n1 r1' s1 :=: Record n2 r2' s2
+        c   = Record rp1 r1' s1 :=: Record rp2 r2' s2
     Just (c:cs)
     
   t :=: t' -> guard (t == t') >> if typeUVs t == [] then Just [] 
@@ -170,9 +178,9 @@ simplify axs = Rewrite.pickOne $ \c -> -- trace ("About to simpliy:\n" ++ debugP
   Solved t -> guard (typeUVs t == []) >> Just []
 
   -- If an unboxed record has no recursive parameter, sat
-  UnboxedNoRecurse (Record None _ Unboxed) -> Just []
+  UnboxedNoRecurse None Unboxed -> Just []
   -- If a boxed record, sat
-  UnboxedNoRecurse (Record _ _ c) | (c == ReadOnly || c == Writable) -> Just []
+  UnboxedNoRecurse _ c | (c == ReadOnly || c == Writable) -> Just []
 
   _ -> Nothing
 

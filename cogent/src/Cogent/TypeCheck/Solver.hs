@@ -34,7 +34,6 @@ import           Cogent.TypeCheck.Solver.Monad
 import           Cogent.TypeCheck.Solver.Normalise
 import           Cogent.TypeCheck.Solver.Simplify
 import           Cogent.TypeCheck.Solver.Unify
-import           Cogent.TypeCheck.Solver.JoinMeet
 import           Cogent.TypeCheck.Solver.Equate
 import           Cogent.TypeCheck.Solver.Default
 import           Cogent.TypeCheck.Solver.SinkFloat
@@ -75,6 +74,18 @@ import           Lens.Micro
 import           Lens.Micro.TH
 import           Lens.Micro.Mtl
 
+-- [amos] Type-solver changes I made:
+-- - Simplify rule for `t :=: t` to `Solved t` (see Solver/Simplify.hs)
+--    A constraint like "?a :=: ?a" is almost trivial, except that you need the `Solved` constraint to make sure ?a is given a concrete assignment eventually
+-- - Add Sink/float stage (see Solver/SinkFloat.hs)
+--    When the upper bound of a record subtyping constraint has some field as present, we know the lower bound must also have that field present.
+-- - Add Defaults stage (see Solver/Defaults.hs)
+--    Choosing the smallest size for integer literals, when there are multiple upcast constraints on same unification variable
+-- - Reorder Equate stage before JoinMeet:
+--    The new Sink/float stage can apply when Equate does, but Sink/float introduces potentially many new constraints, while Equate is simpler and just replaces a subtyping constraint with equality.
+-- [vjackson] Type-solver changes I have made:
+-- * expand sink/float to all types, and map under all type-operators
+-- * remove join/meet
 
 solve :: [(TyVarName, Kind)] -> Constraint -> TcSolvM [Goal]
 solve ks c = let gs     = makeGoals [] c
@@ -83,7 +94,6 @@ solve ks c = let gs     = makeGoals [] c
                           <> debug  "Unify"      printC unify
                           <> debugL "Equate"     printC equate
                           <> debug  "Sink/Float" printC sinkfloat
-                          <> debug  "JoinMeet"   printC joinMeet
                           <> debugL "Defaults"   printC defaults
 #ifdef BUILTIN_ARRAYS
                           <> debug  "SMT"        printC smt

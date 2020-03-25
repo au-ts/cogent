@@ -444,6 +444,7 @@ flags =
   , Option []         ["infer-c-types"]  1 (ReqArg (set_flag_inferCType . words) "FILE..") "infer Cogent abstract type definitions"
   , Option []         ["name-cache"]     1 (ReqArg set_flag_nameCache "FILE")              "specify the name cache file to use"
   , Option []         ["proof-input-c"]  1 (ReqArg set_flag_proofInputC "FILE")            "specify input C file to generate proofs (default to the same base name as input Cogent file)"
+  , Option []         ["type-proof-timing"] 3 (NoArg set_flag_proofTiming)                  "Log type proof timings in the generated isabelle embedding to ~/TypeProofTacticTiming.json"
   , Option []         ["prune-call-graph"] 2 (ReqArg set_flag_pruneCallGraph "FILE")       "specify Cogent entry-point definitions"
   -- external programs
   , Option []         ["cogent-pp-args"] 2 (ReqArg (set_flag_cogentPpArgs) "ARG..")        "arguments given to Cogent preprocessor (same as cpphs)"

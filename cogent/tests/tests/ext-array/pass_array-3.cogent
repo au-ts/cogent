@@ -1,0 +1,6 @@
+type A
+foo : A[3]! -> A!
+foo arr = arr@x
+
+x : U32
+x = 2

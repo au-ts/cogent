@@ -1,0 +1,3 @@
+fac : U64 -> U64
+fac i = i | 0 -> 1
+          | n -> n * fac (n-1)

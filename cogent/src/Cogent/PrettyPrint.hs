@@ -90,6 +90,7 @@ typeargs xs = encloseSep lbracket rbracket (comma <> space) xs
 array = encloseSep lbracket rbracket (comma <> space)
 record = encloseSep (lbrace <> space) (space <> rbrace) (comma <> space)
 variant = encloseSep (langle <> space) rangle (symbol "|" <> space) . map (<> space)
+reftype v t e = lbracket <+> v <+> symbol ":" <+> t <+> symbol "|" <+> e <+> rbracket
 
 -- combinators, helpers
 
@@ -543,6 +544,9 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
                   <+> tupled (map pretty idxs))
       & (if __cogent_fdisambiguate_pp then (<+> comment "{- @put -}") else id)
 #endif
+#ifdef REFINEMENT_TYPES
+  pretty (TRefine v t e) = reftype (varname v) (pretty t) (pretty e)
+#endif
   pretty (TRecord ts s) =
       let recordPretty = record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts) -- all untaken
           tk = map fst $ filter (snd . snd) ts
@@ -894,10 +898,11 @@ instance Pretty r => Pretty (Sigil r) where
 instance (Pretty t) => Pretty (Row.Row t) where
   pretty (Row.Row m t) =
     let rowFieldToDoc (_, (n, (ty, tk))) =
-          let tkStr = case tk of
-                        True -> "taken"
-                        False -> "present"
-          in text n <+> text ":" <+> pretty ty <+> text "(" <> text tkStr <> text ")"
+          let tkDoc = case tk of
+                        Left True  -> text "taken"
+                        Left False -> text "present"
+                        Right i -> text "?" <> pretty i
+          in text n <+> text ":" <+> pretty ty <+> text "(" <> tkDoc <> text ")"
         rowFieldsDoc = hsep $ punctuate (text ",") $ map rowFieldToDoc (M.toList m)
      in rowFieldsDoc <> (case t of Just x -> symbol " |" <+> text "?" <> pretty x; _ -> empty)
 

@@ -43,7 +43,17 @@ import qualified Data.Set as S
 import           Data.Word (Word32)
 import           Lens.Micro
 
-import           Debug.Trace
+import           Cogent.Common.Syntax
+import           Cogent.Common.Types
+import           Cogent.Compiler
+import           Cogent.TypeCheck.ARow as ARow
+import           Cogent.TypeCheck.Base
+import qualified Cogent.TypeCheck.Row as Row
+import           Cogent.TypeCheck.Row (Entry)
+import           Cogent.TypeCheck.Solver.Goal 
+import           Cogent.TypeCheck.Solver.Monad
+import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
+import           Cogent.Surface
 
 onGoal :: (Monad m) => (Constraint -> MaybeT m [Constraint]) -> Goal -> MaybeT m [Goal]
 onGoal f g = fmap (map (derivedGoal g)) (f (g ^. goal))
@@ -244,7 +254,7 @@ unorderedType (TUnit)   = True
 unorderedType _ = False
 
 untakenLabelsSet :: [Entry TCType] -> S.Set FieldName
-untakenLabelsSet = S.fromList . mapMaybe (\(l, (_,t)) -> guard (not t) >> pure l)
+untakenLabelsSet = S.fromList . mapMaybe (\(l, (_,t)) -> guard (either not (const False) t) >> pure l)
 
 isIrrefutable :: RawPatn -> Bool
 isIrrefutable (RP (PIrrefutable _)) = True

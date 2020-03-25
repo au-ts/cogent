@@ -1,13 +1,13 @@
-alloc : Unit -> mu t {l : <Cons {d : U8,r : rec t}#|End Unit> take};
-makeEmptyList : Unit -> mu t {l : <Cons {d : U8,r : rec t}#|End Unit>};
+alloc : Unit -> rec t {l : <Cons {d : U8,r : rec t}#|End Unit> take};
+makeEmptyList : Unit -> rec t {l : <Cons {d : U8,r : rec t}#|End Unit>};
 makeEmptyList a = let r = (alloc[] : Unit
-                                     -> mu t {l : <Cons {d : U8,r : rec t}#
-                                                  |End Unit> take}) (Unit : Unit) : mu t {l : <Cons {d : U8
-                                                                                                    ,r : rec t}#
-                                                                                              |End Unit> take}
-                  in put r : mu t {l : <Cons {d : U8,r : rec t}#
-                                       |End Unit> take}.l := End (Unit : Unit) : <Cons {d : U8
-                                                                                       ,r : rec t}#
-                                                                                 |End Unit>
-                     end : mu t {l : <Cons {d : U8,r : rec t}#|End Unit>}
-                  end : mu t {l : <Cons {d : U8,r : rec t}#|End Unit>};
+                                     -> rec t {l : <Cons {d : U8,r : rec t}#
+                                                   |End Unit> take}) (Unit : Unit) : rec t {l : <Cons {d : U8
+                                                                                                      ,r : rec t}#
+                                                                                                |End Unit> take}
+                  in put r : rec t {l : <Cons {d : U8,r : rec t}#
+                                        |End Unit> take}.l := End (Unit : Unit) : <Cons {d : U8
+                                                                                        ,r : rec t}#
+                                                                                  |End Unit>
+                     end : rec t {l : <Cons {d : U8,r : rec t}#|End Unit>}
+                  end : rec t {l : <Cons {d : U8,r : rec t}#|End Unit>};

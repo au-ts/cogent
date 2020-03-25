@@ -28,14 +28,16 @@ int exit(int num) {
 FILE * stdout               = (FILE*) 0x0;
 char * KERNEL_PANIC_MESSAGE = 0x0;
 char * KERNEL_OK_MESSAGE    = 0x0;
+#define KERNEL_VERIFICATION 1
 
 #include <cogent-defns.h>
 
 // The definition of our abstract type
-typedef struct kernelState {
+typedef struct KernelState KernelState;
+struct KernelState {
     u64 magicNumber;
     FILE * kernelLogStream;
-} KernelState;
+};
 
 
 // Now, include our compiled code

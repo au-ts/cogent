@@ -1,0 +1,9 @@
+- test_name: wip
+  files:
+    - wip_ent-defns.cogent
+    - wip_ent-defns.ed
+    - wip_reflect-if.cogent
+    - wip_share-variants.cogent
+  expected_result: wip
+  flags:
+    - -t

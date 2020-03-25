@@ -8,10 +8,11 @@ char * KERNEL_OK_MESSAGE    = "Kernel is ok!";
 #include <cogent-defns.h>
 
 // The definition of our abstract type
-typedef struct kernelState {
+typedef struct KernelState KernelState;
+struct KernelState {
     u64 magicNumber;
     FILE * kernelLogStream;
-} KernelState;
+};
 
 // Now, include our compiled code
 #include "kernel.c"

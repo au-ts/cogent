@@ -54,8 +54,7 @@ assignOf (Record _ _ (UnknownSigil v) :< Record _ _ s)
 assignOf (Record _ _ s :< Record _ _ (UnknownSigil v))
   | s `elem` [ReadOnly, Unboxed, Writable]
   = pure [ SigilAssign v s ]
-assignOf (Record (UnknownParameter x) _ s :< Record _ _ Unboxed) 
-  = pure [RecParAssign x None]
+
 -- N.B. we know from the previous phase that common alternatives have been factored out.
 assignOf (Variant r1 :=: Variant r2)
   | rowVar r1 /= rowVar r2
@@ -80,7 +79,6 @@ assignOf (Record _ r1 s1 :=: Record _ r2 s2)
                                  , RowAssign y (r1 { rowVar = Just v })
                                  ]
 
--- TODO: Generalise
 assignOf (Record n1 _ _ :=: Record n2 _ _)
   = case (n1,n2) of
       (Rec _, UnknownParameter x) -> pure [RecParAssign x n1]
@@ -89,17 +87,17 @@ assignOf (Record n1 _ _ :=: Record n2 _ _)
       (None, UnknownParameter x)  -> pure [RecParAssign x None]
       _              -> empty 
 
-assignOf (Record n1 _ _ :< Record n2 _ _)
-  = case (n1,n2) of
-      (Rec _, UnknownParameter x) -> pure [RecParAssign x n1]
-      (UnknownParameter x, Rec _) -> pure [RecParAssign x n2]
+assignOf (Record rp1 _ _ :< Record rp2 _ _)
+  = case (rp1,rp2) of
+      (Rec _, UnknownParameter x) -> pure [RecParAssign x rp1]
+      (UnknownParameter x, Rec _) -> pure [RecParAssign x rp2]
       (UnknownParameter x, None)  -> pure [RecParAssign x None]
       (None, UnknownParameter x)  -> pure [RecParAssign x None]
       _              -> empty 
 
--- If it is discovered that a record is unboxed, we can assign it's
--- unknown parameter to None
-assignOf (UnboxedNoRecurse (Record (UnknownParameter x) _ Unboxed))
+-- If it is discovered that a sigil is unboxed, we can assign it's
+--  unknown parameter to None
+assignOf (UnboxedNoRecurse (UnknownParameter x) Unboxed)
     = pure [RecParAssign x None]
 
 assignOf _ = empty
