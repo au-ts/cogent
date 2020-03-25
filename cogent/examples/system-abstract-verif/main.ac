@@ -5,7 +5,9 @@ $ty:(U64) memMagicNumber($ty:(KernelState!) arg) {
 }
 
 $ty:(()) kernelPanic($ty:(KernelState) arg) {
+#ifndef KERNEL_VERIFICATION
     fprintf(arg->kernelLogStream, "%s\n", KERNEL_PANIC_MESSAGE);
+#endif // KERNEL_VERIFICATION
 
     free(arg);
     exit(1);
@@ -17,7 +19,7 @@ $ty:(()) kernelPanic($ty:(KernelState) arg) {
 // Our main function, to test
 int main(void)
 {
-    $ty:(KernelState) state = malloc(sizeof (struct kernelState*));
+    $ty:(KernelState) state = malloc(sizeof (KernelState));
     state->magicNumber = 0xdeadbeef;
     state->kernelLogStream = stdout;
 
@@ -29,7 +31,12 @@ int main(void)
         state = res.Success;
     }
 
+    // Only call this function if we are not verifying - autocorres doesn't like the string literal
+    // we need to format the print
+#ifndef KERNEL_VERIFICATION
     fprintf(state->kernelLogStream, "%s\n", KERNEL_OK_MESSAGE);
+#endif // KERNEL_VERIFICATION
+
     free(state);
 
     return 0;

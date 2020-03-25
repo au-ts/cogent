@@ -495,7 +495,6 @@ assumes
 shows "corres srel (Struct ts (map Var xs)) (gets (\<lambda>_. p)) \<xi> \<gamma> \<Xi> \<Gamma> \<sigma> s"
   by (fastforce intro: u_sem_struct u_sem_all_var simp: assms corres_def snd_return in_return)
 
-(* CHANGE: changed the triple to take a taken flag *)
 lemma corres_con:
 assumes "val_rel (USum tag (\<gamma> ! x)  (map (\<lambda>(n,t,_).(n,type_repr t)) typ)) p"
 shows "corres srel (Con typ tag (Var x)) (gets (\<lambda>_. p)) \<xi> \<gamma> \<Xi> \<Gamma> \<sigma> s"
@@ -569,12 +568,9 @@ lemma corres_take_unboxed':
   assumes split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
   assumes typing_stat: "\<Xi>, [], \<Gamma> \<turnstile> Take (Var x) f e : te"
   assumes typing_x:  "\<Xi>, [], \<Gamma>1 \<turnstile> (Var x) : TRecord typ Unboxed"
-(* CHANGE: Changed to take field names *)
   assumes e_typ: "\<Xi>, [], Some (fst (snd (typ!f))) # Some (TRecord (typ[f := (fst (typ!f), fst (snd (typ!f)), taken)]) Unboxed) # \<Gamma>2 \<turnstile> e : te"
   assumes has_kind: "[] \<turnstile>  fst (snd (typ!f)) :\<kappa>  k"
-(* CHANGE: Changed to explicit taken types *)
   assumes shareable_or_taken: "(S \<in> k \<or> taken = Taken)"
-(* CHANGE: Changed to take field names *)
   assumes x_unboxed: "corres srel e (e' (f' s)) \<xi> (fst (fs!f)# (\<gamma>!x)# \<gamma>) \<Xi> (Some (fst (snd (typ!f)))# Some (TRecord (typ [f := (fst (typ!f), fst (snd (typ!f)),taken)]) Unboxed)# \<Gamma>2) \<sigma> s"
 shows "corres srel (Take (Var x) f e) (do z \<leftarrow> gets f'; e' z od) \<xi> \<gamma> \<Xi> \<Gamma> \<sigma> s"
   apply (clarsimp simp: corres_def in_monad snd_bind snd_gets snd_state_assert)
@@ -648,14 +644,11 @@ lemma corres_take_unboxed:
   assumes split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
   assumes typing_stat: "\<Xi>, [], \<Gamma> \<turnstile> Take (Var x) f e : te"
   assumes typing_x:  "\<Xi>, [], \<Gamma>1 \<turnstile> (Var x) : TRecord typ Unboxed" (* needed? *)
-(* CHANGE: Changed to take field names *)
   assumes e_typ: "\<Xi>, [], Some (fst (snd (typ!f))) # Some (TRecord (typ[f := (fst (typ!f), fst (snd (typ!f)), taken)]) Unboxed) # \<Gamma>2 \<turnstile> e : te"
   assumes has_kind: "[] \<turnstile> fst (snd (typ!f)) :\<kappa> k"
-(* CHANGE: Changed to use explicit taken *)
   assumes shareable_or_taken: "(S \<in> k \<or> taken = Taken)"
   assumes val_rel_f: "val_rel (fst (fs!f)) ((f' s)::'bb::cogent_C_val)"
   assumes type_rel_f: "type_rel (type_repr (fst (snd (typ!f)))) TYPE('bb)"
-(* CHANGE: Changed to take field names *)
   assumes corres_cont:
    "\<And>fsf f's. val_rel fsf (f's::'bb) \<Longrightarrow>
     corres srel e (e' f's) \<xi> (fsf# (\<gamma>!x)# \<gamma>) \<Xi> (Some (fst (snd (typ!f)))# Some (TRecord (typ [f := (fst (typ!f), fst (snd (typ!f)),taken)]) Unboxed)# \<Gamma>2) \<sigma> s"
@@ -686,22 +679,16 @@ lemma map_list_update_id:
   done
 
 lemma corres_take_boxed':
-(* CHANGE: ADDED this goal *)
   assumes sigil_wr: "sgl = Boxed Writable l"
-(* CHANGE: Changed to use sgl *)
   assumes x_sigil: "\<Gamma>!x = Some (TRecord typ sgl)"
   assumes \<gamma>_x: "\<gamma>!x = UPtr p repr"
   assumes split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
   assumes val_rel_x: "val_rel (\<gamma>!x) (x'::('a::cogent_C_val))"
   assumes typing_stat: "\<Xi>, [], \<Gamma> \<turnstile> Take (Var x) f e : te"
-(* CHANGE: Changed to use sgl *)
   assumes typing_x:  "\<Xi>, [], \<Gamma>1 \<turnstile> (Var x) : TRecord typ sgl" (* needed? *)
-(* CHANGE: Changed to take field names; Changed to use sgl *)
   assumes e_typ: "\<Xi>, [], Some (fst (snd (typ!f))) # Some (TRecord (typ[f := (fst (typ!f), fst (snd (typ!f)), taken)]) sgl) # \<Gamma>2 \<turnstile> e : te"
   assumes has_kind: "[] \<turnstile>  fst (snd (typ!f)) :\<kappa>  k"
-(* CHANGE: Changed to use explicit taken *)
   assumes shareable_or_taken: "(S \<in> k \<or> taken = Taken)"
-(* CHANGE: Changed to take field names; Changed to use sgl *)
   assumes x_boxed:
     "\<And> fs r w.
     \<lbrakk>(\<sigma>,s)\<in>srel; \<sigma> p = Some (URecord fs);
@@ -797,25 +784,19 @@ proof -
 qed
 
 lemma corres_take_boxed:
-(* CHANGE: ADDED this goal *)
   assumes sigil_wr: "sgl = Boxed Writable l"
-(* CHANGE: Changed to use sgl *)
   assumes x_sigil: "\<Gamma>!x = Some (TRecord typ sgl)"
   assumes \<gamma>_x: "\<gamma>!x = UPtr p repr"
   assumes split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
   assumes val_rel_x: "val_rel (\<gamma>!x) (x'::('a::cogent_C_val) ptr)"
   assumes typing_stat: "\<Xi>, [], \<Gamma> \<turnstile> Take (Var x) f e : te"
-(* CHANGE: Changed to use sgl *)
   assumes typing_x:  "\<Xi>, [], \<Gamma>1 \<turnstile> (Var x) : TRecord typ sgl" (* needed? *)
-(* CHANGE: Changed to take field names; Changed to use sgl *)
   assumes e_typ: "\<Xi>, [], Some (fst (snd (typ!f))) # Some (TRecord (typ[f := (fst (typ!f), fst (snd (typ!f)), taken)]) sgl) # \<Gamma>2 \<turnstile> e : te"
   assumes has_kind: "[] \<turnstile> fst (snd (typ!f)) :\<kappa> k"
   assumes shareable_or_taken: "S \<in> k \<or> taken = Taken"
-(* CHANGE: Changed to take field names; Changed to use sgl *)
   assumes x_boxed:
   "\<And> fs r w. \<lbrakk>(\<sigma>, s)\<in> srel; \<sigma> p = Some (URecord fs); \<Xi>, \<sigma> \<turnstile> UPtr p repr :u TRecord typ sgl \<langle>r, w\<rangle>\<rbrakk> \<Longrightarrow>
    is_valid s x' \<and> val_rel (fst(fs!f)) ((f' s)::'bb::cogent_C_val)"
-(* CHANGE: Changed to take field names; Changed to use sgl *)
   assumes corres_cont:
   "\<And>fsf f's. val_rel fsf (f's::'bb)  \<Longrightarrow>
      corres srel e (e' f's) \<xi> (fsf# (\<gamma>!x)# \<gamma>) \<Xi> (Some (fst (snd (typ!f)))# Some (TRecord (typ [f := (fst (typ!f), fst (snd (typ!f)),taken)]) sgl)# \<Gamma>2) \<sigma> s"
@@ -831,9 +812,7 @@ lemma corres_let_put_unboxed:
   assumes x_sigil: "\<Gamma>'!x = Some (TRecord typ Unboxed)"
   assumes x_len: "x < length \<Gamma>'"
   assumes split\<Gamma>: "[] \<turnstile> \<Gamma>' \<leadsto> \<Gamma>1 | \<Gamma>2"
-(* CHANGE: Changed to take field names *)
   assumes typing_put:  "\<Xi>', [], \<Gamma>1 \<turnstile> Put (Var x) f (Var e) : TRecord (typ[f := (fst (typ!f), fst (snd (typ!f)), Present)]) Unboxed" (* needed? *)
-(* CHANGE: Changed to take field names *)
   assumes corres_cont:
    "\<And>fs. \<gamma>!x = URecord fs \<Longrightarrow> corres srel y (y' (nx' x')) \<xi> ((URecord (fs[f:= ((\<gamma>!e),  snd (fs ! f))])) # \<gamma>) \<Xi>' (Some (TRecord (typ[f := (fst (typ!f), fst (snd (typ!f)), Present)]) Unboxed) # \<Gamma>2) \<sigma> s"
   shows "corres srel
@@ -890,18 +869,13 @@ lemma corres_let_put_unboxed:
   done
 
 lemma corres_let_put_boxed:
-(* CHANGE: ADDED this goal *)
   assumes sigil_wr: "sgl = Boxed Writable ptrl"
-(* CHANGE: Changed to use sgl *)
   assumes x_sigil: "\<Gamma> ! x = Some (TRecord typ sgl)"
   assumes \<gamma>_x: "\<gamma> ! x = UPtr p repr"
   assumes split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
   assumes typing_stat: "\<Xi>, [], \<Gamma> \<turnstile> expr.Let (Put (Var x) f (Var e)) y : ts"
-(* CHANGE: Changed to take field names; Changed to use sgl *)
   assumes typing_put: "\<Xi>, [], \<Gamma>1 \<turnstile> Put (Var x) f (Var e) : TRecord (typ[f := (fst (typ!f), fst (snd (typ!f)), Present)]) sgl"
-(* CHANGE: Changed to take field names; Changed to use sgl *)
   assumes corres_cont: "\<And>\<sigma> s. corres srel y y' \<xi> ((\<gamma>!x) # \<gamma>) \<Xi> (Some (TRecord (typ[f := (fst (typ!f), fst (snd (typ!f)), Present)]) sgl) # \<Gamma>2) \<sigma> s"
-(* CHANGE: Changed to take field names; Changed to use sgl *)
   assumes x_boxed:
   "\<And>fs r w r' w'.
     \<lbrakk> (\<sigma>,s)\<in> srel
@@ -1122,15 +1096,11 @@ lemma u_sem_put':
   by (auto intro: u_sem_put)
 
 lemma corres_put_boxed:
-(* CHANGE: ADDED this goal *)
   assumes sigil_wr: "sgl = Boxed Writable ptrl"
-(* CHANGE: Changed to use sgl *)
   assumes x_sigil: "\<Gamma>!x = Some (TRecord typ sgl)"
   assumes \<gamma>_x: "\<gamma>!x = UPtr p repr"
   assumes split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
-(* CHANGE: Changed to take field names; Changed to use sgl *)
   assumes typing_put: "\<Xi>, [], \<Gamma> \<turnstile> Put (Var x) f (Var e) : TRecord (typ[f := (fst (typ ! f), fst (snd (typ ! f)), Present)]) sgl"
-(* CHANGE: Changed to take field names; Changed to use sgl *)
   assumes x_boxed:
   "\<And>fs r w r' w'.
     \<lbrakk>(\<sigma>,s)\<in> srel; \<sigma> p = Some (URecord fs);
@@ -1450,7 +1420,6 @@ lemma type_rep_tagged_update:
    apply simp
   using image_iff by fastforce
 
-(* CHANGE: changed from apply style to Isar style assumption list, not sure if any of the assumptions changed *)
 (* Added assumption 7: tag is present and unchecked in the input type *)
 lemma corres_case:
   fixes \<tau>s :: "(char list \<times> Cogent.type \<times> variant_state) list"
@@ -1617,7 +1586,6 @@ lemma corres_afun:
   apply simp
   done
 
-(* CHANGE: corres promote is not the same as the old corres promote *)
 lemma corres_promote:
   assumes "val_rel (\<gamma>!x) x'"
   shows "corres srel (Promote t (Var x)) (gets (\<lambda>_. x')) \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"

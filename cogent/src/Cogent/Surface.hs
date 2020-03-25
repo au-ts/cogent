@@ -111,8 +111,6 @@ type Banged  = Bool
 type Unboxed = Bool
 type Taken   = Bool
 
-type Entry t = (FieldName, (t, Taken))
-
 data Type e t =
               -- They are in WHNF
                 TCon TypeName [t] (Sigil (Maybe DataLayoutExpr))  -- FIXME: can polymorphise the `DataLayoutExpr`
@@ -128,6 +126,9 @@ data Type e t =
               -- The TATake and TAPut type-operators will be normalised away.
               | TATake [e] t
               | TAPut  [e] t
+#endif
+#ifdef REFINEMENT_TYPES
+              | TRefine VarName t e
 #endif
               -- In TypeCheck.Post, the TUnbox and TBang type-operators
               -- are normalised out of the syntax tree by altering the Sigil
@@ -277,6 +278,9 @@ instance Traversable (Flip Type t) where  -- e
   traverse f (Flip (TArray t e s tkns))  = Flip <$> (TArray t <$> f e <*> pure s <*> traverse (firstM f) tkns)
   traverse f (Flip (TATake idxs t))      = Flip <$> (TATake <$> traverse f idxs <*> pure t)
   traverse f (Flip (TAPut  idxs t))      = Flip <$> (TAPut  <$> traverse f idxs <*> pure t)
+#endif
+#ifdef REFINEMENT_TYPES
+  traverse f (Flip (TRefine v t e))      = Flip <$> (TRefine v t <$> f e)
 #endif
   traverse _ (Flip (TUnbox t))           = pure $ Flip (TUnbox t)
   traverse _ (Flip (TBang t))            = pure $ Flip (TBang t)
@@ -439,6 +443,9 @@ fvT (RT (TArray t e _ tkns)) = fvT t ++ fvE e ++ foldMap (fvE . fst) tkns
 fvT (RT (TATake idxs t)) = fvT t ++ foldMap fvE idxs
 fvT (RT (TAPut  idxs t)) = fvT t ++ foldMap fvE idxs
 #endif
+#ifdef REFINEMENT_TYPES
+fvT (RT (TRefine v t e)) = fvT t ++ filter (/= v) (fvE e)
+#endif
 fvT (RT (TUnbox   t)) = fvT t
 fvT (RT (TBang    t)) = fvT t
 fvT (RT (TTake  _ t)) = fvT t
@@ -466,6 +473,9 @@ fcT (RT (TArray t e _ tkns)) = fcT t ++ fcE e ++ foldMap (fcE . fst) tkns
 fcT (RT (TATake idxs t)) = foldMap fcE idxs ++ fcT t
 fcT (RT (TAPut  idxs t)) = foldMap fcE idxs ++ fcT t
 #endif
+#ifdef REFINEMENT_TYPES
+fcT (RT (TRefine _ t e)) = fcT t ++ fcE e
+#endif
 fcT (RT t) = foldMap fcT t
 
 tvT :: RawType -> [TyVarName]
@@ -480,6 +490,9 @@ tvT (RT (TUnit)) = []
 tvT (RT (TArray t e _ tkns)) = tvT t ++ tvE e ++ foldMap (tvE . fst) tkns
 tvT (RT (TATake idxs t)) = tvT t ++ foldMap tvE idxs
 tvT (RT (TAPut  idxs t)) = tvT t ++ foldMap tvE idxs
+#endif
+#ifdef REFINEMENT_TYPES
+tvT (RT (TRefine _ t e)) = tvT t ++ tvE e
 #endif
 tvT (RT (TUnbox   t)) = tvT t
 tvT (RT (TBang    t)) = tvT t

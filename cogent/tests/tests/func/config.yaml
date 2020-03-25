@@ -1,0 +1,31 @@
+- test_name: pass-functions
+  files:
+    - pass_another-hof.cogent
+    - pass_hof-2.cogent
+    - pass_hof.cogent
+    - pass_hof-mono.cogent
+    - pass_inline-funcs.cogent
+    - pass_lambda-with-typevars.cogent
+    - pass_let-func.cogent
+  expected_result: pass
+  flags:
+    - "-g"
+
+- test_name: fail-functions
+  files:
+    - fail_app_app.cogent
+    - fail_func-no-contra-variant.cogent
+    - fail_func-not-func-type-1.cogent
+    - fail_func-not-func-type-2.cogent
+    - fail_superfluous-typevar-abs-func.cogent
+    - fail_superfluous-typevar-func.cogent
+  expected_result: fail
+  flags:
+    - "-t"
+
+- test_name: wip-functions
+  files:
+    - wip_0-ary-function.cogent
+  expected_result: wip
+  flags:
+    - "-g"

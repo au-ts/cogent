@@ -31,6 +31,7 @@ import Cogent.Util
 
 import Control.Arrow (first)
 import Control.Monad
+import Data.Bifunctor
 import Data.Word (Word32)
 -- import Control.Monad.Except
 -- import Control.Monad.Writer hiding (Alt)
@@ -234,9 +235,12 @@ normaliseT d (Synonym n ts) =
   case lookup n d of
     Just (ts', Just b) -> normaliseT d (substType (zip ts' ts) b)
     _ -> __impossible ("normaliseT: unresolved synonym " ++ show n)
-
-normaliseT d (V x) = T . TVariant . M.fromList . Row.toEntryList . fmap (:[]) <$> traverse (normaliseT d) x
-normaliseT d (R x (Left s)) = T . flip TRecord s . Row.toEntryList <$> traverse (normaliseT d) x
+normaliseT d (V x) =
+  T . TVariant . M.map (second tkNorm . snd) . Row.entries . fmap (:[]) <$>
+    traverse (normaliseT d) x
+normaliseT d (R x (Left s)) =
+  T . flip TRecord (__fixme $ fmap (const Nothing) s) . map (second (second tkNorm)). Row.toEntryList <$>  -- TODO(dargent): check this is correct
+    traverse (normaliseT d) x
 normaliseT d (R x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
 #ifdef BUILTIN_ARRAYS
 normaliseT d (A t n (Left s) (Left mhole)) = do
@@ -250,6 +254,9 @@ normaliseT d (A t n s (Right h)) = __impossible ("normaliseT: invalid hole (?" +
 normaliseT d (U x) = __impossible ("normaliseT: invalid type (?" ++ show x ++ ")")
 normaliseT d (T x) = T <$> traverse (normaliseT d) x
 
+tkNorm :: Either Taken Int -> Taken
+tkNorm (Left tk) = tk
+tkNorm (Right _) = __impossible "normaliseT: taken variable unsolved at normisation"
 
 
 -- Normalises the layouts in sigils to remove `DataLayoutRefs`

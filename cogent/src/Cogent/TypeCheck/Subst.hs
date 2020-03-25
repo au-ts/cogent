@@ -8,6 +8,8 @@
 -- @TAG(NICTA_GPL)
 --
 
+{-# LANGUAGE LambdaCase #-}
+
 module Cogent.TypeCheck.Subst where
 
 import Cogent.Common.Types
@@ -21,6 +23,7 @@ import Cogent.Util
 import Control.Arrow (left)
 import qualified Data.IntMap as M
 import qualified Data.Map as DM
+import Data.Bifunctor (second)
 import Data.Maybe
 import Data.Monoid hiding (Alt)
 import Prelude hiding (lookup)
@@ -30,6 +33,7 @@ import Debug.Trace
 data AssignResult = Type TCType
                   | Sigil (Sigil (Maybe DataLayoutExpr))
                   | Row (Row.Row TCType)
+                  | Taken Taken
 #ifdef BUILTIN_ARRAYS
                   | ARow (ARow.ARow TCExpr)
                   | Hole (Maybe TCSExpr)
@@ -56,6 +60,9 @@ ofARow i t = Subst (M.fromList [(i, ARow t)])
 ofHole :: Int -> Maybe TCSExpr -> Subst
 ofHole i h = Subst (M.fromList [(i, Hole h)])
 #endif
+
+ofTaken :: Int -> Taken -> Subst 
+ofTaken i tk = Subst (M.fromList [(i, Taken tk)])
 
 #ifdef BUILTIN_ARRAYS
 ofExpr :: Int -> TCSExpr -> Subst
@@ -88,21 +95,27 @@ apply (Subst f) (R (Row.Row m' (Just x)) s)
   | Just (Row (Row.Row m q)) <- M.lookup x f = apply (Subst f) (R (Row.Row (DM.union m m') q) s)
 apply (Subst f) (R r (Right x))
   | Just (Sigil s) <- M.lookup x f = apply (Subst f) (R r (Left s))
+apply f (V x) = V (applyToRow f x)
+apply f (R x s) = R (applyToRow f x) s
 #ifdef BUILTIN_ARRAYS
 apply (Subst f) (A t l (Right x) mhole)
   | Just (Sigil s) <- M.lookup x f = apply (Subst f) (A t l (Left s) mhole)
 apply (Subst f) (A t l s (Right x))
   | Just (Hole mh) <- M.lookup x f = apply (Subst f) (A t l s (Left mh))
-#endif
-apply f (V x) = V (fmap (apply f) x)
-apply f (R x s) = R (fmap (apply f) x) s
-#ifdef BUILTIN_ARRAYS
 apply f (A x l s tkns) = A (apply f x) (applySE f l) s (left (fmap $ applySE f) tkns)
 apply f (T x) = T (ffmap (applySE f) $ fmap (apply f) x)
 #else
 apply f (T x) = T (fmap (apply f) x)
 #endif
 apply f (Synonym n ts) = Synonym n (fmap (apply f) ts)
+
+applyToRow :: Subst -> Row.Row TCType -> Row.Row TCType
+applyToRow (Subst f) r = apply (Subst f) <$> Row.mapEntries (second (second substTk)) r
+  where
+    substTk :: Either Taken Int -> Either Taken Int
+    substTk (Left tk)  = Left tk
+    substTk (Right u) | Just (Taken tk) <- M.lookup u f = Left tk
+                      | otherwise = Right u
 
 applyAlts :: Subst -> [Alt TCPatn TCExpr] -> [Alt TCPatn TCExpr]
 applyAlts = map . applyAlt

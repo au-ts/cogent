@@ -83,6 +83,7 @@ data Type t b
   | TUnit
 -- #ifdef BUILTIN_ARRAYS
   | TArray (Type t b) (LExpr t b) (Sigil (DataLayout BitRange)) (Maybe (LExpr t b))  -- the hole
+  | TRefine (Type t b) (LExpr t b)
 -- #endif
     -- The sigil specifies the layout of the element
   deriving (Show, Eq, Ord, Functor)
@@ -107,6 +108,9 @@ isUnboxed (TCon _ _ Unboxed) = True
 isUnboxed (TRecord _ Unboxed) =  True
 #ifdef BUILTIN_ARRAYS
 isUnboxed (TArray _ _ Unboxed _) = True
+#endif
+#ifdef REFINEMENT_TYPES
+isUnboxed (TRefine t _) = isUnboxed t
 #endif
 isUnboxed _ = False
 
@@ -649,6 +653,9 @@ instance (Pretty b) => Pretty (Type t b) where
 #ifdef BUILTIN_ARRAYS
   pretty (TArray t l s mhole) = (pretty t <> brackets (pretty l) <+> pretty s) &
     (case mhole of Nothing -> id; Just hole -> (<+> keyword "take" <+> parens (pretty hole)))
+#endif
+#ifdef REFINEMENT_TYPES
+  pretty (TRefine t p) = braces (pretty t <+> symbol "|" <+> pretty p)
 #endif
 
 prettyTaken :: Bool -> Doc

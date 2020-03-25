@@ -1,0 +1,23 @@
+- test_name: rec-list
+  files: 
+    - list_type.cogent
+  flags: 
+    - "-g"
+    - "--entry-funcs=entry-funcs-list.cfg"
+  expected_result: "wip"
+
+- test_name: "rec-factorial"
+  files:
+    - factorial.cogent
+  flags:
+    - "-g"
+    - "--entry-funcs=entry-funcs-factorial.cfg"
+  expected_result: "wip"
+
+- test_name: rec-reorg-check
+  files:
+    - non-strictly-positive.cogent
+    - recpar-shadows-typevar.cogent
+  flags:
+    - "--parse"
+  expected_result: "wip"

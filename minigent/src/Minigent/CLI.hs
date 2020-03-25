@@ -194,7 +194,7 @@ reorgPhase x =
   in case errs of
        []   -> pure envs
        errs -> do
-         die ("Reorg failed.\n" ++ unlines errs ++ "\n\n")
+         die ("Reorg failed.\n" ++ unlines errs)
 
 tcPhase :: Bool -> GlobalEnvironments -> IO GlobalEnvironments
 tcPhase colour envs

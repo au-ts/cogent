@@ -68,15 +68,15 @@ sinkFloat = Rewrite.rewrite' $ \cs -> do
     genStructSubst (Record _ r1 s1 :< Record _ r2 s2)
       {-
         The most tricky case.
-        Taken is the bottom of the order, Untaken is the top.
-        If taken things are in r2, then we can infer they must be in r1.
-        If untaken things are in r1, then we can infer they must be in r2.
+        Untaken is the bottom of the order, Taken is the top.
+        If untaken things are in r2, then we can infer they must be in r1.
+        If taken things are in r1, then we can infer they must be in r2.
       -}
-      | r1new <- Row.rowTakenEntries r2 `M.difference` rowEntries r1
+      | r1new <- Row.rowUntakenEntries r2 `M.difference` rowEntries r1
       , not $ M.null r1new
       , Just r1var <- rowVar r1
         = makeRowRowVarSubsts r1new r1var
-      | r2new <- Row.rowUntakenEntries r1 `M.difference` rowEntries r2
+      | r2new <- Row.rowTakenEntries r1 `M.difference` rowEntries r2
       , not $ M.null r2new
       , Just r2var <- rowVar r2
         = makeRowRowVarSubsts r2new r2var
@@ -95,9 +95,9 @@ sinkFloat = Rewrite.rewrite' $ \cs -> do
     genStructSubst (Variant r1 :< Variant r2)
       {-
         The most tricky case.
-        Untaken is the bottom of the order, Taken is the top.
-        If untaken things are in r2, then we can infer they must be in r1.
-        If taken things are in r1, then we can infer they must be in r2.
+        Taken is the bottom of the order, Untaken is the top.
+        If taken things are in r2, then we can infer they must be in r1.
+        If untaken things are in r1, then we can infer they must be in r2.
       -}
       | r1new <- Row.rowTakenEntries r2 `M.difference` rowEntries r1
       , not $ M.null r1new

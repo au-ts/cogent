@@ -250,8 +250,8 @@ toplevel = mdo
                     <|> (:[]) <$> typeVar
                     <|> pure []
     
-                -- mu t
-    recTy <- rule $ Rec <$> (token (L.Keyword L.Mu) *> typeVar)
+                -- rec t
+    recTy <- rule $ Rec <$> (token (L.Keyword L.Rec) *> typeVar)
                 -- recursive parameter ommitted
                  <|> pure None 
                  <?> "recursive type"

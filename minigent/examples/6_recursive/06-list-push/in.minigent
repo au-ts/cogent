@@ -1,7 +1,7 @@
-allocNode : [a]. Unit -> mu t { l: < Nil Unit | Cons { data: a, rest: t }# > take };
+allocNode : [a]. Unit -> rec t { l: < Nil Unit | Cons { data: a, rest: t }# > take };
 
-push : [a]. { data: a, list: mu t { l: < Nil Unit | Cons { data: a, rest: t }# > } }#
-            -> mu t { l: < Nil Unit | Cons { data: a, rest: t }# >};
+push : [a]. { data: a, list: rec t { l: < Nil Unit | Cons { data: a, rest: t }# > } }#
+            -> rec t { l: < Nil Unit | Cons { data: a, rest: t }# >};
 push r = 
     let node = allocNode Unit in
         take r2 { data = x } = r in

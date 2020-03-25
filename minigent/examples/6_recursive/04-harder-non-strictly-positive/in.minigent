@@ -1,5 +1,5 @@
 listop : Unit -> 
-    mu t { 
+    rec t { 
         f : < Left U8 
             | Midde Unit 
             | Right { 

@@ -1,4 +1,4 @@
-sumList : mu t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}! -> U32;
+sumList : rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}! -> U32;
 sumList r = 
   take r2 { l = z } = r in
     case z of
