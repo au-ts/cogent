@@ -17,10 +17,10 @@ export ISABELLE_BUILD_JAVA_OPTIONS="-Xms2048m -Xmx12288m -Xss4m";
 
 export REPO_ROOT="../../../.."
 
-export ISABELLE_IDENTIFIER="BilbyFs2019Benchmark"
+export ISABELLE_IDENTIFIER="BilbyFs2019Refinement"
 
 time isabelle build -d plat/verification \
                     -d $REPO_ROOT \
                     -d $REPO_ROOT/autocorres \
                     -b -o process_output_limit=999 \
-                     BilbyFs_AllRefine;
+                    BilbyFs_AllRefine | tee "bilby-run-$(date +'%F-%H-%M').log";
