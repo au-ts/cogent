@@ -1,6 +1,5 @@
 module Cogent.TypeCheck.Solver.Equate (equate) where
     
-
 import Cogent.Surface
 import Cogent.TypeCheck.Base 
 import Cogent.Common.Types
@@ -38,21 +37,6 @@ equate = Rewrite.withTransform findEquatable (pure . map toEquality)
     toEquality :: Goal -> Goal 
     toEquality (Goal c (a :< b)) = Goal c $ a :=: b
     toEquality c = c
-
-getMentions :: [Goal] -> M.Map Int (Int,Int)
-getMentions gs =
-    foldl (M.unionWith adds) M.empty
-  $ fmap mentionsOfGoal gs
- where
-  adds (a,b) (c,d) = (a + c, b + d)
-
-  mentionsOfGoal g = case g ^. goal of
-   r :< s -> M.fromListWith adds (mentionL r ++ mentionR s)
-   _      -> M.empty
-
-  mentionL = fmap (\v -> (v, (1,0))) . unifVars
-  mentionR = fmap (\v -> (v, (0,1))) . unifVars
-
 
 findEquateCandidates :: M.Map Int (Int,Int) -> [Goal] -> ([Goal], [Goal], [Goal])
 findEquateCandidates _ [] = ([], [], [])
@@ -92,8 +76,6 @@ findEquateCandidates mentions (c:cs) =
          , canEquate snd a t
          -> (sups, c : subs, others)
        _ -> (sups, subs, c : others)
-
-
 
 notOccurs :: Int -> TCType -> Bool
 notOccurs a tau = a `notElem` unifVars tau

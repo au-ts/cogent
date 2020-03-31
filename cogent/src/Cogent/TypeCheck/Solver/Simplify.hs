@@ -4,7 +4,7 @@ import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
 import Cogent.TypeCheck.Solver.Goal 
 import Cogent.TypeCheck.Solver.Monad
 import qualified Cogent.TypeCheck.Row as Row
-import Cogent.TypeCheck.Row (Entry)
+import Cogent.TypeCheck.Row (Entry, Row)
 import Cogent.Surface
 import Cogent.TypeCheck.Base 
 import Cogent.Common.Types
@@ -12,7 +12,7 @@ import Cogent.Common.Syntax
 import Lens.Micro
 import Control.Monad
 import Data.Maybe
-import Data.List (elemIndex)
+import Data.List (elemIndex, isSubsequenceOf , (\\))
 import Control.Applicative
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.Class (lift)
@@ -66,28 +66,28 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
   Share  (T (TTuple xs)) m -> Just (map (flip Share  m) xs)
   Escape (T (TTuple xs)) m -> Just (map (flip Escape m) xs)
 
-  Share  (V r) m
-    | isNothing (Row.var r) -> Just (map (flip Share  m) (Row.untakenTypes r))
-  Drop   (V r) m
-    | isNothing (Row.var r) -> Just (map (flip Drop   m) (Row.untakenTypes r))
-  Escape (V r) m
-    | isNothing (Row.var r) -> Just (map (flip Escape m) (Row.untakenTypes r))
+  Share  (V r) m | Row.isComplete r ->
+    Just (map (flip Share  m) (Row.presentPayloads r))
+  Drop   (V r) m | Row.isComplete r ->
+    Just (map (flip Drop   m) (Row.presentPayloads r))
+  Escape (V r) m | Row.isComplete r ->
+    Just (map (flip Escape m) (Row.presentPayloads r))
 
   Share  (R r (Left s)) m
-    | isNothing (Row.var r)
-    , not (writable s) -> Just (map (flip Share  m) (Row.untakenTypes r))
+    | Row.isComplete r
+    , not (writable s) -> Just (map (flip Share  m) (Row.presentPayloads r))
   Drop   (R r (Left s)) m
-    | isNothing (Row.var r)
-    , not (writable s) -> Just (map (flip Drop   m) (Row.untakenTypes r))
+    | Row.isComplete r
+    , not (writable s) -> Just (map (flip Drop   m) (Row.presentPayloads r))
   Escape (R r (Left s)) m
-    | isNothing (Row.var r)
-    , not (readonly s) -> Just (map (flip Escape m) (Row.untakenTypes r))
+    | Row.isComplete r
+    , not (readonly s) -> Just (map (flip Escape m) (Row.presentPayloads r))
 
   Exhaustive t ps | any isIrrefutable ps -> Just []
   Exhaustive (V r) []
-    | isNothing (Row.var r) ->
-      null (Row.untakenTypes r) 
-        `elseDie` PatternsNotExhaustive (V r) (Row.untakenLabels r) 
+    | Row.isComplete r ->
+      null (Row.presentPayloads r) 
+        `elseDie` PatternsNotExhaustive (V r) (Row.presentLabels r) 
   Exhaustive (V r) (RP (PCon t _):ps) 
     | isNothing (Row.var r) -> 
       Just [Exhaustive (V (Row.take t r)) ps]
@@ -117,53 +117,33 @@ simplify axs = Rewrite.pickOne $ onGoal $ \c -> case c of
   T (TTuple ts) :<  T (TTuple us) | length ts == length us -> Just (zipWith (:< ) ts us)
   T (TTuple ts) :=: T (TTuple us) | length ts == length us -> Just (zipWith (:=:) ts us)
 
-  V r1 :< V r2 | Row.null r1 && Row.null r2 -> Just []
-               | Just (r1',r2') <- extractVariableEquality r1 r2 -> Just [V r1' :=: V r2']
-               | otherwise -> do 
-    let commons  = Row.common r1 r2
-        (ls, rs) = unzip commons
-    guard (not (null commons))
-    guard (untakenLabelsSet ls `S.isSubsetOf` untakenLabelsSet rs)
-    let (r1',r2') = Row.withoutCommon r1 r2
-        cs = map (\ ((_, e),(_,e')) -> fst e :< fst e') commons
-        c   = V r1' :< V r2'
-    Just (c:cs)
+  V r1 :< V r2 | Row.isEmpty r1 && Row.isEmpty r2 -> Just []
+               | Row.isComplete r1 && Row.isComplete r2 && psub r1 r2 ->
+    let commons  = Row.common r1 r2 in
+    do guard (not (null commons))
+       Just $ map (\(e,e') -> Row.payload e :< Row.payload e') commons
     
-  V r1 :=: V r2 | Row.null r1 && Row.null r2 -> Just []
-                | otherwise -> do 
-    let commons  = Row.common r1 r2
-        (ls, rs) = unzip commons
-    guard (not (null commons))
-    guard (untakenLabelsSet ls == untakenLabelsSet rs)
-    let (r1',r2') = Row.withoutCommon r1 r2
-        cs = map (\ ((_, e),(_,e')) -> fst e :=: fst e') commons
-        c   = V r1' :=: V r2'
-    Just (c:cs)
+  V r1 :=: V r2 | Row.isEmpty r1 && Row.isEmpty r2 -> Just []
+                | Row.isComplete r1 && Row.isComplete r2 && peq r1 r2 ->
+    let commons  = Row.common r1 r2 in
+    do guard (not (null commons))
+       Just $ map (\(e,e') -> Row.payload e :=: Row.payload e') commons
 
-  R r1 s1 :< R r2 s2 | Row.null r1 && Row.null r2 && s1 == s2 -> Just []
-                     | Just (r1',r2') <- extractVariableEquality r1 r2 -> Just [R r1' s1 :=: R r2' s2]
-                     | otherwise -> do
-    let commons  = Row.common r1 r2
-        (ls, rs) = unzip commons
-    guard (not (null commons))
-    guard (untakenLabelsSet rs `S.isSubsetOf` untakenLabelsSet ls)
-    let (r1',r2') = Row.withoutCommon r1 r2
-        cs = map (\ ((_, e),(_,e')) -> fst e :< fst e') commons
-        ds = map (flip Drop ImplicitlyTaken) $ Row.typesFor (untakenLabelsSet ls S.\\ untakenLabelsSet rs) r1
-        c  = R r1' s1 :< R r2' s2
-    Just (c:cs ++ ds)
+  R r1 s1 :< R r2 s2 | Row.isEmpty r1 && Row.isEmpty r2 && s1 == s2 -> Just []
+                     | Row.isComplete r1 && Row.isComplete r2 && psub r2 r1 ->
+    let commons  = Row.common r1 r2 in
+    do guard (not (null commons))
+       let cs = map (\ (e,e') -> Row.payload e :< Row.payload e') commons
+           ds = map (flip Drop ImplicitlyTaken) $ Row.extract (pdiff r1 r2) r1
+       Just (cs ++ ds)
 
-  R r1 s1 :=: R r2 s2 | Row.null r1 && Row.null r2 && s1 == s2 -> Just []
-                      | otherwise -> do
-    let commons  = Row.common r1 r2
-        (ls, rs) = unzip commons
-    guard (not (null commons))
-    guard (untakenLabelsSet rs == untakenLabelsSet ls)
-    let (r1',r2') = Row.withoutCommon r1 r2
-        cs = map (\ ((_, e),(_,e')) -> fst e :=: fst e') commons
-        ds = map (flip Drop ImplicitlyTaken) $ Row.typesFor (untakenLabelsSet ls S.\\ untakenLabelsSet rs) r1
-        c  = R r1' s1 :=: R r2' s2
-    Just (c:cs ++ ds)
+  R r1 s1 :=: R r2 s2 | Row.isEmpty r1 && Row.isEmpty r2 && s1 == s2 -> Just []
+                      | Row.isComplete r1 && Row.isComplete r2 && peq r1 r2 ->
+    let commons  = Row.common r1 r2 in
+    do guard (not (null commons))
+       let cs = map (\ (e,e') -> Row.payload e :=: Row.payload e') commons
+           ds = map (flip Drop ImplicitlyTaken) $ Row.extract (pdiff r1 r2) r1
+       Just (cs ++ ds)
 
   T t1 :< x | unorderedType t1 -> Just [T t1 :=: x]
   x :< T t2 | unorderedType t2 -> Just [x :=: T t2]
@@ -189,23 +169,18 @@ unorderedType (TArray {}) = False
 #endif
 unorderedType _ = True 
 
-untakenLabelsSet :: [Entry TCType] -> S.Set FieldName
-untakenLabelsSet = S.fromList . mapMaybe (\(l, (_,t)) -> guard (either not (const False) t) >> pure l)
+psub :: Row t -> Row t -> Bool
+psub r1 r2 = isSubsequenceOf (Row.presentLabels r1) (Row.presentLabels r2)
+
+peq :: Row t -> Row t -> Bool
+peq r1 r2 = Row.presentLabels r1 == Row.presentLabels r2
+
+pdiff :: Row t -> Row t -> [FieldName]
+pdiff r1 r2 = Row.presentLabels r1 \\ Row.presentLabels r2
 
 isIrrefutable :: RawPatn -> Bool
 isIrrefutable (RP (PIrrefutable _)) = True
 isIrrefutable _ = False
-
--- | Check if the variable parts must be equal.
--- Returns true iff the two rows have the same keys, but one of the variables is Nothing and the other is a Just
-extractVariableEquality :: Row.Row t -> Row.Row t -> Maybe (Row.Row t, Row.Row t)
-extractVariableEquality (Row.Row m1 v1) (Row.Row m2 v2)
- | (isJust v1 && isNothing v2) || (isNothing v1 && isJust v2)
- , M.null m1
- , M.null m2
- = Just (Row.Row M.empty v1, Row.Row M.empty v2)
- | otherwise
- = Nothing
 
 isSolved :: TCType -> Bool
 isSolved t = unifVars t == []

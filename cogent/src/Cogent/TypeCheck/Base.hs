@@ -40,6 +40,7 @@ import Data.Either (either, isLeft)
 import qualified Data.IntMap as IM
 import Data.List (nub, (\\))
 import qualified Data.Map as M
+import Data.Maybe (maybeToList)
 #if __GLASGOW_HASKELL__ < 803
 import Data.Monoid ((<>))
 #endif
@@ -239,7 +240,7 @@ warnToConstraint f w | f = SemiSat w
 data TCType         = T (Type SExpr TCType)
                     | U Int  -- unifier
                     | R (Row TCType) (Either (Sigil ()) Int)
-                    | V (Row TCType) 
+                    | V (Row TCType)
                     | Synonym TypeName [TCType]
                     deriving (Show, Eq, Ord)
 
@@ -481,12 +482,12 @@ validateType' vs (RT t) = do
                -> Synonym t <$> mapM (validateType' vs) as  
     TRecord fs s | fields  <- map fst fs
                  , fields' <- nub fields
-                -> let toRow (T (TRecord fs s)) = R (Row.fromList fs) (Left (fmap (const ()) s))
+                -> let toRow (T (TRecord fs s)) = R (Row.complete $ Row.toEntryList fs) (Left (fmap (const ()) s))
                    in if fields' == fields
                    then (toRow . T . ffmap toSExpr) <$> mapM (validateType' vs) t
                    else throwE (DuplicateRecordFields (fields \\ fields'))
     TVariant fs  -> do let tuplize [] = T TUnit
-                           tuplize [x] = x 
+                           tuplize [x] = x
                            tuplize xs  = T (TTuple xs)
                        TVariant fs' <- ffmap toSExpr <$> mapM (validateType' vs) t 
                        pure (V (Row.fromMap (fmap (first tuplize) fs')))
@@ -526,14 +527,10 @@ isMonoType (RT t) = getAll $ foldMap (All . isMonoType) t
 unifVars :: TCType -> [Int]
 unifVars (U v) = [v]
 unifVars (Synonym n ts) = concatMap unifVars ts
-unifVars (V r)  
-  | Just x <- Row.var r = [x] ++ concatMap unifVars (Row.allTypes r)
-  | otherwise = concatMap unifVars (Row.allTypes r)
-unifVars (R r s) 
-  | Just x <- Row.var r = [x] ++ concatMap unifVars (Row.allTypes r)
-                       ++ case s of Left s -> [] 
-                                    Right y -> [y] 
-  | otherwise = concatMap unifVars (Row.allTypes r)
-                       ++ case s of Left s -> [] 
-                                    Right y -> [y] 
+unifVars (V r) =
+  maybeToList (Row.var r) ++ concatMap unifVars (Row.payloads r)
+unifVars (R r s) =
+  maybeToList (Row.var r) ++ concatMap unifVars (Row.payloads r) ++
+  case s of Left s -> [] 
+            Right y -> [y] 
 unifVars (T x) = foldMap unifVars x

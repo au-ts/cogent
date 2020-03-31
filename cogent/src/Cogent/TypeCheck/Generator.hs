@@ -35,6 +35,7 @@ import Cogent.Surface
 import Cogent.TypeCheck.Base hiding (validateType)
 import Cogent.TypeCheck.Util
 import Cogent.Util hiding (Warning)
+import Cogent.TypeCheck.Row (mkEntry)
 import qualified Cogent.TypeCheck.Row as Row
 
 import Control.Arrow (first, second)
@@ -92,7 +93,7 @@ validateType rt@(RT t) = do
                -> second (Synonym t) <$> fmapFoldM validateType as  
     TRecord fs s | fields  <- map fst fs
                  , fields' <- nub fields
-                -> let toRow (T (TRecord fs s)) = R (Row.fromList fs) (Left (fmap (const ()) s)) 
+                -> let toRow (T (TRecord fs s)) = R (Row.complete $ Row.toEntryList fs) (Left (fmap (const ()) s))
                    in if fields' == fields
                    then second (toRow . T . ffmap toSExpr) <$> fmapFoldM validateType t
                    else return (Unsat $ DuplicateRecordFields (fields \\ fields'), toTCType rt)
@@ -112,9 +113,9 @@ validateType rt@(RT t) = do
 validateTypes :: (Traversable t) => t RawType -> CG (Constraint, t TCType)
 validateTypes = fmapFoldM validateType
 
--- -----------------------------------------------------------------------------
+-- --------------------------------------------------------------------------
 -- Term-level constraints
--- -----------------------------------------------------------------------------
+-- --------------------------------------------------------------------------
 
 cgFunDef :: (?loc :: SourcePos) => [Alt LocPatn LocExpr] -> TCType -> CG (Constraint, [Alt TCPatn TCExpr])
 cgFunDef alts t = do
@@ -336,7 +337,7 @@ cg' (Con k [e]) t =  do
   (c', e') <- cg e alpha
   U x <- freshTVar
   let e = Con k [e']
-      c = V (Row.incomplete [(k,(alpha,False))] x) :< t
+      c = V (Row.incomplete [Row.mkEntry k alpha False] x) :< t
   traceTc "gen" (text "cg for constructor:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c)
@@ -358,7 +359,7 @@ cg' (UnboxedRecord fes) t = do
   (ts, c', es') <- cgMany es
 
   let e = UnboxedRecord (zip fs es')
-      r = R (Row.fromList (zip fs (map (, False) ts))) (Left Unboxed)
+      r = R (Row.complete $ zipWith3 mkEntry fs ts (repeat False)) (Left Unboxed)
       c = r :< t
   traceTc "gen" (text "cg for unboxed record:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
@@ -408,7 +409,7 @@ cg' (Member e f) t =  do
   U rest <- freshTVar
   U sigil <- freshTVar
   let f' = Member e' f
-      row = Row.incomplete [(f, (t, False))] rest
+      row = Row.incomplete [Row.mkEntry f t False] rest
       x = R row (Right sigil)
       c = alpha :< x <> Drop x (UsedInMember f)
   traceTc "gen" (text "cg for member:" <+> prettyE f'
@@ -454,8 +455,8 @@ cg' (Put e ls) t | not (any isNothing ls) = do
   (ts, cs, es') <- cgMany es
   U rest <- freshTVar
   U sigil <- freshTVar
-  let row  = R (Row.incomplete (zip fs (map (,True ) ts)) rest) (Right sigil)
-      row' = R (Row.incomplete (zip fs (map (,False) ts)) rest) (Right sigil) 
+  let row  = R (Row.incomplete (zipWith3 mkEntry fs ts (repeat True)) rest) (Right sigil)
+      row' = R (Row.incomplete (zipWith3 mkEntry fs ts (repeat False)) rest) (Right sigil) 
       c1 = row' :< t
       c2 = alpha :< row
       r = Put e' (map Just (zip fs es'))
@@ -510,9 +511,9 @@ matchA' (PCon k [i]) t = do
   beta <- freshTVar
   (s, c, i') <- match i beta  
   U rest <- freshTVar
-  let row = Row.incomplete [(k,(beta,False))] rest
+  let row = Row.incomplete [Row.mkEntry k beta False] rest
       c' = t :< V row
-      row' = Row.incomplete [(k,(beta,True))] rest
+      row' = Row.incomplete [Row.mkEntry k beta True] rest
 
   traceTc "gen" (text "match constructor pattern:" <+> pretty (PCon k [i'])
            L.<$> text "of type" <+> pretty t <> semi
@@ -575,8 +576,8 @@ match' (PUnboxedRecord fs) t | not (any isNothing fs) = do
   (vs, blob) <- unzip <$> mapM (\p -> do v <- freshTVar; (v,) <$> match p v) ps
   U rest <- freshTVar
   let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
-      row = Row.incomplete (zip ns (map (,False) vs)) rest
-      row' = Row.incomplete (zip ns (map (,True) vs)) rest
+      row = Row.incomplete (zipWith3 mkEntry ns vs (repeat False)) rest
+      row' = Row.incomplete (zipWith3 mkEntry ns vs (repeat True)) rest
       t' = R row (Left Unboxed)
       d  = Drop (R row' (Left Unboxed)) Suppressed
       p' = PUnboxedRecord (map Just (zip ns ps'))
@@ -598,8 +599,8 @@ match' (PTake r fs) t | not (any isNothing fs) = do
   U sigil <- freshTVar
   let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
       s  = M.fromList [(r, (R row' (Right sigil), ?loc, Seq.empty))]
-      row = Row.incomplete (zip ns (map (,False) vs)) rest
-      row' = Row.incomplete (zip ns (map (,True) vs)) rest
+      row = Row.incomplete (zipWith3 mkEntry ns vs (repeat False)) rest
+      row' = Row.incomplete (zipWith3 mkEntry ns vs (repeat True)) rest
       t' = R row (Right sigil)
       p' = PTake (r, R row' (Right sigil)) (map Just (zip ns ps'))
       c = t :< t'

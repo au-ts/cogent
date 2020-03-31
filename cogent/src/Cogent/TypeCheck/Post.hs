@@ -156,20 +156,22 @@ normaliseT d (T (TCon n ts b)) =
   case lookup n d of
     Just (ts', Just b) -> normaliseT d (substType (zip ts' ts) b)
     _ -> mapM (normaliseT d) ts >>= \ts' -> return (T (TCon n ts' b))
-normaliseT d (Synonym n ts) = 
+normaliseT d (Synonym n ts) =
   case lookup n d of
     Just (ts', Just b) -> normaliseT d (substType (zip ts' ts) b)
     _ -> __impossible ("normaliseT: unresolved synonym " ++ show n)
 normaliseT d (V x) =
-  T . TVariant . M.map (second tkNorm . snd) . Row.entries . fmap (:[]) <$>
-    traverse (normaliseT d) x
+  T . TVariant . M.fromList .
+  map (\e -> (Row.fname e, ([Row.payload e], Row.taken e))) .
+  Row.entries <$> traverse (normaliseT d) x
 normaliseT d (R x (Left s)) =
-  T . flip TRecord (fmap (const noRepE) s) . map (second (second tkNorm)). Row.toEntryList <$>
-    traverse (normaliseT d) x
+  T . flip TRecord (fmap (const noRepE) s) .
+  map (\e -> (Row.fname e, (Row.payload e, Row.taken e))) .
+  Row.entries <$> traverse (normaliseT d) x
 normaliseT d (R x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
 normaliseT d (U x) = __impossible ("normaliseT: invalid type (?" ++ show x ++ ")")
 normaliseT d (T x) = T <$> traverse (normaliseT d) x
 
-tkNorm :: Either Taken Int -> Taken
-tkNorm (Left tk) = tk
-tkNorm (Right _) = __impossible "normaliseT: taken variable unsolved at normisation"
+-- tkNorm :: Either Taken Int -> Taken
+-- tkNorm (Left tk) = tk
+-- tkNorm (Right _) = __impossible "normaliseT: taken variable unsolved at normisation"

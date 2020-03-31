@@ -793,22 +793,28 @@ instance Pretty Subst where
 instance Pretty AssignResult where 
   pretty (Type t) = pretty t 
   pretty (Sigil s) = pretty s 
-  pretty (Row r) = pretty r
+  pretty (Row (Left r)) = pretty r
+  pretty (Row (Right sh)) = pretty sh
 
 instance Pretty (Sigil r) where
   pretty (Boxed False _) = keyword "[W]"
   pretty (Boxed True  _) = keyword "[R]"
   pretty Unboxed  = keyword "[U]"
+
 instance (Pretty t) => Pretty (Row.Row t) where 
-  pretty (Row.Row m t) =
-    let rowFieldToDoc (_, (n, (ty, tk))) =
-          let tkDoc = case tk of
-                        Left True  -> text "taken"
-                        Left False -> text "present"
-                        Right i -> text "?" <> pretty i
-          in text n <+> text ":" <+> pretty ty <+> text "(" <> tkDoc <> text ")"
-        rowFieldsDoc = hsep $ punctuate (text ",") $ map rowFieldToDoc (M.toList m)
-     in rowFieldsDoc <+> symbol "|" <+> pretty t
+  pretty r =
+    let rowFieldsDoc =
+          hsep $ punctuate (text ",") $ map pretty (Row.entries r)
+     in rowFieldsDoc <+> symbol "|" <+> pretty (Row.var r)
+
+instance Pretty t => Pretty (Row.Entry t) where
+  pretty e =
+    let tkDoc = case Row.taken e of
+          True  -> text "taken"
+          False -> text "present"
+    in text (Row.fname e) <+> text ":" <+> pretty (Row.payload e) <+>
+       text "(" <> tkDoc <> text ")"
+
 instance Pretty Assignment where
   pretty (Assignment m) = pretty m
 

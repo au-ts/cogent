@@ -26,7 +26,8 @@ import Data.Monoid hiding (Alt)
 import Prelude hiding (lookup)
 import qualified Cogent.TypeCheck.Row as Row 
 
-data AssignResult = Type TCType | Sigil (Sigil ()) | Row (Row.Row TCType) | Taken Taken
+data AssignResult = Type TCType | Sigil (Sigil ())
+                  | Row (Either (Row.Row TCType) Row.Shape)
  deriving Show
 
 newtype Subst = Subst (M.IntMap AssignResult)
@@ -36,14 +37,13 @@ ofType :: Int -> TCType -> Subst
 ofType i t = Subst (M.fromList [(i, Type t)])
 
 ofRow :: Int -> Row.Row TCType -> Subst 
-ofRow i t = Subst (M.fromList [(i, Row t)])
+ofRow i t = Subst (M.fromList [(i, Row $ Left t)])
 
 ofSigil :: Int -> Sigil () -> Subst 
 ofSigil i t = Subst (M.fromList [(i, Sigil t)])
 
-ofTaken :: Int -> Taken -> Subst 
-ofTaken i tk = Subst (M.fromList [(i, Taken tk)])
-
+ofShape :: Int -> Row.Shape -> Subst
+ofShape i t = Subst (M.fromList [(i, Row $ Right t)])
 
 null :: Subst -> Bool
 null (Subst x) = M.null x
@@ -67,24 +67,27 @@ apply (Subst f) (U x)
   = apply (Subst f) t
   | otherwise
   = U x
-apply (Subst f) t@(V (Row.Row m' (Just x)))
-  | Just (Row (Row.Row m q)) <- M.lookup x f = apply (Subst f) (V (Row.Row (DM.union m m') q))
-apply (Subst f) t@(R (Row.Row m' (Just x)) s)
-  | Just (Row (Row.Row m q)) <- M.lookup x f = apply (Subst f) (R (Row.Row (DM.union m m') q) s)
+apply sub@(Subst f) (V r)
+  | Just rv <- Row.var r
+  , Just (Row e) <- M.lookup rv f =
+    -- Expand an incomplete row with some more entries (and a fresh row
+    -- variable), or close an incomplete row by assigning an ordering (a
+    -- shape) to its fields.
+    case e of
+      Left r' -> apply sub (V (Row.expand r r'))
+      Right sh -> apply sub (V (Row.close r sh))
+apply sub@(Subst f) (R r s)
+  | Just rv <- Row.var r
+  , Just (Row e) <- M.lookup rv f =
+    case e of
+      Left r' -> apply sub (R (Row.expand r r') s)
+      Right sh -> apply sub (R (Row.close r sh) s)
 apply (Subst f) t@(R r (Right x))
   | Just (Sigil s) <- M.lookup x f = apply (Subst f) (R r (Left s))
-apply f (V x) = V (applyToRow f x)
-apply f (R x s) = R (applyToRow f x) s
+apply f (V x) = V (fmap (apply f) x)
+apply f (R x s) = R (fmap (apply f) x) s
 apply f (T x) = T (fmap (apply f) x)
 apply f (Synonym n ts) = Synonym n (fmap (apply f) ts)
-
-applyToRow :: Subst -> Row.Row TCType -> Row.Row TCType
-applyToRow (Subst f) r = apply (Subst f) <$> Row.mapEntries (second (second substTk)) r
-  where
-    substTk :: Either Taken Int -> Either Taken Int
-    substTk (Left tk)  = Left tk
-    substTk (Right u) | Just (Taken tk) <- M.lookup u f = Left tk
-                      | otherwise = Right u
 
 applyAlts :: Subst -> [Alt TCPatn TCExpr] -> [Alt TCPatn TCExpr]
 applyAlts = map . applyAlt
@@ -138,4 +141,3 @@ applyE s (TE t e l) = TE (apply s t)
                          $ fffmap (fmap (apply s))
                          $ ffffmap (apply s) e)
                          l
-

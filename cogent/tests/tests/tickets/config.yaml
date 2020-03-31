@@ -45,6 +45,7 @@
     - fail_ticket-e31-3-bad.cogent
     - fail_ticket-e31-3-good.cogent
     - fail_ticket-e36.cogent
+    - fail_ticket-333-reorder-fields.cogent
   expected_result: fail
   flags:
     - -t

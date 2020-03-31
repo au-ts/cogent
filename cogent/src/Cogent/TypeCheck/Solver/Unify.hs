@@ -16,6 +16,10 @@ import Data.Foldable (asum)
 import Lens.Micro
 import Lens.Micro.Mtl
 
+
+import Debug.Trace
+import Text.PrettyPrint.ANSI.Leijen hiding (empty, indent, tupled, (<$>))
+
 -- | The unify phase, which seeks out equality constraints to solve via substitution.
 unify ::  Rewrite.Rewrite' TcSolvM [Goal]
 unify = Rewrite.rewrite' $ \cs -> do
@@ -35,29 +39,32 @@ assignOf (R _ (Right v) :< R _ (Left s))
   = pure [ Subst.ofSigil v s ]
 assignOf (R _ (Left s) :< R _ (Right v))
   = pure [ Subst.ofSigil v s ]
--- N.B. we know from the previous phase that common alternatives have been factored out.
+-- N.B. Only rows with a unification variable and no known entries lead to
+-- equality constraints (see Equate phase). Hence, the collection of common
+-- fields is necessarily empty.
 assignOf (V r1 :=: V r2)
   | Row.var r1 /= Row.var r2
   , [] <- Row.common r1 r2
   = case (Row.var r1, Row.var r2) of
     (Just x, Nothing) -> pure [Subst.ofRow x r2]
     (Nothing, Just x) -> pure [Subst.ofRow x r1]
-    (Just x , Just y) -> do v <- lift solvFresh
-                            pure [ Subst.ofRow x (r2 { Row.var = Just v })
-                                 , Subst.ofRow y (r1 { Row.var = Just v })
-                                 ]
-
--- N.B. we know from the previous phase that common fields have been factored out.
+    (Just x , Just y) ->
+      do v <- lift solvFresh
+         pure [ Subst.ofRow x (Row.incomplete (Row.entries r2) v)
+              , Subst.ofRow y (Row.incomplete (Row.entries r1) v)
+              ]
 assignOf (R r1 s1 :=: R r2 s2)
   | Row.var r1 /= Row.var r2, s1 == s2
   , [] <- Row.common r1 r2
   = case (Row.var r1, Row.var r2) of
     (Just x, Nothing) -> pure [Subst.ofRow x r2]
     (Nothing, Just x) -> pure [Subst.ofRow x r1]
-    (Just x , Just y) -> do v <- lift solvFresh
-                            pure [ Subst.ofRow x (r2 { Row.var = Just v })
-                                 , Subst.ofRow y (r1 { Row.var = Just v })
-                                 ]
+    (Just x , Just y) ->
+      do v <- lift solvFresh
+         pure [ Subst.ofRow x (Row.incomplete (Row.entries r2) v)
+              , Subst.ofRow y (Row.incomplete (Row.entries r1) v)
+              ]
+
 assignOf _ = empty
 
 
