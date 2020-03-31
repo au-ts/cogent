@@ -49,15 +49,17 @@ datatype prim_op
 
 section {* Types *}
 
-datatype ptr_layout =
+datatype custom_ptr_layout =
 (* [PtrBits n1 n2] : n1 bits at n2 *)
     PtrBits int int 
 (* [PtrVariant n1 n2 [("name", n, l), ..]] :
 n1 bits at bit n2, 
 The constructor with tag "name" corresponds to value n *)
-  | PtrVariant int int "(name \<times> int \<times> ptr_layout) list"
+  | PtrVariant int int "(name \<times> int \<times> custom_ptr_layout) list"
          (* one layout per field *)
-  | PtrRecord "(name \<times> ptr_layout) list"
+  | PtrRecord "(name \<times> custom_ptr_layout) list"
+
+datatype ptr_layout = CustomLayout custom_ptr_layout | DefaultLayout
 
 datatype access_perm = ReadOnly | Writable
 
