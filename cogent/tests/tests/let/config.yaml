@@ -6,6 +6,14 @@
   flags:
     - -g
 
+- test_name: pass-let-type-proof
+  files:
+    - pass_let-if.cogent
+    - pass_simple-let.cogent
+  expected_result: pass
+  phase: 'type_proof'
+
+
 - test_name: fail-let
   files:
     - fail_let-upcast.cogent
