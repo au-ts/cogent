@@ -422,6 +422,33 @@ ML\<open> fun local_setup_instantiation_definition_instance arities local_setup_
  local_setup_definition |>
  local_setup_instance;\<close>
 
+ML \<open>
+fun test_read_term lthy (s : string) : bool =
+ (  Proof_Context.read_term_pattern lthy s ; true)
+handle ERROR _ => false
+
+fun is_cogent_C_val lthy (typ : string) : bool =
+  test_read_term lthy ("type_rel _ TYPE(" ^ typ ^ ")")
+
+fun is_cogent_C_heap lthy (typ : string) : bool =
+  test_read_term lthy ("is_valid _ (_ :: " ^ typ ^ " ptr)")
+\<close>
+
+ML \<open> 
+fun local_setup_instantiation_definition_instance_if_needed 
+   C_typ class
+   already_defined local_setup_definition 
+   lthy = 
+  if already_defined lthy C_typ then
+      (tracing (C_typ ^ " is already a " ^ class);
+           lthy )
+  else 
+    local_setup_instantiation_definition_instance 
+    ([C_typ],[],class)  local_setup_definition lthy
+\<close>
+
+
+
 text\<open> Auxiliary functions for writing tactic.\<close>
 
 ML\<open> fun scrape_C_types_term t = let

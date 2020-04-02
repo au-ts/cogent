@@ -52,7 +52,8 @@ ML\<open> fun local_setup_instantiate_cogent_C_heaps_store_them_in_buckets file_
 
   fun local_setup' _ [] lthy = lthy
    |  local_setup' file_nm (uval::uvals) lthy =
-       local_setup_instantiation_definition_instance ([get_ty_nm_C uval],[],"cogent_C_heap")
+       local_setup_instantiation_definition_instance_if_needed
+      (get_ty_nm_C uval) "cogent_C_heap" is_cogent_C_heap      
        (define_cogent_C_heap  uval) (local_setup' file_nm uvals lthy);
 
   val thy = Proof_Context.theory_of lthy;
