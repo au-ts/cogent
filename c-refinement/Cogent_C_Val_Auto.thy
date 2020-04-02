@@ -16,6 +16,15 @@ imports
  Type_Relation_Generation
 begin
 
+ML \<open>
+fun test_read_term lthy (s : string) : bool =
+ (  Proof_Context.read_term_pattern lthy s ; true)
+handle ERROR _ => false
+
+fun is_cogent_C_val lthy (typ : string) : bool =
+  test_read_term lthy ("type_rel _ TYPE(" ^ typ ^ ")")
+
+\<close>
 ML\<open> fun local_setup_val_rel_type_rel_put_them_in_buckets file_nm ctxt =
 (* local_setup_val_rel_type_rel defines and registers all the necessary val_rels and type_rels.*)
  let
@@ -24,8 +33,18 @@ ML\<open> fun local_setup_val_rel_type_rel_put_them_in_buckets file_nm ctxt =
   (* FIXME: This recursion is pretty bad, I think.*)
   fun local_setup_val_rel_type_rel' [] lthy = lthy
    |  local_setup_val_rel_type_rel' (uval::uvals) lthy =
-       local_setup_instantiation_definition_instance ([get_ty_nm_C uval],[],"cogent_C_val")
-       (val_rel_type_rel_def uval) (local_setup_val_rel_type_rel' uvals lthy);
+       let 
+         val C_typ = get_ty_nm_C uval
+         val is_already_C_val = is_cogent_C_val lthy C_typ
+         val lthy = local_setup_val_rel_type_rel' uvals lthy
+       in        
+        if is_already_C_val then 
+           (tracing (C_typ ^ " is already a cogent_C_val");
+           lthy )
+        else
+         local_setup_instantiation_definition_instance ([get_ty_nm_C uval],[],"cogent_C_val")
+         (val_rel_type_rel_def uval) lthy
+      end
 
   val thy = Proof_Context.theory_of ctxt;
 
