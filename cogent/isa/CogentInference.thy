@@ -105,6 +105,11 @@ instance proof
 qed
 end
 
+datatype sigil = Writable 
+               | ReadOnly
+               | Unboxed
+
+
 type_synonym name = string
 type_synonym index = nat
 type_synonym row_var = nat
@@ -116,7 +121,8 @@ datatype type = TVar index
               | TUnit
               | TUnknown index
               | TVariant "(name \<times> type \<times> usage_tag) list" "row_var option"
-
+              | TAbstract name "type list" sigil
+              | TObserve type
 
 datatype lit = LBool bool
              | LNat nat
@@ -739,6 +745,12 @@ next
       qed
     qed
   qed
+next
+  case (TAbstract x1a x2 x3a)
+  then show ?case sorry
+next
+  case (TObserve \<tau>2)
+  then show ?case sorry
 qed
 
 
