@@ -186,7 +186,7 @@ instr ty ins = do
   let localRef = (UnName n)
   blk <- current
   let i = instrs blk
-  modifyBlock (blk {instrs = (localRef := ins) : i})
+  modifyBlock (blk {instrs = i ++ [(localRef := ins)] })
   return (LocalReference ty localRef)
 
 
@@ -194,7 +194,7 @@ unnamedInstr :: Instruction -> Codegen ()
 unnamedInstr ins = do
   blk <- current
   let i = instrs blk
-  modifyBlock (blk {instrs = (Do ins) : i})
+  modifyBlock (blk {instrs = i ++ [(Do ins)]})
 
 
 terminator :: Named Terminator -> Codegen (Named Terminator)
@@ -263,10 +263,10 @@ expr_to_llvm (TE rt (Op op [a,b])) =
      res <- let oa = Data.Either.fromLeft (error "operand of OP cannot be terminator") _oa
                 ob = Data.Either.fromLeft (error "operand of OP cannot be terminator") _ob
               in case op of
-                     Sy.Plus -> instr (cogentType rt) (Add { nsw = False
+                     Sy.Plus -> instr (trace ("cogentType of rt: " ++ (show (cogentType rt))) (cogentType (trace ("Plus rt: " ++ (show rt)) rt))) (Add { nsw = False
                                                            , nuw = True
-                                                           , operand0 = oa
-                                                           , operand1 = ob
+                                                           , operand0 = (trace ("plus oa: " ++ (show oa)) oa)
+                                                           , operand1 = (trace ("plus ob: " ++ (show ob)) ob)
                                                            , LLVM.AST.Instruction.metadata = []
                                                            })
                      Sy.Minus -> instr (cogentType rt) (Sub { nsw = False
@@ -290,8 +290,12 @@ expr_to_llvm (TE rt (Op op [a,b])) =
                                                            , operand1 = ob
                                                            , LLVM.AST.Instruction.metadata = []
                                                            })
-                     Sy.And -> error "not implemented yet"
-                     Sy.Or -> error "not implemented yet"
+                     Sy.And -> instr (cogentType rt) (LLVM.AST.Instruction.And { operand0 = oa
+                                                                               , operand1 = ob
+                                                                               , LLVM.AST.Instruction.metadata = []} )
+                     Sy.Or -> instr (cogentType rt) (LLVM.AST.Instruction.Or { operand0 = oa
+                                                                             , operand1 = ob
+                                                                             , LLVM.AST.Instruction.metadata = []} )
                      Sy.Gt -> error "not implemented yet"
                      Sy.Lt-> error "not implemented yet"
                      Sy.Ge -> error "not implemented yet"
@@ -305,23 +309,38 @@ expr_to_llvm (TE rt (Op op [a,b])) =
                      Sy.RShift-> error "not implemented yet"
                      Sy.Complement-> error "not implemented yet"
                      Sy.Not -> error "Not is not defined to be binary"
-     return (Left res)
+     return (Left (trace ("op res: " ++ (show res)) res))
 expr_to_llvm (TE _ (Take (a, b) recd fld body)) =
   do
     _recv <- (expr_to_llvm recd)
     let recv = Data.Either.fromLeft (error "address cannot be terminator") _recv
-    fldv <- instr ((rec_type recd) !! fld)
+    fldvp <- instr (trace ("FLD TYPE: " ++ (show ((trace ("REC TYPE: " ++ (show (rec_type recd))) (rec_type recd)) !! (trace ("FLD: " ++ (show fld)) fld))))
+                   ((rec_type recd) !!  fld)
+                  )
                   (GetElementPtr { inBounds = True
                                  , address = recv
-                                 , indices = [ ConstantOperand
-                                               C.Int { C.integerBits = 64 -- Assuming 64 bit system
-                                                     , C.integerValue = toInteger fld } ]
+                                 , indices = [
+                                     ConstantOperand
+                                               C.Int { C.integerBits = 32
+                                                     , C.integerValue = toInteger 0 }
+                                             ,
+                                     ConstantOperand
+                                               C.Int { C.integerBits = 32
+                                                     , C.integerValue = toInteger fld }
+
+                                             ]
                                  , LLVM.AST.Instruction.metadata = []
                                  })
+    fldv <- instr ((rec_type recd) !! fld) (LLVM.AST.Instruction.Load { volatile = False
+                                                                      , address = fldvp
+                                                                      , maybeAtomicity = Just (LLVM.AST.Instruction.System, LLVM.AST.Instruction.Monotonic)
+                                                                      , LLVM.AST.Instruction.alignment = 1
+                                                                      , LLVM.AST.Instruction.metadata = []
+                                                                      })
     vars <- gets indexing
     modify (\s -> s { indexing = [fldv, recv] ++ vars })
     res <- expr_to_llvm body
-    case res of
+    case (trace ("res: " ++ (show res)) res) of
       Left val -> ((terminator (Do (Ret (Just val) [])) ) >>= (\a -> return (Right a)))
       Right trm -> return (Right trm)
 
@@ -339,9 +358,13 @@ expr_to_llvm r@(TE rect (Struct flds)) =
                                  elmptr <- (instr ((rec_type r) !! i)
                                             (GetElementPtr { inBounds = True
                                                            , address = struct
-                                                           , indices = [ ConstantOperand
+                                                           , indices = [ConstantOperand
                                                                          C.Int { C.integerBits = 64
-                                                                               , C.integerValue = toInteger i}]}))
+                                                                               , C.integerValue = 0}
+                                                                       , ConstantOperand
+                                                                         C.Int { C.integerBits = 64
+                                                                               , C.integerValue = toInteger i}
+                                                                       ]}))
                                  fldv >>= (\v -> instr ((rec_type r) !! i) (Store { address = elmptr
                                                                                   , LLVM.AST.Instruction.value = (Data.Either.fromLeft (error "field value cannot be terminator") v)
                                                                                   , LLVM.AST.Instruction.alignment = 4})))
