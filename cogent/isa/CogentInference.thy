@@ -136,24 +136,27 @@ fun abs :: "num_type \<Rightarrow> nat" where
 
 
 fun subst_ty :: "type list \<Rightarrow> type \<Rightarrow> type" where
-  "subst_ty \<delta> (TVar i)          = (if i < length \<delta> then \<delta> ! i else TVar i)"
-| "subst_ty \<delta> (TFun a b)        = TFun (subst_ty \<delta> a) (subst_ty \<delta> b)"
-| "subst_ty \<delta> (TPrim p)         = TPrim p"
-| "subst_ty \<delta> (TProduct t u)    = TProduct (subst_ty \<delta> t) (subst_ty \<delta> u)"
-| "subst_ty \<delta> (TUnit)           = TUnit"
-| "subst_ty \<delta> (TUnknown i)      = TUnknown i"
-| "subst_ty \<delta> (TVariant Ks \<alpha>)   = TVariant (map (\<lambda>(nm, t, u). (nm, subst_ty \<delta> t, u)) Ks) \<alpha>"
+  "subst_ty \<delta> (TVar i)            = (if i < length \<delta> then \<delta> ! i else TVar i)"
+| "subst_ty \<delta> (TFun a b)          = TFun (subst_ty \<delta> a) (subst_ty \<delta> b)"
+| "subst_ty \<delta> (TPrim p)           = TPrim p"
+| "subst_ty \<delta> (TProduct t u)      = TProduct (subst_ty \<delta> t) (subst_ty \<delta> u)"
+| "subst_ty \<delta> (TUnit)             = TUnit"
+| "subst_ty \<delta> (TUnknown i)        = TUnknown i"
+| "subst_ty \<delta> (TVariant Ks \<alpha>)     = TVariant (map (\<lambda>(nm, t, u). (nm, subst_ty \<delta> t, u)) Ks) \<alpha>"
+| "subst_ty \<delta> (TAbstract nm ts s) = TAbstract nm (map (subst_ty \<delta>) ts) s"
+| "subst_ty \<delta> (TObserve t)        = TObserve (subst_ty \<delta> t)"
 
 
 fun max_type_var :: "type \<Rightarrow> nat" where
-  "max_type_var (TVar i)          = i"
-| "max_type_var (TFun a b)        = max (max_type_var a) (max_type_var b)"
-| "max_type_var (TPrim p)         = 0"
-| "max_type_var (TProduct t u)    = max (max_type_var t) (max_type_var u)"
-| "max_type_var (TUnit)           = 0"
-| "max_type_var (TUnknown i)      = 0"
-| "max_type_var (TVariant Ks \<alpha>)   = Max (set (map (max_type_var \<circ> fst \<circ> snd) Ks))"
-
+  "max_type_var (TVar i)            = i"
+| "max_type_var (TFun a b)          = max (max_type_var a) (max_type_var b)"
+| "max_type_var (TPrim p)           = 0"
+| "max_type_var (TProduct t u)      = max (max_type_var t) (max_type_var u)"
+| "max_type_var (TUnit)             = 0"
+| "max_type_var (TUnknown i)        = 0"
+| "max_type_var (TVariant Ks \<alpha>)     = Max (set (map (max_type_var \<circ> fst \<circ> snd) Ks))"
+| "max_type_var (TAbstract nm ts s) = Max (set (map max_type_var ts))"
+| "max_type_var (TObserve t)        = max_type_var t"
 
 fun variant_elem_used :: "(name \<times> type \<times> usage_tag) \<Rightarrow> (name \<times> type \<times> usage_tag)" where
   "variant_elem_used (nm, t, _) = (nm, t, Used)"
