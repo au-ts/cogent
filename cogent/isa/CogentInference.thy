@@ -158,6 +158,7 @@ fun max_type_var :: "type \<Rightarrow> nat" where
 | "max_type_var (TAbstract nm ts s) = Max (set (map max_type_var ts))"
 | "max_type_var (TObserve t)        = max_type_var t"
 
+
 fun variant_elem_used :: "(name \<times> type \<times> usage_tag) \<Rightarrow> (name \<times> type \<times> usage_tag)" where
   "variant_elem_used (nm, t, _) = (nm, t, Used)"
 
@@ -184,14 +185,15 @@ qed
 
 
 fun variant_nth_used :: "nat \<Rightarrow> type \<Rightarrow> type" where
-  "variant_nth_used n (TVar i)        = undefined"  
-| "variant_nth_used n (TFun a b)      = undefined"
-| "variant_nth_used n (TPrim p)       = undefined"
-| "variant_nth_used n (TProduct t u)  = undefined"
-| "variant_nth_used n (TUnit)         = undefined"
-| "variant_nth_used n (TUnknown i)    = undefined"
-| "variant_nth_used n (TVariant Ks \<alpha>) = TVariant (Ks[n := variant_elem_used (Ks ! n)]) \<alpha>"
-
+  "variant_nth_used n (TVar i)            = undefined"  
+| "variant_nth_used n (TFun a b)          = undefined"
+| "variant_nth_used n (TPrim p)           = undefined"
+| "variant_nth_used n (TProduct t u)      = undefined"
+| "variant_nth_used n (TUnit)             = undefined"
+| "variant_nth_used n (TUnknown i)        = undefined"
+| "variant_nth_used n (TVariant Ks \<alpha>)     = TVariant (Ks[n := variant_elem_used (Ks ! n)]) \<alpha>"
+| "variant_nth_used n (TAbstract nm ts s) = undefined"
+| "variant_nth_used n (TObserve t)        = undefined"
 
 fun variant_elem_unused :: "(name \<times> type \<times> usage_tag) \<Rightarrow> (name \<times> type \<times> usage_tag)" where
   "variant_elem_unused (nm, t, _) = (nm, t, Unused)"
@@ -217,15 +219,16 @@ next
   then show ?thesis using assms variant_elem_unused_usage_unused by auto
 qed
 
-
 fun variant_nth_unused :: "nat \<Rightarrow> type \<Rightarrow> type" where
-  "variant_nth_unused n (TVar i)        = undefined"  
-| "variant_nth_unused n (TFun a b)      = undefined"
-| "variant_nth_unused n (TPrim p)       = undefined"
-| "variant_nth_unused n (TProduct t u)  = undefined"
-| "variant_nth_unused n (TUnit)         = undefined"
-| "variant_nth_unused n (TUnknown i)    = undefined"
-| "variant_nth_unused n (TVariant Ks \<alpha>) = TVariant (Ks[n := variant_elem_unused (Ks ! n)]) \<alpha>"
+  "variant_nth_unused n (TVar i)            = undefined"  
+| "variant_nth_unused n (TFun a b)          = undefined"
+| "variant_nth_unused n (TPrim p)           = undefined"
+| "variant_nth_unused n (TProduct t u)      = undefined"
+| "variant_nth_unused n (TUnit)             = undefined"
+| "variant_nth_unused n (TUnknown i)        = undefined"
+| "variant_nth_unused n (TVariant Ks \<alpha>)     = TVariant (Ks[n := variant_elem_unused (Ks ! n)]) \<alpha>"
+| "variant_nth_unused n (TAbstract nm ts s) = undefined"
+| "variant_nth_unused n (TObserve t)        = undefined"
 
 
 datatype constraint =
