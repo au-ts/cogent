@@ -52,6 +52,7 @@ ML\<open> fun corres_put_boxed_tac ctxt = let
     val val_rels   = ValRelSimp.get ctxt;
     val is_valids  = IsValidSimp.get ctxt;
     val heap_simps = HeapSimp.get ctxt;
+    val getset_simps = GetSetSimp.get ctxt;
     val facts1 = get "val_rel_ptr_def" :: @{thms gets_to_return return_bind}
     val facts2 = maps gets
         ["state_rel_def", "heap_rel_def", "val_rel_ptr_def", "type_rel_ptr_def", "heap_rel_ptr_meta"]
@@ -79,7 +80,7 @@ ML\<open> fun corres_put_boxed_tac ctxt = let
     REPEAT_ALL_NEW (rtac @{thm conjI})
         THEN_ALL_NEW ((rtac (get "all_heap_rel_updE") THEN' atac THEN' atac)
             THEN_ALL_NEW distinct_subgoal_tac
-            THEN_ALL_NEW asm_simp_tac (ctxt addsimps val_rels @ type_rels)
+            THEN_ALL_NEW asm_simp_tac (ctxt addsimps val_rels @ type_rels @ getset_simps)
             THEN_ALL_NEW asm_simp_tac (ctxt addsimps @{thms map_update list_update_eq_id}
                 delsimps @{thms length_0_conv length_greater_0_conv})
             THEN_ALL_NEW clarsimp_tac (ctxt addsimps val_rels @ type_rels)
@@ -102,7 +103,7 @@ ML\<open> fun corres_put_boxed_tac ctxt = let
     (((rtac (get "all_heap_rel_updE") THEN' atac THEN' atac) 
          ORELSE' (Tactic.forward_tac ctxt (gets "all_heap_rel_updE") THEN' atac))
         THEN_ALL_NEW distinct_subgoal_tac
-        THEN_ALL_NEW asm_simp_tac (ctxt addsimps val_rels @ type_rels)
+        THEN_ALL_NEW asm_simp_tac (ctxt addsimps val_rels @ type_rels @ getset_simps)
         THEN_ALL_NEW asm_simp_tac (ctxt addsimps @{thms map_update list_update_eq_id}
             delsimps @{thms length_0_conv length_greater_0_conv})
         THEN_ALL_NEW clarsimp_tac (ctxt addsimps val_rels @ type_rels)

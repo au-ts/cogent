@@ -110,11 +110,16 @@ ML \<open> structure HeapSimp = Named_Thms_Ext
  (val name = @{binding "HeapSimp"}
   val description = "Simplification rules about heap relation.") \<close>
 
+ML \<open> structure GetSetSimp = Named_Thms_Ext
+ (val name = @{binding "GetSetSimp"}
+  val description = "Simplification rules about getters and setters.") \<close>
+
+
 setup\<open> (* Set up lemma buckets.*)
  TakeBoxed.setup o TakeUnboxed.setup o PutUnboxed.setup o PutBoxed.setup o
  MemberReadOnly.setup o MemberBoxed.setup o Case.setup o
  ValRelSimp.setup o IsValidSimp.setup o
- TypeRelSimp.setup o HeapSimp.setup \<close>
+ TypeRelSimp.setup o HeapSimp.setup o GetSetSimp.setup \<close>
 
 ML\<open> fun local_setup_add_thm bucket thm = case bucket of
   TakeBoxed     => TakeBoxed.add_local thm
