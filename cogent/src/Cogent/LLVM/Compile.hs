@@ -8,6 +8,7 @@ import           Control.Applicative
 import           Control.Monad.State
 
 import           System.FilePath
+import           System.Info
 import           System.IO
 
 import           Data.ByteString                as BS
@@ -34,6 +35,7 @@ import           LLVM.AST.AddrSpace
 import qualified LLVM.AST.Attribute             as A
 import qualified LLVM.AST.CallingConvention     as CC
 import qualified LLVM.AST.Constant              as C
+import           LLVM.AST.DataLayout
 import           LLVM.AST.Global
 import           LLVM.AST.Instruction
 import           LLVM.AST.Name
@@ -55,6 +57,8 @@ newtype LLVM a = LLVM (State AST.Module a)
 newModule :: ShortByteString -> ShortByteString -> AST.Module
 newModule moduleName fileName = defaultModule { moduleName = moduleName
                                               , moduleSourceFileName = fileName
+                                              , moduleDataLayout = Just (LLVM.AST.DataLayout.defaultDataLayout
+                                                                         LLVM.AST.DataLayout.LittleEndian)
                                               }
 
 expandMod :: AST.Definition -> LLVM ()
@@ -456,6 +460,12 @@ print_llvm mod = (withContext (\ctx ->
                                      ir <- (withModuleFromAST ctx mod moduleLLVMAssembly)
                                      (BS.putStrLn ir))))
 
+write_llvm :: AST.Module -> Handle -> IO()
+write_llvm mod file = (withContext (\ctx ->
+                                      (do
+                                          ir <- (withModuleFromAST ctx mod moduleLLVMAssembly)
+                                          (BS.hPut file ir))))
+
 
 to_llvm :: [Core.Definition Core.TypedExpr VarName] -> FilePath -> IO ()
 to_llvm monoed source = do
@@ -463,4 +473,8 @@ to_llvm monoed source = do
   let ast =  to_mod monoed source
   -- System.IO.putStrLn (show ast)
   print_llvm ast
-
+  let resName = replaceExtension source "ll"
+  outFile <- openFile resName ReadWriteMode
+  write_llvm ast outFile
+  hClose outFile
+  return ()
