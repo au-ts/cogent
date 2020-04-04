@@ -263,10 +263,10 @@ expr_to_llvm (TE rt (Op op [a,b])) =
      res <- let oa = Data.Either.fromLeft (error "operand of OP cannot be terminator") _oa
                 ob = Data.Either.fromLeft (error "operand of OP cannot be terminator") _ob
               in case op of
-                     Sy.Plus -> instr (trace ("cogentType of rt: " ++ (show (cogentType rt))) (cogentType (trace ("Plus rt: " ++ (show rt)) rt))) (Add { nsw = False
+                     Sy.Plus -> instr (cogentType rt) (Add { nsw = False
                                                            , nuw = True
-                                                           , operand0 = (trace ("plus oa: " ++ (show oa)) oa)
-                                                           , operand1 = (trace ("plus ob: " ++ (show ob)) ob)
+                                                           , operand0 = oa
+                                                           , operand1 = ob
                                                            , LLVM.AST.Instruction.metadata = []
                                                            })
                      Sy.Minus -> instr (cogentType rt) (Sub { nsw = False
@@ -309,14 +309,12 @@ expr_to_llvm (TE rt (Op op [a,b])) =
                      Sy.RShift-> error "not implemented yet"
                      Sy.Complement-> error "not implemented yet"
                      Sy.Not -> error "Not is not defined to be binary"
-     return (Left (trace ("op res: " ++ (show res)) res))
+     return (Left res)
 expr_to_llvm (TE _ (Take (a, b) recd fld body)) =
   do
     _recv <- (expr_to_llvm recd)
     let recv = Data.Either.fromLeft (error "address cannot be terminator") _recv
-    fldvp <- instr (trace ("FLD TYPE: " ++ (show ((trace ("REC TYPE: " ++ (show (rec_type recd))) (rec_type recd)) !! (trace ("FLD: " ++ (show fld)) fld))))
-                   ((rec_type recd) !!  fld)
-                  )
+    fldvp <- instr ((rec_type recd) !!  fld)
                   (GetElementPtr { inBounds = True
                                  , address = recv
                                  , indices = [
@@ -340,7 +338,7 @@ expr_to_llvm (TE _ (Take (a, b) recd fld body)) =
     vars <- gets indexing
     modify (\s -> s { indexing = [fldv, recv] ++ vars })
     res <- expr_to_llvm body
-    case (trace ("res: " ++ (show res)) res) of
+    case res of
       Left val -> ((terminator (Do (Ret (Just val) [])) ) >>= (\a -> return (Right a)))
       Right trm -> return (Right trm)
 
@@ -376,8 +374,8 @@ expr_to_llvm (TE vt (Variable (idx, _))) =
   do
     unnames <- gets unnamedCount
     _indexing <- gets indexing
-    let indexing = (trace ("indexing: " ++ (show _indexing)) _indexing) in
-      let _idx = (trace ("var idx: " ++ (show (Data.Vec.finInt idx))) (Data.Vec.finInt idx)) in
+    let indexing = _indexing in
+      let _idx = (Data.Vec.finInt idx) in
         if (Data.List.null indexing) then
           let pos = (fromIntegral unnames) - _idx in
             return (Left (LocalReference (cogentType vt) (UnName (fromIntegral pos))))
@@ -463,6 +461,6 @@ to_llvm :: [Core.Definition Core.TypedExpr VarName] -> FilePath -> IO ()
 to_llvm monoed source = do
   System.IO.putStrLn "Showing AST"
   let ast =  to_mod monoed source
-  System.IO.putStrLn (show ast)
+  -- System.IO.putStrLn (show ast)
   print_llvm ast
 
