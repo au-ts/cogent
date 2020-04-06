@@ -26,6 +26,7 @@ ML\<open> fun corres_take_boxed_tac ctxt = let
     val type_rels  = TypeRelSimp.get ctxt;
     val is_valids  = IsValidSimp.get ctxt;
     val heap_simps = HeapSimp.get ctxt;
+    val getset_simps = GetSetSimp.get ctxt;
     val gets = Proof_Context.get_thms ctxt
     val get  = Proof_Context.get_thm ctxt
     val facts' = maps gets
@@ -41,7 +42,8 @@ ML\<open> fun corres_take_boxed_tac ctxt = let
         THEN_ALL_NEW (rtac (get "u_t_p_recE") THEN' atac)
         THEN_ALL_NEW clarsimp_tac (ctxt addSDs (gets "type_repr_uval_repr"))
         THEN_ALL_NEW (ftac (get "all_heap_rel_ptrD") THEN' atac)
-        THEN_ALL_NEW clarsimp_tac (ctxt addsimps type_rels addsimps val_rels)
+        THEN_ALL_NEW clarsimp_tac (ctxt addsimps type_rels addsimps val_rels 
+                                        addsimps getset_simps)
     ) ] end
 \<close>
 
@@ -119,6 +121,7 @@ ML\<open> fun corres_let_put_boxed_tac ctxt = let
     val val_rels   = ValRelSimp.get ctxt;
     val is_valids  = IsValidSimp.get ctxt;
     val heap_simps = HeapSimp.get ctxt;
+    val getset_simps = GetSetSimp.get ctxt;
 (* TODO factorize with take_boxed_tac and put_boxed
    facts2 corresponds to facts of take_boxed
    facts3 to facts'
@@ -147,7 +150,7 @@ ML\<open> fun corres_let_put_boxed_tac ctxt = let
     REPEAT_ALL_NEW (rtac @{thm conjI})
         THEN_ALL_NEW ((rtac (get "all_heap_rel_updE") THEN' atac THEN' atac)
             THEN_ALL_NEW distinct_subgoal_tac
-            THEN_ALL_NEW asm_simp_tac (ctxt addsimps val_rels @ type_rels)
+            THEN_ALL_NEW asm_simp_tac (ctxt addsimps val_rels @ type_rels @ getset_simps)
             THEN_ALL_NEW asm_simp_tac (ctxt addsimps @{thms map_update list_update_eq_id}
                 delsimps @{thms length_0_conv length_greater_0_conv})
             THEN_ALL_NEW clarsimp_tac (ctxt addsimps val_rels @ type_rels)
@@ -168,7 +171,7 @@ ML\<open> fun corres_let_put_boxed_tac ctxt = let
     (((rtac (get "all_heap_rel_updE") THEN' atac THEN' atac) 
          ORELSE' (Tactic.forward_tac ctxt (gets "all_heap_rel_updE") THEN' atac))
         THEN_ALL_NEW distinct_subgoal_tac
-        THEN_ALL_NEW asm_simp_tac (ctxt addsimps val_rels @ type_rels)
+        THEN_ALL_NEW asm_simp_tac (ctxt addsimps val_rels @ type_rels @ getset_simps)
         THEN_ALL_NEW asm_simp_tac (ctxt addsimps @{thms map_update list_update_eq_id}
             delsimps @{thms length_0_conv length_greater_0_conv})
         THEN_ALL_NEW clarsimp_tac (ctxt addsimps val_rels @ type_rels)
