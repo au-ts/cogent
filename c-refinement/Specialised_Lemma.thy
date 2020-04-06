@@ -19,7 +19,13 @@ begin
 context update_sem_init
 begin
 
-ML\<open> fun mk_lems file_nm ctxt  =
+(* TODO: move it in the right file *)
+ML \<open>
+fun list_member _ [] = false
+  | list_member x (t :: q) = if t = x then true else list_member x q;
+\<close>
+
+ML\<open> fun mk_lems file_nm (ignore_types : string list) ctxt  =
  let
   val thy = Proof_Context.theory_of ctxt;
   val uvals                 = read_table file_nm thy;
@@ -28,12 +34,20 @@ ML\<open> fun mk_lems file_nm ctxt  =
   fun get_urecord_lems uv   = mk_urecord_lems_for_uval file_nm ctxt uv;
   fun get_case_lems uv      = mk_case_lems_for_uval file_nm ctxt uvals uv;
   val (lemss:lem list list) = List.tabulate (num_of_uvals, fn struct_num =>
+     let
+       val n_struct_num = get_nth_uval struct_num ;
+       val name = get_ty_nm_C n_struct_num ;
+     in
+    if list_member name ignore_types then 
+      (tracing ("Ignoring type " ^ name) ; [])
+    else
     (tracing ("mk_lems started working on mk_specialised for struct_number " ^ string_of_int struct_num ^
-              " which corresponds to " ^ (*@{make_string}*) get_ty_nm_C (get_nth_uval struct_num));
-    case get_nth_uval struct_num of
-      URecord _ => get_urecord_lems (get_nth_uval struct_num)
-    | USum    _ => get_case_lems    (get_nth_uval struct_num)
-    | _         => []));
+              " which corresponds to " ^ (*@{make_string}*) name);
+    case n_struct_num of
+      URecord _ => get_urecord_lems n_struct_num
+    | USum    _ => get_case_lems    n_struct_num
+    | _         => [])
+    end) ;
  in
   List.concat lemss
    |> map (fn v => (#name v, v))
@@ -87,9 +101,9 @@ fun local_setup_tag_enum_defs lthy =
 
 in
 
-fun local_setup_take_put_member_case_esac_specialised_lemmas file_nm lthy =
+fun local_setup_take_put_member_case_esac_specialised_lemmas file_nm ignore_types lthy =
  let
-  val lems:lem list = mk_lems file_nm lthy;
+  val lems:lem list = mk_lems file_nm ignore_types lthy;
   val lthy_wo_esac  = List.foldl prove_put_in_bucket_non_esac_especialised_lemma lthy lems;
   val lthy_w_esac   = local_setup_specialised_esacs file_nm lthy_wo_esac;
   val lthy'         = local_setup_tag_enum_defs lthy_w_esac;
