@@ -309,7 +309,7 @@ instance Traversable (Flip2 Type t l) where  -- e
   traverse f (Flip2 (TAPut  idxs t))      = Flip2 <$> (TAPut  <$> traverse f idxs <*> pure t)
 #endif
 #ifdef REFINEMENT_TYPES
-  traverse f (Flip (TRefine v t e))      = Flip <$> (TRefine v t <$> f e)
+  traverse f (Flip2 (TRefine v t e))      = Flip2 <$> (TRefine v t <$> f e)
 #endif
   traverse _ (Flip2 (TUnbox t))           = pure $ Flip2 (TUnbox t)
   traverse _ (Flip2 (TBang t))            = pure $ Flip2 (TBang t)
