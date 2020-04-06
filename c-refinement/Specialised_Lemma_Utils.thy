@@ -117,6 +117,7 @@ ML \<open> structure GetSetSimp = Named_Thms_Ext
 
 setup\<open> (* Set up lemma buckets.*)
  TakeBoxed.setup o TakeUnboxed.setup o PutUnboxed.setup o PutBoxed.setup o
+ LetPutBoxed.setup o
  MemberReadOnly.setup o MemberBoxed.setup o Case.setup o
  ValRelSimp.setup o IsValidSimp.setup o
  TypeRelSimp.setup o HeapSimp.setup o GetSetSimp.setup \<close>
