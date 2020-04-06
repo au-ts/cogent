@@ -232,67 +232,72 @@ class TestConfiguration:
         fname = os.path.join(self.dir, filename)
         # Check file exists and error gracefully
         if not os.path.exists(fname):
-            def f(): return ("error", "Source file '{}' not found".format(
-                fname), test_info['expected_result'])
-            return TestResult(f(), fname, test_info['test_name'])
+            return TestResult(
+                        ("error", "Source file '{}' not found".format(fname), test_info['expected_result']),
+                        fname,
+                        test_info['test_name']
+                    )
 
-        # function that runs our test
-        def test():
-            setup_dist()
+        # run our test
+        setup_dist()
 
-            try:
-                flags = test_info['flags']
-            except KeyError:
-                flags = []
+        try:
+            flags = test_info['flags']
+        except KeyError:
+            flags = []
 
-            res = subprocess.run([context.cogent] + flags + ["--dist-dir={}".format(TEST_DIST_DIR)] + [fname],
-                                 stderr=subprocess.STDOUT,
-                                 stdout=subprocess.PIPE,
-                                 cwd=self.dir)
+        res = subprocess.run([context.cogent] + flags + ["--dist-dir={}".format(TEST_DIST_DIR)] + [fname],
+                                stderr=subprocess.STDOUT,
+                                stdout=subprocess.PIPE,
+                                cwd=self.dir)
 
-            status = "pass"
+        status = "pass"
 
-            # The compiler returns an error code
-            if res.returncode == 134:
-                status = "fail"
-            # The haskell process crashes/errors
-            elif res.returncode != 0:
-                status = "error"
+        # The compiler returns an error code
+        if res.returncode == 134:
+            status = "fail"
+        # The haskell process crashes/errors
+        elif res.returncode != 0:
+            status = "error"
 
-            return (status, res.stdout.decode("utf-8"), test_info["expected_result"])
+        result = (status, res.stdout.decode("utf-8"), test_info["expected_result"])
 
-        return TestResult(test(), fname, test_info['test_name'])
+        return TestResult(result, fname, test_info['test_name'])
 
     def run_phase(self, context, filename, phase, test_info):
         fname = os.path.join(self.dir, filename)
         # Check file exists and error gracefully
         if not os.path.exists(fname):
-            def f(): return ("error", "Source file '{}' not found".format(
-                fname), test_info['expected_result'])
-            return TestResult(f(), fname, test_info['test_name'])
+            return TestResult(
+                        ("error", "Source file '{}' not found".format(fname), test_info['expected_result']),
+                        fname,
+                        test_info['test_name']
+                    )
 
         if not context.repo:
-            def g(): return ("error", "repo not found", test_info['expected_result'])
-            return TestResult(g(), fname, test_info['test_name'])
+            return TestResult(
+                        ("error", "repo not found", test_info['expected_result']),
+                        fname,
+                        test_info['test_name']
+                    )
 
-        # function that runs our test
-        def test():
-            setup_dist()
+        # runs the test
+        setup_dist()
 
-            res = phase.run(context, fname, test_info)
+        res = phase.run(context, fname, test_info)
 
-            status = "pass"
+        status = "pass"
 
-            # The compiler returns an error code
-            if res.returncode == 134:
-                status = "fail"
-            # The haskell process crashes/errors
-            elif res.returncode != 0:
-                status = "error"
+        # The compiler returns an error code
+        if res.returncode == 134:
+            status = "fail"
+        # The haskell process crashes/errors
+        elif res.returncode != 0:
+            status = "error"
 
-            return (status, res.stdout.decode("utf-8"), test_info["expected_result"])
+        result = (status, res.stdout.decode("utf-8"), test_info["expected_result"])
 
-        return TestResult(test(), fname, test_info['test_name'])
+        return TestResult(result, fname, test_info['test_name'])
 
     def print_test_header(self, test_name):
         print("-" * self.header_block_len,
