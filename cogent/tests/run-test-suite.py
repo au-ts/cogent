@@ -330,75 +330,57 @@ class TestConfiguration:
             print()
         return results
 
+# a collection of configurations
+class Configurations:
+    def __init__(self, path):
+        self.files = [f.resolve() for f in path.rglob(CONFIG_FILE_NAME)]
+        self.configs = []
+        self.errConfigs = []
+        for f in self.files:
+            try:
+                self.configs.append(TestConfiguration(f))
+            except InvalidConfigError as e:
+                self.errConfigs.append(e)
+            except OSError as e:
+                self.errConfigs.append(e)
 
-# Based on an asbolute path for a test file, get it's configuration
-def get_cfg_from_test_name(f):
-    cfgs = get_configs()
-    for c in cfgs:
-        if f in c.get_all_test_names():
-            return c
-    return None
+    def has_erroring_configs(self):
+        return self.errConfigs != []
+
+    def print_errs(self):
+        print(self.errConfigs)
+        for e in self.errConfigs:
+            if type(e) is InvalidConfigError:
+                print(colored("Config error: ", "red"), e)
+            elif type(e) is OSError:
+                print(colored("error - could not find config file for test file {}".format(x), "red"))
+
+    # Based on an asbolute path for a test file, get it's configuration
+    def get_cfg_from_test_name(self, f):
+        cfgs = self.get_configs()
+        for c in cfgs:
+            if f in c.get_all_test_names():
+                return c
+        return None
+
+    def get_configs(self):
+        return self.configs
 
 
 # Find and run one test
-def run_test(context, test_name, phases):
-    conf = get_cfg_from_test_name(test_name)
+def run_test(context, configs, test_name):
+    conf = configs.get_cfg_from_test_name(test_name)
     if conf is None:
         print(colored("Cannot find config file containing test name {}".format(test_name), "red"))
         sys.exit(1)
     res = conf.run_one(context, test_name)
     return res
 
-# Find all configuration files in the test directory
-def get_configs_with_errors():
-    files = Path(".").rglob(CONFIG_FILE_NAME)
-    files = [os.path.abspath(x) for x in files]
-    cfgs = []
-    errored = False
-    for x in files:
-        try:
-            cfgs.append(TestConfiguration(x))
-        except InvalidConfigError as e:
-            print(colored("Config error: ", "red"), e)
-            errored = True
-        except OSError as err:
-            print(colored("error - could not find config file for test file {}".format(x), "red"))
-            errored = True
-    return (cfgs, errored)
 
-def get_configs():
-    cfgs, _ = get_configs_with_errors()
-    return cfgs
 
-def validate():
-    # Will implicitly run the configuration check
-    cfgs, err = get_configs_with_errors()
-    if err:
-        return err
-
-    names = []
-    for c in cfgs:
-        names += [(x, c.relpath) for x in c.get_all_test_names()]
-    
-    # Validates that each test name features only once
-    seen_names = set()
-    for (n,f) in names:
-        same = list(filter(lambda x: x[0] == n, names))
-        if len(same) > 1 and n not in seen_names:
-            err = True
-            print(colored("Test name '{}' used multiple times:".format(n), "red"))
-            seen_files = set()
-            for (x,y) in same:
-                if y in seen_files: continue
-                samefile = list(filter(lambda z: z[1] == y, names))
-                print("Seen {1} time(s) in {2}".format(
-                    x,
-                    len(samefile) - len(set(samefile)) + 1,
-                    y
-                ))
-                seen_files.add(y)
-        seen_names.add(n)
-    return err
+#
+# Main script
+#
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(
@@ -447,29 +429,33 @@ if __name__ == "__main__":
 
     context = TestContext(repo, cogent, TEST_DIST_DIR, TEST_SCRIPT_DIR, phases)
 
+    # find all config files
+    configs = Configurations(Path("."))
+
     # Validate all config files
-    err = validate()
     if args.validate:
-        if not err:
-            print(colored("All configuration files okay!", "green"))
-        else:
+        isErr = configs.has_erroring_configs()
+        if isErr:
+            configs.print_errs()
             print(colored("Errors found in above configuration files", "red"))
-        sys.exit((1 if err else 0))
-    if err:
+        else:
+            print(colored("All configuration files okay!", "green"))
+        sys.exit((1 if isErr else 0))
+    elif configs.has_erroring_configs():
+        print(colored("Errors found in above configuration files:", "red"))
+        print(colored("  call with --validate for more info", "red"))
         sys.exit(1)
 
-    configs = []
     if args.verbose is not None:
         verbose_test_names = args.verbose
 
     results = []
     # If we're only running specific tests
     if args.only_test is not None:
-        results = run_test(context, args.only_test, phases)
+        results = run_test(context, configs, args.only_test)
     # Otherwise, run all possible tests
     else:
-        configs = get_configs()
-        for c in configs:
+        for c in configs.get_configs():
             for res in c.run_all(context):
                 results.append(res)
 
