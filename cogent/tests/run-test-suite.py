@@ -226,10 +226,13 @@ class TestConfiguration:
     def get_all_test_names(self):
         return [x['test_name'] for x in self.settings ]
 
+class Test:
+    def __init__(self, testConfig):
+        self.config = testConfig
 
     # Run the cogent compiler with the given flags, under test schema d
     def run_cogent(self, context, filename, test_info):
-        fname = os.path.join(self.dir, filename)
+        fname = os.path.join(self.config.dir, filename)
         # Check file exists and error gracefully
         if not os.path.exists(fname):
             return TestResult(
@@ -249,7 +252,7 @@ class TestConfiguration:
         res = subprocess.run([context.cogent] + flags + ["--dist-dir={}".format(TEST_DIST_DIR)] + [fname],
                                 stderr=subprocess.STDOUT,
                                 stdout=subprocess.PIPE,
-                                cwd=self.dir)
+                                cwd=self.config.dir)
 
         status = "pass"
 
@@ -265,7 +268,7 @@ class TestConfiguration:
         return TestResult(result, fname, test_info['test_name'])
 
     def run_phase(self, context, filename, phase, test_info):
-        fname = os.path.join(self.dir, filename)
+        fname = os.path.join(self.config.dir, filename)
         # Check file exists and error gracefully
         if not os.path.exists(fname):
             return TestResult(
@@ -300,17 +303,17 @@ class TestConfiguration:
         return TestResult(result, fname, test_info['test_name'])
 
     def print_test_header(self, test_name):
-        print("-" * self.header_block_len,
+        print("-" * self.config.header_block_len,
               " {} ".format(test_name),
-              "-" * self.header_block_len)
+              "-" * self.config.header_block_len)
 
     # Run one test by name
     def run_one(self, context, test_name):
-        return self.run_tests(context, filter(lambda t: test_name == t['test_name'], self.settings))
+        return self.run_tests(context, filter(lambda t: test_name == t['test_name'], self.config.settings))
 
     # Run all tests in the configuration file
     def run_all(self, context):
-        return self.run_tests(context, self.settings)
+        return self.run_tests(context, self.config.settings)
 
     def run_tests(self, context, tests):
         for test in tests:
@@ -365,16 +368,6 @@ class Configurations:
 
     def get_configs(self):
         return self.configs
-
-
-# Find and run one test
-def run_test(context, configs, test_name):
-    conf = configs.get_cfg_from_test_name(test_name)
-    if conf is None:
-        print(colored("Cannot find config file containing test name {}".format(test_name), "red"))
-        sys.exit(1)
-    res = conf.run_one(context, test_name)
-    return res
 
 
 
@@ -452,11 +445,19 @@ if __name__ == "__main__":
     results = []
     # If we're only running specific tests
     if args.only_test is not None:
-        results = run_test(context, configs, args.only_test)
+        test_name = args.only_test
+        conf = configs.get_cfg_from_test_name(test_name)
+        if conf is None:
+            print(colored("Cannot find config file containing test name {}".format(test_name), "red"))
+            sys.exit(1)
+        test = Test(conf)
+        results = test.run_one(context, test_name)
     # Otherwise, run all possible tests
     else:
-        for c in configs.get_configs():
-            for res in c.run_all(context):
+        tests = list(map(lambda config: Test(config), configs.get_configs()))
+
+        for test in tests:
+            for res in test.run_all(context):
                 results.append(res)
 
     all_passed = True
