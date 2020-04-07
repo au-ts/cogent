@@ -41,9 +41,10 @@ of the file are ignored. This is also true for transitive includes, in particula
 The effect is the same that is usually achieved in C by ``#define``\ ing a flag in an include file and including 
 the file body only if the flag is not yet set.
 
+.. _toplevel-def:
+
 Toplevel Definitions
 ====================================
-\label{toplevel-def}
 
 The only syntactical constructs which may occur as toplevel units in a |cogent| source program are *definitions*.
 
@@ -55,12 +56,13 @@ The only syntactical constructs which may occur as toplevel units in a |cogent| 
     | *TypeDefinition*
     | ...
 
-A definition may be a type definition, as described in Section~\ref{def-type}.
+A definition may be a type definition, as described in :ref:`def-type`.
 
+
+.. _value-def:
 
 Value Definitions
 ------------------------------
-\label{value-def}
 
 A definition may also be a *value definition*. It has the following syntax:
 
@@ -83,10 +85,10 @@ A value definition is conceptually mainly a syntactical variant for a *LetExpres
 However, there are the following differences:
 
 - the variable bound by a definition is a *global* variable which can be referenced in 
-  *LambdaExpression*\ s (see Section~\ref{term-lambda}),
+  *LambdaExpression*\ s (see :ref:`term-lambda`}),
 - the scope of the variable consists of the whole |cogent| program after *and before* the definition,
 - the type specification is mandatory and  in the case of a function type,  instead of a 
-  *MonoType* it may be a more general *PolyType* (see Section~\ref{def-poly}).
+  *MonoType* it may be a more general *PolyType* (see :ref:`def-poly`).
 
 A *ValueDefinition* of the form::
 
@@ -115,9 +117,11 @@ An example for a value definition is::
 
 .. todo:: layout rules for value definitions
 
+
+.. _fun-def:
+
 Function Definitions
 ------------------------------
-\label{fun-def}
 
 A function definition is a special case of a value definition, where the value has a function type.
 This could be achieved with a normal value definition using a lambda expression to specify the
@@ -211,9 +215,10 @@ A collection of abstract definitions together with corresponding type definition
 functions working with values of these types, where both types and functions are externally defined in C.
 
 
+.. _def-poly:
+
 Polymorphic Definitions
 ------------------------------
-\label{def-poly}
 
 Function  values bound by toplevel definitions may be *polymorphic* which means that their
 type is not specified uniquely.

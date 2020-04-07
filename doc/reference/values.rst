@@ -130,7 +130,7 @@ for discriminating the value from other values, not for binding variables.
 
 Note that you cannot use a value bound to a variable like a literal in a pattern to match just that value. If a variable
 occurs in a pattern it is always used for a new binding which shadows any value already bound to it. In particular,
-this applies to variables bound in a toplevel value definition (see Section~\ref{value-def}).
+this applies to variables bound in a toplevel value definition (see :ref:`value-def`).
 
 
 Composite Patterns
@@ -190,10 +190,10 @@ The first pattern conforms to all tuple types with three fields. The second patt
 three fields where the second field has a tuple type with two fields. The third pattern only conforms to the unit type.
 
 
+.. _pat-rec:
+
 Record Patterns
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. label: pat-rec
 
 Patterns for record values exist in two syntactical variants, depending on whether the record is boxed or unboxed:
 
@@ -511,10 +511,10 @@ variant types using the same *DataConstructor*. The |cogent| compiler even does 
 is only one variant type using the *DataConstructor* as tag.
 
 
+.. _term-lambda:
+
 Terms for Values of Function Types
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. label: term-lambda
 
 A term for a value of a function type is, as usual, called a *lambda expression*. Often in other programming languages, a lambda
 expression consists of a body expression and a variable for every argument. In |cogent| all functions take only one
@@ -556,7 +556,7 @@ an inferred type for the lambda term, for example the type::
 
 The body expression in a lambda term is restricted to not contain any free non-global variables. Non-global variables
 are variables bound by pattern matching in contrast to *global* variables which are bound by a toplevel definition
-(see Section~\ref{toplevel-def}).
+(see :ref:`toplevel-def`).
 
 If the body expression of a lambda term has inferred type T2 and the argument type is explicitly specified as T1 then
 the type inferred from the structure of the *LambdaTerm* is T1 ``->`` T2.
@@ -658,10 +658,10 @@ cannot be combined.
 .. todo:: describe all operation semantics and inferred types
 
 
+.. _expr-put:
+
 Put Expressions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. label: expr-put
 
 A common function used in functional programming languages is the record update function. It takes a record
 value and returns a new record value where one or more field values differ. In |cogent| the 
@@ -737,7 +737,7 @@ in addition to being accessed, its value also remains in the record, hence it co
 
 The type inferred from the *MemberAccess* expression structure is the type of the field named by the *FieldName*.
 
-If types ``A`` and ``R`` are defined as in Section~\ref{expr-put} and ``r`` is bound to a value of type ``R!``
+If types ``A`` and ``R`` are defined as in :ref:`expr-put` and ``r`` is bound to a value of type ``R!``
 then the basic expression ``r.fld2`` is a valid *MemberAccess*. The basic expression
 ``r.fld3`` is invalid since field ``fld3`` is taken in ``R!``, the basic expression 
 ``r.fld1`` is valid since field ``fld1`` has type ``A!`` in ``R!`` (due to recursive application of the bang operator).
@@ -830,10 +830,10 @@ Semantically they have the same meaning, however they may allow for some code op
 "likely" alternatives and the second for "unlikely" alternatives.
 
 
+.. _expr-let:
+
 Binding Variables
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. label: expr-let
 
 If the only intention for using a *MatchingExpression* is binding variables, the simpler *LetExpression*
 syntax can be used:
@@ -873,13 +873,13 @@ The *LetExpression*::
 binds the variable ``x`` to the result of evaluating the expression ``y + 5`` and evaluates to a tuple
 where the bound value is used as the second field value. The tuple expression is the scope of variable ``x``.
 
-If types ``A`` and ``R`` are defined as in Section~\ref{expr-put} and ``r`` is bound to a value of type ``R``
+If types ``A`` and ``R`` are defined as in :ref:`expr-put` and ``r`` is bound to a value of type ``R``
 then the *LetExpression*::
 
   let s {fld1 = x, fld2} = r in (x, fld2 + 5, s)
 
 binds the variables ``s``, ``x``, and ``fld2`` by matching the pattern against the value bound to ``r``
-as described in Section~\ref{pat-rec}. Then it uses them in their scope which is a tuple term. 
+as described in :ref:`pat-rec`. Then it uses them in their scope which is a tuple term. 
 The type inferred for the *LetExpression* is::
 
   (A, U32, R take (fld1, fld2))
@@ -1022,10 +1022,10 @@ in the corresponding position in the more specific forms, which is the right-han
 *LetExpression* and the condition in a *ConditionalExpression*. 
 
 
+.. _expr-usage:
+
 Expression Usage Rules
 ====================================
-
-.. label: expr-usage
 
 |cogent|'s linear type system implies additional restrictions on expression usage over the usual restriction that
 the type of a function argument must be compatible to the parameter type. The additional rules are described in 

@@ -11,7 +11,7 @@ types are often automatically inferred
 and need not be specified explicitly.
 Although possible in many cases,
 |cogent| never infers types for top-level definitions
-(see Section~\ref{toplevel-def}):
+(see :ref:`toplevel-def`):
 they must always be specified explicitly.
 
 In most typed programming languages,
@@ -334,9 +334,10 @@ such a binary function would have
 the type ``(U8,U8) -> U16``.
 
 
+.. _def-type:
+
 Type Definitions
 ------------------------------
-.. label: def-type
 
 Although all types in |cogent| could be denoted by type expressions, types can be named by specifying a 
 *type definition*. In the simplest case, a type definition introduces a name for a type expression,
@@ -515,7 +516,7 @@ Linear Types
 ------------------------------
 
 One kind of restricted types are *linear types*. A linear type has the specific property, that its values must 
-be used *exactly once* in the program. What this means is explained in Section~\ref{expr-usage}. Here it is 
+be used *exactly once* in the program. What this means is explained in :ref:`expr-usage`. Here it is 
 only relevant that a type may be linear or not.
 
 Linearity is an inherent property of type expressions. Type expressions as they have been described until now can either
@@ -653,7 +654,7 @@ Readonly Types
 Since the restrictions for using values of a linear type are rather strong, |cogent| supports an additional kind
 of types, the *readonly types*. The use of values of a readonly type is also restricted, however, in a
 different way: they can be used any number of times but they may not be modified. Again,
-the meaning of this is explained in Section~\ref{expr-usage}.
+the meaning of this is explained in :ref:`expr-usage`.
 
 
 The bang Operator
@@ -714,7 +715,7 @@ An example is the type::
 
 
 As the other restricted types, escape-restricted types impose additional restrictions on the use of their values: they 
-may not "escape" from certain context. Again, the meaning of this is explained in Section~\ref{expr-usage}.
+may not "escape" from certain context. Again, the meaning of this is explained in :ref:`expr-usage`.
 
 Together we have the following properties for type expressions: A type expression can be regular or restricted. If it is restricted 
 it can be linear, escape-restricted, or both. A readonly type is always escape-restricted but never linear.
