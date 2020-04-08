@@ -218,7 +218,8 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
                                         (do x <- validateTypes (stripLocT . snd <$> ls)
                                             y@(ct,t') <- validateType t
                                             -- we add our function to the known functions here so they can be recursive
-                                            lift $ knownFuns %= M.insert f (PT vs t')
+                                            let ls' = zip (map fst ls) (snd x)
+                                            lift $ knownFuns %= M.insert f (PT ps ls' t')
                                             z <- cgFunDef alts t'
                                             pure (x,y,z))
     traceTc "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"

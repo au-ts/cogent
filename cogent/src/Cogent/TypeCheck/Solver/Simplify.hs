@@ -162,14 +162,14 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   TLVar n        :~ tau | Just t <- lookup n ts
                         -> hoistMaybe $ Just [tau :~~ t]
   TLRepRef _ _   :~ _ -> hoistMaybe Nothing
-  TLRecord fs    :~ R _ (Left (Boxed _ (Just l))) -> hoistMaybe $ Just [l :~< TLRecord fs]
-  TLRecord fs    :~ R r (Left (Boxed _ Nothing))
+  TLRecord fs    :~ R _ _ (Left (Boxed _ (Just l))) -> hoistMaybe $ Just [l :~< TLRecord fs]
+  TLRecord fs    :~ R _ r (Left (Boxed _ Nothing))
     | ls <- LRow.entries $ LRow.fromList $ (\(a,b,c) -> (a,c,())) <$> fs
     , rs <- Row.entries r
     , cs <- M.intersectionWith (,) ls rs
     , M.null $ M.difference rs cs
     -> hoistMaybe $ Just $ (\((_,e,_),(_,(t,_))) -> e :~ toBoxedType t) <$> M.elems cs
-  TLRecord _     :~ R _ (Right _) -> __todo "TLRecord fs :~ R r1 (Right n) => is this possible?"
+  TLRecord _     :~ R _ _ (Right _) -> __todo "TLRecord fs :~ R r1 (Right n) => is this possible?"
   TLVariant _ fs :~ V r
     | ls <- LRow.entries $ LRow.fromList $ (\(a,b,c,d) -> (a,d,c)) <$> fs
     , rs <- Row.entries r
@@ -231,15 +231,16 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   Synonym _ _     :~~ _               -> hoistMaybe Nothing
   _               :~~ Synonym _ _     -> hoistMaybe Nothing
 
-  R r1 s1 :~~ R r2 s2 | Row.null r1, (Just c) <- doSigilMatch (rmF s1) (rmF s2) -> hoistMaybe $ Just c
-                      | Just (r1',r2') <- extractVariableEquality r1 r2 -> hoistMaybe $ Just [R r1' s1 :~~ R r2' s2]
-                      | otherwise -> do
-    let commons  = Row.common r1 r2
-    guard (not (L.null commons))
-    let (r1',r2') = Row.withoutCommon r1 r2
-        cs = map (\ ((_, e),(_,e')) -> fst e :~~ fst e') commons
-        c  = R r1' s1 :~~ R r2' s2
-    hoistMaybe $ Just (c:cs)
+  R rp1 r1 s1 :~~ R rp2 r2 s2
+    | Row.null r1, (Just c) <- doSigilMatch (rmF s1) (rmF s2) -> hoistMaybe $ Just c
+    | Just (r1',r2') <- extractVariableEquality r1 r2 -> hoistMaybe $ Just [R rp1 r1' s1 :~~ R rp2 r2' s2]
+    | otherwise -> do
+        let commons  = Row.common r1 r2
+        guard (not (L.null commons))
+        let (r1',r2') = Row.withoutCommon r1 r2
+            cs = map (\ ((_, e),(_,e')) -> fst e :~~ fst e') commons
+            c  = R rp1 r1' s1 :~~ R rp1 r2' s2
+        hoistMaybe $ Just (c:cs)
   V r1 :~~ V r2 | Row.null r1 -> hoistMaybe $ Just []
                 | Just (r1',r2') <- extractVariableEquality r1 r2 -> hoistMaybe $ Just [V r1' :~~ V r2']
                 | otherwise -> do
@@ -296,7 +297,7 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
 
   R rp1 r1 s1 :< R rp2 r2 s2
     | Row.null r1 && Row.null r2, (Just c) <- doSigilMatch s1 s2, sameRecursive rp1 rp2 -> hoistMaybe $ Just c
-    | Just (r1',r2') <- extractVariableEquality r1 r2 -> hoistMaybe $ Just [R r1' s1 :=: R r2' s2]
+    | Just (r1',r2') <- extractVariableEquality r1 r2 -> hoistMaybe $ Just [R rp1 r1' s1 :=: R rp2 r2' s2]
     | otherwise -> do
       let commons  = Row.common r1 r2
           (ls, rs) = unzip commons
@@ -340,20 +341,6 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
 
   a :-> b -> __fixme $ hoistMaybe $ Just [b]  -- FIXME: cuerently we ignore the impls. / zilinc
   
-  -- Recursive types
-  RPar v1 m1 :<  RPar v2 m2 -> guard (m1 M.! v1 == m2 M.! v2) >> hoistMaybe $ Just []
-  RPar v1 m1 :=: RPar v2 m2 -> guard (m1 M.! v1 == m2 M.! v2) >> hoistMaybe $ Just []
-
-  RPar v m :< x  -> hoistMaybe $ Just [unroll v m :< x]
-  x :< RPar v m  -> hoistMaybe $ Just [x :< unroll v m]
-  x :=: RPar v m -> hoistMaybe $ Just [x :=: unroll v m]
-  RPar v m :=: x -> hoistMaybe $ Just [unroll v m :=: x]
-
-  -- TODO: Remaining cases
-
-  UnboxedNotRecursive (R None _ (Left Unboxed))     -> hoistMaybe $ Just []
-  UnboxedNotRecursive (R _ _    (Left (Boxed _ _))) -> hoistMaybe $ Just []
-
   -- TODO: Here we will call a SMT procedure to simplify all the Arith constraints.
   -- The only things left will be non-trivial predicates. / zilinc
   Arith e | isTrivialSE e -> do
@@ -378,7 +365,6 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
                                                       | otherwise -> hoistMaybe $ Nothing
   T (TRPar v1 b1 Nothing) :=: T (TRPar v2 b2 Nothing) | b1 == b2  -> hoistMaybe $ Just []
                                                       | otherwise -> hoistMaybe $ Nothing
-
 
   T (TRPar v b m) :< x@(R _ _ _)  -> hoistMaybe $ Just [unroll v b m :< x]
   x@(R _ _ _) :< T (TRPar v b m)  -> hoistMaybe $ Just [x :< unroll v b m]
@@ -435,14 +421,14 @@ fullyNormalise :: TCType -> Rewrite.RewriteT TcSolvM TCType
 fullyNormalise t = undefined
 
 isBoxedType :: TCType -> Bool
-isBoxedType (R _ (Left (Boxed _ _))) = True
+isBoxedType (R _ _ (Left (Boxed _ _))) = True
 #ifdef BUILTIN_ARRAYS
 isBoxedType (A _ _ (Left (Boxed _ _)) _) = True
 #endif
 isBoxedType _ = False
 
 toBoxedType :: TCType -> TCType
-toBoxedType (R r (Left Unboxed)) = R r (Left (Boxed undefined Nothing))
+toBoxedType (R rp r (Left Unboxed)) = R rp r (Left (Boxed undefined Nothing))
 #ifdef BUILTIN_ARRAYS
 toBoxedType (A t l (Left Unboxed) h) = A t l (Left (Boxed undefined Nothing)) h
 #endif

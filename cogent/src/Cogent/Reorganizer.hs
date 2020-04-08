@@ -17,7 +17,7 @@
 module Cogent.Reorganizer where
 
 import qualified Cogent.Common.Syntax as Syn
-import Cogent.Compiler (__impossible)
+import Cogent.Compiler (__impossible, __todo)
 import Cogent.Surface
 import Cogent.Util
 import Cogent.Common.Types
@@ -158,10 +158,10 @@ embedRecPars = map (\(s,d,t) -> (s,d,check t))
     check :: TopLevel LocType LocPatn LocExpr -> TopLevel LocType LocPatn LocExpr
     check (TypeDec n tvs t) =
       TypeDec n tvs (embedRecPar t)
-    check (FunDef  n (PT tvs t) y) =
-      FunDef n (PT tvs (embedRecPar t)) y
-    check (AbsDec n (PT tvs t)) =
-      AbsDec n (PT tvs (embedRecPar t))
+    check (FunDef  n (PT tvs lvs t) y) =
+      FunDef n (PT tvs lvs (embedRecPar t)) y
+    check (AbsDec n (PT tvs lvs t)) =
+      AbsDec n (PT tvs lvs (embedRecPar t))
     check (AbsTypeDec n tvs ts)
       = AbsTypeDec n tvs (map embedRecPar ts)
     check (ConstDef n t e)
@@ -170,35 +170,35 @@ embedRecPars = map (\(s,d,t) -> (s,d,check t))
     check t = t
 
 embedRecPar :: LocType -> LocType
-embedRecPar t = erp False (Just M.empty) t
+embedRecPar t = erp False M.empty t
   where
     -- Bool represents whether or not we are in a context
-    erp :: Bool -> RecContext LocType -> LocType -> LocType 
-    erp b ctxt@(Just c) orig@(LocType p ty) =
+    erp :: Bool -> M.Map Syn.RecParName LocType -> LocType -> LocType 
+    erp b ctxt orig@(LocType p ty) =
       LocType p $ case ty of
         -- If we find a type variable that is in our context, we replace it with a recursive parameter
         -- However if we are currently changing a recursive context (b == True), don't infinitely insert the context
-        TVar n b' _ | M.member n c -> TRPar n b' (if b then Nothing else Just (M.map (erp True ctxt) c))
+        TVar n b' _ | M.member n ctxt -> TRPar n b' (if b then Nothing else Just (M.map (erp True ctxt) ctxt))
         -- If we find a record, add it's recursive parameter to the context if it exists and recurse
         TRecord rp fs s -> 
-          let c' = case rp of 
-                        Rec v -> M.insert v orig c
-                        _     -> c
-          in TRecord rp (map (\(n,(x, y)) -> (n, (erp b (Just c') x, y))) fs) s
+          let ctxt' = case rp of 
+                        Rec v -> M.insert v orig ctxt
+                        _     -> ctxt
+          in TRecord rp (map (\(n,(x, y)) -> (n, (erp b ctxt' x, y))) fs) s
 
         TFun t1 t2  -> TFun (erp b ctxt t1) (erp b ctxt t2) 
         TVariant ts -> TVariant $ M.map (\(ts', x) -> (map (erp b ctxt) ts', x)) ts
         TTuple ts   -> TTuple (map (erp b ctxt) ts)
-        TCon n ts s     ->
-          TCon n (map (erp b ctxt) ts) s
+        TCon n ts s -> TCon n (map (erp b ctxt) ts) s
 #ifdef BUILTIN_ARRAYS
-        TArray t e  -> TArray (erp b ctxt t) e
+        TArray t e s h -> TArray (erp b ctxt t) e s h
 #endif
         TUnbox t    -> TUnbox (erp b ctxt t)
         TBang t     -> TBang (erp b ctxt t)
         TTake fs t  -> TTake fs (erp b ctxt t)
         TPut fs t   -> TPut fs (erp b ctxt t)
         t           -> t
+    erp _ _ doc = doc
 
 allEither :: [Either a ()] -> Either a ()
 allEither []             = Right ()
@@ -215,12 +215,12 @@ checkNoShadowing (t:ts) = do
   where
     check x = 
       case x of 
-        TypeDec _ tvs t       -> ns tvs t
-        FunDef _ (PT tvs t) y -> ns (map fst tvs) t
-        AbsTypeDec _ tvs ts   -> allEither $ map (ns tvs) ts
-        AbsDec _ (PT tvs t)   -> ns (map fst tvs) t
-        ConstDef _ t _        -> ns [] t
-        tl                    -> Right ()
+        TypeDec _ tvs t           -> ns tvs t
+        FunDef _ (PT tvs lvs t) y -> ns (map fst tvs) t
+        AbsTypeDec _ tvs ts       -> allEither $ map (ns tvs) ts
+        AbsDec _ (PT tvs ls t)    -> ns (map fst tvs) t
+        ConstDef _ t _            -> ns [] t
+        tl                        -> Right ()
 
     srcObj = sourceObject t
   
@@ -236,16 +236,17 @@ checkNoShadowing (t:ts) = do
         TVariant ts -> 
           allEither $ map (\(ts', _) -> (allEither $ map (\t -> ns tvs t) ts')) $ M.elems ts
         TTuple   ts -> allEither $ map (ns tvs) ts
-        TCon n ts s     ->
+        TCon n ts s    ->
           allEither $ map (ns tvs) ts
 #ifdef BUILTIN_ARRAYS
-        TArray t e  -> ns tvs t
+        TArray t e s h -> ns tvs t
 #endif
         TUnbox t    -> ns tvs t
         TBang t     -> ns tvs t
         TTake fs t  -> ns tvs t
         TPut fs t   -> ns tvs t
         t           -> Right ()
+    ns _ doc = Right ()
 
 -- Checks that all types are strictly positive
 checkStrictlyPositive :: [TopLevel LocType LocPatn LocExpr]
@@ -257,12 +258,12 @@ checkStrictlyPositive (t:ts) = do
   where
     check x = 
       case x of 
-        TypeDec _ _ t       -> sp S.empty S.empty t 
-        FunDef _ (PT _ t) y -> sp S.empty S.empty t
-        AbsDec _ (PT _ t)   -> sp S.empty S.empty t 
-        AbsTypeDec _ _ ts   -> allEither $ map (sp S.empty S.empty) ts
-        ConstDef _ t _      -> sp S.empty S.empty t
-        tl                  -> Right ()
+        TypeDec _ _ t         -> sp S.empty S.empty t 
+        FunDef _ (PT _ _ t) y -> sp S.empty S.empty t
+        AbsDec _ (PT _ _ t)   -> sp S.empty S.empty t 
+        AbsTypeDec _ _ ts     -> allEither $ map (sp S.empty S.empty) ts
+        ConstDef _ t _        -> sp S.empty S.empty t
+        tl                    -> Right ()
 
     srcObj = sourceObject t
 
@@ -285,15 +286,15 @@ checkStrictlyPositive (t:ts) = do
           (allEither . map (sp s b)) ts
         TCon _ ts _     ->
           (allEither . map (sp s b)) ts
-
 #ifdef BUILTIN_ARRAYS
-        TArray t e      -> sp s b t
+        TArray t e _ _  -> sp s b t
 #endif
         TUnbox  t       -> sp s b t
         TBang   t       -> sp s b t
         TTake _ t       -> sp s b t
         TPut  _ t       -> sp s b t
         _               -> Right ()
+    sp _ _ doc = Right ()
 
 -- Note: it doesn't make much sense to check for unused definitions as they may be used
 -- by the FFI. / zilinc

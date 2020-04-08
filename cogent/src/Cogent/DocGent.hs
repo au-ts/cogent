@@ -184,13 +184,13 @@ prettyType (LocType p (TVariant ts)) x | any snd $ (F.toList ts)
                                                  row (g,ts) s = let t' = listTypes ts in [shamlet|<tr><td>#{s}</td><td class='fg-Dull-Magenta spaced'>#{g}</td><td class='spaced'>#{t'}</td>|]
                                                  rows = zipWith row (M.toList $ fmap fst ts) $ '<' : repeat '|'
                                               in [shamlet|<table>#{rows}<tr><td>></td><td class='spaced' colspan=2>#{rest}</td><td></td></tr>|]
-prettyType (LocType p (TRecord ts Unboxed))  x
-  = prettyType (LocType p (TUnbox (LocType p (TRecord ts $ Boxed False Nothing)))) x
-prettyType (LocType p (TRecord ts (Boxed True (Just l)))) x
-  = prettyType (LocType p (TBang (LocType p (TRecord ts $ __fixme(Boxed False Nothing) {- Should be (Just l), fix when docGen layouts implemented -})))) x
-prettyType (LocType p (TRecord ts (Boxed False (Just l)))) x
+prettyType (LocType p (TRecord rp ts Unboxed))  x
+  = prettyType (LocType p (TUnbox (LocType p (TRecord rp ts $ Boxed False Nothing)))) x
+prettyType (LocType p (TRecord rp ts (Boxed True (Just l)))) x
+  = prettyType (LocType p (TBang (LocType p (TRecord rp ts $ __fixme(Boxed False Nothing) {- Should be (Just l), fix when docGen layouts implemented -})))) x
+prettyType (LocType p (TRecord rp ts (Boxed False (Just l)))) x
   | ls <- map fst (filter (snd . snd) ts)
-  , not (null ls) = prettyType (LocType p (TTake (Just ls) (LocType p (TRecord ts $ __fixme(Boxed False Nothing) {- Should be (Just l), fix when docGen layouts implemented-})))) x
+  , not (null ls) = prettyType (LocType p (TTake (Just ls) (LocType p (TRecord rp ts $ __fixme(Boxed False Nothing) {- Should be (Just l), fix when docGen layouts implemented-})))) x
   | otherwise = let rest = foldMap id x
                     row (g,(t,_)) s = let t' = prettyType t Nothing in [shamlet|<tr><td>#{s}</td><td class='spaced fg-Vivid-Magenta'>#{g}</td><td class='spaced'>:</td><td class='spaced'>#{t'}</td>|]
                     rows = zipWith row ts $ '{' : repeat ','

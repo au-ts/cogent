@@ -963,27 +963,15 @@ instance Pretty a => Pretty (I.IntMap a) where
 
 
 instance Pretty DataLayoutTcError where
-  pretty (UnknownDataLayout r ctx)
-    =  err "Undeclared data layout" <+> reprname r <$$> pretty ctx
-  pretty (BadDataLayout r ctx)
-    =  err "Referenced a bad data layout" <+> reprname r <$$> pretty ctx
-  pretty (TagNotSingleBlock ctx)
-    = err "Variant tag must be a single block of bits" <$$> pretty ctx
+  pretty (UnknownDataLayout r ctx) 
+     =  err "Undeclared data layout" <+> reprname r <$$> pretty ctx
+  pretty (TagNotSingleBlock ctx) 
+     = err "Variant tag must be a single block of bits" <$$> pretty ctx
   pretty (OverlappingBlocks blks)
     = let ((range1, c1),(range2, c2)) = unOverlappingAllocationBlocks blks
        in err "Declared data blocks" <+> parens (pretty range1) <+> err "and" <+> parens (pretty range2) <+> err " which cannot overlap" <$$>
           indent (pretty c1) <$$>
           indent (pretty c2)
-
-instance Pretty DataLayoutTypeCheckError where 
-  pretty (UnknownDataLayout r ctx) 
-     =  err "Undeclared data layout" <+> reprname r <$$> pretty ctx
-  pretty (TagNotSingleBlock ctx) 
-     = err "Variant tag must be a single block of bits" <$$> pretty ctx
-  pretty (OverlappingBlocks (range1, c1) (range2, c2)) 
-     = err "Declared data blocks" <+> parens (pretty range1) <+> err "and" <+> parens (pretty range2) <+> err " which cannot overlap" <$$> 
-       indent (pretty c1) <$$>
-       indent (pretty c2)
   pretty (SameTagValues context name1 name2 value) =
     err "Alternatives" <+> tagname name1 <+> err "and" <+> tagname name2 <+> err "of same variant cannot have the same tag value" <+> literal (pretty value) <$$>
     indent (pretty context)
@@ -1009,14 +997,6 @@ instance Pretty DataLayoutPath where
 #endif
   pretty (InDecl n p)       = context' "in the representation" <+> reprname n <+> context' "(" <> pretty p <> context' ")"
   pretty (PathEnd)          = mempty
-=======
-
-instance Pretty DataLayoutPath where 
-  pretty (InField n po ctx) = context' "for field" <+> fieldname n <+> context' "(" <> pretty po <> context' ")" </> pretty ctx 
-  pretty (InTag ctx)        = context' "for the variant tag block" </> pretty ctx
-  pretty (InAlt t po ctx)   = context' "for the constructor" <+> tagname t <+> context' "(" <> pretty po <> context' ")" </> pretty ctx 
-  pretty (InDecl n p)       = context' "in the representation" <+> reprname n <+> context' "(" <> pretty p <> context' ")" 
->>>>>>> Setup for implementing separated typechecking and desugaring.
 
 instance Pretty a => Pretty (DataLayout a) where
   pretty (Layout l) = symbol "layout" <+> pretty l

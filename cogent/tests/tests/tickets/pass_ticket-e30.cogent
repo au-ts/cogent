@@ -3,12 +3,12 @@ type B
 
 type R = #{f : A -> B}
 
-rec : R
-rec = #{f = a_to_b}
+r : R
+r = #{f = a_to_b}
 
 a_to_b : A -> B
 
 bar : R! -> ()
 
 foo : () -> ()
-foo _ = bar rec
+foo _ = bar r

@@ -90,16 +90,16 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do {- MaybeT TcSolvM -}
     | Left Unboxed <- s1 , Right i <- s2 = return $ Subst.ofSigil i Unboxed
     | Right i <- s1 , Left Unboxed <- s2 = return $ Subst.ofSigil i Unboxed
 
-  genStructSubst (R r s :~~ U i) = do
+  genStructSubst (R rp r s :~~ U i) = do
     s' <- case s of
             Left Unboxed -> return $ Left Unboxed
             _            -> Right <$> lift solvFresh
-    makeRowUnifSubsts (flip R s') r i
-  genStructSubst (U i :~~ R r s) = do
+    makeRowUnifSubsts (flip (R rp) s') r i
+  genStructSubst (U i :~~ R rp r s) = do
     s' <- case s of
             Left Unboxed -> return $ Left Unboxed
             _            -> Right <$> lift solvFresh
-    makeRowUnifSubsts (flip R s') r i
+    makeRowUnifSubsts (flip (R rp) s') r i
 
   -- variant rows
   genStructSubst (V r :< U i) = makeRowUnifSubsts V r i

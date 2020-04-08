@@ -130,12 +130,6 @@ applyToRow (Subst f) r = apply (Subst f) <$> Row.mapEntries (second (second subs
     substTk (Right u) | Just (Taken tk) <- M.lookup u f = Left tk
                       | otherwise = Right u
 
-applySigil :: Subst -> Either (Sigil ()) Int -> Either (Sigil ()) Int
-applySigil (Subst f) (Right x)
-  | Just (Sigil s) <- M.lookup x f
-  = Left s
-  | otherwise
-  = Right x
 
 applyAlts :: Subst -> [Alt TCPatn TCExpr] -> [Alt TCPatn TCExpr]
 applyAlts = map . applyAlt
