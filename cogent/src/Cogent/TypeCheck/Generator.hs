@@ -105,15 +105,16 @@ validateType (RT t) = do
     TRecord rp fs s | fields  <- map fst fs
                     , fields' <- nub fields
                     -> let toRow (T (TRecord rp fs s)) = R (coerceRP rp) (Row.fromList fs) (Left s)
-                       in if | fields' == fields -> case s of
-                                 Boxed _ (Just dlexpr)
-                                   | Left (anError : _) <- runExcept $ tcDataLayoutExpr layouts lvs dlexpr  -- layout is bad
-                                   -> freshTVar >>= \t' -> return (Unsat $ DataLayoutError anError, t') 
-                                 _ -> -- layout is good, or no layout
-                                      -- We have to pattern match on 'TRecord' otherwise it's a type error.
-                                      do (c, TRecord rp' fs' s') <- fmapFoldM validateType t
-                                         return (c, toRow. T $ TRecord rp' fs' (fmap (fmap toTCDL) s'))
-                             | otherwise -> freshTVar >>= \t' -> return (Unsat $ DuplicateRecordFields (fields \\ fields'), t')
+                       in if fields' == fields then
+                             case s of
+                               Boxed _ (Just dlexpr)
+                                 | Left (anError : _) <- runExcept $ tcDataLayoutExpr layouts lvs dlexpr  -- layout is bad
+                                 -> freshTVar >>= \t' -> return (Unsat $ DataLayoutError anError, t') 
+                               _ -> -- layout is good, or no layout
+                                    -- We have to pattern match on 'TRecord' otherwise it's a type error.
+                                    do (c, TRecord rp' fs' s') <- fmapFoldM validateType t
+                                       return (c, toRow. T $ TRecord rp' fs' (fmap (fmap toTCDL) s'))
+                          else freshTVar >>= \t' -> return (Unsat $ DuplicateRecordFields (fields \\ fields'), t')
                     | otherwise -> (second T) <$> fmapFoldM validateType (TRecord rp fs (fmap (fmap toTCDL) s))
 
     TVariant fs  -> do let tuplize [] = T TUnit
@@ -233,7 +234,7 @@ cgSubstedType (T (TLayout l t)) = cgSubstedLayout l
 cgSubstedType (T t) = foldMapM cgSubstedType t
 cgSubstedType (U x) = pure Sat
 cgSubstedType (V x) = foldMapM cgSubstedType x
-cgSubstedType (R x s) = (<>) <$> foldMapM cgSubstedType x <*> cgSubstedSigil s
+cgSubstedType (R _ x s) = (<>) <$> foldMapM cgSubstedType x <*> cgSubstedSigil s
 #ifdef BUILTIN_ARRAYS
 cgSubstedType (A t l s tkns) = (<>) <$> cgSubstedType t <*> cgSubstedSigil s
 #endif

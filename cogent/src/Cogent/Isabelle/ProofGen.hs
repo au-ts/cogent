@@ -134,7 +134,7 @@ data Type'
   | TString'
   | TSum' [(TagName, (Type', Bool))]
   | TProduct' Type' Type'
-  | TRecord' [(FieldName, (Type', Bool))] (Sigil (DargentLayout (DataLayout BitRange)))
+  | TRecord' RecursiveParameter [(FieldName, (Type', Bool))] (Sigil (DataLayout BitRange))
   | TUnit'
   deriving (Eq, Ord)
 
@@ -147,7 +147,7 @@ deepType' (TPrim' pt) = mkApp (mkId "TPrim") [deepPrimType pt]
 deepType' (TString') = mkApp (mkId "TPrim") [mkId "String"]
 deepType' (TSum' alts) = mkApp (mkId "TSum") [mkList $ map (\(n,(t,b)) -> mkPair (mkString n) (mkPair (deepType' t) (mkBool b))) alts]
 deepType' (TProduct' t1 t2) = mkApp (mkId "TProduct") [deepType' t1, deepType' t2]
-deepType' (TRecord' fs s) = mkApp (mkId "TRecord") [mkList $ map (\(fn,(t,b)) -> mkPair (deepType' t) (mkBool b)) fs, deepSigil s]
+deepType' (TRecord' rp fs s) = mkApp (mkId "TRecord") [mkList $ map (\(fn,(t,b)) -> mkPair (deepType' t) (mkBool b)) fs, deepSigil s]  -- FIXME: @rp@ / zilinc
 deepType' (TUnit') = mkId "TUnit"
 
 stripType :: Type t b -> Type'
@@ -160,7 +160,7 @@ stripType TString = TString'
 stripType (TSum ts) = TSum' (map (\(n,(t,b)) -> (n, (stripType t, b))) ts)
 stripType (TProduct t u) = TProduct' (stripType t) (stripType u)
 -- FIXME: recPars and isabelle
-stripType (TRecord _ fs s) = TRecord' (map (\(n,(t,b)) -> (n, (stripType t, b))) fs) s
+stripType (TRecord rp fs s) = TRecord' rp (map (\(n,(t,b)) -> (n, (stripType t, b))) fs) s
 stripType TUnit = TUnit'
 
 {-

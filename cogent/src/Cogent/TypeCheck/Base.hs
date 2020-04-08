@@ -21,17 +21,11 @@
 
 module Cogent.TypeCheck.Base where
 
-import Cogent.DataLayout.TypeCheck  ( DataLayoutTypeCheckError
-                                    , Allocation
-                                    , NamedDataLayouts
-                                    , typeCheckDataLayoutExpr
-                                    )
-import Cogent.DataLayout.Core       ( DataLayout
-                                    , BitRange
-                                    )
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
+import Cogent.Dargent.Allocation
+import Cogent.Dargent.TypeCheck
 import Cogent.Surface
 import Cogent.TypeCheck.ARow hiding (all, null)
 import Cogent.TypeCheck.Row (Row)
@@ -308,6 +302,7 @@ instance Bitraversable Constraint' where
   bitraverse f g (Exhaustive t ps)  = Exhaustive <$> f t <*> pure ps
   bitraverse f g (Solved t)         = Solved <$> f t
   bitraverse f g (IsPrimType t)     = IsPrimType <$> f t
+  bitraverse f g (UnboxedNotRecursive t) = UnboxedNotRecursive <$> f t
 #ifdef BUILTIN_ARRAYS
   bitraverse f g (Arith se)         = Arith <$> bitraverse f g se
   bitraverse f g (c1 :-> c2)        = (:->) <$> bitraverse f g c1 <*> bitraverse f g c2
@@ -334,7 +329,17 @@ warnToConstraint f w | f = SemiSat w
 
 data TCType         = T (Type TCSExpr TCDataLayout TCType)
                     | U Int  -- unifier
-                    | R (Row TCType) (Either (Sigil (Maybe TCDataLayout)) Int)
+                    | R RP (Row TCType) (Either (Sigil (Maybe TCDataLayout)) Int)
+                    | V (Row TCType)
+#ifdef BUILTIN_ARRAYS
+                    | A TCType TCSExpr (Either (Sigil (Maybe TCDataLayout)) Int) (Either (Maybe TCSExpr) Int)
+#endif
+                    | Synonym TypeName [TCType]
+                    deriving (Show, Eq, Ord)
+
+data SExpr t l      = SE { getTypeSE :: t, getExprSE :: Expr t (TPatn t) (TIrrefPatn t) l (SExpr t l) }
+                    | SU t Int
+                    deriving (Show, Eq, Ord)
 
 data RP = Mu RecParName | None | UP Int
           deriving (Show, Eq, Ord)
@@ -365,19 +370,7 @@ unroll v b (Just ctxt) =
     embedRecPar' ctxt (Synonym t ts) = Synonym t $ map (embedRecPar' ctxt) ts
     embedRecPar' ctxt t = t
 
-data TCType         = T (Type TCSExpr TCType)
-                    | U Int  -- unifier
-                    | R RP (Row TCType) (Either (Sigil (Maybe TCDataLayout)) Int)
-                    | V (Row TCType)
-#ifdef BUILTIN_ARRAYS
-                    | A TCType TCSExpr (Either (Sigil (Maybe TCDataLayout)) Int) (Either (Maybe TCSExpr) Int)
-#endif
-                    | Synonym TypeName [TCType]
-                    deriving (Show, Eq, Ord)
 
-data SExpr t l      = SE { getTypeSE :: t, getExprSE :: Expr t (TPatn t) (TIrrefPatn t) l (SExpr t l) }
-                    | SU t Int
-                    deriving (Show, Eq, Ord)
 
 typeOfSE :: SExpr t l -> t
 typeOfSE (SE t _) = t
@@ -698,7 +691,7 @@ substLayout vs (T (TLayout l t)) = T (TLayout (substLayoutL vs l) t)
 substLayout vs (T t) = T (fmap (substLayout vs) t)
 substLayout vs (U x) = U x
 substLayout vs (V x) = V $ substLayout vs <$> x
-substLayout vs (R x s) = R (substLayout vs <$> x) (bimap (fmap (fmap (substLayoutL vs))) id s)
+substLayout vs (R rp x s) = R rp (substLayout vs <$> x) (bimap (fmap (fmap (substLayoutL vs))) id s)
 #ifdef BUILTIN_ARRAYS
 substLayout vs (A t l s tkns) = A (substLayout vs t) l (bimap (fmap (fmap (substLayoutL vs))) id s) tkns
 #endif
@@ -770,7 +763,7 @@ unifLVarsS _ = []
 
 unifLVarsT :: TCType -> [Int]
 unifLVarsT (Synonym _ ts) = concatMap unifLVarsT ts
-unifLVarsT (R r s) = unifLVarsS s <> nub (concatMap unifLVarsT $ Row.allTypes r)
+unifLVarsT (R _ r s) = unifLVarsS s <> nub (concatMap unifLVarsT $ Row.allTypes r)
 unifLVarsT (V r) = nub (concatMap unifLVarsT $ Row.allTypes r)
 #ifdef BUILTIN_ARRAYS
 unifLVarsT (A t _ s _) = unifLVarsT t <> unifLVarsS s
@@ -789,7 +782,7 @@ unknowns :: TCType -> [Int]
 unknowns (U _) = []
 unknowns (Synonym n ts) = concatMap unknowns ts
 unknowns (V r) = concatMap unknowns (Row.allTypes r)
-unknowns (R r s) = concatMap unknowns (Row.allTypes r)
+unknowns (R _ r s) = concatMap unknowns (Row.allTypes r)
 unknowns (A t l s tkns) = unknowns t ++ unknownsE l ++ bifoldMap (foldMap unknownsE) (const mempty) tkns
 unknowns (T x) = foldMap unknowns x
 

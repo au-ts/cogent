@@ -113,7 +113,7 @@ unroll v (Just ctxt) = erp (Just ctxt) (ctxt M.! v)
     -- Context must be Nothing at this point
     erp c (TRPar v Nothing) = TRPar v c
 #ifdef BUILTIN_ARRAYS
-    erp c (TArray t s) = TArray (erp c t) s
+    erp c (TArray t l s h) = TArray (erp c t) l s h
 #endif
     erp _ t = t
 
@@ -218,15 +218,15 @@ substitute vs (TArray t l s mhole) = TArray (substitute vs t) (substituteLE vs l
 #endif
 
 substituteL :: [DataLayout BitRange] -> Type t b -> Type t b
-substituteL ls (TCon n ts s)    = TCon n (map (substituteL ls) ts) s
-substituteL ls (TFun ti to)     = TFun (substituteL ls ti) (substituteL ls to)
-substituteL ls (TProduct t1 t2) = TProduct (substituteL ls t1) (substituteL ls t2)
-substituteL ls (TRecord ts s)   = TRecord (map (second (first $ substituteL ls)) ts) (substituteS ls s)
-substituteL ls (TSum ts)        = TSum (map (second (first $ substituteL ls)) ts)
+substituteL ls (TCon n ts s)     = TCon n (map (substituteL ls) ts) s
+substituteL ls (TFun ti to)      = TFun (substituteL ls ti) (substituteL ls to)
+substituteL ls (TProduct t1 t2)  = TProduct (substituteL ls t1) (substituteL ls t2)
+substituteL ls (TRecord rp ts s) = TRecord rp (map (second (first $ substituteL ls)) ts) (substituteS ls s)
+substituteL ls (TSum ts)         = TSum (map (second (first $ substituteL ls)) ts)
 #ifdef BUILTIN_ARRAYS
 substituteL ls (TArray t l s mhole) = TArray (substituteL ls t) l (substituteS ls s) mhole
 #endif
-substituteL _  t                = t
+substituteL _  t                 = t
 
 substituteS :: [DataLayout BitRange] -> Sigil (DataLayout BitRange) -> Sigil (DataLayout BitRange)
 substituteS ls Unboxed = Unboxed
@@ -381,13 +381,13 @@ tc = flip tc' M.empty
         -> Map FunName (FunctionType b)  -- the reader
         -> Either String ([Definition TypedExpr a b], Map FunName (FunctionType b))
     tc' [] reader = return ([], reader)
-    tc' ((FunDef attr fn ts t rt e):ds) reader =
+    tc' ((FunDef attr fn ks ls t rt e):ds) reader =
       -- Enable recursion by inserting this function's type into the function type dictionary
-      let ft = FT (fmap snd ts) t rt in
-      case runTC (infer e >>= flip typecheck rt) (fmap snd ts, M.insert fn ft reader ) (Cons (Just t) Nil) of
+      let ft = FT (snd <$> ks) (snd <$> ls) t rt in
+      case runTC (infer e >>= flip typecheck rt) (fmap snd ks, M.insert fn ft reader) (Cons (Just t) Nil) of
         Left x -> Left x
-        Right (_, e') -> (first (FunDef attr fn ks ts t rt e':)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ts) t rt) reader)
-    tc' (d@(AbsDecl _ fn ks ts t rt):ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ts) t rt) reader)
+        Right (_, e') -> (first (FunDef attr fn ks ls t rt e':)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader)
+    tc' (d@(AbsDecl _ fn ks ls t rt):ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader)
     tc' (d:ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds reader
 
 tc_ :: (Show b, Eq b, Pretty b, a ~ b)
@@ -502,7 +502,7 @@ infer (E (ArrayMap2 (as,f) (e1,e2)))
         f' <- withBindings (Cons te2 (Cons te1 Nil)) $ infer f
         let t = case __cogent_ftuples_as_sugar of
                   False -> TProduct t1 t2
-                  True  -> TRecord (zipWith (\f t -> (f,(t,False))) tupleFieldNames [t1,t2]) Unboxed
+                  True  -> TRecord NonRec (zipWith (\f t -> (f,(t,False))) tupleFieldNames [t1,t2]) Unboxed
         return $ TE t $ ArrayMap2 (as,f') (e1',e2')
 infer (E (Pop a e1 e2))
    = do e1'@(TE t1 _) <- infer e1
