@@ -130,6 +130,17 @@ sinkfloat = Rewrite.rewrite' $ \gs ->
       | Left Unboxed <- s1 , Right i <- s2 = return $ Subst.ofSigil i Unboxed
       | Right i <- s1 , Left Unboxed <- s2 = return $ Subst.ofSigil i Unboxed
 
+    genStructSubst (R rp r s :~~ U i) = do
+      s' <- case s of
+              Left Unboxed -> return $ Left Unboxed
+              _            -> Right <$> lift solvFresh
+      makeRowUnifSubsts (flip (R rp) s') r i
+    genStructSubst (U i :~~ R rp r s) = do
+      s' <- case s of
+              Left Unboxed -> return $ Left Unboxed
+              _            -> Right <$> lift solvFresh
+      makeRowUnifSubsts (flip (R rp) s') r i
+
     -- variant rows
     genStructSubst _ (V r :< U i) =
       makeRowUnifSubsts V (filter (not . Row.taken) (Row.entries r)) i
@@ -176,6 +187,9 @@ sinkfloat = Rewrite.rewrite' $ \gs ->
       , Just rv <- Row.var r1
          = makeRowShapeSubsts rv r2
 
+    genStructSubst (V r :~~ U i) = makeRowUnifSubsts V r i
+    genStructSubst (U i :~~ V r) = makeRowUnifSubsts V r i
+
     -- tuples
     genStructSubst _ (T (TTuple ts) :< U i) = makeTupleUnifSubsts ts i
     genStructSubst _ (U i :< T (TTuple ts)) = makeTupleUnifSubsts ts i
@@ -199,18 +213,6 @@ sinkfloat = Rewrite.rewrite' $ \gs ->
     genStructSubst _ (U i :< t@(T TUnit)) = return $ Subst.ofType i t
     genStructSubst _ (t@(T TUnit) :=: U i) = return $ Subst.ofType i t
     genStructSubst _ (U i :=: t@(T TUnit)) = return $ Subst.ofType i t
-
-    -- layout
-    genStructSubst (R r s :~~ U i) = do
-      s' <- case s of
-              Left Unboxed -> return $ Left Unboxed
-              _            -> Right <$> lift solvFresh
-      makeRowUnifSubsts (flip R s') r i
-    genStructSubst (U i :~~ R r s) = do
-      s' <- case s of
-              Left Unboxed -> return $ Left Unboxed
-              _            -> Right <$> lift solvFresh
-      makeRowUnifSubsts (flip R s') r i
 
     -- default
     genStructSubst _ _ = empty

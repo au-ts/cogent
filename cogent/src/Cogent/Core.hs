@@ -132,7 +132,7 @@ unroll v (Just ctxt) = erp (Just ctxt) (ctxt M.! v)
     -- Context must be Nothing at this point
     erp c (TRPar v Nothing) = TRPar v c
 #ifdef BUILTIN_ARRAYS
-    erp c (TArray t s) = TArray (erp c t) s
+    erp c (TArray t e s h) = TArray (erp c t) e s h
 #endif
     erp _ t = t
 unroll v _ = __impossible "unroll in core given an empty context - this usually means a recursive parameter was not unrolled before being used"
@@ -283,7 +283,7 @@ instance Monoid Attr where
 
 data Definition e a b
   = forall t l. (Pretty a, Pretty b, Pretty (e t ('Suc 'Zero) a b))
-           => FunDef  Attr FunName (Vec t (TyVarName, Kind)) (Vec l (DLVarName, Type t b)) (Type t b) (Type t b) (e t ('Suc 'Zero) a b)
+             => FunDef  Attr FunName (Vec t (TyVarName, Kind)) (Vec l (DLVarName, Type t b)) (Type t b) (Type t b) (e t ('Suc 'Zero) a b)
   | forall t l. AbsDecl Attr FunName (Vec t (TyVarName, Kind)) (Vec l (DLVarName, Type t b)) (Type t b) (Type t b)
   | forall t. TypeDef TypeName (Vec t TyVarName) (Maybe (Type t b))
 deriving instance (Show a, Show b) => Show (Definition TypedExpr   a b)

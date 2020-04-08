@@ -105,7 +105,7 @@ validateType (RT t) = do
 
     TRecord rp fs s | fields  <- map fst fs
                     , fields' <- nub fields
-                   -> let toRow (T (TRecord fs s)) = R (coerceRP rp) (Row.complete $ Row.toEntryList fs) (Left (fmap (const ()) s))
+                   -> let toRow (T (TRecord rp fs s)) = R (coerceRP rp) (Row.complete $ Row.toEntryList fs) (Left (fmap (const ()) s))
                       in if fields' == fields
                            then case s of
                              Boxed _ (Just dlexpr)
@@ -260,7 +260,7 @@ cgSubstedType (T (TLayout l t)) = cgSubstedLayout l
 cgSubstedType (T t) = foldMapM cgSubstedType t
 cgSubstedType (U x) = pure Sat
 cgSubstedType (V x) = foldMapM cgSubstedType x
-cgSubstedType (R x s) = (<>) <$> foldMapM cgSubstedType x <*> cgSubstedSigil s
+cgSubstedType (R _ x s) = (<>) <$> foldMapM cgSubstedType x <*> cgSubstedSigil s
 #ifdef BUILTIN_ARRAYS
 cgSubstedType (A t l s tkns) = (<>) <$> cgSubstedType t <*> cgSubstedSigil s
 #endif

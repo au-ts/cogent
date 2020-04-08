@@ -9,6 +9,6 @@
 --
 
 foo : { x : U8, y : U32 } take () -> { x : U8, y : U32 } take ()
-foo rec = 
-   let rec' { x = xval, y = yval } = rec
-   in rec' { x = xval + 1, y = yval + 2 }
+foo r = 
+   let r' { x = xval, y = yval } = r
+   in r' { x = xval + 1, y = yval + 2 }

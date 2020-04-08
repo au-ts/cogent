@@ -21,6 +21,7 @@ module Cogent.Surface
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
+import Cogent.Dargent.Surface
 import Cogent.Util
 
 import Control.Applicative
@@ -39,7 +40,6 @@ import Data.IntMap as IM (IntMap)
 import qualified Data.Map as M
 import Text.Parsec.Pos
 
-import Cogent.Dargent.Surface
 
 type DocString = String
 
@@ -116,7 +116,7 @@ data Type e l t =
                   TCon TypeName [t] (Sigil (Maybe l))
                 | TVar VarName Banged Unboxed
                 | TFun t t
-                | TRecord ResursiveRarameter [(FieldName, (t, Taken))] (Sigil (Maybe l))
+                | TRecord RecursiveParameter [(FieldName, (t, Taken))] (Sigil (Maybe l))
                 | TVariant (M.Map TagName ([t], Taken))
                 | TTuple [t]
                 | TUnit
@@ -144,8 +144,6 @@ data Type e l t =
                 | TLayout l t
                 deriving (Show, Functor, Data, Eq, Ord, Foldable, Traversable)
 
--- recursive parameter names to the type it recursively references
-type RecContext t = M.Map RecParName t 
 
 -- A few commonly used typed
 u8   = TCon "U8"   [] Unboxed
@@ -304,7 +302,7 @@ instance Traversable (Flip2 Type t l) where  -- e
   traverse _ (Flip2 (TCon n ts s))        = pure $ Flip2 (TCon n ts s)
   traverse _ (Flip2 (TVar v b u))         = pure $ Flip2 (TVar v b u)
   traverse _ (Flip2 (TFun t1 t2))         = pure $ Flip2 (TFun t1 t2)
-  traverse _ (Flip2 (TRecord fs s))       = pure $ Flip2 (TRecord fs s)
+  traverse _ (Flip2 (TRecord rp fs s))    = pure $ Flip2 (TRecord rp fs s)
   traverse _ (Flip2 (TVariant alts))      = pure $ Flip2 (TVariant alts)
   traverse _ (Flip2 (TTuple ts))          = pure $ Flip2 (TTuple ts)
   traverse _ (Flip2 (TUnit))              = pure $ Flip2 (TUnit)
@@ -584,7 +582,7 @@ tvA (Alt _ _ e) = tvE e
 lvT :: RawType -> [DLVarName]
 lvT (RT (TLayout l _)) = lvL l
 lvT (RT (TFun t1 t2)) = lvT t1 ++ lvT t2
-lvT (RT (TRecord fs _)) = foldMap (lvT . fst . snd) fs
+lvT (RT (TRecord _ fs _)) = foldMap (lvT . fst . snd) fs
 lvT (RT (TVariant alts)) = foldMap (foldMap lvT . fst) alts
 lvT (RT (TTuple ts)) = foldMap lvT ts
 #ifdef BUILTIN_ARRAYS

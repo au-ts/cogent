@@ -569,11 +569,11 @@ desugarType = \case
         (False, False) -> TVar v
   B.DT (S.TFun ti to)    -> TFun <$> desugarType ti <*> desugarType to
   B.DT (S.TRecord rp fs Unboxed) -> TRecord rp <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType t) fs <*> pure Unboxed
-  B.DT (S.TRecord rp fs sigil)  -> do
+  B.DT (S.TRecord rp fs sigil) -> do
     -- Making an unboxed record is necessary here because of how `desugarSigil`
     -- is defined.
-    unboxedDesugared@(TRecord rp' fs' Unboxed) <- desugarType $ B.DT (S.TRecord rp fs Unboxed)
-    TRecord rp' <$> pure fs' <*> pure (desugarSigil unboxedDesugared sigil)
+    TRecord rp' fs' Unboxed <- desugarType $ B.DT (S.TRecord rp fs Unboxed)
+    TRecord rp' <$> pure fs' <*> desugarSigil sigil
   B.DT (S.TVariant alts) -> TSum <$> mapM (\(c,(ts,x)) -> (c,) . (,x) <$> desugarType (group ts)) (M.toList alts)
     where group [] = B.DT S.TUnit
           group (t:[]) = t

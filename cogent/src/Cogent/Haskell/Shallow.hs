@@ -356,7 +356,7 @@ typeParam   = "t"
 --
 --   __ASSUME:__ @'isRecOrVar' input == 'True'@
 typeStr :: CC.Type t b -> TypeStr
-typeStr (CC.TRecord fs _) = RecordStr $ P.map fst fs
+typeStr (CC.TRecord _ fs _) = RecordStr $ P.map fst fs
 typeStr (CC.TSum alts) = VariantStr $ sort $ P.map fst alts
 typeStr _ = __impossible "Precondition failed: isRecOrVar input == True"
 
@@ -370,7 +370,7 @@ isRecOrVar _ = False
 --
 --   __ASSUME:__ @'isRecOrVar' input == 'True'@
 typeComponents :: CC.Type t b -> [(String, CC.Type t b)]
-typeComponents (CC.TRecord fs _) = P.map (second fst) fs
+typeComponents (CC.TRecord rp fs _) = P.map (second fst) fs  -- FIXME: deal with @rp@ / zilinc
 typeComponents (CC.TSum alts) = P.map (second fst) $ sortBy (compare `on` fst) alts
   -- \ ^^^ NOTE: this sorting must stay in-sync with the algorithm `toTypeStr` in ShallowTable.hs / zilinc
 typeComponents _ = __impossible "Precondition failed: isRecOrVar input == True"
@@ -464,12 +464,12 @@ shallowType (CC.TPrim pt) = pure $ shallowPrimType pt
 shallowType (CC.TString) = pure . mkTyConT $ mkName "String"
 shallowType (CC.TSum alts) = shallowTypeNominal (CC.TSum alts)
 shallowType (CC.TProduct t1 t2) = mkTupleT <$> sequence [shallowType t1, shallowType t2]
-shallowType (CC.TRecord fs s) = do
+shallowType (CC.TRecord rp fs s) = do  -- FIXME: @rp@ / zilinc
   tuples <- view recoverTuples
   if tuples && isRecTuple (map fst fs) then
     shallowRecTupleType fs
   else
-    shallowTypeNominal (CC.TRecord fs s)
+    shallowTypeNominal (CC.TRecord rp fs s)
 shallowType (CC.TUnit) = pure $ TyCon () $ Special () $ UnitCon ()
 #ifdef BUILTIN_ARRAYS
 shallowType (CC.TArray t _ _ _) = mkListT <$> shallowType t
@@ -577,7 +577,7 @@ shallowExpr (TE _ (CC.Split (n1,n2) e1 e2)) = do
   shallowLet s2 [(n1,n1'),(n2,n2')] (PTuple () Boxed [p1,p2]) e1 e2
 
 shallowExpr (TE _ (CC.Member rec fld)) = do
-  let (CC.TRecord fs _) = exprType rec
+  let (CC.TRecord _ fs _) = exprType rec
   shallowGetter' rec (map fst fs) fld =<< shallowExpr rec
 
 shallowExpr (TE _ (CC.Take (n1,n2) rec fld e)) = do
@@ -586,14 +586,14 @@ shallowExpr (TE _ (CC.Take (n1,n2) rec fld e)) = do
   n2' <- getSafeBinder n2
   let pf = pvar . mkName $ snm n1'  -- taken field
       pr = pvar . mkName $ snm n2'  -- new record
-      rect@(CC.TRecord fs _) = exprType rec
+      rect@(CC.TRecord _ fs _) = exprType rec
   f' <- shallowGetter' rec (map fst fs) fld rec'
   e' <- local (addBindings [(n1,n1'),(n2,n2')]) $ shallowExpr e
   pure $ mkLetE [(pr,rec'), (pf,f')] e'
 
 shallowExpr (TE _ (CC.Put rec fld e)) = do
   rec' <- shallowExpr rec
-  let rect@(CC.TRecord fs _) = exprType rec
+  let rect@(CC.TRecord _ fs _) = exprType rec
   rect' <- shallowType rect
   e' <- shallowExpr e
   shallowSetter rec (map fst fs) fld rec' rect' e'
@@ -659,7 +659,7 @@ getSafeBinder v = do
     else return v
 
 getRecordFieldName :: TypedExpr t v VarName b -> FieldIndex -> FieldName
-getRecordFieldName rec idx | CC.TRecord fs _ <- exprType rec = P.map fst fs !! idx
+getRecordFieldName rec idx | CC.TRecord _ fs _ <- exprType rec = P.map fst fs !! idx
 getRecordFieldName _ _ = __impossible "input should be of record type"
 
 -- | @'shallowGetter' rec idx rec\'@:
@@ -690,7 +690,7 @@ shallowGetter' rec fnms idx rec' = do
   tuples <- view recoverTuples
   if | tuples, isRecTuple fnms -> shallowGetter rec fnms idx rec'
      | otherwise -> do
-         let t@(CC.TRecord fs _) = exprType rec
+         let t@(CC.TRecord _ fs _) = exprType rec
          vs <- mapM (\_ -> freshInt <<+= 1) fs
          (tn,_) <- nominalType t
          let bs = P.map (\v -> mkName $ internalVar ++ show v) vs

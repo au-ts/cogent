@@ -134,12 +134,6 @@ apply f (T x) = T (fmap (apply f) x)
 apply f (Synonym n ts) = Synonym n (fmap (apply f) ts)
 
 
-applySigil :: Subst -> Either (Sigil ()) Int -> Either (Sigil ()) Int
-applySigil (Subst f) (Right x)
-  | Just (Sigil s) <- M.lookup x f
-  = Left s
-  | otherwise
-  = Right x
 
 applyAlts :: Subst -> [Alt TCPatn TCExpr] -> [Alt TCPatn TCExpr]
 applyAlts = map . applyAlt
