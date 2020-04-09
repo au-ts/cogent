@@ -316,6 +316,7 @@ class Test:
         return self.run_tests(context, self.config.settings)
 
     def run_tests(self, context, tests):
+        results = []
         for test in tests:
             self.print_test_header(test['test_name'])
             for f in test['files']:
@@ -375,7 +376,7 @@ class Configurations:
 # Main script
 #
 
-if __name__ == "__main__":
+def main():
     ap = argparse.ArgumentParser(
         description="Cogent Testing Framework",
         epilog="Test configurations must be stored in a '{}' file".format(
@@ -457,8 +458,8 @@ if __name__ == "__main__":
         tests = list(map(lambda config: Test(config), configs.get_configs()))
 
         for test in tests:
-            for res in test.run_all(context):
-                results.append(res)
+            subresults = test.run_all(context)
+            results.extend(subresults)
 
     all_passed = True
 
@@ -498,3 +499,8 @@ if __name__ == "__main__":
 
     if not all(final_results):
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
+
