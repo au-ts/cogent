@@ -21,7 +21,7 @@ if [ ! -z "$COGENT_REPO" ]; then
     exit 1
   fi
 else
-  echo "type_proof.sh requires \$COGENT_REPO"
+  echo "type_proof.sh requires COGENT_REPO"
   exit 1
 fi
 

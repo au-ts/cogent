@@ -776,7 +776,7 @@ desugarExpr (B.TE _ (S.Tuple es) _) = do
   -- vvv See NOTE [sorting tuple fields] above.
   fs <- L.sortOn fst . P.zip (P.map (('p':) . show) [1 :: Integer ..]) <$> mapM desugarExpr es
   return . E $ Struct fs  -- \| __cogent_ftuples_as_sugar
-desugarExpr (B.TE _ (S.UnboxedRecord fs) _) = E . Struct <$> mapM (\(f,e) -> (f,) <$> desugarExpr e) fs
+desugarExpr (B.TE _ (S.UnboxedRecord fs) _) = E . Struct . sortOn fst <$> mapM (\(f,e) -> (f,) <$> desugarExpr e) fs
 desugarExpr (B.TE _ (S.Let [] e) _) = __impossible "desugarExpr (Let)"
 desugarExpr (B.TE _ (S.Let [S.Binding p mt e0 []] e) _) = desugarAlt' e0 (S.PIrrefutable p) e
 desugarExpr (B.TE _ (S.Let [S.Binding (B.TIP (S.PVar v) _) mt e0 bs] e) _) = do
