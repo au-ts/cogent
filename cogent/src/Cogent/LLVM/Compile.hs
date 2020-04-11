@@ -44,6 +44,7 @@ import           LLVM.AST.Type
 import           LLVM.AST.Typed                 (typeOf)
 import           LLVM.Context
 import           LLVM.Module
+import  LLVM.AST.IntegerPredicate as IntP
 
 import           Debug.Trace                    (trace)
 
@@ -108,8 +109,8 @@ cogentType (TRecord ts _) = -- don't know how to deal with sigil
                 }
 cogentType (TUnit) = VoidType
 cogentType (TProduct a b) = StructureType { isPacked = False
-                                        , elementTypes = [ cogentType a, cogentType b ]
-                                        }
+                                          , elementTypes = [ cogentType a, cogentType b ]
+                                          }
 cogentType (TString )= LLVM.AST.Type.PointerType { pointerReferent = IntegerType 8 }
 #ifdef BUILTIN_ARRAYS
 cogentType (TArray t s) = ArrayType { nArrayElements = s
@@ -347,6 +348,48 @@ expr_to_llvm (TE _ (Take (a, b) recd fld body)) =
       Right trm -> return (Right trm)
 
 
+expr_to_llvm (TE _ (Let _ val body)) = -- it seems that the variable name is not used here
+    do
+      _v <- (expr_to_llvm val)
+      let v = Data.Either.fromLeft (error "let cannot bind a terminator") _v
+      vars <- gets indexing
+      modify (\s -> s { indexing = [v] ++ vars })
+      res <- expr_to_llvm body
+      case res of
+        Left val -> ((terminator (Do (Ret (Just val) [])) ) >>= (\a -> return (Right a)))
+        Right trm -> return (Right trm)
+
+
+expr_to_llvm (TE _ (If cd tb fb)) =
+  do
+    _cond <- (expr_to_llvm cd)
+    cond <- instr (IntegerType 1) (ICmp { iPredicate = IntP.EQ
+                           , operand0 = Data.Either.fromLeft (error "cond cannot be a terminator") _cond
+                           , operand1 = ConstantOperand C.Int { C.integerBits = 1, C.integerValue = 1}
+                           , LLVM.AST.Instruction.metadata = []
+                           })
+    currentBlk <- gets currentBlock
+    blkTrue <- addBlock "brTrue"
+    blkFalse <- addBlock "brFalse"
+    -- blkEnd <- addBlock "brEnd"
+    setBlock blkTrue
+    _tb <- (expr_to_llvm tb)
+    case _tb of
+      Left val -> (terminator (Do (Ret (Just val) [])) )
+      Right trm -> terminator trm
+    setBlock blkFalse
+    _fb <- (expr_to_llvm fb)
+    case _fb of
+      Left val -> (terminator (Do (Ret (Just val) [])) )
+      Right trm -> terminator trm
+    setBlock currentBlk
+    (terminator (Do (CondBr { condition = cond
+                                         , trueDest = blkTrue
+                                         , falseDest = blkFalse
+                                         , metadata' = []
+                                         }))) >>= (\a -> return (Right a))
+
+
 
 expr_to_llvm r@(TE rect (Struct flds)) =
   do
@@ -430,11 +473,15 @@ toLLVMDef (AbsDecl attr name ts t rt) =
 -- if passing in struct, it should be a pointer
 toLLVMDef (FunDef attr name ts t rt body) =
   def (toShort (Data.ByteString.Internal.packChars name))
-      [((LLVM.AST.PointerType { pointerReferent = (cogentType t)
-                              , pointerAddrSpace = AddrSpace 0}),
+      [(argType t,
          (UnName 0))]
       (cogentType rt)
       (\ptr -> (expr_to_llvm body))
+  where argType at@(TRecord _ _) = (LLVM.AST.PointerType { pointerReferent = (cogentType at)
+                                                       , pointerAddrSpace = AddrSpace 0})
+        argType at@(TProduct _ _) = (LLVM.AST.PointerType { pointerReferent = (cogentType at)
+                                                        , pointerAddrSpace = AddrSpace 0})
+        argType at = cogentType at
     --expandMod (GlobalDefinition
     --           (functionDefaults { LLVM.AST.Global.name = Name (toShort (Data.ByteString.Internal.packChars name))
      --                            , parameters = ([Parameter (cogentType t) "" []], False)
