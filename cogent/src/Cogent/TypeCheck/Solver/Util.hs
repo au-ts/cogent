@@ -51,4 +51,8 @@ debugFail pfx show = RewriteT (\cs -> traceTc "rewrite" (text pfx <$$> text (sho
 debugPass :: (MonadIO m) => String -> (a -> String) -> RewriteT m a
 debugPass pfx show = RewriteT (\cs -> traceTc "rewrite" (text pfx <$$> text (show cs)) >> return cs)
 
+-- | Print debugging information as above, but counts as a successful rewrite.
+--   Useful for putting debugging after another rewrite, if you only want to print on success.
+debugStr :: (Monad m, MonadIO m) => String -> String -> RewriteT m a
+debugStr ctx msg = RewriteT (const $ traceTc ctx (text msg) >> empty)
 

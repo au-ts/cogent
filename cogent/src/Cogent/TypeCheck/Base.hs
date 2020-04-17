@@ -759,8 +759,8 @@ unifLVarsS _ = []
 
 unifLVarsT :: TCType -> [Int]
 unifLVarsT (Synonym _ ts) = concatMap unifLVarsT ts
-unifLVarsT (R _ r s) = unifLVarsS s <> nub (concatMap unifLVarsT $ Row.allTypes r)
-unifLVarsT (V r) = nub (concatMap unifLVarsT $ Row.allTypes r)
+unifLVarsT (R _ r s) = unifLVarsS s <> nub (concatMap unifLVarsT $ Row.payloads r)
+unifLVarsT (V r) = nub (concatMap unifLVarsT $ Row.payloads r)
 #ifdef BUILTIN_ARRAYS
 unifLVarsT (A t _ s _) = unifLVarsT t <> unifLVarsS s
 #endif
@@ -777,8 +777,8 @@ unifVarsE (SU t _) = unifVars t
 unknowns :: TCType -> [Int]
 unknowns (U _) = []
 unknowns (Synonym n ts) = concatMap unknowns ts
-unknowns (V r) = concatMap unknowns (Row.allTypes r)
-unknowns (R _ r s) = concatMap unknowns (Row.allTypes r)
+unknowns (V r) = concatMap unknowns (Row.payloads r)
+unknowns (R _ r s) = concatMap unknowns (Row.payloads r)
 unknowns (A t l s tkns) = unknowns t ++ unknownsE l ++ bifoldMap (foldMap unknownsE) (const mempty) tkns
 unknowns (T x) = foldMap unknowns x
 

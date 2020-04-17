@@ -112,14 +112,13 @@ apply sub@(Subst f) (R rp r s)
   | Just rv <- Row.var r
   , Just (Row e) <- M.lookup rv f =
     case e of
-      Left r' -> apply sub (R (Row.expand r r') s)
-      Right sh -> apply sub (R (Row.close r sh) s)
+      Left  r' -> apply sub (R rp (Row.expand r r') s)
+      Right sh -> apply sub (R rp (Row.close  r sh) s)
 apply (Subst f) t@(R rp r (Right x))
   | Just (Sigil s) <- M.lookup x f = apply (Subst f) (R rp r (Left s))
 apply f (V x) = V (fmap (apply f) x)
 apply (Subst f) (R (UP x) r s)
   | Just (RecP rp) <- M.lookup x f = apply (Subst f) (R rp r s)
-apply f (RPar v m) = RPar v (fmap (fmap (apply f)) m)
 apply f (R rp x s) = R rp (fmap (apply f) x) s
 #ifdef BUILTIN_ARRAYS
 apply (Subst f) (A t l (Right x) mhole)

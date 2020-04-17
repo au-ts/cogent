@@ -40,7 +40,7 @@ import           Control.Monad
 import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.Trans.Class (lift)
-import           Data.List (elemIndex, null)
+import           Data.List as L (elemIndex, isSubsequenceOf, null, (\\))
 import qualified Data.Map as M
 import           Data.Maybe
 import qualified Data.Set as S
@@ -102,21 +102,21 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   Escape (T (TTuple xs)) m -> hoistMaybe $ Just (map (flip Escape m) xs)
 
   Share  (V r) m | Row.isComplete r ->
-    Just (map (flip Share  m) (Row.presentPayloads r))
+    hoistMaybe $ Just (map (flip Share  m) (Row.presentPayloads r))
   Drop   (V r) m | Row.isComplete r ->
-    Just (map (flip Drop   m) (Row.presentPayloads r))
+    hoistMaybe $ Just (map (flip Drop   m) (Row.presentPayloads r))
   Escape (V r) m | Row.isComplete r ->
-    Just (map (flip Escape m) (Row.presentPayloads r))
+    hoistMaybe $ Just (map (flip Escape m) (Row.presentPayloads r))
 
   Share  (R _ r (Left s)) m
     | Row.isComplete r
-    , not (writable s) -> Just (map (flip Share  m) (Row.presentPayloads r))
+    , not (writable s) -> hoistMaybe $ Just (map (flip Share  m) (Row.presentPayloads r))
   Drop   (R _ r (Left s)) m
     | Row.isComplete r
-    , not (writable s) -> Just (map (flip Drop   m) (Row.presentPayloads r))
+    , not (writable s) -> hoistMaybe $ Just (map (flip Drop   m) (Row.presentPayloads r))
   Escape (R _ r (Left s)) m
     | Row.isComplete r
-    , not (readonly s) -> Just (map (flip Escape m) (Row.presentPayloads r))
+    , not (readonly s) -> hoistMaybe $ Just (map (flip Escape m) (Row.presentPayloads r))
 
 #ifdef BUILTIN_ARRAYS
   Share  (A t _ (Left s) _) m | not (writable s) -> hoistMaybe $ Just [Share  t m]  -- TODO: deal with the taken fields!!! / zilinc
@@ -162,24 +162,28 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   TLRepRef _ _   :~ _ -> hoistMaybe Nothing
   TLRecord fs    :~ R _ _ (Left (Boxed _ (Just l))) -> hoistMaybe $ Just [l :~< TLRecord fs]
   TLRecord fs    :~ R _ r (Left (Boxed _ Nothing))
-    | ls <- LRow.entries $ LRow.fromList $ (\(a,b,c) -> (a,c,())) <$> fs
-    , rs <- Row.entries r
+    | ls <- M.fromList $ (\(f,_,l) -> (f,l)) <$> fs
+    , rs <- M.fromList $ Row.unE <$> Row.entries r
     , cs <- M.intersectionWith (,) ls rs
     , M.null $ M.difference rs cs
-    -> hoistMaybe $ Just $ (\((_,e,_),(_,(t,_))) -> e :~ toBoxedType t) <$> M.elems cs
+    -> hoistMaybe $ Just $ (\(e,(t,_)) -> e :~ toBoxedType t) <$> M.elems cs
   TLRecord _     :~ R _ _ (Right _) -> __todo "TLRecord fs :~ R r1 (Right n) => is this possible?"
+
   TLVariant _ fs :~ V r
-    | ls <- LRow.entries $ LRow.fromList $ (\(a,b,c,d) -> (a,d,c)) <$> fs
-    , rs <- Row.entries r
+    | ls <- M.fromList $ (\(f,_,_,l) -> (f,l)) <$> fs
+    , rs <- M.fromList $ Row.unE <$> Row.entries r
     , cs <- M.intersectionWith (,) ls rs
     , M.null $ M.difference rs cs
-    -> hoistMaybe $ Just $ (\((_,e,_),(_,(t,_))) -> e :~ toBoxedType t) <$> M.elems cs
+    -> hoistMaybe $ Just $ (\(e,(t,_)) -> e :~ toBoxedType t) <$> M.elems cs
+
 #ifdef BUILTIN_ARRAYS
   TLArray e _    :~ A _ _ (Left (Boxed _ (Just l))) _ -> hoistMaybe $ Just [l :~< e]
   TLArray e _    :~ A t _ (Left (Boxed _ Nothing)) _ -> hoistMaybe $ Just [e :~ t]
   TLArray e _    :~ A _ _ (Right _) _ -> __todo "TLArray e p :~ A t l (Right n) h => is this possible?"
 #endif
+
   TLOffset e _   :~ tau -> hoistMaybe $ Just [e :~ tau]
+
   TLPrim n       :~ tau
     | isPrimType tau
     , primTypeSize tau <= evalSize n
@@ -187,8 +191,10 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
     | isBoxedType tau
     , evalSize n == pointerSizeBits
     -> hoistMaybe $ Just []
+
   TLPtr          :~ tau
     | isBoxedType tau -> hoistMaybe $ Just []
+
   l              :~ T (TBang tau)    -> hoistMaybe $ Just [l :~ tau]
   l              :~ T (TTake _ tau)  -> hoistMaybe $ Just [l :~ tau]
   l              :~ T (TPut  _ tau)  -> hoistMaybe $ Just [l :~ tau]
@@ -206,55 +212,57 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   TLVar v1         :~< TLVar v2      | v1 == v2 -> hoistMaybe $ Just []
   TLPrim n1        :~< TLPrim n2     | n1 <= n2 -> hoistMaybe $ Just []
   TLOffset e1 _    :~< TLOffset e2 _ -> hoistMaybe $ Just [e1 :~< e2]
+
   TLRecord fs1     :~< TLRecord fs2
     | r1 <- LRow.fromList $ map (\(a,b,c) -> (a,c,())) fs1
     , r2 <- LRow.fromList $ map (\(a,b,c) -> (a,c,())) fs2
     , r1 `LRow.isSubRow` r2
     -> hoistMaybe $ Just $ (\((_,l1,_),(_,l2,_)) -> l1 :~< l2) <$> LRow.common r1 r2
+
   TLVariant e1 fs1 :~< TLVariant e2 fs2
     | r1 <- LRow.fromList $ map (\(a,b,c,d) -> (a,d,c)) fs1
     , r2 <- LRow.fromList $ map (\(a,b,c,d) -> (a,d,c)) fs2
     , r1 `LRow.isSubRow` r2
     -> hoistMaybe $ Just $ ((\((_,l1,_),(_,l2,_)) -> l1 :~< l2) <$> LRow.common r1 r2) <> [e1 :~< e2]
+
 #ifdef BUILTIN_ARRAYS
   TLArray e1 _     :~< TLArray e2 _ -> hoistMaybe $ Just [e1 :~< e2]
 #endif
+
   l1               :~< l2 | TLU _ <- l1 -> hoistMaybe Nothing
                           | TLU _ <- l2 -> hoistMaybe Nothing
-                          | otherwise   -> do
-    traceM ("l1: " ++ show l1 ++ "\nl2: " ++ show l2 ++ "\n")
-    unsat $ LayoutsNotCompatible l1 l2
+                          | otherwise   -> unsat $ LayoutsNotCompatible l1 l2  -- FIXME!
 
   T (TVar n1 _ _) :~~ T (TVar n2 _ _) | n1 == n2 -> hoistMaybe $ Just []
   Synonym _ _     :~~ _               -> hoistMaybe Nothing
   _               :~~ Synonym _ _     -> hoistMaybe Nothing
 
   R rp1 r1 s1 :~~ R rp2 r2 s2
-    | Row.null r1, (Just c) <- doSigilMatch (rmF s1) (rmF s2) -> hoistMaybe $ Just c
-    | Just (r1',r2') <- extractVariableEquality r1 r2 -> hoistMaybe $ Just [R rp1 r1' s1 :~~ R rp2 r2' s2]
-    | otherwise -> do
-        let commons  = Row.common r1 r2
-        guard (not (L.null commons))
-        let (r1',r2') = Row.withoutCommon r1 r2
-            cs = map (\ ((_, e),(_,e')) -> fst e :~~ fst e') commons
-            c  = R rp1 r1' s1 :~~ R rp1 r2' s2
-        hoistMaybe $ Just (c:cs)
-  V r1 :~~ V r2 | Row.null r1 -> hoistMaybe $ Just []
-                | Just (r1',r2') <- extractVariableEquality r1 r2 -> hoistMaybe $ Just [V r1' :~~ V r2']
-                | otherwise -> do
-    let commons = Row.common r1 r2
-        (ls, rs) = unzip commons
-    guard (not (L.null commons))
-    let (r1', r2') = Row.withoutCommon r1 r2
-        cs = map (\((_,e), (_,e')) -> fst e :~~ fst e') commons
-        c = V r1' :~~ V r2'
-    hoistMaybe $ Just (c:cs)
+    | Row.isEmpty r1
+    , Just c <- doSigilMatch (rmF s1) (rmF s2)
+    , sameRecursive rp1 rp2
+    -> hoistMaybe $ Just c
+    | Row.isComplete r1 && Row.isComplete r2
+    , psub r2 r1
+    -> let commons  = Row.common r1 r2 in
+       do guard (not (null commons))
+          let cs = map (\ (e,e') -> Row.payload e :~~ Row.payload e') commons
+              ds = map (flip Drop ImplicitlyTaken) $ Row.extract (pdiff r1 r2) r1
+          hoistMaybe $ Just (cs ++ ds)
+
+  V r1 :~~ V r2 | Row.isEmpty r1 -> hoistMaybe $ Just []
+                | Row.isComplete r1 && Row.isComplete r2 && peq r1 r2 ->
+    let commons  = Row.common r1 r2 in
+    do guard (not (null commons))
+       hoistMaybe $ Just $ map (\(e,e') -> Row.payload e :~~ Row.payload e') commons
+
 #ifdef BUILTIN_ARRAYS
   A t1 _ s1 _ :~~ A t2 _ s2 _ | (Just c) <- doSigilMatch (rmF s1) (rmF s2)
                               -> hoistMaybe $ Just ((t1 :~~ t2):c)
                               | otherwise -> hoistMaybe Nothing
 #endif
   T (TVar n1 _ _) :~~ T (TVar n2 _ _) | n1 == n2 -> hoistMaybe $ Just []
+
   t1 :~~ t2 | t1 == t2 -> hoistMaybe $ Just []
             | isPrimType t1 && isPrimType t2
             , primTypeSize t1 <= primTypeSize t2
@@ -273,20 +281,23 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   T (TLayout (TLVar _) t1) :<  t2 -> hoistMaybe $ Just [t1 :<  t2]
   T (TLayout (TLVar _) t1) :=: t2 -> hoistMaybe $ Just [t1 :=: t2]
 
-  V r1 :< V r2 | Row.isEmpty r1 && Row.isEmpty r2 -> Just []
+  V r1 :< V r2 | Row.isEmpty r1 && Row.isEmpty r2 -> hoistMaybe $ Just []
                | Row.isComplete r1 && Row.isComplete r2 && psub r1 r2 ->
     let commons  = Row.common r1 r2 in
     do guard (not (null commons))
        hoistMaybe $ Just $ map (\(e,e') -> Row.payload e :< Row.payload e') commons
-    
-  V r1 :=: V r2 | Row.isEmpty r1 && Row.isEmpty r2 -> Just []
+
+  V r1 :=: V r2 | Row.isEmpty r1 && Row.isEmpty r2 -> hoistMaybe $ Just []
                 | Row.isComplete r1 && Row.isComplete r2 && peq r1 r2 ->
     let commons  = Row.common r1 r2 in
     do guard (not (null commons))
        hoistMaybe $ Just $ map (\(e,e') -> Row.payload e :=: Row.payload e') commons
 
   R rp1 r1 s1 :< R rp2 r2 s2
-    | Row.isEmpty r1 && Row.isEmpty r2, Just c <- doSigilMatch s1 s2, sameRecursive rp1 rp2 -> hoistMaybe $ Just c
+    | Row.isEmpty r1 && Row.isEmpty r2
+    , Just c <- doSigilMatch s1 s2
+    , sameRecursive rp1 rp2
+    -> hoistMaybe $ Just c
     | Row.isComplete r1 && Row.isComplete r2 && psub r2 r1 ->
       let commons  = Row.common r1 r2 in
       do guard (not (null commons))
@@ -295,7 +306,10 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
          hoistMaybe $ Just (cs ++ ds)
 
   R rp1 r1 s1 :=: R rp2 r2 s2
-    | Row.isEmpty r1 && Row.isEmpty r2, Just c <- doSigilMatch s1 s2, sameRecursive rp1 rp2 -> hoistMaybe $ Just c
+    | Row.isEmpty r1 && Row.isEmpty r2
+    , Just c <- doSigilMatch s1 s2
+    , sameRecursive rp1 rp2
+    -> hoistMaybe $ Just c
     | Row.isComplete r1 && Row.isComplete r2 && peq r1 r2 ->
       let commons  = Row.common r1 r2 in
       do guard (not (null commons))
@@ -365,14 +379,14 @@ unorderedType (TVar {}) = True
 unorderedType (TUnit)   = True
 unorderedType _ = False
 
-psub :: Row t -> Row t -> Bool
+psub :: Row.Row t -> Row.Row t -> Bool
 psub r1 r2 = isSubsequenceOf (Row.presentLabels r1) (Row.presentLabels r2)
 
-peq :: Row t -> Row t -> Bool
+peq :: Row.Row t -> Row.Row t -> Bool
 peq r1 r2 = Row.presentLabels r1 == Row.presentLabels r2
 
-pdiff :: Row t -> Row t -> [FieldName]
-pdiff r1 r2 = Row.presentLabels r1 \\ Row.presentLabels r2
+pdiff :: Row.Row t -> Row.Row t -> [FieldName]
+pdiff r1 r2 = Row.presentLabels r1 L.\\ Row.presentLabels r2
 
 isIrrefutable :: RawPatn -> Bool
 isIrrefutable (RP (PIrrefutable _)) = True
@@ -431,5 +445,5 @@ doSigilMatch s1 s2
   = Just [l1 :~< l2]
   | s1 == s2
   = Just []
-  | otherwise = trace ("s1: " ++ show s1 ++ "\ns2: " ++ show s2) Nothing
+  | otherwise = Nothing
 

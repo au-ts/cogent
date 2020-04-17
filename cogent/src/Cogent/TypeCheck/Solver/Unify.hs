@@ -62,9 +62,6 @@ assignOf (R _ _ (Left s) :< R _ _ (Right v))
 -- N.B. Only rows with a unification variable and no known entries lead to
 -- equality constraints (see Equate phase). Hence, the collection of common
 -- fields is necessarily empty.
-assignOf (R _ (Left s1) :=: R _ (Left s2)) = assignOfS s1 s2
-assignOf (R _ (Left s1) :<  R _ (Left s2)) = assignOfS s1 s2
-
 #ifdef BUILTIN_ARRAYS
 -- [NOTE: solving 'A' types]
 -- For 'A' types, we need to first solve the sigil, and later it can get
@@ -119,6 +116,7 @@ assignOf (Arith (SE t (PrimOp "==" [e, SU _ x]))) | null (unknownsE e)
 #endif
 
 -- Assign unification variables for recursive parameters
+-- FIXME: are they going to be matched at all? / zilinc
 assignOf (R rp1 _ _ :=: R rp2 _ _)
   = case (rp1,rp2) of
       (Mu _, UP x) -> pure [Subst.ofRecPar x rp1]

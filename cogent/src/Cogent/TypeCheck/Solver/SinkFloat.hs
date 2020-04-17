@@ -130,16 +130,16 @@ sinkfloat = Rewrite.rewrite' $ \gs ->
       | Left Unboxed <- s1 , Right i <- s2 = return $ Subst.ofSigil i Unboxed
       | Right i <- s1 , Left Unboxed <- s2 = return $ Subst.ofSigil i Unboxed
 
-    genStructSubst (R rp r s :~~ U i) = do
+    genStructSubst _ (R rp r s :~~ U i) = do
       s' <- case s of
               Left Unboxed -> return $ Left Unboxed
               _            -> Right <$> lift solvFresh
-      makeRowUnifSubsts (flip (R rp) s') r i
-    genStructSubst (U i :~~ R rp r s) = do
+      makeRowUnifSubsts (flip (R rp) s') (filter Row.taken (Row.entries r)) i
+    genStructSubst _ (U i :~~ R rp r s) = do
       s' <- case s of
               Left Unboxed -> return $ Left Unboxed
               _            -> Right <$> lift solvFresh
-      makeRowUnifSubsts (flip (R rp) s') r i
+      makeRowUnifSubsts (flip (R rp) s') (filter Row.taken (Row.entries r)) i
 
     -- variant rows
     genStructSubst _ (V r :< U i) =
@@ -187,8 +187,8 @@ sinkfloat = Rewrite.rewrite' $ \gs ->
       , Just rv <- Row.var r1
          = makeRowShapeSubsts rv r2
 
-    genStructSubst (V r :~~ U i) = makeRowUnifSubsts V r i
-    genStructSubst (U i :~~ V r) = makeRowUnifSubsts V r i
+    genStructSubst _ (V r :~~ U i) = makeRowUnifSubsts V (filter (not . Row.taken) (Row.entries r)) i
+    genStructSubst _ (U i :~~ V r) = makeRowUnifSubsts V (filter (not . Row.taken) (Row.entries r)) i
 
     -- tuples
     genStructSubst _ (T (TTuple ts) :< U i) = makeTupleUnifSubsts ts i

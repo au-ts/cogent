@@ -105,7 +105,7 @@ validateType (RT t) = do
 
     TRecord rp fs s | fields  <- map fst fs
                     , fields' <- nub fields
-                   -> let toRow (T (TRecord rp fs s)) = R (coerceRP rp) (Row.complete $ Row.toEntryList fs) (Left (fmap (const ()) s))
+                   -> let toRow (T (TRecord rp fs s)) = R (coerceRP rp) (Row.complete $ Row.toEntryList fs) (Left s)
                       in if fields' == fields
                            then case s of
                              Boxed _ (Just dlexpr)
@@ -219,29 +219,6 @@ validateTypes :: (?loc :: SourcePos, Traversable t) => t RawType -> CG (Constrai
 validateTypes = fmapFoldM validateType
 
 -- --------------------------------------------------------------------------
-
-normaliseType :: (?loc :: SourcePos) => TCType -> CG TCType
-normaliseType t = do
-  ts <- lift $ use knownTypes
-  case t of
-    Synonym tn as ->
-      case lookup tn ts of
-        Just (as', Just b) -> pure (substType (zip as' as) b)
-        _ -> __impossible "normaliseType: missing synonym"
-    R r s -> R <$> mapM normaliseType r <*> pure s
-    V r -> V <$> mapM normaliseType r
-#ifdef BUILTIN_ARRAYS
-    A t e s e' -> A <$> normaliseType t <*> pure e <*> pure s <*> pure e'
-#endif
-    T (TLayout l t) -> T . TLayout l <$> normaliseType t
-    T (TFun t1 t2) -> T <$> (TFun <$> normaliseType t1 <*> normaliseType t2)
-    T (TTuple ts) -> T . TTuple <$> mapM normaliseType ts
-    T (TUnbox t) -> T . TUnbox <$> normaliseType t
-    T (TBang t) -> T . TBang <$> normaliseType t
-    _ -> pure t
-
-normaliseTypes :: (?loc :: SourcePos, Traversable t) => t TCType -> CG (t TCType)
-normaliseTypes = mapM normaliseType
 
 validateLayout :: DataLayoutExpr -> CG (Constraint, TCDataLayout)
 validateLayout l = do

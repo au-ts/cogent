@@ -12,7 +12,7 @@
 {-# LANGUAGE FlexibleContexts, DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 
 module Cogent.TypeCheck.Row
-  ( Entry
+  ( Entry (..)
   , Row
   , Shape
   , -- * Constructors
@@ -64,11 +64,6 @@ import qualified Data.Map.Strict as M
 import           Data.Maybe
 import           Prelude hiding (take, null)
 
-type Entry t = (FieldName, (t, Either Taken Int))
-
-data Row t = Row { entries :: M.Map FieldName (Entry t)
-                 , var :: Maybe Int
-                 } deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 type Decl t = (t, Taken)
 
@@ -253,8 +248,8 @@ payloads r = map payload (entries r)
 -- | Returns true iff the field is taken in the given row.
 takenIn :: FieldName -> Row t -> Bool
 takenIn f r = case find ((f ==) . fname) (entries r) of
-   Just e -> taken e
-   Nothing -> False
+  Just e -> taken e
+  Nothing -> False
 
 -- | Given a set of field names extract their corresponding payload in the
 -- provided row.

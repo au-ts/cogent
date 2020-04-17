@@ -29,11 +29,8 @@ module Cogent.TypeCheck.Solver.Rewrite
   , rewrite'
   , pickOne'
   , withTransform
-  , -- * Debugging
-    debugFail
-  , debugPass
-  , debugStr
   ) where
+
 
 import Control.Applicative
 import Control.Monad.Identity
@@ -143,17 +140,3 @@ pickOne' f = RewriteT each
 lift :: Applicative m => Rewrite a -> RewriteT m a
 lift (RewriteT f) = rewrite (runIdentity . runMaybeT . f)
 
--- | For debugging, prints the contents of the rewrite to the console, with a string prefix.
---   Returns empty result and counts as no progress.
-debugFail :: (T.MonadIO m) => String -> (a -> String) -> RewriteT m a
-debugFail pfx show = Rewrite (\cs -> traceTc "rewrite" (text pfx <$$> text (show cs)) >> empty)
-
--- | Print debugging information as above, but counts as a successful rewrite.
---   Useful for putting debugging after another rewrite, if you only want to print on success.
-debugPass :: (T.MonadIO m) => String -> (a -> String) -> RewriteT m a
-debugPass pfx show = Rewrite (\cs -> traceTc "rewrite" (text pfx <$$> text (show cs)) >> return cs)
-
--- | Print debugging information as above, but counts as a successful rewrite.
---   Useful for putting debugging after another rewrite, if you only want to print on success.
-debugStr :: (Monad m, T.MonadIO m) => String -> String -> Rewrite' m a
-debugStr ctx msg = Rewrite (const $ traceTc ctx (text msg) >> empty)

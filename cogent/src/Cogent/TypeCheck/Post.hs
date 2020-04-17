@@ -248,7 +248,7 @@ normaliseT d (V x) =
   map (\e -> (Row.fname e, ([Row.payload e], Row.taken e))) .
   Row.entries <$> traverse (normaliseT d) x
 normaliseT d (R rp x (Left s)) =
-  T . flip (TRecord $ unCoerceRp rp) (__fixme $ fmap (const Nothing) s) .
+  T . flip (TRecord $ unCoerceRP rp) (__fixme $ fmap (const Nothing) s) .
   map (\e -> (Row.fname e, (Row.payload e, Row.taken e))) .
   Row.entries <$> traverse (normaliseT d) x
 normaliseT d (R _ x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
