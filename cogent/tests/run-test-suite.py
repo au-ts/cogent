@@ -30,7 +30,7 @@ def check_import(name):
         importlib.import_module(name)
         return True
     except ImportError as exc:
-        print("Dependancy module '{}' not installed - please install via pip3".format(name))
+        print("Dependency module '{}' not installed - please install via pip3".format(name))
         return False
 
 
@@ -330,7 +330,11 @@ class Test:
                     try:
                         results.append( self.run_phase(context, f, context.phases[phasename], test) )
                     except KeyError:
-                        raise PreconditionViolation("bad phase: {}".format(phasename))
+                        results.append( TestResult(
+                            ("error", "phase not found: {}\n".format(phasename), test['expected_result']),
+                            f,
+                            test['test_name']
+                        ))
             print()
         return results
 
@@ -418,8 +422,11 @@ def main():
             print("error: could not find the cogent compiler at '{}'".format(cogent))
             sys.exit(1)
 
-    files = Path(args.phase_dir).glob("*.sh")
-    phases = dict(map(lambda p: (p.stem,Phase(p)), files))
+    if Path(args.phase_dir).exists():
+      files = Path(args.phase_dir).glob("*.sh")
+      phases = dict(map(lambda p: (p.stem,Phase(p)), files))
+    else:
+      phases = dict()
 
     context = TestContext(repo, cogent, TEST_DIST_DIR, TEST_SCRIPT_DIR, phases)
 
