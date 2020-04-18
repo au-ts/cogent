@@ -63,7 +63,7 @@ import Data.Bits
 import Data.Char (ord)
 -- import Data.Foldable
 import Data.IntMap as IM (fromList, filterWithKey)
-import Data.List as L (elemIndex, sortOn)
+import Data.List as L (elemIndex)
 import qualified Data.Map as M hiding (filter, (\\))
 import Data.Maybe
 import Data.Word (Word32)
@@ -73,10 +73,6 @@ import Text.PrettyPrint.ANSI.Leijen (pretty)
 -- import qualified Traversable as Trav (mapM)
 
 import Debug.Trace
-
-
--- __ghc_trac_14777 = undefined
--- __ghc_trac_14777 = __impossible ""
 
 
 -- -----------------------------------------------------------------------------
@@ -436,8 +432,7 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple ps) _)) e | __cogent_ftuples_as_
   --              and pn = vn
   --              in e  -- The implemention is optimised so that PVars in ps don't need to assign to new vars again
   e0' <- desugarExpr e0
-  -- vvv See NOTE [sorting tuple fields] in this file.
-  let vs = P.map (fst . getPVar . snd) $ L.sortOn fst $ P.zip (map (('p':) . show) [1::Int ..]) ps
+  let vs = P.map (fst . getPVar . snd) $ P.zip (map (('p':) . show) [1::Int ..]) ps
   mkTake e0' vs e 0
   where isPVar (B.TIP (S.PVar _) _) = True; isPVar _ = False
         getPVar (B.TIP (S.PVar v) _) = v; getPVar _ = __impossible "getPVar (in desugarAlt')"
@@ -585,10 +580,7 @@ desugarType = \case
     foldr1 (liftA2 TProduct) $ map desugarType ts  -- right associative product repr of a list
   B.DT (S.TTuple ts) | __cogent_ftuples_as_sugar -> do
     let ns = P.map (('p':) . show) [1 :: Integer ..]
-    -- vvv NOTE [sorting tuple fields] / zilinc
-    --     We assume that the field names are *lexicographically* sorted! We need to
-    --     explicitly sort them here, otherwise @p10@ will be following @p9@ instead of @p1@.
-    fs <- L.sortOn fst . P.zipWith (\n t -> (n,(t, False))) ns <$> forM ts desugarType
+    fs <- P.zipWith (\n t -> (n,(t, False))) ns <$> forM ts desugarType
     return $ TRecord NonRec fs Unboxed
   B.DT (S.TUnit)     -> return TUnit
   B.DT (S.TRPar v b m) -> do
@@ -773,10 +765,9 @@ desugarExpr (B.TE _ (S.Tuple [e]) _) = __impossible "desugarExpr (Tuple)"
 desugarExpr (B.TE _ (S.Tuple es@(_:_:_)) _) | not __cogent_ftuples_as_sugar = do
   foldr1 (liftA2 $ E .* Tuple) $ map desugarExpr es  -- right associative product repr of a list
 desugarExpr (B.TE _ (S.Tuple es) _) = do
-  -- vvv See NOTE [sorting tuple fields] above.
-  fs <- L.sortOn fst . P.zip (P.map (('p':) . show) [1 :: Integer ..]) <$> mapM desugarExpr es
+  fs <- P.zip (P.map (('p':) . show) [1 :: Integer ..]) <$> mapM desugarExpr es
   return . E $ Struct fs  -- \| __cogent_ftuples_as_sugar
-desugarExpr (B.TE _ (S.UnboxedRecord fs) _) = E . Struct . sortOn fst <$> mapM (\(f,e) -> (f,) <$> desugarExpr e) fs
+desugarExpr (B.TE _ (S.UnboxedRecord fs) _) = E . Struct <$> mapM (\(f,e) -> (f,) <$> desugarExpr e) fs
 desugarExpr (B.TE _ (S.Let [] e) _) = __impossible "desugarExpr (Let)"
 desugarExpr (B.TE _ (S.Let [S.Binding p mt e0 []] e) _) = desugarAlt' e0 (S.PIrrefutable p) e
 desugarExpr (B.TE _ (S.Let [S.Binding (B.TIP (S.PVar v) _) mt e0 bs] e) _) = do

@@ -58,7 +58,6 @@ import Control.Monad.Trans.Maybe
 import Data.Foldable (forM_)
 import Data.Function (on)
 import qualified Data.IntMap as IM
-import Data.List (sortBy)
 import Data.Map (Map)
 import Data.Maybe (isJust)
 import qualified Data.Map as M
@@ -158,7 +157,8 @@ bound b (TArray t1 l1 s1 mhole1) (TArray t2 l2 s2 mhole2)
     combineHoles b Nothing   (Just i2) = case b of GLB -> Nothing; LUB -> Just i2
     combineHoles b (Just i1) Nothing   = case b of GLB -> Nothing; LUB -> Just i1
 #endif
-bound _ t1 t2 = __impossible ("bound: not comparable: " ++ show (t1,t2))
+bound _ t1 t2 = __impossible ("bound: not comparable:\n" ++ show t1 ++ "\n" ++ 
+                              "----------------------------------------\n" ++ show t2 ++ "\n")
 
 lub :: (Show b, Eq b) => Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
 lub = bound LUB
