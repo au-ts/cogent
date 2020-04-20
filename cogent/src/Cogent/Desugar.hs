@@ -646,7 +646,7 @@ desugarLayout l = Layout <$> desugarLayout' l
         alts' <- mapM f alts
         pure $ SumLayout tr (M.fromList alts')
       TLPtr -> pure $ PrimLayout DA.pointerBitRange
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
       TLArray e _ -> ArrayLayout <$> desugarLayout' e
 #endif
       TLVar n -> (findIx n <$> use layCtx) >>= \case

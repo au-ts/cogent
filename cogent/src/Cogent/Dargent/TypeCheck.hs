@@ -51,7 +51,7 @@ data TCDataLayout   = TL { unTCDataLayout :: DataLayoutExpr' TCDataLayout }
 pattern TLPrim s       = TL (Prim s)
 pattern TLRecord ps    = TL (Record ps)
 pattern TLVariant t ps = TL (Variant t ps)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 pattern TLArray e s    = TL (Array e s)
 #endif
 pattern TLOffset e s   = TL (Offset e s)
@@ -65,7 +65,7 @@ toDLExpr :: TCDataLayout -> DataLayoutExpr
 toDLExpr (TLPrim n) = DLPrim n
 toDLExpr (TLRecord fs) = DLRecord ((\(x,y,z) -> (x,y,toDLExpr z)) <$> fs)
 toDLExpr (TLVariant e fs) = DLVariant (toDLExpr e) ((\(x,y,z,v) -> (x,y,z,toDLExpr v)) <$> fs)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 toDLExpr (TLArray e p) = DLArray (toDLExpr e) p
 #endif
 toDLExpr (TLOffset e s) = DLOffset (toDLExpr e) s
@@ -78,7 +78,7 @@ toTCDL :: DataLayoutExpr -> TCDataLayout
 toTCDL (DLPrim n) = TLPrim n
 toTCDL (DLRecord fs) = TLRecord ((\(x,y,z) -> (x,y,toTCDL z)) <$> fs)
 toTCDL (DLVariant e fs) = TLVariant (toTCDL e) ((\(x,y,z,v) -> (x,y,z,toTCDL v)) <$> fs)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 toTCDL (DLArray e p) = TLArray (toTCDL e) p
 #endif
 toTCDL (DLOffset e s) = TLOffset (toTCDL e) s
@@ -168,7 +168,6 @@ tcDataLayoutExpr _ vs (DLVar n) = if n `elem` vs then return undeterminedAllocat
 tcDataLayoutExpr _ _ l = __impossible $ "tcDataLayoutExpr; tried to typecheck unexpected layout: " ++ show l
 
 
-
 -- NOTE: the check for type-layout compatibility is in Cogent.TypeCheck.Base
 
 -- | Normalises the layout remove references to named layouts
@@ -197,7 +196,7 @@ normaliseTCDataLayout env (TLRepRef n s) =
 normaliseTCDataLayout env (TLRecord fs) = TLRecord $ (\(n, p, l) -> (n, p, normaliseTCDataLayout env l)) <$> fs
 normaliseTCDataLayout env (TLVariant t as) = TLVariant t $ (\(n, p, s, l) -> (n, p, s, normaliseTCDataLayout env l)) <$> as
 normaliseTCDataLayout env (TLOffset l n) = TLOffset (normaliseTCDataLayout env l) n
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 normaliseTCDataLayout env (TLArray l p) = TLArray (normaliseTCDataLayout env l) p
 #endif
 normaliseTCDataLayout _ l = l
@@ -210,7 +209,7 @@ substDataLayoutExpr = f
     f ps (DLRecord fs) = DLRecord $ third3 (f ps) <$> fs
     f ps (DLVariant t fs) = DLVariant (f ps t) $ fourth4 (f ps) <$> fs
     f ps (DLOffset e s) = flip DLOffset s $ f ps e
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
     f ps (DLArray e p) = flip DLArray p $ f ps e
 #endif
     f ps (DLVar n) = case lookup n ps of
@@ -225,7 +224,7 @@ substTCDataLayout = f
     f ps (TLRecord fs) = TLRecord $ third3 (f ps) <$> fs
     f ps (TLVariant t fs) = TLVariant (f ps t) $ fourth4 (f ps) <$> fs
     f ps (TLOffset e s) = flip TLOffset s $ f ps e
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
     f ps (TLArray e p) = flip TLArray p $ f ps e
 #endif
     f ps (TLVar n) = case lookup n ps of

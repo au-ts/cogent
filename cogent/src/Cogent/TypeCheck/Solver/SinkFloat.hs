@@ -70,15 +70,15 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
     strip c = c
 
     -- For sinking row information in a subtyping constraint
-    canSink :: IM.IntMap (Int,Int) -> Int -> Bool
-    canSink mentions v | Just m <- IM.lookup v mentions = fst m <= 1
+    canSink :: IM.IntMap (Int,Int,Int) -> Int -> Bool
+    canSink mentions v | Just m <- IM.lookup v mentions = m ^. _2 <= 1
                        | otherwise = False
 
-    canFloat :: IM.IntMap (Int,Int) -> Int -> Bool
-    canFloat mentions v | Just m <- IM.lookup v mentions = snd m <= 1
+    canFloat :: IM.IntMap (Int,Int,Int) -> Int -> Bool
+    canFloat mentions v | Just m <- IM.lookup v mentions = m ^. _3 <= 1
                         | otherwise = False
 
-    genStructSubst :: IM.IntMap (Int,Int) -> Constraint -> MaybeT TcSolvM Subst.Subst
+    genStructSubst :: IM.IntMap (Int,Int,Int) -> Constraint -> MaybeT TcSolvM Subst.Subst
     -- record rows
     genStructSubst _ (R rp r s :< U i) = do
       s' <- case s of

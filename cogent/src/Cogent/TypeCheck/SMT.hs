@@ -84,7 +84,7 @@ sexprToSmt (SE t (Var vn)) = do
   --       of like existentials, that if it's *possible* that something is true, then it's satisfiable.
   --       Only when it derives a contradiction it says it's unsat. / zilinc
   -- XXX | return $ svUninterpreted (typeToSmt t) vn Nothing []
-sexprToSmt (SE t (TypeApp f mts _)) = undefined
+sexprToSmt (SE t (TLApp f mts mls _)) = undefined
 sexprToSmt (SE t (App e1 e2 _)) = undefined
 sexprToSmt (SE t (IntLit i)) = return $ svInteger (typeToSmt t) i
 sexprToSmt (SE t (BoolLit b)) = return $ svBool b

@@ -151,7 +151,7 @@ assignOfL :: TCDataLayout -> TCDataLayout -> MaybeT TcSolvM [Subst.Subst]
 assignOfL (TLU n) (TL l) = pure [Subst.ofLayout n (TL l)]
 assignOfL (TL l) (TLU n) = pure [Subst.ofLayout n (TL l)]
 assignOfL (TLU _) (TLU _) = empty
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 assignOfL (TLArray e1 _) (TLArray e2 _) = assignOfL e1 e2
 #endif
 assignOfL _ _ = empty

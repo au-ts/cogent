@@ -202,12 +202,12 @@ data Constraint' t l = (:<) t t
                      | NotReadOnly TCSigil
                      | Solved t
                      | IsPrimType t
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
                      | Arith (SExpr t l)
-                     | (:->) (Constraint' t l) (Constraint' t l)
-                     | (:|-) (C.Context t) (Constraint' t)
+                     -- | (:->) (Constraint' t l) (Constraint' t l)
+                     | (:|-) (M.Map VarName (t, Int), [SExpr t l]) (Constraint' t l)
 #endif
-                     deriving (Eq, Show, Ord, Functor, Foldable, Traversable)
+                     deriving (Eq, Show, Ord) -- , Functor, Foldable, Traversable)
 
 infix 9 :<
 infix 9 :=:
@@ -216,29 +216,7 @@ infixl 3 :@
 -- infix 5 :->
 infix 4 :|-
 
-
-data Constraint' t = (:<) t t
-                   | (:=:) t t
-                   | (:&) (Constraint' t) (Constraint' t)
-                   | Upcastable t t
-                   | Share t Metadata
-                   | Drop t Metadata
-                   | Escape t Metadata
-                   | (:@) (Constraint' t) ErrorContext
-                   | Unsat TypeError
-                   | SemiSat TypeWarning
-                   | Sat
-                   | Exhaustive t [RawPatn]
-                   | Solved t
-                   | IsPrimType t
-#ifdef REFINEMENT_TYPES
-                   | Arith (SExpr t)
-                   -- | (:->) (Constraint' t) (Constraint' t)
-                   | (:|-) (M.Map VarName (t, Int), [SExpr t]) (Constraint' t)
-#endif
-                   deriving (Eq, Show, Ord, Functor, Foldable, Traversable)
-
-type Constraint = Constraint' TCType
+type Constraint = Constraint' TCType TCDataLayout
 type ConstraintEnv = (M.Map VarName (TCType, Int), [TCSExpr])
 
 -- Right-biased, as the inner environment is the more relevant one.
@@ -303,9 +281,9 @@ instance Bifunctor Constraint' where
   bimap f g (Exhaustive t ps)  = Exhaustive (f t) ps
   bimap f g (Solved t)         = Solved (f t)
   bimap f g (IsPrimType t)     = IsPrimType (f t)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   bimap f g (Arith se)         = Arith (bimap f g se)
-  bimap f g (c1 :-> c2)        = (bimap f g c1) :-> (bimap f g c2)
+  -- bimap f g (c1 :-> c2)        = (bimap f g c1) :-> (bimap f g c2)
 #endif
   bimap f g Sat                = Sat
   bimap f g (SemiSat w)        = SemiSat w
@@ -331,9 +309,9 @@ instance Bitraversable Constraint' where
   bitraverse f g (IsPrimType t)     = IsPrimType <$> f t
   bitraverse f g (UnboxedNotRecursive t) = UnboxedNotRecursive <$> f t
   bitraverse f g (NotReadOnly s)    = pure $ NotReadOnly s
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   bitraverse f g (Arith se)         = Arith <$> bitraverse f g se
-  bitraverse f g (c1 :-> c2)        = (:->) <$> bitraverse f g c1 <*> bitraverse f g c2
+  -- bitraverse f g (c1 :-> c2)        = (:->) <$> bitraverse f g c1 <*> bitraverse f g c2
 #endif
   bitraverse f g Sat                = pure Sat
   bitraverse f g (SemiSat w)        = pure $ SemiSat w
@@ -370,6 +348,10 @@ data TCType         = T (Type TCSExpr TCDataLayout TCType)
 data SExpr t l      = SE { getTypeSE :: t, getExprSE :: Expr t (TPatn t) (TIrrefPatn t) l (SExpr t l) }
                     | SU t Int
                     deriving (Show, Eq, Ord)
+                    
+-- deriving instance Foldable (SExpr t)
+-- deriving instance Traversable (SExpr t)
+-- deriving instance Foldable (SExpr t)
 
 data RP = Mu RecParName | None | UP Int
           deriving (Show, Eq, Ord)
@@ -743,7 +725,7 @@ substLayoutL :: [(DLVarName, TCDataLayout)] -> TCDataLayout -> TCDataLayout
 substLayoutL vs (TLVar n) | Just x <- lookup n vs = x
 substLayoutL vs (TLRecord fs) = TLRecord $ (\(x,y,z) -> (x,y,substLayoutL vs z)) <$> fs
 substLayoutL vs (TLVariant e fs) = TLVariant e $ (\(x,y,z,v) -> (x,y,z,substLayoutL vs v)) <$> fs
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 substLayoutL vs (TLArray e p) = TLArray (substLayoutL vs e) p
 #endif
 substLayoutL vs l = l
@@ -754,7 +736,7 @@ substLayout vs (T t) = T (fmap (substLayout vs) t)
 substLayout vs (U x) = U x
 substLayout vs (V x) = V $ substLayout vs <$> x
 substLayout vs (R rp x s) = R rp (substLayout vs <$> x) (bimap (fmap (fmap (substLayoutL vs))) id s)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 substLayout vs (A t l s tkns) = A (substLayout vs t) l (bimap (fmap (fmap (substLayoutL vs))) id s) tkns
 #endif
 substLayout vs (Synonym n ts) = Synonym n $ substLayout vs <$> ts
@@ -885,12 +867,12 @@ progVars :: TCType -> S.Set VarName
 progVars (U _) = S.empty
 progVars (T (TRefine v _ e)) = v `S.delete` progVarsE e 
 progVars (T t) = foldMap progVars t
-progVars (R row _) = foldMap progVars row
+progVars (R _ row _) = foldMap progVars row
 progVars (V row) = foldMap progVars row
 progVars (A t l _ h) = progVars t `S.union` progVarsE l `S.union` either (foldMap progVarsE) (const S.empty) h
 progVars (Synonym _ ts) = foldMap progVars ts
 
-progVarsE :: SExpr t -> S.Set VarName
+progVarsE :: SExpr t l -> S.Set VarName
 progVarsE (SU {}) = S.empty
 progVarsE (SE t (Var x)) = S.singleton x
 progVarsE (SE t e) = foldMap progVarsE e

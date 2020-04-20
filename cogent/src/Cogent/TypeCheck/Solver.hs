@@ -46,6 +46,7 @@ import           Cogent.TypeCheck.Util
 import           Cogent.TypeCheck.Solver.Goal
 
 import           Control.Monad.Trans.Maybe
+import qualified Data.Map as M
 import           Data.Maybe (fromMaybe)
 
 

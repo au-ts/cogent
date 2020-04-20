@@ -32,7 +32,8 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import qualified Cogent.Context as C
 import Cogent.Dargent.TypeCheck
-import Cogent.PrettyPrint (prettyC, symbol)
+import Cogent.PrettyPrint (symbol)
+import qualified Cogent.PrettyPrint as PP (prettyC)
 import Cogent.Surface
 import Cogent.TypeCheck.ARow as ARow hiding (null)
 import Cogent.TypeCheck.Base hiding (validateType)
@@ -300,7 +301,7 @@ cg x@(LocExpr l e) t = do
   (c, e') <- cg' e t
   return (c :@ InExpression x t, TE t e' l)
 
-cg' :: (?loc :: SourcePos)
+cg' :: (?loc :: SourcePos, ?isRefType :: Bool)
     => Expr LocType LocPatn LocIrrefPatn DataLayoutExpr LocExpr
     -> TCType
     -> CG (Constraint, Expr TCType TCPatn TCIrrefPatn TCDataLayout TCExpr)
@@ -750,8 +751,8 @@ matchA x@(LocPatn l p) t = do
   return (s, c :@ InPattern x, TP p' l, t')
 
 matchA' :: (?loc :: SourcePos, ?isRefType :: Bool)
-       => Pattern LocIrrefPatn -> TCType
-       -> CG (M.Map VarName (C.Assumption TCType), Constraint, Pattern TCIrrefPatn, TCType)
+        => Pattern LocIrrefPatn -> TCType
+        -> CG (M.Map VarName (C.Assumption TCType), Constraint, Pattern TCIrrefPatn, TCType)
 
 matchA' (PIrrefutable i) t = do
   (s, c, i') <- match i t
@@ -1046,4 +1047,5 @@ prettyE = pretty
 prettyIP :: IrrefutablePattern TCName TCIrrefPatn TCExpr -> Doc
 prettyIP = pretty
 
-
+prettyC :: Constraint -> Doc
+prettyC = PP.prettyC

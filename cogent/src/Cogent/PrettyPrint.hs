@@ -191,7 +191,7 @@ instance Prec (SExpr t l) where
   prec (SU {}) = 0
 
 -- NOTE: they differ from the definition of the fixity of Constraint
-instance Prec (Constraint' t) where
+instance Prec (Constraint' t l) where
   prec (_ :&  _) = 3
   prec (_ :@  _) = 2
 #ifdef REFINEMENT_TYPES
@@ -611,7 +611,6 @@ instance Pretty TCType where
                         None -> empty
                         UP p -> parens (symbol "?" <> pretty p) <+> empty
      in symbol "R" <+> rpPretty <> pretty v <+> sigilPretty
-#ifdef BUILTIN_ARRAYS
 #ifdef REFINEMENT_TYPES
   pretty (A t l s row) =
     let sigilPretty = case s of
@@ -874,12 +873,12 @@ instance (Pretty t) => Pretty (M.Map VarName (t, Int)) where
            | otherwise = commaList . flip fmap (M.toList m) $ \(v,(t,occ)) ->
                            varname v <+> colon <> angles (int occ) <+> pretty t
 
-prettyGoalEnv :: (Pretty t) => (M.Map VarName (t, Int), [SExpr t]) -> Doc
+prettyGoalEnv :: (Pretty t, Pretty l) => (M.Map VarName (t, Int), [SExpr t l]) -> Doc
 prettyGoalEnv (g,es) = pretty g <> comma <+> prettyExprs es
   where prettyExprs [] = warn "∅"
         prettyExprs es = commaList $ map pretty es
 
-instance Pretty t => Pretty (Constraint' t) where
+instance (Pretty t, Pretty l) => Pretty (Constraint' t l) where
   pretty (a :< b)         = pretty a </> warn ":<" </> pretty b
   pretty (a :=: b)        = pretty a </> warn ":=:" </> pretty b
   pretty (a :& b)         = prettyPrec 4 a </> warn ":&" </> prettyPrec 3 b
@@ -909,7 +908,7 @@ instance Pretty t => Pretty (Constraint' t) where
   pretty (a :~~ b)        = pretty a </> warn ":~~" </> pretty b
 
 -- a more verbose version of constraint pretty-printer which is mostly used for debugging
-prettyC :: Pretty t => Constraint' t -> Doc
+prettyC :: (Pretty t, Pretty l) => Constraint' t l -> Doc
 prettyC (Unsat e) = errbd "Unsat" <$> pretty e
 prettyC (SemiSat w) = warn "SemiSat" -- <$> pretty w
 prettyC (a :& b) = prettyCPrec 4 a </> warn ":&" <$> prettyCPrec 3 b
@@ -920,7 +919,7 @@ prettyC (env :|- a) = prettyGoalEnv env <+> warn "⊢" <+> prettyCPrec 1 a
 #endif
 prettyC c = pretty c
 
-prettyCPrec :: (Pretty t) => Int -> Constraint' t -> Doc
+prettyCPrec :: (Pretty t, Pretty l) => Int -> Constraint' t l -> Doc
 prettyCPrec l x | prec x < l = prettyC x
                 | otherwise  = parens (indent (prettyC x))
 

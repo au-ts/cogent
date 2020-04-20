@@ -180,7 +180,7 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
     , M.null $ M.difference rs cs
     -> hoistMaybe $ Just $ (\(e,(t,_)) -> e :~ toBoxedType t) <$> M.elems cs
 
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   TLArray e _    :~ A _ _ (Left (Boxed _ (Just l))) _ -> hoistMaybe $ Just [l :~< e]
   TLArray e _    :~ A t _ (Left (Boxed _ Nothing)) _ -> hoistMaybe $ Just [e :~ t]
   TLArray e _    :~ A _ _ (Right _) _ -> __todo "TLArray e p :~ A t l (Right n) h => is this possible?"
@@ -203,7 +203,7 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   l              :~ T (TBang tau)    -> hoistMaybe $ Just [l :~ tau]
   l              :~ T (TTake _ tau)  -> hoistMaybe $ Just [l :~ tau]
   l              :~ T (TPut  _ tau)  -> hoistMaybe $ Just [l :~ tau]
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   l              :~ T (TATake _ tau) -> hoistMaybe $ Just [l :~ tau]
   l              :~ T (TAPut  _ tau) -> hoistMaybe $ Just [l :~ tau]
 #endif
@@ -230,7 +230,7 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
     , r1 `LRow.isSubRow` r2
     -> hoistMaybe $ Just $ ((\((_,l1,_),(_,l2,_)) -> l1 :~< l2) <$> LRow.common r1 r2) <> [e1 :~< e2]
 
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   TLArray e1 _     :~< TLArray e2 _ -> hoistMaybe $ Just [e1 :~< e2]
 #endif
 
@@ -261,7 +261,7 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
     do guard (not (null commons))
        hoistMaybe $ Just $ map (\(e,e') -> Row.payload e :~~ Row.payload e') commons
 
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   A t1 _ s1 _ :~~ A t2 _ s2 _ | (Just c) <- doSigilMatch (rmF s1) (rmF s2)
                               -> hoistMaybe $ Just ((t1 :~~ t2):c)
                               | otherwise -> hoistMaybe Nothing
@@ -428,14 +428,14 @@ fullyNormalise t = undefined
 
 isBoxedType :: TCType -> Bool
 isBoxedType (R _ _ (Left (Boxed _ _))) = True
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 isBoxedType (A _ _ (Left (Boxed _ _)) _) = True
 #endif
 isBoxedType _ = False
 
 toBoxedType :: TCType -> TCType
 toBoxedType (R rp r (Left Unboxed)) = R rp r (Left (Boxed undefined Nothing))
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 toBoxedType (A t l (Left Unboxed) h) = A t l (Left (Boxed undefined Nothing)) h
 #endif
 toBoxedType (T (TUnbox t)) = toBoxedType t

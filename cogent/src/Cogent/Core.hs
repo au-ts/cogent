@@ -124,8 +124,6 @@ isUnboxed (TCon _ _ Unboxed) = True
 isUnboxed (TRecord _ _ Unboxed) =  True
 #ifdef REFINEMENT_TYPES
 isUnboxed (TArray _ _ Unboxed _) = True
-#endif
-#ifdef REFINEMENT_TYPES
 isUnboxed (TRefine t _) = isUnboxed t
 #endif
 isUnboxed _ = False
@@ -144,7 +142,7 @@ unroll v (Just ctxt) = erp (Just ctxt) (ctxt M.! v)
       in TRecord rp (map (\(a,(t,b)) -> (a, (erp (Just c') t, b))) fs) s
     -- Context must be Nothing at this point
     erp c (TRPar v Nothing) = TRPar v c
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
     erp c (TArray t e s h) = TArray (erp c t) e s h
 #endif
     erp _ t = t
@@ -695,8 +693,6 @@ instance (Pretty b) => Pretty (Type t b) where
 #ifdef REFINEMENT_TYPES
   pretty (TArray t l s mhole) = (pretty t <> brackets (pretty l) <+> pretty s) &
     (case mhole of Nothing -> id; Just hole -> (<+> keyword "take" <+> parens (pretty hole)))
-#endif
-#ifdef REFINEMENT_TYPES
   pretty (TRefine t p) = braces (pretty t <+> symbol "|" <+> pretty p)
 #endif
 

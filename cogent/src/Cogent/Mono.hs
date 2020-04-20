@@ -259,7 +259,7 @@ monoLayout (Layout l) = Layout <$> monoLayout' l
           fes = fmap snd fsl
       fes' <- mapM monoLayout' fes
       RecordLayout <$> pure (M.fromList $ P.zip fns fes')
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
     monoLayout' (ArrayLayout e) = ArrayLayout <$> monoLayout' e
 #endif
     monoLayout' l = pure l

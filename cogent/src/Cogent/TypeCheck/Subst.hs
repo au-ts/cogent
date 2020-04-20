@@ -26,7 +26,6 @@ import Cogent.Util
 import Control.Arrow (first, left)
 import Data.Bifunctor (second)
 import qualified Data.IntMap as IM
-import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid hiding (Alt)
 import Prelude hiding (lookup)
@@ -54,7 +53,7 @@ ofType :: Int -> TCType -> Subst
 ofType i t = Subst (IM.fromList [(i, Type t)])
 
 ofRow :: Int -> Row.Row TCType -> Subst 
-ofRow i t = Subst (M.fromList [(i, Row $ Left t)])
+ofRow i t = Subst (IM.fromList [(i, Row $ Left t)])
 
 #ifdef REFINEMENT_TYPES
 ofARow :: Int -> ARow.ARow TCExpr -> Subst
@@ -65,10 +64,10 @@ ofHole i h = Subst (IM.fromList [(i, Hole h)])
 #endif
 
 ofShape :: Int -> Row.Shape -> Subst
-ofShape i t = Subst (M.fromList [(i, Row $ Right t)])
+ofShape i t = Subst (IM.fromList [(i, Row $ Right t)])
 
 ofSigil :: Int -> Sigil (Maybe TCDataLayout) -> Subst
-ofSigil i t = Subst (M.fromList [(i, Sigil t)])
+ofSigil i t = Subst (IM.fromList [(i, Sigil t)])
 
 #ifdef REFINEMENT_TYPES
 ofExpr :: Int -> TCSExpr -> Subst
@@ -76,10 +75,10 @@ ofExpr i e = Subst (IM.fromList [(i, Expr e)])
 #endif
 
 ofLayout :: Int -> TCDataLayout -> Subst
-ofLayout i l = Subst (M.fromList [(i, Layout' l)])
+ofLayout i l = Subst (IM.fromList [(i, Layout' l)])
 
 ofRecPar :: Int -> RP -> Subst
-ofRecPar i t = Subst (M.fromList [(i, RecP t)])
+ofRecPar i t = Subst (IM.fromList [(i, RecP t)])
 
 null :: Subst -> Bool
 null (Subst x) = IM.null x
@@ -103,7 +102,7 @@ apply (Subst f) (U x)
   = U x
 apply sub@(Subst f) (V r)
   | Just rv <- Row.var r
-  , Just (Row e) <- M.lookup rv f =
+  , Just (Row e) <- IM.lookup rv f =
     -- Expand an incomplete row with some more entries (and a fresh row
     -- variable), or close an incomplete row by assigning an ordering (a
     -- shape) to its fields.
@@ -112,15 +111,15 @@ apply sub@(Subst f) (V r)
       Right sh -> apply sub (V (Row.close r sh))
 apply sub@(Subst f) (R rp r s)
   | Just rv <- Row.var r
-  , Just (Row e) <- M.lookup rv f =
+  , Just (Row e) <- IM.lookup rv f =
     case e of
       Left  r' -> apply sub (R rp (Row.expand r r') s)
       Right sh -> apply sub (R rp (Row.close  r sh) s)
 apply (Subst f) t@(R rp r (Right x))
-  | Just (Sigil s) <- M.lookup x f = apply (Subst f) (R rp r (Left s))
+  | Just (Sigil s) <- IM.lookup x f = apply (Subst f) (R rp r (Left s))
 apply f (V x) = V (fmap (apply f) x)
 apply (Subst f) (R (UP x) r s)
-  | Just (RecP rp) <- M.lookup x f = apply (Subst f) (R rp r s)
+  | Just (RecP rp) <- IM.lookup x f = apply (Subst f) (R rp r s)
 apply f (R rp x s) = R rp (fmap (apply f) x) s
 #ifdef REFINEMENT_TYPES
 apply (Subst f) (A t l (Right x) mhole)
@@ -163,12 +162,12 @@ applyWarn _ w = w
 
 applyL :: Subst -> TCDataLayout -> TCDataLayout
 applyL (Subst m) (TLU n)
-  | Just (Layout' l) <- M.lookup n m = applyL (Subst m) l
+  | Just (Layout' l) <- IM.lookup n m = applyL (Subst m) l
   | otherwise = TLU n
 applyL s (TLRecord fs) = TLRecord $ (\(a,b,c) -> (a,b,applyL s c)) <$> fs
 applyL s (TLVariant e fs) = TLVariant (applyL s e) $
                                       (\(a,b,c,d) -> (a,b,c,applyL s d)) <$> fs
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 applyL s (TLArray e p) = TLArray (applyL s e) p
 #endif
 applyL s (TLOffset e n) = TLOffset (applyL s e) n

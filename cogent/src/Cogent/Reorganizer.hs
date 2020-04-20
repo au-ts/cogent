@@ -190,7 +190,7 @@ embedRecPar t = erp False M.empty t
         TVariant ts -> TVariant $ M.map (\(ts', x) -> (map (erp b ctxt) ts', x)) ts
         TTuple ts   -> TTuple (map (erp b ctxt) ts)
         TCon n ts s -> TCon n (map (erp b ctxt) ts) s
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
         TArray t e s h -> TArray (erp b ctxt t) e s h
 #endif
         TUnbox t    -> TUnbox (erp b ctxt t)
@@ -238,7 +238,7 @@ checkNoShadowing (t:ts) = do
         TTuple   ts -> allEither $ map (ns tvs) ts
         TCon n ts s    ->
           allEither $ map (ns tvs) ts
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
         TArray t e s h -> ns tvs t
 #endif
         TUnbox t    -> ns tvs t
@@ -286,7 +286,7 @@ checkStrictlyPositive (t:ts) = do
           (allEither . map (sp s b)) ts
         TCon _ ts _     ->
           (allEither . map (sp s b)) ts
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
         TArray t e _ _  -> sp s b t
 #endif
         TUnbox  t       -> sp s b t

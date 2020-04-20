@@ -16,16 +16,12 @@
 
 module Cogent.TypeCheck.Solver.Goal where
 
-<<<<<<< HEAD
-import qualified Data.IntMap as IM
-=======
 import qualified Cogent.Context as C
->>>>>>> compiler.reftypes: more constraint gen and solve
 import           Cogent.TypeCheck.Base
 import           Cogent.PrettyPrint
 
-import qualified Data.Map as M
 import qualified Data.Foldable as F
+import qualified Data.IntMap as IM
 import           Lens.Micro
 import           Lens.Micro.TH
 import qualified Text.PrettyPrint.ANSI.Leijen as P
@@ -62,15 +58,28 @@ makeGoal ctx env g = Goal ctx env g
 derivedGoal :: Goal -> Constraint -> Goal
 derivedGoal (Goal c env g) g' = makeGoal (SolvingConstraint g:c) env g'
 
-getMentions :: [Goal] -> IM.IntMap (Int,Int)
+getMentions :: [Goal] -> IM.IntMap (Int,Int,Int)
 getMentions gs =
-  foldl (IM.unionWith adds) IM.empty $ fmap mentionsOfGoal gs
-  where
-    adds (a,b) (c,d) = (a + c, b + d)
+    foldl (M.unionWith adds) M.empty $ fmap mentionsOfGoal gs
+ where
+  adds (env1,a,b) (env2,c,d) = (env1 + env2, a + c, b + d)
 
-    mentionsOfGoal g = case g ^. goal of
-      r :< s -> IM.fromListWith adds (mentionL r ++ mentionR s)
-      _      -> IM.empty
+  mentionsOfGoal g = case g ^. goal of
+   r :< s  -> M.fromListWith adds (mentionEnv (g ^. goalEnv) (r :< s) ++ mentionL r ++ mentionR s)
+   Arith e -> M.fromListWith adds (mentionEnv (g ^. goalEnv) (Arith e))
+   _       -> M.empty
 
-    mentionL = fmap (\v -> (v, (1,0))) . unifVars
-    mentionR = fmap (\v -> (v, (0,1))) . unifVars
+  mentionEnv (gamma, es) c = -- fmap (\v -> (v, (1,0,0))) $ unifVarsEnv env
+    -- NOTE: we only register a unifvar in the environment when the variable is used in the RHS. / zilinc
+    let pvs = progVarsC c
+        ms  = fmap (\(t,_) -> unifVars t) gamma  -- a map from progvars to the unifvars appearing in that entry.
+        ms' = fmap (\v -> (v, (1,0,0))) $ concat $ M.elems $ M.restrictKeys ms pvs
+     in ms'
+        -- trace ("##### gamma = " ++ show (prettyGoalEnv (gamma,es)) ++ "\n" ++
+        --        "      c = " ++ show (prettyC c) ++ "\n" ++
+        --        "      pvs = " ++ show pvs ++ "\n" ++
+        --        "      ms = " ++ show ms ++ "\n" ++
+        --        "      ms' = " ++ show ms' ++ "\n") ms'
+  mentionL   = fmap (\v -> (v, (0,1,0))) . unifVars
+  mentionR   = fmap (\v -> (v, (0,0,1))) . unifVars
+

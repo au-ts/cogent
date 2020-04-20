@@ -59,6 +59,7 @@ normaliseRWT = rewrite' $ \case
     T (TUnbox (T (TVar v b u))) -> pure (T (TVar v b True))
     T (TUnbox (T (TCon t ts s))) -> pure (T (TCon t ts Unboxed))
     T (TUnbox (R rp r _)) -> pure (R rp r (Left Unboxed))
+#ifdef REFINEMENT_TYPES
     T (TUnbox (A t l _ tkns)) -> pure (A t l (Left Unboxed) tkns)  -- FIXME
 #endif
 
@@ -146,7 +147,7 @@ normaliseRWL = rewrite' $ \case
 normL :: TCDataLayout -> TcSolvM TCDataLayout
 normL l = do
   step <- case l of
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
     TLArray e p -> TLArray <$> normL e <*> pure p
 #endif
     TLRecord fs -> TLRecord <$> mapM (third3M normL) fs

@@ -112,7 +112,7 @@ unroll v (Just ctxt) = erp (Just ctxt) (ctxt M.! v)
       in TRecord rp (map (\(a,(t,b)) -> (a, (erp (Just c') t, b))) fs) s
     -- Context must be Nothing at this point
     erp c (TRPar v Nothing) = TRPar v c
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
     erp c (TArray t l s h) = TArray (erp c t) l s h
 #endif
     erp _ t = t
@@ -224,7 +224,7 @@ substituteL ls (TFun ti to)      = TFun (substituteL ls ti) (substituteL ls to)
 substituteL ls (TProduct t1 t2)  = TProduct (substituteL ls t1) (substituteL ls t2)
 substituteL ls (TRecord rp ts s) = TRecord rp (map (second (first $ substituteL ls)) ts) (substituteS ls s)
 substituteL ls (TSum ts)         = TSum (map (second (first $ substituteL ls)) ts)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 substituteL ls (TArray t l s mhole) = TArray (substituteL ls t) l (substituteS ls s) mhole
 #endif
 substituteL _  t                 = t
@@ -250,7 +250,7 @@ substituteS ls (Boxed b (Layout l)) = Boxed b . Layout $ substituteS' ls l
             fns = fmap fst fsl
             fes = fmap snd fsl
          in RecordLayout $ M.fromList (zip fns (fmap (substituteS' ls) fes))
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
       ArrayLayout e -> ArrayLayout $ substituteS' ls e
 #endif
       _ -> l

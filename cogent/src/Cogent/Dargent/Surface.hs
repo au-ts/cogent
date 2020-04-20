@@ -59,13 +59,8 @@ data DataLayoutDecl
 data DataLayoutExpr' e
   = Prim    DataLayoutSize
   | Record  [(FieldName, SourcePos, e)]
-<<<<<<< HEAD
   | Variant e [(TagName, SourcePos, Size, e)]
-#ifdef BUILTIN_ARRAYS
-=======
-  | Variant (DataLayoutExpr' e) [(TagName, SourcePos, Size, e)]
 #ifdef REFINEMENT_TYPES
->>>>>>> d76ab8a1... compiler.reftypes: more solving
   | Array   e SourcePos
 #endif
   | Offset  e DataLayoutSize

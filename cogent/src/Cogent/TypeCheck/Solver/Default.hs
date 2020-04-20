@@ -20,7 +20,7 @@ import Cogent.Compiler
 import qualified Cogent.Context as C
 import Cogent.Surface
 import Cogent.TypeCheck.Base
-import Cogent.TypeCheck.Solver.Goal
+import Cogent.TypeCheck.Solver.Goal hiding (getMentions)
 import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
 import Cogent.Util
 
