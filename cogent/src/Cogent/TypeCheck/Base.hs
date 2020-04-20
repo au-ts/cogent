@@ -328,12 +328,14 @@ warnToConstraint f w | f = SemiSat w
 -- Types for constraint generation and solving
 -- -----------------------------------------------------------------------------
 
+type TCSigil = Either (Sigil (Maybe TCDataLayout)) Int
+
 data TCType         = T (Type TCSExpr TCDataLayout TCType)
                     | U Int  -- unifier
-                    | R RP (Row TCType) (Either (Sigil (Maybe TCDataLayout)) Int)
+                    | R RP (Row TCType) TCSigil
                     | V (Row TCType)
 #ifdef BUILTIN_ARRAYS
-                    | A TCType TCSExpr (Either (Sigil (Maybe TCDataLayout)) Int) (Either (Maybe TCSExpr) Int)
+                    | A TCType TCSExpr TCSigil (Either (Maybe TCSExpr) Int)
 #endif
                     | Synonym TypeName [TCType]
                     deriving (Show, Eq, Ord)
@@ -753,7 +755,7 @@ unifLVars (TLArray e _) = unifLVars e
 unifLVars (TLOffset e _) = unifLVars e
 unifLVars _ = []
 
-unifLVarsS :: Either (Sigil (Maybe TCDataLayout)) Int -> [Int]
+unifLVarsS :: TCSigil -> [Int]
 unifLVarsS (Left (Boxed _ (Just l))) = unifLVars l
 unifLVarsS _ = []
 

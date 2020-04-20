@@ -49,8 +49,6 @@ import           Lens.Micro
 
 import           Debug.Trace
 
-type TCSigil = Either (Sigil (Maybe TCDataLayout)) Int  -- local synonym
-
 onGoal :: (Monad m) => (Constraint -> MaybeT m [Constraint]) -> Goal -> MaybeT m [Goal]
 onGoal f g = fmap (map (derivedGoal g)) (f (g ^. goal))
 
@@ -283,39 +281,44 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
 
   V r1 :< V r2 | Row.isEmpty r1 && Row.isEmpty r2 -> hoistMaybe $ Just []
                | Row.isComplete r1 && Row.isComplete r2 && psub r1 r2 ->
-    let commons  = Row.common r1 r2 in
+    let commons = Row.common r1 r2 in
     do guard (not (null commons))
        hoistMaybe $ Just $ map (\(e,e') -> Row.payload e :< Row.payload e') commons
 
   V r1 :=: V r2 | Row.isEmpty r1 && Row.isEmpty r2 -> hoistMaybe $ Just []
                 | Row.isComplete r1 && Row.isComplete r2 && peq r1 r2 ->
-    let commons  = Row.common r1 r2 in
+    let commons = Row.common r1 r2 in
     do guard (not (null commons))
        hoistMaybe $ Just $ map (\(e,e') -> Row.payload e :=: Row.payload e') commons
 
   R rp1 r1 s1 :< R rp2 r2 s2
+    | trace ("r1 = " ++ show r1 ++ "\nr2 = " ++ show r2 ++ "\ns1 = " ++ show s1 ++ "\ns2 = " ++ show s2) False -> undefined
     | Row.isEmpty r1 && Row.isEmpty r2
     , Just c <- doSigilMatch s1 s2
     , sameRecursive rp1 rp2
     -> hoistMaybe $ Just c
-    | Row.isComplete r1 && Row.isComplete r2 && psub r2 r1 ->
-      let commons  = Row.common r1 r2 in
+    | Row.isComplete r1 && Row.isComplete r2
+    , Just c <- doSigilMatch s1 s2
+    , psub r2 r1 ->
+      let commons = Row.common r1 r2 in
       do guard (not (null commons))
-         let cs = map (\ (e,e') -> Row.payload e :< Row.payload e') commons
+         let cs = map (\(e,e') -> Row.payload e :< Row.payload e') commons
              ds = map (flip Drop ImplicitlyTaken) $ Row.extract (pdiff r1 r2) r1
-         hoistMaybe $ Just (cs ++ ds)
+         hoistMaybe $ Just (c ++ cs ++ ds)
 
   R rp1 r1 s1 :=: R rp2 r2 s2
     | Row.isEmpty r1 && Row.isEmpty r2
     , Just c <- doSigilMatch s1 s2
     , sameRecursive rp1 rp2
     -> hoistMaybe $ Just c
-    | Row.isComplete r1 && Row.isComplete r2 && peq r1 r2 ->
-      let commons  = Row.common r1 r2 in
+    | Row.isComplete r1 && Row.isComplete r2
+    , Just c <- doSigilMatch s1 s2
+    , peq r1 r2 ->
+      let commons = Row.common r1 r2 in
       do guard (not (null commons))
-         let cs = map (\ (e,e') -> Row.payload e :=: Row.payload e') commons
+         let cs = map (\(e,e') -> Row.payload e :=: Row.payload e') commons
              ds = map (flip Drop ImplicitlyTaken) $ Row.extract (pdiff r1 r2) r1
-         hoistMaybe $ Just (cs ++ ds)
+         hoistMaybe $ Just (c ++ cs ++ ds)
 
 #ifdef BUILTIN_ARRAYS
   -- See [NOTE: solving 'A' types] in Cogent.Solver.Unify
@@ -440,10 +443,13 @@ rmF s = s
 
 doSigilMatch :: TCSigil -> TCSigil -> Maybe [Constraint]
 doSigilMatch s1 s2
-  | Left (Boxed _ (Just l1)) <- s1
-  , Left (Boxed _ (Just l2)) <- s2
-  = Just [l1 :~< l2]
-  | s1 == s2
-  = Just []
+  | s1 == s2 = Just []
+  | Left (Boxed ro1 l1) <- s1
+  , Left (Boxed ro2 l2) <- s2
+  , ro1 == ro2
+  = case (l1, l2) of
+      (Just l1', Just l2') -> Just [l1' :~< l2']
+      (Nothing , Nothing ) -> Just []
+      _                    -> Nothing
   | otherwise = Nothing
 

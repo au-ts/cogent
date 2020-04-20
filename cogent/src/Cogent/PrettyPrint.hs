@@ -603,12 +603,12 @@ instance Pretty TCType where
   pretty t@(R rp v s) =
     let sigilPretty = case s of
                         Left s -> pretty s
-                        Right n -> symbol $ "(?" ++ show n ++ ")"
+                        Right n -> parens (symbol "?" <> pretty n)
         rpPretty    = case rp of
-                        Mu v -> typesymbol "rec" <+> symbol v
+                        Mu v -> typesymbol "rec" <+> symbol v <+> empty
                         None -> empty
-                        UP p -> symbol $ "(?" ++ show p ++ ")"
-     in symbol "R" <+> rpPretty <+> symbol "{" <+> pretty v <+> symbol "}" <+> sigilPretty
+                        UP p -> parens (symbol "?" <> pretty p) <+> empty
+     in symbol "R" <+> rpPretty <> braces (pretty v) <+> sigilPretty
 #ifdef BUILTIN_ARRAYS
   pretty (A t l s row) =
     let sigilPretty = case s of
@@ -619,7 +619,7 @@ instance Pretty TCType where
                        Left (Just e) -> space <> keyword "@take" <+> parens (pretty e)
                        Right n       -> space <> warn ('?' : show n)
                        
-     in (symbol "A" <+> pretty t <+> symbol "[" <> pretty l <> symbol "]" <+> sigilPretty <> holePretty)
+     in symbol "A" <+> pretty t <+> brackets (pretty l) <+> sigilPretty <> holePretty
 #endif
   pretty (U v) = warn ('?':show v)
   pretty (Synonym n []) = warn ("syn:" ++ n)

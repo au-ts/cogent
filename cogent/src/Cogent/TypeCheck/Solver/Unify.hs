@@ -93,8 +93,9 @@ assignOf (V r1 :=: V r2)
               , Subst.ofRow y (Row.incomplete (Row.entries r1) v)
               ]
 assignOf (R _ r1 s1 :=: R _ r2 s2)
-  | Row.var r1 /= Row.var r2, s1 == s2
+  | Row.var r1 /= Row.var r2
   , [] <- Row.common r1 r2
+  , s1 == s2
   = case (Row.var r1, Row.var r2) of
     (Just x, Nothing) -> pure [Subst.ofRow x r2]
     (Nothing, Just x) -> pure [Subst.ofRow x r1]
@@ -104,19 +105,7 @@ assignOf (R _ r1 s1 :=: R _ r2 s2)
               , Subst.ofRow y (Row.incomplete (Row.entries r1) v)
               ]
 
-assignOf (l1 :~< l2) = assignOfL l1 l2
-
-#ifdef BUILTIN_ARRAYS
--- TODO: This will be moved to a separately module for SMT-solving. Eventually the results
--- returned from the solver will be a Subst object. / zilinc
-assignOf (Arith (SE t (PrimOp "==" [SU _ x, e]))) | null (unknownsE e)
-  = pure [ Subst.ofExpr x e ]
-assignOf (Arith (SE t (PrimOp "==" [e, SU _ x]))) | null (unknownsE e)
-  = pure [ Subst.ofExpr x e ]
-#endif
-
 -- Assign unification variables for recursive parameters
--- FIXME: are they going to be matched at all? / zilinc
 assignOf (R rp1 _ _ :=: R rp2 _ _)
   = case (rp1,rp2) of
       (Mu _, UP x) -> pure [Subst.ofRecPar x rp1]
@@ -132,6 +121,17 @@ assignOf (R rp1 _ _ :< R rp2 _ _ )
       (UP x, None) -> pure [Subst.ofRecPar x rp2]
       (None, UP x) -> pure [Subst.ofRecPar x rp1]
       _            -> empty 
+
+assignOf (l1 :~< l2) = assignOfL l1 l2
+
+#ifdef BUILTIN_ARRAYS
+-- TODO: This will be moved to a separately module for SMT-solving. Eventually the results
+-- returned from the solver will be a Subst object. / zilinc
+assignOf (Arith (SE t (PrimOp "==" [SU _ x, e]))) | null (unknownsE e)
+  = pure [ Subst.ofExpr x e ]
+assignOf (Arith (SE t (PrimOp "==" [e, SU _ x]))) | null (unknownsE e)
+  = pure [ Subst.ofExpr x e ]
+#endif
 
 -- Unboxed records are not recursive
 assignOf (UnboxedNotRecursive (R (UP x) _ (Left Unboxed))) 
