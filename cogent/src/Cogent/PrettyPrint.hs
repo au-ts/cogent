@@ -681,7 +681,7 @@ instance Pretty DataLayoutSize where
   pretty (Add a b) = pretty a <+> symbol "+" <+> pretty b
 
 instance Pretty d => Pretty (DataLayoutExpr' d) where
-  pretty (RepRef n s) = reprname n <+> hsep (fmap pretty s)
+  pretty (RepRef n s) = if null s then reprname n else parens $ reprname n <+> hsep (fmap pretty s)
   pretty (Prim sz) = pretty sz
   pretty (Offset e s) = pretty e <+> keyword "at" <+> pretty s
   pretty (Record fs) = keyword "record" <+> record (map (\(f,_,e) -> fieldname f <> symbol ":" <+> pretty e ) fs)

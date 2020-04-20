@@ -113,20 +113,21 @@ repSize = avoidInitial >> buildExpressionParser [[Infix (reservedOp "+" *> pure 
                (Bits <$ reserved "b" <*> pure x <|> Bytes <$ reserved "B" <*> pure x))
 
 repExpr :: Parser DataLayoutExpr
-repExpr = local (many repExprS)
+repExpr = repExpr' repRefM <|> parens repExpr
   where
-    repExprS = local (pure [])
-    local p = avoidInitial >> (parens (local' p) <|> (local' p))
-    local' p = buildExpressionParser [[Postfix (flip DLOffset <$ reserved "at" <*> repSize)]] (DL <$> local'' p)
-    local'' p = (Record <$ reserved "record" <*> braces (commaSep recordRepr))
+    repRefM = many repExprS
+    repRefS = pure []
+    repExprS = repExpr' repRefS <|> parens repExpr
+    repExpr' p = avoidInitial >> buildExpressionParser [[Postfix (flip DLOffset <$ reserved "at" <*> repSize)]] (DL <$>
+         ((Record <$ reserved "record" <*> braces (commaSep recordRepr))
       <|> (Variant <$ reserved "variant" <*> parens repExpr <*> braces (commaSep variantRepr))
 #ifdef BUILTIN_ARRAYS
       <|> (Array <$ reserved "array" <*> brackets repExpr <*> getPosition)
 #endif
-      <|> (RepRef <$> typeConName <*> p)
       <|> (Prim <$> repSize)
       <|> (Ptr <$ reserved "pointer")
       <|> (LVar <$> variableName)
+      <|> (RepRef <$> typeConName <*> p)))
     recordRepr = (,,) <$> variableName <*> getPosition <* reservedOp ":" <*> repExpr
     variantRepr = (,,,) <$> typeConName <*> getPosition <*> parens (fromIntegral <$> natural) <* reservedOp ":" <*> repExpr
 
