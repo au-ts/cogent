@@ -692,6 +692,7 @@ splitArithConstraints ((g,e1) :|- c2)
      in ([implTCSExpr (andTCSExprs $ extractGamma g ++ e1) (andTCSExprs e2)], (g,e1) :|- c2')
 splitArithConstraints c         = ([], c)
 
+-- Extract the logical predicates from the refinement types in the typing context Γ.
 extractGamma :: M.Map VarName (TCType, Int) -> [TCSExpr]
 extractGamma m = go $ M.toList m
   where 
