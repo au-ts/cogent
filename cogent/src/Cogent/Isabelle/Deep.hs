@@ -30,7 +30,7 @@ import Isabelle.InnerAST as I
 import Isabelle.OuterAST as O
 
 import qualified Data.Map.Strict as Map
-import Data.List (intercalate, sort, sortOn)
+import Data.List (intercalate, sort)
 #if __GLASGOW_HASKELL__ >= 709
 import Prelude hiding ((<$>))
 #endif
@@ -158,9 +158,8 @@ deepExpr mod ta defs (TE _ (Promote ty e))
 --   | TSum as <- ty = mkApp (mkId "Promote") [mkList $ map (\(an,(at,_)) -> mkPair (mkString an) (deepType mod ta at)) as, deepExpr mod ta defs e]  -- FIMXE: cogent.1
 --   | otherwise = __impossible "deepExpr"
 deepExpr mod ta defs (TE _ (Struct fs))
-  = let fs' = sortOn fst fs
-    in mkApp (mkId "Struct") [mkList (map (deepType mod ta . exprType . snd) fs'),
-                              mkList (map (deepExpr mod ta defs . snd) fs')]
+  = mkApp (mkId "Struct") [mkList (map (deepType mod ta . exprType . snd) fs),
+                           mkList (map (deepExpr mod ta defs . snd) fs)]
 deepExpr mod ta defs (TE _ (Member e fld))
   = mkApp (mkId "Member") [deepExpr mod ta defs e, mkInt (fromIntegral fld)]
 deepExpr mod ta defs (TE _ (Unit)) = mkId "Unit"
