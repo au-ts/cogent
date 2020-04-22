@@ -34,12 +34,17 @@ import Cogent.TypeCheck.Solver.Monad
 import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
 import qualified Cogent.TypeCheck.Row as Row
 import qualified Cogent.TypeCheck.Subst as Subst
+import Cogent.TypeCheck.Util
 
 import Control.Applicative (empty)
 import Control.Monad.Writer
 import Control.Monad.Trans.Maybe
 import qualified Data.Map as M
 import Lens.Micro
+import Text.PrettyPrint.ANSI.Leijen (text, pretty)
+import qualified Text.PrettyPrint.ANSI.Leijen as P
+
+-- import Debug.Trace
 
 sinkfloat :: Rewrite.RewriteT TcSolvM [Goal]
 sinkfloat = Rewrite.rewrite' $ \gs ->
@@ -50,6 +55,8 @@ sinkfloat = Rewrite.rewrite' $ \gs ->
        ms <- mapM (runMaybeT . (genStructSubst mentions)) cs -- a list of 'Maybe' substitutions.
        return . getFirst . mconcat $ First <$> ms -- only return the first 'Just' substitution.
      tell [a]
+     traceTc "solver" (text "Sink/Float writes subst:" P.<$>
+                       P.indent 2 (pretty a))
      return $ map (goal %~ Subst.applyC a) gs
   where
     strip :: Constraint -> Constraint

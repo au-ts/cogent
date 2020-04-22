@@ -945,7 +945,9 @@ instance (Pretty t) => Pretty (Row.Row t) where
   pretty r =
     let rowFieldsDoc =
           hsep $ punctuate (text ",") $ map pretty (Row.entries r)
-     in rowFieldsDoc <+> symbol "|" <+> pretty (Row.var r)
+        prettyRowVar Nothing  = symbol "✗"
+        prettyRowVar (Just x) = symbol "?" <> pretty x
+     in rowFieldsDoc <+> symbol "|" <+> prettyRowVar (Row.var r)
 
 instance Pretty t => Pretty (Row.Entry t) where
   pretty e =
@@ -957,7 +959,7 @@ instance Pretty t => Pretty (Row.Entry t) where
 
 instance (Pretty e, Show e) => Pretty (ARow.ARow e) where
   pretty (ARow.ARow m u a v) = typesymbol "A-row" <+> brackets (pretty m <+> symbol "|" <+> pretty u <> all <> var)
-    where var = case v of Nothing -> empty; Just x -> (symbol " |" <+> text "?" <> pretty x)
+    where var = case v of Nothing -> empty; Just x -> (symbol " |" <+> symbol "?" <> pretty x)
           all = case a of Nothing -> empty
                           Just True  -> (symbol " |" <+> text "all taken")
                           Just False -> (symbol " |" <+> text "all put"  )
