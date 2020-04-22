@@ -947,7 +947,7 @@ instance (Pretty t) => Pretty (Row.Row t) where
           hsep $ punctuate (text ",") $ map pretty (Row.entries r)
         prettyRowVar Nothing  = symbol "✗"
         prettyRowVar (Just x) = symbol "?" <> pretty x
-     in rowFieldsDoc <+> symbol "|" <+> prettyRowVar (Row.var r)
+     in enclose (text "❲") (text "❳") (rowFieldsDoc <+> symbol "|" <+> prettyRowVar (Row.var r))
 
 instance Pretty t => Pretty (Row.Entry t) where
   pretty e =
@@ -955,7 +955,7 @@ instance Pretty t => Pretty (Row.Entry t) where
           True  -> text "taken"
           False -> text "present"
     in text (Row.fname e) <+> text ":" <+> pretty (Row.payload e) <+>
-       text "(" <> tkDoc <> text ")"
+       parens tkDoc
 
 instance (Pretty e, Show e) => Pretty (ARow.ARow e) where
   pretty (ARow.ARow m u a v) = typesymbol "A-row" <+> brackets (pretty m <+> symbol "|" <+> pretty u <> all <> var)

@@ -155,12 +155,12 @@ sinkfloat = Rewrite.rewrite' $ \gs ->
       makeRowUnifSubsts V (filter Row.taken (Row.entries r)) i
     genStructSubst mentions (V r1 :< V r2)
       {- The most tricky case.
-         For variants, taken is the bottom of the order, taken is the top.
+         For variants, taken is the bottom of the order.
          If taken things are in r2, then we can infer they must be in r1.
          If present things are in r1, then we can infer they must be in r2.
        -}
       | es <- filter (\e -> (Row.taken e) && not (e `elem` (Row.entries r1)))
-                   (Row.entries r2)
+                     (Row.entries r2)
       , not $ null es
       , Just rv <- Row.var r1
          = makeRowVarSubsts rv es
