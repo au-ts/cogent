@@ -55,10 +55,12 @@ module Cogent.TypeCheck.Row
 import           Cogent.Common.Syntax
 import           Cogent.Compiler
 import           Cogent.Surface
+import           Cogent.Util (elemBy, (\\-))
 
 import           Control.Monad (guard)
 import           Data.Either (isRight)
 import qualified Data.Foldable as F
+import           Data.Function (on)
 import           Data.List hiding (take)
 import qualified Data.Map.Strict as M
 import           Data.Maybe
@@ -68,15 +70,8 @@ import           Prelude hiding (take, null)
 type Decl t = (t, Taken)
 
 newtype Entry t = Entry { unE :: (FieldName, Decl t) }
-  deriving (Show, Foldable, Functor, Traversable)
+  deriving (Show, Eq, Ord, Foldable, Functor, Traversable)
 
-instance Eq (Entry t) where
-  (Entry (f, _)) == (Entry (f', _)) = f == f'
-
-instance Ord (Entry t) where
-  compare (Entry (f, _)) (Entry (f', _)) = compare f f'
-  (Entry (f, _)) <= (Entry (f',_)) = f <= f'
-  
 {-- | Rows represent the internal structure of variants and records. We
  --   refer to fields/constructors by the generic term "entries".
  --
@@ -183,22 +178,22 @@ common (Incomplete _ es) (Complete es') = foldr (unord es') [] es
 pointwise :: [Entry t] -> [Entry t] -> [(Entry t, Entry t)] ->
              [(Entry t, Entry t)]
 pointwise (e : es) (e' : es') rs
-  | e == e' = pointwise es es' ((e,e') : rs)
+  | fname e == fname e' = pointwise es es' ((e,e') : rs)
   | otherwise = []
 pointwise [] [] rs = rs
 
 -- | Internel helper function for extracting common fields from a
 -- (in)complete record and an incomplete record.
 unord :: [Entry t] -> Entry t -> [(Entry t, Entry t)] -> [(Entry t, Entry t)]
-unord es e' acc | Just e <- find (e' ==) es = (e,e') : acc
+unord es e' acc | Just e <- find (\e -> fname e == fname e') es = (e,e') : acc
 unord _ _ acc = acc
 
 -- | Return the difference in constructors/fields between two rows.
 -- The result is the first row with the second row's entries removed.
 diff :: Row t -> Row t -> [Entry t]
 diff r1 r2 = xs ++ ys
-  where xs = filter (not . (`elem` (entries r2))) $ entries r1
-        ys = filter (not . (`elem` (entries r1))) $ entries r2
+  where xs = filter (not . (\e -> elemBy ((==) `on` fname) e (entries r2))) $ entries r1
+        ys = filter (not . (\e -> elemBy ((==) `on` fname) e (entries r1))) $ entries r2
 
 -- | Expand an incomplete row. This operation does nothing if applied to a
 -- complete row. For incomplete rows, the entries are assumed to be disjoint.
@@ -206,7 +201,7 @@ expand :: Show t => Row t -> Row t -> Row t
 expand r@(Complete _) _ =
   __impossible ("Row.expand: attempting to expand complete row: " ++ (show r))
 expand r@(Incomplete _ es) (Complete es') =
-  let f e' = case find (e' ==) es of
+  let f e' = case find (\e -> fname e == fname e') es of
         Just e -> e
         Nothing -> e' in
   Complete $ map f es'
@@ -295,7 +290,7 @@ putAll = setAll False
 -- | Returns true iff the two rows could be considered equal after
 -- unification.
 compatible :: Row t -> Row t -> Bool
-compatible (Complete es) (Complete es') = es == es'
-compatible (Complete es) (Incomplete _ es') = all (`elem` es) es'
-compatible (Incomplete _ es) (Complete es') = all (`elem` es') es
-compatible (Incomplete v es) (Incomplete v' es') = v /= v' || null (es \\ es')
+compatible (Complete es) (Complete es') = map fname es == map fname es'
+compatible (Complete es) (Incomplete _ es') = all (\e -> elemBy ((==) `on` fname) e es ) es'
+compatible (Incomplete _ es) (Complete es') = all (\e -> elemBy ((==) `on` fname) e es') es
+compatible (Incomplete v es) (Incomplete v' es') = v /= v' || null ((\\-) ((==) `on` fname) es es')

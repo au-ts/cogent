@@ -48,7 +48,7 @@ import Data.Bifoldable
 import Data.Bifunctor
 import Data.Bitraversable
 import Data.Char
-import Data.Foldable (foldrM)
+import Data.Foldable (foldrM, toList)
 import Data.IntMap as IM (IntMap, mapKeys, delete)
 import qualified Data.Map as M
 import Data.Version (showVersion)
@@ -479,6 +479,15 @@ split delim str =
 
 replace :: Eq a => [a] -> [a] -> [a] -> [a]
 replace old new l = L.intercalate new . split old $ l
+
+elemBy :: Foldable t => (a -> a -> Bool) -> a -> t a -> Bool
+elemBy f a as = go f a (toList as)
+  where go f a [] = False
+        go f a (b:bs) = if f a b then True else go f a bs
+
+-- | A '\\-by' function
+(\\-) :: (a -> a -> Bool) -> [a] -> [a] -> [a]
+(\\-) f = foldl (flip (L.deleteBy f))
 
 -- the following are from the extra library, BSD3
 -- http://hackage.haskell.org/package/extra-1.6.13/docs/Control-Monad-Extra.html
