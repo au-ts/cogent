@@ -599,7 +599,7 @@ instance Pretty DepType where
 
 instance Pretty TCType where
   pretty (T t) = pretty t
-  pretty t@(V v) = symbol "V <" <+> pretty v <+> symbol ">"
+  pretty t@(V v) = symbol "V" <+> pretty v
   pretty t@(R rp v s) =
     let sigilPretty = case s of
                         Left s -> pretty s
@@ -608,7 +608,7 @@ instance Pretty TCType where
                         Mu v -> typesymbol "rec" <+> symbol v <+> empty
                         None -> empty
                         UP p -> parens (symbol "?" <> pretty p) <+> empty
-     in symbol "R" <+> rpPretty <> braces (pretty v) <+> sigilPretty
+     in symbol "R" <+> rpPretty <> pretty v <+> sigilPretty
 #ifdef BUILTIN_ARRAYS
   pretty (A t l s row) =
     let sigilPretty = case s of

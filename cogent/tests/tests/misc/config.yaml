@@ -33,6 +33,7 @@
     - pass_multi-arg-cons.cogent
     - pass_nested-comments.cogent
     - pass_nested-err-handling.cogent
+    - pass_nested-variant.cogent
     - pass_non-dec-ints.cogent
     - pass_param-synonym-expand.cogent
     - pass_partial-typeapp.cogent

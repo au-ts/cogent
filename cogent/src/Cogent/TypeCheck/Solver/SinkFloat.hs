@@ -10,7 +10,6 @@
 -- @TAG(DATA61_GPL)
 --
 
-{-# OPTIONS_GHC -Werror -Wall #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Cogent.TypeCheck.Solver.SinkFloat ( sinkfloat ) where
@@ -32,9 +31,10 @@ import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Solver.Goal
 import Cogent.TypeCheck.Solver.Monad
 import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
-import qualified Cogent.TypeCheck.Row as Row
+import qualified Cogent.TypeCheck.Row as R
 import qualified Cogent.TypeCheck.Subst as Subst
 import Cogent.TypeCheck.Util
+import Cogent.Util (elemBy, notElemBy)
 
 import Control.Applicative (empty)
 import Control.Monad.Writer
@@ -44,7 +44,7 @@ import Lens.Micro
 import Text.PrettyPrint.ANSI.Leijen (text, pretty)
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 
--- import Debug.Trace
+import Debug.Trace
 
 sinkfloat :: Rewrite.RewriteT TcSolvM [Goal]
 sinkfloat = Rewrite.rewrite' $ \gs ->
@@ -85,53 +85,53 @@ sinkfloat = Rewrite.rewrite' $ \gs ->
       s' <- case s of
         Left Unboxed -> return $ Left Unboxed -- unboxed is preserved by bang and TUnbox, so we may propagate it
         _            -> Right <$> lift solvFresh
-      makeRowUnifSubsts (flip (R rp) s') (filter Row.taken (Row.entries r)) i
+      makeRowUnifSubsts (flip (R rp) s') (filter R.taken (R.entries r)) i
     genStructSubst _ (U i :< R rp r s) = do
       s' <- case s of
         Left Unboxed -> return $ Left Unboxed -- unboxed is preserved by bang and TUnbox, so we may propagate it
         _            ->  Right <$> lift solvFresh
       -- Subst. a record structure for the unifier with only present entries of
       -- the record r (respecting the lattice order for records).
-      makeRowUnifSubsts (flip (R rp) s') (filter (not . Row.taken) (Row.entries r)) i
+      makeRowUnifSubsts (flip (R rp) s') (filter R.present (R.entries r)) i
     genStructSubst mentions (R _ r1 s1 :< R _ r2 s2)
       {- The most tricky case.
          For Records, present is the bottom of the order, taken is the top.
          If present things are in r2, then we can infer they must be in r1.
          If taken things are in r1, then we can infer they must be in r2.
       -}
-      | es <- filter (\e -> not (Row.taken e) && not (e `elem` (Row.entries r1)))
-                     (Row.entries r2)
+      | es <- filter (\e -> R.present e && notElemBy R.compatEntry e (R.entries r1))
+                     (R.entries r2)
       , not $ null es
-      , Just rv <- Row.var r1
+      , Just rv <- R.var r1
          = makeRowVarSubsts rv es
-      | es <- filter (\e -> (Row.taken e) && not (e `elem` (Row.entries r2)))
-                     (Row.entries r1)
+      | es <- filter (\e -> R.taken e && notElemBy R.compatEntry e (R.entries r2))
+                     (R.entries r1)
       , not $ null es
-      , Just rv <- Row.var r2
+      , Just rv <- R.var r2
          = makeRowVarSubsts rv es
 
-      | Row.isComplete r2 && all (`elem` Row.entries r2) (Row.entries r1)
-      , Just rv <- Row.var r1
-      , es <- filter (\e -> (Row.taken e) && not (e `elem` (Row.entries r1)))
-                     (Row.entries r2)
+      | R.isComplete r2 && all (\e -> elemBy R.compatEntry e (R.entries r2)) (R.entries r1)
+      , Just rv <- R.var r1
+      , es <- filter (\e -> R.taken e && notElemBy R.compatEntry e (R.entries r1))
+                     (R.entries r2)
       , canSink mentions rv && not (null es)
          = makeRowVarSubsts rv es
 
-      | Row.isComplete r1 && all (`elem` Row.entries r1) (Row.entries r2)
-      , Just rv <- Row.var r2
-      , es <- filter (\e -> not (Row.taken e) && not (e `elem` (Row.entries r2)))
-                     (Row.entries r1)
+      | R.isComplete r1 && all (\e -> elemBy R.compatEntry e (R.entries r1)) (R.entries r2)
+      , Just rv <- R.var r2
+      , es <- filter (\e -> R.present e && notElemBy R.compatEntry e (R.entries r2))
+                     (R.entries r1)
       , canFloat mentions rv && not (null es)
          = makeRowVarSubsts rv es
 
-      | Row.isComplete r1
-      , null (Row.diff r1 r2)
-      , Just rv <- Row.var r2
+      | R.isComplete r1
+      , null (R.diff r1 r2)
+      , Just rv <- R.var r2
          = makeRowShapeSubsts rv r1
 
-      | Row.isComplete r2
-      , null (Row.diff r2 r1)
-      , Just rv <- Row.var r1
+      | R.isComplete r2
+      , null (R.diff r2 r1)
+      , Just rv <- R.var r1
          = makeRowShapeSubsts rv r2
   
       | Left Unboxed <- s1 , Right i <- s2 = return $ Subst.ofSigil i Unboxed
@@ -141,61 +141,62 @@ sinkfloat = Rewrite.rewrite' $ \gs ->
       s' <- case s of
               Left Unboxed -> return $ Left Unboxed
               _            -> Right <$> lift solvFresh
-      makeRowUnifSubsts (flip (R rp) s') (filter Row.taken (Row.entries r)) i
+      makeRowUnifSubsts (flip (R rp) s') (filter R.taken (R.entries r)) i
     genStructSubst _ (U i :~~ R rp r s) = do
       s' <- case s of
               Left Unboxed -> return $ Left Unboxed
               _            -> Right <$> lift solvFresh
-      makeRowUnifSubsts (flip (R rp) s') (filter Row.taken (Row.entries r)) i
+      makeRowUnifSubsts (flip (R rp) s') (filter R.taken (R.entries r)) i
 
     -- variant rows
     genStructSubst _ (V r :< U i) =
-      makeRowUnifSubsts V (filter (not . Row.taken) (Row.entries r)) i
+      makeRowUnifSubsts V (filter R.present (R.entries r)) i
     genStructSubst _ (U i :< V r) =
-      makeRowUnifSubsts V (filter Row.taken (Row.entries r)) i
+      makeRowUnifSubsts V (filter R.taken (R.entries r)) i
     genStructSubst mentions (V r1 :< V r2)
+      -- | trace ("#### r1 = " ++ show r1 ++ "\n#### r2 = " ++ show r2) False = undefined
       {- The most tricky case.
          For variants, taken is the bottom of the order.
          If taken things are in r2, then we can infer they must be in r1.
          If present things are in r1, then we can infer they must be in r2.
        -}
-      | es <- filter (\e -> (Row.taken e) && not (e `elem` (Row.entries r1)))
-                     (Row.entries r2)
+      | es <- filter (\e -> R.taken e && notElemBy R.compatEntry e (R.entries r1))
+                     (R.entries r2)
       , not $ null es
-      , Just rv <- Row.var r1
+      , Just rv <- R.var r1
          = makeRowVarSubsts rv es
-      | es <- filter (\e -> not (Row.taken e) && not (e `elem` (Row.entries r2)))
-                     (Row.entries r1)
+      | es <- filter (\e -> R.present e && notElemBy R.compatEntry e (R.entries r2))
+                     (R.entries r1)
       , not $ null es
-      , Just rv <- Row.var r2
+      , Just rv <- R.var r2
          = makeRowVarSubsts rv es
 
-      | Row.isComplete r2 && all (`elem` Row.entries r2) (Row.entries r1)
-      , Just rv <- Row.var r1
-      , es <- filter (\e -> not (Row.taken e) && not (e `elem` (Row.entries r1)))
-                     (Row.entries r2)
+      | R.isComplete r2 && all (\e -> elemBy R.compatEntry e (R.entries r2)) (R.entries r1)
+      , Just rv <- R.var r1
+      , es <- filter (\e -> R.present e && notElemBy R.compatEntry e (R.entries r1))
+                     (R.entries r2)
       , canSink mentions rv && not (null es)
          = makeRowVarSubsts rv es
 
-      | Row.isComplete r1 && all (`elem` Row.entries r1) (Row.entries r2)
-      , Just rv <- Row.var r2
-      , es <- filter (\e -> (Row.taken e) && not (e `elem` (Row.entries r2)))
-                     (Row.entries r1)
+      | R.isComplete r1 && all (\e -> elemBy R.compatEntry e (R.entries r1)) (R.entries r2)
+      , Just rv <- R.var r2
+      , es <- filter (\e -> R.taken e && notElemBy R.compatEntry e (R.entries r2))
+                     (R.entries r1)
       , canFloat mentions rv && not (null es)
          = makeRowVarSubsts rv es
 
-      | Row.isComplete r1
-      , null (Row.diff r1 r2)
-      , Just rv <- Row.var r2
+      | R.isComplete r1
+      , null (R.diff r1 r2)
+      , Just rv <- R.var r2
          = makeRowShapeSubsts rv r1
 
-      | Row.isComplete r2
-      , null (Row.diff r2 r1)
-      , Just rv <- Row.var r1
+      | R.isComplete r2
+      , null (R.diff r2 r1)
+      , Just rv <- R.var r1
          = makeRowShapeSubsts rv r2
 
-    genStructSubst _ (V r :~~ U i) = makeRowUnifSubsts V (filter (not . Row.taken) (Row.entries r)) i
-    genStructSubst _ (U i :~~ V r) = makeRowUnifSubsts V (filter (not . Row.taken) (Row.entries r)) i
+    genStructSubst _ (V r :~~ U i) = makeRowUnifSubsts V (filter R.present (R.entries r)) i
+    genStructSubst _ (U i :~~ V r) = makeRowUnifSubsts V (filter R.present (R.entries r)) i
 
     -- tuples
     genStructSubst _ (T (TTuple ts) :< U i) = makeTupleUnifSubsts ts i
@@ -228,26 +229,26 @@ sinkfloat = Rewrite.rewrite' $ \gs ->
     -- Helper Functions
     --
 
-    makeEntryUnif e = Row.mkEntry <$>
-                      pure (Row.fname e) <*>
-                      (U <$> lift solvFresh) <*> pure (Row.taken e)
+    makeEntryUnif e = R.mkEntry <$>
+                      pure (R.fname e) <*>
+                      (U <$> lift solvFresh) <*> pure (R.taken e)
 
     -- Substitute a record structure for the unifier with only the specified
     -- entries, hence an incomplete record.
     makeRowUnifSubsts frow es u =
       do rv <- lift solvFresh
          es' <- traverse makeEntryUnif es
-         return $ Subst.ofType u (frow (Row.incomplete es' rv))
+         return $ Subst.ofType u (frow (R.incomplete es' rv))
 
     -- Expand rows containing row variable rv with the specified entries.
     makeRowVarSubsts rv es =
       do rv' <- lift solvFresh
          es' <- traverse makeEntryUnif es
-         return $ Subst.ofRow rv $ Row.incomplete es' rv'
+         return $ Subst.ofRow rv $ R.incomplete es' rv'
 
     -- Create a shape substitution for the row variable.
     makeRowShapeSubsts rv row =
-      return $ Subst.ofShape rv (Row.shape row)
+      return $ Subst.ofShape rv (R.shape row)
 
     makeTupleUnifSubsts ts i = do
       tus <- traverse (const (U <$> lift solvFresh)) ts

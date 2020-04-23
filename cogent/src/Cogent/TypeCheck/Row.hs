@@ -50,12 +50,14 @@ module Cogent.TypeCheck.Row
   , decl
   , payload
   , taken
+  , present
+  , compatEntry
   ) where
 
 import           Cogent.Common.Syntax
 import           Cogent.Compiler
 import           Cogent.Surface
-import           Cogent.Util (elemBy, (\\-))
+import           Cogent.Util (elemBy, notElemBy, (\\-))
 
 import           Control.Monad (guard)
 import           Data.Either (isRight)
@@ -111,6 +113,8 @@ decl (Entry (_,d)) = d
 -- | Retrieve the takenness of an entry.
 taken :: Entry t -> Bool
 taken (Entry (_,(_,t))) = t
+
+present = not . taken
 
 -- | Retrieve the payload of an entry
 payload :: Entry t -> t
@@ -192,15 +196,15 @@ unord _ _ acc = acc
 -- The result is the first row with the second row's entries removed.
 diff :: Row t -> Row t -> [Entry t]
 diff r1 r2 = xs ++ ys
-  where xs = filter (not . (\e -> elemBy ((==) `on` fname) e (entries r2))) $ entries r1
-        ys = filter (not . (\e -> elemBy ((==) `on` fname) e (entries r1))) $ entries r2
+  where xs = filter (\e -> notElemBy compatEntry e (entries r2)) $ entries r1
+        ys = filter (\e -> notElemBy compatEntry e (entries r1)) $ entries r2
 
 -- | Expand an incomplete row. This operation does nothing if applied to a
 -- complete row. For incomplete rows, the entries are assumed to be disjoint.
 expand :: Show t => Row t -> Row t -> Row t
 expand r@(Complete _) _ =
-  __impossible ("Row.expand: attempting to expand complete row: " ++ (show r))
-expand r@(Incomplete _ es) (Complete es') =
+  __impossible ("Row.expand: attempting to expand complete row: " ++ show r)
+expand (Incomplete _ es) (Complete es') =
   let f e' = case find (\e -> fname e == fname e') es of
         Just e -> e
         Nothing -> e' in
@@ -208,26 +212,26 @@ expand r@(Incomplete _ es) (Complete es') =
 expand (Incomplete _ es) (Incomplete v' es') = Incomplete v' (es ++ es')
 
 close :: Show t => Row t -> Shape -> Row t
-close (Incomplete _ es) s | compatibleShape es s =
+close (Incomplete _ es) s | compatShape es s =
   Complete $ zipWith (curry Entry) s $ mapMaybe (flip lookup $ map unE es) s
 close r@(Incomplete _ _) s =
-  __impossible ("Row.close: shape " ++ (show s) ++
-                " is incompatible with row: " ++ (show r))
+  __impossible ("Row.close: shape " ++ show s ++
+                " is incompatible with row: " ++ show r)
 close r _ =
-  __impossible ("Row.close: attempting to close complete row: " ++ (show r))
+  __impossible ("Row.close: attempting to close complete row: " ++ show r)
 
 -- | Return the shape of a complete row. Empty if row not complete.
 shape :: Row t -> Shape
 shape (Complete es) = map fname es
 shape _ = []
 
-compatibleShape :: [Entry t] -> Shape -> Bool
-compatibleShape es s =
+compatShape :: [Entry t] -> Shape -> Bool
+compatShape es s =
   all ((`elem` s) . fname) es && all (`elem` (map fname es)) s
 
 -- | Return the entries in the list which are known to be present.
 presentEntries :: [Entry t] -> [Entry t]
-presentEntries es = filter (not . taken) es
+presentEntries es = filter present es
 
 presentLabels :: Row t -> [FieldName]
 presentLabels r = map fname $ presentEntries (entries r)
@@ -249,7 +253,7 @@ takenIn f r = case find ((f ==) . fname) (entries r) of
 -- | Given a set of field names extract their corresponding payload in the
 -- provided row.
 extract :: [FieldName] -> Row t -> [t]
-extract s r = map payload (filter (\e -> (fname e) `elem` s) (entries r))
+extract s r = map payload (filter (\e -> fname e `elem` s) (entries r))
 
 -- | Given a list of labels mark them as taken in the row (if they exist).
 setMany :: Bool -> [FieldName] -> Row t -> Row t
@@ -289,8 +293,12 @@ putAll = setAll False
 
 -- | Returns true iff the two rows could be considered equal after
 -- unification.
-compatible :: Row t -> Row t -> Bool
-compatible (Complete es) (Complete es') = map fname es == map fname es'
-compatible (Complete es) (Incomplete _ es') = all (\e -> elemBy ((==) `on` fname) e es ) es'
-compatible (Incomplete _ es) (Complete es') = all (\e -> elemBy ((==) `on` fname) e es') es
-compatible (Incomplete v es) (Incomplete v' es') = v /= v' || null ((\\-) ((==) `on` fname) es es')
+compatRow :: Row t -> Row t -> Bool
+compatRow (Complete es) (Complete es') = map fname es == map fname es'
+compatRow (Complete es) (Incomplete _ es') = all (\e -> elemBy compatEntry e es ) es'
+compatRow (Incomplete _ es) (Complete es') = all (\e -> elemBy compatEntry e es') es
+compatRow (Incomplete v es) (Incomplete v' es') = v /= v' || null ((\\-) compatEntry es es')
+
+compatEntry :: Entry t -> Entry t -> Bool
+compatEntry = (==) `on` fname
+

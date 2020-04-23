@@ -485,6 +485,9 @@ elemBy f a as = go f a (toList as)
   where go f a [] = False
         go f a (b:bs) = if f a b then True else go f a bs
 
+notElemBy :: Foldable t => (a -> a -> Bool) -> a -> t a -> Bool
+notElemBy = ((not .) .) . elemBy
+
 -- | A '\\-by' function
 (\\-) :: (a -> a -> Bool) -> [a] -> [a] -> [a]
 (\\-) f = foldl (flip (L.deleteBy f))
