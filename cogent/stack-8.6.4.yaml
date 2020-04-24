@@ -1,0 +1,14 @@
+resolver: lts-13.19             # ghc-8.6.4; 2019-04-29
+packages:
+  - '.'
+  - '../isa-parser'
+
+flags:
+  language-c-quote:
+    full-haskell-antiquotes: false
+
+extra-package-dbs: []
+extra-deps:
+  - sbv-7.12                    # for the `array' branches
+  - haskell-exp-parser-0.1.1
+  - pretty-show-ansi-wl-1.9.2.1
