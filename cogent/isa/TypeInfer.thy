@@ -41,7 +41,7 @@ For synthesising, the type is output.
 For checking, the type is input.
 
 Not that C being output means that in an assumption, C should be a variable.
-If you want to enforce a structure on C, you have to then use an equality so it can do computation.
+If you want to enforce a structure on C, you have to use an equality so it can do computation.
 *)
 inductive tyinf_synth :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Rightarrow> type list \<Rightarrow> nat list \<Rightarrow> 'f expr \<Rightarrow> type \<Rightarrow> bool"
           ("_, _, _ , _ \<turnstile>\<down> _ : _" [30,0,0,0,0,20] 60)
@@ -80,8 +80,8 @@ inductive tyinf_synth :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<
                   ; K \<turnstile> TRecord ts s :\<kappa> k
                   ; S \<in> k
                   ; f < length ts
-                  ; ts ! f = (n, t, Present)
-                  \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> Member e f : t"
+                  ; snd (snd (ts ! f)) = Present
+                  \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> Member e f : fst (snd (ts ! f))"
 
 | tyinf_put    : "\<lbrakk> \<Xi>, K, \<Gamma>, C1 \<turnstile>\<down> e : \<tau>1
                   ; \<tau>1 = TRecord ts s
@@ -97,15 +97,11 @@ inductive tyinf_synth :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<
                   ; prim_op_type oper = (ts,t)
                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> Prim oper args : TPrim t"
 
-(* problems with this; not mode correct.
-   struct should store the names of the fields, not their types. *)
-| tyinf_struct : "\<lbrakk> \<Xi>, K, \<Gamma>, C \<turnstile>\<down>* es : \<tau>s
-                  ; \<tau>s = \<tau>s'
-                  ; length ts' = length \<tau>s
-                  ; ns = map fst ts'
+| tyinf_struct : "\<lbrakk> \<Xi>, K, \<Gamma>, C \<turnstile>\<down>* es : ts
+                  ; ts = ts' \<^cancel>\<open>FIXME: remove ts'\<close>
                   ; distinct ns
-                  ; ts' = zip ns (map (\<lambda>t. (t,Present)) ts)
-                  \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> Struct \<tau>s' es : TRecord ts' Unboxed"
+                  ; vs = zip ns (map (\<lambda>t. (t,Present)) ts)
+                  \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> Struct ns ts' es : TRecord vs Unboxed"
 
 (* checking *)
 
@@ -197,6 +193,55 @@ inductive tyinf_synth :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Fun f ts : TFun t' u'"
 *)
 
+inductive_cases tyinf_synth_varE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<down> Var i : t"
+inductive_cases tyinf_synth_tupleE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<down> Tuple e1 e2 : t"
+inductive_cases tyinf_synth_conE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<down> Con ts tag x : t"
+inductive_cases tyinf_synth_esacE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<down> Esac x n : t"
+inductive_cases tyinf_synth_litE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<down> Lit l : t"
+inductive_cases tyinf_synth_slitE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<down> SLit s : t"
+inductive_cases tyinf_synth_unitE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<down> Unit : t"
+inductive_cases tyinf_synth_memberE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<down> Member e f : t"
+inductive_cases tyinf_synth_putE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<down> Put e f e' : t"
+inductive_cases tyinf_synth_primE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<down> Prim oper arg : t"
+inductive_cases tyinf_synth_structE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<down> Struct ns ts es : t"
+
+inductive_cases tyinf_check_castE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> Cast nm e : t"
+inductive_cases tyinf_check_appE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> App x y : t"
+inductive_cases tyinf_check_splitE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> Split x y : t"
+inductive_cases tyinf_check_letE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> Let x y : t"
+inductive_cases tyinf_check_letbE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> LetBang is x y : t"
+inductive_cases tyinf_check_caseE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> Case x tag a b : t"
+inductive_cases tyinf_check_ifE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> If x a b : t"
+inductive_cases tyinf_check_takeE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> Take e f e' : t"
+
+inductive_cases tyinf_check_varE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> Var i : t"
+inductive_cases tyinf_check_tupleE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> Tuple e1 e2 : t"
+inductive_cases tyinf_check_conE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> Con ts tag x : t"
+inductive_cases tyinf_check_esacE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> Esac x n : t"
+inductive_cases tyinf_check_litE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> Lit l : t"
+inductive_cases tyinf_check_slitE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> SLit s : t"
+inductive_cases tyinf_check_unitE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> Unit : t"
+inductive_cases tyinf_check_memberE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> Member e f : t"
+inductive_cases tyinf_check_putE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> Put e f e' : t"
+inductive_cases tyinf_check_primE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> Prim oper arg : t"
+inductive_cases tyinf_check_structE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> Struct ns ts es : t"
+
+inductive_cases tyinf_check_promoteE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> Promote t x : t"
+
+inductive_cases tyinf_all_synth_consE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<down>* (e # es) : ts"
+inductive_cases tyinf_all_synth_nilE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<down>* [] : ts"
+
+lemmas tyinf_synth_safe_intros =
+  tyinf_var tyinf_tuple tyinf_con tyinf_esac tyinf_lit tyinf_slit tyinf_unit tyinf_member tyinf_put
+  tyinf_prim tyinf_struct
+
+lemmas tyinf_checking_safe_intros =
+  tyinf_cast tyinf_app tyinf_split tyinf_let tyinf_letb tyinf_case tyinf_if tyinf_take
+  tyinf_promote tyinf_all_empty tyinf_all_cons
+  tyinf_synth_safe_intros[THEN tyinf_switch]
+
+lemmas tyinf_safe_intros = tyinf_synth_safe_intros tyinf_checking_safe_intros
+
 
 
 lemma zip_map2_simps:
@@ -212,7 +257,7 @@ definition
 where
   "abbreviatedType1 \<equiv> TRecord [(''b'', (TPrim (Num U8), Present)), (''a'', (TPrim (Num U32), Present))] Unboxed"
 
-lemmas abbreviated_type_defs =
+lemmas abbreviated_type_defs[intro!] =
   abbreviatedType1_def
 
 definition
@@ -223,35 +268,19 @@ where
 definition
   foo :: "string Cogent.expr"
 where
-  "foo \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Struct [TPrim (Num U8), TPrim (Num U32)] [Var 2, Var 0]))"
+  "foo \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Struct [''b'',''a''] [TPrim (Num U8), TPrim (Num U32)] [Var 2, Var 0]))"
 
-schematic_goal "\<Xi>, [], [fst (snd foo_type)], (?C :: nat list) \<turnstile>\<up> foo : snd (snd foo_type)"
+ML \<open>
+  fun typinfer_tac (ctxt : Proof.context) : tactic =
+    REPEAT_FIRST (resolve_tac ctxt @{thms tyinf_safe_intros} ORELSE' force_tac (ctxt addsimps @{thms kinding_simps}))
+\<close>
+
+schematic_goal ty1: "\<Xi>, [], [fst (snd foo_type)], (?C :: nat list) \<turnstile>\<up> foo : snd (snd foo_type)"
   unfolding foo_def foo_type_def abbreviatedType1_def
   apply clarsimp
-  apply (rule tyinf_synth_tyinf_check_tyinf_synth_all.intros)
-          apply (rule tyinf_synth_tyinf_check_tyinf_synth_all.intros, force)
-         apply force
-        apply force
-       apply force
-      apply force
-     apply (force simp add: kinding_simps)
-    defer
-    apply (rule tyinf_synth_tyinf_check_tyinf_synth_all.intros)
-            apply (rule tyinf_synth_tyinf_check_tyinf_synth_all.intros, force)
-           apply force
-          apply force
-         apply force
-        apply force
-       apply (force simp add: kinding_simps)
-      defer
-      apply (rule tyinf_synth_tyinf_check_tyinf_synth_all.intros)
-       apply (rule tyinf_synth_tyinf_check_tyinf_synth_all.intros)
-            apply (rule tyinf_synth_tyinf_check_tyinf_synth_all.intros)
-             apply (rule tyinf_synth_tyinf_check_tyinf_synth_all.intros, force)
-            apply (rule tyinf_synth_tyinf_check_tyinf_synth_all.intros)
-             apply (rule tyinf_synth_tyinf_check_tyinf_synth_all.intros, force)
-            apply (rule tyinf_synth_tyinf_check_tyinf_synth_all.intros)
-           apply force
-  oops
+  apply (tactic \<open>typinfer_tac @{context}\<close>)
+  done
+
+thm ty1[simplified]
 
 end
