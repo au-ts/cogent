@@ -319,7 +319,7 @@ datatype 'f expr = Var index
                  | Prim prim_op "'f expr list"
                  | App "'f expr" "'f expr"
                  | Con "(name \<times> type \<times> variant_state) list" name "'f expr"
-                 | Struct "type list" "'f expr list"
+                 | Struct "name list" "type list" "'f expr list"
                  | Member "'f expr" field
                  | Unit
                  | Lit lit
@@ -397,7 +397,7 @@ lemma type_wellformed_pretty_intros:
   by (simp add: list_all_iff)+
 
 definition type_wellformed_all_pretty :: "kind env \<Rightarrow> type list \<Rightarrow> bool" ("_ \<turnstile>* _ wellformed" [30,20] 60) where
-  "K \<turnstile>* ts wellformed \<equiv> (\<forall>t\<in>set ts. type_wellformed (length K) t)"
+  "K \<turnstile>* ts wellformed \<equiv> list_all (type_wellformed (length K)) ts"
 declare type_wellformed_all_pretty_def[simp]
 
 definition proc_ctx_wellformed :: "('f \<Rightarrow> poly_type) \<Rightarrow> bool" where
@@ -473,7 +473,7 @@ fun specialise :: "type substitution \<Rightarrow> 'f expr \<Rightarrow> 'f expr
 | "specialise \<delta> (Prim p es)       = Prim p (map (specialise \<delta>) es)"
 | "specialise \<delta> (App a b)         = App (specialise \<delta> a) (specialise \<delta> b)"
 | "specialise \<delta> (Con as t e)      = Con (map (\<lambda> (c,t,b). (c, instantiate \<delta> t, b)) as) t (specialise \<delta> e)"
-| "specialise \<delta> (Struct ts vs)    = Struct (map (instantiate \<delta>) ts) (map (specialise \<delta>) vs)"
+| "specialise \<delta> (Struct ns ts vs) = Struct ns (map (instantiate \<delta>) ts) (map (specialise \<delta>) vs)"
 | "specialise \<delta> (Member v f)      = Member (specialise \<delta> v) f"
 | "specialise \<delta> (Unit)            = Unit"
 | "specialise \<delta> (Cast t e)        = Cast t (specialise \<delta> e)"
@@ -799,8 +799,9 @@ typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length
 | typing_struct : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile>* es : ts
                    ; distinct ns
                    ; length ns = length ts
-                   ; ts' = zip ns (zip ts (replicate (length ts) Present))
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Struct ts es : TRecord ts' Unboxed"
+                   ; ts' = map (\<lambda>(n,t). (n,t,Present)) (zip ns ts)
+                   ; ts'' = ts
+                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Struct ns ts'' es : TRecord ts' Unboxed"
 
 | typing_member : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> e : TRecord ts s
                    ; K \<turnstile> TRecord ts s :\<kappa> k
@@ -857,7 +858,7 @@ inductive_cases typing_caseE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Case x t
 inductive_cases typing_esacE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Esac e t : \<tau>"
 inductive_cases typing_castE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Cast t e : \<tau>"
 inductive_cases typing_letE    [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Let a b : \<tau>"
-inductive_cases typing_structE [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Struct ts es : \<tau>"
+inductive_cases typing_structE [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Struct ns ts es : \<tau>"
 inductive_cases typing_letbE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> LetBang vs a b : \<tau>"
 inductive_cases typing_takeE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Take x f e : \<tau>"
 inductive_cases typing_putE    [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Put x f e : \<tau>"
@@ -876,7 +877,7 @@ inductive atom ::"'f expr \<Rightarrow> bool" where
 | "atom (AFun f ts)"
 | "atom (Prim p (map Var is))"
 | "atom (Con ts n (Var x))"
-| "atom (Struct ts (map Var is))"
+| "atom (Struct ns ts (map Var is))"
 | "atom (Cast t (Var x))"
 | "atom (Member (Var x) f)"
 | "atom Unit"
@@ -990,7 +991,7 @@ lemma kinding_iff_wellformed:
     "(\<exists>k. K \<turnstile>* ts :\<kappa> k) \<longleftrightarrow> K \<turnstile>* ts wellformed"
     "(\<exists>k. K \<turnstile>* tvs :\<kappa>v k) \<longleftrightarrow> K \<turnstile>* map (fst \<circ> snd) tvs wellformed"
     "(\<exists>k. K \<turnstile>* trs :\<kappa>r k) \<longleftrightarrow> K \<turnstile>* map (fst \<circ> snd) trs wellformed"
-  by (auto simp add: kinding_defs)
+  by (auto simp add: kinding_defs list_all_iff)
 
 lemma kinding_to_wellformedD:
   shows
@@ -998,7 +999,7 @@ lemma kinding_to_wellformedD:
     "K \<turnstile>* ts :\<kappa> k \<Longrightarrow> K \<turnstile>* ts wellformed"
     "K \<turnstile>* tvs :\<kappa>v k \<Longrightarrow> K \<turnstile>* map (fst \<circ> snd) tvs wellformed"
     "K \<turnstile>* trs :\<kappa>r k \<Longrightarrow> K \<turnstile>* map (fst \<circ> snd) trs wellformed"
-  by (auto simp add: kinding_defs)
+  by (auto simp add: kinding_defs list_all_iff)
 
 lemma list_all2_kinding_wellformedD:
   "list_all2 (kinding K) ts K' \<Longrightarrow> list_all (type_wellformed (length K)) ts \<and> length ts = length K'"
@@ -1279,7 +1280,7 @@ and   "K \<turnstile>* ts wellformed \<Longrightarrow> k \<subseteq> {D, S} \<Lo
 and   "K \<turnstile>* map (fst \<circ> snd) xs wellformed \<Longrightarrow> k \<subseteq> {D, S} \<Longrightarrow> K \<turnstile>* map (\<lambda>(n,t,b). (n, bang t, b)) xs :\<kappa>v k"
 and   "K \<turnstile>* map (fst \<circ> snd) fs wellformed \<Longrightarrow> k \<subseteq> {D, S} \<Longrightarrow> K \<turnstile>* map (\<lambda>(n,t,b). (n, bang t, b)) fs :\<kappa>r k"
   using bang_wellformed bang_kinding_fn
-  by (fastforce simp add: kinding_defs INT_subset_iff simp del: insert_subset
+  by (fastforce simp add: kinding_defs INT_subset_iff list_all_iff simp del: insert_subset
       split: variant_state.split record_state.split)+
 
 section {* Subtyping lemmas *}
@@ -2097,7 +2098,8 @@ next case typing_fun then show ?case
     by (clarsimp simp add: kinding_defs instantiate_wellformed list_all2_kinding_wellformedD list_all2_lengthD)
 next case typing_esac then show ?case
     by (fastforce dest: filter_member2  simp add: kinding_simps kinding_variant_set list_all_iff)
-next case typing_struct then show ?case by (clarsimp simp add: in_set_zip list_all_iff)
+next case typing_struct then show ?case
+    by (simp add: list_all_zip_iff_list_all2 list_all2_conv_all_nth list_all_length)
 next case typing_member then show ?case
     by (fastforce simp add: kinding_defs INT_subset_iff list_all_iff dest: nth_mem split: prod.splits record_state.splits)
 next case typing_put then show ?case
@@ -2132,15 +2134,14 @@ lemma wellformed_bang_type_repr[simp]:
     and "[] \<turnstile>* ts wellformed \<Longrightarrow> (map (type_repr \<circ> bang) ts) = map (type_repr) ts "
     and "[] \<turnstile>* map (fst \<circ> snd) xs wellformed \<Longrightarrow> (map (type_repr \<circ>  bang \<circ> fst \<circ> snd) xs) = map (type_repr \<circ> fst \<circ> snd) xs"
     and "[] \<turnstile>* map (fst \<circ> snd) fs wellformed \<Longrightarrow> (map (type_repr \<circ>  bang \<circ> fst \<circ> snd) fs) = map (type_repr \<circ> fst \<circ> snd) fs"
-  by (force intro: wellformed_imp_bang_type_repr simp add: kinding_all_set kinding_def)+
+  by (clarsimp simp add: wellformed_imp_bang_type_repr map_eq_iff_nth_eq list_all_length simp del: map_eq_conv)+
 
 lemma bang_type_repr[simp]:
   shows "[] \<turnstile> t :\<kappa> k \<Longrightarrow> (type_repr (bang t) = type_repr t)"
     and "[] \<turnstile>* ts :\<kappa> k \<Longrightarrow> (map (type_repr \<circ> bang) ts) = map (type_repr) ts "
     and "[] \<turnstile>* xs :\<kappa>v k \<Longrightarrow> (map (type_repr \<circ>  bang \<circ> fst \<circ> snd) xs) = map (type_repr \<circ> fst \<circ> snd) xs"
     and "[] \<turnstile>* fs :\<kappa>r k \<Longrightarrow> (map (type_repr \<circ>  bang \<circ> fst \<circ> snd) fs) = map (type_repr \<circ> fst \<circ> snd) fs"
-  using wellformed_bang_type_repr
-  by (force dest: kinding_to_wellformedD)+
+  by (force dest: kinding_to_wellformedD wellformed_bang_type_repr)+
 
 subsection {* Specialisation *}
 
@@ -2178,6 +2179,9 @@ next case (typing_fun \<Xi> K t f u t' ts u' ks \<Gamma>)
   ultimately show ?case by (auto intro!: list_all2_substitutivity
         typing_typing_all.typing_fun [simplified]
         instantiate_ctx_consumed)
+next
+  case (typing_struct) then show ?case
+    by (force intro: typing_typing_all.intros simp add: zip_map2 simp del: map_zip)
 next
   case (typing_con \<Xi> K \<Gamma> x t tag ts ts')
   then show ?case
@@ -2221,7 +2225,7 @@ fun expr_size :: "'f expr \<Rightarrow> nat" where
 | "expr_size (Prim p as) = Suc (sum_list (map expr_size as))"
 | "expr_size (Var v) = 0"
 | "expr_size (AFun v va) = 0"
-| "expr_size (Struct v va) = Suc (sum_list (map expr_size va))"
+| "expr_size (Struct ns v va) = Suc (sum_list (map expr_size va))"
 | "expr_size (Lit v) = 0"
 | "expr_size (SLit s) = 0"
 | "expr_size (Tuple v va) = Suc ((expr_size v) + (expr_size va))"
