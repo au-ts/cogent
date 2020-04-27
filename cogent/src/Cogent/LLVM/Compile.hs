@@ -336,7 +336,7 @@ expr_to_llvm (TE _ (Take (a, b) recd fld body)) =
                                  })
     fldv <- instr ((rec_type recd) !! fld) (LLVM.AST.Instruction.Load { volatile = False
                                                                       , address = fldvp
-                                                                      , maybeAtomicity = Just (LLVM.AST.Instruction.System, LLVM.AST.Instruction.Monotonic)
+                                                                      , maybeAtomicity = Nothing
                                                                       , LLVM.AST.Instruction.alignment = 1
                                                                       , LLVM.AST.Instruction.metadata = []
                                                                       })
