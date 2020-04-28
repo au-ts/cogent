@@ -36,6 +36,16 @@ definition
 
 section \<open> Tuple lemmas \<close>
 
+lemma map_pairs_iff_zip_maps: "map (\<lambda>(x,y). (f x, g y)) xs = zip (map (f \<circ> fst) xs) (map (g \<circ> snd) xs)"
+  by (metis (no_types, lifting) case_prod_beta' list.map_comp map_eq_conv zip_map_fst_snd zip_map_map)
+
+lemma map_comp_fst_zip: "length xs = length ys \<Longrightarrow> map (f \<circ> fst) (zip xs ys) = map f xs"
+  by (metis map_fst_zip map_map)
+
+lemma map_comp_snd_zip: "length xs = length ys \<Longrightarrow> map (f \<circ> snd) (zip xs ys) = map f ys"
+  by (metis map_snd_zip map_map)
+
+
 lemma map_snd_app [simp]:
   shows "map (snd \<circ> (\<lambda> (a , b). (a , f b))) l  =  map (f \<circ> snd) l"
   by (induct l, auto)
@@ -83,7 +93,6 @@ lemma snd_apsnd_compcomp: "f \<circ> snd \<circ> apsnd g = f \<circ> g \<circ> s
   by (clarsimp simp add: comp_assoc)
 
 
-(* making these simp makes the final force on specialise take forever? / v.jackson *)
 lemma comp_tuple_in2_out2_fst: "fst \<circ> (\<lambda>(a,b). (f a b, g a b)) = (\<lambda>(a,b). f a b)"
   by force
 
@@ -136,6 +145,20 @@ proof -
   then show ?thesis by (auto simp add: map_update)
 qed
 
+lemma map_const_snd: "map (\<lambda>x. (x, k)) xs = zip xs (replicate (length xs) k)"
+  by (simp add: list_eq_iff_nth_eq)
+
+subsection \<open> zip \<close>
+
+lemma map_zip_iff_zip_map:
+  fixes f :: "'a \<times> 'b \<Rightarrow> 'c \<times> 'd"
+  assumes
+    "length as = length bs"
+    "\<forall>i<length as. f (as ! i, bs ! i) = (f1 (as ! i), f2 (bs ! i))"
+  shows "map f (zip as bs) = zip (map f1 as) (map f2 bs)"
+  using assms
+  by (induct rule: list_induct2) (fastforce simp add: prod_eq_iff)+
+
 lemma map_zip_iff_zip_map_weak:
   fixes f :: "'a \<times> 'b \<Rightarrow> 'c \<times> 'd"
   assumes
@@ -145,12 +168,12 @@ lemma map_zip_iff_zip_map_weak:
   using assms
   by (induct rule: list_induct2) (fastforce simp add: prod_eq_iff)+
 
-lemma map_zip [simp]:
-  shows "map (\<lambda> (a , b). (f a, g b)) (zip as bs) = zip (map f as) (map g bs)"
+lemma map_zip:
+  shows "map (\<lambda>(a,b). (f a, g b)) (zip as bs) = zip (map f as) (map g bs)"
   by (induct as arbitrary:bs, simp, case_tac bs, simp_all)
 
-lemma map_zip3 [simp]:
-  shows "map (\<lambda> (a,b,c). (f a, g b, h c)) (zip as (zip bs cs)) = zip (map f as) (zip (map g bs) (map h cs))"
+lemma map_zip3:
+  shows "map (\<lambda>(a,b,c). (f a, g b, h c)) (zip as (zip bs cs)) = zip (map f as) (zip (map g bs) (map h cs))"
   by (induct as arbitrary: bs cs; case_tac bs; case_tac cs; simp)
 
 lemma zip_eq_conv_sym: "length xs = length ys \<Longrightarrow> (zs = zip xs ys) = (map fst zs = xs \<and> map snd zs = ys)"
@@ -261,6 +284,7 @@ lemmas list_all2_cons = List.list.rel_intros(2)
 lemma list_all2_eq_iff_map_eq: "list_all2 (\<lambda>x y. f x = g y) xs ys = (map f xs = map g ys)"
   by (induct xs arbitrary: ys; simp add: Cons_eq_map_conv list_all2_Cons1)
 
+(* TODO use same naming convention *)
 lemma list_all2_reversed_eq_eq: "list_all2 (\<lambda>a b. f b = g a) xs ys = (map g xs = map f ys)"
   by (induct xs arbitrary: ys)
     (force simp add: list_all2_Cons1)+
@@ -566,6 +590,9 @@ lemma list_all4_impD:
   by (induct rule: list_all4_induct, simp+)
 
 section \<open> Misc lemmas \<close>
+
+lemma if_args_cong_weak[cong]: "ab = bb \<Longrightarrow> at = bt \<Longrightarrow> af = bf \<Longrightarrow> (if ab then at else af) = (if bb then bt else bf)"
+  by blast
 
 lemma distinct_fst:
   assumes "distinct (map fst xs)"

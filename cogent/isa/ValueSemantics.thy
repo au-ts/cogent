@@ -117,7 +117,7 @@ where
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> If x t e \<Down> r"
 
 | v_sem_struct  : "\<lbrakk> \<xi> , \<gamma> \<turnstile>* xs \<Down> vs
-                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> Struct ts xs \<Down> VRecord vs"
+                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> Struct ns ts xs \<Down> VRecord vs"
 
 | v_sem_take    : "\<lbrakk> \<xi> , \<gamma> \<turnstile> x \<Down> VRecord fs
                    ; \<xi> , (fs ! f # VRecord fs # \<gamma>) \<turnstile> e \<Down> e'
@@ -145,6 +145,7 @@ inductive_cases v_sem_varE  [elim] : "\<xi> , \<gamma> \<turnstile> Var i \<Down
 inductive_cases v_sem_funE  [elim] : "\<xi> , \<gamma> \<turnstile> Fun f ts \<Down> v"
 inductive_cases v_sem_afunE [elim] : "\<xi> , \<gamma> \<turnstile> AFun f ts \<Down> v"
 inductive_cases v_sem_appE  [elim] : "\<xi> , \<gamma> \<turnstile> App a b \<Down> v"
+inductive_cases v_structE   [elim] : "\<xi> , \<gamma> \<turnstile> Struct ns ts e \<Down> v"
 
 
 locale value_sem =
@@ -231,6 +232,10 @@ definition vval_typing_all :: "('f \<Rightarrow> poly_type) \<Rightarrow> ('f, '
            ("_  \<turnstile>* _ :v _" [30,0,20] 80) where
    "(\<Xi> \<turnstile>* vs :v ts) \<equiv> list_all2 (vval_typing \<Xi>) vs ts"
 
+lemmas vval_typing_all_induct =
+  list_all2_induct[where P="vval_typing \<Xi>" for \<Xi>, simplified vval_typing_all_def[symmetric],
+    consumes 1, case_names Nil Cons]
+
 definition matches :: "('f \<Rightarrow> poly_type) \<Rightarrow>  ('f, 'a) vval env \<Rightarrow> ctx \<Rightarrow> bool"
            ("_ \<turnstile> _ matches _" [30,0,20] 60) where
    "\<Xi> \<turnstile> \<gamma> matches \<Gamma> \<equiv> list_all2 (\<lambda> x m. \<forall> \<tau>. m = Some \<tau> \<longrightarrow> \<Xi> \<turnstile> x :v \<tau>) \<gamma> \<Gamma>"
@@ -306,6 +311,18 @@ shows "\<Xi> \<turnstile>* vs :vr zip ns (zip ts (replicate (length ts) Present)
   using assms[simplified vval_typing_all_def]
   by (induct arbitrary: ns rule: list_all2_induct)
     (auto simp add: length_Suc_conv intro!: vval_typing_vval_typing_record.intros)
+
+lemma vval_typing_all_record':
+  assumes
+    "\<Xi> \<turnstile>* vs :v ts"
+    "list_all2 (\<lambda>t p. fst p = t) ts ts'"
+    "list_all (\<lambda>p. snd p = Present) ts'"
+    "length ns = length ts'"
+  shows "\<Xi> \<turnstile>* vs :vr zip ns ts'"
+  using assms
+  by (induct vs ts arbitrary: ns ts' rule: vval_typing_all_induct)
+  (force intro: vval_typing_vval_typing_record.intros
+      simp add: list_all2_Cons1 list_all2_Cons2 length_Suc_conv Suc_length_conv)+
 
 lemma vval_typing_record_take:
   assumes "\<Xi> \<turnstile>* ts :vr \<tau>s"
@@ -950,12 +967,13 @@ next case v_sem_letbang then show ?case by ( case_tac e, simp_all
 next case v_sem_if      then show ?case by ( case_tac e, simp_all
                                            , fastforce intro:  matches_split
                                                        split:  if_splits)
-next case v_sem_struct  then show ?case by ( case_tac e, simp_all
+next case v_sem_struct  then show ?case by (case_tac e, simp_all
                                            , fastforce intro: vval_typing_vval_typing_record.intros
-                                                              vval_typing_all_record [ where ts = "map f ts" for f ts
-                                                                                     , simplified])
-next
-  case (v_sem_take \<xi> \<gamma> spec_x fs f' spec_y e')
+                                                              vval_typing_all_record'
+                                                        simp: map_zip_instantiate list.rel_map
+                                                              list_all2_refl comp_def case_prod_beta
+                                                              list.pred_map list.pred_True)
+next  case (v_sem_take \<xi> \<gamma> spec_x fs f' spec_y e')
   then show ?case
   proof (cases e)
     case (Take x f y)
@@ -1148,7 +1166,7 @@ function monoexpr :: "'f expr \<Rightarrow> ('f \<times> type list) expr" where
 | "monoexpr (Prim p es)       = Prim p (map (monoexpr) es)"
 | "monoexpr (App a b)         = App (monoexpr a) (monoexpr b)"
 | "monoexpr (Con as t e)      = Con as t (monoexpr e)"
-| "monoexpr (Struct ts vs)    = Struct ts (map (monoexpr) vs)"
+| "monoexpr (Struct ns ts vs) = Struct ns ts (map (monoexpr) vs)"
 | "monoexpr (Member v f)      = Member (monoexpr v) f"
 | "monoexpr (Unit)            = Unit"
 | "monoexpr (Cast t e)        = Cast t (monoexpr e)"

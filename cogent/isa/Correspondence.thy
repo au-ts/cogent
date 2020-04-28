@@ -304,6 +304,20 @@ lemma upd_val_rel_record:
 proof (induct arbitrary: ns rule: upd_val_rel_all.induct)
 qed (auto simp add: length_Suc_conv intro!: upd_val_rel_upd_val_rel_record.intros)
 
+lemma upd_val_rel_record':
+  assumes
+    "\<Xi>, \<sigma> \<turnstile>* vs \<sim> vs' : ts \<langle>r, w\<rangle>"
+    "list_all2 (\<lambda>t p. fst p = t) ts ts'"
+    "list_all (\<lambda>p. snd p = Present) ts'"
+    "list_all2 (\<lambda>r p. r = type_repr (fst p)) rs ts'"
+    "length ns = length ts'"
+  shows
+   "\<Xi>, \<sigma> \<turnstile>* zip vs rs \<sim> vs' :r zip ns ts' \<langle>r, w\<rangle>"
+  using assms
+  by (induct arbitrary: ns ts' rs rule: upd_val_rel_all.induct)
+  (force intro!: upd_val_rel_upd_val_rel_record.intros
+    simp add: list_all2_conv_all_nth All_less_Suc2 Suc_length_conv length_Suc_conv)+
+
 lemma upd_val_rel_pointers_noalias:
 shows "\<lbrakk> \<Xi>, \<sigma> \<turnstile>  v  \<sim> v'  :  \<tau>  \<langle> r , w \<rangle> \<rbrakk> \<Longrightarrow> r \<inter> w = {}"
 and   "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* vs \<sim> vs' :r \<tau>s \<langle> r , w \<rangle> \<rbrakk> \<Longrightarrow> r \<inter> w = {}"
@@ -1468,7 +1482,7 @@ inductive_cases v_sem_caseE   [elim]  : " \<xi> , \<gamma> \<turnstile> Case e t
 inductive_cases v_sem_ifE     [elim!] : " \<xi> , \<gamma> \<turnstile> If c t e \<Down> v"
 inductive_cases v_sem_memberE [elim!] : " \<xi> , \<gamma> \<turnstile> Member e f \<Down> v"
 inductive_cases v_sem_putE    [elim!] : " \<xi> , \<gamma> \<turnstile> Put e f e' \<Down> v"
-inductive_cases v_sem_structE [elim!] : " \<xi> , \<gamma> \<turnstile> Struct fs ts \<Down> v"
+inductive_cases v_sem_structE [elim!] : " \<xi> , \<gamma> \<turnstile> Struct ns fs ts \<Down> v"
 inductive_cases v_sem_tupleE  [elim!] : " \<xi> , \<gamma> \<turnstile> Tuple a b \<Down> v"
 inductive_cases v_sem_all_emptyE [elim!] : " \<xi> , \<gamma> \<turnstile>* [] \<Down> v"
 inductive_cases v_sem_all_consE  [elim!] : " \<xi> , \<gamma> \<turnstile>* x # xs \<Down> v"
@@ -1948,12 +1962,12 @@ next case (u_sem_if _ _ _ _ _ b)
          apply (blast, simp)
        apply (cases b, simp, simp)+
     apply (fastforce intro: upd.frame_let)
-  done
-next case u_sem_struct    then show ?case by ( cases e, simp_all
-                                             , fastforce intro!: upd_val_rel_upd_val_rel_record.intros
-                                                         intro:  upd_val_rel_record
-                                                                 [where ts = "map (instantiate \<tau>s) ts"
-                                                                    for ts, simplified])
+    done
+next case u_sem_struct then show ?case
+    by (fastforce intro: upd_val_rel_upd_val_rel_record.intros upd_val_rel_record'
+        elim!: typing_structE simp add: specialise_eq_convs map_zip map_const_snd map_zip3
+        list_all2_reversed_eq_eq list_all_eq_const_eq list_all_replicate list_all2_eq_iff_map_eq
+        map_fst_zip_eq)+
 next case (u_sem_member \<xi> \<gamma> \<sigma> e' \<sigma>' fs f)
   moreover then obtain ts s n k ea
     where
@@ -2378,7 +2392,7 @@ next case (u_sem_abs_app _ _ _ _ _ f)
     apply (clarsimp)
     apply (rule,erule(2) v_sem_abs_app)
     done
-next case u_sem_con then show ?case by (force intro!: v_sem_v_sem_all.intros)
+next case u_sem_con then show ?case by (fastforce intro!: v_sem_v_sem_all.intros)
 next case u_sem_member
   note IH = this(2)
   and rest = this(1,3-)

@@ -432,12 +432,12 @@ typing xi k (EE _ Unit env) = tacSequence [
   ]
 
 typing xi k (EE t (Struct fs) env) = tacSequence [
-  return [rule "typing_struct'"],    -- Ξ, K, Γ ⊢ Struct ts es : TRecord ts' Unboxed
+  return [rule "typing_struct"],     -- Ξ, K, Γ ⊢ Struct ts es : TRecord ts' Unboxed
   typingAll xi k env (map snd fs),   -- Ξ, K, Γ ⊢* es : ts
-  return [simp_solve],               -- ns = map fst ts'
   return (distinct (map fst fs)),    -- distinct ns
-  return [simp_solve,                -- map (fst ∘ snd) ts' = ts
-          simp_solve]                -- list_all (λp. snd (snd p) = Present) ts'
+  return [simp_solve,                -- length ns = length ts
+          simp_solve,                -- ts' = map2 (λn t. (n, t, Present)) ns ts
+          simp_solve]                -- ts = ts''
   ]
 
 typing xi k (EE t (Member e f) env) = tacSequence [

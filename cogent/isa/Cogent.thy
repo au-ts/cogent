@@ -1099,6 +1099,10 @@ lemma wellformed_sum_wellformed_elem:
   by (metis assms fst_conv in_set_conv_nth list_all_length snd_conv type_wellformed.simps(6))
 
 
+lemma bang_preserves_wellformed_all:
+  "list_all (type_wellformed n) ts \<Longrightarrow> list_all (type_wellformed n) (map bang ts)"
+  by (simp add: bang_preserves_wellformed list_all_length)
+
 section {* Kinding lemmas *}
 
 (* kinding in terms of the higher level kinding judgements *)
@@ -1939,6 +1943,12 @@ proof -
   then show ?thesis
     by (simp add: f1)
 qed
+
+lemmas map_zip_instantiate = map_zip_iff_zip_map_weak[where f="\<lambda>x. (fst x, instantiate \<tau>s (snd x), Present)"
+                                                        and ?f1.0="\<lambda>a. a"
+                                                        and ?f2.0="\<lambda>b. (instantiate \<tau>s b, Present)" for \<tau>s,
+                                                        simplified]
+
 
 subsection {* substitutivity *}
 

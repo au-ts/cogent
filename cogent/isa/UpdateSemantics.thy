@@ -121,7 +121,7 @@ where
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, If x t e) \<Down>! st"
 
 | u_sem_struct  : "\<lbrakk> \<xi> , \<gamma> \<turnstile>* (\<sigma>, xs) \<Down>! (\<sigma>', vs)
-                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Struct ts xs) \<Down>! (\<sigma>', URecord (zip vs (map type_repr ts)))"
+                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Struct ns ts xs) \<Down>! (\<sigma>', URecord (zip vs (map type_repr ts)))"
 
 | u_sem_take    : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', UPtr p r)
                    ; \<sigma>' p = Some (URecord fs)
@@ -399,7 +399,7 @@ lemma uval_typing_all_record:
     "\<Xi>, \<sigma> \<turnstile>* vs :u ts \<langle>r, w\<rangle>"
     "length ns = length ts"
   shows
-    "\<Xi>, \<sigma> \<turnstile>* (zip vs (map (type_repr) ts)) :ur zip ns (zip ts (replicate (length ts) Present)) \<langle>r, w\<rangle>"
+    "\<Xi>, \<sigma> \<turnstile>* (zip vs (map type_repr ts)) :ur zip ns (map (\<lambda>y. (y, Present)) ts) \<langle>r, w\<rangle>"
   using assms
 proof (induct arbitrary: ns rule: uval_typing_all.induct)
 qed (auto intro!: uval_typing_uval_typing_record.intros simp add: length_Suc_conv)
@@ -1980,6 +1980,7 @@ lemma u_t_p_rec_w':
   by (auto intro: u_t_p_rec_w)
 
 
+
 theorem preservation:
 assumes "list_all2 (kinding []) \<tau>s K"
 and     "proc_ctx_wellformed \<Xi>"
@@ -2493,16 +2494,16 @@ next case (u_sem_if _ _ _ _ _ b)
         apply (blast, simp, cases b, simp, simp, cases b, simp, simp)
     apply (fastforce intro: frame_let)
     done
-next case (u_sem_struct \<xi> \<gamma> \<sigma> xs \<sigma>' vs ts)
-  moreover obtain ts' vs' ns
+next case (u_sem_struct \<xi> \<gamma> \<sigma> xs \<sigma>' vs ns ts)
+  moreover obtain ts' vs' tags
     where
-      "e = Struct ts' vs'"
-      "\<tau> = TRecord (zip ns (zip ts' (replicate (length ts') Present))) Unboxed"
+      "e = Struct ns ts' vs'"
+      "\<tau> = TRecord (zip tags (zip ts' (replicate (length ts') Present))) Unboxed"
       "\<Xi>, K, \<Gamma> \<turnstile>* vs' : ts'"
-      "distinct ns"
-      "length ns = length ts'"
+      "distinct tags"
+      "length tags = length ts'"
     using u_sem_struct
-    by (force elim!: typing_structE simp add: specialise_eq_convs)
+    by (force elim!: typing_structE simp add: specialise_eq_convs map_zip map_const_snd)
   moreover then obtain r' w'
     where
       "\<Xi>, \<sigma>' \<turnstile>* vs :u map (instantiate \<tau>s) ts' \<langle>r', w'\<rangle>"
@@ -2513,7 +2514,7 @@ next case (u_sem_struct \<xi> \<gamma> \<sigma> xs \<sigma>' vs ts)
   ultimately show ?case
     by (fastforce intro!: uval_typing_uval_typing_record.intros uval_typing_all_record'
         simp add: list_all2_reversed_eq_eq list_all_eq_const_eq list_all_replicate
-        list_all2_eq_iff_map_eq map_fst_zip_eq comp_def)
+        list_all2_eq_iff_map_eq map_fst_zip_eq map_zip3)
 next case (u_sem_member \<xi> \<gamma> \<sigma> e' \<sigma>' fs f e)
   moreover obtain ea ts s n k
     where
