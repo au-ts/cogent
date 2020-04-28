@@ -949,6 +949,10 @@ lemma bang_preserves_wellformed:
   "type_wellformed n t \<Longrightarrow> type_wellformed n (bang t)"
   by (induct t rule: type_wellformed.induct) (clarsimp simp add: list.pred_map list_all_iff)+
 
+lemma bang_preserves_wellformed_all:
+  "list_all (type_wellformed n) ts \<Longrightarrow> list_all (type_wellformed n) (map bang ts)"
+  by (simp add: bang_preserves_wellformed list_all_length)
+
 section {* Kinding lemmas *}
 
 (* kinding in terms of the higher level kinding judgements *)
@@ -1688,6 +1692,12 @@ proof -
     by (simp add: f1)
 qed
 
+lemmas map_zip_instantiate = map_zip_iff_zip_map_weak[where f="\<lambda>x. (fst x, instantiate \<tau>s (snd x), Present)"
+                                                        and ?f1.0="\<lambda>a. a"
+                                                        and ?f2.0="\<lambda>b. (instantiate \<tau>s b, Present)" for \<tau>s,
+                                                        simplified]
+
+
 subsection {* substitutivity *}
 
 lemma instantiate_wellformed:
@@ -2116,7 +2126,7 @@ obtains x where "cast_to \<tau>' l = Some x"
 using assms by (cases l, auto elim: upcast_valid.elims)
 
 lemma wellformed_imp_bang_type_repr:
-  assumes "[] \<turnstile> t wellformed"
+  assumes "type_wellformed 0 t"
   shows "type_repr (bang t) = type_repr t"
   using assms
 proof (induct t)

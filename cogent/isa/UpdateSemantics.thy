@@ -121,7 +121,7 @@ where
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, If x t e) \<Down>! st"
 
 | u_sem_struct  : "\<lbrakk> \<xi> , \<gamma> \<turnstile>* (\<sigma>, xs) \<Down>! (\<sigma>', vs)
-                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Struct ts xs) \<Down>! (\<sigma>', URecord (zip vs (map type_repr ts)))"
+                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Struct ns ts xs) \<Down>! (\<sigma>', URecord (zip vs (map type_repr ts)))"
 
 | u_sem_take    : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', UPtr p r)
                    ; \<sigma>' p = Some (URecord fs)
@@ -378,10 +378,24 @@ lemma uval_typing_all_record:
     "\<Xi>, \<sigma> \<turnstile>* vs :u ts \<langle>r, w\<rangle>"
     "length ns = length ts"
   shows
-    "\<Xi>, \<sigma> \<turnstile>* (zip vs (map (type_repr) ts)) :ur zip ns (zip ts (replicate (length ts) Present)) \<langle>r, w\<rangle>"
+    "\<Xi>, \<sigma> \<turnstile>* (zip vs (map type_repr ts)) :ur zip ns (map (\<lambda>y. (y, Present)) ts) \<langle>r, w\<rangle>"
   using assms
 proof (induct arbitrary: ns rule: uval_typing_all.induct)
 qed (auto intro!: uval_typing_uval_typing_record.intros simp add: length_Suc_conv)
+
+lemma uval_typing_all_record':
+  assumes
+    "\<Xi>, \<sigma> \<turnstile>* vs :u ts \<langle>r, w\<rangle>"
+    "list_all2 (\<lambda>t p. fst p = t) ts ts'"
+    "list_all (\<lambda>p. snd p = Present) ts'"
+    "list_all2 (\<lambda>r p. r = type_repr (fst p)) rs ts'"
+    "length ns = length ts'"
+  shows
+    "\<Xi>, \<sigma> \<turnstile>* zip vs rs :ur zip ns ts' \<langle>r, w\<rangle>"
+  using assms
+  by (induct arbitrary: ns ts' rs rule: uval_typing_all.induct)
+    (force intro!: uval_typing_uval_typing_record.intros
+      simp add: list_all_length list_all2_conv_all_nth Suc_length_conv length_Suc_conv All_less_Suc2)+
 
 lemma uval_typing_pointers_noalias:
   shows "\<lbrakk> \<Xi>, \<sigma> \<turnstile>  v  :u  \<tau>  \<langle> r , w \<rangle> \<rbrakk> \<Longrightarrow> r \<inter> w = {}"
@@ -553,7 +567,7 @@ next
     by (force intro!: uval_typing_uval_typing_record.intros simp: list_all_iff)
 next
   case u_t_abstract then show ?case
-    by (force intro: uval_typing_uval_typing_record.intros bang_wellformed abs_typing_bang[where s = Unboxed, simplified])
+    by (force intro!: uval_typing_uval_typing_record.intros intro: bang_preserves_wellformed_all dest: abs_typing_bang)
 next
   case (u_t_p_rec_ro \<Xi> \<sigma> fs ts r l ptrl)
   moreover have "\<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (type_repr \<circ> fst \<circ> snd \<circ> apsnd (apfst bang)) ts)) :u TRecord (map (apsnd (apfst bang)) ts) (Boxed ReadOnly ptrl) \<langle>insert l r, {}\<rangle>"
@@ -570,13 +584,13 @@ next
 next
   case (u_t_p_abs_ro s ptrl a n ts r \<sigma> l \<Xi>)
   then have "\<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr (map bang ts))) :u TCon n (map bang ts) (Boxed ReadOnly ptrl) \<langle>insert l r, {}\<rangle>"
-    by (fastforce intro!: uval_typing_uval_typing_record.intros dest: abs_typing_bang bang_kind(2) bang_wellformed)
+    by (intro uval_typing_uval_typing_record.u_t_p_abs_ro; force intro: bang_preserves_wellformed_all dest: abs_typing_bang)
   then show ?case
     using u_t_p_abs_ro by clarsimp
 next
   case (u_t_p_abs_w s ptrl a n ts r w \<sigma> l \<Xi>)
   then have "\<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr (map bang ts))) :u TCon n (map bang ts) (Boxed ReadOnly ptrl) \<langle>insert l (r \<union> w), {}\<rangle>"
-    by (fastforce intro!: uval_typing_uval_typing_record.intros dest: abs_typing_bang bang_kind(2) bang_wellformed)
+    by (intro uval_typing_uval_typing_record.intros; force intro: bang_preserves_wellformed_all dest: abs_typing_bang)
   then show ?case
     using u_t_p_abs_w by clarsimp
 next
@@ -1784,6 +1798,7 @@ lemma u_t_p_rec_w':
   by (auto intro: u_t_p_rec_w)
 
 
+
 theorem preservation:
 assumes "list_all2 (kinding []) \<tau>s K"
 and     "proc_ctx_wellformed \<Xi>"
@@ -2297,11 +2312,20 @@ next case (u_sem_if _ _ _ _ _ b)
         apply (blast, simp, cases b, simp, simp, cases b, simp, simp)
     apply (fastforce intro: frame_let)
   done
-next case u_sem_struct    then show ?case by ( cases e, simp_all
-                                             , fastforce intro!: uval_typing_uval_typing_record.intros
-                                                         intro:  uval_typing_all_record
-                                                                 [where ts = "map (instantiate \<tau>s) ts"
-                                                                    for ts, simplified])
+next case (u_sem_struct \<xi> \<gamma> \<sigma> xs \<sigma>' vs ns ts)
+  then show ?case
+    apply -
+    apply ( cases e
+        , simp_all )
+    apply (erule typing_structE)
+    apply clarsimp
+    apply (fastforce
+        intro: uval_typing_all_record'
+        uval_typing_uval_typing_record.intros
+        simp add: list_all2_map1 list_all2_map2 list_all2_refl
+        list.pred_map comp_def list.pred_True case_prod_beta
+        map_zip prod.case_eq_if map_zip_instantiate)+
+    done
 next case u_sem_member
  then show ?case
    apply ( cases e

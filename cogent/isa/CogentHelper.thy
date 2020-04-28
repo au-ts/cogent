@@ -46,14 +46,6 @@ lemma typing_con' : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t
                      \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Con ts tag x : TSum ts'"
   by (simp add: typing_con)
 
-lemma typing_struct': "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile>* es : ts
-                       ; ns = map fst ts'
-                       ; distinct ns
-                       ; map (fst \<circ> snd) ts' = ts
-                       ; list_all (\<lambda>p. snd (snd p) = Present) ts'
-                       \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Struct ts es : TRecord ts' Unboxed"
-  by (force intro: typing_struct simp add: zip_eq_conv_sym replicate_eq_map_conv_nth list_all_length)
-
 lemma typing_afun': "\<lbrakk> \<Xi> f = (ks, t, u)
                      ; list_all2 (kinding K) ts ks
                      ; t' = instantiate ts t
@@ -481,7 +473,7 @@ fun typing (Const (@{const_name Var}, _) $ i) G _ hints = let
       val _ = (case typing_hint hints of
                  [] => ()
                | _ => raise HINTS ("too many tacs", hints))
-  in ([RTac @{thm typing_struct'}] @ typing_all_vars ctxt G ixs @ [simp_solve, simp_solve, simp_solve, simp_solve]) end
+  in ([RTac @{thm typing_struct}] @ typing_all_vars ctxt G ixs @ [simp_solve, simp_solve, simp_solve, simp_solve]) end
     | NONE => typing_hint hints)
   | typing (Const (@{const_name Prim}, _) $ _ $ xs) G ctxt hints
   = (case dest_all_vars xs of SOME ixs => let
@@ -492,7 +484,6 @@ fun typing (Const (@{const_name Var}, _) $ i) G _ hints = let
     | NONE => typing_hint hints)
   | typing _ _ _ hints = let
     in typing_hint hints end
-
 
 
 fun ttyping (Const (@{const_name Split}, a) $ x $ y) tt k ctxt hint_tree : (tac*term) list = let
