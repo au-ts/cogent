@@ -490,6 +490,41 @@ ct_sem_share:
   "\<lbrakk> (snd \<circ> snd) K = Unused \<longrightarrow> A \<turnstile> CtDrop ((fst \<circ> snd) K)
    ; A \<turnstile> CtDrop (TVariant Ks None)
    \<rbrakk> \<Longrightarrow> A \<turnstile> CtDrop (TVariant (K # Ks) None)"
+| ct_sem_absdrop_nil:
+  "s \<noteq> Writable \<Longrightarrow> A \<turnstile> CtDrop (TAbstract nm [] s)"
+| ct_sem_absdrop_cons:
+  "\<lbrakk> s \<noteq> Writable
+   ; A \<turnstile> CtDrop t
+   ; A \<turnstile> CtDrop (TAbstract nm ts s)
+   \<rbrakk> \<Longrightarrow> A \<turnstile> CtDrop (TAbstract nm (t # ts) s)"
+| ct_sem_absshare_nil:
+  "s \<noteq> Writable \<Longrightarrow> A \<turnstile> CtShare (TAbstract nm [] s)"
+| ct_sem_absshare_cons:
+  "\<lbrakk> s \<noteq> Writable
+   ; A \<turnstile> CtShare t
+   ; A \<turnstile> CtShare (TAbstract nm ts s)
+   \<rbrakk> \<Longrightarrow> A \<turnstile> CtShare (TAbstract nm (t # ts) s)"
+| ct_sem_absesc_nil:
+  "s \<noteq> ReadOnly \<Longrightarrow> A \<turnstile> CtEscape (TAbstract nm [] s)"
+| ct_sem_absesc_cons:
+  "\<lbrakk> s \<noteq> ReadOnly
+   ; A \<turnstile> CtEscape t
+   ; A \<turnstile> CtEscape (TAbstract nm ts s)
+   \<rbrakk> \<Longrightarrow> A \<turnstile> CtEscape (TAbstract nm (t # ts) s)"
+| ct_sem_funesc:
+  "A \<turnstile> CtEscape (TFun t u)"
+| ct_sem_primesc:
+  "A \<turnstile> CtEscape (TPrim pt)"
+| ct_sem_sumesc_nil:
+  "A \<turnstile> CtEscape (TVariant [] None)"
+| ct_sem_sumesc_cons:
+  "\<lbrakk> A \<turnstile> CtEscape ((fst \<circ> snd) K)
+   ; A \<turnstile> CtEscape (TVariant Ks None)
+   \<rbrakk> \<Longrightarrow> A \<turnstile> CtEscape (TVariant (K # Ks) None)"
+| ct_sem_obsdrop:
+  "A \<turnstile> CtDrop (TObserve t)"
+| ct_sem_obsshare:
+  "A \<turnstile> CtShare (TObserve t)"
 
 inductive_cases ct_sem_conjE: "A \<turnstile> CtConj C1 C2"
 inductive_cases ct_sem_intE: "A \<turnstile> CtIBound (LNat m) \<tau>"
