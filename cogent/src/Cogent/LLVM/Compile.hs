@@ -93,31 +93,31 @@ def dName argTys retTy body =
 
 -- Types
 
-intType :: Cogent.Common.Types.PrimInt -> LLVM.AST.Type.Type
-intType Boolean = IntegerType 1
-intType U8      = IntegerType 8
-intType U16     = IntegerType 16
-intType U32     = IntegerType 32
-intType U64     = IntegerType 64
+toLLVMInt :: Cogent.Common.Types.PrimInt -> LLVM.AST.Type.Type
+toLLVMInt Boolean = IntegerType 1
+toLLVMInt U8      = IntegerType 8
+toLLVMInt U16     = IntegerType 16
+toLLVMInt U32     = IntegerType 32
+toLLVMInt U64     = IntegerType 64
 
 
-cogentType :: Core.Type t -> LLVM.AST.Type.Type
-cogentType (TPrim p) = intType p
-cogentType (TRecord ts _) = -- don't know how to deal with sigil
+toLLVMType :: Core.Type t -> LLVM.AST.Type.Type
+toLLVMType (TPrim p) = toLLVMInt p
+toLLVMType (TRecord ts _) = -- don't know how to deal with sigil
   StructureType { isPacked = False
-                , elementTypes = [ cogentType t | (_, (t, _)) <- ts ]
+                , elementTypes = [ toLLVMType t | (_, (t, _)) <- ts ]
                 }
-cogentType (TUnit) = VoidType
-cogentType (TProduct a b) = StructureType { isPacked = False
-                                          , elementTypes = [ cogentType a, cogentType b ]
+toLLVMType (TUnit) = VoidType
+toLLVMType (TProduct a b) = StructureType { isPacked = False
+                                          , elementTypes = [ toLLVMType a, toLLVMType b ]
                                           }
-cogentType (TString )= LLVM.AST.Type.PointerType { pointerReferent = IntegerType 8 }
+toLLVMType (TString )= LLVM.AST.Type.PointerType { pointerReferent = IntegerType 8 }
 #ifdef BUILTIN_ARRAYS
-cogentType (TArray t s) = ArrayType { nArrayElements = s
-                                  , elementType = cogentType t
+toLLVMType (TArray t s) = ArrayType { nArrayElements = s
+                                  , elementType = toLLVMType t
                                   }
 #endif
-cogentType _         = VoidType
+toLLVMType _         = VoidType
 
 
 -- Name
@@ -244,7 +244,7 @@ setBlock blkName = do
 
 rec_type :: TypedExpr t v a -> [LLVM.AST.Type.Type]
 rec_type (TE rect _) = case rect of
-                   (TRecord flds _) -> Data.List.map (\f -> cogentType (fst (snd f))) flds
+                   (TRecord flds _) -> Data.List.map (\f -> toLLVMType (fst (snd f))) flds
                    _ -> error "cannot get record type from a non-record type"
 
 
@@ -268,37 +268,37 @@ expr_to_llvm (TE rt (Op op [a,b])) =
      res <- let oa = Data.Either.fromLeft (error "operand of OP cannot be terminator") _oa
                 ob = Data.Either.fromLeft (error "operand of OP cannot be terminator") _ob
               in case op of
-                     Sy.Plus -> instr (cogentType rt) (Add { nsw = False
+                     Sy.Plus -> instr (toLLVMType rt) (Add { nsw = False
                                                            , nuw = True
                                                            , operand0 = oa
                                                            , operand1 = ob
                                                            , LLVM.AST.Instruction.metadata = []
                                                            })
-                     Sy.Minus -> instr (cogentType rt) (Sub { nsw = False
+                     Sy.Minus -> instr (toLLVMType rt) (Sub { nsw = False
                                                             , nuw = True
                                                             , operand0 = oa
                                                             , operand1 = ob
                                                             , LLVM.AST.Instruction.metadata = []
                                                             })
-                     Sy.Times -> instr (cogentType rt) (Mul { nsw = False
+                     Sy.Times -> instr (toLLVMType rt) (Mul { nsw = False
                                                             , nuw = True
                                                             , operand0 = oa
                                                             , operand1 = ob
                                                             , LLVM.AST.Instruction.metadata = []
                                                             })
-                     Sy.Divide -> instr (cogentType rt) (SDiv { exact = False -- Or should we do more check here?
+                     Sy.Divide -> instr (toLLVMType rt) (SDiv { exact = False -- Or should we do more check here?
                                                               , operand0 = oa
                                                               , operand1 = ob
                                                               , LLVM.AST.Instruction.metadata = []
                                                               })
-                     Sy.Mod -> instr (cogentType rt) (SRem { operand0 = oa
+                     Sy.Mod -> instr (toLLVMType rt) (SRem { operand0 = oa
                                                            , operand1 = ob
                                                            , LLVM.AST.Instruction.metadata = []
                                                            })
-                     Sy.And -> instr (cogentType rt) (LLVM.AST.Instruction.And { operand0 = oa
+                     Sy.And -> instr (toLLVMType rt) (LLVM.AST.Instruction.And { operand0 = oa
                                                                                , operand1 = ob
                                                                                , LLVM.AST.Instruction.metadata = []} )
-                     Sy.Or -> instr (cogentType rt) (LLVM.AST.Instruction.Or { operand0 = oa
+                     Sy.Or -> instr (toLLVMType rt) (LLVM.AST.Instruction.Or { operand0 = oa
                                                                              , operand1 = ob
                                                                              , LLVM.AST.Instruction.metadata = []} )
                      Sy.Gt -> error "not implemented yet"
@@ -393,8 +393,8 @@ expr_to_llvm (TE _ (If cd tb fb)) =
 
 expr_to_llvm r@(TE rect (Struct flds)) =
   do
-    struct <- instr (LLVM.AST.Type.PointerType { pointerReferent = (cogentType rect) })
-                    (Alloca { allocatedType = (cogentType rect)
+    struct <- instr (LLVM.AST.Type.PointerType { pointerReferent = (toLLVMType rect) })
+                    (Alloca { allocatedType = (toLLVMType rect)
                             , LLVM.AST.Instruction.alignment = 4
                             })
     let fldvs = [ (i, expr_to_llvm (snd fld)) | (i, fld) <- Data.List.zip [0..] flds] in
@@ -425,7 +425,7 @@ expr_to_llvm (TE vt (Variable (idx, _))) =
       let _idx = (Data.Vec.finInt idx) in
         if (Data.List.null indexing) then
           let pos = (fromIntegral unnames) - _idx in
-            return (Left (LocalReference (cogentType vt) (UnName (fromIntegral pos))))
+            return (Left (LocalReference (toLLVMType vt) (UnName (fromIntegral pos))))
         else return (Left (indexing !! _idx))
     -- error ("variable not implemented yet. idx: " ++ show idx ++  " " ++ show uname_count)
 
@@ -466,8 +466,8 @@ toLLVMDef :: Core.Definition Core.TypedExpr VarName -> LLVM ()
 toLLVMDef (AbsDecl attr name ts t rt) =
     expandMod (GlobalDefinition
                (functionDefaults { LLVM.AST.Global.name = Name (toShort (Data.ByteString.Internal.packChars name))
-                                 , parameters = ([Parameter (cogentType t) (UnName 0) []], False)
-                                 , returnType = cogentType rt
+                                 , parameters = ([Parameter (toLLVMType t) (UnName 0) []], False)
+                                 , returnType = toLLVMType rt
                                  , basicBlocks = []
                                  }))
 -- if passing in struct, it should be a pointer
@@ -475,17 +475,17 @@ toLLVMDef (FunDef attr name ts t rt body) =
   def (toShort (Data.ByteString.Internal.packChars name))
       [(argType t,
          (UnName 0))]
-      (cogentType rt)
+      (toLLVMType rt)
       (\ptr -> (expr_to_llvm body))
-  where argType at@(TRecord _ _) = (LLVM.AST.PointerType { pointerReferent = (cogentType at)
+  where argType at@(TRecord _ _) = (LLVM.AST.PointerType { pointerReferent = (toLLVMType at)
                                                        , pointerAddrSpace = AddrSpace 0})
-        argType at@(TProduct _ _) = (LLVM.AST.PointerType { pointerReferent = (cogentType at)
+        argType at@(TProduct _ _) = (LLVM.AST.PointerType { pointerReferent = (toLLVMType at)
                                                         , pointerAddrSpace = AddrSpace 0})
-        argType at = cogentType at
+        argType at = toLLVMType at
     --expandMod (GlobalDefinition
     --           (functionDefaults { LLVM.AST.Global.name = Name (toShort (Data.ByteString.Internal.packChars name))
-     --                            , parameters = ([Parameter (cogentType t) "" []], False)
-      --                           , returnType = cogentType rt
+     --                            , parameters = ([Parameter (toLLVMType t) "" []], False)
+      --                           , returnType = toLLVMType rt
        --                          , basicBlocks = genBlocks (execCodegen (expr_to_llvm body))
         --                         })
          --     )
