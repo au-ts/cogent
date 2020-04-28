@@ -255,6 +255,7 @@ datatype constraint =
   | CtShare type
   | CtDrop type
   | CtExhausted type
+  | CtEscape type
 
 type_synonym axm_set = "constraint set"
 
@@ -269,6 +270,7 @@ fun map_types_ct :: "(type \<Rightarrow> type) \<Rightarrow> constraint \<Righta
 | "map_types_ct f (CtShare t)     = CtShare (f t)"
 | "map_types_ct f (CtDrop t)      = CtDrop (f t)"
 | "map_types_ct f (CtExhausted t) = CtExhausted (f t)"
+| "map_types_ct f (CtEscape t)    = CtEscape (f t)"
 
 definition subst_ct :: "type list \<Rightarrow> constraint \<Rightarrow> constraint" where
   "subst_ct \<delta> \<equiv> map_types_ct (subst_ty \<delta>)"
@@ -1157,6 +1159,7 @@ fun "assign_app_constr" :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Righta
 | "assign_app_constr S S' (CtShare t)      = CtShare (assign_app_ty S S' t)"
 | "assign_app_constr S S' (CtDrop t)       = CtDrop (assign_app_ty S S' t)"
 | "assign_app_constr S S' (CtExhausted v)  = CtExhausted (assign_app_ty S S' v)"
+| "assign_app_constr S S' (CtEscape t)     = CtEscape (assign_app_ty S S' t)"
 
 definition assign_app_ctx :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow> (string \<times> type \<times> usage_tag) list) \<Rightarrow> ctx \<Rightarrow> ctx" where
   "assign_app_ctx S S' G = map (map_option (assign_app_ty S S')) G"
