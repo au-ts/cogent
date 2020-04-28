@@ -231,6 +231,20 @@ fun variant_nth_unused :: "nat \<Rightarrow> type \<Rightarrow> type" where
 | "variant_nth_unused n (TObserve t)        = undefined"
 
 
+fun bang :: "type \<Rightarrow> type" where
+  "bang (TVar i)                    = TObserve (TVar i)"
+| "bang (TFun a b)                  = TFun a b"
+| "bang (TPrim p)                   = TPrim p"
+| "bang (TProduct t u)              = TProduct (bang t) (bang u)"
+| "bang (TUnit)                     = TUnit"
+| "bang (TUnknown i)                = undefined"
+| "bang (TVariant Ks \<alpha>)             = TVariant (map (\<lambda>(nm, t, u). (nm, bang t, u)) Ks) \<alpha>"
+| "bang (TAbstract nm ts Writable)  = TAbstract nm (map bang ts) ReadOnly"
+| "bang (TAbstract nm ts ReadOnly)  = TAbstract nm (map bang ts) ReadOnly"
+| "bang (TAbstract nm ts Unboxed)   = TAbstract nm (map bang ts) Unboxed"
+| "bang (TObserve t)                = TObserve t"
+
+
 datatype constraint =
   CtConj constraint constraint
   | CtIBound lit type
