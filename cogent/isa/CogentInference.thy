@@ -1107,14 +1107,16 @@ section {* Assignment Definition *}
 (* when we are assigning an unknown type a type, the assigned type should not contain any
    unknown types itself *)
 fun assign_app_ty :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow> (string \<times> type \<times> usage_tag) list) \<Rightarrow> type \<Rightarrow> type" where
-  "assign_app_ty S S' (TVar n)          = TVar n"
-| "assign_app_ty S S' (TFun t1 t2)      = TFun (assign_app_ty S S' t1) (assign_app_ty S S' t2)"
-| "assign_app_ty S S' (TPrim pt)        = TPrim pt"
-| "assign_app_ty S S' (TProduct t1 t2)  = TProduct (assign_app_ty S S' t1) (assign_app_ty S S' t2)"
-| "assign_app_ty S S' TUnit             = TUnit"
-| "assign_app_ty S S' (TUnknown n)      = S n"
+  "assign_app_ty S S' (TVar n)                = TVar n"
+| "assign_app_ty S S' (TFun t1 t2)            = TFun (assign_app_ty S S' t1) (assign_app_ty S S' t2)"
+| "assign_app_ty S S' (TPrim pt)              = TPrim pt"
+| "assign_app_ty S S' (TProduct t1 t2)        = TProduct (assign_app_ty S S' t1) (assign_app_ty S S' t2)"
+| "assign_app_ty S S' TUnit                   = TUnit"
+| "assign_app_ty S S' (TUnknown n)            = S n"
 | "assign_app_ty S S' (TVariant Ks None)      = TVariant (map (\<lambda>(nm, t, u). (nm, assign_app_ty S S' t, u)) Ks) None"
 | "assign_app_ty S S' (TVariant Ks (Some n))  = TVariant ((map (\<lambda>(nm, t, u). (nm, assign_app_ty S S' t, u)) Ks) @ (S' n)) None"
+| "assign_app_ty S S' (TAbstract nm ts s)     = TAbstract nm (map (assign_app_ty S S') ts) s"
+| "assign_app_ty S S' (TObserve t)            = TObserve (assign_app_ty S S' t)"
 
 fun assign_app_expr :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow> (string \<times> type \<times> usage_tag) list) \<Rightarrow> 'f expr \<Rightarrow> 'f expr" where
   "assign_app_expr S S' (Var n)            = Var n" 
