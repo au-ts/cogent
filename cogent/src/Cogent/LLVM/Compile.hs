@@ -248,22 +248,22 @@ rec_type (TE rect _) = case rect of
                    _ -> error "cannot get record type from a non-record type"
 
 
-expr_to_llvm :: Core.TypedExpr t v a -> Codegen (Either Operand (Named Terminator))
-expr_to_llvm (TE _ (ILit int bits)) =
+exprToLLVM :: Core.TypedExpr t v a -> Codegen (Either Operand (Named Terminator))
+exprToLLVM (TE _ (ILit int bits)) =
   return (Left (case bits of
              Boolean -> ConstantOperand C.Int { C.integerBits = 1, C.integerValue = int }
              U8 -> ConstantOperand C.Int { C.integerBits = 8, C.integerValue = int }
              U16 -> ConstantOperand C.Int { C.integerBits = 16, C.integerValue = int }
              U32 -> ConstantOperand C.Int { C.integerBits = 32, C.integerValue = int }
              U64 -> ConstantOperand C.Int { C.integerBits = 64, C.integerValue = int }))
-expr_to_llvm (TE _ (SLit str)) =
+exprToLLVM (TE _ (SLit str)) =
   return (Left (ConstantOperand C.Array { C.memberType = IntegerType 8
                                         , C.memberValues = [ C.Int { C.integerBits = 8, C.integerValue = toInteger(ord c)} | c <- str]
                                         }))
 
-expr_to_llvm (TE rt (Op op [a,b])) =
-  do _oa <- expr_to_llvm a
-     _ob <- expr_to_llvm b
+exprToLLVM (TE rt (Op op [a,b])) =
+  do _oa <- exprToLLVM a
+     _ob <- exprToLLVM b
       -- If the operands are known at compile time, should we evaluate the expression here? / z.shang
      res <- let oa = Data.Either.fromLeft (error "operand of OP cannot be terminator") _oa
                 ob = Data.Either.fromLeft (error "operand of OP cannot be terminator") _ob
@@ -315,9 +315,9 @@ expr_to_llvm (TE rt (Op op [a,b])) =
                      Sy.Complement-> error "not implemented yet"
                      Sy.Not -> error "Not is not defined to be binary"
      return (Left res)
-expr_to_llvm (TE _ (Take (a, b) recd fld body)) =
+exprToLLVM (TE _ (Take (a, b) recd fld body)) =
   do
-    _recv <- (expr_to_llvm recd)
+    _recv <- (exprToLLVM recd)
     let recv = Data.Either.fromLeft (error "address cannot be terminator") _recv
     fldvp <- instr ((rec_type recd) !!  fld)
                   (GetElementPtr { inBounds = True
@@ -342,27 +342,27 @@ expr_to_llvm (TE _ (Take (a, b) recd fld body)) =
                                                                       })
     vars <- gets indexing
     modify (\s -> s { indexing = [fldv, recv] ++ vars })
-    res <- expr_to_llvm body
+    res <- exprToLLVM body
     case res of
       Left val -> ((terminator (Do (Ret (Just val) [])) ) >>= (\a -> return (Right a)))
       Right trm -> return (Right trm)
 
 
-expr_to_llvm (TE _ (Let _ val body)) = -- it seems that the variable name is not used here
+exprToLLVM (TE _ (Let _ val body)) = -- it seems that the variable name is not used here
     do
-      _v <- (expr_to_llvm val)
+      _v <- (exprToLLVM val)
       let v = Data.Either.fromLeft (error "let cannot bind a terminator") _v
       vars <- gets indexing
       modify (\s -> s { indexing = [v] ++ vars })
-      res <- expr_to_llvm body
+      res <- exprToLLVM body
       case res of
         Left val -> ((terminator (Do (Ret (Just val) [])) ) >>= (\a -> return (Right a)))
         Right trm -> return (Right trm)
 
 
-expr_to_llvm (TE _ (If cd tb fb)) =
+exprToLLVM (TE _ (If cd tb fb)) =
   do
-    _cond <- (expr_to_llvm cd)
+    _cond <- (exprToLLVM cd)
     cond <- instr (IntegerType 1) (ICmp { iPredicate = IntP.EQ
                            , operand0 = Data.Either.fromLeft (error "cond cannot be a terminator") _cond
                            , operand1 = ConstantOperand C.Int { C.integerBits = 1, C.integerValue = 1}
@@ -373,12 +373,12 @@ expr_to_llvm (TE _ (If cd tb fb)) =
     blkFalse <- addBlock "brFalse"
     -- blkEnd <- addBlock "brEnd"
     setBlock blkTrue
-    _tb <- (expr_to_llvm tb)
+    _tb <- (exprToLLVM tb)
     case _tb of
       Left val -> (terminator (Do (Ret (Just val) [])) )
       Right trm -> terminator trm
     setBlock blkFalse
-    _fb <- (expr_to_llvm fb)
+    _fb <- (exprToLLVM fb)
     case _fb of
       Left val -> (terminator (Do (Ret (Just val) [])) )
       Right trm -> terminator trm
@@ -391,13 +391,13 @@ expr_to_llvm (TE _ (If cd tb fb)) =
 
 
 
-expr_to_llvm r@(TE rect (Struct flds)) =
+exprToLLVM r@(TE rect (Struct flds)) =
   do
     struct <- instr (LLVM.AST.Type.PointerType { pointerReferent = (toLLVMType rect) })
                     (Alloca { allocatedType = (toLLVMType rect)
                             , LLVM.AST.Instruction.alignment = 4
                             })
-    let fldvs = [ (i, expr_to_llvm (snd fld)) | (i, fld) <- Data.List.zip [0..] flds] in
+    let fldvs = [ (i, exprToLLVM (snd fld)) | (i, fld) <- Data.List.zip [0..] flds] in
       (Data.List.foldr (>>) (pure struct)
                            [ (do
                                  elmptr <- (instr ((rec_type r) !! i)
@@ -417,7 +417,7 @@ expr_to_llvm r@(TE rect (Struct flds)) =
 
 
 
-expr_to_llvm (TE vt (Variable (idx, _))) =
+exprToLLVM (TE vt (Variable (idx, _))) =
   do
     unnames <- gets unnamedCount
     _indexing <- gets indexing
@@ -429,8 +429,8 @@ expr_to_llvm (TE vt (Variable (idx, _))) =
         else return (Left (indexing !! _idx))
     -- error ("variable not implemented yet. idx: " ++ show idx ++  " " ++ show uname_count)
 
-expr_to_llvm (TE _ (Fun _ _ _)) = error "fun not implemented yet"
-expr_to_llvm _ = error "not implemented yet"
+exprToLLVM (TE _ (Fun _ _ _)) = error "fun not implemented yet"
+exprToLLVM _ = error "not implemented yet"
 
 
 
@@ -476,7 +476,7 @@ toLLVMDef (FunDef attr name ts t rt body) =
       [(argType t,
          (UnName 0))]
       (toLLVMType rt)
-      (\ptr -> (expr_to_llvm body))
+      (\ptr -> (exprToLLVM body))
   where argType at@(TRecord _ _) = (LLVM.AST.PointerType { pointerReferent = (toLLVMType at)
                                                        , pointerAddrSpace = AddrSpace 0})
         argType at@(TProduct _ _) = (LLVM.AST.PointerType { pointerReferent = (toLLVMType at)
@@ -486,7 +486,7 @@ toLLVMDef (FunDef attr name ts t rt body) =
     --           (functionDefaults { LLVM.AST.Global.name = Name (toShort (Data.ByteString.Internal.packChars name))
      --                            , parameters = ([Parameter (toLLVMType t) "" []], False)
       --                           , returnType = toLLVMType rt
-       --                          , basicBlocks = genBlocks (execCodegen (expr_to_llvm body))
+       --                          , basicBlocks = genBlocks (execCodegen (exprToLLVM body))
         --                         })
          --     )
 
