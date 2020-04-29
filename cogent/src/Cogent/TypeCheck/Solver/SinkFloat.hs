@@ -39,6 +39,7 @@ import Cogent.Util (elemBy, notElemBy)
 import Control.Applicative (empty)
 import Control.Monad.Writer
 import Control.Monad.Trans.Maybe
+import Data.Foldable (asum)
 import qualified Data.Map as M
 import Lens.Micro
 import Text.PrettyPrint.ANSI.Leijen (text, pretty)
@@ -47,17 +48,15 @@ import qualified Text.PrettyPrint.ANSI.Leijen as P
 import Debug.Trace
 
 sinkfloat :: Rewrite.RewriteT TcSolvM [Goal]
-sinkfloat = Rewrite.rewrite' $ \gs ->
+sinkfloat = Rewrite.rewrite' $ \gs -> do
   let mentions = getMentions gs
-      cs = map (strip . _goal) gs in
-  {- MaybeT TcSolvM -}
-  do a <- MaybeT $ do {- TcSolvM -}
-       ms <- mapM (runMaybeT . (genStructSubst mentions)) cs -- a list of 'Maybe' substitutions.
-       return . getFirst . mconcat $ First <$> ms -- only return the first 'Just' substitution.
-     tell [a]
-     traceTc "solver" (text "Sink/Float writes subst:" P.<$>
-                       P.indent 2 (pretty a))
-     return $ map (goal %~ Subst.applyC a) gs
+      cs = map (strip . _goal) gs
+  a <- asum $ map (genStructSubst mentions) cs -- a list of 'Maybe' substitutions.
+                                               -- only return the first 'Just' substitution.
+  tell [a]
+  traceTc "solver" (text "Sink/Float writes subst:" P.<$>
+                    P.indent 2 (pretty a))
+  return $ map (goal %~ Subst.applyC a) gs
   where
     strip :: Constraint -> Constraint
     strip (T (TBang t)    :<  v          )   = t :< v
