@@ -309,7 +309,6 @@ cg' (PrimOp o [e1, e2]) t
   | o `elem` words "+ - * / % .&. .|. .^. >> <<"
   = if ?isRefType then do
       beta <- freshTVar
-      gamma <- use context
       (c1, e1') <- cg e1 beta
       (c2, e2') <- cg e2 beta
       let phi = SE (T bool) $ PrimOp "==" [SE beta (Var refVarName), SE beta (PrimOp o [toTCSExpr e1', toTCSExpr e2'])]
@@ -317,7 +316,7 @@ cg' (PrimOp o [e1, e2]) t
           c = rho :< t
       traceTc "gen" (text "[ref-types] cg for primitive op" <+> symbol o L.<$>
                      text "generate constraint" <+> prettyC c)
-      return (integral beta <> c <> c1 <> c2, PrimOp o [e1', e2'])
+      return (integral beta <> BaseType beta <> c <> c1 <> c2, PrimOp o [e1', e2'])
     else do
       (c1, e1') <- cg e1 t
       (c2, e2') <- cg e2 t
@@ -327,12 +326,25 @@ cg' (PrimOp o [e1, e2]) t
        (c2, e2') <- cg e2 t
        return (T bool :=: t <> c1 <> c2, PrimOp o [e1', e2'])
   | o `elem` words "== /= >= <= > <"
+  , not ?isRefType
   = do alpha <- freshTVar
        (c1, e1') <- cg e1 alpha
        (c2, e2') <- cg e2 alpha
        let c  = T bool :=: t
            c' = IsPrimType alpha
        return (c <> c' <> c1 <> c2, PrimOp o [e1', e2'])
+  | o `elem` words "== /= >= <= > <"
+  , ?isRefType
+  = do beta <- freshTVar
+       (c1, e1') <- cg e1 beta
+       (c2, e2') <- cg e2 beta
+       let phi = SE (T bool) $ PrimOp "==" [ SE (T bool) (Var refVarName)
+                                           , SE (T bool) (PrimOp o [toTCSExpr e1', toTCSExpr e2']) ]
+           rho = T $ TRefine refVarName (T bool) phi
+           c = rho :< t
+       traceTc "gen" (text "[ref-types] cg for primitive op" <+> symbol o L.<$>
+                      text "generate constraint" <+> prettyC c)
+       return (c <> IsPrimType beta <> BaseType beta <> c1 <> c2, PrimOp o [e1', e2'])
 cg' (PrimOp o [e]) t
   | o == "complement"  = do
       (c, e') <- cg e t
@@ -406,7 +418,8 @@ cg' (IntLit i) t = do
   c <- if ?isRefType then
          do beta <- freshTVar
             let c = T (TRefine refVarName beta (SE (T bool) (PrimOp "==" [SE beta (Var refVarName), SE beta e]))) :< t <>
-                    Upcastable (T (TCon minimumBitwidth [] Unboxed)) beta
+                    Upcastable (T (TCon minimumBitwidth [] Unboxed)) beta <>
+                    BaseType beta
             return c
        else return $ Upcastable (T (TCon minimumBitwidth [] Unboxed)) t
   traceTc "gen" (text "cg for int literal" <+> integer i L.<$>

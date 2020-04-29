@@ -35,6 +35,7 @@ import qualified Cogent.TypeCheck.Row as Row
 -- import Cogent.TypeCheck.Util
 import Cogent.Util
 
+-- import Control.Arrow (first, (***))
 import Control.Applicative (liftA)
 import Control.Monad.State
 import Control.Monad.Trans.Except
@@ -201,11 +202,12 @@ data Constraint' t l = (:<) t t
                      | UnboxedNotRecursive t
                      | NotReadOnly TCSigil
                      | Solved t
-                     | IsPrimType t
+                     | IsPrimType t  -- FIXME: should be changed to Ord-types and Eq-types / zilinc
 #ifdef REFINEMENT_TYPES
                      | Arith (SExpr t l)
                      -- | (:->) (Constraint' t l) (Constraint' t l)
                      | (:|-) (M.Map VarName (t, Int), [SExpr t l]) (Constraint' t l)
+                     | BaseType t
 #endif
                      deriving (Eq, Show, Ord) -- , Functor, Foldable, Traversable)
 
@@ -284,6 +286,8 @@ instance Bifunctor Constraint' where
 #ifdef REFINEMENT_TYPES
   bimap f g (Arith se)         = Arith (bimap f g se)
   -- bimap f g (c1 :-> c2)        = (bimap f g c1) :-> (bimap f g c2)
+  bimap f g (env :|- c)        = (fmap (first f) `bimap` fmap (bimap f g)) env :|- bimap f g c
+  bimap f g (BaseType t)       = BaseType (f t)
 #endif
   bimap f g Sat                = Sat
   bimap f g (SemiSat w)        = SemiSat w
@@ -312,6 +316,8 @@ instance Bitraversable Constraint' where
 #ifdef REFINEMENT_TYPES
   bitraverse f g (Arith se)         = Arith <$> bitraverse f g se
   -- bitraverse f g (c1 :-> c2)        = (:->) <$> bitraverse f g c1 <*> bitraverse f g c2
+  bitraverse f g (env :|- c)        = (:|-) <$> (traverse (firstM f) ***^^ traverse (bitraverse f g)) env <*> bitraverse f g c
+  bitraverse f g (BaseType t)       = BaseType <$> f t
 #endif
   bitraverse f g Sat                = pure Sat
   bitraverse f g (SemiSat w)        = pure $ SemiSat w
@@ -777,7 +783,6 @@ isVariantType _ = False
 isMonoType :: RawType -> Bool
 isMonoType (RT (TVar {})) = False
 isMonoType (RT t) = all isMonoType t
-
 
 -- TODO: not yet counting the higher-rank types / zilinc
 unifVars :: TCType -> [Int]

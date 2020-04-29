@@ -22,6 +22,7 @@ import           Cogent.PrettyPrint
 
 import qualified Data.Foldable as F
 import qualified Data.IntMap as IM
+import qualified Data.Map as M
 import           Lens.Micro
 import           Lens.Micro.TH
 import qualified Text.PrettyPrint.ANSI.Leijen as P
@@ -60,14 +61,14 @@ derivedGoal (Goal c env g) g' = makeGoal (SolvingConstraint g:c) env g'
 
 getMentions :: [Goal] -> IM.IntMap (Int,Int,Int)
 getMentions gs =
-    foldl (M.unionWith adds) M.empty $ fmap mentionsOfGoal gs
+    foldl (IM.unionWith adds) IM.empty $ fmap mentionsOfGoal gs
  where
   adds (env1,a,b) (env2,c,d) = (env1 + env2, a + c, b + d)
 
   mentionsOfGoal g = case g ^. goal of
-   r :< s  -> M.fromListWith adds (mentionEnv (g ^. goalEnv) (r :< s) ++ mentionL r ++ mentionR s)
-   Arith e -> M.fromListWith adds (mentionEnv (g ^. goalEnv) (Arith e))
-   _       -> M.empty
+   r :< s  -> IM.fromListWith adds (mentionEnv (g ^. goalEnv) (r :< s) ++ mentionL r ++ mentionR s)
+   Arith e -> IM.fromListWith adds (mentionEnv (g ^. goalEnv) (Arith e))
+   _       -> IM.empty
 
   mentionEnv (gamma, es) c = -- fmap (\v -> (v, (1,0,0))) $ unifVarsEnv env
     -- NOTE: we only register a unifvar in the environment when the variable is used in the RHS. / zilinc

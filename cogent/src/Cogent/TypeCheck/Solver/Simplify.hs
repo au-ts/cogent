@@ -347,13 +347,21 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   T (TRefine v1 b1 e1) :< T (TRefine v2 b2 e2) -> do
     let e1' = substExpr [(v1, SE b1 (Var refVarName))] e1
         e2' = substExpr [(v2, SE b2 (Var refVarName))] e2
-    return [b1 :=: b2, Arith (SE (T bool) (PrimOp "||" [SE (T bool) (PrimOp "not" [e1']), e2']))]
+    return [b1 :< b2, Arith (SE (T bool) (PrimOp "||" [SE (T bool) (PrimOp "not" [e1']), e2']))]
 
   t1@(T (TRefine {})) :< t2@(T {}) ->  -- @t2@ is not a refinement type
     return [t1 :< T (TRefine refVarName t2 (SE (T bool) (BoolLit True)))]
 
   t1@(T {}) :< t2@(T (TRefine {})) ->  -- @t1@ is not a refinement type
     return [T (TRefine refVarName t1 (SE (T bool) (BoolLit True))) :< t2]
+
+  BaseType (T (TCon _ ts _)) -> hoistMaybe $ Just $ map BaseType ts
+  BaseType (T (TUnit)) -> hoistMaybe $ Just []
+  BaseType (T (TTuple ts)) -> hoistMaybe $ Just $ map BaseType ts
+  BaseType (R {}) -> hoistMaybe $ Just []  -- FIXME: descend into the rows / zilinc
+  BaseType (V {}) -> hoistMaybe $ Just []  -- FIXME: ditto
+  BaseType (A t _ _ _) -> hoistMaybe $ Just [BaseType t]
+
 #endif
 
   T t1 :< x | unorderedType t1 -> hoistMaybe $ Just [T t1 :=: x]

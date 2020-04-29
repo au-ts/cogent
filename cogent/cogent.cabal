@@ -139,6 +139,7 @@ library
               , Cogent.TypeCheck.Solver.Normalise
               , Cogent.TypeCheck.Solver.Equate
               , Cogent.TypeCheck.Solver.Goal
+              , Cogent.TypeCheck.Solver.JoinMeet
               , Cogent.TypeCheck.Solver.Monad
               , Cogent.TypeCheck.Solver.Rewrite
               , Cogent.TypeCheck.Solver.SinkFloat

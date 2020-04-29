@@ -56,7 +56,7 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
   tell [a]
   traceTc "solver" (text "Sink/Float writes subst:" P.<$>
                     P.indent 2 (pretty a))
-  return $ map (goal %~ Subst.applyC a) gs
+  return $ map ((goalEnv %~ Subst.applyGoalEnv a) . (goal %~ Subst.applyC a)) gs
 
   where
     strip :: Constraint -> Constraint

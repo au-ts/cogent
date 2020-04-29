@@ -30,17 +30,18 @@ import qualified Cogent.Context as C
 import           Cogent.PrettyPrint (prettyC)
 import           Cogent.Surface
 import           Cogent.TypeCheck.Base
-import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
+import           Cogent.TypeCheck.Solver.Default
+import           Cogent.TypeCheck.Solver.Equate
+import           Cogent.TypeCheck.Solver.JoinMeet (joinMeet, reShape)
 import           Cogent.TypeCheck.Solver.Monad
 import           Cogent.TypeCheck.Solver.Normalise
+import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
 import           Cogent.TypeCheck.Solver.Simplify
-import           Cogent.TypeCheck.Solver.Unify
-import           Cogent.TypeCheck.Solver.Equate
-import           Cogent.TypeCheck.Solver.Default
 import           Cogent.TypeCheck.Solver.SinkFloat
 #ifdef REFINEMENT_TYPES
 import           Cogent.TypeCheck.Solver.SMT (smt)
 #endif
+import           Cogent.TypeCheck.Solver.Unify
 import           Cogent.TypeCheck.Solver.Util
 import           Cogent.TypeCheck.Util
 import           Cogent.TypeCheck.Solver.Goal
@@ -71,6 +72,8 @@ solve ks ms c = let gs     = makeGoals [] (M.empty, []) c
                              <> debug  "Unify"      printC unify
                              <> debugL "Equate"     printC equate
                              <> debug  "Sink/Float" printC sinkfloat
+                             <> debug  "ReShape"    printC reShape
+                             -- <> debug  "Join/Meet"  printC joinMeet
                              <> debugL "Defaults"   printC defaults
 #ifdef REFINEMENT_TYPES
                              <> debug  "SMT"        printC smt

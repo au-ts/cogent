@@ -55,7 +55,7 @@ equate = Rewrite.withTransform findEquatable (pure . map toEquality)
     toEquality (Goal c env (a :< b)) = Goal c env $ a :=: b
     toEquality c = c
 
-findEquateCandidates :: IM.IntMap (Int,Int) -> [Goal] -> ([Goal], [Goal], [Goal])
+findEquateCandidates :: IM.IntMap (Int,Int,Int) -> [Goal] -> ([Goal], [Goal], [Goal])
 findEquateCandidates _ [] = ([], [], [])
 findEquateCandidates mentions (c:cs) =
   let

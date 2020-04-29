@@ -66,7 +66,8 @@ getMentions gs = foldl (IM.unionWith (+)) IM.empty $ fmap (\g -> occ (g ^. goal)
 
 -- | It returns a pair:
 --   * The first component is an IntMap, from unification variables to
---     a list of `bot` types from goals of the form @bot :~> U top@;
+--     a list of @bot@ types from goals of the form @bot :~> U top@, where
+--     the @top@s are not "mentioned" by other goals.
 --   * The second component is the rest goals, that are not @Upcastable@.
 findUpcasts :: [Goal] -> Maybe (IM.IntMap [TCType], [Goal])
 findUpcasts gs = do
@@ -74,7 +75,7 @@ findUpcasts gs = do
     guard (not $ IM.null ms)
     pure (ms, gs')
   where
-    mentions = getMentions gs
+    mentions = IM.empty  -- getMentions gs
 
     go (m,gs) g@(Goal _ _ (Upcastable t (U x))) = 
       case x `IM.lookup` mentions of
