@@ -3,42 +3,88 @@
 ************************************************************************
 
 
-The program we are going to walk through is a simple program which adds two
-natural numbers up, and prints out the result, or reports an overflow
-error.
+The program we are going to walk through is
+a simple program which adds two natural numbers up,
+and prints out the result, or reports an overflow error.
 
-|cogent| is a restricted, pure, functional language. For example, |cogent| is
-unable to express I/O, memory management, loops or recursions. For this reason,
-we only write the core functionality in |cogent|, which adds up two natural numbers,
-and check if overflow has happened. To carry the result of the check, we need
-a result type::
+|cogent| is a restricted, pure, functional language.
+For example, |cogent| is unable to express
+input/output operations, memory management, and loops.
+For this reason, we will only write
+the core functionality in |cogent|,
+which adds up two natural numbers,
+and check if overflow has happened.
+To carry the result of the check,
+we need a result type::
 
   type R a b = < Success a | Error b >
 
-It has similar meaning to a sum type in Haskell (or in any functional language)::
+It has similar meaning to a sum type in Haskell
+(or in any functional language)::
 
+  -- in Haskell, we might say:
   data R a b = Success a | Error b
 
-It says that, the result can be either a ``Success`` or ``Error``, and in each case
-you also return the result associated with these tags, namely ``a`` and ``b`` respectively.
-Note that ``R a b`` is polymorphic on ``a`` and ``b``. They can be instantiated to any
-concrete types.
+It says the result may be
+either ``Success`` or ``Error`` ---
+which are referred to as tags or variants ---
+and, in each case,
+a value will be associated with a tag:
+``Success`` has an associated ``a``, and
+``Error`` has an associated ``b``.
+Note that ``R a b`` is *polymorphic* on ``a`` and ``b``:
+we may replace those *type variables* with any concrete types.
 
-The difference to the Haskell version is that, the ``type`` keyword only introduces a
-type synonym, which is to say, wherever an ``R a b`` is needed, it can be alternatively
-spelt as ``< Success a | Error b >``, which of course is more verbose in many cases.
+One notable difference to the Haskell version above is
+that the ``type`` keyword only introduces a *type synonym*,
+where in Haskell it would introduce a new type.
+Thus, wherever an ``R a b`` is needed,
+it may be equivalently spelled in full
+as ``< Success a | Error b >``
+(which, of course, is more verbose in many cases).
 
-Next we define a function ``add``, which has the following type signature::
+
+Next we define a function ``add``.
+As with other strongly-typed functional languages,
+we do so by first giving its type signature::
 
   add : (U32, U32) -> R U32 ()
 
-``U32`` is an unsigned 32-bit integer; we use it to model natural numbers here. |cogent|
-also has built-in ``U8``, ``U16`` and ``U64`` for other sizes of unsigned integers.
-A |cogent| function only takes **one argument**. When we want to pass in two ``U32``\ s,
-we make them into a pair (or a tuple, more generally).
+``U32`` is a type representing
+an unsigned 32-bit integer;
+here, we use it to model the natural numbers.
+|cogent| has built-in types for
+common sizes of unsigned integers:
+``U8``, ``U16`` and ``U64`` also exist.
 
-The full definition of the ``add`` function is given below (also includes the previously
-given type signature):
+Unlike many other functional languages,
+a |cogent|'s functions can only take **one argument**.
+When we wish to pass two ``U32``\ s,
+we make them into a pair (or, more generally, a tuple).
+
+Ignoring, for the moment, the error handling,
+our first attempt at writing ``add`` might look like::
+
+  add : (U32, U32) -> R U32 ()
+  add (x, y) = Success (x + y)
+
+Similar to Haskell,
+we give a function's definition
+by declaring the computation it does:
+here, ``add (x, y)`` becomes ``(x + y)``,
+wrapped in ``Success``.
+Cogent also supports *pattern matching*,
+so the names ``x`` and ``y`` bind,
+as expected,
+to the values of the tuple passed in.
+
+.. todo:
+
+   - introduce let/in
+   - introduce patterns
+   - full definition
+
+Let's have a look at the rest of ``add``'s definition::
 
 .. code-block:: none
 
@@ -48,11 +94,18 @@ given type signature):
                    | True -> Error ()
                    | False -> Success sum
 
-|cogent| is a layout sensitive language, like Python or Haskell. In this function,
-it binds the value of ``x + y`` to binder ``sum``. In the body of the ``let-in``
-expression, a pattern match is done on the condition ``sum < x || sum < y`` (if
-``sum`` is less than ``x`` or it's less than ``y``). If this condition is ``True``,
-then we return an ``Error ()``. ``()`` is "unit", the single value of type ``()``
+|cogent| is a layout-sensitive language, like Python or Haskell.
+In this function,
+we bind the value of ``x + y`` to ``sum``.
+In the body of the ``let ... in`` expression,
+a pattern match is done
+on the condition ``sum < x || sum < y`` ---
+that is, if ``sum`` is less than ``x``
+or less than ``y`` ---
+and, if this condition is ``True``,
+then we return an ``Error``.
+
+``()`` is "unit", the single value of type ``()``
 (also reads "unit"). If the condition is ``False``, which means that overflow didn't
 happen, then we return ``Success sum``, which carries the summation.
 
