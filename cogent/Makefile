@@ -37,7 +37,7 @@ stack-build:
 	$(STACK) build
 
 .sandbox:
-ifneq ($(wildcard .cabal-sandbox/),)
+ifneq ($(wildcard cabal.sandbox.config),)
 	$(E) "Using Existing sandbox..."
 else
 	$(E) "Building in a sandbox..."
