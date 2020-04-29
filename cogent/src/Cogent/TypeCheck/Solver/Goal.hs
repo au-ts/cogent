@@ -16,7 +16,7 @@
 
 module Cogent.TypeCheck.Solver.Goal where
 
-import qualified Data.Map as M
+import qualified Data.IntMap as IM
 import           Cogent.TypeCheck.Base
 import           Cogent.PrettyPrint
 import qualified Text.PrettyPrint.ANSI.Leijen as P
@@ -50,15 +50,15 @@ makeGoal ctx g = Goal ctx g
 derivedGoal :: Goal -> Constraint -> Goal
 derivedGoal (Goal c g) g' = makeGoal (SolvingConstraint g:c) g'
 
-getMentions :: [Goal] -> M.Map Int (Int,Int)
+getMentions :: [Goal] -> IM.IntMap (Int,Int)
 getMentions gs =
-  foldl (M.unionWith adds) M.empty $ fmap mentionsOfGoal gs
+  foldl (IM.unionWith adds) IM.empty $ fmap mentionsOfGoal gs
   where
     adds (a,b) (c,d) = (a + c, b + d)
 
     mentionsOfGoal g = case g ^. goal of
-      r :< s -> M.fromListWith adds (mentionL r ++ mentionR s)
-      _      -> M.empty
+      r :< s -> IM.fromListWith adds (mentionL r ++ mentionR s)
+      _      -> IM.empty
 
     mentionL = fmap (\v -> (v, (1,0))) . unifVars
     mentionR = fmap (\v -> (v, (0,1))) . unifVars

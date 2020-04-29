@@ -40,7 +40,7 @@ import Control.Applicative (empty)
 import Control.Monad.Writer
 import Control.Monad.Trans.Maybe
 import Data.Foldable (asum)
-import qualified Data.Map as M
+import qualified Data.IntMap as IM
 import Lens.Micro
 import Text.PrettyPrint.ANSI.Leijen (text, pretty)
 import qualified Text.PrettyPrint.ANSI.Leijen as P
@@ -70,15 +70,15 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
     strip c = c
 
     -- For sinking row information in a subtyping constraint
-    canSink :: M.Map Int (Int,Int) -> Int -> Bool
-    canSink mentions v | Just m <- M.lookup v mentions = fst m <= 1
+    canSink :: IM.IntMap (Int,Int) -> Int -> Bool
+    canSink mentions v | Just m <- IM.lookup v mentions = fst m <= 1
                        | otherwise = False
 
-    canFloat :: M.Map Int (Int,Int) -> Int -> Bool
-    canFloat mentions v | Just m <- M.lookup v mentions = snd m <= 1
+    canFloat :: IM.IntMap (Int,Int) -> Int -> Bool
+    canFloat mentions v | Just m <- IM.lookup v mentions = snd m <= 1
                         | otherwise = False
 
-    genStructSubst :: M.Map Int (Int,Int) -> Constraint -> MaybeT TcSolvM Subst.Subst
+    genStructSubst :: IM.IntMap (Int,Int) -> Constraint -> MaybeT TcSolvM Subst.Subst
     -- record rows
     genStructSubst _ (R rp r s :< U i) = do
       s' <- case s of

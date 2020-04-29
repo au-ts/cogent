@@ -25,7 +25,7 @@ import Control.Applicative
 import Control.Monad.Trans.Maybe
 import Control.Monad.Writer
 import Data.Foldable (asum)
-import qualified Data.Map as M
+import qualified Data.IntMap as IM
 import Data.Maybe
 import Lens.Micro
 
@@ -51,13 +51,13 @@ equate = Rewrite.withTransform findEquatable (pure . map toEquality)
     toEquality (Goal c (a :< b)) = Goal c $ a :=: b
     toEquality c = c
 
-findEquateCandidates :: M.Map Int (Int,Int) -> [Goal] -> ([Goal], [Goal], [Goal])
+findEquateCandidates :: IM.IntMap (Int,Int) -> [Goal] -> ([Goal], [Goal], [Goal])
 findEquateCandidates _ [] = ([], [], [])
 findEquateCandidates mentions (c:cs) =
   let
     (sups, subs, others) = findEquateCandidates mentions cs
     canEquate f v t
-     | Just m <- M.lookup v mentions
+     | Just m <- IM.lookup v mentions
      = f m <= 1 && rigid t && notOccurs v t
      | otherwise
      = False
