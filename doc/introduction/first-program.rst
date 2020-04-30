@@ -7,6 +7,10 @@ The program we are going to walk through is
 a simple program which adds two natural numbers up,
 and prints out the result, or reports an overflow error.
 
+
+The Business End: ``add``
+========================================================
+
 |cogent| is a restricted, pure, functional language.
 For example, |cogent| is unable to express
 input/output operations, memory management, and loops.
@@ -14,111 +18,336 @@ For this reason, we will only write
 the core functionality in |cogent|,
 which adds up two natural numbers,
 and check if overflow has happened.
+
+To do that,
+we'll build up an ``add`` function in stages,
+and we'll point out language features
+as we encounter them.
+
+
+``add``, version 1: Hello, Cogent!
+------------------------------------
+
+Let's start with a very simple function, ``add``,
+which cannot yet handle overflow detection.
+As with many other functional languages,
+we do so by first giving its type signature::
+
+  add : (U32, U32) -> U32
+
+Now, similar to Haskell,
+we give a function's definition
+by declaring the computation it does.
+Our first attempt at writing ``add`` might look like::
+
+  add : (U32, U32) -> U32
+  add (x, y) = x + y
+
+``add (x, y)`` becomes ``x + y``.
+Thanks to *pattern matching*,
+the names ``x`` and ``y`` bind to
+the values passed in.
+Unlike many other functional languages,
+|cogent| functions can only take one argument.
+When we wish to pass two ``U32``\ s,
+we must glue them together
+so they appear as one value ---
+more generally, we form a tuple.
+
+
+``add``, version 2: Let's Consider...
+------------------------------------
+
+If we want to consider the result,
+we can bind it to a name ourselves,
+using a ``let`` expression:
+names bound by the ``let``
+are usable in the ``in`` that follows::
+
+  add : (U32, U32) -> U32
+  add (x, y) = let sum = x + y in sum
+
+For those familiar with
+other functional languages,
+a word of warning:
+``let`` in |cogent|
+is not *quite* what you will expect.
+More on that in the reference manual.
+
+|cogent| is a layout-sensitive language,
+like Python or Haskell,
+so we may rearrange our expression
+to make it more readable.
+You may prefer::
+
+  add : (U32, U32) -> U32
+  add (x, y) = let sum = x + y
+               in sum
+
+Or, alternatively::
+
+  add : (U32, U32) -> U32
+  add (x, y)
+    = let sum = x + y
+      in sum
+
+But all three forms here are equivalent.
+
+
+``add``, version 3: An Iffy Question
+------------------------------------
+
+Now, let's consider
+the result of the addition
+and, if it is less than
+either of its two operands ---
+that is, ``sum < x || sum < y`` ---
+we'll consider that an overflow occurred.
+We can use
+an ``if`` expression
+to check its value::
+
+  add : (U32, U32) -> U32
+  add (x, y) = let sum = x + y
+               in if sum < x || sum < y
+                  then {- ??? -}
+                  else sum
+
+We need to return *something*
+in the hole above,
+denoted by the block comment ---
+``{-`` and ``-}`` delimit
+a (nestable) block comment in |cogent|;
+similarly, ``--`` introduces
+a comment to the end of the line ---
+so what *is* our error value?
+
+We need to return
+two different values
+from this function:
+one, to denote an error,
+and one to denote success.
+We could use a tuple here::
+
+  add : (U32, U32) -> (U32, Bool)
+  add (x, y) = let sum = x + y
+               in (sum, sum < x || sum < y)
+
+But that's awful.
+We need to explicitly check the Boolean value
+(for that is what the ``Bool`` type denotes)
+every time we use this function.
+
+So, how do we do better?
+
+
+``add``, version 4: A New Type of Trouble
+-----------------------------------------
+
 To carry the result of the check,
-we need a result type::
+we need a result type indicates
+either a successful addition or an error occurred.
+We will define a *sum type*,
+somewhat akin to a tagged-union in C,
+with two *tags* or *variants*:
+``Success`` and ``Error``::
+
+  type R = < Success | Error >
+
+This now means our ``add`` function can become::
+
+  add : (U32, U32) -> (U32, R)
+  add (x, y)
+    = let sum = x + y
+      in if sum < x || sum < y
+         then (sum, Error)
+         then (sum, Success)
+
+But this highlights the *other* problem:
+when we return ``Error``,
+the value in ``sum`` is notionally meaningless.
+
+What we *need* is a way to
+attach the value to the sum type.
+And we're in luck:
+
+
+``add``, version 5: Tag! You're It
+------------------------------------
+
+For any particular tag,
+a sum type can have
+associated values::
+
+  type R = < Success U32 | Error >
+
+Now, ``Success`` has an associated ``U32``,
+which means we can improve
+our ``add`` function again::
+
+  add : (U32, U32) -> R
+  add (x, y)
+    = let sum = x + y
+      in if sum < x || sum < y
+         then Error
+         then Success sum
+
+That's more like it!
+But we can do better.
+
+
+``add``, version 6: Polymorphism
+------------------------------------
+
+An operation that may be successful or not
+is a surprisingly common pattern to program to.
+Our ``R`` type could come in handy for other cases;
+except we would need to create new types
+for all possible successful values.
+We might like to make a generic result type::
+
+  type R a = < Success a | Error >
+
+This type is *polymorphic*,
+as it has a *type variable*, ``a``:
+the value in the ``Success`` variant
+has some currently-unknown type ``a``.
+Type variables tend to be written in lower-case.
+
+We can't directly use this
+without replacing the type variable
+with a concrete type in a *type instantiation*:
+so, to get the ``< Success U32 | Error >``
+we had earlier,
+we would instantiate this type as ``R U32``.
+
+Using this redefined ``R``,
+the type of the ``add`` function changes slightly,
+but its definition remains the same::
+
+  add : (U32, U32) -> R U32
+
+
+``add``, version 7: But In General...
+-------------------------------------
+
+Actually,
+we could return something useful
+in the event an error occurred.
+Let's have a general result type::
 
   type R a b = < Success a | Error b >
 
-It has similar meaning to a sum type in Haskell
-(or in any functional language)::
+Both ``Success`` and ``Error``
+now have associated values of
+two different, though not necessarily distinct, types.
+
+This construct has a similar meaning to
+Haskell's sum types
+(or, indeed, the sum types
+in any functional language)::
 
   -- in Haskell, we might say:
   data R a b = Success a | Error b
 
-It says the result may be
-either ``Success`` or ``Error`` ---
-which are referred to as tags or variants ---
-and, in each case,
-a value will be associated with a tag:
-``Success`` has an associated ``a``, and
-``Error`` has an associated ``b``.
-Note that ``R a b`` is *polymorphic* on ``a`` and ``b``:
-we may replace those *type variables* with any concrete types.
+However, one notable difference is that
+the ``type`` keyword only introduces a *type synonym*,
+where in Haskell it would introduce a new type:
+thus, wherever an ``R a b`` is needed,
+we may equivalently spell it in full as
+``< Success a | Error b >``.
 
-One notable difference to the Haskell version above is
-that the ``type`` keyword only introduces a *type synonym*,
-where in Haskell it would introduce a new type.
-Thus, wherever an ``R a b`` is needed,
-it may be equivalently spelled in full
-as ``< Success a | Error b >``
-(which, of course, is more verbose in many cases).
+The type of the ``add`` function
+changes slightly again::
 
+  add : (U32, U32) -> R U32 {- ??? -}
 
-Next we define a function ``add``.
-As with other strongly-typed functional languages,
-we do so by first giving its type signature::
+But now we need a type (and a value)
+for the ``Error`` variant;
+we cannot leave it empty!
+We can use the *unit* type, ``()``,
+another |cogent| built-in type
+which is similar to the unit type
+in many other functional languages.
+Think of it as a zero-element tuple
+that therefore only has one value:
+the empty tuple constructor,
+spelled ``()``.
 
-  add : (U32, U32) -> R U32 ()
-
-``U32`` is a type representing
-an unsigned 32-bit integer;
-here, we use it to model the natural numbers.
-|cogent| has built-in types for
-common sizes of unsigned integers:
-``U8``, ``U16`` and ``U64`` also exist.
-
-Unlike many other functional languages,
-a |cogent|'s functions can only take **one argument**.
-When we wish to pass two ``U32``\ s,
-we make them into a pair (or, more generally, a tuple).
-
-Ignoring, for the moment, the error handling,
-our first attempt at writing ``add`` might look like::
+So, if we wanted to write
+a very pessimistic version of function,
+we could say::
 
   add : (U32, U32) -> R U32 ()
-  add (x, y) = Success (x + y)
+  add (x, y) = Error ()
 
-Similar to Haskell,
-we give a function's definition
-by declaring the computation it does:
-here, ``add (x, y)`` becomes ``(x + y)``,
-wrapped in ``Success``.
-Cogent also supports *pattern matching*,
-so the names ``x`` and ``y`` bind,
-as expected,
-to the values of the tuple passed in.
-
-.. todo:
-
-   - introduce let/in
-   - introduce patterns
-   - full definition
-
-Let's have a look at the rest of ``add``'s definition::
-
-.. code-block:: none
+So, our ``add`` function,
+generalised over our result type,
+looks like::
 
   add : (U32, U32) -> R U32 ()
-  add (x, y) = let sum = x + y
-                in sum < x || sum < y
-                   | True -> Error ()
-                   | False -> Success sum
+  add (x, y)
+    = let sum = x + y
+      in if sum < x || sum < y
+         then Error ()
+         then Success sum
 
-|cogent| is a layout-sensitive language, like Python or Haskell.
-In this function,
-we bind the value of ``x + y`` to ``sum``.
-In the body of the ``let ... in`` expression,
-a pattern match is done
-on the condition ``sum < x || sum < y`` ---
-that is, if ``sum`` is less than ``x``
-or less than ``y`` ---
-and, if this condition is ``True``,
-then we return an ``Error``.
 
-``()`` is "unit", the single value of type ``()``
-(also reads "unit"). If the condition is ``False``, which means that overflow didn't
-happen, then we return ``Success sum``, which carries the summation.
+``add``, version 8: A Pattern Emerges
+-------------------------------------
 
-That's pretty much all that we can do in |cogent|. We can save the above program in
-a file called ``Adder.cogent``. For more information about the |cogent| language,
-its syntax and semantics, you can read :doc:`../reference/surface-syntax`.
+But there's just enough time
+for one more version.
+A much more common way to do it
+is to use *pattern matching* again ---
+if you recall,
+we're already using it
+to extract the values of
+``x`` and ``y``
+from the tuple of arguments.
+Pattern-matching is much more powerful, though.
+
+Dealing with sum types is very common,
+so |cogent| has specialised syntax for
+considering each possibility of a sum type:
+we list each variant after a vertical bar,
+optionally with some bindings,
+and give the expression to resolve to::
+
+  add : (U32, U32) -> R U32 ()
+  add (x, y)
+    = let sum = x + y
+      in sum < x || sum < y
+	 | True  -> Success sum
+	 | False -> Error ()
+
+For our ``R`` type, we can do something similar.
+Here's a contrived example using it::
+
+  fn _ = add (7, 6)
+       | Success x -> x
+       | Error   y -> 42
+
+
+Gum, Glue, and Antiquoted C
+======================================================
+
+That's pretty much all that we can do in |cogent|.
+We can save our favourite definition of ``add``,
+along with the type ``R``,
+into a file called ``Adder.cogent``.
+For more information about the |cogent| language,
+its syntax and semantics,
+you can read :doc:`../reference/surface-syntax`.
 
 .. todo:: Part of the language reference will become a section in this doc later.
 
-Next we will have to write the C code, which does
-the things that |cogent| cannot do. |cogent| code will be compiled to C code, and is
-always invoked as a subroutine, by a C program. The C programs we write for |cogent|
-are not plain C; they are called *antiquoted C* (c.f. :doc:`../reference/antiquoted-c`).
+Next we will have to write the C code,
+which does the things that |cogent| cannot do.
+|cogent| code will be compiled to C code,
+and is always invoked as a subroutine, by a C program.
+The C programs we write for |cogent| are not plain C;
+they are called *antiquoted C* (c.f. :doc:`../reference/antiquoted-c`).
 
 .. code-block:: c
   :linenos:
