@@ -1602,20 +1602,16 @@ next
     using elims
     by (blast intro: uval_typing_uval_typing_record.intros)
 next
-  case (u_t_abstract a n ts r w \<Xi> \<sigma>)
-  then show ?case
+  case u_t_abstract then show ?case
     by (fastforce elim!: subtyping.cases intro: uval_typing_uval_typing_record.intros)
 next
-  case (u_t_afun \<Xi> f ks a b ts a' b' \<sigma>)
-  show ?case
-    using u_t_afun.prems
-    apply (cases rule: subtyping.cases)
-    using u_t_afun by (fastforce simp add: subtyping_trans uval_typing_uval_typing_record.intros)
+  case u_t_afun then show ?case
+    by (force intro!: uval_typing_uval_typing_record.intros subtyping.intros
+        intro: subtyping_trans elim!: subtyping_left_elims)
 next
-  case (u_t_function \<Xi> K t f u ts t' u' \<sigma>)
-  show ?case
-    using u_t_function.prems apply (cases rule: subtyping.cases)
-    using u_t_function by (fastforce simp add: subtyping_trans uval_typing_uval_typing_record.intros)
+  case u_t_function then show ?case
+    by (force intro!: uval_typing_uval_typing_record.intros subtyping.intros
+        intro: subtyping_trans elim!: subtyping_left_elims)
 next
   case (u_t_p_rec_ro \<Xi> \<sigma> fs ts r l ptrl)
   obtain ts' where elims:

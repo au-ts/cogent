@@ -490,6 +490,8 @@ fun specialise :: "type substitution \<Rightarrow> 'f expr \<Rightarrow> 'f expr
 | "specialise \<delta> (Split v va)      = Split (specialise \<delta> v) (specialise \<delta> va)"
 | "specialise \<delta> (Promote t x)     = Promote (instantiate \<delta> t) (specialise \<delta> x)"
 
+fun_cases specialise_reverse_promoteE: "specialise \<delta> e = Promote t e'"
+
 section {* Subtyping *}
 
 abbreviation record_kind_subty :: "kind_comp set list \<Rightarrow> name \<times> Cogent.type \<times> record_state \<Rightarrow> name \<times> Cogent.type \<times> record_state \<Rightarrow> bool" where
@@ -522,6 +524,47 @@ inductive subtyping :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightar
                   \<rbrakk> \<Longrightarrow> K \<turnstile> TSum ts1 \<sqsubseteq> TSum ts2"
 | subty_tunit  : "K \<turnstile> TUnit \<sqsubseteq> TUnit"
 
+inductive_cases subty_tvarE: "K \<turnstile> TVar n1 \<sqsubseteq> TVar n2"
+inductive_cases subty_tvarbE: "K \<turnstile> TVarBang n1 \<sqsubseteq> TVarBang n2"
+inductive_cases subty_tconE: "K \<turnstile> TCon n1 ts1 s1 \<sqsubseteq> TCon n2 ts2 s2"
+inductive_cases subty_tfunE: "K \<turnstile> TFun t1 u1 \<sqsubseteq> TFun t2 u2"
+inductive_cases subty_tprimE: "K \<turnstile> TPrim p1 \<sqsubseteq> TPrim p2"
+inductive_cases subty_trecordE: "K \<turnstile> TRecord ts1 s1 \<sqsubseteq> TRecord ts2 s2"
+inductive_cases subty_tprodE: "K \<turnstile> TProduct t1 u1 \<sqsubseteq> TProduct t2 u2"
+inductive_cases subty_tsumE: "K \<turnstile> TSum ts1 \<sqsubseteq> TSum ts2"
+inductive_cases subty_unitE: "K \<turnstile> TUnit \<sqsubseteq> TUnit"
+
+lemmas subtyping_elims =
+  subty_tvarE subty_tvarbE subty_tconE subty_tfunE subty_tprimE subty_trecordE subty_tprodE
+  subty_tsumE subty_unitE
+
+inductive_cases subty_tvar_leftE: "K \<turnstile> TVar n1 \<sqsubseteq> u"
+inductive_cases subty_tvarb_leftE: "K \<turnstile> TVarBang n1 \<sqsubseteq> u"
+inductive_cases subty_tcon_leftE: "K \<turnstile> TCon n1 ts1 s1 \<sqsubseteq> u"
+inductive_cases subty_tfun_leftE: "K \<turnstile> TFun t1 u1 \<sqsubseteq> u"
+inductive_cases subty_tprim_leftE: "K \<turnstile> TPrim p1 \<sqsubseteq> u"
+inductive_cases subty_trecord_leftE: "K \<turnstile> TRecord ts1 s1 \<sqsubseteq> u"
+inductive_cases subty_tprod_leftE: "K \<turnstile> TProduct t1 u1 \<sqsubseteq> u"
+inductive_cases subty_tsum_leftE: "K \<turnstile> TSum ts1 \<sqsubseteq> u"
+inductive_cases subty_unit_leftE: "K \<turnstile> TUnit \<sqsubseteq> u"
+
+lemmas subtyping_left_elims =
+  subty_tvar_leftE subty_tvarb_leftE subty_tcon_leftE subty_tfun_leftE subty_tprim_leftE subty_trecord_leftE subty_tprod_leftE
+  subty_tsum_leftE subty_unit_leftE
+
+inductive_cases subty_tvar_rightE: "K \<turnstile> t \<sqsubseteq> TVar n1"
+inductive_cases subty_tvarb_rightE: "K \<turnstile> t \<sqsubseteq> TVarBang n1"
+inductive_cases subty_tcon_rightE: "K \<turnstile> t \<sqsubseteq> TCon n1 ts1 s1"
+inductive_cases subty_tfun_rightE: "K \<turnstile> t \<sqsubseteq> TFun t1 u1"
+inductive_cases subty_tprim_rightE: "K \<turnstile> t \<sqsubseteq> TPrim p1"
+inductive_cases subty_trecord_rightE: "K \<turnstile> t \<sqsubseteq> TRecord ts1 s1"
+inductive_cases subty_tprod_rightE: "K \<turnstile> t \<sqsubseteq> TProduct t1 u1"
+inductive_cases subty_tsum_rightE: "K \<turnstile> t \<sqsubseteq> TSum ts1"
+inductive_cases subty_unit_rightE: "K \<turnstile> t \<sqsubseteq> TUnit"
+
+lemmas subtyping_right_elims =
+  subty_tvar_rightE subty_tvarb_rightE subty_tcon_rightE subty_tfun_rightE subty_tprim_rightE subty_trecord_rightE subty_tprod_rightE
+  subty_tsum_rightE subty_unit_rightE
 
 section {* Contexts *}
 
@@ -1920,7 +1963,17 @@ next
     by (fastforce intro!: subtyping.intros simp add: list_all2_conv_all_nth split: prod.splits)
 qed (auto intro!: subtyping.intros)
 
+lemma specialisation_subtyping1:
+  "\<lbrakk>K \<turnstile> t \<sqsubseteq> t'; K \<turnstile> t wellformed; list_all2 (kinding K') \<delta> K\<rbrakk>
+  \<Longrightarrow> K' \<turnstile> instantiate \<delta> t \<sqsubseteq> instantiate \<delta> t'"
+  using subtyping_wellformed_preservation specialisation_subtyping
+  by blast
 
+lemma specialisation_subtyping2:
+  "\<lbrakk>K \<turnstile> t \<sqsubseteq> t'; K \<turnstile> t' wellformed; list_all2 (kinding K') \<delta> K\<rbrakk>
+  \<Longrightarrow> K' \<turnstile> instantiate \<delta> t \<sqsubseteq> instantiate \<delta> t'"
+  using subtyping_wellformed_preservation specialisation_subtyping
+  by blast
 
 section {* Lemmas about contexts, splitting and weakening *}
 
