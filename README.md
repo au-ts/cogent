@@ -117,3 +117,11 @@ their size, follow instructions in [Proofs](#proofs) section.
     * `ext2`: ext2 file system
       * `cogent`: Cogent code for ext2
 * `regression`: Regression test script
+
+
+## The Gencot Tool
+
+Gencot is a tool for translating C code to Cogent. It's developed by our collaborators.
+The repository is hosted on [Github](https://github.com/F1-C0D3/gencot). See the
+README file and the documentation for more details.
+
