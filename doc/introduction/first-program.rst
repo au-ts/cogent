@@ -318,19 +318,15 @@ and give the expression to resolve to::
   add (x, y)
     = let sum = x + y
       in sum < x || sum < y
-	 | True  -> Success sum
-	 | False -> Error ()
+	 | True  -> Error ()
+	 | False -> Success sum
 
 For our ``R`` type, we can do something similar.
 Here's a contrived example using it::
 
-  fn _ = add (7, 6)
-       | Success x -> x
-       | Error   y -> 42
-
-
-Gum, Glue, and Antiquoted C
-======================================================
+  fn () = add (7, 6)
+        | Success x -> x
+        | Error   y -> 42
 
 That's pretty much all that we can do in |cogent|.
 We can save our favourite definition of ``add``,
@@ -341,6 +337,11 @@ its syntax and semantics,
 you can read :doc:`../reference/surface-syntax`.
 
 .. todo:: Part of the language reference will become a section in this doc later.
+
+
+
+Gum, Glue, and Antiquoted C
+======================================================
 
 Next we will have to write the C code,
 which does the things that |cogent| cannot do.
