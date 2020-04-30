@@ -305,7 +305,8 @@ next case v_t_r_cons2  then show ?case
     by (force intro: vval_typing_vval_typing_record.intros bang_wellformed)
 next case v_t_afun
   show ?case
-    using subtyping_bang_preservation v_t_afun vval_typing_vval_typing_record.v_t_afun by fastforce
+    using subtyping_bang_preservation v_t_afun vval_typing_vval_typing_record.v_t_afun
+    by fastforce
 next case v_t_function
   show ?case
     using subtyping_bang_preservation v_t_function.hyps vval_typing_vval_typing_record.v_t_function by fastforce
@@ -994,28 +995,12 @@ next case v_sem_if      then show ?case by ( case_tac e, simp_all
                                            , fastforce intro:  matches_split
                                                        split:  if_splits)
 next case v_sem_struct  then show ?case
-    apply (case_tac e, simp_all)
-    apply clarsimp
-    apply (rename_tac ts es)
-    apply (erule typing_structE)
-    apply clarsimp
-    apply (rule vval_typing_vval_typing_record.intros)
-    apply (clarsimp simp add: map_zip_instantiate comp_def case_prod_beta)
-     apply (rule vval_typing_all_record')
-        apply (drule_tac x=\<tau>s in meta_spec)
-        apply (drule_tac x=es in meta_spec)
-        apply (drule_tac x=K and y=\<Gamma> in meta_spec2)
-    apply (force simp: map_zip_instantiate list.rel_map
-                                                               list_all2_refl comp_def case_prod_beta
-                                                               list.pred_map list.pred_True)
-(*                                           apply (fastforce intro: vval_typing_vval_typing_record.intros
-                                                               vval_typing_all_record'
-                                                        elim!: typing_structE
-                                                         simp: map_zip_instantiate list.rel_map
-                                                               list_all2_refl comp_def case_prod_beta
-                                                               list.pred_map list.pred_True)
-*)
-    sorry
+    by ( case_tac e, simp_all,
+        fastforce
+        intro: vval_typing_vval_typing_record.intros vval_typing_all_record'
+        elim!: typing_structE
+        simp: map_zip_instantiate list.rel_map list_all2_refl comp_def case_prod_beta
+        list.pred_map list.pred_True)+
 next  case (v_sem_take \<xi> \<gamma> spec_x fs f' spec_y e')
   then show ?case
   proof (cases e)
@@ -1187,17 +1172,10 @@ next case v_sem_all_empty then show ?case by ( case_tac es, simp_all
                                              , fastforce simp: vval_typing_all_def)
 next case v_sem_all_cons  then show ?case by ( case_tac es, simp_all
                                              , fastforce dest: matches_split2)
-(*
-    apply ( fastforce simp: vval_typing_all_def dest: matches_split)
-*)
-next
-  case (v_sem_promote \<Xi> \<xi> \<gamma> ea ea' t)
-  then show ?case
-    sorry
-(*
-    using value_subtyping(1) specialisation(1) typing_promoteE instantiate_ctx_nothing instantiate_nothing list.ctr_transfer(1) specialise_nothing
-    by (metis)
-*)
+next case v_sem_promote then show ?case
+    by (fastforce
+        elim!: specialise_reverse_promoteE[OF sym] typing_promoteE
+        intro: value_subtyping specialisation_subtyping1 typing_to_wellformed)
 qed
 
 (* TODO:
