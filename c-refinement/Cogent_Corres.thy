@@ -492,7 +492,7 @@ lemma corres_struct:
 assumes
  "\<And>\<sigma> s. (\<sigma>, s) \<in> srel \<Longrightarrow>
   val_rel (URecord (zip (map (nth \<gamma>) xs) (map type_repr ts))) p"
-shows "corres srel (Struct ts (map Var xs)) (gets (\<lambda>_. p)) \<xi> \<gamma> \<Xi> \<Gamma> \<sigma> s"
+shows "corres srel (Struct ns ts (map Var xs)) (gets (\<lambda>_. p)) \<xi> \<gamma> \<Xi> \<Gamma> \<sigma> s"
   by (fastforce intro: u_sem_struct u_sem_all_var simp: assms corres_def snd_return in_return)
 
 
