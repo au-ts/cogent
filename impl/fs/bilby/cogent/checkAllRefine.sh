@@ -23,4 +23,4 @@ time isabelle build -d plat/verification \
                     -d $REPO_ROOT \
                     -d $REPO_ROOT/autocorres \
                     -b -o process_output_limit=999 \
-                    BilbyFs_AllRefine | tee "bilby-run-$(date +'%F-%H-%M').log";
+                    BilbyFs_AllRefine | tee "bilby-run-$(date +'%F-%H-%M').log"
