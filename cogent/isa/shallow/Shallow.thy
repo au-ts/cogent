@@ -34,8 +34,7 @@ lemmas v_sem_elims =
   v_sem_putE
   v_sem_castE
   v_sem_structE
-  v_sem_AppE
-  v_sem_allE
+  v_sem_appE
   v_sem_all_NilE
   v_sem_all_ConsE
   v_sem_unitE
