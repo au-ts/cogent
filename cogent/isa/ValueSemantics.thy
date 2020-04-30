@@ -144,9 +144,27 @@ where
 inductive_cases v_sem_varE  [elim] : "\<xi> , \<gamma> \<turnstile> Var i \<Down> v"
 inductive_cases v_sem_funE  [elim] : "\<xi> , \<gamma> \<turnstile> Fun f ts \<Down> v"
 inductive_cases v_sem_afunE [elim] : "\<xi> , \<gamma> \<turnstile> AFun f ts \<Down> v"
-inductive_cases v_sem_appE  [elim] : "\<xi> , \<gamma> \<turnstile> App a b \<Down> v"
-inductive_cases v_structE   [elim] : "\<xi> , \<gamma> \<turnstile> Struct ns ts e \<Down> v"
 
+inductive_cases v_sem_letE[elim]: "\<xi> , \<gamma> \<turnstile> Let a b \<Down> b'"
+inductive_cases v_sem_letbE[elim]: "\<xi> , \<gamma> \<turnstile> LetBang vs a b \<Down> b'"
+inductive_cases v_sem_litE[elim]: "\<xi> , \<gamma> \<turnstile> Lit l \<Down> v"
+inductive_cases v_sem_primE[elim]: "\<xi> , \<gamma> \<turnstile> Prim p as \<Down> r"
+inductive_cases v_sem_memberE[elim]: "\<xi> , \<gamma> \<turnstile> Member x f \<Down> r"
+inductive_cases v_sem_tupleE[elim]: "\<xi> , \<gamma> \<turnstile> Tuple a b \<Down> r"
+inductive_cases v_sem_ifE[elim]: "\<xi> , \<gamma> \<turnstile> If x t e \<Down> r"
+inductive_cases v_sem_conE[elim]: "\<xi> , \<gamma> \<turnstile> Con i t x \<Down> r"
+inductive_cases v_sem_esacE[elim]: "\<xi>, \<gamma> \<turnstile> Esac v  n \<Down> r"
+inductive_cases v_sem_caseE[elim]:  "\<xi> , \<gamma> \<turnstile> Case x c m n \<Down> r"
+inductive_cases v_sem_splitE[elim]: "\<xi> , \<gamma> \<turnstile> Split x e \<Down> e'"
+inductive_cases v_sem_takeE[elim]: "\<xi> , \<gamma> \<turnstile> Take x f e \<Down> e'"
+inductive_cases v_sem_putE[elim]: "\<xi> , \<gamma> \<turnstile> Put x f e \<Down> e'"
+inductive_cases v_sem_castE[elim]: "\<xi> , \<gamma> \<turnstile> Cast \<tau> e \<Down> e'"
+inductive_cases v_sem_structE[elim]: "\<xi> , \<gamma> \<turnstile> Struct ns ts xs \<Down> e'"
+inductive_cases v_sem_appE[elim]: "\<xi> , \<gamma> \<turnstile> App f a \<Down> e'"
+inductive_cases v_sem_unitE[elim]: "\<xi> , \<gamma> \<turnstile> Unit \<Down> r"
+inductive_cases v_sem_promoteE[elim]: "\<xi>, \<gamma> \<turnstile> Promote \<tau> e \<Down> r"
+inductive_cases v_sem_all_NilE[elim]: "\<xi> , \<gamma> \<turnstile>* [] \<Down> es'"
+inductive_cases v_sem_all_ConsE[elim]: "\<xi> , \<gamma> \<turnstile>* e # es \<Down> es'"
 
 locale value_sem =
   fixes abs_typing :: "'a \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> bool"
@@ -235,6 +253,14 @@ definition vval_typing_all :: "('f \<Rightarrow> poly_type) \<Rightarrow> ('f, '
 lemmas vval_typing_all_induct =
   list_all2_induct[where P="vval_typing \<Xi>" for \<Xi>, simplified vval_typing_all_def[symmetric],
     consumes 1, case_names Nil Cons]
+
+lemmas vval_tying_all_nil[intro] =
+  list_all2_nil[where R="vval_typing \<Xi>" for \<Xi>, simplified vval_typing_all_def[symmetric]]
+lemmas vval_tying_all_cons[intro] =
+  list_all2_cons[where R="vval_typing \<Xi>" for \<Xi>, simplified vval_typing_all_def[symmetric]]
+
+lemmas vval_typin_all_Cons =
+  list_all2_Cons[where P="vval_typing \<Xi>" for \<Xi>, simplified vval_typing_all_def[symmetric]]
 
 definition matches :: "('f \<Rightarrow> poly_type) \<Rightarrow>  ('f, 'a) vval env \<Rightarrow> ctx \<Rightarrow> bool"
            ("_ \<turnstile> _ matches _" [30,0,20] 60) where
@@ -967,12 +993,29 @@ next case v_sem_letbang then show ?case by ( case_tac e, simp_all
 next case v_sem_if      then show ?case by ( case_tac e, simp_all
                                            , fastforce intro:  matches_split
                                                        split:  if_splits)
-next case v_sem_struct  then show ?case by (case_tac e, simp_all
-                                           , fastforce intro: vval_typing_vval_typing_record.intros
-                                                              vval_typing_all_record'
-                                                        simp: map_zip_instantiate list.rel_map
-                                                              list_all2_refl comp_def case_prod_beta
-                                                              list.pred_map list.pred_True)
+next case v_sem_struct  then show ?case
+    apply (case_tac e, simp_all)
+    apply clarsimp
+    apply (rename_tac ts es)
+    apply (erule typing_structE)
+    apply clarsimp
+    apply (rule vval_typing_vval_typing_record.intros)
+    apply (clarsimp simp add: map_zip_instantiate comp_def case_prod_beta)
+     apply (rule vval_typing_all_record')
+        apply (drule_tac x=\<tau>s in meta_spec)
+        apply (drule_tac x=es in meta_spec)
+        apply (drule_tac x=K and y=\<Gamma> in meta_spec2)
+    apply (force simp: map_zip_instantiate list.rel_map
+                                                               list_all2_refl comp_def case_prod_beta
+                                                               list.pred_map list.pred_True)
+(*                                           apply (fastforce intro: vval_typing_vval_typing_record.intros
+                                                               vval_typing_all_record'
+                                                        elim!: typing_structE
+                                                         simp: map_zip_instantiate list.rel_map
+                                                               list_all2_refl comp_def case_prod_beta
+                                                               list.pred_map list.pred_True)
+*)
+    sorry
 next  case (v_sem_take \<xi> \<gamma> spec_x fs f' spec_y e')
   then show ?case
   proof (cases e)
@@ -1143,13 +1186,18 @@ next case (v_sem_abs_app \<xi> \<gamma> x f ts y a r)
 next case v_sem_all_empty then show ?case by ( case_tac es, simp_all
                                              , fastforce simp: vval_typing_all_def)
 next case v_sem_all_cons  then show ?case by ( case_tac es, simp_all
-                                             , fastforce simp: vval_typing_all_def
-                                                         dest: matches_split)
+                                             , fastforce dest: matches_split2)
+(*
+    apply ( fastforce simp: vval_typing_all_def dest: matches_split)
+*)
 next
   case (v_sem_promote \<Xi> \<xi> \<gamma> ea ea' t)
   then show ?case
+    sorry
+(*
     using value_subtyping(1) specialisation(1) typing_promoteE instantiate_ctx_nothing instantiate_nothing list.ctr_transfer(1) specialise_nothing
     by (metis)
+*)
 qed
 
 (* TODO:
