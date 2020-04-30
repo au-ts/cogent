@@ -72,8 +72,7 @@ solve ks ms c = let gs     = makeGoals [] (M.empty, []) c
                              <> debug  "Unify"      printC unify
                              <> debugL "Equate"     printC equate
                              <> debug  "Sink/Float" printC sinkfloat
-                             <> debug  "ReShape"    printC reShape
-                             -- <> debug  "Join/Meet"  printC joinMeet
+                             <> debug  "Join/Meet"  printC joinMeet
                              <> debugL "Defaults"   printC defaults
 #ifdef REFINEMENT_TYPES
                              <> debug  "SMT"        printC smt
