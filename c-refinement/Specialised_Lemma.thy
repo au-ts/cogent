@@ -101,7 +101,7 @@ fun local_setup_tag_enum_defs lthy =
 
 in
 
-fun local_setup_take_put_member_case_esac_specialised_lemmas file_nm ignore_types lthy =
+fun local_setup_take_put_member_case_esac_specialised_lemmas_ignore_types file_nm ignore_types lthy =
  let
   val lems:lem list = mk_lems file_nm ignore_types lthy;
   val lthy_wo_esac  = List.foldl prove_put_in_bucket_non_esac_especialised_lemma lthy lems;
@@ -111,6 +111,10 @@ fun local_setup_take_put_member_case_esac_specialised_lemmas file_nm ignore_type
  in
   lthy''
  end;
+
+fun local_setup_take_put_member_case_esac_specialised_lemmas file_nm lthy =
+   local_setup_take_put_member_case_esac_specialised_lemmas_ignore_types file_nm [] lthy ;
+
 
 end
 \<close>
