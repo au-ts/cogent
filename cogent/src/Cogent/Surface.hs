@@ -317,6 +317,7 @@ instance Traversable (Flip2 Type t l) where  -- e
 #endif
   traverse _ (Flip2 (TUnbox t))           = pure $ Flip2 (TUnbox t)
   traverse _ (Flip2 (TBang t))            = pure $ Flip2 (TBang t)
+  traverse _ (Flip2 (TRPar n b rc))       = pure $ Flip2 (TRPar n b rc)
   traverse _ (Flip2 (TTake fs t))         = pure $ Flip2 (TTake fs t)
   traverse _ (Flip2 (TPut  fs t))         = pure $ Flip2 (TPut  fs t)
   traverse _ (Flip2 (TLayout l t))        = pure $ Flip2 (TLayout l t)
@@ -477,6 +478,7 @@ fvT (RT (TRecord _ fs _)) = foldMap (fvT . fst . snd) fs
 fvT (RT (TVariant alts)) = foldMap (foldMap fvT . fst) alts
 fvT (RT (TTuple ts)) = foldMap fvT ts
 fvT (RT (TUnit)) = []
+fvT (RT (TRPar _ _ rc)) = __fixme [] -- FIXME: check this
 #ifdef BUILTIN_ARRAYS
 fvT (RT (TArray t e _ tkns)) = fvT t ++ fvE e ++ foldMap (fvE . fst) tkns
 fvT (RT (TATake idxs t)) = fvT t ++ foldMap fvE idxs
@@ -525,7 +527,7 @@ tvT (RT (TRecord _ fs _)) = foldMap (tvT . fst . snd) fs
 tvT (RT (TVariant alts)) = foldMap (foldMap tvT . fst) alts
 tvT (RT (TTuple ts)) = foldMap tvT ts
 tvT (RT (TUnit)) = []
-tvT (RT (TRPar _ _ m)) = foldMap (foldMap tvT) m
+tvT (RT (TRPar _ _ m)) = __fixme $ foldMap (foldMap tvT) m -- FIXME: check this
 #ifdef BUILTIN_ARRAYS
 tvT (RT (TArray t e _ tkns)) = tvT t ++ tvE e ++ foldMap (tvE . fst) tkns
 tvT (RT (TATake idxs t)) = tvT t ++ foldMap tvE idxs
@@ -586,6 +588,7 @@ lvT (RT (TFun t1 t2)) = lvT t1 ++ lvT t2
 lvT (RT (TRecord _ fs _)) = foldMap (lvT . fst . snd) fs
 lvT (RT (TVariant alts)) = foldMap (foldMap lvT . fst) alts
 lvT (RT (TTuple ts)) = foldMap lvT ts
+lvT (RT (TRPar _ _ rc)) = __fixme [] -- FIXME: check this
 #ifdef BUILTIN_ARRAYS
 lvT (RT (TArray t _ _ _)) = lvT t
 lvT (RT (TATake _ t)) = lvT t
