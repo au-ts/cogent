@@ -20,15 +20,15 @@ lemma ucast_or_dist: "ucast (p || q) = ucast p || ucast q"
   done
 
 lemmas bitLemmas =
-  Bit_Representation.bin_last_numeral_simps(2)
-  Bit_Representation.bin_rest_numeral_simps(2)
-  Bit_Representation.bintrunc_n_0
-  Bit_Representation.bintrunc_numeral_simps(2)
-  Bit_Representation.bintrunc_numeral_simps(5)
-  Bit_Representation.bintrunc.Suc
-  Bit_Representation.BIT_special_simps(1)
-  Bit_Representation.BIT_special_simps(2)
-  Bit_Representation.BIT_special_simps(4)
+  bin_last_numeral_simps(2)
+  bin_rest_numeral_simps(2)
+  bintrunc_n_0
+  bintrunc_numeral_simps(2)
+  bintrunc_numeral_simps(5)
+  bintrunc.Suc
+  BIT_special_simps(1)
+  BIT_special_simps(2)
+  BIT_special_simps(4)
   Bits_Int.int_and_numerals(1)
   Groups.monoid_add_class.add.right_neutral
   Nat.mult_0_right
@@ -45,7 +45,7 @@ lemmas bitLemmas =
   Word.word_of_int_0
 
 lemmas bitLemmas' = 
-Bit_Representation.BIT_special_simps(1)
+BIT_special_simps(1)
 Bits_Int.int_and_numerals
 Bits_Int.int_and_numerals
 HOL.simp_thms(6)
@@ -53,16 +53,16 @@ Word.word_no_log_defs(3)
 Word.word_of_int_0
 
 lemmas bitLemmas'' = 
-Bit_Representation.bin_last_numeral_simps(2)
-Bit_Representation.bin_rest_numeral_simps(2)
-Bit_Representation.bintrunc_n_0
-Bit_Representation.bintrunc_numeral_simps(2)
-Bit_Representation.bintrunc_numeral_simps(5)
-Bit_Representation.bintrunc.Suc
-Bit_Representation.BIT_bin_simps(2)
-Bit_Representation.BIT_special_simps(1)
-Bit_Representation.BIT_special_simps(2)
-Bit_Representation.BIT_special_simps(4)
+bin_last_numeral_simps(2)
+bin_rest_numeral_simps(2)
+bintrunc_n_0
+bintrunc_numeral_simps(2)
+bintrunc_numeral_simps(5)
+bintrunc.Suc
+BIT_bin_simps(2)
+BIT_special_simps(1)
+BIT_special_simps(2)
+BIT_special_simps(4)
 Bits_Int.int_and_numerals(1)
 HOL.implies_True_equals
 HOL.simp_thms(6)
