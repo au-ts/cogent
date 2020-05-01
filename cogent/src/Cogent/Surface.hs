@@ -294,6 +294,7 @@ instance Traversable (Flip (Type e) t) where  -- l
 #endif
   traverse _ (Flip (TUnbox t))           = pure $ Flip (TUnbox t)
   traverse _ (Flip (TBang t))            = pure $ Flip (TBang t)
+  traverse _ (Flip (TRPar n b rc))       = pure $ Flip (TRPar n b rc)
   traverse _ (Flip (TTake fs t))         = pure $ Flip (TTake fs t)
   traverse _ (Flip (TPut  fs t))         = pure $ Flip (TPut  fs t)
   traverse f (Flip (TLayout l t))        = Flip <$> (TLayout <$> f l <*> pure t)
