@@ -343,48 +343,105 @@ you can read :doc:`../reference/surface-syntax`.
 Gum, Glue, and Antiquoted C
 ======================================================
 
-Next we will have to write the C code,
-which does the things that |cogent| cannot do.
-|cogent| code will be compiled to C code,
-and is always invoked as a subroutine, by a C program.
-The C programs we write for |cogent| are not plain C;
-they are called *antiquoted C* (c.f. :doc:`../reference/antiquoted-c`).
+At this point,
+we could run the |cogent| compiler,
+and we'd get some code out::
+
+  $ cogent -g Adder.cogent
+  Parsing...
+  Resolving dependencies...
+  Typechecking...
+  Desugaring and typing...
+  Normalising...ANF
+  Re-typing NF...
+  Simplifying...
+  Skipped
+  Monomorphising...
+  Re-typing monomorphic ASST...
+  Generating C code...
+    > Writing to file: ./Adder.h
+    > Writing to file: ./Adder.c
+  Compilation finished!
+
+|cogent| code is compiled to C code,
+and is always invoked as a subroutine by a C program:
+remember that, from |cogent| code,
+many operations aren't possible,
+but within the framework of a larger program,
+we can build quite powerful systems.
+
+The compiled result is not at all pleasant to read,
+nor is it especially easy to interact with.
+So while we *could* pick through
+the generated ``Adder.c`` and ``Adder.h``,
+and work out the exact construct we need,
+it's much easier to have the |cogent| compiler
+help us out by generating much of
+the glue needed to run our functions.
+
+We'll write in C --- but not *plain* C.
+We write in a syntax called
+`*Antiquoted C* <:doc:../reference/antiquoted-c>`_,
+which lets us interface regular C constructs
+with |cogent| types and functions.
+
+An Antiquoted C file is
+very similar to a regular C file ---
+indeed, it's very nearly a superset of C.
+The only difference is
+you may introduce *antiquotes* into the C code:
+an antiquote is comprised of a name
+(e.g., ``$ty``, ``$exp``, ``$esc``),
+a colon, and a |cogent| snippet
+enclosed by a pair of parentheses,
+and these allow us to refer to
+types and expressions in our programs
+without needing to know
+exactly what they were compiled to.
+This is especially important
+as the current |cogent| compiler
+does not generate predictable C names;
+see `issue #322 <https://github.com/NICTA/cogent/issues/322>`_.
+
+With that in mind,
+let's write some Antiquoted C.
 
 .. code-block:: c
-  :linenos:
-  :emphasize-lines: 1,3,6,9,13
 
-  $esc:(#include <stdio.h>)
-  $esc:(#include <stdlib.h>)
-  #include "generated.c"
-  
-  int main(void){
-    $ty:(U32) first_num = 19;
-    $ty:(U32) second_num = 2;
-  
-    $ty:((U32, U32)) args;
-    args.p1 = first_num;
-    args.p2 = second_num;
-  
-    $ty:(R U32 ()) ret = $exp:add(args);
-    if(ret.tag == TAG_ENUM_Success){
-      $ty:(U32) sum = ret.Success;
-      printf("Sum is %u\n", sum);
-      return 0;
-    } else {
-      printf("Error: Overflow detected.\n");
-      return 1;
-    }
-  }
+   int main (void)
+   {
+       return 0;
+   }
 
-An antiquoted C file is very similar to a regular C file. The only
-difference is that you can write *antiquotes* in the C code. An antiquote
-is comprised of an antiquote name (e.g. ``$ty``, ``$exp``,
-``$esc``, ``$spec``), a colon, and a |cogent| snippet enclosed by a pair of parentheses.
-The purpose of having antiquotes is that you can refer to |cogent| types, expressions, etc.
-without knowing what they get compiled to. In particular, with the current implementation of
-the |cogent| compiler, it's very difficult to know what C names will be generated. See
-`ticket #322 <https://github.com/NICTA/cogent/issues/322>`_ on GitHub.
+
+.. code-block:: c
+   :linenos:
+   :emphasize-lines: 1,3,6,9,13
+
+   $esc:(#include <stdio.h>)
+   $esc:(#include <stdlib.h>)
+   #include "generated.c"
+
+   int main (void)
+   {
+       $ty:(U32) first_num = 19;
+       $ty:(U32) second_num = 2;
+
+       $ty:((U32, U32)) args;
+       args.p1 = first_num;
+       args.p2 = second_num;
+
+       $ty:(R U32 ()) ret = $exp:add(args);
+       if (ret.tag == TAG_ENUM_Success) {
+           $ty:(U32) sum = ret.Success;
+           printf("Sum is %u\n", sum);
+           return 0;
+       } else {
+           printf("Error: Overflow detected.\n");
+           return 1;
+       }
+   }
+
 
 Let's first look at the ``main`` function. In line 6, the antiquote ``$ty:(U32)``
 means that we want to use a ``U32`` (a primitive type in |cogent|) equivalent in C. On line 9,
