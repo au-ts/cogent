@@ -112,12 +112,28 @@ toLLVMType (TProduct a b) = StructureType { isPacked = False
                                           , elementTypes = [ toLLVMType a, toLLVMType b ]
                                           }
 toLLVMType (TString )= LLVM.AST.Type.PointerType { pointerReferent = IntegerType 8 }
+toLLVMType (TSum ts) =
+  let types = [ t | (_, (t, _)) <- ts ] in
+      let maxType = Data.List.foldl (\a b -> if typeSize a > typeSize b then a else b) (TUnit) types in
+          StructureType { isPacked = False
+                        , elementTypes = [ IntegerType 32 -- default 32 bit tag
+                                         , toLLVMType maxType ]}
 #ifdef BUILTIN_ARRAYS
 toLLVMType (TArray t s) = ArrayType { nArrayElements = s
                                   , elementType = toLLVMType t
                                   }
 #endif
 toLLVMType _         = VoidType
+
+typeSize :: Core.Type t -> Int
+typeSize (TPrim p) = case p of
+                       Boolean -> 1
+                       U8 -> 8
+                       U16 -> 16
+                       U32 -> 32
+                       U64 -> 64
+typeSize (TUnit) = 0
+typeSize _ = 32 -- assuming 32 bit machine
 
 
 -- Name
@@ -249,6 +265,8 @@ rec_type (TE rect _) = case rect of
 
 
 exprToLLVM :: Core.TypedExpr t v a -> Codegen (Either Operand (Named Terminator))
+exprToLLVM (TE t Unit) = return (Left (ConstantOperand C.Undef { C.constantType = toLLVMType t }))
+
 exprToLLVM (TE _ (ILit int bits)) =
   return (Left (case bits of
              Boolean -> ConstantOperand C.Int { C.integerBits = 1, C.integerValue = int }
@@ -256,6 +274,7 @@ exprToLLVM (TE _ (ILit int bits)) =
              U16 -> ConstantOperand C.Int { C.integerBits = 16, C.integerValue = int }
              U32 -> ConstantOperand C.Int { C.integerBits = 32, C.integerValue = int }
              U64 -> ConstantOperand C.Int { C.integerBits = 64, C.integerValue = int }))
+
 exprToLLVM (TE _ (SLit str)) =
   return (Left (ConstantOperand C.Array { C.memberType = IntegerType 8
                                         , C.memberValues = [ C.Int { C.integerBits = 8, C.integerValue = toInteger(ord c)} | c <- str]
@@ -301,12 +320,36 @@ exprToLLVM (TE rt (Op op [a,b])) =
                      Sy.Or -> instr (toLLVMType rt) (LLVM.AST.Instruction.Or { operand0 = oa
                                                                              , operand1 = ob
                                                                              , LLVM.AST.Instruction.metadata = []} )
-                     Sy.Gt -> error "not implemented yet"
-                     Sy.Lt-> error "not implemented yet"
-                     Sy.Ge -> error "not implemented yet"
-                     Sy.Le -> error "not implemented yet"
-                     Sy.Eq -> error "not implemented yet"
-                     Sy.NEq -> error "not implemented yet"
+                     Sy.Gt -> instr (IntegerType 1) (LLVM.AST.Instruction.ICmp { operand0 = oa
+                                                                               , operand1 = ob
+                                                                               , LLVM.AST.Instruction.metadata = []
+                                                                               , iPredicate = UGT -- assuming unsigned
+                                                                               })
+                     Sy.Lt -> instr (IntegerType 1) (LLVM.AST.Instruction.ICmp { operand0 = oa
+                                                                               , operand1 = ob
+                                                                               , LLVM.AST.Instruction.metadata = []
+                                                                               , iPredicate = ULT -- assuming unsigned
+                                                                               })
+                     Sy.Ge -> instr (IntegerType 1) (LLVM.AST.Instruction.ICmp { operand0 = oa
+                                                                               , operand1 = ob
+                                                                               , LLVM.AST.Instruction.metadata = []
+                                                                               , iPredicate = UGE -- assuming unsigned
+                                                                               })
+                     Sy.Le -> instr (IntegerType 1) (LLVM.AST.Instruction.ICmp { operand0 = oa
+                                                                               , operand1 = ob
+                                                                               , LLVM.AST.Instruction.metadata = []
+                                                                               , iPredicate = ULE -- assuming unsigned
+                                                                               })
+                     Sy.Eq -> instr (IntegerType 1) (LLVM.AST.Instruction.ICmp { operand0 = oa
+                                                                               , operand1 = ob
+                                                                               , LLVM.AST.Instruction.metadata = []
+                                                                               , iPredicate = IntP.EQ -- assuming unsigned
+                                                                               })
+                     Sy.NEq -> instr (IntegerType 1) (LLVM.AST.Instruction.ICmp { operand0 = oa
+                                                                               , operand1 = ob
+                                                                               , LLVM.AST.Instruction.metadata = []
+                                                                               , iPredicate = NE -- assuming unsigned
+                                                                               })
                      Sy.BitAnd-> error "not implemented yet"
                      Sy.BitOr-> error "not implemented yet"
                      Sy.BitXor-> error "not implemented yet"
@@ -359,6 +402,44 @@ exprToLLVM (TE _ (Let _ val body)) = -- it seems that the variable name is not u
         Left val -> ((terminator (Do (Ret (Just val) [])) ) >>= (\a -> return (Right a)))
         Right trm -> return (Right trm)
 
+exprToLLVM (TE _ (LetBang _  _ val body)) = -- let! and let should be the same here
+    do
+      _v <- (exprToLLVM val)
+      let v = Data.Either.fromLeft (error "let cannot bind a terminator") _v
+      vars <- gets indexing
+      modify (\s -> s { indexing = [v] ++ vars })
+      res <- exprToLLVM body
+      case res of
+        Left val -> ((terminator (Do (Ret (Just val) [])) ) >>= (\a -> return (Right a)))
+        Right trm -> return (Right trm)
+
+exprToLLVM (TE _ (Promote _ e))= exprToLLVM e
+  
+exprToLLVM (TE rt (Con tag e t))=
+  do
+    res <- instr (toLLVMType rt) (Alloca { allocatedType = toLLVMType rt
+                                         , numElements = Nothing
+                                         , LLVM.AST.Instruction.alignment = 4
+                                         , LLVM.AST.Instruction.metadata = []
+                                         })
+    v <- exprToLLVM e
+    casted <- instr (LLVM.AST.Type.PointerType { pointerReferent = toLLVMType t
+                                 , pointerAddrSpace = AddrSpace 0
+                                 })
+                                 (BitCast { operand0 = res
+                                          , LLVM.AST.Instruction.type' = LLVM.AST.Type.PointerType { pointerReferent = toLLVMType t
+                                                                , pointerAddrSpace = AddrSpace 0}
+                                          , LLVM.AST.Instruction.metadata = []})
+    instr (toLLVMType rt) (Store { volatile = False
+                                 , address = casted
+                                 , maybeAtomicity = Nothing
+                                 , LLVM.AST.Instruction.value = Data.Either.fromLeft (error "value cannot be a terminator") v
+                                 , LLVM.AST.Instruction.alignment = 4
+                                 , LLVM.AST.Instruction.metadata = []})
+    return (Left res)
+
+  --error ("rt: " ++ (show rt) ++ " tag: " ++ (show tag) ++ " t: " ++ (show t))
+                  
 
 exprToLLVM (TE _ (If cd tb fb)) =
   do
@@ -388,8 +469,6 @@ exprToLLVM (TE _ (If cd tb fb)) =
                                          , falseDest = blkFalse
                                          , metadata' = []
                                          }))) >>= (\a -> return (Right a))
-
-
 
 exprToLLVM r@(TE rect (Struct flds)) =
   do
@@ -429,10 +508,7 @@ exprToLLVM (TE vt (Variable (idx, _))) =
         else return (Left (indexing !! _idx))
     -- error ("variable not implemented yet. idx: " ++ show idx ++  " " ++ show uname_count)
 
-exprToLLVM (TE _ (Fun _ _ _)) = error "fun not implemented yet"
-exprToLLVM _ = error "not implemented yet"
-
-
+exprToLLVM _ = error ("not implemented yet: ")
 
 
 hasBlock :: Core.TypedExpr t v a -> Bool
