@@ -41,33 +41,35 @@ import Prelude as P
 
 data SmtTransState = SmtTransState { _unifs :: IntMap SVal
                                    , _vars  :: Map String SVal
+                                   , _fresh :: Int
                                    }
 
 makeLenses ''SmtTransState
 
 type SmtTransM = StateT SmtTransState Symbolic
 
-typeToSmt :: TCType -> SMT.Kind
-typeToSmt (T (TCon "Bool" [] Unboxed)) = KBool
-typeToSmt (T (TCon "String" [] Unboxed)) = KString
+typeToSmt :: TCType -> SmtTransM SMT.Kind
+typeToSmt (T (TCon "Bool" [] Unboxed)) = return KBool
+typeToSmt (T (TCon "String" [] Unboxed)) = return KString
 typeToSmt (T (TCon n [] Unboxed))
   = let w = if | n == "U8"  -> 8
                | n == "U16" -> 16
                | n == "U32" -> 32
                | n == "U64" -> 64
-     in KBounded False w
-typeToSmt (T (TTuple ts))  = KTuple $ P.map typeToSmt ts
-typeToSmt (T (TUnit))      = KTuple []
+     in return $ KBounded False w
+typeToSmt (T (TTuple ts))  = KTuple <$> mapM typeToSmt ts
+typeToSmt (T (TUnit))      = return $ KTuple []
 #ifdef REFINEMENT_TYPES
 typeToSmt (T (TRefine _ b _)) = typeToSmt b
 #endif
-typeToSmt t = __impossible $ "typeToSmt: unsupported type in SMT:\n" ++ show (indent' $ pretty t)
+typeToSmt t = freshSort >>= \s -> return (KUninterpreted s (Left s))
 
 sexprToSmt :: TCSExpr -> SmtTransM SVal
 sexprToSmt (SU t x) = do
   m <- use unifs
   case IM.lookup x m of
-    Nothing -> do sv <- mkQSymVar SMT.EX ('?':show x) (typeToSmt t)
+    Nothing -> do t' <- typeToSmt t
+                  sv <- mkQSymVar SMT.EX ('?':show x) t'
                   unifs %= (IM.insert x sv)
                   return sv
     Just sv -> return sv
@@ -76,7 +78,8 @@ sexprToSmt (SE t (PrimOp op [e1,e2])) = (liftA2 $ bopToSmt op) (sexprToSmt e1) (
 sexprToSmt (SE t (Var vn)) = do
   m <- use vars
   case M.lookup vn m of
-    Nothing -> do sv <- mkQSymVar SMT.ALL vn (typeToSmt t)
+    Nothing -> do t' <- typeToSmt t
+                  sv <- mkQSymVar SMT.ALL vn t'
                   vars %= (M.insert vn sv)
                   return sv
     Just sv -> return sv
@@ -84,14 +87,14 @@ sexprToSmt (SE t (Var vn)) = do
   --       of like existentials, that if it's *possible* that something is true, then it's satisfiable.
   --       Only when it derives a contradiction it says it's unsat. / zilinc
   -- XXX | return $ svUninterpreted (typeToSmt t) vn Nothing []
-sexprToSmt (SE t (TLApp f mts mls _)) = undefined
-sexprToSmt (SE t (App e1 e2 _)) = undefined
-sexprToSmt (SE t (IntLit i)) = return $ svInteger (typeToSmt t) i
+-- sexprToSmt (SE t (TLApp f mts mls _)) = undefined
+-- sexprToSmt (SE t (App e1 e2 _)) = undefined
+sexprToSmt (SE t (IntLit i)) = svInteger <$> typeToSmt t <*> pure i
 sexprToSmt (SE t (BoolLit b)) = return $ svBool b
 sexprToSmt (SE t (If e _ th el)) = (liftA3 svIte) (sexprToSmt e) (sexprToSmt th) (sexprToSmt el)
 sexprToSmt (SE t (Upcast e)) = sexprToSmt e
 sexprToSmt (SE t (Annot e _)) = sexprToSmt e
-sexprToSmt e = __todo $ "sexprToSmt: unsupported expression in SMT:\n" ++ show (indent' $ pretty e)
+sexprToSmt (SE t _) = freshVal >>= \f -> typeToSmt t >>= \t' -> return (svUninterpreted t' f Nothing [])
 
 -- type SmtM a = StateT (UVars, EVars) V.Symbolic a
 
@@ -135,4 +138,9 @@ mkQSymVar q nm k = symbolicEnv >>= liftIO . svMkSymVar (Just q) k (Just nm)
 bvAnd :: [SVal] -> SVal
 bvAnd = P.foldr (svAnd) svTrue
 
+freshVal :: SmtTransM String
+freshVal = (("_smt_val_" ++) . show) <$> (fresh <<%= succ)
+
+freshSort :: SmtTransM String
+freshSort = (("_smt_sort_" ++) . show) <$> (fresh <<%= succ)
 

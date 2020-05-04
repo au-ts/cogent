@@ -215,8 +215,10 @@ infix 9 :<
 infix 9 :=:
 infixl 1 :&
 infixl 3 :@
+#ifdef REFINEMENT_TYPES
 -- infix 5 :->
 infix 4 :|-
+#endif
 
 type Constraint = Constraint' TCType TCDataLayout
 type ConstraintEnv = (M.Map VarName (TCType, Int), [TCSExpr])

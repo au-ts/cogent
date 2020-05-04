@@ -616,6 +616,7 @@ desugarType = \case
            <*> pure l'
            <*> pure ds
            <*> pure tkns'
+  B.DT (S.TRefine _ b _) -> desugarType b
 #endif
   notInWHNF -> __impossible $ "desugarType (type " ++ show (pretty notInWHNF) ++ " is not in WHNF)"
 
