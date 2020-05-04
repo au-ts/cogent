@@ -386,8 +386,10 @@ cg' (Var n) t = do
 cg' (Upcast e) t = do
   alpha <- freshTVar
   (c1, e1') <- cg e alpha
-  let c = integral alpha <> Upcastable alpha t <> c1
-  return (c, Upcast e1')
+  let c = integral alpha <> Upcastable alpha t
+  traceTc "gen" (text "upcast expression" <+> pretty e <> semi L.<$>
+                 text "generate constraint" <+> prettyC c)
+  return (c <> c1, Upcast e1')
 
 cg' (BoolLit b) t = do
   let c = T bool :=: t

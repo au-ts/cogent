@@ -147,6 +147,12 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
     | Just n' <- elemIndex n primTypeCons
     , Just m' <- elemIndex m primTypeCons
     , n' <= m' , not (m `elem` ["String","Bool"]) -> hoistMaybe $ Just []
+  Upcastable t@(T (TCon n [] Unboxed)) (T (TRefine _ b _))
+    | Just n' <- elemIndex n primTypeCons
+    -> hoistMaybe $ Just [Upcastable t b]
+  Upcastable (T (TRefine _ b _)) t@(T (TCon n [] Unboxed))
+    | Just n' <- elemIndex n primTypeCons
+    -> hoistMaybe $ Just [Upcastable b t]
 
   Drop  (T (TRPar _ True _)) m -> hoistMaybe $ Just []
   Share (T (TRPar _ True _)) m -> hoistMaybe $ Just []
