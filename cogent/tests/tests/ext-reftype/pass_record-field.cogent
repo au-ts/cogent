@@ -1,0 +1,5 @@
+type R = { f1 : U8, f2 : A }
+type A
+
+foo : [v : R | v.f1 < 3] -> [v : R | v.f1 < 5]
+foo r {f1} = r {f1 = f1 + 2}

@@ -324,13 +324,13 @@ cg' (PrimOp o [e1, e2]) t
   | o `elem` words "&& ||"
   = do (c1, e1') <- cg e1 t
        (c2, e2') <- cg e2 t
-       return (T bool :=: t <> c1 <> c2, PrimOp o [e1', e2'])
+       return (T bool :< t <> c1 <> c2, PrimOp o [e1', e2'])
   | o `elem` words "== /= >= <= > <"
   , not ?isRefType
   = do alpha <- freshTVar
        (c1, e1') <- cg e1 alpha
        (c2, e2') <- cg e2 alpha
-       let c  = T bool :=: t
+       let c  = T bool :< t
            c' = IsPrimType alpha
        return (c <> c' <> c1 <> c2, PrimOp o [e1', e2'])
   | o `elem` words "== /= >= <= > <"
@@ -351,7 +351,7 @@ cg' (PrimOp o [e]) t
       return (integral t :& c, PrimOp o [e'])
   | o == "not"         = do
       (c, e') <- cg e t
-      return (T bool :=: t :& c, PrimOp o [e'])
+      return (T bool :< t :& c, PrimOp o [e'])
 cg' (PrimOp _ _) _ = __impossible "cg': unimplemented primops"
 cg' (Var n) t = do
   let e = Var n  -- it has a different type than the above `Var n' pattern
@@ -392,22 +392,22 @@ cg' (Upcast e) t = do
   return (c <> c1, Upcast e1')
 
 cg' (BoolLit b) t = do
-  let c = T bool :=: t
+  let c = T bool :< t
       e = BoolLit b
   return (c,e)
 
 cg' (CharLit l) t = do
-  let c = T u8 :=: t
+  let c = T u8 :< t
       e = CharLit l
   return (c,e)
 
 cg' (StringLit l) t = do
-  let c = T (TCon "String" [] Unboxed) :=: t
+  let c = T (TCon "String" [] Unboxed) :< t
       e = StringLit l
   return (c,e)
 
 cg' Unitel t = do
-  let c = T TUnit :=: t
+  let c = T TUnit :< t
       e = Unitel
   return (c,e)
 
@@ -797,10 +797,10 @@ matchA' (PIntLit i) t = do
   return (M.empty, c, PIntLit i, t)
 
 matchA' (PBoolLit b) t =
-  return (M.empty, t :=: T bool, PBoolLit b, t)
+  return (M.empty, t :< T bool, PBoolLit b, t)
 
 matchA' (PCharLit c) t =
-  return (M.empty, t :=: T u8, PCharLit c, t)
+  return (M.empty, t :< T u8, PCharLit c, t)
 
 match :: (?isRefType :: Bool)
       => LocIrrefPatn
