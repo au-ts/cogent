@@ -68,7 +68,7 @@ expandMod def = do
   modify (\s -> s { moduleDefinitions = oldDefs ++ [def] })
 
 
-def :: ShortByteString -> [(LLVM.AST.Type.Type, Name)] -> LLVM.AST.Type.Type -> (LLVM.AST.Type.Type -> Codegen a) -> LLVM ()
+def :: ShortByteString -> [(LLVM.AST.Type.Type, Name)] -> LLVM.AST.Type.Type -> (LLVM.AST.Type.Type -> Codegen (Either Operand (Named Terminator))) -> LLVM ()
 def dName argTys retTy body =
   let thisPtrType = LLVM.AST.Type.PointerType { pointerReferent =
                                                   FunctionType { resultType = retTy
@@ -80,8 +80,12 @@ def dName argTys retTy body =
                        (execCodegen
                          (do
                              enter <- addBlock "entry"
-                             _ <- setBlock enter
-                             body thisPtrType))
+                             setBlock enter
+                             body_exp <- body thisPtrType
+                             case body_exp of
+                               Right trm -> terminator trm
+                               Left val -> terminator (Do (Ret (Just val) []))
+                         ))
   in expandMod
       (GlobalDefinition
         (functionDefaults
@@ -111,7 +115,7 @@ toLLVMType (TUnit) = VoidType
 toLLVMType (TProduct a b) = StructureType { isPacked = False
                                           , elementTypes = [ toLLVMType a, toLLVMType b ]
                                           }
-toLLVMType (TString )= LLVM.AST.Type.PointerType { pointerReferent = IntegerType 8 }
+toLLVMType (TString )= LLVM.AST.Type.PointerType { pointerReferent = IntegerType 8, pointerAddrSpace = AddrSpace 0 }
 toLLVMType (TSum ts) =
   let types = [ t | (_, (t, _)) <- ts ] in
       let maxType = Data.List.foldl (\a b -> if typeSize a > typeSize b then a else b) (TUnit) types in
@@ -558,13 +562,6 @@ toLLVMDef (FunDef attr name ts t rt body) =
         argType at@(TProduct _ _) = (LLVM.AST.PointerType { pointerReferent = (toLLVMType at)
                                                         , pointerAddrSpace = AddrSpace 0})
         argType at = toLLVMType at
-    --expandMod (GlobalDefinition
-    --           (functionDefaults { LLVM.AST.Global.name = Name (toShort (Data.ByteString.Internal.packChars name))
-     --                            , parameters = ([Parameter (toLLVMType t) "" []], False)
-      --                           , returnType = toLLVMType rt
-       --                          , basicBlocks = genBlocks (execCodegen (exprToLLVM body))
-        --                         })
-         --     )
 
 toLLVMDef _ = error "not implemented yet"
 
