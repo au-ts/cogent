@@ -22,3 +22,21 @@
     - pass_poly-simple.cogent
   expected_result: pass
   phase: "type_proof"
+
+- test_name: fail-partially-applied-entryfuncs
+  files:
+    - fail-entry-funcs-application.cogent
+  expected_result: fail
+  flags:
+    - --entry-funcs
+    - partially-applied.cfg
+    - --mono
+
+- test_name: fail-too-many-args-entryfuncs
+  files:
+    - fail-entry-funcs-application.cogent
+  expected_result: fail
+  flags:
+    - --entry-funcs
+    - too-many-args.cfg
+    - --mono

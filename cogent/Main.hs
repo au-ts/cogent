@@ -743,8 +743,15 @@ parseArgs args = case getOpt' Permute options args of
     mono cmds simpled ctygen source tced tcst typedefs fts buildinfo log = do
       let stg = STGMono
       putProgressLn "Monomorphising..."
-      entryFuncs <- T.forM __cogent_entry_funcs $
-                      return . (,empty) <=< (readEntryFuncs tced tcst typedefs fts) <=< return . parseEntryFuncs <=< readFile
+      efuns <- T.forM __cogent_entry_funcs $
+                            return . (,empty) <=< (readEntryFuncs tced tcst typedefs fts) <=< return . parseEntryFuncs <=< readFile
+      entryFuncs <- case efuns of
+                      Nothing -> return Nothing
+                      Just (Nothing, _) -> do
+                        exitFailure
+                        return Nothing -- Keep compiler happy
+                      Just (Just f, i) -> return $ Just (f, i)
+
       let (insts,(warnings,monoed,ctygen')) = MN.mono simpled ctygen entryFuncs
       when (TableAbsFuncMono `elem` cmds) $ do
         let afmfile = mkFileName source Nothing __cogent_ext_of_afm
