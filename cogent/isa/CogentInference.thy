@@ -135,16 +135,16 @@ fun abs :: "num_type \<Rightarrow> nat" where
 | "abs U64 = 2048"
 
 
-fun subst_ty :: "type list \<Rightarrow> type \<Rightarrow> type" where
-  "subst_ty \<delta> (TVar i)            = (if i < length \<delta> then \<delta> ! i else TVar i)"
-| "subst_ty \<delta> (TFun a b)          = TFun (subst_ty \<delta> a) (subst_ty \<delta> b)"
-| "subst_ty \<delta> (TPrim p)           = TPrim p"
-| "subst_ty \<delta> (TProduct t u)      = TProduct (subst_ty \<delta> t) (subst_ty \<delta> u)"
-| "subst_ty \<delta> (TUnit)             = TUnit"
-| "subst_ty \<delta> (TUnknown i)        = TUnknown i"
-| "subst_ty \<delta> (TVariant Ks \<alpha>)     = TVariant (map (\<lambda>(nm, t, u). (nm, subst_ty \<delta> t, u)) Ks) \<alpha>"
-| "subst_ty \<delta> (TAbstract nm ts s) = TAbstract nm (map (subst_ty \<delta>) ts) s"
-| "subst_ty \<delta> (TObserve t)        = TObserve (subst_ty \<delta> t)"
+fun subst_tyvar :: "type list \<Rightarrow> type \<Rightarrow> type" where
+  "subst_tyvar \<delta> (TVar i)            = (if i < length \<delta> then \<delta> ! i else TVar i)"
+| "subst_tyvar \<delta> (TFun a b)          = TFun (subst_tyvar \<delta> a) (subst_tyvar \<delta> b)"
+| "subst_tyvar \<delta> (TPrim p)           = TPrim p"
+| "subst_tyvar \<delta> (TProduct t u)      = TProduct (subst_tyvar \<delta> t) (subst_tyvar \<delta> u)"
+| "subst_tyvar \<delta> (TUnit)             = TUnit"
+| "subst_tyvar \<delta> (TUnknown i)        = TUnknown i"
+| "subst_tyvar \<delta> (TVariant Ks \<alpha>)     = TVariant (map (\<lambda>(nm, t, u). (nm, subst_tyvar \<delta> t, u)) Ks) \<alpha>"
+| "subst_tyvar \<delta> (TAbstract nm ts s) = TAbstract nm (map (subst_tyvar \<delta>) ts) s"
+| "subst_tyvar \<delta> (TObserve t)        = TObserve (subst_tyvar \<delta> t)"
 
 
 fun max_type_var :: "type \<Rightarrow> nat" where
@@ -272,8 +272,8 @@ fun map_types_ct :: "(type \<Rightarrow> type) \<Rightarrow> constraint \<Righta
 | "map_types_ct f (CtExhausted t) = CtExhausted (f t)"
 | "map_types_ct f (CtEscape t)    = CtEscape (f t)"
 
-definition subst_ct :: "type list \<Rightarrow> constraint \<Rightarrow> constraint" where
-  "subst_ct \<delta> \<equiv> map_types_ct (subst_ty \<delta>)"
+definition subst_tyvar_ct :: "type list \<Rightarrow> constraint \<Rightarrow> constraint" where
+  "subst_tyvar_ct \<delta> \<equiv> map_types_ct (subst_tyvar \<delta>)"
 
 
 inductive known_ty :: "type \<Rightarrow> bool" where
@@ -860,8 +860,8 @@ typing_var:
 | typing_tapp:
   "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto>w empty (length \<Gamma>)
    ; type_of name = (C, \<tau>)
-   ; A \<turnstile> subst_ct ts C
-   ; \<tau>' = subst_ty ts \<tau>
+   ; A \<turnstile> subst_tyvar_ct ts C
+   ; \<tau>' = subst_tyvar ts \<tau>
    \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> TypeApp name ts : \<tau>'"
 | typing_let:
   "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 \<box> \<Gamma>2
@@ -1009,8 +1009,8 @@ cg_var1:
    (* make fresh unknown \<beta>s for each variable past those we are substituting into the type *)
    ; m = Suc (max_type_var \<rho>) - length ts
    ; \<beta>s = map (TUnknown \<circ> (+) (Suc n1)) [0..<m]
-   ; \<rho>' = subst_ty (ts @ \<beta>s) \<rho>
-   ; C' = subst_ct (ts @ \<beta>s) C
+   ; \<rho>' = subst_tyvar (ts @ \<beta>s) \<rho>
+   ; C' = subst_tyvar_ct (ts @ \<beta>s) C
    ; C2 = CtConj (CtSub \<rho>' \<tau>) C'
    ; n' = n + m
    \<rbrakk> \<Longrightarrow> G,n \<turnstile> TypeApp name ts : \<tau> \<leadsto> G,n' | C2 | Sig (TypeApp name (ts @ \<beta>s)) \<tau>"
@@ -1214,9 +1214,9 @@ lemma assign_app_ctx_len:
   "length (assign_app_ctx S S' G) = length G"
   by (induct G arbitrary: S; simp add: assign_app_ctx_def)
 
-lemma assign_app_ty_subst_ty_commute: 
+lemma assign_app_ty_subst_tyvar_commute: 
   assumes "known_ty \<tau>"
-  shows "assign_app_ty S S' (subst_ty xs \<tau>) = subst_ty (map (assign_app_ty S S') xs) \<tau>"
+  shows "assign_app_ty S S' (subst_tyvar xs \<tau>) = subst_tyvar (map (assign_app_ty S S') xs) \<tau>"
   using assms 
 proof (induct \<tau>)
   case (known_tfun t1 t2)
@@ -1232,12 +1232,12 @@ next
     by (simp add: case_prod_beta)
 qed (simp)+ 
 
-lemma assign_app_constr_subst_ct_commute: 
+lemma assign_app_constr_subst_tyvar_ct_commute: 
   assumes "known_ct C"
-  shows "assign_app_constr S S' (subst_ct xs C) = subst_ct (map (assign_app_ty S S') xs) C"
+  shows "assign_app_constr S S' (subst_tyvar_ct xs C) = subst_tyvar_ct (map (assign_app_ty S S') xs) C"
   using assms
 proof (induct C)
-qed (auto simp add: subst_ct_def assign_app_ty_subst_ty_commute)+
+qed (auto simp add: subst_tyvar_ct_def assign_app_ty_subst_tyvar_commute)+
 
 lemma ct_sem_assign_conj_foldr:
   assumes "A \<turnstile> assign_app_constr S S' (foldr CtConj Cs CtTop)"
@@ -3643,12 +3643,12 @@ next
       qed
       moreover have "type_of name = (C, \<rho>)"
         using cg_tapp.hyps by simp
-      moreover have "A \<turnstile> assign_app_constr S S' (subst_ct (ts @ \<beta>s) C)"
+      moreover have "A \<turnstile> assign_app_constr S S' (subst_tyvar_ct (ts @ \<beta>s) C)"
         using cg_tapp.hyps cg_tapp.prems ct_sem_conjE by auto
-      moreover have "assign_app_ty S S' \<rho>' = assign_app_ty S S' (subst_ty (ts @ \<beta>s) \<rho>)"
+      moreover have "assign_app_ty S S' \<rho>' = assign_app_ty S S' (subst_tyvar (ts @ \<beta>s) \<rho>)"
         using cg_tapp.hyps by blast
       ultimately show ?thesis
-        using assign_app_constr_subst_ct_commute assign_app_ty_subst_ty_commute type_of_known
+        using assign_app_constr_subst_tyvar_ct_commute assign_app_ty_subst_tyvar_commute type_of_known
           typing_tapp by auto
     qed
     moreover have "A \<turnstile> CtSub (assign_app_ty S S' \<rho>') (assign_app_ty S S' \<tau>)"
