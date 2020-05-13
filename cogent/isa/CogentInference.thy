@@ -681,6 +681,8 @@ inductive_cases ct_sem_tprimsubE: "A \<turnstile> CtSub (TPrim x) \<tau>"
 inductive_cases ct_sem_tproductsubE: "A \<turnstile> CtSub (TProduct \<tau>1 \<tau>2) \<rho>"
 inductive_cases ct_sem_tunitsubE: "A \<turnstile> CtSub TUnit \<tau>"
 inductive_cases ct_sem_tunknownsubE: "A \<turnstile> CtSub (TUnknown n) \<tau>"
+inductive_cases ct_sem_tabstract: "A \<turnstile> CtSub (TAbstract nm ts s) \<tau>"
+inductive_cases ct_sem_tobserve: "A \<turnstile> CtSub (TObserve \<tau>) \<rho>"
 lemma ct_sem_sub_trans:
   assumes "A \<turnstile> CtSub \<tau>1 \<tau>2"
     and "A \<turnstile> CtSub \<tau>2 \<tau>3"
@@ -808,11 +810,13 @@ next
     qed
   qed
 next
-  case (TAbstract x1a x2 x3a)
-  then show ?case sorry
+  case (TAbstract nm ts s)
+  then show ?case
+    using ct_sem_tabstract ct_sem_eq_iff by metis
 next
   case (TObserve \<tau>2)
-  then show ?case sorry
+  then show ?case
+    using ct_sem_tobserve ct_sem_eq_iff by metis
 qed
 
 
