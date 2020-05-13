@@ -446,9 +446,13 @@ lemma alg_ctx_jn_type_used_same:
 section {* Constraint Semantics (Fig 3.6) *}
 inductive constraint_sem :: "axm_set \<Rightarrow> constraint \<Rightarrow> bool" ("_ \<turnstile> _" [40, 40] 60) where
 ct_sem_share:
-  "CtShare \<rho> \<in> A \<Longrightarrow> A \<turnstile> CtShare \<rho>"
+  "\<lbrakk> CtShare \<rho> \<in> A
+   ; \<exists>i. \<rho> = TVar i
+   \<rbrakk> \<Longrightarrow> A \<turnstile> CtShare \<rho>"
 | ct_sem_drop:
-  "CtDrop \<rho> \<in> A \<Longrightarrow> A \<turnstile> CtDrop \<rho>"
+  "\<lbrakk> CtDrop \<rho> \<in> A 
+   ; \<exists>i. \<rho> = TVar i
+   \<rbrakk> \<Longrightarrow> A \<turnstile> CtDrop \<rho>"
 | ct_sem_conj:
   "\<lbrakk> A \<turnstile> C1
    ; A \<turnstile> C2
@@ -541,7 +545,7 @@ inductive_cases ct_sem_varsubE1: "A \<turnstile> CtSub (TVariant Ks \<alpha>) \<
 inductive_cases ct_sem_varsubE2: "A \<turnstile> CtSub \<tau> (TVariant Ks \<alpha>)"
 
 lemma ct_sem_conj_iff: "A \<turnstile> CtConj C1 C2 \<longleftrightarrow> A \<turnstile> C1 \<and> A \<turnstile> C2"
-  using ct_sem_conj ct_sem_conjE by blast
+  using ct_sem_conj ct_sem_conjE by meson
 
 lemma ct_sem_conj_fold: 
   assumes"A \<turnstile> foldr CtConj Cs CtTop"
