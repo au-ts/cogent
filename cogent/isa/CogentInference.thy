@@ -134,6 +134,8 @@ fun abs :: "num_type \<Rightarrow> nat" where
 | "abs U32 = 1024"
 | "abs U64 = 2048"
 
+fun subst_ty :: "type \<Rightarrow> type \<Rightarrow> type \<Rightarrow> type" where
+  "subst_ty \<tau> \<tau>' \<rho> = (if \<rho> = \<tau> then \<tau>' else \<rho>)"
 
 fun subst_tyvar :: "type list \<Rightarrow> type \<Rightarrow> type" where
   "subst_tyvar \<delta> (TVar i)            = (if i < length \<delta> then \<delta> ! i else TVar i)"
@@ -271,6 +273,9 @@ fun map_types_ct :: "(type \<Rightarrow> type) \<Rightarrow> constraint \<Righta
 | "map_types_ct f (CtDrop t)      = CtDrop (f t)"
 | "map_types_ct f (CtExhausted t) = CtExhausted (f t)"
 | "map_types_ct f (CtEscape t)    = CtEscape (f t)"
+
+definition subst_ty_ct :: "type \<Rightarrow> type \<Rightarrow> constraint \<Rightarrow> constraint" where
+  "subst_ty_ct \<tau> \<rho> \<equiv> map_types_ct (subst_ty \<tau> \<rho>)"
 
 definition subst_tyvar_ct :: "type list \<Rightarrow> constraint \<Rightarrow> constraint" where
   "subst_tyvar_ct \<delta> \<equiv> map_types_ct (subst_tyvar \<delta>)"
