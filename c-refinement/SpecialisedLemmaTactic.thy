@@ -32,7 +32,10 @@ ML\<open> fun corres_take_boxed_tac ctxt = let
     val facts' = maps gets
         ["state_rel_def", "heap_rel_def", "val_rel_ptr_def", "type_rel_ptr_def", "heap_rel_ptr_meta"]
     val facts = facts' @ is_valids @ heap_simps
-  in EVERY' [
+  in 
+    (* use the nice definition of the getter/setter (if custom layout) *)
+   simp_tac (ctxt addsimps (@{thm bind_assoc } ::getset_simps)) THEN'
+   EVERY' [
     asm_full_simp_tac ((put_simpset HOL_basic_ss ctxt) addsimps [get "val_rel_ptr_def"]),
     REPEAT_ALL_NEW (etac @{thm exE}),
     ((rtac (get "corres_take_boxed") ORELSE' rtac (get "corres_member_boxed"))
@@ -61,7 +64,9 @@ ML\<open> fun corres_put_boxed_tac ctxt = let
     val facts3 = facts2 @ is_valids @ heap_simps
     fun trace str i t = (@{print tracing} str; @{print tracing} t; Seq.succeed t)
   in
-    EVERY' [
+    (* use the nice definition of the getter/setter (if custom layout) *)
+   simp_tac (ctxt addsimps (@{thm bind_assoc } ::getset_simps)) THEN'
+    (EVERY' [
     asm_full_simp_tac ((put_simpset HOL_basic_ss ctxt) addsimps facts1),
     REPEAT_ALL_NEW (etac @{thm exE}),
     ((rtac (get "corres_put_boxed" |> Simplifier.rewrite_rule ctxt @{thms gets_to_return[THEN eq_reflection]})
@@ -110,7 +115,7 @@ ML\<open> fun corres_put_boxed_tac ctxt = let
             delsimps @{thms length_0_conv length_greater_0_conv})
         THEN_ALL_NEW clarsimp_tac (ctxt addsimps val_rels @ type_rels)
      )
-    ]
+    ])
   end
 \<close>
 
