@@ -468,7 +468,7 @@ fun typing (Const (@{const_name Var}, _) $ i) G _ hints = let
              | _ => raise HINTS ("too many tacs", hints))
   in ([RTac @{thm typing_var_weak[unfolded singleton_def Cogent.empty_def]},
                 RTac thm, simp, WeakeningTac thms, simp_solve]) end
-  | typing (Const (@{const_name Struct}, _) $ _ $ xs) G ctxt hints
+  | typing (Const (@{const_name Struct}, _) $ _ $ _ $ xs) G ctxt hints
   = (case dest_all_vars xs of SOME ixs => let
       val _ = (case typing_hint hints of
                  [] => ()
