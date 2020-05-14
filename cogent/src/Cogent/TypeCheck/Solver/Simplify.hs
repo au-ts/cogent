@@ -361,6 +361,18 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   t1@(T {}) :< t2@(T (TRefine {})) ->  -- @t1@ is not a refinement type
     return [T (TRefine refVarName t1 (SE (T bool) (BoolLit True))) :< t2]
 
+  t1@(R {}) :< T (TRefine v2 b2 e2) ->
+    return [t1 :< b2, (M.singleton v2 (b2,0), []) :|- Arith e2]
+
+  T (TRefine v1 b1 e1) :< t2@(R {}) ->
+    return [b1 :< t2]
+
+  t1@(V {}) :< T (TRefine v2 b2 e2) ->
+    return [t1 :< b2, (M.singleton v2 (b2,0), []) :|- Arith e2]
+
+  T (TRefine v1 b1 e1) :< t2@(V {}) ->
+    return [b1 :< t2]
+
   BaseType (T (TCon _ ts _)) -> hoistMaybe $ Just $ map BaseType ts
   BaseType (T (TUnit)) -> hoistMaybe $ Just []
   BaseType (T (TTuple ts)) -> hoistMaybe $ Just $ map BaseType ts
@@ -387,7 +399,7 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
                                                       | otherwise -> hoistMaybe $ Nothing
 
   T (TRPar v b m) :< x@(R _ _ _)  -> hoistMaybe $ Just [unroll v b m :< x]
-  x@(R _ _ _) :< T (TRPar v b m)  -> hoistMaybe $ Just [x :< unroll v b m]
+  x@(R _ _ _) :<  T (TRPar v b m) -> hoistMaybe $ Just [x :< unroll v b m]
   x@(R _ _ _) :=: T (TRPar v b m) -> hoistMaybe $ Just [x :=: unroll v b m]
   T (TRPar v b m) :=: x@(R _ _ _) -> hoistMaybe $ Just [unroll v b m :=: x]
 

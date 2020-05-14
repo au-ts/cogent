@@ -138,9 +138,12 @@ mkQSymVar q nm k = symbolicEnv >>= liftIO . svMkSymVar (Just q) k (Just nm)
 bvAnd :: [SVal] -> SVal
 bvAnd = P.foldr (svAnd) svTrue
 
+-- The name has to start with an alphabet.
+-- See https://hackage.haskell.org/package/sbv-8.6/docs/src/Data.SBV.Core.Symbolic.html#svUninterpreted
+
 freshVal :: SmtTransM String
-freshVal = (("_smt_val_" ++) . show) <$> (fresh <<%= succ)
+freshVal = (("smt_val_" ++) . show) <$> (fresh <<%= succ)
 
 freshSort :: SmtTransM String
-freshSort = (("_smt_sort_" ++) . show) <$> (fresh <<%= succ)
+freshSort = (("smt_sort_" ++) . show) <$> (fresh <<%= succ)
 
