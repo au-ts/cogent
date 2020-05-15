@@ -489,49 +489,31 @@ ct_sem_share:
    ; list_all2 (\<lambda>k1 k2. (A \<turnstile> CtSub ((fst \<circ> snd) k1) ((fst \<circ> snd) k2))) Ks1 Ks2
    ; list_all2 (\<lambda>k1 k2. ((snd \<circ> snd) k1) \<le> ((snd \<circ> snd) k2)) Ks1 Ks2
    \<rbrakk> \<Longrightarrow> A \<turnstile> CtSub (TVariant Ks1 None) (TVariant Ks2 None)"
-| ct_sem_varshare_nil:
-  "A \<turnstile> CtShare (TVariant [] None)"
-| ct_sem_varshare_cons:
-  "\<lbrakk> (snd \<circ> snd) K = Unused \<longrightarrow> A \<turnstile> CtShare ((fst \<circ> snd) K)
-   ; A \<turnstile> CtShare (TVariant Ks None)
-   \<rbrakk> \<Longrightarrow> A \<turnstile> CtShare (TVariant (K # Ks) None)"
-| ct_sem_vardrop_nil:
-  "A \<turnstile> CtDrop (TVariant [] None)"
-| ct_sem_vardrop_cons:
-  "\<lbrakk> (snd \<circ> snd) K = Unused \<longrightarrow> A \<turnstile> CtDrop ((fst \<circ> snd) K)
-   ; A \<turnstile> CtDrop (TVariant Ks None)
-   \<rbrakk> \<Longrightarrow> A \<turnstile> CtDrop (TVariant (K # Ks) None)"
-| ct_sem_absdrop_nil:
-  "s \<noteq> Writable \<Longrightarrow> A \<turnstile> CtDrop (TAbstract nm [] s)"
-| ct_sem_absdrop_cons:
+| ct_sem_varshare:
+  "\<lbrakk> \<forall>i < length Ks. (snd \<circ> snd) (Ks ! i) = Unused \<longrightarrow> A \<turnstile> CtShare ((fst \<circ> snd) (Ks ! i))
+   \<rbrakk> \<Longrightarrow> A \<turnstile> CtShare (TVariant Ks None)"
+| ct_sem_vardrop:
+  "\<lbrakk> \<forall>i < length Ks. (snd \<circ> snd) (Ks ! i) = Unused \<longrightarrow> A \<turnstile> CtDrop ((fst \<circ> snd) (Ks ! i))
+   \<rbrakk> \<Longrightarrow> A \<turnstile> CtDrop (TVariant Ks None)" 
+| ct_sem_absdrop:
   "\<lbrakk> s \<noteq> Writable
-   ; A \<turnstile> CtDrop t
-   ; A \<turnstile> CtDrop (TAbstract nm ts s)
-   \<rbrakk> \<Longrightarrow> A \<turnstile> CtDrop (TAbstract nm (t # ts) s)"
-| ct_sem_absshare_nil:
-  "s \<noteq> Writable \<Longrightarrow> A \<turnstile> CtShare (TAbstract nm [] s)"
-| ct_sem_absshare_cons:
+   ; \<forall>i < length ts. A \<turnstile> CtDrop (ts ! i)
+   \<rbrakk> \<Longrightarrow> A \<turnstile> CtDrop (TAbstract nm ts s)"
+| ct_sem_absshare:
   "\<lbrakk> s \<noteq> Writable
-   ; A \<turnstile> CtShare t
-   ; A \<turnstile> CtShare (TAbstract nm ts s)
-   \<rbrakk> \<Longrightarrow> A \<turnstile> CtShare (TAbstract nm (t # ts) s)"
-| ct_sem_absesc_nil:
-  "s \<noteq> ReadOnly \<Longrightarrow> A \<turnstile> CtEscape (TAbstract nm [] s)"
-| ct_sem_absesc_cons:
+   ; \<forall>i < length ts. A \<turnstile> CtShare (ts ! i)
+   \<rbrakk> \<Longrightarrow> A \<turnstile> CtDrop (TAbstract nm ts s)"
+| ct_sem_absesc:
   "\<lbrakk> s \<noteq> ReadOnly
-   ; A \<turnstile> CtEscape t
-   ; A \<turnstile> CtEscape (TAbstract nm ts s)
-   \<rbrakk> \<Longrightarrow> A \<turnstile> CtEscape (TAbstract nm (t # ts) s)"
+   ; \<forall>i < length ts. A \<turnstile> CtEscape (ts ! i)
+   \<rbrakk> \<Longrightarrow> A \<turnstile> CtEscape (TAbstract nm ts s)"
 | ct_sem_funesc:
   "A \<turnstile> CtEscape (TFun t u)"
 | ct_sem_primesc:
   "A \<turnstile> CtEscape (TPrim pt)"
-| ct_sem_sumesc_nil:
-  "A \<turnstile> CtEscape (TVariant [] None)"
-| ct_sem_sumesc_cons:
-  "\<lbrakk> A \<turnstile> CtEscape ((fst \<circ> snd) K)
-   ; A \<turnstile> CtEscape (TVariant Ks None)
-   \<rbrakk> \<Longrightarrow> A \<turnstile> CtEscape (TVariant (K # Ks) None)"
+| ct_sem_sumesc:
+  "\<lbrakk> \<forall>i < length Ks. A \<turnstile> CtEscape ((fst \<circ> snd) (Ks ! i))
+   \<rbrakk> \<Longrightarrow> A \<turnstile> CtEscape (TVariant Ks None)"
 | ct_sem_obsdrop:
   "A \<turnstile> CtDrop (TObserve t)"
 | ct_sem_obsshare:
