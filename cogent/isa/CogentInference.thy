@@ -600,24 +600,14 @@ lemma ct_sem_varsub_length:
   assumes "A \<turnstile> CtSub (TVariant Ks1 None) (TVariant Ks2 None)"
   shows "length Ks1 = length Ks2"
   using assms ct_sem_varsubE2 ct_sem_reflE by (metis map_eq_imp_length_eq type.inject(6))
-
-inductive_cases ct_sem_tvarsubE: "A \<turnstile> CtSub (TVar x) \<tau>"                                
-inductive_cases ct_sem_tprimsubE: "A \<turnstile> CtSub (TPrim x) \<tau>"
+                                
 inductive_cases ct_sem_tproductsubE: "A \<turnstile> CtSub (TProduct \<tau>1 \<tau>2) \<rho>"
-inductive_cases ct_sem_tunitsubE: "A \<turnstile> CtSub TUnit \<tau>"
-inductive_cases ct_sem_tunknownsubE: "A \<turnstile> CtSub (TUnknown n) \<tau>"
-inductive_cases ct_sem_tabstract: "A \<turnstile> CtSub (TAbstract nm ts s) \<tau>"
-inductive_cases ct_sem_tobserve: "A \<turnstile> CtSub (TObserve \<tau>) \<rho>"
 lemma ct_sem_sub_trans:
   assumes "A \<turnstile> CtSub \<tau>1 \<tau>2"
     and "A \<turnstile> CtSub \<tau>2 \<tau>3"
   shows "A \<turnstile> CtSub \<tau>1 \<tau>3"
   using assms
 proof (induct \<tau>2 arbitrary: \<tau>1 \<tau>3)
-  case (TVar x)
-  then show ?case
-    using ct_sem_tvarsubE ct_sem_eq_iff by auto
-next
   case (TFun \<rho> \<rho>')
   then show ?case
   proof -
@@ -649,21 +639,9 @@ next
     qed
   qed
 next
-  case (TPrim x)
-  then show ?case
-    using ct_sem_tprimsubE ct_sem_eq_iff by auto
-next
   case (TProduct \<tau>11 \<tau>12)
   then show ?case
     using ct_sem_tproductsubE ct_sem_eq_iff by metis
-next
-  case TUnit
-  then show ?case 
-    using ct_sem_tunitsubE ct_sem_eq_iff by auto
-next
-  case (TUnknown x)
-  then show ?case
-    using ct_sem_tunknownsubE ct_sem_eq_iff by auto
 next
   case (TVariant Ks2 \<alpha>)
   consider (equal1) "A \<turnstile> CtEq \<tau>1 (TVariant Ks2 \<alpha>)" | (not_equal1) "\<not>(A \<turnstile> CtEq \<tau>1 (TVariant Ks2 \<alpha>))"
@@ -716,19 +694,7 @@ next
         using ct_sem_varsub Ks1_def Ks3_def by presburger
     qed
   qed
-next
-  case (TAbstract nm ts s)
-  then show ?case
-    using ct_sem_tabstract ct_sem_eq_iff by metis
-next
-  case (TObserve \<tau>2)
-  then show ?case
-    using ct_sem_tobserve ct_sem_eq_iff by metis
-next
-  case (TBang \<tau>2)
-  then show ?case
-    using ct_sem_eq_iff by (auto elim: constraint_sem.cases)
-qed
+qed (auto intro: ct_sem_eq_iff elim: constraint_sem.cases)
 
 
 section {* Context relations (Fig 3.2) *}
