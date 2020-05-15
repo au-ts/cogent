@@ -384,7 +384,7 @@ exprToLLVM (TE _ (Take (a, b) recd fld body)) =
     fldv <- instr ((rec_type recd) !! fld) (LLVM.AST.Instruction.Load { volatile = False
                                                                       , address = fldvp
                                                                       , maybeAtomicity = Nothing
-                                                                      , LLVM.AST.Instruction.alignment = 1
+                                                                      , LLVM.AST.Instruction.alignment = 4
                                                                       , LLVM.AST.Instruction.metadata = []
                                                                       })
     vars <- gets indexing
@@ -393,6 +393,38 @@ exprToLLVM (TE _ (Take (a, b) recd fld body)) =
     case res of
       Left val -> ((terminator (Do (Ret (Just val) [])) ) >>= (\a -> return (Right a)))
       Right trm -> return (Right trm)
+
+exprToLLVM (TE _ (Put recd fld val)) =
+  do
+    _recv <- (exprToLLVM recd)
+    let recv = Data.Either.fromLeft (error "address cannot be terminator") _recv
+    _v <- (exprToLLVM val)
+    let v = Data.Either.fromLeft (error "address cannot be terminator") _v
+    fldvp <- instr ((rec_type recd) !!  fld)
+                  (GetElementPtr { inBounds = True
+                                 , address = recv
+                                 , indices = [
+                                     ConstantOperand
+                                               C.Int { C.integerBits = 32
+                                                     , C.integerValue = toInteger 0 }
+                                             ,
+                                     ConstantOperand
+                                               C.Int { C.integerBits = 32
+                                                     , C.integerValue = toInteger fld }
+
+                                             ]
+                                 , LLVM.AST.Instruction.metadata = []
+                                 })
+    unnamedInstr  (LLVM.AST.Instruction.Store { volatile = False
+                                              , address = fldvp
+                                              , LLVM.AST.Instruction.value = v
+                                              , maybeAtomicity = Nothing
+                                              , LLVM.AST.Instruction.alignment = 4
+                                              , LLVM.AST.Instruction.metadata = []
+                                              })
+    return (Left recv)
+
+
 
 
 exprToLLVM (TE _ (Let _ val body)) = -- it seems that the variable name is not used here
@@ -512,7 +544,7 @@ exprToLLVM (TE vt (Variable (idx, _))) =
         else return (Left (indexing !! _idx))
     -- error ("variable not implemented yet. idx: " ++ show idx ++  " " ++ show uname_count)
 
-exprToLLVM _ = error ("not implemented yet: ")
+exprToLLVM _ = error ("not implemented yet")
 
 
 hasBlock :: Core.TypedExpr t v a -> Bool
@@ -555,15 +587,18 @@ toLLVMDef (FunDef attr name ts t rt body) =
   def (toShort (Data.ByteString.Internal.packChars name))
       [(argType t,
          (UnName 0))]
-      (toLLVMType rt)
+      (argType rt)
       (\ptr -> (exprToLLVM body))
   where argType at@(TRecord _ _) = (LLVM.AST.PointerType { pointerReferent = (toLLVMType at)
                                                        , pointerAddrSpace = AddrSpace 0})
         argType at@(TProduct _ _) = (LLVM.AST.PointerType { pointerReferent = (toLLVMType at)
                                                         , pointerAddrSpace = AddrSpace 0})
         argType at = toLLVMType at
+        
 
-toLLVMDef _ = error "not implemented yet"
+toLLVMDef (TypeDef name tyargs mt) =
+  expandMod (TypeDefinition (Name (toShort (Data.ByteString.Internal.packChars name)))
+                            (fmap toLLVMType mt))
 
 
 to_mod :: [Core.Definition Core.TypedExpr VarName] -> FilePath -> AST.Module
