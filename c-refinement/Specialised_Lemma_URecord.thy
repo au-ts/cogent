@@ -276,12 +276,13 @@ ML\<open> fun mk_specialised_corres_member (field_num:int) uval file_nm ctxt =
   val nth_field    = List.nth (field_info, field_num);
   val field_ty     = #field_type nth_field;
   val ml_sigil     = get_uval_sigil uval;
-  val ty = case ml_sigil of
-            Boxed _ => struct_C_ptr_ty
-          | _ => error "ty in mk_specialised_corres_member failed.";
+  val _ =  case ml_sigil of
+      Boxed(ReadOnly, _) => ()
+    | _ => error "Member is supported for Read_Only only.";
+  val ty = struct_C_ptr_ty          
   val state_rel    = Syntax.read_term ctxt "state_rel";
   val field_getter = #getter nth_field;
-  val ml_sigil     = get_uval_sigil uval;
+  
 
   (* define meta-assumptions in specialised corres lemmas.*)
   val ass1 = @{term "\<Gamma>' ! x = Some (TRecord typ (Boxed ReadOnly ptrl))"} ;
@@ -315,10 +316,7 @@ ML\<open> fun mk_specialised_corres_member (field_num:int) uval file_nm ctxt =
         |> strip_atype
         |> HOLogic.mk_Trueprop
        end;
-  val cncl =
-   case ml_sigil of
-      Boxed(ReadOnly, _) => cncl_body
-    | _ => error "Member is supported for Read_Only only.";
+  val cncl = cncl_body
   val member_term = mk_meta_imps prms cncl ctxt |> Syntax.check_term ctxt;
   val _ = tracing ("    finished mk_spec_corres_member for struct " ^ get_uval_name uval ^ " " ^
    Int.toString field_num);
