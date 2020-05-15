@@ -180,7 +180,7 @@ validateType (RT t) = do
     TRefine v t e -> do
       (ct,t') <- validateType t
       c <- use context
-      context %= C.addScope (M.fromList [(v, (t', ?loc, Seq.empty))])
+      context %= C.addScope (M.fromList [(v, (T (TBang t'), ?loc, Seq.empty))])
       (ce,e') <- cg (rawToLocE ?loc e) (T bool)
       rs <- context %%= C.dropScope
       let unused = flip foldMap (M.toList rs) $ \(v,(_,_,us)) ->
