@@ -484,14 +484,11 @@ ct_sem_share:
   "A \<turnstile> CtDrop (TPrim pt)"
 | ct_sem_exhaust:
   "\<lbrakk> \<forall>i < length Ks. ((snd \<circ> snd) (Ks ! i) = Used) \<rbrakk> \<Longrightarrow> A \<turnstile> CtExhausted (TVariant Ks None)"
-| ct_sem_varsub_nil:
-  "A \<turnstile> CtSub (TVariant [] None) (TVariant [] None)"
-| ct_sem_varsub_cons:
-  "\<lbrakk> fst K1 = fst K2
-   ; A \<turnstile> CtSub ((fst \<circ> snd) K1) ((fst \<circ> snd) K2)
-   ; (snd \<circ> snd) K1 \<le> (snd \<circ> snd) K2
-   ; A \<turnstile> CtSub (TVariant Ks1 None) (TVariant Ks2 None)
-   \<rbrakk> \<Longrightarrow> A \<turnstile> CtSub (TVariant (K1 # Ks1) None) (TVariant (K2 # Ks2) None)"
+| ct_sem_varsub:
+  "\<lbrakk> map fst Ks1 = map fst Ks2
+   ; list_all2 (\<lambda>k1 k2. (A \<turnstile> CtSub ((fst \<circ> snd) k1) ((fst \<circ> snd) k2))) Ks1 Ks2
+   ; list_all2 (\<lambda>k1 k2. ((snd \<circ> snd) k1) \<le> ((snd \<circ> snd) k2)) Ks1 Ks2
+   \<rbrakk> \<Longrightarrow> A \<turnstile> CtSub (TVariant Ks1 None) (TVariant Ks2 None)"
 | ct_sem_varshare_nil:
   "A \<turnstile> CtShare (TVariant [] None)"
 | ct_sem_varshare_cons:
@@ -599,91 +596,10 @@ lemma ct_sem_exhaust_all_used:
   shows "\<forall>i < length Ks. (snd \<circ> snd) (Ks ! i) = Used"
   using assms ct_sem_exhaust by auto
 
-lemma ct_sem_varsub_exI: "A \<turnstile> CtSub (TVariant Ks None) \<tau> \<Longrightarrow> \<exists>Ks'. \<tau> = TVariant Ks' None"
-  using ct_sem_varsubE1 ct_sem_eq_iff by metis
-
-lemma ct_sem_varsub_cons_exI1: 
-  assumes "A \<turnstile> CtSub (TVariant (K # Ks) None) (TVariant Ks' None)"
-  shows "\<exists>K' Ks''. Ks' = K' # Ks''"
-  using assms ct_sem_eq_iff ct_sem_varsubE1 type.inject by metis
-
-lemma ct_sem_varsub_cons_exI2: 
-  assumes "A \<turnstile> CtSub (TVariant Ks None) (TVariant (K' # Ks') None)"
-  shows "\<exists>K' Ks''. Ks = K' # Ks''"
-  using assms ct_sem_eq_iff ct_sem_varsubE1 type.inject by metis
-
-lemma ct_sem_varsub_imp_nm_eq:
-  assumes "A \<turnstile> CtSub (TVariant (K1 # Ks1) None) (TVariant (K2 # Ks2) None)" 
-  shows "fst K1 = fst K2"
-  using assms
-proof (induct rule: constraint_sem.cases)
-  case (ct_sem_equal A \<tau> \<rho>)
-  then show ?case
-    using ct_sem_eq_iff by force
-qed (fast)+
-
-lemma ct_sem_varsub_imp_subhdtype:
-  assumes "A \<turnstile> CtSub (TVariant (K1 # Ks1) None) (TVariant (K2 # Ks2) None)" 
-  shows "A \<turnstile> CtSub ((fst \<circ> snd) K1) ((fst \<circ> snd) K2)"
-  using assms 
-proof (rule ct_sem_varsubE1)
-qed (simp add: ct_sem_eq_iff ct_sem_equal)+
-
-lemma ct_sem_varsub_imp_usage_nondec:
-  assumes "A \<turnstile> CtSub (TVariant (K1 # Ks1) None) (TVariant (K2 # Ks2) None)" 
-  shows "(snd \<circ> snd) K1 \<le> (snd \<circ> snd) K2"
-  using assms
-proof (rule ct_sem_varsubE1)
-qed (simp add: ct_sem_eq_iff)+
-
-lemma ct_sem_varsub_imp_subcons: 
-  assumes "A \<turnstile> CtSub (TVariant (K1 # Ks1) None) (TVariant (K2 # Ks2) None)" 
-  shows "A \<turnstile> CtSub (TVariant Ks1 None) (TVariant Ks2 None)"
-  using assms
-proof (rule ct_sem_varsubE1) 
-qed (simp add: ct_sem_eq_iff ct_sem_equal)+
-
-lemma ct_sem_varsub_conv_all_nth:
-  "A \<turnstile> CtSub (TVariant Ks1 None) (TVariant Ks2 None) \<longleftrightarrow> length Ks1 = length Ks2 \<and>
-                         (\<forall>i < length Ks1. fst (Ks1 ! i) = fst (Ks2 ! i)
-                                         \<and> A \<turnstile> CtSub ((fst \<circ> snd) (Ks1 ! i)) ((fst \<circ> snd) (Ks2 ! i))
-                                         \<and> ((snd \<circ> snd) (Ks1 ! i)) \<le> ((snd \<circ> snd) (Ks2 ! i)))"
-proof (induct Ks1 arbitrary: Ks2)
-case Nil
-  then show ?case
-    using ct_sem_varsub_cons_exI2 ct_sem_equal ct_sem_refl
-    by (metis length_0_conv neq_Nil_conv not_less_zero)
-next
-  case (Cons K Ks1)
-  show ?case
-  proof (rule iffI)
-    assume "A \<turnstile> CtSub (TVariant (K # Ks1) None) (TVariant Ks2 None)"
-    then show "length (K # Ks1) = length Ks2 \<and> 
-               (\<forall>i<length (K # Ks1). fst ((K # Ks1) ! i) = fst (Ks2 ! i) 
-                                   \<and> A \<turnstile> CtSub ((fst \<circ> snd) ((K # Ks1) ! i)) ((fst \<circ> snd) (Ks2 ! i)) 
-                                   \<and> (snd \<circ> snd) ((K # Ks1) ! i) \<le> (snd \<circ> snd) (Ks2 ! i))"
-    proof (induct rule: constraint_sem.cases)
-      case ct_sem_equal
-      then show ?thesis
-        using constraint_sem.ct_sem_equal ct_sem_eq_iff by force
-    next
-      case (ct_sem_varsub_cons K2 Ks2)
-      then show ?thesis
-        using Cons.hyps less_Suc_eq_0_disj by auto
-    qed (simp)+
-  next
-    assume ks1_ks2_props: "length (K # Ks1) = length Ks2 \<and> 
-               (\<forall>i<length (K # Ks1). fst ((K # Ks1) ! i) = fst (Ks2 ! i) 
-                                   \<and> A \<turnstile> CtSub ((fst \<circ> snd) ((K # Ks1) ! i)) ((fst \<circ> snd) (Ks2 ! i)) 
-                                   \<and> (snd \<circ> snd) ((K # Ks1) ! i) \<le> (snd \<circ> snd) (Ks2 ! i))"
-    then obtain K2 Ks2' where ks2_def: "Ks2 = K2 # Ks2'" by (metis length_Suc_conv)
-    moreover have "A \<turnstile> CtSub (TVariant Ks1 None) (TVariant Ks2' None)"
-      using Cons.hyps[where ?Ks2.0 = Ks2'] ks1_ks2_props ks2_def by fastforce
-    ultimately show "A \<turnstile> CtSub (TVariant (K # Ks1) None) (TVariant Ks2 None)"
-      using ct_sem_varsub_cons ks1_ks2_props
-      by (metis length_greater_0_conv list.distinct(1) nth_Cons_0)
-  qed
-qed
+lemma ct_sem_varsub_length:
+  assumes "A \<turnstile> CtSub (TVariant Ks1 None) (TVariant Ks2 None)"
+  shows "length Ks1 = length Ks2"
+  using assms ct_sem_varsubE2 ct_sem_reflE by (metis map_eq_imp_length_eq type.inject(6))
 
 inductive_cases ct_sem_tvarsubE: "A \<turnstile> CtSub (TVar x) \<tau>"                                
 inductive_cases ct_sem_tprimsubE: "A \<turnstile> CtSub (TPrim x) \<tau>"
@@ -749,73 +665,55 @@ next
   then show ?case
     using ct_sem_tunknownsubE ct_sem_eq_iff by auto
 next
-  case (TVariant Ks \<alpha>)
+  case (TVariant Ks2 \<alpha>)
+  consider (equal1) "A \<turnstile> CtEq \<tau>1 (TVariant Ks2 \<alpha>)" | (not_equal1) "\<not>(A \<turnstile> CtEq \<tau>1 (TVariant Ks2 \<alpha>))"
+    by blast
   then show ?case
-  proof (induct Ks arbitrary: \<tau>1 \<tau>3)
-    case Nil
-    then show ?case
-      using ct_sem_varsubE1 ct_sem_reflE by fast
+  proof cases
+    case equal1
+    then show ?thesis
+      using ct_sem_eq_iff TVariant.prems by force
   next
-    case (Cons K2 Ks2)
-    consider (equal) "A \<turnstile> CtEq \<tau>1 (TVariant (K2 # Ks2) \<alpha>)" | 
-             (var_nil) "\<alpha> = None" "\<tau>1 = TVariant [] None" |
-             (var_cons) "\<alpha> = None" "\<exists>K Ks. \<tau>1 = TVariant (K # Ks) None"
-      using Cons.prems ct_sem_varsubE2 by metis
-    then show ?case
+    case not_equal1
+    consider (equal3) "A \<turnstile> CtEq (TVariant Ks2 \<alpha>) \<tau>3" | (not_equal3) "\<not>(A \<turnstile> CtEq (TVariant Ks2 \<alpha>) \<tau>3)"
+      by blast
+    then show ?thesis
     proof cases
-      case equal
+      case equal3
       then show ?thesis
-        using Cons.prems ct_sem_eq_iff by metis
+        using ct_sem_eq_iff TVariant.prems by force
     next
-      case var_nil
-      then show ?thesis
-        using Cons.prems ct_sem_varsub_cons_exI2 by blast
-    next
-      case var_cons
-      obtain K1 Ks1 where k1_ks1_def: "\<tau>1 = TVariant (K1 # Ks1) None"
-        using var_cons by presburger
-      consider (equal2) "A \<turnstile> CtEq (TVariant (K2 # Ks2) None) \<tau>3" | (var_nil2) "\<tau>3 = TVariant [] None" |
-        (var_cons2) "\<exists>K3 Ks3. \<tau>3 = TVariant (K3 # Ks3) None"
-        using Cons.prems ct_sem_varsubE1 k1_ks1_def var_cons by blast
-      then show ?thesis
-      proof cases
-        case equal2
+      case not_equal3
+      obtain Ks1 where Ks1_def: 
+        "\<tau>1 = TVariant Ks1 None"
+        "map fst Ks1 = map fst Ks2"
+        "list_all2 (\<lambda>k1 k2. (A \<turnstile> CtSub ((fst \<circ> snd) k1) ((fst \<circ> snd) k2))) Ks1 Ks2"
+        "list_all2 (\<lambda>k1 k2. ((snd \<circ> snd) k1) \<le> ((snd \<circ> snd) k2)) Ks1 Ks2"
+        using not_equal1 TVariant.prems by (auto elim: ct_sem_varsubE2)
+      obtain Ks3 where Ks3_def: 
+        "\<tau>3 = TVariant Ks3 None"
+        "map fst Ks2 = map fst Ks3"
+        "list_all2 (\<lambda>k1 k2. (A \<turnstile> CtSub ((fst \<circ> snd) k1) ((fst \<circ> snd) k2))) Ks2 Ks3"
+        "list_all2 (\<lambda>k1 k2. ((snd \<circ> snd) k1) \<le> ((snd \<circ> snd) k2)) Ks2 Ks3"
+        using not_equal3 TVariant.prems by (auto elim: ct_sem_varsubE1)
+      moreover have "list_all2 (\<lambda>k1 k2. A \<turnstile> CtSub ((fst \<circ> snd) k1) ((fst \<circ> snd) k2)) Ks1 Ks3"
+      proof - 
+        {
+          fix i :: nat
+          assume i_size: "i < length Ks2"
+          have "A \<turnstile> CtSub ((fst \<circ> snd) (Ks1 ! i)) ((fst \<circ> snd) (Ks2 ! i)) \<Longrightarrow> 
+                A \<turnstile> CtSub ((fst \<circ> snd) (Ks2 ! i)) ((fst \<circ> snd) (Ks3 ! i)) \<Longrightarrow> 
+                A \<turnstile> CtSub ((fst \<circ> snd) (Ks1 ! i)) ((fst \<circ> snd) (Ks3 ! i))"
+            using i_size fsts.intros snds.intros by (rule_tac TVariant.hyps; fastforce+)
+        }
         then show ?thesis
-          using Cons.prems ct_sem_reflE k1_ks1_def var_cons by blast
-      next
-        case var_nil2
-        then show ?thesis
-          using Cons.prems ct_sem_varsub_cons_exI1 k1_ks1_def var_cons by blast
-      next
-        case var_cons2
-        obtain K3 Ks3 where k3_ks3_def: "\<tau>3 = TVariant (K3 # Ks3) None"
-          using var_cons2 by presburger
-        moreover have "fst K1 = fst K3"
-          using ct_sem_varsub_imp_nm_eq Cons.prems k1_ks1_def k3_ks3_def var_cons by simp
-        moreover have "A \<turnstile> CtSub ((fst \<circ> snd) K1) ((fst \<circ> snd) K3)"
-        proof -
-          have "A \<turnstile> CtSub ((fst \<circ> snd) K1) ((fst \<circ> snd) K2)"
-            using ct_sem_varsub_imp_subhdtype Cons.prems k1_ks1_def var_cons by blast
-          moreover have "A \<turnstile> CtSub ((fst \<circ> snd) K2) ((fst \<circ> snd) K3)"
-            using ct_sem_varsub_imp_subhdtype Cons.prems k1_ks1_def k3_ks3_def var_cons by blast
-          ultimately show ?thesis
-            by (metis Cons.prems(1) comp_def fsts.intros list.set_intros(1) snds.intros)
-        qed
-        moreover have "(snd \<circ> snd) K1 \<le> (snd \<circ> snd) K3"
-        proof - 
-          have "(snd \<circ> snd) K1 \<le> (snd \<circ> snd) K2"
-            using ct_sem_varsub_imp_usage_nondec Cons.prems k1_ks1_def var_cons by blast
-          moreover have "(snd \<circ> snd) K2 \<le> (snd \<circ> snd) K3"
-            using ct_sem_varsub_imp_usage_nondec Cons.prems k1_ks1_def k3_ks3_def var_cons by blast
-          ultimately show ?thesis
-            by fastforce
-        qed
-        moreover have "A \<turnstile> CtSub (TVariant Ks1 None) (TVariant Ks3 None)"
-          using Cons ct_sem_varsub_imp_subcons k1_ks1_def k3_ks3_def
-          by (metis (no_types, lifting) list.set_intros(2) var_cons(1))
-        ultimately show ?thesis
-          by (simp add: ct_sem_varsub_cons k1_ks1_def)
+          using ct_sem_varsub_length TVariant.prems Ks1_def Ks3_def
+          by (simp add: list_all2_conv_all_nth)
       qed
+      moreover have "list_all2 (\<lambda>k1 k2. ((snd \<circ> snd) k1) \<le> ((snd \<circ> snd) k2)) Ks1 Ks3"
+        using Ks1_def Ks3_def by (simp add: list_all2_conv_all_nth; fastforce)
+      ultimately show ?thesis
+        using ct_sem_varsub Ks1_def Ks3_def by presburger
     qed
   qed
 next
@@ -3688,9 +3586,9 @@ next
     obtain Ks' where ks'_def: "Ks' = (map variant_elem_used Ks)[0 := Ks ! 0]" by blast
     have ks'_hd_type: "(fst \<circ> snd) (Ks' ! 0) = S n1"
       using ks'_def ks_def cg_vcon.hyps by force
-    have ks'_ks_prop: "length Ks' = length Ks \<and> (\<forall>i < length Ks'. fst (Ks' ! i) = fst (Ks ! i)
-                                          \<and> A \<turnstile> CtSub ((fst \<circ> snd) (Ks' ! i)) ((fst \<circ> snd) (Ks ! i))
-                                          \<and> (snd \<circ> snd) (Ks' ! i) \<le> (snd \<circ> snd) (Ks ! i))"
+    have ks'_ks_prop: "map fst Ks' = map fst Ks \<and> 
+                       list_all2 (\<lambda>k1 k2. (A \<turnstile> CtSub ((fst \<circ> snd) k1) ((fst \<circ> snd) k2))) Ks' Ks \<and> 
+                       list_all2 (\<lambda>k1 k2. ((snd \<circ> snd) k1) \<le> ((snd \<circ> snd) k2)) Ks' Ks"
     proof - 
       {
         fix i :: nat
@@ -3708,11 +3606,10 @@ next
             using ks'_def map_conv_all_nth ct_sem_equal ct_sem_refl i_size variant_elem_used_nm_eq 
               variant_elem_used_type_eq variant_elem_used_usage_nondec by auto
         qed
-      } then show ?thesis using ks'_def by fastforce
+      } then show ?thesis using ks'_def by (simp add: map_eq_iff_nth_eq list_all2_conv_all_nth)
     qed
     have "distinct (map fst Ks')"
-      using ks'_ks_prop cg_vcon.prems ks'_def ks_def assign_prop_def
-      by (metis (no_types, lifting)  map_eq_iff_nth_eq)
+      using ks'_ks_prop cg_vcon.prems ks_def assign_prop_def by metis
     moreover have "\<forall>i<length Ks'. if i = 0 then (snd \<circ> snd) (Ks' ! i) = Unused 
                                            else (snd \<circ> snd) (Ks' ! i) = Used"
     proof -
@@ -3736,7 +3633,7 @@ next
       have "A \<turnstile> CtSub (TVariant Ks None) (assign_app_ty S S' \<tau>)"
         using cg_vcon ct_sem_conj_iff ks_def by simp
       then show ?thesis
-        using ks'_ks_prop ct_sem_varsub_conv_all_nth ct_sem_sub_trans by blast
+        using ks'_ks_prop ct_sem_sub_trans ct_sem_varsub by blast
     qed
     ultimately show ?thesis
       using typing_sig typing_vcon[where Ks="Ks'" and i="0"] ks'_hd_type cg_vcon.hyps 
