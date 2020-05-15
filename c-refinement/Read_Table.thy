@@ -103,8 +103,10 @@ fun read_table (file_name:string) thy =
                     in (pos, cogentT, cT, lgetset) end)
                 : (int * term * string * (string * string) list option) list;
 
-    fun decode_sigil _   ((Const (@{const_name Boxed}, _)) $ (Const (@{const_name Writable}, _)) $ _) l = Writable l
-      | decode_sigil _   ((Const (@{const_name Boxed}, _)) $ (Const (@{const_name ReadOnly}, _)) $ _) l = ReadOnly l
+    fun decode_sigil _   ((Const (@{const_name Boxed}, _)) $ (Const (@{const_name Writable}, _)) $ _) l = 
+         Boxed(Writable, l)
+      | decode_sigil _   ((Const (@{const_name Boxed}, _)) $ (Const (@{const_name ReadOnly}, _)) $ _) l = 
+         Boxed(ReadOnly, l)
       | decode_sigil _   (Const (@{const_name Unboxed},  _)) _ = Unboxed
       | decode_sigil pos t _ = raise TERM (report pos ^ "bad sigil", [t]);
 

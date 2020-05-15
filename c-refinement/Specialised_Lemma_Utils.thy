@@ -188,7 +188,8 @@ type layout_field_info = { ty : string , getter : string , setter : string }
 datatype layout_info = CustomLayout of layout_field_info list
  | DefaultLayout
 (* type definition on the ML-level.*)
-datatype sigil = ReadOnly of layout_info | Writable of layout_info | Unboxed
+datatype access_perm = ReadOnly | Writable
+datatype sigil = Boxed of access_perm * layout_info |  Unboxed
 datatype uval = UProduct of string
               | USum of string * term (* term contains argument to TSum (excluding TSum itself) *)
               | URecord of string * sigil 
@@ -197,8 +198,8 @@ datatype uval = UProduct of string
 type uvals = uval list;\<close>
 
 ML\<open> (* unify_sigils to remove certain kind of duplication.*)
-fun unify_sigils (URecord (ty_name,ReadOnly l)) = URecord (ty_name,Writable l)
-  | unify_sigils (URecord (ty_name,Unboxed))    = URecord (ty_name,Writable DefaultLayout)
+fun unify_sigils (URecord (ty_name, Boxed (_, l))) = URecord (ty_name,Boxed(Writable, l))
+  | unify_sigils (URecord (ty_name, Unboxed))    = URecord (ty_name,Boxed (Writable, DefaultLayout))
   | unify_sigils uval                  = uval
   (* value-relations and type-relations are independent of sigils, if they
    * have the same layout.
@@ -231,8 +232,7 @@ fun get_uval_name (URecord (ty_name, _)) = ty_name
 
 ML\<open> fun get_uval_names uvals = map get_uval_name uvals;\<close>
 
-ML \<open>fun get_sigil_layout (Writable l) = l
-| get_sigil_layout (ReadOnly l) = l
+ML \<open>fun get_sigil_layout (Boxed (_,l)) = l
 | get_sigil_layout Unboxed = DefaultLayout
 \<close>
 
@@ -253,13 +253,12 @@ ML \<open>
 \<close>
 
 ML\<open> val get_uval_custom_layout_records =
- filter (fn  (URecord (_, Writable (CustomLayout _))) => true
-            | (URecord (_, ReadOnly (CustomLayout _))) => true
+ filter (fn  (URecord (_, Boxed (_, (CustomLayout _)))) => true            
             | _ => false);
 \<close>
 
 ML\<open> val get_uval_writable_records =
- filter (fn uval => case uval of (URecord (_, Writable _)) => true | _ => false);
+ filter (fn uval => case uval of (URecord (_, Boxed(Writable, _))) => true | _ => false);
 \<close>
 
 ML\<open> val get_uval_unbox_records =
@@ -267,7 +266,7 @@ ML\<open> val get_uval_unbox_records =
 \<close>
 
 ML\<open> val get_uval_readonly_records =
- filter (fn uval => case uval of (URecord (_, ReadOnly _)) => true | _ => false);
+ filter (fn uval => case uval of (URecord (_, Boxed(ReadOnly, _))) => true | _ => false);
 \<close>
 
 ML\<open> fun usum_list_of_types _ uval = case uval of
