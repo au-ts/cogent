@@ -272,6 +272,11 @@ norm_tvar:
 | norm_tobserve:
   "TBang (TObserve t)                \<hookrightarrow> TObserve t"
 
+lemma normalise_domain:
+  assumes "\<mu> \<hookrightarrow> \<mu>'"
+  shows "\<exists>\<tau>. \<mu> = TBang \<tau>"
+  using assms by (auto elim: normalise.cases)
+
 
 datatype constraint =
   CtConj constraint constraint
@@ -698,6 +703,140 @@ next
     qed
   qed
 qed (auto intro: ct_sem_eq_iff elim: constraint_sem.cases)
+
+lemma ct_sem_norm:
+  assumes "A \<turnstile> C"
+    and "\<mu> \<hookrightarrow> \<mu>'"
+  shows "A \<turnstile> subst_ty_ct \<mu> \<mu>' C"
+  using assms
+proof (induct rule: constraint_sem.induct)
+case (ct_sem_share \<rho> A)
+  then show ?case
+    using subst_ty_ct_def normalise_domain constraint_sem.ct_sem_share by fastforce
+next
+  case (ct_sem_drop \<rho> A)
+  then show ?case
+    using subst_ty_ct_def normalise_domain constraint_sem.ct_sem_drop by fastforce
+next
+  case (ct_sem_conj A C1 C2)
+  then show ?case
+    using subst_ty_ct_def constraint_sem.ct_sem_conj by force
+next
+  case (ct_sem_int m n A)
+  then show ?case
+    using subst_ty_ct_def normalise_domain constraint_sem.ct_sem_int by auto
+next
+case (ct_sem_top A)
+  then show ?case
+    using subst_ty_ct_def constraint_sem.ct_sem_top by force
+next
+  case (ct_sem_refl A \<tau>)
+  then show ?case
+    using subst_ty_ct_def ct_sem_eq_iff by force
+next
+  case (ct_sem_equal A \<tau> \<rho>)
+  then show ?case
+    using subst_ty_ct_def ct_sem_eq_iff constraint_sem.ct_sem_equal by simp
+next
+  case (ct_sem_fun A \<rho>1 \<tau>1 \<tau>2 \<rho>2)
+  then show ?case
+    using constraint_sem.ct_sem_fun normalise_domain subst_ty_ct_def by fastforce
+next
+  case (ct_sem_funS A \<tau>1 \<tau>2)
+  then show ?case
+    using subst_ty_ct_def normalise_domain constraint_sem.ct_sem_funS by auto
+next
+  case (ct_sem_funD A \<tau>1 \<tau>2)
+  then show ?case
+    using subst_ty_ct_def normalise_domain constraint_sem.ct_sem_funD by auto
+next
+  case (ct_sem_primS A pt)
+  then show ?case 
+    using subst_ty_ct_def normalise_domain constraint_sem.ct_sem_primS by auto
+next
+case (ct_sem_primD A pt)
+  then show ?case
+    using subst_ty_ct_def normalise_domain constraint_sem.ct_sem_primD by auto
+next
+  case (ct_sem_exhaust Ks A)
+  have "\<forall>i<length Ks. (snd \<circ> snd) (map (\<lambda>(nm, t, u). (nm, subst_ty \<mu> \<mu>' t, u)) Ks ! i) = Used"
+    using ct_sem_exhaust.hyps by (simp add: case_prod_unfold)
+  then show ?case 
+    using constraint_sem.ct_sem_exhaust ct_sem_exhaust.prems normalise_domain subst_ty_ct_def
+    by fastforce
+next
+  case (ct_sem_varsub Ks1 Ks2 A)
+  obtain Ks1' where Ks1'_def: "Ks1' = map (\<lambda>(nm, t, u). (nm, subst_ty \<mu> \<mu>' t, u)) Ks1"
+    by fast
+  obtain Ks2' where Ks2'_def: "Ks2' = map (\<lambda>(nm, t, u). (nm, subst_ty \<mu> \<mu>' t, u)) Ks2"
+    by fast
+  have "map fst Ks1' = map fst Ks2'"
+    using ct_sem_varsub.hyps Ks1'_def Ks2'_def by simp
+  moreover have "list_all2 (\<lambda>k1 k2. A \<turnstile> CtSub ((fst \<circ> snd) k1) ((fst \<circ> snd) k2)) Ks1' Ks2'"
+    using ct_sem_varsub Ks1'_def Ks2'_def subst_ty_ct_def
+    by (simp add: list_all2_conv_all_nth prod.case_eq_if)
+  moreover have "list_all2 (\<lambda>k1 k2. (snd \<circ> snd) k1 \<le> (snd \<circ> snd) k2) Ks1' Ks2'"
+    using ct_sem_varsub.hyps Ks1'_def Ks2'_def
+    by (simp add: case_prod_unfold list_all2_conv_all_nth)
+  ultimately show ?case
+    using subst_ty_ct_def constraint_sem.ct_sem_varsub Ks1'_def Ks2'_def ct_sem_varsub.prems 
+      normalise_domain by fastforce
+next
+  case (ct_sem_varshare Ks A)
+  obtain Ks' where Ks'_def: "Ks' = map (\<lambda>(nm, t, u). (nm, subst_ty \<mu> \<mu>' t, u)) Ks"
+    by blast
+  have "\<forall>i < length Ks'. (snd \<circ> snd) (Ks' ! i) = Unused \<longrightarrow> A \<turnstile> CtShare ((fst \<circ> snd) (Ks' ! i))"
+    using subst_ty_ct_def ct_sem_varshare Ks'_def by (simp add: case_prod_beta')
+  then show ?case
+    using ct_sem_varshare subst_ty_ct_def normalise_domain constraint_sem.ct_sem_varshare Ks'_def
+    by fastforce
+next
+  case (ct_sem_vardrop Ks A)
+  obtain Ks' where Ks'_def: "Ks' = map (\<lambda>(nm, t, u). (nm, subst_ty \<mu> \<mu>' t, u)) Ks"
+    by blast
+  have "\<forall>i < length Ks'. (snd \<circ> snd) (Ks' ! i) = Unused \<longrightarrow> A \<turnstile> CtDrop ((fst \<circ> snd) (Ks' ! i))"
+    using subst_ty_ct_def ct_sem_vardrop Ks'_def by (simp add: case_prod_beta')
+  then show ?case
+    using ct_sem_vardrop subst_ty_ct_def normalise_domain constraint_sem.ct_sem_vardrop Ks'_def
+    by fastforce
+next
+  case (ct_sem_absdrop s ts A nm)
+  then show ?case
+    using subst_ty_ct_def normalise_domain constraint_sem.ct_sem_absdrop by fastforce
+next
+  case (ct_sem_absshare s ts A nm)
+  then show ?case
+    using subst_ty_ct_def normalise_domain constraint_sem.ct_sem_absshare by fastforce
+next
+  case (ct_sem_absesc s ts A nm)
+  then show ?case
+    using subst_ty_ct_def normalise_domain constraint_sem.ct_sem_absesc by fastforce
+next
+  case (ct_sem_funesc A t u)
+  then show ?case
+    using subst_ty_ct_def normalise_domain constraint_sem.ct_sem_funesc by auto
+next
+  case (ct_sem_primesc A pt)
+  then show ?case
+    using subst_ty_ct_def normalise_domain constraint_sem.ct_sem_primesc by auto
+next
+  case (ct_sem_sumesc Ks A)
+  obtain Ks' where Ks'_def: "Ks' = map (\<lambda>(nm, t, u). (nm, subst_ty \<mu> \<mu>' t, u)) Ks"
+    by blast
+  have "\<forall>i < length Ks'. A \<turnstile> CtEscape ((fst \<circ> snd) (Ks' ! i))"
+    using subst_ty_ct_def ct_sem_sumesc Ks'_def by (simp add: case_prod_beta')
+  then show ?case
+    using ct_sem_sumesc subst_ty_ct_def normalise_domain constraint_sem.ct_sem_sumesc Ks'_def
+    by fastforce
+next
+  case (ct_sem_obsdrop A t)
+  then show ?case
+    using subst_ty_ct_def normalise_domain constraint_sem.ct_sem_obsdrop by auto
+next
+  case (ct_sem_obsshare A t)
+  then show ?case
+    using subst_ty_ct_def normalise_domain constraint_sem.ct_sem_obsshare by auto
+qed
 
 
 section {* Context relations (Fig 3.2) *}
