@@ -181,19 +181,27 @@ ML\<open> val cheat_specialised_lemmas =
 (* An example to show how to manupulate this flag.*)
 declare [[ cheat_specialised_lemmas = false ]]
 
-ML\<open> (* type definition on the ML-level.*)
-datatype sigil = ReadOnly | Writable | Unboxed
+ML\<open> 
+
+(*ty : field type, getter : C getter, setter : C setter *)
+type layout_field_info = { ty : string , getter : string , setter : string }
+datatype layout_info = CustomLayout of layout_field_info list
+ | DefaultLayout
+(* type definition on the ML-level.*)
+datatype sigil = ReadOnly of layout_info | Writable of layout_info | Unboxed
 datatype uval = UProduct of string
               | USum of string * term (* term contains argument to TSum (excluding TSum itself) *)
-              | URecord of string * sigil
+              | URecord of string * sigil 
               | UAbstract of string;
 ;
 type uvals = uval list;\<close>
 
 ML\<open> (* unify_sigils to remove certain kind of duplication.*)
-fun unify_sigils (URecord (ty_name,_)) = URecord (ty_name,Writable)
+fun unify_sigils (URecord (ty_name,ReadOnly l)) = URecord (ty_name,Writable l)
+  | unify_sigils (URecord (ty_name,Unboxed))    = URecord (ty_name,Writable DefaultLayout)
   | unify_sigils uval                  = uval
-  (* value-relations and type-relations are independent of sigils.
+  (* value-relations and type-relations are independent of sigils, if they
+   * have the same layout.
    * If we have multiple uvals with different sigils but with the same type and name,
    * we should count them as one to avoid trying to instantiate the same thing multiple times.*)
 \<close>
@@ -223,13 +231,35 @@ fun get_uval_name (URecord (ty_name, _)) = ty_name
 
 ML\<open> fun get_uval_names uvals = map get_uval_name uvals;\<close>
 
+ML \<open>fun get_sigil_layout (Writable l) = l
+| get_sigil_layout (ReadOnly l) = l
+| get_sigil_layout Unboxed = DefaultLayout
+\<close>
+
+(*
+ML \<open>fun get_uval_getsetters (URecord (ty_name, _, l)) = l
+   | get_uval_getsetters _ = NONE \<close>
+*)
 ML\<open> (* get_uval_sigil *)
 fun get_uval_sigil (URecord (_, sigil)) = sigil
- |  get_uval_sigil _ = error "get_uval_sigil failed. The tyep of this argument is not URecord."
+ |  get_uval_sigil _ = error "get_uval_sigil failed. The type of this argument is not URecord."
+\<close>
+
+ML \<open>
+  fun get_uval_custom_layout u =
+    case u |> get_uval_sigil |> get_sigil_layout of
+     DefaultLayout =>  error "get_uval_custom_layout failed. The argument has no custom layout."
+    | CustomLayout l => l
+\<close>
+
+ML\<open> val get_uval_custom_layout_records =
+ filter (fn  (URecord (_, Writable (CustomLayout _))) => true
+            | (URecord (_, ReadOnly (CustomLayout _))) => true
+            | _ => false);
 \<close>
 
 ML\<open> val get_uval_writable_records =
- filter (fn uval => case uval of (URecord (_, Writable)) => true | _ => false);
+ filter (fn uval => case uval of (URecord (_, Writable _)) => true | _ => false);
 \<close>
 
 ML\<open> val get_uval_unbox_records =
@@ -237,7 +267,7 @@ ML\<open> val get_uval_unbox_records =
 \<close>
 
 ML\<open> val get_uval_readonly_records =
- filter (fn uval => case uval of (URecord (_, ReadOnly)) => true | _ => false);
+ filter (fn uval => case uval of (URecord (_, ReadOnly _)) => true | _ => false);
 \<close>
 
 ML\<open> fun usum_list_of_types _ uval = case uval of

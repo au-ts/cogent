@@ -19,11 +19,6 @@ begin
 context update_sem_init
 begin
 
-(* TODO: move it in the right file *)
-ML \<open>
-fun list_member _ [] = false
-  | list_member x (t :: q) = if t = x then true else list_member x q;
-\<close>
 
 ML\<open> fun mk_lems file_nm (ignore_types : string list) ctxt  =
  let
@@ -38,7 +33,7 @@ ML\<open> fun mk_lems file_nm (ignore_types : string list) ctxt  =
        val n_struct_num = get_nth_uval struct_num ;
        val name = get_ty_nm_C n_struct_num ;
      in
-    if list_member name ignore_types then 
+    if name is_in ignore_types then 
       (tracing ("Ignoring type " ^ name) ; [])
     else
     (tracing ("mk_lems started working on mk_specialised for struct_number " ^ string_of_int struct_num ^

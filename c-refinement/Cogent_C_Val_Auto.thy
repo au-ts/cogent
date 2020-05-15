@@ -15,6 +15,55 @@ imports
  Value_Relation_Generation
  Type_Relation_Generation
 begin
+(* TODO: donner une eventuelle liste de getter/setters *)
+ML\<open> fun local_setup_val_rel_type_rel_put_them_in_buckets_for_types file_nm for_types ctxt =
+(* local_setup_val_rel_type_rel defines and registers all the necessary val_rels and type_rels.*)
+ let
+  fun val_rel_type_rel_def uval lthy = lthy |> type_rel_def file_nm uval |> val_rel_def file_nm uval;
+
+  (* FIXME: This recursion is pretty bad, I think.*)
+  fun local_setup_val_rel_type_rel' [] lthy = lthy
+   |  local_setup_val_rel_type_rel' (uval::uvals) lthy =
+        local_setup_instantiation_definition_instance_for_types
+      (get_ty_nm_C uval) "cogent_C_val" for_types      
+       (val_rel_type_rel_def  uval) (local_setup_val_rel_type_rel' uvals lthy);
+
+  val thy = Proof_Context.theory_of ctxt;
+
+  val uvals' = read_table file_nm (Proof_Context.theory_of ctxt);
+  val uvals = uvals' |> map (unify_usum_tys o unify_sigils) |> rm_redundancy |> rev |>
+               get_uvals_for_which_ac_mk_st_info file_nm thy;
+
+  val lthy' = local_setup_val_rel_type_rel' uvals ctxt;
+ in
+  lthy'
+ end;
+\<close>
+
+ML\<open> fun local_setup_val_rel_type_rel_put_them_in_buckets_ignore_types file_nm ignore_types ctxt =
+(* local_setup_val_rel_type_rel defines and registers all the necessary val_rels and type_rels.*)
+ let
+  fun val_rel_type_rel_def uval lthy = lthy |> type_rel_def file_nm uval |> val_rel_def file_nm uval;
+
+  (* FIXME: This recursion is pretty bad, I think.*)
+  fun local_setup_val_rel_type_rel' [] lthy = lthy
+   |  local_setup_val_rel_type_rel' (uval::uvals) lthy =
+        local_setup_instantiation_definition_instance_if_needed
+      (get_ty_nm_C uval) "cogent_C_val" is_cogent_C_val      
+       (val_rel_type_rel_def  uval) (local_setup_val_rel_type_rel' uvals lthy);
+
+  val thy = Proof_Context.theory_of ctxt;
+
+  val uvals' = read_table file_nm (Proof_Context.theory_of ctxt);
+  val uvals = uvals' |> map (unify_usum_tys o unify_sigils) |> rm_redundancy |> rev |>
+               get_uvals_for_which_ac_mk_st_info file_nm thy;
+
+  val lthy' = local_setup_val_rel_type_rel' uvals ctxt;
+ in
+  lthy'
+ end;
+\<close>
+
 
 
 ML\<open> fun local_setup_val_rel_type_rel_put_them_in_buckets file_nm ctxt =

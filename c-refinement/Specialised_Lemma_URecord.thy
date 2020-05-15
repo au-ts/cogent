@@ -26,6 +26,7 @@ text\<open> lemma-generation for URecord (Member, Take, and Put).\<close>
 ML\<open> fun mk_specialised_corres_take (field_num:int) uval file_nm ctxt =
 (* Generate specialised Take lemmas for the Writables and Unboxeds.*)
  let
+  val _ = tracing "mk_specialised_corres_take"
   (* define auxiliary values and functions.*)
   val struct_C_nm     = get_ty_nm_C uval;
   val struct_ty       = Syntax.read_typ ctxt struct_C_nm;
@@ -44,12 +45,12 @@ ML\<open> fun mk_specialised_corres_take (field_num:int) uval file_nm ctxt =
   val field_getter    = #getter nth_field;
   val ml_sigil        = get_uval_sigil uval;
   val isa_sigil = case ml_sigil of
-                ReadOnly => @{term "Boxed ReadOnly undefined"}
-              | Writable => @{term "Boxed Writable undefined"}
+                ReadOnly _ => @{term "Boxed ReadOnly undefined"}
+              | Writable _ => @{term "Boxed Writable undefined"}
               | Unboxed  => @{term "Unboxed"}
   (* Unboxed-Take and Boxed-Take use different types.*)
   val ty = case ml_sigil of
-            Writable => struct_C_ptr_ty
+            Writable _ => struct_C_ptr_ty
           | Unboxed  => struct_ty
           | _        => error "ty in mk_specialised_corres_take failed.";
 
@@ -96,7 +97,7 @@ ML\<open> fun mk_specialised_corres_take (field_num:int) uval file_nm ctxt =
            (Take (Var x) field_num e)
            (gets (\<lambda>s. getter x') >>= e') \<xi> \<gamma> \<Xi>' \<Gamma>' \<sigma> s"}) $
        state_rel $ isa_field_num $ field_getter |> HOLogic.mk_Trueprop
-    | Writable =>
+    | Writable _ =>
        let
          val is_valid_struct = Typtab.lookup (#heap_valid_getters heap) struct_ty
              |> Utils.the' "is_valid_struct in mk_specialised_corres_take failed."
@@ -112,7 +113,7 @@ ML\<open> fun mk_specialised_corres_take (field_num:int) uval file_nm ctxt =
          $ state_rel $ isa_field_num $ is_valid_struct $ field_getter $ heap_getter
          |> HOLogic.mk_Trueprop
        end
-    | ReadOnly => error "ReadOnly is not supported by cncl in mk_specialised_corres_take. :(";
+    | ReadOnly _ => error "ReadOnly is not supported by cncl in mk_specialised_corres_take. :(";
   val take_term = mk_meta_imps prms cncl ctxt |> Syntax.check_term ctxt;
   val _ = tracing ("    finished mk_spec_corres_take for struct " ^ (get_uval_name uval) ^ " " ^  Int.toString field_num);
  in take_term
@@ -122,6 +123,7 @@ ML\<open> fun mk_specialised_corres_take (field_num:int) uval file_nm ctxt =
 ML\<open> fun mk_specialised_corres_put (field_num:int) uval file_nm ctxt =
 (* Generate specialised Put lemmas.*)
  let
+  val _ = tracing "mk_specialised_corres_put"
   (* define auxiliary values and functions.*)
   val struct_C_nm     = get_ty_nm_C uval;
   val struct_ty       = Syntax.read_typ ctxt struct_C_nm;
@@ -184,6 +186,7 @@ ML\<open> fun mk_specialised_corres_put (field_num:int) uval file_nm ctxt =
 ML\<open> fun mk_specialised_corres_let_put (field_num:int) uval file_nm ctxt =
 (* Generate specialised Let-Put lemmas.*)
  let
+  val _ = tracing "mk_specialised_corres_let_put"
   (* define auxiliary values and functions.*)
   val struct_C_nm     = get_ty_nm_C uval;
   val struct_ty       = Syntax.read_typ ctxt struct_C_nm;
@@ -258,6 +261,7 @@ ML\<open> fun mk_specialised_corres_let_put (field_num:int) uval file_nm ctxt =
 ML\<open> fun mk_specialised_corres_member (field_num:int) uval file_nm ctxt =
 (* Generate specialised lemmas for Member.*)
  let
+  val _ = tracing "mk_specialised_corres_member"
   (* define auxiliary values and functions.*)
   val struct_C_nm     = get_ty_nm_C uval;
   val struct_ty       = Syntax.read_typ ctxt struct_C_nm;
@@ -273,8 +277,8 @@ ML\<open> fun mk_specialised_corres_member (field_num:int) uval file_nm ctxt =
   val field_ty     = #field_type nth_field;
   val ml_sigil     = get_uval_sigil uval;
   val ty = case ml_sigil of
-            Writable => struct_C_ptr_ty
-          | ReadOnly => struct_C_ptr_ty
+            Writable _ => struct_C_ptr_ty
+          | ReadOnly _ => struct_C_ptr_ty
           | _ => error "ty in mk_specialised_corres_member failed.";
   val state_rel    = Syntax.read_term ctxt "state_rel";
   val field_getter = #getter nth_field;
@@ -314,8 +318,8 @@ ML\<open> fun mk_specialised_corres_member (field_num:int) uval file_nm ctxt =
        end;
   val cncl =
    case ml_sigil of
-      Writable => cncl_body
-    | ReadOnly => cncl_body
+      Writable _ => cncl_body
+    | ReadOnly _ => cncl_body
     | _ => error "Member is supported for Read_Only only.";
   val member_term = mk_meta_imps prms cncl ctxt |> Syntax.check_term ctxt;
   val _ = tracing ("    finished mk_spec_corres_member for struct " ^ get_uval_name uval ^ " " ^
@@ -330,12 +334,17 @@ ML\<open> fun mk_urecord_lems_for_uval file_nm ctxt (uval:uval) =
   val thy = Proof_Context.theory_of ctxt;
   val ml_sigil    = get_uval_sigil uval;
   val struct_C_nm = get_ty_nm_C uval;
+val _ = tracing (@{make_string } uval)
   val _ = tracing ("mk_urecord_lems_for_uval is generating lems for " ^ struct_C_nm)
   val heap = Symtab.lookup (HeapInfo.get thy) file_nm
               |> Option.map #heap_info;
   fun get_structs heap = Symtab.lookup (#structs heap) struct_C_nm : 'a option;
   val field_info = heap ?> get_structs +> #field_info |> these;
-  val num_of_fields = List.length field_info;
+  val _ = tracing (@{make_string } field_info)
+  val num_of_fields = List.length field_info
+ (*case get_uval_getsetters uval of
+     SOME l => List.length l
+   | NONE => List.length field_info; *)
 
   (* specialised_lemmas for each fields.
    * Three lemmas are generated if uval is of Writable.*)
@@ -343,14 +352,16 @@ ML\<open> fun mk_urecord_lems_for_uval file_nm ctxt (uval:uval) =
    let
     val lem_tys =
       case ml_sigil of
-          Writable => [TakeBoxed, PutBoxed, LetPutBoxed, MemberReadOnly]
+          Writable _ => [TakeBoxed, PutBoxed, LetPutBoxed, MemberReadOnly]
         | Unboxed  => [TakeUnboxed]
-        | ReadOnly => [MemberReadOnly];
-    val field_C_nm           = List.nth (field_info, field_num) |> #name;
+        | ReadOnly _ => [MemberReadOnly];
+    val field_C_nm           = 
+      (* TODO enlever ce truc *)
+       List.nth (field_info, field_num) |> #name;
     fun get_sigil_nm sigil   = case sigil of
-          Writable => "writable"
+          Writable _ => "writable"
         | Unboxed  => "unboxed"
-        | ReadOnly => "readonly"
+        | ReadOnly _ => "readonly"
     fun mk_lem_nm st         = st ^ struct_C_nm ^ "_" ^ field_C_nm ^ "_" ^ get_sigil_nm ml_sigil;
     fun get_corres_nm lem_ty = case lem_ty of
           TakeBoxed      => mk_lem_nm "corres_take_"

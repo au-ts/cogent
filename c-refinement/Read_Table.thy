@@ -25,6 +25,38 @@ begin
  * We parse each pair by reading Cogent_type as an Isabelle term.
  * C_type is a C identifier so parsing it is trivial.
  *)
+ML \<open>
+datatype tok = Sep of char | Str of string
+(* a version of String.tokens which keep the separator *)
+fun tokens_keep_sep p s : tok list=
+     (* tokens and fields are very similar except that tokens does not return
+           empty strings for adjacent delimiters whereas fields does.  *)
+            let
+            val length = size s
+            fun tok' i l = (* i is the character to examine.  l is the start of a token *)
+                if i = length
+                then (* Finished the input.  Return any partially completed string. *)
+                    (
+                    if l = i then [] else [substring (s, l, i-l) |> Str]
+                    )
+                else if p (String.sub(s, i)) (* TODO: We don't need sub to do the range check here *)
+                then (* It's a delimiter.  If we have more than one character in the
+                        string we create a string otherwise we just continue. *)
+                    (
+                    if l = i then  (String.sub(s, i) |> Sep) :: tok' (i+1) (i+1)
+                    else (substring (s, l, i-l) |> Str) :: (String.sub(s, i) |> Sep)
+                            :: tok' (i+1) (i+1)
+                    )
+                else (* Token: Keep accumulating characters. *) tok' (i+1) l
+            in
+            tok' 0 0
+            end
+
+fun split_words (s : string) : tok list =
+  tokens_keep_sep (fn #"_" =>false | c => not (Char.isAlphaNum c)) s 
+  |> List.filter (fn Sep #" " => false | _ => true) \<close>
+
+ML \<open>split_words " t1_C [ set/get set2/get2 ]"\<close>
 
 ML \<open>
 fun read_table (file_name:string) thy =
@@ -46,6 +78,19 @@ fun read_table (file_name:string) thy =
                         [cogentT, cT] => (pos, cogentT, cT)
                       | _ => error (report pos ^ "expected \" :=: \""))
                 : (int * string * string) list;
+    fun read_getsetters _ [Sep #"]"] = []
+      | read_getsetters _ [Str getter , Sep #"/" , Str setter, Sep #"]" ] =
+           [ (getter , setter) ] 
+      | read_getsetters pos (Str getter :: Sep #"/" :: Str setter :: Sep #","  :: l) = 
+        (getter , setter) :: read_getsetters pos l
+      | read_getsetters pos _ =
+             error(report pos ^ "expected: C_type [ getter1/setter1, getter2/setter2]")
+    fun cT_to_C_name_getsetters pos cT : string * (string * string) list option= 
+        case split_words cT of
+            [] => error(report pos ^ "expected: C type")
+           | [Str C_name] => (C_name, NONE)
+           | Str C_name :: Sep #"[" :: l => (C_name, SOME (read_getsetters pos l))
+           | _ => error(report pos ^ "expected: C_type [ getter1/setter1, getter2/setter2]")
 
     val ctxt = Proof_Context.init_global thy
     val tymap = tymap
@@ -54,23 +99,35 @@ fun read_table (file_name:string) thy =
                     val cogentT = Syntax.read_term ctxt cogentT
                                 handle ERROR _ => err ()
                     val _ = if type_of cogentT = @{typ Cogent.type} then () else err ()
-                    in (pos, cogentT, cT) end)
-                : (int * term * string) list;
+                    val (cT , lgetset) = cT_to_C_name_getsetters pos cT
+                    in (pos, cogentT, cT, lgetset) end)
+                : (int * term * string * (string * string) list option) list;
 
-    fun decode_sigil _   ((Const (@{const_name Boxed}, _)) $ (Const (@{const_name Writable}, _)) $ _) = Writable
-      | decode_sigil _   ((Const (@{const_name Boxed}, _)) $ (Const (@{const_name ReadOnly}, _)) $ _) = ReadOnly
-      | decode_sigil _   (Const (@{const_name Unboxed},  _)) = Unboxed
-      | decode_sigil pos t = raise TERM (report pos ^ "bad sigil", [t]);
+    fun decode_sigil _   ((Const (@{const_name Boxed}, _)) $ (Const (@{const_name Writable}, _)) $ _) l = Writable l
+      | decode_sigil _   ((Const (@{const_name Boxed}, _)) $ (Const (@{const_name ReadOnly}, _)) $ _) l = ReadOnly l
+      | decode_sigil _   (Const (@{const_name Unboxed},  _)) _ = Unboxed
+      | decode_sigil pos t _ = raise TERM (report pos ^ "bad sigil", [t]);
 
-    fun decode_type (_, Const (@{const_name TCon}, _) $ _ $ _ $ _, cT) =
+    fun decode_layout_field _ [] [] : layout_field_info list = []
+      | decode_layout_field pos (t :: q) ((get,set) :: q') =      
+          {ty = t |> HOLogic.dest_prod |> fst |> HOLogic.dest_string, getter = get, setter = set}
+         :: decode_layout_field pos q q'
+     | decode_layout_field pos _ _ =
+        error (report pos ^ "different number of get/setters provided")
+    fun decode_layout_info _ _  NONE = DefaultLayout
+      | decode_layout_info pos lterms (SOME l) =
+         CustomLayout (decode_layout_field pos (lterms |> HOLogic.dest_list) l)
+    
+
+    fun decode_type (_, Const (@{const_name TCon}, _) $ _ $ _ $ _, cT, _) =
             UAbstract cT
-      | decode_type (pos, Const (@{const_name TRecord}, _) $ _ $ sigil, cT) =
-            URecord (cT, decode_sigil pos sigil)
-      | decode_type (_, Const (@{const_name TSum}, _) $ variants, cT) =
+      | decode_type (pos, Const (@{const_name TRecord}, _) $ argRec $ sigil, cT, getsets) =
+            URecord (cT, decode_sigil pos sigil (decode_layout_info pos argRec getsets))
+      | decode_type (_, Const (@{const_name TSum}, _) $ variants, cT, _) =
             USum (cT, variants)
-      | decode_type (_, Const (@{const_name TProduct}, _) $ _ $ _, cT) =
+      | decode_type (_, Const (@{const_name TProduct}, _) $ _ $ _, cT, _) =
             UProduct cT
-      | decode_type (pos, t, _) =
+      | decode_type (pos, t, _, _) =
             raise TERM (report pos ^ "unrecognised type", [t]);
 
     val uvals = map decode_type tymap |> rm_redundancy

@@ -446,6 +446,17 @@ fun local_setup_instantiation_definition_instance_if_needed
     local_setup_instantiation_definition_instance 
     ([C_typ],[],class)  local_setup_definition lthy
 \<close>
+(* TODO: merge it with the previous function *)
+ML \<open> 
+fun local_setup_instantiation_definition_instance_for_types 
+   C_typ class
+   for_types local_setup_definition 
+   lthy = 
+  if C_typ  is_in for_types then
+       local_setup_instantiation_definition_instance 
+    ([C_typ],[],class)  local_setup_definition lthy
+  else 
+     lthy\<close>
 
 
 
