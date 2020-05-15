@@ -136,7 +136,21 @@ fun abs :: "num_type \<Rightarrow> nat" where
 | "abs U64 = 2048"
 
 fun subst_ty :: "type \<Rightarrow> type \<Rightarrow> type \<Rightarrow> type" where
-  "subst_ty \<tau> \<tau>' \<rho> = (if \<rho> = \<tau> then \<tau>' else \<rho>)"
+  "subst_ty \<mu> \<mu>' (TVar i)             = (if \<mu> = (TVar i) then \<mu>' else (TVar i))"
+| "subst_ty \<mu> \<mu>' (TFun \<tau> \<rho>)           = (if \<mu> = (TFun \<tau> \<rho>) then \<mu>' 
+                                         else (TFun (subst_ty \<mu> \<mu>' \<tau>) (subst_ty \<mu> \<mu>' \<rho>)))"
+| "subst_ty \<mu> \<mu>' (TPrim pt)           = (if \<mu> = (TPrim pt) then \<mu>' else TPrim pt)"
+| "subst_ty \<mu> \<mu>' (TProduct \<tau> \<rho>)       = (if \<mu> = (TProduct \<tau> \<rho>) then \<mu>' 
+                                         else (TProduct (subst_ty \<mu> \<mu>' \<tau>) (subst_ty \<mu> \<mu>' \<rho>)))"
+| "subst_ty \<mu> \<mu>' TUnit                = (if \<mu> = TUnit then \<mu>' else TUnit)"
+| "subst_ty \<mu> \<mu>' (TUnknown i)         = (if \<mu> = (TUnknown i) then \<mu>' else (TUnknown i))"
+| "subst_ty \<mu> \<mu>' (TVariant Ks \<alpha>)      = (if \<mu> = (TVariant Ks \<alpha>) then \<mu>' 
+                                         else (TVariant (map (\<lambda>(nm, t, u). (nm, subst_ty \<mu> \<mu>' t, u)) Ks) \<alpha>))"
+| "subst_ty \<mu> \<mu>' (TAbstract nm ts s)  = (if \<mu> = (TAbstract nm ts s) then \<mu>' 
+                                         else (TAbstract nm (map (subst_ty \<mu> \<mu>') ts) s))"
+| "subst_ty \<mu> \<mu>' (TObserve t)         = (if \<mu> = (TObserve t) then \<mu>' 
+                                         else (TObserve (subst_ty \<mu> \<mu>' t)))"
+| "subst_ty \<mu> \<mu>' (TBang t)            = (if \<mu> = (TBang t) then \<mu>' else (TBang (subst_ty \<mu> \<mu>' t)))"
 
 fun subst_tyvar :: "type list \<Rightarrow> type \<Rightarrow> type" where
   "subst_tyvar \<delta> (TVar i)            = (if i < length \<delta> then \<delta> ! i else TVar i)"
