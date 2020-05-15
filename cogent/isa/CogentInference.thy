@@ -123,6 +123,7 @@ datatype type = TVar index
               | TVariant "(name \<times> type \<times> usage_tag) list" "row_var option"
               | TAbstract name "type list" sigil
               | TObserve type
+              | TBang type
 
 datatype lit = LBool bool
              | LNat nat
@@ -147,6 +148,7 @@ fun subst_tyvar :: "type list \<Rightarrow> type \<Rightarrow> type" where
 | "subst_tyvar \<delta> (TVariant Ks \<alpha>)     = TVariant (map (\<lambda>(nm, t, u). (nm, subst_tyvar \<delta> t, u)) Ks) \<alpha>"
 | "subst_tyvar \<delta> (TAbstract nm ts s) = TAbstract nm (map (subst_tyvar \<delta>) ts) s"
 | "subst_tyvar \<delta> (TObserve t)        = TObserve (subst_tyvar \<delta> t)"
+| "subst_tyvar \<delta> (TBang t)           = TBang (subst_tyvar \<delta> t)"
 
 
 fun max_type_var :: "type \<Rightarrow> nat" where
@@ -159,6 +161,7 @@ fun max_type_var :: "type \<Rightarrow> nat" where
 | "max_type_var (TVariant Ks \<alpha>)     = Max (set (map (max_type_var \<circ> fst \<circ> snd) Ks))"
 | "max_type_var (TAbstract nm ts s) = Max (set (map max_type_var ts))"
 | "max_type_var (TObserve t)        = max_type_var t"
+| "max_type_var (TBang t)           = max_type_var t"
 
 
 fun variant_elem_used :: "(name \<times> type \<times> usage_tag) \<Rightarrow> (name \<times> type \<times> usage_tag)" where
@@ -196,6 +199,7 @@ fun variant_nth_used :: "nat \<Rightarrow> type \<Rightarrow> type" where
 | "variant_nth_used n (TVariant Ks \<alpha>)     = TVariant (Ks[n := variant_elem_used (Ks ! n)]) \<alpha>"
 | "variant_nth_used n (TAbstract nm ts s) = undefined"
 | "variant_nth_used n (TObserve t)        = undefined"
+| "variant_nth_used n (TBang t)           = undefined"
 
 fun variant_elem_unused :: "(name \<times> type \<times> usage_tag) \<Rightarrow> (name \<times> type \<times> usage_tag)" where
   "variant_elem_unused (nm, t, _) = (nm, t, Unused)"
@@ -231,20 +235,7 @@ fun variant_nth_unused :: "nat \<Rightarrow> type \<Rightarrow> type" where
 | "variant_nth_unused n (TVariant Ks \<alpha>)     = TVariant (Ks[n := variant_elem_unused (Ks ! n)]) \<alpha>"
 | "variant_nth_unused n (TAbstract nm ts s) = undefined"
 | "variant_nth_unused n (TObserve t)        = undefined"
-
-
-fun bang :: "type \<Rightarrow> type" where
-  "bang (TVar i)                    = TObserve (TVar i)"
-| "bang (TFun a b)                  = TFun a b"
-| "bang (TPrim p)                   = TPrim p"
-| "bang (TProduct t u)              = TProduct (bang t) (bang u)"
-| "bang (TUnit)                     = TUnit"
-| "bang (TUnknown i)                = undefined"
-| "bang (TVariant Ks \<alpha>)             = TVariant (map (\<lambda>(nm, t, u). (nm, bang t, u)) Ks) \<alpha>"
-| "bang (TAbstract nm ts Writable)  = TAbstract nm (map bang ts) ReadOnly"
-| "bang (TAbstract nm ts ReadOnly)  = TAbstract nm (map bang ts) ReadOnly"
-| "bang (TAbstract nm ts Unboxed)   = TAbstract nm (map bang ts) Unboxed"
-| "bang (TObserve t)                = TObserve t"
+| "variant_nth_unused n (TBang t)           = undefined"
 
 
 datatype constraint =
@@ -821,6 +812,10 @@ next
   case (TObserve \<tau>2)
   then show ?case
     using ct_sem_tobserve ct_sem_eq_iff by metis
+next
+  case (TBang \<tau>2)
+  then show ?case
+    using ct_sem_eq_iff by (auto elim: constraint_sem.cases)
 qed
 
 
@@ -1181,6 +1176,7 @@ fun assign_app_ty :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow> 
 | "assign_app_ty S S' (TVariant Ks (Some n))  = TVariant ((map (\<lambda>(nm, t, u). (nm, assign_app_ty S S' t, u)) Ks) @ (S' n)) None"
 | "assign_app_ty S S' (TAbstract nm ts s)     = TAbstract nm (map (assign_app_ty S S') ts) s"
 | "assign_app_ty S S' (TObserve t)            = TObserve (assign_app_ty S S' t)"
+| "assign_app_ty S S' (TBang t)               = TObserve (assign_app_ty S S' t)"
 
 fun assign_app_expr :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow> (string \<times> type \<times> usage_tag) list) \<Rightarrow> 'f expr \<Rightarrow> 'f expr" where
   "assign_app_expr S S' (Var n)            = Var n" 
