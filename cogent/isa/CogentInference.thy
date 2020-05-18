@@ -417,6 +417,13 @@ lemma singleton_none:
   by (simp add: empty_def singleton_def)
 
 
+definition bang_ctx :: "bool list \<Rightarrow> ctx \<Rightarrow> ctx" where
+  "bang_ctx bs \<Gamma> \<equiv> map2 (\<lambda>b \<tau>. if (b \<and> \<tau> \<noteq> None) then Some (TBang (the \<tau>)) else \<tau>) bs \<Gamma>"
+
+definition bang_cg_ctx :: "bool list \<Rightarrow> cg_ctx \<Rightarrow> cg_ctx" where
+  "bang_cg_ctx bs G \<equiv> map2 (\<lambda>b (\<tau>, n). if b then (TBang \<tau>, n) else (\<tau>, n)) bs G"
+
+
 section {* Algorithmic Context Join (Fig 3.5) *}
 inductive alg_ctx_jn :: "cg_ctx \<Rightarrow> cg_ctx \<Rightarrow> cg_ctx \<Rightarrow> constraint \<Rightarrow> bool"
   ("_ \<Join> _ \<leadsto> _ | _" [30,0,0,30] 60) where
