@@ -384,6 +384,7 @@ datatype 'f expr = Var index
                  | Lit lit
                  | Cast num_type "'f expr"
                  | Let "'f expr" "'f expr"
+                 | LetBang "bool list" "'f expr" "'f expr"
                  | If "'f expr" "'f expr" "'f expr"
                  | Sig "'f expr" type
                  | Case "'f expr" name "'f expr" "'f expr"
@@ -1214,6 +1215,7 @@ fun assign_app_expr :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow
 | "assign_app_expr S S' (Lit l)            = Lit l"
 | "assign_app_expr S S' (Cast nt e)        = Cast nt (assign_app_expr S S' e)"
 | "assign_app_expr S S' (Let e1 e2)        = Let (assign_app_expr S S' e1) (assign_app_expr S S' e2)"
+| "assign_app_expr S S' (LetBang bs e1 e2) = LetBang bs (assign_app_expr S S' e1) (assign_app_expr S S' e2)"
 | "assign_app_expr S S' (If e1 e2 e3)      = If (assign_app_expr S S' e1) (assign_app_expr S S' e2) (assign_app_expr S S' e3)"
 | "assign_app_expr S S' (Sig e t)          = Sig (assign_app_expr S S' e) (assign_app_ty S S' t)"
 | "assign_app_expr S S' (Con nm e)         = Con nm (assign_app_expr S S' e)"
@@ -1336,6 +1338,7 @@ fun fv' :: "nat \<Rightarrow> 'f expr \<Rightarrow> index set" where
 | fv'_lit:      "fv' n (Lit l) = {}"
 | fv'_cast:     "fv' n (Cast nt e) = fv' n e"
 | fv'_let:      "fv' n (Let e1 e2) = (fv' n e1) \<union> (fv' (Suc n) e2)"
+| fv'_letb:     "fv' n (LetBang bs e1 e2) = (fv' n e1) \<union> (fv' (Suc n) e2)"
 | fv'_if:       "fv' n (If e1 e2 e3) = (fv' n e1) \<union> (fv' n e2) \<union> (fv' n e3)"
 | fv'_sig:      "fv' n (Sig e t) = fv' n e"
 | fv'_con:      "fv' n (Con nm e) = fv' n e"
