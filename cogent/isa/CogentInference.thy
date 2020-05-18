@@ -262,13 +262,13 @@ norm_tvar:
 | norm_tunit:
   "TBang (TUnit)                     \<hookrightarrow> TUnit"
 | norm_tvariant:
-  "TBang (TVariant Ks None)          \<hookrightarrow> TVariant (map (\<lambda>(nm, t, u). (nm, bang t, u)) Ks) None"
+  "TBang (TVariant Ks None)          \<hookrightarrow> TVariant (map (\<lambda>(nm, t, u). (nm, TBang t, u)) Ks) None"
 | norm_tabstract_w:
-  "TBang (TAbstract nm ts Writable)  \<hookrightarrow> TAbstract nm (map bang ts) ReadOnly"
+  "TBang (TAbstract nm ts Writable)  \<hookrightarrow> TAbstract nm (map TBang ts) ReadOnly"
 | norm_tabstract_r:
-  "TBang (TAbstract nm ts ReadOnly)  \<hookrightarrow> TAbstract nm (map bang ts) ReadOnly"
+  "TBang (TAbstract nm ts ReadOnly)  \<hookrightarrow> TAbstract nm (map TBang ts) ReadOnly"
 | norm_tabstract_u:
-  "TBang (TAbstract nm ts Unboxed)   \<hookrightarrow> TAbstract nm (map bang ts) Unboxed"
+  "TBang (TAbstract nm ts Unboxed)   \<hookrightarrow> TAbstract nm (map TBang ts) Unboxed"
 | norm_tobserve:
   "TBang (TObserve t)                \<hookrightarrow> TObserve t"
 
