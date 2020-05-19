@@ -425,8 +425,12 @@ definition add_bang_ctx :: "bool list \<Rightarrow> type list \<Rightarrow> ctx 
   "add_bang_ctx ys \<rho>s \<Gamma> \<equiv> List.map2 (\<lambda>m \<tau>. if (ys ! m) then Some (TBang (\<rho>s ! m)) 
                                                         else \<tau>) [0..<length \<Gamma>] \<Gamma>"
 
+definition set0_cg_ctx :: "bool list \<Rightarrow> cg_ctx \<Rightarrow> cg_ctx" where
+  "set0_cg_ctx bs G \<equiv> List.map2 (\<lambda>m (\<tau>, n). if (bs ! m) then (\<tau>, 0) else (\<tau>, n)) [0..<length G] G"
+
 definition bang_cg_ctx :: "bool list \<Rightarrow> cg_ctx \<Rightarrow> cg_ctx" where
-  "bang_cg_ctx bs G \<equiv> map2 (\<lambda>b (\<tau>, n). if b then (TBang \<tau>, n) else (\<tau>, n)) bs G"
+  "bang_cg_ctx bs G \<equiv> List.map2 (\<lambda>m (\<tau>, n). if (bs ! m) then (TBang \<tau>, n) 
+                                                        else (\<tau>, n)) [0..<length G] G"
 
 
 section {* Algorithmic Context Join (Fig 3.5) *}
@@ -1021,6 +1025,17 @@ cg_var1:
    ; if m = 0 then C3 = CtDrop \<alpha> else C3 = CtTop
    ; C4 = CtConj (CtConj C1 C2) C3
    \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Let e1 e2 : \<tau> \<leadsto> G3,n3 | C4 | Sig (Let e1' e2') \<tau>"
+| cg_letb:
+  "\<lbrakk> \<alpha> = TUnknown n1
+   ; \<forall>i < length G1. bs ! i \<longrightarrow> snd (G1 ! i) = 0
+   ; (bang_cg_ctx bs G1),(Suc n1) \<turnstile> e1 : \<alpha> \<leadsto> (bang_cg_ctx bs G2),n2 | C1 | e1'
+   ; ((\<alpha>, 0) # (set0_cg_ctx bs G2)),n2 \<turnstile> e2 : \<tau> \<leadsto> ((\<alpha>, m) # G3),n3 | C2 | e2'
+   ; C3 = fold CtConj (List.map2 (\<lambda>b (\<rho>, m). if b \<and> m = 0 then CtDrop (TBang \<rho>) else CtTop) bs G2) CtTop
+   ; C4 = fold CtConj (List.map2 (\<lambda>b (\<rho>, m). if b \<and> m = 0 then CtDrop \<rho> else CtTop) bs G3) CtTop
+   ; C5 = (if m = 0 then CtDrop \<alpha> else CtTop)
+   ; C6 = CtEscape \<alpha>
+   ; C7 = CtConj ( CtConj ( CtConj (CtConj (CtConj C1 C2) C3) C4) C5) C6
+   \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> LetBang bs e1 e2 : \<tau> \<leadsto> G3,n3 | C7 | Sig (LetBang bs e1' e2') \<tau>"
 | cg_blit:
   "C = CtEq \<tau> (TPrim Bool) \<Longrightarrow> G,n \<turnstile> Lit (LBool l) : \<tau> \<leadsto> G,n | C | Sig (Lit (LBool l)) \<tau>"
 | cg_ilit:
@@ -1096,7 +1111,8 @@ lemma cg_num_fresh_nondec:
 lemma cg_ctx_length:
   assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
   shows "length G = length G'"
-  using assms alg_ctx_jn_length by (induct rule: constraint_gen_elab.inducts; auto)
+  sorry
+(*  using assms alg_ctx_jn_length by (induct rule: constraint_gen_elab.inducts; auto) *)
 
 lemma cg_ctx_idx_size:
   assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
@@ -1120,6 +1136,9 @@ next
   case (cg_let \<alpha> n1 G1 e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4)
   then show ?case
     by (metis Suc_mono cg_ctx_length length_Cons nth_Cons_Suc)
+next
+  case (cg_letb \<alpha> n1 G1 bs e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
+  then show ?case sorry
 next
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
   then show ?case
@@ -1167,6 +1186,9 @@ next
     then show ?thesis
       using cg_let cg_ctx_length le_trans by fastforce
   qed
+next
+  case (cg_letb \<alpha> n1 G1 bs e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
+  then show ?case sorry
 next
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
   then show ?case
@@ -1483,6 +1505,9 @@ proof -
     then show ?case
       by (force simp add: i_fv'_suc_iff_suc_i_fv' cg_ctx_length)
   next
+    case (cg_letb \<alpha> n1 G1 bs e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
+    then show ?case sorry
+  next
     case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
     then show ?case
       by (force simp add: i_fv'_suc_iff_suc_i_fv' cg_ctx_length)
@@ -1521,6 +1546,9 @@ next
         using cg_let.hyps i_fv'_suc_iff_suc_i_fv' by fastforce
     qed
   qed
+next
+  case (cg_letb \<alpha> n1 G1 bs e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
+  then show ?case sorry
 next
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
   then show ?case
@@ -1699,6 +1727,9 @@ next
         using le_less_trans by blast
     qed
   qed
+next
+  case (cg_letb \<alpha> n1 G1 bs e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
+  then show ?case sorry
 next
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
   then show ?case
@@ -1931,6 +1962,9 @@ next
     qed
   qed
 next
+  case (cg_letb \<alpha> n1 G1 bs e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
+  then show ?case sorry
+next
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
   then show ?case
   proof -
@@ -2088,6 +2122,9 @@ proof (induct arbitrary: i rule: constraint_gen_elab.induct)
     using cg_ctx_length i_fv'_suc_iff_suc_i_fv' fv'_let
     by (metis Un_iff length_Cons less_eq_Suc_le not_less nth_Cons_Suc)
 next
+  case (cg_letb \<alpha> n1 G1 bs e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
+  then show ?case sorry
+next
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
   then show ?case     
     using alg_ctx_jn_type_used_max cg_ctx_idx_size by simp
@@ -2162,6 +2199,9 @@ next
         by (metis (no_types, lifting) Suc_less_eq gr0I leD length_Cons nth_Cons_Suc)
     qed
   qed
+next
+  case (cg_letb \<alpha> n1 G1 bs e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
+  then show ?case sorry
 next
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
   then show ?case
@@ -3325,6 +3365,9 @@ next
     ultimately show ?thesis
       using typing_sig_refl typing_let cg_let.hyps by simp
   qed
+next
+  case (cg_letb \<alpha> n1 G1 bs e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
+  then show ?case sorry
 next
   case (cg_blit C \<tau> G n l)
   then show ?case
