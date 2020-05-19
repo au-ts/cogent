@@ -623,7 +623,7 @@ lemma split_bang_Cons:
 
 inductive weakening_comp :: "kind env \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" where
   none : "weakening_comp K None None"
-| keep : "\<lbrakk> K \<turnstile> t wellformed \<rbrakk> \<Longrightarrow> weakening_comp K (Some t) (Some t)"
+| keep : "weakening_comp K (Some t) (Some t)"
 | drop : "\<lbrakk> K \<turnstile> t :\<kappa> k; D \<in> k \<rbrakk> \<Longrightarrow> weakening_comp K (Some t) None"
 
 definition weakening :: "kind env \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ \<leadsto>w _" [30,0,20] 60) where
@@ -754,6 +754,7 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
 
 typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i t
                    ; i < length \<Gamma>
+                   ; K \<turnstile> t wellformed
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Var i : t"
 
 | typing_afun   : "\<lbrakk> \<Xi> f = (K', t, u)
@@ -2148,6 +2149,11 @@ and           "i < length \<Gamma>"
 shows         "weakening_comp K (\<Gamma>!i) (\<Gamma>'!i)"
 using assms by (auto simp add: weakening_def dest: list_all2_nthD)
 
+lemma weakening_refl:
+  "K \<turnstile> xs \<leadsto>w xs"
+  by (clarsimp simp add: weakening_conv_all_nth weakening_comp.simps)
+
+
 
 lemma typing_to_wellformed:
 shows "\<Xi>, K, \<Gamma> \<turnstile>  e  : t  \<Longrightarrow> K \<turnstile>  t  wellformed"
@@ -2263,6 +2269,10 @@ next
   case (typing_all_empty \<Gamma> \<Xi> K)
   then show ?case
     by (force intro!: typing_typing_all.intros simp add: instantiate_ctx_def empty_def)
+next
+  case typing_var then show ?case
+    by (fastforce intro!: typing_typing_all.intros dest: instantiate_ctx_weaken
+        simp add: instantiate_wellformed list_all2_lengthD wellkinded_imp_wellformed)
 qed (force intro!: typing_struct_instantiate
                    typing_typing_all.intros
            dest:   substitutivity
