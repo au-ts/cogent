@@ -480,6 +480,11 @@ lemma kindingI:
   "K \<turnstile> t wellformed \<Longrightarrow> k \<subseteq> kinding_fn K t \<Longrightarrow> K \<turnstile> t :\<kappa> k"
   by (simp add: kinding_def)
 
+lemma kinding_kinding_allI:
+  "K \<turnstile> t wellformed \<Longrightarrow> K \<turnstile> t :\<kappa> (kinding_fn K t)"
+  by (simp add: kinding_def)
+
+
 definition kinding_all :: "kind env \<Rightarrow> type list \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa> _" [30,0,30] 60) where
   "K \<turnstile>* ts :\<kappa> k \<equiv> (K \<turnstile>* ts wellformed) \<and> k \<subseteq> (\<Inter>t\<in>set ts. kinding_fn K t)"
 
@@ -706,7 +711,6 @@ lemmas weakening_conv_all_nth = list_all2_conv_all_nth[where P="weakening_comp K
 definition is_consumed :: "kind env \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ consumed" [30,20] 60 ) where
   "K \<turnstile> \<Gamma> consumed \<equiv> K \<turnstile> \<Gamma> \<leadsto>w empty (length \<Gamma>)"
 
-declare is_consumed_def [simp]
 
 section {* Built-in types *}
 
@@ -1039,6 +1043,7 @@ fun type_repr :: "type \<Rightarrow> repr" where
 | "type_repr (TUnit)              = RUnit"
 
 
+
 section {* Wellformed lemmas *}
 
 lemma wellformed_record_wellformed_elem:
@@ -1142,10 +1147,6 @@ lemma wellformed_sum_wellformed_elem:
   shows "K \<turnstile> t wellformed"
   by (metis assms fst_conv in_set_conv_nth list_all_length snd_conv type_wellformed.simps(6))
 
-
-lemma bang_preserves_wellformed_all:
-  "list_all (type_wellformed n) ts \<Longrightarrow> list_all (type_wellformed n) (map bang ts)"
-  by (simp add: bang_preserves_wellformed list_all_length)
 
 section {* Kinding lemmas *}
 
@@ -1354,7 +1355,8 @@ lemma variant_tagged_list_update_wellformedI:
     "K \<turnstile>* map (fst \<circ> snd) ts wellformed"
   shows "K \<turnstile> TSum (tagged_list_update n (t, b) ts) wellformed"
   using assms
-  by (induct ts arbitrary: n t b; fastforce simp add: list_all_iff)
+  by (induct ts arbitrary: n t b)
+     (fastforce simp add: comp_def list.pred_map)+
 
 lemma variant_tagged_list_update_kinding:
   assumes "n \<in> fst ` set ts"
@@ -1988,11 +1990,6 @@ proof -
     by (simp add: f1)
 qed
 
-lemmas map_zip_instantiate = map_zip_iff_zip_map_weak[where f="\<lambda>x. (fst x, instantiate \<tau>s (snd x), Present)"
-                                                        and ?f1.0="\<lambda>a. a"
-                                                        and ?f2.0="\<lambda>b. (instantiate \<tau>s b, Present)" for \<tau>s,
-                                                        simplified]
-
 
 subsection {* substitutivity *}
 
@@ -2146,7 +2143,8 @@ lemma instantiate_ctx_consumed [simplified]:
 assumes "K \<turnstile> \<Gamma> consumed"
 and     "list_all2 (kinding K') \<delta> K"
 shows   "K' \<turnstile> instantiate_ctx \<delta> \<Gamma> consumed"
-using assms by (auto intro: instantiate_ctx_weaken [where \<Gamma>' = "empty (length \<Gamma>)", simplified])
+  using assms
+  by (auto intro: instantiate_ctx_weaken[where \<Gamma>' = "empty (length \<Gamma>)", simplified] simp add: is_consumed_def)
 
 lemma map_option_instantiate_split_comp:
 assumes "K \<turnstile> c \<leadsto> c1 \<parallel> c2"
@@ -2432,13 +2430,18 @@ lemma weakening_nth:
 assumes weak: "K \<turnstile> \<Gamma> \<leadsto>w \<Gamma>'"
 and           "i < length \<Gamma>"
 shows         "weakening_comp K (\<Gamma>!i) (\<Gamma>'!i)"
-using assms by (auto simp add: weakening_def dest: list_all2_nthD)
+  using assms by (auto simp add: weakening_def dest: list_all2_nthD)
 
 lemma weakening_refl:
   "K \<turnstile> xs \<leadsto>w xs"
   by (clarsimp simp add: weakening_conv_all_nth weakening_comp.simps)
 
+lemma consumed_replicate_None[simp,intro!]:
+  "K \<turnstile> replicate n None consumed"
+  by (induct n) (simp add: is_consumed_def Cogent.empty_def weakening_refl)+
 
+
+section {* wellformed and kinding lemmas *}
 
 lemma typing_to_wellformed:
 shows "\<Xi>, K, \<Gamma> \<turnstile>  e  : t  \<Longrightarrow> K \<turnstile>  t  wellformed"
