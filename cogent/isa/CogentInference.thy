@@ -468,6 +468,16 @@ lemma bang_cg_ctx_type_prop:
   shows "fst ((bang_cg_ctx ys G) ! i) = (if (ys ! i) then TBang (fst (G ! i)) else fst (G ! i))"
   using assms by (simp add: bang_cg_ctx_def case_prod_beta)
 
+lemma set0_cg_ctx_type_used_prop:
+  assumes "i < length G"
+  shows "snd ((set0_cg_ctx bs G) ! i) = (if (bs ! i) then 0 else snd (G ! i))"
+  using assms by (simp add: set0_cg_ctx_def case_prod_beta)
+
+lemma bang_cg_ctx_type_used_same:
+  assumes "i < length G"
+  shows "snd ((bang_cg_ctx bs G) ! i) = snd (G ! i)"
+  using assms by (simp add: bang_cg_ctx_def case_prod_beta)
+
 
 section {* Algorithmic Context Join (Fig 3.5) *}
 inductive alg_ctx_jn :: "cg_ctx \<Rightarrow> cg_ctx \<Rightarrow> cg_ctx \<Rightarrow> constraint \<Rightarrow> bool"
@@ -1231,7 +1241,17 @@ next
   qed
 next
   case (cg_letb \<alpha> n1 G1 bs e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
-  then show ?case sorry
+  then show ?case
+  proof (cases "bs ! i")
+    case False
+    have "snd (G1 ! i) \<le> snd (G2 ! i)"
+      using bang_cg_ctx_length bang_cg_ctx_type_used_same cg_ctx_length cg_letb by metis
+    moreover have "snd (G2 ! i) \<le> snd (G3 ! i)"
+      using False cg_letb set0_cg_ctx_length set0_cg_ctx_type_used_prop cg_ctx_length
+        bang_cg_ctx_length by (metis (no_types, lifting) Suc_mono length_Cons nth_Cons_Suc)
+    ultimately show ?thesis
+      by linarith
+  qed (fastforce intro: cg_letb)
 next
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
   then show ?case
