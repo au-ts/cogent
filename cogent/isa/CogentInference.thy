@@ -426,11 +426,27 @@ definition add_bang_ctx :: "bool list \<Rightarrow> type list \<Rightarrow> ctx 
                                                         else \<tau>) [0..<length \<Gamma>] \<Gamma>"
 
 definition set0_cg_ctx :: "bool list \<Rightarrow> cg_ctx \<Rightarrow> cg_ctx" where
-  "set0_cg_ctx bs G \<equiv> List.map2 (\<lambda>m (\<tau>, n). if (bs ! m) then (\<tau>, 0) else (\<tau>, n)) [0..<length G] G"
+  "set0_cg_ctx ys G \<equiv> List.map2 (\<lambda>m (\<tau>, n). if (ys ! m) then (\<tau>, 0) else (\<tau>, n)) [0..<length G] G"
 
 definition bang_cg_ctx :: "bool list \<Rightarrow> cg_ctx \<Rightarrow> cg_ctx" where
-  "bang_cg_ctx bs G \<equiv> List.map2 (\<lambda>m (\<tau>, n). if (bs ! m) then (TBang \<tau>, n) 
+  "bang_cg_ctx ys G \<equiv> List.map2 (\<lambda>m (\<tau>, n). if (ys ! m) then (TBang \<tau>, n) 
                                                         else (\<tau>, n)) [0..<length G] G"
+
+lemma bang_ctx_length:
+  shows "length G = length (add_ctx ys \<rho>s G)"
+  using map2_length add_ctx_def by force
+
+lemma add_bang_ctx_length:
+  shows "length G = length (add_bang_ctx ys \<rho>s G)"
+  using map2_length add_bang_ctx_def by force
+
+lemma set0_cg_ctx_length:
+  shows "length G = length (set0_cg_ctx ys G)"
+  using map2_length set0_cg_ctx_def by force
+
+lemma bang_cg_ctx_length:
+  shows "length G = length (bang_cg_ctx ys G)"
+  using map2_length bang_cg_ctx_def by force
 
 
 section {* Algorithmic Context Join (Fig 3.5) *}
@@ -1111,8 +1127,12 @@ lemma cg_num_fresh_nondec:
 lemma cg_ctx_length:
   assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
   shows "length G = length G'"
-  sorry
-(*  using assms alg_ctx_jn_length by (induct rule: constraint_gen_elab.inducts; auto) *)
+  using assms alg_ctx_jn_length
+proof (induct rule: constraint_gen_elab.inducts)
+  case (cg_letb \<alpha> n1 G1 bs e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
+  then show ?case
+    using set0_cg_ctx_length bang_cg_ctx_length by fastforce
+qed auto
 
 lemma cg_ctx_idx_size:
   assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
