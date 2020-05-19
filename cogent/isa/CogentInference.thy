@@ -448,6 +448,26 @@ lemma bang_cg_ctx_length:
   shows "length G = length (bang_cg_ctx ys G)"
   using map2_length bang_cg_ctx_def by force
 
+lemma add_ctx_type_prop:
+  assumes "i < length G"
+  shows "((add_ctx ys \<rho>s G) ! i) = (if (ys ! i) then Some (\<rho>s ! i) else (G ! i))"
+  using assms by (simp add: add_ctx_def)
+
+lemma add_bang_type_prop:
+  assumes "i < length G"
+  shows "((add_bang_ctx ys \<rho>s G) ! i) = (if (ys ! i) then Some (TBang (\<rho>s ! i)) else (G ! i))"
+  using assms by (simp add: add_bang_ctx_def)
+
+lemma set0_cg_ctx_type_same:
+  assumes "i < length G"
+  shows "fst (G ! i) = fst ((set0_cg_ctx ys G) ! i)"
+  using assms by (simp add: set0_cg_ctx_def case_prod_beta)
+
+lemma bang_cg_ctx_type_prop:
+  assumes "i < length G"
+  shows "fst ((bang_cg_ctx ys G) ! i) = (if (ys ! i) then TBang (fst (G ! i)) else fst (G ! i))"
+  using assms by (simp add: bang_cg_ctx_def case_prod_beta)
+
 
 section {* Algorithmic Context Join (Fig 3.5) *}
 inductive alg_ctx_jn :: "cg_ctx \<Rightarrow> cg_ctx \<Rightarrow> cg_ctx \<Rightarrow> constraint \<Rightarrow> bool"
@@ -1158,7 +1178,10 @@ next
     by (metis Suc_mono cg_ctx_length length_Cons nth_Cons_Suc)
 next
   case (cg_letb \<alpha> n1 G1 bs e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
-  then show ?case sorry
+  then show ?case
+    using cg_ctx_length bang_cg_ctx_type_prop set0_cg_ctx_type_same bang_cg_ctx_length 
+      set0_cg_ctx_length 
+    by (metis (no_types, hide_lams) Suc_mono length_Cons nth_Cons_Suc type.inject(9))
 next
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
   then show ?case
