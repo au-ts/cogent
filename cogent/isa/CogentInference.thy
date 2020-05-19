@@ -1569,7 +1569,11 @@ proof -
       by (force simp add: i_fv'_suc_iff_suc_i_fv' cg_ctx_length)
   next
     case (cg_letb \<alpha> n1 G1 bs e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
-    then show ?case sorry
+    have "i \<in> fv' m e1 \<or> (Suc i) \<in> fv' m e2"
+      using cg_letb.prems i_fv'_suc_iff_suc_i_fv' by auto
+    then show ?case
+      using bang_cg_ctx_length set0_cg_ctx_length bang_cg_ctx_length cg_ctx_length cg_letb.hyps 
+      by (metis Suc_less_eq length_Cons)
   next
     case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
     then show ?case
