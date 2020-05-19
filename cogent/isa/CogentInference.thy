@@ -418,8 +418,12 @@ lemma singleton_none:
   by (simp add: empty_def singleton_def)
 
 
-definition bang_ctx :: "bool list \<Rightarrow> ctx \<Rightarrow> ctx" where
-  "bang_ctx bs \<Gamma> \<equiv> map2 (\<lambda>b \<tau>. if (b \<and> \<tau> \<noteq> None) then Some (TBang (the \<tau>)) else \<tau>) bs \<Gamma>"
+definition add_ctx :: "bool list \<Rightarrow> type list \<Rightarrow> ctx \<Rightarrow> ctx" where
+  "add_ctx ys \<rho>s \<Gamma> \<equiv> List.map2 (\<lambda>m \<tau>. if (ys ! m) then Some (\<rho>s ! m) else \<tau>) [0..<length \<Gamma>] \<Gamma>"
+
+definition add_bang_ctx :: "bool list \<Rightarrow> type list \<Rightarrow> ctx \<Rightarrow> ctx" where
+  "add_bang_ctx ys \<rho>s \<Gamma> \<equiv> List.map2 (\<lambda>m \<tau>. if (ys ! m) then Some (TBang (\<rho>s ! m)) 
+                                                        else \<tau>) [0..<length \<Gamma>] \<Gamma>"
 
 definition bang_cg_ctx :: "bool list \<Rightarrow> cg_ctx \<Rightarrow> cg_ctx" where
   "bang_cg_ctx bs G \<equiv> map2 (\<lambda>b (\<tau>, n). if b then (TBang \<tau>, n) else (\<tau>, n)) bs G"
@@ -904,6 +908,13 @@ typing_var:
    ; A \<ddagger> \<Gamma>1 \<turnstile> e1 : \<tau>1
    ; A \<ddagger> ((Some \<tau>1) # \<Gamma>2) \<turnstile> e2 : \<tau>2
   \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Let e1 e2 : \<tau>2"
+| typing_letb:
+  "\<lbrakk> \<forall>i < length \<Gamma>. (ys ! i) \<longrightarrow> \<Gamma> ! i = None
+   ; A \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 \<box> \<Gamma>2
+   ; A \<ddagger> (add_bang_ctx ys \<rho>s \<Gamma>1) \<turnstile> e1 : \<tau>1
+   ; A \<turnstile> CtEscape \<tau>1
+   ; A \<ddagger> ((Some \<tau>1) # (add_ctx ys \<rho>s \<Gamma>2)) \<turnstile> e2 : \<tau>2
+   \<rbrakk> \<Longrightarrow> A \<ddagger> (add_ctx ys \<rho>s \<Gamma>) \<turnstile> LetBang ys e1 e2 : \<tau>2"
 | typing_if:
   "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 \<box> \<Gamma>2
    ; A \<ddagger> \<Gamma>1 \<turnstile> e1 : TPrim Bool
