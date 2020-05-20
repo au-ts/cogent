@@ -538,7 +538,7 @@ lemma alg_ctx_jn_type_used_same:
   using assms alg_ctx_jn_type_used_max by auto
 
 
-section {* Constraint Semantics (Fig 3.6) *}
+section {* Constraint Semantics (Fig 3.6 3.9 3.12) *}
 inductive constraint_sem :: "axm_set \<Rightarrow> constraint \<Rightarrow> bool" ("_ \<turnstile> _" [40, 40] 60) where
 ct_sem_share:
   "\<lbrakk> CtShare \<rho> \<in> A
@@ -935,7 +935,7 @@ lemma weak_keep_refl: "weakening_comp K (Some \<tau>) (Some \<rho>) \<Longrighta
   using weakening_comp.cases by auto
 
 
-section {* Typing Rules (Fig 3.3) *}
+section {* Typing Rules (Fig 3.3 3.8 3.13) *}
 inductive typing :: "axm_set \<Rightarrow> ctx \<Rightarrow> 'fnname expr \<Rightarrow> type \<Rightarrow> bool"
           ("_ \<ddagger> _ \<turnstile> _ : _" [40,0,0,40] 60) where
 typing_var:
@@ -1040,7 +1040,7 @@ lemma typing_sig_refl:
   using ct_sem_equal ct_sem_refl type_infer_axioms typing_sig by blast
 
 
-section {* Elementary Constraint Generation Rules (Fig 3.4) *}
+section {* Elementary Constraint Generation Rules (Fig 3.4 3.10 3.13) *}
 inductive constraint_gen_elab :: "cg_ctx \<Rightarrow> nat \<Rightarrow> 'fnname expr \<Rightarrow> type \<Rightarrow> cg_ctx \<Rightarrow> nat \<Rightarrow> constraint \<Rightarrow> 'fnname expr \<Rightarrow> bool"
   ("_,_ \<turnstile> _ : _ \<leadsto> _,_ | _ | _" [30,0,0,0,0,0,0,30] 60) where
 cg_var1: 
