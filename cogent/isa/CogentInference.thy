@@ -327,12 +327,9 @@ known_tvar:
    \<rbrakk> \<Longrightarrow> known_ty (TProduct t1 t2)"
 | known_tunit:
   "known_ty TUnit"
-| known_tvariant_nil:
-  "known_ty (TVariant [] None)"
-| known_tvariant_cons:
-  "\<lbrakk> known_ty ((fst \<circ> snd) K)
-   ; known_ty (TVariant Ks None)
-   \<rbrakk> \<Longrightarrow> known_ty (TVariant (K # Ks) None)"
+| known_tvariant:
+  "\<lbrakk> \<forall>i < length Ks. known_ty ((fst \<circ> snd) (Ks ! i))
+   \<rbrakk> \<Longrightarrow> known_ty (TVariant Ks None)"
 
 inductive_cases known_tfunE: "known_ty (TFun t1 t2)"
 inductive_cases known_tproductE: "known_ty (TProduct t1 t2)"
@@ -1361,9 +1358,15 @@ next
   then show ?case
     using known_tproductE by auto
 next
-  case (known_tvariant_cons K Ks)
+  case (known_tvariant Ks)
+  then have "map (\<lambda>k. assign_app_ty S S' (subst_tyvar xs ((fst \<circ> snd) k))) Ks = 
+             map (\<lambda>k. subst_tyvar (map (assign_app_ty S S') xs) ((fst \<circ> snd) k)) Ks"
+    using map_eq_iff_nth_eq by blast
+  then have "map (\<lambda>(nm, t, s). (nm, assign_app_ty S S' (subst_tyvar xs t), s)) Ks = 
+             map (\<lambda>(nm, t, s). (nm, subst_tyvar (map (assign_app_ty S S') xs) t, s)) Ks"
+    using case_prod_beta comp_apply by auto
   then show ?case
-    by (simp add: case_prod_beta)
+    using subst_tyvar.simps assign_app_ty.simps by auto
 qed (simp)+ 
 
 lemma assign_app_constr_subst_tyvar_ct_commute: 
