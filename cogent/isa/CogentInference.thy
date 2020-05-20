@@ -1626,7 +1626,27 @@ next
   qed
 next
   case (cg_letb \<alpha> n1 G1 ys e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
-  then show ?case sorry
+  consider (i_in_e1) "i \<in> fv e1" "\<not>(ys ! i)" | (i_in_e2) "i \<in> fv' (Suc 0) e2"
+    using fv'_letb cg_letb.prems by fastforce
+  then show ?case
+  proof cases
+    case i_in_e1
+    have "0 < snd (G2 ! i)"
+      using cg_letb.hyps bang_cg_ctx_type_used_same bang_cg_ctx_length cg_ctx_length
+        cg_gen_fv_elem_size i_in_e1 i_in_e1 by metis
+    moreover have "i < length (set0_cg_ctx ys G2)"
+      using bang_cg_ctx_length set0_cg_ctx_length cg_ctx_length cg_letb.hyps 
+        i_in_e1 cg_letb.hyps cg_gen_fv_elem_size by metis
+    moreover then have "snd ((set0_cg_ctx ys G2) ! i) \<le> snd (G3 ! i)"
+      using cg_letb.hyps cg_ctx_type_used_nondec
+      by (metis (no_types, lifting) Suc_mono length_Cons nth_Cons_Suc)
+    ultimately show ?thesis
+      using i_in_e1 set0_cg_ctx_type_used_prop set0_cg_ctx_length by force
+  next
+    case i_in_e2
+    then show ?thesis
+      using cg_letb.hyps i_fv'_suc_iff_suc_i_fv' by fastforce
+  qed
 next
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
   then show ?case
