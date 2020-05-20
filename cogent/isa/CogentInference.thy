@@ -472,12 +472,12 @@ lemma bang_cg_ctx_type_prop:
 
 lemma set0_cg_ctx_type_used_prop:
   assumes "i < length G"
-  shows "snd ((set0_cg_ctx bs G) ! i) = (if (bs ! i) then 0 else snd (G ! i))"
+  shows "snd ((set0_cg_ctx ys G) ! i) = (if (ys ! i) then 0 else snd (G ! i))"
   using assms by (simp add: set0_cg_ctx_def case_prod_beta)
 
 lemma bang_cg_ctx_type_used_same:
   assumes "i < length G"
-  shows "snd ((bang_cg_ctx bs G) ! i) = snd (G ! i)"
+  shows "snd ((bang_cg_ctx ys G) ! i) = snd (G ! i)"
   using assms by (simp add: bang_cg_ctx_def case_prod_beta)
 
 
@@ -1075,15 +1075,15 @@ cg_var1:
    \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Let e1 e2 : \<tau> \<leadsto> G3,n3 | C4 | Sig (Let e1' e2') \<tau>"
 | cg_letb:
   "\<lbrakk> \<alpha> = TUnknown n1
-   ; \<forall>i < length G1. bs ! i \<longrightarrow> snd (G1 ! i) = 0
-   ; (bang_cg_ctx bs G1),(Suc n1) \<turnstile> e1 : \<alpha> \<leadsto> (bang_cg_ctx bs G2),n2 | C1 | e1'
-   ; ((\<alpha>, 0) # (set0_cg_ctx bs G2)),n2 \<turnstile> e2 : \<tau> \<leadsto> ((\<alpha>, m) # G3),n3 | C2 | e2'
-   ; C3 = fold CtConj (List.map2 (\<lambda>b (\<rho>, m). if b \<and> m = 0 then CtDrop (TBang \<rho>) else CtTop) bs G2) CtTop
-   ; C4 = fold CtConj (List.map2 (\<lambda>b (\<rho>, m). if b \<and> m = 0 then CtDrop \<rho> else CtTop) bs G3) CtTop
+   ; \<forall>i < length G1. ys ! i \<longrightarrow> snd (G1 ! i) = 0
+   ; (bang_cg_ctx ys G1),(Suc n1) \<turnstile> e1 : \<alpha> \<leadsto> (bang_cg_ctx ys G2),n2 | C1 | e1'
+   ; ((\<alpha>, 0) # (set0_cg_ctx ys G2)),n2 \<turnstile> e2 : \<tau> \<leadsto> ((\<alpha>, m) # G3),n3 | C2 | e2'
+   ; C3 = fold CtConj (List.map2 (\<lambda>b (\<rho>, m). if b \<and> m = 0 then CtDrop (TBang \<rho>) else CtTop) ys G2) CtTop
+   ; C4 = fold CtConj (List.map2 (\<lambda>b (\<rho>, m). if b \<and> m = 0 then CtDrop \<rho> else CtTop) ys G3) CtTop
    ; C5 = (if m = 0 then CtDrop \<alpha> else CtTop)
    ; C6 = CtEscape \<alpha>
    ; C7 = CtConj ( CtConj ( CtConj (CtConj (CtConj C1 C2) C3) C4) C5) C6
-   \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> LetBang bs e1 e2 : \<tau> \<leadsto> G3,n3 | C7 | Sig (LetBang bs e1' e2') \<tau>"
+   \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> LetBang ys e1 e2 : \<tau> \<leadsto> G3,n3 | C7 | Sig (LetBang ys e1' e2') \<tau>"
 | cg_blit:
   "C = CtEq \<tau> (TPrim Bool) \<Longrightarrow> G,n \<turnstile> Lit (LBool l) : \<tau> \<leadsto> G,n | C | Sig (Lit (LBool l)) \<tau>"
 | cg_ilit:
@@ -1161,7 +1161,7 @@ lemma cg_ctx_length:
   shows "length G = length G'"
   using assms alg_ctx_jn_length
 proof (induct rule: constraint_gen_elab.inducts)
-  case (cg_letb \<alpha> n1 G1 bs e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
+  case (cg_letb \<alpha> n1 G1 ys e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
   then show ?case
     using set0_cg_ctx_length bang_cg_ctx_length by fastforce
 qed auto
@@ -1189,7 +1189,7 @@ next
   then show ?case
     by (metis Suc_mono cg_ctx_length length_Cons nth_Cons_Suc)
 next
-  case (cg_letb \<alpha> n1 G1 bs e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
+  case (cg_letb \<alpha> n1 G1 ys e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
   then show ?case
     using cg_ctx_length bang_cg_ctx_type_prop set0_cg_ctx_type_same bang_cg_ctx_length 
       set0_cg_ctx_length 
@@ -1242,9 +1242,9 @@ next
       using cg_let cg_ctx_length le_trans by fastforce
   qed
 next
-  case (cg_letb \<alpha> n1 G1 bs e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
+  case (cg_letb \<alpha> n1 G1 ys e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
   then show ?case
-  proof (cases "bs ! i")
+  proof (cases "ys ! i")
     case False
     have "snd (G1 ! i) \<le> snd (G2 ! i)"
       using bang_cg_ctx_length bang_cg_ctx_type_used_same cg_ctx_length cg_letb by metis
@@ -1313,7 +1313,7 @@ fun assign_app_expr :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow
 | "assign_app_expr S S' (Lit l)            = Lit l"
 | "assign_app_expr S S' (Cast nt e)        = Cast nt (assign_app_expr S S' e)"
 | "assign_app_expr S S' (Let e1 e2)        = Let (assign_app_expr S S' e1) (assign_app_expr S S' e2)"
-| "assign_app_expr S S' (LetBang bs e1 e2) = LetBang bs (assign_app_expr S S' e1) (assign_app_expr S S' e2)"
+| "assign_app_expr S S' (LetBang ys e1 e2) = LetBang ys (assign_app_expr S S' e1) (assign_app_expr S S' e2)"
 | "assign_app_expr S S' (If e1 e2 e3)      = If (assign_app_expr S S' e1) (assign_app_expr S S' e2) (assign_app_expr S S' e3)"
 | "assign_app_expr S S' (Sig e t)          = Sig (assign_app_expr S S' e) (assign_app_ty S S' t)"
 | "assign_app_expr S S' (Con nm e)         = Con nm (assign_app_expr S S' e)"
@@ -1449,7 +1449,7 @@ fun fv' :: "nat \<Rightarrow> 'f expr \<Rightarrow> index set" where
 | fv'_lit:      "fv' n (Lit l) = {}"
 | fv'_cast:     "fv' n (Cast nt e) = fv' n e"
 | fv'_let:      "fv' n (Let e1 e2) = (fv' n e1) \<union> (fv' (Suc n) e2)"
-| fv'_letb:     "fv' n (LetBang bs e1 e2) = (fv' n e1) \<union> (fv' (Suc n) e2)"
+| fv'_letb:     "fv' n (LetBang ys e1 e2) = (fv' n e1) \<union> (fv' (Suc n) e2)"
 | fv'_if:       "fv' n (If e1 e2 e3) = (fv' n e1) \<union> (fv' n e2) \<union> (fv' n e3)"
 | fv'_sig:      "fv' n (Sig e t) = fv' n e"
 | fv'_con:      "fv' n (Con nm e) = fv' n e"
@@ -1583,7 +1583,7 @@ proof -
     then show ?case
       by (force simp add: i_fv'_suc_iff_suc_i_fv' cg_ctx_length)
   next
-    case (cg_letb \<alpha> n1 G1 bs e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
+    case (cg_letb \<alpha> n1 G1 ys e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
     have "i \<in> fv' m e1 \<or> (Suc i) \<in> fv' m e2"
       using cg_letb.prems i_fv'_suc_iff_suc_i_fv' by auto
     then show ?case
@@ -1629,7 +1629,7 @@ next
     qed
   qed
 next
-  case (cg_letb \<alpha> n1 G1 bs e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
+  case (cg_letb \<alpha> n1 G1 ys e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
   then show ?case sorry
 next
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
@@ -1810,7 +1810,7 @@ next
     qed
   qed
 next
-  case (cg_letb \<alpha> n1 G1 bs e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
+  case (cg_letb \<alpha> n1 G1 ys e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
   then show ?case sorry
 next
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
@@ -2044,7 +2044,7 @@ next
     qed
   qed
 next
-  case (cg_letb \<alpha> n1 G1 bs e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
+  case (cg_letb \<alpha> n1 G1 ys e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
   then show ?case sorry
 next
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
@@ -2204,7 +2204,7 @@ proof (induct arbitrary: i rule: constraint_gen_elab.induct)
     using cg_ctx_length i_fv'_suc_iff_suc_i_fv' fv'_let
     by (metis Un_iff length_Cons less_eq_Suc_le not_less nth_Cons_Suc)
 next
-  case (cg_letb \<alpha> n1 G1 bs e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
+  case (cg_letb \<alpha> n1 G1 ys e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
   then show ?case sorry
 next
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
@@ -2282,7 +2282,7 @@ next
     qed
   qed
 next
-  case (cg_letb \<alpha> n1 G1 bs e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
+  case (cg_letb \<alpha> n1 G1 ys e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
   then show ?case sorry
 next
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
@@ -3448,7 +3448,7 @@ next
       using typing_sig_refl typing_let cg_let.hyps by simp
   qed
 next
-  case (cg_letb \<alpha> n1 G1 bs e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
+  case (cg_letb \<alpha> n1 G1 ys e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
   then show ?case sorry
 next
   case (cg_blit C \<tau> G n l)
