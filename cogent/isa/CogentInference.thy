@@ -328,8 +328,13 @@ known_tvar:
 | known_tunit:
   "known_ty TUnit"
 | known_tvariant:
-  "\<lbrakk> \<forall>i < length Ks. known_ty ((fst \<circ> snd) (Ks ! i))
-   \<rbrakk> \<Longrightarrow> known_ty (TVariant Ks None)"
+  "\<forall>i < length Ks. known_ty ((fst \<circ> snd) (Ks ! i)) \<Longrightarrow> known_ty (TVariant Ks None)"
+| known_tabstract:
+  "\<forall>i < length ts. known_ty (ts ! i) \<Longrightarrow> known_ty (TAbstract nm ts s)"
+| known_tobserve:
+  "known_ty t \<Longrightarrow> known_ty (TObserve t)"
+| knwon_tbang:
+  "known_ty t \<Longrightarrow> known_ty (TBang t)"
 
 inductive_cases known_tfunE: "known_ty (TFun t1 t2)"
 inductive_cases known_tproductE: "known_ty (TProduct t1 t2)"
@@ -1297,7 +1302,7 @@ fun assign_app_ty :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow> 
 | "assign_app_ty S S' (TVariant Ks (Some n))  = TVariant ((map (\<lambda>(nm, t, u). (nm, assign_app_ty S S' t, u)) Ks) @ (S' n)) None"
 | "assign_app_ty S S' (TAbstract nm ts s)     = TAbstract nm (map (assign_app_ty S S') ts) s"
 | "assign_app_ty S S' (TObserve t)            = TObserve (assign_app_ty S S' t)"
-| "assign_app_ty S S' (TBang t)               = TObserve (assign_app_ty S S' t)"
+| "assign_app_ty S S' (TBang t)               = TBang (assign_app_ty S S' t)"
 
 fun assign_app_expr :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow> (string \<times> type \<times> usage_tag) list) \<Rightarrow> 'f expr \<Rightarrow> 'f expr" where
   "assign_app_expr S S' (Var n)            = Var n" 
@@ -1367,7 +1372,14 @@ next
     using case_prod_beta comp_apply by auto
   then show ?case
     using subst_tyvar.simps assign_app_ty.simps by auto
-qed (simp)+ 
+next
+  case (known_tabstract ts nm s)
+  then have "map (\<lambda>t. assign_app_ty S S' (subst_tyvar xs t)) ts = 
+             map (\<lambda>t. subst_tyvar (map (assign_app_ty S S') xs) t) ts"
+    using map_eq_iff_nth_eq by blast
+  then show ?case
+    using subst_tyvar.simps assign_app_ty.simps by auto 
+qed (force intro: subst_tyvar.simps assign_app_ty.simps)+ 
 
 lemma assign_app_constr_subst_tyvar_ct_commute: 
   assumes "known_ct C"
