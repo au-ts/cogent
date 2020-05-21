@@ -2099,7 +2099,21 @@ proof (induct arbitrary: i rule: constraint_gen_elab.induct)
     by (metis Un_iff length_Cons less_eq_Suc_le not_less nth_Cons_Suc)
 next
   case (cg_letb \<alpha> n1 G1 ys e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
-  then show ?case sorry
+  have i_size: "i < length G2"
+    using cg_letb cg_ctx_length bang_cg_ctx_length by metis
+  consider (i_in_e1) "i \<in> fv e1" "Suc i \<notin> fv e2" "ys ! i" | (i_in_neither) "i \<notin> fv e1" "Suc i \<notin> fv e2"
+    using cg_letb.prems fv'_letb i_fv'_suc_iff_suc_i_fv' by fastforce 
+  then show ?case
+  proof cases
+    case i_in_e1
+    then show ?thesis
+      using cg_letb i_size set0_cg_ctx_length set0_cg_ctx_type_used_prop by fastforce
+  next
+    case i_in_neither
+    then show ?thesis
+      using i_size bang_cg_ctx_length cg_letb i_in_neither set0_cg_ctx_length 
+        set0_cg_ctx_type_used_prop bang_cg_ctx_type_used_same by fastforce
+  qed
 next
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
   then show ?case     
