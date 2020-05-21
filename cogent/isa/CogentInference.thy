@@ -1787,7 +1787,7 @@ next
       by simp
   next
     case i_in_e2
-    have "snd (G1 ! i) \<le> snd (G2 ! i)"
+    have "snd (G1 ! i) \<le> snd (G2 ! i)"          
       using i_in_e1e2 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_let.hyps
       by (metis i_fv'_suc_iff_suc_i_fv' length_Cons not_less_eq)
     moreover have "snd (G2 ! i) < snd (G3 ! i)"
@@ -1797,7 +1797,58 @@ next
   qed
 next
   case (cg_letb \<alpha> n1 G1 ys e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
-  then show ?case sorry
+  consider (i_in_e1) "i \<in> fv e1" "\<not>(ys ! i)" | (i_in_e2) "i \<in> fv' (Suc 0) e2"
+    using cg_letb.prems fv'_letb by fastforce
+  then show ?case
+  proof cases
+    case i_in_e1
+    have i_size: "i < length G1"
+      using cg_gen_fv_elem_size i_in_e1 cg_letb.hyps bang_cg_ctx_length by metis
+    have "snd (G1 ! i) < snd (G2 ! i)"
+      using cg_letb.hyps bang_cg_ctx_length bang_cg_ctx_type_used_same cg_ctx_length 
+        i_in_e1 i_size by metis
+    moreover have "snd (G2 ! i) \<le> snd (G3 ! i)"
+    proof -
+      have "snd ((set0_cg_ctx ys G2) ! i) \<le> snd (G3 ! i)"
+        using cg_letb.hyps set0_cg_ctx_length cg_ctx_length i_size cg_ctx_type_used_nondec
+          bang_cg_ctx_length by (metis (no_types, lifting) Suc_mono length_Cons nth_Cons_Suc)
+      then show ?thesis
+        using bang_cg_ctx_length cg_letb.hyps i_in_e1 i_size set0_cg_ctx_type_used_prop
+          cg_ctx_length by metis
+    qed
+    ultimately show ?thesis
+      by linarith
+  next
+    case i_in_e2
+    have "Suc i < length ((\<alpha>, 0) # (set0_cg_ctx ys G2))"
+      using cg_gen_fv_elem_size cg_letb i_in_e2 Suc_mono length_Cons i_fv'_suc_iff_suc_i_fv' 
+      by metis
+    then have i_size: "i < length G2"
+      using set0_cg_ctx_length by fastforce
+    show ?thesis
+    proof (cases "ys ! i")
+      case True
+      have "snd (G1 ! i) = 0"
+        using cg_letb.hyps True bang_cg_ctx_length cg_ctx_length i_size by metis
+      then show ?thesis
+        using cg_letb.hyps i_fv'_suc_iff_suc_i_fv' i_in_e2 by fastforce
+    next
+      case False
+      have "snd (G1 ! i) \<le> snd (G2 ! i)"
+      proof -
+        have "snd ((bang_cg_ctx ys G1) ! i) \<le> snd ((bang_cg_ctx ys G2) ! i)"
+          using cg_ctx_type_used_nondec i_size bang_cg_ctx_length cg_letb.hyps cg_ctx_length by auto
+        then show ?thesis
+          using bang_cg_ctx_type_used_same i_size cg_ctx_length bang_cg_ctx_length cg_letb.hyps
+          by metis
+      qed
+      moreover have "snd (G2 ! i) < snd (G3 !i)"
+        using cg_letb i_fv'_suc_iff_suc_i_fv' i_in_e2 set0_cg_ctx_type_used_prop[OF i_size] False
+           nth_Cons_Suc by metis
+      ultimately show ?thesis
+        by linarith
+    qed
+  qed
 next
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
   have i_in_e1e2e3: "i \<in> fv e1 \<or> i \<in> fv e2 \<or> i \<in> fv e3"
