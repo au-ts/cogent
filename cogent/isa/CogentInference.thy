@@ -2185,7 +2185,56 @@ next
   qed
 next
   case (cg_letb \<alpha> n1 G1 ys e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
-  then show ?case sorry
+  consider (i_in_e1) "i \<in> fv e1" "\<not>(ys ! i)" | (i_in_e2) "i \<in> fv' (Suc 0) e2"
+    using fv'_letb cg_letb.prems by force
+  then show ?case
+  proof cases
+    case i_in_e1
+    have i_size: "i < length G1"
+      using cg_gen_fv_elem_size i_in_e1 cg_letb.hyps bang_cg_ctx_length by metis
+    have "A \<turnstile> assign_app_constr S S' C1"
+      using cg_letb ct_sem_conj_iff assign_app_constr.simps by force
+    then show ?thesis
+      using i_in_e1 cg_letb bang_cg_ctx_type_used_same bang_cg_ctx_type_prop i_size by metis
+  next
+    case i_in_e2
+    have i_size: "i < length G2"
+      using cg_letb.hyps cg_gen_fv_elem_size i_in_e2 i_fv'_suc_iff_suc_i_fv' set0_cg_ctx_length 
+      by (metis Suc_less_eq length_Cons)
+    show ?thesis
+    proof (cases "ys ! i")
+      case True
+      have "i < length G1"
+        using i_size cg_letb.hyps cg_ctx_length bang_cg_ctx_length by metis
+      then show ?thesis
+        using cg_letb True by force
+    next
+      case False
+      have i_size2: "i < length (bang_cg_ctx ys G1)"
+        using i_size cg_ctx_length cg_letb.hyps bang_cg_ctx_length by metis
+      have "0 < snd (((\<alpha>, 0) # set0_cg_ctx ys G2) ! Suc i)"
+      proof -
+        have "0 < snd ((bang_cg_ctx ys G1) ! i)"
+          using cg_letb.prems False bang_cg_ctx_type_used_same i_size2 by simp
+        then have "0 < snd ((bang_cg_ctx ys G2) ! i)"
+          using cg_ctx_type_used_nondec[where G="bang_cg_ctx ys G1"] cg_letb.hyps i_size2 by force
+        then show ?thesis
+          using False bang_cg_ctx_type_used_same i_size set0_cg_ctx_type_used_prop by simp
+      qed
+      moreover have "\<rho> = fst (((\<alpha>, 0) # set0_cg_ctx ys G2) ! Suc i)"
+      proof -
+        have "\<rho> = fst ((bang_cg_ctx ys G1) ! i)"
+          using bang_cg_ctx_type_prop False i_size2 cg_letb.prems by presburger
+        then show ?thesis
+          using cg_letb bang_cg_ctx_type_prop False set0_cg_ctx_type_same i_size cg_ctx_type_same1 
+            i_size2  by simp
+      qed
+      moreover have "A \<turnstile> assign_app_constr S S' C2"
+        using cg_letb ct_sem_conj_iff assign_app_constr.simps by auto
+      ultimately show ?thesis
+        using i_in_e2 i_fv'_suc_iff_suc_i_fv' cg_letb by blast 
+    qed
+  qed
 next
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
   consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv e2" | (i_in_e3) "i \<in> fv e3"  
