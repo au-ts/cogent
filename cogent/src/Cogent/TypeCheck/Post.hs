@@ -14,7 +14,7 @@
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 
 module Cogent.TypeCheck.Post (
-  postA, postE, postT
+  postA, postE, postT, postL
 ) where
 
 import Cogent.Common.Syntax
@@ -68,6 +68,11 @@ postA as = do
   traceTc "post" (text "alternative" <+> pretty as)
   toTypedAlts <$> normaliseA d as
 
+postL :: TCDataLayout -> Post DataLayoutExpr
+postL l = do
+  layouts <- lift . lift $ use knownDataLayouts
+  traceTc "post" (text "layout" <+> pretty l)
+  return . toDLExpr $ normaliseLayout layouts l
 
 normaliseA :: TypeDict -> [Alt TCPatn TCExpr] -> Post [Alt TCPatn TCExpr]
 normaliseA d as = traverse (traverse (normaliseE d) >=> ttraverse (normaliseP d)) as
@@ -92,7 +97,7 @@ normaliseE d te@(TE t e l) = do
 normaliseL :: TCDataLayout -> Post TCDataLayout
 normaliseL l = do
   layouts <- lift . lift $ use knownDataLayouts
-  return $ normaliseTCDataLayout layouts l
+  return $ normaliseLayout layouts l
 
 normaliseP :: TypeDict -> TCPatn -> Post TCPatn
 normaliseP d tp@(TP p l) = do

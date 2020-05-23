@@ -135,12 +135,13 @@ whnf input = do
         _                -> pure input
     fromMaybe step <$> runMaybeT (runRewriteT (untilFixedPoint $ debug "Normalise Type" printPretty normaliseRWT) step)
 
+-- TODO: TLAfter
 normaliseRWL :: RewriteT TcSolvM TCDataLayout
 normaliseRWL = rewrite' $ \case
   TLRepRef n s -> do
     ls <- view knownDataLayouts
     case M.lookup n ls of
-      Just (vars, expr, _) -> pure $ normaliseTCDataLayout ls (substTCDataLayout (zip vars s) (toTCDL expr))
+      Just (vars, expr) -> MaybeT $ Just <$> normL (substTCDataLayout (zip vars s) expr)
       _ -> __impossible "normaliseRWL: missing layout synonym"
   _ -> empty
 

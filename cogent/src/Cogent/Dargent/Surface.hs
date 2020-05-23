@@ -65,6 +65,7 @@ data DataLayoutExpr' e
 #endif
   | Offset  e DataLayoutSize
   | RepRef  RepName [e]
+  | After   e FieldName
   | LVar    DLVarName
   | Ptr
   deriving (Show, Data, Eq, Ord)
@@ -81,6 +82,7 @@ pattern DLArray e s    = DL (Array e s)
 #endif
 pattern DLOffset e s   = DL (Offset e s)
 pattern DLRepRef n s   = DL (RepRef n s)
+pattern DLAfter e f    = DL (After e f)
 pattern DLVar n        = DL (LVar n)
 pattern DLPtr          = DL Ptr
 
