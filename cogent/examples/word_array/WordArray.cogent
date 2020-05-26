@@ -1,0 +1,49 @@
+include <gum/common/wordarray.cogent>
+
+-- Standard ADT methods which are not higher order functions
+
+wordarray_get_u32 : ((WordArray U32)!, WordArrayIndex) -> U32
+wordarray_get_u32 x = wordarray_get x
+
+wordarray_length_u32 : (WordArray U32)! -> U32
+wordarray_length_u32 x = wordarray_length [U32] x
+
+wordarray_put2_u32 : WordArrayPutP U32 -> WordArray U32
+wordarray_put2_u32 x = wordarray_put2 x
+
+---- ADT methods which are higher order functions
+--
+wordarray_map_no_break_u32 : all(a,b). WordArrayMapNoBreakP U32 a b -> (WordArray U32, a)
+wordarray_map_no_break_u32 x = wordarray_map_no_break x
+
+wordarray_fold_no_break_u32 : all(a). WordArrayFoldNoBreakP U32 a () -> a
+wordarray_fold_no_break_u32 x = wordarray_fold_no_break x
+
+---- Function bodies used to modify elements or in higher order functions
+--
+inc : ElemAO U32 () () -> (U32, ())
+inc #{elem, acc, obsv} = (elem + 1, acc)
+
+sum_bod : ElemAO U32 U32 () -> U32
+sum_bod #{elem, acc, obsv} = elem + acc
+
+mul_bod : ElemAO U32 U32 () -> U32
+mul_bod #{elem, acc, obsv} = elem * acc
+---- Tests to make higher order functions exist
+--
+---- For map_no_break
+--
+inc_arr : WordArray U32 -> (WordArray U32, ())
+inc_arr wa = let end = wordarray_length wa !wa and
+                 arg = #{arr = wa, frm = 0, to = end, f = inc, acc = (), obsv = ()}
+             in wordarray_map_no_break_u32 arg
+---- For fold_no_break
+
+sum : (WordArray U32)! -> U32
+sum wa = let e = wordarray_length_u32 wa and
+             arg = #{arr = wa, frm = 0, to = e, f = sum_bod, acc = 0, obsv = ()}
+         in wordarray_fold_no_break arg
+mul : (WordArray U32)! -> U32
+mul wa = let e = wordarray_length_u32 wa and
+             arg = #{arr = wa, frm = 0, to = e, f = mul_bod, acc = 0, obsv = ()}
+         in wordarray_fold_no_break arg
