@@ -24,10 +24,11 @@ begin
 
 type_synonym funtyp = "char list"
 
-(* Placeholder. We will need to add proper abstract value representations later on. *)
-type_synonym abstyp = unit
-
 type_synonym ptrtyp = addr
+
+(* Placeholder. We will need to add proper abstract value representations later on. *)
+datatype atyp = WordArrayU32 "32 word list" | WAU32 "32 word" "32 word" | TOther
+type_synonym abstyp = atyp
 
 
 (* Mechanism to get different instances of cogent_C_val for signed and unsigned words. *)

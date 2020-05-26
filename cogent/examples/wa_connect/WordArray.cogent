@@ -1,0 +1,5 @@
+include <gum/common/wordarray.cogent>
+
+wordarray_put2_u32 : WordArrayPutP U32 -> WordArray U32
+wordarray_put2_u32 x = wordarray_put2 x
+
