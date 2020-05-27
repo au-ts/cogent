@@ -4,7 +4,47 @@ theory Abstract_CorresProof
 begin
 
 
-context Generated begin
+locale WordArray = main_pp_inferred begin
+  definition "abs_repr' a \<equiv> case a of
+      WAU32 _ _ \<Rightarrow> (''WordArray'', [RPrim (Num U32), RPrim (Num U32)])
+    | _ \<Rightarrow> (''Unknown Abstract Type'', [])"
+
+  definition "abs_typing' a name \<tau>s sig (r :: ptrtyp set) (w :: ptrtyp set) \<equiv>
+    r = {} \<and> w = {} \<and> sig \<noteq> Unboxed \<and>
+    (case a of
+      WAU32 _ _ \<Rightarrow> name = ''WordArray'' \<and> \<tau>s = [TPrim (Num U32), TPrim (Num U32)]
+    | _ \<Rightarrow> name = ''Unknown Abstract Type'' \<and> \<tau>s = [])"
+end
+
+sublocale WordArray \<subseteq>
+  update_sem_init abs_typing' abs_repr'
+  apply (unfold abs_repr'_def[abs_def] abs_typing'_def[abs_def])
+  apply unfold_locales
+        apply (clarsimp split: atyp.splits)
+          apply (case_tac s; blast elim: bang_sigil.elims) 
+         apply (case_tac s; blast elim: bang_sigil.elims)[]
+        apply (case_tac s; blast elim: bang_sigil.elims)[] 
+       apply simp+
+   apply (clarsimp split: atyp.splits)
+     apply (case_tac s, (case_tac s', simp_all)+)[]
+    apply (case_tac s, (case_tac s', simp_all)+)[]
+   apply (case_tac s, (case_tac s', simp_all)+)[]
+  apply (clarsimp split: atyp.splits)
+  done
+
+sublocale WordArray \<subseteq> Generated t abs_typing' abs_repr'
+  apply (unfold abs_repr'_def[abs_def] abs_typing'_def[abs_def])
+  apply unfold_locales
+        apply (clarsimp split: atyp.splits)
+          apply (case_tac s; blast elim: bang_sigil.elims)+
+   apply (clarsimp split: atyp.splits)
+     apply (case_tac s, case_tac s', simp_all)
+    apply (case_tac s, case_tac s', simp_all)
+   apply (case_tac s, case_tac s', simp_all)
+  apply (clarsimp split: atyp.splits)
+  done
+
+context WordArray begin
 
 section "Extract Proof Obligation"
 
@@ -16,7 +56,7 @@ val SOME (_, _, _, z) = y;
 section "Dirty hacks to generate the correct definitions for the proof"
 
 subsection "State and Heap Relation"
-
+(*
 definition
   heap_rel_ptr_w32 ::
   "(funtyp, abstyp, ptrtyp) store \<Rightarrow> lifted_globals \<Rightarrow>
@@ -41,7 +81,15 @@ definition heap_rel'
 definition state_rel' :: "((funtyp, abstyp, ptrtyp) store \<times> lifted_globals) set"
 where
   "state_rel' = {(\<sigma>, h). heap_rel' \<sigma> h}"
-
+*)
+thm state_rel_def
+thm heap_rel_def 
+(*
+  Christine: 
+    the generated heap_rel definition is just True 
+    at the moment. I have updated the definition manually 
+    in the settup file to the definition that you had here. 
+*)
 subsection "Update semantics abstraction"
 
 definition \<xi>_0' :: "(char list, atyp, 32 word) uabsfuns" 
@@ -82,7 +130,7 @@ definition corres_wordarray
 lemma  "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
        \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v'; \<Gamma>' ! i = Some (fst (snd (\<Xi> ''wordarray_put2_0'')));
         corres_wordarray \<sigma> st (arr_C v')\<rbrakk> \<Longrightarrow>
-       corres state_rel' (App (AFun ''wordarray_put2_0'' []) (Var i)) (do x <- wordarray_put2_0' v';
+       corres state_rel (App (AFun ''wordarray_put2_0'' []) (Var i)) (do x <- wordarray_put2_0' v';
   gets (\<lambda>s. x)
                                                                       od)
         \<xi>_0' \<gamma> \<Xi> \<Gamma>' \<sigma> st" 
@@ -110,7 +158,7 @@ lemma  "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
    apply (monad_eq simp: wordarray_put2_0'_def)
 
    apply (rule conjI)
-   apply (clarsimp simp: state_rel'_def heap_rel'_def)
+   apply (clarsimp simp: state_rel_def heap_rel_def)
 \<comment> \<open> Prove the heap relation for WordArray_u32_C objects\<close>
    apply (rule conjI; clarsimp)
     apply (clarsimp simp: corres_wordarray_def valid_cogent_wordarray_def)
