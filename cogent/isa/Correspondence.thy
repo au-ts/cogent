@@ -638,7 +638,7 @@ next case (split_cons x xs a as b bs)
     next case share with 3 show ?thesis
       apply (clarsimp dest!: split_cons(3))
       apply (rule_tac V="S \<in> {S}" in revcut_rl, blast)
-      apply (drule(2) u_v_shareable_not_writable)
+      apply (frule(1) u_v_shareable_not_writable')
       apply (clarsimp)
       apply (rule_tac x = "rx \<union> r'"  in exI)
       apply (rule_tac x = "w'"       in exI)
@@ -783,7 +783,7 @@ next case (split_bang_cons K "is" xs as bs x a b)
           by (auto simp: Un_assoc)
       next case share
         moreover then have w1_empty: "w1 = {}"
-          using u_v_shareable_not_writable split\<gamma>s by blast
+          using u_v_shareable_not_writable' split\<gamma>s by blast
         moreover have "\<Xi>, \<sigma> \<turnstile> g # \<gamma>a \<sim> g' # \<gamma>a' matches Some t # as \<langle>r1 \<union> (r21 \<union> p), {} \<union> w21\<rangle>"
           using split\<gamma>s split\<gamma>as
           by (intro u_v_matches_some, auto simp add: w1_empty)
@@ -836,11 +836,10 @@ next case (drop t)
   with Cons drop show ?thesis
     apply (safe elim!: u_v_matches_consE weakening_comp.cases dest!: Cons(3))
     apply clarsimp
-    apply (frule u_v_discardable_not_writable[OF Set.singletonI])
-    apply (force dest: kinding_in_kind_helper)
+    apply (frule u_v_discardable_not_writable', force)
     apply (rule_tac x = "r'a" in exI)
-    apply (force)
-  done
+    apply force
+    done
   qed
 qed
 
@@ -960,11 +959,11 @@ and     "[] \<turnstile> \<Gamma> consumed"
 shows   "w = {}"
 using assms proof(induction rule: u_v_matches.induct)
      case u_v_matches_empty then show ?case by auto
-next case u_v_matches_none  then show ?case by (simp add: empty_def weakening_def)
-next case u_v_matches_some  then show ?case by (auto simp: weakening_def empty_def
+next case u_v_matches_none  then show ?case by (simp add: is_consumed_Cons)
+next case u_v_matches_some  then show ?case by (auto simp: weakening_def empty_def is_consumed_Cons
                                                      elim: weakening_comp.cases
                                                      dest: kinding_in_kind_helper
-                                                     u_v_discardable_not_writable[OF Set.singletonI])
+                                                     u_v_discardable_not_writable')
 qed
 
 
@@ -973,8 +972,8 @@ assumes "list_all2 (kinding []) \<tau>s K"
 and     "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<tau>s \<Gamma>) \<langle>r, w\<rangle>"
 and     "K \<turnstile> \<Gamma> consumed"
 shows   "w = {}"
-using assms by (auto dest:   instantiate_ctx_weaken
-                     intro!: u_v_matches_proj_consumed')
+  using assms
+  by (meson instantiate_ctx_consumed u_v_matches_proj_consumed')
 
 lemma u_v_matches_proj_single:
 assumes "list_all2 (kinding []) \<tau>s K"
@@ -2296,10 +2295,8 @@ next
     using specialisation_subtyping subtyping_wellformed_preservation(1) typing_to_wellformed(1) apply blast
     apply fast
     done
-next case u_sem_all_empty then show ?case by ( cases es, simp_all
-                                             , fastforce intro!: upd.frame_id
-                                                                 upd_val_rel_all.intros
-                                                         dest: u_v_matches_empty_env(2))
+next case u_sem_all_empty then show ?case
+    by (fastforce intro!: upd.frame_id upd_val_rel_all.intros dest: u_v_matches_proj_consumed)+
 next case u_sem_all_cons
   note IH1  = this(2)
   and  IH2  = this(4)

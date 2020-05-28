@@ -654,12 +654,27 @@ declare singleton_def [simp]
 definition instantiate_ctx :: "type substitution \<Rightarrow> ctx \<Rightarrow> ctx" where
   "instantiate_ctx \<delta> \<Gamma> \<equiv> map (map_option (instantiate \<delta>)) \<Gamma>"
 
+lemma instantiate_ctx_Cons:
+  "instantiate_ctx \<delta> (x # xs) = map_option (instantiate \<delta>) x # instantiate_ctx \<delta> xs"
+  by (simp add: instantiate_ctx_def)
+
 inductive split_comp :: "kind env \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool"
-          ("_ \<turnstile> _ \<leadsto> _ \<parallel> _" [30,0,0,20] 60) where
+          ("_ \<turnstile> _ \<leadsto> _ \<parallel> _" [55,0,0,55] 60) where
   none  : "K \<turnstile> None \<leadsto> None \<parallel> None"
 | left  : "\<lbrakk> K \<turnstile> t wellformed \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> Some t \<parallel> None"
 | right : "\<lbrakk> K \<turnstile> t wellformed \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> None   \<parallel> Some t"
-| share : "\<lbrakk> K \<turnstile> t :\<kappa> k; S \<in> k \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> Some t \<parallel> Some t"
+| share : "\<lbrakk> K \<turnstile> t wellformed; S \<in> kinding_fn K t \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> Some t \<parallel> Some t"
+
+lemma simp_comp_simps:
+  "split_comp K None None None = True"
+  "split_comp K (Some t) (Some t1) None = (t1 = t \<and> K \<turnstile> t wellformed)"
+  "split_comp K (Some t) None (Some t2) = (t2 = t \<and> K \<turnstile> t wellformed)"
+  "split_comp K (Some t) (Some t1) (Some t2) = (t1 = t \<and> t2 = t \<and> K \<turnstile> t wellformed \<and> S \<in> kinding_fn K t)"
+  "split_comp K None (Some t) None = False"
+  "split_comp K None None (Some t) = False"
+  "split_comp K None (Some t1) (Some t2) = False"
+  "split_comp K (Some t) None None = False"
+  by (simp add: split_comp.simps)+
 
 definition split :: "kind env \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ \<leadsto> _ | _" [55,0,0,55] 60) where
   "split K \<equiv> list_all3 (split_comp K)"
@@ -701,13 +716,19 @@ inductive weakening_comp :: "kind env \<Rightarrow> type option \<Rightarrow> ty
 | keep : "weakening_comp K (Some t) (Some t)"
 | drop : "\<lbrakk> K \<turnstile> t wellformed ; D \<in> kinding_fn K t \<rbrakk> \<Longrightarrow> weakening_comp K (Some t) None"
 
+lemma weakening_comp_simps[simp]:
+  "weakening_comp K None None = True"
+  "weakening_comp K (Some t1) (Some t2) = (t2 = t1)"
+  "weakening_comp K (Some t) None = (K \<turnstile> t wellformed \<and> D \<in> kinding_fn K t)"
+  by (simp add: weakening_comp.simps)+
+
 lemma weakening_comp_simps2:
   "weakening_comp K a (Some u) = (a = Some u)"
   "weakening_comp K None b = (b = None)"
   "weakening_comp K a None = (a = None \<or> (\<exists>t. a = Some t \<and> K \<turnstile> t wellformed \<and> D \<in> kinding_fn K t))"
   by (simp add: eq_iff weakening_comp.simps ex_kinding_inset)+
 
-definition weakening :: "kind env \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ \<leadsto>w _" [30,0,20] 60) where
+definition weakening :: "kind env \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ \<leadsto>w _" [55,0,55] 60) where
   "weakening K \<equiv> list_all2 (weakening_comp K)"
 
 lemmas weakening_induct[consumes 1, case_names weakening_empty weakening_cons, induct set: list_all2]
@@ -2197,8 +2218,10 @@ assumes "K \<turnstile> c \<leadsto> c1 \<parallel> c2"
 and     "list_all2 (kinding K') \<delta> K"
 shows   "K' \<turnstile> map_option (instantiate \<delta>) c \<leadsto> map_option (instantiate \<delta>) c1 \<parallel> map_option (instantiate \<delta>) c2"
   using assms
-  by (auto elim!: split_comp.cases simp add: instantiate_wellformed split_comp.intros
-      dest: substitutivity_single list_all2_kinding_wellformedD)
+  by (force elim!: split_comp.cases
+      simp add: instantiate_wellformed list_all2_lengthD
+      wellkinded_imp_wellformed split_comp.simps
+      dest: substitutivity_kinding_fn_inD wellkinded_imp_kinded)
 
 lemma instantiate_ctx_split:
 assumes "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
@@ -2218,13 +2241,17 @@ proof (induct rule: split_bang.induct)
   then show ?case
     by (auto simp: instantiate_ctx_def intro: split_bang.intros)
 next
-  case split_bang_cons
-  then show ?case
-    by (auto
-        intro!: split_bang.intros substitutivity_single instantiate_wellformed
-        elim!: split_bang_comp.cases split_comp.cases
-        dest: list_all2_kinding_wellformedD
-        simp add: instantiate_ctx_def split_bang_comp.simps split_comp.simps)
+  case (split_bang_cons K "is" xs as bs x a b)
+  moreover have
+    "K' , 0 \<in> is \<turnstile> map_option (instantiate \<delta>) x \<leadsto>b map_option (instantiate \<delta>) a \<parallel> map_option (instantiate \<delta>) b"
+    using split_bang_cons.hyps(3) split_bang_cons.prems
+    apply (safe elim!: split_bang_comp.cases)
+     apply (clarsimp simp add: split_bang_comp.simps map_option_instantiate_split_comp)
+    apply (clarsimp simp add: split_bang_comp.simps instantiate_wellformed list_all2_lengthD
+        wellkinded_imp_wellformed)
+    done
+  ultimately show ?case
+    by (clarsimp simp add: instantiate_ctx_Cons split_bang_Cons)
 qed
 
 

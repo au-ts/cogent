@@ -778,20 +778,23 @@ next case (split_cons x xs a as b bs)
       apply (rule_tac x = "wx \<union> w''" in exI)
       apply (force intro!: matches_ptrs.intros)
     done
-    next case share with 3 show ?thesis
-      apply (clarsimp dest!: split_cons(3))
-      apply (rule_tac V="S \<in> {S}" in revcut_rl, blast)
-      apply (drule(2) shareable_not_writable)
-      apply (clarsimp)
-      apply (rule_tac x = "rx \<union> r'"  in exI)
-      apply (rule_tac x = "w'"       in exI)
-      apply (rule_tac x = "rx \<union> r''" in exI, rule, blast)
-      apply (rule_tac x = "w''"      in exI)
-      apply (force intro: matches_ptrs_some [where w = "{}", simplified])
+next case share with 3 show ?thesis
+    apply (clarsimp dest!: split_cons(3))
+    apply (rule_tac V="S \<in> {S}" in revcut_rl, blast)
+    apply (frule(1) shareable_not_writable')
+    apply (rule_tac x = "rx \<union> r'"  in exI)
+    apply (rule_tac x = "w'"       in exI)
+    apply (rule_tac x = "rx \<union> r''" in exI, rule, blast)
+    apply (rule_tac x = "w''"      in exI)
+    apply (force intro: matches_ptrs_some [where w = "{}", simplified])
     done
     qed
   qed
 qed
+
+fun foo :: "nat \<Rightarrow> unit" where
+  "foo 0 = ()"
+| "foo n = foo (n-1)"
 
 lemma matches_ptrs_split:
 assumes "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
@@ -930,7 +933,7 @@ next
       next
         case share
         moreover then have w1_empty: "w1 = {}"
-          using shareable_not_writable split\<gamma> by blast
+          using shareable_not_writable' split\<gamma> by blast
         moreover have "\<Xi>, \<sigma> \<turnstile> g # \<gamma>' matches Some t # as \<langle>r1 \<union> (r21 \<union> p), {} \<union> w21\<rangle>"
           using split\<gamma> split\<gamma>'
           by (intro matches_ptrs_some, auto simp add: w1_empty)
