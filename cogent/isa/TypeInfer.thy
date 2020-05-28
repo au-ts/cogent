@@ -13,6 +13,16 @@ lemma canonical_trans_less_add2:
   shows "z < y \<Longrightarrow> z < x + y"
   by (metis add.commute canonical_trans_less_add1)
 
+lemma canonical_trans_le_add1:
+  fixes x y z :: "'a :: canonically_ordered_monoid_add"
+  shows "x + y \<le> z \<Longrightarrow> x \<le> z"
+  by (meson le_iff_add order_trans)
+
+lemma canonical_trans_le_add2:
+  fixes x y z :: "'a :: canonically_ordered_monoid_add"
+  shows "x + y \<le> z \<Longrightarrow> y \<le> z"
+  by (metis add.commute canonical_trans_le_add1)
+
 lemma canonical_smaller_add_impossible1:
   fixes x y z :: "'a :: canonically_ordered_monoid_add"
   shows "\<lbrakk> \<not> z < x + y; z < x \<rbrakk> \<Longrightarrow> False"
@@ -23,11 +33,22 @@ lemma canonical_smaller_add_impossible2:
   shows "\<lbrakk> \<not> z < x + y; z < y \<rbrakk> \<Longrightarrow> False"
   using canonical_trans_less_add2 by blast
 
+lemma neq_le_eq_less:
+  fixes a b :: "'a :: order"
+  shows "a \<noteq> b \<Longrightarrow> a \<le> b \<longleftrightarrow> a < b"
+  by (simp add: le_less)
+
 (*
   What structures satisfy?
-  "\<lbrakk>1 < c1 + c2; c1 < 1; c1 \<le> 1\<rbrakk> \<Longrightarrow> False"
-  "\<lbrakk>1 < c1 + c2; c1 \<le> 1; c1 < 1\<rbrakk> \<Longrightarrow> False"
-  "1 < 2"
+ 1. \<lbrakk>c1 + c2 \<le> 1 \<rbrakk> \<Longrightarrow> c1 \<le> 1
+ 2. \<lbrakk>c1 + c2 \<le> 1 \<rbrakk> \<Longrightarrow> c2 \<le> 1
+ 3. \<lbrakk> 1 + 1 \<le> 1; c1 = 1; c2 = 1\<rbrakk> \<Longrightarrow> False
+ 4. \<lbrakk> c1 \<le> 1; c2 \<le> 1; c1 \<noteq> 1\<rbrakk> \<Longrightarrow> c1 + c2 \<le> 1
+ 5. \<lbrakk> c1 \<le> 1; c2 \<le> 1; c2 \<noteq> 1\<rbrakk> \<Longrightarrow> c1 + c2 \<le> 1
+
+  \<lbrakk>\<not> 1 < sup c1 c2; 1 < c1\<rbrakk> \<Longrightarrow> False
+  \<lbrakk>\<not> 1 < sup c1 c2; 1 < c2\<rbrakk> \<Longrightarrow> False
+  \<lbrakk>1 < sup c1 c2 \<Longrightarrow> \<not> 1 < c1; \<not> 1 < c2\<rbrakk> \<Longrightarrow> False
 *)
 
 (* Cogent lemmas (TODO move) *)
@@ -606,8 +627,12 @@ lemmas linearity_many_impl_iff2 = linearity_many_impl_iff[simplified zero_linear
 lemma linearity_add_to_one_iff: "(c1 :: linearity) + c2 = 1 \<longleftrightarrow> c1 = 1 \<and> c2 = 0 \<or> c1 = 0 \<and> c2 = 1"
   by (cases c1; cases c2; simp add: zero_linearity_def one_linearity_def)
 
-lemma linearity_gt_one_eq_many:
-  "c > 1 \<longleftrightarrow> c = \<omega>"
+lemma linearity_one_lt_eq_many:
+  "1 < c \<longleftrightarrow> c = \<omega>"
+  by (cases c; simp add: one_linearity_def)
+
+lemma linearity_one_le_eq_one_or_many:
+  "1 \<le> c \<longleftrightarrow> c = 1 \<or> c = \<omega>"
   by (cases c; simp add: one_linearity_def)
 
 
@@ -712,16 +737,28 @@ lemma shareable_iff_droppable:
 
 
 definition is_used :: "kind env \<Rightarrow> type \<Rightarrow> ('a :: {one, order}) \<Rightarrow> bool" where
-  "is_used K t c \<equiv> (c \<ge> 1) \<or> (droppable K t)"
+  "is_used K t c \<equiv> c \<ge> 1 \<or> droppable K t"
+
+definition is_shared :: "kind list \<Rightarrow> type \<Rightarrow> ('a :: {one, semilattice_sup}) \<Rightarrow> bool" where
+  "is_shared K t c \<equiv> c \<le> 1 \<or> shareable K t"
 
 lemma is_used_linearity_simps[simp]:
   "is_used K t \<omega> = True"
-  "is_used K t (1 :: linearity) = True"
   "is_used K t LOne = True"
-  "is_used K t (0 :: linearity) = droppable K t"
   "is_used K t LNone = droppable K t"
-  by (clarsimp simp add: zero_linearity_def one_linearity_def is_used_def)+
+  by (clarsimp simp add: one_linearity_def is_used_def)+
 
+lemmas is_used_linearity_simps2[simp] =
+  is_used_linearity_simps(2-)[simplified zero_linearity_def[symmetric] one_linearity_def[symmetric]]
+
+lemma is_shared_linearity_simps[simp]:
+  "is_shared K t \<omega> = shareable K t"
+  "is_shared K t LOne = True"
+  "is_shared K t LNone = True"
+  by (clarsimp simp add: is_shared_def one_linearity_def)+
+
+lemmas is_shared_linearity_simps2[simp] =
+  is_shared_linearity_simps(2-)[simplified zero_linearity_def[symmetric] one_linearity_def[symmetric]]
 
 
 definition merge_drop_condition_comp :: "kind list \<Rightarrow> type \<Rightarrow> linearity \<Rightarrow> linearity \<Rightarrow> bool" where
@@ -818,7 +855,7 @@ inductive tyinf_synth :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<
                   ; sigil_perm s \<noteq> Some ReadOnly
                   ; f < length ts
                   ; ts ! f = (n, t, taken)
-                  ; D \<in> kinding_fn K t \<or> taken = Taken
+                  ; droppable K t \<or> taken = Taken
                   ; \<Xi>, K, \<Gamma>, C2 \<turnstile>\<up> e' : t
                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C1 \<oplus> C2 \<turnstile>\<down> Put e f e' : TRecord (ts[f := (n,t,Present)]) s"
 
@@ -851,12 +888,15 @@ inductive tyinf_synth :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<
                   ; C2o = ct # cu # C2
                   ; is_used K t ct
                   ; is_used K u cu
+                  ; is_shared K t ct
+                  ; is_shared K u cu
                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C1 \<oplus> C2 \<turnstile>\<up> Split x y : t'"
 
 | tyinf_let    : "\<lbrakk> \<Xi>, K, \<Gamma>, C1 \<turnstile>\<down> x : t
                   ; \<Xi>, K, (t # \<Gamma>), C2o \<turnstile>\<up> y : u
                   ; C2o = ct # C2
                   ; is_used K t ct
+                  ; is_shared K t ct
                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C1 \<oplus> C2 \<turnstile>\<up> Let x y : u"
 
 | tyinf_letb   : "\<lbrakk> \<Xi>, K, \<Gamma>, C1 \<turnstile>\<down> x : t
@@ -871,9 +911,11 @@ inductive tyinf_synth :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<
                   ; \<Xi>, K, (t # \<Gamma>), C2ao \<turnstile>\<up> a : u
                   ; C2ao = ct # C2a
                   ; is_used K t ct
+                  ; is_shared K t ct
                   ; \<Xi>, K, (TSum (tagged_list_update tag (t, Checked) ts) # \<Gamma>), C2bo \<turnstile>\<up> b : u
                   ; C2bo = csum # C2b
                   ; is_used K (TSum (tagged_list_update tag (t, Checked) ts)) csum
+                  ; is_shared K (TSum (tagged_list_update tag (t, Checked) ts)) csum
                   ; merge_drop_condition K \<Gamma> C2a C2b
                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C1 \<oplus> (countMax C2a C2b) \<turnstile>\<up> Case x tag a b : u"
 
@@ -894,6 +936,8 @@ inductive tyinf_synth :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<
                   ; C2o = ct # cr # C2
                   ; is_used K t ct
                   ; is_used K (TRecord (ts [f := (n,t,taken)]) s) cr
+                  ; is_shared K t ct
+                  ; is_shared K (TRecord (ts [f := (n,t,taken)]) s) cr
                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C1 \<oplus> C2 \<turnstile>\<up> Take e f e' : u"
 
 | tyinf_switch: "\<lbrakk> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> x : \<tau>
@@ -1066,40 +1110,39 @@ thm typing3[simplified]
 
 
 
-definition shareable_constraint_comp :: "kind list \<Rightarrow> type \<Rightarrow> linearity \<Rightarrow> bool" where
-  "shareable_constraint_comp K t c \<equiv> c > 1 \<longrightarrow> shareable K t"
+
 
 definition shareable_constraint :: "kind list \<Rightarrow> type list \<Rightarrow> linearity list \<Rightarrow> bool" where
-  "shareable_constraint K \<equiv> list_all2 (shareable_constraint_comp K)"
+  "shareable_constraint K \<equiv> list_all2 (is_shared K)"
 
 lemmas shareable_constraint_conv_all_nth =
-  list_all2_conv_all_nth[where P=\<open>shareable_constraint_comp K\<close> for K,
+  list_all2_conv_all_nth[where P=\<open>is_shared K :: Cogent.type \<Rightarrow> linearity \<Rightarrow> bool\<close> for K,
                          simplified shareable_constraint_def[symmetric]]
 
 lemmas shareable_constraint_Nil1[simp] =
-  list_all2_Nil[where P=\<open>shareable_constraint_comp K\<close> for K,
+  list_all2_Nil[where P=\<open>is_shared K :: Cogent.type \<Rightarrow> linearity \<Rightarrow> bool\<close> for K,
                  simplified shareable_constraint_def[symmetric]]
 lemmas shareable_constraint_Nil2[simp] =
-  list_all2_Nil2[where P=\<open>shareable_constraint_comp K\<close> for K,
+  list_all2_Nil2[where P=\<open>is_shared K :: Cogent.type \<Rightarrow> linearity \<Rightarrow> bool\<close> for K,
                  simplified shareable_constraint_def[symmetric]]
 
 lemmas shareable_constraint_Cons[simp] =
-  list_all2_Cons[where P=\<open>shareable_constraint_comp K\<close> for K,
+  list_all2_Cons[where P=\<open>is_shared K :: Cogent.type \<Rightarrow> linearity \<Rightarrow> bool\<close> for K,
                  simplified shareable_constraint_def[symmetric]]
 lemmas shareable_constraint_Cons1 =
-  list_all2_Cons1[where P=\<open>shareable_constraint_comp K\<close> for K,
+  list_all2_Cons1[where P=\<open>is_shared K :: Cogent.type \<Rightarrow> linearity \<Rightarrow> bool\<close> for K,
                   simplified shareable_constraint_def[symmetric]]
 lemmas shareable_constraint_Cons2 =
-  list_all2_Cons2[where P=\<open>shareable_constraint_comp K\<close> for K,
+  list_all2_Cons2[where P=\<open>is_shared K :: Cogent.type \<Rightarrow> linearity \<Rightarrow> bool\<close> for K,
                   simplified shareable_constraint_def[symmetric]]
 
 lemma shareable_constraint_shareable_nthD[dest]:
   "shareable_constraint K G C \<Longrightarrow> C ! i > 1 \<Longrightarrow> i < length G \<Longrightarrow> shareable K (G ! i)"
-  by (simp add: shareable_constraint_conv_all_nth shareable_constraint_comp_def)
+  by (force simp add: shareable_constraint_conv_all_nth is_shared_def)
 
 lemma shareable_constraint_shareable_nth_manyD[dest]:
   "shareable_constraint K G C \<Longrightarrow> C ! i = \<omega> \<Longrightarrow> i < length G \<Longrightarrow> shareable K (G ! i)"
-  by (simp add: shareable_constraint_conv_all_nth shareable_constraint_comp_def linearity_gt_one_eq_many)
+  by (simp add: shareable_constraint_shareable_nthD linearity_one_lt_eq_many)
 
 lemma shareable_constraint_add[dest]:
   assumes "length C1 = length C2"
@@ -1107,77 +1150,73 @@ lemma shareable_constraint_add[dest]:
     "shareable_constraint K \<Gamma> (C1 \<oplus> C2) \<Longrightarrow> shareable_constraint K \<Gamma> C1"
     "shareable_constraint K \<Gamma> (C1 \<oplus> C2) \<Longrightarrow> shareable_constraint K \<Gamma> C2"
   using assms
-  by (force simp add: shareable_constraint_conv_all_nth lin_add_sym shareable_constraint_comp_def
-      intro: canonical_trans_less_add1 canonical_trans_less_add2)+
+  by (force dest: canonical_trans_le_add1 canonical_trans_le_add2
+      simp add: shareable_constraint_conv_all_nth lin_add_sym is_shared_def)+
 
 
 
-definition new_shareable_constraint_comp :: "kind list \<Rightarrow> type \<Rightarrow> linearity \<Rightarrow> linearity \<Rightarrow> bool" where
-  "new_shareable_constraint_comp K \<equiv> (\<lambda>t c1 c2. c1 = 1 \<longrightarrow> c2 = 1 \<longrightarrow> shareable K t)"
+definition new_is_shared :: "kind list \<Rightarrow> type \<Rightarrow> ('a :: {one, canonically_ordered_monoid_add}) \<Rightarrow> 'a \<Rightarrow> bool" where
+  "new_is_shared K \<equiv> (\<lambda>t c1 c2. c1 + c2 \<le> 1 \<or> shareable K t)"
 
 definition new_shareable_constraint :: "kind list \<Rightarrow> type list \<Rightarrow> linearity list \<Rightarrow> linearity list \<Rightarrow> bool" where
-  "new_shareable_constraint K \<equiv> list_all3 (new_shareable_constraint_comp K)"
+  "new_shareable_constraint K \<equiv> list_all3 (new_is_shared K)"
 
 lemmas new_shareable_constraint_conv_all_nth =
-  list_all3_conv_all_nth[ where P=\<open>new_shareable_constraint_comp K\<close> for K
+  list_all3_conv_all_nth[ where P=\<open>new_is_shared K :: Cogent.type \<Rightarrow> linearity \<Rightarrow> linearity \<Rightarrow> bool\<close> for K
                         , simplified new_shareable_constraint_def[symmetric]]
 
 lemmas new_shareable_constraint_Nil[simp,intro!] =
-  all3Nil[ where P=\<open>new_shareable_constraint_comp K\<close> for K
+  all3Nil[ where P=\<open>new_is_shared K :: Cogent.type \<Rightarrow> linearity \<Rightarrow> linearity \<Rightarrow> bool\<close> for K
          , simplified new_shareable_constraint_def[symmetric]]
 lemmas new_shareable_constraint_Nil1[simp] =
-  list_all3_Nil1[ where P=\<open>new_shareable_constraint_comp K\<close> for K
+  list_all3_Nil1[ where P=\<open>new_is_shared K :: Cogent.type \<Rightarrow> linearity \<Rightarrow> linearity \<Rightarrow> bool\<close> for K
                 , simplified new_shareable_constraint_def[symmetric]]
 lemmas new_shareable_constraint_Nil2[simp] =
-  list_all3_Nil2[ where P=\<open>new_shareable_constraint_comp K\<close> for K
+  list_all3_Nil2[ where P=\<open>new_is_shared K :: Cogent.type \<Rightarrow> linearity \<Rightarrow> linearity \<Rightarrow> bool\<close> for K
                 , simplified new_shareable_constraint_def[symmetric]]
 lemmas new_shareable_constraint_Nil3[simp] =
-  list_all3_Nil3[ where P=\<open>new_shareable_constraint_comp K\<close> for K
+  list_all3_Nil3[ where P=\<open>new_is_shared K :: Cogent.type \<Rightarrow> linearity \<Rightarrow> linearity \<Rightarrow> bool\<close> for K
                 , simplified new_shareable_constraint_def[symmetric]]
 
 lemmas new_shareable_constraint_Cons =
-  list_all3_Cons[ where P=\<open>new_shareable_constraint_comp K\<close> for K
+  list_all3_Cons[ where P=\<open>new_is_shared K :: Cogent.type \<Rightarrow> linearity \<Rightarrow> linearity \<Rightarrow> bool\<close> for K
                 , simplified new_shareable_constraint_def[symmetric]]
 lemmas new_shareable_constraint_Cons1 =
-  list_all3_Cons1[ where P=\<open>new_shareable_constraint_comp K\<close> for K
+  list_all3_Cons1[ where P=\<open>new_is_shared K :: Cogent.type \<Rightarrow> linearity \<Rightarrow> linearity \<Rightarrow> bool\<close> for K
                  , simplified new_shareable_constraint_def[symmetric]]
 lemmas new_shareable_constraint_Cons2 =
-  list_all3_Cons2[ where P=\<open>new_shareable_constraint_comp K\<close> for K
+  list_all3_Cons2[ where P=\<open>new_is_shared K :: Cogent.type \<Rightarrow> linearity \<Rightarrow> linearity \<Rightarrow> bool\<close> for K
                  , simplified new_shareable_constraint_def[symmetric]]
 lemmas new_shareable_constraint_Cons3 =
-  list_all3_Cons3[ where P=\<open>new_shareable_constraint_comp K\<close> for K
+  list_all3_Cons3[ where P=\<open>new_is_shared K :: Cogent.type \<Rightarrow> linearity \<Rightarrow> linearity \<Rightarrow> bool\<close> for K
                  , simplified new_shareable_constraint_def[symmetric]]
 
-lemma shareable_constraint_comp_plus_iff:
-  fixes c1 c2 :: linearity
-  shows
-  "shareable_constraint_comp K t (c1 + c2) \<longleftrightarrow>
-    shareable_constraint_comp K t c1
-    \<and> shareable_constraint_comp K t c2
-    \<and> new_shareable_constraint_comp K t c1 c2"
-  unfolding shareable_constraint_comp_def new_shareable_constraint_comp_def
-  by (cases c1; cases c2; simp add: one_linearity_def)
+lemma is_shared_plus_iff:
+  "is_shared K t (c1 + c2) \<longleftrightarrow> is_shared K t c1 \<and> is_shared K t c2 \<and> new_is_shared K t c1 c2"
+  unfolding is_shared_def new_is_shared_def
+  by (force dest: canonical_trans_le_add1 canonical_trans_le_add2)
 
 lemma shareable_constraint_plus_iff:
   assumes "length C1 = length C2"
-  shows "shareable_constraint K \<Gamma> (C1 \<oplus> C2) \<longleftrightarrow> shareable_constraint K \<Gamma> C1 \<and> shareable_constraint K \<Gamma> C2 \<and> new_shareable_constraint K \<Gamma> C1 C2"
+  shows
+    "shareable_constraint K \<Gamma> (C1 \<oplus> C2) \<longleftrightarrow>
+      shareable_constraint K \<Gamma> C1
+      \<and> shareable_constraint K \<Gamma> C2
+      \<and> new_shareable_constraint K \<Gamma> C1 C2"
   using assms
   by (force simp add: shareable_constraint_conv_all_nth new_shareable_constraint_conv_all_nth
-      shareable_constraint_comp_plus_iff)
+      is_shared_plus_iff)
 
-
-lemma shareable_constraint_comp_max_iff:
-  shows "shareable_constraint_comp K t (sup c1 c2) \<longleftrightarrow>
-    shareable_constraint_comp K t c1
-    \<and> shareable_constraint_comp K t c2"
-  by (cases c1; cases c2; simp add: shareable_constraint_comp_def one_linearity_def)
+lemma is_shared_max_iff:
+  shows "is_shared K t (sup c1 c2) \<longleftrightarrow> is_shared K t c1 \<and> is_shared K t c2"
+  by (force simp add: is_shared_def one_linearity_def)
 
 lemma shareable_constraint_max_iff:
   assumes "length C1 = length C2"
   shows "shareable_constraint K \<Gamma> (countMax C1 C2) \<longleftrightarrow> shareable_constraint K \<Gamma> C1 \<and> shareable_constraint K \<Gamma> C2"
   using assms
   by (force simp add: shareable_constraint_conv_all_nth new_shareable_constraint_conv_all_nth
-      shareable_constraint_comp_max_iff)
+      is_shared_max_iff)
 
 
 inductive tycount_context_constraint_comp :: "kind list \<Rightarrow> type \<Rightarrow> linearity \<Rightarrow> type option \<Rightarrow> bool" where
@@ -1294,12 +1333,12 @@ lemma join_contexts_tycount_context_constraint_comp:
   assumes
     "tycount_context_constraint_comp K t c1 mt1"
     "tycount_context_constraint_comp K t c2 mt2"
-    "new_shareable_constraint_comp K t c1 c2"
+    "new_is_shared K t c1 c2"
   shows
     "tycount_context_constraint_comp K t (c1 + c2) (join_contexts_comp t (c1 + c2))"
   using assms
   apply (simp add: split_comp.simps tycount_context_constraint_comp.simps join_contexts_comp_def)
-  apply (elim disjE; clarsimp simp add: zero_linearity_def one_linearity_def new_shareable_constraint_comp_def)
+  apply (elim disjE; clarsimp simp add: zero_linearity_def one_linearity_def new_is_shared_def)
   done
 
 lemma join_contexts_tycount_context_constraint:
@@ -1321,12 +1360,12 @@ lemma join_contexts_split_comp:
     "K \<turnstile> t wellformed"
     "tycount_context_constraint_comp K t c1 mt1"
     "tycount_context_constraint_comp K t c2 mt2"
-    "new_shareable_constraint_comp K t c1 c2"
+    "new_is_shared K t c1 c2"
   shows
     "K \<turnstile> join_contexts_comp t (c1 + c2) \<leadsto> mt1 \<parallel> mt2"
   using assms
   apply (simp add: split_comp.simps tycount_context_constraint_comp.simps join_contexts_comp_def)
-  apply (elim disjE; clarsimp simp add: zero_linearity_def one_linearity_def new_shareable_constraint_comp_def)
+  apply (elim disjE; clarsimp simp add: zero_linearity_def one_linearity_def new_is_shared_def)
   done
 
 lemma join_contexts_split:
@@ -1353,7 +1392,7 @@ lemma join_contexts_max_tycount_context_constraint_comp:
     "tycount_context_constraint_comp K t (sup c1 c2) (join_contexts_comp t (sup c1 c2))"
   using assms
   apply (simp add: split_comp.simps tycount_context_constraint_comp.simps join_contexts_comp_def)
-  apply (elim disjE; clarsimp simp add: zero_linearity_def one_linearity_def new_shareable_constraint_comp_def)
+  apply (elim disjE; clarsimp simp add: zero_linearity_def one_linearity_def new_is_shared_def)
   done
 
 lemma join_contexts_max_tycount_context_constraint:
@@ -1376,11 +1415,11 @@ lemma join_contexts_max_split_comp:
     "K \<turnstile> t wellformed"
     "tycount_context_constraint_comp K t c1 mt1"
     "tycount_context_constraint_comp K t c2 mt2"
-    "new_shareable_constraint_comp K t c1 c2"
+    "new_is_shared K t c1 c2"
   shows
     "K \<turnstile> join_contexts_comp t (sup c1 c2) \<leadsto> mt1 \<parallel> mt2"
   using assms
-  by (force simp add: zero_linearity_def one_linearity_def new_shareable_constraint_comp_def
+  by (force simp add: zero_linearity_def one_linearity_def new_is_shared_def
       split_comp.simps tycount_context_constraint_comp.simps join_contexts_comp_def)
 
 lemma join_contexts_max_split:
@@ -1456,10 +1495,9 @@ next
               simp add: prod_eq_iff_proj_eq shareable_def tyinf_context_lengths shareable_constraint_plus_iff)
 next
   case tyinf_put then show ?case
-    by (fastforce
-        intro!: join_contexts_tycount_context_constraint typing_typing_all.intros
-        join_contexts_split kinding_kinding_allI
-        simp add: tyinf_shareable_constraint_plus_iff)
+    by (simp add: tyinf_shareable_constraint_plus_iff droppable_def,
+        blast intro: join_contexts_tycount_context_constraint typing_typing_all.intros
+        join_contexts_split kinding_kinding_allI)
 next
   case tyinf_struct then show ?case
     by (force intro!: typing_typing_all.intros simp add: zip_map2)
@@ -1476,44 +1514,35 @@ next
     "K \<turnstile> u wellformed"
     using tyinf_split
     by (fastforce dest: tyinf_preserves_wellformed(1)[where t="TProduct t u", simplified type_wellformed_pretty_simps])+
-  moreover then have
-    "shareable_constraint_comp K t ct"
-    "shareable_constraint_comp K u cu"
-    using tyinf_split
-    apply (clarsimp simp add: shareable_constraint_comp_def)
-    sorry
-(*
-    by (clarsimp simp add: shareable_constraint_comp_def shareable_iff_droppable)+
-*)
   ultimately show ?case
     apply (clarsimp simp add: shareable_iff_nonlinear droppable_iff_nonlinear
-        tyinf_shareable_constraint_plus_iff is_used_linearity_iff)
+        tyinf_shareable_constraint_plus_iff)
     apply (rule exI, rule conjI)
      apply (rule join_contexts_tycount_context_constraint; blast)
     apply (rule typing_typing_all.intros)
       apply (rule join_contexts_split; blast)
      apply blast
-    
-
-    sorry
+      (* TODO: box the weakening_comp bit up into a lemma *)
+    apply (force intro: typing_weaken_context weakening_refl simp add: weakening_Cons
+        tycount_context_constraint_comp.simps weakening_comp.simps droppable_def is_used_def)
+    done
 next
   case (tyinf_let \<Xi> K \<Gamma> C1 x t C2o y u ct C2)
   moreover have
     "K \<turnstile> t wellformed"
     using tyinf_let by force
-  moreover then have
-    "shareable_constraint_comp K t ct"
-    using tyinf_let by (clarsimp simp add: shareable_constraint_comp_def shareable_iff_droppable)
   ultimately show ?case
     apply (clarsimp simp add: shareable_iff_nonlinear droppable_iff_nonlinear
-        tyinf_shareable_constraint_plus_iff is_used_linearity_iff)
+        tyinf_shareable_constraint_plus_iff)
     apply (rule exI, rule conjI)
      apply (rule join_contexts_tycount_context_constraint; blast)
 
     apply (rule typing_typing_all.intros)
       apply (rule join_contexts_split; blast)
      apply blast
-    sorry
+    apply (force intro: typing_weaken_context weakening_refl simp add: weakening_Cons
+        tycount_context_constraint_comp.simps weakening_comp.simps droppable_def is_used_def)
+    done
 next
   case (tyinf_letb \<Xi> K \<Gamma> C1 x t ct C2 y u "is")
   then show ?case
@@ -1535,11 +1564,6 @@ next
     "K \<turnstile> TSum (tagged_list_update tag (t, Checked) ts) wellformed"
     using tyinf_case
     by (blast intro: type_wellformed_pretty_tsum_updateI wellformed_sum_wellformed_elem tyinf_preserves_wellformed)+
-  moreover then have
-    "shareable_constraint_comp K t c2a"
-    "shareable_constraint_comp K (TSum (tagged_list_update tag (t, Checked) ts)) c2b"
-    using tyinf_case
-    by (clarsimp simp add: shareable_constraint_comp_def shareable_iff_droppable simp del: shareable_simps)+
   ultimately show ?case
     apply clarsimp
     apply (intro exI conjI)
@@ -1559,18 +1583,13 @@ next
       apply blast
 
      apply (rule typing_weaken_context[OF _ weakening_cons], blast)
-    sorry
-(*
-      apply (fastforce simp add: tycount_context_constraint_comp.simps weakening_comp.simps
-        is_used_linearity_iff)
+      apply (force simp add: tycount_context_constraint_comp.simps weakening_comp.simps droppable_def is_used_def)
      apply (rule join_contexts_weaken_max(1); blast)
 
     apply (rule typing_weaken_context[OF _ weakening_cons], blast)
-     apply (fastforce simp add: tycount_context_constraint_comp.simps weakening_comp.simps
-        is_used_linearity_iff)
+     apply (force simp add: tycount_context_constraint_comp.simps weakening_comp.simps droppable_def is_used_def)
     apply (rule join_contexts_weaken_max(2); blast)
     done
-*)
 next
   case (tyinf_if \<Xi> K \<Gamma> C1 x \<tau> C2a a t C2b b)
   moreover have C_lengths: "length C2a = length \<Gamma>" "length C2b = length \<Gamma>" "length C1 = length \<Gamma>"
@@ -1607,13 +1626,9 @@ next
     "K \<turnstile> t wellformed"
     "K \<turnstile> TRecord (ts[f := (n, t, taken)]) s wellformed"
     sorry
-  moreover then have
-    "shareable_constraint_comp K t ct"
-    "shareable_constraint_comp K (TRecord (ts[f := (n, t, taken)]) s) cr"
-    sorry
   ultimately show ?case
     apply -
-    apply (clarsimp simp add: tyinf_shareable_constraint_plus_iff shareable_def is_used_linearity_iff)
+    apply (clarsimp simp add: tyinf_shareable_constraint_plus_iff shareable_def)
     apply (intro exI conjI)
      apply (rule join_contexts_tycount_context_constraint; blast)
     apply (intro typing_typing_all.intros)
@@ -1624,7 +1639,14 @@ next
        apply blast
       apply (rule kinding_kinding_allI; blast)
      apply assumption
-    apply (fastforce simp add: tycount_context_constraint_comp.simps)
+
+    apply (rule typing_weaken_context)
+     apply blast
+    apply (simp add: weakening_Cons)
+    apply (intro conjI)
+      apply (force simp add: tycount_context_constraint_comp.simps weakening_comp.simps droppable_def is_used_def)
+     apply (force simp add: tycount_context_constraint_comp.simps weakening_comp.simps droppable_def is_used_def)
+    apply (blast intro: weakening_refl)
     done
 next
   case (tyinf_promote \<Xi> K \<Gamma> C x t' t)
