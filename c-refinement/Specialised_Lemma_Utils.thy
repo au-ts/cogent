@@ -183,8 +183,11 @@ declare [[ cheat_specialised_lemmas = false ]]
 
 ML\<open> 
 
-(*ty : field type, getter : C getter, setter : C setter *)
-type layout_field_info = { ty : string , getter : string , setter : string }
+(* getter : C getter, setter : C setter
+
+the field type can be retrieved from the get_ret_typ of the getter
+ *)
+type layout_field_info = { (* ty : string , *) getter : string , setter : string }
 datatype layout_info = CustomLayout of layout_field_info list
  | DefaultLayout
 (* type definition on the ML-level.*)
@@ -319,4 +322,15 @@ ML\<open> fun get_uvals_for_which_ac_mk_heap_getters file_nm thy uvals =
  (* returns a list of uvals for which autocorres creates #heap_getters info.*)
  filter (fn uval => ac_mk_heap_getters_for file_nm thy (get_ty_nm_C uval)) uvals;
 \<close>
+
+ML \<open>
+fun get_fun_info Cfile Cfun ctxt : FunctionInfo.function_info =
+  Symtab.lookup (AutoCorresFunctionInfo.get (Proof_Context.theory_of ctxt))
+    Cfile |> Utils.the' ("get_fun_info: C file " ^ Cfile ^ " not loaded")
+  |> (fn x => FunctionInfo.Phasetab.lookup x FunctionInfo.TS) |> the
+  |> (fn x => Symtab.lookup x Cfun ) 
+|> Utils.the' ("get_fun_info: unknown C function " ^ Cfun)
+
+\<close>
+
 end

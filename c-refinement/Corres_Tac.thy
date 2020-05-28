@@ -323,8 +323,8 @@ fun sigil_atom_stmts @{const_name Member} Unboxed = SOME 1
   | sigil_atom_stmts @{const_name Member} _       = SOME 2
   | sigil_atom_stmts _ _ = NONE
 fun rec_sigil (Const (@{const_name TRecord}, _) $ _ $ @{term Unboxed}) = SOME Unboxed (* Probablement quelque chose  a faire ici *)
-  | rec_sigil (Const (@{const_name TRecord}, _) $ _ $ (@{const Boxed} $ @{const ReadOnly} $ _)) = SOME (ReadOnly DefaultLayout)
-  | rec_sigil (Const (@{const_name TRecord}, _) $ _ $ (@{const Boxed} $ @{const Writable} $ _)) = SOME (Writable DefaultLayout)
+  | rec_sigil (Const (@{const_name TRecord}, _) $ _ $ (@{const Boxed} $ @{const ReadOnly} $ _)) = SOME (Boxed(ReadOnly, DefaultLayout))
+  | rec_sigil (Const (@{const_name TRecord}, _) $ _ $ (@{const Boxed} $ @{const Writable} $ _)) = SOME (Boxed(Writable, DefaultLayout))
   | rec_sigil _ = NONE
 
 (* Guess the number of statements for this atom.

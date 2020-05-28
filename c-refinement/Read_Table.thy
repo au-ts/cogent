@@ -68,6 +68,7 @@ fun read_table (file_name:string) thy =
     val lines = split_lines (TextIO.inputAll input_file);
     val pos_lines = (1 upto length lines) ~~ lines;
     fun report pos = path_to_table ^ ":" ^ string_of_int pos ^ ": ";
+    fun report_getset pos = report pos ^ "expected: C_type [ getter1/setter1, .. ]"
 
     val tymap = pos_lines
                 |> filter (fn (_, l) => not (String.isPrefix "--" l) andalso
@@ -78,19 +79,25 @@ fun read_table (file_name:string) thy =
                         [cogentT, cT] => (pos, cogentT, cT)
                       | _ => error (report pos ^ "expected \" :=: \""))
                 : (int * string * string) list;
-    fun read_getsetters _ [Sep #"]"] = []
-      | read_getsetters _ [Str getter , Sep #"/" , Str setter, Sep #"]" ] =
-           [ (getter , setter) ] 
-      | read_getsetters pos (Str getter :: Sep #"/" :: Str setter :: Sep #","  :: l) = 
-        (getter , setter) :: read_getsetters pos l
-      | read_getsetters pos _ =
-             error(report pos ^ "expected: C_type [ getter1/setter1, getter2/setter2]")
-    fun cT_to_C_name_getsetters pos cT : string * (string * string) list option= 
+    fun consume_getsetter _ (Str getter :: Sep #"/" :: Str setter (* :: Sep #":" :: Str ty *) :: l)  =
+       ({(*ty = ty, *) getter = getter, setter = setter} : layout_field_info , l)
+     | consume_getsetter pos _ = 
+       error(report_getset pos)
+   fun read_fieldinfo _ [Sep #"]"] = [] : layout_field_info list  
+    | read_fieldinfo pos l =
+       case consume_getsetter pos l of
+            (info, [Sep #"]"]) => [info]
+          | (info, (Sep #"," :: l)) => info :: read_fieldinfo pos l
+          | _ =>  error(report_getset pos)
+ 
+
+    fun cT_to_C_name_fieldinfos pos cT : string * layout_info = 
         case split_words cT of
             [] => error(report pos ^ "expected: C type")
-           | [Str C_name] => (C_name, NONE)
-           | Str C_name :: Sep #"[" :: l => (C_name, SOME (read_getsetters pos l))
-           | _ => error(report pos ^ "expected: C_type [ getter1/setter1, getter2/setter2]")
+           | [Str C_name] => (C_name, DefaultLayout)
+           | Str C_name :: Sep #"[" :: l => (C_name, CustomLayout (read_fieldinfo pos l))
+           | _ => error(report_getset pos)
+
 
     val ctxt = Proof_Context.init_global thy
     val tymap = tymap
@@ -99,9 +106,9 @@ fun read_table (file_name:string) thy =
                     val cogentT = Syntax.read_term ctxt cogentT
                                 handle ERROR _ => err ()
                     val _ = if type_of cogentT = @{typ Cogent.type} then () else err ()
-                    val (cT , lgetset) = cT_to_C_name_getsetters pos cT
-                    in (pos, cogentT, cT, lgetset) end)
-                : (int * term * string * (string * string) list option) list;
+                    val (cT , infos) = cT_to_C_name_fieldinfos pos cT
+                    in (pos, cogentT, cT, infos) end)
+                : (int * term * string * layout_info) list; 
 
     fun decode_sigil _   ((Const (@{const_name Boxed}, _)) $ (Const (@{const_name Writable}, _)) $ _) l = 
          Boxed(Writable, l)
@@ -109,22 +116,12 @@ fun read_table (file_name:string) thy =
          Boxed(ReadOnly, l)
       | decode_sigil _   (Const (@{const_name Unboxed},  _)) _ = Unboxed
       | decode_sigil pos t _ = raise TERM (report pos ^ "bad sigil", [t]);
-
-    fun decode_layout_field _ [] [] : layout_field_info list = []
-      | decode_layout_field pos (t :: q) ((get,set) :: q') =      
-          {ty = t |> HOLogic.dest_prod |> fst |> HOLogic.dest_string, getter = get, setter = set}
-         :: decode_layout_field pos q q'
-     | decode_layout_field pos _ _ =
-        error (report pos ^ "different number of get/setters provided")
-    fun decode_layout_info _ _  NONE = DefaultLayout
-      | decode_layout_info pos lterms (SOME l) =
-         CustomLayout (decode_layout_field pos (lterms |> HOLogic.dest_list) l)
-    
+   
 
     fun decode_type (_, Const (@{const_name TCon}, _) $ _ $ _ $ _, cT, _) =
             UAbstract cT
-      | decode_type (pos, Const (@{const_name TRecord}, _) $ argRec $ sigil, cT, getsets) =
-            URecord (cT, decode_sigil pos sigil (decode_layout_info pos argRec getsets))
+      | decode_type (pos, Const (@{const_name TRecord}, _) $ _ $ sigil, cT, getsets) =
+            URecord (cT, decode_sigil pos sigil getsets) (* (decode_layout_info pos argRec getsets)) *)
       | decode_type (_, Const (@{const_name TSum}, _) $ variants, cT, _) =
             USum (cT, variants)
       | decode_type (_, Const (@{const_name TProduct}, _) $ _ $ _, cT, _) =
