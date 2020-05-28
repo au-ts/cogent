@@ -170,6 +170,8 @@ locale update_sem =
   and     abs_typing_unique_repr   : "abs_typing av n \<tau>s s r w \<sigma> \<Longrightarrow> abs_typing av n' \<tau>s' s' r' w' \<sigma>
                                     \<Longrightarrow> type_repr (TCon n \<tau>s s) = type_repr (TCon n' \<tau>s' s')"
   and     abs_typing_repr : "abs_typing av n \<tau>s s r w \<sigma> \<Longrightarrow> abs_repr av = (n, map type_repr \<tau>s)"
+  and     abs_typing_frame: "\<And> w1 w2 \<sigma>'. abs_typing av n \<tau>s s r w \<sigma> \<Longrightarrow> frame \<sigma> w1 \<sigma>' w2 \<Longrightarrow>
+                                          w \<inter> w1 = {} \<Longrightarrow> r \<inter> w1 = {} \<Longrightarrow> abs_typing av n \<tau>s s r w \<sigma>'"
 
 context update_sem begin
 
@@ -1154,22 +1156,17 @@ using assms  proof(induct  rule:uval_typing_uval_typing_record.inducts)
 next case u_t_product  then show ?case by (fastforce intro!: uval_typing_uval_typing_record.intros)
 next case u_t_sum      then show ?case by (fastforce intro!: uval_typing_uval_typing_record.intros)
 next case u_t_struct   then show ?case by (fastforce intro!: uval_typing_uval_typing_record.intros)
-next case u_t_abstract then show ?case sorry (*by (simp add: uval_typing_uval_typing_record.u_t_abstract)*)
+next case u_t_abstract then show ?case by (force intro!: uval_typing_uval_typing_record.u_t_abstract
+                         simp: abs_typing_frame)
 next case u_t_function then show ?case by (simp add: uval_typing_uval_typing_record.u_t_function)
 next case u_t_unit     then show ?case by (simp add: uval_typing_uval_typing_record.u_t_unit)
 next case u_t_r_empty  then show ?case by (simp add: uval_typing_uval_typing_record.u_t_r_empty)
 next case u_t_r_cons1  then show ?case by (force simp: frame_def
                                                  intro!: uval_typing_uval_typing_record.u_t_r_cons1)
 next case u_t_r_cons2  then show ?case by (simp add: uval_typing_uval_typing_record.u_t_r_cons2)
-next case u_t_afun     then show ?case by (simp add: uval_typing_uval_typing_record.u_t_afun)
-next case u_t_p_rec_ro then show ?case by (force simp: frame_def
-                                                 intro!: uval_typing_uval_typing_record.u_t_p_rec_ro)
-next case u_t_p_rec_w  then show ?case by (force simp: frame_def
-                                                 intro!: uval_typing_uval_typing_record.u_t_p_rec_w)
-next case u_t_p_abs_ro then show ?case sorry
-next case u_t_p_abs_w  then show ?case sorry
-qed (*(fastforce simp:   frame_def
-               intro!: uval_typing_uval_typing_record.intros)+*)
+qed (fastforce simp: frame_def
+               intro!: uval_typing_uval_typing_record.intros
+               intro: abs_typing_frame)+
 
 lemma matches_ptrs_frame:
 assumes "\<Xi> , \<sigma> \<turnstile> u matches t \<langle> r , w \<rangle>"
