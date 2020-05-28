@@ -346,7 +346,7 @@ fun mk_specialised_corres_member_aux (field_num:int) uval args ctxt =
   val _ = tracing "mk_specialised_corres_member_aux"
   val _ =  case get_uval_sigil uval of
       Boxed(ReadOnly, _) => ()
-    | _ => error "Member is supported for Read_Only only.";
+    | _ => error "Member is supported for ReadOnly only.";
   val cogent_expr = member_cogent_expr
  in
     mk_specialised_corres_statement member_assumptions uval field_num cogent_expr args 
@@ -608,7 +608,7 @@ val _ = tracing (@{make_string } uval)
    let
     val lem_tys =
       case ml_sigil of
-          Boxed(Writable, _) => [TakeBoxed, PutBoxed, LetPutBoxed, MemberReadOnly]
+          Boxed(Writable, _) => [TakeBoxed, PutBoxed, LetPutBoxed]
         | Unboxed  => [TakeUnboxed]
         | Boxed(ReadOnly, _) => [MemberReadOnly];
     val field_C_nm           = 
