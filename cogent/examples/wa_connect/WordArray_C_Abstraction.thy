@@ -27,7 +27,7 @@ definition frame_WordArray_u32_C_ptr :: "lifted_globals \<Rightarrow> (WordArray
                                (is_valid_WordArray_u32_C s p \<longrightarrow>
                                heap_WordArray_u32_C s  p = heap_WordArray_u32_C s' p))" \<comment> \<open>inertia\<close>
 
-lemmas frame_def = frame_WordArray_u32_C_ptr_def frame_word32_ptr_def
+lemmas frame_C_def = frame_WordArray_u32_C_ptr_def frame_word32_ptr_def
 
 lemma frame_triv_w32_ptr: "frame_WordArray_u32_C_ptr state P state P ign"
   using frame_WordArray_u32_C_ptr_def by blast

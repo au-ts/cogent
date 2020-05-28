@@ -158,6 +158,11 @@ where
                      \<rbrakk> \<Longrightarrow>  \<xi> , \<gamma> \<turnstile>* (\<sigma>, x # xs) \<Down>! (\<sigma>'', v # vs)"
 
 
+definition frame :: "('f, 'a, 'l) store \<Rightarrow> 'l set \<Rightarrow> ('f, 'a, 'l) store \<Rightarrow> 'l set \<Rightarrow> bool"
+           where
+  "frame \<sigma> pi \<sigma>' po \<equiv> \<forall>p. (p \<in> pi \<and> p \<notin> po \<longrightarrow> \<sigma>' p = None)
+                       \<and>  (p \<notin> pi \<and> p \<in> po \<longrightarrow> \<sigma>  p = None)
+                       \<and>  (p \<notin> pi \<and> p \<notin> po \<longrightarrow> \<sigma>  p = \<sigma>' p)"
 
 locale update_sem =
   fixes abs_typing :: "'a \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> sigil \<Rightarrow> 'l set \<Rightarrow> 'l set \<Rightarrow> ('f, 'a, 'l) store \<Rightarrow> bool"
@@ -303,6 +308,8 @@ inductive_cases u_t_recE      [elim] : "\<Xi>, \<sigma> \<turnstile> URecord fs 
 inductive_cases u_t_p_recE    [elim] : "\<Xi>, \<sigma> \<turnstile> UPtr p rp :u TRecord fs s \<langle>r, w\<rangle>"
 inductive_cases u_t_r_emptyE  [elim] : "\<Xi>, \<sigma> \<turnstile>* [] :ur \<tau>s \<langle>r, w\<rangle>"
 inductive_cases u_t_r_consE   [elim] : "\<Xi>, \<sigma> \<turnstile>* (x # xs) :ur \<tau>s \<langle>r, w\<rangle>"
+inductive_cases u_t_abstractE [elim] : "\<Xi>, \<sigma> \<turnstile> UAbstract a :u TCon n ts Unboxed \<langle>r, w\<rangle>"
+inductive_cases u_t_p_absE    [elim] : "\<Xi>, \<sigma> \<turnstile> UPtr p rp :u TCon n ts s \<langle>r, w\<rangle>"
 
 inductive uval_typing_all :: "('f \<Rightarrow> poly_type)
                             \<Rightarrow> ('f, 'a, 'l) store
@@ -342,12 +349,6 @@ inductive matches_ptrs :: "('f \<Rightarrow> poly_type)
 
 inductive_cases matches_ptrs_consE: "\<Xi>, \<sigma> \<turnstile> \<gamma> matches (\<tau> # \<tau>s) \<langle> r , w \<rangle>"
 
-
-definition frame :: "('f, 'a, 'l) store \<Rightarrow> 'l set \<Rightarrow> ('f, 'a, 'l) store \<Rightarrow> 'l set \<Rightarrow> bool"
-           where
-  "frame \<sigma> pi \<sigma>' po \<equiv> \<forall>p. (p \<in> pi \<and> p \<notin> po \<longrightarrow> \<sigma>' p = None)
-                       \<and>  (p \<notin> pi \<and> p \<in> po \<longrightarrow> \<sigma>  p = None)
-                       \<and>  (p \<notin> pi \<and> p \<notin> po \<longrightarrow> \<sigma>  p = \<sigma>' p)"
 
 definition proc_env_matches_ptrs :: "(('f,'a,'l) uabsfuns) \<Rightarrow> ('f \<Rightarrow> poly_type) \<Rightarrow> bool"
            ("_ matches-u _" [30,20] 60) where
@@ -1164,9 +1165,9 @@ next case u_t_r_empty  then show ?case by (simp add: uval_typing_uval_typing_rec
 next case u_t_r_cons1  then show ?case by (force simp: frame_def
                                                  intro!: uval_typing_uval_typing_record.u_t_r_cons1)
 next case u_t_r_cons2  then show ?case by (simp add: uval_typing_uval_typing_record.u_t_r_cons2)
-qed (fastforce simp: frame_def
-               intro!: uval_typing_uval_typing_record.intros
-               intro: abs_typing_frame)+
+qed(auto simp: frame_def
+       intro!: uval_typing_uval_typing_record.intros
+        intro: abs_typing_frame)+
 
 lemma matches_ptrs_frame:
 assumes "\<Xi> , \<sigma> \<turnstile> u matches t \<langle> r , w \<rangle>"

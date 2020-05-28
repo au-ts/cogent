@@ -6,12 +6,12 @@ begin
 
 locale WordArray = main_pp_inferred begin
   definition "abs_repr' a \<equiv> case a of
-      WAU32 _ _ \<Rightarrow> (''WordArray'', [RPrim (Num U32), RPrim (Num U32)])
+      WAU32 _ _ \<Rightarrow> (''WordArray'', [RPrim (Num U32)])
     | _ \<Rightarrow> (''Unknown Abstract Type'', [])"
 
   definition "abs_typing' a name \<tau>s sig (r :: ptrtyp set) (w :: ptrtyp set) \<sigma> \<equiv>
     (case a of
-      WAU32 len arr \<Rightarrow> name = ''WordArray'' \<and> \<tau>s = [TPrim (Num U32), TPrim (Num U32)] \<and> sig \<noteq> Unboxed \<and>
+      WAU32 len arr \<Rightarrow> name = ''WordArray'' \<and> \<tau>s = [TPrim (Num U32)] \<and> sig \<noteq> Unboxed \<and>
                       (sigil_perm sig = Some ReadOnly \<longrightarrow> w = {} \<and> r = {arr + 4 * i | i. i < len}) \<and>
                       (sigil_perm sig = Some Writable \<longrightarrow> r = {} \<and> w = {arr + 4 * i | i. i < len}) \<and>
                       (\<forall>i < len. \<exists>x. \<sigma>(arr + 4 * i) = Some (UPrim (LU32 x)))
@@ -21,50 +21,42 @@ end
 sublocale WordArray \<subseteq>
   update_sem_init abs_typing' abs_repr'
   apply (unfold abs_repr'_def[abs_def] abs_typing'_def[abs_def])
-  apply unfold_locales
-         apply (clarsimp split: atyp.splits)
-         apply (case_tac s; clarsimp)
-         apply (case_tac x11a; simp)
-        apply (clarsimp split: atyp.splits)
-        apply (case_tac s; clarsimp)
-        apply (case_tac x11a; clarsimp)
-       apply (clarsimp split: atyp.splits)
-       apply (case_tac s; clarsimp)
-       apply (case_tac x11a; clarsimp)
-      apply (clarsimp split: atyp.splits)
-      apply (case_tac s; clarsimp)
-      apply (case_tac x11a; clarsimp)
-      apply (clarsimp split: atyp.splits)
-      apply (case_tac s; clarsimp)
-     apply (case_tac x11a; clarsimp; erule_tac x = i in allE; clarsimp)
-    apply (clarsimp split: atyp.splits)
-    apply (case_tac s, (case_tac s', simp_all)+)[]
-   apply (clarsimp split: atyp.splits)
-  apply (clarsimp split: atyp.splits)
-
-(*
-          apply (case_tac s; blast elim: bang_sigil.elims) 
-         apply (case_tac s; blast elim: bang_sigil.elims)[]
-        apply (case_tac s) blast elim: bang_sigil.elims)[] 
-       apply simp+
-   apply (clarsimp split: atyp.splits)
-     apply (case_tac s, (case_tac s', simp_all)+)[]
-    apply (case_tac s, (case_tac s', simp_all)+)[]
-   apply (case_tac s, (case_tac s', simp_all)+)[]
-  apply (clarsimp split: atyp.splits)
-*)
-  sorry
+  apply (unfold_locales; clarsimp split: atyp.splits)
+        apply (case_tac s; clarsimp; case_tac x11a; simp)
+       apply (case_tac s; clarsimp; case_tac x11a; simp)
+      apply (case_tac s; clarsimp; case_tac x11a; simp)
+     apply (case_tac s; clarsimp; case_tac x11a; simp)
+    apply (case_tac s; clarsimp; case_tac x11a; clarsimp; erule_tac x = i in allE; clarsimp)
+   apply (case_tac s; clarsimp; case_tac x11a; simp; case_tac s'; clarsimp)
+  apply (unfold UpdateSemantics.frame_def)
+  apply (erule_tac x = "x12 + 4 * i" in allE; clarsimp)
+  apply (erule_tac x = i in allE; clarsimp)
+  apply (rule_tac x = x in exI)
+  apply (case_tac s; clarsimp; case_tac x11a; clarsimp)
+   apply (drule_tac x = "x12 + 4 * i" in orthD1; simp)
+   apply (rule_tac x = i in exI; simp)
+  apply (drule_tac x = "x12 + 4 * i" in orthD1; simp)
+  apply (rule_tac x = i in exI; simp)
+  done
 
 sublocale WordArray \<subseteq> Generated t abs_typing' abs_repr'
   apply (unfold abs_repr'_def[abs_def] abs_typing'_def[abs_def])
-  apply unfold_locales
-        apply (clarsimp split: atyp.splits)
-          apply (case_tac s; blast elim: bang_sigil.elims)+
-   apply (clarsimp split: atyp.splits)
-     apply (case_tac s, case_tac s', simp_all)
-    apply (case_tac s, case_tac s', simp_all)
-   apply (case_tac s, case_tac s', simp_all)
-  apply (clarsimp split: atyp.splits)
+  apply (unfold_locales; clarsimp split: atyp.splits)
+         apply (case_tac s; clarsimp; case_tac x11a; clarsimp)
+        apply (case_tac s; clarsimp; case_tac x11a; clarsimp)
+       apply (case_tac s; clarsimp; case_tac x11a; clarsimp)
+      apply (case_tac s; clarsimp; case_tac x11a; clarsimp)
+     apply (case_tac s; clarsimp; case_tac x11a; clarsimp; erule_tac x = i in allE; clarsimp)
+    apply (case_tac s, (case_tac s', simp_all)+)[]
+  apply (unfold UpdateSemantics.frame_def)
+  apply (erule_tac x = "x12 + 4 * i" in allE; clarsimp)
+  apply (erule_tac x = i in allE; clarsimp)
+  apply (rule_tac x = x in exI)
+  apply (case_tac s; clarsimp; case_tac x11a; clarsimp)
+   apply (drule_tac x = "x12 + 4 * i" in orthD1; simp)
+   apply (rule_tac x = i in exI; simp)
+  apply (drule_tac x = "x12 + 4 * i" in orthD1; simp)
+  apply (rule_tac x = i in exI; simp)
   done
 
 context WordArray begin
@@ -218,11 +210,37 @@ lemma  "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
   apply (rule_tac x = "repr" in exI; simp)
   done
 
+lemma "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
+       \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v'; \<Gamma>' ! i = Some (fst (snd (\<Xi> ''wordarray_put2_0'')))\<rbrakk>
+       \<Longrightarrow> update_sem_init.corres abs_typing' abs_repr' (Generated.state_rel abs_repr') (App (AFun ''wordarray_put2_0'' []) (Var i))
+            (do x <- wordarray_put2_0' v';
+                gets (\<lambda>s. x)
+             od)
+            \<xi>_0' \<gamma> \<Xi> \<Gamma>' \<sigma> st"
+  apply (rule afun_corres; simp)
+  apply (clarsimp simp: abs_rel_def; rename_tac r w)
+  apply (thin_tac "i < length \<gamma>")
+  apply (thin_tac "val_rel (\<gamma> ! i) v'")
+  apply (thin_tac "\<Gamma>' ! i = Some (fst (snd (\<Xi> ''wordarray_put2_0'')))")
+  apply (clarsimp simp: val_rel_simp)
+  apply (clarsimp simp: \<Xi>_def wordarray_put2_0_type_def abbreviatedType1_def)
+  apply (erule u_t_recE; clarsimp)
+  apply (erule u_t_r_consE; clarsimp)
+  apply (erule u_t_p_absE; clarsimp)
+  apply (rule conjI; clarsimp)
+   apply (clarsimp simp: abs_typing'_def)
+   apply (case_tac a; simp)
+   apply (monad_eq simp: wordarray_put2_0'_def)
+   apply (clarsimp simp: state_rel_def heap_rel_def)
+   apply (clarsimp simp: heap_rel_ptr_meta)
+   apply (drule_tac p = "arr_C x'" and uv = "UAbstract (WAU32 x11 x12)" in all_heap_rel_ptrD; clarsimp)
+    apply (clarsimp simp: abs_repr'_def type_rel_simp)
+  
+
+  oops
 
 
-(*
-
-lemma "\<xi>_0' matches-u \<Xi>"
+lemma "proc_env_matches_ptrs \<xi>_0' \<Xi>"
   apply (unfold proc_env_matches_ptrs_def)
   apply clarsimp
   apply (subst (asm) \<Xi>_def)
@@ -248,8 +266,42 @@ lemma "\<xi>_0' matches-u \<Xi>"
    apply (case_tac a; clarsimp)
    apply (case_tac x1; clarsimp)
    apply (case_tac list; clarsimp)
-   apply (case_tac "\<sigma> x91"; clarsimp)
-  prefer 2
+   apply (erule u_t_recE; clarsimp)
+   apply (erule u_t_r_consE; clarsimp)
+   apply (erule u_t_p_absE; clarsimp)
+   apply (case_tac a; clarsimp)
+    prefer 2
+    apply (clarsimp simp: abs_typing'_def)
+   apply (erule u_t_r_consE; clarsimp)
+   apply (erule u_t_r_consE; clarsimp)
+   apply (erule u_t_primE)
+   apply (erule u_t_primE)
+   apply (subst (asm) lit_type.simps)
+   apply (subst (asm) lit_type.simps)
+   apply clarsimp
+   apply (erule u_t_r_emptyE)
+   apply clarsimp
+   apply (rule_tac x = ra in exI)
+   apply (rule_tac x = "insert x91 w" in exI)
+   apply (rule conjI)
+  using u_t_p_abs_w
+    apply auto[1]
+    apply (drule_tac x = "(Boxed Writable (PtrBits 0 0))" in meta_spec)
+    apply (drule_tac x = "(PtrBits 0 0)" in meta_spec)
+    apply (drule_tac x = "WAU32 x11 x12" in meta_spec)
+    apply (drule_tac x = "''WordArray''" in meta_spec)
+    apply (drule_tac x = "[TPrim (Num U32)]" in meta_spec)
+    apply (drule_tac x = ra in meta_spec)
+    apply (drule_tac x = w  in meta_spec)
+    apply (drule_tac x = "(\<lambda>l. if l = x12 + 4 * x4 \<and> x4 < x11 then Some (UPrim (LU32 x4a)) else \<sigma> l)" in meta_spec)
+    apply (drule_tac x = x91 in meta_spec)
+    apply (drule_tac x = \<Xi> in meta_spec)
+    apply (clarsimp simp: \<Xi>_def)
+    apply (drule meta_mp)
+     prefer 2
+
+ 
+
 (*
    apply (rule_tac x = "{}" in  exI)
    apply (rule_tac x = "{}" in exI)
@@ -261,9 +313,12 @@ lemma "\<xi>_0' matches-u \<Xi>"
     apply (erule u_t_r_emptyE; clarsimp)
     apply (drule type_repr_uval_repr)
   apply clarsimp
+
+   apply (case_tac "\<sigma> x91"; clarsimp)
+  prefer 2
   thm conjE
   *)
-*)
+  oops
 
 end (* of context *)
 

@@ -11,7 +11,7 @@ begin
 definition
   abbreviatedType1 :: " Cogent.type"
 where
-  "abbreviatedType1 \<equiv> TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined), Present)), (''idx'', (TPrim (Num U32), Present)), (''val'', (TPrim (Num U32), Present))] Unboxed"
+  "abbreviatedType1 \<equiv> TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable (PtrBits 0 0)), Present)), (''idx'', (TPrim (Num U32), Present)), (''val'', (TPrim (Num U32), Present))] Unboxed"
 
 lemmas abbreviated_type_defs =
   abbreviatedType1_def
@@ -19,12 +19,12 @@ lemmas abbreviated_type_defs =
 definition
   wordarray_put2_0_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
-  "wordarray_put2_0_type \<equiv> ([], (abbreviatedType1, TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined)))"
+  "wordarray_put2_0_type \<equiv> ([], (abbreviatedType1, TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable (PtrBits 0 0))))"
 
 definition
   wordarray_put2_u32_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
-  "wordarray_put2_u32_type \<equiv> ([], (abbreviatedType1, TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined)))"
+  "wordarray_put2_u32_type \<equiv> ([], (abbreviatedType1, TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable (PtrBits 0 0))))"
 
 definition
   wordarray_put2_u32 :: "string Cogent.expr"
@@ -92,7 +92,7 @@ val typing_helper_4_script : tac list = [
 
 
 lemma typing_helper_4[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 (TFun abbreviatedType1 (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined)))"
+  "type_wellformed 0 (TFun abbreviatedType1 (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable (PtrBits 0 0))))"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_4_script |> EVERY \<close>)
   done
