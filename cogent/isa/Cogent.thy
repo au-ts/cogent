@@ -473,7 +473,7 @@ lemma kinding_fn_simp_variant[simp]:
 declare kinding_fn.simps(3,6,8)[simp del]
 
 
-definition kinding :: "kind env \<Rightarrow> type \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile> _ :\<kappa> _" [30,0,30] 60) where
+definition kinding :: "kind env \<Rightarrow> type \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile> _ :\<kappa> _" [55,0,55] 60) where
   "K \<turnstile> t :\<kappa> k \<equiv> K \<turnstile> t wellformed \<and> k \<subseteq> kinding_fn K t"
 
 lemma kindingI:
@@ -484,8 +484,12 @@ lemma kinding_kinding_allI:
   "K \<turnstile> t wellformed \<Longrightarrow> K \<turnstile> t :\<kappa> (kinding_fn K t)"
   by (simp add: kinding_def)
 
+lemma ex_kinding_inset:
+  "(\<exists>k. K \<turnstile> t :\<kappa> k \<and> v \<in> k) \<longleftrightarrow> K \<turnstile> t wellformed \<and> v \<in> kinding_fn K t"
+  using kinding_def by blast
 
-definition kinding_all :: "kind env \<Rightarrow> type list \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa> _" [30,0,30] 60) where
+
+definition kinding_all :: "kind env \<Rightarrow> type list \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa> _" [60,0,60] 60) where
   "K \<turnstile>* ts :\<kappa> k \<equiv> (K \<turnstile>* ts wellformed) \<and> k \<subseteq> (\<Inter>t\<in>set ts. kinding_fn K t)"
 
 lemma kinding_all_Nil[simp]:
@@ -501,6 +505,7 @@ definition kinding_variant :: "kind env \<Rightarrow> (name \<times> type \<time
 
 definition kinding_record  :: "kind env \<Rightarrow> (name \<times> type \<times> record_state) list \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa>r _" [60,0,60] 60) where
   "K \<turnstile>* ts :\<kappa>r k \<equiv> (K \<turnstile>* map (fst \<circ> snd) ts wellformed) \<and> k \<subseteq> kinding_fn_all_record K ts"
+
 
 lemmas kinding_defs = kinding_def kinding_all_def kinding_variant_def kinding_record_def
 
@@ -656,19 +661,21 @@ inductive split_comp :: "kind env \<Rightarrow> type option \<Rightarrow> type o
 | right : "\<lbrakk> K \<turnstile> t wellformed \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> None   \<parallel> Some t"
 | share : "\<lbrakk> K \<turnstile> t :\<kappa> k; S \<in> k \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> Some t \<parallel> Some t"
 
-definition split :: "kind env \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ \<leadsto> _ | _" [30,0,0,20] 60) where
+definition split :: "kind env \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ \<leadsto> _ | _" [55,0,0,55] 60) where
   "split K \<equiv> list_all3 (split_comp K)"
 
 lemmas split_induct[consumes 1, case_names split_empty split_cons, induct set: list_all3]
  = list_all3_induct[where P="split_comp K" for K, simplified split_def[symmetric]]
 
 lemmas split_empty = all3Nil[where P="split_comp K" for K, simplified split_def[symmetric]]
+lemmas split_nil = all3Nil[where P="split_comp K" for K, simplified split_def[symmetric]]
 lemmas split_cons = all3Cons[where P="split_comp K" for K, simplified split_def[symmetric]]
 
 lemmas split_Cons = list_all3_Cons[where P="split_comp K" for K, simplified split_def[symmetric]]
 lemmas split_Cons1 = list_all3_Cons1[where P="split_comp K" for K, simplified split_def[symmetric]]
 lemmas split_Cons2 = list_all3_Cons2[where P="split_comp K" for K, simplified split_def[symmetric]]
 lemmas split_Cons3 = list_all3_Cons3[where P="split_comp K" for K, simplified split_def[symmetric]]
+lemmas split_Cons23 = list_all3_Cons23[where P="split_comp K" for K, simplified split_def[symmetric]]
 
 lemmas split_conv_all_nth = list_all3_conv_all_nth[where P="split_comp K" for K, simplified split_def[symmetric]]
 
@@ -692,7 +699,13 @@ lemma split_bang_Cons:
 inductive weakening_comp :: "kind env \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" where
   none : "weakening_comp K None None"
 | keep : "weakening_comp K (Some t) (Some t)"
-| drop : "\<lbrakk> K \<turnstile> t :\<kappa> k; D \<in> k \<rbrakk> \<Longrightarrow> weakening_comp K (Some t) None"
+| drop : "\<lbrakk> K \<turnstile> t wellformed ; D \<in> kinding_fn K t \<rbrakk> \<Longrightarrow> weakening_comp K (Some t) None"
+
+lemma weakening_comp_simps2:
+  "weakening_comp K a (Some u) = (a = Some u)"
+  "weakening_comp K None b = (b = None)"
+  "weakening_comp K a None = (a = None \<or> (\<exists>t. a = Some t \<and> K \<turnstile> t wellformed \<and> D \<in> kinding_fn K t))"
+  by (simp add: eq_iff weakening_comp.simps ex_kinding_inset)+
 
 definition weakening :: "kind env \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ \<leadsto>w _" [30,0,20] 60) where
   "weakening K \<equiv> list_all2 (weakening_comp K)"
@@ -703,13 +716,26 @@ lemmas weakening_induct[consumes 1, case_names weakening_empty weakening_cons, i
 lemmas weakening_nil = List.list.rel_intros(1)[where R="weakening_comp K" for K, simplified weakening_def[symmetric]]
 lemmas weakening_cons =  List.list.rel_intros(2)[where R="weakening_comp K" for K, simplified weakening_def[symmetric]]
 
+lemmas weakening_Nil1 = list_all2_Nil[where P="weakening_comp K" for K, simplified weakening_def[symmetric]]
+lemmas weakening_Nil2 = list_all2_Nil2[where P="weakening_comp K" for K, simplified weakening_def[symmetric]]
+
 lemmas weakening_Cons = list_all2_Cons[where P="weakening_comp K" for K, simplified weakening_def[symmetric]]
+lemmas weakening_Cons1 = list_all2_Cons1[where P="weakening_comp K" for K, simplified weakening_def[symmetric]]
+lemmas weakening_Cons2 = list_all2_Cons2[where P="weakening_comp K" for K, simplified weakening_def[symmetric]]
 
 lemmas weakening_conv_all_nth = list_all2_conv_all_nth[where P="weakening_comp K" for K, simplified weakening_def[symmetric]]
 
 
-definition is_consumed :: "kind env \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ consumed" [30,20] 60 ) where
+definition is_consumed :: "kind env \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ consumed" [60,60] 60 ) where
   "K \<turnstile> \<Gamma> consumed \<equiv> K \<turnstile> \<Gamma> \<leadsto>w empty (length \<Gamma>)"
+
+lemma is_consumed_conv_all_nth:
+  "K \<turnstile> \<Gamma> consumed \<longleftrightarrow> (\<forall>i<length \<Gamma>. weakening_comp K (\<Gamma> ! i) None)"
+  by (simp add: is_consumed_def weakening_conv_all_nth empty_def)
+
+lemma is_consumed_Cons:
+  "K \<turnstile> t # ts consumed \<longleftrightarrow> weakening_comp K t None \<and> K \<turnstile> ts consumed"
+  by (simp add: is_consumed_def weakening_Cons empty_def)
 
 
 section {* Built-in types *}
@@ -815,9 +841,9 @@ lemma eval_prim_op_lit_type:
 section {* Typing rules *}
 
 inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Rightarrow> ctx \<Rightarrow> 'f expr \<Rightarrow> type \<Rightarrow> bool"
-          ("_, _, _ \<turnstile> _ : _" [30,0,0,0,20] 60)
+          ("_, _, _ \<turnstile> _ : _" [55,0,0,0,55] 60)
       and typing_all :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Rightarrow> ctx \<Rightarrow> 'f expr list \<Rightarrow> type list \<Rightarrow> bool"
-          ("_, _, _ \<turnstile>* _ : _" [30,0,0,0,20] 60) where
+          ("_, _, _ \<turnstile>* _ : _" [55,0,0,0,55] 60) where
 
 typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i t
                    ; i < length \<Gamma>
@@ -944,7 +970,7 @@ typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length
 
 | typing_promote: "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t' ; K \<turnstile> t' \<sqsubseteq> t \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Promote t x : t"
 
-| typing_all_empty : "\<Gamma> = empty n \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile>* [] : []"
+| typing_all_empty : "K \<turnstile> \<Gamma> consumed \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile>* [] : []"
 
 | typing_all_cons  : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
                       ; \<Xi>, K, \<Gamma>1 \<turnstile>  e  : t
@@ -1147,6 +1173,27 @@ lemma wellformed_sum_wellformed_elem:
   shows "K \<turnstile> t wellformed"
   by (metis assms fst_conv in_set_conv_nth list_all_length snd_conv type_wellformed.simps(6))
 
+lemma wellformed_sum_wellformed_nth:
+  assumes "K \<turnstile> TSum ts wellformed"
+    and "i < length ts"
+    and "ts ! i = (name, t, taken)"
+  shows "K \<turnstile> t wellformed"
+  using assms
+  by (force simp add: list_all_length)
+
+
+lemma type_wellformed_pretty_simps:
+  "\<And>K i.      (K \<turnstile> TVar i wellformed) \<longleftrightarrow> (i < length K)"
+  "\<And>K i.      (K \<turnstile> TVarBang i wellformed) \<longleftrightarrow> (i < length K)"
+  "\<And>K n ts s. (K \<turnstile> TCon n ts s wellformed) \<longleftrightarrow> K \<turnstile>* ts wellformed"
+  "\<And>K t1 t2.  (K \<turnstile> TFun t1 t2 wellformed) \<longleftrightarrow> (K \<turnstile> t1 wellformed \<and> K \<turnstile> t2 wellformed)"
+  "\<And>K p.      (K \<turnstile> TPrim p wellformed) \<longleftrightarrow> True"
+  "\<And>K ts.     (K \<turnstile> TSum ts wellformed) \<longleftrightarrow> distinct (map fst ts) \<and> (K \<turnstile>* map (fst \<circ> snd) ts wellformed)"
+  "\<And>K t1 t2.  (K \<turnstile> TProduct t1 t2 wellformed) \<longleftrightarrow> (K \<turnstile> t1 wellformed \<and> K \<turnstile> t2 wellformed)"
+  "\<And>K ts s.   (K \<turnstile> TRecord ts s wellformed) \<longleftrightarrow> distinct (map fst ts) \<and> K \<turnstile>* map (fst \<circ> snd) ts wellformed"
+  "\<And>K.        K \<turnstile> TUnit wellformed \<longleftrightarrow> True"
+  by (simp add: list.pred_map comp_def)+
+
 
 section {* Kinding lemmas *}
 
@@ -1155,19 +1202,16 @@ lemma kinding_simps:
   "\<And>K i k.      K \<turnstile> (TVar i) :\<kappa> k         \<longleftrightarrow> i < length K \<and> k \<subseteq> K ! i"
   "\<And>K i k.      K \<turnstile> (TVarBang i) :\<kappa> k     \<longleftrightarrow> i < length K \<and> k \<subseteq> {D,S}"
   "\<And>K n ts s k. K \<turnstile> (TCon n ts s) :\<kappa> k    \<longleftrightarrow> (K \<turnstile>* ts :\<kappa> k) \<and> k \<subseteq> sigil_kind s"
-  "\<And>K ta tb k.  K \<turnstile> (TFun ta tb) :\<kappa> k     \<longleftrightarrow> k \<subseteq> UNIV \<and> (K \<turnstile> ta wellformed) \<and> (K \<turnstile> tb wellformed)"
-  "\<And>K p k.      K \<turnstile> (TPrim p) :\<kappa> k        \<longleftrightarrow> k \<subseteq> UNIV"
+  "\<And>K ta tb k.  K \<turnstile> (TFun ta tb) :\<kappa> k     \<longleftrightarrow> (K \<turnstile> ta wellformed) \<and> (K \<turnstile> tb wellformed)"
+  "\<And>K p k.      K \<turnstile> (TPrim p) :\<kappa> k        \<longleftrightarrow> True"
   "\<And>K ts k.     K \<turnstile> (TSum ts) :\<kappa> k        \<longleftrightarrow> (K \<turnstile>* ts :\<kappa>v k) \<and> distinct (map fst ts)"
   "\<And>K ta tb k.  K \<turnstile> (TProduct ta tb) :\<kappa> k \<longleftrightarrow> (K \<turnstile> ta :\<kappa> k) \<and> (K \<turnstile> tb :\<kappa> k)"
   "\<And>K ts s k.   K \<turnstile> (TRecord ts s) :\<kappa> k   \<longleftrightarrow> (K \<turnstile>* ts :\<kappa>r k) \<and> k \<subseteq> sigil_kind s \<and> distinct (map fst ts)"
-  "\<And>K k.        K \<turnstile> TUnit :\<kappa> k            \<longleftrightarrow> k \<subseteq> UNIV"
+  "\<And>K k.        K \<turnstile> TUnit :\<kappa> k            \<longleftrightarrow> True"
   by (force simp add: kinding_defs list_all_iff kinding_fn_all_record_def kinding_fn_all_variant_def
       kinding_fn_all_def case_prod_beta')+
 
-lemma kinding_all_simps:
-  "\<And>K k.        K \<turnstile>* [] :\<kappa> k       \<longleftrightarrow> True"
-  "\<And>K t ts k.   K \<turnstile>* (t # ts) :\<kappa> k \<longleftrightarrow> (K \<turnstile> t :\<kappa> k) \<and> (K \<turnstile>* ts :\<kappa> k)"
-  by (auto simp add: kinding_defs list_all_iff)
+lemmas kinding_all_simps = kinding_all_Nil kinding_all_Cons
 
 lemma kinding_variant_simps:
   "\<And>K k.        K \<turnstile>* [] :\<kappa>v k                     \<longleftrightarrow> True"
@@ -2066,6 +2110,7 @@ lemma substutivity_kinding_fn_all_recordD:
   using assms
   by (metis subsetD[OF substutivity_kinding_fn_all_record_subset])
 
+
 lemma substitutivity_single:
   assumes
     "list_all2 (kinding K') \<delta> K"
@@ -2117,8 +2162,9 @@ using assms(1) [simplified weakening_def] and assms(2) proof (induct rule: list_
      case Nil  then show ?case by (simp add: instantiate_ctx_def weakening_def)
 next case Cons then show ?case
     using instantiate_wellformed list_all2_kinding_wellformedD
-    by (auto simp add: weakening_comp.simps instantiate_ctx_def weakening_Cons
-        dest: substitutivity)
+    by (fastforce
+        simp add: weakening_comp.simps instantiate_ctx_def weakening_Cons
+        dest: substitutivity_kinding_fn_inD[OF wellkinded_imp_kinded])
 qed
 
 
@@ -2245,7 +2291,7 @@ next
     by (auto simp add: list_all2_conv_all_nth list_all_length)
   ultimately show ?case
     by (fastforce intro!: subtyping.intros simp add: list_all2_conv_all_nth split: prod.splits)
-qed (auto intro!: subtyping.intros)
+qed (force intro!: subtyping.intros simp add:)+
 
 lemma specialisation_subtyping1:
   "\<lbrakk>K \<turnstile> t \<sqsubseteq> t'; K \<turnstile> t wellformed; list_all2 (kinding K') \<delta> K\<rbrakk>
@@ -2460,7 +2506,7 @@ next case typing_struct then show ?case
 next case typing_member then show ?case
     by (fastforce simp add: kinding_defs INT_subset_iff list_all_iff dest: nth_mem split: prod.splits record_state.splits)
 next case typing_put then show ?case
-    by (clarsimp, auto intro: distinct_list_update simp add: list_all_iff map_update in_set_conv_nth Ball_def nth_list_update)
+    by (force simp add: list_all_iff map_update in_set_conv_nth Ball_def nth_list_update intro: distinct_list_update)
 next case typing_promote then show ?case
     using subtyping_wellformed_preservation by blast
 qed (auto intro: supersumption simp add: kinding_defs)
@@ -2557,10 +2603,6 @@ next case typing_esac then show ?case
                     typing_esac.hyps(3)[symmetric])+
 next case typing_promote then show ?case
     by (simp, metis specialisation_subtyping typing_to_wellformed(1) typing_typing_all.typing_promote)
-next
-  case (typing_all_empty \<Gamma> \<Xi> K)
-  then show ?case
-    by (force intro!: typing_typing_all.intros simp add: instantiate_ctx_def empty_def)
 next
   case typing_var then show ?case
     by (fastforce intro!: typing_typing_all.intros dest: instantiate_ctx_weaken

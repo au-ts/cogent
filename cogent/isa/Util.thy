@@ -14,6 +14,10 @@ theory Util
   imports Main "HOL-Word.Word"
 begin
 
+lemma meta_eq_mp:
+  "\<lbrakk>P \<equiv> Q; P\<rbrakk> \<Longrightarrow> Q"
+  by blast
+
 section \<open> Word related lemmas \<close>
 
 definition
@@ -257,6 +261,109 @@ lemma distinct_fst_tags_update:
    apply (simp split: nat.split add: image_set map_update[symmetric] del: image_set[symmetric])+
   done
 
+lemma map_circsnd_eq_map_snd_apsnd:
+  "map (f \<circ> snd) xs = map snd (map (apsnd f) xs)"
+  by (induct xs) clarsimp+
+
+lemma distinct_upd_sameI:
+  "distinct (map f xs) \<Longrightarrow> f (xs ! i) = x \<Longrightarrow> distinct ((map f xs)[i := x])"
+  apply (induct xs arbitrary: i)
+   apply simp
+  apply (clarsimp simp add:  split: nat.splits)
+  apply (metis image_set list_update_id map_update)
+  done
+
+lemma filter_to_singleton_unique[dest, consumes 2]: "[x] = filter P xs \<Longrightarrow> [y] = filter P xs \<Longrightarrow> x = y"
+  by (metis list.inject)
+
+
+subsection \<open> Filter related lemmas \<close>
+
+lemma filter_fst_ignore_tuple:
+  shows "filter (\<lambda>x. P (fst x)) (map (\<lambda>(a,b). (a, f b)) ls)
+     = map (\<lambda>(a,b). (a, f b)) (filter (\<lambda>x. P (fst x)) ls)"
+  by (induct_tac ls, auto)
+
+lemma filter_fst_ignore_triple:
+  shows "filter (\<lambda>x. P (fst x)) (map (\<lambda>(a,b,c). (a, f b, c)) ls)
+     = map (\<lambda>(a,b,c). (a, f b, c)) (filter (\<lambda>x. P (fst x)) ls)"
+  by (induct_tac ls, auto)
+
+lemma filter_fst_ignore_app2:
+  shows "filter (\<lambda>x. P (fst x)) (map (\<lambda>(a,b,c). (a,f b,c)) ls)
+     = map (\<lambda>(a,b,c). (a,f b,c)) (filter (\<lambda>x. P (fst x)) ls)"
+  by (induct_tac ls, auto)
+
+lemma filter_map_map_filter_thd3_app2:
+  shows "filter (P \<circ> snd \<circ> snd) (map (\<lambda>(a, b, c). (a, f b, c)) ls) = map (\<lambda>(a, b, c). (a, f b, c)) (filter (P \<circ> snd \<circ> snd) ls)"
+  by (induct_tac ls, (simp split: prod.splits)+)
+
+lemma filter_empty_conv2: "([] = filter P xs) = (\<forall>x\<in>set xs. \<not> P x)"
+  using filter_empty_conv by metis
+
+lemma filter_eq_singleton_iff:
+  shows "(filter P ys = [x]) = (\<exists>us vs. ys = us @ x # vs \<and> (\<forall>u\<in>set us. \<not> P u) \<and> P x \<and> (\<forall>u\<in>set vs. \<not> P u))"
+  by (simp add: filter_eq_Cons_iff filter_empty_conv2)
+
+lemma filter_eq_singleton_iff2:
+  shows "([x] = filter P ys) = (\<exists>us vs. ys = us @ x # vs \<and> (\<forall>u\<in>set us. \<not> P u) \<and> P x \<and> (\<forall>u\<in>set vs. \<not> P u))"
+  by (fastforce simp add: filter_eq_singleton_iff[symmetric])
+
+
+lemma filter_member:
+  assumes
+    "filter P xs = ys"
+    "y \<in> set ys"
+  shows "y \<in> set xs"
+  using assms
+  apply (induct xs arbitrary: ys)
+   apply clarsimp
+  apply (case_tac "P a"; clarsimp)
+  done
+
+lemma filter_member2:
+  assumes
+    "ys = filter P xs"
+    "y \<in> set ys"
+  shows "y \<in> set xs"
+  using assms filter_member
+  by fast
+
+lemma filter_member_unique_nth:
+  assumes "filter P xs = [a]"
+  shows "\<exists>!i. i < length xs \<and> xs ! i = a"
+proof -
+  obtain us vs where xs_decomp:
+    "xs = us @ a # vs"
+    "\<forall>u\<in>set us. \<not> P u"
+    "P a"
+    "\<forall>u\<in>set vs. \<not> P u"
+    using assms 
+    by (clarsimp simp add: filter_eq_Cons_iff filter_empty_conv2)
+  then have a_not_left_right:
+    "a \<notin> set us"
+    "a \<notin> set vs"
+    by blast+
+
+  have "\<And>i. \<lbrakk> i < length xs ; xs ! i = a \<rbrakk> \<Longrightarrow> i = length us"
+    using a_not_left_right
+    apply (clarsimp simp add: xs_decomp nth_append)
+    apply (metis (no_types, lifting) add.right_neutral add_Suc_right add_diff_inverse_nat add_less_cancel_left less_Suc_eq_le nth_equal_first_eq nth_mem)
+    done
+  then show ?thesis
+    apply (clarsimp simp add: Ex1_def Ex_less_Suc)
+    apply (metis length_append length_pos_if_in_set less_add_same_cancel1 list.set_intros(1) nth_append_length xs_decomp(1))
+    done
+qed
+
+lemma singleton_filter_iff:
+  "[x] = filter P xs \<longleftrightarrow> (\<exists>i<length xs. xs ! i = x \<and> (\<forall>j<length xs. i \<noteq> j \<longrightarrow> \<not> P (xs ! j))) \<and> P x"
+  apply (induct xs)
+   apply force
+  apply (simp add: Ex_less_Suc2 All_less_Suc2 filter_empty_conv2[simplified in_set_conv_nth Ball_def], blast) 
+  done
+
+subsection \<open> list_all \<close>
 
 lemma zip_map_fst_eq: "zip (map f xs) ys = map (apfst f) (zip xs ys)"
   by (induct xs arbitrary: ys)
@@ -386,6 +493,12 @@ lemma list_all3_Cons2: "list_all3 P xs (y # ys') zs = (\<exists>x xs' z zs'. xs 
 
 lemma list_all3_Cons3: "list_all3 P xs ys (z # zs') = (\<exists>x xs' y ys'. xs = x # xs' \<and> ys = y # ys'  \<and> (P x y z \<and> list_all3 P xs' ys' zs'))"
   by (cases xs; cases ys; force simp add: list_all3_iff)
+
+lemma list_all3_Cons12: "list_all3 P (x # xs') (y # ys') zs = (\<exists>z zs'. zs = z # zs'  \<and> (P x y z \<and> list_all3 P xs' ys' zs'))"
+  by (cases zs; force simp add: list_all3_iff)
+
+lemma list_all3_Cons23: "list_all3 P xs (y # ys') (z # zs') = (\<exists>x xs'. xs = x # xs' \<and> (P x y z \<and> list_all3 P xs' ys' zs'))"
+  by (cases xs; force simp add: list_all3_iff)
 
 lemma list_all3_mono[intro?]:
   assumes "list_all3 P xs ys zs"
@@ -626,84 +739,6 @@ lemma prod_in_set:
     and     "b \<in> set (map snd l)"
   using assms by (force intro: imageI)+
 
-
-lemma filter_fst_ignore_tuple:
-  shows "filter (\<lambda>x. P (fst x)) (map (\<lambda>(a,b). (a, f b)) ls)
-     = map (\<lambda>(a,b). (a, f b)) (filter (\<lambda>x. P (fst x)) ls)"
-  by (induct_tac ls, auto)
-
-lemma filter_fst_ignore_triple:
-  shows "filter (\<lambda>x. P (fst x)) (map (\<lambda>(a,b,c). (a, f b, c)) ls)
-     = map (\<lambda>(a,b,c). (a, f b, c)) (filter (\<lambda>x. P (fst x)) ls)"
-  by (induct_tac ls, auto)
-
-lemma filter_fst_ignore_app2:
-  shows "filter (\<lambda>x. P (fst x)) (map (\<lambda>(a,b,c). (a,f b,c)) ls)
-     = map (\<lambda>(a,b,c). (a,f b,c)) (filter (\<lambda>x. P (fst x)) ls)"
-  by (induct_tac ls, auto)
-
-lemma filter_map_map_filter_thd3_app2:
-  shows "filter (P \<circ> snd \<circ> snd) (map (\<lambda>(a, b, c). (a, f b, c)) ls) = map (\<lambda>(a, b, c). (a, f b, c)) (filter (P \<circ> snd \<circ> snd) ls)"
-  by (induct_tac ls, (simp split: prod.splits)+)
-
-lemma filter_empty_conv2: "([] = filter P xs) = (\<forall>x\<in>set xs. \<not> P x)"
-  using filter_empty_conv by metis
-
-lemma filter_eq_singleton_iff:
-  shows "(filter P ys = [x]) = (\<exists>us vs. ys = us @ x # vs \<and> (\<forall>u\<in>set us. \<not> P u) \<and> P x \<and> (\<forall>u\<in>set vs. \<not> P u))"
-  by (simp add: filter_eq_Cons_iff filter_empty_conv2)
-
-lemma filter_eq_singleton_iff2:
-  shows "([x] = filter P ys) = (\<exists>us vs. ys = us @ x # vs \<and> (\<forall>u\<in>set us. \<not> P u) \<and> P x \<and> (\<forall>u\<in>set vs. \<not> P u))"
-  by (fastforce simp add: filter_eq_singleton_iff[symmetric])
-
-
-lemma filter_member:
-  assumes
-    "filter P xs = ys"
-    "y \<in> set ys"
-  shows "y \<in> set xs"
-  using assms
-  apply (induct xs arbitrary: ys)
-   apply clarsimp
-  apply (case_tac "P a"; clarsimp)
-  done
-
-lemma filter_member2:
-  assumes
-    "ys = filter P xs"
-    "y \<in> set ys"
-  shows "y \<in> set xs"
-  using assms filter_member
-  by fast
-
-lemma filter_member_unique_nth:
-  assumes "filter P xs = [a]"
-  shows "\<exists>!i. i < length xs \<and> xs ! i = a"
-proof -
-  obtain us vs where xs_decomp:
-    "xs = us @ a # vs"
-    "\<forall>u\<in>set us. \<not> P u"
-    "P a"
-    "\<forall>u\<in>set vs. \<not> P u"
-    using assms 
-    by (clarsimp simp add: filter_eq_Cons_iff filter_empty_conv2)
-  then have a_not_left_right:
-    "a \<notin> set us"
-    "a \<notin> set vs"
-    by blast+
-
-  have "\<And>i. \<lbrakk> i < length xs ; xs ! i = a \<rbrakk> \<Longrightarrow> i = length us"
-    using a_not_left_right
-    apply (clarsimp simp add: xs_decomp nth_append)
-    apply (metis (no_types, lifting) add.right_neutral add_Suc_right add_diff_inverse_nat add_less_cancel_left less_Suc_eq_le nth_equal_first_eq nth_mem)
-    done
-  then show ?thesis
-    apply (clarsimp simp add: Ex1_def Ex_less_Suc)
-    apply (metis length_append length_pos_if_in_set less_add_same_cancel1 list.set_intros(1) nth_append_length xs_decomp(1))
-    done
-qed
-
 lemma all_imp_conj_distrib: "(\<forall>x. P x \<longrightarrow> Q x \<and> R x) = ((\<forall>x. P x \<longrightarrow> Q x) \<and> (\<forall>x. P x \<longrightarrow> R x))"
   by blast
 
@@ -823,18 +858,15 @@ proof (induct xs arbitrary: i)
   qed simp
 qed simp
 
-
-lemma map_circsnd_eq_map_snd_apsnd:
-  "map (f \<circ> snd) xs = map snd (map (apsnd f) xs)"
-  by (induct xs) clarsimp+
-
 lemma tagged_list_apsnd_tagupd_eq_tagupd_apsnd:
   shows "map (apsnd f) (tagged_list_update tag b' xs) = tagged_list_update tag (f b') (map (apsnd f) xs)"
   by (induct xs) clarsimp+
 
 lemma tagged_list_circsnd_tagupd_iff_map_snd_tagupd_apsnd:
   shows "map (f \<circ> snd) (tagged_list_update tag b' xs) = map snd (tagged_list_update tag (f b') (map (apsnd f) xs))"
-  by (simp add: map_circsnd_eq_map_snd_apsnd tagged_list_apsnd_tagupd_eq_tagupd_apsnd del: map_map)
+  apply (clarsimp simp add: map_circsnd_eq_map_snd_apsnd simp del: map_map)
+  apply (simp add: tagged_list_apsnd_tagupd_eq_tagupd_apsnd)
+  done
 
 lemma tagged_list_update_preserves_tags[simp]:
   shows "map fst (tagged_list_update tag b' xs) = map fst xs"
@@ -872,6 +904,16 @@ proof -
     by (simp add: tagged_list_update_tag_present)
 qed
 
+lemma tagged_list_update_distinct_strong:
+  assumes "distinct (map fst xs)"
+  shows "(tagged_list_update tag b' xs) = (xs[i := (tag, b')])"
+proof -
+  show ?thesis
+    using assms
+    sledgehammer
+    sorry
+qed
+
 lemma tagged_list_update_same_distinct_is_equal:
   assumes distinct_fst_xs: "distinct (map fst xs)"
     and "i < length xs"
@@ -889,5 +931,17 @@ lemma tagged_list_update_success_contains_updated_elem:
   shows "(i, a) \<in> set (tagged_list_update i a xs)"
   using assms
   by (induct xs; fastforce)
+
+lemma tagged_list_update_length_eq[simp]:
+  "length (tagged_list_update n v xs) = length xs"
+  by (induct xs) (clarsimp simp add: split: prod.splits)+
+
+lemma
+  assumes
+    "distinct (map fst xs)"
+    "i < length xs"
+  shows
+    "tagged_list_update tag v xs ! i = (if i = (THE k. fst (xs ! k) = tag) then (tag, v) else xs ! i)"
+  oops
 
 end

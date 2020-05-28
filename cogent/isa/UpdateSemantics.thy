@@ -340,7 +340,7 @@ inductive matches_ptrs :: "('f \<Rightarrow> poly_type)
                          \<Rightarrow> ctx
                          \<Rightarrow> 'l set
                          \<Rightarrow> 'l set
-                         \<Rightarrow> bool" ("_, _ \<turnstile> _ matches _ \<langle>_, _\<rangle>" [30,0,0,0,0,20] 60) where
+                         \<Rightarrow> bool" ("_, _ \<turnstile> _ matches _ \<langle>_, _\<rangle>" [60,0,0,0,0,60] 60) where
 
   matches_ptrs_empty : "\<Xi>, \<sigma> \<turnstile> [] matches [] \<langle>{}, {}\<rangle>"
 
@@ -536,6 +536,34 @@ then show   "\<Xi>, \<sigma> \<turnstile> (x # xs) matches (None # ts) \<langle>
      by (auto intro: matches_ptrs.intros)
 qed
 
+lemma matches_ptrs_Cons:
+  "\<Xi>, \<sigma> \<turnstile> (x # xs) matches (mt # ts) \<langle>r , w\<rangle> \<longleftrightarrow> (case mt of
+    Some t \<Rightarrow> (\<exists>r1 r2 w1 w2.
+                  r = r1 \<union> r2 \<and>
+                  w = w1 \<union> w2 \<and>
+                  \<Xi>, \<sigma> \<turnstile> x :u t \<langle>r1, w1\<rangle> \<and>
+                  \<Xi>, \<sigma> \<turnstile> xs matches ts \<langle>r2, w2\<rangle> \<and>
+                  w1 \<inter> w2 = {} \<and>
+                  w1 \<inter> r2 = {} \<and>
+                  w2 \<inter> r1  = {})
+  | None \<Rightarrow> \<Xi>, \<sigma> \<turnstile> xs matches ts \<langle>r,w\<rangle>
+  )"
+  by (case_tac mt; fastforce intro!: matches_ptrs.intros elim!: matches_ptrs_consE)
+
+lemma matches_ptrs_Cons2:
+  "\<Xi>, \<sigma> \<turnstile> xsa matches (mt # ts) \<langle>r , w\<rangle> \<longleftrightarrow> (case mt of
+    Some t \<Rightarrow> (\<exists>r1 r2 w1 w2 x xs.
+                  xsa = x # xs \<and>
+                  r = r1 \<union> r2 \<and>
+                  w = w1 \<union> w2 \<and>
+                  \<Xi>, \<sigma> \<turnstile> x :u t \<langle>r1, w1\<rangle> \<and>
+                  \<Xi>, \<sigma> \<turnstile> xs matches ts \<langle>r2, w2\<rangle> \<and>
+                  w1 \<inter> w2 = {} \<and>
+                  w1 \<inter> r2 = {} \<and>
+                  w2 \<inter> r1  = {})
+  | None \<Rightarrow> (\<exists>x xs. xsa = x # xs \<and> \<Xi>, \<sigma> \<turnstile> xs matches ts \<langle>r,w\<rangle>)
+  )"
+  by (case_tac mt; fastforce intro!: matches_ptrs.intros elim!: matches_ptrs_consE)
 
 
 lemma pointerset_helper:
@@ -945,21 +973,17 @@ proof (induct arbitrary: \<gamma> r w rule: list_all2_induct )
      case Nil  then show ?case by auto
 next case Cons then show ?case
   proof (cases rule: weakening_comp.cases)
-       case none with Cons show ?thesis by (force elim!: matches_ptrs_consE)
+    case none with Cons show ?thesis by (force elim!: matches_ptrs_consE)
   next case keep with Cons show ?thesis
-    apply (safe elim!: matches_ptrs_consE dest!: Cons(3))
-    apply (rule_tac x = "r \<union> r'a" in exI)
-    apply (force intro!: matches_ptrs.intros)
-  done
-next case drop
-  with Cons show ?thesis
-      apply (safe elim!: matches_ptrs_consE weakening_comp.cases dest!: Cons(3))
-    apply (rule_tac V="w = {}" in revcut_rl)
-     apply (rule discardable_not_writable; auto)
-    apply (clarsimp)
-    apply (rule_tac x = "r'a" in exI)
-    apply (force)
-  done
+      apply (safe elim!: matches_ptrs_consE dest!: Cons(3))
+      apply (rule_tac x = "r \<union> r'a" in exI)
+      apply (force intro!: matches_ptrs.intros)
+      done
+  next case drop
+    have helper: "\<And>P B C. \<exists>A\<subseteq>C. P A \<Longrightarrow> \<exists>A\<subseteq>B\<union>C. P A"
+      by (meson le_supI2)
+    from drop Cons show ?thesis
+      by (force dest: discardable_not_writable' intro!: helper simp add: matches_ptrs_Cons2)
   qed
 qed
 
@@ -969,7 +993,7 @@ and     "\<Xi>, \<sigma> \<turnstile> \<gamma> matches (instantiate_ctx \<tau>s 
 and     "list_all2 (kinding []) \<tau>s K"
 shows   "\<exists>r'. (r' \<subseteq> r) \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> matches (instantiate_ctx \<tau>s \<Gamma>') \<langle>r', w\<rangle>) "
 using assms by (auto dest:  instantiate_ctx_weaken
-                     intro: matches_ptrs_weaken' [simplified])
+                     intro: matches_ptrs_weaken'[simplified])
 
 
 
@@ -1087,15 +1111,14 @@ shows   "w = {}"
 using assms proof(induction rule: matches_ptrs.induct)
   case (matches_ptrs_some \<Xi> \<sigma> x t r w xs ts r' w')
   then have "[] \<turnstile> t :\<kappa> {D}"
-    by (auto simp: weakening_def empty_def kinding_def
-            elim!: weakening_comp.cases)
+    by (force simp: weakening_def kinding_def is_consumed_Cons elim!: weakening_comp.cases)
   then have "w = {}"
     using matches_ptrs_some(1,7) discardable_not_writable
     by blast
   then show ?case
     using matches_ptrs_some
-    by (auto simp: weakening_def empty_def)
-qed (auto simp: weakening_def empty_def
+    by (force simp: weakening_def empty_def is_consumed_Cons)
+qed (auto simp: weakening_def empty_def is_consumed_Cons
           elim: weakening_comp.cases
           dest: discardable_not_writable)
 
@@ -1105,8 +1128,8 @@ assumes "list_all2 (kinding []) \<tau>s K"
 and     "\<Xi>, \<sigma> \<turnstile> \<gamma> matches (instantiate_ctx \<tau>s \<Gamma>) \<langle>r, w\<rangle>"
 and     "K \<turnstile> \<Gamma> consumed"
 shows   "w = {}"
-using assms by (auto dest:   instantiate_ctx_weaken
-                     intro!: matches_ptrs_proj_consumed')
+  using assms
+  by (force dest: instantiate_ctx_consumed intro!: matches_ptrs_proj_consumed')
 
 lemma matches_ptrs_proj_single:
 assumes "list_all2 (kinding []) \<tau>s K"
@@ -2973,9 +2996,8 @@ next
       by (meson order.trans value_subtyping)
   qed force+
 next case u_sem_all_empty then show ?case
-    by ( cases es, simp_all, fastforce intro!: frame_id
-                                               uval_typing_all.intros
-                                       dest: matches_ptrs_empty_env(2))
+    by (force dest: matches_ptrs_proj_consumed intro: u_t_all_empty frame_id
+        simp add: specialise_eq_convs)
 next case u_sem_all_cons
   note IH1  = this(2)
   and  IH2  = this(4)
