@@ -3,16 +3,6 @@ theory TypeInfer
   (* "../../autocorres/lib/Apply_Trace_Cmd" *)
 begin
 
-lemma canonical_trans_less_add1:
-  fixes x y z :: "'a :: canonically_ordered_monoid_add"
-  shows "z < x \<Longrightarrow> z < x + y"
-  by (meson le_iff_add less_le_trans)
-
-lemma canonical_trans_less_add2:
-  fixes x y z :: "'a :: canonically_ordered_monoid_add"
-  shows "z < y \<Longrightarrow> z < x + y"
-  by (metis add.commute canonical_trans_less_add1)
-
 lemma canonical_trans_le_add1:
   fixes x y z :: "'a :: canonically_ordered_monoid_add"
   shows "x + y \<le> z \<Longrightarrow> x \<le> z"
@@ -23,35 +13,15 @@ lemma canonical_trans_le_add2:
   shows "x + y \<le> z \<Longrightarrow> y \<le> z"
   by (metis add.commute canonical_trans_le_add1)
 
-lemma canonical_smaller_add_impossible1:
-  fixes x y z :: "'a :: canonically_ordered_monoid_add"
-  shows "\<lbrakk> \<not> z < x + y; z < x \<rbrakk> \<Longrightarrow> False"
-  using canonical_trans_less_add1 by blast
-
-lemma canonical_smaller_add_impossible2:
-  fixes x y z :: "'a :: canonically_ordered_monoid_add"
-  shows "\<lbrakk> \<not> z < x + y; z < y \<rbrakk> \<Longrightarrow> False"
-  using canonical_trans_less_add2 by blast
-
-lemma neq_le_eq_less:
-  fixes a b :: "'a :: order"
-  shows "a \<noteq> b \<Longrightarrow> a \<le> b \<longleftrightarrow> a < b"
-  by (simp add: le_less)
-
-(*
-  What structures satisfy?
- 1. \<lbrakk>c1 + c2 \<le> 1 \<rbrakk> \<Longrightarrow> c1 \<le> 1
- 2. \<lbrakk>c1 + c2 \<le> 1 \<rbrakk> \<Longrightarrow> c2 \<le> 1
- 3. \<lbrakk> 1 + 1 \<le> 1; c1 = 1; c2 = 1\<rbrakk> \<Longrightarrow> False
- 4. \<lbrakk> c1 \<le> 1; c2 \<le> 1; c1 \<noteq> 1\<rbrakk> \<Longrightarrow> c1 + c2 \<le> 1
- 5. \<lbrakk> c1 \<le> 1; c2 \<le> 1; c2 \<noteq> 1\<rbrakk> \<Longrightarrow> c1 + c2 \<le> 1
-
-  \<lbrakk>\<not> 1 < sup c1 c2; 1 < c1\<rbrakk> \<Longrightarrow> False
-  \<lbrakk>\<not> 1 < sup c1 c2; 1 < c2\<rbrakk> \<Longrightarrow> False
-  \<lbrakk>1 < sup c1 c2 \<Longrightarrow> \<not> 1 < c1; \<not> 1 < c2\<rbrakk> \<Longrightarrow> False
-*)
-
 (* Cogent lemmas (TODO move) *)
+
+lemma case_variant_state_True[simp]:
+  "case_variant_state True True tk = True"
+  by (clarsimp split: variant_state.splits)
+
+lemma case_record_state_True[simp]:
+  "case_record_state True True tk = True"
+  by (clarsimp split: record_state.splits)
 
 lemma weakening_comp_trans:
   "weakening_comp K a b \<Longrightarrow> weakening_comp K b c \<Longrightarrow> weakening_comp K a c"
@@ -561,6 +531,8 @@ lemma linearity_extra_simps[simp]:
   "(0 = \<omega>) = False"
   "(1 = (0::linearity)) = False"
   "(0 = (1::linearity)) = False"
+  "(LNone = 0) = True"
+  "(LOne = 1) = True"
   "(LOne = 0) = False"
   "(0 = LOne) = False"
   "(1 = LNone) = False"
@@ -634,6 +606,12 @@ lemma linearity_one_lt_eq_many:
 lemma linearity_one_le_eq_one_or_many:
   "1 \<le> c \<longleftrightarrow> c = 1 \<or> c = \<omega>"
   by (cases c; simp add: one_linearity_def)
+
+lemma linearity_gt_one_eq_zero_or_one:
+  fixes c :: linearity
+  shows
+    "c \<le> 1 \<longleftrightarrow> c = 0 \<or> c = 1"
+  by (cases c; simp add: zero_linearity_def one_linearity_def)
 
 
 definition droppable :: "kind env \<Rightarrow> type \<Rightarrow> bool" where
@@ -759,6 +737,16 @@ lemma is_shared_linearity_simps[simp]:
 
 lemmas is_shared_linearity_simps2[simp] =
   is_shared_linearity_simps(2-)[simplified zero_linearity_def[symmetric] one_linearity_def[symmetric]]
+
+
+
+
+definition droppable_constraint :: "kind list \<Rightarrow> type list \<Rightarrow> linearity list \<Rightarrow> bool" where
+  "droppable_constraint K \<equiv> list_all2 (is_used K)"
+
+lemmas droppable_constraint_conv_all_nth =
+  list_all2_conv_all_nth[where P=\<open>is_used K :: type \<Rightarrow> linearity \<Rightarrow> bool\<close> for K, simplified 
+                         droppable_constraint_def[symmetric]]
 
 
 definition merge_drop_condition_comp :: "kind list \<Rightarrow> type \<Rightarrow> linearity \<Rightarrow> linearity \<Rightarrow> bool" where
@@ -1022,95 +1010,7 @@ lemmas tyinf_checking_safe_intros =
 
 lemmas tyinf_safe_intros = tyinf_synth_safe_intros tyinf_checking_safe_intros
 
-
-
-(* Obviously true, but ensures C' and t' are schematic *)
-lemma tyinf_checkI:
-  "\<lbrakk> \<Xi>, K, \<Gamma>, C' \<turnstile>\<down> e : t'
-   ; C = C'
-   ; t = t'
-   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> e : t"
-  by fast
-
-ML \<open>
-fun trace_tac ctxt (st : thm) = print_tac ctxt (@{make_string} st) st
-fun trace_tac' ctxt  _ = trace_tac ctxt
-
-  fun typinfer_tac_N (n : int) (ctxt : Proof.context) : tactic =
-    let val tac = (resolve_tac ctxt @{thms tyinf_safe_intros} ORELSE'
-                  fast_force_tac (ctxt addsimps @{thms kinding_simps}));
-     in REPEAT_DETERM_N n (FIRSTGOAL tac)
-     end
-
-  val typinfer_tac = typinfer_tac_N ~1
-\<close>
-
-
-
-
-
-
-definition
-  ty1 :: " Cogent.type"
-where
-  "ty1 \<equiv> TRecord [(''b'', (TPrim (Num U8), Present)), (''a'', (TPrim (Num U32), Present))] Unboxed"
-
-definition
-  expr1 :: "string Cogent.expr"
-where
-  "expr1 \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Struct [''b'',''a''] [TPrim (Num U8), TPrim (Num U32)] [Var 2, Var 0]))"
-
-schematic_goal typing1: "\<Xi>, [], [ty1], ?C \<turnstile>\<up> expr1 : ty1"
-  unfolding expr1_def ty1_def
-  apply clarsimp
-  apply (tactic \<open>typinfer_tac_N 7 @{context}\<close>)
-  apply simp
-  apply (tactic \<open>typinfer_tac_N 31 @{context}\<close>)
-
-  oops
-
-
-definition
-  ty2a :: "Cogent.type"
-where
-  "ty2a \<equiv> TRecord
-            [ (''a'', TCon ''A'' [] (Boxed Writable undefined), Present)
-            , (''b'', TCon ''A'' [] (Boxed Writable undefined), Taken)]
-            Unboxed"
-
-definition
-  ty2b :: "Cogent.type"
-where
-  "ty2b \<equiv> TRecord
-            [ (''a'', TCon ''A'' [] (Boxed Writable undefined), Taken)
-            , (''b'', TCon ''A'' [] (Boxed Writable undefined), Present)]
-            Unboxed"
-
-definition
-  expr2 :: "string Cogent.expr"
-where
-  "expr2 \<equiv> Take (Var 0) 0 (Put (Var 1) 1 (Var 0))"
-
-schematic_goal typing2: "\<Xi>, [], [ty2a], ?C \<turnstile>\<up> expr2 : ty2b"
-  unfolding expr2_def ty2a_def ty2b_def
-  apply clarsimp
-  apply (tactic \<open>typinfer_tac @{context}\<close>)
-  done
-thm typing2[simplified]
-
-schematic_goal typing3:
-  "\<exists>ts. \<Xi>, [], [TCon ''A'' [] (Boxed Writable undefined)], ?C \<turnstile>\<down> Struct [''a'',''b''] ts [Var 0, Var 0] : ?t"
-  apply (rule exI)
-  apply (rule tyinf_checkI)
-    apply (tactic \<open>typinfer_tac @{context}\<close>)
-  done
-thm typing3[simplified]
-
-
-
-
-
-
+subsection \<open> Shareable Constraint \<close>
 
 definition shareable_constraint :: "kind list \<Rightarrow> type list \<Rightarrow> linearity list \<Rightarrow> bool" where
   "shareable_constraint K \<equiv> list_all2 (is_shared K)"
@@ -1153,7 +1053,12 @@ lemma shareable_constraint_add[dest]:
   by (force dest: canonical_trans_le_add1 canonical_trans_le_add2
       simp add: shareable_constraint_conv_all_nth lin_add_sym is_shared_def)+
 
+subsubsection \<open> New is_shared \<close>
 
+text \<open>
+  This judgement captures the additional constraints generated when two linearity contexts are
+  added together.
+\<close>
 
 definition new_is_shared :: "kind list \<Rightarrow> type \<Rightarrow> ('a :: {one, canonically_ordered_monoid_add}) \<Rightarrow> 'a \<Rightarrow> bool" where
   "new_is_shared K \<equiv> (\<lambda>t c1 c2. c1 + c2 \<le> 1 \<or> shareable K t)"
@@ -1218,41 +1123,13 @@ lemma shareable_constraint_max_iff:
   by (force simp add: shareable_constraint_conv_all_nth new_shareable_constraint_conv_all_nth
       is_shared_max_iff)
 
-
-inductive tycount_context_constraint_comp :: "kind list \<Rightarrow> type \<Rightarrow> linearity \<Rightarrow> type option \<Rightarrow> bool" where
-  "shareable K t \<Longrightarrow> tycount_context_constraint_comp K t \<omega> (Some t)"
-| "tycount_context_constraint_comp K t 1 (Some t)"
-| "tycount_context_constraint_comp K t 0 None"
-
-definition tycount_context_constraint :: "kind list \<Rightarrow> type list \<Rightarrow> linearity list \<Rightarrow> type option list \<Rightarrow> bool" where
-  "tycount_context_constraint K \<equiv> list_all3 (tycount_context_constraint_comp K)"
-
-lemmas tycount_context_constraint_conv_all_nth =
-  list_all3_conv_all_nth[where P=\<open>tycount_context_constraint_comp K\<close> for K, simplified tycount_context_constraint_def[symmetric]]
-
-lemmas tycount_context_constraint_Cons[simp] =
-  list_all3_Cons[where P=\<open>tycount_context_constraint_comp K\<close> for K, simplified tycount_context_constraint_def[symmetric]]
-
-lemmas tycount_context_constraint_Cons12[simp] =
-  list_all3_Cons12[where P=\<open>tycount_context_constraint_comp K\<close> for K, simplified tycount_context_constraint_def[symmetric]]
-
-lemma tycount_context_constraint_empty:
-  "tycount_context_constraint K G (replicate (length G) 0) (replicate (length G) None)"
-  by (simp add: tycount_context_constraint_conv_all_nth tycount_context_constraint_comp.simps)
-
-lemma tycount_context_constraint_one:
-  "tycount_context_constraint K G (replicate (length G) 1) (map Some G)"
-  by (simp add: tycount_context_constraint_conv_all_nth tycount_context_constraint_comp.simps)
-
-
-
+subsection \<open> Type Inference Properties \<close>
 
 lemma tyinf_context_lengths:
   "\<Xi>, K, \<Gamma>, C \<turnstile>\<down> e : t    \<Longrightarrow> length C = length \<Gamma>"
   "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> e : t    \<Longrightarrow> length C = length \<Gamma>"
   "\<Xi>, K, \<Gamma>, C \<turnstile>\<down>* es : ts \<Longrightarrow> length C = length \<Gamma>"
   by (induct rule: tyinf_synth_tyinf_check_tyinf_all_synth.inducts) simp+
-
 
 lemma tyinf_preserves_wellformed[dest]:
   "\<Xi>, K, \<Gamma>, C \<turnstile>\<down> e : t    \<Longrightarrow> K \<turnstile>* \<Gamma> wellformed \<Longrightarrow> K \<turnstile> t wellformed"
@@ -1278,14 +1155,157 @@ next
     by (force dest: subtyping_wellformed_preservation)
 qed (simp; simp add: type_wellformed_pretty_simps type_wellformed_all_length list_all_length map_fst_zip_take less_Suc_eq_0_disj)+
 
-lemmas tyinf_shareable_constraint_plus_iff =
-  shareable_constraint_plus_iff[OF trans[OF tyinf_context_lengths(1) tyinf_context_lengths(1)[symmetric]]]
-  shareable_constraint_plus_iff[OF trans[OF tyinf_context_lengths(1) tyinf_context_lengths(2)[symmetric]]]
-  shareable_constraint_plus_iff[OF trans[OF tyinf_context_lengths(2) tyinf_context_lengths(1)[symmetric]]]
-  shareable_constraint_plus_iff[OF trans[OF tyinf_context_lengths(2) tyinf_context_lengths(2)[symmetric]]]
+subsection \<open> Non-algorithmic Context Generation \<close>
 
-  shareable_constraint_plus_iff[OF trans[OF tyinf_context_lengths(1) tyinf_context_lengths(2)[symmetric, where \<Gamma>="x # \<Gamma>" and C="cx # C" for x \<Gamma> cx C, simplified]]]
-  shareable_constraint_plus_iff[OF trans[OF tyinf_context_lengths(1) tyinf_context_lengths(2)[symmetric, where \<Gamma>="x # y # \<Gamma>" and C="cx # cy # C" for x y \<Gamma> cx cy C, simplified]]]
+definition tycount_context_gen_comp :: "type \<Rightarrow> linearity \<Rightarrow> type option" where
+  "tycount_context_gen_comp \<equiv> (\<lambda>t c. if c = LNone then None else Some t)"
+
+lemma tycount_context_gen_comp_simps[simp]:
+  "tycount_context_gen_comp t \<omega> = Some t"
+  "tycount_context_gen_comp t LOne = Some t"
+  "tycount_context_gen_comp t LNone = None"
+  by (simp add: tycount_context_gen_comp_def)+
+
+lemmas tycount_context_gen_comp_simps2[simp] =
+  tycount_context_gen_comp_simps(2-)[simplified
+    zero_linearity_def[symmetric]
+    one_linearity_def[symmetric]]
+
+lemma context_gen_comp_None:
+  "tycount_context_gen_comp t c = None \<longleftrightarrow> c = 0"
+  by (cases c; simp)
+
+lemma context_gen_comp_Some:
+  "tycount_context_gen_comp t c = Some u \<longleftrightarrow> (t = u \<and> c \<noteq> 0)"
+  by (cases c; simp)
+
+definition tycount_context_gen :: "type list \<Rightarrow> linearity list \<Rightarrow> type option list" where
+  "tycount_context_gen \<equiv> map2 tycount_context_gen_comp"
+
+lemma tycount_context_gen_Cons[simp]:
+  "tycount_context_gen (t # G) (c # C) = tycount_context_gen_comp t c # tycount_context_gen G C"
+  by (simp add: tycount_context_gen_def)
+
+lemma tycount_context_gen_length_eq[simp]:
+  "length (tycount_context_gen G C) = min (length G) (length C)"
+  by (simp add: tycount_context_gen_def)
+
+lemma tycount_context_gen_nth[simp]:
+  assumes
+    "i < length G"
+    "i < length C"
+  shows
+    "tycount_context_gen G C ! i = tycount_context_gen_comp (G ! i) (C ! i)"
+  using assms
+  by (simp add: tycount_context_gen_def)
+
+subsubsection \<open> context_gen respects weaken \<close>
+
+lemma weakens_to_context_gen:
+  assumes
+    "K \<turnstile> t wellformed"
+    "is_used K t c"
+  shows
+  "weakening_comp K (Some t) (tycount_context_gen_comp t c)"
+  using assms
+  by (clarsimp simp add: context_gen_comp_Some weakening_comp.simps is_used_def
+      linearity_one_le_eq_one_or_many droppable_def split: linearity.splits)
+
+subsubsection \<open> join with + respects split \<close>
+
+lemma tycount_context_gen_split_comp:
+  assumes
+    "K \<turnstile> t wellformed"
+    "new_is_shared K t c1 c2"
+  shows
+    "K \<turnstile> tycount_context_gen_comp t (c1 + c2) \<leadsto> tycount_context_gen_comp t c1 \<parallel> tycount_context_gen_comp t c2"
+  using assms
+  by (force simp add:
+      split_comp.simps tycount_context_gen_comp_def new_is_shared_def
+      linearity_add_to_one_iff linearity_gt_one_eq_zero_or_one zero_linearity_def
+      split: if_splits)
+
+lemma tycount_context_gen_split:
+  assumes
+    "K \<turnstile>* G wellformed"
+    "new_shareable_constraint K G C1 C2"
+  shows
+    "K \<turnstile> tycount_context_gen G (C1 \<oplus> C2) \<leadsto> tycount_context_gen G C1 | tycount_context_gen G C2"
+  using assms
+  by (clarsimp simp add: split_conv_all_nth type_wellformed_all_length
+      new_shareable_constraint_conv_all_nth tycount_context_gen_split_comp)
+
+subsubsection \<open> join with sup respects split \<close>
+
+lemma tycount_context_gen_max_split_comp:
+  assumes
+    "K \<turnstile> t wellformed"
+    "new_is_shared K t c1 c2"
+  shows
+    "K \<turnstile> tycount_context_gen_comp t (sup c1 c2) \<leadsto> tycount_context_gen_comp t c1 \<parallel> tycount_context_gen_comp t c2"
+  using assms
+  by (force simp add: zero_linearity_def one_linearity_def new_is_shared_def
+      split_comp.simps tycount_context_gen_comp_def linearity_neq_none_iff)
+
+lemma tycount_context_gen_max_split:
+  assumes
+    "K \<turnstile>* G wellformed"
+    "new_shareable_constraint K G C1 C2"
+  shows
+    "K \<turnstile> tycount_context_gen G (countMax C1 C2) \<leadsto> tycount_context_gen G C1 | tycount_context_gen G C2"
+  using assms
+  by (clarsimp simp add: split_conv_all_nth type_wellformed_all_length
+      new_shareable_constraint_conv_all_nth tycount_context_gen_max_split_comp)
+
+subsubsection \<open> join sup can be weakened \<close>
+
+lemma tycount_context_gen_weaken_max_comp:
+  assumes
+    "K \<turnstile> t wellformed"
+    "merge_drop_condition_comp K t c1 c2"
+  shows
+    "weakening_comp K (tycount_context_gen_comp t (sup c1 c2)) (tycount_context_gen_comp t c1)"
+    "weakening_comp K (tycount_context_gen_comp t (sup c1 c2)) (tycount_context_gen_comp t c2)"
+  using assms
+  by (force simp add:
+      tycount_context_gen_comp_def weakening_comp.simps merge_drop_condition_comp_def
+      droppable_def zero_linearity_def linearity_none_impl_iff2 linearity_neq_none_iff
+      split: if_splits)+
+
+lemma tycount_context_gen_weaken_max:
+  assumes
+    "K \<turnstile>* G wellformed"
+    "merge_drop_condition K G C1 C2"
+  shows
+    "K \<turnstile> tycount_context_gen G (countMax C1 C2) \<leadsto>w tycount_context_gen G C1"
+    "K \<turnstile> tycount_context_gen G (countMax C1 C2) \<leadsto>w tycount_context_gen G C2"
+  using assms
+  by (fastforce intro: tycount_context_gen_weaken_max_comp
+      simp add: type_wellformed_all_length weakening_conv_all_nth merge_drop_condition_conv_all_nth)+
+
+
+subsection \<open> Misc Lemmas \<close>
+
+
+lemmas tyinf_shareable_constraint_plus_iff =
+  shareable_constraint_plus_iff[OF trans[OF
+      tyinf_context_lengths(1) tyinf_context_lengths(1)[symmetric]]]
+  shareable_constraint_plus_iff[OF trans[OF
+      tyinf_context_lengths(1) tyinf_context_lengths(2)[symmetric]]]
+  shareable_constraint_plus_iff[OF trans[OF
+      tyinf_context_lengths(2) tyinf_context_lengths(1)[symmetric]]]
+  shareable_constraint_plus_iff[OF trans[OF
+      tyinf_context_lengths(1) tyinf_context_lengths(3)[symmetric]]]
+
+  shareable_constraint_plus_iff[OF trans[OF
+      tyinf_context_lengths(2) tyinf_context_lengths(2)[symmetric]]]
+
+  shareable_constraint_plus_iff[OF trans[OF
+      tyinf_context_lengths(1) tyinf_context_lengths(2)[symmetric,
+        where \<Gamma>="x # \<Gamma>" and C="cx # C" for x \<Gamma> cx C, simplified]]]
+  shareable_constraint_plus_iff[OF trans[OF
+      tyinf_context_lengths(1) tyinf_context_lengths(2)[symmetric,
+        where \<Gamma>="x # y # \<Gamma>" and C="cx # cy # C" for x y \<Gamma> cx cy C, simplified]]]
 
 lemmas tyinf_shareable_constraint_max_iff =
   shareable_constraint_max_iff[OF trans[OF tyinf_context_lengths(1) tyinf_context_lengths(1)[symmetric]]]
@@ -1293,219 +1313,55 @@ lemmas tyinf_shareable_constraint_max_iff =
   shareable_constraint_max_iff[OF trans[OF tyinf_context_lengths(2) tyinf_context_lengths(1)[symmetric]]]
   shareable_constraint_max_iff[OF trans[OF tyinf_context_lengths(2) tyinf_context_lengths(2)[symmetric]]]
 
-  shareable_constraint_max_iff[OF trans[OF tyinf_context_lengths(1) tyinf_context_lengths(2)[symmetric, where \<Gamma>="x # \<Gamma>" and C="cx # C" for x \<Gamma> cx C, simplified]]]
-  shareable_constraint_max_iff[OF trans[OF tyinf_context_lengths(1) tyinf_context_lengths(2)[symmetric, where \<Gamma>="x # y # \<Gamma>" and C="cx # cy # C" for x y \<Gamma> cx cy C, simplified]]]
-
-
 
 lemma weakening_context_correspond:
   assumes
-    "i < length \<Gamma>"
-  shows
-    "tycount_context_constraint K \<Gamma> ((replicate (length \<Gamma>) 0)[i := 1]) ((replicate (length \<Gamma>) None)[i := Some (\<Gamma> ! i)])"
-  using assms
-  by (clarsimp simp add: tycount_context_constraint_conv_all_nth tycount_context_constraint_comp.simps nth_list_update split: linearity.splits)
-
-
-definition join_contexts_comp :: "type \<Rightarrow> linearity \<Rightarrow> type option" where
-  "join_contexts_comp t c \<equiv> if c = LNone then None else Some t"
-
-definition join_contexts :: "type list \<Rightarrow> linearity list \<Rightarrow> type option list" where
-  "join_contexts \<equiv> map2 join_contexts_comp"
-
-lemma join_contexts_length_eq[simp]:
-  "length (join_contexts G C) = min (length G) (length C)"
-  by (simp add: join_contexts_def)
-
-lemma join_contexts_nth[simp]:
-  assumes
     "i < length G"
-    "i < length C"
   shows
-    "join_contexts G C ! i = join_contexts_comp (G ! i) (C ! i)"
+    "tycount_context_gen G ((replicate (length G) 0)[i := 1]) = (replicate (length G) None)[i := Some (G ! i)]"
   using assms
-  by (simp add: join_contexts_def)
-
-
-subsubsection \<open> join with + respects tycount_context_constraint \<close>
-
-lemma join_contexts_tycount_context_constraint_comp:
-  assumes
-    "tycount_context_constraint_comp K t c1 mt1"
-    "tycount_context_constraint_comp K t c2 mt2"
-    "new_is_shared K t c1 c2"
-  shows
-    "tycount_context_constraint_comp K t (c1 + c2) (join_contexts_comp t (c1 + c2))"
-  using assms
-  apply (simp add: split_comp.simps tycount_context_constraint_comp.simps join_contexts_comp_def)
-  apply (elim disjE; clarsimp simp add: zero_linearity_def one_linearity_def new_is_shared_def)
-  done
-
-lemma join_contexts_tycount_context_constraint:
-  assumes
-    "tycount_context_constraint K G C1 \<Gamma>1"
-    "tycount_context_constraint K G C2 \<Gamma>2"
-    "new_shareable_constraint K G C1 C2"
-  shows
-    "tycount_context_constraint K G (C1 \<oplus> C2) (join_contexts G (C1 \<oplus> C2))"
-  using assms
-  by (force simp add:
-      split_conv_all_nth tycount_context_constraint_conv_all_nth type_wellformed_all_length
-      new_shareable_constraint_conv_all_nth join_contexts_tycount_context_constraint_comp)
-
-subsubsection \<open> join with + respects split \<close>
-
-lemma join_contexts_split_comp:
-  assumes
-    "K \<turnstile> t wellformed"
-    "tycount_context_constraint_comp K t c1 mt1"
-    "tycount_context_constraint_comp K t c2 mt2"
-    "new_is_shared K t c1 c2"
-  shows
-    "K \<turnstile> join_contexts_comp t (c1 + c2) \<leadsto> mt1 \<parallel> mt2"
-  using assms
-  apply (simp add: split_comp.simps tycount_context_constraint_comp.simps join_contexts_comp_def)
-  apply (elim disjE; clarsimp simp add: zero_linearity_def one_linearity_def new_is_shared_def)
-  done
-
-lemma join_contexts_split:
-  assumes
-    "K \<turnstile>* G wellformed"
-    "tycount_context_constraint K G C1 \<Gamma>1"
-    "tycount_context_constraint K G C2 \<Gamma>2"
-    "new_shareable_constraint K G C1 C2"
-  shows
-    "K \<turnstile> join_contexts G (C1 \<oplus> C2) \<leadsto> \<Gamma>1 | \<Gamma>2"
-  using assms
-  by (clarsimp simp add:
-      split_conv_all_nth tycount_context_constraint_conv_all_nth type_wellformed_all_length
-      new_shareable_constraint_conv_all_nth join_contexts_split_comp)
-
-
-subsubsection \<open> join with sup respects tycount_context_constraint \<close>
-
-lemma join_contexts_max_tycount_context_constraint_comp:
-  assumes
-    "tycount_context_constraint_comp K t c1 mt1"
-    "tycount_context_constraint_comp K t c2 mt2"
-  shows
-    "tycount_context_constraint_comp K t (sup c1 c2) (join_contexts_comp t (sup c1 c2))"
-  using assms
-  apply (simp add: split_comp.simps tycount_context_constraint_comp.simps join_contexts_comp_def)
-  apply (elim disjE; clarsimp simp add: zero_linearity_def one_linearity_def new_is_shared_def)
-  done
-
-lemma join_contexts_max_tycount_context_constraint:
-  assumes
-    "K \<turnstile>* G wellformed"
-    "tycount_context_constraint K G C1 \<Gamma>1"
-    "tycount_context_constraint K G C2 \<Gamma>2"
-  shows
-    "tycount_context_constraint K G (countMax C1 C2) (join_contexts G (countMax C1 C2))"
-  using assms
-  by (force simp add:
-      split_conv_all_nth tycount_context_constraint_conv_all_nth type_wellformed_all_length
-      new_shareable_constraint_conv_all_nth join_contexts_max_tycount_context_constraint_comp)
-
-
-subsubsection \<open> join with sup respects split \<close>
-
-lemma join_contexts_max_split_comp:
-  assumes
-    "K \<turnstile> t wellformed"
-    "tycount_context_constraint_comp K t c1 mt1"
-    "tycount_context_constraint_comp K t c2 mt2"
-    "new_is_shared K t c1 c2"
-  shows
-    "K \<turnstile> join_contexts_comp t (sup c1 c2) \<leadsto> mt1 \<parallel> mt2"
-  using assms
-  by (force simp add: zero_linearity_def one_linearity_def new_is_shared_def
-      split_comp.simps tycount_context_constraint_comp.simps join_contexts_comp_def)
-
-lemma join_contexts_max_split:
-  assumes
-    "K \<turnstile>* G wellformed"
-    "tycount_context_constraint K G C1 \<Gamma>1"
-    "tycount_context_constraint K G C2 \<Gamma>2"
-    "new_shareable_constraint K G C1 C2"
-  shows
-    "K \<turnstile> join_contexts G (countMax C1 C2) \<leadsto> \<Gamma>1 | \<Gamma>2"
-  using assms
-  by (clarsimp simp add:
-      split_conv_all_nth tycount_context_constraint_conv_all_nth type_wellformed_all_length
-      new_shareable_constraint_conv_all_nth join_contexts_max_split_comp)
-
-subsubsection \<open> join sup can be weakened \<close>
-
-lemma join_contexts_weaken_max_comp:
-  assumes
-    "K \<turnstile> t wellformed"
-    "merge_drop_condition_comp K t c1 c2"
-    "tycount_context_constraint_comp K t c1 mt1"
-    "tycount_context_constraint_comp K t c2 mt2"
-  shows
-    "weakening_comp K (join_contexts_comp t (sup c1 c2)) mt1"
-    "weakening_comp K (join_contexts_comp t (sup c1 c2)) mt2"
-  using assms
-  by (force simp add:
-      join_contexts_comp_def weakening_comp.simps tycount_context_constraint_comp.simps
-      merge_drop_condition_comp_def
-      zero_linearity_def one_linearity_def droppable_def imp_conjL linearity_none_impl_iff2)+
-
-lemma join_contexts_weaken_max:
-  assumes
-    "K \<turnstile>* G wellformed"
-    "merge_drop_condition K G C1 C2"
-    "tycount_context_constraint K G C1 \<Gamma>1"
-    "tycount_context_constraint K G C2 \<Gamma>2"
-  shows
-    "K \<turnstile> join_contexts G (countMax C1 C2) \<leadsto>w \<Gamma>1"
-    "K \<turnstile> join_contexts G (countMax C1 C2) \<leadsto>w \<Gamma>2"
-  using assms
-  by (fastforce intro: join_contexts_weaken_max_comp
-      simp add: tycount_context_constraint_conv_all_nth type_wellformed_all_length
-      weakening_conv_all_nth merge_drop_condition_conv_all_nth)+
-
-
+  by (auto simp add: tycount_context_gen_comp_def nth_list_update list_eq_iff_nth_eq
+      split: linearity.splits)
+  
 
 section \<open> Main Theorem: An Inferred Typing Implies a Non-Algorithmic Typing \<close>
 
 theorem tyinf_to_typing:
   assumes
-    "well_kinded_all K"
     "shareable_constraint K G C"
     "K \<turnstile>* G wellformed"
   shows
-  "\<Xi>, K, G, C \<turnstile>\<down> e : t    \<Longrightarrow> \<exists>\<Gamma>. tycount_context_constraint K G C \<Gamma> \<and> \<Xi>, K, \<Gamma> \<turnstile> e : t"
-  "\<Xi>, K, G, C \<turnstile>\<up> e : t    \<Longrightarrow> \<exists>\<Gamma>. tycount_context_constraint K G C \<Gamma> \<and> \<Xi>, K, \<Gamma> \<turnstile> e : t"
-  "\<Xi>, K, G, C \<turnstile>\<down>* es : ts \<Longrightarrow> \<exists>\<Gamma>. tycount_context_constraint K G C \<Gamma> \<and> \<Xi>, K, \<Gamma> \<turnstile>* es : ts"
+  "\<Xi>, K, G, C \<turnstile>\<down> e : t    \<Longrightarrow> \<Xi>, K, tycount_context_gen G C \<turnstile> e : t"
+  "\<Xi>, K, G, C \<turnstile>\<up> e : t    \<Longrightarrow> \<Xi>, K, tycount_context_gen G C \<turnstile> e : t"
+  "\<Xi>, K, G, C \<turnstile>\<down>* es : ts \<Longrightarrow> \<Xi>, K, tycount_context_gen G C \<turnstile>* es : ts"
   using assms
 proof (induct rule: tyinf_synth_tyinf_check_tyinf_all_synth.inducts)
   case tyinf_var then show ?case
-    by (fastforce
-        intro!: typing_typing_all.intros weakening_context_correspond weakening_refl
-        simp add: Cogent.empty_def type_wellformed_all_length)
+    by (force
+        intro!: typing_typing_all.intros weakening_refl
+        simp add: Cogent.empty_def type_wellformed_all_length
+        weakening_context_correspond)
 next case tyinf_tuple then show ?case
-    by (fastforce
-        intro!: typing_typing_all.intros join_contexts_tycount_context_constraint join_contexts_split
+    by (auto
+        intro!: typing_typing_all.intros tycount_context_gen_split
         simp add: tyinf_shareable_constraint_plus_iff)
 next
   case tyinf_member then show ?case
     by (force intro!: typing_typing_all.intros kinding_kinding_allI
-              simp add: prod_eq_iff_proj_eq shareable_def tyinf_context_lengths shareable_constraint_plus_iff)
+              simp add: prod_eq_iff_proj_eq shareable_def tyinf_context_lengths
+              shareable_constraint_plus_iff)
 next
   case tyinf_put then show ?case
     by (simp add: tyinf_shareable_constraint_plus_iff droppable_def,
-        blast intro: join_contexts_tycount_context_constraint typing_typing_all.intros
-        join_contexts_split kinding_kinding_allI)
+        blast intro: typing_typing_all.intros
+        tycount_context_gen_split kinding_kinding_allI)
 next
   case tyinf_struct then show ?case
     by (force intro!: typing_typing_all.intros simp add: zip_map2)
 next
   case tyinf_app then show ?case
     by (fastforce
-        intro!: join_contexts_tycount_context_constraint typing_typing_all.intros
-        join_contexts_split kinding_kinding_allI
+        intro!: typing_typing_all.intros tycount_context_gen_split kinding_kinding_allI
         simp add: tyinf_shareable_constraint_plus_iff)
 next
   case (tyinf_split \<Xi> K \<Gamma> C1 x t u C2o y t' ct cu C2)
@@ -1517,14 +1373,11 @@ next
   ultimately show ?case
     apply (clarsimp simp add: shareable_iff_nonlinear droppable_iff_nonlinear
         tyinf_shareable_constraint_plus_iff)
-    apply (rule exI, rule conjI)
-     apply (rule join_contexts_tycount_context_constraint; blast)
     apply (rule typing_typing_all.intros)
-      apply (rule join_contexts_split; blast)
+      apply (rule tycount_context_gen_split; blast)
      apply blast
-      (* TODO: box the weakening_comp bit up into a lemma *)
-    apply (force intro: typing_weaken_context weakening_refl simp add: weakening_Cons
-        tycount_context_constraint_comp.simps weakening_comp.simps droppable_def is_used_def)
+    apply (fastforce intro: typing_weaken_context weakens_to_context_gen weakening_refl
+        simp add: weakening_Cons)
     done
 next
   case (tyinf_let \<Xi> K \<Gamma> C1 x t C2o y u ct C2)
@@ -1534,14 +1387,11 @@ next
   ultimately show ?case
     apply (clarsimp simp add: shareable_iff_nonlinear droppable_iff_nonlinear
         tyinf_shareable_constraint_plus_iff)
-    apply (rule exI, rule conjI)
-     apply (rule join_contexts_tycount_context_constraint; blast)
-
     apply (rule typing_typing_all.intros)
-      apply (rule join_contexts_split; blast)
+      apply (rule tycount_context_gen_split; blast)
      apply blast
-    apply (force intro: typing_weaken_context weakening_refl simp add: weakening_Cons
-        tycount_context_constraint_comp.simps weakening_comp.simps droppable_def is_used_def)
+    apply (fastforce intro: typing_weaken_context weakens_to_context_gen weakening_refl
+        simp add: weakening_Cons)
     done
 next
   case (tyinf_letb \<Xi> K \<Gamma> C1 x t ct C2 y u "is")
@@ -1566,29 +1416,18 @@ next
     by (blast intro: type_wellformed_pretty_tsum_updateI wellformed_sum_wellformed_elem tyinf_preserves_wellformed)+
   ultimately show ?case
     apply clarsimp
-    apply (intro exI conjI)
-     apply (rule join_contexts_tycount_context_constraint)
-       apply blast
-      apply (rule join_contexts_max_tycount_context_constraint; blast)
-     apply blast
-
     apply (rule typing_typing_all.intros)
-        apply (rule join_contexts_split)
+        apply (rule tycount_context_gen_split; blast)
            apply blast
-          apply blast
-         apply (rule join_contexts_max_tycount_context_constraint; blast)
-        apply (simp add: shareable_constraint_plus_iff tycount_context_constraint_conv_all_nth)
-
-       apply blast
-      apply blast
+        apply blast
 
      apply (rule typing_weaken_context[OF _ weakening_cons], blast)
-      apply (force simp add: tycount_context_constraint_comp.simps weakening_comp.simps droppable_def is_used_def)
-     apply (rule join_contexts_weaken_max(1); blast)
+      apply (fastforce intro: weakens_to_context_gen)
+     apply (rule tycount_context_gen_weaken_max(1); blast)
 
     apply (rule typing_weaken_context[OF _ weakening_cons], blast)
-     apply (force simp add: tycount_context_constraint_comp.simps weakening_comp.simps droppable_def is_used_def)
-    apply (rule join_contexts_weaken_max(2); blast)
+     apply (fastforce intro: weakens_to_context_gen)
+    apply (rule tycount_context_gen_weaken_max(2); blast)
     done
 next
   case (tyinf_if \<Xi> K \<Gamma> C1 x \<tau> C2a a t C2b b)
@@ -1604,21 +1443,11 @@ next
     by (clarsimp simp add: shareable_constraint_plus_iff shareable_constraint_max_iff)+
   ultimately show ?case
     apply clarsimp
-    apply (intro exI conjI)
-     apply (rule join_contexts_tycount_context_constraint)
-       apply blast
-      apply (rule join_contexts_max_tycount_context_constraint; blast)
-     apply blast
-
     apply (rule typing_typing_all.intros)
-       apply (rule join_contexts_split)
-          apply blast
-         apply blast
-        apply (rule join_contexts_max_tycount_context_constraint; blast)
-       apply (simp add: shareable_constraint_plus_iff tycount_context_constraint_conv_all_nth)
+       apply (rule tycount_context_gen_split; blast)
       apply blast
-     apply (blast intro!: typing_weaken_context join_contexts_weaken_max(1))
-    apply (blast intro!: typing_weaken_context join_contexts_weaken_max(2))
+     apply (blast intro!: typing_weaken_context tycount_context_gen_weaken_max(1))
+    apply (blast intro!: typing_weaken_context tycount_context_gen_weaken_max(2))
     done
 next
   case (tyinf_take \<Xi> K \<Gamma> C1 e \<tau>1 ts s f n t taken C2o e' u ct cr C2)
@@ -1629,10 +1458,8 @@ next
   ultimately show ?case
     apply -
     apply (clarsimp simp add: tyinf_shareable_constraint_plus_iff shareable_def)
-    apply (intro exI conjI)
-     apply (rule join_contexts_tycount_context_constraint; blast)
     apply (intro typing_typing_all.intros)
-           apply (rule join_contexts_split; blast)
+           apply (rule tycount_context_gen_split; blast)
           apply blast
          apply blast
         apply blast
@@ -1640,22 +1467,118 @@ next
       apply (rule kinding_kinding_allI; blast)
      apply assumption
 
-    apply (rule typing_weaken_context)
-     apply blast
-    apply (simp add: weakening_Cons)
-    apply (intro conjI)
-      apply (force simp add: tycount_context_constraint_comp.simps weakening_comp.simps droppable_def is_used_def)
-     apply (force simp add: tycount_context_constraint_comp.simps weakening_comp.simps droppable_def is_used_def)
-    apply (blast intro: weakening_refl)
+    apply (fastforce intro: typing_weaken_context weakens_to_context_gen weakening_refl
+        simp add: weakening_Cons)
     done
 next
-  case (tyinf_promote \<Xi> K \<Gamma> C x t' t)
-  then show ?case
-    sorry
-next
-  case (tyinf_all_cons \<Xi> K \<Gamma> C1 e t C2 es ts)
-  then show ?case sorry
-qed (fastforce intro: tycount_context_constraint_empty typing_typing_all.intros
+  case tyinf_all_cons then show ?case
+    by (force
+        intro!: typing_typing_all.intros
+        tycount_context_gen_split
+        simp add: tyinf_shareable_constraint_plus_iff)
+qed (fastforce intro: typing_typing_all.intros
         simp add: type_wellformed_all_length is_consumed_conv_all_nth weakening_comp_simps2)+
+
+lemma all_weakens_to_tycount_gen:
+  assumes
+    "droppable_constraint K G C"
+    "K \<turnstile>* G wellformed"
+  shows
+    "K \<turnstile> map Some G \<leadsto>w tycount_context_gen G C"
+  using assms
+  by (force simp add:
+      type_wellformed_all_length weakening_conv_all_nth weakening_comp.simps
+      tycount_context_gen_comp_def droppable_constraint_conv_all_nth is_used_def
+      linearity_one_le_eq_one_or_many droppable_def
+      split: if_splits)
+
+lemma tyinf_to_typing_all_present:
+  assumes
+    "shareable_constraint K G C"
+    "droppable_constraint K G C"
+    "K \<turnstile>* G wellformed"
+  shows
+  "\<Xi>, K, G, C \<turnstile>\<down> e : t    \<Longrightarrow> \<Xi>, K, (map Some G) \<turnstile> e : t"
+  "\<Xi>, K, G, C \<turnstile>\<up> e : t    \<Longrightarrow> \<Xi>, K, (map Some G) \<turnstile> e : t"
+  "\<Xi>, K, G, C \<turnstile>\<down>* es : ts \<Longrightarrow> \<Xi>, K, (map Some G) \<turnstile>* es : ts"
+  using assms
+  by (force intro: all_weakens_to_tycount_gen typing_weaken_context tyinf_to_typing)+
+
+
+section \<open> Type Inference Tactic \<close>
+
+(* Obviously true, but ensures C' and t' are schematic *)
+lemma tyinf_checkI:
+  "\<lbrakk> \<Xi>, K, \<Gamma>, C' \<turnstile>\<down> e : t'
+   ; C = C'
+   ; t = t'
+   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> e : t"
+  by fast
+
+ML \<open>
+fun trace_tac ctxt (st : thm) = print_tac ctxt (@{make_string} st) st
+fun trace_tac' ctxt  _ = trace_tac ctxt
+
+  fun typinfer_tac_N (n : int) (ctxt : Proof.context) : tactic =
+    let val tac = (resolve_tac ctxt @{thms tyinf_safe_intros} ORELSE'
+                  fast_force_tac (ctxt addsimps @{thms kinding_simps}));
+     in REPEAT_DETERM_N n (FIRSTGOAL tac)
+     end
+
+  val typinfer_tac = typinfer_tac_N ~1
+\<close>
+
+definition
+  ty1 :: " Cogent.type"
+where
+  "ty1 \<equiv> TRecord [(''b'', (TPrim (Num U8), Present)), (''a'', (TPrim (Num U32), Present))] Unboxed"
+
+definition
+  expr1 :: "string Cogent.expr"
+where
+  "expr1 \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Struct [''b'',''a''] [TPrim (Num U8), TPrim (Num U32)] [Var 2, Var 0]))"
+
+schematic_goal typing1: "\<Xi>, [], [ty1], ?C \<turnstile>\<up> expr1 : ty1"
+  unfolding expr1_def ty1_def
+  apply clarsimp
+  apply (tactic \<open>typinfer_tac @{context}\<close>)
+  done
+thm typing1[simplified]
+
+definition
+  ty2a :: "Cogent.type"
+where
+  "ty2a \<equiv> TRecord
+            [ (''a'', TCon ''A'' [] (Boxed Writable undefined), Present)
+            , (''b'', TCon ''A'' [] (Boxed Writable undefined), Taken)]
+            Unboxed"
+
+definition
+  ty2b :: "Cogent.type"
+where
+  "ty2b \<equiv> TRecord
+            [ (''a'', TCon ''A'' [] (Boxed Writable undefined), Taken)
+            , (''b'', TCon ''A'' [] (Boxed Writable undefined), Present)]
+            Unboxed"
+
+definition
+  expr2 :: "string Cogent.expr"
+where
+  "expr2 \<equiv> Take (Var 0) 0 (Put (Var 1) 1 (Var 0))"
+
+schematic_goal typing2: "\<Xi>, [], [ty2a], ?C \<turnstile>\<up> expr2 : ty2b"
+  unfolding expr2_def ty2a_def ty2b_def
+  apply clarsimp
+  apply (tactic \<open>typinfer_tac @{context}\<close>)
+  done
+thm typing2[simplified]
+
+schematic_goal typing3:
+  "\<exists>ts. \<Xi>, [], [TCon ''A'' [] (Boxed Writable undefined)], ?C \<turnstile>\<down> Struct [''a'',''b''] ts [Var 0, Var 0] : ?t"
+  apply (rule exI)
+  apply (rule tyinf_checkI)
+    apply (tactic \<open>typinfer_tac @{context}\<close>)
+  done
+thm typing3[simplified]
 
 end
