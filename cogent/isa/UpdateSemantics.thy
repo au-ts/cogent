@@ -160,16 +160,16 @@ where
 
 
 locale update_sem =
-  fixes abs_typing :: "'a \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> sigil \<Rightarrow> 'l set \<Rightarrow> 'l set \<Rightarrow> bool"
+  fixes abs_typing :: "'a \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> sigil \<Rightarrow> 'l set \<Rightarrow> 'l set \<Rightarrow> ('f, 'a, 'l) store \<Rightarrow> bool"
   and   abs_repr   :: "'a \<Rightarrow> name \<times> repr list"
-  assumes abs_typing_bang : "abs_typing av n \<tau>s s r w \<Longrightarrow> abs_typing av n (map bang \<tau>s) (bang_sigil s) (r \<union> w) {}"
-  and     abs_typing_noalias : "abs_typing av n \<tau>s s r w \<Longrightarrow> r \<inter> w = {}"
-  and     abs_typing_readonly : "sigil_perm s \<noteq> Some Writable \<Longrightarrow> abs_typing av n \<tau>s s r w \<Longrightarrow> w = {}"
-  and     abs_typing_escape   : "sigil_perm s \<noteq> Some ReadOnly \<Longrightarrow> [] \<turnstile>* \<tau>s :\<kappa> k \<Longrightarrow> E \<in> k \<Longrightarrow> abs_typing av n \<tau>s s r w \<Longrightarrow> r = {}"
-  and     abs_typing_valid : "abs_typing av n \<tau>s s r w \<Longrightarrow> p \<in> r \<union> w \<Longrightarrow> \<sigma> p \<noteq> None"
-  and     abs_typing_unique_repr   : "abs_typing av n \<tau>s s r w \<Longrightarrow> abs_typing av n' \<tau>s' s' r' w'
+  assumes abs_typing_bang : "abs_typing av n \<tau>s s r w \<sigma> \<Longrightarrow> abs_typing av n (map bang \<tau>s) (bang_sigil s) (r \<union> w) {} \<sigma>"
+  and     abs_typing_noalias : "abs_typing av n \<tau>s s r w \<sigma> \<Longrightarrow> r \<inter> w = {}"
+  and     abs_typing_readonly : "sigil_perm s \<noteq> Some Writable \<Longrightarrow> abs_typing av n \<tau>s s r w \<sigma> \<Longrightarrow> w = {}"
+  and     abs_typing_escape   : "sigil_perm s \<noteq> Some ReadOnly \<Longrightarrow> [] \<turnstile>* \<tau>s :\<kappa> k \<Longrightarrow> E \<in> k \<Longrightarrow> abs_typing av n \<tau>s s r w \<sigma> \<Longrightarrow> r = {}"
+  and     abs_typing_valid : "abs_typing av n \<tau>s s r w \<sigma> \<Longrightarrow> p \<in> r \<union> w \<Longrightarrow> \<sigma> p \<noteq> None"
+  and     abs_typing_unique_repr   : "abs_typing av n \<tau>s s r w \<sigma> \<Longrightarrow> abs_typing av n' \<tau>s' s' r' w' \<sigma>
                                     \<Longrightarrow> type_repr (TCon n \<tau>s s) = type_repr (TCon n' \<tau>s' s')"
-  and     abs_typing_repr : "abs_typing av n \<tau>s s r w \<Longrightarrow> abs_repr av = (n, map type_repr \<tau>s)"
+  and     abs_typing_repr : "abs_typing av n \<tau>s s r w \<sigma> \<Longrightarrow> abs_repr av = (n, map type_repr \<tau>s)"
 
 context update_sem begin
 
@@ -231,7 +231,7 @@ and uval_typing_record :: "('f \<Rightarrow> poly_type)
                   ; distinct (map fst ts)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> URecord fs :u TRecord ts Unboxed \<langle>r, w\<rangle>"
 
-| u_t_abstract : "\<lbrakk> abs_typing a n ts Unboxed r w
+| u_t_abstract : "\<lbrakk> abs_typing a n ts Unboxed r w \<sigma>
                   ; [] \<turnstile>* ts wellformed
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UAbstract a :u TCon n ts Unboxed \<langle>r, w\<rangle>"
 
@@ -261,13 +261,13 @@ and uval_typing_record :: "('f \<Rightarrow> poly_type)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (type_repr \<circ> fst \<circ> snd) ts)) :u TRecord ts (Boxed Writable ptrl) \<langle>r, insert l w\<rangle>"
 
 | u_t_p_abs_ro : "\<lbrakk> s = Boxed ReadOnly ptrl
-                  ; abs_typing a n ts s r {}
+                  ; abs_typing a n ts s r {} \<sigma>
                   ; [] \<turnstile>* ts wellformed
                   ; \<sigma> l = Some (UAbstract a)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr ts)) :u TCon n ts s \<langle>insert l r, {}\<rangle>"
 
 | u_t_p_abs_w  : "\<lbrakk> s = Boxed Writable ptrl
-                  ; abs_typing a n ts s r w
+                  ; abs_typing a n ts s r w \<sigma>
                   ; [] \<turnstile>* ts wellformed
                   ; \<sigma> l = Some (UAbstract a)
                   ; l \<notin> (w \<union> r)
@@ -1154,15 +1154,22 @@ using assms  proof(induct  rule:uval_typing_uval_typing_record.inducts)
 next case u_t_product  then show ?case by (fastforce intro!: uval_typing_uval_typing_record.intros)
 next case u_t_sum      then show ?case by (fastforce intro!: uval_typing_uval_typing_record.intros)
 next case u_t_struct   then show ?case by (fastforce intro!: uval_typing_uval_typing_record.intros)
-next case u_t_abstract then show ?case by (simp add: uval_typing_uval_typing_record.u_t_abstract)
+next case u_t_abstract then show ?case sorry (*by (simp add: uval_typing_uval_typing_record.u_t_abstract)*)
 next case u_t_function then show ?case by (simp add: uval_typing_uval_typing_record.u_t_function)
 next case u_t_unit     then show ?case by (simp add: uval_typing_uval_typing_record.u_t_unit)
 next case u_t_r_empty  then show ?case by (simp add: uval_typing_uval_typing_record.u_t_r_empty)
 next case u_t_r_cons1  then show ?case by (force simp: frame_def
                                                  intro!: uval_typing_uval_typing_record.u_t_r_cons1)
 next case u_t_r_cons2  then show ?case by (simp add: uval_typing_uval_typing_record.u_t_r_cons2)
-qed (fastforce simp:   frame_def
-               intro!: uval_typing_uval_typing_record.intros)+
+next case u_t_afun     then show ?case by (simp add: uval_typing_uval_typing_record.u_t_afun)
+next case u_t_p_rec_ro then show ?case by (force simp: frame_def
+                                                 intro!: uval_typing_uval_typing_record.u_t_p_rec_ro)
+next case u_t_p_rec_w  then show ?case by (force simp: frame_def
+                                                 intro!: uval_typing_uval_typing_record.u_t_p_rec_w)
+next case u_t_p_abs_ro then show ?case sorry
+next case u_t_p_abs_w  then show ?case sorry
+qed (*(fastforce simp:   frame_def
+               intro!: uval_typing_uval_typing_record.intros)+*)
 
 lemma matches_ptrs_frame:
 assumes "\<Xi> , \<sigma> \<turnstile> u matches t \<langle> r , w \<rangle>"
@@ -2292,7 +2299,7 @@ next case (u_sem_if _ _ _ _ _ b)
     apply (frule(5) IH1, clarsimp)
     apply (erule u_t_primE, clarsimp)
     apply (frule(4) IH2 [ rotated 2
-                        , where e17 (* FIXME: unstable name *) = "if b then e2 else e3" for e2 and e3
+                        , where e (* FIXME: unstable name *) = "if b then e2 else e3" for e2 and e3
                         , OF _ _ matches_ptrs_frame ])
         apply (blast, simp, cases b, simp, simp, cases b, simp, simp)
     apply (fastforce intro: frame_let)

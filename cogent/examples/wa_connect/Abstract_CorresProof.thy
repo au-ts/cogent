@@ -9,7 +9,7 @@ locale WordArray = main_pp_inferred begin
       WAU32 _ _ \<Rightarrow> (''WordArray'', [RPrim (Num U32), RPrim (Num U32)])
     | _ \<Rightarrow> (''Unknown Abstract Type'', [])"
 
-  definition "abs_typing' a name \<tau>s sig (r :: ptrtyp set) (w :: ptrtyp set) \<equiv>
+  definition "abs_typing' a name \<tau>s sig (r :: ptrtyp set) (w :: ptrtyp set) \<sigma>\<equiv>
     r = {} \<and> w = {} \<and> sig \<noteq> Unboxed \<and>
     (case a of
       WAU32 _ _ \<Rightarrow> name = ''WordArray'' \<and> \<tau>s = [TPrim (Num U32), TPrim (Num U32)]
