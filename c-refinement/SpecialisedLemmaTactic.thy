@@ -136,7 +136,9 @@ ML\<open> fun corres_let_put_boxed_tac ctxt = let
         ["state_rel_def", "heap_rel_def", "val_rel_ptr_def", "type_rel_ptr_def", "heap_rel_ptr_meta"]
     val facts3 = facts2 @ is_valids @ heap_simps
   in
-    EVERY' [
+ (* use the nice definition of the getter/setter (if custom layout) *)
+   simp_tac (ctxt addsimps (@{thm bind_assoc } ::getset_simps)) THEN'
+   ( EVERY' [
     asm_full_simp_tac ((put_simpset HOL_basic_ss ctxt) addsimps facts1),
     REPEAT_ALL_NEW (etac @{thm exE}),
     ((rtac (get "corres_let_put_boxed") THEN' simp_tac ctxt THEN' atac THEN' atac THEN' atac)
@@ -181,7 +183,7 @@ ML\<open> fun corres_let_put_boxed_tac ctxt = let
             delsimps @{thms length_0_conv length_greater_0_conv})
         THEN_ALL_NEW clarsimp_tac (ctxt addsimps val_rels @ type_rels)
      )
-    ]
+    ])
   end
 \<close>
 

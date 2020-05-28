@@ -411,7 +411,10 @@ val let_put_default_mk_prog = put_let_put_default_mk_prog let_put_default_prog
 
 val member_default_mk_prog = take_member_default_mk_prog member_default_prog
 
-fun take_default_mk_prog Unboxed = take_member_default_mk_prog take_unboxed_default_prog                
+fun take_default_mk_prog Unboxed = 
+   (fn _  => fn _ => 
+      fn (nth_field : HeapLiftBase.field_info) =>
+      (take_unboxed_default_prog $  #getter nth_field) )
   | take_default_mk_prog (Boxed(Writable, _)) =  take_member_default_mk_prog take_boxed_default_prog
   | take_default_mk_prog _  = error "in take_default_mk_prog failed."
 
