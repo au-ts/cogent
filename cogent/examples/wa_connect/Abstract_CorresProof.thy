@@ -9,28 +9,51 @@ locale WordArray = main_pp_inferred begin
       WAU32 _ _ \<Rightarrow> (''WordArray'', [RPrim (Num U32), RPrim (Num U32)])
     | _ \<Rightarrow> (''Unknown Abstract Type'', [])"
 
-  definition "abs_typing' a name \<tau>s sig (r :: ptrtyp set) (w :: ptrtyp set) \<sigma>\<equiv>
-    r = {} \<and> w = {} \<and> sig \<noteq> Unboxed \<and>
+  definition "abs_typing' a name \<tau>s sig (r :: ptrtyp set) (w :: ptrtyp set) \<sigma> \<equiv>
     (case a of
-      WAU32 _ _ \<Rightarrow> name = ''WordArray'' \<and> \<tau>s = [TPrim (Num U32), TPrim (Num U32)]
-    | _ \<Rightarrow> name = ''Unknown Abstract Type'' \<and> \<tau>s = [])"
+      WAU32 len arr \<Rightarrow> name = ''WordArray'' \<and> \<tau>s = [TPrim (Num U32), TPrim (Num U32)] \<and> sig \<noteq> Unboxed \<and>
+                      (sigil_perm sig = Some ReadOnly \<longrightarrow> w = {} \<and> r = {arr + 4 * i | i. i < len}) \<and>
+                      (sigil_perm sig = Some Writable \<longrightarrow> r = {} \<and> w = {arr + 4 * i | i. i < len}) \<and>
+                      (\<forall>i < len. \<exists>x. \<sigma>(arr + 4 * i) = Some (UPrim (LU32 x)))
+    | _ \<Rightarrow> name = ''Unknown Abstract Type'' \<and> \<tau>s = [] \<and> r = {} \<and> w = {} \<and> sig = Unboxed)"
 end
 
 sublocale WordArray \<subseteq>
   update_sem_init abs_typing' abs_repr'
   apply (unfold abs_repr'_def[abs_def] abs_typing'_def[abs_def])
   apply unfold_locales
+         apply (clarsimp split: atyp.splits)
+         apply (case_tac s; clarsimp)
+         apply (case_tac x11a; simp)
         apply (clarsimp split: atyp.splits)
+        apply (case_tac s; clarsimp)
+        apply (case_tac x11a; clarsimp)
+       apply (clarsimp split: atyp.splits)
+       apply (case_tac s; clarsimp)
+       apply (case_tac x11a; clarsimp)
+      apply (clarsimp split: atyp.splits)
+      apply (case_tac s; clarsimp)
+      apply (case_tac x11a; clarsimp)
+      apply (clarsimp split: atyp.splits)
+      apply (case_tac s; clarsimp)
+     apply (case_tac x11a; clarsimp; erule_tac x = i in allE; clarsimp)
+    apply (clarsimp split: atyp.splits)
+    apply (case_tac s, (case_tac s', simp_all)+)[]
+   apply (clarsimp split: atyp.splits)
+  apply (clarsimp split: atyp.splits)
+
+(*
           apply (case_tac s; blast elim: bang_sigil.elims) 
          apply (case_tac s; blast elim: bang_sigil.elims)[]
-        apply (case_tac s; blast elim: bang_sigil.elims)[] 
+        apply (case_tac s) blast elim: bang_sigil.elims)[] 
        apply simp+
    apply (clarsimp split: atyp.splits)
      apply (case_tac s, (case_tac s', simp_all)+)[]
     apply (case_tac s, (case_tac s', simp_all)+)[]
    apply (case_tac s, (case_tac s', simp_all)+)[]
   apply (clarsimp split: atyp.splits)
-  done
+*)
+  sorry
 
 sublocale WordArray \<subseteq> Generated t abs_typing' abs_repr'
   apply (unfold abs_repr'_def[abs_def] abs_typing'_def[abs_def])

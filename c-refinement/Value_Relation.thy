@@ -27,9 +27,8 @@ type_synonym funtyp = "char list"
 type_synonym ptrtyp = addr
 
 (* Placeholder. We will need to add proper abstract value representations later on. *)
-datatype atyp = WordArrayU32 "32 word list" | WAU32 "32 word" "32 word" | TOther
+datatype atyp =  WAU32 "32 word" "32 word" | TOther
 type_synonym abstyp = atyp
-
 
 (* Mechanism to get different instances of cogent_C_val for signed and unsigned words. *)
 class knows_sign = fixes is_signed :: "'a itself \<Rightarrow> bool"
