@@ -12,7 +12,8 @@ lemma canonical_trans_le_add2:
   shows "x + y \<le> z \<Longrightarrow> y \<le> z"
   by (metis add.commute canonical_trans_le_add1)
 
-(* Cogent lemmas (TODO move) *)
+chapter \<open> Cogent lemmas \<close>
+(* TODO move *)
 
 lemma case_variant_state_True[simp]:
   "case_variant_state True True tk = True"
@@ -36,7 +37,7 @@ lemma consume_weakening:
   "\<lbrakk>K \<turnstile> xs \<leadsto>w ys; K \<turnstile> ys consumed\<rbrakk> \<Longrightarrow> K \<turnstile> xs consumed"
   by (metis is_consumed_def weakening_length weakening_trans)
 
-subsection \<open> ? \<close>
+subsection \<open> Drop-Share Equivalence \<close>
 
 lemma sigil_kind_drop_impl_share:
   "D \<in> sigil_kind s \<Longrightarrow> S \<in> sigil_kind s"
@@ -50,7 +51,6 @@ lemma sigil_kind_drop_iff_share:
   "D \<in> sigil_kind s \<longleftrightarrow> S \<in> sigil_kind s"
   using sigil_kind.elims by auto
 
-subsection \<open> ? \<close>
 
 definition well_kinded :: "kind \<Rightarrow> bool" where
   "well_kinded k \<equiv> D \<in> k \<longleftrightarrow> S \<in> k"
@@ -93,14 +93,15 @@ lemma share_kind_iff_drop_kind:
 
 subsection \<open> Weakening and Splitting Interchange Lemmas \<close>
 
-fun wksplit_to_splitwks_comp :: "kind list \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> type option" where
-  "wksplit_to_splitwks_comp K None _ _ = None"
-| "wksplit_to_splitwks_comp K (Some t) None     None     = Some t"
-| "wksplit_to_splitwks_comp K (Some t) (Some _) None     = (if S \<in> kinding_fn K t then Some t else None)"
-| "wksplit_to_splitwks_comp K (Some t) (Some _) (Some _) = Some t"
+fun wksplit_to_splitwks_comp :: "kind list \<Rightarrow> bool \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> type option" where
+  "wksplit_to_splitwks_comp K True (Some _) (Some _) (Some t) = Some t"
+| "wksplit_to_splitwks_comp K _ None _ _ = None"
+| "wksplit_to_splitwks_comp K _ (Some t) None     None     = Some t"
+| "wksplit_to_splitwks_comp K _ (Some t) (Some _) None     = (if S \<in> kinding_fn K t then Some t else None)"
+| "wksplit_to_splitwks_comp K _ (Some t) (Some _) (Some _) = Some t"
 
 definition wksplit_to_splitwks :: "kind list \<Rightarrow> type option list \<Rightarrow> type option list \<Rightarrow> type option list \<Rightarrow> type option list" where
-  "wksplit_to_splitwks K xs ys zs \<equiv> map (\<lambda>(d,g,g'). wksplit_to_splitwks_comp K d g g') (zip xs (zip ys zs))"
+  "wksplit_to_splitwks K xs ys zs \<equiv> map (\<lambda>(d,g,g'). wksplit_to_splitwks_comp K False d g g') (zip xs (zip ys zs))"
 
 lemma wksplit_to_splitwks_length[simp]:
   "length (wksplit_to_splitwks K xs ys zs) = min (length xs) (min (length ys) (length zs))"
@@ -112,10 +113,9 @@ lemma wksplit_to_splitwks_nthD[dest]:
     "i < length ys"
     "i < length zs"
   shows
-    "wksplit_to_splitwks K xs ys zs ! i = wksplit_to_splitwks_comp K (xs ! i) (ys ! i) (zs ! i)"
+    "wksplit_to_splitwks K xs ys zs ! i = wksplit_to_splitwks_comp K False (xs ! i) (ys ! i) (zs ! i)"
   using assms
   by (simp add: wksplit_to_splitwks_def)
-
 
 lemma wksplit_to_splitwks_comp_correct:
   assumes
@@ -123,9 +123,9 @@ lemma wksplit_to_splitwks_comp_correct:
     "weakening_comp K d g"
     "split_comp K g g1 g2"
   shows
-    "split_comp K d (wksplit_to_splitwks_comp K d g g1) (wksplit_to_splitwks_comp K d g g2)"
-    "weakening_comp K (wksplit_to_splitwks_comp K d g g1) g1"
-    "weakening_comp K (wksplit_to_splitwks_comp K d g g2) g2"
+    "split_comp K d (wksplit_to_splitwks_comp K False d g g1) (wksplit_to_splitwks_comp K False d g g2)"
+    "weakening_comp K (wksplit_to_splitwks_comp K False d g g1) g1"
+    "weakening_comp K (wksplit_to_splitwks_comp K False d g g2) g2"
   using assms
   by (cases d; cases g; cases g1; cases g2; clarsimp simp add: simp_comp_simps drop_kind_iff_share_kind)+
 
@@ -140,6 +140,79 @@ lemma wksplit_to_splitwks:
     "K \<turnstile> wksplit_to_splitwks K \<Delta> \<Gamma> \<Gamma>2 \<leadsto>w \<Gamma>2"
   using assms
   by (fastforce intro: wksplit_to_splitwks_comp_correct simp add: weakening_conv_all_nth split_conv_all_nth wksplit_to_splitwks_nthD)+
+
+subsection \<open> Weakening and Split-bang Interchange Lemmas \<close>
+
+
+
+
+fun wksplitb_to_splitbwks :: "kind list \<Rightarrow> nat set \<Rightarrow> type option list \<Rightarrow> type option list \<Rightarrow> type option list \<Rightarrow> type option list" where
+  "wksplitb_to_splitbwks K is [] [] [] = []"
+| "wksplitb_to_splitbwks K ws (x # xs) (y # ys) (z # zs) =
+    (wksplit_to_splitwks_comp K (0 \<in> ws) x y z) # (wksplitb_to_splitbwks K (pred ` Set.remove 0 ws) xs ys zs)"
+| "wksplitb_to_splitbwks a b (v # va) [] e = []"
+| "wksplitb_to_splitbwks a b (v # va) d [] = []"
+| "wksplitb_to_splitbwks a b [] (v # va) e = []"
+| "wksplitb_to_splitbwks a b [] [] (v # va) = []"
+
+lemma wksplitb_to_splitbwks_length[simp]:
+  "length (wksplitb_to_splitbwks K ws xs ys zs) = min (length xs) (min (length ys) (length zs))"
+  by (induct rule: wksplitb_to_splitbwks.induct) simp+
+
+lemma wksplitb_to_splitbwks_nthD[dest]:
+  assumes
+    "i < length xs"
+    "i < length ys"
+    "i < length zs"
+  shows
+    "wksplitb_to_splitbwks K ws xs ys zs ! i = wksplit_to_splitwks_comp K (i \<in> ws) (xs ! i) (ys ! i) (zs ! i)"
+  using assms
+  by (induct xs ys zs arbitrary: i ws rule: list_induct3')
+      (force simp add: less_Suc_eq_0_disj Suc_mem_image_pred_remove[symmetric])+
+
+lemma wksplitb_to_splitbwks_eq_nth:
+  "(wksplitb_to_splitbwks K ws xs ys zs = as)
+    \<longleftrightarrow> (length as = min (length xs) (min (length ys) (length zs)) \<and>
+        (\<forall>i. i<length xs \<longrightarrow> i<length ys \<longrightarrow> i<length zs \<longrightarrow> wksplitb_to_splitbwks K ws xs ys zs ! i = as ! i))"
+  by (safe, simp,
+      (induct xs ys zs arbitrary: ws as rule: list_induct3',
+        (clarsimp simp add: All_less_Suc2 length_Suc_conv)+))
+
+lemma wksplitb_to_splitbwks_comp_correct:
+  assumes
+    "well_kinded_all K"
+    "weakening_comp K d g"
+    "split_bang_comp K i g g1 g2"
+  shows
+    "split_bang_comp K i d (wksplit_to_splitwks_comp K i d g g1) (wksplit_to_splitwks_comp K i d g g2)"
+    "weakening_comp K (wksplit_to_splitwks_comp K i d g g1) g1"
+    "weakening_comp K (wksplit_to_splitwks_comp K i d g g2) g2"
+  using assms
+    apply -
+    apply (cases i)
+     apply (clarsimp simp add: split_bang_comp_simps weakening_comp.simps)
+    apply (clarsimp simp add: split_bang_comp_simps wksplit_to_splitwks_comp_correct)
+   apply (cases i)
+    apply (clarsimp simp add: split_bang_comp_simps weakening_comp.simps)
+   apply (clarsimp simp add: split_bang_comp_simps wksplit_to_splitwks_comp_correct)
+  apply (cases i)
+   apply (clarsimp simp add: split_bang_comp_simps weakening_comp.simps)
+  apply (clarsimp simp add: split_bang_comp_simps wksplit_to_splitwks_comp_correct)
+  done
+
+lemma wksplitb_to_splitbwks:
+  assumes
+    "well_kinded_all K"
+    "K \<turnstile> \<Delta> \<leadsto>w \<Gamma>"
+    "K, is \<turnstile> \<Gamma> \<leadsto>b \<Gamma>1 | \<Gamma>2"
+  shows
+    "K, is \<turnstile> \<Delta> \<leadsto>b wksplitb_to_splitbwks K is \<Delta> \<Gamma> \<Gamma>1 | wksplitb_to_splitbwks K is \<Delta> \<Gamma> \<Gamma>2"
+    "K \<turnstile> wksplitb_to_splitbwks K is \<Delta> \<Gamma> \<Gamma>1 \<leadsto>w \<Gamma>1"
+    "K \<turnstile> wksplitb_to_splitbwks K is \<Delta> \<Gamma> \<Gamma>2 \<leadsto>w \<Gamma>2"
+  using assms
+  by (fastforce simp add: weakening_conv_all_nth split_bang_conv_all_nth
+      wksplitb_to_splitbwks_nthD intro: wksplitb_to_splitbwks_comp_correct)+
+
 
 section \<open> Weakening Typing Context \<close>
 
@@ -197,7 +270,14 @@ next
     by (force intro!: typing_typing_all.intros)
 next
   case (typing_letb K "is" \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> x t y u k)
-  then show ?case sorry
+  moreover then obtain \<Gamma>'1 \<Gamma>'2
+    where
+      "K, is \<turnstile> \<Gamma>' \<leadsto>b \<Gamma>'1 | \<Gamma>'2"
+      "K \<turnstile> \<Gamma>'1 \<leadsto>w \<Gamma>1"
+      "K \<turnstile> Some t # \<Gamma>'2 \<leadsto>w Some t # \<Gamma>2"
+    by (meson wksplitb_to_splitbwks weakening_Cons weakening_comp.simps)
+  ultimately show ?case
+    by (force intro!: typing_typing_all.intros)
 next
   case (typing_case K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> x ts tag t a u b)
   moreover then obtain \<Gamma>'1 \<Gamma>'2
@@ -251,8 +331,9 @@ next
     by (force intro!: typing_typing_all.intros)
 qed (fastforce intro!: typing_typing_all.intros dest: consume_weakening)+
 
-(* main theory *)
+chapter \<open> Typing Inference \<close>
 
+(* main theory *)
 
 definition countPlus :: "('a :: plus) list \<Rightarrow> 'a list \<Rightarrow> 'a list" (infixl "\<oplus>" 75) where
   "xs \<oplus> ys \<equiv> map2 (+) xs ys"
@@ -1116,10 +1197,8 @@ lemma tycount_context_gen_split_comp:
   shows
     "K \<turnstile> tycount_context_gen_comp t (c1 + c2) \<leadsto> tycount_context_gen_comp t c1 \<parallel> tycount_context_gen_comp t c2"
   using assms
-  by (force simp add:
-      split_comp.simps tycount_context_gen_comp_def new_is_shared_def
-      linearity_add_to_one_iff linearity_gt_one_eq_zero_or_one zero_linearity_def
-      split: if_splits)
+  by (force simp add: split_comp.simps tycount_context_gen_comp_def new_is_shared_def shareable_def
+      linearity_add_to_one_iff linearity_gt_one_eq_zero_or_one zero_linearity_def)
 
 lemma tycount_context_gen_split:
   assumes
@@ -1140,7 +1219,7 @@ lemma tycount_context_gen_max_split_comp:
   shows
     "K \<turnstile> tycount_context_gen_comp t (sup c1 c2) \<leadsto> tycount_context_gen_comp t c1 \<parallel> tycount_context_gen_comp t c2"
   using assms
-  by (force simp add: zero_linearity_def one_linearity_def new_is_shared_def
+  by (force simp add: zero_linearity_def one_linearity_def new_is_shared_def shareable_def
       split_comp.simps tycount_context_gen_comp_def linearity_neq_none_iff)
 
 lemma tycount_context_gen_max_split:
@@ -1224,6 +1303,7 @@ section \<open> Main Theorem: An Inferred Typing Implies a Non-Algorithmic Typin
 
 theorem tyinf_to_typing:
   assumes
+    "well_kinded_all K"
     "shareable_constraint K G C"
     "K \<turnstile>* G wellformed"
   shows
@@ -1317,11 +1397,11 @@ next
            apply blast
         apply blast
 
-     apply (rule typing_weaken_context[OF _ weakening_cons], blast)
+     apply (rule typing_weaken_context[OF _ _ weakening_cons], blast, blast)
       apply (fastforce intro: weakens_to_context_gen)
      apply (rule tycount_context_gen_weaken_max(1); blast)
 
-    apply (rule typing_weaken_context[OF _ weakening_cons], blast)
+    apply (rule typing_weaken_context[OF _ _ weakening_cons], blast, blast)
      apply (fastforce intro: weakens_to_context_gen)
     apply (rule tycount_context_gen_weaken_max(2); blast)
     done
@@ -1348,9 +1428,13 @@ next
 next
   case (tyinf_take \<Xi> K \<Gamma> C1 e \<tau>1 ts s f n t taken C2o e' u ct cr C2)
   moreover have
+    "K \<turnstile> TRecord ts s wellformed"
     "K \<turnstile> t wellformed"
+    using tyinf_take by (blast intro: wellformed_record_wellformed_nth')+
+  moreover then have
     "K \<turnstile> TRecord (ts[f := (n, t, taken)]) s wellformed"
-    sorry
+    using tyinf_take.hyps
+    by (metis wellformed_record_update_wellformed prod_eq_iff_proj_eq)
   ultimately show ?case
     apply -
     apply (clarsimp simp add: tyinf_shareable_constraint_plus_iff shareable_def)
@@ -1390,6 +1474,7 @@ lemma all_weakens_to_tycount_gen:
 
 lemma tyinf_to_typing_all_present:
   assumes
+    "well_kinded_all K"
     "shareable_constraint K G C"
     "droppable_constraint K G C"
     "K \<turnstile>* G wellformed"
