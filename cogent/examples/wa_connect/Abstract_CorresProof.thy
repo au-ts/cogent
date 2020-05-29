@@ -244,20 +244,13 @@ lemma "proc_env_matches_ptrs \<xi>_0' \<Xi>"
   apply (unfold proc_env_matches_ptrs_def)
   apply clarsimp
   apply (subst (asm) \<Xi>_def)
+
   apply (case_tac  "f = ''wordarray_put2_0''")
-   prefer 2
-   apply (case_tac  "f = ''wordarray_put2_u32''")
-    prefer 2
-    apply clarsimp
-    apply (rule FalseE)
-    apply (clarsimp simp: \<xi>_0'_def)
-  apply clarsimp
-   prefer 2
    apply clarsimp
    apply (clarsimp simp: wordarray_put2_0_type_def abbreviatedType1_def)
    apply (clarsimp simp:  \<Xi>_def)
    apply (case_tac v; clarsimp simp: \<xi>_0'_def)
-  apply (case_tac x4; clarsimp)
+   apply (case_tac x4; clarsimp)
    apply (case_tac a; clarsimp)
    apply (case_tac list; clarsimp)
    apply (case_tac a; clarsimp)
@@ -267,58 +260,45 @@ lemma "proc_env_matches_ptrs \<xi>_0' \<Xi>"
    apply (case_tac x1; clarsimp)
    apply (case_tac list; clarsimp)
    apply (erule u_t_recE; clarsimp)
-   apply (erule u_t_r_consE; clarsimp)
+   apply (erule u_t_r_consE; clarsimp)+
    apply (erule u_t_p_absE; clarsimp)
-   apply (case_tac a; clarsimp)
-    prefer 2
-    apply (clarsimp simp: abs_typing'_def)
-   apply (erule u_t_r_consE; clarsimp)
-   apply (erule u_t_r_consE; clarsimp)
-   apply (erule u_t_primE)
-   apply (erule u_t_primE)
-   apply (subst (asm) lit_type.simps)
-   apply (subst (asm) lit_type.simps)
+   apply (erule u_t_primE)+
+   apply (subst (asm) lit_type.simps)+
    apply clarsimp
    apply (erule u_t_r_emptyE)
-   apply clarsimp
+   apply (case_tac a; clarsimp)
    apply (rule_tac x = ra in exI)
-   apply (rule_tac x = "insert x91 w" in exI)
-   apply (rule conjI)
-  using u_t_p_abs_w
-    apply auto[1]
-    apply (drule_tac x = "(Boxed Writable (PtrBits 0 0))" in meta_spec)
-    apply (drule_tac x = "(PtrBits 0 0)" in meta_spec)
-    apply (drule_tac x = "WAU32 x11 x12" in meta_spec)
-    apply (drule_tac x = "''WordArray''" in meta_spec)
-    apply (drule_tac x = "[TPrim (Num U32)]" in meta_spec)
-    apply (drule_tac x = ra in meta_spec)
-    apply (drule_tac x = w  in meta_spec)
-    apply (drule_tac x = "(\<lambda>l. if l = x12 + 4 * x4 \<and> x4 < x11 then Some (UPrim (LU32 x4a)) else \<sigma> l)" in meta_spec)
-    apply (drule_tac x = x91 in meta_spec)
-    apply (drule_tac x = \<Xi> in meta_spec)
-    apply (clarsimp simp: \<Xi>_def)
-    apply (drule meta_mp)
-     prefer 2
+    apply (rule_tac x = "insert x91 wc" in exI)
+    apply (rule conjI)
+     apply (insert u_t_p_abs_w; clarsimp)
+     apply (drule_tac x = "(Boxed Writable undefined)" in meta_spec)
+     apply (drule_tac x = "undefined" in meta_spec)
+     apply (drule_tac x = "WAU32 x11 x12" in meta_spec)
+     apply (drule_tac x = "''WordArray''" in meta_spec)
+     apply (drule_tac x = "[TPrim (Num U32)]" in meta_spec)
+     apply (drule_tac x = ra in meta_spec)
+     apply (drule_tac x = wc  in meta_spec)
+     apply (drule_tac x = "(\<lambda>l. if l = x12 + 4 * x4 \<and> x4 < x11 then Some (UPrim (LU32 x4a)) else \<sigma> l)" in meta_spec)
+     apply (drule_tac x = x91 in meta_spec)
+     apply (drule_tac x = \<Xi> in meta_spec; clarsimp simp: \<Xi>_def)
+     apply (drule meta_mp; clarsimp simp: abs_typing'_def)
+    apply clarsimp
+    apply (clarsimp simp: frame_def abs_typing'_def)
+    apply (rule conjI; clarsimp)
+     apply (rule conjI)
+      apply (rule disjI2)
+      apply (rule disjI2)
+      apply (rule_tac x = x4 in exI; simp)
+     apply (rule conjI; clarsimp)
+    apply (rule conjI; clarsimp)
+   apply (clarsimp simp: abs_typing'_def)
 
- 
-
-(*
-   apply (rule_tac x = "{}" in  exI)
-   apply (rule_tac x = "{}" in exI)
-   apply (rule conjI)
-     apply (erule u_t_recE; clarsimp)
-     apply (erule u_t_r_consE; clarsimp)
-    apply (erule u_t_r_consE; clarsimp)
-    apply (erule u_t_r_consE; clarsimp)
-    apply (erule u_t_r_emptyE; clarsimp)
-    apply (drule type_repr_uval_repr)
-  apply clarsimp
-
-   apply (case_tac "\<sigma> x91"; clarsimp)
-  prefer 2
-  thm conjE
-  *)
-  oops
+\<comment> \<open> Ideally we should define the \<xi>_0' for ''wordarray_put2_u32''. The proof would be exactly the
+     same as the proof we did for ''wordarray_put2_0''. \<close>
+  apply (case_tac  "f = ''wordarray_put2_u32''")
+   apply (clarsimp simp: wordarray_put2_u32_type_def abbreviatedType1_def \<xi>_0'_def)
+  apply (clarsimp simp: \<xi>_0'_def)
+  done
 
 end (* of context *)
 
