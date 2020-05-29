@@ -1165,13 +1165,11 @@ lemma wellformed_record_wellformed_nth:
 lemma bang_preserves_wellformed[simp]:
   "type_wellformed n (bang t) \<longleftrightarrow> type_wellformed n t"
   by (induct t rule: type_wellformed.induct)
-    (clarsimp simp add: list.pred_map list_all_iff prod_eq_iff_proj_eq
-      split: prod.splits)+
+    (clarsimp simp add: list.pred_map list_all_iff prod_eq_iff_proj_eq split: prod.splits)+
 
 lemma bang_preserves_wellformed_all:
   "list_all (type_wellformed n) (map bang ts) \<longleftrightarrow> list_all (type_wellformed n) ts"
   by (simp add: list_all_length)
-
 
 
 lemma type_wellformed_pretty_tsum_update_eq:
@@ -1184,6 +1182,8 @@ proof -
   then show ?thesis
     by (simp add: list.pred_map comp_def)
 qed
+=======
+>>>>>>> proof: finish type-inference soundness proof
 
 lemma type_wellformed_fstsnd_triple_elem:
   assumes

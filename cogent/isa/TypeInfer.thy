@@ -363,7 +363,6 @@ lemma countPlus_eq_Cons2:
   "(x # xs = C1 \<oplus> C2) \<longleftrightarrow> (\<exists>y ys z zs. C1 = y # ys \<and> C2 = z # zs \<and> x = y + z \<and> xs = ys \<oplus> zs)"
   by (case_tac C1; case_tac C2; force)
 
-
 lemma countPlus_nth[simp]:
   "i < length C1 \<Longrightarrow> i < length C2 \<Longrightarrow> (C1 \<oplus> C2) ! i = C1 ! i + C2 ! i"
   by (simp add: countPlus_def)
@@ -402,10 +401,78 @@ lemma countMax_nth[simp]:
   by (induct C1 arbitrary: C2 i)
     (force simp add: less_Suc_eq_0_disj Suc_less_eq2 neq_Nil_conv length_Suc_conv)+
 
+inductive ensure_use_bang :: "nat set \<Rightarrow> ('a :: {one,order}) list \<Rightarrow> bool" where
+  ensure_use_bang_nil: "ensure_use_bang N []"
+| ensure_use_bang_cons:
+  "0 \<in> N \<longrightarrow> 1 \<le> x \<Longrightarrow> ensure_use_bang (pred ` Set.remove 0 N) xs \<Longrightarrow> ensure_use_bang N (x # xs)"
+
+lemma ensure_use_bang_simps[simp]:
+  "ensure_use_bang N [] = True"
+  "ensure_use_bang N (x # xs) = ((0 \<in> N \<longrightarrow> 1 \<le> x) \<and> ensure_use_bang (pred ` Set.remove 0 N) xs)"
+  by (blast intro: ensure_use_bang.intros elim: ensure_use_bang.cases)+
+
+lemma ensure_use_bang_nthD[dest]:
+  "ensure_use_bang N xs \<Longrightarrow> i < length xs \<Longrightarrow> i \<in> N \<Longrightarrow> 1 \<le> xs ! i"
+  by (induct xs arbitrary: i N)
+    (force simp add: Suc_mem_image_pred_remove less_Suc_eq_0_disj)+
+
+lemma ensure_use_bang_all_nth:
+  "ensure_use_bang N xs = (\<forall>i<length xs. i \<in> N \<longrightarrow> 1 \<le> xs ! i)"
+  by (induct xs arbitrary: N)
+    (bestsimp simp add: Suc_mem_image_pred_remove All_less_Suc2)+
+
+
+fun context_bang_types :: "nat set \<Rightarrow> type list \<Rightarrow> type list" where
+  "context_bang_types N [] = []"
+| "context_bang_types N (t # ts) = (if 0 \<in> N then bang t else t) # context_bang_types (pred ` Set.remove 0 N) ts"
+
+lemma context_bang_types_length[simp]:
+  "length (context_bang_types N xs) = length xs"
+  by (induct xs arbitrary: N) simp+
+
+lemma context_bang_types_nth[simp]:
+  assumes
+    "i < length xs"
+  shows
+    "context_bang_types N xs ! i = (if i \<in> N then bang (xs ! i) else (xs ! i))"
+  using assms
+  by (induct xs arbitrary: i N)
+     (force simp add: less_Suc_eq_0_disj Suc_mem_image_pred_remove)+
+
+lemma context_bang_types_wellformed_iff:
+  "K \<turnstile>* context_bang_types N ts wellformed \<longleftrightarrow> K \<turnstile>* ts wellformed"
+  by (simp add: type_wellformed_all_length type_wellformed_pretty_def)
+
+
+
+fun remove_use_bang :: "nat set \<Rightarrow> ('a :: zero) list \<Rightarrow> 'a list" where
+  "remove_use_bang N [] = []"
+| "remove_use_bang N (x # xs) = (if 0 \<in> N then 0 else x) # remove_use_bang (pred ` Set.remove 0 N) xs"
+
+lemma remove_use_bang_length[simp]:
+  "length (remove_use_bang N xs) = length xs"
+  by (induct xs arbitrary: N) simp+
+
+lemma remove_use_bang_nth[simp]:
+  assumes
+    "i < length xs"
+  shows
+    "remove_use_bang N xs ! i = (if i \<in> N then 0 else (xs ! i))"
+  using assms
+  by (induct xs arbitrary: i N)
+     (force simp add: less_Suc_eq_0_disj Suc_mem_image_pred_remove)+
+
+section \<open> Linearity \<close>
+
+text \<open>
+  A type is used either not at all, once, or many times. A one time use is said to be linear,
+  a non-use or a many-times use is said to be non-linear. (non-uses are related to relevancy and 
+  many-uses are related to affine-ness.)
+\<close>
 
 datatype linearity = LMany ("\<omega>") | LOne | LNone
 
-instantiation linearity :: "{one, linorder, bounded_lattice, canonically_ordered_monoid_add}"
+instantiation linearity :: "{one, linorder, bounded_lattice, canonically_ordered_monoid_add, zero_less_one}"
 begin
 
 definition "bot_linearity \<equiv> LNone"
@@ -517,17 +584,14 @@ next
   show "(a \<le> b) = (\<exists>c. b = a + c)"
     by (cases "(a,b)" rule: less_eq_linearity.cases
         ; simp, (metis plus_linearity.simps(2-3))?)
+next
+  show "(0::linearity) < 1"
+    by (simp add: zero_linearity_def one_linearity_def)
 qed
 
 end
 
 lemma linearity_extra_simps[simp]:
-  "(\<omega> = 1) = False"
-  "(\<omega> = 0) = False"
-  "(1 = \<omega>) = False"
-  "(0 = \<omega>) = False"
-  "(1 = (0::linearity)) = False"
-  "(0 = (1::linearity)) = False"
   "(LNone = 0) = True"
   "(LOne = 1) = True"
   "(LOne = 0) = False"
@@ -538,7 +602,16 @@ lemma linearity_extra_simps[simp]:
   "(0 \<noteq> LNone) = False"
   "(LOne \<noteq> 1) = False"
   "(1 \<noteq> LOne) = False"
+  "(1::linearity) \<le> 0 \<longleftrightarrow> False"
+  "(1::linearity) < 0 \<longleftrightarrow> False"
+  "\<omega> \<le> 0 \<longleftrightarrow> False"
+  "\<omega> < 0 \<longleftrightarrow> False"
+  "\<omega> \<le> 1 \<longleftrightarrow> False"
+  "\<omega> < 1 \<longleftrightarrow> False"
   by (simp add: lin_add_sym zero_linearity_def one_linearity_def)+
+
+lemmas linearity_distinct_zero_one[simp] =
+  linearity.distinct[simplified zero_linearity_def[symmetric] one_linearity_def[symmetric]]
 
 lemma plus_linearity_simps[simp]:
   "x + LNone = x"
@@ -690,40 +763,50 @@ lemma shareable_iff_droppable:
   "well_kinded_all K \<Longrightarrow> K \<turnstile> t wellformed \<Longrightarrow> shareable K t \<longleftrightarrow> droppable K t"
   by (simp add: droppable_iff_nonlinear shareable_iff_nonlinear)
 
+definition is_drop_safe :: "kind env \<Rightarrow> type \<Rightarrow> ('a :: {one, semilattice_sup}) \<Rightarrow> bool" where
+  "is_drop_safe K t c \<equiv> c \<ge> 1 \<or> droppable K t"
 
-definition is_used :: "kind env \<Rightarrow> type \<Rightarrow> ('a :: {one, order}) \<Rightarrow> bool" where
-  "is_used K t c \<equiv> c \<ge> 1 \<or> droppable K t"
+lemma is_drop_safe_linearity_simps[simp]:
+  "is_drop_safe K t \<omega> = True"
+  "is_drop_safe K t LOne = True"
+  "is_drop_safe K t LNone = droppable K t"
+  by (clarsimp simp add: one_linearity_def is_drop_safe_def)+
 
-definition is_shared :: "kind list \<Rightarrow> type \<Rightarrow> ('a :: {one, semilattice_sup}) \<Rightarrow> bool" where
-  "is_shared K t c \<equiv> c \<le> 1 \<or> shareable K t"
+lemmas is_drop_safe_linearity_simps2 =
+  is_drop_safe_linearity_simps(2-)[simplified zero_linearity_def[symmetric] one_linearity_def[symmetric]]
+
+definition is_share_safe :: "kind list \<Rightarrow> type \<Rightarrow> ('a :: {one, semilattice_sup}) \<Rightarrow> bool" where
+  "is_share_safe K t c \<equiv> c \<le> 1 \<or> shareable K t"
+
+lemma is_share_safe_linearity_simps[simp]:
+  "is_share_safe K t \<omega> = shareable K t"
+  "is_share_safe K t LOne = True"
+  "is_share_safe K t LNone = True"
+  by (clarsimp simp add: one_linearity_def is_share_safe_def)+
+
+lemmas is_share_safe_linearity_simps2 =
+  is_share_safe_linearity_simps(2-)[simplified zero_linearity_def[symmetric] one_linearity_def[symmetric]]
+
+definition is_used :: "kind env \<Rightarrow> type \<Rightarrow> ('a :: {one, semilattice_sup}) \<Rightarrow> bool" where
+  "is_used K t c \<equiv> is_drop_safe K t c \<and> is_share_safe K t c"
 
 lemma is_used_linearity_simps[simp]:
-  "is_used K t \<omega> = True"
+  "is_used K t \<omega> = shareable K t"
   "is_used K t LOne = True"
   "is_used K t LNone = droppable K t"
-  by (clarsimp simp add: one_linearity_def is_used_def)+
+  by (clarsimp simp add: is_used_def)+
 
-lemmas is_used_linearity_simps2[simp] =
+lemmas is_used_linearity_simps2 =
   is_used_linearity_simps(2-)[simplified zero_linearity_def[symmetric] one_linearity_def[symmetric]]
-
-lemma is_shared_linearity_simps[simp]:
-  "is_shared K t \<omega> = shareable K t"
-  "is_shared K t LOne = True"
-  "is_shared K t LNone = True"
-  by (clarsimp simp add: is_shared_def one_linearity_def)+
-
-lemmas is_shared_linearity_simps2[simp] =
-  is_shared_linearity_simps(2-)[simplified zero_linearity_def[symmetric] one_linearity_def[symmetric]]
-
-
 
 
 definition droppable_constraint :: "kind list \<Rightarrow> type list \<Rightarrow> linearity list \<Rightarrow> bool" where
-  "droppable_constraint K \<equiv> list_all2 (is_used K)"
+  "droppable_constraint K \<equiv> list_all2 (is_drop_safe K)"
 
 lemmas droppable_constraint_conv_all_nth =
-  list_all2_conv_all_nth[where P=\<open>is_used K :: type \<Rightarrow> linearity \<Rightarrow> bool\<close> for K, simplified 
+  list_all2_conv_all_nth[where P=\<open>is_drop_safe K :: type \<Rightarrow> linearity \<Rightarrow> bool\<close> for K, simplified 
                          droppable_constraint_def[symmetric]]
+
 
 
 definition merge_drop_condition_comp :: "kind list \<Rightarrow> type \<Rightarrow> linearity \<Rightarrow> linearity \<Rightarrow> bool" where
@@ -777,9 +860,9 @@ Not that C being output means that in an assumption, C should be a variable.
 If you want to enforce a structure on C, you have to use an equality so it can do computation.
 *)
 inductive tyinf_synth :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Rightarrow> type list \<Rightarrow> linearity list \<Rightarrow> 'f expr \<Rightarrow> type \<Rightarrow> bool"
-          ("_, _, _ , _ \<turnstile>\<down> _ : _" [30,0,0,0,0,20] 60)
+          ("_, _, _, _ \<turnstile>\<down> _ : _" [30,0,0,0,0,20] 60)
       and tyinf_check :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Rightarrow> type list \<Rightarrow> linearity list \<Rightarrow> 'f expr \<Rightarrow> type \<Rightarrow> bool"
-          ("_, _, _ , _ \<turnstile>\<up> _ : _" [30,0,0,0,0,20] 60)
+          ("_, _, _, _ \<turnstile>\<up> _ : _" [30,0,0,0,0,20] 60)
       and tyinf_all_synth :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Rightarrow> type list \<Rightarrow> linearity list \<Rightarrow> 'f expr list \<Rightarrow> type list \<Rightarrow> bool"
           ("_, _, _, _ \<turnstile>\<down>* _ : _" [30,0,0,0,0,20] 60) where
 
@@ -853,22 +936,20 @@ inductive tyinf_synth :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<
                   ; C2o = ct # cu # C2
                   ; is_used K t ct
                   ; is_used K u cu
-                  ; is_shared K t ct
-                  ; is_shared K u cu
                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C1 \<oplus> C2 \<turnstile>\<up> Split x y : t'"
 
 | tyinf_let    : "\<lbrakk> \<Xi>, K, \<Gamma>, C1 \<turnstile>\<down> x : t
                   ; \<Xi>, K, (t # \<Gamma>), C2o \<turnstile>\<up> y : u
                   ; C2o = ct # C2
                   ; is_used K t ct
-                  ; is_shared K t ct
                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C1 \<oplus> C2 \<turnstile>\<up> Let x y : u"
 
-| tyinf_letb   : "\<lbrakk> \<Xi>, K, \<Gamma>, C1 \<turnstile>\<down> x : t
+| tyinf_letb   : "\<lbrakk> \<Xi>, K, context_bang_types is \<Gamma>, C1 \<turnstile>\<down> x : t
                   ; \<Xi>, K, (t # \<Gamma>), (ct # C2) \<turnstile>\<up> y : u
                   ; is_used K t ct
                   ; E \<in> kinding_fn K t
-                  \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C1 \<oplus> C2 \<turnstile>\<up> LetBang is x y : u"
+                  ; ensure_use_bang is C2
+                  \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, remove_use_bang is C1 \<oplus> C2 \<turnstile>\<up> LetBang is x y : u"
 
 | tyinf_case   : "\<lbrakk> \<Xi>, K, \<Gamma>, C1 \<turnstile>\<down> x : \<tau>1
                   ; \<tau>1 = TSum ts
@@ -876,13 +957,11 @@ inductive tyinf_synth :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<
                   ; \<Xi>, K, (t # \<Gamma>), C2ao \<turnstile>\<up> a : u
                   ; C2ao = ct # C2a
                   ; is_used K t ct
-                  ; is_shared K t ct
                   ; \<Xi>, K, (TSum (tagged_list_update tag (t, Checked) ts) # \<Gamma>), C2bo \<turnstile>\<up> b : u
                   ; C2bo = csum # C2b
                   ; is_used K (TSum (tagged_list_update tag (t, Checked) ts)) csum
-                  ; is_shared K (TSum (tagged_list_update tag (t, Checked) ts)) csum
                   ; merge_drop_condition K \<Gamma> C2a C2b
-                  \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C1 \<oplus> (countMax C2a C2b) \<turnstile>\<up> Case x tag a b : u"
+                  \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C1 \<oplus> countMax C2a C2b \<turnstile>\<up> Case x tag a b : u"
 
 | tyinf_if     : "\<lbrakk> \<Xi>, K, \<Gamma>, C1 \<turnstile>\<down> x : \<tau>
                   ; \<tau> = TPrim Bool
@@ -901,8 +980,6 @@ inductive tyinf_synth :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<
                   ; C2o = ct # cr # C2
                   ; is_used K t ct
                   ; is_used K (TRecord (ts [f := (n,t,taken)]) s) cr
-                  ; is_shared K t ct
-                  ; is_shared K (TRecord (ts [f := (n,t,taken)]) s) cr
                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C1 \<oplus> C2 \<turnstile>\<up> Take e f e' : u"
 
 | tyinf_switch: "\<lbrakk> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> x : \<tau>
@@ -990,32 +1067,32 @@ lemmas tyinf_safe_intros = tyinf_synth_safe_intros tyinf_checking_safe_intros
 subsection \<open> Shareable Constraint \<close>
 
 definition shareable_constraint :: "kind list \<Rightarrow> type list \<Rightarrow> linearity list \<Rightarrow> bool" where
-  "shareable_constraint K \<equiv> list_all2 (is_shared K)"
+  "shareable_constraint K \<equiv> list_all2 (is_share_safe K)"
 
 lemmas shareable_constraint_conv_all_nth =
-  list_all2_conv_all_nth[where P=\<open>is_shared K :: Cogent.type \<Rightarrow> linearity \<Rightarrow> bool\<close> for K,
+  list_all2_conv_all_nth[where P=\<open>is_share_safe K :: Cogent.type \<Rightarrow> linearity \<Rightarrow> bool\<close> for K,
                          simplified shareable_constraint_def[symmetric]]
 
 lemmas shareable_constraint_Nil1[simp] =
-  list_all2_Nil[where P=\<open>is_shared K :: Cogent.type \<Rightarrow> linearity \<Rightarrow> bool\<close> for K,
+  list_all2_Nil[where P=\<open>is_share_safe K :: Cogent.type \<Rightarrow> linearity \<Rightarrow> bool\<close> for K,
                  simplified shareable_constraint_def[symmetric]]
 lemmas shareable_constraint_Nil2[simp] =
-  list_all2_Nil2[where P=\<open>is_shared K :: Cogent.type \<Rightarrow> linearity \<Rightarrow> bool\<close> for K,
+  list_all2_Nil2[where P=\<open>is_share_safe K :: Cogent.type \<Rightarrow> linearity \<Rightarrow> bool\<close> for K,
                  simplified shareable_constraint_def[symmetric]]
 
 lemmas shareable_constraint_Cons[simp] =
-  list_all2_Cons[where P=\<open>is_shared K :: Cogent.type \<Rightarrow> linearity \<Rightarrow> bool\<close> for K,
+  list_all2_Cons[where P=\<open>is_share_safe K :: Cogent.type \<Rightarrow> linearity \<Rightarrow> bool\<close> for K,
                  simplified shareable_constraint_def[symmetric]]
 lemmas shareable_constraint_Cons1 =
-  list_all2_Cons1[where P=\<open>is_shared K :: Cogent.type \<Rightarrow> linearity \<Rightarrow> bool\<close> for K,
+  list_all2_Cons1[where P=\<open>is_share_safe K :: Cogent.type \<Rightarrow> linearity \<Rightarrow> bool\<close> for K,
                   simplified shareable_constraint_def[symmetric]]
 lemmas shareable_constraint_Cons2 =
-  list_all2_Cons2[where P=\<open>is_shared K :: Cogent.type \<Rightarrow> linearity \<Rightarrow> bool\<close> for K,
+  list_all2_Cons2[where P=\<open>is_share_safe K :: Cogent.type \<Rightarrow> linearity \<Rightarrow> bool\<close> for K,
                   simplified shareable_constraint_def[symmetric]]
 
 lemma shareable_constraint_shareable_nthD[dest]:
   "shareable_constraint K G C \<Longrightarrow> C ! i > 1 \<Longrightarrow> i < length G \<Longrightarrow> shareable K (G ! i)"
-  by (force simp add: shareable_constraint_conv_all_nth is_shared_def)
+  by (force simp add: shareable_constraint_conv_all_nth is_share_safe_def)
 
 lemma shareable_constraint_shareable_nth_manyD[dest]:
   "shareable_constraint K G C \<Longrightarrow> C ! i = \<omega> \<Longrightarrow> i < length G \<Longrightarrow> shareable K (G ! i)"
@@ -1028,9 +1105,9 @@ lemma shareable_constraint_add[dest]:
     "shareable_constraint K \<Gamma> (C1 \<oplus> C2) \<Longrightarrow> shareable_constraint K \<Gamma> C2"
   using assms
   by (force dest: canonical_trans_le_add1 canonical_trans_le_add2
-      simp add: shareable_constraint_conv_all_nth lin_add_sym is_shared_def)+
+      simp add: shareable_constraint_conv_all_nth lin_add_sym is_share_safe_def)+
 
-subsubsection \<open> New is_shared \<close>
+subsubsection \<open> New is_share_safe \<close>
 
 text \<open>
   This judgement captures the additional constraints generated when two linearity contexts are
@@ -1074,8 +1151,8 @@ lemmas new_shareable_constraint_Cons3 =
                  , simplified new_shareable_constraint_def[symmetric]]
 
 lemma is_shared_plus_iff:
-  "is_shared K t (c1 + c2) \<longleftrightarrow> is_shared K t c1 \<and> is_shared K t c2 \<and> new_is_shared K t c1 c2"
-  unfolding is_shared_def new_is_shared_def
+  "is_share_safe K t (c1 + c2) \<longleftrightarrow> is_share_safe K t c1 \<and> is_share_safe K t c2 \<and> new_is_shared K t c1 c2"
+  unfolding is_share_safe_def new_is_shared_def
   by (force dest: canonical_trans_le_add1 canonical_trans_le_add2)
 
 lemma shareable_constraint_plus_iff:
@@ -1089,9 +1166,11 @@ lemma shareable_constraint_plus_iff:
   by (force simp add: shareable_constraint_conv_all_nth new_shareable_constraint_conv_all_nth
       is_shared_plus_iff)
 
+subsection \<open> bang shareable_constraint \<close>
+
 lemma is_shared_max_iff:
-  shows "is_shared K t (sup c1 c2) \<longleftrightarrow> is_shared K t c1 \<and> is_shared K t c2"
-  by (force simp add: is_shared_def one_linearity_def)
+  shows "is_share_safe K t (sup c1 c2) \<longleftrightarrow> is_share_safe K t c1 \<and> is_share_safe K t c2"
+  by (force simp add: is_share_safe_def one_linearity_def)
 
 lemma shareable_constraint_max_iff:
   assumes "length C1 = length C2"
@@ -1099,6 +1178,23 @@ lemma shareable_constraint_max_iff:
   using assms
   by (force simp add: shareable_constraint_conv_all_nth new_shareable_constraint_conv_all_nth
       is_shared_max_iff)
+
+lemma bang_is_shareable: "shareable K (bang t)"
+  by (induct t)
+    (fastforce simp add: list_all_length in_set_conv_nth
+      bang_sigil_kind[simplified] shareable_def split: variant_state.splits record_state.splits)+
+
+lemma bang_is_share_safe: "is_share_safe K (bang t) c"
+  by (simp add: is_share_safe_def bang_is_shareable)
+
+lemma shareable_context_bang_types_if_shareable_remove_use_bang:
+  "shareable_constraint K G (remove_use_bang N C) \<Longrightarrow> shareable_constraint K (context_bang_types N G) C"
+  by (force simp add: shareable_constraint_conv_all_nth new_shareable_constraint_conv_all_nth
+      is_shared_max_iff bang_is_share_safe is_share_safe_def bang_is_shareable)
+
+lemma remove_use_bang_preserves_shareable_constraint:
+  "shareable_constraint K G C \<Longrightarrow> shareable_constraint K G (remove_use_bang N C)"
+  by (clarsimp simp add: shareable_constraint_conv_all_nth is_share_safe_def)
 
 subsection \<open> Type Inference Properties \<close>
 
@@ -1121,6 +1217,9 @@ next
   case tyinf_put then show ?case
     by (force intro: distinct_upd_sameI simp add: type_wellformed_pretty_simps type_wellformed_all_length map_update nth_list_update)
 next
+  case tyinf_letb then show ?case
+    by (simp add: context_bang_types_wellformed_iff)
+next
   case tyinf_case then show ?case
     by (force simp add: type_wellformed_pretty_simps type_wellformed_all_length in_set_conv_nth All_less_Suc2)
 next
@@ -1130,6 +1229,7 @@ next
 next
   case tyinf_promote then show ?case
     by (force dest: subtyping_wellformed_preservation)
+
 qed (simp; simp add: type_wellformed_pretty_simps type_wellformed_all_length list_all_length map_fst_zip_take less_Suc_eq_0_disj)+
 
 subsection \<open> Non-algorithmic Context Generation \<close>
@@ -1181,11 +1281,11 @@ subsubsection \<open> context_gen respects weaken \<close>
 lemma weakens_to_context_gen:
   assumes
     "K \<turnstile> t wellformed"
-    "is_used K t c"
+    "is_drop_safe K t c"
   shows
-  "weakening_comp K (Some t) (tycount_context_gen_comp t c)"
+    "weakening_comp K (Some t) (tycount_context_gen_comp t c)"
   using assms
-  by (clarsimp simp add: context_gen_comp_Some weakening_comp.simps is_used_def
+  by (clarsimp simp add: context_gen_comp_Some weakening_comp.simps is_drop_safe_def
       linearity_one_le_eq_one_or_many droppable_def split: linearity.splits)
 
 subsubsection \<open> join with + respects split \<close>
@@ -1209,6 +1309,74 @@ lemma tycount_context_gen_split:
   using assms
   by (clarsimp simp add: split_conv_all_nth type_wellformed_all_length
       new_shareable_constraint_conv_all_nth tycount_context_gen_split_comp)
+
+
+subsubsection \<open> join with countPlusBang respects split bang \<close>
+
+fun bangL_comp :: "bool \<Rightarrow> type \<Rightarrow> linearity \<Rightarrow> type option" where
+  "bangL_comp i t c = (if i then Some (bang t) else tycount_context_gen_comp t c)"
+
+fun bangR_comp :: "bool \<Rightarrow> type \<Rightarrow> linearity \<Rightarrow> type option" where
+  "bangR_comp i t c = (if i then Some t else tycount_context_gen_comp t c)"
+
+fun tycount_context_gen_bang ::
+  "(bool \<Rightarrow> type \<Rightarrow> linearity \<Rightarrow> type option) \<Rightarrow> nat set \<Rightarrow> type list \<Rightarrow> linearity list \<Rightarrow> type option list"
+where
+  "tycount_context_gen_bang _ N [] [] = []"
+| "tycount_context_gen_bang f N (t # ts) (c # cs) =
+    f (0 \<in> N) t c # tycount_context_gen_bang f (pred ` Set.remove 0 N) ts cs"
+| "tycount_context_gen_bang _ N [] (_ # _) = []"
+| "tycount_context_gen_bang _ N (_ # _) [] = []"
+
+lemma tycount_context_gen_bang_length[simp]:
+    "length (tycount_context_gen_bang f N G C) = min (length G) (length C)"
+  by (induct arbitrary: N rule: list_induct2') force+
+
+lemma tycount_context_gen_bang_nth[simp]:
+  assumes
+    "i < length G"
+    "i < length C"
+  shows
+    "tycount_context_gen_bang f N G C ! i = f (i \<in> N) (G ! i) (C ! i)"
+  using assms
+  by (induct arbitrary: i N rule: list_induct2')
+     (force simp add: less_Suc_eq_0_disj Suc_mem_image_pred_remove)+
+
+
+lemma tycount_context_gen_split_bang_comp:
+  assumes
+    "K \<turnstile> t wellformed"
+    "i \<longrightarrow> 1 \<le> c2"
+    "new_is_shared K t (if i then 0 else c1) c2"
+  shows
+    "K , i \<turnstile> tycount_context_gen_comp t ((if i then 0 else c1) + c2) \<leadsto>b
+      bangL_comp i t c1 \<parallel> bangR_comp i t c2"
+  using assms
+  by (cases c1; cases c2; clarsimp simp add:
+      split_comp.simps split_bang_comp.simps one_linearity_def
+      new_is_shared_def shareable_def linearity_gt_one_eq_zero_or_one)
+
+lemmas tycount_context_gen_split_bang_comp_True =
+  tycount_context_gen_split_bang_comp[where i=True, simplified]
+
+lemmas tycount_context_gen_split_bang_comp_False =
+  tycount_context_gen_split_bang_comp[where i=False, simplified]
+
+lemma tycount_context_gen_split_bang:
+  assumes
+    "K \<turnstile>* G wellformed"
+    "ensure_use_bang N C2"
+    "new_shareable_constraint K G (remove_use_bang N C1) C2"
+  shows
+    "K , N \<turnstile> tycount_context_gen G (remove_use_bang N C1 \<oplus> C2) \<leadsto>b
+      tycount_context_gen_bang bangL_comp N G (remove_use_bang N C1) | tycount_context_gen_bang bangR_comp N G C2"
+  using assms
+  by (force simp add:
+      tycount_context_gen_split_bang_comp_True
+      tycount_context_gen_split_bang_comp_False
+      ensure_use_bang_all_nth
+      split_bang_conv_all_nth type_wellformed_all_length new_shareable_constraint_conv_all_nth
+      split_bang.simps)
 
 subsubsection \<open> join with sup respects split \<close>
 
@@ -1297,7 +1465,32 @@ lemma weakening_context_correspond:
   using assms
   by (auto simp add: tycount_context_gen_comp_def nth_list_update list_eq_iff_nth_eq
       split: linearity.splits)
-  
+
+
+lemma ite_less_than_one_helper:
+  fixes c :: "'a :: zero_less_one"
+  shows "(if P then 0 else c) \<le> 1 \<longleftrightarrow> P \<or> \<not>P \<and> c \<le> 1"
+  by (clarsimp simp add: order.order_iff_strict split: if_splits)
+
+
+lemma weaken_context_gen_bangL:
+  assumes
+    "K \<turnstile>* G wellformed"
+  shows
+    "K \<turnstile> tycount_context_gen_bang bangL_comp N G (remove_use_bang N C) \<leadsto>w tycount_context_gen (context_bang_types N G) C"
+  using assms
+  by (clarsimp simp add: weakening_conv_all_nth weakening_comp.simps type_wellformed_pretty_def
+      context_gen_comp_Some context_gen_comp_None type_wellformed_all_length
+      droppable_def[symmetric] bang_kinding_fn[simplified, simplified droppable_def[symmetric]])
+
+lemma weaken_context_gen_bangR:
+  assumes
+    "ensure_use_bang N C"
+  shows
+    "K \<turnstile> tycount_context_gen_bang bangR_comp N G C \<leadsto>w tycount_context_gen G C"
+  using assms
+  by (force simp add: weakening_conv_all_nth weakening_comp.simps context_gen_comp_Some)
+
 
 section \<open> Main Theorem: An Inferred Typing Implies a Non-Algorithmic Typing \<close>
 
@@ -1345,34 +1538,63 @@ next
     "K \<turnstile> t wellformed"
     "K \<turnstile> u wellformed"
     using tyinf_split
-    by (fastforce dest: tyinf_preserves_wellformed(1)[where t="TProduct t u", simplified type_wellformed_pretty_simps])+
+    by (force dest!: tyinf_preserves_wellformed simp add: type_wellformed_pretty_simps)+
   ultimately show ?case
     apply (clarsimp simp add: shareable_iff_nonlinear droppable_iff_nonlinear
-        tyinf_shareable_constraint_plus_iff)
+        tyinf_shareable_constraint_plus_iff is_used_def)
     apply (rule typing_typing_all.intros)
       apply (rule tycount_context_gen_split; blast)
      apply blast
-    apply (fastforce intro: typing_weaken_context weakens_to_context_gen weakening_refl
-        simp add: weakening_Cons)
+    apply (rule typing_weaken_context)
+      apply blast
+     apply blast
+    apply (force intro!: weakening_cons weakens_to_context_gen intro: weakening_refl)
     done
 next
   case (tyinf_let \<Xi> K \<Gamma> C1 x t C2o y u ct C2)
   moreover have
     "K \<turnstile> t wellformed"
-    using tyinf_let by force
+    using tyinf_let
+    by force
   ultimately show ?case
     apply (clarsimp simp add: shareable_iff_nonlinear droppable_iff_nonlinear
-        tyinf_shareable_constraint_plus_iff)
+        tyinf_shareable_constraint_plus_iff is_used_def)
     apply (rule typing_typing_all.intros)
       apply (rule tycount_context_gen_split; blast)
      apply blast
-    apply (fastforce intro: typing_weaken_context weakens_to_context_gen weakening_refl
-        simp add: weakening_Cons)
+    apply (rule typing_weaken_context; force intro!: weakening_cons weakens_to_context_gen intro: weakening_refl)
     done
 next
-  case (tyinf_letb \<Xi> K \<Gamma> C1 x t ct C2 y u "is")
-  then show ?case
-    sorry
+  case (tyinf_letb \<Xi> K N \<Gamma> C1 x t ct C2 y u)
+  moreover have
+    "length C1 = length C2"
+    using tyinf_letb
+    by (force dest!: tyinf_context_lengths)
+  moreover then have
+    "shareable_constraint K \<Gamma> (remove_use_bang N C1)"
+    "shareable_constraint K (context_bang_types N \<Gamma>) C1"
+    "shareable_constraint K \<Gamma> C2"
+    "is_share_safe K t ct"
+    using tyinf_letb
+    by (force simp add: shareable_constraint_plus_iff is_used_def
+        intro: shareable_context_bang_types_if_shareable_remove_use_bang)+
+  moreover have
+    "K \<turnstile> t wellformed"
+    using tyinf_letb
+    by (force simp add: context_bang_types_wellformed_iff)
+  ultimately show ?case
+    apply (clarsimp simp add: shareable_iff_nonlinear droppable_iff_nonlinear
+        tyinf_shareable_constraint_plus_iff context_bang_types_wellformed_iff)
+    apply (rule typing_typing_all.intros)
+        apply (rule tycount_context_gen_split_bang)
+          apply blast
+         apply blast
+        apply (force simp add: shareable_constraint_plus_iff)
+       apply (force intro: typing_weaken_context weaken_context_gen_bangL)
+      apply (fastforce intro: typing_weaken_context weakens_to_context_gen weaken_context_gen_bangR
+        simp add: weakening_Cons is_used_def)
+     apply (force intro: kinding_kinding_allI)+
+    done
 next
   case (tyinf_case \<Xi> K \<Gamma> C1 x \<tau>1 ts tag t C2ao a u c2a C2a C2bo b c2b C2b)
   moreover have C_lengths: "length C2a = length \<Gamma>" "length C2b = length \<Gamma>" "length C1 = length \<Gamma>"
@@ -1391,7 +1613,7 @@ next
     using tyinf_case
     by (blast intro: type_wellformed_pretty_tsum_updateI wellformed_sum_wellformed_elem tyinf_preserves_wellformed)+
   ultimately show ?case
-    apply clarsimp
+    apply (clarsimp simp add: is_used_def)
     apply (rule typing_typing_all.intros)
         apply (rule tycount_context_gen_split; blast)
            apply blast
@@ -1448,7 +1670,7 @@ next
      apply assumption
 
     apply (fastforce intro: typing_weaken_context weakens_to_context_gen weakening_refl
-        simp add: weakening_Cons)
+        simp add: weakening_Cons is_used_def)
     done
 next
   case tyinf_all_cons then show ?case
@@ -1468,9 +1690,9 @@ lemma all_weakens_to_tycount_gen:
   using assms
   by (force simp add:
       type_wellformed_all_length weakening_conv_all_nth weakening_comp.simps
-      tycount_context_gen_comp_def droppable_constraint_conv_all_nth is_used_def
-      linearity_one_le_eq_one_or_many droppable_def
-      split: if_splits)
+      tycount_context_gen_comp_def droppable_constraint_conv_all_nth is_drop_safe_def
+      linearity_one_le_eq_one_or_many droppable_def)
+
 
 lemma tyinf_to_typing_all_present:
   assumes
@@ -1502,7 +1724,7 @@ fun trace_tac' ctxt  _ = trace_tac ctxt
 
   fun typinfer_tac_N (n : int) (ctxt : Proof.context) : tactic =
     let val tac = (resolve_tac ctxt @{thms tyinf_safe_intros} ORELSE'
-                  fast_force_tac (ctxt addsimps @{thms kinding_simps}));
+                  fast_force_tac (ctxt addsimps @{thms kinding_simps is_used_def is_share_safe_def  is_drop_safe_def}));
      in REPEAT_DETERM_N n (FIRSTGOAL tac)
      end
 
@@ -1561,5 +1783,6 @@ schematic_goal typing3:
     apply (tactic \<open>typinfer_tac @{context}\<close>)
   done
 thm typing3[simplified]
+
 
 end
