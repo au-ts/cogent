@@ -8,6 +8,8 @@
 -- @TAG(NICTA_GPL)
 --
 
+#include "debug.cogent.h"
+
 type Ext2DirEnt = #{
     inode               : U32,
     record_length       : U16,

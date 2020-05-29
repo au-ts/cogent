@@ -56,13 +56,15 @@ toTypeStr (TProduct t1 t2) = nub $ toTypeStr t1 ++ toTypeStr t2
 toTypeStr (TSum ts)        = nub $ VariantStr (P.map fst ts) : concat (P.map (toTypeStr . fst . snd) ts)
    -- \ ^^^ NOTE: alternatives are ordered throughout the compiler / zilinc
 toTypeStr (TFun ti to)     = nub $ toTypeStr ti ++ toTypeStr to
-toTypeStr (TRecord ts _)   = nub $ RecordStr (P.map fst ts) : concatMap (toTypeStr . fst . snd) ts
+-- TODO: Should recpars be part of type strings?
+toTypeStr (TRecord _ ts _)   = nub $ RecordStr (P.map fst ts) : concatMap (toTypeStr . fst . snd) ts
 toTypeStr (TPrim i)        = []
 toTypeStr (TString)        = []
 toTypeStr (TCon n ts _)    = nub $ concatMap toTypeStr ts
 #ifdef BUILTIN_ARRAYS
 toTypeStr (TArray {})      = []
 #endif
+toTypeStr (TRPar v m)      = []
 
 -- | Given a map for type synonyms, the table, and a type @t@, returns
 --   a type in the form of a 'TCon', which means that if there's a type
@@ -79,7 +81,8 @@ getStrlType tsmap table (TSum ts) =
       in TCon ('T':show idx) tps Unboxed
     Just tn ->
       TCon tn tps Unboxed
-getStrlType tsmap table (TRecord fs s) =
+-- TODO: recPars part of type strings?
+getStrlType tsmap table (TRecord _ fs s) =
   let tstr = RecordStr (P.map fst fs)
       tps = P.map (fst . snd) fs
   in case M.lookup tstr tsmap of
@@ -103,8 +106,8 @@ stDefinitions = mapM_ stDefinition
 
 -- Since desugaring, the RHSes have been unfolded already
 stDefinition :: Definition TypedExpr VarName b -> ST ()
-stDefinition (FunDef  _ fn ts ti to e) = stExpr e  -- NOTE: `ti' and `to' will be included in `e', so no need to scan them / zilinc
-stDefinition (AbsDecl _ fn ts ti to) = stType ti >> stType to
+stDefinition (FunDef  _ fn ts ls ti to e) = stExpr e  -- NOTE: `ti' and `to' will be included in `e', so no need to scan them / zilinc
+stDefinition (AbsDecl _ fn ts ls ti to) = stType ti >> stType to
 stDefinition (TypeDef tn ts (Just t)) = stType t
 stDefinition (TypeDef tn ts Nothing) = return ()
 
@@ -112,7 +115,7 @@ stExpr :: TypedExpr t v VarName b -> ST ()
 stExpr (TE t e) = stExpr' e >> stType t
   where
     stExpr' (Variable v)   = return ()
-    stExpr' (Fun fn tys _) = mapM_ stType tys
+    stExpr' (Fun fn ts _ _) = __fixme $ mapM_ stType ts
     stExpr' (Op opr es)    = mapM_ stExpr es
     stExpr' (App e1 e2)    = stExpr e1 >> stExpr e2
     stExpr' (Con cn e _)   = stExpr e

@@ -20,8 +20,8 @@ module Cogent.TypeCheck.Post (
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
-import Cogent.Dargent.TypeCheck (normaliseSigil)
-import Cogent.PrettyPrint ()
+import Cogent.Dargent.TypeCheck
+import Cogent.PrettyPrint
 import Cogent.Surface
 import Cogent.TypeCheck.ARow as ARow
 import Cogent.TypeCheck.Base
@@ -81,12 +81,18 @@ normaliseE d te@(TE t e l) = do
   where
     ctx = InExpression (toLocExpr toLocType te) t
     normaliseE' :: TypeDict
-                -> Expr TCType TCPatn TCIrrefPatn TCExpr
-                -> Post (Expr TCType TCPatn TCIrrefPatn TCExpr)
+                -> Expr TCType TCPatn TCIrrefPatn TCDataLayout TCExpr
+                -> Post (Expr TCType TCPatn TCIrrefPatn TCDataLayout TCExpr)
     normaliseE' d =   traverse (normaliseE d)
-                  >=> ttraverse (normaliseIP d)
-                  >=> tttraverse (normaliseP d)
-                  >=> ttttraverse (normaliseT d)
+                  >=> ttraverse normaliseL
+                  >=> tttraverse (normaliseIP d)
+                  >=> ttttraverse (normaliseP d)
+                  >=> tttttraverse (normaliseT d)
+
+normaliseL :: TCDataLayout -> Post TCDataLayout
+normaliseL l = do
+  layouts <- lift . lift $ use knownDataLayouts
+  return $ normaliseTCDataLayout layouts l
 
 normaliseP :: TypeDict -> TCPatn -> Post TCPatn
 normaliseP d tp@(TP p l) = do
@@ -106,13 +112,15 @@ normaliseIP d tip@(TIP ip l) = do
                      -> Post (IrrefutablePattern TCName TCIrrefPatn TCExpr)
         normaliseIP' d = traverse (normaliseE d) >=> ttraverse (normaliseIP d) >=> tttraverse (secondM (normaliseT d))
 
+-- postcondition: only types should remain in the TCType after running (aka 'T' constructors)
 normaliseT :: TypeDict -> TCType -> Post TCType
 normaliseT d (T (TUnbox t)) = do
    t' <- normaliseT d t
    case t' of
      (T (TCon x ps _))    -> normaliseT d (T (TCon x ps Unboxed))
      (T (TVar v b u))     -> normaliseT d (T (TVar v b True))
-     (T (TRecord l _))    -> normaliseT d (T (TRecord l Unboxed))
+     -- Cannot have an unboxed record with a recursive parameter
+     (T (TRecord NonRec l _)) -> normaliseT d (T (TRecord NonRec l Unboxed))
 #ifdef BUILTIN_ARRAYS
      (T (TArray t e _ h)) -> normaliseT d (T (TArray t e Unboxed h))
 #endif
@@ -124,8 +132,8 @@ normaliseT d (T (TBang t)) = do
    case t' of
      (T (TCon x ps s)) -> mapM (normaliseT d . T . TBang) ps >>= \ps' ->
                           normaliseT d (T (TCon x ps' (bangSigil s)))
-     (T (TRecord l s)) -> mapM ((secondM . firstM) (normaliseT d . T . TBang)) l >>= \l' ->
-                          normaliseT d (T (TRecord l' (bangSigil s)))
+     (T (TRecord rp l s)) -> mapM ((secondM . firstM) (normaliseT d . T . TBang)) l >>= \l' ->
+                             normaliseT d (T (TRecord rp l' (bangSigil s)))
 #ifdef BUILTIN_ARRAYS
      (T (TArray t e (Boxed False l) h)) -> normaliseT d (T (TArray t e (Boxed True l) h))
 #endif
@@ -137,7 +145,7 @@ normaliseT d (T (TBang t)) = do
 normaliseT d (T (TTake fs t)) = do
    t' <- normaliseT d t
    case t' of
-     (T (TRecord l s)) -> takeFields fs l t >>= \r -> normaliseT d (T (TRecord r s))
+     (T (TRecord rp l s)) -> takeFields fs l t >>= \r -> normaliseT d (T (TRecord rp r s))
      (T (TVariant ts)) -> takeFields fs (M.toList ts) t' >>= \r -> normaliseT d (T (TVariant (M.fromList r)))
      _                 -> if __cogent_flax_take_put then return t
                                                     else logErrExit (TakeFromNonRecordOrVariant fs t)
@@ -152,7 +160,7 @@ normaliseT d (T (TTake fs t)) = do
 normaliseT d (T (TPut fs t)) = do
    t' <- normaliseT d t
    case t' of
-     (T (TRecord l s)) -> putFields fs l t >>= \r -> normaliseT d (T (TRecord r s))
+     (T (TRecord rp l s)) -> putFields fs l t >>= \r -> normaliseT d (T (TRecord rp r s))
      (T (TVariant ts)) -> putFields fs (M.toList ts) t' >>= \r -> normaliseT d (T (TVariant (M.fromList r)))
      _                 -> if __cogent_flax_take_put then return t'
                                                     else logErrExit (PutToNonRecordOrVariant fs t)
@@ -188,8 +196,8 @@ normaliseT d (T (TLayout l t)) = do
   t' <- normaliseT d t
   env <- lift . lift $ use knownDataLayouts
   case t' of
-    (T (TRecord fs (Boxed p Nothing))) -> do
-      let normPartT = normaliseT d . T . TRecord fs
+    (T (TRecord rp fs (Boxed p Nothing))) -> do
+      let normPartT = normaliseT d . T . TRecord rp fs
       t'' <- normPartT Unboxed
       if isTypeLayoutExprCompatible env t'' l
         then normPartT . Boxed p $ Just l
@@ -219,10 +227,10 @@ normaliseT d (T (TCon n ts b)) =
       ts' <- mapM (normaliseT d) ts
       return $ T (TCon n ts' b)
 
-normaliseT d (T (TRecord l s)) = do
+normaliseT d (T (TRecord rp l s)) = do
   s' <- normaliseS s
   l' <- mapM ((secondM . firstM) (normaliseT d)) l
-  return (T (TRecord l' s'))
+  return (T (TRecord rp l' s'))
 
 #ifdef BUILTIN_ARRAYS
 normaliseT d (T (TArray t n s tkns)) = do
@@ -236,12 +244,14 @@ normaliseT d (Synonym n ts) =
     Just (ts', Just b) -> normaliseT d (substType (zip ts' ts) b)
     _ -> __impossible ("normaliseT: unresolved synonym " ++ show n)
 normaliseT d (V x) =
-  T . TVariant . M.map (second tkNorm . snd) . Row.entries . fmap (:[]) <$>
-    traverse (normaliseT d) x
-normaliseT d (R x (Left s)) =
-  T . flip TRecord (__fixme $ fmap (const Nothing) s) . map (second (second tkNorm)). Row.toEntryList <$>  -- TODO(dargent): check this is correct
-    traverse (normaliseT d) x
-normaliseT d (R x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
+  T . TVariant . M.fromList .
+  map (\e -> (Row.fname e, ([Row.payload e], Row.taken e))) .
+  Row.entries <$> traverse (normaliseT d) x
+normaliseT d (R rp x (Left s)) =
+  T . flip (TRecord $ unCoerceRP rp) (__fixme $ fmap (const Nothing) s) .
+  map (\e -> (Row.fname e, (Row.payload e, Row.taken e))) .
+  Row.entries <$> traverse (normaliseT d) x
+normaliseT d (R _ x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
 #ifdef BUILTIN_ARRAYS
 normaliseT d (A t n (Left s) (Left mhole)) = do
   t' <- normaliseT d t
@@ -258,9 +268,8 @@ tkNorm :: Either Taken Int -> Taken
 tkNorm (Left tk) = tk
 tkNorm (Right _) = __impossible "normaliseT: taken variable unsolved at normisation"
 
-
 -- Normalises the layouts in sigils to remove `DataLayoutRefs`
-normaliseS :: Sigil (Maybe DataLayoutExpr) -> Post (Sigil (Maybe DataLayoutExpr))
+normaliseS :: Sigil (Maybe TCDataLayout) -> Post (Sigil (Maybe TCDataLayout))
 normaliseS sigil = do
   layouts <- lift . lift $ use knownDataLayouts
   return $ normaliseSigil layouts sigil

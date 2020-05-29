@@ -30,7 +30,7 @@ import Isabelle.InnerAST as I
 import Isabelle.OuterAST as O
 
 import qualified Data.Map.Strict as Map
-import Data.List (intercalate, sort, sortOn)
+import Data.List (intercalate, sort)
 #if __GLASGOW_HASKELL__ >= 709
 import Prelude hiding ((<$>))
 #endif
@@ -70,7 +70,8 @@ deepTypeInner mod ta (TSum alts)
   = mkApp (mkId "TSum")
           [mkList $ map (\(n,(t,b)) -> mkPair (mkString n) (mkPair (deepType mod ta t) (deepVariantState b))) $ sort alts]
 deepTypeInner mod ta (TProduct t1 t2) = mkApp (mkId "TProduct") [deepType mod ta t1, deepType mod ta t2]
-deepTypeInner mod ta (TRecord fs s) = mkApp (mkId "TRecord") [mkList $ map (\(fn,(t,b)) -> mkPair (mkString fn) (mkPair (deepType mod ta t) (deepRecordState b))) fs, deepSigil s]
+-- TODO: Do recursive types have a place in the deep embedding?
+deepTypeInner mod ta (TRecord _ fs s) = mkApp (mkId "TRecord") [mkList $ map (\(fn,(t,b)) -> mkPair (mkString fn) (mkPair (deepType mod ta t) (deepRecordState b))) fs, deepSigil s]
 deepTypeInner mod ta (TUnit) = mkId "TUnit"
 deepTypeInner _ _ t = __impossible $ "deepTypeInner: " ++ show (pretty t) ++ " is not yet implemented"
 
@@ -132,7 +133,7 @@ deepPrimOp CS.Complement t = mkApp (mkId "Complement") [deepNumType t]
 
 deepExpr :: (Pretty a, Ord b, Pretty b) => NameMod -> TypeAbbrevs -> [Definition TypedExpr a b] -> TypedExpr t v a b -> Term
 deepExpr mod ta defs (TE _ (Variable v)) = mkApp (mkId "Var") [deepIndex (fst v)]
-deepExpr mod ta defs (TE _ (Fun fn ts _))
+deepExpr mod ta defs (TE _ (Fun fn ts ls _))  -- FIXME
   | concreteFun fn = mkApp (mkId "Fun")  [mkId (mod (unIsabelleName $ mkIsabelleName $ unCoreFunName fn)), mkList (map (deepType mod ta) ts)]
   | otherwise      = mkApp (mkId "AFun") [mkString (unIsabelleName $ mkIsabelleName $ unCoreFunName fn), mkList (map (deepType mod ta) ts)]
   where
@@ -157,9 +158,8 @@ deepExpr mod ta defs (TE _ (Promote ty e))
 --   | TSum as <- ty = mkApp (mkId "Promote") [mkList $ map (\(an,(at,_)) -> mkPair (mkString an) (deepType mod ta at)) as, deepExpr mod ta defs e]  -- FIMXE: cogent.1
 --   | otherwise = __impossible "deepExpr"
 deepExpr mod ta defs (TE _ (Struct fs))
-  = let fs' = sortOn fst fs
-    in mkApp (mkId "Struct") [mkList (map (deepType mod ta . exprType . snd) fs'),
-                              mkList (map (deepExpr mod ta defs . snd) fs')]
+  = mkApp (mkId "Struct") [mkList (map (deepType mod ta . exprType . snd) fs),
+                           mkList (map (deepExpr mod ta defs . snd) fs)]
 deepExpr mod ta defs (TE _ (Member e fld))
   = mkApp (mkId "Member") [deepExpr mod ta defs e, mkInt (fromIntegral fld)]
 deepExpr mod ta defs (TE _ (Unit)) = mkId "Unit"
@@ -196,11 +196,11 @@ deepKind :: Kind -> Term
 deepKind (K e s d) = ListTerm "{" [ mkId str | (sig, str) <- [(e, "E"), (s, "S"), (d, "D")], sig ] "}"
 
 deepPolyType :: (Ord b, Pretty b) => NameMod -> TypeAbbrevs -> FunctionType b -> Term
-deepPolyType mod ta (FT ks ti to) = mkPair (mkList $ map deepKind $ cvtToList ks)
-                                           (mkPair (deepType mod ta ti) (deepType mod ta to))
+deepPolyType mod ta (FT ks ts ti to) = mkPair (mkList $ map deepKind $ cvtToList ks)  -- FIXME
+                                              (mkPair (deepType mod ta ti) (deepType mod ta to))
 
 imports :: TheoryImports
-imports = TheoryImports $ [__cogent_root_dir </> "cogent/isa/Cogent"]
+imports = TheoryImports $ ["Cogent.Cogent"]
 
 deepDefinition :: (Pretty a, Ord b, Pretty b)
                => NameMod
@@ -209,8 +209,8 @@ deepDefinition :: (Pretty a, Ord b, Pretty b)
                -> Definition TypedExpr a b
                -> [TheoryDecl I.Type I.Term]
                -> [TheoryDecl I.Type I.Term]
-deepDefinition mod ta defs (FunDef _ fn ks ti to e) decls =
-  let ty = deepPolyType mod ta $ FT (fmap snd ks) ti to
+deepDefinition mod ta defs (FunDef _ fn ks ts ti to e) decls =
+  let ty = deepPolyType mod ta $ FT (fmap snd ks) (fmap snd ts) ti to
       tn = case editIsabelleName (mkIsabelleName fn) (++ "_type")  of
             Just n  -> unIsabelleName n
             Nothing -> error ("Error - unable to generate name for isabelle function '" ++ fn ++ "'")
@@ -221,8 +221,8 @@ deepDefinition mod ta defs (FunDef _ fn ks ti to e) decls =
       fn' = unIsabelleName (mkIsabelleName fn)
       decl = [isaDecl| definition $fn' :: "$fntysig" where "$(mkId fn') \<equiv> $e'" |]
      in tydecl:decl:decls
-deepDefinition mod ta _ (AbsDecl _ fn ks ti to) decls =
-    let ty = deepPolyType mod ta $ FT (fmap snd ks) ti to
+deepDefinition mod ta _ (AbsDecl _ fn ks ts ti to) decls =
+    let ty = deepPolyType mod ta $ FT (fmap snd ks) (fmap snd ts) ti to
         tn = case editIsabelleName (mkIsabelleName fn) (++ "_type") of 
             Just n  -> unIsabelleName n
             Nothing -> error ("Error - unable to generate name for isabelle function '" ++ fn ++ "'")
@@ -240,10 +240,10 @@ deepDefinitions mod ta defs = foldr (deepDefinition mod ta defs) [] defs ++
                                "\\<close>"
                               ]
   where absFuns [] = []
-        absFuns (AbsDecl _ fn _ _ _ : fns) = fn : absFuns fns
+        absFuns (AbsDecl _ fn _ _ _ _ : fns) = fn : absFuns fns
         absFuns (_ : fns) = absFuns fns
         cogentFuns [] = []
-        cogentFuns (FunDef _ fn _ _ _ _ : fns) = fn : cogentFuns fns
+        cogentFuns (FunDef _ fn _ _ _ _ _ : fns) = fn : cogentFuns fns
         cogentFuns (_ : fns) = cogentFuns fns
 
         showStrings :: [String] -> String
@@ -256,7 +256,7 @@ scanAggregates (TCon tn ts _) = concatMap scanAggregates ts
 scanAggregates (TFun ti to) = scanAggregates ti ++ scanAggregates to
 scanAggregates (TSum alts) = concatMap (scanAggregates . fst . snd) alts ++ [TSum alts]
 scanAggregates (TProduct t1 t2) = scanAggregates t1 ++ scanAggregates t2
-scanAggregates (TRecord fs s) = concatMap (scanAggregates . fst . snd) fs ++ [TRecord fs s]
+scanAggregates (TRecord rp fs s) = concatMap (scanAggregates . fst . snd) fs ++ [TRecord rp fs s]
 scanAggregates _ = []
 
 addTypeAbbrev :: (Ord b, Pretty b) => NameMod -> CC.Type t b -> TypeAbbrevs -> TypeAbbrevs
@@ -267,7 +267,7 @@ addTypeAbbrev mod t ta = case Map.lookup term (fst ta) of
     term = deepTypeInner mod ta t
 
 getDefTypeAbbrevs :: (Ord b) => NameMod -> Definition TypedExpr a b -> TypeAbbrevs -> TypeAbbrevs
-getDefTypeAbbrevs mod (FunDef _ _ _ ti to e) ta = foldr (addTypeAbbrev mod) ta
+getDefTypeAbbrevs mod (FunDef _ _ _ _ ti to e) ta = foldr (addTypeAbbrev mod) ta
     (scanAggregates ti ++ scanAggregates to)
 getDefTypeAbbrevs _ _ ta = ta
 

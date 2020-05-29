@@ -10,6 +10,8 @@
 -- @TAG(DATA61_GPL)
 --
 
+#include "debug.cogent.h"
+
 maxChainSize: U32
 maxChainSize = 4
 
@@ -499,9 +501,9 @@ chain_alloc_connect_indirects #{ acc = (ex, chain, inode), obsv = (num, num_indi
       and _ = cogent_warn ("chain_alloc_connect_indirects: ERROR: serialise failed\n")
       in ((ex, chain, inode), Break eIO)
   | Error () ->
-    let _ = cogent_warn "chain_alloc_connect_indirects: ERROR: getblock for block "
-    and _ = cogent_warn_u32 parent_blockptr
-    and _ = cogent_warn " failed\n"
+    let _ = cogent_warn ("chain_alloc_connect_indirects: ERROR: getblock for block ")
+    and _ = cogent_warn_u32 (parent_blockptr)
+    and _ = cogent_warn (" failed\n")
 
     in ((ex, chain, inode), Break eIO)
 

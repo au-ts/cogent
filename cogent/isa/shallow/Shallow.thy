@@ -12,7 +12,7 @@
 
 theory Shallow
 imports
-  "../ValueSemantics"
+  "Cogent.ValueSemantics"
   ShallowUtil
 begin
 

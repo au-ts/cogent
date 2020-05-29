@@ -16,7 +16,6 @@ module Minigent.TC.SinkFloat
   ) where
 
 import Minigent.Syntax
-import Minigent.Syntax.Utils
 import qualified Minigent.Syntax.Utils.Row as Row
 import qualified Minigent.Syntax.Utils.Rewrite as Rewrite
 
@@ -24,48 +23,43 @@ import Minigent.TC.Assign
 import Minigent.Fresh
 import Control.Monad.Writer hiding (First(..))
 import Control.Monad.Trans.Maybe
-import Control.Applicative
-import qualified Data.Map as M
 
-import Data.Semigroup (First(..))
+import qualified Data.Map as M
 
 -- | The sinkFloat phase propagates the structure of types containing
 --   rows (i.e. Records and Variants) through subtyping/equality constraints
 sinkFloat :: forall m. (MonadFresh VarName m, MonadWriter [Assign] m) => Rewrite.Rewrite' m [Constraint]
-sinkFloat = Rewrite.rewrite' $ \cs -> do 
-               (cs',as) <- tryEach cs
-               tell as
-               pure (map (constraintTypes (traverseType (foldMap substAssign as))) cs')
-  where 
-    tryEach :: [Constraint] -> MaybeT m ([Constraint], [Assign])
-    tryEach cs =
-      MaybeT $ do
-        (mas :: [Maybe [Assign]]) <- traverse (runMaybeT . genStructSubst) cs
-        let as :: Maybe [Assign]
-            as = getFirst <$> (mconcat $ fmap (fmap First) mas :: Maybe (First [Assign]))
-        return ((,) cs <$> as)
-
-    genStructSubst :: Constraint -> MaybeT m [Assign]
+sinkFloat = Rewrite.rewrite' $ \cs -> MaybeT $ do
+              substs <- concat <$> traverse genStructSubsts cs
+              tell substs
+              if null substs
+              then return Nothing
+              else let (m1,m2,m3,m4) = substsToMapsDisjoint substs
+                      -- n.b. if a substitution was generated, that
+                      --      substitution will change the constraints when applied
+                    in return . Just $ map (substConstraint' m1 m2 m3 m4) cs
+  where
+    genStructSubsts :: Constraint -> m [Assign]
     -- remove type operators first
-    genStructSubst (Bang t :< v)  = genStructSubst (t :< v)
-    genStructSubst (v :< Bang t)  = genStructSubst (v :< t)
-    genStructSubst (Bang t :=: v) = genStructSubst (t :=: v)
-    genStructSubst (v :=: Bang t) = genStructSubst (v :=: t)
+    genStructSubsts (Bang t :< v)  = genStructSubsts (t :< v)
+    genStructSubsts (v :< Bang t)  = genStructSubsts (v :< t)
+    genStructSubsts (Bang t :=: v) = genStructSubsts (t :=: v)
+    genStructSubsts (v :=: Bang t) = genStructSubsts (v :=: t)
 
     -- records
-    genStructSubst (Record n r s :< UnifVar i) = do
+    genStructSubsts (Record n r s :< UnifVar i) = do
       s' <- case s of
         Unboxed -> return Unboxed -- unboxed is preserved by bang, so we may propagate it
         _       -> UnknownSigil <$> fresh
       rowUnifRowSubs (flip (Record n) s') i r
 
-    genStructSubst (UnifVar i :< Record n r s) = do
+    genStructSubsts (UnifVar i :< Record n r s) = do
       s' <- case s of
         Unboxed -> return Unboxed -- unboxed is preserved by bang, so we may propagate it
         _       -> UnknownSigil <$> fresh
       rowUnifRowSubs (flip (Record n) s') i r
 
-    genStructSubst (Record _ r1 s1 :< Record _ r2 s2)
+    genStructSubsts (Record _ r1 s1 :< Record _ r2 s2)
       {-
         The most tricky case.
         Untaken is the bottom of the order, Taken is the top.
@@ -84,15 +78,15 @@ sinkFloat = Rewrite.rewrite' $ \cs -> do
       | UnknownSigil i <- s1 , Unboxed <- s2 = return [SigilAssign i Unboxed]
 
     -- abstypes
-    genStructSubst (AbsType n s ts :< UnifVar i) = absTypeSubs n s ts i
-    genStructSubst (UnifVar i :< AbsType n s ts) = absTypeSubs n s ts i
-    genStructSubst (AbsType n s ts :=: UnifVar i) = absTypeSubs n s ts i
-    genStructSubst (UnifVar i :=: AbsType n s ts) = absTypeSubs n s ts i
+    genStructSubsts (AbsType n s ts :< UnifVar i) = absTypeSubs n s ts i
+    genStructSubsts (UnifVar i :< AbsType n s ts) = absTypeSubs n s ts i
+    genStructSubsts (AbsType n s ts :=: UnifVar i) = absTypeSubs n s ts i
+    genStructSubsts (UnifVar i :=: AbsType n s ts) = absTypeSubs n s ts i
 
     -- variants
-    genStructSubst (Variant r :< UnifVar i) = rowUnifRowSubs Variant i r
-    genStructSubst (UnifVar i :< Variant r) = rowUnifRowSubs Variant i r
-    genStructSubst (Variant r1 :< Variant r2)
+    genStructSubsts (Variant r :< UnifVar i) = rowUnifRowSubs Variant i r
+    genStructSubsts (UnifVar i :< Variant r) = rowUnifRowSubs Variant i r
+    genStructSubsts (Variant r1 :< Variant r2)
       {-
         The most tricky case.
         Taken is the bottom of the order, Untaken is the top.
@@ -108,13 +102,18 @@ sinkFloat = Rewrite.rewrite' $ \cs -> do
       , Just r2var <- rowVar r2
         = makeRowRowVarSubsts r2new r2var
 
+    -- tfun
+    genStructSubsts (Function _ _ :< UnifVar i)  = makeFunUnifSubsts i
+    genStructSubsts (UnifVar i :< Function _ _)  = makeFunUnifSubsts i
+    genStructSubsts (Function _ _ :=: UnifVar i) = makeFunUnifSubsts i
+    genStructSubsts (UnifVar i :=: Function _ _) = makeFunUnifSubsts i
 
     -- primitive types
-    genStructSubst (t@(PrimType _) :< UnifVar i) = pure [TyAssign i t]
-    genStructSubst (UnifVar i :< t@(PrimType _)) = pure [TyAssign i t]
+    genStructSubsts (t@(PrimType _) :< UnifVar i) = return [TyAssign i t]
+    genStructSubsts (UnifVar i :< t@(PrimType _)) = return [TyAssign i t]
 
     -- default
-    genStructSubst _ = empty
+    genStructSubsts _ = return []
 
     --
     -- helper functions
@@ -123,7 +122,7 @@ sinkFloat = Rewrite.rewrite' $ \cs -> do
       let es = rowEntries r
       v' <- traverse (const fresh) (rowVar r)
       es' <- traverse (\(Entry n _ tk) -> Entry n <$> (UnifVar <$> fresh) <*> pure tk) es
-      pure [TyAssign i (tConstr (Row es' v'))]
+      return [TyAssign i (tConstr (Row es' v'))]
 
     makeRowRowVarSubsts rnew rv = do
       rv' <- Just <$> fresh
@@ -133,3 +132,8 @@ sinkFloat = Rewrite.rewrite' $ \cs -> do
     absTypeSubs n s ts i = do 
       ts' <- mapM (const (UnifVar <$> fresh)) ts
       return [TyAssign i (AbsType n s ts')]
+
+    makeFunUnifSubsts i = do
+      t' <- UnifVar <$> fresh
+      u' <- UnifVar <$> fresh
+      return [TyAssign i $ Function t' u']

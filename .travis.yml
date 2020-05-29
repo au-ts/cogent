@@ -137,7 +137,7 @@ install:
      echo "==== cabal build-cache MISS (or error) ====";
      rm -rf $HOME/.cabsnap;
      # mkdir -p $HOME/.ghc $HOME/.cabal/lib $HOME/.cabal/share $HOME/.cabal/bin;
-     travis_wait 40 cabal install --only-dependencies --force-reinstalls --flags="builtin-arrays haskell-backend docgent";  # --enable-tests;
+     travis_wait 50 cabal install --only-dependencies --force-reinstalls --flags="builtin-arrays haskell-backend docgent";  # --enable-tests;
    fi
 
 # snapshot package-db on cache miss
@@ -171,9 +171,9 @@ install:
 script:
  - cd $REPO/cogent
  # - echo 'Configuring Cogent'
- - cabal configure --flags="haskell-backend docgent"  # --enable-tests  # or -v2 to provide useful information for debugging
+ - cabal configure --flags="haskell-backend docgent builtin-arrays"  # --enable-tests  # or -v2 to provide useful information for debugging
  # - echo 'Installing Cogent'
- - cabal install --force-reinstalls --flags="haskell-backend docgent" # --enable-tests
+ - cabal install --force-reinstalls --flags="haskell-backend docgent builtin-arrays" # --enable-tests
  # - cabal build   # this builds all libraries and executables (including tests/benchmarks)
  - cabal test test-quickcheck  # the other test is rarely affacted, so not enabled / zilinc
  # - cabal check

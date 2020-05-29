@@ -1,0 +1,20 @@
+$ty:(Option (EmptyListNode a)) $id:list_alloc_node($ty:(()) unit) {
+    $ty:(List a) node = malloc(sizeof(*node));
+    $ty:(Option (EmptyListNode a)) ret;
+
+    if (!node) {
+        ret.tag = TAG_ENUM_None;
+        return ret;
+    }
+
+    ret.tag = TAG_ENUM_Some;
+    ret.Some = node;
+    return ret;
+}
+
+$ty:(()) $id:list_free_node($ty:(EmptyListNode a) node) {
+    free(node); 
+
+    $ty:(()) ret;
+    return ret;
+}

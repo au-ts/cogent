@@ -11,4 +11,4 @@
 type A = {a : U8, b : U32}
 
 foo : (A take a, U8) -> A 
-foo (rec, a) = rec {a}
+foo (r, a) = r {a}

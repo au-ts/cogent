@@ -32,7 +32,7 @@ import Minigent.Syntax.PrettyPrint
 --   with type signatures added to each subexpression and type applications expanded explicitly.
 tc :: GlobalEnvironments
    -> [(FunName, (VarName, Expr))]
-   -> Fresh VarName [Either (FunName, [Constraint]) (FunName,(VarName,Expr))]
+   -> FreshT VarName IO [Either (FunName, [Constraint]) (FunName,(VarName,Expr))]
 tc envs = mapM check
   where
     check (f, (x, e)) = do

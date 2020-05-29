@@ -10,6 +10,8 @@
 -- @TAG(DATA61_GPL)
 --
 
+#include "debug.cogent.h"
+
 type BlockPtr = U32
 type LogicalBlock = U32
 

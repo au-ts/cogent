@@ -37,8 +37,8 @@ import Cogent.Compiler
 import Cogent.Core as CC
 import Cogent.Desugar as D (freshVarPrefix)
 import Cogent.Isabelle.Compound (takeFlatCase)
-import Cogent.Isabelle.ShallowTable (TypeStr(..), st, getStrlType, toTypeStr)
 import Cogent.Isabelle.IsabelleName
+import Cogent.Isabelle.ShallowTable (TypeStr(..), st, getStrlType, toTypeStr)
 
 import Cogent.Normal as N (freshVarPrefix)
 import Cogent.Util (NameMod, Stage(..), Warning)
@@ -58,7 +58,7 @@ import Control.Monad.Writer (Writer, runWriter)
 import Data.Char (ord, chr, intToDigit, isDigit)
 import Data.Either (lefts, rights)
 import Data.Function (on)
-import Data.List (isPrefixOf, isSuffixOf, stripPrefix, partition, sortBy, sortOn, minimumBy, groupBy, unzip5, intercalate)
+import Data.List (isPrefixOf, isSuffixOf, stripPrefix, partition, sortBy, minimumBy, groupBy, unzip5, intercalate)
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Set as S
@@ -117,12 +117,12 @@ shallowType (TPrim pt) = pure $ shallowPrimType pt
 shallowType (TString) = pure $ I.AntiType "string"
 shallowType (TSum alts) = shallowTypeWithName (TSum alts)
 shallowType (TProduct t1 t2) = I.TyTuple <$> shallowType t1 <*> shallowType t2
-shallowType (TRecord fs s) = do
+shallowType (TRecord rp fs s) = do
   tuples <- asks recoverTuples
   if tuples && isRecTuple (map fst fs) then
     shallowRecTupleType fs
   else
-    shallowTypeWithName (TRecord fs s)
+    shallowTypeWithName (TRecord rp fs s)
 shallowType (TUnit) = return $ I.AntiType "unit"
 #ifdef BUILTIN_ARRAYS
 shallowType (TArray t _ _ _) = I.TyDatatype "list" <$> mapM shallowType [t]
@@ -201,7 +201,7 @@ findTypeSyn t = findType t >>= \(TCon nm _ _) -> pure nm
 
 shallowExpr :: (Show b) => TypedExpr t v VarName b -> SG Term
 shallowExpr (TE _ (Variable (_,v))) = pure $ mkId (snm v)
-shallowExpr (TE _ (Fun fn ts _)) = pure $ mkId $ snm $ unCoreFunName fn  -- only prints the fun name
+shallowExpr (TE _ (Fun fn ts ls _)) = pure $ mkId $ snm $ unCoreFunName fn  -- only prints the fun name
 shallowExpr (TE _ (Op opr es)) = shallowPrimOp <$> pure opr <*> (mapM shallowExpr es)
 shallowExpr (TE _ (App f arg)) = mkApp <$> shallowExpr f <*> (mapM shallowExpr [arg])
 shallowExpr (TE t (Con cn e _))  = do
@@ -333,13 +333,12 @@ isRecTuple fs =
 
 shallowMaker :: (Show b) => CC.Type t b -> [(FieldName, TypedExpr t v VarName b)] -> SG Term
 shallowMaker t fs = do
-  let fs' = sortOn fst fs
   tn <- findTypeSyn t
-  let fnms = map fst fs'
+  let fnms = map fst fs
   tuples <- asks recoverTuples
   if tuples && isRecTuple fnms
-  then mkTuple <$> mapM (shallowExpr . snd) fs'
-  else mkApp <$> pure (mkStr [tn, ".make"]) <*> (mapM (shallowExpr . snd) fs')
+  then mkTuple <$> mapM (shallowExpr . snd) fs
+  else mkApp <$> pure (mkStr [tn, ".make"]) <*> (mapM (shallowExpr . snd) fs)
 
 shallowSetter :: (Show b) => TypedExpr t v VarName b -> Int -> TypedExpr t v VarName b -> SG Term
 shallowSetter rec idx e = do
@@ -351,7 +350,7 @@ shallowGetter :: TypedExpr t v VarName b -> Int -> Term -> SG Term
 shallowGetter rec idx rect = mkApp <$> (mkId <$> getRecordFieldName (exprType rec) idx) <*> pure [rect]
 
 getRecordFieldName :: CC.Type t b -> Int -> SG FieldName
-getRecordFieldName t@(TRecord fs _) ind = do
+getRecordFieldName t@(TRecord _ fs _) ind = do
   tn <- findTypeSyn t
   let fnms = map fst fs
   tuples <- asks recoverTuples
@@ -364,7 +363,7 @@ typarUpd typar v = v {typeVars = typar}
 -- Clear out all taken annotations and mark all sigil as unboxed.
 sanitizeType :: CC.Type t b -> CC.Type t b
 sanitizeType (TSum ts) = TSum (map (\(tn,(t,_)) -> (tn,(sanitizeType t,False))) ts)
-sanitizeType (TRecord ts _) = TRecord (map (\(tn, (t,_)) -> (tn, (sanitizeType t, False))) ts) Unboxed
+sanitizeType (TRecord rp ts _) = TRecord rp (map (\(tn, (t,_)) -> (tn, (sanitizeType t, False))) ts) Unboxed
 sanitizeType (TCon tn ts _) = TCon tn (map sanitizeType ts) Unboxed
 sanitizeType (TFun ti to) = TFun (sanitizeType ti) (sanitizeType to)
 sanitizeType (TProduct t t') = TProduct (sanitizeType t) (sanitizeType t')
@@ -374,7 +373,7 @@ sanitizeType t = t
 --   taken entries or sigils do not.
 hashType :: (Show b) => CC.Type t b -> String
 hashType (TSum ts)      = show (sanitizeType $ TSum ts)
-hashType (TRecord ts s) = show (sanitizeType $ TRecord ts s)
+hashType (TRecord rp ts s) = show (sanitizeType $ TRecord rp ts s)
 hashType _              = error "hashType: should only pass Variant and Record types"
 
 -- | A subscript @T@ will be added when generating type synonyms.
@@ -392,7 +391,7 @@ shallowTypeDefSaveSyn tn ps r = do
 -- | Generates @type_synonym@ definitions for types.
 shallowTypeDef :: (Show b) => TypeName -> [TyVarName] -> CC.Type t b -> SG [TheoryDecl I.Type I.Term]
 shallowTypeDef tn ps (TPrim p)      = pure [TypeSynonym (TypeSyn tn (shallowPrimType p) ps)]
-shallowTypeDef tn ps (TRecord fs s) = shallowTypeDefSaveSyn tn ps (TRecord fs s)
+shallowTypeDef tn ps (TRecord rp fs s) = shallowTypeDefSaveSyn tn ps (TRecord rp fs s)
 shallowTypeDef tn ps (TSum ts)      = shallowTypeDefSaveSyn tn ps (TSum ts)
 shallowTypeDef tn ps t = do
   st <- shallowType t
@@ -517,7 +516,7 @@ stsyn :: [Definition TypedExpr VarName b] -> MapTypeName
 stsyn decls = M.fromList . filterDuplicates . concat $ P.map synAllTypeStr decls
 
 synAllTypeStr :: Definition TypedExpr VarName b -> [(TypeStr, TypeName)]
-synAllTypeStr (TypeDef tn _ (Just (TRecord fs _))) = [(RecordStr $ P.map fst fs, tn)]
+synAllTypeStr (TypeDef tn _ (Just (TRecord _ fs _))) = [(RecordStr $ P.map fst fs, tn)]
 synAllTypeStr (TypeDef tn _ (Just (TSum alts))) = [(VariantStr $ P.map fst alts, tn)]
 synAllTypeStr _ = []
 
@@ -734,7 +733,7 @@ toCaseLemma (SCCN {..}) = let
        return $ O.LemmaDecl (O.Lemma False (Just (TheoremDecl (Just thmName) [])) [thmProp] $ Proof methods ProofDone)
 
 scorresCaseDef :: MapTypeName -> Definition TypedExpr VarName b -> S.Set SCorresCaseData
-scorresCaseDef m (FunDef _ fn ps ti to e) = scorresCaseExpr m e
+scorresCaseDef m (FunDef _ fn ts ls ti to e) = scorresCaseExpr m e
 scorresCaseDef m (_) = S.empty
 
 
@@ -790,7 +789,7 @@ scorresFieldLemmas types tmap =
 
 -- Left is concrete funs, Right is shared
 shallowDefinition :: (Show b) => Definition TypedExpr VarName b -> SG ([Either (TheoryDecl I.Type I.Term) (TheoryDecl I.Type I.Term)], Maybe FunName)
-shallowDefinition (FunDef _ fn ps ti to e) =
+shallowDefinition (FunDef _ fn ps _ ti to e) =
     local (typarUpd typar) $ do
     e' <- shallowExpr e
     types <- shallowType $ TFun ti to
@@ -799,7 +798,7 @@ shallowDefinition (FunDef _ fn ps ti to e) =
   where fn'   = mkId (snm fn)
         arg0  = mkId $ snm $ D.freshVarPrefix ++ "0"
         typar = map fst $ Vec.cvtToList ps
-shallowDefinition (AbsDecl _ fn ps ti to) =
+shallowDefinition (AbsDecl _ fn ps _ ti to) =
     local (typarUpd typar) $ do
       types <- shallowType $ TFun ti to
       pure ([Right $ ConstsDecl $ Consts (Sig (snm fn) (Just types))], Nothing)
@@ -832,9 +831,9 @@ shallowFile thy stg defs = do
       ssthy = thy ++ __cogent_suffix_of_shallow_shared ++ (if tuples then __cogent_suffix_of_recover_tuples else "")
       scthy = thy ++ __cogent_suffix_of_scorres ++ __cogent_suffix_of_stage stg
       shalImports = TheoryImports [ssthy]
-      shrdImports = TheoryImports [ __cogent_root_dir </> "cogent/isa/Util"
-                                  , __cogent_root_dir </> "cogent/isa/shallow/ShallowUtil" ]
-      scorImports = TheoryImports [shthy, dpthy, __cogent_root_dir </> "cogent/isa/shallow/Shallow_Tac"]
+      shrdImports = TheoryImports [ "Cogent.Util"
+                                  , "CogentShallow.ShallowUtil" ]
+      scorImports = TheoryImports [shthy, dpthy, "CogentShallow.Shallow_Tac"]
       strippedTypeMap = M.filterWithKey (\ts _ -> ts `S.member` S.fromList fullTypes) fullTypeMap
   return $ ( Theory shthy shalImports $ lefts isadefs
            , Theory ssthy shrdImports $ rights isatdecls ++ isatypes ++ rights isadefs
@@ -896,7 +895,7 @@ shallowTuplesProof :: String -> String -> String -> String -> String ->
 shallowTuplesProof baseName sharedDefThy defThy tupSharedDefThy tupDefThy typeMap defs log =
   header $ pretty (Theory (mkProofName baseName $ Just __cogent_suffix_of_shallow_tuples_proof)
                    (TheoryImports [defThy, tupDefThy,
-                                   __cogent_root_dir </> "cogent/isa/shallow/ShallowTuples"])
+                                   "CogentShallow.ShallowTuples"])
                    (theorySetup ++
                     dataRelations ++
                     proofs) :: Theory I.Type I.Term)
@@ -1088,7 +1087,7 @@ shallowTuplesProof baseName sharedDefThy defThy tupSharedDefThy tupDefThy typeMa
     indent k = map (replicate k ' ' ++)
 
     proofs = concatMap makeProof defs
-      where makeProof (FunDef _ (snm -> funName) _ _ _ _) = let
+      where makeProof (FunDef _ (snm -> funName) _ _ _ _ _) = let
               fullName = defThy ++ "." ++ funName
               funDef = snm fullName ++ "_def"
               tupleFullName = tupDefThy ++ "." ++ funName
@@ -1104,7 +1103,7 @@ shallowTuplesProof baseName sharedDefThy defThy tupSharedDefThy tupDefThy typeMa
                  , "           " ++ proofBucket ++ " " ++ proofBucket ++ "[THEN shallow_tuples_rel_funD])+"
                  ]
 
-            makeProof (AbsDecl _ (snm -> funName) _ _ _) = let
+            makeProof (AbsDecl _ (snm -> funName) _ _ _ _) = let
               fullName = sharedDefThy ++ "." ++ funName
               tupleFullName = tupSharedDefThy ++ "." ++ funName
               in return $ TheoryString $ unlines $

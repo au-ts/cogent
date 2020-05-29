@@ -1,0 +1,43 @@
+$esc:(#include <stdio.h>)
+$esc:(#include <stdlib.h>)
+
+$esc:(#include "cogent_main.c")
+$esc:(#include "../list_node_free.c")
+
+#include <common.ac>
+
+
+$ty:(()) $id:print_string($ty:(String) str) {
+    printf("%s", str);
+
+    $ty:(()) u;
+    return u;
+}
+
+$ty:(()) $id:print_u32($ty:(U32) num) {
+    printf("%d", num);
+
+    $ty:(()) u;
+    return u;
+}
+
+$ty:(Option U32) $id:read_one_number($ty:(()) u) {
+    $ty:(Option U32) ret;
+    $ty:(U32) x;
+    int i = scanf("%lu", &x);
+    if (i == 1) {
+        ret.tag  = TAG_ENUM_Some;
+        ret.Some = x;
+    } else {
+        ret.tag = TAG_ENUM_None;
+    }
+
+    return ret;
+}
+
+int main () {
+    $ty:(()) x;
+    $exp:cogent_main(x);
+
+    return EXIT_SUCCESS;
+}

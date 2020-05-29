@@ -15,7 +15,7 @@
 
 module Cogent.Dargent.Surface
   ( module Cogent.Dargent.Surface
-  , DataLayoutExpr ( DLPrim, DLRecord, DLVariant, DLOffset, DLRepRef, DLPtr
+  , DataLayoutExpr ( DLPrim, DLRecord, DLVariant, DLOffset, DLRepRef, DLPtr, DLVar
 #ifdef BUILTIN_ARRAYS
                    , DLArray)
 #else
@@ -24,8 +24,9 @@ module Cogent.Dargent.Surface
   )
 where
 
-import Cogent.Common.Syntax (FieldName, TagName, RepName, Size)
-import Cogent.Compiler (__fixme)
+import Cogent.Common.Syntax (FieldName, TagName, RepName, Size, DLVarName)
+import Cogent.Compiler (__fixme, __todo, __impossible)
+import Cogent.Dargent.Util
 
 import Data.Data
 import Text.Parsec.Pos (SourcePos)
@@ -35,10 +36,21 @@ data DataLayoutSize
   | Bits  Size
   | Add   DataLayoutSize DataLayoutSize
   -- Future options, sizeof, offsetof, "after"
-  deriving (Show, Data, Eq, Ord)
+  deriving (Show, Data)
+
+instance Eq DataLayoutSize where
+  (==) n m = evalSize n == evalSize m
+
+instance Ord DataLayoutSize where
+  (<=) n m = evalSize n <= evalSize m
+
+evalSize :: DataLayoutSize -> Size
+evalSize (Bytes b) = b * 8
+evalSize (Bits b)  = b
+evalSize (Add a b) = evalSize a + evalSize b
 
 data DataLayoutDecl
-  = DataLayoutDecl SourcePos RepName DataLayoutExpr
+  = DataLayoutDecl SourcePos RepName [DLVarName] DataLayoutExpr
   deriving (Show, Data, Eq, Ord)
 
 -- 'holes' are where subexpressions define the shape of the layout.
@@ -47,12 +59,13 @@ data DataLayoutDecl
 data DataLayoutExpr' e
   = Prim    DataLayoutSize
   | Record  [(FieldName, SourcePos, e)]
-  | Variant (DataLayoutExpr' e) [(TagName, SourcePos, Size, e)]
+  | Variant e [(TagName, SourcePos, Size, e)]
 #ifdef BUILTIN_ARRAYS
   | Array   e SourcePos
 #endif
-  | Offset  (DataLayoutExpr' e) DataLayoutSize
-  | RepRef  RepName
+  | Offset  e DataLayoutSize
+  | RepRef  RepName [e]
+  | LVar    DLVarName
   | Ptr
   deriving (Show, Data, Eq, Ord)
 
@@ -67,6 +80,7 @@ pattern DLVariant t ps = DL (Variant t ps)
 pattern DLArray e s    = DL (Array e s)
 #endif
 pattern DLOffset e s   = DL (Offset e s)
-pattern DLRepRef n     = DL (RepRef n)
+pattern DLRepRef n s   = DL (RepRef n s)
+pattern DLVar n        = DL (LVar n)
 pattern DLPtr          = DL Ptr
 

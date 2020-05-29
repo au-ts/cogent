@@ -1,0 +1,68 @@
+include <gum/common/common.cogent>
+include <gum/common/recursive_list.cogent>
+
+-- Abstract functions to print
+print_string    : String -> ()
+print_u32       : U32    -> ()
+read_one_number : ()     -> Option U32
+
+print_statistics : (U32, U32, U32, U32, U32) -> ()
+print_statistics (sum, amount, mean, min, max) =
+  print_string "Sum: ";
+  print_u32 sum;
+  print_string "\n";
+
+  print_string "Total amount of numbers: ";
+  print_u32 amount;
+  print_string "\n";
+
+  print_string "Mean: ";
+  print_u32 mean;
+  print_string "\n";
+
+  print_string "Minimum number: ";
+  print_u32 min;
+  print_string "\n";
+
+  print_string "Maximum number: ";
+  print_u32 max;
+  print_string "\n"
+
+read_numbers : () -> Option (List U32)
+read_numbers _ = 
+  list_new () 
+    | None -> None -- Ran out of memory 
+    | Some l ->
+      Some (read_nums l)
+
+read_nums : List U32 -> List U32
+read_nums l = 
+  read_one_number ()
+    | None -> l
+    | Some n ->
+      let (l', v) = list_cons (n,l) in
+      v | None -> read_nums l'
+        | Some val -> -- We ran out of memory
+          print_string "Ran out of memory....\n";
+          l'
+
+-- In a real example, this would be SystemState -> SystemState
+cogent_main : () -> ()
+cogent_main _ =
+  read_numbers ()
+    | None ->
+      print_string "Could not allocate list of numbers"
+    | Some numbers ->
+      let is_empty = list_empty numbers !numbers in
+      if is_empty then
+        list_free (numbers, drop);
+        print_string "Please enter more than one number\n"
+      else
+        let sum      = list_r_foldl[U32,U32] ((\(x,y) => x + y), 0, numbers) !numbers
+        and amount   = (u64_to_u32 o list_length) numbers                    !numbers
+        and mean     = sum / amount                                          !sum !amount
+        and min      = list_r_foldl[U32,U32] (min_u32, word32Max, numbers)   !numbers
+        and max      = list_r_foldl[U32,U32] (max_u32, 0, numbers)           !numbers
+        in
+          list_free (numbers, drop);
+          print_statistics (sum, amount, mean, min, max)

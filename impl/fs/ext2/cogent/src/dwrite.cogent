@@ -8,6 +8,8 @@
 -- @TAG(NICTA_GPL)
 --
 
+#include "debug.cogent.h"
+
 type FittingDirentsInPageAcc = (SysState, FsState, U64, U64)
 type FittingDirentsInPageObsv = (CString!, U64, U16, OSPageBuffer, U64)
 type FittingDirentsInPageRet = (U16, U16, Ext2DirEnt)

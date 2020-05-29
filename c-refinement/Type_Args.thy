@@ -11,7 +11,7 @@
  *)
 
 theory Type_Args
-imports Main "HOL-Word.Word" "AutoCorres.AutoCorres"
+imports "AutoCorres.AutoCorres"
 begin
 type_synonym funtyp = "char list"
 

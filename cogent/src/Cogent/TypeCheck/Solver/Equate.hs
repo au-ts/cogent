@@ -25,7 +25,7 @@ import Control.Applicative
 import Control.Monad.Trans.Maybe
 import Control.Monad.Writer
 import Data.Foldable (asum)
-import qualified Data.Map as M
+import qualified Data.IntMap as IM
 import Data.Maybe
 import Lens.Micro
 
@@ -51,28 +51,13 @@ equate = Rewrite.withTransform findEquatable (pure . map toEquality)
     toEquality (Goal c (a :< b)) = Goal c $ a :=: b
     toEquality c = c
 
-getMentions :: [Goal] -> M.Map Int (Int,Int)
-getMentions gs =
-    foldl (M.unionWith adds) M.empty
-  $ fmap mentionsOfGoal gs
- where
-  adds (a,b) (c,d) = (a + c, b + d)
-
-  mentionsOfGoal g = case g ^. goal of
-   r :< s -> M.fromListWith adds (mentionL r ++ mentionR s)
-   _      -> M.empty
-
-  mentionL = fmap (\v -> (v, (1,0))) . unifVars
-  mentionR = fmap (\v -> (v, (0,1))) . unifVars
-
-
-findEquateCandidates :: M.Map Int (Int,Int) -> [Goal] -> ([Goal], [Goal], [Goal])
+findEquateCandidates :: IM.IntMap (Int,Int) -> [Goal] -> ([Goal], [Goal], [Goal])
 findEquateCandidates _ [] = ([], [], [])
 findEquateCandidates mentions (c:cs) =
   let
     (sups, subs, others) = findEquateCandidates mentions cs
     canEquate f v t
-     | Just m <- M.lookup v mentions
+     | Just m <- IM.lookup v mentions
      = f m <= 1 && rigid t && notOccurs v t
      | otherwise
      = False
@@ -88,7 +73,7 @@ findEquateCandidates mentions (c:cs) =
          , Row.justVar r1
          , canEquate fst a t
          -> (c : sups, subs, others)
-       R r1 s :< t
+       R _ r1 s :< t
          | Just a <- Row.var r1
          , Row.justVar r1
          , canEquate fst a t
@@ -107,7 +92,7 @@ findEquateCandidates mentions (c:cs) =
          , Row.justVar r1
          , canEquate snd a t
          -> (sups, c : subs, others)
-       t :< R r1 s
+       t :< R _ r1 s
          | Just a <- Row.var r1
          , Row.justVar r1
          , canEquate snd a t

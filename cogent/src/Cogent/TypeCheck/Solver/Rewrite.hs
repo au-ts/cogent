@@ -31,6 +31,7 @@ module Cogent.TypeCheck.Solver.Rewrite
   , withTransform
   ) where
 
+
 import Control.Applicative
 import Control.Monad.Identity
 import Control.Monad.Trans.Maybe
@@ -89,6 +90,9 @@ rewrite' = RewriteT
 --   For effectful rewrites, the 'runRewriteT' field can be used.
 run :: Rewrite a -> a -> Maybe a
 run rw = runIdentity . runMaybeT . runRewriteT rw
+
+run' :: RewriteT m a -> a -> m (Maybe a)
+run' rw = runMaybeT . runRewriteT rw
 
 -- | A rewrite that exhausts itself only when it cannot rewrite anymore
 untilFixedPoint :: Monad m => RewriteT m a -> RewriteT m a

@@ -407,7 +407,7 @@ strlCogentTypeEq :: CC.Type 'Zero VarName -> CC.Type 'Zero VarName -> Bool
 strlCogentTypeEq (TCon n1 ts1 s1) (TCon n2 ts2 s2) = n1 == n2 && ts1 == ts2 && strlSigilEq s1 s2
 strlCogentTypeEq (TPrim p1)       (TPrim p2)       = p1 == p2
 strlCogentTypeEq (TSum alts1)     (TSum alts2)     = all (\((n1, (t1, _)), (n2, (t2, _))) -> n1 == n2 && strlCogentTypeEq t1 t2) $ zip alts1 alts2
-strlCogentTypeEq (TRecord fs1 s1) (TRecord fs2 s2) = strlSigilEq s1 s2 && all (\((n1, (t1, _)), (n2, (t2, _))) -> n1 == n2 && strlCogentTypeEq t1 t2) (zip fs1 fs2)
+strlCogentTypeEq (TRecord _ fs1 s1) (TRecord _ fs2 s2) = strlSigilEq s1 s2 && all (\((n1, (t1, _)), (n2, (t2, _))) -> n1 == n2 && strlCogentTypeEq t1 t2) (zip fs1 fs2)
 strlCogentTypeEq TUnit            TUnit            = True
 #ifdef BUILTIN_ARRAYS
 strlCogentTypeEq a1@(TArray t1 l1 s1 _) (TArray t2 l2 s2 _) = t1 == t2 && l1 == l2 && strlSigilEq s1 s2

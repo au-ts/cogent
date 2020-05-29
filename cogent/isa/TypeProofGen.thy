@@ -11,8 +11,8 @@
  *)
 
 theory TypeProofGen imports
-  "../cogent/isa/CogentHelper"
-  "../cogent/isa/ProofTrace"
+  CogentHelper
+  ProofTrace
 begin
 
 (* Convert ttyping subproofs to standard typing subproofs. *)
@@ -92,7 +92,10 @@ fun get_typing_tree ctxt f proof : thm tree list =
           | Left err =>
             let
               val _ = log_error ("get_typing_tree failed for function " ^ f)
-              val _ = log_error (@{make_string} (get_failing_goal err))
+              val _ = log_error (ML_Pretty.string_of_polyml
+                                  (ML_system_pretty ( get_failing_goal err
+                                                    , FixedInt.fromInt ((ML_Print_Depth.get_print_depth ()) * 1000)
+                                                    )))
               val _ = @{print error} (get_failing_goal err)
               (* val _ = @{print error} err *)
             in

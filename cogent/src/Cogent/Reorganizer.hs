@@ -17,9 +17,10 @@
 module Cogent.Reorganizer where
 
 import qualified Cogent.Common.Syntax as Syn
-import Cogent.Compiler (__impossible)
+import Cogent.Compiler (__impossible, __todo)
 import Cogent.Surface
 import Cogent.Util
+import Cogent.Common.Types
 
 import Control.Arrow
 import Control.Monad (forM, forM_)
@@ -30,6 +31,7 @@ import Data.Functor.Compose
 import qualified Data.Graph.Wrapper as G
 import Data.List as L
 import qualified Data.Map as M
+import qualified Data.Set as S
 import qualified Data.Maybe as Maybe
 import Text.Parsec.Pos
 
@@ -39,6 +41,8 @@ data ReorganizeError = CyclicDependency
                      | DuplicateTypeDefinition
                      | DuplicateValueDefinition
                      | DuplicateRepDefinition
+                     | NonStrictlyPositive
+                     | RecParShadowsTyVar 
 
 data SourceObject = TypeName  Syn.TypeName
                   | ValName   Syn.VarName
@@ -62,7 +66,7 @@ dependencies (AbsTypeDec _ _ ts) = map TypeName (foldMap (fcT . stripLocT) ts)
                                 ++ map ValName  (foldMap (fvT . stripLocT) ts)
                                 ++ map RepName  (foldMap (dvT . stripLocT) ts)
 dependencies (DocBlock _) = []
-dependencies (RepDef (DataLayoutDecl _ _ e)) = map RepName (allRepRefs e)
+dependencies (RepDef (DataLayoutDecl _ _ _ e)) = map RepName (allRepRefs e)
 dependencies (AbsDec _ pt) = map TypeName (foldMap (fcT . stripLocT) pt)
                           ++ map ValName  (foldMap (fvT . stripLocT) pt)
                           ++ map RepName  (foldMap (dvT . stripLocT) pt)
@@ -89,7 +93,7 @@ sourceObject (AbsTypeDec n _ _) = TypeName n
 sourceObject (AbsDec n _)       = ValName n
 sourceObject (FunDef v _ _)     = ValName v
 sourceObject (ConstDef v _ _)   = ValName v
-sourceObject (RepDef (DataLayoutDecl _ n _))    = RepName n
+sourceObject (RepDef (DataLayoutDecl _ n _ _))    = RepName n
 
 prune :: [SourceObject]  -- a list of entry-points
       -> [(SourceObject, v, [SourceObject])]
@@ -145,27 +149,201 @@ checkNoNameClashes ((s,d):xs) bindings
                         RepName   _ -> DuplicateRepDefinition
                         DocBlock' _ -> __impossible "checkNoNameClashes"
 
+-- Maps recursive parameters parsed as type variables to actual recursive parameters in the AST
+embedRecPars :: [(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)] 
+             -> [(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)]
+embedRecPars = map (\(s,d,t) -> (s,d,check t))
+  where
+    -- We need to check: Type definitions, function polytypes
+    check :: TopLevel LocType LocPatn LocExpr -> TopLevel LocType LocPatn LocExpr
+    check (TypeDec n tvs t) =
+      TypeDec n tvs (embedRecPar t)
+    check (FunDef  n (PT tvs lvs t) y) =
+      FunDef n (PT tvs lvs (embedRecPar t)) y
+    check (AbsDec n (PT tvs lvs t)) =
+      AbsDec n (PT tvs lvs (embedRecPar t))
+    check (AbsTypeDec n tvs ts)
+      = AbsTypeDec n tvs (map embedRecPar ts)
+    check (ConstDef n t e)
+      = ConstDef n (embedRecPar t) e
+    -- TODO: Consts?
+    check t = t
+
+embedRecPar :: LocType -> LocType
+embedRecPar t = erp False M.empty t
+  where
+    -- Bool represents whether or not we are in a context
+    erp :: Bool -> M.Map Syn.RecParName LocType -> LocType -> LocType 
+    erp b ctxt orig@(LocType p ty) =
+      LocType p $ case ty of
+        -- If we find a type variable that is in our context, we replace it with a recursive parameter
+        -- However if we are currently changing a recursive context (b == True), don't infinitely insert the context
+        TVar n b' _ | M.member n ctxt -> TRPar n b' (if b then Nothing else Just (M.map (erp True ctxt) ctxt))
+        -- If we find a record, add it's recursive parameter to the context if it exists and recurse
+        TRecord rp fs s -> 
+          let ctxt' = case rp of 
+                        Rec v -> M.insert v orig ctxt
+                        _     -> ctxt
+          in TRecord rp (map (\(n,(x, y)) -> (n, (erp b ctxt' x, y))) fs) s
+
+        TFun t1 t2  -> TFun (erp b ctxt t1) (erp b ctxt t2) 
+        TVariant ts -> TVariant $ M.map (\(ts', x) -> (map (erp b ctxt) ts', x)) ts
+        TTuple ts   -> TTuple (map (erp b ctxt) ts)
+        TCon n ts s -> TCon n (map (erp b ctxt) ts) s
+#ifdef BUILTIN_ARRAYS
+        TArray t e s h -> TArray (erp b ctxt t) e s h
+#endif
+        TUnbox t    -> TUnbox (erp b ctxt t)
+        TBang t     -> TBang (erp b ctxt t)
+        TTake fs t  -> TTake fs (erp b ctxt t)
+        TPut fs t   -> TPut fs (erp b ctxt t)
+        t           -> t
+    erp _ _ doc = doc
+
+allEither :: [Either a ()] -> Either a ()
+allEither []             = Right ()
+allEither ((Right _):xs) = allEither xs
+allEither ((Left x):_)   = Left x
+
+-- Checks that no recursive parameters shadow type variables
+checkNoShadowing :: [TopLevel LocType LocPatn LocExpr] 
+                 -> Either (ReorganizeError, [(SourceObject, SourcePos)]) ()
+checkNoShadowing [] = return ()
+checkNoShadowing (t:ts) = do
+  check t
+  checkNoShadowing ts
+  where
+    check x = 
+      case x of 
+        TypeDec _ tvs t           -> ns tvs t
+        FunDef _ (PT tvs lvs t) y -> ns (map fst tvs) t
+        AbsTypeDec _ tvs ts       -> allEither $ map (ns tvs) ts
+        AbsDec _ (PT tvs ls t)    -> ns (map fst tvs) t
+        ConstDef _ t _            -> ns [] t
+        tl                        -> Right ()
+
+    srcObj = sourceObject t
+  
+    ns :: [Syn.TyVarName] -> LocType -> Either (ReorganizeError, [(SourceObject, SourcePos)]) ()
+    ns tvs (LocType p ty) =
+      case ty of
+        TRecord (Rec v) fs _ | v `elem` tvs 
+                            -> Left (RecParShadowsTyVar, [(srcObj, p)])
+        TRecord _ fs _      -> allEither $ map (\(_,(x,_)) -> ns tvs x) fs
+        TFun t1 t2  -> do
+          ns tvs t1
+          ns tvs t2
+        TVariant ts -> 
+          allEither $ map (\(ts', _) -> (allEither $ map (\t -> ns tvs t) ts')) $ M.elems ts
+        TTuple   ts -> allEither $ map (ns tvs) ts
+        TCon n ts s    ->
+          allEither $ map (ns tvs) ts
+#ifdef BUILTIN_ARRAYS
+        TArray t e s h -> ns tvs t
+#endif
+        TUnbox t    -> ns tvs t
+        TBang t     -> ns tvs t
+        TTake fs t  -> ns tvs t
+        TPut fs t   -> ns tvs t
+        t           -> Right ()
+    ns _ doc = Right ()
+
+-- Checks that all types are strictly positive
+checkStrictlyPositive :: [TopLevel LocType LocPatn LocExpr]
+                      -> Either (ReorganizeError, [(SourceObject, SourcePos)]) ()
+checkStrictlyPositive []     = Right ()
+checkStrictlyPositive (t:ts) = do
+  check t
+  checkStrictlyPositive ts
+  where
+    check x = 
+      case x of 
+        TypeDec _ _ t         -> sp S.empty S.empty t 
+        FunDef _ (PT _ _ t) y -> sp S.empty S.empty t
+        AbsDec _ (PT _ _ t)   -> sp S.empty S.empty t 
+        AbsTypeDec _ _ ts     -> allEither $ map (sp S.empty S.empty) ts
+        ConstDef _ t _        -> sp S.empty S.empty t
+        tl                    -> Right ()
+
+    srcObj = sourceObject t
+
+    sp :: S.Set Syn.RecParName 
+        -> S.Set Syn.RecParName
+        -> LocType -> Either (ReorganizeError, [(SourceObject, SourcePos)]) ()
+    sp s b (LocType p ty) = 
+      case ty of
+        -- If we find a recursive parameter in our 'negative' set, error
+        TRPar v _ _       -> if v `S.member` s then Left (NonStrictlyPositive, [(srcObj, p)]) else Right ()
+        TRecord rp fs _ -> 
+          let b' = (case rp of Rec v -> S.insert v b; _ -> b) in
+            allEither $ map (\(_,(x,_)) -> sp s b' x) fs
+        TFun t1 t2      -> do
+          sp (s `S.union` b) b t1
+          sp s b t2
+        TVariant ts     -> 
+          allEither $ map (\(ts', _) -> (allEither $ map (\t -> sp s b t) ts')) $ M.elems ts
+        TTuple ts       ->
+          (allEither . map (sp s b)) ts
+        TCon _ ts _     ->
+          (allEither . map (sp s b)) ts
+#ifdef BUILTIN_ARRAYS
+        TArray t e _ _  -> sp s b t
+#endif
+        TUnbox  t       -> sp s b t
+        TBang   t       -> sp s b t
+        TTake _ t       -> sp s b t
+        TPut  _ t       -> sp s b t
+        _               -> Right ()
+    sp _ _ doc = Right ()
+
 -- Note: it doesn't make much sense to check for unused definitions as they may be used
 -- by the FFI. / zilinc
 reorganize :: Maybe [String]
            -> [(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)]
            -> Either (ReorganizeError, [(SourceObject, SourcePos)]) [(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)]
-reorganize mes bs = do let m = classify bs
-                           cs = G.stronglyConnectedComponents $ case mes of
-                                   Nothing -> dependencyGraph_ m
-                                   Just es -> dependencyGraph (map parseSourceObject es) m
-                       checkNoNameClashes (map (second fst3) m) M.empty
-                       -- FIXME: it might be good to preserve the original order as much as possible
-                       -- see file `tests/pass_wf-take-put-tc-2.cogent` as a bad-ish example / zilinc
-                       forM cs $ \case
-                         G.AcyclicSCC i -> Right $ case lookup i m of
-                                                     Nothing -> __impossible $ "reorganize: " ++ show i
-                                                     Just x  -> x
-                         G.CyclicSCC is -> Left  $ (CyclicDependency, map (id &&& getSourcePos m) is)
+reorganize mes bs = do 
+                let m = classify bs
+                    cs = G.stronglyConnectedComponents $ case mes of
+                            Nothing -> dependencyGraph_ m
+                            Just es -> dependencyGraph (map parseSourceObject es) m
+                    rs = embedRecPars bs
+                checkNoNameClashes (map (second fst3) m) M.empty
+                -- FIXME: it might be good to preserve the original order as much as possible
+                -- see file `tests/pass_wf-take-put-tc-2.cogent` as a bad-ish example / zilinc
+
+                let fnames = funNames (map thd bs)
+
+                cs' <- forM cs $ \case
+                          G.AcyclicSCC i ->  Right $ case lookup i m of
+                                                      Nothing -> __impossible $ "reorganize: " ++ show i
+                                                      Just x  -> [x]
+                                            -- Only functions can be recursively defined
+                          G.CyclicSCC is -> if all (`elem` fnames) is then
+                                              Right $ concatMap (\i -> case lookup i m of
+                                                Nothing -> __impossible $ "reorganize: " ++ show i
+                                                Just x  -> [x]) is
+                                            else
+                                              Left $ (CyclicDependency, map (id &&& getSourcePos m) is)
+
+                -- Check recursive parameters are used correctly
+
+                let rs = embedRecPars (concat cs')
+                checkNoShadowing      (map thd rs)
+                checkStrictlyPositive (map thd rs)
+
+                return rs
+                        
   where getSourcePos m i | Just (p,_,_) <- lookup i m = p
                          | otherwise = __impossible "getSourcePos (in reorganize)"
+
+        funNames :: [TopLevel LocType LocPatn LocExpr] -> [SourceObject]
+        funNames ((FunDef n _ _):tls) = [ValName n] ++ funNames tls
+        funNames ((AbsDec n _):tls) = [ValName n] ++ funNames tls
+        funNames (t:tls) = funNames tls
+        funNames [] = []
+
         -- FIXME: proper parsing / zilinc
         parseSourceObject :: String -> SourceObject
         parseSourceObject (c:cs) | isUpper c = TypeName (c:cs)
                                  | otherwise = ValName  (c:cs)
-
+        thd (_,_,x) = x

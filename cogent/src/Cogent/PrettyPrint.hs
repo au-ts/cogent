@@ -49,6 +49,7 @@ import Prelude hiding (foldr)
 #else
 import Prelude hiding ((<$>), foldr)
 #endif
+import Data.Nat (natToInt)
 import Data.Word (Word32)
 import System.FilePath (takeFileName)
 import Text.Parsec.Pos
@@ -83,10 +84,13 @@ funname = green . string
 funname' = underline . green . string
 fieldname = magenta . string
 tagname = dullmagenta . string
+dlvarname = dullblue . string
 symbol = string
 kindsig = red . string
-typeargs [] = empty
+typeargs [] = brackets empty
 typeargs xs = encloseSep lbracket rbracket (comma <> space) xs
+layoutargs [] = braces empty
+layoutargs xs = encloseSep lbrace rbrace (comma <> space) xs
 array = encloseSep lbracket rbracket (comma <> space)
 record = encloseSep (lbrace <> space) (space <> rbrace) (comma <> space)
 variant = encloseSep (langle <> space) rangle (symbol "|" <> space) . map (<> space)
@@ -132,10 +136,10 @@ instance Prec Associativity where
   prec (NoAssoc    i) = i
   prec (Prefix)       = 9  -- as in the expression builder
 
-instance Prec (Expr t p ip e) where
+instance Prec (Expr t p ip l e) where
   -- vvv terms
   prec (Var {}) = 0
-  prec (TypeApp {}) = 0
+  prec (TLApp {}) = 0
   prec (BoolLit {}) = 0
   prec (Con _ []) = 0
   prec (IntLit {}) = 0
@@ -181,7 +185,7 @@ instance Prec LocExpr where
 instance Prec (TExpr t) where
   prec (TE _ e _) = prec e
 
-instance Prec (SExpr t) where
+instance Prec (SExpr t l) where
   prec (SE _ e) = prec e
   prec (SU {}) = 0
 
@@ -206,7 +210,7 @@ prettyPrec l x | prec x < l = pretty x
 class ExprType a where
   isVar :: a -> VarName -> Bool
 
-instance ExprType (Expr t p ip e) where
+instance ExprType (Expr t p ip l e) where
   isVar (Var n) s = (n == s)
   isVar _ _ = False
 
@@ -219,7 +223,7 @@ instance ExprType LocExpr where
 instance ExprType (TExpr t) where
   isVar (TE _ e _) = isVar e
 
-instance ExprType (SExpr t) where
+instance ExprType (SExpr t l) where
   isVar (SE _ e) = isVar e
   isVar (SU {}) = const False
 
@@ -294,7 +298,7 @@ class TypeType t where
   isFun :: t -> Bool
   isAtomic :: t -> Bool
 
-instance TypeType (Type e t) where
+instance TypeType (Type e l t) where
   isCon     (TCon {})  = True
   isCon     _          = False
   isFun     (TFun {})  = True
@@ -426,11 +430,12 @@ instance Pretty Inline where
   pretty Inline = keyword "inline" <+> empty
   pretty NoInline = empty
 
-instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Pretty ip, Pretty e) =>
-         Pretty (Expr t p ip e) where
+instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Pretty ip, Pretty e, Pretty l) =>
+         Pretty (Expr t p ip l e) where
   pretty (Var x)             = varname x
-  pretty (TypeApp x ts note) = pretty note <> varname x
-                                 <> typeargs (map (\case Nothing -> symbol "_"; Just t -> pretty t) ts)
+  pretty (TLApp x ts ls note) = pretty note <> varname x
+                                  <> typeargs (map (\case Nothing -> symbol "_"; Just t -> pretty t) ts)
+                                  <> layoutargs (map (\case Nothing -> symbol "_"; Just t -> pretty t) ls)
   pretty (Member x f)        = prettyPrec 9 x <> symbol "." <> fieldname f
   pretty (IntLit i)          = literal (string $ show i)
   pretty (BoolLit b)         = literal (string $ show b)
@@ -456,7 +461,7 @@ instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Prett
   pretty (Upcast e)          = keyword "upcast" <+> prettyPrec 9 e
   pretty (Lam p mt e)        = string "\\" <> pretty p <>
                                (case mt of Nothing -> empty; Just t -> space <> symbol ":" <+> pretty t) <+> symbol "=>" <+> prettyPrec 101 e
-  pretty (LamC p mt e _)     = pretty (Lam p mt e :: Expr t p ip e)
+  pretty (LamC p mt e _)     = pretty (Lam p mt e :: Expr t p ip l e)
   pretty (App  a b False)    = prettyPrec 10 a <+> prettyPrec 9 b
   pretty (App  a b True )    = prettyPrec 31 a <+> symbol "$" <+> prettyPrec 32 b
   pretty (Comp f g)          = prettyPrec 10 f <+> symbol "o" <+> prettyPrec 9 g
@@ -502,17 +507,21 @@ instance Pretty t => Pretty (TExpr t) where
   pretty (TE t e _) | __cogent_fshow_types_in_pretty = parens $ pretty e <+> comment "::" <+> pretty t
                     | otherwise = pretty e
 
-instance Pretty t => Pretty (SExpr t) where
+instance (Pretty t, Pretty l) => Pretty (SExpr t l) where
   pretty (SE t e) | __cogent_fshow_types_in_pretty = parens $ pretty e <+> comment "::" <+> pretty t
                   | otherwise = pretty e
   pretty (SU t n) | __cogent_fshow_types_in_pretty = parens $ warn ('?':show n) <+> comment "::" <+> pretty t
                   | otherwise = warn ('?':show n)
 
+instance Pretty RecursiveParameter where
+  pretty (Rec p) = typesymbol "rec" <+> symbol p
+  pretty NonRec  = empty
+
 prettyT' :: (TypeType t, Pretty t) => t -> Doc
 prettyT' t | not $ isAtomic t = parens (pretty t)
            | otherwise        = pretty t
 
-instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
+instance (Pretty t, TypeType t, Pretty e, Pretty l, Eq l) => Pretty (Type e l t) where
   pretty (TCon n [] s) = (if | readonly s -> (<> typesymbol "!")
                              | s == Unboxed && n `notElem` primTypeCons -> (typesymbol "#" <>)
                              | otherwise -> id) $ typename n
@@ -547,7 +556,7 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
 #ifdef REFINEMENT_TYPES
   pretty (TRefine v t e) = reftype (varname v) (pretty t) (pretty e)
 #endif
-  pretty (TRecord ts s) =
+  pretty (TRecord rp ts s) =
       let recordPretty = record (map (\(a,(b,c)) -> fieldname a <+> symbol ":" <+> pretty b) ts) -- all untaken
           tk = map fst $ filter (snd . snd) ts
           tkUntkPretty = (if or $ map (snd . snd) ts
@@ -556,10 +565,10 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
           (sigilPretty, layoutPretty) = case s of
             Unboxed     -> ((typesymbol "#" <>), id)
             Boxed rw ml -> (if rw then (<> typesymbol "!") else id, case ml of Just l -> (<+> pretty l); _ -> id)
-       in layoutPretty . tkUntkPretty . sigilPretty $ recordPretty
+       in pretty rp <+> (layoutPretty . tkUntkPretty . sigilPretty $ recordPretty)
   pretty (TVariant ts) | any snd ts = let
      names = map fst $ filter (snd . snd) $ M.toList ts
-   in pretty (TVariant $ fmap (second (const False)) ts :: Type e t)
+   in pretty (TVariant $ fmap (second (const False)) ts :: Type e l t)
         <+> typesymbol "take"
         <+> tupled1 (map fieldname names)
   pretty (TVariant ts) = variant (map (\(a,bs) -> case bs of
@@ -570,6 +579,7 @@ instance (Pretty t, TypeType t, Pretty e) => Pretty (Type e t) where
                      | otherwise = pretty e
   pretty (TUnbox t) = (typesymbol "#" <> prettyT' t) & (if __cogent_fdisambiguate_pp then (<+> comment "{- unbox -}") else id)
   pretty (TBang t) = (prettyT' t <> typesymbol "!") & (if __cogent_fdisambiguate_pp then (<+> comment "{- bang -}") else id)
+  pretty (TRPar v b m) = (if __cogent_fdisambiguate_pp then (comment "{- rec -}" <+> ) else id) $ typevar v <> (if b then typesymbol "!" else mempty)
   pretty (TTake fs x) = (prettyT' x <+> typesymbol "take"
                                     <+> case fs of Nothing  -> tupled (fieldname ".." : [])
                                                    Just fs' -> tupled1 (map fieldname fs'))
@@ -589,12 +599,16 @@ instance Pretty DepType where
 
 instance Pretty TCType where
   pretty (T t) = pretty t
-  pretty t@(V v) = symbol "V <" <+> pretty v <+> symbol ">"
-  pretty t@(R v s) =
+  pretty t@(V v) = symbol "V" <+> pretty v
+  pretty t@(R rp v s) =
     let sigilPretty = case s of
                         Left s -> pretty s
-                        Right n -> parens (warn $ '?' : show n)
-     in symbol "R {" <+> pretty v <+> symbol "}" <+> sigilPretty
+                        Right n -> parens (symbol "?" <> pretty n)
+        rpPretty    = case rp of
+                        Mu v -> typesymbol "rec" <+> symbol v <+> empty
+                        None -> empty
+                        UP p -> parens (symbol "?" <> pretty p) <+> empty
+     in symbol "R" <+> rpPretty <> pretty v <+> sigilPretty
 #ifdef BUILTIN_ARRAYS
   pretty (A t l s row) =
     let sigilPretty = case s of
@@ -605,7 +619,7 @@ instance Pretty TCType where
                        Left (Just e) -> space <> keyword "@take" <+> parens (pretty e)
                        Right n       -> space <> warn ('?' : show n)
                        
-     in (symbol "A" <+> pretty t <+> symbol "[" <> pretty l <> symbol "]" <+> sigilPretty <> holePretty)
+     in symbol "A" <+> pretty t <+> brackets (pretty l) <+> sigilPretty <> holePretty
 #endif
   pretty (U v) = warn ('?':show v)
   pretty (Synonym n []) = warn ("syn:" ++ n)
@@ -614,13 +628,14 @@ instance Pretty TCType where
 instance Pretty LocType where
   pretty t = pretty (stripLocT t)
 
-renderPolytypeHeader vs = keyword "all" <> tupled (map prettyKS vs) <> symbol "."
+renderPolytypeHeader vs ts = keyword "all" <> tupled (map prettyKS vs ++ map prettyTS ts) <> symbol "."
     where prettyKS (v,K False False False) = typevar v
           prettyKS (v,k) = typevar v <+> symbol ":<" <+> pretty k
+          prettyTS (v,t) = typevar v <+> symbol ":~" <+> pretty t
 
 instance Pretty t => Pretty (Polytype t) where
-  pretty (PT [] t) = pretty t
-  pretty (PT vs t) = renderPolytypeHeader vs <+> pretty t
+  pretty (PT [] [] t) = pretty t
+  pretty (PT vs ts t) = renderPolytypeHeader vs ts <+> pretty t
 
 renderTypeDecHeader n vs = keyword "type" <+> typename n <> hcat (map ((space <>) . typevar) vs)
                                           <+> symbol "="
@@ -658,7 +673,7 @@ instance Pretty SourcePos where
            | otherwise = position $ show $ setSourceName p (takeFileName $ sourceName p)
 
 instance Pretty DataLayoutDecl where
-  pretty (DataLayoutDecl _ n e) = keyword "layout" <+> reprname n <+> indent (symbol "=" </> pretty e)
+  pretty (DataLayoutDecl _ n v e) = keyword "layout" <+> reprname n <+> hsep (fmap varname v) <+> indent (symbol "=" </> pretty e)
 
 instance Pretty DataLayoutSize where
   pretty (Bits b) = literal (string (show b ++ "b"))
@@ -666,7 +681,7 @@ instance Pretty DataLayoutSize where
   pretty (Add a b) = pretty a <+> symbol "+" <+> pretty b
 
 instance Pretty d => Pretty (DataLayoutExpr' d) where
-  pretty (RepRef n) = reprname n
+  pretty (RepRef n s) = if null s then reprname n else parens $ reprname n <+> hsep (fmap pretty s)
   pretty (Prim sz) = pretty sz
   pretty (Offset e s) = pretty e <+> keyword "at" <+> pretty s
   pretty (Record fs) = keyword "record" <+> record (map (\(f,_,e) -> fieldname f <> symbol ":" <+> pretty e ) fs)
@@ -676,9 +691,14 @@ instance Pretty d => Pretty (DataLayoutExpr' d) where
   pretty (Array e s) = keyword "array" <+> parens (pretty e) <+> keyword "at" <+> pretty s
 #endif
   pretty Ptr = keyword "pointer"
+  pretty (LVar n) = dlvarname n
 
 instance Pretty DataLayoutExpr where
   pretty (DL l) = pretty l
+
+instance Pretty TCDataLayout where
+  pretty (TL l) = pretty l
+  pretty (TLU n) = text "?" <> pretty n
 
 instance Pretty Metadata where
   pretty (Constant {constName})              = err "the binding" <+> funname constName <$> err "is a global constant"
@@ -712,6 +732,8 @@ instance Pretty Metadata where
   pretty (TypeParam {functionName, typeVarName }) = err "it is required by the type of" <+> funname functionName
                                                       <+> err "(type variable" <+> typevar typeVarName <+> err ")"
   pretty ImplicitlyTaken = err "it is implicitly taken via subtyping."
+  -- pretty (LayoutParam exp lv) = err "it is required by the expression" <+> pretty exp
+                            -- <+> err "(layout variable" <+> dlvarname lv <+> err ")"
 
 instance Pretty FuncOrVar where
   pretty MustFunc  = err "Function"
@@ -723,10 +745,15 @@ instance Pretty TypeError where
                                         <+> err "invoked with differing number of arguments (" <> int n <> err " vs " <> int m <> err ")"
   pretty (DuplicateTypeVariable vs)      = err "Duplicate type variable(s)" <+> commaList (map typevar vs)
   pretty (SuperfluousTypeVariable vs)    = err "Superfluous type variable(s)" <+> commaList (map typevar vs)
+  pretty (DuplicateLayoutVariable vs)    = err "Duplicate layout variable(s)" <+> commaList (map dlvarname vs)
+  pretty (SuperfluousLayoutVariable vs)  = err "Superfluous layout variable(s)" <+> commaList (map dlvarname vs)
+  pretty (TypeVariableNotDeclared vs)    = err "Type variable(s) not declared" <+> commaList (map typevar vs)
   pretty (DuplicateRecordFields fs)      = err "Duplicate record field(s)" <+> commaList (map fieldname fs)
   pretty (FunctionNotFound fn)           = err "Function" <+> funname fn <+> err "not found"
   pretty (TooManyTypeArguments fn pt)    = err "Too many type arguments to function"
-                                           <+> funname fn  <+> err "of type" <+> pretty pt
+                                           <+> funname fn <+> err "of type" <+> pretty pt
+  pretty (TooManyLayoutArguments fn pt)  = err "Too many layout arguments to function"
+                                           <+> funname fn <+> err "of type" <+> pretty pt
   pretty (NotInScope fov vn)             = pretty fov <+> varname vn <+> err "not in scope"
   pretty (UnknownTypeVariable vn)        = err "Unknown type variable" <+> typevar vn
   pretty (UnknownTypeConstructor tn)     = err "Unknown type constructor" <+> typename tn
@@ -784,7 +811,11 @@ instance Pretty TypeError where
   pretty (LayoutOnNonRecordOrCon t) = err "Tried to put a layout onto something that isn't a record or abstract type:" <$> indent' (pretty t)
   pretty (LayoutDoesNotMatchType l t) = err "Layout " <$$> indent' (pretty l)
                                           <$$> err " does not match type " <$$> indent' (pretty t)
-  pretty (TypeWarningAsError w)          = pretty w
+  pretty (LayoutsNotCompatible l1 l2) = err "Layout " <$$> indent' (pretty l1)
+                                          <$$> err " is not compatible with layout " <$$> indent' (pretty l2)
+  pretty (TypesNotFit t1 t2)          = err "The layout of type " <$$> indent' (pretty t1)
+                                          <$$> err " does not fit the layout of type " <$$> indent' (pretty t2) 
+  pretty (TypeWarningAsError w)       = pretty w
 
 instance Pretty TypeWarning where
   pretty (UnusedLocalBind v) = warn "[--Wunused-local-binds]" <$$> indent' (warn "Defined but not used:" <+> pretty v)
@@ -840,6 +871,8 @@ instance Pretty Constraint where
   pretty (Unsat e)        = err  "Unsat"
   pretty (SemiSat w)      = warn "SemiSat"
   pretty (Sat)            = warn "Sat"
+  pretty (UnboxedNotRecursive t) 
+                          = warn "UnboxedNotRecursive" <+> pretty t
   pretty (Exhaustive t p) = warn "Exhaustive" <+> pretty t <+> pretty p
   pretty (Solved t)       = warn "Solved" <+> pretty t
   pretty (IsPrimType t)   = warn "IsPrimType" <+> pretty t
@@ -848,6 +881,9 @@ instance Pretty Constraint where
   pretty (Arith e)        = pretty e
   pretty (a :-> b)        = prettyPrec 2 a </> warn ":->" </> prettyPrec 1 b
 #endif
+  pretty (l :~ n)         = pretty l </> warn ":~" </> pretty n
+  pretty (l :~< m)        = pretty l </> warn ":~<" </> pretty m
+  pretty (a :~~ b)        = pretty a </> warn ":~~" </> pretty b
 
 -- a more verbose version of constraint pretty-printer which is mostly used for debugging
 prettyC :: Constraint -> Doc
@@ -874,14 +910,18 @@ instance Pretty ReorganizeError where
   pretty DuplicateTypeDefinition = err "duplicate type definition"
   pretty DuplicateValueDefinition = err "duplicate value definition"
   pretty DuplicateRepDefinition = err "duplicate repr definition"
+  pretty NonStrictlyPositive = err "non strictly positive occurence of recursive type"
+  pretty RecParShadowsTyVar = err "recursive parameter shadows type variable"
 
 instance Pretty Subst where
   pretty (Subst m) = pretty m
 
-instance Pretty AssignResult where
-  pretty (Type t) = pretty t
-  pretty (Sigil s) = pretty s
-  pretty (Row r) = pretty r
+instance Pretty AssignResult where 
+  pretty (Type t) = pretty t 
+  pretty (Sigil s) = pretty s 
+  pretty (Row (Left r)) = pretty r
+  pretty (Row (Right sh)) = pretty sh
+  pretty (Layout' l) = pretty l
 #ifdef BUILTIN_ARRAYS
   pretty (ARow r) = pretty r
   pretty (Expr e) = pretty e
@@ -889,6 +929,12 @@ instance Pretty AssignResult where
                       Nothing -> empty
                       Just h' -> keyword "@take" <+> parens (pretty h')
 #endif
+  pretty (RecP r) = pretty r
+
+instance Pretty RP where
+  pretty (Mu t) = typevar t
+  pretty (None) = pretty "None"
+  pretty (UP i) = warn ('?':show i)
 
 instance Pretty r => Pretty (Sigil r) where
   pretty (Boxed False l) = keyword "[W]" <+> parens (pretty l)
@@ -896,19 +942,24 @@ instance Pretty r => Pretty (Sigil r) where
   pretty Unboxed  = keyword "[U]"
 
 instance (Pretty t) => Pretty (Row.Row t) where
-  pretty (Row.Row m t) =
-    let rowFieldToDoc (_, (n, (ty, tk))) =
-          let tkDoc = case tk of
-                        Left True  -> text "taken"
-                        Left False -> text "present"
-                        Right i -> text "?" <> pretty i
-          in text n <+> text ":" <+> pretty ty <+> text "(" <> tkDoc <> text ")"
-        rowFieldsDoc = hsep $ punctuate (text ",") $ map rowFieldToDoc (M.toList m)
-     in rowFieldsDoc <> (case t of Just x -> symbol " |" <+> text "?" <> pretty x; _ -> empty)
+  pretty r =
+    let rowFieldsDoc =
+          hsep $ punctuate (text ",") $ map pretty (Row.entries r)
+        prettyRowVar Nothing  = symbol "✗"
+        prettyRowVar (Just x) = symbol "?" <> pretty x
+     in enclose (text "❲") (text "❳") (rowFieldsDoc <+> symbol "|" <+> prettyRowVar (Row.var r))
+
+instance Pretty t => Pretty (Row.Entry t) where
+  pretty e =
+    let tkDoc = case Row.taken e of
+          True  -> text "taken"
+          False -> text "present"
+    in text (Row.fname e) <+> text ":" <+> pretty (Row.payload e) <+>
+       parens tkDoc
 
 instance (Pretty e, Show e) => Pretty (ARow.ARow e) where
   pretty (ARow.ARow m u a v) = typesymbol "A-row" <+> brackets (pretty m <+> symbol "|" <+> pretty u <> all <> var)
-    where var = case v of Nothing -> empty; Just x -> (symbol " |" <+> text "?" <> pretty x)
+    where var = case v of Nothing -> empty; Just x -> (symbol " |" <+> symbol "?" <> pretty x)
           all = case a of Nothing -> empty
                           Just True  -> (symbol " |" <+> text "all taken")
                           Just False -> (symbol " |" <+> text "all put"  )
@@ -918,12 +969,10 @@ instance Pretty a => Pretty (I.IntMap a) where
 
 
 instance Pretty DataLayoutTcError where
-  pretty (UnknownDataLayout r ctx)
-    =  err "Undeclared data layout" <+> reprname r <$$> pretty ctx
-  pretty (BadDataLayout r ctx)
-    =  err "Referenced a bad data layout" <+> reprname r <$$> pretty ctx
-  pretty (TagNotSingleBlock ctx)
-    = err "Variant tag must be a single block of bits" <$$> pretty ctx
+  pretty (UnknownDataLayout r ctx) 
+     =  err "Undeclared data layout" <+> reprname r <$$> pretty ctx
+  pretty (TagNotSingleBlock ctx) 
+     = err "Variant tag must be a single block of bits" <$$> pretty ctx
   pretty (OverlappingBlocks blks)
     = let ((range1, c1),(range2, c2)) = unOverlappingAllocationBlocks blks
        in err "Declared data blocks" <+> parens (pretty range1) <+> err "and" <+> parens (pretty range2) <+> err " which cannot overlap" <$$>
@@ -938,6 +987,12 @@ instance Pretty DataLayoutTcError where
   pretty (ZeroSizedBitRange context) =
     err "Zero-sized bit range" <$$>
     indent (pretty context)
+  pretty (UnknownDataLayoutVar n ctx) =
+    err "Undeclared data layout variable" <+> dlvarname n <$$> indent (pretty ctx)
+  pretty (TooFewDataLayoutArgs n ctx) =
+    err "Too few arguments data layout synonym" <+> reprname n <$$> indent (pretty ctx)
+  pretty (TooManyDataLayoutArgs n ctx) =
+    err "Too many arguments for data layout synonym" <+> reprname n <$$> indent (pretty ctx)
 
 instance Pretty DataLayoutPath where
   pretty (InField n po ctx) = context' "for field" <+> fieldname n <+> context' "(" <> pretty po <> context' ")" </> pretty ctx
@@ -970,6 +1025,7 @@ instance Pretty a => Pretty (DataLayout' a) where
 #ifdef BUILTIN_ARRAYS
   pretty (ArrayLayout l) = brackets (pretty l)
 #endif
+  pretty (VarLayout n) = parens (dullcyan . string . ("_l" ++) . show . natToInt $ n)
 
 instance Pretty BitRange where
   pretty br = literal (pretty $ bitSizeBR br) <> symbol "b" <+> symbol "at" <+> literal (pretty $ bitOffsetBR br) <> symbol "b"
@@ -1026,7 +1082,7 @@ prettyCtx (InDefinition p tl) _ = context "in the definition at (" <> pretty p <
         helper (AbsDec n _) = context "abstract function" <+> varname n
         helper (ConstDef v _ _) = context "constant" <+> varname v
         helper (FunDef v _ _) = context "function" <+> varname v
-        helper (RepDef (DataLayoutDecl _ n _)) = context "representation" <+> reprname n
+        helper (RepDef (DataLayoutDecl _ n v _)) = context "representation" <+> reprname n <+> hsep (fmap varname v)
         helper _  = __impossible "helper"
 prettyCtx (AntiquotedType t) i = (if i then (<$> indent' (pretty (stripLocT t))) else id)
                                (context "in the antiquoted type at (" <> pretty (posOfT t) <> context ")" )

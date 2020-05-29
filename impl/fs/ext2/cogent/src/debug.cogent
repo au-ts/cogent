@@ -8,6 +8,8 @@
 -- @TAG(NICTA_GPL)
 --
 
+#include "debug.cogent.h"
+
 get_mode_type_str: U32 -> ()
 get_mode_type_str mode = 
    cogent_log (dbg_EXT2_INODE,  (mode .&. s_IFMT)

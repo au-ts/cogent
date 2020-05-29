@@ -1,0 +1,6 @@
+type A
+
+f : { f1 : A, f2 : Bool } -> ()
+
+g : #{ f1 : A, f2 : Bool } -> ()
+g x = f x

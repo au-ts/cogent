@@ -134,7 +134,7 @@ data Type'
   | TString'
   | TSum' [(TagName, (Type', Bool))]
   | TProduct' Type' Type'
-  | TRecord' [(FieldName, (Type', Bool))] (Sigil (DataLayout BitRange))
+  | TRecord' RecursiveParameter [(FieldName, (Type', Bool))] (Sigil (DataLayout BitRange))
   | TUnit'
   deriving (Eq, Ord)
 
@@ -147,7 +147,7 @@ deepType' (TPrim' pt) = mkApp (mkId "TPrim") [deepPrimType pt]
 deepType' (TString') = mkApp (mkId "TPrim") [mkId "String"]
 deepType' (TSum' alts) = mkApp (mkId "TSum") [mkList $ map (\(n,(t,b)) -> mkPair (mkString n) (mkPair (deepType' t) (mkBool b))) alts]
 deepType' (TProduct' t1 t2) = mkApp (mkId "TProduct") [deepType' t1, deepType' t2]
-deepType' (TRecord' fs s) = mkApp (mkId "TRecord") [mkList $ map (\(fn,(t,b)) -> mkPair (deepType' t) (mkBool b)) fs, deepSigil s]
+deepType' (TRecord' rp fs s) = mkApp (mkId "TRecord") [mkList $ map (\(fn,(t,b)) -> mkPair (deepType' t) (mkBool b)) fs, deepSigil s]  -- FIXME: @rp@ / zilinc
 deepType' (TUnit') = mkId "TUnit"
 
 stripType :: Type t b -> Type'
@@ -159,7 +159,8 @@ stripType (TPrim t) = TPrim' t
 stripType TString = TString'
 stripType (TSum ts) = TSum' (map (\(n,(t,b)) -> (n, (stripType t, b))) ts)
 stripType (TProduct t u) = TProduct' (stripType t) (stripType u)
-stripType (TRecord fs s) = TRecord' (map (\(n,(t,b)) -> (n, (stripType t, b))) fs) s
+-- FIXME: recPars and isabelle
+stripType (TRecord rp fs s) = TRecord' rp (map (\(n,(t,b)) -> (n, (stripType t, b))) fs) s
 stripType TUnit = TUnit'
 
 {-
@@ -262,7 +263,7 @@ ttyping xi k (EE u (Case x _ (_,_,a) (_,_,b)) env) = hintListSequence [ -- Ξ, K
   ttyping xi k a,                                       -- Ξ, K, (Some t # Γ) ⊢ a : u
   ttyping xi k b                                        -- Ξ, K, (Some (TSum (tagged_list_update tag (t, True) ts)) # Γ2) ⊢ b : u
   ]
-ttyping xi k (EE u (Take a e@(EE (TRecord ts _) _ _) f e') env) = hintListSequence [ -- Ξ, K, Γ T⊢ Take e f e' : u if
+ttyping xi k (EE u (Take a e@(EE (TRecord _ ts _) _ _) f e') env) = hintListSequence [ -- Ξ, K, Γ T⊢ Take e f e' : u if
   follow_tt k env (envOf e) (envOf e'),
   ttyping xi k e,                             -- Ξ, K, Γ1 T⊢ e : TRecord ts s
   kindingHint k (fst $ snd $ ts !! f),        -- K ⊢ t :κ k
@@ -291,8 +292,8 @@ typing xi k (EE t (Variable i) env) = tacSequence [
   return [simp_solve]                     -- i < length Γ
   ]
 
-typing xi k (EE t' (Fun f ts _) env) = case findfun (unCoreFunName f) xi of
-    AbsDecl _ _ ks' t u ->
+typing xi k (EE t' (Fun f ts _ _) env) = case findfun (unCoreFunName f) xi of
+    AbsDecl _ _ ks' _ t u ->
       let ks = fmap snd ks' in tacSequence [
         return [rule "typing_afun'"],  -- Ξ, K, Γ ⊢ AFun f ts : TFun t' u'
         do ta <- use tsTypeAbbrevs
@@ -308,7 +309,7 @@ typing xi k (EE t' (Fun f ts _) env) = case findfun (unCoreFunName f) xi of
         consumed k env             -- K ⊢ Γ consumed
         ]
 
-    FunDef _ _ ks' t u _ ->
+    FunDef _ _ ks' _ t u _ ->
       let ks = fmap snd ks' in tacSequence [
         return [rule "typing_fun'"],  -- Ξ, K, Γ ⊢ Fun f ts : t' if
         do ta <- use tsTypeAbbrevs
@@ -324,8 +325,8 @@ typing xi k (EE t' (Fun f ts _) env) = case findfun (unCoreFunName f) xi of
 
     _ -> error $ "ProofGen Fun: bad function call " ++ show f
 
-  where findfun f (def@(FunDef _ fn _ _ _ _):fs) | f == fn = def
-        findfun f (def@(AbsDecl _ fn _ _ _) :fs) | f == fn = def
+  where findfun f (def@(FunDef _ fn _ _ _ _ _):fs) | f == fn = def
+        findfun f (def@(AbsDecl _ fn _ _ _ _) :fs) | f == fn = def
         findfun f (_:fs) = findfun f fs
         findfun f [] = error $ "ProofGen Fun: no such function " ++ show f
 
@@ -448,7 +449,7 @@ typing xi k (EE t (Member e f) env) = tacSequence [
           simp_solve]              -- ts ! f = (t, False)
   ]
 
-typing xi k (EE u (Take a e@(EE (TRecord ts _) _ _) f e') env) = tacSequence [
+typing xi k (EE u (Take a e@(EE (TRecord _ ts _) _ _) f e') env) = tacSequence [
   return [rule "typing_take"],                -- Ξ, K, Γ ⊢ Take e f e' : u if
   splits k env (envOf e) (peel2 $ envOf e'),  -- K ⊢ Γ ↝ Γ1 | Γ2
   typing xi k e,                              -- Ξ, K, Γ1 ⊢ e : TRecord ts s
@@ -461,7 +462,7 @@ typing xi k (EE u (Take a e@(EE (TRecord ts _) _ _) f e') env) = tacSequence [
   typing xi k e'                              -- Ξ, K, (Some t # Some (TRecord (ts [f := (t,taken)]) s) # Γ2) ⊢ e' : u
   ]
 
-typing xi k (EE ty (Put e1@(EE (TRecord ts _) _ _) f e2@(EE t _ _)) env) = tacSequence [
+typing xi k (EE ty (Put e1@(EE (TRecord _ ts _) _ _) f e2@(EE t _ _)) env) = tacSequence [
   return [rule "typing_put'"],                          -- Ξ, K, Γ ⊢ Put e f e' : TRecord ts' s if
   splits k env (envOf e1) (envOf e2),                   -- K ⊢ Γ ↝ Γ1 | Γ2
   typing xi k e1,                                       -- Ξ, K, Γ1 ⊢ e : TRecord ts s
@@ -521,7 +522,7 @@ subtyping'' k TCon{}           TCon{}           = return [rule "subty_tcon", sim
 subtyping'' k (TFun t1 u1)     (TFun t2 u2)     =
   (rule "subty_tfun" :) <$> liftM2 (++) (subtyping' k t2 t1) (subtyping' k u1 u2)
 subtyping'' k TPrim{}          TPrim{}          = return [rule "subty_tprim", simp_solve]
-subtyping'' k (TRecord f1s _)  (TRecord f2s _)  =
+subtyping'' k (TRecord _ f1s _)  (TRecord _ f2s _)  =
   tacSequence [
     return [rule "subty_trecord"],
     (++ [rule "list_all2_nil"]) . join <$>
@@ -771,7 +772,7 @@ breakConj (x:xs) = [rule "conjI"]
 breakConj []     = []
 
 takeTaken :: FieldIndex -> Vec v (Maybe (Type t b)) -> Bool
-takeTaken f (Cons x (Cons (Just (TRecord ts _)) _)) = snd $ snd (ts!!f)
+takeTaken f (Cons x (Cons (Just (TRecord _ ts _)) _)) = snd $ snd (ts!!f)
 takeTaken _ _ = error "invalid call to takeTaken"
 
 singleton :: Fin v -> Vec v (Maybe a) -> Vec v (Maybe a)
@@ -784,7 +785,7 @@ mostGeneralKind k (TUnit)          = mempty
 mostGeneralKind k (TProduct t1 t2) = mostGeneralKind k t1 <> mostGeneralKind k t2
 mostGeneralKind k (TSum ts)        = foldl (<>) mempty $ map (mostGeneralKind k) [t | (_, (t, b)) <- ts, not b]
 mostGeneralKind k (TFun ti to)     = mempty
-mostGeneralKind k (TRecord ts s)   = foldl (<>) (sigilKind s) $ map (mostGeneralKind k) [t | (_, (t, b)) <- ts, not b]
+mostGeneralKind k (TRecord _ ts s)   = foldl (<>) (sigilKind s) $ map (mostGeneralKind k) [t | (_, (t, b)) <- ts, not b]
 mostGeneralKind k (TPrim i)        = mempty
 mostGeneralKind k (TString)        = mempty
 mostGeneralKind k (TCon n ts s)    = foldl (<>) (sigilKind s) $ map (mostGeneralKind k) ts

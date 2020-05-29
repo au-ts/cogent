@@ -16,18 +16,18 @@ include $(PWD)/../config.mk
 
 install: deps
 	$(E) "Installing.."
-	$(CABAL) install $(INSTALL_FLAGS)
+	$(CABAL) v1-install $(INSTALL_FLAGS)
 
 pinstall: CONFIG_FLAGS += --enable-executable-profiling
 pinstall: setup-config
-	$(CABAL) install $(CONFIG_FLAGS)
+	$(CABAL) v1-install $(CONFIG_FLAGS)
 
 deps:
-	$(CABAL) install --only-dependencies
+	$(CABAL) v1-install --only-dependencies
 
 build: setup-config
 	$(E) "Building..."
-	$(CABAL) build
+	$(CABAL) v1-build
 
 setup-config:
-	$(CABAL) configure $(CONFIG_FLAGS)
+	$(CABAL) v1-configure $(CONFIG_FLAGS)

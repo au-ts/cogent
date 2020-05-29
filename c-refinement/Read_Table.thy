@@ -12,7 +12,7 @@
 
 theory Read_Table
 imports
-  "../cogent/isa/Cogent"
+  "Cogent.Cogent"
   Specialised_Lemma_Utils
 begin
 

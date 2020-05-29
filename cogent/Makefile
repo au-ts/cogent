@@ -37,30 +37,30 @@ stack-build:
 	$(STACK) build
 
 .sandbox:
-ifneq ($(wildcard .cabal-sandbox/),)
+ifneq ($(wildcard cabal.sandbox.config),)
 	$(E) "Using Existing sandbox..."
 else
 	$(E) "Building in a sandbox..."
-	$(CABAL) sandbox init
-	$(CABAL) sandbox add-source ../isa-parser
+	$(CABAL) v1-sandbox init
+	$(CABAL) v1-sandbox add-source ../isa-parser
 endif
 
 .install-deps:
 	$(E) "Installing dependencies"
-	$(CABAL) install --only-dependencies --force-reinstalls
+	$(CABAL) v1-install --only-dependencies --force-reinstalls
 
 .configure:
 	$(E) "Configuring..."
-	$(CABAL) configure $(CONFIG_FLAGS)
+	$(CABAL) v1-configure $(CONFIG_FLAGS)
 
 .build:
 	$(E) "Building..."
-	$(CABAL) build $(BUILD_FLAGS)
-	$(CABAL) copy
+	$(CABAL) v1-build $(BUILD_FLAGS)
+	$(CABAL) v1-copy
 
 .install:
 	$(E) "Installing.."
-	$(CABAL) install $(INSTALL_FLAGS)
+	$(CABAL) v1-install $(INSTALL_FLAGS)
 
 clean:
 	$(Q) rm -rf out/
@@ -68,8 +68,8 @@ clean:
 	$(Q) find . -name "*_flymake.hs" -delete
 
 full-clean: clean
-	$(Q) $(CABAL) clean
-	$(Q) $(CABAL) sandbox delete -v0
+	$(Q) $(CABAL) v1-clean
+	$(Q) $(CABAL) v1-sandbox delete -v0
 	$(Q) rm -rf .cabal-sandbox/ dist/ ../isa-parser/dist
 
 
@@ -88,7 +88,7 @@ dev: .sandbox .cabal-update .install-deps .configure .build
 	$(E)
 
 .cabal-update:
-	$(CABAL) update
+	$(CABAL) v1-update
 
 # There's a sed script that does a very similar thing in scripts/cogent_validate.sh, and for some reason they're both necessary.
 tests/include/%_dummy.h: tests/%.cogent
@@ -101,7 +101,7 @@ tests/include/%_dummy.h: tests/%.cogent
 	$(Q)mkdir -p tests/include
 
 tests: test-compiler \
-       test-tc-proof test-shallow-proof test-ee test-hs
+       test-tc-proof test-shallow-proof test-ee test-hs test-quickcheck
 
 test-compiler: test-clean .test-cogent
 	./tests/run-test-suite.py \

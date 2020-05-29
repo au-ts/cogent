@@ -24,6 +24,7 @@ module Cogent.TypeCheck.Generator
   , cgFunDef
   , freshTVar
   , validateType
+  , validateTypes
   ) where
 
 import Cogent.Common.Syntax
@@ -37,6 +38,7 @@ import Cogent.TypeCheck.ARow as ARow hiding (null)
 import Cogent.TypeCheck.Base hiding (validateType)
 import Cogent.TypeCheck.Util
 import Cogent.Util hiding (Warning)
+import Cogent.TypeCheck.Row (mkEntry)
 import qualified Cogent.TypeCheck.Row as Row
 
 import Control.Arrow (first, second)
@@ -56,10 +58,12 @@ import qualified Text.PrettyPrint.ANSI.Leijen as L
 import Lens.Micro.TH
 import Lens.Micro
 import Lens.Micro.Mtl
--- import Debug.Trace
+
+import Debug.Trace
 
 data GenState = GenState { _context :: C.Context TCType
                          , _knownTypeVars :: [TyVarName]
+                         , _knownDataLayoutVars :: [DLVarName]
                          , _flexes :: Int
                          , _flexOrigins :: IM.IntMap VarOrigin
                          }
@@ -68,9 +72,9 @@ makeLenses ''GenState
 
 type CG a = TcConsM GenState a
 
-runCG :: C.Context TCType -> [TyVarName] -> CG a -> TcM (a, Int, IM.IntMap VarOrigin)
-runCG g vs ma = do
-  (a, GenState _ _ f os) <- withTcConsM (GenState g vs 0 mempty) ((,) <$> ma <*> get)
+runCG :: C.Context TCType -> [TyVarName] -> [DLVarName] -> CG a -> TcM (a, Int, IM.IntMap VarOrigin)
+runCG g tvs lvs ma = do
+  (a, GenState _ _ _ f os) <- withTcConsM (GenState g tvs lvs 0 mempty) ((,) <$> ma <*> get)
   return (a,f,os)
 
 
@@ -83,6 +87,7 @@ validateType (RT t) = do
   vs <- use knownTypeVars
   ts <- lift $ use knownTypes
   layouts <- lift $ use knownDataLayouts
+  lvs <- use knownDataLayoutVars
   traceTc "gen" (text "validate type" <+> pretty t)
   case t of
     TVar v b u  | v `notElem` vs -> freshTVar >>= \t' -> return (Unsat $ UnknownTypeVariable v, t')
@@ -96,22 +101,22 @@ validateType (RT t) = do
                -> freshTVar >>= \t' -> return (Unsat $ TypeArgumentMismatch t provided required, t')
                 | Just (vs, Just x) <- lookup t ts
                -> second (Synonym t) <$> fmapFoldM validateType as
-                | otherwise -> (second T) <$> fmapFoldM validateType (TCon t as s)
+                | otherwise -> (second T) <$> fmapFoldM validateType (TCon t as (fmap (fmap toTCDL) s))
 
-    TRecord fs s | fields  <- map fst fs
-                 , fields' <- nub fields
-                -> let toRow (T (TRecord fs s)) = R (Row.fromList fs) (Left s)
-                   in if fields' == fields
-                        then case s of
-                          Boxed _ (Just dlexpr)
-                            | Left (anError : _) <- runExcept $ tcDataLayoutExpr layouts dlexpr  -- layout is bad
-                            -> freshTVar >>= \t' -> return (Unsat $ DataLayoutError anError, t') 
-                          _ -> -- layout is good, or no layout
-                               -- We have to pattern match on 'TRecord' otherwise it's a type error.
-                               do (c, TRecord fs' s') <- fmapFoldM validateType t
-                                  return (c, toRow. T $ TRecord fs' s')
-                        else freshTVar >>= \t' -> return (Unsat $ DuplicateRecordFields (fields \\ fields'), t')
-                  | otherwise -> (second T) <$> fmapFoldM validateType (TRecord fs s)
+    TRecord rp fs s | fields  <- map fst fs
+                    , fields' <- nub fields
+                   -> let toRow (T (TRecord rp fs s)) = R (coerceRP rp) (Row.complete $ Row.toEntryList fs) (Left s)
+                      in if fields' == fields
+                           then case s of
+                             Boxed _ (Just dlexpr)
+                               | Left (anError : _) <- runExcept $ tcDataLayoutExpr layouts lvs dlexpr  -- layout is bad
+                               -> freshTVar >>= \t' -> return (Unsat $ DataLayoutError anError, t')
+                             _ -> -- layout is good, or no layout
+                                  -- We have to pattern match on 'TRecord' otherwise it's a type error.
+                                  do (c, TRecord rp' fs' s') <- fmapFoldM validateType t
+                                     return (c, toRow . T $ TRecord rp' fs' (fmap (fmap toTCDL) s'))
+                           else freshTVar >>= \t' -> return (Unsat $ DuplicateRecordFields (fields \\ fields'), t')
+                    | otherwise -> (second T) <$> fmapFoldM validateType (TRecord rp fs (fmap (fmap toTCDL) s))
 
     TVariant fs  -> do let tuplize [] = T TUnit
                            tuplize [x] = x
@@ -143,7 +148,7 @@ validateType (RT t) = do
       traceTc "gen" (text "cg for array length" <+> pretty x L.<$>
                      text "generate constraint" <+> prettyC (cl <> cl'))
       (c,te') <- validateType te
-      return (cl <> cl' <> ctkn <> c, A te' x (Left s) (Left mhole))
+      return (cl <> cl' <> ctkn <> c, A te' x (Left $ fmap (fmap toTCDL) s) (Left mhole))
 
     TATake es t -> do
       blob <- forM es $ \e -> do
@@ -184,13 +189,15 @@ validateType (RT t) = do
 #endif
 
     TLayout l t -> do
-      let cl = case runExcept $ tcDataLayoutExpr layouts l of
+      let cl = case runExcept $ tcDataLayoutExpr layouts lvs l of
                  Left (e:_) -> Unsat $ DataLayoutError e
                  Right _    -> Sat
       (ct,t') <- validateType t
-      pure (cl <> ct, T $ TLayout l t')
+      let l' = toTCDL l
+      pure (cl <> ct <> l' :~ t', T $ TLayout l' t')
 
     -- vvv The uninteresting cases; but we still have to match each of them to convince the typechecker / zilinc
+    TRPar v b ctxt -> (second T) <$> fmapFoldM validateType (TRPar v b ctxt)
     TFun t1 t2 -> (second T) <$> fmapFoldM validateType (TFun t1 t2)
     TTuple ts  -> (second T) <$> fmapFoldM validateType (TTuple ts)
     TUnit -> return (mempty, T TUnit)
@@ -202,13 +209,54 @@ validateType (RT t) = do
     -- This can't be done in the current setup because validateType' has no context for the type it is validating.
     -- Not implementing this now, because a new syntax for types is needed anyway, which may make this issue redundant.
     -- /mdimeglio
+    -- In addition to the above: We have an UnboxedNotRecursive constraint now, which checks something similar 
+    -- (that recursive parameters are not used on unboxed records).
+    -- We can potentially generalise this constraint to also solve the above issue (or create a similar constraint).
+    -- /emmetm
+
 
 validateTypes :: (?loc :: SourcePos, Traversable t) => t RawType -> CG (Constraint, t TCType)
 validateTypes = fmapFoldM validateType
 
+-- --------------------------------------------------------------------------
+
+validateLayout :: DataLayoutExpr -> CG (Constraint, TCDataLayout)
+validateLayout l = do
+  ls <- lift $ use knownDataLayouts
+  vs <- use knownDataLayoutVars
+  let l' = toTCDL l
+  case runExcept $ tcDataLayoutExpr ls vs l of
+    Left (e:_) -> pure (Unsat $ DataLayoutError e, l')
+    Right _    -> pure (Sat, l')
+
+validateLayouts :: Traversable t => t DataLayoutExpr -> CG (Constraint, t TCDataLayout)
+validateLayouts = fmapFoldM validateLayout
+
+cgSubstedType :: TCType -> CG Constraint
+cgSubstedType (T (TLayout l t)) = cgSubstedLayout l
+cgSubstedType (T t) = foldMapM cgSubstedType t
+cgSubstedType (U x) = pure Sat
+cgSubstedType (V x) = foldMapM cgSubstedType x
+cgSubstedType (R _ x s) = (<>) <$> foldMapM cgSubstedType x <*> cgSubstedSigil s
+#ifdef BUILTIN_ARRAYS
+cgSubstedType (A t l s tkns) = (<>) <$> cgSubstedType t <*> cgSubstedSigil s
+#endif
+cgSubstedType (Synonym n ts) = foldMapM cgSubstedType ts
+
+cgSubstedSigil :: Either (Sigil (Maybe TCDataLayout)) Int -> CG Constraint
+cgSubstedSigil (Left (Boxed _ (Just l))) = cgSubstedLayout l
+cgSubstedSigil _ = pure Sat
+
+cgSubstedLayout :: TCDataLayout -> CG Constraint
+cgSubstedLayout l = do
+  ls <- lift $ use knownDataLayouts
+  case runExcept $ tcTCDataLayout ls l of
+    Left (e:_) -> pure $ Unsat (DataLayoutError e)
+    Right _    -> pure Sat
+
 -- -----------------------------------------------------------------------------
 -- Term-level constraints
--- -----------------------------------------------------------------------------
+-- --------------------------------------------------------------------------
 
 cgFunDef :: (?loc :: SourcePos) => [Alt LocPatn LocExpr] -> TCType -> CG (Constraint, [Alt TCPatn TCExpr])
 cgFunDef alts t = do
@@ -262,7 +310,7 @@ cg x@(LocExpr l e) t = do
   (c, e') <- cg' e t
   return (c :@ InExpression x t, TE t e' l)
 
-cg' :: (?loc :: SourcePos) => Expr LocType LocPatn LocIrrefPatn LocExpr -> TCType -> CG (Constraint, Expr TCType TCPatn TCIrrefPatn TCExpr)
+cg' :: (?loc :: SourcePos) => Expr LocType LocPatn LocIrrefPatn DataLayoutExpr LocExpr -> TCType -> CG (Constraint, Expr TCType TCPatn TCIrrefPatn TCDataLayout TCExpr)
 cg' (PrimOp o [e1, e2]) t
   | o `elem` words "+ - * / % .&. .|. .^. >> <<"
   = do (c1, e1') <- cg e1 t
@@ -295,7 +343,7 @@ cg' (Var n) t = do
     -- Variable not found, see if the user meant a function.
     Nothing ->
       lift (use $ knownFuns.at n) >>= \case
-        Just _  -> cg' (TypeApp n [] NoInline) t
+        Just _  -> cg' (TLApp n [] [] NoInline) t
         Nothing -> return (Unsat (NotInScope (funcOrVar t) n), e)
 
     -- Variable used for the first time, mark the use, and continue
@@ -506,7 +554,7 @@ cg' (Con k [e]) t =  do
   (c', e') <- cg e alpha
   U x <- freshTVar
   let e = Con k [e']
-      c = V (Row.incomplete [(k,(alpha,False))] x) :< t
+      c = V (Row.incomplete [Row.mkEntry k alpha False] x) :< t
   traceTc "gen" (text "cg for constructor:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c)
@@ -528,7 +576,7 @@ cg' (UnboxedRecord fes) t = do
   (ts, c', es') <- cgMany es
 
   let e = UnboxedRecord (zip fs es')
-      r = R (Row.fromList (zip fs (map (, False) ts))) (Left Unboxed)
+      r = R None (Row.complete $ zipWith3 mkEntry fs ts (repeat False)) (Left Unboxed)
       c = r :< t
   traceTc "gen" (text "cg for unboxed record:" <+> prettyE e
            L.<$> text "of type" <+> pretty t <> semi
@@ -543,43 +591,53 @@ cg' (Seq e1 e2) t = do
       c = c1 <> Drop alpha Suppressed <> c2
   return (c, e)
 
-cg' (TypeApp f as i) t = do
-  tvs <- use knownTypeVars
-  (ct, getCompose -> as') <- validateTypes (stripLocT <$> Compose as)
+cg' (TLApp f ts ls i) t = do
+  -- tvs <- use knownTypeVars
+  (ct, getCompose -> ts') <- validateTypes (stripLocT <$> Compose ts)
+  (cl, getCompose -> ls') <- validateLayouts (Compose ls)
   lift (use $ knownFuns.at f) >>= \case
-    Just (PT vs tau) -> let
-        match :: [(TyVarName, Kind)] -> [Maybe TCType] -> CG ([(TyVarName, TCType)], Constraint)
-        match [] []    = return ([], Sat)
-        match [] (_:_) = return ([], Unsat (TooManyTypeArguments f (PT vs tau)))
-        match vs []    = freshTVar >>= match vs . return . Just
-        match (v:vs) (Nothing:as) = freshTVar >>= \a -> match (v:vs) (Just a:as)
-        match ((v,k):vs) (Just a:as) = do
-          (ts, c) <- match vs as
-          return ((v,a):ts, kindToConstraint k a (TypeParam f v) <> c)
-      in do
-        (ts,c') <- match vs as'
-
-        let c = substType ts tau :< t
-            e = TypeApp f (map (Just . snd) ts) i
-        traceTc "gen" (text "cg for typeapp:" <+> prettyE e
-                 L.<$> text "of type" <+> pretty t <> semi
-                 L.<$> text "type signature is" <+> pretty (PT vs tau) <> semi
-                 L.<$> text "generate constraint" <+> prettyC c)
-        return (ct <> c' <> c, e)
-
+    Just (PT tvs lvs tau) -> do
+      let matchT :: [(TyVarName, Kind)] -> [Maybe TCType] -> CG (Constraint, [(TyVarName, TCType)])
+          matchT [] [] = pure (Sat, [])
+          matchT [] _  = pure (Unsat (TooManyTypeArguments f (PT tvs lvs tau)), [])
+          matchT vs [] = freshTVar >>= matchT vs . return . Just
+          matchT (v:vs) (Nothing:as) = freshTVar >>= \a -> matchT (v:vs) (Just a:as)
+          matchT ((v,k):vs) (Just a:as) = do
+            (c, ps) <- matchT vs as
+            return (kindToConstraint k a (TypeParam f v) <> c, (v,a):ps)
+          matchL :: [(DLVarName, TCType)] -> [Maybe TCDataLayout] -> CG (Constraint, [(DLVarName, TCDataLayout)])
+          matchL [] [] = pure (Sat, [])
+          matchL [] _  = pure (Unsat $ TooManyLayoutArguments f (PT tvs lvs tau), [])
+          matchL ts [] = freshLVar >>= matchL ts . return . Just
+          matchL (t':t'') (Nothing:l') = freshLVar >>= matchL (t':t'') . (:l') . Just
+          matchL ((v,t):t'') (Just l:l') = do
+            (c, ps) <- matchL t'' l'
+            return (c <> layoutMatchConstraint t l, (v, l):ps)
+      (cts, tps) <- matchT tvs ts'
+      (cls, lps) <- matchL (second (substType tps) <$> lvs) ls'
+      let rt = substLayout lps $ substType tps tau
+          rc = rt :< t
+          re = TLApp f (Just . snd <$> tps) (Just . snd <$> lps) i
+      sc <- cgSubstedType rt
+      traceTc "gen" (text "cg for tlapp:" <+> prettyE re
+               L.<$> text "of type" <+> pretty t <> semi
+               L.<$> text "type signature is" <+> pretty (PT tvs lvs tau) <> semi
+               L.<$> text "generate constraint" <+> prettyC rc)
+      return (ct <> cl <> cts <> cls <> rc <> sc, re)
     Nothing -> do
-      let e = TypeApp f as' i
+      let e = TLApp f ts' ls' i
           c = Unsat (FunctionNotFound f)
-      return (ct <> c, e)
+      return (ct <> cl <> c, e)
 
 cg' (Member e f) t =  do
   alpha <- freshTVar
   (c', e') <- cg e alpha
   U rest <- freshTVar
   U sigil <- freshTVar
+  rp <- freshRPVar
   let f' = Member e' f
-      row = Row.incomplete [(f, (t, False))] rest
-      x = R row (Right sigil)
+      row = Row.incomplete [Row.mkEntry f t False] rest
+      x = R rp row (Right sigil)
       c = alpha :< x <> Drop x (UsedInMember f)
   traceTc "gen" (text "cg for member:" <+> prettyE f'
            L.<$> text "of type" <+> pretty t <> semi
@@ -623,15 +681,17 @@ cg' (Put e ls) t | not (any isNothing ls) = do
   (ts, cs, es') <- cgMany es
   U rest <- freshTVar
   U sigil <- freshTVar
-  let row  = R (Row.incomplete (zip fs (map (,True ) ts)) rest) (Right sigil)
-      row' = R (Row.incomplete (zip fs (map (,False) ts)) rest) (Right sigil)
+  rp <- freshRPVar
+  let row  = R rp (Row.incomplete (zipWith3 mkEntry fs ts (repeat True)) rest) (Right sigil)
+      row' = R rp (Row.incomplete (zipWith3 mkEntry fs ts (repeat False)) rest) (Right sigil) 
       c1 = row' :< t
       c2 = alpha :< row
+      c3 = UnboxedNotRecursive row
       r = Put e' (map Just (zip fs es'))
   traceTc "gen" (text "cg for put:" <+> prettyE r
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint:" <+> prettyC c1 <+> text "and" <+> prettyC c2)
-  return (c1 <> c' <> cs <> c2, r)
+  return (c1 <> c' <> cs <> c2 <> c3, r)
 
   | otherwise = first (<> Unsat RecordWildcardsNotSupported) <$> cg' (Put e (filter isJust ls)) t
 
@@ -659,7 +719,6 @@ cg' (Annot e tau) t = do
   (c', e') <- cg e t'
   return (c <> c', Annot e' t')
 
-
 -- -----------------------------------------------------------------------------
 -- Pattern constraints
 -- -----------------------------------------------------------------------------
@@ -682,9 +741,9 @@ matchA' (PCon k [i]) t = do
   beta <- freshTVar
   (s, c, i') <- match i beta
   U rest <- freshTVar
-  let row = Row.incomplete [(k,(beta,False))] rest
+  let row = Row.incomplete [Row.mkEntry k beta False] rest
       c' = t :< V row
-      row' = Row.incomplete [(k,(beta,True))] rest
+      row' = Row.incomplete [Row.mkEntry k beta True] rest
 
   traceTc "gen" (text "match constructor pattern:" <+> pretty (PCon k [i'])
            L.<$> text "of type" <+> pretty t <> semi
@@ -748,10 +807,10 @@ match' (PUnboxedRecord fs) t | not (any isNothing fs) = do
   (vs, blob) <- unzip <$> mapM (\p -> do v <- freshTVar; (v,) <$> match p v) ps
   U rest <- freshTVar
   let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
-      row = Row.incomplete (zip ns (map (,False) vs)) rest
-      row' = Row.incomplete (zip ns (map (,True) vs)) rest
-      t' = R row (Left Unboxed)
-      d  = Drop (R row' (Left Unboxed)) Suppressed
+      row = Row.incomplete (zipWith3 mkEntry ns vs (repeat False)) rest
+      row' = Row.incomplete (zipWith3 mkEntry ns vs (repeat True)) rest
+      t' = R None row (Left Unboxed)
+      d  = Drop (R None row' (Left Unboxed)) Suppressed
       p' = PUnboxedRecord (map Just (zip ns ps'))
       c = t :< t'
       co = case overlapping ss of
@@ -769,12 +828,13 @@ match' (PTake r fs) t | not (any isNothing fs) = do
   (vs, blob) <- unzip <$> mapM (\p -> do v <- freshTVar; (v,) <$> match p v) ps
   U rest <- freshTVar
   U sigil <- freshTVar
+  rp <- freshRPVar
   let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
-      s  = M.fromList [(r, (R row' (Right sigil), ?loc, Seq.empty))]
-      row = Row.incomplete (zip ns (map (,False) vs)) rest
-      row' = Row.incomplete (zip ns (map (,True) vs)) rest
-      t' = R row (Right sigil)
-      p' = PTake (r, R row' (Right sigil)) (map Just (zip ns ps'))
+      s  = M.fromList [(r, (R rp row' (Right sigil), ?loc, Seq.empty))]
+      row = Row.incomplete (zipWith3 mkEntry ns vs (repeat False)) rest
+      row' = Row.incomplete (zipWith3 mkEntry ns vs (repeat True)) rest
+      t' = R rp row (Right sigil)
+      p' = PTake (r, R rp row' (Right sigil)) (map Just (zip ns ps'))
       c = t :< t'
       co = case overlapping (s:ss) of
         Left (v:_) -> Unsat $ DuplicateVariableInPattern v  -- p'
@@ -791,7 +851,7 @@ match' (PArray ps) t = do
   alpha <- freshTVar  -- element type
   blob  <- mapM (`match` alpha) ps
   let (ss,cs,ps') = unzip3 blob
-      l = SE (T u32) (IntLit . fromIntegral $ length ps)  -- length of the array
+      l = SE (T u32) (IntLit . fromIntegral $ length ps) :: TCSExpr -- length of the array
       c = t :< (A alpha l (Left Unboxed) (Left Nothing))
   traceTc "gen" (text "match on array literal pattern" L.<$>
                  text "element type is" <+> pretty alpha L.<$>
@@ -840,6 +900,12 @@ freshTVar = U  <$> freshVar
 freshEVar :: (?loc :: SourcePos) => TCType -> CG TCSExpr
 freshEVar t = SU t <$> freshVar
 
+freshLVar :: (?loc :: SourcePos) => CG TCDataLayout
+freshLVar = TLU <$> freshVar
+
+freshRPVar :: (?loc :: SourcePos) => CG RP
+freshRPVar = UP <$> freshVar
+      
 integral :: TCType -> Constraint
 integral = Upcastable (T (TCon "U8" [] Unboxed))
 
@@ -940,7 +1006,7 @@ validateVariable v = do
 -- pp for debugging
 -- ----------------------------------------------------------------------------
 
-prettyE :: Expr TCType TCPatn TCIrrefPatn TCExpr -> Doc
+prettyE :: Expr TCType TCPatn TCIrrefPatn TCDataLayout TCExpr -> Doc
 prettyE = pretty
 
 -- prettyP :: Pattern TCIrrefPatn -> Doc

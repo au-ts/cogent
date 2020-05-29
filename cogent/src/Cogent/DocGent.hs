@@ -132,10 +132,10 @@ listTypes ts = let row x = let t = prettyType x Nothing in [shamlet|<tr><td>#{t}
                 in [shamlet|<table>#{rows}<td></td>|]
 
 prettyPT :: (?knowns :: [(String, SourcePos)]) => Polytype LocType -> Html
-prettyPT (PT [] t) = prettyType t Nothing
-prettyPT (PT vs t) = let top = fst $ runState (displayHTML (prettyPrint id [renderPolytypeHeader vs])) defaultState
-                         bottom = prettyType t Nothing
-                      in [shamlet| <table><tr><td>#{top}</td><td></td></tr><tr><td>#{bottom}</td></tr>|]
+prettyPT (PT [] [] t) = prettyType t Nothing
+prettyPT (PT ts ls t) = let top = fst $ runState (displayHTML (prettyPrint id [renderPolytypeHeader ts ls])) defaultState
+                            bottom = prettyType t Nothing
+                         in [shamlet| <table><tr><td>#{top}</td><td></td></tr><tr><td>#{bottom}</td></tr>|]
 
 prettyType :: (?knowns :: [(String, SourcePos)]) => LocType -> Maybe Html -> Html
 prettyType x y | not (containsDocumentation x)  =  case y of
@@ -184,13 +184,13 @@ prettyType (LocType p (TVariant ts)) x | any snd $ (F.toList ts)
                                                  row (g,ts) s = let t' = listTypes ts in [shamlet|<tr><td>#{s}</td><td class='fg-Dull-Magenta spaced'>#{g}</td><td class='spaced'>#{t'}</td>|]
                                                  rows = zipWith row (M.toList $ fmap fst ts) $ '<' : repeat '|'
                                               in [shamlet|<table>#{rows}<tr><td>></td><td class='spaced' colspan=2>#{rest}</td><td></td></tr>|]
-prettyType (LocType p (TRecord ts Unboxed))  x
-  = prettyType (LocType p (TUnbox (LocType p (TRecord ts $ Boxed False Nothing)))) x
-prettyType (LocType p (TRecord ts (Boxed True (Just l)))) x
-  = prettyType (LocType p (TBang (LocType p (TRecord ts $ __fixme(Boxed False Nothing) {- Should be (Just l), fix when docGen layouts implemented -})))) x
-prettyType (LocType p (TRecord ts (Boxed False (Just l)))) x
+prettyType (LocType p (TRecord rp ts Unboxed))  x
+  = prettyType (LocType p (TUnbox (LocType p (TRecord rp ts $ Boxed False Nothing)))) x
+prettyType (LocType p (TRecord rp ts (Boxed True (Just l)))) x
+  = prettyType (LocType p (TBang (LocType p (TRecord rp ts $ __fixme(Boxed False Nothing) {- Should be (Just l), fix when docGen layouts implemented -})))) x
+prettyType (LocType p (TRecord rp ts (Boxed False (Just l)))) x
   | ls <- map fst (filter (snd . snd) ts)
-  , not (null ls) = prettyType (LocType p (TTake (Just ls) (LocType p (TRecord ts $ __fixme(Boxed False Nothing) {- Should be (Just l), fix when docGen layouts implemented-})))) x
+  , not (null ls) = prettyType (LocType p (TTake (Just ls) (LocType p (TRecord rp ts $ __fixme(Boxed False Nothing) {- Should be (Just l), fix when docGen layouts implemented-})))) x
   | otherwise = let rest = foldMap id x
                     row (g,(t,_)) s = let t' = prettyType t Nothing in [shamlet|<tr><td>#{s}</td><td class='spaced fg-Vivid-Magenta'>#{g}</td><td class='spaced'>:</td><td class='spaced'>#{t'}</td>|]
                     rows = zipWith row ts $ '{' : repeat ','
@@ -205,7 +205,7 @@ withLinking s t = case lookup t s of
                      Nothing -> H.toHtml t
   where file p = fileNameFor p
 
-data DocExpr = DE { unDE :: Expr RawType RawPatn RawIrrefPatn DocExpr }
+data DocExpr = DE { unDE :: Expr RawType RawPatn RawIrrefPatn DataLayoutExpr DocExpr }
              | DocFnCall FunName [Maybe RawType] Inline deriving Show
 
 instance ExprType DocExpr where
@@ -225,8 +225,8 @@ resolveNamesA :: [String] -> Alt RawPatn RawExpr -> Alt RawPatn DocExpr
 resolveNamesA lcls (Alt p l e) = Alt p l $ resolveNames (lcls ++ fvP p) e
 
 resolveNames :: [String] -> RawExpr -> DocExpr
-resolveNames lcls (RE (TypeApp v ts i)) | v `notElem` lcls = DocFnCall v ts i
-                                        | otherwise        = DE (TypeApp v ts i)
+resolveNames lcls (RE (TLApp v ts ls i)) | v `notElem` lcls = __fixme $ DocFnCall v ts i  -- FIXME: DocFnCall
+                                         | otherwise        = DE (TLApp v ts ls i)
 resolveNames lcls (RE (Var v)) | v `notElem` lcls = DocFnCall v [] NoInline
                                | otherwise = DE (Var v)
 resolveNames lcls (RE (Match e t alts)) = DE (Match (resolveNames lcls e) t (map (resolveNamesA lcls) alts))
@@ -320,7 +320,7 @@ genDoc (p,s,x@(AbsDec n pt)) = do
                 #{md} |]
 genDoc (p,s,(ConstDef n t as)) =
      let n' x = [shamlet|<table><td class='fg-Vivid-Green'><a name='#{n}'><b>#{n}</b></a> </td><td class='spaced'>:</td><td class='spaced'>#{x}</td> |]
-         pt' = prettyPT (PT [] t)
+         pt' = prettyPT (PT [] [] t)
          md     = markdown s
          str = runState (displayHTML (prettyPrint id $ return $ prettyConstDef False n t $ resolveNames [] $ stripLocE as) ) defaultState
          source = makeHtml $ fst str

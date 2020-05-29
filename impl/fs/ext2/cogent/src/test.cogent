@@ -8,6 +8,8 @@
 -- @TAG(NICTA_GPL)
 --
 
+#include "debug.cogent.h"
+
 -- allocation paths and inodes, in order:
 -- file /a => ino 12
 -- dir  /b => ino 2049

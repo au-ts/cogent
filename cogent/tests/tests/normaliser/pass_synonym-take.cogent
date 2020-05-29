@@ -1,0 +1,7 @@
+
+type Foo =  { x: U32 }
+type Bar = Foo take (..)
+
+bar_id : Bar -> Bar
+bar_id x = x
+

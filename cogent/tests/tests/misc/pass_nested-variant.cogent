@@ -1,0 +1,2 @@
+f : U8 -> < Left U8 | Right < Nothing | Just Bool > >
+f x = Right (Just True)

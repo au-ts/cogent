@@ -23,11 +23,13 @@ import Data.Map (Map)
 import GHC.Generics (Generic)
 import Text.Parsec.Pos (SourcePos)
 
-import Cogent.Common.Syntax (TagName, FieldName, Size)
+import Cogent.Common.Syntax (TagName, FieldName, Size, DLVarName)
 import Cogent.Common.Types (PrimInt (..))
 import Cogent.Dargent.Allocation
 import Cogent.Dargent.Util
 import Cogent.Util
+
+import Data.Nat
 
 {- * Core datalayout types -}
 
@@ -55,6 +57,7 @@ data DataLayout' bits
 #ifdef BUILTIN_ARRAYS
   | ArrayLayout (DataLayout' bits)
 #endif
+  | VarLayout Nat
   deriving (Show, Eq, Functor, Foldable, Generic)
 
 deriving instance Ord bits => Ord (DataLayout' bits)

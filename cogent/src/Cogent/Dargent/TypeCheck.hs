@@ -10,9 +10,11 @@
 -- @TAG(DATA61_GPL)
 --
 
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TupleSections #-}
 
 module Cogent.Dargent.TypeCheck where
@@ -24,19 +26,65 @@ import Data.Maybe (fromJust)
 import Control.Monad (guard, foldM)
 import Control.Monad.Trans.Except
 
-import Cogent.Common.Syntax (FieldName, TagName, DataLayoutName, Size)
+import Cogent.Common.Syntax (FieldName, TagName, DataLayoutName, Size, DLVarName)
 import Cogent.Common.Types (Sigil)
-import Cogent.Compiler (__fixme, __impossible)
+import Cogent.Compiler (__fixme, __impossible, __todo)
 import Cogent.Dargent.Allocation
 import Cogent.Dargent.Surface
 import Cogent.Dargent.Util
-import Cogent.Util (WriterMaybe, tellEmpty, mapTells)
+import Cogent.Util (WriterMaybe, tellEmpty, mapTells, third3, fourth4)
 import Cogent.Surface (Type(..))
+import qualified Cogent.TypeCheck.LRow as LRow
 
+import Data.Data
 import Data.Bifunctor (bimap, first, second)
 import Text.Parsec.Pos (SourcePos)
 
 import Debug.Trace
+
+{- * Definition for datalayout representation in typechecker -}
+
+data TCDataLayout   = TL { unTCDataLayout :: DataLayoutExpr' TCDataLayout }
+                    | TLU Int
+                    deriving (Show, Data, Eq, Ord)
+
+pattern TLPrim s       = TL (Prim s)
+pattern TLRecord ps    = TL (Record ps)
+pattern TLVariant t ps = TL (Variant t ps)
+#ifdef BUILTIN_ARRAYS
+pattern TLArray e s    = TL (Array e s)
+#endif
+pattern TLOffset e s   = TL (Offset e s)
+pattern TLRepRef n s   = TL (RepRef n s)
+pattern TLVar n        = TL (LVar n)
+pattern TLPtr          = TL Ptr
+
+{- * Utility functions -}
+
+toDLExpr :: TCDataLayout -> DataLayoutExpr
+toDLExpr (TLPrim n) = DLPrim n
+toDLExpr (TLRecord fs) = DLRecord ((\(x,y,z) -> (x,y,toDLExpr z)) <$> fs)
+toDLExpr (TLVariant e fs) = DLVariant (toDLExpr e) ((\(x,y,z,v) -> (x,y,z,toDLExpr v)) <$> fs)
+#ifdef BUILTIN_ARRAYS
+toDLExpr (TLArray e p) = DLArray (toDLExpr e) p
+#endif
+toDLExpr (TLOffset e s) = DLOffset (toDLExpr e) s
+toDLExpr (TLRepRef n s) = DLRepRef n $ toDLExpr <$> s
+toDLExpr (TLVar n) = DLVar n
+toDLExpr TLPtr = DLPtr
+toDLExpr (TLU _) = __impossible "toDLExpr: layout unifiers shouldn't be here"
+
+toTCDL :: DataLayoutExpr -> TCDataLayout
+toTCDL (DLPrim n) = TLPrim n
+toTCDL (DLRecord fs) = TLRecord ((\(x,y,z) -> (x,y,toTCDL z)) <$> fs)
+toTCDL (DLVariant e fs) = TLVariant (toTCDL e) ((\(x,y,z,v) -> (x,y,z,toTCDL v)) <$> fs)
+#ifdef BUILTIN_ARRAYS
+toTCDL (DLArray e p) = TLArray (toTCDL e) p
+#endif
+toTCDL (DLOffset e s) = TLOffset (toTCDL e) s
+toTCDL (DLRepRef n s) = TLRepRef n $ toTCDL <$> s
+toTCDL (DLVar n) = TLVar n
+toTCDL DLPtr = TLPtr
 
 {- * Important exported functions -}
 
@@ -44,22 +92,29 @@ import Debug.Trace
 --
 -- This includes that relevant blocks of bits don't overlap
 -- And tag values are in the right ranges
-tcDataLayoutExpr :: NamedDataLayouts -> DataLayoutExpr -> Except [DataLayoutTcError] Allocation
-tcDataLayoutExpr env (DLRepRef n) =
+tcDataLayoutExpr :: NamedDataLayouts -> [DLVarName] -> DataLayoutExpr -> Except [DataLayoutTcError] Allocation
+tcDataLayoutExpr env vs (DLRepRef n s) =
   case M.lookup n env of
-    Just (_, Just allocation) -> mapPaths (InDecl n) $ return allocation
-    Just (_, Nothing)         -> throwE [BadDataLayout n PathEnd]
-    Nothing                   -> throwE [UnknownDataLayout n PathEnd]
+    Just ([], _, Just allocation) | length s > 0 -> throwE [TooManyDataLayoutArgs n PathEnd]
+                                  | otherwise    -> mapPaths (InDecl n) $ return allocation
+    Just ([], _, Nothing) -> throwE [BadDataLayout n PathEnd]
+    Just (vars, expr, _)  | length s == length vars
+                          -> tcDataLayoutExpr env vs (substDataLayoutExpr (zip vars s) expr)
+                          | length s <  length vars
+                          -> throwE [TooFewDataLayoutArgs n PathEnd]
+                          | length s >  length vars
+                          -> throwE [TooManyDataLayoutArgs n PathEnd]
+    Nothing               -> throwE [UnknownDataLayout n PathEnd]
 
-tcDataLayoutExpr _ (DLPrim size) = return $ singletonAllocation (bitRange, PathEnd)
+tcDataLayoutExpr _ _ (DLPrim size) = return $ singletonAllocation (bitRange, PathEnd)
   where
     bitSize  = evalSize size
     bitRange = fromJust $ newBitRangeBaseSize 0 bitSize {- 0 <= bitSize -}
 
-tcDataLayoutExpr env (DLOffset dataLayoutExpr offsetSize) =
-  offset (evalSize offsetSize) <$> tcDataLayoutExpr env (DL dataLayoutExpr)
+tcDataLayoutExpr env vs (DLOffset dataLayoutExpr offsetSize) =
+  offset (evalSize offsetSize) <$> tcDataLayoutExpr env vs dataLayoutExpr
 
-tcDataLayoutExpr env (DLRecord fields) = foldM tcField emptyAllocation fields
+tcDataLayoutExpr env vs (DLRecord fields) = foldM tcField emptyAllocation fields
   where
     tcField
       :: Allocation -- The accumulated allocation from previous alternatives
@@ -67,11 +122,11 @@ tcDataLayoutExpr env (DLRecord fields) = foldM tcField emptyAllocation fields
       -> Except [DataLayoutTcError] Allocation
 
     tcField accumAlloc (fieldName, pos, dataLayoutExpr) = do
-      fieldsAlloc <- mapPaths (InField fieldName pos) (tcDataLayoutExpr env dataLayoutExpr)
+      fieldsAlloc <- mapPaths (InField fieldName pos) (tcDataLayoutExpr env vs dataLayoutExpr)
       except $ first (fmap OverlappingBlocks) $ accumAlloc /\ fieldsAlloc
 
-tcDataLayoutExpr env (DLVariant tagExpr alternatives) =
-  case primitiveBitRange (DL tagExpr) of
+tcDataLayoutExpr env vs (DLVariant tagExpr alternatives) =
+  case primitiveBitRange tagExpr of
     Just tagBits | isZeroSizedBR tagBits -> throwE [ZeroSizedBitRange (InTag PathEnd)]
                  | otherwise ->
       do
@@ -86,7 +141,7 @@ tcDataLayoutExpr env (DLVariant tagExpr alternatives) =
       -> Except [DataLayoutTcError] (Allocation, Map Size TagName)
 
     tcAlternative range (accumAlloc, accumTagValues) (tagName, pos, tagValue, dataLayoutExpr) = do
-      alloc     <- (\/) accumAlloc <$> mapPaths (InAlt tagName pos) (tcDataLayoutExpr env dataLayoutExpr)
+      alloc     <- (\/) accumAlloc <$> mapPaths (InAlt tagName pos) (tcDataLayoutExpr env vs dataLayoutExpr)
       tagValues <- checkedTagValues
       return (alloc, tagValues)
       where
@@ -101,36 +156,149 @@ tcDataLayoutExpr env (DLVariant tagExpr alternatives) =
 
     primitiveBitRange :: DataLayoutExpr -> Maybe BitRange
     primitiveBitRange (DLPrim size)        = newBitRangeBaseSize 0 (evalSize size)
-    primitiveBitRange (DLOffset expr size) = offset (evalSize size) <$> primitiveBitRange (DL expr)
+    primitiveBitRange (DLOffset expr size) = offset (evalSize size) <$> primitiveBitRange expr
     primitiveBitRange _                    = Nothing
 
 #ifdef BUILTIN_ARRAYS
-tcDataLayoutExpr env (DLArray e p) = mapPaths (InElmt p) $ tcDataLayoutExpr env e
+tcDataLayoutExpr env vs (DLArray e p) = mapPaths (InElmt p) $ tcDataLayoutExpr env vs e
 #endif
-tcDataLayoutExpr env DLPtr = return $ singletonAllocation (pointerBitRange, PathEnd)
-tcDataLayoutExpr env l = __impossible $ "tcDataLayoutExpr; tried to typecheck unexpected layout: " ++ show l
+tcDataLayoutExpr _ _ DLPtr = return $ singletonAllocation (pointerBitRange, PathEnd)
+tcDataLayoutExpr _ vs (DLVar n) = if n `elem` vs then return undeterminedAllocation
+                                                 else throwE [UnknownDataLayoutVar n PathEnd]
+tcDataLayoutExpr _ _ l = __impossible $ "tcDataLayoutExpr; tried to typecheck unexpected layout: " ++ show l
+
+
+-- | Check the layout after subsitution within constraint generator for TLApp
+-- We may simplify this function or refactor the layout related constraints later
+tcTCDataLayout :: NamedDataLayouts -> TCDataLayout -> Except [DataLayoutTcError] Allocation
+tcTCDataLayout env (TLRepRef n s) =
+  case M.lookup n env of
+    Just ([], _, Just allocation) | length s > 0 -> throwE [TooManyDataLayoutArgs n PathEnd]
+                                  | otherwise    -> mapPaths (InDecl n) $ return allocation
+    Just ([], _, Nothing) -> throwE [BadDataLayout n PathEnd]
+    Just (vars, expr, _)  | length vars == length s
+                          -> tcTCDataLayout env (substTCDataLayout (zip vars s) $ toTCDL expr)
+                          | length vars >  length s
+                          -> throwE [TooFewDataLayoutArgs n PathEnd]
+                          | length vars <  length s
+                          -> throwE [TooManyDataLayoutArgs n PathEnd]
+    Nothing               -> throwE [UnknownDataLayout n PathEnd]
+
+tcTCDataLayout _ (TLPrim size) = return $ singletonAllocation (bitRange, PathEnd)
+  where
+    bitSize  = evalSize size
+    bitRange = fromJust $ newBitRangeBaseSize 0 bitSize {- 0 <= bitSize -}
+
+tcTCDataLayout env (TLOffset dataLayout offsetSize) =
+  offset (evalSize offsetSize) <$> tcTCDataLayout env dataLayout
+
+tcTCDataLayout env (TLRecord fields) = foldM tcField emptyAllocation fields
+  where
+    tcField accumAlloc (fn, pos, tcl) = do
+      fieldsAlloc <- mapPaths (InField fn pos) $ tcTCDataLayout env tcl
+      except $ first (fmap OverlappingBlocks) $ accumAlloc /\ fieldsAlloc
+
+tcTCDataLayout env (TLVariant tagExpr alternatives) =
+  case primitiveBitRange tagExpr of
+    Just tagBits | isZeroSizedBR tagBits -> throwE [ZeroSizedBitRange (InTag PathEnd)]
+                 | otherwise ->
+      do
+        altsAlloc <- fst <$> foldM (tcAlternative tagBits) (emptyAllocation, M.empty) alternatives
+        except $ first (fmap OverlappingBlocks) $ singletonAllocation (tagBits, InTag PathEnd) /\ altsAlloc
+    Nothing      -> throwE [TagNotSingleBlock (InTag PathEnd)]
+  where
+    tcAlternative range (accumAlloc, accumTagValues) (tagName, pos, tagValue, tcl) = do
+      alloc     <- (\/) accumAlloc <$> mapPaths (InAlt tagName pos) (tcTCDataLayout env tcl)
+      tagValues <- checkedTagValues
+      return (alloc, tagValues)
+      where
+        checkedTagValues :: Except [DataLayoutTcError] (Map Size TagName)
+        checkedTagValues
+          | tagValue < 0 || tagValue >= 2 ^ bitSizeBR range =
+            throwE [OversizedTagValue (InAlt tagName pos PathEnd) range tagName tagValue]
+          | Just conflictingTagName <- tagValue `M.lookup` accumTagValues =
+            throwE [SameTagValues (InAlt tagName pos PathEnd) conflictingTagName tagName tagValue]
+          | otherwise =
+            return $ M.insert tagValue tagName accumTagValues
+    primitiveBitRange (TLPrim size)        = newBitRangeBaseSize 0 (evalSize size)
+    primitiveBitRange (TLOffset expr size) = offset (evalSize size) <$> primitiveBitRange expr
+    primitiveBitRange _                    = Nothing
+
+#ifdef BUILTIN_ARRAYS
+tcTCDataLayout env (TLArray e p) = mapPaths (InElmt p) $ tcTCDataLayout env e
+#endif
+tcTCDataLayout _ TLPtr = return $ singletonAllocation (pointerBitRange, PathEnd)
+tcTCDataLayout _ (TLU _) = return undeterminedAllocation
+tcTCDataLayout _ l = __impossible $ "tcTCDataLayout; tried to typecheck unexpected layout: " ++ show l
 
 
 -- NOTE: the check for type-layout compatibility is in Cogent.TypeCheck.Base
 
 -- | Normalises the layout remove references to named layouts
 normaliseDataLayoutExpr :: NamedDataLayouts -> DataLayoutExpr -> DataLayoutExpr
-normaliseDataLayoutExpr env (DLRepRef n) =
+normaliseDataLayoutExpr env (DLRepRef n s) =
   case M.lookup n env of
-    Just (expr, _) -> normaliseDataLayoutExpr env expr
-    Nothing        -> __impossible $ "normaliseDataLayoutExpr (RepRef " ++ show n ++ " already known to exist)"
+    Just (vars, expr, _) -> normaliseDataLayoutExpr env (substDataLayoutExpr (zip vars s) expr)
+    Nothing -> __impossible $ "normaliseDataLayoutExpr (RepRef " ++ show n ++ " already known to exist)"
 normaliseDataLayoutExpr env (DLRecord fields) =
   DLRecord (fmap (\(fn, pos, expr) -> (fn, pos, normaliseDataLayoutExpr env expr)) fields)
 normaliseDataLayoutExpr env (DLVariant tag alts) =
-  DLVariant tag (fmap (\(tn, pos, size, expr) -> (tn, pos, size, normaliseDataLayoutExpr env expr)) alts)
-normaliseDataLayoutExpr env (DLOffset expr size) = DLOffset (unDataLayoutExpr $ normaliseDataLayoutExpr env (DL expr)) size
+  DLVariant (normaliseDataLayoutExpr env tag) $
+    fmap (\(tn, pos, size, expr) -> (tn, pos, size, normaliseDataLayoutExpr env expr)) alts
+normaliseDataLayoutExpr env (DLOffset expr size) = DLOffset (normaliseDataLayoutExpr env expr) size
 #ifdef BUILTIN_ARRAYS
 normaliseDataLayoutExpr env (DLArray e pos) = DLArray (normaliseDataLayoutExpr env e) pos
 #endif
 normaliseDataLayoutExpr _ r = r
 
+normaliseTCDataLayout :: NamedDataLayouts -> TCDataLayout -> TCDataLayout
+normaliseTCDataLayout env (TLRepRef n s) =
+  case M.lookup n env of
+    Just (vars, expr, _) -> let s' = toDLExpr <$> s
+                             in toTCDL $ normaliseDataLayoutExpr env (substDataLayoutExpr (zip vars s') expr)
+    Nothing -> __impossible $ "normaliseTCDataLayout (RepRef " ++ show n ++ " already known to exist)"
+normaliseTCDataLayout env (TLRecord fs) = TLRecord $ (\(n, p, l) -> (n, p, normaliseTCDataLayout env l)) <$> fs
+normaliseTCDataLayout env (TLVariant t as) = TLVariant t $ (\(n, p, s, l) -> (n, p, s, normaliseTCDataLayout env l)) <$> as
+normaliseTCDataLayout env (TLOffset l n) = TLOffset (normaliseTCDataLayout env l) n
+#ifdef BUILTIN_ARRAYS
+normaliseTCDataLayout env (TLArray l p) = TLArray (normaliseTCDataLayout env l) p
+#endif
+normaliseTCDataLayout _ l = l
+
+-- | Substitutes layout variables with concrete layouts
+substDataLayoutExpr :: [(DLVarName, DataLayoutExpr)] -> DataLayoutExpr -> DataLayoutExpr
+substDataLayoutExpr = f
+  where
+    f ps (DLRepRef n s) = DLRepRef n $ f ps <$> s
+    f ps (DLRecord fs) = DLRecord $ third3 (f ps) <$> fs
+    f ps (DLVariant t fs) = DLVariant (f ps t) $ fourth4 (f ps) <$> fs
+    f ps (DLOffset e s) = flip DLOffset s $ f ps e
+#ifdef BUILTIN_ARRAYS
+    f ps (DLArray e p) = flip DLArray p $ f ps e
+#endif
+    f ps (DLVar n) = case lookup n ps of
+                       Just v -> v
+                       Nothing -> DLVar n
+    f ps e = e
+
+substTCDataLayout :: [(DLVarName, TCDataLayout)] -> TCDataLayout -> TCDataLayout
+substTCDataLayout = f
+  where
+    f ps (TLRepRef n s) = TLRepRef n $ f ps <$> s
+    f ps (TLRecord fs) = TLRecord $ third3 (f ps) <$> fs
+    f ps (TLVariant t fs) = TLVariant (f ps t) $ fourth4 (f ps) <$> fs
+    f ps (TLOffset e s) = flip TLOffset s $ f ps e
+#ifdef BUILTIN_ARRAYS
+    f ps (TLArray e p) = flip TLArray p $ f ps e
+#endif
+    f ps (TLVar n) = case lookup n ps of
+                       Just v -> v
+                       Nothing -> TLVar n
+    f ps e = e
+
 {- * Types -}
-type NamedDataLayouts = Map DataLayoutName (DataLayoutExpr, Maybe Allocation)
+-- TODO: we may change DataLayoutExpr within NamedDataLayouts
+type NamedDataLayouts = Map DataLayoutName ([DLVarName], DataLayoutExpr, Maybe Allocation)
 type DataLayoutTcError = DataLayoutTcErrorP DataLayoutPath
 -- type DataLayoutTypeMatchError = DataLayoutTcErrorP DataLayoutPath -- TODO: needed to implement `tcDataLayoutTypeMatch`
 
@@ -163,6 +331,9 @@ data DataLayoutTcErrorP p
   -- ^ The layout contains a bit range of size zero.
   -- This could generate an array of length 0, which is disallowed by C
 
+  | UnknownDataLayoutVar    DLVarName p
+  | TooFewDataLayoutArgs    DataLayoutName p
+  | TooManyDataLayoutArgs   DataLayoutName p
   deriving (Eq, Show, Ord, Functor)
 
 
@@ -192,22 +363,16 @@ data DataLayoutTypeMatchErrorP p
 
 {- * Other exported functions -}
 tcDataLayoutDecl :: NamedDataLayouts -> DataLayoutDecl -> Except [DataLayoutTcError] Allocation
-tcDataLayoutDecl env (DataLayoutDecl pos name expr) =
-  mapPaths (InDecl name) (tcDataLayoutExpr env expr)
+tcDataLayoutDecl env (DataLayoutDecl pos name vars expr) =
+  mapPaths (InDecl name) (tcDataLayoutExpr env vars expr)
 
 normaliseDataLayoutDecl :: NamedDataLayouts -> DataLayoutDecl -> DataLayoutDecl
-normaliseDataLayoutDecl env (DataLayoutDecl pos name expr) =
-  DataLayoutDecl pos name (normaliseDataLayoutExpr env expr)
+normaliseDataLayoutDecl env (DataLayoutDecl pos name vars expr) =
+  DataLayoutDecl pos name vars (normaliseDataLayoutExpr env expr)
 
 -- Normalises the layout in the sigil to remove references to named layouts
-normaliseSigil :: NamedDataLayouts -> Sigil (Maybe DataLayoutExpr) -> Sigil (Maybe DataLayoutExpr)
-normaliseSigil env = fmap (fmap (normaliseDataLayoutExpr env))
-
-{- * Other functions -}
-evalSize :: DataLayoutSize -> Size
-evalSize (Bytes b) = b * 8
-evalSize (Bits b)  = b
-evalSize (Add a b) = evalSize a + evalSize b
+normaliseSigil :: NamedDataLayouts -> Sigil (Maybe TCDataLayout) -> Sigil (Maybe TCDataLayout)
+normaliseSigil env = fmap (fmap (normaliseTCDataLayout env))
 
 mapPaths
   :: (DataLayoutPath -> DataLayoutPath)

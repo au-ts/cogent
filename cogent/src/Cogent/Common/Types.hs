@@ -11,14 +11,17 @@
 --
 
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveTraversable #-}
 
 module Cogent.Common.Types where
 
 import Cogent.Common.Syntax
 import Data.Binary (Binary)
 import Data.Data
+import Data.Map as M
 #if __GLASGOW_HASKELL__ < 709
 import Data.Monoid
 #endif
@@ -29,9 +32,17 @@ type ReadOnly = Bool  -- True for r/o
 
 data Sigil r = Boxed ReadOnly r  -- 0- or 1-kinded
              | Unboxed  -- 2-kinded
-             deriving (Show, Data, Eq, Ord, Functor, Generic)
+             deriving (Show, Data, Eq, Ord, Foldable, Functor, Generic, Traversable)
 
 instance Binary r => Binary (Sigil r)
+
+data RecursiveParameter = Rec VarName | NonRec deriving (Data, Show, Eq, Ord, Generic)
+
+-- The context for a recursive type, i.e. a mapping from
+-- recursive parameter names to the type it recursively references
+type RecContext t = Maybe (M.Map RecParName t)
+
+instance Binary RecursiveParameter
 
 bangSigil :: Sigil r -> Sigil r
 bangSigil (Boxed _ r)  = Boxed True r

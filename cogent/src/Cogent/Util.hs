@@ -48,7 +48,7 @@ import Data.Bifoldable
 import Data.Bifunctor
 import Data.Bitraversable
 import Data.Char
-import Data.Foldable (foldrM)
+import Data.Foldable (foldrM, toList)
 import Data.IntMap as IM (IntMap, mapKeys, delete)
 import qualified Data.Map as M
 import Data.Version (showVersion)
@@ -70,6 +70,7 @@ import Paths_cogent
 newtype Flip  f (a :: a') (b :: b') = Flip { unflip :: f b a }
 newtype Flip2 f (a :: a') (b :: b') (c :: c') = Flip2 { unflip2 :: f c b a }
 newtype Flip3 f (a :: a') (b :: b') (c :: c') (d :: d') = Flip3 { unflip3 :: f d c b a }
+newtype Flip4 f (a :: a') (b :: b') (c :: c') (d :: d') (e :: e') = Flip4 { unflip4 :: f e d c b a }
 
 flip3 :: (a -> b -> c -> d) -> c -> b -> a -> d
 flip3 f c b a = f a b c
@@ -83,6 +84,9 @@ fffmap f = unflip2 . fmap f . Flip2
 ffffmap :: (Functor (Flip3 f a b c)) => (d -> d') -> f d c b a -> f d' c b a
 ffffmap f = unflip3 . fmap f . Flip3
 
+fffffmap :: (Functor (Flip4 f a b c d)) => (e -> e') -> f e d c b a -> f e' d c b a
+fffffmap f = unflip4 . fmap f . Flip4
+
 mmapM :: (Traversable (Flip t a), Monad m) => (b -> m b') -> t b a -> m (t b' a)
 mmapM f = return . unflip <=< mapM f . Flip
 
@@ -91,6 +95,9 @@ mmmapM f = return . unflip2 <=< mapM f . Flip2
 
 mmmmapM :: (Traversable (Flip3 t a b c), Monad m) => (d -> m d') -> t d c b a -> m (t d' c b a)
 mmmmapM f = return . unflip3 <=< mapM f . Flip3
+
+mmmmmapM :: (Traversable (Flip4 t a b c d), Monad m) => (e -> m e') -> t e d c b a -> m (t e' d c b a)
+mmmmmapM f = return . unflip4 <=< mapM f . Flip4
 
 ttraverse :: (Traversable (Flip f b), Applicative m) => (a -> m a') -> f a b -> m (f a' b)
 ttraverse f = fmap unflip . traverse f . Flip
@@ -101,10 +108,14 @@ tttraverse f = fmap unflip2 . traverse f . Flip2
 ttttraverse :: (Traversable (Flip3 f d c b), Applicative m) => (a -> m a') -> f a b c d -> m (f a' b c d)
 ttttraverse f = fmap unflip3 . traverse f . Flip3
 
+tttttraverse :: (Traversable (Flip4 f e d c b), Applicative m) => (a -> m a') -> f a b c d e -> m (f a' b c d e)
+tttttraverse f = fmap unflip4 . traverse f . Flip4
+
 ffoldMap :: (Foldable (Flip f b), Monoid m) => (a -> m) -> f a b -> m
-ffoldMap   f = foldMap f . Flip
-fffoldMap  f = foldMap f . Flip2
-ffffoldMap f = foldMap f . Flip3
+ffoldMap    f = foldMap f . Flip
+fffoldMap   f = foldMap f . Flip2
+ffffoldMap  f = foldMap f . Flip3
+fffffoldMap f = foldMap f . Flip4
 
 
 -- bifunctors
@@ -128,6 +139,15 @@ class Quadritraversable t where
                  -> t a b c d
                  -> f (t a' b' c' d')
 
+class Pentatraversable t where
+  pentatraverse :: Applicative f
+                => (a -> f a')
+                -> (b -> f b')
+                -> (c -> f c')
+                -> (d -> f d')
+                -> (e -> f e')
+                -> t a b c d e
+                -> f (t a' b' c' d' e')
 
 --
 -- name conversion
@@ -219,6 +239,12 @@ firstM f (x,y) = (,y) <$> f x
 
 secondM :: Functor f => (b -> f c) -> (a, b) -> f (a, c)
 secondM f (x,y) = (x,) <$> f y
+
+third3M :: Functor f => (c -> f d) -> (a, b, c) -> f (a, b, d)
+third3M f (x,y,z) = (x,y,) <$> f z
+
+fourth4M :: Functor f => (d -> f e) -> (a, b, c, d) -> f (a, b, c, e)
+fourth4M f (x,y,z,w) = (x,y,z,) <$> f w
 
 fst3 :: (a,b,c) -> a
 fst3 (a,b,c) = a
@@ -453,6 +479,18 @@ split delim str =
 
 replace :: Eq a => [a] -> [a] -> [a] -> [a]
 replace old new l = L.intercalate new . split old $ l
+
+elemBy :: Foldable t => (a -> a -> Bool) -> a -> t a -> Bool
+elemBy f a as = go f a (toList as)
+  where go f a [] = False
+        go f a (b:bs) = if f a b then True else go f a bs
+
+notElemBy :: Foldable t => (a -> a -> Bool) -> a -> t a -> Bool
+notElemBy = ((not .) .) . elemBy
+
+-- | A '\\-by' function
+(\\-) :: (a -> a -> Bool) -> [a] -> [a] -> [a]
+(\\-) f = foldl (flip (L.deleteBy f))
 
 -- the following are from the extra library, BSD3
 -- http://hackage.haskell.org/package/extra-1.6.13/docs/Control-Monad-Extra.html

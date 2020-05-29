@@ -199,8 +199,8 @@ constraintTypes func constraint = go constraint
     go (t1  :<  t2 )           = func t1 :< func t2
     go (t1  :=: t2 )           = func t1 :=: func t2
     go (Solved t)              = Solved $ func t
+    go (UnboxedNoRecurse rp s) = UnboxedNoRecurse rp s
     go Sat                     = Sat
-    go (UnboxedNoRecurse rp s) = Sat
     go Unsat                   = Unsat
 
 
@@ -368,8 +368,8 @@ sigilsCompatible x                (UnknownSigil{}) = True
 sigilsCompatible x                y                = x == y
 
 -- | Run a 'Fresh' computation with 'unifVars' as the source of fresh names.
-withUnifVars :: Fresh VarName a -> a
-withUnifVars = fst <$> runFresh unifVars
+withUnifVars :: Monad m => FreshT VarName m a -> m a
+withUnifVars fr = evalFreshT unifVars fr
 
 -- | A stream of greek unification variable names.
 unifVars :: S.Stream VarName

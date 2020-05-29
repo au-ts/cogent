@@ -39,11 +39,11 @@ tyCanId = [decl|type CanId = { id : U32, eff : U32, rtr : U32, err : U32 }|]
 tyCanFrame = [decl|type CanFrame = { ident : CanId, prio : U8, dlc : U8, data : SArr }|]
 
 tyCanId' = let TypeDec n vs t = tyCanId
-               RT (TRecord fs _) = stripLocT t
-            in TypeDec n vs $ dummyLocT $ RT $ TRecord fs (Boxed False $ Just lCanId)
+               RT (TRecord rp fs _) = stripLocT t
+            in TypeDec n vs $ dummyLocT $ RT $ TRecord rp fs (Boxed False $ Just (Layout lCanId))
 tyCanFrame' = let TypeDec n vs t = tyCanFrame
-                  RT (TRecord fs _) = stripLocT t
-               in TypeDec n vs $ dummyLocT $ RT $ TRecord fs (Boxed False $ Just lCanFrame)
+                  RT (TRecord rp fs _) = stripLocT t
+               in TypeDec n vs $ dummyLocT $ RT $ TRecord rp fs (Boxed False $ Just (Layout lCanFrame))
 
 _b = Bits
 _B = Bytes
@@ -58,9 +58,9 @@ lCanId = [dexpr| record { id  : 29b
 
 -- Dargent cannot mention constant definitions in Cogent / zilinc
 lCanFrame = DLRecord [ ("ident", noPos, DLPrim (_B 8))
-                     , ("prio" , noPos, DLOffset (Prim (_b 2)) (_B 8))
-                     , ("dlc"  , noPos, DLOffset (Prim (_b 4)) (_B 8 `Add` _b 2))
-                     , ("data" , noPos, DLOffset (Prim (_B canMaxDlc)) (_B 9))
+                     , ("prio" , noPos, DLOffset (DLPrim (_b 2)) (_B 8))
+                     , ("dlc"  , noPos, DLOffset (DLPrim (_b 4)) (_B 8 `Add` _b 2))
+                     , ("data" , noPos, DLOffset (DLPrim (_B canMaxDlc)) (_B 9))
                      ]
 
 prog' = [decls|

@@ -12,18 +12,18 @@
 
 (* Refinement chain from C to shallow-embedded Cogent. *)
 theory Cogent_Corres_Shallow_C
-imports
-  "Deep_Embedding_Auto"
-  "Cogent_Corres"
-  "Corres_Tac"
-  "TypeProofGen"
-  "Tidy"
-  "../cogent/isa/Cogent"
-  "../cogent/isa/shallow/ShallowTuples"
-  "../cogent/isa/shallow/Shallow_Tac"
-  "../cogent/isa/Util"
-  "../cogent/isa/Correspondence"
-  "../cogent/isa/Mono"
+  imports
+    "Cogent.Cogent"
+    "Cogent.Correspondence"
+    "Cogent.Mono"
+    "Cogent.TypeProofGen"
+    "Cogent.Util"
+    "CogentShallow.ShallowTuples"
+    "CogentShallow.Shallow_Tac"
+    "Deep_Embedding_Auto"
+    "Cogent_Corres"
+    "Corres_Tac"
+    "Tidy"
 begin
 
 

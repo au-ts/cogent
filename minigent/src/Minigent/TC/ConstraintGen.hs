@@ -29,13 +29,13 @@ import Debug.Trace
 
 -- | A monad that is a combination of a state monad for the current type context,
 --   a reader monad for the global environments, and fresh variables.
-newtype CG a = CG (StateT (Context Type) (ReaderT GlobalEnvironments (Fresh VarName)) a)
+newtype CG a = CG (StateT (Context Type) (ReaderT GlobalEnvironments (FreshT VarName IO)) a)
         deriving ( Monad, Applicative, Functor, MonadState (Context Type)
                  , MonadFresh VarName, MonadReader GlobalEnvironments
                  )
 
 -- | Given an initial context and global environments, run a 'CG' computation.
-runCG :: CG a -> Context Type -> GlobalEnvironments -> Fresh VarName a
+runCG :: CG a -> Context Type -> GlobalEnvironments -> FreshT VarName IO a
 runCG (CG x) ctx glb = runReaderT (evalStateT x ctx) glb
 
 -- | The constraint generation relation for expressions as given in the language

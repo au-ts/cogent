@@ -83,9 +83,11 @@ EXTRA_CFLAGS+= -DEXT2FS_DEBUG
 endif
 
 # flags to ignores COGENT's compiler messy C code gen
-COMMON_CFLAGS := -O2 -Wno-parentheses -Wno-declaration-after-statement -Wno-unused-variable -Wno-uninitialized
-LINUX_EXTRA_CFLAGS := -I$(PWD)/plat/linux/ -I$(PWD) -I$(PWD)/src -I$(PWD)/lib -I$(PWD)/abstract $(COMMON_CFLAGS) -I$(STDGUM)
-VERIF_EXTRA_CFLAGS := -I$(PWD)/plat/verification/ -I$(PWD) -I$(PWD)/src -I$(PWD)/lib -I$(PWD)/abstract -I$(STDGUM) $(COMMON_CFLAGS)
+EXTRA_CFLAGS	+= -O2 -Wno-parentheses -Wno-declaration-after-statement -Wno-unused-variable -Wno-uninitialized
+
+CPPFLAGS.common	:= -I$(PWD) -I$(PWD)/src -I$(PWD)/lib -I$(PWD)/abstract -I$(STDGUM)
+CPPFLAGS.linux	:= -I$(PWD)/plat/linux/
+CPPFLAGS.verif	:= -I$(PWD)/plat/verification/ -DVERIFICATION
 
 # COGENT flags
 COGENT_FLAGS+= -Od --fno-static-inline --fno-fncall-as-macro \
@@ -97,7 +99,9 @@ override COGENT_FLAGS+= -o$(OUTPUT) \
 			--entry-funcs=$(DEFNS) \
 			--ext-types=$(TYPES) \
 			--infer-c-types="$(AHFILES)" \
-			--abs-type-dir=$(PWD)
+			--abs-type-dir=$(PWD) \
+			--cpp-args="-std=c99 \$$CPPIN -o \$$CPPOUT -E -P ${CFLAGS} ${EXTRA_CFLAGS} ${CPPFLAGS}" \
+			--cogent-pp-args="${CPPFLAGS}"
 
 COUTPUT=$(addsuffix .c, $(OUTPUT))
 HOUTPUT=$(addsuffix .h, $(OUTPUT))
@@ -127,11 +131,9 @@ linux: DIST_DIR = plat/linux
 .c-gen: DIST_DIR = plat/linux
 verification: DIST_DIR = plat/verification
 .verif-gen: DIST_DIR = plat/verification
-# EXTRA_CFLAGS
-linux: EXTRA_CFLAGS = $(LINUX_EXTRA_CFLAGS)
-.c-gen: EXTRA_CFLAGS = $(LINUX_EXTRA_CFLAGS)
-verification: EXTRA_CFLAGS = $(VERIF_EXTRA_CFLAGS)
-.verif-gen: EXTRA_CFLAGS = $(VERIF_EXTRA_CFLAGS)
+# CPPFLAGS
+linux        .c-gen:     CPPFLAGS = ${CPPFLAGS.common} ${CPPFLAGS.linux}
+verification .verif-gen: CPPFLAGS = ${CPPFLAGS.common} ${CPPFLAGS.verif}
 
 
 # call from kernel build system
@@ -159,23 +161,23 @@ all: .c-gen $(OBJ)
 #       More details here: http://stackoverflow.com/questions/19210935/why-does-the-c-preprocessor-interpret-the-word-linux-as-the-constant-1
 #       So we use c99 mode here and when building the generated C code(make modules), we
 #       use `gnu99` mode.
-.c-gen:
+.c-gen: ${COGENT_SOURCES} ${C_SOURCES} ${LINUX_ACFILES} ${COGENT_GUM}
 	$(Q)cogent $(SRC) -g $(COGENT_FLAGS) \
-		--cpp-args="-std=c99 \$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
 		--dist-dir=$(DIST_DIR) \
 		--infer-c-funcs="$(ACFILES)"
+	$(Q)touch $@
 
-.verif-gen:
+.verif-gen: ${COGENT_SOURCES} ${C_SOURCES} ${LINUX_ACFILES} ${COGENT_GUM}
 	$(Q)cogent $(SRC) -A $(COGENT_FLAGS) \
-		--cpp-args="-std=c99 \$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
 		--dist-dir=$(DIST_DIR) \
 		--infer-c-funcs="$(ACFILES)" \
 		--proof-name=$(PROOF_ID) \
 		--proof-input-c="wrapper_pp_inferred.c"
+	$(Q)touch $@
 
 # compile Linux kernel module for file system
 linux: .c-gen
-	$(Q)$(MAKE) OBJ="$(OBJ)" CFLAGS="$(CFLAGS)" EXTRA_CFLAGS="-std=gnu99 $(EXTRA_CFLAGS)" -C $(KERNELDIR) M=$(PWD) modules
+	$(Q)$(MAKE) OBJ="$(OBJ)" CFLAGS="${CFLAGS}" EXTRA_CFLAGS="-std=gnu99 ${EXTRA_CFLAGS} ${CPPFLAGS}" -C $(KERNELDIR) M=$(PWD) modules
 
 # generate verification-clean C code and proof scripts
 verification: .verif-gen

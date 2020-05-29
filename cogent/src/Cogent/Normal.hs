@@ -36,12 +36,10 @@ import Prelude as P
 
 -- import Debug.Trace
 
-isTrivial :: UntypedExpr t v a b -> Bool
-isTrivial (E (Variable _)) = True
-isTrivial (E (Fun {})) = True
-isTrivial (E (ILit {})) = True
--- Not define 'SLit', 'ALit' and 'Unit' to be trivial for now.
-isTrivial _ = False
+
+isVar :: UntypedExpr t v a b -> Bool
+isVar (E (Variable _)) = True
+isVar _ = False
 
 
 -- FIXME: I used to think that an atom corresponds to a Cogent construct which can be
@@ -55,29 +53,32 @@ isTrivial _ = False
 -- something that gcc has a better chance to see optimisation candidates. / zilinc (24-Oct-19)
 
 isAtom :: UntypedExpr t v a b -> Bool
-isAtom e | isTrivial e = True
-isAtom (E (Op opr es)) | all isTrivial es = True
-isAtom (E (App f arg)) | isTrivial f && isTrivial arg = True
-isAtom (E (Con cn x _)) | isTrivial x = True
+isAtom (E (Variable x)) = True
+isAtom (E (Fun _ _ _ _)) = True
+isAtom (E (Op opr es)) | all isVar es = True
+isAtom (E (App (E (Fun _ _ _ _)) arg)) | isVar arg = True
+isAtom (E (App f arg)) | isVar f && isVar arg = True
+isAtom (E (Con cn x _)) | isVar x = True
 isAtom (E (Unit)) = True
+isAtom (E (ILit {})) = True
 isAtom (E (SLit _)) = True
 #ifdef BUILTIN_ARRAYS
-isAtom (E (ALit es)) | all isTrivial es = True
-isAtom (E (ArrayIndex e i)) | isTrivial e && isTrivial i = True
+isAtom (E (ALit es)) | all isVar es = True
+isAtom (E (ArrayIndex e i)) | isVar e && isVar i = True
 isAtom (E (ArrayMap2 (_,f) (e1,e2)))
-  | isNormal f && isTrivial e1 && isTrivial e2 = True
+  | isNormal f && isVar e1 && isVar e2 = True
   -- \ ^^^ FIXME: does it make sense? @ArrayMap@ cannot be made an expression.
   -- Does the atom-expression / normal-statement correspondence still hold?
-isAtom (E (Singleton e)) | isTrivial e = True
-isAtom (E (ArrayPut arr i e)) | isTrivial arr && isTrivial i && isTrivial e = True
+isAtom (E (Singleton e)) | isVar e = True
+isAtom (E (ArrayPut arr i e)) | isVar arr && isVar i && isVar e = True
 #endif
-isAtom (E (Tuple e1 e2)) | isTrivial e1 && isTrivial e2 = True
-isAtom (E (Struct fs)) | all (isTrivial . snd) fs = True
-isAtom (E (Esac e)) | isTrivial e = True
-isAtom (E (Member rec f)) | isTrivial rec = True
-isAtom (E (Put rec f v)) | isTrivial rec && isTrivial v = True
-isAtom (E (Promote t e)) | isTrivial e = True
-isAtom (E (Cast t e)) | isTrivial e = True
+isAtom (E (Tuple e1 e2)) | isVar e1 && isVar e2 = True
+isAtom (E (Struct fs)) | all (isVar . snd) fs = True
+isAtom (E (Esac e)) | isVar e = True
+isAtom (E (Member rec f)) | isVar rec = True
+isAtom (E (Put rec f v)) | isVar rec && isVar v = True
+isAtom (E (Promote t e)) | isVar e = True
+isAtom (E (Cast t e)) | isVar e = True
 isAtom _ = False
 
 isNormal :: UntypedExpr t v a b -> Bool
@@ -86,18 +87,18 @@ isNormal (E (Let _ e1 e2)) | __cogent_fnormalisation == ANF && isAtom e1 && isNo
                             -- XXX | ANF <- __cogent_fnormalisation, __cogent_fcondition_knf && isNormal e1 && isNormal e2 = True
                            | __cogent_fnormalisation `elem` [KNF, LNF] && isNormal e1 && isNormal e2 = True
 isNormal (E (LetBang vs _ e1 e2)) | isNormal e1 && isNormal e2 = True
-isNormal (E (Case e tn (l1,_,e1) (l2,_,e2))) | isTrivial e && isNormal e1 && isNormal e2 = True
-  -- \| ANF <- __cogent_fnormalisation, isTrivial  e && isNormal e1 && isNormal e2 = True
+isNormal (E (Case e tn (l1,_,e1) (l2,_,e2))) | isVar e && isNormal e1 && isNormal e2 = True
+  -- \| ANF <- __cogent_fnormalisation, isVar  e && isNormal e1 && isNormal e2 = True
   -- \| KNF <- __cogent_fnormalisation, isAtom e && isNormal e1 && isNormal e2 = True
-isNormal (E (If  c th el)) | isTrivial c  && isNormal th && isNormal el = True
+isNormal (E (If  c th el)) | isVar c  && isNormal th && isNormal el = True
 #ifdef BUILTIN_ARRAYS
-isNormal (E (Pop _ e1 e2)) | isTrivial e1 && isNormal e2 = True
-isNormal (E (ArrayTake _ arr i e)) | isTrivial arr && isTrivial i && isNormal e = True
+isNormal (E (Pop _ e1 e2)) | isVar e1 && isNormal e2 = True
+isNormal (E (ArrayTake _ arr i e)) | isVar arr && isVar i && isNormal e = True
 #endif
-isNormal (E (Split _ p e)) | isTrivial p  && isNormal e  = True
-  -- \| ANF <- __cogent_fnormalisation, isTrivial  p && isNormal e = True
+isNormal (E (Split _ p e)) | isVar p  && isNormal e  = True
+  -- \| ANF <- __cogent_fnormalisation, isVar  p && isNormal e = True
   -- \| KNF <- __cogent_fnormalisation, isAtom p && isNormal e = True
-isNormal (E (Take _ rec fld e)) | isTrivial rec && isNormal e = True
+isNormal (E (Take _ rec fld e)) | isVar rec && isNormal e = True
 isNormal _ = False
 
 newtype AN a = AN { runAN :: State Int a }
@@ -117,12 +118,12 @@ verifyNormal :: Show a => [Definition UntypedExpr a b] -> Bool
 verifyNormal [] = True
 verifyNormal (d:ds) =
   let b = case d of
-            FunDef _ _ _ _ _ e -> isNormal e
+            FunDef _ _ _ _ _ _ e -> isNormal e
             _ -> True
    in b && verifyNormal ds
 
 normaliseDefinition :: Definition UntypedExpr VarName b -> AN (Definition UntypedExpr VarName b)
-normaliseDefinition (FunDef attr fn ts ti to e) = FunDef attr fn ts ti to <$> (wrapPut =<< normaliseExpr s1 e)
+normaliseDefinition (FunDef attr fn ts ls ti to e) = FunDef attr fn ts ls ti to <$> (wrapPut =<< normaliseExpr s1 e)
 normaliseDefinition d = pure d
 
 normaliseExpr :: SNat v -> UntypedExpr t v VarName b -> AN (UntypedExpr t v VarName b)
@@ -143,11 +144,11 @@ normalise :: SNat v
           -> (forall n. SNat n -> UntypedExpr t (v :+: n) VarName b -> AN (UntypedExpr t (v :+: n) VarName b))
           -> AN (UntypedExpr t v VarName b)
 normalise v e@(E (Variable var)) k = k s0 (E (Variable var))
-normalise v e@(E (Fun fn ts _)) k = k s0 e
+normalise v e@(E (Fun{})) k = k s0 e
 normalise v   (E (Op opr es)) k = normaliseNames v es $ \n es' -> k n (E $ Op opr es')
-normalise v e@(E (App (E (Fun fn ts nt)) arg)) k
+normalise v e@(E (App (E (Fun fn ts ls nt)) arg)) k
   = normaliseName v arg $ \n arg' ->
-      k n (E $ App (E (Fun fn (fmap (upshiftType n $ finNat f0) ts) nt)) arg')
+      k n (E $ App (E (Fun fn (fmap (upshiftType n $ finNat f0) ts) ls nt)) arg')
 normalise v e@(E (App f arg)) k
   = normaliseName v f $ \n f' ->
       normaliseName (sadd v n) (upshiftExpr n v f0 arg) $ \n' arg' ->
@@ -296,7 +297,7 @@ wrapPut e = return e  -- non-normal, thus put cannot occur
 normaliseName :: SNat v -> UntypedExpr t v VarName b
               -> (forall n. SNat n -> UntypedExpr t (v :+: n) VarName b -> AN (UntypedExpr t (v :+: n) VarName b))
               -> AN (UntypedExpr t v VarName b)
-normaliseName v e k = freshVar >>= \a -> normaliseAtom v e $ \n e' -> if isTrivial e' then k n e' else E <$> (Let a e' <$> k (SSuc n) (E (Variable (f0,a))))
+normaliseName v e k = freshVar >>= \a -> normaliseAtom v e $ \n e' -> if isVar e' then k n e' else E <$> (Let a e' <$> k (SSuc n) (E (Variable (f0,a))))
 
 normaliseNames :: SNat v -> [UntypedExpr t v VarName b]
                -> (forall n. SNat n -> [UntypedExpr t (v :+: n) VarName b] -> AN (UntypedExpr t (v :+: n) VarName b))

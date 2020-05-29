@@ -16,7 +16,7 @@
  * and give clearer error messages.
  *)
 theory Cogent_Corres_Sanity_Check imports
-  "../cogent/isa/Cogent"
+  "Cogent.Cogent"
 begin
 
 ML \<open>

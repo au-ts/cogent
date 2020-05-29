@@ -75,9 +75,9 @@ deepTypeProof mod withDecls withBodies thy decls log =
       ta = getTypeAbbrevs mod decls
       imports = if __cogent_fml_typing_tree
                 then
-                  [__cogent_root_dir </> "c-refinement/TypeProofGen",
-                   __cogent_root_dir </> "cogent/isa/AssocLookup"]
-                else [__cogent_root_dir </> "cogent/isa/CogentHelper"]
+                  ["Cogent.TypeProofGen",
+                   "Cogent.AssocLookup"]
+                else ["Cogent.CogentHelper"]
       proofDecls | withDecls  = deepTypeAbbrevs mod ta ++ deepDefinitions mod ta decls
                                 ++ funTypeEnv mod decls ++ funDefEnv decls
                                 ++ funTypeTrees mod ta decls
@@ -167,7 +167,7 @@ flattenHintTree (Branch ths) = StepDown : concatMap flattenHintTree ths ++ [Step
 flattenHintTree (Leaf h) = [Val h]
 
 proveSorry :: (Pretty a) => Definition TypedExpr a VarName -> State TypingSubproofs [TheoryDecl I.Type I.Term]
-proveSorry (FunDef _ fn k ti to e) = do
+proveSorry (FunDef _ fn k _ ti to e) = do
   mod <- use nameMod
   let safeFn = unIsabelleName $ mkIsabelleName fn
   let prf = [ LemmaDecl (Lemma False (Just $ TheoremDecl (Just (mod safeFn ++ "_typecorrect")) [])
@@ -179,7 +179,7 @@ proveSorry _ = return []
 
 prove :: (Pretty a) => [Definition TypedExpr a VarName] -> Definition TypedExpr a VarName
       -> State TypingSubproofs ([TheoryDecl I.Type I.Term], [TheoryDecl I.Type I.Term])
-prove decls (FunDef _ fn k ti to e) = do
+prove decls (FunDef _ fn k _ ti to e) = do
   mod <- use nameMod
   let eexpr = pushDown (Cons (Just ti) Nil) (splitEnv (Cons (Just ti) Nil) e)
   proofSteps' <- proofSteps decls (fmap snd k) ti eexpr
@@ -198,7 +198,7 @@ proofs decls = do
     return $ concat $ bsorry ++ map fst bodies ++ map snd bodies
 
 funTypeTree :: (Pretty a) => NameMod -> TypeAbbrevs -> Definition TypedExpr a VarName -> [TheoryDecl I.Type I.Term]
-funTypeTree mod ta (FunDef _ fn _ ti _ e) = [deepTyTreeDef mod ta fn (typeTree eexpr)]
+funTypeTree mod ta (FunDef _ fn _ _ ti _ e) = [deepTyTreeDef mod ta fn (typeTree eexpr)]
   where eexpr = pushDown (Cons (Just ti) Nil) (splitEnv (Cons (Just ti) Nil) e)
 funTypeTree _ _ _ = []
 
@@ -213,7 +213,7 @@ badHackSplitOnSorryBefore decls =
   then ([], decls)
   else break should_sorry decls
  where
-  should_sorry (FunDef _ fn _ ti _ e) = Just fn == __cogent_type_proof_sorry_before
+  should_sorry (FunDef _ fn _ _ ti _ e) = Just fn == __cogent_type_proof_sorry_before
   should_sorry _ = False
 
 deepTyTreeDef :: NameMod -> TypeAbbrevs -> FunName -> TypingTree t -> TheoryDecl I.Type I.Term
@@ -265,9 +265,9 @@ isaTypeName n =
 isaName = unIsabelleName . mkIsabelleName
 
 funTypeCase :: NameMod -> Definition TypedExpr a VarName -> Maybe Term
-funTypeCase mod (FunDef  _ fn _ _ _ _) =
+funTypeCase mod (FunDef  _ fn _ _ _ _ _) =
   Just $ mkPair (mkId (escapedFunName (isaName fn))) (mkId (mod (isaTypeName fn)))
-funTypeCase mod (AbsDecl _ fn _ _ _  ) =
+funTypeCase mod (AbsDecl _ fn _ _ _ _  ) =
   Just $ mkPair (mkId (escapedFunName (isaName fn))) (mkId (mod (isaTypeName fn)))
 funTypeCase _ _ = Nothing
 
@@ -282,7 +282,7 @@ funTypeEnv' upds = let unit = mkId "([], TUnit, TUnit)"
                                   where "\<Xi> \<equiv> assoc_lookup $upds $unit" |]]
 
 funDefCase :: Definition TypedExpr a VarName -> Maybe Term
-funDefCase (AbsDecl _ fn _ _ _  ) =
+funDefCase (AbsDecl _ fn _ _ _ _  ) =
     Just $ mkPair (mkId $ escapedFunName fn) (mkId "(\\<lambda>_ _. False)")
 funDefCase _ = Nothing
 
@@ -323,11 +323,11 @@ selectEnv ((v,_):vs) env = update (selectEnv vs env) v (env `at` v)
 
 -- Annotates a typed expression with the environment required to successfully execute it
 splitEnv :: (Pretty a) => Vec v (Maybe (Type t VarName)) -> TypedExpr t v a VarName -> EnvExpr t v a VarName
-splitEnv env (TE t Unit)          = EE t Unit          $ cleared env
-splitEnv env (TE t (ILit i t'))   = EE t (ILit i t')   $ cleared env
-splitEnv env (TE t (SLit s))      = EE t (SLit s)      $ cleared env
-splitEnv env (TE t (Fun f ts nt)) = EE t (Fun f ts nt) $ cleared env
-splitEnv env (TE t (Variable v))  = EE t (Variable v)  $ singleton (fst v) env
+splitEnv env (TE t Unit)             = EE t Unit          $ cleared env
+splitEnv env (TE t (ILit i t'))      = EE t (ILit i t')   $ cleared env
+splitEnv env (TE t (SLit s))         = EE t (SLit s)      $ cleared env
+splitEnv env (TE t (Fun f ts ls nt)) = EE t (Fun f ts ls nt) $ cleared env  -- FIXME
+splitEnv env (TE t (Variable v))     = EE t (Variable v)  $ singleton (fst v) env
 
 splitEnv env (TE t (Esac e))
     = let e' = splitEnv env e
@@ -407,8 +407,8 @@ splitEnv env (TE t (Case e tag (lt,at,et) (le,ae,ee)))
 
 splitEnv env (TE t (Take a e f e2)) =
     let e' = splitEnv env e
-        TRecord ts s = typeOf e'
-        e2' = splitEnv (Cons (Just $ recType (ts!!f)) (Cons (Just $ TRecord (setAt ts f (fst (ts!!f), (recType (ts!!f), True))) s) env)) e2
+        TRecord rp ts s = typeOf e'
+        e2' = splitEnv (Cons (Just $ recType (ts!!f)) (Cons (Just $ TRecord rp (setAt ts f (fst (ts!!f), (recType (ts!!f), True))) s) env)) e2
      in EE t (Take a e' f e2') $ envOf e' <|> peel2 (envOf e2')
 
 
@@ -487,8 +487,8 @@ pushDown unused (EE ty (Member e f) env)
 
 pushDown unused (EE ty (Take a e f e2) env)
     = let e'@(EE rt _ _) = pushDown (unused <\> env) e
-          TRecord ts s = rt
-          e2' = pushDown (Cons (Just $ recType $ ts!!f) (Cons (Just $ TRecord (setAt ts f (fst (ts!!f), (recType $ ts!!f, True))) s) (cleared env))) e2
+          TRecord rp ts s = rt
+          e2' = pushDown (Cons (Just $ recType $ ts!!f) (Cons (Just $ TRecord rp (setAt ts f (fst (ts!!f), (recType $ ts!!f, True))) s) (cleared env))) e2
        in EE ty (Take a e' f e2') $ unused <|> env
 
 pushDown unused (EE ty (Put e1 f e2) env)

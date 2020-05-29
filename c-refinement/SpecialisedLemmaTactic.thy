@@ -11,11 +11,11 @@
  *)
 
 theory SpecialisedLemmaTactic
-imports
-  "Cogent_Corres"
-  "Specialised_Lemma_Utils"
-  "../cogent/isa/CogentHelper"
-  "../cogent/isa/ML_Old"
+  imports
+    "Cogent.CogentHelper"
+    "Cogent.ML_Old"
+    "Cogent_Corres"
+    "Specialised_Lemma_Utils"
 begin
 
 context update_sem_init

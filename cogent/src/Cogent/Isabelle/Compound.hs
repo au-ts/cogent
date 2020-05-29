@@ -110,7 +110,7 @@ expDiscardVar' :: Fin ('Suc v)
                -> Expr t ('Suc v) a b e -> Maybe (Expr t v a b e)
 expDiscardVar' rm0 f e = case e of
   Variable (v, a)        -> Variable <$> ((,) <$> discardVar rm0 v <*> pure a)
-  Fun fn ts notes        -> Fun fn <$> traverse (typDiscardVar $ finNat rm0) ts <*> pure notes
+  Fun fn ts ls notes     -> Fun fn <$> traverse (typDiscardVar $ finNat rm0) ts <*> pure ls <*> pure notes
   Op o ls                -> Op o <$> mapM go ls
   App e1 e2              -> App <$> go e1 <*> go e2
   Con tag e ty           -> Con <$> pure tag <*> go e <*> typDiscardVar (finNat rm0) ty
@@ -159,7 +159,7 @@ typDiscardVar rm0 t = case t of
   TString           -> pure TString
   TSum alts         -> TSum <$> mapM (secondM $ firstM go) alts
   TProduct t1 t2    -> TProduct <$> go t1 <*> go t2
-  TRecord fs s      -> TRecord <$> mapM (secondM $ firstM go) fs <*> pure s
+  TRecord rp fs s   -> TRecord rp <$> mapM (secondM $ firstM go) fs <*> pure s
   TUnit             -> pure TUnit
 #ifdef BUILTIN_ARRAYS
   TArray t l s mh   -> TArray <$> go t <*> pure l <*> pure s <*> mapM (lexpDiscardVar rm0) mh
@@ -170,7 +170,7 @@ typDiscardVar rm0 t = case t of
 lexpDiscardVar :: Nat -> LExpr t b -> Maybe (LExpr t b)
 lexpDiscardVar rm0 = \case
   LVariable (v, a)     -> LVariable <$> ((,) <$> discardVar' rm0 v <*> pure a)
-  LFun fn ts           -> pure $ LFun fn ts
+  LFun fn ts ls        -> pure $ LFun fn ts ls
   LOp o ls             -> LOp o <$> mapM go ls
   LApp e1 e2           -> LApp <$> go e1 <*> go e2
   LCon tag e ty        -> LCon <$> pure tag <*> go e <*> pure ty

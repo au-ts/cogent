@@ -17,7 +17,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
---{-# LANGUAGE ImpredicativeTypes #-}
+--{-# LANGUAGE ImpredicativeTypes #-B
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
@@ -88,41 +88,41 @@ import           Lens.Micro                   hiding (at)
 import           Lens.Micro.Mtl               hiding (assign)
 import           Lens.Micro.TH
 import           Control.Monad.Identity (runIdentity)
--- import Debug.Trace
+import Debug.Trace
 import Unsafe.Coerce (unsafeCoerce)
 
 
 -- * Type generation
 
-genTyDecl :: (StrlType, CId) -> [TypeName] -> [CExtDecl]
-genTyDecl (Record x, n) _ = [CDecl $ CStructDecl n (map (second Just . swap) x), genTySynDecl (n, CStruct n)]
+genTyDecl :: (StrlType, CId) -> [TypeName] -> ([CExtDecl], [CExtDecl])
+genTyDecl (Record x, n) _ = ([CDecl $ CStructDecl n (map (second Just . swap) x)], [genTySynDecl (n, CStruct n)])
 genTyDecl (RecordL layout, n) _ =
   let size      = dataLayoutSizeInWords layout
       arrayType = CArray (CInt False CIntT) (CArraySize $ CConst $ CNumConst size (CInt False CIntT) DEC)
   in
     if size == 0
-      then []
-      else [CDecl $ CStructDecl n [(arrayType, Just "data")], genTySynDecl (n, CStruct n)]
-genTyDecl (Product t1 t2, n) _ = [CDecl $ CStructDecl n [(t1, Just p1), (t2, Just p2)]]
+      then ([],[])
+      else ([CDecl $ CStructDecl n [(arrayType, Just "data")]], [genTySynDecl (n, CStruct n)])
+genTyDecl (Product t1 t2, n) _ = ([CDecl $ CStructDecl n [(t1, Just p1), (t2, Just p2)]], [])
 genTyDecl (Variant x, n) _ = case __cogent_funion_for_variants of
-  False -> [CDecl $ CStructDecl n ((CIdent tagsT, Just fieldTag) : map (second Just . swap) (M.toList x)),
-            genTySynDecl (n, CStruct n)]
-  True  -> [CDecl $ CStructDecl n [(CIdent tagsT, Just fieldTag), (CUnion Nothing $ Just (map swap (M.toList x)), Nothing)],
-            genTySynDecl (n, CStruct n)]
+  False -> ([CDecl $ CStructDecl n ((CIdent tagsT, Just fieldTag) : map (second Just . swap) (M.toList x))],
+            [genTySynDecl (n, CStruct n)])
+  True  -> ([CDecl $ CStructDecl n [(CIdent tagsT, Just fieldTag), (CUnion Nothing $ Just (map swap (M.toList x)), Nothing)]],
+            [genTySynDecl (n, CStruct n)])
 genTyDecl (Function t1 t2, n) tns =
-  if n `elem` tns then []
-                  else [CDecl $ CTypeDecl (CIdent fty) [n]]
+  if n `elem` tns then ([],[])
+                  else ([], [CDecl $ CTypeDecl (CIdent fty) [n]])
   where fty = if __cogent_funtyped_func_enum then untypedFuncEnum else unitT
 #ifdef BUILTIN_ARRAYS
-genTyDecl (Array t, n) _ = [CDecl $ CVarDecl t n True Nothing]
+genTyDecl (Array t, n) _ = ([CDecl $ CVarDecl t n True Nothing], [])
 genTyDecl (ArrayL layout, n) _ =
   let elemSize = dataLayoutSizeInWords layout
       dataType = CPtr $ CInt False CIntT
    in if elemSize == 0
-         then []
-         else [genTySynDecl (n, dataType)]
+         then ([],[])
+         else ([], [genTySynDecl (n, dataType)])
 #endif
-genTyDecl (AbsType x, n) _ = [CMacro $ "#include <abstract/" ++ x ++ ".h>"]
+genTyDecl (AbsType x, n) _ = ([CMacro $ "#include <abstract/" ++ x ++ ".h>"], [])
 
 genTySynDecl :: (TypeName, CType) -> CExtDecl
 genTySynDecl (n,t) = CDecl $ CTypeDecl t [n]
@@ -130,14 +130,24 @@ genTySynDecl (n,t) = CDecl $ CTypeDecl t [n]
 lookupStrlTypeCId :: StrlType -> Gen v (Maybe CId)
 lookupStrlTypeCId st = M.lookup st <$> use cTypeDefMap
 
+genNewCId :: CId -> StrlType -> Gen v CId
+genNewCId t st = do 
+  cTypeDefs %= ((st,t):)  -- NOTE: add a new entry at the front
+  cTypeDefMap %= M.insert st t
+  return t
+
 -- Lookup a structure and return its name, or create a new entry.
 getStrlTypeCId :: StrlType -> Gen v CId
 getStrlTypeCId st = do lookupStrlTypeCId st >>= \case
-                         Nothing -> do t <- freshGlobalCId 't'
-                                       cTypeDefs %= ((st,t):)  -- NOTE: add a new entry at the front
-                                       cTypeDefMap %= M.insert st t
-                                       return t
+                         Nothing -> do
+                           t <- freshGlobalCId 't'
+                           genNewCId t st
                          Just t  -> return t
+
+getStrlTypeWithCId :: CId -> StrlType -> Gen v CId
+getStrlTypeWithCId t st = do lookupStrlTypeCId st >>= \case
+                                Nothing -> genNewCId t st
+                                Just t  -> return t
 
 {-# RULES
 "monad-left-id" [~] forall x k. return x >>= k = k x
@@ -165,14 +175,14 @@ lookupTypeCId (TProduct t1 t2) =
     Record <$> (P.zip [p1,p2] <$> mapM (Compose . lookupType) [t1,t2]))
 lookupTypeCId (TSum fs) = getCompose (Compose . lookupStrlTypeCId =<< Variant . M.fromList <$> mapM (secondM (Compose . lookupType) . second fst) fs)
 lookupTypeCId (TFun t1 t2) = getCompose (Compose . lookupStrlTypeCId =<< Function <$> (Compose . lookupType) t1 <*> (Compose . lookupType) t2)  -- Use the enum type for function dispatching
-lookupTypeCId (TRecord fs Unboxed) =
+lookupTypeCId (TRecord _ fs Unboxed) =
   getCompose (Compose . lookupStrlTypeCId =<<
     Record <$> (mapM (\(a,(b,_)) -> (a,) <$> (Compose . lookupType) b) fs))
-lookupTypeCId (TRecord _  (Boxed _ l@(Layout RecordLayout {}))) = lookupStrlTypeCId (RecordL l)
-lookupTypeCId (TRecord fs (Boxed _ CLayout)) =
+lookupTypeCId (TRecord _ _  (Boxed _ l@(Layout RecordLayout {}))) = lookupStrlTypeCId (RecordL l)
+lookupTypeCId (TRecord _ fs (Boxed _ CLayout)) =
   getCompose (Compose . lookupStrlTypeCId =<<
     Record <$> (mapM (\(a,(b,_)) -> (a,) <$> (Compose . lookupType) b) fs))
-lookupTypeCId cogentType@(TRecord _ (Boxed _ _)) = __impossible "lookupTypeCId: record with non-record layout"
+lookupTypeCId cogentType@(TRecord _ _ (Boxed _ _)) = __impossible "lookupTypeCId: record with non-record layout"
 #ifdef BUILTIN_ARRAYS
 lookupTypeCId (TArray t n Unboxed _) = getCompose (Compose . lookupStrlTypeCId =<< Array <$> (Compose . lookupType) t)
 lookupTypeCId (TArray t n (Boxed _ l) _) = lookupStrlTypeCId (ArrayL l)
@@ -226,12 +236,50 @@ typeCId t = use custTypeGen >>= \ctg ->
     typeCId' (TProduct t1 t2) = getStrlTypeCId =<< Record <$> (P.zip [p1,p2] <$> mapM genType [t1,t2])
     typeCId' (TSum fs) = getStrlTypeCId =<< Variant . M.fromList <$> mapM (secondM genType . second fst) fs
     typeCId' (TFun t1 t2) = getStrlTypeCId =<< Function <$> genType t1 <*> genType t2  -- Use the enum type for function dispatching
-    typeCId' (TRecord fs Unboxed) = getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
-    typeCId' (TRecord fs (Boxed _ l)) =
+    typeCId' (TRecord NonRec fs Unboxed) = getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
+    typeCId' (TRecord NonRec fs (Boxed _ l)) =
       case l of
         Layout RecordLayout {} -> getStrlTypeCId (RecordL l)
         CLayout -> getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
         _ -> __impossible "Tried to get the c-type of a record with a non-record layout"
+    typeCId' (TRecord (Rec v) fs (Boxed _ l)) =
+      case l of
+        Layout RecordLayout {} ->
+          getStrlTypeCId (RecordL l)
+        CLayout -> do
+          -- Map a in-scope recursive parameter back to the ID of the 
+          -- Record we're about to generate
+          newId <- freshGlobalCId 't'
+          recParRecordIds %= M.insert v newId
+          strlType <- Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
+          res      <- lookupStrlTypeCId strlType
+          recParRecordIds %= M.delete v
+          case res of
+            Nothing -> do
+              getStrlTypeWithCId newId strlType
+            Just x ->  do 
+              -- HACK
+              globalOracle -= 1
+              return x
+    typeCId' t@(TRPar v (Just m)) = do
+      recId <- M.lookup (simplifyType $ m M.! v) <$> use recParCIds
+      case recId of 
+        Nothing -> do
+          Just res <- M.lookup v <$> use recParRecordIds
+          recParCIds %= M.insert (simplifyType $ m M.! v) res
+          return res 
+        Just x ->
+          return x
+    typeCId' t@(TRParBang v (Just m)) = do
+      recId <- M.lookup (simplifyType $ m M.! v) <$> use recParCIds
+      case recId of 
+        Nothing -> do
+          Just res <- M.lookup v <$> use recParRecordIds
+          recParCIds %= M.insert (simplifyType $ m M.! v) res
+          return res 
+        Just x -> 
+          return x
+
     typeCId' (TUnit) = return unitT
 #ifdef BUILTIN_ARRAYS
     typeCId' (TArray t l Unboxed _) = getStrlTypeCId =<< Array <$> genType t
@@ -250,7 +298,7 @@ typeCId t = use custTypeGen >>= \ctg ->
         _      -> collFields f t
       getStrlTypeCId $ Record (concat fss)
     -- typeCIdFlat (TSum fs) = __todo  -- Don't flatten variants for now. It's not clear how to incorporate with --funion-for-variants
-    typeCIdFlat (TRecord fs Unboxed) = do
+    typeCIdFlat (TRecord _ fs Unboxed) = do
       let (fns,ts) = P.unzip $ P.map (second fst) fs
       ts' <- mapM genType ts
       fss <- forM (P.zip3 fns ts ts') $ \(f,t,t') -> case t' of
@@ -261,7 +309,7 @@ typeCId t = use custTypeGen >>= \ctg ->
 
     collFields :: FieldName -> CC.Type 'Zero VarName -> Gen v [(CId, CType)]
     collFields fn (TProduct t1 t2) = concat <$> zipWithM collFields (P.map ((fn ++ "_") ++) [p1,p2]) [t1,t2]
-    collFields fn (TRecord fs _) = let (fns,ts) = P.unzip (P.map (second fst) fs) in concat <$> zipWithM collFields (P.map ((fn ++ "_") ++) fns) ts
+    collFields fn (TRecord _ fs _) = let (fns,ts) = P.unzip (P.map (second fst) fs) in concat <$> zipWithM collFields (P.map ((fn ++ "_") ++) fns) ts
     collFields fn t = (:[]) . (fn,) <$> genType t
 
     isUnstable :: CC.Type 'Zero VarName -> Bool
@@ -285,11 +333,13 @@ absTypeCId _ = __impossible "absTypeCId"
 
 -- Returns the right C type
 genType :: CC.Type 'Zero VarName -> Gen v CType
-genType t@(TRecord _ s)  | s /= Unboxed = CPtr . CIdent <$> typeCId t
+genType t@(TRecord _ _ s)  | s /= Unboxed = CPtr . CIdent <$> typeCId t
   -- c.f. genTypeA
   -- This puts the pointer around boxed cogent-types
 genType t@(TString)                     = CPtr . CIdent <$> typeCId t
 genType t@(TCon _ _ s)   | s /= Unboxed = CPtr . CIdent <$> typeCId t
+genType t@(TRPar _ _)                   = CPtr . CIdent <$> typeCId t
+genType t@(TRParBang _ _)               = CPtr . CIdent <$> typeCId t
 #ifdef BUILTIN_ARRAYS
 genType t@(TArray elt l s _)
   | (Boxed _ CLayout) <- s = CPtr <$> genType elt  -- If it's heap-allocated without layout specified
@@ -305,14 +355,18 @@ simplifyType :: CC.Type 'Zero VarName -> CC.Type 'Zero VarName
 simplifyType (TArray elt _ (Boxed rw (Layout (ArrayLayout l))) _) =
     TArray elt (LILit 0 U32) (Boxed rw (Layout (ArrayLayout l))) Nothing
 #endif
+-- In the C code, we don't care whether records are readonly or not (at least for recursive types). Thus, we only generate one type of record /emmetm
+simplifyType (TRecord rp fs s) =
+    TRecord rp fs (Boxed False CLayout)
 simplifyType x = x
+
 
 -- The following two functions have different behaviours than the `genType' function
 -- in certain scenarios
 
 -- Used when generating a type for an argument to a function
 genTypeA :: CC.Type 'Zero VarName -> Gen v CType
-genTypeA t@(TRecord _ Unboxed) | __cogent_funboxed_arg_by_ref = CPtr . CIdent <$> typeCId t  -- TODO: sizeof
+genTypeA t@(TRecord _ _ Unboxed) | __cogent_funboxed_arg_by_ref = CPtr . CIdent <$> typeCId t  -- TODO: sizeof
 genTypeA t = genType t
 
 -- It will generate a pointer type for an array, instead of the static-sized array type
@@ -325,7 +379,7 @@ genTypeP t = genType t
 
 -- TODO(dagent): this seems wrong with respect to Dargent
 lookupType :: CC.Type 'Zero VarName -> Gen v (Maybe CType)
-lookupType t@(TRecord _ s)    | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
+lookupType t@(TRecord _ _ s)  | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
 lookupType t@(TString)                       = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
 lookupType t@(TCon _ _ s)     | s /= Unboxed = getCompose (CPtr . CIdent <$> Compose (lookupTypeCId t))
 #ifdef BUILTIN_ARRAYS
@@ -341,8 +395,8 @@ lookupType t                                 = getCompose (       CIdent <$> Com
 
 genLExpr :: CC.LExpr 'Zero VarName -> Gen v CExpr
 genLExpr (LVariable var        ) = __todo "genLExpr"
-genLExpr (LFun      fn []      ) = __todo "genLExpr"
-genLExpr (LFun      fn tys     ) = __todo "genLExpr"
+genLExpr (LFun      fn [] ls   ) = __todo "genLExpr"
+genLExpr (LFun      fn ts ls   ) = __todo "genLExpr"
 genLExpr (LOp       opr es     ) = genOp opr (CC.TPrim U32) <$> mapM genLExpr es  -- FIXME: we assume it's U32 for now / zilinc
 genLExpr (LApp      e1 e2      ) = __todo "genLExpr"
 genLExpr (LCon      tag e t    ) = __todo "genLExpr"

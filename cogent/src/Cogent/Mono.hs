@@ -34,10 +34,12 @@ import Cogent.Compiler (__impossible, __todo)
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Core
+import Cogent.Dargent.Allocation
+import Cogent.Dargent.Core
 import Cogent.Inference
 import Cogent.Util (Warning, first3, second3, third3, flip3)
 import Data.Fin
-import Data.Nat (Nat(..), SNat(..))
+import Data.Nat (Nat(..), SNat(..), natToInt)
 import Data.Vec as Vec hiding (head)
 
 import Control.Applicative
@@ -50,30 +52,31 @@ import Data.Maybe (catMaybes, fromJust, fromMaybe)
 import Data.Set as S
 import Prelude as P
 
--- import Debug.Trace
+import Debug.Trace
 
 
-type Instance b = [Type 'Zero b]
+type Instance b = ([Type 'Zero b], [DataLayout BitRange])
 
 -- The list of Definitions is pre-ordered, which means that we only need to visit each definition exactly once.
 -- Traversal has to start from the roots of the call trees to collect instances.
 
-type FunMono  b = M.Map FunName  (M.Map (Instance b) Int)  -- [] can never be an element in the map. mono-function should have M.empty
-type TypeMono b = M.Map TypeName (S.Set (Instance b))      -- as above
+type FunMono  b = M.Map FunName  (M.Map (Instance b) Int)  -- ([], []) can never be an element in the map. mono-function should have M.empty
+type InstMono b = M.Map TypeName (S.Set (Instance b))      -- as above
+                  --  ^^^ NOTE: do we really need data layouts in instance now?
 
 newtype Mono b x = Mono { runMono :: RWS (Instance b)
                                          ([Warning], [Definition TypedExpr VarName b], [(Type 'Zero b, String)])
-                                         (FunMono b, TypeMono b)
+                                         (FunMono b, InstMono b)
                                          x }
                  deriving (Functor, Applicative, Monad,
                            MonadReader (Instance b),
                            MonadWriter ([Warning], [Definition TypedExpr VarName b], [(Type 'Zero b, String)]),
-                           MonadState  (FunMono b, TypeMono b))
+                           MonadState  (FunMono b, InstMono b))
 
 -- Returns: (monomorphic abstract functions, poly-abs-funcs)
 absFuns :: [Definition TypedExpr VarName b] -> ([FunName], [FunName])
 absFuns = (P.map getDefinitionId *** P.map getDefinitionId)
-        . L.partition (\(AbsDecl _ _ ts _ _) -> case Vec.length ts of SZero -> True; _ -> False)
+        . L.partition (\(AbsDecl _ _ ts _ _ _) -> case Vec.length ts of SZero -> True; _ -> False)
         . P.filter isAbsDecl
   where isAbsDecl (AbsDecl {}) = True; isAbsDecl _ = False
 
@@ -94,10 +97,10 @@ printAFM = ((unlines . P.map (\(n,i) -> n ++ ", " ++ show i) . M.toList) .) . ab
 mono :: forall b. (Ord b)
      => [Definition TypedExpr VarName b]
      -> [(SupposedlyMonoType b, String)]
-     -> Maybe (FunMono b, TypeMono b)
-     -> ((FunMono b, TypeMono b), ([Warning], [Definition TypedExpr VarName b], [(Type 'Zero b, String)]))
-mono ds ctygen initmap = (second . second3 $ reverse) . flip3 execRWS initmap' [] . runMono $ monoDefinitions (reverse ds) >> monoCustTyGen ctygen
-  where initmap' :: (FunMono b, TypeMono b)  -- a map consists of all function names, each of which has no instances
+     -> Maybe (FunMono b, InstMono b)
+     -> ((FunMono b, InstMono b), ([Warning], [Definition TypedExpr VarName b], [(Type 'Zero b, String)]))
+mono ds ctygen initmap = (second . second3 $ reverse) . flip3 execRWS initmap' ([], []) . runMono $ monoDefinitions (reverse ds) >> monoCustTyGen ctygen
+  where initmap' :: (FunMono b, InstMono b)  -- a map consists of all function names, each of which has no instances
         initmap' = fromMaybe ( M.fromList $ P.zip (catMaybes $ P.map getFuncId ds) (P.repeat M.empty)  -- [] can never appear in the map
                              , M.empty ) initmap
 
@@ -130,8 +133,8 @@ monoDefinition d =
 -- given instances, instantiate a function
 monoDefinitionInsts :: (Ord b) => Definition TypedExpr VarName b -> [Instance b] -> Mono b ()
 monoDefinitionInsts d [] =
-  if getTypeVarNum d == 0
-    then monoDefinitionInst d []  -- monomorphic function
+  if getTypeVarNum d == 0 && getLayoutVarNum d == 0
+    then monoDefinitionInst d ([], [])  -- monomorphic function
     else -- has type variables but no instances are given, so there's just no way to monomorphise it
          censor (first3 $ (("Cannot monomorphise definition `" ++ getDefinitionId d ++ "'") :)) (return ())  -- shouldn't happen if __cogent_entry_funcs /= Nothing
 monoDefinitionInsts d is = flip mapM_ is $ monoDefinitionInst d
@@ -142,13 +145,13 @@ monoName n (Just i) = unCoreFunName n ++ "_" ++ show i
 
 -- given one instance
 monoDefinitionInst :: (Ord b) => Definition TypedExpr VarName b -> Instance b -> Mono b ()
-monoDefinitionInst (FunDef attr fn tvs t rt e) i = do
-  idx <- if P.null i then return Nothing else M.lookup i . fromJust . M.lookup fn . fst <$> get
-  d' <- Mono $ local (const i) (runMono $ FunDef attr (monoName (unsafeCoreFunName fn) idx) Nil <$> monoType t <*> monoType rt <*> monoExpr e)
+monoDefinitionInst (FunDef attr fn tvs lvs t rt e) i = do
+  idx <- if i == ([], []) then return Nothing else M.lookup i . fromJust . M.lookup fn . fst <$> get
+  d' <- Mono $ local (const i) (runMono $ FunDef attr (monoName (unsafeCoreFunName fn) idx) Nil Nil <$> monoType t <*> monoType rt <*> monoExpr e)
   censor (second3 $ (d':)) (return ())
-monoDefinitionInst (AbsDecl attr fn tvs t rt) i = do
-  idx <- if P.null i then return Nothing else M.lookup i . fromJust . M.lookup fn . fst <$> get
-  d' <- Mono $ local (const i) (runMono $ AbsDecl attr (monoName (unsafeCoreFunName fn) idx) Nil <$> monoType t <*> monoType rt)
+monoDefinitionInst (AbsDecl attr fn tvs lvs t rt) i = do
+  idx <- if i == ([], []) then return Nothing else M.lookup i . fromJust . M.lookup fn . fst <$> get
+  d' <- Mono $ local (const i) (runMono $ AbsDecl attr (monoName (unsafeCoreFunName fn) idx) Nil Nil <$> monoType t <*> monoType rt)
   censor (second3 $ (d':)) (return ())
 monoDefinitionInst (TypeDef tn tvs t) i = __impossible "monoDefinitionInst"
 
@@ -159,31 +162,32 @@ getPrimInt (TE t _) | TPrim p <- t = p
 monoExpr :: (Ord b) => TypedExpr t v VarName b -> Mono b (TypedExpr 'Zero v VarName b)
 monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
   where
-    monoExpr' (Variable var       ) = pure $ Variable var
-    monoExpr' (Fun      fn []  nt ) = modify (first $ M.insert (unCoreFunName fn) M.empty) >> return (Fun fn [] nt)
-    monoExpr' (Fun      fn tys nt ) = do
-      tys' <- mapM monoType tys
-      modify (first $ M.insertWith (\_ m -> insertWith (flip const) tys' (M.size m) m) (unCoreFunName fn) (M.singleton tys' 0))  -- add one more instance to the env
-      idx <- M.lookup tys' . fromJust . M.lookup (unCoreFunName fn) . fst <$> get
-      return $ Fun (unsafeCoreFunName $ monoName fn idx) [] nt  -- used to be tys'
-    monoExpr' (Op      opr es     ) = Op opr <$> mapM monoExpr es
-    monoExpr' (App     e1 e2      ) = App <$> monoExpr e1 <*> monoExpr e2
-    monoExpr' (Con     tag e t    ) = Con tag <$> monoExpr e <*> monoType t
-    monoExpr' (Unit               ) = pure Unit
-    monoExpr' (ILit    n   pt     ) = pure $ ILit n pt
-    monoExpr' (SLit    s          ) = pure $ SLit s
+    monoExpr' (Variable var        ) = pure $ Variable var
+    monoExpr' (Fun      fn [] [] nt) = modify (first $ M.insert (unCoreFunName fn) M.empty) >> return (Fun fn [] [] nt)
+    monoExpr' (Fun      fn ts ls nt) = do
+      ts' <- mapM monoType ts
+      ls' <- mapM monoLayout ls
+      modify (first $ M.insertWith (\_ m -> insertWith (flip const) (ts', ls') (M.size m) m) (unCoreFunName fn) (M.singleton (ts', ls') 0))  -- add one more instance to the env
+      idx <- M.lookup (ts', ls') . fromJust . M.lookup (unCoreFunName fn) . fst <$> get
+      return $ Fun (unsafeCoreFunName $ monoName fn idx) [] [] nt
+    monoExpr' (Op      opr es      ) = Op opr <$> mapM monoExpr es
+    monoExpr' (App     e1 e2       ) = App <$> monoExpr e1 <*> monoExpr e2
+    monoExpr' (Con     tag e t     ) = Con tag <$> monoExpr e <*> monoType t
+    monoExpr' (Unit                ) = pure Unit
+    monoExpr' (ILit    n   pt      ) = pure $ ILit n pt
+    monoExpr' (SLit    s           ) = pure $ SLit s
 #ifdef BUILTIN_ARRAYS
-    monoExpr' (ALit    es         ) = ALit <$> mapM monoExpr es
-    monoExpr' (ArrayIndex e i     ) = ArrayIndex <$> monoExpr e <*> monoExpr i
+    monoExpr' (ALit    es          ) = ALit <$> mapM monoExpr es
+    monoExpr' (ArrayIndex e i      ) = ArrayIndex <$> monoExpr e <*> monoExpr i
     monoExpr' (ArrayMap2 (as,f) (e1,e2)) = do
       f'  <- monoExpr f
       e1' <- monoExpr e1
       e2' <- monoExpr e2
       return $ ArrayMap2 (as,f') (e1',e2')
-    monoExpr' (Pop     a e1 e2    ) = Pop a <$> monoExpr e1 <*> monoExpr e2
-    monoExpr' (Singleton e        ) = Singleton <$> monoExpr e
-    monoExpr' (ArrayPut arr i e   ) = ArrayPut <$> monoExpr arr <*> monoExpr i <*> monoExpr e
-    monoExpr' (ArrayTake a arr i e) = ArrayTake a <$> monoExpr arr <*> monoExpr i <*> monoExpr e
+    monoExpr' (Pop     a e1 e2     ) = Pop a <$> monoExpr e1 <*> monoExpr e2
+    monoExpr' (Singleton e         ) = Singleton <$> monoExpr e
+    monoExpr' (ArrayPut arr i e    ) = ArrayPut <$> monoExpr arr <*> monoExpr i <*> monoExpr e
+    monoExpr' (ArrayTake a arr i e ) = ArrayTake a <$> monoExpr arr <*> monoExpr i <*> monoExpr e
 #endif
     monoExpr' (Let     a e1 e2    ) = Let a <$> monoExpr e1 <*> monoExpr e2
     monoExpr' (LetBang vs a e1 e2 ) = LetBang vs a <$> monoExpr e1 <*> monoExpr e2
@@ -200,16 +204,16 @@ monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
     monoExpr' (Cast    ty e       ) = Cast <$> monoType ty <*> monoExpr e
 
 monoType :: (Ord b) => Type t b -> Mono b (Type 'Zero b)
-monoType (TVar v) = atList <$> ask <*> pure v
-monoType (TVarBang v) = bang <$> (atList <$> ask <*> pure v)
-monoType (TVarUnboxed v) = unbox <$> (atList <$> ask <*> pure v)
+monoType (TVar v) = atList <$> (fmap fst ask) <*> pure v
+monoType (TVarBang v) = bang <$> (atList <$> (fmap fst ask) <*> pure v)
+monoType (TVarUnboxed v) = unbox <$> (atList <$> (fmap fst ask) <*> pure v)
 monoType (TCon n [] s) = do
   modify . second $ M.insert n S.empty
   return $ TCon n [] s
 monoType (TCon n ts s) = do
   ts' <- mapM monoType ts
-  let f Nothing   = Just $ S.singleton ts'   -- If n is not in the set
-      f (Just is) = Just $ S.insert ts' is   -- Otherwise
+  let f Nothing   = Just $ S.singleton (ts', [])   -- If n is not in the set
+      f (Just is) = Just $ S.insert (ts', []) is   -- Otherwise
   modify . second $ M.alter f n
   return $ TCon n ts' s
 monoType (TFun t1 t2) = TFun <$> monoType t1 <*> monoType t2
@@ -220,21 +224,59 @@ monoType (TSum alts) = do
   ts' <- mapM monoType ts
   return $ TSum $ P.zip ns $ P.zip ts' bs
 monoType (TProduct t1 t2) = TProduct <$> monoType t1 <*> monoType t2
-monoType (TRecord fs s) = TRecord <$> mapM (\(f,(t,b)) -> (f,) <$> (,b) <$> monoType t) fs <*> pure s
+monoType (TRecord rp fs s) = TRecord rp <$> mapM (\(f,(t,b)) -> (f,) <$> (,b) <$> monoType t) fs <*> monoSigil s
 monoType (TUnit) = pure TUnit
+monoType (TRPar v m) =  do
+  m' <- mapM (mapM monoType) m
+  return $ TRPar v m'
+monoType (TRParBang v m) =  do
+  m' <- mapM (mapM monoType) m
+  return $ TRParBang v m'
 #ifdef BUILTIN_ARRAYS
-monoType (TArray t l s mhole) = TArray <$> monoType t <*> monoLExpr l <*> pure s <*> mapM monoLExpr mhole
+monoType (TArray t l s mhole) = TArray <$> monoType t <*> monoLExpr l <*> monoSigil s <*> mapM monoLExpr mhole
 #endif
 
+monoLayout :: (Ord b) => DataLayout BitRange -> Mono b (DataLayout BitRange)
+monoLayout CLayout = pure CLayout
+monoLayout (Layout l) = Layout <$> monoLayout' l
+  where
+    monoLayout' :: DataLayout' BitRange -> Mono b (DataLayout' BitRange)
+    monoLayout' (VarLayout n) = do
+      rs <- (!!) <$> (fmap snd ask) <*> pure (natToInt n)
+      case rs of
+        Layout l -> pure l
+        CLayout -> __impossible "monoLayout: CLayout shouldn't be in the list of instances"
+    monoLayout' (SumLayout tag alts) = do
+      let altl = M.toList alts
+          fns = fmap fst altl
+          fis = fmap fst $ fmap snd altl
+          fes = fmap snd $ fmap snd altl
+      fes' <- mapM monoLayout' fes
+      SumLayout <$> pure tag <*> pure (M.fromList $ P.zip fns $ P.zip fis fes')
+    monoLayout' (RecordLayout fs) = do
+      let fsl = M.toList fs
+          fns = fmap fst fsl
+          fes = fmap snd fsl
+      fes' <- mapM monoLayout' fes
+      RecordLayout <$> pure (M.fromList $ P.zip fns fes')
+#ifdef BUILTIN_ARRAYS
+    monoLayout' (ArrayLayout e) = ArrayLayout <$> monoLayout' e
+#endif
+    monoLayout' l = pure l
+
+monoSigil :: (Ord b) => Sigil (DataLayout BitRange) -> Mono b (Sigil (DataLayout BitRange))
+monoSigil (Boxed b l) = Boxed b <$> monoLayout l
+monoSigil Unboxed     = pure Unboxed
 
 monoLExpr :: (Ord b) => LExpr t b -> Mono b (LExpr 'Zero b)
 monoLExpr (LVariable var       ) = pure $ LVariable var
-monoLExpr (LFun      fn []     ) = modify (first $ M.insert (unCoreFunName fn) M.empty) >> return (LFun fn [])
-monoLExpr (LFun      fn tys    ) = do
-  tys' <- mapM monoType tys
-  modify (first $ M.insertWith (\_ m -> insertWith (flip const) tys' (M.size m) m) (unCoreFunName fn) (M.singleton tys' 0))  -- add one more instance to the env
-  idx <- M.lookup tys' . fromJust . M.lookup (unCoreFunName fn) . fst <$> get
-  return $ LFun (unsafeCoreFunName $ monoName fn idx) []  -- used to be tys'
+monoLExpr (LFun      fn [] []  ) = modify (first $ M.insert (unCoreFunName fn) M.empty) >> return (LFun fn [] [])
+monoLExpr (LFun      fn ts ls  ) = do
+  ts' <- mapM monoType ts
+  ls' <- mapM monoLayout ls
+  modify (first $ M.insertWith (\_ m -> insertWith (flip const) (ts', ls') (M.size m) m) (unCoreFunName fn) (M.singleton (ts', ls') 0))  -- add one more instance to the env
+  idx <- M.lookup (ts', ls') . fromJust . M.lookup (unCoreFunName fn) . fst <$> get
+  return $ LFun (unsafeCoreFunName $ monoName fn idx) [] []
 monoLExpr (LOp      opr es     ) = LOp opr <$> mapM monoLExpr es
 monoLExpr (LApp     e1 e2      ) = LApp <$> monoLExpr e1 <*> monoLExpr e2
 monoLExpr (LCon     tag e t    ) = LCon tag <$> monoLExpr e <*> monoType t

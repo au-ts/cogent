@@ -21,7 +21,6 @@ import Minigent.TC.Normalise
 import Minigent.TC.Simplify
 import Minigent.TC.Unify
 import Minigent.TC.Equate
-import Minigent.TC.JoinMeet
 import Minigent.TC.SinkFloat
 import Minigent.TC.Assign
 import Minigent.Fresh
@@ -31,6 +30,7 @@ import Minigent.Syntax.PrettyPrint
 
 import qualified Minigent.Syntax.Utils.Rewrite as Rewrite
 
+import Control.Applicative
 import Control.Monad.Trans.Maybe
 import Control.Monad.State
 import Control.Monad.Writer
@@ -40,7 +40,7 @@ import Debug.Trace
 
 -- | A monad that combines writer effects for accumulating assignments to
 --   unification variables, and fresh variables.
-newtype Solver a = Solver (WriterT [Assign] (Fresh VarName) a)
+newtype Solver a = Solver (WriterT [Assign] (FreshT VarName IO) a)
         deriving ( Monad, Applicative, Functor
                  , MonadFresh VarName, MonadWriter [Assign]
                  )
@@ -64,17 +64,20 @@ solve axs cs = do
     solverRewrites = Rewrite.untilFixedPoint $
       -- Rewrite.debugNewline "SOLV" debugPrettyConstraints <>
       Rewrite.pre normaliseConstraints (
-          -- Rewrite.debugNewline "[simp]" debugPrettyConstraints <>
+          -- debugStr "[simp]" <>
           Rewrite.lift (simplify axs) <>
-          -- Rewrite.debugNewline "[unify]" debugPrettyConstraints <>
+          -- debugStr "[unify]" <>
           unify <>
-          -- Rewrite.debugNewline "[equate]" debugPrettyConstraints <>
+          -- debugStr "[equate]" <>
           Rewrite.lift equate <>
-          -- Rewrite.debugNewline "[sink/float]" debugPrettyConstraints <>
-          sinkFloat <>
-          -- Rewrite.debugNewline "[join/meet]" debugPrettyConstraints <>
-          joinMeet)
+          -- debugStr "[sink/float]" <>
+          sinkFloat)
 
 -- | Run a solver computation.
-runSolver :: Solver a -> Fresh VarName (a,[Assign])
+runSolver :: Solver a -> FreshT VarName IO (a,[Assign])
 runSolver (Solver x) = runWriterT x
+
+debugStr :: String -> Rewrite.Rewrite' Solver a
+debugStr s = Rewrite.Rewrite $ \cs -> do
+  _ <- (lift . Solver . lift . lift . traceIO $ s :: MaybeT Solver ())
+  empty

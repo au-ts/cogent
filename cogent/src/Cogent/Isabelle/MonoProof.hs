@@ -39,7 +39,7 @@ monoProof source funMono log =
   let header = (L.string ("(*\n" ++ log ++ "\n*)\n") L.<$>)
       thy = mkProofName source (Just __cogent_suffix_of_mono_proof)
       imports = TheoryImports
-                  [ __cogent_root_dir </> "cogent/isa/Mono_Tac"
+                  [ "Cogent.Mono_Tac"
                     -- type_proof must be imported before deep_normal
                   , mkProofName source (Just __cogent_suffix_of_type_proof)
                   , mkProofName source (Just $ __cogent_suffix_of_deep ++ __cogent_suffix_of_stage STGNormal)
@@ -108,7 +108,7 @@ rename funMono = [isaDecl| definition $alist_name :: "$sig" where "$(mkId alist_
     mkInst (fn,insts) = let safeName = unIsabelleName $ mkIsabelleName fn
       in  if null insts
             then [([isaTerm| $(mkString safeName) |], [isaTerm| Nil |], [isaTerm| $(mkString safeName) |])]
-            else map (\(tys,num) -> ([isaTerm| $(mkString safeName) |], mkTyList tys, [isaTerm| $(mkString (subscript safeName num)) |])) insts
+            else __fixme $ map (\((tys,_),num) -> ([isaTerm| $(mkString safeName) |], mkTyList tys, [isaTerm| $(mkString (subscript safeName num)) |])) insts  -- FIXME: currently second part of instance (data layouts) is ignored
 
     mkTyList :: (Ord b, Pretty b) => [CC.Type 'Zero b] -> Term
     mkTyList = I.mkList . map (deepType id (empty, 0))
