@@ -1137,13 +1137,15 @@ lemma wellformed_record_update_wellformed':
   by (clarsimp simp add: prod_eq_iff_proj_eq)
 
 
-lemma bang_preserves_wellformed:
-  "type_wellformed n t \<Longrightarrow> type_wellformed n (bang t)"
-  by (induct t rule: type_wellformed.induct) (clarsimp simp add: list.pred_map list_all_iff)+
+lemma bang_preserves_wellformed[simp]:
+  "type_wellformed n (bang t) \<longleftrightarrow> type_wellformed n t"
+  by (induct t rule: type_wellformed.induct)
+    (clarsimp simp add: list.pred_map list_all_iff prod_eq_iff_proj_eq split: prod.splits)+
+
 
 lemma bang_preserves_wellformed_all:
-  "list_all (type_wellformed n) ts \<Longrightarrow> list_all (type_wellformed n) (map bang ts)"
-  by (simp add: bang_preserves_wellformed list_all_length)
+  "list_all (type_wellformed n) (map bang ts) \<longleftrightarrow> list_all (type_wellformed n) ts"
+  by (simp add: list_all_length)
 
 lemma type_wellformed_fstsnd_all_record_nth[dest]:
   assumes
