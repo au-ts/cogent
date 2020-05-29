@@ -210,7 +210,7 @@ lemma map_update_eq_if_indistinguishable:
     "xs ! i = a"
     "i < length xs"
     "f (g (xs ! i)) = f (xs ! i)"
-  shows "map f xs = map f (xs[i := g a])"
+  shows "map f (xs[i := g a]) = map f xs"
   using assms
   by (metis list_update_id map_update)
 
@@ -902,16 +902,6 @@ proof -
   then show ?thesis
     using assms
     by (simp add: tagged_list_update_tag_present)
-qed
-
-lemma tagged_list_update_distinct_strong:
-  assumes "distinct (map fst xs)"
-  shows "(tagged_list_update tag b' xs) = (xs[i := (tag, b')])"
-proof -
-  show ?thesis
-    using assms
-    sledgehammer
-    sorry
 qed
 
 lemma tagged_list_update_same_distinct_is_equal:

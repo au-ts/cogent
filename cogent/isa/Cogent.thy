@@ -14,6 +14,24 @@ theory Cogent
   imports Util
 begin
 
+
+definition pred :: "nat \<Rightarrow> nat" where
+  "pred n \<equiv> (case n of Suc n' \<Rightarrow> n')"
+
+
+lemma Suc_mem_image_pred:
+  "0 \<notin> js \<Longrightarrow> (Suc n \<in> js) = (n \<in> pred ` js)"
+  apply (simp add: image_def pred_def)
+  apply (auto elim: rev_bexI split: nat.split_asm)
+  done
+
+lemma Suc_mem_image_pred_remove:
+  "(n \<in> pred ` Set.remove 0 js) = (Suc n \<in> js)"
+  by (simp add: Suc_mem_image_pred[symmetric])
+
+
+
+
 type_synonym name = string
 
 type_synonym index = nat
@@ -694,12 +712,14 @@ lemmas split_Cons23 = list_all3_Cons23[where P="split_comp K" for K, simplified 
 
 lemmas split_conv_all_nth = list_all3_conv_all_nth[where P="split_comp K" for K, simplified split_def[symmetric]]
 
-definition pred :: "nat \<Rightarrow> nat" where
-  "pred n \<equiv> (case n of Suc n' \<Rightarrow> n')"
-
 inductive split_bang_comp :: "kind env \<Rightarrow> bool \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" ("_ , _ \<turnstile> _ \<leadsto>b _ \<parallel> _" [55,0,0,0,55] 60) where
   none   : "K \<turnstile> x \<leadsto> a \<parallel> b \<Longrightarrow> K , False \<turnstile> x \<leadsto>b a \<parallel> b"
 | dobang : "K \<turnstile> x wellformed \<Longrightarrow> K , True \<turnstile> Some x \<leadsto>b Some (bang x) \<parallel> Some x"
+
+lemma split_bang_comp_simps:
+  "\<And>K x a b. K , False \<turnstile> x \<leadsto>b a \<parallel> b \<longleftrightarrow> K \<turnstile> x \<leadsto> a \<parallel> b"
+  "\<And>K x a b. K , True \<turnstile> x \<leadsto>b a \<parallel> b \<longleftrightarrow> (\<exists>t. K \<turnstile> t wellformed \<and> x = Some t \<and> a = Some (bang t) \<and> b = Some t)"
+  by (force simp add: split_bang_comp.simps)+
 
 inductive split_bang :: "kind env \<Rightarrow> index set \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool"  ("_ , _ \<turnstile> _ \<leadsto>b _ | _" [55,0,0,0,55] 60) where
   split_bang_empty : "K , is \<turnstile> [] \<leadsto>b [] | []"
@@ -707,9 +727,20 @@ inductive split_bang :: "kind env \<Rightarrow> index set \<Rightarrow> ctx \<Ri
                       ; K, (0 \<in> is) \<turnstile> x \<leadsto>b a \<parallel> b
                       \<rbrakk> \<Longrightarrow> K , is \<turnstile> x # xs \<leadsto>b a # as | b # bs"
 
+lemma split_bang_simps:
+  "K , is \<turnstile> [] \<leadsto>b [] | [] \<longleftrightarrow> True"
+  "K , is \<turnstile> x # xs \<leadsto>b [] | [] \<longleftrightarrow> False"
+  "K , is \<turnstile> [] \<leadsto>b a # as | [] \<longleftrightarrow> False"
+  "K , is \<turnstile> [] \<leadsto>b [] | b # bs \<longleftrightarrow> False"
+  "K , is \<turnstile> x # xs \<leadsto>b a # as | [] \<longleftrightarrow> False"
+  "K , is \<turnstile> x # xs \<leadsto>b [] | b # bs \<longleftrightarrow> False"
+  "K , is \<turnstile> [] \<leadsto>b a # as | b # bs \<longleftrightarrow> False"
+  by (fastforce intro: split_bang.intros elim: split_bang.cases)+
+
 lemma split_bang_Cons:
   "K , is \<turnstile> x # xs \<leadsto>b a # as | b # bs \<longleftrightarrow> (K, (0 \<in> is) \<turnstile> x \<leadsto>b a \<parallel> b \<and> K , (pred ` Set.remove (0 :: index) is) \<turnstile> xs \<leadsto>b as | bs)"
   by (auto elim: split_bang.cases intro: split_bang.intros)
+
 
 inductive weakening_comp :: "kind env \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" where
   none : "weakening_comp K None None"
@@ -1093,6 +1124,19 @@ fun type_repr :: "type \<Rightarrow> repr" where
 
 section {* Wellformed lemmas *}
 
+lemma type_wellformed_pretty_simps:
+  "\<And>K i.      (K \<turnstile> TVar i wellformed) \<longleftrightarrow> (i < length K)"
+  "\<And>K i.      (K \<turnstile> TVarBang i wellformed) \<longleftrightarrow> (i < length K)"
+  "\<And>K n ts s. (K \<turnstile> TCon n ts s wellformed) \<longleftrightarrow> K \<turnstile>* ts wellformed"
+  "\<And>K t1 t2.  (K \<turnstile> TFun t1 t2 wellformed) \<longleftrightarrow> (K \<turnstile> t1 wellformed \<and> K \<turnstile> t2 wellformed)"
+  "\<And>K p.      (K \<turnstile> TPrim p wellformed) \<longleftrightarrow> True"
+  "\<And>K ts.     (K \<turnstile> TSum ts wellformed) \<longleftrightarrow> distinct (map fst ts) \<and> (K \<turnstile>* map (fst \<circ> snd) ts wellformed)"
+  "\<And>K t1 t2.  (K \<turnstile> TProduct t1 t2 wellformed) \<longleftrightarrow> (K \<turnstile> t1 wellformed \<and> K \<turnstile> t2 wellformed)"
+  "\<And>K ts s.   (K \<turnstile> TRecord ts s wellformed) \<longleftrightarrow> distinct (map fst ts) \<and> K \<turnstile>* map (fst \<circ> snd) ts wellformed"
+  "\<And>K.        K \<turnstile> TUnit wellformed \<longleftrightarrow> True"
+  by (simp add: list.pred_map comp_def)+
+
+
 lemma wellformed_record_wellformed_elem:
   assumes "K \<turnstile> TRecord ts s wellformed"
     and "(name, t, taken) \<in> set ts"
@@ -1203,17 +1247,13 @@ lemma wellformed_sum_wellformed_nth:
   by (force simp add: list_all_length)
 
 
-lemma type_wellformed_pretty_simps:
-  "\<And>K i.      (K \<turnstile> TVar i wellformed) \<longleftrightarrow> (i < length K)"
-  "\<And>K i.      (K \<turnstile> TVarBang i wellformed) \<longleftrightarrow> (i < length K)"
-  "\<And>K n ts s. (K \<turnstile> TCon n ts s wellformed) \<longleftrightarrow> K \<turnstile>* ts wellformed"
-  "\<And>K t1 t2.  (K \<turnstile> TFun t1 t2 wellformed) \<longleftrightarrow> (K \<turnstile> t1 wellformed \<and> K \<turnstile> t2 wellformed)"
-  "\<And>K p.      (K \<turnstile> TPrim p wellformed) \<longleftrightarrow> True"
-  "\<And>K ts.     (K \<turnstile> TSum ts wellformed) \<longleftrightarrow> distinct (map fst ts) \<and> (K \<turnstile>* map (fst \<circ> snd) ts wellformed)"
-  "\<And>K t1 t2.  (K \<turnstile> TProduct t1 t2 wellformed) \<longleftrightarrow> (K \<turnstile> t1 wellformed \<and> K \<turnstile> t2 wellformed)"
-  "\<And>K ts s.   (K \<turnstile> TRecord ts s wellformed) \<longleftrightarrow> distinct (map fst ts) \<and> K \<turnstile>* map (fst \<circ> snd) ts wellformed"
-  "\<And>K.        K \<turnstile> TUnit wellformed \<longleftrightarrow> True"
-  by (simp add: list.pred_map comp_def)+
+lemma wellformed_record_wellformed_nth_triple:
+  assumes "K \<turnstile> TRecord ts s wellformed"
+    and "i < length ts"
+    and "ts ! i = (a, t, b)"
+  shows "K \<turnstile> t wellformed"
+  using assms wellformed_record_wellformed_nth
+  by (clarsimp simp add: prod_eq_iff_proj_eq list_all_length)
 
 
 section {* Kinding lemmas *}
@@ -2412,17 +2452,7 @@ lemma split_bang_Cons3:
             length \<Gamma>1' = length \<Gamma>2')"
   by (fastforce dest: split_bang_length elim: split_bang.cases intro!: split_bang.intros)
 
-lemma Suc_mem_image_pred:
-  "0 \<notin> js \<Longrightarrow> (Suc n \<in> js) = (n \<in> pred ` js)"
-  apply (simp add: image_def pred_def)
-  apply (auto elim: rev_bexI split: nat.split_asm)
-  done
-
-lemma Suc_mem_image_pred_remove:
-  "(n \<in> pred ` Set.remove 0 js) = (Suc n \<in> js)"
-  by (simp add: Suc_mem_image_pred[symmetric])
-
-lemma split_bang_nth:
+lemma split_bang_conv_all_nth:
   "split_bang K is \<Gamma> \<Gamma>1 \<Gamma>2 = (length \<Gamma>1 = length \<Gamma> \<and> length \<Gamma>2 = length \<Gamma>
         \<and> (\<forall>i < length \<Gamma>. K , i \<in> is \<turnstile> \<Gamma> ! i \<leadsto>b \<Gamma>1 ! i \<parallel> \<Gamma>2 ! i))"
 proof (induct \<Gamma> arbitrary: "is" \<Gamma>1 \<Gamma>2)
