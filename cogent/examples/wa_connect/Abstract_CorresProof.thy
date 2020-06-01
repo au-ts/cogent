@@ -138,20 +138,126 @@ definition valid_cogent_wordarray
                                     \<sigma> (ptr_val w) = Some (UAbstract (WAU32 len arr)) \<and> 
                                    (\<forall>i < len. \<sigma> (arr + 4 * i) = Some (UPrim (LU32 (heap_w32 s ((w_p s w) +\<^sub>p uint i))))))"
 
-definition corres_wordarray
+definition valid_wordarray
   where
-  "corres_wordarray \<sigma> s w \<equiv> valid_c_wordarray s w \<and> valid_cogent_wordarray \<sigma> s w"
+  "valid_wordarray \<sigma> s w \<equiv> valid_c_wordarray s w \<and> valid_cogent_wordarray \<sigma> s w"
+
+
+lemma well_typed_related_wordarray: "\<And>\<sigma> st x x' r w.
+       \<lbrakk>(\<sigma>, st) \<in> state_rel; val_rel x x'; uval_typing \<Xi> \<sigma> x (fst (snd (\<Xi> ''wordarray_put2_0''))) r w\<rbrakk>
+       \<Longrightarrow> valid_wordarray \<sigma> st (arr_C x')"
+  apply (unfold valid_wordarray_def valid_c_wordarray_def valid_cogent_wordarray_def)
+  apply (clarsimp simp: val_rel_simp)
+  apply (erule u_t_recE)
+  apply (erule u_t_r_consE; clarsimp simp: \<Xi>_def wordarray_put2_0_type_def abbreviatedType1_def)
+  apply (erule u_t_p_absE; clarsimp)
+  apply (clarsimp simp: abs_typing'_def)
+  apply (case_tac a; clarsimp)
+  apply (clarsimp simp: state_rel_def heap_rel_def heap_rel_ptr_meta heap_rel_ptr_w32_meta)
+  apply (drule_tac p = "arr_C x'" and uv = "UAbstract (WAU32 x11 x12)" in all_heap_rel_ptrD; 
+         clarsimp simp: type_rel_simp abs_repr'_def val_rel_simp is_valid_simp heap_simp)
+  apply (rule conjI)
+   apply clarsimp
+   apply (erule_tac x = i in allE)
+   apply (erule_tac x = i in allE)
+   apply clarsimp
+   apply (drule_tac uv = "UPrim (LU32 x)" and 
+                     p = "values_C (heap_WordArray_u32_C st (arr_C x')) +\<^sub>p uint i"
+                     in all_heap_rel_ptrD;
+          clarsimp simp: ptr_add_def mult.commute type_rel_simp)
+  apply clarsimp
+  apply (erule_tac x = i in allE)
+  apply (erule_tac x = i in allE)
+  apply clarsimp
+  apply (drule_tac uv = "UPrim (LU32 x)" and 
+                    p = "values_C (heap_WordArray_u32_C st (arr_C x')) +\<^sub>p uint i"
+                    in all_heap_rel_ptrD;
+         clarsimp simp: ptr_add_def mult.commute type_rel_simp val_rel_simp)
+  done
+
+
+
+lemma "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
+       \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v'; \<Gamma>' ! i = Some (fst (snd (\<Xi> ''wordarray_put2_0'')))\<rbrakk>
+       \<Longrightarrow> update_sem_init.corres abs_typing' abs_repr' (Generated.state_rel abs_repr') (App (AFun ''wordarray_put2_0'' []) (Var i))
+            (do x <- wordarray_put2_0' v';
+                gets (\<lambda>s. x)
+             od)
+            \<xi>_0' \<gamma> \<Xi> \<Gamma>' \<sigma> st"
+  apply (rule afun_corres; simp)
+  apply (clarsimp simp: abs_rel_def; rename_tac r w)
+  apply (thin_tac "i < length \<gamma>")
+  apply (thin_tac "val_rel (\<gamma> ! i) v'")
+  apply (thin_tac "\<Gamma>' ! i = Some (fst (snd (\<Xi> ''wordarray_put2_0'')))")
+  apply clarsimp
+  apply (frule_tac x = x and x' = x' and r = r and w = w in well_typed_related_wordarray)
+    apply simp
+   apply simp
+  apply (rule conjI)
+  apply clarsimp
+   apply (monad_eq simp: wordarray_put2_0'_def valid_wordarray_def valid_c_wordarray_def)
+  apply clarsimp
+  apply (rule_tac x = "\<lambda>l. (case (\<sigma> \<circ> ptr_val \<circ> arr_C) x' of 
+                                Some (UAbstract (WAU32 len arr)) \<Rightarrow>
+                                      (if l = arr + 4 * idx_C x' \<and> idx_C x' < len 
+                                          then Some (UPrim (LU32 (val_C x'))) 
+                                      else \<sigma> l)
+                              | _  \<Rightarrow> \<sigma> l)" in exI)
+  apply (clarsimp simp: val_rel_simp)
+  apply (rule_tac x = "UPtr (ptr_val y') repr" in exI)
+  apply (rule conjI)
+   apply (clarsimp simp: \<xi>_0'_def)
+   apply (monad_eq simp: wordarray_put2_0'_def)
+  apply (rule conjI)
+   apply (rule_tac x = repr in exI; simp)
+  apply (clarsimp simp: state_rel_def heap_rel_def heap_rel_ptr_meta heap_rel_ptr_w32_meta)
+  apply (rule conjI)
+   apply (clarsimp simp: valid_wordarray_def valid_cogent_wordarray_def)
+   apply (clarsimp simp: heap_rel_meta_def)
+   apply (monad_eq simp: wordarray_put2_0'_def)
+   apply (case_tac "idx_C x' < w_l st (arr_C x')"; clarsimp)
+    apply (rule conjI; clarsimp)
+     apply (rule FalseE)
+     apply (simp add: type_rel_simp)
+    apply (drule_tac p = x and uv = uv in all_heap_rel_ptrD; clarsimp simp: is_valid_simp heap_simp)
+   apply (drule_tac p = x and uv = uv in  all_heap_rel_ptrD; clarsimp)
+  apply (clarsimp simp: valid_wordarray_def valid_cogent_wordarray_def)
+  apply (clarsimp simp: heap_rel_meta_def)
+  apply (monad_eq simp: wordarray_put2_0'_def)
+  apply (case_tac "idx_C x' < w_l st (arr_C x')"; clarsimp)
+   apply (erule_tac x = "idx_C x'" in allE; clarsimp)
+   apply (rule conjI; clarsimp)
+    apply (simp add: val_rel_simp)
+   apply (rule conjI; clarsimp)
+    apply (simp add: ptr_add_def)
+    apply (rule FalseE)
+    apply (metis Ptr_ptr_val mult.commute)
+   apply (drule_tac p = x and uv = uv in  all_heap_rel_ptrD; clarsimp)
+  apply (rule conjI; clarsimp)
+   apply (drule_tac p = "w_p st (arr_C x') +\<^sub>p uint (idx_C x')" and uv = uv in all_heap_rel_ptrD;
+          clarsimp simp: ptr_add_def mult.commute)
+  apply (drule_tac p = x and uv = uv in  all_heap_rel_ptrD; simp)
+  done
+
+
 
 lemma  "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
-       \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v'; \<Gamma>' ! i = Some (fst (snd (\<Xi> ''wordarray_put2_0'')));
-        corres_wordarray \<sigma> st (arr_C v')\<rbrakk> \<Longrightarrow>
+       \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v'; \<Gamma>' ! i = Some (fst (snd (\<Xi> ''wordarray_put2_0'')))\<rbrakk> \<Longrightarrow>
        corres state_rel (App (AFun ''wordarray_put2_0'' []) (Var i)) (do x <- wordarray_put2_0' v';
   gets (\<lambda>s. x)
                                                                       od)
         \<xi>_0' \<gamma> \<Xi> \<Gamma>' \<sigma> st" 
   apply (clarsimp simp: corres_def)
+  apply (frule_tac i = i and 
+                   \<tau> = "fst (snd (\<Xi> ''wordarray_put2_0''))" in matches_ptrs_proj_single')
+    apply (frule matches_ptrs_length, simp)
+   apply simp
+  apply clarsimp
+  apply (frule_tac x = "\<gamma> ! i" and x' = v' and r = r' and w = w' in well_typed_related_wordarray)
+    apply simp
+   apply simp
   apply (rule conjI; clarsimp)
-   apply (monad_eq simp: wordarray_put2_0'_def corres_wordarray_def valid_c_wordarray_def)  
+   apply (monad_eq simp: wordarray_put2_0'_def valid_wordarray_def valid_c_wordarray_def)  
 \<comment>\<open> First prove that the function wordarray_put2 does not fail. This requires the \<alpha> abstraction \<close>
    
 \<comment>\<open> \<xi>_0 is currently undefined so we make our own defintion. We also need the fact the pointer actually points to a word array \<close>
@@ -162,7 +268,7 @@ lemma  "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
                                       else \<sigma> l)
                               | _  \<Rightarrow> \<sigma> l)" in exI)
   apply (clarsimp simp: val_rel_simp)
-  apply (rule_tac x = "UPtr (ptr_val r') repr" in exI)
+  apply (rule_tac x = "UPtr (ptr_val r'a) repr" in exI)
   apply (rule conjI)
 \<comment> \<open> Prove that the application of the abstraction to the arguments produces the expected return
      value \<close>
@@ -176,7 +282,7 @@ lemma  "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
    apply (clarsimp simp: state_rel_def heap_rel_def)
 \<comment> \<open> Prove the heap relation for WordArray_u32_C objects\<close>
    apply (rule conjI; clarsimp)
-    apply (clarsimp simp: corres_wordarray_def valid_cogent_wordarray_def)
+    apply (clarsimp simp: valid_wordarray_def valid_cogent_wordarray_def)
     apply (simp add:  heap_rel_ptr_meta)
     apply (clarsimp simp: heap_rel_meta_def)
     apply (monad_eq simp: wordarray_put2_0'_def)
@@ -188,7 +294,7 @@ lemma  "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
     apply (drule_tac p = x and uv = uv in  all_heap_rel_ptrD; clarsimp)
 
 \<comment> \<open> Prove the heap relation for 32-bit words \<close>
-   apply (clarsimp simp: corres_wordarray_def valid_cogent_wordarray_def)
+   apply (clarsimp simp: valid_wordarray_def valid_cogent_wordarray_def)
    apply (simp add: heap_rel_ptr_w32_meta)
    apply (clarsimp simp: heap_rel_meta_def)
    apply (monad_eq simp: wordarray_put2_0'_def)
@@ -210,36 +316,8 @@ lemma  "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
   apply (rule_tac x = "repr" in exI; simp)
   done
 
-lemma "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
-       \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v'; \<Gamma>' ! i = Some (fst (snd (\<Xi> ''wordarray_put2_0'')))\<rbrakk>
-       \<Longrightarrow> update_sem_init.corres abs_typing' abs_repr' (Generated.state_rel abs_repr') (App (AFun ''wordarray_put2_0'' []) (Var i))
-            (do x <- wordarray_put2_0' v';
-                gets (\<lambda>s. x)
-             od)
-            \<xi>_0' \<gamma> \<Xi> \<Gamma>' \<sigma> st"
-  apply (rule afun_corres; simp)
-  apply (clarsimp simp: abs_rel_def; rename_tac r w)
-  apply (thin_tac "i < length \<gamma>")
-  apply (thin_tac "val_rel (\<gamma> ! i) v'")
-  apply (thin_tac "\<Gamma>' ! i = Some (fst (snd (\<Xi> ''wordarray_put2_0'')))")
-  apply (clarsimp simp: val_rel_simp)
-  apply (clarsimp simp: \<Xi>_def wordarray_put2_0_type_def abbreviatedType1_def)
-  apply (erule u_t_recE; clarsimp)
-  apply (erule u_t_r_consE; clarsimp)
-  apply (erule u_t_p_absE; clarsimp)
-  apply (rule conjI; clarsimp)
-   apply (clarsimp simp: abs_typing'_def)
-   apply (case_tac a; simp)
-   apply (monad_eq simp: wordarray_put2_0'_def)
-   apply (clarsimp simp: state_rel_def heap_rel_def)
-   apply (clarsimp simp: heap_rel_ptr_meta)
-   apply (drule_tac p = "arr_C x'" and uv = "UAbstract (WAU32 x11 x12)" in all_heap_rel_ptrD; clarsimp)
-    apply (clarsimp simp: abs_repr'_def type_rel_simp)
-  
 
-  oops
-
-
+(*
 lemma "proc_env_matches_ptrs \<xi>_0' \<Xi>"
   apply (unfold proc_env_matches_ptrs_def)
   apply clarsimp
@@ -299,6 +377,8 @@ lemma "proc_env_matches_ptrs \<xi>_0' \<Xi>"
    apply (clarsimp simp: wordarray_put2_u32_type_def abbreviatedType1_def \<xi>_0'_def)
   apply (clarsimp simp: \<xi>_0'_def)
   done
+*)
+
 
 end (* of context *)
 

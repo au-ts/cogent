@@ -31,7 +31,8 @@ ML\<open> fun local_setup_val_rel_type_rel_put_them_in_buckets file_nm ctxt =
 
   val uvals' = read_table file_nm (Proof_Context.theory_of ctxt);
   val uvals = uvals' |> map (unify_usum_tys o unify_sigils) |> rm_redundancy |> rev |>
-               get_uvals_for_which_ac_mk_st_info file_nm thy;
+               get_uvals_for_which_ac_mk_st_info file_nm thy |> filter (fn x => x <> UAbstract "WordArray_u32");
+  (* FIXME: Currently explicitly removing 32-bit word arrays from this so that I can do this manually *)
 
   val lthy' = local_setup_val_rel_type_rel' uvals ctxt;
  in
