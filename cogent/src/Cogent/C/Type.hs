@@ -57,7 +57,7 @@ import           Data.Nat            as Nat
 import           Data.Vec            as Vec   hiding (repeat, zipWith)
 
 import           Control.Applicative          hiding (empty)
-import           Control.Arrow                       ((***), (&&&), second)
+import           Control.Arrow                       ((***), (&&&), first, second)
 import           Control.Monad.RWS.Strict     hiding (mapM, mapM_, Dual, (<>), Product, Sum)
 import           Data.Binary
 import           Data.Char                    (isAlphaNum, toUpper)
@@ -206,9 +206,14 @@ typeCId :: CC.Type 'Zero VarName -> Gen v CId
 typeCId t = use custTypeGen >>= \ctg ->
             case M.lookup t ctg of
               Just (n,_) -> return n
-              Nothing ->
-                (if __cogent_fflatten_nestings then typeCIdFlat else typeCId') t >>= \n ->
-                when (isUnstable t) (typeCorres %= DList.cons (toCName n, t)) >>
+              Nothing -> do
+                n <- t & if __cogent_fflatten_nestings then typeCIdFlat else typeCId'
+                recordGetters <- M.toList <$> use boxedRecordGetters
+                recordSetters <- M.toList <$> use boxedRecordSetters
+                let getters = map (first snd) $ filter (\x -> fst (fst x) == t) recordGetters
+                    setters = map (first snd) $ filter (\x -> fst (fst x) == t) recordSetters
+                    gss = P.zipWith (\(f1,g) (f2,s) -> (g,s)) getters setters
+                when (isUnstable t) (typeCorres %= DList.cons (toCName n, t, gss))
                 return n
   where
     typeCId' :: CC.Type 'Zero VarName -> Gen v CId

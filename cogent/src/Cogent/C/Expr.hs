@@ -88,7 +88,7 @@ import           Prelude             as P     hiding (mapM, mapM_)
 import           Prelude             as P     hiding (mapM)
 #endif
 import           System.IO (Handle, hPutChar)
-import qualified Text.PrettyPrint.ANSI.Leijen as PP hiding ((<$>), (<>))
+import qualified Text.PrettyPrint.ANSI.Leijen as PP
 import           Lens.Micro                   hiding (at)
 import           Lens.Micro.Mtl               hiding (assign)
 import           Lens.Micro.TH
@@ -374,7 +374,7 @@ genExpr mv (TE t (ArrayIndex e i)) = do  -- FIXME: varpool - as above
     -- boxed array of unboxed type
     _ -> do
       elemGetter <- genBoxedArrayGetSet tarr Get
-      return $ CEFnCall elemGetter [e', i']
+      return $ CEFnCall (variable elemGetter) [e', i']
   (v,adecl,astm,vp) <- maybeAssign t' mv drexpr ep
   return (v, edecl++idecl++adecl, estm++istm++astm, vp)
 
@@ -397,7 +397,8 @@ genExpr mv (TE t (ArrayMap2 (_,f) (e1,e2))) = do  -- FIXME: varpool - as above
   let drexp s e t i = case s of
                         Unboxed -> return $ CArrayDeref e i
                         Boxed _ CLayout -> return $ CArrayDeref e i
-                        _ -> do f <- genBoxedArrayGetSet t Get; return $ CEFnCall f [e, i]
+                        _ -> do f <- genBoxedArrayGetSet t Get
+                                return $ CEFnCall (variable f) [e, i]
   drexp1 <- drexp s1 e1' tarr1 (variable i)
   drexp2 <- drexp s2 e2' tarr2 (variable i)
   (f',fdecl,fstm,fp) <- withBindings (Cons drexp2 (Cons drexp1 Nil)) $ genExpr_ f
@@ -406,7 +407,7 @@ genExpr mv (TE t (ArrayMap2 (_,f) (e1,e2))) = do  -- FIXME: varpool - as above
                                Boxed _ CLayout -> assign et (CArrayDeref a i) e
                                _ -> do
                                  f <- genBoxedArrayGetSet at Set
-                                 return $ ([], [CBIStmt $ CAssignFnCall Nothing f [a, i, e]])
+                                 return $ ([], [CBIStmt $ CAssignFnCall Nothing (variable f) [a, i, e]])
   (a1decl,a1stm) <- assdns s1 telt1' tarr1 e1' (variable i) (strDot f' p1)
   (a2decl,a2stm) <- assdns s2 telt2' tarr2 e2' (variable i) (strDot f' p2)
 
@@ -453,7 +454,7 @@ genExpr mv (TE t (ArrayPut arr i e)) = do
     Boxed _ CLayout -> assign telt' (CArrayDeref arr' i') e'
     _ -> do
       elemSetter <- genBoxedArrayGetSet t Set
-      return $ ([], [CBIStmt $ CAssignFnCall Nothing elemSetter [arr', i', e']])
+      return $ ([], [CBIStmt $ CAssignFnCall Nothing (variable elemSetter) [arr', i', e']])
   (v,vdecl,vstm,vp) <- maybeAssign t' mv arr' M.empty
   return (v, arrdecl++idecl++edecl++assdecl++vdecl, arrstm++istm++estm++assstm++vstm, M.empty)
 
@@ -466,7 +467,7 @@ genExpr mv (TE t (ArrayTake _ arr i e)) = do  -- FIXME: varpool - as above
     Boxed _ CLayout -> return $ CArrayDeref arr' i'
     _ -> do
       elemGetter <- genBoxedArrayGetSet tarr Get
-      return $ CEFnCall elemGetter [arr', i']
+      return $ CEFnCall (variable elemGetter) [arr', i']
   telt' <- genType telt
   (v,vdecl,vstm) <- declareInit telt' drexpr M.empty
   (e',edecl,estm,ep) <- withBindings (Cons (variable v) (Cons arr' Nil)) $ genExpr mv e
@@ -557,7 +558,7 @@ genExpr mv (TE t (Take _ rec fld e)) = do
     Boxed _ CLayout -> return $ strArrow rec'' fieldName
     Boxed _ _ -> do
       fieldGetter <- genBoxedGetSetField rect fieldName Get
-      return $ CEFnCall fieldGetter [rec'']
+      return $ CEFnCall (variable fieldGetter) [rec'']
 
   ft <- genType . fst . snd $ fs !! fld
   (f', fdecl, fstm, fp) <-
@@ -594,7 +595,7 @@ genExpr mv (TE t (Put rec fld val)) = do
     Boxed _ (Layout l) -> do
       let recordType = exprType rec
       fieldSetter <- genBoxedGetSetField recordType fieldName Set
-      return $ ([], [CBIStmt $ CAssignFnCall Nothing fieldSetter [variable rec'', val']])
+      return $ ([], [CBIStmt $ CAssignFnCall Nothing (variable fieldSetter) [variable rec'', val']])
 
   recycleVars valp
   (v,adecl,astm,vp) <- maybeAssign t' mv (variable rec'') M.empty
@@ -694,7 +695,7 @@ genExpr mv (TE t (Member rec fld)) = do
     Boxed _ CLayout -> return $ strArrow rec' fieldName
     Boxed _ (Layout l) -> do
       fieldGetter <- genBoxedGetSetField (exprType rec) fieldName Get
-      return $ CEFnCall fieldGetter [rec']
+      return $ CEFnCall (variable fieldGetter) [rec']
 
   t' <- genType t
   (v',adecl,astm,vp) <- maybeAssign t' mv e' recp
@@ -948,7 +949,7 @@ compile defs mcache ctygen =
      , map genTySynDecl tsyns'  -- type synonyms
      , gsDecls ++ fndefns
      , absts'  -- table of abstract types
-     , map TableCTypes tycorr  -- table of Cogent types |-> C types
+     , map TableCTypes tycorr  -- table of Cogent types |-> C types (with getter/setters)
      , tns  -- list of funclass typenames (for HscGen)
      , st''
      )
@@ -965,7 +966,7 @@ printATM = L.concat . L.map (\(tn,S.toList -> ls) -> tn ++ "\n" ++
 -- ----------------------------------------------------------------------------
 -- * Table generator
 
-newtype TableCTypes = TableCTypes (CId, CC.Type 'Zero VarName)
+newtype TableCTypes = TableCTypes (CId, CC.Type 'Zero VarName, [(FunName, FunName)])
 
 table :: TableCTypes -> PP.Doc
 table (TableCTypes entry) = PP.pretty entry
@@ -974,12 +975,16 @@ printCTable :: Handle -> (PP.Doc -> PP.Doc) -> [TableCTypes] -> String -> IO ()
 printCTable h m ts log = mapM_ ((>> hPutChar h '\n') . PP.displayIO h . PP.renderPretty 0 80 . m) $
                            L.map (PP.string . ("-- " ++)) (lines log) ++ PP.line : L.map table ts
 
-#if __GLASGOW_HASKELL__ < 709
-instance PP.Pretty (CId, CC.Type 'Zero VarName) where
-#else
-instance {-# OVERLAPPING #-} PP.Pretty (CId, CC.Type 'Zero VarName) where
-#endif
-  pretty (n,t) = PP.pretty (deepType id (M.empty, 0) t) PP.<+> PP.string ":=:" PP.<+> PP.pretty n
+instance PP.Pretty TableCTypes where
+  pretty (TableCTypes (n,t,gss)) =
+      PP.pretty (deepType id (M.empty, 0) t)
+      PP.<+> PP.string ":=:" PP.<+> PP.pretty n
+      PP.<> prettyGetterSetters gss
+    where prettyGetterSetters [] = PP.empty
+          prettyGetterSetters ps = PP.space PP.<> PP.list (map prettyGetterSetter ps)
+
+          prettyGetterSetter (getter, setter) =
+            PP.text getter PP.<+> PP.text "/" PP.<+> PP.text setter
 
 
 -- ////////////////////////////////////////////////////////////////////////////

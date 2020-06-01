@@ -116,7 +116,7 @@ data GenState  = GenState
     --   but the map gives performant reads.
 
   , _typeSynonyms :: M.Map TypeName CType
-  , _typeCorres   :: DList.DList (CId, CC.Type 'Zero VarName)
+  , _typeCorres   :: DList.DList (CId, CC.Type 'Zero VarName, [(FunName, FunName)])
     -- ^ C type names corresponding to Cogent types
 
   , _absTypes     :: M.Map TypeName (S.Set [CId])
@@ -139,13 +139,13 @@ data GenState  = GenState
     --   The map is from the original function names (before prefixing with @\"ffi_\"@ to a pair of @(marshallable_arg_type, marshallable_ret_type)@.
     --   This map is needed when we generate the Haskell side of the FFI.
 
-  , _boxedRecordSetters :: M.Map (CC.Type 'Zero VarName, FieldName) CExpr
-  , _boxedRecordGetters :: M.Map (CC.Type 'Zero VarName, FieldName) CExpr
+  , _boxedRecordSetters :: M.Map (CC.Type 'Zero VarName, FieldName) FunName
+  , _boxedRecordGetters :: M.Map (CC.Type 'Zero VarName, FieldName) FunName
     -- ^ The expressions to call the generated setter and getter functions for the fields of boxed cogent records.
-  , _boxedArraySetters :: M.Map (CC.Type 'Zero VarName) CExpr
-  , _boxedArrayGetters :: M.Map (CC.Type 'Zero VarName) CExpr
-  , _boxedArrayElemSetters :: M.Map (CC.Type 'Zero VarName) CExpr
-  , _boxedArrayElemGetters :: M.Map (CC.Type 'Zero VarName) CExpr
+  , _boxedArraySetters :: M.Map (CC.Type 'Zero VarName) FunName
+  , _boxedArrayGetters :: M.Map (CC.Type 'Zero VarName) FunName
+  , _boxedArrayElemSetters :: M.Map (CC.Type 'Zero VarName) FunName
+  , _boxedArrayElemGetters :: M.Map (CC.Type 'Zero VarName) FunName
   } deriving (Generic)
 
 instance Binary GenState
