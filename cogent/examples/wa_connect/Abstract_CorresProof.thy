@@ -317,7 +317,7 @@ lemma  "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
   done
 
 
-(*
+
 lemma "proc_env_matches_ptrs \<xi>_0' \<Xi>"
   apply (unfold proc_env_matches_ptrs_def)
   apply clarsimp
@@ -342,31 +342,34 @@ lemma "proc_env_matches_ptrs \<xi>_0' \<Xi>"
    apply (erule u_t_p_absE; clarsimp)
    apply (erule u_t_primE)+
    apply (subst (asm) lit_type.simps)+
-   apply clarsimp
    apply (erule u_t_r_emptyE)
-   apply (case_tac a; clarsimp)
-   apply (rule_tac x = ra in exI)
-    apply (rule_tac x = "insert x91 wc" in exI)
+   apply clarsimp
+  apply (rename_tac p i v r av w)
+   apply (case_tac av; clarsimp)
+   apply (rule_tac x = r in exI)
+    apply (rule_tac x = "insert p w" in exI)
     apply (rule conjI)
      apply (insert u_t_p_abs_w; clarsimp)
+     apply (rename_tac len arr)
      apply (drule_tac x = "(Boxed Writable undefined)" in meta_spec)
      apply (drule_tac x = "undefined" in meta_spec)
-     apply (drule_tac x = "WAU32 x11 x12" in meta_spec)
+     apply (drule_tac x = "WAU32 len arr" in meta_spec)
      apply (drule_tac x = "''WordArray''" in meta_spec)
      apply (drule_tac x = "[TPrim (Num U32)]" in meta_spec)
-     apply (drule_tac x = ra in meta_spec)
-     apply (drule_tac x = wc  in meta_spec)
-     apply (drule_tac x = "(\<lambda>l. if l = x12 + 4 * x4 \<and> x4 < x11 then Some (UPrim (LU32 x4a)) else \<sigma> l)" in meta_spec)
-     apply (drule_tac x = x91 in meta_spec)
+     apply (drule_tac x = r in meta_spec)
+     apply (drule_tac x = w  in meta_spec)
+     apply (drule_tac x = "(\<lambda>l. if l = arr + 4 * i \<and> i < len then Some (UPrim (LU32 v)) else \<sigma> l)" in meta_spec)
+     apply (drule_tac x = p in meta_spec)
      apply (drule_tac x = \<Xi> in meta_spec; clarsimp simp: \<Xi>_def)
      apply (drule meta_mp; clarsimp simp: abs_typing'_def)
     apply clarsimp
+    apply (rename_tac len arr)
     apply (clarsimp simp: frame_def abs_typing'_def)
     apply (rule conjI; clarsimp)
      apply (rule conjI)
       apply (rule disjI2)
       apply (rule disjI2)
-      apply (rule_tac x = x4 in exI; simp)
+      apply (rule_tac x = i in exI; simp)
      apply (rule conjI; clarsimp)
     apply (rule conjI; clarsimp)
    apply (clarsimp simp: abs_typing'_def)
@@ -377,7 +380,7 @@ lemma "proc_env_matches_ptrs \<xi>_0' \<Xi>"
    apply (clarsimp simp: wordarray_put2_u32_type_def abbreviatedType1_def \<xi>_0'_def)
   apply (clarsimp simp: \<xi>_0'_def)
   done
-*)
+
 
 
 end (* of context *)

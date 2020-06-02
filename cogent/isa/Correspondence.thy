@@ -16,14 +16,17 @@ begin
 
 locale correspondence =
 val: value_sem  "val_abs_typing :: 'av \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> bool" +
-upd: update_sem "upd_abs_typing :: 'au \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> sigil \<Rightarrow> 'l set \<Rightarrow> 'l set \<Rightarrow> bool"
+upd: update_sem "upd_abs_typing :: 'au \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> sigil \<Rightarrow> 'l set \<Rightarrow> 'l set \<Rightarrow> ('f, 'au, 'l) store \<Rightarrow> bool"
 for val_abs_typing and upd_abs_typing
 +
-fixes abs_upd_val :: "'au \<Rightarrow> 'av \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> sigil \<Rightarrow> 'l set \<Rightarrow> 'l set \<Rightarrow> bool"
-assumes abs_upd_val_to_vval_typing: "abs_upd_val u v n \<tau>s s l r \<Longrightarrow> val_abs_typing v n \<tau>s"
-and     abs_upd_val_to_uval_typing: "abs_upd_val u v n \<tau>s s l r \<Longrightarrow> upd_abs_typing u n \<tau>s s l r"
-and     abs_upd_val_bang : "\<lbrakk> abs_upd_val au av n \<tau>s s r w
-                            \<rbrakk> \<Longrightarrow> abs_upd_val au av n (map bang \<tau>s) (bang_sigil s) (r \<union> w) {}"
+fixes abs_upd_val :: "'au \<Rightarrow> 'av \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> sigil \<Rightarrow> 'l set \<Rightarrow> 'l set \<Rightarrow> ('f, 'au, 'l) store \<Rightarrow> bool"
+assumes abs_upd_val_to_vval_typing: "abs_upd_val u v n \<tau>s s l r \<sigma> \<Longrightarrow> val_abs_typing v n \<tau>s"
+and     abs_upd_val_to_uval_typing: "abs_upd_val u v n \<tau>s s l r \<sigma>\<Longrightarrow> upd_abs_typing u n \<tau>s s l r \<sigma>"
+and     abs_upd_val_bang : "\<lbrakk> abs_upd_val au av n \<tau>s s r w \<sigma>
+                            \<rbrakk> \<Longrightarrow> abs_upd_val au av n (map bang \<tau>s) (bang_sigil s) (r \<union> w) {} \<sigma>"
+and     abs_upd_val_frame: "\<And> w1 w2 \<sigma>'. abs_upd_val u v n \<tau>s s r w \<sigma> \<Longrightarrow> frame \<sigma> w1 \<sigma>' w2 \<Longrightarrow>
+                                          w \<inter> w1 = {} \<Longrightarrow> r \<inter> w1 = {} \<Longrightarrow> abs_upd_val u v n \<tau>s s r w \<sigma>'"
+
 
 context correspondence
 begin
@@ -66,7 +69,7 @@ and upd_val_rel_record :: "('f \<Rightarrow> poly_type)
                   ; distinct (map fst ts)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> URecord fs \<sim> VRecord fs' : TRecord ts Unboxed \<langle>r, w\<rangle>"
 
-| u_v_abstract : "\<lbrakk> abs_upd_val a a' n ts Unboxed r w
+| u_v_abstract : "\<lbrakk> abs_upd_val a a' n ts Unboxed r w \<sigma>
                   ; [] \<turnstile>* ts wellformed
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UAbstract a \<sim> VAbstract a' : TCon n ts Unboxed \<langle>r, w\<rangle>"
 
@@ -98,14 +101,14 @@ and upd_val_rel_record :: "('f \<Rightarrow> poly_type)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (type_repr \<circ> fst \<circ> snd) ts)) \<sim> VRecord fs' : TRecord ts s \<langle>r, insert l w\<rangle>"
 
 | u_v_p_abs_ro : "\<lbrakk> s = Boxed ReadOnly ptrl
-                  ; abs_upd_val a a' n ts s r w
+                  ; abs_upd_val a a' n ts s r w \<sigma>
                   ; [] \<turnstile>* ts wellformed
                   ; \<sigma> l = Some (UAbstract a)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr ts)) \<sim> VAbstract a' : TCon n ts s \<langle>insert l r, {}\<rangle>"
 
 
 | u_v_p_abs_w  : "\<lbrakk> s = Boxed Writable ptrl
-                  ; abs_upd_val a a' n ts s r w
+                  ; abs_upd_val a a' n ts s r w \<sigma>
                   ; [] \<turnstile>* ts wellformed
                   ; \<sigma> l = Some (UAbstract a)
                   ; l \<notin> (w \<union> r)
@@ -150,7 +153,7 @@ proof (induct rule: upd_val_rel_upd_val_rel_record.inducts)
     by (auto intro!: upd.uval_typing_uval_typing_record.intros abs_upd_val_to_uval_typing)
 next
   case (u_v_p_abs_ro s ptrl a a' n ts r w \<sigma> l \<Xi>)
-  moreover then have "upd_abs_typing a n ts s r w"
+  moreover then have "upd_abs_typing a n ts s r w \<sigma>"
     using abs_upd_val_to_uval_typing by simp
   moreover then have "w = {}"
     using upd.abs_typing_readonly u_v_p_abs_ro by force
@@ -179,7 +182,7 @@ inductive_cases u_v_r_consE   [elim] : "\<Xi>, \<sigma> \<turnstile>* (a # b) \<
 inductive_cases u_v_r_consE'  [elim] : "\<Xi>, \<sigma> \<turnstile>* (a # b) \<sim> xx :r \<tau>s \<langle>r, w\<rangle>"
 
 lemma u_v_p_abs_ro': "\<lbrakk> s = Boxed ReadOnly ptrl
-                      ; abs_upd_val a a' n ts s r w
+                      ; abs_upd_val a a' n ts s r w \<sigma>
                       ; [] \<turnstile>* ts wellformed
                       ; \<sigma> l = Some (UAbstract a)
                       ; ts' = map type_repr ts
@@ -187,7 +190,7 @@ lemma u_v_p_abs_ro': "\<lbrakk> s = Boxed ReadOnly ptrl
   using u_v_p_abs_ro by blast
 
 lemma u_v_p_abs_w': "\<lbrakk> s = Boxed Writable ptrl
-                     ; abs_upd_val a a' n ts s r w
+                     ; abs_upd_val a a' n ts s r w \<sigma>
                      ; [] \<turnstile>* ts wellformed
                      ; \<sigma> l = Some (UAbstract a)
                      ; l \<notin> (w \<union> r)
@@ -285,7 +288,7 @@ definition proc_env_u_v_matches :: "(('f, 'au, 'l) uabsfuns)
                       \<longrightarrow> \<xi> f (\<sigma>, a) (\<sigma>', v)
                       \<longrightarrow> (\<xi>' f a' v'
                            \<longrightarrow> (\<exists>r' w'. (\<Xi> , \<sigma>' \<turnstile> v \<sim> v' : instantiate \<tau>s \<tau>o \<langle>r', w'\<rangle>)
-                                    \<and> r' \<subseteq> r \<and> upd.frame \<sigma> w \<sigma>' w'))
+                                    \<and> r' \<subseteq> r \<and> frame \<sigma> w \<sigma>' w'))
                        \<and> (\<exists> v'. \<xi>' f a' v')))"
 
 lemma upd_val_rel_record:
@@ -434,13 +437,13 @@ next
   have "\<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr (map bang ts))) \<sim> VAbstract a' : TCon n (map bang ts) (bang_sigil s) \<langle>insert l r , {}\<rangle>"
     using u_v_p_abs_ro bang_wellformed
   proof (intro upd_val_rel_upd_val_rel_record.u_v_p_abs_ro)
-    have "upd_abs_typing a n ts s r w"
+    have "upd_abs_typing a n ts s r w \<sigma>"
       using u_v_p_abs_ro abs_upd_val_to_uval_typing by blast
     then have "w = {}"
       using u_v_p_abs_ro upd.abs_typing_readonly[where w=w] by force
-    moreover have "abs_upd_val a a' n (map bang ts) (bang_sigil s) (r \<union> w) {}"
+    moreover have "abs_upd_val a a' n (map bang ts) (bang_sigil s) (r \<union> w) {} \<sigma>"
       using u_v_p_abs_ro(2) abs_upd_val_bang by simp
-    ultimately show "abs_upd_val a a' n (map bang ts) (bang_sigil s) r {}"
+    ultimately show "abs_upd_val a a' n (map bang ts) (bang_sigil s) r {} \<sigma>"
       by simp
   qed force+
   then show ?case
@@ -938,7 +941,7 @@ and     "\<xi> f (\<sigma>, a) (\<sigma>', v)"
 and     "\<xi>' f a' v'"
 shows   "\<exists>r' w'.
              \<Xi> , \<sigma>' \<turnstile> v \<sim> v' : instantiate \<tau>s \<tau>o \<langle>r', w'\<rangle>
-            \<and> r' \<subseteq> r \<and> upd.frame \<sigma> w \<sigma>' w'"
+            \<and> r' \<subseteq> r \<and> frame \<sigma> w \<sigma>' w'"
   using assms by (clarsimp simp: proc_env_u_v_matches_def, drule_tac x = f in spec, fastforce)
 
 section {* frame *}
@@ -990,7 +993,7 @@ shows   "\<sigma> p \<noteq> None"
 using assms by (auto dest: u_v_matches_to_matches_ptrs upd.matches_ptrs_valid)
 
 lemma upd_val_rel_frame:
-assumes "upd.frame \<sigma> w1 \<sigma>' w2"
+assumes "frame \<sigma> w1 \<sigma>' w2"
 and     "w \<inter> w1 = {}"
 and     "r \<inter> w1 = {}"
 shows   "\<Xi> , \<sigma> \<turnstile>  u  \<sim> v  :  t  \<langle> r , w \<rangle> \<Longrightarrow> \<Xi> , \<sigma>' \<turnstile>  u  \<sim> v  : t   \<langle> r , w \<rangle>"
@@ -1000,27 +1003,33 @@ using assms proof (induct rule:upd_val_rel_upd_val_rel_record.inducts)
 next case u_v_product  then show ?case by (fastforce intro!: upd_val_rel_upd_val_rel_record.u_v_product)
 next case u_v_sum      then show ?case by (fastforce intro!: upd_val_rel_upd_val_rel_record.u_v_sum)
 next case u_v_struct   then show ?case by (fastforce intro!: upd_val_rel_upd_val_rel_record.u_v_struct)
-next case u_v_abstract then show ?case by (simp add: upd_val_rel_upd_val_rel_record.u_v_abstract)
+next case u_v_abstract then show ?case by (simp add: upd_val_rel_upd_val_rel_record.u_v_abstract abs_upd_val_frame)
 next case u_v_function then show ?case by (simp add: upd_val_rel_upd_val_rel_record.u_v_function)
 next case u_v_afun     then show ?case by (simp add: upd_val_rel_upd_val_rel_record.u_v_afun)
 next case u_v_unit     then show ?case by (simp add: upd_val_rel_upd_val_rel_record.u_v_unit)
 next case u_v_p_rec_ro then show ?case by (auto intro!: upd_val_rel_upd_val_rel_record.u_v_p_rec_ro
-                                                simp:   upd.frame_def)
+                                                simp:   frame_def)
 next case u_v_p_rec_w  then show ?case by (auto intro!: upd_val_rel_upd_val_rel_record.u_v_p_rec_w
-                                                simp:   upd.frame_def)
-next case u_v_p_abs_ro then show ?case by (auto intro!: upd_val_rel_upd_val_rel_record.u_v_p_abs_ro
-                                                simp:   upd.frame_def)
+                                                simp:   frame_def)
+next case (u_v_p_abs_ro s ptrl a a' n ts r w \<sigma> l \<Xi>) 
+  moreover then have "upd_abs_typing a n ts s r w \<sigma>"
+    using abs_upd_val_to_uval_typing by simp
+  moreover then have "w = {}"
+    using upd.abs_typing_readonly u_v_p_abs_ro by force
+  ultimately show ?case
+    by (rule_tac s = s and ptrl = ptrl and a = a and w = w in upd_val_rel_upd_val_rel_record.u_v_p_abs_ro;
+        fastforce simp: abs_upd_val_frame frame_def)
 next case u_v_p_abs_w  then show ?case by (auto intro!: upd_val_rel_upd_val_rel_record.u_v_p_abs_w
-                                                simp:   upd.frame_def)
+                                                simp: frame_def abs_upd_val_frame)
 next case u_v_r_empty  then show ?case by (simp add: upd_val_rel_upd_val_rel_record.u_v_r_empty)
 next case u_v_r_cons1  then show ?case by (force intro!: upd_val_rel_upd_val_rel_record.u_v_r_cons1
-                                                 simp: upd.frame_def)
+                                                 simp: frame_def)
 next case u_v_r_cons2  then show ?case by (simp add: upd_val_rel_upd_val_rel_record.u_v_r_cons2)
 qed
 
 lemma u_v_matches_frame:
 assumes "\<Xi> , \<sigma> \<turnstile> u \<sim> v matches t \<langle> r , w \<rangle>"
-and     "upd.frame \<sigma> w1 \<sigma>' w2"
+and     "frame \<sigma> w1 \<sigma>' w2"
 and     "w1 \<inter> w = {}"
 and     "w1 \<inter> r = {}"
 shows   "\<Xi> , \<sigma>' \<turnstile> u \<sim> v matches t \<langle> r , w \<rangle>"
@@ -1032,21 +1041,21 @@ next case u_v_matches_some  then show ?case by (fast dest:   upd_val_rel_frame(1
 qed
 
 lemma frame_noalias_upd_val_rel :
-assumes "upd.frame \<sigma> u \<sigma>' u'"
+assumes "frame \<sigma> u \<sigma>' u'"
 and     "\<Xi>, \<sigma> \<turnstile> v \<sim> v' : \<tau> \<langle>r, w\<rangle>"
 shows   "u  \<inter> w = {} \<Longrightarrow> u' \<inter> w = {}"
 and     "u  \<inter> r = {} \<Longrightarrow> u' \<inter> r = {}"
   using assms by (auto dest: upd_val_rel_to_uval_typing upd.frame_noalias_uval_typing)
 
 lemma frame_noalias_u_v_matches :
-assumes "upd.frame \<sigma> u \<sigma>' u'"
+assumes "frame \<sigma> u \<sigma>' u'"
 and     "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches \<Gamma> \<langle>r, w\<rangle>"
 shows   "u  \<inter> w = {} \<Longrightarrow> u' \<inter> w = {}"
 and     "u  \<inter> r = {} \<Longrightarrow> u' \<inter> r = {}"
   using assms by (auto dest: u_v_matches_to_matches_ptrs upd.frame_noalias_matches_ptrs)
 
 lemma frame_noalias_upd_val_rel' :
-assumes "upd.frame \<sigma> u \<sigma>' u'"
+assumes "frame \<sigma> u \<sigma>' u'"
 and     "\<Xi>, \<sigma> \<turnstile> v \<sim> v' : \<tau> \<langle>r, w\<rangle>"
 shows   "w \<inter> u = {} \<Longrightarrow> w \<inter> u' = {}"
 and     "r \<inter> u = {} \<Longrightarrow> r \<inter> u' = {}"
@@ -1054,8 +1063,8 @@ using assms by (auto dest: upd_val_rel_to_uval_typing upd.frame_noalias_uval_typ
 
 
 lemma frame_noalias_2_uv :
-assumes "upd.frame \<sigma>  u \<sigma>'  u'"
-and     "upd.frame \<sigma>' w \<sigma>'' w'"
+assumes "frame \<sigma>  u \<sigma>'  u'"
+and     "frame \<sigma>' w \<sigma>'' w'"
 and     "\<Xi>, \<sigma>  \<turnstile> \<gamma> \<sim> \<gamma>' matches \<Gamma>  \<langle>r , w\<rangle>"
 and     "\<Xi>, \<sigma>' \<turnstile> v \<sim> v' : \<tau> \<langle>r', u'\<rangle>"
 and     "u \<inter> w = {}"
@@ -1447,13 +1456,13 @@ shows   "\<lbrakk> \<xi> , \<gamma>  \<turnstile> (\<sigma>, specialise \<tau>s 
          ; \<Xi>, K, \<Gamma> \<turnstile> e : \<tau>
          \<rbrakk> \<Longrightarrow> \<exists>r' w'. (\<Xi> , \<sigma>' \<turnstile> v \<sim> v' : instantiate \<tau>s \<tau> \<langle>r', w'\<rangle>)
                      \<and> r' \<subseteq> r
-                     \<and> upd.frame \<sigma> w \<sigma>' w'"
+                     \<and> frame \<sigma> w \<sigma>' w'"
 and     "\<lbrakk> \<xi> , \<gamma>  \<turnstile>* (\<sigma>, map (specialise \<tau>s) es) \<Down>! (\<sigma>', vs)
          ; \<xi>', \<gamma>' \<turnstile>*     map (specialise \<tau>s) es  \<Down>       vs'
          ; \<Xi>, K, \<Gamma> \<turnstile>* es : \<tau>s'
          \<rbrakk> \<Longrightarrow> \<exists>r' w'. (\<Xi>, \<sigma>' \<turnstile>* vs \<sim> vs' : map (instantiate \<tau>s) \<tau>s' \<langle>r', w'\<rangle>)
                      \<and> r' \<subseteq> r
-                     \<and> upd.frame \<sigma> w \<sigma>' w'"
+                     \<and> frame \<sigma> w \<sigma>' w'"
 using assms proof (induct "(\<sigma>, specialise \<tau>s e)"        "(\<sigma>', v )"
                       and "(\<sigma>, map (specialise \<tau>s) es)" "(\<sigma>', vs)"
                       arbitrary:  e  \<tau>s K \<tau>   \<Gamma> r w v  \<sigma>' \<sigma> \<gamma>' v'
@@ -1575,7 +1584,7 @@ next
     obtain r' w'
       where "\<Xi>, \<sigma>' \<turnstile> x'' \<sim> xa : instantiate \<tau>s t \<langle>r', w'\<rangle>"
         and r'_sub_r: "r' \<subseteq> r"
-        and frame_w_w': "upd.frame \<sigma> w \<sigma>' w'"
+        and frame_w_w': "frame \<sigma> w \<sigma>' w'"
       using u_sem_con.hyps(2) x_spec_is vsem_specialised_x typing_elims u_sem_con.prems
       by blast
     then have "\<Xi>, \<sigma>' \<turnstile> USum tag x'' (map ((\<lambda>(n, t, _). (n, type_repr t)) \<circ> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts)
@@ -1695,7 +1704,7 @@ next
   obtain r' w'
       where "\<Xi>, \<sigma>' \<turnstile> USum tagu v tsu' \<sim> VSum tag v' : instantiate \<tau>s (TSum tsty) \<langle>r', w'\<rangle>"
         and r'_sub_r: "r' \<subseteq> r"
-        and frame_w_w': "upd.frame \<sigma> w \<sigma>' w'"
+        and frame_w_w': "frame \<sigma> w \<sigma>' w'"
       using u_sem_esac.hyps(2) u_sem_esac.prems spec_simps utsem_elims typing_elims
       by blast
     then obtain instt
@@ -1782,7 +1791,7 @@ next
     then obtain w1' r1'
       where u_v_rel_sum_tag: "\<Xi>, \<sigma>a' \<turnstile> USum tag va rs \<sim> VSum tag vx : instantiate \<tau>s (TSum ts) \<langle>r1', w1'\<rangle>"
         and r_sub1: "r1' \<subseteq> r1"
-        and frame1: "upd.frame \<sigma>a w1 \<sigma>a' w1'"
+        and frame1: "frame \<sigma>a w1 \<sigma>a' w1'"
       using u_sem_case_nm.hyps(2) u_sem_case_nm.prems x_is v_sem_case_nm typing_x' matches1
       by blast
 
@@ -1854,10 +1863,10 @@ next
     then obtain r12' w12'
       where "\<Xi>, \<sigma>' \<turnstile> v \<sim> v' : instantiate \<tau>s \<tau> \<langle>r12', w12'\<rangle>"
         and r_sub12: "r12' \<subseteq> r1' \<union> r2"
-        and frame12: "upd.frame \<sigma>a' (w1' \<union> w2) \<sigma>' w12'"
+        and frame12: "frame \<sigma>a' (w1' \<union> w2) \<sigma>' w12'"
       using u_sem_case_nm.hyps(5) n_is vsem_specialise_n' typing_n' u_sem_case_nm.prems
       by blast
-    moreover have "upd.frame \<sigma>a w \<sigma>' w12'"
+    moreover have "frame \<sigma>a w \<sigma>' w12'"
       by (metis upd.frame_let w_as_un frame1 frame12 inf_sup_aci(5))
     ultimately show ?thesis
       using r_as_un r_sub1 by auto
@@ -1895,9 +1904,9 @@ next case (u_sem_if _ _ _ _ _ b)
     apply (frule(2) u_v_matches_split, clarsimp)
     apply (frule(6) IH1, clarsimp)
     apply (erule u_v_primE)
-    apply (clarsimp)
+    apply (clarsimp) 
     apply (frule(4) IH2 [ rotated 3
-                        , where e23 (* FIXME: unstable name *) = "if b then e2 else e3" for e2 and e3
+                        , where e12 (* FIXME: unstable name *) = "if b then e2 else e3" for e2 and e3
                         , OF _ _ u_v_matches_frame ])
          apply (blast, simp)
        apply (cases b, simp, simp)+
@@ -2130,11 +2139,11 @@ next case u_sem_put
            apply (simp add: map_update)
           apply simp
          apply force
-        apply (clarsimp intro!: upd.list_helper[symmetric] simp: HELP2 map_update upd.frame_def)
+        apply (clarsimp intro!: upd.list_helper[symmetric] simp: HELP2 map_update frame_def)
        apply blast
       apply (force simp add: distinct_map map_update intro: distinct_list_update)
     apply auto[1]
-    apply (clarsimp simp add: upd.frame_def)
+    apply (clarsimp simp add: frame_def)
     done
 next case u_sem_put_ub
   note IH1  = this(2)
@@ -2176,7 +2185,7 @@ next case u_sem_put_ub
     apply (intro exI conjI u_v_struct)
        apply (simp add: map_update)
       apply (force simp add: distinct_map map_update intro: distinct_list_update)
-     apply (auto simp: upd.frame_def)[2]
+     apply (auto simp: frame_def)[2]
     done
 next case u_sem_split
   note IH1  = this(2)
@@ -2488,7 +2497,7 @@ next
  obtain r1' w1'
     where "\<Xi>, \<sigma>'' \<turnstile> USum tag' va rs \<sim> vxsum : TSum ts \<langle>r1', w1'\<rangle>"
       and r1'_sub_r1: "r1' \<subseteq> r1"
-      and frame1: "upd.frame \<sigma> w1 \<sigma>'' w1'"
+      and frame1: "frame \<sigma> w1 \<sigma>'' w1'"
    using mono_correspondence(1) u_sem_case_nm.hyps(1) u_sem_case_nm.prems matches1 vsem_x typing_x
    by blast
   then obtain vv t k
