@@ -61,6 +61,7 @@ session Cogent = AutoCorres +
     "UpdateSemantics"
     "Util"
     "ValueSemantics"
+    "TypeInfer"
 
 session CogentShallow = Cogent +
   theories

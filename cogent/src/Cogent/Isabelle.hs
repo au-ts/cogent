@@ -23,6 +23,7 @@ module Cogent.Isabelle (
 , module Cogent.Isabelle.Shallow
 , module Cogent.Isabelle.ShallowTable
 , module Cogent.Isabelle.TypeProofs
+, module Cogent.Isabelle.TypeProofs2
 , module Cogent.Isabelle.GraphGen
 ) where
 
@@ -37,5 +38,6 @@ import Cogent.Isabelle.Root         (root)
 import Cogent.Isabelle.Shallow      (shallowConsts, shallow, shallowTuplesProof)
 import Cogent.Isabelle.ShallowTable (st, printTable)
 import Cogent.Isabelle.TypeProofs   (deepTypeProof)
+import Cogent.Isabelle.TypeProofs2  (deepTypeProofNew)
 import Cogent.Isabelle.GraphGen     (graphGen)
 

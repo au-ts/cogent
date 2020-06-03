@@ -124,6 +124,7 @@ library
               , Cogent.Isabelle.Shallow
               , Cogent.Isabelle.ShallowTable
               , Cogent.Isabelle.TypeProofs
+              , Cogent.Isabelle.TypeProofs2
               , Cogent.Isabelle.IsabelleName
               , Cogent.Mono
               , Cogent.Normal
