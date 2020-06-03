@@ -966,14 +966,11 @@ printATM = L.concat . L.map (\(tn,S.toList -> ls) -> tn ++ "\n" ++
 -- ----------------------------------------------------------------------------
 -- * Table generator
 
-newtype TableCTypes = TableCTypes (CId, CC.Type 'Zero VarName, [(FunName, FunName)])
-
-table :: TableCTypes -> PP.Doc
-table (TableCTypes entry) = PP.pretty entry
+newtype TableCTypes = TableCTypes (CId, CC.Type 'Zero VarName, [(Maybe FunName, Maybe FunName)])
 
 printCTable :: Handle -> (PP.Doc -> PP.Doc) -> [TableCTypes] -> String -> IO ()
 printCTable h m ts log = mapM_ ((>> hPutChar h '\n') . PP.displayIO h . PP.renderPretty 0 80 . m) $
-                           L.map (PP.string . ("-- " ++)) (lines log) ++ PP.line : L.map table ts
+                           L.map (PP.string . ("-- " ++)) (lines log) ++ PP.line : L.map PP.pretty ts
 
 instance PP.Pretty TableCTypes where
   pretty (TableCTypes (n,t,gss)) =
@@ -983,8 +980,11 @@ instance PP.Pretty TableCTypes where
     where prettyGetterSetters [] = PP.empty
           prettyGetterSetters ps = PP.space PP.<> PP.list (map prettyGetterSetter ps)
 
+          maybeP _ Nothing  = PP.text "_"
+          maybeP p (Just x) = p x
+
           prettyGetterSetter (getter, setter) =
-            PP.text getter PP.<+> PP.text "/" PP.<+> PP.text setter
+            maybeP PP.text getter PP.<+> PP.text "/" PP.<+> maybeP PP.text setter
 
 
 -- ////////////////////////////////////////////////////////////////////////////

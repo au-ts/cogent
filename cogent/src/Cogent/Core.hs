@@ -106,6 +106,15 @@ isTFun :: Type t b -> Bool
 isTFun (TFun {}) = True
 isTFun _ = False
 
+isTRecord :: Type t b -> Bool
+isTRecord (TRecord {}) = True
+isTRecord _ = False
+
+-- ASSUME: input in a record type
+recordFields :: Type t b -> [FieldName]
+recordFields (TRecord _ fs _) = map fst fs
+recordFields _ = __impossible "recordsFields: not a record type"
+
 isUnboxed :: Type t b -> Bool
 isUnboxed (TCon _ _ Unboxed) = True
 isUnboxed (TRecord _ _ Unboxed) =  True

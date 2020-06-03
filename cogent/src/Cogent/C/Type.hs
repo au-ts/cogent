@@ -208,11 +208,14 @@ typeCId t = use custTypeGen >>= \ctg ->
               Just (n,_) -> return n
               Nothing -> do
                 n <- t & if __cogent_fflatten_nestings then typeCIdFlat else typeCId'
-                recordGetters <- M.toList <$> use boxedRecordGetters
-                recordSetters <- M.toList <$> use boxedRecordSetters
-                let getters = map (first snd) $ filter (\x -> fst (fst x) == t) recordGetters
-                    setters = map (first snd) $ filter (\x -> fst (fst x) == t) recordSetters
-                    gss = P.zipWith (\(f1,g) (f2,s) -> (g,s)) getters setters
+                gss <- if not (isTRecord t) then return []
+                       else do  -- FIXME: only generate getter/setters for records for now / zilinc
+                               recordGetters <- M.toList <$> use boxedRecordGetters
+                               recordSetters <- M.toList <$> use boxedRecordSetters
+                               let getters = map (first snd) $ filter (\x -> fst (fst x) == t) recordGetters
+                                   setters = map (first snd) $ filter (\x -> fst (fst x) == t) recordSetters
+                                   fields = recordFields t
+                               return $ P.map (\f -> (P.lookup f getters, P.lookup f setters)) fields
                 when (isUnstable t) (typeCorres %= DList.cons (toCName n, t, gss))
                 return n
   where

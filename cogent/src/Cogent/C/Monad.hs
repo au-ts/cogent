@@ -116,7 +116,7 @@ data GenState  = GenState
     --   but the map gives performant reads.
 
   , _typeSynonyms :: M.Map TypeName CType
-  , _typeCorres   :: DList.DList (CId, CC.Type 'Zero VarName, [(FunName, FunName)])
+  , _typeCorres   :: DList.DList (CId, CC.Type 'Zero VarName, [(Maybe FunName, Maybe FunName)])
     -- ^ C type names corresponding to Cogent types
 
   , _absTypes     :: M.Map TypeName (S.Set [CId])
