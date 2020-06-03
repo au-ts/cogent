@@ -187,7 +187,7 @@ ML\<open>
 
 the field type can be retrieved from the get_ret_typ of the getter
  *)
-type layout_field_info = { (* ty : string , *) getter : string , setter : string }
+type layout_field_info = { name : string ,  getter : string , setter : string }
 datatype layout_info = CustomLayout of layout_field_info list
  | DefaultLayout
 (* type definition on the ML-level.*)

@@ -80,10 +80,10 @@ fun read_table (file_name:string) thy =
                       | _ => error (report pos ^ "expected \" :=: \""))
                 : (int * string * string) list;
     fun consume_getsetter _ (Str getter :: Sep #"/" :: Str setter (* :: Sep #":" :: Str ty *) :: l)  =
-       ({(*ty = ty, *) getter = getter, setter = setter} : layout_field_info , l)
+       ({(*ty = ty, *) getter = getter, setter = setter} : {getter : string, setter : string} , l)
      | consume_getsetter pos _ = 
        error(report_getset pos)
-   fun read_fieldinfo _ [Sep #"]"] = [] : layout_field_info list  
+   fun read_fieldinfo _ [Sep #"]"] = [] : {getter : string, setter : string} list  
     | read_fieldinfo pos l =
        case consume_getsetter pos l of
             (info, [Sep #"]"]) => [info]
@@ -91,11 +91,11 @@ fun read_table (file_name:string) thy =
           | _ =>  error(report_getset pos)
  
 
-    fun cT_to_C_name_fieldinfos pos cT : string * layout_info = 
+    fun cT_to_C_name_fieldinfos pos cT : string *  {getter : string, setter : string} list option = 
         case split_words cT of
             [] => error(report pos ^ "expected: C type")
-           | [Str C_name] => (C_name, DefaultLayout)
-           | Str C_name :: Sep #"[" :: l => (C_name, CustomLayout (read_fieldinfo pos l))
+           | [Str C_name] => (C_name, NONE)
+           | Str C_name :: Sep #"[" :: l => (C_name, SOME (read_fieldinfo pos l))
            | _ => error(report_getset pos)
 
 
@@ -108,20 +108,30 @@ fun read_table (file_name:string) thy =
                     val _ = if type_of cogentT = @{typ Cogent.type} then () else err ()
                     val (cT , infos) = cT_to_C_name_fieldinfos pos cT
                     in (pos, cogentT, cT, infos) end)
-                : (int * term * string * layout_info) list; 
+                : (int * term * string * {getter : string, setter : string} list option) list; 
 
-    fun decode_sigil _   ((Const (@{const_name Boxed}, _)) $ (Const (@{const_name Writable}, _)) $ _) l = 
-         Boxed(Writable, l)
-      | decode_sigil _   ((Const (@{const_name Boxed}, _)) $ (Const (@{const_name ReadOnly}, _)) $ _) l = 
-         Boxed(ReadOnly, l)
-      | decode_sigil _   (Const (@{const_name Unboxed},  _)) _ = Unboxed
-      | decode_sigil pos t _ = raise TERM (report pos ^ "bad sigil", [t]);
+    fun build_layout_info pos (SOME infos) names =
+         (ListPair.mapEq (fn ({getter, setter}, name) => {getter = getter, setter = setter, name = name})
+          (infos, names) |> CustomLayout
+         handle ListPair.UnequalLengths => error (report pos ^ "The number of custom getters/setters differs from the number of fields"))
+      | build_layout_info _ NONE _ = DefaultLayout
+
+    fun decode_sigil names pos   ((Const (@{const_name Boxed}, _)) $ (Const (@{const_name Writable}, _)) $ _) l = 
+         Boxed(Writable, build_layout_info pos l names)
+      | decode_sigil names pos   ((Const (@{const_name Boxed}, _)) $ (Const (@{const_name ReadOnly}, _)) $ _) l = 
+         Boxed(ReadOnly, build_layout_info pos l names)
+      | decode_sigil _ _   (Const (@{const_name Unboxed},  _)) _ = Unboxed
+      | decode_sigil _ pos t _ = raise TERM (report pos ^ "bad sigil", [t]);
    
+    fun decode_field_names (l : term) =
+      HOLogic.dest_list l |>
+       List.map (HOLogic.dest_prod) |>
+       List.map fst |> List.map HOLogic.dest_string
 
     fun decode_type (_, Const (@{const_name TCon}, _) $ _ $ _ $ _, cT, _) =
             UAbstract cT
-      | decode_type (pos, Const (@{const_name TRecord}, _) $ _ $ sigil, cT, getsets) =
-            URecord (cT, decode_sigil pos sigil getsets) (* (decode_layout_info pos argRec getsets)) *)
+      | decode_type (pos, Const (@{const_name TRecord}, _) $ l $ sigil, cT, getsets) =
+            URecord (cT, (decode_sigil  (decode_field_names l) pos sigil getsets)) 
       | decode_type (_, Const (@{const_name TSum}, _) $ variants, cT, _) =
             USum (cT, variants)
       | decode_type (_, Const (@{const_name TProduct}, _) $ _ $ _, cT, _) =

@@ -590,17 +590,22 @@ ML\<open> fun mk_urecord_lems_for_uval file_nm ctxt (uval:uval) =
   val thy = Proof_Context.theory_of ctxt;
   val ml_sigil    = get_uval_sigil uval;
   val struct_C_nm = get_ty_nm_C uval;
-val _ = tracing (@{make_string } uval)
   val _ = tracing ("mk_urecord_lems_for_uval is generating lems for " ^ struct_C_nm)
-  val heap = Symtab.lookup (HeapInfo.get thy) file_nm
+  
+  
+  val (num_of_fields, field_names) = 
+    case get_sigil_layout ml_sigil of
+      DefaultLayout =>
+        let
+          val heap = Symtab.lookup (HeapInfo.get thy) file_nm
               |> Option.map #heap_info;
-  fun get_structs heap = Symtab.lookup (#structs heap) struct_C_nm : 'a option;
-  val field_info = heap ?> get_structs +> #field_info |> these;
-  val _ = tracing (@{make_string } field_info)
-  val num_of_fields = List.length field_info
- (*case get_uval_getsetters uval of
-     SOME l => List.length l
-   | NONE => List.length field_info; *)
+          fun get_structs heap = Symtab.lookup (#structs heap) struct_C_nm : 'a option;
+
+          val field_info = heap ?> get_structs +> #field_info |> these;
+        in
+          (List.length field_info, List.map #name field_info)
+        end
+    | CustomLayout l => (List.length l, List.map #name l)
 
   (* specialised_lemmas for each fields.
    * Three lemmas are generated if uval is of Writable.*)
@@ -611,9 +616,7 @@ val _ = tracing (@{make_string } uval)
           Boxed(Writable, _) => [TakeBoxed, PutBoxed, LetPutBoxed]
         | Unboxed  => [TakeUnboxed]
         | Boxed(ReadOnly, _) => [MemberReadOnly];
-    val field_C_nm           = 
-      (* TODO enlever ce truc *)
-       List.nth (field_info, field_num) |> #name;
+    val field_C_nm           = List.nth (field_names, field_num)
     fun get_sigil_nm sigil   = case sigil of
           Boxed(Writable, _) => "writable"
         | Unboxed  => "unboxed"
