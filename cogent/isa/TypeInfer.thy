@@ -1015,6 +1015,11 @@ inductive tyinf_synth :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Fun f ts : TFun t' u'"
 *)
 
+(*
+lemma "\<lbrakk> \<Xi>, K, \<Gamma>, C \<turnstile>\<up> x : t
+       \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> Annotate t x : t"
+*)
+
 inductive_cases tyinf_synth_varE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<down> Var i : t"
 inductive_cases tyinf_synth_tupleE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<down> Tuple e1 e2 : t"
 inductive_cases tyinf_synth_conE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<down> Con ts tag x : t"
@@ -1711,11 +1716,18 @@ lemma tyinf_to_typing_all_present:
 section \<open> Type Inference Tactic \<close>
 
 (* Obviously true, but ensures C' and t' are schematic *)
-lemma tyinf_checkI:
+lemma tyinf_inferI:
   "\<lbrakk> \<Xi>, K, \<Gamma>, C' \<turnstile>\<down> e : t'
    ; C = C'
    ; t = t'
    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> e : t"
+  by fast
+
+(* Obviously true, but ensures C' is schematic *)
+lemma tyinf_checkI:
+  "\<lbrakk> \<Xi>, K, \<Gamma>, C' \<turnstile>\<up> e : t
+   ; C = C'
+   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile>\<up> e : t"
   by fast
 
 ML \<open>
@@ -1742,8 +1754,7 @@ where
   "expr1 \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Struct [''b'',''a''] [TPrim (Num U8), TPrim (Num U32)] [Var 2, Var 0]))"
 
 schematic_goal typing1: "\<Xi>, [], [ty1], ?C \<turnstile>\<up> expr1 : ty1"
-  unfolding expr1_def ty1_def
-  apply clarsimp
+  apply (unfold expr1_def ty1_def)
   apply (tactic \<open>typinfer_tac @{context}\<close>)
   done
 thm typing1[simplified]
@@ -1779,8 +1790,7 @@ thm typing2[simplified]
 schematic_goal typing3:
   "\<exists>ts. \<Xi>, [], [TCon ''A'' [] (Boxed Writable undefined)], ?C \<turnstile>\<down> Struct [''a'',''b''] ts [Var 0, Var 0] : ?t"
   apply (rule exI)
-  apply (rule tyinf_checkI)
-    apply (tactic \<open>typinfer_tac @{context}\<close>)
+  apply (tactic \<open>typinfer_tac @{context}\<close>)
   done
 thm typing3[simplified]
 
