@@ -57,13 +57,13 @@ import           Cogent.Inference             (kindcheck_)
 import           Cogent.Isabelle.Deep
 import           Cogent.Mono                  (Instance)
 import           Cogent.Normal                (isAtom)
-import           Cogent.Util                  (behead, decap, extTup2l, extTup3r, first3, secondM, toCName, whenM, flip3)
+import           Cogent.Util                  (behead, decap, extTup2l, extTup3r, first3, for, secondM, toCName, whenM, flip3)
 import qualified Data.DList          as DList
 import           Data.Nat            as Nat
 import           Data.Vec            as Vec   hiding (repeat, zipWith)
 
 import           Control.Applicative          hiding (empty)
-import           Control.Arrow                       ((***), (&&&), second)
+import           Control.Arrow                       ((***), (&&&), first, second)
 import           Control.Monad.RWS.Strict     hiding (mapM, mapM_, Dual, (<>), Product, Sum)
 import           Data.Char                    (isAlphaNum, toUpper)
 #if __GLASGOW_HASKELL__ < 709
@@ -940,7 +940,7 @@ compile defs mcache ctygen =
       tdefs' = reverse $ st ^. cTypeDefs
       tsyns' = M.toList $ st ^. typeSynonyms
       absts' = M.toList $ st ^. absTypes
-      tycorr = reverse $ DList.toList $ st ^. typeCorres
+      tycorr = reverse $ updateWithGSs st $ DList.toList $ st^.typeCorres
       (tdefs'', tdecls'') = (concat *** concat) $ P.unzip (map (flip genTyDecl tns) tdefs')
   in ( enum ++ fenums
      , tdecls'' ++ tdefs''  -- type definitions
@@ -953,7 +953,19 @@ compile defs mcache ctygen =
      , tns  -- list of funclass typenames (for HscGen)
      , st''
      )
-
+  where updateWithGSs :: GenState
+                      -> [(CId, CC.Type 'Zero VarName)]
+                      -> [(CId, CC.Type 'Zero VarName, [(Maybe FunName, Maybe FunName)])]
+        updateWithGSs st typeCorres = for typeCorres $ \(cid,t) ->
+          let gss = if not (isTRecord t) then []
+                      else -- FIXME: only generate getter/setters for records for now / zilinc
+                           let recordGetters = M.toList $ st^.boxedRecordGetters
+                               recordSetters = M.toList $ st^.boxedRecordSetters
+                               getters = map (first snd) $ filter (\x -> fst (fst x) == t) recordGetters
+                               setters = map (first snd) $ filter (\x -> fst (fst x) == t) recordSetters
+                               fields = recordFields t
+                            in P.map (\f -> (P.lookup f getters, P.lookup f setters)) fields
+           in (cid,t,gss)
 
 -- ----------------------------------------------------------------------------
 -- * Table of Abstract types

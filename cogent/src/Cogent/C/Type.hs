@@ -64,6 +64,7 @@ import           Data.Char                    (isAlphaNum, toUpper)
 #if __GLASGOW_HASKELL__ < 709
 import           Data.Foldable                (mapM_)
 #endif
+import           Data.Function                (on)
 import           Data.Functor.Compose
 import           Data.IntMap         as IM    (delete, mapKeys)
 import qualified Data.List           as L
@@ -208,15 +209,7 @@ typeCId t = use custTypeGen >>= \ctg ->
               Just (n,_) -> return n
               Nothing -> do
                 n <- t & if __cogent_fflatten_nestings then typeCIdFlat else typeCId'
-                gss <- if not (isTRecord t) then return []
-                       else do  -- FIXME: only generate getter/setters for records for now / zilinc
-                               recordGetters <- M.toList <$> use boxedRecordGetters
-                               recordSetters <- M.toList <$> use boxedRecordSetters
-                               let getters = map (first snd) $ filter (\x -> fst (fst x) == t) recordGetters
-                                   setters = map (first snd) $ filter (\x -> fst (fst x) == t) recordSetters
-                                   fields = recordFields t
-                               return $ P.map (\f -> (P.lookup f getters, P.lookup f setters)) fields
-                when (isUnstable t) (typeCorres %= DList.cons (toCName n, t, gss))
+                when (isUnstable t) (typeCorres %= DList.cons (toCName n, t))
                 return n
   where
     typeCId' :: CC.Type 'Zero VarName -> Gen v CId

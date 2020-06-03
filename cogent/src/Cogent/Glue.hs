@@ -137,7 +137,7 @@ data MnState = MnState { _funMono  :: MN.FunMono VarName
 data CgState = CgState { _cTypeDefs    :: [(CG.StrlType, CG.CId)]
                        , _cTypeDefMap  :: M.Map CG.StrlType CG.CId
                        , _typeSynonyms :: M.Map TypeName CG.CType
-                       , _typeCorres   :: DList.DList (CG.CId, CC.Type 'Zero VarName, [(Maybe FunName, Maybe FunName)])
+                       , _typeCorres   :: DList.DList (CG.CId, CC.Type 'Zero VarName)
                        , _absTypes     :: M.Map TypeName (S.Set [CG.CId])
                        , _custTypeGen  :: M.Map (CC.Type 'Zero VarName) (CG.CId, CustTyGenInfo)
                        , _funClasses   :: CG.FunClass
