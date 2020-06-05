@@ -17,7 +17,7 @@ locale WordArray = main_pp_inferred begin
                       (\<forall>i < len. \<exists>x. \<sigma>(arr + 4 * i) = Some (UPrim (LU32 x)))
     | _ \<Rightarrow> name = ''Unknown Abstract Type'' \<and> \<tau>s = [] \<and> r = {} \<and> w = {} \<and> sig = Unboxed)"
 end
-
+(*
 sublocale WordArray \<subseteq>
   update_sem_init abs_typing' abs_repr'
   apply (unfold abs_repr'_def[abs_def] abs_typing'_def[abs_def])
@@ -38,7 +38,7 @@ sublocale WordArray \<subseteq>
   apply (drule_tac x = "x12 + 4 * i" in orthD1; simp)
   apply (rule_tac x = i in exI; simp)
   done
-
+*)
 sublocale WordArray \<subseteq> Generated t abs_typing' abs_repr'
   apply (unfold abs_repr'_def[abs_def] abs_typing'_def[abs_def])
   apply (unfold_locales; clarsimp split: atyp.splits)

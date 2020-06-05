@@ -79,10 +79,10 @@ fold (fn (f, thm) => Utils.define_lemmas (f ^ "_normalised") [thm] #> snd)
 (* Initialise final locale. *)
 locale Generated_cogent_shallow =
   "main_pp_inferred" + correspondence +
-  constrains val_abs_typing :: "'b \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> bool"
+  constrains val_abs_typing :: "vabstyp \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> bool"
          and upd_abs_typing :: "abstyp \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> sigil \<Rightarrow> ptrtyp set \<Rightarrow> ptrtyp set \<Rightarrow> (funtyp, abstyp, ptrtyp) store \<Rightarrow> bool"
          and abs_repr       :: "abstyp \<Rightarrow> name \<times> repr list"
-         and abs_upd_val    :: "abstyp \<Rightarrow> 'b \<Rightarrow> char list \<Rightarrow> Cogent.type list \<Rightarrow> sigil \<Rightarrow> 32 word set \<Rightarrow> 32 word set \<Rightarrow> (funtyp, abstyp, ptrtyp) store \<Rightarrow> bool"
+         and abs_upd_val    :: "abstyp \<Rightarrow> vabstyp \<Rightarrow> char list \<Rightarrow> Cogent.type list \<Rightarrow> sigil \<Rightarrow> 32 word set \<Rightarrow> 32 word set \<Rightarrow> (funtyp, abstyp, ptrtyp) store \<Rightarrow> bool"
 
 
 sublocale Generated_cogent_shallow \<subseteq> Generated _ upd_abs_typing abs_repr
@@ -108,58 +108,6 @@ filter (member op= Cogent_functions) entry_func_names
 
 
 print_theorems
-thm  Generated_cogent_shallow.corres_shallow_C_wordarray_put2_u32[no_vars]
-
-
-definition \<xi>_0' :: "(char list, atyp, 32 word) uabsfuns" 
-  where
-  "\<xi>_0' x y z = 
-      (let (y1, y2) = y;
-           (z1, z2) = z
-      in
-           (if x = ''wordarray_put2_0'' then
-                (case y2 of 
-                      URecord [(UPtr p r, _), 
-                            (UPrim (LU32 idx), _ ), (UPrim (LU32 val), _)] 
-                        \<Rightarrow> (\<lambda>l. (case y1 p of option.Some (UAbstract (WAU32 len arr))
-                                      \<Rightarrow> (if l = arr + 4 * idx \<and> idx < len 
-                                            then option.Some (UPrim (LU32 val)) else y1 l)
-                                  | _ \<Rightarrow> y1 l)) = z1 \<and> 
-                            UPtr p r = z2
-                    | _ \<Rightarrow> False)
-           else False))" 
-
-theorem manual_generated_theorem:
-"\<lbrakk>Generated_cogent_shallow abs_repra val_abs_typinga upd_abs_typinga abs_upd_vala;
- \<And>i \<gamma> v' \<Gamma>' \<sigma> st.
-    \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v'; \<Gamma>' ! i = option.Some (prod.fst (prod.snd wordarray_put2_0_type))\<rbrakk>
-    \<Longrightarrow> update_sem_init.corres upd_abs_typinga abs_repra (Generated.state_rel abs_repra) (App (AFun ''wordarray_put2_0'' []) (Var i))
-         (do x <- wordarray_put2_0' v';
-             gets (\<lambda>s. x)
-          od)
-         \<xi>_0' \<gamma>
-         (assoc_lookup
-           [(''wordarray_put2_0'', wordarray_put2_0_type), (''wordarray_put2_u32'', Generated_TypeProof.wordarray_put2_u32_type)]
-           ([], TUnit, TUnit))
-         \<Gamma>' \<sigma> st;
- correspondence_init abs_repra val_abs_typinga upd_abs_typinga abs_upd_vala;
- value_sem.rename_mono_prog val_abs_typinga rename \<Xi> \<xi>\<^sub>m \<xi>\<^sub>p; vv\<^sub>m = value_sem.rename_val rename (value_sem.monoval vv\<^sub>p);
- correspondence_init.val_rel_shallow_C abs_repra abs_upd_vala rename vv\<^sub>s uv\<^sub>C vv\<^sub>p uv\<^sub>m \<xi>\<^sub>p \<sigma> \<Xi>; proc_ctx_wellformed \<Xi>;
- value_sem.proc_env_matches val_abs_typinga \<xi>\<^sub>m \<Xi>;
- value_sem.matches val_abs_typinga \<Xi> [vv\<^sub>m] [option.Some (prod.fst (prod.snd Generated_TypeProof.wordarray_put2_u32_type))]\<rbrakk>
-\<Longrightarrow> correspondence_init.corres_shallow_C abs_repra upd_abs_typinga abs_upd_vala rename (Generated.state_rel abs_repra)
-     (Generated_Shallow_Desugar.wordarray_put2_u32 vv\<^sub>s) Generated_TypeProof.wordarray_put2_u32 (wordarray_put2_u32' uv\<^sub>C) \<xi>_0' \<xi>\<^sub>m \<xi>\<^sub>p
-     [uv\<^sub>m] [vv\<^sub>m] \<Xi> [option.Some (prod.fst (prod.snd Generated_TypeProof.wordarray_put2_u32_type))] \<sigma> s"
-  oops
-(*
-\<xi>_m == monomorphic value semantics contexts for values
-\<xi>_p == polymorphic ...
-vv_s == value of the argument of the function, i.e. wordarray_put2, in the shallow Isabelle embedding
-vv_p == value of the argument of the function, i.e. wordarray_put2, in the polymorphic value semantics
-vv_m == value of the argument of the function, i.e. wordarray_put2, in the monomorphic value semantics
-uv_m == value of the argument of the function, i.e. wordarray_put2, in the monomorphic update semantics
-uv_c == value of the argument of the function, i.e. wordarray_put2, in the autocorres generated C
-*)
 end
 
 end

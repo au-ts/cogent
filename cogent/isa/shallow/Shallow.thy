@@ -18,6 +18,9 @@ begin
 
 type_synonym funtyp = "char list"
 
+datatype vatyp = VWA "(funtyp, vatyp) vval list" | VTOther "unit"
+type_synonym vabstyp = vatyp
+
 inductive_cases v_sem_letE: "\<xi> , \<gamma> \<turnstile> Let a b \<Down> b'"
 inductive_cases v_sem_letBangE: "\<xi> , \<gamma> \<turnstile> LetBang vs a b \<Down> b'"
 inductive_cases v_sem_litE: "\<xi> , \<gamma> \<turnstile> Lit l \<Down> v"
@@ -65,40 +68,40 @@ lemmas v_sem_elims =
 
 (* Should we use type class here, instead of using "defs (overloaded)"?
  * Christine's approach with type class looks more systematic.*)
-consts valRel :: "(funtyp,'b) vabsfuns \<Rightarrow> 'a \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool"
+consts valRel :: "(funtyp,vabstyp) vabsfuns \<Rightarrow> 'a \<Rightarrow> (funtyp,vabstyp) vval \<Rightarrow> bool"
 overloading
- valRel_bool  \<equiv> "valRel :: (funtyp,'b) vabsfuns \<Rightarrow> bool \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool"
- valRel_u8    \<equiv> "valRel :: (funtyp,'b) vabsfuns \<Rightarrow> 8 word \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool"
- valRel_u16   \<equiv> "valRel :: (funtyp,'b) vabsfuns \<Rightarrow> 16 word \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool"
- valRel_u32   \<equiv> "valRel :: (funtyp,'b) vabsfuns \<Rightarrow> 32 word \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool"
- valRel_u64   \<equiv> "valRel :: (funtyp,'b) vabsfuns \<Rightarrow> 64 word \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool"
- valRel_unit  \<equiv> "valRel :: (funtyp,'b) vabsfuns \<Rightarrow> unit \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool"
- valRel_pair  \<equiv> "valRel :: (funtyp,'b) vabsfuns \<Rightarrow> 'x \<times> 'y \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool"
- valRel_fun   \<equiv> "valRel :: (funtyp,'b) vabsfuns \<Rightarrow> ('x \<Rightarrow> 'y) \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool"
+ valRel_bool  \<equiv> "valRel :: (funtyp,vabstyp) vabsfuns \<Rightarrow> bool \<Rightarrow> (funtyp,vabstyp) vval \<Rightarrow> bool"
+ valRel_u8    \<equiv> "valRel :: (funtyp,vabstyp) vabsfuns \<Rightarrow> 8 word \<Rightarrow> (funtyp,vabstyp) vval \<Rightarrow> bool"
+ valRel_u16   \<equiv> "valRel :: (funtyp,vabstyp) vabsfuns \<Rightarrow> 16 word \<Rightarrow> (funtyp,vabstyp) vval \<Rightarrow> bool"
+ valRel_u32   \<equiv> "valRel :: (funtyp,vabstyp) vabsfuns \<Rightarrow> 32 word \<Rightarrow> (funtyp,vabstyp) vval \<Rightarrow> bool"
+ valRel_u64   \<equiv> "valRel :: (funtyp,vabstyp) vabsfuns \<Rightarrow> 64 word \<Rightarrow> (funtyp,vabstyp) vval \<Rightarrow> bool"
+ valRel_unit  \<equiv> "valRel :: (funtyp,vabstyp) vabsfuns \<Rightarrow> unit \<Rightarrow> (funtyp,vabstyp) vval \<Rightarrow> bool"
+ valRel_pair  \<equiv> "valRel :: (funtyp,vabstyp) vabsfuns \<Rightarrow> 'x \<times> 'y \<Rightarrow> (funtyp,vabstyp) vval \<Rightarrow> bool"
+ valRel_fun   \<equiv> "valRel :: (funtyp,vabstyp) vabsfuns \<Rightarrow> ('x \<Rightarrow> 'y) \<Rightarrow> (funtyp,vabstyp) vval \<Rightarrow> bool"
 begin
 
-fun valRel_bool :: "(funtyp,'b) vabsfuns \<Rightarrow> bool \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool" where
+fun valRel_bool :: "(funtyp,vabstyp) vabsfuns \<Rightarrow> bool \<Rightarrow> (funtyp,vabstyp) vval \<Rightarrow> bool" where
   "valRel_bool \<xi> b v = (v = (vval.VPrim (LBool b)))"
 
-fun valRel_u8 :: "(funtyp,'b) vabsfuns \<Rightarrow> 8 word \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool" where
+fun valRel_u8 :: "(funtyp,vabstyp) vabsfuns \<Rightarrow> 8 word \<Rightarrow> (funtyp,vabstyp) vval \<Rightarrow> bool" where
   "valRel_u8 \<xi> w v = (v = vval.VPrim (LU8 w))"
 
-fun valRel_u16 :: "(funtyp,'b) vabsfuns \<Rightarrow> 16 word \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool" where
+fun valRel_u16 :: "(funtyp,vabstyp) vabsfuns \<Rightarrow> 16 word \<Rightarrow> (funtyp,vabstyp) vval \<Rightarrow> bool" where
   "valRel_u16 \<xi> w v = (v = vval.VPrim (LU16 w))"
 
-fun valRel_u32 :: "(funtyp,'b) vabsfuns \<Rightarrow> 32 word \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool" where
+fun valRel_u32 :: "(funtyp,vabstyp) vabsfuns \<Rightarrow> 32 word \<Rightarrow> (funtyp,vabstyp) vval \<Rightarrow> bool" where
   "valRel_u32 \<xi> w v = (v = vval.VPrim (LU32 w))"
 
-fun valRel_u64 :: "(funtyp,'b) vabsfuns \<Rightarrow> 64 word \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool" where
+fun valRel_u64 :: "(funtyp,vabstyp) vabsfuns \<Rightarrow> 64 word \<Rightarrow> (funtyp,vabstyp) vval \<Rightarrow> bool" where
   "valRel_u64 \<xi> w v = (v = vval.VPrim (LU64 w))"
 
-fun valRel_unit :: "(funtyp,'b) vabsfuns \<Rightarrow> unit \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool" where
+fun valRel_unit :: "(funtyp,vabstyp) vabsfuns \<Rightarrow> unit \<Rightarrow> (funtyp,vabstyp) vval \<Rightarrow> bool" where
   "valRel_unit \<xi> w v = (v = vval.VUnit)"
 
-fun valRel_pair :: "(funtyp,'b) vabsfuns \<Rightarrow> 'x \<times> 'y \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool" where
+fun valRel_pair :: "(funtyp,vabstyp) vabsfuns \<Rightarrow> 'x \<times> 'y \<Rightarrow> (funtyp,vabstyp) vval \<Rightarrow> bool" where
   "valRel_pair \<xi> p v = (\<exists> va vb. v = (vval.VProduct va vb) \<and> valRel \<xi> (fst p) va \<and> valRel \<xi> (snd p) vb)"
 
-fun valRel_fun :: "(funtyp,'b) vabsfuns \<Rightarrow> ('x \<Rightarrow> 'y) \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool" where
+fun valRel_fun :: "(funtyp,vabstyp) vabsfuns \<Rightarrow> ('x \<Rightarrow> 'y) \<Rightarrow> (funtyp,vabstyp) vval \<Rightarrow> bool" where
   "valRel_fun \<xi> f f' =
 ((\<exists>e ts. f' = VFunction e ts \<and>
           (\<forall>x x' v'. valRel \<xi> x x' \<longrightarrow> (\<xi>, [x'] \<turnstile> specialise ts e \<Down> v') \<longrightarrow> valRel \<xi> (f x) v')) \<or>
@@ -113,7 +116,7 @@ text {* Shallow & deep embedding correspondence:
   deep embedding is a refinement of the shallow representation
 *}
 definition
-  scorres :: "'s \<Rightarrow> (funtyp) expr \<Rightarrow> (funtyp,'a) vval env \<Rightarrow> (funtyp,'a) vabsfuns \<Rightarrow> bool"
+  scorres :: "'s \<Rightarrow> (funtyp) expr \<Rightarrow> (funtyp,vabstyp) vval env \<Rightarrow> (funtyp,vabstyp) vabsfuns \<Rightarrow> bool"
 where
   "scorres s d \<gamma> \<xi> \<equiv> (\<forall>r. (\<xi>, \<gamma> \<turnstile> d \<Down> r) \<longrightarrow> valRel \<xi> s r)"
 

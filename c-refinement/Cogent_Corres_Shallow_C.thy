@@ -31,7 +31,8 @@ locale correspondence_init =
   correspondence +
   constrains upd_abs_typing :: "abstyp \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> sigil \<Rightarrow> ptrtyp set \<Rightarrow> ptrtyp set \<Rightarrow> (funtyp, abstyp, ptrtyp) store \<Rightarrow> bool"
        and abs_repr :: "abstyp \<Rightarrow> name \<times> repr list"
-       and abs_upd_val :: "abstyp \<Rightarrow> 'b \<Rightarrow> char list \<Rightarrow> Cogent.type list \<Rightarrow> sigil \<Rightarrow> ptrtyp set \<Rightarrow> ptrtyp set \<Rightarrow> (funtyp, abstyp, ptrtyp) store \<Rightarrow> bool"
+       and val_abs_typing :: "vabstyp \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> bool"
+       and abs_upd_val :: "abstyp \<Rightarrow> vabstyp \<Rightarrow> char list \<Rightarrow> Cogent.type list \<Rightarrow> sigil \<Rightarrow> ptrtyp set \<Rightarrow> ptrtyp set \<Rightarrow> (funtyp, abstyp, ptrtyp) store \<Rightarrow> bool"
 
 sublocale correspondence_init \<subseteq> update_sem_init upd_abs_typing abs_repr
   by (unfold_locales)
@@ -60,9 +61,9 @@ definition val_rel_shallow_C where
      (rename :: funtyp \<times> type list \<Rightarrow> funtyp)
      (v\<^sub>s :: 'sv)
      (v\<^sub>C :: 'cv :: cogent_C_val)
-     (v\<^sub>p :: (funtyp, 'b) vval)
+     (v\<^sub>p :: (funtyp, vabstyp) vval)
      (v\<^sub>u\<^sub>m :: (funtyp, abstyp, ptrtyp) uval)
-     (\<xi>\<^sub>p :: (funtyp, 'b) vabsfuns)
+     (\<xi>\<^sub>p :: (funtyp, vabstyp) vabsfuns)
      (\<sigma> :: (funtyp, abstyp, ptrtyp) store)
      (\<Xi>\<^sub>m :: funtyp \<Rightarrow> poly_type) \<equiv>
   \<exists>\<tau> r w.
@@ -84,10 +85,10 @@ definition corres_shallow_C where
      (prog\<^sub>m :: funtyp expr)
      (prog\<^sub>C :: ('s, 'cv :: cogent_C_val) nondet_monad)
      (\<xi>\<^sub>u\<^sub>m :: (funtyp, abstyp, ptrtyp) uabsfuns)
-     (\<xi>\<^sub>v\<^sub>m :: (funtyp, 'b) vabsfuns)
-     (\<xi>\<^sub>v\<^sub>p :: (funtyp, 'b) vabsfuns)
+     (\<xi>\<^sub>v\<^sub>m :: (funtyp, vabstyp) vabsfuns)
+     (\<xi>\<^sub>v\<^sub>p :: (funtyp, vabstyp) vabsfuns)
      (\<gamma>\<^sub>u\<^sub>m :: (funtyp, abstyp, ptrtyp) uval env)
-     (\<gamma>\<^sub>v\<^sub>m :: (funtyp, 'b) vval env)
+     (\<gamma>\<^sub>v\<^sub>m :: (funtyp, vabstyp) vval env)
      (\<Xi>\<^sub>m :: funtyp \<Rightarrow> poly_type)
      (\<Gamma>\<^sub>m :: ctx)
      (\<sigma> :: (funtyp, abstyp, ptrtyp) store)

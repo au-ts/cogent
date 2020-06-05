@@ -60,7 +60,7 @@ end
 overloading
   valRel_FindResult \<equiv> valRel
 begin
-  definition valRel_FindResult: "valRel_FindResult \<xi> (v :: ('a, 'b) FindResult) v' \<equiv> case_FindResult (\<lambda>x. \<exists>x'. v' = VSum ''Found'' x' \<and> valRel \<xi> x x') (\<lambda>x. \<exists>x'. v' = VSum ''NotFound'' x' \<and> valRel \<xi> x x') v"
+  definition valRel_FindResult: "valRel_FindResult \<xi> (v :: ('b, 'c) FindResult) v' \<equiv> case_FindResult (\<lambda>x. \<exists>x'. v' = VSum ''Found'' x' \<and> valRel \<xi> x x') (\<lambda>x. \<exists>x'. v' = VSum ''NotFound'' x' \<and> valRel \<xi> x x') v"
 end
 
 overloading
@@ -78,7 +78,7 @@ end
 overloading
   valRel_LoopResult \<equiv> valRel
 begin
-  definition valRel_LoopResult: "valRel_LoopResult \<xi> (v :: ('a, 'b) LoopResult) v' \<equiv> case_LoopResult (\<lambda>x. \<exists>x'. v' = VSum ''Break'' x' \<and> valRel \<xi> x x') (\<lambda>x. \<exists>x'. v' = VSum ''Iterate'' x' \<and> valRel \<xi> x x') v"
+  definition valRel_LoopResult: "valRel_LoopResult \<xi> (v :: ('b, 'c) LoopResult) v' \<equiv> case_LoopResult (\<lambda>x. \<exists>x'. v' = VSum ''Break'' x' \<and> valRel \<xi> x x') (\<lambda>x. \<exists>x'. v' = VSum ''Iterate'' x' \<and> valRel \<xi> x x') v"
 end
 
 overloading
@@ -96,13 +96,13 @@ end
 overloading
   valRel_Option \<equiv> valRel
 begin
-  definition valRel_Option: "valRel_Option \<xi> (v :: ('a, 'b) Option) v' \<equiv> case_Option (\<lambda>x. \<exists>x'. v' = VSum ''None'' x' \<and> valRel \<xi> x x') (\<lambda>x. \<exists>x'. v' = VSum ''Some'' x' \<and> valRel \<xi> x x') v"
+  definition valRel_Option: "valRel_Option \<xi> (v :: ('b, 'c) Option) v' \<equiv> case_Option (\<lambda>x. \<exists>x'. v' = VSum ''None'' x' \<and> valRel \<xi> x x') (\<lambda>x. \<exists>x'. v' = VSum ''Some'' x' \<and> valRel \<xi> x x') v"
 end
 
 overloading
   valRel_R \<equiv> valRel
 begin
-  definition valRel_R: "valRel_R \<xi> (v :: ('a, 'b) R) v' \<equiv> case_R (\<lambda>x. \<exists>x'. v' = VSum ''Error'' x' \<and> valRel \<xi> x x') (\<lambda>x. \<exists>x'. v' = VSum ''Success'' x' \<and> valRel \<xi> x x') v"
+  definition valRel_R: "valRel_R \<xi> (v :: ('b, 'c) R) v' \<equiv> case_R (\<lambda>x. \<exists>x'. v' = VSum ''Error'' x' \<and> valRel \<xi> x x') (\<lambda>x. \<exists>x'. v' = VSum ''Success'' x' \<and> valRel \<xi> x x') v"
 end
 
 overloading
