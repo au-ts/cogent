@@ -32,6 +32,9 @@ inductive_cases u_sem_takeE: "\<xi>,\<gamma> \<turnstile> (\<sigma>,Take x f e)\
 inductive_cases u_sem_putE: "\<xi>,\<gamma> \<turnstile> (\<sigma>,Put x f e)\<Down>! (\<sigma>',v)"
 inductive_cases u_sem_litE: "\<xi>,\<gamma> \<turnstile> (\<sigma>, Lit l)\<Down>! (\<sigma>',v)"
 inductive_cases u_sem_letE: "\<xi>,\<gamma> \<turnstile> (\<sigma>,Let x y)\<Down>! (\<sigma>',v)"
+inductive_cases u_sem_funE : "\<xi> , \<gamma> \<turnstile> (\<sigma>, Fun f ts) \<Down>! (\<sigma>', v)"
+inductive_cases u_sem_afunE : "\<xi> , \<gamma> \<turnstile> (\<sigma>, AFun f ts) \<Down>! (\<sigma>', v)"
+inductive_cases u_sem_appE : "\<xi> , \<gamma> \<turnstile> (\<sigma>, App f a) \<Down>! (\<sigma>', v)"
 
 
 definition
