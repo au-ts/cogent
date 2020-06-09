@@ -176,6 +176,11 @@ inductive_cases u_v_p_recE    [elim] : "\<Xi>, \<sigma> \<turnstile> UPtr p rp \
 inductive_cases u_v_r_emptyE  [elim] : "\<Xi>, \<sigma> \<turnstile>* [] \<sim> [] :r \<tau>s \<langle>r, w\<rangle>"
 inductive_cases u_v_r_consE   [elim] : "\<Xi>, \<sigma> \<turnstile>* (a # b) \<sim> (a' # b') :r \<tau>s \<langle>r, w\<rangle>"
 inductive_cases u_v_r_consE'  [elim] : "\<Xi>, \<sigma> \<turnstile>* (a # b) \<sim> xx :r \<tau>s \<langle>r, w\<rangle>"
+inductive_cases u_v_p_absE    [elim] : "\<Xi>, \<sigma> \<turnstile> UPtr p rp \<sim> VAbstract a : TCon n ts s \<langle>r, w\<rangle>"
+inductive_cases u_v_recE'     [elim] : "\<Xi>, \<sigma> \<turnstile> URecord fs \<sim> v : \<tau> \<langle>r, w\<rangle>"
+inductive_cases u_v_r_emptyE' [elim] : "\<Xi>, \<sigma> \<turnstile>* [] \<sim> xs :r \<tau>s \<langle>r, w\<rangle>"
+inductive_cases u_v_primE'    [elim] : "\<Xi>, \<sigma> \<turnstile> UPrim l \<sim> v : TPrim \<tau> \<langle>r, w\<rangle>"
+inductive_cases u_v_p_absE'   [elim] : "\<Xi>, \<sigma> \<turnstile> UPtr p rp \<sim> v : TCon n ts s \<langle>r, w\<rangle>"
 
 lemma u_v_p_abs_ro': "\<lbrakk> s = Boxed ReadOnly ptrl
                       ; abs_upd_val a a' n ts s r {} \<sigma>

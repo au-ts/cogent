@@ -349,21 +349,12 @@ lemma "proc_env_matches_ptrs \<xi>_0' \<Xi>"
    apply (rule_tac x = r in exI)
     apply (rule_tac x = "insert p w" in exI)
     apply (rule conjI)
-     apply (insert u_t_p_abs_w; clarsimp)
      apply (rename_tac len arr)
-     apply (drule_tac x = "(Boxed Writable undefined)" in meta_spec)
-     apply (drule_tac x = "undefined" in meta_spec)
-     apply (drule_tac x = "WAU32 len arr" in meta_spec)
-     apply (drule_tac x = "''WordArray''" in meta_spec)
-     apply (drule_tac x = "[TPrim (Num U32)]" in meta_spec)
-     apply (drule_tac x = r in meta_spec)
-     apply (drule_tac x = w  in meta_spec)
-     apply (drule_tac x = "(\<lambda>l. if l = arr + 4 * i \<and> i < len then Some (UPrim (LU32 v)) else \<sigma> l)" in meta_spec)
-     apply (drule_tac x = p in meta_spec)
-     apply (drule_tac x = \<Xi> in meta_spec; clarsimp simp: \<Xi>_def)
-     apply (drule meta_mp; clarsimp simp: abs_typing'_def)
-    apply clarsimp
-    apply (rename_tac len arr)
+     apply (rule_tac ptrl = undefined and a = "WAU32 len arr" in u_t_p_abs_w[where ts = "[TPrim (Num U32)]", simplified])
+        apply simp
+       apply (clarsimp simp: abs_typing'_def)
+      apply (clarsimp simp: abs_typing'_def)
+     apply clarsimp
     apply (clarsimp simp: frame_def abs_typing'_def)
     apply (rule conjI; clarsimp)
      apply (rule conjI)
@@ -373,16 +364,31 @@ lemma "proc_env_matches_ptrs \<xi>_0' \<Xi>"
      apply (rule conjI; clarsimp)
     apply (rule conjI; clarsimp)
    apply (clarsimp simp: abs_typing'_def)
-
-\<comment> \<open> Ideally we should define the \<xi>_0' for ''wordarray_put2_u32''. The proof would be exactly the
-     same as the proof we did for ''wordarray_put2_0''. \<close>
   apply (case_tac  "f = ''wordarray_put2_u32''")
    apply (clarsimp simp: wordarray_put2_u32_type_def abbreviatedType1_def \<xi>_0'_def)
   apply (clarsimp simp: \<xi>_0'_def)
   done
 
 
-
+definition
+  corres_strong ::
+  "((funtyp, abstyp, ptrtyp) store \<times> 's) set \<Rightarrow>
+   funtyp expr \<Rightarrow>
+   ('s,('a::cogent_C_val)) nondet_monad \<Rightarrow>
+   (funtyp, abstyp, ptrtyp) uabsfuns \<Rightarrow>
+   (funtyp, abstyp, ptrtyp) uval env \<Rightarrow>
+   (funtyp \<Rightarrow> poly_type) \<Rightarrow>
+   ctx \<Rightarrow>
+   (funtyp, abstyp, ptrtyp) store \<Rightarrow>
+   's \<Rightarrow>
+   bool"
+where
+  "corres_strong srel c m \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s \<equiv>
+   (\<sigma>,s) \<in> srel \<longrightarrow>
+   (\<exists>r w. matches_ptrs \<Xi>' \<sigma> \<gamma> \<Gamma>' r w \<longrightarrow>
+   (\<not> snd (m s)) \<and>
+   (\<forall>r' s'. (r',s') \<in> fst (m s) \<longrightarrow>
+     (\<exists>\<sigma>' r.(\<xi>', \<gamma> \<turnstile> (\<sigma>,c)  \<Down>! (\<sigma>',r)) \<and> (\<sigma>',s') \<in> srel \<and> val_rel r r')))"
 end (* of context *)
 
 

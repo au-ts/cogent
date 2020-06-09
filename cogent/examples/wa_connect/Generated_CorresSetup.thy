@@ -41,6 +41,10 @@ class cogent_C_heap = cogent_C_val +
   fixes is_valid    :: "lifted_globals \<Rightarrow> 'a ptr \<Rightarrow> bool"
   fixes heap        :: "lifted_globals \<Rightarrow> 'a ptr \<Rightarrow> 'a"
 
+(* ------------------- *)
+(*This is where the manual editing is taking place. 
+  Manually defining the type relation and value relation for word arrays *)
+
 instantiation WordArray_u32_C :: cogent_C_val
 begin
 definition type_rel_WordArray_u32_C_def: 
@@ -51,6 +55,8 @@ definition val_rel_WordArray_u32_C_def:
                                                   arr = ptr_val (values_C x))"
 instance ..
 end
+
+(*----------*)
 
 local_setup \<open> local_setup_val_rel_type_rel_put_them_in_buckets "main_pp_inferred.c" \<close>
 local_setup \<open> local_setup_instantiate_cogent_C_heaps_store_them_in_buckets "main_pp_inferred.c" \<close>
