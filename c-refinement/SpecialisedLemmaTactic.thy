@@ -87,7 +87,8 @@ ML\<open> fun corres_put_boxed_tac ctxt = let
     REPEAT_ALL_NEW (rtac @{thm conjI})
         THEN_ALL_NEW ((rtac (get "all_heap_rel_updE") THEN' atac THEN' atac)
             THEN_ALL_NEW distinct_subgoal_tac
-            THEN_ALL_NEW asm_simp_tac (ctxt addsimps val_rels @ type_rels @ getset_simps)
+            THEN_ALL_NEW asm_full_simp_tac (ctxt addsimps getset_simps) 
+            THEN_ALL_NEW asm_simp_tac (ctxt addsimps val_rels @ type_rels)
             THEN_ALL_NEW asm_simp_tac (ctxt addsimps @{thms map_update list_update_eq_id}
                 delsimps @{thms length_0_conv length_greater_0_conv})
             THEN_ALL_NEW clarsimp_tac (ctxt addsimps val_rels @ type_rels)
@@ -110,7 +111,8 @@ ML\<open> fun corres_put_boxed_tac ctxt = let
     (((rtac (get "all_heap_rel_updE") THEN' atac THEN' atac) 
          ORELSE' (Tactic.forward_tac ctxt (gets "all_heap_rel_updE") THEN' atac))
         THEN_ALL_NEW distinct_subgoal_tac
-        THEN_ALL_NEW asm_simp_tac (ctxt addsimps val_rels @ type_rels @ getset_simps)
+        THEN_ALL_NEW asm_full_simp_tac (ctxt addsimps getset_simps) 
+        THEN_ALL_NEW asm_simp_tac (ctxt addsimps val_rels @ type_rels)
         THEN_ALL_NEW asm_simp_tac (ctxt addsimps @{thms map_update list_update_eq_id}
             delsimps @{thms length_0_conv length_greater_0_conv})
         THEN_ALL_NEW clarsimp_tac (ctxt addsimps val_rels @ type_rels)
@@ -157,7 +159,8 @@ ML\<open> fun corres_let_put_boxed_tac ctxt = let
     REPEAT_ALL_NEW (rtac @{thm conjI})
         THEN_ALL_NEW ((rtac (get "all_heap_rel_updE") THEN' atac THEN' atac)
             THEN_ALL_NEW distinct_subgoal_tac
-            THEN_ALL_NEW asm_simp_tac (ctxt addsimps val_rels @ type_rels @ getset_simps)
+            THEN_ALL_NEW asm_full_simp_tac (ctxt addsimps getset_simps) 
+            THEN_ALL_NEW asm_simp_tac (ctxt addsimps val_rels @ type_rels)
             THEN_ALL_NEW asm_simp_tac (ctxt addsimps @{thms map_update list_update_eq_id}
                 delsimps @{thms length_0_conv length_greater_0_conv})
             THEN_ALL_NEW clarsimp_tac (ctxt addsimps val_rels @ type_rels)
@@ -178,7 +181,8 @@ ML\<open> fun corres_let_put_boxed_tac ctxt = let
     (((rtac (get "all_heap_rel_updE") THEN' atac THEN' atac) 
          ORELSE' (Tactic.forward_tac ctxt (gets "all_heap_rel_updE") THEN' atac))
         THEN_ALL_NEW distinct_subgoal_tac
-        THEN_ALL_NEW asm_simp_tac (ctxt addsimps val_rels @ type_rels @ getset_simps)
+        THEN_ALL_NEW asm_full_simp_tac (ctxt addsimps getset_simps) 
+        THEN_ALL_NEW asm_simp_tac (ctxt addsimps val_rels @ type_rels)
         THEN_ALL_NEW asm_simp_tac (ctxt addsimps @{thms map_update list_update_eq_id}
             delsimps @{thms length_0_conv length_greater_0_conv})
         THEN_ALL_NEW clarsimp_tac (ctxt addsimps val_rels @ type_rels)
