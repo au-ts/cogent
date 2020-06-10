@@ -1,0 +1,7 @@
+readSecret: { world:  World H , input : Locked H U8 }# -> { world : World H , output:U8}#;
+readSecret r = take r2 { world = w } = r in 
+               take r3 { input = i } = r2 in 
+                 unlock w i
+               end
+             end;
+         

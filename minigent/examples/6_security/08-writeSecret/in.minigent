@@ -1,0 +1,8 @@
+writeSecret : [f]. {world: World L, input: f}# -> {world: World L, output: Locked H f}#;
+writeSecret r = take r1 {world=w} = r 
+         in take r2 {input=i} = r1 
+            in join w1 <- w 
+               in {world = w1, output = i} 
+               end
+            end 
+         end;

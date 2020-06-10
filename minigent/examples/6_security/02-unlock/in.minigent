@@ -1,5 +1,3 @@
-
-
 unlockFn : { world:  World H , input : Locked H U8 }# -> { world : World H , output:U8}#;
 unlockFn r = take r2 { world = w } = r in 
                take r3 { input = i } = r2 in 
