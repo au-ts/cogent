@@ -73,7 +73,7 @@ lemma drop_kind_iff_share_kind:
     "D \<in> kinding_fn K t \<longleftrightarrow> S \<in> kinding_fn K t"
   using assms
   by (induct t)
-    (fastforce simp add: type_wellformed_pretty_def in_set_conv_nth list_all_length
+    (fastforce simp add: in_set_conv_nth list_all_length
       all_set_conv_all_nth sigil_kind_drop_iff_share  
       dest: well_kinded_all_drop_is_share_nthD
       split: record_state.splits variant_state.splits)+
@@ -86,7 +86,7 @@ lemma share_kind_iff_drop_kind:
     "S \<in> kinding_fn K t \<longleftrightarrow> D \<in> kinding_fn K t"
   using assms
   by (induct t)
-    (fastforce simp add: type_wellformed_pretty_def in_set_conv_nth list_all_length
+    (fastforce simp add: in_set_conv_nth list_all_length
       all_set_conv_all_nth sigil_kind_drop_iff_share
       dest: well_kinded_all_drop_is_share_nthD
       split: record_state.splits variant_state.splits)+
@@ -441,7 +441,7 @@ lemma context_bang_types_nth[simp]:
 
 lemma context_bang_types_wellformed_iff:
   "K \<turnstile>* context_bang_types N ts wellformed \<longleftrightarrow> K \<turnstile>* ts wellformed"
-  by (simp add: type_wellformed_all_length type_wellformed_pretty_def)
+  by (simp add: type_wellformed_all_length)
 
 
 
@@ -744,7 +744,7 @@ lemma droppable_iff_nonlinear:
   by (induct t)
       (clarsimp
         simp add: list_all_length well_kinded_all_def well_kinded_def sigil_kind_drop_iff_share
-        prod_eq_iff_proj_eq in_set_conv_nth type_wellformed_pretty_def
+        prod_eq_iff_proj_eq in_set_conv_nth
         split: prod.splits variant_state.splits record_state.splits; metis)+
 
 lemma shareable_iff_nonlinear:
@@ -752,7 +752,7 @@ lemma shareable_iff_nonlinear:
   by (induct t)
       (clarsimp
         simp add: list_all_length well_kinded_all_def well_kinded_def sigil_kind_drop_iff_share
-        prod_eq_iff_proj_eq in_set_conv_nth type_wellformed_pretty_def
+        prod_eq_iff_proj_eq in_set_conv_nth
         split: prod.splits variant_state.splits record_state.splits; metis)+
 
 lemma droppable_iff_shareable:
@@ -1484,7 +1484,7 @@ lemma weaken_context_gen_bangL:
   shows
     "K \<turnstile> tycount_context_gen_bang bangL_comp N G (remove_use_bang N C) \<leadsto>w tycount_context_gen (context_bang_types N G) C"
   using assms
-  by (clarsimp simp add: weakening_conv_all_nth weakening_comp.simps type_wellformed_pretty_def
+  by (clarsimp simp add: weakening_conv_all_nth weakening_comp.simps
       context_gen_comp_Some context_gen_comp_None type_wellformed_all_length
       droppable_def[symmetric] bang_kinding_fn[simplified, simplified droppable_def[symmetric]])
 

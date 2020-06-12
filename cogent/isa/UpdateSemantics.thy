@@ -384,14 +384,13 @@ lemma uval_typing_to_wellformed:
 proof (induct rule: uval_typing_uval_typing_record.inducts)
   case (u_t_function \<Xi> K t f u ts t' u' \<sigma>)
   then show ?case
-    apply -
-    apply (rule subtyping_wellformed_preservation)
-     apply assumption
-    apply (fastforce intro: instantiate_wellformed dest: typing_to_wellformed list_all2_kinding_wellformedD)
-    done
+    by (fastforce intro: instantiate_wellformed
+        dest: typing_to_wellformed list_all2_kinding_wellformedD subtyping_wellformed_preservation)
 next case u_t_afun     then show ?case
-    by (fastforce intro: subtyping_wellformed_preservation instantiate_wellformed dest: list_all2_kinding_wellformedD)
-qed  (auto simp add: list_all_iff)
+    by (fastforce
+        intro: subtyping_wellformed_preservation instantiate_wellformed
+        dest: list_all2_kinding_wellformedD)
+qed (auto simp add: list_all_iff)
 
 
 lemma uval_typing_all_record:
@@ -441,7 +440,6 @@ lemma discardable_not_writable':
   "\<Xi>, \<sigma> \<turnstile>* xs :ur ts \<langle>r, w\<rangle> \<Longrightarrow> D \<in> kinding_fn_all_record K ts \<Longrightarrow> w = {}"
   by (induct rule: uval_typing_uval_typing_record.inducts)
     (force dest: kinding_fn_all_variant_unchecked_elemD abs_typing_readonly[rotated])+
-
 
 lemma shareable_not_writable:
 assumes "S \<in> k"
@@ -619,8 +617,7 @@ proof (induct rule: uval_typing_uval_typing_record.inducts)
   case u_t_product then show ?case
     by (auto dest: uval_typing_uval_typing_record.u_t_product intro: pointerset_helper)
 next
-  case (u_t_sum \<Xi> \<sigma> a t r w g ts rs)
-  then show ?case
+  case u_t_sum then show ?case
     using bang_wellformed
     by (force intro!: uval_typing_uval_typing_record.intros simp: list_all_iff)
 next
@@ -664,7 +661,8 @@ next
     apply (fastforce dest: bang_type_repr(1) uval_typing_to_wellformed(1))+
     done
 next case u_t_r_cons2 then show ?case
-    by (auto intro!: uval_typing_uval_typing_record.intros dest: bang_wellformed)
+    by (auto simp add: simp add:
+        intro!: uval_typing_uval_typing_record.intros dest: bang_wellformed)
 qed (auto simp add: map_snd3_keep intro!: uval_typing_uval_typing_record.intros)
 
 
@@ -761,15 +759,15 @@ next case (split_cons x xs a as b bs)
   next case (3 _ _ rx wx _ rs ws)
     with split_cons show ?thesis
     proof (cases rule: split_comp.cases)
-         case none  with 3 show ?thesis by simp
+      case none  with 3 show ?thesis by simp
     next case left  with 3 show ?thesis
-      apply (clarsimp dest!: split_cons(3))
-      apply (rule_tac x = "rx \<union> r'" in exI)
-      apply (rule_tac x = "wx \<union> w'" in exI)
-      apply (rule_tac x = "r''"     in exI, rule,blast)
-      apply (rule_tac x = "w''"     in exI)
-      apply (force intro!: matches_ptrs.intros)
-    done
+        apply (clarsimp dest!: split_cons(3))
+        apply (rule_tac x = "rx \<union> r'" in exI)
+        apply (rule_tac x = "wx \<union> w'" in exI)
+        apply (rule_tac x = "r''"     in exI, rule,blast)
+        apply (rule_tac x = "w''"     in exI)
+        apply (force intro!: matches_ptrs.intros)
+        done
     next case right with 3 show ?thesis
       apply (clarsimp dest!: split_cons(3))
       apply (rule_tac x = "r'"       in exI)
@@ -971,24 +969,25 @@ lemma matches_ptrs_weaken':
 assumes "[] \<turnstile> \<Gamma> \<leadsto>w \<Gamma>'"
 and     "\<Xi>, \<sigma> \<turnstile> \<gamma> matches \<Gamma>  \<langle>r, w\<rangle>"
 shows   "\<exists> r'. (r' \<subseteq> r) \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> matches \<Gamma>' \<langle>r', w\<rangle>)"
-using assms(1) [simplified weakening_def] and assms(2-)
-proof (induct arbitrary: \<gamma> r w rule: list_all2_induct )
-     case Nil  then show ?case by auto
-next case Cons then show ?case
+  using assms
+proof (induct arbitrary: \<gamma> r w rule: weakening_induct)
+  case weakening_cons then show ?case
   proof (cases rule: weakening_comp.cases)
-    case none with Cons show ?thesis by (force elim!: matches_ptrs_consE)
-  next case keep with Cons show ?thesis
-      apply (safe elim!: matches_ptrs_consE dest!: Cons(3))
+    case none with weakening_cons show ?thesis
+      by (force elim!: matches_ptrs_consE)
+  next case keep with weakening_cons show ?thesis
+      apply (safe elim!: matches_ptrs_consE dest!: weakening_cons(3))
       apply (rule_tac x = "r \<union> r'a" in exI)
       apply (force intro!: matches_ptrs.intros)
       done
-  next case drop
-    have helper: "\<And>P B C. \<exists>A\<subseteq>C. P A \<Longrightarrow> \<exists>A\<subseteq>B\<union>C. P A"
-      by (meson le_supI2)
-    from drop Cons show ?thesis
-      by (force dest: discardable_not_writable' intro!: helper simp add: matches_ptrs_Cons2)
+  next case drop with weakening_cons show ?thesis
+      apply (safe elim!: matches_ptrs_consE weakening_comp.cases dest!: weakening_cons(3))
+      apply (frule(1) discardable_not_writable')
+      apply (rule_tac x = "r'a" in exI)
+      apply (force)
+      done
   qed
-qed
+qed force
 
 lemma matches_ptrs_weaken:
 assumes "K \<turnstile> \<Gamma> \<leadsto>w \<Gamma>'"
@@ -1031,6 +1030,21 @@ next case (Suc n)
   case 1 with Suc show ?case by (fastforce elim!: matches_ptrs_consE)
   case 2 with Suc show ?case by (fastforce elim!: matches_ptrs_consE)
 qed
+
+lemma matches_ptrs_consumed_env:
+  assumes
+    "K \<turnstile> \<Gamma> consumed"
+    "\<Xi>, \<sigma> \<turnstile> \<gamma> matches \<Gamma> \<langle>r, w\<rangle>"
+  shows "w = {}"
+  using assms
+proof (induct arbitrary: \<gamma> r w rule: is_consumed_induct)
+  case consumed_empty then show ?case
+    by (auto elim: matches_ptrs.cases)
+next
+  case consumed_cons then show ?case
+    by (fastforce elim: matches_ptrs_consE dest: discardable_not_writable')
+qed
+
 
 lemma matches_ptrs_proj':
 assumes "\<Xi>, \<sigma> \<turnstile> \<gamma> matches \<Gamma> \<langle>r, w\<rangle>"
@@ -1113,14 +1127,14 @@ and     "[] \<turnstile> \<Gamma> consumed"
 shows   "w = {}"
 using assms proof(induction rule: matches_ptrs.induct)
   case (matches_ptrs_some \<Xi> \<sigma> x t r w xs ts r' w')
-  then have "[] \<turnstile> t :\<kappa> {D}"
-    by (force simp: weakening_def kinding_def is_consumed_Cons elim!: weakening_comp.cases)
+  then have "D \<in> kinding_fn [] t"
+    by (force simp add: is_consumed_Cons)
   then have "w = {}"
-    using matches_ptrs_some(1,7) discardable_not_writable
+    using matches_ptrs_some discardable_not_writable'
     by blast
   then show ?case
     using matches_ptrs_some
-    by (force simp: weakening_def empty_def is_consumed_Cons)
+    by (force simp: is_consumed_Cons)
 qed (auto simp: weakening_def empty_def is_consumed_Cons
           elim: weakening_comp.cases
           dest: discardable_not_writable)
@@ -1517,7 +1531,7 @@ lemma sum_downcast_u:
   using uval_tsum_ts
 proof -
   from uval_tsum_ts
-  obtain k \<tau>1
+  obtain \<tau>1
     where uval_elim_lemmas:
       "\<Xi>, \<sigma> \<turnstile> v :u \<tau>1 \<langle>r, w\<rangle>"
       "xs = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts"
@@ -1544,9 +1558,12 @@ proof -
       using uval_elim_lemmas tag_neq_tag' tagged_list_update_different_tag_preserves_values2
       by metis
   next
-    show "[] \<turnstile> TSum (tagged_list_update tag' (\<tau>, Checked) ts) wellformed"
-      using uval_elim_lemmas tag'_in_ts prod_in_set(1)
-      by (fastforce intro!: variant_tagged_list_update_wellformedI simp add: list_all_iff)
+    have "[] \<turnstile> \<tau> wellformed"
+      using tag'_in_ts uval_elim_lemmas
+      by (fastforce dest: wellformed_sum_wellformed_elem)
+    then show "[] \<turnstile> TSum (tagged_list_update tag' (\<tau>, Checked) ts) wellformed"
+      using uval_elim_lemmas tag'_in_ts
+      by (intro variant_tagged_list_update_wellformedI; force simp add: list.pred_map comp_def)
   qed simp+
 qed
 
@@ -1876,8 +1893,7 @@ next
 
   have trec_subty: "[] \<turnstile> TRecord ts s \<sqsubseteq> TRecord ts2' s"
     using u_t_r_cons1(9) field_is
-    apply (cases rule: subtyping.cases)
-    by (auto intro: subtyping.intros)
+    by (force elim: subtyping.cases intro: subtyping.intros)
 
   obtain ra' where field_reads:
       "ra'\<subseteq>r"
@@ -1890,7 +1906,9 @@ next
     using u_t_r_cons1 trec_subty by meson
 
   have t2_wf: "type_wellformed 0 t2"
-    using field_is' local.u_t_r_cons1(1) subtyping_wellformed_preservation(1) uval_typing_to_wellformed(1) by fastforce
+    using u_t_r_cons1 field_is'
+    by (fastforce dest!: subtyping_wellformed_preservation(1) dest: uval_typing_to_wellformed
+        simp add:)
 
   have repr_same:
     "type_repr t2 = rp"
@@ -1908,7 +1926,8 @@ next
       by (metis calculation record_state.distinct(1) singletonI)
     moreover have "\<Xi>, \<sigma> \<turnstile>* (x, rp) # xs :ur (n, t2, Taken) # ts2' \<langle>rts2', w'\<rangle>"
       using field_rest repr_same t2_wf
-      by (auto intro: uval_typing_uval_typing_record.u_t_r_cons2)
+      by (auto intro: uval_typing_uval_typing_record.u_t_r_cons2
+          simp add:)
     ultimately show ?thesis
       apply clarsimp
       apply (rule exI[where x="rts2'"])
@@ -1946,7 +1965,9 @@ next
     using u_t_r_cons2 trec_subty by blast
 
   have t2_wf: "type_wellformed 0 t2"
-    using field_is' local.u_t_r_cons2 subtyping_wellformed_preservation(1) uval_typing_to_wellformed(1) by fastforce
+    using field_is' local.u_t_r_cons2
+    by (fastforce dest: subtyping_wellformed_preservation uval_typing_to_wellformed(1)
+        simp add:)
 
   have repr_same:
     "type_repr t2 = rp"
@@ -1964,7 +1985,7 @@ next
     apply rule
     using field_rest apply blast
     using field_is field_rest u_t_r_cons2 field_taken t2_wf repr_same
-    by (auto intro: uval_typing_uval_typing_record.u_t_r_cons2)
+    by (auto intro: uval_typing_uval_typing_record.u_t_r_cons2 simp add:)
 next
   case (u_t_p_abs_ro s ptrl a n ts r \<sigma> l \<Xi>)
   then show ?case
@@ -2121,7 +2142,7 @@ next case (u_sem_app \<xi> \<gamma> \<sigma> x \<sigma>' f ts y \<sigma>'' a e \
       "type_wellformed (length Kfun) t"
       "list_all2 (kinding []) ts Kfun"
       "[] \<turnstile> TFun (instantiate ts t) (instantiate ts u) \<sqsubseteq> TFun (instantiate \<tau>s targ) (instantiate \<tau>s \<tau>)"
-    using vfun_ty by (auto elim!: u_t_functionE)
+    using vfun_ty by (auto elim!: u_t_functionE simp add:)
 
   obtain r'a' where varg_subty:
     "r'a' \<subseteq> r'a"
@@ -2203,7 +2224,7 @@ next case (u_sem_abs_app \<xi> \<gamma> \<sigma> efun \<sigma>' fun_name ts earg
       "type_wellformed (length Kfun) u"
       "list_all2 (kinding []) ts Kfun"
       "[] \<turnstile> TFun (instantiate ts t) (instantiate ts u) \<sqsubseteq> TFun (instantiate \<tau>s targ) (instantiate \<tau>s \<tau>)"
-    using vfun_ty by (auto elim!: u_t_afunE)
+    using vfun_ty by (auto elim!: u_t_afunE simp add:)
 
   obtain r'a' where varg_subty:
     "r'a' \<subseteq> r'a"
@@ -2242,7 +2263,7 @@ next case (u_sem_con \<xi> \<gamma> \<sigma> x_spec \<sigma>' x' ts_inst tag)
       "tag' = tag"
       "x_spec = specialise \<tau>s x"
       using u_sem_con.hyps by simp+
-    then obtain t k
+    then obtain t
       where typing_elims:
         "\<tau> = TSum ts"
         "\<Xi>, K, \<Gamma> \<turnstile> x : t"
@@ -2250,7 +2271,7 @@ next case (u_sem_con \<xi> \<gamma> \<sigma> x_spec \<sigma>' x' ts_inst tag)
         "distinct (map fst ts)"
         "K \<turnstile> TSum ts wellformed"
       using Con u_sem_con.prems
-      by fastforce
+      by (fastforce simp add: type_wellformed_pretty_simps)
 
     obtain r' w'
       where uval_x': "\<Xi>, \<sigma>' \<turnstile> x' :u instantiate \<tau>s t \<langle>r', w'\<rangle>"
@@ -2797,8 +2818,9 @@ next
     apply (frule list_all2_kinding_wellformedD)
     apply (frule kinding_to_wellformedD)
     apply (frule uval_typing_record_take [ where \<tau>s = "map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts" for ts
-          , simplified
-          , OF _ HELP [rule_format]], force, force intro: instantiate_wellformed, force)
+            , simplified
+            , OF _ HELP [rule_format]]
+          , force, force intro: instantiate_wellformed simp add:, force)
     apply (elim exE conjE)
     apply (frule(2) matches_ptrs_frame, blast)
     apply (simp, erule disjE)

@@ -296,8 +296,8 @@ lemma vval_typing_bang:
     and "\<Xi> \<turnstile>* fs :vr \<tau>rs \<Longrightarrow> \<Xi> \<turnstile>* fs :vr map (\<lambda>(n, x, y). (n, bang x, y)) \<tau>rs"
 proof (induct rule: vval_typing_vval_typing_record.inducts)
   case v_t_sum      then show ?case
-    by (force simp add: list_all_iff intro: vval_typing_vval_typing_record.intros
-                                                        bang_wellformed rev_image_eqI)
+    by (force simp add: list_all_iff
+        intro: vval_typing_vval_typing_record.intros bang_wellformed rev_image_eqI)
 next case v_t_abstract then show ?case
     by (force intro: vval_typing_vval_typing_record.intros abs_typing_bang
         simp add: bang_preserves_wellformed_all)
@@ -417,7 +417,8 @@ proof -
   next
     show "[] \<turnstile> TSum (tagged_list_update tag' (\<tau>, Checked) ts) wellformed"
       using vval_elim_lemmas tag'_in_ts prod_in_set(1)
-      by (fastforce intro!: variant_tagged_list_update_wellformedI simp add: list_all_iff)
+      by (fastforce intro!: variant_tagged_list_update_wellformedI
+          simp add: list_all_iff type_wellformed_pretty_simps)
   qed simp+
 qed
 
@@ -867,7 +868,8 @@ next case v_sem_prim    then show ?case by ( case_tac e, simp_all
 next case v_sem_cast    then show ?case by ( case_tac e, simp_all
                                            , fastforce elim!: upcast_valid_cast_to)
 next case v_sem_afun    then show ?case by ( case_tac e, simp_all
-                                           , fastforce intro: v_t_afun_instantiate simp add: kinding_simps)
+                                           , fastforce intro: v_t_afun_instantiate
+                                           simp add: kinding_simps)
 next case v_sem_fun     then show ?case by ( case_tac e, simp_all
                                            , fastforce intro: v_t_function_instantiate)
 next case (v_sem_con \<xi> \<gamma> x_spec x' ts_inst tag)
@@ -890,7 +892,7 @@ next case (v_sem_con \<xi> \<gamma> x_spec x' ts_inst tag)
         "K \<turnstile> TSum ts wellformed"
         "(tag, t, Unchecked) \<in> set ts"
       using Con v_sem_con.prems
-      by auto
+      by (force simp add: type_wellformed_pretty_simps)
     ultimately have "\<Xi> \<turnstile> VSum tag x' :v TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)"
       using v_sem_con.hyps(2) v_sem_con.prems con_elims typing_simps
     proof (intro v_t_sum)
@@ -1121,7 +1123,7 @@ next case (v_sem_app \<xi> \<gamma> x ea ts y a r e \<tau>s K \<tau> \<Gamma>)
        "type_wellformed (length Kfun) t"
        "list_all2 (kinding []) ts Kfun"
        "[] \<turnstile> TFun (instantiate ts t) (instantiate ts u) \<sqsubseteq> TFun (instantiate \<tau>s targ) (instantiate \<tau>s \<tau>)"
-    using vfun_ty by (auto elim: vval_typing.cases)
+    using vfun_ty by (fastforce elim: vval_typing.cases)
 
   have vres_ty_sub: "\<Xi> \<turnstile> r :v instantiate ts u"
     using vfun_ty_elims v_sem_app(6)
