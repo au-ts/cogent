@@ -218,7 +218,7 @@ instance (Pretty terms, Pretty types) => Pretty (Context types terms) where
                                  prettyThyDecls cDecls <> string "end"
 
 instance (Pretty terms, Pretty types) => Pretty (Lemma types terms) where
-  pretty (Lemma schematic thmDecl props proof) = string (if schematic then "schematic_lemma" else "lemma") <+>
+  pretty (Lemma schematic thmDecl props proof) = string (if schematic then "schematic_goal" else "lemma") <+>
     pretty thmDecl <+> string ":" <$$> indent 2 (vsep (map (quote . pretty) props)) <$$> indent 2 (pretty proof)
 
 instance (Pretty terms, Pretty types) => Pretty (Lemmas types terms) where

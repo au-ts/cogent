@@ -445,11 +445,27 @@ fun kinding_fn :: "kind env \<Rightarrow> type \<Rightarrow> kind" where
 | "kinding_fn K (TPrim p)        = UNIV"
 | "kinding_fn K (TSum ts)        = Inter (set (map (\<lambda>(_,t,b). case b of Unchecked \<Rightarrow> kinding_fn K t | Checked \<Rightarrow> UNIV) ts))"
 | "kinding_fn K (TProduct ta tb) = kinding_fn K ta \<inter> kinding_fn K tb"
-| "kinding_fn K (TRecord ts s)   = Inter (set (map (\<lambda>(_,t,b). case b of Present \<Rightarrow> kinding_fn K t | Taken \<Rightarrow> UNIV) ts)) \<inter> (sigil_kind s)"
+| "kinding_fn K (TRecord fs s)   = Inter (set (map (\<lambda>p. case snd (snd p) of Present \<Rightarrow> kinding_fn K (fst (snd p)) | Taken \<Rightarrow> UNIV) fs)) \<inter> (sigil_kind s)"
 | "kinding_fn K TUnit            = UNIV"
 
 lemmas kinding_fn_induct = kinding_fn.induct[case_names kind_tvar kind_tvarb kind_tcon kind_tfun kind_tprim kind_tsum kind_tprod kind_trec kind_tunit]
 
+definition kinding_fn_all :: "kind env \<Rightarrow> type list \<Rightarrow> kind" where
+  "kinding_fn_all K ts \<equiv> Inter (set (map (kinding_fn K) ts))"
+
+lemma kinding_fn_all_Cons[simp]:
+  "kinding_fn_all K (t # ts) = kinding_fn K t \<inter> kinding_fn_all K ts"
+  by (simp add: kinding_fn_all_def)
+
+definition kinding_fn_all_record :: "kind env \<Rightarrow> (name \<times> type \<times> record_state) list \<Rightarrow> kind" where
+  "kinding_fn_all_record K fs \<equiv>
+    Inter (set (map (\<lambda>p. case snd (snd p) of Present \<Rightarrow> kinding_fn K (fst (snd p)) | Taken \<Rightarrow> UNIV) fs))"
+  
+lemma kinding_fn_all_record_Cons[simp]:
+  "kinding_fn_all_record K (p # fs) =
+    (case snd (snd p) of Present \<Rightarrow> kinding_fn K (fst (snd p)) | Taken \<Rightarrow> UNIV)
+    \<inter> kinding_fn_all_record K fs"
+  by (simp add: kinding_fn_all_record_def)
 
 definition kinding :: "kind env \<Rightarrow> type \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile> _ :\<kappa> _" [55,0,55] 60) where
   "K \<turnstile> t :\<kappa> k \<equiv> K \<turnstile> t wellformed \<and> k \<subseteq> kinding_fn K t"
@@ -468,13 +484,13 @@ lemma ex_kinding_inset:
 
 
 definition kinding_all :: "kind env \<Rightarrow> type list \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa> _" [55,0,55] 60) where
-  "K \<turnstile>* ts :\<kappa> k \<equiv> (\<forall>t\<in>set ts. K \<turnstile> t wellformed) \<and> k \<subseteq> (\<Inter>t\<in>set ts. kinding_fn K t)"
+  "K \<turnstile>* ts :\<kappa> k \<equiv> (\<forall>t\<in>set ts. K \<turnstile> t wellformed) \<and> k \<subseteq> kinding_fn_all K ts"
 
 definition kinding_variant :: "kind env \<Rightarrow> (name \<times> type \<times> variant_state) list \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa>v _" [55,0,55] 60) where
   "K \<turnstile>* ts :\<kappa>v k \<equiv> (\<forall>(_,t,_)\<in>set ts. K \<turnstile> t wellformed) \<and> k \<subseteq> (\<Inter>(_,t,b)\<in>set ts. (case b of Checked \<Rightarrow> UNIV | Unchecked \<Rightarrow> kinding_fn K t))"
 
 definition kinding_record  :: "kind env \<Rightarrow> (name \<times> type \<times> record_state) list \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa>r _" [55,0,55] 65) where
-  "K \<turnstile>* ts :\<kappa>r k \<equiv> (\<forall>(_,t,_)\<in>set ts. K \<turnstile> t wellformed) \<and> k \<subseteq> (\<Inter>(_,t,b)\<in>set ts. (case b of Taken \<Rightarrow> UNIV | Present \<Rightarrow> kinding_fn K t))"
+  "K \<turnstile>* ts :\<kappa>r k \<equiv> (\<forall>p\<in>set ts. K \<turnstile> fst (snd p) wellformed) \<and> k \<subseteq> kinding_fn_all_record K ts"
 
 lemmas kinding_defs = kinding_def kinding_all_def kinding_variant_def kinding_record_def
 
@@ -623,6 +639,9 @@ declare singleton_def [simp]
 definition instantiate_ctx :: "type substitution \<Rightarrow> ctx \<Rightarrow> ctx" where
   "instantiate_ctx \<delta> \<Gamma> \<equiv> map (map_option (instantiate \<delta>)) \<Gamma>"
 
+lemma instantiate_ctx_length[simp]: "length (instantiate_ctx f xs) = length xs"
+  by (simp add: instantiate_ctx_def)
+
 lemma instantiate_ctx_Cons:
   "instantiate_ctx \<delta> (x # xs) = map_option (instantiate \<delta>) x # instantiate_ctx \<delta> xs"
   by (simp add: instantiate_ctx_def)
@@ -729,12 +748,23 @@ lemmas weakening_Cons2 = list_all2_Cons2[where P="weakening_comp K" for K, simpl
 lemmas weakening_conv_all_nth = list_all2_conv_all_nth[where P="weakening_comp K" for K, simplified weakening_def[symmetric]]
 
 
-definition is_consumed :: "kind env \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ consumed" [30,20] 60 ) where
+definition is_consumed :: "kind env \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ consumed" [55,55] 60 ) where
   "K \<turnstile> \<Gamma> consumed \<equiv> K \<turnstile> \<Gamma> \<leadsto>w empty (length \<Gamma>)"
+
+lemma is_consumed_induct[consumes 1, case_names consumed_empty consumed_cons]:
+  "\<lbrakk> K \<turnstile> xs consumed; R [];
+     \<And>x xs. \<lbrakk>weakening_comp K x None; K \<turnstile> xs consumed; R xs\<rbrakk> \<Longrightarrow> R (x # xs)\<rbrakk>
+    \<Longrightarrow> R xs"
+  unfolding is_consumed_def
+  by (induct xs) (force simp add: empty_def weakening_Cons)+
 
 lemma is_consumed_conv_all_nth:
   "K \<turnstile> \<Gamma> consumed \<longleftrightarrow> (\<forall>i<length \<Gamma>. weakening_comp K (\<Gamma> ! i) None)"
   by (simp add: is_consumed_def weakening_conv_all_nth empty_def)
+
+lemma is_consumed_Cons:
+  "K \<turnstile> t # \<Gamma> consumed \<longleftrightarrow> weakening_comp K t None \<and> K \<turnstile> \<Gamma> consumed"
+  by (simp add: is_consumed_conv_all_nth All_less_Suc2)
 
 section {* Built-in types *}
 
@@ -1194,12 +1224,13 @@ lemma kinding_simps:
   "\<And>K ta tb k.  K \<turnstile> (TProduct ta tb) :\<kappa> k \<longleftrightarrow> (K \<turnstile> ta :\<kappa> k) \<and> (K \<turnstile> tb :\<kappa> k)"
   "\<And>K ts s k.   K \<turnstile> (TRecord ts s) :\<kappa> k   \<longleftrightarrow> (K \<turnstile>* ts :\<kappa>r k) \<and> k \<subseteq> sigil_kind s \<and> distinct (map fst ts)"
   "\<And>K k.        K \<turnstile> TUnit :\<kappa> k            \<longleftrightarrow> True"
-  by (auto simp add: type_wellformed_pretty_def kinding_defs list_all_iff)
+  by (auto simp add: type_wellformed_pretty_def kinding_defs list_all_iff
+      kinding_fn_all_def kinding_fn_all_record_def)
 
 lemma kinding_all_simps:
   "\<And>K k.        K \<turnstile>* [] :\<kappa> k       \<longleftrightarrow> True"
   "\<And>K t ts k.   K \<turnstile>* (t # ts) :\<kappa> k \<longleftrightarrow> (K \<turnstile> t :\<kappa> k) \<and> (K \<turnstile>* ts :\<kappa> k)"
-  by (auto simp add: kinding_defs list_all_iff)
+  by (auto simp add: kinding_defs list_all_iff kinding_fn_all_def)
 
 lemma kinding_variant_simps:
   "\<And>K k.        K \<turnstile>* [] :\<kappa>v k                     \<longleftrightarrow> True"
@@ -1211,7 +1242,7 @@ lemma kinding_record_simps:
   "\<And>K k.        K \<turnstile>* [] :\<kappa>r k                   \<longleftrightarrow> True"
   "\<And>K n t ts k. K \<turnstile>* ((n,t,Present) # ts) :\<kappa>r k \<longleftrightarrow> (K \<turnstile> t :\<kappa> k) \<and> (K \<turnstile>* ts :\<kappa>r k)"
   "\<And>K n t ts k. K \<turnstile>* ((n,t,Taken) # ts) :\<kappa>r k   \<longleftrightarrow> (K \<turnstile> t wellformed) \<and> (K \<turnstile>* ts :\<kappa>r k)"
-  by (auto simp add: kinding_defs list_all_iff)
+  by (auto simp add: kinding_defs list_all_iff kinding_fn_all_record_def)
 
 lemma kinding_imp_wellformed:
   "K \<turnstile> t :\<kappa> k \<Longrightarrow> K \<turnstile> t wellformed"
@@ -1263,7 +1294,7 @@ qed
 
 lemma kinding_all_set:
   shows "(K \<turnstile>* ts :\<kappa> k) = (\<forall>t\<in>set ts. K \<turnstile> t :\<kappa> k)"
-  by (auto simp add: kinding_defs)
+  by (auto simp add: kinding_defs kinding_fn_all_def)
 
 lemma kinding_all_subset:
 assumes "K \<turnstile>* ts :\<kappa> k"
@@ -1273,7 +1304,7 @@ using assms by (auto simp add: kinding_all_set)
 
 lemma kinding_all_list_all:
   shows "(K \<turnstile>* ts :\<kappa> k) = list_all (\<lambda>t. K \<turnstile> t :\<kappa> k) ts"
-  by (induct ts; fastforce simp add: kinding_defs)
+  by (induct ts; fastforce simp add: kinding_defs kinding_fn_all_def)
 
 lemma kinding_typelist_wellformed_elem:
   assumes "K \<turnstile>* ts :\<kappa> k"
@@ -1399,7 +1430,7 @@ proof (induct ts)
     apply (clarsimp simp add: kinding_record_cons All_less_Suc2)
     apply (metis nth_Cons_0 nth_Cons_Suc)
     done
-qed (simp add: kinding_defs)
+qed (simp add: kinding_defs kinding_fn_all_record_def)
 
 lemma kinding_record_set:
   shows "(K \<turnstile>* ts :\<kappa>r k) = (\<forall>(n,t,b)\<in>set ts. case b of Taken \<Rightarrow> K \<turnstile> t wellformed | Present \<Rightarrow> K \<turnstile> t :\<kappa> k)"
@@ -1407,7 +1438,7 @@ proof (induct ts)
   case (Cons a ts)
   then show ?case
     by (cases a; case_tac c; clarsimp simp add: kinding_record_cons)
-qed (simp add: kinding_defs)
+qed (simp add: kinding_defs kinding_fn_all_record_def)
 
 lemma kinding_record_wellformed_elem:
   assumes "K \<turnstile>* ts :\<kappa>r k"
@@ -1439,7 +1470,7 @@ proof (induct ts arbitrary: ns)
     by (metis Suc_length_conv length_Cons)
   ultimately show ?case
     by (fastforce simp add: length_Cons kinding_defs)
-qed (force simp add: kinding_defs)
+qed (force simp add: kinding_defs kinding_fn_all_record_def)
 
 lemma kinding_all_record':
   assumes "K \<turnstile>* map (fst \<circ> snd) ts :\<kappa> k"
@@ -1449,7 +1480,7 @@ proof (induct ts)
   case (Cons a ts)
   then show ?case
     by (case_tac a; case_tac c; auto simp add: kinding_defs)
-qed (force simp add: kinding_defs)
+qed (force simp add: kinding_defs kinding_fn_all_record_def)
 
 lemma kinding_record_update:
   assumes "K \<turnstile>* ts :\<kappa>r k"
@@ -1513,7 +1544,9 @@ and   "K \<turnstile>* ts wellformed \<Longrightarrow> k \<subseteq> {D, S} \<Lo
 and   "K \<turnstile>* map (fst \<circ> snd) xs wellformed \<Longrightarrow> k \<subseteq> {D, S} \<Longrightarrow> K \<turnstile>* map (\<lambda>(n,t,b). (n, bang t, b)) xs :\<kappa>v k"
 and   "K \<turnstile>* map (fst \<circ> snd) fs wellformed \<Longrightarrow> k \<subseteq> {D, S} \<Longrightarrow> K \<turnstile>* map (\<lambda>(n,t,b). (n, bang t, b)) fs :\<kappa>r k"
   using bang_wellformed bang_kinding_fn
-  by (fastforce simp add: type_wellformed_pretty_def kinding_defs INT_subset_iff type_wellformed_all_iff
+  by (fastforce
+      simp add: type_wellformed_pretty_def kinding_defs INT_subset_iff type_wellformed_all_iff
+      kinding_fn_all_def kinding_fn_all_record_def
       simp del: insert_subset
       split: variant_state.split record_state.split)+
 
@@ -2036,13 +2069,10 @@ next case Cons then show ?case
         dest: substitutivity_kinding_fn_inD[OF wellkinded_imp_kinded])
 qed
 
-
 lemma instantiate_ctx_empty [simplified, simp]:
 shows "instantiate_ctx \<delta> (empty l) = empty l"
 by (induct l, simp_all add: empty_def
                             instantiate_ctx_def)
-
-
 
 lemma instantiate_ctx_singleton [simplified, simp]:
 shows "instantiate_ctx \<delta> (singleton l i \<tau>) = singleton l i (instantiate \<delta> \<tau>)"
@@ -2050,11 +2080,7 @@ by (induct l arbitrary: i, simp_all add:   instantiate_ctx_def
                                            empty_def
                                     split: nat.split)
 
-lemma instantiate_ctx_length [simp]:
-shows "length (instantiate_ctx \<delta> \<Gamma>) = length \<Gamma>"
-by (simp add: instantiate_ctx_def)
-
-lemma instantiate_ctx_consumed [simplified]:
+lemma instantiate_ctx_consumed:
 assumes "K \<turnstile> \<Gamma> consumed"
 and     "list_all2 (kinding K') \<delta> K"
 shows   "K' \<turnstile> instantiate_ctx \<delta> \<Gamma> consumed"
