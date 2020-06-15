@@ -2587,6 +2587,84 @@ proof -
     by (metis (full_types) list_all3_conv_all_nth)
 qed
 
+lemma split_used_letb:
+  assumes "e = LetBang ys e1 e2"
+    and "(bang_cg_ctx ys G1),(Suc n1) \<turnstile> e1 : \<alpha> \<leadsto> (bang_cg_ctx ys G2),n2 | C1 | e1'"
+    and "((\<alpha>, 0) # (set0_cg_ctx ys G2)),n2 \<turnstile> e2 : \<tau> \<leadsto> ((\<alpha>, m) # G3),n3 | C2 | e2'"
+    and "A \<turnstile> assign_app_constr S S' C2"
+    and "\<forall>i. known_ty (S i)"
+  shows "A \<turnstile> assign_app_ctx S S' (G1\<bar>fv e) \<leadsto> assign_app_ctx S S' (G1\<bar>fv e1 - {y. ys ! y}) \<box> assign_app_ctx S S' (G2\<bar>image (\<lambda>x. x-1) (fv e2 - {0}))"
+  using assms
+proof -
+  let ?\<Gamma> = "assign_app_ctx S S' (G1\<bar>fv e)"
+  let ?fv_e1_no_y = "fv e1 - {y. ys ! y}"
+  let ?\<Gamma>1 = "assign_app_ctx S S' (G1\<bar>?fv_e1_no_y)"
+  let ?dec_fv_e2 = "(\<lambda>x. x-1) ` (fv e2 - {0})"
+  let ?\<Gamma>2 = "assign_app_ctx S S' (G2\<bar>?dec_fv_e2)"
+  have fv_e: "fv e = (fv e1 - {y. ys ! y}) \<union> ((\<lambda>x. x-1) ` (fv e2 - {0}))"
+    using assms fv'_suc_eq_minus_fv' by auto
+  have G1_G2_length: "length G1 = length G2"
+    using assms cg_ctx_length set0_cg_ctx_length bang_cg_ctx_length by metis
+  moreover {
+    fix i :: nat
+    assume i_size: "i < length G1"
+    have \<Gamma>_none: "i \<notin> fv e \<Longrightarrow> ?\<Gamma> ! i = None"
+      using ctx_restrict_len ctx_restrict_nth_none assign_app_ctx_def i_size by auto
+    have \<Gamma>_some: "i \<in> fv e \<Longrightarrow> ?\<Gamma> ! i = Some (assign_app_ty S S' (fst (G1 ! i)))"
+      using ctx_restrict_len ctx_restrict_nth_some assign_app_ctx_def i_size by auto
+    have \<Gamma>1_none: "i \<notin> ?fv_e1_no_y \<Longrightarrow> ?\<Gamma>1 ! i = None"
+      using ctx_restrict_len ctx_restrict_nth_none assign_app_ctx_def i_size by auto
+    have \<Gamma>1_some: "i \<in> ?fv_e1_no_y \<Longrightarrow> ?\<Gamma>1 ! i = Some (assign_app_ty S S' (fst (G1 ! i)))"
+      using ctx_restrict_len ctx_restrict_nth_some assign_app_ctx_def i_size by auto
+    have \<Gamma>2_none: "i \<notin> ?dec_fv_e2 \<Longrightarrow> ?\<Gamma>2 ! i = None"
+      using G1_G2_length ctx_restrict_len ctx_restrict_nth_none assign_app_ctx_def i_size by force
+    have \<Gamma>2_some: "i \<in> ?dec_fv_e2 \<Longrightarrow> ?\<Gamma>2 ! i = Some (assign_app_ty S S' (fst (G2 ! i)))"
+      using G1_G2_length ctx_restrict_len ctx_restrict_nth_some assign_app_ctx_def i_size by auto
+    have "ctx_split_comp A (?\<Gamma> ! i) (?\<Gamma>1 ! i) (?\<Gamma>2 ! i)"
+    proof (cases "i \<in> fv e")
+      case True
+      consider (case_1) "i \<in> ?fv_e1_no_y" "i \<notin> ?dec_fv_e2" 
+             | (case_2) "i \<notin> ?fv_e1_no_y" "i \<in> ?dec_fv_e2" 
+             | (case_3) "i \<in> ?fv_e1_no_y" "i \<in> ?dec_fv_e2" 
+        using assms True fv_e by blast
+      then show ?thesis
+      proof cases
+        case case_1
+        then show ?thesis
+          using \<Gamma>_some \<Gamma>1_some \<Gamma>2_none ctx_split_left True by presburger
+      next
+        case case_2
+        have "fst (bang_cg_ctx ys G1 ! i) = fst (bang_cg_ctx ys G2 ! i)"
+          using assms cg_ctx_type_same1 i_size bang_cg_ctx_length by simp
+        then show ?thesis
+          using \<Gamma>_some \<Gamma>1_none \<Gamma>2_some ctx_split_right True assms case_2 bang_cg_ctx_type_prop 
+            G1_G2_length i_size by (metis type.inject(9))
+      next
+        case case_3
+        have "snd (G2 ! i) > 0"
+          using cg_gen_output_type_used_nonzero assms case_3 bang_cg_ctx_type_used_same i_size 
+            bang_cg_ctx_length cg_ctx_length by (metis DiffE)
+        then moreover have "A \<turnstile> CtShare (assign_app_ty S S' (fst (G2!i)))"
+          using G1_G2_length assms case_3 fv'_suc_eq_minus_fv' i_fv'_suc_iff_suc_i_fv' i_size
+            set0_cg_ctx_type_same set0_cg_ctx_type_used_prop cg_assign_type_used_nonzero_imp_share
+          by (metis DiffE mem_Collect_eq nth_Cons_Suc)
+        moreover have "fst (G1 ! i) = fst (G2 ! i)"
+          using assms bang_cg_ctx_length bang_cg_ctx_type_prop case_3 i_size cg_ctx_length 
+            cg_ctx_type_same2 by (metis (no_types, lifting) DiffE mem_Collect_eq)
+        ultimately show ?thesis
+          using True \<Gamma>1_some \<Gamma>2_some \<Gamma>_some case_3 ctx_split_share by auto
+      qed
+    next
+      case False
+      then show ?thesis
+        using fv_e \<Gamma>_none \<Gamma>1_none \<Gamma>2_none ctx_split_none by force
+    qed
+  }
+  ultimately show ?thesis
+    using context_splitting_def assign_app_ctx_len ctx_restrict_len
+    by (clarsimp simp add: list_all3_conv_all_nth) 
+qed
+
 lemma split_used_if:
   assumes "e = If e1 e2 e3"
     and "G1,n1 \<turnstile> e1 : (TPrim Bool) \<leadsto> G2,n2 | C1 | e1'"
