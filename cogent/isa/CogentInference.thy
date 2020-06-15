@@ -3035,6 +3035,75 @@ proof -
     by auto
 qed
 
+lemma split_used_letb_extR:
+  assumes "e = LetBang ys e1 e2"
+    and "(bang_cg_ctx ys G1),(Suc n1) \<turnstile> e1 : \<alpha> \<leadsto> (bang_cg_ctx ys G2),n2 | C1 | e1'"
+    and "((\<alpha>, 0) # (set0_cg_ctx ys G2)),n2 \<turnstile> e2 : \<tau> \<leadsto> ((\<alpha>, m) # G3),n3 | C2 | e2'"
+    and "A \<turnstile> assign_app_constr S S' C2"
+    and "\<forall>i. known_ty (S i)"
+    and "\<And>i. i < length G1 \<Longrightarrow>
+            if i \<in> fv e
+              then \<Gamma> ! i = Some (assign_app_ty S S' (fst (G1 ! i)))
+              else \<Gamma> ! i = None \<or> \<Gamma> ! i = Some (assign_app_ty S S' (fst (G1 ! i)))"
+    and "length G1 = length \<Gamma>"
+    and "dec_fv_e2 = (\<lambda>x. x-1) ` (fv e2 - {0})"
+    and "idxs = Set.filter (\<lambda>x. x \<notin> fv e \<and> \<Gamma> ! x \<noteq> None) {0..<length G1}"
+    and "\<Gamma>1 = assign_app_ctx S S' (G1\<bar>fv e1 - {y. ys ! y})"
+    and "\<Gamma>2 = assign_app_ctx S S' (G2\<bar>dec_fv_e2 \<union> idxs)"
+  shows "A \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 \<box> \<Gamma>2"
+proof - 
+  have "A \<turnstile> assign_app_ctx S S' (G1\<bar>fv e \<union> idxs) \<leadsto> \<Gamma>1 \<box> assign_app_ctx S S' (G2\<bar>dec_fv_e2 \<union> idxs)"
+  proof -
+    have "\<forall>i < length G1. fst (G1 ! i) = fst (G2 ! i)"
+      using assms cg_ctx_type_same1[where G="bang_cg_ctx ys G1" and G'="bang_cg_ctx ys G2"] 
+        bang_cg_ctx_type_prop bang_cg_ctx_length cg_ctx_length 
+      by (metis (no_types, lifting) type.inject(9))
+    moreover have "A \<turnstile> assign_app_ctx S S' (G1\<bar>fv e) \<leadsto> \<Gamma>1 \<box> assign_app_ctx S S' (G2\<bar>dec_fv_e2)"
+      using split_used_letb assms by simp
+    moreover have "fv e1 - {y. ys ! y} \<union> fv' (Suc 0) e2 = fv e1 - {y. ys ! y} \<union> dec_fv_e2"
+      using assms fv'_suc_eq_minus_fv' by metis
+    ultimately show ?thesis
+      using assms split_unionR by force
+  qed
+  moreover have "\<Gamma> = assign_app_ctx S S' (G1\<bar>fv e \<union> idxs)"
+  proof -
+    have "length \<Gamma> = length (assign_app_ctx S S' (G1\<bar>fv e \<union> idxs))"
+      using assms ctx_restrict_len assign_app_ctx_len by presburger
+    moreover { 
+      fix i :: nat
+      assume i_size: "i < length G1"
+      have "\<Gamma> ! i = assign_app_ctx S S' (G1\<bar>fv e \<union> idxs) ! i"
+      proof (cases "i \<in> fv e")
+        case True
+        then show ?thesis
+          using Un_iff assign_app_ctx_restrict_some assms i_size by (metis (no_types, lifting))
+      next
+        case False
+        assume i_not_in_e: "i \<notin> fv e"
+        then show ?thesis
+        proof (cases "\<Gamma> ! i = None")
+          case True
+          then have "i \<notin> fv e \<union> idxs"
+            using i_not_in_e assms by simp
+          then show ?thesis
+            using True assign_app_ctx_none_iff ctx_restrict_len ctx_restrict_nth_none i_size
+            by (metis (no_types, lifting))
+        next
+          case False
+          then have "i \<in> fv e \<union> idxs"
+            using i_size assms by auto
+          then show ?thesis
+            using False assign_app_ctx_restrict_some assms i_size by (metis (no_types, lifting))
+        qed
+      qed
+    }
+    ultimately show ?thesis
+      using assms by (rule_tac nth_equalityI; presburger)
+  qed
+  ultimately show ?thesis
+    using assms by argo
+qed
+
 lemma split_used_if_extR:
   assumes "e = If e1 e2 e3"
     and "G1,n1 \<turnstile> e1 : (TPrim Bool) \<leadsto> G2,n2 | C1 | e1'"
