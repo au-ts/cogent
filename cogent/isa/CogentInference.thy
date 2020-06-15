@@ -420,12 +420,8 @@ lemma singleton_none:
   by (simp add: empty_def singleton_def)
 
 
-definition add_ctx :: "bool list \<Rightarrow> type list \<Rightarrow> ctx \<Rightarrow> ctx" where
-  "add_ctx ys \<rho>s \<Gamma> \<equiv> List.map2 (\<lambda>m \<tau>. if (ys ! m) then Some (\<rho>s ! m) else \<tau>) [0..<length \<Gamma>] \<Gamma>"
-
-definition add_bang_ctx :: "bool list \<Rightarrow> type list \<Rightarrow> ctx \<Rightarrow> ctx" where
-  "add_bang_ctx ys \<rho>s \<Gamma> \<equiv> List.map2 (\<lambda>m \<tau>. if (ys ! m) then Some (TBang (\<rho>s ! m)) 
-                                                        else \<tau>) [0..<length \<Gamma>] \<Gamma>"
+definition minus_ctx :: "bool list \<Rightarrow> ctx \<Rightarrow> ctx" where
+  "minus_ctx ys \<Gamma> \<equiv> List.map2 (\<lambda>m \<tau>. if (ys ! m) then None else \<tau>) [0..<length \<Gamma>] \<Gamma>"
 
 definition set0_cg_ctx :: "bool list \<Rightarrow> cg_ctx \<Rightarrow> cg_ctx" where
   "set0_cg_ctx ys G \<equiv> List.map2 (\<lambda>m (\<tau>, n). if (ys ! m) then (\<tau>, 0) else (\<tau>, n)) [0..<length G] G"
@@ -434,13 +430,9 @@ definition bang_cg_ctx :: "bool list \<Rightarrow> cg_ctx \<Rightarrow> cg_ctx" 
   "bang_cg_ctx ys G \<equiv> List.map2 (\<lambda>m (\<tau>, n). if (ys ! m) then (TBang \<tau>, n) 
                                                         else (\<tau>, n)) [0..<length G] G"
 
-lemma bang_ctx_length:
-  shows "length G = length (add_ctx ys \<rho>s G)"
-  using map2_length add_ctx_def by force
-
-lemma add_bang_ctx_length:
-  shows "length G = length (add_bang_ctx ys \<rho>s G)"
-  using map2_length add_bang_ctx_def by force
+lemma minus_ctx_length:
+  shows "length G = length (minus_ctx ys G)"
+  using map2_length minus_ctx_def by force
 
 lemma set0_cg_ctx_length:
   shows "length G = length (set0_cg_ctx ys G)"
@@ -450,15 +442,22 @@ lemma bang_cg_ctx_length:
   shows "length G = length (bang_cg_ctx ys G)"
   using map2_length bang_cg_ctx_def by force
 
-lemma add_ctx_type_prop:
+lemma minus_ctx_prop:
   assumes "i < length G"
-  shows "((add_ctx ys \<rho>s G) ! i) = (if (ys ! i) then Some (\<rho>s ! i) else (G ! i))"
-  using assms by (simp add: add_ctx_def)
+  shows "((minus_ctx ys G) ! i) = (if (ys ! i) then None else (G ! i))"
+  using assms by (simp add: minus_ctx_def)
 
-lemma add_bang_type_prop:
+lemma minus_ctx_prop_none:
   assumes "i < length G"
-  shows "((add_bang_ctx ys \<rho>s G) ! i) = (if (ys ! i) then Some (TBang (\<rho>s ! i)) else (G ! i))"
-  using assms by (simp add: add_bang_ctx_def)
+    and "ys ! i"
+  shows "(minus_ctx ys G) ! i = None"
+  using assms minus_ctx_prop by presburger
+
+lemma minus_ctx_prop_some:
+  assumes "i < length G"
+    and "\<not>(ys ! i)"
+  shows "(minus_ctx ys G) ! i = G ! i"
+  using assms minus_ctx_prop by presburger
 
 lemma set0_cg_ctx_type_same:
   assumes "i < length G"
@@ -957,13 +956,15 @@ typing_var:
    ; A \<ddagger> \<Gamma>1 \<turnstile> e1 : \<tau>1
    ; A \<ddagger> ((Some \<tau>1) # \<Gamma>2) \<turnstile> e2 : \<tau>2
   \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Let e1 e2 : \<tau>2"
-| typing_letb:
-  "\<lbrakk> \<forall>i < length \<Gamma>. (ys ! i) \<longrightarrow> \<Gamma> ! i = None
-   ; A \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 \<box> \<Gamma>2
-   ; A \<ddagger> (add_bang_ctx ys \<rho>s \<Gamma>1) \<turnstile> e1 : \<tau>1
-   ; A \<turnstile> CtEscape \<tau>1
-   ; A \<ddagger> ((Some \<tau>1) # (add_ctx ys \<rho>s \<Gamma>2)) \<turnstile> e2 : \<tau>2
-   \<rbrakk> \<Longrightarrow> A \<ddagger> (add_ctx ys \<rho>s \<Gamma>) \<turnstile> LetBang ys e1 e2 : \<tau>2"
+| typing_letb:                                                 
+  "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto> (minus_ctx ys \<Gamma>1) \<box> \<Gamma>2
+   ; \<forall>i < length \<Gamma>1. (((\<Gamma>1 ! i) \<noteq> None) \<and> (ys ! i)) \<longrightarrow> 
+      (if (\<Gamma>2 ! i = None) then (\<exists>t. \<Gamma>1 ! i = Some (TBang t)) 
+                          else (\<Gamma>1 ! i = Some (TBang (the (\<Gamma>2 ! i)))))
+   ; A \<ddagger> \<Gamma>1 \<turnstile> e1 : \<tau>'
+   ; A \<turnstile> CtEscape \<tau>'
+   ; A \<ddagger> ((Some \<tau>') # \<Gamma>2) \<turnstile> e2 : \<tau>                                      
+   \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> LetBang ys e1 e2 : \<tau>"
 | typing_if:
   "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 \<box> \<Gamma>2
    ; A \<ddagger> \<Gamma>1 \<turnstile> e1 : TPrim Bool
