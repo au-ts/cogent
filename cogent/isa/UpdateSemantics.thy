@@ -2573,8 +2573,8 @@ next case (u_sem_member \<xi> \<gamma> \<sigma> e' \<sigma>' fs f e)
   moreover then have
     "D \<in> kinding_fn_all_record [] ((map (\<lambda>(n, t, b). (n, instantiate \<tau>s t, b)) ts)[f := (n, instantiate \<tau>s \<tau>, Taken)])"
     using u_sem_member.prems
-    by (fastforce dest: substutivity_kinding_fn_all_recordD
-        simp add: wellkinded_iff_wellformed_and_kinded kinding_def comp_def subset_iff map_update)
+    by (simp add: kinding_simps kinding_record_def list.pred_map,
+        force dest: substutivity_wellkinded_record_updated simp add: comp_assoc[symmetric])
   ultimately show ?case
     by (fastforce dest!: uval_typing_record_present_nth_droppable[where f=f])
 next case (u_sem_memb_b \<xi> \<gamma> \<sigma> e' \<sigma>' p ra fs f e \<tau>s K \<tau> \<Gamma> r w)
@@ -2591,8 +2591,8 @@ next case (u_sem_memb_b \<xi> \<gamma> \<sigma> e' \<sigma>' p ra fs f e \<tau>s
   moreover then have
     "D \<in> kinding_fn_all_record [] ((map (\<lambda>(n, t, b). (n, instantiate \<tau>s t, b)) ts)[f := (n, instantiate \<tau>s \<tau>, Taken)])"
     using u_sem_memb_b.prems
-    by (fastforce dest: substutivity_kinding_fn_all_recordD
-        simp add: wellkinded_iff_wellformed_and_kinded kinding_def comp_def subset_iff map_update)
+    by (simp add: kinding_simps kinding_record_def list.pred_map,
+        force dest: substutivity_wellkinded_record_updated simp add: comp_assoc[symmetric])
   ultimately show ?case
     apply clarsimp
     apply (frule(5) u_sem_memb_b(2), clarsimp)

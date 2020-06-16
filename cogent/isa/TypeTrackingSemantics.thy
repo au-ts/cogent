@@ -518,6 +518,57 @@ lemma u_tt_sem_pres_imp_u_sem:
 
 end
 
+
+
+
+
+(* technically can get \<Gamma>1 and \<Gamma>2 wellformed out of this, but we probably want to weaken splitting *)
+lemma split_context_wellformed_from_parts:
+  assumes "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+  and "K \<turnstile>* \<Gamma>1 ctxt-wellformed"
+  and "K \<turnstile>* \<Gamma>2 ctxt-wellformed"
+  shows "K \<turnstile>* \<Gamma> ctxt-wellformed"
+  using assms
+  by (fastforce simp add: list_all_length split_conv_all_nth split_comp.simps)+
+
+(* technically can get \<Gamma>1 and \<Gamma>2 wellformed out of this, but we probably want to weaken splitting *)
+lemma splitbang_context_preserves_wellformed_from_parts:
+  assumes "K , is \<turnstile> \<Gamma> \<leadsto>b \<Gamma>1 | \<Gamma>2"
+  and "K \<turnstile>* \<Gamma>1 ctxt-wellformed"
+  and "K \<turnstile>* \<Gamma>2 ctxt-wellformed"
+  shows "K \<turnstile>* \<Gamma> ctxt-wellformed"
+  using assms
+  by (fastforce simp add: list_all_length split_bang_conv_all_nth split_comp.simps split_bang_comp.simps)+
+
+lemma is_consumed_wellformed:
+  "K \<turnstile> \<Gamma> consumed \<Longrightarrow> i < length \<Gamma> \<Longrightarrow> \<Gamma> ! i = Some t' \<Longrightarrow> K \<turnstile> t' wellformed"
+  using is_consumed_conv_all_nth by auto
+
+lemma typing_to_wellformed_context:
+shows "\<Xi>, K, \<Gamma> \<turnstile>  e  : t  \<Longrightarrow> i < length \<Gamma> \<Longrightarrow> \<Gamma> ! i = Some t' \<Longrightarrow> K \<turnstile> t' wellformed"
+and   "\<Xi>, K, \<Gamma> \<turnstile>* es : ts \<Longrightarrow> i < length \<Gamma> \<Longrightarrow> \<Gamma> ! i = Some t' \<Longrightarrow> K \<turnstile> t' wellformed"
+proof (induct arbitrary: i t' and i t' rule: typing_typing_all.inducts)
+  case typing_var then show ?case
+    by (auto simp add: empty_def weakening_conv_all_nth nth_list_update weakening_comp.simps)
+next case typing_struct then show ?case
+    by (simp add: list_all_zip_iff_list_all2 list_all2_conv_all_nth list_all_length)
+next case typing_member then show ?case
+    by (fastforce simp add: kinding_defs INT_subset_iff list_all_iff dest: nth_mem
+        split: prod.splits record_state.splits)
+next case typing_promote then show ?case
+    using subtyping_wellformed_preservation by blast
+next
+  case typing_letb then show ?case
+    apply -
+    apply (drule splitbang_context_preserves_wellformed_from_parts; clarsimp simp add: list_all_length)
+      apply (simp add: option.case_eq_if)
+     apply (metis Suc_mono list.sel(3) nth_tl option.case_eq_if option.collapse)
+    apply force 
+    done
+qed (bestsimp dest!: split_context_wellformed_from_parts is_consumed_wellformed
+    simp add: list_all_length option.case_eq_if)+
+  (* takes a while *)
+
 lemma split_type_wellformed:
   "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2 \<Longrightarrow> Some t \<in> set \<Gamma> \<Longrightarrow> K \<turnstile> t wellformed"
   by (auto simp add: split_def split_comp.simps in_set_conv_nth list_all3_conv_all_nth kinding_def)
@@ -529,38 +580,21 @@ lemma split_bang_type_wellformed:
    apply (auto elim!: split_bang_comp.cases split_comp.cases)
   done
 
-lemma weakening_type_wellformed:
-  "K \<turnstile> \<Gamma> \<leadsto>w \<Gamma>' \<Longrightarrow> Some t \<in> set \<Gamma> \<Longrightarrow> K \<turnstile> t wellformed"
-  by (fastforce simp add: kinding_def weakening_def weakening_comp.simps in_set_conv_nth list_all2_conv_all_nth)
-
-lemma typing_to_kinding_env:
-  "\<Xi>, K, \<Gamma> \<turnstile> e : u \<Longrightarrow> Some t \<in> set \<Gamma>
-    \<Longrightarrow> K \<turnstile> t wellformed"
-  "\<Xi>, K, \<Gamma> \<turnstile>* es : us \<Longrightarrow> Some t \<in> set \<Gamma>
-    \<Longrightarrow> K \<turnstile> t wellformed"
-  by (induct rule: typing_typing_all.inducts,
-    auto simp add: Cogent.empty_def
-      dest: split_bang_type_wellformed weakening_type_wellformed split_type_wellformed)
-
+(*
 lemma ttyping_type_wellformed:
   "\<lbrakk> \<Xi>, K, \<Gamma> T\<turnstile> x : \<tau> \<rbrakk>
     \<Longrightarrow> \<forall>t. Some t \<in> set (snd \<Gamma>) \<longrightarrow> K \<turnstile> t wellformed"
-  by (induct rule: ttyping.induct,
-    auto dest!: ttsplit_imp_split ttsplit_bang_imp_split_bang
-      dest: split_bang_type_wellformed split_type_wellformed typing_to_kinding_env)
+  apply (induct rule: ttyping.induct)
+  apply    (auto dest!: ttsplit_imp_split ttsplit_bang_imp_split_bang
+      dest: split_bang_type_wellformed split_type_wellformed typing_to_wellformed
+      simp add: list_all_iff type_wellformed_pretty_def split: option.splits)
+*)
 
 context update_sem begin
 
 lemma matches_ptrs_replicate_None:
   "length \<gamma> = n \<Longrightarrow> \<Xi>, \<sigma>' \<turnstile> \<gamma> matches replicate n None \<langle>{}, {}\<rangle>"
   by (hypsubst_thin, induct \<gamma>, auto intro: matches_ptrs.intros)
-
-lemma u_tt_sem_pres_type_wellformed:
-  "\<lbrakk> \<Xi>, \<xi> , \<gamma>, K, \<Gamma>, \<tau> T\<turnstile> (\<sigma>, a) \<Down>! (\<sigma>', x) \<rbrakk>
-    \<Longrightarrow> \<forall>t. Some t \<in> set (snd \<Gamma>) \<longrightarrow> K \<turnstile> t wellformed"
-  by (induct rule: u_tt_sem_pres.induct,
-    auto dest!: ttsplit_imp_split ttsplit_bang_imp_split_bang
-      dest: split_bang_type_wellformed split_type_wellformed typing_to_kinding_env)
 
 lemma u_tt_sem_pres_type_wellformed2:
   "\<lbrakk> \<Xi>, \<xi> , \<gamma>, K, \<Gamma>, \<tau> T\<turnstile> (\<sigma>, a) \<Down>! (\<sigma>', x) \<rbrakk>
@@ -585,7 +619,7 @@ lemma u_tt_sem_pres_length:
     auto simp: ttsplit_def ttsplit_inner_def
                ttsplit_bang_def ttsplit_inner_def
          dest: matches_ptrs_length)
-
+(*
 lemma let_elaborate_u_tt_sem_pres:
   assumes
     "\<Xi>, \<xi> , \<gamma>, K, \<Gamma>, \<tau> T\<turnstile> (\<sigma>, a) \<Down>! (\<sigma>', x)"
@@ -599,7 +633,9 @@ proof (intro u_tt_sem_pres_let[OF ttsplitI])
   show "ttsplit_inner K (map (map_option (\<lambda>_. TSK_L)) (snd \<Gamma>)) (snd \<Gamma>) (snd \<Gamma>) (replicate (length (snd \<Gamma>)) None)"
     unfolding ttsplit_inner_def
     using assms
-    by (fastforce simp add: map2_mapL map_idI  map_replicate_const dest: nth_mem u_tt_sem_pres_type_wellformed)
+    apply safe
+    apply (fastforce simp add: map2_mapL map_idI  map_replicate_const dest: nth_mem)+
+    sorry
 next
   show "\<Xi>, \<xi>, x # \<gamma>, K, (TyTrLeaf, Some \<tau> # replicate (length (snd \<Gamma>)) None), \<tau> T\<turnstile> (\<sigma>', Var 0) \<Down>! (\<sigma>', x)"
     using assms
@@ -616,7 +652,7 @@ next
   show "list_all ((\<noteq>) (Some TSK_NS)) (map (map_option (\<lambda>_. TSK_L)) (snd \<Gamma>))"
     by (simp add: list_all_length, metis map_option_eq_Some type_split_op.distinct(9))
 qed auto
-
+*)
 end
 
 (* TODO remove n.b. some things in c-refinement use this *)

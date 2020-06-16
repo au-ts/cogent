@@ -103,7 +103,8 @@ proof (induct t)
   ultimately show
     "K \<turnstile> TSum ts \<leftarrow> TSum ts \<squnion> TSum ts"
     "K \<turnstile> TSum ts \<leftarrow> TSum ts \<sqinter> TSum ts"
-    by (fastforce simp add: list_all3_same list_all_iff intro!: type_lub_type_glb.intros)+
+    by (fastforce simp add: list_all3_same list_all_iff type_wellformed.simps
+        intro!: type_lub_type_glb.intros)+
 next
   case (TRecord ts s)
   moreover assume ts_wellformed: "K \<turnstile> TRecord ts s wellformed"
@@ -112,7 +113,8 @@ next
   "K \<turnstile> TRecord ts s \<leftarrow> TRecord ts s \<sqinter> TRecord ts s"
   proof -
     have tWellformed: "\<And>i. i < length ts \<Longrightarrow> K \<turnstile> fst (snd (ts ! i)) wellformed"
-      by (metis nth_mem prod.collapse ts_wellformed wellformed_record_wellformed_elem)
+      using ts_wellformed
+      by (force dest: type_wellformed_fstsnd_triple_nth)
     show "K \<turnstile> TRecord ts s \<leftarrow> TRecord ts s \<squnion> TRecord ts s"
     proof (rule_tac lub_trecord)
       show "list_all3 (\<lambda>p p1 p2. K \<turnstile> fst (snd p) \<leftarrow> fst (snd p1) \<squnion> fst (snd p2)) ts ts ts"
@@ -175,14 +177,14 @@ lemma type_lub_type_glb_wellformed:
     "K \<turnstile> t \<leftarrow> t1 \<squnion> t2 \<Longrightarrow> K \<turnstile> t wellformed"
     "K \<turnstile> t \<leftarrow> t1 \<sqinter> t2 \<Longrightarrow> K \<turnstile> t wellformed"
   using assms
-proof (induct rule: type_lub_type_glb.inducts)
-qed (auto simp add: list_all_length list_all3_conv_all_nth)
+  by (induct rule: type_lub_type_glb.inducts)
+    (auto simp add: list_all_length list_all3_conv_all_nth)
 
 lemma type_lub_type_glb_wellformed_produce_wellformed:
   "K \<turnstile> c \<leftarrow> a \<squnion> b \<Longrightarrow> K \<turnstile> c wellformed \<Longrightarrow> (K \<turnstile> a wellformed) \<and> (K \<turnstile> b wellformed)"
   "K \<turnstile> c \<leftarrow> a \<sqinter> b \<Longrightarrow> K \<turnstile> c wellformed \<Longrightarrow> (K \<turnstile> a wellformed) \<and> (K \<turnstile> b wellformed)"
-proof (induct rule: type_lub_type_glb.inducts)                
-qed (auto simp add: list_all3_conv_all_nth list_all_length)
+  by (induct rule: type_lub_type_glb.inducts)
+    (auto simp add: list_all3_conv_all_nth list_all_length)
 
 lemma type_glb_drop_produce_drop:
   shows
@@ -244,8 +246,8 @@ next
           using lub_trecord.hyps
           by (metis length_map)
         ultimately show ?thesis
-          using  ts1ts2Wellformed tsLength
-          by (auto simp add: list_all_length)
+          using ts1ts2Wellformed tsLength
+          by (force simp add: list_all_length)
       next
         case Present
         then show ?thesis
@@ -344,9 +346,8 @@ next
       using glb_trecord.prems kinding_to_wellformedD(1) by blast+
     then have tsWellformed: "K \<turnstile> TRecord ts s wellformed"
       using glb_trecord.hyps
-      apply (clarsimp simp add: list_all3_conv_all_nth)
-      using type_lub_type_glb_wellformed
-      by (metis (no_types, lifting) list_all_length)
+      by (fastforce dest!: type_lub_type_glb_wellformed[rotated 2]
+          simp add: list_all_length list_all3_conv_all_nth kinding_defs)
     {
       fix i :: nat
       assume tsLength: "i < length ts"
@@ -382,9 +383,8 @@ next
       using glb_tsum.prems kinding_to_wellformedD(1) by blast+
     then have tsWellformed: "K \<turnstile> TSum ts wellformed"
       using glb_tsum.hyps
-      apply (clarsimp simp add: list_all3_conv_all_nth)
-      using type_lub_type_glb_wellformed
-      by (metis (no_types, lifting) list_all_length)
+      by (fastforce dest!: type_lub_type_glb_wellformed[rotated 2]
+          simp add: list_all_length list_all3_conv_all_nth kinding_defs)
     {
       fix i :: nat
       assume tsLength: "i < length ts"

@@ -74,7 +74,8 @@ lemma drop_kind_iff_share_kind:
   using assms
   by (induct t)
     (fastforce simp add: in_set_conv_nth list_all_length
-      all_set_conv_all_nth sigil_kind_drop_iff_share  
+      all_set_conv_all_nth sigil_kind_drop_iff_share prod_eq_iff
+      kinding_fn_all_def kinding_fn_all_variant_def kinding_fn_all_record_def
       dest: well_kinded_all_drop_is_share_nthD
       split: record_state.splits variant_state.splits)+
 
@@ -87,7 +88,8 @@ lemma share_kind_iff_drop_kind:
   using assms
   by (induct t)
     (fastforce simp add: in_set_conv_nth list_all_length
-      all_set_conv_all_nth sigil_kind_drop_iff_share
+      all_set_conv_all_nth sigil_kind_drop_iff_share prod_eq_iff
+      kinding_fn_all_def kinding_fn_all_variant_def kinding_fn_all_record_def
       dest: well_kinded_all_drop_is_share_nthD
       split: record_state.splits variant_state.splits)+
 
@@ -250,42 +252,69 @@ next
     by (force intro!: typing_typing_all.intros)
 next
   case (typing_split K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> x t u y t')
+  moreover have
+    "K \<turnstile> t wellformed"
+    "K \<turnstile> u wellformed"
+    using typing_split
+    by (force dest: typing_to_wellformed)+
   moreover then obtain \<Gamma>'1 \<Gamma>'2
     where
       "K \<turnstile> \<Gamma>' \<leadsto> \<Gamma>'1 | \<Gamma>'2"
       "K \<turnstile> \<Gamma>'1 \<leadsto>w \<Gamma>1"
       "K \<turnstile> Some t # Some u # \<Gamma>'2 \<leadsto>w Some t # Some u # \<Gamma>2"
+    using typing_split
     by (meson wksplit_to_splitwks weakening_Cons weakening_comp.simps)
   ultimately show ?case
     by (force intro!: typing_typing_all.intros)
 next
   case (typing_let K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> x t y u)
+  moreover have
+    "K \<turnstile> t wellformed"
+    using typing_let
+    by (force dest: typing_to_wellformed)+
   moreover then obtain \<Gamma>'1 \<Gamma>'2
     where
       "K \<turnstile> \<Gamma>' \<leadsto> \<Gamma>'1 | \<Gamma>'2"
       "K \<turnstile> \<Gamma>'1 \<leadsto>w \<Gamma>1"
       "K \<turnstile> Some t # \<Gamma>'2 \<leadsto>w Some t # \<Gamma>2"
+    using typing_let
     by (meson wksplit_to_splitwks weakening_Cons weakening_comp.simps)
   ultimately show ?case
     by (force intro!: typing_typing_all.intros)
 next
   case (typing_letb K "is" \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> x t y u k)
+  moreover have
+    "K \<turnstile> t wellformed"
+    using typing_letb
+    by (force dest: typing_to_wellformed)+
   moreover then obtain \<Gamma>'1 \<Gamma>'2
     where
       "K, is \<turnstile> \<Gamma>' \<leadsto>b \<Gamma>'1 | \<Gamma>'2"
       "K \<turnstile> \<Gamma>'1 \<leadsto>w \<Gamma>1"
       "K \<turnstile> Some t # \<Gamma>'2 \<leadsto>w Some t # \<Gamma>2"
+    using typing_letb
     by (meson wksplitb_to_splitbwks weakening_Cons weakening_comp.simps)
   ultimately show ?case
     by (force intro!: typing_typing_all.intros)
 next
   case (typing_case K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> x ts tag t a u b)
+  moreover have
+    "K \<turnstile> TSum ts wellformed"
+    using typing_case
+    by (force dest: typing_to_wellformed)+
+  moreover then have
+    "K \<turnstile> t wellformed"
+    "K \<turnstile> TSum (tagged_list_update tag (t, Checked) ts) wellformed"
+    using typing_case
+    by (force dest: type_wellformed_fstsnd_triple_elem simp add: type_wellformed_fst_snd_updateI
+        type_wellformed_fstsnd_triple_elem)+
   moreover then obtain \<Gamma>'1 \<Gamma>'2
     where
       "K \<turnstile> \<Gamma>' \<leadsto> \<Gamma>'1 | \<Gamma>'2"
       "K \<turnstile> \<Gamma>'1 \<leadsto>w \<Gamma>1"
       "K \<turnstile> Some t # \<Gamma>'2 \<leadsto>w Some t # \<Gamma>2"
       "K \<turnstile> Some (TSum (tagged_list_update tag (t, Checked) ts)) # \<Gamma>'2 \<leadsto>w Some (TSum (tagged_list_update tag (t, Checked) ts)) # \<Gamma>2"
+    using typing_case
     by (meson wksplit_to_splitwks weakening_Cons weakening_comp.simps)
   ultimately show ?case
     by (force intro!: typing_typing_all.intros)
@@ -301,13 +330,27 @@ next
     by (force intro!: typing_typing_all.intros)
 next
   case (typing_take K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> e ts s f n t k taken e' u)
-    moreover then obtain \<Gamma>'1 \<Gamma>'2
+  moreover have
+    "K \<turnstile> TRecord ts s wellformed"
+    using typing_take
+    by (force dest: typing_to_wellformed)+
+  moreover then have t_wellformed:
+    "K \<turnstile> t wellformed"
+    using typing_take
+    by (force dest: type_wellformed_fstsnd_triple_nth)
+  ultimately have
+    "K \<turnstile> TRecord (ts[f := (n, t, taken)]) s wellformed"
+    using typing_take
+    by (force intro: type_wellformed_fstsnd_list_updI simp add: map_fst_update)
+  then obtain \<Gamma>'1 \<Gamma>'2
     where
       "K \<turnstile> \<Gamma>' \<leadsto> \<Gamma>'1 | \<Gamma>'2"
       "K \<turnstile> \<Gamma>'1 \<leadsto>w \<Gamma>1"
       "K \<turnstile> Some t # Some (TRecord (ts[f := (n, t, taken)]) s) # \<Gamma>'2 \<leadsto>w Some t # Some (TRecord (ts[f := (n, t, taken)]) s) # \<Gamma>2"
+    using typing_take t_wellformed
     by (meson wksplit_to_splitwks weakening_Cons weakening_comp.simps)
-  ultimately show ?case
+    then show ?case
+      using typing_take
     by (force intro!: typing_typing_all.intros)
 next
   case (typing_put K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> e ts s f n t taken k e')
@@ -441,8 +484,7 @@ lemma context_bang_types_nth[simp]:
 
 lemma context_bang_types_wellformed_iff:
   "K \<turnstile>* context_bang_types N ts wellformed \<longleftrightarrow> K \<turnstile>* ts wellformed"
-  by (simp add: type_wellformed_all_length)
-
+  by (simp add: list_all_length)
 
 
 fun remove_use_bang :: "nat set \<Rightarrow> ('a :: zero) list \<Rightarrow> 'a list" where
@@ -697,7 +739,9 @@ lemma droppable_simps[simp]:
   "\<And>K ta tb. droppable K (TProduct ta tb) \<longleftrightarrow> droppable K ta \<and> droppable K tb"
   "\<And>K ts s. droppable K (TRecord ts s) \<longleftrightarrow> list_all (\<lambda>(_, t, y). case_record_state True (droppable K t) y) ts \<and> D \<in> sigil_kind s"
   "\<And>K. droppable K TUnit \<longleftrightarrow> True"
-  by (force simp add: droppable_def all_set_conv_all_nth list_all_length split: variant_state.splits record_state.splits)+
+  by (force simp add: droppable_def all_set_conv_all_nth list_all_length prod_eq_iff
+      kinding_fn_all_def kinding_fn_all_variant_def kinding_fn_all_record_def
+      split: variant_state.splits record_state.splits)+
 
 lemma kinding_includes_drop_eq[simp]:
   "(\<exists>k. (K \<turnstile> t :\<kappa> k) \<and> D \<in> k) \<longleftrightarrow> K \<turnstile> t wellformed \<and> droppable K t"
@@ -716,7 +760,9 @@ lemma shareable_simps[simp]:
   "\<And>K ta tb. shareable K (TProduct ta tb) \<longleftrightarrow> shareable K ta \<and> shareable K tb"
   "\<And>K ts s. shareable K (TRecord ts s) \<longleftrightarrow> list_all (\<lambda>(_, t, y). case_record_state True (shareable K t) y) ts \<and> S \<in> sigil_kind s"
   "\<And>K. shareable K TUnit \<longleftrightarrow> True"
-  by (force simp add: shareable_def all_set_conv_all_nth list_all_length split: variant_state.splits record_state.splits)+
+  by (auto simp add: shareable_def all_set_conv_all_nth list_all_length prod_eq_iff
+      kinding_fn_all_def kinding_fn_all_variant_def kinding_fn_all_record_def
+      split: variant_state.splits record_state.splits)+
 
 lemma kinding_includes_share_eq[simp]:
   "(\<exists>k. (K \<turnstile> t :\<kappa> k) \<and> S \<in> k) \<longleftrightarrow> K \<turnstile> t wellformed \<and> shareable K t"
@@ -1186,8 +1232,9 @@ lemma shareable_constraint_max_iff:
 
 lemma bang_is_shareable: "shareable K (bang t)"
   by (induct t)
-    (fastforce simp add: list_all_length in_set_conv_nth
-      bang_sigil_kind[simplified] shareable_def split: variant_state.splits record_state.splits)+
+    (fastforce simp add: list_all_length in_set_conv_nth bang_sigil_kind[simplified] shareable_def
+      prod_eq_iff kinding_fn_all_def kinding_fn_all_variant_def kinding_fn_all_record_def
+      split: variant_state.splits record_state.splits)+
 
 lemma bang_is_share_safe: "is_share_safe K (bang t) c"
   by (simp add: is_share_safe_def bang_is_shareable)
@@ -1215,27 +1262,25 @@ lemma tyinf_preserves_wellformed[dest]:
   "\<Xi>, K, \<Gamma>, C \<turnstile>\<down>* es : ts \<Longrightarrow> K \<turnstile>* \<Gamma> wellformed \<Longrightarrow> K \<turnstile>* ts wellformed"
 proof (induct rule: tyinf_synth_tyinf_check_tyinf_all_synth.inducts)
   case tyinf_esac then show ?case
-    by (clarsimp simp add: type_wellformed_pretty_simps type_wellformed_all_pretty_def
-        prod_eq_iff_proj_eq
-        list_all_length map_fst_zip_take less_Suc_eq_0_disj singleton_filter_iff)
+    by (clarsimp simp add: prod_eq_iff_proj_eq list_all_length map_fst_zip_take less_Suc_eq_0_disj
+        singleton_filter_iff)
 next
   case tyinf_put then show ?case
-    by (force intro: distinct_upd_sameI simp add: type_wellformed_pretty_simps type_wellformed_all_length map_update nth_list_update)
+    by (force intro: distinct_upd_sameI simp add: list_all_length map_update nth_list_update)
 next
   case tyinf_letb then show ?case
     by (simp add: context_bang_types_wellformed_iff)
 next
   case tyinf_case then show ?case
-    by (force simp add: type_wellformed_pretty_simps type_wellformed_all_length in_set_conv_nth All_less_Suc2)
+    by (force simp add: list_all_iff)
 next
   case tyinf_take then show ?case
-    by (clarsimp simp add: type_wellformed_pretty_simps type_wellformed_all_length
-        prod_eq_iff_proj_eq distinct_fst_tags_update list_all_length nth_list_update All_less_Suc2)
+    by (clarsimp simp add: prod_eq_iff_proj_eq distinct_fst_tags_update list_all_length
+        nth_list_update All_less_Suc2)
 next
   case tyinf_promote then show ?case
     by (force dest: subtyping_wellformed_preservation)
-
-qed (simp; simp add: type_wellformed_pretty_simps type_wellformed_all_length list_all_length map_fst_zip_take less_Suc_eq_0_disj)+
+qed (simp; simp add: list_all_length map_fst_zip_take less_Suc_eq_0_disj)+
 
 subsection \<open> Non-algorithmic Context Generation \<close>
 
@@ -1312,7 +1357,7 @@ lemma tycount_context_gen_split:
   shows
     "K \<turnstile> tycount_context_gen G (C1 \<oplus> C2) \<leadsto> tycount_context_gen G C1 | tycount_context_gen G C2"
   using assms
-  by (clarsimp simp add: split_conv_all_nth type_wellformed_all_length
+  by (clarsimp simp add: split_conv_all_nth list_all_length
       new_shareable_constraint_conv_all_nth tycount_context_gen_split_comp)
 
 
@@ -1380,7 +1425,7 @@ lemma tycount_context_gen_split_bang:
       tycount_context_gen_split_bang_comp_True
       tycount_context_gen_split_bang_comp_False
       ensure_use_bang_all_nth
-      split_bang_conv_all_nth type_wellformed_all_length new_shareable_constraint_conv_all_nth
+      split_bang_conv_all_nth list_all_length new_shareable_constraint_conv_all_nth
       split_bang.simps)
 
 subsubsection \<open> join with sup respects split \<close>
@@ -1402,7 +1447,7 @@ lemma tycount_context_gen_max_split:
   shows
     "K \<turnstile> tycount_context_gen G (countMax C1 C2) \<leadsto> tycount_context_gen G C1 | tycount_context_gen G C2"
   using assms
-  by (clarsimp simp add: split_conv_all_nth type_wellformed_all_length
+  by (clarsimp simp add: split_conv_all_nth list_all_length
       new_shareable_constraint_conv_all_nth tycount_context_gen_max_split_comp)
 
 subsubsection \<open> join sup can be weakened \<close>
@@ -1429,7 +1474,7 @@ lemma tycount_context_gen_weaken_max:
     "K \<turnstile> tycount_context_gen G (countMax C1 C2) \<leadsto>w tycount_context_gen G C2"
   using assms
   by (fastforce intro: tycount_context_gen_weaken_max_comp
-      simp add: type_wellformed_all_length weakening_conv_all_nth merge_drop_condition_conv_all_nth)+
+      simp add: list_all_length weakening_conv_all_nth merge_drop_condition_conv_all_nth)+
 
 
 subsection \<open> Misc Lemmas \<close>
@@ -1483,18 +1528,27 @@ lemma weaken_context_gen_bangL:
     "K \<turnstile>* G wellformed"
   shows
     "K \<turnstile> tycount_context_gen_bang bangL_comp N G (remove_use_bang N C) \<leadsto>w tycount_context_gen (context_bang_types N G) C"
-  using assms
-  by (clarsimp simp add: weakening_conv_all_nth weakening_comp.simps
-      context_gen_comp_Some context_gen_comp_None type_wellformed_all_length
-      droppable_def[symmetric] bang_kinding_fn[simplified, simplified droppable_def[symmetric]])
+  using assms bang_kinding_fn
+  by (force simp add: weakening_conv_all_nth weakening_comp.simps
+      context_gen_comp_Some context_gen_comp_None list_all_length)
 
 lemma weaken_context_gen_bangR:
   assumes
     "ensure_use_bang N C"
+    "K \<turnstile>* G wellformed"
   shows
     "K \<turnstile> tycount_context_gen_bang bangR_comp N G C \<leadsto>w tycount_context_gen G C"
   using assms
-  by (force simp add: weakening_conv_all_nth weakening_comp.simps context_gen_comp_Some)
+  by (force simp add: list_all_length weakening_conv_all_nth weakening_comp.simps
+      context_gen_comp_Some)
+
+lemma wellformed_types_impl_context_gen_wellformed:
+  assumes
+  "K \<turnstile>* G wellformed"
+shows
+  "K \<turnstile>* tycount_context_gen G C ctxt-wellformed"
+  using assms
+  by (simp add: list_all_length tycount_context_gen_comp_def)
 
 
 section \<open> Main Theorem: An Inferred Typing Implies a Non-Algorithmic Typing \<close>
@@ -1511,19 +1565,24 @@ theorem tyinf_to_typing:
   using assms
 proof (induct rule: tyinf_synth_tyinf_check_tyinf_all_synth.inducts)
   case tyinf_var then show ?case
-    by (force
-        intro!: typing_typing_all.intros weakening_refl
-        simp add: Cogent.empty_def type_wellformed_all_length
-        weakening_context_correspond)
+    by (force intro!: typing_typing_all.intros 
+        simp add: list_all_length Cogent.empty_def weakening_conv_all_nth weakening_comp.simps
+        nth_list_update)
 next case tyinf_tuple then show ?case
     by (auto
         intro!: typing_typing_all.intros tycount_context_gen_split
         simp add: tyinf_shareable_constraint_plus_iff)
 next
-  case tyinf_member then show ?case
-    by (force intro!: typing_typing_all.intros kinding_kinding_allI
+  case (tyinf_member _ K _ _ _ ts _ f) then show ?case
+    apply (auto intro!: typing_typing_all.intros kinding_kinding_allI
               simp add: prod_eq_iff_proj_eq shareable_def tyinf_context_lengths
-              shareable_constraint_plus_iff)
+              shareable_constraint_plus_iff
+              )
+     apply (simp add: kinding_defs)
+     apply (intro conjI)
+        apply (force dest: distinct_fst_tags_update)
+       apply (force intro: type_wellformed_fstsnd_list_updI dest: type_wellformed_fstsnd_triple_nth)
+    sorry
 next
   case tyinf_put then show ?case
     by (simp add: tyinf_shareable_constraint_plus_iff droppable_def,
@@ -1543,17 +1602,16 @@ next
     "K \<turnstile> t wellformed"
     "K \<turnstile> u wellformed"
     using tyinf_split
-    by (force dest!: tyinf_preserves_wellformed simp add: type_wellformed_pretty_simps)+
+    by (force dest!: tyinf_preserves_wellformed)+
   ultimately show ?case
     apply (clarsimp simp add: shareable_iff_nonlinear droppable_iff_nonlinear
         tyinf_shareable_constraint_plus_iff is_used_def)
     apply (rule typing_typing_all.intros)
       apply (rule tycount_context_gen_split; blast)
      apply blast
-    apply (rule typing_weaken_context)
-      apply blast
-     apply blast
-    apply (force intro!: weakening_cons weakens_to_context_gen intro: weakening_refl)
+    apply (force
+        intro: wellformed_types_impl_context_gen_wellformed weakening_refl typing_weaken_context
+        simp add: weakens_to_context_gen weakening_Cons)
     done
 next
   case (tyinf_let \<Xi> K \<Gamma> C1 x t C2o y u ct C2)
@@ -1567,7 +1625,8 @@ next
     apply (rule typing_typing_all.intros)
       apply (rule tycount_context_gen_split; blast)
      apply blast
-    apply (rule typing_weaken_context; force intro!: weakening_cons weakens_to_context_gen intro: weakening_refl)
+    apply (force intro!: weakening_cons weakens_to_context_gen
+        intro: weakening_refl wellformed_types_impl_context_gen_wellformed typing_weaken_context)
     done
 next
   case (tyinf_letb \<Xi> K N \<Gamma> C1 x t ct C2 y u)
@@ -1612,11 +1671,16 @@ next
     "new_shareable_constraint K \<Gamma> C1 (countMax C2a C2b)"
     using tyinf_case.prems
     by (clarsimp simp add: shareable_constraint_plus_iff shareable_constraint_max_iff)+
-  moreover have
-    "K \<turnstile> t wellformed"
-    "K \<turnstile> TSum (tagged_list_update tag (t, Checked) ts) wellformed"
+  moreover have sum_wellformed: "K \<turnstile> TSum ts wellformed"
     using tyinf_case
-    by (blast intro: type_wellformed_pretty_tsum_updateI wellformed_sum_wellformed_elem tyinf_preserves_wellformed)+
+    by (force dest!: tyinf_preserves_wellformed)
+  moreover have "K \<turnstile> t wellformed"
+    using tyinf_case sum_wellformed
+    by (force dest!: type_wellformed_fstsnd_triple_elem)
+  moreover then have
+    "K \<turnstile> TSum (tagged_list_update tag (t, Checked) ts) wellformed"
+    using tyinf_case sum_wellformed
+    by (simp add: type_wellformed_fst_snd_updateI)
   ultimately show ?case
     apply (clarsimp simp add: is_used_def)
     apply (rule typing_typing_all.intros)
@@ -1654,13 +1718,17 @@ next
     done
 next
   case (tyinf_take \<Xi> K \<Gamma> C1 e \<tau>1 ts s f n t taken C2o e' u ct cr C2)
-  moreover have
+  moreover have record_wellformed:
     "K \<turnstile> TRecord ts s wellformed"
+    using tyinf_take
+    by blast
+  moreover then have
     "K \<turnstile> t wellformed"
-    using tyinf_take by (blast intro: wellformed_record_wellformed_nth')+
+    using tyinf_take.hyps(5-6) tyinf_take.prems
+    by (force dest: type_wellformed_fstsnd_triple_nth)
   moreover then have
     "K \<turnstile> TRecord (ts[f := (n, t, taken)]) s wellformed"
-    using tyinf_take.hyps
+    using tyinf_take.hyps record_wellformed
     by (metis wellformed_record_update_wellformed prod_eq_iff_proj_eq)
   ultimately show ?case
     apply -
@@ -1673,8 +1741,8 @@ next
        apply blast
       apply (rule kinding_kinding_allI; blast)
      apply assumption
-
-    apply (fastforce intro: typing_weaken_context weakens_to_context_gen weakening_refl
+    apply (fastforce intro!: weakening_refl intro: typing_weaken_context weakens_to_context_gen 
+        wellformed_types_impl_context_gen_wellformed
         simp add: weakening_Cons is_used_def)
     done
 next
@@ -1683,8 +1751,8 @@ next
         intro!: typing_typing_all.intros
         tycount_context_gen_split
         simp add: tyinf_shareable_constraint_plus_iff)
-qed (fastforce intro: typing_typing_all.intros
-        simp add: type_wellformed_all_length is_consumed_conv_all_nth weakening_comp_simps2)+
+qed (auto intro: typing_typing_all.intros
+        simp add: list_all_length is_consumed_conv_all_nth weakening_comp_simps2)
 
 lemma all_weakens_to_tycount_gen:
   assumes
@@ -1694,7 +1762,7 @@ lemma all_weakens_to_tycount_gen:
     "K \<turnstile> map Some G \<leadsto>w tycount_context_gen G C"
   using assms
   by (force simp add:
-      type_wellformed_all_length weakening_conv_all_nth weakening_comp.simps
+      list_all_length weakening_conv_all_nth weakening_comp.simps
       tycount_context_gen_comp_def droppable_constraint_conv_all_nth is_drop_safe_def
       linearity_one_le_eq_one_or_many droppable_def)
 
