@@ -381,12 +381,12 @@ fun type_wellformed :: "nat \<Rightarrow> type \<Rightarrow> bool" where
 | "type_wellformed n (TCon _ ts _) = list_all (\<lambda>x. type_wellformed n x) ts"
 | "type_wellformed n (TFun t1 t2) = (type_wellformed n t1 \<and> type_wellformed n t2)"
 | "type_wellformed n (TPrim _) = True"
-| "type_wellformed n (TSum ts) = (distinct (map fst ts) \<and> (list_all (\<lambda>x. type_wellformed n (fst (snd x))) ts))"
+| "type_wellformed n (TSum ts) = (distinct (map fst ts) \<and> list_all (type_wellformed n) (map (fst \<circ> snd) ts))"
 | "type_wellformed n (TProduct t1 t2) = (type_wellformed n t1 \<and> type_wellformed n t2)"
-| "type_wellformed n (TRecord ts _) = (distinct (map fst ts) \<and> (list_all (\<lambda>x. type_wellformed n (fst (snd x))) ts))"
+| "type_wellformed n (TRecord ts _) = (distinct (map fst ts) \<and> list_all (type_wellformed n) (map (fst \<circ> snd) ts))"
 | "type_wellformed n TUnit = True"
 
-definition type_wellformed_pretty :: "kind env \<Rightarrow> type \<Rightarrow> bool" ("_ \<turnstile> _ wellformed" [55,55] 60) where
+abbreviation type_wellformed_pretty :: "kind env \<Rightarrow> type \<Rightarrow> bool" ("_ \<turnstile> _ wellformed" [55,55] 60) where
   "type_wellformed_pretty K \<equiv> type_wellformed (length K)"
 
 lemma type_wellformed_intros:
@@ -401,36 +401,11 @@ lemma type_wellformed_intros:
   "\<And>n. type_wellformed n TUnit"
   by (simp add: list_all_iff)+
 
-lemma type_wellformed_pretty_intros:
-  "\<And>K i. i < length K \<Longrightarrow> type_wellformed_pretty K (TVar i)"
-  "\<And>K i. i < length K \<Longrightarrow> type_wellformed_pretty K (TVarBang i)"
-  "\<And>K name ts s. list_all (\<lambda>x. type_wellformed_pretty K x) ts \<Longrightarrow> type_wellformed_pretty K (TCon name ts s)"
-  "\<And>K t1 t2. \<lbrakk> type_wellformed_pretty K t1 ; type_wellformed_pretty K t2 \<rbrakk> \<Longrightarrow> type_wellformed_pretty K (TFun t1 t2)"
-  "\<And>K p. type_wellformed_pretty K (TPrim p)"
-  "\<And>K ts. \<lbrakk> distinct (map fst ts) ; list_all (\<lambda>x. type_wellformed_pretty K (fst (snd x))) ts \<rbrakk> \<Longrightarrow> type_wellformed_pretty K (TSum ts)"
-  "\<And>K t1 t2. \<lbrakk> type_wellformed_pretty K t1 ; type_wellformed_pretty K t2 \<rbrakk> \<Longrightarrow> type_wellformed_pretty K (TProduct t1 t2)"
-  "\<And>K ts s. \<lbrakk> distinct (map fst ts) ; list_all (\<lambda>x. type_wellformed_pretty K (fst (snd x))) ts \<rbrakk> \<Longrightarrow> type_wellformed_pretty K (TRecord ts s)"
-  "\<And>K. type_wellformed_pretty K TUnit"
-  by (simp add: type_wellformed_pretty_def list_all_iff)+
-
-definition type_wellformed_all_pretty :: "kind env \<Rightarrow> type list \<Rightarrow> bool" ("_ \<turnstile>* _ wellformed" [55,55] 60) where
+abbreviation type_wellformed_all_pretty :: "kind env \<Rightarrow> type list \<Rightarrow> bool" ("_ \<turnstile>* _ wellformed" [55,55] 60) where
   "type_wellformed_all_pretty K \<equiv> list_all (type_wellformed_pretty K)"
 
-lemma type_wellformed_all_Cons[simp]:
-  "K \<turnstile>* t # ts wellformed = (K \<turnstile> t wellformed \<and> K \<turnstile>* ts wellformed)"
-  by (simp add: type_wellformed_pretty_def type_wellformed_all_pretty_def)
-
-lemma type_wellformed_all_Nil[simp,intro!]:
-  "K \<turnstile>* [] wellformed"
-  by (simp add: type_wellformed_all_pretty_def)
-
-lemma type_wellformed_all_length:
-  "K \<turnstile>* ts wellformed = (\<forall>i<length ts. K \<turnstile> ts ! i wellformed)"
-  by (simp add: type_wellformed_pretty_def type_wellformed_all_pretty_def list_all_length)
-
-lemma type_wellformed_all_iff:
-  "K \<turnstile>* ts wellformed = (\<forall>x\<in>set ts. K \<turnstile> x wellformed)"
-  by (simp add: type_wellformed_pretty_def type_wellformed_all_pretty_def list_all_iff)
+abbreviation type_wellformed_context :: "kind env => type option list => bool" ("_ \<turnstile>* _ ctxt-wellformed" [55,55] 60) where
+  "type_wellformed_context K \<equiv> list_all (\<lambda>mt. case mt of Some t \<Rightarrow> type_wellformed_pretty K t | _ \<Rightarrow> True)"
 
 
 definition proc_ctx_wellformed :: "('f \<Rightarrow> poly_type) \<Rightarrow> bool" where
@@ -493,6 +468,10 @@ definition kinding_record  :: "kind env \<Rightarrow> (name \<times> type \<time
   "K \<turnstile>* ts :\<kappa>r k \<equiv> (\<forall>p\<in>set ts. K \<turnstile> fst (snd p) wellformed) \<and> k \<subseteq> kinding_fn_all_record K ts"
 
 lemmas kinding_defs = kinding_def kinding_all_def kinding_variant_def kinding_record_def
+
+lemma pretty_kinding_record_simp':
+  "K \<turnstile>* ts :\<kappa>r k \<equiv> list_all (type_wellformed_pretty K \<circ> fst \<circ> snd) ts \<and> k \<subseteq> kinding_fn_all_record K ts"
+  by (clarsimp simp add: kinding_defs list_all_length all_set_conv_all_nth)
 
 
 section {* Observation and type instantiation *}
@@ -714,17 +693,17 @@ lemma split_bang_Cons:
 
 inductive weakening_comp :: "kind env \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" where
   none : "weakening_comp K None None"
-| keep : "weakening_comp K (Some t) (Some t)"
+| keep : "K \<turnstile> t wellformed \<Longrightarrow> weakening_comp K (Some t) (Some t)"
 | drop : "\<lbrakk> K \<turnstile> t wellformed ; D \<in> kinding_fn K t \<rbrakk> \<Longrightarrow> weakening_comp K (Some t) None"
 
 lemma weakening_comp_simps[simp]:
   "weakening_comp K None None = True"
-  "weakening_comp K (Some t1) (Some t2) = (t2 = t1)"
+  "weakening_comp K (Some t1) (Some t2) = (t2 = t1 \<and> K \<turnstile> t1 wellformed)"
   "weakening_comp K (Some t) None = (K \<turnstile> t wellformed \<and> D \<in> kinding_fn K t)"
   by (simp add: weakening_comp.simps)+
 
 lemma weakening_comp_simps2:
-  "weakening_comp K a (Some u) = (a = Some u)"
+  "weakening_comp K a (Some u) = (a = Some u \<and> K \<turnstile> u wellformed)"
   "weakening_comp K None b = (b = None)"
   "weakening_comp K a None = (a = None \<or> (\<exists>t. a = Some t \<and> K \<turnstile> t wellformed \<and> D \<in> kinding_fn K t))"
   by (simp add: eq_iff weakening_comp.simps ex_kinding_inset)+
@@ -1099,54 +1078,6 @@ fun type_repr :: "type \<Rightarrow> repr" where
 
 section {* Wellformed lemmas *}
 
-lemma type_wellformed_pretty_simps:
-  "\<And>K i.      (K \<turnstile> TVar i wellformed) \<longleftrightarrow> (i < length K)"
-  "\<And>K i.      (K \<turnstile> TVarBang i wellformed) \<longleftrightarrow> (i < length K)"
-  "\<And>K n ts s. (K \<turnstile> TCon n ts s wellformed) \<longleftrightarrow> K \<turnstile>* ts wellformed"
-  "\<And>K t1 t2.  (K \<turnstile> TFun t1 t2 wellformed) \<longleftrightarrow> (K \<turnstile> t1 wellformed \<and> K \<turnstile> t2 wellformed)"
-  "\<And>K p.      (K \<turnstile> TPrim p wellformed) \<longleftrightarrow> True"
-  "\<And>K ts.     (K \<turnstile> TSum ts wellformed) \<longleftrightarrow> distinct (map fst ts) \<and> (K \<turnstile>* map (fst \<circ> snd) ts wellformed)"
-  "\<And>K t1 t2.  (K \<turnstile> TProduct t1 t2 wellformed) \<longleftrightarrow> (K \<turnstile> t1 wellformed \<and> K \<turnstile> t2 wellformed)"
-  "\<And>K ts s.   (K \<turnstile> TRecord ts s wellformed) \<longleftrightarrow> distinct (map fst ts) \<and> K \<turnstile>* map (fst \<circ> snd) ts wellformed"
-  "\<And>K.        K \<turnstile> TUnit wellformed \<longleftrightarrow> True"
-  by (simp add: type_wellformed_pretty_def type_wellformed_all_pretty_def list.pred_map comp_def)+
-
-
-lemma wellformed_record_wellformed_elem:
-  assumes "K \<turnstile> TRecord ts s wellformed"
-    and "(name, t, taken) \<in> set ts"
-  shows "K \<turnstile> t wellformed"
-  by (metis assms fst_conv in_set_conv_nth list_all_length snd_conv type_wellformed.simps(8) type_wellformed_pretty_def)
-
-lemma wellformed_sum_wellformed_elem:
-  assumes "K \<turnstile> TSum ts wellformed"
-    and "(name, t, taken) \<in> set ts"
-  shows "K \<turnstile> t wellformed"
-  by (metis assms fst_conv in_set_conv_nth list_all_length snd_conv type_wellformed.simps(6) type_wellformed_pretty_def)
-
-lemma wellformed_sum_wellformed_nth:
-  assumes "K \<turnstile> TSum ts wellformed"
-    and "i < length ts"
-    and "ts ! i = (name, t, taken)"
-  shows "K \<turnstile> t wellformed"
-  by (metis assms fst_conv list_all_length snd_conv type_wellformed.simps(6) type_wellformed_pretty_def)
-
-lemma wellformed_record_wellformed_nth:
-  assumes "K \<turnstile> TRecord ts s wellformed"
-    and "i < length ts"
-  shows "K \<turnstile> fst (snd (ts ! i)) wellformed"
-  using assms type_wellformed.simps
-  by (metis list_all_length type_wellformed_pretty_def)
-
-lemma wellformed_record_wellformed_nth':
-  assumes "K \<turnstile> TRecord ts s wellformed"
-    and "i < length ts"
-    and "ts ! i = (a, t, b)"
-  shows "K \<turnstile> t wellformed"
-  using assms wellformed_record_wellformed_nth
-  by (clarsimp simp add: prod_eq_iff_proj_eq)
-
-
 lemma wellformed_record_update_wellformed:
   assumes "K \<turnstile> TRecord ts s wellformed"
     and "K \<turnstile> t wellformed"
@@ -1154,8 +1085,7 @@ lemma wellformed_record_update_wellformed:
     and "n = fst (ts ! i)"
   shows "K \<turnstile> TRecord (ts[i := (n, t, b)]) s wellformed"
   using assms
-  by (clarsimp simp add: type_wellformed_pretty_simps distinct_fst_tags_update
-      type_wellformed_all_length nth_list_update)
+  by (clarsimp simp add: distinct_fst_tags_update list_all_length nth_list_update)
 
 lemma wellformed_record_update_wellformed':
   assumes "K \<turnstile> TRecord ts s wellformed"
@@ -1170,46 +1100,63 @@ lemma wellformed_record_update_wellformed':
 lemma bang_preserves_wellformed[simp]:
   "type_wellformed n (bang t) \<longleftrightarrow> type_wellformed n t"
   by (induct t rule: type_wellformed.induct)
-    (clarsimp simp add: list.pred_map list_all_iff prod_eq_iff_proj_eq split: prod.splits)+
-
+    (clarsimp simp add: list.pred_map list_all_iff prod_eq_iff_proj_eq
+      split: prod.splits)+
 
 lemma bang_preserves_wellformed_all:
   "list_all (type_wellformed n) (map bang ts) \<longleftrightarrow> list_all (type_wellformed n) ts"
   by (simp add: list_all_length)
 
-lemma type_wellformed_fstsnd_all_record_nth[dest]:
-  assumes
-    "K \<turnstile>* map (fst \<circ> snd) ts wellformed"
-    "n < length ts"
-  shows "K \<turnstile> (fst (snd (ts ! n))) wellformed"
-  using assms
-  by (simp add: type_wellformed_pretty_simps type_wellformed_all_length)
 
 lemma type_wellformed_pretty_tsum_update_eq:
-  "K \<turnstile> TSum (tagged_list_update n (t, b) ts) wellformed \<longleftrightarrow> distinct (map fst ts) \<and> (K \<turnstile>* map snd (tagged_list_update n t (map (apsnd fst) ts)) wellformed)"
-  by (clarsimp simp add: type_wellformed_pretty_simps tagged_list_circsnd_tagupd_iff_map_snd_tagupd_apsnd)
+  "K \<turnstile> TSum (tagged_list_update n (t, b) ts) wellformed
+  \<longleftrightarrow> distinct (map fst ts) \<and> (K \<turnstile>* map snd (tagged_list_update n t (map (apsnd fst) ts)) wellformed)"
+proof -
+  have "list_all (type_wellformed_pretty K) (map (fst \<circ> snd) (tagged_list_update n (t, b) ts))
+        = K \<turnstile>* map snd (tagged_list_update n t (map (apsnd fst) ts)) wellformed"
+    by (simp add: tagged_list_circsnd_tagupd_iff_map_snd_tagupd_apsnd)
+  then show ?thesis
+    by (clarsimp simp add:)
+qed
 
-lemma type_wellformed_pretty_variants_updateI:
+lemma type_wellformed_fstsnd_triple_elem:
+  assumes
+    "(a,t,c) \<in> set ts"
+    "list_all (type_wellformed n) (map (fst \<circ> snd) ts)"
+  shows "type_wellformed n t"
+  using assms 
+  by (force simp add: list_all_iff)
+
+lemma type_wellformed_fstsnd_triple_nth:
+  assumes
+    "list_all (type_wellformed n) (map (fst \<circ> snd) ts)"
+    "i < length ts"
+  shows "type_wellformed n (fst (snd (ts ! i)))"
+  using assms 
+  by (force simp add: list_all_iff)
+
+lemma type_wellformed_fst_snd_updateI:
   assumes
     "distinct (map fst ts)"
-    "K \<turnstile>* map (fst \<circ> snd) ts wellformed"
-    "K \<turnstile> t wellformed"
+    "list_all (type_wellformed n) (map (fst \<circ> snd) ts)"
+    "type_wellformed n t"
   shows
-    "K \<turnstile>* map (fst \<circ> snd) (tagged_list_update n (t, b) ts) wellformed"
+    "list_all (type_wellformed n) (map (fst \<circ> snd) (tagged_list_update tag (t, b) ts))"
   using assms
-  apply (clarsimp simp add: type_wellformed_pretty_simps type_wellformed_all_length)
-  apply (case_tac "fst (ts ! i) = n"; simp add: tagged_list_update_distinct)
+  apply (clarsimp simp add: list_all_length)
+  apply (rename_tac i)
+  apply (case_tac "fst (ts ! i) = tag"; simp add: tagged_list_update_distinct)
   done
 
-lemma type_wellformed_pretty_tsum_updateI:
+lemma type_wellformed_fstsnd_list_updI:
   assumes
-    "K \<turnstile> TSum ts wellformed"
-    "K \<turnstile> t wellformed"
+    "list_all (type_wellformed n) (map (fst \<circ> snd) ts)"
+    "type_wellformed n t"
   shows
-    "K \<turnstile> TSum (tagged_list_update n (t, b) ts) wellformed"
+    "list_all (type_wellformed n) (map (fst \<circ> snd) (ts[i := (tag, t, tk)]))"
   using assms
-  by (force intro: type_wellformed_pretty_variants_updateI simp add: type_wellformed_pretty_simps)
-
+  by (case_tac "i < length ts";
+      clarsimp simp add: list_all_length nth_list_update distinct_upd_sameI map_update)
 
 section {* Kinding lemmas *}
 
@@ -1224,7 +1171,7 @@ lemma kinding_simps:
   "\<And>K ta tb k.  K \<turnstile> (TProduct ta tb) :\<kappa> k \<longleftrightarrow> (K \<turnstile> ta :\<kappa> k) \<and> (K \<turnstile> tb :\<kappa> k)"
   "\<And>K ts s k.   K \<turnstile> (TRecord ts s) :\<kappa> k   \<longleftrightarrow> (K \<turnstile>* ts :\<kappa>r k) \<and> k \<subseteq> sigil_kind s \<and> distinct (map fst ts)"
   "\<And>K k.        K \<turnstile> TUnit :\<kappa> k            \<longleftrightarrow> True"
-  by (auto simp add: type_wellformed_pretty_def kinding_defs list_all_iff
+  by (auto simp add: kinding_defs list_all_iff
       kinding_fn_all_def kinding_fn_all_record_def)
 
 lemma kinding_all_simps:
@@ -1254,7 +1201,7 @@ lemma kinding_iff_wellformed:
     "(\<exists>k. K \<turnstile>* ts :\<kappa> k) \<longleftrightarrow> K \<turnstile>* ts wellformed"
     "(\<exists>k. K \<turnstile>* tvs :\<kappa>v k) \<longleftrightarrow> K \<turnstile>* map (fst \<circ> snd) tvs wellformed"
     "(\<exists>k. K \<turnstile>* trs :\<kappa>r k) \<longleftrightarrow> K \<turnstile>* map (fst \<circ> snd) trs wellformed"
-  by (force simp add: type_wellformed_pretty_def list_all_iff kinding_defs type_wellformed_all_pretty_def)+
+  by (force simp add: list_all_iff kinding_defs)+
 
 lemma kinding_to_wellformedD:
   shows
@@ -1262,11 +1209,11 @@ lemma kinding_to_wellformedD:
     "K \<turnstile>* ts :\<kappa> k \<Longrightarrow> K \<turnstile>* ts wellformed"
     "K \<turnstile>* tvs :\<kappa>v k \<Longrightarrow> K \<turnstile>* map (fst \<circ> snd) tvs wellformed"
     "K \<turnstile>* trs :\<kappa>r k \<Longrightarrow> K \<turnstile>* map (fst \<circ> snd) trs wellformed"
-  by (force simp add: type_wellformed_pretty_def list_all_iff kinding_defs type_wellformed_all_pretty_def)+
+  by (force simp add: list_all_iff kinding_defs)+
 
 lemma list_all2_kinding_wellformedD:
   "list_all2 (kinding K) ts K' \<Longrightarrow> list_all (type_wellformed (length K)) ts \<and> length ts = length K'"
-  by (simp add: type_wellformed_pretty_def kinding_def list_all2_conv_all_nth list_all_length)
+  by (simp add: kinding_def list_all2_conv_all_nth list_all_length)
 
 lemma supersumption:
 fixes k' :: kind
@@ -1379,7 +1326,7 @@ lemma variant_tagged_list_update_wellformedI:
   shows "K \<turnstile> TSum (tagged_list_update n (t, b) ts) wellformed"
   using assms
   by (induct ts arbitrary: n t b)
-     (fastforce simp add: type_wellformed_pretty_def type_wellformed_all_pretty_def comp_def list.pred_map)+
+     (fastforce simp add: comp_def list.pred_map)+
 
 lemma variant_tagged_list_update_kinding:
   assumes "n \<in> fst ` set ts"
@@ -1519,7 +1466,8 @@ shows "{D , S} \<subseteq> sigil_kind (bang_sigil s)"
 
 lemma bang_wellformed:
   shows "type_wellformed n t \<Longrightarrow> type_wellformed n (bang t)"
-  by (induct t rule: type_wellformed.induct; fastforce simp add: list_all_iff)
+  by (induct t rule: type_wellformed.induct)
+    (fastforce simp add: list_all_iff)+
 
 lemma bang_kinding_fn:
   shows "{D,S} \<subseteq> kinding_fn K (bang t)"
@@ -1545,7 +1493,7 @@ and   "K \<turnstile>* map (fst \<circ> snd) xs wellformed \<Longrightarrow> k \
 and   "K \<turnstile>* map (fst \<circ> snd) fs wellformed \<Longrightarrow> k \<subseteq> {D, S} \<Longrightarrow> K \<turnstile>* map (\<lambda>(n,t,b). (n, bang t, b)) fs :\<kappa>r k"
   using bang_wellformed bang_kinding_fn
   by (fastforce
-      simp add: type_wellformed_pretty_def kinding_defs INT_subset_iff type_wellformed_all_iff
+      simp add: kinding_defs INT_subset_iff list_all_iff
       kinding_fn_all_def kinding_fn_all_record_def
       simp del: insert_subset
       split: variant_state.split record_state.split)+
@@ -1609,7 +1557,7 @@ next
   ultimately show
     "K \<turnstile> TRecord ts1 s1 wellformed \<Longrightarrow> K \<turnstile> TRecord ts2 s2 wellformed"
     "K \<turnstile> TRecord ts2 s2 wellformed \<Longrightarrow> K \<turnstile> TRecord ts1 s1 wellformed"
-    by (simp add: type_wellformed_pretty_def)+
+    by (simp add: list_all_iff)+
 next
   case (subty_tsum K ts1 ts2)
   moreover then have
@@ -1618,8 +1566,8 @@ next
   ultimately show
     "K \<turnstile> TSum ts1 wellformed \<Longrightarrow> K \<turnstile> TSum ts2 wellformed"
     "K \<turnstile> TSum ts2 wellformed \<Longrightarrow> K \<turnstile> TSum ts1 wellformed"
-    by (simp add: type_wellformed_pretty_def)+
-qed (simp add: type_wellformed_pretty_def)+
+    by (simp add: list_all_iff)+
+qed simp+
 
 lemma subtyping_bang_preservation:
   assumes
@@ -1633,16 +1581,18 @@ proof (induct rule: subtyping.induct)
 next
   case (subty_trecord K ts1 ts2 s1 s2)
   moreover then have "\<And>i k. i < length ts2 \<Longrightarrow> K \<turnstile> bang (fst (snd (ts1 ! i))) :\<kappa> {D}"
-    by (auto simp add: type_wellformed_pretty_def list_all_length intro!: bang_kind, metis length_map)
+    by (auto simp add: list_all_length intro!: bang_kind, metis length_map)
   moreover have "\<And>i. i < length ts2 \<Longrightarrow> snd (snd (ts1 ! i)) \<le> snd (snd (ts2 ! i))"
     using subty_trecord.hyps
     by (force simp add: list_all2_conv_all_nth if_bool_eq_conj le_less)
   ultimately show ?case
-    by (slowsimp simp add: type_wellformed_pretty_def subtyping_simps list_all2_conv_all_nth list_all_length le_less split: prod.splits)
+    by (slowsimp simp add: subtyping_simps list_all2_conv_all_nth
+        list_all_length le_less split: prod.splits)
 next
   case subty_tsum then show ?case
-    by (slowsimp intro!: subtyping.intros simp add: type_wellformed_pretty_def list_all2_conv_all_nth list_all_length split: prod.splits)
-qed (simp add: type_wellformed_pretty_def subtyping_simps)+
+    by (slowsimp intro!: subtyping.intros
+        simp add: list_all2_conv_all_nth list_all_length split: prod.splits)
+qed (simp add: subtyping_simps)+
 
 
 lemma subtyping_kinding_fn_drop_super_impl_drop_sub:
@@ -1893,10 +1843,15 @@ and     "length K' = length \<delta>"
 shows   "K \<turnstile> x wellformed \<Longrightarrow> instantiate \<delta> (instantiate \<delta>' x) = instantiate (map (instantiate \<delta>) \<delta>') x"
   using assms
 proof (induct x arbitrary: \<delta>' rule: instantiate.induct)
-next case 3 then show ?case by (force dest: kinding_typelist_wellformed_elem simp add: type_wellformed_pretty_def list_all_iff kinding_simps)
-next case 8 then show ?case by (fastforce dest: kinding_record_wellformed_elem simp add: type_wellformed_pretty_def list_all_iff kinding_simps)
-next case 6 then show ?case by (fastforce dest: kinding_variant_wellformed_elem simp add: type_wellformed_pretty_def list_all_iff kinding_simps)
-qed (auto simp add: type_wellformed_pretty_def kinding_def kinding_simps dest: list_all2_lengthD)
+next case 3 then show ?case
+    by (force dest: kinding_typelist_wellformed_elem simp add: list_all_iff kinding_simps)
+next case 8 then show ?case
+    by (fastforce dest: kinding_record_wellformed_elem
+        simp add: list_all_iff kinding_simps)
+next case 6 then show ?case
+    by (fastforce dest: kinding_variant_wellformed_elem
+        simp add: list_all_iff kinding_simps)
+qed (auto simp add: kinding_def kinding_simps dest: list_all2_lengthD)
 
 lemma instantiate_tprim [simp]:
 shows "instantiate \<delta> \<circ> TPrim = TPrim"
@@ -1933,7 +1888,7 @@ lemma wellkinded_imp_kinded: "list_all2 (kinding K') \<delta> K \<Longrightarrow
   by (clarsimp simp add: list_all2_conv_all_nth kinding_def)
 
 lemma wellkinded_imp_wellformed: "list_all2 (kinding K') \<delta> K \<Longrightarrow> list_all (type_wellformed (length K')) \<delta>"
-  by (clarsimp simp add: type_wellformed_pretty_def list_all2_conv_all_nth list_all_length kinding_def)
+  by (clarsimp simp add: list_all2_conv_all_nth list_all_length kinding_def)
 
 lemma instantiate_over_variants_subvariants:
   assumes tags_same: "map fst ts = map fst ts'"
@@ -2021,12 +1976,12 @@ lemma substitutivity_single:
 proof -
   have "type_wellformed (length K') (instantiate \<delta> t)"
     using assms
-    by (auto intro!: instantiate_wellformed simp add: type_wellformed_pretty_def kinding_def list_all2_conv_all_nth list_all_length)
+    by (auto intro!: instantiate_wellformed simp add: kinding_def list_all2_conv_all_nth list_all_length)
   moreover then have "k \<subseteq> kinding_fn K' (instantiate \<delta> t)"
     using assms
-    by (intro substitutivity_kinding_fn; auto simp add: type_wellformed_pretty_def kinding_def list_all2_conv_all_nth list_all_length)
+    by (intro substitutivity_kinding_fn; auto simp add: kinding_def list_all2_conv_all_nth list_all_length)
   ultimately show "K' \<turnstile> instantiate \<delta> t :\<kappa> k"
-    by (simp add: type_wellformed_pretty_def kinding_def)
+    by (simp add: kinding_def)
 qed
 
 lemma substitutivity_rest:
@@ -2040,8 +1995,8 @@ and   "K \<turnstile>* fs :\<kappa>r k \<Longrightarrow> K' \<turnstile>* map (\
     list_all2_kinding_wellformedD list_all2_lengthD
      apply -
      apply (simp add: kinding_all_set kinding_iff_wellformed)+
-   apply (fastforce simp add: type_wellformed_pretty_def kinding_variant_set kinding_iff_wellformed split: variant_state.split)
-  apply (fastforce simp add: type_wellformed_pretty_def kinding_record_set kinding_iff_wellformed split: record_state.split)
+   apply (fastforce simp add: kinding_variant_set kinding_iff_wellformed split: variant_state.split)
+  apply (fastforce simp add: kinding_record_set kinding_iff_wellformed split: record_state.split)
   done
 
 lemmas substitutivity = substitutivity_single substitutivity_rest
@@ -2065,7 +2020,7 @@ using assms(1) [simplified weakening_def] and assms(2) proof (induct rule: list_
 next case Cons then show ?case
     using instantiate_wellformed list_all2_kinding_wellformedD
     by (fastforce
-        simp add: weakening_comp.simps instantiate_ctx_def weakening_Cons type_wellformed_pretty_def
+        simp add: weakening_comp.simps instantiate_ctx_def weakening_Cons
         dest: substitutivity_kinding_fn_inD[OF wellkinded_imp_kinded])
 qed
 
@@ -2093,7 +2048,7 @@ and     "list_all2 (kinding K') \<delta> K"
 shows   "K' \<turnstile> map_option (instantiate \<delta>) c \<leadsto> map_option (instantiate \<delta>) c1 \<parallel> map_option (instantiate \<delta>) c2"
   using assms
   by (force elim!: split_comp.cases
-      simp add: type_wellformed_pretty_def instantiate_wellformed list_all2_lengthD
+      simp add: instantiate_wellformed list_all2_lengthD
       wellkinded_imp_wellformed split_comp.simps
       dest: substitutivity_kinding_fn_inD wellkinded_imp_kinded)
 
@@ -2121,8 +2076,8 @@ next
     using split_bang_cons.hyps(3) split_bang_cons.prems
     apply (safe elim!: split_bang_comp.cases)
      apply (clarsimp simp add: split_bang_comp.simps map_option_instantiate_split_comp)
-    apply (clarsimp simp add: split_bang_comp.simps type_wellformed_pretty_def
-        instantiate_wellformed list_all2_lengthD wellkinded_imp_wellformed)
+    apply (clarsimp simp add: split_bang_comp.simps instantiate_wellformed list_all2_lengthD
+        wellkinded_imp_wellformed)
     done
   ultimately show ?case
     by (clarsimp simp add: instantiate_ctx_Cons split_bang_Cons)
@@ -2149,7 +2104,7 @@ proof (induct rule: subtyping.inducts)
 next
   case (subty_tvarb i' i K)
   moreover then have "type_wellformed (length K') (bang (\<delta> ! i))"
-    by (auto dest: bang_wellformed simp add: type_wellformed_pretty_def kinding_def list_all2_conv_all_nth)
+    by (auto dest: bang_wellformed simp add: kinding_def list_all2_conv_all_nth)
   ultimately show ?case
     by (auto intro!: subtyping.intros subtyping_refl simp add: kinding_def list_all2_conv_all_nth)
 next
@@ -2162,7 +2117,8 @@ next
   proof (clarsimp, intro subtyping.intros)
     show "list_all2 (\<lambda>p1 p2. K' \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2)) (map (\<lambda>(n, t, b). (n, instantiate \<delta> t, b)) ts1) (map (\<lambda>(n, t, b). (n, instantiate \<delta> t, b)) ts2)"
       using subty_trecord.prems subty_trecord.hyps(1)
-      by (fastforce simp add: type_wellformed_pretty_def list_all2_conv_all_nth list_all_length split: prod.splits)
+      by (fastforce simp add: list_all2_conv_all_nth list_all_length
+          split: prod.splits)
   next
     have "length ts1 = length ts2"
       using list_all2_conv_all_nth subty_trecord.hyps by blast
@@ -2189,10 +2145,10 @@ next
   case (subty_tsum K ts1 ts2)
   moreover then have "\<And>i. i < length ts1 \<Longrightarrow>
     K' \<turnstile> instantiate \<delta> (fst (snd (ts1 ! i))) \<sqsubseteq> instantiate \<delta> (fst (snd (ts2 ! i)))"
-    by (auto simp add: type_wellformed_pretty_def list_all2_conv_all_nth list_all_length)
+    by (auto simp add: list_all2_conv_all_nth list_all_length)
   ultimately show ?case
     by (fastforce intro!: subtyping.intros simp add: list_all2_conv_all_nth split: prod.splits)
-qed (force intro!: subtyping.intros simp add: type_wellformed_pretty_def)+
+qed (force intro!: subtyping.intros)+
 
 lemma specialisation_subtyping1:
   "\<lbrakk>K \<turnstile> t \<sqsubseteq> t'; K \<turnstile> t wellformed; list_all2 (kinding K') \<delta> K\<rbrakk>
@@ -2370,12 +2326,13 @@ shows         "weakening_comp K (\<Gamma>!i) (\<Gamma>'!i)"
   using assms by (auto simp add: weakening_def dest: list_all2_nthD)
 
 lemma weakening_refl:
-  "K \<turnstile> xs \<leadsto>w xs"
-  by (clarsimp simp add: weakening_conv_all_nth weakening_comp.simps)
+  "type_wellformed_context K xs \<Longrightarrow> K \<turnstile> xs \<leadsto>w xs"
+  by (clarsimp simp add: weakening_conv_all_nth weakening_comp.simps list_all_length
+      split: option.splits)
 
 lemma consumed_replicate_None[simp,intro!]:
   "K \<turnstile> replicate n None consumed"
-  by (induct n) (simp add: is_consumed_def Cogent.empty_def weakening_refl)+
+  by (force intro: weakening_refl simp add: list_all_length is_consumed_def Cogent.empty_def)
 
 
 section {* wellformed and kinding lemmas *}
@@ -2387,20 +2344,22 @@ proof (induct rule: typing_typing_all.inducts)
   case typing_var then show ?case
     by (fastforce dest: weakening_nth elim: weakening_comp.cases simp add: kinding_defs empty_def)
 next case typing_afun then show ?case
-    by (clarsimp simp add: type_wellformed_pretty_def kinding_defs instantiate_wellformed list_all2_kinding_wellformedD list_all2_lengthD)
+    by (clarsimp simp add: instantiate_wellformed list_all2_kinding_wellformedD list_all2_lengthD)
 next case typing_fun then show ?case
-    by (clarsimp simp add: type_wellformed_pretty_def kinding_defs instantiate_wellformed list_all2_kinding_wellformedD list_all2_lengthD)
+    by (clarsimp simp add: instantiate_wellformed list_all2_kinding_wellformedD list_all2_lengthD)
 next case typing_esac then show ?case
-    by (fastforce dest: filter_member2  simp add: type_wellformed_pretty_def kinding_simps kinding_variant_set list_all_iff)
+    by (fastforce dest: filter_member2 simp add:  kinding_variant_set list_all_iff)
 next case typing_struct then show ?case
-    by (simp add: type_wellformed_pretty_def list_all_zip_iff_list_all2 list_all2_conv_all_nth type_wellformed_all_length list_all_length)
+    by (simp add: list_all_zip_iff_list_all2 list_all2_conv_all_nth list_all_length)
 next case typing_member then show ?case
-    by (fastforce simp add: type_wellformed_pretty_def kinding_defs INT_subset_iff list_all_iff dest: nth_mem split: prod.splits record_state.splits)
+    by (force simp add: INT_subset_iff list_all_iff dest: nth_mem
+        split: prod.splits record_state.splits)
 next case typing_put then show ?case
-    by (force simp add: type_wellformed_pretty_def list_all_iff map_update in_set_conv_nth Ball_def nth_list_update intro: distinct_list_update)
+    by (force simp add: list_all_iff map_update in_set_conv_nth Ball_def nth_list_update
+        intro: distinct_list_update)
 next case typing_promote then show ?case
     using subtyping_wellformed_preservation by blast
-qed (auto intro: supersumption simp add: type_wellformed_pretty_def kinding_defs)
+qed force+
 
 lemma upcast_valid_cast_to :
 assumes "upcast_valid \<tau> \<tau>'"
@@ -2428,7 +2387,8 @@ lemma wellformed_bang_type_repr[simp]:
     and "[] \<turnstile>* ts wellformed \<Longrightarrow> (map (type_repr \<circ> bang) ts) = map (type_repr) ts "
     and "[] \<turnstile>* map (fst \<circ> snd) xs wellformed \<Longrightarrow> (map (type_repr \<circ>  bang \<circ> fst \<circ> snd) xs) = map (type_repr \<circ> fst \<circ> snd) xs"
     and "[] \<turnstile>* map (fst \<circ> snd) fs wellformed \<Longrightarrow> (map (type_repr \<circ>  bang \<circ> fst \<circ> snd) fs) = map (type_repr \<circ> fst \<circ> snd) fs"
-  by (clarsimp simp add: type_wellformed_pretty_def wellformed_imp_bang_type_repr map_eq_iff_nth_eq type_wellformed_all_length simp del: map_eq_conv)+
+  by (clarsimp simp add: wellformed_imp_bang_type_repr map_eq_iff_nth_eq
+      list_all_length simp del: map_eq_conv)+
 
 lemma bang_type_repr[simp]:
   shows "[] \<turnstile> t :\<kappa> k \<Longrightarrow> (type_repr (bang t) = type_repr t)"
@@ -2462,7 +2422,7 @@ proof (induct rule: typing_typing_all.inducts)
 next case (typing_afun \<Xi> f ks t u K ts ks)
   then also have "instantiate \<delta> (instantiate ts t) = instantiate (map (instantiate \<delta>) ts) t"
     and "instantiate \<delta> (instantiate ts u) = instantiate (map (instantiate \<delta>) ts) u"
-    by (auto dest: list_all2_lengthD intro!: instantiate_instantiate kinding_simps simp add: type_wellformed_pretty_def)
+    by (auto dest: list_all2_lengthD intro!: instantiate_instantiate kinding_simps)
   ultimately show ?case by (auto intro!: list_all2_substitutivity
         typing_typing_all.typing_afun [simplified]
         instantiate_ctx_consumed)
@@ -2482,7 +2442,9 @@ next
   proof (clarsimp, intro typing_typing_all.intros)
   next show "K' \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts') wellformed"
       using typing_con
-      by (fastforce simp add: list_all_iff type_wellformed_pretty_def intro: substitutivity instantiate_wellformed dest: list_all2_kinding_wellformedD list_all2_lengthD)
+      by (fastforce simp add: list_all_iff
+          intro: substitutivity instantiate_wellformed
+          dest: list_all2_kinding_wellformedD list_all2_lengthD)
   qed (force intro: specialisation_subtyping substitutivity)+
 next case typing_esac then show ?case
     by (force intro!: typing_typing_all.typing_esac
@@ -2493,7 +2455,7 @@ next case typing_promote then show ?case
 next
   case typing_var then show ?case
     by (fastforce intro!: typing_typing_all.intros dest: instantiate_ctx_weaken
-        simp add: type_wellformed_pretty_def instantiate_wellformed list_all2_lengthD wellkinded_imp_wellformed)
+        simp add: instantiate_wellformed list_all2_lengthD wellkinded_imp_wellformed)
 qed (force intro!: typing_struct_instantiate
                    typing_typing_all.intros
            dest:   substitutivity

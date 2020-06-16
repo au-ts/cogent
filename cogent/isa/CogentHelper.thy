@@ -70,19 +70,7 @@ lemma typing_var_weak: "\<lbrakk> K \<turnstile> t :\<kappa> k
                         \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Var i : t"
   (* weaker than typing_var - the kinding assumption lets
      us easily instantiate t *)
-  by (simp only: typing_var)
-
-lemma typing_all_empty': "\<Gamma> = empty n \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile>* [] : []"
-  by (simp only: typing_all_empty)
-
-lemma typing_all_empty'':
-  "set \<Gamma> \<subseteq> {None}
-    \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile>* [] : []"
-  apply (rule typing_all_empty'[where n="length \<Gamma>"])
-  apply (clarsimp simp: Cogent.empty_def list_eq_iff_nth_eq)
-  apply (frule subsetD, erule nth_mem)
-  apply simp
-  done
+  by (simp only: typing_var kinding_def)
 
 lemma split_bang_bang' :"\<lbrakk> 0 \<in> is
                       ; x' = bang x
@@ -90,10 +78,10 @@ lemma split_bang_bang' :"\<lbrakk> 0 \<in> is
                       ; split_bang K is' xs as bs
                       ; type_wellformed (length K) x
                       \<rbrakk>  \<Longrightarrow> split_bang K is (Some x # xs) (Some x' # as) (Some x # bs)"
-  by (clarsimp intro!: split_bang_cons simp add: split_bang_comp.simps)
+  by (clarsimp intro!: split_bang_cons simp add: split_bang_comp.simps type_wellformed_pretty_def)
 
-lemma type_wellformed_prettyI: "type_wellformed (length K) t \<Longrightarrow> K \<turnstile> t wellformed"
-  by simp
+lemmas type_wellformed_prettyI
+  = type_wellformed_pretty_def[THEN meta_fun_cong[OF symmetric],THEN meta_eq_mp]
 
 definition
   type_ctx_wellformed :: "kind env \<Rightarrow> ctx \<Rightarrow> bool"
@@ -132,7 +120,9 @@ lemma ttsplit_weakI:
   by (simp add: ttsplit_weak_def)
 *)
 
+(*
 lemmas ttyping_type_ctx_wellformed = ttyping_type_wellformed[folded type_ctx_wellformed_def]
+*)
 
 lemma ttsplit_triv_type_ctxt_wellformed:
   "ttsplit_triv \<Gamma> x \<Gamma>1 y \<Gamma>2
@@ -434,7 +424,7 @@ fun the_G _ (SOME p) = p
   | the_G G NONE = raise THM ("the_G", 1, (map (fn NONE => @{thm TrueI} | SOME t => t) G))
 
 fun typing_all_vars _ _ [] = let
-  in [RTac @{thm typing_all_empty''}, simp_solve] end
+  in [RTac @{thm typing_all_empty}, SimpSolveTac (@{thms is_consumed_Cons weakening_comp.simps}, [])] end
   | typing_all_vars ctxt G (ix :: ixs) = let
     fun null (NONE : thm option) = true
       | null _ = false
