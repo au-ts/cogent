@@ -427,7 +427,8 @@ lemma value_subtyping_to_wellformed:
   "K \<turnstile> t \<sqsubseteq> t'
   \<Longrightarrow> \<Xi> \<turnstile> v :v t
   \<Longrightarrow> K \<turnstile> t' wellformed"
-  by (metis instantiate_nothing kinding_iff_wellformed(1) list_all2_Nil substitutivity_single subtyping_wellformed_preservation(1) vval_typing_to_wellformed(1))
+  by (metis instantiate_nothing kinding_iff_wellformed(1) list_all2_Nil substitutivity_single
+      subtyping_wellformed_preservation(1) vval_typing_to_wellformed(1))
 
 lemma subtyping_record_cons_split:
   "K \<turnstile> TRecord ((n,t1,b1) # ts1) s \<sqsubseteq> TRecord ts2 s \<Longrightarrow> \<exists>t2 b2 ts2'. ts2 = (n,t2,b2) # ts2' \<and>  (K \<turnstile> t1 \<sqsubseteq> t2) \<and> (if K \<turnstile> t1 :\<kappa> {D} then b1 \<le> b2 else b1 = b2)"
@@ -892,7 +893,7 @@ next case (v_sem_con \<xi> \<gamma> x_spec x' ts_inst tag)
         "K \<turnstile> TSum ts wellformed"
         "(tag, t, Unchecked) \<in> set ts"
       using Con v_sem_con.prems
-      by (force simp add: type_wellformed_pretty_simps)
+      by force
     ultimately have "\<Xi> \<turnstile> VSum tag x' :v TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)"
       using v_sem_con.hyps(2) v_sem_con.prems con_elims typing_simps
     proof (intro v_t_sum)
@@ -1161,10 +1162,12 @@ next case (v_sem_abs_app \<xi> \<gamma> x f ts y a r)
       "[] \<turnstile> TFun (instantiate ts t) (instantiate ts u) \<sqsubseteq> TFun t' u'"
     using vafun_ty by (auto elim: vval_typing.cases)
 
-  have vres_ty_sub: "\<Xi> \<turnstile> r :v instantiate ts u"
-    using vafun_ty_elims varg_ty v_sem_abs_app
-    using subtyping_simps(4) value_subtyping(1)  instantiate.simps(4) proc_env_matches_abstract
-    by metis
+  have " \<Xi> \<turnstile> a :v instantiate ts t"
+    using vafun_ty_elims varg_ty 
+    by (fastforce elim!: subty_tfunE dest: value_subtyping)
+  then have vres_ty_sub: "\<Xi> \<turnstile> r :v instantiate ts u"
+    using v_sem_abs_app vafun_ty_elims
+    by (fastforce intro!: proc_env_matches_abstract[where \<tau>o="u"])
 
   show ?case
     using app_elims e_def v_sem_abs_app vafun_ty_elims vres_ty_sub

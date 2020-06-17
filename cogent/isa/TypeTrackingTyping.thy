@@ -75,7 +75,7 @@ lemma split_comp_by_split_tsk_cases[elim]:
   | t where "split_tsk (\<Gamma>1 ! i) (\<Gamma>2 ! i) = Some TSK_R \<Longrightarrow> \<Gamma> ! i = Some t \<and> type_wellformed (length K) t"
   | t where "split_tsk (\<Gamma>1 ! i) (\<Gamma>2 ! i) = Some TSK_S \<Longrightarrow> \<Gamma> ! i = Some t \<and> K \<turnstile> t :\<kappa> {S}"
   using assms
-  by (auto elim!: split_comp.cases simp: kinding_defs type_wellformed_pretty_def)
+  by (auto elim!: split_comp.cases simp: kinding_defs)
 
 lemma split_bang_comp_by_split_bang_tsk_cases[elim]:
   assumes
@@ -87,7 +87,7 @@ lemma split_bang_comp_by_split_bang_tsk_cases[elim]:
   | t where "split_bang_tsk (i \<in> is) (\<Gamma>1 ! i) (\<Gamma>2 ! i) = Some TSK_NS \<Longrightarrow> \<Gamma> ! i = Some t \<and> type_wellformed (length K) t"
   | t where "split_bang_tsk (i \<in> is) (\<Gamma>1 ! i) (\<Gamma>2 ! i) = Some TSK_S \<Longrightarrow> \<Gamma> ! i = Some t \<and> K \<turnstile> t :\<kappa> {S}"
   using assms
-  by (auto elim!: split_bang_comp.cases split_comp.cases simp: kinding_def type_wellformed_pretty_def)
+  by (fastforce elim!: split_bang_comp.cases split_comp.cases simp: kinding_def)
 
 lemma split_bang_comp_with_true_forces_ns:
   assumes
@@ -205,7 +205,7 @@ lemma ttsplit_innerI:
   "\<lbrakk> K \<turnstile> t wellformed ; ttsplit_inner K sps \<Gamma>a \<Gamma>1a \<Gamma>2a \<rbrakk>
     \<Longrightarrow> ttsplit_inner K (Some TSK_NS # sps) (Some t # \<Gamma>a) (Some (bang t) # \<Gamma>1a) (Some t # \<Gamma>2a)"
   "ttsplit_inner K [] [] [] []"
-  by (fastforce simp add: kinding_def ttsplit_inner_def All_less_Suc2 type_wellformed_pretty_def)+
+  by (fastforce simp add: kinding_def ttsplit_inner_def All_less_Suc2)+
 
 lemma ttsplit_imp_split:
   assumes
@@ -217,7 +217,7 @@ lemma ttsplit_imp_split:
    apply (force simp add: split_comp.simps)
   apply (rename_tac s)
   apply (case_tac s)
-     apply (fastforce simp add: kinding_def split_comp.simps type_wellformed_pretty_def)+
+     apply (fastforce simp add: kinding_def split_comp.simps)+
   done
 
 lemma split_imp_ttsplit:
@@ -230,7 +230,7 @@ lemma split_imp_ttsplit:
   using assms
   apply (clarsimp simp: ttsplit_def ttsplit_inner_def split_def list_all3_conv_all_nth image_def)
   apply (subst (0 1) list_eq_iff_nth_eq)
-  apply (fastforce simp add: kinding_def split_comp.simps in_set_conv_nth type_wellformed_pretty_def)
+  apply (fastforce simp add: kinding_def split_comp.simps in_set_conv_nth)
   done
 
 definition ttsplit_triv :: "tree_ctx \<Rightarrow> ctx \<Rightarrow> tree_ctx \<Rightarrow> ctx \<Rightarrow> tree_ctx \<Rightarrow> bool"
@@ -269,7 +269,7 @@ lemma ttsplit_bang_imp_split_bang:
   apply (clarsimp simp: ttsplit_bang_def ttsplit_inner_def split_bang_conv_all_nth nth_enumerate_eq)
   apply (case_tac "sps ! i")
    apply (clarsimp simp add: split_bang_comp.simps split_comp.simps kinding_def)
-  apply (case_tac a; fastforce simp add: split_bang_comp.simps split_comp.simps kinding_def type_wellformed_pretty_def)
+  apply (case_tac a; fastforce simp add: split_bang_comp.simps split_comp.simps kinding_def)
   done
 
 lemma ttsplit_bang_inner_Cons:
@@ -299,7 +299,7 @@ proof -
     using assms
     by (clarsimp simp add: ttsplit_bang_def ttsplit_inner_def;
         fastforce elim: split_bang_comp.cases split_comp.cases
-        simp add: kinding_defs split_bang_conv_all_nth type_wellformed_pretty_def)
+        simp add: kinding_defs split_bang_conv_all_nth)
 qed
 
 lemma split_bang_imp_ttsplit:
@@ -312,7 +312,7 @@ proof (clarsimp simp: ttsplit_bang_def, induct rule: split_bang.induct)
   then show ?case
     apply (clarsimp simp: All_less_Suc2 Suc_mem_image_pred)
     apply (rule exI, rule conjI, erule_tac sp="split_bang_tsk (0 \<in> is) a b" in ttsplit_bang_inner_Cons)
-     apply (elim split_bang_comp.cases split_comp.cases; force simp add: ttsplit_inner_def kinding_def type_wellformed_pretty_def)
+     apply (elim split_bang_comp.cases split_comp.cases; force simp add: ttsplit_inner_def kinding_def)
     apply (elim split_bang_comp.cases split_comp.cases; simp add: Suc_mem_image_pred_remove)
     done
 qed (simp add: ttsplit_bang_def ttsplit_inner_def)

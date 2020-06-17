@@ -532,7 +532,7 @@ lemma split_context_wellformed_from_parts:
   by (fastforce simp add: list_all_length split_conv_all_nth split_comp.simps)+
 
 (* technically can get \<Gamma>1 and \<Gamma>2 wellformed out of this, but we probably want to weaken splitting *)
-lemma splitbang_context_preserves_wellformed_from_parts:
+lemma splitb_context_wellformed_from_parts:
   assumes "K , is \<turnstile> \<Gamma> \<leadsto>b \<Gamma>1 | \<Gamma>2"
   and "K \<turnstile>* \<Gamma>1 ctxt-wellformed"
   and "K \<turnstile>* \<Gamma>2 ctxt-wellformed"
@@ -541,15 +541,16 @@ lemma splitbang_context_preserves_wellformed_from_parts:
   by (fastforce simp add: list_all_length split_bang_conv_all_nth split_comp.simps split_bang_comp.simps)+
 
 lemma is_consumed_wellformed:
-  "K \<turnstile> \<Gamma> consumed \<Longrightarrow> i < length \<Gamma> \<Longrightarrow> \<Gamma> ! i = Some t' \<Longrightarrow> K \<turnstile> t' wellformed"
-  using is_consumed_conv_all_nth by auto
+  "K \<turnstile> \<Gamma> consumed \<Longrightarrow> K \<turnstile>* \<Gamma> ctxt-wellformed"
+  by (auto simp add: is_consumed_conv_all_nth list_all_length split: option.splits)
+
 
 lemma typing_to_wellformed_context:
-shows "\<Xi>, K, \<Gamma> \<turnstile>  e  : t  \<Longrightarrow> i < length \<Gamma> \<Longrightarrow> \<Gamma> ! i = Some t' \<Longrightarrow> K \<turnstile> t' wellformed"
-and   "\<Xi>, K, \<Gamma> \<turnstile>* es : ts \<Longrightarrow> i < length \<Gamma> \<Longrightarrow> \<Gamma> ! i = Some t' \<Longrightarrow> K \<turnstile> t' wellformed"
-proof (induct arbitrary: i t' and i t' rule: typing_typing_all.inducts)
+shows "\<Xi>, K, \<Gamma> \<turnstile>  e  : t  \<Longrightarrow> K \<turnstile>* \<Gamma> ctxt-wellformed"
+and   "\<Xi>, K, \<Gamma> \<turnstile>* es : ts \<Longrightarrow> K \<turnstile>* \<Gamma> ctxt-wellformed"
+proof (induct rule: typing_typing_all.inducts)
   case typing_var then show ?case
-    by (auto simp add: empty_def weakening_conv_all_nth nth_list_update weakening_comp.simps)
+    by (auto simp add: empty_def weakening_conv_all_nth nth_list_update weakening_comp.simps list_all_length)
 next case typing_struct then show ?case
     by (simp add: list_all_zip_iff_list_all2 list_all2_conv_all_nth list_all_length)
 next case typing_member then show ?case
@@ -560,35 +561,70 @@ next case typing_promote then show ?case
 next
   case typing_letb then show ?case
     apply -
-    apply (drule splitbang_context_preserves_wellformed_from_parts; clarsimp simp add: list_all_length)
+    apply (clarsimp simp add: list_all_length split: option.splits)
+    apply (drule splitb_context_wellformed_from_parts; clarsimp simp add: list_all_length)
       apply (simp add: option.case_eq_if)
      apply (metis Suc_mono list.sel(3) nth_tl option.case_eq_if option.collapse)
-    apply force 
+    apply force
     done
-qed (bestsimp dest!: split_context_wellformed_from_parts is_consumed_wellformed
-    simp add: list_all_length option.case_eq_if)+
-  (* takes a while *)
+next
+  case typing_app then show ?case 
+    by (bestsimp dest!: split_context_wellformed_from_parts is_consumed_wellformed
+        simp add: list_all_length option.case_eq_if)
+next
+  case typing_tuple then show ?case 
+    by (bestsimp dest!: split_context_wellformed_from_parts is_consumed_wellformed
+        simp add: list_all_length option.case_eq_if)
+next
+  case typing_split then show ?case 
+    by (bestsimp dest!: split_context_wellformed_from_parts is_consumed_wellformed
+        simp add: list_all_length option.case_eq_if)
+next
+  case typing_let then show ?case 
+    by (bestsimp dest!: split_context_wellformed_from_parts is_consumed_wellformed
+        simp add: list_all_length option.case_eq_if)
+next
+  case typing_case then show ?case
+    by (bestsimp dest!: split_context_wellformed_from_parts
+        simp add: All_less_Suc2 list_all_length split: option.splits)
+next
+  case typing_if then show ?case 
+    by (bestsimp dest!: split_context_wellformed_from_parts is_consumed_wellformed
+        simp add: list_all_length option.case_eq_if)
+next
+  case typing_take then show ?case 
+    by (bestsimp dest!: split_context_wellformed_from_parts is_consumed_wellformed
+        simp add: list_all_length option.case_eq_if)
+next
+  case typing_put then show ?case 
+    by (bestsimp dest!: split_context_wellformed_from_parts is_consumed_wellformed
+        simp add: list_all_length option.case_eq_if)
+next
+  case typing_all_cons then show ?case 
+    by (bestsimp dest!: split_context_wellformed_from_parts is_consumed_wellformed
+        simp add: list_all_length option.case_eq_if)
+qed (bestsimp dest!: is_consumed_wellformed simp add: list_all_length)+
 
-lemma split_type_wellformed:
-  "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2 \<Longrightarrow> Some t \<in> set \<Gamma> \<Longrightarrow> K \<turnstile> t wellformed"
-  by (auto simp add: split_def split_comp.simps in_set_conv_nth list_all3_conv_all_nth kinding_def)
-
-lemma split_bang_type_wellformed:
-  "split_bang K is \<Gamma> \<Gamma>1 \<Gamma>2 \<Longrightarrow> Some t \<in> set \<Gamma>
-    \<Longrightarrow> Some t \<in> set \<Gamma>1 \<or> Some t \<in> set \<Gamma>2 \<or> K \<turnstile> t wellformed"
-  apply (induct arbitrary: "is" rule: split_bang.induct)
-   apply (auto elim!: split_bang_comp.cases split_comp.cases)
-  done
-
-(*
-lemma ttyping_type_wellformed:
-  "\<lbrakk> \<Xi>, K, \<Gamma> T\<turnstile> x : \<tau> \<rbrakk>
-    \<Longrightarrow> \<forall>t. Some t \<in> set (snd \<Gamma>) \<longrightarrow> K \<turnstile> t wellformed"
-  apply (induct rule: ttyping.induct)
-  apply    (auto dest!: ttsplit_imp_split ttsplit_bang_imp_split_bang
+lemma ttyping_context_wellformed:
+  "\<Xi>, K, \<Gamma> T\<turnstile> x : \<tau> \<Longrightarrow> K \<turnstile>* snd \<Gamma> ctxt-wellformed"
+  by (induct rule: ttyping.induct)
+    (auto dest!: ttsplit_imp_split ttsplit_bang_imp_split_bang
       dest: split_bang_type_wellformed split_type_wellformed typing_to_wellformed
-      simp add: list_all_iff type_wellformed_pretty_def split: option.splits)
-*)
+      simp add: list_all_iff split: option.splits dest: typing_to_wellformed_context)
+
+lemma ttyping_type_wellformed:
+  "\<Xi>, K, \<Gamma> T\<turnstile> x : \<tau> \<Longrightarrow> \<forall>t. Some t \<in> set (snd \<Gamma>) \<longrightarrow> K \<turnstile> t wellformed"
+  by (force dest: ttyping_context_wellformed simp add: list_all_iff split: option.splits)
+
+lemma ttsplit_context_wellformed_from_parts:
+  "\<lbrakk> ttsplit K t\<Gamma> sps \<Delta>1 t\<Gamma>1 \<Delta>2 t\<Gamma>2; K \<turnstile>* snd t\<Gamma>1 ctxt-wellformed; K \<turnstile>* snd t\<Gamma>2 ctxt-wellformed \<rbrakk>
+       \<Longrightarrow> K \<turnstile>* snd t\<Gamma> ctxt-wellformed"
+  by (force dest: ttsplit_imp_split split_context_wellformed_from_parts)
+
+lemma ttsplit_bang_context_wellformed_from_parts:
+  "\<lbrakk> ttsplit_bang is sps K t\<Gamma> \<Delta>1 t\<Gamma>1 \<Delta>2 t\<Gamma>2; K \<turnstile>* snd t\<Gamma>1 ctxt-wellformed; K \<turnstile>* snd t\<Gamma>2 ctxt-wellformed \<rbrakk>
+       \<Longrightarrow> K \<turnstile>* snd t\<Gamma> ctxt-wellformed"
+  by (force dest: ttsplit_bang_imp_split_bang splitb_context_wellformed_from_parts)
 
 context update_sem begin
 
@@ -596,11 +632,21 @@ lemma matches_ptrs_replicate_None:
   "length \<gamma> = n \<Longrightarrow> \<Xi>, \<sigma>' \<turnstile> \<gamma> matches replicate n None \<langle>{}, {}\<rangle>"
   by (hypsubst_thin, induct \<gamma>, auto intro: matches_ptrs.intros)
 
-lemma u_tt_sem_pres_type_wellformed2:
+lemma u_tt_sem_pres_type_wellformed:
   "\<lbrakk> \<Xi>, \<xi> , \<gamma>, K, \<Gamma>, \<tau> T\<turnstile> (\<sigma>, a) \<Down>! (\<sigma>', x) \<rbrakk>
-    \<Longrightarrow> K \<turnstile>  \<tau> wellformed"
+    \<Longrightarrow> K \<turnstile> \<tau> wellformed"
   by (induct rule: u_tt_sem_pres.induct,
     auto dest!: typing_to_wellformed)
+
+lemma u_tt_sem_pres_context_wellformed:
+  "\<Xi>, \<xi>, \<gamma>, K, \<Gamma>, \<tau> T\<turnstile> (\<sigma>, a) \<Down>! (\<sigma>', x)
+  \<Longrightarrow> K \<turnstile>* snd \<Gamma> ctxt-wellformed"
+  apply (induct rule: u_tt_sem_pres.induct)
+          apply (bestsimp dest: typing_to_wellformed_context simp add: list_all_length ttsplit_triv_def split: option.splits)
+         apply (fastforce dest: typing_to_wellformed_context
+      ttsplit_context_wellformed_from_parts ttsplit_bang_context_wellformed_from_parts
+      simp add: ttsplit_triv_def split: if_splits)+
+  done
 
 lemma u_tt_sem_pres_preservation:
   "\<Xi>, \<xi>, \<gamma>, K, \<Gamma>, \<tau> T\<turnstile> st \<Down>! st' \<Longrightarrow> K = [] \<Longrightarrow>
@@ -619,7 +665,7 @@ lemma u_tt_sem_pres_length:
     auto simp: ttsplit_def ttsplit_inner_def
                ttsplit_bang_def ttsplit_inner_def
          dest: matches_ptrs_length)
-(*
+
 lemma let_elaborate_u_tt_sem_pres:
   assumes
     "\<Xi>, \<xi> , \<gamma>, K, \<Gamma>, \<tau> T\<turnstile> (\<sigma>, a) \<Down>! (\<sigma>', x)"
@@ -633,16 +679,15 @@ proof (intro u_tt_sem_pres_let[OF ttsplitI])
   show "ttsplit_inner K (map (map_option (\<lambda>_. TSK_L)) (snd \<Gamma>)) (snd \<Gamma>) (snd \<Gamma>) (replicate (length (snd \<Gamma>)) None)"
     unfolding ttsplit_inner_def
     using assms
-    apply safe
-    apply (fastforce simp add: map2_mapL map_idI  map_replicate_const dest: nth_mem)+
-    sorry
+    by (fastforce simp add: map2_mapL map_idI list_all_length map_replicate_const
+        dest: nth_mem u_tt_sem_pres_context_wellformed)+
 next
   show "\<Xi>, \<xi>, x # \<gamma>, K, (TyTrLeaf, Some \<tau> # replicate (length (snd \<Gamma>)) None), \<tau> T\<turnstile> (\<sigma>', Var 0) \<Down>! (\<sigma>', x)"
     using assms
     apply (auto
         intro!: u_tt_sem_pres_default typing_var
         intro: u_sem_var[where \<gamma>="x # xs" and i=0 for x xs, simplified]
-        dest: u_tt_sem_pres_type_wellformed2
+        dest: u_tt_sem_pres_type_wellformed
         simp add: composite_anormal_expr_def empty_def weakening_def weakening_comp.simps
         list_all2_same kinding_iff_wellformed)
     apply (frule u_tt_sem_pres_preservation, (simp+)[3])
@@ -652,10 +697,7 @@ next
   show "list_all ((\<noteq>) (Some TSK_NS)) (map (map_option (\<lambda>_. TSK_L)) (snd \<Gamma>))"
     by (simp add: list_all_length, metis map_option_eq_Some type_split_op.distinct(9))
 qed auto
-*)
-end
 
-(* TODO remove n.b. some things in c-refinement use this *)
-lemmas forall_less_Suc_eq = All_less_Suc2
+end
 
 end

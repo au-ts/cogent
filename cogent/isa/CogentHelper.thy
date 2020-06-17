@@ -78,10 +78,7 @@ lemma split_bang_bang' :"\<lbrakk> 0 \<in> is
                       ; split_bang K is' xs as bs
                       ; type_wellformed (length K) x
                       \<rbrakk>  \<Longrightarrow> split_bang K is (Some x # xs) (Some x' # as) (Some x # bs)"
-  by (clarsimp intro!: split_bang_cons simp add: split_bang_comp.simps type_wellformed_pretty_def)
-
-lemmas type_wellformed_prettyI
-  = type_wellformed_pretty_def[THEN meta_fun_cong[OF symmetric],THEN meta_eq_mp]
+  by (clarsimp intro!: split_bang_cons simp add: split_bang_comp.simps)
 
 definition
   type_ctx_wellformed :: "kind env \<Rightarrow> ctx \<Rightarrow> bool"

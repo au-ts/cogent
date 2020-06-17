@@ -346,7 +346,6 @@ shows "\<lbrakk> \<Xi>, \<sigma> \<turnstile>  v  \<sim> v'  :  \<tau>  \<langle
 and   "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' :r \<tau>s \<langle> r , w \<rangle>; K \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> w = {}"
 using assms by (fastforce dest: upd_val_rel_to_uval_typing upd.discardable_not_writable)+
 
-
 lemma u_v_discardable_not_writable_all:
 assumes "D \<in> k"
 shows   "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' : \<tau>s \<langle> r , w \<rangle>; K \<turnstile>* \<tau>s :\<kappa> k \<rbrakk> \<Longrightarrow> w = {}"
@@ -1537,8 +1536,7 @@ next case u_sem_afun      then show ?case
     by (cases e, simp_all)
       (fastforce elim!:  typing_afunE v_sem_afunE
         intro!: u_v_afun_instantiate upd.frame_id
-        dest:   u_v_matches_proj_consumed
-        simp add: type_wellformed_pretty_simps)
+        dest:   u_v_matches_proj_consumed)
 next case (u_sem_app \<xi> \<gamma> \<sigma> x \<sigma>' f ts y \<sigma>'' a)
   note IH1  = this(2)
   and  IH2  = this(4)
@@ -1626,8 +1624,8 @@ next
         "(tag, t, Unchecked) \<in> set ts"
         "distinct (map fst ts)"
         "K \<turnstile> TSum ts wellformed"
-      using typing_conE u_sem_con.prems(2) type_wellformed_pretty_simps Con
-      by fast
+      using typing_conE u_sem_con.prems(2) Con
+      by fastforce
 
     obtain r' w'
       where "\<Xi>, \<sigma>' \<turnstile> x'' \<sim> xa : instantiate \<tau>s t \<langle>r', w'\<rangle>"
@@ -2043,7 +2041,7 @@ next case (u_sem_take \<xi> \<gamma> \<sigma> x \<sigma>'' p ra fs f e)
     apply (frule(2) u_v_matches_frame, blast)
     apply (simp, erule disjE)
      apply (clarsimp)
-     apply (frule(3) u_v_shareable_not_writable(1) [OF _ _ substitutivity(1)], clarsimp)
+     apply (frule(3) u_v_shareable_not_writable(1)[OF _ _ substitutivity(1)], clarsimp)
      apply (frule(5) IH2 [rotated -1], simp)
       apply (case_tac taken)
        apply (rule u_v_matches_some [OF _ u_v_matches_some])

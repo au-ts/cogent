@@ -691,7 +691,7 @@ inductive split_comp :: "kind env \<Rightarrow> type option \<Rightarrow> type o
 | right : "\<lbrakk> K \<turnstile> t wellformed \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> None   \<parallel> Some t"
 | share : "\<lbrakk> K \<turnstile> t wellformed; S \<in> kinding_fn K t \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> Some t \<parallel> Some t"
 
-lemma simp_comp_simps:
+lemma split_comp_simps:
   "split_comp K None None None = True"
   "split_comp K (Some t) (Some t1) None = (t1 = t \<and> K \<turnstile> t wellformed)"
   "split_comp K (Some t) None (Some t2) = (t2 = t \<and> K \<turnstile> t wellformed)"
