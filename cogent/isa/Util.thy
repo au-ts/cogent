@@ -900,12 +900,4 @@ lemma tagged_list_update_length_eq[simp]:
   "length (tagged_list_update n v xs) = length xs"
   by (induct xs) (clarsimp simp add: split: prod.splits)+
 
-lemma
-  assumes
-    "distinct (map fst xs)"
-    "i < length xs"
-  shows
-    "tagged_list_update tag v xs ! i = (if i = (THE k. fst (xs ! k) = tag) then (tag, v) else xs ! i)"
-  oops
-
 end

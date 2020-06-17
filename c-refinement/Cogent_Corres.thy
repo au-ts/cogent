@@ -1193,12 +1193,8 @@ lemma corres_add_let:
   done
 
 lemma split_all_left:
-  "\<forall>t. Some t \<in> set \<Gamma> \<longrightarrow> K' \<turnstile> t wellformed
-    \<Longrightarrow> K' \<turnstile> \<Gamma> \<leadsto> \<Gamma> | replicate (length \<Gamma>) None"
-  apply (induct \<Gamma>)
-   apply (simp add: split_empty)
-  apply (fastforce intro!: split_cons simp add: kinding_iff_wellformed split_comp.simps)
-  done
+  "K' \<turnstile>* \<Gamma> ctxt-wellformed \<Longrightarrow> K' \<turnstile> \<Gamma> \<leadsto> \<Gamma> | replicate (length \<Gamma>) None"
+  by (clarsimp simp add: split_conv_all_nth list_all_length split_comp.simps split: option.splits)
 
 lemma corres_no_let_put_unboxed':
   assumes x_sigil: "\<Gamma>'!x = Some (TRecord typ Unboxed)"
@@ -1212,10 +1208,11 @@ lemma corres_no_let_put_unboxed':
      rec \<leftarrow> gets (\<lambda>_. nx' rec);
      gets (\<lambda>_. rec)
    od) \<xi> \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
+  using  typing_put
+  apply -
   apply (rule corres_add_let)
   apply (subst bind_return[symmetric], rule corres_let_put_unboxed[OF assms(1-2) _ typing_put])
-   apply (rule split_all_left)
-   apply (clarsimp dest!: typing_to_kinding_env(1)[OF typing_put])
+   apply (force intro: split_all_left typing_to_wellformed_context(1))
   apply (clarsimp simp: corres_def return_def dest!: val_rel_upd_x)
   apply (fastforce intro: u_sem_var)
   done

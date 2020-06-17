@@ -363,13 +363,13 @@ lemma uval_typing_to_wellformed:
 proof (induct rule: uval_typing_uval_typing_record.inducts)
   case (u_t_function \<Xi> K t f u ts t' u' \<sigma>)
   then show ?case
-    by (fastforce simp add: type_wellformed_pretty_def intro: instantiate_wellformed
+    by (fastforce intro: instantiate_wellformed
         dest: typing_to_wellformed list_all2_kinding_wellformedD subtyping_wellformed_preservation)
 next case u_t_afun     then show ?case
-    by (fastforce simp add: type_wellformed_pretty_def
+    by (fastforce
         intro: subtyping_wellformed_preservation instantiate_wellformed
         dest: list_all2_kinding_wellformedD)
-qed (auto simp add: list_all_iff type_wellformed_pretty_def type_wellformed_all_iff)
+qed (auto simp add: list_all_iff)
 
 
 lemma uval_typing_all_record:
@@ -574,10 +574,10 @@ proof (induct rule: uval_typing_uval_typing_record.inducts)
 next
   case u_t_sum then show ?case
     using bang_wellformed
-    by (force intro!: uval_typing_uval_typing_record.intros simp: list_all_iff type_wellformed_pretty_def)
+    by (force intro!: uval_typing_uval_typing_record.intros simp: list_all_iff)
 next
   case u_t_abstract then show ?case
-    by (force simp: type_wellformed_pretty_def type_wellformed_all_length
+    by (force simp: list_all_length
         intro!: uval_typing_uval_typing_record.intros intro: bang_preserves_wellformed_all
         dest: abs_typing_bang)
 next
@@ -597,7 +597,7 @@ next
   case (u_t_p_abs_ro s ptrl a n ts r \<sigma> l \<Xi>)
   then have "\<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr (map bang ts))) :u TCon n (map bang ts) (Boxed ReadOnly ptrl) \<langle>insert l r, {}\<rangle>"
     by (intro uval_typing_uval_typing_record.u_t_p_abs_ro;
-        force simp add: type_wellformed_pretty_def type_wellformed_all_length
+        force simp add: list_all_length
         intro: bang_preserves_wellformed_all dest: abs_typing_bang)
   then show ?case
     using u_t_p_abs_ro by clarsimp
@@ -605,9 +605,7 @@ next
   case (u_t_p_abs_w s ptrl a n ts r w \<sigma> l \<Xi>)
   then have "\<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr (map bang ts))) :u TCon n (map bang ts) (Boxed ReadOnly ptrl) \<langle>insert l (r \<union> w), {}\<rangle>"
     by (intro uval_typing_uval_typing_record.intros;
-        force
-        simp add: type_wellformed_pretty_def type_wellformed_all_length
-        intro: bang_preserves_wellformed_all dest: abs_typing_bang)
+        force simp add: list_all_length intro: bang_preserves_wellformed_all dest: abs_typing_bang)
   then show ?case
     using u_t_p_abs_w by clarsimp
 next
@@ -620,8 +618,7 @@ next
     apply (fastforce dest: bang_type_repr(1) uval_typing_to_wellformed(1))+
     done
 next case u_t_r_cons2 then show ?case
-    by (auto simp add: simp add: type_wellformed_pretty_def
-        intro!: uval_typing_uval_typing_record.intros dest: bang_wellformed)
+    by (auto intro!: uval_typing_uval_typing_record.intros dest: bang_wellformed)
 qed (auto simp add: map_snd3_keep intro!: uval_typing_uval_typing_record.intros)
 
 
@@ -649,7 +646,7 @@ proof -
 
 with assms show ?thesis by (force intro:  uval_typing_uval_typing_record.intros
                                          list_all2_substitutivity
-                                  simp add: kinding_simps type_wellformed_pretty_def)
+                                  simp add: kinding_simps)
 qed
 
 lemma u_t_function_instantiate:
@@ -1365,10 +1362,10 @@ proof -
   next
     have "[] \<turnstile> \<tau> wellformed"
       using tag'_in_ts uval_elim_lemmas
-      by (force dest: wellformed_sum_wellformed_elem)
+      by (simp add: type_wellformed_fstsnd_triple_elem)
     then show "[] \<turnstile> TSum (tagged_list_update tag' (\<tau>, Checked) ts) wellformed"
       using tag'_in_ts uval_elim_lemmas
-      by (intro variant_tagged_list_update_wellformedI; force simp add: type_wellformed_pretty_simps)
+      by (intro variant_tagged_list_update_wellformedI; force)
   qed simp+
 qed
 
@@ -1712,8 +1709,7 @@ next
 
   have t2_wf: "type_wellformed 0 t2"
     using u_t_r_cons1 field_is'
-    by (fastforce dest!: subtyping_wellformed_preservation(1) dest: uval_typing_to_wellformed
-        simp add: type_wellformed_pretty_def)
+    by (fastforce dest!: subtyping_wellformed_preservation(1) dest: uval_typing_to_wellformed)
 
   have repr_same:
     "type_repr t2 = rp"
@@ -1731,8 +1727,7 @@ next
       by (metis calculation record_state.distinct(1) singletonI)
     moreover have "\<Xi>, \<sigma> \<turnstile>* (x, rp) # xs :ur (n, t2, Taken) # ts2' \<langle>rts2', w'\<rangle>"
       using field_rest repr_same t2_wf
-      by (auto intro: uval_typing_uval_typing_record.u_t_r_cons2
-          simp add: type_wellformed_pretty_def)
+      by (auto intro: uval_typing_uval_typing_record.u_t_r_cons2)
     ultimately show ?thesis
       apply clarsimp
       apply (rule exI[where x="rts2'"])
@@ -1771,8 +1766,7 @@ next
 
   have t2_wf: "type_wellformed 0 t2"
     using field_is' local.u_t_r_cons2
-    by (fastforce dest: subtyping_wellformed_preservation uval_typing_to_wellformed(1)
-        simp add: type_wellformed_pretty_def)
+    by (fastforce dest: subtyping_wellformed_preservation uval_typing_to_wellformed(1))
 
   have repr_same:
     "type_repr t2 = rp"
@@ -1790,7 +1784,7 @@ next
     apply rule
     using field_rest apply blast
     using field_is field_rest u_t_r_cons2 field_taken t2_wf repr_same
-    by (auto intro: uval_typing_uval_typing_record.u_t_r_cons2 simp add: type_wellformed_pretty_def)
+    by (auto intro: uval_typing_uval_typing_record.u_t_r_cons2)
 next
   case (u_t_p_abs_ro s ptrl a n ts r \<sigma> l \<Xi>)
   then show ?case
@@ -1869,7 +1863,7 @@ next case u_sem_afun      then show ?case by ( cases e, simp_all
                                              , fastforce intro: u_t_afun_instantiate
                                                                 frame_id
                                                          dest:  matches_ptrs_proj_consumed
-                                                         simp add: kinding_simps type_wellformed_pretty_def)
+                                                         simp add: kinding_simps)
 next
   case (u_sem_fun \<xi> \<gamma> \<sigma> f ts_inst)
   then show ?case
@@ -1948,7 +1942,7 @@ next case (u_sem_app \<xi> \<gamma> \<sigma> x \<sigma>' f ts y \<sigma>'' a e \
       "type_wellformed (length Kfun) t"
       "list_all2 (kinding []) ts Kfun"
       "[] \<turnstile> TFun (instantiate ts t) (instantiate ts u) \<sqsubseteq> TFun (instantiate \<tau>s targ) (instantiate \<tau>s \<tau>)"
-    using vfun_ty by (auto elim!: u_t_functionE simp add: type_wellformed_pretty_def)
+    using vfun_ty by (auto elim!: u_t_functionE)
 
   obtain r'a' where varg_subty:
     "r'a' \<subseteq> r'a"
@@ -2030,7 +2024,7 @@ next case (u_sem_abs_app \<xi> \<gamma> \<sigma> efun \<sigma>' fun_name ts earg
       "type_wellformed (length Kfun) u"
       "list_all2 (kinding []) ts Kfun"
       "[] \<turnstile> TFun (instantiate ts t) (instantiate ts u) \<sqsubseteq> TFun (instantiate \<tau>s targ) (instantiate \<tau>s \<tau>)"
-    using vfun_ty by (auto elim!: u_t_afunE simp add: type_wellformed_pretty_def)
+    using vfun_ty by (auto elim!: u_t_afunE)
 
   obtain r'a' where varg_subty:
     "r'a' \<subseteq> r'a"
@@ -2077,7 +2071,7 @@ next case (u_sem_con \<xi> \<gamma> \<sigma> x_spec \<sigma>' x' ts_inst tag)
         "distinct (map fst ts)"
         "K \<turnstile> TSum ts wellformed"
       using Con u_sem_con.prems
-      by (fastforce simp add: type_wellformed_pretty_simps)
+      by fastforce
 
     obtain r' w'
       where uval_x': "\<Xi>, \<sigma>' \<turnstile> x' :u instantiate \<tau>s t \<langle>r', w'\<rangle>"
@@ -2097,7 +2091,7 @@ next case (u_sem_con \<xi> \<gamma> \<sigma> x_spec \<sigma>' x' ts_inst tag)
       show "[] \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) wellformed"
         using typing_elims u_sem_con.prems Con
         using instantiate_wellformed list_all2_kinding_wellformedD
-        by (metis expr.inject(6) instantiate.simps(6) spec_simps(1) specialise.simps(6) type_wellformed_pretty_def u_sem_con.hyps(3))
+        by (metis expr.inject(6) instantiate.simps(6) spec_simps(1) specialise.simps(6) u_sem_con.hyps(3))
     qed simp+
     then show ?thesis
       using r'_sub_r frame_w_w' spec_simps typing_elims
@@ -2590,7 +2584,7 @@ next
     apply (simp split: prod.split)
     apply (clarsimp)
     apply (case_tac f, simp, simp)
-  done
+    done
   from rest show ?case
     apply (cases e, simp_all)
     apply (erule typing_takeE)
@@ -2606,24 +2600,24 @@ next
     apply (frule uval_typing_record_take [ where \<tau>s = "map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts" for ts
             , simplified
             , OF _ HELP [rule_format]]
-          , force, force intro: instantiate_wellformed simp add: type_wellformed_pretty_def, force)
+          , force, force intro: instantiate_wellformed, force)
     apply (elim exE conjE)
-    apply (frule(2) matches_ptrs_frame, blast)
+     apply (frule(2) matches_ptrs_frame, blast)
     apply (simp, erule disjE)
      apply (clarsimp)
      apply (frule(3) shareable_not_writable(1) [OF _ _ substitutivity(1)], clarsimp)
      apply (frule(4) IH2 [rotated -1], simp)
       apply (case_tac taken)
        apply (rule matches_ptrs_some [OF _ matches_ptrs_some])
-               apply (simp)
+               apply fast
               apply (force simp add: distinct_map map_update intro: u_t_struct distinct_list_update)
-             apply (simp)
+             apply fast
+             apply (force)
             apply (blast)
            apply (blast)
           apply (blast)
          apply (blast)
         apply (blast)
-       apply (blast)
       apply (clarsimp)
       apply (rule pointerset_helper_matches_ptrs)
         apply (rule matches_ptrs_some [OF _ matches_ptrs_some])

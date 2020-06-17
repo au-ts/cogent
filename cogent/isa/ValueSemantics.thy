@@ -284,26 +284,26 @@ lemma vval_typing_to_wellformed:
     and "\<Xi> \<turnstile>* vs :vr fs \<Longrightarrow> [] \<turnstile>* map (fst \<circ> snd) fs wellformed"
 proof (induct rule: vval_typing_vval_typing_record.inducts)
   case v_t_function then show ?case
-    by (metis instantiate_wellformed list_all2_kinding_wellformedD subtyping_wellformed_preservation(1) type_wellformed.simps(4) type_wellformed_pretty_def typing_to_wellformed(1))
+    by (fastforce dest!: subtyping_wellformed_preservation(1)
+        dest: typing_to_wellformed instantiate_wellformed list_all2_kinding_wellformedD)
 next case v_t_afun  then show ?case
-    by (metis instantiate_wellformed list_all2_kinding_wellformedD subtyping_wellformed_preservation(1) type_wellformed.simps(4) type_wellformed_pretty_def)
+    by (fastforce dest!: subtyping_wellformed_preservation(1)
+        dest: typing_to_wellformed instantiate_wellformed list_all2_kinding_wellformedD)
 qed (auto intro: supersumption dest: kinding_all_record'[simplified o_def]
-    simp add: list_all_iff kinding_simps type_wellformed_all_iff type_wellformed_pretty_simps)
+    simp add: list_all_iff kinding_simps)
 
 lemma vval_typing_bang:
   shows "\<Xi> \<turnstile> x :v \<tau> \<Longrightarrow> \<Xi> \<turnstile> x :v bang \<tau>"
     and "\<Xi> \<turnstile>* fs :vr \<tau>rs \<Longrightarrow> \<Xi> \<turnstile>* fs :vr map (\<lambda>(n, x, y). (n, bang x, y)) \<tau>rs"
 proof (induct rule: vval_typing_vval_typing_record.inducts)
   case v_t_sum      then show ?case
-    by (force simp add: list_all_iff type_wellformed_pretty_def
+    by (fastforce simp add: list_all_iff
         intro: vval_typing_vval_typing_record.intros bang_wellformed rev_image_eqI)
 next case v_t_abstract then show ?case
     by (force intro!: vval_typing_vval_typing_record.intros
-        simp add: bang_preserves_wellformed_all abs_typing_bang
-        type_wellformed_all_length type_wellformed_pretty_def)
-next case v_t_r_cons2  then show ?case by (force intro: vval_typing_vval_typing_record.intros
-                                                        bang_wellformed
-                                                        simp add: type_wellformed_pretty_def)
+        simp add: bang_preserves_wellformed_all abs_typing_bang list_all_length)
+next case v_t_r_cons2  then show ?case
+    by (force intro: vval_typing_vval_typing_record.intros bang_wellformed)
 next case v_t_afun
   show ?case
     using subtyping_bang_preservation v_t_afun vval_typing_vval_typing_record.v_t_afun
@@ -418,8 +418,7 @@ proof -
   next
     show "[] \<turnstile> TSum (tagged_list_update tag' (\<tau>, Checked) ts) wellformed"
       using vval_elim_lemmas tag'_in_ts prod_in_set(1)
-      by (fastforce intro!: variant_tagged_list_update_wellformedI
-          simp add: list_all_iff type_wellformed_all_iff type_wellformed_pretty_simps)
+      by (fastforce intro!: variant_tagged_list_update_wellformedI simp add: list_all_iff)
   qed simp+
 qed
 
@@ -428,7 +427,8 @@ lemma value_subtyping_to_wellformed:
   "K \<turnstile> t \<sqsubseteq> t'
   \<Longrightarrow> \<Xi> \<turnstile> v :v t
   \<Longrightarrow> K \<turnstile> t' wellformed"
-  by (metis instantiate_nothing kinding_iff_wellformed(1) list_all2_Nil substitutivity_single subtyping_wellformed_preservation(1) vval_typing_to_wellformed(1))
+  by (metis instantiate_nothing kinding_iff_wellformed(1) list_all2_Nil substitutivity_single
+      subtyping_wellformed_preservation(1) vval_typing_to_wellformed(1))
 
 lemma subtyping_record_cons_split:
   "K \<turnstile> TRecord ((n,t1,b1) # ts1) s \<sqsubseteq> TRecord ts2 s \<Longrightarrow> \<exists>t2 b2 ts2'. ts2 = (n,t2,b2) # ts2' \<and>  (K \<turnstile> t1 \<sqsubseteq> t2) \<and> (if K \<turnstile> t1 :\<kappa> {D} then b1 \<le> b2 else b1 = b2)"
@@ -627,8 +627,7 @@ proof -
 
   show ?thesis
     using assms tfun_sub
-    by (meson list_all2_substitutivity type_wellformed.simps(4) type_wellformed_pretty_def v_t_afun
-         type_wellformed_pretty_simps)
+    by (meson list_all2_substitutivity type_wellformed.simps(4) v_t_afun)
 qed
 
 lemma v_t_function_instantiate:
@@ -654,7 +653,7 @@ from assms have "TFun (instantiate \<delta> (instantiate ts t))
 
   then show ?thesis
     using assms
-    by (meson list_all2_substitutivity type_wellformed.simps(4) type_wellformed_pretty_def v_t_function)
+    by (meson list_all2_substitutivity type_wellformed.simps(4) v_t_function)
 qed
 
 section {* matches lemmas *}
@@ -871,8 +870,7 @@ next case v_sem_cast    then show ?case by ( case_tac e, simp_all
                                            , fastforce elim!: upcast_valid_cast_to)
 next case v_sem_afun    then show ?case by ( case_tac e, simp_all
                                            , fastforce intro: v_t_afun_instantiate
-                                           simp add: kinding_simps type_wellformed_all_length
-                                           type_wellformed_pretty_def)
+                                           simp add: kinding_simps list_all_length)
 next case v_sem_fun     then show ?case by ( case_tac e, simp_all
                                            , fastforce intro: v_t_function_instantiate)
 next case (v_sem_con \<xi> \<gamma> x_spec x' ts_inst tag)
@@ -895,7 +893,7 @@ next case (v_sem_con \<xi> \<gamma> x_spec x' ts_inst tag)
         "K \<turnstile> TSum ts wellformed"
         "(tag, t, Unchecked) \<in> set ts"
       using Con v_sem_con.prems
-      by (force simp add: type_wellformed_pretty_simps)
+      by force
     ultimately have "\<Xi> \<turnstile> VSum tag x' :v TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)"
       using v_sem_con.hyps(2) v_sem_con.prems con_elims typing_simps
     proof (intro v_t_sum)
@@ -1126,7 +1124,7 @@ next case (v_sem_app \<xi> \<gamma> x ea ts y a r e \<tau>s K \<tau> \<Gamma>)
        "type_wellformed (length Kfun) t"
        "list_all2 (kinding []) ts Kfun"
        "[] \<turnstile> TFun (instantiate ts t) (instantiate ts u) \<sqsubseteq> TFun (instantiate \<tau>s targ) (instantiate \<tau>s \<tau>)"
-    using vfun_ty by (fastforce elim: vval_typing.cases simp add: type_wellformed_pretty_def)
+    using vfun_ty by (fastforce elim: vval_typing.cases)
 
   have vres_ty_sub: "\<Xi> \<turnstile> r :v instantiate ts u"
     using vfun_ty_elims v_sem_app(6)
@@ -1164,10 +1162,12 @@ next case (v_sem_abs_app \<xi> \<gamma> x f ts y a r)
       "[] \<turnstile> TFun (instantiate ts t) (instantiate ts u) \<sqsubseteq> TFun t' u'"
     using vafun_ty by (auto elim: vval_typing.cases)
 
-  have vres_ty_sub: "\<Xi> \<turnstile> r :v instantiate ts u"
-    using vafun_ty_elims varg_ty v_sem_abs_app
-    using subtyping_simps(4) value_subtyping(1)  instantiate.simps(4) proc_env_matches_abstract
-    by metis
+  have " \<Xi> \<turnstile> a :v instantiate ts t"
+    using vafun_ty_elims varg_ty 
+    by (fastforce elim!: subty_tfunE dest: value_subtyping)
+  then have vres_ty_sub: "\<Xi> \<turnstile> r :v instantiate ts u"
+    using v_sem_abs_app vafun_ty_elims
+    by (fastforce intro!: proc_env_matches_abstract[where \<tau>o="u"])
 
   show ?case
     using app_elims e_def v_sem_abs_app vafun_ty_elims vres_ty_sub

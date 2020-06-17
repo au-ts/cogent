@@ -127,7 +127,7 @@ lemma wksplit_to_splitwks_comp_correct:
     "weakening_comp K (wksplit_to_splitwks_comp K False d g g1) g1"
     "weakening_comp K (wksplit_to_splitwks_comp K False d g g2) g2"
   using assms
-  by (cases d; cases g; cases g1; cases g2; clarsimp simp add: simp_comp_simps drop_kind_iff_share_kind)+
+  by (cases d; cases g; cases g1; cases g2; clarsimp simp add: split_comp_simps drop_kind_iff_share_kind)+
 
 lemma wksplit_to_splitwks:
   assumes
