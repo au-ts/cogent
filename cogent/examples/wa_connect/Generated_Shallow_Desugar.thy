@@ -78,6 +78,16 @@ where
   "align32 ds\<^sub>0 \<equiv> HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ds\<^sub>0 RR.p1\<^sub>f) (\<lambda>(x,ds\<^sub>1). HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ds\<^sub>1 RR.p2\<^sub>f) (\<lambda>(powof2,ds\<^sub>2). (AND) ((+) x ((-) powof2 (1 :: 32 word))) (NOT ((-) powof2 (1 :: 32 word)))))"
 
 definition
+  wordarray_get_u32 :: "(32 word WordArray, 32 word) RR \<Rightarrow> 32 word"
+where
+  "wordarray_get_u32 ds\<^sub>0 \<equiv> HOL.Let ds\<^sub>0 (\<lambda>x. wordarray_get x)"
+
+definition
+  wordarray_length_u32 :: "32 word WordArray \<Rightarrow> 32 word"
+where
+  "wordarray_length_u32 ds\<^sub>0 \<equiv> HOL.Let ds\<^sub>0 (\<lambda>x. wordarray_length x)"
+
+definition
   wordarray_put2_u32 :: "(32 word WordArray, 32 word, 32 word) WordArrayPutP \<Rightarrow> 32 word WordArray"
 where
   "wordarray_put2_u32 ds\<^sub>0 \<equiv> HOL.Let ds\<^sub>0 (\<lambda>x. wordarray_put2 x)"

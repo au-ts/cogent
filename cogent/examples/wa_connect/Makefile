@@ -36,13 +36,16 @@ default: all
 
 all:
 	mkdir -p $(ABSDIR)
-	cogent -C -g -Od -ogenerated \
+	cogent -A -g -Od -ogenerated \
 		--infer-c-types="$(AHFILES)" \
 		--Wno-warn --infer-c-funcs="$(ACFILES)" \
 		--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
 		--proof-input-c=$(PPINFER) \
 		--entry-funcs=entrypoints.cfg $(SRC)
 	cp generated.table main_pp_inferred.table
+	cp WordArray_ShallowShared.thy Generated_ShallowShared.thy
+	cp WordArray_SCorres_Normal.thy Generated_SCorres_Normal.thy
+	cp WordArray_CorresSetup.thy Generated_CorresSetup.thy
 
 clean:
 	rm -r $(ABSDIR) ROOT generated* BUILD_INFO main_pp* Generated*

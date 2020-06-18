@@ -12,7 +12,7 @@ begin
 definition
   rename__assocs :: "(( string \<times>  Cogent.type list) \<times>  string) list"
 where
-  "rename__assocs \<equiv> [((''wordarray_put2'', [TPrim (Num U32)]), ''wordarray_put2_0''), ((''wordarray_put2_u32'', Nil), ''wordarray_put2_u32'')]"
+  "rename__assocs \<equiv> [((''wordarray_get'', [TPrim (Num U32)]), ''wordarray_get_0''), ((''wordarray_get_u32'', Nil), ''wordarray_get_u32''), ((''wordarray_length'', [TPrim (Num U32)]), ''wordarray_length_0''), ((''wordarray_length_u32'', Nil), ''wordarray_length_u32''), ((''wordarray_put2'', [TPrim (Num U32)]), ''wordarray_put2_0''), ((''wordarray_put2_u32'', Nil), ''wordarray_put2_u32'')]"
 
 local_setup \<open>
 gen_mono_rename Cogent_functions @{thm rename__assocs_def} "rename"

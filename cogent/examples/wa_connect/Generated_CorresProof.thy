@@ -73,7 +73,9 @@ ML \<open>
          verbose;
 \<close>
 ML \<open>
-fun typing_tree_of "wordarray_put2_u32" = wordarray_put2_u32_typing_tree
+fun typing_tree_of "wordarray_get_u32" = wordarray_get_u32_typing_tree
+  | typing_tree_of "wordarray_length_u32" = wordarray_length_u32_typing_tree
+  | typing_tree_of "wordarray_put2_u32" = wordarray_put2_u32_typing_tree
   | typing_tree_of f = error ("No typing tree for " ^ quote f)
 \<close>
 ML \<open>
@@ -136,6 +138,8 @@ val Cogent_main_tree =
   |> Symtab.map (K annotate_depth)
 
 val entry_func_names = [
+      "wordarray_length_u32",
+      "wordarray_get_u32",
       "wordarray_put2_u32"
 ]
 val entry_funcs = Symtab.dest Cogent_main_tree

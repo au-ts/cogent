@@ -1,5 +1,11 @@
 include <gum/common/wordarray.cogent>
 
+wordarray_length_u32 : (WordArray U32)! -> U32
+wordarray_length_u32 x = wordarray_length [U32] x
+
+wordarray_get_u32 : ((WordArray U32)!, WordArrayIndex) -> U32
+wordarray_get_u32 x = wordarray_get x
+
 wordarray_put2_u32 : WordArrayPutP U32 -> WordArray U32
 wordarray_put2_u32 x = wordarray_put2 x
 

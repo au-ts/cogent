@@ -85,32 +85,37 @@ where
 definition
   abbreviatedType16 :: " Cogent.type"
 where
-  "abbreviatedType16 \<equiv> TRecord [(''p1'', (TVar 2, Present)), (''p2'', (TVar 1, Present))] Unboxed"
+  "abbreviatedType16 \<equiv> TRecord [(''p1'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Present)), (''p2'', (TPrim (Num U32), Present))] Unboxed"
 
 definition
   abbreviatedType17 :: " Cogent.type"
 where
-  "abbreviatedType17 \<equiv> TRecord [(''p1'', (TFun (TVar 0) (TVar 2), Present)), (''p2'', (TRecord [(''p1'', (TVar 0, Present)), (''p2'', (TVar 1, Present))] Unboxed, Present))] Unboxed"
+  "abbreviatedType17 \<equiv> TRecord [(''p1'', (TVar 2, Present)), (''p2'', (TVar 1, Present))] Unboxed"
 
 definition
   abbreviatedType18 :: " Cogent.type"
 where
-  "abbreviatedType18 \<equiv> TRecord [(''p1'', (TVar 0, Present)), (''p2'', (TVar 1, Present))] Unboxed"
+  "abbreviatedType18 \<equiv> TRecord [(''p1'', (TFun (TVar 0) (TVar 2), Present)), (''p2'', (TRecord [(''p1'', (TVar 0, Present)), (''p2'', (TVar 1, Present))] Unboxed, Present))] Unboxed"
 
 definition
   abbreviatedType19 :: " Cogent.type"
 where
-  "abbreviatedType19 \<equiv> TRecord [(''p1'', (TPrim (Num U32), Present)), (''p2'', (TPrim (Num U32), Present)), (''p3'', (TPrim (Num U32), Present))] Unboxed"
+  "abbreviatedType19 \<equiv> TRecord [(''p1'', (TVar 0, Present)), (''p2'', (TVar 1, Present))] Unboxed"
 
 definition
   abbreviatedType20 :: " Cogent.type"
 where
-  "abbreviatedType20 \<equiv> TRecord [(''p1'', (TVar 0, Present)), (''p2'', (TVar 2, Present))] Unboxed"
+  "abbreviatedType20 \<equiv> TRecord [(''p1'', (TPrim (Num U32), Present)), (''p2'', (TPrim (Num U32), Present)), (''p3'', (TPrim (Num U32), Present))] Unboxed"
 
 definition
   abbreviatedType21 :: " Cogent.type"
 where
-  "abbreviatedType21 \<equiv> TRecord [(''p1'', (TFun (TVar 1) (TVar 2), Present)), (''p2'', (abbreviatedType18, Present))] Unboxed"
+  "abbreviatedType21 \<equiv> TRecord [(''p1'', (TVar 0, Present)), (''p2'', (TVar 2, Present))] Unboxed"
+
+definition
+  abbreviatedType22 :: " Cogent.type"
+where
+  "abbreviatedType22 \<equiv> TRecord [(''p1'', (TFun (TVar 1) (TVar 2), Present)), (''p2'', (abbreviatedType19, Present))] Unboxed"
 
 lemmas abbreviated_type_defs =
   abbreviatedType12_def
@@ -123,16 +128,17 @@ lemmas abbreviated_type_defs =
   abbreviatedType2_def
   abbreviatedType14_def
   abbreviatedType13_def
-  abbreviatedType19_def
+  abbreviatedType20_def
   abbreviatedType11_def
   abbreviatedType1_def
-  abbreviatedType18_def
-  abbreviatedType20_def
-  abbreviatedType16_def
-  abbreviatedType17_def
+  abbreviatedType19_def
   abbreviatedType21_def
+  abbreviatedType17_def
+  abbreviatedType18_def
+  abbreviatedType22_def
   abbreviatedType8_def
   abbreviatedType9_def
+  abbreviatedType16_def
   abbreviatedType6_def
 
 definition
@@ -313,12 +319,12 @@ where
 definition
   wordarray_map_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
-  "wordarray_map_type \<equiv> ([{E, S, D}, {}, {}, {}], (TRecord [(''arr'', (TCon ''WordArray'' [TVar 0] (Boxed Writable undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun (TRecord [(''elem'', (TVar 0, Present)), (''acc'', (TVar 1, Present)), (''obsv'', (TVarBang 2, Present))] Unboxed) (TRecord [(''p1'', (abbreviatedType18, Present)), (''p2'', (TSum [(''Break'', (TVar 3, Unchecked)), (''Iterate'', (TUnit, Unchecked))], Present))] Unboxed), Present)), (''acc'', (TVar 1, Present)), (''obsv'', (TVar 2, Present))] Unboxed, TRecord [(''p1'', (TRecord [(''p1'', (TCon ''WordArray'' [TVar 0] (Boxed Writable undefined), Present)), (''p2'', (TVar 1, Present))] Unboxed, Present)), (''p2'', (TSum [(''Break'', (TVar 3, Unchecked)), (''Iterate'', (TUnit, Unchecked))], Present))] Unboxed))"
+  "wordarray_map_type \<equiv> ([{E, S, D}, {}, {}, {}], (TRecord [(''arr'', (TCon ''WordArray'' [TVar 0] (Boxed Writable undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun (TRecord [(''elem'', (TVar 0, Present)), (''acc'', (TVar 1, Present)), (''obsv'', (TVarBang 2, Present))] Unboxed) (TRecord [(''p1'', (abbreviatedType19, Present)), (''p2'', (TSum [(''Break'', (TVar 3, Unchecked)), (''Iterate'', (TUnit, Unchecked))], Present))] Unboxed), Present)), (''acc'', (TVar 1, Present)), (''obsv'', (TVar 2, Present))] Unboxed, TRecord [(''p1'', (TRecord [(''p1'', (TCon ''WordArray'' [TVar 0] (Boxed Writable undefined), Present)), (''p2'', (TVar 1, Present))] Unboxed, Present)), (''p2'', (TSum [(''Break'', (TVar 3, Unchecked)), (''Iterate'', (TUnit, Unchecked))], Present))] Unboxed))"
 
 definition
   wordarray_map_no_break_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
-  "wordarray_map_no_break_type \<equiv> ([{E, S, D}, {}, {}], (TRecord [(''arr'', (TCon ''WordArray'' [TVar 0] (Boxed Writable undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun (TRecord [(''elem'', (TVar 0, Present)), (''acc'', (TVar 1, Present)), (''obsv'', (TVarBang 2, Present))] Unboxed) abbreviatedType18, Present)), (''acc'', (TVar 1, Present)), (''obsv'', (TVar 2, Present))] Unboxed, TRecord [(''p1'', (TCon ''WordArray'' [TVar 0] (Boxed Writable undefined), Present)), (''p2'', (TVar 1, Present))] Unboxed))"
+  "wordarray_map_no_break_type \<equiv> ([{E, S, D}, {}, {}], (TRecord [(''arr'', (TCon ''WordArray'' [TVar 0] (Boxed Writable undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun (TRecord [(''elem'', (TVar 0, Present)), (''acc'', (TVar 1, Present)), (''obsv'', (TVarBang 2, Present))] Unboxed) abbreviatedType19, Present)), (''acc'', (TVar 1, Present)), (''obsv'', (TVar 2, Present))] Unboxed, TRecord [(''p1'', (TCon ''WordArray'' [TVar 0] (Boxed Writable undefined), Present)), (''p2'', (TVar 1, Present))] Unboxed))"
 
 definition
   wordarray_print_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
@@ -333,7 +339,7 @@ where
 definition
   snd_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
-  "snd_type \<equiv> ([{D}, {}], (abbreviatedType18, TVar 1))"
+  "snd_type \<equiv> ([{D}, {}], (abbreviatedType19, TVar 1))"
 
 definition
   snd :: "string Cogent.expr"
@@ -343,7 +349,7 @@ where
 definition
   second_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
-  "second_type \<equiv> ([{}, {}, {}], (abbreviatedType21, abbreviatedType20))"
+  "second_type \<equiv> ([{}, {}, {}], (abbreviatedType22, abbreviatedType21))"
 
 definition
   second :: "string Cogent.expr"
@@ -393,7 +399,7 @@ where
 definition
   in_range_u32_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
-  "in_range_u32_type \<equiv> ([], (abbreviatedType19, TPrim Bool))"
+  "in_range_u32_type \<equiv> ([], (abbreviatedType20, TPrim Bool))"
 
 definition
   in_range_u32 :: "string Cogent.expr"
@@ -403,7 +409,7 @@ where
 definition
   fst_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
-  "fst_type \<equiv> ([{}, {D}], (abbreviatedType18, TVar 0))"
+  "fst_type \<equiv> ([{}, {D}], (abbreviatedType19, TVar 0))"
 
 definition
   fst :: "string Cogent.expr"
@@ -413,7 +419,7 @@ where
 definition
   first_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
-  "first_type \<equiv> ([{}, {}, {}], (TRecord [(''p1'', (TFun (TVar 0) (TVar 2), Present)), (''p2'', (abbreviatedType18, Present))] Unboxed, abbreviatedType16))"
+  "first_type \<equiv> ([{}, {}, {}], (TRecord [(''p1'', (TFun (TVar 0) (TVar 2), Present)), (''p2'', (abbreviatedType19, Present))] Unboxed, abbreviatedType17))"
 
 definition
   first :: "string Cogent.expr"
@@ -469,6 +475,26 @@ definition
   align32 :: "string Cogent.expr"
 where
   "align32 \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Let (Lit (LU32 1)) (Let (Prim (Minus U32) [Var 1, Var 0]) (Let (Prim (Plus U32) [Var 4, Var 0]) (Let (Lit (LU32 1)) (Let (Prim (Minus U32) [Var 4, Var 0]) (Let (Prim (Complement U32) [Var 0]) (Prim (BitAnd U32) [Var 3, Var 0]))))))))"
+
+definition
+  wordarray_get_u32_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
+where
+  "wordarray_get_u32_type \<equiv> ([], (abbreviatedType16, TPrim (Num U32)))"
+
+definition
+  wordarray_get_u32 :: "string Cogent.expr"
+where
+  "wordarray_get_u32 \<equiv> Let (Var 0) (App (AFun ''wordarray_get'' [TPrim (Num U32)]) (Var 0))"
+
+definition
+  wordarray_length_u32_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
+where
+  "wordarray_length_u32_type \<equiv> ([], (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), TPrim (Num U32)))"
+
+definition
+  wordarray_length_u32 :: "string Cogent.expr"
+where
+  "wordarray_length_u32 \<equiv> Let (Var 0) (App (AFun ''wordarray_length'' [TPrim (Num U32)]) (Var 0))"
 
 definition
   wordarray_put2_u32_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
@@ -601,7 +627,7 @@ where
   "copy_n \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Take (Var 1) 2 (Let (Struct [TCon ''WordArray'' [TVarBang 0] (Boxed ReadOnly undefined), TPrim (Num U32)] [Var 0, Var 2]) (Let (App (AFun ''wordarray_get'' [TVar 0]) (Var 0)) (Let (Lit (LU32 1)) (Let (Prim (Plus U32) [Var 5, Var 0]) (Struct [TVar 0, TPrim (Num U32)] [Var 2, Var 0])))))))"
 
 ML \<open>
-val Cogent_functions = ["snd", "second", "min_u64", "min_u32", "max_u64", "max_u32", "in_range_u32", "fst", "first", "drop", "cogent_low_16_bits", "cogent_high_16_bits", "align64", "align32", "wordarray_put2_u32", "wordarray_free'", "error", "safe_add32", "safe_add64", "safe_sub32", "safe_sub64", "success", "wordarray_clone", "wordarray_get_bounded", "optionToResult", "resultToOption", "copy_n"]
+val Cogent_functions = ["snd", "second", "min_u64", "min_u32", "max_u64", "max_u32", "in_range_u32", "fst", "first", "drop", "cogent_low_16_bits", "cogent_high_16_bits", "align64", "align32", "wordarray_get_u32", "wordarray_length_u32", "wordarray_put2_u32", "wordarray_free'", "error", "safe_add32", "safe_add64", "safe_sub32", "safe_sub64", "success", "wordarray_clone", "wordarray_get_bounded", "optionToResult", "resultToOption", "copy_n"]
 val Cogent_abstract_functions = ["u64_to_u32", "u64_to_u16", "u32_to_u8", "u32_to_u16", "u16_to_u8", "random_u32", "wordarray_cmp", "wordarray_copy", "wordarray_fold'", "wordarray_get", "wordarray_length", "wordarray_map'", "wordarray_map_simple", "wordarray_put2", "wordarray_set", "wordarray_split", "wordarray_take", "wordarray_u8_as_u32", "wordarray_map_view", "wordarray_unview", "wordarray_view", "wordarray_free", "seq32_simple", "wordarray_clone_rr", "wordarray_slice", "wordarray_create", "wordarray_create_nz", "wordarray_put", "seq32", "seq32_rev", "seq32_stepf", "seq64", "wordarray_findsub", "wordarray_fold", "wordarray_fold_no_break", "wordarray_map", "wordarray_map_no_break", "wordarray_print", "wordarray_modify"]
 \<close>
 

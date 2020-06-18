@@ -21,25 +21,62 @@ enum {
     LETBANG_TRUE = 1,
 } ;
 enum untyped_func_enum {
+    FUN_ENUM_wordarray_get_0,
+    FUN_ENUM_wordarray_get_u32,
+    FUN_ENUM_wordarray_length_0,
+    FUN_ENUM_wordarray_length_u32,
     FUN_ENUM_wordarray_put2_0,
     FUN_ENUM_wordarray_put2_u32,
 } ;
 typedef enum untyped_func_enum untyped_func_enum;
-typedef untyped_func_enum t2;
+typedef untyped_func_enum t3;
+typedef untyped_func_enum t4;
+typedef untyped_func_enum t5;
 typedef struct t1 t1;
+typedef struct t2 t2;
 struct WordArray_u32 {
     int len;
     u32 *values;
 } ;
 typedef struct WordArray_u32 WordArray_u32;
 struct t1 {
+    WordArray_u32 *p1;
+    u32 p2;
+} ;
+struct t2 {
     WordArray_u32 *arr;
     u32 idx;
     u32 val;
 } ;
-static inline WordArray_u32 *wordarray_put2_0(t1);
-static inline WordArray_u32 *wordarray_put2_u32(t1);
-static inline WordArray_u32 *dispatch_t2(untyped_func_enum a2, t1 a3)
+static inline u32 wordarray_get_0(t1);
+static inline u32 wordarray_length_0(WordArray_u32 *);
+static inline WordArray_u32 *wordarray_put2_0(t2);
+static inline u32 wordarray_get_u32(t1);
+static inline u32 wordarray_length_u32(WordArray_u32 *);
+static inline WordArray_u32 *wordarray_put2_u32(t2);
+static inline u32 dispatch_t3(untyped_func_enum a2, WordArray_u32 *a3)
+{
+    switch (a2) {
+        
+      case FUN_ENUM_wordarray_length_0:
+        return wordarray_length_0(a3);
+        
+      default:
+        return wordarray_length_u32(a3);
+    }
+}
+static inline u32 dispatch_t4(untyped_func_enum a2, t1 a3)
+{
+    switch (a2) {
+        
+      case FUN_ENUM_wordarray_get_0:
+        return wordarray_get_0(a3);
+        
+      default:
+        return wordarray_get_u32(a3);
+    }
+}
+static inline WordArray_u32 *dispatch_t5(untyped_func_enum a2, t2 a3)
 {
     switch (a2) {
         
@@ -52,13 +89,35 @@ static inline WordArray_u32 *dispatch_t2(untyped_func_enum a2, t1 a3)
 }
 typedef u32 ErrCode;
 typedef u32 WordArrayIndex;
-typedef t1 wordarray_put2_0_arg;
+typedef t1 wordarray_get_0_arg;
+typedef u32 wordarray_get_0_ret;
+typedef t1 wordarray_get_u32_arg;
+typedef u32 wordarray_get_u32_ret;
+typedef WordArray_u32 *wordarray_length_0_arg;
+typedef u32 wordarray_length_0_ret;
+typedef WordArray_u32 *wordarray_length_u32_arg;
+typedef u32 wordarray_length_u32_ret;
+typedef t2 wordarray_put2_0_arg;
 typedef WordArray_u32 *wordarray_put2_0_ret;
-typedef t1 wordarray_put2_u32_arg;
+typedef t2 wordarray_put2_u32_arg;
 typedef WordArray_u32 *wordarray_put2_u32_ret;
-static inline WordArray_u32 *wordarray_put2_u32(t1 a1)
+static inline u32 wordarray_get_u32(t1 a1)
 {
     t1 r2 = a1;
+    u32 r3 = wordarray_get_0(r2);
+    
+    return r3;
+}
+static inline u32 wordarray_length_u32(WordArray_u32 *a1)
+{
+    WordArray_u32 *r2 = a1;
+    u32 r3 = wordarray_length_0(r2);
+    
+    return r3;
+}
+static inline WordArray_u32 *wordarray_put2_u32(t2 a1)
+{
+    t2 r2 = a1;
     WordArray_u32 *r3 = wordarray_put2_0(r2);
     
     return r3;
@@ -107,7 +166,17 @@ u16 u64_to_u16(u64 x)
 {
     return (u16) x;
 }
-WordArray_u32 *wordarray_put2_0(t1 args)
+u32 wordarray_get_0(t1 args)
+{
+    if (args.p2 >= args.p1->len)
+        return 0;
+    return args.p1->values[args.p2];
+}
+u32 wordarray_length_0(WordArray_u32 *array)
+{
+    return array->len;
+}
+WordArray_u32 *wordarray_put2_0(t2 args)
 {
     if (__builtin_expect(!!(args.idx < args.arr->len), 1))
         args.arr->values[args.idx] = args.val;
