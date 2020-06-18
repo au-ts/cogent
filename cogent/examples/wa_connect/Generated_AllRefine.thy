@@ -9,7 +9,6 @@ imports "Generated_NormalProof"
 "Generated_CorresProof"
 "Generated_MonoProof"
 "CogentCRefinement.Cogent_Corres_Shallow_C"
-
 begin
 
 (*
@@ -82,7 +81,7 @@ locale Generated_cogent_shallow =
   constrains val_abs_typing :: "vabstyp \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> bool"
          and upd_abs_typing :: "abstyp \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> sigil \<Rightarrow> ptrtyp set \<Rightarrow> ptrtyp set \<Rightarrow> (funtyp, abstyp, ptrtyp) store \<Rightarrow> bool"
          and abs_repr       :: "abstyp \<Rightarrow> name \<times> repr list"
-         and abs_upd_val    :: "abstyp \<Rightarrow> vabstyp \<Rightarrow> char list \<Rightarrow> Cogent.type list \<Rightarrow> sigil \<Rightarrow> 32 word set \<Rightarrow> 32 word set \<Rightarrow> (funtyp, abstyp, ptrtyp) store \<Rightarrow> bool"
+         and abs_upd_val    :: "abstyp \<Rightarrow> vabstyp \<Rightarrow> char list \<Rightarrow> Cogent.type list \<Rightarrow> sigil \<Rightarrow> ptrtyp set \<Rightarrow> ptrtyp set \<Rightarrow> (funtyp, abstyp, ptrtyp) store \<Rightarrow> bool"
 
 
 sublocale Generated_cogent_shallow \<subseteq> Generated _ upd_abs_typing abs_repr
@@ -108,6 +107,7 @@ filter (member op= Cogent_functions) entry_func_names
 
 
 print_theorems
+
 end
 
 end
