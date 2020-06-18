@@ -32,7 +32,7 @@ fun mk_rhs_pro _ (field_info:HeapLiftBase.field_info list) =
     val_rel p2 (p2_C x))"} $ p1 $ p2
  end;
 
-fun mk_rhs_rec _ (field_info:HeapLiftBase.field_info list) =
+fun mk_rhs_rec_generic (field_getters : term list)(field_names : string list) =
  (* val_rel generation for URecord *)
  let
   fun mk_nth_conjct n getter = @{term "val_rel"} $ (Const ("Product_Type.prod.fst", dummyT) $ Bound n) $ (getter $ @{term "x"}) |> strip_type;
@@ -48,10 +48,18 @@ fun mk_rhs_rec _ (field_info:HeapLiftBase.field_info list) =
    Const ("HOL.eq",dummyT) $ Free ("uv", dummyT) $
    (Const ("UpdateSemantics.uval.URecord", dummyT) $ mk_Bound_list n);
  in
-  mk_exists (get_field_names field_info)
+  mk_exists field_names
   (HOLogic.mk_conj
-   (field_info |> List.length |> mk_fst_conjct, field_info |> get_getters |> mk_conjcts))
+   (field_names |> List.length |> mk_fst_conjct, field_getters |> mk_conjcts))
  end;
+
+fun mk_rhs_rec_default _ (field_info:HeapLiftBase.field_info list) =
+  mk_rhs_rec_generic (get_getters field_info) (get_field_names field_info)
+
+fun mk_rhs_rec_custom _ (field_info : field_layout list) =
+  mk_rhs_rec_generic (map # isa_getter field_info) (map # name field_info)
+
+
 
 fun mk_rhs_sum ctxt (field_info:HeapLiftBase.field_info list) =
  (* val_rel generation for USum *)
@@ -87,7 +95,10 @@ fun gen_mk_rhs ctxt file_name uval =
   case uval of
     USum (ty_name  , _) => mk_rhs_sum ctxt (field_info ty_name)
   | UProduct ty_name    => mk_rhs_pro ctxt (field_info ty_name)
-  | URecord (ty_name,_) => mk_rhs_rec ctxt (field_info ty_name)
+  | URecord (ty_name,sigil) => 
+   (case get_sigil_layout sigil of
+       DefaultLayout =>  mk_rhs_rec_default ctxt (field_info ty_name)
+     | CustomLayout l => mk_rhs_rec_custom ctxt l)
   | UAbstract _         => mk_rhs_abs
  end;
 
@@ -104,7 +115,10 @@ fun val_rel_def file_name uval ctxt =
   val spec_def     = Specification.definition NONE [] [] ((Binding.name (val_rel_name), []), equ) ctxt;
   val thm     = spec_def |> fst |> snd |> snd;
   val lthy    = snd spec_def;
-  val lthy'   = ValRelSimp.add_local thm lthy;
+  val lthy'   = 
+     case get_uval_layout uval of
+        DefaultLayout => ValRelSimp.add_local thm lthy
+      | CustomLayout _ => GetSetSimp.add_local thm lthy
   val _ = tracing ("generating val_rel for " ^ (get_uval_name uval))
  in lthy' end;
 

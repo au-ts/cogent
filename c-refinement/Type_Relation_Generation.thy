@@ -20,36 +20,61 @@ ML\<open> (* type_rel_def *)
 
 local
 
-fun mk_rhs_of_type_rel_rec _ (field_info:HeapLiftBase.field_info list) =
+(* type relation for records  *)
+fun mk_rhs_of_type_rel_rec_generic 
+   (field_typs : typ list)
+   (field_names : string list)
+   =
 (* type_rel generation for TRecord
  * We assume that there are (length field_info) bound variables
  * corresponding to the type repr for each field. *)
  let
-  val num_fields = List.length field_info;
+  val num_fields = List.length field_typs;
 
   (* mk_hd_conjct makes e.g. @{term "ty = TRecord [(''a'', a), (''b'', b)]"} in the body.*)
   val mk_hd_conjct =
    let
-    val ml_list_for_TRecord = map_index (fn (n, _) => Bound (num_fields - n - 1)) field_info;
+    val ml_list_for_TRecord = map_index (fn (n, _) => Bound (num_fields - n - 1)) field_typs;
     val RRecord = Const (@{const_name RRecord}, dummyT) $ mk_isa_list ml_list_for_TRecord
    in
     HOLogic.mk_eq (Free ("ty", dummyT), RRecord)
    end;
+  
+   
 
   (* mk_tl_conjcts makes e.g.
      "[@{term "type_rel a TYPE(x)"}, @{term "type_rel b TYPE(y)"}]" in the body.*)
-  val mk_tl_conjcts = map_index (fn (n, field) =>
+  val mk_tl_conjcts = map_index (fn (n, field_ty) =>
         @{term type_rel} $ Bound (num_fields - n - 1) $
-          Const ("Pure.type", Type ("itself", [#field_type field])) |> strip_atype)
-        field_info
+          Const ("Pure.type", Type ("itself", [field_ty ])) |> strip_atype 
+     )
+        field_typs
 
   val body  =  (mk_hd_conjct :: mk_tl_conjcts) |> mk_HOL_conjs;
-
-  val field_names = get_field_names field_info;
+(* ici *)
   val ex_qnts = field_names;
  in
   mk_exists ex_qnts body
  end;
+
+
+(* type relation for records with custom layouts *)
+fun mk_rhs_of_type_rel_rec_custom ctxt (field_info : field_layout list) file_nm =
+ let
+   fun field_ty info =
+     let
+        val custom_getter = # getter info 
+        val getter_info = get_fun_info file_nm custom_getter ctxt
+     in
+        # return_type getter_info
+     end
+ in
+   mk_rhs_of_type_rel_rec_generic (map field_ty field_info) (map # name field_info)
+ end;
+
+
+fun mk_rhs_of_type_rel_rec_default _ (field_info:HeapLiftBase.field_info list) =
+  mk_rhs_of_type_rel_rec_generic (map (# field_type) field_info) (get_field_names field_info)
 
 fun mk_rhs_of_type_rel_sum _ (field_info:HeapLiftBase.field_info list) =
  let
@@ -101,7 +126,10 @@ fun gen_mk_rhs_of_type_rel ctxt file_name uval =
   case uval of
     (USum (ty_name, _))   => mk_rhs_of_type_rel_sum ctxt (field_info ty_name)
   | (UProduct ty_name)    => mk_rhs_of_type_rel_prod ctxt (field_info ty_name)
-  | (URecord (ty_name,_)) => mk_rhs_of_type_rel_rec ctxt (field_info ty_name)
+  | (URecord (ty_name,sigil)) => 
+    (case get_sigil_layout sigil of
+       DefaultLayout =>  mk_rhs_of_type_rel_rec_default ctxt (field_info ty_name)
+     | CustomLayout l => mk_rhs_of_type_rel_rec_custom ctxt l file_name)
   | (UAbstract _)         => mk_rhs_of_type_rel_abs
  end;
 

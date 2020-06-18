@@ -142,6 +142,6 @@ fun read_table (file_name:string) thy =
     val uvals = map decode_type tymap |> rm_redundancy
    in
     uvals
-   end : uval list;
+   end : (table_field_layout uval) list;
 \<close>
 end

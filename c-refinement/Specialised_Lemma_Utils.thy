@@ -187,18 +187,60 @@ ML\<open>
 
 the field type can be retrieved from the get_ret_typ of the getter
  *)
-type layout_field_info = { name : string ,  getter : string , setter : string }
-datatype layout_info = CustomLayout of layout_field_info list
+
+(* the table file contains such information *)
+type table_field_layout = 
+  { name : string ,  getter : string , setter : string }
+
+(* TODO: add a field for the type of the field, as it is recomputed multiple time *)
+type field_layout = 
+  { name : string ,  getter : string , setter : string , 
+  (* useful for value relation generation *)
+    isa_getter : term }
+
+fun make_field_layout 
+   ({ name, getter, setter } : table_field_layout) 
+   isa_getter : field_layout
+  = 
+  { name = name, getter = getter, setter = setter, isa_getter = isa_getter}
+
+datatype 'a layout_info = CustomLayout of 'a list
  | DefaultLayout
 (* type definition on the ML-level.*)
 datatype access_perm = ReadOnly | Writable
-datatype sigil = Boxed of access_perm * layout_info |  Unboxed
-datatype uval = UProduct of string
+datatype 'a sigil = Boxed of access_perm * 'a layout_info |  Unboxed
+datatype 'a uval = UProduct of string
               | USum of string * term (* term contains argument to TSum (excluding TSum itself) *)
-              | URecord of string * sigil 
+              | URecord of string * 'a sigil 
               | UAbstract of string;
 ;
-type uvals = uval list;\<close>
+type 'a uvals = ('a uval) list;
+
+fun sigil_map f (Boxed (a, CustomLayout l)) = Boxed (a, CustomLayout (map f l))
+ |  sigil_map _ (Boxed (a, DefaultLayout)) = Boxed (a, DefaultLayout)
+ |  sigil_map _ Unboxed = Unboxed
+
+fun uval_map (f : 'a -> 'b) (URecord (s, b)) = (URecord (s, sigil_map f b))
+  | uval_map _ (UProduct s) = UProduct s
+  | uval_map _ (USum s) = USum s
+  | uval_map _ (UAbstract s) = UAbstract s
+
+
+\<close>
+
+ML \<open>
+(* Save uvals information into the theory (on a per file basis). *)
+structure UVals = Theory_Data(
+  type T = (field_layout uvals) Symtab.table;
+  val empty = Symtab.empty;
+  val extend = I;
+  fun merge (l, r) =
+    Symtab.merge (fn _ => true) (l, r);
+);
+
+fun get_uvals file_nm thy : (field_layout uvals) option =
+  Symtab.lookup (UVals.get thy) file_nm
+\<close>
 
 ML\<open> (* unify_sigils to remove certain kind of duplication.*)
 fun unify_sigils (URecord (ty_name, Boxed (_, l))) = URecord (ty_name,Boxed(Writable, l))
@@ -249,27 +291,32 @@ fun get_uval_sigil (URecord (_, sigil)) = sigil
 \<close>
 
 ML \<open>
+  fun get_uval_layout (URecord (_, Boxed (_,l))) = l
+    | get_uval_layout _ = DefaultLayout
+\<close>
+
+ML \<open>
   fun get_uval_custom_layout u =
     case u |> get_uval_sigil |> get_sigil_layout of
      DefaultLayout =>  error "get_uval_custom_layout failed. The argument has no custom layout."
     | CustomLayout l => l
 \<close>
 
-ML\<open> val get_uval_custom_layout_records =
+ML\<open> fun get_uval_custom_layout_records uvals =
  filter (fn  (URecord (_, Boxed (_, (CustomLayout _)))) => true            
-            | _ => false);
+            | _ => false) uvals;
 \<close>
 
-ML\<open> val get_uval_writable_records =
- filter (fn uval => case uval of (URecord (_, Boxed(Writable, _))) => true | _ => false);
+ML\<open> fun get_uval_writable_records (uvals : 'a uvals) =
+ filter (fn uval => case uval of (URecord (_, Boxed(Writable, _))) => true | _ => false) uvals;
 \<close>
 
-ML\<open> val get_uval_unbox_records =
- filter (fn uval => case uval of (URecord (_, Unboxed)) => true | _ => false);
+ML\<open> fun get_uval_unbox_records (uvals : 'a uvals) =
+ filter (fn uval => case uval of (URecord (_, Unboxed)) => true | _ => false) uvals;
 \<close>
 
-ML\<open> val get_uval_readonly_records =
- filter (fn uval => case uval of (URecord (_, Boxed(ReadOnly, _))) => true | _ => false);
+ML\<open> fun get_uval_readonly_records uvals =
+ filter (fn uval => case uval of (URecord (_, Boxed(ReadOnly, _))) => true | _ => false) uvals;
 \<close>
 
 ML\<open> fun usum_list_of_types _ uval = case uval of
@@ -283,7 +330,7 @@ ML\<open> fun is_UAbstract (UAbstract _) = true
 
 ML\<open> fun get_ty_nm_C uval = uval |> get_uval_name |> (fn nm => nm ^ "_C"); \<close>
 
-ML\<open> fun heap_info_uval_to_struct_info (heap:HeapLiftBase.heap_info) (uval:uval) =
+ML\<open> fun heap_info_uval_to_struct_info (heap:HeapLiftBase.heap_info) (uval:'a uval) =
  let
   val uval_C_nm = get_uval_name uval ^ "_C";
  in

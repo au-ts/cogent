@@ -64,8 +64,8 @@ fun (uval1 can_be_casted_to uval2) ctxt heap_info =
   else NONE
  end;
 
-fun get_castable_uvals_from' _ _ (_:uval) []        = []
-  | get_castable_uvals_from' ctxt heap (from:uval) (to::tos) =
+fun get_castable_uvals_from' _ _ (_:'a uval) []        = []
+  | get_castable_uvals_from' ctxt heap (from:'a uval) (to::tos) =
    let val some_rmved_field_num  = (from can_be_casted_to to) ctxt heap;
        val some_pair = case some_rmved_field_num of
                         SOME ix => SOME (ix, to)
@@ -169,7 +169,7 @@ end
 ML\<open> (* mk_case_lem_for_uval *)
 local
 
-fun mk_case_lem_name (from:uval) field_num ctxt =
+fun mk_case_lem_name (from:'a uval) field_num ctxt =
  let
   val cs = get_checkeds_of_usum_uval ctxt from
   val cs_str = cs |> map (fn b => if b then "C" else "U") |> String.concat
@@ -177,13 +177,13 @@ fun mk_case_lem_name (from:uval) field_num ctxt =
   "corres_case_" ^ get_uval_name from ^ "_" ^ Int.toString field_num ^ "th_field_" ^ cs_str
  end
 
-fun mk_case_lem_from_to (from:uval) field_num (to:uval) file_nm ctxt  =
+fun mk_case_lem_from_to (from:'a uval) field_num (to:'a uval) file_nm ctxt  =
 { name = mk_case_lem_name from field_num ctxt,
   bucket = Case,
   prop = mk_case_prop from to field_num file_nm ctxt,
   mk_tactic = if true then (fn ctxt => corres_case_tac ctxt 1) else K (Skip_Proof.cheat_tac ctxt 1) };
 
-fun mk_case_lems_from_tos from (num_tos : (int * uval) list) file_nm ctxt = map
+fun mk_case_lems_from_tos from (num_tos : (int * 'a uval) list) file_nm ctxt = map
    (fn num_to => mk_case_lem_from_to from (fst num_to) (snd num_to) file_nm ctxt) num_tos
 
 in
@@ -250,7 +250,7 @@ fun local_setup_specialised_esacs file_nm lthy =
  let
   val _      = tracing "started local_setup_specialised_esacs"
   val thy    = Proof_Context.theory_of lthy;
-  val usums  = read_table file_nm thy
+  val usums  = get_uvals file_nm thy |> the
               |> get_usums
               |> get_uvals_for_which_ac_mk_st_info file_nm thy;
   fun mk_some_esac_lemma usum = mk_specialised_esac_lemma file_nm lthy usum;

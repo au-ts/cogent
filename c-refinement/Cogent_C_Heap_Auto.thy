@@ -58,7 +58,7 @@ ML\<open> fun local_setup_instantiate_cogent_C_heaps_store_them_in_buckets file_
 
   val thy = Proof_Context.theory_of lthy;
 
-  val uvals  = read_table file_nm thy |>
+  val uvals  = get_uvals file_nm thy |> the |>
                map (unify_usum_tys o unify_sigils) |> rm_redundancy |>
                get_uvals_for_which_ac_mk_heap_getters file_nm thy
  in

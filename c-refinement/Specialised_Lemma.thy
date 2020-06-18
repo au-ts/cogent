@@ -22,8 +22,8 @@ begin
 
 ML\<open> fun mk_lems file_nm (ignore_types : string list) ctxt  =
  let
-  val thy = Proof_Context.theory_of ctxt;
-  val uvals                 = read_table file_nm thy;
+  val uvals = get_uvals file_nm (Proof_Context.theory_of ctxt) |> the
+ (*  val uvals                 = read_table file_nm thy; *)
   val num_of_uvals          = List.length uvals;
   fun get_nth_uval nth      = List.nth (uvals, nth);
   fun get_urecord_lems uv   = mk_urecord_lems_for_uval file_nm ctxt uv;
@@ -96,6 +96,8 @@ fun local_setup_tag_enum_defs lthy =
 
 in
 
+(* TODO: supprimer *)
+(*
 fun local_setup_take_put_member_case_esac_specialised_lemmas_ignore_types file_nm ignore_types lthy =
  let
   val lems:lem list = mk_lems file_nm ignore_types lthy;
@@ -107,12 +109,24 @@ fun local_setup_take_put_member_case_esac_specialised_lemmas_ignore_types file_n
   lthy''
  end;
 
+
 fun local_setup_take_put_member_case_esac_specialised_lemmas file_nm lthy =
    local_setup_take_put_member_case_esac_specialised_lemmas_ignore_types file_nm [] lthy ;
-
+*)
+fun local_setup_take_put_member_case_esac_specialised_lemmas file_nm lthy =
+ let
+  val lems:lem list = mk_lems file_nm [] lthy;
+  val lthy_wo_esac  = List.foldl prove_put_in_bucket_non_esac_especialised_lemma lthy lems;
+  val lthy_w_esac   = local_setup_specialised_esacs file_nm lthy_wo_esac;
+  val lthy'         = local_setup_tag_enum_defs lthy_w_esac;
+  val lthy''        = local_setup_put_lemmas_in_bucket lthy';
+ in
+  lthy''
+ end;
 
 end
 \<close>
+
 end
 
 end

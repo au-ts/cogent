@@ -17,7 +17,7 @@ begin
 ML\<open> (* local_setup_heap_rel *)
 local
 
-fun mk_heap_rel ctxt (uvals:uval list) =
+fun mk_heap_rel ctxt (uvals:('a uval) list) =
 
 (* mk_heap_rel makes the equation that defines heap relation for a given type.
  * For example, "heap_rel \<sigma> h \<equiv> (\<forall>(p :: t2_C ptr). heap_rel_ptr \<sigma> h p)". *)
@@ -49,7 +49,7 @@ fun local_setup_heap_rel file_nm lthy =
  * when called inside local_setup quotation.*)
  let
   val thy   = Proof_Context.theory_of lthy;
-  val uvals = read_table file_nm thy
+  val uvals = get_uvals file_nm thy |> the
              |> map (unify_usum_tys o unify_sigils)
              |> rm_redundancy
              |> get_uvals_for_which_ac_mk_heap_getters file_nm thy;

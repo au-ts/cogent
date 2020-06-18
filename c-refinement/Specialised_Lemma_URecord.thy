@@ -427,7 +427,7 @@ ML \<open>
 fun put_let_put_custom_mk_prog  
     (file_nm : string) term
     (_ : FunctionInfo.function_info)
-    (layout : layout_field_info)
+    (layout : field_layout)
      ctxt : term =
 let 
   val custom_setter = # setter layout  (* TODO recupper ler terme *)
@@ -439,7 +439,7 @@ end
 
 fun take_member_custom_mk_prog term 
     (getter_info :  FunctionInfo.function_info)
-    (_ : layout_field_info)
+    (_ : field_layout)
     (_ : Proof.context) : term  =
 let 
   val custom_isa_getter = # const getter_info
@@ -489,8 +489,8 @@ fun mk_specialised_corres_default
 ML \<open>
 
 fun mk_specialised_corres_custom   
-  (mk_term : FunctionInfo.function_info -> layout_field_info -> Proof.context -> term)  
-  (field_num:int)  (layouts : layout_field_info list) (file_nm : string)  
+  (mk_term : FunctionInfo.function_info -> field_layout -> Proof.context -> term)  
+  (field_num:int)  (layouts : field_layout list) (file_nm : string)  
   ctxt =
    let
     val layout = List.nth (layouts , field_num) 
@@ -509,8 +509,8 @@ ML \<open>
 
 fun mk_specialised_corres_generic 
   (mk_term_default : HeapLiftBase.heap_info -> Typtab.key -> HeapLiftBase.field_info -> term)
- (mk_term_custom : FunctionInfo.function_info -> layout_field_info -> Proof.context -> term)  
-  (mk_lemma : int -> uval -> int * term * typ -> Proof.context -> term)
+ (mk_term_custom : FunctionInfo.function_info -> field_layout -> Proof.context -> term)  
+  (mk_lemma : int -> field_layout uval -> int * term * typ -> Proof.context -> term)
   (field_num:int) uval (file_nm : string) 
   ctxt =
  let
@@ -583,7 +583,7 @@ fun mk_specialised_corres_member (field_num:int) uval (file_nm : string) ctxt : 
 \<close>
 
 
-ML\<open> fun mk_urecord_lems_for_uval file_nm ctxt (uval:uval) =
+ML\<open> fun mk_urecord_lems_for_uval file_nm ctxt (uval:field_layout uval) =
 (* specialised-lemma generation for nth struct.*)
 (* All uvals can reach this function. I have to filter them at some point.*)
  let
