@@ -1752,6 +1752,15 @@ lemma afun_corres:
   apply simp
   done
 
+lemma abs_rel_def':
+  "abs_rel \<Xi>' srel afun_name \<xi>' afun_mon
+    = (\<forall>\<sigma> st x x' r' w'. (\<sigma>, st) \<in> srel \<and> val_rel x x'
+        \<and> \<Xi>', \<sigma> \<turnstile> x :u fst (snd (\<Xi>' afun_name)) \<langle>r', w'\<rangle>
+        \<longrightarrow> \<lbrace>\<lambda>s0. s0 = st\<rbrace> 
+              afun_mon x' 
+            \<lbrace>\<lambda>y' s'. \<exists>\<sigma>' y. \<xi>' afun_name (\<sigma>, x) (\<sigma>', y) \<and> (\<sigma>',s') \<in> srel \<and> val_rel y y'\<rbrace>!)" 
+  by (fastforce  simp: abs_rel_def validNF_def valid_def no_fail_def)
+
 end
 
 ML {*
