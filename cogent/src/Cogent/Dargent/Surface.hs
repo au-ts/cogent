@@ -15,7 +15,7 @@
 
 module Cogent.Dargent.Surface
   ( module Cogent.Dargent.Surface
-  , DataLayoutExpr ( DLPrim, DLRecord, DLVariant, DLOffset, DLRepRef, DLPtr, DLVar
+  , DataLayoutExpr ( DLPrim, DLRecord, DLVariant, DLOffset, DLEndian, DLRepRef, DLPtr, DLVar
 #ifdef BUILTIN_ARRAYS
                    , DLArray)
 #else
@@ -30,6 +30,9 @@ import Cogent.Dargent.Util
 
 import Data.Data
 import Text.Parsec.Pos (SourcePos)
+
+data Endianness = LE | BE
+  deriving (Show, Data, Eq, Ord)
 
 data DataLayoutSize
   = Bytes Size
@@ -64,6 +67,7 @@ data DataLayoutExpr' e
   | Array   e SourcePos
 #endif
   | Offset  e DataLayoutSize
+  | Endian  e Endianness
   | RepRef  RepName [e]
   | After   e FieldName  -- only valid inside a record layout
   | LVar    DLVarName
@@ -81,6 +85,7 @@ pattern DLVariant t ps = DL (Variant t ps)
 pattern DLArray e s    = DL (Array e s)
 #endif
 pattern DLOffset e s   = DL (Offset e s)
+pattern DLEndian e n   = DL (Endian e n)
 pattern DLRepRef n s   = DL (RepRef n s)
 pattern DLAfter e f    = DL (After e f)
 pattern DLVar n        = DL (LVar n)

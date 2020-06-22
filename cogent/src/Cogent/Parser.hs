@@ -64,7 +64,7 @@ language = haskellStyle
 #endif
                                  ,"->","=>","~>","<=","|","|>"]
            , T.reservedNames   = ["let","in","type","include","all","take","put","inline","upcast"
-                                 ,"variant","record","at","rec","layout","pointer"
+                                 ,"variant","record","at","rec","layout","pointer","using","LE","BE"
                                  ,"if","then","else","not","complement","and","True","False","o"
 #ifdef BUILTIN_ARRAYS
                                  ,"array","map2","@take","@put"]
@@ -113,6 +113,9 @@ repSize = avoidInitial >> buildExpressionParser [[Infix (reservedOp "+" *> pure 
 -- atomic expression: bits or bytes
 repSize' = avoidInitial >> natural >>= \n -> (Bits n <$ reserved "b") <|> (Bytes n <$ reserved "B")
 
+repEndianness :: Parser Endianness
+repEndianness = (LE <$ reserved "LE" <|> BE <$ reserved "BE" <?> "endianness kind")
+
 repExpr :: Parser DataLayoutExpr
 repExpr = do avoidInitial
              l <- DL <$> (  (Record  <$ reserved "record"                     <*> braces (commaSep recordRepr ))
@@ -124,7 +127,8 @@ repExpr = do avoidInitial
                         <|> (Ptr  <$  reserved "pointer")
                         <|> (LVar <$> variableName)
                         <|> (RepRef <$> typeConName <*> many repExpr'))
-             option l (offset l)
+             l' <- option l (endian l)
+             option l' (offset l')
 
   where
     -- atomatic layout expressions
@@ -135,8 +139,10 @@ repExpr = do avoidInitial
                <|> (DL <$> (RepRef <$> typeConName <*> pure [])))
 
     offset p = avoidInitial >> (at p <|> after p)
-    at p    = DLOffset p <$ reserved "at"    <*> repSize
-    after p = DLAfter  p <$ reserved "after" <*> variableName 
+    at p     = DLOffset p <$ reserved "at"    <*> repSize
+    after  p = DLAfter  p <$ reserved "after" <*> variableName 
+    endian p = DLEndian p <$ reserved "using" <*> repEndianness
+
 
     recordRepr  = avoidInitial >> ((,,)  <$> variableName <*> getPosition                    <* reservedOp ":" <*> repExpr)
     variantRepr = avoidInitial >> ((,,,) <$> typeConName  <*> getPosition <*> parens natural <* reservedOp ":" <*> repExpr)
@@ -469,7 +475,7 @@ typeA2' = avoidInitial >>
   where
     unbox = avoidInitial >> reservedOp "#" >> return (\x -> LocType (posOfT x) (TUnbox x))
     bang  = avoidInitial >> reservedOp "!" >> return (\x -> LocType (posOfT x) (TBang x))
- 
+
 
 atomtype = avoidInitial >> LocType <$> getPosition <*> (
       TVar <$> variableName <*> pure False <*> pure False
