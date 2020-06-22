@@ -709,7 +709,7 @@ wellformed :: (Ord b, Pretty b) => Vec t Kind -> Type t b -> State TypingSubproo
 wellformed k t = do
   proofId <- wellformedRaw k t
   thm <- thmTypeAbbrev $ typingSubproofPrefix ++ show proofId
-  return [rule "type_wellformed_prettyI", Simplifier (ThmList []) (Thms "type_wellformed.simps"), RuleTac thm]
+  return [Simplifier (ThmList []) (Thms []), RuleTac thm]
 
 wellformedRaw :: (Ord b, Pretty b) => Vec t Kind -> Type t b -> State TypingSubproofs SubproofId
 wellformedRaw k t = do
