@@ -107,6 +107,11 @@ newtype DS (t :: Nat) (l :: Nat) (v :: Nat) a =
             MonadWriter (Last (Typedefs, Constants, [CoreConst UntypedExpr])),
             MonadState  (DsState t l v))
 
+#if MIN_VERSION_base(4,13,0)
+instance MonadFail (DS t l v) where
+  fail _ = __impossible "pattern match failed"
+#endif
+
 
 desugar :: [S.TopLevel B.DepType B.TypedPatn B.TypedExpr]
         -> [(B.DepType, String)]

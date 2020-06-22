@@ -158,6 +158,11 @@ newtype Gen v a = Gen { runGen :: RWS (GenRead v) [CExtDecl] GenState a }
                           MonadWriter [CExtDecl],
                           MonadState  GenState)
 
+#if MIN_VERSION_base(4,13,0)
+instance MonadFail (Gen v) where
+  fail _ = __impossible "pattern match failed"
+#endif
+
 freshLocalCId :: Char -> Gen v CId
 freshLocalCId c = do (localOracle += 1); (c:) . show <$> use localOracle
 

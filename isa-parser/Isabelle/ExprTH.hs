@@ -39,13 +39,17 @@ isaType = qq typeL
 isaMethods :: QuasiQuoter
 isaMethods = qq (P.many methodL)
 
-qq :: (Data x) => (ParserM x) -> QuasiQuoter
+qq :: Data x => ParserM x -> QuasiQuoter
 qq prs = QuasiQuoter { quoteExp  = parseExp prs
                      , quotePat  = parsePat prs
                      , quoteType = error "quoteType undefined"
                      , quoteDec  = error "quoteDec undefined" }
 
-parse :: Monad m => (ParserM x) -> String -> m x
+#if MIN_VERSION_base(4,13,0)
+parse :: MonadFail m => ParserM x -> String -> m x
+#else
+parse :: Monad m => ParserM x -> String -> m x
+#endif
 parse prs s = do
   let res = P.runP (P.many (P.space) >> prs) () "<isabelle>" s
   case res of
