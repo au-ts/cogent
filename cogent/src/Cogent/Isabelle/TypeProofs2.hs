@@ -71,7 +71,7 @@ deepTypeProofNew mod withDecls withBodies thy decls log =
   in header . pretty $ Theory thy imports theoryBody
 
 generateFunctionDefinitionDefn ::
-  (pkiOrd vn, Pretty vn) =>
+  (Ord vn, Pretty vn) =>
   NameMod ->
   TypeAbbrevs ->
   [Definition TypedExpr a vn] ->
