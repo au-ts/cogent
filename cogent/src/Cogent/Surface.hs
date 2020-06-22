@@ -608,6 +608,7 @@ lvT (RT _) = []
 lvL :: DataLayoutExpr -> [DLVarName]
 lvL (DLVar n) = [n]
 lvL (DLOffset e _) = lvL e
+lvL (DLEndian e _) = lvL e
 lvL (DLRecord fs) = foldMap (\(_, _, x) -> lvL x) fs
 lvL (DLVariant t alt) = lvL t <> foldMap (\(_, _, _, x) -> lvL x) alt
 #ifdef BUILTIN_ARRAYS

@@ -64,7 +64,7 @@ language = haskellStyle
 #endif
                                  ,"->","=>","~>","<=","|","|>"]
            , T.reservedNames   = ["let","in","type","include","all","take","put","inline","upcast"
-                                 ,"variant","record","at","rec","layout","pointer"
+                                 ,"variant","record","at","rec","layout","pointer","using","LE","BE"
                                  ,"if","then","else","not","complement","and","True","False","o"
 #ifdef BUILTIN_ARRAYS
                                  ,"array","map2","@take","@put"]
@@ -112,13 +112,20 @@ repSize = avoidInitial >> buildExpressionParser [[Infix (reservedOp "+" *> pure 
                x <- fromIntegral <$> natural
                (Bits <$ reserved "b" <*> pure x <|> Bytes <$ reserved "B" <*> pure x))
 
+repEndianness :: Parser Endianness
+repEndianness = (LE <$ reserved "LE" <|> BE <$ reserved "BE" <?> "endianness kind")
+
 repExpr :: Parser DataLayoutExpr
 repExpr = repExpr' repRefM <|> parens repExpr
   where
     repRefM = many repExprS
     repRefS = pure []
     repExprS = repExpr' repRefS <|> parens repExpr
-    repExpr' p = avoidInitial >> buildExpressionParser [[Postfix (flip DLOffset <$ reserved "at" <*> repSize)]] (DL <$>
+    repExpr' p =
+      avoidInitial >> buildExpressionParser
+      [ [Postfix (flip DLOffset <$ reserved "at" <*> repSize)]
+      , [Postfix (flip DLEndian <$ reserved "using" <*> repEndianness)]
+      ] (DL <$>
          ((Record <$ reserved "record" <*> braces (commaSep recordRepr))
       <|> (Variant <$ reserved "variant" <*> parens repExpr <*> braces (commaSep variantRepr))
 #ifdef BUILTIN_ARRAYS
@@ -458,7 +465,7 @@ typeA2' = avoidInitial >>
   where
     unbox = avoidInitial >> reservedOp "#" >> return (\x -> LocType (posOfT x) (TUnbox x))
     bang  = avoidInitial >> reservedOp "!" >> return (\x -> LocType (posOfT x) (TBang x))
- 
+
 
 atomtype = avoidInitial >> LocType <$> getPosition <*> (
       TVar <$> variableName <*> pure False <*> pure False
