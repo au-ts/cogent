@@ -195,14 +195,18 @@ type table_field_layout =
 (* TODO: add a field for the type of the field, as it is recomputed multiple time *)
 type field_layout = 
   { name : string ,  getter : string , setter : string , 
-  (* useful for value relation generation *)
-    isa_getter : term }
+  (* useful for value relation generation or for the
+   getset lemmas *)
+    isa_getter : term,
+    isa_setter : term
+ }
 
 fun make_field_layout 
    ({ name, getter, setter } : table_field_layout) 
-   isa_getter : field_layout
+  {isa_getter, isa_setter}   
   = 
-  { name = name, getter = getter, setter = setter, isa_getter = isa_getter}
+  { name = name, getter = getter, setter = setter, 
+  isa_getter = isa_getter, isa_setter = isa_setter}
 
 datatype 'a layout_info = CustomLayout of 'a list
  | DefaultLayout
@@ -238,7 +242,7 @@ structure UVals = Theory_Data(
     Symtab.merge (fn _ => true) (l, r);
 );
 
-fun get_uvals file_nm thy : (field_layout uvals) option =
+fun get_uvals (file_nm : string) thy : (field_layout uvals) option =
   Symtab.lookup (UVals.get thy) file_nm
 \<close>
 
