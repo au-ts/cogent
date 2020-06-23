@@ -238,12 +238,26 @@ typeCId t = use custTypeGen >>= \ctg ->
     typeCId' (TSum fs) = getStrlTypeCId =<< Variant . M.fromList <$> mapM (secondM genType . second fst) fs
     typeCId' (TFun t1 t2) = getStrlTypeCId =<< Function <$> genType t1 <*> genType t2  -- Use the enum type for function dispatching
     typeCId' (TRecord NonRec fs Unboxed) = getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
-    typeCId' (TRecord NonRec fs (Boxed _ l)) =
+    typeCId' (TRecord NonRec fs (Boxed _ l)) = do
+      strlty <- Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
+      -- \ ^ NOTE: Recursively call 'genType' anyways, trying to construct the C types
+      -- in the order of its dependency.
+      -- In the typeCorres table, we want the entries in dependency order. When it comes
+      -- to types that use Dargent layouts, their C type definitions no longer depend on
+      -- the C type definitions of their components, as they will just be defined as
+      -- a singleton array type. However, their getters/setters (the function definitions)
+      -- will rely on the C types of the components they access. For verification reasons,
+      -- we want this function-type dependency be reflected in the table as well, even
+      -- though it's not needed for C code generation. But since type generation and
+      -- function definition generation are totally independent of each other, we have
+      -- to use this hack to force the registration of C types in the typeCorres table.
+      -- / zilinc
       case l of
         Layout RecordLayout {} -> getStrlTypeCId (RecordL l)
-        CLayout -> getStrlTypeCId =<< Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
+        CLayout -> getStrlTypeCId strlty
         _ -> __impossible "Tried to get the c-type of a record with a non-record layout"
-    typeCId' (TRecord (Rec v) fs (Boxed _ l)) =
+    typeCId' (TRecord (Rec v) fs (Boxed _ l)) = do
+      strlType <- Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
       case l of
         Layout RecordLayout {} ->
           getStrlTypeCId (RecordL l)
@@ -252,7 +266,6 @@ typeCId t = use custTypeGen >>= \ctg ->
           -- Record we're about to generate
           newId <- freshGlobalCId 't'
           recParRecordIds %= M.insert v newId
-          strlType <- Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
           res      <- lookupStrlTypeCId strlType
           recParRecordIds %= M.delete v
           case res of
