@@ -990,7 +990,11 @@ instance PP.Pretty TableCTypes where
       PP.<+> PP.string ":=:" PP.<+> PP.pretty n
       PP.<> prettyGetterSetters gss
     where prettyGetterSetters [] = PP.empty
-          prettyGetterSetters ps = PP.space PP.<> PP.list (map prettyGetterSetter ps)
+          prettyGetterSetters ps =
+            PP.space PP.<>
+            PP.lbracket PP.<>
+            PP.hsep (PP.punctuate PP.comma $ map prettyGetterSetter ps) PP.<>
+            PP.rbracket
 
           maybeP _ Nothing  = PP.text "_"
           maybeP p (Just x) = p x
