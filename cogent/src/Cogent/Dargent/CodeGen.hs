@@ -18,7 +18,7 @@ module Cogent.Dargent.CodeGen where
 import Cogent.C.Monad
 import Cogent.C.Type (genType, simplifyType)
 import Cogent.C.Syntax
-import Cogent.Common.Syntax (FieldName, VarName, Size)
+import Cogent.Common.Syntax (FieldName, FunName, VarName, Size)
 import Cogent.Common.Types (Sigil (..))
 import Cogent.Compiler
   ( __fixme
@@ -76,13 +76,10 @@ genBoxedGetSetField
   -> GetOrSet
      -- ^ The type of function to generate
 
-  -> Gen v CExpr
+  -> Gen v FunName 
      -- ^
-     -- The 'CExpr' which is the name of the getter/setter function
+     -- The 'FunName' which is the name of the getter/setter function
      -- for the field of the record.
-     --
-     -- Use this 'CExpr' as the first argument of 'CEFnCall' when you want
-     -- to call this getter/setter function.
 
 genBoxedGetSetField cogentType fieldName getOrSet = do
   boxedRecordGetterSetter    <- use ((case getOrSet of Get -> boxedRecordGetters; Set -> boxedRecordSetters) . at (cogentType, fieldName))
@@ -131,13 +128,10 @@ genBoxedGetterSetter
   -> GetOrSet
      -- ^ Whether to generate a getter or a setter
 
-  -> Gen v CExpr
+  -> Gen v FunName
      -- ^
-     -- The 'CExpr' which is the name of the generated getter function
+     -- The 'FunName' is the name of the generated getter function
      -- for the field of the record.
-     --
-     -- Use this 'CExpr' as the first argument of 'CEFnCall' when you want
-     -- to call this getter function.
 
 genBoxedGetterSetter isStruct boxType embeddedType@(TCon _ _ _) PrimLayout{bitsDL = bitRanges} path getOrSet =
   genComposedAlignedRangeGetterSetter isStruct bitRanges boxType embeddedType path getOrSet
@@ -161,7 +155,7 @@ genBoxedGetterSetter isStruct boxType embeddedTypeCogent@(TSum alternatives) Sum
       )
       alternatives
   declareSetterOrGetter $ variantGetterSetter tagGetterSetter alternativesGettersSetters boxType embeddedTypeC functionName getOrSet
-  return (CVar functionName Nothing)
+  return functionName
 
 genBoxedGetterSetter isStruct boxType embeddedTypeCogent@(TRecord _ fields Unboxed) RecordLayout{ fieldsDL } path getOrSet = do
   embeddedTypeC         <- genType embeddedTypeCogent
@@ -175,12 +169,12 @@ genBoxedGetterSetter isStruct boxType embeddedTypeCogent@(TRecord _ fields Unbox
       )
       fields
   declareSetterOrGetter $ recordGetterSetter fieldGettersSetters boxType embeddedTypeC functionName getOrSet
-  return (CVar functionName Nothing)
+  return functionName
 
 genBoxedGetterSetter isStruct boxType TUnit UnitLayout path getOrSet = do
   functionName  <- genGetterSetterName path getOrSet
   declareSetterOrGetter $ unitGetterSetter boxType functionName getOrSet
-  return (CVar functionName Nothing)
+  return functionName
 
 #ifdef BUILTIN_ARRAYS
 genBoxedGetterSetter isStruct box tau@(TArray t l (Boxed {}) _) (PrimLayout ranges) path getOrSet =
@@ -206,13 +200,11 @@ genBoxedArrayGetSet
   -> GetOrSet
      -- ^
      -- The type of function to generate.
-  -> Gen v CExpr
+  -> Gen v FunName
      -- ^
-     -- The 'CExpr' which is the name of the getter/setter function
+     -- The 'FunName' is the name of the getter/setter function
      -- for the field of the record.
-     --
-     -- Use this 'CExpr' as the first argument of 'CEFnCall' when you want
-     -- to call this getter/setter function.
+
 genBoxedArrayGetSet cogentType getOrSet = do
   mf <- use ((case getOrSet of Get -> boxedArrayGetters; Set -> boxedArraySetters) . at cogentType)
   case mf of
@@ -238,7 +230,7 @@ genArrayGetterSetter
   -> Size
   -> DataLayout' [AlignedBitRange]
   -> GetOrSet
-  -> Gen v CExpr
+  -> Gen v FunName
 genArrayGetterSetter arrType elemType elemSize elemLayout' getOrSet = do
   functionIdentifier <- genGetterSetterName [] getOrSet
   arrCType <- genType arrType
@@ -247,7 +239,7 @@ genArrayGetterSetter arrType elemType elemSize elemLayout' getOrSet = do
   ((case getOrSet of Get -> boxedArrayElemGetters; Set -> boxedArrayElemSetters) . at (simplifyType arrType))
     ?= elemGetterSetter
   declareSetterOrGetter $ arrayGetterSetter arrCType elemCType elemSize functionIdentifier elemGetterSetter getOrSet
-  return (CVar functionIdentifier Nothing)
+  return functionIdentifier
 #endif
 
 {-|
@@ -257,17 +249,17 @@ a value of the given embedded type.
 
 Calls the function `composedAlignedRangeGetterSetter` to generate the function.
 -}
-genComposedAlignedRangeGetterSetter :: IsStruct -> [AlignedBitRange] -> CType -> CogentType -> [String] -> GetOrSet -> Gen v CExpr
+genComposedAlignedRangeGetterSetter :: IsStruct -> [AlignedBitRange] -> CType -> CogentType -> [String] -> GetOrSet -> Gen v FunName
 genComposedAlignedRangeGetterSetter isStruct bitRanges boxType embeddedTypeCogent path getOrSet = do
   embeddedTypeC   <- genType embeddedTypeCogent
   genComposedAlignedRangeGetterSetter' isStruct bitRanges boxType embeddedTypeC path getOrSet
 
-genComposedAlignedRangeGetterSetter' :: IsStruct -> [AlignedBitRange] -> CType -> CType -> [String] -> GetOrSet -> Gen v CExpr
+genComposedAlignedRangeGetterSetter' :: IsStruct -> [AlignedBitRange] -> CType -> CType -> [String] -> GetOrSet -> Gen v FunName
 genComposedAlignedRangeGetterSetter' isStruct bitRanges boxType embeddedTypeC path getOrSet = do
   functionName    <- genGetterSetterName path getOrSet
   rangesGetters   <- mapM (\(range, index) -> genAlignedRangeGetterSetter isStruct boxType (path ++ ["part" ++ show index]) getOrSet range) (zip bitRanges [0..])
   declareSetterOrGetter $ composedAlignedRangeGetterSetter (zip bitRanges rangesGetters) boxType embeddedTypeC functionName getOrSet
-  return (CVar functionName Nothing)
+  return functionName
 
 
 {-|
@@ -276,11 +268,11 @@ AlignedBitRange from/in a Cogent boxed type.
 
 Calls the function `alignedRangeGetterSetter` to generate the function.
 -}
-genAlignedRangeGetterSetter :: IsStruct -> CType -> [String] -> GetOrSet -> AlignedBitRange -> Gen v CExpr
+genAlignedRangeGetterSetter :: IsStruct -> CType -> [String] -> GetOrSet -> AlignedBitRange -> Gen v FunName
 genAlignedRangeGetterSetter isStruct boxType path getOrSet bitRange = do
   functionIdentifier <- genGetterSetterName path getOrSet
   declareSetterOrGetter $ alignedRangeGetterSetter isStruct boxType bitRange functionIdentifier getOrSet
-  return (CVar functionIdentifier Nothing)
+  return functionIdentifier
 
 {-|
 Generates a unique function name for the getter or setter which is also readable.
@@ -338,12 +330,12 @@ static inline void variantSetter(boxType p, embeddedType v) {
 @
 -}
 variantGetterSetter
-  :: CExpr -- Expression for the setter/getter function for the tag
-  -> [(CId, Integer, CExpr)]
+  :: FunName  -- Name of the setter/getter function for the tag
+  -> [(CId, Integer, FunName)]
       -- ^
       -- ( Name of the alternative of the variant,
       -- , Tag value for this alternative in the boxed structure
-      -- , Expression for the getter/setter function for the alternative
+      -- , Name of the getter/setter function for the alternative
       -- )
   -> CType
       -- ^ The C type of the box.
@@ -365,7 +357,7 @@ variantGetterSetter tagGetterSetter ((firstAltName, firstTagValue, firstAltGette
               CCondExpr
                 (CBinOp
                   Eq
-                  (CEFnCall tagGetterSetter [boxVariable])
+                  (CEFnCall (variable tagGetterSetter) [boxVariable])
                   (CConst $ CNumConst tagValue unsignedIntType DEC))
                 (getUnboxedAlt altName altGetter)
                 accumExpr
@@ -384,7 +376,7 @@ variantGetterSetter tagGetterSetter ((firstAltName, firstTagValue, firstAltGette
               (CBinOp
                 Eq
                 (CStructDot valueVariable fieldTag)
-                (CVar (tagEnum altName) Nothing))
+                (variable $ tagEnum altName))
               (CBlock $ setUnboxedAlt altName tagValue altGetter)
               accumBlockItems
           )
@@ -393,17 +385,17 @@ variantGetterSetter tagGetterSetter ((firstAltName, firstTagValue, firstAltGette
         ]
     )
   where
-    getUnboxedAlt :: CId -> CExpr -> CExpr
+    getUnboxedAlt :: CId -> FunName -> CExpr
     getUnboxedAlt altName altGetter =
       CCompLit embeddedType
-      [ ([CDesignFld fieldTag], CInitE $ CVar (tagEnum altName) Nothing)
-      , ([CDesignFld altName], CInitE $ CEFnCall altGetter [boxVariable])
+      [ ([CDesignFld fieldTag], CInitE $ variable (tagEnum altName))
+      , ([CDesignFld altName] , CInitE $ CEFnCall (variable altGetter) [boxVariable])
       ]
 
-    setUnboxedAlt :: CId -> Integer -> CExpr -> [CBlockItem]
+    setUnboxedAlt :: CId -> Integer -> FunName -> [CBlockItem]
     setUnboxedAlt altName tagValue altSetter = fmap CBIStmt
-      [ CAssignFnCall Nothing tagGetterSetter [boxVariable, CConst $ CNumConst tagValue unsignedIntType DEC]
-      , CAssignFnCall Nothing altSetter       [boxVariable, CStructDot valueVariable altName]
+      [ CAssignFnCall Nothing (variable tagGetterSetter) [boxVariable, CConst $ CNumConst tagValue unsignedIntType DEC]
+      , CAssignFnCall Nothing (variable altSetter)       [boxVariable, CStructDot valueVariable altName]
       ]
 
 
@@ -437,10 +429,10 @@ static inline void recordSetter(boxType p, embeddedType v) {
 
 -}
 recordGetterSetter
-  :: [(CId, CExpr)]
+  :: [(CId, FunName)]
       -- ^
       -- ( Name of the field in the struct for the embedded data
-      -- , Expression for the getter/setter function which will extract that field from the boxed data
+      -- , Name of the getter/setter function which will extract that field from the boxed data
       -- )
   -> CType
       -- ^ The C type of the box.
@@ -458,30 +450,14 @@ recordGetterSetter fields boxType embeddedType functionName getOrSet =
     -- Get statements
     [ CBIStmt $ CReturn $ Just $ CCompLit embeddedType $
         fmap
-        (\(fieldName, fieldGetter) -> ([CDesignFld fieldName], CInitE $ CEFnCall fieldGetter [boxVariable]))
+        (\(fieldName, fieldGetter) -> ([CDesignFld fieldName], CInitE $ CEFnCall (variable fieldGetter) [boxVariable]))
         fields
     ]
 
     -- Set statements
     ( fmap
       (\(fieldName, fieldSetter) ->
-        CBIStmt $ CAssignFnCall Nothing fieldSetter [boxVariable, CStructDot valueVariable fieldName])
-      fields
-    )
-
-ptrStructGetterSetter fields boxType embeddedType functionName getOrSet =
-  getterSetterDecl boxType embeddedType functionName getOrSet
-    -- Get statements
-    [ CBIStmt $ CReturn $ Just $ CCompLit embeddedType $
-        fmap
-        (\(fieldName, fieldGetter) -> ([CDesignFld fieldName], CInitE $ CEFnCall fieldGetter [boxVariable]))
-        fields
-    ]
-
-    -- Set statements
-    ( fmap
-      (\(fieldName, fieldSetter) ->
-        CBIStmt $ CAssignFnCall Nothing fieldSetter [boxVariable, CStructDot (CDeref valueVariable) fieldName])
+        CBIStmt $ CAssignFnCall Nothing (variable fieldSetter) [boxVariable, CStructDot valueVariable fieldName])
       fields
     )
 
@@ -555,9 +531,9 @@ static inline void `functionName`(`boxType` b, `embeddedType` v) {
 @
 -}
 composedAlignedRangeGetterSetter
-  :: [(AlignedBitRange, CExpr)]
+  :: [(AlignedBitRange, FunName)]
       -- ^
-      -- The bit ranges and the 'CExpr' which is
+      -- The bit ranges and the 'FunName' which is
       -- the name of the getter/setter function for the corresponding
       -- bit range.
   -> CType
@@ -612,10 +588,10 @@ composedAlignedRangeGetterSetter
       ((`embeddedType`) `getRangeFunction`(b)) << `offset`
     @
     -}
-    genGetAlignedRangeAtBitOffset :: CExpr -> Integer -> CExpr
+    genGetAlignedRangeAtBitOffset :: FunName -> Integer -> CExpr
     genGetAlignedRangeAtBitOffset getRangeFunction offset =
       CBinOp Lsh
-        ( CTypeCast (intTypeForType embeddedType) (CEFnCall getRangeFunction [boxVariable]) )
+        ( CTypeCast (intTypeForType embeddedType) (CEFnCall (variable getRangeFunction) [boxVariable]) )
         ( unsignedIntLiteral offset )
 
     {-
@@ -625,9 +601,9 @@ composedAlignedRangeGetterSetter
       `setRangeFunction`(b, (unsigned int) ((v >> `offset`) & `size`))
     @
     -}
-    genSetAlignedRangeAtBitOffset :: CExpr -> Integer -> Integer -> CStmt
+    genSetAlignedRangeAtBitOffset :: FunName -> Integer -> Integer -> CStmt
     genSetAlignedRangeAtBitOffset setRangeFunction offset size =
-      CAssignFnCall Nothing setRangeFunction
+      CAssignFnCall Nothing (variable setRangeFunction)
         [ boxVariable
         , CTypeCast
             unsignedIntType
@@ -763,7 +739,7 @@ arrayGetterSetter
   -> CType
   -> Size
   -> CId
-  -> CExpr
+  -> FunName
   -> GetOrSet
   -> CExtDecl
 arrayGetterSetter arrType elemType elemSize functionName elemGetterSetter Get =
@@ -774,7 +750,7 @@ arrayGetterSetter arrType elemType elemSize functionName elemGetterSetter Get =
     , ( unsignedIntType, idxIdentifier ) -- NOTE: type unverified
     ]
     [ CBIStmt $ CReturn $ Just
-      ( CEFnCall elemGetterSetter
+      ( CEFnCall (variable elemGetterSetter)
         [( CBinOp Add
           ( CTypeCast ( CPtr unsignedCharType ) arrVariable )
           ( CBinOp Mul idxVariable ( unsignedIntLiteral elemSize ) )
@@ -792,7 +768,7 @@ arrayGetterSetter arrType elemType elemSize functionName elemGetterSetter Set =
     , ( elemType, valueIdentifier )
     ]
     [ CBIStmt $ CReturn $ Just
-      ( CEFnCall elemGetterSetter
+      ( CEFnCall (variable elemGetterSetter)
         [ ( CBinOp Add
             ( CTypeCast ( CPtr unsignedCharType ) arrVariable )
             ( CBinOp Mul idxVariable ( unsignedIntLiteral elemSize ) )
@@ -840,17 +816,17 @@ boxFieldName = "data"
 
 {- | The first parameter to all setters/getters -}
 boxIdentifier = "b"
-boxVariable   = CVar boxIdentifier Nothing
+boxVariable   = variable boxIdentifier
 
 {- | The second parameter to setters -}
 valueIdentifier = "v"
-valueVariable   = CVar valueIdentifier Nothing
+valueVariable   = variable valueIdentifier
 
 -- | Below for array related operations
 arrIdentifier = "a"
-arrVariable   = CVar arrIdentifier Nothing
+arrVariable   = variable arrIdentifier
 idxIdentifier = "i"
-idxVariable   = CVar idxIdentifier Nothing
+idxVariable   = variable idxIdentifier
 
 
 -- | Produces a C expression for an unsigned integer literal with the given integer value.

@@ -9,7 +9,7 @@
 --
 
 
-{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE ExistentialQuantification, LambdaCase #-}
 
 module Cogent.Isabelle.GraphGen where
 
@@ -263,11 +263,13 @@ graph g (TE _ (Split _ e1@(TE _ (Variable v)) e2)) n ret vs = do
     let v1 = namePrefix prevNm' ++ "_fst@" ++ show n
     let v2 = namePrefix prevNm' ++ "_snd@" ++ show n
     (gexprs, exUpds) <- atom e1 vs
-    (GEGTuple ty1 ty2) <- graphType (exprType e1)
-    gnode <- mkBasicVs "Split" (NextNode (n + 1)) [(v1, ty1), (v2, ty2)] gexprs exUpds
-    let g' = addGraphNode g n gnode
-    g'' <- graph g' e2 (n+1) ret ((v1, ty1): (v2, ty2): vs)
-    return g''
+    graphType (exprType e1) >>= \case
+      GEGTuple ty1 ty2 -> do
+        gnode <- mkBasicVs "Split" (NextNode (n + 1)) [(v1, ty1), (v2, ty2)] gexprs exUpds
+        let g' = addGraphNode g n gnode
+        g'' <- graph g' e2 (n+1) ret ((v1, ty1): (v2, ty2): vs)
+        return g''
+      _ -> abort "graph: Split"
 
 graph g te@(TE _ (LetBang _ _ e1 e2)) n ret vs = do
     let g' = addGraphNode g n (GBasic (NextNode (n + 2)) [])

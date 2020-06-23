@@ -295,6 +295,11 @@ newtype TC (t :: Nat) (v :: Nat) b x
   deriving (Functor, Applicative, Alternative, Monad, MonadPlus,
             MonadReader (Vec t Kind, Map FunName (FunctionType b)))
 
+#if MIN_VERSION_base(4,13,0)
+instance MonadFail (TC t v b) where
+  fail _ = __impossible "pattern match failed"
+#endif
+
 infixl 4 <||>
 (<||>) :: TC t v b (x -> y) -> TC t v b x -> TC t v b y
 (TC a) <||> (TC b) = TC $ do x <- get

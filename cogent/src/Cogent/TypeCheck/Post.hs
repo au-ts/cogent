@@ -247,10 +247,10 @@ normaliseT d (V x) =
   T . TVariant . M.fromList .
   map (\e -> (Row.fname e, ([Row.payload e], Row.taken e))) .
   Row.entries <$> traverse (normaliseT d) x
-normaliseT d (R rp x (Left s)) =
-  T . flip (TRecord $ unCoerceRP rp) (__fixme $ fmap (const Nothing) s) .
-  map (\e -> (Row.fname e, (Row.payload e, Row.taken e))) .
-  Row.entries <$> traverse (normaliseT d) x
+normaliseT d (R rp x (Left s)) = do
+  x' <- map (\e -> (Row.fname e, (Row.payload e, Row.taken e))) . Row.entries <$> traverse (normaliseT d) x
+  s' <- normaliseS s
+  return $ T $ TRecord (unCoerceRP rp) x' s'
 normaliseT d (R _ x (Right s)) =  __impossible ("normaliseT: invalid sigil (?" ++ show s ++ ")")
 #ifdef BUILTIN_ARRAYS
 normaliseT d (A t n (Left s) (Left mhole)) = do

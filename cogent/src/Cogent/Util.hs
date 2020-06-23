@@ -258,6 +258,7 @@ thd3 (a,b,c) = c
 fst4 :: (a,b,c,d) -> a
 fst4 (a,b,c,d) = a
 
+for :: [a] -> (a -> b) -> [b]
 for = flip map
 
 

@@ -10,11 +10,17 @@
 
 {-# LANGUAGE DeriveGeneric #-}
 
-module Data.DList (DList(..), empty, cons, fromList, toList) where
+module Data.DList
+  ( DList(..)
+  , empty
+  , cons
+  , fromList
+  , toList
+  ) where
 
 import Data.Binary
 import qualified Data.Set as S
-import Data.List (foldl')
+import Data.List (find, foldl')
 import GHC.Generics (Generic)
 
 {-

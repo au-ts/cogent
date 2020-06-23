@@ -81,6 +81,11 @@ newtype Occ v b x = Occ { unOcc :: State (OccEnv v b) x }
                   deriving (Functor, Applicative, Monad,
                             MonadState (OccEnv v b))
 
+#if MIN_VERSION_base(4,13,0)
+instance MonadFail (Occ v b) where
+  fail _ = __impossible "pattern match failed"
+#endif
+
 evalOcc :: OccEnv v b -> Occ v b x -> x
 evalOcc = (. unOcc) . flip evalState
 
