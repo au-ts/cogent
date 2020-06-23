@@ -17,8 +17,10 @@ repository (in alphabetical order).
 * Gernot Heiser, Data61 & UNSW
 * Alex Hixon, NICTA (was at NICTA) & UNSW
 * Vincent Jackson, UNSW
+* Jashank Jeremy, UNSW
 * Gabriele Keller, Universiteit Utrecht (was at Data61 & UNSW)
 * Gerwin Klein, Data61 (was at NICTA) & UNSW
+* Ambroise Lafont, UNSW
 * Edward Lee, NICTA & UNSW
 * Corey Lewis, Data61 (was at NICTA)
 * Japheth Lim, Data61 (was at NICTA)
