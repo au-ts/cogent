@@ -55,6 +55,7 @@ pattern TLVariant t ps = TL (Variant t ps)
 pattern TLArray e s    = TL (Array e s)
 #endif
 pattern TLOffset e s   = TL (Offset e s)
+pattern TLEndian e n   = TL (Endian e n)
 pattern TLRepRef n es  = TL (RepRef n es)
 pattern TLVar n        = TL (LVar n)
 pattern TLPtr          = TL Ptr
@@ -69,6 +70,7 @@ toDLExpr (TLVariant e fs) = DLVariant (toDLExpr e) ((\(x,y,z,v) -> (x,y,z,toDLEx
 toDLExpr (TLArray e p) = DLArray (toDLExpr e) p
 #endif
 toDLExpr (TLOffset e s) = DLOffset (toDLExpr e) s
+toDLExpr (TLEndian e n) = DLEndian (toDLExpr e) n
 toDLExpr (TLRepRef n s) = DLRepRef n $ toDLExpr <$> s
 toDLExpr (TLVar n) = DLVar n
 toDLExpr TLPtr = DLPtr
@@ -82,6 +84,7 @@ toTCDL (DLVariant e fs) = TLVariant (toTCDL e) ((\(x,y,z,v) -> (x,y,z,toTCDL v))
 toTCDL (DLArray e p) = TLArray (toTCDL e) p
 #endif
 toTCDL (DLOffset e s) = TLOffset (toTCDL e) s
+toTCDL (DLEndian e n) = TLEndian (toTCDL e) n
 toTCDL (DLRepRef n s) = TLRepRef n $ toTCDL <$> s
 toTCDL (DLVar n) = TLVar n
 toTCDL DLPtr = TLPtr
@@ -113,6 +116,8 @@ tcDataLayoutExpr _ _ (DLPrim size) = return $ singletonAllocation (bitRange, Pat
 
 tcDataLayoutExpr env vs (DLOffset dataLayoutExpr offsetSize) =
   offset (evalSize offsetSize) <$> tcDataLayoutExpr env vs dataLayoutExpr
+
+tcDataLayoutExpr env vs (DLEndian dataLayoutExpr _) = tcDataLayoutExpr env vs dataLayoutExpr
 
 tcDataLayoutExpr env vs (DLRecord fields) = foldM tcField emptyAllocation fields
   where
@@ -183,6 +188,7 @@ normaliseDataLayoutExpr env (DLVariant tag alts) =
   DLVariant (normaliseDataLayoutExpr env tag) $
     fmap (\(tn, pos, size, expr) -> (tn, pos, size, normaliseDataLayoutExpr env expr)) alts
 normaliseDataLayoutExpr env (DLOffset expr size) = DLOffset (normaliseDataLayoutExpr env expr) size
+normaliseDataLayoutExpr env (DLEndian expr endianness) = DLEndian (normaliseDataLayoutExpr env expr) endianness
 #ifdef BUILTIN_ARRAYS
 normaliseDataLayoutExpr env (DLArray e pos) = DLArray (normaliseDataLayoutExpr env e) pos
 #endif
@@ -197,6 +203,7 @@ normaliseTCDataLayout env (TLRepRef n s) =
 normaliseTCDataLayout env (TLRecord fs) = TLRecord $ (\(n, p, l) -> (n, p, normaliseTCDataLayout env l)) <$> fs
 normaliseTCDataLayout env (TLVariant t as) = TLVariant t $ (\(n, p, s, l) -> (n, p, s, normaliseTCDataLayout env l)) <$> as
 normaliseTCDataLayout env (TLOffset l n) = TLOffset (normaliseTCDataLayout env l) n
+normaliseTCDataLayout env (TLEndian l n) = TLEndian (normaliseTCDataLayout env l) n
 #ifdef BUILTIN_ARRAYS
 normaliseTCDataLayout env (TLArray l p) = TLArray (normaliseTCDataLayout env l) p
 #endif
@@ -210,6 +217,7 @@ substDataLayoutExpr = f
     f ps (DLRecord fs) = DLRecord $ third3 (f ps) <$> fs
     f ps (DLVariant t fs) = DLVariant (f ps t) $ fourth4 (f ps) <$> fs
     f ps (DLOffset e s) = flip DLOffset s $ f ps e
+    f ps (DLEndian e n) = flip DLEndian n $ f ps e
 #ifdef BUILTIN_ARRAYS
     f ps (DLArray e p) = flip DLArray p $ f ps e
 #endif
@@ -225,6 +233,7 @@ substTCDataLayout = f
     f ps (TLRecord fs) = TLRecord $ third3 (f ps) <$> fs
     f ps (TLVariant t fs) = TLVariant (f ps t) $ fourth4 (f ps) <$> fs
     f ps (TLOffset e s) = flip TLOffset s $ f ps e
+    f ps (TLEndian e n) = flip TLEndian n $ f ps e
 #ifdef BUILTIN_ARRAYS
     f ps (TLArray e p) = flip TLArray p $ f ps e
 #endif

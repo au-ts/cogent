@@ -97,7 +97,7 @@ normaliseRWT = rewrite' $ \case
        in pure $ A t l s (Left $ Just idx)
     T (TAPut [idx] (A t l s (Right _))) ->
       __impossible "normaliseRW: TAPut over a hole variable"
-    T (TAPut [idx] (A t l s (Left (Just idx')))) | idx == idx' -> 
+    T (TAPut [idx] (A t l s (Left (Just idx')))) | idx == idx' ->
       let l' = normaliseSExpr l
        in pure $ A t l s (Left Nothing)
 #endif
@@ -153,6 +153,7 @@ normL l = do
     TLRecord fs -> TLRecord <$> mapM (third3M normL) fs
     TLVariant l fs -> TLVariant <$> normL l <*> mapM (fourth4M normL) fs
     TLOffset l n -> TLOffset <$> normL l <*> pure n
+    TLEndian l n -> TLEndian <$> normL l <*> pure n
     _ -> pure l
   fromMaybe step <$> runMaybeT (runRewriteT (untilFixedPoint $ debug "Normalise Layout" printPretty normaliseRWL) step)
 

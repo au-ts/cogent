@@ -591,7 +591,7 @@ desugarType = \case
   B.DT (S.TUnit)     -> return TUnit
   B.DT (S.TRPar v b m) -> do
     m' <- mapM id (fmap (\x -> mapM id (M.map desugarType x)) m)
-    return $ 
+    return $
       if b then
         TRParBang v m'
       else
@@ -630,9 +630,9 @@ desugarLayout l = Layout <$> desugarLayout' l
         , sz > 0 -> pure $ PrimLayout (fromJust $ DA.newBitRangeBaseSize 0 sz)
         | DD.desugarSize n < 0 -> __impossible "desugarLayout: TLPrim has a negative size"
         | otherwise            -> pure UnitLayout
-      TLOffset e n -> do
-        e' <- desugarLayout' e
-        pure $ offset (DD.desugarSize n) e'
+      TLOffset e n -> offset (DD.desugarSize n) <$> desugarLayout' e
+      -- TODO(luka): fix up this
+      TLEndian e n -> desugarLayout' e
       TLRecord fs -> do
         let f (n,_,l) = desugarLayout' l >>= pure . (n,)
         fs' <- mapM f fs

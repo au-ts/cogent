@@ -353,7 +353,7 @@ data RP = Mu RecParName | None | UP Int
 
 coerceRP :: RecursiveParameter -> RP
 coerceRP (Rec v) = Mu v
-coerceRP NonRec  = None 
+coerceRP NonRec  = None
 
 unCoerceRP :: RP -> RecursiveParameter
 unCoerceRP (Mu v) = Rec v
@@ -517,7 +517,7 @@ toRawType _ = __impossible "toRawType: unification variable found"
 toRawType' :: DepType -> RawType
 toRawType' (DT t) = RT (fffmap toRawExpr'' $ fmap toRawType' t)
 
--- This function although is partial, it should be ok, as we statically know that 
+-- This function although is partial, it should be ok, as we statically know that
 -- we won't run into those undefined cases. / zilinc
 rawToDepType :: RawType -> DepType
 rawToDepType (RT t) = DT $ go t
@@ -759,6 +759,7 @@ unifLVars (TLVariant t ps) = unifLVars t <> concatMap unifLVars ((\(_,_,_,a) -> 
 unifLVars (TLArray e _) = unifLVars e
 #endif
 unifLVars (TLOffset e _) = unifLVars e
+unifLVars (TLEndian e _) = unifLVars e
 unifLVars _ = []
 
 unifLVarsS :: TCSigil -> [Int]
@@ -874,6 +875,7 @@ isTypeLayoutExprCompatible env (T (TArray t _ (Boxed {}) _)) (TLPtr) = True
 isTypeLayoutExprCompatible env (T (TArray t _ Unboxed _)) (TLArray l _) = isTypeLayoutExprCompatible env t l
 #endif
 isTypeLayoutExprCompatible env t (TLOffset l _) = isTypeLayoutExprCompatible env t l
+isTypeLayoutExprCompatible env t (TLEndian l _) = isTypeLayoutExprCompatible env t l
 isTypeLayoutExprCompatible env t (TLRepRef n s) =
   case M.lookup n env of
     Just (v, l, _) -> isTypeLayoutExprCompatible env t (substTCDataLayout (zip v s) (toTCDL l))

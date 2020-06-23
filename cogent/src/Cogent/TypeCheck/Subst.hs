@@ -51,7 +51,7 @@ newtype Subst = Subst (M.IntMap AssignResult)
 ofType :: Int -> TCType -> Subst
 ofType i t = Subst (M.fromList [(i, Type t)])
 
-ofRow :: Int -> Row.Row TCType -> Subst 
+ofRow :: Int -> Row.Row TCType -> Subst
 ofRow i t = Subst (M.fromList [(i, Row $ Left t)])
 
 #ifdef BUILTIN_ARRAYS
@@ -171,6 +171,7 @@ applyL s (TLVariant e fs) = TLVariant (applyL s e) $
 applyL s (TLArray e p) = TLArray (applyL s e) p
 #endif
 applyL s (TLOffset e n) = TLOffset (applyL s e) n
+applyL s (TLEndian e n) = TLEndian (applyL s e) n
 applyL s (TLRepRef n es) = TLRepRef n $ fmap (applyL s) es
 applyL s l = l
 

@@ -646,6 +646,7 @@ allRepRefs (DL d) = allRepRefs' d
     allRepRefs' (Array e _) = allRepRefs e
 #endif
     allRepRefs' (Offset e _) = allRepRefs e
+    allRepRefs' (Endian e _) = allRepRefs e
     allRepRefs' (RepRef n s) = [n] ++ concatMap allRepRefs s
     allRepRefs' (LVar _) = []
     allRepRefs' Ptr = []
