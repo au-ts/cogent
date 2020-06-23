@@ -61,7 +61,7 @@ constructDataLayout' (TSum alternatives)
         alternativesLayout = fromList . snd $ mapAccumL constructAlternativeLayout (wordSizeBits, 0) alternatives
 
         constructAlternativeLayout
-          :: Show a 
+          :: Show a
           => (Size, Integer) -- ^ Offset and tag value for this alternative.
           -> (TagName, (Type t a, Bool))
           -> ((Size, Integer) -- Offset and tag value for next alternative.

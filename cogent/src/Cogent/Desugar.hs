@@ -591,7 +591,7 @@ desugarType = \case
   B.DT (S.TUnit)     -> return TUnit
   B.DT (S.TRPar v b m) -> do
     m' <- mapM id (fmap (\x -> mapM id (M.map desugarType x)) m)
-    return $ 
+    return $
       if b then
         TRParBang v m'
       else
@@ -647,6 +647,8 @@ desugarLayout = (Layout <$>) . go
         alts' <- mapM f alts
         pure $ SumLayout tr (M.fromList alts')
       DLPtr -> pure $ PrimLayout DA.pointerBitRange
+      -- TODO(luka): fix up this
+      DLEndian e n -> go e
 #ifdef BUILTIN_ARRAYS
       DLArray e _ -> ArrayLayout <$> go e
 #endif

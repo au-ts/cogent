@@ -55,6 +55,7 @@ pattern TLVariant t ps = TL (Variant t ps)
 pattern TLArray e s    = TL (Array e s)
 #endif
 pattern TLOffset e s   = TL (Offset e s)
+pattern TLEndian e n   = TL (Endian e n)
 pattern TLRepRef n es  = TL (RepRef n es)
 pattern TLAfter e f    = TL (After e f)
 pattern TLVar n        = TL (LVar n)
@@ -71,6 +72,7 @@ toDLExpr (TLArray e p) = DLArray (toDLExpr e) p
 #endif
 toDLExpr (TLOffset e s) = DLOffset (toDLExpr e) s
 toDLExpr (TLAfter e f)  = DLAfter (toDLExpr e) f
+toDLExpr (TLEndian e n) = DLEndian (toDLExpr e) n
 toDLExpr (TLRepRef n s) = DLRepRef n $ toDLExpr <$> s
 toDLExpr (TLVar n) = DLVar n
 toDLExpr TLPtr = DLPtr
@@ -85,6 +87,7 @@ toTCDL (DLArray e p) = TLArray (toTCDL e) p
 #endif
 toTCDL (DLOffset e s) = TLOffset (toTCDL e) s
 toTCDL (DLAfter e s) = TLAfter (toTCDL e) s
+toTCDL (DLEndian e n) = TLEndian (toTCDL e) n
 toTCDL (DLRepRef n s) = TLRepRef n $ toTCDL <$> s
 toTCDL (DLVar n) = TLVar n
 toTCDL DLPtr = TLPtr
@@ -191,8 +194,8 @@ tcDataLayoutExpr _ _ DLPtr = return (TLPtr, singletonAllocation (pointerBitRange
 tcDataLayoutExpr _ vs (DLVar n) = if n `elem` vs then return (TLVar n, undeterminedAllocation)
                                                  else throwE $ UnknownDataLayoutVar n PathEnd
 tcDataLayoutExpr _ _ (DLAfter _ f) = throwE $ InvalidUseOfAfter f PathEnd
+tcDataLayoutExpr env vs (DLEndian expr _) = tcDataLayoutExpr env vs expr
 tcDataLayoutExpr _ _ l = __impossible $ "tcDataLayoutExpr: tried to typecheck unexpected layout: " ++ show l
-
 
 
 -- | Substitutes layout variables with concrete layouts
@@ -204,6 +207,7 @@ substDataLayoutExpr = f
     f ps (DLVariant t fs) = DLVariant (f ps t) $ fourth4 (f ps) <$> fs
     f ps (DLOffset e s)   = flip DLOffset s $ f ps e
     f ps (DLAfter e n)    = flip DLAfter n $ f ps e
+    f ps (DLEndian e n)   = flip DLEndian n $ f ps e
 #ifdef BUILTIN_ARRAYS
     f ps (DLArray e p)    = flip DLArray p $ f ps e
 #endif

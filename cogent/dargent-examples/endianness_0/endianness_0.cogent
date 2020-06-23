@@ -1,7 +1,3 @@
-type ABCD = { a: U32, b: U16, c: U32, d: U16 }
+type X = { x: U32 }
   layout
-    record { a: 4B at 2B using BE
-           , b: 2B using LE
-           , c: 32b at 6B using LE
-           , d: 16b
-           }
+    record { x: 4B at 2B using LE }

@@ -660,6 +660,7 @@ allRepRefs (DL d) = allRepRefs' d
 #endif
     allRepRefs' (Offset e _) = allRepRefs e
     allRepRefs' (After e _) = allRepRefs e
+    allRepRefs' (Endian e _) = allRepRefs e
     allRepRefs' (RepRef n s) = n : concatMap allRepRefs s
     allRepRefs' (LVar _) = []
     allRepRefs' Ptr = []
