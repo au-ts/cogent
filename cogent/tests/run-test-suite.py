@@ -406,6 +406,9 @@ def main():
     ap.add_argument("--repo",
                     dest="repo",
                     help="test a particular repository")
+    ap.add_argument("--ignore-errors",
+                    dest="ignore_errors",
+                    help="if enabled, a test error does not cause the script to exit with an error")
     args = ap.parse_args()
 
     if args.repo is None:
@@ -468,10 +471,6 @@ def main():
             subresults = test.run_all(context)
             results.extend(subresults)
 
-    all_passed = True
-
-    final_results = []
-
     setup_dist()
 
     errs   = 0
@@ -482,14 +481,11 @@ def main():
     for res in results:
         (status, _, expected) = res.test
 
-        p = res.result()
-        final_results.append(p or expected == "wip")
-
         if expected == "wip":
             wips += 1
-        elif not p and expected == "error":
+        elif status == "error":
             errs += 1
-        elif p:
+        elif res.result():
             passes += 1
         else:
             fails += 1
@@ -504,7 +500,7 @@ def main():
     print("{:>16}{:>16}".format("Work In Progress", wips))
     print()
 
-    if not all(final_results):
+    if fails != 0 or (not args.ignore_errors and errs != 0):
         sys.exit(1)
 
 
