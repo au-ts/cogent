@@ -741,6 +741,10 @@ lemma is_consumed_conv_all_nth:
   "K \<turnstile> \<Gamma> consumed \<longleftrightarrow> (\<forall>i<length \<Gamma>. weakening_comp K (\<Gamma> ! i) None)"
   by (simp add: is_consumed_def weakening_conv_all_nth empty_def)
 
+lemma is_consumed_Nil:
+  "K \<turnstile> [] consumed"
+  by (simp add: is_consumed_conv_all_nth)
+
 lemma is_consumed_Cons:
   "K \<turnstile> t # \<Gamma> consumed \<longleftrightarrow> weakening_comp K t None \<and> K \<turnstile> \<Gamma> consumed"
   by (simp add: is_consumed_conv_all_nth All_less_Suc2)
@@ -852,9 +856,8 @@ inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Right
       and typing_all :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Rightarrow> ctx \<Rightarrow> 'f expr list \<Rightarrow> type list \<Rightarrow> bool"
           ("_, _, _ \<turnstile>* _ : _" [55,0,0,0,55] 60) where
 
-typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i t
+typing_var      : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i t
                    ; i < length \<Gamma>
-                   ; K \<turnstile> t wellformed
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Var i : t"
 
 | typing_afun   : "\<lbrakk> \<Xi> f = (K', t, u)
@@ -1157,6 +1160,14 @@ lemma type_wellformed_fstsnd_list_updI:
   using assms
   by (case_tac "i < length ts";
       clarsimp simp add: list_all_length nth_list_update distinct_upd_sameI map_update)
+
+lemma context_wellformed_nth:
+  "K \<turnstile>* \<Gamma> ctxt-wellformed \<Longrightarrow> i < length \<Gamma> \<Longrightarrow> \<Gamma> ! i = Some t \<Longrightarrow> K \<turnstile> t wellformed"
+  by (clarsimp simp add: list_all_length option.splits)
+
+lemma context_wellformed_conv_nth:
+  "K \<turnstile>* \<Gamma> ctxt-wellformed \<Longrightarrow> Some t \<in> set \<Gamma> \<Longrightarrow> K \<turnstile> t wellformed"
+  by (clarsimp simp add: list_all_iff split: option.splits)
 
 section {* Kinding lemmas *}
 
