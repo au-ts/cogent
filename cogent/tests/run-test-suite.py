@@ -408,6 +408,7 @@ def main():
                     help="test a particular repository")
     ap.add_argument("--ignore-errors",
                     dest="ignore_errors",
+                    action="store_true",
                     help="if enabled, a test error does not cause the script to exit with an error")
     args = ap.parse_args()
 
