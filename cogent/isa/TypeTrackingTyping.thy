@@ -339,8 +339,8 @@ inductive ttyping :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Righ
 where
                                                                                              
   ttyping_default: "\<lbrakk> \<not> composite_anormal_expr x
-                    ; \<Xi>, K, \<Gamma> \<turnstile> x : t
-                    \<rbrakk> \<Longrightarrow> \<Xi>, K, (tt, \<Gamma>) T\<turnstile> x : t"
+                    ; \<Xi>, K, snd \<Gamma> \<turnstile> x : t
+                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> T\<turnstile> x : t"
 
 | ttyping_split  : "\<lbrakk> ttsplit K \<Gamma> ijs [] \<Gamma>1 [Some t, Some u] \<Gamma>2
                    ; \<Xi>, K, \<Gamma>1 T\<turnstile> x : TProduct t u

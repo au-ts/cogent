@@ -212,7 +212,7 @@ fun weakening_tac ctxt thms =
       ((rtac @{thm weakening_cons} THEN' (
         (rtac @{thm weakening_comp.none})
         ORELSE'
-        (rtac @{thm weakening_comp.drop} THEN' resolve_from_net_tac ctxt kndnet THEN' SOLVED' (simp_tac ctxt))
+        (rtac @{thm weakening_comp.drop} THEN' rtac @{thm kinding_imp_wellformed} THEN' resolve_from_net_tac ctxt kndnet THEN' SOLVED' (simp_tac ctxt))
         ORELSE'
         (rtac @{thm weakening_comp.keep} THEN' rtac @{thm kinding_imp_wellformed} THEN' resolve_from_net_tac ctxt kndnet))
       ) 1)
@@ -421,12 +421,12 @@ fun the_G _ (SOME p) = p
   | the_G G NONE = raise THM ("the_G", 1, (map (fn NONE => @{thm TrueI} | SOME t => t) G))
 
 fun typing_all_vars _ _ [] = let
-  in [RTac @{thm typing_all_empty}, SimpSolveTac (@{thms is_consumed_Cons weakening_comp.simps}, [])] end
+  in [RTac @{thm typing_all_empty}, SimpSolveTac (@{thms is_consumed_Nil is_consumed_Cons weakening_comp.simps}, [])] end
   | typing_all_vars ctxt G (ix :: ixs) = let
     fun null (NONE : thm option) = true
       | null _ = false
     fun step (i, p) = RTac @{thm split_cons} :: (if member (op =) ixs i
-      then (if i = ix then [RTac @{thm split_comp.share}, simp, RTac (the_G G p), simp_solve]
+      then (if i = ix then [RTac @{thm split_comp.share}, simp_solve, simp_solve]
           else [RTac @{thm split_comp.right}, simp_solve])
       else (if null p then [RTac @{thm split_comp.none}]
           else [RTac @{thm split_comp.left}, simp_solve]))
@@ -444,7 +444,7 @@ fun typing_all_vars _ _ [] = let
     val rest = typing_all_vars ctxt Gr ixs
   in [RTac @{thm typing_all_cons}] @ steps @ [RTac @{thm split_empty},
     RTac @{thm typing_var_weak[unfolded singleton_def Cogent.empty_def]},
-      RTac (the_G G (nth G ix)), simp, WeakeningTac thms, simp_solve] @ rest end
+      RTac (the_G G (nth G ix)), simp, SimpSolveTac (@{thms weakening_nil weakening_Cons weakening_comp.simps},[]), simp_solve] @ rest end
 
 fun typing (Const (@{const_name Var}, _) $ i) G _ hints = let
     val i = dest_nat i
@@ -578,7 +578,7 @@ fun ttyping (Const (@{const_name Split}, a) $ x $ y) tt k ctxt hint_tree : (tac*
   | ttyping x (@{term TyTrLeaf}, G) _ ctxt hint_tree = let
     val ty_tac = typing x G ctxt hint_tree
   in
-    ([(RTac @{thm ttyping_default},x), (SimpTac (@{thms composite_anormal_expr_def}, []),x)]
+    ([(RTac @{thm ttyping_default},x), (SimpTac (@{thms composite_anormal_expr_def}, []),x), (SimpTac ([], []),x)]
       @ (map (fn a => (a,x)) ty_tac))
   end
   | ttyping t _ _ _ _ = raise TERM ("ttyping", [t])

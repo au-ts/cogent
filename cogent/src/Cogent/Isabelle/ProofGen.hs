@@ -683,7 +683,7 @@ splitHint :: (Ord b, Show b, Pretty b)
 splitHint k Nothing  Nothing  Nothing  = __impossible "splitHint got case none"
 splitHint k (Just t) (Just _) Nothing  = (\wf -> SOME $ rule "split_comp.left" : wf) <$> wellformed k t
 splitHint k (Just t) Nothing  (Just _) = (\wf -> SOME $ rule "split_comp.right" : wf) <$> wellformed k t
-splitHint k (Just t) (Just _) (Just _) = (\wf -> SOME $ rule "split_comp.share" : wf) <$> kinding k t
+splitHint k (Just t) (Just _) (Just _) = (\wf -> SOME $ [rule "split_comp.share"] ++ wf ++ [simp_solve]) <$> wellformed k t
 splitHint k g x y = error $ "bad split: " ++ show (g, x, y)
 
 ttsplit_bang :: (Ord b, Pretty b) => Vec t Kind -> Int -> [Int] -> Vec n (Maybe (Type t b))
@@ -709,7 +709,7 @@ wellformed :: (Ord b, Pretty b) => Vec t Kind -> Type t b -> State TypingSubproo
 wellformed k t = do
   proofId <- wellformedRaw k t
   thm <- thmTypeAbbrev $ typingSubproofPrefix ++ show proofId
-  return [Simplifier (ThmList []) (Thms []), RuleTac thm]
+  return [Simplifier (ThmList []) (Thms "type_wellformed.simps"), RuleTac thm]
 
 wellformedRaw :: (Ord b, Pretty b) => Vec t Kind -> Type t b -> State TypingSubproofs SubproofId
 wellformedRaw k t = do
@@ -734,7 +734,7 @@ wellformedAll ks ts = tacSequence [return [simp_solve]]
 
 -- K ⊢ Γ consumed ≡ K ⊢ Γ ↝w empty (length Γ)
 consumed :: (Ord b, Pretty b) => Vec t Kind -> Vec v (Maybe (Type t b)) -> State TypingSubproofs [Tactic]
-consumed k g = weakens k g $ cleared g
+consumed k g = return [simp_solve_add ["is_consumed_Nil","is_consumed_Cons","weakening_comp.simps"]] {-<$> (weakens k g $ cleared g)-}
 
 -- K ⊢ Γ ↝w Γ'
 weakens :: (Ord b, Pretty b) => Vec t Kind -> Vec v (Maybe (Type t b)) -> Vec v (Maybe (Type t b)) -> State TypingSubproofs [Tactic]

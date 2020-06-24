@@ -607,10 +607,7 @@ qed (bestsimp dest!: is_consumed_wellformed simp add: list_all_length)+
 
 lemma ttyping_context_wellformed:
   "\<Xi>, K, \<Gamma> T\<turnstile> x : \<tau> \<Longrightarrow> K \<turnstile>* snd \<Gamma> ctxt-wellformed"
-  by (induct rule: ttyping.induct)
-    (auto dest!: ttsplit_imp_split ttsplit_bang_imp_split_bang
-      dest: split_bang_type_wellformed split_type_wellformed typing_to_wellformed
-      simp add: list_all_iff split: option.splits dest: typing_to_wellformed_context)
+  by (force dest: ttyping_imp_typing typing_to_wellformed_context)
 
 lemma ttyping_type_wellformed:
   "\<Xi>, K, \<Gamma> T\<turnstile> x : \<tau> \<Longrightarrow> \<forall>t. Some t \<in> set (snd \<Gamma>) \<longrightarrow> K \<turnstile> t wellformed"
