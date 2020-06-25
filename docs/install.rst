@@ -16,17 +16,18 @@ See :ref:`install-more-details` below for a more elaborate guide.
    see the ``tested-with`` section of `cogent/cogent.cabal <https://github.com/NICTA/cogent/blob/master/cogent/cogent.cabal>`_.
 2. Install `Cabal <https://www.haskell.org/cabal/download.html>`__ *or*
    `Stack <https://docs.haskellstack.org/en/stable/README/>`__.
+
+.. note:: We say ``Cabal`` to mean the ``cabal-install` tool, which is not the same as
+   the ``Cabal`` library. In particular, the version of ``cabal-install`` is not
+   necessarily the same as that of the ``Cabal`` library.
+
 3. Install `Alex <https://www.haskell.org/alex/>`__ and `Happy <https://www.haskell.org/happy/>`__.
 4. Clone the `Cogent repository <https://github.com/NICTA/cogent>`__.
    Suppose the Cogent repository is located ``$COGENT``. Upon this point you should be able to install
    the Cogent compiler and compile Cogent programs. Move to directory ``$COGENT/cogent``, and use
    either Cabal or Stack to build the Cogent compiler. 
 
-.. note:: For ``cabal`` users, we provide
-   a config file for each supported version of GHC, so that you always get consistent dependencies.
-   These config files are located in `cogent/misc/cabal.config.d <https://github.com/NICTA/cogent/tree/master/cogent/misc/cabal.config.d>`_.
-   Move the one that matches your GHC version to ``$COGENT/cogent/cabal.config``. Then run Cabal
-   as normal.
+.. note:: For ``cabal`` users, we require cabal version 3.0+ and we use the ``new-*`` commands.
 
 5. As a sanity check, you should be able to run ``make test-compiler`` in the ``$COGENT/cogent`` folder,
    and the tests should pass.
@@ -77,7 +78,7 @@ or the equivalent command for your Linux distribution.
 
 ::
 
-  cabal install alex happy
+  cabal new-install alex happy
 
 or the equivalent commands using ``stack``.
 
@@ -122,44 +123,11 @@ Cogent (see below for instructions).
 
 There are three ways of building the Cogent compiler:
 
-  * Makefile (simple, but can be fragile)
-  * Cabal (more advanced)
   * Stack (simple, more robust)
+  * Makefile (simple, but can be fragile)
+  * Cabal (also simple, and more advanced)
 
 Detailed instructions for each of them are given below:
-
-
-Build with Makefile (simple, but can be fragile)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
--  To configure, edit `config.mk <https://github.com/NICTA/cogent/blob/master/config.mk>`__. The default values
-   should work for most people.
--  Copy the config file of the GHC version you want to use from
-   `cogent/misc/cabal.config.d <https://github.com/NICTA/cogent/tree/master/cogent/misc/cabal.config.d>`__
-   into the ``cogent`` folder, and then rename it to ``cabal.config``.
--  Change the flags for building Cogent in that file.
--  Run ``make`` or ``make dev``. The latter builds Cogent instead of
-   installing it, which is more suitable for developers.
-
-For more info, run ``make help``.
-
-Build with Cabal (more advanced)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The ``Makefile`` calls Cabal under the hood. It installs Cogent using a
-Cabal sandbox. If this is not ideal for you (in rare cases), or you want
-to customise your installation further, just use Cabal in the normal
-way. You need to install `isa-parser <https://github.com/NICTA/cogent/tree/master/isa-parser>`__
-before you build/install Cogent.
-
-Copy the config file of the GHC version you want to use from
-`/cogent/misc/cabal.config.d <https://github.com/NICTA/cogent/tree/master/cogent/misc/cabal.config.d>`__
-into this folder, and then rename it to ``cabal.config``, and change the flags at the very beginning
-of that config file accordingly.
-Alternatively, the flags can be overwritten if something like
-``--flags="flag1 flag2"`` is given when running ``cabal configure`` and
-``cabal install``.
-
 
 Build with Stack (simple, more robust)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -168,6 +136,29 @@ Stack_ is a cross-platform program for developing Haskell projects.
 To build Cogent with Stack, simply run ``stack build``.
 
 .. _Stack: https://docs.haskellstack.org/
+
+Build with Makefile (simple, but can be fragile)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+-  To configure, edit `config.mk <https://github.com/NICTA/cogent/blob/master/config.mk>`__. The default values
+   should work for most people.
+-  Change the flags for building Cogent in that file.
+-  Run ``make`` or ``make dev``. The latter builds Cogent instead of
+   installing it, which is more suitable for developers.
+
+For more info, run ``make help``.
+
+Build with Cabal (also simple, and more advanced)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The ``Makefile`` calls Cabal under the hood. The new (3.0+) version of Cabal
+is made relatively easy to use. You can use ``cabal new-configure`` with relevant options
+to set the flags and compiler version that are desired. Or it can be set manually
+in a ``cabal.project.local`` file.
+After the configuration, Cogent can be easily installed by
+``cabal new-install --installdir=<BINDIR>`` command, where ``<BINDIR>`` is the directory
+in which you want the ``Cogent`` executable to be placed. This location should be added
+to your ``$PATH``.
 
 
 Test your installation
@@ -190,9 +181,8 @@ Test your installation
 
 ::
 
-  $> cabal configure --enable-tests
-  $> cabal build
-  $> cabal test
+  $> cabal new-build
+  $> cabal new-test
 
 
 
@@ -227,29 +217,13 @@ Common Issues and Troubleshooting
 Cabal Version
 -------------
 
-Cogent currently relies on ``cabal >= 2.4.*``. Please ensure that you are not using version 3. 
+Cogent currently relies on ``cabal >= 3.0``. Please ensure that you are using version 3. 
 
 Missing Dependencies
 --------------------
 
 Before trying to build Cogent, ensure that ``happy`` and ``alex`` are installed with cabal/stack::
 
-  cabal install happy
-  cabal install alex
-
-Could not resolve dependency ``isa-parser``
--------------------------------------------
-
-You may see the following error message::
-
-  Resolving dependencies...
-  cabal: Could not resolve dependencies:
-  [__0] trying: cogent-2.9.0.0 (user goal)
-  [__1] unknown package: isa-parser (dependency of cogent)
-  [__1] fail (backjumping, conflict set: cogent, isa-parser)
-  After searching the rest of the dependency tree exhaustively, these were the
-  goals I've had most trouble fulfilling: cogent, isa-parser
-
-``isa-parser`` must be installed manually in this case. Change to the directory ``isa-parser`` at
-the root of the repository, and run ``cabal install``. Then, retry installing/building Cogent.
+  cabal new-install happy
+  cabal new-install alex
 
