@@ -12,11 +12,13 @@
 
 module CogentTests.Dargent.CodeGen where
 
+import Cogent.C.Render
+import Cogent.C.Syntax
+import Cogent.Common.Syntax
 import Cogent.Dargent.Allocation
 import Cogent.Dargent.CodeGen
 import Cogent.Dargent.Core
-import Cogent.C.Render
-import Cogent.C.Syntax
+
 import Control.Monad
 import Text.PrettyPrint.Mainland.Class as M (pprint)
 
@@ -54,9 +56,9 @@ alignedBitRangeExamples =
     }
   ]
 
-rangesToComposedRangeInput :: String -> [AlignedBitRange] -> [(AlignedBitRange, CExpr)]
+rangesToComposedRangeInput :: String -> [AlignedBitRange] -> [(AlignedBitRange, FunName)]
 rangesToComposedRangeInput functionPrefix ranges =
-  zip ranges (fmap (\x -> CVar (functionPrefix ++ "Range" ++ show x) Nothing) [1 ..])
+  zip ranges (fmap (\x -> functionPrefix ++ "Range" ++ show x) [1 ..])
 
 
 compileSanityCheck :: IO ()
@@ -81,10 +83,11 @@ compileSanityCheck = do
 
 
 recordFieldExamples =
-  [ [ ("field1", CVar "getSetField1" Nothing)
-    , ("field2", CVar "getSetField2" Nothing)]
+  [ [ ("field1", "getSetField1")
+    , ("field2", "getSetField2")
+    ]
   
-  , [("field1", CVar "getSetField1" Nothing)]
+  , [ ("field1", "getSetField1") ]
   
   , []
   ]
