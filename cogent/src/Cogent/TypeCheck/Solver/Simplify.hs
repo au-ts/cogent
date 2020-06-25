@@ -292,7 +292,7 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
        hoistMaybe $ Just $ map (\(e,e') -> Row.payload e :=: Row.payload e') commons
 
   R rp1 r1 s1 :< R rp2 r2 s2
-    -- | trace ("r1 = " ++ show r1 ++ "\nr2 = " ++ show r2 ++ "\ns1 = " ++ show s1 ++ "\ns2 = " ++ show s2) False -> undefined
+    -- \ | trace ("r1 = " ++ show r1 ++ "\nr2 = " ++ show r2 ++ "\ns1 = " ++ show s1 ++ "\ns2 = " ++ show s2) False -> undefined
     | Row.isEmpty r1 && Row.isEmpty r2
     , Just c <- doSigilMatch s1 s2
     , sameRecursive rp1 rp2

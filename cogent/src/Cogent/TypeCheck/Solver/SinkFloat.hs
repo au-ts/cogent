@@ -153,7 +153,7 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
     genStructSubst _ (U i :< V r) =
       makeRowUnifSubsts V (filter R.taken (R.entries r)) i
     genStructSubst mentions (V r1 :< V r2)
-      -- | trace ("#### r1 = " ++ show r1 ++ "\n#### r2 = " ++ show r2) False = undefined
+      -- \ | trace ("#### r1 = " ++ show r1 ++ "\n#### r2 = " ++ show r2) False = undefined
       {- The most tricky case.
          For variants, taken is the bottom of the order.
          If taken things are in r2, then we can infer they must be in r1.
