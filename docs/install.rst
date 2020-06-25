@@ -17,7 +17,7 @@ See :ref:`install-more-details` below for a more elaborate guide.
 2. Install `Cabal <https://www.haskell.org/cabal/download.html>`__ *or*
    `Stack <https://docs.haskellstack.org/en/stable/README/>`__.
 
-.. note:: We say ``Cabal`` to mean the ``cabal-install` tool, which is not the same as
+.. note:: We say ``Cabal`` to mean the ``cabal-install`` tool, which is not the same as
    the ``Cabal`` library. In particular, the version of ``cabal-install`` is not
    necessarily the same as that of the ``Cabal`` library.
 
