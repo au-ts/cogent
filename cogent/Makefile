@@ -70,6 +70,10 @@ dev: .cabal-update .build
 .cabal-update:
 	$(Q) $(CABAL) new-update
 
+local: .cabal-update .build
+	$(E) "Installing cogent locally"
+	$(Q) $(CABAL) new-install --installdir=$(PWD)/build/bin/
+
 # There's a sed script that does a very similar thing in scripts/cogent_validate.sh, and for some reason they're both necessary.
 tests/include/%_dummy.h: tests/%.cogent
 	$(Q) egrep "^type +([A-Z][a-zA-Z0-9_']*)( [a-z][a-zA-Z0-9_']*)* *(--.*)?$$" $^ | sed -e "s/type \([A-Z][a-zA-Z0-9_']*\).*$$/struct \1 {int dummy; }; typedef struct \1 \1;/" > $@
@@ -193,6 +197,9 @@ help:
 	$(E) ""
 	$(E) "* make dev"
 	$(E) "  Build Cogent with a cabal-sandbox"
+	$(E) ""
+	$(E) "* make local"
+	$(E) "  Build Cogent and put the executable in build/bin/"
 	$(E) ""
 	$(E) "* make clean"
 	$(E) "  Cleanup"
