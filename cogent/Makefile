@@ -1,4 +1,4 @@
-.PHONY: build configure install test-compiler
+.PHONY: build install test-compiler
 
 ## Silent by default
 V =
@@ -70,7 +70,7 @@ dev: .cabal-update .build
 .cabal-update:
 	$(Q) $(CABAL) new-update
 
-local: .cabal-update .build
+local: .cabal-update
 	$(E) "Installing cogent locally"
 	$(Q) $(CABAL) new-install --installdir=$(PWD)/build/bin/
 
@@ -193,10 +193,10 @@ help:
 	$(E) "Run 'make' to build the Cogent compiler."
 	$(E) ""
 	$(E) "* make"
-	$(E) "  Install Cogent in a cabal-sandbox"
+	$(E) "  Install Cogent via cabal (default to: ~/.cabal/bin)"
 	$(E) ""
 	$(E) "* make dev"
-	$(E) "  Build Cogent with a cabal-sandbox"
+	$(E) "  Build Cogent via cabal to a local dist-newstyle directory"
 	$(E) ""
 	$(E) "* make local"
 	$(E) "  Build Cogent and put the executable in build/bin/"
