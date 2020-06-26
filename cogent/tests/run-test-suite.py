@@ -74,12 +74,13 @@ verbose_test_names = None
 # where status, expected :: "pass" | "fail" | "error" | "wip"
 
 class TestContext:
-    def __init__(self, repo, cogent, dist_dir, script_dir, phases):
+    def __init__(self, repo, cogent, dist_dir, script_dir, phases, ignore_phases):
         self.repo = repo
         self.cogent = cogent
         self.dist_dir = dist_dir
         self.script_dir = script_dir
         self.phases = phases
+        self.ignore_phases = ignore_phases
 
 class Phase:
     def __init__(self, phase_path):
@@ -324,6 +325,10 @@ class Test:
                     phasename = test['phase']
                 except KeyError:
                     phasename = "cogent"
+                
+                if phasename in context.ignore_phases:
+                    continue
+
                 if phasename == "cogent":
                     results.append( self.run_cogent(context, f, test) )
                 else:
@@ -403,6 +408,12 @@ def main():
                     dest="phase_dir",
                     default="phases",
                     help="override the location of the additional phase directory")
+    ap.add_argument("--ignore-phases",
+                    dest="ignore_phases",
+                    action="store",
+                    nargs="+",
+                    default=[],
+                    help="ignore the tests for the specified phases")
     ap.add_argument("--repo",
                     dest="repo",
                     help="test a particular repository")
@@ -432,7 +443,7 @@ def main():
     else:
       phases = dict()
 
-    context = TestContext(repo, cogent, TEST_DIST_DIR, TEST_SCRIPT_DIR, phases)
+    context = TestContext(repo, cogent, TEST_DIST_DIR, TEST_SCRIPT_DIR, phases, args.ignore_phases)
 
     # find all config files
     configs = Configurations(Path("."))

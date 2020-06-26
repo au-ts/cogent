@@ -68,7 +68,6 @@
     - pass_abs-para-ty-cg.cogent
     - pass_app-comp-1.cogent
     - pass_app-comp-2.cogent
-    - pass_basic-features.cogent
     - pass_bitwise.cogent
     - pass_bool-type.cogent
     - pass_capture.cogent
@@ -114,7 +113,6 @@
     - pass_type-holes-1.cogent
     - pass_undefined.cogent
     - pass_underscore-wildcard.cogent
-    - pass_unicode-literals.cogent
     - pass_unify-if.cogent
     - pass_unknown-underscore-type.cogent
     - pass_useability-in-default.cogent
