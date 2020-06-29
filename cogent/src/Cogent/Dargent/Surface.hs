@@ -12,6 +12,7 @@
 
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Cogent.Dargent.Surface
   ( module Cogent.Dargent.Surface
@@ -29,10 +30,14 @@ import Cogent.Compiler (__fixme, __todo, __impossible)
 import Cogent.Dargent.Util
 
 import Data.Data
+import Data.Binary
+import GHC.Generics (Generic)
 import Text.Parsec.Pos (SourcePos)
 
 data Endianness = LE | BE
-  deriving (Show, Data, Eq, Ord)
+  deriving (Show, Data, Eq, Ord, Generic)
+
+instance Binary Endianness
 
 data DataLayoutSize
   = Bytes Size

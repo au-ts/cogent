@@ -627,12 +627,16 @@ desugarLayout l = Layout <$> desugarLayout' l
       TLRepRef _ _ -> __impossible "desugarLayout: TLRepRef should be normalised before"
       TLPrim n
         | sz <- DD.desugarSize n
-        , sz > 0 -> pure $ PrimLayout (fromJust $ DA.newBitRangeBaseSize 0 sz)
+        , sz > 0 -> pure $ PrimLayout (fromJust $ DA.newBitRangeBaseSize 0 sz) BE
         | DD.desugarSize n < 0 -> __impossible "desugarLayout: TLPrim has a negative size"
         | otherwise            -> pure UnitLayout
       TLOffset e n -> offset (DD.desugarSize n) <$> desugarLayout' e
-      -- TODO(luka): fix up this
-      TLEndian e n -> desugarLayout' e
+      TLEndian e n -> do
+        e' <- desugarLayout' e
+        let e'' = case e' of
+                    pl@(PrimLayout _ _) -> pl { endianness = n}
+                    _ -> __impossible "desugarLayout: TLEndian descendent not prim"
+        pure e''
       TLRecord fs -> do
         let f (n,_,l) = desugarLayout' l >>= pure . (n,)
         fs' <- mapM f fs
@@ -640,13 +644,13 @@ desugarLayout l = Layout <$> desugarLayout' l
       TLVariant te alts -> do
         te' <- desugarLayout' te
         let tr = case te' of
-                   PrimLayout range -> range
-                   UnitLayout       -> __impossible $ "desugarLayout: zero sized bit range for variant tag"
-                   _                -> __impossible $ "desugarLayout: tag layout known to be a single range"
+                   PrimLayout range _ -> range
+                   UnitLayout         -> __impossible $ "desugarLayout: zero sized bit range for variant tag"
+                   _                  -> __impossible $ "desugarLayout: tag layout known to be a single range"
         let f (n,_,s,l) = desugarLayout' l >>= pure . (n,) . (s,)
         alts' <- mapM f alts
         pure $ SumLayout tr (M.fromList alts')
-      TLPtr -> pure $ PrimLayout DA.pointerBitRange
+      TLPtr -> pure $ PrimLayout DA.pointerBitRange BE
 #ifdef BUILTIN_ARRAYS
       TLArray e _ -> ArrayLayout <$> desugarLayout' e
 #endif
