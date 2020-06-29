@@ -1047,8 +1047,6 @@ theorem shallow_C_wordarray_get_strong:
   apply (rule shallow_C_wordarray_get_corres; simp)
   done
 
-thm val_rel_simp
-find_theorems "cogent_function_val_rel"
 
 theorem
 "\<lbrakk>\<And>i \<gamma> v' \<Gamma>' \<sigma>' st.
@@ -1089,7 +1087,7 @@ gets (\<lambda>s. x)
                                                                 od)
          \<xi>0 \<gamma> \<Xi>  \<Gamma>' \<sigma> s"
   apply (rule afun_corres; simp)
-  apply (clarsimp simp: abs_rel_def') find_theorems "whileLoop" name:"inv" 
+  apply (clarsimp simp: abs_rel_def')
   apply (thin_tac "i < length \<gamma>")
   apply (thin_tac "val_rel (\<gamma> ! i) v'")
   apply (thin_tac "\<Gamma>' ! i = option.Some (prod.fst (prod.snd (\<Xi> ''wordarray_fold_no_break_0'')))")
@@ -1128,7 +1126,7 @@ gets (\<lambda>s. x)
   apply (erule upd.u_t_primE; subst (asm) lit_type.simps; clarsimp)
   apply (erule upd.u_t_r_consE; clarsimp)
   apply (erule upd.u_t_r_emptyE)
-  apply (erule upd.u_t_unitE)thm cogent_function_val_rel
+  apply (erule upd.u_t_unitE)
   apply (case_tac "sint (t5_C.f_C x') \<noteq> sint FUN_ENUM_mul")
    apply (case_tac "sint (t5_C.f_C x') \<noteq> sint FUN_ENUM_sum")
     apply (clarsimp simp: cogent_function_val_rel
@@ -1191,53 +1189,60 @@ gets (\<lambda>s. x)
     apply (erule disjE)
      apply (clarsimp simp: mul_arr_def)
      apply (erule upd.u_t_functionE; clarsimp)
-  
+     apply (clarsimp simp: subtyping_simps(4) subtyping.simps[of _ _ "TPrim (Num U32)", simplified])
+     apply (erule subtyping.cases; clarsimp)
+     apply (subst (asm) subtyping.simps[of _ "TPrim (Num U32)", simplified])+
+     apply (clarsimp simp: subtyping.simps[of _ "TUnit", simplified] kinding_simps(5, 9))
+     apply (erule typing_letE)+
+     apply (erule typing_structE)
+     apply (erule typing_all_consE)+
+     apply (erule typing_all_emptyE)
+     apply (erule typing_varE)+
+     apply (erule typing_litE)+
+     apply (erule typing_unitE)+
+     apply clarsimp
+     apply (erule typing_appE)+
+     apply (erule typing_funE)+
+     apply (clarsimp simp: wordarray_length_u32_def mul_def)
+     apply (erule typing_letE)
+     apply (erule typing_appE)
+     apply (erule typing_afunE)+
+     apply clarsimp
+     apply (erule typing_takeE)+
+     apply (erule typing_primE)
+     apply (erule typing_all_consE)+
+     apply (erule typing_all_emptyE)
+     apply (erule typing_varE)+
+     apply (clarsimp simp: wordarray_length_0_type_def)
+     apply (subst (asm) split_conv_all_nth)
+     apply clarsimp
+     apply (erule split_comp.cases; clarsimp)
+  apply (subst (asm) weakening_conv_all_nth)
+(*
+     apply (case_tac \<Gamma>1; clarsimp)
+     apply (case_tac \<Gamma>2)
+      apply clarsimp
+  find_theorems "split_comp"
+*)
+
+
+(*
+     apply (case_tac \<Gamma>1; clarsimp)
+
+*)
+(*
+     apply (case_tac \<Gamma>2; clarsimp)
+     
+     apply (case_tac a; clarsimp)
+*)
+
+(*
+     apply (clarsimp simp: split_conv_all_nth  weakening_conv_all_nth)
+*)
+
+
+
   oops
-(*
-fun upd_wa_foldnb_0'  :: "(char list, atyp, 32 word) ufundef" 
-  where
-"upd_wa_foldnb_0' (b1, b2) c = (\<exists>p frm to f ts acc len arr. 
-    b2 = URecord [(UPtr p (RCon ''WordArray'' [RPrim (Num U32)]), RPtr (RCon ''WordArray'' [RPrim (Num U32)])),
-      (UPrim (LU32 frm), RPrim (Num U32)), (UPrim (LU32 to), RPrim (Num U32)),
-      (UFunction f ts, RFun), (UPrim (LU32 acc), RPrim (Num U32)), (UUnit, RUnit)] \<and> 
-    b1 p = option.Some (UAbstract (WAU32 len arr)) \<and>
-    (if frm < min to frm 
-      then (\<exists>v b1' acc' \<xi>. (b1 (arr + 4 * frm) = option.Some (UPrim (LU32 v))) \<and> 
-        (\<xi>, [(URecord [(UPrim (LU32 v), RPrim (Num U32)), (UPrim (LU32 acc), RPrim (Num U32)), 
-          (UUnit, RUnit)])] \<turnstile> (b1, App (Fun f ts) (Var 0)) \<Down>! (b1', UPrim (LU32 acc'))) \<and>
-        upd_wa_foldnb_0' (b1', URecord [(UPtr p (RCon ''WordArray'' [RPrim (Num U32)]), RPtr (RCon ''WordArray'' [RPrim (Num U32)])),
-          (UPrim (LU32 (frm + 1)), RPrim (Num U32)), (UPrim (LU32 to), RPrim (Num U32)),
-          (UFunction f ts, RFun), (UPrim (LU32 acc'), RPrim (Num U32)), (UUnit, RUnit)]) c)
-    else (b1, b2) = c))"
-(*
-fun upd_wa_foldnb_body
-*)
-definition upd_wa_fold_nb_0 :: "(char list, atyp, 32 word) ufundef" 
-  where
-"upd_wa_fold_nb_0 x y =
-     (let (x1, x2) = x;
-          (y1, y2) = y
-      in x1 = y1 \<and> (\<exists>p frm to f ts acc len arr. x2 = URecord [
-          (UPtr p (RCon ''WordArray'' [RPrim (Num U32)]), RPtr (RCon ''WordArray'' [RPrim (Num U32)])),
-          (UPrim (LU32 frm), RPrim (Num U32)), (UPrim (LU32 to), RPrim (Num U32)),
-          (UFunction f ts, RFun), (UPrim (LU32 acc), RPrim (Num U32)), (UUnit, RUnit)] \<and> 
-          x1 p = option.Some (UAbstract (WAU32 len arr))))"
 
-
-value "[7 ..(min 3 5)]"
-term "SOME (x:: nat). x = 0"
-term "THE x. x"
-term fold
-(*
-  bad_\<sigma> ptr = None
-  \<sigma> p = option.Some (UAbstract (WAU32 len arr))
-  xs = [frm .. (min to len)]
-  acc_f = (\<sigma>, acc)
-  f = (\<lambda>i (\<sigma>, acc).
-        (case \<sigma> (arr + i) of
-            option.Some (UPrim (LU32 v)) \<Rightarrow>
-            | _ \<Rightarrow> (bad_\<sigma>, UUnit)))
-*)
-*)
 end (* of context *)
 end
