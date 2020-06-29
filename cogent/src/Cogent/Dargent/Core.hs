@@ -26,6 +26,7 @@ import Text.Parsec.Pos (SourcePos)
 import Cogent.Common.Syntax (TagName, FieldName, Size, DLVarName)
 import Cogent.Common.Types (PrimInt (..))
 import Cogent.Dargent.Allocation
+import Cogent.Dargent.Surface (Endianness)
 import Cogent.Dargent.Util
 import Cogent.Util
 
@@ -45,6 +46,7 @@ data DataLayout' bits
   = UnitLayout
   | PrimLayout
     { bitsDL          :: bits
+    , endianness      :: Endianness
     }
   | SumLayout
     { tagDL           :: bits

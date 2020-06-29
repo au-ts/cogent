@@ -79,7 +79,7 @@ genBoxedGetSetField
   -> GetOrSet
      -- ^ The type of function to generate
 
-  -> Gen v FunName 
+  -> Gen v FunName
      -- ^
      -- The 'FunName' which is the name of the getter/setter function
      -- for the field of the record.
@@ -147,10 +147,10 @@ genBoxedGetterSetter
 genBoxedGetterSetter isStruct boxType embeddedType@(TCon _ _ _) PrimLayout{bitsDL = bitRanges} path getOrSet =
   genComposedAlignedRangeGetterSetter isStruct bitRanges boxType embeddedType path getOrSet
 
-genBoxedGetterSetter isStruct boxType embeddedType@(TPrim _) (PrimLayout bitRanges) path getOrSet =
+genBoxedGetterSetter isStruct boxType embeddedType@(TPrim _) PrimLayout{bitsDL = bitRanges} path getOrSet =
   genComposedAlignedRangeGetterSetter isStruct bitRanges boxType embeddedType path getOrSet
 
-genBoxedGetterSetter isStruct boxType embeddedType@(TRecord _ fields Boxed{}) (PrimLayout bitRanges) path getOrSet =
+genBoxedGetterSetter isStruct boxType embeddedType@(TRecord _ fields Boxed{}) PrimLayout{bitsDL = bitRanges} path getOrSet =
   genComposedAlignedRangeGetterSetter isStruct bitRanges boxType embeddedType path getOrSet
 
 genBoxedGetterSetter isStruct boxType embeddedTypeCogent@(TSum alternatives) SumLayout{tagDL, alternativesDL} path getOrSet = do
@@ -188,7 +188,7 @@ genBoxedGetterSetter isStruct boxType TUnit UnitLayout path getOrSet = do
   return functionName
 
 #ifdef BUILTIN_ARRAYS
-genBoxedGetterSetter isStruct box tau@(TArray t l (Boxed {}) _) (PrimLayout ranges) path getOrSet =
+genBoxedGetterSetter isStruct box tau@(TArray t l (Boxed {}) _) PrimLayout{bitsDL = ranges} path getOrSet =
   genComposedAlignedRangeGetterSetter isStruct ranges box tau path getOrSet
 #endif
 

@@ -1036,8 +1036,8 @@ instance Pretty a => Pretty (DataLayout' a) where
   pretty UnitLayout =
     parens (literal (symbol "unit"))
 
-  pretty PrimLayout {bitsDL} =
-    parens (pretty bitsDL)
+  pretty PrimLayout {bitsDL, endianness} =
+    parens (pretty bitsDL <+> keyword "using" <+> pretty endianness)
 
   pretty SumLayout {tagDL, alternativesDL} =
     parens (pretty tagDL) <> variant (map prettyAlt $ M.toList alternativesDL)

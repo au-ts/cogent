@@ -632,6 +632,11 @@ desugarLayout = (Layout <$>) . go
       DLOffset e n -> do
         e' <- go e
         pure $ offset (evalSize n) e'
+      DLEndian e n -> do
+        e' <- go e
+        case e' of
+          pl@(PrimLayout _ _) -> pure $ pl {endianness = n}
+          _ -> __impossible "desugarLayout: DLEndian descendent not prim"
       DLAfter e f -> __impossible "desugarLayout: TLAfter should have been substituted out"
       DLRecord fs -> do
         let f (n,_,l) = (n,) <$> go l
@@ -647,8 +652,6 @@ desugarLayout = (Layout <$>) . go
         alts' <- mapM f alts
         pure $ SumLayout tr (M.fromList alts')
       DLPtr -> pure $ PrimLayout DA.pointerBitRange
-      -- TODO(luka): fix up this
-      DLEndian e n -> go e
 #ifdef BUILTIN_ARRAYS
       DLArray e _ -> ArrayLayout <$> go e
 #endif
