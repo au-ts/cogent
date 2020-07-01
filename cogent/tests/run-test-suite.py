@@ -416,26 +416,25 @@ def main():
                     help="ignore the tests for the specified phases")
     ap.add_argument("--repo",
                     dest="repo",
+                    default="../../",
                     help="test a particular repository")
+    ap.add_argument("--cogent",
+                    dest="cogent",
+                    default="cogent",
+                    help="specify the location of the cogent compiler")
     ap.add_argument("--ignore-errors",
                     dest="ignore_errors",
                     action="store_true",
                     help="if enabled, a test error does not cause the script to exit with an error")
     args = ap.parse_args()
 
-    if args.repo is None:
-        # Check if cogent is installed
-        cogent = shutil.which("cogent")
-        repo = None
-        if cogent is None:
-            print("Could not find cogent compiler on PATH - Please install cogent and place it on the PATH")
-            sys.exit(1)
-    else:
-        repo = Path(args.repo).resolve()
-        cogent = Path(repo, "cogent", ".cabal-sandbox", "bin", "cogent").resolve()
-        if not cogent.exists():
-            print("error: could not find the cogent compiler at '{}'".format(cogent))
-            sys.exit(1)
+    cogent = args.cogent
+    repo   = args.repo
+
+    # Check if cogent is installed
+    if cogent is None:
+        print("Could not find cogent compiler on PATH - Please install cogent and place it on the PATH")
+        sys.exit(1)
 
     if Path(args.phase_dir).exists():
       files = Path(args.phase_dir).glob("*.sh")

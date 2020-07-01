@@ -88,7 +88,7 @@ tests: test-compiler \
        test-tc-proof test-shallow-proof test-ee test-hs test-quickcheck
 
 test-compiler: test-clean .test-cogent
-	./tests/run-test-suite.py \
+	./tests/run-test-suite.py --ignore-phases type_proof \
 	# test-tc test-ds test-an test-mn test-cg test-gcc \
 	# test-pp test-aq \
 	# test-hs \
