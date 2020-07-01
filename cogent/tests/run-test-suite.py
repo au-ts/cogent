@@ -326,11 +326,12 @@ class Test:
                 except KeyError:
                     phasename = "cogent"
                 
-                if phasename in context.ignore_phases:
-                    continue
-
                 if phasename == "cogent":
                     results.append( self.run_cogent(context, f, test) )
+
+                elif context.phases is None or phasename in context.ignore_phases:
+                    continue
+
                 else:
                     try:
                         results.append( self.run_phase(context, f, context.phases[phasename], test) )
@@ -406,7 +407,7 @@ def main():
                     help="Check the format of all config files is correct")
     ap.add_argument("--extra-phases", "-p",
                     dest="phase_dir",
-                    default="phases",
+                    default=None,
                     help="override the location of the additional phase directory")
     ap.add_argument("--ignore-phases",
                     dest="ignore_phases",
@@ -432,22 +433,28 @@ def main():
     if args.repo is not None:
       repo = os.path.abspath(args.repo)
     else:
-      repo = ""
+      repo = None
       print("Warning: repository directory not set; use --repo")
+
+    if args.phase_dir is not None:
+      phase_dir = os.path.abspath(args.phase_dir)
+    else:
+      phase_dir = None
 
     # Check if cogent is installed
     if cogent is None:
         print("Could not find cogent compiler - Please either add it to your PATH or set --cogent")
         sys.exit(1)
 
-    print("Using repository: " + repo)
+    print("Using repository: " + str(repo))
     print("Using cogent: " + cogent)
+    print("Using phase dir: " + str(phase_dir))
 
-    if Path(args.phase_dir).exists():
-      files = Path(args.phase_dir).glob("*.sh")
+    if phase_dir is not None and Path(phase_dir).exists():
+      files = Path(phase_dir).glob("*.sh")
       phases = dict(map(lambda p: (p.stem,Phase(p)), files))
     else:
-      phases = dict()
+      phases = None
 
     context = TestContext(repo, cogent, TEST_DIST_DIR, TEST_SCRIPT_DIR, phases, args.ignore_phases)
 
