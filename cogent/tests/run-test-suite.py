@@ -416,7 +416,6 @@ def main():
                     help="ignore the tests for the specified phases")
     ap.add_argument("--repo",
                     dest="repo",
-                    default="../../",
                     help="test a particular repository")
     ap.add_argument("--cogent",
                     dest="cogent",
@@ -428,13 +427,21 @@ def main():
                     help="if enabled, a test error does not cause the script to exit with an error")
     args = ap.parse_args()
 
-    cogent = args.cogent
-    repo   = args.repo
+    cogent = shutil.which(args.cogent)
+
+    if args.repo is not None:
+      repo = os.path.abspath(args.repo)
+    else:
+      repo = ""
+      print("Warning: repository directory not set; use --repo")
 
     # Check if cogent is installed
     if cogent is None:
-        print("Could not find cogent compiler on PATH - Please install cogent and place it on the PATH")
+        print("Could not find cogent compiler - Please either add it to your PATH or set --cogent")
         sys.exit(1)
+
+    print("Using repository: " + repo)
+    print("Using cogent: " + cogent)
 
     if Path(args.phase_dir).exists():
       files = Path(args.phase_dir).glob("*.sh")
