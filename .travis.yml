@@ -100,9 +100,9 @@ script:
  # - echo 'Running tests'
  - make test-compiler
  # - echo 'Typechecking libgum'
- - make test-libgum
+ # - make test-libgum
  # - echo 'Building Cogent examples'
- - make examples
+ # - make examples
  # - echo 'Generating ext2fs C code from Cogent'
  - cd $REPO/impl/fs/ext2/cogent && travis_wait make .c-gen
  # - echo 'Generating BilbyFs C code from Cogent'
