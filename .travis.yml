@@ -108,6 +108,12 @@ script:
  # - echo 'Generating BilbyFs C code from Cogent'
  - cd $REPO/impl/fs/bilby/cogent && travis_wait make .c-gen
 
+deploy:
+  provider: releases
+  file: {$HOME/.cabal/bin/cogent}
+  draft: true
+
+
 notifications:
   slack:
     rooms:
