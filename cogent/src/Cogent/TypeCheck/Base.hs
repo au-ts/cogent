@@ -741,7 +741,7 @@ unifVars (V r) =
 unifVars (R rp r s) =
   maybeToList (Row.var r) ++ concatMap unifVars (Row.payloads r) ++ rights [s]
     ++ case rp of UP i -> [i]; _ -> []
-#ifdef REFINEMENT_TYPES
+#ifdef BUILTIN_ARRAYS
 unifVars (A t l s tkns) = unifVars t ++ rights [s] ++ rights [tkns]
 #endif
 unifVars (T x) = foldMap unifVars x
