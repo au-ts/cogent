@@ -8,7 +8,8 @@
 -- @TAG(NICTA_GPL)
 --
 
-include "../../common/common.cogent"
+include "../../common/wordarray.cogent"
+include "../../fs/linux/vfs.cogent"
 
 type OSBuffer
 type OSBufferOffset = U32

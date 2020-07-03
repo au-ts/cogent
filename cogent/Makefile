@@ -35,11 +35,11 @@ stack-build:
 	$(E) "Building Cogent using stack."
 	$(Q) $(STACK) build
 
-.build:
+build:
 	$(E) "Building..."
 	$(Q) $(CABAL) new-build $(BUILD_FLAGS)
 
-.install:
+install:
 	$(E) "Installing.."
 	$(Q) $(CABAL) new-install $(INSTALL_FLAGS)
 
