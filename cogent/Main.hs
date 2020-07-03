@@ -433,6 +433,7 @@ flags =
   , Option []         ["abs-type-dir"]    1 (ReqArg set_flag_absTypeDir "PATH")            "abstract type definitions will be in $DIR/abstract/, which must exist (default=./)"
   , Option []         ["dist-dir"]        1 (ReqArg set_flag_distDir "PATH")               "specify path to all output files (default=./)"
   , Option []         ["fake-header-dir"] 1 (ReqArg set_flag_fakeHeaderDir "PATH")         "specify path to fake c header files"
+  , Option ['I']      ["include"]         1 (ReqArg add_flag_include "PATH")               "specify directories to search for included cogent files"
   , Option []         ["root-dir"]        1 (ReqArg set_flag_rootDir "PATH")               "specify path to top-level directory (for imports in theory files only, default=./)"
   -- config and other output files
   , Option []         ["arch"]           2 (ReqArg set_flag_arch "ARCH")                   "set the target architecture; ARCH could be one of arm32 (default), x86_64, x86"
@@ -620,7 +621,7 @@ parseArgs args = case getOpt' Permute options args of
     parse cmds source buildinfo log = do
       let stg = STGParse
       putProgressLn "Parsing..."
-      parseWithIncludes source [] >>= \case
+      parseWithIncludes source __cogent_include >>= \case
         Left err -> hPutStrLn stderr err >> exitFailure
         Right (parsed,pragmas) -> do
           prune <- T.forM __cogent_prune_call_graph $ return . parseEntryFuncs <=< readFile
