@@ -60,7 +60,7 @@ set_build_env()
   fi
 
   # Location of Cogent shared library
-  : ${COGENT_STD_GUM_DIR:="$SCRIPT_DIR/cogent/lib"}
+  : ${COGENT_LIBGUM_DIR:="$SCRIPT_DIR/cogent/lib"}
 
   # Environment variable for running AutoCorres
   : ${L4V_ARCH:="ARM"}

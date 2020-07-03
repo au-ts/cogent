@@ -26,9 +26,9 @@ PROOF_ID=Ext2
 # GCC version
 GCCVER:=$(shell gcc -dumpversion)
 # Standard Gum Directory
-STDGUM:=$(COGENT_STD_GUM_DIR)
-ifeq ($(STDGUM),)
-STDGUM:=$(shell cogent --stdgum-dir)
+LIBGUM:=$(COGENT_LIBGUM_DIR)
+ifeq ($(LIBGUM),)
+LIBGUM:=$(shell cogent --libgum-dir)
 endif
 
 COGENT_SOURCES := $(addprefix src/,\
@@ -49,9 +49,9 @@ C_SOURCES := $(addprefix plat/linux/, \
 		wrapper.h)
 
 # ADT headers required by Ext2fs
-AHFILES=$(wildcard $(STDGUM)/gum/anti/abstract/*.ah)
+AHFILES=$(wildcard $(LIBGUM)/gum/anti/abstract/*.ah)
 # ADT C files required by Ext2fs
-LINUX_ACFILES=$(addprefix $(STDGUM)/gum/anti/, \
+LINUX_ACFILES=$(addprefix $(LIBGUM)/gum/anti/, \
 	common.ac \
 	wordarray.ac \
 	uarray.ac \
@@ -64,7 +64,7 @@ LINUX_ACFILES=$(addprefix $(STDGUM)/gum/anti/, \
 	dls.ac) \
 	plat/linux/wrapper.ac
 
-COGENT_GUM := $(wildcard $(STDGUM)/gum/*/*.cogent $(STDGUM)/gum/kernel/linux/*.cogent)
+COGENT_GUM := $(wildcard $(LIBGUM)/gum/*/*.cogent $(LIBGUM)/gum/kernel/linux/*.cogent)
 
 # ADT C files required by verification
 VERIF_ACFILES=plat/verification/wrapper.ac
@@ -85,7 +85,7 @@ endif
 # flags to ignores COGENT's compiler messy C code gen
 EXTRA_CFLAGS	+= -O2 -Wno-parentheses -Wno-declaration-after-statement -Wno-unused-variable -Wno-uninitialized
 
-CPPFLAGS.common	:= -I$(PWD) -I$(PWD)/src -I$(PWD)/lib -I$(PWD)/abstract -I$(STDGUM)
+CPPFLAGS.common	:= -I$(PWD) -I$(PWD)/src -I$(PWD)/lib -I$(PWD)/abstract -I$(LIBGUM)
 CPPFLAGS.linux	:= -I$(PWD)/plat/linux/
 CPPFLAGS.verif	:= -I$(PWD)/plat/verification/ -DVERIFICATION
 

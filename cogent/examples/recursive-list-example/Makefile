@@ -24,9 +24,9 @@ HOUTPUT=$(addsuffix .h, $(OUTPUT))
 BUILD_DIR=build
 
 # Location of Cogent stdlib
-STDGUM=$(shell cogent --stdgum-dir)
+LIBGUM=$(shell cogent --libgum-dir)
 
-ACFILES = main.ac # $(STDGUM)/lib/anti/common.ac $(STDGUM)/lib/anti/recursive_list.ac
+ACFILES = main.ac # $(LIBGUM)/lib/anti/common.ac $(LIBGUM)/lib/anti/recursive_list.ac
 
 # Preprocessed and inferred antiquoted C files
 PP      = $(ACFILES:.ac=_pp.ac)
@@ -36,7 +36,7 @@ PPINFER = $(ACFILES:.ac=_pp_inferred.c)
 OBJ     = $(PPINFER:.c=.o)
 
 # Extra flags for the C compiler
-CFLAGS=-I. -I$(STDGUM) -I$(STDGUM)/gum/anti -std=gnu99 -I$(BUILD_DIR)
+CFLAGS=-I. -I$(LIBGUM) -I$(LIBGUM)/gum/anti -std=gnu99 -I$(BUILD_DIR)
 
 # Common flags for the cogent compiler
 COGENT_FLAGS=--Wno-warn \

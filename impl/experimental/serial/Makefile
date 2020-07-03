@@ -13,7 +13,7 @@ NAME=serial
 
 SRC=serial.cogent
 
-STDGUM=$(shell cogent --stdgum-dir)
+LIBGUM=$(shell cogent --libgum-dir)
 
 ACFILES=serial.ac
 
@@ -24,7 +24,7 @@ ABSDIR=./abstract
 
 #OBJ=$(PPINFER:.c=.o)
 
-CFLAGS+=-I. -I$(STDGUM) -I$(STDGUM)/gum/anti -I ./libutils/include/ -std=gnu99
+CFLAGS+=-I. -I$(LIBGUM) -I$(LIBGUM)/gum/anti -I ./libutils/include/ -std=gnu99
 
 .PHONY: default clean gen-anti test
 .SECONDARY:

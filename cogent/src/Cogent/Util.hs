@@ -416,16 +416,16 @@ getCogentVersionWithoutGit = "Cogent version: " ++ showVersion version
 -- getStdGumDir
 getHdrsDir :: IO FilePath
 getHdrsDir = do dir <- getDataDir
-                return (dir ++ "/" ++ "include")
+                return (dir ++ "/" ++ "lib")
 
-overrideStdGumDirWith :: String -> IO FilePath
-overrideStdGumDirWith envVar = do envValue <- lookupEnv envVar
+overrideLibgumDirWith :: String -> IO FilePath
+overrideLibgumDirWith envVar = do envValue <- lookupEnv envVar
                                   maybe getHdrsDir return envValue
 
-getStdGumDir :: IO String
-getStdGumDir = addTrailingPathSeparator <$> overrideStdGumDirWith "COGENT_STD_GUM_DIR"
+getLibgumDir :: IO String
+getLibgumDir = addTrailingPathSeparator <$> overrideLibgumDirWith "COGENT_LIBGUM_DIR"
 
-getStdIncFullPath fp = do sdir <- getStdGumDir
+getStdIncFullPath fp = do sdir <- getLibgumDir
                           return (sdir </> fp)
 
 -- If the domain of some maps contains duplicate keys.

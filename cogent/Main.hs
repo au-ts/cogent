@@ -149,7 +149,7 @@ data Command = AstC
              | CRefinement  -- !
              | FunctionalCorrectness  -- !
              | QuickCheck  -- !
-             | StdGumDir
+             | LibgumDir
              | Help Verbosity
              | Version
              -- More
@@ -201,7 +201,7 @@ addCommand c = \(m',cs) -> if getMode c == m'
 getMode :: Command -> Mode
 getMode AstC = ModeAstC
 getMode (StackUsage _) = ModeStackUsage
-getMode StdGumDir = ModeAbout
+getMode LibgumDir = ModeAbout
 getMode (Help _) = ModeAbout
 getMode Version = ModeAbout
 getMode _ = ModeCompiler
@@ -211,7 +211,7 @@ ccStandalone c cs | null cs = Nothing
                   | otherwise = Just c
 
 checkConflicts :: Command -> [Command] -> Maybe String
-checkConflicts c cs | isHelp c || c == Version || c == StdGumDir || c == Interpret
+checkConflicts c cs | isHelp c || c == Version || c == LibgumDir || c == Interpret
   = fmap (("command conflicts with others: " ++) . show) $ ccStandalone c cs
 checkConflicts c cs = Nothing
 
@@ -418,7 +418,7 @@ options = [
   , Option ['A']      ["all"]             0 (NoArg All)                "[COLLECTIVE] generate everything"
   , Option ['Q']      ["quickcheck"]      1 (NoArg QuickCheck)         "[COLLECTIVE] generate QuickCheck related artifacts"
   -- info.
-  , Option []         ["stdgum-dir"]      0 (NoArg StdGumDir)          "display directory where standard gum headers are installed (can be set by COGENT_STD_GUM_DIR environment variable)"
+  , Option []         ["libgum-dir"]      0 (NoArg LibgumDir)          "display directory where libgum is installed (can be set by COGENT_LIBGUM_DIR environment variable)"
   , Option ['h','?']  ["help"]            0 (OptArg (Help . maybe 1 read) "VERBOSITY")  "display help message (VERBOSITY=0..4, default to 1)"
   , Option ['v','V']  ["version"]         0 (NoArg Version)            "show version number"
   ]
@@ -561,7 +561,7 @@ parseArgs args = case getOpt' Permute options args of
       (_,_,errs)     -> exitErr (concat errs)
 
     noFlagError :: ([Command], Flags, [String], [String]) -> IO ()
-    noFlagError ([StdGumDir],_,_,_) = getStdGumDir >>= putStrLn >> exitSuccess_
+    noFlagError ([LibgumDir],_,_,_) = getLibgumDir >>= putStrLn >> exitSuccess_
     noFlagError ([Help v],_,_,_) = putStr (usage v) >> exitSuccess_
     noFlagError ([Version],_,_,_) = putStrLn versionInfo >> exitSuccess_
     noFlagError ([Interpret],fs,_,_) = replWithState

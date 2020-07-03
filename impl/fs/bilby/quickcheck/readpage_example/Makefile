@@ -15,9 +15,9 @@ include $(ROOT_DIR)build-env.mk
 OUTPUT=readpage
 SRC=readpage.cogent
 
-STDGUM=$(COGENT_STD_GUM_DIR)
-ifeq ($(STDGUM),)
-STDGUM=$(shell cogent --stdgum-dir)
+LIBGUM=$(COGENT_LIBGUM_DIR)
+ifeq ($(LIBGUM),)
+LIBGUM=$(shell cogent --libgum-dir)
 endif
 
 # COGENT flags

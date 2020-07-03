@@ -15,10 +15,10 @@ OUTPUT=generated # $(SRC:.cogent=-gen)
 COUTPUT=$(addsuffix .c, $(OUTPUT))
 HOUTPUT=$(addsuffix .h, $(OUTPUT))
 
-STDGUM=$(shell cogent --stdgum-dir)
+LIBGUM=$(shell cogent --libgum-dir)
 # PLATLIBGUM=../plat/console/libgum
 
-AHFILES=N.ah  #$(STDGUM)/gum/anti/abstract/Array.ah
+AHFILES=N.ah  #$(LIBGUM)/gum/anti/abstract/Array.ah
 ACFILES=main.ac
 CTGFILE=ty-mapping.cfg
 
@@ -29,7 +29,7 @@ ABSDIR=./abstract
 
 OBJ=$(PPINFER:.c=.o)
 
-CFLAGS+=-I. -I$(STDGUM) -std=gnu99
+CFLAGS+=-I. -I$(LIBGUM) -std=gnu99
 
 .PHONY: default cogent clean gen-anti test
 .SECONDARY:

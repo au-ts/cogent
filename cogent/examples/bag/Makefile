@@ -15,7 +15,7 @@ OUTPUT=generated # $(SRC:.cogent=-gen)
 COUTPUT=$(addsuffix .c, $(OUTPUT))
 HOUTPUT=$(addsuffix .h, $(OUTPUT))
 
-STDGUM=$(shell cogent --stdgum-dir)
+LIBGUM=$(shell cogent --libgum-dir)
 AHFILES=list.ah
 ACFILES=main.ac
 
@@ -26,7 +26,7 @@ ABSDIR=./abstract
 
 OBJ=$(PPINFER:.c=.o)
 
-CFLAGS+=-I. -I$(STDGUM) -std=gnu99
+CFLAGS+=-I. -I$(LIBGUM) -std=gnu99
 
 .PHONY: default mk-c clean
 .SECONDARY:

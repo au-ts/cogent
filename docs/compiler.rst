@@ -39,9 +39,9 @@ influencing the compiler's behaviour as it works.
        [COLLECTIVE] generate all files needed for the functional correctness proof
    -A, --all  \
        [COLLECTIVE] generate everything
-   --stdgum-dir  \
+   --libgum-dir  \
        display directory where standard gum headers are installed
-       (can be set by COGENT_STD_GUM_DIR environment variable)
+       (can be set by COGENT_LIBGUM_DIR environment variable)
    -h, --help  \
        display help message;
        optionally including a verbosity from 0 to 4, defaulting to 1
@@ -187,9 +187,9 @@ Commands
     generate all possible outputs  (*collective*)
 -Q, --quickcheck  \
     generate QuickCheck related artifacts  (*collective*)
---stdgum-dir  \
+--libgum-dir  \
     display directory where standard gum headers are installed
-    (can be set by the ``$COGENT_STD_GUM_DIR`` environment variable)
+    (can be set by the ``$COGENT_LIBGUM_DIR`` environment variable)
 -v, -V, --version  \
     show version number
 

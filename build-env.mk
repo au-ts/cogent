@@ -24,7 +24,7 @@ ISABELLE:=$(shell source "$(BUILD_ENV_MK_DIR)"/build-env.sh; echo "$$ISABELLE")
 ISABELLE_BUILD:=$(shell source "$(BUILD_ENV_MK_DIR)"/build-env.sh; echo "$$ISABELLE_BUILD")
 
 PATH:=$(shell source "$(BUILD_ENV_MK_DIR)"/build-env.sh; echo "$$PATH")
-COGENT_STD_GUM_DIR:=$(shell source "$(BUILD_ENV_MK_DIR)"/build-env.sh; echo "$$COGENT_STD_GUM_DIR")
+COGENT_LIBGUM_DIR:=$(shell source "$(BUILD_ENV_MK_DIR)"/build-env.sh; echo "$$COGENT_LIBGUM_DIR")
 
 L4V_ARCH:=$(shell source "$(BUILD_ENV_MK_DIR)"/build-env.sh; echo "$$L4V_ARCH")
 

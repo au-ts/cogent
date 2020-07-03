@@ -13,7 +13,7 @@ NAME=file-copy
 
 SRC=FileFFI.cogent
 
-STDGUM=$(shell cogent --stdgum-dir)
+LIBGUM=$(shell cogent --libgum-dir)
 
 ACFILES=main.ac
 AHFILES=file.ah
@@ -25,7 +25,7 @@ ABSDIR=./abstract
 
 OBJ=$(PPINFER:.c=.o)
 
-CFLAGS+=-I. -I$(STDGUM) -I$(STDGUM)/gum/anti -std=gnu99 -I$(ABSDIR)
+CFLAGS+=-I. -I$(LIBGUM) -I$(LIBGUM)/gum/anti -std=gnu99 -I$(ABSDIR)
 
 .PHONY: default clean gen-anti test
 .SECONDARY:

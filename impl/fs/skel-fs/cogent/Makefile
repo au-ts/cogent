@@ -23,9 +23,9 @@ TYPES=data/types.txt
 DEFNS=data/defns.txt
 
 # Standard Gum Directory
-STDGUM=$(shell cogent --stdgum-dir)
+LIBGUM=$(shell cogent --libgum-dir)
 # ADT headers required by skel-fs
-# AHFILES=$(wildcard $(STDGUM)/gum/anti/abstract/*.ah)
+# AHFILES=$(wildcard $(LIBGUM)/gum/anti/abstract/*.ah)
 AHFILES=
 # ADT C files required by skel-fs
 LINUX_ACFILES=plat/linux/wrapper.ac
@@ -48,8 +48,8 @@ endif
 
 # flags to ignores COGENT's compiler messy C code gen
 COMMON_CFLAGS := -O2 -std=gnu99 -Wno-parentheses -Wno-declaration-after-statement -Wno-unused-variable -Wno-uninitialized
-LINUX_EXTRA_CFLAGS := -I$(PWD)/plat/linux/ -I$(PWD) -I$(PWD)/src -I$(PWD)/lib -I$(PWD)/abstract $(COMMON_CFLAGS) -I$(STDGUM)
-VERIF_EXTRA_CFLAGS := -I$(PWD)/plat/verification/ -I$(PWD) -I$(PWD)/src -I$(PWD)/lib -I$(PWD)/abstract -I$(STDGUM) $(COMMON_CFLAGS)
+LINUX_EXTRA_CFLAGS := -I$(PWD)/plat/linux/ -I$(PWD) -I$(PWD)/src -I$(PWD)/lib -I$(PWD)/abstract $(COMMON_CFLAGS) -I$(LIBGUM)
+VERIF_EXTRA_CFLAGS := -I$(PWD)/plat/verification/ -I$(PWD) -I$(PWD)/src -I$(PWD)/lib -I$(PWD)/abstract -I$(LIBGUM) $(COMMON_CFLAGS)
 
 # COGENT flags
 COGENT_FLAGS+= -Od --fno-static-inline --fno-fncall-as-macro --ffunc-purity-attr
