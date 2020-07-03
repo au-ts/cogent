@@ -54,7 +54,7 @@ set_build_env()
   }
 
   # Location of Cogent compiler (if not already defined)
-  : ${COGENT_TOOLDIR:="$SCRIPT_DIR/cogent/dist/build/cogent"}
+  : ${COGENT_TOOLDIR:="$HOME/.cabal/bin"}
   if ! type cogent >/dev/null 2>&1
   then PATH="$COGENT_TOOLDIR:$PATH"
   fi

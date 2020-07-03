@@ -23,9 +23,8 @@ bug-reports:         https://github.com/NICTA/cogent/issues
 -- copyright:
 -- category:
 build-type:          Custom
-tested-with:         GHC==8.4.1, GHC==8.4.2, GHC==8.4.3,
-                     GHC==8.4.4, GHC==8.6.1, GHC==8.6.2, GHC==8.6.3, GHC==8.6.4, GHC==8.6.5,
-                     GHC==8.8.3
+tested-with:         GHC==8.4.3, GHC==8.6.5, GHC==8.8.3
+
 
 data-files:
   static/jquery.min.js
@@ -33,75 +32,16 @@ data-files:
   static/toc.min.js
   static/logo.png
   lib/cogent-defns.h
-  lib/gum/common/allocpool.cogent
-  lib/gum/common/array.cogent
-  lib/gum/common/buffer.cogent
-  lib/gum/common/common.cogent
-  lib/gum/common/crc32.cogent
-  lib/gum/common/dls.cogent
-  lib/gum/common/iterator.cogent
-  lib/gum/common/list.cogent
-  lib/gum/common/log.cogent
-  lib/gum/common/rbt.cogent
-  lib/gum/common/uarray.cogent
-  lib/gum/common/wordarray.cogent
-  lib/gum/fs/linux/stat.cogent
-  lib/gum/fs/linux/vfs2.cogent
-  lib/gum/fs/linux/vfs.cogent
-  lib/gum/kernel/linux/bufferhead.cogent
-  lib/gum/kernel/linux/errno.cogent
-  lib/gum/kernel/linux/osbuffer.cogent
-  lib/gum/kernel/linux/os.cogent
-  lib/gum/kernel/linux/ospage.cogent
+  lib/gum/common/*.cogent
+  lib/gum/fs/linux/*.cogent
+  lib/gum/kernel/linux/*.cogent
   lib/gum/test/test.cogent
-  lib/gum/anti/array.ac
-  lib/gum/anti/buffer.ac
-  lib/gum/anti/bufferhead.ac
-  lib/gum/anti/common.ac
-  lib/gum/anti/crc32.ac
-  lib/gum/anti/dls.ac
-  lib/gum/anti/iterator.ac
-  lib/gum/anti/list.ac
-  lib/gum/anti/log.ac
-  lib/gum/anti/os.ac
-  lib/gum/anti/osbuffer.ac
-  lib/gum/anti/ospage.ac
-  lib/gum/anti/rbt.ac
-  lib/gum/anti/seq.ac
-  lib/gum/anti/uarray.ac
-  lib/gum/anti/wordarray.ac
-  lib/gum/anti/abstract/AllocPool.ah
-  lib/gum/anti/abstract/Array.ah
-  lib/gum/anti/abstract/List.ah
-  lib/gum/anti/abstract/Rbt.ah
-  lib/gum/anti/abstract/UArray.ah
-  lib/gum/anti/abstract/View.ah
-  lib/gum/anti/abstract/WordArray.ah
+  lib/gum/anti/*.ac
+  lib/gum/anti/abstract/*.ah
   lib/c/linux/abstract-defns.h
   lib/c/rbt.h
-
   isa/ROOT
-  isa/AssocLookup.thy
-  isa/CogentHelper.thy
-  isa/Cogent.thy
-  isa/Correspondence.thy
-  isa/Data.thy
-  isa/ML_Old.thy
-  isa/Mono_Tac.thy
-  isa/Mono.thy
-  isa/ProofTrace.thy
-  isa/StringMap.thy
-  isa/Subtyping.thy
-  isa/TypeTrackingSemantics.thy
-  isa/TypeTrackingTyping.thy
-  isa/UpdateSemantics.thy
-  isa/Util.thy
-  isa/ValueSemantics.thy
-  isa/shallow/Shallow_Normalisation_Tac.thy
-  isa/shallow/Shallow_Tac.thy
-  isa/shallow/Shallow.thy
-  isa/shallow/ShallowTuples.thy
-  isa/shallow/ShallowUtil.thy
+  isa/*.thy
 
 flag builtin-arrays
   description: Enable experimental arrays with SMT solving
