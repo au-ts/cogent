@@ -297,7 +297,7 @@ newtype TC (t :: Nat) (v :: Nat) b x
 
 #if MIN_VERSION_base(4,13,0)
 instance MonadFail (TC t v b) where
-  fail _ = __impossible "pattern match failed"
+  fail = __impossible
 #endif
 
 infixl 4 <||>

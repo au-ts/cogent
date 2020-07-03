@@ -257,7 +257,6 @@ typeCId t = use custTypeGen >>= \ctg ->
         CLayout -> getStrlTypeCId strlty
         _ -> __impossible "Tried to get the c-type of a record with a non-record layout"
     typeCId' (TRecord (Rec v) fs (Boxed _ l)) = do
-      strlType <- Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
       case l of
         Layout RecordLayout {} ->
           getStrlTypeCId (RecordL l)
@@ -265,9 +264,12 @@ typeCId t = use custTypeGen >>= \ctg ->
           -- Map a in-scope recursive parameter back to the ID of the 
           -- Record we're about to generate
           newId <- freshGlobalCId 't'
+          -- NOTE: Here we temporarily add @v@ to the store. The following two lines
+          -- of code have to be here. / zilinc
           recParRecordIds %= M.insert v newId
+          strlType <- Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
           res      <- lookupStrlTypeCId strlType
-          recParRecordIds %= M.delete v
+          recParRecordIds %= M.delete v  -- @v@ gets removed!
           case res of
             Nothing -> do
               getStrlTypeWithCId newId strlType
@@ -279,20 +281,12 @@ typeCId t = use custTypeGen >>= \ctg ->
       recId <- M.lookup (simplifyType $ m M.! v) <$> use recParCIds
       case recId of 
         Nothing -> do
-          Just res <- M.lookup v <$> use recParRecordIds
+          Just res <- M.lookup v <$> use recParRecordIds  -- FIXME! What about Nothing?
           recParCIds %= M.insert (simplifyType $ m M.! v) res
           return res 
         Just x ->
           return x
-    typeCId' t@(TRParBang v (Just m)) = do
-      recId <- M.lookup (simplifyType $ m M.! v) <$> use recParCIds
-      case recId of 
-        Nothing -> do
-          Just res <- M.lookup v <$> use recParRecordIds
-          recParCIds %= M.insert (simplifyType $ m M.! v) res
-          return res 
-        Just x -> 
-          return x
+    typeCId' (TRParBang v (Just m)) = typeCId' (TRPar v (Just m))
 
     typeCId' (TUnit) = return unitT
 #ifdef BUILTIN_ARRAYS

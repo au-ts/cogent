@@ -160,7 +160,7 @@ newtype Gen v a = Gen { runGen :: RWS (GenRead v) [CExtDecl] GenState a }
 
 #if MIN_VERSION_base(4,13,0)
 instance MonadFail (Gen v) where
-  fail _ = __impossible "pattern match failed"
+  fail = __impossible
 #endif
 
 freshLocalCId :: Char -> Gen v CId

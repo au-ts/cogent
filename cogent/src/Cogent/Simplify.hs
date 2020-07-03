@@ -83,7 +83,7 @@ newtype Occ v b x = Occ { unOcc :: State (OccEnv v b) x }
 
 #if MIN_VERSION_base(4,13,0)
 instance MonadFail (Occ v b) where
-  fail _ = __impossible "pattern match failed"
+  fail = __impossible
 #endif
 
 evalOcc :: OccEnv v b -> Occ v b x -> x
