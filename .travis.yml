@@ -112,11 +112,12 @@ deploy:
   provider: releases
   token: $GITHUB_TOKEN
   file: {$HOME/.cabal/bin/cogent}
-  draft: true
+  draft: false
+  prerelease: true
 
 
 notifications:
   slack:
     rooms:
-      - cogent-club:${SLACK_TOKEN}#ci
+      - $SLACK_CHANNEL
 # EOF
