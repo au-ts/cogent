@@ -110,6 +110,7 @@ script:
 
 deploy:
   provider: releases
+  token: $GITHUB_TOKEN
   file: {$HOME/.cabal/bin/cogent}
   draft: true
 
@@ -117,5 +118,5 @@ deploy:
 notifications:
   slack:
     rooms:
-      - cogent-club:dUKOfdIU3BGsvalWStE0BCGG#ci
+      - cogent-club:${SLACK_TOKEN}#ci
 # EOF
