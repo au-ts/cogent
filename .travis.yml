@@ -114,10 +114,12 @@ deploy:
   file: {$HOME/.cabal/bin/cogent}
   draft: false
   prerelease: true
+  tag_name: auto-deploy
+  name: latest
+  overwrite: true
 
 
 notifications:
   slack:
-    rooms:
-      - $SLACK_CHANNEL
+    secure: M7TA9nizOnLT7TLO+T9SqAx1rZ6OiOMfYKkESONQxU5PMoLnfDy8M5Apmvxge11uEoG6hLICAzFnu/seO2wz05xl/4YVaIRM6o7QXkT3iORSOhAtKn6lk/37KbR18eRh9w0YKPuHr+KLtcS1u+PNDAxWyRehs6eEU7HjVa+tLRhekTduIhCA7ePtp4d3mLF9nIVXILrO66JTCvzxkyQwDjvAKROYC07eeGUqw2I28d1Bz3cjt4yyOspVTafWJlBHQQPk9mL5ffSFhJSh004uMii2+PPXEJ7h9tdBcgZJ0BxrrfK+gqXe1USfmTlU9DfSWVzECrew6USXiIY7saqOi8Qr29QhEMViIOzS6NdQwQoxzbpmxejfMLRvP8jP1gJcggaayGo5SNwF/3WivFbixun1SxMEy/Kt6Yy0VJuuD6FQsCwE5cnPu8zMDK6kzYV0O2aCPGCTQkPr16aB4x4ofasapTCdSc8eodmdk8SWPf4n5CF8QXwKkCAM2GwiMo8xbsckYgXJJvoPdGaeOYihTyvsPg0kag8GWFZFI/zQC+IB5ou0ZLqfeojkRX1mc7YF8vjKRZK1hjJA2AafOc1/hheu/aDtCquhdF7fALpJuy4groX4MpESLSs2vmBxhnTW0QYt3htcCxz335RGNuBZKXt9xJOxtsolfDZUtcZGyJ0=
 # EOF
