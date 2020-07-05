@@ -117,7 +117,8 @@ deploy:
   tag_name: auto-deploy
   name: latest
   overwrite: true
-
+  on:
+    condition: $GHCVER = 8.8.3
 
 notifications:
   slack:
