@@ -115,7 +115,6 @@ deploy:
   provider: releases
   edge: true
   token: $GITHUB_TOKEN
-  script: skip
   skip_cleanup: true
   file: {$HOME/.cabal/bin/cogent}
   draft: false
