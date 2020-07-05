@@ -120,7 +120,6 @@ deploy:
   draft: false
   prerelease: true
   tag_name: auto-deploy-$TRAVIS_BUILD_ID
-  tags: true
   name: latest
   overwrite: true
   on:
