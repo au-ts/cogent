@@ -11,6 +11,7 @@ git:
 
 branches:
   except:
+  - array
 
 # addons:
 #   apt:
@@ -87,45 +88,42 @@ install:
    fi
  - which z3 || travis_terminate 1
 
+# Here starts the actual work to be performed for the package under test;
+# any command which exits with a non-zero exit code causes the build to fail.
+script:
+ - cd $REPO/cogent
+ - cabal new-test test-quickcheck  # the other test is rarely affacted, so not enabled / zilinc
+ # - cabal check
+ - cabal new-haddock
+ # Check if Cogent has been correctly installed
+ - which cogent || travis_terminate 1
+ # - echo 'Running tests'
+ - make test-compiler
+ # - echo 'Typechecking libgum'
+ - make test-libgum
+ # - echo 'Building Cogent examples'
+ - make examples
+ # - echo 'Generating ext2fs C code from Cogent'
+ - cd $REPO/impl/fs/ext2/cogent && travis_wait make .c-gen
+ # - echo 'Generating BilbyFs C code from Cogent'
+ - cd $REPO/impl/fs/bilby/cogent && travis_wait make .c-gen
+
 # before_deploy:
 #   git fetch --tags
 
-
-jobs:
-  include:
-    - stage: test
-    # Here starts the actual work to be performed for the package under test;
-    # any command which exits with a non-zero exit code causes the build to fail.
-    script:
-     - cd $REPO/cogent
-     - cabal new-test test-quickcheck  # the other test is rarely affacted, so not enabled / zilinc
-     # - cabal check
-     - cabal new-haddock
-     # Check if Cogent has been correctly installed
-     - which cogent || travis_terminate 1
-     # - echo 'Running tests'
-     - make test-compiler
-     # - echo 'Typechecking libgum'
-     - make test-libgum
-     # - echo 'Building Cogent examples'
-     - make examples
-     # - echo 'Generating ext2fs C code from Cogent'
-     - cd $REPO/impl/fs/ext2/cogent && travis_wait make .c-gen
-     # - echo 'Generating BilbyFs C code from Cogent'
-     - cd $REPO/impl/fs/bilby/cogent && travis_wait make .c-gen
-
-    - stage: deploy
-    provider: releases
-    token: $GITHUB_TOKEN
-    skip_cleanup: true
-    file: {$HOME/.cabal/bin/cogent}
-    draft: false
-    prerelease: true
-    tag_name: auto-deploy-$TRAVIS_BUILD_NUMBER
-    name: latest
-    overwrite: true
-    on:
-      condition: $GHCVER = 8.8.3
+deploy:
+  provider: releases
+  token: $GITHUB_TOKEN
+  script: skip
+  skip_cleanup: true
+  file: {$HOME/.cabal/bin/cogent}
+  draft: false
+  prerelease: true
+  tag_name: auto-deploy-$TRAVIS_BUILD_ID
+  name: latest
+  overwrite: true
+  on:
+    condition: $GHCVER = 8.8.3
 
 notifications:
   slack:
