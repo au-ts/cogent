@@ -11,7 +11,7 @@ git:
 
 branches:
   except:
-  - array
+  - /^auto-deploy-.*$/
 
 # addons:
 #   apt:
@@ -70,7 +70,7 @@ install:
  - "sed -i 's/^jobs:.*$/jobs: 2/' $HOME/.cabal/config"
  # - sed -i 's/^jobs:/ jobs:/' ${HOME}/.cabal/config
 
- - travis_wait 50 cabal new-install --flags="+builtin-arrays +haskell-backend +docgent" --installdir=$HOME/.cabal/bin --overwrite-policy=always;  # --enable-tests;
+ - travis_wait 50 cabal new-install --flags="+builtin-arrays +haskell-backend +docgent" --install-method=copy --installdir=$HOME/.cabal/bin --overwrite-policy=always;  # --enable-tests;
 
 # Install z3
  - cd $REPO
@@ -116,11 +116,12 @@ deploy:
   edge: true
   token: $GITHUB_TOKEN
   skip_cleanup: true
-  file: {$HOME/.cabal/bin/cogent}
+  file_glob: false
+  file: $HOME/.cabal/bin/cogent
   draft: false
   prerelease: true
   tag_name: auto-deploy-$TRAVIS_BUILD_ID
-  name: latest
+  name: "Cogent Compiler (${TRAVIS_BUILD_ID})"
   overwrite: true
   on:
     condition: $GHCVER = 8.8.3
