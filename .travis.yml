@@ -108,13 +108,17 @@ script:
  # - echo 'Generating BilbyFs C code from Cogent'
  - cd $REPO/impl/fs/bilby/cogent && travis_wait make .c-gen
 
+# before_deploy:
+#   git fetch --tags
+
 deploy:
   provider: releases
   token: $GITHUB_TOKEN
+  skip_cleanup: true
   file: {$HOME/.cabal/bin/cogent}
   draft: false
   prerelease: true
-  tag_name: auto-deploy
+  tag_name: auto-deploy-$TRAVIS_BUILD_ID
   name: latest
   overwrite: true
   on:
