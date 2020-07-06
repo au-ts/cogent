@@ -8,6 +8,7 @@ begin
 
 context WordArray begin
 
+section "Monomorphising Functions Assumption"
 
 lemma value_sem_rename_mono_prog_rename_\<Xi>_\<xi>m_\<xi>p: 
   "value_sem.rename_mono_prog abs_typing_v rename \<Xi> \<xi>m \<xi>p"
@@ -51,14 +52,13 @@ lemma val_proc_env_matches_\<xi>m_\<Xi>:
   apply (clarsimp simp: wordarray_put2_0_type_def abbreviatedType5_def val_wa_put2_0_def)
   apply (erule val.v_t_recordE)
   apply (erule val.v_t_r_consE; clarsimp)
-   apply (erule val.v_t_abstractE)
-  apply (rule val.v_t_abstract)
+  apply (erule val.v_t_abstractE)
+  apply (rule val.v_t_abstract; clarsimp)
    apply (clarsimp simp: abs_typing_v_def)
    apply (erule_tac x = i in allE; clarsimp)
    apply (case_tac "i = unat idx")
     apply (rule_tac x = val in exI; simp)
    apply (rule_tac x = x in exI; simp)
-  apply simp
   done
 
 lemma proc_env_u_v_matches_\<xi>0_\<xi>m_\<Xi>:

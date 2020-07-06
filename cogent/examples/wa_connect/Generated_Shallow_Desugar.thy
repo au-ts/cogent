@@ -180,7 +180,7 @@ where
 definition
   mul_arr :: "32 word WordArray \<Rightarrow> 32 word"
 where
-  "mul_arr ds\<^sub>0 \<equiv> HOL.Let ds\<^sub>0 (\<lambda>wa. HOL.Let (wordarray_length_u32 wa) (\<lambda>e. HOL.Let (WordArrayMapP.make wa (0 :: 32 word) e mul (0 :: 32 word) ()) (\<lambda>arg. wordarray_fold_no_break arg)))"
+  "mul_arr ds\<^sub>0 \<equiv> HOL.Let ds\<^sub>0 (\<lambda>wa. HOL.Let (wordarray_length wa) (\<lambda>e. HOL.Let (WordArrayMapP.make wa (0 :: 32 word) e mul (0 :: 32 word) ()) (\<lambda>arg. wordarray_fold_no_break arg)))"
 
 definition
   sum :: "(32 word, 32 word, unit) ElemAO \<Rightarrow> 32 word"
@@ -190,6 +190,6 @@ where
 definition
   sum_arr :: "32 word WordArray \<Rightarrow> 32 word"
 where
-  "sum_arr ds\<^sub>0 \<equiv> HOL.Let ds\<^sub>0 (\<lambda>wa. HOL.Let (wordarray_length_u32 wa) (\<lambda>e. HOL.Let (WordArrayMapP.make wa (0 :: 32 word) e sum (0 :: 32 word) ()) (\<lambda>arg. wordarray_fold_no_break arg)))"
+  "sum_arr ds\<^sub>0 \<equiv> HOL.Let ds\<^sub>0 (\<lambda>wa. HOL.Let (wordarray_length wa) (\<lambda>e. HOL.Let (WordArrayMapP.make wa (0 :: 32 word) e sum (0 :: 32 word) ()) (\<lambda>arg. wordarray_fold_no_break arg)))"
 
 end

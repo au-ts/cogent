@@ -293,7 +293,7 @@ theorem shallow_C_wordarray_get_corres:
      apply (rule v_sem_afun)
     apply (rule v_sem_var)
    apply (clarsimp simp: val_wa_get_0_def abs_upd_val'_def)
-  apply (erule_tac x = "t1_C.p2_C uv\<^sub>C" in allE; clarsimp simp: word_less_nat_alt)
+   apply (erule_tac x = "t1_C.p2_C uv\<^sub>C" in allE; clarsimp simp: word_less_nat_alt)
   apply (subst val_rel_shallow_C_def)
   apply (rule_tac x = "TPrim (Num U32)" in exI)
   apply (rule_tac x = "{}" in exI)+

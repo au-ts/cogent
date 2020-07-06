@@ -328,7 +328,7 @@ static inline u32 mul(t3 a1)
 static inline u32 mul_arr(WordArray_u32 *a1)
 {
     WordArray_u32 *r2 = a1;
-    u32 r3 = wordarray_length_u32(r2);
+    u32 r3 = wordarray_length_0(r2);
     u32 r4 = 0U;
     t4 r5 = FUN_ENUM_mul;
     u32 r6 = 0U;
@@ -351,7 +351,7 @@ static inline u32 sum(t3 a1)
 static inline u32 sum_arr(WordArray_u32 *a1)
 {
     WordArray_u32 *r2 = a1;
-    u32 r3 = wordarray_length_u32(r2);
+    u32 r3 = wordarray_length_0(r2);
     u32 r4 = 0U;
     t4 r5 = FUN_ENUM_sum;
     u32 r6 = 0U;

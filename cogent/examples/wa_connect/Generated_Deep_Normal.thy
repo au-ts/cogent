@@ -708,7 +708,7 @@ where
 definition
   mul_arr :: "string Cogent.expr"
 where
-  "mul_arr \<equiv> Let (Var 0) (Let (App (Fun wordarray_length_u32 []) (Var 0)) (Let (Lit (LU32 0)) (Let (Fun mul []) (Let (Lit (LU32 0)) (Let Unit (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), TPrim (Num U32), TPrim (Num U32), TFun abbreviatedType1 (TPrim (Num U32)), TPrim (Num U32), TUnit] [Var 5, Var 3, Var 4, Var 2, Var 1, Var 0]) (App (AFun ''wordarray_fold_no_break'' [TPrim (Num U32), TPrim (Num U32), TUnit]) (Var 0))))))))"
+  "mul_arr \<equiv> Let (Var 0) (Let (App (AFun ''wordarray_length'' [TPrim (Num U32)]) (Var 0)) (Let (Lit (LU32 0)) (Let (Fun mul []) (Let (Lit (LU32 0)) (Let Unit (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), TPrim (Num U32), TPrim (Num U32), TFun abbreviatedType1 (TPrim (Num U32)), TPrim (Num U32), TUnit] [Var 5, Var 3, Var 4, Var 2, Var 1, Var 0]) (App (AFun ''wordarray_fold_no_break'' [TPrim (Num U32), TPrim (Num U32), TUnit]) (Var 0))))))))"
 
 definition
   sum_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
@@ -728,7 +728,7 @@ where
 definition
   sum_arr :: "string Cogent.expr"
 where
-  "sum_arr \<equiv> Let (Var 0) (Let (App (Fun wordarray_length_u32 []) (Var 0)) (Let (Lit (LU32 0)) (Let (Fun sum []) (Let (Lit (LU32 0)) (Let Unit (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), TPrim (Num U32), TPrim (Num U32), TFun abbreviatedType1 (TPrim (Num U32)), TPrim (Num U32), TUnit] [Var 5, Var 3, Var 4, Var 2, Var 1, Var 0]) (App (AFun ''wordarray_fold_no_break'' [TPrim (Num U32), TPrim (Num U32), TUnit]) (Var 0))))))))"
+  "sum_arr \<equiv> Let (Var 0) (Let (App (AFun ''wordarray_length'' [TPrim (Num U32)]) (Var 0)) (Let (Lit (LU32 0)) (Let (Fun sum []) (Let (Lit (LU32 0)) (Let Unit (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), TPrim (Num U32), TPrim (Num U32), TFun abbreviatedType1 (TPrim (Num U32)), TPrim (Num U32), TUnit] [Var 5, Var 3, Var 4, Var 2, Var 1, Var 0]) (App (AFun ''wordarray_fold_no_break'' [TPrim (Num U32), TPrim (Num U32), TUnit]) (Var 0))))))))"
 
 ML \<open>
 val Cogent_functions = ["snd", "second", "min_u64", "min_u32", "max_u64", "max_u32", "in_range_u32", "fst", "first", "drop", "cogent_low_16_bits", "cogent_high_16_bits", "align64", "align32", "wordarray_get_u32", "wordarray_length_u32", "wordarray_put2_u32", "wordarray_free'", "error", "safe_add32", "safe_add64", "safe_sub32", "safe_sub64", "success", "wordarray_clone", "wordarray_get_bounded", "optionToResult", "resultToOption", "copy_n", "dec", "dec_arr", "inc", "inc_arr", "mul", "mul_arr", "sum", "sum_arr"]

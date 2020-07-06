@@ -49,11 +49,11 @@ dec_arr wa = let end = wordarray_length wa !wa and
 ---- For fold_no_break
 
 sum_arr : (WordArray U32)! -> U32
-sum_arr wa = let e = wordarray_length_u32 wa and
+sum_arr wa = let e = wordarray_length wa and
              arg = #{arr = wa, frm = 0, to = e, f = sum, acc = 0, obsv = ()}
          in wordarray_fold_no_break arg
 
 mul_arr : (WordArray U32)! -> U32
-mul_arr wa = let e = wordarray_length_u32 wa and
+mul_arr wa = let e = wordarray_length wa and
              arg = #{arr = wa, frm = 0, to = e, f = mul, acc = 0, obsv = ()}
          in wordarray_fold_no_break arg

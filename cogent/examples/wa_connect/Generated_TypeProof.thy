@@ -159,7 +159,7 @@ where
 definition
   mul_arr :: "string Cogent.expr"
 where
-  "mul_arr \<equiv> Let (Var 0) (Let (App (Fun wordarray_length_u32 []) (Var 0)) (Let (Lit (LU32 0)) (Let (Fun mul []) (Let (Lit (LU32 0)) (Let Unit (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), TPrim (Num U32), TPrim (Num U32), TFun abbreviatedType1 (TPrim (Num U32)), TPrim (Num U32), TUnit] [Var 5, Var 3, Var 4, Var 2, Var 1, Var 0]) (App (AFun ''wordarray_fold_no_break_0'' []) (Var 0))))))))"
+  "mul_arr \<equiv> Let (Var 0) (Let (App (AFun ''wordarray_length_0'' []) (Var 0)) (Let (Lit (LU32 0)) (Let (Fun mul []) (Let (Lit (LU32 0)) (Let Unit (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), TPrim (Num U32), TPrim (Num U32), TFun abbreviatedType1 (TPrim (Num U32)), TPrim (Num U32), TUnit] [Var 5, Var 3, Var 4, Var 2, Var 1, Var 0]) (App (AFun ''wordarray_fold_no_break_0'' []) (Var 0))))))))"
 
 definition
   sum_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
@@ -179,7 +179,7 @@ where
 definition
   sum_arr :: "string Cogent.expr"
 where
-  "sum_arr \<equiv> Let (Var 0) (Let (App (Fun wordarray_length_u32 []) (Var 0)) (Let (Lit (LU32 0)) (Let (Fun sum []) (Let (Lit (LU32 0)) (Let Unit (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), TPrim (Num U32), TPrim (Num U32), TFun abbreviatedType1 (TPrim (Num U32)), TPrim (Num U32), TUnit] [Var 5, Var 3, Var 4, Var 2, Var 1, Var 0]) (App (AFun ''wordarray_fold_no_break_0'' []) (Var 0))))))))"
+  "sum_arr \<equiv> Let (Var 0) (Let (App (AFun ''wordarray_length_0'' []) (Var 0)) (Let (Lit (LU32 0)) (Let (Fun sum []) (Let (Lit (LU32 0)) (Let Unit (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), TPrim (Num U32), TPrim (Num U32), TFun abbreviatedType1 (TPrim (Num U32)), TPrim (Num U32), TUnit] [Var 5, Var 3, Var 4, Var 2, Var 1, Var 0]) (App (AFun ''wordarray_fold_no_break_0'' []) (Var 0))))))))"
 
 ML \<open>
 val Cogent_functions = ["wordarray_get_u32", "wordarray_length_u32", "wordarray_put2_u32", "dec", "dec_arr", "inc", "inc_arr", "mul", "mul_arr", "sum", "sum_arr"]
@@ -980,7 +980,7 @@ StepDown,
 StepDown,
 Val (KindingTacs [(RTac @{thm typing_helper_12})]),
 StepUp,
-Val (TypingTacs [(RTac @{thm typing_app}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_6})],NONE]),(RTac @{thm typing_fun'}),(RTac @{thm wordarray_length_u32_typecorrect[simplified wordarray_length_u32_type_def wordarray_length_u32_typetree_def abbreviated_type_defs, simplified]}),(RTac @{thm typing_helper_3}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_6}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_5}]),(SimpSolveTac ([],[]))]),
+Val (TypingTacs [(RTac @{thm typing_app}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_6})],NONE]),(RTac @{thm typing_afun'}),(SimpTac ([@{thm \<Xi>_def},@{thm wordarray_length_0_type_def[unfolded abbreviated_type_defs]}],[])),(RTac @{thm typing_helper_3}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_7}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_5}]),(SimpSolveTac ([],[]))]),
 StepDown,
 StepDown,
 Val (KindingTacs [(RTac @{thm typing_helper_12})]),
@@ -1086,7 +1086,7 @@ StepDown,
 StepDown,
 Val (KindingTacs [(RTac @{thm typing_helper_12})]),
 StepUp,
-Val (TypingTacs [(RTac @{thm typing_app}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_6})],NONE]),(RTac @{thm typing_fun'}),(RTac @{thm wordarray_length_u32_typecorrect[simplified wordarray_length_u32_type_def wordarray_length_u32_typetree_def abbreviated_type_defs, simplified]}),(RTac @{thm typing_helper_3}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_6}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_5}]),(SimpSolveTac ([],[]))]),
+Val (TypingTacs [(RTac @{thm typing_app}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_6})],NONE]),(RTac @{thm typing_afun'}),(SimpTac ([@{thm \<Xi>_def},@{thm wordarray_length_0_type_def[unfolded abbreviated_type_defs]}],[])),(RTac @{thm typing_helper_3}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_7}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_5}]),(SimpSolveTac ([],[]))]),
 StepDown,
 StepDown,
 Val (KindingTacs [(RTac @{thm typing_helper_12})]),
