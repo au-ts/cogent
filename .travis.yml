@@ -1,8 +1,9 @@
 language: python
 python:
   - "3.7"
-sudo: required
+# sudo: required
 dist: xenial
+os: linux
 
 group: edge
 
@@ -32,7 +33,7 @@ env:
     - REPO=$TRAVIS_BUILD_DIR
     - TRAVIS_BUILD_APT_RETRIES_PERCENTAGE=100
 
-matrix:
+jobs:
   include:
     - env: CABALVER=3.0 GHCVER=8.8.3
       compiler: "ghc-8.6.5"
@@ -111,13 +112,18 @@ script:
 before_deploy:
   - git fetch --tags
   - git remote add origin-tmp https://${GITHUB_TOKEN}@github.com/NICTA/cogent.git
-  - git push origin-tmp :refs/tags/$(git tag -l "auto-deploy-*")
+  # I don't dare to use `git push --delete [ref ..] as it's too risky
+  - |
+    for tag in $(git tag -l "auto-deploy-*")
+    do
+      git push origin-tmp :refs/tags/$tag
+    done
 
 deploy:
   provider: releases
   edge: true
   token: $GITHUB_TOKEN
-  skip_cleanup: true
+  cleanup: false
   file_glob: false
   file: $HOME/.cabal/bin/cogent
   draft: false
