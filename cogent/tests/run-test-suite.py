@@ -326,7 +326,7 @@ class Test:
                 except KeyError:
                     phasename = "cogent"
                 
-                if phasename == "cogent":
+                if phasename == "cogent" and phasename not in context.ignore_phases:
                     results.append( self.run_cogent(context, f, test) )
 
                 elif context.phases is None or phasename in context.ignore_phases:
@@ -408,7 +408,7 @@ def main():
     ap.add_argument("--extra-phases", "-p",
                     dest="phase_dir",
                     default=None,
-                    help="override the location of the additional phase directory")
+                    help="set the location of the additional phase directory")
     ap.add_argument("--ignore-phases",
                     dest="ignore_phases",
                     action="store",
@@ -417,7 +417,7 @@ def main():
                     help="ignore the tests for the specified phases")
     ap.add_argument("--repo",
                     dest="repo",
-                    help="test a particular repository")
+                    help="set the location of the repository root")
     ap.add_argument("--cogent",
                     dest="cogent",
                     default="cogent",

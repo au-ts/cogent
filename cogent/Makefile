@@ -94,6 +94,12 @@ test-compiler: test-clean .test-cogent
 	# test-hs \
 	# test-quickcheck
 
+test-compiler-proofs: test-clean .test-cogent
+	./tests/run-test-suite.py --repo "$(PWD)/../" \
+		--extra-phases "$(PWD)/tests/phases/" \
+		--repo "$(PWD)/../" \
+		--ignore-phases "cogent"
+
 test-quickcheck:
 	$(Q) $(CABAL) test test-quickcheck
 
@@ -212,6 +218,9 @@ help:
 	$(E) ""
 	$(E) "* make test-compiler"
 	$(E) "  Run all compiler tests (excl. Isabelle proofs)."
+	$(E) ""
+	$(E) "* make test-compiler-proofs"
+	$(E) "  Only run compiler Isabelle proof tests."
 	$(E) ""
 	$(E) "* make test-clean"
 	$(E) "  Cleanup artefacts from earlier test runs."
