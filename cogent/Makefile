@@ -20,7 +20,7 @@ PASS_TEST_COGENT_FILES := $(wildcard tests/pass_*.cogent)
 FAIL_TEST_COGENT_FILES := $(wildcard tests/fail_*.cogent)
 DUMMY_HEADER_FILES := $(addprefix tests/include/,$(notdir $(PASS_TEST_COGENT_FILES:.cogent=_dummy.h)))
 
-all: .cabal-update .install
+all: .cabal-update install
 	$(E) "Cogent Compiler successfully built for $(OS)."
 	$(E)
 	$(E) "Add the installed 'cogent' executable to your path."
@@ -72,7 +72,7 @@ dev: .cabal-update .build
 
 local: .cabal-update
 	$(E) "Installing cogent locally"
-	$(Q) $(CABAL) new-install --installdir=$(PWD)/build/bin/
+	$(Q) $(CABAL) new-install --overwrite-policy=always --installdir=$(PWD)/build/bin/
 
 # There's a sed script that does a very similar thing in scripts/cogent_validate.sh, and for some reason they're both necessary.
 tests/include/%_dummy.h: tests/%.cogent
