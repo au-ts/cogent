@@ -122,8 +122,8 @@ deploy:
   file: $HOME/.cabal/bin/cogent
   draft: false
   prerelease: true
-  tag_name: auto-deploy-$TRAVIS_BUILD_ID
-  name: "Cogent Compiler (${TRAVIS_BUILD_ID})"
+  tag_name: auto-deploy-$TRAVIS_BUILD_NUMBER
+  name: "Cogent Compiler (${TRAVIS_BUILD_NUMBER})"
   overwrite: true
   on:
     condition: $GHCVER = 8.8.3
