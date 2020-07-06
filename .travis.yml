@@ -108,8 +108,10 @@ script:
  # - echo 'Generating BilbyFs C code from Cogent'
  - cd $REPO/impl/fs/bilby/cogent && travis_wait make .c-gen
 
-# before_deploy:
-#   git fetch --tags
+before_deploy:
+  git fetch --tags
+  git remote add origin-tmp https://${GITHUB_TOKEN}@github.com/NICTA/cogent.git
+  git push origin-tmp :refs/tags/$(git tag -l "auto-deploy-*")
 
 deploy:
   provider: releases
