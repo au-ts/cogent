@@ -110,6 +110,10 @@ isTRecord :: Type t b -> Bool
 isTRecord (TRecord {}) = True
 isTRecord _ = False
 
+recordHasLayout :: Type t b -> Bool
+recordHasLayout (TRecord _ _ (Boxed _ Layout{})) = True
+recordHasLayout _ = False
+
 -- ASSUME: input in a record type
 recordFields :: Type t b -> [FieldName]
 recordFields (TRecord _ fs _) = map fst fs

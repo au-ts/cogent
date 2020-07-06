@@ -957,7 +957,7 @@ compile defs mcache ctygen =
                       -> [(CId, CC.Type 'Zero VarName)]
                       -> [(CId, CC.Type 'Zero VarName, [(Maybe FunName, Maybe FunName)])]
         updateWithGSs st typeCorres = for typeCorres $ \(cid,t) ->
-          let gss = if not (isTRecord t) then []
+          let gss = if not (isTRecord t && recordHasLayout t) then []
                       else -- FIXME: only generate getter/setters for records for now / zilinc
                            let recordGetters = M.toList $ st^.boxedRecordGetters
                                recordSetters = M.toList $ st^.boxedRecordSetters
