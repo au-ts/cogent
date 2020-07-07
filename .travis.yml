@@ -136,6 +136,7 @@ deploy:
 
 after_deploy:
   - cd $REPO
+  - gem install octokit
   - ruby post-deploy.rb
 
 notifications:
