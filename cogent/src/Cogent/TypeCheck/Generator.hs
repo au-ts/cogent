@@ -413,10 +413,9 @@ cg' (ArrayIndex e i) t = do
   alpha <- freshTVar        -- element type
   n <- freshEVar (T u32)    -- length
   s <- freshVar             -- sigil
-  idx <- freshEVar (T u32)  -- index
   h <- freshVar             -- hole
-  let ta = A alpha n (Right s) (Left $ Just idx)  -- this is the biggest type 'e' can ever have -- with a hole
-                                                  -- at a location other than 'i'
+  let ta = A alpha n (Right s) (Left Nothing)  -- this is the biggest type 'e' can ever have -- without a hole
+                                               -- at a location other than 'i'
       ta' = A alpha n (Right s) (Right h)
   (ce, e') <- cg e ta'
   (ci, i') <- cg i (T u32)
@@ -424,8 +423,6 @@ cg' (ArrayIndex e i) t = do
         <> ta' :< ta
         <> Share ta UsedInArrayIndexing
         <> Arith (SE (T bool) (PrimOp "<"  [toTCSExpr i', n  ]))
-        <> Arith (SE (T bool) (PrimOp "<"  [idx         , n  ]))
-        <> Arith (SE (T bool) (PrimOp "/=" [toTCSExpr i', idx]))
         -- <> Arith (SE (PrimOp ">=" [toSExpr i, SE (IntLit 0)]))  -- as we don't have negative values
   traceTc "gen" (text "array indexing" <> colon
                  L.<$> text "index is" <+> pretty (stripLocE i) <> semi

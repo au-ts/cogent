@@ -165,6 +165,7 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
     , cs <- M.intersectionWith (,) ls rs
     , M.null $ M.difference rs cs
     -> hoistMaybe $ Just $ (\(e,(t,_)) -> e :~ toBoxedType t) <$> M.elems cs
+  TLRecord _     :~ R _ _ (Left Unboxed) -> hoistMaybe $ Just []
   TLRecord _     :~ R _ _ (Right _) -> __todo "TLRecord fs :~ R r1 (Right n) => is this possible?"
 
   TLVariant _ fs :~ V r
@@ -417,6 +418,7 @@ isBoxedType (R _ _ (Left (Boxed _ _))) = True
 #ifdef BUILTIN_ARRAYS
 isBoxedType (A _ _ (Left (Boxed _ _)) _) = True
 #endif
+isBoxedType (T (TCon _ _ (Boxed {}))) = True
 isBoxedType _ = False
 
 toBoxedType :: TCType -> TCType
