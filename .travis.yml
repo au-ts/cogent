@@ -110,14 +110,14 @@ script:
  - cd $REPO/impl/fs/bilby/cogent && travis_wait make .c-gen
 
 before_deploy:
-  - git fetch --tags
-  - git remote add origin-tmp https://${GITHUB_TOKEN}@github.com/NICTA/cogent.git
-  # I don't dare to use `git push --delete [ref ..] as it's too risky
-  - |
-    for tag in $(git tag -l "auto-deploy-*")
-    do
-      git push origin-tmp :refs/tags/$tag
-    done
+  # - git fetch --tags
+  # - git remote add origin-tmp https://${GITHUB_TOKEN}@github.com/NICTA/cogent.git
+  # # I don't dare to use `git push --delete [ref ..] as it's too risky
+  # - |
+  #   for tag in $(git tag -l "auto-deploy-*")
+  #   do
+  #     git push origin-tmp :refs/tags/$tag
+  #   done
 
 deploy:
   provider: releases
@@ -133,6 +133,9 @@ deploy:
   overwrite: true
   on:
     condition: $GHCVER = 8.8.3
+
+after_deploy:
+  - ruby post-deploy.rb
 
 notifications:
   slack:
