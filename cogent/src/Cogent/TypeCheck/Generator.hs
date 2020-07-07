@@ -395,7 +395,6 @@ cg' (ArrayIndex e i) t = do
   alpha <- freshTVar        -- element type
   n <- freshEVar (T u32)    -- length
   s <- freshVar             -- sigil
-  idx <- freshEVar (T u32)  -- index
   h <- freshVar             -- hole
   let -- XXX | ta = A alpha n (Right s) (Left $ Just idx)  -- this is the biggest type 'e' can ever have -- with a hole
       -- XXX |                                             -- at a location other than 'i'

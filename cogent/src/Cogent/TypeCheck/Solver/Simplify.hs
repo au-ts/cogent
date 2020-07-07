@@ -409,6 +409,7 @@ isBoxedType (T (TCon _ _ (Boxed {}))) = True
 #ifdef BUILTIN_ARRAYS
 isBoxedType (A _ _ (Left (Boxed {})) _) = True
 #endif
+isBoxedType (T (TCon _ _ (Boxed {}))) = True
 isBoxedType _ = False
 
 primTypeSize :: TCType -> Size

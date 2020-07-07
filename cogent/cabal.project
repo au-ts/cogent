@@ -1,4 +1,4 @@
 packages: *.cabal
           ../isa-parser/*.cabal
 constraints: language-c-quote -full-haskell-antiquotes
-flags: -builtin-arrays -refinement-types -docgent -haskell-backend -llvm_backend
+flags: +builtin-arrays -refinement-types -docgent -haskell-backend -llvm_backend
