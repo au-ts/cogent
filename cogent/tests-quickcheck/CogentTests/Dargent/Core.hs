@@ -23,7 +23,7 @@ import Test.QuickCheck
 import Cogent.Common.Syntax (FieldName, TagName, RepName, Size)
 import Cogent.Dargent.Allocation
 import Cogent.Dargent.Core
--- import Cogent.Dargent.Surface
+import Cogent.Dargent.Surface (Endianness(..))
 import Cogent.Dargent.TypeCheck
 import Cogent.Dargent.Util
 
@@ -101,7 +101,7 @@ genPrimLayout
   -> Gen (DataLayout' BitRange, Allocation)
 genPrimLayout maxBitIndex maxSize alloc = do
   (range, alloc') <- genBitRange maxBitIndex maxSize alloc
-  return (PrimLayout range, alloc')
+  return (PrimLayout range ME, alloc')
 
 genSumLayout
   :: Size -- max allowed allocated bit index
