@@ -19,6 +19,10 @@ u64 swap_u64(u64 v) {
   return (v << 32) | (v >> 32);
 }
 
+u8 be_u8(u8 v) {
+  return v;
+}
+
 u16 be_u16(u16 v) {
   return IS_BIG_ENDIAN ? v : swap_u16(v);
 }
@@ -29,6 +33,10 @@ u32 be_u32(u32 v) {
 
 u64 be_u64(u64 v) {
   return IS_BIG_ENDIAN ? v : swap_u64(v);
+}
+
+u8 le_u8(u8 v) {
+  return v;
 }
 
 u16 le_u16(u16 v) {
