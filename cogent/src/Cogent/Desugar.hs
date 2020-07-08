@@ -626,7 +626,7 @@ desugarLayout = (Layout <$>) . go
       DLRepRef _ _ -> __impossible "desugarLayout: TLRepRef should have been substituted out"
       DLPrim n
         | sz <- evalSize n
-        , sz > 0 -> pure $ PrimLayout (fromJust $ DA.newBitRangeBaseSize 0 sz)
+        , sz > 0 -> pure $ PrimLayout (fromJust $ DA.newBitRangeBaseSize 0 sz) ME
         | evalSize n < 0 -> __impossible "desugarLayout: TLPrim has a negative size"
         | otherwise            -> pure UnitLayout
       DLOffset e n -> do
@@ -645,13 +645,13 @@ desugarLayout = (Layout <$>) . go
       DLVariant te alts -> do
         te' <- go te
         let tr = case te' of
-                   PrimLayout range -> range
-                   UnitLayout       -> __impossible "desugarLayout: zero sized bit range for variant tag"
-                   _                -> __impossible "desugarLayout: tag layout known to be a single range"
+                   PrimLayout range _ -> range
+                   UnitLayout         -> __impossible "desugarLayout: zero sized bit range for variant tag"
+                   _                  -> __impossible "desugarLayout: tag layout known to be a single range"
             f (n,_,s,l) = (n,) . (s,) <$> go l
         alts' <- mapM f alts
         pure $ SumLayout tr (M.fromList alts')
-      DLPtr -> pure $ PrimLayout DA.pointerBitRange
+      DLPtr -> pure $ PrimLayout DA.pointerBitRange ME
 #ifdef BUILTIN_ARRAYS
       DLArray e _ -> ArrayLayout <$> go e
 #endif

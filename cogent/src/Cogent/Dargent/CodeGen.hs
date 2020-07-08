@@ -30,7 +30,7 @@ import Cogent.Compiler
   )
 import Cogent.Core (Type (..))
 import Cogent.Dargent.Allocation
-import Cogent.Dargent.Surface (Endianness(BE, LE))
+import Cogent.Dargent.Surface (Endianness(..))
 import Cogent.Dargent.Core
   ( DataLayout' (..)
   , DataLayout (..)
@@ -158,7 +158,7 @@ genBoxedGetterSetter isStruct boxType embeddedType@(TRecord _ fields Boxed{}) Pr
 genBoxedGetterSetter isStruct boxType embeddedTypeCogent@(TSum alternatives) SumLayout{tagDL, alternativesDL} path getOrSet = do
   embeddedTypeC               <- genType embeddedTypeCogent
   functionName                <- genGetterSetterName path getOrSet
-  tagGetterSetter             <- genComposedAlignedRangeGetterSetter' isStruct tagDL BE boxType unsignedIntType (path ++ ["tag"]) getOrSet -- Must add check to restrict number of alternatives to MAX_INT)
+  tagGetterSetter             <- genComposedAlignedRangeGetterSetter' isStruct tagDL ME boxType unsignedIntType (path ++ ["tag"]) getOrSet -- Must add check to restrict number of alternatives to MAX_INT)
   alternativesGettersSetters  <-
       mapM
       (\(alternativeName, (alternativeType, _)) -> do
@@ -572,18 +572,7 @@ composedAlignedRangeGetterSetter
   =
   getterSetterDecl boxType embeddedType functionName getOrSet
     -- Get statements
-    [ CBIStmt $ CReturn $ Just $ CEFnCall (variable $ endiannessConversionFunction endianness)
-      [ fromIntValue embeddedType $ snd $ foldl'
-          (\ (accumulatedBitOffset, accumulatedExpr) (range, rangeGetterFunction) ->
-            ( accumulatedBitOffset + bitSizeABR range
-            , CBinOp Or accumulatedExpr
-                ( genGetAlignedRangeAtBitOffset rangeGetterFunction accumulatedBitOffset )
-            )
-          )
-          (bitSizeABR firstRange, genGetAlignedRangeAtBitOffset firstGetterFunction 0)
-          bitRangesTail
-      ]
-    ]
+    [ getterStatement ]
 
     -- Set statements
     ( fmap
@@ -598,6 +587,20 @@ composedAlignedRangeGetterSetter
     -- If embeddedType is a boxed type, we cast valueVariable to the integer type of the correct size
     -- If it is a boolean type, we extract the boolean value
     valueExpression = toIntValue embeddedType valueVariable
+
+    getterStatement = case endianness of
+        ME -> CBIStmt $ CReturn $ Just getterStatementBody
+        _  -> CBIStmt $ CReturn $ Just $ CEFnCall (variable $ endiannessConversionFunction endianness) [getterStatementBody]
+      where
+        getterStatementBody = fromIntValue embeddedType $ snd $ foldl'
+          (\ (accumulatedBitOffset, accumulatedExpr) (range, rangeGetterFunction) ->
+            ( accumulatedBitOffset + bitSizeABR range
+            , CBinOp Or accumulatedExpr
+                ( genGetAlignedRangeAtBitOffset rangeGetterFunction accumulatedBitOffset )
+            )
+          )
+          (bitSizeABR firstRange, genGetAlignedRangeAtBitOffset firstGetterFunction 0)
+          bitRangesTail
 
     endiannessConversionFunction :: Endianness -> FunName
     endiannessConversionFunction endianness = case intTypeForType embeddedType of
@@ -626,12 +629,15 @@ composedAlignedRangeGetterSetter
     -}
     genSetAlignedRangeAtBitOffset :: FunName -> Endianness -> Integer -> Integer -> CStmt
     genSetAlignedRangeAtBitOffset setRangeFunction endianness offset size =
-      CAssignFnCall Nothing (variable setRangeFunction)
+      let expression = case endianness of
+            ME -> valueExpression
+            _  -> CEFnCall (variable $ endiannessConversionFunction endianness) [valueExpression]
+      in CAssignFnCall Nothing (variable setRangeFunction)
         [ boxVariable
         , CTypeCast
             unsignedIntType
             ( CBinOp And
-              ( CBinOp Rsh (CEFnCall (variable $ endiannessConversionFunction endianness) [valueExpression]) (unsignedIntLiteral offset) )
+              ( CBinOp Rsh expression (unsignedIntLiteral offset) )
               ( unsignedIntLiteral (sizeToMask size) )
             )
         ]
