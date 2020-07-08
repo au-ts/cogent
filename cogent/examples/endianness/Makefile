@@ -14,7 +14,7 @@ NAME=endianness
 
 SRC=Endianness.cogent
 
-STDGUM=$(shell cogent --stdgum-dir)
+LIBGUM=$(shell cogent --libgum-dir)
 PLATLIBGUM=../plat/console/libgum
 
 ACFILES=main.ac
@@ -26,7 +26,7 @@ ABSDIR=./abstract
 
 OBJ=$(PPINFER:.c=.o)
 
-CFLAGS+=-I. -I$(STDGUM) -I$(STDGUM)/gum/anti -std=gnu99
+CFLAGS+=-I. -I$(LIBGUM) -I$(LIBGUM)/gum/anti -std=gnu99
 
 .PHONY: default clean gen-anti test
 .SECONDARY:
