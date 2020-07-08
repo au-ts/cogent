@@ -137,6 +137,7 @@ deploy:
   name: "Cogent Compiler (${TRAVIS_BUILD_NUMBER})"
   overwrite: true
   on:
+    branch: master
     condition: $GHCVER = 8.8.3 && $COGENT_FLAGS = $COGENT_FULL_FEATURE
 
 after_deploy:
