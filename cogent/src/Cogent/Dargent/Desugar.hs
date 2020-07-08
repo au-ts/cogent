@@ -42,7 +42,7 @@ import Cogent.Dargent.Core
 import Cogent.Dargent.Surface       ( DataLayoutSize(Bytes, Bits, Add)
                                     , DataLayoutExpr(..)
                                     , DataLayoutExpr'(..)
-                                    , Endianness(BE, LE)
+                                    , Endianness(..)
                                     , evalSize
                                     )
 import Cogent.Dargent.Util
@@ -69,7 +69,7 @@ desugarSize = evalSize
 
 constructDataLayout' :: Show a => Type t a -> DataLayout' BitRange
 constructDataLayout' (TUnit        ) = UnitLayout
-constructDataLayout' (TPrim primInt) = (PrimLayout $ primBitRange primInt) BE
+constructDataLayout' (TPrim primInt) = (PrimLayout $ primBitRange primInt) ME
 constructDataLayout' (TSum alternatives)
   | length alternatives > 2 ^ wordSizeBits = __impossible $ "constructDataLayout' (Type check should prevent more alternatives than can fit in a word for sum types embedded in a boxed type with default layout)"
   | otherwise                              = SumLayout tagLayout alternativesLayout
@@ -89,7 +89,7 @@ constructDataLayout' (TSum alternatives)
               layout = alignOffsettable wordSizeBits minBitOffset $ constructDataLayout' coreType
           in  ((endAllocatedBits' layout, tagValue + 1), (name, (tagValue, layout)))
 
-constructDataLayout' (TRecord rp _ (Boxed {})) = PrimLayout pointerBitRange BE
+constructDataLayout' (TRecord rp _ (Boxed {})) = PrimLayout pointerBitRange ME
 constructDataLayout' (TRecord rp fields Unboxed) = RecordLayout . fromList . snd $ mapAccumL go 0 fields
   where
     go :: Show a => Size -> (FieldName, (Type t a, Bool)) -> (Size, (FieldName, DataLayout' BitRange))
@@ -99,8 +99,8 @@ constructDataLayout' (TRecord rp fields Unboxed) = RecordLayout . fromList . snd
 
     -- Equations for boxed embedded types
     go' :: Show a => Type t a -> DataLayout' BitRange
-    go' (TRecord _ _ (Boxed _ _)) = PrimLayout pointerBitRange BE
-    go' (TCon    _ _ (Boxed _ _)) = PrimLayout pointerBitRange BE
+    go' (TRecord _ _ (Boxed _ _)) = PrimLayout pointerBitRange ME
+    go' (TCon    _ _ (Boxed _ _)) = PrimLayout pointerBitRange ME
 
     -- Equations for as yet unsupported embedded types
     go' (TCon n _ Unboxed) = __impossible $ "go' (Type check should fail on boxed types containing embedded unboxed abstract types)\n Failed on TCon type: " ++ n
@@ -118,7 +118,7 @@ constructDataLayout' (TRecord rp fields Unboxed) = RecordLayout . fromList . snd
       -- TODO(dargent): maybe implement layouts for function types like other boxed (pointer) layouts /mdimeglio
     go' t = __impossible $ "go': type not handled " ++ show t
 
-constructDataLayout' (TCon _  _ (Boxed {})) = PrimLayout pointerBitRange BE
+constructDataLayout' (TCon _  _ (Boxed {})) = PrimLayout pointerBitRange ME
 constructDataLayout' (TCon tn _ Unboxed) = __impossible "constructDataLayout': unboxed TCon not yet supported"
 constructDataLayout' _ = __impossible "constructDataLayout': unhandled type"
 

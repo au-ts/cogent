@@ -627,7 +627,7 @@ desugarLayout l = Layout <$> desugarLayout' l
       TLRepRef _ _ -> __impossible "desugarLayout: TLRepRef should be normalised before"
       TLPrim n
         | sz <- DD.desugarSize n
-        , sz > 0 -> pure $ PrimLayout (fromJust $ DA.newBitRangeBaseSize 0 sz) BE
+        , sz > 0 -> pure $ PrimLayout (fromJust $ DA.newBitRangeBaseSize 0 sz) ME
         | DD.desugarSize n < 0 -> __impossible "desugarLayout: TLPrim has a negative size"
         | otherwise            -> pure UnitLayout
       TLOffset e n -> offset (DD.desugarSize n) <$> desugarLayout' e
@@ -650,7 +650,7 @@ desugarLayout l = Layout <$> desugarLayout' l
         let f (n,_,s,l) = desugarLayout' l >>= pure . (n,) . (s,)
         alts' <- mapM f alts
         pure $ SumLayout tr (M.fromList alts')
-      TLPtr -> pure $ PrimLayout DA.pointerBitRange BE
+      TLPtr -> pure $ PrimLayout DA.pointerBitRange ME
 #ifdef BUILTIN_ARRAYS
       TLArray e _ -> ArrayLayout <$> desugarLayout' e
 #endif

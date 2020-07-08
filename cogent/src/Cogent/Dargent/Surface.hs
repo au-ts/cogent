@@ -34,7 +34,8 @@ import Data.Binary
 import GHC.Generics (Generic)
 import Text.Parsec.Pos (SourcePos)
 
-data Endianness = LE | BE
+-- Little endian, Big endian or 'Machine' endian
+data Endianness = LE | BE | ME
   deriving (Show, Data, Eq, Ord, Generic)
 
 instance Binary Endianness
