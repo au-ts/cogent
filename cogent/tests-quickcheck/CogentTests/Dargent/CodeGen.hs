@@ -18,6 +18,7 @@ import Cogent.Common.Syntax
 import Cogent.Dargent.Allocation
 import Cogent.Dargent.CodeGen
 import Cogent.Dargent.Core
+import Cogent.Dargent.Surface (Endianness(..))
 
 import Control.Monad
 import Text.PrettyPrint.Mainland.Class as M (pprint)
@@ -75,9 +76,9 @@ compileSanityCheck = do
   putStrLn "List of cogent aligned ranges:"
   putStrLn $ show alignedBitRangeExamples
   putStrLn "Pretty C getter:"
-  pprint $ cExtDecl $ composedAlignedRangeGetterSetter (rangesToComposedRangeInput "get" alignedBitRangeExamples) (CStruct "boxType") (CIdent "embeddedType") "getFoo" Get
+  pprint $ cExtDecl $ composedAlignedRangeGetterSetter (rangesToComposedRangeInput "get" alignedBitRangeExamples) ME (CStruct "boxType") (CIdent "embeddedType") "getFoo" Get
   putStrLn "Pretty C setter:"
-  pprint $ cExtDecl $ composedAlignedRangeGetterSetter (rangesToComposedRangeInput "set" alignedBitRangeExamples) (CStruct "boxType") (CIdent "embeddedType") "setFoo" Set
+  pprint $ cExtDecl $ composedAlignedRangeGetterSetter (rangesToComposedRangeInput "set" alignedBitRangeExamples) ME (CStruct "boxType") (CIdent "embeddedType") "setFoo" Set
   putStrLn ""
   recordGetterSanityCheck
 
@@ -86,9 +87,9 @@ recordFieldExamples =
   [ [ ("field1", "getSetField1")
     , ("field2", "getSetField2")
     ]
-  
+
   , [ ("field1", "getSetField1") ]
-  
+
   , []
   ]
 
@@ -103,7 +104,7 @@ recordGetterSanityCheck = do
     putStrLn "Pretty C setter:"
     pprint $ cExtDecl $ recordGetterSetter recordFields (CStruct "boxType") (CIdent "embeddedType") "setFoo" Set
   putStrLn ""
-    
+
 
 
 
