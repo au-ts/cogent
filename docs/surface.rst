@@ -359,7 +359,9 @@ provided for a let binding:
 Observation and ``let!``
 ------------------------
 
-Variables may be observed using ``!``:
+Variables may be observed using ``!``. In the following example, we observe ``x`` 
+and ``y`` on the first line, so we append the annotations ``!x`` and ``!y`` at 
+the end of this line:
 
 ::
 
@@ -371,7 +373,7 @@ Prefix ``!`` annotations can be used inline with pattern matching also:
 ::
 
     f (x,y) = foo(x,y) !x !y
-              | Blah x  => bar x
+              | Blah x  -> bar x
               | Blorp z -> baz z
 
 If
