@@ -572,7 +572,16 @@ composedAlignedRangeGetterSetter
   =
   getterSetterDecl boxType embeddedType functionName getOrSet
     -- Get statements
-    [ getterStatement ]
+    [ CBIStmt $ CReturn $ Just $ fromIntValue embeddedType $ snd $ foldl'
+      (\ (accumulatedBitOffset, accumulatedExpr) (range, rangeGetterFunction) ->
+        ( accumulatedBitOffset + bitSizeABR range
+        , CBinOp Or accumulatedExpr
+            ( genGetAlignedRangeAtBitOffset rangeGetterFunction accumulatedBitOffset )
+        )
+      )
+      (bitSizeABR firstRange, genGetAlignedRangeAtBitOffset firstGetterFunction 0)
+      bitRangesTail
+    ]
 
     -- Set statements
     ( fmap
@@ -588,23 +597,10 @@ composedAlignedRangeGetterSetter
     -- If it is a boolean type, we extract the boolean value
     valueExpression = toIntValue embeddedType valueVariable
 
-    getterStatement = case endianness of
-        ME -> CBIStmt $ CReturn $ Just getterStatementBody
-        _  -> CBIStmt $ CReturn $ Just $ CEFnCall (variable $ endiannessConversionFunction endianness) [getterStatementBody]
-      where
-        getterStatementBody = fromIntValue embeddedType $ snd $ foldl'
-          (\ (accumulatedBitOffset, accumulatedExpr) (range, rangeGetterFunction) ->
-            ( accumulatedBitOffset + bitSizeABR range
-            , CBinOp Or accumulatedExpr
-                ( genGetAlignedRangeAtBitOffset rangeGetterFunction accumulatedBitOffset )
-            )
-          )
-          (bitSizeABR firstRange, genGetAlignedRangeAtBitOffset firstGetterFunction 0)
-          bitRangesTail
-
     endiannessConversionFunction :: Endianness -> FunName
     endiannessConversionFunction endianness = case intTypeForType embeddedType of
       (CIdent cid) -> map toLower $ show endianness ++ "_" ++ cid
+      (CInt _ _)   -> map toLower $ show endianness ++ "_" ++ "u8"
       _            -> __impossible "endiannessConversionFunction called with invalid embedded type"
 
     {-
@@ -616,9 +612,12 @@ composedAlignedRangeGetterSetter
     -}
     genGetAlignedRangeAtBitOffset :: FunName -> Integer -> CExpr
     genGetAlignedRangeAtBitOffset getRangeFunction offset =
-      CBinOp Lsh
-        ( CTypeCast (intTypeForType embeddedType) (CEFnCall (variable getRangeFunction) [boxVariable]) )
-        ( unsignedIntLiteral offset )
+      case endianness of
+            ME -> expression
+            _  -> CEFnCall (variable $ endiannessConversionFunction endianness) [expression]
+      where expression = CBinOp Lsh
+                          ( CTypeCast (intTypeForType embeddedType) (CEFnCall (variable getRangeFunction) [boxVariable]) )
+                          ( unsignedIntLiteral offset )
 
     {-
     @genSetAlignedRangeAtBitOffset setRangeFunction offset size@ will return the 'CExpr'
