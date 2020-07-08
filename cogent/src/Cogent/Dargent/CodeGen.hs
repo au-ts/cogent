@@ -586,7 +586,7 @@ composedAlignedRangeGetterSetter
     -- Set statements
     ( fmap
       (\((bitRange, setRangeFunction), offset) ->
-          CBIStmt (genSetAlignedRangeAtBitOffset setRangeFunction endianness offset (bitSizeABR bitRange))
+          CBIStmt (genSetAlignedRangeAtBitOffset setRangeFunction offset (bitSizeABR bitRange))
       )
       $ zip bitRanges
       $ scanl' (+) 0
@@ -597,11 +597,11 @@ composedAlignedRangeGetterSetter
     -- If it is a boolean type, we extract the boolean value
     valueExpression = toIntValue embeddedType valueVariable
 
-    endiannessConversionFunction :: Endianness -> FunName
-    endiannessConversionFunction endianness = case intTypeForType embeddedType of
+    endiannessConversionFunctionName :: FunName
+    endiannessConversionFunctionName = case intTypeForType embeddedType of
       (CIdent cid) -> map toLower $ show endianness ++ "_" ++ cid
       (CInt _ _)   -> map toLower $ show endianness ++ "_" ++ "u8"
-      _            -> __impossible "endiannessConversionFunction called with invalid embedded type"
+      _            -> __impossible "endiannessConversionFunctionName called with invalid embedded type"
 
     {-
     @genGetAlignedRangeAtBitOffset getRangeFunction offset@ will return the 'CExpr'
@@ -614,7 +614,7 @@ composedAlignedRangeGetterSetter
     genGetAlignedRangeAtBitOffset getRangeFunction offset =
       case endianness of
             ME -> expression
-            _  -> CEFnCall (variable $ endiannessConversionFunction endianness) [expression]
+            _  -> CEFnCall (variable endiannessConversionFunctionName) [expression]
       where expression = CBinOp Lsh
                           ( CTypeCast (intTypeForType embeddedType) (CEFnCall (variable getRangeFunction) [boxVariable]) )
                           ( unsignedIntLiteral offset )
@@ -626,11 +626,11 @@ composedAlignedRangeGetterSetter
       `setRangeFunction`(b, (unsigned int) ((v >> `offset`) & `size`))
     @
     -}
-    genSetAlignedRangeAtBitOffset :: FunName -> Endianness -> Integer -> Integer -> CStmt
-    genSetAlignedRangeAtBitOffset setRangeFunction endianness offset size =
+    genSetAlignedRangeAtBitOffset :: FunName -> Integer -> Integer -> CStmt
+    genSetAlignedRangeAtBitOffset setRangeFunction offset size =
       let expression = case endianness of
             ME -> valueExpression
-            _  -> CEFnCall (variable $ endiannessConversionFunction endianness) [valueExpression]
+            _  -> CEFnCall (variable endiannessConversionFunctionName) [valueExpression]
       in CAssignFnCall Nothing (variable setRangeFunction)
         [ boxVariable
         , CTypeCast
