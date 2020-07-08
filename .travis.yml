@@ -135,6 +135,8 @@ deploy:
     condition: $GHCVER = 8.8.3
 
 after_deploy:
+  - cd $REPO
+  - gem install octokit
   - ruby post-deploy.rb
 
 notifications:
