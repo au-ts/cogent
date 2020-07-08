@@ -1,0 +1,57 @@
+#
+# Copyright 2020, Data61
+# Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+# ABN 41 687 119 230.
+#
+# This software may be distributed and modified according to the terms of
+# the GNU General Public License version 2. Note that NO WARRANTY is provided.
+# See "LICENSE_GPLv2.txt" for details.
+#
+# @TAG(DATA61_GPL)
+#
+
+NAME=endianness
+
+SRC=Endianness.cogent
+
+STDGUM=$(shell cogent --stdgum-dir)
+PLATLIBGUM=../plat/console/libgum
+
+ACFILES=main.ac
+
+PP=$(ACFILES:.ac=_pp.ac)
+PPINFER=$(ACFILES:.ac=_pp_inferred.c)
+
+ABSDIR=./abstract
+
+OBJ=$(PPINFER:.c=.o)
+
+CFLAGS+=-I. -I$(STDGUM) -I$(STDGUM)/gum/anti -std=gnu99
+
+.PHONY: default clean gen-anti test
+.SECONDARY:
+
+default: all
+
+all: gen-anti $(OBJ)
+	$(CC) -o $(NAME) $(OBJ)
+
+test: gen-anti $(OBJ)
+
+$(OBJ): $(PPINFER)
+
+gen-anti:
+	mkdir -p $(ABSDIR)
+	cogent $(SRC) -g -Od -ogenerated --fno-fncall-as-macro --ffunc-purity-attr \
+                --infer-c-types="$(AHFILES)" \
+                --Wno-warn --infer-c-funcs="$(ACFILES)" \
+                --cpp-args="-E -x c \$$CPPIN -o \$$CPPOUT -P $(CFLAGS)" \
+								--cpp=$(CC) \
+                --entry-funcs=entrypoints.cfg \
+
+clean:
+	rm -f $(COUTPUT) $(HOUTPUT) $(PP) $(PPINFER) $(OBJ)
+	rm -rf generated.h generated.c
+	rm -f $(ABSDIR)/*.h
+	rm -rf $(ABSDIR)
+	rm -f $(NAME)

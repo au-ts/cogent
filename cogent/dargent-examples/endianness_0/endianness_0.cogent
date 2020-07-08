@@ -1,3 +1,0 @@
-type X = { x: U32 }
-  layout
-    record { x: 4B at 2B using LE }

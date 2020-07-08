@@ -1,0 +1,25 @@
+$esc:(#include <stdio.h>)
+$esc:(#include <stdlib.h>)
+
+$esc:(#include "generated.c")
+
+int main(void)
+{
+  $ty:(XY) rec = malloc(sizeof(*rec));
+
+  rec = $exp:init(rec);
+  printf("x (after calling init) = %d = 0x%08x\n", rec->data[0], rec->data[0]);
+  printf("y (after calling init) = %d = 0x%08x\n\n", rec->data[1], rec->data[1]);
+
+  rec = $exp:doubleX(rec);
+  printf("x (after calling doubleX) = %d = 0x%08x\n", rec->data[0], rec->data[0]);
+  printf("y (after calling doubleX) = %d = 0x%08x\n\n", rec->data[1], rec->data[1]);
+
+  rec = $exp:flipY(rec);
+  printf("x (after calling flipY) = %d = 0x%08x\n", rec->data[0], rec->data[0]);
+  printf("y (after calling flipY) = %d = 0x%08x\n", rec->data[1], rec->data[1]);
+
+  free(rec);
+
+  return 0;
+}

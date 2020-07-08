@@ -41,6 +41,7 @@ import Cogent.Dargent.Core
 import Cogent.Dargent.Util
 import Data.Nat
 import qualified Data.OMap as OMap
+import Data.Char
 
 import Control.Monad.Writer.Class (tell)
 import Data.List (foldl', scanl')
@@ -600,11 +601,7 @@ composedAlignedRangeGetterSetter
 
     endiannessConversionFunction :: Endianness -> FunName
     endiannessConversionFunction endianness = case intTypeForType embeddedType of
-      (CIdent cid) -> case cid of
-        "u8"  -> if endianness == BE then "be_uint8" else "le_uint8"
-        "u16" -> if endianness == BE then "be_uint16" else "le_uint16"
-        "u32" -> if endianness == BE then "be_uint32" else "le_uint32"
-        "u64" -> if endianness == BE then "be_uint64" else "le_uint64"
+      (CIdent cid) -> map toLower $ show endianness ++ "_" ++ cid
       _            -> __impossible "endiannessConversionFunction called with invalid embedded type"
 
     {-
