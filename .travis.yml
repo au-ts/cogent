@@ -37,16 +37,16 @@ env:
 
 jobs:
   include:
-    - env: CABALVER=3.2 GHCVER=8.8.3 COGENT_FLAGS=$COGENT_FULL_FEATURE
+    - env: CABALVER=3.2 GHCVER=8.8.3 COGENT_BUILD_FLAGS=$COGENT_FULL_FEATURE
       compiler: "ghc-8.8.3"
       addons: {apt: {packages: [cabal-install-3.2,ghc-8.8.3,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
-    - env: CABALVER=3.2 GHCVER=8.8.3 COGENT_FLAGS=$COGENT_NO_FEATURE
+    - env: CABALVER=3.2 GHCVER=8.8.3 COGENT_BUILD_FLAGS=$COGENT_NO_FEATURE
       compiler: "ghc-8.8.3"
       addons: {apt: {packages: [cabal-install-3.2,ghc-8.8.3,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
-    - env: CABALVER=3.2 GHCVER=8.6.5 COGENT_FLAGS=$COGENT_FULL_FEATURE
+    - env: CABALVER=3.2 GHCVER=8.6.5 COGENT_BUILD_FLAGS=$COGENT_FULL_FEATURE
       compiler: "ghc-8.6.5"
       addons: {apt: {packages: [cabal-install-3.2,ghc-8.6.5,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
-    - env: CABALVER=3.2 GHCVER=8.4.4 COGENT_FLAGS=$COGENT_FULL_FEATURE
+    - env: CABALVER=3.2 GHCVER=8.4.4 COGENT_BUILD_FLAGS=$COGENT_FULL_FEATURE
       compiler: "ghc-8.4.4"
       addons: {apt: {packages: [cabal-install-3.2,ghc-8.4.4,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
 
@@ -76,7 +76,7 @@ install:
  - "sed -i 's/^jobs:.*$/jobs: 2/' $HOME/.cabal/config"
  # - sed -i 's/^jobs:/ jobs:/' ${HOME}/.cabal/config
 
- - travis_wait 50 cabal new-install --flags="+builtin-arrays +haskell-backend +docgent" --install-method=copy --installdir=$HOME/.cabal/bin --overwrite-policy=always;  # --enable-tests;
+ - travis_wait 50 cabal new-install --flags="$COGENT_BUILD_FLAGS" --install-method=copy --installdir=$HOME/.cabal/bin --overwrite-policy=always;  # --enable-tests;
 
 # Install z3
  - cd $REPO
@@ -138,7 +138,7 @@ deploy:
   overwrite: true
   on:
     branch: master
-    condition: $GHCVER = 8.8.3 && $COGENT_FLAGS = $COGENT_FULL_FEATURE
+    condition: $GHCVER = 8.8.3 && $COGENT_BUILD_FLAGS = $COGENT_FULL_FEATURE
 
 after_deploy:
   - cd $REPO
