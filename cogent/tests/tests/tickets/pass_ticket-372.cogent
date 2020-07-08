@@ -1,0 +1,10 @@
+type Easy =
+  { aa : { cc : U8} }
+    layout
+      record { aa : pointer at 1B }  at 0B
+
+stupid : Easy -> Easy
+stupid (r {aa}) = r {aa}
+
+main : Easy! -> U8
+main x = x.aa.cc
