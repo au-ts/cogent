@@ -88,6 +88,12 @@ ML\<open> fun corres_put_boxed_tac ctxt = let
         THEN_ALL_NEW ((rtac (get "all_heap_rel_updE") THEN' atac THEN' atac)
             THEN_ALL_NEW distinct_subgoal_tac
             THEN_ALL_NEW asm_full_simp_tac (ctxt addsimps getset_simps) 
+            (* try to apply a lemma val_rel x v \<Longrightarrow> val_rel x v'
+               available in GetSetSimps
+             *)
+            THEN_ALL_NEW (TRY o (REPEAT_ALL_NEW (rtac @{thm impI}) 
+                  THEN_ALL_NEW resolve0_tac getset_simps)
+             )
             THEN_ALL_NEW asm_simp_tac (ctxt addsimps val_rels @ type_rels)
             THEN_ALL_NEW asm_simp_tac (ctxt addsimps @{thms map_update list_update_eq_id}
                 delsimps @{thms length_0_conv length_greater_0_conv})
@@ -160,6 +166,12 @@ ML\<open> fun corres_let_put_boxed_tac ctxt = let
         THEN_ALL_NEW ((rtac (get "all_heap_rel_updE") THEN' atac THEN' atac)
             THEN_ALL_NEW distinct_subgoal_tac
             THEN_ALL_NEW asm_full_simp_tac (ctxt addsimps getset_simps) 
+           (* try to apply a lemma val_rel x v \<Longrightarrow> val_rel x v'
+               available in GetSetSimps
+             *)
+            THEN_ALL_NEW (TRY o (REPEAT_ALL_NEW (rtac @{thm impI}) 
+                  THEN_ALL_NEW resolve0_tac getset_simps)
+             )
             THEN_ALL_NEW asm_simp_tac (ctxt addsimps val_rels @ type_rels)
             THEN_ALL_NEW asm_simp_tac (ctxt addsimps @{thms map_update list_update_eq_id}
                 delsimps @{thms length_0_conv length_greater_0_conv})
@@ -182,6 +194,13 @@ ML\<open> fun corres_let_put_boxed_tac ctxt = let
          ORELSE' (Tactic.forward_tac ctxt (gets "all_heap_rel_updE") THEN' atac))
         THEN_ALL_NEW distinct_subgoal_tac
         THEN_ALL_NEW asm_full_simp_tac (ctxt addsimps getset_simps) 
+    (*
+       (* try to apply a lemma val_rel x v \<Longrightarrow> val_rel x v'
+               available in GetSetSimps
+             *)
+        THEN_ALL_NEW (TRY o (REPEAT_ALL_NEW (rtac @{thm impI}) 
+                  THEN_ALL_NEW resolve0_tac getset_simps)
+             ) *)
         THEN_ALL_NEW asm_simp_tac (ctxt addsimps val_rels @ type_rels)
         THEN_ALL_NEW asm_simp_tac (ctxt addsimps @{thms map_update list_update_eq_id}
             delsimps @{thms length_0_conv length_greater_0_conv})
