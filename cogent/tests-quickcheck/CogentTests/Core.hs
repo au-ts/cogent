@@ -24,26 +24,26 @@ genConName = (:) <$> elements ['A'..'Z'] <*> listOf (elements (['A'..'Z'] ++ ['a
 
 genLayoutableType :: Int -> Gen (Type 'Zero b)
 genLayoutableType size = 
-	oneof
-	[ TCon            <$> genConName <*> pure [] <*> (Boxed <$> arbitrary <*> pure ())
-	, TPrim           <$> arbitrary
-	, TSum            <$> resize size (listOf (genLayoutableAlternative size))
-	, TRecord NonRec  <$> resize size (listOf (genLayoutableField size)) <*> pure (__fixme Unboxed)
-		-- ^ If size == 0, no recursive call will happen as it generates an empty list
-		-- ^ FIXME: Need to sometimes generate Boxed TProducts with DataLayout coming from Cogent.Desugar (constructLayout) /mdimgelio
-		-- ^ FIXME: Needs to generate recursive types properly and generate recursive parameters only if inside a recursive record. /emmet-m
-	, pure TUnit
-	]
-	where
-		genLayoutableAlternative :: Int -> Gen (TagName, (Type 'Zero b, Bool))
-		genLayoutableAlternative size = do
-			altSize <- choose (0, size - 1)
-			(,) <$> arbitrary <*> ((,) <$> genLayoutableType altSize <*> arbitrary)
+  oneof
+  [ TCon            <$> genConName <*> pure [] <*> (Boxed <$> arbitrary <*> pure ())
+  , TPrim           <$> arbitrary
+  , TSum            <$> resize size (listOf (genLayoutableAlternative size))
+  , TRecord NonRec  <$> resize size (listOf (genLayoutableField size)) <*> pure (__fixme Unboxed)
+    -- ^ If size == 0, no recursive call will happen as it generates an empty list
+    -- ^ FIXME: Need to sometimes generate Boxed TProducts with DataLayout coming from Cogent.Desugar (constructLayout) /mdimgelio
+    -- ^ FIXME: Needs to generate recursive types properly and generate recursive parameters only if inside a recursive record. /emmet-m
+  , pure TUnit
+  ]
+  where
+    genLayoutableAlternative :: Int -> Gen (TagName, (Type 'Zero b, Bool))
+    genLayoutableAlternative size = do
+      altSize <- choose (0, size - 1)
+      (,) <$> arbitrary <*> ((,) <$> genLayoutableType altSize <*> arbitrary)
 
-		genLayoutableField :: Int -> Gen (FieldName, (Type 'Zero b, Bool))
-		genLayoutableField size = do
-			fieldSize <- choose (0, size - 1)
-			(,) <$> arbitrary <*> ((,) <$> genLayoutableType fieldSize <*> arbitrary)
+    genLayoutableField :: Int -> Gen (FieldName, (Type 'Zero b, Bool))
+    genLayoutableField size = do
+      fieldSize <- choose (0, size - 1)
+      (,) <$> arbitrary <*> ((,) <$> genLayoutableType fieldSize <*> arbitrary)
 
 instance Arbitrary PrimInt where
-	arbitrary = elements [U8, U16, U32, U64, Boolean]
+  arbitrary = elements [U8, U16, U32, U64, Boolean]

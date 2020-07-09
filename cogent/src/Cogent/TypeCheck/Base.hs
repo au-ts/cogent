@@ -245,14 +245,14 @@ notTCSExpr :: TCSExpr -> TCSExpr
 notTCSExpr e = SE (T bool) (PrimOp "not" [e])
 #endif
 
-#if __GLASGOW_HASKELL__ < 803	
+#if __GLASGOW_HASKELL__ < 803
 instance Monoid (Constraint' x y) where
-  mempty = Sat	
-  mappend Sat x = x	
-  mappend x Sat = x	
-  -- mappend (Unsat r) x = Unsat r	
-  -- mappend x (Unsat r) = Unsat r	
-  mappend x y = x :& y	
+  mempty = Sat
+  mappend Sat x = x
+  mappend x Sat = x
+  -- mappend (Unsat r) x = Unsat r
+  -- mappend x (Unsat r) = Unsat r
+  mappend x y = x :& y
 #else
 instance Semigroup (Constraint' x y) where
   Sat <> x = x
