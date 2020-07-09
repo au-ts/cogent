@@ -71,7 +71,12 @@ verbose_test_names = None
 # Represents the result of a test
 # Takes in a function which returns
 #   (status, errormsg, expected)
-# where status, expected :: "pass" | "fail" | "error" | "wip"
+# where status, expected :: "pass" | "fail" | "error" | "wip-pass" | "wip-fail" | "wip"
+
+def is_wip(expected):
+    return (expected == "wip" or
+            expected == "wip-pass" or
+            expected == "wip-fail")
 
 class TestContext:
     def __init__(self, repo, cogent, dist_dir, script_dir, phases, ignore_phases):
@@ -109,7 +114,7 @@ class TestResult:
 
     def result(self):
         (status, _, expected) = self.test
-        return status == expected or expected == "wip"
+        return status == expected or is_wip(expected)
 
     # Printing test results
     def display(self):
@@ -123,10 +128,22 @@ class TestResult:
                                  self.test_name in verbose_test_names))
 
 
-        if expected == "wip":
-            acc += colored("WIP (Pass by defualt)\n", "green")
+        if expected == "wip-pass":
+            if status == "pass":
+                acc += colored("WIP (Passed as expected)\n", "green")
+            else:
+                acc += colored("WIP (expected pass, got " + status + ")\n", "yellow")
+        elif expected == "wip-fail":
+            if status == "fail":
+                acc += colored("WIP (Failed as expected)\n", "green")
+            else:
+                acc += colored("WIP (expected fail, got " + status + ")\n", "yellow")
+
+        elif expected == "wip":
+            acc += colored("WIP (got " + status + ")\n", "yellow")
+
         elif status == "error" and expected != "error":
-            acc += colored("Error? ", "yellow") + "Reason:\n"
+            acc += colored("Error? ", "yellow") + "\nReason:\n"
         elif status == expected:
             if status == "pass":
                 acc += colored("Passed\n", "green")
@@ -205,7 +222,7 @@ class TestConfiguration:
                         "Test {0} in {1} must have at least 1 compiler flag".format(i, self.relpath))
             except KeyError:
                 pass
-            if f["expected_result"] not in ["error", "pass", "fail", "wip"]:
+            if f["expected_result"] not in ["error", "pass", "fail", "wip", "wip-pass", "wip-fail"]:
                 raise InvalidConfigError("""Field 'expected_result' must be one of 'pass', 'fail', 'error' or 'wip' in test {0} in {1}\n. Actual value: {2}"""
                                          .format(i, self.relpath, str(f["expected_result"])))
 
@@ -367,7 +384,7 @@ class Configurations:
             if type(e) is InvalidConfigError:
                 print(colored("Config error: ", "red"), e)
             elif type(e) is OSError:
-                print(colored("error - could not find config file for test file {}".format(x), "red"))
+                print(colored("error - could not find config file for test file {}".format(e), "red"))
 
     # Based on an asbolute path for a test file, get it's configuration
     def get_cfg_from_test_name(self, f):
