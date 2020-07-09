@@ -76,7 +76,8 @@ install:
  - "sed -i 's/^jobs:.*$/jobs: 2/' $HOME/.cabal/config"
  # - sed -i 's/^jobs:/ jobs:/' ${HOME}/.cabal/config
 
- - travis_wait 50 cabal new-install --flags="$COGENT_BUILD_FLAGS" --install-method=copy --installdir=$HOME/.cabal/bin --overwrite-policy=always;  # --enable-tests;
+ - cabal configure --flags="$COGENT_BUILD_FLAGS" --with-ghc=ghc-$GHCVER
+ - travis_wait 50 cabal new-install --install-method=copy --installdir=$HOME/.cabal/bin --overwrite-policy=always;  # --enable-tests;
 
 # Install z3
  - cd $REPO
