@@ -70,6 +70,20 @@ module Cogent.Haskell.Shallow (
 , tagName
 , recTypeName, varTypeName
 , typeParam
+, mkName
+, mkQName
+, mkDeclHead
+, mkForallT
+, mkTyConT
+, mkVarT
+, mkConT
+, mkAppT
+, mkTupleT
+, mkListT
+, mkQVarE
+, mkConE
+, mkLetE
+, tyVars
 ) where
 
 
