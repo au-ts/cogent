@@ -49,18 +49,19 @@ cgen :: FilePath
      -> [FilePath]
      -> FilePath
      -> FilePath
+     -> FilePath
      -> [Definition TypedExpr VarName VarName]
      -> Maybe GenState
      -> [(Type 'Zero VarName, String)]
      -> String
      -> ([C.Definition], [C.Definition], [(TypeName, S.Set [CId])], [TableCTypes], Leijen.Doc, String, String, GenState)
-cgen hName cNames hscName hsName defs mcache ctygen log =
+cgen hName cNames hscName hsName pbtName defs mcache ctygen log =
   let (enums,tydefns,fndecls,disps,tysyms,fndefns,absts,corres,fclsts,st) = compile defs mcache ctygen
       (h,c) = render hName (enums++tydefns++fndecls++disps++tysyms) fndefns log
 #ifdef WITH_HASKELL
       hsc = ffiHsc hscName cNames tydefns enums absts fclsts log
       hs  = ffiHs (st^.ffiFuncs) hsName hscName fndecls log
-      pbt = pbtHs (st^.ffiFuncs) hsName hscName fndecls log
+      pbt = pbtHs (st^.ffiFuncs) pbtName hscName fndecls log
 #else
       hsc = mempty
       hs = mempty
