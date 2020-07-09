@@ -50,17 +50,44 @@ type FFIFuncs = M.Map FunName (CType, CType)
 type Gen a = ReaderT (FFIFuncs, [FunName]) Identity a
 
 pbtHs :: FFIFuncs -> String -> String -> [CExtDecl] -> String -> String
-pbtHs m name hscname decls log = "testing"
-
-{-
-ffiHs :: FFIFuncs -> String -> String -> [CExtDecl] -> String -> String
-ffiHs m name hscname decls log = render $
-  let mod = flip runReader (m, map ("ffi_" ++) $ M.keys m) $ ffiModule name hscname decls
+pbtHs m name hscname decls log = render $
+  let mod = flip runReader (m, map ("prop_" ++) $ M.keys m) $ propModule name hscname decls
    in text "{-" $+$ text log $+$ text "-}" $+$ prettyPrim mod
 
+propModule :: String -> String -> [CExtDecl] -> Gen (Module ())
+propModule name hscname decls =
+  let moduleHead = ModuleHead () (ModuleName () name) Nothing Nothing
+      exts = []
+      imps = [ ImportDecl () (ModuleName () "Prelude") False False False Nothing Nothing Nothing
+             , ImportDecl () (ModuleName () "Test.QuickCheck" ) False False False Nothing Nothing Nothing
+             , ImportDecl () (ModuleName () "Test.QuickCheck.Monadic" ) False False False Nothing Nothing Nothing
+             , ImportDecl () (ModuleName () "Data.Tree" ) False False False Nothing Nothing Nothing
+             , ImportDecl () (ModuleName () "Data.Word" ) False False False Nothing Nothing Nothing
+             -- custom corres
+             , ImportDecl () (ModuleName () "Corres" ) False False False Nothing Nothing Nothing
+             , ImportDecl () (ModuleName () hscname) False False False Nothing (Just (ModuleName () "FFI")) Nothing
+             , ImportDecl () (ModuleName () (hscname ++ "_Abs")) False False False Nothing (Just (ModuleName () "FFI")) Nothing
+             ]
+      hs_decls = [] -- (P.concatMap propDecls decls) ++ (P.concatMap genDecls decls)
+  in 
+  return $ Module () (Just moduleHead) exts imps hs_decls
 
-ffiModule :: String -> String -> [CExtDecl] -> Gen (Module ())
-ffiModule name hscname decls = do
+
+
+
+      {-
+      in hsModule & header .
+           prettyPrintStyleMode 
+            (style {lineLength = 220, ribbonsPerLine = 0.1}) 
+            (defaultMode {caseIndent = 2})
+  return $ Module () (Just mhead) pragmas imps hs_decls
+            -}
+
+
+
+
+
+{-
   hs_decls <- concatMapM ffiDefinition decls
   let mhead = ModuleHead () (ModuleName () name) Nothing Nothing
       pragmas = [LanguagePragma () [Ident () "ForeignFunctionInterface"]]
