@@ -100,7 +100,7 @@ install:
 # any command which exits with a non-zero exit code causes the build to fail.
 script:
  - cd $REPO/cogent
- - cabal new-test test-quickcheck  # the other test is rarely affacted, so not enabled / zilinc
+ - travis_wait cabal new-test test-quickcheck  # the other test is rarely affacted, so not enabled / zilinc
  # - cabal check
  - cabal new-haddock
  # Check if Cogent has been correctly installed
