@@ -196,6 +196,8 @@ library
                    , Cogent.Haskell.HscGen
                    , Cogent.Haskell.HscSyntax
                    , Cogent.Haskell.Shallow
+                   , Cogent.Haskell.GenDSL
+                   , Cogent.Haskell.PBTGen
     cpp-options: -DWITH_HASKELL
     build-depends: haskell-src-exts >= 1.19, pretty
   if flag(builtin-arrays) || flag(refinement-types)
@@ -225,13 +227,14 @@ library
               alex:alex
             , happy:happy
   ghc-options:
+    -w
     -- -Wall
     -- -Werror
-    -fno-warn-name-shadowing
-    -fno-warn-missing-signatures
-    -fno-warn-unused-matches
-    -O2
-    -optP-Wno-nonportable-include-path
+   -- -fno-warn-name-shadowing
+    ---fno-warn-missing-signatures
+   -- -fno-warn-unused-matches
+    ---O2
+    ---optP-Wno-nonportable-include-path
     -- -rtsopts
     -- +RTS -K256M
   -- if impl(ghc >= 7.10.1)

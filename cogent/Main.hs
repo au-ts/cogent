@@ -797,7 +797,7 @@ parseArgs args = case getOpt' Permute options args of
                     case decodeResult of
                       Left (_, err) -> hPutStrLn stderr ("Decoding name cache file failed: " ++ err ++ ".\nNot using name cache.") >> return (Nothing, True)
                       Right cache -> return (Just cache, False)
-      let (h,c,atm,ct,hsc,hs,genst) = cgen hName cNames hscName hsName monoed mcache ctygen log
+      let (h,c,atm,ct,hsc,hs,pbt,genst) = cgen hName cNames hscName hsName monoed mcache ctygen log
       when (TableAbsTypeMono `elem` cmds) $ do
         let atmfile = mkFileName source Nothing __cogent_ext_of_atm
         putProgressLn "Generating table for monomorphised asbtract types..."
@@ -818,6 +818,10 @@ parseArgs args = case getOpt' Permute options args of
         let hsf = mkHsFileName source __cogent_suffix_of_ffi
         writeFileMsg hsf
         output hsf $ flip hPutStrLn hs
+        putProgressLn "Generating PBT Hs file..."
+        let pbthsf = mkHsFileName source "_PBT"
+        writeFileMsg pbthsf
+        output pbthsf $ flip hPutStrLn pbt
 #endif
       when (CodeGen `elem` cmds) $ do
         putProgressLn "Generating C code..."
