@@ -125,6 +125,11 @@ set_flag_ddumpPrettyNormalNoTc = writeIORef __cogent_ddump_pretty_normal_no_tc_r
 set_flag_distDir = writeIORef __cogent_dist_dir_ref
 set_flag_entryFuncs = writeIORef __cogent_entry_funcs_ref . Just
 set_flag_extTypes = writeIORef __cogent_ext_types_ref . Just
+
+-- PBT
+set_pbt_info = writeIORef __cogent_pbt_info_ref . Just
+-- 
+
 set_flag_fakeHeaderDir dir = writeIORef __cogent_fake_header_dir_ref $ Just (cogentRelDir dir __cogent_dist_dir)
 set_flag_fcheckUndefined = writeIORef __cogent_fcheck_undefined_ref True
 set_flag_fdisambiguatePp = writeIORef __cogent_fdisambiguate_pp_ref True
@@ -352,6 +357,16 @@ __cogent_ext_types = unsafePerformIO $ readIORef __cogent_ext_types_ref
 __cogent_ext_types_ref :: IORef (Maybe FilePath)
 {-# NOINLINE __cogent_ext_types_ref #-}
 __cogent_ext_types_ref = unsafePerformIO $ newIORef Nothing
+
+-- PBT
+__cogent_pbt_info :: Maybe FilePath
+__cogent_pbt_info = unsafePerformIO $ readIORef __cogent_pbt_info_ref
+
+__cogent_pbt_info_ref :: IORef (Maybe FilePath)
+{-# NOINLINE __cogent_pbt_info_ref #-}
+__cogent_pbt_info_ref = unsafePerformIO $ newIORef Nothing
+
+--
 
 -- naming conventions for other output files
 
