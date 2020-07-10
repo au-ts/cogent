@@ -135,7 +135,9 @@ normaliseT d (T (TBang t)) = do
      (T (TRecord rp l s)) -> mapM ((secondM . firstM) (normaliseT d . T . TBang)) l >>= \l' ->
                              normaliseT d (T (TRecord rp l' (bangSigil s)))
 #ifdef BUILTIN_ARRAYS
-     (T (TArray t e (Boxed False l) h)) -> normaliseT d (T (TArray t e (Boxed True l) h))
+     (T (TArray t e (Boxed False l) h)) -> do
+       t' <- normaliseT d $ T $ TBang t
+       normaliseT d (T (TArray t' e (Boxed True l) h))
 #endif
      (T (TVar v b u))  -> normaliseT d (T (TVar v True u))
      (T (TFun a b))    -> T <$> (TFun <$> normaliseT d a <*> normaliseT d b)

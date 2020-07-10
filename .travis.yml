@@ -32,18 +32,23 @@ env:
   global:
     - REPO=$TRAVIS_BUILD_DIR
     - TRAVIS_BUILD_APT_RETRIES_PERCENTAGE=100
+    - COGENT_FULL_FEATURE="+builtin-arrays +refinement-types +docgent +haskell-backend"
+    - COGENT_NO_FEATURE="-builtin-arrays -refinement-types -docgent -haskell-backend"
 
 jobs:
   include:
-    - env: CABALVER=3.0 GHCVER=8.8.3
+    - env: CABALVER=3.2 GHCVER=8.8.3 COGENT_BUILD_FLAGS=$COGENT_FULL_FEATURE
+      compiler: "ghc-8.8.3"
+      addons: {apt: {packages: [cabal-install-3.2,ghc-8.8.3,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
+    - env: CABALVER=3.2 GHCVER=8.8.3 COGENT_BUILD_FLAGS=$COGENT_NO_FEATURE
+      compiler: "ghc-8.8.3"
+      addons: {apt: {packages: [cabal-install-3.2,ghc-8.8.3,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
+    - env: CABALVER=3.2 GHCVER=8.6.5 COGENT_BUILD_FLAGS=$COGENT_FULL_FEATURE
       compiler: "ghc-8.6.5"
-      addons: {apt: {packages: [cabal-install-3.0,ghc-8.8.3,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
-    - env: CABALVER=3.0 GHCVER=8.6.5
-      compiler: "ghc-8.6.5"
-      addons: {apt: {packages: [cabal-install-3.0,ghc-8.6.5,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
-    - env: CABALVER=3.0 GHCVER=8.4.4
+      addons: {apt: {packages: [cabal-install-3.2,ghc-8.6.5,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
+    - env: CABALVER=3.2 GHCVER=8.4.4 COGENT_BUILD_FLAGS=$COGENT_FULL_FEATURE
       compiler: "ghc-8.4.4"
-      addons: {apt: {packages: [cabal-install-3.0,ghc-8.4.4,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
+      addons: {apt: {packages: [cabal-install-3.2,ghc-8.4.4,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
 
   allow_failures:
     # I know that some dependency triggers ghc panic in that version. / zilinc
@@ -71,7 +76,9 @@ install:
  - "sed -i 's/^jobs:.*$/jobs: 2/' $HOME/.cabal/config"
  # - sed -i 's/^jobs:/ jobs:/' ${HOME}/.cabal/config
 
- - travis_wait 50 cabal new-install --flags="+builtin-arrays +haskell-backend +docgent" --install-method=copy --installdir=$HOME/.cabal/bin --overwrite-policy=always;  # --enable-tests;
+ - cabal new-configure --flags="$COGENT_BUILD_FLAGS" --with-compiler=ghc-$GHCVER --enable-tests
+ - cat cabal.project.local
+ - travis_wait 50 cabal new-install --install-method=copy --installdir=$HOME/.cabal/bin --overwrite-policy=always
 
 # Install z3
  - cd $REPO
@@ -93,7 +100,7 @@ install:
 # any command which exits with a non-zero exit code causes the build to fail.
 script:
  - cd $REPO/cogent
- - cabal new-test test-quickcheck  # the other test is rarely affacted, so not enabled / zilinc
+ - travis_wait cabal new-test test-quickcheck  # the other test is rarely affacted, so not enabled / zilinc
  # - cabal check
  - cabal new-haddock
  # Check if Cogent has been correctly installed
@@ -132,7 +139,8 @@ deploy:
   name: "Cogent Compiler (${TRAVIS_BUILD_NUMBER})"
   overwrite: true
   on:
-    condition: $GHCVER = 8.8.3
+    branch: master
+    condition: $GHCVER = 8.8.3 && $COGENT_BUILD_FLAGS = $COGENT_FULL_FEATURE
 
 after_deploy:
   - cd $REPO
