@@ -364,7 +364,7 @@ options = [
   , Option []         ["hs-shallow-desugar-tuples"]  2 (NoArg HsShallowTuples)  (hsShallowMsg STGDesugar True )
   -- FFI
   , Option []         ["hs-ffi"]          2 (NoArg HsFFIGen)                  "generate Haskell FFI code to access generated C code (incl. a .hsc module for types and a .hs module for functions)"
-  , Option []         ["hs-pbt-info-file"]  1 (ReqArg (set_flag_inferCFunc . words) "FILE") "infer Cogent abstract function definitions"
+  , Option []         ["hs-pbt-info-file"]  1 (ReqArg set_PBT_info "FILE") "Haskell PBT info file"
 #else
   , Option []         ["hs-shallow-desugar"]         2 (NoArg HsShallow      )  (hsShallowMsg STGDesugar False)
   , Option []         ["hs-shallow-desugar-tuples"]  2 (NoArg HsShallowTuples)  (hsShallowMsg STGDesugar True )
