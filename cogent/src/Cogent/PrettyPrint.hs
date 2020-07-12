@@ -683,7 +683,7 @@ instance Pretty DataLayoutSize where
 instance Pretty Endianness where
   pretty LE = keyword "LE"
   pretty BE = keyword "BE"
-  pretty ME = keyword "ME"
+  pretty ME = err "Invalid endianness" <+> keyword "ME"
 
 instance Pretty d => Pretty (DataLayoutExpr' d) where
   pretty (RepRef n s) = if null s then reprname n else parens $ reprname n <+> hsep (fmap pretty s)

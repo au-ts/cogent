@@ -597,6 +597,7 @@ composedAlignedRangeGetterSetter
     -- If it is a boolean type, we extract the boolean value
     valueExpression = toIntValue embeddedType valueVariable
 
+    -- If called, `endianness` should not be `ME`, as no conversion functions are defined for machine endianness
     endiannessConversionFunctionName :: FunName
     endiannessConversionFunctionName = case intTypeForType embeddedType of
       (CIdent cid) -> map toLower $ show endianness ++ "_" ++ cid
