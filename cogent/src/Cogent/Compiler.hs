@@ -126,9 +126,10 @@ set_flag_distDir = writeIORef __cogent_dist_dir_ref
 set_flag_entryFuncs = writeIORef __cogent_entry_funcs_ref . Just
 set_flag_extTypes = writeIORef __cogent_ext_types_ref . Just
 
--- PBT
-set_pbt_info = writeIORef __cogent_pbt_info_ref . Just
--- 
+-- PBT: set flag 
+----------------------------------------------------------------------
+set_PBT_info = writeIORef __cogent_pbt_info_ref . Just
+----------------------------------------------------------------------
 
 set_flag_fakeHeaderDir dir = writeIORef __cogent_fake_header_dir_ref $ Just (cogentRelDir dir __cogent_dist_dir)
 set_flag_fcheckUndefined = writeIORef __cogent_fcheck_undefined_ref True
@@ -358,15 +359,15 @@ __cogent_ext_types_ref :: IORef (Maybe FilePath)
 {-# NOINLINE __cogent_ext_types_ref #-}
 __cogent_ext_types_ref = unsafePerformIO $ newIORef Nothing
 
--- PBT
+-- PBT: Flag pointing to info file
+----------------------------------------------------------------------
 __cogent_pbt_info :: Maybe FilePath
 __cogent_pbt_info = unsafePerformIO $ readIORef __cogent_pbt_info_ref
 
 __cogent_pbt_info_ref :: IORef (Maybe FilePath)
 {-# NOINLINE __cogent_pbt_info_ref #-}
 __cogent_pbt_info_ref = unsafePerformIO $ newIORef Nothing
-
---
+----------------------------------------------------------------------
 
 -- naming conventions for other output files
 
@@ -835,6 +836,8 @@ __cogent_suffix_of_ffi = "_FFI"
 __cogent_suffix_of_ffi_types :: String
 __cogent_suffix_of_ffi_types = "_FFI_Types"
 
+__cogent_suffix_of_pbt :: String
+__cogent_suffix_of_pbt = "_PBT"
 
 -- ----------
 -- Naming conventions for antiquotation files
