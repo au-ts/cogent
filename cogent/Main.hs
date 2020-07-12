@@ -364,6 +364,7 @@ options = [
   , Option []         ["hs-shallow-desugar-tuples"]  2 (NoArg HsShallowTuples)  (hsShallowMsg STGDesugar True )
   -- FFI
   , Option []         ["hs-ffi"]          2 (NoArg HsFFIGen)                  "generate Haskell FFI code to access generated C code (incl. a .hsc module for types and a .hs module for functions)"
+  -- PBT
   , Option []         ["hs-pbt-info-file"]  1 (ReqArg set_PBT_info "FILE") "Haskell PBT info file"
 #else
   , Option []         ["hs-shallow-desugar"]         2 (NoArg HsShallow      )  (hsShallowMsg STGDesugar False)
@@ -786,7 +787,7 @@ parseArgs args = case getOpt' Permute options args of
       let hName = mkOutputName source Nothing <.> __cogent_ext_of_h
           hscName = mkOutputName' toHsModName source (Just __cogent_suffix_of_ffi_types)
           hsName  = mkOutputName' toHsModName source (Just __cogent_suffix_of_ffi)
-          pbtName = mkOutputName' toHsModName source (Just "_PBT")
+          pbtName = mkOutputName' toHsModName source (Just __cogent_suffix_of_pbt)
           cNames  = map (\n -> takeBaseName n ++ __cogent_suffix_of_pp ++ __cogent_suffix_of_inferred <.> __cogent_ext_of_c) __cogent_infer_c_func_files
       (mcache, decodingFailed) <- case __cogent_name_cache of
         Nothing -> return (Nothing, False)
@@ -820,8 +821,9 @@ parseArgs args = case getOpt' Permute options args of
         let hsf = mkHsFileName source __cogent_suffix_of_ffi
         writeFileMsg hsf
         output hsf $ flip hPutStrLn hs
+        -- PBT
         putProgressLn "Generating PBT Hs file..."
-        let pbthsf = mkHsFileName source "_PBT"
+        let pbthsf = mkHsFileName source __cogent_suffix_of_pbt 
         writeFileMsg pbthsf
         output pbthsf $ flip hPutStrLn pbt
 #endif
