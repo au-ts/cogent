@@ -22,6 +22,9 @@ seperators = [":", "-"]
 ignores :: [Char]
 ignores = ['\"', '\r', '\n', ':']
 
+returns :: [Char]
+returns = ['\r', '\n']
+
 ender :: String
 ender = "end"
 
@@ -73,7 +76,7 @@ lexeme p = wspace *> p <* wspace
 pbtinfo :: Parser PBTInfo
 pbtinfo = do
     fn <- lexeme stringFName
-    lexeme (many (oneOf ignores))
+    lexeme (many (oneOf returns))
     fi <- lexeme stringFInfo
     ft <- lexeme stringFTys
     fr <- lexeme stringFRels
