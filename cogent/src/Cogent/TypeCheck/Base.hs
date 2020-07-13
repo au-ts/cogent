@@ -198,6 +198,7 @@ data Constraint' t l = (:<) t t
                      | Sat
                      | Exhaustive t [RawPatn]
                      | UnboxedNotRecursive t
+                     | NotReadOnly TCSigil
                      | Solved t
                      | IsPrimType t
 #ifdef BUILTIN_ARRAYS
@@ -304,6 +305,7 @@ instance Bitraversable Constraint' where
   bitraverse f g (Solved t)         = Solved <$> f t
   bitraverse f g (IsPrimType t)     = IsPrimType <$> f t
   bitraverse f g (UnboxedNotRecursive t) = UnboxedNotRecursive <$> f t
+  bitraverse f g (NotReadOnly s)    = pure $ NotReadOnly s
 #ifdef BUILTIN_ARRAYS
   bitraverse f g (Arith se)         = Arith <$> bitraverse f g se
   bitraverse f g (c1 :-> c2)        = (:->) <$> bitraverse f g c1 <*> bitraverse f g c2
