@@ -24,7 +24,8 @@ corresSetup thy cfile log =
       theory = Theory { thyName = thy ++ __cogent_suffix_of_corres_setup
                       , thyImports = imports thy
                       , thyBody = (:[]) . TheoryString . unlines $
-                                    libRel ++ updSemInit ++ cHeapTypeClass ++ localSetup cfile ++ locale thy cfile
+                                    libRel ++ updSemInit ++ cHeapTypeClass ++ setup cfile 
+                                    ++ localSetup cfile ++ locale thy cfile
                       } :: O.Theory I.Type I.Term
   in header $ L.pretty theory
 
@@ -36,6 +37,7 @@ imports thy = TheoryImports $
   , "CogentCRefinement.Tidy"
   , "CogentCRefinement.Heap_Relation_Generation"
   , "CogentCRefinement.Type_Relation_Generation"
+  , "CogentCRefinement.Dargent_Custom_Get_Set"
   , thy ++ __cogent_suffix_of_ac_install
   , thy ++ __cogent_suffix_of_type_proof
   ]
@@ -77,6 +79,14 @@ cHeapTypeClass =
   , "  fixes heap        :: \"lifted_globals \\<Rightarrow> 'a ptr \\<Rightarrow> 'a\""
   ]
 
+setup :: String -> [String]
+setup cfile =
+  [   "(* generate direct definitions of custom getter/setters (for custom layouts) by"
+    , "   inspecting their monadic definitions *)"
+    , "setup \\<open> generate_isa_getset_records_for_file \"" ++ cfile ++
+           "\" @{locale " ++ takeBaseName cfile ++ "} \\<close>"
+  ]
+
 localSetup :: String -> [String]
 localSetup cfile =
   [ "local_setup \\<open> local_setup_val_rel_type_rel_put_them_in_buckets \"" ++ cfile ++ "\" \\<close>"
@@ -87,6 +97,15 @@ locale :: String -> String -> [String]
 locale thy cfile =
   [ "locale " ++ thy ++ " = \"" ++ takeBaseName cfile ++ "\" + update_sem_init"
   , "begin"
+  , ""
+  , ""
+  , "(* The get/set lemmas that must be proven *)"
+  , "ML \\<open>val lems = mk_getset_lems \"" ++ cfile ++ "\" @{context} \\<close>"
+  , "ML \\<open>lems  |> map (string_of_getset_lem @{context})|> map tracing\\<close>"
+  , ""
+  , "(* This proves the get/set lemmas (currently by cheating!) *)"
+  , "local_setup \\<open>local_setup_getset_lemmas \"" ++ cfile ++ "\" \\<close>" 
+  , ""
   , ""
   , "(* Relation between program heaps *)"
   , "definition"
