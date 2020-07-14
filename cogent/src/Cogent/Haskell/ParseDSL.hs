@@ -4,29 +4,26 @@
 module Cogent.Haskell.ParseDSL where
 
 import Cogent.Haskell.GenDSL
-import Text.ParserCombinators.Parsec
+import Cogent.Compiler (__cogent_pbt_info)
 import Control.Applicative hiding ((<|>), optional, many)
+import Control.Monad.Trans.Except
+import Control.Monad.Trans.Class
+import qualified Data.ByteString.Char8 as B
+import Text.ParserCombinators.Parsec
+import Text.Parsec.Char
+import Text.Show.Pretty
+
 
 -- Rules:
--- fname must start function info
--- fname must only have (:) on RHS
--- fname is followed by keywords, until string with no (-) on LHS is found or end keyword is reached (or eof unsure yet)
--- keywords must have (-) on LHS and (:) on RHS
+-- fname must start function info, enclosed by quotes
+-- fname is followed by keywords, until eof or another fname
+-- keywords must have (:) on RHS, values is the following string until the eol
 
 keywords :: [String]
 keywords = ["IP", "ND", "IA", "OA", "AI", "RO"]
 
-seperators :: [String]
-seperators = [":", "-"]
-
 ignores :: [Char]
 ignores = ['\"', '\r', '\n', ':']
-
-returns :: [Char]
-returns = ['\r', '\n']
-
-ender :: String
-ender = "end"
 
 (<||>) :: Parser a -> Parser a -> Parser a 
 p <||> q = try p <|> q
@@ -38,25 +35,29 @@ int = read <$> many1 digit
 -- extract function name
 -- defined as a string with (:) on its RHS
 stringFName :: Parser String 
-stringFName = char '"' *> strVal <* char '"' 
+stringFName = char '"' *> strVal <* char '"' <* wspace <* eol
 
 stringFInfo :: Parser FunInfo 
 stringFInfo = do 
-    ip <- strKeyW *> strVal
-    nd <- strKeyW *> strVal
+    ip <- strKeyW *> strVal <* eol
+    nd <- strKeyW *> strVal <* eol
     return $ FunInfo (read ip) (read nd)
 
 stringFTys :: Parser FunTypes
 stringFTys = do 
-    ia <- strKeyW *> strVal
-    oa <- strKeyW *> strVal
+    ia <- strKeyW *> strVal <* eol
+    oa <- strKeyW *> strVal <* eol
     return $ FunTypes ia oa
     
 stringFRels :: Parser FunRels
 stringFRels = do 
-    ia <- strKeyW *> strVal
-    oa <- strKeyW *> strVal
+    ia <- strKeyW *> strVal <* eol 
+    oa <- strKeyW *> strVal <* eol
     return $ FunRels ia oa
+
+eol :: Parser String
+eol = choice [ string "\n\r", string "\r\n"
+             , string "\n", string "\r"] 
 
 strVal :: Parser String 
 strVal = many (noneOf ignores)
@@ -67,7 +68,7 @@ strKeyW = strVal <* char ':'
 
 -- applies parser (oneOf " ") zero or more times, returning the list
 wspace :: Parser String 
-wspace = many $ oneOf " "
+wspace = many $ char ' '
 
 -- removes whitespaces from both sides (based of given Parser)
 lexeme :: Parser a -> Parser a 
@@ -76,15 +77,33 @@ lexeme p = wspace *> p <* wspace
 pbtinfo :: Parser PBTInfo
 pbtinfo = do
     fn <- lexeme stringFName
-    lexeme (many (oneOf returns))
     fi <- lexeme stringFInfo
     ft <- lexeme stringFTys
     fr <- lexeme stringFRels
     return $ PBTInfo fn fi ft fr
 
-testParse :: IO ()
-testParse = do
-    print $ parse pbtinfo "" exampleFile
+pbtinfos :: Parser [PBTInfo]
+pbtinfos = pbtinfo `manyTill` eof
+
+testPBTParse :: IO ()
+testPBTParse = pPrint $ parse pbtinfos "" exampleFile
+
+   -- parsePBTFile pbtinfos "PBT_Info.txt"
+
+-- Parse the PBT DSL info file to produce a sequence of PBTInfo definitions.
+parsePBTFile :: Parser a -> FilePath -> ExceptT String IO a
+parsePBTFile p f = do
+    pbtFLines <- case __cogent_pbt_info of 
+                      Nothing -> undefined
+                      Just f -> lift $ getPBTFile f
+    case (parse p "" (unlines pbtFLines)) of 
+        Left err -> throwE $ "Error: Failed to parse PBT Info file: " ++ show err
+        Right pbtF -> return pbtF
+
+getPBTFile :: FilePath -> IO [String]
+getPBTFile = liftA lines . readFile
+
+
 
 exampleFile :: String
 exampleFile = unlines [
@@ -94,26 +113,34 @@ exampleFile = unlines [
               "     IA: (Int, Int)                      \r",
               "     OA: (Int, Int)                      \r",
               "     AI: R4 Word32 Word32 -> (Int, Int)  \r",
-              "     RO: ==                              \r" ,
-              "end\r" 
+              "     RO: ==                              \r",
+              "\"averageBag\"                           \r",
+              "     IP: True                            \r",
+              "     ND: False                           \r",
+              "     IA: (Int, Int)                      \r",
+              "     OA: Int                             \r",
+              "     AI: R4 Word32 Word32 -> (Int, Int)  \r",
+              "     RO: ==                              \r" 
               ]
-
-
-{-
-Ref:
-
+-- REF:
 -- Parse the anti-quoted C source code to produce a sequence of C definitions.
-
-parseFile :: [Extensions] -> [String] -> FilePath -> ExceptT String IO [CS.Definition]
-parseFile exts deftypnames filename = do
-#if MIN_VERSION_language_c_quote(0,11,1)
-  let start = Just $ startPos filename
-#else
+{-
+parseFile :: FilePath -> ExceptT String IO [CS.Definition]
+parseFile filename = do
   let start = startPos filename
-#endif
   s <- lift $ B.readFile filename
-  typnames <- case __cogent_ext_types of Nothing -> lift (return deftypnames); Just f -> lift $ getTypnames f
+  typnames <- case __cogent_ext_types of 
+            Nothing -> lift (return deftypnames); 
+            Just f -> lift $ getTypnames f
   case CP.evalP (__fixme CP.parseUnit) (CP.emptyPState exts typnames s start) of -- FIXME: check for other antiquotes
     Left err -> throwE $ "Error: Failed to parse C: " ++ show err
     Right ds -> return ds
+
+
+
+glue :: [FilePath] -> ExceptT String IO [(FilePath, [CS.Definition])]
+glue s typnames mode filenames = liftA (M.toList . M.fromListWith (flip (++)) . concat) .
+  forM filenames $ \filename -> do
+    ds <- parseFile defaultExts typnames filename
+
 -}
