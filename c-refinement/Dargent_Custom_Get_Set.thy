@@ -157,7 +157,52 @@ fun unify_change_goal_eq ctxt sP sQ  =
     ("\<lambda> f.  undefined = " ^ sQ ^ " f") 
 \<close>
 
+(* Complementary easy lemmas about heap setters (proved by fastforce):
+- heap_t1_C_update f o heap_t1_C_update f' = heap_t1_C_update (f o f')
+- (if b then heap_t1_C_update f z else heap_t1_C_update g z) = 
+  heap_t1_C_update (\<lambda> x. if b then f x else g x) z
 
+They are used to simplify the monadic definition of custom getters and setters
+when devising a direct definition of them.
+*)
+
+ML \<open>
+
+fun make_heap_setter_thm name statement vars ctxt =
+let
+ val term = @{term Trueprop} $ Proof_Context.read_term_pattern ctxt statement
+ val thm = Goal.prove ctxt vars [] term 
+    (fn { context = ctxt, prems = _} => fast_force_tac ctxt 1 )
+ val (_, ctxt) = Local_Theory.note ((Binding.name name, []), [thm]) ctxt 
+in
+ (thm, ctxt)
+end
+
+fun make_heap_setter_comp_thm heap_setter ctxt =
+let
+ val name = List.last (String.tokens (fn #"." => true | _ => false) heap_setter)  
+   ^ "_comp"
+ val statement = heap_setter ^ " f o " ^ heap_setter ^ " f' = "
+              ^ heap_setter ^ " (f o f')"
+ val vars = ["f", "f'"] 
+in
+   make_heap_setter_thm name statement vars ctxt
+end
+
+fun make_heap_setter_if_thm heap_setter ctxt =
+let
+ val name = List.last (String.tokens (fn #"." => true | _ => false) heap_setter)  
+   ^ "_if"
+
+ val statement = 
+  "(if b then " ^ heap_setter ^ " f z else "
+                ^ heap_setter ^ " f' z) = "
+  ^ heap_setter ^ " (\<lambda> x. if b then f x else f' x) z"
+ val vars = ["b", "z", "f", "f'"] 
+in
+   make_heap_setter_thm name statement vars ctxt
+end
+\<close>
 
 ML \<open>
 (* generate the isabelle getter term, depending on an argument named w,
@@ -202,7 +247,7 @@ should be first added to the context.
 
 heap_setter: the name of the heap setter, e.g. heap_t1_C_update
 *)
-fun generate_setter_term ctxt setter_name heap_setter setter_thm  =
+fun generate_setter_term ctxt setter_name heap_setter heap_setter_thms setter_thm =
 setter_thm
 |> 
 Rule_Insts.of_rule ctxt ([SOME "ptr", SOME "v"], []) [] |>
@@ -220,7 +265,7 @@ thm_simp ctxt
 |> thm_simp
  (* rewrite in the then and else statements *)
  (Simplifier.add_cong @{thm if_cong} ctxt)
- @{thms comp_def condition_cst modify_if ptr_set_if}
+ (@{thms comp_def condition_cst modify_if ptr_set_if} @ heap_setter_thms)
 |> thm_THEN @{thm  HOL.meta_eq_to_obj_eq}
 |> unify_change_goal_eq ctxt 
 ("(\<lambda> f. " ^ setter_name ^ 
@@ -290,16 +335,16 @@ generate_isa_get_or_set g fn_name ["w"] tidy_C_fun_def
   (generate_getter_term ctxt fn_name heap_fn) ctxt
 
 (* heap_fn : the name of the heap setter, e.g. heap_t1_C_update *)
-fun generate_isa_set g heap_fn fn_name ctxt =
+fun generate_isa_set g heap_fn fn_name heap_setter_thms ctxt =
 generate_isa_get_or_set g fn_name ["w", "v"] fn_C_def_thm
-  (generate_setter_term ctxt fn_name heap_fn) ctxt
+  (generate_setter_term ctxt fn_name heap_fn heap_setter_thms) ctxt
 
-fun generate_isa_getset g heap_getter heap_setter  (* ty *)
+fun generate_isa_getset g heap_getter heap_setter heap_setter_thms (* ty *)
    (l : table_field_layout) 
    ctxt = 
  let
    val (isa_getter_name, ctxt) = generate_isa_get g heap_getter (# getter l) ctxt
-   val (isa_setter_name, ctxt) = generate_isa_set g heap_setter (# setter l) ctxt
+   val (isa_setter_name, ctxt) = generate_isa_set g heap_setter (# setter l) heap_setter_thms ctxt
  in
    (((# getter l , isa_getter_name), (#setter l, isa_setter_name)), ctxt)
  end
@@ -316,8 +361,11 @@ fun generate_isa_getset_record g (heap_info : HeapLiftBase.heap_info) (ty, l) ct
         (Syntax.read_typ ctxt ty)) |> the |> fst
     val heap_setter = ( Typtab.lookup (#heap_setters heap_info) 
         (Syntax.read_typ ctxt ty)) |> the |> fst
+    val (heap_setter_comp, ctxt) = make_heap_setter_comp_thm heap_setter ctxt
+    val (heap_setter_if, ctxt) = make_heap_setter_if_thm heap_setter ctxt
+    val heap_setter_thms = [heap_setter_comp, heap_setter_if]
     val (lays, ctxt) =   fold_map 
-   (generate_isa_getset g heap_getter heap_setter)
+   (generate_isa_getset g heap_getter heap_setter heap_setter_thms)
      l ctxt
   in
     (lays, ctxt)
