@@ -822,6 +822,13 @@ parseArgs args = case getOpt' Permute options args of
         writeFileMsg hsf
         output hsf $ flip hPutStrLn hs
         -- PBT
+        putProgressLn "Parsing PBT info file..."
+        infos <- PBT.parse
+        let hl, hr :: forall a b. Show a => a -> IO b
+            hl err = hPutStrLn stderr (show err) >> exitFailure
+            hr defs = lessPretty stdout defs >> exitSuccess
+        exceptT hl hr $ GL.parseFile GL.defaultExts defaultTypnames source
+
         putProgressLn "Generating PBT Hs file..."
         let pbthsf = mkHsFileName source __cogent_suffix_of_pbt 
         writeFileMsg pbthsf
