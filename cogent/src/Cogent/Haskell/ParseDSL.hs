@@ -88,7 +88,8 @@ pbtinfos = pbtinfo `manyTill` eof
 testPBTParse :: IO ()
 testPBTParse = pPrint $ parse pbtinfos "" exampleFile
 
-   -- parsePBTFile pbtinfos "PBT_Info.txt"
+--parseFile :: FilePath -> ExceptT String IO Parser [PBTInfo]
+--parseFile f = parsePBTFile pbtinfos f
 
 -- Parse the PBT DSL info file to produce a sequence of PBTInfo definitions.
 parsePBTFile :: Parser a -> FilePath -> ExceptT String IO a
