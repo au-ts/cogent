@@ -1,9 +1,6 @@
 foo : U8#[3] -> U8#[3]
 foo x = x
 
-foo' : #{ a : U8, b : U8 } -> #{ a : U8, b : U8 }
-foo' x = x
-
 type A
 
 bar : A#[4] -> A#[4]

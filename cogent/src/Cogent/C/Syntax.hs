@@ -197,7 +197,7 @@ data StrlType = Record  [(CId, CType)]         -- ^ @(fieldname &#x21A6; fieldty
               | Variant (M.Map CId CType)      -- ^ one tag field, and fields for all possibilities
               | Function CType CType
               | AbsType CId
-              | Array CType
+              | Array CType (Maybe CExpr)      -- for static arrays the size is needed
               | ArrayL (DataLayout BitRange)
               deriving (Eq, Ord, Show, Generic)
 
@@ -380,6 +380,9 @@ dummyField    = "dummy"
 boolT, boolField :: CId
 boolT     = "bool_t"
 boolField = "boolean"
+
+arrField :: CId
+arrField = "data"
 
 funEnum fn = "FUN_ENUM_" ++ fn
 untypedFuncEnum = "untyped_func_enum" :: CId
