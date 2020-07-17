@@ -19,19 +19,31 @@ unit_t cogent_assert ($ty:(Bool) arg) {
 
 unit_t cogent_warn (char* str) {
         unit_t ret;
+$escstm:(#if LINUX_VERSION_CODE > KERNEL_VERSION(5,4,0))
+	pr_warn("%s", str);
+$escstm:(#else)
         pr_warning("%s", str);
+$escstm:(#endif)
         return ret;
 }
 
 unit_t cogent_warn_u32 (u32 arg) {
         unit_t ret;
+$escstm:(#if LINUX_VERSION_CODE > KERNEL_VERSION(5,4,0))
+        pr_warn("%u", arg);
+$escstm:(#else)
         pr_warning("%u", arg);
+$escstm:(#endif)
         return ret;
 }
 
 unit_t cogent_warn_u64 (u64 arg) {
         unit_t ret;
+$escstm:(#if LINUX_VERSION_CODE > KERNEL_VERSION(5,4,0))
+	pr_warn("%llu", arg);
+$escstm:(#else)
         pr_warning("%llu", arg);
+$escstm:(#endif)
         return ret;
 }
 

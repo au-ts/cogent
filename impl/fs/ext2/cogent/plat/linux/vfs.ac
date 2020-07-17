@@ -115,7 +115,12 @@ $ty:((SysState, OSTimeSpec)) os_get_current_fs_time($ty:((SysState, VfsInode!)) 
     $ty:((SysState, OSTimeSpec)) ret;
     struct inode *inode = &(args.p2->vfs.inode_lin);
 
-$escstm:(#if LINUX_VERSION_CODE > KERNEL_VERSION(4,19,0))
+$escstm:(#if LINUX_VERSION_CODE > KERNEL_VERSION(5,5,0))
+    struct timespec64 ts;
+
+    ktime_get_coarse_real_ts64(&ts);
+    struct timespec64 now = timestamp_truncate(ts, inode);
+$escstm:(#elif LINUX_VERSION_CODE > KERNEL_VERSION(4,19,0))
     struct timespec64 ts;
 
     ktime_get_coarse_real_ts64(&ts);
