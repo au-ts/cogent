@@ -49,13 +49,13 @@ type FFIFuncs = M.Map FunName (CType, CType)
 
 type Gen a = ReaderT (FFIFuncs, [FunName]) Identity a
 
-pbtHs :: FFIFuncs -> String -> String -> [CExtDecl] -> String -> String
-pbtHs m name hscname decls log = render $
-  let mod = flip runReader (m, map ("prop_" ++) $ M.keys m) $ propModule name hscname decls
+pbtHs :: FFIFuncs -> String -> String -> [CExtDecl] -> [PBTInfo] -> String -> String
+pbtHs m name hscname decls pbtinfos log = render $
+  let mod = flip runReader (m, map ("prop_" ++) $ M.keys m) $ propModule name hscname decls pbtinfos
    in text "{-" $+$ text log $+$ text "-}" $+$ prettyPrim mod
 
-propModule :: String -> String -> [CExtDecl] -> Gen (Module ())
-propModule name hscname decls =
+propModule :: String -> String -> [CExtDecl] -> [PBTInfo] -> Gen (Module ())
+propModule name hscname decls pbtinfos =
   let moduleHead = ModuleHead () (ModuleName () name) Nothing Nothing
       exts = []
       imps = [ ImportDecl () (ModuleName () "Prelude") False False False Nothing Nothing Nothing
@@ -68,96 +68,28 @@ propModule name hscname decls =
              , ImportDecl () (ModuleName () hscname) False False False Nothing (Just (ModuleName () "FFI")) Nothing
              , ImportDecl () (ModuleName () (hscname ++ "_Abs")) False False False Nothing (Just (ModuleName () "FFI")) Nothing
              ]
-      hs_decls = [] -- (P.concatMap propDecls decls) ++ (P.concatMap genDecls decls)
+      hs_decls = (P.concatMap propDecls pbtinfos) -- decls ++ (P.concatMap genDecls decls)
   in 
   return $ Module () (Just moduleHead) exts imps hs_decls
-
-
-
-
-      {-
-      in hsModule & header .
-           prettyPrintStyleMode 
-            (style {lineLength = 220, ribbonsPerLine = 0.1}) 
-            (defaultMode {caseIndent = 2})
-  return $ Module () (Just mhead) pragmas imps hs_decls
-            -}
-
-
-
-
-
-{-
-  hs_decls <- concatMapM ffiDefinition decls
-  let mhead = ModuleHead () (ModuleName () name) Nothing Nothing
-      pragmas = [LanguagePragma () [Ident () "ForeignFunctionInterface"]]
-      imps = [ ImportDecl () (ModuleName () "Foreign") False False False Nothing Nothing Nothing
-             , ImportDecl () (ModuleName () "Foreign.C.Types") False False False Nothing Nothing Nothing
-             , ImportDecl () (ModuleName () "Util") False False False Nothing Nothing Nothing
-             , ImportDecl () (ModuleName () hscname) False False False Nothing (Just (ModuleName () "FFI")) Nothing
-             , ImportDecl () (ModuleName () (hscname ++ "_Abs")) False False False Nothing (Just (ModuleName () "FFI")) Nothing
-             ]
-  return $ Module () (Just mhead) pragmas imps hs_decls
-
-ffiDefinition :: CExtDecl -> Gen [Decl ()]
-ffiDefinition (CDecl (CExtFnDecl rt name [(t,_)] _)) = do
-  (m, ffis) <- ask
-  if name `elem` ffis then return []  -- This is an FFI function for another function.
-  else do  -- Origin Cogent functions
-    let (name',(t',rt')) = case M.lookup name m of
-                             Nothing -> (name, (t,rt))
-                             Just ts -> ("ffi_" ++ name, ts)
-        hs_t  = hsc2hsType $ hscType t'
-        hs_rt = hsc2hsType $ hscType rt'
-    return [ ForImp () (CCall ())
-               (Just $ PlayRisky ())
-               (Just name')
-               (Ident () $ "cogent_" ++ name)
-               (TyFun () hs_t (inIO hs_rt))
-           ]
-ffiDefinition _ = return []
--}
-
--- -----------------------------------------------------------------------
--- Cogent PBT: Haskell embedding extra generators 
--- -----------------------------------------------------------------------
-funPBTGen :: [FuncInfo] -> String -> String -> String
-funPBTGen fs modName log = 
-  let header = (("{-\n" ++ log ++ "\n-}\n") ++)
-      moduleHead = ModuleHead () (ModuleName () modName) Nothing Nothing
-      exts = []
-      imps = [ ImportDecl () (ModuleName () "Prelude") False False False Nothing Nothing Nothing
-             , ImportDecl () (ModuleName () "Test.QuickCheck" ) False False False Nothing Nothing Nothing
-             , ImportDecl () (ModuleName () "Test.QuickCheck.Monadic" ) False False False Nothing Nothing Nothing
-             , ImportDecl () (ModuleName () "Data.Tree" ) False False False Nothing Nothing Nothing
-             , ImportDecl () (ModuleName () "Data.Word" ) False False False Nothing Nothing Nothing
-             -- custom corres
-             , ImportDecl () (ModuleName () "Corres" ) False False False Nothing Nothing Nothing
-             ]
-      decls = (P.concatMap propDecls fs) 
-              ++ (P.concatMap genDecls fs)
-      hsModule = Module () (Just moduleHead) exts imps decls
-      in hsModule & header .
-           prettyPrintStyleMode 
-            (style {lineLength = 220, ribbonsPerLine = 0.1}) 
-            (defaultMode {caseIndent = 2})
 
 -- -----------------------------------------------------------------------
 -- Cogent PBT: Refinement statement property generator
 -- -----------------------------------------------------------------------
-propDecls :: FuncInfo -> [Decl ()]
-propDecls fs = 
-        let FuncInfo{..} = fs
-            fnName = "prop_" ++ name
+propDecls :: PBTInfo -> [Decl ()]
+propDecls PBTInfo{..} = 
+        --let FunInfo{..} = finfo
+        --    FunTypes{..} = ftyps
+        --    FunRels{..} = frels
+        let fnName = "prop_" ++ fname
             toName = "Property"
             to     = TyCon   () (mkQName toName)
             sig    = TypeSig () [mkName fnName] to
             dec    = FunBind () [Match () (mkName fnName) [] 
-                                 (UnGuardedRhs () $ mkPropBody fs ) Nothing]
+                                 (UnGuardedRhs () $ mkPropBody fname finfo ) Nothing]
             in [sig, dec]
 
-mkPropBody :: FuncInfo -> Exp ()
-mkPropBody FuncInfo{name=n, ispure=True, nondet=nd, ictype=_} =  
+mkPropBody :: String -> FunInfo -> Exp ()
+mkPropBody n FunInfo{ispure=True, nondet=nd} =  
     let f  = function "forAll"
         fs = [ function $ "gen_"++n
              , lamE [pvar $ mkName "ic"] (letE binds body) ]
@@ -171,8 +103,7 @@ mkPropBody FuncInfo{name=n, ispure=True, nondet=nd, ictype=_} =
                                  , var $ mkName "oa"
                                  , var $ mkName "oc" ]
         in appFun f fs
-        
-mkPropBody FuncInfo{name=n, ispure=False, nondet=nd, ictype=_} =
+mkPropBody n FunInfo{ispure=False, nondet=nd} =
     let f  = function "forAllM"
         fs = [ function $ "gen_"++n
              , lamE [pvar $ mkName "ic"] (doE binds)  
@@ -233,3 +164,90 @@ mkGenBody name _ = function "arbitrary"
                                                              ]
         in app (function "monadicIO") (appFun f fs)
         -}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      {-
+      in hsModule & header .
+           prettyPrintStyleMode 
+            (style {lineLength = 220, ribbonsPerLine = 0.1}) 
+            (defaultMode {caseIndent = 2})
+  return $ Module () (Just mhead) pragmas imps hs_decls
+            -}
+
+
+
+
+
+{-
+  hs_decls <- concatMapM ffiDefinition decls
+  let mhead = ModuleHead () (ModuleName () name) Nothing Nothing
+      pragmas = [LanguagePragma () [Ident () "ForeignFunctionInterface"]]
+      imps = [ ImportDecl () (ModuleName () "Foreign") False False False Nothing Nothing Nothing
+             , ImportDecl () (ModuleName () "Foreign.C.Types") False False False Nothing Nothing Nothing
+             , ImportDecl () (ModuleName () "Util") False False False Nothing Nothing Nothing
+             , ImportDecl () (ModuleName () hscname) False False False Nothing (Just (ModuleName () "FFI")) Nothing
+             , ImportDecl () (ModuleName () (hscname ++ "_Abs")) False False False Nothing (Just (ModuleName () "FFI")) Nothing
+             ]
+  return $ Module () (Just mhead) pragmas imps hs_decls
+
+ffiDefinition :: CExtDecl -> Gen [Decl ()]
+ffiDefinition (CDecl (CExtFnDecl rt name [(t,_)] _)) = do
+  (m, ffis) <- ask
+  if name `elem` ffis then return []  -- This is an FFI function for another function.
+  else do  -- Origin Cogent functions
+    let (name',(t',rt')) = case M.lookup name m of
+                             Nothing -> (name, (t,rt))
+                             Just ts -> ("ffi_" ++ name, ts)
+        hs_t  = hsc2hsType $ hscType t'
+        hs_rt = hsc2hsType $ hscType rt'
+    return [ ForImp () (CCall ())
+               (Just $ PlayRisky ())
+               (Just name')
+               (Ident () $ "cogent_" ++ name)
+               (TyFun () hs_t (inIO hs_rt))
+           ]
+ffiDefinition _ = return []
+-}
+
+-- -----------------------------------------------------------------------
+-- Cogent PBT: Haskell embedding extra generators 
+-- -----------------------------------------------------------------------
+{-
+funPBTGen :: [FuncInfo] -> String -> String -> String
+funPBTGen fs modName log = 
+  let header = (("{-\n" ++ log ++ "\n-}\n") ++)
+      moduleHead = ModuleHead () (ModuleName () modName) Nothing Nothing
+      exts = []
+      imps = [ ImportDecl () (ModuleName () "Prelude") False False False Nothing Nothing Nothing
+             , ImportDecl () (ModuleName () "Test.QuickCheck" ) False False False Nothing Nothing Nothing
+             , ImportDecl () (ModuleName () "Test.QuickCheck.Monadic" ) False False False Nothing Nothing Nothing
+             , ImportDecl () (ModuleName () "Data.Tree" ) False False False Nothing Nothing Nothing
+             , ImportDecl () (ModuleName () "Data.Word" ) False False False Nothing Nothing Nothing
+             -- custom corres
+             , ImportDecl () (ModuleName () "Corres" ) False False False Nothing Nothing Nothing
+             ]
+      decls = (P.concatMap propDecls fs) 
+              ++ (P.concatMap genDecls fs)
+      hsModule = Module () (Just moduleHead) exts imps decls
+      in hsModule & header .
+           prettyPrintStyleMode 
+            (style {lineLength = 220, ribbonsPerLine = 0.1}) 
+            (defaultMode {caseIndent = 2})
+            -}
+

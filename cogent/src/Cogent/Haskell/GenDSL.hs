@@ -5,6 +5,33 @@
 -- -----------------------------------------------------------------------
 module Cogent.Haskell.GenDSL where
 
+data PBTInfo = PBTInfo { fname :: String
+                       , finfo :: FunInfo
+                       , fabsf :: FunAbsF
+                       , frrel :: FunRRel
+                       , fwelf :: FunWelF
+                       } deriving (Show)
+
+data FunInfo = FunInfo { ispure :: Bool
+                       , nondet :: Bool
+                       } deriving (Show)
+
+data FunAbsF = FunAbsF { absf :: String
+                       , ic   :: String
+                       , ia   :: String
+                       } deriving (Show)
+
+data FunRRel = FunRRel { rrel :: String
+                       , oc   :: String
+                       , oa   :: String
+                       } deriving (Show)
+
+data FunWelF = FunWelF { welf :: String
+                       , typs :: [String]
+                       } deriving (Show)
+
+-- data PBTInfoList = PBTInfoList [PBTInfo]
+-- Prototyping ...
 data ICType = Pointer
             | CList 
             | Tree
@@ -28,23 +55,3 @@ data FuncInfo = FuncInfo { name :: String
                          , nondet :: Bool
                          , ictype :: ICType
                          } deriving (Show)
-
-data FunInfo = FunInfo { ispure :: Bool
-                       , nondet :: Bool
-                       } deriving (Show)
-
-data FunTypes = FunTypes { ia :: String
-                         , oa :: String
-                         } deriving (Show)
-
-data FunRels = FunRels { ai     :: String
-                       , ro     :: String
-                       } deriving (Show)
-
-data PBTInfo = PBTInfo { fname :: String
-                       , finfo :: FunInfo
-                       , ftys  :: FunTypes
-                       , frels :: FunRels
-                       } deriving (Show)
-
-data PBTInfoList = PBTInfoList [PBTInfo]

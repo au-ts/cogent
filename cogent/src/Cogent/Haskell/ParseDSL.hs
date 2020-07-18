@@ -1,7 +1,7 @@
 -- PBT
 -- Parse file containing info used in PBT 
 
-module Cogent.Haskell.ParseDSL where
+module Cogent.Haskell.ParseDSL (parseFile, testPBTParse) where
 
 import Cogent.Haskell.GenDSL
 import Cogent.Compiler (__cogent_pbt_info)
@@ -20,7 +20,9 @@ import Text.Show.Pretty
 -- keywords must have (:) on RHS, values is the following string until the eol
 
 keywords :: [String]
-keywords = ["IP", "ND", "IA", "OA", "AI", "RO"]
+keywords = ["pure", "nond", "absf", "rrel", "welf"]
+            ++ 
+           ["IC", "IA", "OC", "OA"]
 
 ignores :: [Char]
 ignores = ['\"', '\r', '\n', ':']
@@ -35,7 +37,8 @@ int = read <$> many1 digit
 -- extract function name
 -- defined as a string with (:) on its RHS
 stringFName :: Parser String 
-stringFName = char '"' *> strVal <* char '"' <* wspace <* eol
+stringFName = char '"' *> strVal <* char '"' 
+                <* ((wspace <* many1 eol) <||> many1 eol)
 
 stringFInfo :: Parser FunInfo 
 stringFInfo = do 
@@ -43,21 +46,31 @@ stringFInfo = do
     nd <- strKeyW *> strVal <* eol
     return $ FunInfo (read ip) (read nd)
 
-stringFTys :: Parser FunTypes
-stringFTys = do 
+stringAbsF :: Parser FunAbsF
+stringAbsF = do 
+    ab <- strKeyW *> strVal <* eol
+    ic <- strKeyW *> strVal <* eol
     ia <- strKeyW *> strVal <* eol
-    oa <- strKeyW *> strVal <* eol
-    return $ FunTypes ia oa
+    return $ FunAbsF ab ic ia
     
-stringFRels :: Parser FunRels
-stringFRels = do 
-    ia <- strKeyW *> strVal <* eol 
+stringRRel :: Parser FunRRel
+stringRRel = do 
+    rr <- strKeyW *> strVal <* eol 
+    oc <- strKeyW *> strVal <* eol 
     oa <- strKeyW *> strVal <* eol
-    return $ FunRels ia oa
+    return $ FunRRel rr oc oa
 
-eol :: Parser String
-eol = choice [ string "\n\r", string "\r\n"
-             , string "\n", string "\r"] 
+stringWelF :: Parser FunWelF
+stringWelF = do 
+    wf <- strKeyW *> strVal <* eol 
+    ts <- strKeyW *> strVal <* eol 
+    return $ FunWelF wf [ts]
+
+eol :: Parser Char
+eol = endOfLine
+-- choice [newline, crlf] 
+        -- [ string "\n\r", string "\r\n"
+--      <?> "end of line"
 
 strVal :: Parser String 
 strVal = many (noneOf ignores)
@@ -78,18 +91,19 @@ pbtinfo :: Parser PBTInfo
 pbtinfo = do
     fn <- lexeme stringFName
     fi <- lexeme stringFInfo
-    ft <- lexeme stringFTys
-    fr <- lexeme stringFRels
-    return $ PBTInfo fn fi ft fr
+    ab <- lexeme stringAbsF
+    rr <- lexeme stringRRel
+    wf <- lexeme stringWelF
+    return $ PBTInfo fn fi ab rr wf
 
 pbtinfos :: Parser [PBTInfo]
 pbtinfos = pbtinfo `manyTill` eof
 
-testPBTParse :: IO ()
-testPBTParse = pPrint $ parse pbtinfos "" exampleFile
+parseFile :: FilePath -> ExceptT String IO [PBTInfo]
+parseFile f = parsePBTFile pbtinfos f
 
---parseFile :: FilePath -> ExceptT String IO Parser [PBTInfo]
---parseFile f = parsePBTFile pbtinfos f
+getPBTFile :: FilePath -> IO [String]
+getPBTFile = liftA lines . readFile
 
 -- Parse the PBT DSL info file to produce a sequence of PBTInfo definitions.
 parsePBTFile :: Parser a -> FilePath -> ExceptT String IO a
@@ -101,13 +115,36 @@ parsePBTFile p f = do
         Left err -> throwE $ "Error: Failed to parse PBT Info file: " ++ show err
         Right pbtF -> return pbtF
 
-getPBTFile :: FilePath -> IO [String]
-getPBTFile = liftA lines . readFile
-
-
+testPBTParse :: IO ()
+testPBTParse = pPrint $ parse pbtinfos "" exampleFile
 
 exampleFile :: String
-exampleFile = unlines [
+exampleFile = unlines $
+        [ "\"addToBag\"     \r"
+        , "    pure: True\r"
+        , "    nond: False\r"
+        , "    absf: direct\r"
+        , "        IC: U32, Bag \r"
+        , "        IA: Int, (Int, Int) \r"
+        , "    rrel: direct (==)\r"
+        , "        OC: Bag\r"
+        , "        OA: Tuple \r"
+        , "    welf: sum = sum List, count = length List\r"
+        , "        List: normal at 10, arbitrary Pos Int\r"
+        , "\"averageBag\"\r"
+        , "    pure: True\r"
+        , "    nond: False\r"
+        , "    absf: direct\r"
+        , "        IC: Bag\r"
+        , "        IA: Tuple\r"
+        , "    rrel: direct (==)\r"
+        , "        OC: EmptyBag | Success U32\r"
+        , "        OA: Either \r"
+        , "    welf: sum = sum List, count = length List\r"
+        , "        List: normal at 10, arbitrary Pos Int\r"
+        ]
+{-
+= unlines [
               "\"addToBag\"                             \r",
               "     IP: True                            \r",
               "     ND: False                           \r",
@@ -123,6 +160,8 @@ exampleFile = unlines [
               "     AI: R4 Word32 Word32 -> (Int, Int)  \r",
               "     RO: ==                              \r" 
               ]
+              -}
+
 -- REF:
 -- Parse the anti-quoted C source code to produce a sequence of C definitions.
 {-
