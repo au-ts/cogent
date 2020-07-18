@@ -1,0 +1,34 @@
+-- PBT info example
+
+"addToBag"
+    pure: True
+    nond: False
+    absf: direct
+        IC: U32, Bag -- we can get from the compiler 
+        IA: Int, HsBag --(Int, Int) 
+    rrel: direct (==)
+        OC: Bag
+        OA: Tuple 
+    welf: 
+        Bag: sum = sum List, count = length List
+        List: normal at 10, arbitrary Pos Int
+
+"averageBag"
+    pure: True
+    nond: False
+    absf: direct
+        IC: Bag
+        IA: Tuple
+    rrel: direct (==)
+        OC: EmptyBag | Success Word32
+        OA: Either 
+    welf: 
+        Bag: sum List == sum && length List == count
+        List: normal at 10, arbitrary Pos Int
+
+
+
+-- note welf for sum types:
+    welf:
+        freq: fst at 0.25, snd at 0.75
+

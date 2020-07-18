@@ -41,6 +41,7 @@ import Cogent.Glue                     as GL (defaultExts, defaultTypnames,
                                               parseFile, readEntryFuncs)
 #ifdef WITH_HASKELL
 import Cogent.Haskell.Shallow          as HS
+import Cogent.Haskell.ParseDSL         as HSP
 #endif
 import Cogent.Inference                as IN (tc, tc_, tcConsts, retype)
 import Cogent.Interpreter              as Repl (replWithState)
@@ -364,8 +365,6 @@ options = [
   , Option []         ["hs-shallow-desugar-tuples"]  2 (NoArg HsShallowTuples)  (hsShallowMsg STGDesugar True )
   -- FFI
   , Option []         ["hs-ffi"]          2 (NoArg HsFFIGen)                  "generate Haskell FFI code to access generated C code (incl. a .hsc module for types and a .hs module for functions)"
-  -- PBT
-  , Option []         ["hs-pbt-info-file"]  1 (ReqArg set_PBT_info "FILE") "Haskell PBT info file"
 #else
   , Option []         ["hs-shallow-desugar"]         2 (NoArg HsShallow      )  (hsShallowMsg STGDesugar False)
   , Option []         ["hs-shallow-desugar-tuples"]  2 (NoArg HsShallowTuples)  (hsShallowMsg STGDesugar True )
@@ -539,6 +538,8 @@ flags =
   , Option ['x']      ["fdump-to-stdout"]  1 (NoArg set_flag_fdumpToStdout)                "dump all output to stdout"
   , Option []         ["interactive"]      3 (NoArg set_flag_interactive)                  "interactive compiler mode"
   , Option []         ["type-proof-sorry-before"]  1 (ReqArg set_flag_type_proof_sorry_before "FUN_NAME")            "bad hack: sorry all type proofs for functions that precede given function name"
+  -- PBT
+  , Option []         ["hs-pbt-info-file"]  1 (ReqArg set_PBT_info "FILE") "Haskell PBT info file"
   ]
 
 parseArgs :: [String] -> IO ()
@@ -800,7 +801,15 @@ parseArgs args = case getOpt' Permute options args of
                     case decodeResult of
                       Left (_, err) -> hPutStrLn stderr ("Decoding name cache file failed: " ++ err ++ ".\nNot using name cache.") >> return (Nothing, True)
                       Right cache -> return (Just cache, False)
-      let (h,c,atm,ct,hsc,hs,pbt,genst) = cgen hName cNames hscName hsName pbtName monoed mcache ctygen log
+#ifdef WITH_HASKELL
+      pbtinfos <- do -- PBT info parse
+          putProgressLn "Parsing PBT info file..."
+          res <- runExceptT $ HSP.parseFile (fromJust __cogent_pbt_info) 
+          case res of 
+            Left err -> hPutStrLn stderr (ppShow err) >> exitFailure
+            Right defs -> return defs
+#endif
+      let (h,c,atm,ct,hsc,hs,pbt,genst) = cgen hName cNames hscName hsName pbtName monoed mcache ctygen pbtinfos log
       when (TableAbsTypeMono `elem` cmds) $ do
         let atmfile = mkFileName source Nothing __cogent_ext_of_atm
         putProgressLn "Generating table for monomorphised asbtract types..."
@@ -821,14 +830,7 @@ parseArgs args = case getOpt' Permute options args of
         let hsf = mkHsFileName source __cogent_suffix_of_ffi
         writeFileMsg hsf
         output hsf $ flip hPutStrLn hs
-        -- PBT
---        putProgressLn "Parsing PBT info file..."
---        infos <- PBT.parse
---        let hl, hr :: forall a b. Show a => a -> IO b
---            hl err = hPutStrLn stderr (show err) >> exitFailure
---            hr defs = lessPretty stdout defs >> exitSuccess
---        exceptT hl hr $ GL.parseFile GL.defaultExts defaultTypnames source
---
+        -- PBT gen
         putProgressLn "Generating PBT Hs file..."
         let pbthsf = mkHsFileName source __cogent_suffix_of_pbt 
         writeFileMsg pbthsf
