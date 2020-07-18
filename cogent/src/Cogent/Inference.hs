@@ -157,6 +157,7 @@ bound b (TArray t1 l1 s1 mhole1) (TArray t2 l2 s2 mhole2)
     combineHoles b (Just i1) (Just _ ) = Just i1
     combineHoles b Nothing   (Just i2) = case b of GLB -> Nothing; LUB -> Just i2
     combineHoles b (Just i1) Nothing   = case b of GLB -> Nothing; LUB -> Just i1
+bound b rt1@(TRefine t1 l1) rt2@(TRefine t2 l2) = return rt1 -- FIXME: hack /blaisep
 #endif
 bound _ t1 t2 = __impossible ("bound: not comparable:\n" ++ show t1 ++ "\n" ++ 
                               "----------------------------------------\n" ++ show t2 ++ "\n")
@@ -291,7 +292,7 @@ adjust k f = map (\(a,b) -> (a,) $ if a == k then f b else b)
 newtype TC (t :: Nat) (v :: Nat) b x
   = TC {unTC :: ExceptT String
                         (ReaderT (Vec t Kind, Map FunName (FunctionType b))
-                                 (State (Vec v (Maybe (Type t b)))))
+                                 (State (Vec v (Maybe (CEntry t b)))))
                         x}
   deriving (Functor, Applicative, Alternative, Monad, MonadPlus,
             MonadReader (Vec t Kind, Map FunName (FunctionType b)))
@@ -340,25 +341,40 @@ opType Not [TPrim Boolean] = Just $ TPrim Boolean
 opType Complement [TPrim p] | p /= Boolean = Just $ TPrim p
 opType opr ts = __impossible "opType"
 
-useVariable :: Fin v -> TC t v b (Maybe (Type t b))
+useVariable :: Fin v -> TC t v b (Maybe (CEntry t b))
 useVariable v = TC $ do ret <- (`at` v) <$> get
                         case ret of
                           Nothing -> return ret
                           Just t  -> do
-                            ok <- canShare <$> unTC (kindcheck t)
+                            ok <- canShare <$> unTC (kindcheck $ cEntryToType t)
                             unless ok $ modify (\s -> update s v Nothing)
                             return ret
 
 funType :: CoreFunName -> TC t v b (Maybe (FunctionType b))
 funType v = TC $ (M.lookup (unCoreFunName v) . snd) <$> ask
 
+data CEntry t b
+  = CType (Type t b)
+  | CPred (LExpr t b) -- ???
+
+typeToCEntry :: Type t b -> CEntry t b
+typeToCEntry x = CType x
+
+lExprToCEntry :: LExpr t b -> CEntry t b
+lExprToCEntry x = CPred x
+
+cEntryToType :: CEntry t b -> Type t b
+cEntryToType (CType x) = x
+cEntryToType (CPred x) = TUnit -- for now /blaisep
+
 runTC :: TC t v b x
       -> (Vec t Kind, Map FunName (FunctionType b))
-      -> Vec v (Maybe (Type t b))
-      -> Either String (Vec v (Maybe (Type t b)), x)
+      -> Vec v (Maybe (CEntry t b))
+      -- -> Either String (Vec v (Maybe (Type t b)), x)
+      -> Either String (Vec v (Maybe (CEntry t b)), x)
 runTC (TC a) readers st = case runState (runReaderT (runExceptT a) readers) st of
                             (Left x, s)  -> Left x
-                            (Right x, s) -> Right (s,x)
+                            (Right x, s) -> Right (s, x)
 
 -- XXX | tc_debug :: [Definition UntypedExpr a] -> IO ()
 -- XXX | tc_debug = flip tc_debug' M.empty
@@ -390,7 +406,7 @@ tc = flip tc' M.empty
     tc' ((FunDef attr fn ks ls t rt e):ds) reader =
       -- Enable recursion by inserting this function's type into the function type dictionary
       let ft = FT (snd <$> ks) (snd <$> ls) t rt in
-      case runTC (infer e >>= flip typecheck rt) (fmap snd ks, M.insert fn ft reader) (Cons (Just t) Nil) of
+      case runTC (infer e >>= flip typecheck rt) (fmap snd ks, M.insert fn ft reader) (Cons (fmap typeToCEntry $ Just t) Nil) of
         Left x -> Left x
         Right (_, e') -> (first (FunDef attr fn ks ls t rt e':)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader)
     tc' (d@(AbsDecl _ fn ks ls t rt):ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader)
@@ -414,11 +430,11 @@ withBinding :: Type t b -> TC t ('Suc v) b x -> TC t v b x
 withBinding t x
   = TC $ do readers <- ask
             st      <- get
-            case runTC x readers (Cons (Just t) st) of
+            case runTC x readers (Cons (Just $ typeToCEntry t) st) of
               Left e -> throwError e
               Right (Cons Nothing s,r)   -> do put s; return r
               Right (Cons (Just t) s, r) -> do
-                ok <- canDiscard <$> unTC (kindcheck t)
+                ok <- canDiscard <$> unTC (kindcheck $ cEntryToType t)
                 if ok then put s >> return r
                       else throwError "Didn't use linear variable"
 
@@ -551,7 +567,7 @@ infer (E (ArrayPut arr i e))
 #endif
 infer (E (Variable v))
    = do Just t <- useVariable (fst v)
-        return (TE t (Variable v))
+        return (TE (cEntryToType t) (Variable v))
 infer (E (Fun f ts ls note))
    | ExI (Flip ts') <- Vec.fromList ts
    , ExI (Flip ls') <- Vec.fromList ls

@@ -617,7 +617,7 @@ desugarType = \case
            <*> pure ds
            <*> pure tkns'
   B.DT (S.TRefine _ b p) -> do
-    b' <- desugarType b'
+    b' <- desugarType b
     p' <- uexprToLExpr id <$> desugarExpr (fmap B.rawToDepType p)
     return $ TRefine b' p'
 #endif
