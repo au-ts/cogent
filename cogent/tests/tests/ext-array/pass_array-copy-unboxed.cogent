@@ -1,0 +1,7 @@
+foo : U8#[3] -> U8#[3]
+foo x = x
+
+type A
+
+bar : A#[4] -> A#[4]
+bar x = x

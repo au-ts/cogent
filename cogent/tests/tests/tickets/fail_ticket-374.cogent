@@ -1,0 +1,6 @@
+
+type ListNode a = rec t { l: < Nil | Cons (a,t) > }
+
+size : (ListNode a)! -> U8
+size r {l} = l | Nil -> 0
+               | Cons (a,t) -> size t

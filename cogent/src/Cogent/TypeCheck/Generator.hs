@@ -684,14 +684,13 @@ cg' (Put e ls) t | not (any isNothing ls) = do
   rp <- freshRPVar
   let row  = R rp (Row.incomplete (zipWith3 mkEntry fs ts (repeat True)) rest) (Right sigil)
       row' = R rp (Row.incomplete (zipWith3 mkEntry fs ts (repeat False)) rest) (Right sigil) 
-      c1 = row' :< t
-      c2 = alpha :< row
-      c3 = UnboxedNotRecursive row
+      c = row' :< t <> alpha :< row <> UnboxedNotRecursive row <>
+          NotReadOnly (Right sigil)
       r = Put e' (map Just (zip fs es'))
   traceTc "gen" (text "cg for put:" <+> prettyE r
            L.<$> text "of type" <+> pretty t <> semi
-           L.<$> text "generate constraint:" <+> prettyC c1 <+> text "and" <+> prettyC c2)
-  return (c1 <> c' <> cs <> c2 <> c3, r)
+           L.<$> text "generate constraint:" <+> prettyC c)
+  return (c <> c' <> cs, r)
 
   | otherwise = first (<> Unsat RecordWildcardsNotSupported) <$> cg' (Put e (filter isJust ls)) t
 
@@ -835,11 +834,11 @@ match' (PTake r fs) t | not (any isNothing fs) = do
       row' = Row.incomplete (zipWith3 mkEntry ns vs (repeat True)) rest
       t' = R rp row (Right sigil)
       p' = PTake (r, R rp row' (Right sigil)) (map Just (zip ns ps'))
-      c = t :< t'
+      c = t :< t' <> NotReadOnly (Right sigil)
       co = case overlapping (s:ss) of
         Left (v:_) -> Unsat $ DuplicateVariableInPattern v  -- p'
         _          -> Sat
-  traceTc "gen" (text "match unboxed record:" <+> prettyIP p'
+  traceTc "gen" (text "match on take:" <+> prettyIP p'
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c
            L.<$> text "non-overlapping, and linearity constraints")

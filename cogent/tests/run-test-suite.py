@@ -523,7 +523,7 @@ def main():
     for res in results:
         (status, _, expected) = res.test
 
-        if expected == "wip":
+        if is_wip(expected):
             wips += 1
         elif status == "error":
             errs += 1

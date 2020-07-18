@@ -873,6 +873,9 @@ instance Pretty Constraint where
   pretty (Sat)            = warn "Sat"
   pretty (UnboxedNotRecursive t) 
                           = warn "UnboxedNotRecursive" <+> pretty t
+  pretty (NotReadOnly s)  = warn "NotReadOnly" <+> prettyS s
+    where prettyS (Left  l) = pretty l
+          prettyS (Right x) = warn ('?':show x)
   pretty (Exhaustive t p) = warn "Exhaustive" <+> pretty t <+> pretty p
   pretty (Solved t)       = warn "Solved" <+> pretty t
   pretty (IsPrimType t)   = warn "IsPrimType" <+> pretty t

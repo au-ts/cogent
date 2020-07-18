@@ -372,6 +372,9 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   UnboxedNotRecursive (R None _ (Left Unboxed))     -> hoistMaybe $ Just []
   UnboxedNotRecursive (R _ _    (Left (Boxed _ _))) -> hoistMaybe $ Just []
 
+  NotReadOnly (Left (Boxed False _)) -> hoistMaybe $ Just []
+  NotReadOnly (Left (Unboxed      )) -> hoistMaybe $ Just []
+
   t -> hoistMaybe $ Nothing
 
 -- | Returns 'True' iff the given argument type is not subject to subtyping. That is, if @a :\< b@
