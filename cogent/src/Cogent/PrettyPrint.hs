@@ -621,7 +621,7 @@ instance Pretty TCType where
                        Left (Just e) -> space <> keyword "@take" <+> parens (pretty e)
                        Right n       -> space <> warn ('?' : show n)
                        
-     in symbol "A" <+> pretty t <+> brackets (pretty l) <+> sigilPretty <> holePretty
+     in symbol "A" <+> parens (pretty t) <+> brackets (pretty l) <+> sigilPretty <> holePretty
 #endif
   pretty (U v) = warn ('?':show v)
   pretty (Synonym n []) = warn ("syn:" ++ n)
@@ -886,7 +886,7 @@ instance (Pretty t, Pretty l) => Pretty (Constraint' t l) where
   pretty (Share  t m)     = warn "Share" <+> pretty t
   pretty (Drop   t m)     = warn "Drop" <+> pretty t
   pretty (Escape t m)     = warn "Escape" <+> pretty t
-  pretty (Unsat e)        = err  "Unsat"
+  pretty (Unsat e)        = err  "Unsat" <+> parens (pretty e)
   pretty (SemiSat w)      = warn "SemiSat"
   pretty (Sat)            = warn "Sat"
   pretty (UnboxedNotRecursive t) 

@@ -444,7 +444,7 @@ fvIP (RIP (PUnboxedRecord mfs)) = foldMap (fvIP . snd) (Compose mfs)
 fvIP (RIP (PTake pv mfs)) = pv : foldMap (fvIP . snd) (Compose mfs)
 #ifdef REFINEMENT_TYPES
 fvIP (RIP (PArray ips)) = foldMap fvIP ips
-fvIP (RIP (PArrayTake pv hs)) = __todo "fvIP: PArrayTake unimplemented" -- TODO?
+fvIP (RIP (PArrayTake pv hs)) = pv : foldMap (\(idx,ip) -> fvE idx ++ fvIP ip) hs
 #endif
 fvIP _ = []
 

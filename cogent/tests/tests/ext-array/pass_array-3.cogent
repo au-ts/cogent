@@ -2,5 +2,5 @@ type A
 foo : A[3]! -> A!
 foo arr = arr@x
 
-x : U32
+x : [v : U32 | v == 2]
 x = 2

@@ -3,5 +3,5 @@ foo (a,b,cs) = let xs = [a, upcast b, a, upcast b]
                and ys = cs
                 in (ys,xs@index)
 
-index : U32
+index : [v : U32| v == 1]
 index = 1

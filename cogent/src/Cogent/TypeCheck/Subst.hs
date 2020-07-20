@@ -199,7 +199,7 @@ applyC s Sat = Sat
 applyC s (Exhaustive t ps) = Exhaustive (apply s t) ps
 applyC s (UnboxedNotRecursive r) = UnboxedNotRecursive (apply s r)
 applyC (Subst f) (NotReadOnly (Right x))
-  | Just (Sigil s) <- M.lookup x f = NotReadOnly (Left s)
+  | Just (Sigil s) <- IM.lookup x f = NotReadOnly (Left s)
   | otherwise = NotReadOnly (Right x)
 applyC s (NotReadOnly x) = NotReadOnly x
 applyC s (Solved t) = Solved (apply s t)
