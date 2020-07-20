@@ -10,26 +10,27 @@
 
 #include "debug.cogent.h"
 
+-- The Cogent version of the disk data structure for an ext2 inode object.
 type Ext2Inode = {
-    mode                : U16,
-    uid_low             : U16,
-    size                : U32,
-    access_time         : U32,
-    creation_time       : U32,
-    modified_time       : U32,
-    deletion_time       : U32,        
-    gid_low             : U16,
-    link_count          : U16,
-    num_physical_blocks : U32,   -- this is NOT ext2 blocks, but 512-byte blocks
+    mode                : U16, -- File type and access rights
+    uid_low             : U16, -- Lower 16bits of the owner uid
+    size                : U32, -- File length in bytes
+    access_time         : U32, -- Time of last file access
+    creation_time       : U32, -- Time of last inode modification
+    modified_time       : U32, -- Time of last file modification
+    deletion_time       : U32, -- Time of file deletion
+    gid_low             : U16, -- Lower 16bits of group id
+    link_count          : U16, -- Hard links counter
+    num_physical_blocks : U32, -- this is NOT ext2 blocks, but 512-byte blocks
     flags               : U32,
 
     --_ : Ple32,         -- reserved; translator flag on hurd
 
-    block_pointers      : WordArray U32
+    block_pointers      : WordArray U32 -- TODO: Use built-in arrays
     --generation          : U32,   -- used for NFS file version
 
-    --aclFile             : U32,
-    --aclDirectory        : U32,
+    --file_acl            : U32, -- File access control list
+    --dir_acl             : U32, -- Directory access control list
 
     --fragmentAddress     : U32,
     --fragmentNumber      : U8,

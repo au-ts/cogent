@@ -11,7 +11,7 @@
 --
 
 cogent_LOG_LEVEL: U32
-cogent_LOG_LEVEL = 0x0
+cogent_LOG_LEVEL = 0xFFF -- CMCL: Enable ext2fs debug logging.
 
 cmp_log_lvl : U32 -> Bool
 cmp_log_lvl l = (l .&. cogent_LOG_LEVEL) /= 0

@@ -53,6 +53,7 @@ include "test.cogent"
 ---------------------------------------------------------------
 
 -- in-memory version of superblock
+-- CMCL: This record has the structure of the Ext2 DISK superblock.
 type Ext2Superblock = {
     inode_count             : U32,
     block_count             : U32,
@@ -166,15 +167,24 @@ allocate_the_indirects #{ acc = (ex, indirects), obsv, idx } =
         ((ex, indirects), Break ())
 
 
-fs_mount: #{ex: SysState, options: (Array (WordArray U8))!} -> RR SysState #{state: FsState, mountinfo: #VfsMountInfo} U32
+-- Mounting the filesystem?
+fs_mount: #{ex: SysState, options: (Array (WordArray U8))!} ->
+          RR SysState #{state: FsState, mountinfo: #VfsMountInfo} U32
 fs_mount #{ex, options} = 
     let (ex, res) = malloc_FsState ex
     in res
+    | Error () -> (ex, Error eNoMem)
     | Success state_t ->
         let (ex, res) = osbuffer_create ex
         in res
+        | Error () ->
+            let ex = free_FsState (ex, state_t)
+            in (ex, Error eNoMem)
         | Success buf_super ->
             -- find the block the superblock lies in
+            -- CMCL: These functions do not match their corresponding C
+            -- implementations. They do not advance the options array to
+            -- 'point to' subsequent options.
             let (ex, sb_num) = get_superblock_num (ex, options) !options
             and (ex, flags) = get_flags (ex, options) !options
 
@@ -183,16 +193,33 @@ fs_mount #{ex, options} =
             and _ = cogent_log (dbg_EXT2_MOUNT, "\n")
 
             and state_t = state_t { superblock_num = sb_num }
-            and ((ex, buf_super), res) = osbuffer_read_block #{ex, buf = buf_super, blk = sb_num}
+            and ((ex, buf_super), res) =
+                osbuffer_read_block #{ex, buf = buf_super, blk = sb_num}
             in res
-            | Success () -> 
+            | Error () ->
+                let ex = osbuffer_destroy (ex, buf_super)
+                and ex = free_FsState (ex, state_t)
+                and _ = cogent_log(dbg_EXT2_MOUNT, "error: unable to read superblock\n")
+                in (ex, Error eIO)
+            | Success () ->
                 -- get the superblock from it
                 let (ex, res) = deserialise_Ext2Superblock (ex, buf_super, 0) !buf_super
                 in res
+                | Error () ->
+                    let ex = osbuffer_destroy (ex, buf_super)
+                    and ex = free_FsState (ex, state_t)
+                    and _ =
+                      cogent_log(dbg_EXT2_MOUNT, "error: unable to deserialise superblock\n")
+                    in (ex, Error eIO)
                 | Success (super, _) -> 
                     -- ensure superblock magic matched
                     let cur_super_magic = super.magic !super
-                    in if cur_super_magic == const_ext2Magic then
+                    in if cur_super_magic != const_ext2Magic then
+                        let ex = free_Ext2Superblock (ex, super)
+                        and ex = free_FsState (ex, state_t)
+                        and ex = osbuffer_destroy (ex, buf_super)
+                        in (ex, Error eInval)
+                       else
                         -- calculate constants
                         let group_count = ((super.block_count - super.first_data_block - 1) / super.blocks_per_group + 1) !super
                         and inodes_per_block = const_blockSize / const_sizeof_Inode
@@ -326,24 +353,6 @@ fs_mount #{ex, options} =
                             and ex = free_FsState (ex, state_t)
                             and ex = osbuffer_destroy (ex, buf_super)
                             in (ex, Error eInval)
-                    else    
-                        let ex = free_Ext2Superblock (ex, super)
-                        and ex = free_FsState (ex, state_t)
-                        and ex = osbuffer_destroy (ex, buf_super)
-                        in (ex, Error eInval)
-                | Error () ->
-                    let ex = osbuffer_destroy (ex, buf_super)
-                    and ex = free_FsState (ex, state_t)
-                    in (ex, Error eIO)
-            | Error () -> 
-                let ex = osbuffer_destroy (ex, buf_super)
-                and ex = free_FsState (ex, state_t)
-                in (ex, Error eIO)
-        | Error () ->
-            let ex = free_FsState (ex, state_t)
-            in (ex, Error eNoMem)
-    | Error () ->
-        (ex, Error eNoMem)
 
 free_option_chain: (SysState, Option (Chain take (..))) -> SysState
 
