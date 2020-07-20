@@ -10,8 +10,11 @@ import Control.Monad.Trans.Except
 import Control.Monad.Trans.Class
 import qualified Data.ByteString.Char8 as B
 import Text.ParserCombinators.Parsec
+--import Text.ParserCombinators.Parsec.Token 
 import Text.Parsec.Char
+import Text.Parsec.Token (symbol, commaSep)
 import Text.Show.Pretty
+import Data.List.Extra
 
 
 -- Rules:
@@ -34,54 +37,85 @@ p <||> q = try p <|> q
 int :: (Integral a, Read a) => Parser a
 int = read <$> many1 digit 
 
--- extract function name
--- defined as a string with (:) on its RHS
-stringFName :: Parser String 
-stringFName = char '"' *> strVal <* char '"' 
-                <* ((wspace <* many1 eol) <||> many1 eol)
+strV :: Parser String 
+strV = many1 (noneOf ignores)
 
-stringFInfo :: Parser FunInfo 
-stringFInfo = do 
-    ip <- strKeyW *> strVal <* eol
-    nd <- strKeyW *> strVal <* eol
-    return $ FunInfo (read ip) (read nd)
+strV' :: Parser String
+strV' = choice [many1 (noneOf (ignores++[',']))
+               ,many1 (noneOf (ignores++[',', ' ']))] 
+              --  ,many1 (noneOf (ignores++[',', ' ']))] 
 
-stringAbsF :: Parser FunAbsF
-stringAbsF = do 
-    ab <- strKeyW *> strVal <* eol
-    ic <- strKeyW *> strVal <* eol
-    ia <- strKeyW *> strVal <* eol
-    return $ FunAbsF ab ic ia
-    
-stringRRel :: Parser FunRRel
-stringRRel = do 
-    rr <- strKeyW *> strVal <* eol 
-    oc <- strKeyW *> strVal <* eol 
-    oa <- strKeyW *> strVal <* eol
-    return $ FunRRel rr oc oa
+parseList :: Parser [String]
+parseList = strV' `sepBy1` (choice [char ',', char ' '])
+            <?> "Trying to parse list"
 
-stringWelF :: Parser FunWelF
-stringWelF = do 
-    wf <- strKeyW *> strVal <* eol 
-    ts <- strKeyW *> strVal <* eol 
-    return $ FunWelF wf [ts]
+eol :: Parser String
+eol =  many1 endOfLine
 
-eol :: Parser Char
-eol = endOfLine
 -- choice [newline, crlf] 
         -- [ string "\n\r", string "\r\n"
 --      <?> "end of line"
 
-strVal :: Parser String 
-strVal = many (noneOf ignores)
+--strVal :: Parser [String]
+--strVal = strV' `sepBy1` (char ',') 
+-- (many (noneOf ignores)) `sepEndBy` (choice [char ','])
 
 -- extract function keyword, defined as a string with (:) on its RHS and (-) on its LHS
 strKeyW :: Parser String 
-strKeyW = strVal <* char ':'
+strKeyW = (many (noneOf ignores)) <* char ':'
 
 -- applies parser (oneOf " ") zero or more times, returning the list
 wspace :: Parser String 
 wspace = many $ char ' '
+-- extract function name
+-- defined as a string with (:) on its RHS
+stringFName :: Parser String 
+stringFName = char '"' *> strV <* char '"' <* eol -- wspace <* eol
+
+--parseLine :: Parser String
+--parseList = strKeyW *> strV <* eol 
+
+{-
+finfoP :: Map String String -> FunInfo
+finfoP ls =
+        let ip = map get
+            nd = 
+        in FunInfo ip nd
+        -}
+{-
+(\x -> case x of 
+                        "pure" -> 
+                        "nond" -> 
+                        _ -> undefined
+ -}
+
+
+stringFInfo :: Parser FunInfo 
+stringFInfo = do 
+    ip <- strKeyW *> strV <* eol
+    nd <- strKeyW *> strV <* eol
+    return $ FunInfo (read ip) (read nd)
+
+stringAbsF :: Parser FunAbsF
+stringAbsF = do 
+    ab <- strKeyW *> parseList <* eol -- strKeyW *> parseList strV <* eol
+    ic <- strKeyW *> strV <* eol
+    ia <- strKeyW *> strV <* eol
+    return $ FunAbsF (map trim ab) ic ia (length ab)
+    
+stringRRel :: Parser FunRRel
+stringRRel = do 
+    rr <- strKeyW *> parseList <* eol 
+    oc <- strKeyW *> strV <* eol 
+    oa <- strKeyW *> strV <* eol
+    return $ FunRRel rr oc oa
+
+stringWelF :: Parser FunWelF
+stringWelF = do 
+    wf <- strKeyW *> parseList <* eol 
+    ts <- strKeyW *> strV <* eol 
+    return $ FunWelF wf [ts]
+
 
 -- removes whitespaces from both sides (based of given Parser)
 lexeme :: Parser a -> Parser a 
@@ -120,13 +154,13 @@ testPBTParse = pPrint $ parse pbtinfos "" exampleFile
 
 exampleFile :: String
 exampleFile = unlines $
-        [ "\"addToBag\"     \r"
+        [ "\"addToBag\"\r"
         , "    pure: True\r"
         , "    nond: False\r"
-        , "    absf: direct\r"
+        , "    absf: direct, id\r"
         , "        IC: U32, Bag \r"
         , "        IA: Int, (Int, Int) \r"
-        , "    rrel: direct (==)\r"
+        , "    rrel: direct, (==)\r"
         , "        OC: Bag\r"
         , "        OA: Tuple \r"
         , "    welf: sum = sum List, count = length List\r"
