@@ -199,7 +199,7 @@ reorgPhase x =
 tcPhase :: Bool -> GlobalEnvironments -> IO GlobalEnvironments
 tcPhase colour envs = do
   rs <- withUnifVars (tc envs (M.toList (defns envs)))
-  GlobalEnvs <$> (M.fromList . concat <$> mapM go rs) <*> pure (types envs)
+  GlobalEnvs <$> (M.fromList . concat <$> mapM go rs) <*> pure (types envs) <*> pure (noTermChecks envs)
   where
     handleColour = if not colour then unAnnotate else id
     go (Left (f, cs)) = do

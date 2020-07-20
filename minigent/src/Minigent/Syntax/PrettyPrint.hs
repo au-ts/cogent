@@ -187,7 +187,7 @@ prettyToplevel (Equation f x t) =  annotate S.func (pretty f)
                                <+> prettyExp t
                                <>  annotate S.sym ";"
 
-prettyGlobalEnvs (GlobalEnvs defns types)
+prettyGlobalEnvs (GlobalEnvs defns types noTermChecks)
   = align . vsep . map prettyToplevel
   . flip concatMap (M.toList types) $
     \(f,t) -> TypeSig f t : case M.lookup f defns of

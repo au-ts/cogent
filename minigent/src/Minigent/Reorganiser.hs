@@ -128,6 +128,12 @@ reorganiseTopLevel (Equation f x e) envs = do
    e' <- sanityCheckExpr envs tvs [x] e
    return (envs { defns = M.insert f (x,e') (defns envs) })
 
+reorganiseTopLevel (TypeSigNoTermCheck f) envs = do
+  case M.lookup f (noTermChecks envs) of
+    Just _ -> tell ["Duplicate noTermCheck for " ++ f]
+    Nothing -> return()
+  return (envs {noTermChecks = M.insert f False (noTermChecks envs)})
+
 -- | Given a PolyType definition, changes all recursive parameter references from TypeVar to RecPar 
 embedRecPars :: PolyType -> PolyType
 embedRecPars (Forall vs cs t) = Forall vs cs $ erp False M.empty t

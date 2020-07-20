@@ -279,5 +279,8 @@ toplevel = mdo
                                  <*> var
                                  <*  token (L.Equals) 
                                  <*> exp 
-                                 <*  token (L.Semi) 
+                                 <*  token (L.Semi)
+                    <|> TypeSigNoTermCheck
+                                 <$ token (L.Keyword L.NoTermCheck)
+                                 <*> var
     return topLevel

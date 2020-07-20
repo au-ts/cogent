@@ -44,13 +44,18 @@ termCheck genvs = M.foldrWithKey go ([],[]) (defns genvs)
   where
     go :: FunName -> (VarName, Expr) -> ([Error], [(FunName, [Assertion], DotGraph)]) -> ([Error], [(FunName, [Assertion], DotGraph)])
     go f (x,e) (errs, dumps) =  
-      let (terminates, g, dotGraph) = fst $ runFresh unifVars (init f x e)
-          errs' = if terminates then
-                    errs
-                  else
-                    ("Error: Function " ++ f ++ " cannot be shown to terminate.") : errs
-        in 
-          (errs', (f, g, dotGraph) : dumps)
+      -- check to see if function requires termination checking.
+      case M.lookup f (noTermChecks genvs) of 
+        Just _ ->
+          (["Termination checking disabled for function: " ++ f], (f, [], "No Term Check"): dumps)
+        Nothing ->
+          let (terminates, g, dotGraph) = fst $ runFresh unifVars (init f x e)
+              errs' = if terminates then
+                        errs
+                      else
+                        ("Error: Function " ++ f ++ " cannot be shown to terminate.") : errs
+            in 
+              (errs', (f, g, dotGraph) : dumps)
 
     -- Maps the function argument to a name, then runs the termination
     -- assertion generator.

@@ -1,4 +1,4 @@
-add : { x: U8, y: U8 }# -> U8;
+NoTermCheck add add : { x: U8, y: U8 }# -> U8;
 add r =
   take r2 { x = a } = r in
     take r3 { y = b } = r2 in

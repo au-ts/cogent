@@ -36,9 +36,10 @@ data GlobalEnvironments
    = GlobalEnvs
    { defns :: M.Map FunName (VarName, Expr)
    , types :: M.Map FunName PolyType
+   , noTermChecks :: M.Map FunName Bool
    } deriving (Show)
 
-emptyGlobalEnvironments = GlobalEnvs M.empty M.empty
+emptyGlobalEnvironments = GlobalEnvs M.empty M.empty M.empty
 
 -- | A value of type @Context a@ maps variable names to values of type @a@,
 --   keeping track of the amount of times the variable is "used". It can be

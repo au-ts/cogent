@@ -25,7 +25,7 @@ data Bracket = Paren | Brace | Square
      deriving (Show, Eq)
 
 
-data Keyword = Case | Of | If | Then | Else | Take | Put | Let | In | End | Rec
+data Keyword = Case | Of | If | Then | Else | Take | Put | Let | In | End | Rec | NoTermCheck
      deriving (Show, Eq)
 
 data Token
@@ -62,6 +62,7 @@ toToken "put"  = Keyword Put
 toToken "let"  = Keyword Let
 toToken "in"   = Keyword In 
 toToken "rec"   = Keyword Rec
+toToken "NoTermCheck" = Keyword NoTermCheck
 toToken (x:xs) | isLower x = LowerIdent (x:xs)
                | otherwise = UpperIdent (x:xs)  
 

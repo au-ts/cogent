@@ -208,4 +208,5 @@ data PolyType = Forall [VarName] [Constraint] Type
 data RawTopLevel
   = TypeSig FunName PolyType -- ^ @f : t@
   | Equation FunName VarName Expr -- ^ @f x = e@
+  | TypeSigNoTermCheck FunName
   deriving (Show, Eq)
