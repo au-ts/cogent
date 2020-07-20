@@ -15,12 +15,16 @@ import Text.Parsec.Char
 import Text.Parsec.Token (symbol, commaSep)
 import Text.Show.Pretty
 import Data.List.Extra
-
+import Text.Parsec.Indent
+import Text.Parsec hiding (try)
+import Control.Monad.State as SS
 
 -- Rules:
 -- fname must start function info, enclosed by quotes
 -- fname is followed by keywords, until eof or another fname
 -- keywords must have (:) on RHS, values is the following string until the eol
+
+--type IParser a = ParsecT String () (SS.State SourcePos) a
 
 keywords :: [String]
 keywords = ["pure", "nond", "absf", "rrel", "welf"]
@@ -37,8 +41,6 @@ p <||> q = try p <|> q
 int :: (Integral a, Read a) => Parser a
 int = read <$> many1 digit 
 
-strV :: Parser String 
-strV = many1 (noneOf ignores)
 
 strV' :: Parser String
 strV' = choice [many1 (noneOf (ignores++[',']))
@@ -60,9 +62,6 @@ eol =  many1 endOfLine
 --strVal = strV' `sepBy1` (char ',') 
 -- (many (noneOf ignores)) `sepEndBy` (choice [char ','])
 
--- extract function keyword, defined as a string with (:) on its RHS and (-) on its LHS
-strKeyW :: Parser String 
-strKeyW = (many (noneOf ignores)) <* char ':'
 
 -- applies parser (oneOf " ") zero or more times, returning the list
 wspace :: Parser String 
@@ -72,8 +71,28 @@ wspace = many $ char ' '
 stringFName :: Parser String 
 stringFName = char '"' *> strV <* char '"' <* eol -- wspace <* eol
 
---parseLine :: Parser String
---parseList = strKeyW *> strV <* eol 
+-- extract function keyword, defined as a string with (:) on its RHS and (-) on its LHS
+strKeyW :: Parser String 
+strKeyW = (many (noneOf ignores)) <* char ':'
+
+strV :: Parser String 
+strV = many1 (noneOf ignores)
+
+--prsLine :: IParser (String, String)
+--prsLine = do
+--    k <- many (noneOf ignores) <* char ':'
+--    v <- many (noneOf ignores) <* eol 
+--    return (trim k, trim v)
+--
+--prsBlk :: IParser [(String, String)]
+--prsBlk = withBlock cmb prsLine prsLine
+--    where cmb x y = [x] ++ y
+--
+--
+--iParse :: IParser a -> SourceName -> String -> Either ParseError a
+--iParse aParser source_name input =
+--    runIndent source_name $ runParserT aParser () source_name input
+
 
 {-
 finfoP :: Map String String -> FunInfo
@@ -133,6 +152,9 @@ pbtinfo = do
 pbtinfos :: Parser [PBTInfo]
 pbtinfos = pbtinfo `manyTill` eof
 
+--pbtinfos :: IParser [PBTInfo]
+--pbtinfos = pbtinfo' `manyTill` eof
+
 parseFile :: FilePath -> ExceptT String IO [PBTInfo]
 parseFile f = parsePBTFile pbtinfos f
 
@@ -151,6 +173,9 @@ parsePBTFile p f = do
 
 testPBTParse :: IO ()
 testPBTParse = pPrint $ parse pbtinfos "" exampleFile
+
+--testPBTParse' :: IO ()
+--testPBTParse' = pPrint $ iParse pbtinfos' "" exampleFile
 
 exampleFile :: String
 exampleFile = unlines $
