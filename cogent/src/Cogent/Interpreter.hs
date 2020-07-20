@@ -391,7 +391,7 @@ coreTcExpr ds e = do
       mkFunMap (AbsDecl _ fn ps ts ti to  ) = (fn, FT (fmap snd ps) (fmap snd ts) ti to)
       mkFunMap _ = __impossible "coreTcExpr: mkFunMap: not a function definition"
   let funmap = M.fromList $ fmap mkFunMap $ filter (not . isTypeDef) ds
-  case fmap snd $ Core.runTC (Core.infer e) (V.Nil, funmap) V.Nil of
+  case fmap snd $ Core.runTC (Core.infer e) (V.Nil, funmap) (V.Nil, []) of
     Left err -> __impossible "coreTcExpr: there shouldn't be any error here"
     Right e  -> return e
 
