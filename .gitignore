@@ -16,6 +16,7 @@ cogent/.cabal-sandbox
 cogent/.stack-work
 cogent/cabal.sandbox.config
 cogent/cabal.config
+cogent/cogent.cabal
 cogent/dist
 cogent/dist-newstyle
 cogent/tests/*.c

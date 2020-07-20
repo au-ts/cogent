@@ -1,4 +1,4 @@
-cabal-version:       2.4
+cabal-version:       3.0
 
 -- ^^^ `cabal-version` is not the version of cabal-install nor
 -- that of the Cabal library. It's the cabal specification version.
@@ -192,7 +192,6 @@ library
               , template-haskell
               , transformers >= 0.4.2
               , extra
-              , indents
   if flag(haskell-backend)
     exposed-modules: Cogent.Haskell.FFIGen
                    , Cogent.Haskell.HscGen
