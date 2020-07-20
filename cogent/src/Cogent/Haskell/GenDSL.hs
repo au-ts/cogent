@@ -16,17 +16,18 @@ data FunInfo = FunInfo { ispure :: Bool
                        , nondet :: Bool
                        } deriving (Show)
 
-data FunAbsF = FunAbsF { absf :: String
+data FunAbsF = FunAbsF { absf :: [String]
                        , ic   :: String
                        , ia   :: String
+                       , s :: Int
                        } deriving (Show)
 
-data FunRRel = FunRRel { rrel :: String
+data FunRRel = FunRRel { rrel :: [String]
                        , oc   :: String
                        , oa   :: String
                        } deriving (Show)
 
-data FunWelF = FunWelF { welf :: String
+data FunWelF = FunWelF { welf :: [String]
                        , typs :: [String]
                        } deriving (Show)
 

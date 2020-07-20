@@ -191,6 +191,7 @@ library
               , syb >= 0.4
               , template-haskell
               , transformers >= 0.4.2
+              , extra
   if flag(haskell-backend)
     exposed-modules: Cogent.Haskell.FFIGen
                    , Cogent.Haskell.HscGen
@@ -261,6 +262,7 @@ Executable cogent
               , time >= 1.5
               , transformers >= 0.4.2
               , microlens >= 0.4.8
+              , extra
 
   if flag(haskell-backend)
     cpp-options: -DWITH_HASKELL
