@@ -58,7 +58,10 @@ ML\<open> fun local_setup_instantiate_cogent_C_heaps_store_them_in_buckets file_
 
   val thy = Proof_Context.theory_of lthy;
 
-  val uvals  = get_uvals file_nm thy |> the |>
+  val uvals'  = (case get_uvals file_nm thy of
+      NONE => raise ERROR (prefix "no uvals for " file_nm)
+    | SOME uvals' => uvals');
+  val uvals  = uvals' |>
                map (unify_usum_tys o unify_sigils) |> rm_redundancy |>
                get_uvals_for_which_ac_mk_heap_getters file_nm thy
  in

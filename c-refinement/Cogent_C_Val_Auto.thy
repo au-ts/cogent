@@ -30,7 +30,10 @@ ML\<open> fun local_setup_val_rel_type_rel_put_them_in_buckets file_nm ctxt =
 
   val thy = Proof_Context.theory_of ctxt;
 
-  val uvals' = get_uvals file_nm (Proof_Context.theory_of ctxt) |> the;
+  val uvals' =
+    (case get_uvals file_nm (Proof_Context.theory_of ctxt) of
+      NONE => raise ERROR (prefix "no uvals for " file_nm)
+    | SOME uvals' => uvals');
   val uvals = uvals' |> map (unify_usum_tys o unify_sigils) |> rm_redundancy |> rev |>
                get_uvals_for_which_ac_mk_st_info file_nm thy;
 
