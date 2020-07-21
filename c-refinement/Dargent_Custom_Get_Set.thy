@@ -283,7 +283,7 @@ list of named variables. *)
 fun define_function name vars term ctxt = 
  case Utils.define_const_args name false term
 (List.map (fn x => (x , Term.dummyT)) vars) ctxt of
-   (_,_,ctxt) => ctxt 
+   (_, thm, ctxt) => GetSetDefs.add_local thm ctxt 
  \<close>
 
 ML \<open>
@@ -322,9 +322,11 @@ let
     val isa_fn_name = "deref_" ^ fn_name
     val simplified_thm_name = fn_name ^ "'_def'"
     val _ = tracing ("generate_isa_get_or_set: generating " ^ isa_fn_name ^ " and " ^ simplified_thm_name)
+    (* The unfolded definition of the monadic getter/setter *)
     val fn_def_thm = unfold_thm g fn_name get_thm_def ctxt
     val term = generator fn_def_thm
-    val ctxt = Utils.define_lemma simplified_thm_name fn_def_thm ctxt |> snd
+    val (thm_def, ctxt) = Utils.define_lemma simplified_thm_name fn_def_thm ctxt
+    val ctxt = GetSetDefs.add_local thm_def ctxt
 in
  (isa_fn_name, define_function isa_fn_name args term ctxt : Proof.context)
 end
@@ -376,6 +378,7 @@ induced by a list of uvals (typically read from a table file).
 *)
 fun generate_isa_getset_records g heap_info uvals ctxt =
   let
+    (* the hard job is done here *)
     val (getsetl, ctxt) = 
      fold_map (generate_isa_getset_record g heap_info)
      (uvals |> get_uval_custom_layout_records 
@@ -465,6 +468,8 @@ datatype getSetLemType =
 
 (* adapted from the lem type *)
 type getset_lem = { prop : term, typ : getSetLemType, name : string, mk_tactic: Proof.context -> tactic} 
+
+
 val cheat_tactic : Proof.context -> tactic = fn context => Skip_Proof.cheat_tac context 1
 
 fun string_of_getset_lem ctxt (lem : getset_lem) =
@@ -473,6 +478,85 @@ fun string_of_getset_lem ctxt (lem : getset_lem) =
   ^ "\n  sorry"
 
 \<close>
+
+
+(* 
+
+Tactics and lemmas to prove the correspondence between direct
+and monadic definitions of custom getters/setters.
+
+*)
+
+lemma unat_8 : "unat (x :: 8 word) < 0x80000000"
+  apply(unat_arith)
+  by (simp add: unat_ucast_up_simp)
+ 
+lemma unat_16 : "unat (x :: 16 word) < 0x80000000"
+  apply(unat_arith)
+  by (simp add: unat_ucast_up_simp)
+
+
+
+(* These lemmas seem necessary to prove some
+get/set lemmas (more exactly, to prove the correspondence between
+the monadic and the direct definitions of custom getter/setters).
+It is added to the set of simplification lemmas.
+
+Strangely enough, the statement "unat (x :: 8 word) < 0x80000000"
+is not enough for the proof of the get/set lemma.
+ *)
+lemma unat_ucast_8  : "unat (UCAST(('a :: len0) \<rightarrow> 8)  x) < 0x80000000"
+  by(rule unat_8)
+lemma unat_ucast_16 : "unat (UCAST(('a :: len0) \<rightarrow> 16) x) < 0x80000000"
+  by(rule unat_16)
+
+
+
+ML\<open> 
+(* 
+proves a statement of the shape (for getters)
+
+`
+monadic_getter ptr = do _ <- guard (\<lambda>s. is_valid_t2_C s ptr);
+                  gets (\<lambda>s. direct_getter (heap_t2_C s ptr))
+                od"
+`
+
+or (for setters)
+
+`
+monadic_setter ptr v =
+ do _ <- guard (\<lambda>s. is_valid_t2_C s ptr);
+  modify (heap_t2_C_update (\<lambda>a. a(ptr := direct_setter (a ptr) v)))
+ od
+`
+
+The tactic does the following:
+
+(* this unfolds the definitions of the monadic and the direct getter/setter *)
+apply (simp add: GetSetDefs)
+(* This line was worked out by looking at some examples.
+   It is certainly not complete *)
+apply(simp add:L2opt unat_ucast_32_8 unat_ucast_32_16 condition_cst)
+by (monad_eq simp add:comp_def)
+
+*)
+fun custom_get_set_monadic_direct_tac ctxt = let
+    val gets = Proof_Context.get_thms ctxt
+    val get  = Proof_Context.get_thm ctxt    
+    val getset_defs = GetSetDefs.get ctxt; 
+    val facts = @{thms L2opt unat_ucast_8 unat_ucast_16 condition_cst}
+in  
+  simp_tac (ctxt addsimps getset_defs) THEN'
+  simp_tac (ctxt addsimps facts) THEN'
+  (fn _ => monad_eq_tac (ctxt addsimps @{thms comp_def}))
+end
+
+\<close>
+
+
+
+
 
 
 
@@ -591,11 +675,11 @@ ML\<open> fun mk_getset_lems_for_rec file_nm ctxt name (infos : field_layout lis
     [{prop = mk_getdef_prop heap_getter is_valid_struct field_info ctxt,
       typ = GetDef, 
       name = # getter field_info ^ "_def_alt",
-        mk_tactic = cheat_tactic},
+        mk_tactic = fn ctxt => custom_get_set_monadic_direct_tac ctxt 1 },
 {prop = mk_setdef_prop heap_setter is_valid_struct field_info ctxt,
       typ = SetDef, 
       name = # setter field_info ^ "_def_alt",
-        mk_tactic = cheat_tactic}
+        mk_tactic = fn ctxt => custom_get_set_monadic_direct_tac ctxt 1}
  ]
    end;
 
