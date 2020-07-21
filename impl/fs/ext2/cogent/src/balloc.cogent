@@ -833,14 +833,15 @@ ext2_free_branch (depth, node, (ex, state, inode), maxdepth) =
   in if depth < maxdepth then
     -- fill up array of child nodes
     let childnode_array_size = node.offset_to - node.offset_from !node
-    and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch: created array of size ") 
-    and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, childnode_array_size) 
-    and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n") 
-
     in uarray_create [BranchNode] (ex, childnode_array_size)
+    | Error ex ->
+      let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch: failed to allocate array\n")
+      in (node, (ex, state, inode), Iterate ()) -- Couldn't make array, skip this one.
     | Success (ex, children) =>
       let node_t { maybe_buf } = node
-
+      and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch: created array of size ")
+      and _ = cogent_log_u32 (dbg_EXT2_DIR_BALLOC, childnode_array_size)
+      and _ = cogent_log (dbg_EXT2_DIR_BALLOC, "\n")
       and (children, (ex, inode, _, maybe_buf)) = uarray_map_no_break [BranchNode, (SysState, VfsInode, U32, Option OSBuffer), ()] #{
         arr    = children,
         frm    = 0,
@@ -854,11 +855,6 @@ ext2_free_branch (depth, node, (ex, state, inode), maxdepth) =
 
       -- recurse on children
       in (node, (ex, state, inode), Expand (children, ext2_free_branch_cleanup))
-    | Error ex ->
-      let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch: failed to allocate array\n") 
-
-      -- couldn't make array, skip this one
-      in (node, (ex, state, inode), Iterate ())
   else
     -- leaf node, free the data here
     let _ = cogent_log (dbg_EXT2_DIR_BALLOC, "ext2_free_branch: was leaf node (depth + 1 >= maxdepth)\n") 
