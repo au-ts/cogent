@@ -11,6 +11,7 @@
  */
 
 $esc:(#ifdef __KERNEL__)
+
 unit_t cogent_assert ($ty:(Bool) arg) {
        unit_t ret;
        BUG_ON(!arg.boolean);
@@ -49,45 +50,54 @@ $escstm:(#endif)
 
 unit_t cogent_debug (char* str) {
         unit_t ret;
-        pr_debug("%s", str);
+        //pr_debug("%s", str);
+        $escstm:(printk(KERN_CONT "%s", str);)
         return ret;
 }
 
 unit_t cogent_debug_u32 (u32 arg) {
         unit_t ret;
-        pr_debug("%u", arg);
+        //pr_debug("%u", arg);
+	$escstm:(printk(KERN_CONT "%u", arg);)
         return ret;
 }
 
 unit_t cogent_debug_u64 (u64 arg) {
         unit_t ret;
-        pr_debug("%llu", arg);
+        //pr_debug("%llu", arg);
+        $escstm:(printk(KERN_CONT "%llu", arg);)
         return ret;
 }
 
 unit_t cogent_debug_u32_hex (u32 arg) {
         unit_t ret;
-        pr_debug("%x", arg);
+        //pr_debug("%x", arg);
+        $escstm:(printk(KERN_CONT "%x", arg);)
         return ret;
 }
 
 unit_t cogent_debug_u32_oct (u32 arg) {
         unit_t ret;
-        pr_debug("%o", arg);
+        //pr_debug("%o", arg);
+	$escstm:(printk(KERN_CONT "%o", arg);)
         return ret;
 }
 
 unit_t cogent_debug_u64_hex (u64 arg) {
         unit_t ret;
-        pr_debug("%llx", arg);
+        //pr_debug("%llx", arg);
+	$escstm:(printk(KERN_CONT "%llx", arg);)
         return ret;
 }
 unit_t cogent_debug_bool ($ty:(Bool) arg) {
         unit_t ret;
-        if (arg.boolean)
-          pr_debug("true");
-        else
-          pr_debug("false");
+        if (arg.boolean) {
+          //pr_debug("true");
+	  $escstm:(printk(KERN_CONT "true");)
+        } else {
+          //pr_debug("false");
+	  $escstm:(printk(KERN_CONT "false");)
+	}
         return ret;
 }
 

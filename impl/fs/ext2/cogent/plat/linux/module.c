@@ -407,7 +407,7 @@ const struct super_operations ext2fs_super_operations_nolock =
 };
 
 static struct file_system_type ext2fs_fs_type = {
-    .name =                     "ext2fs",
+    .name =                     "cgext2fs",
     .owner =                    THIS_MODULE,
     .mount =                    ext2fs_mount,        /* no lock */
     .kill_sb =                  kill_block_super,

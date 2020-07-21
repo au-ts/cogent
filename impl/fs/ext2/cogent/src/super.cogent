@@ -214,7 +214,7 @@ fs_mount #{ex, options} =
                 | Success (super, _) -> 
                     -- ensure superblock magic matched
                     let cur_super_magic = super.magic !super
-                    in if cur_super_magic != const_ext2Magic then
+                    in if cur_super_magic /= const_ext2Magic then
                         let ex = free_Ext2Superblock (ex, super)
                         and ex = free_FsState (ex, state_t)
                         and ex = osbuffer_destroy (ex, buf_super)
