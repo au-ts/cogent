@@ -15,6 +15,7 @@ import Text.Parsec.Char
 import Text.Parsec.Token (symbol, commaSep)
 import Text.Show.Pretty
 import Data.List.Extra
+import Data.Map
 import Text.Parsec.Indent
 import Text.Parsec hiding (try)
 import Control.Monad.State as SS
@@ -198,8 +199,7 @@ stringFInfo' = do
 
 stringAbsF' :: IParser FunAbsF'
 stringAbsF' = withBlock FunAbsF' y y
-             where
-                y = do
+                where y = do
                         k <- strKeyW'
                         v <- parseList' <* spaces -- <* eol'
                         return (k,v)
