@@ -43,6 +43,7 @@ import Cogent.Haskell.Shallow
 import Prelude as P
 import Data.Tuple
 import Data.Function
+import Data.Maybe
 import Data.Generics.Schemes (everything)
 
 type FFIFuncs = M.Map FunName (CType, CType)
@@ -68,7 +69,7 @@ propModule name hscname decls pbtinfos =
              , ImportDecl () (ModuleName () hscname) False False False Nothing (Just (ModuleName () "FFI")) Nothing
              , ImportDecl () (ModuleName () (hscname ++ "_Abs")) False False False Nothing (Just (ModuleName () "FFI")) Nothing
              ]
-      hs_decls = (P.concatMap propDecls pbtinfos) -- decls ++ (P.concatMap genDecls decls)
+      hs_decls = (P.concatMap propDecls pbtinfos) ++ (P.concatMap genDecls pbtinfos)
   in 
   return $ Module () (Just moduleHead) exts imps hs_decls
 
@@ -120,31 +121,27 @@ mkPropBody n FunInfo{ispure=False, nondet=nd} =
                                 , var $ mkName "oc" ]
         in app (function "monadicIO") (appFun f fs)
 
-
-
 -- -----------------------------------------------------------------------
 -- Cogent PBT: Generator for Test data generators
 -- -----------------------------------------------------------------------
-genDecls :: FuncInfo -> [Decl ()]
-genDecls FuncInfo{name=n, ispure=_, nondet=_, ictype=icT} = 
-        let fnName = "gen_" ++n
-            toName = "Gen " ++ (case icT of
-                                    Pointer -> "Word32"
-                                    CList -> "[Word32]"
-                                    Tree -> "Tree Word32"
-                                    _ -> show icT )
+genDecls :: PBTInfo -> [Decl ()]
+genDecls PBTInfo{..} = 
+        let FunAbsF{absf=_, ityps=ityps} = fabsf
+            icT = fromJust $ P.lookup "IC" ityps
+            --FunWelF{..} = fwelf
+-- FuncInfo{name=n, ispure=_, nondet=_, ictype=icT} = 
+        --let 
+            fnName = "gen_" ++fname
+            toName = "Gen " ++icT
             to     = TyCon   () (mkQName toName)
             sig    = TypeSig () [mkName fnName] to
             dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $ 
-                        mkGenBody n icT) Nothing]
+                        mkGenBody fname icT) Nothing]
             -- cls    = ClassDecl () () [] ()
             in [sig, dec]
 
-mkGenBody :: String -> ICType -> Exp ()
-mkGenBody name Pointer = function "arbitrary"
-mkGenBody name CList = function "arbitrary"
-mkGenBody name Tree = function "arbitrary"
-mkGenBody name _ = function "arbitrary"
+mkGenBody :: String -> String -> Exp ()
+mkGenBody name icT = function "arbitrary"
 
 {-
     let f  = function "gen"
