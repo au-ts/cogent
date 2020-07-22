@@ -1,7 +1,7 @@
 -- PBT
 -- Parse file containing info used in PBT 
 
-module Cogent.Haskell.ParseDSL (parseFile, testPBTParse) where
+module Cogent.Haskell.ParseDSL (parseFile, testPBTParse, testPBTParse') where
 
 import Cogent.Haskell.GenDSL
 import Cogent.Compiler (__cogent_pbt_info)
@@ -18,6 +18,7 @@ import Data.List.Extra
 import Text.Parsec.Indent
 import Text.Parsec hiding (try)
 import Control.Monad.State as SS
+--import Data.Shapely
 
 -- Rules:
 -- fname must start function info, enclosed by quotes
@@ -25,6 +26,8 @@ import Control.Monad.State as SS
 -- keywords must have (:) on RHS, values is the following string until the eol
 
 --type IParser a = ParsecT String () (SS.State SourcePos) a
+
+type IParser a = IndentParser String () a
 
 keywords :: [String]
 keywords = ["pure", "nond", "absf", "rrel", "welf"]
@@ -43,16 +46,48 @@ int = read <$> many1 digit
 
 
 strV' :: Parser String
-strV' = choice [many1 (noneOf (ignores++[',']))
-               ,many1 (noneOf (ignores++[',', ' ']))] 
-              --  ,many1 (noneOf (ignores++[',', ' ']))] 
+strV' = (many1 (noneOf ( ignores++[',']))) 
+
+
+strV''' :: IParser String
+strV''' = lexeme' $ (many1 (noneOf ( ignores++[',']))) 
+
+
+--    (do
+--            lookAhead ( char '(' )
+--            s <- between (char '(') (char ')') (many (noneOf ignores))  --(many (noneOf ignores)) )
+--            return s)
+--        <|> 
+        --(lookAhead (char '(') >>
+        
+        -- <|> (lexeme $ (
+--do 
+--                  --notFollowedBy ( many (noneOf ignores) `endBy` oneOf "()")
+--                  (try lookAhead (notFollowedBy ( oneOf "()")))
+--                  s <- 
+--                  -- notFollowedBy (noneOf ignores `manyTill` char ')')
+--                  return s
+--
+--        [  
+--               , 
+--                  -- s <- lexeme $ (noneOf ignores) `manyTill` (char ')')
+--                 -- return s
+--               ] 
+        
 
 parseList :: Parser [String]
-parseList = strV' `sepBy1` (choice [char ',', char ' '])
+parseList = strV' `sepBy1` (char ',')
+            <?> "Trying to parse list"
+
+parseList' :: IParser [String]
+parseList' = strV''' `sepBy1` (char ',')
             <?> "Trying to parse list"
 
 eol :: Parser String
 eol =  many1 endOfLine
+
+eol' :: IParser String
+eol' =  many1 endOfLine
 
 -- choice [newline, crlf] 
         -- [ string "\n\r", string "\r\n"
@@ -77,6 +112,20 @@ strKeyW = (many (noneOf ignores)) <* char ':'
 
 strV :: Parser String 
 strV = many1 (noneOf ignores)
+
+wspace' :: IParser String 
+wspace' = many $ char ' '
+-- extract function name
+-- defined as a string with (:) on its RHS
+stringFName' :: IParser String 
+stringFName' = char '"' *> strV'' <* char '"' <* eol' -- wspace <* eol
+
+-- extract function keyword, defined as a string with (:) on its RHS and (-) on its LHS
+strKeyW' :: IParser String 
+strKeyW' = (many (noneOf ignores)) <* char ':'
+
+strV'' :: IParser String 
+strV'' = many1 (noneOf ignores)
 
 --prsLine :: IParser (String, String)
 --prsLine = do
@@ -118,9 +167,15 @@ stringFInfo = do
 stringAbsF :: Parser FunAbsF
 stringAbsF = do 
     ab <- strKeyW *> parseList <* eol -- strKeyW *> parseList strV <* eol
-    ic <- strKeyW *> strV <* eol
-    ia <- strKeyW *> strV <* eol
-    return $ FunAbsF (map trim ab) ic ia (length ab)
+    ic <- strKeyW *> parseList <* eol
+    ia <- strKeyW *> parseList <* eol
+    return $ FunAbsF ab ic ia (length ab)
+
+
+--    ab <- strKeyW *> parseList <* eol -- strKeyW *> parseList strV <* eol
+--    ic <- strKeyW *> parseList <* eol
+--    ia <- strKeyW *> parseList <* eol
+--    return $ FunAbsF ab ic ia (length ab)
     
 stringRRel :: Parser FunRRel
 stringRRel = do 
@@ -135,10 +190,63 @@ stringWelF = do
     ts <- strKeyW *> strV <* eol 
     return $ FunWelF wf [ts]
 
+stringFInfo' :: IParser FunInfo 
+stringFInfo' = do 
+    ip <- strKeyW' *> strV'' <* eol'
+    nd <- strKeyW' *> strV'' <* eol'
+    return $ FunInfo (read ip) (read nd)
+
+stringAbsF' :: IParser FunAbsF'
+stringAbsF' = withBlock FunAbsF' y y
+             where
+                y = do
+                        k <- strKeyW'
+                        v <- parseList' <* spaces -- <* eol'
+                        return (k,v)
+    
+stringRRel' :: IParser FunRRel'
+stringRRel' = withBlock FunRRel' y y
+             where
+                y = do
+                        k <- strKeyW'
+                        v <- parseList' <* spaces -- <* eol'
+                        return (k,v)
+--             where
+--                y = strKeyW' *> parseList' <* spaces -- <* eol'
+--                z = strKeyW' *> parseList' <* spaces -- <* eol'
+--
+--
+--    do 
+--    rr <- strKeyW' *> parseList' <* eol'
+--    oc <- strKeyW' *> strV'' <* eol'
+--    oa <- strKeyW' *> strV'' <* eol'
+--    return $ FunRRel rr oc oa
+
+stringWelF' :: IParser FunWelF'
+stringWelF' = withBlock FunWelF' y y
+             where
+                y = do
+                        k <- strKeyW'
+                        v <- parseList' <* spaces -- <* eol'
+                        return (k,v)
+
+--             withBlock FunWelF' y y
+--             where
+--                y = strKeyW' *> parseList' <* spaces -- <* eol'
+
+
+--do 
+--    wf <- strKeyW' *> parseList' <* eol'
+--    ts <- strKeyW' *> strV'' <* eol'
+--    return $ FunWelF wf [ts]
+
 
 -- removes whitespaces from both sides (based of given Parser)
 lexeme :: Parser a -> Parser a 
 lexeme p = wspace *> p <* wspace
+
+lexeme' :: IParser a -> IParser a 
+lexeme' p = wspace' *> p <* wspace'
 
 pbtinfo :: Parser PBTInfo
 pbtinfo = do
@@ -149,11 +257,20 @@ pbtinfo = do
     wf <- lexeme stringWelF
     return $ PBTInfo fn fi ab rr wf
 
+pbtinfo' :: IParser PBTInfo'
+pbtinfo' = do
+    fn <- lexeme' stringFName'
+    fi <- lexeme' stringFInfo'
+    ab <- lexeme' stringAbsF'
+    rr <- lexeme' stringRRel'
+    wf <- lexeme' stringWelF'
+    return $ PBTInfo' fn fi ab rr wf
+
 pbtinfos :: Parser [PBTInfo]
 pbtinfos = pbtinfo `manyTill` eof
 
---pbtinfos :: IParser [PBTInfo]
---pbtinfos = pbtinfo' `manyTill` eof
+pbtinfos' :: IParser [PBTInfo']
+pbtinfos' = pbtinfo' `manyTill` eof
 
 parseFile :: FilePath -> ExceptT String IO [PBTInfo]
 parseFile f = parsePBTFile pbtinfos f
@@ -174,8 +291,11 @@ parsePBTFile p f = do
 testPBTParse :: IO ()
 testPBTParse = pPrint $ parse pbtinfos "" exampleFile
 
---testPBTParse' :: IO ()
---testPBTParse' = pPrint $ iParse pbtinfos' "" exampleFile
+testPBTParse' :: IO ()
+testPBTParse' = pPrint $ iParse pbtinfos' "" exampleFile
+
+iParse :: IParser a -> SourceName -> String -> Either ParseError a
+iParse aParser source_name input = runIndentParser aParser () source_name input
 
 exampleFile :: String
 exampleFile = unlines $
@@ -184,9 +304,9 @@ exampleFile = unlines $
         , "    nond: False\r"
         , "    absf: direct, id\r"
         , "        IC: U32, Bag \r"
-        , "        IA: Int, (Int, Int) \r"
+        , "        IA: Int, (Int, Int)\r"
         , "    rrel: direct, (==)\r"
-        , "        OC: Bag\r"
+        , "        OC: Bag \r"
         , "        OA: Tuple \r"
         , "    welf: sum = sum List, count = length List\r"
         , "        List: normal at 10, arbitrary Pos Int\r"
@@ -196,9 +316,9 @@ exampleFile = unlines $
         , "    absf: direct\r"
         , "        IC: Bag\r"
         , "        IA: Tuple\r"
-        , "    rrel: direct (==)\r"
-        , "        OC: EmptyBag | Success U32\r"
-        , "        OA: Either \r"
+        , "    rrel: direct, (==)\r"
+        , "        OC: CogentEither () U32 \r"
+        , "        OA: Either () Int \r"
         , "    welf: sum = sum List, count = length List\r"
         , "        List: normal at 10, arbitrary Pos Int\r"
         ]

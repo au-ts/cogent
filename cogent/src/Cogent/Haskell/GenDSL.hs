@@ -12,14 +12,27 @@ data PBTInfo = PBTInfo { fname :: String
                        , fwelf :: FunWelF
                        } deriving (Show)
 
+data PBTInfo' = PBTInfo' { fname :: String
+                       , finfo :: FunInfo
+                       , fabsf :: FunAbsF'
+                       , frrel :: FunRRel'
+                       , fwelf :: FunWelF'
+                       } deriving (Show)
+
 data FunInfo = FunInfo { ispure :: Bool
                        , nondet :: Bool
                        } deriving (Show)
 
 data FunAbsF = FunAbsF { absf :: [String]
-                       , ic   :: String
-                       , ia   :: String
+                       , ic   :: [String]
+                       , ia   :: [String]
                        , s :: Int
+                       } deriving (Show)
+
+data FunAbsF' = FunAbsF' { absf :: (String, [String])
+                         , ityps   :: [(String, [String])]
+                       --, ia   :: [String]
+                       -- , s :: Int
                        } deriving (Show)
 
 data FunRRel = FunRRel { rrel :: [String]
@@ -27,8 +40,16 @@ data FunRRel = FunRRel { rrel :: [String]
                        , oa   :: String
                        } deriving (Show)
 
+data FunRRel' = FunRRel' { rrel :: (String, [String])
+                       , otyps   :: [(String, [String])]
+                       } deriving (Show)
+
 data FunWelF = FunWelF { welf :: [String]
                        , typs :: [String]
+                       } deriving (Show)
+
+data FunWelF' = FunWelF' { welf :: (String, [String])
+                       , typs :: [(String, [String])]
                        } deriving (Show)
 
 -- data PBTInfoList = PBTInfoList [PBTInfo]

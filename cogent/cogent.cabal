@@ -191,8 +191,6 @@ library
               , syb >= 0.4
               , template-haskell
               , transformers >= 0.4.2
-              , extra
-              , indents
   if flag(haskell-backend)
     exposed-modules: Cogent.Haskell.FFIGen
                    , Cogent.Haskell.HscGen
@@ -202,7 +200,11 @@ library
                    , Cogent.Haskell.PBTGen
                    , Cogent.Haskell.ParseDSL
     cpp-options: -DWITH_HASKELL
-    build-depends: haskell-src-exts >= 1.19, pretty
+    build-depends: haskell-src-exts >= 1.19
+                 , pretty
+                 , extra
+                 , indents
+                 , generics-sop >= 0.5
   if flag(builtin-arrays) || flag(refinement-types)
     exposed-modules: 
                      Cogent.TypeCheck.SMT
