@@ -17,7 +17,7 @@ OUTPUT=$(NAME)
 COUTPUT=$(addsuffix .c, $(OUTPUT))
 HOUTPUT=$(addsuffix .h, $(OUTPUT))
 
-STDGUM=$(shell cogent --stdgum-dir)
+LIBGUM=$(shell cogent --libgum-dir)
 
 ACFILES=main.ac
 
@@ -26,7 +26,7 @@ PPINFER=$(ACFILES:.ac=_pp_inferred.c)
 
 OBJ=$(PPINFER:.c=.o)
 
-CFLAGS=-I. -I$(STDGUM) -std=c99
+CFLAGS=-I. -I$(LIBGUM) -std=c99
 
 .PHONY: default clean gen-anti
 .SECONDARY:

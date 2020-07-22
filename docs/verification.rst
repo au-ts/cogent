@@ -251,7 +251,7 @@ You may see the following error from AutoCorres when running this file::
 
 This is due to ``cpp`` being unable to find the Cogent C header, which is located in the Cogent repository 
 in `cogent/lib/cogent-defns.h <https://github.com/NICTA/cogent/blob/master/cogent/lib/cogent-defns.h>`_. Adding the compiler flag ``--fake-header-dir=$REPO_ROOT/cogent/lib`` will fix this.
-You can additionally set this directory to the result of ``cogent --stdgum-dir``, which will print the location of the Cogent
+You can additionally set this directory to the result of ``cogent --libgum-dir``, which will print the location of the Cogent
 standard library directory.
 
 You may also see the following error::

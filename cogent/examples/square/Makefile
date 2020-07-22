@@ -17,7 +17,7 @@ OUTPUT=square # $(SRC:.cogent=-gen)
 COUTPUT=$(addsuffix .c, $(OUTPUT))
 HOUTPUT=$(addsuffix .h, $(OUTPUT))
 
-STDGUM=$(shell cogent --stdgum-dir)
+LIBGUM=$(shell cogent --libgum-dir)
 
 ACFILES=main.ac
 
@@ -26,7 +26,7 @@ PPINFER=$(ACFILES:.ac=_pp_inferred.c)
 
 OBJ=$(PPINFER:.c=.o)
 
-CFLAGS=-I. -I$(STDGUM) -I$(STDGUM)/gum/anti -std=gnu99  # -I../plat/console 
+CFLAGS=-I. -I$(LIBGUM) -I$(LIBGUM)/gum/anti -std=gnu99  # -I../plat/console 
 
 .PHONY: default clean gen-anti
 .SECONDARY:

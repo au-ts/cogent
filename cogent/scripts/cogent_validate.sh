@@ -842,34 +842,41 @@ test_goanna()
 
 test_libgum()
 {
+
+    echo "=== libgum test ==="
     all_total+=1
-    TEST_FILE=_regression.cogent
+    passed=0
+    total=0
     pushd "$COGENTDIR"/lib
 
-    # since some libgum stuff depends on this type
-    echo $'type FsInode\ntype FsState\ntype VfsSuperBlock\n' > "$TEST_FILE"
-
     flist=`find gum -name "*.cogent"`
-    echo $flist
-    # include everything
+
     for src in $flist
     do
-        echo "include <$src>" >> "$TEST_FILE"
+      TEST_FILE="$(dirname $src)"/_regression.cogent
+      # since some libgum stuff depends on these types
+      echo $'type FsInode\ntype FsState\ntype VfsSuperBlock\n' > "$TEST_FILE"
+      cat "$src" >> "$TEST_FILE"
+      echo "Testing $src:"
+      cogent -t "$TEST_FILE"
+      code=$?
+      total+=1
+      if [ $code -eq 0 ]; then
+        passed+=1
+        echo "$pass_msg"
+      else
+        echo "$fail_msg"
+      fi
+      rm "$TEST_FILE"
     done
 
-    # typecheck, and save result
-    cogent -t "$TEST_FILE"
-    code=$?
+    popd
 
-    rm "$TEST_FILE"
-
-    echo -n "libgum typechecking: "
-    if [ $code -eq 0 ]; then
-  	all_passed+=1
-        echo "$pass_msg"
-    else
-        echo "$fail_msg"
+    echo "Passed $passed out of $total."
+    if [[ $passed = $total ]]
+    then all_passed+=1
     fi
+
 }
 
 #

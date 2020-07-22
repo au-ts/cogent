@@ -71,15 +71,21 @@ verbose_test_names = None
 # Represents the result of a test
 # Takes in a function which returns
 #   (status, errormsg, expected)
-# where status, expected :: "pass" | "fail" | "error" | "wip"
+# where status, expected :: "pass" | "fail" | "error" | "wip-pass" | "wip-fail" | "wip"
+
+def is_wip(expected):
+    return (expected == "wip" or
+            expected == "wip-pass" or
+            expected == "wip-fail")
 
 class TestContext:
-    def __init__(self, repo, cogent, dist_dir, script_dir, phases):
+    def __init__(self, repo, cogent, dist_dir, script_dir, phases, ignore_phases):
         self.repo = repo
         self.cogent = cogent
         self.dist_dir = dist_dir
         self.script_dir = script_dir
         self.phases = phases
+        self.ignore_phases = ignore_phases
 
 class Phase:
     def __init__(self, phase_path):
@@ -108,7 +114,7 @@ class TestResult:
 
     def result(self):
         (status, _, expected) = self.test
-        return status == expected or expected == "wip"
+        return status == expected or is_wip(expected)
 
     # Printing test results
     def display(self):
@@ -122,10 +128,22 @@ class TestResult:
                                  self.test_name in verbose_test_names))
 
 
-        if expected == "wip":
-            acc += colored("WIP (Pass by defualt)\n", "green")
+        if expected == "wip-pass":
+            if status == "pass":
+                acc += colored("WIP (Passed as expected)\n", "green")
+            else:
+                acc += colored("WIP (expected pass, got " + status + ")\n", "yellow")
+        elif expected == "wip-fail":
+            if status == "fail":
+                acc += colored("WIP (Failed as expected)\n", "green")
+            else:
+                acc += colored("WIP (expected fail, got " + status + ")\n", "yellow")
+
+        elif expected == "wip":
+            acc += colored("WIP (got " + status + ")\n", "yellow")
+
         elif status == "error" and expected != "error":
-            acc += colored("Error? ", "yellow") + "Reason:\n"
+            acc += colored("Error? ", "yellow") + "\nReason:\n"
         elif status == expected:
             if status == "pass":
                 acc += colored("Passed\n", "green")
@@ -204,7 +222,7 @@ class TestConfiguration:
                         "Test {0} in {1} must have at least 1 compiler flag".format(i, self.relpath))
             except KeyError:
                 pass
-            if f["expected_result"] not in ["error", "pass", "fail", "wip"]:
+            if f["expected_result"] not in ["error", "pass", "fail", "wip", "wip-pass", "wip-fail"]:
                 raise InvalidConfigError("""Field 'expected_result' must be one of 'pass', 'fail', 'error' or 'wip' in test {0} in {1}\n. Actual value: {2}"""
                                          .format(i, self.relpath, str(f["expected_result"])))
 
@@ -324,8 +342,13 @@ class Test:
                     phasename = test['phase']
                 except KeyError:
                     phasename = "cogent"
-                if phasename == "cogent":
+                
+                if phasename == "cogent" and phasename not in context.ignore_phases:
                     results.append( self.run_cogent(context, f, test) )
+
+                elif context.phases is None or phasename in context.ignore_phases:
+                    continue
+
                 else:
                     try:
                         results.append( self.run_phase(context, f, context.phases[phasename], test) )
@@ -361,7 +384,7 @@ class Configurations:
             if type(e) is InvalidConfigError:
                 print(colored("Config error: ", "red"), e)
             elif type(e) is OSError:
-                print(colored("error - could not find config file for test file {}".format(x), "red"))
+                print(colored("error - could not find config file for test file {}".format(e), "red"))
 
     # Based on an asbolute path for a test file, get it's configuration
     def get_cfg_from_test_name(self, f):
@@ -401,34 +424,56 @@ def main():
                     help="Check the format of all config files is correct")
     ap.add_argument("--extra-phases", "-p",
                     dest="phase_dir",
-                    default="phases",
-                    help="override the location of the additional phase directory")
+                    default=None,
+                    help="set the location of the additional phase directory")
+    ap.add_argument("--ignore-phases",
+                    dest="ignore_phases",
+                    action="store",
+                    nargs="+",
+                    default=[],
+                    help="ignore the tests for the specified phases")
     ap.add_argument("--repo",
                     dest="repo",
-                    help="test a particular repository")
+                    help="set the location of the repository root")
+    ap.add_argument("--cogent",
+                    dest="cogent",
+                    default="cogent",
+                    help="specify the location of the cogent compiler")
+    ap.add_argument("--ignore-errors",
+                    dest="ignore_errors",
+                    action="store_true",
+                    help="if enabled, a test error does not cause the script to exit with an error")
     args = ap.parse_args()
 
-    if args.repo is None:
-        # Check if cogent is installed
-        cogent = shutil.which("cogent")
-        repo = None
-        if cogent is None:
-            print("Could not find cogent compiler on PATH - Please install cogent and place it on the PATH")
-            sys.exit(1)
-    else:
-        repo = Path(args.repo).resolve()
-        cogent = Path(repo, "cogent", ".cabal-sandbox", "bin", "cogent").resolve()
-        if not cogent.exists():
-            print("error: could not find the cogent compiler at '{}'".format(cogent))
-            sys.exit(1)
+    cogent = shutil.which(args.cogent)
 
-    if Path(args.phase_dir).exists():
-      files = Path(args.phase_dir).glob("*.sh")
+    if args.repo is not None:
+      repo = os.path.abspath(args.repo)
+    else:
+      repo = None
+      print("Warning: repository directory not set; use --repo")
+
+    if args.phase_dir is not None:
+      phase_dir = os.path.abspath(args.phase_dir)
+    else:
+      phase_dir = None
+
+    # Check if cogent is installed
+    if cogent is None:
+        print("Could not find cogent compiler - Please either add it to your PATH or set --cogent")
+        sys.exit(1)
+
+    print("Using repository: " + str(repo))
+    print("Using cogent: " + cogent)
+    print("Using phase dir: " + str(phase_dir))
+
+    if phase_dir is not None and Path(phase_dir).exists():
+      files = Path(phase_dir).glob("*.sh")
       phases = dict(map(lambda p: (p.stem,Phase(p)), files))
     else:
-      phases = dict()
+      phases = None
 
-    context = TestContext(repo, cogent, TEST_DIST_DIR, TEST_SCRIPT_DIR, phases)
+    context = TestContext(repo, cogent, TEST_DIST_DIR, TEST_SCRIPT_DIR, phases, args.ignore_phases)
 
     # find all config files
     configs = Configurations(Path("."))
@@ -468,10 +513,6 @@ def main():
             subresults = test.run_all(context)
             results.extend(subresults)
 
-    all_passed = True
-
-    final_results = []
-
     setup_dist()
 
     errs   = 0
@@ -482,14 +523,11 @@ def main():
     for res in results:
         (status, _, expected) = res.test
 
-        p = res.result()
-        final_results.append(p or expected == "wip")
-
-        if expected == "wip":
+        if is_wip(expected):
             wips += 1
-        elif not p and expected == "error":
+        elif status == "error":
             errs += 1
-        elif p:
+        elif res.result():
             passes += 1
         else:
             fails += 1
@@ -504,7 +542,7 @@ def main():
     print("{:>16}{:>16}".format("Work In Progress", wips))
     print()
 
-    if not all(final_results):
+    if fails != 0 or (not args.ignore_errors and errs != 0):
         sys.exit(1)
 
 

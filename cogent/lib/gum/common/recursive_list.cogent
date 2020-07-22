@@ -62,25 +62,25 @@ list_new () =
 -- Adds an element to the front of the list
 -- Returns the updated list
 list_cons : all a. (a, List a) -> (List a, Option a)
-list_cons (x, #{ list, size }) = 
+list_cons (x, #{ size, list }) = 
   list_alloc_node ()
-    | None   -> (#{ list, size }, Some x)
+    | None   -> (#{ size, list }, Some x)
     | Some n ->
       (#{ 
-        list = (n { l = Cons (x,list) }),
-        size = size + 1
+        size = size + 1,
+        list = (n { l = Cons (x,list) })
       },
       None)
 
 -- Removes the first element of the list if it exists
 -- Returns the element if it exists and the resulting list
 list_head : all a. List a -> (Option a, List a)
-list_head #{ list, size } =
+list_head #{ size, list } =
   let list' { l = x } = list in
-  x | Nil -> (None, #{ list = (list' { l = Nil }), size })
+  x | Nil -> (None, #{ size, list = (list' { l = Nil }) })
     | Cons (elem, rest) ->
       list_free_node[a] list';
-      (Some elem, #{ list = rest, size = size-1 })
+      (Some elem, #{ size = size-1, list = rest })
 
 -- Appends two lists (the second on the end of the first)
 -- Returns the appended list
@@ -105,10 +105,10 @@ list_append' (head { l = x }, b) =
 -- Returns the updated list
 -- This reallocates every node in the list
 list_map : all (a, b). (a -> b, List a) -> Result (List b) (List a)
-list_map (f, #{ list, size }) = 
+list_map (f, #{ size, list }) = 
   list_map' (f, list)
-    | Error   list -> Error #{ list, size }
-    | Success list -> Success #{ list, size }
+    | Error   list -> Error #{ size, list }
+    | Success list -> Success #{ size, list }
 
 list_map' : all (a, b). ((a -> b), (ListNode a)) -> Result (ListNode b) (ListNode a)
 list_map' (f, head { l }) =
@@ -132,9 +132,9 @@ list_map' (f, head { l }) =
               Success n { l = Cons (f elem, tail') }
 
 list_r_map : all (a, b). (a! -> b, (List a)!) -> Option (List b)
-list_r_map (f, #{ list, size }) =
+list_r_map (f, #{ size, list }) =
   list_r_map'[a,b] (f, list) 
-    | Some list -> Some #{ list, size }
+    | Some list -> Some #{ size, list }
     | None      -> None
 
 list_r_map' : all (a, b). (a! -> b, (ListNode a)!) -> Option (ListNode b) 
@@ -158,7 +158,7 @@ list_r_map' (f, head) =
 list_map_in_place : all (a :< E). ((a -> a), (List a)) -> List a
 list_map_in_place (f, #{ size, list }) =
   let list = list_map_in_place'[a] (f,list)
-  in  #{ list, size }
+  in  #{ size, list }
 
 list_map_in_place' : all (a :< E). ((a -> a), (ListNode a)) -> ListNode a
 list_map_in_place' (f, head) =

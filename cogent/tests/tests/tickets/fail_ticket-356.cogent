@@ -1,0 +1,4 @@
+type R = { f : A }
+type A
+foo : R! -> ()
+foo r { f } = ()

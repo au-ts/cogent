@@ -186,6 +186,7 @@ set_flag_funionForVariants = writeIORef __cogent_funion_for_variants_ref True
 set_flag_funtypedFuncEnum = writeIORef __cogent_funtyped_func_enum_ref True
 set_flag_fuseCompoundLiterals = writeIORef __cogent_fuse_compound_literals_ref True
 set_flag_fwrapPutInLet = writeIORef __cogent_fwrap_put_in_let_ref True
+add_flag_include p = modifyIORef __cogent_include_ref (++[p])
 set_flag_inferCFunc = writeIORef __cogent_infer_c_func_files_ref
 set_flag_inferCType = writeIORef __cogent_infer_c_type_files_ref
 set_flag_interactive = writeIORef __cogent_interactive_ref True
@@ -663,6 +664,13 @@ __cogent_fwrap_put_in_let = unsafePerformIO $ readIORef __cogent_fwrap_put_in_le
 __cogent_fwrap_put_in_let_ref :: IORef Bool
 {-# NOINLINE __cogent_fwrap_put_in_let_ref #-}
 __cogent_fwrap_put_in_let_ref = unsafePerformIO $ newIORef False
+
+__cogent_include :: [FilePath]
+__cogent_include = unsafePerformIO $ readIORef __cogent_include_ref
+
+__cogent_include_ref :: IORef [FilePath]
+{-# NOINLINE __cogent_include_ref #-}
+__cogent_include_ref = unsafePerformIO $ newIORef []
 
 __cogent_infer_c_func_files :: [FilePath]
 __cogent_infer_c_func_files = unsafePerformIO $ readIORef __cogent_infer_c_func_files_ref

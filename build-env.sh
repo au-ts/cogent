@@ -54,13 +54,13 @@ set_build_env()
   }
 
   # Location of Cogent compiler (if not already defined)
-  : ${COGENT_TOOLDIR:="$SCRIPT_DIR/cogent/dist/build/cogent"}
+  : ${COGENT_TOOLDIR:="$HOME/.cabal/bin"}
   if ! type cogent >/dev/null 2>&1
   then PATH="$COGENT_TOOLDIR:$PATH"
   fi
 
   # Location of Cogent shared library
-  : ${COGENT_STD_GUM_DIR:="$SCRIPT_DIR/cogent/lib"}
+  : ${COGENT_LIBGUM_DIR:="$SCRIPT_DIR/cogent/lib"}
 
   # Environment variable for running AutoCorres
   : ${L4V_ARCH:="ARM"}

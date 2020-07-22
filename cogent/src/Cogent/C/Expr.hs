@@ -278,7 +278,7 @@ maybeDecl (Just v) t = return (v,[],[])
 
 -- If assigned to a new var, then recycle
 aNewVar :: CType -> CExpr -> VarPool -> Gen v (CExpr, [CBlockItem], [CBlockItem], VarPool)
-aNewVar t e p | __cogent_simpl_cg && not (isTrivialCExpr e)
+aNewVar t e p | not __cogent_simpl_cg && not (isTrivialCExpr e)
   = (extTup3r M.empty) . (first3 variable) <$> declareInit t e p
               | otherwise = return (e,[],[],p)
 
@@ -356,7 +356,7 @@ genExpr mv (TE t (ALit es)) = do
   telt' <- genType telt
   (v,vdecl,vstm) <- maybeDecl mv t'
   blob' <- flip3 zipWithM [0..] blob $ \(e,edecl,estm,ep) idx -> do
-    (adecl,astm) <- assign telt' (mkArrIdx (variable v) idx) e
+    (adecl,astm) <- assign telt' (mkArrIdx (strDot' v arrField) idx) e
     return (edecl++adecl, estm++astm, M.empty)  -- FIXME: varpool - meaningless placeholder now / zilinc
   let (vdecls,vstms,vps) = L.unzip3 blob'
   return (variable v, vdecl ++ concat vdecls, vstm ++ concat vstms, M.empty)
@@ -368,7 +368,7 @@ genExpr mv (TE t (ArrayIndex e i)) = do  -- FIXME: varpool - as above
   let tarr@(TArray telt _ s _) = exprType e
   drexpr <- case s of
     -- unboxed array
-    Unboxed -> return $ CArrayDeref e' i'
+    Unboxed -> return $ CArrayDeref (strDot e' arrField) i'
     -- boxed array of boxed types / boxed array of unboxed types without layout specification
     Boxed _ CLayout -> return $ CArrayDeref e' i'
     -- boxed array of unboxed type
@@ -395,7 +395,7 @@ genExpr mv (TE t (ArrayMap2 (_,f) (e1,e2))) = do  -- FIXME: varpool - as above
   telt2' <- genType telt2
 
   let drexp s e t i = case s of
-                        Unboxed -> return $ CArrayDeref e i
+                        Unboxed -> return $ CArrayDeref (strDot e arrField) i
                         Boxed _ CLayout -> return $ CArrayDeref e i
                         _ -> do f <- genBoxedArrayGetSet t Get
                                 return $ CEFnCall (variable f) [e, i]
@@ -403,7 +403,7 @@ genExpr mv (TE t (ArrayMap2 (_,f) (e1,e2))) = do  -- FIXME: varpool - as above
   drexp2 <- drexp s2 e2' tarr2 (variable i)
   (f',fdecl,fstm,fp) <- withBindings (Cons drexp2 (Cons drexp1 Nil)) $ genExpr_ f
   let assdns s et at a i e = case s of
-                               Unboxed -> assign et (CArrayDeref a i) e
+                               Unboxed -> assign et (CArrayDeref (strDot a arrField) i) e
                                Boxed _ CLayout -> assign et (CArrayDeref a i) e
                                _ -> do
                                  f <- genBoxedArrayGetSet at Set
@@ -422,24 +422,31 @@ genExpr mv (TE t (ArrayMap2 (_,f) (e1,e2))) = do  -- FIXME: varpool - as above
           vstm++e1stm++e2stm++istm++[CBIStmt loop]++v1stm++v2stm, M.empty)
 
 genExpr mv (TE t (Pop _ e1 e2)) = do  -- FIXME: varpool - as above
-  -- Idea:
-  --   v :@ vs = e1 in e2 ~~> v1 = e1[0]; t v2[l-1]; v2 = e1[1]; e2
   (e1',e1decl,e1stm,e1p) <- genExpr_ e1
   let t1@(TArray telt l s mhole) = exprType e1  -- ASSERTION: @mhole@ cannot be a hole in its head
-  (v1,v1decl,v1stm,v1p) <- flip3 aNewVar e1p (mkArrIdx e1' 0) =<< genType telt
+  (v1,v1decl,v1stm,v1p) <- flip3 aNewVar e1p (mkArrIdx (strDot e1' arrField) 0) =<< genType telt
   let trest = TArray telt (LOp Minus [l, LILit 1 U32]) s mhole
-  trest' <- genTypeP trest
+  trest' <- genType trest
+  telt'  <- genType telt
   (v2,v2decl,v2stm) <- declare trest'
   -- recycleVars v1p
-  (adecl,astm) <- assign trest' (variable v2) (CBinOp C.Add e1' (mkConst U32 1))
+  -- start a for-loop to copy element-by-element the rest elements in @e1@
+  (i,idecl,istm) <- declareInit u32 (mkConst U32 0) M.empty  -- i = 0;
+  (adecl,astm) <- assign telt' (CArrayDeref (strDot' v2 arrField) (variable i))
+                               (CArrayDeref (strDot e1' arrField) ((CBinOp C.Add (variable i) (mkConst U32 1))))
+                   -- \ ^^^ v2[i] = e1'[i+1]
+  l' <- genLExpr l
+  let cond = CBinOp C.Lt (CBinOp C.Add (variable i) (mkConst U32 1)) l'  -- i + 1 < l
+      inc  = CAssign (variable i) (CBinOp C.Add (variable i) (mkConst U32 1))  -- i++
+      loop = CWhile cond (CBlock $ astm ++ [CBIStmt inc])
   (e2',e2decl,e2stm,e2p) <- withBindings (fromJust $ cvtFromList (SSuc $ SSuc SZero) [v1, variable v2]) $ genExpr mv e2
-  return (e2', e1decl ++ v1decl ++ v2decl ++ adecl ++ e2decl,
-          e1stm ++ v1stm ++ v2stm ++ astm ++ e2stm, e2p)
+  return (e2', e1decl ++ v1decl ++ v2decl ++ idecl ++ adecl ++ e2decl,
+          e1stm ++ v1stm ++ v2stm ++ istm ++ [CBIStmt loop] ++ e2stm, e2p)
 
 genExpr mv (TE t (Singleton e)) = do
   (e',edecl,estm,ep) <- genExpr_ e
   t' <- genType t
-  (v,adecl,astm,vp) <- flip (maybeAssign t' mv) ep $ mkArrIdx e' 0
+  (v,adecl,astm,vp) <- flip (maybeAssign t' mv) ep $ mkArrIdx (strDot e' arrField) 0
   return (v, edecl++adecl, estm++astm, vp)
 
 genExpr mv (TE t (ArrayPut arr i e)) = do
@@ -450,7 +457,7 @@ genExpr mv (TE t (ArrayPut arr i e)) = do
   let (TArray telt _ s _) = t
   telt' <- genType telt
   (assdecl,assstm) <- case s of
-    Unboxed -> assign telt' (CArrayDeref arr' i') e'
+    Unboxed -> assign telt' (CArrayDeref (strDot arr' arrField) i') e'
     Boxed _ CLayout -> assign telt' (CArrayDeref arr' i') e'
     _ -> do
       elemSetter <- genBoxedArrayGetSet t Set
@@ -463,7 +470,7 @@ genExpr mv (TE t (ArrayTake _ arr i e)) = do  -- FIXME: varpool - as above
   (i',idecl,istm,ip) <- genExpr_ i
   let tarr@(TArray telt _ s _) = exprType arr
   drexpr <- case s of
-    Unboxed -> return $ CArrayDeref arr' i'
+    Unboxed -> return $ CArrayDeref (strDot arr' arrField) i'
     Boxed _ CLayout -> return $ CArrayDeref arr' i'
     _ -> do
       elemGetter <- genBoxedArrayGetSet tarr Get
@@ -846,7 +853,7 @@ genDefinition (FunDef attr fn Nil Nil t rt e) = do
   t' <- addSynonym genTypeA (unsafeCoerce t :: CC.Type 'Zero VarName) (argOf fn)
   (e',edecl,estm,_) <- withBindings (Cons (variable arg & if __cogent_funboxed_arg_by_ref then CDeref else id) Nil)
                          (genExpr Nothing (unsafeCoerce e :: TypedExpr 'Zero ('Suc 'Zero) VarName VarName))
-  rt' <- addSynonym genTypeP (unsafeCoerce rt :: CC.Type 'Zero VarName) (retOf fn)
+  rt' <- addSynonym genType (unsafeCoerce rt :: CC.Type 'Zero VarName) (retOf fn)
   funClasses %= M.alter (insertSetMap (fn,attr)) (Function t' rt')
   body <- case __cogent_fintermediate_vars of
     True  -> do (rv,rvdecl,rvstm) <- declareInit rt' e' M.empty
@@ -858,7 +865,7 @@ genDefinition (FunDef attr fn Nil Nil t rt e) = do
                       , CFnDefn (rt',fn) [(t',arg)] body fnspec ]
 genDefinition (AbsDecl attr fn Nil Nil t rt)
   = do t'  <- addSynonym genTypeA (unsafeCoerce t  :: CC.Type 'Zero VarName) (argOf fn)
-       rt' <- addSynonym genTypeP (unsafeCoerce rt :: CC.Type 'Zero VarName) (retOf fn)
+       rt' <- addSynonym genType  (unsafeCoerce rt :: CC.Type 'Zero VarName) (retOf fn)
        funClasses %= M.alter (insertSetMap (fn,attr)) (Function t' rt')
        ffifunc <- if __cogent_fffi_c_functions then genFfiFunc rt' fn [t'] else return []
        return $ ffifunc ++ [CDecl $ CExtFnDecl rt' fn [(t',Nothing)] (fnSpecAttr attr noFnSpec)]
@@ -957,7 +964,7 @@ compile defs mcache ctygen =
                       -> [(CId, CC.Type 'Zero VarName)]
                       -> [(CId, CC.Type 'Zero VarName, [(Maybe FunName, Maybe FunName)])]
         updateWithGSs st typeCorres = for typeCorres $ \(cid,t) ->
-          let gss = if not (isTRecord t) then []
+          let gss = if not (isTRecord t && recordHasLayout t) then []
                       else -- FIXME: only generate getter/setters for records for now / zilinc
                            let recordGetters = M.toList $ st^.boxedRecordGetters
                                recordSetters = M.toList $ st^.boxedRecordSetters

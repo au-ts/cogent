@@ -109,7 +109,7 @@ newtype DS (t :: Nat) (l :: Nat) (v :: Nat) a =
 
 #if MIN_VERSION_base(4,13,0)
 instance MonadFail (DS t l v) where
-  fail _ = __impossible "pattern match failed"
+  fail = __impossible
 #endif
 
 

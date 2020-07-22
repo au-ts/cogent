@@ -112,10 +112,11 @@ genTyDecl (Variant x, n) _ = case __cogent_funion_for_variants of
             [genTySynDecl (n, CStruct n)])
 genTyDecl (Function t1 t2, n) tns =
   if n `elem` tns then ([],[])
-                  else ([], [CDecl $ CTypeDecl (CIdent fty) [n]])
+                  else ([], [genTySynDecl (n, CIdent fty)])
   where fty = if __cogent_funtyped_func_enum then untypedFuncEnum else unitT
 #ifdef BUILTIN_ARRAYS
-genTyDecl (Array t, n) _ = ([CDecl $ CVarDecl t n True Nothing], [])
+genTyDecl (Array t Nothing , n) _ = ([], [genTySynDecl (n, CArray t CPtrToArray   )])
+genTyDecl (Array t (Just e), n) _ = ([], [genTySynDecl (n, CArray t (CArraySize e))])
 genTyDecl (ArrayL layout, n) _ =
   let elemSize = dataLayoutSizeInWords layout
       dataType = CPtr $ CInt False CIntT
@@ -185,7 +186,10 @@ lookupTypeCId (TRecord _ fs (Boxed _ CLayout)) =
     Record <$> (mapM (\(a,(b,_)) -> (a,) <$> (Compose . lookupType) b) fs))
 lookupTypeCId cogentType@(TRecord _ _ (Boxed _ _)) = __impossible "lookupTypeCId: record with non-record layout"
 #ifdef BUILTIN_ARRAYS
-lookupTypeCId (TArray t n Unboxed _) = getCompose (Compose . lookupStrlTypeCId =<< Array <$> (Compose . lookupType) t)
+lookupTypeCId (TArray t n Unboxed _) = do
+  n' <- CArraySize <$> genLExpr n
+  tarr <- getCompose (CArray <$> Compose (lookupType t) <*> Compose (pure $ Just n'))
+  getCompose (Compose . lookupStrlTypeCId =<< (Record . (:[]) . (arrField,)) <$> Compose (pure tarr))
 lookupTypeCId (TArray t n (Boxed _ l) _) = lookupStrlTypeCId (ArrayL l)
 #endif
 lookupTypeCId t = Just <$> typeCId t
@@ -257,7 +261,6 @@ typeCId t = use custTypeGen >>= \ctg ->
         CLayout -> getStrlTypeCId strlty
         _ -> __impossible "Tried to get the c-type of a record with a non-record layout"
     typeCId' (TRecord (Rec v) fs (Boxed _ l)) = do
-      strlType <- Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
       case l of
         Layout RecordLayout {} ->
           getStrlTypeCId (RecordL l)
@@ -265,9 +268,12 @@ typeCId t = use custTypeGen >>= \ctg ->
           -- Map a in-scope recursive parameter back to the ID of the 
           -- Record we're about to generate
           newId <- freshGlobalCId 't'
+          -- NOTE: Here we temporarily add @v@ to the store. The following two lines
+          -- of code have to be here. / zilinc
           recParRecordIds %= M.insert v newId
+          strlType <- Record <$> (mapM (\(a,(b,_)) -> (a,) <$> genType b) fs)
           res      <- lookupStrlTypeCId strlType
-          recParRecordIds %= M.delete v
+          recParRecordIds %= M.delete v  -- @v@ gets removed!
           case res of
             Nothing -> do
               getStrlTypeWithCId newId strlType
@@ -279,28 +285,22 @@ typeCId t = use custTypeGen >>= \ctg ->
       recId <- M.lookup (simplifyType $ m M.! v) <$> use recParCIds
       case recId of 
         Nothing -> do
-          Just res <- M.lookup v <$> use recParRecordIds
+          Just res <- M.lookup v <$> use recParRecordIds  -- FIXME! What about Nothing?
           recParCIds %= M.insert (simplifyType $ m M.! v) res
           return res 
         Just x ->
           return x
-    typeCId' t@(TRParBang v (Just m)) = do
-      recId <- M.lookup (simplifyType $ m M.! v) <$> use recParCIds
-      case recId of 
-        Nothing -> do
-          Just res <- M.lookup v <$> use recParRecordIds
-          recParCIds %= M.insert (simplifyType $ m M.! v) res
-          return res 
-        Just x -> 
-          return x
+    typeCId' (TRParBang v (Just m)) = typeCId' (TRPar v (Just m))
 
     typeCId' (TUnit) = return unitT
 #ifdef BUILTIN_ARRAYS
-    typeCId' (TArray t l Unboxed _) = getStrlTypeCId =<< Array <$> genType t
+    typeCId' (TArray t l Unboxed _) = do
+      tarr <- CArray <$> genType t <*> (CArraySize <$> genLExpr l)
+      getStrlTypeCId $ Record [(arrField, tarr)]
     typeCId' (TArray t l (Boxed _ al) _) =
       case al of
         Layout ArrayLayout {} -> getStrlTypeCId (ArrayL al)
-        CLayout -> getStrlTypeCId =<< Array <$> genType t
+        CLayout -> getStrlTypeCId =<< Array <$> genType t <*> pure Nothing
         _ -> __impossible "Tried to get the c-type of an array with a non-array record"
 #endif
 
@@ -359,7 +359,7 @@ genType t@(TArray elt l s _)
   | (Boxed _ CLayout) <- s = CPtr <$> genType elt  -- If it's heap-allocated without layout specified
   -- we get rid of unused info here, e.g. array length, hole location
   | (Boxed _ al)      <- s = CIdent <$> typeCId (simplifyType t) -- we are going to declare it as a type
-  | otherwise              = CArray <$> genType elt <*> (CArraySize <$> genLExpr l)
+  | otherwise              = CIdent <$> typeCId t  -- if the array is unboxed, it's wrapped in a struct
 #endif
 genType t                               = CIdent <$> typeCId t
 
@@ -382,13 +382,6 @@ simplifyType x = x
 genTypeA :: CC.Type 'Zero VarName -> Gen v CType
 genTypeA t@(TRecord _ _ Unboxed) | __cogent_funboxed_arg_by_ref = CPtr . CIdent <$> typeCId t  -- TODO: sizeof
 genTypeA t = genType t
-
--- It will generate a pointer type for an array, instead of the static-sized array type
-genTypeP :: CC.Type 'Zero VarName -> Gen v CType
-#ifdef BUILTIN_ARRAYS
-genTypeP (TArray telm l Unboxed _) = CPtr <$> genTypeP telm  -- FIXME: what about boxed? / zilinc
-#endif
-genTypeP t = genType t
 
 
 -- TODO(dagent): this seems wrong with respect to Dargent

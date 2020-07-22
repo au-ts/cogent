@@ -22,9 +22,9 @@ SRC=wa.cogent
 DEFNS=defns.txt
 
 # Standard Gum Directory
-STDGUM=$(COGENT_STD_GUM_DIR)
+LIBGUM=$(COGENT_LIBGUM_DIR)
 # ADT headers required by BilbyFs
-AHFILES=$(addprefix $(STDGUM)/gum/anti/abstract/, \
+AHFILES=$(addprefix $(LIBGUM)/gum/anti/abstract/, \
 	WordArray.ah)
 # ADT C files required by BilbyFs
 LINUX_ACFILES=wa_wrapper.ac
@@ -41,7 +41,7 @@ endif
 
 # flags to ignores COGENT's compiler messy C code gen
 COMMON_CFLAGS := -O2 -Wno-parentheses -Wno-declaration-after-statement -Wno-unused-variable -Wno-uninitialized
-LINUX_EXTRA_CFLAGS := -I$(PWD) -I$(PWD)/build -I$(PWD)/abstract $(COMMON_CFLAGS) -I$(STDGUM)
+LINUX_EXTRA_CFLAGS := -I$(PWD) -I$(PWD)/build -I$(PWD)/abstract $(COMMON_CFLAGS) -I$(LIBGUM)
 
 # COGENT flags
 COGENT_FLAGS+= -Od --fno-static-inline --fno-fncall-as-macro --fnormalisation=knf --ffunc-purity-attr --fffi-c-functions

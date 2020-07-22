@@ -2,9 +2,8 @@ CABAL := cabal
 STACK := stack
 
 # Cabal Flags
-CONFIG_FLAGS += --enable-tests --disable-library-vanilla --enable-shared --enable-executable-dynamic
 BUILD_FLAGS +=
-INSTALL_FLAGS += --enable-tests --force-reinstalls
+INSTALL_FLAGS += --installdir=$(HOME)/.cabal/bin/
 
 
 MACHINE := $(shell $(CC) -dumpmachine)

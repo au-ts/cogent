@@ -1,4 +1,4 @@
-.PHONY: build configure install test-compiler
+.PHONY: build install test-compiler
 
 ## Silent by default
 V =
@@ -20,11 +20,10 @@ PASS_TEST_COGENT_FILES := $(wildcard tests/pass_*.cogent)
 FAIL_TEST_COGENT_FILES := $(wildcard tests/fail_*.cogent)
 DUMMY_HEADER_FILES := $(addprefix tests/include/,$(notdir $(PASS_TEST_COGENT_FILES:.cogent=_dummy.h)))
 
-all: .sandbox .cabal-update .install-deps .configure .install
+all: .cabal-update install
 	$(E) "Cogent Compiler successfully built for $(OS)."
 	$(E)
-	$(E) "Add 'cogent' compiler to your path by running:"
-	$(E) '  export PATH=$(PWD)/.cabal-sandbox/bin/:$$PATH'
+	$(E) "Add the installed 'cogent' executable to your path."
 	$(E)
 	$(E) "To enable bash auto-completion for 'cogent', please add the following to your .bashrc file:"
 	$(E) "source $(PWD)/misc/cogent_autocomplete.sh"
@@ -34,33 +33,15 @@ all: .sandbox .cabal-update .install-deps .configure .install
 
 stack-build:
 	$(E) "Building Cogent using stack."
-	$(STACK) build
+	$(Q) $(STACK) build
 
-.sandbox:
-ifneq ($(wildcard cabal.sandbox.config),)
-	$(E) "Using Existing sandbox..."
-else
-	$(E) "Building in a sandbox..."
-	$(CABAL) v1-sandbox init
-	$(CABAL) v1-sandbox add-source ../isa-parser
-endif
-
-.install-deps:
-	$(E) "Installing dependencies"
-	$(CABAL) v1-install --only-dependencies --force-reinstalls
-
-.configure:
-	$(E) "Configuring..."
-	$(CABAL) v1-configure $(CONFIG_FLAGS)
-
-.build:
+build:
 	$(E) "Building..."
-	$(CABAL) v1-build $(BUILD_FLAGS)
-	$(CABAL) v1-copy
+	$(Q) $(CABAL) new-build $(BUILD_FLAGS)
 
-.install:
+install:
 	$(E) "Installing.."
-	$(CABAL) v1-install $(INSTALL_FLAGS)
+	$(Q) $(CABAL) new-install $(INSTALL_FLAGS)
 
 clean:
 	$(Q) rm -rf out/
@@ -68,19 +49,18 @@ clean:
 	$(Q) find . -name "*_flymake.hs" -delete
 
 full-clean: clean
-	$(Q) $(CABAL) v1-clean
-	$(Q) $(CABAL) v1-sandbox delete -v0
-	$(Q) rm -rf .cabal-sandbox/ dist/ ../isa-parser/dist
+	$(Q) $(CABAL) new-clean
+	$(Q) rm -rf dist-newstyle/ ../isa-parser/dist-newstyle
 
 
-dev: .sandbox .cabal-update .install-deps .configure .build
+dev: .cabal-update .build
 	$(E) "Cogent Compiler successfully built for $(OS)."
 	$(E)
-	$(E) "Add 'cogent' compiler to your path by running:"
-	$(E) '  export PATH=$(PWD)/dist/build/cogent:$$PATH'
+	$(E) "Add 'cogent' compiler to your path by running (substitute the placeholders with your configuration):"
+	$(E) '  export PATH=$(PWD)/dist-newstyle/build/<ARCH>/ghc-<GHC_VERSION>/cogent-<COGENT_VERSION>/build/cogent/cogent:$$PATH'
 	$(E)
 	$(E) "_Or_ make a symlink to the executable in ~/.cabal/bin by running:"
-	$(E) '  ln -s $(PWD)/dist/build/cogent/cogent $$HOME/.cabal/bin/cogent' 
+	$(E) '  ln -s $(PWD)/dist-newstyle/build/<ARCH>/ghc-<GHC_VERSION>/cogent-<COGENT_VERSION>/build/cogent/cogent $$HOME/.cabal/bin/cogent' 
 	$(E)
 	$(E) "To enable bash auto-completion for 'cogent', please add the following to your .bashrc file:"
 	$(E) "source $(PWD)/misc/cogent_autocomplete.sh"
@@ -88,7 +68,11 @@ dev: .sandbox .cabal-update .install-deps .configure .build
 	$(E)
 
 .cabal-update:
-	$(CABAL) v1-update
+	$(Q) $(CABAL) new-update
+
+local: .cabal-update
+	$(E) "Installing cogent locally"
+	$(Q) $(CABAL) new-install --overwrite-policy=always --installdir=$(PWD)/build/bin/
 
 # There's a sed script that does a very similar thing in scripts/cogent_validate.sh, and for some reason they're both necessary.
 tests/include/%_dummy.h: tests/%.cogent
@@ -110,8 +94,14 @@ test-compiler: test-clean .test-cogent
 	# test-hs \
 	# test-quickcheck
 
+test-compiler-proofs: test-clean .test-cogent
+	./tests/run-test-suite.py --repo "$(PWD)/../" \
+		--extra-phases "$(PWD)/tests/phases/" \
+		--repo "$(PWD)/../" \
+		--ignore-phases "cogent"
+
 test-quickcheck:
-	$(Q) cabal test test-quickcheck
+	$(Q) $(CABAL) test test-quickcheck
 
 test-clean:
 	$(E) "Cleaning up artefacts from earlier test runs."
@@ -209,10 +199,13 @@ help:
 	$(E) "Run 'make' to build the Cogent compiler."
 	$(E) ""
 	$(E) "* make"
-	$(E) "  Install Cogent in a cabal-sandbox"
+	$(E) "  Install Cogent via cabal (default to: ~/.cabal/bin)"
 	$(E) ""
 	$(E) "* make dev"
-	$(E) "  Build Cogent with a cabal-sandbox"
+	$(E) "  Build Cogent via cabal to a local dist-newstyle directory"
+	$(E) ""
+	$(E) "* make local"
+	$(E) "  Build Cogent and put the executable in build/bin/"
 	$(E) ""
 	$(E) "* make clean"
 	$(E) "  Cleanup"
@@ -225,6 +218,9 @@ help:
 	$(E) ""
 	$(E) "* make test-compiler"
 	$(E) "  Run all compiler tests (excl. Isabelle proofs)."
+	$(E) ""
+	$(E) "* make test-compiler-proofs"
+	$(E) "  Only run compiler Isabelle proof tests."
 	$(E) ""
 	$(E) "* make test-clean"
 	$(E) "  Cleanup artefacts from earlier test runs."

@@ -26,15 +26,15 @@ PROOF_ID=
 GCCVER=$(shell gcc -dumpversion)
 
 # Standard Gum Directory
-STDGUM=$(COGENT_STD_GUM_DIR)
-ifeq ($(STDGUM),)
-STDGUM=$(shell cogent --stdgum-dir)
+LIBGUM=$(COGENT_LIBGUM_DIR)
+ifeq ($(LIBGUM),)
+LIBGUM=$(shell cogent --libgum-dir)
 endif
 # ADT headers required by loopback
-#AHFILES=$(wildcard $(STDGUM)/gum/anti/abstract/*.ah)
+#AHFILES=$(wildcard $(LIBGUM)/gum/anti/abstract/*.ah)
 AHFILES=
 # ADT C files required by loopback
-LINUX_ACFILES= $(addprefix $(STDGUM)/gum/anti/, \
+LINUX_ACFILES= $(addprefix $(LIBGUM)/gum/anti/, \
         common.ac) \
 	plat/linux/linux_api.ac \
 	plat/linux/wrapper.ac \
@@ -58,8 +58,8 @@ endif
 
 # flags to ignores COGENT's compiler messy C code gen
 COMMON_CFLAGS := -O2 -Wno-parentheses -Wno-declaration-after-statement -Wno-unused-variable -Wno-uninitialized
-LINUX_EXTRA_CFLAGS := -I$(PWD)/plat/linux/ -I$(PWD) -I$(PWD)/src -I$(PWD)/lib -I$(PWD)/abstract $(COMMON_CFLAGS) -I$(STDGUM)
-VERIF_EXTRA_CFLAGS := -I$(PWD)/plat/verification/ -I$(PWD) -I$(PWD)/src -I$(PWD)/lib -I$(PWD)/abstract -I$(STDGUM) $(COMMON_CFLAGS)
+LINUX_EXTRA_CFLAGS := -I$(PWD)/plat/linux/ -I$(PWD) -I$(PWD)/src -I$(PWD)/lib -I$(PWD)/abstract $(COMMON_CFLAGS) -I$(LIBGUM)
+VERIF_EXTRA_CFLAGS := -I$(PWD)/plat/verification/ -I$(PWD) -I$(PWD)/src -I$(PWD)/lib -I$(PWD)/abstract -I$(LIBGUM) $(COMMON_CFLAGS)
 
 # COGENT flags
 COGENT_FLAGS+= -Od --fno-static-inline --fno-fncall-as-macro --ffunc-purity-attr

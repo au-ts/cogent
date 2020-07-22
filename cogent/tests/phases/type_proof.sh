@@ -27,7 +27,11 @@ fi
 
 COGENT_REPO=${COGENT_REPO%/}
 
-COGENT=$COGENT_REPO/cogent/.cabal-sandbox/bin/cogent
+COGENT=cogent
+if [ ! -f cogent ]; then
+  COGENT=$HOME/.cabal/bin/cogent
+fi
+
 ISABELLE=$COGENT_REPO/isabelle/bin/isabelle
 AC_DIR=$COGENT_REPO/autocorres
 

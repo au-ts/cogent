@@ -297,7 +297,7 @@ newtype TC (t :: Nat) (v :: Nat) b x
 
 #if MIN_VERSION_base(4,13,0)
 instance MonadFail (TC t v b) where
-  fail _ = __impossible "pattern match failed"
+  fail = __impossible
 #endif
 
 infixl 4 <||>
@@ -653,7 +653,7 @@ infer (E (Take a e f e2))
         -- trace ("@@@@t is " ++ show t) $ return ()
         let TRecord rp ts s = t
         -- a common cause of this error is taking a field when you could have used member
-        guardShow "take: sigil not readonly" $ not (readonly s)
+        guardShow ("take: sigil cannot be readonly: " ++ show (pretty e)) $ not (readonly s)
         guardShow "take-1" $ f < length ts
         let (init, (fn,(tau,False)):rest) = splitAt f ts
         k <- kindcheck tau

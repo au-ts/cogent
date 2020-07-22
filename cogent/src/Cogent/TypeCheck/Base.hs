@@ -198,6 +198,7 @@ data Constraint' t l = (:<) t t
                      | Sat
                      | Exhaustive t [RawPatn]
                      | UnboxedNotRecursive t
+                     | NotReadOnly TCSigil
                      | Solved t
                      | IsPrimType t
 #ifdef BUILTIN_ARRAYS
@@ -245,14 +246,14 @@ notTCSExpr :: TCSExpr -> TCSExpr
 notTCSExpr e = SE (T bool) (PrimOp "not" [e])
 #endif
 
-#if __GLASGOW_HASKELL__ < 803	
+#if __GLASGOW_HASKELL__ < 803
 instance Monoid (Constraint' x y) where
-  mempty = Sat	
-  mappend Sat x = x	
-  mappend x Sat = x	
-  -- mappend (Unsat r) x = Unsat r	
-  -- mappend x (Unsat r) = Unsat r	
-  mappend x y = x :& y	
+  mempty = Sat
+  mappend Sat x = x
+  mappend x Sat = x
+  -- mappend (Unsat r) x = Unsat r
+  -- mappend x (Unsat r) = Unsat r
+  mappend x y = x :& y
 #else
 instance Semigroup (Constraint' x y) where
   Sat <> x = x
@@ -304,6 +305,7 @@ instance Bitraversable Constraint' where
   bitraverse f g (Solved t)         = Solved <$> f t
   bitraverse f g (IsPrimType t)     = IsPrimType <$> f t
   bitraverse f g (UnboxedNotRecursive t) = UnboxedNotRecursive <$> f t
+  bitraverse f g (NotReadOnly s)    = pure $ NotReadOnly s
 #ifdef BUILTIN_ARRAYS
   bitraverse f g (Arith se)         = Arith <$> bitraverse f g se
   bitraverse f g (c1 :-> c2)        = (:->) <$> bitraverse f g c1 <*> bitraverse f g c2
@@ -741,7 +743,7 @@ unifVars (V r) =
 unifVars (R rp r s) =
   maybeToList (Row.var r) ++ concatMap unifVars (Row.payloads r) ++ rights [s]
     ++ case rp of UP i -> [i]; _ -> []
-#ifdef REFINEMENT_TYPES
+#ifdef BUILTIN_ARRAYS
 unifVars (A t l s tkns) = unifVars t ++ rights [s] ++ rights [tkns]
 #endif
 unifVars (T x) = foldMap unifVars x

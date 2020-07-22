@@ -321,7 +321,6 @@ instance Traversable (Flip2 Type t l) where  -- e
   traverse _ (Flip2 (TTake fs t))         = pure $ Flip2 (TTake fs t)
   traverse _ (Flip2 (TPut  fs t))         = pure $ Flip2 (TPut  fs t)
   traverse _ (Flip2 (TLayout l t))        = pure $ Flip2 (TLayout l t)
-  traverse _ (Flip2 (TRPar v b env))      = pure $ Flip2 (TRPar v b env)
 
 instance Traversable (Flip (TopLevel t) e) where  -- p
   traverse _ (Flip (Include s))           = pure $ Flip (Include s)
@@ -445,8 +444,8 @@ fvP _ = []
 fvIP :: RawIrrefPatn -> [VarName]
 fvIP (RIP (PVar pv)) = [pv]
 fvIP (RIP (PTuple ips)) = foldMap fvIP ips
-fvIP (RIP (PUnboxedRecord mfs)) = foldMap (fvIP . snd) $ Compose mfs
-fvIP (RIP (PTake pv mfs)) = foldMap (fvIP . snd) $ Compose mfs
+fvIP (RIP (PUnboxedRecord mfs)) = foldMap (fvIP . snd) (Compose mfs)
+fvIP (RIP (PTake pv mfs)) = pv : foldMap (fvIP . snd) (Compose mfs)
 #ifdef BUILTIN_ARRAYS
 fvIP (RIP (PArray ips)) = foldMap fvIP ips
 fvIP (RIP (PArrayTake pv hs)) = __todo "fvIP: PArrayTake unimplemented" -- TODO?
