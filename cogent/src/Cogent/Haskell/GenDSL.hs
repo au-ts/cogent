@@ -4,6 +4,7 @@
 -- Cogent PBT: Simple DSL
 -- -----------------------------------------------------------------------
 module Cogent.Haskell.GenDSL where
+import Data.Map
 
 data PBTInfo = PBTInfo { fname :: String
                        , finfo :: FunInfo
@@ -29,8 +30,8 @@ data FunAbsF = FunAbsF { absf :: [String]
                        , s :: Int
                        } deriving (Show)
 
-data FunAbsF' = FunAbsF' { absf :: (String, [String])
-                         , ityps   :: [(String, [String])]
+data FunAbsF' = FunAbsF' { absf  :: (String, [String])
+                         , ityps ::  [(String, [String])]
                        --, ia   :: [String]
                        -- , s :: Int
                        } deriving (Show)
