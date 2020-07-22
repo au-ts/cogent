@@ -138,6 +138,7 @@ data CgState = CgState { _cTypeDefs    :: [(CG.StrlType, CG.CId)]
                        , _cTypeDefMap  :: M.Map CG.StrlType CG.CId
                        , _typeSynonyms :: M.Map TypeName CG.CType
                        , _typeCorres   :: DList.DList (CG.CId, CC.Type 'Zero VarName)
+                       , _typeCorres'  :: DList.DList (CG.CId, (S.Set (CC.Type 'Zero VarName), Maybe [(Maybe FunName, Maybe FunName)]))
                        , _absTypes     :: M.Map TypeName (S.Set [CG.CId])
                        , _custTypeGen  :: M.Map (CC.Type 'Zero VarName) (CG.CId, CustTyGenInfo)
                        , _funClasses   :: CG.FunClass
@@ -515,6 +516,7 @@ genAnti m a =
                                           , CG._cTypeDefMap  = view (cgState.cTypeDefMap ) s
                                           , CG._typeSynonyms = view (cgState.typeSynonyms) s
                                           , CG._typeCorres   = view (cgState.typeCorres  ) s
+                                          , CG._typeCorres'  = view (cgState.typeCorres' ) s
                                           , CG._absTypes     = view (cgState.absTypes    ) s
                                           , CG._custTypeGen  = view (cgState.custTypeGen ) s
                                           , CG._funClasses   = view (cgState.funClasses  ) s
@@ -803,6 +805,7 @@ mkGlState tced tcState (Last (Just (typedefs, constdefs, _))) ftypes (funMono, t
                                , _cTypeDefMap  = view CG.cTypeDefMap  genState
                                , _typeSynonyms = view CG.typeSynonyms genState
                                , _typeCorres   = view CG.typeCorres   genState
+                               , _typeCorres'  = view CG.typeCorres'  genState
                                , _absTypes     = view CG.absTypes     genState
                                , _custTypeGen  = view CG.custTypeGen  genState
                                , _funClasses   = view CG.funClasses   genState

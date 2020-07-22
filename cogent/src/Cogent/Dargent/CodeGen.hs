@@ -82,7 +82,7 @@ genBoxedGetSetField
      -- for the field of the record.
 
 genBoxedGetSetField cogentType fieldName getOrSet = do
-  boxedRecordGetterSetter    <- use ((case getOrSet of Get -> boxedRecordGetters; Set -> boxedRecordSetters) . at (cogentType, fieldName))
+  boxedRecordGetterSetter    <- use ((case getOrSet of Get -> boxedRecordGetters; Set -> boxedRecordSetters) . at (StrlCogentType cogentType, fieldName))
   case boxedRecordGetterSetter of
     Just getSetFieldFunction -> return getSetFieldFunction
     Nothing                  ->
@@ -93,7 +93,7 @@ genBoxedGetSetField cogentType fieldName getOrSet = do
                 fieldLayout     = alignLayout' $ fieldLayouts ! fieldName
             boxCType            <- genType cogentType
             getSetFieldFunction <- genBoxedGetterSetter True boxCType fieldType fieldLayout [fieldName] getOrSet
-            ((case getOrSet of Get -> boxedRecordGetters; Set -> boxedRecordSetters) . at (cogentType, fieldName))
+            ((case getOrSet of Get -> boxedRecordGetters; Set -> boxedRecordSetters) . at (StrlCogentType cogentType, fieldName))
                                 ?= getSetFieldFunction
             return getSetFieldFunction
         TRecord _ fieldTypes (Boxed _ CLayout) ->

@@ -910,6 +910,7 @@ compile :: [Definition TypedExpr VarName VarName]
            , [CExtDecl]  -- function definitions
            , [(TypeName, S.Set [CId])]
            , [TableCTypes]
+           , [NewTableCTypes]
            , [TypeName]
            , GenState
            )
@@ -921,6 +922,7 @@ compile defs mcache ctygen =
                                     , _cTypeDefMap  = M.empty
                                     , _typeSynonyms = M.empty
                                     , _typeCorres   = DList.empty
+                                    , _typeCorres'  = DList.empty
                                     , _absTypes     = M.empty
                                     , _custTypeGen  = M.fromList $ P.map (second $ (,CTGI)) ctygen
                                     , _recParCIds   = M.empty
@@ -948,6 +950,7 @@ compile defs mcache ctygen =
       tsyns' = M.toList $ st ^. typeSynonyms
       absts' = M.toList $ st ^. absTypes
       tycorr = reverse $ updateWithGSs st $ DList.toList $ st^.typeCorres
+      tycorr' = mkCTypeTable st $ DList.toList $ st^.typeCorres
       (tdefs'', tdecls'') = (concat *** concat) $ P.unzip (map (flip genTyDecl tns) tdefs')
   in ( enum ++ fenums
      , tdecls'' ++ tdefs''  -- type definitions
@@ -957,6 +960,7 @@ compile defs mcache ctygen =
      , gsDecls ++ fndefns
      , absts'  -- table of abstract types
      , map TableCTypes tycorr  -- table of Cogent types |-> C types (with getter/setters)
+     , map NewTableCTypes tycorr'  -- new table
      , tns  -- list of funclass typenames (for HscGen)
      , st''
      )
@@ -968,11 +972,16 @@ compile defs mcache ctygen =
                       else -- FIXME: only generate getter/setters for records for now / zilinc
                            let recordGetters = M.toList $ st^.boxedRecordGetters
                                recordSetters = M.toList $ st^.boxedRecordSetters
-                               getters = map (first snd) $ filter (\x -> fst (fst x) == t) recordGetters
-                               setters = map (first snd) $ filter (\x -> fst (fst x) == t) recordSetters
+                               getters = map (first snd) $ filter (\x -> fst (fst x) == StrlCogentType t) recordGetters
+                               setters = map (first snd) $ filter (\x -> fst (fst x) == StrlCogentType t) recordSetters
                                fields = recordFields t
                             in P.map (\f -> (P.lookup f getters, P.lookup f setters)) fields
            in (cid,t,gss)
+
+        mkCTypeTable :: GenState
+                     -> [(CId, CC.Type 'Zero VarName)]
+                     -> [(CId, (S.Set (CC.Type 'Zero VarName), Maybe [(Maybe FunName, Maybe FunName)]))]
+        mkCTypeTable st tyCorres = undefined
 
 -- ----------------------------------------------------------------------------
 -- * Table of Abstract types
@@ -1009,6 +1018,15 @@ instance PP.Pretty TableCTypes where
           prettyGetterSetter (getter, setter) =
             maybeP PP.text getter PP.<+> PP.text "/" PP.<+> maybeP PP.text setter
 
+
+newtype NewTableCTypes = NewTableCTypes (CId, (S.Set (CC.Type 'Zero VarName), Maybe [(Maybe FunName, Maybe FunName)]))
+
+instance PP.Pretty NewTableCTypes where
+  pretty (NewTableCTypes (n,(ts,mb))) = undefined
+
+
+printNewCTable :: Handle -> (PP.Doc -> PP.Doc) -> [NewTableCTypes] -> String -> IO ()
+printNewCTable h m ts log = undefined
 
 -- ////////////////////////////////////////////////////////////////////////////
 -- * misc.

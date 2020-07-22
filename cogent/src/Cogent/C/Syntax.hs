@@ -207,7 +207,7 @@ instance Binary StrlType
 -- Needed to allow us to ignore whether fields/alternatives are/aren't "taken"
 -- when deciding whether two cogent types should go to the same C type
 newtype StrlCogentType = StrlCogentType (CC.Type 'Zero VarName)
-                       deriving Show
+                       deriving (Show, Binary)
 
 instance Eq StrlCogentType where
   (StrlCogentType t1) == (StrlCogentType t2) = strlCogentTypeEq t1 t2

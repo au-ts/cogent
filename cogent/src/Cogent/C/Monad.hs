@@ -118,6 +118,8 @@ data GenState  = GenState
   , _typeSynonyms :: M.Map TypeName CType
   , _typeCorres   :: DList.DList (CId, CC.Type 'Zero VarName)
     -- ^ C type names corresponding to Cogent types
+  , _typeCorres'  :: DList.DList (CId, (S.Set (CC.Type 'Zero VarName), Maybe [(Maybe FunName, Maybe FunName)]))
+    -- ^ The new C :-> Cogent * getter/setter table
 
   , _absTypes     :: M.Map TypeName (S.Set [CId])
     -- ^ Maps TypeNames of abstract Cogent types to
@@ -139,8 +141,8 @@ data GenState  = GenState
     --   The map is from the original function names (before prefixing with @\"ffi_\"@ to a pair of @(marshallable_arg_type, marshallable_ret_type)@.
     --   This map is needed when we generate the Haskell side of the FFI.
 
-  , _boxedRecordSetters :: M.Map (CC.Type 'Zero VarName, FieldName) FunName
-  , _boxedRecordGetters :: M.Map (CC.Type 'Zero VarName, FieldName) FunName
+  , _boxedRecordSetters :: M.Map (StrlCogentType, FieldName) FunName
+  , _boxedRecordGetters :: M.Map (StrlCogentType, FieldName) FunName
     -- ^ The expressions to call the generated setter and getter functions for the fields of boxed cogent records.
   , _boxedArraySetters :: M.Map (CC.Type 'Zero VarName) FunName
   , _boxedArrayGetters :: M.Map (CC.Type 'Zero VarName) FunName
