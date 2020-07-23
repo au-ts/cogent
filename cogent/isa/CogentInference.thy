@@ -154,7 +154,7 @@ fun subst_tyvar :: "type list \<Rightarrow> type \<Rightarrow> type" where
 | "subst_tyvar \<delta> (TUnknown i)        = TUnknown i"
 | "subst_tyvar \<delta> (TVariant Ks \<alpha>)     = TVariant (map (\<lambda>(nm, t, u). (nm, subst_tyvar \<delta> t, u)) Ks) \<alpha>"
 | "subst_tyvar \<delta> (TAbstract nm ts s) = TAbstract nm (map (subst_tyvar \<delta>) ts) s"
-| "subst_tyvar \<delta> (TObserve i)        = TObserve i"
+| "subst_tyvar \<delta> (TObserve i)        = (if i < length \<delta> then (TBang (\<delta> ! i)) else TObserve i)"
 | "subst_tyvar \<delta> (TBang t)           = TBang (subst_tyvar \<delta> t)"
 
 
