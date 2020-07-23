@@ -385,6 +385,11 @@ datatype 'f expr = Var index
                  | Sig "'f expr" type
                  | Case "'f expr" name "'f expr" "'f expr"
                  | Esac "'f expr" name "'f expr"
+                 | Struct "name list" "'f expr list"
+                 | Take "'f expr" name "'f expr"
+                 | Put "'f expr" name "'f expr"
+                 | Member "'f expr" name
+                 
 
 type_synonym cg_ctx = "(type \<times> nat) list"
 type_synonym ctx = "(type option) list"
@@ -1307,6 +1312,10 @@ fun assign_app_expr :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow
 | "assign_app_expr S S' (Con nm e)         = Con nm (assign_app_expr S S' e)"
 | "assign_app_expr S S' (Case e1 nm e2 e3) = Case (assign_app_expr S S' e1) nm (assign_app_expr S S' e2) (assign_app_expr S S' e3)"
 | "assign_app_expr S S' (Esac e1 nm e2)    = Esac (assign_app_expr S S' e1) nm (assign_app_expr S S' e2)"
+| "assign_app_expr S S' (Struct fs es)     = Struct fs (map (assign_app_expr S S') es)" 
+| "assign_app_expr S S' (Take e1 f e2)     = Take (assign_app_expr S S' e1) f (assign_app_expr S S' e2)"
+| "assign_app_expr S S' (Put e1 f e2)      = Put (assign_app_expr S S' e1) f (assign_app_expr S S' e2)"
+| "assign_app_expr S S' (Member e f)       = Member (assign_app_expr S S' e) f"
 
 fun "assign_app_constr" :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow> (string \<times> type \<times> usage_tag) list) \<Rightarrow> constraint \<Rightarrow> constraint" where
   "assign_app_constr S S' (CtConj c1 c2)   = CtConj (assign_app_constr S S' c1) (assign_app_constr S S' c2)"
@@ -1429,20 +1438,24 @@ qed
 section {* split_used (Lemma 3.1) *}
 (* Free Variables *)
 fun fv' :: "nat \<Rightarrow> 'f expr \<Rightarrow> index set" where
-  fv'_var:      "fv' n (Var i) = (if i \<ge> n then {i - n} else {})"
-| fv'_typeapp:  "fv' n (TypeApp f ts) = {}"
-| fv'_prim:     "fv' n (Prim prim_op es) = (\<Union>x\<in>set es. fv' n x)"
-| fv'_app:      "fv' n (App e1 e2) = (fv' n e1) \<union> (fv' n e2)"
-| fv'_unit:     "fv' n Unit = {}"
-| fv'_lit:      "fv' n (Lit l) = {}"
-| fv'_cast:     "fv' n (Cast nt e) = fv' n e"
-| fv'_let:      "fv' n (Let e1 e2) = (fv' n e1) \<union> (fv' (Suc n) e2)"
-| fv'_letb:     "fv' n (LetBang ys e1 e2) = (fv' n e1 - {y. ys ! (y + n)}) \<union> (fv' (Suc n) e2)"
-| fv'_if:       "fv' n (If e1 e2 e3) = (fv' n e1) \<union> (fv' n e2) \<union> (fv' n e3)"
-| fv'_sig:      "fv' n (Sig e t) = fv' n e"
-| fv'_con:      "fv' n (Con nm e) = fv' n e"
-| fv'_case:     "fv' n (Case e1 nm e2 e3) = (fv' n e1) \<union> (fv' (Suc n) e2) \<union> (fv' (Suc n) e3)"
-| fv'_esac:     "fv' n (Esac e1 nm e2) = (fv' n e1) \<union> (fv' (Suc n) e2)"
+  fv'_var:      "fv' n (Var i)              = (if i \<ge> n then {i - n} else {})"
+| fv'_typeapp:  "fv' n (TypeApp f ts)       = {}"
+| fv'_prim:     "fv' n (Prim prim_op es)    = (\<Union>e \<in> set es. fv' n e)"
+| fv'_app:      "fv' n (App e1 e2)          = (fv' n e1) \<union> (fv' n e2)"
+| fv'_unit:     "fv' n Unit                 = {}"
+| fv'_lit:      "fv' n (Lit l)              = {}"
+| fv'_cast:     "fv' n (Cast nt e)          = fv' n e"
+| fv'_let:      "fv' n (Let e1 e2)          = (fv' n e1) \<union> (fv' (Suc n) e2)"
+| fv'_letb:     "fv' n (LetBang ys e1 e2)   = (fv' n e1 - {y. ys ! (y + n)}) \<union> (fv' (Suc n) e2)"
+| fv'_if:       "fv' n (If e1 e2 e3)        = (fv' n e1) \<union> (fv' n e2) \<union> (fv' n e3)"
+| fv'_sig:      "fv' n (Sig e t)            = fv' n e"
+| fv'_con:      "fv' n (Con nm e)           = fv' n e"
+| fv'_case:     "fv' n (Case e1 nm e2 e3)   = (fv' n e1) \<union> (fv' (Suc n) e2) \<union> (fv' (Suc n) e3)"
+| fv'_esac:     "fv' n (Esac e1 nm e2)      = (fv' n e1) \<union> (fv' (Suc n) e2)"
+| fv'_struct:   "fv' n (Struct fs es)       = (\<Union>e \<in> set es. fv' n e)"
+| fv'_take:     "fv' n (Take e1 f e2)       = (fv' n e1) \<union> (fv' (Suc (Suc n)) e2)"
+| fv'_put:      "fv' n (Put e1 f e2)        = (fv' n e1) \<union> (fv' n e2)"
+| fv'_member:   "fv' n (Member e f)         = fv' n e"
 
 lemmas fv'_induct = fv'.induct[case_names fv'_var fv'_typeapp fv'_prim fv'_app fv'_unit fv'_lit 
                                           fv'_cast fv'_let fv'_letb fv'_if fv'_sig]
