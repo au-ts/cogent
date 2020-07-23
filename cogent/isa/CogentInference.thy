@@ -112,14 +112,15 @@ datatype sigil = Writable
 
 type_synonym name = string
 type_synonym index = nat
-type_synonym row_var = nat
+type_synonym unif_var = nat
 
 datatype type = TVar index
               | TFun type type
               | TPrim prim_type
               | TUnknown index
-              | TVariant "(name \<times> type \<times> usage_tag) list" "row_var option"
+              | TVariant "(name \<times> type \<times> usage_tag) list" "unif_var option"
               | TAbstract name "type list" sigil
+              | TRecord "(name \<times> type \<times> usage_tag) list" "unif_var option" sigil
               | TObserve index
               | TBang type
 
@@ -143,6 +144,8 @@ fun subst_ty :: "type \<Rightarrow> type \<Rightarrow> type \<Rightarrow> type" 
                                          else (TVariant (map (\<lambda>(nm, t, u). (nm, subst_ty \<mu> \<mu>' t, u)) Ks) \<alpha>))"
 | "subst_ty \<mu> \<mu>' (TAbstract nm ts s)  = (if \<mu> = (TAbstract nm ts s) then \<mu>' 
                                          else (TAbstract nm (map (subst_ty \<mu> \<mu>') ts) s))"
+| "subst_ty \<mu> \<mu>' (TRecord fs \<alpha> s)     = (if \<mu> = (TRecord fs \<alpha> s) then \<mu>'
+                                         else (TRecord (map (\<lambda>(f, t, u). (f, subst_ty \<mu> \<mu>' t, u)) fs) \<alpha> s))"
 | "subst_ty \<mu> \<mu>' (TObserve i)         = (if \<mu> = (TObserve i) then \<mu>' 
                                          else (TObserve i))"
 | "subst_ty \<mu> \<mu>' (TBang t)            = (if \<mu> = (TBang t) then \<mu>' else (TBang (subst_ty \<mu> \<mu>' t)))"
@@ -154,6 +157,7 @@ fun subst_tyvar :: "type list \<Rightarrow> type \<Rightarrow> type" where
 | "subst_tyvar \<delta> (TUnknown i)        = TUnknown i"
 | "subst_tyvar \<delta> (TVariant Ks \<alpha>)     = TVariant (map (\<lambda>(nm, t, u). (nm, subst_tyvar \<delta> t, u)) Ks) \<alpha>"
 | "subst_tyvar \<delta> (TAbstract nm ts s) = TAbstract nm (map (subst_tyvar \<delta>) ts) s"
+| "subst_tyvar \<delta> (TRecord fs \<alpha> s)    = TRecord (map (\<lambda>(f, t, u). (f, subst_tyvar \<delta> t, u)) fs) \<alpha> s"
 | "subst_tyvar \<delta> (TObserve i)        = (if i < length \<delta> then (TBang (\<delta> ! i)) else TObserve i)"
 | "subst_tyvar \<delta> (TBang t)           = TBang (subst_tyvar \<delta> t)"
 
@@ -165,6 +169,7 @@ fun max_type_var :: "type \<Rightarrow> nat" where
 | "max_type_var (TUnknown i)        = 0"
 | "max_type_var (TVariant Ks \<alpha>)     = Max (set (map (max_type_var \<circ> fst \<circ> snd) Ks))"
 | "max_type_var (TAbstract nm ts s) = Max (set (map max_type_var ts))"
+| "max_type_var (TRecord fs \<alpha> s)    = Max (set (map (max_type_var \<circ> fst \<circ> snd) fs))"
 | "max_type_var (TObserve i)        = i"
 | "max_type_var (TBang t)           = max_type_var t"
 
@@ -201,6 +206,7 @@ fun variant_nth_used :: "nat \<Rightarrow> type \<Rightarrow> type" where
 | "variant_nth_used n (TUnknown i)        = undefined"
 | "variant_nth_used n (TVariant Ks \<alpha>)     = TVariant (Ks[n := variant_elem_used (Ks ! n)]) \<alpha>"
 | "variant_nth_used n (TAbstract nm ts s) = undefined"
+| "variant_nth_used n (TRecord fs \<alpha> s)    = undefined"
 | "variant_nth_used n (TObserve i)        = undefined"
 | "variant_nth_used n (TBang t)           = undefined"
 
@@ -235,6 +241,7 @@ fun variant_nth_unused :: "nat \<Rightarrow> type \<Rightarrow> type" where
 | "variant_nth_unused n (TUnknown i)        = undefined"
 | "variant_nth_unused n (TVariant Ks \<alpha>)     = TVariant (Ks[n := variant_elem_unused (Ks ! n)]) \<alpha>"
 | "variant_nth_unused n (TAbstract nm ts s) = undefined"
+| "variant_nth_unused n (TRecord fs \<alpha> s)    = undefined"
 | "variant_nth_unused n (TObserve i)        = undefined"
 | "variant_nth_unused n (TBang t)           = undefined"
 
@@ -312,6 +319,8 @@ known_tvar:
   "\<forall>i < length Ks. known_ty ((fst \<circ> snd) (Ks ! i)) \<Longrightarrow> known_ty (TVariant Ks None)"
 | known_tabstract:
   "\<forall>i < length ts. known_ty (ts ! i) \<Longrightarrow> known_ty (TAbstract nm ts s)"
+| known_trecord:
+  "\<forall>i < length fs. known_ty ((fst \<circ> snd) (fs ! i)) \<Longrightarrow> known_ty (TRecord fs None s)"
 | known_tobserve:
   "known_ty (TObserve i)"
 | known_tbang:
@@ -1273,6 +1282,8 @@ fun assign_app_ty :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow> 
 | "assign_app_ty S S' (TUnknown n)            = S n"
 | "assign_app_ty S S' (TVariant Ks None)      = TVariant (map (\<lambda>(nm, t, u). (nm, assign_app_ty S S' t, u)) Ks) None"
 | "assign_app_ty S S' (TVariant Ks (Some n))  = TVariant ((map (\<lambda>(nm, t, u). (nm, assign_app_ty S S' t, u)) Ks) @ (S' n)) None"
+| "assign_app_ty S S' (TRecord fs None s)     = TRecord (map (\<lambda>(f, t, u). (f, assign_app_ty S S' t, u)) fs) None s"
+| "assign_app_ty S S' (TRecord fs (Some n) s) = TRecord ((map (\<lambda>(f, t, u). (f, assign_app_ty S S' t, u)) fs) @ (S' n)) None s"
 | "assign_app_ty S S' (TAbstract nm ts s)     = TAbstract nm (map (assign_app_ty S S') ts) s"
 | "assign_app_ty S S' (TObserve i)            = TObserve i"
 | "assign_app_ty S S' (TBang t)               = TBang (assign_app_ty S S' t)"
@@ -1347,7 +1358,10 @@ next
              map (\<lambda>t. subst_tyvar (map (assign_app_ty S S') xs) t) ts"
     using map_eq_iff_nth_eq by blast
   then show ?case
-    using subst_tyvar.simps assign_app_ty.simps by auto 
+    using subst_tyvar.simps assign_app_ty.simps by auto
+next
+  case (known_trecord fs s)
+  then show ?case sorry
 qed (force intro: subst_tyvar.simps assign_app_ty.simps)+ 
 
 lemma assign_app_constr_subst_tyvar_ct_commute: 
