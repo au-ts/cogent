@@ -120,7 +120,7 @@ datatype type = TVar index
               | TUnknown index
               | TVariant "(name \<times> type \<times> usage_tag) list" "row_var option"
               | TAbstract name "type list" sigil
-              | TObserve type
+              | TObserve index
               | TBang type
 
 datatype lit = LBool bool
@@ -143,8 +143,8 @@ fun subst_ty :: "type \<Rightarrow> type \<Rightarrow> type \<Rightarrow> type" 
                                          else (TVariant (map (\<lambda>(nm, t, u). (nm, subst_ty \<mu> \<mu>' t, u)) Ks) \<alpha>))"
 | "subst_ty \<mu> \<mu>' (TAbstract nm ts s)  = (if \<mu> = (TAbstract nm ts s) then \<mu>' 
                                          else (TAbstract nm (map (subst_ty \<mu> \<mu>') ts) s))"
-| "subst_ty \<mu> \<mu>' (TObserve t)         = (if \<mu> = (TObserve t) then \<mu>' 
-                                         else (TObserve (subst_ty \<mu> \<mu>' t)))"
+| "subst_ty \<mu> \<mu>' (TObserve i)         = (if \<mu> = (TObserve i) then \<mu>' 
+                                         else (TObserve i))"
 | "subst_ty \<mu> \<mu>' (TBang t)            = (if \<mu> = (TBang t) then \<mu>' else (TBang (subst_ty \<mu> \<mu>' t)))"
 
 fun subst_tyvar :: "type list \<Rightarrow> type \<Rightarrow> type" where
@@ -154,7 +154,7 @@ fun subst_tyvar :: "type list \<Rightarrow> type \<Rightarrow> type" where
 | "subst_tyvar \<delta> (TUnknown i)        = TUnknown i"
 | "subst_tyvar \<delta> (TVariant Ks \<alpha>)     = TVariant (map (\<lambda>(nm, t, u). (nm, subst_tyvar \<delta> t, u)) Ks) \<alpha>"
 | "subst_tyvar \<delta> (TAbstract nm ts s) = TAbstract nm (map (subst_tyvar \<delta>) ts) s"
-| "subst_tyvar \<delta> (TObserve t)        = TObserve (subst_tyvar \<delta> t)"
+| "subst_tyvar \<delta> (TObserve i)        = TObserve i"
 | "subst_tyvar \<delta> (TBang t)           = TBang (subst_tyvar \<delta> t)"
 
 
@@ -165,7 +165,7 @@ fun max_type_var :: "type \<Rightarrow> nat" where
 | "max_type_var (TUnknown i)        = 0"
 | "max_type_var (TVariant Ks \<alpha>)     = Max (set (map (max_type_var \<circ> fst \<circ> snd) Ks))"
 | "max_type_var (TAbstract nm ts s) = Max (set (map max_type_var ts))"
-| "max_type_var (TObserve t)        = max_type_var t"
+| "max_type_var (TObserve i)        = i"
 | "max_type_var (TBang t)           = max_type_var t"
 
 
@@ -201,7 +201,7 @@ fun variant_nth_used :: "nat \<Rightarrow> type \<Rightarrow> type" where
 | "variant_nth_used n (TUnknown i)        = undefined"
 | "variant_nth_used n (TVariant Ks \<alpha>)     = TVariant (Ks[n := variant_elem_used (Ks ! n)]) \<alpha>"
 | "variant_nth_used n (TAbstract nm ts s) = undefined"
-| "variant_nth_used n (TObserve t)        = undefined"
+| "variant_nth_used n (TObserve i)        = undefined"
 | "variant_nth_used n (TBang t)           = undefined"
 
 fun variant_elem_unused :: "(name \<times> type \<times> usage_tag) \<Rightarrow> (name \<times> type \<times> usage_tag)" where
@@ -235,13 +235,13 @@ fun variant_nth_unused :: "nat \<Rightarrow> type \<Rightarrow> type" where
 | "variant_nth_unused n (TUnknown i)        = undefined"
 | "variant_nth_unused n (TVariant Ks \<alpha>)     = TVariant (Ks[n := variant_elem_unused (Ks ! n)]) \<alpha>"
 | "variant_nth_unused n (TAbstract nm ts s) = undefined"
-| "variant_nth_unused n (TObserve t)        = undefined"
+| "variant_nth_unused n (TObserve i)        = undefined"
 | "variant_nth_unused n (TBang t)           = undefined"
 
 
 inductive normalise :: "type \<Rightarrow> type \<Rightarrow> bool" ("_ \<hookrightarrow> _" [40, 40] 60) where
 norm_tvar:
-  "TBang (TVar i)                    \<hookrightarrow> TObserve (TVar i)"
+  "TBang (TVar i)                    \<hookrightarrow> TObserve i"
 | norm_tfun:
   "TBang (TFun t u)                  \<hookrightarrow> TFun t u"
 | norm_tprim:
@@ -257,7 +257,7 @@ norm_tvar:
 | norm_tabstract_u:
   "TBang (TAbstract nm ts Unboxed)   \<hookrightarrow> TAbstract nm (map TBang ts) Unboxed"
 | norm_tobserve:
-  "TBang (TObserve t)                \<hookrightarrow> TObserve t"
+  "TBang (TObserve i)                \<hookrightarrow> TObserve i"
 
 lemma normalise_domain:
   assumes "\<mu> \<hookrightarrow> \<mu>'"
@@ -313,7 +313,7 @@ known_tvar:
 | known_tabstract:
   "\<forall>i < length ts. known_ty (ts ! i) \<Longrightarrow> known_ty (TAbstract nm ts s)"
 | known_tobserve:
-  "known_ty t \<Longrightarrow> known_ty (TObserve t)"
+  "known_ty (TObserve i)"
 | known_tbang:
   "known_ty t \<Longrightarrow> known_ty (TBang t)"
 
@@ -585,9 +585,9 @@ ct_sem_share:
   "\<lbrakk> \<forall>i < length Ks. A \<turnstile> CtEscape ((fst \<circ> snd) (Ks ! i))
    \<rbrakk> \<Longrightarrow> A \<turnstile> CtEscape (TVariant Ks None)"
 | ct_sem_obsdrop:
-  "A \<turnstile> CtDrop (TObserve t)"
+  "A \<turnstile> CtDrop (TObserve i)"
 | ct_sem_obsshare:
-  "A \<turnstile> CtShare (TObserve t)"
+  "A \<turnstile> CtShare (TObserve i)"
 
 inductive_cases ct_sem_conjE: "A \<turnstile> CtConj C1 C2"
 inductive_cases ct_sem_intE: "A \<turnstile> CtIBound (LNat m) \<tau>"
@@ -1274,7 +1274,7 @@ fun assign_app_ty :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow> 
 | "assign_app_ty S S' (TVariant Ks None)      = TVariant (map (\<lambda>(nm, t, u). (nm, assign_app_ty S S' t, u)) Ks) None"
 | "assign_app_ty S S' (TVariant Ks (Some n))  = TVariant ((map (\<lambda>(nm, t, u). (nm, assign_app_ty S S' t, u)) Ks) @ (S' n)) None"
 | "assign_app_ty S S' (TAbstract nm ts s)     = TAbstract nm (map (assign_app_ty S S') ts) s"
-| "assign_app_ty S S' (TObserve t)            = TObserve (assign_app_ty S S' t)"
+| "assign_app_ty S S' (TObserve i)            = TObserve i"
 | "assign_app_ty S S' (TBang t)               = TBang (assign_app_ty S S' t)"
 
 fun assign_app_expr :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow> (string \<times> type \<times> usage_tag) list) \<Rightarrow> 'f expr \<Rightarrow> 'f expr" where
