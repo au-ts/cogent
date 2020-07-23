@@ -28,49 +28,49 @@ datatype prim_op
   | Complement num_type
 
 
-datatype usage_tag = Used | Unused
+datatype variant_usage_tag = Checked | Unchecked
 
-instantiation usage_tag :: "{boolean_algebra, linorder}"
+instantiation variant_usage_tag :: "{boolean_algebra, linorder}"
 begin
 
-fun uminus_usage_tag :: "usage_tag \<Rightarrow> usage_tag" where
-  "uminus_usage_tag Used   = Unused"
-| "uminus_usage_tag Unused = Used"
+fun uminus_variant_usage_tag :: "variant_usage_tag \<Rightarrow> variant_usage_tag" where
+  "uminus_variant_usage_tag Checked   = Unchecked"
+| "uminus_variant_usage_tag Unchecked = Checked"
 
-definition top_usage_tag :: usage_tag where
-  "top_usage_tag \<equiv> Unused"
-declare top_usage_tag_def[simp]
+definition top_variant_usage_tag :: variant_usage_tag where
+  "top_variant_usage_tag \<equiv> Unchecked"
+declare top_variant_usage_tag_def[simp]
 
-definition bot_usage_tag :: usage_tag where
-  "bot_usage_tag \<equiv> Used"
-declare bot_usage_tag_def[simp]
+definition bot_variant_usage_tag :: variant_usage_tag where
+  "bot_variant_usage_tag \<equiv> Checked"
+declare bot_variant_usage_tag_def[simp]
 
-fun inf_usage_tag :: "usage_tag \<Rightarrow> usage_tag \<Rightarrow> usage_tag" where
-  "inf_usage_tag Used   _      = Used"
-| "inf_usage_tag Unused Used   = Used"
-| "inf_usage_tag Unused Unused = Unused"
+fun inf_variant_usage_tag :: "variant_usage_tag \<Rightarrow> variant_usage_tag \<Rightarrow> variant_usage_tag" where
+  "inf_variant_usage_tag Checked   _      = Checked"
+| "inf_variant_usage_tag Unchecked Checked   = Checked"
+| "inf_variant_usage_tag Unchecked Unchecked = Unchecked"
 
-fun sup_usage_tag :: "usage_tag \<Rightarrow> usage_tag \<Rightarrow> usage_tag" where
-  "sup_usage_tag Unused _      = Unused"
-| "sup_usage_tag Used   Unused = Unused"
-| "sup_usage_tag Used   Used   = Used"
+fun sup_variant_usage_tag :: "variant_usage_tag \<Rightarrow> variant_usage_tag \<Rightarrow> variant_usage_tag" where
+  "sup_variant_usage_tag Unchecked _      = Unchecked"
+| "sup_variant_usage_tag Checked   Unchecked = Unchecked"
+| "sup_variant_usage_tag Checked   Checked   = Checked"
 
-fun less_eq_usage_tag :: "usage_tag \<Rightarrow> usage_tag \<Rightarrow> bool" where
-  "less_eq_usage_tag _      Unused = True"
-| "less_eq_usage_tag Used   Used   = True"
-| "less_eq_usage_tag Unused Used   = False"
+fun less_eq_variant_usage_tag :: "variant_usage_tag \<Rightarrow> variant_usage_tag \<Rightarrow> bool" where
+  "less_eq_variant_usage_tag _      Unchecked = True"
+| "less_eq_variant_usage_tag Checked   Checked   = True"
+| "less_eq_variant_usage_tag Unchecked Checked   = False"
 
-fun less_usage_tag :: "usage_tag \<Rightarrow> usage_tag \<Rightarrow> bool" where
-  "less_usage_tag _      Used   = False"
-| "less_usage_tag Unused Unused = False"
-| "less_usage_tag Used   Unused = True"
+fun less_variant_usage_tag :: "variant_usage_tag \<Rightarrow> variant_usage_tag \<Rightarrow> bool" where
+  "less_variant_usage_tag _      Checked   = False"
+| "less_variant_usage_tag Unchecked Unchecked = False"
+| "less_variant_usage_tag Checked   Unchecked = True"
 
-definition minus_usage_tag :: "usage_tag \<Rightarrow> usage_tag \<Rightarrow> usage_tag" where
-  "minus_usage_tag x y \<equiv> inf x (- y)"
-declare minus_usage_tag_def[simp]
+definition minus_variant_usage_tag :: "variant_usage_tag \<Rightarrow> variant_usage_tag \<Rightarrow> variant_usage_tag" 
+  where "minus_variant_usage_tag x y \<equiv> inf x (- y)"
+declare minus_variant_usage_tag_def[simp]
 
 instance proof
-  fix x y z :: usage_tag
+  fix x y z :: variant_usage_tag
 
   show "(x < y) = (x \<le> y \<and> \<not> y \<le> x)"
     by (cases x; cases y; clarsimp)
@@ -118,9 +118,9 @@ datatype type = TVar index
               | TFun type type
               | TPrim prim_type
               | TUnknown index
-              | TVariant "(name \<times> type \<times> usage_tag) list" "unif_var option"
+              | TVariant "(name \<times> type \<times> variant_usage_tag) list" "unif_var option"
               | TAbstract name "type list" sigil
-              | TRecord "(name \<times> type \<times> usage_tag) list" "unif_var option" sigil
+              | TRecord "(name \<times> type \<times> variant_usage_tag) list" "unif_var option" sigil
               | TObserve index
               | TBang type
 
@@ -174,76 +174,80 @@ fun max_type_var :: "type \<Rightarrow> nat" where
 | "max_type_var (TBang t)           = max_type_var t"
 
 
-fun variant_elem_used :: "(name \<times> type \<times> usage_tag) \<Rightarrow> (name \<times> type \<times> usage_tag)" where
-  "variant_elem_used (nm, t, _) = (nm, t, Used)"
+fun variant_elem_checked :: "(name \<times> type \<times> variant_usage_tag) \<Rightarrow> 
+                             (name \<times> type \<times> variant_usage_tag)" where
+  "variant_elem_checked (nm, t, _) = (nm, t, Checked)"
 
-lemma variant_elem_used_nm_eq: "y = variant_elem_used x \<Longrightarrow> fst y = fst x"
-  by (metis fst_conv variant_elem_used.elims)
+lemma variant_elem_checked_nm_eq: "y = variant_elem_checked x \<Longrightarrow> fst y = fst x"
+  by (metis fst_conv variant_elem_checked.elims)
 
-lemma variant_elem_used_type_eq: "y = variant_elem_used x \<Longrightarrow> (fst \<circ> snd) y = (fst \<circ> snd) x"
-  by (metis comp_apply fst_conv snd_conv surjective_pairing variant_elem_used.simps)
+lemma variant_elem_checked_type_eq: "y = variant_elem_checked x \<Longrightarrow> (fst \<circ> snd) y = (fst \<circ> snd) x"
+  by (metis comp_apply fst_conv snd_conv surjective_pairing variant_elem_checked.simps)
 
-lemma variant_elem_used_usage_used: "y = variant_elem_used x \<Longrightarrow> (snd \<circ> snd) y = Used"
-  by (metis comp_apply snd_conv variant_elem_used.elims)
+lemma variant_elem_checked_usage_checked: "y = variant_elem_checked x \<Longrightarrow> (snd \<circ> snd) y = Checked"
+  by (metis comp_apply snd_conv variant_elem_checked.elims)
 
-lemma variant_elem_used_usage_nondec: 
-  assumes "y = variant_elem_used x"
+lemma variant_elem_checked_usage_nondec: 
+  assumes "y = variant_elem_checked x"
   shows "(snd \<circ> snd) y \<le> (snd \<circ> snd) x"
   using assms
-proof (cases "(snd \<circ> snd) x = Used")
+proof (cases "(snd \<circ> snd) x = Checked")
   case True
-  then show ?thesis using assms variant_elem_used_usage_used by auto 
+  then show ?thesis using assms variant_elem_checked_usage_checked by auto 
 next
   case False
-  then show ?thesis using less_eq_usage_tag.elims by blast
+  then show ?thesis using less_eq_variant_usage_tag.elims by blast
 qed
 
 
-fun variant_nth_used :: "nat \<Rightarrow> type \<Rightarrow> type" where
-  "variant_nth_used n (TVar i)            = undefined"  
-| "variant_nth_used n (TFun a b)          = undefined"
-| "variant_nth_used n (TPrim p)           = undefined"
-| "variant_nth_used n (TUnknown i)        = undefined"
-| "variant_nth_used n (TVariant Ks \<alpha>)     = TVariant (Ks[n := variant_elem_used (Ks ! n)]) \<alpha>"
-| "variant_nth_used n (TAbstract nm ts s) = undefined"
-| "variant_nth_used n (TRecord fs \<alpha> s)    = undefined"
-| "variant_nth_used n (TObserve i)        = undefined"
-| "variant_nth_used n (TBang t)           = undefined"
+fun variant_nth_checked :: "nat \<Rightarrow> type \<Rightarrow> type" where
+  "variant_nth_checked n (TVar i)            = undefined"  
+| "variant_nth_checked n (TFun a b)          = undefined"
+| "variant_nth_checked n (TPrim p)           = undefined"
+| "variant_nth_checked n (TUnknown i)        = undefined"
+| "variant_nth_checked n (TVariant Ks \<alpha>)     = TVariant (Ks[n := variant_elem_checked (Ks ! n)]) \<alpha>"
+| "variant_nth_checked n (TAbstract nm ts s) = undefined"
+| "variant_nth_checked n (TRecord fs \<alpha> s)    = undefined"
+| "variant_nth_checked n (TObserve i)        = undefined"
+| "variant_nth_checked n (TBang t)           = undefined"
 
-fun variant_elem_unused :: "(name \<times> type \<times> usage_tag) \<Rightarrow> (name \<times> type \<times> usage_tag)" where
-  "variant_elem_unused (nm, t, _) = (nm, t, Unused)"
+fun variant_elem_unchecked :: "(name \<times> type \<times> variant_usage_tag) \<Rightarrow> 
+                               (name \<times> type \<times> variant_usage_tag)" where
+  "variant_elem_unchecked (nm, t, _) = (nm, t, Unchecked)"
 
-lemma variant_elem_unused_nm_eq: "y = variant_elem_unused x \<Longrightarrow> fst y = fst x"
-  by (metis fst_conv variant_elem_unused.elims)
+lemma variant_elem_unchecked_nm_eq: "y = variant_elem_unchecked x \<Longrightarrow> fst y = fst x"
+  by (metis fst_conv variant_elem_unchecked.elims)
 
-lemma variant_elem_unused_type_eq: "y = variant_elem_unused x \<Longrightarrow> (fst \<circ> snd) y = (fst \<circ> snd) x"
-  by (metis comp_apply fst_conv snd_conv surjective_pairing variant_elem_unused.simps)
+lemma variant_elem_unchecked_type_eq: 
+  "y = variant_elem_unchecked x \<Longrightarrow> (fst \<circ> snd) y = (fst \<circ> snd) x"
+  by (metis comp_apply fst_conv snd_conv surjective_pairing variant_elem_unchecked.simps)
 
-lemma variant_elem_unused_usage_unused: "y = variant_elem_unused x \<Longrightarrow> (snd \<circ> snd) y = Unused"
-  by (metis comp_apply snd_conv variant_elem_unused.elims)
+lemma variant_elem_unchecked_usage_unchecked: 
+  "y = variant_elem_unchecked x \<Longrightarrow> (snd \<circ> snd) y = Unchecked"
+  by (metis comp_apply snd_conv variant_elem_unchecked.elims)
 
-lemma variant_elem_unused_usage_noninc: 
-  assumes "y = variant_elem_unused x"
+lemma variant_elem_unchecked_usage_noninc: 
+  assumes "y = variant_elem_unchecked x"
   shows "(snd \<circ> snd) y \<ge> (snd \<circ> snd) x"
   using assms
-proof (cases "(snd \<circ> snd) x = Used")
+proof (cases "(snd \<circ> snd) x = Checked")
   case True
-  then show ?thesis using assms using less_eq_usage_tag.elims by auto
+  then show ?thesis using assms using less_eq_variant_usage_tag.elims by auto
 next
   case False
-  then show ?thesis using assms variant_elem_unused_usage_unused by auto
+  then show ?thesis using assms variant_elem_unchecked_usage_unchecked by auto
 qed
 
-fun variant_nth_unused :: "nat \<Rightarrow> type \<Rightarrow> type" where
-  "variant_nth_unused n (TVar i)            = undefined"  
-| "variant_nth_unused n (TFun a b)          = undefined"
-| "variant_nth_unused n (TPrim p)           = undefined"
-| "variant_nth_unused n (TUnknown i)        = undefined"
-| "variant_nth_unused n (TVariant Ks \<alpha>)     = TVariant (Ks[n := variant_elem_unused (Ks ! n)]) \<alpha>"
-| "variant_nth_unused n (TAbstract nm ts s) = undefined"
-| "variant_nth_unused n (TRecord fs \<alpha> s)    = undefined"
-| "variant_nth_unused n (TObserve i)        = undefined"
-| "variant_nth_unused n (TBang t)           = undefined"
+fun variant_nth_unchecked :: "nat \<Rightarrow> type \<Rightarrow> type" where
+  "variant_nth_unchecked n (TVar i)            = undefined"  
+| "variant_nth_unchecked n (TFun a b)          = undefined"
+| "variant_nth_unchecked n (TPrim p)           = undefined"
+| "variant_nth_unchecked n (TUnknown i)        = undefined"
+| "variant_nth_unchecked n (TVariant Ks \<alpha>)     = TVariant (Ks[n := variant_elem_unchecked (Ks ! n)]) \<alpha>"
+| "variant_nth_unchecked n (TAbstract nm ts s) = undefined"
+| "variant_nth_unchecked n (TRecord fs \<alpha> s)    = undefined"
+| "variant_nth_unchecked n (TObserve i)        = undefined"
+| "variant_nth_unchecked n (TBang t)           = undefined"
 
 
 inductive normalise :: "type \<Rightarrow> type \<Rightarrow> bool" ("_ \<hookrightarrow> _" [40, 40] 60) where
@@ -468,12 +472,12 @@ lemma bang_cg_ctx_type_prop:
   shows "fst ((bang_cg_ctx ys G) ! i) = (if (ys ! i) then TBang (fst (G ! i)) else fst (G ! i))"
   using assms by (simp add: bang_cg_ctx_def case_prod_beta)
 
-lemma set0_cg_ctx_type_used_prop:
+lemma set0_cg_ctx_type_checked_prop:
   assumes "i < length G"
   shows "snd ((set0_cg_ctx ys G) ! i) = (if (ys ! i) then 0 else snd (G ! i))"
   using assms by (simp add: set0_cg_ctx_def case_prod_beta)
 
-lemma bang_cg_ctx_type_used_same:
+lemma bang_cg_ctx_type_checked_same:
   assumes "i < length G \<or> i < length (bang_cg_ctx ys G)"
   shows "snd ((bang_cg_ctx ys G) ! i) = snd (G ! i)"
   using assms by (simp add: bang_cg_ctx_def case_prod_beta)
@@ -510,30 +514,30 @@ lemma alg_ctx_jn_type_same2:
   using assms 
   by (clarsimp simp add: alg_ctx_jn.simps list_all3_conv_all_nth list_all2_conv_all_nth) 
 
-lemma alg_ctx_jn_type_used_nondec1:
+lemma alg_ctx_jn_type_checked_nondec1:
   assumes "G1 \<Join> G1' \<leadsto> G2 | C"
     and "i < length G1" 
   shows "snd (G1 ! i) \<le> snd (G2 ! i)"
   using assms by (clarsimp simp add: alg_ctx_jn.simps list_all3_conv_all_nth)
 
-lemma alg_ctx_jn_type_used_nondec2:
+lemma alg_ctx_jn_type_checked_nondec2:
   assumes "G1 \<Join> G1' \<leadsto> G2 | C"
     and "i < length G1'"
   shows "snd (G1' ! i) \<le> snd (G2 ! i)"
   using assms by (clarsimp simp add: alg_ctx_jn.simps list_all3_conv_all_nth)
 
-lemma alg_ctx_jn_type_used_max:
+lemma alg_ctx_jn_type_checked_max:
   assumes "G1 \<Join> G1' \<leadsto> G2 | C"
     and "i < length G1'"
   shows "snd (G2 ! i) = max (snd (G1 ! i)) (snd (G1' ! i))"
   using assms by (clarsimp simp add: alg_ctx_jn.simps list_all3_conv_all_nth)
 
-lemma alg_ctx_jn_type_used_same:
+lemma alg_ctx_jn_type_checked_same:
   assumes "G1 \<Join> G1' \<leadsto> G2 | C"
     and "i < length G1'"
     and "snd (G1 ! i) = snd (G1' ! i)"
   shows "snd (G2 ! i) = snd (G1 ! i)"
-  using assms alg_ctx_jn_type_used_max by auto
+  using assms alg_ctx_jn_type_checked_max by auto
 
 
 section {* Constraint Semantics (Fig 3.6 3.9 3.12) *}
@@ -571,17 +575,17 @@ ct_sem_share:
 | ct_sem_primD:
   "A \<turnstile> CtDrop (TPrim pt)"
 | ct_sem_exhaust:
-  "\<lbrakk> \<forall>i < length Ks. ((snd \<circ> snd) (Ks ! i) = Used) \<rbrakk> \<Longrightarrow> A \<turnstile> CtExhausted (TVariant Ks None)"
+  "\<lbrakk> \<forall>i < length Ks. ((snd \<circ> snd) (Ks ! i) = Checked) \<rbrakk> \<Longrightarrow> A \<turnstile> CtExhausted (TVariant Ks None)"
 | ct_sem_varsub:
   "\<lbrakk> map fst Ks1 = map fst Ks2
    ; list_all2 (\<lambda>k1 k2. (A \<turnstile> CtSub ((fst \<circ> snd) k1) ((fst \<circ> snd) k2))) Ks1 Ks2
    ; list_all2 (\<lambda>k1 k2. ((snd \<circ> snd) k1) \<le> ((snd \<circ> snd) k2)) Ks1 Ks2
    \<rbrakk> \<Longrightarrow> A \<turnstile> CtSub (TVariant Ks1 None) (TVariant Ks2 None)"
 | ct_sem_varshare:
-  "\<lbrakk> \<forall>i < length Ks. (snd \<circ> snd) (Ks ! i) = Unused \<longrightarrow> A \<turnstile> CtShare ((fst \<circ> snd) (Ks ! i))
+  "\<lbrakk> \<forall>i < length Ks. (snd \<circ> snd) (Ks ! i) = Unchecked \<longrightarrow> A \<turnstile> CtShare ((fst \<circ> snd) (Ks ! i))
    \<rbrakk> \<Longrightarrow> A \<turnstile> CtShare (TVariant Ks None)"
 | ct_sem_vardrop:
-  "\<lbrakk> \<forall>i < length Ks. (snd \<circ> snd) (Ks ! i) = Unused \<longrightarrow> A \<turnstile> CtDrop ((fst \<circ> snd) (Ks ! i))
+  "\<lbrakk> \<forall>i < length Ks. (snd \<circ> snd) (Ks ! i) = Unchecked \<longrightarrow> A \<turnstile> CtDrop ((fst \<circ> snd) (Ks ! i))
    \<rbrakk> \<Longrightarrow> A \<turnstile> CtDrop (TVariant Ks None)" 
 | ct_sem_absdrop:
   "\<lbrakk> s \<noteq> Writable
@@ -661,9 +665,9 @@ lemma ct_sem_fun_exI2:
   shows "\<exists>\<rho>1 \<rho>2. \<rho> = TFun \<rho>1 \<rho>2"
   using assms ct_sem_eq_iff ct_sem_funE2 by metis
 
-lemma ct_sem_exhaust_all_used: 
+lemma ct_sem_exhaust_all_checked: 
   assumes "A \<turnstile> CtExhausted (TVariant Ks None)"
-  shows "\<forall>i < length Ks. (snd \<circ> snd) (Ks ! i) = Used"
+  shows "\<forall>i < length Ks. (snd \<circ> snd) (Ks ! i) = Checked"
   using assms ct_sem_exhaust by auto
 
 lemma ct_sem_varsub_length:
@@ -814,7 +818,7 @@ case (ct_sem_primD A pt)
     using subst_ty_ct_def normalise_domain constraint_sem.ct_sem_primD by auto
 next
   case (ct_sem_exhaust Ks A)
-  have "\<forall>i<length Ks. (snd \<circ> snd) (map (\<lambda>(nm, t, u). (nm, subst_ty \<mu> \<mu>' t, u)) Ks ! i) = Used"
+  have "\<forall>i<length Ks. (snd \<circ> snd) (map (\<lambda>(nm, t, u). (nm, subst_ty \<mu> \<mu>' t, u)) Ks ! i) = Checked"
     using ct_sem_exhaust.hyps by (simp add: case_prod_unfold)
   then show ?case 
     using constraint_sem.ct_sem_exhaust ct_sem_exhaust.prems normalise_domain subst_ty_ct_def
@@ -840,7 +844,7 @@ next
   case (ct_sem_varshare Ks A)
   obtain Ks' where Ks'_def: "Ks' = map (\<lambda>(nm, t, u). (nm, subst_ty \<mu> \<mu>' t, u)) Ks"
     by blast
-  have "\<forall>i < length Ks'. (snd \<circ> snd) (Ks' ! i) = Unused \<longrightarrow> A \<turnstile> CtShare ((fst \<circ> snd) (Ks' ! i))"
+  have "\<forall>i < length Ks'. (snd \<circ> snd) (Ks' ! i) = Unchecked \<longrightarrow> A \<turnstile> CtShare ((fst \<circ> snd) (Ks' ! i))"
     using subst_ty_ct_def ct_sem_varshare Ks'_def by (simp add: case_prod_beta')
   then show ?case
     using ct_sem_varshare subst_ty_ct_def normalise_domain constraint_sem.ct_sem_varshare Ks'_def
@@ -849,7 +853,7 @@ next
   case (ct_sem_vardrop Ks A)
   obtain Ks' where Ks'_def: "Ks' = map (\<lambda>(nm, t, u). (nm, subst_ty \<mu> \<mu>' t, u)) Ks"
     by blast
-  have "\<forall>i < length Ks'. (snd \<circ> snd) (Ks' ! i) = Unused \<longrightarrow> A \<turnstile> CtDrop ((fst \<circ> snd) (Ks' ! i))"
+  have "\<forall>i < length Ks'. (snd \<circ> snd) (Ks' ! i) = Unchecked \<longrightarrow> A \<turnstile> CtDrop ((fst \<circ> snd) (Ks' ! i))"
     using subst_ty_ct_def ct_sem_vardrop Ks'_def by (simp add: case_prod_beta')
   then show ?case
     using ct_sem_vardrop subst_ty_ct_def normalise_domain constraint_sem.ct_sem_vardrop Ks'_def
@@ -1005,7 +1009,7 @@ typing_var:
   "\<lbrakk> distinct (map fst Ks)
    ; i < length Ks
    ; fst (Ks ! i) = nm
-   ; \<forall>j < length Ks. if j = i then (snd \<circ> snd) (Ks ! j) = Unused else (snd \<circ> snd) (Ks ! j) = Used
+   ; \<forall>j < length Ks. if j = i then (snd \<circ> snd) (Ks ! j) = Unchecked else (snd \<circ> snd) (Ks ! j) = Checked
    ; A \<ddagger> \<Gamma> \<turnstile> e : (fst \<circ> snd) (Ks ! i)
    ; \<tau> = TVariant Ks None
    \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Con nm e: \<tau>"
@@ -1014,16 +1018,16 @@ typing_var:
    ; distinct (map fst Ks)
    ; i < length Ks
    ; fst (Ks ! i) = nm
-   ; A \<ddagger> \<Gamma>1 \<turnstile> e1 : variant_nth_unused i (TVariant Ks None)
+   ; A \<ddagger> \<Gamma>1 \<turnstile> e1 : variant_nth_unchecked i (TVariant Ks None)
    ; A \<ddagger> (Some ((fst \<circ> snd) (Ks ! i))) # \<Gamma>2 \<turnstile> e2 : \<tau>
-   ; A \<ddagger> (Some (variant_nth_used i (TVariant Ks None))) # \<Gamma>2 \<turnstile> e3 : \<tau>
+   ; A \<ddagger> (Some (variant_nth_checked i (TVariant Ks None))) # \<Gamma>2 \<turnstile> e3 : \<tau>
    \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Case e1 nm e2 e3 : \<tau>" 
 | typing_irref:
   "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 \<box> \<Gamma>2
    ; distinct (map fst Ks)
    ; i < length Ks
    ; fst (Ks ! i) = nm
-   ; \<forall>j < length Ks. if j = i then (snd \<circ> snd) (Ks ! j) = Unused else (snd \<circ> snd) (Ks ! j) = Used
+   ; \<forall>j < length Ks. if j = i then (snd \<circ> snd) (Ks ! j) = Unchecked else (snd \<circ> snd) (Ks ! j) = Checked
    ; A \<ddagger> \<Gamma>1 \<turnstile> e1 : (TVariant Ks None)
    ; A \<ddagger> (Some ((fst \<circ> snd) (Ks ! i))) # \<Gamma>2 \<turnstile> e2 : \<tau>
    \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Esac e1 nm e2 : \<tau>"
@@ -1121,25 +1125,25 @@ cg_var1:
   "\<lbrakk> \<alpha> = Suc n2
    ; \<beta> = TUnknown n1
    ; G1,Suc(Suc n1) \<turnstile> e : \<beta> \<leadsto> G2,n2 | C | e'
-   ; C' = CtConj C (CtSub (TVariant [(nm, \<beta>, Unused)] (Some \<alpha>)) \<tau>)
+   ; C' = CtConj C (CtSub (TVariant [(nm, \<beta>, Unchecked)] (Some \<alpha>)) \<tau>)
    \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Con nm e : \<tau> \<leadsto> G2,n2 | C' | Sig (Con nm e') \<tau>"
 | cg_case:
   "\<lbrakk> \<alpha> = Suc n2
    ; \<beta> = TUnknown n1
-   ; G1,Suc(Suc n1) \<turnstile> e1 : TVariant [(nm, \<beta>, Unused)] (Some \<alpha>) \<leadsto> G2,n2 | C1 | e1'
+   ; G1,Suc(Suc n1) \<turnstile> e1 : TVariant [(nm, \<beta>, Unchecked)] (Some \<alpha>) \<leadsto> G2,n2 | C1 | e1'
    ; ((\<beta>, 0) # G2),n2 \<turnstile> e2 : \<tau> \<leadsto> ((\<beta>, m) # G3),n3 | C2 |e2'
-   ; (((TVariant [(nm, \<beta>, Used)] (Some \<alpha>)), 0) # G2),n3 \<turnstile> e3 : \<tau> \<leadsto> (((TVariant [(nm, \<beta>, Used)] (Some \<alpha>)), l) # G3'),n4 | C3 | e3'
+   ; (((TVariant [(nm, \<beta>, Checked)] (Some \<alpha>)), 0) # G2),n3 \<turnstile> e3 : \<tau> \<leadsto> (((TVariant [(nm, \<beta>, Checked)] (Some \<alpha>)), l) # G3'),n4 | C3 | e3'
    ; G3 \<Join> G3' \<leadsto> G4 | C4
    ; if m = 0 then C5 = CtDrop \<beta> else C5 = CtTop
-   ; if l = 0 then C6 = CtDrop (TVariant [(nm, \<beta>, Used)] (Some \<alpha>)) else C6 = CtTop
+   ; if l = 0 then C6 = CtDrop (TVariant [(nm, \<beta>, Checked)] (Some \<alpha>)) else C6 = CtTop
    ; C7 = CtConj (CtConj (CtConj (CtConj (CtConj C1 C2) C3) C4) C5) C6
    \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Case e1 nm e2 e3 : \<tau> \<leadsto> G4,n4 | C7 | Sig (Case e1' nm e2' e3') \<tau>"
 | cg_irref:
   "\<lbrakk> \<alpha> = Suc n2
    ; \<beta> = TUnknown n1
-   ; G1,Suc(Suc n1) \<turnstile> e1 : (TVariant [(nm, \<beta>, Unused)] (Some \<alpha>)) \<leadsto> G2,n2 | C1 | e1'
+   ; G1,Suc(Suc n1) \<turnstile> e1 : (TVariant [(nm, \<beta>, Unchecked)] (Some \<alpha>)) \<leadsto> G2,n2 | C1 | e1'
    ; ((\<beta>, 0) # G2),n2 \<turnstile> e2 : \<tau> \<leadsto> ((\<beta>, m) # G3),n3 | C2 | e2'
-   ; C3 = CtExhausted (TVariant [(nm, \<beta>, Used)] (Some \<alpha>))
+   ; C3 = CtExhausted (TVariant [(nm, \<beta>, Checked)] (Some \<alpha>))
    ; if m = 0 then C4 = CtDrop \<beta> else C4 = CtTop
    ; C5 = CtConj (CtConj (CtConj C1 C2) C3) C4
    \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Esac e1 nm e2 : \<tau> \<leadsto> G3,n3 | C5 | Sig (Esac e1' nm e2') \<tau>"
@@ -1207,7 +1211,7 @@ lemma cg_ctx_type_same2:
   shows "\<And>i. i < length G' \<Longrightarrow> fst (G ! i) = fst (G' ! i)"
   using assms cg_ctx_type_same1 cg_ctx_idx_size cg_ctx_length by metis
 
-lemma cg_ctx_type_used_nondec:
+lemma cg_ctx_type_checked_nondec:
   assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
     and "i < length G"
   shows "snd (G ! i) \<le> snd (G' ! i)"
@@ -1240,9 +1244,9 @@ next
   proof (cases "ys ! i")
     case False
     have "snd (G1 ! i) \<le> snd (G2 ! i)"
-      using bang_cg_ctx_length bang_cg_ctx_type_used_same cg_ctx_length cg_letb by metis
+      using bang_cg_ctx_length bang_cg_ctx_type_checked_same cg_ctx_length cg_letb by metis
     moreover have "snd (G2 ! i) \<le> snd (G3 ! i)"
-      using False cg_letb set0_cg_ctx_length set0_cg_ctx_type_used_prop cg_ctx_length
+      using False cg_letb set0_cg_ctx_length set0_cg_ctx_type_checked_prop cg_ctx_length
         bang_cg_ctx_length by (metis (no_types, lifting) Suc_mono length_Cons nth_Cons_Suc)
     ultimately show ?thesis
       by linarith
@@ -1250,7 +1254,7 @@ next
 next
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
   then show ?case
-    using cg_ctx_length alg_ctx_jn_type_used_nondec1 le_trans by fastforce
+    using cg_ctx_length alg_ctx_jn_type_checked_nondec1 le_trans by fastforce
 next
   case (cg_iop x nt G1 n1 e1 \<tau> G2 n2 C1 e1' e2 G3 n3 C2 e2' C5)
   then show ?case
@@ -1271,7 +1275,7 @@ next
       using cg_case cg_ctx_length type_infer_axioms
       by (metis (no_types, lifting) Suc_less_eq le_trans length_Cons nth_Cons_Suc)
     then show ?thesis
-      using alg_ctx_jn_type_used_nondec1 cg_case cg_ctx_length
+      using alg_ctx_jn_type_checked_nondec1 cg_case cg_ctx_length
       by (metis (no_types, lifting) Suc_less_eq le_trans length_Cons)
   qed
 next
@@ -1284,7 +1288,7 @@ qed (blast)+
 section {* Assignment Definition *}
 (* when we are assigning an unknown type a type, the assigned type should not contain any
    unknown types itself *)
-fun assign_app_ty :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow> (string \<times> type \<times> usage_tag) list) \<Rightarrow> type \<Rightarrow> type" where
+fun assign_app_ty :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow> (string \<times> type \<times> variant_usage_tag) list) \<Rightarrow> type \<Rightarrow> type" where
   "assign_app_ty S S' (TVar n)                = TVar n"
 | "assign_app_ty S S' (TFun t1 t2)            = TFun (assign_app_ty S S' t1) (assign_app_ty S S' t2)"
 | "assign_app_ty S S' (TPrim pt)              = TPrim pt"
@@ -1297,7 +1301,7 @@ fun assign_app_ty :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow> 
 | "assign_app_ty S S' (TObserve i)            = TObserve i"
 | "assign_app_ty S S' (TBang t)               = TBang (assign_app_ty S S' t)"
 
-fun assign_app_expr :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow> (string \<times> type \<times> usage_tag) list) \<Rightarrow> 'f expr \<Rightarrow> 'f expr" where
+fun assign_app_expr :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow> (string \<times> type \<times> variant_usage_tag) list) \<Rightarrow> 'f expr \<Rightarrow> 'f expr" where
   "assign_app_expr S S' (Var n)            = Var n" 
 | "assign_app_expr S S' (TypeApp e ts)     = TypeApp e (map (assign_app_ty S S') ts)"
 | "assign_app_expr S S' (Prim prim_op ts)  = Prim prim_op (map (assign_app_expr S S') ts)"
@@ -1317,7 +1321,7 @@ fun assign_app_expr :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow
 | "assign_app_expr S S' (Put e1 f e2)      = Put (assign_app_expr S S' e1) f (assign_app_expr S S' e2)"
 | "assign_app_expr S S' (Member e f)       = Member (assign_app_expr S S' e) f"
 
-fun "assign_app_constr" :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow> (string \<times> type \<times> usage_tag) list) \<Rightarrow> constraint \<Rightarrow> constraint" where
+fun "assign_app_constr" :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow> (string \<times> type \<times> variant_usage_tag) list) \<Rightarrow> constraint \<Rightarrow> constraint" where
   "assign_app_constr S S' (CtConj c1 c2)   = CtConj (assign_app_constr S S' c1) (assign_app_constr S S' c2)"
 | "assign_app_constr S S' (CtIBound l t)   = CtIBound l (assign_app_ty S S' t)"
 | "assign_app_constr S S' (CtEq t1 t2)     = CtEq (assign_app_ty S S' t1) (assign_app_ty S S' t2)"
@@ -1330,7 +1334,7 @@ fun "assign_app_constr" :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Righta
 | "assign_app_constr S S' (CtEscape t)     = CtEscape (assign_app_ty S S' t)"
 | "assign_app_constr S S' (CtNotRead s)    = CtNotRead s"
 
-definition assign_app_ctx :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow> (string \<times> type \<times> usage_tag) list) \<Rightarrow> ctx \<Rightarrow> ctx" where
+definition assign_app_ctx :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow> (string \<times> type \<times> variant_usage_tag) list) \<Rightarrow> ctx \<Rightarrow> ctx" where
   "assign_app_ctx S S' G = map (map_option (assign_app_ty S S')) G"
 
 lemma assign_app_ctx_none_iff:
@@ -1410,7 +1414,7 @@ proof (induct Cs arbitrary: i)
   qed
 qed (simp)
 
-lemma alg_ctx_jn_type_used_diff:
+lemma alg_ctx_jn_type_checked_diff:
   assumes "G1 \<Join> G1' \<leadsto> G2 | C"
     and "i < length G1'"
     and "snd (G1 ! i) \<noteq> snd (G1' ! i)"
@@ -1435,7 +1439,7 @@ proof -
     using alg_ctx_jn_type_same1 assms by auto
 qed
 
-section {* split_used (Lemma 3.1) *}
+section {* split_checked (Lemma 3.1) *}
 (* Free Variables *)
 fun fv' :: "nat \<Rightarrow> 'f expr \<Rightarrow> index set" where
   fv'_var:      "fv' n (Var i)              = (if i \<ge> n then {i - n} else {})"
@@ -1597,7 +1601,7 @@ proof -
   qed (auto simp add: cg_ctx_length split: if_splits)
 qed
 
-lemma cg_gen_output_type_used_inc:
+lemma cg_gen_output_type_checked_inc:
   assumes "G1,n1 \<turnstile> e : \<tau> \<leadsto> G2,n2 | C1 | e1'"
       and "i \<in> fv(e)"
   shows "snd (G2 ! i) > snd (G1 ! i)"
@@ -1610,13 +1614,13 @@ proof (induct arbitrary: i rule: constraint_gen_elab.induct)
   proof cases
     case i_in_e1
     then show ?thesis
-      using cg_app.hyps cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size 
+      using cg_app.hyps cg_ctx_length cg_ctx_type_checked_nondec cg_gen_fv_elem_size 
         constraint_gen_elab.cg_app 
       by (metis (no_types, lifting) dual_order.strict_iff_order leD)
   next
     case i_in_e2
     then show ?thesis 
-      using cg_app.hyps cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size 
+      using cg_app.hyps cg_ctx_length cg_ctx_type_checked_nondec cg_gen_fv_elem_size 
         constraint_gen_elab.cg_app
       by (metis dual_order.strict_iff_order leD)
   qed
@@ -1632,14 +1636,14 @@ next
     then have "snd (G1 ! i) < snd (G2 ! i)"
       using cg_let.hyps by blast
     moreover  have "snd (G2 ! i) \<le> snd (G3 ! i)"
-      using i_in_e1e2 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_let
+      using i_in_e1e2 cg_ctx_length cg_ctx_type_checked_nondec cg_gen_fv_elem_size cg_let
         i_fv'_suc_iff_suc_i_fv' by (metis Suc_less_eq length_Cons nth_Cons_Suc)
     ultimately show ?thesis
       by simp
   next
     case i_in_e2
     have "snd (G1 ! i) \<le> snd (G2 ! i)"          
-      using i_in_e1e2 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_let.hyps
+      using i_in_e1e2 cg_ctx_length cg_ctx_type_checked_nondec cg_gen_fv_elem_size cg_let.hyps
       by (metis i_fv'_suc_iff_suc_i_fv' length_Cons not_less_eq)
     moreover have "snd (G2 ! i) < snd (G3 ! i)"
       using cg_let.hyps i_fv'_suc_iff_suc_i_fv' i_in_e2 by fastforce
@@ -1656,15 +1660,15 @@ next
     have i_size: "i < length G1"
       using cg_gen_fv_elem_size i_in_e1 cg_letb.hyps bang_cg_ctx_length by metis
     have "snd (G1 ! i) < snd (G2 ! i)"
-      using cg_letb.hyps bang_cg_ctx_length bang_cg_ctx_type_used_same cg_ctx_length 
+      using cg_letb.hyps bang_cg_ctx_length bang_cg_ctx_type_checked_same cg_ctx_length 
         i_in_e1 i_size by metis
     moreover have "snd (G2 ! i) \<le> snd (G3 ! i)"
     proof -
       have "snd ((set0_cg_ctx ys G2) ! i) \<le> snd (G3 ! i)"
-        using cg_letb.hyps set0_cg_ctx_length cg_ctx_length i_size cg_ctx_type_used_nondec
+        using cg_letb.hyps set0_cg_ctx_length cg_ctx_length i_size cg_ctx_type_checked_nondec
           bang_cg_ctx_length by (metis (no_types, lifting) Suc_mono length_Cons nth_Cons_Suc)
       then show ?thesis
-        using bang_cg_ctx_length cg_letb.hyps i_in_e1 i_size set0_cg_ctx_type_used_prop
+        using bang_cg_ctx_length cg_letb.hyps i_in_e1 i_size set0_cg_ctx_type_checked_prop
           cg_ctx_length by metis
     qed
     ultimately show ?thesis
@@ -1688,13 +1692,13 @@ next
       have "snd (G1 ! i) \<le> snd (G2 ! i)"
       proof -
         have "snd ((bang_cg_ctx ys G1) ! i) \<le> snd ((bang_cg_ctx ys G2) ! i)"
-          using cg_ctx_type_used_nondec i_size bang_cg_ctx_length cg_letb.hyps cg_ctx_length by auto
+          using cg_ctx_type_checked_nondec i_size bang_cg_ctx_length cg_letb.hyps cg_ctx_length by auto
         then show ?thesis
-          using bang_cg_ctx_type_used_same i_size cg_ctx_length bang_cg_ctx_length cg_letb.hyps
+          using bang_cg_ctx_type_checked_same i_size cg_ctx_length bang_cg_ctx_length cg_letb.hyps
           by metis
       qed
       moreover have "snd (G2 ! i) < snd (G3 !i)"
-        using cg_letb i_fv'_suc_iff_suc_i_fv' i_in_e2 set0_cg_ctx_type_used_prop[OF i_size] False
+        using cg_letb i_fv'_suc_iff_suc_i_fv' i_in_e2 set0_cg_ctx_type_checked_prop[OF i_size] False
            nth_Cons_Suc by metis
       ultimately show ?thesis
         by linarith
@@ -1705,16 +1709,16 @@ next
   have i_in_e1e2e3: "i \<in> fv e1 \<or> i \<in> fv e2 \<or> i \<in> fv e3"
     using cg_if.prems by auto
   have snd_G1_le_G2: "snd (G1 ! i) \<le> snd (G2 ! i)"
-    using i_in_e1e2e3 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_if.hyps
+    using i_in_e1e2e3 cg_ctx_length cg_ctx_type_checked_nondec cg_gen_fv_elem_size cg_if.hyps
     by metis
   have snd_G2_le_G3: "snd (G2 ! i) \<le> snd (G3 ! i)"
-    using i_in_e1e2e3 cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_if.hyps
+    using i_in_e1e2e3 cg_ctx_type_checked_nondec cg_gen_fv_elem_size cg_if.hyps
       cg_ctx_length by metis
   have snd_G3_le_G4: "snd (G3 ! i) \<le> snd (G4 ! i)"
-    using i_in_e1e2e3 alg_ctx_jn_type_used_nondec1 cg_gen_fv_elem_size cg_if.hyps 
+    using i_in_e1e2e3 alg_ctx_jn_type_checked_nondec1 cg_gen_fv_elem_size cg_if.hyps 
       cg_ctx_length by metis
   have snd_G3'_le_G4: "snd (G3' ! i) \<le> snd (G4 ! i)"
-    using i_in_e1e2e3 alg_ctx_jn_type_used_nondec2 cg_gen_fv_elem_size cg_if.hyps 
+    using i_in_e1e2e3 alg_ctx_jn_type_checked_nondec2 cg_gen_fv_elem_size cg_if.hyps 
       cg_ctx_length by metis
   consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv e2" | (i_in_e3) "i \<in> fv e3"
     using i_in_e1e2e3 by blast
@@ -1742,14 +1746,14 @@ next
   proof cases
     case i_in_e1
     have "snd (G2 ! i) \<le> snd (G3 ! i)"      
-      using i_in_e1e2 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_iop.hyps
+      using i_in_e1e2 cg_ctx_length cg_ctx_type_checked_nondec cg_gen_fv_elem_size cg_iop.hyps
       by metis
     then show ?thesis
       using cg_iop.hyps i_in_e1 by fastforce
   next
     case i_in_e2
     have "snd (G1 ! i) \<le> snd (G2 ! i)"
-      using i_in_e1e2 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_iop.hyps
+      using i_in_e1e2 cg_ctx_length cg_ctx_type_checked_nondec cg_gen_fv_elem_size cg_iop.hyps
       by metis
     then show ?thesis
       using cg_iop.hyps i_in_e2 by fastforce
@@ -1764,14 +1768,14 @@ next
   proof cases
     case i_in_e1
     have "snd (G2 ! i) \<le> snd (G3 ! i)" 
-      using i_in_e1e2 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_cop.hyps
+      using i_in_e1e2 cg_ctx_length cg_ctx_type_checked_nondec cg_gen_fv_elem_size cg_cop.hyps
       by metis
     then show ?thesis
       using i_in_e1 cg_cop.hyps by force
   next
     case i_in_e2
     have "snd (G1 ! i) \<le> snd (G2 ! i)"      
-      using i_in_e1e2 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_cop.hyps
+      using i_in_e1e2 cg_ctx_length cg_ctx_type_checked_nondec cg_gen_fv_elem_size cg_cop.hyps
       by metis
     then show ?thesis
       using i_in_e2 cg_cop.hyps by force    
@@ -1786,14 +1790,14 @@ next
   proof cases
     case i_in_e1
     have "snd (G2 ! i) \<le> snd (G3 ! i)"      
-      using i_in_e1e2 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_bop.hyps
+      using i_in_e1e2 cg_ctx_length cg_ctx_type_checked_nondec cg_gen_fv_elem_size cg_bop.hyps
       by metis
     then show ?thesis
       using i_in_e1 cg_bop.hyps by force
   next
     case i_in_e2
     have "snd (G1 ! i) \<le> snd (G2 ! i)"      
-      using i_in_e1e2 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_bop.hyps
+      using i_in_e1e2 cg_ctx_length cg_ctx_type_checked_nondec cg_gen_fv_elem_size cg_bop.hyps
       by metis
     then show ?thesis
       using i_in_e2 cg_bop.hyps by force
@@ -1803,17 +1807,17 @@ next
   have i_in_e1e2e3: "i \<in> fv e1 \<or> i \<in> fv' (Suc 0) e2 \<or> i \<in> fv' (Suc 0) e3"
     using cg_case.prems by fastforce
   have snd_G1_le_G2: "snd (G1 ! i) \<le> snd (G2 ! i)"
-    using i_in_e1e2e3 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_case.hyps
+    using i_in_e1e2e3 cg_ctx_length cg_ctx_type_checked_nondec cg_gen_fv_elem_size cg_case.hyps
     by (metis i_fv'_suc_iff_suc_i_fv' length_Cons not_less_eq)
   have snd_G2_le_G3: "snd (G2 ! i) \<le> snd (G3 ! i)"
-    using i_in_e1e2e3 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_case
+    using i_in_e1e2e3 cg_ctx_length cg_ctx_type_checked_nondec cg_gen_fv_elem_size cg_case
       i_fv'_suc_iff_suc_i_fv' by (metis Suc_less_eq length_Cons nth_Cons_Suc)
   have snd_G3_le_G4: "snd (G3 ! i) \<le> snd (G4 ! i)"
-    using i_in_e1e2e3 cg_gen_fv_elem_size cg_case.hyps cg_ctx_length alg_ctx_jn_type_used_nondec1 
+    using i_in_e1e2e3 cg_gen_fv_elem_size cg_case.hyps cg_ctx_length alg_ctx_jn_type_checked_nondec1 
       cg_case.hyps i_fv'_suc_iff_suc_i_fv'
     by (metis Suc_le_lessD length_Cons less_Suc_eq_le old.nat.inject)
   have snd_G3'_le_G4: "snd (G3' ! i) \<le> snd (G4 ! i)"
-    using i_in_e1e2e3 cg_gen_fv_elem_size cg_case.hyps cg_ctx_length alg_ctx_jn_type_used_nondec2 
+    using i_in_e1e2e3 cg_gen_fv_elem_size cg_case.hyps cg_ctx_length alg_ctx_jn_type_checked_nondec2 
       cg_case.hyps i_fv'_suc_iff_suc_i_fv'
     by (metis Suc_le_lessD length_Cons less_Suc_eq_le old.nat.inject)
   consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv' (Suc 0) e2" | (i_in_e3) "i \<in> fv' (Suc 0) e3"
@@ -1840,33 +1844,33 @@ next
   proof cases
     case i_in_e1
     then have "snd (G2 ! i) \<le> snd (G3 ! i)"
-      using cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_irref.hyps
+      using cg_ctx_length cg_ctx_type_checked_nondec cg_gen_fv_elem_size cg_irref.hyps
       by (metis Suc_less_eq length_Cons nth_Cons_Suc)
     then show ?thesis
       using cg_irref.hyps i_in_e1 by force
   next
     case i_in_e2
     then have "snd (G1 ! i) \<le> snd (G2 ! i)"
-      using i_in_e2 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size cg_irref 
+      using i_in_e2 cg_ctx_length cg_ctx_type_checked_nondec cg_gen_fv_elem_size cg_irref 
         i_fv'_suc_iff_suc_i_fv' by (metis length_Cons not_less_eq)
     then show ?thesis
       using cg_irref.hyps i_fv'_suc_iff_suc_i_fv' i_in_e2 by fastforce
   qed
 qed (simp)+
 
-lemma cg_gen_output_type_used_nonzero:
+lemma cg_gen_output_type_checked_nonzero:
   assumes "G1,n1 \<turnstile> e : \<tau> \<leadsto> G2,n2 | C1 | e1'"
       and "i \<in> fv(e)"
   shows "snd (G2 ! i) > 0"
-  using assms cg_gen_output_type_used_inc by fastforce
+  using assms cg_gen_output_type_checked_inc by fastforce
 
-lemma cg_gen_output_type_used_diff:
+lemma cg_gen_output_type_checked_diff:
   assumes "G1,n1 \<turnstile> e : \<tau> \<leadsto> G2,n2 | C1 | e1'"
     and "i \<in> fv(e)"
   shows "snd (G2 ! i) \<noteq> snd (G1 ! i)"
-  using assms cg_gen_output_type_used_inc by fastforce
+  using assms cg_gen_output_type_checked_inc by fastforce
 
-lemma cg_gen_type_used_nonzero_imp_share:
+lemma cg_gen_type_checked_nonzero_imp_share:
   assumes "G1,n1 \<turnstile> e : \<tau> \<leadsto> G2,n2 | C1 | e1'"
     and "i \<in> fv(e)"
     and "snd (G1 ! i) > 0"
@@ -1894,7 +1898,7 @@ next
   next
     case i_in_e2
     then show ?thesis 
-      using cg_ctx_type_same1 cg_ctx_type_used_nondec cg_ctx_length cg_gen_fv_elem_size
+      using cg_ctx_type_same1 cg_ctx_type_checked_nondec cg_ctx_length cg_gen_fv_elem_size
         cg_app by (metis neq0_conv not_le ct_sem_conjE)
   qed
 next
@@ -1909,7 +1913,7 @@ next
   next
     case i_in_e2
     then show ?thesis 
-      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_checked_nondec cg_gen_fv_elem_size
         ct_sem_conjE i_fv'_suc_iff_suc_i_fv' cg_let
       by (metis Suc_less_eq gt_or_eq_0 leD length_Cons nth_Cons_Suc)
   qed
@@ -1923,7 +1927,7 @@ next
     have i_size: "i < length G1"
       using cg_gen_fv_elem_size i_in_e1 cg_letb.hyps bang_cg_ctx_length by metis
     then show ?thesis
-      using i_in_e1 cg_letb bang_cg_ctx_type_used_same bang_cg_ctx_type_prop i_size
+      using i_in_e1 cg_letb bang_cg_ctx_type_checked_same bang_cg_ctx_type_prop i_size
         ct_sem_conjE by metis
   next
     case i_in_e2
@@ -1944,11 +1948,11 @@ next
       have "0 < snd (((\<alpha>, 0) # set0_cg_ctx ys G2) ! Suc i)"
       proof -
         have "0 < snd ((bang_cg_ctx ys G1) ! i)"
-          using cg_letb.prems False bang_cg_ctx_type_used_same i_size2 by simp
+          using cg_letb.prems False bang_cg_ctx_type_checked_same i_size2 by simp
         then have "0 < snd ((bang_cg_ctx ys G2) ! i)"
-          using cg_ctx_type_used_nondec[where G="bang_cg_ctx ys G1"] cg_letb.hyps i_size2 by force
+          using cg_ctx_type_checked_nondec[where G="bang_cg_ctx ys G1"] cg_letb.hyps i_size2 by force
         then show ?thesis
-          using False bang_cg_ctx_type_used_same i_size set0_cg_ctx_type_used_prop by simp
+          using False bang_cg_ctx_type_checked_same i_size set0_cg_ctx_type_checked_prop by simp
       qed
       moreover have "\<rho> = fst (((\<alpha>, 0) # set0_cg_ctx ys G2) ! Suc i)"
       proof -
@@ -1970,17 +1974,17 @@ next
   proof cases
     case i_in_e1
     then show ?thesis 
-      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_checked_nondec cg_gen_fv_elem_size
         cg_if ct_sem_conjE by metis
   next
     case i_in_e2
     then show ?thesis 
-      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_checked_nondec cg_gen_fv_elem_size
         cg_if ct_sem_conjE by (metis (no_types, lifting) gt_or_eq_0 leD)
   next
     case i_in_e3
     then show ?thesis 
-      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_checked_nondec cg_gen_fv_elem_size
         cg_if ct_sem_conjE by (metis (no_types, lifting) gt_or_eq_0 leD)
   qed
 next
@@ -1991,12 +1995,12 @@ next
   proof cases
     case i_in_e1
     then show ?thesis 
-      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_checked_nondec cg_gen_fv_elem_size
         cg_iop ct_sem_conjE by metis
   next
     case i_in_e2
     then show ?thesis
-      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_checked_nondec cg_gen_fv_elem_size
         cg_iop ct_sem_conjE by (metis (mono_tags, lifting) gt_or_eq_0 leD)
   qed
 next
@@ -2007,12 +2011,12 @@ next
   proof cases
     case i_in_e1
     then show ?thesis 
-      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_checked_nondec cg_gen_fv_elem_size
         cg_cop ct_sem_conjE by metis
   next
     case i_in_e2
     then show ?thesis 
-      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_checked_nondec cg_gen_fv_elem_size
         cg_cop ct_sem_conjE by (metis (mono_tags, lifting) gt_or_eq_0 leD)
   qed
 next
@@ -2023,12 +2027,12 @@ next
   proof cases
     case i_in_e1
     then show ?thesis 
-      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_checked_nondec cg_gen_fv_elem_size
         cg_bop ct_sem_conjE by metis
   next
     case i_in_e2
     then show ?thesis
-      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_checked_nondec cg_gen_fv_elem_size
         cg_bop ct_sem_conjE by (metis (mono_tags, lifting) gt_or_eq_0 leD)
   qed
 next
@@ -2047,7 +2051,7 @@ next
   next
     case i_in_e2
     have "0 < snd (((\<beta>, 0) # G2) ! Suc i)"
-      using cg_case i_in_e2 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size 
+      using cg_case i_in_e2 cg_ctx_length cg_ctx_type_checked_nondec cg_gen_fv_elem_size 
         i_fv'_suc_iff_suc_i_fv' by (metis Suc_less_eq  gr_zeroI leD length_Cons nth_Cons_Suc)
     moreover have "\<rho> = fst (((\<beta>, 0) # G2) ! Suc i)"
       using cg_case cg_ctx_length cg_gen_fv_elem_size i_fv'_suc_iff_suc_i_fv' i_in_e2 
@@ -2057,10 +2061,10 @@ next
       using i_fv'_suc_iff_suc_i_fv' i_in_e2 cg_case ct_sem_conj_iff by metis
   next
     case i_in_e3
-    have "0 < snd (((TVariant [(nm, \<beta>, Used)] (Some \<alpha>), 0) # G2) ! Suc i)"
-      using cg_case i_in_e3 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size 
+    have "0 < snd (((TVariant [(nm, \<beta>, Checked)] (Some \<alpha>), 0) # G2) ! Suc i)"
+      using cg_case i_in_e3 cg_ctx_length cg_ctx_type_checked_nondec cg_gen_fv_elem_size 
         i_fv'_suc_iff_suc_i_fv' by (metis Suc_less_eq  gr_zeroI leD length_Cons nth_Cons_Suc)
-    moreover have "\<rho> = fst (((TVariant [(nm, \<beta>, Used)] (Some \<alpha>), 0) # G2) ! Suc i)"
+    moreover have "\<rho> = fst (((TVariant [(nm, \<beta>, Checked)] (Some \<alpha>), 0) # G2) ! Suc i)"
       using cg_case cg_ctx_length cg_gen_fv_elem_size i_fv'_suc_iff_suc_i_fv' i_in_e3
         cg_ctx_type_same1
       by (metis length_Cons less_SucE list.size(4) not_add_less1 nth_Cons_Suc)
@@ -2079,7 +2083,7 @@ next
   next
     case i_in_e2
     have "snd (G1 ! i) \<le> snd (G2 ! i)"
-      using i_in_e2 cg_ctx_length cg_irref i_fv'_suc_iff_suc_i_fv' cg_ctx_type_used_nondec 
+      using i_in_e2 cg_ctx_length cg_irref i_fv'_suc_iff_suc_i_fv' cg_ctx_type_checked_nondec 
         cg_gen_fv_elem_size by (metis Suc_less_SucD length_Cons)
     moreover have "\<rho> = fst (((\<beta>, 0) # G2) ! Suc i)"
       using i_in_e2 cg_ctx_length cg_irref i_fv'_suc_iff_suc_i_fv' cg_ctx_type_same1 
@@ -2090,7 +2094,7 @@ next
   qed
 qed (simp)+
 
-lemma cg_gen_output_type_unused_same:
+lemma cg_gen_output_type_unchecked_same:
   assumes "G1,n1 \<turnstile> e : \<tau> \<leadsto> G2,n2 | C1 | e1'"
       and "i \<notin> fv(e)"
       and "i < length G1"
@@ -2111,17 +2115,17 @@ next
   proof cases
     case i_in_e1
     then show ?thesis
-      using cg_letb i_size set0_cg_ctx_length set0_cg_ctx_type_used_prop by fastforce
+      using cg_letb i_size set0_cg_ctx_length set0_cg_ctx_type_checked_prop by fastforce
   next
     case i_in_neither
     then show ?thesis
       using i_size bang_cg_ctx_length cg_letb i_in_neither set0_cg_ctx_length 
-        set0_cg_ctx_type_used_prop bang_cg_ctx_type_used_same by fastforce
+        set0_cg_ctx_type_checked_prop bang_cg_ctx_type_checked_same by fastforce
   qed
 next
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
   then show ?case     
-    using alg_ctx_jn_type_used_max cg_ctx_idx_size by simp
+    using alg_ctx_jn_type_checked_max cg_ctx_idx_size by simp
 next
   case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
   then show ?case
@@ -2131,7 +2135,7 @@ next
     then moreover have "snd (G1 ! i) = snd (G3 ! i)" "snd (G3 ! i) = snd (G3' ! i)" "i < length G3"
       using cg_case cg_ctx_length by (metis (no_types) Suc_less_eq length_Cons nth_Cons_Suc)+
     ultimately show ?thesis
-      using alg_ctx_jn_length alg_ctx_jn_type_used_same cg_case.hyps by auto
+      using alg_ctx_jn_length alg_ctx_jn_type_checked_same cg_case.hyps by auto
   qed
 next
   case (cg_irref \<alpha> n1 \<beta> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
@@ -2139,7 +2143,7 @@ next
     using cg_ctx_length i_fv'_suc_iff_suc_i_fv' by fastforce
 qed (simp add: cg_ctx_idx_size)+
 
-lemma cg_assign_type_used_nonzero_imp_share:
+lemma cg_assign_type_checked_nonzero_imp_share:
   assumes "G1,n1 \<turnstile> e : \<tau> \<leadsto> G2,n2 | C1 | e1'"
       and "i \<in> fv(e)"
       and "snd (G1 ! i) > 0"
@@ -2168,7 +2172,7 @@ next
   next
     case i_in_e2
     then show ?thesis 
-      using cg_ctx_type_same1 cg_ctx_type_used_nondec cg_ctx_length cg_gen_fv_elem_size
+      using cg_ctx_type_same1 cg_ctx_type_checked_nondec cg_ctx_length cg_gen_fv_elem_size
         cg_app assign_app_constr.simps by (metis (no_types, lifting) gt_or_eq_0 leD ct_sem_conjE)
   qed
 next
@@ -2183,7 +2187,7 @@ next
   next
     case i_in_e2
     then show ?thesis 
-      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_checked_nondec cg_gen_fv_elem_size
         ct_sem_conjE i_fv'_suc_iff_suc_i_fv' cg_let assign_app_constr.simps
       by (metis (no_types, lifting) Suc_less_eq gr0I leD length_Cons nth_Cons_Suc)
   qed
@@ -2199,7 +2203,7 @@ next
     have "A \<turnstile> assign_app_constr S S' C1"
       using cg_letb ct_sem_conj_iff assign_app_constr.simps by force
     then show ?thesis
-      using i_in_e1 cg_letb bang_cg_ctx_type_used_same bang_cg_ctx_type_prop i_size by metis
+      using i_in_e1 cg_letb bang_cg_ctx_type_checked_same bang_cg_ctx_type_prop i_size by metis
   next
     case i_in_e2
     have i_size: "i < length G2"
@@ -2219,11 +2223,11 @@ next
       have "0 < snd (((\<alpha>, 0) # set0_cg_ctx ys G2) ! Suc i)"
       proof -
         have "0 < snd ((bang_cg_ctx ys G1) ! i)"
-          using cg_letb.prems False bang_cg_ctx_type_used_same i_size2 by simp
+          using cg_letb.prems False bang_cg_ctx_type_checked_same i_size2 by simp
         then have "0 < snd ((bang_cg_ctx ys G2) ! i)"
-          using cg_ctx_type_used_nondec[where G="bang_cg_ctx ys G1"] cg_letb.hyps i_size2 by force
+          using cg_ctx_type_checked_nondec[where G="bang_cg_ctx ys G1"] cg_letb.hyps i_size2 by force
         then show ?thesis
-          using False bang_cg_ctx_type_used_same i_size set0_cg_ctx_type_used_prop by simp
+          using False bang_cg_ctx_type_checked_same i_size set0_cg_ctx_type_checked_prop by simp
       qed
       moreover have "\<rho> = fst (((\<alpha>, 0) # set0_cg_ctx ys G2) ! Suc i)"
       proof -
@@ -2247,17 +2251,17 @@ next
   proof cases
     case i_in_e1
     then show ?thesis 
-      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_checked_nondec cg_gen_fv_elem_size
         cg_if ct_sem_conjE assign_app_constr.simps by metis
   next
     case i_in_e2
     then show ?thesis 
-      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_checked_nondec cg_gen_fv_elem_size
         cg_if ct_sem_conjE assign_app_constr.simps by (metis (no_types, lifting) leD not_gr_zero)
   next
     case i_in_e3
     then show ?thesis 
-      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_checked_nondec cg_gen_fv_elem_size
         cg_if ct_sem_conjE assign_app_constr.simps by (metis (no_types, lifting) gt_or_eq_0 leD)
   qed
 next
@@ -2268,12 +2272,12 @@ next
   proof cases
     case i_in_e1
     then show ?thesis 
-      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_checked_nondec cg_gen_fv_elem_size
         cg_iop ct_sem_conjE assign_app_constr.simps by metis
   next
     case i_in_e2
     then show ?thesis 
-      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_checked_nondec cg_gen_fv_elem_size
         cg_iop ct_sem_conjE assign_app_constr.simps by (metis (mono_tags, lifting) gt_or_eq_0 leD)
   qed
 next
@@ -2284,12 +2288,12 @@ next
   proof cases
     case i_in_e1
     then show ?thesis 
-      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_checked_nondec cg_gen_fv_elem_size
         cg_cop ct_sem_conjE assign_app_constr.simps by metis
   next
     case i_in_e2
     then show ?thesis 
-      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_checked_nondec cg_gen_fv_elem_size
         cg_cop ct_sem_conjE assign_app_constr.simps by (metis (mono_tags, lifting) gt_or_eq_0 leD)
   qed
 next
@@ -2300,12 +2304,12 @@ next
   proof cases
     case i_in_e1
     then show ?thesis 
-      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_checked_nondec cg_gen_fv_elem_size
         cg_bop ct_sem_conjE assign_app_constr.simps by metis
   next
     case i_in_e2
     then show ?thesis 
-      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_used_nondec cg_gen_fv_elem_size
+      using cg_ctx_length cg_ctx_type_same1 cg_ctx_type_checked_nondec cg_gen_fv_elem_size
         cg_bop ct_sem_conjE assign_app_constr.simps by (metis (mono_tags, lifting) gt_or_eq_0 leD)
   qed
 next
@@ -2324,7 +2328,7 @@ next
   next
     case i_in_e2
     have "0 < snd (((\<beta>, 0) # G2) ! Suc i)"
-      using cg_case i_in_e2 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size 
+      using cg_case i_in_e2 cg_ctx_length cg_ctx_type_checked_nondec cg_gen_fv_elem_size 
         i_fv'_suc_iff_suc_i_fv' by (metis Suc_less_eq  gr_zeroI leD length_Cons nth_Cons_Suc)
     moreover have "\<rho> = fst (((\<beta>, 0) # G2) ! Suc i)"
       using cg_case cg_ctx_length cg_gen_fv_elem_size i_fv'_suc_iff_suc_i_fv' i_in_e2 
@@ -2335,10 +2339,10 @@ next
       by metis
   next
     case i_in_e3
-    have "0 < snd (((TVariant [(nm, \<beta>, Used)] (Some \<alpha>), 0) # G2) ! Suc i)"
-      using cg_case i_in_e3 cg_ctx_length cg_ctx_type_used_nondec cg_gen_fv_elem_size 
+    have "0 < snd (((TVariant [(nm, \<beta>, Checked)] (Some \<alpha>), 0) # G2) ! Suc i)"
+      using cg_case i_in_e3 cg_ctx_length cg_ctx_type_checked_nondec cg_gen_fv_elem_size 
         i_fv'_suc_iff_suc_i_fv' by (metis Suc_less_eq  gr_zeroI leD length_Cons nth_Cons_Suc)
-    moreover have "\<rho> = fst (((TVariant [(nm, \<beta>, Used)] (Some \<alpha>), 0) # G2) ! Suc i)"
+    moreover have "\<rho> = fst (((TVariant [(nm, \<beta>, Checked)] (Some \<alpha>), 0) # G2) ! Suc i)"
       using cg_case cg_ctx_length cg_gen_fv_elem_size i_fv'_suc_iff_suc_i_fv' i_in_e3
         cg_ctx_type_same1
       by (metis length_Cons less_SucE list.size(4) not_add_less1 nth_Cons_Suc)
@@ -2359,7 +2363,7 @@ next
   next
     case i_in_e2
     have "snd (G1 ! i) \<le> snd (G2 ! i)"
-      using i_in_e2 cg_ctx_length cg_irref i_fv'_suc_iff_suc_i_fv' cg_ctx_type_used_nondec 
+      using i_in_e2 cg_ctx_length cg_irref i_fv'_suc_iff_suc_i_fv' cg_ctx_type_checked_nondec 
         cg_gen_fv_elem_size by (metis Suc_less_SucD length_Cons)
     moreover have "\<rho> = fst (((\<beta>, 0) # G2) ! Suc i)"
       using i_in_e2 cg_ctx_length cg_irref i_fv'_suc_iff_suc_i_fv' cg_ctx_type_same1 
@@ -2432,7 +2436,7 @@ lemma split_unionR:
   using assms split_unionR' by simp
 
 section {* Lemma 3.1 *}
-lemma split_used:
+lemma split_checked:
   assumes "fv e = (fv e1) \<union> (fv e2)"
     and "G1,n1 \<turnstile> e1 : \<tau> \<leadsto> G2,n2 | C1 | e1'"
     and "G2,n2 \<turnstile> e2 : \<rho> \<leadsto> G3,n3 | C2 | e2'"
@@ -2482,10 +2486,10 @@ proof -
             no_i_in_e1_SG1e1_none ctx_split_right by auto
       next
         case case_3
-        have i_type_used: "snd (G2!i) > 0"
-          using cg_gen_output_type_used_nonzero assms case_3 by auto
+        have i_type_checked: "snd (G2!i) > 0"
+          using cg_gen_output_type_checked_nonzero assms case_3 by auto
         then have i_type_share: "A \<turnstile> CtShare (assign_app_ty S S' (fst (G2!i)))"
-          using assms case_3 cg_assign_type_used_nonzero_imp_share by simp
+          using assms case_3 cg_assign_type_checked_nonzero_imp_share by simp
         moreover have "(?SG1e ! i) = (?SG1e1 ! i)"
           using i_in_e case_3 i_size ctx_restrict_len ctx_restrict_nth_some assign_app_ctx_def by auto
         moreover have "(?SG1e1 ! i) = (?SG2e2 ! i)"
@@ -2509,7 +2513,7 @@ proof -
     by (metis (full_types) list_all3_conv_all_nth)
 qed
 
-lemma split_used_let:
+lemma split_checked_let:
   assumes "e = Let e1 e2"
     and "G1,n1 \<turnstile> e1 : \<tau> \<leadsto> G2,n2 | C1 | e1'"
     and "((\<tau>,m) # G2),n2 \<turnstile> e2 : \<rho> \<leadsto> ((\<tau>,m') # G3),n3 | C2 | e2'"
@@ -2572,10 +2576,10 @@ proof -
             no_i_in_e1_SG1e1_none ctx_split_right by metis
       next
         case case_3
-        have i_type_used: "snd (G2 ! i) > 0"
-          using cg_gen_output_type_used_nonzero assms case_3 by auto
+        have i_type_checked: "snd (G2 ! i) > 0"
+          using cg_gen_output_type_checked_nonzero assms case_3 by auto
         then have i_type_share: "A \<turnstile> CtShare (assign_app_ty S S' (fst (G2!i)))"
-          using assms case_3 cg_assign_type_used_nonzero_imp_share
+          using assms case_3 cg_assign_type_checked_nonzero_imp_share
           by (metis fv'_suc_eq_minus_fv' i_fv'_suc_iff_suc_i_fv' nth_Cons_Suc)
         moreover have "(?SG1e ! i) = (?SG1e1 ! i)"
           using i_in_e case_3 i_size ctx_restrict_len ctx_restrict_nth_some assign_app_ctx_def by auto
@@ -2600,7 +2604,7 @@ proof -
     by (metis (full_types) list_all3_conv_all_nth)
 qed
 
-lemma split_used_letb:
+lemma split_checked_letb:
   assumes "e = LetBang ys e1 e2"
     and "(bang_cg_ctx ys G1),(Suc n1) \<turnstile> e1 : \<alpha> \<leadsto> (bang_cg_ctx ys G2),n2 | C1 | e1'"
     and "((\<alpha>, 0) # (set0_cg_ctx ys G2)),n2 \<turnstile> e2 : \<tau> \<leadsto> ((\<alpha>, m) # G3),n3 | C2 | e2'"
@@ -2655,11 +2659,11 @@ proof -
       next
         case case_3
         have "snd (G2 ! i) > 0"
-          using cg_gen_output_type_used_nonzero assms case_3 bang_cg_ctx_type_used_same i_size 
+          using cg_gen_output_type_checked_nonzero assms case_3 bang_cg_ctx_type_checked_same i_size 
             bang_cg_ctx_length cg_ctx_length by (metis DiffE)
         then moreover have "A \<turnstile> CtShare (assign_app_ty S S' (fst (G2!i)))"
           using G1_G2_length assms case_3 fv'_suc_eq_minus_fv' i_fv'_suc_iff_suc_i_fv' i_size
-            set0_cg_ctx_type_same set0_cg_ctx_type_used_prop cg_assign_type_used_nonzero_imp_share
+            set0_cg_ctx_type_same set0_cg_ctx_type_checked_prop cg_assign_type_checked_nonzero_imp_share
           by (metis DiffE mem_Collect_eq nth_Cons_Suc)
         moreover have "fst (G1 ! i) = fst (G2 ! i)"
           using assms bang_cg_ctx_length bang_cg_ctx_type_prop case_3 i_size cg_ctx_length 
@@ -2678,7 +2682,7 @@ proof -
     by (clarsimp simp add: list_all3_conv_all_nth) 
 qed
 
-lemma split_used_if:
+lemma split_checked_if:
   assumes "e = If e1 e2 e3"
     and "G1,n1 \<turnstile> e1 : (TPrim Bool) \<leadsto> G2,n2 | C1 | e1'"
     and "G2,n2 \<turnstile> e2 : \<tau> \<leadsto> G3,n3 | C2 | e2'"
@@ -2732,10 +2736,10 @@ proof -
             no_i_in_e1_SG1e1_none cg_ctx_type_same1 ctx_split_right by auto
       next
         case case_3
-        have i_type_used: "snd (G2 ! i) > 0"
-          using cg_gen_output_type_used_nonzero assms case_3 by auto
+        have i_type_checked: "snd (G2 ! i) > 0"
+          using cg_gen_output_type_checked_nonzero assms case_3 by auto
         then have i_type_share: "A \<turnstile> CtShare (assign_app_ty S S' (fst (G2 ! i)))"
-          using assms case_3 cg_assign_type_used_nonzero_imp_share by blast
+          using assms case_3 cg_assign_type_checked_nonzero_imp_share by blast
         moreover have "(?SG1e ! i) = (?SG1e1 ! i)"
           using i_in_e case_3 i_size ctx_restrict_len ctx_restrict_nth_some assign_app_ctx_def
           by auto
@@ -2760,7 +2764,7 @@ proof -
     by (metis (full_types) list_all3_conv_all_nth)
 qed 
 
-lemma split_used_case:
+lemma split_checked_case:
   assumes "e = Case e1 nm e2 e3"
     and "G1,n1 \<turnstile> e1 : \<alpha> \<leadsto> G2,n2 | C1 | e1'"
     and "(\<beta>, 0) # G2,n2 \<turnstile> e2 : \<tau> \<leadsto> (\<beta>, m) # G3,n3 | C2 | e2'"
@@ -2812,22 +2816,22 @@ proof -
         assume i_in_e2e3: "i \<in> dec_fv_e2 \<union> dec_fv_e3"
         have "A \<turnstile> CtShare (assign_app_ty S S' (fst (G1 ! i)))"
         proof -
-          have i_type_used: "snd (G2 ! i) > 0"
-            using cg_gen_output_type_used_nonzero assms i_in_e1 by auto
+          have i_type_checked: "snd (G2 ! i) > 0"
+            using cg_gen_output_type_checked_nonzero assms i_in_e1 by auto
           consider (suc_i_in_e2) "Suc i \<in> fv e2" | (suc_i_in_e3) "Suc i \<in> fv e3"
             using i_in_e2e3 fv'_suc_eq_minus_fv'  assms by fastforce
           then show ?thesis
           proof cases
             case suc_i_in_e2
             have "A \<turnstile> CtShare (assign_app_ty S S' (fst (((\<beta>, 0) # G2) ! Suc i)))"
-              using assms suc_i_in_e2 cg_assign_type_used_nonzero_imp_share i_type_used 
+              using assms suc_i_in_e2 cg_assign_type_checked_nonzero_imp_share i_type_checked 
                 nth_Cons_Suc by metis
             then show ?thesis
               using G1_G2_length cg_ctx_type_same1 i_size assms by force
           next
             case suc_i_in_e3
             have "A \<turnstile> CtShare (assign_app_ty S S' (fst (((\<gamma>, 0) # G2) ! Suc i)))"
-              using assms suc_i_in_e3 cg_assign_type_used_nonzero_imp_share i_type_used 
+              using assms suc_i_in_e3 cg_assign_type_checked_nonzero_imp_share i_type_checked 
                 nth_Cons_Suc by metis
             then show ?thesis
               using G1_G2_length cg_ctx_type_same1 i_size assms by force
@@ -2853,7 +2857,7 @@ proof -
     by (simp add: list_all3_conv_all_nth)
       qed
 
-lemma split_used_irref:
+lemma split_checked_irref:
   assumes "e = Esac e1 nm e2"
     and "G1,n1 \<turnstile> e1 : \<alpha> \<leadsto> G2,n2 | C1 | e1'"
     and "(\<beta>, 0) # G2,n2 \<turnstile> e2 : \<tau> \<leadsto> (\<beta>, m) # G3,n3 | C2 | e2'"
@@ -2902,11 +2906,11 @@ proof -
         assume i_in_e2: "i \<in> dec_fv_e2"
         have "A \<turnstile> CtShare (assign_app_ty S S' (fst (G1 ! i)))"
         proof -
-          have i_type_used: "snd (G2 ! i) > 0"
-            using cg_gen_output_type_used_nonzero assms i_in_e1 by auto
+          have i_type_checked: "snd (G2 ! i) > 0"
+            using cg_gen_output_type_checked_nonzero assms i_in_e1 by auto
           then have "A \<turnstile> CtShare (assign_app_ty S S' (fst (((\<beta>, 0) # G2) ! Suc i)))"
             using assms fv'_suc_eq_minus_fv' i_fv'_suc_iff_suc_i_fv' i_in_e2 
-            cg_assign_type_used_nonzero_imp_share nth_Cons_Suc by (metis nth_Cons_Suc)
+            cg_assign_type_checked_nonzero_imp_share nth_Cons_Suc by (metis nth_Cons_Suc)
           then show ?thesis
             using G1_G2_length cg_ctx_type_same1 i_size assms by force
         qed
@@ -2928,7 +2932,7 @@ proof -
     by (simp add: list_all3_conv_all_nth)
       qed
 
-lemma split_used_extR:
+lemma split_checked_extR:
   assumes "G1,n1 \<turnstile> e1 : \<tau> \<leadsto> G2,n2 | C1 | e1'"
     and "G2,n2 \<turnstile> e2 : \<rho> \<leadsto> G3,n3 | C2 | e2'"
     and "A \<turnstile> assign_app_constr S S' C2"
@@ -2945,7 +2949,7 @@ lemma split_used_extR:
   using assms
 proof -
   have "A \<turnstile> assign_app_ctx S S' (G1\<bar>fv e) \<leadsto> \<Gamma>1 \<box> assign_app_ctx S S' (G2\<bar>fv e2)"
-    using split_used assms by blast
+    using split_checked assms by blast
   then have "A \<turnstile> assign_app_ctx S S' (G1\<bar>fv e \<union> idxs) \<leadsto> \<Gamma>1 \<box> \<Gamma>2"
     using assms by (rule_tac split_unionR; force intro: cg_ctx_type_same1)
   moreover have "\<Gamma> = assign_app_ctx S S' (G1\<bar>fv e \<union> idxs)"
@@ -2988,7 +2992,7 @@ proof -
     by auto
 qed
 
-lemma split_used_let_extR:
+lemma split_checked_let_extR:
   assumes "e = Let e1 e2"
     and "G1,n1 \<turnstile> e1 : \<tau> \<leadsto> G2,n2 | C1 | e1'"
     and "((\<tau>,m) # G2),n2 \<turnstile> e2 : \<rho> \<leadsto> ((\<tau>,m') # G3),n3 | C2 | e2'"
@@ -3007,7 +3011,7 @@ lemma split_used_let_extR:
   using assms
 proof -
   have "A \<turnstile> assign_app_ctx S S' (G1\<bar>fv e) \<leadsto> \<Gamma>1 \<box> assign_app_ctx S S' (G2\<bar>dec_fv_e2)"
-    using split_used_let assms by simp
+    using split_checked_let assms by simp
   then have "A \<turnstile> assign_app_ctx S S' (G1\<bar>fv e \<union> idxs) \<leadsto> \<Gamma>1 \<box> \<Gamma>2"
     using assms fv'_suc_eq_minus_fv' by (rule_tac split_unionR; auto intro: cg_ctx_type_same1)
   moreover have "\<Gamma> = assign_app_ctx S S' (G1\<bar>fv e \<union> idxs)"
@@ -3051,7 +3055,7 @@ proof -
     by auto
 qed
 
-lemma split_used_letb_extR:
+lemma split_checked_letb_extR:
   assumes "e = LetBang ys e1 e2"
     and "(bang_cg_ctx ys G1),(Suc n1) \<turnstile> e1 : \<alpha> \<leadsto> (bang_cg_ctx ys G2),n2 | C1 | e1'"
     and "((\<alpha>, 0) # (set0_cg_ctx ys G2)),n2 \<turnstile> e2 : \<tau> \<leadsto> ((\<alpha>, m) # G3),n3 | C2 | e2'"
@@ -3075,7 +3079,7 @@ proof -
         bang_cg_ctx_type_prop bang_cg_ctx_length cg_ctx_length type.inject
       by (metis (no_types, lifting))
     moreover have "A \<turnstile> assign_app_ctx S S' (G1\<bar>fv e) \<leadsto> \<Gamma>1 \<box> assign_app_ctx S S' (G2\<bar>dec_fv_e2)"
-      using split_used_letb assms by simp
+      using split_checked_letb assms by simp
     moreover have "fv e1 - {y. ys ! y} \<union> fv' (Suc 0) e2 = fv e1 - {y. ys ! y} \<union> dec_fv_e2"
       using assms fv'_suc_eq_minus_fv' by metis
     ultimately show ?thesis
@@ -3120,7 +3124,7 @@ proof -
     using assms by argo
 qed
 
-lemma split_used_if_extR:
+lemma split_checked_if_extR:
   assumes "e = If e1 e2 e3"
     and "G1,n1 \<turnstile> e1 : (TPrim Bool) \<leadsto> G2,n2 | C1 | e1'"
     and "G2,n2 \<turnstile> e2 : \<tau> \<leadsto> G3,n3 | C2 | e2'"
@@ -3140,7 +3144,7 @@ lemma split_used_if_extR:
   using assms
 proof -
   have "A \<turnstile> assign_app_ctx S S' (G1\<bar>fv e) \<leadsto> \<Gamma>1 \<box> assign_app_ctx S S' (G2\<bar>(fv e2 \<union> fv e3))"
-    using split_used_if assms by meson
+    using split_checked_if assms by meson
   then have "A \<turnstile> assign_app_ctx S S' (G1\<bar>fv e \<union> idxs) \<leadsto> \<Gamma>1 \<box> \<Gamma>2"
     using assms by (rule_tac split_unionR; auto intro: cg_ctx_type_same1)
   moreover have "\<Gamma> = assign_app_ctx S S' (G1\<bar>fv e \<union> idxs)"
@@ -3184,7 +3188,7 @@ proof -
     by auto
 qed
 
-lemma split_used_case_extR:
+lemma split_checked_case_extR:
   assumes "e = Case e1 nm e2 e3"
     and "G1,n1 \<turnstile> e1 : \<alpha> \<leadsto> G2,n2 | C1 | e1'"
     and "(\<beta>, 0) # G2,n2 \<turnstile> e2 : \<tau> \<leadsto> (\<beta>, m) # G3,n3 | C2 | e2'"
@@ -3206,7 +3210,7 @@ lemma split_used_case_extR:
   using assms
 proof -
   have "A \<turnstile> assign_app_ctx S S' (G1\<bar>fv e) \<leadsto> \<Gamma>1 \<box> assign_app_ctx S S' (G2\<bar>(dec_fv_e2 \<union> dec_fv_e3))"
-    using split_used_case assms by meson
+    using split_checked_case assms by meson
   then have "A \<turnstile> assign_app_ctx S S' (G1\<bar>fv e \<union> idxs) \<leadsto> \<Gamma>1 \<box> \<Gamma>2"
     using fv'_suc_eq_minus_fv' assms by (rule_tac split_unionR; auto intro: cg_ctx_type_same1)
   moreover have "\<Gamma> = assign_app_ctx S S' (G1\<bar>fv e \<union> idxs)"
@@ -3246,7 +3250,7 @@ proof -
     by auto
 qed
 
-lemma split_used_irref_extR:
+lemma split_checked_irref_extR:
   assumes "e = Esac e1 nm e2"
     and "G1,n1 \<turnstile> e1 : \<alpha> \<leadsto> G2,n2 | C1 | e1'"
     and "(\<beta>, 0) # G2,n2 \<turnstile> e2 : \<tau> \<leadsto> (\<beta>, m) # G3,n3 | C2 | e2'"
@@ -3265,7 +3269,7 @@ lemma split_used_irref_extR:
   using assms
 proof -
   have "A \<turnstile> assign_app_ctx S S' (G1\<bar>fv e) \<leadsto> \<Gamma>1 \<box> assign_app_ctx S S' (G2\<bar>dec_fv_e2)"
-    using split_used_irref assms by meson
+    using split_checked_irref assms by meson
   then have "A \<turnstile> assign_app_ctx S S' (G1\<bar>fv e \<union> idxs) \<leadsto> \<Gamma>1 \<box> \<Gamma>2"
     using fv'_suc_eq_minus_fv' assms by (rule_tac split_unionR; auto intro: cg_ctx_type_same1)
   moreover have "\<Gamma> = assign_app_ctx S S' (G1\<bar>fv e \<union> idxs)"
@@ -3307,7 +3311,7 @@ qed
 
 
 section {* Soundness of Generation (Thm 3.2) *}
-definition assign_prop :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow> (string \<times> type \<times> usage_tag) list) \<Rightarrow> bool" where
+definition assign_prop :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow> (string \<times> type \<times> variant_usage_tag) list) \<Rightarrow> bool" where
   "assign_prop S S' \<equiv> (\<forall>i. known_ty (S i)) & 
                       (\<forall>Ks Ks' m. assign_app_ty S S' (TVariant Ks (Some m)) = TVariant Ks' None 
                                   \<longrightarrow> distinct (map fst Ks')) &
@@ -3420,7 +3424,7 @@ next
   let ?\<Gamma>2 = "assign_app_ctx S S' (G2\<bar>fv e2 \<union> ?idxs)"
   have "A \<turnstile> \<Gamma> \<leadsto> ?\<Gamma>1 \<box> ?\<Gamma>2"
     using cg_app assign_prop_def
-  proof (rule_tac split_used_extR)
+  proof (rule_tac split_checked_extR)
     show "A \<turnstile> assign_app_constr S S' C2"
       using cg_app assign_app_constr.simps ct_sem_conjE by metis
     show "\<And>i. i < length G1 \<Longrightarrow> if i \<in> fv' 0 (App e1 e2) 
@@ -3465,7 +3469,7 @@ next
   let ?\<Gamma>2 = "assign_app_ctx S S' (G2\<bar>?dec_fv_e2 \<union> ?idxs)"
   have "A \<turnstile> \<Gamma> \<leadsto> ?\<Gamma>1 \<box> ?\<Gamma>2"
     using cg_let assign_prop_def
-  proof (rule_tac split_used_let_extR)
+  proof (rule_tac split_checked_let_extR)
     show "A \<turnstile> assign_app_constr S S' C2"
       using cg_let assign_app_constr.simps ct_sem_conjE by metis
     show "\<And>i. i < length G1 \<Longrightarrow> if i \<in> fv ?e 
@@ -3497,7 +3501,7 @@ next
     proof (cases "i = 0")
       case True
       then show ?thesis
-        using cg_let cg_gen_output_type_unused_same 
+        using cg_let cg_gen_output_type_unchecked_same 
         by (auto split: if_splits; metis ct_sem_conj_iff i_size less_not_refl2 nth_Cons_0 snd_conv)
     next
       case False
@@ -3572,7 +3576,7 @@ next
                     else \<Gamma> ! i = None \<or> \<Gamma> ! i = Some (assign_app_ty S S' (fst (G1 ! i)))"
       using cg_letb by meson
     ultimately show ?thesis
-      using assign_prop_def by (rule_tac split_used_letb_extR[where ?G1.0=G1]; blast intro: cg_letb)
+      using assign_prop_def by (rule_tac split_checked_letb_extR[where ?G1.0=G1]; blast intro: cg_letb)
   qed
   moreover have "\<forall>i<length ?\<Gamma>1. ?\<Gamma>1 ! i \<noteq> None \<and> ys ! i \<longrightarrow> (if ?\<Gamma>2 ! i = None 
                  then \<exists>t. ?\<Gamma>1 ! i = Some (TBang t) else ?\<Gamma>1 ! i = Some (TBang (the (?\<Gamma>2 ! i))))"
@@ -3631,7 +3635,7 @@ next
         {
           assume not_in_e2: "0 \<notin> fv e2"
           have "m = 0"
-            using cg_gen_output_type_unused_same cg_letb.hyps not_in_e2 i_zero 
+            using cg_gen_output_type_unchecked_same cg_letb.hyps not_in_e2 i_zero 
             by (metis i_size i_zero nth_Cons_0 snd_conv)
           then have "A \<turnstile> CtDrop (assign_app_ty S S' \<alpha>)"
             using cg_letb ct_sem_conj_iff assign_app_constr.simps by force
@@ -3739,7 +3743,7 @@ next
   let ?\<Gamma>2 = "assign_app_ctx S S' (G2\<bar>?fve2e3 \<union> ?idxs)"
   have "A \<turnstile> \<Gamma> \<leadsto> ?\<Gamma>1 \<box> ?\<Gamma>2"
     using cg_if
-  proof (rule_tac split_used_if_extR)
+  proof (rule_tac split_checked_if_extR)
     show "A \<turnstile> assign_app_constr S S' C2"
       using cg_if assign_app_constr.simps ct_sem_conjE by metis
     show "A \<turnstile> assign_app_constr S S' C3"
@@ -3783,10 +3787,10 @@ next
           case i_in_e3
           have "A \<turnstile> CtDrop (assign_app_ty S S' (fst (G4 ! i)))"
             using cg_if ct_sem_conj_iff i_size cg_ctx_idx_size
-          proof (rule_tac alg_ctx_jn_type_used_diff[where ?G1.0=G3 and ?G1'=G3' and ?C=C4])
+          proof (rule_tac alg_ctx_jn_type_checked_diff[where ?G1.0=G3 and ?G1'=G3' and ?C=C4])
             show "snd (G3 ! i) \<noteq> snd (G3' ! i)"
-              using cg_gen_output_type_used_diff cg_if False i_in_e3 i_size 
-                cg_gen_output_type_unused_same by metis
+              using cg_gen_output_type_checked_diff cg_if False i_in_e3 i_size 
+                cg_gen_output_type_unchecked_same by metis
           qed (force)+
           then show ?thesis
             using cg_if.hyps assign_app_ctx_restrict_some i_in_e3 alg_ctx_jn_type_same1 
@@ -3826,10 +3830,10 @@ next
           case i_in_e2
           have "A \<turnstile> CtDrop (assign_app_ty S S' (fst (G4 ! i)))"
             using cg_if ct_sem_conj_iff i_size cg_ctx_idx_size
-          proof (rule_tac alg_ctx_jn_type_used_diff[where ?G1.0=G3 and ?G1'=G3' and ?C=C4])
+          proof (rule_tac alg_ctx_jn_type_checked_diff[where ?G1.0=G3 and ?G1'=G3' and ?C=C4])
             show "snd (G3 ! i) \<noteq> snd (G3' ! i)"
-              using cg_gen_output_type_used_diff cg_if False i_in_e2 i_size 
-                cg_gen_output_type_unused_same by metis
+              using cg_gen_output_type_checked_diff cg_if False i_in_e2 i_size 
+                cg_gen_output_type_unchecked_same by metis
           qed (force)+
           then show ?thesis
             using cg_if.hyps assign_app_ctx_restrict_some i_in_e2 alg_ctx_jn_type_same1 
@@ -3860,7 +3864,7 @@ next
   let ?\<Gamma>2 = "assign_app_ctx S S' (G2\<bar>fv e2 \<union> ?idxs)"
   have "A \<turnstile> \<Gamma> \<leadsto> ?\<Gamma>1 \<box> ?\<Gamma>2"
     using cg_iop
-  proof (rule_tac split_used_extR[where ?e.0="?e"])
+  proof (rule_tac split_checked_extR[where ?e.0="?e"])
     show "A \<turnstile> assign_app_constr S S' C2"
       using cg_iop assign_app_constr.simps ct_sem_conjE by metis
     show "\<forall>i. known_ty (S i)"
@@ -3913,7 +3917,7 @@ next
   let ?\<Gamma>2 = "assign_app_ctx S S' (G2\<bar>fv e2 \<union> ?idxs)"
   have "A \<turnstile> \<Gamma> \<leadsto> ?\<Gamma>1 \<box> ?\<Gamma>2"
     using cg_cop
-  proof (rule_tac split_used_extR[where ?e="?e"])
+  proof (rule_tac split_checked_extR[where ?e="?e"])
     show "A \<turnstile> assign_app_constr S S' C2"
       using cg_cop assign_app_constr.simps ct_sem_conjE by metis
     show "\<forall>i. known_ty (S i)"
@@ -3962,7 +3966,7 @@ next
   let ?\<Gamma>2 = "assign_app_ctx S S' (G2\<bar>fv e2 \<union> ?idxs)"
   have "A \<turnstile> \<Gamma> \<leadsto> ?\<Gamma>1 \<box> ?\<Gamma>2"
     using cg_bop
-  proof (rule_tac split_used_extR[where ?e="?e"])
+  proof (rule_tac split_checked_extR[where ?e="?e"])
     show "A \<turnstile> assign_app_constr S S' C2"
       using cg_bop assign_app_constr.simps ct_sem_conjE by metis
     show "\<forall>i. known_ty (S i)"
@@ -4044,9 +4048,9 @@ next
     using typing_sig by simp
 next
   case (cg_vcon \<alpha> n2 \<beta> n1 G1 e G2 C e' C' nm \<tau>)
-  obtain Ks where ks_def: "TVariant Ks None = assign_app_ty S S' (TVariant [(nm, \<beta>, Unused)] (Some \<alpha>))"
+  obtain Ks where ks_def: "TVariant Ks None = assign_app_ty S S' (TVariant [(nm, \<beta>, Unchecked)] (Some \<alpha>))"
     by simp
-  obtain Ks' where ks'_def: "Ks' = (map variant_elem_used Ks)[0 := Ks ! 0]" by blast
+  obtain Ks' where ks'_def: "Ks' = (map variant_elem_checked Ks)[0 := Ks ! 0]" by blast
   have ks'_hd_type: "(fst \<circ> snd) (Ks' ! 0) = S n1"
     using ks'_def ks_def cg_vcon.hyps by force
   have ks'_ks_prop: "map fst Ks' = map fst Ks \<and> 
@@ -4066,25 +4070,25 @@ next
       next
         case False
         then show ?thesis
-          using ks'_def map_conv_all_nth ct_sem_equal ct_sem_refl i_size variant_elem_used_nm_eq 
-            variant_elem_used_type_eq variant_elem_used_usage_nondec by auto
+          using ks'_def map_conv_all_nth ct_sem_equal ct_sem_refl i_size variant_elem_checked_nm_eq 
+            variant_elem_checked_type_eq variant_elem_checked_usage_nondec by auto
       qed
     } then show ?thesis using ks'_def by (simp add: map_eq_iff_nth_eq list_all2_conv_all_nth)
   qed
   have "distinct (map fst Ks')"
     using ks'_ks_prop cg_vcon.prems ks_def assign_prop_def by metis
-  moreover have "\<forall>i<length Ks'. if i = 0 then (snd \<circ> snd) (Ks' ! i) = Unused 
-                                           else (snd \<circ> snd) (Ks' ! i) = Used"
+  moreover have "\<forall>i<length Ks'. if i = 0 then (snd \<circ> snd) (Ks' ! i) = Unchecked 
+                                           else (snd \<circ> snd) (Ks' ! i) = Checked"
   proof -
     {
       fix i :: nat
       assume i_size: "i < length Ks'"
-      then have "if i = 0 then (snd \<circ> snd) (Ks' ! i) = Unused else (snd \<circ> snd) (Ks' ! i) = Used"
+      then have "if i = 0 then (snd \<circ> snd) (Ks' ! i) = Unchecked else (snd \<circ> snd) (Ks' ! i) = Checked"
         using ks'_def ks_def
       proof (cases "i = 0")
         case False
         then show ?thesis
-          using variant_elem_used_usage_used i_size ks'_def by auto
+          using variant_elem_checked_usage_checked i_size ks'_def by auto
       qed (simp)
     } then show ?thesis by blast
   qed
@@ -4109,13 +4113,13 @@ next
   let ?idxs = "Set.filter (\<lambda>x. x \<notin> fv ?e \<and> \<Gamma> ! x \<noteq> None) {0..<length G1}"
   let ?\<Gamma>1 = "assign_app_ctx S S' (G1\<bar>fv e1)"
   let ?\<Gamma>2 = "assign_app_ctx S S' (G2\<bar>?dec_fv_e2  \<union> ?dec_fv_e3 \<union> ?idxs)"
-  obtain Ks where ks_def: "TVariant Ks None = assign_app_ty S S' (TVariant [(nm, \<beta>, Unused)] (Some \<alpha>))"
+  obtain Ks where ks_def: "TVariant Ks None = assign_app_ty S S' (TVariant [(nm, \<beta>, Unchecked)] (Some \<alpha>))"
     by simp
   have ks_hd_type: "(fst \<circ> snd) (Ks ! 0) = S n1"
     using ks_def cg_case.hyps by auto
   have "A \<turnstile> \<Gamma> \<leadsto> ?\<Gamma>1 \<box> ?\<Gamma>2"
     using cg_case ct_sem_conj_iff assign_prop_def
-  proof (rule_tac split_used_case_extR) 
+  proof (rule_tac split_checked_case_extR) 
     show "\<And>i. i < length G1 \<Longrightarrow>  
           if i \<in> fv' 0 ?e then \<Gamma> ! i = Some (assign_app_ty S S' (fst (G1 ! i)))
                           else \<Gamma> ! i = None \<or> \<Gamma> ! i = Some (assign_app_ty S S' (fst (G1 ! i)))"
@@ -4123,7 +4127,7 @@ next
   qed auto+
   moreover have "distinct (map fst Ks)" 
     using cg_case.prems ks_def assign_prop_def by metis
-  moreover have "A \<ddagger> ?\<Gamma>1 \<turnstile> assign_app_expr S S' e1' : assign_app_ty S S' (TVariant [(nm, \<beta>, Unused)] (Some \<alpha>))"
+  moreover have "A \<ddagger> ?\<Gamma>1 \<turnstile> assign_app_expr S S' e1' : assign_app_ty S S' (TVariant [(nm, \<beta>, Unchecked)] (Some \<alpha>))"
     using cg_case ctx_restrict_len assign_app_ctx_len 
   proof (rule_tac cg_case.hyps(4))
     show "A \<turnstile> assign_app_constr S S' C1"
@@ -4147,7 +4151,7 @@ next
         proof cases
           case i_zero
           have "i \<notin> fv e2 \<Longrightarrow> m = 0"
-            using cg_gen_output_type_unused_same cg_case.hyps i_zero 
+            using cg_gen_output_type_unchecked_same cg_case.hyps i_zero 
             by (metis i_size nth_Cons_0 snd_conv)
           moreover have "m = 0 \<Longrightarrow> A \<turnstile> assign_app_constr S S' (CtDrop \<beta>)"
             using cg_case ct_sem_conj_iff i_zero by auto
@@ -4180,14 +4184,14 @@ next
               proof -
                 have "A \<turnstile> CtDrop (assign_app_ty S S' (fst (G4 ! (i - Suc 0))))"
                   using cg_case ct_sem_conj_iff
-                proof (rule_tac alg_ctx_jn_type_used_diff[where ?G1.0=G3 and ?G1'=G3' and ?C=C4])
+                proof (rule_tac alg_ctx_jn_type_checked_diff[where ?G1.0=G3 and ?G1'=G3' and ?C=C4])
                   show "i - Suc 0 < length G3'"
                     using cg_ctx_length i_nonzero i_size cg_case.hyps(7) by fastforce
                   have "snd (G3 ! (i - 1)) = snd (G2 ! (i - 1))"
-                    using cg_gen_output_type_unused_same cg_case.hyps i_not_in_e2 i_size i_nonzero
+                    using cg_gen_output_type_unchecked_same cg_case.hyps i_not_in_e2 i_size i_nonzero
                     by (metis (mono_tags, hide_lams) nth_Cons')
                   moreover have "snd (G3' ! (i - 1)) \<noteq> snd (G2 ! (i - 1))"
-                    using cg_gen_output_type_used_diff cg_case.hyps i_in_e3 i_size i_nonzero
+                    using cg_gen_output_type_checked_diff cg_case.hyps i_in_e3 i_size i_nonzero
                     by (metis (mono_tags, hide_lams) nth_Cons')
                   ultimately show "snd (G3 ! (i - Suc 0)) \<noteq> snd (G3' ! (i - Suc 0))"
                     by fastforce
@@ -4217,12 +4221,12 @@ next
       qed
     }
   qed (force)+
-  moreover have "A \<ddagger> Some (variant_nth_used 0 (TVariant Ks None)) # ?\<Gamma>2 \<turnstile> assign_app_expr S S' e3' : assign_app_ty S S' \<tau>"
+  moreover have "A \<ddagger> Some (variant_nth_checked 0 (TVariant Ks None)) # ?\<Gamma>2 \<turnstile> assign_app_expr S S' e3' : assign_app_ty S S' \<tau>"
     using cg_case ct_sem_conj_iff ctx_restrict_len assign_app_ctx_len
   proof (rule_tac cg_case.hyps(8))
     {
-      let ?TVar\<beta>\<alpha>="TVariant [(nm, \<beta>, Used)] (Some \<alpha>)"
-      let ?TVarKs="Some (variant_nth_used 0 (TVariant Ks None))"
+      let ?TVar\<beta>\<alpha>="TVariant [(nm, \<beta>, Checked)] (Some \<alpha>)"
+      let ?TVarKs="Some (variant_nth_checked 0 (TVariant Ks None))"
       fix i :: nat
       assume i_size: "i < length ((?TVar\<beta>\<alpha>, 0) # G2)"
       show "if i \<in> fv e3
@@ -4237,7 +4241,7 @@ next
         proof cases
           case i_zero
           have "i \<notin> fv e3 \<Longrightarrow> l = 0"
-            using cg_gen_output_type_unused_same cg_case.hyps i_zero 
+            using cg_gen_output_type_unchecked_same cg_case.hyps i_zero 
             by (metis i_size nth_Cons_0 snd_conv)
           moreover have "l = 0 \<Longrightarrow> A \<turnstile> CtDrop (assign_app_ty S S' (fst (((?TVar\<beta>\<alpha>, 0) # G2) ! i)))"
             using cg_case ct_sem_conj_iff i_zero by auto
@@ -4270,14 +4274,14 @@ next
               proof -
                 have "A \<turnstile> CtDrop (assign_app_ty S S' (fst (G4 ! (i - Suc 0))))"
                   using cg_case ct_sem_conj_iff
-                proof (rule_tac alg_ctx_jn_type_used_diff[where ?G1.0=G3 and ?G1'=G3' and ?C=C4])
+                proof (rule_tac alg_ctx_jn_type_checked_diff[where ?G1.0=G3 and ?G1'=G3' and ?C=C4])
                   show "i - Suc 0 < length G3'"
                     using cg_ctx_length i_nonzero i_size cg_case.hyps(7) by fastforce
                   have "snd (G3' ! (i - 1)) = snd (G2 ! (i - 1))"
-                    using cg_gen_output_type_unused_same cg_case.hyps i_not_in_e3 i_size i_nonzero
+                    using cg_gen_output_type_unchecked_same cg_case.hyps i_not_in_e3 i_size i_nonzero
                     by (metis (mono_tags, hide_lams) nth_Cons')
                   moreover have "snd (G3 ! (i - 1)) \<noteq> snd (G2 ! (i - 1))"
-                    using cg_gen_output_type_used_diff cg_case.hyps i_in_e2 i_size i_nonzero
+                    using cg_gen_output_type_checked_diff cg_case.hyps i_in_e2 i_size i_nonzero
                     by (metis (mono_tags, hide_lams) nth_Cons')
                   ultimately show "snd (G3 ! (i - Suc 0)) \<noteq> snd (G3' ! (i - Suc 0))"
                     by fastforce
@@ -4316,14 +4320,14 @@ next
   let ?idxs = "Set.filter (\<lambda>x. x \<notin> fv ?e \<and> \<Gamma> ! x \<noteq> None) {0..<length G1}"
   let ?\<Gamma>1 = "assign_app_ctx S S' (G1\<bar>fv e1)"
   let ?\<Gamma>2 = "assign_app_ctx S S' (G2\<bar>?dec_fv_e2 \<union> ?idxs)"
-  obtain Ks where ks_def: "TVariant Ks None = assign_app_ty S S' (TVariant [(nm, \<beta>, Used)] (Some \<alpha>))"
+  obtain Ks where ks_def: "TVariant Ks None = assign_app_ty S S' (TVariant [(nm, \<beta>, Checked)] (Some \<alpha>))"
     by simp
-  obtain Ks' where ks'_def: "Ks' = Ks[0 := variant_elem_unused (Ks ! 0)]" by blast 
-  have "TVariant Ks' None = assign_app_ty S S' (TVariant [(nm, \<beta>, Unused)] (Some \<alpha>))"
+  obtain Ks' where ks'_def: "Ks' = Ks[0 := variant_elem_unchecked (Ks ! 0)]" by blast 
+  have "TVariant Ks' None = assign_app_ty S S' (TVariant [(nm, \<beta>, Unchecked)] (Some \<alpha>))"
     using ks'_def ks_def by auto
   moreover have "A \<turnstile> \<Gamma> \<leadsto> ?\<Gamma>1 \<box> ?\<Gamma>2"
     using cg_irref ct_sem_conj_iff assign_prop_def 
-  proof (rule_tac split_used_irref_extR) 
+  proof (rule_tac split_checked_irref_extR) 
     {
       fix i :: nat
       assume i_size: "i < length G1"
@@ -4338,17 +4342,17 @@ next
     have "distinct (map fst Ks)"
       using cg_irref.prems ks_def assign_prop_def by metis
     then show ?thesis
-      using ks'_def variant_elem_unused_nm_eq by (metis list_update_id map_update)
+      using ks'_def variant_elem_unchecked_nm_eq by (metis list_update_id map_update)
   qed
-  moreover have "\<forall>i<length Ks'. if i = 0 then (snd \<circ> snd) (Ks' ! i) = Unused 
-                                           else (snd \<circ> snd) (Ks' ! i) = Used"
+  moreover have "\<forall>i<length Ks'. if i = 0 then (snd \<circ> snd) (Ks' ! i) = Unchecked 
+                                           else (snd \<circ> snd) (Ks' ! i) = Checked"
   proof -
-    have ks_all_used: "\<forall>i < length Ks. (snd \<circ> snd) (Ks ! i) = Used"
-      using ks_def ct_sem_exhaust_all_used cg_irref ct_sem_conj_iff assign_app_constr.simps by force
+    have ks_all_checked: "\<forall>i < length Ks. (snd \<circ> snd) (Ks ! i) = Checked"
+      using ks_def ct_sem_exhaust_all_checked cg_irref ct_sem_conj_iff assign_app_constr.simps by force
     then show ?thesis
-      using ks'_def ks_all_used variant_elem_unused_usage_unused by auto
+      using ks'_def ks_all_checked variant_elem_unchecked_usage_unchecked by auto
   qed
-  moreover have "A \<ddagger> ?\<Gamma>1 \<turnstile> assign_app_expr S S' e1' : assign_app_ty S S' (TVariant [(nm, \<beta>, Unused)] (Some \<alpha>))"
+  moreover have "A \<ddagger> ?\<Gamma>1 \<turnstile> assign_app_expr S S' e1' : assign_app_ty S S' (TVariant [(nm, \<beta>, Unchecked)] (Some \<alpha>))"
     using cg_irref ct_sem_conj_iff assign_app_ctx_restrict_none assign_app_ctx_restrict_some
       assign_app_ctx_len ctx_restrict_len by force
   moreover have "A \<ddagger> Some ((fst \<circ> snd) (Ks' ! 0)) # ?\<Gamma>2 \<turnstile> assign_app_expr S S' e2' : assign_app_ty S S' \<tau>"
@@ -4367,7 +4371,7 @@ next
       proof cases
         case i_zero
         have "i \<notin> fv e2 \<Longrightarrow> m = 0"
-          using cg_gen_output_type_unused_same[where ?G1.0="(\<beta>, 0) # G2" and ?G2.0="(\<beta>, m) # G3"] 
+          using cg_gen_output_type_unchecked_same[where ?G1.0="(\<beta>, 0) # G2" and ?G2.0="(\<beta>, m) # G3"] 
             cg_irref.hyps i_zero by fastforce
         moreover have "m = 0 \<Longrightarrow> A \<turnstile> assign_app_constr S S' (CtDrop \<beta>)"
           using cg_irref ct_sem_conj_iff i_zero by force
