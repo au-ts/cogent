@@ -5,7 +5,7 @@ begin
 
 datatype num_type = U8 | U16 | U32 | U64
 
-datatype prim_type = Num num_type | Bool (* | String *)
+datatype prim_type = Num num_type | Bool
 
 datatype prim_op
   = Plus num_type
@@ -117,8 +117,6 @@ type_synonym row_var = nat
 datatype type = TVar index
               | TFun type type
               | TPrim prim_type
-              | TProduct type type
-              | TUnit
               | TUnknown index
               | TVariant "(name \<times> type \<times> usage_tag) list" "row_var option"
               | TAbstract name "type list" sigil
@@ -140,9 +138,6 @@ fun subst_ty :: "type \<Rightarrow> type \<Rightarrow> type \<Rightarrow> type" 
 | "subst_ty \<mu> \<mu>' (TFun \<tau> \<rho>)           = (if \<mu> = (TFun \<tau> \<rho>) then \<mu>' 
                                          else (TFun (subst_ty \<mu> \<mu>' \<tau>) (subst_ty \<mu> \<mu>' \<rho>)))"
 | "subst_ty \<mu> \<mu>' (TPrim pt)           = (if \<mu> = (TPrim pt) then \<mu>' else TPrim pt)"
-| "subst_ty \<mu> \<mu>' (TProduct \<tau> \<rho>)       = (if \<mu> = (TProduct \<tau> \<rho>) then \<mu>' 
-                                         else (TProduct (subst_ty \<mu> \<mu>' \<tau>) (subst_ty \<mu> \<mu>' \<rho>)))"
-| "subst_ty \<mu> \<mu>' TUnit                = (if \<mu> = TUnit then \<mu>' else TUnit)"
 | "subst_ty \<mu> \<mu>' (TUnknown i)         = (if \<mu> = (TUnknown i) then \<mu>' else (TUnknown i))"
 | "subst_ty \<mu> \<mu>' (TVariant Ks \<alpha>)      = (if \<mu> = (TVariant Ks \<alpha>) then \<mu>' 
                                          else (TVariant (map (\<lambda>(nm, t, u). (nm, subst_ty \<mu> \<mu>' t, u)) Ks) \<alpha>))"
@@ -156,8 +151,6 @@ fun subst_tyvar :: "type list \<Rightarrow> type \<Rightarrow> type" where
   "subst_tyvar \<delta> (TVar i)            = (if i < length \<delta> then \<delta> ! i else TVar i)"
 | "subst_tyvar \<delta> (TFun a b)          = TFun (subst_tyvar \<delta> a) (subst_tyvar \<delta> b)"
 | "subst_tyvar \<delta> (TPrim p)           = TPrim p"
-| "subst_tyvar \<delta> (TProduct t u)      = TProduct (subst_tyvar \<delta> t) (subst_tyvar \<delta> u)"
-| "subst_tyvar \<delta> (TUnit)             = TUnit"
 | "subst_tyvar \<delta> (TUnknown i)        = TUnknown i"
 | "subst_tyvar \<delta> (TVariant Ks \<alpha>)     = TVariant (map (\<lambda>(nm, t, u). (nm, subst_tyvar \<delta> t, u)) Ks) \<alpha>"
 | "subst_tyvar \<delta> (TAbstract nm ts s) = TAbstract nm (map (subst_tyvar \<delta>) ts) s"
@@ -169,8 +162,6 @@ fun max_type_var :: "type \<Rightarrow> nat" where
   "max_type_var (TVar i)            = i"
 | "max_type_var (TFun a b)          = max (max_type_var a) (max_type_var b)"
 | "max_type_var (TPrim p)           = 0"
-| "max_type_var (TProduct t u)      = max (max_type_var t) (max_type_var u)"
-| "max_type_var (TUnit)             = 0"
 | "max_type_var (TUnknown i)        = 0"
 | "max_type_var (TVariant Ks \<alpha>)     = Max (set (map (max_type_var \<circ> fst \<circ> snd) Ks))"
 | "max_type_var (TAbstract nm ts s) = Max (set (map max_type_var ts))"
@@ -207,8 +198,6 @@ fun variant_nth_used :: "nat \<Rightarrow> type \<Rightarrow> type" where
   "variant_nth_used n (TVar i)            = undefined"  
 | "variant_nth_used n (TFun a b)          = undefined"
 | "variant_nth_used n (TPrim p)           = undefined"
-| "variant_nth_used n (TProduct t u)      = undefined"
-| "variant_nth_used n (TUnit)             = undefined"
 | "variant_nth_used n (TUnknown i)        = undefined"
 | "variant_nth_used n (TVariant Ks \<alpha>)     = TVariant (Ks[n := variant_elem_used (Ks ! n)]) \<alpha>"
 | "variant_nth_used n (TAbstract nm ts s) = undefined"
@@ -243,8 +232,6 @@ fun variant_nth_unused :: "nat \<Rightarrow> type \<Rightarrow> type" where
   "variant_nth_unused n (TVar i)            = undefined"  
 | "variant_nth_unused n (TFun a b)          = undefined"
 | "variant_nth_unused n (TPrim p)           = undefined"
-| "variant_nth_unused n (TProduct t u)      = undefined"
-| "variant_nth_unused n (TUnit)             = undefined"
 | "variant_nth_unused n (TUnknown i)        = undefined"
 | "variant_nth_unused n (TVariant Ks \<alpha>)     = TVariant (Ks[n := variant_elem_unused (Ks ! n)]) \<alpha>"
 | "variant_nth_unused n (TAbstract nm ts s) = undefined"
@@ -321,19 +308,13 @@ known_tvar:
    \<rbrakk> \<Longrightarrow> known_ty (TFun t1 t2)"
 | known_tprim:
   "known_ty (TPrim pt)"
-| known_tproduct:
-  "\<lbrakk> known_ty t1
-   ; known_ty t2
-   \<rbrakk> \<Longrightarrow> known_ty (TProduct t1 t2)"
-| known_tunit:
-  "known_ty TUnit"
 | known_tvariant:
   "\<forall>i < length Ks. known_ty ((fst \<circ> snd) (Ks ! i)) \<Longrightarrow> known_ty (TVariant Ks None)"
 | known_tabstract:
   "\<forall>i < length ts. known_ty (ts ! i) \<Longrightarrow> known_ty (TAbstract nm ts s)"
 | known_tobserve:
   "known_ty t \<Longrightarrow> known_ty (TObserve t)"
-| knwon_tbang:
+| known_tbang:
   "known_ty t \<Longrightarrow> known_ty (TBang t)"
 
 inductive_cases known_tfunE: "known_ty (TFun t1 t2)"
@@ -670,7 +651,7 @@ lemma ct_sem_exhaust_all_used:
 lemma ct_sem_varsub_length:
   assumes "A \<turnstile> CtSub (TVariant Ks1 None) (TVariant Ks2 None)"
   shows "length Ks1 = length Ks2"
-  using assms ct_sem_varsubE2 ct_sem_reflE by (metis map_eq_imp_length_eq type.inject(6))
+  using assms ct_sem_varsubE2 ct_sem_reflE type.inject by (metis map_eq_imp_length_eq)
                                 
 inductive_cases ct_sem_tproductsubE: "A \<turnstile> CtSub (TProduct \<tau>1 \<tau>2) \<rho>"
 lemma ct_sem_sub_trans:
@@ -706,10 +687,6 @@ proof (induct \<tau>2 arbitrary: \<tau>1 \<tau>3)
         using sub TFun ct_sem_fun \<tau>_\<tau>'_def \<mu>_\<mu>'_def by blast
     qed
   qed
-next
-  case (TProduct \<tau>11 \<tau>12)
-  then show ?case
-    using ct_sem_tproductsubE ct_sem_eq_iff by metis
 next
   case (TVariant Ks2 \<alpha>)
   consider (equal1) "A \<turnstile> CtEq \<tau>1 (TVariant Ks2 \<alpha>)" | (not_equal1) "\<not>(A \<turnstile> CtEq \<tau>1 (TVariant Ks2 \<alpha>))"
@@ -1190,8 +1167,8 @@ next
   case (cg_letb \<alpha> n1 G1 ys e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
   then show ?case
     using cg_ctx_length bang_cg_ctx_type_prop set0_cg_ctx_type_same bang_cg_ctx_length 
-      set0_cg_ctx_length 
-    by (metis (no_types, hide_lams) Suc_mono length_Cons nth_Cons_Suc type.inject(9))
+      set0_cg_ctx_length type.inject
+    by (metis (no_types, hide_lams) Suc_mono length_Cons nth_Cons_Suc)
 next
   case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
   then show ?case
@@ -1293,8 +1270,6 @@ fun assign_app_ty :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow> 
   "assign_app_ty S S' (TVar n)                = TVar n"
 | "assign_app_ty S S' (TFun t1 t2)            = TFun (assign_app_ty S S' t1) (assign_app_ty S S' t2)"
 | "assign_app_ty S S' (TPrim pt)              = TPrim pt"
-| "assign_app_ty S S' (TProduct t1 t2)        = TProduct (assign_app_ty S S' t1) (assign_app_ty S S' t2)"
-| "assign_app_ty S S' TUnit                   = TUnit"
 | "assign_app_ty S S' (TUnknown n)            = S n"
 | "assign_app_ty S S' (TVariant Ks None)      = TVariant (map (\<lambda>(nm, t, u). (nm, assign_app_ty S S' t, u)) Ks) None"
 | "assign_app_ty S S' (TVariant Ks (Some n))  = TVariant ((map (\<lambda>(nm, t, u). (nm, assign_app_ty S S' t, u)) Ks) @ (S' n)) None"
@@ -1356,10 +1331,6 @@ proof (induct \<tau>)
   case (known_tfun t1 t2)
   then show ?case
     using known_tfunE by auto
-next
-  case (known_tproduct t1 t2)
-  then show ?case
-    using known_tproductE by auto
 next
   case (known_tvariant Ks)
   then have "map (\<lambda>k. assign_app_ty S S' (subst_tyvar xs ((fst \<circ> snd) k))) Ks = 
@@ -2648,7 +2619,7 @@ proof -
           using assms cg_ctx_type_same1 i_size bang_cg_ctx_length by simp
         then show ?thesis
           using \<Gamma>_some \<Gamma>1_none \<Gamma>2_some ctx_split_right True assms case_2 bang_cg_ctx_type_prop 
-            G1_G2_length i_size by (metis type.inject(9))
+            G1_G2_length i_size type.inject by metis
       next
         case case_3
         have "snd (G2 ! i) > 0"
@@ -3069,8 +3040,8 @@ proof -
   proof -
     have "\<forall>i < length G1. fst (G1 ! i) = fst (G2 ! i)"
       using assms cg_ctx_type_same1[where G="bang_cg_ctx ys G1" and G'="bang_cg_ctx ys G2"] 
-        bang_cg_ctx_type_prop bang_cg_ctx_length cg_ctx_length 
-      by (metis (no_types, lifting) type.inject(9))
+        bang_cg_ctx_type_prop bang_cg_ctx_length cg_ctx_length type.inject
+      by (metis (no_types, lifting))
     moreover have "A \<turnstile> assign_app_ctx S S' (G1\<bar>fv e) \<leadsto> \<Gamma>1 \<box> assign_app_ctx S S' (G2\<bar>dec_fv_e2)"
       using split_used_letb assms by simp
     moreover have "fv e1 - {y. ys ! y} \<union> fv' (Suc 0) e2 = fv e1 - {y. ys ! y} \<union> dec_fv_e2"
@@ -3672,8 +3643,8 @@ next
               i_nonzero by simp
           ultimately have "A \<turnstile> CtDrop (assign_app_ty S S' (fst (set0_cg_ctx ys G2 ! (i - 1))))"
             using assign_app_constr.simps bang_cg_ctx_length bang_cg_ctx_type_prop i_nonzero i_size
-            using cg_ctx_length cg_letb.hyps length_Cons set0_cg_ctx_length set0_cg_ctx_type_same
-            by (metis (no_types, lifting) One_nat_def Suc_less_eq Suc_pred type.inject(9))
+              cg_ctx_length cg_letb.hyps length_Cons set0_cg_ctx_length set0_cg_ctx_type_same
+              type.inject by (metis (no_types, lifting) One_nat_def Suc_less_eq Suc_pred)
         }
         ultimately show ?thesis
           using i_nonzero nth_Cons' by force
