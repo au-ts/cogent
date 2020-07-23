@@ -283,6 +283,7 @@ datatype constraint =
   | CtDrop type
   | CtExhausted type
   | CtEscape type
+  | CtNotRead sigil
 
 type_synonym axm_set = "constraint set"
 
@@ -298,6 +299,7 @@ fun map_types_ct :: "(type \<Rightarrow> type) \<Rightarrow> constraint \<Righta
 | "map_types_ct f (CtDrop t)      = CtDrop (f t)"
 | "map_types_ct f (CtExhausted t) = CtExhausted (f t)"
 | "map_types_ct f (CtEscape t)    = CtEscape (f t)"
+| "map_types_ct f (CtNotRead s)   = CtNotRead s"
 
 definition subst_ty_ct :: "type \<Rightarrow> type \<Rightarrow> constraint \<Rightarrow> constraint" where
   "subst_ty_ct \<tau> \<rho> \<equiv> map_types_ct (subst_ty \<tau> \<rho>)"
@@ -356,6 +358,8 @@ known_ctconj:
   "known_ty \<tau> \<Longrightarrow> known_ct (CtDrop \<tau>)"
 | known_ctexhausted:
   "known_ty \<tau> \<Longrightarrow> known_ct (CtExhausted \<tau>)"
+| knwon_ctnotread:
+  "known_ct (CtNotRead s)"
 
 inductive_cases known_ctconjE: "known_ct (CtConj C1 C2)"
 inductive_cases known_cteqE: "known_ct (CtEq C1 C2)"
@@ -1315,6 +1319,7 @@ fun "assign_app_constr" :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Righta
 | "assign_app_constr S S' (CtDrop t)       = CtDrop (assign_app_ty S S' t)"
 | "assign_app_constr S S' (CtExhausted v)  = CtExhausted (assign_app_ty S S' v)"
 | "assign_app_constr S S' (CtEscape t)     = CtEscape (assign_app_ty S S' t)"
+| "assign_app_constr S S' (CtNotRead s)    = CtNotRead s"
 
 definition assign_app_ctx :: "(nat \<Rightarrow> type) \<Rightarrow> (nat \<Rightarrow> (string \<times> type \<times> usage_tag) list) \<Rightarrow> ctx \<Rightarrow> ctx" where
   "assign_app_ctx S S' G = map (map_option (assign_app_ty S S')) G"
