@@ -468,7 +468,7 @@ gets (\<lambda>s. x)
    apply (erule disjE; clarsimp)+
   apply clarsimp
   apply (erule upd.u_t_p_absE; clarsimp)
-  apply (clarsimp simp: wordarray_fold_no_break_0'_def)
+  apply (clarsimp simp: wordarray_fold_no_break_0'_def upd_wa_foldnb_0_def)
   apply (subst unknown_bind_ignore)+
   apply clarsimp
   apply wp 
@@ -476,13 +476,20 @@ gets (\<lambda>s. x)
       apply (subst whileLoop_add_inv
               [where M = "\<lambda>((_, r), _). unat (t5_C.to_C x') - unat r" and 
                      I = "\<lambda>(a, b) s. 
-                        (\<exists>f ts. cogent_function_val_rel x (sint (t5_C.f_C x')) \<and> x = UFunction f ts \<and>
-                        upd_wa_foldnb_bod_0 \<sigma> (ptr_val (t5_C.arr_C x')) (t5_C.frm_C x') b (Fun f ts)
-                          (UPrim (LU32 (t5_C.acc_C x')), RPrim (Num U32)) (UUnit, RUnit)
-                          (\<sigma>, UPrim (LU32 (t3_C.acc_C a)))) \<and> (\<sigma>, s) \<in> state_rel \<and> t5_C.frm_C x' \<le> b \<and>
+                        (\<exists>func. cogent_function_val_rel x (sint (t5_C.f_C x')) \<and> func = x \<and>
+                        (case func of
+                            UFunction f ts \<Rightarrow> upd_wa_foldnb_bod_0 \<sigma> (ptr_val (t5_C.arr_C x')) 
+                                                (t5_C.frm_C x') b (Fun f ts) 
+                                                (UPrim (LU32 (t5_C.acc_C x')), RPrim (Num U32)) 
+                                                (UUnit, RUnit) (\<sigma>, UPrim (LU32 (t3_C.acc_C a)))
+                          | UAFunction f ts \<Rightarrow> upd_wa_foldnb_bod_0 \<sigma> (ptr_val (t5_C.arr_C x')) 
+                                                (t5_C.frm_C x') b (AFun f ts) 
+                                                (UPrim (LU32 (t5_C.acc_C x')), RPrim (Num U32)) 
+                                                (UUnit, RUnit) (\<sigma>, UPrim (LU32 (t3_C.acc_C a)))
+                          | _ \<Rightarrow> False)) \<and> 
+                        (\<sigma>, s) \<in> state_rel \<and> t5_C.frm_C x' \<le> b \<and>
                         ret = min (t5_C.to_C x') ((SCAST(32 signed \<rightarrow> 32))(len_C (heap_WordArray_u32_C s (t5_C.arr_C x')))) \<and>
                         (t5_C.frm_C x' \<le> ret \<longrightarrow> b \<le> ret) \<and> (t5_C.frm_C x' \<ge> ret \<longrightarrow> b = t5_C.frm_C x')"])
-      apply clarsimp
       apply (wp; clarsimp simp: split_def unknown_bind_ignore)
            apply (clarsimp simp: split_def dispatch_t4'_def unknown_bind_ignore)
            apply wp
@@ -519,56 +526,56 @@ gets (\<lambda>s. x)
        apply (drule_tac p = "t5_C.arr_C x'" and uv = "UAbstract (WAU32 x11 x12)" in all_heap_rel_ptrD; 
               clarsimp simp: type_rel_simps is_valid_simp heap_simp abs_repr_u_def val_rel_simps) 
        apply (drule_tac p = "values_C (heap_WordArray_u32_C s (t5_C.arr_C x')) +\<^sub>p uint b" and 
-                       uv = "UPrim (LU32 x)" in all_heap_rel_ptrD; clarsimp simp: type_rel_simps)
+                       uv = "UPrim (LU32 xa)" in all_heap_rel_ptrD; clarsimp simp: type_rel_simps)
        apply (rule conjI; clarsimp)
         apply (rule conjI)
          apply (rule_tac r = "UPrim (LU32 (t3_C.acc_C aa))" and 
                        len = "(SCAST(32 signed \<rightarrow> 32) (len_C (heap_WordArray_u32_C s (t5_C.arr_C x'))))" and
                        arr = "(ptr_val (values_C (heap_WordArray_u32_C s (t5_C.arr_C x'))))" and
-                         v = x and \<sigma> = \<sigma> and \<sigma>' = \<sigma> and \<sigma>'' = \<sigma>
+                         v = xa and \<sigma> = \<sigma> and \<sigma>' = \<sigma> and \<sigma>'' = \<sigma>
                        in upd_wa_foldnb_bod_0_step; simp)
          apply (rule u_sem_app)
            apply (rule u_sem_fun)
           apply (rule u_sem_var)
          apply (subst mul_def; clarsimp)
          apply (rule_tac \<sigma>' = \<sigma> and
-                         fs = "[(UPrim (LU32 x), RPrim (Num U32)),
+                         fs = "[(UPrim (LU32 xa), RPrim (Num U32)),
                                 (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)),
                                 (UUnit, RUnit)]" in u_sem_take_ub)
           apply (cut_tac \<xi> = \<xi>0 and 
-                         \<gamma> = "[URecord [(UPrim (LU32 x), RPrim (Num U32)), 
+                         \<gamma> = "[URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
                                  (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), 
                                  (UUnit, RUnit)]]" and
                          \<sigma> = \<sigma> and 
                          i = 0 in u_sem_var; clarsimp)
          apply clarsimp
          apply (rule_tac \<sigma>' = \<sigma> and
-                         fs = "[(UPrim (LU32 x), RPrim (Num U32)),
+                         fs = "[(UPrim (LU32 xa), RPrim (Num U32)),
                                 (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)),
                                 (UUnit, RUnit)]" in u_sem_take_ub)
           apply (cut_tac \<xi> = \<xi>0 and 
-                         \<gamma> = "[UPrim (LU32 x), 
-                               URecord [(UPrim (LU32 x), RPrim (Num U32)), 
+                         \<gamma> = "[UPrim (LU32 xa), 
+                               URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
                                  (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), (UUnit, RUnit)],
-                               URecord [(UPrim (LU32 x), RPrim (Num U32)), 
+                               URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
                                  (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), 
                                  (UUnit, RUnit)]]" and
                          \<sigma> = \<sigma> and 
                          i = "Suc 0" in u_sem_var; clarsimp)
          apply clarsimp
          apply (rule_tac \<sigma>' = \<sigma> and
-                         fs = "[(UPrim (LU32 x), RPrim (Num U32)),
+                         fs = "[(UPrim (LU32 xa), RPrim (Num U32)),
                                 (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)),
                                 (UUnit, RUnit)]" in u_sem_take_ub)
             apply (cut_tac \<xi> = \<xi>0 and 
                          \<gamma> = "[UPrim (LU32 (t3_C.acc_C aa)),
-                               URecord [(UPrim (LU32 x), RPrim (Num U32)), 
+                               URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
                                  (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), (UUnit, RUnit)],
-                               UPrim (LU32 x),
-                               URecord [(UPrim (LU32 x), RPrim (Num U32)), 
+                               UPrim (LU32 xa),
+                               URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
                                  (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), 
                                  (UUnit, RUnit)],
-                               URecord [(UPrim (LU32 x), RPrim (Num U32)), 
+                               URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
                                  (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), 
                                  (UUnit, RUnit)]]" and
                          \<sigma> = \<sigma> and 
@@ -576,15 +583,15 @@ gets (\<lambda>s. x)
          apply clarsimp
          apply (cut_tac \<xi> = \<xi>0 and 
                         \<gamma> = "[UUnit, 
-                              URecord [(UPrim (LU32 x), RPrim (Num U32)),
+                              URecord [(UPrim (LU32 xa), RPrim (Num U32)),
                                  (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), (UUnit, RUnit)],
                               UPrim (LU32 (t3_C.acc_C aa)),
-                              URecord [(UPrim (LU32 x), RPrim (Num U32)), 
+                              URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
                                  (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), (UUnit, RUnit)],
-                              UPrim (LU32 x),
-                              URecord [(UPrim (LU32 x), RPrim (Num U32)),
+                              UPrim (LU32 xa),
+                              URecord [(UPrim (LU32 xa), RPrim (Num U32)),
                                  (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), (UUnit, RUnit)],
-                              URecord [(UPrim (LU32 x), RPrim (Num U32)),
+                              URecord [(UPrim (LU32 xa), RPrim (Num U32)),
                                  (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)),
                                  (UUnit, RUnit)]]" and
                         \<sigma> = \<sigma> and 
@@ -609,50 +616,50 @@ gets (\<lambda>s. x)
         apply (rule_tac r = "UPrim (LU32 (t3_C.acc_C aa))" and 
                       len = "(SCAST(32 signed \<rightarrow> 32) (len_C (heap_WordArray_u32_C s (t5_C.arr_C x'))))" and
                       arr = "(ptr_val (values_C (heap_WordArray_u32_C s (t5_C.arr_C x'))))" and
-                        v = x and \<sigma> = \<sigma> and \<sigma>' = \<sigma> and \<sigma>'' = \<sigma>
+                        v = xa and \<sigma> = \<sigma> and \<sigma>' = \<sigma> and \<sigma>'' = \<sigma>
                       in upd_wa_foldnb_bod_0_step; simp)
         apply (rule u_sem_app)
           apply (rule u_sem_fun)
          apply (rule u_sem_var)
         apply (subst sum_def; clarsimp)
         apply (rule_tac \<sigma>' = \<sigma> and
-                        fs = "[(UPrim (LU32 x), RPrim (Num U32)),
+                        fs = "[(UPrim (LU32 xa), RPrim (Num U32)),
                                (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)),
                                (UUnit, RUnit)]" in u_sem_take_ub)
          apply (cut_tac \<xi> = \<xi>0 and 
-                        \<gamma> = "[URecord [(UPrim (LU32 x), RPrim (Num U32)), 
+                        \<gamma> = "[URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
                                 (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), 
                                 (UUnit, RUnit)]]" and
                         \<sigma> = \<sigma> and 
                         i = 0 in u_sem_var; clarsimp)
         apply clarsimp
         apply (rule_tac \<sigma>' = \<sigma> and
-                        fs = "[(UPrim (LU32 x), RPrim (Num U32)),
+                        fs = "[(UPrim (LU32 xa), RPrim (Num U32)),
                                (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)),
                                (UUnit, RUnit)]" in u_sem_take_ub)
          apply (cut_tac \<xi> = \<xi>0 and 
-                        \<gamma> = "[UPrim (LU32 x), 
-                              URecord [(UPrim (LU32 x), RPrim (Num U32)), 
+                        \<gamma> = "[UPrim (LU32 xa), 
+                              URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
                                 (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), (UUnit, RUnit)],
-                              URecord [(UPrim (LU32 x), RPrim (Num U32)), 
+                              URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
                                 (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), 
                                 (UUnit, RUnit)]]" and
                         \<sigma> = \<sigma> and 
                         i = "Suc 0" in u_sem_var; clarsimp)
         apply clarsimp
         apply (rule_tac \<sigma>' = \<sigma> and
-                        fs = "[(UPrim (LU32 x), RPrim (Num U32)),
+                        fs = "[(UPrim (LU32 xa), RPrim (Num U32)),
                                (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)),
                                (UUnit, RUnit)]" in u_sem_take_ub)
            apply (cut_tac \<xi> = \<xi>0 and 
                         \<gamma> = "[UPrim (LU32 (t3_C.acc_C aa)),
-                              URecord [(UPrim (LU32 x), RPrim (Num U32)), 
+                              URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
                                 (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), (UUnit, RUnit)],
-                              UPrim (LU32 x),
-                              URecord [(UPrim (LU32 x), RPrim (Num U32)), 
+                              UPrim (LU32 xa),
+                              URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
                                 (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), 
                                 (UUnit, RUnit)],
-                              URecord [(UPrim (LU32 x), RPrim (Num U32)), 
+                              URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
                                 (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), 
                                 (UUnit, RUnit)]]" and
                         \<sigma> = \<sigma> and 
@@ -660,15 +667,15 @@ gets (\<lambda>s. x)
         apply clarsimp
         apply (cut_tac \<xi> = \<xi>0 and 
                        \<gamma> = "[UUnit, 
-                             URecord [(UPrim (LU32 x), RPrim (Num U32)),
+                             URecord [(UPrim (LU32 xa), RPrim (Num U32)),
                                 (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), (UUnit, RUnit)],
                              UPrim (LU32 (t3_C.acc_C aa)),
-                             URecord [(UPrim (LU32 x), RPrim (Num U32)), 
+                             URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
                                 (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), (UUnit, RUnit)],
-                             UPrim (LU32 x),
-                             URecord [(UPrim (LU32 x), RPrim (Num U32)),
+                             UPrim (LU32 xa),
+                             URecord [(UPrim (LU32 xa), RPrim (Num U32)),
                                 (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), (UUnit, RUnit)],
-                             URecord [(UPrim (LU32 x), RPrim (Num U32)),
+                             URecord [(UPrim (LU32 xa), RPrim (Num U32)),
                                 (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)),
                                 (UUnit, RUnit)]]" and
                        \<sigma> = \<sigma> and 
@@ -699,11 +706,21 @@ gets (\<lambda>s. x)
       apply clarsimp
       apply (case_tac "t5_C.to_C x' = b")
        apply clarsimp
+       apply (case_tac x; clarsimp)
       apply (case_tac "b < t5_C.to_C x'")
        apply clarsimp
+       apply (case_tac x; clarsimp)
+        apply (drule_tac arr = "ptr_val (values_C (heap_WordArray_u32_C s (t5_C.arr_C x')))" and 
+                         len = "SCAST(32 signed \<rightarrow> 32) (len_C (heap_WordArray_u32_C s (t5_C.arr_C x')))" 
+                         in upd_wa_foldnb_bod_0_to_geq_lenD)
+          apply simp
+         apply auto[1]
+        apply (rule_tac arr = "ptr_val (values_C (heap_WordArray_u32_C s (t5_C.arr_C x')))" and 
+                        len = "SCAST(32 signed \<rightarrow> 32) (len_C (heap_WordArray_u32_C s (t5_C.arr_C x')))" 
+                        in upd_wa_foldnb_bod_0_to_geq_len; simp)
        apply (drule_tac arr = "ptr_val (values_C (heap_WordArray_u32_C s (t5_C.arr_C x')))" and 
-                       len = "SCAST(32 signed \<rightarrow> 32) (len_C (heap_WordArray_u32_C s (t5_C.arr_C x')))" 
-                       in upd_wa_foldnb_bod_0_to_geq_lenD)
+                        len = "SCAST(32 signed \<rightarrow> 32) (len_C (heap_WordArray_u32_C s (t5_C.arr_C x')))" 
+                        in upd_wa_foldnb_bod_0_to_geq_lenD)
          apply simp
         apply auto[1]
        apply (rule_tac arr = "ptr_val (values_C (heap_WordArray_u32_C s (t5_C.arr_C x')))" and 
@@ -712,6 +729,11 @@ gets (\<lambda>s. x)
       apply clarsimp
       apply (case_tac "min (t5_C.to_C x') (SCAST(32 signed \<rightarrow> 32) (len_C (heap_WordArray_u32_C s (t5_C.arr_C x')))) \<le> t5_C.frm_C x'")
        apply clarsimp
+       apply (case_tac x; clarsimp)
+        apply (erule upd_wa_foldnb_bod_0.elims; clarsimp)
+        apply (clarsimp simp: min_def split: if_splits)
+         apply (subst upd_wa_foldnb_bod_0.simps; clarsimp)
+        apply (subst upd_wa_foldnb_bod_0.simps; clarsimp)
        apply (erule upd_wa_foldnb_bod_0.elims; clarsimp)
        apply (clarsimp simp: min_def split: if_splits)
         apply (subst upd_wa_foldnb_bod_0.simps; clarsimp)
@@ -724,18 +746,6 @@ gets (\<lambda>s. x)
    apply clarsimp
    apply (subst unknown_def[symmetric])
    apply (rule validNF_unknown)
-  apply clarsimp
-  apply (subst upd_wa_foldnb_bod_0.simps)
-  apply clarsimp
-  apply (subst upd_wa_foldnb_bod_0.simps)
-  apply clarsimp
-  apply (clarsimp simp: state_rel_def heap_rel_def heap_rel_ptr_meta abs_typing_u_def)
-  apply (case_tac a; clarsimp)
-  apply (drule_tac p = "t5_C.arr_C x'" and uv = "UAbstract (WAU32 x11 x12)" in all_heap_rel_ptrD;
-         clarsimp simp: abs_repr_u_def type_rel_simps is_valid_simp)
-  apply (thin_tac "upd.uval_typing _ _ _ _ _ _")
-  apply (thin_tac "is_valid_WordArray_u32_C _ _")
-  apply (thin_tac "val_rel _ _")
   apply (clarsimp simp: cogent_function_val_rel
                         FUN_ENUM_sum_def
                         FUN_ENUM_dec_def
@@ -753,8 +763,21 @@ gets (\<lambda>s. x)
                         FUN_ENUM_wordarray_get_u32_def
                         FUN_ENUM_wordarray_length_u32_def
                         FUN_ENUM_wordarray_put2_u32_def)
-  apply (erule disjE; clarsimp)
+  apply (case_tac x; clarsimp)
+   apply (subst upd_wa_foldnb_bod_0.simps)
+   apply clarsimp
+   apply (subst upd_wa_foldnb_bod_0.simps)
+   apply clarsimp
+   apply (clarsimp simp: state_rel_def heap_rel_def heap_rel_ptr_meta abs_typing_u_def)
+   apply (case_tac a; clarsimp)
+   apply (drule_tac p = "t5_C.arr_C x'" and uv = "UAbstract (WAU32 x11 x12)" in all_heap_rel_ptrD;
+          clarsimp simp: abs_repr_u_def type_rel_simps is_valid_simp)
+   apply (thin_tac "upd.uval_typing _ _ _ _ _ _")
+   apply (thin_tac "is_valid_WordArray_u32_C _ _")
+   apply (thin_tac "val_rel _ _")
+   apply (erule disjE; clarsimp)
    apply (metis (no_types, hide_lams) min.strict_order_iff min_def_raw not_less_iff_gr_or_eq)+
+  apply (erule disjE; clarsimp)
   done
 
 end (* of context *)
