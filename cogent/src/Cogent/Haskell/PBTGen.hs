@@ -43,7 +43,7 @@ import Text.PrettyPrint
 import Debug.Trace
 
 import Cogent.Haskell.GenDSL
-import Cogent.Haskell.Shallow
+import Cogent.Haskell.Shallow as SH
 import Prelude as P
 import Data.Tuple
 import Data.Function
@@ -80,11 +80,12 @@ pbtHs name hscname pbtinfos decls consts log = render $
 propModule :: String -> String -> [PBTInfo] -> [CC.Definition TypedExpr VarName b] -> Module () 
 propModule name hscname pbtinfos decls =
   let (cogDecls, w) = evalRWS (runSG $ do 
-                                          ds <- (concatMapM (\x -> genDecls' x decls) pbtinfos)
+                                          genDs <- (concatMapM (\x -> genDecls' x decls) pbtinfos)
+                                          absDs <- (concatMapM (\x -> absFDecl x decls) pbtinfos)
                                           -- genDecls x decls shallowTypesFromTable
                                           --cs <- concatMapM shallowConst consts
                                           --ds <- shallowDefinitions decls
-                                          return $ ds -- cs ++ ds
+                                          return $ genDs ++ absDs -- cs ++ ds
                               )
                               (ReaderGen (st decls) [] True [])
                               (StateGen 0 M.empty)
@@ -176,20 +177,37 @@ mkGenBody name icT = function "arbitrary"
 
 genDecls' :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
 genDecls' PBTInfo{..} defs = do
-        icT' <- extractTyp defs fname 
+        -- icT' <- extractTyp defs fname 
         let FunAbsF{absf=_, ityps=ityps} = fabsf
             icT = fromJust $ P.lookup "IC" ityps
             --FunWelF{..} = fwelf
 -- FuncInfo{name=n, ispure=_, nondet=_, ictype=icT} = 
         --let 
             fnName = "gen_" ++fname
-            toName = "Gen" ++icT
+            toName = "Gen " ++icT
             to     = TyCon   () (mkQName toName)
             sig    = TypeSig () [mkName fnName] to
             dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $ 
                         mkGenBody fname icT) Nothing]
             -- cls    = ClassDecl () () [] ()
-          in return $ [sig, dec, icT']
+          in return $ [sig, dec] --, icT']
+
+
+
+absFDecl :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
+absFDecl PBTInfo{..} defs = do
+        let FunAbsF{absf=_, ityps=ityps} = fabsf
+            icT = fromJust $ P.lookup "IC" ityps
+            iaT = fromJust $ P.lookup "IA" ityps
+            fnName = "abs_" ++fname
+            --tiName = 
+            --toName = "Gen " ++icT
+            ti     = TyCon   () (mkQName icT)
+            to     = TyCon   () (mkQName iaT)
+            sig    = TypeSig () [mkName fnName] (TyFun () ti to)
+            dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $ var $ mkName "undefined") Nothing]
+            -- cls    = ClassDecl () () [] ()
+          in return $ [sig, dec] --, icT']
 
 extractTyp :: [CC.Definition TypedExpr VarName b] -> String -> SG (Decl ())
 extractTyp defs fname = do 
@@ -197,26 +215,39 @@ extractTyp defs fname = do
                         return $ fromJust $ lookup fname ics
 
 getICTyps :: CC.Definition TypedExpr VarName b -> SG [(String, Decl ())]
-getICTyps (CC.FunDef _ fn ps _ ti to e) = pure $ [("none", noneDecl)]
+getICTyps def = undefined
 
-getICTyps (CC.AbsDecl _ fn ps _ ti to) = pure $ [("none", noneDecl)]
+--shallowTypeDef' :: TypeName -> [TyVarName] -> CC.Type t b -> SG ((String, Decl ()))
+--shallowTypeDef' tn tvs t = do
+--  t' <- shallowType t
+--  pure $ (tn, TypeDecl () (mkDeclHead (mkName tn) (P.map (mkName . snm) tvs)) t')
 
-getICTyps (CC.TypeDef tn ps Nothing) = pure $ [("none", noneDecl)]
+{-
+-- | generate a record type as a tuple type
+shallowRecTupleType :: [(FieldName, (CC.Type t b, Bool))] -> SG (HS.Type ())
+shallowRecTupleType fs = mkTupleT <$> mapM shallowType (map (fst . snd) fs)
 
-getICTyps (CC.TypeDef tn ps (Just t)) = do
-     local (typarUpd typar) $ (:[]) <$> shallowTypeDef' tn typar t
-         where typar = Vec.cvtToList ps
-
-shallowTypeDef' :: TypeName -> [TyVarName] -> CC.Type t b -> SG ((String, Decl ()))
-shallowTypeDef' tn tvs t = do
-  t' <- shallowType t
-  pure $ (tn, TypeDecl () (mkDeclHead (mkName tn) (P.map (mkName . snm) tvs)) t')
-
-noneDecl :: Decl ()
-noneDecl = FunBind () [Match () (mkName "none") [] (UnGuardedRhs () $ 
-                        (function "undefined")) Nothing]
-
-
+-- | generate a Haskell shallow embedding of a Cogent type
+shallowType :: CC.Type t b -> SG (HS.Type ())
+shallowType (CC.TVar v) = mkVarT . mkName . snm <$> ((!!) <$> view typeVars <*> pure (finInt v))
+shallowType (CC.TVarBang v) = shallowType (CC.TVar v)
+shallowType (CC.TCon tn ts _) = mkConT (mkName tn) <$> mapM shallowType ts
+shallowType (CC.TFun t1 t2) = TyFun () <$> shallowType t1 <*> shallowType t2
+shallowType (CC.TPrim pt) = pure $ shallowPrimType pt
+shallowType (CC.TString) = pure . mkTyConT $ mkName "String"
+shallowType (CC.TSum alts) = shallowTypeNominal (CC.TSum alts)
+shallowType (CC.TProduct t1 t2) = mkTupleT <$> sequence [shallowType t1, shallowType t2]
+shallowType (CC.TRecord rp fs s) = do  -- FIXME: @rp@ / zilinc
+  tuples <- view recoverTuples
+  if tuples && isRecTuple (map fst fs) then
+    shallowRecTupleType fs
+  else
+    shallowTypeNominal (CC.TRecord rp fs s)
+shallowType (CC.TUnit) = pure $ TyCon () $ Special () $ UnitCon ()
+#ifdef BUILTIN_ARRAYS
+shallowType (CC.TArray t _ _ _) = mkListT <$> shallowType t
+#endif
+-}
 
 {-
 genDecls :: PBTInfo -> [Decl ()]

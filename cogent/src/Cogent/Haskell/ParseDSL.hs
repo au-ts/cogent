@@ -33,6 +33,10 @@ ignores = ['\"', '\r', '\n', ':']
 
 -- PBT Info Parser helpers
 -- ------------------------------
+
+strCmt :: IParser String 
+strCmt = string "--" *> anyChar `manyTill` (many1 endOfLine)
+
 int :: (Integral a, Read a) => IParser a
 int = read <$> many1 digit 
 
@@ -50,13 +54,13 @@ parseList = strComma `sepBy1` (char ',')
 parseLn :: IParser (String, [String])
 parseLn = do
     k <- strKW
-    v <- parseList <* spaces 
+    v <- parseList <* spaces -- <|> many strCmt -- <* spaces
     return (k,v)
 
 parseTyps :: IParser (String, String)
 parseTyps = do
     k <- strKW
-    v <- strV <* spaces 
+    v <- lexeme $ strV <* spaces 
     return (k,v)
 
 strKW :: IParser String 
