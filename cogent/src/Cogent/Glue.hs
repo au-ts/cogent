@@ -57,6 +57,7 @@ import           Cogent.Util
 import qualified Data.DList as DList
 import           Data.Ex
 import           Data.Nat (Nat(Zero,Suc))
+import qualified Data.OMap as OMap
 import           Data.Vec as Vec hiding (repeat)
 
 import           Control.Applicative
@@ -138,7 +139,7 @@ data CgState = CgState { _cTypeDefs    :: [(CG.StrlType, CG.CId)]
                        , _cTypeDefMap  :: M.Map CG.StrlType CG.CId
                        , _typeSynonyms :: M.Map TypeName CG.CType
                        , _typeCorres   :: DList.DList (CG.CId, CC.Type 'Zero VarName)
-                       , _typeCorres'  :: DList.DList (CG.CId, (S.Set (CC.Type 'Zero VarName), Maybe [(Maybe FunName, Maybe FunName)]))
+                       , _typeCorres'  :: OMap.OMap CG.CId CG.Sort
                        , _absTypes     :: M.Map TypeName (S.Set [CG.CId])
                        , _custTypeGen  :: M.Map (CC.Type 'Zero VarName) (CG.CId, CustTyGenInfo)
                        , _funClasses   :: CG.FunClass

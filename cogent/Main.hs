@@ -27,7 +27,7 @@
 
 module Main where
 
-import Cogent.C                        as CG (cgen, printCTable, printNewCTable, printATM)
+import Cogent.C                        as CG (cgen, printCTable, printATM)
 import Cogent.Common.Syntax            as SY (CoreFunName(..))
 import Cogent.Compiler
 import Cogent.Core                     as CC (isConFun, getDefinitionId, untypeD)  -- FIXME: zilinc
@@ -813,10 +813,10 @@ parseArgs args = case getOpt' Permute options args of
         writeFileMsg ctyfile
         output ctyfile $ \h -> fontSwitch h >>= \s -> printCTable h s ct log
       when (NewTableCType `elem` cmds) $ do
-        let ctyfile' = mkFileName' ("new_"++) source Nothing __cogent_ext_of_c_type_table
+        let ctyfile' = mkFileName source Nothing (__cogent_ext_of_c_type_table ++ ".new")
         putProgressLn "Generating (new) table for C-Cogent type correspondence..."
         writeFileMsg ctyfile'
-        output ctyfile' $ \h -> fontSwitch h >>= \s -> printNewCTable h s ct' log
+        output ctyfile' $ \h -> fontSwitch h >>= \s -> printCTable h s ct' log
 #ifdef WITH_HASKELL
       when (HsFFIGen `elem` cmds) $ do
         putProgressLn "Generating Hsc file..."

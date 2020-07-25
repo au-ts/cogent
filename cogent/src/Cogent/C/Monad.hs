@@ -56,6 +56,7 @@ import           Cogent.Util                 (decap, tupleFieldNames, toCName,
 import qualified Data.DList          as DList
 import           Data.Fin                    (Fin (..))
 import           Data.Nat            as Nat
+import qualified Data.OMap           as OMap
 import           Data.Vec            as Vec  hiding (repeat, zipWith)
 
 import           Control.Applicative         hiding (empty)
@@ -118,7 +119,7 @@ data GenState  = GenState
   , _typeSynonyms :: M.Map TypeName CType
   , _typeCorres   :: DList.DList (CId, CC.Type 'Zero VarName)
     -- ^ C type names corresponding to Cogent types
-  , _typeCorres'  :: DList.DList (CId, (S.Set (CC.Type 'Zero VarName), Maybe [(Maybe FunName, Maybe FunName)]))
+  , _typeCorres'  :: OMap.OMap CId Sort
     -- ^ The new C :-> Cogent * getter/setter table
 
   , _absTypes     :: M.Map TypeName (S.Set [CId])
