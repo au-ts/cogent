@@ -33,8 +33,8 @@ import Cogent.Core (Definition, Type, TypedExpr)
 #ifdef WITH_HASKELL
 import Cogent.Haskell.FFIGen (ffiHs)
 import Cogent.Haskell.HscGen (ffiHsc)
-import Cogent.Haskell.PBTGen (pbtHs)
-import Cogent.Haskell.GenDSL
+-- import Cogent.Haskell.PBTGen (pbtHs)
+-- import Cogent.Haskell.GenDSL
 #endif
 import Cogent.Mono (Instance)
 import Data.Nat (Nat(Zero,Suc))
@@ -50,25 +50,25 @@ cgen :: FilePath
      -> [FilePath]
      -> FilePath
      -> FilePath
-     -> FilePath
+     -- -> FilePath
      -> [Definition TypedExpr VarName VarName]
      -> Maybe GenState
      -> [(Type 'Zero VarName, String)]
-     -> [PBTInfo]
+     -- -> [PBTInfo]
      -> String
-     -> ([C.Definition], [C.Definition], [(TypeName, S.Set [CId])], [TableCTypes], Leijen.Doc, String, String, GenState)
-cgen hName cNames hscName hsName pbtName defs mcache ctygen pbtinfos log =
+     -> ([C.Definition], [C.Definition], [(TypeName, S.Set [CId])], [TableCTypes], Leijen.Doc, String, GenState)
+cgen hName cNames hscName hsName defs mcache ctygen log =
   let (enums,tydefns,fndecls,disps,tysyms,fndefns,absts,corres,fclsts,st) = compile defs mcache ctygen
       (h,c) = render hName (enums++tydefns++fndecls++disps++tysyms) fndefns log
 #ifdef WITH_HASKELL
       hsc = ffiHsc hscName cNames tydefns enums absts fclsts log
       hs  = ffiHs (st^.ffiFuncs) hsName hscName fndecls log
-      pbt = pbtHs (st^.ffiFuncs) pbtName hscName fndecls pbtinfos log
+     -- pbt = pbtHs (st^.ffiFuncs) pbtName hscName fndecls pbtinfos log
 #else
       hsc = mempty
       hs = mempty
-      pbt = mempty
+      -- pbt = mempty
 #endif
-   in (h,c,absts,corres,hsc,hs,pbt,st)
+   in (h,c,absts,corres,hsc,hs,st)
 
 
