@@ -4,7 +4,6 @@
 -- Cogent PBT: Simple DSL
 -- -----------------------------------------------------------------------
 module Cogent.Haskell.GenDSL where
-import Data.Map
 
 --data PBTInfo = PBTInfo { fname :: String
 --                       , finfo :: FunInfo
