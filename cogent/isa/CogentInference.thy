@@ -668,7 +668,7 @@ ct_sem_share:
 | ct_sem_absshare:
   "\<lbrakk> s \<noteq> Writable
    ; \<forall>i < length ts. A \<turnstile> CtShare (ts ! i)
-   \<rbrakk> \<Longrightarrow> A \<turnstile> CtDrop (TAbstract nm ts s)"
+   \<rbrakk> \<Longrightarrow> A \<turnstile> CtShare (TAbstract nm ts s)"
 | ct_sem_absesc:
   "\<lbrakk> s \<noteq> ReadOnly
    ; \<forall>i < length ts. A \<turnstile> CtEscape (ts ! i)
@@ -687,7 +687,8 @@ ct_sem_share:
 | ct_sem_sigil:
   "s \<noteq> ReadOnly \<Longrightarrow> A \<turnstile> CtNotRead s"
 | ct_sem_recsub:
-  "\<lbrakk> \<forall>i < length fs1. A \<turnstile> CtDrop ((fst \<circ> snd) (fs1 ! i))
+  "\<lbrakk> list_all2 (\<lambda>f1 f2. (snd \<circ> snd) f1 = Present \<and> (snd \<circ> snd) f2 = Taken 
+                \<longrightarrow> A \<turnstile> CtDrop ((fst \<circ> snd) f1)) fs1 fs2
    ; map fst fs1 = map fst fs2  
    ; list_all2 (\<lambda>f1 f2. (A \<turnstile> CtSub ((fst \<circ> snd) f1) ((fst \<circ> snd) f2))) fs1 fs2
    ; list_all2 (\<lambda>f1 f2. ((snd \<circ> snd) f1) \<le> ((snd \<circ> snd) f2)) fs1 fs2
@@ -713,6 +714,10 @@ inductive_cases ct_sem_funE2: "A \<turnstile> CtSub \<rho> (TFun \<tau>1 \<tau>2
 inductive_cases ct_sem_exhaust: "A \<turnstile> CtExhausted (TVariant Ks None)"
 inductive_cases ct_sem_varsubE1: "A \<turnstile> CtSub (TVariant Ks \<alpha>) \<tau>"
 inductive_cases ct_sem_varsubE2: "A \<turnstile> CtSub \<tau> (TVariant Ks \<alpha>)"
+inductive_cases ct_sem_recsubE1: "A \<turnstile> CtSub (TRecord fs \<alpha> s) \<tau>"
+inductive_cases ct_sem_recsubE2: "A \<turnstile> CtSub \<tau> (TRecord fs \<alpha> s)"
+inductive_cases ct_sem_vardropE: "A \<turnstile> CtDrop (TVariant Ks None)"
+inductive_cases ct_sem_recdropE: "A \<turnstile> CtDrop (TRecord fs None s)"
 
 lemma ct_sem_sigil_equiv_def:
   "s = Writable \<or> s = Unboxed \<Longrightarrow> A \<turnstile> CtNotRead s"
@@ -773,7 +778,76 @@ lemma ct_sem_varsub_length:
   assumes "A \<turnstile> CtSub (TVariant Ks1 None) (TVariant Ks2 None)"
   shows "length Ks1 = length Ks2"
   using assms ct_sem_varsubE2 ct_sem_reflE type.inject by (metis map_eq_imp_length_eq)
-                                
+
+lemma ct_sem_recsub_length:
+  assumes "A \<turnstile> CtSub (TRecord fs1 None s) (TRecord fs2 None s)"
+  shows "length fs1 = length fs2"
+  using assms ct_sem_eq_iff ct_sem_recsubE2 map_eq_imp_length_eq type.inject
+  by (metis (no_types, lifting))
+
+lemma ct_sem_sub_drop_imp_drop:
+  assumes "A \<turnstile> CtSub \<tau> \<rho>" and "A \<turnstile> CtDrop \<rho>"
+  shows "A \<turnstile> CtDrop \<tau>"
+  using assms 
+proof (induct "CtSub \<tau> \<rho>" arbitrary: \<tau> \<rho>)
+  case (ct_sem_equal A \<tau> \<rho>)
+  then show ?case using ct_sem_eq_iff by simp
+next
+  case (ct_sem_fun A \<rho>1 \<tau>1 \<tau>2 \<rho>2)
+  then show ?case using constraint_sem.ct_sem_funD by blast 
+next
+  case (ct_sem_varsub Ks1 Ks2 A)
+  {
+    fix i :: nat
+    assume i_size:      "i < length Ks1"
+    assume i_unchecked: "(snd \<circ> snd) (Ks1 ! i) = Unchecked"
+    have "(snd \<circ> snd) (Ks1 ! i) \<le> (snd \<circ> snd) (Ks2 ! i)"
+      using list_all2_conv_all_nth[where ?P="(\<lambda>k1 k2. (snd \<circ> snd) k1 \<le> (snd \<circ> snd) k2)"]
+        ct_sem_varsub.hyps i_size by blast
+    then have "(snd \<circ> snd) (Ks2 ! i) = Unchecked"
+      using i_unchecked less_eq_variant_usage_tag.elims by auto
+    moreover have "A \<turnstile> CtDrop (TVariant Ks2 None)" "map fst Ks1 = map fst Ks2"
+      using ct_sem_varsub by blast+
+    ultimately have "A \<turnstile> CtDrop ((fst \<circ> snd) (Ks2 ! i))"
+      using  ct_sem_vardropE comp_apply i_size length_map by metis
+    then have "A \<turnstile> CtDrop ((fst \<circ> snd) (Ks1 ! i))"
+      using i_size ct_sem_varsub by (metis (mono_tags, lifting) list_all2_conv_all_nth)
+  }
+  then show ?case using ct_sem_vardrop ct_sem_varsub by blast
+next
+  case (ct_sem_recsub A fs1 fs2 s)
+  have "s \<noteq> Writable"
+    using ct_sem_recsub ct_sem_recdropE by blast
+  moreover {
+    fix i :: nat
+    assume i_size:    "i < length fs1"
+    assume i_present: "(snd \<circ> snd) (fs1 ! i) = Present"
+    have i_size2: "i < length fs2" using ct_sem_recsub.hyps i_size length_map by metis
+    have "A \<turnstile> CtDrop ((fst \<circ> snd) (fs1 ! i))"
+    proof (cases "(snd \<circ> snd) (fs2 ! i) = Present")
+      case True
+      have "list_all2 (\<lambda>f1 f2. (\<forall>x xa. (fst \<circ> snd) f1 = x \<and> (fst \<circ> snd) f2 = xa 
+                                       \<longrightarrow> A \<turnstile> CtDrop xa \<longrightarrow> A \<turnstile> CtDrop x)) fs1 fs2"
+        using ct_sem_recsub.hyps by (simp add: list_all2_mono)
+      then have "A \<turnstile> CtDrop ((fst \<circ> snd) (fs2 ! i)) \<Longrightarrow> A \<turnstile> CtDrop ((fst \<circ> snd) (fs1 ! i))"
+        by (metis (mono_tags, lifting) i_size list_all2_conv_all_nth)
+      moreover have "A \<turnstile> CtDrop ((fst \<circ> snd) (fs2 ! i))"
+        using ct_sem_recdropE i_size2 True ct_sem_recsub.prems by (metis comp_apply)
+      ultimately show ?thesis by argo
+    next
+      case False
+      have "list_all2 (\<lambda>f1 f2. (snd \<circ> snd) f1 = Present \<and> (snd \<circ> snd) f2 = Taken 
+                               \<longrightarrow> A \<turnstile> CtDrop ((fst \<circ> snd) f1)) fs1 fs2"
+        using ct_sem_recsub.hyps by (simp add: list_all2_mono)
+      then have "(snd \<circ> snd) (fs1 ! i) = Present \<and> (snd \<circ> snd) (fs2 ! i) = Taken 
+                 \<Longrightarrow> A \<turnstile> CtDrop ((fst \<circ> snd) (fs1 ! i))"
+        by (metis (mono_tags, lifting) i_size list_all2_conv_all_nth)
+      then show ?thesis using False i_present record_usage_tag.exhaust by blast
+    qed
+  }
+  ultimately show ?case using ct_sem_recdrop by blast
+qed
+
 lemma ct_sem_sub_trans:
   assumes "A \<turnstile> CtSub \<tau>1 \<tau>2"
     and "A \<turnstile> CtSub \<tau>2 \<tau>3"
@@ -860,9 +934,87 @@ next
     qed
   qed
 next
-  case (TRecord x1a x2 x3a)
-  then show ?case 
-    sorry
+  case (TRecord fs2 \<alpha> s)
+  consider (equal1) "A \<turnstile> CtEq \<tau>1 (TRecord fs2 \<alpha> s)" 
+         | (not_equal1) "\<not>(A \<turnstile> CtEq \<tau>1 (TRecord fs2 \<alpha> s))" by blast
+  then show ?case
+  proof cases
+    case equal1
+    then show ?thesis using ct_sem_eq_iff TRecord.prems by force
+  next
+    case not_equal1
+    consider (equal3) "A \<turnstile> CtEq (TRecord fs2 \<alpha> s) \<tau>3" 
+           | (not_equal3) "\<not>(A \<turnstile> CtEq (TRecord fs2 \<alpha> s) \<tau>3)" by blast
+    then show ?thesis
+    proof cases
+      case equal3
+      then show ?thesis using ct_sem_eq_iff TRecord.prems by force
+    next
+      case not_equal3
+      obtain fs1 where fs1_def: 
+        "\<tau>1 = TRecord fs1 None s"
+        "list_all2 (\<lambda>f1 f2. (snd \<circ> snd) f1 = Present \<and> (snd \<circ> snd) f2 = Taken 
+                            \<longrightarrow> A \<turnstile> CtDrop ((fst \<circ> snd) f1)) fs1 fs2"
+        "map fst fs1 = map fst fs2"
+        "list_all2 (\<lambda>f1 f2. (A \<turnstile> CtSub ((fst \<circ> snd) f1) ((fst \<circ> snd) f2))) fs1 fs2"
+        "list_all2 (\<lambda>f1 f2. ((snd \<circ> snd) f1) \<le> ((snd \<circ> snd) f2)) fs1 fs2"
+        using not_equal1 TRecord.prems by (auto elim: ct_sem_recsubE2)
+      obtain fs3 where fs3_def: 
+        "\<tau>3 = TRecord fs3 None s"
+        "list_all2 (\<lambda>f1 f2. (snd \<circ> snd) f1 = Present \<and> (snd \<circ> snd) f2 = Taken 
+                            \<longrightarrow> A \<turnstile> CtDrop ((fst \<circ> snd) f1)) fs2 fs3"
+        "map fst fs2 = map fst fs3"
+        "list_all2 (\<lambda>f1 f2. (A \<turnstile> CtSub ((fst \<circ> snd) f1) ((fst \<circ> snd) f2))) fs2 fs3"
+        "list_all2 (\<lambda>f1 f2. ((snd \<circ> snd) f1) \<le> ((snd \<circ> snd) f2)) fs2 fs3"
+        using not_equal3 TRecord.prems by (auto elim: ct_sem_recsubE1)
+      moreover have "list_all2 (\<lambda>f1 f2. (snd \<circ> snd) f1 = Present \<and> (snd \<circ> snd) f2 = Taken 
+                            \<longrightarrow> A \<turnstile> CtDrop ((fst \<circ> snd) f1)) fs1 fs3"
+      proof -
+        {
+          fix i :: nat
+          assume i_size:     "i < length fs2"
+          assume f1_present: "(snd \<circ> snd) (fs1 ! i) = Present"
+          assume f3_taken:   "(snd \<circ> snd) (fs3 ! i) = Taken"
+          have "A \<turnstile> CtDrop ((fst \<circ> snd) (fs1 ! i))"
+          proof (cases "(snd \<circ> snd) (fs2 ! i) = Present")
+            case True
+            have "(snd \<circ> snd) (fs2 ! i) = Present \<and> (snd \<circ> snd) (fs3 ! i) = Taken 
+                  \<longrightarrow> A \<turnstile> CtDrop ((fst \<circ> snd) (fs2 ! i))"
+              using fs3_def i_size by (metis (mono_tags, lifting) list_all2_conv_all_nth)
+            then have "A \<turnstile> CtDrop ((fst \<circ> snd) (fs2 ! i))" using f3_taken True by blast
+            moreover have "A \<turnstile> CtSub ((fst \<circ> snd) (fs1 ! i)) ((fst \<circ> snd) (fs2 ! i))"
+              using fs1_def i_size by (metis (mono_tags, lifting) list_all2_conv_all_nth)
+            ultimately show ?thesis using ct_sem_sub_drop_imp_drop by fast
+          next
+            case False
+            have "(snd \<circ> snd) (fs1 ! i) = Present \<and> (snd \<circ> snd) (fs2 ! i) = Taken 
+                  \<longrightarrow> A \<turnstile> CtDrop ((fst \<circ> snd) (fs1 ! i))"
+            using fs1_def by (simp add: i_size list_all2_conv_all_nth)
+            then show ?thesis using f1_present False record_usage_tag.exhaust by meson
+          qed
+        }
+        then show ?thesis using fs1_def fs3_def by (simp add: list_all2_conv_all_nth)
+      qed
+      moreover have "list_all2 (\<lambda>f1 f2. A \<turnstile> CtSub ((fst \<circ> snd) f1) ((fst \<circ> snd) f2)) fs1 fs3"
+      proof - 
+        {
+          fix i :: nat
+          assume i_size: "i < length fs2"
+          have "A \<turnstile> CtSub ((fst \<circ> snd) (fs1 ! i)) ((fst \<circ> snd) (fs2 ! i)) \<Longrightarrow> 
+                A \<turnstile> CtSub ((fst \<circ> snd) (fs2 ! i)) ((fst \<circ> snd) (fs3 ! i)) \<Longrightarrow> 
+                A \<turnstile> CtSub ((fst \<circ> snd) (fs1 ! i)) ((fst \<circ> snd) (fs3 ! i))"
+            using i_size fsts.intros snds.intros by (rule_tac TRecord.hyps; fastforce+)
+        }
+        then show ?thesis
+          using ct_sem_recsub_length TRecord.prems fs1_def fs3_def
+          by (simp add: list_all2_conv_all_nth)
+      qed
+      moreover have "list_all2 (\<lambda>f1 f2. ((snd \<circ> snd) f1) \<le> ((snd \<circ> snd) f2)) fs1 fs3"
+        using fs1_def fs3_def by (simp add: list_all2_conv_all_nth; fastforce)
+      ultimately show ?thesis
+        using ct_sem_recsub fs1_def fs3_def by presburger
+    qed
+  qed
 qed (auto intro: ct_sem_eq_iff elim: constraint_sem.cases)
 
 lemma ct_sem_norm:
@@ -999,19 +1151,82 @@ next
     using subst_ty_ct_def normalise_domain constraint_sem.ct_sem_obsshare by auto
 next
   case (ct_sem_sigil s A)
-  then show ?case sorry
+  then show ?case using subst_ty_ct_def constraint_sem.ct_sem_sigil by force
 next
-  case (ct_sem_recsub fs1 A fs2 s)
-  then show ?case sorry
+  case (ct_sem_recsub A fs1 fs2 s)
+  obtain fs1' where fs1'_def: "fs1' = map (\<lambda>(f, t, u). (f, subst_ty \<mu> \<mu>' t, u)) fs1"
+    by fast
+  obtain fs2' where fs2'_def: "fs2' = map (\<lambda>(nm, t, u). (nm, subst_ty \<mu> \<mu>' t, u)) fs2"
+    by fast
+  have "list_all2 (\<lambda>f1 f2. (snd \<circ> snd) f1 = Present \<and> (snd \<circ> snd) f2 = Taken 
+                            \<longrightarrow> A \<turnstile> CtDrop ((fst \<circ> snd) f1)) fs1' fs2'"
+  proof -
+    have "length fs1' = length fs2'"
+    proof -
+      have "length fs1 = length fs1'" "length fs2 = length fs2'" 
+        using fs1'_def fs2'_def length_map by force+
+      moreover have "length fs1 = length fs2" using ct_sem_recsub.hyps length_map by metis
+      ultimately show ?thesis by argo
+    qed
+    moreover {
+      fix i :: nat
+      assume i_size: "i < length fs2'" 
+      assume f1'_present: "(snd \<circ> snd) (fs1' ! i) = Present"
+      assume f2'_taken:   "(snd \<circ> snd) (fs2' ! i) = Taken"
+      have i_size2: "i < length fs2" "i < length fs1" "i < length fs1'" 
+        using fs2'_def fs1'_def i_size ct_sem_recsub.hyps map_eq_imp_length_eq by force+
+      have "(snd \<circ> snd) (fs1 ! i) = (snd \<circ> snd) (fs1' ! i)"
+        using fs1'_def i_size2 by (simp add: case_prod_unfold)
+      moreover have "(snd \<circ> snd) (fs2 ! i) = (snd \<circ> snd) (fs2' ! i)"
+        using fs2'_def i_size2 by (simp add: case_prod_unfold)
+      moreover have "(snd \<circ> snd) (fs1 ! i) = Present \<and> (snd \<circ> snd) (fs2 ! i) = Taken 
+                      \<longrightarrow> A \<turnstile> subst_ty_ct \<mu> \<mu>' (CtDrop ((fst \<circ> snd) (fs1 ! i)))"
+        using ct_sem_recsub i_size2 by (metis (mono_tags, lifting) list_all2_conv_all_nth)
+      ultimately have "A \<turnstile> subst_ty_ct \<mu> \<mu>' (CtDrop ((fst \<circ> snd) (fs1 ! i)))"
+        using f1'_present f2'_taken by argo
+      then have "A \<turnstile> CtDrop ((fst \<circ> snd) (fs1' ! i))"
+        by (simp add: fs1'_def i_size2 prod.case_eq_if subst_ty_ct_def)
+    }
+    ultimately show ?thesis by (clarsimp simp add: list_all2_conv_all_nth)
+  qed
+  moreover have "map fst fs1' = map fst fs2'"
+    using ct_sem_recsub.hyps fs1'_def fs2'_def by simp
+  moreover have "list_all2 (\<lambda>f1 f2. A \<turnstile> CtSub ((fst \<circ> snd) f1) ((fst \<circ> snd) f2)) fs1' fs2'"
+    using ct_sem_recsub fs1'_def fs2'_def subst_ty_ct_def
+    by (simp add: list_all2_conv_all_nth prod.case_eq_if)
+  moreover have "list_all2 (\<lambda>f1 f2. (snd \<circ> snd) f1 \<le> (snd \<circ> snd) f2) fs1' fs2'"
+    using ct_sem_recsub.hyps fs1'_def fs2'_def 
+    by (simp add: case_prod_unfold list_all2_conv_all_nth)
+  ultimately show ?case
+    using subst_ty_ct_def constraint_sem.ct_sem_recsub fs1'_def fs2'_def ct_sem_recsub.prems 
+      normalise_domain by fastforce
 next
   case (ct_sem_recshare s fs A)
-  then show ?case sorry
+  then have "\<forall>i<length (map (\<lambda>(f, t, u). (f, subst_ty \<mu> \<mu>' t, u)) fs).
+                       (snd \<circ> snd) (map (\<lambda>(f, t, u). (f, subst_ty \<mu> \<mu>' t, u)) fs ! i) = Present \<longrightarrow>
+                       A \<turnstile> CtShare ((fst \<circ> snd) (map (\<lambda>(f, t, u). (f, subst_ty \<mu> \<mu>' t, u)) fs ! i))"
+    by (simp add: prod.case_eq_if subst_ty_ct_def)
+  then show ?case
+    using ct_sem_recshare subst_ty_ct_def normalise_domain constraint_sem.ct_sem_recshare 
+    by fastforce
 next
   case (ct_sem_recdrop s fs A)
-  then show ?case sorry
+  then have "\<forall>i<length (map (\<lambda>(f, t, u). (f, subst_ty \<mu> \<mu>' t, u)) fs).
+                       (snd \<circ> snd) (map (\<lambda>(f, t, u). (f, subst_ty \<mu> \<mu>' t, u)) fs ! i) = Present \<longrightarrow>
+                       A \<turnstile> CtDrop ((fst \<circ> snd) (map (\<lambda>(f, t, u). (f, subst_ty \<mu> \<mu>' t, u)) fs ! i))"
+    by (simp add: case_prod_beta' subst_ty_ct_def)
+  then show ?case 
+    using ct_sem_recdrop subst_ty_ct_def normalise_domain constraint_sem.ct_sem_recdrop 
+    by fastforce
 next
   case (ct_sem_recescape s fs A)
-  then show ?case sorry
+  then have "\<forall>i<length (map (\<lambda>(f, t, u). (f, subst_ty \<mu> \<mu>' t, u)) fs).
+                       (snd \<circ> snd) (map (\<lambda>(f, t, u). (f, subst_ty \<mu> \<mu>' t, u)) fs ! i) = Present \<longrightarrow>
+                      A \<turnstile> CtEscape ((fst \<circ> snd) (map (\<lambda>(f, t, u). (f, subst_ty \<mu> \<mu>' t, u)) fs ! i))"
+    by (simp add: case_prod_beta' subst_ty_ct_def)
+  then show ?case
+    using ct_sem_recescape subst_ty_ct_def normalise_domain constraint_sem.ct_sem_recescape 
+    by fastforce
 qed
 
 
