@@ -334,8 +334,6 @@ norm_tvar:
   "TBang (TFun t u)                  \<hookrightarrow> TFun t u"
 | norm_tprim:
   "TBang (TPrim pt)                  \<hookrightarrow> TPrim pt"
-| norm_tunit:
-  "TBang (TUnit)                     \<hookrightarrow> TUnit"
 | norm_tvariant:
   "TBang (TVariant Ks None)          \<hookrightarrow> TVariant (map (\<lambda>(nm, t, u). (nm, TBang t, u)) Ks) None"
 | norm_tabstract_w:
@@ -410,7 +408,6 @@ known_tvar:
   "known_ty t \<Longrightarrow> known_ty (TBang t)"
 
 inductive_cases known_tfunE: "known_ty (TFun t1 t2)"
-inductive_cases known_tproductE: "known_ty (TProduct t1 t2)"
 inductive_cases known_tvariant_consE: "known_ty (TVariant (K # Ks) None)"
 
 
@@ -777,7 +774,6 @@ lemma ct_sem_varsub_length:
   shows "length Ks1 = length Ks2"
   using assms ct_sem_varsubE2 ct_sem_reflE type.inject by (metis map_eq_imp_length_eq)
                                 
-inductive_cases ct_sem_tproductsubE: "A \<turnstile> CtSub (TProduct \<tau>1 \<tau>2) \<rho>"
 lemma ct_sem_sub_trans:
   assumes "A \<turnstile> CtSub \<tau>1 \<tau>2"
     and "A \<turnstile> CtSub \<tau>2 \<tau>3"
