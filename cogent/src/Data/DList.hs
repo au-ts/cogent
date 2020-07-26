@@ -13,11 +13,13 @@
 module Data.DList
   ( DList(..)
   , empty
+  , singleton
   , cons
   , fromList
   , toList
   ) where
 
+import Control.Arrow (first)
 import Data.Binary
 import qualified Data.Set as S
 import Data.List (find, foldl')
@@ -28,30 +30,28 @@ import GHC.Generics (Generic)
  - Used to keep track of definitions, which require an ordering
  - but don't need to be stored multiple times.
  -}
-data DList a = DList ![a] !(S.Set a)
-             deriving (Generic)
+data DList a = DList ![a] deriving (Eq, Ord, Generic)
 
 instance Binary a => Binary (DList a)
 
 -- Just implement functions that we currently use.
 empty :: DList a
-empty = DList [] S.empty
+empty = DList []
+
+singleton :: a -> DList a
+singleton a = DList [a]
 
 cons :: Ord a => a -> DList a -> DList a
-cons x dl@(DList xs xsSet) | S.member x xsSet = dl
-                           | otherwise = DList (x:xs) (S.insert x xsSet)
+cons x dl@(DList xs) | x `elem` xs = dl
+                     | otherwise = DList (x:xs)
 
 fromList :: Ord a => [a] -> DList a
 fromList = foldl' (flip cons) empty . reverse
 
 toList :: DList a -> [a]
-toList (DList xs _) = xs
+toList (DList xs) = xs
 
-instance Eq a => Eq (DList a) where
-  DList xs _ == DList ys _ = xs == ys
-instance Ord a => Ord (DList a) where
-  DList xs _ `compare` DList ys _ = xs `compare` ys
 instance Show a => Show (DList a) where
-  showsPrec n (DList xs _) = showsPrec n xs
+  showsPrec n (DList xs) = showsPrec n xs
 instance (Ord a, Read a) => Read (DList a) where
-  readsPrec n s = map (\(xs, s') -> (DList xs (S.fromList xs), s')) $ readsPrec n s
+  readsPrec n s = map (first DList) $ readsPrec n s

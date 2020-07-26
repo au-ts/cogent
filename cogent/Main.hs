@@ -134,6 +134,7 @@ data Command = AstC
              | ShallowConsts Stage
              | ShallowConstsTuples -- STGDesugar
              | TableCType
+             | NewTableCType
              | TableAbsFuncMono
              | TableAbsTypeMono
              | TableShallow
@@ -224,6 +225,7 @@ setActions c@(StackUsage x) = [c]
 setActions c@(Compile STGParse) = [c]
 setActions c@(CodeGen      ) = setActions (Compile STGCodeGen) ++ [c]
 setActions c@(TableCType   ) = setActions (Compile STGCodeGen) ++ [c]
+setActions c@(NewTableCType) = setActions (Compile STGCodeGen) ++ [c]
 setActions c@(Compile   stg) = setActions (Compile $ pred stg) ++ [c]
 setActions c@(Interpret    ) = [c]
 setActions c@(Ast       stg) = setActions (Compile stg) ++ [c]
@@ -268,6 +270,7 @@ setActions c@(CRefinement  ) = nub $ setActions (CodeGen) ++
                                      setActions (MonoProof) ++  -- although technically only needed for C-refinement,
                                                                 -- it's only invoked in AllRefine.
                                      setActions (TableCType) ++
+                                     setActions (NewTableCType) ++
                                      setActions (Root) ++
                                      [ACInstall, CorresSetup, CorresProof, BuildInfo]
 setActions c@(FunctionalCorrectness) = nub $ setActions (ShallowTuplesProof) ++
@@ -407,6 +410,7 @@ options = [
   -- misc.
   , Option []         ["root"]              1 (NoArg Root)                ("generate Isabelle " ++ __cogent_root_name ++ " file")
   , Option []         ["table-c-types"]     1 (NoArg TableCType)          "generate a table of Cogent and C type correspondence"
+  , Option []         ["new-table-c-types"] 1 (NoArg NewTableCType)       "generate a table of Cogent and C type correspondence, and getter/setter functions for Dargent"
   , Option []         ["table-shallow"]     1 (NoArg TableShallow)        "generate a table of type synonyms for shallow embedding"
   , Option []         ["table-abs-func-mono"] 3 (NoArg TableAbsFuncMono)  "generate a table of monomorphised abstract functions"
   , Option []         ["table-abs-type-mono"] 3 (NoArg TableAbsTypeMono)  "generate a table of monomorphised abstract types"
@@ -797,7 +801,7 @@ parseArgs args = case getOpt' Permute options args of
                     case decodeResult of
                       Left (_, err) -> hPutStrLn stderr ("Decoding name cache file failed: " ++ err ++ ".\nNot using name cache.") >> return (Nothing, True)
                       Right cache -> return (Just cache, False)
-      let (h,c,atm,ct,hsc,hs,genst) = cgen hName cNames hscName hsName monoed mcache ctygen log
+      let (h,c,atm,ct,ct',hsc,hs,genst) = cgen hName cNames hscName hsName monoed mcache ctygen log
       when (TableAbsTypeMono `elem` cmds) $ do
         let atmfile = mkFileName source Nothing __cogent_ext_of_atm
         putProgressLn "Generating table for monomorphised asbtract types..."
@@ -808,6 +812,11 @@ parseArgs args = case getOpt' Permute options args of
         putProgressLn "Generating table for C-Cogent type correspondence..."
         writeFileMsg ctyfile
         output ctyfile $ \h -> fontSwitch h >>= \s -> printCTable h s ct log
+      when (NewTableCType `elem` cmds) $ do
+        let ctyfile' = mkFileName source Nothing (__cogent_ext_of_c_type_table ++ ".new")
+        putProgressLn "Generating (new) table for C-Cogent type correspondence..."
+        writeFileMsg ctyfile'
+        output ctyfile' $ \h -> fontSwitch h >>= \s -> printCTable h s ct' log
 #ifdef WITH_HASKELL
       when (HsFFIGen `elem` cmds) $ do
         putProgressLn "Generating Hsc file..."

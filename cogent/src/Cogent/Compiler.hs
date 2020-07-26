@@ -55,6 +55,9 @@ __fixme = id
 __assert :: Monad m => Bool -> String -> m ()
 __assert ass msg = unless ass $ error ("ASSERTION FAILED: " ++ msg)
 
+__assert_ :: Bool -> String -> x -> x
+__assert_ ass msg x = if ass then x else error ("ASSERTION FAILED: " ++ msg)
+
 
 -- Deal with files
 

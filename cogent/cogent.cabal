@@ -157,6 +157,7 @@ library
               , Data.Fin
               , Data.LeafTree
               , Data.Nat
+              , Data.OMap
               , Data.PropEq
               , Data.Vec
               -- Generated
