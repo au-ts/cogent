@@ -1420,13 +1420,9 @@ definition assign_app_ctx :: "assignment \<Rightarrow> ctx \<Rightarrow> ctx" wh
 definition known_assignment :: "assignment \<Rightarrow> bool" where
   "known_assignment S \<equiv> \<forall>i. known_ty ((fst S) i) &
                         (\<forall>Ks Ks' n. assign_app_ty S (TVariant Ks (Some n)) = TVariant Ks' None 
-                                   \<longrightarrow> distinct (map fst Ks')) &
-                        (\<forall>i j. j < length (((fst \<circ> snd) S) i) 
-                                   \<longrightarrow> known_ty ((fst \<circ> snd) ((((fst \<circ> snd) S) i) ! j))) &
+                                   \<longrightarrow> distinct (map fst Ks') \<and> (known_ty (TVariant Ks' None))) &
                         (\<forall>fs fs' n s. assign_app_ty S (TRecord fs (Some n) s) = TRecord fs' None s
-                                   \<longrightarrow> distinct (map fst fs')) &
-                        (\<forall>i j. j < length (((fst \<circ> snd) S) i)
-                                   \<longrightarrow> known_ty ((fst \<circ> snd) ((((snd \<circ> snd) S) i) ! j)))"
+                                   \<longrightarrow> distinct (map fst fs') \<and> (known_ty (TRecord fs' None s)))"
 
 lemma assign_app_ctx_none_iff:
   assumes "i < length G"
