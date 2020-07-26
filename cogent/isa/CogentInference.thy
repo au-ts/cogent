@@ -29,6 +29,7 @@ datatype prim_op
 
 
 datatype variant_usage_tag = Checked | Unchecked
+datatype record_usage_tag = Taken | Present
 
 instantiation variant_usage_tag :: "{boolean_algebra, linorder}"
 begin
@@ -105,6 +106,82 @@ instance proof
 qed
 end
 
+instantiation record_usage_tag :: "{boolean_algebra, linorder}"
+begin
+
+fun uminus_record_usage_tag :: "record_usage_tag \<Rightarrow> record_usage_tag" where
+  "uminus_record_usage_tag Taken   = Present"
+| "uminus_record_usage_tag Present = Taken"
+
+definition top_record_usage_tag :: record_usage_tag where
+  "top_record_usage_tag \<equiv> Taken"
+declare top_record_usage_tag_def[simp]
+
+definition bot_record_usage_tag :: record_usage_tag where
+  "bot_record_usage_tag \<equiv> Present"
+declare bot_record_usage_tag_def[simp]
+
+fun inf_record_usage_tag :: "record_usage_tag \<Rightarrow> record_usage_tag \<Rightarrow> record_usage_tag" where
+  "inf_record_usage_tag Present _       = Present"
+| "inf_record_usage_tag Taken   Present = Present"
+| "inf_record_usage_tag Taken   Taken   = Taken"
+
+fun sup_record_usage_tag :: "record_usage_tag \<Rightarrow> record_usage_tag \<Rightarrow> record_usage_tag" where
+  "sup_record_usage_tag Taken   _       = Taken"
+| "sup_record_usage_tag Present Taken   = Taken"
+| "sup_record_usage_tag Present Present = Present"
+
+fun less_eq_record_usage_tag :: "record_usage_tag \<Rightarrow> record_usage_tag \<Rightarrow> bool" where
+  "less_eq_record_usage_tag _       Taken   = True"
+| "less_eq_record_usage_tag Present Present = True"
+| "less_eq_record_usage_tag Taken   Present = False"
+
+fun less_record_usage_tag :: "record_usage_tag \<Rightarrow> record_usage_tag \<Rightarrow> bool" where
+  "less_record_usage_tag _       Present = False"
+| "less_record_usage_tag Taken   Taken   = False"
+| "less_record_usage_tag Present Taken   = True"
+
+definition minus_record_usage_tag :: "record_usage_tag \<Rightarrow> record_usage_tag \<Rightarrow> record_usage_tag" where
+  "minus_record_usage_tag x y \<equiv> inf x (- y)"
+declare minus_record_usage_tag_def[simp]
+
+instance proof
+  fix x y z :: record_usage_tag
+
+  show "(x < y) = (x \<le> y \<and> \<not> y \<le> x)"
+    by (cases x; cases y; clarsimp)
+  show "x \<le> x"
+    by (cases x; clarsimp)
+  show "x \<le> y \<Longrightarrow> y \<le> z \<Longrightarrow> x \<le> z"
+    by (cases x; cases y; cases z; clarsimp)
+  show "x \<le> y \<Longrightarrow> y \<le> x \<Longrightarrow> x = y"
+    by (cases x; cases y; clarsimp)
+  show "inf x y \<le> x" "inf x y \<le> y"
+    by (cases x; cases y; clarsimp)+
+  show "x \<le> y \<Longrightarrow> x \<le> z \<Longrightarrow> x \<le> inf y z"
+    by (cases x; cases y; cases z; clarsimp)
+  show "x \<le> sup x y"
+    by (cases x; cases y; clarsimp)
+  show "y \<le> sup x y"
+    by (cases x; cases y; clarsimp)
+  show "y \<le> x \<Longrightarrow> z \<le> x \<Longrightarrow> sup y z \<le> x"
+    by (cases x; cases y; cases z; clarsimp)
+  show "bot \<le> x" "x \<le> top"
+    by (cases x; simp)+
+  show "sup x (inf y z) = inf (sup x y) (sup x z)"
+    by (cases x; cases y; cases z; simp)
+  show
+    "inf x (- x) = bot"
+    "sup x (- x) = top"
+    by (cases x; simp)+
+  show "x - y = inf x (- y)"
+    by simp
+  show "x \<le> y \<or> y \<le> x"
+    by (cases x; cases y; simp)
+qed
+end
+
+
 datatype sigil = Writable 
                | ReadOnly
                | Unboxed
@@ -120,7 +197,7 @@ datatype type = TVar index
               | TUnknown index
               | TVariant "(name \<times> type \<times> variant_usage_tag) list" "unif_var option"
               | TAbstract name "type list" sigil
-              | TRecord "(name \<times> type \<times> variant_usage_tag) list" "unif_var option" sigil
+              | TRecord "(name \<times> type \<times> record_usage_tag) list" "unif_var option" sigil
               | TObserve index
               | TBang type
 
@@ -1288,7 +1365,8 @@ qed (blast)+
 section {* Assignment Definition *}
 (* when we are assigning an unknown type a type, the assigned type should not contain any
    unknown types itself *)
-type_synonym assignment = "(nat \<Rightarrow> type) \<times> (nat \<Rightarrow> (string \<times> type \<times> variant_usage_tag) list)"
+type_synonym assignment = "(nat \<Rightarrow> type) \<times> (nat \<Rightarrow> (string \<times> type \<times> variant_usage_tag) list)
+                                         \<times> (nat \<Rightarrow> (string \<times> type \<times> record_usage_tag) list)"
 
 fun assign_app_ty :: "assignment \<Rightarrow> type \<Rightarrow> type" where
   "assign_app_ty S (TVar n)                = TVar n"
@@ -1296,9 +1374,9 @@ fun assign_app_ty :: "assignment \<Rightarrow> type \<Rightarrow> type" where
 | "assign_app_ty S (TPrim pt)              = TPrim pt"
 | "assign_app_ty S (TUnknown n)            = (fst S) n"
 | "assign_app_ty S (TVariant Ks None)      = TVariant (map (\<lambda>(nm, t, u). (nm, assign_app_ty S t, u)) Ks) None"
-| "assign_app_ty S (TVariant Ks (Some n))  = TVariant ((map (\<lambda>(nm, t, u). (nm, assign_app_ty S t, u)) Ks) @ ((snd S) n)) None"
+| "assign_app_ty S (TVariant Ks (Some n))  = TVariant ((map (\<lambda>(nm, t, u). (nm, assign_app_ty S t, u)) Ks) @ (((fst \<circ> snd) S) n)) None"
 | "assign_app_ty S (TRecord fs None s)     = TRecord (map (\<lambda>(f, t, u). (f, assign_app_ty S t, u)) fs) None s"
-| "assign_app_ty S (TRecord fs (Some n) s) = TRecord ((map (\<lambda>(f, t, u). (f, assign_app_ty S t, u)) fs) @ ((snd S) n)) None s"
+| "assign_app_ty S (TRecord fs (Some n) s) = TRecord ((map (\<lambda>(f, t, u). (f, assign_app_ty S t, u)) fs) @ (((snd \<circ> snd) S) n)) None s"
 | "assign_app_ty S (TAbstract nm ts s)     = TAbstract nm (map (assign_app_ty S) ts) s"
 | "assign_app_ty S (TObserve i)            = TObserve i"
 | "assign_app_ty S (TBang t)               = TBang (assign_app_ty S t)"
@@ -1341,9 +1419,14 @@ definition assign_app_ctx :: "assignment \<Rightarrow> ctx \<Rightarrow> ctx" wh
 
 definition known_assignment :: "assignment \<Rightarrow> bool" where
   "known_assignment S \<equiv> \<forall>i. known_ty ((fst S) i) &
-                        (\<forall>Ks KS m. assign_app_ty S (TVariant Ks (Some m)) = TVariant KS None 
-                                   \<longrightarrow> distinct (map fst KS)) &
-                        (\<forall>i j. j < length ((snd S) i) \<longrightarrow> known_ty ((fst \<circ> snd) (((snd S) i) ! j)))"
+                        (\<forall>Ks Ks' n. assign_app_ty S (TVariant Ks (Some n)) = TVariant Ks' None 
+                                   \<longrightarrow> distinct (map fst Ks')) &
+                        (\<forall>i j. j < length (((fst \<circ> snd) S) i) 
+                                   \<longrightarrow> known_ty ((fst \<circ> snd) ((((fst \<circ> snd) S) i) ! j))) &
+                        (\<forall>fs fs' n s. assign_app_ty S (TRecord fs (Some n) s) = TRecord fs' None s
+                                   \<longrightarrow> distinct (map fst fs')) &
+                        (\<forall>i j. j < length (((fst \<circ> snd) S) i)
+                                   \<longrightarrow> known_ty ((fst \<circ> snd) ((((snd \<circ> snd) S) i) ! j)))"
 
 lemma assign_app_ctx_none_iff:
   assumes "i < length G"
