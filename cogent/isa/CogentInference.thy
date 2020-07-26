@@ -687,6 +687,26 @@ ct_sem_share:
   "A \<turnstile> CtDrop (TObserve i)"
 | ct_sem_obsshare:
   "A \<turnstile> CtShare (TObserve i)"
+| ct_sem_sigil:
+  "s \<noteq> ReadOnly \<Longrightarrow> A \<turnstile> CtNotRead s"
+| ct_sem_recsub:
+  "\<lbrakk> \<forall>i < length fs1. A \<turnstile> CtDrop ((fst \<circ> snd) (fs1 ! i))
+   ; map fst fs1 = map fst fs2  
+   ; list_all2 (\<lambda>f1 f2. (A \<turnstile> CtSub ((fst \<circ> snd) f1) ((fst \<circ> snd) f2))) fs1 fs2
+   ; list_all2 (\<lambda>f1 f2. ((snd \<circ> snd) f1) \<le> ((snd \<circ> snd) f2)) fs1 fs2
+   \<rbrakk> \<Longrightarrow> A \<turnstile> CtSub (TRecord fs1 None s) (TRecord fs2 None s)"
+| ct_sem_recshare:
+  "\<lbrakk> s \<noteq> Writable
+   ; \<forall>i < length fs. (snd \<circ> snd) (fs ! i) = Present \<longrightarrow> A \<turnstile> CtShare ((fst \<circ> snd) (fs ! i))
+   \<rbrakk> \<Longrightarrow> A \<turnstile> CtShare (TRecord fs None s)"
+| ct_sem_recdrop:
+  "\<lbrakk> s \<noteq> Writable
+   ; \<forall>i < length fs. (snd \<circ> snd) (fs ! i) = Present \<longrightarrow> A \<turnstile> CtDrop ((fst \<circ> snd) (fs ! i))
+   \<rbrakk> \<Longrightarrow> A \<turnstile> CtDrop (TRecord fs None s)"
+| ct_sem_recescape:
+  "\<lbrakk> s \<noteq> ReadOnly
+   ; \<forall>i < length fs. (snd \<circ> snd) (fs ! i) = Present \<longrightarrow> A \<turnstile> CtEscape ((fst \<circ> snd) (fs ! i))
+   \<rbrakk> \<Longrightarrow> A \<turnstile> CtEscape (TRecord fs None s)"
 
 inductive_cases ct_sem_conjE: "A \<turnstile> CtConj C1 C2"
 inductive_cases ct_sem_intE: "A \<turnstile> CtIBound (LNat m) \<tau>"
@@ -696,6 +716,11 @@ inductive_cases ct_sem_funE2: "A \<turnstile> CtSub \<rho> (TFun \<tau>1 \<tau>2
 inductive_cases ct_sem_exhaust: "A \<turnstile> CtExhausted (TVariant Ks None)"
 inductive_cases ct_sem_varsubE1: "A \<turnstile> CtSub (TVariant Ks \<alpha>) \<tau>"
 inductive_cases ct_sem_varsubE2: "A \<turnstile> CtSub \<tau> (TVariant Ks \<alpha>)"
+
+lemma ct_sem_sigil_equiv_def:
+  "s = Writable \<or> s = Unboxed \<Longrightarrow> A \<turnstile> CtNotRead s"
+  using ct_sem_sigil by blast
+
 
 lemma ct_sem_conj_iff: "A \<turnstile> CtConj C1 C2 \<longleftrightarrow> A \<turnstile> C1 \<and> A \<turnstile> C2"
   using ct_sem_conj ct_sem_conjE by meson
@@ -838,6 +863,10 @@ next
         using ct_sem_varsub Ks1_def Ks3_def by presburger
     qed
   qed
+next
+  case (TRecord x1a x2 x3a)
+  then show ?case 
+    sorry
 qed (auto intro: ct_sem_eq_iff elim: constraint_sem.cases)
 
 lemma ct_sem_norm:
@@ -972,6 +1001,21 @@ next
   case (ct_sem_obsshare A t)
   then show ?case
     using subst_ty_ct_def normalise_domain constraint_sem.ct_sem_obsshare by auto
+next
+  case (ct_sem_sigil s A)
+  then show ?case sorry
+next
+  case (ct_sem_recsub fs1 A fs2 s)
+  then show ?case sorry
+next
+  case (ct_sem_recshare s fs A)
+  then show ?case sorry
+next
+  case (ct_sem_recdrop s fs A)
+  then show ?case sorry
+next
+  case (ct_sem_recescape s fs A)
+  then show ?case sorry
 qed
 
 
