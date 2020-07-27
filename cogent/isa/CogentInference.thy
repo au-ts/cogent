@@ -327,6 +327,21 @@ fun variant_nth_unchecked :: "nat \<Rightarrow> type \<Rightarrow> type" where
 | "variant_nth_unchecked n (TBang t)           = undefined"
 
 
+fun record_elem_taken :: "(name \<times> type \<times> record_usage_tag) \<Rightarrow> (name \<times> type \<times> record_usage_tag)" 
+  where "record_elem_taken (nm, t, _) = (nm, t, Taken)"
+
+fun record_nth_taken :: "nat \<Rightarrow> type \<Rightarrow> type" where
+  "record_nth_taken n (TVar i)            = undefined"  
+| "record_nth_taken n (TFun a b)          = undefined"
+| "record_nth_taken n (TPrim p)           = undefined"
+| "record_nth_taken n (TUnknown i)        = undefined"
+| "record_nth_taken n (TVariant Ks \<alpha>)     = undefined"
+| "record_nth_taken n (TAbstract nm ts s) = undefined"
+| "record_nth_taken n (TRecord fs \<alpha> s)    = TRecord (fs[n := record_elem_taken (fs ! n)]) \<alpha> s"
+| "record_nth_taken n (TObserve i)        = undefined"
+| "record_nth_taken n (TBang t)           = undefined"
+
+
 inductive normalise :: "type \<Rightarrow> type \<Rightarrow> bool" ("_ \<hookrightarrow> _" [40, 40] 60) where
 norm_tvar:
   "TBang (TVar i)                    \<hookrightarrow> TObserve i"
@@ -344,6 +359,15 @@ norm_tvar:
   "TBang (TAbstract nm ts Unboxed)   \<hookrightarrow> TAbstract nm (map TBang ts) Unboxed"
 | norm_tobserve:
   "TBang (TObserve i)                \<hookrightarrow> TObserve i"
+| norm_trecord_w:
+  "TBang (TRecord fs None Writable)  \<hookrightarrow> TRecord (map (\<lambda>(f, t, u). (f, TBang t, u)) fs) 
+                                                None ReadOnly"
+| norm_trecord_r:
+  "TBang (TRecord fs None ReadOnly)  \<hookrightarrow> TRecord (map (\<lambda>(f, t, u). (f, TBang t, u)) fs) 
+                                                None ReadOnly"
+| norm_trecord_u:
+  "TBang (TRecord fs None Unboxed)   \<hookrightarrow> TRecord (map (\<lambda>(f, t, u). (f, TBang t, u)) fs) 
+                                                None Unboxed"
 
 lemma normalise_domain:
   assumes "\<mu> \<hookrightarrow> \<mu>'"
@@ -722,7 +746,6 @@ inductive_cases ct_sem_recdropE: "A \<turnstile> CtDrop (TRecord fs None s)"
 lemma ct_sem_sigil_equiv_def:
   "s = Writable \<or> s = Unboxed \<Longrightarrow> A \<turnstile> CtNotRead s"
   using ct_sem_sigil by blast
-
 
 lemma ct_sem_conj_iff: "A \<turnstile> CtConj C1 C2 \<longleftrightarrow> A \<turnstile> C1 \<and> A \<turnstile> C2"
   using ct_sem_conj ct_sem_conjE by meson
@@ -1264,7 +1287,9 @@ lemma weak_keep_refl: "weakening_comp K (Some \<tau>) (Some \<rho>) \<Longrighta
 
 section {* Typing Rules (Fig 3.3 3.8 3.13) *}
 inductive typing :: "axm_set \<Rightarrow> ctx \<Rightarrow> 'fnname expr \<Rightarrow> type \<Rightarrow> bool"
-          ("_ \<ddagger> _ \<turnstile> _ : _" [40,0,0,40] 60) where
+          ("_ \<ddagger> _ \<turnstile> _ : _" [40,0,0,40] 60)
+      and typing_all :: "axm_set \<Rightarrow> ctx \<Rightarrow> 'fnname expr list \<Rightarrow> type list \<Rightarrow> bool"
+          ("_ \<ddagger> _ \<turnstile>* _ : _" [40,0,0,40] 60) where
 typing_var:
   "\<lbrakk> A \<turnstile> \<Gamma>  \<leadsto>w singleton (length \<Gamma>) i \<tau>
    ; i < length \<Gamma>
@@ -1363,6 +1388,42 @@ typing_var:
    ; A \<ddagger> \<Gamma>1 \<turnstile> e1 : (TVariant Ks None)
    ; A \<ddagger> (Some ((fst \<circ> snd) (Ks ! i))) # \<Gamma>2 \<turnstile> e2 : \<tau>
    \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Esac e1 nm e2 : \<tau>"
+| typing_member:
+  "\<lbrakk> distinct (map fst fs)
+   ; i < length fs
+   ; fst (fs ! i) = nm
+   ; \<forall>j < length fs. if j = i then (snd \<circ> snd) (fs ! i) = Present else (snd \<circ> snd) (fs ! i) = Taken
+   ; A \<ddagger> \<Gamma> \<turnstile> e : TRecord fs None s
+   \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Member e nm : \<tau>"
+| typing_struct:
+  "\<lbrakk> distinct (map fst fs)
+   ; nms = map fst fs
+   ; \<forall>i < length fs. (snd \<circ> snd) (fs ! i) = Present
+   ; A \<ddagger> \<Gamma> \<turnstile>* es : map (fst \<circ> snd) fs
+   ; \<tau> = TRecord fs None Unboxed
+   \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Struct nms es : \<tau>"
+| typing_put:
+  "\<lbrakk> distinct (map fst fs)
+   ; i < length fs
+   ; fst (fs ! i) = nm
+   ; (snd \<circ> snd) (fs ! i) = Present
+   ; A \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 \<box> \<Gamma>2
+   ; A \<ddagger> \<Gamma>1 \<turnstile> e1 : record_nth_taken i (TRecord fs None s)
+   ; s \<noteq> ReadOnly
+   ; A \<ddagger> \<Gamma>2 \<turnstile> e2 : (fst \<circ> snd) (fs ! i) 
+   ; \<tau> = TRecord fs None s 
+   \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Put e1 nm e2 : \<tau>"
+| typing_take:
+  "\<lbrakk> distinct (map fst fs)
+   ; i < length fs
+   ; fst (fs ! i) = nm
+   ; (snd \<circ> snd) (fs ! i) = Present
+   ; A \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 \<box> \<Gamma>2
+   ; A \<ddagger> \<Gamma>1 \<turnstile> e1 : TRecord fs None s
+   ; s \<noteq> ReadOnly
+   ; A \<ddagger> (Some (record_nth_taken i (TRecord fs None s))) # (Some ((fst \<circ> snd) (fs ! i))) 
+                                                         # \<Gamma>2 \<turnstile> e2 : \<tau>
+   \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Take e1 nm e2 : \<tau>"
 
 lemma typing_sig_refl:
   "A \<ddagger> \<Gamma> \<turnstile> e : \<tau> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Sig e \<tau> : \<tau>"
