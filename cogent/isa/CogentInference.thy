@@ -1424,6 +1424,13 @@ typing_var:
    ; A \<ddagger> (Some (record_nth_taken i (TRecord fs None s))) # (Some ((fst \<circ> snd) (fs ! i))) 
                                                          # \<Gamma>2 \<turnstile> e2 : \<tau>
    \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Take e1 nm e2 : \<tau>"
+| typing_all_empty:
+  "A \<turnstile> \<Gamma> \<leadsto>w [] \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile>* [] : []"
+| typing_all_cons:
+  "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 \<box> \<Gamma>2
+   ; A \<ddagger> \<Gamma>1 \<turnstile> e : \<tau>
+   ; A \<ddagger> \<Gamma>2 \<turnstile>* es : ts
+   \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile>* e # es : t # ts" 
 
 lemma typing_sig_refl:
   "A \<ddagger> \<Gamma> \<turnstile> e : \<tau> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Sig e \<tau> : \<tau>"
