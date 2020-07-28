@@ -85,6 +85,7 @@ module Cogent.Haskell.Shallow (
 , mkLetE
 , tyVars
 , shallowTypesFromTable
+, internalVar
 ) where
 
 
