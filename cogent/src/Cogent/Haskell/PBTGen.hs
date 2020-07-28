@@ -48,6 +48,7 @@ import Prelude as P
 import Data.Tuple
 import Data.Function
 import Data.Maybe
+import Data.List (find)
 import Data.Generics.Schemes (everything)
 
 import Control.Monad.RWS hiding (Product, Sum, mapM)
@@ -206,48 +207,86 @@ absFDecl PBTInfo{..} defs = do
             to     = TyCon   () (mkQName iaT)
             sig    = TypeSig () [mkName fnName] (TyFun () ti to)
             dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $ var $ mkName "undefined") Nothing]
-            -- cls    = ClassDecl () () [] ()
           in return $ [sig, dec] --, icT']
 
-extractTyp :: [CC.Definition TypedExpr VarName b] -> String -> SG (Decl ())
-extractTyp defs fname = do 
-                        ics <- concatMapM getICTyps defs
-                        return $ fromJust $ lookup fname ics
 
-getICTyps :: CC.Definition TypedExpr VarName b -> SG [(String, Decl ())]
-getICTyps def = undefined
+-- | mkAbsFBody 
+-- |    - direct mapping
+-- |    - Abstract Input Type is the input type of the Haskell abstract spec
+-- |    - Concrete Input Type is the input type of the concrete function (Cogent HS embedding)
+mkAbsFBody :: CC.Type t a -> Type () -> SG (Exp ())
+mkAbsFBody concT (TyParen _ t   ) = mkAbsFBody concT t 
+-- ^^ Type surrounded by parens, recurse on inside type
 
---shallowTypeDef' :: TypeName -> [TyVarName] -> CC.Type t b -> SG ((String, Decl ()))
---shallowTypeDef' tn tvs t = do
---  t' <- shallowType t
---  pure $ (tn, TypeDecl () (mkDeclHead (mkName tn) (P.map (mkName . snm) tvs)) t')
+mkAbsFBody concT (TyTuple _ _ tfs) = case concT of 
+    (CC.TRecord _ fs _) -> do
+             vs <- mapM (\_ -> freshInt <<+= 1) fs
+             (tn,_) <- nominalType concT
+             let rec' = mkConE $ mkName tn
+                 bs = P.map (\v -> mkName $ internalVar ++ show v) vs
+                 p' = PRec () (UnQual () $ mkName tn)
+                        (P.zipWith (\(f,_) b -> PFieldPat () (UnQual () . mkName $ snm f) (pvar b)) fs bs)
+             pure $ mkLetE [(p',rec')] $ tuple $ map var bs
+    (CC.TCon tn ts _)   -> pure $ function $ "undefined"
+    (CC.TSum ts)        -> pure $ function $ "undefined"
+    (CC.TProduct t1 t2) -> pure $ function $ "undefined"
+    _                   -> pure $ function $ "undefined"
 
-{-
--- | generate a record type as a tuple type
-shallowRecTupleType :: [(FieldName, (CC.Type t b, Bool))] -> SG (HS.Type ())
-shallowRecTupleType fs = mkTupleT <$> mapM shallowType (map (fst . snd) fs)
+-- ^^ IA is Tuple, fs is [(FieldName, (Type t b, Bool))]
+--
 
--- | generate a Haskell shallow embedding of a Cogent type
-shallowType :: CC.Type t b -> SG (HS.Type ())
-shallowType (CC.TVar v) = mkVarT . mkName . snm <$> ((!!) <$> view typeVars <*> pure (finInt v))
-shallowType (CC.TVarBang v) = shallowType (CC.TVar v)
-shallowType (CC.TCon tn ts _) = mkConT (mkName tn) <$> mapM shallowType ts
-shallowType (CC.TFun t1 t2) = TyFun () <$> shallowType t1 <*> shallowType t2
-shallowType (CC.TPrim pt) = pure $ shallowPrimType pt
-shallowType (CC.TString) = pure . mkTyConT $ mkName "String"
-shallowType (CC.TSum alts) = shallowTypeNominal (CC.TSum alts)
-shallowType (CC.TProduct t1 t2) = mkTupleT <$> sequence [shallowType t1, shallowType t2]
-shallowType (CC.TRecord rp fs s) = do  -- FIXME: @rp@ / zilinc
-  tuples <- view recoverTuples
-  if tuples && isRecTuple (map fst fs) then
-    shallowRecTupleType fs
-  else
-    shallowTypeNominal (CC.TRecord rp fs s)
-shallowType (CC.TUnit) = pure $ TyCon () $ Special () $ UnitCon ()
-#ifdef BUILTIN_ARRAYS
-shallowType (CC.TArray t _ _ _) = mkListT <$> shallowType t
-#endif
--}
+mkAbsFBody concT (TyCon _ cn    ) = pure $ function $ "undefined"
+mkAbsFBody concT (TyList _ t    ) = pure $ function $ "undefined" 
+
+
+-- ^^ Match on absT, e.g. TyTuple, to determine what abstraction we are performing
+--    concT will give us the fields (if any)
+--    core functionality
+
+
+getFnTyp :: [CC.Definition TypedExpr VarName b] -> String -> SG ( (Type (), Type ()) )
+getFnTyp defs fname = do 
+            let d = fromJust $ find defFilt defs
+            ts <- getFnTyp' d
+            pure $ ts 
+                where 
+                    defFilt :: (CC.Definition TypedExpr VarName b) -> Bool
+                    defFilt (CC.FunDef _ fn ps _ ti to e) = fn == fname 
+                    defFilt (CC.AbsDecl _ fn ps _ ti to) = fn == fname 
+                    defFilt (CC.TypeDef tn ps Nothing) = False
+                    defFilt (CC.TypeDef tn ps (Just t)) = False
+
+getFnTyp' :: (CC.Definition TypedExpr VarName b) -> SG ( (Type (), Type ()) )
+getFnTyp' (CC.FunDef _ fn ps _ ti to e) = do
+    ti' <- shallowType ti
+    to' <- shallowType to
+    pure $ (ti', to')
+
+getFnTyp' (CC.AbsDecl _ fn ps _ ti to) = do
+    ti' <- shallowType ti
+    to' <- shallowType to
+    pure $ (ti', to')
+
+getFnTyp' (CC.TypeDef tn ps Nothing) = undefined
+getFnTyp' (CC.TypeDef tn ps (Just t)) = undefined
+
+-- tyFilt _ = False
+                         
+
+
+-- getFnTyp' :: (CC.Definition TypedExpr VarName b) -> String -> SG (Maybe (Type (), Type ()))
+-- getFnTyp' (CC.FunDef _ fn ps _ ti to e) fname | fn == fname = do 
+--     ti' <- shallowType ti
+--     to' <- shallowType to
+--     pure $ Just (ti', to')
+-- 
+-- getFnTyp' _ _ | otherwise = pure $ Nothing
+-- 
+
+
+
+
+
 
 {-
 genDecls :: PBTInfo -> [Decl ()]
