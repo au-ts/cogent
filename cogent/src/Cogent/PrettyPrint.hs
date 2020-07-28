@@ -972,15 +972,17 @@ instance Pretty a => Pretty (I.IntMap a) where
 
 
 instance Pretty DataLayoutTcError where
-  pretty (UnknownDataLayout r ctx) 
-     =  err "Undeclared data layout" <+> reprname r <$$> pretty ctx
-  pretty (TagNotSingleBlock ctx) 
-     = err "Variant tag must be a single block of bits" <$$> pretty ctx
   pretty (OverlappingBlocks blks)
     = let ((range1, c1),(range2, c2)) = unOverlappingAllocationBlocks blks
        in err "Declared data blocks" <+> parens (pretty range1) <+> err "and" <+> parens (pretty range2) <+> err " which cannot overlap" <$$>
           indent (pretty c1) <$$>
           indent (pretty c2)
+  pretty (UnknownDataLayout r ctx) 
+     =  err "Undeclared data layout" <+> reprname r <$$> pretty ctx
+
+  pretty (BadDataLayout l p) = err "Bad data layout" <+> pretty l
+  pretty (TagNotSingleBlock ctx) 
+     = err "Variant tag must be a single block of bits" <$$> pretty ctx
   pretty (SameTagValues context name1 name2 value) =
     err "Alternatives" <+> tagname name1 <+> err "and" <+> tagname name2 <+> err "of same variant cannot have the same tag value" <+> literal (pretty value) <$$>
     indent (pretty context)

@@ -182,6 +182,7 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
 
   TLOffset e _   :~ tau -> hoistMaybe $ Just [e :~ tau]
 
+  TLPrim n       :~ T TUnit | evalSize n >= 0 -> hoistMaybe $ Just []
   TLPrim n       :~ tau
     | isPrimType tau
     , primTypeSize tau <= evalSize n
