@@ -480,12 +480,12 @@ gets (\<lambda>s. x)
                         (case func of
                             UFunction f ts \<Rightarrow> upd_wa_foldnb_bod_0 \<sigma> (ptr_val (t5_C.arr_C x')) 
                                                 (t5_C.frm_C x') b (Fun f ts) 
-                                                (UPrim (LU32 (t5_C.acc_C x')), RPrim (Num U32)) 
-                                                (UUnit, RUnit) (\<sigma>, UPrim (LU32 (t3_C.acc_C a)))
+                                                (UPrim (LU32 (t5_C.acc_C x'))) 
+                                                (UUnit) (\<sigma>, UPrim (LU32 (t3_C.acc_C a)))
                           | UAFunction f ts \<Rightarrow> upd_wa_foldnb_bod_0 \<sigma> (ptr_val (t5_C.arr_C x')) 
                                                 (t5_C.frm_C x') b (AFun f ts) 
-                                                (UPrim (LU32 (t5_C.acc_C x')), RPrim (Num U32)) 
-                                                (UUnit, RUnit) (\<sigma>, UPrim (LU32 (t3_C.acc_C a)))
+                                                (UPrim (LU32 (t5_C.acc_C x'))) 
+                                                (UUnit) (\<sigma>, UPrim (LU32 (t3_C.acc_C a)))
                           | _ \<Rightarrow> False)) \<and> 
                         (\<sigma>, s) \<in> state_rel \<and> t5_C.frm_C x' \<le> b \<and>
                         ret = min (t5_C.to_C x') ((SCAST(32 signed \<rightarrow> 32))(len_C (heap_WordArray_u32_C s (t5_C.arr_C x')))) \<and>
@@ -704,29 +704,21 @@ gets (\<lambda>s. x)
       apply (thin_tac "cogent_function_val_rel _ _")
       apply (thin_tac "upd.uval_typing _ _ _ _ _ _")
       apply clarsimp
-      apply (case_tac "t5_C.to_C x' = b")
-       apply clarsimp
-       apply (case_tac x; clarsimp)
-      apply (case_tac "b < t5_C.to_C x'")
-       apply clarsimp
+      apply (case_tac "t5_C.to_C x' = b"; clarsimp?)
+      apply (case_tac "b < t5_C.to_C x'"; clarsimp)
        apply (case_tac x; clarsimp)
         apply (drule_tac arr = "ptr_val (values_C (heap_WordArray_u32_C s (t5_C.arr_C x')))" and 
                          len = "SCAST(32 signed \<rightarrow> 32) (len_C (heap_WordArray_u32_C s (t5_C.arr_C x')))" 
-                         in upd_wa_foldnb_bod_0_to_geq_lenD)
-          apply simp
-         apply auto[1]
+                         in upd_wa_foldnb_bod_0_to_geq_lenD; simp?)
         apply (rule_tac arr = "ptr_val (values_C (heap_WordArray_u32_C s (t5_C.arr_C x')))" and 
                         len = "SCAST(32 signed \<rightarrow> 32) (len_C (heap_WordArray_u32_C s (t5_C.arr_C x')))" 
                         in upd_wa_foldnb_bod_0_to_geq_len; simp)
        apply (drule_tac arr = "ptr_val (values_C (heap_WordArray_u32_C s (t5_C.arr_C x')))" and 
                         len = "SCAST(32 signed \<rightarrow> 32) (len_C (heap_WordArray_u32_C s (t5_C.arr_C x')))" 
-                        in upd_wa_foldnb_bod_0_to_geq_lenD)
-         apply simp
-        apply auto[1]
+                        in upd_wa_foldnb_bod_0_to_geq_lenD; simp?)
        apply (rule_tac arr = "ptr_val (values_C (heap_WordArray_u32_C s (t5_C.arr_C x')))" and 
                        len = "SCAST(32 signed \<rightarrow> 32) (len_C (heap_WordArray_u32_C s (t5_C.arr_C x')))" 
                        in upd_wa_foldnb_bod_0_to_geq_len; simp)
-      apply clarsimp
       apply (case_tac "min (t5_C.to_C x') (SCAST(32 signed \<rightarrow> 32) (len_C (heap_WordArray_u32_C s (t5_C.arr_C x')))) \<le> t5_C.frm_C x'")
        apply clarsimp
        apply (case_tac x; clarsimp)
@@ -779,6 +771,5 @@ gets (\<lambda>s. x)
    apply (metis (no_types, hide_lams) min.strict_order_iff min_def_raw not_less_iff_gr_or_eq)+
   apply (erule disjE; clarsimp)
   done
-
 end (* of context *)
 end

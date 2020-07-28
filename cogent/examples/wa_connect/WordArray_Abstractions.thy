@@ -305,8 +305,7 @@ termination \<xi>1
 subsubsection "Update Semantics"
 
 type_synonym ('f, 'a, 'l) ufoldmapdef = "('f, 'a, 'l) store \<Rightarrow> 32 word \<Rightarrow> 32 word \<Rightarrow> 32 word \<Rightarrow>
-                                        'f expr \<Rightarrow> (('f, 'a, 'l) uval \<times> repr)\<Rightarrow> 
-                                        (('f, 'a, 'l) uval \<times> repr) \<Rightarrow>
+                                        'f expr \<Rightarrow> ('f, 'a, 'l) uval \<Rightarrow> ('f, 'a, 'l) uval \<Rightarrow>
                                         (('f, 'a, 'l) store \<times> ('f, 'a, 'l) uval) \<Rightarrow> bool"
 
 function upd_wa_mapnb_bod_0 :: "(char list, atyp, 32 word) ufoldmapdef"
@@ -314,14 +313,14 @@ function upd_wa_mapnb_bod_0 :: "(char list, atyp, 32 word) ufoldmapdef"
   "upd_wa_mapnb_bod_0 \<sigma> p frm to f acc obsv res = (\<exists>len arr. 
     \<sigma> p = option.Some (UAbstract (WAU32 len arr)) \<and> 
     (if frm < min to len then (\<exists>v v' acc' \<sigma>'. \<sigma> (arr + 4 * frm) = option.Some (UPrim (LU32 v)) \<and> 
-         (\<xi>0, [(URecord [(UPrim (LU32 v), RPrim (Num U32)), acc, obsv])] \<turnstile> 
-            (\<sigma>, App f (Var 0)) \<Down>! (\<sigma>', URecord [(UPrim (LU32 v'), RPrim (Num U32)), (acc', prod.snd acc)])) \<and>
-          \<sigma> p = \<sigma>' p \<and> (\<forall>i<len. \<sigma> (arr + 4 * i) = \<sigma>' (arr + 4 * i)) \<and>
+         (\<xi>0, [(URecord [(UPrim (LU32 v), RPrim (Num U32)), (acc, upd.uval_repr acc), (obsv, upd.uval_repr obsv)])] \<turnstile> 
+            (\<sigma>, App f (Var 0)) \<Down>! (\<sigma>', URecord [(UPrim (LU32 v'), RPrim (Num U32)), (acc', upd.uval_repr acc')])) \<and>
+          \<sigma> p = \<sigma>' p \<and> (\<forall>i<len. \<sigma> (arr + 4 * i) = \<sigma>' (arr + 4 * i)) \<and> (upd.uval_repr acc = upd.uval_repr  acc') \<and>
           upd_wa_mapnb_bod_0 (\<lambda>l.(if l = arr + 4 * frm then option.Some (UPrim (LU32 v')) else \<sigma>' l))
-             p (frm + 1) to f (acc', prod.snd acc) obsv res) 
+             p (frm + 1) to f acc' obsv res) 
     else (\<sigma>, URecord [(
         UPtr p (RCon ''WordArray'' [RPrim (Num U32)]), RPtr (RCon ''WordArray'' [RPrim (Num U32)])),
-         acc]) = res))"
+         (acc, upd.uval_repr acc)]) = res))"
   by pat_completeness auto
 termination
   apply (relation "measure (\<lambda>(_, _, frm, to, _, _, _, _). unat to - unat frm)"; clarsimp)
@@ -335,10 +334,11 @@ function upd_wa_foldnb_bod_0 :: "(char list, atyp, 32 word) ufoldmapdef"
   where
   "upd_wa_foldnb_bod_0 \<sigma> p frm to f acc obsv res = (\<exists>len arr. \<sigma> p = option.Some (UAbstract (WAU32 len arr)) \<and>
     (if frm < min to len then (\<exists>v acc' \<sigma>'. \<sigma> (arr + 4 * frm) = option.Some (UPrim (LU32 v)) \<and> 
-          (\<xi>0, [(URecord [(UPrim (LU32 v), RPrim (Num U32)), acc, obsv])] \<turnstile> (\<sigma>, App f (Var 0)) \<Down>! (\<sigma>', acc')) \<and>
-          upd.uval_repr acc' = prod.snd acc \<and> \<sigma> p = \<sigma>' p \<and> (\<forall>i<len. \<sigma> (arr + 4 * i) = \<sigma>' (arr + 4 * i)) \<and>
-          upd_wa_foldnb_bod_0 \<sigma>' p (frm + 1) to f (acc', prod.snd acc) obsv res) 
-    else (\<sigma>, prod.fst acc) = res))"
+          (\<xi>0, [(URecord [(UPrim (LU32 v), RPrim (Num U32)), (acc, upd.uval_repr acc), 
+            (obsv, upd.uval_repr obsv)])] \<turnstile> (\<sigma>, App f (Var 0)) \<Down>! (\<sigma>', acc')) \<and>
+          (upd.uval_repr acc = upd.uval_repr acc') \<and> \<sigma> p = \<sigma>' p \<and> (\<forall>i<len. \<sigma> (arr + 4 * i) = \<sigma>' (arr + 4 * i)) \<and>
+          upd_wa_foldnb_bod_0 \<sigma>' p (frm + 1) to f acc' obsv res) 
+    else (\<sigma>, acc) = res))"
   by pat_completeness auto
 termination
   apply (relation "measure (\<lambda>(_, _, frm, to, _, _, _, _). unat to - unat frm)"; clarsimp)
@@ -421,8 +421,9 @@ lemma upd_wa_foldnb_bod_0_to_geq_lenD:
 lemma upd_wa_foldnb_bod_0_step:
   "\<lbrakk>upd_wa_foldnb_bod_0 \<sigma> p frm to f acc obsv (\<sigma>', r); \<sigma> p = option.Some (UAbstract (WAU32 len arr));
     frm \<le> to; to < len; \<sigma> (arr + 4 * to) = option.Some (UPrim (LU32 v)); \<sigma>' p = \<sigma>'' p;
-    \<forall>i<len. \<sigma>' (arr + 4 * i) = \<sigma>'' (arr + 4 * i); upd.uval_repr r' = prod.snd acc;
-    \<xi>0, [URecord [(UPrim (LU32 v), RPrim (Num U32)), (r, prod.snd acc), obsv]] \<turnstile> (\<sigma>', App f (Var 0))\<Down>! (\<sigma>'', r')\<rbrakk> 
+    \<forall>i<len. \<sigma>' (arr + 4 * i) = \<sigma>'' (arr + 4 * i); upd.uval_repr r' = upd.uval_repr acc;
+    \<xi>0, [URecord [(UPrim (LU32 v), RPrim (Num U32)), (r, upd.uval_repr r), 
+      (obsv, upd.uval_repr obsv)]] \<turnstile> (\<sigma>', App f (Var 0))\<Down>! (\<sigma>'', r')\<rbrakk> 
     \<Longrightarrow> upd_wa_foldnb_bod_0 \<sigma> p frm (to + 1) f acc obsv (\<sigma>'', r')"
   apply (induct arbitrary: len arr v r r' \<sigma>' \<sigma>''
                 rule: upd_wa_foldnb_bod_0.induct[where ?a0.0 = \<sigma> and 
@@ -442,9 +443,9 @@ lemma upd_wa_foldnb_bod_0_step:
    apply (drule_tac x = len in meta_spec)
    apply (drule_tac x = arr in meta_spec)
    apply (drule_tac x = v in meta_spec)
-   apply (drule_tac x = bc in meta_spec)
+   apply (drule_tac x = b in meta_spec)
    apply (drule_tac x = r' in meta_spec)
-   apply (drule_tac x = ad in meta_spec)
+   apply (drule_tac x = a in meta_spec)
    apply (drule_tac x = \<sigma>'' in meta_spec)
    apply clarsimp
    apply (subst upd_wa_foldnb_bod_0.simps)
@@ -489,7 +490,8 @@ lemma upd_wa_foldnb_bod_0_back_step:
   "\<lbrakk>upd_wa_foldnb_bod_0 \<sigma> p frm to f acc obsv (\<sigma>', r); to > 0; to \<le> len; frm < to - 1; 
     \<sigma> p = option.Some (UAbstract (WAU32 len arr)); \<sigma> (arr + 4 * (to - 1)) = option.Some (UPrim (LU32 v))\<rbrakk>
     \<Longrightarrow> \<exists>\<sigma>'' r''. upd_wa_foldnb_bod_0 \<sigma> p frm (to - 1) f acc obsv (\<sigma>'', r'') \<and> 
-        (\<xi>0, [URecord [(UPrim (LU32 v), RPrim (Num U32)), (r'', upd.uval_repr r''), obsv]] \<turnstile> (\<sigma>'', App f (Var 0))\<Down>! (\<sigma>', r))"
+        (\<xi>0, [URecord [(UPrim (LU32 v), RPrim (Num U32)), (r'', upd.uval_repr r''), 
+          (obsv, upd.uval_repr obsv)]] \<turnstile> (\<sigma>'', App f (Var 0))\<Down>! (\<sigma>', r))"
   apply (induct arbitrary: len arr v
                 rule: upd_wa_foldnb_bod_0.induct[where ?a0.0 = \<sigma> and 
                                                        ?a1.0 = p and 
@@ -623,17 +625,18 @@ definition upd_wa_foldnb_0  :: "(char list, atyp, 32 word) ufundef"
   "upd_wa_foldnb_0 y z = 
     (let (y1, y2) = y;
          (z1, z2) = z
-      in (\<exists>fs p frm to acc r.
-        y2 = URecord fs \<and> fs ! 0 = (UPtr p (RCon ''WordArray'' [RPrim (Num U32)]), RPtr (RCon ''WordArray'' [RPrim (Num U32)])) \<and>
-        fs ! 1 = (UPrim (LU32 frm), RPrim (Num U32)) \<and> fs ! 2 = (UPrim (LU32 to), RPrim (Num U32)) \<and>
-        fs ! 4 = (UPrim (LU32 acc), RPrim (Num U32)) \<and> fs ! 5 = (UUnit, RUnit) \<and> length fs = 6 \<and>
+      in (\<exists>p frm to acc r x.
+        y2 = URecord [(UPtr p (RCon ''WordArray'' [RPrim (Num U32)]), 
+                      RPtr (RCon ''WordArray'' [RPrim (Num U32)])),
+                      (UPrim (LU32 frm), RPrim (Num U32)), (UPrim (LU32 to), RPrim (Num U32)),
+                      (x, RFun), (UPrim (LU32 acc), RPrim (Num U32)), (UUnit, RUnit)] \<and> 
         y1 = z1 \<and> y1 p = z1 p \<and> (\<exists>len arr. y1 p = option.Some (UAbstract (WAU32 len arr)) \<and> 
           (\<forall>i<len. y1 (arr + 4 * i) = z1 (arr + 4 * i))) \<and> z2 = UPrim (LU32 r) \<and>
-        (case fs ! 3 of
-            (UFunction f ts, RFun) \<Rightarrow> upd_wa_foldnb_bod_0 y1 p frm to (Fun f ts) (fs ! 4) (fs ! 5) z
-          | (UAFunction f ts, RFun) \<Rightarrow> upd_wa_foldnb_bod_0 y1 p frm to (AFun f ts) (fs ! 4) (fs ! 5) z
+        (case x of
+            UFunction f ts \<Rightarrow> upd_wa_foldnb_bod_0 y1 p frm to (Fun f ts) (UPrim (LU32 acc)) (UUnit) z
+          | UAFunction f ts \<Rightarrow> upd_wa_foldnb_bod_0 y1 p frm to (AFun f ts) (UPrim (LU32 acc)) (UUnit) z
           | _ \<Rightarrow> False)))"
-
+(*
 lemma upd_wa_foldnb_0_to_geq_len:
   "\<lbrakk>upd_wa_foldnb_0 (\<sigma>, URecord fs) z; prod.fst (fs ! 0) = UPtr p repr;
        \<sigma> p = option.Some (UAbstract (WAU32 len arr)); prod.fst (fs ! 2) = UPrim (LU32 len); 
@@ -657,21 +660,23 @@ lemma upd_wa_foldnb_0_to_geq_lenD:
   apply (case_tac y; clarsimp)
   apply (drule_tac len = len and arr = arr in upd_wa_foldnb_bod_0_to_geq_lenD; simp)
   done
-
+*)
 definition upd_wa_mapnb_0  :: "(char list, atyp, 32 word) ufundef" 
   where
   "upd_wa_mapnb_0 y z = 
     (let (y1, y2) = y;
          (z1, z2) = z 
-    in (\<exists>fs p frm to.
-        y2 = URecord fs \<and> fs ! 0 = (UPtr p (RCon ''WordArray'' [RPrim (Num U32)]), RPtr (RCon ''WordArray'' [RPrim (Num U32)])) \<and>
-        fs ! 1 = (UPrim (LU32 frm), RPrim (Num U32)) \<and> fs ! 2 = (UPrim (LU32 to), RPrim (Num U32)) \<and>
-        fs ! 4 = (UUnit, RUnit) \<and> fs ! 5 = (UUnit, RUnit) \<and> length fs = 6 \<and>
+    in (\<exists>p frm to x.
+        y2 = URecord [(UPtr p (RCon ''WordArray'' [RPrim (Num U32)]),
+                      RPtr (RCon ''WordArray'' [RPrim (Num U32)])),
+                      (UPrim (LU32 frm), RPrim (Num U32)), (UPrim (LU32 to), RPrim (Num U32)),
+                      (x, RFun),
+                      (UUnit, RUnit), (UUnit, RUnit)] \<and>
         y1 p = z1 p \<and> (\<exists>len arr. y1 p = option.Some (UAbstract (WAU32 len arr)) \<and> 
           frame y1 ({p} \<union> {arr + 4 * i | i. i < len}) z1 ({p} \<union> {arr + 4 * i | i. i < len})) \<and>
-        (case fs ! 3 of
-            (UFunction f ts, RFun) \<Rightarrow> upd_wa_mapnb_bod_0 y1 p frm to (Fun f ts) (fs ! 4) (fs ! 5) z
-          | (UAFunction f ts, RFun) \<Rightarrow> upd_wa_mapnb_bod_0 y1 p frm to (AFun f ts) (fs ! 4) (fs ! 5) z
+        (case x of
+            UFunction f ts \<Rightarrow> upd_wa_mapnb_bod_0 y1 p frm to (Fun f ts) (UUnit) (UUnit) z
+          | UAFunction f ts \<Rightarrow> upd_wa_mapnb_bod_0 y1 p frm to (AFun f ts) (UUnit) (UUnit) z
           | _ \<Rightarrow> False)))"
 
 fun \<xi>1 :: "(char list, atyp, 32 word) uabsfuns" 
@@ -1136,21 +1141,19 @@ lemma val_wa_foldnb_bod_0p_back_step:
 
 definition val_wa_foldnb_0
   where
-  "val_wa_foldnb_0 x y = (\<exists>fs xs frm to acc r. x = VRecord fs \<and> fs! 0 = VAbstract (VWA xs) \<and>
-      fs ! 1 = VPrim (LU32 frm) \<and> fs ! 2 = VPrim (LU32 to) \<and> length fs = 6 \<and> 
-      fs ! 4 = VPrim (LU32 acc) \<and> fs ! 5 = VUnit \<and> y = VPrim (LU32 r) \<and>
-      (\<forall>i < length xs. \<exists>v. xs ! i = VPrim (LU32 v)) \<and>
-      
-      (case fs ! 3 of
+  "val_wa_foldnb_0 x y = (\<exists>xs frm to acc r func. 
+      x = VRecord [VAbstract (VWA xs), VPrim (LU32 frm), VPrim (LU32 to), func, VPrim (LU32 acc),
+                   VUnit] \<and> y = VPrim (LU32 r) \<and> (\<forall>i < length xs. \<exists>v. xs ! i = VPrim (LU32 v)) \<and>
+      (case func of
             VFunction f ts \<Rightarrow> (\<Xi>, [], [option.Some abbreviatedType1] \<turnstile> (App (Fun f ts) (Var 0)) : 
                                 TPrim (Num U32)) \<and>
                               (val_wa_foldnb_bod_0 xs (unat frm) (unat to)
-                                (Fun f ts) (fs ! 4) (fs ! 5) y)
+                                (Fun f ts) (VPrim (LU32 acc)) (VUnit) y)
                               
           | VAFunction f ts \<Rightarrow> (\<Xi>, [], [option.Some abbreviatedType1] \<turnstile> (App (AFun f ts) (Var 0)) : 
                                 TPrim (Num U32)) \<and>
                                (val_wa_foldnb_bod_0 xs (unat frm) (unat to)
-                                (AFun f ts) (fs ! 4) (fs ! 5) y)
+                                (AFun f ts) (VPrim (LU32 acc)) (VUnit) y)
           | _ \<Rightarrow> False))"
 
 

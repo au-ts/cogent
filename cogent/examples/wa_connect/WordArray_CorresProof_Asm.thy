@@ -299,12 +299,6 @@ lemma wordarray_fold_no_break_uval_typing_frame:
   apply (rule_tac x = w in exI)
   apply (clarsimp simp: frame_def)
   apply (erule upd.u_t_recE; clarsimp)
-  apply (case_tac fs; clarsimp)
-  apply (case_tac list; clarsimp)
-  apply (case_tac lista; clarsimp)
-  apply (case_tac list; clarsimp)
-  apply (case_tac lista; clarsimp)
-  apply (case_tac list; clarsimp)
   apply (erule upd.u_t_r_consE; clarsimp)
   apply (erule upd.u_t_p_absE; clarsimp)
   apply (erule upd.u_t_r_consE; simp)
@@ -562,20 +556,14 @@ lemma value_sem_rename_mono_prog_rename_\<Xi>_\<xi>m1_\<xi>p1:
   apply (subst (asm) assoc_lookup.simps)+
   apply (clarsimp split: if_split_asm simp: val_wa_foldnb_0_def val_wa_foldnb_0p_def)
   apply (case_tac v; clarsimp)
-  apply (case_tac x4; clarsimp)
-  apply (case_tac a; clarsimp)
-  apply (case_tac list; clarsimp)
-  apply (case_tac a; clarsimp)
-  apply (case_tac lista; clarsimp)
-  apply (case_tac a; clarsimp)
-  apply (case_tac list; clarsimp)
-  apply (case_tac lista; clarsimp)
-  apply (case_tac aa; clarsimp)
-  apply (case_tac list; clarsimp)
-  apply (case_tac aa; clarsimp)
+  apply (case_tac z; clarsimp)
+  apply (case_tac za; clarsimp)
+  apply (case_tac zb; clarsimp)
+  apply (case_tac zd; clarsimp)
+  apply (case_tac ze; clarsimp)
   apply (rule_tac x = "VPrim (LU32 r)" in exI)
   apply clarsimp
-  apply (case_tac a; clarsimp)
+  apply (case_tac zc; clarsimp)
    apply (clarsimp simp: val_wa_foldnb_0_mono_helper1)
   apply (clarsimp simp: val_wa_foldnb_0_mono_helper2)
   done
@@ -653,9 +641,6 @@ lemma
    apply (rule val.v_t_r_empty)
   apply (erule v_t_prim_tE; clarsimp simp: lit_type_ex_32)
   done
-
-(*
-
 lemma wordarray_fold_no_break_upd_val:
   "\<And>K a b \<sigma> \<sigma>' \<tau>s aa a' v v' r w.
    \<lbrakk>list_all2 (kinding []) \<tau>s K; wordarray_fold_no_break_0_type = (K, a, b); 
@@ -663,96 +648,150 @@ lemma wordarray_fold_no_break_upd_val:
     \<Longrightarrow> (val_wa_foldnb_0 a' v' \<longrightarrow> (\<exists>r' w'. upd_val_rel \<Xi> \<sigma>' v v' (instantiate \<tau>s b) r' w' \<and> r' \<subseteq> r \<and>
           frame \<sigma> w \<sigma>' w')) \<and> Ex (val_wa_foldnb_0 a')"
   apply (clarsimp simp: wordarray_fold_no_break_0_type_def upd_wa_foldnb_0_def)
-  apply (case_tac fs; clarsimp)
-  apply (case_tac list; clarsimp)
-  apply (case_tac lista; clarsimp)
-  apply (case_tac list; clarsimp)
-  apply (case_tac lista; clarsimp)
-  apply (case_tac list; clarsimp)
-  apply (rule conjI)
+  apply (erule u_v_recE'; clarsimp)
+  apply (erule u_v_r_consE'; clarsimp)
+  apply (erule u_v_p_absE'; clarsimp)
+  apply (erule u_v_r_consE'; simp)
+  apply (erule conjE)+
+  apply (drule_tac t = ts in sym)
+  apply (drule_tac t = t in sym)
+  apply (drule_tac t = "type_repr t" in sym)
+  apply (drule_tac t = xa in sym)
+  apply (drule_tac t = n in sym)
+  apply clarsimp
+  apply (erule u_v_primE')
+  apply (drule_tac s = "Num U32" in sym)
+  apply clarsimp
+  apply (erule u_v_r_consE'; simp)
+  apply (erule conjE)+
+  apply (drule_tac t = ts in sym)
+  apply (drule_tac t = t in sym)
+  apply (drule_tac t = "type_repr t" in sym)
+  apply (drule_tac t = xa in sym)
+  apply (drule_tac t = n in sym)
+  apply clarsimp
+  apply (erule u_v_primE')
+  apply (drule_tac s = "Num U32" in sym)
+  apply clarsimp
+  apply (erule u_v_r_consE'; simp)
+  apply (erule conjE)+
+  apply (drule_tac t = ts in sym)
+  apply (drule_tac t = t in sym)
+  apply (drule_tac t = "type_repr t" in sym)
+  apply (drule_tac t = xa in sym)
+  apply (drule_tac t = n in sym)
+  apply clarsimp
+  apply (erule u_v_r_consE'; simp)
+  apply (erule conjE)+
+  apply (drule_tac t = ts in sym)
+  apply (drule_tac t = t in sym)
+  apply (drule_tac t = "type_repr t" in sym)
+  apply (drule_tac t = xa in sym)
+  apply (drule_tac t = n in sym)
+  apply clarsimp
+  apply (erule u_v_primE')
+  apply (drule_tac s = "Num U32" in sym)
+  apply clarsimp
+  apply (erule u_v_r_consE'; simp)
+  apply (erule conjE)+
+  apply (drule_tac t = ts in sym)
+  apply (drule_tac t = t in sym)
+  apply (drule_tac t = xa in sym)
+  apply (drule_tac t = n in sym)
+  apply clarsimp
+  apply (erule u_v_r_emptyE'; clarsimp)
+  apply (subst (asm) upd_val_rel.simps[of _ _ "UUnit", simplified])
+  apply clarsimp
+  apply (erule disjE; clarsimp?)
+  apply (erule disjE; clarsimp?)
+  apply (rule conjI; clarsimp)
+   prefer 2
+   apply (rule_tac x = "VPrim (LU32 ra)" in exI)
+   apply (clarsimp simp: val_wa_foldnb_0_def abs_upd_val'_def)
+   apply (case_tac a'; clarsimp)
+   apply (rule conjI)
+    apply (clarsimp simp: abs_typing_v_def)
    apply (case_tac x; clarsimp)
-    apply (case_tac y; clarsimp)
-    apply (rule_tac x = "{}" in exI)+
+    apply (subst (asm) upd_val_rel.simps[of _ _ "UFunction _ _", simplified])
     apply clarsimp
+    apply (erule disjE; clarsimp?)
+    apply (erule disjE; clarsimp?)
     apply (rule conjI)
-     apply (clarsimp simp: val_wa_foldnb_0_def)
-     apply (case_tac fs; clarsimp)
-     apply (case_tac list; clarsimp)
-     apply (case_tac lista; clarsimp)
-     apply (case_tac list; clarsimp)
-     apply (case_tac lista; clarsimp)
-     apply (case_tac list; clarsimp)
-     apply (case_tac a; clarsimp)
-      apply (erule u_v_recE; clarsimp)
-      apply (erule u_v_r_consE; clarsimp)
-      apply (erule u_v_p_absE; clarsimp)
-      apply (erule u_v_r_consE; simp)
-      apply (erule conjE)+
-      apply (subst (asm) type_repr.simps[symmetric])+
-      apply clarsimp
-      apply (erule u_v_primE)  
-      apply (subst (asm) lit_type.simps)
-      apply clarsimp
-      apply (erule u_v_r_consE; simp)
-      apply (erule conjE)+
-      apply (subst (asm) type_repr.simps[symmetric])+
-      apply clarsimp
-      apply (erule u_v_primE)  
-      apply (subst (asm) lit_type.simps)
-      apply clarsimp
-      apply (erule u_v_r_consE; simp)
-      apply (erule conjE)+
-      apply (subst (asm) type_repr.simps[symmetric])+
-      apply clarsimp
-      apply (erule u_v_functionE; clarsimp)
-      apply (erule u_v_r_consE; simp)
-      apply (erule conjE)+
-      apply (subst (asm) type_repr.simps[symmetric])+
-      apply clarsimp
-      apply (erule u_v_primE)  
-      apply (subst (asm) lit_type.simps)
-      apply clarsimp
-      apply (erule u_v_r_consE; simp)
-      apply (erule conjE)+
-      apply (subst (asm) type_repr.simps[symmetric])+
-      apply clarsimp
-      apply (erule u_v_r_emptyE; clarsimp)
-      apply (subst upd_val_rel.simps; clarsimp)
-      apply (subst (asm) upd_val_rel.simps; clarsimp)
-      apply (erule disjE)
-       apply clarsimp
-      apply (erule disjE; clarsimp)
-      apply (thin_tac "_, _, _ \<turnstile> _ : _")
-      apply (thin_tac "list_all2 _ _ _")
-      apply (thin_tac "type_wellformed _ _")
-      apply (thin_tac "_ \<turnstile> _ \<sqsubseteq> _")
-      apply (clarsimp simp: abs_upd_val'_def)
-      apply (induct arbitrary: \<sigma>' p frm x61 x62 acc ra xs rb len arr
-                    rule: word_induct2[where n = to])
-  thm word_induct
-  find_theorems name:"word" name:"induct"
-  
-
+     apply (rule typing_app[of _ _ "[option.None]" 
+        "[option.Some Generated_TypeProof.abbreviatedType1]" _ _ 
+        "Generated_TypeProof.abbreviatedType1"])
+       apply (clarsimp simp: split_Cons split_empty)
+       apply (rule right)
+       apply (clarsimp simp: abbreviatedType1_def)
+  prefer 2
+      apply (rule typing_var; clarsimp simp: Cogent.empty_def weakening_Cons weakening_nil)
+      apply (rule keep)
+      apply (clarsimp simp: abbreviatedType1_def)
+     apply (rule typing_fun; simp?) thm subtyping.simps
+       apply (clarsimp simp: subtyping.simps[of _ _ "TFun _ _", simplified])
+       apply (clarsimp simp: abbreviatedType1_def subtyping.simps[of _ "TRecord _ _", simplified])
+       apply (clarsimp simp: subtyping.simps[of _ "TPrim _", simplified]
+        subtyping.simps[of _ "TUnit", simplified] kinding_simps(5, 9))
+       apply (clarsimp simp: subtyping.simps[of _ _ "TPrim _", simplified])
+       apply (erule instantiate.elims)
+               apply (simp split: if_splits)
+               apply (erule instantiate.elims)
+               apply (simp split: if_splits)
 (*
-      apply (erule u_v_r_consE; simp)
-      apply (erule conjE)+
-      apply (subst (asm) type_repr.simps[symmetric])+
-      apply clarsimp
-      apply (erule u_v_r_consE; simp)
-      apply (erule conjE)+
-      apply (subst (asm) type_repr.simps[symmetric])+
-      apply clarsimp
-      apply (erule u_v_r_consE; simp)
-      apply (erule conjE)+
-      apply (subst (asm) type_repr.simps[symmetric])+
-      apply clarsimp
-      apply (erule u_v_r_consE; simp)
-      apply (erule conjE)+
-      apply (subst (asm) type_repr.simps[symmetric])+
-      apply clarsimp
-*)
+       apply (case_tac a; clarsimp) find_theorems "list_all2" "length"
+         apply (drule list_all2_lengthD; clarsimp)
+  *)       
+  
+  thm kinding_simps(5, 9)
+  thm typing_fun
+  thm sum_typecorrect' 
+  thm val.v_t_function typing_app typing_fun
+  
   oops
   
+
+thm val_executes_from_upd_executes(1) correspondence(1) specialisation(1) mono_correspondence(1)
+lemma 
+  "\<lbrakk>upd_wa_foldnb_bod_0 \<sigma> p frm to f acc obsv (\<sigma>', res);
+    abs_upd_val' (WAU32 len arr) (VWA xs) ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined) r w \<sigma>;
+    upd_val_rel \<Xi> \<sigma> acc acc' \<tau>a ra wa; upd_val_rel \<Xi> \<sigma> obsv obsv' \<tau>b rb wb\<rbrakk>
+    \<Longrightarrow> val_wa_foldnb_bod_0 xs (unat frm) (unat to) f acc' obsv' res'"
+  apply (induct arbitrary: \<sigma>' res rule: word_induct[where m = "to"])
+
+(*
+  apply (drule upd_wa_foldnb_bod_0_back_step; clarsimp)
+   apply (simp add: word_gt_0)
+
+  thm val_wa_foldnb_bod_0_step val_executes_from_upd_executes(1) correspondence(1) specialisation(1)
+  find_theorems "?\<Xi>, _, ?\<Gamma> \<turnstile> specialise _ _ : ?\<tau>"
+  thm typing_appE
+
+*)
+  thm val_executes_from_upd_executes(1) correspondence(1) specialisation(1) mono_correspondence(1)
+  oops
+lemma 
+  "val.vval_typing \<Xi> (VFunction f ts) (TFun abbreviatedType1 (TPrim (Num U32)))
+    \<Longrightarrow> \<Xi>, [], [option.Some abbreviatedType1] \<turnstile> App (Fun f ts) (Var 0) : TPrim (Num U32)"
+  apply (erule val.v_t_funE; clarsimp)
+  apply (clarsimp simp: subtyping.simps[of _ "TFun _ _", simplified])
+  apply (clarsimp simp: subtyping.simps[of _ _ "TPrim _", simplified])
+  apply (rule_tac x = abbreviatedType1 and 
+          ?\<Gamma>1.0 = "[option.Some abbreviatedType1]" in typing_app; simp?)
+    prefer 2 thm typing_fun typing_app
+  apply (rename_tac K' t u)
+    apply (rule_tac K' = K'  and t = t and  u = u in typing_fun; simp?)
+     prefer 2
+     apply (clarsimp simp: Cogent.empty_def weakening_Cons weakening_nil)
+     apply (rule_tac k = "{D,S,E}" in drop; simp?)
+     apply (clarsimp simp: abbreviatedType1_def)
+     apply (rule kindingI; clarsimp?)
+    apply (clarsimp simp: abbreviatedType1_def)
+    apply (erule subtyping.cases; clarsimp)+
+    apply (case_tac b)
+  thm disjE
+  sorry
+(*
+
 
 lemma 
   "\<lbrakk>val_wa_foldnb_bod_0 xs frm to f acc obsv r; val_wa_foldnb_bod_0 xs frm to f acc obsv r'\<rbrakk>
@@ -783,30 +822,7 @@ lemma
   *)
 
   oops
-lemma 
-  "\<lbrakk>upd_wa_foldnb_bod_0 \<sigma> p frm to f (UPrim (LU32 acc), RPrim (Num U32)) (UUnit, RUnit) (\<sigma>', UPrim (LU32 ra));
-    abs_upd_val' (WAU32 len arr) (VWA xs) ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined) r w \<sigma>\<rbrakk>
-    \<Longrightarrow> val_wa_foldnb_bod_0 xs (unat frm) (unat to) f (VPrim (LU32 acc)) VUnit (VPrim (LU32 ra))"
-  apply (induct arbitrary: \<sigma>' ra rule: word_induct[where m = "to"])
-   apply (erule upd_wa_foldnb_bod_0.elims; clarsimp)
-   apply (subst val_wa_foldnb_bod_0.simps; clarsimp)
-  apply clarsimp
-  apply (case_tac "1 + n \<le> 0")
-   apply (erule upd_wa_foldnb_bod_0.elims; clarsimp)
-   apply (subst val_wa_foldnb_bod_0.simps; clarsimp)
-  apply (simp add: word_gt_0)
-  apply (drule unatSuc; clarsimp)
-(*
-  apply (drule upd_wa_foldnb_bod_0_back_step; clarsimp)
-   apply (simp add: word_gt_0)
 
-  thm val_wa_foldnb_bod_0_step val_executes_from_upd_executes(1) correspondence(1) specialisation(1)
-  find_theorems "?\<Xi>, _, ?\<Gamma> \<turnstile> specialise _ _ : ?\<tau>"
-  thm typing_appE
-
-*)
-  thm val_executes_from_upd_executes(1) correspondence(1) specialisation(1) mono_correspondence(1)
-  oops
   thm v_sem_primE
 lemma "\<lbrakk>\<xi>m , \<gamma> \<turnstile> e \<Down> v; \<xi>m , \<gamma> \<turnstile> e \<Down> v'\<rbrakk> \<Longrightarrow> v = v'"
   apply (induct e)
