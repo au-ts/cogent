@@ -341,11 +341,17 @@ opType Not [TPrim Boolean] = Just $ TPrim Boolean
 opType Complement [TPrim p] | p /= Boolean = Just $ TPrim p
 opType opr ts = __impossible "opType"
 
+extractType :: [LExpr t b] -> Type t b -> Type t b
+extractType [] t          = t
+extractType (l:ls) t = extractType ls t -- FIX ME /blaisep
+-- traverse the LExprs, find types and calculate most specific
+
 useVariable :: Fin v -> TC t v b (Maybe (Type t b))
 useVariable v = TC $ do ret <- (`at` v) <$> fst <$> get
                         case ret of
                           Nothing -> return ret
                           Just t  -> do
+                            -- using all relevant predicates, infer most specific type for t
                             ok <- canShare <$> unTC (kindcheck t)
                             unless ok $ modify (\(s, p) -> (update s v Nothing, p))
                             return ret
@@ -391,7 +397,7 @@ tc = flip tc' M.empty
     tc' ((FunDef attr fn ks ls t rt e):ds) reader =
       -- Enable recursion by inserting this function's type into the function type dictionary
       let ft = FT (snd <$> ks) (snd <$> ls) t rt in
-      case runTC (infer e >>= flip typecheck rt) (fmap snd ks, M.insert fn ft reader) ((Cons (Just t) Nil), []) of -- empty list?
+      case runTC (infer e >>= flip typecheck rt) (fmap snd ks, M.insert fn ft reader) ((Cons (Just t) Nil), []) of
         Left x -> Left x
         Right (_, e') -> (first (FunDef attr fn ks ls t rt e':)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader)
     tc' (d@(AbsDecl _ fn ks ls t rt):ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader)
@@ -414,10 +420,10 @@ tcConsts ((v,e):ds) reader =
 withBinding :: Type t b -> TC t ('Suc v) b x -> TC t v b x
 withBinding t x
   = TC $ do readers <- ask
-            st      <- fst <$> get
-            case runTC x readers ((Cons (Just t) st), []) of -- empty list?
+            (st, p) <- get
+            case runTC x readers (Cons (Just t) st, p) of
               Left e -> throwError e
-              Right ((Cons Nothing s, p), r)   -> do put (s, p); return r
+              Right ((Cons Nothing s, p), r)  -> do put (s, p); return r
               Right ((Cons (Just t) s, p), r) -> do
                 ok <- canDiscard <$> unTC (kindcheck t)
                 if ok then put (s,p) >> return r
@@ -426,6 +432,15 @@ withBinding t x
 withBindings :: Vec k (Type t b) -> TC t (v :+: k) b x -> TC t v b x
 withBindings Nil tc = tc
 withBindings (Cons x xs) tc = withBindings xs (withBinding x tc)
+
+
+withPredicate :: LExpr t b -> TC t v b x -> TC t v b x
+withPredicate l x
+  = TC $ do readers <- ask
+            st      <- get
+            case runTC x readers st of
+              Left e -> throwError e
+              Right ((s, p), r) -> do put (s, p ++ [l]); return r -- probably not the most efficient
 
 withBang :: [Fin v] -> TC t v b x -> TC t v b x
 withBang vs (TC x) = TC $ do (st, p') <- get
@@ -551,7 +566,7 @@ infer (E (ArrayPut arr i e))
         return (TE tarr' (ArrayPut arr' i' e'))
 #endif
 infer (E (Variable v))
-   = do Just t <- useVariable (fst v) -- also find predicates involving v
+   = do Just t <- useVariable (fst v)
         return (TE t (Variable v))
 infer (E (Fun f ts ls note))
    | ExI (Flip ts') <- Vec.fromList ts
@@ -602,7 +617,8 @@ infer (E (Con tag e tfull))
 infer (E (If ec et ee))
    = do ec' <- infer ec
         guardShow "if-1" $ exprType ec' == TPrim Boolean
-        (et', ee') <- (,) <$> infer et <||> infer ee  -- have to use applicative functor, as they share the same initial env
+        let lec = texprToLExpr id ec'
+        (et', ee') <- (,) <$> withPredicate lec (infer et) <||> withPredicate (LOp Not [lec]) (infer ee)  -- have to use applicative functor, as they share the same initial env
         let tt = exprType et'
             te = exprType ee'
         Just tlub <- runMaybeT $ tt `lub` te
@@ -616,11 +632,9 @@ infer (E (Case e tag (lt,at,et) (le,ae,ee)))
         let TSum ts = exprType e'
             Just (t, taken) = lookup tag ts
             restt = TSum $ adjust tag (second $ const True) ts  -- set the tag to taken
-        let e'' = case taken of
-                    True  -> promote (TSum $ OM.toList $ OM.adjust (\(t,True) -> (t,False)) tag $ OM.fromList ts) e'
-                    False -> e'
-        (et',ee') <- (,) <$>  withBinding t     (infer et)
-                         <||> withBinding restt (infer ee)
+            ele = texprToLExpr id e'
+        (et',ee') <- (,) <$>  withBinding t     (withPredicate ele (infer et))
+                         <||> withBinding restt (withPredicate ele (infer ee))
         let tt = exprType et'
             te = exprType ee'
         Just tlub <- runMaybeT $ tt `lub` te
