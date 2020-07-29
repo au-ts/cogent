@@ -66,7 +66,8 @@ deepTypeProofNew mod withDecls withBodies thy decls log =
   let header = (string ("(*\n" ++ log ++ "\n*)\n") <$>)
       ta = getTypeAbbrevs mod decls
       imports = TheoryImports ["Cogent.TypeInfer"]
-      theoryBody = concatMap (generateFunctionDefinitionDefn mod ta decls) decls
+      theoryBody = deepTypeAbbrevs mod ta
+                   ++ concatMap (generateFunctionDefinitionDefn mod ta decls) decls
                    ++ mapMaybe generateTypingLemmaDefn decls
   in header . pretty $ Theory thy imports theoryBody
 
@@ -110,11 +111,11 @@ generateFunctionDefinition fn k ti to e = undefined
 
 
 generateTypingLemmaDefn :: Definition TypedExpr a VarName -> Maybe (TheoryDecl I.Type I.Term)
-generateTypingLemmaDefn (FunDef _ fn k _ ti to e) = Just $ generateTypingLemma fn
+generateTypingLemmaDefn (FunDef _ fn k _ ti to e) = Just $ generateTypingLemma [] fn
 generateTypingLemmaDefn _ = Nothing
 
-generateTypingLemma :: String -> TheoryDecl I.Type I.Term
-generateTypingLemma fn =
+generateTypingLemma :: [String] -> String -> TheoryDecl I.Type I.Term
+generateTypingLemma prevfns fn =
   let safeFn = unIsabelleName $ mkIsabelleName fn
    in LemmaDecl $
         Lemma { lemmaSchematic = True
@@ -127,16 +128,16 @@ generateTypingLemma fn =
                 [ mkApp (mkId "tyinf_check")
                   [ mkId $ "\\<Xi>"                                             -- external function environment
                   , mkApp (mkId "prod.fst") [mkId $ safeFn ++ "_type"]          -- kind environment
-                  , mkApp (mkId "prod.fst") [mkApp (mkId "prod.snd") [mkId (safeFn ++ "_type")]]  -- typing environemnt
+                  , mkList [mkApp (mkId "prod.fst") [mkApp (mkId "prod.snd") [mkId (safeFn ++ "_type")]]] -- typing environemnt
                   , mkId "?C"                                                   -- schematic 'count' context
                   , mkId safeFn                                                 -- function expression
-                  , mkId $ safeFn ++ "_type"                                    -- type
+                  , mkApp (mkId "prod.snd") [mkApp (mkId "prod.snd") [mkId (safeFn ++ "_type")]] -- type
                   ]
                 ]
               , lemmaProof =
                   Proof
                     [ Method "unfold" [safeFn ++"_def", safeFn ++ "_type_def"]
-                    , Method "tactic" ["\\<open>typinfer_tac @{context}\\<close>"]
+                    , Method "tactic" ["\\<open>typinfer_tac @{context} @{thms "++(intercalate " " prevfns)++"}\\<close>"]
                     ]
                     ProofDone
               }
