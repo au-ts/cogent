@@ -61,6 +61,9 @@ definition well_kinded_all :: "kind list \<Rightarrow> bool" where
 lemmas well_kinded_all_length =
   list_all_length[where P=\<open>well_kinded\<close>, simplified well_kinded_all_def[symmetric]]
 
+lemmas well_kinded_all_simps[simp] =
+  list_all_simps(1-2)[where P=\<open>well_kinded\<close>, simplified well_kinded_all_def[symmetric]]
+
 lemma well_kinded_all_drop_is_share_nthD:
   "well_kinded_all K \<Longrightarrow> i < length K \<Longrightarrow> D \<in> K ! i \<longleftrightarrow> S \<in> K ! i"
   by (simp add: well_kinded_all_length well_kinded_def)
@@ -92,6 +95,7 @@ lemma share_kind_iff_drop_kind:
       kinding_fn_all_def kinding_fn_all_variant_def kinding_fn_all_record_def
       dest: well_kinded_all_drop_is_share_nthD
       split: record_state.splits variant_state.splits)+
+
 
 subsection \<open> Weakening and Splitting Interchange Lemmas \<close>
 
@@ -964,6 +968,11 @@ inductive tyinf_synth :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<
                   ; vs = zip ns (map (\<lambda>t. (t,Present)) ts)
                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> Struct ns ts' es : TRecord vs Unboxed"
 
+| tyinf_app    : "\<lbrakk> \<Xi>, K, \<Gamma>, C1 \<turnstile>\<down> a : \<tau>1
+                  ; \<tau>1 = TFun x y
+                  ; \<Xi>, K, \<Gamma>, C2 \<turnstile>\<up> b : x
+                  \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C1 \<oplus> C2 \<turnstile>\<down> App a b : y"
+
 (* checking *)
 
 | tyinf_cast   : "\<lbrakk> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> e : \<tau>1
@@ -971,11 +980,6 @@ inductive tyinf_synth :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<
                   ; upcast_valid nt nt1
                   ; nt1 = nt2 \<^cancel>\<open>FIXME: nt1 is unecessary\<close>
                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile>\<up> Cast nt1 e : TPrim (Num nt2)"
-
-| tyinf_app    : "\<lbrakk> \<Xi>, K, \<Gamma>, C1 \<turnstile>\<down> a : \<tau>1
-                  ; \<tau>1 = TFun x y
-                  ; \<Xi>, K, \<Gamma>, C2 \<turnstile>\<up> b : x
-                  \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C1 \<oplus> C2 \<turnstile>\<up> App a b : y"
 
 | tyinf_split  : "\<lbrakk> \<Xi>, K, \<Gamma>, C1 \<turnstile>\<down> x : TProduct t u
                   ; \<Xi>, K, (t # u # \<Gamma>), C2o \<turnstile>\<up> y : t'
@@ -1028,14 +1032,15 @@ inductive tyinf_synth :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<
                   ; is_used K (TRecord (ts [f := (n,t,taken)]) s) cr
                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C1 \<oplus> C2 \<turnstile>\<up> Take e f e' : u"
 
-| tyinf_switch: "\<lbrakk> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> x : \<tau>
-                 ; \<tau> = \<tau>'
-                 \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile>\<up> x : \<tau>'"
-
 (* TODO: we don't need promote expressions *)
 | tyinf_promote: "\<lbrakk> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> x : t'
                   ; K \<turnstile> t' \<sqsubseteq> t
-                  \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile>\<up> Promote t x : t"
+                  ; t'' = t
+                  \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile>\<up> Promote t'' x : t"
+
+| tyinf_switch: "\<lbrakk> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> x : \<tau>
+                 ; \<tau> = \<tau>'
+                 \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile>\<up> x : \<tau>'"
 
 | tyinf_all_empty : "\<Xi>, K, \<Gamma>, replicate (length \<Gamma>) 0 \<turnstile>\<down>* [] : []"
 
@@ -1051,15 +1056,15 @@ inductive tyinf_synth :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<
                    ; K' \<turnstile> TFun t u wellformed
                    ; K \<turnstile> \<Gamma> consumed
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile> AFun f ts : TFun t' u'"
-
-| tyinf_fun    : "\<lbrakk> \<Xi>, K', [Some t] \<turnstile> f : u
-                   ; t' = instantiate ts t
-                   ; u' = instantiate ts u
-                   ; K \<turnstile> \<Gamma> consumed
-                   ; K' \<turnstile> t wellformed
-                   ; list_all2 (kinding K) ts K'
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Fun f ts : TFun t' u'"
 *)
+
+| tyinf_fun    : "\<lbrakk> \<Xi>, K', [t], [1] \<turnstile>\<up> f : u
+                  ; well_kinded_all K'
+                  ; list_all2 (kinding K) ts K'
+                  ; K \<turnstile>* ts wellformed
+                  ; type_wellformed (length ts) t
+                  ; type_wellformed (length ts) u
+                  \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, replicate (length \<Gamma>) 0 \<turnstile>\<down> Fun f ts : TFun (instantiate ts t) (instantiate ts u)"
 
 (*
 lemma "\<lbrakk> \<Xi>, K, \<Gamma>, C \<turnstile>\<up> x : t
@@ -1077,6 +1082,7 @@ inductive_cases tyinf_synth_memberE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<
 inductive_cases tyinf_synth_putE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<down> Put e f e' : t"
 inductive_cases tyinf_synth_primE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<down> Prim oper arg : t"
 inductive_cases tyinf_synth_structE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<down> Struct ns ts es : t"
+inductive_cases tyinf_synth_funE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<down> Fun f ts : t"
 
 inductive_cases tyinf_check_castE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> Cast nm e : t"
 inductive_cases tyinf_check_appE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> App x y : t"
@@ -1098,6 +1104,7 @@ inductive_cases tyinf_check_memberE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<
 inductive_cases tyinf_check_putE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> Put e f e' : t"
 inductive_cases tyinf_check_primE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> Prim oper arg : t"
 inductive_cases tyinf_check_structE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> Struct ns ts es : t"
+inductive_cases tyinf_check_funE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> Fun f ts : t"
 
 inductive_cases tyinf_check_promoteE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> Promote t x : t"
 
@@ -1106,7 +1113,7 @@ inductive_cases tyinf_all_synth_nilE[elim]: "\<Xi>, K, \<Gamma>, C \<turnstile>\
 
 lemmas tyinf_synth_safe_intros =
   tyinf_var tyinf_tuple tyinf_con tyinf_esac tyinf_lit tyinf_slit tyinf_unit tyinf_member tyinf_put
-  tyinf_prim tyinf_struct
+  tyinf_prim tyinf_struct tyinf_fun
 
 lemmas tyinf_checking_safe_intros =
   tyinf_cast tyinf_app tyinf_split tyinf_let tyinf_letb tyinf_case tyinf_if tyinf_take
@@ -1114,6 +1121,7 @@ lemmas tyinf_checking_safe_intros =
   tyinf_synth_safe_intros[THEN tyinf_switch]
 
 lemmas tyinf_safe_intros = tyinf_synth_safe_intros tyinf_checking_safe_intros
+
 
 subsection \<open> Shareable Constraint \<close>
 
@@ -1248,6 +1256,7 @@ lemma remove_use_bang_preserves_shareable_constraint:
   "shareable_constraint K G C \<Longrightarrow> shareable_constraint K G (remove_use_bang N C)"
   by (clarsimp simp add: shareable_constraint_conv_all_nth is_share_safe_def)
 
+
 subsection \<open> Type Inference Properties \<close>
 
 lemma tyinf_context_lengths:
@@ -1261,6 +1270,9 @@ lemma tyinf_preserves_wellformed[dest]:
   "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> e : t    \<Longrightarrow> K \<turnstile>* \<Gamma> wellformed \<Longrightarrow> K \<turnstile> t wellformed"
   "\<Xi>, K, \<Gamma>, C \<turnstile>\<down>* es : ts \<Longrightarrow> K \<turnstile>* \<Gamma> wellformed \<Longrightarrow> K \<turnstile>* ts wellformed"
 proof (induct rule: tyinf_synth_tyinf_check_tyinf_all_synth.inducts)
+  case tyinf_fun then show ?case
+    by (force intro: instantiate_wellformed)
+next
   case tyinf_esac then show ?case
     by (clarsimp simp add: prod_eq_iff_proj_eq list_all_length map_fst_zip_take less_Suc_eq_0_disj
         singleton_filter_iff)
@@ -1308,6 +1320,10 @@ lemma context_gen_comp_Some:
 
 definition tycount_context_gen :: "type list \<Rightarrow> linearity list \<Rightarrow> type option list" where
   "tycount_context_gen \<equiv> map2 tycount_context_gen_comp"
+
+lemma tycount_context_gen_Nil[simp]:
+  "tycount_context_gen [] [] = []"
+  by (simp add: tycount_context_gen_def)
 
 lemma tycount_context_gen_Cons[simp]:
   "tycount_context_gen (t # G) (c # C) = tycount_context_gen_comp t c # tycount_context_gen G C"
@@ -1614,6 +1630,15 @@ next
         simp add: weakens_to_context_gen weakening_Cons)
     done
 next
+  case (tyinf_fun \<Xi> K' t f u K ts \<Gamma>)
+  moreover have
+    "is_share_safe K' t 1"
+    "K' \<turnstile> t wellformed"
+    using tyinf_fun
+    by (simp add: is_share_safe_def list_all2_conv_all_nth)+
+  ultimately show ?case
+    by (force intro!: typing_typing_all.intros simp add: is_consumed_conv_all_nth)
+next
   case (tyinf_let \<Xi> K \<Gamma> C1 x t C2o y u ct C2)
   moreover have
     "K \<turnstile> t wellformed"
@@ -1799,16 +1824,15 @@ lemma tyinf_checkI:
   by fast
 
 ML \<open>
-fun trace_tac ctxt (st : thm) = print_tac ctxt (@{make_string} st) st
-fun trace_tac' ctxt  _ = trace_tac ctxt
-
-  fun typinfer_tac_N (n : int) (ctxt : Proof.context) : tactic =
-    let val tac = (resolve_tac ctxt @{thms tyinf_safe_intros} ORELSE'
-                  fast_force_tac (ctxt addsimps @{thms kinding_simps is_used_def is_share_safe_def  is_drop_safe_def}));
-     in REPEAT_DETERM_N n (FIRSTGOAL tac)
-     end
-
-  val typinfer_tac = typinfer_tac_N ~1
+fun trace_tac ctxt (st : thm) = print_tac ctxt (@{make_string} st) st;
+fun trace_tac' ctxt  _ = trace_tac ctxt;
+fun typinfer_tac_N (n : int) (ctxt : Proof.context) (fn_thms : thm list) : tactic =
+  let val tac = (resolve_tac ctxt fn_thms ORELSE'
+                 resolve_tac ctxt @{thms tyinf_safe_intros} ORELSE'
+                 fast_force_tac (ctxt addsimps @{thms kinding_simps is_used_def is_share_safe_def subtyping_simps is_drop_safe_def}));
+   in REPEAT_DETERM_N n (FIRSTGOAL tac)
+   end;
+fun typinfer_tac ctxt fn_thms = typinfer_tac_N ~1 ctxt fn_thms;
 \<close>
 
 definition
@@ -1823,7 +1847,7 @@ where
 
 schematic_goal typing1: "\<Xi>, [], [ty1], ?C \<turnstile>\<up> expr1 : ty1"
   apply (unfold expr1_def ty1_def)
-  apply (tactic \<open>typinfer_tac @{context}\<close>)
+  apply (tactic \<open>typinfer_tac @{context} []\<close>)
   done
 thm typing1[simplified]
 
@@ -1851,14 +1875,14 @@ where
 schematic_goal typing2: "\<Xi>, [], [ty2a], ?C \<turnstile>\<up> expr2 : ty2b"
   unfolding expr2_def ty2a_def ty2b_def
   apply clarsimp
-  apply (tactic \<open>typinfer_tac @{context}\<close>)
+  apply (tactic \<open>typinfer_tac @{context} []\<close>)
   done
 thm typing2[simplified]
 
 schematic_goal typing3:
   "\<exists>ts. \<Xi>, [], [TCon ''A'' [] (Boxed Writable undefined)], ?C \<turnstile>\<down> Struct [''a'',''b''] ts [Var 0, Var 0] : ?t"
   apply (rule exI)
-  apply (tactic \<open>typinfer_tac @{context}\<close>)
+  apply (tactic \<open>typinfer_tac @{context} []\<close>)
   done
 thm typing3[simplified]
 
