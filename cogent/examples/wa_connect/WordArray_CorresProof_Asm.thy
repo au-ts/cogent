@@ -716,6 +716,7 @@ lemma wordarray_fold_no_break_upd_val:
     apply clarsimp
     apply (erule disjE; clarsimp?)
     apply (erule disjE; clarsimp?)
+(*
     apply (rule conjI)
      apply (rule typing_app[of _ _ "[option.None]" 
         "[option.Some Generated_TypeProof.abbreviatedType1]" _ _ 
@@ -736,7 +737,7 @@ lemma wordarray_fold_no_break_upd_val:
        apply (erule instantiate.elims)
                apply (simp split: if_splits)
                apply (erule instantiate.elims)
-               apply (simp split: if_splits)
+               apply (simp split: if_splits)*)
 (*
        apply (case_tac a; clarsimp) find_theorems "list_all2" "length"
          apply (drule list_all2_lengthD; clarsimp)
@@ -752,11 +753,45 @@ lemma wordarray_fold_no_break_upd_val:
 
 thm val_executes_from_upd_executes(1) correspondence(1) specialisation(1) mono_correspondence(1)
 lemma 
-  "\<lbrakk>upd_wa_foldnb_bod_0 \<sigma> p frm to f acc obsv (\<sigma>', res);
+  "\<lbrakk>upd_wa_foldnb_bod_0 \<sigma> p frm to f acc obsv (\<sigma>', res); \<sigma> p = option.Some (UAbstract (WAU32 len arr));
     abs_upd_val' (WAU32 len arr) (VWA xs) ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined) r w \<sigma>;
-    upd_val_rel \<Xi> \<sigma> acc acc' \<tau>a ra wa; upd_val_rel \<Xi> \<sigma> obsv obsv' \<tau>b rb wb\<rbrakk>
-    \<Longrightarrow> val_wa_foldnb_bod_0 xs (unat frm) (unat to) f acc' obsv' res'"
+    upd_val_rel \<Xi> \<sigma> acc acc' \<tau>a ra wa; upd_val_rel \<Xi> \<sigma> obsv obsv' \<tau>b rb wb; proc_ctx_wellformed \<Xi>;
+    proc_env_u_v_matches \<xi>0 \<xi>m \<Xi>;  \<Xi>, [], [option.Some t] \<turnstile> App f (Var 0) : u;
+    \<forall>\<sigma> acc acc' obsv obsv' v. u_v_matches \<Xi> \<sigma> \<gamma> \<gamma>' [option.Some t] r w\<rbrakk>
+    \<Longrightarrow> \<exists>res'. val_wa_foldnb_bod_0 xs (unat frm) (unat to) f acc' obsv' res'"
   apply (induct arbitrary: \<sigma>' res rule: word_induct[where m = "to"])
+   apply (erule upd_wa_foldnb_bod_0.elims; clarsimp)
+   apply (rule_tac x = acc' in exI)
+   apply (subst val_wa_foldnb_bod_0.simps; clarsimp)
+  apply (case_tac "1 + n \<le> 0"; clarsimp)
+   apply (erule upd_wa_foldnb_bod_0.elims; clarsimp)
+   apply (rule_tac x = acc' in exI)
+   apply (subst val_wa_foldnb_bod_0.simps; clarsimp)
+  apply (case_tac "len < 1 + n")
+   apply (drule upd_wa_foldnb_bod_0_back_step'; simp?)
+   apply (erule_tac x = \<sigma>' in meta_allE)
+   apply (erule_tac x = res in meta_allE)
+   apply clarsimp
+   apply (rule_tac x = x in exI)
+   apply (drule val_wa_foldnb_bod_0_to_geq_lenD)
+    apply (clarsimp simp: abs_upd_val'_def)
+    apply (simp add: unatSuc word_less_nat_alt)
+   apply (rule val_wa_foldnb_bod_0_to_geq_len; simp?)
+   apply (clarsimp simp: abs_upd_val'_def)
+   apply (metis word_le_less_eq word_le_nat_alt)
+  apply (case_tac "n \<le> frm")
+   apply (clarsimp simp: add.commute not_less)
+   apply (frule unatSuc2; clarsimp simp: word_less_nat_alt word_le_nat_alt)
+   apply (erule upd_wa_foldnb_bod_0.elims; clarsimp split: if_splits)
+    apply (subgoal_tac "\<not> frm + 1 < n + 1")
+     apply (erule upd_wa_foldnb_bod_0.elims; clarsimp split: if_splits)
+     apply (clarsimp simp: not_less)
+     apply (cut_tac x = frm in word_overflow)
+     apply (case_tac "frm + 1 = 0"; clarsimp)
+     apply (frule unatSuc2; clarsimp simp: word_less_nat_alt word_le_nat_alt)
+thm val_executes_from_upd_executes(1)
+  
+  thm upd_wa_foldnb_bod_0_step upd_wa_foldnb_bod_0_back_step
 
 (*
   apply (drule upd_wa_foldnb_bod_0_back_step; clarsimp)
@@ -769,27 +804,7 @@ lemma
 *)
   thm val_executes_from_upd_executes(1) correspondence(1) specialisation(1) mono_correspondence(1)
   oops
-lemma 
-  "val.vval_typing \<Xi> (VFunction f ts) (TFun abbreviatedType1 (TPrim (Num U32)))
-    \<Longrightarrow> \<Xi>, [], [option.Some abbreviatedType1] \<turnstile> App (Fun f ts) (Var 0) : TPrim (Num U32)"
-  apply (erule val.v_t_funE; clarsimp)
-  apply (clarsimp simp: subtyping.simps[of _ "TFun _ _", simplified])
-  apply (clarsimp simp: subtyping.simps[of _ _ "TPrim _", simplified])
-  apply (rule_tac x = abbreviatedType1 and 
-          ?\<Gamma>1.0 = "[option.Some abbreviatedType1]" in typing_app; simp?)
-    prefer 2 thm typing_fun typing_app
-  apply (rename_tac K' t u)
-    apply (rule_tac K' = K'  and t = t and  u = u in typing_fun; simp?)
-     prefer 2
-     apply (clarsimp simp: Cogent.empty_def weakening_Cons weakening_nil)
-     apply (rule_tac k = "{D,S,E}" in drop; simp?)
-     apply (clarsimp simp: abbreviatedType1_def)
-     apply (rule kindingI; clarsimp?)
-    apply (clarsimp simp: abbreviatedType1_def)
-    apply (erule subtyping.cases; clarsimp)+
-    apply (case_tac b)
-  thm disjE
-  sorry
+
 (*
 
 

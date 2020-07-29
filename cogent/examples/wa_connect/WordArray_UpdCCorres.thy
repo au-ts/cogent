@@ -478,11 +478,15 @@ gets (\<lambda>s. x)
                      I = "\<lambda>(a, b) s. 
                         (\<exists>func. cogent_function_val_rel x (sint (t5_C.f_C x')) \<and> func = x \<and>
                         (case func of
-                            UFunction f ts \<Rightarrow> upd_wa_foldnb_bod_0 \<sigma> (ptr_val (t5_C.arr_C x')) 
+                            UFunction f ts \<Rightarrow> (\<Xi>, [], [option.Some abbreviatedType1] \<turnstile> 
+                                               (App (Fun f ts) (Var 0)) : TPrim (Num U32)) \<and>
+                                              upd_wa_foldnb_bod_0 \<sigma> (ptr_val (t5_C.arr_C x')) 
                                                 (t5_C.frm_C x') b (Fun f ts) 
                                                 (UPrim (LU32 (t5_C.acc_C x'))) 
                                                 (UUnit) (\<sigma>, UPrim (LU32 (t3_C.acc_C a)))
-                          | UAFunction f ts \<Rightarrow> upd_wa_foldnb_bod_0 \<sigma> (ptr_val (t5_C.arr_C x')) 
+                          | UAFunction f ts \<Rightarrow> (\<Xi>, [], [option.Some abbreviatedType1] \<turnstile> 
+                                                (App (AFun f ts) (Var 0)) : TPrim (Num U32)) \<and>
+                                               upd_wa_foldnb_bod_0 \<sigma> (ptr_val (t5_C.arr_C x')) 
                                                 (t5_C.frm_C x') b (AFun f ts) 
                                                 (UPrim (LU32 (t5_C.acc_C x'))) 
                                                 (UUnit) (\<sigma>, UPrim (LU32 (t3_C.acc_C a)))
@@ -532,54 +536,22 @@ gets (\<lambda>s. x)
          apply (rule_tac r = "UPrim (LU32 (t3_C.acc_C aa))" and 
                        len = "(SCAST(32 signed \<rightarrow> 32) (len_C (heap_WordArray_u32_C s (t5_C.arr_C x'))))" and
                        arr = "(ptr_val (values_C (heap_WordArray_u32_C s (t5_C.arr_C x'))))" and
-                         v = xa and \<sigma> = \<sigma> and \<sigma>' = \<sigma> and \<sigma>'' = \<sigma>
-                       in upd_wa_foldnb_bod_0_step; simp)
-         apply (rule u_sem_app)
+                         v = xa and \<sigma> = \<sigma> and \<sigma>' = \<sigma> and \<sigma>'' = \<sigma> and ra = "{}" and ?w1.0 = "{}" and 
+                         ?w2.0 = "{}" and t = "TUnit"
+                       in upd_wa_foldnb_bod_0_step; simp?)
+           apply (clarsimp simp: frame_def)
+          apply (rule u_sem_app)
            apply (rule u_sem_fun)
           apply (rule u_sem_var)
          apply (subst mul_def; clarsimp)
-         apply (rule_tac \<sigma>' = \<sigma> and
-                         fs = "[(UPrim (LU32 xa), RPrim (Num U32)),
-                                (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)),
-                                (UUnit, RUnit)]" in u_sem_take_ub)
-          apply (cut_tac \<xi> = \<xi>0 and 
-                         \<gamma> = "[URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
-                                 (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), 
-                                 (UUnit, RUnit)]]" and
-                         \<sigma> = \<sigma> and 
-                         i = 0 in u_sem_var; clarsimp)
+         apply (rule u_sem_take_ub; simp?)
+          apply (rule u_sem_var[where \<gamma> = "[_]" and i = 0, simplified])
          apply clarsimp
-         apply (rule_tac \<sigma>' = \<sigma> and
-                         fs = "[(UPrim (LU32 xa), RPrim (Num U32)),
-                                (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)),
-                                (UUnit, RUnit)]" in u_sem_take_ub)
-          apply (cut_tac \<xi> = \<xi>0 and 
-                         \<gamma> = "[UPrim (LU32 xa), 
-                               URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
-                                 (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), (UUnit, RUnit)],
-                               URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
-                                 (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), 
-                                 (UUnit, RUnit)]]" and
-                         \<sigma> = \<sigma> and 
-                         i = "Suc 0" in u_sem_var; clarsimp)
+         apply (rule u_sem_take_ub; simp?)
+          apply (rule u_sem_var[where \<gamma> = "[_, _, _]" and i = 1, simplified])
          apply clarsimp
-         apply (rule_tac \<sigma>' = \<sigma> and
-                         fs = "[(UPrim (LU32 xa), RPrim (Num U32)),
-                                (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)),
-                                (UUnit, RUnit)]" in u_sem_take_ub)
-            apply (cut_tac \<xi> = \<xi>0 and 
-                         \<gamma> = "[UPrim (LU32 (t3_C.acc_C aa)),
-                               URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
-                                 (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), (UUnit, RUnit)],
-                               UPrim (LU32 xa),
-                               URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
-                                 (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), 
-                                 (UUnit, RUnit)],
-                               URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
-                                 (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), 
-                                 (UUnit, RUnit)]]" and
-                         \<sigma> = \<sigma> and 
-                         i = "Suc 0" in u_sem_var; clarsimp)
+         apply (rule u_sem_take_ub; simp?)
+          apply (rule u_sem_var[where \<gamma> = "[_, _, _, _, _]" and i = 1, simplified])
          apply clarsimp
          apply (cut_tac \<xi> = \<xi>0 and 
                         \<gamma> = "[UUnit, 
@@ -603,7 +575,8 @@ gets (\<lambda>s. x)
           apply (rule u_sem_all_cons)
            apply (rule u_sem_var)
           apply (rule u_sem_all_empty)
-         apply (clarsimp simp: eval_prim_u_def val_rel_simps)
+          apply (clarsimp simp: eval_prim_u_def val_rel_simps)
+         apply (rule upd.u_t_unit)
         apply (rule conjI)  
          apply (metis (no_types, hide_lams) max_word_max word_Suc_le word_le_less_eq word_not_le)
         apply (rule conjI)
@@ -616,57 +589,25 @@ gets (\<lambda>s. x)
         apply (rule_tac r = "UPrim (LU32 (t3_C.acc_C aa))" and 
                       len = "(SCAST(32 signed \<rightarrow> 32) (len_C (heap_WordArray_u32_C s (t5_C.arr_C x'))))" and
                       arr = "(ptr_val (values_C (heap_WordArray_u32_C s (t5_C.arr_C x'))))" and
-                        v = xa and \<sigma> = \<sigma> and \<sigma>' = \<sigma> and \<sigma>'' = \<sigma>
-                      in upd_wa_foldnb_bod_0_step; simp)
-        apply (rule u_sem_app)
-          apply (rule u_sem_fun)
-         apply (rule u_sem_var)
-        apply (subst sum_def; clarsimp)
-        apply (rule_tac \<sigma>' = \<sigma> and
-                        fs = "[(UPrim (LU32 xa), RPrim (Num U32)),
-                               (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)),
-                               (UUnit, RUnit)]" in u_sem_take_ub)
+                        v = xa and \<sigma> = \<sigma> and \<sigma>' = \<sigma> and \<sigma>'' = \<sigma> and ra = "{}" and ?w1.0 = "{}" and
+                        ?w2.0 = "{}" and t = "TUnit"
+                      in upd_wa_foldnb_bod_0_step; simp?)
+          apply (clarsimp simp: frame_def)
+         apply (rule u_sem_app)
+           apply (rule u_sem_fun)
+          apply (rule u_sem_var)
+         apply (subst sum_def; clarsimp)
+         apply (rule u_sem_take_ub; simp?)
+          apply (rule u_sem_var[where \<gamma> = "[_]" and i = 0, simplified])
+         apply clarsimp
+         apply (rule u_sem_take_ub; simp?)
+          apply (rule u_sem_var[where \<gamma> = "[_, _, _]" and i = 1, simplified])
+         apply clarsimp
+         apply (rule u_sem_take_ub; simp?)
+          apply (rule u_sem_var[where \<gamma> = "[_, _, _, _, _]" and i = 1, simplified])
+         apply clarsimp
          apply (cut_tac \<xi> = \<xi>0 and 
-                        \<gamma> = "[URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
-                                (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), 
-                                (UUnit, RUnit)]]" and
-                        \<sigma> = \<sigma> and 
-                        i = 0 in u_sem_var; clarsimp)
-        apply clarsimp
-        apply (rule_tac \<sigma>' = \<sigma> and
-                        fs = "[(UPrim (LU32 xa), RPrim (Num U32)),
-                               (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)),
-                               (UUnit, RUnit)]" in u_sem_take_ub)
-         apply (cut_tac \<xi> = \<xi>0 and 
-                        \<gamma> = "[UPrim (LU32 xa), 
-                              URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
-                                (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), (UUnit, RUnit)],
-                              URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
-                                (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), 
-                                (UUnit, RUnit)]]" and
-                        \<sigma> = \<sigma> and 
-                        i = "Suc 0" in u_sem_var; clarsimp)
-        apply clarsimp
-        apply (rule_tac \<sigma>' = \<sigma> and
-                        fs = "[(UPrim (LU32 xa), RPrim (Num U32)),
-                               (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)),
-                               (UUnit, RUnit)]" in u_sem_take_ub)
-           apply (cut_tac \<xi> = \<xi>0 and 
-                        \<gamma> = "[UPrim (LU32 (t3_C.acc_C aa)),
-                              URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
-                                (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), (UUnit, RUnit)],
-                              UPrim (LU32 xa),
-                              URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
-                                (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), 
-                                (UUnit, RUnit)],
-                              URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
-                                (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), 
-                                (UUnit, RUnit)]]" and
-                        \<sigma> = \<sigma> and 
-                        i = "Suc 0" in u_sem_var; clarsimp)
-        apply clarsimp
-        apply (cut_tac \<xi> = \<xi>0 and 
-                       \<gamma> = "[UUnit, 
+                        \<gamma> = "[UUnit, 
                              URecord [(UPrim (LU32 xa), RPrim (Num U32)),
                                 (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), (UUnit, RUnit)],
                              UPrim (LU32 (t3_C.acc_C aa)),
@@ -682,12 +623,13 @@ gets (\<lambda>s. x)
                       \<sigma>' = \<sigma> and
                        p = "Plus U32" and
                       as = "[Var 4, Var 2]"  in u_sem_prim)
-         apply (rule u_sem_all_cons)
-          apply (rule u_sem_var)
-         apply (rule u_sem_all_cons)
-          apply (rule u_sem_var)
-         apply (rule u_sem_all_empty)
-        apply (clarsimp simp: eval_prim_u_def val_rel_simps)  
+          apply (rule u_sem_all_cons)
+           apply (rule u_sem_var)
+          apply (rule u_sem_all_cons)
+           apply (rule u_sem_var)
+          apply (rule u_sem_all_empty)
+         apply (clarsimp simp: eval_prim_u_def val_rel_simps)  
+        apply (rule upd.u_t_unit)
        apply (rule conjI)  
         apply (metis (no_types, hide_lams) max_word_max word_Suc_le word_le_less_eq word_not_le)
        apply (rule conjI)
@@ -768,7 +710,85 @@ gets (\<lambda>s. x)
    apply (thin_tac "is_valid_WordArray_u32_C _ _")
    apply (thin_tac "val_rel _ _")
    apply (erule disjE; clarsimp)
-   apply (metis (no_types, hide_lams) min.strict_order_iff min_def_raw not_less_iff_gr_or_eq)+
+   apply (erule disjE; clarsimp)
+    apply (rule conjI; clarsimp)
+     apply (rule conjI)
+      apply (rule_tac x = abbreviatedType1 and 
+        ?\<Gamma>1.0 = "[option.Some abbreviatedType1]" and
+        ?\<Gamma>2.0 = "[option.Some abbreviatedType1]" in typing_app)
+        apply (clarsimp simp: split_Cons split_empty)
+        apply (rule_tac k = "{D, S, E}" in share; simp?)
+        apply (clarsimp simp: abbreviatedType1_def)
+        apply (rule kindingI; clarsimp)
+       apply (rule_tac K' = "[]" and t = "abbreviatedType1" and u = "TPrim (Num U32)" in typing_fun; clarsimp?)
+         apply (cut_tac mul_typecorrect') 
+         apply (clarsimp simp: mul_type_def)
+        apply (clarsimp simp: Cogent.empty_def weakening_Cons weakening_nil)
+        apply (rule_tac k = "{D, S, E}" in drop; simp?)
+        apply (clarsimp simp: abbreviatedType1_def)
+        apply (rule kindingI; clarsimp)
+       apply (clarsimp simp: abbreviatedType1_def)
+      apply (rule typing_var; clarsimp simp: weakening_Cons Cogent.empty_def weakening_nil)
+      apply (rule keep; clarsimp simp: abbreviatedType1_def)
+     apply (metis (no_types, hide_lams) min.strict_order_iff min_def_raw not_less_iff_gr_or_eq)
+    apply (rule conjI)
+     apply (rule_tac x = abbreviatedType1 and 
+        ?\<Gamma>1.0 = "[option.Some abbreviatedType1]" and
+        ?\<Gamma>2.0 = "[option.Some abbreviatedType1]" in typing_app)
+       apply (clarsimp simp: split_Cons split_empty)
+       apply (rule_tac k = "{D, S, E}" in share; simp?)
+       apply (clarsimp simp: abbreviatedType1_def)
+       apply (rule kindingI; clarsimp)
+      apply (rule_tac K' = "[]" and t = "abbreviatedType1" and u = "TPrim (Num U32)" in typing_fun; clarsimp?)
+        apply (cut_tac mul_typecorrect')
+        apply (clarsimp simp: mul_type_def)
+       apply (clarsimp simp: Cogent.empty_def weakening_Cons weakening_nil)
+       apply (rule_tac k = "{D, S, E}" in drop; simp?)
+       apply (clarsimp simp: abbreviatedType1_def)
+       apply (rule kindingI; clarsimp)
+      apply (clarsimp simp: abbreviatedType1_def)
+     apply (rule typing_var; clarsimp simp: weakening_Cons Cogent.empty_def weakening_nil)
+     apply (rule keep; clarsimp simp: abbreviatedType1_def)
+    apply (metis (no_types, hide_lams) min.strict_order_iff min_def_raw not_less_iff_gr_or_eq)
+   apply (rule conjI; clarsimp)
+    apply (rule conjI)
+     apply (rule_tac x = abbreviatedType1 and 
+        ?\<Gamma>1.0 = "[option.Some abbreviatedType1]" and
+        ?\<Gamma>2.0 = "[option.Some abbreviatedType1]" in typing_app)
+       apply (clarsimp simp: split_Cons split_empty)
+       apply (rule_tac k = "{D, S, E}" in share; simp?)
+       apply (clarsimp simp: abbreviatedType1_def)
+       apply (rule kindingI; clarsimp)
+      apply (rule_tac K' = "[]" and t = "abbreviatedType1" and u = "TPrim (Num U32)" in typing_fun; clarsimp?)
+        apply (cut_tac sum_typecorrect') 
+        apply (clarsimp simp: sum_type_def)
+       apply (clarsimp simp: Cogent.empty_def weakening_Cons weakening_nil)
+       apply (rule_tac k = "{D, S, E}" in drop; simp?)
+       apply (clarsimp simp: abbreviatedType1_def)
+       apply (rule kindingI; clarsimp)
+      apply (clarsimp simp: abbreviatedType1_def)
+     apply (rule typing_var; clarsimp simp: weakening_Cons Cogent.empty_def weakening_nil)
+     apply (rule keep; clarsimp simp: abbreviatedType1_def)
+    apply (metis (no_types, hide_lams) min.strict_order_iff min_def_raw not_less_iff_gr_or_eq)
+   apply (rule conjI)
+    apply (rule_tac x = abbreviatedType1 and 
+        ?\<Gamma>1.0 = "[option.Some abbreviatedType1]" and
+        ?\<Gamma>2.0 = "[option.Some abbreviatedType1]" in typing_app)
+      apply (clarsimp simp: split_Cons split_empty)
+      apply (rule_tac k = "{D, S, E}" in share; simp?)
+      apply (clarsimp simp: abbreviatedType1_def)
+      apply (rule kindingI; clarsimp)
+     apply (rule_tac K' = "[]" and t = "abbreviatedType1" and u = "TPrim (Num U32)" in typing_fun; clarsimp?)
+       apply (cut_tac sum_typecorrect')
+       apply (clarsimp simp: sum_type_def)
+      apply (clarsimp simp: Cogent.empty_def weakening_Cons weakening_nil)
+      apply (rule_tac k = "{D, S, E}" in drop; simp?)
+      apply (clarsimp simp: abbreviatedType1_def)
+      apply (rule kindingI; clarsimp)
+     apply (clarsimp simp: abbreviatedType1_def)
+    apply (rule typing_var; clarsimp simp: weakening_Cons Cogent.empty_def weakening_nil)
+    apply (rule keep; clarsimp simp: abbreviatedType1_def)
+   apply (metis (no_types, hide_lams) min.strict_order_iff min_def_raw not_less_iff_gr_or_eq)
   apply (erule disjE; clarsimp)
   done
 end (* of context *)
