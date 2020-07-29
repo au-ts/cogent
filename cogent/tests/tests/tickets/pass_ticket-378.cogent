@@ -1,0 +1,8 @@
+type V = <A U8 | B Bool>
+
+foo : V -> ()
+foo v = v | A x -> v | A x -> ()
+                     | B x -> ()
+          | v' -> v' | A x -> ()
+                     | B x -> ()
+
