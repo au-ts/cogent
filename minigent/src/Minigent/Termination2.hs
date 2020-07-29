@@ -1,6 +1,7 @@
 
+
 -- |
--- Module      : Minigent.Termination
+-- Module      : Minigent.Termination2
 -- Copyright   : (c) Data61 2018-2019
 --                   Commonwealth Science and Research Organisation (CSIRO)
 --                   ABN 41 687 119 230
@@ -9,7 +10,8 @@
 -- The termination checking module
 --
 -- May be used qualified or unqualified.
-module Minigent.Termination
+module Minigent.Termination2
+
   ( termCheck
   , genGraphDotFile
   , Assertion (..) 
@@ -28,16 +30,13 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.List
 
--- Size is list of PrimTypes (and their values?) and an Int (number of constructors)
-data Size = Empty | Size [(VarName, PrimType)] Int deriving (Show, Eq)
-
 -- A directed graph maps a node name to all reachable nodes from that node
 type Node  = String
 type Graph = M.Map Node [Node]
 
 -- Our environment, a mapping between program variables and fresh variables
 type FreshVar = String
-type Env = M.Map VarName (FreshVar, Expr, Size)
+type Env = M.Map VarName FreshVar
 
 type Error    = String
 type DotGraph = String
@@ -65,7 +64,7 @@ termCheck genvs = M.foldrWithKey go ([],[]) (defns genvs)
     init :: FunName -> VarName -> Expr -> Fresh VarName (Bool, [Assertion], String)
     init f x e = do
       alpha <- fresh
-      let env = M.insert x (alpha, e, Empty) M.empty
+      let env = M.insert x alpha M.empty
       (a,c) <- termAssertionGen env e
 
       let graph = toGraph a
@@ -89,7 +88,7 @@ termAssertionGen env expr
   = case expr of
     PrimOp _ es ->
       join $ map (termAssertionGen env) es
-    -- Explicit type annotation
+      
     Sig e _ -> 
       termAssertionGen env e
 
@@ -97,8 +96,7 @@ termAssertionGen env expr
       a <- termAssertionGen env f
       b <- termAssertionGen env e
       return $ flatten [([], [getv env e]), a, b]
-    
-    -- Struct [(FieldName, Expr)]: unboxed record literals
+      
     Struct fs ->
       let es = map snd fs 
       in join $ map (termAssertionGen env) es
@@ -112,7 +110,7 @@ termAssertionGen env expr
 
       -- Map our bound program variable to a new name and evaluate the rest
       alpha <- fresh
-      let env' = M.insert x (alpha, e1, Empty) env 
+      let env' = M.insert x alpha env 
       res <- termAssertionGen env' e2
 
       -- Generate assertion
@@ -129,8 +127,7 @@ termAssertionGen env expr
       res <- termAssertionGen env e1
 
       -- Update variable to fresh name bindings and generate assertions recursively
-      -- LUCY: these expressions aren't correct.
-      let env' = M.insert r' (beta, e1, Empty) (M.insert x (alpha, e2, Empty) env)
+      let env' = M.insert r' beta (M.insert x alpha env)
       res' <- termAssertionGen env' e2
 
       -- Generate assertions
@@ -161,11 +158,11 @@ termAssertionGen env expr
       gamma <- fresh
 
       res <- termAssertionGen env e1
-      -- LUCY: expressions are incorrect
-      let env' = M.insert x (alpha, e2, Empty) env
+
+      let env' = M.insert x alpha env
       res' <- termAssertionGen env' e2
 
-      let env'' = M.insert y (gamma, e2, Empty) env
+      let env'' = M.insert y gamma env
       res'' <- termAssertionGen env'' e3
 
       let assertions = toAssertion env e1 (beta :~:)
@@ -179,8 +176,7 @@ termAssertionGen env expr
 
       res <- termAssertionGen env e1
 
-      -- LUCY: expressions incorrect
-      let env' = M.insert x (alpha, e1, Empty) env
+      let env' = M.insert x alpha env
       res' <- termAssertionGen env' e2
 
       let assertions = toAssertion env e1 (beta :~:)
@@ -203,7 +199,7 @@ termAssertionGen env expr
     getv :: Env -> Expr -> Maybe FreshVar 
     getv env e =
       case e of
-        Var v -> Just $ fst3 $ env M.! v
+        Var v -> Just $ env M.! v
         _ -> Nothing
 
     join :: [Fresh VarName ([a], [b])] -> Fresh VarName ([a], [b])
@@ -213,8 +209,6 @@ termAssertionGen env expr
       return (a ++ as, b ++ bs)
     join [] = return ([],[])
 
-
-    -- [([a], [b]), ([c], [d])] -> ([a,b], [c,d])
     flatten :: [([a], [b])] -> ([a], [b])
     flatten (x:xs) = 
       let rest = flatten xs
@@ -250,7 +244,7 @@ hasPathTo src dst g
 
 -- To use:
 --   run `dot -Tpdf graph.dot -o outfile.pdf`
---   where graph.dot is the output from this function.
+-- where graph.dot is the output from this function.
 genGraphDotFile :: String -> Graph -> [Node] -> [Node] -> String
 genGraphDotFile name g args goals = 
   "digraph " ++ name ++ 
@@ -270,17 +264,3 @@ genGraphDotFile name g args goals =
     highlight :: String -> String -> [Node] -> String
     highlight color label nodes = "\t" ++ (concat . intersperse "\n" $
                                   map (\n -> n ++ " [ color = " ++ color ++ ", xlabel = " ++ label ++ " ];\n") nodes)
-
-fst3 :: (a, b, c) -> a
-fst3 (a, _, _) = a
-
--- Size Functions
--- Arithmetic
-add :: Size -> Size -> Size
-add Empty Empty = Empty
-add Empty x = x
-add x Empty = x
-add (Size a b) (Size x y) = Size (a ++ x) (b + y) 
-
-evaluateSize :: Size -> Int
-evaluateSize (Size a b) =  length (a) + b

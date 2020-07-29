@@ -1,0 +1,14 @@
+sumList : rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}! -> U32;
+sumList r = 
+  take r2 { l = r } = r in
+    case r of
+      Nil u -> 0
+    | v2 -> 
+      case v2 of
+        Cons s ->
+          take s2 { rest = x } = s in
+            s.data + sumList x
+          end
+      end
+    end
+  end;

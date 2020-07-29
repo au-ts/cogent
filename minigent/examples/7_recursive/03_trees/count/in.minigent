@@ -1,0 +1,11 @@
+
+countNodes : rec t { node: < Leaf Unit | Tree { data: U32, left: t!, right: t! }# >}! -> U32;
+countNodes r = 
+  case r.node of
+    Leaf u -> 0
+    | node2 ->
+      case node2 of
+        Tree tree ->
+          tree.data + countNodes tree.left + countNodes tree.right
+      end
+  end;

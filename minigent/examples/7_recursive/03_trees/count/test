@@ -1,0 +1,32 @@
+allocNode : [a]. Unit -> rec t { l: < Nil Unit | Cons { data: a, rest: t }# > take };
+
+alloc : [a]. rec t { l: <Nil Unit | Cons {data: a, rest: t}# > } -> rec t { l: <Nil Unit | Cons {data: a, rest: t}#>}
+alloc r =
+  let newNode = allocNode Unit in
+    put newNode.l := 
+      Cons {
+        data = True,
+        rest = r
+      } end
+    end
+  end;
+
+list : rec t {l: < Nil Unit | Cons { data: Bool, rest: t! }# >}! -> U32;
+list r =
+  case r.l of
+    Nil u -> 0
+  | v2 ->
+    case v2 of
+      Cons s ->
+        if s.data then
+          let tail = list s.rest in
+            1 + list s.rest
+          end
+        else
+          let newNode = alloc s.rest in
+            1 + list s.rest
+            end
+          end
+        end
+    end
+  end;

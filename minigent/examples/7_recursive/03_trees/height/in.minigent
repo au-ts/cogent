@@ -1,0 +1,17 @@
+
+height : rec t { node: < Leaf Unit | Tree { data: U32, left: t!, right: t! }# >}! -> U32;
+height r =
+  case r.node of
+    Leaf u -> 0
+    | node2 ->
+      case node2 of
+        Tree tree ->
+          let left = height tree.left 
+          in 
+            let right = height tree.right
+            in
+              if left > right then (left + 1) else (right + 1) end
+            end
+          end
+      end
+  end;
