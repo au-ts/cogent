@@ -12,6 +12,11 @@ import Text.Parsec
 import Text.Parsec.Char
 import Text.Parsec.Indent
 import Text.Show.Pretty
+import Language.Haskell.Exts.Parser
+import Language.Haskell.Exts (Type)
+import Language.Haskell.Exts.SrcLoc
+import Language.Haskell.Names.SyntaxUtils (dropAnn)
+
 
 -- DSL Format Rules:
 -- ------------------------------
@@ -57,11 +62,15 @@ parseLn = do
     v <- parseList <* spaces -- <|> many strCmt -- <* spaces
     return (k,v)
 
-parseTyps :: IParser (String, String)
+parseTyps :: IParser (String, Type ())
 parseTyps = do
     k <- strKW
     v <- lexeme $ strV <* spaces 
-    return (k,v)
+    let v' = dropAnn $ fromParseResult $ parseType v
+    return (k,v')
+
+--strToTyp :: IParser String -> IParser (Type ())
+--strToTyp p = undefined
 
 strKW :: IParser String 
 strKW = strV <* char ':'

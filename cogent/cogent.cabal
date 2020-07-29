@@ -205,6 +205,7 @@ library
                  , extra
                  , indents
                  , generics-sop >= 0.5
+                 , haskell-names
   if flag(builtin-arrays) || flag(refinement-types)
     exposed-modules: 
                      Cogent.TypeCheck.SMT

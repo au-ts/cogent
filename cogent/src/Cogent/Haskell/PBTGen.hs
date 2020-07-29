@@ -38,6 +38,7 @@ import qualified Data.Map as M
 import Language.Haskell.Exts.Build
 import Language.Haskell.Exts.Pretty
 import Language.Haskell.Exts.Syntax as HS
+import Language.Haskell.Exts.SrcLoc
 import Text.PrettyPrint
 
 import Debug.Trace
@@ -78,9 +79,10 @@ pbtHs name hscname pbtinfos decls consts log = render $
     in text "{-" $+$ text log $+$ text "-}" $+$ prettyPrim mod
 
 -- -> Gen (Module ()) 
-propModule :: String -> String -> [PBTInfo] -> [CC.Definition TypedExpr VarName b] -> Module () 
+propModule :: String -> String -> [PBTInfo] -> [CC.Definition TypedExpr VarName b] -> Module ()
 propModule name hscname pbtinfos decls =
   let (cogDecls, w) = evalRWS (runSG $ do 
+                                          shallowTypesFromTable
                                           genDs <- (concatMapM (\x -> genDecls' x decls) pbtinfos)
                                           absDs <- (concatMapM (\x -> absFDecl x decls) pbtinfos)
                                           -- genDecls x decls shallowTypesFromTable
@@ -165,7 +167,7 @@ genDecls PBTInfo{..} defs =
 -- FuncInfo{name=n, ispure=_, nondet=_, ictype=icT} = 
         --let 
             fnName = "gen_" ++fname
-            toName = "Gen" ++icT
+            toName = "Gen" -- ++icT
             to     = TyCon   () (mkQName toName)
             sig    = TypeSig () [mkName fnName] to
             dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $ 
@@ -173,7 +175,7 @@ genDecls PBTInfo{..} defs =
             -- cls    = ClassDecl () () [] ()
             in [sig, dec]
 
-mkGenBody :: String -> String -> Exp ()
+mkGenBody :: String -> Type () -> Exp ()
 mkGenBody name icT = function "arbitrary"
 
 genDecls' :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
@@ -185,7 +187,7 @@ genDecls' PBTInfo{..} defs = do
 -- FuncInfo{name=n, ispure=_, nondet=_, ictype=icT} = 
         --let 
             fnName = "gen_" ++fname
-            toName = "Gen " ++icT
+            toName = "Gen " -- ++icT
             to     = TyCon   () (mkQName toName)
             sig    = TypeSig () [mkName fnName] to
             dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $ 
@@ -196,40 +198,75 @@ genDecls' PBTInfo{..} defs = do
 
 
 absFDecl :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
-absFDecl PBTInfo{..} defs = do
+absFDecl PBTInfo{..} defs =  do
         let FunAbsF{absf=_, ityps=ityps} = fabsf
-            icT = fromJust $ P.lookup "IC" ityps
+            -- icT = fromJust $ P.lookup "IC" ityps
             iaT = fromJust $ P.lookup "IA" ityps
             fnName = "abs_" ++fname
-            --tiName = 
-            --toName = "Gen " ++icT
-            ti     = TyCon   () (mkQName icT)
-            to     = TyCon   () (mkQName iaT)
+        (icT, _, absE) <- getFnTyp fname iaT defs
+        let ti     = icT
+            to     = iaT
             sig    = TypeSig () [mkName fnName] (TyFun () ti to)
-            dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $ var $ mkName "undefined") Nothing]
-          in return $ [sig, dec] --, icT']
+            dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "ic"] (UnGuardedRhs () absE) Nothing]
+        return $ [sig, dec] --, icT']
+
+
+
+-- ^^ Match on absT, e.g. TyTuple, to determine what abstraction we are performing
+--    concT will give us the fields (if any)
+--    core functionality
+
+    -- ( M.Map String (Type ()) )
+ 
+getFnTyp :: String -> Type () -> [CC.Definition TypedExpr VarName b] -> SG (Type (), Type (), Exp ()) 
+getFnTyp fname iaTyp defs = do 
+    let d = fromJust $ find defFilt defs
+    (icT, iaT, absE) <- getFnTyp' d iaTyp
+    pure $ (icT, iaT, absE)
+        where 
+            defFilt :: (CC.Definition e a b) -> Bool
+            defFilt x = (CC.getDefinitionId x) == fname
+
+getFnTyp' :: (CC.Definition TypedExpr VarName b) -> Type () -> SG ( (Type (), Type (), Exp ()) )
+getFnTyp' (CC.FunDef _ fn ps _ ti to _) iaT = local (typarUpd typar) $ do
+    ti' <- shallowType ti
+    absE <- mkAbsFBody ti iaT
+    pure $ ({-TyCon () (mkQName "Unknown") -} ti', iaT, absE)
+    where
+        typar = map fst $ Vec.cvtToList ps
+getFnTyp' (CC.AbsDecl _ fn ps _ ti to) iaT = local (typarUpd typar) $ do
+    ti' <- shallowType ti
+    absE <- mkAbsFBody ti iaT
+    pure $ ( {-TyCon () (mkQName "Unknown")-} ti', iaT, absE)
+    where
+        typar = map fst $ Vec.cvtToList ps
+getFnTyp' (CC.TypeDef tn _ _) iaT = pure $ (TyCon () (mkQName "Unknown"), iaT, function $ "undefined")
 
 
 -- | mkAbsFBody 
 -- |    - direct mapping
 -- |    - Abstract Input Type is the input type of the Haskell abstract spec
 -- |    - Concrete Input Type is the input type of the concrete function (Cogent HS embedding)
+--
 mkAbsFBody :: CC.Type t a -> Type () -> SG (Exp ())
 mkAbsFBody concT (TyParen _ t   ) = mkAbsFBody concT t 
 -- ^^ Type surrounded by parens, recurse on inside type
 
 mkAbsFBody concT (TyTuple _ _ tfs) = case concT of 
     (CC.TRecord _ fs _) -> do
-             vs <- mapM (\_ -> freshInt <<+= 1) fs
+             --vs <- mapM (\x -> fst x) fs
+             --vs <- concatMapM fst fs
              (tn,_) <- nominalType concT
-             let rec' = mkConE $ mkName tn
-                 bs = P.map (\v -> mkName $ internalVar ++ show v) vs
-                 p' = PRec () (UnQual () $ mkName tn)
+             let rec' = mkConE $ mkName "ic"
+                 bs = P.map (\v -> mkName $ snm $ fst v) fs
+                 p' = PRec () (UnQual () $ mkName tn) --[PFieldWildcard ()] -- bs
                         (P.zipWith (\(f,_) b -> PFieldPat () (UnQual () . mkName $ snm f) (pvar b)) fs bs)
              pure $ mkLetE [(p',rec')] $ tuple $ map var bs
     (CC.TCon tn ts _)   -> pure $ function $ "undefined"
     (CC.TSum ts)        -> pure $ function $ "undefined"
-    (CC.TProduct t1 t2) -> pure $ function $ "undefined"
+    (CC.TProduct t1 t2) -> pure $ var $ mkName "ic"
+
+    -- pure $ function $ "undefined"
     _                   -> pure $ function $ "undefined"
 
 -- ^^ IA is Tuple, fs is [(FieldName, (Type t b, Bool))]
@@ -239,49 +276,10 @@ mkAbsFBody concT (TyCon _ cn    ) = pure $ function $ "undefined"
 mkAbsFBody concT (TyList _ t    ) = pure $ function $ "undefined" 
 
 
--- ^^ Match on absT, e.g. TyTuple, to determine what abstraction we are performing
---    concT will give us the fields (if any)
---    core functionality
 
 
-getFnTyp :: [CC.Definition TypedExpr VarName b] -> String -> SG ( (Type (), Type ()) )
-getFnTyp defs fname = do 
-            let d = fromJust $ find defFilt defs
-            ts <- getFnTyp' d
-            pure $ ts 
-                where 
-                    defFilt :: (CC.Definition TypedExpr VarName b) -> Bool
-                    defFilt (CC.FunDef _ fn ps _ ti to e) = fn == fname 
-                    defFilt (CC.AbsDecl _ fn ps _ ti to) = fn == fname 
-                    defFilt (CC.TypeDef tn ps Nothing) = False
-                    defFilt (CC.TypeDef tn ps (Just t)) = False
-
-getFnTyp' :: (CC.Definition TypedExpr VarName b) -> SG ( (Type (), Type ()) )
-getFnTyp' (CC.FunDef _ fn ps _ ti to e) = do
-    ti' <- shallowType ti
-    to' <- shallowType to
-    pure $ (ti', to')
-
-getFnTyp' (CC.AbsDecl _ fn ps _ ti to) = do
-    ti' <- shallowType ti
-    to' <- shallowType to
-    pure $ (ti', to')
-
-getFnTyp' (CC.TypeDef tn ps Nothing) = undefined
-getFnTyp' (CC.TypeDef tn ps (Just t)) = undefined
-
--- tyFilt _ = False
-                         
 
 
--- getFnTyp' :: (CC.Definition TypedExpr VarName b) -> String -> SG (Maybe (Type (), Type ()))
--- getFnTyp' (CC.FunDef _ fn ps _ ti to e) fname | fn == fname = do 
---     ti' <- shallowType ti
---     to' <- shallowType to
---     pure $ Just (ti', to')
--- 
--- getFnTyp' _ _ | otherwise = pure $ Nothing
--- 
 
 
 
@@ -402,4 +400,3 @@ funPBTGen fs modName log =
             (style {lineLength = 220, ribbonsPerLine = 0.1}) 
             (defaultMode {caseIndent = 2})
             -}
-
