@@ -192,6 +192,7 @@ infixr 0 :<:
 data Assertion = 
     VarName :<: VarName  -- ^ Structurally less than
   | VarName :~: VarName  -- ^ Structurally equal to 
+  | VarName :?: VarName  -- ^ Unsure about the relationship
   deriving (Eq, Ord, Show)
 
 
