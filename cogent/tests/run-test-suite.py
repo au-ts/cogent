@@ -62,7 +62,7 @@ def setup_dist():
     os.mkdir(TEST_DIST_DIR)
 
 
-# Dodgy: A global list of test names that should be verbose
+# Dodgy: A **global** list of test names that should be verbose
 # if it is None, then verbose is off
 # if it is empty, that means all tests should be verbose
 # if it is nonempty, only the test names inside should be verbose
@@ -126,7 +126,6 @@ class TestResult:
         be_verbose = (verbose_test_names is not None and 
                                 (verbose_test_names == [] or
                                  self.test_name in verbose_test_names))
-
 
         if expected == "wip-pass":
             if status == "pass":
@@ -493,6 +492,7 @@ def main():
         sys.exit(1)
 
     if args.verbose is not None:
+        global verbose_test_names
         verbose_test_names = args.verbose
 
     results = []

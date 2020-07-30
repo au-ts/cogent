@@ -9,7 +9,7 @@
     - pass_array-2.cogent
     - pass_array-underflow-u32-index.cogent
     - pass_herp-1.cogent
-  expected_result: wip-pass
+  expected_result: pass
   flags:
     - -g
 
@@ -22,6 +22,6 @@
     - fail_array-index-out-of-bound.cogent
     - fail_array-indexing-nonlinear.cogent
     - fail_array-negative-index.cogent
-  expected_result: wip-fail
+  expected_result: fail
   flags:
     - -t

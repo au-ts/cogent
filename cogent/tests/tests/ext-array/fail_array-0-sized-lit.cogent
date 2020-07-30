@@ -1,2 +1,3 @@
-foo : () -> U32[0]
-foo _ = []
+foo : () -> U32
+foo _ = let x = []
+         in 1
