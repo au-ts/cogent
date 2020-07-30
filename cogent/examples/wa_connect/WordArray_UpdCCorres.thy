@@ -483,13 +483,13 @@ gets (\<lambda>s. x)
                                               upd_wa_foldnb_bod_0 \<sigma> (ptr_val (t5_C.arr_C x')) 
                                                 (t5_C.frm_C x') b (Fun f ts) 
                                                 (UPrim (LU32 (t5_C.acc_C x'))) 
-                                                (UUnit) (\<sigma>, UPrim (LU32 (t3_C.acc_C a)))
+                                                (UUnit, {}) (\<sigma>, UPrim (LU32 (t3_C.acc_C a)))
                           | UAFunction f ts \<Rightarrow> (\<Xi>, [], [option.Some abbreviatedType1] \<turnstile> 
                                                 (App (AFun f ts) (Var 0)) : TPrim (Num U32)) \<and>
                                                upd_wa_foldnb_bod_0 \<sigma> (ptr_val (t5_C.arr_C x')) 
                                                 (t5_C.frm_C x') b (AFun f ts) 
                                                 (UPrim (LU32 (t5_C.acc_C x'))) 
-                                                (UUnit) (\<sigma>, UPrim (LU32 (t3_C.acc_C a)))
+                                                (UUnit, {}) (\<sigma>, UPrim (LU32 (t3_C.acc_C a)))
                           | _ \<Rightarrow> False)) \<and> 
                         (\<sigma>, s) \<in> state_rel \<and> t5_C.frm_C x' \<le> b \<and>
                         ret = min (t5_C.to_C x') ((SCAST(32 signed \<rightarrow> 32))(len_C (heap_WordArray_u32_C s (t5_C.arr_C x')))) \<and>
@@ -536,8 +536,8 @@ gets (\<lambda>s. x)
          apply (rule_tac r = "UPrim (LU32 (t3_C.acc_C aa))" and 
                        len = "(SCAST(32 signed \<rightarrow> 32) (len_C (heap_WordArray_u32_C s (t5_C.arr_C x'))))" and
                        arr = "(ptr_val (values_C (heap_WordArray_u32_C s (t5_C.arr_C x'))))" and
-                         v = xa and \<sigma> = \<sigma> and \<sigma>' = \<sigma> and \<sigma>'' = \<sigma> and ra = "{}" and ?w1.0 = "{}" and 
-                         ?w2.0 = "{}" and t = "TUnit"
+                         v = xa and \<sigma> = \<sigma> and \<sigma>' = \<sigma> and \<sigma>'' = \<sigma> and ?w1.0 = "{}" and 
+                         ?w2.0 = "{}"
                        in upd_wa_foldnb_bod_0_step; simp?)
            apply (clarsimp simp: frame_def)
           apply (rule u_sem_app)
@@ -575,8 +575,7 @@ gets (\<lambda>s. x)
           apply (rule u_sem_all_cons)
            apply (rule u_sem_var)
           apply (rule u_sem_all_empty)
-          apply (clarsimp simp: eval_prim_u_def val_rel_simps)
-         apply (rule upd.u_t_unit)
+         apply (clarsimp simp: eval_prim_u_def val_rel_simps)
         apply (rule conjI)  
          apply (metis (no_types, hide_lams) max_word_max word_Suc_le word_le_less_eq word_not_le)
         apply (rule conjI)
@@ -589,25 +588,25 @@ gets (\<lambda>s. x)
         apply (rule_tac r = "UPrim (LU32 (t3_C.acc_C aa))" and 
                       len = "(SCAST(32 signed \<rightarrow> 32) (len_C (heap_WordArray_u32_C s (t5_C.arr_C x'))))" and
                       arr = "(ptr_val (values_C (heap_WordArray_u32_C s (t5_C.arr_C x'))))" and
-                        v = xa and \<sigma> = \<sigma> and \<sigma>' = \<sigma> and \<sigma>'' = \<sigma> and ra = "{}" and ?w1.0 = "{}" and
-                        ?w2.0 = "{}" and t = "TUnit"
+                        v = xa and \<sigma> = \<sigma> and \<sigma>' = \<sigma> and \<sigma>'' = \<sigma> and ?w1.0 = "{}" and
+                        ?w2.0 = "{}"
                       in upd_wa_foldnb_bod_0_step; simp?)
-          apply (clarsimp simp: frame_def)
-         apply (rule u_sem_app)
-           apply (rule u_sem_fun)
-          apply (rule u_sem_var)
-         apply (subst sum_def; clarsimp)
-         apply (rule u_sem_take_ub; simp?)
-          apply (rule u_sem_var[where \<gamma> = "[_]" and i = 0, simplified])
-         apply clarsimp
-         apply (rule u_sem_take_ub; simp?)
-          apply (rule u_sem_var[where \<gamma> = "[_, _, _]" and i = 1, simplified])
-         apply clarsimp
-         apply (rule u_sem_take_ub; simp?)
-          apply (rule u_sem_var[where \<gamma> = "[_, _, _, _, _]" and i = 1, simplified])
-         apply clarsimp
-         apply (cut_tac \<xi> = \<xi>0 and 
-                        \<gamma> = "[UUnit, 
+         apply (clarsimp simp: frame_def)
+        apply (rule u_sem_app)
+          apply (rule u_sem_fun)
+         apply (rule u_sem_var)
+        apply (subst sum_def; clarsimp)
+        apply (rule u_sem_take_ub; simp?)
+         apply (rule u_sem_var[where \<gamma> = "[_]" and i = 0, simplified])
+        apply clarsimp
+        apply (rule u_sem_take_ub; simp?)
+         apply (rule u_sem_var[where \<gamma> = "[_, _, _]" and i = 1, simplified])
+        apply clarsimp
+        apply (rule u_sem_take_ub; simp?)
+         apply (rule u_sem_var[where \<gamma> = "[_, _, _, _, _]" and i = 1, simplified])
+        apply clarsimp
+        apply (cut_tac \<xi> = \<xi>0 and 
+                       \<gamma> = "[UUnit, 
                              URecord [(UPrim (LU32 xa), RPrim (Num U32)),
                                 (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), (UUnit, RUnit)],
                              UPrim (LU32 (t3_C.acc_C aa)),
@@ -623,13 +622,12 @@ gets (\<lambda>s. x)
                       \<sigma>' = \<sigma> and
                        p = "Plus U32" and
                       as = "[Var 4, Var 2]"  in u_sem_prim)
-          apply (rule u_sem_all_cons)
-           apply (rule u_sem_var)
-          apply (rule u_sem_all_cons)
-           apply (rule u_sem_var)
-          apply (rule u_sem_all_empty)
-         apply (clarsimp simp: eval_prim_u_def val_rel_simps)  
-        apply (rule upd.u_t_unit)
+         apply (rule u_sem_all_cons)
+          apply (rule u_sem_var)
+         apply (rule u_sem_all_cons)
+          apply (rule u_sem_var)
+         apply (rule u_sem_all_empty)
+        apply (clarsimp simp: eval_prim_u_def val_rel_simps)  
        apply (rule conjI)  
         apply (metis (no_types, hide_lams) max_word_max word_Suc_le word_le_less_eq word_not_le)
        apply (rule conjI)
