@@ -38,6 +38,7 @@ import Lens.Micro.TH
 import Text.PrettyPrint.ANSI.Leijen (pretty)
 import Prelude as P
 
+import Debug.Trace
 
 data SmtTransState = SmtTransState { _unifs :: IntMap SVal
                                    , _vars  :: Map String SVal
@@ -62,7 +63,7 @@ typeToSmt (T (TUnit))      = return $ KTuple []
 #ifdef REFINEMENT_TYPES
 typeToSmt (T (TRefine _ b _)) = typeToSmt b
 #endif
-typeToSmt t = freshSort >>= \s -> return (KUninterpreted s (Left s))
+typeToSmt t | trace ("t = " ++ show t) True = freshSort >>= \s -> return (KUninterpreted s (Left s))
 
 sexprToSmt :: TCSExpr -> SmtTransM SVal
 sexprToSmt (SU t x) = do

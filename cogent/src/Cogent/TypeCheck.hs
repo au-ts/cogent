@@ -186,10 +186,9 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> let ?isRefType = True 
     traceTc "tc" (text "substs for const definition" <+> pretty n <+> text "is"
                   L.<$> pretty subst)
     let t'' = apply subst t'
-    lift . lift $ knownConsts %= M.insert n (t'', e', loc)
-    e'' <- postE $ applyE subst e'
-    t''' <- postT t''
-    return (ConstDef n t''' e'')
+        e'' = applyE subst e'
+    lift . lift $ knownConsts %= M.insert n (t'', e'', loc)
+    ConstDef n <$> postT t'' <*> postE e''
 
   (FunDef f (PT ps ls (stripLocT -> t)) alts) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')

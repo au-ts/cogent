@@ -39,7 +39,7 @@ import Lens.Micro
 import Lens.Micro.Mtl (view)
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 
-import Debug.Trace
+-- import Debug.Trace
 
 data SmtState = SmtState { constraints :: [TCSExpr] }
 
