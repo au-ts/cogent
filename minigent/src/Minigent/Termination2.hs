@@ -1,6 +1,7 @@
 
+
 -- |
--- Module      : Minigent.Termination
+-- Module      : Minigent.Termination2
 -- Copyright   : (c) Data61 2018-2019
 --                   Commonwealth Science and Research Organisation (CSIRO)
 --                   ABN 41 687 119 230
@@ -9,7 +10,8 @@
 -- The termination checking module
 --
 -- May be used qualified or unqualified.
-module Minigent.Termination
+module Minigent.Termination2
+
   ( termCheck
   , genGraphDotFile
   , Assertion (..) 
@@ -28,39 +30,13 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.List
 
--- Size is list of PrimTypes (and their values?) and an Int (number of constructors)
-data Size = Empty | Size [(VarName, PrimType)] Int deriving (Show, Eq)
-
 -- A directed graph maps a node name to all reachable nodes from that node
 type Node  = String
 type Graph = M.Map Node [Node]
 
 -- Our environment, a mapping between program variables and fresh variables
 type FreshVar = String
-
-data Env
-  = Env
-  {
-    oenv :: M.Map VarName FreshVar
-  , fenv :: M.Map FreshVar (Expr, Maybe VarName, Size)
-  , eenv :: [(Expr, FreshVar)]
-  }
-
-emptyEnv = Env M.empty M.empty []
-
-initialiseEnv :: VarName -> FreshVar -> Expr -> Env
-initialiseEnv x alpha e =
-  let 
-    oenv = M.insert x alpha M.empty
-    fenv = M.insert alpha (e, Just x, Empty) M.empty
-    eenv = [(e, alpha)]
-  in Env oenv fenv eenv
-
-getFreshVarFromExp :: [(Expr, FreshVar)] -> Expr -> Maybe FreshVar
-getFreshVarFromExp [] e = Nothing
-getFreshVarFromExp (x:xs) e = 
-  if (fst x == e) then Just $ snd x 
-  else getFreshVarFromExp xs e
+type Env = M.Map VarName FreshVar
 
 type Error    = String
 type DotGraph = String
@@ -71,11 +47,10 @@ termCheck genvs = M.foldrWithKey go ([],[]) (defns genvs)
     go :: FunName -> (VarName, Expr) -> ([Error], [(FunName, [Assertion], DotGraph)]) -> ([Error], [(FunName, [Assertion], DotGraph)])
     go f (x,e) (errs, dumps) =  
       let (terminates, g, dotGraph) = fst $ runFresh unifVars (init f x e)
-          -- runFresh: runs the fresh monad. unifVars: the stream. (init f x e): the computation
           errs' = if terminates then
                     errs
                   else
-                    ("Error: Function: " ++ f ++ " cannot be shown to terminate.") : errs
+                    ("Error: Function " ++ f ++ " cannot be shown to terminate.") : errs
         in 
           (errs', (f, g, dotGraph) : dumps)
 
@@ -87,10 +62,9 @@ termCheck genvs = M.foldrWithKey go ([],[]) (defns genvs)
     --  , the `dot' graph file for this particular termination graph
     --  )
     init :: FunName -> VarName -> Expr -> Fresh VarName (Bool, [Assertion], String)
-    -- Fresh: monad. VarName: type of the stream. (Bool, [Assertion], String): return type
     init f x e = do
       alpha <- fresh
-      let env = initialiseEnv x alpha e
+      let env = M.insert x alpha M.empty
       (a,c) <- termAssertionGen env e
 
       let graph = toGraph a
@@ -136,7 +110,7 @@ termAssertionGen env expr
 
       -- Map our bound program variable to a new name and evaluate the rest
       alpha <- fresh
-      let env' = (env {oenv = M.insert x alpha (oenv env)})
+      let env' = M.insert x alpha env 
       res <- termAssertionGen env' e2
 
       -- Generate assertion
@@ -153,8 +127,7 @@ termAssertionGen env expr
       res <- termAssertionGen env e1
 
       -- Update variable to fresh name bindings and generate assertions recursively
-      let env_ = (env {oenv = M.insert r' beta (oenv env)})
-      let env' = (env_ {oenv = M.insert x alpha (oenv env_)})
+      let env' = M.insert r' beta (M.insert x alpha env)
       res' <- termAssertionGen env' e2
 
       -- Generate assertions
@@ -176,34 +149,20 @@ termAssertionGen env expr
 
       return $ flatten [(assertions, []), res', res]
 
-    Member e f -> do
-      alpha <- fresh -- e.f: alpha
-      let env' = (env {eenv = ((Member e f), alpha):(eenv env)})
-
-      -- find e inside the env
-      -- find the related freshvar
-      -- set e.f < e
-      res <- termAssertionGen env' e
-      let assertions = toAssertion env e (alpha :<:)
-      return $ flatten [(assertions, []), res]
+    Member e f -> 
+      termAssertionGen env e
 
     Case e1 _ x e2 y e3 -> do
-      -- Assertions we want to make:
-      -- x < e1
-      -- y = e1
-      -- where x: alpha, y:gamma, e1: beta (if it exists)
+      alpha <- fresh
+      beta  <- fresh
+      gamma <- fresh
 
-      -- run on e1.
       res <- termAssertionGen env e1
 
-      alpha <- fresh -- x
-      beta  <- fresh -- e1, if it can be found
-      gamma <- fresh -- y
-
-      let env' = (env {oenv = M.insert x alpha (oenv env)})
+      let env' = M.insert x alpha env
       res' <- termAssertionGen env' e2
 
-      let env'' = (env {oenv = M.insert y gamma (oenv env)})
+      let env'' = M.insert y gamma env
       res'' <- termAssertionGen env'' e3
 
       let assertions = toAssertion env e1 (beta :~:)
@@ -217,7 +176,7 @@ termAssertionGen env expr
 
       res <- termAssertionGen env e1
 
-      let env' = (env {oenv = M.insert x alpha (oenv env)})
+      let env' = M.insert x alpha env
       res' <- termAssertionGen env' e2
 
       let assertions = toAssertion env e1 (beta :~:)
@@ -240,8 +199,8 @@ termAssertionGen env expr
     getv :: Env -> Expr -> Maybe FreshVar 
     getv env e =
       case e of
-        Var v -> Just $ (oenv env) M.! v
-        x -> getFreshVarFromExp (eenv env) e 
+        Var v -> Just $ env M.! v
+        _ -> Nothing
 
     join :: [Fresh VarName ([a], [b])] -> Fresh VarName ([a], [b])
     join (e:es) = do
@@ -250,8 +209,6 @@ termAssertionGen env expr
       return (a ++ as, b ++ bs)
     join [] = return ([],[])
 
-
-    -- [([a], [b]), ([c], [d])] -> ([a,b], [c,d])
     flatten :: [([a], [b])] -> ([a], [b])
     flatten (x:xs) = 
       let rest = flatten xs
@@ -287,7 +244,7 @@ hasPathTo src dst g
 
 -- To use:
 --   run `dot -Tpdf graph.dot -o outfile.pdf`
---   where graph.dot is the output from this function.
+-- where graph.dot is the output from this function.
 genGraphDotFile :: String -> Graph -> [Node] -> [Node] -> String
 genGraphDotFile name g args goals = 
   "digraph " ++ name ++ 
@@ -307,17 +264,3 @@ genGraphDotFile name g args goals =
     highlight :: String -> String -> [Node] -> String
     highlight color label nodes = "\t" ++ (concat . intersperse "\n" $
                                   map (\n -> n ++ " [ color = " ++ color ++ ", xlabel = " ++ label ++ " ];\n") nodes)
-
-fst3 :: (a, b, c) -> a
-fst3 (a, _, _) = a
-
--- Size Functions
--- Arithmetic
-add :: Size -> Size -> Size
-add Empty Empty = Empty
-add Empty x = x
-add x Empty = x
-add (Size a b) (Size x y) = Size (a ++ x) (b + y) 
-
-evaluateSize :: Size -> Int
-evaluateSize (Size a b) =  length (a) + b

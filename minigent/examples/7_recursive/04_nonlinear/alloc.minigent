@@ -1,0 +1,12 @@
+alloc : [x]. Unit -> rec t { l: < Nil Unit | Cons { data: x, rest: t }# > take };
+
+allocNode : [x] . x -> rec t { l: < Nil Unit | Cons { data: x, rest: t }# >} -> rec t { l: < Nil Unit | Cons { data: x, rest: t }# >}
+allocNode x list = 
+  let newNode = allocNode Unit in
+    put newNode.l := 
+      Cons {
+        data = 0,
+        rest = list.rest
+      } end
+    end
+  end;

@@ -1,42 +1,31 @@
-alloc : [x]. Unit -> rec t { l: < Nil Unit | Cons { data: x, rest: t }# > take };
-dealloc : [x]. rec t { l: < Nil Unit | Cons { data: x, rest: t }# > take } -> Unit;
+alloc : Unit -> rec t { l: < Nil Unit | Cons { data: U32, rest: t }# > take };
+dealloc : rec t { l: < Nil Unit | Cons { data: U32, rest: t }# > take } -> Unit;
 
-ruinList : [x]. rec t { l: < Nil Unit | Cons { data: x, rest: t }# >} -> Unit;
+ruinList : rec t { l: < Nil Unit | Cons { data: U32, rest: t }# >} -> Unit;
 
-ruinList r =
-  r.l 
-    | Nil -> Unit
-    | Cons x ->
-      if x.data != 0 then
-        let _ = dealloc r in
-        let r2 = alloc Unit in
-        let r3 = (put r2.l := Cons { data: 0, rest: x.rest }) in
-          ruinList r3
-        end end end
-      else
-        let _ = dealloc r in
-          ruinList r.rest
-        end
-
-  let newNode = alloc Unit in
-    put newNode.l := 
-      Cons {
-        data = True, 
-        rest = r
-      } end
-    end
+ruinList r = 
+  case r.l of
+    Nil u -> Unit
+    | r2 ->
+      case r2 of 
+        Cons list ->
+          let x = dealloc r in
+            if list.data == 0 then
+                ruinList list.rest
+            else
+              let newNode = alloc Unit 
+              in
+                let newList = 
+                  put newNode.l := 
+                    Cons {
+                      data = 0, 
+                      rest = list.rest
+                    } end
+                in
+                  ruinList newList
+                end
+              end
+            end
+          end
+      end
   end;
-
--- Check current node, generate new node if needed
--- Recurse on rest of list
--- Put rest of list into current node
--- return current node
-
--- branch on value
--- either dealloc + alloc new, recurse on new
--- 
-
-alloc 
-
-put rest into newNode.rest
-rec
