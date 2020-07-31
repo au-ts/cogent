@@ -754,7 +754,7 @@ fun \<xi>1 :: "(char list, atyp, 32 word) uabsfuns"
   where
   "\<xi>1 x y z = 
     (if x = ''wordarray_fold_no_break_0'' then upd_wa_foldnb_0 y z
-     else (if x = ''wordarray_map_no_break_0'' then upd_wa_mapnb_0 y z 
+     else (if x = ''wordarray_map_no_break_0'' then False 
            else \<xi>0 x y z))" 
 
 subsubsection "Value Semantics"
