@@ -31,6 +31,7 @@
     - pass_ticket-e31.cogent
     - pass_ticket-e47-1.cogent
     - pass_ticket-e47.cogent
+    - pass_ticket-378.cogent
   expected_result: pass
   flags:
     - -g

@@ -107,15 +107,17 @@ validateType (RT t) = do
                     , fields' <- nub fields
                    -> let toRow (T (TRecord rp fs s)) = R (coerceRP rp) (Row.complete $ Row.toEntryList fs) (Left s)
                       in if fields' == fields
-                           then case s of
-                             Boxed _ (Just dlexpr)
-                               | Left (anError : _) <- runExcept $ tcDataLayoutExpr layouts lvs dlexpr  -- layout is bad
-                               -> freshTVar >>= \t' -> return (Unsat $ DataLayoutError anError, t')
-                             _ -> -- layout is good, or no layout
-                                  -- We have to pattern match on 'TRecord' otherwise it's a type error.
-                                  do (c, TRecord rp' fs' s') <- fmapFoldM validateType t
-                                     return (c, toRow . T $ TRecord rp' fs' (fmap (fmap toTCDL) s'))
-                           else freshTVar >>= \t' -> return (Unsat $ DuplicateRecordFields (fields \\ fields'), t')
+                         then do
+                           (ct, t') <- case s of
+                             Boxed _ (Just dlexpr) -> do
+                                (cl, l') <- validateLayout dlexpr
+                                (ct, t') <- fmapFoldM validateType t
+                                return (cl <> ct, t')
+                             _ -> fmapFoldM validateType t
+                           case t' of
+                             TRecord rp' fs' s' -> return (ct, toRow . T $ TRecord rp' fs' (fmap (fmap toTCDL) s'))
+                             _ -> freshTVar >>= \t'' -> return (ct, t'')  -- something must have gone wrong; @ct <> cl@ should already contains the unsats / zilinc
+                         else freshTVar >>= \t' -> return (Unsat $ DuplicateRecordFields (fields \\ fields'), t')
                     | otherwise -> (second T) <$> fmapFoldM validateType (TRecord rp fs (fmap (fmap toTCDL) s))
 
     TVariant fs  -> do let tuplize [] = T TUnit
@@ -232,27 +234,6 @@ validateLayout l = do
 validateLayouts :: Traversable t => t DataLayoutExpr -> CG (Constraint, t TCDataLayout)
 validateLayouts = fmapFoldM validateLayout
 
-cgSubstedType :: TCType -> CG Constraint
-cgSubstedType (T (TLayout l t)) = cgSubstedLayout l
-cgSubstedType (T t) = foldMapM cgSubstedType t
-cgSubstedType (U x) = pure Sat
-cgSubstedType (V x) = foldMapM cgSubstedType x
-cgSubstedType (R _ x s) = (<>) <$> foldMapM cgSubstedType x <*> cgSubstedSigil s
-#ifdef BUILTIN_ARRAYS
-cgSubstedType (A t l s tkns) = (<>) <$> cgSubstedType t <*> cgSubstedSigil s
-#endif
-cgSubstedType (Synonym n ts) = foldMapM cgSubstedType ts
-
-cgSubstedSigil :: Either (Sigil (Maybe TCDataLayout)) Int -> CG Constraint
-cgSubstedSigil (Left (Boxed _ (Just l))) = cgSubstedLayout l
-cgSubstedSigil _ = pure Sat
-
-cgSubstedLayout :: TCDataLayout -> CG Constraint
-cgSubstedLayout l = do
-  ls <- lift $ use knownDataLayouts
-  case runExcept $ tcTCDataLayout ls l of
-    Left (e:_) -> pure $ Unsat (DataLayoutError e)
-    Right _    -> pure Sat
 
 -- -----------------------------------------------------------------------------
 -- Term-level constraints
@@ -618,12 +599,11 @@ cg' (TLApp f ts ls i) t = do
       let rt = substLayout lps $ substType tps tau
           rc = rt :< t
           re = TLApp f (Just . snd <$> tps) (Just . snd <$> lps) i
-      sc <- cgSubstedType rt
       traceTc "gen" (text "cg for tlapp:" <+> prettyE re
                L.<$> text "of type" <+> pretty t <> semi
                L.<$> text "type signature is" <+> pretty (PT tvs lvs tau) <> semi
                L.<$> text "generate constraint" <+> prettyC rc)
-      return (ct <> cl <> cts <> cls <> rc <> sc, re)
+      return (ct <> cl <> cts <> cls <> rc, re)
     Nothing -> do
       let e = TLApp f ts' ls' i
           c = Unsat (FunctionNotFound f)

@@ -848,6 +848,7 @@ isTypeLayoutExprCompatible env (T (TCon n [] Unboxed)) (TLPrim rs) =
             "U64" -> 64
             "Bool" -> 1)
    in s' <= s
+isTypeLayoutExprCompatible env (T TUnit) (TLPrim rs) = evalSize rs >= 0
 isTypeLayoutExprCompatible env (T (TRecord _ fs1 Boxed{})) (TLPtr) = True
 isTypeLayoutExprCompatible env (T (TRecord _ fs1 Unboxed)) (TLRecord fs2) =
   all

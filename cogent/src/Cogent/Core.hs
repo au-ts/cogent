@@ -196,7 +196,7 @@ deriving instance (Ord a, Ord b, Ord (e t v a b), Ord (e t ('Suc v) a b), Ord (e
 
 -- NOTE: We leave these logic expressions here even when the --builtin-arrays
 -- flag is off. The reason is that, without it, the type class instance
--- derivings don't work. It's very misterious to me. / zilinc
+-- derivings don't work. It's very mysterious to me. / zilinc
 data LExpr t b
   = LVariable (Nat, b)
   | LFun CoreFunName [Type t b] [DataLayout BitRange]
