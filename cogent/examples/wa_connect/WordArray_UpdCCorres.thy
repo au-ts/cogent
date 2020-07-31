@@ -78,7 +78,7 @@ lemma upd_C_wordarray_put2_corres:
   apply (thin_tac "val_rel (\<gamma> ! i) v'")
   apply (thin_tac "\<Gamma>' ! i = _")
   apply (clarsimp simp: abs_rel_def; rename_tac r w)
-  apply (clarsimp simp: val_rel_simp \<Xi>_def wordarray_put2_0_type_def abbreviatedType5_def)
+  apply (clarsimp simp: val_rel_simp \<Xi>_def wordarray_put2_0_type_def abbreviatedType2_def)
   apply (erule upd.u_t_recE)
   apply (erule upd.u_t_r_consE; clarsimp)+
   apply (erule upd.u_t_primE)+
@@ -174,7 +174,7 @@ lemma upd_C_wordarray_get_corres:
   apply (thin_tac "i < length \<gamma>")
   apply (thin_tac "val_rel (\<gamma> ! i) v'")
   apply (thin_tac "\<Gamma>' ! i = _")
-  apply (clarsimp simp: val_rel_simp \<Xi>_def wordarray_get_0_type_def abbreviatedType6_def)
+  apply (clarsimp simp: val_rel_simp \<Xi>_def wordarray_get_0_type_def abbreviatedType3_def)
   apply (erule upd.u_t_recE)
   apply (erule upd.u_t_r_consE; clarsimp)+
   apply (erule upd.u_t_r_emptyE)
@@ -209,25 +209,6 @@ lemma upd_C_wordarray_get_corres:
 lemma
 " \<And>v' i \<gamma> \<Gamma>' \<sigma> s.
     \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v';
-     \<Gamma>' ! i = option.Some (prod.fst (prod.snd (\<Xi> ''wordarray_map_no_break_0'')))\<rbrakk>
-    \<Longrightarrow> update_sem_init.corres abs_typing_u abs_repr_u (Generated.state_rel abs_repr_u)
-         (App (AFun ''wordarray_map_no_break_0'' []) (Var i)) (do x <- main_pp_inferred.wordarray_map_no_break_0' v';
-gets (\<lambda>s. x)
-                                                                od)
-         \<xi>1 \<gamma> \<Xi>  \<Gamma>' \<sigma> s"
-  apply (rule afun_corres; clarsimp)
-  apply (clarsimp simp: abs_rel_def)
-  apply (thin_tac "i < length \<gamma>")
-  apply (thin_tac "val_rel (\<gamma> ! i) v'")
-  apply (thin_tac "\<Gamma>' ! i = _")
-  apply clarsimp
-  apply (clarsimp simp: val_rel_simp)
-  oops
-
-
-lemma
-" \<And>v' i \<gamma> \<Gamma>' \<sigma> s.
-    \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v';
      \<Gamma>' ! i = option.Some (prod.fst (prod.snd (\<Xi> ''wordarray_fold_no_break_0'')))\<rbrakk>
     \<Longrightarrow> update_sem_init.corres abs_typing_u abs_repr_u (Generated.state_rel abs_repr_u)
          (App (AFun ''wordarray_fold_no_break_0'' []) (Var i)) (do x <- main_pp_inferred.wordarray_fold_no_break_0' v';
@@ -250,90 +231,23 @@ gets (\<lambda>s. x)
   apply (case_tac "sint (t5_C.f_C x') \<noteq> sint FUN_ENUM_mul \<and> sint (t5_C.f_C x') \<noteq> sint FUN_ENUM_sum")
    apply (clarsimp simp: cogent_function_val_rel
                          FUN_ENUM_sum_def
-                         FUN_ENUM_dec_def
-                         FUN_ENUM_inc_def
                          FUN_ENUM_mul_def
-                         FUN_ENUM_dec_arr_def
-                         FUN_ENUM_inc_arr_def
                          FUN_ENUM_mul_arr_def
                          FUN_ENUM_sum_arr_def
                          FUN_ENUM_wordarray_get_0_def
                          FUN_ENUM_wordarray_length_0_def
                          FUN_ENUM_wordarray_put2_0_def
                          FUN_ENUM_wordarray_fold_no_break_0_def
-                         FUN_ENUM_wordarray_map_no_break_0_def
                          FUN_ENUM_wordarray_get_u32_def
                          FUN_ENUM_wordarray_length_u32_def
                          FUN_ENUM_wordarray_put2_u32_def)
    apply (rule FalseE) 
    apply (thin_tac "_ \<in> state_rel")
-   apply (thin_tac "sint (t5_C.f_C x') \<noteq> 4")
-   apply (thin_tac "sint (t5_C.f_C x') \<noteq> 6")
+   apply (thin_tac "t5_C.f_C x' \<noteq> 0")
+   apply (thin_tac "sint (t5_C.f_C x') \<noteq> 2")
    apply (thin_tac "upd.uval_typing _ _ (UPtr _ _) _ _ _")
    apply (thin_tac "_ = _")+
    apply clarsimp
-   apply (erule disjE)
-    apply clarsimp
-    apply (erule upd.u_t_funE')
-    apply (clarsimp simp: dec_def)
-    apply (clarsimp simp: subtyping_simps(4) 
-                          subtyping.simps[of _ _ "TPrim (Num U32)", simplified]
-                          subtyping.simps[of _ "TRecord _ _ ", simplified]
-                          subtyping.simps[of _ "TPrim (Num U32)", simplified]
-                          subtyping.simps[of _ "TUnit", simplified]
-                          kinding_simps(5, 9))
-    apply (erule typing_takeE)+
-    apply (erule typing_letE)+
-    apply (erule typing_structE)
-    apply clarsimp
-   apply (erule disjE)
-    apply clarsimp
-    apply (erule upd.u_t_funE')
-    apply (clarsimp simp: inc_def)
-    apply (clarsimp simp: subtyping_simps(4) 
-                          subtyping.simps[of _ _ "TPrim (Num U32)", simplified]
-                          subtyping.simps[of _ "TRecord _ _ ", simplified]
-                          subtyping.simps[of _ "TPrim (Num U32)", simplified]
-                          subtyping.simps[of _ "TUnit", simplified]
-                          kinding_simps(5, 9))
-    apply (erule typing_takeE)+
-    apply (erule typing_letE)+
-    apply (erule typing_structE)
-    apply clarsimp
-   apply (erule disjE)
-    apply clarsimp
-    apply (erule upd.u_t_funE')     
-    apply (clarsimp simp: dec_arr_def)
-    apply (clarsimp simp: subtyping_simps(4) 
-                          subtyping.simps[of _ _ "TPrim (Num U32)", simplified]
-                          subtyping.simps[of _ "TRecord _ _ ", simplified]
-                          subtyping.simps[of _ "TPrim (Num U32)", simplified]
-                          subtyping.simps[of _ "TUnit", simplified]
-                          kinding_simps(5, 9))     
-    apply (erule typing_letE)
-    apply (erule typing_letbE)
-    apply (erule typing_letE)+
-    apply (erule typing_appE)+
-    apply (erule typing_afunE)+
-    apply (thin_tac "_, _, _ \<turnstile> _ : _")+
-    apply (clarsimp simp: wordarray_map_no_break_0_type_def abbreviatedType2_def)
-   apply (erule disjE)
-    apply clarsimp
-    apply (erule upd.u_t_funE')
-    apply (clarsimp simp: inc_arr_def)
-    apply (clarsimp simp: subtyping_simps(4) 
-                          subtyping.simps[of _ _ "TPrim (Num U32)", simplified]
-                          subtyping.simps[of _ "TRecord _ _ ", simplified]
-                          subtyping.simps[of _ "TPrim (Num U32)", simplified]
-                          subtyping.simps[of _ "TUnit", simplified]
-                          kinding_simps(5, 9)) 
-    apply (erule typing_letE)
-    apply (erule typing_letbE)
-    apply (erule typing_letE)+
-    apply (erule typing_appE)+
-    apply (erule typing_afunE)+
-    apply (thin_tac "_, _, _ \<turnstile> _ : _")+
-    apply (clarsimp simp: wordarray_map_no_break_0_type_def abbreviatedType2_def)
    apply (erule disjE)
     prefer 2
     apply (erule disjE)
@@ -343,7 +257,7 @@ gets (\<lambda>s. x)
       apply (erule upd.u_t_afunE; clarsimp)
       apply (clarsimp simp: subtyping_simps(4) 
                             subtyping.simps[of _ _ "TPrim (Num U32)", simplified]
-                            wordarray_get_0_type_def abbreviatedType6_def
+                            wordarray_get_0_type_def abbreviatedType3_def
                             subtyping_simps(6))
      apply (erule disjE)
       apply clarsimp
@@ -364,7 +278,7 @@ gets (\<lambda>s. x)
       apply (erule typing_letE)
       apply (erule typing_appE)
       apply (erule typing_afunE)
-      apply (clarsimp simp: wordarray_get_0_type_def abbreviatedType6_def)
+      apply (clarsimp simp: wordarray_get_0_type_def abbreviatedType3_def)
       apply (erule typing_varE)+
       apply (clarsimp simp: split_conv_all_nth weakening_conv_all_nth empty_def)
       apply (erule_tac x = 0 in allE)+
@@ -410,13 +324,6 @@ gets (\<lambda>s. x)
       apply (erule_tac x = 0 in allE)+
       apply (clarsimp simp: weakening_comp.simps split_comp.simps)
       apply (erule disjE; clarsimp)
-     apply (erule disjE)
-      apply clarsimp
-      apply (erule upd.u_t_afunE; clarsimp)
-      apply (clarsimp simp: subtyping_simps(4) 
-                            subtyping.simps[of _ _ "TPrim (Num U32)", simplified]
-                            subtyping.simps[of _ "TRecord _ _ ", simplified]
-                            wordarray_map_no_break_0_type_def)
      apply clarsimp
      apply (erule upd.u_t_afunE; clarsimp)
      apply (clarsimp simp: subtyping_simps(4) 
@@ -506,18 +413,13 @@ gets (\<lambda>s. x)
         apply wp
        apply (clarsimp simp: split_def cogent_function_val_rel
                              FUN_ENUM_sum_def
-                             FUN_ENUM_dec_def
-                             FUN_ENUM_inc_def
                              FUN_ENUM_mul_def
-                             FUN_ENUM_dec_arr_def
-                             FUN_ENUM_inc_arr_def
                              FUN_ENUM_mul_arr_def
                              FUN_ENUM_sum_arr_def
                              FUN_ENUM_wordarray_get_0_def
                              FUN_ENUM_wordarray_length_0_def
                              FUN_ENUM_wordarray_put2_0_def
                              FUN_ENUM_wordarray_fold_no_break_0_def
-                             FUN_ENUM_wordarray_map_no_break_0_def
                              FUN_ENUM_wordarray_get_u32_def
                              FUN_ENUM_wordarray_length_u32_def
                              FUN_ENUM_wordarray_put2_u32_def)
@@ -680,18 +582,13 @@ gets (\<lambda>s. x)
    apply (rule validNF_unknown)
   apply (clarsimp simp: cogent_function_val_rel
                         FUN_ENUM_sum_def
-                        FUN_ENUM_dec_def
-                        FUN_ENUM_inc_def
                         FUN_ENUM_mul_def
-                        FUN_ENUM_dec_arr_def
-                        FUN_ENUM_inc_arr_def
                         FUN_ENUM_mul_arr_def
                         FUN_ENUM_sum_arr_def
                         FUN_ENUM_wordarray_get_0_def
                         FUN_ENUM_wordarray_length_0_def
                         FUN_ENUM_wordarray_put2_0_def
                         FUN_ENUM_wordarray_fold_no_break_0_def
-                        FUN_ENUM_wordarray_map_no_break_0_def
                         FUN_ENUM_wordarray_get_u32_def
                         FUN_ENUM_wordarray_length_u32_def
                         FUN_ENUM_wordarray_put2_u32_def)
@@ -707,7 +604,6 @@ gets (\<lambda>s. x)
    apply (thin_tac "upd.uval_typing _ _ _ _ _ _")
    apply (thin_tac "is_valid_WordArray_u32_C _ _")
    apply (thin_tac "val_rel _ _")
-   apply (erule disjE; clarsimp)
    apply (erule disjE; clarsimp)
     apply (rule conjI; clarsimp)
      apply (rule conjI)
@@ -748,6 +644,7 @@ gets (\<lambda>s. x)
      apply (rule typing_var; clarsimp simp: weakening_Cons Cogent.empty_def weakening_nil)
      apply (rule keep; clarsimp simp: abbreviatedType1_def)
     apply (metis (no_types, hide_lams) min.strict_order_iff min_def_raw not_less_iff_gr_or_eq)
+   apply (erule disjE; clarsimp)
    apply (rule conjI; clarsimp)
     apply (rule conjI)
      apply (rule_tac x = abbreviatedType1 and 

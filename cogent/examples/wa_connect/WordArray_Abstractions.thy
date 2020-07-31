@@ -134,7 +134,31 @@ lemma take_drop_Suc:
 *)
 
 subsection "Shallow Word Array Value Relation"
+(*
+overloading
+  valRel_WordArrayBool \<equiv> valRel
+begin
+  definition valRel_WordArrayBool: 
+    "\<And>\<xi> x v. valRel_WordArrayBool (\<xi> :: (funtyp,vabstyp) vabsfuns) (x :: bool WordArray) (v :: (funtyp, vabstyp) vval) \<equiv> 
+      \<exists>xs. v = VAbstract (VWA xs) \<and> length x = length xs \<and> (\<forall>i < length xs. xs ! i = VPrim (LBool (x ! i)))"
+end
 
+overloading
+  valRel_WordArrayU8 \<equiv> valRel
+begin
+  definition valRel_WordArrayU8: 
+    "\<And>\<xi> x v. valRel_WordArrayU8 (\<xi> :: (funtyp,vabstyp) vabsfuns) (x :: (8 word) WordArray) (v :: (funtyp, vabstyp) vval) \<equiv> 
+      \<exists>xs. v = VAbstract (VWA xs) \<and> length x = length xs \<and> (\<forall>i < length xs. xs ! i = VPrim (LU8 (x ! i)))"
+end
+
+overloading
+  valRel_WordArrayU16 \<equiv> valRel
+begin
+  definition valRel_WordArrayU16: 
+    "\<And>\<xi> x v. valRel_WordArrayU16 (\<xi> :: (funtyp,vabstyp) vabsfuns) (x :: (16 word) WordArray) (v :: (funtyp, vabstyp) vval) \<equiv> 
+      \<exists>xs. v = VAbstract (VWA xs) \<and> length x = length xs \<and> (\<forall>i < length xs. xs ! i = VPrim (LU16 (x ! i)))"
+end
+*)
 overloading
   valRel_WordArrayU32 \<equiv> valRel
 begin
@@ -142,7 +166,15 @@ begin
     "\<And>\<xi> x v. valRel_WordArrayU32 (\<xi> :: (funtyp,vabstyp) vabsfuns) (x :: (32 word) WordArray) (v :: (funtyp, vabstyp) vval) \<equiv> 
       \<exists>xs. v = VAbstract (VWA xs) \<and> length x = length xs \<and> (\<forall>i < length xs. xs ! i = VPrim (LU32 (x ! i)))"
 end
-
+(*
+overloading
+  valRel_WordArrayU64 \<equiv> valRel
+begin
+  definition valRel_WordArrayU64: 
+    "\<And>\<xi> x v. valRel_WordArrayU64 (\<xi> :: (funtyp,vabstyp) vabsfuns) (x :: (64 word) WordArray) (v :: (funtyp, vabstyp) vval) \<equiv> 
+      \<exists>xs. v = VAbstract (VWA xs) \<and> length x = length xs \<and> (\<forall>i < length xs. xs ! i = VPrim (LU64 (x ! i)))"
+end
+*)
 subsection "Shallow Word Array Function Definitions"
 
 overloading
@@ -223,7 +255,10 @@ fun \<xi>0 :: "(char list, atyp, 32 word) uabsfuns"
                  else False)))" 
 
 subsubsection "Value Semantics"
-
+\<comment>\<open> These definitions will have to change because for different word sizes because only using
+    @{term "VWA xs"} means we cannot determine what word array it is meant to represent in the case
+    that @{term "xs::(funtyp, vabstyp) vval list"} is empty. Either we need to define a new dataype
+    or we modify the current type to include the word type. \<close>
 definition val_wa_length_0
   where
   "val_wa_length_0 x y = (\<exists>xs len. x = VAbstract (VWA xs) \<and> y = VPrim (LU32 len) \<and> 
@@ -977,8 +1012,9 @@ lemma val_wa_foldnb_bod_0_back_step:
 lemma val_wa_foldnb_bod_0_preservation:
   "\<lbrakk>proc_ctx_wellformed \<Xi>; val.proc_env_matches \<xi>m \<Xi>;
     val_wa_foldnb_bod_0 xs frm to f acc obsv r; \<forall>i<length xs. \<exists>v. xs ! i = VPrim (LU32 v);
-    \<Xi>, [], [option.Some t] \<turnstile> App f (Var 0) : u; val.vval_typing \<Xi> acc u;
-    \<forall>x v. val.vval_typing \<Xi> v u \<longrightarrow> val.matches \<Xi> [VRecord [VPrim (LU32 x), v, obsv]] [option.Some t]\<rbrakk>
+    \<Xi>, [], [option.Some (TRecord [(''elem'', (TPrim (Num U32), Present)), (''acc'', (u, Present)), 
+      (''obsv'', (t, Present))] Unboxed)] \<turnstile> App f (Var 0) : u; val.vval_typing \<Xi> acc u;
+    val.vval_typing \<Xi> obsv t\<rbrakk>
     \<Longrightarrow> val.vval_typing \<Xi> r u"
   apply (induct to arbitrary: r)
    apply (erule val_wa_foldnb_bod_0.elims; clarsimp)
@@ -987,14 +1023,28 @@ lemma val_wa_foldnb_bod_0_preservation:
   apply (case_tac "to \<le> frm")
    apply (erule val_wa_foldnb_bod_0.elims; clarsimp split: if_splits)
    apply (erule val_wa_foldnb_bod_0.elims; clarsimp)
-   apply (drule val.preservation(1)[of "[]" "[]" _ _ _  \<xi>m, simplified]; simp)
+   apply (drule val.preservation(1)[of "[]" "[]" _ _ _  \<xi>m, simplified]; simp?)
+   apply (clarsimp simp: val.matches_def)
+   apply (rule val.v_t_record; simp?)
+    apply (rule val.v_t_r_cons1)
+     apply (rule val.v_t_prim[where l = "LU32 _", simplified])
+    apply (rule val.v_t_r_cons1; simp?)
+    apply (rule val.v_t_r_cons1; simp?)
+    apply (rule val.v_t_r_empty)
   apply (clarsimp simp: not_less not_le)
   apply (erule_tac x = to in allE; clarsimp)
   apply (drule val_wa_foldnb_bod_0_back_step; simp?)
   apply clarsimp
   apply (drule_tac x = r' in meta_spec)
   apply clarsimp
-  apply (drule val.preservation(1)[of "[]" "[]" _ _ _  \<xi>m, simplified]; simp)
+  apply (drule val.preservation(1)[of "[]" "[]" _ _ _  \<xi>m, simplified]; simp?)
+  apply (clarsimp simp: val.matches_def)
+  apply (rule val.v_t_record; simp?)
+  apply (rule val.v_t_r_cons1)
+   apply (rule val.v_t_prim[where l = "LU32 _", simplified])
+  apply (rule val.v_t_r_cons1; simp?)
+  apply (rule val.v_t_r_cons1; simp?)
+  apply (rule val.v_t_r_empty)
   done
 
 function val_wa_foldnb_bod_0p :: "(char list, vatyp) vfoldmapdef"

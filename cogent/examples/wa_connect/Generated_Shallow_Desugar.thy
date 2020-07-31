@@ -153,26 +153,6 @@ where
   "copy_n ds\<^sub>0 \<equiv> HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ds\<^sub>0 ElemAO.elem\<^sub>f) (\<lambda>(elem,ds\<^sub>2). HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ds\<^sub>2 ElemAO.acc\<^sub>f) (\<lambda>(idx,ds\<^sub>3). HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ds\<^sub>3 ElemAO.obsv\<^sub>f) (\<lambda>(afrm,ds\<^sub>1). RR.make (wordarray_get (RR.make afrm idx)) ((+) idx (1 :: 32 word)))))"
 
 definition
-  dec :: "(32 word, unit, unit) ElemAO \<Rightarrow> (32 word, unit) RR"
-where
-  "dec ds\<^sub>0 \<equiv> HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ds\<^sub>0 ElemAO.elem\<^sub>f) (\<lambda>(elem,ds\<^sub>2). HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ds\<^sub>2 ElemAO.acc\<^sub>f) (\<lambda>(acc,ds\<^sub>3). HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ds\<^sub>3 ElemAO.obsv\<^sub>f) (\<lambda>(obsv,ds\<^sub>1). RR.make ((-) elem (1 :: 32 word)) acc)))"
-
-definition
-  dec_arr :: "32 word WordArray \<Rightarrow> (32 word WordArray, unit) RR"
-where
-  "dec_arr ds\<^sub>0 \<equiv> HOL.Let ds\<^sub>0 (\<lambda>wa. HOL.Let (wordarray_length wa) (\<lambda>end. HOL.Let (WordArrayMapP.make wa (0 :: 32 word) end dec () ()) (\<lambda>arg. wordarray_map_no_break arg)))"
-
-definition
-  inc :: "(32 word, unit, unit) ElemAO \<Rightarrow> (32 word, unit) RR"
-where
-  "inc ds\<^sub>0 \<equiv> HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ds\<^sub>0 ElemAO.elem\<^sub>f) (\<lambda>(elem,ds\<^sub>2). HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ds\<^sub>2 ElemAO.acc\<^sub>f) (\<lambda>(acc,ds\<^sub>3). HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ds\<^sub>3 ElemAO.obsv\<^sub>f) (\<lambda>(obsv,ds\<^sub>1). RR.make ((+) elem (1 :: 32 word)) acc)))"
-
-definition
-  inc_arr :: "32 word WordArray \<Rightarrow> (32 word WordArray, unit) RR"
-where
-  "inc_arr ds\<^sub>0 \<equiv> HOL.Let ds\<^sub>0 (\<lambda>wa. HOL.Let (wordarray_length wa) (\<lambda>end. HOL.Let (WordArrayMapP.make wa (0 :: 32 word) end inc () ()) (\<lambda>arg. wordarray_map_no_break arg)))"
-
-definition
   mul :: "(32 word, 32 word, unit) ElemAO \<Rightarrow> 32 word"
 where
   "mul ds\<^sub>0 \<equiv> HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ds\<^sub>0 ElemAO.elem\<^sub>f) (\<lambda>(elem,ds\<^sub>2). HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ds\<^sub>2 ElemAO.acc\<^sub>f) (\<lambda>(acc,ds\<^sub>3). HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ds\<^sub>3 ElemAO.obsv\<^sub>f) (\<lambda>(obsv,ds\<^sub>1). (*) elem acc)))"

@@ -7,6 +7,317 @@ theory WordArray_SCCorres
 begin
 
 context WordArray begin
+
+  
+section "scorres of word array functions"
+
+
+ML \<open>
+fun get_wa_valRel "Bool" = error ("Can't find valRel_WordArrayBool")
+  | get_wa_valRel "U8" = error ("Can't find valRel_WordArrayU8")
+  | get_wa_valRel "U16" = error ("Can't find valRel_WordArrayU16")
+  | get_wa_valRel "U32" = @{thm valRel_WordArrayU32}
+  | get_wa_valRel "U64" = error ("Can't find valRel_WordArrayU64")
+  | get_wa_valRel x = error ("Can't find valRel_WordArray" ^ x)
+
+fun get_wa_slength "U32" = @{thm wordarray_length'}
+  | get_wa_slength x = error ("Can't find wordarray_length" ^ x)
+
+fun get_wa_vlength "U32" = @{thm val_wa_length_0_def}
+  | get_wa_vlength x = error ("Can't find val_wa_length_" ^ x)
+
+fun get_wa_sget "U32" = @{thm wordarray_get'}
+  | get_wa_sget x = error ("Can't find wordarray_get" ^ x)
+
+fun get_wa_vget "U32" = @{thm val_wa_get_0_def}
+  | get_wa_vget x = error ("Can't find val_wa_get_" ^ x)
+
+fun get_wa_sput2 "U32" = @{thm wordarray_put2'}
+  | get_wa_sput2 x = error ("Can't find wordarray_put2" ^ x)
+
+fun get_wa_vput2 "U32" = @{thm val_wa_put2_0_def}
+  | get_wa_vput2 x = error ("Can't find val_wa_length_" ^ x)
+\<close>
+
+ML \<open>
+fun wa_length_tac ctxt (wa_type : string) =
+let  
+  fun clarsimp_add thms = Clasimp.clarsimp_tac (add_simps thms ctxt) 1;
+  val valRel_wa = get_wa_valRel wa_type;
+  val sha_wa_length = get_wa_slength wa_type;
+  val base_simpset = sha_wa_length :: valRel_wa :: @{thms val.scorres_def valRel_records};
+  val val_wa_length = get_wa_vlength wa_type;  
+in
+  clarsimp_add base_simpset 
+  THEN etac @{thm v_sem_appE} 1
+  THEN ALLGOALS (fn i => etac @{thm v_sem_afunE} i)
+  THEN etac @{thm v_sem_varE} 1
+  THEN clarsimp_add [val_wa_length]
+  THEN rtac @{thm FalseE} 1
+  THEN clarsimp_add []
+end;
+
+val goal = @{cterm "valRel \<xi>p (v:: 32 word WordArray) v' \<Longrightarrow> val.scorres (wordarray_length v) (App (AFun ''wordarray_length'' ts) (Var 0)) [v'] \<xi>p"};
+val proof_state = Goal.init goal;
+val n = proof_state |> wa_length_tac @{context} "U32" |>  Seq.hd |> Goal.finish @{context}
+\<close>
+find_theorems name:"array" name:"list"
+
+lemma scorres_wordarray_length_u32:
+  "\<lbrakk>valRel \<xi>p (v:: 32 word WordArray) v'\<rbrakk>
+    \<Longrightarrow> val.scorres (wordarray_length v) (App (AFun ''wordarray_length'' ts) (Var 0)) [v'] \<xi>p"
+  by (tactic \<open>wa_length_tac @{context} "U32"\<close>)
+
+
+ML \<open>
+fun wa_get_tac ctxt (wa_type : string) =
+let  
+  fun clarsimp_add thms = Clasimp.clarsimp_tac (add_simps thms ctxt);
+  val valRel_wa = get_wa_valRel wa_type;
+  val sha_wa_get = get_wa_sget wa_type;
+  val base_simpset = sha_wa_get :: valRel_wa :: @{thms val.scorres_def valRel_records};
+  val val_wa_get = get_wa_vget wa_type;  
+in
+  clarsimp_add base_simpset 1
+  THEN rtac @{thm conjI} 1
+  THEN ALLGOALS (fn i => clarsimp_add [] i 
+    THEN etac @{thm v_sem_appE} i
+    THEN etac @{thm v_sem_afunE} i
+    THEN etac @{thm v_sem_varE} i
+    THEN clarsimp_add [val_wa_get] i)
+  THEN ALLGOALS (fn i => rtac @{thm FalseE} i
+    THEN etac @{thm v_sem_afunE} i
+    THEN clarsimp_add [] i)
+end;
+
+val goal = @{cterm "valRel \<xi>p (v:: (32 word WordArray, 32 word) RR) v'
+    \<Longrightarrow> val.scorres (wordarray_get v) (App (AFun ''wordarray_get'' ts) (Var 0)) [v'] \<xi>p"};
+val proof_state = Goal.init goal;
+val n = proof_state |> wa_get_tac @{context} "U32" |>  Seq.hd 
+val b = dresolve_tac
+\<close>
+
+
+lemma scorres_wordarray_get_u32:
+  "valRel \<xi>p (v:: (32 word WordArray, 32 word) RR) v'
+    \<Longrightarrow> val.scorres (wordarray_get v) (App (AFun ''wordarray_get'' ts) (Var 0)) [v'] \<xi>p"
+  by (tactic \<open>wa_get_tac @{context} "U32"\<close>)
+
+lemma related_lists_update_nth_eq:
+  "\<lbrakk>length ys = length xs; j < length xs; \<forall>i < length xs. xs ! i = f (ys ! i)\<rbrakk> 
+    \<Longrightarrow> xs[i := f v] ! j = f (ys[i := v] ! j)"
+  apply (erule_tac x = j in allE)
+  apply (case_tac " i = j"; clarsimp)
+  done     
+
+ML \<open>
+
+fun inst_param_tac param_nms var_nms thm tac ({context, params, ...} : Subgoal.focus) =
+let
+  fun mk_inst a b = ((b, 0), (snd o hd o (filter (fn v => fst v = a))) params) 
+  val insts = map2 mk_inst param_nms var_nms
+  val inst_thm = Drule.infer_instantiate context insts thm
+in 
+  tac context [inst_thm] 1
+end
+  
+\<close>
+
+ML \<open>
+fun wa_put2_tac ctxt (wa_type : string) =
+let  
+  fun clarsimp_add thms = Clasimp.clarsimp_tac (add_simps thms ctxt);
+  val valRel_wa = get_wa_valRel wa_type;
+  val sha_wa_put2 = get_wa_sput2 wa_type;
+  val base_simpset = sha_wa_put2 :: valRel_wa :: @{thms val.scorres_def valRel_records};
+  val val_wa_put2 = get_wa_vput2 wa_type;
+
+  val helper_thm = @{thm related_lists_update_nth_eq}
+in
+  clarsimp_add base_simpset 1
+  THEN etac @{thm v_sem_appE} 1
+  THEN ALLGOALS (fn i => etac @{thm v_sem_afunE} i)
+  THEN rtac @{thm FalseE} 2
+  THEN clarsimp_add [] 2
+  THEN etac @{thm v_sem_varE} 1
+  THEN clarsimp_add [val_wa_put2] 1
+  THEN Subgoal.FOCUS_PARAMS (inst_param_tac ["i"] ["j"] helper_thm resolve_tac) ctxt 1
+  THEN asm_full_simp_tac ctxt 1
+end;
+\<close>
+ML \<open>
+val goal = @{cterm "valRel \<xi>p (v:: (32 word WordArray, 32 word, 32 word) WordArrayPutP) v'
+    \<Longrightarrow> val.scorres (wordarray_put2 v) (App (AFun ''wordarray_put2'' ts) (Var 0)) [v'] \<xi>p"};
+val proof_state = Goal.init goal;
+val n = proof_state |> wa_put2_tac @{context} "U32" |> Seq.hd 
+\<close>
+
+
+
+
+lemma scorres_wordarray_put2_u32:
+  "\<lbrakk>shallow abs_typing; valRel \<xi>p (v:: (32 word WordArray, 32 word, 32 word) WordArrayPutP) v'\<rbrakk>
+    \<Longrightarrow> val.scorres (wordarray_put2 v) (App (AFun ''wordarray_put2'' ts) (Var 0)) [v'] \<xi>p"
+  by (tactic \<open> wa_put2_tac @{context} "U32" \<close>)
+
+lemma map_forall:
+  "\<lbrakk>length xs = length ys; \<forall>i<length xs. xs ! i = f(ys ! i)\<rbrakk> \<Longrightarrow> xs = map f ys"
+  apply (induct xs arbitrary: ys; clarsimp)
+  apply (drule_tac x = "tl ys" in meta_spec; clarsimp)
+  apply (drule meta_mp)
+   apply linarith
+  apply (drule meta_mp)
+   apply clarsimp
+   apply (erule_tac x = "Suc i" in allE)
+   apply clarsimp
+   apply (simp add: tl_drop_1)
+  apply clarsimp  
+  by (metis list.sel(3) list_exhaust_size_gt0 list_to_map_more nth_Cons_0 zero_less_Suc)
+
+
+lemma scorres_wordarray_fold_no_break_u32:
+  "\<lbrakk>shallow abs_typing; 
+    valRel \<xi>p \<lparr>WordArrayMapP.arr\<^sub>f = (arr::32 word WordArray), frm\<^sub>f = (frm::32 word), to\<^sub>f = to, 
+                f\<^sub>f = f, acc\<^sub>f = (acc::32 word), obsv\<^sub>f = obsv\<rparr> v'\<rbrakk>
+    \<Longrightarrow> val.scorres 
+    (wordarray_fold_no_break \<lparr>WordArrayMapP.arr\<^sub>f = arr, frm\<^sub>f = frm, to\<^sub>f = to, f\<^sub>f = f, 
+        acc\<^sub>f = acc, obsv\<^sub>f = obsv\<rparr>) (App (AFun ''wordarray_fold_no_break'' ts) (Var 0)) [v'] \<xi>p1"
+  apply (clarsimp simp: val.scorres_def)
+  apply (erule v_sem_appE; erule v_sem_afunE; clarsimp)
+  apply (erule v_sem_varE; clarsimp)
+  apply (clarsimp simp: val_wa_foldnb_0p_def)
+  apply (case_tac "fs ! 3"; clarsimp)
+   apply (thin_tac "v' = _")
+   apply (thin_tac "shallow _ ")
+   apply (rotate_tac 5)  
+   apply (induct arbitrary: rule: rev_induct)
+    apply (clarsimp simp: wordarray_fold_no_break' valRel_records valRel_WordArrayU32)
+    apply (erule val_wa_foldnb_bod_0p.elims; clarsimp)
+   apply (clarsimp simp: wordarray_fold_no_break' valRel_records valRel_WordArrayU32)
+   apply (case_tac "unat frm \<ge> unat to")
+    apply clarsimp
+    apply (erule val_wa_foldnb_bod_0p.elims; clarsimp)
+   apply (case_tac "unat frm - length xs > 0"; clarsimp)
+    apply (erule val_wa_foldnb_bod_0p.elims; clarsimp)
+   apply (subgoal_tac "\<exists>ys y. xsa = ys @ [y]")
+    apply clarsimp
+    apply (case_tac "unat to - length xs \<le> 0")
+     apply clarsimp
+     apply (drule val_wa_foldnb_bod_0p_append[rotated 1])
+      apply simp
+     apply (drule_tac x = r in meta_spec)
+     apply (drule_tac x = "[(VAbstract (VWA ys)), (VPrim (LU32 frm)), (VPrim (LU32 to)), 
+                            (VFunction x61 x62), (VPrim (LU32 acc)), f_obsv]" in meta_spec)
+     apply clarsimp
+     apply (drule_tac x = ys in meta_spec)
+     apply (drule_tac x = frm in meta_spec)
+     apply (drule_tac x = to in meta_spec)
+     apply (drule_tac x= x61 in meta_spec)
+     apply (drule_tac x = x62 in meta_spec)
+     apply clarsimp
+     apply (drule meta_mp)
+      apply clarsimp
+      apply (erule_tac x = i in allE)
+      apply (simp add: nth_append)
+     apply clarsimp
+    apply (case_tac "unat frm < Suc (length ys)")
+     apply clarsimp
+     apply (drule val_wa_foldnb_bod_0p_append_incl_to[rotated 2]; clarsimp)
+     apply (drule_tac x = r' in meta_spec)
+     apply (drule_tac x = "[(VAbstract (VWA ys)), (VPrim (LU32 frm)), (VPrim (LU32 to)), 
+                            (VFunction x61 x62), (VPrim (LU32 acc)), f_obsv]" in meta_spec)
+     apply clarsimp
+     apply (drule_tac x = ys in meta_spec)
+     apply (drule_tac x = frm in meta_spec)
+     apply (drule_tac x = to in meta_spec)
+     apply (drule_tac x= x61 in meta_spec)
+     apply (drule_tac x = x62 in meta_spec)
+     apply clarsimp
+     apply (drule meta_mp)
+      apply clarsimp
+      apply (erule_tac x = i in allE)
+      apply (simp add: nth_append)
+     apply clarsimp
+     apply (erule v_sem_appE; clarsimp)
+     apply (erule v_sem_varE; clarsimp)
+     apply (erule_tac x = "\<lparr>ElemAO.elem\<^sub>f = x, acc\<^sub>f = 
+             fold (\<lambda>a b. f \<lparr>ElemAO.elem\<^sub>f = a, acc\<^sub>f = b, obsv\<^sub>f = obsv\<rparr>) (List.drop (unat frm) xs) acc,
+             obsv\<^sub>f = obsv\<rparr>" in allE)
+     apply (erule_tac x = "VRecord [y, VPrim (LU32 (
+             fold (\<lambda>a b. f \<lparr>ElemAO.elem\<^sub>f = a, acc\<^sub>f = b, obsv\<^sub>f = obsv\<rparr>) (List.drop (unat frm) xs) acc)),
+             f_obsv]" in allE)
+     apply clarsimp
+     apply (erule_tac x = "length ys" in allE)
+     apply (clarsimp simp: nth_append)
+    apply clarsimp
+   apply (rule_tac x = "butlast xsa" in exI)
+   apply (rule_tac x = "last xsa" in exI)
+   apply (metis (no_types) append_butlast_last_id length_greater_0_conv zero_less_Suc)
+  apply (thin_tac "v' = _")
+  apply (thin_tac "shallow _ ")
+  apply (rotate_tac 5)
+  apply (induct arbitrary: rule: rev_induct)
+   apply (clarsimp simp: wordarray_fold_no_break' valRel_records valRel_WordArrayU32)
+   apply (erule val_wa_foldnb_bod_0p.elims; clarsimp)
+  apply (clarsimp simp: wordarray_fold_no_break' valRel_records valRel_WordArrayU32)
+  apply (case_tac "unat frm \<ge> unat to")
+   apply clarsimp
+   apply (erule val_wa_foldnb_bod_0p.elims; clarsimp)
+  apply (case_tac "unat frm - length xs > 0"; clarsimp)
+   apply (erule val_wa_foldnb_bod_0p.elims; clarsimp)
+  apply (subgoal_tac "\<exists>ys y. xsa = ys @ [y]")
+   apply clarsimp
+   apply (case_tac "unat to - length xs \<le> 0")
+    apply clarsimp
+    apply (drule val_wa_foldnb_bod_0p_append[rotated 1])
+     apply simp
+    apply (drule_tac x = r in meta_spec)
+    apply (drule_tac x = "[(VAbstract (VWA ys)), (VPrim (LU32 frm)), (VPrim (LU32 to)),
+                           (VAFunction x71 x72), (VPrim (LU32 acc)), f_obsv]" in meta_spec)
+    apply clarsimp
+    apply (drule_tac x = ys in meta_spec)
+    apply (drule_tac x = frm in meta_spec)
+    apply (drule_tac x = to in meta_spec)
+    apply (drule_tac x= x71 in meta_spec)
+    apply (drule_tac x = x72 in meta_spec)
+    apply clarsimp
+    apply (drule meta_mp)
+     apply clarsimp
+     apply (erule_tac x = i in allE)
+     apply (simp add: nth_append)
+    apply clarsimp
+   apply (case_tac "unat frm < Suc (length ys)")
+    apply clarsimp
+    apply (drule val_wa_foldnb_bod_0p_append_incl_to[rotated 2]; clarsimp)
+    apply (drule_tac x = r' in meta_spec)
+    apply (drule_tac x = "[(VAbstract (VWA ys)), (VPrim (LU32 frm)), (VPrim (LU32 to)),
+                          (VAFunction x71 x72), (VPrim (LU32 acc)), f_obsv]" in meta_spec)
+    apply clarsimp
+    apply (drule_tac x = ys in meta_spec)
+    apply (drule_tac x = frm in meta_spec)
+    apply (drule_tac x = to in meta_spec)
+    apply (drule_tac x= x71 in meta_spec)
+    apply (drule_tac x = x72 in meta_spec)
+    apply clarsimp
+    apply (drule meta_mp)
+     apply clarsimp
+     apply (erule_tac x = i in allE)
+     apply (simp add: nth_append)
+    apply clarsimp
+    apply (erule v_sem_appE)
+     apply (erule v_sem_afunE)
+     apply (erule v_sem_varE; clarsimp)
+     apply (clarsimp simp: val_wa_put2_0_def val_wa_get_0_def val_wa_length_0_def)
+     apply (erule_tac x = "length ys" in allE)
+     apply (clarsimp simp: nth_append)
+    apply (erule v_sem_afunE; clarsimp)
+   apply clarsimp
+  apply (rule_tac x = "butlast xsa" in exI)
+  apply (rule_tac x = "last xsa" in exI)
+  apply (metis (no_types) append_butlast_last_id length_greater_0_conv zero_less_Suc)
+  done
+
+
 section "Correspondence From Isabelle Shallow Embedding to C"
 
 theorem shallow_C_wordarray_put2_corres:
@@ -87,7 +398,7 @@ theorem shallow_C_wordarray_put2_corres:
   apply clarsimp
   apply (frule val_rel_shallow_C_elim(3); clarsimp simp: val_rel_simp)
   apply (erule u_v_recE)
-  apply (erule u_v_r_consE; clarsimp simp: Generated_TypeProof.wordarray_put2_u32_type_def abbreviatedType5_def)
+  apply (erule u_v_r_consE; clarsimp simp: Generated_TypeProof.wordarray_put2_u32_type_def abbreviatedType2_def)
   apply (erule u_v_r_consE; clarsimp)+
   apply (erule u_v_r_emptyE; clarsimp)
   apply (erule u_v_primE)+
@@ -276,7 +587,7 @@ theorem shallow_C_wordarray_get_corres:
                        in u_v_matches_proj_single'; simp)
   apply clarsimp
   apply (frule val_rel_shallow_C_elim(3))
-  apply (clarsimp simp: val_rel_simp wordarray_get_u32_type_def abbreviatedType6_def)
+  apply (clarsimp simp: val_rel_simp wordarray_get_u32_type_def abbreviatedType3_def)
   apply (erule u_v_recE)
   apply (erule u_v_r_consE; clarsimp)+
   apply (erule u_v_r_emptyE)
@@ -358,198 +669,6 @@ gets (\<lambda>s. x)
 
   
   oops
-  
-section "scorres of word array functions"
-
-lemma scorres_wordarray_put2_0:
-  "\<lbrakk>shallow abs_typing; valRel \<xi>p (v:: (32 word WordArray, 32 word, 32 word) WordArrayPutP) v'\<rbrakk>
-    \<Longrightarrow> val.scorres (wordarray_put2 v) (App (AFun ''wordarray_put2'' ts) (Var 0)) [v'] \<xi>p"
-  apply (clarsimp simp: val.scorres_def wordarray_put2' valRel_records valRel_WordArrayU32)
-  apply (erule v_sem_appE; erule v_sem_afunE; clarsimp)
-  apply (erule v_sem_varE; clarsimp)
-  apply (clarsimp simp: val_wa_put2_0_def)
-  apply (erule_tac x = i in allE; clarsimp)
-  apply (case_tac "i = unat (WordArrayPutP.idx\<^sub>f v)"; clarsimp)
-  done
-
-lemma scorres_wordarray_get_0:
-  "\<lbrakk>shallow abs_typing; valRel \<xi>p (v:: (32 word WordArray, 32 word) RR) v'\<rbrakk>
-    \<Longrightarrow> val.scorres (wordarray_get v) (App (AFun ''wordarray_get'' ts) (Var 0)) [v'] \<xi>p"
-  apply (clarsimp simp: val.scorres_def wordarray_get' valRel_records valRel_WordArrayU32)
-  apply (rule conjI; clarsimp)
-   apply (erule v_sem_appE; erule v_sem_afunE; clarsimp)
-   apply (erule v_sem_varE; clarsimp)
-   apply (clarsimp simp: val_wa_get_0_def)
-  apply (erule v_sem_appE; erule v_sem_afunE; clarsimp)
-  apply (erule v_sem_varE; clarsimp)
-  apply (clarsimp simp: val_wa_get_0_def)
-  done
-
-lemma scorres_wordarray_length_0:
-  "\<lbrakk>shallow abs_typing; valRel \<xi>p (v:: 32 word WordArray) v'\<rbrakk>
-    \<Longrightarrow> val.scorres (wordarray_length v) (App (AFun ''wordarray_length'' ts) (Var 0)) [v'] \<xi>p"
-  apply (clarsimp simp: val.scorres_def wordarray_length' valRel_records valRel_WordArrayU32)
-  apply (erule v_sem_appE; erule v_sem_afunE; clarsimp)
-  apply (erule v_sem_varE; clarsimp)
-  apply (clarsimp simp: val_wa_length_0_def)
-  done
-
-lemma map_forall:
-  "\<lbrakk>length xs = length ys; \<forall>i<length xs. xs ! i = f(ys ! i)\<rbrakk> \<Longrightarrow> xs = map f ys"
-  apply (induct xs arbitrary: ys; clarsimp)
-  apply (drule_tac x = "tl ys" in meta_spec; clarsimp)
-  apply (drule meta_mp)
-   apply linarith
-  apply (drule meta_mp)
-   apply clarsimp
-   apply (erule_tac x = "Suc i" in allE)
-   apply clarsimp
-   apply (simp add: tl_drop_1)
-  apply clarsimp  
-  by (metis list.sel(3) list_exhaust_size_gt0 list_to_map_more nth_Cons_0 zero_less_Suc)
-
-
-lemma scorres_wordarray_fold_no_break_0:
-  "\<lbrakk>shallow abs_typing; 
-    valRel \<xi>p \<lparr>WordArrayMapP.arr\<^sub>f = (arr::32 word WordArray), frm\<^sub>f = (frm::32 word), to\<^sub>f = to, 
-                f\<^sub>f = f, acc\<^sub>f = (acc::32 word), obsv\<^sub>f = obsv\<rparr> v'\<rbrakk>
-    \<Longrightarrow> val.scorres 
-    (wordarray_fold_no_break \<lparr>WordArrayMapP.arr\<^sub>f = arr, frm\<^sub>f = frm, to\<^sub>f = to, f\<^sub>f = f, 
-        acc\<^sub>f = acc, obsv\<^sub>f = obsv\<rparr>) (App (AFun ''wordarray_fold_no_break'' ts) (Var 0)) [v'] \<xi>p1"
-  apply (clarsimp simp: val.scorres_def)
-  apply (erule v_sem_appE; erule v_sem_afunE; clarsimp)
-  apply (erule v_sem_varE; clarsimp)
-  apply (clarsimp simp: val_wa_foldnb_0p_def)
-  apply (case_tac "fs ! 3"; clarsimp)
-   apply (thin_tac "v' = _")
-   apply (thin_tac "shallow _ ")
-   apply (rotate_tac 5)  
-   apply (induct arbitrary: rule: rev_induct)
-    apply (clarsimp simp: wordarray_fold_no_break' valRel_records valRel_WordArrayU32)
-    apply (erule val_wa_foldnb_bod_0p.elims; clarsimp)
-   apply (clarsimp simp: wordarray_fold_no_break' valRel_records valRel_WordArrayU32)
-   apply (case_tac "unat frm \<ge> unat to")
-    apply clarsimp
-    apply (erule val_wa_foldnb_bod_0p.elims; clarsimp)
-   apply (case_tac "unat frm - length xs > 0"; clarsimp)
-    apply (erule val_wa_foldnb_bod_0p.elims; clarsimp)
-   apply (subgoal_tac "\<exists>ys y. xsa = ys @ [y]")
-    apply clarsimp
-    apply (case_tac "unat to - length xs \<le> 0")
-     apply clarsimp
-     apply (drule val_wa_foldnb_bod_0p_append[rotated 1])
-      apply simp
-     apply (drule_tac x = r in meta_spec)
-     apply (drule_tac x = "[(VAbstract (VWA ys)), (VPrim (LU32 frm)), (VPrim (LU32 to)), 
-                            (VFunction x61 x62), (VPrim (LU32 acc)), f_obsv]" in meta_spec)
-     apply clarsimp
-     apply (drule_tac x = ys in meta_spec)
-     apply (drule_tac x = frm in meta_spec)
-     apply (drule_tac x = to in meta_spec)
-     apply (drule_tac x= x61 in meta_spec)
-     apply (drule_tac x = x62 in meta_spec)
-     apply clarsimp
-     apply (drule meta_mp)
-      apply clarsimp
-      apply (erule_tac x = i in allE)
-      apply (simp add: nth_append)
-     apply clarsimp
-    apply (case_tac "unat frm < Suc (length ys)")
-     apply clarsimp
-     apply (drule val_wa_foldnb_bod_0p_append_incl_to[rotated 2]; clarsimp)
-     apply (drule_tac x = r' in meta_spec)
-     apply (drule_tac x = "[(VAbstract (VWA ys)), (VPrim (LU32 frm)), (VPrim (LU32 to)), 
-                            (VFunction x61 x62), (VPrim (LU32 acc)), f_obsv]" in meta_spec)
-     apply clarsimp
-     apply (drule_tac x = ys in meta_spec)
-     apply (drule_tac x = frm in meta_spec)
-     apply (drule_tac x = to in meta_spec)
-     apply (drule_tac x= x61 in meta_spec)
-     apply (drule_tac x = x62 in meta_spec)
-     apply clarsimp
-     apply (drule meta_mp)
-      apply clarsimp
-      apply (erule_tac x = i in allE)
-      apply (simp add: nth_append)
-     apply clarsimp
-     apply (erule v_sem_appE; clarsimp)
-     apply (erule v_sem_varE; clarsimp)
-     apply (erule_tac x = "\<lparr>ElemAO.elem\<^sub>f = x, acc\<^sub>f = 
-             fold (\<lambda>a b. f \<lparr>ElemAO.elem\<^sub>f = a, acc\<^sub>f = b, obsv\<^sub>f = obsv\<rparr>) (List.drop (unat frm) xs) acc,
-             obsv\<^sub>f = obsv\<rparr>" in allE)
-     apply (erule_tac x = "VRecord [y, VPrim (LU32 (
-             fold (\<lambda>a b. f \<lparr>ElemAO.elem\<^sub>f = a, acc\<^sub>f = b, obsv\<^sub>f = obsv\<rparr>) (List.drop (unat frm) xs) acc)),
-             f_obsv]" in allE)
-     apply clarsimp
-     apply (erule_tac x = "length ys" in allE)
-     apply (clarsimp simp: nth_append)
-    apply clarsimp
-   apply (rule_tac x = "butlast xsa" in exI)
-   apply (rule_tac x = "last xsa" in exI)
-   apply (metis (no_types) append_butlast_last_id length_greater_0_conv zero_less_Suc)
-  apply (thin_tac "v' = _")
-  apply (thin_tac "shallow _ ")
-  apply (rotate_tac 5)
-  apply (induct arbitrary: rule: rev_induct)
-   apply (clarsimp simp: wordarray_fold_no_break' valRel_records valRel_WordArrayU32)
-   apply (erule val_wa_foldnb_bod_0p.elims; clarsimp)
-  apply (clarsimp simp: wordarray_fold_no_break' valRel_records valRel_WordArrayU32)
-  apply (case_tac "unat frm \<ge> unat to")
-   apply clarsimp
-   apply (erule val_wa_foldnb_bod_0p.elims; clarsimp)
-  apply (case_tac "unat frm - length xs > 0"; clarsimp)
-   apply (erule val_wa_foldnb_bod_0p.elims; clarsimp)
-  apply (subgoal_tac "\<exists>ys y. xsa = ys @ [y]")
-   apply clarsimp
-   apply (case_tac "unat to - length xs \<le> 0")
-    apply clarsimp
-    apply (drule val_wa_foldnb_bod_0p_append[rotated 1])
-     apply simp
-    apply (drule_tac x = r in meta_spec)
-    apply (drule_tac x = "[(VAbstract (VWA ys)), (VPrim (LU32 frm)), (VPrim (LU32 to)),
-                           (VAFunction x71 x72), (VPrim (LU32 acc)), f_obsv]" in meta_spec)
-    apply clarsimp
-    apply (drule_tac x = ys in meta_spec)
-    apply (drule_tac x = frm in meta_spec)
-    apply (drule_tac x = to in meta_spec)
-    apply (drule_tac x= x71 in meta_spec)
-    apply (drule_tac x = x72 in meta_spec)
-    apply clarsimp
-    apply (drule meta_mp)
-     apply clarsimp
-     apply (erule_tac x = i in allE)
-     apply (simp add: nth_append)
-    apply clarsimp
-   apply (case_tac "unat frm < Suc (length ys)")
-    apply clarsimp
-    apply (drule val_wa_foldnb_bod_0p_append_incl_to[rotated 2]; clarsimp)
-    apply (drule_tac x = r' in meta_spec)
-    apply (drule_tac x = "[(VAbstract (VWA ys)), (VPrim (LU32 frm)), (VPrim (LU32 to)),
-                          (VAFunction x71 x72), (VPrim (LU32 acc)), f_obsv]" in meta_spec)
-    apply clarsimp
-    apply (drule_tac x = ys in meta_spec)
-    apply (drule_tac x = frm in meta_spec)
-    apply (drule_tac x = to in meta_spec)
-    apply (drule_tac x= x71 in meta_spec)
-    apply (drule_tac x = x72 in meta_spec)
-    apply clarsimp
-    apply (drule meta_mp)
-     apply clarsimp
-     apply (erule_tac x = i in allE)
-     apply (simp add: nth_append)
-    apply clarsimp
-    apply (erule v_sem_appE)
-     apply (erule v_sem_afunE)
-     apply (erule v_sem_varE; clarsimp)
-     apply (clarsimp simp: val_wa_put2_0_def val_wa_get_0_def val_wa_length_0_def)
-     apply (erule_tac x = "length ys" in allE)
-     apply (clarsimp simp: nth_append)
-    apply (erule v_sem_afunE; clarsimp)
-   apply clarsimp
-  apply (rule_tac x = "butlast xsa" in exI)
-  apply (rule_tac x = "last xsa" in exI)
-  apply (metis (no_types) append_butlast_last_id length_greater_0_conv zero_less_Suc)
-  done
  
 end (* of context *)
 thm shallow.scorres_wordarray_put2_u32
