@@ -3,9 +3,7 @@
 absf: indirect
     IC: (Int, [Int])
     IA: [Int]
-        [Int]: () 1
-
---      ^^ this can also be written as: []: () 1
+        [Int]: ().1
 
 -- list paired with length of that list
 -- abstracted into just the list length
@@ -17,9 +15,11 @@ absf: indirect
 absf: indirect
     IC: Bag Int Int
     IA: Int
-        Int: div () 0 () 1
+        Int: div Bag.0 Bag.1
 
---      ^^ this can also be written as: 0: () 0
+-- Elements of a type can be access with dot syntax following the constructor 
+-- positions of elements 
+-- name of elements can be used instead: div Bag.sum Bag.count
 
 -- list of tuple pairs to Map 
 absf: indirect

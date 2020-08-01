@@ -252,7 +252,16 @@ mkAbsFBody :: CC.Type t a -> Type () -> SG (Exp ())
 mkAbsFBody concT (TyParen _ t   ) = mkAbsFBody concT t 
 -- ^^ Type surrounded by parens, recurse on inside type
 
-mkAbsFBody concT (TyTuple _ _ tfs) = case concT of 
+mkAbsFBody concT (TyTuple _ _ tfs) = unwrapRTup concT
+-- ^^ IA is Tuple, fs is [(FieldName, (Type t b, Bool))]
+--
+
+mkAbsFBody concT (TyCon _ cn    ) = pure $ function $ "undefined"
+mkAbsFBody concT (TyList _ t    ) = pure $ function $ "undefined" 
+
+
+unwrapRTup :: CC.Type t a -> SG (Exp ())
+unwrapRTup concT = case concT of 
     (CC.TRecord _ fs _) -> do
              --vs <- mapM (\x -> fst x) fs
              --vs <- concatMapM fst fs
@@ -266,16 +275,8 @@ mkAbsFBody concT (TyTuple _ _ tfs) = case concT of
     (CC.TSum ts)        -> pure $ function $ "undefined"
     (CC.TProduct t1 t2) -> pure $ var $ mkName "ic"
 
-    -- pure $ function $ "undefined"
+    -- ^^ Cogent Tuple, unwrap with letE, 
     _                   -> pure $ function $ "undefined"
-
--- ^^ IA is Tuple, fs is [(FieldName, (Type t b, Bool))]
---
-
-mkAbsFBody concT (TyCon _ cn    ) = pure $ function $ "undefined"
-mkAbsFBody concT (TyList _ t    ) = pure $ function $ "undefined" 
-
-
 
 
 
