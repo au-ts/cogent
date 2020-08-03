@@ -258,14 +258,23 @@ thm_simp ctxt
    "\<And> (e :: lifted_globals \<Rightarrow> _). guard e = gets (\<lambda>_  . ())"
   |> Thm.cterm_of ctxt  |> Thm.assume)
   ] 
-  @ @{thms modify_comp ptr_set_comp
- } 
+  (* @ @{thms modify_comp ptr_set_comp} *)
+ 
  )
+
 (* This tackles conditions (if variants) *) 
 |> thm_simp
  (* rewrite in the then and else statements *)
  (Simplifier.add_cong @{thm if_cong} ctxt)
- (@{thms comp_def condition_cst modify_if ptr_set_if} @ heap_setter_thms)
+ (@{thms modify_comp ptr_set_comp comp_def condition_cst modify_if ptr_set_if} @ heap_setter_thms)
+(* at this point, it should be of shape 
+set_field ptr v \<equiv> modify (heap_update (\<lambda>x. x(ptr :=
+  f (x ptr))
+
+f may be a complicated 'if' statement
+*)
+(* for debugging purpose *)
+(* |> unify_change_goal_eq ctxt "(\<lambda> f. I)" "this displays the current term" *)
 |> thm_THEN @{thm  HOL.meta_eq_to_obj_eq}
 |> unify_change_goal_eq ctxt 
 ("(\<lambda> f. " ^ setter_name ^ 
