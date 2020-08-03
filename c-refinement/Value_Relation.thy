@@ -107,9 +107,10 @@ end
 instantiation ptr :: (cogent_C_val) cogent_C_val
 begin
   definition val_rel_ptr_def:
-    "val_rel uv (x :: 'a ptr) \<equiv> \<exists>repr ptrl. uv = (UPtr (ptr_val x) repr ptrl)"
+    "val_rel uv (x :: 'a ptr) \<equiv> \<exists>repr. uv = (UPtr (ptr_val x) repr)"
+   (* "val_rel uv (x :: 'a ptr) \<equiv> \<exists>repr ptrl. uv = (UPtr (ptr_val x) repr ptrl) \<and> type_rel repr TYPE('a)" *)
   definition type_rel_ptr_def:
-    "type_rel typ (_:: 'a ptr itself) \<equiv> \<exists>repr ptrl. typ = RPtr repr ptrl \<and> type_rel repr TYPE('a)"
+    "type_rel typ (_:: 'a ptr itself) \<equiv> \<exists>repr. typ = RPtr repr \<and> type_rel repr TYPE('a)"
   instance ..
 end
 

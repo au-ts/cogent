@@ -49,6 +49,12 @@ datatype prim_op
 
 section {* Types *}
 
+(*
+(* Datalayout information is not needed for the proof
+of correspondence (see commit which removes 
+all of the datalayout indications)
+*)
+
 datatype custom_ptr_layout =
 (* [PtrBits n1 n2] : n1 bits at n2 *)
     PtrBits int int 
@@ -60,6 +66,7 @@ The constructor with tag "name" corresponds to value n *)
   | PtrRecord "(name \<times> custom_ptr_layout) list"
 
 datatype ptr_layout = CustomLayout custom_ptr_layout | DefaultLayout
+*)
 
 datatype access_perm = ReadOnly | Writable
 
@@ -68,23 +75,23 @@ datatype access_perm = ReadOnly | Writable
  * Data is either boxed (on the heap), or unboxed (on the stack). If data is on the heap, we keep
  * track of how it is represented, and what access permissions it requires.
  *)
-datatype sigil = Boxed access_perm ptr_layout
+datatype sigil = Boxed access_perm (* ptr_layout *)
                | Unboxed
 
 lemma sigil_cases:
-  obtains (SBoxRo) ptrl where "x = Boxed ReadOnly ptrl"
-  | (SBoxWr) ptrl where "x = Boxed Writable ptrl"
+  obtains (SBoxRo) "x = Boxed ReadOnly"
+  | (SBoxWr) "x = Boxed Writable"
   | (SUnbox) "x = Unboxed"
 proof (cases x)
-  case (Boxed p ptrl)
-  moreover assume "(\<And>ptrl. x = Boxed ReadOnly ptrl \<Longrightarrow> thesis)"
-    and "(\<And>ptrl. x = Boxed Writable ptrl \<Longrightarrow> thesis)"
+  case (Boxed p)
+  moreover assume "( x = Boxed ReadOnly \<Longrightarrow> thesis)"
+    and "( x = Boxed Writable  \<Longrightarrow> thesis)"
   ultimately show ?thesis
     by (cases p, simp+)
 qed simp
 
 primrec sigil_perm :: "sigil \<Rightarrow> access_perm option" where
-  "sigil_perm (Boxed p _) = Some p"
+  "sigil_perm (Boxed p) = Some p"
 | "sigil_perm Unboxed     = None"
 
 
@@ -360,8 +367,8 @@ type_synonym 'v env  = "'v list"
 type_synonym 'a substitution = "'a list"
 
 fun sigil_kind :: "sigil \<Rightarrow> kind" where
-  "sigil_kind (Boxed ReadOnly _) = {D,S}"
-| "sigil_kind (Boxed Writable _) = {E}"
+  "sigil_kind (Boxed ReadOnly) = {D,S}"
+| "sigil_kind (Boxed Writable) = {E}"
 | "sigil_kind Unboxed            = {D,S,E}"
 
 
@@ -448,8 +455,8 @@ lemmas kinding_defs = kinding_def kinding_all_def kinding_variant_def kinding_re
 section {* Observation and type instantiation *}
 
 fun bang_sigil :: "sigil \<Rightarrow> sigil" where
-  "bang_sigil (Boxed ReadOnly ptrl) = Boxed ReadOnly ptrl"
-| "bang_sigil (Boxed Writable ptrl) = Boxed ReadOnly ptrl"
+  "bang_sigil (Boxed ReadOnly) = Boxed ReadOnly"
+| "bang_sigil (Boxed Writable) = Boxed ReadOnly"
 | "bang_sigil Unboxed            = Unboxed"
 
 fun bang :: "type \<Rightarrow> type" where
@@ -924,7 +931,7 @@ minimal representation of types for C-refinement.
 Equal [repr] should match the same C-type, contrary to 
 [type]
  *)
-datatype repr = RPtr repr ptr_layout
+datatype repr = RPtr repr
               | RCon name "repr list"
               | RFun
               | RPrim prim_type
@@ -940,10 +947,10 @@ fun type_repr :: "type \<Rightarrow> repr" where
 | "type_repr (TSum ts)            = RSum (map (\<lambda>(a,b,_).(a, type_repr b)) ts)"
 | "type_repr (TProduct a b)       = RProduct (type_repr a) (type_repr b)"
 | "type_repr (TCon n ts Unboxed)  = RCon n (map type_repr ts)"
-| "type_repr (TCon n ts (Boxed _ ptrl))        = RPtr (RCon n (map type_repr ts)) ptrl"
+| "type_repr (TCon n ts (Boxed _))        = RPtr (RCon n (map type_repr ts))"
 | "type_repr (TRecord ts Unboxed) = RRecord (map (\<lambda>(_,b,_). type_repr b) ts)"
 (* Here, the layout is droped, but it should play an important role *)
-| "type_repr (TRecord ts (Boxed _ ptrl))       = RPtr (RRecord (map (\<lambda>(_,b,_). type_repr b) ts)) ptrl"
+| "type_repr (TRecord ts (Boxed _))       = RPtr (RRecord (map (\<lambda>(_,b,_). type_repr b) ts))"
 | "type_repr (TUnit)              = RUnit"
 
 
@@ -1248,7 +1255,7 @@ qed (force simp add: kinding_defs)
 
 lemma sigil_kind_writable:
   assumes "sigil_perm s = Some Writable"
-    and "\<And>ptrl. k \<subseteq> sigil_kind (Boxed Writable ptrl)"
+    and " k \<subseteq> sigil_kind (Boxed Writable)"
   shows "k \<subseteq> sigil_kind s"
   using assms
   by (case_tac s rule: sigil_cases, auto)
@@ -2137,11 +2144,11 @@ lemma wellformed_imp_bang_type_repr:
 proof (induct t)
   case (TCon n ts s)
   then show ?case
-    by (cases s, rename_tac p l, case_tac p; auto simp add: list_all_iff)
+    by (cases s, rename_tac p, case_tac p; auto simp add: list_all_iff)
 next
   case (TRecord ts s)
   then show ?case
-    by (cases s, rename_tac p l, case_tac p; auto simp add: list_all_iff)
+    by (cases s, rename_tac p, case_tac p; auto simp add: list_all_iff)
 qed (auto simp add: list_all_iff)
 
 lemma wellformed_bang_type_repr[simp]:

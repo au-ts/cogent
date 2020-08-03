@@ -86,31 +86,31 @@ and upd_val_rel_record :: "('f \<Rightarrow> poly_type)
 
 | u_v_p_rec_ro : "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' :r ts \<langle>r, {}\<rangle>
                   ; \<sigma> l = Some (URecord fs)
-                  ; s = Boxed ReadOnly ptrl
+                  ; s = Boxed ReadOnly 
                   ; distinct (map fst ts)
-                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (type_repr \<circ> fst \<circ> snd) ts)) ptrl
+                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (type_repr \<circ> fst \<circ> snd) ts)) 
                              \<sim> VRecord fs' : TRecord ts s \<langle>insert l r, {}\<rangle>"
 
 | u_v_p_rec_w  : "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' :r ts \<langle>r, w\<rangle>
                   ; \<sigma> l = Some (URecord fs)
                   ; l \<notin> (w \<union> r)
-                  ; s = Boxed Writable ptrl
+                  ; s = Boxed Writable 
                   ; distinct (map fst ts)
-                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (type_repr \<circ> fst \<circ> snd) ts)) ptrl \<sim> VRecord fs' : TRecord ts s \<langle>r, insert l w\<rangle>"
+                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (type_repr \<circ> fst \<circ> snd) ts))  \<sim> VRecord fs' : TRecord ts s \<langle>r, insert l w\<rangle>"
 
-| u_v_p_abs_ro : "\<lbrakk> s = Boxed ReadOnly ptrl
+| u_v_p_abs_ro : "\<lbrakk> s = Boxed ReadOnly 
                   ; abs_upd_val a a' n ts s r w
                   ; [] \<turnstile>* ts wellformed
                   ; \<sigma> l = Some (UAbstract a)
-                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr ts)) ptrl \<sim> VAbstract a' : TCon n ts s \<langle>insert l r, {}\<rangle>"
+                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr ts))  \<sim> VAbstract a' : TCon n ts s \<langle>insert l r, {}\<rangle>"
 
 
-| u_v_p_abs_w  : "\<lbrakk> s = Boxed Writable ptrl
+| u_v_p_abs_w  : "\<lbrakk> s = Boxed Writable 
                   ; abs_upd_val a a' n ts s r w
                   ; [] \<turnstile>* ts wellformed
                   ; \<sigma> l = Some (UAbstract a)
                   ; l \<notin> (w \<union> r)
-                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr ts)) ptrl \<sim> VAbstract a' : TCon n ts s \<langle>r, insert l w\<rangle>"
+                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr ts))  \<sim> VAbstract a' : TCon n ts s \<langle>r, insert l w\<rangle>"
 
 | u_v_r_empty  : "\<Xi>, \<sigma> \<turnstile>* [] \<sim> [] :r [] \<langle>{}, {}\<rangle>"
 
@@ -150,7 +150,7 @@ proof (induct rule: upd_val_rel_upd_val_rel_record.inducts)
   then show ?case
     by (auto intro!: upd.uval_typing_uval_typing_record.intros abs_upd_val_to_uval_typing)
 next
-  case (u_v_p_abs_ro s ptrl a a' n ts r w \<sigma> l \<Xi>)
+  case (u_v_p_abs_ro s  a a' n ts r w \<sigma> l \<Xi>)
   moreover then have "upd_abs_typing a n ts s r w"
     using abs_upd_val_to_uval_typing by simp
   moreover then have "w = {}"
@@ -158,7 +158,7 @@ next
   ultimately show ?case
     using upd.u_t_p_abs_ro by blast
 next
-  case (u_v_p_abs_w s  ptrl  a a' n ts r w \<sigma> l \<Xi>)
+  case (u_v_p_abs_w s    a a' n ts r w \<sigma> l \<Xi>)
   then show ?case
     by (auto dest: upd.abs_typing_readonly abs_upd_val_to_uval_typing
         intro!: upd.uval_typing_uval_typing_record.intros)
@@ -174,26 +174,26 @@ inductive_cases u_v_afunE     [elim] : "\<Xi>, \<sigma> \<turnstile> UAFunction 
 inductive_cases u_v_sumE      [elim] : "\<Xi>, \<sigma> \<turnstile> u \<sim> v : TSum \<tau>s \<langle>r, w\<rangle>"
 inductive_cases u_v_productE  [elim] : "\<Xi>, \<sigma> \<turnstile> UProduct a b \<sim> VProduct a' b' : TProduct \<tau> \<rho> \<langle>r, w\<rangle>"
 inductive_cases u_v_recE      [elim] : "\<Xi>, \<sigma> \<turnstile> URecord fs \<sim> VRecord fs' : \<tau> \<langle>r, w\<rangle>"
-inductive_cases u_v_p_recE    [elim] : "\<Xi>, \<sigma> \<turnstile> UPtr p rp ptrl \<sim> VRecord fs' : TRecord fs s \<langle>r, w\<rangle>"
+inductive_cases u_v_p_recE    [elim] : "\<Xi>, \<sigma> \<turnstile> UPtr p rp  \<sim> VRecord fs' : TRecord fs s \<langle>r, w\<rangle>"
 inductive_cases u_v_r_emptyE  [elim] : "\<Xi>, \<sigma> \<turnstile>* [] \<sim> [] :r \<tau>s \<langle>r, w\<rangle>"
 inductive_cases u_v_r_consE   [elim] : "\<Xi>, \<sigma> \<turnstile>* (a # b) \<sim> (a' # b') :r \<tau>s \<langle>r, w\<rangle>"
 inductive_cases u_v_r_consE'  [elim] : "\<Xi>, \<sigma> \<turnstile>* (a # b) \<sim> xx :r \<tau>s \<langle>r, w\<rangle>"
 
-lemma u_v_p_abs_ro': "\<lbrakk> s = Boxed ReadOnly ptrl
+lemma u_v_p_abs_ro': "\<lbrakk> s = Boxed ReadOnly 
                       ; abs_upd_val a a' n ts s r w
                       ; [] \<turnstile>* ts wellformed
                       ; \<sigma> l = Some (UAbstract a)
                       ; ts' = map type_repr ts
-                      \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n ts') ptrl \<sim> VAbstract a' : TCon n ts s \<langle>insert l r, {}\<rangle>"
+                      \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n ts')  \<sim> VAbstract a' : TCon n ts s \<langle>insert l r, {}\<rangle>"
   using u_v_p_abs_ro by blast
 
-lemma u_v_p_abs_w': "\<lbrakk> s = Boxed Writable ptrl
+lemma u_v_p_abs_w': "\<lbrakk> s = Boxed Writable 
                      ; abs_upd_val a a' n ts s r w
                      ; [] \<turnstile>* ts wellformed
                      ; \<sigma> l = Some (UAbstract a)
                      ; l \<notin> (w \<union> r)
                      ; ts' = map type_repr ts
-                     \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n ts') ptrl \<sim> VAbstract a' : TCon n ts s \<langle>r, insert l w\<rangle>"
+                     \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n ts')  \<sim> VAbstract a' : TCon n ts s \<langle>r, insert l w\<rangle>"
   using u_v_p_abs_w by blast
 
 
@@ -427,12 +427,12 @@ next case u_v_p_rec_w
         simp add: fst_apfst_compcomp snd_apsnd_compcomp map_snd3_keep)
     done
 next
-  case (u_v_p_abs_ro s ptrl a a' n ts r w \<sigma> l \<Xi>)
+  case (u_v_p_abs_ro s  a a' n ts r w \<sigma> l \<Xi>)
   have f1: "map (type_repr \<circ> bang) ts = map type_repr ts"
     using bang_type_repr u_v_p_abs_ro.hyps
     by force
   
-  have "\<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr (map bang ts))) ptrl  \<sim> VAbstract a' : TCon n (map bang ts) (bang_sigil s) \<langle>insert l r , {}\<rangle>"
+  have "\<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr (map bang ts)))   \<sim> VAbstract a' : TCon n (map bang ts) (bang_sigil s) \<langle>insert l r , {}\<rangle>"
     using u_v_p_abs_ro bang_wellformed
   proof (intro upd_val_rel_upd_val_rel_record.u_v_p_abs_ro)
     have "upd_abs_typing a n ts s r w"
@@ -1319,11 +1319,11 @@ next
     apply simp+
     using subty_tfun subtyping_trans by blast
 next
-  case (u_v_p_rec_ro \<Xi> \<sigma> fs fs' ts r l s ptrl)
+  case (u_v_p_rec_ro \<Xi> \<sigma> fs fs' ts r l s )
   then show ?case
     apply -
     apply (erule subtyping.cases; clarsimp)
-    apply (rule_tac V="[] \<turnstile> TRecord ts (Boxed ReadOnly ptrl) \<sqsubseteq> TRecord ts2 (Boxed ReadOnly ptrl)" in revcut_rl)
+    apply (rule_tac V="[] \<turnstile> TRecord ts (Boxed ReadOnly ) \<sqsubseteq> TRecord ts2 (Boxed ReadOnly )" in revcut_rl)
      using u_v_p_rec_ro.prems apply blast
     apply (rule_tac V="\<exists>r'\<subseteq>r. \<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' :r ts2 \<langle>r', {}\<rangle>" in revcut_rl, blast)
     apply (erule exE)
@@ -1334,11 +1334,11 @@ next
     apply (intro upd_val_rel_upd_val_rel_record.intros; blast)
     done
 next
-  case (u_v_p_rec_w \<Xi> \<sigma> fs fs' ts r w l s ptrl)
+  case (u_v_p_rec_w \<Xi> \<sigma> fs fs' ts r w l s )
   then show ?case
     apply -
     apply (erule subtyping.cases; clarsimp)
-    apply (rule_tac V="[] \<turnstile> TRecord ts (Boxed Writable ptrl) \<sqsubseteq> TRecord ts2 (Boxed Writable ptrl)" in revcut_rl)
+    apply (rule_tac V="[] \<turnstile> TRecord ts (Boxed Writable ) \<sqsubseteq> TRecord ts2 (Boxed Writable )" in revcut_rl)
      using u_v_p_rec_w.prems apply blast
     apply (rule_tac V="\<exists>r'\<subseteq>r. \<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' :r ts2 \<langle>r', w\<rangle>" in revcut_rl, blast)
     apply (erule exE)
@@ -1349,7 +1349,7 @@ next
     apply (intro upd_val_rel_upd_val_rel_record.intros; blast)
     done
 next
-  case (u_v_p_abs_ro s ptrl a a' n ts r w \<sigma> l \<Xi>)
+  case (u_v_p_abs_ro s  a a' n ts r w \<sigma> l \<Xi>)
   then show ?case
     apply -
     apply (erule subtyping.cases; clarsimp)
@@ -1357,7 +1357,7 @@ next
     apply (intro conjI; force intro: upd_val_rel_upd_val_rel_record.intros)
     done
 next
-case (u_v_p_abs_w s ptrl a a' n ts r w \<sigma> l \<Xi>)
+case (u_v_p_abs_w s  a a' n ts r w \<sigma> l \<Xi>)
   then show ?case
     apply -
     apply (erule subtyping.cases; clarsimp)
@@ -1433,9 +1433,9 @@ assumes "\<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' :r ts \<langle>r, w\<rangle
 and     "\<sigma> l = Some (URecord fs)"
 and     "l \<notin> w \<union> r"
 and     "rp = (RRecord (map (type_repr \<circ> fst \<circ> snd) ts)) "
-and     "s = Boxed Writable ptrl"
+and     "s = Boxed Writable "
 and     "distinct (map fst ts)"
-shows   "\<Xi>, \<sigma> \<turnstile> UPtr l rp ptrl \<sim> VRecord fs' : TRecord ts s \<langle> r, insert l w \<rangle>"
+shows   "\<Xi>, \<sigma> \<turnstile> UPtr l rp  \<sim> VRecord fs' : TRecord ts s \<langle> r, insert l w \<rangle>"
   using assms by (auto intro: u_v_p_rec_w)
 
 theorem correspondence:

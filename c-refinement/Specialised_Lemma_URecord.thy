@@ -147,7 +147,7 @@ fun take_member_assumptions isa_sigil ty field_ty isa_field_num =
 (* Assumptions common to Put and LetPut lemmas *)
 fun put_let_put_assumptions ty field_ty isa_int_struct_leng =
  let
-  val (ass2, ass4, ass3) = common_assumptions @{term "Boxed Writable ptrl"} ty
+  val (ass2, ass4, ass3) = common_assumptions @{term "Boxed Writable"} ty
   val ass1 = @{term "[] \<turnstile> \<Gamma>' \<leadsto> \<Gamma>x | \<Gamma>e"};
   val ass5 = strip_atype @{term "\<lambda> v' . val_rel (\<gamma>!v) v'"} $ Free ("v'", field_ty);
 
@@ -202,7 +202,7 @@ fun member_assumptions
   let
     val (ass1, ass3, ass4, ass5) = take_member_assumptions isa_sigil ty field_ty isa_field_num;
     val ass6 = @{term "\<lambda> isa_field_num . \<Xi>', [], \<Gamma>' \<turnstile> Member (Var x) isa_field_num : te"} $ isa_field_num;
-    val ass7 = @{term " \<Xi>', [], \<Gamma>' \<turnstile> Var x : TRecord typ (Boxed ReadOnly ptrl)"};
+    val ass7 = @{term " \<Xi>', [], \<Gamma>' \<turnstile> Var x : TRecord typ (Boxed ReadOnly )"};
     val prms = map (HOLogic.mk_Trueprop o strip_atype) [ass1, ass3, ass4, ass5, ass6, ass7];
   in
     prms
@@ -217,14 +217,14 @@ fun let_put_assumptions
              \<Xi>', [], \<Gamma>' \<turnstile> expr.Let (Put (Var x) field_num (Var v)) e : ts"} $ isa_field_num;
     val ass7 = strip_atype @{term "\<lambda> field_num .
              \<Xi>', [], \<Gamma>x \<turnstile> Put (Var x) field_num (Var v) :
-                         TRecord (typ[field_num := (fst (typ ! field_num), fst (snd (typ ! field_num)), Present)]) (Boxed Writable ptrl)"} $ isa_field_num;
+                         TRecord (typ[field_num := (fst (typ ! field_num), fst (snd (typ ! field_num)), Present)]) (Boxed Writable )"} $ isa_field_num;
     val ass9 = let
               fun rep_Bound_n_with n new = strip_1qnt o
                    (Term.map_aterms (fn trm => if trm = Bound n then new else trm));
              in
               strip_atype @{term "\<And> state_rel field_num \<sigma> s.
                corres state_rel e (e' x') \<xi> ((\<gamma>!x) # \<gamma>) \<Xi>'
-               (Some (TRecord (typ[field_num := (fst (typ ! field_num), fst (snd (typ ! field_num)), Present)]) (Boxed Writable ptrl)) # \<Gamma>e) \<sigma> s"}
+               (Some (TRecord (typ[field_num := (fst (typ ! field_num), fst (snd (typ ! field_num)), Present)]) (Boxed Writable )) # \<Gamma>e) \<sigma> s"}
                |> rep_Bound_n_with 3 state_rel |> rep_Bound_n_with 2 isa_field_num
              end;
 
@@ -243,7 +243,7 @@ fun put_assumptions
     val (ass1, ass2, ass3, ass4, ass5, ass7) =  put_let_put_assumptions ty field_ty isa_struct_leng;
     val ass6 = strip_atype @{term "\<lambda> field_num .
              \<Xi>', [], \<Gamma>' \<turnstile> Put (Var x) field_num (Var v) :
-                         TRecord (typ[field_num := (fst (typ ! field_num), fst (snd (typ ! field_num)), Present)]) (Boxed Writable ptrl)"} $ isa_field_num;
+                         TRecord (typ[field_num := (fst (typ ! field_num), fst (snd (typ ! field_num)), Present)]) (Boxed Writable )"} $ isa_field_num;
     val prms = map (HOLogic.mk_Trueprop o strip_atype)
             [ass1, ass2, ass3, ass4, ass5, ass6, ass7];
   in
@@ -284,8 +284,8 @@ let
   val struct_C_nm     = get_ty_nm_C uval;
   val ml_sigil        = get_uval_sigil uval;  
   val isa_sigil = case ml_sigil of
-                Boxed (ReadOnly, _) => @{term "Boxed ReadOnly ptrl"}
-              | Boxed (Writable, _) => @{term "Boxed Writable ptrl"}
+                Boxed (ReadOnly, _) => @{term "Boxed ReadOnly "}
+              | Boxed (Writable, _) => @{term "Boxed Writable "}
               | Unboxed  => @{term "Unboxed"}
   val ty = case ml_sigil of
             Boxed(_, _) => Syntax.read_typ ctxt (struct_C_nm ^ " ptr")
