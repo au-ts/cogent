@@ -30,6 +30,7 @@ import Cogent.C.Syntax
 import Cogent.Common.Syntax
 import Cogent.Haskell.HscGen
 import Cogent.Util (concatMapM)
+import Cogent.Compiler (__impossible)
 import qualified Cogent.Haskell.HscSyntax as Hsc
 
 -- import Control.Monad.Identity
@@ -52,9 +53,18 @@ import Data.Maybe
 import Data.List (find)
 import Data.Generics.Schemes (everything)
 
+import Control.Arrow (second, (***))
+import Control.Applicative
+import Lens.Micro
+import Lens.Micro.TH
+import Lens.Micro.Mtl
 import Control.Monad.RWS hiding (Product, Sum, mapM)
 import Data.Vec as Vec hiding (sym)
 import Cogent.Util (Stage(..), delimiter, secondM, toHsTypeName, concatMapM, (<<+=))
+import Cogent.Isabelle.Shallow (isRecTuple)
+
+
+
 
 
 
@@ -252,7 +262,7 @@ mkAbsFBody :: CC.Type t a -> Type () -> SG (Exp ())
 mkAbsFBody concT (TyParen _ t   ) = mkAbsFBody concT t 
 -- ^^ Type surrounded by parens, recurse on inside type
 
-mkAbsFBody concT (TyTuple _ _ tfs) = unwrapRTup concT
+mkAbsFBody concT (TyTuple _ _ tfs) = unwrapRTup concT "ic"
 -- ^^ IA is Tuple, fs is [(FieldName, (Type t b, Bool))]
 --
 
@@ -260,23 +270,49 @@ mkAbsFBody concT (TyCon _ cn    ) = pure $ function $ "undefined"
 mkAbsFBody concT (TyList _ t    ) = pure $ function $ "undefined" 
 
 
-unwrapRTup :: CC.Type t a -> SG (Exp ())
-unwrapRTup concT = case concT of 
-    (CC.TRecord _ fs _) -> do
-             --vs <- mapM (\x -> fst x) fs
-             --vs <- concatMapM fst fs
-             (tn,_) <- nominalType concT
-             let rec' = mkConE $ mkName "ic"
-                 bs = P.map (\v -> mkName $ snm $ fst v) fs
-                 p' = PRec () (UnQual () $ mkName tn) --[PFieldWildcard ()] -- bs
-                        (P.zipWith (\(f,_) b -> PFieldPat () (UnQual () . mkName $ snm f) (pvar b)) fs bs)
-             pure $ mkLetE [(p',rec')] $ tuple $ map var bs
-    (CC.TCon tn ts _)   -> pure $ function $ "undefined"
-    (CC.TSum ts)        -> pure $ function $ "undefined"
-    (CC.TProduct t1 t2) -> pure $ var $ mkName "ic"
+unwrapRTup :: CC.Type t a -> String -> SG (Exp ())
+unwrapRTup concT varN | (CC.TRecord _ fs _) <- concT = do
+      let rec' = mkConE $ mkName varN
+          bs = P.map (\v -> mkName $ snm $ fst v) fs
+          p1 = pvar . mkName $ snm "p1"  -- taken field
+          p2 = pvar . mkName $ snm "p2"  -- new record
+          rect@(CC.TRecord _ fs _) = concT
+      p1' <- shGetter' concT (map fst fs) 0 rec'
+      p2' <- shGetter' concT (map fst fs) 1 rec'
+      pure $ mkLetE [(p1, p1'), (p2, p2')] $ tuple $ map var bs
 
-    -- ^^ Cogent Tuple, unwrap with letE, 
-    _                   -> pure $ function $ "undefined"
+unwrapRTup concT varN | (CC.TCon tn ts _) <- concT = pure $ function $ "undefined" 
+unwrapRTup concT varN | (CC.TSum ts) <- concT = pure $ function $ "undefined"
+unwrapRTup concT varN | (CC.TProduct t1 t2) <- concT = pure $ function $ "undefined"
+unwrapRTup concT varN = pure $ var $ mkName varN
+
+
+
+shGetter :: CC.Type t a -> [FieldName] -> FieldIndex -> Exp () -> SG (Exp ())
+shGetter rec fnms idx rec' = do
+  tuples <- view recoverTuples
+  return $ if | tuples, isRecTuple fnms -> appFun (mkQVarE "Tup" . mkName $ "sel" ++ show (idx+1)) [rec']
+              | otherwise -> appFun (var . mkName . snm $ getRecordFieldName' rec idx) [rec']
+
+
+shGetter' :: CC.Type t a -> [FieldName] -> FieldIndex -> Exp () -> SG (Exp ()) 
+shGetter' rec fnms idx rec' = do
+  tuples <- view recoverTuples
+  if | tuples, isRecTuple fnms -> shGetter rec fnms idx rec'
+     | otherwise -> do
+         let t@(CC.TRecord _ fs _) = rec
+         vs <- mapM (\_ -> freshInt <<+= 1) fs
+         (tn,_) <- nominalType t
+         let bs = P.map (\v -> mkName $ internalVar ++ show v) vs
+             p' = PRec () (UnQual () $ mkName tn)
+                       (P.zipWith (\(f,_) b -> PFieldPat () (UnQual () . mkName $ snm f) (pvar b)) fs bs)
+         pure $ mkLetE [(p',rec')] $ var (bs !! idx)
+
+getRecordFieldName' :: CC.Type t a -> FieldIndex -> FieldName
+getRecordFieldName' rec idx | CC.TRecord _ fs _ <- rec = P.map fst fs !! idx
+getRecordFieldName' _ _ = __impossible "input should be of record type"
+
+
 
 
 
