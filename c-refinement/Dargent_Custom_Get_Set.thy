@@ -480,36 +480,16 @@ fun string_of_getset_lem ctxt (lem : getset_lem) =
 \<close>
 
 
-(* 
-
-Tactics and lemmas to prove the correspondence between direct
-and monadic definitions of custom getters/setters.
-
-*)
-
-lemma unat_8 : "unat (x :: 8 word) < 0x80000000"
-  apply(unat_arith)
-  by (simp add: unat_ucast_up_simp)
- 
-lemma unat_16 : "unat (x :: 16 word) < 0x80000000"
-  apply(unat_arith)
-  by (simp add: unat_ucast_up_simp)
 
 
-
-(* These lemmas seem necessary to prove some
+(* This lemmas is used to prove some
 get/set lemmas (more exactly, to prove the correspondence between
 the monadic and the direct definitions of custom getter/setters).
 It is added to the set of simplification lemmas.
 
-Strangely enough, the statement "unat (x :: 8 word) < 0x80000000"
-is not enough for the proof of the get/set lemma.
  *)
-lemma unat_ucast_8  : "unat (UCAST(('a :: len0) \<rightarrow> 8)  x) < 0x80000000"
-  by(rule unat_8)
-lemma unat_ucast_16 : "unat (UCAST(('a :: len0) \<rightarrow> 16) x) < 0x80000000"
-  by(rule unat_16)
-
+lemma unat_le : " 2 ^ LENGTH('a :: len) \<le> n \<Longrightarrow> unat (x :: 'a word) < n"
+  by (meson le_def le_trans unat_lt2p)
 
 
 ML\<open> 
@@ -536,8 +516,8 @@ The tactic does the following:
 (* this unfolds the definitions of the monadic and the direct getter/setter *)
 apply (simp add: GetSetDefs)
 (* This line was worked out by looking at some examples.
-   It is certainly not complete *)
-apply(simp add:L2opt unat_ucast_32_8 unat_ucast_32_16 condition_cst)
+   It may be incomplete *)
+apply(simp add:L2opt unat_le condition_cst condition_cst)
 by (monad_eq simp add:comp_def)
 
 *)
@@ -545,11 +525,11 @@ fun custom_get_set_monadic_direct_tac ctxt = let
     val gets = Proof_Context.get_thms ctxt
     val get  = Proof_Context.get_thm ctxt    
     val getset_defs = GetSetDefs.get ctxt; 
-    val facts = @{thms L2opt unat_ucast_8 unat_ucast_16 condition_cst}
+    val facts = @{thms L2opt unat_le condition_cst}
 in  
   simp_tac (ctxt addsimps getset_defs) THEN'
   simp_tac (ctxt addsimps facts) THEN'
-  (fn _ => monad_eq_tac (ctxt addsimps @{thms comp_def}))
+  (fn _ => monad_eq_tac (ctxt addsimps @{thms comp_def})) 
 end
 
 \<close>
