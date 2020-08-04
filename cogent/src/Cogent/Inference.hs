@@ -341,9 +341,39 @@ opType Not [TPrim Boolean] = Just $ TPrim Boolean
 opType Complement [TPrim p] | p /= Boolean = Just $ TPrim p
 opType opr ts = __impossible "opType"
 
-extractType :: [LExpr t b] -> Type t b -> Type t b
-extractType [] t          = t
-extractType (l:ls) t = extractType ls t -- FIX ME /blaisep
+-- LExpr from context, true LExprs, index, input type, final type
+extractType :: [LExpr t b] -> [LExpr t b] -> Fin v -> Type t b -> Type t b
+extractType [] ps v t     = case t of
+  -- if already a reftype, add to predicates
+  TRefine t' b = TRefine t' (LOp And (ps ++ [b]))
+  _ = TRefine t (LOp And ps)
+extractType (l:ls) ps t = case varInLExpr v l of
+  -- deal with substitution?
+  True -> extractType ls (p ++ l) v t
+  False -> extractType ls ps v t
+
+varInLExpr :: Fin v -> LExpr t b -> Boolean
+containsType v l = case l of
+  LVariable (x, _) = (v == x)
+  LFun fn ts ls = 
+  LOp opr es = and $ map (varIsInLExpr v) es
+  LApp a b = and (varInLexpr v a) (varInLExpr v b)
+  LCon tn e t = varInLExpr v e 
+  LLet a e1 e2 = -- ?  
+  LLetBang bs a e1 e2 = 
+  LTuple e1 e2 = and (varInLExpr v e1) (varInLExpr v e2)
+  LStruct fs = -- ? 
+  LIf c t e = and (varInLExpr v t) (varInLExpr v e)
+  LCase e tn (v1,a1) (v2,a2) = -- ? 
+  LEsac e = 
+  LSplit (v1,v2) e1 e2 = and (varInLExpr v v1) (varInLExpr v v2)
+  LMember x f = varInLExpr x 
+  LTake (a,b) rec f e = -- ?
+  LPut rec f v = 
+  LPromote t e = varInLExpr v e 
+  LCast t e = varInLExpr v e 
+  _ = False
+
 -- traverse the LExprs, find types and calculate most specific
 
 useVariable :: Fin v -> TC t v b (Maybe (Type t b))
@@ -632,9 +662,8 @@ infer (E (Case e tag (lt,at,et) (le,ae,ee)))
         let TSum ts = exprType e'
             Just (t, taken) = lookup tag ts
             restt = TSum $ adjust tag (second $ const True) ts  -- set the tag to taken
-            ele = texprToLExpr id e'
-        (et',ee') <- (,) <$>  withBinding t     (withPredicate ele (infer et))
-                         <||> withBinding restt (withPredicate ele (infer ee))
+        (et',ee') <- (,) <$>  withBinding t     (infer et)
+                         <||> withBinding restt (infer ee)
         let tt = exprType et'
             te = exprType ee'
         Just tlub <- runMaybeT $ tt `lub` te
