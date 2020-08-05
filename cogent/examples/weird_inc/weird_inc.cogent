@@ -1,0 +1,2 @@
+inc : #{elem : U32, acc : (), obsv : ()} -> (U32, ())
+inc #{elem, acc, obsv} = (elem + 1, acc)
