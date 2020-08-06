@@ -1529,13 +1529,13 @@ cg_var1:
    ; n' = n + m
    \<rbrakk> \<Longrightarrow> G,n \<turnstile> TypeApp name ts : \<tau> \<leadsto> G,n' | C2 | Sig (TypeApp name (ts @ \<beta>s)) \<tau>"
 | cg_vcon:
-  "\<lbrakk> \<alpha> = Suc n2
+  "\<lbrakk> \<alpha> = Suc n1
    ; \<beta> = TUnknown n1
    ; G1,Suc(Suc n1) \<turnstile> e : \<beta> \<leadsto> G2,n2 | C | e'
    ; C' = CtConj C (CtSub (TVariant [(nm, \<beta>, Unchecked)] (Some \<alpha>)) \<tau>)
    \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Con nm e : \<tau> \<leadsto> G2,n2 | C' | Sig (Con nm e') \<tau>"
 | cg_case:
-  "\<lbrakk> \<alpha> = Suc n2
+  "\<lbrakk> \<alpha> = Suc n1
    ; \<beta> = TUnknown n1
    ; G1,Suc(Suc n1) \<turnstile> e1 : TVariant [(nm, \<beta>, Unchecked)] (Some \<alpha>) \<leadsto> G2,n2 | C1 | e1'
    ; ((\<beta>, 0) # G2),n2 \<turnstile> e2 : \<tau> \<leadsto> ((\<beta>, m) # G3),n3 | C2 |e2'
@@ -1546,7 +1546,7 @@ cg_var1:
    ; C7 = CtConj (CtConj (CtConj (CtConj (CtConj C1 C2) C3) C4) C5) C6
    \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Case e1 nm e2 e3 : \<tau> \<leadsto> G4,n4 | C7 | Sig (Case e1' nm e2' e3') \<tau>"
 | cg_irref:
-  "\<lbrakk> \<alpha> = Suc n2
+  "\<lbrakk> \<alpha> = Suc n1
    ; \<beta> = TUnknown n1
    ; G1,Suc(Suc n1) \<turnstile> e1 : (TVariant [(nm, \<beta>, Unchecked)] (Some \<alpha>)) \<leadsto> G2,n2 | C1 | e1'
    ; ((\<beta>, 0) # G2),n2 \<turnstile> e2 : \<tau> \<leadsto> ((\<beta>, m) # G3),n3 | C2 | e2'
