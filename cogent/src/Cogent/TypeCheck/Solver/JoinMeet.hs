@@ -87,8 +87,10 @@ compBase = rewrite $ \gs ->
     onGoal f g = fmap (map (derivedGoal g)) (f (g ^. goal))
 
     simp :: IS.IntSet -> Constraint -> Maybe [Constraint]
-    simp mentions (T (TRefine v b p) :< U x) | IS.member x mentions = Just [b :< U x]
-    simp mentions (U x :< T (TRefine v b p)) | IS.member x mentions = Just [U x :< b]
+    simp mentions (T (TRefine v b p) :< U x)
+      | IS.member x mentions = Just [b :< U x]
+    simp mentions (U x :< T (TRefine v b p))
+      | IS.member x mentions = Just [U x :< b, Arith p]
     simp _ c = Nothing
 
 getBaseTypes :: [Goal] -> IS.IntSet

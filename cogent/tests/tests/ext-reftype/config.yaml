@@ -4,6 +4,7 @@
     - pass_ref-type-simple-1.cogent
     - pass_ref-type-simple-fun.cogent
     - pass_array-index-in-bounds.cogent
+    - pass_upcast-plus.cogent
   expected_result: pass
   flags:
     - -t

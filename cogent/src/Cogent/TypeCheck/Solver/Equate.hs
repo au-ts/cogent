@@ -55,7 +55,7 @@ equate = Rewrite.withTransform findEquatable (pure . map toEquality)
     toEquality (Goal c env (a :< b)) = Goal c env $ a :=: b
     toEquality c = c
 
-findEquateCandidates :: IM.IntMap (Int,Int,Int) -> [Goal] -> ([Goal], [Goal], [Goal])
+findEquateCandidates :: IM.IntMap (Int,Int,Int,Bool) -> [Goal] -> ([Goal], [Goal], [Goal])
 findEquateCandidates _ [] = ([], [], [])
 findEquateCandidates mentions (c:cs) =
   let
@@ -65,12 +65,19 @@ findEquateCandidates mentions (c:cs) =
      = f m <= 1 && rigid t && notOccurs v t
      | otherwise
      = False
+    isBaseUnif x = case IM.lookup x mentions of
+                     Just (_,_,_,True) -> True
+                     _                 -> False
+    isRefinementType (T (TRefine {})) = True
+    isRefinementType _  = False
   in case c ^. goal of
        U a :< b
          | canEquate (\m -> m^._1 + m^._2) a b
+         , not (isRefinementType b && isBaseUnif a)
          -> (c : sups, subs, others)
        a :< U b
-         | canEquate (^._3) b a
+         | canEquate (^._3) b a  -- why? / zilinc
+         , not (isRefinementType a && isBaseUnif b)
          -> (sups, c : subs, others)
        V r1 :< t
          | Just a <- Row.var r1

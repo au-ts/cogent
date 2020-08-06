@@ -16,6 +16,7 @@
 
 module Cogent.TypeCheck.Solver.Goal where
 
+import           Cogent.Compiler (__impossible)
 import qualified Cogent.Context as C
 import           Cogent.TypeCheck.Base
 import           Cogent.PrettyPrint
@@ -59,28 +60,46 @@ makeGoal ctx env g = Goal ctx env g
 derivedGoal :: Goal -> Constraint -> Goal
 derivedGoal (Goal c env g) g' = makeGoal (SolvingConstraint g:c) env g'
 
-getMentions :: [Goal] -> IM.IntMap (Int,Int,Int)
+
+-- This function should actually be defined in a separate module,
+-- as this Goal.hs is more like a library independent of bussiness
+-- logic (i.e. the constraints). We put it here for now, because it
+-- is shared by a few phases in the solver.
+-- It collects global informatioon about unifiers. Within the 4-tuple,
+-- it respectively means the number of occurrences in the (1) environment,
+-- the LHS of a :<, the RHS, and whether if its a base type.
+-- NOTE: This may not be correct, as suspected by Vincent, because it
+-- doesn't take contravariants in the function argument position into
+-- account. Craig claims that that won't happen, as Simplify should
+-- have already broken down function types. Vincent worries that if a
+-- function type appears within a record, it might block Simplify.
+-- / zilinc (06-08-2020)
+getMentions :: [Goal] -> IM.IntMap (Int,Int,Int,Bool)
 getMentions gs =
     foldl (IM.unionWith adds) IM.empty $ fmap mentionsOfGoal gs
  where
-  adds (env1,a,b) (env2,c,d) = (env1 + env2, a + c, b + d)
+  adds (env1,a,b,x) (env2,c,d,y) = (env1 + env2, a + c, b + d, x || y)
 
   mentionsOfGoal g = case g ^. goal of
-   r :< s  -> IM.fromListWith adds (mentionEnv (g ^. goalEnv) (r :< s) ++ mentionL r ++ mentionR s)
-   Arith e -> IM.fromListWith adds (mentionEnv (g ^. goalEnv) (Arith e))
-   _       -> IM.empty
+   r :< s     -> IM.fromListWith adds (mentionEnv (g ^. goalEnv) (r :< s) ++ mentionL r ++ mentionR s)
+   Arith e    -> IM.fromListWith adds (mentionEnv (g ^. goalEnv) (Arith e))
+   BaseType t -> IM.fromListWith adds (mentionEnv (g ^. goalEnv) (BaseType t) ++ isBase t)
+   _          -> IM.empty
 
   mentionEnv (gamma, es) c = -- fmap (\v -> (v, (1,0,0))) $ unifVarsEnv env
     -- NOTE: we only register a unifvar in the environment when the variable is used in the RHS. / zilinc
     let pvs = progVarsC c
         ms  = fmap (\(t,_) -> unifVars t) gamma  -- a map from progvars to the unifvars appearing in that entry.
-        ms' = fmap (\v -> (v, (1,0,0))) $ concat $ M.elems $ M.restrictKeys ms pvs
+        ms' = fmap (\v -> (v, (1,0,0,False))) $ concat $ M.elems $ M.restrictKeys ms pvs
      in ms'
         -- trace ("##### gamma = " ++ show (prettyGoalEnv (gamma,es)) ++ "\n" ++
         --        "      c = " ++ show (prettyC c) ++ "\n" ++
         --        "      pvs = " ++ show pvs ++ "\n" ++
         --        "      ms = " ++ show ms ++ "\n" ++
         --        "      ms' = " ++ show ms' ++ "\n") ms'
-  mentionL   = fmap (\v -> (v, (0,1,0))) . unifVars
-  mentionR   = fmap (\v -> (v, (0,0,1))) . unifVars
+  mentionL   = fmap (\v -> (v, (0,1,0,False))) . unifVars
+  mentionR   = fmap (\v -> (v, (0,0,1,False))) . unifVars
+
+  isBase (U x) = [(x, (0,0,0,True))]
+  isBase _ = []
 

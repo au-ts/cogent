@@ -353,13 +353,15 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   T (TRefine v1 b1 e1) :< T (TRefine v2 b2 e2) -> do
     let e1' = substExpr [(v1, SE b1 (Var refVarName))] e1
         e2' = substExpr [(v2, SE b2 (Var refVarName))] e2
-    return [b1 :< b2, Arith (SE (T bool) (PrimOp "||" [SE (T bool) (PrimOp "not" [e1']), e2']))]
-
-  t1@(T (TRefine {})) :< t2@(T {}) ->  -- @t2@ is not a refinement type
-    return [t1 :< T (TRefine refVarName t2 (SE (T bool) (BoolLit True)))]
+    return [ b1 :< b2
+           , (M.singleton refVarName (b2,0), []) :|- Arith (SE (T bool) (PrimOp "||" [SE (T bool) (PrimOp "not" [e1']), e2']))
+           ]
 
   t1@(T {}) :< t2@(T (TRefine {})) ->  -- @t1@ is not a refinement type
     return [T (TRefine refVarName t1 (SE (T bool) (BoolLit True))) :< t2]
+
+  (T (TRefine _ b1 _)) :< t2@(T {}) ->  -- @t2@ is not a refinement type
+    return [b1 :< t2]  -- an optimisation, contrary to the case above. / zilinc
 
   t1@(R {}) :< T (TRefine v2 b2 e2) ->
     return [t1 :< b2, (M.singleton v2 (b2,0), []) :|- Arith e2]

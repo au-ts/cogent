@@ -26,7 +26,7 @@ module Cogent.TypeCheck.Solver.SinkFloat ( sinkfloat ) where
 --
 
 import Cogent.Common.Types
-import Cogent.Surface (Type(..))
+import Cogent.Surface (Type(..), Expr(..), bool)
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Solver.Goal
 import Cogent.TypeCheck.Solver.Monad
@@ -71,15 +71,15 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
     strip c = c
 
     -- For sinking row information in a subtyping constraint
-    canSink :: IM.IntMap (Int,Int,Int) -> Int -> Bool
+    canSink :: IM.IntMap (Int,Int,Int,Bool) -> Int -> Bool
     canSink mentions v | Just m <- IM.lookup v mentions = m ^. _2 <= 1
                        | otherwise = False
 
-    canFloat :: IM.IntMap (Int,Int,Int) -> Int -> Bool
+    canFloat :: IM.IntMap (Int,Int,Int,Bool) -> Int -> Bool
     canFloat mentions v | Just m <- IM.lookup v mentions = m ^. _3 <= 1
                         | otherwise = False
 
-    genStructSubst :: IM.IntMap (Int,Int,Int) -> Constraint -> MaybeT TcSolvM Subst.Subst
+    genStructSubst :: IM.IntMap (Int,Int,Int,Bool) -> Constraint -> MaybeT TcSolvM Subst.Subst
     -- record rows
     genStructSubst _ (R rp r s :< U i) = do
       s' <- case s of
@@ -221,6 +221,7 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
     genStructSubst _ (U i :< t@(T TUnit)) = return $ Subst.ofType i t
     genStructSubst _ (t@(T TUnit) :=: U i) = return $ Subst.ofType i t
     genStructSubst _ (U i :=: t@(T TUnit)) = return $ Subst.ofType i t
+
 
     -- default
     genStructSubst _ _ = empty
