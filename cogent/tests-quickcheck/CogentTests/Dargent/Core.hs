@@ -131,7 +131,7 @@ genSumLayout maxBitIndex maxSize alloc =
       sourcePos <- arbitrary
       altSize <- choose (1, maxSize)
       (remainingAlts, remainingAlloc) <- genAlts (maxSize - altSize) (tagValue + 1) maxTagValue alloc
-      let altName = show tagValue
+      let altName = "Con" ++ show tagValue
       (altLayout, altAlloc) <- genDataLayout' maxBitIndex altSize alloc
       let altAlloc' = fmap (InAlt altName sourcePos) altAlloc
       return (M.insert altName (tagValue, altLayout) remainingAlts, altAlloc' \/ remainingAlloc)
@@ -157,7 +157,7 @@ genRecordLayout maxBitIndex maxSize alloc =
       fieldSize <- choose (1, maxSize)
       sourcePos <- arbitrary
       (remainingFields, alloc') <- genFields (maxSize - fieldSize) (name + 1) alloc
-      let fieldName = show name
+      let fieldName = "field" ++ show name
       (fieldLayout, alloc'') <- genDataLayout' maxBitIndex fieldSize alloc'
       let alloc''' = fmap (InField fieldName sourcePos) alloc''
       return $ (M.insert fieldName fieldLayout remainingFields, alloc''')
