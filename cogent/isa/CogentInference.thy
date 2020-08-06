@@ -1806,7 +1806,14 @@ next
     using subst_tyvar.simps assign_app_ty.simps by auto
 next
   case (known_trecord fs s)
-  then show ?case sorry
+  then have "map (\<lambda>f. assign_app_ty S (subst_tyvar xs ((fst \<circ> snd) f))) fs = 
+             map (\<lambda>f. subst_tyvar (map (assign_app_ty S) xs) ((fst \<circ> snd) f)) fs"
+    using map_eq_iff_nth_eq by blast
+  then have "map (\<lambda>(nm, t, s). (nm, assign_app_ty S (subst_tyvar xs t), s)) fs = 
+             map (\<lambda>(nm, t, s). (nm, subst_tyvar (map (assign_app_ty S) xs) t, s)) fs"
+    using case_prod_beta comp_apply by auto
+  then show ?case
+    using subst_tyvar.simps assign_app_ty.simps by auto
 qed (force intro: subst_tyvar.simps assign_app_ty.simps)+ 
 
 lemma assign_app_constr_subst_tyvar_ct_commute: 
