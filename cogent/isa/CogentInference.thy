@@ -409,6 +409,10 @@ definition subst_ty_ct :: "type \<Rightarrow> type \<Rightarrow> constraint \<Ri
 definition subst_tyvar_ct :: "type list \<Rightarrow> constraint \<Rightarrow> constraint" where
   "subst_tyvar_ct \<delta> \<equiv> map_types_ct (subst_tyvar \<delta>)"
 
+inductive known_sigil :: "sigil \<Rightarrow> bool" where
+"known_sigil ReadOnly"
+| "known_sigil Writable"
+| "known_sigil Unboxed"
 
 inductive known_ty :: "type \<Rightarrow> bool" where
 known_tvar:
@@ -422,9 +426,13 @@ known_tvar:
 | known_tvariant:
   "\<forall>i < length Ks. known_ty ((fst \<circ> snd) (Ks ! i)) \<Longrightarrow> known_ty (TVariant Ks None)"
 | known_tabstract:
-  "\<forall>i < length ts. known_ty (ts ! i) \<Longrightarrow> known_ty (TAbstract nm ts s)"
+  "\<lbrakk> \<forall>i < length ts. known_ty (ts ! i)
+   ; known_sigil s
+   \<rbrakk> \<Longrightarrow>  known_ty (TAbstract nm ts s)"
 | known_trecord:
-  "\<forall>i < length fs. known_ty ((fst \<circ> snd) (fs ! i)) \<Longrightarrow> known_ty (TRecord fs None s)"
+  "\<lbrakk> \<forall>i < length fs. known_ty ((fst \<circ> snd) (fs ! i)) 
+   ; known_sigil s
+   \<rbrakk> \<Longrightarrow> known_ty (TRecord fs None s)"
 | known_tobserve:
   "known_ty (TObserve i)"
 | known_tbang:
@@ -1688,17 +1696,26 @@ section {* Assignment Definition *}
 (* when we are assigning an unknown type a type, the assigned type should not contain any
    unknown types itself *)
 type_synonym assignment = "(nat \<Rightarrow> type) \<times> (nat \<Rightarrow> (string \<times> type \<times> variant_usage_tag) list)
-                                         \<times> (nat \<Rightarrow> (string \<times> type \<times> record_usage_tag) list)"
+                                         \<times> (nat \<Rightarrow> (string \<times> type \<times> record_usage_tag) list)
+                                         \<times> (nat \<Rightarrow> sigil)"
+
+fun assign_app_sigil :: "assignment \<Rightarrow> sigil \<Rightarrow> sigil" where
+  "assign_app_sigil S ReadOnly = ReadOnly"
+| "assign_app_sigil S Writable = Writable"
+| "assign_app_sigil S Unboxed  = Unboxed"
+| "assign_app_sigil S (Unknown i) = (snd \<circ> snd \<circ> snd) S i"
 
 fun assign_app_ty :: "assignment \<Rightarrow> type \<Rightarrow> type" where
   "assign_app_ty S (TVar n)                = TVar n"
 | "assign_app_ty S (TFun t1 t2)            = TFun (assign_app_ty S t1) (assign_app_ty S t2)"
 | "assign_app_ty S (TPrim pt)              = TPrim pt"
-| "assign_app_ty S (TUnknown n)            = (fst S) n"
+| "assign_app_ty S (TUnknown n)            = fst S n"
 | "assign_app_ty S (TVariant Ks None)      = TVariant (map (\<lambda>(nm, t, u). (nm, assign_app_ty S t, u)) Ks) None"
-| "assign_app_ty S (TVariant Ks (Some n))  = TVariant ((map (\<lambda>(nm, t, u). (nm, assign_app_ty S t, u)) Ks) @ (((fst \<circ> snd) S) n)) None"
+| "assign_app_ty S (TVariant Ks (Some n))  = TVariant ((map (\<lambda>(nm, t, u). (nm, assign_app_ty S t, u)) Ks) @ 
+                                                      (((fst \<circ> snd) S) n)) None"
 | "assign_app_ty S (TRecord fs None s)     = TRecord (map (\<lambda>(f, t, u). (f, assign_app_ty S t, u)) fs) None s"
-| "assign_app_ty S (TRecord fs (Some n) s) = TRecord ((map (\<lambda>(f, t, u). (f, assign_app_ty S t, u)) fs) @ (((snd \<circ> snd) S) n)) None s"
+| "assign_app_ty S (TRecord fs (Some n) s) = TRecord ((map (\<lambda>(f, t, u). (f, assign_app_ty S t, u)) fs) @ 
+                                                     (((fst \<circ> snd \<circ> snd) S) n)) None (assign_app_sigil S s)"
 | "assign_app_ty S (TAbstract nm ts s)     = TAbstract nm (map (assign_app_ty S) ts) s"
 | "assign_app_ty S (TObserve i)            = TObserve i"
 | "assign_app_ty S (TBang t)               = TBang (assign_app_ty S t)"
@@ -1743,8 +1760,9 @@ definition known_assignment :: "assignment \<Rightarrow> bool" where
   "known_assignment S \<equiv> \<forall>i. known_ty ((fst S) i) &
                         (\<forall>Ks Ks' n. assign_app_ty S (TVariant Ks (Some n)) = TVariant Ks' None 
                                    \<longrightarrow> distinct (map fst Ks') \<and> (known_ty (TVariant Ks' None))) &
-                        (\<forall>fs fs' n s. assign_app_ty S (TRecord fs (Some n) s) = TRecord fs' None s
-                                   \<longrightarrow> distinct (map fst fs') \<and> (known_ty (TRecord fs' None s)))"
+                        (\<forall>fs fs' n s s'. assign_app_ty S (TRecord fs (Some n) s) = TRecord fs' None s'
+                                   \<longrightarrow> distinct (map fst fs') \<and> (known_ty (TRecord fs' None s))
+                                                              \<and> known_sigil s')"
 
 lemma assign_app_ctx_none_iff:
   assumes "i < length G"
