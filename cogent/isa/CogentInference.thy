@@ -181,15 +181,14 @@ instance proof
 qed
 end
 
+type_synonym name = string
+type_synonym index = nat
+type_synonym unif_var = nat
 
 datatype sigil = Writable 
                | ReadOnly
                | Unboxed
-
-
-type_synonym name = string
-type_synonym index = nat
-type_synonym unif_var = nat
+               | Unknown index
 
 datatype type = TVar index
               | TFun type type
