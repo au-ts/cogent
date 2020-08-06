@@ -29,7 +29,7 @@ import qualified Data.Set as S
 import Data.List
 
 -- Size is list of PrimTypes (and their values?) and an Int (number of constructors)
-data Size = Empty | Size [(FreshVar, PrimType)] Int deriving (Show, Eq)
+data Size = Empty | Size [(FreshVar, Maybe PrimType)] Int deriving (Show, Eq)
 
 -- A directed graph maps a node name to all reachable nodes from that node
 type Node  = String
