@@ -121,10 +121,10 @@ bitRangeToDL (BitRange bitSizeBR bitOffsetBR) =
 -- Core to surface layout
 genSurfaceLayout :: DataLayout' BitRange -> Gen DataLayoutExpr
 genSurfaceLayout UnitLayout = return (DL (Prim (Bits 0)))
-genSurfaceLayout (PrimLayout bitrange@(BitRange bitSizeBR _)) =
+genSurfaceLayout (PrimLayout bitrange@(BitRange bitSizeBR bitOffsetBR)) =
   oneof $ map return  ((bitRangeToDL bitrange) :
         if bitSizeBR >= pointerSizeBits then
-          [ DL Ptr ]
+          [ DL $ Offset (DL Ptr) $ Bits bitOffsetBR]
         else
           [])
 
