@@ -85,24 +85,47 @@ propModule name hscname pbtinfos decls =
                                           shallowTypesFromTable
                                           genDs <- (concatMapM (\x -> genDecls' x decls) pbtinfos)
                                           absDs <- (concatMapM (\x -> absFDecl x decls) pbtinfos)
+                                          rrelDs <- (concatMapM (\x -> rrelDecl x decls) pbtinfos)
                                           -- genDecls x decls shallowTypesFromTable
                                           --cs <- concatMapM shallowConst consts
                                           --ds <- shallowDefinitions decls
-                                          return $ genDs ++ absDs -- cs ++ ds
+                                          return $ absDs ++ rrelDs ++ genDs  -- cs ++ ds
                               )
                               (ReaderGen (st decls) [] True [])
                               (StateGen 0 M.empty)
       moduleHead = ModuleHead () (ModuleName () name) Nothing Nothing
-      exts = []
-      imps = [ ImportDecl () (ModuleName () "Prelude") False False False Nothing Nothing Nothing
-             , ImportDecl () (ModuleName () "Test.QuickCheck" ) False False False Nothing Nothing Nothing
-             , ImportDecl () (ModuleName () "Test.QuickCheck.Monadic" ) False False False Nothing Nothing Nothing
-             , ImportDecl () (ModuleName () "Data.Tree" ) False False False Nothing Nothing Nothing
-             , ImportDecl () (ModuleName () "Data.Word" ) False False False Nothing Nothing Nothing
+      exts = P.map (\s -> LanguagePragma () [Ident () s])
+                   [ "DisambiguateRecordFields"
+                   , "DuplicateRecordFields"
+                   , "NamedFieldPuns"
+                   , "NoImplicitPrelude"
+                   , "PartialTypeSignatures"
+                   ]
+      importVar s = IVar () $ Ident  () s
+      importSym s = IVar () $ Symbol () s
+      importAbs s = IAbs () (NoNamespace ()) $ Ident () s
+      import_bits = P.map importSym [".&.", ".|."] ++
+                    P.map importVar ["complement", "xor", "shiftL", "shiftR"]
+      import_word = P.map importAbs ["Word8", "Word16", "Word32", "Word64"]
+      import_prelude = P.map importVar ["not", "div", "mod", "fromIntegral", "undefined", "return"] ++
+                       P.map importSym ["+", "-", "*", "&&", "||", ">", ">=", "<", "<=", "==", "/="] ++
+                       P.map importAbs ["Char", "String", "Int", "Show", "Maybe"] ++
+                       [IThingAll () $ Ident () "Bool"]
+      imps = [ ImportDecl () (ModuleName () "Test.QuickCheck" ) False False False Nothing Nothing Nothing
+             , ImportDecl () (ModuleName () "Test.QuickCheck.Monadic" ) False False False Nothing Nothing Nothing 
+              -- ImportDecl () (ModuleName () "Prelude") True False False Nothing (Just (ModuleName () "P")) Nothing
+             
+             --, ImportDecl () (ModuleName () "Data.Tree" ) False False False Nothing Nothing Nothing
+             --, ImportDecl () (ModuleName () "Data.Word" ) False False False Nothing Nothing Nothing
              -- custom corres
              , ImportDecl () (ModuleName () "Corres" ) False False False Nothing Nothing Nothing
-             , ImportDecl () (ModuleName () hscname) False False False Nothing (Just (ModuleName () "FFI")) Nothing
-             , ImportDecl () (ModuleName () (hscname ++ "_Abs")) False False False Nothing (Just (ModuleName () "FFI")) Nothing
+             , ImportDecl () (ModuleName () hscname) False False False Nothing Nothing Nothing
+             -- , ImportDecl () (ModuleName () (hscname ++ "_Abs")) False False False Nothing (Just (ModuleName () "FFI")) Nothing
+             , ImportDecl () (ModuleName () "Prelude"  ) False False False Nothing Nothing (Just $ ImportSpecList () False import_prelude)
+             , ImportDecl () (ModuleName () "Data.Bits") False False False Nothing Nothing (Just $ ImportSpecList () False import_bits)
+             , ImportDecl () (ModuleName () "Data.Tuple.Select") True False False Nothing (Just $ ModuleName () "Tup") Nothing
+             , ImportDecl () (ModuleName () "Data.Tuple.Update") True False False Nothing (Just $ ModuleName () "Tup") Nothing
+             , ImportDecl () (ModuleName () "Data.Word") False False False Nothing Nothing (Just $ ImportSpecList () False import_word)
              ]
       hs_decls = (P.concatMap propDecls pbtinfos) ++ cogDecls-- ++ (P.concatMap (\x -> genDecls x decls) pbtinfos)
   in 
@@ -176,26 +199,24 @@ genDecls PBTInfo{..} defs =
             in [sig, dec]
 
 mkGenBody :: String -> Type () -> Exp ()
-mkGenBody name icT = function "arbitrary"
+mkGenBody name icT = function "undefined" -- "arbitrary"
 
 genDecls' :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
 genDecls' PBTInfo{..} defs = do
-        -- icT' <- extractTyp defs fname 
         let FunAbsF{absf=_, ityps=ityps} = fabsf
-            icT = fromJust $ P.lookup "IC" ityps
-            --FunWelF{..} = fwelf
--- FuncInfo{name=n, ispure=_, nondet=_, ictype=icT} = 
-        --let 
-            fnName = "gen_" ++fname
-            toName = "Gen " -- ++icT
-            to     = TyCon   () (mkQName toName)
-            sig    = TypeSig () [mkName fnName] to
+            icT' = fromJust $ P.lookup "IC" ityps
+            icT = fromJust $ P.lookup "IA" ityps
+        -- (icT, _, absE) <- getFnTyp fname iaT defs
+        let fnName = "gen_" ++fname
+            --toName = "Gen " ++ show icT' -- ++icT
+            --to     = TyCon   () (mkQName toName)
+            --sig    = TypeSig () [mkName fnName] to
             dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $ 
                         mkGenBody fname icT) Nothing]
+            hs_dec    = FunBind () [Match () (mkName $ "hs_"++fname) [] (UnGuardedRhs () $ 
+                        function "undefined") Nothing]
             -- cls    = ClassDecl () () [] ()
-          in return $ [sig, dec] --, icT']
-
-
+          in return $ [dec, hs_dec] --[sig, dec] --, icT']
 
 absFDecl :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
 absFDecl PBTInfo{..} defs =  do
@@ -210,13 +231,17 @@ absFDecl PBTInfo{..} defs =  do
             dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "ic"] (UnGuardedRhs () absE) Nothing]
         return $ [sig, dec] --, icT']
 
-
-
--- ^^ Match on absT, e.g. TyTuple, to determine what abstraction we are performing
---    concT will give us the fields (if any)
---    core functionality
-
-    -- ( M.Map String (Type ()) )
+rrelDecl :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
+rrelDecl PBTInfo{..} defs = do
+        let FunRRel{rrel=_, otyps=otyps} = frrel
+            oaT = fromJust $ P.lookup "OA" otyps
+            fnName = "rel_" ++fname
+        (ocT, _, rrelE) <- getFnOutTyp fname oaT defs
+        let to     = mkTyConT $ mkName "Bool"
+            ti     = TyFun () oaT $ TyFun () ocT to
+            sig    = TypeSig () [mkName fnName] (ti)
+            dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "oa", pvar $ mkName "oc"] (UnGuardedRhs () rrelE) Nothing]
+        return $ [sig, dec]
  
 getFnTyp :: String -> Type () -> [CC.Definition TypedExpr VarName b] -> SG (Type (), Type (), Exp ()) 
 getFnTyp fname iaTyp defs = do 
@@ -242,6 +267,29 @@ getFnTyp' (CC.AbsDecl _ fn ps _ ti to) iaT = local (typarUpd typar) $ do
         typar = map fst $ Vec.cvtToList ps
 getFnTyp' (CC.TypeDef tn _ _) iaT = pure $ (TyCon () (mkQName "Unknown"), iaT, function $ "undefined")
 
+getFnOutTyp :: String -> Type () -> [CC.Definition TypedExpr VarName b] -> SG (Type (), Type (), Exp ()) 
+getFnOutTyp fname oaTyp defs = do 
+    let d = fromJust $ find defFilt defs
+    (ocT, oaT, rrelE) <- getFnOutTyp' d oaTyp
+    pure $ (ocT, oaT, rrelE)
+        where 
+            defFilt :: (CC.Definition e a b) -> Bool
+            defFilt x = (CC.getDefinitionId x) == fname
+
+getFnOutTyp' :: (CC.Definition TypedExpr VarName b) -> Type () -> SG ( (Type (), Type (), Exp ()) )
+getFnOutTyp' (CC.FunDef _ fn ps _ ti to _) oaT = local (typarUpd typar) $ do
+    to' <- shallowType to
+    rrelE <- mkRrelBody to oaT
+    pure $ ({-TyCon () (mkQName "Unknown") -} to', oaT, rrelE)
+    where
+        typar = map fst $ Vec.cvtToList ps
+getFnOutTyp' (CC.AbsDecl _ fn ps _ ti to) oaT = local (typarUpd typar) $ do
+    to' <- shallowType to
+    rrelE <- mkRrelBody to oaT
+    pure $ ( {-TyCon () (mkQName "Unknown")-} to', oaT, rrelE)
+    where
+        typar = map fst $ Vec.cvtToList ps
+getFnOutTyp' (CC.TypeDef tn _ _) oaT = pure $ (TyCon () (mkQName "Unknown"), oaT, function $ "undefined")
 
 -- | mkAbsFBody 
 -- |    - direct mapping
@@ -270,7 +318,7 @@ unwrapRTup concT = case concT of
                  bs = P.map (\v -> mkName $ snm $ fst v) fs
                  p' = PRec () (UnQual () $ mkName tn) --[PFieldWildcard ()] -- bs
                         (P.zipWith (\(f,_) b -> PFieldPat () (UnQual () . mkName $ snm f) (pvar b)) fs bs)
-             pure $ mkLetE [(p',rec')] $ tuple $ map var bs
+             pure $ mkLetE [(p',rec')] $ tuple $ map (\x -> app (function "fromIntegral") (var x)) bs
     (CC.TCon tn ts _)   -> pure $ function $ "undefined"
     (CC.TSum ts)        -> pure $ function $ "undefined"
     (CC.TProduct t1 t2) -> pure $ var $ mkName "ic"
@@ -278,126 +326,7 @@ unwrapRTup concT = case concT of
     -- ^^ Cogent Tuple, unwrap with letE, 
     _                   -> pure $ function $ "undefined"
 
-
-
-
-
-
-
-
-
-
-{-
-genDecls :: PBTInfo -> [Decl ()]
-genDecls PBTInfo{..} = 
-        let FunAbsF{absf=_, ityps=ityps} = fabsf
-            icT = fromJust $ P.lookup "IC" ityps
-            --FunWelF{..} = fwelf
--- FuncInfo{name=n, ispure=_, nondet=_, ictype=icT} = 
-        --let 
-            fnName = "gen_" ++fname
-            toName = "Gen" ++icT
-            to     = TyCon   () (mkQName toName)
-            sig    = TypeSig () [mkName fnName] to
-            dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $ 
-                        mkGenBody fname icT) Nothing]
-            -- cls    = ClassDecl () () [] ()
-            in [sig, dec]
-
-mkGenBody :: String -> String -> Exp ()
-mkGenBody name icT = function "arbitrary"
--}
-
-
-
-
-
-
-
-
-
-
-
-
-{-
-    let f  = function "gen"
-        fs = [ function $ "gen_"++name
-             , lamE [pvar $ mkName "ic"] (doE binds)  
-             ]
-           where ia = app (function $ "abs_"++name) (var $ mkName "ic")
-                 oc = app (function name)           (var $ mkName "ic")
-                 oa = app (function $ "hs_"++name)  ia
-                 binds = [ genStmt (pvar $ mkName "oc") oc 
-                         , genStmt (pvar $ mkName "oa") (app (function "return") oa) 
-                         , qualStmt body
-                         ]
-                 body  = appFun (function $ "corres_"++name) [ function $ "rel_"++name
-                                                             , var $ mkName "oa"
-                                                             , var $ mkName "oc" 
-                                                             ]
-        in app (function "monadicIO") (appFun f fs)
-        -}
-      {-
-      in hsModule & header .
-           prettyPrintStyleMode 
-            (style {lineLength = 220, ribbonsPerLine = 0.1}) 
-            (defaultMode {caseIndent = 2})
-  return $ Module () (Just mhead) pragmas imps hs_decls
-            -}
-
-{-
-  hs_decls <- concatMapM ffiDefinition decls
-  let mhead = ModuleHead () (ModuleName () name) Nothing Nothing
-      pragmas = [LanguagePragma () [Ident () "ForeignFunctionInterface"]]
-      imps = [ ImportDecl () (ModuleName () "Foreign") False False False Nothing Nothing Nothing
-             , ImportDecl () (ModuleName () "Foreign.C.Types") False False False Nothing Nothing Nothing
-             , ImportDecl () (ModuleName () "Util") False False False Nothing Nothing Nothing
-             , ImportDecl () (ModuleName () hscname) False False False Nothing (Just (ModuleName () "FFI")) Nothing
-             , ImportDecl () (ModuleName () (hscname ++ "_Abs")) False False False Nothing (Just (ModuleName () "FFI")) Nothing
-             ]
-  return $ Module () (Just mhead) pragmas imps hs_decls
-
-ffiDefinition :: CExtDecl -> Gen [Decl ()]
-ffiDefinition (CDecl (CExtFnDecl rt name [(t,_)] _)) = do
-  (m, ffis) <- ask
-  if name `elem` ffis then return []  -- This is an FFI function for another function.
-  else do  -- Origin Cogent functions
-    let (name',(t',rt')) = case M.lookup name m of
-                             Nothing -> (name, (t,rt))
-                             Just ts -> ("ffi_" ++ name, ts)
-        hs_t  = hsc2hsType $ hscType t'
-        hs_rt = hsc2hsType $ hscType rt'
-    return [ ForImp () (CCall ())
-               (Just $ PlayRisky ())
-               (Just name')
-               (Ident () $ "cogent_" ++ name)
-               (TyFun () hs_t (inIO hs_rt))
-           ]
-ffiDefinition _ = return []
--}
-
--- -----------------------------------------------------------------------
--- Cogent PBT: Haskell embedding extra generators 
--- -----------------------------------------------------------------------
-{-
-funPBTGen :: [FuncInfo] -> String -> String -> String
-funPBTGen fs modName log = 
-  let header = (("{-\n" ++ log ++ "\n-}\n") ++)
-      moduleHead = ModuleHead () (ModuleName () modName) Nothing Nothing
-      exts = []
-      imps = [ ImportDecl () (ModuleName () "Prelude") False False False Nothing Nothing Nothing
-             , ImportDecl () (ModuleName () "Test.QuickCheck" ) False False False Nothing Nothing Nothing
-             , ImportDecl () (ModuleName () "Test.QuickCheck.Monadic" ) False False False Nothing Nothing Nothing
-             , ImportDecl () (ModuleName () "Data.Tree" ) False False False Nothing Nothing Nothing
-             , ImportDecl () (ModuleName () "Data.Word" ) False False False Nothing Nothing Nothing
-             -- custom corres
-             , ImportDecl () (ModuleName () "Corres" ) False False False Nothing Nothing Nothing
-             ]
-      decls = (P.concatMap propDecls fs) 
-              ++ (P.concatMap genDecls fs)
-      hsModule = Module () (Just moduleHead) exts imps decls
-      in hsModule & header .
-           prettyPrintStyleMode 
-            (style {lineLength = 220, ribbonsPerLine = 0.1}) 
-            (defaultMode {caseIndent = 2})
-            -}
+-- | mkRrelBody 
+-- | dummy func ATM
+mkRrelBody :: CC.Type t a -> Type () -> SG (Exp ())
+mkRrelBody concT absT = pure $ function $ "undefined"
