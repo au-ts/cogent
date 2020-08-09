@@ -1,0 +1,26 @@
+alloc : Unit -> rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# > take }!;
+
+concat : {left:  rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}!, 
+          right: rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}!}# 
+              -> rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}!;
+
+concat n = 
+  case n.left.l of
+    Nil u -> n.right
+    | x ->
+      case x of
+        Cons y ->
+          let result = concat {left = y.rest, right = n.right} in
+            let item = alloc Unit in
+              let item1 = 
+                put item.l :=
+                  Cons {
+                    data = y.data,
+                    rest = result
+                  } end
+              in item1
+              end
+            end
+          end
+        end
+    end;

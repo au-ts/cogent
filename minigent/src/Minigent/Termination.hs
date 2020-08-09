@@ -56,11 +56,14 @@ initialiseEnv x alpha e =
     eenv = [(e, alpha)]
   in Env oenv fenv eenv
 
-getFreshVarFromExp :: [(Expr, FreshVar)] -> Expr -> Maybe FreshVar
-getFreshVarFromExp [] e = Nothing
-getFreshVarFromExp (x:xs) e = 
-  if (fst x == e) then Just $ snd x 
-  else getFreshVarFromExp xs e
+data FreshVarMap = M.Map FreshVar Expr
+convert :: Env -> FreshVarMap -> FreshVarMap
+convert env fenv = 
+  map (insert) (fromList )
+
+convertE :: Env -> FreshVarMap -> FreshVarMap
+convertE env fenv = 
+-- (env'' {oenv = M.insert x alpha (oenv env'')})
 
 type Error    = String
 type DotGraph = String
@@ -109,14 +112,16 @@ termCheck genvs = M.foldrWithKey go ([],[]) (defns genvs)
           genGraphDotFile f graph [alpha] goals
         )
 
+
 termAssertionGen ::  Env -> Expr -> Fresh VarName (([Assertion], [Maybe FreshVar]), Env)
 termAssertionGen env expr
   = case expr of
-    PrimOp _ es ->
-      -- FIX later
-      termAssertionGen env (head es)
+    PrimOp _ es -> do
+      -- termAssertionGen env (head es)
       -- join $ map (termAssertionGen env) es
-      
+      (res, env') <- termAssertionGenList env es
+      return $ (res, env')
+
     Sig e _ -> 
       termAssertionGen env e
 
@@ -127,12 +132,13 @@ termAssertionGen env expr
       (b, env'') <- termAssertionGen env' e
       return $ (flatten [([], [getv env'' e]), a, b], env'')
       
-    Struct fs ->
+    Struct fs -> do
       let es = map snd fs
-      -- FIX THIS later 
-      in termAssertionGen env (head es) 
+      -- termAssertionGen env (head es) 
       -- in join $ map (termAssertionGen env) es
-      
+      (res, env') <- termAssertionGenList env es
+      return $ (res, env')
+
     If b e1 e2 -> do
       (a, env') <- termAssertionGen env b
       (a', env'') <- termAssertionGen env' e1
@@ -240,12 +246,25 @@ termAssertionGen env expr
     _ -> return (([],[]), env)
 
   where
+    termAssertionGenList :: Env -> [Expr] -> Fresh VarName (([Assertion], [Maybe FreshVar]), Env)
+    termAssertionGenList env [] = do
+      return (([],[]), env)
+    termAssertionGenList env (x:xs) = do
+      (res, env') <- termAssertionGen env x
+      (res', env'') <- termAssertionGenList env' xs
+      return $ (flatten[res, res'], env'')
     
     toAssertion :: Env -> Expr -> (FreshVar -> Assertion) -> [Assertion]
     toAssertion env e f = 
       case getv env e of
         Just x -> [f x]
         Nothing -> []
+
+    getFreshVarFromExp :: [(Expr, FreshVar)] -> Expr -> Maybe FreshVar
+    getFreshVarFromExp [] e = Nothing
+    getFreshVarFromExp (x:xs) e = 
+      if (fst x == e) then Just $ snd x 
+      else getFreshVarFromExp xs e
 
     -- Returns the variable name from an environment if it exists, otherwise nothing
     getv :: Env -> Expr -> Maybe FreshVar 

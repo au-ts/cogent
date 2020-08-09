@@ -1,0 +1,23 @@
+alloc : Unit -> rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# > take }!;
+
+ziplist : {left: rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}!, right: rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}!}# 
+-> rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}!;
+
+ziplist z = 
+  case z.left.l of 
+    Nil u -> z.right
+    | x -> 
+      case x of 
+        Cons x1 -> 
+          let result = ziplist {left = z.right, right = x1.rest}
+          in
+            let item = alloc Unit in
+              put item.l := 
+                Cons {
+                  data = x1.data,
+                  rest = result
+                } end
+            end
+          end
+      end
+  end;

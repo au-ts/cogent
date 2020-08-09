@@ -6,6 +6,6 @@ countNodes n =
     | n2 ->
       case n2 of
         Tree t ->
-          t.data + countNodes t.left + countNodes t.right
+          1 + countNodes t.left + countNodes t.right
       end
   end;

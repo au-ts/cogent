@@ -1,0 +1,9 @@
+isEmpty : rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}! -> Bool;
+isEmpty n = 
+  case n.l of 
+    Nil u -> True
+  | x -> 
+    case x of 
+      Cons y -> False
+    end
+  end;

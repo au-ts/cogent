@@ -1,0 +1,34 @@
+alloc : Unit -> rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# > take }!;
+
+filter : {p: U32, b: Bool, list: rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}!}# 
+-> rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}!;
+
+filter n = 
+  if n.p < 0 then
+    case n.list.l of
+      Nil u -> n.list
+      | x -> 
+        case x of 
+          Cons y -> 
+            let result = filter { p = n.p, b = n.b, list = y.rest} in
+              if (y.data < n.p && n.b) || (y.data > n.p && ~n.b) then
+                let item = alloc Unit in
+                  let item1 = 
+                    put item.l := 
+                      Cons {
+                        data = y.data,
+                        rest = result
+                      } end
+                  in
+                    item1
+                  end
+                end
+              else
+                result
+              end
+            end
+        end
+    end
+  else
+    n.list
+  end;

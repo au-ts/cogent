@@ -9,7 +9,7 @@ countNodes r =
         Tree t ->
           take t2 { left = l } = t in
             take t3 { right = r} = t2 in
-              t3.data + countNodes l + countNodes r
+              1 + countNodes l + countNodes r
             end
           end
       end

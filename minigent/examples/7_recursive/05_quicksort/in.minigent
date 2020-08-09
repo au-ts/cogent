@@ -1,0 +1,116 @@
+alloc : Unit -> rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# > take }!;
+
+filter : {p: U32, b: Bool, list: rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}!}# 
+-> rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}!;
+
+filter n = 
+  if n.p < 0 then
+    case n.list.l of
+      Nil u -> n.list
+      | x -> 
+        case x of 
+          Cons y -> 
+            let result = filter { p = n.p, b = n.b, list = y.rest} in
+              if (y.data < n.p && n.b) || (y.data > n.p && ~n.b) then
+                let item = alloc Unit in
+                  let item1 = 
+                    put item.l := 
+                      Cons {
+                        data = y.data,
+                        rest = result
+                      } end
+                  in
+                    item1
+                  end
+                end
+              else
+                result
+              end
+            end
+        end
+    end
+  else
+    n.list
+  end;
+
+concat : {left:  rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}!, 
+          right: rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}!}# 
+              -> rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}!;
+
+concat n = 
+  case n.left.l of
+    Nil u -> n.right
+    | x ->
+      case x of
+        Cons y ->
+          let result = concat {left = y.rest, right = n.right} in
+            let item = alloc Unit in
+              let item1 = 
+                put item.l :=
+                  Cons {
+                    data = y.data,
+                    rest = result
+                  } end
+              in item1
+              end
+            end
+          end
+        end
+    end;
+
+quicksort : {p: U32, list: rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}!}# 
+-> rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}!;
+
+quicksort n = 
+  case n.list.l of
+    Nil u -> n.list
+    | n1 ->
+    case n1 of
+      Cons input ->
+        let lt = filter {p = n.p, b = True, list = input.rest} in
+          let gt = filter {p = n.p, b = False, list = input.rest} in
+            let leftQS = 
+              case lt.l of
+                Nil u -> lt
+                | x -> 
+                  case x of
+                    Cons x1 ->
+                      quicksort {p = x1.data, list = x1.rest}
+                  end
+              end
+            in
+              let rightQS = 
+                case gt.l of
+                  Nil u -> gt
+                  | y -> 
+                    case y of
+                      Cons y1 ->
+                        quicksort {p = y1.data, list = y1.rest}
+                    end
+                end
+              in
+                let tail = alloc Unit in
+                  let tail1 = 
+                    put tail.l := Nil Unit end
+                  in
+                    let pivot = alloc Unit in
+                      let pivot1 = 
+                        put pivot.l :=
+                          Cons {
+                            data = n.p,
+                            rest = tail1
+                          } end
+                      in
+                        let leftResult = concat {left = leftQS, right = pivot1} in
+                          concat {left = leftResult, right = rightQS}
+                        end
+                      end
+                    end
+                  end
+                end
+              end
+            end
+          end
+        end
+    end
+  end;

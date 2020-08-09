@@ -1,114 +1,62 @@
-allocNode : [a]. Unit -> rec t { l: < Nil Unit | Cons { data: a, rest: t }# > take };
-
-alloc : [a]. rec t { l: <Nil Unit | Cons {data: a, rest: t}# > } -> rec t { l: <Nil Unit | Cons {data: a, rest: t}#>}
-alloc r =
-  let newNode = allocNode Unit in
-    put newNode.l := 
-      Cons {
-        data = True,
-        rest = r
-      } end
-    end
-  end;
-
-list : rec t {l: < Nil Unit | Cons { data: Bool, rest: t! }# >}! -> U32;
-list r =
-  case r.l of
-    Nil u -> 0
-  | v2 ->
-    case v2 of
-      Cons s ->
-        if s.data then
-          let tail = list s.rest in
-            1 + list s.rest
-          end
-        else
-          let newNode = alloc s.rest in
-            1 + list s.rest
+quicksort n = 
+  case n.list.l of
+    Nil u -> Nil Unit
+    | n1 ->
+    case n1 of
+      Cons input ->
+      let lt = filter {p = input.p, b = True, list = input.rest} in
+        let gt = filter {p = input.p, b = False, list = input.rest} in
+          let leftQS =
+            case lt.l of
+              Nil u -> Nil Unit
+              | x -> 
+                case x of 
+                  Cons x1 ->
+                    quicksort {p = x1.data, list = x1.rest}
+                end
             end
-          end
-        end
-    end
-  end;
-
-
-ruinList r =
-  r.l 
-    | Nil -> Unit
-    | Cons x ->
-      if x.data != 0 then
-        let _ = dealloc r in
-        let r2 = alloc Unit in
-        let r3 = (put r2.l := Cons { data: 0, rest: x.rest }) in
-          ruinList r3
-        end end end
-      else
-        let _ = dealloc r in
-          ruinList r.rest
-        end
-
-  let newNode = alloc Unit in
-    put newNode.l := 
-      Cons {
-        data = True, 
-        rest = r
-      } end
-    end
-  end;
-
--- Check current node, generate new node if needed
--- Recurse on rest of list
--- Put rest of list into current node
--- return current node
-
--- branch on value
--- either dealloc + alloc new, recurse on new
--- 
-
-alloc 
-
-put rest into newNode.rest
-rec
-
-ruinList r = 
-  case r.l of
-    Nil u -> Unit
-    | r2 ->
-      case r2 of 
-        Cons list ->
-          if list.data == 0 then
-            let newNode = alloc Unit 
+          in
+            let rightQS = 
+              case gt.l of
+                Nil u -> Nil Unit
+                | y -> 
+                  case y of
+                    Cons y1 -> 
+                      quicksort {p = y1.data, list = y1.rest}
+                  end
+              end
             in
-              ruinList (Put newNode.l := Cons {data = 0, rest = list.rest} end)
-            end
-          else
-            ruinList list.rest
-          end
-      end
-  end;
-
-ruinList r = 
-  case r.l of
-    Nil u -> Unit
-    | r2 ->
-      case r2 of 
-        Cons list ->
-          if list.data == 0 then
-            let newNode = alloc Unit 
-            in
-              let newList = 
-                Put newNode.l := 
-                  Cons {
-                    data = 0, 
-                    rest = list.rest
-                  } end
-              in
-                ruinList newList
+              let pivot = alloc Unit in 
+                let pivot1 = 
+                  put pivot.l := 
+                    Cons {
+                      data = n.p,
+                      rest = Nil Unit
+                    } end
+                in
+                  let leftResult = concat {left = leftQS, right = pivot1} in
+                    concat {left = leftResult, right = rightQS}
+                  end
+                end
               end
             end
-          else
-            ruinList list.rest
           end
+        end
       end
+    end
   end;
-              
+
+
+  quicksort n = 
+  case n.list.l of
+    Nil u -> Nil Unit
+    | n1 ->
+    case n1 of
+      Cons input ->
+        let lt = filter {p = input.p, b = True, list = input.rest} in
+          let gt = filter {p = input.p, b = False, list = input.rest} in
+            concat {left = lt, right = gt}
+          end
+        end
+    end
+  end;

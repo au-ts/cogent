@@ -1,7 +1,7 @@
-alloc : Unit -> rec t { l: < Nil Unit | Cons { data: U32, rest: t }# > take };
-dealloc : rec t { l: < Nil Unit | Cons { data: U32, rest: t }# > take } -> Unit;
+alloc : Unit -> rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# > take }!;
+dealloc : rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# > take }! -> Unit;
 
-ruinList : rec t { l: < Nil Unit | Cons { data: U32, rest: t }# >} -> Unit;
+ruinList : rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}! -> Unit;
 
 ruinList r = 
   case r.l of
@@ -9,7 +9,7 @@ ruinList r =
     | r2 ->
       case r2 of 
         Cons list ->
-          let x = dealloc r in
+          let x = dealloc r in 
             if list.data == 0 then
                 ruinList list.rest
             else
