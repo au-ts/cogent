@@ -9,7 +9,7 @@ ziplist z =
     | x -> 
       case x of 
         Cons x1 -> 
-          let result = ziplist {left = z.right, right = x1.rest}
+          let result = ziplist z
           in
             let item = alloc Unit in
               put item.l := 

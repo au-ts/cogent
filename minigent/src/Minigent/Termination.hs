@@ -1,4 +1,3 @@
-
 -- |
 -- Module      : Minigent.Termination
 -- Copyright   : (c) Data61 2018-2019
@@ -10,6 +9,7 @@
 --
 -- May be used qualified or unqualified.
 module Minigent.Termination
+
   ( termCheck
   , genGraphDotFile
   , Assertion (..) 
@@ -28,42 +28,13 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.List
 
--- Size is list of PrimTypes (and their values?) and an Int (number of constructors)
-data Size = Empty | Size [(FreshVar, Maybe PrimType)] Int deriving (Show, Eq)
-
 -- A directed graph maps a node name to all reachable nodes from that node
 type Node  = String
 type Graph = M.Map Node [Node]
 
 -- Our environment, a mapping between program variables and fresh variables
 type FreshVar = String
-
-data Env
-  = Env
-  {
-    oenv :: M.Map VarName FreshVar -- var -> fresh var original mapping
-  , fenv :: M.Map FreshVar (Expr, Maybe VarName, Size) -- freshvar mapping
-  , eenv :: [(Expr, FreshVar)] -- expression -> fresh var (for non-variables)
-  }
-
-emptyEnv = Env M.empty M.empty []
-
-initialiseEnv :: VarName -> FreshVar -> Expr -> Env
-initialiseEnv x alpha e =
-  let 
-    oenv = M.insert x alpha M.empty
-    fenv = M.insert alpha (e, Just x, Empty) M.empty
-    eenv = [(e, alpha)]
-  in Env oenv fenv eenv
-
-data FreshVarMap = M.Map FreshVar Expr
-convert :: Env -> FreshVarMap -> FreshVarMap
-convert env fenv = 
-  map (insert) (fromList )
-
-convertE :: Env -> FreshVarMap -> FreshVarMap
-convertE env fenv = 
--- (env'' {oenv = M.insert x alpha (oenv env'')})
+type Env = M.Map VarName FreshVar
 
 type Error    = String
 type DotGraph = String
@@ -74,13 +45,12 @@ termCheck genvs = M.foldrWithKey go ([],[]) (defns genvs)
     go :: FunName -> (VarName, Expr) -> ([Error], [(FunName, [Assertion], DotGraph)]) -> ([Error], [(FunName, [Assertion], DotGraph)])
     go f (x,e) (errs, dumps) =  
       let (terminates, g, dotGraph) = fst $ runFresh unifVars (init f x e)
-          -- runFresh: runs the fresh monad. unifVars: the stream. (init f x e): the computation
           errs' = if terminates then
                     errs
                   else
-                    ("Error: Function: " ++ f ++ " cannot be shown to terminate.") : errs
+                    ("Error: Function " ++ f ++ " cannot be shown to terminate.") : errs
         in 
-          (errs', (f, g, dotGraph) : dumps)
+          (errs' ++ [f], (f, g, dotGraph) : dumps)
 
     -- Maps the function argument to a name, then runs the termination
     -- assertion generator.
@@ -90,11 +60,10 @@ termCheck genvs = M.foldrWithKey go ([],[]) (defns genvs)
     --  , the `dot' graph file for this particular termination graph
     --  )
     init :: FunName -> VarName -> Expr -> Fresh VarName (Bool, [Assertion], String)
-    -- Fresh: monad. VarName: type of the stream. (Bool, [Assertion], String): return type
     init f x e = do
       alpha <- fresh
-      let env = initialiseEnv x alpha e
-      ((a,c), newE) <- termAssertionGen env e
+      let env = M.insert x alpha M.empty
+      (a,c) <- termAssertionGen env e
 
       let graph = toGraph a
       let goals = catMaybes c
@@ -112,53 +81,39 @@ termCheck genvs = M.foldrWithKey go ([],[]) (defns genvs)
           genGraphDotFile f graph [alpha] goals
         )
 
-
-termAssertionGen ::  Env -> Expr -> Fresh VarName (([Assertion], [Maybe FreshVar]), Env)
+termAssertionGen ::  Env -> Expr -> Fresh VarName ([Assertion], [Maybe FreshVar])
 termAssertionGen env expr
   = case expr of
-    PrimOp _ es -> do
-      -- termAssertionGen env (head es)
-      -- join $ map (termAssertionGen env) es
-      (res, env') <- termAssertionGenList env es
-      return $ (res, env')
-
+    PrimOp _ es ->
+      join $ map (termAssertionGen env) es
+      
     Sig e _ -> 
       termAssertionGen env e
 
     Apply f e -> do
-      -- a <- termAssertionGen env f
-      -- b <- termAssertionGen env e
-      (a, env') <- termAssertionGen env f
-      (b, env'') <- termAssertionGen env' e
-      return $ (flatten [([], [getv env'' e]), a, b], env'')
+      a <- termAssertionGen env f
+      b <- termAssertionGen env e
+      return $ flatten [([], [getv env e]), a, b]
       
-    Struct fs -> do
-      let es = map snd fs
-      -- termAssertionGen env (head es) 
-      -- in join $ map (termAssertionGen env) es
-      (res, env') <- termAssertionGenList env es
-      return $ (res, env')
-
-    If b e1 e2 -> do
-      (a, env') <- termAssertionGen env b
-      (a', env'') <- termAssertionGen env' e1
-      (a'', env''') <- termAssertionGen env'' e2
-      return $(flatten [a, a', a''], env'')
-
-      -- join $ map (termAssertionGen env) [b, e1, e2]
+    Struct fs ->
+      let es = map snd fs 
+      in join $ map (termAssertionGen env) es
+      
+    If b e1 e2 ->
+      join $ map (termAssertionGen env) [b, e1, e2]
       
     Let x e1 e2 -> do
       -- First evaluate the variable binding expression
-      (a, env') <- termAssertionGen env e1
+      a <- termAssertionGen env e1
 
       -- Map our bound program variable to a new name and evaluate the rest
       alpha <- fresh
-      let env'' = (env' {oenv = M.insert x alpha (oenv env')})
-      (res, env''') <- termAssertionGen env'' e2
+      let env' = M.insert x alpha env 
+      res <- termAssertionGen env' e2
 
       -- Generate assertion
-      let l = toAssertion env''' e1 (alpha :~:)
-      return $ (flatten [(l,[]), res], env''')
+      let l = toAssertion env e1 (alpha :~:)
+      return $ flatten [(l,[]), res]
     
     LetBang vs v e1 e2 ->
       termAssertionGen env (Let v e1 e2)
@@ -167,92 +122,70 @@ termAssertionGen env expr
       alpha <- fresh 
       beta  <- fresh
       
-      (res, env') <- termAssertionGen env e1
+      res <- termAssertionGen env e1
 
       -- Update variable to fresh name bindings and generate assertions recursively
-      let env'' = (env {oenv = M.insert r' beta (oenv env')})
-      let env''' = (env'' {oenv = M.insert x alpha (oenv env'')})
-      (res', env4) <- termAssertionGen env''' e2
+      let env' = M.insert r' beta (M.insert x alpha env)
+      res' <- termAssertionGen env' e2
 
       -- Generate assertions
-      let assertions = toAssertion env4 e1 (alpha :<:)
-                    ++ toAssertion env4 e1 (beta :~:)
+      let assertions = toAssertion env e1 (alpha :<:)
+                    ++ toAssertion env e1 (beta :~:)
 
-      return $ (flatten [(assertions, []), res', res], env4)
+      return $ flatten [(assertions, []), res', res]
 
     Put e1 f e2 -> do
       alpha <- fresh
       beta  <- fresh
 
-      (res, env')  <- termAssertionGen env e1
-      (res', env'') <- termAssertionGen env' e2
+      res  <- termAssertionGen env e1
+      res' <- termAssertionGen env e2
 
       let assertions = [alpha :<: beta] 
                     ++ toAssertion env e1 (beta :~:)
                     ++ toAssertion env e2 (alpha :~:)
 
-      return $ (flatten [(assertions, []), res', res], env'')
+      return $ flatten [(assertions, []), res', res]
 
-    Member e f -> do
-      alpha <- fresh -- e.f: alpha
-      let env' = (env {eenv = ((Member e f), alpha):(eenv env)})
-
-      -- find e inside the env
-      -- find the related freshvar
-      -- set e.f < e
-      (res, env'') <- termAssertionGen env' e
-      let assertions = toAssertion env'' e (alpha :<:)
-      return $ (flatten [(assertions, []), res], env'')
+    Member e f -> 
+      termAssertionGen env e
 
     Case e1 _ x e2 y e3 -> do
-      -- Assertions we want to make:
-      -- x < e1
-      -- y = e1
-      -- where x: alpha, y:gamma, e1: beta (if it exists)
+      alpha <- fresh
+      beta  <- fresh
+      gamma <- fresh
 
-      -- run on e1.
-      (res, env1) <- termAssertionGen env e1
+      res <- termAssertionGen env e1
 
-      alpha <- fresh -- x
-      beta  <- fresh -- e1, if it can be found
-      gamma <- fresh -- y
+      let env' = M.insert x alpha env
+      res' <- termAssertionGen env' e2
 
-      let env2 = (env1 {oenv = M.insert x alpha (oenv env1)})
-      (res', env3) <- termAssertionGen env2 e2
+      let env'' = M.insert y gamma env
+      res'' <- termAssertionGen env'' e3
 
-      let env4 = (env3 {oenv = M.insert y gamma (oenv env3)})
-      (res'', env5) <- termAssertionGen env4 e3
-
-      let assertions = toAssertion env5 e1 (beta :~:)
+      let assertions = toAssertion env e1 (beta :~:)
                     ++ [alpha :<: beta, gamma :~: beta]
 
-      return $ (flatten [(assertions, []), res, res', res''], env5)
+      return $ flatten [(assertions, []), res, res', res'']
 
     Esac e1 _ x e2 -> do
       alpha <- fresh
       beta  <- fresh
 
-      (res, env') <- termAssertionGen env e1
+      res <- termAssertionGen env e1
 
-      let env'' = (env' {oenv = M.insert x alpha (oenv env')})
-      (res', env3) <- termAssertionGen env'' e2
+      let env' = M.insert x alpha env
+      res' <- termAssertionGen env' e2
 
-      let assertions = toAssertion env3 e1 (beta :~:)
+      let assertions = toAssertion env e1 (beta :~:)
                     ++ [alpha :<: beta]
 
-      return $ (flatten [(assertions, []), res, res'], env3)
+      return $ flatten [(assertions, []), res, res']
 
     -- All other cases, like literals and nonrecursive expressions
-    _ -> return (([],[]), env)
+    _ -> return ([],[])
 
   where
-    termAssertionGenList :: Env -> [Expr] -> Fresh VarName (([Assertion], [Maybe FreshVar]), Env)
-    termAssertionGenList env [] = do
-      return (([],[]), env)
-    termAssertionGenList env (x:xs) = do
-      (res, env') <- termAssertionGen env x
-      (res', env'') <- termAssertionGenList env' xs
-      return $ (flatten[res, res'], env'')
     
     toAssertion :: Env -> Expr -> (FreshVar -> Assertion) -> [Assertion]
     toAssertion env e f = 
@@ -260,18 +193,12 @@ termAssertionGen env expr
         Just x -> [f x]
         Nothing -> []
 
-    getFreshVarFromExp :: [(Expr, FreshVar)] -> Expr -> Maybe FreshVar
-    getFreshVarFromExp [] e = Nothing
-    getFreshVarFromExp (x:xs) e = 
-      if (fst x == e) then Just $ snd x 
-      else getFreshVarFromExp xs e
-
     -- Returns the variable name from an environment if it exists, otherwise nothing
     getv :: Env -> Expr -> Maybe FreshVar 
     getv env e =
       case e of
-        Var v -> Just $ (oenv env) M.! v
-        x -> getFreshVarFromExp (eenv env) e 
+        Var v -> Just $ env M.! v
+        _ -> Nothing
 
     join :: [Fresh VarName ([a], [b])] -> Fresh VarName ([a], [b])
     join (e:es) = do
@@ -280,8 +207,6 @@ termAssertionGen env expr
       return (a ++ as, b ++ bs)
     join [] = return ([],[])
 
-
-    -- [([a], [b]), ([c], [d])] -> ([a,b], [c,d])
     flatten :: [([a], [b])] -> ([a], [b])
     flatten (x:xs) = 
       let rest = flatten xs
@@ -301,7 +226,7 @@ toGraph (x:xs) =
 
 hasPathTo :: Node -> Node -> Graph -> Bool
 hasPathTo src dst g
-  = hasPathTo' src dst g S.empty
+  = hasPathTo' src dst g (S.insert src S.empty)
     where
       hasPathTo' :: Node -> Node -> Graph -> S.Set Node -> Bool
       hasPathTo' s d g seen =
@@ -317,7 +242,7 @@ hasPathTo src dst g
 
 -- To use:
 --   run `dot -Tpdf graph.dot -o outfile.pdf`
---   where graph.dot is the output from this function.
+-- where graph.dot is the output from this function.
 genGraphDotFile :: String -> Graph -> [Node] -> [Node] -> String
 genGraphDotFile name g args goals = 
   "digraph " ++ name ++ 
@@ -337,17 +262,3 @@ genGraphDotFile name g args goals =
     highlight :: String -> String -> [Node] -> String
     highlight color label nodes = "\t" ++ (concat . intersperse "\n" $
                                   map (\n -> n ++ " [ color = " ++ color ++ ", xlabel = " ++ label ++ " ];\n") nodes)
-
-fst3 :: (a, b, c) -> a
-fst3 (a, _, _) = a
-
--- Size Functions
--- Arithmetic
-add :: Size -> Size -> Size
-add Empty Empty = Empty
-add Empty x = x
-add x Empty = x
-add (Size a b) (Size x y) = Size (a ++ x) (b + y) 
-
-evaluateSize :: Size -> Int
-evaluateSize (Size a b) =  length (a) + b
