@@ -1,8 +1,11 @@
 -- PBT Parse file containing info used in PBT 
 -- ------------------------------
 
+{-# LANGUAGE MultiWayIf #-}
+
 module Cogent.Haskell.ParseDSL (parseFile, testPBTParse) where
 
+import Data.Maybe
 import Cogent.Haskell.GenDSL
 import Cogent.Compiler (__cogent_pbt_info)
 import Control.Monad.Trans.Except
@@ -34,7 +37,7 @@ keywords = ["pure", "nond", "absf", "rrel", "welf"]
            ["IC", "IA", "OC", "OA"]
 
 ignores :: [Char]
-ignores = ['\"', '\r', '\n', ':']
+ignores = ['\"', '\r', '\n', ':', '{', '}', ';']
 
 -- PBT Info Parser helpers
 -- ------------------------------
@@ -49,7 +52,7 @@ strComma :: IParser String
 strComma = lexeme $ many1 (noneOf (ignores++[',']))
 
 parseList :: IParser [String]
-parseList = strComma `sepBy1` (char ',')
+parseList = (strComma `sepBy1` (char ',')) <* spaces <* char (';')
             <?> "Trying to parse list"
 -- TODO: ^^ handle parantheses
 
@@ -58,16 +61,21 @@ parseList = strComma `sepBy1` (char ',')
 
 parseLn :: IParser (String, [String])
 parseLn = do
-    k <- strKW
+    k <- spaces *> strKW
     v <- parseList <* spaces -- <|> many strCmt -- <* spaces
     return (k,v)
 
-parseTyps :: IParser (String, Type ())
-parseTyps = do
-    k <- strKW
-    v <- lexeme $ strV <* spaces 
+parseTyps :: IParser [(String, Type ())]
+parseTyps = (pt `sepBy1` (char ',')) <* spaces <* char ';' <* spaces
+     <?> "trying to parse multiple types"
+
+pt :: IParser (String, Type ())
+pt = do
+    k <- spaces *> strKW
+    v <- spaces *> strVT <* spaces 
     let v' = dropAnn $ fromParseResult $ parseType v
     return (k,v')
+    <?> "trying to parse single types"
 
 --strToTyp :: IParser String -> IParser (Type ())
 --strToTyp p = undefined
@@ -76,7 +84,12 @@ strKW :: IParser String
 strKW = strV <* char ':'
 
 strV :: IParser String 
-strV = many1 (noneOf ignores)
+strV = many1 (noneOf (ignores++[',']))
+     <?> "trying to parse string value"
+
+strVT :: IParser String 
+strVT = many1 (noneOf (ignores))
+     <?> "trying to parse string type value"
 
 boolV :: IParser Bool 
 boolV = read <$> strV
@@ -84,9 +97,25 @@ boolV = read <$> strV
 -- PBT Info Sub-component Parsing
 -- ------------------------------
 strFN :: IParser String 
-strFN = between (char '"') (char '"') strV <* spaces
+strFN = between (char '"') (char '"') strV -- <* spaces
 --char '"' *> strV <* char '"' <* spaces
 
+parseFunExpr :: IParser (String, FunDefs)
+parseFunExpr = do
+    (k, v) <- spaces *> parseLn <* spaces
+    t <- between (char '{') (char '}') (spaces *> parseTyps <* spaces)
+    if | k == "absf" -> return $ ("AB", FunAbsF (k,v) t)
+       | k == "rrel" -> return $ ("RR", FunRRel (k,v) t)
+       | otherwise -> return $ ("RR", FunRRel (k,v) t)
+        
+parseExprL :: IParser [(String, FunDefs)]
+parseExprL = do 
+    ip <- strKW *> boolV <* spaces <* char (',') <* spaces
+    nd <- strKW *> boolV <* spaces <* char (',') <* spaces
+    rest <- ((spaces *> parseFunExpr <* spaces) `sepBy1` (char ',')) <* spaces <* char (';') <* spaces
+    return $ [("FI", FunInfo ip nd)] ++ rest
+
+{-
 strFInfo :: IParser FunInfo 
 strFInfo = do 
     ip <- strKW *> boolV <* spaces 
@@ -101,6 +130,7 @@ strRRel = withBlock FunRRel parseLn parseTyps
 
 strWelF :: IParser FunWelF
 strWelF = withBlock FunWelF parseLn parseLn
+-}
 
 -- Parser for removing whitespace 
 -- -----------------------------------------
@@ -115,16 +145,17 @@ wspace = many $ char ' '
 pbtinfo :: IParser PBTInfo
 pbtinfo = do
     fn <- lexeme strFN
-    fi <- lexeme strFInfo
-    ab <- lexeme strAbsF
-    rr <- lexeme strRRel
+    exprL <- between (char '{') (char '}') (spaces *> parseExprL <* spaces) -- <* spaces 
+    --fi <- lexeme strFInfo
+    --ab <- lexeme strAbsF
+    --rr <- lexeme strRRel
     -- wf <- lexeme strWelF
-    return $ PBTInfo fn fi ab rr -- wf
+    return $ PBTInfo fn (fromJust $ lookup "FI" exprL) (fromJust $ lookup "AB" exprL) (fromJust $ lookup "RR" exprL) --fi ab rr -- wf
 
 -- Functions for interfacing with the parser
 -- -----------------------------------------
 pbtinfos :: IParser [PBTInfo]
-pbtinfos = pbtinfo `manyTill` eof
+pbtinfos = (spaces *> pbtinfo <* spaces) `manyTill` eof
 
 parseFile :: FilePath -> ExceptT String IO [PBTInfo]
 parseFile f = parsePBTFile pbtinfos f
@@ -151,26 +182,14 @@ testPBTParse = pPrint $ iParse pbtinfos "" exampleFile
 
 exampleFile :: String
 exampleFile = unlines $
-        [ "\"addToBag\"\r"
-        , "    pure: True \r"
-        , "    nond: False \r"
-        , "    absf: direct, eq \r"
-        , "        IC: (Word32, R4 Word32 Word32) \r"-- U32, Bag \r"
-        , "        IA: (Int, (Int, Int)) \r"
-        , "    rrel: direct, eq \r"
-        , "        OC: R4 Word32 Word32 \r"
-        , "        OA: (Int, Int) \r"
---        , "    welf: sum = sum List, count = length List\r"
---        , "        List: normal 10, pos Int\r"
-        , "\"averageBag\"\r"
-        , "    pure: True \r"
-        , "    nond: False \r"
-        , "    absf: direct \r"
-        , "        IC: R4 Word32 Word32 \r"
-        , "        IA: (Int, Int) \r"
-        , "    rrel: direct, eq \r"
-        , "        OC: V0 () Word32 \r"
-        , "        OA: Either () Int \r"
---        , "    welf: sum = sum List, count = length List\r"
---        , "        List: normal 10, pos Int\r"
+        [ "\"averageBag\" {\r"
+        , "    pure: True , \r"
+        , "    nond: False ,\r"
+        , "    absf: direct, eq ; \r"
+        , "        { IC: R4 Word32 Word32 \r"
+        , "        , IA: (Int, Int) ; } , \r"
+        , "    rrel: direct, eq; \r"
+        , "        { OC: V0 () Word32 \r"
+        , "        , OA: Maybe Int ; } ;\r"
+        , "}\r"
         ]

@@ -157,7 +157,7 @@ propDecls PBTInfo{..} =
                                  (UnGuardedRhs () $ mkPropBody fname finfo ) Nothing]
             in [sig, dec]
 
-mkPropBody :: String -> FunInfo -> Exp ()
+mkPropBody :: String -> FunDefs -> Exp ()
 mkPropBody n FunInfo{ispure=True, nondet=nd} =  
     let f  = function "forAll"
         fs = [ function $ "gen_"++n
