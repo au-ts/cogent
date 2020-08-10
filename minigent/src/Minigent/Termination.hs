@@ -56,13 +56,13 @@ initialiseEnv x alpha e =
     eenv = [(e, alpha)]
   in Env oenv fenv eenv
 
-data FreshVarMap = M.Map FreshVar Expr
-convert :: Env -> FreshVarMap -> FreshVarMap
-convert env fenv = 
-  map (insert) (fromList )
+-- data FreshVarMap = M.Map FreshVar Expr
+-- convert :: Env -> FreshVarMap -> FreshVarMap
+-- convert env fenv = 
+--   map (insert) (fromList )
 
-convertE :: Env -> FreshVarMap -> FreshVarMap
-convertE env fenv = 
+-- convertE :: Env -> FreshVarMap -> FreshVarMap
+-- convertE env fenv = 
 -- (env'' {oenv = M.insert x alpha (oenv env'')})
 
 type Error    = String
