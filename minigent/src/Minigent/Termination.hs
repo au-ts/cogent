@@ -50,7 +50,7 @@ termCheck genvs = M.foldrWithKey go ([],[]) (defns genvs)
                   else
                     ("Error: Function " ++ f ++ " cannot be shown to terminate.") : errs
         in 
-          (errs' ++ [f], (f, g, dotGraph) : dumps)
+          (errs', (f, g, dotGraph) : dumps)
 
     -- Maps the function argument to a name, then runs the termination
     -- assertion generator.
