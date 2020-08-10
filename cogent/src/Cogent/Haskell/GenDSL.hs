@@ -18,7 +18,7 @@ data PBTInfo = PBTInfo { fname :: String
                        , finfo :: FunInfo
                        , fabsf :: FunAbsF
                        , frrel :: FunRRel
-                       , fwelf :: FunWelF
+                       -- , fwelf :: FunWelF
                        } deriving (Show)
 
 data FunInfo = FunInfo { ispure :: Bool

@@ -118,8 +118,8 @@ pbtinfo = do
     fi <- lexeme strFInfo
     ab <- lexeme strAbsF
     rr <- lexeme strRRel
-    wf <- lexeme strWelF
-    return $ PBTInfo fn fi ab rr wf
+    -- wf <- lexeme strWelF
+    return $ PBTInfo fn fi ab rr -- wf
 
 -- Functions for interfacing with the parser
 -- -----------------------------------------
@@ -154,14 +154,14 @@ exampleFile = unlines $
         [ "\"addToBag\"\r"
         , "    pure: True \r"
         , "    nond: False \r"
-        , "    absf: direct \r"
+        , "    absf: direct, eq \r"
         , "        IC: (Word32, R4 Word32 Word32) \r"-- U32, Bag \r"
         , "        IA: (Int, (Int, Int)) \r"
         , "    rrel: direct, eq \r"
         , "        OC: R4 Word32 Word32 \r"
         , "        OA: (Int, Int) \r"
-        , "    welf: sum = sum List, count = length List\r"
-        , "        List: normal 10, pos Int\r"
+--        , "    welf: sum = sum List, count = length List\r"
+--        , "        List: normal 10, pos Int\r"
         , "\"averageBag\"\r"
         , "    pure: True \r"
         , "    nond: False \r"
@@ -171,6 +171,6 @@ exampleFile = unlines $
         , "    rrel: direct, eq \r"
         , "        OC: V0 () Word32 \r"
         , "        OA: Either () Int \r"
-        , "    welf: sum = sum List, count = length List\r"
-        , "        List: normal 10, pos Int\r"
+--        , "    welf: sum = sum List, count = length List\r"
+--        , "        List: normal 10, pos Int\r"
         ]
