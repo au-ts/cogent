@@ -91,6 +91,7 @@ unit_t cogent_debug_u64_hex (u64 arg) {
 }
 unit_t cogent_debug_bool ($ty:(Bool) arg) {
         unit_t ret;
+	$escstm:(printk(KERN_INFO "cogent_debug_bool: %u", arg.boolean);)
         if (arg.boolean) {
           //pr_debug("true");
 	  $escstm:(printk(KERN_CONT "true");)

@@ -65,6 +65,7 @@ void take_inode_addrspace(struct inode* inode) {
     }
 }
 
+
 /* can be called async */
 int ext2fs_write_inode_nolock(struct inode *inode, struct writeback_control *wbc)
 {
@@ -1068,6 +1069,8 @@ int ext2fs_fill_super(struct super_block *sb, void *data,
 
     $ty:(RR SysState (#{state: FsState, mountinfo: #VfsMountInfo}) U32) mount_ret;
     $ty:(RR #{ex: SysState, state: FsState} VfsInode U32) root_ret;
+
+    ext2fs_debug("fill super!\n");
 
     ws = kmalloc(sizeof (struct Ext2State), GFP_NOFS);
     if (!ws) {

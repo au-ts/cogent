@@ -142,6 +142,7 @@ $ty:(R (SysState, UArray a) SysState) $id:uarray_create($ty:((SysState, U32)) ar
     $ty:(R (SysState, UArray a) SysState) ret;
 
     ret.Success.p2 = kmalloc(sizeof(*ret.Success.p2) +
+               size * sizeof(*(ret.Success.p2->existence)) +
                size * sizeof(*(ret.Success.p2->values)), GFP_NOFS);
 
     if (unlikely(ret.Success.p2 == NULL)) {
@@ -149,7 +150,11 @@ $ty:(R (SysState, UArray a) SysState) $id:uarray_create($ty:((SysState, U32)) ar
         ret.Error = h;
     } else {
         ret.Success.p2->len = size;
-        ret.Success.p2->values = (void *)(ret.Success.p2 + 1);
+	ret.Success.p2->existence = (void *)(ret.Success.p2 + 1);
+        memset(ret.Success.p2->existence, 0, size * sizeof(*(ret.Success.p2->existence)));
+	ret.Success.p2->values = (void *)
+	   ((char *)(ret.Success.p2 + 1) +
+	      size*sizeof(*(ret.Success.p2->existence)));
         memset(ret.Success.p2->values, 0, size * sizeof(*(ret.Success.p2->values)));
         ret.tag = TAG_ENUM_Success;
         ret.Success.p1 = h;

@@ -71,7 +71,7 @@ cogent_log_u32_oct: (U32, U32) -> ()
 cogent_log_u32_oct (l, x) = if cmp_log_lvl l then cogent_debug_u32_oct x else ()
 
 cogent_log_bool: (U32, Bool) -> ()
-cogent_log_bool (l, bool) = if cmp_log_lvl l then cogent_debug_bool (bool) else ()
+cogent_log_bool (l, bool) = cogent_debug_bool (bool)
 
 cogent_log_u16: (U32, U16) -> ()
 cogent_log_u16 (l, x) = cogent_log_u32 (l, upcast x)

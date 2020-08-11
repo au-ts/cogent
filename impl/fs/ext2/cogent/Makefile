@@ -83,7 +83,7 @@ EXTRA_CFLAGS+= -DEXT2FS_DEBUG
 endif
 
 # flags to ignores COGENT's compiler messy C code gen
-EXTRA_CFLAGS	+= -O2 -Wno-parentheses -Wno-declaration-after-statement -Wno-unused-variable -Wno-uninitialized
+EXTRA_CFLAGS	+= -Wno-parentheses -Wno-declaration-after-statement -Wno-unused-variable -Wno-uninitialized
 
 CPPFLAGS.common	:= -I$(PWD) -I$(PWD)/src -I$(PWD)/lib -I$(PWD)/abstract -I$(LIBGUM)
 CPPFLAGS.linux	:= -I$(PWD)/plat/linux/

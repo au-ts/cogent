@@ -181,8 +181,15 @@ $ty:((UArray a, acc)) $id:uarray_map_no_break ($ty:(UArrayMapNoBreakP a acc obsv
 
 	$ty:((Option a, acc)) f_ret;
 
+        $escstm:(#if EXT2FS_DEBUG)
+	  $escstm:(ext2fs_debug("entering loop over the array elements: %p\n", args.arr->existence);)
+        $escstm:(#endif)
+
 	for (i = args.frm; i < args.to && i < args.arr->len; i++) {
 		if (args.arr->existence[i]) {
+	           $escstm:(#if EXT2FS_DEBUG)
+		     $escstm:(ext2fs_debug("%u exists\n", i);)
+		   $escstm:(#endif)
 			oelem.Some = args.arr->values[i];
 			oelem.tag = TAG_ENUM_Some;
 		} else {

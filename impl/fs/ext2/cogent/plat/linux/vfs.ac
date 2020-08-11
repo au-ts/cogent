@@ -37,7 +37,7 @@ VfsDirEmitR vfs_dir_emit($ty:(VfsDirEmitP) args)
 
 
 $ty:((SysState, VfsInode)) vfs_inode_mark_dirty ($ty:((SysState, VfsInode)) args) {
-    // printk ("vfs_inode_mark_dirty: dirtied %p ino %d\n", &args.p2->vfs.inode_lin, args.p2->vfs.inode_lin.i_ino);
+    $escstm:(printk (KERN_INFO "vfs_inode_mark_dirty: dirtied %p ino %d\n", &args.p2->vfs.inode_lin, args.p2->vfs.inode_lin.i_ino);)
     mark_inode_dirty (&(args.p2->vfs.inode_lin));
     return args;
 }

@@ -26,7 +26,7 @@
         do {} while (0)
 #else
 #define ext2fs_debug(...) \
-        printk(KERN_ERR __VA_ARGS__)
+        printk(KERN_CONT __VA_ARGS__)
 #endif /* !EXT2FS_DEBUG */
 
 
