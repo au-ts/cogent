@@ -28,8 +28,98 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.List
 
+-- Size is either empty, or a tuple containing
+-- Int: number of constructors
+-- [FreshVar]: components making up the expression
+data Size = Empty | V FreshVar | Size (Int, [FreshVar]) deriving (Show, Eq)
+
+-- C -> (1, [A]) <=> C = A + 1
+
+-- B -> (1, [C])
+
+-- 5 * (alpha * (6 * (beta *)))
+-- sumList : rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}! -> U32;
+-- sumList r = 
+--   case r.l of
+--     Nil u -> 0
+--     | v2 ->
+--       case v2 of
+--         Cons s ->
+--           s.data + sumList s.rest
+--       end
+--   end;
+
+-- -- s(r) = Mult (N 2) s(v)
+-- -- s(v) = max (s(Nil Unit), s(Cons ...))
+-- -- s(Nil Unit) = 2*s(Unit)
+-- -- s(Cons r') = 2*s(r')
+-- -- s(r') = 2*(Add s(r'.data), s(r'.rest))
+-- -- s(data) = Int 
+-- -- s(rest) = fV 
+-- x = {Cons {1, Nil Unit}}
+
+-- x -> 
+-- s(x) = 2*(2*(2*(Add 1 2*(1)))
+-- y = Cons (1, Cons 1 Nil)
+-- FreshVar -> ASize
+
+-- s(r) = Mult (N 2) s(r.l)
+-- s(r.l) = max (2*s(Unit), 2*(s({..})))
+-- s(0) = Int 
+
+-- s(v2) = s(r.l) 
+-- s(s) = 2*(Add s(s.data) s(s.rest))
+-- s(s.data) = Int 
+-- s(s.rest) = fVar 
+
+-- s(s.rest) < s(r)
+-- fVar < Mult(N 2) (... fV)
+
+-- 1) Definition of determining size for each type 
+-- 2) Types 
+-- 3) 
+
+
+-- size list
+-- size int 
+-- size String
+
+-- size :: Int -> ASize
+-- size x = Nat x
+
+-- size :: Record -> ASize
+-- size r = Mult (N 2) (Add r.1 ... r.n)
+
+-- size :: Variant -> ASize
+-- size v = max (2*v1... 2*vn)
+
+-- Cons (1, Cons (1, Nil Unit))
+-- 2*(1 + 2*(1 + 2*(1)))
+
+
+-- data ASize = N Int | V FreshVar | Add ASize ASize | Mult ASize ASize
+
+-- Cons (1, Cons (2, Nil Unit))
+
+-- L-> Cons (1, Nil Unit)
+-- L2-> Cons (2, Nil Unit)
+
+-- l_size = Empty
+
+-- A -> 1
+-- B -> Nil Unit
+-- C -> Unit
+
+-- Sizes
+-- C-> Empty
+-- B-> (1, [C])
+-- A-> Empty
+-- L-> (1, [A, B])
+-- L2-> (1, [E, F])
+
+
 -- Size is list of PrimTypes (and their values?) and an Int (number of constructors)
-data Size = Empty | Size [(FreshVar, Maybe PrimType)] Int deriving (Show, Eq)
+-- data Size = Empty | Size [(FreshVar, Maybe PrimType)] Int deriving (Show, Eq)
 
 -- A directed graph maps a node name to all reachable nodes from that node
 type Node  = String
@@ -242,6 +332,7 @@ termAssertionGen env expr
 
       return $ (flatten [(assertions, []), res, res'], env3)
 
+    -- Con k e -> 
     -- All other cases, like literals and nonrecursive expressions
     _ -> return (([],[]), env)
 
@@ -343,11 +434,14 @@ fst3 (a, _, _) = a
 
 -- Size Functions
 -- Arithmetic
-add :: Size -> Size -> Size
-add Empty Empty = Empty
-add Empty x = x
-add x Empty = x
-add (Size a b) (Size x y) = Size (a ++ x) (b + y) 
 
-evaluateSize :: Size -> Int
-evaluateSize (Size a b) =  length (a) + b
+-- will add the second arg to the first arg, returning the first.
+add :: Size -> FreshVar -> Size
+add s f =
+  case s of
+    Empty -> Size (1, [f])
+    Size (n, x) -> 
+      if f `elem` x then
+        Size (n, x)
+      else
+        Size (n, f:x)
