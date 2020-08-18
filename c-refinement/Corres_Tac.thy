@@ -616,9 +616,12 @@ let
       (* Check the head of the Cogent program before applying a tactic.
        * This is useful when the tactic doesn't fail quickly (eg. for type-specialised rule buckets). *)
       fun check_Cogent_head head tac st =
-        case corres_Cogent_head 1 st of
-           NONE => tac st (* not sure if we'd expect this to work *)
-         | SOME head' => if head = head' then tac st else no_tac st;
+        let val _ = @{trace} ("corres_tac: check ", st, " =?= ", head);
+        in
+          case corres_Cogent_head 1 st of
+             NONE => tac st (* not sure if we'd expect this to work *)
+           | SOME head' => if head = head' then tac st else no_tac st
+        end;
     in
       (fn t => case corres_Cogent_head 1 t of SOME h => print ("Proving: " ^ h) t | _ => all_tac t)
       THEN
