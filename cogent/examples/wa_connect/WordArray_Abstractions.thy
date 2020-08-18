@@ -27,6 +27,23 @@ lemma word_mult_cancel_left:
    apply fastforce
    done
 
+fun is_prim_type :: "type \<Rightarrow> bool"
+  where
+"is_prim_type (TPrim _) = True" |
+"is_prim_type _ = False"
+
+fun is_num_type :: "prim_type \<Rightarrow> bool"
+  where
+"is_num_type (Num _) = True" |
+"is_num_type _ = False"
+
+fun size_of_num_type :: "num_type \<Rightarrow> ptrtyp"
+  where
+"size_of_num_type U8 = 1" |
+"size_of_num_type U16 = 2" |
+"size_of_num_type U32 = 4" |
+"size_of_num_type U64 = 8"
+
 section "WordArray Locale Definition"
 
 locale WordArray = main_pp_inferred begin
@@ -44,7 +61,10 @@ locale WordArray = main_pp_inferred begin
 
   definition "abs_typing_v a name \<tau>s \<equiv>
     (case a of
-      VWA xs \<Rightarrow> name = ''WordArray'' \<and> \<tau>s = [TPrim (Num U32)] \<and> (\<forall>i < length xs. \<exists>x. xs ! i = VPrim (LU32 x))
+      VWA (TPrim (Num U8)) xs \<Rightarrow> name = ''WordArray'' \<and> \<tau>s = [TPrim (Num U8)] \<and> (\<forall>i < length xs. \<exists>x. xs ! i = VPrim (LU8 x))
+    | VWA (TPrim (Num U16)) xs \<Rightarrow> name = ''WordArray'' \<and> \<tau>s = [TPrim (Num U16)] \<and> (\<forall>i < length xs. \<exists>x. xs ! i = VPrim (LU16 x))
+    | VWA (TPrim (Num U32)) xs \<Rightarrow> name = ''WordArray'' \<and> \<tau>s = [TPrim (Num U32)] \<and> (\<forall>i < length xs. \<exists>x. xs ! i = VPrim (LU32 x))
+    | VWA (TPrim (Num U64)) xs \<Rightarrow> name = ''WordArray'' \<and> \<tau>s = [TPrim (Num U64)] \<and> (\<forall>i < length xs. \<exists>x. xs ! i = VPrim (LU64 x))
     | _ \<Rightarrow> name = ''Unknown Abstract Type'' \<and> \<tau>s = [])"
 
   definition  "abs_upd_val' au av name \<tau>s sig (r :: ptrtyp set) (w :: ptrtyp set) \<sigma> \<equiv>
@@ -52,7 +72,7 @@ locale WordArray = main_pp_inferred begin
     (case au of
       WAU32 len arr \<Rightarrow>
         (case av of 
-          VWA xs \<Rightarrow> unat len = length xs \<and> 
+          VWA (TPrim (Num U32)) xs \<Rightarrow> unat len = length xs \<and> 
                       (\<forall>i < len. \<exists>x. \<sigma>(arr + 4 * i) = option.Some (UPrim (LU32 x)) \<and> 
                                      xs ! (unat i) = VPrim (LU32 x))
           | _ \<Rightarrow> False)
@@ -83,6 +103,7 @@ section "Sublocale Proof"
 sublocale WordArray \<subseteq> Generated_cogent_shallow _ abs_repr_u abs_typing_v abs_typing_u abs_upd_val'
   apply (unfold abs_repr_u_def[abs_def] abs_typing_v_def[abs_def] abs_typing_u_def[abs_def] abs_upd_val'_def[abs_def])
   apply (unfold_locales; clarsimp split: vatyp.splits atyp.splits)
+           apply (case_tac x11; clarsimp; case_tac x5; clarsimp; case_tac x1; clarsimp)
           apply (case_tac s; clarsimp; case_tac x11a; clarsimp)
          apply (case_tac s; clarsimp; case_tac x11a; clarsimp)
         apply (case_tac s; clarsimp; case_tac x11a; clarsimp)
@@ -95,15 +116,17 @@ sublocale WordArray \<subseteq> Generated_cogent_shallow _ abs_repr_u abs_typing
     apply (rule_tac x = x in exI)
     apply (case_tac s; clarsimp; case_tac x11a; clarsimp;
            drule_tac x = "x12 + 4 * i" in orthD1; simp; rule_tac x = i in exI; simp)
-   apply (case_tac s; clarsimp; case_tac x11a; clarsimp)
-  apply (case_tac s; clarsimp; case_tac x11a; clarsimp)
-   apply (rule conjI; clarsimp; erule_tac x = "x12 + 4 * i" in allE; clarsimp)
+   apply (case_tac x11; clarsimp; case_tac x5; clarsimp; case_tac x1; clarsimp)
+   apply (case_tac s; clarsimp; case_tac x11; clarsimp)
+  apply (case_tac x11; clarsimp; case_tac x5; clarsimp; case_tac x1; clarsimp)
+  apply (case_tac s; clarsimp; case_tac x11; clarsimp)
+   apply (rule conjI; clarsimp; erule_tac x = "x12b + 4 * i" in allE; clarsimp)
     apply (erule_tac x = i in allE; clarsimp)
     apply (rule_tac x = x in exI)
     apply auto[1]
    apply (erule_tac x = i in allE; clarsimp)
    apply auto[1]
-  apply (rule conjI; clarsimp; erule_tac x = "x12 + 4 * i" in allE; clarsimp)
+  apply (rule conjI; clarsimp; erule_tac x = "x12b + 4 * i" in allE; clarsimp)
     apply (erule_tac x = i in allE; clarsimp)
     apply (rule_tac x = x in exI)
     apply auto[1]
@@ -134,21 +157,13 @@ lemma take_drop_Suc:
 *)
 
 subsection "Shallow Word Array Value Relation"
-(*
-overloading
-  valRel_WordArrayBool \<equiv> valRel
-begin
-  definition valRel_WordArrayBool: 
-    "\<And>\<xi> x v. valRel_WordArrayBool (\<xi> :: (funtyp,vabstyp) vabsfuns) (x :: bool WordArray) (v :: (funtyp, vabstyp) vval) \<equiv> 
-      \<exists>xs. v = VAbstract (VWA xs) \<and> length x = length xs \<and> (\<forall>i < length xs. xs ! i = VPrim (LBool (x ! i)))"
-end
 
 overloading
   valRel_WordArrayU8 \<equiv> valRel
 begin
   definition valRel_WordArrayU8: 
     "\<And>\<xi> x v. valRel_WordArrayU8 (\<xi> :: (funtyp,vabstyp) vabsfuns) (x :: (8 word) WordArray) (v :: (funtyp, vabstyp) vval) \<equiv> 
-      \<exists>xs. v = VAbstract (VWA xs) \<and> length x = length xs \<and> (\<forall>i < length xs. xs ! i = VPrim (LU8 (x ! i)))"
+      \<exists>xs. v = VAbstract (VWA (TPrim (Num U8)) xs) \<and> length x = length xs \<and> (\<forall>i < length xs. xs ! i = VPrim (LU8 (x ! i)))"
 end
 
 overloading
@@ -156,25 +171,27 @@ overloading
 begin
   definition valRel_WordArrayU16: 
     "\<And>\<xi> x v. valRel_WordArrayU16 (\<xi> :: (funtyp,vabstyp) vabsfuns) (x :: (16 word) WordArray) (v :: (funtyp, vabstyp) vval) \<equiv> 
-      \<exists>xs. v = VAbstract (VWA xs) \<and> length x = length xs \<and> (\<forall>i < length xs. xs ! i = VPrim (LU16 (x ! i)))"
+      \<exists>xs. v = VAbstract (VWA (TPrim (Num U16)) xs) \<and> length x = length xs \<and> (\<forall>i < length xs. xs ! i = VPrim (LU16 (x ! i)))"
 end
-*)
+
 overloading
   valRel_WordArrayU32 \<equiv> valRel
 begin
   definition valRel_WordArrayU32: 
     "\<And>\<xi> x v. valRel_WordArrayU32 (\<xi> :: (funtyp,vabstyp) vabsfuns) (x :: (32 word) WordArray) (v :: (funtyp, vabstyp) vval) \<equiv> 
-      \<exists>xs. v = VAbstract (VWA xs) \<and> length x = length xs \<and> (\<forall>i < length xs. xs ! i = VPrim (LU32 (x ! i)))"
+      \<exists>xs. v = VAbstract (VWA (TPrim (Num U32)) xs) \<and> length x = length xs \<and> (\<forall>i < length xs. xs ! i = VPrim (LU32 (x ! i)))"
 end
-(*
+
 overloading
   valRel_WordArrayU64 \<equiv> valRel
 begin
   definition valRel_WordArrayU64: 
     "\<And>\<xi> x v. valRel_WordArrayU64 (\<xi> :: (funtyp,vabstyp) vabsfuns) (x :: (64 word) WordArray) (v :: (funtyp, vabstyp) vval) \<equiv> 
-      \<exists>xs. v = VAbstract (VWA xs) \<and> length x = length xs \<and> (\<forall>i < length xs. xs ! i = VPrim (LU64 (x ! i)))"
+      \<exists>xs. v = VAbstract (VWA (TPrim (Num U64)) xs) \<and> length x = length xs \<and> (\<forall>i < length xs. xs ! i = VPrim (LU64 (x ! i)))"
 end
-*)
+
+
+
 subsection "Shallow Word Array Function Definitions"
 
 overloading
@@ -195,8 +212,9 @@ overloading
   wordarray_get' \<equiv> wordarray_get
 begin
 definition wordarray_get':
- "wordarray_get' (x :: (32 word WordArray, 32 word) RR) \<equiv> (if unat (RR.p2\<^sub>f x) < length (RR.p1\<^sub>f x) then (RR.p1\<^sub>f x) ! unat (RR.p2\<^sub>f x) else 0)" 
+ "wordarray_get' (x :: (('a::len8) word WordArray, 32 word) RR) \<equiv> (if unat (RR.p2\<^sub>f x) < length (RR.p1\<^sub>f x) then (RR.p1\<^sub>f x) ! unat (RR.p2\<^sub>f x) else 0)" 
 end
+
 
 overloading
   wordarray_fold_no_break' \<equiv> wordarray_fold_no_break
@@ -259,39 +277,40 @@ subsubsection "Value Semantics"
     @{term "VWA xs"} means we cannot determine what word array it is meant to represent in the case
     that @{term "xs::(funtyp, vabstyp) vval list"} is empty. Either we need to define a new dataype
     or we modify the current type to include the word type. \<close>
-definition val_wa_length_0
+definition val_wa_length
   where
-  "val_wa_length_0 x y = (\<exists>xs len. x = VAbstract (VWA xs) \<and> y = VPrim (LU32 len) \<and> 
-                                length xs = unat len)" 
+  "val_wa_length x y = (\<exists>xs len ts. x = VAbstract (VWA (TPrim ts) xs) \<and> y = VPrim (LU32 len) \<and> 
+                          is_num_type ts \<and> length xs = unat len)" 
 
-
-definition val_wa_get_0
+definition val_wa_get
   where
-  "val_wa_get_0 x y =
-      (\<exists>xs idx v. x = VRecord [VAbstract (VWA xs), VPrim (LU32 idx)] \<and> y = VPrim (LU32 v) \<and>
-       (unat idx < length xs \<longrightarrow> xs ! unat idx = y) \<and> (\<not> unat idx < length xs \<longrightarrow> v = 0))" 
+  "val_wa_get x y =
+      (\<exists>xs ts idx v. x = VRecord [VAbstract (VWA (TPrim ts) xs), VPrim (LU32 idx)] \<and> is_num_type ts \<and>
+       y = VPrim v \<and> lit_type v = ts \<and> (unat idx < length xs \<longrightarrow> xs ! unat idx = y) \<and> 
+       (\<not> unat idx < length xs \<longrightarrow> (v = LU8 0 \<or> v = LU16 0 \<or> v = LU32 0 \<or> v = LU64 0)))" 
 
-definition val_wa_put2_0
+definition val_wa_put2
   where
-  "val_wa_put2_0 x y =
-      (\<exists>xs idx val. x = VRecord [VAbstract (VWA xs), VPrim (LU32 idx), VPrim (LU32 val)] \<and>
-       y = VAbstract (VWA (xs[unat idx := VPrim (LU32 val)])))" 
+  "val_wa_put2 x y =
+      (\<exists>xs ts idx val. x = VRecord [VAbstract (VWA (TPrim ts) xs), VPrim (LU32 idx), VPrim val] \<and>
+       is_num_type ts \<and> lit_type val = ts \<and>
+       y = VAbstract (VWA (TPrim ts) (xs[unat idx := VPrim val])))" 
 
 
 fun \<xi>m :: "(char list, vatyp) vabsfuns" 
   where
   "\<xi>m x y z = 
-    (if x = ''wordarray_put2_0'' then val_wa_put2_0 y z
-     else (if x = ''wordarray_get_0'' then val_wa_get_0 y z
-           else (if x = ''wordarray_length_0'' then val_wa_length_0 y z
+    (if x = ''wordarray_put2_0'' then val_wa_put2 y z
+     else (if x = ''wordarray_get_0'' then val_wa_get y z
+           else (if x = ''wordarray_length_0'' then val_wa_length y z
                  else False)))" 
 
 fun \<xi>p :: "(char list, vatyp) vabsfuns" 
   where
   "\<xi>p x y z = 
-    (if x = ''wordarray_put2'' then val_wa_put2_0 y z
-     else (if x = ''wordarray_get'' then val_wa_get_0 y z
-           else (if x = ''wordarray_length'' then val_wa_length_0 y z
+    (if x = ''wordarray_put2'' then val_wa_put2 y z
+     else (if x = ''wordarray_get'' then val_wa_get y z
+           else (if x = ''wordarray_length'' then val_wa_length y z
                  else False)))" 
 
 subsection "Level 1 \<xi> Abstractions"
@@ -1263,7 +1282,7 @@ lemma val_wa_foldnb_bod_0p_back_step:
 definition val_wa_foldnb_0
   where
   "val_wa_foldnb_0 x y = (\<exists>xs frm to acc r func. 
-      x = VRecord [VAbstract (VWA xs), VPrim (LU32 frm), VPrim (LU32 to), func, VPrim (LU32 acc),
+      x = VRecord [VAbstract (VWA (TPrim (Num U32)) xs), VPrim (LU32 frm), VPrim (LU32 to), func, VPrim (LU32 acc),
                    VUnit] \<and> y = VPrim (LU32 r) \<and> (\<forall>i < length xs. \<exists>v. xs ! i = VPrim (LU32 v)) \<and>
       (case func of
             VFunction f ts \<Rightarrow> (\<Xi>, [], [option.Some abbreviatedType1] \<turnstile> (App (Fun f ts) (Var 0)) : 
@@ -1280,7 +1299,7 @@ definition val_wa_foldnb_0
 
 definition val_wa_foldnb_0p
   where
-  "val_wa_foldnb_0p x y = (\<exists>fs xs frm to. x = VRecord fs \<and> fs! 0 = VAbstract (VWA xs) \<and>
+  "val_wa_foldnb_0p x y = (\<exists>fs xs frm to. x = VRecord fs \<and> fs! 0 = VAbstract (VWA (TPrim (Num U32)) xs) \<and>
       fs ! 1 = VPrim (LU32 frm) \<and> fs ! 2 = VPrim (LU32 to) \<and> length fs = 6 \<and> 
       (case fs ! 3 of
             VFunction f ts \<Rightarrow> val_wa_foldnb_bod_0p xs (unat frm) (unat to)
