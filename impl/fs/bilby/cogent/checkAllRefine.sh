@@ -19,8 +19,13 @@ export REPO_ROOT="../../../.."
 
 export ISABELLE_IDENTIFIER="BilbyFs2019Refinement"
 
+set -o pipefail
 time isabelle build -d plat/verification \
                     -d $REPO_ROOT \
                     -d $REPO_ROOT/autocorres \
                     -b -o process_output_limit=999 \
                     BilbyFs_AllRefine | tee "bilby-run-$(date +'%F-%H-%M').log"
+isaret=$?
+set +o pipefail
+
+exit $?
