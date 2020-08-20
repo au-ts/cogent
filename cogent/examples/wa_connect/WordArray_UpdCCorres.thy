@@ -63,12 +63,13 @@ lemma well_typed_related_wordarray: "\<And>\<sigma> st x x' a ts s r w.
          clarsimp simp: ptr_add_def mult.commute type_rel_simp val_rel_simp)
   done
 *)
+
 section "Correspondence Lemmas Between Update Semantics and C"
 
 lemma upd_C_wordarray_put2_corres:
   "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
     \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v'; \<Gamma>' ! i = option.Some (prod.fst (prod.snd (\<Xi> ''wordarray_put2_0'')))\<rbrakk>
-    \<Longrightarrow> update_sem_init.corres abs_typing_u abs_repr_u (Generated.state_rel abs_repr_u) (App (AFun ''wordarray_put2_0'' []) (Var i))
+    \<Longrightarrow> update_sem_init.corres wa_abs_typing_u wa_abs_repr (Generated.state_rel wa_abs_repr) (App (AFun ''wordarray_put2_0'' []) (Var i))
          (do x <- main_pp_inferred.wordarray_put2_0' v';
              gets (\<lambda>s. x)
           od)
@@ -85,18 +86,20 @@ lemma upd_C_wordarray_put2_corres:
   apply (subst (asm) lit_type.simps)+
   apply clarsimp
   apply (erule upd.u_t_r_emptyE)
-  apply (erule upd.u_t_p_absE; clarsimp simp: abs_typing_u_def)
+  apply (erule upd.u_t_p_absE; clarsimp simp: wa_abs_typing_u_def)
   apply (case_tac a; clarsimp)
+  apply (case_tac x11; clarsimp)
+  apply (case_tac x5; clarsimp)
   apply (rule conjI)
    apply (monad_eq simp: wordarray_put2_0'_def)
    apply (clarsimp simp: state_rel_def heap_rel_def)
    apply (erule_tac x = "t2_C.arr_C x'" in allE)
    apply (erule_tac x = "values_C (heap_WordArray_u32_C st (t2_C.arr_C x')) +\<^sub>p uint (t2_C.idx_C x')" in allE)
-   apply (clarsimp simp: heap_rel_ptr_def heap_rel_ptr_w32_def abs_repr_u_def is_valid_simp type_rel_simp)
+   apply (clarsimp simp: heap_rel_ptr_def heap_rel_ptr_w32_def wa_abs_repr_def is_valid_simp type_rel_simp)
    apply (erule_tac x = "t2_C.idx_C x'" in allE)+
    apply (clarsimp simp: val_rel_simp heap_simp type_rel_simp)
   apply clarsimp
-  apply (rule_tac x = "\<lambda>l. (if \<exists>len arr. (\<sigma> \<circ> ptr_val \<circ> t2_C.arr_C) x' = option.Some (UAbstract (WAU32 len arr)) \<and> 
+  apply (rule_tac x = "\<lambda>l. (if \<exists>len arr. (\<sigma> \<circ> ptr_val \<circ> t2_C.arr_C) x' = option.Some (UAbstract (UWA (TPrim (Num U32)) len arr)) \<and> 
                                 l = arr + 4 * t2_C.idx_C x' \<and> t2_C.idx_C x' < len 
                             then option.Some (UPrim (LU32 (t2_C.val_C x'))) 
                             else \<sigma> l)" in exI)
@@ -114,7 +117,7 @@ lemma upd_C_wordarray_put2_corres:
    apply (case_tac "idx_C x' < SCAST(32 signed \<rightarrow> 32) (len_C (heap_WordArray_u32_C st (t2_C.arr_C x')))"; 
           drule_tac p = x and uv = uv in all_heap_rel_ptrD; clarsimp simp: is_valid_simp heap_simp)
   apply (erule_tac x = "t2_C.arr_C x'" in allE)
-  apply (clarsimp simp: heap_rel_meta_def abs_repr_u_def type_rel_simp val_rel_simp)
+  apply (clarsimp simp: heap_rel_meta_def wa_abs_repr_def type_rel_simp val_rel_simp)
   apply (monad_eq simp: wordarray_put2_0'_def heap_simp is_valid_simp)
   apply (rule conjI; clarsimp)
    apply (drule_tac p = "values_C (heap_WordArray_u32_C st (t2_C.arr_C x')) +\<^sub>p uint (t2_C.idx_C x')" and 
@@ -131,7 +134,7 @@ lemma upd_C_wordarray_put2_corres:
 lemma upd_C_wordarray_length_corres:
 "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
     \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v'; \<Gamma>' ! i = option.Some (prod.fst (prod.snd (\<Xi> ''wordarray_length_0'')))\<rbrakk>
-    \<Longrightarrow> update_sem_init.corres abs_typing_u abs_repr_u (Generated.state_rel abs_repr_u) (App (AFun ''wordarray_length_0'' []) (Var i))
+    \<Longrightarrow> update_sem_init.corres wa_abs_typing_u wa_abs_repr (Generated.state_rel wa_abs_repr) (App (AFun ''wordarray_length_0'' []) (Var i))
          (do x <- main_pp_inferred.wordarray_length_0' v';
              gets (\<lambda>s. x)
           od)
@@ -142,13 +145,15 @@ lemma upd_C_wordarray_length_corres:
   apply (thin_tac "val_rel (\<gamma> ! i) v'")
   apply (thin_tac "\<Gamma>' ! i = _")
   apply (clarsimp simp: val_rel_simp \<Xi>_def wordarray_length_0_type_def)
-  apply (erule upd.u_t_p_absE; clarsimp simp: abs_typing_u_def)
+  apply (erule upd.u_t_p_absE; clarsimp simp: wa_abs_typing_u_def)
   apply (case_tac a; clarsimp)
+  apply (case_tac x11; clarsimp)
+  apply (case_tac x5; clarsimp)
   apply (rule conjI)
    apply (monad_eq simp: wordarray_length_0'_def)
    apply (clarsimp simp: state_rel_def heap_rel_def)
    apply (erule_tac x = x' in allE)
-   apply (clarsimp simp: heap_rel_ptr_def type_rel_simp abs_repr_u_def is_valid_simp)
+   apply (clarsimp simp: heap_rel_ptr_def type_rel_simp wa_abs_repr_def is_valid_simp)
   apply clarsimp
   apply (rule_tac x = \<sigma> in exI)
   apply (rule conjI)
@@ -156,7 +161,7 @@ lemma upd_C_wordarray_length_corres:
    apply (monad_eq simp: wordarray_length_0'_def)
    apply (clarsimp simp: state_rel_def heap_rel_def)
    apply (erule_tac x = x' in allE)
-   apply (clarsimp simp: heap_rel_ptr_def type_rel_simp abs_repr_u_def heap_simp val_rel_simp)
+   apply (clarsimp simp: heap_rel_ptr_def type_rel_simp wa_abs_repr_def heap_simp val_rel_simp)
   apply (monad_eq simp: wordarray_length_0'_def)
   done
 
@@ -164,7 +169,7 @@ lemma upd_C_wordarray_length_corres:
 lemma upd_C_wordarray_get_corres:
 "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
     \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v'; \<Gamma>' ! i = option.Some (prod.fst (prod.snd (\<Xi> ''wordarray_get_0'')))\<rbrakk>
-    \<Longrightarrow> update_sem_init.corres abs_typing_u abs_repr_u (Generated.state_rel abs_repr_u) (App (AFun ''wordarray_get_0'' []) (Var i))
+    \<Longrightarrow> update_sem_init.corres wa_abs_typing_u wa_abs_repr (Generated.state_rel wa_abs_repr) (App (AFun ''wordarray_get_0'' []) (Var i))
          (do x <- main_pp_inferred.wordarray_get_0' v';
              gets (\<lambda>s. x)
           od)
@@ -179,17 +184,19 @@ lemma upd_C_wordarray_get_corres:
   apply (erule upd.u_t_r_consE; clarsimp)+
   apply (erule upd.u_t_r_emptyE)
   apply (erule upd.u_t_primE; subst (asm) lit_type.simps; clarsimp)
-  apply (erule upd.u_t_p_absE; clarsimp simp: abs_typing_u_def)
+  apply (erule upd.u_t_p_absE; clarsimp simp: wa_abs_typing_u_def)
   apply (case_tac a; clarsimp)
+  apply (case_tac x11; clarsimp)
+  apply (case_tac x5; clarsimp)
   apply (rule conjI)
    apply (monad_eq simp: wordarray_get_0'_def)
    apply (clarsimp simp: state_rel_def heap_rel_def heap_rel_ptr_meta heap_rel_ptr_w32_meta)
-   apply (drule_tac p = "t1_C.p1_C x'" and uv = "UAbstract (WAU32 x11 x12)" in all_heap_rel_ptrD; 
-          clarsimp simp: type_rel_simp abs_repr_u_def val_rel_simp is_valid_simp heap_simp)
+   apply (drule_tac p = "t1_C.p1_C x'" and uv = "UAbstract (UWA (TPrim (Num U32)) x12 x13)" in all_heap_rel_ptrD; 
+          clarsimp simp: type_rel_simp wa_abs_repr_def val_rel_simp is_valid_simp heap_simp)
    apply (drule not_le_imp_less)
    apply (erule_tac x = "t1_C.p2_C x'" in allE; clarsimp)
    apply (drule_tac p = "values_C (heap_WordArray_u32_C st (t1_C.p1_C x')) +\<^sub>p uint (t1_C.p2_C x')" and
-                   uv = "UPrim (LU32 x)" in all_heap_rel_ptrD; simp add: type_rel_simp)
+                   uv = "UPrim x" in all_heap_rel_ptrD; simp add: type_rel_simp)
   apply clarsimp
   apply (rule_tac x = \<sigma> in exI)
   apply (rule conjI)
@@ -197,10 +204,10 @@ lemma upd_C_wordarray_get_corres:
    apply (erule_tac x = "t1_C.p2_C x'" in allE)
    apply (monad_eq simp: wordarray_get_0'_def word_less_nat_alt word_le_nat_alt)
    apply (clarsimp simp: state_rel_def heap_rel_def heap_rel_ptr_meta heap_rel_ptr_w32_meta)
-   apply (drule_tac p = "t1_C.p1_C x'" and uv = "UAbstract (WAU32 x11 x12)" in all_heap_rel_ptrD; 
-          clarsimp simp: type_rel_simp abs_repr_u_def val_rel_simp is_valid_simp heap_simp)
+   apply (drule_tac p = "t1_C.p1_C x'" and uv = "UAbstract (UWA (TPrim (Num U32)) x12 x13)" in all_heap_rel_ptrD; 
+          clarsimp simp: type_rel_simp wa_abs_repr_def val_rel_simp is_valid_simp heap_simp)
    apply (drule_tac p = "values_C (heap_WordArray_u32_C st (t1_C.p1_C x')) +\<^sub>p uint (t1_C.p2_C x')" and
-                   uv = "UPrim (LU32 x)" in all_heap_rel_ptrD;
+                   uv = "UPrim x" in all_heap_rel_ptrD;
           clarsimp simp: type_rel_simp val_rel_simp)
   apply (monad_eq simp: wordarray_get_0'_def)
   apply blast
@@ -210,7 +217,7 @@ lemma
 " \<And>v' i \<gamma> \<Gamma>' \<sigma> s.
     \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v';
      \<Gamma>' ! i = option.Some (prod.fst (prod.snd (\<Xi> ''wordarray_fold_no_break_0'')))\<rbrakk>
-    \<Longrightarrow> update_sem_init.corres abs_typing_u abs_repr_u (Generated.state_rel abs_repr_u)
+    \<Longrightarrow> update_sem_init.corres wa_abs_typing_u wa_abs_repr (Generated.state_rel wa_abs_repr)
          (App (AFun ''wordarray_fold_no_break_0'' []) (Var i)) (do x <- main_pp_inferred.wordarray_fold_no_break_0' v';
 gets (\<lambda>s. x)
                                                                 od)
@@ -387,13 +394,13 @@ gets (\<lambda>s. x)
                         (case func of
                             UFunction f ts \<Rightarrow> (\<Xi>, [], [option.Some abbreviatedType1] \<turnstile> 
                                                (App (Fun f ts) (Var 0)) : TPrim (Num U32)) \<and>
-                                              upd_wa_foldnb_bod_0 \<sigma> (ptr_val (t5_C.arr_C x')) 
+                                              upd_wa_foldnb_bod_0 \<xi>0 \<sigma> (ptr_val (t5_C.arr_C x')) 
                                                 (t5_C.frm_C x') b (Fun f ts) 
                                                 (UPrim (LU32 (t5_C.acc_C x'))) 
                                                 (UUnit, {}) (\<sigma>, UPrim (LU32 (t3_C.acc_C a)))
                           | UAFunction f ts \<Rightarrow> (\<Xi>, [], [option.Some abbreviatedType1] \<turnstile> 
                                                 (App (AFun f ts) (Var 0)) : TPrim (Num U32)) \<and>
-                                               upd_wa_foldnb_bod_0 \<sigma> (ptr_val (t5_C.arr_C x')) 
+                                               upd_wa_foldnb_bod_0 \<xi>0 \<sigma> (ptr_val (t5_C.arr_C x')) 
                                                 (t5_C.frm_C x') b (AFun f ts) 
                                                 (UPrim (LU32 (t5_C.acc_C x'))) 
                                                 (UUnit, {}) (\<sigma>, UPrim (LU32 (t3_C.acc_C a)))
@@ -424,25 +431,28 @@ gets (\<lambda>s. x)
                              FUN_ENUM_wordarray_length_u32_def
                              FUN_ENUM_wordarray_put2_u32_def)
        apply (thin_tac "upd.uval_typing _ _ _ _ _ _")
-       apply (clarsimp simp: abs_typing_u_def)
+       apply (clarsimp simp: wa_abs_typing_u_def)
        apply (case_tac a; clarsimp)
+       apply (case_tac x11; clarsimp)
+       apply (case_tac x5; clarsimp)
        apply (erule_tac x = b in allE)
        apply (thin_tac "_ \<in> state_rel")
        apply (clarsimp simp: state_rel_def heap_rel_def heap_rel_ptr_meta heap_rel_ptr_w32_meta)
-       apply (drule_tac p = "t5_C.arr_C x'" and uv = "UAbstract (WAU32 x11 x12)" in all_heap_rel_ptrD; 
-              clarsimp simp: type_rel_simps is_valid_simp heap_simp abs_repr_u_def val_rel_simps) 
+       apply (drule_tac p = "t5_C.arr_C x'" and uv = "UAbstract (UWA (TPrim (Num U32)) x12 x13)" in all_heap_rel_ptrD; 
+              clarsimp simp: type_rel_simps is_valid_simp heap_simp wa_abs_repr_def val_rel_simps) 
        apply (drule_tac p = "values_C (heap_WordArray_u32_C s (t5_C.arr_C x')) +\<^sub>p uint b" and 
-                       uv = "UPrim (LU32 xa)" in all_heap_rel_ptrD; clarsimp simp: type_rel_simps)
+                       uv = "UPrim xa" in all_heap_rel_ptrD; clarsimp simp: type_rel_simps)
        apply (rule conjI; clarsimp)
         apply (rule conjI)
          apply (rule_tac r = "UPrim (LU32 (t3_C.acc_C aa))" and 
                        len = "(SCAST(32 signed \<rightarrow> 32) (len_C (heap_WordArray_u32_C s (t5_C.arr_C x'))))" and
                        arr = "(ptr_val (values_C (heap_WordArray_u32_C s (t5_C.arr_C x'))))" and
-                         v = xa and \<sigma> = \<sigma> and \<sigma>' = \<sigma> and \<sigma>'' = \<sigma> and ?w1.0 = "{}" and 
+                         v = "UPrim xa" and \<sigma> = \<sigma> and \<sigma>' = \<sigma> and \<sigma>'' = \<sigma> and ?w1.0 = "{}" and 
                          ?w2.0 = "{}"
                        in upd_wa_foldnb_bod_0_step; simp?)
-           apply (clarsimp simp: frame_def)
-          apply (rule u_sem_app)
+           apply clarsimp
+          apply (clarsimp simp: frame_def)
+         apply (rule u_sem_app)
            apply (rule u_sem_fun)
           apply (rule u_sem_var)
          apply (subst mul_def; clarsimp)
@@ -457,21 +467,21 @@ gets (\<lambda>s. x)
          apply clarsimp
          apply (cut_tac \<xi> = \<xi>0 and 
                         \<gamma> = "[UUnit, 
-                              URecord [(UPrim (LU32 xa), RPrim (Num U32)),
+                              URecord [(UPrim xa, RPrim (Num U32)),
                                  (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), (UUnit, RUnit)],
                               UPrim (LU32 (t3_C.acc_C aa)),
-                              URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
+                              URecord [(UPrim xa, RPrim (Num U32)), 
                                  (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), (UUnit, RUnit)],
-                              UPrim (LU32 xa),
-                              URecord [(UPrim (LU32 xa), RPrim (Num U32)),
+                              UPrim xa,
+                              URecord [(UPrim xa, RPrim (Num U32)),
                                  (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), (UUnit, RUnit)],
-                              URecord [(UPrim (LU32 xa), RPrim (Num U32)),
+                              URecord [(UPrim xa, RPrim (Num U32)),
                                  (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)),
                                  (UUnit, RUnit)]]" and
                         \<sigma> = \<sigma> and 
                        \<sigma>' = \<sigma> and
                         p = "Times U32" and
-                       as = "[Var 4, Var 2]"  in u_sem_prim)
+                       as = "[Var 4, Var 2]" in u_sem_prim)
           apply (rule u_sem_all_cons)
            apply (rule u_sem_var)
           apply (rule u_sem_all_cons)
@@ -490,9 +500,10 @@ gets (\<lambda>s. x)
         apply (rule_tac r = "UPrim (LU32 (t3_C.acc_C aa))" and 
                       len = "(SCAST(32 signed \<rightarrow> 32) (len_C (heap_WordArray_u32_C s (t5_C.arr_C x'))))" and
                       arr = "(ptr_val (values_C (heap_WordArray_u32_C s (t5_C.arr_C x'))))" and
-                        v = xa and \<sigma> = \<sigma> and \<sigma>' = \<sigma> and \<sigma>'' = \<sigma> and ?w1.0 = "{}" and
+                        v = "UPrim xa" and \<sigma> = \<sigma> and \<sigma>' = \<sigma> and \<sigma>'' = \<sigma> and ?w1.0 = "{}" and
                         ?w2.0 = "{}"
                       in upd_wa_foldnb_bod_0_step; simp?)
+          apply clarsimp
          apply (clarsimp simp: frame_def)
         apply (rule u_sem_app)
           apply (rule u_sem_fun)
@@ -509,15 +520,15 @@ gets (\<lambda>s. x)
         apply clarsimp
         apply (cut_tac \<xi> = \<xi>0 and 
                        \<gamma> = "[UUnit, 
-                             URecord [(UPrim (LU32 xa), RPrim (Num U32)),
+                             URecord [(UPrim xa, RPrim (Num U32)),
                                 (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), (UUnit, RUnit)],
                              UPrim (LU32 (t3_C.acc_C aa)),
-                             URecord [(UPrim (LU32 xa), RPrim (Num U32)), 
+                             URecord [(UPrim xa, RPrim (Num U32)), 
                                 (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), (UUnit, RUnit)],
-                             UPrim (LU32 xa),
-                             URecord [(UPrim (LU32 xa), RPrim (Num U32)),
+                             UPrim xa,
+                             URecord [(UPrim xa, RPrim (Num U32)),
                                 (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)), (UUnit, RUnit)],
-                             URecord [(UPrim (LU32 xa), RPrim (Num U32)),
+                             URecord [(UPrim xa, RPrim (Num U32)),
                                 (UPrim (LU32 (t3_C.acc_C aa)), RPrim (Num U32)),
                                 (UUnit, RUnit)]]" and
                        \<sigma> = \<sigma> and 
@@ -538,11 +549,13 @@ gets (\<lambda>s. x)
        apply (rule conjI)
         apply (meson min_less_iff_conj word_not_le)
        apply (metis (no_types, hide_lams) add.commute diff_less_mono2 max_word_max unat_mono word_Suc_le word_le_less_eq word_less_nat_alt word_not_le)
-      apply (case_tac a; clarsimp simp: abs_typing_u_def)
+      apply (case_tac a; clarsimp simp: wa_abs_typing_u_def)
+      apply (case_tac x11; clarsimp)
+      apply (case_tac x5; clarsimp)
       apply (thin_tac "_ \<in> state_rel")
       apply (clarsimp simp: state_rel_def heap_rel_def heap_rel_ptr_meta heap_rel_ptr_w32_meta)
-      apply (drule_tac p = "t5_C.arr_C x'" and uv = "UAbstract (WAU32 x11 x12)" in all_heap_rel_ptrD; 
-             clarsimp simp: type_rel_simps is_valid_simp heap_simp abs_repr_u_def val_rel_simps) 
+      apply (drule_tac p = "t5_C.arr_C x'" and uv = "UAbstract (UWA (TPrim (Num U32)) x12 x13)" in all_heap_rel_ptrD; 
+             clarsimp simp: type_rel_simps is_valid_simp heap_simp wa_abs_repr_def val_rel_simps) 
       apply (thin_tac "cogent_function_val_rel _ _")
       apply (thin_tac "upd.uval_typing _ _ _ _ _ _")
       apply clarsimp
@@ -597,10 +610,12 @@ gets (\<lambda>s. x)
    apply clarsimp
    apply (subst upd_wa_foldnb_bod_0.simps)
    apply clarsimp
-   apply (clarsimp simp: state_rel_def heap_rel_def heap_rel_ptr_meta abs_typing_u_def)
+   apply (clarsimp simp: state_rel_def heap_rel_def heap_rel_ptr_meta wa_abs_typing_u_def)
    apply (case_tac a; clarsimp)
-   apply (drule_tac p = "t5_C.arr_C x'" and uv = "UAbstract (WAU32 x11 x12)" in all_heap_rel_ptrD;
-          clarsimp simp: abs_repr_u_def type_rel_simps is_valid_simp)
+   apply (case_tac x11; clarsimp)
+   apply (case_tac x5; clarsimp)
+   apply (drule_tac p = "t5_C.arr_C x'" and uv = "UAbstract (UWA (TPrim (Num U32)) x12 x13)" in all_heap_rel_ptrD;
+          clarsimp simp: wa_abs_repr_def type_rel_simps is_valid_simp)
    apply (thin_tac "upd.uval_typing _ _ _ _ _ _")
    apply (thin_tac "is_valid_WordArray_u32_C _ _")
    apply (thin_tac "val_rel _ _")

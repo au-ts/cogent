@@ -50,7 +50,7 @@ begin
 definition type_rel_WordArray_u32_C_def: 
   "type_rel typ (_ :: WordArray_u32_C itself) \<equiv> typ = RCon ''WordArray'' [RPrim (Num U32)]"
 definition val_rel_WordArray_u32_C_def:
-  "val_rel uv (x :: WordArray_u32_C) \<equiv> (\<exists>len arr. uv = UAbstract (WAU32 len arr) \<and> 
+  "val_rel uv (x :: WordArray_u32_C) \<equiv> (\<exists>len arr. uv = UAbstract (UWA (TPrim (Num U32)) len arr) \<and> 
                                                   len = (SCAST(32 signed \<rightarrow> 32)(len_C x)) \<and>
                                                   arr = ptr_val (values_C x))"
 instance ..
