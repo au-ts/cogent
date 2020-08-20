@@ -1445,10 +1445,9 @@ lemma typing_sig_refl:
 
 
 section {* Elementary Constraint Generation Rules (Fig 3.4 3.10 3.13) *}
-inductive constraint_gen_elab :: "cg_ctx \<Rightarrow> nat \<Rightarrow> 'fnname expr \<Rightarrow> type \<Rightarrow> cg_ctx \<Rightarrow> nat \<Rightarrow> constraint \<Rightarrow> 'fnname expr \<Rightarrow> bool"
-          ("_,_ \<turnstile> _ : _ \<leadsto> _,_ | _ | _" [30,0,0,0,0,0,0,30] 60) 
-      and constraint_gen_elab_all :: "cg_ctx \<Rightarrow> nat \<Rightarrow> 'fnname expr list \<Rightarrow> type list \<Rightarrow> cg_ctx \<Rightarrow> nat \<Rightarrow> constraint \<Rightarrow> 'fnname expr list \<Rightarrow> bool"
-          ("_,_ \<turnstile>* _ : _ \<leadsto> _,_ | _ | _" [30,0,0,0,0,0,0,30] 60) where
+inductive constraint_gen_elab :: "cg_ctx \<Rightarrow> nat \<Rightarrow> 'fnname expr \<Rightarrow> type \<Rightarrow> 
+                                  cg_ctx \<Rightarrow> nat \<Rightarrow> constraint \<Rightarrow> 'fnname expr \<Rightarrow> bool"
+          ("_,_ \<turnstile> _ : _ \<leadsto> _,_ | _ | _" [30,0,0,0,0,0,0,30] 60) where
 cg_var1: 
   "\<lbrakk> G!i = (\<rho>,0)
    ; i < length G 
@@ -1541,7 +1540,8 @@ cg_var1:
    ; \<beta> = TUnknown n1
    ; G1,Suc(Suc n1) \<turnstile> e1 : TVariant [(nm, \<beta>, Unchecked)] (Some \<alpha>) \<leadsto> G2,n2 | C1 | e1'
    ; ((\<beta>, 0) # G2),n2 \<turnstile> e2 : \<tau> \<leadsto> ((\<beta>, m) # G3),n3 | C2 |e2'
-   ; (((TVariant [(nm, \<beta>, Checked)] (Some \<alpha>)), 0) # G2),n3 \<turnstile> e3 : \<tau> \<leadsto> (((TVariant [(nm, \<beta>, Checked)] (Some \<alpha>)), l) # G3'),n4 | C3 | e3'
+   ; (((TVariant [(nm, \<beta>, Checked)] (Some \<alpha>)), 0) # G2),n3 \<turnstile> e3 : \<tau> \<leadsto> 
+     (((TVariant [(nm, \<beta>, Checked)] (Some \<alpha>)), l) # G3'),n4 | C3 | e3'
    ; G3 \<Join> G3' \<leadsto> G4 | C4
    ; if m = 0 then C5 = CtDrop \<beta> else C5 = CtTop
    ; if l = 0 then C6 = CtDrop (TVariant [(nm, \<beta>, Checked)] (Some \<alpha>)) else C6 = CtTop
@@ -1575,7 +1575,7 @@ cg_var1:
    ; C6 = CtConj (CtConj (CtConj (CtConj C1 C2) C3) C4) C5
    \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Take e1 nm e2 : \<tau> \<leadsto> G3,n3 | C6 | Sig (Take e1' nm e2') \<tau>"
 | cg_put:
-   "\<lbrakk> \<beta> = TUnknown n1
+  "\<lbrakk> \<beta> = TUnknown n1
     ; \<alpha> = Some (Suc n1)
     ; \<gamma> = SUnknown (Suc (Suc n1))
     ; G1,Suc(Suc(Suc n1)) \<turnstile> e1 : TRecord [(nm, \<beta>, Taken)] \<alpha> \<gamma> \<leadsto> G2,n2 | C1 | e1'
@@ -1584,18 +1584,120 @@ cg_var1:
     ; C4 = CtNotRead \<gamma>
     ; C5 = CtConj (CtConj (CtConj C1 C2) C3) C4
     \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Put e1 nm e2 : \<tau> \<leadsto> G3,n3 | C5 | Sig (Put e1' nm e2') \<tau>" 
-| cg_struct:
-   "\<lbrakk> \<alpha>s = map (TUnknown \<circ> (+) n1) [0..<length nms]
-    ; G1,n1 + (length nms) \<turnstile>* es : \<alpha>s \<leadsto> G2,n2 | C | es'
-    ; C' = CtConj C (CtSub (TRecord (map2 (\<lambda>nm \<alpha>. (nm, \<alpha>, Present)) nms \<alpha>s) None Unboxed) \<tau>) 
+| cg_struct_nil:
+  "\<lbrakk> C = CtConj CtTop (CtSub (TRecord [] None Unboxed) \<tau>) 
+   \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Struct [] [] : \<tau> \<leadsto> G2,n2 | C | Sig (Struct [] []) \<tau>"
+ | cg_struct:
+   "\<lbrakk> nms \<noteq> []
+    ; \<alpha>s = map (TUnknown \<circ> (+) n1) [0..<length nms]
+    ; length Gs = Suc (length nms)
+    ; hd Gs = G1 \<and> last Gs = G2 
+    ; length ns = Suc (length nms)
+    ; hd ns = (n1 + length nms) \<and> last ns = n2
+    ; length Cs = length nms
+    ; \<forall>i < length nms. (Gs ! i),(ns ! i) \<turnstile> (es ! i) : (\<alpha>s ! i) \<leadsto> 
+                       (Gs ! (Suc i)),(ns ! (Suc i)) | (Cs ! i) | (es' ! i)
+    ; C' = CtConj (foldr CtConj Cs CtTop)
+                  (CtSub (TRecord (List.map2 (\<lambda>nm \<alpha>. (nm, \<alpha>, Present)) nms \<alpha>s) None Unboxed) \<tau>) 
     \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Struct nms es : \<tau> \<leadsto> G2,n2 | C' | Sig (Struct nms es') \<tau>"
-| cg_all_empty:
+
+inductive constraint_gen_elab_all :: "cg_ctx \<Rightarrow> nat \<Rightarrow> 'fnname expr list \<Rightarrow> type list \<Rightarrow> 
+                                      cg_ctx \<Rightarrow> nat \<Rightarrow> constraint \<Rightarrow> 'fnname expr list \<Rightarrow> bool"
+          ("_,_ \<turnstile>* _ : _ \<leadsto> _,_ | _ | _" [30,0,0,0,0,0,0,30] 60) where
+cg_all_empty:
    "G,n \<turnstile>* [] : [] \<leadsto> G,n | CtTop | []"
 | cg_all_cons:
    "\<lbrakk> G1,n1 \<turnstile> e : \<tau> \<leadsto> G2,n2 | C1 | e'
     ; G2,n2 \<turnstile>* es : \<tau>s \<leadsto> G3,n3 | C2 | es'
     ; C3 = CtConj C1 C2
     \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile>* (e # es) : (\<tau> # \<tau>s) \<leadsto> G3,n3 | C3 | e' # es'"
+
+lemma cg_gen_elab_all_len:
+  "G,n \<turnstile>* es : \<tau>s \<leadsto> G',n' | C | es' \<Longrightarrow> length es = length \<tau>s \<and> length es = length es'"
+  by (induct rule: constraint_gen_elab_all.induct; simp) 
+
+lemma cg_struct_equiv_def:
+  assumes "\<alpha>s = map (TUnknown \<circ> (+) n1) [0..<length nms]"
+    and "G1,(n1 + length nms) \<turnstile>* es : \<alpha>s \<leadsto> G2,n2 | C | es'"
+    and "C' = CtConj C (CtSub (TRecord (List.map2 (\<lambda>nm \<alpha>. (nm, \<alpha>, Present)) nms \<alpha>s) None Unboxed) \<tau>)"
+  shows "G1,n1 \<turnstile> Struct nms es : \<tau> \<leadsto> G2,n2 | C' | Sig (Struct nms es') \<tau>"
+proof (cases "length nms = 0")
+  case True
+  then have "nms = []" "es = []" "es' = []"
+    using assms cg_gen_elab_all_len by force+
+  then moreover have "C = CtTop"
+    using assms constraint_gen_elab_all.cases by blast
+  ultimately show ?thesis
+    using cg_struct_nil assms by force
+next
+  case False
+  have nms_es_length: "length nms = length es"
+    using assms cg_gen_elab_all_len by simp
+  {
+    fix G n es \<tau>s G' n' C es'
+    assume cg_gen: "G,n \<turnstile>* es : \<tau>s \<leadsto> G',n' | C | es'" 
+    have "\<exists>Gs ns Cs. length Gs = Suc (length es) \<and> hd Gs = G \<and> last Gs = G' \<and>
+                     length ns = Suc (length es) \<and> hd ns = n \<and> last ns = n' \<and>
+                     length Cs = length es \<and> (\<forall>i < length es. 
+          (Gs ! i),(ns ! i) \<turnstile> es ! i : \<tau>s ! i \<leadsto> (Gs ! (Suc i)),(ns ! (Suc i)) | Cs ! i | es' ! i) \<and>
+                     C = foldr CtConj Cs CtTop"
+      using cg_gen
+    proof (induct rule: constraint_gen_elab_all.induct)
+      case (cg_all_empty G n)
+      then show ?case using exI[where x="[G]"] exI[where x="[n]"] exI[where x="[]"] by force
+    next
+      case (cg_all_cons G1 n1 e \<tau> G2 n2 C1 e' es \<tau>s G3 n3 C2 es' C3)
+      obtain Gs ns Cs where props: "length Gs = Suc (length es)" "hd Gs = G2" "last Gs = G3"
+                                   "length ns = Suc (length es)" "hd ns = n2" "last ns = n3"
+                                   "length Cs = length es" 
+                                   "(\<forall>i<length es. (Gs ! i),(ns ! i) \<turnstile> (es ! i) : (\<tau>s ! i) \<leadsto> 
+                                    (Gs ! (Suc i)),(ns ! (Suc i)) | (Cs ! i) | (es' ! i))"
+                                   "C2 = foldr CtConj Cs CtTop"
+        using cg_all_cons by blast
+      obtain Gs' where Gs'_def: "Gs' = G1 # Gs" by force
+      obtain ns' where ns'_def: "ns' = n1 # ns" by force
+      obtain Cs' where Cs'_def: "Cs' = C1 # Cs" by force
+      have "length Gs' = Suc (length (e # es))" "hd Gs' = G1" "last Gs' = G3"
+        using props Gs'_def by force+
+      moreover have "length ns' = Suc (length (e # es))" "hd ns' = n1" "last ns' = n3"
+        using props ns'_def by force+
+      moreover have "length Cs' = length (e # es)"
+        using props Cs'_def by force
+      moreover have "\<forall>i < length (e # es). (Gs' ! i),(ns' ! i) \<turnstile> ((e # es) ! i) : ((\<tau> # \<tau>s) ! i) \<leadsto> 
+                                   (Gs' ! (Suc i)),(ns' ! (Suc i)) | (Cs' ! i) | ((e' # es') ! i)"
+      proof -
+        {
+          fix i :: nat
+          assume i_size: "i < length (e # es)"
+          have "(Gs' ! i),(ns' ! i) \<turnstile> ((e # es) ! i) : ((\<tau> # \<tau>s) ! i) \<leadsto> 
+              (Gs' ! (Suc i)),(ns' ! (Suc i)) | (Cs' ! i) | ((e' # es') ! i)"
+          proof (cases "i = 0")
+            case True
+            show ?thesis
+              using True cg_all_cons Gs'_def ns'_def Cs'_def props 
+              by (metis Suc_length_conv list.sel(1) nth_Cons_0 nth_Cons_Suc)
+          next
+            case False
+            then show ?thesis
+              using Cs'_def Gs'_def i_size less_Suc_eq_0_disj ns'_def props by auto
+          qed
+        } then show ?thesis by blast
+      qed
+      moreover have "C3 = foldr CtConj Cs' CtTop"
+        using Cs'_def props cg_all_cons by simp
+      ultimately show ?case by blast
+    qed
+  }
+  then obtain Gs ns Cs where props: "length Gs = Suc (length nms)" "hd Gs = G1" "last Gs = G2"
+                                    "length ns = Suc (length nms)" "hd ns = n1 + length nms" 
+                                    "last ns = n2" "length Cs = length nms" 
+                                    "(\<forall>i < length nms. (Gs ! i),(ns ! i) \<turnstile> (es ! i) : (\<alpha>s ! i) \<leadsto> 
+                                     (Gs ! (Suc i)),(ns ! (Suc i)) | (Cs ! i) | (es' ! i))"
+                                    "C = foldr CtConj Cs CtTop"
+    using nms_es_length assms by metis
+  then show ?thesis 
+    using assms False cg_struct by blast
+qed
 
 lemma cg_num_fresh_nondec:
   assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
