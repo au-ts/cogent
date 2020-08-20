@@ -228,8 +228,17 @@ shallowExpr (TE _ (ArrayMap2 ((v1, v2), fbody) (arr1,arr2))) = do
   if tuples then return $ mkApp (mkId "map2") [f, mkPair arr1' arr2']
             else shallowMaker (exprType fbody)
                               [("p1" ++ subSymStr "f", arr1), ("p2" ++ subSymStr "f", arr2)]
-shallowExpr (TE _ (ArrayTake _ arr idx e)) = __todo "shallowExpr: array take"
-shallowExpr (TE _ (ArrayPut arr idx val)) = __todo "shallowExpr: array put"
+shallowExpr (TE _ (ArrayTake n12 arr idx e)) = do
+  idx' <- mkApp (mkId "unat") <$> mapM shallowExpr [idx]
+  let nth' = mkApp (mkId "nth'") [idx']
+  mkTake n12 arr nth' e
+shallowExpr (TE _ (ArrayPut arr idx val)) = do
+  idx' <- mkApp (mkId "unat") <$> mapM shallowExpr [idx]
+  earr <- shallowExpr arr
+  eval <- shallowExpr val
+  return $ mkApp (mkId "list_update") [earr, idx', eval]
+-- list_update :: "'a list ⇒ nat ⇒ 'a ⇒ 'a list"
+
 #endif
 shallowExpr (TE _ (Let nm e1 e2)) = shallowLet nm e1 e2
 shallowExpr (TE _ (LetBang vs nm e1 e2)) = shallowLet nm e1 e2
@@ -283,17 +292,22 @@ shallowExpr (TE t (Esac e)) = do
   pure $ mkApp (mkStr ["case_",tn]) $ es ++ [e']
 shallowExpr (TE _ (Split (n1,n2) e1 e2)) = mkApp <$> mkLambdaE [mkPrettyPair n1 n2] e2 <*> mapM shallowExpr [e1]
 shallowExpr (TE _ (Member rec fld)) = shallowExpr rec >>= \e -> shallowGetter rec fld e
-shallowExpr (TE _ (Take (n1,n2) rec fld e)) = do
-  erec <- shallowExpr rec
+shallowExpr (TE _ (Take n12 rec fld e)) = do
   efield <- mkId <$> getRecordFieldName (exprType rec) fld
-  let take = mkApp (mkId $ "take" ++ subSymStr "cogent") [erec, efield]
-      pp = mkPrettyPair n1 n2
-  mkLet pp take <$> shallowExpr e
+  mkTake n12 rec efield e
 shallowExpr (TE _ (Put rec fld e)) = shallowSetter rec fld e
 shallowExpr (TE _ (Promote ty e)) = shallowExpr e
 shallowExpr (TE _ (Cast    (TPrim pt) (TE _ (ILit n _)))) = pure $ shallowILit n pt
 shallowExpr (TE _ (Cast    (TPrim pt) e)) =
   TermWithType <$> (mkApp (mkId "ucast") <$> ((:[]) <$> shallowExpr e)) <*> pure (shallowPrimType pt)
+
+mkTake :: (Show b) => (VarName, VarName) -> TypedExpr t v VarName b -> Term ->
+          TypedExpr t ('Suc ('Suc v)) VarName b -> SG Term
+mkTake (n1, n2) main accessor e = do
+  erec <- shallowExpr main
+  let take = mkApp (mkId $ "take" ++ subSymStr "cogent") [erec, accessor]
+      pp = mkPrettyPair n1 n2
+  mkLet pp take <$> shallowExpr e
 
 -- | @'mkL' nm t1 t2@:
 --
