@@ -16,6 +16,9 @@ theory ShallowUtil
     "Cogent.Util"
 begin
 
+definition nth' :: "nat \<Rightarrow> 'a list \<Rightarrow> 'a"
+  where "nth' n l = l ! n"
+
 definition
   fun_app :: "('a \<Rightarrow> 'b) \<Rightarrow> 'a \<Rightarrow> 'b" (infixr "$" 10)
 where
