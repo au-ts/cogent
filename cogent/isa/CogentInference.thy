@@ -1294,9 +1294,7 @@ lemma weak_keep_refl: "weakening_comp K (Some \<tau>) (Some \<rho>) \<Longrighta
 
 section {* Typing Rules (Fig 3.3 3.8 3.13) *}
 inductive typing :: "axm_set \<Rightarrow> ctx \<Rightarrow> 'fnname expr \<Rightarrow> type \<Rightarrow> bool"
-          ("_ \<ddagger> _ \<turnstile> _ : _" [40,0,0,40] 60)
-      and typing_all :: "axm_set \<Rightarrow> ctx \<Rightarrow> 'fnname expr list \<Rightarrow> type list \<Rightarrow> bool"
-          ("_ \<ddagger> _ \<turnstile>* _ : _" [40,0,0,40] 60) where
+          ("_ \<ddagger> _ \<turnstile> _ : _" [40,0,0,40] 60) where
 typing_var:
   "\<lbrakk> A \<turnstile> \<Gamma>  \<leadsto>w singleton (length \<Gamma>) i \<tau>
    ; i < length \<Gamma>
@@ -1406,7 +1404,11 @@ typing_var:
   "\<lbrakk> distinct (map fst fs)
    ; nms = map fst fs
    ; \<forall>i < length fs. (snd \<circ> snd) (fs ! i) = Present
-   ; A \<ddagger> \<Gamma> \<turnstile>* es : map (fst \<circ> snd) fs
+   ; length \<Gamma>1s = length nms
+   ; \<forall>i < length \<Gamma>1s. A \<ddagger> (\<Gamma>s ! i) \<turnstile> (es ! i) : (fst \<circ> snd) (fs ! i)
+   ; length \<Gamma>2s = Suc (length nms)
+   ; \<forall>i < length \<Gamma>2s - 1. A \<turnstile> (\<Gamma>2s ! i) \<leadsto> (\<Gamma>1s ! i) \<box> (\<Gamma>2s ! (Suc i))
+   ; hd \<Gamma>2s = \<Gamma> \<and> A \<turnstile> (last \<Gamma>2s) \<leadsto>w (empty (length (last \<Gamma>2s)))
    ; \<tau> = TRecord fs None Unboxed
    \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Struct nms es : \<tau>"
 | typing_put:
@@ -1431,13 +1433,83 @@ typing_var:
    ; A \<ddagger> (Some (record_nth_taken i (TRecord fs None s))) # (Some ((fst \<circ> snd) (fs ! i))) 
                                                          # \<Gamma>2 \<turnstile> e2 : \<tau>
    \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Take e1 nm e2 : \<tau>"
-| typing_all_empty:
-  "A \<turnstile> \<Gamma> \<leadsto>w [] \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile>* [] : []"
+
+inductive typing_all :: "axm_set \<Rightarrow> ctx \<Rightarrow> 'fnname expr list \<Rightarrow> type list \<Rightarrow> bool"
+          ("_ \<ddagger> _ \<turnstile>* _ : _" [40,0,0,40] 60) where
+typing_all_empty:
+  "A \<turnstile> \<Gamma> \<leadsto>w (empty (length \<Gamma>)) \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile>* [] : []"
 | typing_all_cons:
   "\<lbrakk> A \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 \<box> \<Gamma>2
    ; A \<ddagger> \<Gamma>1 \<turnstile> e : \<tau>
-   ; A \<ddagger> \<Gamma>2 \<turnstile>* es : ts
-   \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile>* e # es : t # ts" 
+   ; A \<ddagger> \<Gamma>2 \<turnstile>* es : \<tau>s 
+   \<rbrakk> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile>* e # es : \<tau> # \<tau>s" 
+
+lemma typing_all_len:
+  "A \<ddagger> \<Gamma> \<turnstile>* es : \<tau>s \<Longrightarrow> length es = length \<tau>s"
+  by (induct rule: typing_all.induct; simp)
+
+lemma typing_struct_equiv_def:
+  assumes "distinct (map fst fs)"
+    and "nms = map fst fs"
+    and "\<forall>i < length fs. (snd \<circ> snd) (fs ! i) = Present"
+    and "A \<ddagger> \<Gamma> \<turnstile>* es : map (fst \<circ> snd) fs"
+    and "\<tau> = TRecord fs None Unboxed"
+  shows "A \<ddagger> \<Gamma> \<turnstile> Struct nms es : \<tau>"
+proof -
+  have nms_es_length: "length nms = length es"
+    using assms typing_all_len by auto
+  {
+    fix A \<Gamma> es \<tau>s
+    assume typing: "A \<ddagger> \<Gamma> \<turnstile>* es : \<tau>s"
+    have "\<exists>\<Gamma>1s \<Gamma>2s. length \<Gamma>1s = length es \<and> 
+                    (\<forall>i < length \<Gamma>1s. A \<ddagger> (\<Gamma>1s ! i) \<turnstile> (es ! i) : (\<tau>s ! i)) \<and>
+                    length \<Gamma>2s = Suc (length es) \<and> 
+                    (\<forall>i < length \<Gamma>2s - 1. A \<turnstile> (\<Gamma>2s ! i) \<leadsto> (\<Gamma>1s ! i) \<box> (\<Gamma>2s ! (Suc i))) \<and>
+                    hd \<Gamma>2s = \<Gamma> \<and> A \<turnstile> (last \<Gamma>2s) \<leadsto>w empty (length (last \<Gamma>2s))"
+      using typing
+    proof (induct rule: typing_all.induct)
+      case (typing_all_empty A \<Gamma>)
+      then show ?case
+        using diff_Suc_1 last_conv_nth length_Cons list.distinct(1) list.sel(1) list.size(3) 
+          not_less_zero nth_Cons_0 by metis
+    next
+      case (typing_all_cons A \<Gamma> \<Gamma>1 \<Gamma>2 e \<tau> es \<tau>s)
+      obtain \<Gamma>1s \<Gamma>2s where props: "length \<Gamma>1s = length es"
+                                  "\<forall>i < length \<Gamma>1s. A \<ddagger> (\<Gamma>1s ! i) \<turnstile> (es ! i) : (\<tau>s ! i)"
+                                  "length \<Gamma>2s = Suc (length es)"
+                                  "\<forall>i < length \<Gamma>2s - 1. A \<turnstile> (\<Gamma>2s ! i) \<leadsto> (\<Gamma>1s ! i) \<box> \<Gamma>2s ! Suc i" 
+                                  "hd \<Gamma>2s = \<Gamma>2" "A \<turnstile> last \<Gamma>2s \<leadsto>w local.empty (length (last \<Gamma>2s))"
+        using typing_all_cons by blast
+      obtain \<Gamma>1s' where \<Gamma>1s'_def: "\<Gamma>1s' = \<Gamma>1 # \<Gamma>1s" by blast
+      obtain \<Gamma>2s' where \<Gamma>2s'_def: "\<Gamma>2s' = \<Gamma> # \<Gamma>2s" by blast
+      have "length \<Gamma>1s' = length (e # es)"
+        using \<Gamma>1s'_def props by force
+      moreover have "\<forall>i < length \<Gamma>1s'. A \<ddagger> (\<Gamma>1s' ! i) \<turnstile> (e # es) ! i : (\<tau> # \<tau>s) ! i"
+        by (rule allI; case_tac "i = 0"; auto simp add: \<Gamma>1s'_def typing_all_cons props)
+      moreover have "length \<Gamma>2s' = Suc (length (e # es))"
+        using \<Gamma>2s'_def props by force
+      moreover have "\<forall>i < length \<Gamma>2s' - 1. A \<turnstile> (\<Gamma>2s' ! i) \<leadsto> (\<Gamma>1s' ! i) \<box> (\<Gamma>2s' ! (Suc i))"
+      proof -
+        have \<Gamma>2s_hd: "\<Gamma>2s ! 0 = \<Gamma>2"
+          using \<Gamma>2s'_def props by (metis list.sel(1) list_exhaust_size_gt0 nth_Cons_0 zero_less_Suc)
+        show ?thesis
+          by (rule allI; case_tac "i = 0"; auto simp add: \<Gamma>2s_hd \<Gamma>2s'_def \<Gamma>1s'_def props 
+                                                          typing_all_cons less_Suc_eq_0_disj) 
+      qed
+      moreover have "hd \<Gamma>2s' = \<Gamma>" "A \<turnstile> last \<Gamma>2s' \<leadsto>w local.empty (length (last \<Gamma>2s'))"
+        using \<Gamma>2s'_def props by force+
+      ultimately show ?case by blast
+    qed
+  }
+  then obtain \<Gamma>1s \<Gamma>2s where "length \<Gamma>1s = length nms"
+                            "\<forall>i < length \<Gamma>1s. A \<ddagger> (\<Gamma>1s ! i) \<turnstile> (es ! i) : ((map (fst \<circ> snd) fs) ! i)"
+                            "length \<Gamma>2s = Suc (length nms)"
+                            "\<forall>i < length \<Gamma>2s - 1. A \<turnstile> (\<Gamma>2s ! i) \<leadsto> (\<Gamma>1s ! i) \<box> (\<Gamma>2s ! (Suc i))"
+                            "hd \<Gamma>2s = \<Gamma> \<and> A \<turnstile> last \<Gamma>2s \<leadsto>w local.empty (length (last \<Gamma>2s))"
+    using assms nms_es_length by metis
+  then show ?thesis
+    using assms typing_struct by force
+qed
 
 lemma typing_sig_refl:
   "A \<ddagger> \<Gamma> \<turnstile> e : \<tau> \<Longrightarrow> A \<ddagger> \<Gamma> \<turnstile> Sig e \<tau> : \<tau>"
@@ -1688,12 +1760,12 @@ next
       ultimately show ?case by blast
     qed
   }
-  then obtain Gs ns Cs where props: "length Gs = Suc (length nms)" "hd Gs = G1" "last Gs = G2"
-                                    "length ns = Suc (length nms)" "hd ns = n1 + length nms" 
-                                    "last ns = n2" "length Cs = length nms" 
-                                    "(\<forall>i < length nms. (Gs ! i),(ns ! i) \<turnstile> (es ! i) : (\<alpha>s ! i) \<leadsto> 
-                                     (Gs ! (Suc i)),(ns ! (Suc i)) | (Cs ! i) | (es' ! i))"
-                                    "C = foldr CtConj Cs CtTop"
+  then obtain Gs ns Cs where "length Gs = Suc (length nms)" "hd Gs = G1" "last Gs = G2"
+                             "length ns = Suc (length nms)" "hd ns = n1 + length nms" 
+                             "last ns = n2" "length Cs = length nms" 
+                             "(\<forall>i < length nms. (Gs ! i),(ns ! i) \<turnstile> (es ! i) : (\<alpha>s ! i) \<leadsto> 
+                              (Gs ! (Suc i)),(ns ! (Suc i)) | (Cs ! i) | (es' ! i))"
+                             "C = foldr CtConj Cs CtTop"
     using nms_es_length assms by metis
   then show ?thesis 
     using assms False cg_struct by blast
