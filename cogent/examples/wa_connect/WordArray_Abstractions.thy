@@ -44,6 +44,13 @@ fun size_of_num_type :: "num_type \<Rightarrow> ptrtyp"
 "size_of_num_type U32 = 4" |
 "size_of_num_type U64 = 8"
 
+fun zero_num_lit :: "num_type \<Rightarrow> lit"
+  where
+"zero_num_lit U8 = LU8 0" |
+"zero_num_lit U16 = LU16 0" |
+"zero_num_lit U32 = LU32 0" |
+"zero_num_lit U64 = LU64 0"
+
 
 section "WordArray Locale Definition"
 locale WordArray = main_pp_inferred begin
@@ -73,7 +80,7 @@ locale WordArray = main_pp_inferred begin
     (case au of
       UWA (TPrim (Num t)) len arr \<Rightarrow>
         (case av of 
-          VWA (TPrim (Num t)) xs \<Rightarrow> unat len = length xs \<and> 
+          VWA (TPrim (Num t)) xs \<Rightarrow> unat len = length xs \<and> \<tau>s = [TPrim (Num t)] \<and>
           (\<forall>i < len. \<exists>x. \<sigma> (arr + size_of_num_type t * i) = option.Some (UPrim x) \<and> xs ! unat i = VPrim x \<and> lit_type x = Num t)
           | _ \<Rightarrow> False)
       | _ \<Rightarrow> (case av of
@@ -263,11 +270,11 @@ definition upd_wa_get_0
   "upd_wa_get_0 x y =
       (let (x1, x2) = x;
            (y1, y2) = y
-      in x1 = y1 \<and> (\<exists>p idx t len arr v. x2 = URecord [
+      in x1 = y1 \<and> (\<exists>p idx t len arr. x2 = URecord [
           (UPtr p (RCon ''WordArray'' [RPrim (Num t)]), RPtr (RCon ''WordArray'' [RPrim (Num t)])),
           (UPrim (LU32 idx), RPrim (Num U32))] \<and> x1 p = option.Some (UAbstract (UWA (TPrim (Num t)) len arr)) \<and>
-          y2 = UPrim v \<and> lit_type v = Num t \<and> (idx < len \<longrightarrow> x1 (arr + size_of_num_type t * idx) = option.Some y2) \<and>
-            (\<not> idx < len \<longrightarrow> (v = LU8 0 \<or> v = LU16 0 \<or> v = LU32 0 \<or> v = LU64 0))))"
+          (idx < len \<longrightarrow> x1 (arr + size_of_num_type t * idx) = option.Some y2) \<and>
+            (\<not> idx < len \<longrightarrow> y2 = UPrim (zero_num_lit t))))"
 
 definition upd_wa_length_0
   where
@@ -292,21 +299,21 @@ subsubsection "Value Semantics"
     or we modify the current type to include the word type. \<close>
 definition val_wa_length
   where
-  "val_wa_length x y = (\<exists>xs len ts. x = VAbstract (VWA (TPrim (Num ts)) xs) \<and> y = VPrim (LU32 len) \<and> 
+  "val_wa_length x y = (\<exists>xs len t. x = VAbstract (VWA (TPrim (Num t)) xs) \<and> y = VPrim (LU32 len) \<and> 
                           length xs = unat len)" 
 
 definition val_wa_get
   where
   "val_wa_get x y =
-      (\<exists>xs ts idx v. x = VRecord [VAbstract (VWA (TPrim (Num ts)) xs), VPrim (LU32 idx)] \<and>
-       y = VPrim v \<and> lit_type v = Num ts \<and> (unat idx < length xs \<longrightarrow> xs ! unat idx = y) \<and> 
-       (\<not> unat idx < length xs \<longrightarrow> (v = LU8 0 \<or> v = LU16 0 \<or> v = LU32 0 \<or> v = LU64 0)))" 
+      (\<exists>xs t idx v. x = VRecord [VAbstract (VWA (TPrim (Num t)) xs), VPrim (LU32 idx)] \<and>
+       y = VPrim v \<and> lit_type v = Num t \<and> (unat idx < length xs \<longrightarrow> xs ! unat idx = y) \<and> 
+       (\<not> unat idx < length xs \<longrightarrow> zero_num_lit t = v))" 
 
 definition val_wa_put2
   where
   "val_wa_put2 x y =
-      (\<exists>xs ts idx val. x = VRecord [VAbstract (VWA (TPrim (Num ts)) xs), VPrim (LU32 idx), VPrim val] \<and>
-       lit_type val = Num ts \<and> y = VAbstract (VWA (TPrim (Num ts)) (xs[unat idx := VPrim val])))" 
+      (\<exists>xs t idx val. x = VRecord [VAbstract (VWA (TPrim (Num t)) xs), VPrim (LU32 idx), VPrim val] \<and>
+       lit_type val = Num t \<and> y = VAbstract (VWA (TPrim (Num t)) (xs[unat idx := VPrim val])))" 
 
 
 fun \<xi>m :: "(char list, vatyp) vabsfuns" 
@@ -333,48 +340,13 @@ subsection "Level 1 \<xi> Abstractions"
     levels are introduced, i.e. when third, fourth ... calls are introduced, these abstractions
     should probably be automatically generated. \<close>
 
-(*
-function \<xi>1 :: "(char list, atyp, 32 word) uabsfuns" 
-  and upd_wa_foldnb_0  :: "(char list, atyp, 32 word) ufundef" 
-(*  and upd_wa_mapnb_0  :: "(char list, atyp, 32 word) ufundef" *)
-  where
-  "\<xi>1 x y z = 
-    (if x = ''wordarray_fold_no_break_0'' then upd_wa_foldnb_0 y z
-     else (if x = ''wordarray_map_no_break_0'' then False 
-           else \<xi>0 x y z))" 
-| "upd_wa_foldnb_0 (b1, b2) c = (\<exists>p frm to f ts acc len arr.
-    b2 = URecord [(UPtr p (RCon ''WordArray'' [RPrim (Num U32)]), RPtr (RCon ''WordArray'' [RPrim (Num U32)])),
-      (UPrim (LU32 frm), RPrim (Num U32)), (UPrim (LU32 to), RPrim (Num U32)),
-      (UFunction f ts, RFun), (UPrim (LU32 acc), RPrim (Num U32)), (UUnit, RUnit)] \<and> 
-    b1 p = option.Some (UAbstract (WAU32 len arr)) \<and>
-    (if frm < min to len 
-      then (\<exists>v b1' acc'. (b1 (arr + 4 * frm) = option.Some (UPrim (LU32 v))) \<and> 
-        (\<xi>1, [(URecord [(UPrim (LU32 v), RPrim (Num U32)), (UPrim (LU32 acc), RPrim (Num U32)), 
-          (UUnit, RUnit)])] \<turnstile> (b1, App (Fun f ts) (Var 0)) \<Down>! (b1', UPrim (LU32 acc'))) \<and>
-        upd_wa_foldnb_0 (b1', URecord [(UPtr p (RCon ''WordArray'' [RPrim (Num U32)]), RPtr (RCon ''WordArray'' [RPrim (Num U32)])),
-          (UPrim (LU32 (frm + 1)), RPrim (Num U32)), (UPrim (LU32 to), RPrim (Num U32)),
-          (UFunction f ts, RFun), (UPrim (LU32 acc'), RPrim (Num U32)), (UUnit, RUnit)]) c)
-    else (b1, b2) = c))"
-  by pat_completeness auto
-
-termination \<xi>1
-  apply (relation "measure 
-    (\<lambda>x. case x of Inl (_, _, _) \<Rightarrow> Suc (unat ((max_word :: 32 word)))
-             | Inr ((a1, a2), _) \<Rightarrow> 
-                      (case a2 of URecord [] \<Rightarrow> 0
-                                        | _ \<Rightarrow> 0))")
-     apply clarsimp
-  apply clarsimp
-  sorry
-*)
-
 subsubsection "Update Semantics"
 
 type_synonym ('f, 'a, 'l) ufoldmapdef = "(char list, atyp, 32 word) uabsfuns \<Rightarrow> ('f, 'a, 'l) store \<Rightarrow> 
                                          32 word \<Rightarrow> 32 word \<Rightarrow> 32 word \<Rightarrow>
                                         'f expr \<Rightarrow> ('f, 'a, 'l) uval \<Rightarrow> ('f, 'a, 'l) uval \<times> ptrtyp set\<Rightarrow>
                                         (('f, 'a, 'l) store \<times> ('f, 'a, 'l) uval) \<Rightarrow> bool"
-
+(*
 function upd_wa_mapnb_bod_0 :: "(char list, atyp, 32 word) ufoldmapdef"
   where
   "upd_wa_mapnb_bod_0 \<xi>\<^sub>u \<sigma> p frm to f acc (obsv, s) res = (\<exists>t len arr. 
@@ -396,6 +368,7 @@ termination
    apply (cut_tac y = to in word_not_simps(3); clarsimp simp: word_less_nat_alt)
   apply linarith
   done
+*)
 
 function upd_wa_foldnb_bod_0 :: "(char list, atyp, 32 word) ufoldmapdef"
   where
@@ -416,7 +389,7 @@ termination
    apply (cut_tac y = to in word_not_simps(3); clarsimp simp: word_less_nat_alt)
   apply linarith
   done
-declare upd_wa_mapnb_bod_0.simps[simp del]
+
 declare upd_wa_foldnb_bod_0.simps[simp del]
 
 lemma upd_wa_foldnb_bod_0_to_geq_len:
@@ -813,7 +786,31 @@ definition upd_wa_foldnb_0  :: "(char list, atyp, 32 word) ufundef"
                                 TPrim (Num U32)) \<and>
                               upd_wa_foldnb_bod_0 \<xi>0 y1 p frm to (AFun f ts) (UPrim (LU32 acc)) (UUnit, {}) z
           | _ \<Rightarrow> False)))"
-
+\<comment>\<open> It is hard to generalise the definition for wordarray_fold because we require the type mapping
+   for functions which is only defined at compiled time \<close>
+(*
+definition upd_wa_foldnb  :: "(char list, atyp, 32 word) ufundef" 
+  where
+  "upd_wa_foldnb y z = 
+    (let (y1, y2) = y;
+         (z1, z2) = z
+      in (\<exists>p frm to acc r x t u v.
+        y2 = URecord [(UPtr p (RCon ''WordArray'' [RPrim (Num t)]), 
+                      RPtr (RCon ''WordArray'' [RPrim (Num t)])),
+                      (UPrim (LU32 frm), RPrim (Num U32)), (UPrim (LU32 to), RPrim (Num U32)),
+                      (x, RFun), (UPrim (LU32 acc), RPrim (Num U32)), (UUnit, RUnit)] \<and> 
+        y1 = z1 \<and> y1 p = z1 p \<and> (\<exists>len arr. y1 p = option.Some (UAbstract (UWA (TPrim (Num U32)) len arr)) \<and> 
+          (\<forall>i<len. y1 (arr + size_of_num_type t * i) = z1 (arr + size_of_num_type t * i))) \<and> z2 = UPrim (LU32 r) \<and>
+        (case x of
+            UFunction f ts \<Rightarrow> (\<Xi>, [], [option.Some abbreviatedType1] \<turnstile> (App (Fun f ts) (Var 0)) : 
+                                TPrim (Num U32)) \<and> 
+                              upd_wa_foldnb_bod_0 \<xi>0 y1 p frm to (Fun f ts) (UPrim (LU32 acc)) (UUnit, {}) z
+          | UAFunction f ts \<Rightarrow> (\<Xi>, [], [option.Some abbreviatedType1] \<turnstile> (App (AFun f ts) (Var 0)) : 
+                                TPrim (Num U32)) \<and>
+                              upd_wa_foldnb_bod_0 \<xi>0 y1 p frm to (AFun f ts) (UPrim (LU32 acc)) (UUnit, {}) z
+          | _ \<Rightarrow> False)))"
+*)
+(*
 definition upd_wa_mapnb_0  :: "(char list, atyp, 32 word) ufundef" 
   where
   "upd_wa_mapnb_0 y z = 
@@ -831,7 +828,7 @@ definition upd_wa_mapnb_0  :: "(char list, atyp, 32 word) ufundef"
             UFunction f ts \<Rightarrow> upd_wa_mapnb_bod_0 \<xi>0 y1 p frm to (Fun f ts) (UUnit) (UUnit, {}) z
           | UAFunction f ts \<Rightarrow> upd_wa_mapnb_bod_0 \<xi>0 y1 p frm to (AFun f ts) (UUnit) (UUnit, {}) z
           | _ \<Rightarrow> False)))"
-
+*)
 fun \<xi>1 :: "(char list, atyp, 32 word) uabsfuns" 
   where
   "\<xi>1 x y z = 

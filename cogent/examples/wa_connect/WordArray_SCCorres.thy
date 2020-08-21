@@ -84,8 +84,6 @@ in
   THEN TRYALL (fn i => rtac @{thm FalseE} i
     THEN etac @{thm v_sem_afunE} i
     THEN clarsimp_add [] i)
-  THEN REPEAT_ALL_NEW (fn i => etac @{thm disjE} i) 1
-  THEN ALLGOALS (fn i => clarsimp_add [] i)
 end;
 
 val goal = @{cterm "valRel \<xi>p (v:: (32 word WordArray, 32 word) RR) v'
