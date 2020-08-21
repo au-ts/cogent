@@ -291,6 +291,7 @@ datatype type = TVar index
               | TProduct type type
               | TRecord "(name \<times> type \<times> record_state) list" sigil
               | TUnit
+              | TArray type nat sigil
 
 datatype lit = LBool bool
              | LU8 "8 word"
@@ -335,6 +336,8 @@ datatype 'f expr = Var index
                  | Take "'f expr" field "'f expr"
                  | Split "'f expr" "'f expr"
                  | Promote type "'f expr"
+                 | ArrayIndex "'f expr" "'f expr"
+                 | ArrayMap2 "'f expr" "('f expr \<times> 'f expr)"
 
 section {* Kinds *}
 
@@ -367,6 +370,7 @@ fun type_wellformed :: "nat \<Rightarrow> type \<Rightarrow> bool" where
 | "type_wellformed n (TProduct t1 t2) = (type_wellformed n t1 \<and> type_wellformed n t2)"
 | "type_wellformed n (TRecord ts _) = (distinct (map fst ts) \<and> (list_all (\<lambda>x. type_wellformed n (fst (snd x))) ts))"
 | "type_wellformed n TUnit = True"
+| "type_wellformed n (TArray t l _) = (type_wellformed n t \<and> True)"  \<comment> \<open>and something about l, if we use an expression type for l\<close>
 
 definition type_wellformed_pretty :: "kind env \<Rightarrow> type \<Rightarrow> bool" ("_ \<turnstile> _ wellformed" [30,20] 60) where
   "K \<turnstile> t wellformed \<equiv> type_wellformed (length K) t"
@@ -414,6 +418,7 @@ fun kinding_fn :: "kind env \<Rightarrow> type \<Rightarrow> kind" where
 | "kinding_fn K (TProduct ta tb) = kinding_fn K ta \<inter> kinding_fn K tb"
 | "kinding_fn K (TRecord ts s)   = Inter (set (map (\<lambda>(_,t,b). case b of Present \<Rightarrow> kinding_fn K t | Taken \<Rightarrow> UNIV) ts)) \<inter> (sigil_kind s)"
 | "kinding_fn K TUnit            = UNIV"
+| "kinding_fn K (TArray t l s)   = (kinding_fn K t) \<inter> (sigil_kind s)"
 
 lemmas kinding_fn_induct = kinding_fn.induct[case_names kind_tvar kind_tvarb kind_tcon kind_tfun kind_tprim kind_tsum kind_tprod kind_trec kind_tunit]
 
@@ -454,6 +459,7 @@ fun bang :: "type \<Rightarrow> type" where
 | "bang (TProduct t u) = TProduct (bang t) (bang u)"
 | "bang (TRecord ts s) = TRecord (map (\<lambda>(n, t, b). (n, bang t, b)) ts) (bang_sigil s)"
 | "bang (TUnit)        = TUnit"
+| "bang (TArray t l s) = TArray (bang t) l (bang_sigil s)"
 
 fun instantiate :: "type substitution \<Rightarrow> type \<Rightarrow> type" where
   "instantiate \<delta> (TVar i)       = (if i < length \<delta> then \<delta> ! i else TVar i)"
@@ -465,6 +471,7 @@ fun instantiate :: "type substitution \<Rightarrow> type \<Rightarrow> type" whe
 | "instantiate \<delta> (TProduct t u) = TProduct (instantiate \<delta> t) (instantiate \<delta> u)"
 | "instantiate \<delta> (TRecord ts s) = TRecord (map (\<lambda> (n, t, b). (n, instantiate \<delta> t, b)) ts) s"
 | "instantiate \<delta> (TUnit)        = TUnit"
+| "instantiate \<delta> (TArray t l s) = TArray (instantiate \<delta> t) l s"
 
 fun specialise :: "type substitution \<Rightarrow> 'f expr \<Rightarrow> 'f expr" where
   "specialise \<delta> (Var i)           = Var i"
@@ -489,6 +496,9 @@ fun specialise :: "type substitution \<Rightarrow> 'f expr \<Rightarrow> 'f expr
 | "specialise \<delta> (Take e f e')     = Take (specialise \<delta> e) f (specialise \<delta> e')"
 | "specialise \<delta> (Split v va)      = Split (specialise \<delta> v) (specialise \<delta> va)"
 | "specialise \<delta> (Promote t x)     = Promote (instantiate \<delta> t) (specialise \<delta> x)"
+| "specialise \<delta> (ArrayIndex a i)  = ArrayIndex (specialise \<delta> a) (specialise \<delta> i)"
+| "specialise \<delta> (ArrayMap2 f (a1,a2)) = ArrayMap2 (specialise \<delta> f) (specialise \<delta> a1, specialise \<delta> a2)"
+
 
 section {* Subtyping *}
 
@@ -521,6 +531,10 @@ inductive subtyping :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightar
                   ; list_all2 variant_kind_subty ts1 ts2
                   \<rbrakk> \<Longrightarrow> K \<turnstile> TSum ts1 \<sqsubseteq> TSum ts2"
 | subty_tunit  : "K \<turnstile> TUnit \<sqsubseteq> TUnit"
+| subty_tarray : "\<lbrakk> K \<turnstile> t1 \<sqsubseteq> t2
+                  ; s1 = s2
+                  ; l1 = l2
+                  \<rbrakk> \<Longrightarrow> K \<turnstile> TArray t1 l1 s1 \<sqsubseteq> TArray t2 l2 s2"
 
 
 section {* Contexts *}
@@ -837,6 +851,24 @@ typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length
                       ; \<Xi>, K, \<Gamma>1 \<turnstile>  e  : t
                       ; \<Xi>, K, \<Gamma>2 \<turnstile>* es : ts
                       \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile>* (e # es) : (t # ts)"
+
+| typing_array_index : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
+                        ; \<Xi>, K, \<Gamma>1 \<turnstile> arr : TArray t l s
+                        ; K \<turnstile> TArray t l s :\<kappa> k
+                        ; S \<in> k
+                        ; \<Xi>, K, \<Gamma>2 \<turnstile> idx : TPrim (Num U32)
+                        \<comment> \<open>also under some context, `idx' evaluates to `v' and `v < l'\<close>
+                        \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> ArrayIndex arr idx : t"
+
+| typing_array_map2 : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>0 | \<Gamma>1
+                       ; K \<turnstile> \<Gamma>1 \<leadsto> \<Gamma>11 | \<Gamma>12
+                       ; \<Xi>, K, \<Gamma>11 \<turnstile> arr1 : TArray t1 l1 s1
+                       ; \<Xi>, K, \<Gamma>12 \<turnstile> arr2 : TArray t2 l2 s2
+                       ; s1 = Boxed Writable _
+                       ; s2 = Boxed Writable _
+                       ; \<Xi>, K, Some t1 # Some t2 # \<Gamma>1 \<turnstile> f : TProduct t1 t2
+                       ; K \<turnstile> \<Gamma>1 consumed
+                       \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> ArrayMap f (arr1, arr2) : TProduct (TArray t1 l1 s1) (TArray t2 l2 s2)"
 
 
 inductive_cases typing_num     [elim]: "\<Xi>, K, \<Gamma> \<turnstile> e : TPrim (Num \<tau>)"
