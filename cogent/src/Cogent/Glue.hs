@@ -860,7 +860,7 @@ readEntryFuncs tced tcState dsState ftypes lns
       er <- runExceptT $ flip evalStateT (mkGlState [] tcState dsState mempty (mempty, mempty) undefined) $
               flip runReaderT (FileState "--entry-funcs file") $ do
                 (fnName, targs) <- genFuncId ln noLoc
-                let nargs = SF.numTypeVars $ 
+                let nargs = SF.numTypeVars $
                       case find isFnName tced of
                           Just f  -> f
                           Nothing -> __impossible "Could not find function in top level declarations"
@@ -890,4 +890,3 @@ readEntryFuncs tced tcState dsState ftypes lns
                 "Functions in a --entry-funcs file cannot be partially applied."
                else
                 "Did you apply too many type arguments?"
-      
