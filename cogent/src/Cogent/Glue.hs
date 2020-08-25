@@ -873,8 +873,8 @@ readEntryFuncs tced tcState dsState ftypes lns
                             case mt of
                               Nothing -> throwError "Use of wildcard disallowed in --entry-funcs file"
                               Just t  -> flip runReaderT (DefnState Vec.Nil []) $
-                                          flip runReaderT (MonoState (([], []), Nothing))
-                                                          (lift . tcType >=> lift . desugarType >=> monoType $ t)
+                                         flip runReaderT (MonoState (([], []), Nothing))
+                                                         (lift . tcType >=> lift . desugarType >=> monoType $ t)
                   return (fnName, inst)
       case er of Left s  -> hPutStrLn stderr ("\nError: " ++ s) >> return Nothing
                  Right r -> return $ Just $ (fst r,) (snd r, [])
@@ -885,6 +885,6 @@ readEntryFuncs tced tcState dsState ftypes lns
 
     optMsg :: Bool -> String
     optMsg b = if b then
-                "Functions in a --entry-funcs file cannot be partially applied."
+                 "Functions in a --entry-funcs file cannot be partially applied."
                else
-                "Did you apply too many type arguments in an --entry-funcs file?"
+                 "Did you apply too many type arguments in an --entry-funcs file?"

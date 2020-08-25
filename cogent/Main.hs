@@ -744,7 +744,7 @@ parseArgs args = case getOpt' Permute options args of
       let stg = STGMono
       putProgressLn "Monomorphising..."
       efuns <- T.forM __cogent_entry_funcs $
-                            return . (,empty) <=< (readEntryFuncs tced tcst typedefs fts) <=< return . parseEntryFuncs <=< readFile
+                 return . (,empty) <=< (readEntryFuncs tced tcst typedefs fts) <=< return . parseEntryFuncs <=< readFile
       entryFuncs <- case efuns of
                       Nothing -> return Nothing
                       Just (Nothing, _) -> exitFailure
