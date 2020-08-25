@@ -841,15 +841,12 @@ readEntryFuncs :: [SF.TopLevel TC.DepType TC.TypedPatn TC.TypedExpr]
 readEntryFuncs tced tcState dsState ftypes lns
   = foldM run (Just M.empty) lns
   where
-    run md ln =
-      case md of
-        Nothing -> return Nothing
-        Just m  -> do
-          f <- readEntryFunc ln
-          case f of
-            Nothing -> return Nothing
-            Just (fn, inst) ->
-              return $ Just $ updateFunMono m fn inst
+    run md ln = do 
+      f <- readEntryFunc ln
+      return $ do
+        m <- md
+        (fn, inst) <- f
+        return $ updateFunMono m fn inst
 
     updateFunMono m fn ([],[]) = M.insertWith (\_ entry -> entry) fn M.empty m
     updateFunMono m fn inst    = M.insertWith (\_ entry -> M.insertWith (flip const) inst (M.size entry) entry) fn (M.singleton inst 0) m
@@ -861,7 +858,7 @@ readEntryFuncs tced tcState dsState ftypes lns
               flip runReaderT (FileState "--entry-funcs file") $ do
                 (fnName, targs) <- genFuncId ln noLoc
                 let nargs = SF.numTypeVars $
-                      case find isFnName tced of
+                      case find (isFnName ln) tced of
                           Just f  -> f
                           Nothing -> __impossible "Could not find function in top level declarations"
                 if nargs /= L.length targs then do
@@ -881,8 +878,8 @@ readEntryFuncs tced tcState dsState ftypes lns
       case er of Left s  -> putStrLn ("\nError: " ++ s) >> return Nothing
                  Right r -> return $ Just $ (fst r,) (snd r, [])
 
-    isFnName (SF.FunDef fn _ _) n = fn == n
-    isFnName (SF.AbsDec fn _) n = fn == n
+    isFnName n (SF.FunDef fn _ _) = fn == n
+    isFnName n (SF.AbsDec fn _) = fn == n
     isFnName _ _ = False
 
     optMsg :: Bool -> String
