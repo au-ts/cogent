@@ -747,9 +747,7 @@ parseArgs args = case getOpt' Permute options args of
                             return . (,empty) <=< (readEntryFuncs tced tcst typedefs fts) <=< return . parseEntryFuncs <=< readFile
       entryFuncs <- case efuns of
                       Nothing -> return Nothing
-                      Just (Nothing, _) -> do
-                        exitFailure
-                        return Nothing -- Keep compiler happy
+                      Just (Nothing, _) -> exitFailure
                       Just (Just f, i) -> return $ Just (f, i)
 
       let (insts,(warnings,monoed,ctygen')) = MN.mono simpled ctygen entryFuncs
