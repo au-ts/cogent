@@ -886,4 +886,4 @@ readEntryFuncs tced tcState dsState ftypes lns
     optMsg b = if b then
                 "Functions in a --entry-funcs file cannot be partially applied."
                else
-                "Did you apply too many type arguments?"
+                "Did you apply too many type arguments in an --entry-funcs file?"
