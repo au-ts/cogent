@@ -1658,7 +1658,7 @@ cg_var1:
     \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Put e1 nm e2 : \<tau> \<leadsto> G3,n3 | C5 | Sig (Put e1' nm e2') \<tau>" 
 | cg_struct_nil:
   "\<lbrakk> C = CtConj CtTop (CtSub (TRecord [] None Unboxed) \<tau>) 
-   \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Struct [] [] : \<tau> \<leadsto> G2,n2 | C | Sig (Struct [] []) \<tau>"
+   \<rbrakk> \<Longrightarrow> G,n \<turnstile> Struct [] [] : \<tau> \<leadsto> G,n | C | Sig (Struct [] []) \<tau>"
  | cg_struct:
    "\<lbrakk> nms \<noteq> []
     ; \<alpha>s = map (TUnknown \<circ> (+) n1) [0..<length nms]
@@ -1697,10 +1697,10 @@ proof (cases "length nms = 0")
   case True
   then have "nms = []" "es = []" "es' = []"
     using assms cg_gen_elab_all_len by force+
-  then moreover have "C = CtTop"
-    using assms constraint_gen_elab_all.cases by blast
-  ultimately show ?thesis
-    using cg_struct_nil assms by force
+  then moreover have "C = CtTop" "G1 = G2" "n1 = n2"
+    using assms constraint_gen_elab_all.cases by fastforce+
+  ultimately show ?thesis 
+    using cg_struct_nil assms by fastforce
 next
   case False
   have nms_es_length: "length nms = length es"
@@ -1774,31 +1774,64 @@ qed
 lemma cg_num_fresh_nondec:
   assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
   shows "n \<le> n'"
-  sorry
-  (* using assms by (induct rule: constraint_gen_elab.inducts) force+ *)
+  using assms 
+proof (induct rule: constraint_gen_elab.induct)
+  case (cg_struct nms \<alpha>s n1 Gs G1 G2 ns n2 Cs es es' C' \<tau>)
+  have "\<forall>i < length nms.  ns ! 0 \<le> ns ! (Suc i)"
+  proof -
+    {
+      fix i :: nat
+      have "i < length nms \<Longrightarrow> ns ! 0 \<le> ns ! (Suc i)"
+        using cg_struct by (induct i; fastforce)
+    }
+    then show ?thesis by argo
+  qed
+  then have "hd ns \<le> last ns"
+    using cg_struct.hyps Zero_not_Suc diff_Suc_1 hd_conv_nth last_conv_nth length_0_conv lessI 
+      less_Suc_eq_0_disj by metis
+  then show ?case
+    using cg_struct.hyps by linarith
+qed force+
 
 lemma cg_ctx_length:
   assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
   shows "length G = length G'"
-  sorry (*
-  using assms alg_ctx_jn_length
+  using assms
 proof (induct rule: constraint_gen_elab.inducts)
+  case (cg_if G1 n1 e1 G2 n2 C1 e1' e2 \<tau> G3 n3 C2 e2' e3 G3' n4 C3 e3' G4 C4 C5)
+  then show ?case using alg_ctx_jn_length by metis
+next
+  case (cg_case \<alpha> n1 \<beta> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
+  then show ?case using alg_ctx_jn_length by simp
+next
   case (cg_letb \<alpha> n1 G1 ys e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5 C6 C7)
   then show ?case
     using set0_cg_ctx_length bang_cg_ctx_length by fastforce
-qed auto *)
+next
+  case (cg_struct nms \<alpha>s n1 Gs G1 G2 ns n2 Cs es es' C' \<tau>)   
+  have "\<forall>i < length nms. length (Gs ! 0) = length (Gs ! Suc i)"
+  proof - 
+    {
+      fix i :: nat
+      have "i < length nms \<Longrightarrow> length (Gs ! 0) = length (Gs ! Suc i)"
+        using cg_struct by (induct i; simp)
+    }
+    then show ?thesis by blast
+  qed
+  then show ?case
+    using cg_struct.hyps diff_Suc_1 hd_conv_nth last_conv_nth lessI less_Suc_eq_0_disj
+    by (metis (no_types, lifting) list.size(3) nat.simps(3))
+qed auto
 
 lemma cg_ctx_idx_size:
   assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
     and "i < length G"
   shows "i < length G'"
-  sorry (*
-  using assms cg_ctx_length by auto *)
+  using assms cg_ctx_length by auto
 
 lemma cg_ctx_type_same1:
   assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
   shows "\<And>i. i < length G \<Longrightarrow> fst (G ! i) = fst (G' ! i)"
-  sorry (*
   using assms
 proof (induct rule: constraint_gen_elab.inducts)
   case (cg_var1 G i \<rho> G' C \<tau> n)
@@ -1831,7 +1864,40 @@ next
   case (cg_irref \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
   then show ?case
     by (metis Suc_mono cg_ctx_length length_Cons nth_Cons_Suc)
-qed (auto simp add: cg_ctx_length)+ *)
+next
+  case (cg_take \<beta> n1 \<alpha> \<gamma> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m l G3 n3 C2 e2' C3 C4 C5 C6)
+  have "length G1 = length G2"
+    using cg_take cg_ctx_length by fast
+  then show ?case
+    using cg_take by fastforce
+next
+  case (cg_struct nms \<alpha>s n1 Gs G1 G2 ns n2 Cs es es' C' \<tau>)
+  have "\<forall>j < length nms. fst ((Gs ! 0) ! i) = fst ((Gs ! (Suc j)) ! i)"
+  proof -
+    {
+      fix j :: nat
+      have "j < length nms \<Longrightarrow> i < length (Gs ! j)"
+      proof (induct j)
+        case 0
+        then show ?case using cg_struct by (metis Zero_not_Suc hd_conv_nth list.size(3))
+      next
+        case (Suc j)
+        then show ?case using cg_struct cg_ctx_length by (metis Suc_lessD)
+      qed
+      then have "j < length nms \<Longrightarrow> fst ((Gs ! 0) ! i) = fst ((Gs ! (Suc j)) ! i)"
+      proof (induct j)
+        case (Suc j)
+        then show ?case using cg_struct by (metis Suc_lessD cg_ctx_length)
+      qed (simp add: cg_struct)
+    }
+    then show ?thesis by blast
+  qed
+  then have "fst ((Gs ! 0) ! i) = fst ((Gs ! (length nms)) ! i)"
+    by (metis lessI less_Suc_eq_0_disj)
+  then show ?case
+    using cg_struct.hyps diff_Suc_1 hd_conv_nth last_conv_nth length_greater_0_conv 
+      less_Suc_eq_0_disj by metis
+qed (auto simp add: cg_ctx_length)+
 
 lemma cg_ctx_type_same2:
   assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
@@ -1842,7 +1908,6 @@ lemma cg_ctx_type_checked_nondec:
   assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
     and "i < length G"
   shows "snd (G ! i) \<le> snd (G' ! i)"
-  sorry (*
   using assms
 proof (induct arbitrary: i rule: constraint_gen_elab.induct)
 case (cg_var1 G i \<rho> G' C \<tau> n)
@@ -1896,7 +1961,7 @@ next
   then show ?case
     using cg_ctx_length by fastforce
 next
-  case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
+  case (cg_case \<alpha> n1 \<beta> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
   then show ?case
   proof -
     have "snd (G1 ! i) \<le> snd (G3 ! i)"
@@ -1910,7 +1975,48 @@ next
   case (cg_irref \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
   then show ?case
     using Suc_mono cg_ctx_length le_trans length_Cons nth_Cons_Suc by fastforce 
-qed (blast)+ *)
+next
+  case (cg_take \<beta> n1 \<alpha> \<gamma> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m l G3 n3 C2 e2' C3 C4 C5 C6)
+  have "length G1 = length G2"
+    using cg_take cg_ctx_length by fast
+  then show ?case
+    using cg_take by fastforce
+next
+  case (cg_put \<beta> n1 \<alpha> \<gamma> G1 e1 nm G2 n2 C1 e1' e2 G3 n3 C2 e2' C3 \<tau> C4 C5)
+  then show ?case
+    using cg_take cg_ctx_length by fastforce
+next
+  case (cg_struct nms \<alpha>s n1 Gs G1 G2 ns n2 Cs es es' C' \<tau>)
+  have "\<forall>j < length nms. snd ((Gs ! 0) ! i) \<le> snd ((Gs ! (Suc j)) ! i)"
+  proof -
+    {
+      fix j :: nat
+      have "j < length nms \<Longrightarrow> i < length (Gs ! j)"
+      proof (induct j)
+        case 0
+        then show ?case using cg_struct by (metis Zero_not_Suc hd_conv_nth list.size(3))
+      next
+        case (Suc j)
+        then show ?case using cg_struct cg_ctx_length by (metis Suc_lessD)
+      qed
+      then have "j < length nms \<Longrightarrow> snd ((Gs ! 0) ! i) \<le> snd ((Gs ! (Suc j)) ! i)"
+      proof (induct j)
+        case 0
+        then show ?case by (simp add: cg_struct)
+      next
+        case (Suc j)
+        then have "snd (Gs ! j ! i) \<le> snd (Gs ! Suc j ! i)"
+          using cg_struct by (metis Suc_lessD cg_ctx_length)
+        then show ?case
+          using Suc cg_struct cg_ctx_length by (metis (full_types) Suc_lessD dual_order.trans)
+      qed
+    }
+    then show ?thesis by blast
+  qed
+  then show ?case
+    using cg_struct.hyps diff_Suc_1 hd_conv_nth last_conv_nth lessI less_Suc_eq_0_disj  
+      order_refl by (metis (no_types, lifting) list.size(3) nat.simps(3))
+qed blast+ 
 
 
 section {* Assignment Definition *}
