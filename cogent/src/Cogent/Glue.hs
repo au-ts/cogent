@@ -85,6 +85,7 @@ import           Lens.Micro hiding (to)
 import           Lens.Micro.Mtl
 import           Lens.Micro.TH
 import           System.FilePath (replaceBaseName, replaceExtension, takeBaseName, takeExtension, (<.>))
+import           System.IO (hPutStrLn, stderr)
 import           Text.Parsec.Pos (newPos, SourcePos)
 import           Text.Parsec.Prim as PP hiding (State)
 import           Text.PrettyPrint.ANSI.Leijen (vsep)
@@ -875,7 +876,7 @@ readEntryFuncs tced tcState dsState ftypes lns
                                           flip runReaderT (MonoState (([], []), Nothing))
                                                           (lift . tcType >=> lift . desugarType >=> monoType $ t)
                   return (fnName, inst)
-      case er of Left s  -> putStrLn ("\nError: " ++ s) >> return Nothing
+      case er of Left s  -> hPutStrLn stderr ("\nError: " ++ s) >> return Nothing
                  Right r -> return $ Just $ (fst r,) (snd r, [])
 
     isFnName n (SF.FunDef fn _ _) = fn == n
