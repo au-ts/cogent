@@ -859,7 +859,7 @@ readEntryFuncs tced tcState dsState ftypes lns
               flip runReaderT (FileState "--entry-funcs file") $ do
                 (fnName, targs) <- genFuncId ln noLoc
                 let nargs = SF.numTypeVars $
-                      case find (isFnName ln) tced of
+                      case find (isFnName fnName) tced of
                           Just f  -> f
                           Nothing -> __impossible "Could not find function in top level declarations"
                 if nargs /= L.length targs then do
