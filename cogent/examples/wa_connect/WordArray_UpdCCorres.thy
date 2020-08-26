@@ -391,24 +391,15 @@ gets (\<lambda>s. x)
               [where M = "\<lambda>((_, r), _). unat (t5_C.to_C x') - unat r" and 
                      I = "\<lambda>(a, b) s. 
                         (\<exists>func. cogent_function_val_rel x (sint (t5_C.f_C x')) \<and> func = x \<and>
-                        (case func of
-                            UFunction f ts \<Rightarrow> (\<Xi>, [], [option.Some abbreviatedType1] \<turnstile> 
-                                               (App (Fun f ts) (Var 0)) : TPrim (Num U32)) \<and>
-                                              upd_wa_foldnb_bod_0 \<xi>0 \<sigma> (ptr_val (t5_C.arr_C x')) 
-                                                (t5_C.frm_C x') b (Fun f ts) 
-                                                (UPrim (LU32 (t5_C.acc_C x'))) 
-                                                (UUnit, {}) (\<sigma>, UPrim (LU32 (t3_C.acc_C a)))
-                          | UAFunction f ts \<Rightarrow> (\<Xi>, [], [option.Some abbreviatedType1] \<turnstile> 
-                                                (App (AFun f ts) (Var 0)) : TPrim (Num U32)) \<and>
-                                               upd_wa_foldnb_bod_0 \<xi>0 \<sigma> (ptr_val (t5_C.arr_C x')) 
-                                                (t5_C.frm_C x') b (AFun f ts) 
-                                                (UPrim (LU32 (t5_C.acc_C x'))) 
-                                                (UUnit, {}) (\<sigma>, UPrim (LU32 (t3_C.acc_C a)))
-                          | _ \<Rightarrow> False)) \<and> 
+                        is_uval_fun func \<and> (\<Xi>, [], [option.Some abbreviatedType1] \<turnstile> 
+                          (App (uvalfun_to_exprfun func) (Var 0)) : TPrim (Num U32)) \<and>
+                        upd_wa_foldnb_bod \<xi>0 \<sigma> (ptr_val (t5_C.arr_C x')) (t5_C.frm_C x') b 
+                          (uvalfun_to_exprfun func) (UPrim (LU32 (t5_C.acc_C x'))) UUnit {} 
+                          (\<sigma>, UPrim (LU32 (t3_C.acc_C a)))) \<and> 
                         (\<sigma>, s) \<in> state_rel \<and> t5_C.frm_C x' \<le> b \<and>
                         ret = min (t5_C.to_C x') ((SCAST(32 signed \<rightarrow> 32))(len_C (heap_WordArray_u32_C s (t5_C.arr_C x')))) \<and>
                         (t5_C.frm_C x' \<le> ret \<longrightarrow> b \<le> ret) \<and> (t5_C.frm_C x' \<ge> ret \<longrightarrow> b = t5_C.frm_C x')"])
-      apply (wp; clarsimp simp: split_def unknown_bind_ignore)
+      apply (wp; clarsimp simp: split_def unknown_bind_ignore simp del: \<xi>0.simps)
            apply (clarsimp simp: split_def dispatch_t4'_def unknown_bind_ignore)
            apply wp
             apply (clarsimp simp: mul'_def unknown_bind_ignore)
@@ -429,7 +420,8 @@ gets (\<lambda>s. x)
                              FUN_ENUM_wordarray_fold_no_break_0_def
                              FUN_ENUM_wordarray_get_u32_def
                              FUN_ENUM_wordarray_length_u32_def
-                             FUN_ENUM_wordarray_put2_u32_def)
+                             FUN_ENUM_wordarray_put2_u32_def
+                   simp del: \<xi>0.simps)
        apply (thin_tac "upd.uval_typing _ _ _ _ _ _")
        apply (clarsimp simp: wa_abs_typing_u_def)
        apply (case_tac a; clarsimp)
@@ -449,7 +441,7 @@ gets (\<lambda>s. x)
                        arr = "(ptr_val (values_C (heap_WordArray_u32_C s (t5_C.arr_C x'))))" and
                          v = "UPrim xa" and \<sigma> = \<sigma> and \<sigma>' = \<sigma> and \<sigma>'' = \<sigma> and ?w1.0 = "{}" and 
                          ?w2.0 = "{}"
-                       in upd_wa_foldnb_bod_0_step; simp?)
+                       in upd_wa_foldnb_bod_step; simp?)
            apply clarsimp
           apply (clarsimp simp: frame_def)
          apply (rule u_sem_app)
@@ -502,7 +494,7 @@ gets (\<lambda>s. x)
                       arr = "(ptr_val (values_C (heap_WordArray_u32_C s (t5_C.arr_C x'))))" and
                         v = "UPrim xa" and \<sigma> = \<sigma> and \<sigma>' = \<sigma> and \<sigma>'' = \<sigma> and ?w1.0 = "{}" and
                         ?w2.0 = "{}"
-                      in upd_wa_foldnb_bod_0_step; simp?)
+                      in upd_wa_foldnb_bod_step; simp?)
           apply clarsimp
          apply (clarsimp simp: frame_def)
         apply (rule u_sem_app)
@@ -564,27 +556,27 @@ gets (\<lambda>s. x)
        apply (case_tac x; clarsimp)
         apply (drule_tac arr = "ptr_val (values_C (heap_WordArray_u32_C s (t5_C.arr_C x')))" and 
                          len = "SCAST(32 signed \<rightarrow> 32) (len_C (heap_WordArray_u32_C s (t5_C.arr_C x')))" 
-                         in upd_wa_foldnb_bod_0_to_geq_lenD; simp?)
+                         in upd_wa_foldnb_bod_to_geq_lenD; simp?)
         apply (rule_tac arr = "ptr_val (values_C (heap_WordArray_u32_C s (t5_C.arr_C x')))" and 
                         len = "SCAST(32 signed \<rightarrow> 32) (len_C (heap_WordArray_u32_C s (t5_C.arr_C x')))" 
-                        in upd_wa_foldnb_bod_0_to_geq_len; simp)
+                        in upd_wa_foldnb_bod_to_geq_len; simp)
        apply (drule_tac arr = "ptr_val (values_C (heap_WordArray_u32_C s (t5_C.arr_C x')))" and 
                         len = "SCAST(32 signed \<rightarrow> 32) (len_C (heap_WordArray_u32_C s (t5_C.arr_C x')))" 
-                        in upd_wa_foldnb_bod_0_to_geq_lenD; simp?)
+                        in upd_wa_foldnb_bod_to_geq_lenD; simp?)
        apply (rule_tac arr = "ptr_val (values_C (heap_WordArray_u32_C s (t5_C.arr_C x')))" and 
                        len = "SCAST(32 signed \<rightarrow> 32) (len_C (heap_WordArray_u32_C s (t5_C.arr_C x')))" 
-                       in upd_wa_foldnb_bod_0_to_geq_len; simp)
+                       in upd_wa_foldnb_bod_to_geq_len; simp)
       apply (case_tac "min (t5_C.to_C x') (SCAST(32 signed \<rightarrow> 32) (len_C (heap_WordArray_u32_C s (t5_C.arr_C x')))) \<le> t5_C.frm_C x'")
        apply clarsimp
        apply (case_tac x; clarsimp)
-        apply (erule upd_wa_foldnb_bod_0.elims; clarsimp)
+        apply (erule upd_wa_foldnb_bod.elims; clarsimp)
         apply (clarsimp simp: min_def split: if_splits)
-         apply (subst upd_wa_foldnb_bod_0.simps; clarsimp)
-        apply (subst upd_wa_foldnb_bod_0.simps; clarsimp)
-       apply (erule upd_wa_foldnb_bod_0.elims; clarsimp)
+         apply (subst upd_wa_foldnb_bod.simps; clarsimp)
+        apply (subst upd_wa_foldnb_bod.simps; clarsimp)
+       apply (erule upd_wa_foldnb_bod.elims; clarsimp)
        apply (clarsimp simp: min_def split: if_splits)
-        apply (subst upd_wa_foldnb_bod_0.simps; clarsimp)
-       apply (subst upd_wa_foldnb_bod_0.simps; clarsimp)
+        apply (subst upd_wa_foldnb_bod.simps; clarsimp)
+       apply (subst upd_wa_foldnb_bod.simps; clarsimp)
       apply clarsimp
       apply (rule FalseE)
       apply (meson min_less_iff_disj not_less word_le_less_eq)
@@ -606,9 +598,9 @@ gets (\<lambda>s. x)
                         FUN_ENUM_wordarray_length_u32_def
                         FUN_ENUM_wordarray_put2_u32_def)
   apply (case_tac x; clarsimp)
-   apply (subst upd_wa_foldnb_bod_0.simps)
+   apply (subst upd_wa_foldnb_bod.simps)
    apply clarsimp
-   apply (subst upd_wa_foldnb_bod_0.simps)
+   apply (subst upd_wa_foldnb_bod.simps)
    apply clarsimp
    apply (clarsimp simp: state_rel_def heap_rel_def heap_rel_ptr_meta wa_abs_typing_u_def)
    apply (case_tac a; clarsimp)
@@ -701,5 +693,6 @@ gets (\<lambda>s. x)
    apply (metis (no_types, hide_lams) min.strict_order_iff min_def_raw not_less_iff_gr_or_eq)
   apply (erule disjE; clarsimp)
   done
+
 end (* of context *)
 end
