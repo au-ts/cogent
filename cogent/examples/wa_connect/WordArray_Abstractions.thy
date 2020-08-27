@@ -767,13 +767,13 @@ lemma upd_wa_foldnb_bod_back_step':
   by (metis (no_types, hide_lams) less_1_simp word_le_less_eq word_not_le)
 
 
-fun is_uval_fun :: "(funtyp, abstyp, ptrtyp) uval \<Rightarrow> bool"
+fun is_uval_fun :: "('f, 'a, 'l) uval \<Rightarrow> bool"
   where
 "is_uval_fun (UFunction _ _) = True" |
 "is_uval_fun (UAFunction _ _) = True" |
 "is_uval_fun _ = False"
 
-fun uvalfun_to_exprfun :: "(funtyp, abstyp, ptrtyp) uval \<Rightarrow> funtyp expr"
+fun uvalfun_to_exprfun :: "('f, 'a, 'l) uval \<Rightarrow> 'f expr"
   where
 "uvalfun_to_exprfun (UFunction f ts) = Fun f ts" |
 "uvalfun_to_exprfun (UAFunction f ts) = AFun f ts" |
@@ -1133,13 +1133,13 @@ lemma val_wa_foldnb_bod_preservation:
   apply (rule val.v_t_r_empty)
   done
 
-fun is_vval_fun :: "(funtyp, vabstyp) vval \<Rightarrow> bool"
+fun is_vval_fun :: "('f, 'a) vval \<Rightarrow> bool"
   where
 "is_vval_fun (VFunction _ _) = True" |
 "is_vval_fun (VAFunction _ _) = True" |
 "is_vval_fun _ = False"
 
-fun vvalfun_to_exprfun :: "(funtyp, vabstyp) vval \<Rightarrow> funtyp expr"
+fun vvalfun_to_exprfun :: "('f, 'a) vval \<Rightarrow> 'f expr"
   where
 "vvalfun_to_exprfun (VFunction f ts) = Fun f ts" |
 "vvalfun_to_exprfun (VAFunction f ts) = AFun f ts" |

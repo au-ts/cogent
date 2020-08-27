@@ -222,7 +222,8 @@ lemma take_drop_Suc_app:
   apply simp
   using Suc_le_lessD hd_drop_conv_nth by blast
   
-
+\<comment>\<open> Can't generalise this unless you can prove that @{term "valRel \<xi>\<^sub>i a b \<Longrightarrow> valRel \<xi>\<^sub>j a b"}
+   which isn't true if @{term a} and @{term b} are functions\<close>
 lemma scorres_wordarray_fold_no_break_u32:
   "\<lbrakk>valRel \<xi>p \<lparr>WordArrayMapP.arr\<^sub>f = (arr::32 word WordArray), frm\<^sub>f = (frm::32 word), to\<^sub>f = to,
       f\<^sub>f = f, acc\<^sub>f = (acc::32 word), obsv\<^sub>f = obsv\<rparr> v'\<rbrakk>
