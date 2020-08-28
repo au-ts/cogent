@@ -2,6 +2,75 @@ theory CogentInference
   imports Util
 begin
 
+lemma nondec_fun_prop:
+  assumes "\<forall>i < n. P i \<le> P (Suc i)"
+    and "\<And>a b. P a = P b \<Longrightarrow> P a \<le> P b"
+    and "\<And>a b c. P a \<le> P b \<Longrightarrow> P b \<le> P c \<Longrightarrow> P a \<le> P c"
+  shows "j \<le> k \<Longrightarrow> k \<le> n \<Longrightarrow> P j \<le> P k"
+proof (induct "k - j" arbitrary: k)
+  case 0
+  then show ?case using assms by force
+next
+  case (Suc x)
+  consider (equal) "Suc j = k" | (larger) "j < k - 1"
+    using Suc by linarith
+  then show ?case
+  proof cases
+    case equal
+    then show ?thesis using assms Suc by force
+  next
+    case larger
+    have "P j \<le> P (k - 1)" 
+      using larger Suc by simp
+    moreover have "P (k - 1) \<le> P k"
+      using assms larger diff_Suc_1 less_diff_conv less_imp_Suc_add not_less not_less_eq
+      by (metis local.Suc(4))
+    ultimately show ?thesis using assms by blast
+  qed 
+qed 
+
+lemma constant_fun_prop':
+  assumes "\<forall>i < n. P i = P (Suc i)"
+  shows "j \<le> k \<Longrightarrow> k \<le> n \<Longrightarrow> P j = P k"
+proof (induct "k - j" arbitrary: k)
+  case 0
+  then show ?case by force
+next
+  case (Suc x)
+  consider (equal) "Suc j = k" | (larger) "j < k - 1"
+    using Suc by linarith
+  then show ?case
+  proof cases
+    case equal
+    then show ?thesis using assms Suc by force
+  next
+    case larger
+    have "P j = P (k - 1)" 
+      using larger Suc by simp
+    moreover have "P (k - 1) = P k"
+      using assms larger diff_Suc_1 less_diff_conv less_imp_Suc_add not_less not_less_eq
+      by (metis local.Suc(4))
+    ultimately show ?thesis by argo
+  qed
+qed
+
+lemma constant_fun_prop:
+  assumes "\<forall>i < n. P i = P (Suc i)"
+    and "j \<le> n \<and> k \<le> n"
+  shows "P j = P k"
+proof -
+  consider (smaller) "j \<le> k" | (larger) "j \<ge> k"
+    by fastforce
+  then show ?thesis
+  proof cases
+    case smaller
+    then show ?thesis using constant_fun_prop' assms by blast
+  next
+    case larger
+    then show ?thesis using constant_fun_prop'[where ?j=k and ?k=j] assms by metis
+  qed
+qed
+
 
 datatype num_type = U8 | U16 | U32 | U64
 
@@ -1656,12 +1725,9 @@ cg_var1:
     ; C4 = CtNotRead \<gamma>
     ; C5 = CtConj (CtConj (CtConj C1 C2) C3) C4
     \<rbrakk> \<Longrightarrow> G1,n1 \<turnstile> Put e1 nm e2 : \<tau> \<leadsto> G3,n3 | C5 | Sig (Put e1' nm e2') \<tau>" 
-| cg_struct_nil:
-  "\<lbrakk> C = CtConj CtTop (CtSub (TRecord [] None Unboxed) \<tau>) 
-   \<rbrakk> \<Longrightarrow> G,n \<turnstile> Struct [] [] : \<tau> \<leadsto> G,n | C | Sig (Struct [] []) \<tau>"
- | cg_struct:
-   "\<lbrakk> nms \<noteq> []
-    ; \<alpha>s = map (TUnknown \<circ> (+) n1) [0..<length nms]
+| cg_struct:
+  "\<lbrakk> \<alpha>s = map (TUnknown \<circ> (+) n1) [0..<length nms]
+    ; length nms = length es
     ; length Gs = Suc (length nms)
     ; hd Gs = G1 \<and> last Gs = G2 
     ; length ns = Suc (length nms)
@@ -1700,7 +1766,7 @@ proof (cases "length nms = 0")
   then moreover have "C = CtTop" "G1 = G2" "n1 = n2"
     using assms constraint_gen_elab_all.cases by fastforce+
   ultimately show ?thesis 
-    using cg_struct_nil assms by fastforce
+    using assms cg_struct[where ?Gs="[G1]" and ?ns="[n1]"] by force
 next
   case False
   have nms_es_length: "length nms = length es"
@@ -1768,7 +1834,7 @@ next
                              "C = foldr CtConj Cs CtTop"
     using nms_es_length assms by metis
   then show ?thesis 
-    using assms False cg_struct by blast
+    using assms False cg_struct nms_es_length by blast
 qed
 
 lemma cg_num_fresh_nondec:
@@ -1776,16 +1842,9 @@ lemma cg_num_fresh_nondec:
   shows "n \<le> n'"
   using assms 
 proof (induct rule: constraint_gen_elab.induct)
-  case (cg_struct nms \<alpha>s n1 Gs G1 G2 ns n2 Cs es es' C' \<tau>)
-  have "\<forall>i < length nms.  ns ! 0 \<le> ns ! (Suc i)"
-  proof -
-    {
-      fix i :: nat
-      have "i < length nms \<Longrightarrow> ns ! 0 \<le> ns ! (Suc i)"
-        using cg_struct by (induct i; fastforce)
-    }
-    then show ?thesis by argo
-  qed
+  case (cg_struct \<alpha>s n1 nms es Gs G1 G2 ns n2 Cs es' C' \<tau>)
+  then have "ns ! 0 \<le> ns ! (length nms)"
+    by (rule_tac nondec_fun_prop[where ?P="\<lambda>i. ns ! i" and ?n="length nms"]; fastforce)
   then have "hd ns \<le> last ns"
     using cg_struct.hyps Zero_not_Suc diff_Suc_1 hd_conv_nth last_conv_nth length_0_conv lessI 
       less_Suc_eq_0_disj by metis
@@ -1808,16 +1867,9 @@ next
   then show ?case
     using set0_cg_ctx_length bang_cg_ctx_length by fastforce
 next
-  case (cg_struct nms \<alpha>s n1 Gs G1 G2 ns n2 Cs es es' C' \<tau>)   
-  have "\<forall>i < length nms. length (Gs ! 0) = length (Gs ! Suc i)"
-  proof - 
-    {
-      fix i :: nat
-      have "i < length nms \<Longrightarrow> length (Gs ! 0) = length (Gs ! Suc i)"
-        using cg_struct by (induct i; simp)
-    }
-    then show ?thesis by blast
-  qed
+  case (cg_struct \<alpha>s n1 nms es Gs G1 G2 ns n2 Cs es' C' \<tau>)
+  then have "length (Gs ! 0) = length (Gs ! (length nms))"
+    by (rule_tac constant_fun_prop[where ?P="(\<lambda>i. length (Gs ! i))" and ?n="length nms"]; fastforce)
   then show ?case
     using cg_struct.hyps diff_Suc_1 hd_conv_nth last_conv_nth lessI less_Suc_eq_0_disj
     by (metis (no_types, lifting) list.size(3) nat.simps(3))
@@ -1871,29 +1923,15 @@ next
   then show ?case
     using cg_take by fastforce
 next
-  case (cg_struct nms \<alpha>s n1 Gs G1 G2 ns n2 Cs es es' C' \<tau>)
-  have "\<forall>j < length nms. fst ((Gs ! 0) ! i) = fst ((Gs ! (Suc j)) ! i)"
-  proof -
-    {
-      fix j :: nat
-      have "j < length nms \<Longrightarrow> i < length (Gs ! j)"
-      proof (induct j)
-        case 0
-        then show ?case using cg_struct by (metis Zero_not_Suc hd_conv_nth list.size(3))
-      next
-        case (Suc j)
-        then show ?case using cg_struct cg_ctx_length by (metis Suc_lessD)
-      qed
-      then have "j < length nms \<Longrightarrow> fst ((Gs ! 0) ! i) = fst ((Gs ! (Suc j)) ! i)"
-      proof (induct j)
-        case (Suc j)
-        then show ?case using cg_struct by (metis Suc_lessD cg_ctx_length)
-      qed (simp add: cg_struct)
-    }
-    then show ?thesis by blast
-  qed
+  case (cg_struct \<alpha>s n1 nms es Gs G1 G2 ns n2 Cs es' C' \<tau>)
+  have "\<forall>j < length nms. length (Gs ! 0) = length (Gs ! j)"
+    using constant_fun_prop[where ?P="\<lambda>i. length (Gs ! i)" and ?n="length nms"]
+      cg_struct cg_ctx_length by (metis Suc_leI zero_order(1))
+  then have "\<forall>j < length nms. i < length (Gs ! j)"
+    using cg_struct hd_conv_nth Zero_not_Suc by (metis list.size(3))
   then have "fst ((Gs ! 0) ! i) = fst ((Gs ! (length nms)) ! i)"
-    by (metis lessI less_Suc_eq_0_disj)
+    using cg_struct constant_fun_prop[where ?P="\<lambda>j. fst ((Gs ! j) ! i)" and ?n="length nms"] 
+      by blast
   then show ?case
     using cg_struct.hyps diff_Suc_1 hd_conv_nth last_conv_nth length_greater_0_conv 
       less_Suc_eq_0_disj by metis
@@ -1986,36 +2024,18 @@ next
   then show ?case
     using cg_take cg_ctx_length by fastforce
 next
-  case (cg_struct nms \<alpha>s n1 Gs G1 G2 ns n2 Cs es es' C' \<tau>)
-  have "\<forall>j < length nms. snd ((Gs ! 0) ! i) \<le> snd ((Gs ! (Suc j)) ! i)"
-  proof -
-    {
-      fix j :: nat
-      have "j < length nms \<Longrightarrow> i < length (Gs ! j)"
-      proof (induct j)
-        case 0
-        then show ?case using cg_struct by (metis Zero_not_Suc hd_conv_nth list.size(3))
-      next
-        case (Suc j)
-        then show ?case using cg_struct cg_ctx_length by (metis Suc_lessD)
-      qed
-      then have "j < length nms \<Longrightarrow> snd ((Gs ! 0) ! i) \<le> snd ((Gs ! (Suc j)) ! i)"
-      proof (induct j)
-        case 0
-        then show ?case by (simp add: cg_struct)
-      next
-        case (Suc j)
-        then have "snd (Gs ! j ! i) \<le> snd (Gs ! Suc j ! i)"
-          using cg_struct by (metis Suc_lessD cg_ctx_length)
-        then show ?case
-          using Suc cg_struct cg_ctx_length by (metis (full_types) Suc_lessD dual_order.trans)
-      qed
-    }
-    then show ?thesis by blast
-  qed
-  then show ?case
+  case (cg_struct \<alpha>s n1 nms es Gs G1 G2 ns n2 Cs es' C' \<tau>)
+  have "\<forall>j < length nms. length (Gs ! 0) = length (Gs ! j)"
+    using constant_fun_prop[where ?P="\<lambda>i. length (Gs ! i)" and ?n="length nms"]
+      cg_struct cg_ctx_length by (metis Suc_leI zero_order(1))
+  then have "\<forall>j < length nms. i < length (Gs ! j)"
+    using cg_struct hd_conv_nth Zero_not_Suc by (metis list.size(3))
+  then have "snd ((Gs ! 0) ! i) \<le> snd ((Gs ! (length nms)) ! i)"
+    using cg_struct nondec_fun_prop[where ?P="\<lambda>j. snd ((Gs ! j) ! i)" and ?n="length nms"] 
+    by fastforce
+  then show ?case 
     using cg_struct.hyps diff_Suc_1 hd_conv_nth last_conv_nth lessI less_Suc_eq_0_disj  
-      order_refl by (metis (no_types, lifting) list.size(3) nat.simps(3))
+       by (metis (no_types, lifting) list.size(3) nat.simps(3))
 qed blast+ 
 
 
@@ -2332,7 +2352,6 @@ lemma cg_gen_fv_elem_size:
     "G1,n1 \<turnstile> e : \<tau> \<leadsto> G2,n2 | C1 | e1'"
     "i \<in> fv' m e"
   shows "i < length G1"
-  sorry (*
 proof -
   have "\<And>x e1 e2. fv (Prim x [e1, e2]) = fv e1 \<union> fv e2"
     by (simp add: Un_commute)
@@ -2359,14 +2378,28 @@ proof -
     case (cg_irref \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
     then show ?case 
       by (force simp add: i_fv'_suc_iff_suc_i_fv' cg_ctx_length)
+  next
+    case (cg_take \<beta> n1 \<alpha> \<gamma> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m l G3 n3 C2 e2' C3 C4 C5 C6)
+    have "i \<in> fv' m e1 \<or> (Suc (Suc i)) \<in> fv' m e2"
+      using cg_take.prems by (simp add: i_fv'_suc_iff_suc_i_fv')
+    then show ?case
+      using cg_ctx_length cg_take by fastforce
+  next
+    case (cg_struct \<alpha>s n1 nms es Gs G1 G2 ns n2 Cs es' C' \<tau>)
+    obtain j where j_def: "i \<in> fv' m (es ! j)" "j < length es"
+      using cg_struct fv'_struct by (metis UN_E in_set_conv_nth)
+    have "j < length nms \<Longrightarrow> length (Gs ! 0) = length (Gs ! j)"
+      using constant_fun_prop[where ?P="\<lambda>j. length (Gs ! j)" and ?n="length nms"]
+        cg_struct cg_ctx_length by (metis Suc_leI zero_order(1))
+    then show ?case
+      using cg_struct.hyps j_def by (metis hd_conv_nth list.size(3) nat.simps(3))
   qed (auto simp add: cg_ctx_length split: if_splits)
-qed *)
+qed
 
 lemma cg_gen_output_type_checked_inc:
   assumes "G1,n1 \<turnstile> e : \<tau> \<leadsto> G2,n2 | C1 | e1'"
       and "i \<in> fv(e)"
     shows "snd (G2 ! i) > snd (G1 ! i)"
-  sorry (*
   using assms
 proof (induct arbitrary: i rule: constraint_gen_elab.induct)
   case (cg_app \<alpha> n1 G1 e1 \<tau> G2 n2 C1 e1' e2 G3 n3 C2 e2' C3)
@@ -2565,7 +2598,7 @@ next
       using i_in_e2 cg_bop.hyps by force
   qed
 next
-  case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
+  case (cg_case \<alpha> n1 \<beta> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
   have i_in_e1e2e3: "i \<in> fv e1 \<or> i \<in> fv' (Suc 0) e2 \<or> i \<in> fv' (Suc 0) e3"
     using cg_case.prems by fastforce
   have snd_G1_le_G2: "snd (G1 ! i) \<le> snd (G2 ! i)"
@@ -2599,7 +2632,7 @@ next
       using snd_G1_le_G2 snd_G3'_le_G4 i_fv'_suc_iff_suc_i_fv' cg_case.hyps by fastforce
   qed
 next
-  case (cg_irref \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
+  case (cg_irref \<alpha> n1 \<beta> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
   consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv' (Suc 0) e2"
     using cg_irref.prems by fastforce
   then show ?case
@@ -2618,7 +2651,67 @@ next
     then show ?thesis
       using cg_irref.hyps i_fv'_suc_iff_suc_i_fv' i_in_e2 by fastforce
   qed
-qed (simp)+ *)
+next
+  case (cg_take \<beta> n1 \<alpha> \<gamma> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m l G3 n3 C2 e2' C3 C4 C5 C6)
+  consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "Suc (Suc i) \<in> fv e2"
+    using cg_take.prems i_fv'_suc_iff_suc_i_fv' fv'_take by blast
+  then show ?case
+  proof cases
+    case i_in_e1
+    have "i < length G2"
+      using cg_gen_fv_elem_size cg_take i_in_e1 cg_ctx_length by force
+    then have "snd (((TRecord [(nm, \<beta>, Taken)] \<alpha> \<gamma>, 0) # (\<beta>, 0) # G2) ! (Suc (Suc i))) \<le> 
+               snd (((TRecord [(nm, \<beta>, Taken)] \<alpha> \<gamma>, m) # (\<beta>, l) # G3) ! (Suc (Suc i)))"
+      using cg_ctx_type_checked_nondec cg_take.hyps by fastforce
+    then show ?thesis
+      using i_in_e1 cg_take by force
+  next
+    case i_in_e2
+    have "Suc (Suc i) < length ((TRecord [(nm, \<beta>, Taken)] \<alpha> \<gamma>, 0) # (\<beta>, 0) # G2)"
+      using cg_gen_fv_elem_size cg_take i_in_e2 cg_ctx_length by meson
+    then have "snd (G1 ! i) \<le> snd (G2 ! i)"
+      using cg_ctx_length cg_take cg_take cg_ctx_type_checked_nondec by force
+    then show ?thesis
+      using i_in_e2 cg_take by force
+  qed
+next
+  case (cg_put \<beta> n1 \<alpha> \<gamma> G1 e1 nm G2 n2 C1 e1' e2 G3 n3 C2 e2' C3 \<tau> C4 C5)
+  consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv e2"
+    using cg_put.prems by fastforce
+  then show ?case 
+  proof cases
+    case i_in_e1
+    have "snd (G2 ! i) \<le> snd (G3 ! i)"
+      using cg_put cg_ctx_type_checked_nondec i_in_e1 cg_gen_fv_elem_size cg_ctx_length by metis
+    then show ?thesis
+      using i_in_e1 cg_put by fastforce
+  next
+    case i_in_e2
+    have "snd (G1 ! i) \<le> snd (G2 ! i)"
+      using cg_put cg_ctx_type_checked_nondec i_in_e2 cg_gen_fv_elem_size cg_ctx_length by metis
+    then show ?thesis
+      using i_in_e2 cg_put by force
+  qed
+next
+  case (cg_struct \<alpha>s n1 nms es Gs G1 G2 ns n2 Cs es' C' \<tau>)
+  obtain j where j_def: "i \<in> fv (es ! j)" "j < length nms"
+    using cg_struct fv'_struct by (metis UN_E in_set_conv_nth)
+  have "\<forall>k < length nms. i < length (Gs ! k)"
+    using constant_fun_prop[where ?P="\<lambda>i. length (Gs ! i)" and ?n="length nms"]
+      cg_struct cg_ctx_length j_def cg_gen_fv_elem_size by (metis Suc_leI)
+  then have "\<forall>k < length nms. snd ((Gs ! k) ! i) \<le> snd ((Gs ! (Suc k)) ! i)"
+    using cg_struct cg_ctx_type_checked_nondec by meson
+  then have "snd ((Gs ! 0) ! i) \<le> snd ((Gs ! j) ! i)" 
+            "snd ((Gs ! (Suc j)) ! i) \<le> snd ((Gs ! (length nms)) ! i)"
+    using nondec_fun_prop[where ?P="\<lambda>a. snd ((Gs ! a) ! i)" and ?n="length nms"] j_def
+    by fastforce+
+  moreover have "snd ((Gs ! j) ! i) < snd ((Gs ! (Suc j)) ! i)"
+    using cg_struct j_def by presburger
+  ultimately have "snd ((Gs ! 0) ! i) < snd ((Gs ! (length nms)) ! i)"
+    by linarith
+  then show ?case
+    using hd_conv_nth last_conv_nth cg_struct.hyps by (metis Zero_not_Suc diff_Suc_1 list.size(3))
+qed simp+
 
 lemma cg_gen_output_type_checked_nonzero:
   assumes "G1,n1 \<turnstile> e : \<tau> \<leadsto> G2,n2 | C1 | e1'"
@@ -2639,7 +2732,6 @@ lemma cg_gen_type_checked_nonzero_imp_share:
     and "\<rho> = fst (G1 ! i)"
     and "A \<turnstile> C1"
   shows "A \<turnstile> CtShare \<rho>"
-  sorry (*
   using assms
 proof (induct arbitrary: i rule: constraint_gen_elab.induct)
   case (cg_var2 G i \<rho> n G' C \<tau>)
@@ -2803,7 +2895,7 @@ next
   then show ?case
     using ct_sem_conjE fv'_con by blast
 next
-  case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
+  case (cg_case \<alpha> n1 \<beta> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
   consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv' (Suc 0) e2" | (i_in_e3) "i \<in> fv' (Suc 0) e3"
     using cg_case.prems by fastforce
   then show ?case
@@ -2835,7 +2927,7 @@ next
       using i_fv'_suc_iff_suc_i_fv' i_in_e3 cg_case ct_sem_conj_iff by metis
   qed
 next
-  case (cg_irref \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
+  case (cg_irref \<alpha> n1 \<beta> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
   consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv' (Suc 0) e2"
     using cg_irref.prems by fastforce
   then show ?case
@@ -2855,14 +2947,71 @@ next
     ultimately show ?thesis
       using gr_zeroI leD ct_sem_conj_iff cg_irref i_fv'_suc_iff_suc_i_fv' by fastforce
   qed
-qed (simp)+ *)
+next
+  case (cg_member \<alpha> n1 \<beta> G1 e nm \<tau> G2 n2 C e' C')
+  then show ?case using ct_sem_conj_iff by force
+next
+  case (cg_take \<beta> n1 \<alpha> \<gamma> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m l G3 n3 C2 e2' C3 C4 C5 C6)
+  consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "Suc (Suc i) \<in> fv e2"
+    using i_fv'_suc_iff_suc_i_fv' fv'_take cg_take.prems by blast
+  then show ?case
+  proof cases
+    case i_in_e1
+    then show ?thesis using cg_take i_in_e1 ct_sem_conj_iff by metis
+  next
+    case i_in_e2
+    have "0 < snd (((TRecord [(nm, \<beta>, Taken)] \<alpha> \<gamma>, 0) # (\<beta>, 0) # G2) ! (Suc (Suc i)))"
+      using cg_take cg_ctx_length cg_ctx_type_checked_nondec cg_gen_fv_elem_size i_in_e2
+      by (metis Suc_less_SucD gr_zeroI leD length_Cons nth_Cons_Suc)
+    moreover have "\<rho> = fst (((TRecord [(nm, \<beta>, Taken)] \<alpha> \<gamma>, 0) # (\<beta>, 0) # G2) ! (Suc (Suc i)))"
+      using cg_ctx_type_same2 cg_gen_fv_elem_size cg_take i_in_e2
+      by (metis Suc_less_eq length_Cons nth_Cons_Suc)
+    ultimately show ?thesis
+      using cg_take i_in_e2 ct_sem_conj_iff by metis
+  qed  
+next
+  case (cg_put \<beta> n1 \<alpha> \<gamma> G1 e1 nm G2 n2 C1 e1' e2 G3 n3 C2 e2' C3 \<tau> C4 C5)
+  consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv e2"
+    using cg_put.prems fv'_put by blast
+  then show ?case
+  proof cases
+    case i_in_e1
+    then show ?thesis using cg_put ct_sem_conj_iff by metis
+  next
+    case i_in_e2
+    have "0 < snd (G2 ! i)" 
+      using cg_put cg_ctx_length cg_ctx_type_checked_nondec cg_gen_fv_elem_size i_in_e2 
+      by (metis gr_zeroI leD)
+    moreover have "\<rho> = fst (G2 ! i)"
+      using cg_ctx_type_same2 cg_gen_fv_elem_size cg_put i_in_e2 by meson
+    ultimately show ?thesis
+      using i_in_e2 cg_put ct_sem_conj_iff by metis
+  qed
+next
+  case (cg_struct \<alpha>s n1 nms es Gs G1 G2 ns n2 Cs es' C' \<tau>)
+  obtain j where j_def: "i \<in> fv (es ! j)" "j < length nms"
+    using cg_struct fv'_struct by (metis UN_E in_set_conv_nth)
+  have Gs_elem_length: "\<forall>k < length nms. i < length (Gs ! k)"
+    using constant_fun_prop[where ?P="\<lambda>i. length (Gs ! i)" and ?n="length nms"]
+      cg_struct cg_ctx_length j_def cg_gen_fv_elem_size by (metis Suc_leI)
+  have "snd ((Gs ! 0) ! i) \<le> snd ((Gs ! j) ! i)"
+    using cg_struct j_def cg_ctx_type_checked_nondec Gs_elem_length
+    by (rule_tac nondec_fun_prop[where ?P="\<lambda>j. snd ((Gs ! j) ! i)" and ?n="length nms"]; auto)
+  moreover have "fst ((Gs ! 0) ! i) = fst ((Gs ! j) ! i)"
+    using Gs_elem_length cg_ctx_type_same1 cg_struct j_def
+    by (rule_tac constant_fun_prop[where ?P="\<lambda>j. fst ((Gs ! j) ! i)" and ?n="length nms"]; auto)
+  moreover have "A \<turnstile> (Cs ! j)"
+    using j_def ct_sem_conj_fold cg_struct ct_sem_conj_iff by metis
+  ultimately show ?case
+    using cg_struct j_def dual_order.strict_trans1 hd_conv_nth less_Suc_eq_0_disj
+    by (metis (no_types, lifting) less_numeral_extra(3) list.size(3))
+qed simp+
 
 lemma cg_gen_output_type_unchecked_same:
   assumes "G1,n1 \<turnstile> e : \<tau> \<leadsto> G2,n2 | C1 | e1'"
       and "i \<notin> fv(e)"
       and "i < length G1"
     shows "snd (G2 ! i) = snd (G1 ! i)"
-  sorry (*
   using assms
 proof (induct arbitrary: i rule: constraint_gen_elab.induct)
   case (cg_let \<alpha> n1 G1 e1 G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4)
@@ -2891,13 +3040,13 @@ next
   then show ?case     
     using alg_ctx_jn_type_checked_max cg_ctx_idx_size by simp
 next
-  case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
+  case (cg_case \<alpha> n1 \<beta> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
   then show ?case
   proof -
     have "i \<notin> fv e1" "(Suc i) \<notin> fv e2" "(Suc i) \<notin> fv e3"
       using i_fv'_suc_iff_suc_i_fv' cg_case by auto
-    then moreover have "snd (G1 ! i) = snd (G3 ! i)" "snd (G3 ! i) = snd (G3' ! i)" "i < length G3"
-      using cg_case cg_ctx_length by (metis (no_types) Suc_less_eq length_Cons nth_Cons_Suc)+
+    then moreover have "snd (G1 ! i) = snd (G3 ! i) \<and> snd (G3 ! i) = snd (G3' ! i) \<and> i < length G3"
+      using cg_case cg_ctx_length nth_Cons_Suc by (metis (no_types) Suc_less_eq length_Cons)+
     ultimately show ?thesis
       using alg_ctx_jn_length alg_ctx_jn_type_checked_same cg_case.hyps by auto
   qed
@@ -2905,7 +3054,27 @@ next
   case (cg_irref \<alpha> n1 \<beta> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
   then show ?case
     using cg_ctx_length i_fv'_suc_iff_suc_i_fv' by fastforce
-qed (simp add: cg_ctx_idx_size)+ *)
+next
+  case (cg_take \<beta> n1 \<alpha> \<gamma> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m l G3 n3 C2 e2' C3 C4 C5 C6)
+  have "i \<notin> fv e1" "Suc (Suc i) \<notin> fv e2"
+    using cg_take.prems fv'_take by (simp add: i_fv'_suc_iff_suc_i_fv')+
+  then show ?case
+    using cg_ctx_length cg_take length_Cons fv'_take by fastforce
+next
+  case (cg_struct \<alpha>s n1 nms es Gs G1 G2 ns n2 Cs es' C' \<tau>)
+  have "\<forall>j < length nms. length (Gs ! 0) = length (Gs ! j)"
+    using constant_fun_prop[where ?P="\<lambda>j. length (Gs ! j)" and ?n="length nms"] cg_ctx_length 
+      cg_struct by (metis Nat.add_0_right le_add1 less_imp_add_positive nat_add_left_cancel_le)
+  then have "\<forall>j < length nms. i < length (Gs ! j)"
+    using cg_struct by (metis Zero_not_Suc hd_conv_nth list.size(3))
+  moreover have "\<forall>j < length nms. i \<notin> fv (es ! j)" 
+    using cg_struct fv'_struct by auto
+  ultimately have "snd ((Gs ! 0) ! i) = snd ((Gs ! (length nms)) ! i)"
+    by (rule_tac constant_fun_prop[where ?P="\<lambda>j. snd ((Gs ! j) ! i)" and ?n="length nms"]; 
+        simp add: cg_struct)
+  then show ?case
+    using cg_struct.hyps by (metis Zero_not_Suc diff_Suc_1 hd_conv_nth last_conv_nth list.size(3))
+qed (simp add: cg_ctx_idx_size)+ 
 
 lemma cg_assign_type_checked_nonzero_imp_share:
   assumes "G1,n1 \<turnstile> e : \<tau> \<leadsto> G2,n2 | C1 | e1'"
@@ -2915,7 +3084,6 @@ lemma cg_assign_type_checked_nonzero_imp_share:
       and "A \<turnstile> assign_app_constr S C1"
       and "known_assignment S"
     shows "A \<turnstile> CtShare (assign_app_ty S \<rho>)"
-  sorry (*
   using assms
 proof (induct arbitrary: i rule: constraint_gen_elab.induct)
   case (cg_var2 G i \<rho> n G' C \<tau>)
@@ -3082,7 +3250,7 @@ next
   then show ?case
     using ct_sem_conjE fv'_con assign_app_constr.simps by metis
 next
-  case (cg_case \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
+  case (cg_case \<alpha> n1 \<beta> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
   consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv' (Suc 0) e2" | (i_in_e3) "i \<in> fv' (Suc 0) e3"
     using cg_case.prems by fastforce
   then show ?case
@@ -3117,7 +3285,7 @@ next
       using cg_case i_fv'_suc_iff_suc_i_fv' i_in_e3 by blast
   qed
 next
-  case (cg_irref \<alpha> n1 \<beta> n2 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
+  case (cg_irref \<alpha> n1 \<beta> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
   consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv' (Suc 0) e2"
     using cg_irref.prems by fastforce
   then show ?case
@@ -3137,7 +3305,62 @@ next
     ultimately show ?thesis
       using gr_zeroI leD ct_sem_conj_iff cg_irref i_fv'_suc_iff_suc_i_fv' by fastforce
   qed
-qed (simp)+ *)
+next
+  case (cg_member \<alpha> n1 \<beta> G1 e nm \<tau> G2 n2 C e' C')
+  then show ?case using ct_sem_conj_iff by simp
+next
+  case (cg_take \<beta> n1 \<alpha> \<gamma> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m l G3 n3 C2 e2' C3 C4 C5 C6)
+  consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "Suc (Suc i) \<in> fv e2"
+    using cg_take.prems i_fv'_suc_iff_suc_i_fv' fv'_take by blast 
+  then show ?case
+  proof cases
+    case i_in_e1
+    then show ?thesis using ct_sem_conj_iff cg_take by force
+  next
+    case i_in_e2
+    have "snd (G1 ! i) \<le> snd (G2 ! i)"
+      using cg_ctx_length cg_ctx_type_checked_nondec cg_gen_fv_elem_size cg_take i_in_e2
+      by (metis Suc_less_SucD length_Cons)
+    moreover have "\<rho> = fst (((TRecord [(nm, \<beta>, Taken)] \<alpha> \<gamma>, 0) # (\<beta>, 0) # G2) ! (Suc (Suc i)))"
+      using cg_ctx_type_same2 cg_gen_fv_elem_size cg_take i_in_e2
+      by (metis Suc_less_eq length_Cons nth_Cons_Suc)
+    ultimately show ?thesis
+      using ct_sem_conj_iff cg_take i_in_e2 by fastforce
+  qed
+next
+  case (cg_put \<beta> n1 \<alpha> \<gamma> G1 e1 nm G2 n2 C1 e1' e2 G3 n3 C2 e2' C3 \<tau> C4 C5)
+  consider (i_in_e1) "i \<in> fv e1" | (i_in_e2) "i \<in> fv e2"
+    using cg_put.prems i_fv'_suc_iff_suc_i_fv' fv'_put by blast 
+  then show ?case
+  proof cases
+    case i_in_e1
+    then show ?thesis using ct_sem_conj_iff cg_put by force
+  next
+    case i_in_e2
+    have "snd (G1 ! i) \<le> snd (G2 ! i)"
+      using cg_ctx_length cg_ctx_type_checked_nondec cg_gen_fv_elem_size cg_put i_in_e2 by metis
+    then show ?thesis
+      using ct_sem_conj_iff cg_put i_in_e2 cg_ctx_type_same2 cg_gen_fv_elem_size by force
+  qed
+next
+  case (cg_struct \<alpha>s n1 nms es Gs G1 G2 ns n2 Cs es' C' \<tau>)
+  obtain j where j_def: "i \<in> fv (es ! j)" "j < length nms"
+    using cg_struct fv'_struct by (metis UN_E in_set_conv_nth)
+  have Gs_elem_length: "\<forall>k < length nms. i < length (Gs ! k)"
+    using constant_fun_prop[where ?P="\<lambda>i. length (Gs ! i)" and ?n="length nms"]
+      cg_struct cg_ctx_length j_def cg_gen_fv_elem_size by (metis Suc_leI)
+  have "snd ((Gs ! 0) ! i) \<le> snd ((Gs ! j) ! i)"
+    using cg_struct j_def cg_ctx_type_checked_nondec Gs_elem_length
+    by (rule_tac nondec_fun_prop[where ?P="\<lambda>j. snd ((Gs ! j) ! i)" and ?n="length nms"]; auto)
+  moreover have "fst ((Gs ! 0) ! i) = fst ((Gs ! j) ! i)"
+    using Gs_elem_length cg_ctx_type_same1 cg_struct j_def
+    by (rule_tac constant_fun_prop[where ?P="\<lambda>j. fst ((Gs ! j) ! i)" and ?n="length nms"]; auto)
+  moreover have "A \<turnstile> assign_app_constr S (Cs ! j)"
+    using j_def ct_sem_assign_conj_foldr cg_struct ct_sem_conj_iff by simp
+  ultimately show ?case
+    using j_def cg_struct hd_conv_nth less_Suc_eq_0_disj less_le_trans 
+    by (metis (no_types, lifting) less_numeral_extra(3) list.size(3))
+qed simp+
 
 lemma split_unionR':
   assumes "ns = ns1 \<union> ns2"
