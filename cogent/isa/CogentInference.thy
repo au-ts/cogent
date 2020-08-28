@@ -4310,7 +4310,6 @@ lemma cg_sound_induction:
                 (\<Gamma> ! i = Some (assign_app_ty S (fst (G ! i))) \<and> A \<turnstile> assign_app_constr S (CtDrop (fst (G ! i))))"
     and "length G = length \<Gamma>"
   shows "A \<ddagger> \<Gamma> \<turnstile> (assign_app_expr S e') : (assign_app_ty S \<tau>)"
-  sorry (*
   using assms 
 proof (induct arbitrary: S \<Gamma> rule: constraint_gen_elab.inducts)
   case (cg_var1 G i \<rho> G' C \<tau> n)
@@ -5002,7 +5001,7 @@ next
   ultimately show ?case
     using typing_sig_refl typing_bop by force
 next
-  case (cg_tapp name C \<rho> m ts \<beta>s n1 \<rho>' C' C2 \<tau> n' n G)
+  case (cg_tapp name C \<rho> m ts \<beta>s n \<rho>' C' C2 \<tau> n' G)
   have "A \<ddagger> \<Gamma> \<turnstile> assign_app_expr S (TypeApp name (ts @ \<beta>s)) : (assign_app_ty S \<rho>')"
   proof -
     have "A \<turnstile> \<Gamma> \<leadsto>w empty (length \<Gamma>)"
@@ -5032,7 +5031,7 @@ next
   ultimately show ?case
     using typing_sig by simp
 next
-  case (cg_vcon \<alpha> n2 \<beta> n1 G1 e G2 C e' C' nm \<tau>)
+  case (cg_vcon \<alpha> n1 \<beta> G1 e G2 n2 C e' C' nm \<tau>)
   obtain Ks where ks_def: "TVariant Ks None = assign_app_ty S (TVariant [(nm, \<beta>, Unchecked)] (Some \<alpha>))"
     by simp
   obtain KS where kS_def: "KS = (map variant_elem_checked Ks)[0 := Ks ! 0]" by blast
@@ -5091,7 +5090,7 @@ next
     using typing_sig typing_vcon[where Ks="KS" and i="0"] kS_hd_type cg_vcon.hyps 
       kS_def ks_def by fastforce
 next
-  case (cg_case \<alpha> n2 \<beta> n1 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
+  case (cg_case \<alpha> n1 \<beta> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' e3 l G3' n4 C3 e3' G4 C4 C5 C6 C7)
   let ?e="Case e1 nm e2 e3"
   let ?dec_fv_e2 = "image (\<lambda>x. x-1) (fv e2 - {0})"
   let ?dec_fv_e3 = "image (\<lambda>x. x-1) (fv e3 - {0})"
@@ -5299,7 +5298,7 @@ next
   ultimately show ?case
     using ks_def ks_hd_type typing_sig_refl typing_case[where Ks="Ks" and i="0"] by simp
 next
-  case (cg_irref \<alpha> n2 \<beta> n1 G1 e1 nm G2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
+  case (cg_irref \<alpha> n1 \<beta> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m G3 n3 C2 e2' C3 C4 C5)
   let ?e = "Esac e1 nm e2"
   let ?dec_fv_e2 = "image (\<lambda>x. x-1) (fv e2 - {0})"
   let ?idxs = "Set.filter (\<lambda>x. x \<notin> fv ?e \<and> \<Gamma> ! x \<noteq> None) {0..<length G1}"
@@ -5391,7 +5390,19 @@ next
   qed simp+
   ultimately show ?case
     using typing_sig_refl typing_irref[where Ks="KS" and i="0"] kS_def ks_def by auto
-qed *)
+next
+  case (cg_member \<alpha> n1 \<beta> G1 e nm \<tau> G2 n2 C e' C')
+  then show ?case sorry
+next
+  case (cg_take \<beta> n1 \<alpha> \<gamma> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m l G3 n3 C2 e2' C3 C4 C5 C6)
+  then show ?case sorry
+next
+  case (cg_put \<beta> n1 \<alpha> \<gamma> G1 e1 nm G2 n2 C1 e1' e2 G3 n3 C2 e2' C3 \<tau> C4 C5)
+  then show ?case sorry
+next
+  case (cg_struct \<alpha>s n1 nms es Gs G1 G2 ns n2 Cs es' C' \<tau>)
+  then show ?case sorry
+qed
 
 lemma cg_sound:
   assumes "G,n \<turnstile> e : \<tau> \<leadsto> G',n' | C | e'"
