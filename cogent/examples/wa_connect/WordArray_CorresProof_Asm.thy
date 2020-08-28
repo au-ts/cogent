@@ -472,7 +472,7 @@ lemma upd_wa_foldnb_bod_preservation:
 lemma upd_wa_foldnb_0_preservation:
   "\<And>K a b \<sigma> \<sigma>' \<tau>s v v' r w.
    \<lbrakk>list_all2 (kinding []) \<tau>s K; wordarray_fold_no_break_0_type = (K, a, b);
-    upd.uval_typing \<Xi> \<sigma> v (instantiate \<tau>s a) r w; upd_wa_foldnb_0 (\<sigma>, v) (\<sigma>', v')\<rbrakk>
+    upd.uval_typing \<Xi> \<sigma> v (instantiate \<tau>s a) r w; upd_wa_foldnb_0 \<Xi> \<xi>0 (\<sigma>, v) (\<sigma>', v')\<rbrakk>
     \<Longrightarrow> \<exists>r' w'. upd.uval_typing \<Xi> \<sigma>' v' (instantiate \<tau>s b) r' w' \<and> r' \<subseteq> r \<and> frame \<sigma> w \<sigma>' w'"
   apply (clarsimp simp: wordarray_fold_no_break_0_type_def upd_wa_foldnb_0_def)
   apply (erule upd.u_t_recE; clarsimp)
@@ -650,18 +650,14 @@ lemma value_sem_rename_mono_prog_rename_\<Xi>_\<xi>m1_\<xi>p1:
    apply (clarsimp simp: val_wa_put2_rename_monoexpr_correct)
   apply (subst (asm) rename_def)
   apply (subst (asm) assoc_lookup.simps)+
-  apply (clarsimp split: if_split_asm simp: val_wa_foldnb_0_def val_wa_foldnb_0p_def)
+  apply (clarsimp split: if_split_asm simp: val_wa_foldnb_0_def val_wa_foldnbp_def)
   apply (case_tac v; clarsimp)
   apply (clarsimp simp: abbreviatedType1_def)
   thm val_wa_foldnb_bod_rename_monoexpr_correct
   apply (drule_tac xs = xs and frm = "unat frm" and to = "unat to" and acc = zd and obsv = ze and
-      r = "(VPrim (LU32 r))" and \<xi>\<^sub>p = \<xi>p in 
+      r = v' and \<xi>\<^sub>p = \<xi>p in 
       val_wa_foldnb_bod_rename_monoexpr_correct[OF val_proc_env_matches_\<xi>m_\<Xi>] ; simp?)
-       apply (rule value_sem_rename_mono_prog_rename_\<Xi>_\<xi>m_\<xi>p)
-      apply (clarsimp simp: wa_abs_typing_v_def)
-      apply (erule_tac x = i in allE; clarsimp)
-     apply (rule val.v_t_prim'; clarsimp)
-    apply (rule val.v_t_unit)
+    apply (rule value_sem_rename_mono_prog_rename_\<Xi>_\<xi>m_\<xi>p)
    apply clarsimp
   apply clarsimp
   apply (rule_tac x = r' in exI; clarsimp)
@@ -730,8 +726,8 @@ lemma upd_val_wa_foldnb_bod_corres:
     \<sigma> p = option.Some (UAbstract (UWA v len arr));
     wa_abs_upd_val (UWA v len arr) (VWA v xs) ''WordArray'' [v] (Boxed ReadOnly undefined) r w \<sigma>;
     upd_val_rel \<Xi>' \<sigma> acc acc' u ra wa; upd_val_rel \<Xi>' \<sigma> obsv obsv' t s {}; wa \<inter> s = {};
-    \<tau> = TRecord [(''elem'', (v, Present)), (''acc'', (u, Present)), (''obsv'', (t, Present))] Unboxed;
-     \<Xi>', [], [option.Some \<tau>] \<turnstile> App f (Var 0) : u\<rbrakk>
+    \<tau> = TRecord [(a0, (v, Present)), (a1, (u, Present)), (a2, (t, Present))] Unboxed;
+     \<Xi>', [], [option.Some \<tau>] \<turnstile> App f (Var 0) : u; distinct [a0, a1, a2]\<rbrakk>
     \<Longrightarrow> \<exists>ra' wa'.  upd_val_rel \<Xi>' \<sigma>' res res' u ra' wa' \<and> ra' \<subseteq> ({p} \<union> ra \<union> s \<union> r)\<and> frame \<sigma> wa \<sigma>' wa'"
   apply (induct to arbitrary: res res' \<sigma>')
    apply (erule upd_wa_foldnb_bod.elims; clarsimp)
@@ -769,7 +765,7 @@ lemma upd_val_wa_foldnb_bod_corres:
       r = "ra \<union> s" and w = wa in mono_correspondence(1); simp?)
      apply (rule u_v_matches_some[where r' = "{}" and w' = "{}", simplified])
       apply (rule u_v_struct; simp?)
-      apply (rule u_v_r_cons1[where r = "{}" and w = "{}", simplified]; simp?)
+      apply (rule u_v_r_cons1[where r = "{}" and w = "{}", simplified]; simp?; clarsimp?)
         apply (clarsimp simp: wa_abs_typing_v_def)
         apply (erule_tac x = frm in allE; clarsimp)+
         apply (erule_tac x = "unat frm" in allE; clarsimp)
@@ -796,7 +792,7 @@ lemma upd_val_wa_foldnb_bod_corres:
    apply (frule_tac \<gamma> = "[URecord [(va, upd.uval_repr va), (acc, upd.uval_repr acc),
       (obsv, upd.uval_repr obsv)]]" and 
       \<gamma>' = "[VRecord [xs ! unat frm, acc', obsv']]" and
-      r = "ra \<union> s" and w = wa in mono_correspondence(1); simp?)
+      r = "ra \<union> s" and w = wa in mono_correspondence(1); simp?; clarsimp?)
     apply (rule u_v_matches_some[where r' = "{}" and w' = "{}", simplified])
       apply (rule u_v_struct; simp?)
      apply (rule u_v_r_cons1[where r = "{}" and w = "{}", simplified]; simp?)
@@ -813,7 +809,6 @@ lemma upd_val_wa_foldnb_bod_corres:
       apply (drule upd.type_repr_uval_repr(1); simp)
      apply (erule_tac x = frm in allE; clarsimp)+
     apply (rule u_v_matches_empty[where \<tau>s = "[]", simplified])
-   apply clarsimp
    apply (rule_tac x = r' in exI)
    apply (rule_tac x = w' in exI)
    apply clarsimp
@@ -835,7 +830,7 @@ lemma upd_val_wa_foldnb_bod_corres:
   apply (frule_tac \<gamma> = "[URecord [(va, upd.uval_repr va), (r'', upd.uval_repr r''),
       (obsv, upd.uval_repr obsv)]]" and 
       \<gamma>' = "[VRecord [xs ! unat to, r', obsv']]" and
-      r = "ra' \<union> s" and w = wa' in mono_correspondence(1); simp?)
+      r = "ra' \<union> s" and w = wa' in mono_correspondence(1); simp?; clarsimp?)
    apply (rule u_v_matches_some[where r' = "{}" and w' = "{}", simplified])
     apply (rule u_v_struct; simp?)
     apply (rule u_v_r_cons1[where r = "{}" and w = "{}", simplified]; simp?)
@@ -865,7 +860,6 @@ lemma upd_val_wa_foldnb_bod_corres:
      apply (drule upd.type_repr_uval_repr(1); simp)
     apply (erule_tac x = to in allE; clarsimp)
    apply (rule u_v_matches_empty[where \<tau>s = "[]", simplified])
-  apply clarsimp
   apply (rule_tac x = r'a in exI)
   apply (rule_tac x = w' in exI)
   apply clarsimp
@@ -882,8 +876,8 @@ lemma val_executes_from_upd_wa_foldnb_bod:
     \<sigma> p = option.Some (UAbstract (UWA v len arr));
     wa_abs_upd_val (UWA v len arr) (VWA v xs) ''WordArray'' [v] (Boxed ReadOnly undefined) r w \<sigma>;
     upd_val_rel \<Xi>' \<sigma> acc acc' u ra wa; upd_val_rel \<Xi>' \<sigma> obsv obsv' t s {}; wa \<inter> s = {};
-    \<tau> = TRecord [(''elem'', (v, Present)), (''acc'', (u, Present)), (''obsv'', (t, Present))] Unboxed;
-     \<Xi>', [], [option.Some \<tau>] \<turnstile> App f (Var 0) : u\<rbrakk>
+    \<tau> = TRecord [(a0, (v, Present)), (a1, (u, Present)), (a2, (t, Present))] Unboxed;
+     \<Xi>', [], [option.Some \<tau>] \<turnstile> App f (Var 0) : u; distinct [a0, a1, a2]\<rbrakk>
     \<Longrightarrow> \<exists>res' r w. val_wa_foldnb_bod \<xi>\<^sub>v xs (unat frm) (unat to) f acc' obsv' res' \<and> upd_val_rel \<Xi>' \<sigma>' res res' u r w"
   apply (induct arbitrary: \<sigma>' res rule: word_induct[where m = "to"])
    apply (erule upd_wa_foldnb_bod.elims; clarsimp)
@@ -936,7 +930,7 @@ lemma val_executes_from_upd_wa_foldnb_bod:
     apply (frule_tac \<gamma> = "[URecord [(va, upd.uval_repr va), (acc, upd.uval_repr acc), 
       (obsv, upd.uval_repr obsv)]]" and 
       \<gamma>' = "[VRecord [xs ! unat frm, acc', obsv']]" and
-      r = "ra \<union> s" and w = wa in val_executes_from_upd_executes(1); simp?)
+      r = "ra \<union> s" and w = wa in val_executes_from_upd_executes(1); simp?; clarsimp?)
      apply (rule u_v_matches_some[where r' = "{}" and w' = "{}", simplified])
       apply (rule u_v_struct; simp?)
       apply (rule u_v_r_cons1[where r = "{}" and w = "{}", simplified]; simp?)
@@ -953,7 +947,6 @@ lemma val_executes_from_upd_wa_foldnb_bod:
       apply (clarsimp simp: wa_abs_upd_val_def)
       apply (erule_tac x = frm in allE; clarsimp)+
      apply (rule u_v_matches_empty[where \<tau>s = "[]", simplified])
-    apply clarsimp
     apply (rule_tac x = v' in exI)
     apply (drule unatSuc; clarsimp simp: word_less_nat_alt word_le_nat_alt)
     apply (rule conjI)
@@ -964,7 +957,7 @@ lemma val_executes_from_upd_wa_foldnb_bod:
     apply (frule_tac \<gamma> = "[URecord [(va, upd.uval_repr va), (acc, upd.uval_repr acc),
       (obsv, upd.uval_repr obsv)]]" and 
       \<gamma>' = "[VRecord [xs ! unat frm, acc', obsv']]" and
-      r = "ra \<union> s" and w = wa in mono_correspondence(1); simp?)
+      r = "ra \<union> s" and w = wa in mono_correspondence(1); simp?; clarsimp?)
      apply (rule u_v_matches_some[where r' = "{}" and w' = "{}", simplified])
       apply (rule u_v_struct; simp?)
       apply (rule u_v_r_cons1[where r = "{}" and w = "{}", simplified]; simp?)
@@ -981,7 +974,6 @@ lemma val_executes_from_upd_wa_foldnb_bod:
       apply (clarsimp simp: wa_abs_upd_val_def)
       apply (erule_tac x = frm in allE; clarsimp simp: word_less_nat_alt)+
      apply (rule u_v_matches_empty[where \<tau>s = "[]", simplified])
-    apply clarsimp
     apply (rule_tac x = r' in exI)
     apply (rule_tac x = w' in exI)
     apply clarsimp
@@ -993,7 +985,7 @@ lemma val_executes_from_upd_wa_foldnb_bod:
    apply (frule_tac \<gamma> = "[URecord [(va, upd.uval_repr va), (acc, upd.uval_repr acc), 
       (obsv, upd.uval_repr obsv)]]" and
       \<gamma>' = "[VRecord [xs ! unat frm, acc', obsv']]" and
-      r = "ra \<union> s" and w = wa in val_executes_from_upd_executes(1); simp?)
+      r = "ra \<union> s" and w = wa in val_executes_from_upd_executes(1); simp?; clarsimp?)
     apply (rule u_v_matches_some[where r' = "{}" and w' = "{}", simplified])
   apply (rule u_v_struct; simp?)
      apply (rule u_v_r_cons1[where r = "{}" and w = "{}", simplified]; simp?)
@@ -1010,12 +1002,11 @@ lemma val_executes_from_upd_wa_foldnb_bod:
      apply (clarsimp simp: wa_abs_upd_val_def)
      apply (erule_tac x = frm in allE; clarsimp simp: word_less_nat_alt)+
     apply (rule u_v_matches_empty[where \<tau>s = "[]", simplified])
-   apply clarsimp
    apply (frule_tac \<gamma> = "[URecord [(va, upd.uval_repr va), (acc, upd.uval_repr acc),
       (obsv, upd.uval_repr obsv)]]" and 
       \<gamma>' = "[VRecord [xs ! unat frm, acc', obsv']]" and
       r = "ra \<union> s" and w = wa in mono_correspondence(1); simp?)
-    apply (rule u_v_matches_some[where r' = "{}" and w' = "{}", simplified])
+    apply (rule u_v_matches_some[where r' = "{}" and w' = "{}", simplified]; clarsimp?)
      apply (rule u_v_struct; simp?)
      apply (rule u_v_r_cons1[where r = "{}" and w = "{}", simplified]; simp?)
        apply (clarsimp simp: wa_abs_upd_val_def)
@@ -1055,7 +1046,7 @@ lemma val_executes_from_upd_wa_foldnb_bod:
   apply (frule_tac \<gamma> = "[URecord [(va, upd.uval_repr va), (r'', upd.uval_repr r''), 
       (obsv, upd.uval_repr obsv)]]" and
       \<gamma>' = "[VRecord [xs ! unat n, res', obsv']]" and
-      r = "ra' \<union> s" and w = wa' in val_executes_from_upd_executes(1); simp?)
+      r = "ra' \<union> s" and w = wa' in val_executes_from_upd_executes(1); simp?; clarsimp?)
    apply (rule u_v_matches_some[where r' = "{}" and w' = "{}", simplified])
     apply (rule u_v_struct; simp?)
     apply (rule u_v_r_cons1[where r = "{}" and w = "{}", simplified]; simp?)
@@ -1082,14 +1073,13 @@ lemma val_executes_from_upd_wa_foldnb_bod:
      apply (drule upd.type_repr_uval_repr(1); simp)
     apply (erule_tac x = n in allE; clarsimp)+
    apply (rule u_v_matches_empty[where \<tau>s = "[]", simplified])
-  apply clarsimp
   apply (drule_tac r' = v' in  val_wa_foldnb_bod_step; simp?)
   apply (rule_tac x = v' in exI)
   apply clarsimp
   apply (frule_tac \<gamma> = "[URecord [(va, upd.uval_repr va), (r'', upd.uval_repr r''), 
       (obsv, upd.uval_repr obsv)]]" and 
       \<gamma>' = "[VRecord [xs ! unat n, res', obsv']]" and
-      r = "ra' \<union> s" and w = wa' in mono_correspondence(1); simp?)
+      r = "ra' \<union> s" and w = wa' in mono_correspondence(1); simp?; clarsimp?)
    apply (rule u_v_matches_some[where r' = "{}" and w' = "{}", simplified])
     apply (rule u_v_struct; simp?)
     apply (rule u_v_r_cons1[where r = "{}" and w = "{}", simplified]; simp?)
@@ -1116,7 +1106,6 @@ lemma val_executes_from_upd_wa_foldnb_bod:
      apply (drule upd.type_repr_uval_repr(1); simp)
     apply (erule_tac x = n in allE; clarsimp)
    apply (rule u_v_matches_empty[where \<tau>s = "[]", simplified])
-  apply clarsimp
   apply (rule_tac x = r' in exI)
   apply (rule_tac x = w' in exI)
   apply simp
@@ -1125,9 +1114,9 @@ lemma val_executes_from_upd_wa_foldnb_bod:
 lemma wordarray_fold_no_break_upd_val:
   "\<And>K a b \<sigma> \<sigma>' \<tau>s aa a' v v' r w.
    \<lbrakk>list_all2 (kinding []) \<tau>s K; wordarray_fold_no_break_0_type = (K, a, b); 
-    upd_val_rel \<Xi> \<sigma> aa a' (instantiate \<tau>s a) r w; upd_wa_foldnb_0 (\<sigma>, aa) (\<sigma>', v)\<rbrakk>
-    \<Longrightarrow> (val_wa_foldnb_0 a' v' \<longrightarrow> (\<exists>r' w'. upd_val_rel \<Xi> \<sigma>' v v' (instantiate \<tau>s b) r' w' \<and> r' \<subseteq> r \<and>
-          frame \<sigma> w \<sigma>' w')) \<and> Ex (val_wa_foldnb_0 a')"
+    upd_val_rel \<Xi> \<sigma> aa a' (instantiate \<tau>s a) r w; upd_wa_foldnb_0 \<Xi> \<xi>0 (\<sigma>, aa) (\<sigma>', v)\<rbrakk>
+    \<Longrightarrow> (val_wa_foldnb_0 \<Xi> \<xi>m abbreviatedType1 a' v' \<longrightarrow> (\<exists>r' w'. upd_val_rel \<Xi> \<sigma>' v v' (instantiate \<tau>s b) r' w' \<and> r' \<subseteq> r \<and>
+          frame \<sigma> w \<sigma>' w')) \<and> Ex (val_wa_foldnb_0 \<Xi> \<xi>m abbreviatedType1 a')"
   apply (clarsimp simp: wordarray_fold_no_break_0_type_def upd_wa_foldnb_0_def)
   apply (erule u_v_recE'; clarsimp)
   apply (erule u_v_r_consE'; clarsimp)
@@ -1169,8 +1158,9 @@ lemma wordarray_fold_no_break_upd_val:
   apply (case_tac x11; clarsimp)
   apply (case_tac x5; clarsimp)
   apply (rule conjI; clarsimp)
+  apply (clarsimp simp: abbreviatedType1_def)
    apply (drule_tac xs = x12 and r = r and w = "{}" and acc' = "VPrim (LU32 acc)" and 
-      wa = "{}" and obsv' = "VUnit" and t = "TUnit" and res' = "(VPrim (LU32 rc))"
+      wa = "{}" and obsv' = "VUnit" and t = "TUnit" and res' = v'
       in upd_val_wa_foldnb_bod_corres[OF proc_ctx_wellformed_\<Xi> proc_env_u_v_matches_\<xi>0_\<xi>m_\<Xi>,
         where ra = "{}" and s = "{}", simplified]; simp?)
         apply (case_tac xa; clarsimp)
@@ -1185,7 +1175,7 @@ lemma wordarray_fold_no_break_upd_val:
        apply (clarsimp simp: wa_abs_upd_val_def)
       apply (rule u_v_prim'; clarsimp)
      apply (rule u_v_unit)
-    apply (clarsimp simp: abbreviatedType1_def)
+    apply clarsimp
    apply clarsimp
    apply (case_tac xa; clarsimp)
     apply (subst (asm) upd_val_rel.simps[of _ _ "UFunction _ _", simplified])
@@ -1198,6 +1188,7 @@ lemma wordarray_fold_no_break_upd_val:
    apply (erule disjE; clarsimp?)
    apply (erule disjE; clarsimp?)
    apply blast
+  apply (clarsimp simp: abbreviatedType1_def)
   apply (drule_tac xs = x12 and r = r and w = "{}" and acc' = "VPrim (LU32 acc)" and
       wa = "{}" and obsv' = "VUnit" and t = "TUnit" 
       in val_executes_from_upd_wa_foldnb_bod[OF proc_ctx_wellformed_\<Xi> proc_env_u_v_matches_\<xi>0_\<xi>m_\<Xi>,
@@ -1205,31 +1196,25 @@ lemma wordarray_fold_no_break_upd_val:
       apply (clarsimp simp: wa_abs_upd_val_def)
      apply (rule u_v_prim'; clarsimp)
     apply (rule u_v_unit)
-   apply (clarsimp simp: abbreviatedType1_def)
+   apply clarsimp
   apply clarsimp
   apply (rule_tac x = res' in exI)
   apply (clarsimp simp: val_wa_foldnb_0_def)
-  apply (rule conjI)
-  apply (clarsimp simp: abbreviatedType1_def)
-  apply (drule val_wa_foldnb_bod_preservation[OF proc_ctx_wellformed_\<Xi> val_proc_env_matches_\<xi>m_\<Xi>]; simp?)
-      apply (clarsimp simp: wa_abs_typing_v_def)
-      apply (rule val.v_t_prim'; simp)
-     apply (rule val.v_t_unit)
-    apply clarsimp
-   apply (erule v_t_prim_tE; clarsimp) 
-   apply (drule lit_type_ex[OF sym]; simp)
-  apply (rule conjI, clarsimp simp: wa_abs_typing_v_def)
-   apply (erule_tac x = i in allE; clarsimp)
-   apply (drule lit_type_ex; simp)
   apply (case_tac xa; clarsimp)
    apply (subst (asm) upd_val_rel.simps[of _ _ "UFunction _ _", simplified])
    apply clarsimp
    apply (erule disjE; clarsimp?)
    apply (erule disjE; clarsimp?)
+  apply (rule conjI)
+    apply (rule val.v_t_prim'; clarsimp)
+   apply (rule val.v_t_unit)
   apply (subst (asm) upd_val_rel.simps[of _ _ "UAFunction _ _", simplified])
   apply clarsimp
   apply (erule disjE; clarsimp?)
   apply (erule disjE; clarsimp?)
+  apply (rule conjI)
+   apply (rule val.v_t_prim'; clarsimp)
+  apply (rule val.v_t_unit)
   done
 
 lemma upd_proc_env_matches_ptrs_\<xi>1_\<Xi>:

@@ -550,6 +550,8 @@ gets (\<lambda>s. x)
              clarsimp simp: type_rel_simps is_valid_simp heap_simp wa_abs_repr_def val_rel_simps) 
       apply (thin_tac "cogent_function_val_rel _ _")
       apply (thin_tac "upd.uval_typing _ _ _ _ _ _")
+      apply (rule conjI)
+       apply (clarsimp simp: \<Xi>_def abbreviatedType1_def wordarray_fold_no_break_0_type_def)
       apply clarsimp
       apply (case_tac "t5_C.to_C x' = b"; clarsimp?)
       apply (case_tac "b < t5_C.to_C x'"; clarsimp)

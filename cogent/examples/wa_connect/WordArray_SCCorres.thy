@@ -222,18 +222,18 @@ lemma take_drop_Suc_app:
   apply simp
   using Suc_le_lessD hd_drop_conv_nth by blast
   
-\<comment>\<open> Can't generalise this unless you can prove that @{term "valRel \<xi>\<^sub>i a b \<Longrightarrow> valRel \<xi>\<^sub>j a b"}
-   which isn't true if @{term a} and @{term b} are functions\<close>
+\<comment>\<open> Can't generalise this unless you can prove that @{term "\<forall>a b. valRel \<xi>\<^sub>i (a :: 'a) b \<longleftrightarrow> valRel \<xi>\<^sub>j a b"} 
+    which is not true for functions and possibly records and sums\<close>
 lemma scorres_wordarray_fold_no_break_u32:
   "\<lbrakk>valRel \<xi>p \<lparr>WordArrayMapP.arr\<^sub>f = (arr::32 word WordArray), frm\<^sub>f = (frm::32 word), to\<^sub>f = to,
-      f\<^sub>f = f, acc\<^sub>f = (acc::32 word), obsv\<^sub>f = obsv\<rparr> v'\<rbrakk>
+      f\<^sub>f = f, acc\<^sub>f = (acc :: 'a), obsv\<^sub>f = obsv\<rparr> v'; \<forall>x x'. valRel \<xi>p (x :: 'a) x' \<longleftrightarrow> valRel \<xi>p1 x x'\<rbrakk>
     \<Longrightarrow> val.scorres 
     (wordarray_fold_no_break \<lparr>WordArrayMapP.arr\<^sub>f = arr, frm\<^sub>f = frm, to\<^sub>f = to, f\<^sub>f = f, 
         acc\<^sub>f = acc, obsv\<^sub>f = obsv\<rparr>) (App (AFun ''wordarray_fold_no_break'' ts) (Var 0)) [v'] \<xi>p1"
   apply (clarsimp simp: val.scorres_def)
   apply (erule v_sem_appE; erule v_sem_afunE; clarsimp)
   apply (erule v_sem_varE; clarsimp)
-  apply (clarsimp simp: val_wa_foldnb_0p_def)
+  apply (clarsimp simp: val_wa_foldnbp_def)
   apply (case_tac func; clarsimp)
    apply (clarsimp simp: wordarray_fold_no_break' valRel_records valRel_WordArrayU32)
    apply (induct to arbitrary: v')
@@ -251,7 +251,7 @@ lemma scorres_wordarray_fold_no_break_u32:
     apply (erule val_wa_foldnb_bod.elims; clarsimp)
     apply (erule_tac x = "\<lparr>ElemAO.elem\<^sub>f = arr ! unat frm, acc\<^sub>f = acc, obsv\<^sub>f = obsv\<rparr>" in allE)
     apply clarsimp
-    apply (erule_tac x = "VRecord [VPrim (LU32 (arr ! unat frm)), VPrim (LU32 acc), obsva]" in allE)
+    apply (erule_tac x = "VRecord [VPrim (LU32 (arr ! unat frm)), acca, obsva]" in allE)
     apply clarsimp
     apply (erule v_sem_appE; clarsimp)
     apply (erule v_sem_varE; clarsimp)
@@ -261,11 +261,12 @@ lemma scorres_wordarray_fold_no_break_u32:
    apply clarsimp
    apply (drule_tac x = r' in meta_spec)
    apply (drule_tac x = xs in meta_spec)
+   apply (drule_tac x = acca in meta_spec)
    apply (drule_tac x = obsva in meta_spec)
    apply (drule_tac x = x61 in meta_spec)
    apply (drule_tac x = x62 in meta_spec)
    apply (drule_tac x = "VRecord [VAbstract (VWA (TPrim (Num U32)) xs), VPrim (LU32 frm), 
-      VPrim (LU32 to), VFunction x61 x62, VPrim (LU32 acc), obsva]" in meta_spec)
+      VPrim (LU32 to), VFunction x61 x62, acca, obsva]" in meta_spec)
    apply clarsimp
    apply (subst take_drop_Suc_app)
      apply (meson Suc_le_eq nat_neq_iff word_unat.Rep_eqD)
@@ -274,64 +275,62 @@ lemma scorres_wordarray_fold_no_break_u32:
    apply (erule_tac x = "\<lparr>ElemAO.elem\<^sub>f = arr ! unat to, 
     acc\<^sub>f = fold (\<lambda>a b. f \<lparr>ElemAO.elem\<^sub>f = a, acc\<^sub>f = b, obsv\<^sub>f = obsv\<rparr>)
       (take (unat to - unat frm) (List.drop (unat frm) arr)) acc, obsv\<^sub>f = obsv\<rparr>" in allE)
-   apply (erule_tac x = "VRecord [VPrim (LU32 (arr ! unat to)),
-    VPrim (LU32 (fold (\<lambda>a b. f \<lparr>ElemAO.elem\<^sub>f = a, acc\<^sub>f = b, obsv\<^sub>f = obsv\<rparr>)
-      (take (unat to - unat frm) (List.drop (unat frm) arr)) acc)), obsva]" in allE)
+   apply (erule_tac x = "VRecord [VPrim (LU32 (arr ! unat to)), r', obsva]" in allE)
    apply clarsimp
    apply (erule v_sem_appE; clarsimp)
    apply (erule v_sem_varE; clarsimp)
-  apply (clarsimp simp: wordarray_fold_no_break' valRel_records valRel_WordArrayU32)
+  apply (clarsimp simp: wordarray_fold_no_break' valRel_records valRel_WordArrayU32 simp del: \<xi>p.simps)
   apply (induct to arbitrary: v')
-   apply (erule val_wa_foldnb_bod.elims; clarsimp)
-  apply clarsimp
-  apply (drule unatSuc; clarsimp)
+   apply (erule val_wa_foldnb_bod.elims; clarsimp simp del: \<xi>p.simps)
+  apply (clarsimp simp del: \<xi>p.simps)
+  apply (drule unatSuc; clarsimp simp del: \<xi>p.simps)
   apply (case_tac "length xs < Suc (unat to)")
    apply (drule val_wa_foldnb_bod_back_step'; simp)
   apply (case_tac "unat frm \<ge> Suc (unat to)")
-   apply clarsimp
+   apply (clarsimp simp del: \<xi>p.simps)
    apply (erule val_wa_foldnb_bod.elims; clarsimp)
   apply (case_tac "unat frm = unat to")
-   apply (clarsimp simp: take_1_drop)
-   apply (erule val_wa_foldnb_bod.elims; clarsimp)
-   apply (erule val_wa_foldnb_bod.elims; clarsimp)
+   apply (clarsimp simp: take_1_drop simp del: \<xi>p.simps)
+   apply (erule val_wa_foldnb_bod.elims; clarsimp simp del: \<xi>p.simps)
+   apply (erule val_wa_foldnb_bod.elims; clarsimp simp del: \<xi>p.simps)
    apply (erule_tac x = "\<lparr>ElemAO.elem\<^sub>f = arr ! unat frm, acc\<^sub>f = acc, obsv\<^sub>f = obsv\<rparr>" in allE)
-   apply clarsimp
-   apply (erule_tac x = "VRecord [VPrim (LU32 (arr ! unat frm)), VPrim (LU32 acc), obsva]" in allE)
-   apply clarsimp
-   apply (erule v_sem_appE; clarsimp?)
-    apply (erule v_sem_varE; clarsimp)
+   apply (clarsimp simp del: \<xi>p.simps)
+   apply (erule_tac x = "VRecord [VPrim (LU32 (arr ! unat frm)), acca, obsva]" in allE)
+   apply (clarsimp simp del: \<xi>p.simps)
+   apply (erule v_sem_appE)
+    apply (erule v_sem_varE; clarsimp simp del: \<xi>p.simps)
     apply (erule_tac x = resa in allE)
-    apply (clarsimp split: if_splits simp: val_wa_length_def val_wa_get_def val_wa_put2_def)
+    apply (erule v_sem_afunE; clarsimp)
    apply (erule v_sem_afunE; clarsimp)
-  apply clarsimp
-  apply (drule val_wa_foldnb_bod_back_step; simp)
+  apply (clarsimp simp del: \<xi>p.simps)
+  apply (drule val_wa_foldnb_bod_back_step; simp del: \<xi>p.simps)
    apply (meson Suc_le_eq nat_neq_iff word_unat.Rep_eqD)
-  apply clarsimp
+  apply (clarsimp simp del: \<xi>p.simps)
   apply (drule_tac x = r' in meta_spec)
   apply (drule_tac x = xs in meta_spec)
+  apply (drule_tac x = acca in meta_spec)
   apply (drule_tac x = obsva in meta_spec)
   apply (drule_tac x = x71 in meta_spec)
   apply (drule_tac x = x72 in meta_spec)
   apply (drule_tac x = "VRecord [VAbstract (VWA (TPrim (Num U32)) xs), VPrim (LU32 frm), 
-     VPrim (LU32 to), VAFunction x71 x72, VPrim (LU32 acc), obsva]" in meta_spec)
-  apply clarsimp
+     VPrim (LU32 to), VAFunction x71 x72, acca, obsva]" in meta_spec)
+  apply (clarsimp simp del: \<xi>p.simps)
   apply (subst take_drop_Suc_app)
     apply (meson Suc_le_eq nat_neq_iff word_unat.Rep_eqD)
    apply simp
-  apply clarsimp
+  apply (clarsimp simp del: \<xi>p.simps)
   apply (erule_tac x = "\<lparr>ElemAO.elem\<^sub>f = arr ! unat to, 
    acc\<^sub>f = fold (\<lambda>a b. f \<lparr>ElemAO.elem\<^sub>f = a, acc\<^sub>f = b, obsv\<^sub>f = obsv\<rparr>)
      (take (unat to - unat frm) (List.drop (unat frm) arr)) acc, obsv\<^sub>f = obsv\<rparr>" in allE)
-  apply (erule_tac x = "VRecord [VPrim (LU32 (arr ! unat to)),
-   VPrim (LU32 (fold (\<lambda>a b. f \<lparr>ElemAO.elem\<^sub>f = a, acc\<^sub>f = b, obsv\<^sub>f = obsv\<rparr>)
-     (take (unat to - unat frm) (List.drop (unat frm) arr)) acc)), obsva]" in allE)
-  apply clarsimp
-  apply (erule v_sem_appE; clarsimp?)
-   apply (erule v_sem_varE; clarsimp)
+  apply (erule_tac x = "VRecord [VPrim (LU32 (arr ! unat to)), r', obsva]" in allE)
+  apply (clarsimp simp del: \<xi>p.simps)
+  apply (erule v_sem_appE)
+   apply (erule v_sem_varE; clarsimp simp del: \<xi>p.simps)
    apply (erule_tac x = r in allE)
-   apply (clarsimp split: if_splits simp: val_wa_length_def val_wa_get_def val_wa_put2_def)
+   apply (erule v_sem_afunE; clarsimp)
   apply (erule v_sem_afunE; clarsimp)
   done
+
 
 section "Correspondence From Isabelle Shallow Embedding to C"
 

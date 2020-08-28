@@ -784,9 +784,9 @@ fun uvalfun_to_exprfun :: "('f, 'a, 'l) uval \<Rightarrow> 'f expr"
    This is because we do not know what the set of writeable pointers are unless we know the
    type of the accumulator *)
 
-definition upd_wa_foldnb_0  :: "(char list, atyp, 32 word) ufundef" 
+definition upd_wa_foldnb_0
   where
-  "upd_wa_foldnb_0 y z = 
+  "upd_wa_foldnb_0 \<Xi>' \<xi>\<^sub>u y z = 
     (let (y1, y2) = y;
          (z1, z2) = z
       in (\<exists>p frm to acc r x.
@@ -796,8 +796,8 @@ definition upd_wa_foldnb_0  :: "(char list, atyp, 32 word) ufundef"
                       (x, RFun), (UPrim (LU32 acc), RPrim (Num U32)), (UUnit, RUnit)] \<and> 
         y1 = z1 \<and> y1 p = z1 p \<and> (\<exists>len arr. y1 p = option.Some (UAbstract (UWA (TPrim (Num U32)) len arr)) \<and> 
           (\<forall>i<len. y1 (arr + 4 * i) = z1 (arr + 4 * i))) \<and> z2 = UPrim (LU32 r) \<and> is_uval_fun x \<and> 
-        (\<Xi>, [], [option.Some abbreviatedType1] \<turnstile> (App (uvalfun_to_exprfun x) (Var 0)) : TPrim (Num U32)) \<and> 
-        upd_wa_foldnb_bod \<xi>0 y1 p frm to (uvalfun_to_exprfun x) (UPrim (LU32 acc)) UUnit {} z))"
+        (\<Xi>', [], [option.Some abbreviatedType1] \<turnstile> (App (uvalfun_to_exprfun x) (Var 0)) : TPrim (Num U32)) \<and> 
+        upd_wa_foldnb_bod \<xi>\<^sub>u y1 p frm to (uvalfun_to_exprfun x) (UPrim (LU32 acc)) UUnit {} z))"
 \<comment>\<open> It is hard to generalise the definition for wordarray_fold because we require the type mapping
     for functions which is only defined at compiled time, however since this doesn't change for each
     level then it should actually be fine. However, we should change the definition to take the
@@ -873,7 +873,7 @@ definition upd_wa_mapnb_0  :: "(char list, atyp, 32 word) ufundef"
 fun \<xi>1 :: "(char list, atyp, 32 word) uabsfuns" 
   where
   "\<xi>1 x y z = 
-    (if x = ''wordarray_fold_no_break_0'' then upd_wa_foldnb_0 y z
+    (if x = ''wordarray_fold_no_break_0'' then upd_wa_foldnb_0 \<Xi> \<xi>0 y z
      else (if x = ''wordarray_map_no_break_0'' then False 
            else \<xi>0 x y z))" 
 
@@ -1147,32 +1147,33 @@ fun vvalfun_to_exprfun :: "('f, 'a) vval \<Rightarrow> 'f expr"
 
 definition val_wa_foldnb_0
   where
-  "val_wa_foldnb_0 x y = (\<exists>xs frm to acc r func. 
-      x = VRecord [VAbstract (VWA (TPrim (Num U32)) xs), VPrim (LU32 frm), VPrim (LU32 to), func, VPrim (LU32 acc),
-                   VUnit] \<and> y = VPrim (LU32 r) \<and> (\<forall>i < length xs. \<exists>v. xs ! i = VPrim (LU32 v)) \<and>
-      is_vval_fun func \<and> 
-      (\<Xi>, [], [option.Some abbreviatedType1] \<turnstile> (App (vvalfun_to_exprfun func) (Var 0)) : TPrim (Num U32)) \<and>
-      (val_wa_foldnb_bod \<xi>m xs (unat frm) (unat to) (vvalfun_to_exprfun func) (VPrim (LU32 acc)) (VUnit) y))"
+  "val_wa_foldnb_0 \<Xi>' \<xi>\<^sub>v \<tau> x y = (\<exists>xs frm to acc obsv func t u v a0 a1 a2. 
+      x = VRecord [VAbstract (VWA t xs), VPrim (LU32 frm), VPrim (LU32 to), func, acc, obsv] \<and> 
+      wa_abs_typing_v (VWA t xs) ''WordArray'' [t]  \<and>
+      is_vval_fun func \<and> \<tau> = TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed \<and>
+      val.vval_typing \<Xi>' acc u \<and> val.vval_typing \<Xi>' obsv v \<and> 
+      (\<Xi>', [], [option.Some \<tau>] \<turnstile> (App (vvalfun_to_exprfun func) (Var 0)) : u) \<and>
+      (val_wa_foldnb_bod \<xi>\<^sub>v xs (unat frm) (unat to) (vvalfun_to_exprfun func) acc obsv y))"
 
 
-definition val_wa_foldnb_0p
+definition val_wa_foldnbp
   where
-  "val_wa_foldnb_0p x y = (\<exists>xs frm to func acc obsv. 
-      x = VRecord [VAbstract (VWA (TPrim (Num U32)) xs), VPrim (LU32 frm), VPrim (LU32 to), func, acc, obsv] \<and>
-      is_vval_fun func \<and> val_wa_foldnb_bod \<xi>p xs (unat frm) (unat to) (vvalfun_to_exprfun func) acc obsv y)"
+  "val_wa_foldnbp \<xi>\<^sub>p x y = (\<exists>t xs frm to func acc obsv. 
+      x = VRecord [VAbstract (VWA t xs), VPrim (LU32 frm), VPrim (LU32 to), func, acc, obsv] \<and>
+      is_vval_fun func \<and> val_wa_foldnb_bod \<xi>\<^sub>p xs (unat frm) (unat to) (vvalfun_to_exprfun func) acc obsv y)"
 
 fun \<xi>m1 :: "(char list, vatyp) vabsfuns" 
   where
   "\<xi>m1 x y z = 
     (if x = ''wordarray_fold_no_break_0'' 
-      then val_wa_foldnb_0 y z
+      then val_wa_foldnb_0 \<Xi> \<xi>m abbreviatedType1 y z
      else \<xi>m x y z)" 
 
 fun \<xi>p1 :: "(char list, vatyp) vabsfuns" 
   where
   "\<xi>p1 x y z = 
     (if x = ''wordarray_fold_no_break'' 
-      then val_wa_foldnb_0p y z
+      then val_wa_foldnbp \<xi>p y z
      else \<xi>p x y z)" 
 end (* of context *)
 end
