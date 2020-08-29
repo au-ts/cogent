@@ -341,47 +341,11 @@ opType Not [TPrim Boolean] = Just $ TPrim Boolean
 opType Complement [TPrim p] | p /= Boolean = Just $ TPrim p
 opType opr ts = __impossible "opType"
 
--- LExpr from context, true LExprs, index, input type, final type
-extractType :: [LExpr t b] -> [LExpr t b] -> Fin v -> Type t b -> Type t b
-extractType [] ps v t     = case t of
-  -- if already a reftype, add to predicates
-  TRefine t' b = TRefine t' (LOp And (ps ++ [b]))
-  _ = TRefine t (LOp And ps)
-extractType (l:ls) ps t = case varInLExpr v l of
-  -- deal with substitution?
-  True -> extractType ls (p ++ l) v t
-  False -> extractType ls ps v t
-
-varInLExpr :: Fin v -> LExpr t b -> Boolean
-containsType v l = case l of
-  LVariable (x, _) = (v == x)
-  LFun fn ts ls = 
-  LOp opr es = and $ map (varIsInLExpr v) es
-  LApp a b = and (varInLexpr v a) (varInLExpr v b)
-  LCon tn e t = varInLExpr v e 
-  LLet a e1 e2 = -- ?  
-  LLetBang bs a e1 e2 = 
-  LTuple e1 e2 = and (varInLExpr v e1) (varInLExpr v e2)
-  LStruct fs = -- ? 
-  LIf c t e = and (varInLExpr v t) (varInLExpr v e)
-  LCase e tn (v1,a1) (v2,a2) = -- ? 
-  LEsac e = 
-  LSplit (v1,v2) e1 e2 = and (varInLExpr v v1) (varInLExpr v v2)
-  LMember x f = varInLExpr x 
-  LTake (a,b) rec f e = -- ?
-  LPut rec f v = 
-  LPromote t e = varInLExpr v e 
-  LCast t e = varInLExpr v e 
-  _ = False
-
--- traverse the LExprs, find types and calculate most specific
-
 useVariable :: Fin v -> TC t v b (Maybe (Type t b))
 useVariable v = TC $ do ret <- (`at` v) <$> fst <$> get
                         case ret of
                           Nothing -> return ret
                           Just t  -> do
-                            -- using all relevant predicates, infer most specific type for t
                             ok <- canShare <$> unTC (kindcheck t)
                             unless ok $ modify (\(s, p) -> (update s v Nothing, p))
                             return ret
@@ -522,7 +486,9 @@ infer (E (Op o es))
    = do es' <- mapM infer es
         let Just t = opType o (map exprType es')
         return (TE t (Op o es'))
+        -- return (TE (TRefine t (? = ???)) (Op o es')) -- e ~' es
 infer (E (ILit i t)) = return (TE (TPrim t) (ILit i t))
+-- infer (E (ILit i t)) = return (TE (TRefine (TPrim t) (? == i)) (ILit i t)) -- add predicate for equality with i, add binding?
 infer (E (SLit s)) = return (TE TString (SLit s))
 #ifdef REFINEMENT_TYPES
 infer (E (ALit [])) = __impossible "We don't allow 0-size array literals"
@@ -598,6 +564,7 @@ infer (E (ArrayPut arr i e))
 infer (E (Variable v))
    = do Just t <- useVariable (fst v)
         return (TE t (Variable v))
+        -- return (TE (TRefine t (? == v)) (Variable v)) -- add equality refinement
 infer (E (Fun f ts ls note))
    | ExI (Flip ts') <- Vec.fromList ts
    , ExI (Flip ls') <- Vec.fromList ls
