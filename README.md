@@ -19,7 +19,7 @@ Instructions tested on Debian GNU/Linux 9.8 ("stretch") and Ubuntu 18.04 ("bioni
 Install dependencies from the Debian repository.
 ```
 sudo apt-get install git # git
-sudo apt-get install python-lxml python-psutil python-pycparser # regression tester
+sudo apt-get install python3-lxml python3-psutil python3-pycparser # regression tester
 ```
 
 To install the Cogent compiler, consult file [cogent/README.md](./cogent/README.md) for details. 
