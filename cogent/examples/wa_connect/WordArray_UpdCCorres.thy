@@ -212,7 +212,7 @@ lemma upd_C_wordarray_get_corres:
   apply (monad_eq simp: wordarray_get_0'_def)
   apply blast
   done
-
+thm corres_sum corres_app_concrete
 lemma
 " \<And>v' i \<gamma> \<Gamma>' \<sigma> s.
     \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v';
