@@ -185,7 +185,7 @@ verification: .verif-gen
 
 
 clean:
-	$(E) "Cleaning up.."
+	$(E) "Cleaning up..."
 	$(Q)rm -f $(HOUTPUT)
 	$(Q)rm -f $(OBJ)
 	$(Q)rm -f $(RTMPC)
@@ -220,13 +220,13 @@ help:
 	$(E) ""
 	$(E) "* debug"
 	$(E) "  Build the Linux kernel module with debugging enabled."
-	$(E) "  This is equivalent to running 'make linux DEBUG=1'"
+	$(E) "  This is equivalent to running 'make linux DEBUG=1'."
 	$(E) ""
 	$(E) "* verification"
 	$(E) "  Generate verification table."
 	$(E) ""
 	$(E) "* clean"
-	$(E) "  Cleanup."
+	$(E) "  Clean up."
 	$(E) ""
 	$(E) "* help"
 	$(E) "  Print this help."
