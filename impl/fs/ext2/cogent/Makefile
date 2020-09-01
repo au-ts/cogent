@@ -69,9 +69,7 @@ COGENT_GUM := $(wildcard $(LIBGUM)/gum/*/*.cogent $(LIBGUM)/gum/kernel/linux/*.c
 # ADT C files required by verification
 VERIF_ACFILES=plat/verification/wrapper.ac
 
-ifndef KERNELDIR
-KERNELDIR:= /lib/modules/$(shell uname -r)/build
-endif
+LINUX_VERSION=$(shell uname -r)
 
 ifeq ($(KERNELRELEASE),)
 PWD:= $(shell pwd)
@@ -177,7 +175,9 @@ all: .c-gen $(OBJ)
 
 # compile Linux kernel module for file system
 linux: .c-gen
-	$(Q)$(MAKE) OBJ="$(OBJ)" CFLAGS="${CFLAGS}" EXTRA_CFLAGS="-std=gnu99 ${EXTRA_CFLAGS} ${CPPFLAGS}" -C $(KERNELDIR) M=$(PWD) modules
+	$(Q)$(MAKE) OBJ="$(OBJ)" CFLAGS="${CFLAGS}" \
+		EXTRA_CFLAGS="-std=gnu99 ${EXTRA_CFLAGS} ${CPPFLAGS}" \
+		-C /lib/modules/$(LINUX_VERSION)/build M=$(PWD) modules
 
 # generate verification-clean C code and proof scripts
 verification: .verif-gen
@@ -190,7 +190,7 @@ clean:
 	$(Q)rm -f $(OBJ)
 	$(Q)rm -f $(RTMPC)
 	$(Q)rm -f $(RTMPPPC)
-	$(Q)rm -f $(MODULE).mod.[co] $(MODULE).o $(MODULE).ko Module.symvers modules.order
+	$(Q)rm -f $(MODULE).mod $(MODULE).mod.[co] $(MODULE).o $(MODULE).ko Module.symvers modules.order
 	$(Q)rm -f abstract/*.h
 	$(Q)rm -rf *.thy ROOT $(OUTPUT).table BUILD_INFO
 	$(Q)find . -name *.thy -exec rm -f {} \;
@@ -211,12 +211,12 @@ help:
 	$(E) ""
 	$(E) "Please run 'make <target>' where target is one of the following:"
 	$(E) "* linux"
-	$(E) "  Build the Linux kernel module(default)."
-	$(E) "  This will build against the kernel headers of the current running kernel."
-	$(E) "  Pass KERNELDIR=<path-to-kernel-headers> if you want to build against a different kernel version."
-	$(E) "  eg.:"
+	$(E) "  Build the Linux kernel module (default target)."
+	$(E) "  This will build against the kernel headers of the currently running kernel."
+	$(E) "  Pass LINUX_VERSION=<version-string> if you want to build against a different"
+	$(E) "  kernel version; e.g.:"
 	$(E) "     make linux"
-	$(E) "     make linux KERNELDIR=/usr/src/linux-headers-4.3.0-1-amd64/"
+	$(E) "     make linux LINUX_VERSION=4.3.0-1-amd64"
 	$(E) ""
 	$(E) "* debug"
 	$(E) "  Build the Linux kernel module with debugging enabled."
