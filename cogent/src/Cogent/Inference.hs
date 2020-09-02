@@ -292,7 +292,7 @@ adjust k f = map (\(a,b) -> (a,) $ if a == k then f b else b)
 newtype TC (t :: Nat) (v :: Nat) b x
   = TC {unTC :: ExceptT String
                         (ReaderT (Vec t Kind, Map FunName (FunctionType b))
-                                 (State (Vec v (Maybe (Type t b)), [LExpr t b])))
+                                 (State (Vec v (Maybe (Type t b)), [LExpr t b], Int)))
                         x}
   deriving (Functor, Applicative, Alternative, Monad, MonadPlus,
             MonadReader (Vec t Kind, Map FunName (FunctionType b)))
@@ -342,12 +342,12 @@ opType Complement [TPrim p] | p /= Boolean = Just $ TPrim p
 opType opr ts = __impossible "opType"
 
 useVariable :: Fin v -> TC t v b (Maybe (Type t b))
-useVariable v = TC $ do ret <- (`at` v) <$> fst <$> get
+useVariable v = TC $ do ret <- (`at` v) <$> fst3 <$> get
                         case ret of
                           Nothing -> return ret
                           Just t  -> do
                             ok <- canShare <$> unTC (kindcheck t)
-                            unless ok $ modify (\(s, p) -> (update s v Nothing, p))
+                            unless ok $ modify (\(s, p, n) -> (update s v Nothing, p, n))
                             return ret
 
 funType :: CoreFunName -> TC t v b (Maybe (FunctionType b))
@@ -355,8 +355,8 @@ funType v = TC $ (M.lookup (unCoreFunName v) . snd) <$> ask
 
 runTC :: TC t v b x
       -> (Vec t Kind, Map FunName (FunctionType b))
-      -> (Vec v (Maybe (Type t b)), [LExpr t b])
-      -> Either String ((Vec v (Maybe (Type t b)), [LExpr t b]), x)
+      -> (Vec v (Maybe (Type t b)), [LExpr t b], Int)
+      -> Either String ((Vec v (Maybe (Type t b)), [LExpr t b], Int), x)
 runTC (TC a) readers st = case runState (runReaderT (runExceptT a) readers) st of
                             (Left x, s)  -> Left x
                             (Right x, s) -> Right (s, x)
@@ -391,7 +391,7 @@ tc = flip tc' M.empty
     tc' ((FunDef attr fn ks ls t rt e):ds) reader =
       -- Enable recursion by inserting this function's type into the function type dictionary
       let ft = FT (snd <$> ks) (snd <$> ls) t rt in
-      case runTC (infer e >>= flip typecheck rt) (fmap snd ks, M.insert fn ft reader) ((Cons (Just t) Nil), []) of
+      case runTC (infer e >>= flip typecheck rt) (fmap snd ks, M.insert fn ft reader) ((Cons (Just t) Nil), [], 0) of
         Left x -> Left x
         Right (_, e') -> (first (FunDef attr fn ks ls t rt e':)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader)
     tc' (d@(AbsDecl _ fn ks ls t rt):ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader)
@@ -407,20 +407,20 @@ tcConsts :: [CoreConst UntypedExpr]
          -> Either String ([CoreConst TypedExpr], Map FunName (FunctionType VarName))
 tcConsts [] reader = return ([], reader)
 tcConsts ((v,e):ds) reader =
-  case runTC (infer e) (Nil, reader) (Nil, []) of
+  case runTC (infer e) (Nil, reader) (Nil, [], 0) of
     Left x -> Left x
     Right (_,e') -> (first ((v,e'):)) <$> tcConsts ds reader
 
 withBinding :: Type t b -> TC t ('Suc v) b x -> TC t v b x
 withBinding t x
   = TC $ do readers <- ask
-            (st, p) <- get
-            case runTC x readers (Cons (Just t) st, p) of
+            (st, p, n) <- get
+            case runTC x readers (Cons (Just t) st, p, n) of
               Left e -> throwError e
-              Right ((Cons Nothing s, p), r)  -> do put (s, p); return r
-              Right ((Cons (Just t) s, p), r) -> do
+              Right ((Cons Nothing s, p, n), r)  -> do put (s, p, n); return r
+              Right ((Cons (Just t) s, p, n), r) -> do
                 ok <- canDiscard <$> unTC (kindcheck t)
-                if ok then put (s,p) >> return r
+                if ok then put (s,p,n) >> return r
                       else throwError "Didn't use linear variable"
 
 withBindings :: Vec k (Type t b) -> TC t (v :+: k) b x -> TC t v b x
@@ -434,13 +434,13 @@ withPredicate l x
             st      <- get
             case runTC x readers st of
               Left e -> throwError e
-              Right ((s, p), r) -> do put (s, p ++ [l]); return r -- probably not the most efficient
+              Right ((s, p, n), r) -> do put (s, p ++ [l], n); return r -- probably not the most efficient
 
 withBang :: [Fin v] -> TC t v b x -> TC t v b x
-withBang vs (TC x) = TC $ do (st, p') <- get
-                             mapM_ (\v -> modify (\(s,p) -> (modifyAt v (fmap bang) s, p))) vs
+withBang vs (TC x) = TC $ do (st, p', n) <- get
+                             mapM_ (\v -> modify (\(s,p,n) -> (modifyAt v (fmap bang) s, p, n))) vs
                              ret <- x
-                             mapM_ (\v -> modify (\(s,p) -> (modifyAt v (const $ st `at` v) s, p))) vs
+                             mapM_ (\v -> modify (\(s,p,n) -> (modifyAt v (const $ st `at` v) s, p, n))) vs
                              return ret
 
 lookupKind :: Fin t -> TC t v b Kind
@@ -488,7 +488,8 @@ infer (E (Op o es))
         return (TE t (Op o es'))
         -- return (TE (TRefine t (? = ???)) (Op o es')) -- e ~' es
 infer (E (ILit i t)) = return (TE (TPrim t) (ILit i t))
--- infer (E (ILit i t)) = return (TE (TRefine (TPrim t) (? == i)) (ILit i t)) -- add predicate for equality with i, add binding?
+-- infer (E (ILit i t))
+--    = return (TE (TRefine (TPrim t) (LOp Eq [LVariable (Zero, varname), LILit i t])) (ILit i t))
 infer (E (SLit s)) = return (TE TString (SLit s))
 #ifdef REFINEMENT_TYPES
 infer (E (ALit [])) = __impossible "We don't allow 0-size array literals"
