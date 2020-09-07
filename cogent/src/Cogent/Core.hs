@@ -197,6 +197,7 @@ deriving instance (Ord a, Ord b, Ord (e t v a b), Ord (e t ('Suc v) a b), Ord (e
 -- derivings don't work. It's very mysterious to me. / zilinc
 data LExpr t b
   = LVariable (Nat, b)
+  -- = LVariable (Nat, String)
   | LFun CoreFunName [Type t b] [DataLayout BitRange]
   | LOp Op [LExpr t b]
   | LApp (LExpr t b) (LExpr t b)

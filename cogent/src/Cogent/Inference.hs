@@ -443,6 +443,55 @@ withBang vs (TC x) = TC $ do (st, p', n) <- get
                              mapM_ (\v -> modify (\(s,p,n) -> (modifyAt v (const $ st `at` v) s, p, n))) vs
                              return ret
 
+freshVarPrefix = "_v"
+
+freshVarName :: TC t v b String
+freshVarName = TC $ do readers <- ask
+                       (st, p, n) <- get
+                       put (st, p, n + 1)
+                       return $ freshVarPrefix ++ show n
+
+-- upshiftVars :: TC t v b x -> TC t v b x -- TODO /blaisep
+-- upshiftVars :: Vec k (Maybe (Type t b)) -> Vec k (Maybe (Type t b))
+-- upshiftVars (TC x) = TC x
+
+upshiftVarType :: Type t b -> Type t b
+upshiftVarType (TVar t) = TVar t -- increment
+upshiftVarType (TVarBang t) = TVarBang t -- increment
+upshiftVarType (TVarUnboxed t) = TVarUnboxed t -- increment
+upshiftVarType (TCon tn ts s) = TCon tn (map upshiftVarType ts) s
+upshiftVarType (TFun t1 t2) = TFun (upshiftVarType t1) (upshiftVarType t2)
+upshiftVarType (TSum alts) = TSum (map (\(tn, (t, b)) -> (tn, (upshiftVarType t, b))) alts)
+upshiftVarType (TProduct t1 t2) = TProduct (upshiftVarType t1) (upshiftVarType t2)
+upshiftVarType (TRecord rp fs s) = TRecord rp (map (\(f, (t, b)) -> (f, (upshiftVarType t, b))) fs) s
+-- upshiftVarType (TRPar v m) = 
+-- upshiftVarType (TRParBang RecParName (RecContext (Type t b))
+-- upshiftVarType (TArray (Type t b) (LExpr t b) (Sigil (DataLayout BitRange)) (Maybe (LExpr t b))
+-- upshiftVarType (TRefine (Type t b) (LExpr t b)
+upshiftVarType x = x
+
+upshiftVarLExpr :: LExpr t b -> LExpr t b
+upshiftVarLExpr (LVariable (t, b)) = LVariable (t, b) -- increment
+upshiftVarLExpr (LFun fn ts ls) = LFun fn (map upshiftVarType ts) ls
+upshiftVarLExpr (LOp opr es) = LOp opr (map upshiftVarLExpr es)
+upshiftVarLExpr (LApp a b) = LApp (upshiftVarLExpr a) (upshiftVarLExpr b)
+upshiftVarLExpr (LCon tn e t) = LCon tn (upshiftVarLExpr e) (upshiftVarType t)
+-- upshiftVarLExpr LLet b (LExpr t b) (LExpr t b)
+-- upshiftVarLExpr LLetBang [(Nat, b)] b (LExpr t b) (LExpr t b)
+-- upshiftVarLExpr LTuple (LExpr t b) (LExpr t b)
+-- upshiftVarLExpr LStruct [(FieldName, LExpr t b)]  -- unboxed record
+-- upshiftVarLExpr LIf (LExpr t b) (LExpr t b) (LExpr t b)   -- technically no longer needed as () + () == Bool
+-- upshiftVarLExpr LCase (LExpr t b) TagName (b, LExpr t b) (b, LExpr t b)
+-- upshiftVarLExpr LEsac (LExpr t b)
+-- upshiftVarLExpr LSplit (b, b) (LExpr t b) (LExpr t b)
+-- upshiftVarLExpr LMember (LExpr t b) FieldIndex
+-- upshiftVarLExpr LTake (b, b) (LExpr t b) FieldIndex (LExpr t b)  -- \ ^^^ The first is the record, and the second is the taken field
+-- upshiftVarLExpr LPut (LExpr t b) FieldIndex (LExpr t b)
+-- upshiftVarLExpr LPromote (Type t b) (LExpr t b)  -- only for guiding the tc. rep. unchanged.
+-- upshiftVarLExpr LCast (Type t b) (LExpr t b)  
+upshiftVarLExpr x = x
+
+
 lookupKind :: Fin t -> TC t v b Kind
 lookupKind f = TC ((`at` f) . fst <$> ask)
 
@@ -487,9 +536,13 @@ infer (E (Op o es))
         let Just t = opType o (map exprType es')
         return (TE t (Op o es'))
         -- return (TE (TRefine t (? = ???)) (Op o es')) -- e ~' es
-infer (E (ILit i t)) = return (TE (TPrim t) (ILit i t))
--- infer (E (ILit i t))
---    = return (TE (TRefine (TPrim t) (LOp Eq [LVariable (Zero, varname), LILit i t])) (ILit i t))
+infer (E (ILit i t)) = return (TE (TPrim t) (ILit i t)) -- old
+-- infer (E (ILit i t)
+  -- X = return (TE (TRefine (TPrim t) (LVariable (Zero, Zero))) (ILit i t))
+  -- X = return (TE (TRefine (TPrim t) (LOp Eq [varLExpr, LILit i t])) (ILit i t))
+  -- X     where varLExpr = texprToLExpr id $ TE (TVar FZero) (Variable (FZero, "varname"))
+  -- = do vn <- freshVarName
+  --      return (TE (TRefine (TPrim t) (LOp Eq [LVariable (Zero, vn), LILit i t])) (ILit i t))
 infer (E (SLit s)) = return (TE TString (SLit s))
 #ifdef REFINEMENT_TYPES
 infer (E (ALit [])) = __impossible "We don't allow 0-size array literals"
