@@ -154,6 +154,7 @@ normL l = do
     TLRecord fs -> TLRecord <$> mapM (third3M normL) fs
     TLVariant l fs -> TLVariant <$> normL l <*> mapM (fourth4M normL) fs
     TLOffset l n -> TLOffset <$> normL l <*> pure n
+    TLAfter l f -> TLAfter <$> normL l <*> pure f
     _ -> pure l
   fromMaybe step <$> runMaybeT (runRewriteT (untilFixedPoint $ debug "Normalise Layout" printPretty normaliseRWL) step)
 

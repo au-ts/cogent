@@ -229,19 +229,19 @@ validateLayout = let unsat = Unsat . DataLayoutError in \case
     ls <- lift $ use knownDataLayouts
     let e' = TLRepRef n s'
     case M.lookup n ls of
-      Just (vs, exp) | length vs == length s -> return (Wellformed e' <> c, e')
+      Just (vs, exp) | length vs == length s -> return (c, e')
                      | otherwise, en <- length vs, an <- length s
                      -> return (unsat $ dataLayoutArgsNotMatch n en an, e')
       _ -> return (unsat $ unknownDataLayout n, e')
   DLRecord fs    -> do
     (c, s') <- validateLayouts $ fmap thd3 fs
     let expr' = TLRecord $ zipWith (\(a,b,_) c -> (a,b,c)) fs s'
-    return (Wellformed expr' <> c, expr')
+    return (WellformedLayout expr' <> c, expr')
   DLVariant e fs -> do
     (c, s') <- validateLayouts $ fmap (\(_,_,_,d) -> d) fs
     (tc, e') <- validateLayout e
     let expr' = TLVariant e' $ zipWith (\(a,b,c,_) d -> (a,b,c,d)) fs s'
-    return (Wellformed expr' <> c <> tc, expr')
+    return (WellformedLayout expr' <> c <> tc, expr')
 #ifdef BUILTIN_ARRAYS
   DLArray e p    -> do
     (c, e') <- validateLayout e
@@ -281,7 +281,9 @@ cgSubstedSigil (Left (Boxed _ (Just l))) = cgDataLayout' l
 cgSubstedSigil _ = pure Sat
 
 cgDataLayout' :: TCDataLayout -> CG Constraint
-cgDataLayout' l = return Sat -- FIXME
+cgDataLayout' l@(TLVariant e fs) = return $ WellformedLayout l
+cgDataLayout' l@(TLRecord fs) = return $ WellformedLayout l
+cgDataLayout' l = return Sat  -- TODO verify?
 
 -- -----------------------------------------------------------------------------
 -- Term-level constraints
