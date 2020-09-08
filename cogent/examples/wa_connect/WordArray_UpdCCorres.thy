@@ -65,6 +65,8 @@ lemma well_typed_related_wordarray: "\<And>\<sigma> st x x' a ts s r w.
 *)
 
 section "Correspondence Lemmas Between Update Semantics and C"
+find_theorems name:".split" -name:"Cogent" -name:"TypeTrackingTyping"
+thm atyp.split
 
 lemma upd_C_wordarray_put2_corres:
   "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
@@ -87,9 +89,7 @@ lemma upd_C_wordarray_put2_corres:
   apply clarsimp
   apply (erule upd.u_t_r_emptyE)
   apply (erule upd.u_t_p_absE; clarsimp simp: wa_abs_typing_u_def)
-  apply (case_tac a; clarsimp)
-  apply (case_tac x11; clarsimp)
-  apply (case_tac x5; clarsimp)
+  apply (clarsimp split: atyp.splits type.splits prim_type.splits)
   apply (rule conjI)
    apply (monad_eq simp: wordarray_put2_0'_def)
    apply (clarsimp simp: state_rel_def heap_rel_def)
@@ -146,9 +146,7 @@ lemma upd_C_wordarray_length_corres:
   apply (thin_tac "\<Gamma>' ! i = _")
   apply (clarsimp simp: val_rel_simp \<Xi>_def wordarray_length_0_type_def)
   apply (erule upd.u_t_p_absE; clarsimp simp: wa_abs_typing_u_def)
-  apply (case_tac a; clarsimp)
-  apply (case_tac x11; clarsimp)
-  apply (case_tac x5; clarsimp)
+  apply (clarsimp split: atyp.splits type.splits prim_type.splits)
   apply (rule conjI)
    apply (monad_eq simp: wordarray_length_0'_def)
    apply (clarsimp simp: state_rel_def heap_rel_def)
@@ -185,9 +183,7 @@ lemma upd_C_wordarray_get_corres:
   apply (erule upd.u_t_r_emptyE)
   apply (erule upd.u_t_primE; subst (asm) lit_type.simps; clarsimp)
   apply (erule upd.u_t_p_absE; clarsimp simp: wa_abs_typing_u_def)
-  apply (case_tac a; clarsimp)
-  apply (case_tac x11; clarsimp)
-  apply (case_tac x5; clarsimp)
+  apply (clarsimp split: atyp.splits type.splits prim_type.splits)
   apply (rule conjI)
    apply (monad_eq simp: wordarray_get_0'_def)
    apply (clarsimp simp: state_rel_def heap_rel_def heap_rel_ptr_meta heap_rel_ptr_w32_meta)
@@ -353,11 +349,15 @@ gets (\<lambda>s. x)
     apply (erule typing_appE)
     apply (erule typing_afunE)
     apply (erule typing_varE)
-    apply (clarsimp simp: split_conv_all_nth weakening_conv_all_nth empty_def wordarray_length_0_type_def)
-    apply (erule_tac x= 0 in allE)+
+    apply (clarsimp simp: wordarray_length_0_type_def)
+    apply (frule split_length; simp)
+    apply (drule same_type_as_weakened; simp?)
+    apply (drule split_preservation_some_left; simp?)
     apply clarsimp
-    apply (clarsimp simp: weakening_comp.simps split_comp.simps neq_Nil_lengthI)
-    apply (erule disjE; clarsimp)+
+    apply (drule same_type_as_weakened; simp?)
+    apply (drule_tac ?\<Gamma>2.0 = \<Gamma>2b in split_preservation_some_right; simp?)
+    apply (drule split_preservation_some_left; simp?)
+    apply clarsimp
    apply clarsimp
    apply (erule upd.u_t_funE')
    apply (clarsimp simp: subtyping_simps(4) 
@@ -375,11 +375,15 @@ gets (\<lambda>s. x)
    apply (erule typing_appE)
    apply (erule typing_afunE)
    apply (erule typing_varE)
-   apply (clarsimp simp: split_conv_all_nth weakening_conv_all_nth empty_def wordarray_length_0_type_def)
-   apply (erule_tac x= 0 in allE)+
+   apply (clarsimp simp: wordarray_length_0_type_def)
+   apply (frule split_length; simp)
+   apply (drule same_type_as_weakened; simp?)
+   apply (drule split_preservation_some_left; simp?)
    apply clarsimp
-   apply (clarsimp simp: weakening_comp.simps split_comp.simps neq_Nil_lengthI)
-   apply (erule disjE; clarsimp)+
+   apply (drule same_type_as_weakened; simp?)
+   apply (drule_tac ?\<Gamma>2.0 = \<Gamma>2b in split_preservation_some_right; simp?)
+   apply (drule split_preservation_some_left; simp?)
+   apply clarsimp
   apply clarsimp
   apply (erule upd.u_t_p_absE; clarsimp)
   apply (clarsimp simp: wordarray_fold_no_break_0'_def upd_wa_foldnb_0_def)
@@ -424,11 +428,9 @@ gets (\<lambda>s. x)
                    simp del: \<xi>0.simps)
        apply (thin_tac "upd.uval_typing _ _ _ _ _ _")
        apply (clarsimp simp: wa_abs_typing_u_def)
-       apply (case_tac a; clarsimp)
-       apply (case_tac x11; clarsimp)
-       apply (case_tac x5; clarsimp)
-       apply (erule_tac x = b in allE)
        apply (thin_tac "_ \<in> state_rel")
+       apply (clarsimp split: atyp.splits type.splits prim_type.splits)
+       apply (erule_tac x = b in allE)
        apply (clarsimp simp: state_rel_def heap_rel_def heap_rel_ptr_meta heap_rel_ptr_w32_meta)
        apply (drule_tac p = "t5_C.arr_C x'" and uv = "UAbstract (UWA (TPrim (Num U32)) x12 x13)" in all_heap_rel_ptrD; 
               clarsimp simp: type_rel_simps is_valid_simp heap_simp wa_abs_repr_def val_rel_simps) 
@@ -541,18 +543,28 @@ gets (\<lambda>s. x)
        apply (rule conjI)
         apply (meson min_less_iff_conj word_not_le)
        apply (metis (no_types, hide_lams) add.commute diff_less_mono2 max_word_max unat_mono word_Suc_le word_le_less_eq word_less_nat_alt word_not_le)
-      apply (case_tac a; clarsimp simp: wa_abs_typing_u_def)
-      apply (case_tac x11; clarsimp)
-      apply (case_tac x5; clarsimp)
       apply (thin_tac "_ \<in> state_rel")
+      apply (clarsimp split: atyp.splits type.splits prim_type.splits simp: wa_abs_typing_u_def)
       apply (clarsimp simp: state_rel_def heap_rel_def heap_rel_ptr_meta heap_rel_ptr_w32_meta)
+      apply (rule_tac x = \<sigma> in exI; clarsimp?)
+      apply (rule conjI; clarsimp?)
       apply (drule_tac p = "t5_C.arr_C x'" and uv = "UAbstract (UWA (TPrim (Num U32)) x12 x13)" in all_heap_rel_ptrD; 
              clarsimp simp: type_rel_simps is_valid_simp heap_simp wa_abs_repr_def val_rel_simps) 
       apply (thin_tac "cogent_function_val_rel _ _")
       apply (thin_tac "upd.uval_typing _ _ _ _ _ _")
+      apply (rule_tac x = "TPrim (Num U32)" in exI)
+      apply (rule_tac x = "TUnit" in exI)
+      apply (rule_tac x = "''elem''" in exI)
+      apply (rule_tac x = "''acc''" in exI)
+      apply (rule_tac x = "''obsv''" in exI)
+      apply (rule_tac x = "{}" in exI)
       apply (rule conjI)
-       apply (clarsimp simp: \<Xi>_def abbreviatedType1_def wordarray_fold_no_break_0_type_def)
-      apply clarsimp
+       apply (rule_tac x = "{}" in exI)
+       apply (rule upd.u_t_prim'; clarsimp)
+      apply (rule_tac x = "{}" in exI; clarsimp)
+      apply (rule conjI)
+       apply (rule upd.u_t_unit)
+      apply (clarsimp simp: \<Xi>_def abbreviatedType1_def wordarray_fold_no_break_0_type_def)
       apply (case_tac "t5_C.to_C x' = b"; clarsimp?)
       apply (case_tac "b < t5_C.to_C x'"; clarsimp)
        apply (case_tac x; clarsimp)
@@ -605,9 +617,7 @@ gets (\<lambda>s. x)
    apply (subst upd_wa_foldnb_bod.simps)
    apply clarsimp
    apply (clarsimp simp: state_rel_def heap_rel_def heap_rel_ptr_meta wa_abs_typing_u_def)
-   apply (case_tac a; clarsimp)
-   apply (case_tac x11; clarsimp)
-   apply (case_tac x5; clarsimp)
+   apply (clarsimp split: atyp.splits type.splits prim_type.splits)
    apply (drule_tac p = "t5_C.arr_C x'" and uv = "UAbstract (UWA (TPrim (Num U32)) x12 x13)" in all_heap_rel_ptrD;
           clarsimp simp: wa_abs_repr_def type_rel_simps is_valid_simp)
    apply (thin_tac "upd.uval_typing _ _ _ _ _ _")
@@ -695,6 +705,6 @@ gets (\<lambda>s. x)
    apply (metis (no_types, hide_lams) min.strict_order_iff min_def_raw not_less_iff_gr_or_eq)
   apply (erule disjE; clarsimp)
   done
-
+thm corres_sum corres_app_concrete
 end (* of context *)
 end

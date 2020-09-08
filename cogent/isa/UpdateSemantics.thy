@@ -176,6 +176,7 @@ locale update_sem =
   and     abs_typing_repr : "abs_typing av n \<tau>s s r w \<sigma> \<Longrightarrow> abs_repr av = (n, map type_repr \<tau>s)"
   and     abs_typing_frame: "\<And> w1 w2 \<sigma>'. abs_typing av n \<tau>s s r w \<sigma> \<Longrightarrow> frame \<sigma> w1 \<sigma>' w2 \<Longrightarrow>
                                           w \<inter> w1 = {} \<Longrightarrow> r \<inter> w1 = {} \<Longrightarrow> abs_typing av n \<tau>s s r w \<sigma>'"
+  and     abs_typing_unique_ptrs : "abs_typing av m \<tau>s s r w \<sigma> \<Longrightarrow> abs_typing av m \<tau>s s r' w' \<sigma> \<Longrightarrow> r = r' \<and> w = w'"
 
 context update_sem begin
 
@@ -2874,6 +2875,48 @@ next case Cons then show ?case
   qed
 qed
 
+inductive_cases u_t_abs_conE  [elim] : "\<Xi>, \<sigma> \<turnstile> UAbstract a :u TCon n ts s \<langle>r, w\<rangle>"
+
+inductive_cases u_t_p_con_roE [elim] : "\<Xi>, \<sigma> \<turnstile> UPtr a rp :u TCon n ts (Boxed ReadOnly s) \<langle>r, w\<rangle>"
+
+inductive_cases u_t_p_con_wrE [elim] : "\<Xi>, \<sigma> \<turnstile> UPtr a rp :u TCon n ts (Boxed Writable s) \<langle>r, w\<rangle>"
+
+lemmas uval_typing_elims =
+  u_t_unitE u_t_primE u_t_functionE u_t_afunE u_t_sumE u_t_productE u_t_recE u_t_p_recE
+  u_t_absE u_t_p_absE
+  u_t_r_emptyE u_t_r_consE
+
+lemma uval_typing_unique_ptrs:
+  shows
+  "\<lbrakk>\<Xi> , \<sigma> \<turnstile> x :u t \<langle>r, w\<rangle>; \<Xi> , \<sigma> \<turnstile> x :u t \<langle>r', w'\<rangle>\<rbrakk> \<Longrightarrow> r=r' \<and> w=w'"
+  "\<lbrakk>\<Xi> , \<sigma> \<turnstile>* xs :ur ts \<langle>r, w\<rangle>; \<Xi> , \<sigma> \<turnstile>* xs :ur ts \<langle>r', w'\<rangle>\<rbrakk> \<Longrightarrow> r=r' \<and> w=w'"   
+   apply (induct arbitrary: r' w' and r' w' rule: uval_typing_uval_typing_record.inducts)
+                apply fast
+               apply (elim uval_typing_elims, clarsimp)
+              apply (elim uval_typing_elims)
+              apply (drule_tac x=r' and y=w' in meta_spec2)
+              apply (clarsimp split: prod.splits)
+              apply (metis distinct_fst fst_conv)
+             apply fast
+            apply (fastforce dest: abs_typing_unique_ptrs)
+           apply fast
+          apply fast
+         apply fast
+        apply (elim uval_typing_elims; simp)
+       apply (elim uval_typing_elims)
+        apply (drule_tac x=r' and y=w' in meta_spec2, force)
+       apply (drule_tac x=r' and y=wa in meta_spec2, force)
+      apply (fastforce dest: abs_typing_unique_ptrs)
+     apply (fastforce dest: abs_typing_unique_ptrs)
+    apply fast
+   apply (rename_tac r0 w0 xs ts r1 w1 rp n r01 w01)
+   apply (elim uval_typing_elims; clarify)
+   apply (rename_tac r2 w2 ts' r3 w3 na)
+   apply (drule_tac x=r2 and y=w2 in meta_spec2)
+   apply (drule_tac x=r3 and y=w3 in meta_spec2)
+   apply force
+  apply blast
+  done
 end
 
 end

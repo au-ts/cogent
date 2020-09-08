@@ -11,7 +11,7 @@ context WordArray begin
   
 section "scorres of word array functions"
 
-
+(*
 ML \<open>
 fun get_wa_valRel "Bool" = error ("Can't find valRel_WordArrayBool")
   | get_wa_valRel "U8" = @{thm valRel_WordArrayU8}
@@ -25,26 +25,41 @@ lemmas valRel_WordArray_simps = valRel_WordArrayU8
                                 valRel_WordArrayU16
                                 valRel_WordArrayU32
                                 valRel_WordArrayU64 
+*)
 
+lemmas valRel_WordArray_simps = valRel_WordArrayUX
+
+ML \<open>
+val _ = Splitter.add_split
+\<close>
 ML \<open>
 fun wa_length_tac ctxt =
 let  
-  fun clarsimp_add thms = Clasimp.clarsimp_tac (add_simps thms ctxt) 1;
+  fun clarsimp_add thms i = Clasimp.clarsimp_tac (add_simps thms ctxt) i;
+  fun clarsimp_split thm i = Clasimp.clarsimp_tac (Splitter.add_split thm ctxt) i 
   val base_simpset = @{thms val.scorres_def valRel_records wordarray_length' valRel_WordArray_simps};
 in
-  clarsimp_add base_simpset 
-  THEN etac @{thm v_sem_appE} 1
-  THEN ALLGOALS (fn i => etac @{thm v_sem_afunE} i)
-  THEN etac @{thm v_sem_varE} 1
-  THEN clarsimp_add @{thms val_wa_length_def}
-  THEN rtac @{thm FalseE} 1
-  THEN clarsimp_add []
+  clarsimp_add base_simpset 1
+  THEN clarsimp_split @{thm if_split_asm} 1
+  THEN ALLGOALS (fn a =>
+    etac @{thm v_sem_appE} a
+    THEN etac @{thm v_sem_afunE} a
+    THEN etac @{thm v_sem_varE} a
+    THEN clarsimp_add @{thms val_wa_length_def} a
+    THEN TRYALL (fn i => rtac @{thm FalseE} i
+      THEN etac @{thm v_sem_afunE} i
+      THEN clarsimp_add [] i))
 end;
 
-val goal = @{cterm "valRel \<xi>p (v:: 32 word WordArray) v' \<Longrightarrow> val.scorres (wordarray_length v) (App (AFun ''wordarray_length'' ts) (Var 0)) [v'] \<xi>p"};
+val goal = @{cterm "valRel \<xi>p (v:: (('a :: len8) word) WordArray) v' \<Longrightarrow> val.scorres (wordarray_length v) (App (AFun ''wordarray_length'' ts) (Var 0)) [v'] \<xi>p"};
 val proof_state = Goal.init goal;
-val n = proof_state |> wa_length_tac @{context} |>  Seq.hd |> Goal.finish @{context}
+val n = proof_state |> wa_length_tac @{context} |>  Seq.hd
 \<close>
+
+lemma scorres_wordarray_length:
+  "\<lbrakk>valRel \<xi>p (v:: ('a :: len8) word WordArray) v'\<rbrakk>
+    \<Longrightarrow> val.scorres (wordarray_length v) (App (AFun ''wordarray_length'' ts) (Var 0)) [v'] \<xi>p"
+  by (tactic \<open>wa_length_tac @{context}\<close>)
 
 lemma scorres_wordarray_length_u8:
   "\<lbrakk>valRel \<xi>p (v:: 8 word WordArray) v'\<rbrakk>
@@ -72,18 +87,21 @@ ML \<open>
 fun wa_get_tac ctxt =
 let  
   fun clarsimp_add thms = Clasimp.clarsimp_tac (add_simps thms ctxt);
+  fun clarsimp_split thm i = Clasimp.clarsimp_tac (Splitter.add_split thm ctxt) i 
   val base_simpset = @{thms val.scorres_def valRel_records wordarray_get' valRel_WordArray_simps};
 in
   clarsimp_add base_simpset 1
-  THEN rtac @{thm conjI} 1
-  THEN ALLGOALS (fn i => clarsimp_add [] i 
-    THEN etac @{thm v_sem_appE} i
-    THEN etac @{thm v_sem_afunE} i
-    THEN etac @{thm v_sem_varE} i
-    THEN clarsimp_add @{thms val_wa_get_def} i)
-  THEN TRYALL (fn i => rtac @{thm FalseE} i
-    THEN etac @{thm v_sem_afunE} i
-    THEN clarsimp_add [] i)
+  THEN clarsimp_split @{thm if_split_asm} 1
+  THEN ALLGOALS (fn a =>
+    rtac @{thm conjI} a
+    THEN ALLGOALS (fn i => clarsimp_add [] i 
+      THEN etac @{thm v_sem_appE} i
+      THEN etac @{thm v_sem_afunE} i
+      THEN etac @{thm v_sem_varE} i
+      THEN clarsimp_add @{thms val_wa_get_def ucast_id} i)
+    THEN TRYALL (fn i => rtac @{thm FalseE} i
+      THEN etac @{thm v_sem_afunE} i
+      THEN clarsimp_add [] i))
 end;
 
 val goal = @{cterm "valRel \<xi>p (v:: (32 word WordArray, 32 word) RR) v'
@@ -92,6 +110,8 @@ val proof_state = Goal.init goal;
 val n = proof_state |> wa_get_tac @{context} |>  Seq.hd 
 val b = dresolve_tac
 \<close>
+
+\<comment>\<open> valRel does not exist for @{typ "('a :: len8) word"} so we can't make a generalised lemma \<close>
 
 lemma scorres_wordarray_get_u8:
   "valRel \<xi>p (v:: (8 word WordArray, 32 word) RR) v'
@@ -141,18 +161,22 @@ ML \<open>
 fun wa_put2_tac ctxt =
 let  
   fun clarsimp_add thms = Clasimp.clarsimp_tac (add_simps thms ctxt);
+  fun clarsimp_split thm i = Clasimp.clarsimp_tac (Splitter.add_split thm ctxt) i
   val base_simpset = @{thms val.scorres_def valRel_records wordarray_put2' valRel_WordArray_simps};
   val helper_thm = @{thm related_lists_update_nth_eq}
 in
   clarsimp_add base_simpset 1
-  THEN etac @{thm v_sem_appE} 1
-  THEN ALLGOALS (fn i => etac @{thm v_sem_afunE} i)
-  THEN rtac @{thm FalseE} 2
-  THEN clarsimp_add [] 2
-  THEN etac @{thm v_sem_varE} 1
-  THEN clarsimp_add @{thms val_wa_put2_def} 1
-  THEN Subgoal.FOCUS_PARAMS (inst_param_tac ["i"] ["j"] helper_thm resolve_tac) ctxt 1
-  THEN ALLGOALS (fn i => asm_full_simp_tac ctxt i)
+  THEN clarsimp_split @{thm if_split_asm} 1
+  THEN ALLGOALS (fn a =>
+    etac @{thm v_sem_appE} a
+    THEN etac @{thm v_sem_afunE} a
+    THEN etac @{thm v_sem_varE} a
+    THEN clarsimp_add @{thms val_wa_put2_def ucast_id} a
+    THEN Subgoal.FOCUS_PARAMS (inst_param_tac ["i"] ["j"] helper_thm resolve_tac) ctxt a
+    THEN ALLGOALS (fn i => asm_full_simp_tac ctxt i)
+    THEN etac @{thm v_sem_afunE} a
+    THEN rtac @{thm FalseE} a
+    THEN clarsimp_add [] a)
 end;
 \<close>
 ML \<open>
@@ -170,8 +194,8 @@ val a = Proof_Context.inferred_param
 lemma scorres_wordarray_put2_u8:
   "\<lbrakk>valRel \<xi>p (v:: (8 word WordArray, 32 word, 8 word) WordArrayPutP) v'\<rbrakk>
     \<Longrightarrow> val.scorres (wordarray_put2 v) (App (AFun ''wordarray_put2'' ts) (Var 0)) [v'] \<xi>p"
-  by (tactic \<open> wa_put2_tac @{context}\<close>)
-
+  by (tactic \<open>wa_put2_tac @{context}\<close>)
+ 
 lemma scorres_wordarray_put2_u16:
   "\<lbrakk>valRel \<xi>p (v:: (16 word WordArray, 32 word, 16 word) WordArrayPutP) v'\<rbrakk>
     \<Longrightarrow> val.scorres (wordarray_put2 v) (App (AFun ''wordarray_put2'' ts) (Var 0)) [v'] \<xi>p"
@@ -231,8 +255,8 @@ declare \<xi>p.simps [simp del]
 \<comment>\<open> Can't generalise this unless you can prove that @{term "\<forall>a b. valRel \<xi>\<^sub>i (a :: 'a) b \<longleftrightarrow> valRel \<xi>\<^sub>j a b"} 
     which is not true for functions and possibly records and sums\<close>
 lemma scorres_wordarray_fold_no_break_u32:
-  "\<lbrakk>valRel \<xi>p \<lparr>WordArrayMapP.arr\<^sub>f = (arr::32 word WordArray), frm\<^sub>f = (frm::32 word), to\<^sub>f = to,
-      f\<^sub>f = f, acc\<^sub>f = (acc :: 'a), obsv\<^sub>f = obsv\<rparr> v'; \<forall>x x'. valRel \<xi>p (x :: 'a) x' \<longleftrightarrow> valRel \<xi>p1 x x'\<rbrakk>
+  "\<lbrakk>valRel \<xi>p \<lparr>WordArrayMapP.arr\<^sub>f = (arr:: 16 word WordArray), frm\<^sub>f = (frm::32 word), to\<^sub>f = to,
+      f\<^sub>f = f, acc\<^sub>f = (acc :: 'b), obsv\<^sub>f = obsv\<rparr> v'; \<forall>x x'. valRel \<xi>p (x :: 'b) x' \<longleftrightarrow> valRel \<xi>p1 x x'\<rbrakk>
     \<Longrightarrow> val.scorres 
     (wordarray_fold_no_break \<lparr>WordArrayMapP.arr\<^sub>f = arr, frm\<^sub>f = frm, to\<^sub>f = to, f\<^sub>f = f, 
         acc\<^sub>f = acc, obsv\<^sub>f = obsv\<rparr>) (App (AFun ''wordarray_fold_no_break'' ts) (Var 0)) [v'] \<xi>p1"
@@ -242,16 +266,27 @@ lemma scorres_wordarray_fold_no_break_u32:
   apply (clarsimp simp: val_wa_foldnbp_def)
   apply (clarsimp simp: wordarray_fold_no_break' valRel_records valRel_WordArray_simps)
   apply (induct to arbitrary: v')
-   apply (erule val_wa_foldnb_bod.elims; clarsimp)
+   apply (erule val_wa_foldnb_bod.elims; clarsimp split: if_split_asm)
   apply clarsimp
   apply (drule unatSuc; clarsimp)
   apply (case_tac "length xs < Suc (unat to)")
    apply (drule val_wa_foldnb_bod_back_step'; simp?)
+(*
+   apply (drule_tac x = r in meta_spec)
+   apply (drule_tac x = t in meta_spec)
+   apply (drule_tac x = xs in meta_spec)
+   apply (drule_tac x = func in meta_spec)
+   apply (drule_tac x = acca in meta_spec)
+   apply (drule_tac x = obsva in meta_spec)
+   apply (erule meta_allE; erule meta_impE; simp?)
+   apply (clarsimp split: if_split_asm)
+*)
   apply (case_tac "unat frm \<ge> Suc (unat to)")
    apply clarsimp
    apply (erule val_wa_foldnb_bod.elims; clarsimp)
   apply (drule val_wa_foldnb_bod_back_step; clarsimp)
   apply (drule_tac x = r' in meta_spec)
+  (*apply (drule_tac x = t in meta_spec)*)
   apply (drule_tac x = xs in meta_spec)
   apply (drule_tac x = func in meta_spec)
   apply (drule_tac x = acca in meta_spec)
@@ -259,6 +294,8 @@ lemma scorres_wordarray_fold_no_break_u32:
   apply clarsimp
   apply (erule meta_allE; erule meta_impE; simp?)
   apply (subst take_drop_Suc_app; simp?)
+(*   apply (clarsimp split: if_split_asm)*)
+  apply (clarsimp simp: ucast_id)
   apply (case_tac func; clarsimp)
    apply (erule_tac x = "\<lparr>ElemAO.elem\<^sub>f = arr ! unat to, 
     acc\<^sub>f = fold (\<lambda>a b. f \<lparr>ElemAO.elem\<^sub>f = a, acc\<^sub>f = b, obsv\<^sub>f = obsv\<rparr>)
@@ -267,6 +304,8 @@ lemma scorres_wordarray_fold_no_break_u32:
    apply clarsimp
    apply (erule v_sem_appE; clarsimp)
    apply (erule v_sem_varE; clarsimp)
+(*   apply (erule impE)
+  apply (clarsimp split: if_split_asm; erule_tac x = "unat to" in allE; clarsimp)*)
   apply (erule_tac x = "\<lparr>ElemAO.elem\<^sub>f = arr ! unat to, 
     acc\<^sub>f = fold (\<lambda>a b. f \<lparr>ElemAO.elem\<^sub>f = a, acc\<^sub>f = b, obsv\<^sub>f = obsv\<rparr>)
       (take (unat to - unat frm) (List.drop (unat frm) arr)) acc, obsv\<^sub>f = obsv\<rparr>" in allE)
@@ -275,7 +314,6 @@ lemma scorres_wordarray_fold_no_break_u32:
   apply (erule v_sem_appE; erule v_sem_afunE; clarsimp)
   apply (erule v_sem_varE; clarsimp)
   done
-thm word_induct
 
 
 ML \<open>

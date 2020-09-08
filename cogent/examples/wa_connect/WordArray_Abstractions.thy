@@ -108,50 +108,61 @@ lemma distinct_indices:
 end
 
 section "Sublocale Proof"
-
 sublocale WordArray \<subseteq> Generated_cogent_shallow _ wa_abs_repr wa_abs_typing_v wa_abs_typing_u wa_abs_upd_val
   apply (unfold wa_abs_repr_def[abs_def] wa_abs_typing_v_def[abs_def] wa_abs_typing_u_def[abs_def] wa_abs_upd_val_def[abs_def])
   apply (unfold_locales; clarsimp split: vatyp.splits atyp.splits)
-              apply (case_tac x11; clarsimp; case_tac x5; clarsimp)
-             apply (case_tac x11; clarsimp; case_tac x5; clarsimp; case_tac s; clarsimp; case_tac x11; clarsimp)
-            apply (case_tac x11; clarsimp; case_tac x5; clarsimp; case_tac s; clarsimp; case_tac x11; clarsimp)
-           apply (case_tac x11; clarsimp; case_tac x5; clarsimp; case_tac s; clarsimp; case_tac x11; clarsimp)
-          apply (case_tac x11; clarsimp; case_tac x5; clarsimp; case_tac s; clarsimp; case_tac x11; clarsimp)
-         apply (case_tac x11; clarsimp; case_tac x5; clarsimp; case_tac s; clarsimp; case_tac x11; clarsimp; blast)
-        apply (case_tac x11; clarsimp; case_tac x5; clarsimp; case_tac s; clarsimp; case_tac x11; clarsimp; case_tac s'; clarsimp)
-       apply (case_tac x11; clarsimp; case_tac x5; clarsimp)
-      apply (case_tac x11; clarsimp; case_tac x5; clarsimp)
-      apply (erule_tac x = i in allE; clarsimp)
-      apply (rule_tac x = x in exI)
-      apply (clarsimp simp: frame_def)
-      apply (erule_tac x = "x13 + size_of_num_type x1 * i" in allE; clarsimp)
-      apply (case_tac s; clarsimp; case_tac x11; clarsimp)
-       apply (drule_tac x = "x13 + size_of_num_type x1 * i" in orthD1; clarsimp)
+               apply (clarsimp split: type.splits prim_type.splits)
+              apply (clarsimp split: type.splits prim_type.splits)
+              apply (rename_tac s r w \<sigma> len arr t)
+              apply (case_tac s; clarsimp; rename_tac perm ptrl; case_tac perm; clarsimp)
+             apply (clarsimp split: type.splits prim_type.splits)
+             apply (case_tac s; clarsimp; rename_tac perm; case_tac perm; clarsimp)
+            apply (clarsimp split: type.splits prim_type.splits) 
+            apply (case_tac s; clarsimp; rename_tac perm; case_tac perm; clarsimp)
+           apply (clarsimp split: type.splits prim_type.splits)
+           apply (case_tac s; clarsimp; rename_tac perm; case_tac perm; clarsimp)
+          apply (clarsimp split: type.splits prim_type.splits)
+          apply (case_tac s; clarsimp; rename_tac perm; case_tac perm; clarsimp; blast)
+         apply (clarsimp split: type.splits prim_type.splits)
+         apply (case_tac s; clarsimp; rename_tac perm; case_tac perm; clarsimp; case_tac s'; clarsimp)
+        apply (clarsimp split: type.splits prim_type.splits)
+       apply (clarsimp split: type.splits prim_type.splits)
+       apply (rename_tac len arr t i)
+       apply (erule_tac x = i in allE; clarsimp)
+       apply (rule_tac x = x in exI)
+       apply (clarsimp simp: frame_def)
+       apply (erule_tac x = "arr + size_of_num_type t * i" in allE; clarsimp)
+       apply (case_tac s; clarsimp; rename_tac perm; case_tac perm; clarsimp)
+        apply (drule_tac x = "arr + size_of_num_type t * i" in orthD1; clarsimp)
+        apply (rule_tac x = i in exI; clarsimp)
+       apply (drule_tac x = "arr + size_of_num_type t * i" in orthD1; clarsimp)
        apply (rule_tac x = i in exI; clarsimp)
-      apply (drule_tac x = "x13 + size_of_num_type x1 * i" in orthD1; clarsimp)
-      apply (rule_tac x = i in exI; clarsimp)
-     apply (case_tac x11; clarsimp; case_tac x11b; clarsimp; case_tac x5; clarsimp; case_tac x5a; clarsimp; case_tac s; clarsimp; case_tac x11; clarsimp)
-    apply (case_tac x11; clarsimp; case_tac x5; clarsimp)
-   apply (case_tac x11; clarsimp; case_tac x11b; clarsimp; case_tac x5; clarsimp; case_tac x5a; clarsimp)
+      apply (clarsimp split: type.splits prim_type.splits)
+      apply (case_tac s; clarsimp; rename_tac perm; case_tac perm; clarsimp)
+     apply (clarsimp split: type.splits prim_type.splits)
+     apply (case_tac s; clarsimp; rename_tac perm ptrl; case_tac perm; clarsimp)
+    apply (clarsimp split: type.splits prim_type.splits)
+   apply (clarsimp split: type.splits prim_type.splits)
+   apply (rename_tac xs len arr t)
    apply (rule conjI; clarsimp)
     apply (erule_tac x = i in allE; clarsimp)+
     apply (rule_tac x = x in exI)
     apply (clarsimp simp: frame_def)
-    apply (erule_tac x = "x13 + size_of_num_type x1a * i" in allE; clarsimp)
-    apply (case_tac s; clarsimp; case_tac x11; clarsimp)
-     apply (drule_tac x = "x13 + size_of_num_type x1a * i" in orthD1; clarsimp)
+    apply (erule_tac x = "arr + size_of_num_type t * i" in allE; clarsimp)
+    apply (case_tac s; clarsimp; rename_tac perm; case_tac perm; clarsimp)
+     apply (drule_tac x = "arr + size_of_num_type t * i" in orthD1; clarsimp)
      apply (rule_tac x = i in exI; clarsimp)
-    apply (drule_tac x = "x13 + size_of_num_type x1a * i" in orthD1; clarsimp)
+    apply (drule_tac x = "arr + size_of_num_type t * i" in orthD1; clarsimp)
     apply (rule_tac x = i in exI; clarsimp)
    apply (erule_tac x = i in allE; clarsimp)+
    apply (clarsimp simp: frame_def)
-   apply (erule_tac x = "x13 + size_of_num_type x1a * i" in allE; clarsimp)
-   apply (case_tac s; clarsimp; case_tac x11; clarsimp)
-    apply (drule_tac x = "x13 + size_of_num_type x1a * i" in orthD1; clarsimp)
+   apply (erule_tac x = "arr + size_of_num_type t * i" in allE; clarsimp)
+   apply (case_tac s; clarsimp; rename_tac perm; case_tac perm; clarsimp)
+    apply (drule_tac x = "arr + size_of_num_type t * i" in orthD1; clarsimp)
     apply (rule_tac x = i in exI; clarsimp)
-   apply (drule_tac x = "x13 + size_of_num_type x1a * i" in orthD1; clarsimp)
+   apply (drule_tac x = "arr + size_of_num_type t * i" in orthD1; clarsimp)
    apply (rule_tac x = i in exI; clarsimp)
-  apply (case_tac x11; clarsimp; case_tac x5; clarsimp)
+  apply (clarsimp split: type.splits prim_type.splits)
   done
 
 section "Abstractions for Word Arrays"
@@ -177,6 +188,49 @@ lemma take_drop_Suc:
 *)
 
 subsection "Shallow Word Array Value Relation"
+(*
+overloading
+  valRel_word \<equiv> valRel
+begin
+definition valRel_word:
+  "\<And>\<xi> x v. valRel_word (\<xi> :: (funtyp,vabstyp) vabsfuns) (x :: ('a :: len8) word) (v :: (funtyp, vabstyp) vval) \<equiv> 
+      (if len_of TYPE('a) = 8 then v = VPrim (LU8 (ucast x))
+      else if len_of TYPE('a) = 16 then v = VPrim (LU16 (ucast x))
+      else if len_of TYPE('a) = 32 then v = VPrim (LU32 (ucast x))
+      else if len_of TYPE('a) = 64 then v = VPrim (LU64 (ucast x))
+      else False)"
+end
+*)
+overloading
+  valRel_WordArrayUX \<equiv> valRel
+begin
+  definition valRel_WordArrayUX: 
+    "\<And>\<xi> x v. valRel_WordArrayUX (\<xi> :: (funtyp,vabstyp) vabsfuns) (x :: (('a :: len8) word) WordArray) (v :: (funtyp, vabstyp) vval) \<equiv> 
+      (if len_of TYPE('a) = 8 then 
+        \<exists>xs. v = VAbstract (VWA (TPrim (Num U8)) xs) \<and> length x = length xs \<and> (\<forall>i < length xs. (xs ! i) = VPrim (LU8 (ucast (x ! i))))
+      else if len_of TYPE('a) = 16 then 
+        \<exists>xs. v = VAbstract (VWA (TPrim (Num U16)) xs) \<and> length x = length xs \<and> (\<forall>i < length xs. (xs ! i) = VPrim (LU16 (ucast (x ! i))))
+      else if len_of TYPE('a) = 32 then 
+        \<exists>xs. v = VAbstract (VWA (TPrim (Num U32)) xs) \<and> length x = length xs \<and> (\<forall>i < length xs. (xs ! i) = VPrim (LU32 (ucast (x ! i))))
+      else if len_of TYPE('a) = 64 then 
+        \<exists>xs. v = VAbstract (VWA (TPrim (Num U64)) xs) \<and> length x = length xs \<and> (\<forall>i < length xs. (xs ! i) = VPrim (LU64 (ucast (x ! i))))
+      else False)"
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+(*
+
 
 overloading
   valRel_WordArrayU8 \<equiv> valRel
@@ -211,7 +265,7 @@ begin
 end
 
 
-
+*)
 subsection "Shallow Word Array Function Definitions"
 
 overloading
@@ -759,18 +813,22 @@ fun uvalfun_to_exprfun :: "('f, 'a, 'l) uval \<Rightarrow> 'f expr"
 
 definition upd_wa_foldnb_0
   where
-  "upd_wa_foldnb_0 \<Xi>' \<xi>\<^sub>u y z = 
-    (let (y1, y2) = y;
-         (z1, z2) = z
-      in (\<exists>p frm to acc r x.
-        y2 = URecord [(UPtr p (RCon ''WordArray'' [RPrim (Num U32)]), 
-                      RPtr (RCon ''WordArray'' [RPrim (Num U32)])),
+  "upd_wa_foldnb_0 \<Xi>' \<xi>\<^sub>u \<tau> y z = 
+    (let (y1, y2) = y
+      in (\<exists>p frm to func acc obsv t u v a0 a1 a2 ra wa rb.
+        y2 = URecord [(UPtr p (RCon ''WordArray'' [RPrim (Num t)]), RPtr (RCon ''WordArray'' [RPrim (Num t)])),
                       (UPrim (LU32 frm), RPrim (Num U32)), (UPrim (LU32 to), RPrim (Num U32)),
-                      (x, RFun), (UPrim (LU32 acc), RPrim (Num U32)), (UUnit, RUnit)] \<and> 
-        y1 = z1 \<and> y1 p = z1 p \<and> (\<exists>len arr. y1 p = option.Some (UAbstract (UWA (TPrim (Num U32)) len arr)) \<and> 
-          (\<forall>i<len. y1 (arr + 4 * i) = z1 (arr + 4 * i))) \<and> z2 = UPrim (LU32 r) \<and> is_uval_fun x \<and> 
-        (\<Xi>', [], [option.Some abbreviatedType1] \<turnstile> (App (uvalfun_to_exprfun x) (Var 0)) : TPrim (Num U32)) \<and> 
-        upd_wa_foldnb_bod \<xi>\<^sub>u y1 p frm to (uvalfun_to_exprfun x) (UPrim (LU32 acc)) UUnit {} z))"
+                      (func, RFun), (acc, upd.uval_repr acc), (obsv, upd.uval_repr obsv)] \<and> 
+        (\<exists>len arr. y1 p = option.Some (UAbstract (UWA (TPrim (Num t)) len arr)) \<and> 
+          (\<forall>i<len. \<exists>x. y1 (arr + size_of_num_type t * i) = option.Some (UPrim x) \<and> lit_type x = Num t)) \<and> 
+        is_uval_fun func \<and> upd.uval_typing \<Xi>' y1 acc u ra wa \<and> upd.uval_typing \<Xi>' y1 obsv v rb {} \<and>
+        \<tau> = TRecord [(a0, TPrim (Num t), Present), (a1, u, Present), (a2, v, Present)] Unboxed \<and>
+        (\<Xi>', [], [option.Some \<tau>] \<turnstile> (App (uvalfun_to_exprfun func) (Var 0)) : TPrim (Num U32)) \<and> 
+        upd_wa_foldnb_bod \<xi>\<^sub>u y1 p frm to (uvalfun_to_exprfun func) acc obsv (ra \<union> rb) z))"
+
+
+
+
 \<comment>\<open> It is hard to generalise the definition for wordarray_fold because we require the type mapping
     for functions which is only defined at compiled time, however since this doesn't change for each
     level then it should actually be fine. However, we should change the definition to take the
@@ -846,7 +904,7 @@ definition upd_wa_mapnb_0  :: "(char list, atyp, 32 word) ufundef"
 fun \<xi>1 :: "(char list, atyp, 32 word) uabsfuns" 
   where
   "\<xi>1 x y z = 
-    (if x = ''wordarray_fold_no_break_0'' then upd_wa_foldnb_0 \<Xi> \<xi>0 y z
+    (if x = ''wordarray_fold_no_break_0'' then upd_wa_foldnb_0 \<Xi> \<xi>0 abbreviatedType1 y z
      else (if x = ''wordarray_map_no_break_0'' then False 
            else \<xi>0 x y z))" 
 
