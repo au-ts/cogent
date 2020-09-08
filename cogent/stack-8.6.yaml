@@ -7,7 +7,6 @@ flags:
   language-c-quote:
     full-haskell-antiquotes: false
   cogent:
-    builtin-arrays: false
     refinement-types: false
     docgent: false
     haskell-backend: false
