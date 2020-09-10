@@ -33,6 +33,9 @@ import Data.IntMap as IM
 import Data.Map    as M
 import Data.SBV as SMT
 import Data.SBV.Dynamic as SMT
+#if MIN_VERSION_sbv(8,8,0)
+import Data.SBV.Internals as SMT
+#endif
 import Lens.Micro.Mtl
 import Lens.Micro.TH
 import Text.PrettyPrint.ANSI.Leijen (pretty)
@@ -123,10 +126,19 @@ uopToSmt = \case
 --
 
 mkSymVar :: String -> SMT.Kind -> SmtTransM SVal
+#if MIN_VERSION_sbv(8,8,0)
+mkSymVar nm k = symbolicEnv >>= liftIO . svMkSymVar (NonQueryVar Nothing) k (Just nm)
+#else
 mkSymVar nm k = symbolicEnv >>= liftIO . svMkSymVar Nothing k (Just nm)
+#endif
+
 
 mkQSymVar :: SMT.Quantifier -> String -> SMT.Kind -> SmtTransM SVal
+#if MIN_VERSION_sbv(8,8,0)
+mkQSymVar q nm k = symbolicEnv >>= liftIO . svMkSymVar (NonQueryVar (Just q)) k (Just nm)
+#else
 mkQSymVar q nm k = symbolicEnv >>= liftIO . svMkSymVar (Just q) k (Just nm)
+#endif
 
 bvAnd :: [SVal] -> SVal
 bvAnd = P.foldr (svAnd) svTrue
