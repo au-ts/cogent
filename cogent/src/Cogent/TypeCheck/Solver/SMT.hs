@@ -110,7 +110,11 @@ smtSatResult :: TCSExpr -> IO (Bool, Bool, [SMTResult])
 smtSatResult e = do
   dumpMsgIfTrue __cogent_ddump_smt (warn "SMT solving:" L.<+> L.pretty e L.<> L.hardline)
   -- NOTE: sbv will perform Skolemisation to reduce existentials, while preserving satisfiability. / zilinc
+#if MIN_VERSION_sbv(8,8,0)
+  res@(AllSatResult limit _ unknown _ models) <-
+#else
   res@(AllSatResult (limit, _, unknown, models)) <-
+#endif
     allSatWith (z3 { verbose = __cogent_ddump_smt
                    , redirectVerbose = Just $ fromMaybe "/dev/stderr" __cogent_ddump_to_file
                    , allSatMaxModelCount = Just 1
