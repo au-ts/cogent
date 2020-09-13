@@ -373,20 +373,17 @@ runTC (TC a) readers st = case runState (runReaderT (runExceptT a) readers) st o
 -- XXX |     tc_debug' ((AbsDecl _ fn ts t rt):ds) reader = tc_debug' ds (M.insert fn (FT (fmap snd ts) t rt) reader)
 -- XXX |     tc_debug' (_:ds) reader = tc_debug' ds reader
 
-retype :: (Show b, Eq b, Pretty b, a ~ b)
-       => [Definition TypedExpr a b]
-       -> Either String [Definition TypedExpr a b]
+retype :: [Definition TypedExpr VarName VarName]
+       -> Either String [Definition TypedExpr VarName VarName]
 retype ds = fmap fst $ tc $ map untypeD ds
 
-tc :: (Show b, Eq b, Pretty b, a ~ b)
-   => [Definition UntypedExpr a b]
-   -> Either String ([Definition TypedExpr a b], Map FunName (FunctionType b))
+tc :: [Definition UntypedExpr VarName VarName]
+   -> Either String ([Definition TypedExpr VarName VarName], Map FunName (FunctionType VarName))
 tc = flip tc' M.empty
   where
-    tc' :: (Show b, Eq b, Pretty b, a ~ b)
-        => [Definition UntypedExpr a b]
-        -> Map FunName (FunctionType b)  -- the reader
-        -> Either String ([Definition TypedExpr a b], Map FunName (FunctionType b))
+    tc' :: [Definition UntypedExpr VarName VarName]
+        -> Map FunName (FunctionType VarName)  -- the reader
+        -> Either String ([Definition TypedExpr VarName VarName], Map FunName (FunctionType VarName))
     tc' [] reader = return ([], reader)
     tc' ((FunDef attr fn ks ls t rt e):ds) reader =
       -- Enable recursion by inserting this function's type into the function type dictionary
@@ -397,9 +394,8 @@ tc = flip tc' M.empty
     tc' (d@(AbsDecl _ fn ks ls t rt):ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader)
     tc' (d:ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds reader
 
-tc_ :: (Show b, Eq b, Pretty b, a ~ b)
-    => [Definition UntypedExpr a b]
-    -> Either String [Definition TypedExpr a b]
+tc_ :: [Definition UntypedExpr VarName VarName]
+    -> Either String [Definition TypedExpr VarName VarName]
 tc_ = fmap fst . tc
 
 tcConsts :: [CoreConst UntypedExpr]
@@ -445,7 +441,7 @@ withBang vs (TC x) = TC $ do (st, p', n) <- get
 
 freshVarPrefix = "_v"
 
-freshVarName :: TC t v b String
+freshVarName :: TC t v b VarName
 freshVarName = TC $ do readers <- ask
                        (st, p, n) <- get
                        put (st, p, n + 1)
@@ -530,19 +526,15 @@ typecheck e t = do
                                    "\nGiven type:\n" ++
                                    show (indent' $ pretty t) ++ "\n"
 
-infer :: (Pretty a, Show a, Eq a) => UntypedExpr t v a a -> TC t v a (TypedExpr t v a a)
+infer :: UntypedExpr t v VarName VarName -> TC t v VarName (TypedExpr t v VarName VarName)
 infer (E (Op o es))
    = do es' <- mapM infer es
         let Just t = opType o (map exprType es')
         return (TE t (Op o es'))
         -- return (TE (TRefine t (? = ???)) (Op o es')) -- e ~' es
-infer (E (ILit i t)) = return (TE (TPrim t) (ILit i t)) -- old
--- infer (E (ILit i t)
-  -- X = return (TE (TRefine (TPrim t) (LVariable (Zero, Zero))) (ILit i t))
-  -- X = return (TE (TRefine (TPrim t) (LOp Eq [varLExpr, LILit i t])) (ILit i t))
-  -- X     where varLExpr = texprToLExpr id $ TE (TVar FZero) (Variable (FZero, "varname"))
-  -- = do vn <- freshVarName
-  --      return (TE (TRefine (TPrim t) (LOp Eq [LVariable (Zero, vn), LILit i t])) (ILit i t))
+infer (E (ILit i t))
+  = do vn <- freshVarName
+       return (TE (TRefine (TPrim t) (LOp Eq [LVariable (Zero, vn), LILit i t])) (ILit i t))
 infer (E (SLit s)) = return (TE TString (SLit s))
 #ifdef REFINEMENT_TYPES
 infer (E (ALit [])) = __impossible "We don't allow 0-size array literals"
@@ -554,7 +546,7 @@ infer (E (ALit es))
         isSub <- allM (`isSubtype` t) ts
         return (TE (TArray t n Unboxed Nothing) (ALit es'))
   where
-    lubAll :: (Show b, Eq b) => [Type t b] -> TC t v b (Type t b)
+    lubAll :: [Type t VarName] -> TC t v VarName (Type t VarName)
     lubAll [] = __impossible "lubAll: empty list"
     lubAll [t] = return t
     lubAll (t1:t2:ts) = do Just t <- runMaybeT $ lub t1 t2
