@@ -530,12 +530,14 @@ infer :: UntypedExpr t v VarName VarName -> TC t v VarName (TypedExpr t v VarNam
 infer (E (Op o es))
    = do es' <- mapM infer es
         let Just t = opType o (map exprType es')
-        return (TE t (Op o es'))
-        -- return (TE (TRefine t (? = ???)) (Op o es')) -- e ~' es
+        vn <- freshVarName
+        return (TE (TRefine t (LOp Eq [LVariable (Zero, vn), (LOp o $ map (texprToLExpr id) es')])) (Op o es'))
 infer (E (ILit i t))
   = do vn <- freshVarName
        return (TE (TRefine (TPrim t) (LOp Eq [LVariable (Zero, vn), LILit i t])) (ILit i t))
-infer (E (SLit s)) = return (TE TString (SLit s))
+infer (E (SLit s))
+  = do vn <- freshVarName
+       return (TE (TRefine TString (LOp Eq [LVariable (Zero, vn), LSLit s])) (SLit s))
 #ifdef REFINEMENT_TYPES
 infer (E (ALit [])) = __impossible "We don't allow 0-size array literals"
 infer (E (ALit es))
@@ -609,8 +611,8 @@ infer (E (ArrayPut arr i e))
 #endif
 infer (E (Variable v))
    = do Just t <- useVariable (fst v)
-        return (TE t (Variable v))
-        -- return (TE (TRefine t (? == v)) (Variable v)) -- add equality refinement
+        vn <- freshVarName
+        return (TE (TRefine t (LOp Eq [LVariable (Zero, vn), LVariable (finNat $ fst v, snd v)])) (Variable v))
 infer (E (Fun f ts ls note))
    | ExI (Flip ts') <- Vec.fromList ts
    , ExI (Flip ls') <- Vec.fromList ls
