@@ -2,7 +2,7 @@
                                 |cogent|
 ************************************************************************
 
-:Version:	2.9
+:Version:	3.0
 :License:	GPL-2.0-only
 :Homepage:	<https://ts.data61.csiro.au/projects/TS/cogent.pml>
 :Repository:	<https://github.com/NICTA/cogent>

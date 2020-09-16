@@ -13,8 +13,8 @@ project   = u'Cogent'
 copyright = u'2020, CSIRO\'s Data61'
 author    = u'The Cogent Team'
 
-version   = u'2.9'				# short X.Y version
-release   = u'2.9.0.0'			# full version, including tags
+version   = u'3.0'				# short X.Y version
+release   = u'3.0.1'			# full version, including tags
 
 
 # -- General configuration ---------------------------------------------

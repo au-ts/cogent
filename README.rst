@@ -6,7 +6,7 @@
 :Repository:	https://github.com/NICTA/cogent
 :Documentation:	https://cogent.readthedocs.io/
 
-:Version:	2.9.0.0
+:Version:	3.0.1
 :License:
    - ``GPL-2.0-only``, the `GNU General Public License v2.0 only`_:
      files with ``@TAG(NICTA_GPL)`` or ``@TAG(DATA61_GPL)``;

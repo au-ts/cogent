@@ -2,7 +2,7 @@
                                  Cogent
 ========================================================================
 
-:Version:	2.9.0.0
+:Version:	3.0.1
 :Authors:
    - Liam O'Connor <liamoc@cse.unsw.edu.au>
    - Zilin Chen <zilin.chen@data61.csiro.au>
