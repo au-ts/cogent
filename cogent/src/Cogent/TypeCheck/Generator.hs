@@ -266,7 +266,7 @@ validateLayouts :: Traversable t => t DataLayoutExpr -> CG (Constraint, t TCData
 validateLayouts = fmapFoldM validateLayout
 
 cgSubstedType :: TCType -> CG Constraint
-cgSubstedType (T (TLayout l t)) = cgDataLayout' l
+cgSubstedType (T (TLayout l t)) = cgDataLayout l
 cgSubstedType (T t) = foldMapM cgSubstedType t
 cgSubstedType (U x) = pure Sat
 cgSubstedType (V x) = foldMapM cgSubstedType x
@@ -277,13 +277,13 @@ cgSubstedType (A t l s tkns) = (<>) <$> cgSubstedType t <*> cgSubstedSigil s
 cgSubstedType (Synonym n ts) = foldMapM cgSubstedType ts
 
 cgSubstedSigil :: Either (Sigil (Maybe TCDataLayout)) Int -> CG Constraint
-cgSubstedSigil (Left (Boxed _ (Just l))) = cgDataLayout' l
+cgSubstedSigil (Left (Boxed _ (Just l))) = cgDataLayout l
 cgSubstedSigil _ = pure Sat
 
-cgDataLayout' :: TCDataLayout -> CG Constraint
-cgDataLayout' l@(TLVariant e fs) = return $ WellformedLayout l
-cgDataLayout' l@(TLRecord fs) = return $ WellformedLayout l
-cgDataLayout' l = return Sat  -- TODO verify?
+cgDataLayout :: TCDataLayout -> CG Constraint
+cgDataLayout l@(TLVariant e fs) = return $ WellformedLayout l
+cgDataLayout l@(TLRecord fs) = return $ WellformedLayout l
+cgDataLayout l = return Sat  -- TODO how to deal with TLRepRef?
 
 -- -----------------------------------------------------------------------------
 -- Term-level constraints
