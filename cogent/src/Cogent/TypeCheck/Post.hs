@@ -140,7 +140,7 @@ normaliseT d (T (TBang t)) = do
        normaliseT d (T (TArray t' e (Boxed True l) h))
 #endif
      (T (TVar v b u))  -> normaliseT d (T (TVar v True u))
-     (T (TFun a b))    -> T <$> (TFun <$> normaliseT d a <*> normaliseT d b)
+     (T (TFun mv a b)) -> T <$> (TFun mv <$> normaliseT d a <*> normaliseT d b)
      (T o)             -> normaliseT d =<< normaliseT d (T $ fmap (T . TBang) o)
      _                 -> __impossible "normaliseT (TBang)"
 

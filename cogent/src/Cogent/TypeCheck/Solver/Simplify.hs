@@ -11,6 +11,7 @@
 --
 
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Cogent.TypeCheck.Solver.Simplify where
@@ -49,7 +50,7 @@ import           Lens.Micro
 
 import           Debug.Trace
 
--- import           Cogent.PrettyPrint (prettyC)
+import           Cogent.PrettyPrint (prettyC)
 -- import qualified Text.PrettyPrint.ANSI.Leijen as P
 -- import Debug.Trace
 
@@ -65,9 +66,8 @@ elseDie b e = (hoistMaybe $ guard b >> Just []) <|> unsat e
 liftTcSolvM :: Rewrite.RewriteT IO a -> Rewrite.RewriteT TcSolvM a
 liftTcSolvM (Rewrite.RewriteT m) = Rewrite.RewriteT (\a -> MaybeT $ liftIO $ runMaybeT (m a))
 
-simplify :: [(TyVarName, Kind)] -> [(DLVarName, TCType)] -> Rewrite.RewriteT IO [Goal]
+simplify :: [(TyVarName, Kind)] -> [(DLVarName, TCType)] -> Rewrite.RewriteT TcSolvM [Goal]
 simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
-  -- _ | trace ("####### c = " ++ show (prettyC c)) $ False -> undefined
   Sat      -> hoistMaybe $ Just []
   c1 :& c2 -> hoistMaybe $ Just [c1,c2]
 
@@ -283,8 +283,33 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   T (TLayout l1 t1) :=: T (TLayout l2 t2) -> hoistMaybe $ Just [l1 :~< l2, t1 :=: t2, l1 :~ t1, l2 :~ t2]
   T (TLayout l1 t1) :<  T (TLayout l2 t2) -> hoistMaybe $ Just [l1 :~< l2, t1 :<  t2, l1 :~ t1, l2 :~ t2]
 
-  T (TFun t1 t2) :=: T (TFun r1 r2) -> hoistMaybe $ Just [r1 :=: t1, t2 :=: r2]
-  T (TFun t1 t2) :<  T (TFun r1 r2) -> hoistMaybe $ Just [r1 :<  t1, t2 :<  r2]
+  T (TFun Nothing t1 t2) :=: T (TFun Nothing r1 r2) -> hoistMaybe $ Just [r1 :=: t1, t2 :=: r2]
+  T (TFun Nothing t1 t2) :<  T (TFun Nothing r1 r2) -> hoistMaybe $ Just [r1 :<  t1, t2 :<  r2]
+
+  T (TFun Nothing t1 t2) :=: T (TFun (Just u) r1 r2) -> do
+    v <- freshRefVarName _2
+    hoistMaybe $ Just [T (TFun (Just v) t1 t2) :=: T (TFun (Just u) r1 r2)]
+  T (TFun (Just v) t1 t2) :=: T (TFun Nothing r1 r2) -> do
+    u <- freshRefVarName _2
+    hoistMaybe $ Just [T (TFun (Just v) t1 t2) :=: T (TFun (Just u) r1 r2)]
+
+  T (TFun Nothing t1 t2) :<  T (TFun (Just u) r1 r2) -> do
+    v <- freshRefVarName _2
+    hoistMaybe $ Just [T (TFun (Just v) t1 t2) :<  T (TFun (Just u) r1 r2)]
+  T (TFun (Just v) t1 t2) :<  T (TFun Nothing r1 r2) -> do
+    u <- freshRefVarName _2
+    hoistMaybe $ Just [T (TFun (Just v) t1 t2) :<  T (TFun (Just u) r1 r2)]
+
+  T (TFun (Just v) t1 t2) :=: T (TFun (Just u) r1 r2) -> do
+    vr <- freshRefVarName _2
+    let t2' = substExprT [(v, SE t1 (Var vr))] t2
+        r2' = substExprT [(u, SE r1 (Var vr))] r2
+    hoistMaybe $ Just [r1 :=: t1, (M.singleton vr (r1,0), []) :|- t2' :=: r2']
+  T (TFun (Just v) t1 t2) :<  T (TFun (Just u) r1 r2) -> do
+    vr <- freshRefVarName _2
+    let t2' = substExprT [(v, SE t1 (Var vr))] t2
+        r2' = substExprT [(u, SE r1 (Var vr))] r2
+    hoistMaybe $ Just [r1 :<  t1, (M.singleton vr (r1,0), []) :|- t2' :<  r2']
 
   T (TTuple ts) :<  T (TTuple us) | length ts == length us -> hoistMaybe $ Just (zipWith (:< ) ts us)
   T (TTuple ts) :=: T (TTuple us) | length ts == length us -> hoistMaybe $ Just (zipWith (:=:) ts us)
@@ -351,14 +376,16 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
     hoistMaybe $ Just ([Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [l1,l2])), t1 :=: t2, drop] <> c)
 
   T (TRefine v1 b1 e1) :< T (TRefine v2 b2 e2) -> do
-    let e1' = substExpr [(v1, SE b1 (Var refVarName))] e1
-        e2' = substExpr [(v2, SE b2 (Var refVarName))] e2
+    vr <- freshRefVarName _2
+    let e1' = substExpr [(v1, SE b1 (Var vr))] e1
+        e2' = substExpr [(v2, SE b2 (Var vr))] e2
     return [ b1 :< b2
-           , (M.singleton refVarName (b2,0), []) :|- Arith (SE (T bool) (PrimOp "||" [SE (T bool) (PrimOp "not" [e1']), e2']))
+           , (M.singleton vr (b2,0), []) :|- Arith (SE (T bool) (PrimOp "||" [SE (T bool) (PrimOp "not" [e1']), e2']))
            ]
 
-  t1@(T {}) :< t2@(T (TRefine {})) ->  -- @t1@ is not a refinement type
-    return [T (TRefine refVarName t1 (SE (T bool) (BoolLit True))) :< t2]
+  t1@(T {}) :< t2@(T (TRefine {})) -> do  -- @t1@ is not a refinement type
+    vr <- freshRefVarName _2
+    return [T (TRefine vr t1 (SE (T bool) (BoolLit True))) :< t2]
 
   (T (TRefine _ b1 _)) :< t2@(T {}) ->  -- @t2@ is not a refinement type
     return [b1 :< t2]  -- an optimisation, contrary to the case above. / zilinc

@@ -156,10 +156,12 @@ prettyType (Documentation d t) Nothing = let doc = markdown d
                                           in prettyType t (Just [shamlet|
                                                                         <div .invisibledoc>#{doc}
                                                                         <div .inlinedoc>#{doc} |])
-prettyType (LocType _ (TFun a b)) Nothing = let a' = prettyType a Nothing; b' = prettyType b Nothing
-                                             in [shamlet|<table><tr><td> </td><td class='spaced'>#{a'}</td><td></td></tr><tr><td class='fg-Vivid-Cyan'>-></td><td class='spaced'>#{b'}</td></tr>|]
-prettyType (LocType p (TFun a b)) (Just x) = let it = prettyType (LocType p (TFun a b)) Nothing
-                                              in [shamlet|<table><tr><td>(</td><td>#{it} </td><td></td> </tr><tr><td>)</td><td>#{x}</td></tr>|]
+prettyType (LocType _ (TFun mv a b)) Nothing = let mv' = __todo "prettyType"
+                                                   a' = prettyType a Nothing
+                                                   b' = prettyType b Nothing
+                                                in [shamlet|<table><tr><td> </td><td class='spaced'>#{a'}</td><td></td></tr><tr><td class='fg-Vivid-Cyan'>-></td><td class='spaced'>#{b'}</td></tr>|]
+prettyType (LocType p (TFun mv a b)) (Just x) = let it = prettyType (LocType p (TFun mv a b)) Nothing
+                                                 in [shamlet|<table><tr><td>(</td><td>#{it} </td><td></td> </tr><tr><td>)</td><td>#{x}</td></tr>|]
 prettyType (LocType _ (TTuple ts)) x       = let rest = foldMap id x
                                                  row t s = let t' = prettyType t Nothing in [shamlet|<tr><td>#{s}</td><td class='spaced'>#{t'}</td>|]
                                                  rows = zipWith row ts $ '(' : repeat ','

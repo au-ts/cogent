@@ -68,7 +68,7 @@ import           Data.Maybe (fromMaybe)
 solve :: [(TyVarName, Kind)] -> [(DLVarName, TCType)] -> Constraint -> TcSolvM [Goal]
 solve ks ms c = let gs     = makeGoals [] (M.empty, []) c
                             -- Simplify does a lot of very small steps so it's slightly nicer for tracing to run it in a nested fixpoint
-                    stages = Rewrite.untilFixedPoint (debug "Simplify" printC $ liftTcSolvM $ simplify ks ms)
+                    stages = Rewrite.untilFixedPoint (debug "Simplify" printC $ simplify ks ms)
                              <> debug  "Unify"      printC unify
                              <> debugL "Equate"     printC equate
                              <> debug  "Sink/Float" printC sinkfloat

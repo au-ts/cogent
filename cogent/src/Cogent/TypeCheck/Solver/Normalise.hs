@@ -44,7 +44,7 @@ normaliseRWT :: RewriteT TcSolvM TCType
 normaliseRWT = rewrite' $ \case
     T (TBang (T (TCon t ts s))) -> pure (T (TCon t (fmap (T . TBang) ts) (bangSigil s)))
     T (TBang (T (TVar v b u))) -> pure (T (TVar v True u))
-    T (TBang (T (TFun x y))) -> pure (T (TFun x y))
+    T (TBang (T (TFun mv x y))) -> pure (T (TFun mv x y))
     T (TBang (R rp r (Left s))) | Row.isComplete r ->
       pure (R rp (fmap (T . TBang) r) (Left (bangSigil s)))
     T (TBang (V r)) | Row.isComplete r ->

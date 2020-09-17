@@ -56,9 +56,9 @@ import qualified Data.Sequence as Seq
 import Text.Parsec.Pos
 import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>), bool)
 import qualified Text.PrettyPrint.ANSI.Leijen as L
-import Lens.Micro.TH
 import Lens.Micro
 import Lens.Micro.Mtl
+import Lens.Micro.TH
 
 import Debug.Trace
 
@@ -67,16 +67,21 @@ data GenState = GenState { _context :: C.Context TCType
                          , _knownDataLayoutVars :: [DLVarName]
                          , _flexes :: Int
                          , _flexOrigins :: IM.IntMap VarOrigin
+                         , _freshVars :: Int
                          }
 
 makeLenses ''GenState
 
 type CG a = TcConsM GenState a
 
-runCG :: C.Context TCType -> [TyVarName] -> [DLVarName] -> CG a -> TcM (a, Int, IM.IntMap VarOrigin)
-runCG g tvs lvs ma = do
-  (a, GenState _ _ _ f os) <- withTcConsM (GenState g tvs lvs 0 mempty) ((,) <$> ma <*> get)
-  return (a,f,os)
+runCG :: C.Context TCType
+      -> [TyVarName]
+      -> [DLVarName]
+      -> CG a
+      -> TcM (a, Int, IM.IntMap VarOrigin, Int)
+runCG g tvs lvs ma = 
+  withTcConsM (GenState g tvs lvs 0 mempty 0) ((,) <$> ma <*> get) >>=
+  \(a, GenState _ _ _ flex os fvar) -> return (a,flex,os,fvar)
 
 
 -- -----------------------------------------------------------------------------
@@ -179,7 +184,6 @@ validateType (RT t) = do
 
     TRefine v t e -> do
       (ct,t') <- validateType t
-      c <- use context
       context %= C.addScope (M.fromList [(v, (T (TBang t'), ?loc, Seq.empty))])
       (ce,e') <- cg (rawToLocE ?loc e) (T bool)
       rs <- context %%= C.dropScope
@@ -198,9 +202,22 @@ validateType (RT t) = do
       let l' = toTCDL l
       pure (cl <> ct <> l' :~ t', T $ TLayout l' t')
 
+    TFun (Just v) t1 t2 -> do
+      (c1,t1') <- validateType t1
+      context %= C.addScope (M.fromList [(v, (t1', ?loc, Seq.empty))])
+      (c2,t2') <- validateType t2
+      rs <- context %%= C.dropScope
+      let unused = flip foldMap (M.toList rs) $ \(v,(_,_,us)) ->
+            case us of Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v); _ -> Sat
+          c = c1 <> c2 <> unused
+      traceTc "gen" (text "cg for dep function" L.<$>
+                     text "generate constraint" <+> prettyC c)
+      return (c, T $ TFun (Just v) t1' t2')
+
+
     -- vvv The uninteresting cases; but we still have to match each of them to convince the typechecker / zilinc
     TRPar v b ctxt -> (second T) <$> fmapFoldM validateType (TRPar v b ctxt)
-    TFun t1 t2 -> (second T) <$> fmapFoldM validateType (TFun t1 t2)
+    TFun Nothing t1 t2 -> (second T) <$> fmapFoldM validateType (TFun Nothing t1 t2)
     TTuple ts  -> (second T) <$> fmapFoldM validateType (TTuple ts)
     TUnit -> return (mempty, T TUnit)
     TUnbox t  -> (second T) <$> fmapFoldM validateType (TUnbox t)
@@ -249,11 +266,11 @@ cgFunDef alts t = do
   alpha2 <- freshTVar
   let ?isRefType = True
   (c, alts') <- cgAlts alts alpha2 alpha1
-  return (c <> (T (TFun alpha1 alpha2)) :< t, alts')
+  return (c <> (T (TFun Nothing alpha1 alpha2)) :< t, alts')
 
 -- cgAlts alts out_type in_type
 -- NOTE the order of arguments!
-cgAlts :: (?isRefType :: Bool)
+cgAlts :: (?isRefType :: Bool, ?loc :: SourcePos)
        => [Alt LocPatn LocExpr]
        -> TCType
        -> TCType
@@ -263,7 +280,7 @@ cgAlts alts top alpha = do
     altPattern (Alt p _ _) = p
 
     f (Alt p l e) t = do
-      (s, c, p',t') <- matchA p t
+      (s, c, p', t') <- matchA p t
       context %= C.addScope s
       (c', e') <- cg e top
       let c'' = (fmap (\(t,_,occ) -> (t, Seq.length occ)) s, []) :|- c'
@@ -309,10 +326,11 @@ cg' (PrimOp o [e1, e2]) t
   | o `elem` words "+ - * / % .&. .|. .^. >> <<"
   = if ?isRefType then do
       beta <- freshTVar
+      v <- freshRefVarName freshVars
       (c1, e1') <- cg e1 beta
       (c2, e2') <- cg e2 beta
-      let phi = SE (T bool) $ PrimOp "==" [SE beta (Var refVarName), SE beta (PrimOp o [toTCSExpr e1', toTCSExpr e2'])]
-          rho = T $ TRefine refVarName beta phi
+      let phi = SE (T bool) $ PrimOp "==" [SE beta (Var v), SE beta (PrimOp o [toTCSExpr e1', toTCSExpr e2'])]
+          rho = T $ TRefine v beta phi
           c = rho :< t
       traceTc "gen" (text "[ref-types] cg for primitive op" <+> symbol o L.<$>
                      text "generate constraint" <+> prettyC c)
@@ -336,11 +354,12 @@ cg' (PrimOp o [e1, e2]) t
   | o `elem` words "== /= >= <= > <"
   , ?isRefType
   = do beta <- freshTVar
+       v <- freshRefVarName freshVars
        (c1, e1') <- cg e1 beta
        (c2, e2') <- cg e2 beta
-       let phi = SE (T bool) $ PrimOp "==" [ SE (T bool) (Var refVarName)
+       let phi = SE (T bool) $ PrimOp "==" [ SE (T bool) (Var v)
                                            , SE (T bool) (PrimOp o [toTCSExpr e1', toTCSExpr e2']) ]
-           rho = T $ TRefine refVarName (T bool) phi
+           rho = T $ TRefine v (T bool) phi
            c = rho :< t
        traceTc "gen" (text "[ref-types] cg for primitive op" <+> symbol o L.<$>
                       text "generate constraint" <+> prettyC c)
@@ -419,7 +438,8 @@ cg' (IntLit i) t = do
       e = IntLit i
   c <- if ?isRefType then
          do beta <- freshTVar
-            let c = T (TRefine refVarName beta (SE (T bool) (PrimOp "==" [SE beta (Var refVarName), SE beta e]))) :< t <>
+            v <- freshRefVarName freshVars
+            let c = T (TRefine v beta (SE (T bool) (PrimOp "==" [SE beta (Var v), SE beta e]))) :< t <>
                     Upcastable (T (TCon minimumBitwidth [] Unboxed)) beta <>
                     BaseType beta
             return c
@@ -447,18 +467,19 @@ cg' (ArrayIndex e i) t = do
   s <- freshVar             -- sigil
   idx <- freshEVar (T u32)  -- index of a potential hole
   h <- freshVar             -- hole
+  v <- freshRefVarName freshVars
   let -- NOTE: for now, we just assume that there cannot be a hole, to simplify the constraint solving. / zilinc
       -- XXX | ta = A alpha n (Right s) (Left $ Just idx)  -- this is the biggest type 'e' can ever have---with a hole
       -- XXX |                                             -- at a location other than 'i'
       ta = A alpha n (Right s) (Left Nothing)
       ta' = A alpha n (Right s) (Right h)
       idxInBounds = -- XXX | SE (T bool) (PrimOp "&&"
-                    -- XXX |   [ SE (T bool) (PrimOp "<"  [SE (T u32) (Var refVarName), n  ])
-                    -- XXX |   , SE (T bool) (PrimOp "/=" [SE (T u32) (Var refVarName), idx])
+                    -- XXX |   [ SE (T bool) (PrimOp "<"  [SE (T u32) (Var v), n  ])
+                    -- XXX |   , SE (T bool) (PrimOp "/=" [SE (T u32) (Var v), idx])
                     -- XXX |   ])
-                    SE (T bool) (PrimOp "<" [SE (T u32) (Var refVarName), n])
+                    SE (T bool) (PrimOp "<" [SE (T u32) (Var v), n])
   (ce, e') <- cg e ta'
-  (ci, i') <- cg i (T $ TRefine refVarName (T u32) idxInBounds)
+  (ci, i') <- cg i (T $ TRefine v (T u32) idxInBounds)
   let c = alpha :< t
         <> ta' :< ta
         <> Share ta UsedInArrayIndexing
@@ -553,7 +574,7 @@ cg' exp@(Lam pat mt e) t = do
         case us of
           Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v)
           _ -> Sat
-      c = ct <> cp <> ce <> (T $ TFun alpha beta) :< t
+      c = ct <> cp <> ce <> (T $ TFun Nothing alpha beta) :< t
              <> dropConstraintFor rs <> unused
       lam = Lam  pat' (fmap (const alpha) mt) e'
   unless (null fvs') $ __todo "closures not implemented"
@@ -564,7 +585,8 @@ cg' exp@(Lam pat mt e) t = do
 
 cg' (App e1 e2 _) t = do
   alpha     <- freshTVar
-  (c1, e1') <- cg e1 (T (TFun alpha t))
+  v         <- freshRefVarName freshVars
+  (c1, e1') <- cg e1 (T (TFun (Just v) alpha t))
   (c2, e2') <- cg e2 alpha
 
   let c = c1 <> c2
@@ -576,11 +598,12 @@ cg' (Comp f g) t = do
   alpha1 <- freshTVar
   alpha2 <- freshTVar
   alpha3 <- freshTVar
+  v <- freshRefVarName freshVars
 
-  (c1, f') <- cg f (T (TFun alpha2 alpha3))
-  (c2, g') <- cg g (T (TFun alpha1 alpha2))
+  (c1, f') <- cg f (T (TFun (Just v) alpha2 alpha3))
+  (c2, g') <- cg g (T (TFun (Just v) alpha1 alpha2))
   let e = Comp f' g'
-      c = c1 <> c2 <> (T $ TFun alpha1 alpha3) :< t
+      c = c1 <> c2 <> (T $ TFun (Just v) alpha1 alpha3) :< t
   traceTc "gen" (text "cg for comp:" <+> prettyE e)
   return (c,e)
 
@@ -766,7 +789,8 @@ matchA x@(LocPatn l p) t = do
   return (s, c :@ InPattern x, TP p' l, t')
 
 matchA' :: (?loc :: SourcePos, ?isRefType :: Bool)
-        => Pattern LocIrrefPatn -> TCType
+        => Pattern LocIrrefPatn
+        -> TCType
         -> CG (M.Map VarName (C.Assumption TCType), Constraint, Pattern TCIrrefPatn, TCType)
 
 matchA' (PIrrefutable i) t = do
@@ -945,7 +969,10 @@ freshLVar = TLU <$> freshVar
 
 freshRPVar :: (?loc :: SourcePos) => CG RP
 freshRPVar = UP <$> freshVar
-      
+
+freshEName :: CG VarName
+freshEName = undefined
+
 integral :: TCType -> Constraint
 integral = Upcastable (T (TCon "U8" [] Unboxed))
 

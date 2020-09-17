@@ -1,0 +1,2 @@
+foo : (x : U8) -> [v : U8| v > x]
+foo y = y + 1

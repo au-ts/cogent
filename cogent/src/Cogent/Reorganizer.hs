@@ -186,7 +186,7 @@ embedRecPar t = erp False M.empty t
                         _     -> ctxt
           in TRecord rp (map (\(n,(x, y)) -> (n, (erp b ctxt' x, y))) fs) s
 
-        TFun t1 t2  -> TFun (erp b ctxt t1) (erp b ctxt t2) 
+        TFun mv t1 t2  -> TFun mv (erp b ctxt t1) (erp b ctxt t2) 
         TVariant ts -> TVariant $ M.map (\(ts', x) -> (map (erp b ctxt) ts', x)) ts
         TTuple ts   -> TTuple (map (erp b ctxt) ts)
         TCon n ts s -> TCon n (map (erp b ctxt) ts) s
@@ -230,7 +230,7 @@ checkNoShadowing (t:ts) = do
         TRecord (Rec v) fs _ | v `elem` tvs 
                             -> Left (RecParShadowsTyVar, [(srcObj, p)])
         TRecord _ fs _      -> allEither $ map (\(_,(x,_)) -> ns tvs x) fs
-        TFun t1 t2  -> do
+        TFun _ t1 t2  -> do
           ns tvs t1
           ns tvs t2
         TVariant ts -> 
@@ -277,7 +277,7 @@ checkStrictlyPositive (t:ts) = do
         TRecord rp fs _ -> 
           let b' = (case rp of Rec v -> S.insert v b; _ -> b) in
             allEither $ map (\(_,(x,_)) -> sp s b' x) fs
-        TFun t1 t2      -> do
+        TFun _ t1 t2    -> do
           sp (s `S.union` b) b t1
           sp s b t2
         TVariant ts     -> 

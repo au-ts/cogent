@@ -371,13 +371,13 @@ tcExpr r e = do
   st <- readIORef r
   Tc.runTc (tcState st) $
     do
-      ((c,e'), flx, os) <- (Tc.runCG Ctx.empty [] [] (do
+      ((c,e'), flx, os, fvar) <- (Tc.runCG Ctx.empty [] [] (do
         let ?loc = S.posOfE e
         let ?isRefType = False  -- FIXME / zilinc
         t <- freshTVar
         y <- Tc.cg e t
         pure y))
-      (cs, subst) <- runSolver (solve [] [] c) flx
+      (cs, subst) <- runSolver (solve [] [] c) flx fvar
       Tc.exitOnErr $ Tc.toErrors os cs
       Tc.postE $ Subst.applyE subst e'
   where

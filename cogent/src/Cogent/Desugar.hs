@@ -297,7 +297,7 @@ desugarTlv (S.AbsDec fn sigma) pragmas | S.PT vs ls t <- sigma
         ExI (Flip ls'') -> do
           t' <- withTypeBindings (fmap fst vs') $ withLayoutBindings (fmap fst ls'') $ desugarType t
           case t' of
-            TFun ti' to' -> return $ AbsDecl (pragmaToAttr pragmas fn mempty) fn vs' ls'' ti' to'
+            TFun ti' to' -> return $ AbsDecl (pragmaToAttr pragmas fn mempty) fn vs' ls'' ti' to'  -- TODO: dep functions
             _ -> error "Cogent does not allow FFI constants"
 desugarTlv (S.FunDef fn sigma alts) pragmas | S.PT vs ls t <- sigma
                                             , ExI (Flip vs') <- Vec.fromList vs
@@ -307,7 +307,7 @@ desugarTlv (S.FunDef fn sigma alts) pragmas | S.PT vs ls t <- sigma
       case Vec.fromList ls' of
         ExI (Flip ls'') -> do
           withTypeBindings (fmap fst vs') $ withLayoutBindings (fmap fst ls'') $ do
-            let (B.DT (S.TFun ti _)) = t
+            let (B.DT (S.TFun _ ti _)) = t  -- TODO: dep functions
             TFun ti' to' <- desugarType t
             v <- freshVar
             let e0 = B.TE ti (S.Var v) noPos
@@ -568,7 +568,7 @@ desugarType = \case
         (_    , True ) -> TVarUnboxed v
         (True , False) -> TVarBang v
         (False, False) -> TVar v
-  B.DT (S.TFun ti to)    -> TFun <$> desugarType ti <*> desugarType to
+  B.DT (S.TFun _ ti to) -> TFun <$> desugarType ti <*> desugarType to  -- TODO: dep functions
   B.DT (S.TRecord rp fs Unboxed) -> TRecord rp <$> mapM (\(f,(t,x)) -> (f,) . (,x) <$> desugarType t) fs <*> pure Unboxed
   B.DT (S.TRecord rp fs sigil) -> do
     -- Making an unboxed record is necessary here because of how `desugarSigil`
@@ -704,8 +704,8 @@ desugarExpr (B.TE _ (S.App e1 e2 _) _) = E <$> (App <$> desugarExpr e1 <*> desug
 desugarExpr (B.TE t (S.Comp f g) l) = do
   v <- freshVar
   compf <- freshVar
-  let B.DT (S.TFun t1 t3) = t
-      B.DT (S.TFun _  t2) = B.getTypeTE g
+  let B.DT (S.TFun _ t1 t3) = t  -- TODO: dep functions
+      B.DT (S.TFun _ _  t2) = B.getTypeTE g
       tv = t1
       p = B.TIP (S.PVar (v,tv)) l
       v' = B.TE tv (S.Var v) (B.getLocTE g)

@@ -62,11 +62,13 @@ reShape = rewrite' $ \gs -> do
     expand mentions (T (TRefine v b p) :< U x)
       | IS.notMember x mentions
       = do q <- lift $ solvFresh
-           return $ Subst.ofType x (T (TRefine refVarName b (SU (T bool) q)))
+           u <- freshRefVarName _2
+           return $ Subst.ofType x (T (TRefine u b (SU (T bool) q)))
     expand mentions (U x :< T (TRefine v b p))
       | IS.notMember x mentions
       = do q <- lift $ solvFresh
-           return $ Subst.ofType x (T (TRefine refVarName b (SU (T bool) q)))
+           u <- freshRefVarName _2
+           return $ Subst.ofType x (T (TRefine u b (SU (T bool) q)))
     expand mentions c
       = empty
 

@@ -115,7 +115,7 @@ data Type e l t =
                 -- They are in WHNF
                   TCon TypeName [t] (Sigil (Maybe l))
                 | TVar VarName Banged Unboxed
-                | TFun t t
+                | TFun (Maybe VarName) t t
                 | TRecord RecursiveParameter [(FieldName, (t, Taken))] (Sigil (Maybe l))
                 | TVariant (M.Map TagName ([t], Taken))
                 | TTuple [t]
@@ -277,7 +277,7 @@ instance Traversable (Flip2 IrrefutablePattern e ip) where  -- pv
 instance Traversable (Flip (Type e) t) where  -- l
   traverse f (Flip (TCon n ts s))        = Flip <$> (TCon n ts <$> traverse (traverse f) s)
   traverse _ (Flip (TVar v b u))         = pure $ Flip (TVar v b u)
-  traverse _ (Flip (TFun t1 t2))         = pure $ Flip (TFun t1 t2)
+  traverse _ (Flip (TFun mv t1 t2))      = pure $ Flip (TFun mv t1 t2)
   traverse f (Flip (TRecord rp fs s))    = Flip <$> (TRecord rp fs <$> traverse (traverse f) s)
   traverse _ (Flip (TVariant alts))      = pure $ Flip (TVariant alts)
   traverse _ (Flip (TTuple ts))          = pure $ Flip (TTuple ts)
@@ -298,7 +298,7 @@ instance Traversable (Flip (Type e) t) where  -- l
 instance Traversable (Flip2 Type t l) where  -- e
   traverse _ (Flip2 (TCon n ts s))        = pure $ Flip2 (TCon n ts s)
   traverse _ (Flip2 (TVar v b u))         = pure $ Flip2 (TVar v b u)
-  traverse _ (Flip2 (TFun t1 t2))         = pure $ Flip2 (TFun t1 t2)
+  traverse _ (Flip2 (TFun mv t1 t2))      = pure $ Flip2 (TFun mv t1 t2)
   traverse _ (Flip2 (TRecord rp fs s))    = pure $ Flip2 (TRecord rp fs s)
   traverse _ (Flip2 (TVariant alts))      = pure $ Flip2 (TVariant alts)
   traverse _ (Flip2 (TTuple ts))          = pure $ Flip2 (TTuple ts)
@@ -468,7 +468,7 @@ fvE (RE e) = foldMap fvE e
 fvT :: RawType -> [VarName]
 fvT (RT (TCon _ ts _)) = foldMap fvT ts
 fvT (RT (TVar {})) = []
-fvT (RT (TFun t1 t2)) = fvT t1 ++ fvT t2
+fvT (RT (TFun _ t1 t2)) = fvT t1 ++ fvT t2
 fvT (RT (TRecord _ fs _)) = foldMap (fvT . fst . snd) fs
 fvT (RT (TVariant alts)) = foldMap (foldMap fvT . fst) alts
 fvT (RT (TTuple ts)) = foldMap fvT ts
@@ -515,7 +515,8 @@ fcT (RT t) = foldMap fcT t
 tvT :: RawType -> [TyVarName]
 tvT (RT (TCon _ ts _)) = foldMap tvT ts
 tvT (RT (TVar v _ _)) = [v]
-tvT (RT (TFun t1 t2)) = tvT t1 ++ tvT t2
+tvT (RT (TFun Nothing t1 t2)) = tvT t1 ++ tvT t2
+tvT (RT (TFun (Just v) t1 t2)) = tvT t1 ++ filter (/= v) (tvT t2)
 tvT (RT (TRecord _ fs _)) = foldMap (tvT . fst . snd) fs
 tvT (RT (TVariant alts)) = foldMap (foldMap tvT . fst) alts
 tvT (RT (TTuple ts)) = foldMap tvT ts
@@ -575,7 +576,7 @@ tvA (Alt _ _ e) = tvE e
 
 lvT :: RawType -> [DLVarName]
 lvT (RT (TLayout l _)) = lvL l
-lvT (RT (TFun t1 t2)) = lvT t1 ++ lvT t2
+lvT (RT (TFun _ t1 t2)) = lvT t1 ++ lvT t2
 lvT (RT (TRecord _ fs _)) = foldMap (lvT . fst . snd) fs
 lvT (RT (TVariant alts)) = foldMap (foldMap lvT . fst) alts
 lvT (RT (TTuple ts)) = foldMap lvT ts

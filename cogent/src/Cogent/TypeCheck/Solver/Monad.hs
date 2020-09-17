@@ -18,19 +18,21 @@ import Cogent.TypeCheck.Subst
 import qualified Control.Monad.State as S (get)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.RWS
+import Lens.Micro
+import Lens.Micro.Mtl
 
-type TcSolvM = RWST TcState [Subst] Int IO
+
+type TcSolvM = RWST TcState [Subst] (Int, Int) IO
 
 solvFresh :: TcSolvM Int
-solvFresh = do
-  x <- get
-  modify (+1)
-  return x
+solvFresh = _1 <<%= succ
+
 
 solvFreshes :: Int -> TcSolvM [Int]
 solvFreshes 0 = pure []
 solvFreshes n = (:) <$> solvFresh <*> solvFreshes (n-1)
 
-runSolver :: TcSolvM a -> Int -> TcM (a, Subst)
-runSolver act i = do st <- lift (lift S.get)
-                     fmap mconcat <$> (lift . lift . lift $ evalRWST act st i)
+runSolver :: TcSolvM a -> Int -> Int -> TcM (a, Subst)
+runSolver act flex fvar = do
+  st <- lift (lift S.get)
+  fmap mconcat <$> (lift . lift . lift $ evalRWST act st (flex,fvar))

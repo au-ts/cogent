@@ -211,10 +211,10 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
     genStructSubst _ (U i :=: T (TCon n ts s)) = makeTConUnifSubsts n ts s i
 
     -- tfun
-    genStructSubst _ (T (TFun _ _) :< U i)  = makeFunUnifSubsts i
-    genStructSubst _ (U i :< T (TFun _ _))  = makeFunUnifSubsts i
-    genStructSubst _ (T (TFun _ _) :=: U i) = makeFunUnifSubsts i
-    genStructSubst _ (U i :=: T (TFun _ _)) = makeFunUnifSubsts i
+    genStructSubst _ (T (TFun mv _ _) :< U i)  = makeFunUnifSubsts mv i
+    genStructSubst _ (U i :< T (TFun mv _ _))  = makeFunUnifSubsts mv i
+    genStructSubst _ (T (TFun mv _ _) :=: U i) = makeFunUnifSubsts mv i
+    genStructSubst _ (U i :=: T (TFun mv _ _)) = makeFunUnifSubsts mv i
 
     -- tunit
     genStructSubst _ (t@(T TUnit) :< U i) = return $ Subst.ofType i t
@@ -256,10 +256,10 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
       let t = T (TTuple tus)
       return $ Subst.ofType i t
 
-    makeFunUnifSubsts i = do
+    makeFunUnifSubsts mv i = do
       t' <- U <$> lift solvFresh
       u' <- U <$> lift solvFresh
-      return . Subst.ofType i . T $ TFun t' u'
+      return . Subst.ofType i . T $ TFun mv t' u'
 
     makeTConUnifSubsts n ts s i = do
       tus <- traverse (const (U <$> lift solvFresh)) ts

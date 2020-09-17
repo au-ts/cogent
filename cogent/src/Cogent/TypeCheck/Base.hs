@@ -755,6 +755,18 @@ substExpr vs (SU t x) = SU t x
 substExpr vs (SE t (Var x)) | Just e' <- lookup x vs = e'
 substExpr vs (SE t e) = SE t $ fmap (substExpr vs) e
 
+substExprT :: [(VarName, TCSExpr)] -> TCType -> TCType
+substExprT vs (T (TRefine v b p)) =
+  T $ TRefine v b $ substExpr (filter ((/= v) . fst) vs) p
+substExprT vs (T (TFun (Just v) t1 t2)) =
+  T $ TFun (Just v) (substExprT vs t1) (substExprT (filter ((/= v) . fst) vs) t2)
+substExprT vs (T t) = T $ fffmap (substExpr vs) t
+substExprT vs (U x) = U x
+substExprT vs (V x) = V $ fmap (substExprT vs) x
+substExprT vs (R rp x s) = R rp (fmap (substExprT vs) x) s
+substExprT vs (A t l s mh) = A (substExprT vs t) (substExpr vs l) s (first (fmap (substExpr vs)) mh)
+substExprT vs (Synonym n ts) = Synonym n $ fmap (substExprT vs) ts
+
 flexOf (U x) = Just x
 flexOf (T (TTake _ t))   = flexOf t
 flexOf (T (TPut  _ t))   = flexOf t
@@ -959,4 +971,5 @@ isTypeLayoutExprCompatible _ t l = trace ("t = " ++ show t ++ "\nl = " ++ show l
 -- ----------------------------------------------------------------------------
 -- Naming conventions
 
-refVarName = "_v"
+freshRefVarName :: MonadState s m => LensLike ((,) Int) s s Int Int -> m VarName
+freshRefVarName numPool = numPool <<%= succ >>= \i -> return ("_v" ++ show i)

@@ -576,9 +576,12 @@ instance (Pretty t, TypeType t, Pretty e, Pretty l, Eq l) => Pretty (Type e l t)
   pretty (TVariant ts) = variant (map (\(a,bs) -> case bs of
                                           [] -> tagname a
                                           _  -> tagname a <+> spaceList (map prettyT' bs)) $ M.toList (fmap fst ts))
-  pretty (TFun t t') = prettyT' t <+> typesymbol "->" <+> prettyT' t'
-    where prettyT' e | isFun e   = parens (pretty e)
-                     | otherwise = pretty e
+  pretty (TFun mv t t') = prettyArgT mv t <+> typesymbol "->" <+> prettyT' t'
+    where prettyT' t | isFun t   = parens (pretty t)
+                     | otherwise = pretty t
+          prettyArgT mv t = case mv of
+            Nothing -> prettyT' t
+            Just v  -> parens (typevar v <+> typesymbol ":" <+> pretty t)
   pretty (TUnbox t) = (typesymbol "#" <> prettyT' t) & (if __cogent_fdisambiguate_pp then (<+> comment "{- unbox -}") else id)
   pretty (TBang t) = (prettyT' t <> typesymbol "!") & (if __cogent_fdisambiguate_pp then (<+> comment "{- bang -}") else id)
   pretty (TRPar v b m) = (if __cogent_fdisambiguate_pp then (comment "{- rec -}" <+> ) else id) $ typevar v <> (if b then typesymbol "!" else mempty)

@@ -370,18 +370,20 @@ arrayAssignment = do p <- getPosition
 
 arrayAssigns = commaSep arrayAssignment
 
--- monotype ::= typeA1 ("->" typeA1)?
--- typeA1   ::= Con typeA2*
---            | typeA2 (take fList | put fList)? (@take eList | @put eList)? layout?
--- typeA2   ::= "#" atomtype
---            | atomtype "!"?
---            | atomtype "[" int-expr "]"
--- atomtype ::= "(" monotype* ")"  -- comma-separated list
---            | "{" fieldname ":" monotype "," ... "}"
---            | "<" Con typeA2 "|" ... ">"
---            | "[" id ":" monotype "|" expr "]"
---            | var
---            | Con
+-- monotype   ::= (funArgType "->")? typeA1
+-- funArgType ::= "(" var ":" typeA1 ")"
+--              | typeA1
+-- typeA1     ::= Con typeA2*
+--              | typeA2 (take fList | put fList)? (@take eList | @put eList)? layout?
+-- typeA2     ::= "#" atomtype
+--              | atomtype "!"?
+--              | atomtype "[" int-expr "]"
+-- atomtype   ::= "(" monotype* ")"  -- comma-separated list
+--              | "{" fieldname ":" monotype "," ... "}"
+--              | "<" Con typeA2 "|" ... ">"
+--              | "[" id ":" monotype "|" expr "]"
+--              | var
+--              | Con
 
 -- NOTE: use "string" instead of "reservedOp" so that it allows no spaces after "@" / zilinc
 docHunk = do whiteSpace; _ <- try (string "@"); x <- manyTill anyChar newline; whiteSpace; return x
@@ -391,6 +393,7 @@ typeA1 = do
   t2 <- optionMaybe (avoidInitial >> docHunk)
   case t2 of Nothing -> return x; Just doc -> do
                 return (Documentation doc x)
+
 typeA2 = do
   x <- typeA2'
   t2 <- optionMaybe (avoidInitial >> docHunk)
@@ -402,8 +405,8 @@ typeA1' = do avoidInitial
              <|> (do t <- typeA2'
                      op <- optionMaybe takeput
                      let t' = (case op of
-                                  Nothing -> t
-                                  Just f  -> f t)
+                                 Nothing -> t
+                                 Just f  -> f t)
 #ifdef REFINEMENT_TYPES
                      aop <- optionMaybe arrTakeput
                      let ta = (case aop of
@@ -491,11 +494,20 @@ atomtype = avoidInitial >> LocType <$> getPosition <*> (
            <|> return NonRec
 
 monotype = do avoidInitial
-              t1 <- typeA1
-              t2 <- optionMaybe (reservedOp "->" >> typeA1)
-              case t2 of
-                Nothing -> return t1
-                Just t2' -> return $ LocType (posOfT t1) $ TFun t1 t2'
+              mt1 <- optionMaybe $ try (funArgType <* reservedOp "->")
+              t2 <- typeA1
+              case mt1 of
+                Nothing      -> return t2
+                Just (mv,t1) -> return $ LocType (posOfT t1) $ TFun mv t1 t2
+
+funArgType = do avoidInitial
+                ((try $ parens $ do
+                   v <- variableName
+                   reservedOp ":"
+                   t <- typeA1
+                   return (Just v, t))
+                 <|>
+                 (typeA1 >>= \t -> return (Nothing, t)))
 
 polytype = polytype' <|> PT [] [] <$> monotype
   where
