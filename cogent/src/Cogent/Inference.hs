@@ -447,31 +447,11 @@ freshVarName = TC $ do readers <- ask
                        put (st, p, n + 1)
                        return $ freshVarPrefix ++ show n
 
--- upshiftVars :: TC t v b x -> TC t v b x -- TODO /blaisep
--- upshiftVars :: Vec k (Maybe (Type t b)) -> Vec k (Maybe (Type t b))
--- upshiftVars (TC x) = TC x
-
-upshiftVarType :: Type t b -> Type (Suc t) b
-upshiftVarType (TVar t) = TVar $ FSuc t
-upshiftVarType (TVarBang t) = TVarBang $ FSuc t
-upshiftVarType (TVarUnboxed t) = TVarUnboxed $ FSuc t
-upshiftVarType (TCon tn ts s) = TCon tn (map upshiftVarType ts) s
-upshiftVarType (TFun t1 t2) = TFun (upshiftVarType t1) (upshiftVarType t2)
-upshiftVarType (TSum alts) = TSum (map (\(tn, (t, b)) -> (tn, (upshiftVarType t, b))) alts)
-upshiftVarType (TProduct t1 t2) = TProduct (upshiftVarType t1) (upshiftVarType t2)
-upshiftVarType (TRecord rp fs s) = TRecord rp (map (\(f, (t, b)) -> (f, (upshiftVarType t, b))) fs) s
--- upshiftVarType (TRPar v m) = 
--- upshiftVarType (TRParBang RecParName (RecContext (Type t b))
--- upshiftVarType (TArray (Type t b) (LExpr t b) (Sigil (DataLayout BitRange)) (Maybe (LExpr t b))
--- upshiftVarType (TRefine (Type t b) (LExpr t b) -- not allowed to stack reftypes /blaisep
-upshiftVarType _ = TUnit -- fixme
-
-upshiftVarLExpr :: LExpr t b -> LExpr (Suc t) b
+upshiftVarLExpr :: LExpr t b -> LExpr t b
 upshiftVarLExpr (LVariable (t, b)) = LVariable (Suc t, b)
-upshiftVarLExpr (LFun fn ts ls) = LFun fn (map upshiftVarType ts) ls
 upshiftVarLExpr (LOp opr es) = LOp opr (map upshiftVarLExpr es)
 upshiftVarLExpr (LApp a b) = LApp (upshiftVarLExpr a) (upshiftVarLExpr b)
-upshiftVarLExpr (LCon tn e t) = LCon tn (upshiftVarLExpr e) (upshiftVarType t)
+upshiftVarLExpr (LCon tn e t) = LCon tn (upshiftVarLExpr e) t
 upshiftVarLExpr (LLet a e1 e2) = LLet a (upshiftVarLExpr e1) (upshiftVarLExpr e2)
 upshiftVarLExpr (LLetBang bs a e1 e2) = LLetBang bs a (upshiftVarLExpr e1) (upshiftVarLExpr e2)
 upshiftVarLExpr (LTuple e1 e2) = LTuple (upshiftVarLExpr e1) (upshiftVarLExpr e2)
@@ -481,15 +461,11 @@ upshiftVarLExpr (LCase e tn (v1, a1) (v2, a2)) = LCase (upshiftVarLExpr e) tn (v
 upshiftVarLExpr (LEsac e) = LEsac $ upshiftVarLExpr e
 upshiftVarLExpr (LSplit (v1, v2) e1 e2) = LSplit (v1, v2) (upshiftVarLExpr e1) (upshiftVarLExpr e2)
 upshiftVarLExpr (LMember x f) = LMember (upshiftVarLExpr x) f
--- upshiftVarLExpr (LTake (a,b) rec f e) = LTake (a,b) rec f (upshiftVarLExpr e)
--- upshiftVarLExpr (LPut rec f v) = LPut rec f (upshiftVarLExpr v)
-upshiftVarLExpr (LPromote t e) = LPromote (upshiftVarType t) (upshiftVarLExpr e)
-upshiftVarLExpr (LCast t e) = LCast (upshiftVarType t) (upshiftVarLExpr e)
-upshiftVarLExpr _ = LUnit -- fixme
-
--- upshiftVarLExpr LTake (b, b) (LExpr t b) FieldIndex (LExpr t b)  -- \ ^^^ The first is the record, and the second is the taken field
--- upshiftVarLExpr LPut (LExpr t b) FieldIndex (LExpr t b)
-
+upshiftVarLExpr (LTake (a,b) rec f e) = LTake (a,b) rec f (upshiftVarLExpr e)
+upshiftVarLExpr (LPut rec f v) = LPut rec f (upshiftVarLExpr v)
+upshiftVarLExpr (LPromote t e) = LPromote t (upshiftVarLExpr e)
+upshiftVarLExpr (LCast t e) = LCast t (upshiftVarLExpr e)
+upshiftVarLExpr x = x
 
 lookupKind :: Fin t -> TC t v b Kind
 lookupKind f = TC ((`at` f) . fst <$> ask)
@@ -534,7 +510,7 @@ infer (E (Op o es))
    = do es' <- mapM infer es
         let Just t = opType o (map exprType es')
         vn <- freshVarName
-        let pred = LOp Eq [LVariable (Zero, vn), (LOp o $ map (texprToLExpr id) es')]
+        let pred = LOp Eq [LVariable (Zero, vn), upshiftVarLExpr (LOp o $ map (texprToLExpr id) es')]
         return (TE (TRefine t (pred)) (Op o es'))
 infer (E (ILit i t))
   = do vn <- freshVarName
@@ -618,8 +594,11 @@ infer (E (ArrayPut arr i e))
 infer (E (Variable v))
    = do Just t <- useVariable (fst v)
         vn <- freshVarName
-        let pred = LOp Eq [LVariable (Zero, vn), LVariable (finNat $ fst v, snd v)]
-        return (TE (TRefine t (pred)) (Variable v))
+        let pred = LOp Eq [LVariable (Zero, vn), upshiftVarLExpr $ LVariable (finNat $ fst v, snd v)]
+        -- if t is a refinement type, extract the old predicate and combine
+        case t of
+          (TRefine base oldPred) -> return $ TE (TRefine base $ LOp And [pred, oldPred]) (Variable v)
+          _ -> return $ TE (TRefine t pred) (Variable v)
 infer (E (Fun f ts ls note))
    | ExI (Flip ts') <- Vec.fromList ts
    , ExI (Flip ls') <- Vec.fromList ls
