@@ -2252,7 +2252,7 @@ lemma i_fv'_suc_iff_suc_i_fv':
   "i \<in> fv' (Suc m) e \<longleftrightarrow> Suc i \<in> fv' m e"
   by (induct m e arbitrary: i rule: fv'_induct; auto)
 
-lemma fv'_suc_eq_minus_fv':
+lemma fv'_suc_eq_dec_fv':
   "fv' (Suc m) e = image (\<lambda>x. x - 1) (fv' m e - {0})"
 proof -
   have "\<forall>i \<in> fv' (Suc m) e.  i \<in> image (\<lambda>x. x - 1) (fv' m e - {0})"
@@ -3515,7 +3515,7 @@ proof -
   let ?dec_fv_e2 = "image (\<lambda>x. x-1) (fv e2 - {0})"
   let ?SG2e2 = "assign_app_ctx S (G2\<bar>?dec_fv_e2)"
   have fv_e: "fv e = fv e1 \<union> (image (\<lambda>x. x-1) (fv e2 - {0}))"
-    using assms fv'_suc_eq_minus_fv' by auto
+    using assms fv'_suc_eq_dec_fv' by auto
   have G1_G2_length: "length G1 = length G2"
     using assms cg_ctx_length by blast
   moreover {
@@ -3532,16 +3532,16 @@ proof -
     have no_i_in_e2_SG2e2_none: "Suc i \<notin> fv e2 \<Longrightarrow> ?SG2e2 ! i = None"
     proof -
       have "Suc i \<notin> fv e2 \<Longrightarrow> i \<notin> (image (\<lambda>x. x-1) (fv e2 - {0}))"
-        using fv'_suc_eq_minus_fv' i_fv'_suc_iff_suc_i_fv' by blast
+        using fv'_suc_eq_dec_fv' i_fv'_suc_iff_suc_i_fv' by blast
       then show "Suc i \<notin> fv e2 \<Longrightarrow> ?SG2e2 ! i = None"
         using G1_G2_length ctx_restrict_len ctx_restrict_nth_none assign_app_ctx_def i_size by auto
     qed
     have i_in_e2_SG2e2_some: "Suc i \<in> fv e2 \<Longrightarrow> ?SG2e2 ! i = Some (assign_app_ty S (fst (G2!i)))"
     proof -
       have "Suc i \<notin> fv e2 \<Longrightarrow> i \<notin> (image (\<lambda>x. x-1) (fv e2 - {0}))"
-        using fv'_suc_eq_minus_fv' i_fv'_suc_iff_suc_i_fv' by blast
+        using fv'_suc_eq_dec_fv' i_fv'_suc_iff_suc_i_fv' by blast
       then show "Suc i \<in> fv e2 \<Longrightarrow> ?SG2e2 ! i = Some (assign_app_ty S (fst (G2!i)))"
-        by (metis G1_G2_length assign_app_ctx_restrict_some fv'_suc_eq_minus_fv' i_fv'_suc_iff_suc_i_fv' i_size)
+        by (metis G1_G2_length assign_app_ctx_restrict_some fv'_suc_eq_dec_fv' i_fv'_suc_iff_suc_i_fv' i_size)
     qed
     consider (i_in_e) "i \<in> fv e" | (i_not_in_e) "i \<notin> fv e"
       by blast
@@ -3555,7 +3555,7 @@ proof -
       proof cases
         case case_1
         then show ?thesis
-          using ctx_split_left fv'_suc_eq_minus_fv' i_fv'_suc_iff_suc_i_fv' i_in_e i_size 
+          using ctx_split_left fv'_suc_eq_dec_fv' i_fv'_suc_iff_suc_i_fv' i_in_e i_size 
             no_i_in_e2_SG2e2_none i_in_e1_SG1e1_some i_in_e_SG1e_some by metis
       next
         case case_2
@@ -3568,7 +3568,7 @@ proof -
           using cg_gen_output_type_checked_nonzero assms case_3 by auto
         then have i_type_share: "A \<turnstile> CtShare (assign_app_ty S (fst (G2!i)))"
           using assms case_3 cg_assign_type_checked_nonzero_imp_share
-          by (metis fv'_suc_eq_minus_fv' i_fv'_suc_iff_suc_i_fv' nth_Cons_Suc)
+          by (metis fv'_suc_eq_dec_fv' i_fv'_suc_iff_suc_i_fv' nth_Cons_Suc)
         moreover have "(?SG1e ! i) = (?SG1e1 ! i)"
           using i_in_e case_3 i_size ctx_restrict_len ctx_restrict_nth_some assign_app_ctx_def by auto
         moreover have "(?SG1e1 ! i) = (?SG2e2 ! i)"
@@ -3583,7 +3583,7 @@ proof -
       have "(i \<notin> (fv e1)) \<and> (i \<notin> ?dec_fv_e2)"
         using fv_e i_not_in_e by auto
       then show ?thesis
-        using ctx_split_none fv'_suc_eq_minus_fv' i_fv'_suc_iff_suc_i_fv' i_not_in_e i_size 
+        using ctx_split_none fv'_suc_eq_dec_fv' i_fv'_suc_iff_suc_i_fv' i_not_in_e i_size 
           no_i_in_e1_SG1e1_none no_i_in_e2_SG2e2_none no_i_in_e_SG1e_none by metis
     qed
   }
@@ -3607,7 +3607,7 @@ proof -
   let ?dec_fv_e2 = "(\<lambda>x. x-1) ` (fv e2 - {0})"
   let ?\<Gamma>2 = "assign_app_ctx S (G2\<bar>?dec_fv_e2)"
   have fv_e: "fv e = (fv e1 - {y. ys ! y}) \<union> ((\<lambda>x. x-1) ` (fv e2 - {0}))"
-    using assms fv'_suc_eq_minus_fv' by auto
+    using assms fv'_suc_eq_dec_fv' by auto
   have G1_G2_length: "length G1 = length G2"
     using assms cg_ctx_length set0_cg_ctx_length bang_cg_ctx_length by metis
   moreover {
@@ -3650,7 +3650,7 @@ proof -
           using cg_gen_output_type_checked_nonzero assms case_3 bang_cg_ctx_type_checked_same i_size 
             bang_cg_ctx_length cg_ctx_length by (metis DiffE)
         then moreover have "A \<turnstile> CtShare (assign_app_ty S (fst (G2!i)))"
-          using G1_G2_length assms case_3 fv'_suc_eq_minus_fv' i_fv'_suc_iff_suc_i_fv' i_size
+          using G1_G2_length assms case_3 fv'_suc_eq_dec_fv' i_fv'_suc_iff_suc_i_fv' i_size
             set0_cg_ctx_type_same set0_cg_ctx_type_checked_prop cg_assign_type_checked_nonzero_imp_share
           by (metis DiffE mem_Collect_eq nth_Cons_Suc)
         moreover have "fst (G1 ! i) = fst (G2 ! i)"
@@ -3769,7 +3769,7 @@ proof -
   let ?SG1e1 = "assign_app_ctx S (G1\<bar>(fv e1))"
   let ?SG2e2e3 = "assign_app_ctx S (G2\<bar>dec_fv_e2 \<union> dec_fv_e3)"
   have fv_e: "fv e = fv e1 \<union> dec_fv_e2 \<union> dec_fv_e3"
-    using assms fv'_suc_eq_minus_fv' by auto
+    using assms fv'_suc_eq_dec_fv' by auto
   have G1_G2_length: "length G1 = length G2"
     using assms by (rule_tac cg_ctx_length; simp)
   {
@@ -3807,7 +3807,7 @@ proof -
           have i_type_checked: "snd (G2 ! i) > 0"
             using cg_gen_output_type_checked_nonzero assms i_in_e1 by auto
           consider (suc_i_in_e2) "Suc i \<in> fv e2" | (suc_i_in_e3) "Suc i \<in> fv e3"
-            using i_in_e2e3 fv'_suc_eq_minus_fv'  assms by fastforce
+            using i_in_e2e3 fv'_suc_eq_dec_fv'  assms by fastforce
           then show ?thesis
           proof cases
             case suc_i_in_e2
@@ -3859,7 +3859,7 @@ proof -
   let ?SG1e1 = "assign_app_ctx S (G1\<bar>(fv e1))"
   let ?SG2e2 = "assign_app_ctx S (G2\<bar>dec_fv_e2)"
   have fv_e: "fv e = fv e1 \<union> dec_fv_e2"
-    using assms fv'_suc_eq_minus_fv' by auto
+    using assms fv'_suc_eq_dec_fv' by auto
   have G1_G2_length: "length G1 = length G2"
     using assms by (rule_tac cg_ctx_length; simp)
   {
@@ -3897,7 +3897,7 @@ proof -
           have i_type_checked: "snd (G2 ! i) > 0"
             using cg_gen_output_type_checked_nonzero assms i_in_e1 by auto
           then have "A \<turnstile> CtShare (assign_app_ty S (fst (((\<beta>, 0) # G2) ! Suc i)))"
-            using assms fv'_suc_eq_minus_fv' i_fv'_suc_iff_suc_i_fv' i_in_e2 
+            using assms fv'_suc_eq_dec_fv' i_fv'_suc_iff_suc_i_fv' i_in_e2 
             cg_assign_type_checked_nonzero_imp_share nth_Cons_Suc by (metis nth_Cons_Suc)
           then show ?thesis
             using G1_G2_length cg_ctx_type_same1 i_size assms by force
@@ -4001,7 +4001,7 @@ proof -
   have "A \<turnstile> assign_app_ctx S (G1\<bar>fv e) \<leadsto> \<Gamma>1 \<box> assign_app_ctx S (G2\<bar>dec_fv_e2)"
     using split_checked_let assms by simp
   then have "A \<turnstile> assign_app_ctx S (G1\<bar>fv e \<union> idxs) \<leadsto> \<Gamma>1 \<box> \<Gamma>2"
-    using assms fv'_suc_eq_minus_fv' by (rule_tac split_unionR; auto intro: cg_ctx_type_same1)
+    using assms fv'_suc_eq_dec_fv' by (rule_tac split_unionR; auto intro: cg_ctx_type_same1)
   moreover have "\<Gamma> = assign_app_ctx S (G1\<bar>fv e \<union> idxs)"
   proof (rule nth_equalityI)
     show "length \<Gamma> = length (assign_app_ctx S (G1\<bar>fv e \<union> idxs))"
@@ -4069,7 +4069,7 @@ proof -
     moreover have "A \<turnstile> assign_app_ctx S (G1\<bar>fv e) \<leadsto> \<Gamma>1 \<box> assign_app_ctx S (G2\<bar>dec_fv_e2)"
       using split_checked_letb assms by simp
     moreover have "fv e1 - {y. ys ! y} \<union> fv' (Suc 0) e2 = fv e1 - {y. ys ! y} \<union> dec_fv_e2"
-      using assms fv'_suc_eq_minus_fv' by metis
+      using assms fv'_suc_eq_dec_fv' by metis
     ultimately show ?thesis
       using assms split_unionR by simp
   qed
@@ -4200,7 +4200,7 @@ proof -
   have "A \<turnstile> assign_app_ctx S (G1\<bar>fv e) \<leadsto> \<Gamma>1 \<box> assign_app_ctx S (G2\<bar>(dec_fv_e2 \<union> dec_fv_e3))"
     using split_checked_case assms by meson
   then have "A \<turnstile> assign_app_ctx S (G1\<bar>fv e \<union> idxs) \<leadsto> \<Gamma>1 \<box> \<Gamma>2"
-    using fv'_suc_eq_minus_fv' assms by (rule_tac split_unionR; auto intro: cg_ctx_type_same1)
+    using fv'_suc_eq_dec_fv' assms by (rule_tac split_unionR; auto intro: cg_ctx_type_same1)
   moreover have "\<Gamma> = assign_app_ctx S (G1\<bar>fv e \<union> idxs)"
   proof -
     have "length \<Gamma> = length (assign_app_ctx S (G1\<bar>fv e \<union> idxs))"
@@ -4259,7 +4259,7 @@ proof -
   have "A \<turnstile> assign_app_ctx S (G1\<bar>fv e) \<leadsto> \<Gamma>1 \<box> assign_app_ctx S (G2\<bar>dec_fv_e2)"
     using split_checked_irref assms by meson
   then have "A \<turnstile> assign_app_ctx S (G1\<bar>fv e \<union> idxs) \<leadsto> \<Gamma>1 \<box> \<Gamma>2"
-    using fv'_suc_eq_minus_fv' assms by (rule_tac split_unionR; auto intro: cg_ctx_type_same1)
+    using fv'_suc_eq_dec_fv' assms by (rule_tac split_unionR; auto intro: cg_ctx_type_same1)
   moreover have "\<Gamma> = assign_app_ctx S (G1\<bar>fv e \<union> idxs)"
   proof -
     have "length \<Gamma> = length (assign_app_ctx S (G1\<bar>fv e \<union> idxs))"
@@ -4649,7 +4649,7 @@ next
             using \<Gamma>2_dec_i_not_none assign_app_ctx_restrict_none i_nonzero i_size length_Cons 
               set0_cg_ctx_length by (metis (no_types, lifting) One_nat_def Suc_less_eq Suc_pred)
           then have "i - 1 \<in> ?idxs"
-            using fv'_suc_eq_minus_fv' i_fv'_suc_iff_suc_i_fv' i_nonzero i_not_in_e2
+            using fv'_suc_eq_dec_fv' i_fv'_suc_iff_suc_i_fv' i_nonzero i_not_in_e2
             by (metis (no_types, lifting) One_nat_def Suc_pred UnE)
           then have "i - 1 \<notin> fv ?e" "\<Gamma> ! (i - Suc 0) \<noteq> None"
             by simp+
@@ -5196,7 +5196,7 @@ next
             next
               case i_in_neither
               then show ?thesis
-                using assign_app_ctx_restrict_none fv'_suc_eq_minus_fv' i_fv'_suc_iff_suc_i_fv' 
+                using assign_app_ctx_restrict_none fv'_suc_eq_dec_fv' i_fv'_suc_iff_suc_i_fv' 
                   i_nonzero i_not_in_e2 i_size One_nat_def Suc_less_eq Suc_pred UnE length_Cons
                   neq0_conv nth_Cons' by (metis (no_types, lifting))
             qed
@@ -5286,7 +5286,7 @@ next
             next
               case i_in_neither
               then show ?thesis
-                using assign_app_ctx_restrict_none fv'_suc_eq_minus_fv' i_fv'_suc_iff_suc_i_fv' 
+                using assign_app_ctx_restrict_none fv'_suc_eq_dec_fv' i_fv'_suc_iff_suc_i_fv' 
                   i_nonzero i_not_in_e3 i_size One_nat_def Suc_less_eq Suc_pred UnE length_Cons
                   neq0_conv nth_Cons' by (metis (no_types, lifting))
             qed
@@ -5380,7 +5380,7 @@ next
         next
           case i_in_neither
           then have "i - 1 \<notin> ?dec_fv_e2 \<union> ?idxs"
-            using fv'_suc_eq_minus_fv' i_fv'_suc_iff_suc_i_fv' i_nonzero
+            using fv'_suc_eq_dec_fv' i_fv'_suc_iff_suc_i_fv' i_nonzero
             by (metis (no_types, lifting) UnE Suc_pred')
           then show ?thesis
             using i_nonzero i_size assign_app_ctx_restrict_none by auto
