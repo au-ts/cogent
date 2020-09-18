@@ -65,7 +65,7 @@ $ty:(Stuff!) stuff_ptr($ty:(Entry!) e) {
 int in_range($ty:(Entry!) e, unsigned long nlen) {
   unsigned long p;
 
-  $escstm:(p = (uintptr_t)e + offsetof(Entry,name) + nlen;)
+  p = (uintptr_t)e + offsetof(Entry,name) + nlen;
 
   return (p - (uintptr_t)block) < SIZE;
 }
@@ -78,9 +78,8 @@ void init(void) {
   int a, b, c, len;
   char buf[80];
 
-  $escstm:(memset(block, 0, SIZE);)
+  memset(block, 0, SIZE);
 
-  $escstm:(
   if ((fp = fopen("entries.txt", "r")) != NULL) {
     e = (Entry *)block;
     while (fscanf(fp, "%s%d%d%d\n", buf, &a, &b, &c) == 4) {
@@ -98,7 +97,7 @@ void init(void) {
       e = (Entry *) ((uintptr_t)e + e->len);
     }
     fclose(fp);
-  })
+  }
 }
 
 int main(void){
@@ -108,9 +107,9 @@ int main(void){
   $ty:((SysState, CString!)) args = {.p1 = NULL , .p2 = str};
   ret = findStuff(args);
   if (ret.p2.tag == TAG_ENUM_Some) {
-    $escstm:(printf("Wombat's b is %d.\n", ret.p2.Some->b);)
+    printf("Wombat's b is %d.\n", ret.p2.Some->b);
   } else {
-    $escstm:(printf("Wombat was not found.\n");)
+    printf("Wombat was not found.\n");
   }
   return 0;
 }
