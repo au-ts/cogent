@@ -20,7 +20,7 @@ import Control.Monad.State
 Note that in the actual C struct there should be some padding.
 -}
 data SpiRegs = SpiRegs 
-	{ command1 :: Word32
+    { command1 :: Word32
     , command2 :: Word32
     , timing1 :: Word32
     , timing2 :: Word32
@@ -28,7 +28,7 @@ data SpiRegs = SpiRegs
     , fifoStatus :: Word32
     , dmaCtl :: Word32
     , dmaBlk :: Word32
-	, txFifo :: Word32
+    , txFifo :: Word32
     , rxFifo :: Word32
     , spareCtl :: Word32
     } deriving (Show)
@@ -46,9 +46,7 @@ type CsFn a = SpiSlaveCfg -> Int -> State a ()
 
 {- In the C code, the spi_bus_t struct is on the heap and contains 
 volatile fields, function pointers, void * pointers and pointers arrays.
-For the pointers to arrays, we model these as lists. In the case
-that these are NULL, the lists would be empty. This means that the
-fields for the size of the arrays are no longer needed.
+For the pointers to arrays, we model these as lists.
 For the void * pointer, we model this as some type variable, i.e. it
 can be anything.
 
@@ -59,7 +57,9 @@ data SpiBus a = SpiBus
     , clockMode :: Word32
     , inProgress :: Bool
     , txbuf :: [Word8]
-    , rxbuf :: [Word8]
+    , rxbuf :: Maybe [Word8]
+    , txsize :: Int
+    , rxsize :: Int
     , cs :: Maybe (CsFn (SpiBus a))
     , cb :: Int -> a -> State (SpiBus a) ()
     , token :: a
@@ -104,11 +104,23 @@ getTxbuf = gets txbuf
 putTxbuf :: [Word8] -> State (SpiBus a) ()
 putTxbuf xs = modify $ \s -> s { txbuf = xs }
 
-getRxbuf :: State (SpiBus a) [Word8]
+getRxbuf :: State (SpiBus a) (Maybe [Word8])
 getRxbuf = gets rxbuf
 
-putRxbuf :: [Word8] -> State (SpiBus a) ()
+putRxbuf :: Maybe [Word8] -> State (SpiBus a) ()
 putRxbuf xs = modify $ \s -> s { rxbuf = xs }
+
+getTxsize :: State (SpiBus a) Int
+getTxsize = gets txsize
+
+putTxsize :: Int -> State (SpiBus a) ()
+putTxsize n = modify $ \s -> s { txsize = n }
+
+getRxsize :: State (SpiBus a) Int
+getRxsize = gets rxsize
+
+putRxsize :: Int -> State (SpiBus a) ()
+putRxsize n = modify $ \s -> s { rxsize = n }
 
 getCs :: State (SpiBus a) (Maybe (CsFn (SpiBus a)))
 getCs = gets cs
@@ -239,43 +251,20 @@ putRxFifo x = do
     s <- get
     put $ s { regs = (r { rxFifo = x})}
 
--- Read n many times from the rxfifo register.
-readRx :: Int -> State (SpiBus a) ()
-readRx n
+-- Actual implementation logic
+
+{- Read or flush the 'rxfifo' queue @n@ many times and 
+update the 'rxbuf' field if it contains a valid list.
+-}
+readOrFlushRx :: Int -> State (SpiBus a) ()
+readOrFlushRx n
     | n <= 0    = return ()
     | otherwise = do
         x <- getRxFifo
-        -- bit of a hack to truncate a 32-bit word to an 8-bit word
+        readOrFlushRx $ n - 1
         let y = fromInteger $ toInteger $ x .&. 0xff
-        readRx (n-1)
-        ys <- getRxbuf
-        putRxbuf (y:ys)
-
--- Fush the rxfifo register n times.
-flushRx :: Int -> State (SpiBus a) ()
-flushRx n
-    | n <= 0    = return ()
-    | otherwise = do 
-        getRxFifo
-        flushRx (n-1)
-
-{- Either read or flush the rxfifo register depending if the rx buffer has
-space or not. This models the for loop code in C which does this.
-Note that in the original C code, the amount to read/flush is the
-"txsize + rxsize", however the "rxsize" is not the size of the 
-rx buffer but what amount should be data that was not transferred.
-So the actual size of the rx buffer should be "txsize + rxsize".
-For now it is modelled like so, however, maybe we may in fact want
-the behaviour where the rx buffers and tx buffers are larger than the
-stated sizes.
--}
-readOrFlush :: State (SpiBus a) ()
-readOrFlush = do
-    rx <- getRxbuf
-    tx <- getTxbuf
-    if length rx <= 0
-        then flushRx $ length tx
-        else readRx $ length rx 
+        xs <- getRxbuf
+        maybe (return ()) (\ys -> putRxbuf (Just (y:ys))) xs
 
 {- Either assert or release chip select if a chip select function is
 provided i.e. flip the GPIO pin. So some hidden state is altered.
@@ -291,16 +280,16 @@ are complete, and runs the provided callback function.
 -}
 finishSpiTransfer :: State (SpiBus a) ()
 finishSpiTransfer = do
-    readOrFlush
+    tx <- getTxsize
+    rx <- getRxsize
+    readOrFlushRx $ tx + rx
     x <- getXferStatus
     putXferStatus $ x .|. spiXferStsRdy
     putInProgress False
     chipSelect SpiCsRelax
     c <- getCb
-    tx <- getTxbuf
-    rx <- getRxbuf
     tok <- getToken
-    c (length tx + length rx) tok
+    c (tx + rx) tok
 
 {- Either handles the SPI transfer or it cancels it depending on
 whether the hardware device is ready.
@@ -344,30 +333,42 @@ handle it.
 startSpiTransfer :: State (SpiBus a) ()
 startSpiTransfer = do
     chipSelect SpiCsAssert
-    tx <- getTxbuf
-    rx <- getRxbuf
-    let size = length tx + length rx
-    putDmaBlk $ fromIntegral $ size - 1
-    writeTx' 0 size
+    tx <- getTxsize
+    rx <- getRxsize
+    putDmaBlk $ fromIntegral $ tx + rx - 1
+    writeTx 0 $ tx + rx - 1
     cmd1 <- getCommand1
     putCommand1 $ cmd1 .|. spiCmd1Go
 
--- Set up the transfer.
-spiXfer :: [Word8] -> [Word8] -> Maybe (Int -> a -> State (SpiBus a) ()) -> a ->
-    State (SpiBus a) Int
-spiXfer tx rx c tok = do
+{- Set up the transfer.
+
+Not sure that we still want the @c@ argument to be possibly
+'Nothing' as this check only occurs in C since pointers can be
+NULL.
+-}
+spiXfer 
+    :: [Word8] 
+    -> Int 
+    -> Maybe [Word8] 
+    -> Int 
+    -> Maybe (Int -> a -> State (SpiBus a) ()) 
+    -> a 
+    -> State (SpiBus a) Int
+spiXfer txb tx rxb rx c tok = do
     p <- getInProgress
     if p
         then return (-1)
         else
-            if length tx + length rx > fifoSize
+            if tx + rx > fifoSize
                 then return (-2)
                 else
                     if isNothing c
                         then return (-3)
                         else do
-                            putTxbuf tx
-                            putRxbuf rx
+                            putTxbuf txb
+                            putTxsize tx
+                            putRxbuf rxb
+                            putRxsize rx
                             putInProgress True
                             putCb $ fromJust c
                             putToken tok
