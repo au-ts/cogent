@@ -98,6 +98,14 @@ isSubtype :: (Show b, Eq b) => Type t b -> Type t b -> TC t v b Bool
 isSubtype t1 t2 = runMaybeT (t1 `lub` t2) >>= \case Just t  -> return $ t == t2
                                                     Nothing -> return False
 
+listIsSubtype :: (Show b, Eq b) => [Type t b] -> [Type t b] -> TC t v b Bool
+listIsSubtype [] [] = return True
+listIsSubtype (x:xs) (y:ys) = do 
+  isSub <- isSubtype x y
+  case isSub of
+    True -> listIsSubtype xs ys
+    _ -> return False
+
 unroll :: RecParName -> RecContext (Type t b) -> Type t b
 unroll v (Just ctxt) = erp (Just ctxt) (ctxt M.! v)
   where
@@ -327,18 +335,28 @@ infixl 4 <||>
                              -- / v.jackson, zilinc
                              return (f arg)
 
-opType :: Op -> [Type t b] -> Maybe (Type t b)
-opType opr [TPrim p1, TPrim p2]
-  | opr `elem` [Plus, Minus, Times, Divide, Mod,
+-- returns list of inputs, and type of output
+opType :: Op -> [Type t b] -> Maybe ([Type t VarName], Type t b)
+opType opr [(TRefine (TPrim t) p), _]
+  | opr `elem` [Plus, Minus, Times, Mod,
                 BitAnd, BitOr, BitXor, LShift, RShift],
-    p1 == p2, p1 /= Boolean = Just $ TPrim p1
-opType opr [TPrim p1, TPrim p2]
-  | opr `elem` [Gt, Lt, Le, Ge, Eq, NEq],
-    p1 == p2, p1 /= Boolean = Just $ TPrim Boolean
-opType opr [TPrim Boolean, TPrim Boolean]
-  | opr `elem` [And, Or, Eq, NEq] = Just $ TPrim Boolean
-opType Not [TPrim Boolean] = Just $ TPrim Boolean
-opType Complement [TPrim p] | p /= Boolean = Just $ TPrim p
+  t /= Boolean
+  = Just ([TPrim t, TPrim t], TPrim t)
+opType Divide [(TRefine (TPrim t) p), _]
+  | t /= Boolean
+  = let nonZeroType = TRefine (TPrim t) (LOp Gt [LVariable (Zero, "x"), LILit 0 t])
+    in Just ([TPrim t, nonZeroType], TPrim t)
+opType opr [(TRefine (TPrim t) p), _]
+  | opr `elem` [Gt, Lt, Le, Ge, Eq, NEq], t /= Boolean
+  = Just ([TPrim t, TPrim t], TPrim Boolean)
+opType opr [TRefine (TPrim Boolean) p, _]
+  | opr `elem` [And, Or, Eq, NEq]
+  = Just ([TPrim Boolean, TPrim Boolean], TPrim Boolean)
+opType Not [TRefine (TPrim Boolean) p]
+  = Just ([TPrim Boolean], TPrim Boolean)
+opType Complement [(TRefine (TPrim t) p)]
+  | t /= Boolean
+  = Just ([TPrim t], TPrim t)
 opType opr ts = __impossible "opType"
 
 useVariable :: Fin v -> TC t v b (Maybe (Type t b))
@@ -508,10 +526,15 @@ typecheck e t = do
 infer :: UntypedExpr t v VarName VarName -> TC t v VarName (TypedExpr t v VarName VarName)
 infer (E (Op o es))
    = do es' <- mapM infer es
-        let Just t = opType o (map exprType es')
+        let operandsTypes = map exprType es'
+        let Just (expectedInputs, t) = opType o operandsTypes
+        -- check that each of o is a subtype of expectedInputs
+        inputsOk <- listIsSubtype operandsTypes expectedInputs
         vn <- freshVarName
         let pred = LOp Eq [LVariable (Zero, vn), upshiftVarLExpr (LOp o $ map (texprToLExpr id) es')]
-        return (TE (TRefine t (pred)) (Op o es'))
+        return $ case inputsOk of
+          True -> (TE (TRefine t (pred)) (Op o es'))
+          _ -> __impossible "op types don't match" -- fix me /blaisep
 infer (E (ILit i t))
   = do vn <- freshVarName
        let pred = LOp Eq [LVariable (Zero, vn), LILit i t]
