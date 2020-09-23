@@ -73,6 +73,17 @@ data SpiBus a b = SpiBus
     , token :: b
     , currSlave :: SpiSlaveCfg
     }
+{- In Cogent, the SpiBus structure should not be abstract. However,
+ - the internal fields can be. This is because we want to implement
+ - as much of the code in Cogent rather than in C. If we hide the
+ - internal structure, then this removes most of what Cogent can
+ - be used for in the SPI driver.
+ -
+ - Note that the internals of the SpiBus structure is only visible
+ - to the functions in "spi.c". Since we will be implementing most
+ - of the functionality of "spi.c" except for initialisation, we
+ - can arbitrary decide how to represent the structure in Cogent.
+ -}
 
 -- #defines
 spiXferStsRdy :: Word32
@@ -92,7 +103,25 @@ fifoSize = 64
 
 -- Haskell prototype
 
--- Read or flush the rxFifo queue and update the rxBuffer if present.
+{- Read or flush the rxFifo queue and update the rxBuffer if present.
+ -
+ - There are two ways to implement this in Cogent.
+ -      1) Use the abstract seq32 function to handle the iteration
+ -      2) Turn the function into a combination of fold and mapAccum
+ -
+ -  If we choose 1) then we will need to verify the abstract function
+ -  seq32 and possibly its variants. This function is quite useful for
+ -  systems code so it should have uses else where (possibly in Bilby
+ -  and Ext2).
+ -
+ -  If we choose 2) then we only need to verify mapAccum since fold
+ -  has already been verified (mostly).
+ -
+ -  Note that fold and mapAccum can be implemented using seq32 and its
+ -  variants. In-build arrays are not considered at the moment due to
+ -  not supporting dynamically sized arrays which these could
+ -  potentially be.
+ -}
 readOrFlushRx 
     :: Int 
     -> Int 
@@ -100,7 +129,7 @@ readOrFlushRx
     -> State (SysState a) (SpiBus a b)
 readOrFlushRx i n s
     | i < n && i >= 0 = do
-        x <- (regsGet s) RxFifo
+        x <- (regsGet s) RxFifo  -- abstract
         let xs = rxBuffer s
             y = fromInteger $ toInteger $ x .&. 0xff
             s' = maybe s (\ys -> s { rxBuffer = Just (DS.update i y ys) }) xs
@@ -109,66 +138,84 @@ readOrFlushRx i n s
 
 {- Read or flush the rxFifo queue and store the data in the rxBuffer
  - then signal the hardware and indicate the SPI transfer and finished
- - and then run the given callback function
+ - and then run the given callback function.
+ -
+ - This function is declared as static so it is only called locally.
  -}
 finishSpiTransfer :: SpiBus a b -> State (SysState a) ()
 finishSpiTransfer s = do
     let size = (txSize s) + (rxSize s)
     s' <- readOrFlushRx 0 size s
-    x <- (regsGet s') XferStatus
-    (regsPut s') XferStatus $ x .|. spiXferStsRdy
+    x <- (regsGet s') XferStatus  -- abstract
+    (regsPut s') XferStatus $ x .|. spiXferStsRdy  -- abstract
     let s'' = s' { inProgress = False }
     maybe (return ()) (\f -> f (currSlave s'') (fromEnum SpiCsRelax))
-        (chipSelection s'')
-    (callBack s'') s'' size (token s'')
+        (chipSelection s'')  -- abstract?
+    (callBack s'') s'' size (token s'')  -- abstract?
 
 {- Handle IRQ for SPI. If the SPI device is not ready then indicate failure
  - to the user.
  -}
 spiHandleIrq :: SpiBus a b -> State (SysState a) ()
 spiHandleIrq s = do
-    xferStat <- (regsGet s) XferStatus
+    xferStat <- (regsGet s) XferStatus  -- abstract
     if (xferStat .&. spiXferStsRdy) /= 0
         then finishSpiTransfer s
         else do
-            cmd1 <- (regsGet s) Command1
-            (regsPut s) Command1 $ cmd1 .&. (complement spiCmd1Go)
-            fifoStat <- (regsGet s) FifoStatus
+            cmd1 <- (regsGet s) Command1  -- abstract
+            (regsPut s) Command1 $ cmd1 .&. (complement spiCmd1Go)  -- abstract
+            fifoStat <- (regsGet s) FifoStatus  -- abstract
             (regsPut s) FifoStatus $ fifoStat .|. spiFifoStsRxFifoFlush .|.
-                spiFifoStsTxFifoFlush
-            xferStat' <- (regsGet s) XferStatus
-            (regsPut s) XferStatus $ xferStat' .|. spiXferStsRdy
+                spiFifoStsTxFifoFlush  -- abstract
+            xferStat' <- (regsGet s) XferStatus  -- abstract
+            (regsPut s) XferStatus $ xferStat' .|. spiXferStsRdy  -- abstract
             let s' = s { inProgress = False}
             maybe (return ()) (\f -> f (currSlave s') (fromEnum SpiCsRelax)) 
-                (chipSelection s')
-            (callBack s') s' (-1) (token s')
+                (chipSelection s')  -- abstract?
+            (callBack s') s' (-1) (token s')  -- abstract?
 
 {- Write the 'txBuffer' to the 'txFifo' queue and then write @n@ - 'txSize'
  - many 0s to the queue.
+ -
+ - To implement this, there are two methods:
+ -      1) Use seq32.
+ -      2) Use fold on the 'txBuffer' and on the 'rxBuffer' for the
+ -      remaining amount.
+ -
+ -  Option 2) involves folding over the 'rxBuffer'. This is only necessary
+ -  since Cogent doesn't have iteration over numbers. So option 1) may be
+ -  more suitable.
+ -
+ -  This model allows for the behaviour where the length of the 'txBuffer'
+ -  does not correspond to the value of 'txSize'. In C, these should
+ -  correspond.
  -}
 writeTx :: Int -> Int -> SpiBus a b -> State (SysState a) ()
 writeTx i n s
     | i < n && i >= 0 && i < DS.length (txBuffer s) && i < txSize s = do
         (regsPut s) TxFifo $ fromInteger $ toInteger $ DS.index (txBuffer s) i
+            -- abstract
         writeTx (i+1) n s
     | i < n && i >= 0 = do
-        (regsPut s) TxFifo 0
+        (regsPut s) TxFifo 0  -- abstract
         writeTx (i+1) n s
     | otherwise = return ()
 
 
 {- Transfer the data in the tx buffer and signal the hardware to
  - handle it.
+ -
+ - This function is declared as static so it is only called locally.
  -}
 startSpiTransfer :: SpiBus a b -> State (SysState a) ()
 startSpiTransfer s = do
     maybe (return ()) (\f -> f (currSlave s) (fromEnum SpiCsAssert)) 
-        (chipSelection s)
+        (chipSelection s)  -- abstract?
     let size = (txSize s) + (rxSize s)
-    (regsPut s) DmaBlk $ fromIntegral $ size - 1
-    writeTx 0 size s
-    cmd1 <- (regsGet s) Command1
-    (regsPut s) Command1 $ cmd1 .|. spiCmd1Go
+    (regsPut s) DmaBlk $ fromIntegral $ size - 1  -- abstract
+    writeTx 0 size s  -- abstract?
+    cmd1 <- (regsGet s) Command1  -- abstract
+    (regsPut s) Command1 $ cmd1 .|. spiCmd1Go  -- abstract
 
 {- Set up the SPI transaction.
  -

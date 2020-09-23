@@ -1,0 +1,17 @@
+README
+
+#
+# Copyright 2020, Data61
+# Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+# ABN 41 687 119 230.
+#
+# This software may be distributed and modified according to the terms of
+# the GNU General Public License version 2. Note that NO WARRANTY is provided.
+# See "LICENSE_GPLv2.txt" for details.
+#
+# @TAG(DATA61_GPL)
+#
+
+Directory Structure:
+	* prototype: Contains Haskell prototypes of the SPI driver for tk1 from https://github.com/seL4/util_libs
+	* cogent: Contains the Cogent implementation of the SPI driver prototypes
