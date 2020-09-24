@@ -884,6 +884,7 @@ instance Pretty Constraint where
   pretty (Arith e)        = pretty e
   pretty (a :-> b)        = prettyPrec 2 a </> warn ":->" </> prettyPrec 1 b
 #endif
+  pretty (LayoutOk t)     = warn "LayoutOk" <+> pretty t
   pretty (l :~ n)         = pretty l </> warn ":~" </> pretty n
   pretty (l :~< m)        = pretty l </> warn ":~<" </> pretty m
   pretty (a :~~ b)        = pretty a </> warn ":~~" </> pretty b

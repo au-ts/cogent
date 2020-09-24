@@ -192,6 +192,7 @@ data Constraint' t l = (:<) t t
                      | (:~) l t
                      | (:~<) l l
                      | (:~~) t t
+                     | LayoutOk t
                      | (:@) (Constraint' t l) ErrorContext
                      | Unsat TypeError
                      | SemiSat TypeWarning
@@ -297,6 +298,7 @@ instance Bitraversable Constraint' where
   bitraverse f g (Share t m)        = Share <$> f t <*> pure m
   bitraverse f g (Drop t m)         = Drop  <$> f t <*> pure m
   bitraverse f g (Escape t m)       = Escape <$> f t <*> pure m
+  bitraverse f g (LayoutOk t)       = LayoutOk <$> f t
   bitraverse f g (l  :~  t)         = (:~)  <$> g l <*> f t
   bitraverse f g (l1 :~< l2)        = (:~<) <$> g l1 <*> g l2
   bitraverse f g (t1 :~~ t2)        = (:~~) <$> f t1 <*> f t2

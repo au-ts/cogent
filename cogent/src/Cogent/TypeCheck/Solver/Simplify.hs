@@ -155,16 +155,20 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
 
   IsPrimType (T (TCon x _ Unboxed)) | x `elem` primTypeCons -> hoistMaybe $ Just []
 
-  TLVar n        :~ tau | Just t <- lookup n ts
-                        -> hoistMaybe $ Just [tau :~~ t]
+  LayoutOk t | isBoxedType t -> hoistMaybe $ Just [TLPtr :~ t]
+  LayoutOk (R rp r (Left Unboxed)) -> hoistMaybe $ Just $ (LayoutOk . fst . snd) <$> (Row.unE <$> Row.entries r)
+  LayoutOk (V r) -> hoistMaybe $ Just $ (LayoutOk . fst . snd) <$> (Row.unE <$> Row.entries r)
+  LayoutOk (A t e (Left Unboxed) h) -> hoistMaybe $ Just [LayoutOk t]
+
+  TLVar n        :~ tau | Just t <- lookup n ts -> hoistMaybe $ Just [tau :~~ t]
   TLRepRef _ _   :~ _ -> hoistMaybe Nothing
-  TLRecord fs    :~ R _ _ (Left (Boxed _ (Just l))) -> hoistMaybe $ Just [l :~< TLRecord fs]
-  TLRecord fs    :~ R _ r (Left (Boxed _ Nothing))
+
+  TLRecord fs    :~ R _ r (Left Unboxed)
     | ls <- M.fromList $ (\(f,_,l) -> (f,l)) <$> fs
     , rs <- M.fromList $ Row.unE <$> Row.entries r
     , cs <- M.intersectionWith (,) ls rs
     , M.null $ M.difference rs cs
-    -> hoistMaybe $ Just $ (\(e,(t,_)) -> e :~ toBoxedType t) <$> M.elems cs
+    -> hoistMaybe $ Just $ (\(l,(t,_)) -> l :~ t) <$> M.elems cs
   TLRecord _     :~ R _ _ (Right _) -> __todo "TLRecord fs :~ R r1 (Right n) => is this possible?"
 
   TLVariant _ fs :~ V r
@@ -172,11 +176,10 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
     , rs <- M.fromList $ Row.unE <$> Row.entries r
     , cs <- M.intersectionWith (,) ls rs
     , M.null $ M.difference rs cs
-    -> hoistMaybe $ Just $ (\(e,(t,_)) -> e :~ toBoxedType t) <$> M.elems cs
+    -> hoistMaybe $ Just $ (\(l,(t,_)) -> l :~ t) <$> M.elems cs
 
 #ifdef BUILTIN_ARRAYS
-  TLArray e _    :~ A _ _ (Left (Boxed _ (Just l))) _ -> hoistMaybe $ Just [l :~< e]
-  TLArray e _    :~ A t _ (Left (Boxed _ Nothing)) _ -> hoistMaybe $ Just [e :~ t]
+  TLArray e _    :~ A t _ (Left Unboxed) _ -> hoistMaybe $ Just [e :~ t]
   TLArray e _    :~ A _ _ (Right _) _ -> __todo "TLArray e p :~ A t l (Right n) h => is this possible?"
 #endif
 
@@ -191,8 +194,10 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
     , evalSize n == pointerSizeBits
     -> hoistMaybe $ Just []
 
-  TLPtr          :~ tau
-    | isBoxedType tau -> hoistMaybe $ Just []
+  TLPtr          :~ R rp r (Left (Boxed _ (Just l))) -> hoistMaybe $ Just [l :~ R rp r (Left Unboxed)]
+  TLPtr          :~ R rp r (Left (Boxed _ Nothing )) -> hoistMaybe $ Just [LayoutOk (R rp r (Left Unboxed))]
+  TLPtr          :~ A t e (Left (Boxed _ (Just l))) h -> hoistMaybe $ Just [l :~ A t e (Left Unboxed) h]
+  TLPtr          :~ A t e (Left (Boxed _ Nothing )) h -> hoistMaybe $ Just [LayoutOk (A t e (Left Unboxed) h)]
 
   l              :~ T (TBang tau)    -> hoistMaybe $ Just [l :~ tau]
   l              :~ T (TTake _ tau)  -> hoistMaybe $ Just [l :~ tau]
@@ -422,14 +427,6 @@ isBoxedType (R _ _ (Left (Boxed _ _))) = True
 isBoxedType (A _ _ (Left (Boxed _ _)) _) = True
 #endif
 isBoxedType _ = False
-
-toBoxedType :: TCType -> TCType
-toBoxedType (R rp r (Left Unboxed)) = R rp r (Left (Boxed undefined Nothing))
-#ifdef BUILTIN_ARRAYS
-toBoxedType (A t l (Left Unboxed) h) = A t l (Left (Boxed undefined Nothing)) h
-#endif
-toBoxedType (T (TUnbox t)) = toBoxedType t
-toBoxedType t = t
 
 primTypeSize :: TCType -> Size
 primTypeSize (T (TCon "U8"   [] Unboxed)) = 8

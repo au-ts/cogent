@@ -190,13 +190,14 @@ validateType (RT t) = do
       return (c, T $ TRefine v t' (toTCSExpr e'))
 #endif
 
-    TLayout l t -> do
+    TLayout l tau -> do
       let cl = case runExcept $ tcDataLayoutExpr layouts lvs l of
                  Left (e:_) -> Unsat $ DataLayoutError e
                  Right _    -> Sat
-      (ct,t') <- validateType t
+      (ct,tau') <- validateType tau
       let l' = toTCDL l
-      pure (cl <> ct <> l' :~ t', T $ TLayout l' t')
+          t' = T $ TLayout l' tau'
+      pure (cl <> ct <> LayoutOk t', t')
 
     -- vvv The uninteresting cases; but we still have to match each of them to convince the typechecker / zilinc
     TRPar v b ctxt -> (second T) <$> fmapFoldM validateType (TRPar v b ctxt)
