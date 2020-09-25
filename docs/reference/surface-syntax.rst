@@ -72,6 +72,8 @@ Pragmas are used to optimise |cogent| programs,
 and to interface external C components.
 The details of pragmas are not (yet?) covered by this manual.
 
+.. todo:: (jashankj, 2020-09-17): add pragma documentation somewhere
+
 
 Identifiers
 ------------------------------------
@@ -113,9 +115,12 @@ which syntactically are identifiers,
 but cannot be used as identifiers.
 The reserved words are, in alphabetical order::
 
-   all and at complement else end if in include inline
-   let not o put record repr take then type upcast variant
-   False True
+  all and at complement else if in include inline layout let not o
+  pointer put rec record take then type upcast variant True False
+
+  array map2 @put @take
+
+.. todo:: (jashankj, 2020-09-17): where did ``end`` and ``repr`` go?
 
 
 Literals
