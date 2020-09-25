@@ -250,10 +250,11 @@ in any functional language)::
   -- in Haskell, we might say:
   data R a b = Success a | Error b
 
-However, one notable difference is that
-the ``type`` keyword only introduces a *type synonym*,
-where in Haskell it would introduce a new type:
-thus, wherever an ``R a b`` is needed,
+However, one notable difference is that,
+in Haskell, this would introduce a new type;
+but in |cogent|,
+the ``type`` keyword only introduces a *type synonym*:
+wherever an ``R a b`` is needed,
 we may equivalently spell it in full as
 ``< Success a | Error b >``.
 
@@ -389,12 +390,12 @@ An Antiquoted C file is
 very similar to a regular C file ---
 indeed, it's very nearly a superset of C.
 The only difference is
-you may introduce *antiquotes* into the C code:
-an antiquote is comprised of a name
+you may introduce *antiquotes* into the C code.
+An antiquote is comprised of a name
 (e.g., ``$ty``, ``$exp``, ``$esc``),
 a colon, and a |cogent| snippet
-enclosed by a pair of parentheses,
-and these allow us to refer to
+enclosed by a pair of parentheses.
+These allow us to refer to
 types and expressions in our programs
 without needing to know
 exactly what they were compiled to.
