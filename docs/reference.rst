@@ -23,6 +23,7 @@ by applying the "desugaring rules".
    reference/values
    reference/programs
    reference/antiquoted-c
+   reference/old-aqc
    reference/compiler
    reference/installation
    reference/verification
