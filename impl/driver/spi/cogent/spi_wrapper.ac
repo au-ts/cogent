@@ -1,0 +1,174 @@
+$esc:(#include <stdio.h>)
+$esc:(#include <stdbool.h>)
+$esc:(#include <platsupport/spi.h>)
+
+typedef void* SysState;
+
+typedef volatile spi_regs* SpiRegs;
+
+typedef spi_slave_config_t* SpiSlaveCfg;
+
+typedef void* Token;
+
+typedef spi_chipselect_fn CsFn;
+
+typedef spi_callback_fn CbFn;
+
+#include "generated.c"
+#include <gum/anti/common.ac>
+#include <gum/anti/wordarray.ac>
+#include <gum/anti/seq.ac>
+
+struct spi_regs {
+    volatile uint32_t command1;       /* 000:SPI_COMMAND1 register */
+    volatile uint32_t command2;       /* 004:SPI_COMMAND2 register */
+    volatile uint32_t timing1;        /* 008:SPI_CS_TIM1 register */
+    volatile uint32_t timing2;        /* 00c:SPI_CS_TIM2 register */
+    volatile uint32_t xfer_status;    /* 010:SPI_TRANS_STATUS register */
+    volatile uint32_t fifo_status;    /* 014:SPI_FIFO_STATUS register */
+    volatile uint32_t tx_data;        /* 018:SPI_TX_DATA register */
+    volatile uint32_t rx_data;        /* 01c:SPI_RX_DATA register */
+    volatile uint32_t dma_ctl;        /* 020:SPI_DMA_CTL register */
+    volatile uint32_t dma_blk;        /* 024:SPI_DMA_BLK register */
+    PAD_STRUCT_BETWEEN(0x24, 0x108, uint32_t);
+    volatile uint32_t tx_fifo;        /* 108:SPI_FIFO1 register */
+    PAD_STRUCT_BETWEEN(0x108, 0x188, uint32_t);
+    volatile uint32_t rx_fifo;        /* 188:SPI_FIFO2 register */
+    volatile uint32_t spare_ctl;      /* 18c:SPI_SPARE_CTRL register */
+};
+
+static $ty:(#(WordArray U8)) _tx[] = {
+    [SPI0] = { .len = 0, .values = NULL }
+};
+
+static $ty:(#(WordArray U8)) _rx[] = {
+    [SPI0] = { .len = 0, .values = NULL }
+};
+
+uint32_t spi_controller_offsets[] = {
+    [SPI0] = SPI0_OFFSET
+};
+
+static spi_bus_t _spi[] = {
+    [SPI0] = { .regs = NULL, .clockMode = 0, .txBuffer = &_tx[SPI0], .rxBuffer = &_rx[SPI0] },
+};
+
+
+
+// FFI
+
+$ty:(SysState) $id:doChipSelection($ty:(ChipSelection) args) {
+    switch (args.csState.tag) 
+    {
+        case TAG_ENUM_SpiCsAssert:
+            (args.chipSelect)(args.slave, SPI_CS_ASSERT);
+            break;
+        default:
+            (args.chipSelect)(args.slave, SPI_CS_RELAX);
+    }
+    return args.state;
+}
+
+$ty:(SysState) $id:doCallBack($ty:(CallBack) args) {
+    switch (args.res.tag)
+    {
+        case TAG_ENUM_Succes:
+            ((args.spiBus)->callBack)(args.spiBus, args.res.Success, (args.spiBus)->token);
+            break
+        default:
+            ((args.spiBus)->callBack)(args.spiBus, args.res.Error * -1, (args.spiBus)->token);
+    }
+    return args.state;
+}
+
+$ty:((SpiRegs, U32)) $id:getRegister($ty:(RegsGet) args) {
+    $ty:((SpiRegs, U32)) ret;
+    ret.p1 = args.regs;
+    switch (args.field)
+    {
+        case TAG_ENUM_Command1:
+            ret.p2 = (args.regs)->command1;
+            break;
+        case TAG_ENUM_Command2:
+            ret.p2 = (args.regs)->command2;
+            break;
+        case TAG_ENUM_Timing1:
+            ret = (args.regs)->timing1;
+            break;
+        case TAG_ENUM_Timing2:
+            ret = (args.regs)->timing2;
+            break;
+        case TAG_ENUM_XferStatus:
+            ret = (args.regs)->xfer_status;
+            break;
+        case TAG_ENUM_FifoStatus:
+            ret = (args.regs)->fifo_status;
+            break;
+        case TAG_ENUM_TxData:
+            ret = (args.regs)->tx_data;
+            break;
+        case TAG_ENUM_RxData:
+            ret = (args.regs)->Rx_data;
+            break;
+        case TAG_ENUM_DmaCtl:
+            ret = (args.regs)->dma_ctl;
+            break;
+        case TAG_ENUM_DmaBlk:
+            ret = (args.regs)->dma_blk;
+            break;
+        case TAG_ENUM_TxFifo:
+            ret = (args.regs)->tx_fifo;
+            break;
+        case TAG_ENUM_RxFifo:
+            ret = (args.regs)->Rx_fifo;
+            break;
+        default:
+            ret = (args.regs)->spare_ctl;
+    }
+    return ret;
+}
+
+$ty:(SpiRegs) $id:putRegister($ty:(RegsPut) args) {
+    switch (args.field)
+    {
+        case TAG_ENUM_Command1:
+            (args.regs)->command1 = args.val;
+            break;
+        case TAG_ENUM_Command2:
+            (args.regs)->command2 = args.val;
+            break;
+        case TAG_ENUM_Timing1:
+            (args.regs)->timing1 = args.val;
+            break;
+        case TAG_ENUM_Timing2:
+            (args.regs)->timing2 = args.val;
+            break;
+        case TAG_ENUM_XferStatus:
+            (args.regs)->xfer_status = args.val;
+            break;
+        case TAG_ENUM_FifoStatus:
+            (args.regs)->fifo_status = args.val;
+            break;
+        case TAG_ENUM_TxData:
+            (args.regs)->tx_data = args.val;
+            break;
+        case TAG_ENUM_RxData:
+            (args.regs)->Rx_data = args.val;
+            break;
+        case TAG_ENUM_DmaCtl:
+            (args.regs)->dma_ctl = args.val;
+            break;
+        case TAG_ENUM_DmaBlk:
+            (args.regs)->dma_blk = args.val;
+            break;
+        case TAG_ENUM_TxFifo:
+            (args.regs)->tx_fifo = args.val;
+            break;
+        case TAG_ENUM_RxFifo:
+            (args.regs)->Rx_fifo = args.val;
+            break;
+        default:
+            (args.regs)->spare_ctl = args.val;
+    }
+    return args.regs;
+}

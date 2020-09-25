@@ -23,6 +23,8 @@ data SpiRegs = SpiRegs
     , timing2 :: Word32
     , xferStatus :: Word32
     , fifoStatus :: Word32
+    , txData :: Word32
+    , rxData :: Word32
     , dmaCtl :: Word32
     , dmaBlk :: Word32
     , txFifo :: Word32
@@ -37,6 +39,8 @@ data SpiRegsField
     | Timing2 
     | XferStatus
     | FifoStatus
+    | TxData
+    | RxData
     | DmaCtl
     | DmaBlk
     | TxFifo
@@ -44,10 +48,7 @@ data SpiRegsField
     | SpareCtl
     deriving (Show, Eq, Enum)
 
-type SysState a = (SpiRegs, a)
-
-type RegsGet a = SpiRegsField -> State (SysState a) Word32
-type RegsPut a = SpiRegsField -> Word32 -> State (SysState a) ()
+type SysState a = a
 
 data SpiSlaveCfg = SpiSlaveCfg 
     { id :: Int
@@ -61,12 +62,11 @@ data SpiCsState = SpiCsAssert | SpiCsRelax deriving (Enum)
 type CsFn a = SpiSlaveCfg -> Int -> State (SysState a) () 
 
 data SpiBus a b = SpiBus 
-    { regsGet :: RegsGet a
-    , regsPut :: RegsPut a
+    { regs :: SpiRegs
+    , clockMode :: Word32
     , inProgress :: Bool
     , txBuffer :: DS.Seq Word8
-    , txSize :: Int
-    , rxBuffer :: Maybe (DS.Seq Word8)
+    , rxBuffer :: DS.Seq Word8  -- can be empty
     , rxSize :: Int
     , chipSelection :: Maybe (CsFn a)
     , callBack :: SpiBus a b -> Int -> b -> State (SysState a) ()
@@ -87,7 +87,7 @@ data SpiBus a b = SpiBus
 
 -- #defines
 spiXferStsRdy :: Word32
-spiXferStsRdy = setBit 0 39
+spiXferStsRdy = setBit 0 30
 
 spiCmd1Go :: Word32
 spiCmd1Go = setBit 0 31
@@ -100,6 +100,38 @@ spiFifoStsTxFifoFlush = setBit 0 14
 
 fifoSize :: Int
 fifoSize = 64
+
+
+-- "FFI" for getting and setting registers
+getRegister :: SpiRegs -> SpiRegsField -> (SpiRegs, Word32)
+getRegister r Command1 = (r, command1 r)
+getRegister r Command2 = (r, command2 r)
+getRegister r Timing1 = (r, timing1 r)
+getRegister r Timing2 = (r, timing2 r)
+getRegister r XferStatus = (r, xferStatus r)
+getRegister r FifoStatus = (r, fifoStatus r)
+getRegister r TxData = (r, txData r)
+getRegister r RxData = (r, rxData r)
+getRegister r DmaCtl = (r, dmaCtl r)
+getRegister r DmaBlk = (r, dmaBlk r)
+getRegister r TxFifo = (r, txFifo r)
+getRegister r RxFifo = (r, rxFifo r)
+getRegister r SpareCtl = (r, spareCtl r)
+
+putRegister :: SpiRegs -> SpiRegsField -> Word32 -> SpiRegs
+putRegister r Command1 x = r { command1 = x}
+putRegister r Command2 x = r { command2 = x}
+putRegister r Timing1 x = r { timing1 = x }
+putRegister r Timing2 x = r { timing2 = x }
+putRegister r XferStatus x = r { xferStatus = x }
+putRegister r FifoStatus x = r { fifoStatus = x }
+putRegister r TxData x = r { txData = x}
+putRegister r RxData x = r { rxData = x }
+putRegister r DmaCtl x = r { dmaCtl = x }
+putRegister r DmaBlk x = r { dmaBlk = x }
+putRegister r TxFifo x = r { txFifo = x }
+putRegister r RxFifo x = r { rxFifo = x }
+putRegister r SpareCtl x = r { spareCtl = x }
 
 -- Haskell prototype
 
@@ -118,23 +150,23 @@ fifoSize = 64
  -  has already been verified (mostly).
  -
  -  Note that fold and mapAccum can be implemented using seq32 and its
- -  variants. In-build arrays are not considered at the moment due to
+ -  variants. In-built arrays are not considered at the moment due to
  -  not supporting dynamically sized arrays which these could
  -  potentially be.
  -}
 readOrFlushRx 
     :: Int 
     -> Int 
-    -> SpiBus a b 
-    -> State (SysState a) (SpiBus a b)
-readOrFlushRx i n s
-    | i < n && i >= 0 = do
-        x <- (regsGet s) RxFifo  -- abstract
-        let xs = rxBuffer s
+    -> DS.Seq Word8
+    -> SpiRegs
+    -> (DS.Seq Word8, SpiRegs)
+readOrFlushRx i n w0 r0
+    | i < n && i >= 0 =
+        let (r1, x) = getRegister r0 RxFifo
             y = fromInteger $ toInteger $ x .&. 0xff
-            s' = maybe s (\ys -> s { rxBuffer = Just (DS.update i y ys) }) xs
-        readOrFlushRx (i+1) n s'
-    | otherwise = return s
+            w1 = DS.update i y w0
+        in readOrFlushRx (i+1) n w1 r1
+    | otherwise = (w0, r0)
 
 {- Read or flush the rxFifo queue and store the data in the rxBuffer
  - then signal the hardware and indicate the SPI transfer and finished
@@ -144,38 +176,43 @@ readOrFlushRx i n s
  -}
 finishSpiTransfer :: SpiBus a b -> State (SysState a) ()
 finishSpiTransfer s = do
-    let size = (txSize s) + (rxSize s)
-    s' <- readOrFlushRx 0 size s
-    x <- (regsGet s') XferStatus  -- abstract
-    (regsPut s') XferStatus $ x .|. spiXferStsRdy  -- abstract
-    let s'' = s' { inProgress = False }
-    maybe (return ()) (\f -> f (currSlave s'') (fromEnum SpiCsRelax))
-        (chipSelection s'')  -- abstract?
-    (callBack s'') s'' size (token s'')  -- abstract?
+    let size = (DS.length (txBuffer s)) + (rxSize s)
+        rxB0 = rxBuffer s
+        r0 = regs s
+        (rxB1, r1) = readOrFlushRx 0 size rxB0 r0
+        (r2, x) = getRegister r1 XferStatus  -- abstract
+        r3 = putRegister r2 XferStatus $ x .|. spiXferStsRdy  -- abstract
+        s' = s { inProgress = False, rxBuffer = rxB1, regs = r3 }
+    maybe (return ()) (\f -> f (currSlave s') (fromEnum SpiCsRelax))
+        (chipSelection s')  -- abstract?
+    (callBack s') s' size (token s')  -- abstract?
 
 {- Handle IRQ for SPI. If the SPI device is not ready then indicate failure
  - to the user.
  -}
 spiHandleIrq :: SpiBus a b -> State (SysState a) ()
 spiHandleIrq s = do
-    xferStat <- (regsGet s) XferStatus  -- abstract
+    let r0 = regs s
+        (r1, xferStat) = getRegister r0 XferStatus  -- abstract
     if (xferStat .&. spiXferStsRdy) /= 0
         then finishSpiTransfer s
         else do
-            cmd1 <- (regsGet s) Command1  -- abstract
-            (regsPut s) Command1 $ cmd1 .&. (complement spiCmd1Go)  -- abstract
-            fifoStat <- (regsGet s) FifoStatus  -- abstract
-            (regsPut s) FifoStatus $ fifoStat .|. spiFifoStsRxFifoFlush .|.
-                spiFifoStsTxFifoFlush  -- abstract
-            xferStat' <- (regsGet s) XferStatus  -- abstract
-            (regsPut s) XferStatus $ xferStat' .|. spiXferStsRdy  -- abstract
-            let s' = s { inProgress = False}
+            let (r2, cmd1) = getRegister r1 Command1  -- abstract
+                r3 = putRegister r2 Command1 $ cmd1 .&. 
+                    (complement spiCmd1Go)  -- abstract
+                (r4, fifoStat) = getRegister r3  FifoStatus  -- abstract
+                r5 = putRegister r4 FifoStatus $ fifoStat .|. 
+                    spiFifoStsRxFifoFlush .|. spiFifoStsTxFifoFlush  -- abstract
+                (r6, xferStat') = getRegister r5 XferStatus  -- abstract
+                r7 = putRegister r6 XferStatus $ xferStat' .|.
+                    spiXferStsRdy  -- abstract
+                s' = s { inProgress = False, regs = r7 }
             maybe (return ()) (\f -> f (currSlave s') (fromEnum SpiCsRelax)) 
                 (chipSelection s')  -- abstract?
             (callBack s') s' (-1) (token s')  -- abstract?
 
-{- Write the 'txBuffer' to the 'txFifo' queue and then write @n@ - 'txSize'
- - many 0s to the queue.
+{- Write the 'txBuffer' to the 'txFifo' queue and then write 
+ - @n@ - 'DS.length txBuffer' many 0s to the queue.
  -
  - To implement this, there are two methods:
  -      1) Use seq32.
@@ -185,21 +222,17 @@ spiHandleIrq s = do
  -  Option 2) involves folding over the 'rxBuffer'. This is only necessary
  -  since Cogent doesn't have iteration over numbers. So option 1) may be
  -  more suitable.
- -
- -  This model allows for the behaviour where the length of the 'txBuffer'
- -  does not correspond to the value of 'txSize'. In C, these should
- -  correspond.
  -}
-writeTx :: Int -> Int -> SpiBus a b -> State (SysState a) ()
-writeTx i n s
-    | i < n && i >= 0 && i < DS.length (txBuffer s) && i < txSize s = do
-        (regsPut s) TxFifo $ fromInteger $ toInteger $ DS.index (txBuffer s) i
-            -- abstract
-        writeTx (i+1) n s
-    | i < n && i >= 0 = do
-        (regsPut s) TxFifo 0  -- abstract
-        writeTx (i+1) n s
-    | otherwise = return ()
+writeTx :: Int -> Int -> DS.Seq Word8 -> SpiRegs -> SpiRegs
+writeTx i n w r0
+    | i < n && i >= 0 && i < DS.length w =
+        let v = fromInteger $ toInteger $ DS.index w i
+            r1 = putRegister r0 TxFifo v  -- abstract
+        in writeTx (i+1) n w r1
+    | i < n && i >= 0 = 
+        let r1 = putRegister r0 TxFifo 0  -- abstract
+        in writeTx (i+1) n w r1
+    | otherwise = r0
 
 
 {- Transfer the data in the tx buffer and signal the hardware to
@@ -207,15 +240,18 @@ writeTx i n s
  -
  - This function is declared as static so it is only called locally.
  -}
-startSpiTransfer :: SpiBus a b -> State (SysState a) ()
+startSpiTransfer :: SpiBus a b -> State (SysState a) (SpiBus a b)
 startSpiTransfer s = do
     maybe (return ()) (\f -> f (currSlave s) (fromEnum SpiCsAssert)) 
         (chipSelection s)  -- abstract?
-    let size = (txSize s) + (rxSize s)
-    (regsPut s) DmaBlk $ fromIntegral $ size - 1  -- abstract
-    writeTx 0 size s  -- abstract?
-    cmd1 <- (regsGet s) Command1  -- abstract
-    (regsPut s) Command1 $ cmd1 .|. spiCmd1Go  -- abstract
+    let size = (DS.length (txBuffer s)) + (rxSize s)
+        r0 = regs s
+        r1 = putRegister r0 DmaBlk $ fromIntegral $ size - 1  -- abstract
+        tx = txBuffer s
+        r2 = writeTx 0 size tx r1  -- abstract?
+        (r3, cmd1) = getRegister r2 Command1  -- abstract
+        r4 = putRegister r3 Command1 $ cmd1 .|. spiCmd1Go  -- abstract
+    return $ s { regs = r4 }
 
 {- Set up the SPI transaction.
  -
@@ -231,21 +267,20 @@ startSpiTransfer s = do
 spiXfer
     :: SpiBus a b
     -> DS.Seq Word8
-    -> Int
-    -> Maybe (DS.Seq Word8)
+    -> DS.Seq Word8
     -> Int
     -> Maybe (SpiBus a b -> Int -> b -> State (SysState a) ())
     -> b
     -> State (SysState a) (Int, SpiBus a b)
-spiXfer s txB txS rxB rxS cb tok
+spiXfer s txB rxB rxS cb tok
     | inProgress s = return (-1, s)
-    | txS + rxS > fifoSize = return (-2, s)
+    | DS.length txB + rxS > fifoSize = return (-2, s)
     | isNothing cb = return (-3, s)
     | otherwise = do
-        let s' = s { txBuffer = txB, txSize = txS, rxBuffer = rxB, rxSize = rxS,
+        let s' = s { txBuffer = txB, rxBuffer = rxB, rxSize = rxS,
             callBack = fromJust cb, token = tok}
-        startSpiTransfer s'
-        return (0, s')
+        s'' <- startSpiTransfer s'
+        return (0, s'')
 
 {- Chooses the slave to interface with. Note that this does not model the
  - multiple slave interfacing since this has not been implemented in the

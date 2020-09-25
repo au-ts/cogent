@@ -1,0 +1,210 @@
+include <gum/common/common.cogent>
+include <gum/common/wordarray.cogent>
+
+
+-- #defines
+spiXferStsRdy : U32
+spiXferStsRdy = 1 << 30
+
+spiCmd1Go : U32
+spiCmd1Go = 1 << 31
+
+spiFifoStsRxFifoFlush : U32
+spiFifoStsRxFifoFlush = 1 << 15
+
+spiFifoStsTxFifoFlush : U32
+spiFifoStsTxFifoFlush = 1 << 14
+
+fifoSize : U32
+fifoSize = 64
+
+-- FFI Types
+
+-- Type for the memory mapped registers.
+type SpiRegs
+
+-- Type for the SPI slave config struct
+-- In the future we may turn this into a non-abstract type but for now
+-- this is sufficient.
+type SpiSlaveCfg
+
+-- Abstract type for void* token
+type Token
+
+-- Function pointers
+-- We will call wrapper functions that will return SysState as the following
+-- are void function pointers.
+
+-- Type of the chip selection function.
+type CsFn
+
+-- Type of the callback function.
+type CbFn
+
+-- Cogent types
+
+-- Register names.
+type SpiRegsField = 
+    < Command1 
+    | Command2 
+    | Timing1 
+    | Timing2 
+    | XferStatus
+    | FifoStatus
+    | TxData
+    | RxData
+    | TxFifo
+    | RxFifo
+    | DmaCtl
+    | DmaBlk
+    | SpareCtl
+    >
+
+-- SPI chip selection states
+type SpiCsState =
+    < SpiCsAssert
+    | SpiCsRelax
+    >
+
+-- SPI struct
+type SpiBus =
+    { regs : SpiRegs
+    , clockMode : U32
+    , inProgress : Bool
+    , txBuffer : (WordArray U8)!
+    , rxBuffer : WordArray U8  -- can be empty
+    , rxCnt : U32
+    , chipSelect: Option (CsFn!)
+    , callBack : CbFn!
+    , token : Token
+    , currSlave : SpiSlaveCfg
+    }
+
+
+-- Set the GPIO pins if the default chip selection is overwritten
+type ChipSelection =
+    #{ state : SysState
+     , chipSelect : CsFn!
+     , slave : SpiSlaveCfg!
+     , csState : SpiCsState
+     }
+doChipSelection : ChipSelection -> SysState
+
+-- Handle the callback
+type CallBack = #{ state : SysState, spiBus : SpiBus, res: Result U32 U32 } 
+doCallBack : CallBack -> SysState
+
+-- Return the value of the register 'field' and the register set
+type RegsGet = #{ regs : SpiRegs, field : SpiRegsField }
+getRegister : RegsGet -> (SpiRegs, U32)
+
+-- Set the value of the register 'field' to 'val' and return the register set
+type RegsPut = #{ regs : SpiRegs, field : SpiRegsField, val : U32 }
+putRegister : RegsPut -> SpiRegs
+
+-- Read or flush 1 item from the "rxfifo" queue
+readOrFlushRx : Seq32_body (WordArray U8, SpiRegs) () ()
+readOrFlushRx #{acc, obsv, idx} = 
+    let (w, r) = acc
+    and (r', v) = getRegister #{regs = r, field = RxFifo}
+    -- Note that if the 'idx' is out of range, the word array is returned
+    -- unchanged
+    and w' = wordarray_put2 #{ arr = w, idx = idx, val = u32_to_u8 (v .&. 0xff) }
+    in ((w', r'), Iterate ())
+
+-- Either write the 'idx' element from the transfer buffer 'obsv' if the
+-- 'idx' is in range, or write 0 to the "txfifo" queue
+writeTx : Seq32_body SpiRegs (WordArray U8) ()
+writeTx #{acc, obsv, idx} =
+    -- Note that wordarray_get will return 0 if 'idx' is out of range
+    let v = wordarray_get (obsv, idx)
+    and r = putRegister #{ regs = acc, field = TxFifo, val = upcast v }
+    in (r, Iterate ())
+
+-- Either flush or receive the data from the "rxfifo" queue and set the relevant
+-- registers to signal the end of the transaction and call the call back function
+finishSpiTransfer : (SysState, SpiBus) -> SysState
+finishSpiTransfer (s0, b0) = 
+    let b1 { chipSelect = cs, 
+             txBuffer = tx,
+             rxBuffer = rx0,
+             rxCnt = rS, 
+             regs = r0,
+             currSlave = slave } = b0
+    and size = (wordarray_length tx) + rS
+    -- Read or flush the "rxfifo" queue
+    and ((rx1, r1), _) = seq32 #{ frm = 0, to = size, step = 1, f = readOrFlushRx,
+        acc = (rx0, r0), obsv = () }
+    and (r2, xferStat) = getRegister #{ regs = r1, field = XferStatus }
+    and r3 = putRegister # { regs = r2, field = XferStatus,
+        val = xferStat .|. spiXferStsRdy }
+    and b2 = b1 { inProgress = False }
+    and s1 =
+        cs | Some c ->
+            let s1' = doChipSelection #{ state = s0, chipSelect = c, 
+                slave = slave, csState = SpiCsAssert } !slave
+            in s1'
+           | None -> s0
+    and b3 = b2 { chipSelect = cs, txBuffer = tx, rxBuffer = rx1, rxCnt = rS,
+        regs = r3, currSlave = slave}
+    in doCallBack #{ state = s1, spiBus = b3, res = Success size }
+
+-- Handle the SPI IRQ. If the device is ready, finish the transaction, otherwise
+-- cancel the transaction
+spiHandleIrq : (SysState, SpiBus) -> SysState
+spiHandleIrq (s0, b0) =
+    let b1 { regs = r0 } = b0
+    and (r1, xferStat0) = getRegister #{ regs = r0, field = XferStatus }
+    in if (xferStat0 .&. spiXferStsRdy) /= 0
+        then let b2 = b1 { regs = r1 } in finishSpiTransfer (s0, b2)
+        else
+            let (r2, cmd1) = getRegister #{ regs = r1, field = Command1 }
+            and r3 = putRegister #{ regs = r2, field = Command1,
+                val = cmd1 .&. (complement spiCmd1Go) }
+            and (r4, fifoStat) = getRegister # { regs = r3, field = FifoStatus }
+            and r5 = putRegister #{ regs = r4, field = FifoStatus,
+                val = fifoStat .|. spiFifoStsRxFifoFlush 
+                    .|. spiFifoStsTxFifoFlush }
+            and (r6, xferStat1) = getRegister #{ regs = r5, field = XferStatus }
+            and r7 = putRegister #{ regs = r6, field = XferStatus,
+                val = xferStat1 .|. spiXferStsRdy }
+            and b3 { chipSelect = cs, currSlave = slave } = 
+                b1 { inProgress = False, regs = r7 }
+            and s1 = 
+                cs | Some c ->
+                    let s1' = doChipSelection #{ state = s0, chipSelect = c, 
+                        slave = slave, csState = SpiCsAssert } !slave
+                    in s1'
+                   | None -> s0
+            and b4 = b3 { chipSelect = cs, currSlave = slave}
+            in doCallBack #{ state = s1, spiBus = b4, res = Error 1}
+
+-- Write the transfer buffer to the "txfifo" queue and set the relevant registers
+-- to start the transaction
+startSpiTransfer : (SysState, SpiBus) -> (SysState, SpiBus)
+startSpiTransfer (s0, b0) =
+    let b1 { chipSelect = cs, 
+             txBuffer = tx, 
+             rxCnt = rS, 
+             regs = r0, 
+             currSlave = slave } = b0
+    and s1 =
+        cs | Some c ->
+            let s1' = doChipSelection #{ state = s0, chipSelect = c, 
+                slave = slave, csState = SpiCsAssert } !slave
+            in s1'
+           | None -> s0
+    and size = (wordarray_length tx) + rS
+    and r1 = putRegister #{ regs = r0, field = DmaBlk, val = size - 1 }
+    -- Write to the "txfifo" queue
+    and (r2, _) = seq32 #{ frm = 0, to = size, step = 1, f = writeTx, acc = r1,
+        obsv = tx }
+    and (r3, cmd1) = getRegister #{ regs = r2, field = Command1 }
+    and r4 = putRegister #{ regs = r3, field = Command1, 
+        val = cmd1 .|. spiCmd1Go }
+    and b2 = b1 { chipSelect = cs, txBuffer = tx, rxCnt = rS, regs = r4, 
+        currSlave = slave }
+    in (s1, b2)
+    
+        
+
