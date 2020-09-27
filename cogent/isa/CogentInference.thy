@@ -2258,10 +2258,20 @@ proof -
   have "\<forall>i \<in> fv' (Suc m) e.  i \<in> image (\<lambda>x. x - 1) (fv' m e - {0})"
     using i_fv'_suc_iff_suc_i_fv'
     by (metis Diff_empty Diff_insert0 diff_Suc_1 image_iff insertE insert_Diff nat.simps(3))
-  moreover have "\<forall>i \<in> image (\<lambda>x. x - 1) (fv' m e - {0}). Suc i \<in> (fv' m e - {0})"
-    by simp
   moreover have "\<forall>i \<in> image (\<lambda>x. x - 1) (fv' m e - {0}). i \<in> fv' (Suc m) e"
     by (simp add: i_fv'_suc_iff_suc_i_fv')
+  ultimately show ?thesis
+    by blast
+qed
+
+lemma fv'_suc_eq_dec_fv'_minus:
+  "(fv' (Suc m) e) - is = (\<lambda>x. x - 1) ` (fv' m e - ({0} \<union> (Suc ` is)))"
+proof -
+  have "\<forall>i \<in> (fv' (Suc m) e) - is. i \<in> (\<lambda>x. x - 1) ` (fv' m e - ({0} \<union> (Suc ` is)))"
+    using i_fv'_suc_iff_suc_i_fv' DiffE DiffI Suc_eq_plus1 UnE diff_Suc_1
+    by (metis (no_types, lifting) empty_iff image_iff insert_iff nat.simps(3))
+  moreover have "\<forall>i \<in> (\<lambda>x. x - 1) ` (fv' m e - ({0} \<union> (Suc ` is))). i \<in> (fv' (Suc m) e) - is"
+    using i_fv'_suc_iff_suc_i_fv' by force
   ultimately show ?thesis
     by blast
 qed
@@ -3918,7 +3928,91 @@ proof -
   then show ?thesis
     using context_splitting_def assign_app_ctx_len ctx_restrict_len G1_G2_length assms
     by (simp add: list_all3_conv_all_nth)
+qed
+
+lemma split_checked_take:
+  assumes "e = Take e1 nm e2"
+    and "G1,n1 \<turnstile> e1 : \<alpha> \<leadsto> G2,n2 | C1 | e1'"
+    and "(\<beta>, 0) # (\<gamma>, l) # G2,n2 \<turnstile> e2 : \<tau> \<leadsto> (\<beta>, m) # (\<gamma>, l) # G3,n3 | C2 | e2'"
+    and "A \<turnstile> assign_app_constr S C2"
+    and "known_assignment S"
+    and "dec2_fv_e2 = (\<lambda>x. x-2) ` (fv e2 - {0, 1})"
+  shows "A \<turnstile> assign_app_ctx S (G1\<bar>(fv e)) \<leadsto> assign_app_ctx S (G1\<bar>(fv e1)) \<box> assign_app_ctx S (G2\<bar>dec2_fv_e2)"
+  using assms 
+proof -
+  let ?\<Gamma> = "assign_app_ctx S (G1\<bar>fv e)"
+  let ?\<Gamma>1 = "assign_app_ctx S (G1\<bar>(fv e1))"
+  let ?\<Gamma>2 = "assign_app_ctx S (G2\<bar>dec2_fv_e2)" 
+  have fv_e: "fv e = (fv e1) \<union> ((\<lambda>x. x-2) ` (fv e2 - {0,1}))"
+  proof - 
+    have "(fv' (Suc 0) e2 - {0}) = (\<lambda>x. x-1) ` (fv e2 - {0,1})"
+      using fv'_suc_eq_dec_fv'_minus by (metis One_nat_def image_empty image_insert insert_is_Un)
+    moreover have "(\<lambda>x. x-1) ` (\<lambda>x. x-1) ` (fv e2 - {0,1}) = (\<lambda>x. x-1-1) ` (fv e2 - {0,1})"
+      using image_image by blast
+    ultimately have "fv' (Suc (Suc 0)) e2 = (\<lambda>x. x-2) ` (fv e2 - {0,1})"
+      using fv'_suc_eq_dec_fv' by (metis (no_types, lifting) image_cong Suc_1 diff_Suc_eq_diff_pred)
+    then show ?thesis
+      using assms by force
+  qed
+  have G1_G2_length: "length G1 = length G2"
+    using assms cg_ctx_length by blast
+  moreover {
+    fix i :: nat
+    assume i_size: "i < length G1"
+    have \<Gamma>_none: "i \<notin> fv e \<Longrightarrow> ?\<Gamma> ! i = None"
+      using ctx_restrict_len ctx_restrict_nth_none assign_app_ctx_def i_size by auto
+    have \<Gamma>_some: "i \<in> fv e \<Longrightarrow> ?\<Gamma> ! i = Some (assign_app_ty S (fst (G1 ! i)))"
+      using ctx_restrict_len ctx_restrict_nth_some assign_app_ctx_def i_size by auto
+    have \<Gamma>1_none: "i \<notin> fv e1 \<Longrightarrow> ?\<Gamma>1 ! i = None"
+      using ctx_restrict_len ctx_restrict_nth_none assign_app_ctx_def i_size by auto
+    have \<Gamma>1_some: "i \<in> fv e1 \<Longrightarrow> ?\<Gamma>1 ! i = Some (assign_app_ty S (fst (G1 ! i)))"
+      using ctx_restrict_len ctx_restrict_nth_some assign_app_ctx_def i_size by auto
+    have \<Gamma>2_none: "i \<notin> dec2_fv_e2 \<Longrightarrow> ?\<Gamma>2 ! i = None"
+      using G1_G2_length ctx_restrict_len ctx_restrict_nth_none assign_app_ctx_def i_size by auto
+    have \<Gamma>2_some: "i \<in> dec2_fv_e2 \<Longrightarrow> ?\<Gamma>2 ! i = Some (assign_app_ty S (fst (G2 ! i)))"
+      using G1_G2_length ctx_restrict_len ctx_restrict_nth_some assign_app_ctx_def i_size by auto
+    have "ctx_split_comp A (?\<Gamma> ! i) (?\<Gamma>1 ! i) (?\<Gamma>2 ! i)"
+    proof (cases "i \<in> fv e")
+      case True
+      consider (case_1) "i \<in> fv e1" "i \<notin> dec2_fv_e2" 
+             | (case_2) "i \<notin> fv e1" "i \<in> dec2_fv_e2" 
+             | (case_3) "i \<in> fv e1" "i \<in> dec2_fv_e2"
+        using assms True fv_e by blast
+      then show ?thesis
+      proof cases
+        case case_1
+        then show ?thesis
+          using \<Gamma>_some \<Gamma>1_some \<Gamma>2_none ctx_split_left True by presburger
+      next
+        case case_2
+        then show ?thesis
+          using \<Gamma>_some \<Gamma>1_none \<Gamma>2_some ctx_split_right True assms cg_ctx_type_same1 i_size by auto
+      next
+        case case_3
+        have "A \<turnstile> CtShare (assign_app_ty S (fst (G2 ! i)))"
+        proof - 
+          have "i \<in> (\<lambda>x. x - 1) ` (\<lambda>x. x - 1) ` (fv e2 - {0, 1})" using case_3 assms by force
+          then have "(Suc i) \<in> (\<lambda>x. x - 1) ` (fv e2 - {0, 1})" by force
+          then have "Suc (Suc i) \<in> fv e2" by force
+          moreover have "snd (((\<beta>, 0) # (\<gamma>, l) # G2) ! (Suc (Suc i))) > 0"
+            using cg_gen_output_type_checked_nonzero assms case_3 by auto
+          ultimately show ?thesis
+            using cg_assign_type_checked_nonzero_imp_share assms by (metis nth_Cons_Suc)
+        qed
+        then show ?thesis
+          using \<Gamma>_some \<Gamma>1_some \<Gamma>2_some ctx_split_share True G1_G2_length assms case_3 
+            cg_ctx_type_same2 i_size by auto
       qed
+    next
+      case False
+      then show ?thesis
+        using \<Gamma>_none \<Gamma>1_none \<Gamma>2_none ctx_split_none fv_e assms by auto
+    qed
+  }
+  ultimately show ?thesis
+    using context_splitting_def assign_app_ctx_len ctx_restrict_len assms
+    by (clarsimp simp add: list_all3_conv_all_nth) 
+qed
 
 lemma split_checked_extR:
   assumes "G1,n1 \<turnstile> e1 : \<tau> \<leadsto> G2,n2 | C1 | e1'"
@@ -4260,6 +4354,75 @@ proof -
     using split_checked_irref assms by meson
   then have "A \<turnstile> assign_app_ctx S (G1\<bar>fv e \<union> idxs) \<leadsto> \<Gamma>1 \<box> \<Gamma>2"
     using fv'_suc_eq_dec_fv' assms by (rule_tac split_unionR; auto intro: cg_ctx_type_same1)
+  moreover have "\<Gamma> = assign_app_ctx S (G1\<bar>fv e \<union> idxs)"
+  proof -
+    have "length \<Gamma> = length (assign_app_ctx S (G1\<bar>fv e \<union> idxs))"
+      using assign_app_ctx_len assms ctx_restrict_def by auto
+    moreover { 
+      fix i :: nat
+      assume i_size: "i < length \<Gamma>"
+      consider (case_1) "i \<in> fv e" | (case_2) "i \<notin> fv e" "\<Gamma> ! i = None" 
+             | (case_3) "i \<notin> fv e" "\<Gamma> ! i \<noteq> None"
+        by fast
+      then have "\<Gamma> ! i = assign_app_ctx S (G1 \<bar> fv e \<union> idxs) ! i"
+      proof cases
+        case case_1
+        then show ?thesis
+          using assms i_size by (metis (no_types, lifting) Un_iff assign_app_ctx_restrict_some)
+      next
+        case case_2
+        have "i \<notin> fv e \<union> idxs"
+          using case_2 assms by auto
+        then show ?thesis
+          using case_2 assign_app_ctx_none_iff assms ctx_restrict_len ctx_restrict_nth_none i_size 
+          by (metis (no_types, lifting))
+      next
+        case case_3
+        have "i \<in> fv e \<union> idxs"
+          using case_3 assms i_size by auto 
+        then show ?thesis
+          using case_3 i_size assms assign_app_ctx_restrict_some by (metis (no_types, lifting))
+      qed
+    }
+    ultimately show ?thesis
+      using nth_equalityI by blast
+  qed
+  ultimately show ?thesis
+    by auto
+qed
+
+lemma split_checked_take_extR:
+  assumes "e = Take e1 nm e2"
+    and "G1,n1 \<turnstile> e1 : \<alpha> \<leadsto> G2,n2 | C1 | e1'"
+    and "(\<beta>, 0) # (\<gamma>, l) # G2,n2 \<turnstile> e2 : \<tau> \<leadsto> (\<beta>, m) # (\<gamma>, l) # G3,n3 | C2 | e2'"
+    and "A \<turnstile> assign_app_constr S C2"
+    and "known_assignment S"
+    and "\<And>i. i < length G1 \<Longrightarrow>
+            if i \<in> fv e
+              then \<Gamma> ! i = Some (assign_app_ty S (fst (G1 ! i)))
+              else \<Gamma> ! i = None \<or> \<Gamma> ! i = Some (assign_app_ty S (fst (G1 ! i)))"
+    and "length G1 = length \<Gamma>"
+    and "idxs = Set.filter (\<lambda>x. x \<notin> fv e \<and> \<Gamma> ! x \<noteq> None) {0..<length G1}"
+    and "dec2_fv_e2 = image (\<lambda>x. x-2) (fv e2 - {0, 1})"
+    and "\<Gamma>1 = assign_app_ctx S (G1\<bar>fv e1)"
+    and "\<Gamma>2 = assign_app_ctx S (G2\<bar>dec2_fv_e2 \<union> idxs)"
+  shows "A \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 \<box> \<Gamma>2"
+  using assms 
+proof -
+  have "A \<turnstile> assign_app_ctx S (G1\<bar>fv e) \<leadsto> \<Gamma>1 \<box> assign_app_ctx S (G2\<bar>dec2_fv_e2)"
+    using split_checked_take assms by meson
+  moreover have "dec2_fv_e2 = fv' (Suc (Suc 0)) e2"
+  proof -
+    have "(fv' (Suc 0) e2 - {0}) = (\<lambda>x. x-1) ` (fv e2 - {0,1})"
+      using fv'_suc_eq_dec_fv'_minus by (metis One_nat_def image_empty image_insert insert_is_Un)
+    moreover have "(\<lambda>x. x-1) ` (\<lambda>x. x-1) ` (fv e2 - {0,1}) = (\<lambda>x. x-1-1) ` (fv e2 - {0,1})"
+      using image_image by blast
+    ultimately show ?thesis
+      using fv'_suc_eq_dec_fv' assms 
+      by (metis (no_types, lifting) image_cong Suc_1 diff_Suc_eq_diff_pred)
+  qed
+  ultimately have "A \<turnstile> assign_app_ctx S (G1\<bar>fv e \<union> idxs) \<leadsto> \<Gamma>1 \<box> \<Gamma>2"
+    using assms by (rule_tac split_unionR; auto intro: cg_ctx_type_same1)
   moreover have "\<Gamma> = assign_app_ctx S (G1\<bar>fv e \<union> idxs)"
   proof -
     have "length \<Gamma> = length (assign_app_ctx S (G1\<bar>fv e \<union> idxs))"
