@@ -158,8 +158,9 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   LayoutOk t | isBoxedType t -> hoistMaybe $ Just [TLPtr :~ t]
   LayoutOk (R rp r (Left Unboxed)) -> hoistMaybe $ Just $ (LayoutOk . fst . snd) <$> (Row.unE <$> Row.entries r)
   LayoutOk (V r) -> hoistMaybe $ Just $ (LayoutOk . fst . snd) <$> (Row.unE <$> Row.entries r)
+#ifdef BUILTIN_ARRAYS
   LayoutOk (A t e (Left Unboxed) h) -> hoistMaybe $ Just [LayoutOk t]
-
+#endif
   TLVar n        :~ tau | Just t <- lookup n ts -> hoistMaybe $ Just [tau :~~ t]
   TLRepRef _ _   :~ _ -> hoistMaybe Nothing
 
@@ -196,9 +197,10 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
 
   TLPtr          :~ R rp r (Left (Boxed _ (Just l))) -> hoistMaybe $ Just [l :~ R rp r (Left Unboxed)]
   TLPtr          :~ R rp r (Left (Boxed _ Nothing )) -> hoistMaybe $ Just [LayoutOk (R rp r (Left Unboxed))]
+#ifdef BUILTIN_ARRAYS
   TLPtr          :~ A t e (Left (Boxed _ (Just l))) h -> hoistMaybe $ Just [l :~ A t e (Left Unboxed) h]
   TLPtr          :~ A t e (Left (Boxed _ Nothing )) h -> hoistMaybe $ Just [LayoutOk (A t e (Left Unboxed) h)]
-
+#endif
   l              :~ T (TBang tau)    -> hoistMaybe $ Just [l :~ tau]
   l              :~ T (TTake _ tau)  -> hoistMaybe $ Just [l :~ tau]
   l              :~ T (TPut  _ tau)  -> hoistMaybe $ Just [l :~ tau]
