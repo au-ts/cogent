@@ -2,6 +2,8 @@ $esc:(#include <stdio.h>)
 $esc:(#include <stdbool.h>)
 $esc:(#include <platsupport/spi.h>)
 
+$esc:(#define FIFO_SIZE 64)
+
 typedef void* SysState;
 
 typedef volatile spi_regs* SpiRegs;
@@ -171,4 +173,90 @@ $ty:(SpiRegs) $id:putRegister($ty:(RegsPut) args) {
             (args.regs)->spare_ctl = args.val;
     }
     return args.regs;
+}
+
+int tegra_spi_init(enum spi_id id, volatile void* base,
+            spi_chipselect_fn cs_func, mux_sys_t* mux_sys, 
+            clock_sys_t* clock_sys, spi_bus_t** ret_spi_bus)
+{
+    $ty:(SpiBusInit) args; 
+    args.p1 = &_spi[id];
+    if (cs_func != NULL) {
+        args.p3.tag = TAG_ENUM_Some;
+        args.p3.Some = cs_func;
+    } else {
+        args.p3.tag = TAG_ENUM_None;
+    }
+    args.p2 = base + spi_controller_offsets[id];
+
+    *ret_spi_bus = $exp:(tegraSpiInit)(args);
+    return 0;
+}
+
+void spi_handle_irq(spi_bus_t *spi_bus) {
+    $ty:((SysState, SpiBus)) args = { .p1 = NULL, .p2 = spi_bus };
+    $exp:(spiHandleIrq)(args);
+}
+
+int spi_xfer(spi_bus_t* spi_bus, const void* txdata, size_t txcnt, 
+        void* rxdata, size_t rxcnt, spi_callback_fn cb, void* token) {
+    // Hack to ensure that the values of txcnt and rxcnt are not larger than 32-bits
+    $ty:(U32) max = ~0;
+    if (txcnt + rxcnt > max) {
+        ZF_LOGE("SPI transaction size (%d) exceeds FIFO size (%d)", txcnt + rxcnt, FIFO_SIZE);
+        return -2;
+    }
+    // Just a hack to get the buffers in the right form
+    // Note we assume that the word arrays meta data can be modified
+    // even if the function fails
+    (spi_bus->txBuffer).len = (int) txcnt;
+    (spi_bus->txBuffer).values = ($ty:(U8)*) txdata;
+    if (rxdata != NULL) {
+        (spi_bus->rxBuffer).len = (int) (rxcnt + txcnt);
+        (spi_bus->rxBuffer).values = ($ty:(U8)*) rxdata;
+    } else {
+        (spi_bus->rxBuffer).len = 0;
+        (spi_bus->rxBuffer).values = NULL;
+    }
+    $ty:(SpiXferArgs) = args;
+    args.p1 = NULL;
+    args.p2 = spi_bus;
+    args.p3 = spi_bus->txBuffer;
+    args.p4 = spi_bus->rxBuffer;
+    args.p5 = ($ty:(U32)) rxcnt;
+    // Hack to model NULL pointers in Cogent
+    if (cb == NULL) {
+        args.p6.tag = TAG_ENUM_None;
+    } else {
+        args.p6.tag = TAG_ENUM_Some;
+        args.p6.Some = cb;
+    }
+    args.p7 = token;
+
+    // Note we don't actually care about the pointers in C since
+    // linear types don't exist
+    $ty:(SpiXferRet) ret = $exp:(spiXfer)(args);
+
+    if (ret.tag == TAG_ENUM_Success)
+        return 0;
+
+    switch (ret.Error.p3) {
+        case 1:
+            ZF_LOGE("SPI transaction in progress");
+            return -1;
+        case 2:
+            ZF_LOGE("SPI transaction size (%d) exceeds FIFO size (%d)", txcnt + rxcnt, FIFO_SIZE);
+            return -2;
+        default:
+            ZF_LOGE("Synchronous SPI transactions are not implemented");
+            return -3;
+    }
+}
+
+void
+spi_prepare_transfer(spi_bus_t* spi_bus, const spi_slave_config_t* cfg)
+{
+    // TODO: implement support for multiple slaves
+    $ty:((SpiBusNoSlave, SpiSlaveCfg)) args = { .p1 = spi_bus, .p2 = cfg };
+    $exp:(spiPrepareTransfer)(args);
 }

@@ -2,12 +2,103 @@ include <gum/common/common.cogent>
 include <gum/common/wordarray.cogent>
 
 
--- #defines
+-- #defines --
+-- Command1
+spiCmd1Go : U32
+spiCmd1Go = 1 << 31
+
+spiCmd1MS : U32
+spiCmd1MS = 1 << 30
+
+spiCmd1ModeMask : U32
+spiCmd1ModeMask = 0x3
+
+spiCmd1ModeShift : U32
+spiCmd1ModeShift = 28
+
+spiCmd1CsSelMask : U32
+spiCmd1CsSelMask = 0x3
+
+spiCmd1CsSelShift : U32
+spiCmd1CsSelShift = 26
+
+spiCmd1CsPolInactive3 : U32
+spiCmd1CsPolInactive3 = 1 << 25
+
+spiCmd1CsPolInactive2 : U32
+spiCmd1CsPolInactive2 = 1 << 24
+
+spiCmd1CsPolInactive1 : U32
+spiCmd1CsPolInactive1 = 1 << 23
+
+spiCmd1CsPolInactive0 : U32
+spiCmd1CsPolInactive0 = 1 << 22
+
+spiCmd1CsSwHw : U32
+spiCmd1CsSwHw = 1 >> 21
+
+spiCmd1CsSwVal : U32
+spiCmd1CsSwVal = 1 << 20
+
+spiCmd1IdleSdaMask : U32
+spiCmd1IdleSdaMask = 0x3
+
+spiCmd1IdleSdaShift : U32
+spiCmd1IdleSdaShift = 18
+
+spiCmd1Bidir : U32
+spiCmd1Bidir = 1 << 17
+
+spiCmd1LsbiFe : U32
+spiCmd1LsbiFe = 1 << 16
+
+spiCmd1LsbyFe : U32
+spiCmd1LsbyFe = 1 << 15
+
+spiCmd1BothEnBit : U32
+spiCmd1BothEnBit = 1 << 14
+
+spiCmd1BothEnByte : U32
+spiCmd1BothEnByte = 1 << 13
+
+spiCmd1RxEn : U32
+spiCmd1RxEn = 1 << 12
+
+spiCmd1TxEn : U32
+spiCmd1TxEn = 1 << 11
+
+spiCmd1Packed : U32
+spiCmd1Packed = 1 << 5
+
+spiCmd1BitLenMask : U32
+spiCmd1BitLenMask = 0x1f
+
+spiCmd1BitLenShift : U32
+spiCmd1BitLenShift = 0
+
+-- Command2
+spiCmd2TxClkTapDelay : U32
+spiCmd2TxClkTapDelay = 1 << 6
+
+spiCmd2TxClkTapDelayMask : U32
+spiCmd2TxClkTapDelayMask = 0x3f << 6
+
+spiCmd2RxClkTapDelay : U32
+spiCmd2RxClkTapDelay = 1 << 0
+
+spiCmd2RxClkTapDelayMask : U32
+spiCmd2RxClkTapDelayMask = 0x3f << 0
+
+-- Transfer Status
 spiXferStsRdy : U32
 spiXferStsRdy = 1 << 30
 
-spiCmd1Go : U32
-spiCmd1Go = 1 << 31
+-- Fifo Status
+spiFifoStsCsInactive : U32
+spiFifoStsCsInactive = 1 << 31
+
+spiFifoStsFrameEnd : U32
+spiFifoStsFrameEnd = 1 << 30
 
 spiFifoStsRxFifoFlush : U32
 spiFifoStsRxFifoFlush = 1 << 15
@@ -15,11 +106,61 @@ spiFifoStsRxFifoFlush = 1 << 15
 spiFifoStsTxFifoFlush : U32
 spiFifoStsTxFifoFlush = 1 << 14
 
+spiFifoStsErr : U32
+spiFifoStsErr = 1 << 8
+
+spiFifoStsTxFifoOvf : U32
+spiFifoStsTxFifoOvf = 1 << 7
+
+spiFifoStsTxFifoUnr : U32
+spiFifoStsTxFifoUnr = 1 << 6
+
+spiFifoStsRxFifoOvf : U32
+spiFifoStsRxFifoOvf = 1 << 5
+
+spiFifoStsRxFifoUnr : U32
+spiFifoStsRxFifoUnr = 1 << 4
+
+spiFifoStsTxFifoFull : U32
+spiFifoStsTxFifoFull = 1 << 3
+
+spiFifoStsTxFifoEmpty : U32
+spiFifoStsTxFifoEmpty = 1 << 2
+
+spiFifoStsRxFifoFull : U32
+spiFifoStsRxFifoFull = 1 << 1
+
+spiFifoStsRxFifoEmpty : U32
+spiFifoStsRxFifoEmpty = 1 << 0
+
+-- SPI CS Timing
+csSetupTime0Shift : U32
+csSetupTime0Shift = 4
+
+csHoldTime0Shift : U32
+csHoldTime0Shift = 0
+
+-- DMA CTL
+spiIeRx : U32
+spiIeRx = 1 << 29
+
+spiIeTx : U32
+spiIeTx = 1 << 28
+
+
+clkTapDelay : U32
+clkTapDelay = 0x1f
+
+csSetupTime : U32
+csSetupTime = 0xf
+
+csHoldTime : U32
+csHoldTime = 0xf
+
 fifoSize : U32
 fifoSize = 64
 
--- FFI Types
-
+-- Abstract Types --
 -- Type for the memory mapped registers.
 type SpiRegs
 
@@ -41,8 +182,7 @@ type CsFn
 -- Type of the callback function.
 type CbFn
 
--- Cogent types
-
+-- Cogent types --
 -- Register names.
 type SpiRegsField = 
     < Command1 
@@ -79,8 +219,25 @@ type SpiBus =
     , token : Token
     , currSlave : SpiSlaveCfg
     }
+type SpiBusInit = SpiBus take(regs, chipSelect)
+type SpiBusNoSlave = SpiBus take(currSlave)
+type SpiBusSetup = SpiBus take(txBuffer, rxBuffer, rxCnt, callBack, token)
 
+type SpiXferArgs = 
+    (SysState
+    , SpiBusSetup
+    , (WordArray U8)!
+    , WordArray U8
+    , U32
+    , Option (CbFn!)
+    , Token)
 
+type SpiXferRet =
+    Result 
+        (SysState, SpiBus, U32) 
+        (SysState, SpiBusSetup, U32, WordArray U8, Token)
+
+-- FFI --
 -- Set the GPIO pins if the default chip selection is overwritten
 type ChipSelection =
     #{ state : SysState
@@ -102,6 +259,7 @@ getRegister : RegsGet -> (SpiRegs, U32)
 type RegsPut = #{ regs : SpiRegs, field : SpiRegsField, val : U32 }
 putRegister : RegsPut -> SpiRegs
 
+-- "Static" Cogent functions --
 -- Read or flush 1 item from the "rxfifo" queue
 readOrFlushRx : Seq32_body (WordArray U8, SpiRegs) () ()
 readOrFlushRx #{acc, obsv, idx} = 
@@ -149,6 +307,34 @@ finishSpiTransfer (s0, b0) =
         regs = r3, currSlave = slave}
     in doCallBack #{ state = s1, spiBus = b3, res = Success size }
 
+-- Write the transfer buffer to the "txfifo" queue and set the relevant registers
+-- to start the transaction
+startSpiTransfer : (SysState, SpiBus) -> (SysState, SpiBus)
+startSpiTransfer (s0, b0) =
+    let b1 { chipSelect = cs, 
+             txBuffer = tx, 
+             rxCnt = rS, 
+             regs = r0, 
+             currSlave = slave } = b0
+    and s1 =
+        cs | Some c ->
+            let s1' = doChipSelection #{ state = s0, chipSelect = c, 
+                slave = slave, csState = SpiCsAssert } !slave
+            in s1'
+           | None -> s0
+    and size = (wordarray_length tx) + rS
+    and r1 = putRegister #{ regs = r0, field = DmaBlk, val = size - 1 }
+    -- Write to the "txfifo" queue
+    and (r2, _) = seq32 #{ frm = 0, to = size, step = 1, f = writeTx, acc = r1,
+        obsv = tx }
+    and (r3, cmd1) = getRegister #{ regs = r2, field = Command1 }
+    and r4 = putRegister #{ regs = r3, field = Command1, 
+        val = cmd1 .|. spiCmd1Go }
+    and b2 = b1 { chipSelect = cs, txBuffer = tx, rxCnt = rS, regs = r4, 
+        currSlave = slave }
+    in (s1, b2)
+
+-- Visible Cogent Functions --
 -- Handle the SPI IRQ. If the device is ready, finish the transaction, otherwise
 -- cancel the transaction
 spiHandleIrq : (SysState, SpiBus) -> SysState
@@ -179,32 +365,62 @@ spiHandleIrq (s0, b0) =
             and b4 = b3 { chipSelect = cs, currSlave = slave}
             in doCallBack #{ state = s1, spiBus = b4, res = Error 1}
 
--- Write the transfer buffer to the "txfifo" queue and set the relevant registers
--- to start the transaction
-startSpiTransfer : (SysState, SpiBus) -> (SysState, SpiBus)
-startSpiTransfer (s0, b0) =
-    let b1 { chipSelect = cs, 
-             txBuffer = tx, 
-             rxCnt = rS, 
-             regs = r0, 
-             currSlave = slave } = b0
-    and s1 =
-        cs | Some c ->
-            let s1' = doChipSelection #{ state = s0, chipSelect = c, 
-                slave = slave, csState = SpiCsAssert } !slave
-            in s1'
-           | None -> s0
-    and size = (wordarray_length tx) + rS
-    and r1 = putRegister #{ regs = r0, field = DmaBlk, val = size - 1 }
-    -- Write to the "txfifo" queue
-    and (r2, _) = seq32 #{ frm = 0, to = size, step = 1, f = writeTx, acc = r1,
-        obsv = tx }
-    and (r3, cmd1) = getRegister #{ regs = r2, field = Command1 }
-    and r4 = putRegister #{ regs = r3, field = Command1, 
-        val = cmd1 .|. spiCmd1Go }
-    and b2 = b1 { chipSelect = cs, txBuffer = tx, rxCnt = rS, regs = r4, 
-        currSlave = slave }
-    in (s1, b2)
-    
-        
+-- Set up the SPI transaction and then begin the transfer
+spiXfer : SpiXferArgs -> SpiXferRet 
+spiXfer (s0, b0, txB, rxB, rxS, mcb, tok) = 
+    mcb | None -> Error (s0, b0, 3, rxB, tok)
+        | Some cb ->
+            let b1 { inProgress = p} = b0
+            and b2 = b1 { inProgress = p }
+            and size = (wordarray_length txB) + rxS
+            in 
+                if | p -> Error (s0, b2, 1, rxB, tok)
+                   | size > fifoSize -> Error (s0, b2, 2, rxB, tok)
+                   | else ->
+                        let b3 = b2 { txBuffer = txB, rxBuffer = rxB, rxCnt = rxS,
+                            callBack = cb, token = tok }
+                        and (s1, b4) = startSpiTransfer (s0, b3)
+                        in Success (s1, b4, 0)
 
+-- Choose the slave for the SPI transaction
+spiPrepareTransfer : (SpiBusNoSlave, SpiSlaveCfg) -> SpiBus
+spiPrepareTransfer (b0, slave) =
+    let b1 = b0 { currSlave = slave }
+    in b1
+
+tegraSpiInit : (SpiBusInit, SpiRegs, Option (CsFn!)) -> SpiBus
+tegraSpiInit (b0, r0, mcs) =
+    let fifoStatus = spiFifoStsRxFifoFlush .|. 
+        spiFifoStsTxFifoFlush .|.
+        spiFifoStsErr .|.
+        spiFifoStsTxFifoOvf .|.
+        spiFifoStsTxFifoUnr .|.
+        spiFifoStsRxFifoOvf .|.
+        spiFifoStsRxFifoUnr
+    and r1 = putRegister #{ regs = r0, field = FifoStatus, val = fifoStatus }
+    and b1 { clockMode = cm } = b0
+    and (r2, cmd10) = getRegister #{ regs = r1, field = Command1 }
+    and cmd11 = cmd10 .|.
+        (cm << spiCmd1ModeShift) .|.
+        spiCmd1TxEn .|.
+        spiCmd1RxEn .|.
+        ((8 - 1) << spiCmd1BitLenShift)
+    and cmd12 =
+        mcs | None -> cmd11
+            | _ -> cmd11 .|. spiCmd1CsSwHw
+    and r3 = putRegister #{ regs = r2, field = Command1, val = cmd12 }
+    and (r4, cmd2) = getRegister #{ regs = r3, field = Command2 }
+    and r5 = putRegister #{ regs = r4, field = Command2, 
+        val = cmd2 .|. (clkTapDelay .&. spiCmd2RxClkTapDelayMask) }
+    and (r6, timing1) = getRegister #{ regs = r5, field = Timing1 }
+    and r7 = putRegister #{ regs = r6, field = Timing1, 
+        val = timing1 .|. (csSetupTime << csSetupTime0Shift) .|.
+            (csHoldTime << csHoldTime0Shift) }
+    and (r8, dmaCtl) = getRegister #{ regs = r7, field = DmaCtl }
+    and r9 = putRegister #{ regs = r8, field = DmaCtl,
+        val = dmaCtl .|. spiIeRx .|. spiIeTx }
+    and (r10, xferStatus) = getRegister #{ regs = r9, field = XferStatus }
+    and r11 = putRegister #{ regs = r10, field = XferStatus,
+        val = xferStatus .|. spiXferStsRdy }
+    and b2 = b1 { clockMode = cm, regs = r11, chipSelect = mcs }
+    in b2
