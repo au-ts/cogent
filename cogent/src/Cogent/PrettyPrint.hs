@@ -447,7 +447,7 @@ instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Prett
   pretty (ArrayMap2 ((p1,p2),f) (e1,e2)) = keyword "map2"
                                        <+> parens (string "\\" <> pretty p1 <+> pretty p2 <+> symbol "=>" <+> pretty f)
                                        <+> prettyPrec 1 e1 <+> prettyPrec 1 e2
-  pretty (ArrayPut e es)     = prettyPrec 10 e <+> symbol "@" 
+  pretty (ArrayPut e es)     = prettyPrec 10 e <+> symbol "@"
                             <> record (map (\(i,e) -> symbol "@" <> pretty i <+> symbol "=" <+> pretty e) es)
 #endif
   pretty (Unitel)            = string "()"
@@ -496,6 +496,7 @@ instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Prett
                                              <$> keyword "in" <+> indent (pretty e)
   pretty (Put e fs)          = prettyPrec 10 e <+> record (map handlePutAssign fs)
   pretty (Annot e t)         = prettyPrec 31 e <+> symbol ":" <+> pretty t
+  pretty (Buffer n fs)       = keyword "Buffer" <+> literal (string $ show n) <> record (map (\(a, b) -> fieldname a <+> symbol ":" <+> pretty b) fs)
 
 instance Pretty RawExpr where
   pretty (RE e) = pretty e
@@ -590,6 +591,7 @@ instance (Pretty t, TypeType t, Pretty e, Pretty l, Eq l) => Pretty (Type e l t)
                        & (if __cogent_fdisambiguate_pp then (<+> comment "{- put -}") else id)
   pretty (TLayout l t) = (prettyT' t <+> typesymbol "layout" <+> pretty l)
            & (if __cogent_fdisambiguate_pp then (<+> comment "{- layout -}") else id)
+  pretty (TBuffer n fs) = keyword "Buffer" <+> brackets (string $ show n) <> record (map (\(a, b) -> fieldname a <+> symbol ":" <+> pretty b) fs)
 
 instance Pretty RawType where
   pretty (RT t) = pretty t
@@ -618,7 +620,7 @@ instance Pretty TCType where
                        Left Nothing  -> empty
                        Left (Just e) -> space <> keyword "@take" <+> parens (pretty e)
                        Right n       -> space <> warn ('?' : show n)
-                       
+
      in symbol "A" <+> pretty t <+> brackets (pretty l) <+> sigilPretty <> holePretty
 #endif
   pretty (U v) = warn ('?':show v)
@@ -814,7 +816,7 @@ instance Pretty TypeError where
   pretty (LayoutsNotCompatible l1 l2) = err "Layout " <$$> indent' (pretty l1)
                                           <$$> err " is not compatible with layout " <$$> indent' (pretty l2)
   pretty (TypesNotFit t1 t2)          = err "The layout of type " <$$> indent' (pretty t1)
-                                          <$$> err " does not fit the layout of type " <$$> indent' (pretty t2) 
+                                          <$$> err " does not fit the layout of type " <$$> indent' (pretty t2)
   pretty (TypeWarningAsError w)       = pretty w
 
 instance Pretty TypeWarning where
@@ -871,7 +873,7 @@ instance Pretty Constraint where
   pretty (Unsat e)        = err  "Unsat"
   pretty (SemiSat w)      = warn "SemiSat"
   pretty (Sat)            = warn "Sat"
-  pretty (UnboxedNotRecursive t) 
+  pretty (UnboxedNotRecursive t)
                           = warn "UnboxedNotRecursive" <+> pretty t
   pretty (NotReadOnly s)  = warn "NotReadOnly" <+> prettyS s
     where prettyS (Left  l) = pretty l
@@ -920,9 +922,9 @@ instance Pretty ReorganizeError where
 instance Pretty Subst where
   pretty (Subst m) = pretty m
 
-instance Pretty AssignResult where 
-  pretty (Type t) = pretty t 
-  pretty (Sigil s) = pretty s 
+instance Pretty AssignResult where
+  pretty (Type t) = pretty t
+  pretty (Sigil s) = pretty s
   pretty (Row (Left r)) = pretty r
   pretty (Row (Right sh)) = pretty sh
   pretty (Layout' l) = pretty l
@@ -978,11 +980,11 @@ instance Pretty DataLayoutTcError where
        in err "Declared data blocks" <+> parens (pretty range1) <+> err "and" <+> parens (pretty range2) <+> err " which cannot overlap" <$$>
           indent (pretty c1) <$$>
           indent (pretty c2)
-  pretty (UnknownDataLayout r ctx) 
+  pretty (UnknownDataLayout r ctx)
      =  err "Undeclared data layout" <+> reprname r <$$> pretty ctx
 
   pretty (BadDataLayout l p) = err "Bad data layout" <+> pretty l
-  pretty (TagNotSingleBlock ctx) 
+  pretty (TagNotSingleBlock ctx)
      = err "Variant tag must be a single block of bits" <$$> pretty ctx
   pretty (SameTagValues context name1 name2 value) =
     err "Alternatives" <+> tagname name1 <+> err "and" <+> tagname name2 <+> err "of same variant cannot have the same tag value" <+> literal (pretty value) <$$>

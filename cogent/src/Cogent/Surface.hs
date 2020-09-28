@@ -105,6 +105,7 @@ data Expr t p ip l e = PrimOp OpName [e]
                      | Put e [Maybe (FieldName, e)]  -- Note: `Nothing' will be desugared to `Just' in TypeCheck / zilinc
                      | Upcast e
                      | Annot e t
+                     | Buffer Integer [(FieldName, t)]
                      deriving (Data, Eq, Ord, Show, Functor, Foldable, Traversable)
 
 type Banged  = Bool
@@ -142,6 +143,7 @@ data Type e l t =
                 | TTake (Maybe [FieldName]) t
                 | TPut  (Maybe [FieldName]) t
                 | TLayout l t
+                | TBuffer Integer [(FieldName, t)]
                 deriving (Show, Functor, Data, Eq, Ord, Foldable, Traversable)
 
 
@@ -290,6 +292,7 @@ instance Traversable (Flip (Type e) t) where  -- l
   traverse _ (Flip (TVariant alts))      = pure $ Flip (TVariant alts)
   traverse _ (Flip (TTuple ts))          = pure $ Flip (TTuple ts)
   traverse _ (Flip (TUnit))              = pure $ Flip (TUnit)
+  traverse f (Flip (TBuffer n fs))       = pure $ Flip (TBuffer n fs)
 #ifdef BUILTIN_ARRAYS
   traverse f (Flip (TArray t e s tkns))  = Flip <$> (TArray t e <$> traverse (traverse f) s <*> pure tkns)
   traverse _ (Flip (TATake idxs t))      = pure $ Flip (TATake idxs t)
@@ -313,6 +316,7 @@ instance Traversable (Flip2 Type t l) where  -- e
   traverse _ (Flip2 (TVariant alts))      = pure $ Flip2 (TVariant alts)
   traverse _ (Flip2 (TTuple ts))          = pure $ Flip2 (TTuple ts)
   traverse _ (Flip2 (TUnit))              = pure $ Flip2 (TUnit)
+  traverse _ (Flip2 (TBuffer n fs))       = pure $ Flip2 (TBuffer n fs)
 #ifdef BUILTIN_ARRAYS
   traverse f (Flip2 (TArray t e s tkns))  = Flip2 <$> (TArray t <$> f e <*> pure s <*> traverse (firstM f) tkns)
   traverse f (Flip2 (TATake idxs t))      = Flip2 <$> (TATake <$> traverse f idxs <*> pure t)
@@ -428,6 +432,7 @@ instance Pentatraversable Expr where
   pentatraverse fa fb fc fd fe (Put e fs)          = Put <$> fe e <*> traverse (traverse (traverse fe)) fs
   pentatraverse fa fb fc fd fe (Upcast e)          = Upcast <$> fe e
   pentatraverse fa fb fc fd fe (Annot e t)         = Annot <$> fe e <*> fa t
+  pentatraverse fa fb fc fd fe (Buffer n fs)       = Buffer n <$> traverse (traverse fa) fs
 
 -- -----------------------------------------------------------------------------
 
@@ -497,6 +502,7 @@ fvT (RT (TBang    t)) = fvT t
 fvT (RT (TTake  _ t)) = fvT t
 fvT (RT (TPut   _ t)) = fvT t
 fvT (RT (TLayout _ t)) = fvT t
+fvT (RT (TBuffer _ fs)) = foldMap (fvT . snd) fs
 
 fcA :: Alt v RawExpr -> [TagName]
 fcA (Alt _ _ e) = fcE e
@@ -546,6 +552,7 @@ tvT (RT (TBang    t)) = tvT t
 tvT (RT (TTake  _ t)) = tvT t
 tvT (RT (TPut   _ t)) = tvT t
 tvT (RT (TLayout _ t)) = tvT t
+tvT (RT (TBuffer _ fs)) = foldMap (tvT . snd) fs
 
 tvE :: RawExpr -> [TyVarName]
 tvE (RE (PrimOp op es))     = foldMap tvE es
@@ -603,6 +610,7 @@ lvT (RT (TUnbox   t)) = lvT t
 lvT (RT (TBang    t)) = lvT t
 lvT (RT (TTake  _ t)) = lvT t
 lvT (RT (TPut   _ t)) = lvT t
+lvT (RT (TBuffer _ fs)) = foldMap (lvT . snd) fs
 lvT (RT _) = []
 
 lvL :: DataLayoutExpr -> [DLVarName]

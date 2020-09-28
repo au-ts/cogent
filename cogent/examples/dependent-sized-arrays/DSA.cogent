@@ -1,0 +1,2 @@
+fn : Buffer[2000]{a: U32}
+fn = Buffer 2000 {a: U32}
