@@ -2,8 +2,6 @@ $esc:(#include <stdio.h>)
 $esc:(#include <stdbool.h>)
 $esc:(#include <platsupport/spi.h>)
 
-$esc:(#define FIFO_SIZE 64)
-
 typedef void* SysState;
 
 typedef volatile spi_regs* SpiRegs;
@@ -20,6 +18,8 @@ typedef spi_callback_fn CbFn;
 #include <gum/anti/common.ac>
 #include <gum/anti/wordarray.ac>
 #include <gum/anti/seq.ac>
+
+#define FIFO_SIZE 64
 
 struct spi_regs {
     volatile uint32_t command1;       /* 000:SPI_COMMAND1 register */
