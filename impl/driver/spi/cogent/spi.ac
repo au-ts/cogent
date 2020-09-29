@@ -1,61 +1,65 @@
 $esc:(#include <stdio.h>)
 $esc:(#include <stdbool.h>)
 $esc:(#include <platsupport/spi.h>)
+$esc:(#include <utils/zf_log.h>)
+$esc:(#include "spi_regs.h")
 
-typedef void* SysState;
+typedef void SysState;
 
-typedef volatile spi_regs* SpiRegs;
+typedef volatile spi_regs_t SpiRegs;
 
-typedef spi_slave_config_t* SpiSlaveCfg;
+typedef spi_slave_config_t SpiSlaveCfg;
 
-typedef void* Token;
+typedef void Token;
 
 typedef spi_chipselect_fn CsFn;
 
 typedef spi_callback_fn CbFn;
+
+typedef spi_bus_t SpiBusWrapper;
 
 #include "generated.c"
 #include <gum/anti/common.ac>
 #include <gum/anti/wordarray.ac>
 #include <gum/anti/seq.ac>
 
+
+#define SPI_PAGE_PADDR 0x7000D000
+
+#define SPI0_PADDR 0x7000D400
+#define SPI1_PADDR 0x7000D600
+#define SPI2_PADDR 0x7000D800
+#define SPI3_PADDR 0x7000DA00
+#define SPI4_PADDR 0x7000DC00
+#define SPI5_PADDR 0x7000DE00
+
+#define SPI0_OFFSET (SPI0_PADDR - SPI_PAGE_PADDR)
+
 #define FIFO_SIZE 64
 
-struct spi_regs {
-    volatile uint32_t command1;       /* 000:SPI_COMMAND1 register */
-    volatile uint32_t command2;       /* 004:SPI_COMMAND2 register */
-    volatile uint32_t timing1;        /* 008:SPI_CS_TIM1 register */
-    volatile uint32_t timing2;        /* 00c:SPI_CS_TIM2 register */
-    volatile uint32_t xfer_status;    /* 010:SPI_TRANS_STATUS register */
-    volatile uint32_t fifo_status;    /* 014:SPI_FIFO_STATUS register */
-    volatile uint32_t tx_data;        /* 018:SPI_TX_DATA register */
-    volatile uint32_t rx_data;        /* 01c:SPI_RX_DATA register */
-    volatile uint32_t dma_ctl;        /* 020:SPI_DMA_CTL register */
-    volatile uint32_t dma_blk;        /* 024:SPI_DMA_BLK register */
-    PAD_STRUCT_BETWEEN(0x24, 0x108, uint32_t);
-    volatile uint32_t tx_fifo;        /* 108:SPI_FIFO1 register */
-    PAD_STRUCT_BETWEEN(0x108, 0x188, uint32_t);
-    volatile uint32_t rx_fifo;        /* 188:SPI_FIFO2 register */
-    volatile uint32_t spare_ctl;      /* 18c:SPI_SPARE_CTRL register */
+struct spi_bus {
+    $ty:(SpiBus) spi;
 };
 
 static $ty:(#(WordArray U8)) _tx[] = {
-    [SPI0] = { .len = 0, .values = NULL }
+    [SPI0] = { .len = 0, .values = NULL },
 };
 
 static $ty:(#(WordArray U8)) _rx[] = {
-    [SPI0] = { .len = 0, .values = NULL }
+    [SPI0] = { .len = 0, .values = NULL },
 };
 
 uint32_t spi_controller_offsets[] = {
     [SPI0] = SPI0_OFFSET
 };
 
-static spi_bus_t _spi[] = {
+static $ty:(#SpiBus) _spi_bus = {
     [SPI0] = { .regs = NULL, .clockMode = 0, .txBuffer = &_tx[SPI0], .rxBuffer = &_rx[SPI0] },
 };
 
-
+static spi_bus_t _spi[] = {
+    [SPI0] = { .spi = &_spi_bus[SPI0] },
+};
 
 // FFI
 
@@ -75,10 +79,10 @@ $ty:(SysState) $id:doCallBack($ty:(CallBack) args) {
     switch (args.res.tag)
     {
         case TAG_ENUM_Succes:
-            ((args.spiBus)->callBack)(args.spiBus, args.res.Success, (args.spiBus)->token);
-            break
+            ((args.spiBus)->callBack)((args.spiBus)->wrapper, args.res.Success, (args.spiBus)->token);
+            break;
         default:
-            ((args.spiBus)->callBack)(args.spiBus, args.res.Error * -1, (args.spiBus)->token);
+            ((args.spiBus)->callBack)((args.spiBus)->wrapper, args.res.Error * -1, (args.spiBus)->token);
     }
     return args.state;
 }
@@ -180,7 +184,8 @@ int tegra_spi_init(enum spi_id id, volatile void* base,
             clock_sys_t* clock_sys, spi_bus_t** ret_spi_bus)
 {
     $ty:(SpiBusInit) args; 
-    args.p1 = &_spi[id];
+    args.p1 = &_spi_bus[id];
+    (args.p1)->wrapper = &_spi[id];
     if (cs_func != NULL) {
         args.p3.tag = TAG_ENUM_Some;
         args.p3.Some = cs_func;
@@ -189,12 +194,12 @@ int tegra_spi_init(enum spi_id id, volatile void* base,
     }
     args.p2 = base + spi_controller_offsets[id];
 
-    *ret_spi_bus = $exp:(tegraSpiInit)(args);
+    *ret_spi_bus = ($exp:(tegraSpiInit)(args))->wrapper;
     return 0;
 }
 
 void spi_handle_irq(spi_bus_t *spi_bus) {
-    $ty:((SysState, SpiBus)) args = { .p1 = NULL, .p2 = spi_bus };
+    $ty:((SysState, SpiBus)) args = { .p1 = NULL, .p2 = spi_bus->spi };
     $exp:(spiHandleIrq)(args);
 }
 
@@ -209,20 +214,20 @@ int spi_xfer(spi_bus_t* spi_bus, const void* txdata, size_t txcnt,
     // Just a hack to get the buffers in the right form
     // Note we assume that the word arrays meta data can be modified
     // even if the function fails
-    (spi_bus->txBuffer).len = (int) txcnt;
-    (spi_bus->txBuffer).values = ($ty:(U8)*) txdata;
+    (spi_bus->spi->txBuffer).len = (int) txcnt;
+    (spi_bus->spi->txBuffer).values = ($ty:(U8)*) txdata;
     if (rxdata != NULL) {
-        (spi_bus->rxBuffer).len = (int) (rxcnt + txcnt);
-        (spi_bus->rxBuffer).values = ($ty:(U8)*) rxdata;
+        (spi_bus->spi->rxBuffer).len = (int) (rxcnt + txcnt);
+        (spi_bus->spi->rxBuffer).values = ($ty:(U8)*) rxdata;
     } else {
-        (spi_bus->rxBuffer).len = 0;
-        (spi_bus->rxBuffer).values = NULL;
+        (spi_bus->spi->rxBuffer).len = 0;
+        (spi_bus->spi->rxBuffer).values = NULL;
     }
-    $ty:(SpiXferArgs) = args;
+    $ty:(SpiXferArgs) args;
     args.p1 = NULL;
-    args.p2 = spi_bus;
-    args.p3 = spi_bus->txBuffer;
-    args.p4 = spi_bus->rxBuffer;
+    args.p2 = spi_bus->spi;
+    args.p3 = spi_bus->spi->txBuffer;
+    args.p4 = spi_bus->spi->rxBuffer;
     args.p5 = ($ty:(U32)) rxcnt;
     // Hack to model NULL pointers in Cogent
     if (cb == NULL) {
@@ -257,6 +262,6 @@ void
 spi_prepare_transfer(spi_bus_t* spi_bus, const spi_slave_config_t* cfg)
 {
     // TODO: implement support for multiple slaves
-    $ty:((SpiBusNoSlave, SpiSlaveCfg)) args = { .p1 = spi_bus, .p2 = cfg };
+    $ty:((SpiBusNoSlave, SpiSlaveCfg)) args = { .p1 = spi_bus->spi, .p2 = cfg };
     $exp:(spiPrepareTransfer)(args);
 }

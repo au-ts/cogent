@@ -182,6 +182,8 @@ type CsFn
 -- Type of the callback function.
 type CbFn
 
+type SpiBusWrapper
+
 -- Cogent types --
 -- Register names.
 type SpiRegsField = 
@@ -214,10 +216,11 @@ type SpiBus =
     , txBuffer : (WordArray U8)!
     , rxBuffer : WordArray U8  -- can be empty
     , rxCnt : U32
-    , chipSelect: Option (CsFn!)
-    , callBack : CbFn!
+    , chipSelect: Option (#CsFn)
+    , callBack : #CbFn
     , token : Token
     , currSlave : SpiSlaveCfg
+    , wrapper : SpiBusWrapper
     }
 type SpiBusInit = SpiBus take(regs, chipSelect)
 type SpiBusNoSlave = SpiBus take(currSlave)
@@ -229,7 +232,7 @@ type SpiXferArgs =
     , (WordArray U8)!
     , WordArray U8
     , U32
-    , Option (CbFn!)
+    , Option (#CbFn)
     , Token)
 
 type SpiXferRet =
@@ -241,7 +244,7 @@ type SpiXferRet =
 -- Set the GPIO pins if the default chip selection is overwritten
 type ChipSelection =
     #{ state : SysState
-     , chipSelect : CsFn!
+     , chipSelect : #CsFn
      , slave : SpiSlaveCfg!
      , csState : SpiCsState
      }
@@ -388,7 +391,7 @@ spiPrepareTransfer (b0, slave) =
     let b1 = b0 { currSlave = slave }
     in b1
 
-tegraSpiInit : (SpiBusInit, SpiRegs, Option (CsFn!)) -> SpiBus
+tegraSpiInit : (SpiBusInit, SpiRegs, Option (#CsFn)) -> SpiBus
 tegraSpiInit (b0, r0, mcs) =
     let fifoStatus = spiFifoStsRxFifoFlush .|. 
         spiFifoStsTxFifoFlush .|.
