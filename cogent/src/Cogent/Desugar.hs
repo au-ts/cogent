@@ -650,7 +650,7 @@ desugarLayout l = Layout <$> desugarLayout' l
       TLArray e _ -> ArrayLayout <$> desugarLayout' e
 #endif
       TLVar n -> (findIx n <$> use layCtx) >>= \case
-        Just v -> pure $ VarLayout (finNat v)
+        Just v -> pure $ VarLayout (finNat v) 0
         Nothing -> __impossible "desugarLayout: unexpected layout variable - check typecheck"
 
 desugarSigil :: Sigil (Maybe DataLayoutExpr) -> DS t l v (Sigil (DataLayout DA.BitRange))

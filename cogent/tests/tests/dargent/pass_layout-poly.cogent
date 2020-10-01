@@ -1,0 +1,7 @@
+layout R l = record {f : l at 1B} 
+
+foo : all (t :< DS, l :~ t). { f : t } layout R l -> { f : t } take f layout R l
+foo r = let r'{f} = r in r'
+
+foo' : {f : U8} layout R 1B -> {f : U8} take f layout R 1B
+foo' x = foo x

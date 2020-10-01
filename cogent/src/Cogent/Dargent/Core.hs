@@ -57,13 +57,14 @@ data DataLayout' bits
 #ifdef BUILTIN_ARRAYS
   | ArrayLayout (DataLayout' bits)
 #endif
-  | VarLayout Nat
+  | VarLayout Nat Size  -- the second argument remembers the pending offset (always in bits)
   deriving (Show, Eq, Functor, Foldable, Generic)
 
 deriving instance Ord bits => Ord (DataLayout' bits)
 
 instance Offsettable a => Offsettable (DataLayout' a) where
-  offset n = fmap (offset n)
+  offset n (VarLayout x s) = VarLayout x $ s + n
+  offset n l = fmap (offset n) l
 
 instance Binary a => Binary (DataLayout' a)
 

@@ -62,7 +62,7 @@ liftTcSolvM :: Rewrite.RewriteT IO a -> Rewrite.RewriteT TcSolvM a
 liftTcSolvM (Rewrite.RewriteT m) = Rewrite.RewriteT (\a -> MaybeT $ liftIO $ runMaybeT (m a))
 
 simplify :: [(TyVarName, Kind)] -> [(DLVarName, TCType)] -> Rewrite.RewriteT IO [Goal]
-simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
+simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
   Sat      -> hoistMaybe $ Just []
   c1 :& c2 -> hoistMaybe $ Just [c1,c2]
 
@@ -161,7 +161,7 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
 #ifdef BUILTIN_ARRAYS
   LayoutOk (A t e (Left Unboxed) h) -> hoistMaybe $ Just [LayoutOk t]
 #endif
-  TLVar n        :~ tau | Just t <- lookup n ts -> hoistMaybe $ Just [tau :~~ t]
+  TLVar n        :~ tau | Just t <- lookup n lts -> hoistMaybe $ Just [tau :~~ t]  -- `l :~ t ==> l :~ tau` gets simplified to `tau :~~ t`
   TLRepRef _ _   :~ _ -> hoistMaybe Nothing
 
   TLRecord fs    :~ R _ r (Left Unboxed)
@@ -210,7 +210,6 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
 #endif
   _              :~ Synonym _ _      -> hoistMaybe Nothing
   l              :~ tau | TLU _ <- l -> hoistMaybe Nothing
-                        | otherwise  -> unsat $ LayoutDoesNotMatchType l tau
 
   TLRepRef _ _     :~< TLRepRef _ _  -> hoistMaybe Nothing
   TLRepRef _ _     :~< _             -> hoistMaybe Nothing
@@ -239,33 +238,20 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
                           | TLU _ <- l2 -> hoistMaybe Nothing
                           | otherwise   -> unsat $ LayoutsNotCompatible l1 l2  -- FIXME!
 
+  t1 :~~ t2 | isBoxedType t1, isBoxedType t2 -> hoistMaybe $ Just []  -- If both are pointers, then their layouts will be compatible
+
   T (TVar n1 _ _) :~~ T (TVar n2 _ _) | n1 == n2 -> hoistMaybe $ Just []
-  Synonym _ _     :~~ _               -> hoistMaybe Nothing
-  _               :~~ Synonym _ _     -> hoistMaybe Nothing
 
-  R rp1 r1 s1 :~~ R rp2 r2 s2
-    | Row.isEmpty r1
-    , Just c <- doSigilMatch (rmF s1) (rmF s2)
-    , sameRecursive rp1 rp2
-    -> hoistMaybe $ Just c
-    | Row.isComplete r1 && Row.isComplete r2
-    , psub r2 r1
-    -> let commons  = Row.common r1 r2 in
-       do guard (not (null commons))
-          let cs = map (\ (e,e') -> Row.payload e :~~ Row.payload e') commons
-              ds = map (flip Drop ImplicitlyTaken) $ Row.extract (pdiff r1 r2) r1
-          hoistMaybe $ Just (cs ++ ds)
+  R rp1 r1 (Left Unboxed) :~~ R rp2 r2 (Left Unboxed)
+    | Row.isComplete r1, Row.isComplete r2, S.fromList (Row.fnames r1) `S.isSubsetOf` S.fromList (Row.fnames r2)
+    -> hoistMaybe $ Just $ map (\(e1,e2) -> Row.payload e1:~~ Row.payload e2) (Row.common r1 r2)
 
-  V r1 :~~ V r2 | Row.isEmpty r1 -> hoistMaybe $ Just []
-                | Row.isComplete r1 && Row.isComplete r2 && peq r1 r2 ->
-    let commons  = Row.common r1 r2 in
-    do guard (not (null commons))
-       hoistMaybe $ Just $ map (\(e,e') -> Row.payload e :~~ Row.payload e') commons
+  V r1 :~~ V r2
+    | Row.isComplete r1, Row.isComplete r2, S.fromList (Row.fnames r1) `S.isSubsetOf` S.fromList (Row.fnames r2)
+    -> hoistMaybe $ Just $ map (\(e1,e2) -> Row.payload e1 :~~ Row.payload e2) (Row.common r1 r2)
 
 #ifdef BUILTIN_ARRAYS
-  A t1 _ s1 _ :~~ A t2 _ s2 _ | (Just c) <- doSigilMatch (rmF s1) (rmF s2)
-                              -> hoistMaybe $ Just ((t1 :~~ t2):c)
-                              | otherwise -> hoistMaybe Nothing
+  A t1 _ (Left Unboxed) _ :~~ A t2 _ (Left Unboxed) _ -> hoistMaybe $ Just [t1 :~~ t2]
 #endif
   T (TVar n1 _ _) :~~ T (TVar n2 _ _) | n1 == n2 -> hoistMaybe $ Just []
 
@@ -275,17 +261,11 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
             -> hoistMaybe $ Just []
             | otherwise -> unsat $ TypesNotFit t1 t2
 
-  T (TLayout l1 t1) :=: T (TLayout l2 t2) -> hoistMaybe $ Just [l1 :~< l2, t1 :=: t2, l1 :~ t1, l2 :~ t2]
-  T (TLayout l1 t1) :<  T (TLayout l2 t2) -> hoistMaybe $ Just [l1 :~< l2, t1 :<  t2, l1 :~ t1, l2 :~ t2]
-
   T (TFun t1 t2) :=: T (TFun r1 r2) -> hoistMaybe $ Just [r1 :=: t1, t2 :=: r2]
   T (TFun t1 t2) :<  T (TFun r1 r2) -> hoistMaybe $ Just [r1 :<  t1, t2 :<  r2]
 
   T (TTuple ts) :<  T (TTuple us) | length ts == length us -> hoistMaybe $ Just (zipWith (:< ) ts us)
   T (TTuple ts) :=: T (TTuple us) | length ts == length us -> hoistMaybe $ Just (zipWith (:=:) ts us)
-
-  T (TLayout (TLVar _) t1) :<  t2 -> hoistMaybe $ Just [t1 :<  t2]
-  T (TLayout (TLVar _) t1) :=: t2 -> hoistMaybe $ Just [t1 :=: t2]
 
   V r1 :< V r2 | Row.isEmpty r1 && Row.isEmpty r2 -> hoistMaybe $ Just []
                | Row.isComplete r1 && Row.isComplete r2 && psub r1 r2 ->
@@ -302,11 +282,11 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   R rp1 r1 s1 :< R rp2 r2 s2
     -- \ | trace ("r1 = " ++ show r1 ++ "\nr2 = " ++ show r2 ++ "\ns1 = " ++ show s1 ++ "\ns2 = " ++ show s2) False -> undefined
     | Row.isEmpty r1 && Row.isEmpty r2
-    , Just c <- doSigilMatch s1 s2
+    , Just c <- sigilMatch s1 s2
     , sameRecursive rp1 rp2
     -> hoistMaybe $ Just c
     | Row.isComplete r1 && Row.isComplete r2
-    , Just c <- doSigilMatch s1 s2
+    , Just c <- sigilMatch s1 s2
     , psub r2 r1 ->
       let commons = Row.common r1 r2 in
       do guard (not (null commons))
@@ -316,11 +296,11 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
 
   R rp1 r1 s1 :=: R rp2 r2 s2
     | Row.isEmpty r1 && Row.isEmpty r2
-    , Just c <- doSigilMatch s1 s2
+    , Just c <- sigilMatch s1 s2
     , sameRecursive rp1 rp2
     -> hoistMaybe $ Just c
     | Row.isComplete r1 && Row.isComplete r2
-    , Just c <- doSigilMatch s1 s2
+    , Just c <- sigilMatch s1 s2
     , peq r1 r2 ->
       let commons = Row.common r1 r2 in
       do guard (not (null commons))
@@ -330,20 +310,20 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
 
 #ifdef BUILTIN_ARRAYS
   -- See [NOTE: solving 'A' types] in Cogent.Solver.Unify
-  A t1 l1 s1 (Left r1) :<  A t2 l2 s2 (Left r2) | (Just c) <- doSigilMatch s1 s2 -> do
+  A t1 l1 s1 (Left r1) :<  A t2 l2 s2 (Left r2) | Just c <- sigilMatch s1 s2 -> do
     guard (not $ isJust r1 && isNothing r2)
     let drop = case (r1,r2) of
                  (r1, r2) | r1 == r2 -> Sat
                  (Nothing, Just i2) -> Drop t1 ImplicitlyTaken
                  (Just i1, Just i2) -> Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [i1,i2]))
-    hoistMaybe $ Just ([Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [l1,l2])), t1 :< t2, drop] <> c)
+    hoistMaybe $ Just (c <> [Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [l1,l2])), t1 :< t2, drop])
 
-  A t1 l1 s1 (Left r1) :=: A t2 l2 s2 (Left r2) | (Just c) <- doSigilMatch s1 s2 -> do
+  A t1 l1 s1 (Left r1) :=: A t2 l2 s2 (Left r2) | Just c <- sigilMatch s1 s2 -> do
     guard (isJust r1 && isJust r2 || isNothing r1 && isNothing r2)
     let drop = case (r1,r2) of
                  (r1, r2) | r1 == r2 -> Sat
                  (Just i1, Just i2) -> Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [i1,i2]))
-    hoistMaybe $ Just ([Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [l1,l2])), t1 :=: t2, drop] <> c)
+    hoistMaybe $ Just (c <> [Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [l1,l2])), t1 :=: t2, drop])
 
   a :-> b -> __fixme $ hoistMaybe $ Just [b]  -- FIXME: cuerently we ignore the impls. / zilinc
   
@@ -424,9 +404,10 @@ fullyNormalise :: TCType -> Rewrite.RewriteT TcSolvM TCType
 fullyNormalise t = undefined
 
 isBoxedType :: TCType -> Bool
-isBoxedType (R _ _ (Left (Boxed _ _))) = True
+isBoxedType (R _ _ (Left (Boxed {}))) = True
+isBoxedType (T (TCon _ _ (Boxed {}))) = True
 #ifdef BUILTIN_ARRAYS
-isBoxedType (A _ _ (Left (Boxed _ _)) _) = True
+isBoxedType (A _ _ (Left (Boxed {})) _) = True
 #endif
 isBoxedType _ = False
 
@@ -440,12 +421,8 @@ primTypeSize (T (TBang t))                = primTypeSize t
 primTypeSize (T (TUnbox t))               = primTypeSize t
 primTypeSize _                            = __impossible "call primTypeSize on non-prim types"
 
-rmF :: TCSigil -> TCSigil
-rmF (Left (Boxed _ l)) = Left (Boxed True l)
-rmF s = s
-
-doSigilMatch :: TCSigil -> TCSigil -> Maybe [Constraint]
-doSigilMatch s1 s2
+sigilMatch :: TCSigil -> TCSigil -> Maybe [Constraint]
+sigilMatch s1 s2
   | s1 == s2 = Just []
   | Left (Boxed ro1 l1) <- s1
   , Left (Boxed ro2 l2) <- s2
@@ -455,4 +432,3 @@ doSigilMatch s1 s2
       (Nothing , Nothing ) -> Just []
       _                    -> Nothing
   | otherwise = Nothing
-

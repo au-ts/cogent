@@ -191,7 +191,7 @@ data Constraint' t l = (:<) t t
                      | Escape t Metadata
                      | (:~) l t
                      | (:~<) l l
-                     | (:~~) t t
+                     | (:~~) t t  -- t1 :~~ t2 means that t1 can fit in any layout that t2 can fit in
                      | LayoutOk t
                      | (:@) (Constraint' t l) ErrorContext
                      | Unsat TypeError
@@ -691,6 +691,8 @@ substLayoutL vs (TLVariant e fs) = TLVariant e $ (\(x,y,z,v) -> (x,y,z,substLayo
 #ifdef BUILTIN_ARRAYS
 substLayoutL vs (TLArray e p) = TLArray (substLayoutL vs e) p
 #endif
+substLayoutL vs (TLOffset e s) = TLOffset (substLayoutL vs e) s
+substLayoutL vs (TLRepRef n es) = TLRepRef n $ fmap (substLayoutL vs) es 
 substLayoutL vs l = l
 
 substLayout :: [(DLVarName, TCDataLayout)] -> TCType -> TCType

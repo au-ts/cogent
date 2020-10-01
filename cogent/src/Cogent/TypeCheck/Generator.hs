@@ -593,8 +593,8 @@ cg' (TLApp f ts ls i) t = do
           matchL [] _  = pure (Unsat $ TooManyLayoutArguments f (PT tvs lvs tau), [])
           matchL ts [] = freshLVar >>= matchL ts . return . Just
           matchL (t':t'') (Nothing:l') = freshLVar >>= matchL (t':t'') . (:l') . Just
-          matchL ((v,t):t'') (Just l:l') = do
-            (c, ps) <- matchL t'' l'
+          matchL ((v,t):t') (Just l:l') = do
+            (c, ps) <- matchL t' l'
             return (c <> layoutMatchConstraint t l, (v, l):ps)
       (cts, tps) <- matchT tvs ts'
       (cls, lps) <- matchL (second (substType tps) <$> lvs) ls'
