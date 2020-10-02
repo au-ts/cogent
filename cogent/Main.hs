@@ -30,35 +30,28 @@ module Main where
 import           Cogent.C                         as CG (cgen, printCTable, printATM)
 import           Cogent.Common.Syntax             as SY (CoreFunName (..))
 import           Cogent.Compiler
-import           Cogent.Core                      as CC (getDefinitionId,
-                                                         isConFun, untypeD)
+import           Cogent.Core                      as CC (getDefinitionId, isConFun, untypeD)
 import           Cogent.Desugar                   as DS (desugar)
 #ifdef WITH_DOCGENT
 import           Cogent.DocGent                   as DG (docGent)
 #endif
 import           Cogent.GetOpt
-import           Cogent.Glue                      as GL (GlState, GlueMode (..),
-                                                         defaultExts,
-                                                         defaultTypnames, glue,
-                                                         mkGlState, parseFile,
-                                                         readEntryFuncs)
+import           Cogent.Glue                      as GL (GlState, GlueMode (..), defaultExts, defaultTypnames,
+                                                         glue, mkGlState, parseFile, readEntryFuncs)
 #ifdef WITH_HASKELL
 import           Cogent.Haskell.Shallow           as HS
 #endif
-
-
-import           Cogent.Inference                 as IN (retype, tc, tcConsts,
-                                                         tc_)
+import           Cogent.Inference                 as IN (retype, tc, tcConsts, tc_)
 import           Cogent.Interpreter               as Repl (replWithState)
 import           Cogent.Isabelle                  as Isa
+#ifdef WITH_LLVM
 import           Cogent.LLVM.Compile              as LLVM
+#endif
 import           Cogent.Mono                      as MN (mono, printAFM)
 import           Cogent.Normal                    as NF (normal, verifyNormal)
-import           Cogent.Parser                    as PA (parseCustTyGen,
-                                                         parseWithIncludes)
+import           Cogent.Parser                    as PA (parseCustTyGen, parseWithIncludes)
 import           Cogent.Preprocess                as PR
-import           Cogent.PrettyPrint               as PP (prettyPrint, prettyRE,
-                                                         prettyTWE)
+import           Cogent.PrettyPrint               as PP (prettyPrint, prettyRE, prettyTWE)
 import           Cogent.Reorganizer               as RO (reorganize)
 import           Cogent.Simplify                  as SM
 import           Cogent.SuParser                  as SU (parse)
@@ -73,8 +66,7 @@ import           Control.Applicative              (liftA, (<$>))
 #else
 import           Control.Applicative              (liftA)
 #endif
-import           Control.Monad                    (forM, forM_, unless, when,
-                                                   (<=<))
+import           Control.Monad                    (forM, forM_, unless, when, (<=<))
 import           Control.Monad.Trans.Except       (runExceptT)
 -- import Control.Monad.Cont
 -- import Control.Monad.Except (runExceptT)
@@ -83,9 +75,7 @@ import           Data.Binary                      (decodeFileOrFail, encodeFile)
 import           Data.Char                        (isSpace)
 import           Data.Either                      (fromLeft, isLeft)
 import           Data.Foldable                    (fold, foldrM)
-import           Data.List                        as L (find, intersect,
-                                                        isPrefixOf, nub,
-                                                        partition)
+import           Data.List                        as L (find, intersect, isPrefixOf, nub, partition)
 import           Data.Map                         (empty, fromList)
 import           Data.Maybe                       (fromJust, isJust)
 import           Data.Monoid                      (getLast)
@@ -99,32 +89,28 @@ import           System.AtomicWrite.Writer.String (atomicWithFile)
 -- import System.Console.GetOpt
 import           System.Directory
 import           System.Environment
-import           System.Exit                      hiding (exitFailure,
-                                                   exitSuccess)
+import           System.Exit                      hiding (exitFailure, exitSuccess)
 import           System.FilePath                  hiding ((</>))
 import           System.IO
 import           System.Process                   (readProcessWithExitCode)
-import           Text.PrettyPrint.ANSI.Leijen     as LJ (Doc, displayIO,
-                                                         hPutDoc, plain)
+import           Text.PrettyPrint.ANSI.Leijen     as LJ (Doc, displayIO, hPutDoc, plain)
 #if MIN_VERSION_mainland_pretty(0,6,0)
-import           Text.PrettyPrint.Mainland        as M (hPutDoc, line, string,
-                                                        (</>))
+import           Text.PrettyPrint.Mainland        as M (hPutDoc, line, string, (</>))
 import           Text.PrettyPrint.Mainland.Class  as M (ppr)
 #else
-import           Text.PrettyPrint.Mainland        as M (hPutDoc, line, ppr,
-                                                        string, (</>))
+import           Text.PrettyPrint.Mainland        as M (hPutDoc, line, ppr, string, (</>))
 #endif
 import           Text.Show.Pretty                 (ppShow)
 -- import Debug.Trace
 
 -- Major modes of operation.
 data Mode = ModeAstC
-    | ModeStackUsage
-    | ModeCompiler
-    | ModeInterpreter
-    | ModeLLVM
-    | ModeAbout
-    deriving (Eq, Show)
+          | ModeStackUsage
+          | ModeCompiler
+          | ModeInterpreter
+          | ModeLLVM
+          | ModeAbout
+          deriving (Eq, Show)
 
 type Verbosity = Int
 
@@ -136,6 +122,7 @@ data Command = AstC
              | Compile Stage
              | Interpret
              | CodeGen
+             | LLVMGen
              | ACInstall
              | CorresSetup
              | CorresProof
@@ -174,6 +161,7 @@ data Command = AstC
              -- More
              deriving (Eq, Show)
 
+
 isAstC :: Command -> Bool
 isAstC AstC = True
 isAstC _    = False
@@ -185,7 +173,7 @@ isStackUsage _              = False
  
 isLLVMGen :: Command -> Bool
 isLLVMGen LLVMGen = True
-isLLVMGen _    = False
+isLLVMGen _       = False
 
 isDeep :: Stage -> Command -> Bool
 isDeep s (Deep s') = s == s'
@@ -374,7 +362,11 @@ options = [
   -- interpreter
   , Option ['i']      ["repl"]            1 (NoArg $ Interpret)             "run Cogent REPL"
   -- llvm
+#ifdef WITH_LLVM
   , Option []         ["llvm"]            0 (NoArg LLVMGen)                 "use the experimental LLVM backend"
+#else
+  , Option []         ["llvm"]            0 (NoArg LLVMGen)                 "use the experimental LLVM backend [disabled in this build]"
+#endif
   -- documentation
 #ifdef WITH_DOCGENT
   , Option []         ["docgent"]         2 (NoArg $ Documentation)         "generate HTML documentation"
@@ -796,7 +788,9 @@ parseArgs args = case getOpt' Permute options args of
                                                                     ShallowConsts stg `elem` cmds,
                                                                     False, False, False, False, False)
           -- LLVM Entrance
+#ifdef WITH_LLVM
           when (LLVMGen `elem` cmds) $ llvmg cmds monoed' ctygen' insts source tced tcst typedefs fts buildinfo log
+#endif
           when (Compile (succ stg) `elem` cmds) $ cg cmds monoed' ctygen' insts source tced tcst typedefs fts buildinfo log
           c_refinement source monoed' insts log (ACInstall `elem` cmds, CorresSetup `elem` cmds, CorresProof `elem` cmds)
           when (MonoProof `elem` cmds) $ do
@@ -819,12 +813,12 @@ parseArgs args = case getOpt' Permute options args of
           when (GraphGen `elem` cmds) $ putProgressLn ("Generating graph...") >> graphGen monoed' log
           exitSuccessWithBuildInfo cmds buildinfo
 
+#ifdef WITH_LLVM
     llvmg cmds monoed ctygen insts source tced tcst typedefs fts buildinfo log = do
       putProgressLn "Now using the LLVM backend"
       pretty stdout monoed
       LLVM.to_llvm monoed source
-
-
+#endif
 
     cg cmds monoed ctygen insts source tced tcst typedefs fts buildinfo log = do
       let hName = mkOutputName source Nothing <.> __cogent_ext_of_h

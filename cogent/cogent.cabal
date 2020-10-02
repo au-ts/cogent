@@ -63,6 +63,11 @@ flag haskell-backend
   manual: True
   default: False
 
+flag llvm-backend
+  description: Enable LLVM backend
+  manual: True
+  default: False
+
 
 source-repository head
   type:     git
@@ -160,7 +165,6 @@ library
               , Data.OMap
               , Data.PropEq
               , Data.Vec
-              , Cogent.LLVM.Compile
               -- Generated
               , Paths_cogent
               , Version_cogent
@@ -193,9 +197,12 @@ library
               , syb >= 0.4
               , template-haskell
               , transformers >= 0.4.2
-              , llvm-hs >= 9.0.1
+  if flag(llvm-backend)
+    exposed-modules: Cogent.LLVM.Compile
+    cpp-options: -DWITH_LLVM
+    build-depends:
+                llvm-hs >= 9.0.1
               , llvm-hs-pure >= 9.0.0
-              , ghc >= 8.6.5
   if flag(haskell-backend)
     exposed-modules: Cogent.Haskell.FFIGen
                    , Cogent.Haskell.HscGen
@@ -267,6 +274,8 @@ Executable cogent
               , transformers >= 0.4.2
               , microlens >= 0.4.8
 
+  if flag(llvm-backend)
+    cpp-options: -DWITH_LLVM
   if flag(haskell-backend)
     cpp-options: -DWITH_HASKELL
   if flag(builtin-arrays)
