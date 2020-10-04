@@ -212,7 +212,7 @@ addCommand c = \(m',cs) -> if getMode c == m'
 getMode :: Command -> Mode
 getMode AstC           = ModeAstC
 getMode (StackUsage _) = ModeStackUsage
-getMode StdGumDir      = ModeAbout
+getMode LibgumDir      = ModeAbout
 getMode (Help _)       = ModeAbout
 getMode Version        = ModeAbout
 getMode LLVMGen        = ModeLLVM
@@ -816,7 +816,6 @@ parseArgs args = case getOpt' Permute options args of
 #ifdef WITH_LLVM
     llvmg cmds monoed ctygen insts source tced tcst typedefs fts buildinfo log = do
       putProgressLn "Now using the LLVM backend"
-      pretty stdout monoed
       LLVM.to_llvm monoed source
 #endif
 

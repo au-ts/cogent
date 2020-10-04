@@ -9,6 +9,6 @@
     - pass_simple-split.cogent
     - pass_simple-string-lit.cogent
     - pass_simple-struct.cogent
-  expected_result: pass
+  expected_result: wip-pass
   flags:
     - --llvm

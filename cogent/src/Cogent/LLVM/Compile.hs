@@ -4,13 +4,15 @@
 
 module Cogent.LLVM.Compile where
 
+import           Cogent.Common.Syntax           as Sy
+import           Cogent.Common.Types
+import           Cogent.Compiler
+import           Cogent.Core                    as Core
+import           Data.Fin                       (finInt)
+import qualified Data.Vec
+
 import           Control.Applicative
 import           Control.Monad.State
-
-import           System.FilePath
-import           System.Info
-import           System.IO
-
 import           Data.ByteString                as BS
 import           Data.ByteString.Internal
 import           Data.ByteString.Short.Internal
@@ -21,14 +23,7 @@ import           Data.List
 import qualified Data.Map                       as Map
 import           Data.Monoid                    ((<>))
 import           Data.String
-import qualified Data.Vec
 import           Data.Word
-
-import           Cogent.Common.Repr
-import           Cogent.Common.Syntax           as Sy
-import           Cogent.Common.Types
-import           Cogent.Core                    as Core
-
 import           LLVM.AST
 import qualified LLVM.AST                       as AST
 import           LLVM.AST.AddrSpace
@@ -38,13 +33,16 @@ import qualified LLVM.AST.Constant              as C
 import           LLVM.AST.DataLayout
 import           LLVM.AST.Global
 import           LLVM.AST.Instruction
+import           LLVM.AST.IntegerPredicate      as IntP
 import           LLVM.AST.Name
 import           LLVM.AST.Operand
 import           LLVM.AST.Type
 import           LLVM.AST.Typed                 (typeOf)
 import           LLVM.Context
 import           LLVM.Module
-import  LLVM.AST.IntegerPredicate as IntP
+import           System.FilePath
+import           System.Info
+import           System.IO
 
 import           Debug.Trace                    (trace)
 
@@ -105,9 +103,9 @@ toLLVMInt U32     = IntegerType 32
 toLLVMInt U64     = IntegerType 64
 
 
-toLLVMType :: Core.Type t -> LLVM.AST.Type.Type
+toLLVMType :: Core.Type t b -> LLVM.AST.Type.Type
 toLLVMType (TPrim p) = toLLVMInt p
-toLLVMType (TRecord ts _) = -- don't know how to deal with sigil
+toLLVMType (TRecord _ ts _) = -- don't know how to deal with sigil, also not handling recursive types
   StructureType { isPacked = False
                 , elementTypes = [ toLLVMType t | (_, (t, _)) <- ts ]
                 }
@@ -123,13 +121,14 @@ toLLVMType (TSum ts) =
                         , elementTypes = [ IntegerType 32 -- default 32 bit tag
                                          , toLLVMType maxType ]}
 #ifdef BUILTIN_ARRAYS
-toLLVMType (TArray t s) = ArrayType { nArrayElements = s
-                                  , elementType = toLLVMType t
-                                  }
+toLLVMType (TArray t l s mh) =
+  ArrayType { nArrayElements = __todo "toLLVMType: we cannot evaluate LExpr to a constant"
+            , elementType = toLLVMType t
+            }
 #endif
-toLLVMType _         = VoidType
+toLLVMType _ = VoidType
 
-typeSize :: Core.Type t -> Int
+typeSize :: Core.Type t b -> Int
 typeSize (TPrim p) = case p of
                        Boolean -> 1
                        U8 -> 8
@@ -262,13 +261,13 @@ setBlock blkName = do
   modify (\s -> s { currentBlock = blkName })
   return blkName
 
-rec_type :: TypedExpr t v a -> [LLVM.AST.Type.Type]
-rec_type (TE rect _) = case rect of
-                   (TRecord flds _) -> Data.List.map (\f -> toLLVMType (fst (snd f))) flds
+recordType :: TypedExpr t v a b -> [LLVM.AST.Type.Type]
+recordType (TE rect _) = case rect of
+                   (TRecord _ flds _) -> Data.List.map (\f -> toLLVMType (fst (snd f))) flds
                    _ -> error "cannot get record type from a non-record type"
 
 
-exprToLLVM :: Core.TypedExpr t v a -> Codegen (Either Operand (Named Terminator))
+exprToLLVM :: Core.TypedExpr t v a b -> Codegen (Either Operand (Named Terminator))
 exprToLLVM (TE t Unit) = return (Left (ConstantOperand C.Undef { C.constantType = toLLVMType t }))
 
 exprToLLVM (TE _ (ILit int bits)) =
@@ -366,7 +365,7 @@ exprToLLVM (TE _ (Take (a, b) recd fld body)) =
   do
     _recv <- (exprToLLVM recd)
     let recv = Data.Either.fromLeft (error "address cannot be terminator") _recv
-    fldvp <- instr ((rec_type recd) !!  fld)
+    fldvp <- instr ((recordType recd) !!  fld)
                   (GetElementPtr { inBounds = True
                                  , address = recv
                                  , indices = [
@@ -381,7 +380,7 @@ exprToLLVM (TE _ (Take (a, b) recd fld body)) =
                                              ]
                                  , LLVM.AST.Instruction.metadata = []
                                  })
-    fldv <- instr ((rec_type recd) !! fld) (LLVM.AST.Instruction.Load { volatile = False
+    fldv <- instr ((recordType recd) !! fld) (LLVM.AST.Instruction.Load { volatile = False
                                                                       , address = fldvp
                                                                       , maybeAtomicity = Nothing
                                                                       , LLVM.AST.Instruction.alignment = 4
@@ -400,7 +399,7 @@ exprToLLVM (TE _ (Put recd fld val)) =
     let recv = Data.Either.fromLeft (error "address cannot be terminator") _recv
     _v <- (exprToLLVM val)
     let v = Data.Either.fromLeft (error "address cannot be terminator") _v
-    fldvp <- instr ((rec_type recd) !!  fld)
+    fldvp <- instr ((recordType recd) !!  fld)
                   (GetElementPtr { inBounds = True
                                  , address = recv
                                  , indices = [
@@ -515,7 +514,7 @@ exprToLLVM r@(TE rect (Struct flds)) =
     let fldvs = [ (i, exprToLLVM (snd fld)) | (i, fld) <- Data.List.zip [0..] flds] in
       (Data.List.foldr (>>) (pure struct)
                            [ (do
-                                 elmptr <- (instr ((rec_type r) !! i)
+                                 elmptr <- (instr ((recordType r) !! i)
                                             (GetElementPtr { inBounds = True
                                                            , address = struct
                                                            , indices = [ConstantOperand
@@ -525,7 +524,7 @@ exprToLLVM r@(TE rect (Struct flds)) =
                                                                          C.Int { C.integerBits = 64
                                                                                , C.integerValue = toInteger i}
                                                                        ]}))
-                                 fldv >>= (\v -> instr ((rec_type r) !! i) (Store { address = elmptr
+                                 fldv >>= (\v -> instr ((recordType r) !! i) (Store { address = elmptr
                                                                                   , LLVM.AST.Instruction.value = (Data.Either.fromLeft (error "field value cannot be terminator") v)
                                                                                   , LLVM.AST.Instruction.alignment = 4})))
                            | (i, fldv) <- fldvs ]) >>= (\a -> return (Left a))
@@ -537,7 +536,7 @@ exprToLLVM (TE vt (Variable (idx, _))) =
     unnames <- gets unnamedCount
     _indexing <- gets indexing
     let indexing = _indexing in
-      let _idx = (Data.Vec.finInt idx) in
+      let _idx = finInt idx in
         if (Data.List.null indexing) then
           let pos = (fromIntegral unnames) - _idx in
             return (Left (LocalReference (toLLVMType vt) (UnName (fromIntegral pos))))
@@ -547,35 +546,35 @@ exprToLLVM (TE vt (Variable (idx, _))) =
 exprToLLVM _ = error ("not implemented yet")
 
 
-hasBlock :: Core.TypedExpr t v a -> Bool
+hasBlock :: Core.TypedExpr t v a b -> Bool
 hasBlock (TE _ e) = hasBlock' e
-
-hasBlock' :: Core.Expr t v a Core.TypedExpr -> Bool
-hasBlock' (Variable _) = False
-hasBlock' (Fun _ _ _) = False
-hasBlock' (Op _ xs) = Data.List.foldl (\a b-> a || hasBlock b) False xs
-hasBlock' (App a b) = hasBlock a || hasBlock b
-hasBlock' (Con _ _ _) = False
-hasBlock' (Unit) = False
-hasBlock' (ILit _ _) = False
-hasBlock' (SLit _) = False
+  where
+    hasBlock' :: Core.Expr t v a b Core.TypedExpr -> Bool
+    hasBlock' (Variable _) = False
+    hasBlock' (Fun _ _ _ _) = False
+    hasBlock' (Op _ xs) = Data.List.foldl (\a b-> a || hasBlock b) False xs
+    hasBlock' (App a b) = hasBlock a || hasBlock b
+    hasBlock' (Con _ _ _) = False
+    hasBlock' (Unit) = False
+    hasBlock' (ILit _ _) = False
+    hasBlock' (SLit _) = False
 #ifdef BUILTIN_ARRAYS
-hasBlock' (ALit xs) = Data.List.foldl (\a b-> a || hasBlock b) False xs
-hasBlock' (ArrayIndex _ _) = False
-hasBlock' (Singleton _) = False
+    hasBlock' (ALit xs) = Data.List.foldl (\a b-> a || hasBlock b) False xs
+    hasBlock' (ArrayIndex _ _) = False
+    hasBlock' (Singleton _) = False
 #endif
-hasBlock' (Tuple a b) = hasBlock a || hasBlock b
-hasBlock' (Struct xs) = Data.List.foldl (\a b-> a || hasBlock (snd b)) False xs
-hasBlock' (Esac _) = False
-hasBlock' (Core.Member a _) = hasBlock a
-hasBlock' (Put a _ b) = hasBlock a || hasBlock b
-hasBlock' (Promote _ e) = hasBlock e
-hasBlock' (Cast _ e) = hasBlock e
-hasBlock' _ = True
+    hasBlock' (Tuple a b) = hasBlock a || hasBlock b
+    hasBlock' (Struct xs) = Data.List.foldl (\a b-> a || hasBlock (snd b)) False xs
+    hasBlock' (Esac _) = False
+    hasBlock' (Core.Member a _) = hasBlock a
+    hasBlock' (Put a _ b) = hasBlock a || hasBlock b
+    hasBlock' (Promote _ e) = hasBlock e
+    hasBlock' (Cast _ e) = hasBlock e
+    hasBlock' _ = True
 
 
-toLLVMDef :: Core.Definition Core.TypedExpr VarName -> LLVM ()
-toLLVMDef (AbsDecl attr name ts t rt) =
+toLLVMDef :: Core.Definition Core.TypedExpr VarName VarName -> LLVM ()
+toLLVMDef (AbsDecl attr name ts ls t rt) =
     expandMod (GlobalDefinition
                (functionDefaults { LLVM.AST.Global.name = Name (toShort (Data.ByteString.Internal.packChars name))
                                  , parameters = ([Parameter (toLLVMType t) (UnName 0) []], False)
@@ -583,16 +582,16 @@ toLLVMDef (AbsDecl attr name ts t rt) =
                                  , basicBlocks = []
                                  }))
 -- if passing in struct, it should be a pointer
-toLLVMDef (FunDef attr name ts t rt body) =
+toLLVMDef (FunDef attr name ts ls t rt body) =
   def (toShort (Data.ByteString.Internal.packChars name))
       [(argType t,
          (UnName 0))]
       (argType rt)
       (\ptr -> (exprToLLVM body))
-  where argType at@(TRecord _ _) = (LLVM.AST.PointerType { pointerReferent = (toLLVMType at)
-                                                       , pointerAddrSpace = AddrSpace 0})
-        argType at@(TProduct _ _) = (LLVM.AST.PointerType { pointerReferent = (toLLVMType at)
+  where argType at@(TRecord {}) = (LLVM.AST.PointerType { pointerReferent = (toLLVMType at)
                                                         , pointerAddrSpace = AddrSpace 0})
+        argType at@(TProduct {}) = (LLVM.AST.PointerType { pointerReferent = (toLLVMType at)
+                                                         , pointerAddrSpace = AddrSpace 0})
         argType at = toLLVMType at
         
 
@@ -601,7 +600,7 @@ toLLVMDef (TypeDef name tyargs mt) =
                             (fmap toLLVMType mt))
 
 
-to_mod :: [Core.Definition Core.TypedExpr VarName] -> FilePath -> AST.Module
+to_mod :: [Core.Definition Core.TypedExpr VarName VarName] -> FilePath -> AST.Module
 to_mod (x:xs) source = to_mod' (toLLVMDef x) (to_mod xs source)
   where to_mod' (LLVM m) mod = execState m mod
 to_mod [] source = (newModule (toShort (Data.ByteString.Internal.packChars source))
@@ -622,12 +621,9 @@ write_llvm mod file = (withContext (\ctx ->
                                           (BS.hPut file ir))))
 
 
-to_llvm :: [Core.Definition Core.TypedExpr VarName] -> FilePath -> IO ()
+to_llvm :: [Core.Definition Core.TypedExpr VarName VarName] -> FilePath -> IO ()
 to_llvm monoed source = do
-  System.IO.putStrLn "Showing AST"
   let ast =  to_mod monoed source
-  -- System.IO.putStrLn (show ast)
-  print_llvm ast
   let resName = replaceExtension source "ll"
   outFile <- openFile resName ReadWriteMode
   write_llvm ast outFile

@@ -14,6 +14,13 @@ branches:
   except:
   - /^auto-deploy-.*$/
 
+addons:
+  apt:
+    sources:
+      - llvm-toolchain-trusty-9.0
+    packages:
+      - clang-9.0
+
 # addons:
 #   apt:
 #     packages:
@@ -32,8 +39,8 @@ env:
   global:
     - REPO=$TRAVIS_BUILD_DIR
     - TRAVIS_BUILD_APT_RETRIES_PERCENTAGE=100
-    - COGENT_FULL_FEATURE="+builtin-arrays +refinement-types +docgent +haskell-backend"
-    - COGENT_NO_FEATURE="-builtin-arrays -refinement-types -docgent -haskell-backend"
+    - COGENT_FULL_FEATURE="+builtin-arrays +refinement-types +docgent +haskell-backend +llvm-backend"
+    - COGENT_NO_FEATURE="-builtin-arrays -refinement-types -docgent -haskell-backend -llvm-backend"
 
 jobs:
   include:

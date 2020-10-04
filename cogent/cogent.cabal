@@ -197,12 +197,6 @@ library
               , syb >= 0.4
               , template-haskell
               , transformers >= 0.4.2
-  if flag(llvm-backend)
-    exposed-modules: Cogent.LLVM.Compile
-    cpp-options: -DWITH_LLVM
-    build-depends:
-                llvm-hs >= 9.0.1
-              , llvm-hs-pure >= 9.0.0
   if flag(haskell-backend)
     exposed-modules: Cogent.Haskell.FFIGen
                    , Cogent.Haskell.HscGen
@@ -211,7 +205,7 @@ library
     cpp-options: -DWITH_HASKELL
     build-depends: haskell-src-exts >= 1.19, pretty
   if flag(llvm-backend)
-    exposed-modules: Cogent.LLVM.Compiler
+    exposed-modules: Cogent.LLVM.Compile
     cpp-options: -DWITH_LLVM
     build-depends: llvm-hs >= 9.0.1, llvm-hs-pure >= 9.0.0
   if flag(builtin-arrays) || flag(refinement-types)
