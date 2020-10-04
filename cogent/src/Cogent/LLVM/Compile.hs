@@ -290,6 +290,7 @@ exprToLLVM (TE rt (Op op [a,b])) =
      res <- let oa = Data.Either.fromLeft (error "operand of OP cannot be terminator") _oa
                 ob = Data.Either.fromLeft (error "operand of OP cannot be terminator") _ob
               in case op of
+                     -- What to do about poison values?
                      Sy.Plus -> instr (toLLVMType rt) (Add { nsw = False
                                                            , nuw = True
                                                            , operand0 = oa
@@ -349,18 +350,50 @@ exprToLLVM (TE rt (Op op [a,b])) =
                                                                                , iPredicate = IntP.EQ -- assuming unsigned
                                                                                })
                      Sy.NEq -> instr (IntegerType 1) (LLVM.AST.Instruction.ICmp { operand0 = oa
-                                                                               , operand1 = ob
-                                                                               , LLVM.AST.Instruction.metadata = []
-                                                                               , iPredicate = NE -- assuming unsigned
-                                                                               })
-                     Sy.BitAnd-> error "not implemented yet"
-                     Sy.BitOr-> error "not implemented yet"
-                     Sy.BitXor-> error "not implemented yet"
-                     Sy.LShift-> error "not implemented yet"
-                     Sy.RShift-> error "not implemented yet"
-                     Sy.Complement-> error "not implemented yet"
-                     Sy.Not -> error "Not is not defined to be binary"
+                                                                                , operand1 = ob
+                                                                                , LLVM.AST.Instruction.metadata = []
+                                                                                , iPredicate = NE -- assuming unsigned
+                                                                                })
+                     Sy.BitAnd -> instr (toLLVMType rt) (LLVM.AST.Instruction.And { operand0 = oa
+                                                                                  , operand1 = ob
+                                                                                  , LLVM.AST.Instruction.metadata = []} )
+                     Sy.BitOr -> instr (toLLVMType rt) (LLVM.AST.Instruction.Or { operand0 = oa
+                                                                                , operand1 = ob
+                                                                                , LLVM.AST.Instruction.metadata = []} )
+                     Sy.BitXor -> instr (toLLVMType rt) (LLVM.AST.Instruction.Xor { operand0 = oa
+                                                                                  , operand1 = ob
+                                                                                  , LLVM.AST.Instruction.metadata = []} )
+                     Sy.LShift-> instr (toLLVMType rt) (LLVM.AST.Instruction.Shl { nsw = False
+                                                                                 , nuw = False
+                                                                                 , operand0 = oa
+                                                                                 , operand1 = ob
+                                                                                 , LLVM.AST.Instruction.metadata = []
+                                                                                 })
+                     Sy.RShift-> instr (toLLVMType rt) (LLVM.AST.Instruction.LShr { exact = False
+                                                                                  , operand0 = oa
+                                                                                  , operand1 = ob
+                                                                                  , LLVM.AST.Instruction.metadata = []
+                                                                                  })
      return (Left res)
+
+-- unary operators
+exprToLLVM (TE rt (Op op [a])) =
+  do _oa <- exprToLLVM a
+      -- If the operands are known at compile time, should we evaluate the expression here?
+     res <- let oa = Data.Either.fromLeft (error "operand of OP cannot be terminator") _oa
+                mone = ConstantOperand C.Int { C.integerBits = typeSize rt, C.integerValue = -1 }
+                zero = ConstantOperand C.Int { C.integerBits = typeSize rt, C.integerValue = 0 }
+              in case op of
+                     Sy.Complement-> instr (toLLVMType rt) (LLVM.AST.Instruction.Xor { operand0 = oa
+                                                                                     , operand1 = mone 
+                                                                                     , LLVM.AST.Instruction.metadata = []} )
+                     Sy.Not -> instr (IntegerType 1) (LLVM.AST.Instruction.ICmp { operand0 = oa
+                                                                                , operand1 = zero
+                                                                                , LLVM.AST.Instruction.metadata = []
+                                                                                , iPredicate = IntP.EQ
+                                                                                })
+     return (Left res)
+
 exprToLLVM (TE _ (Take (a, b) recd fld body)) =
   do
     _recv <- (exprToLLVM recd)
