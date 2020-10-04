@@ -14,19 +14,6 @@ branches:
   except:
   - /^auto-deploy-.*$/
 
-addons:
-  apt:
-    sources:
-      - llvm-toolchain-trusty-9.0
-    packages:
-      - clang-9.0
-
-# addons:
-#   apt:
-#     packages:
-#       - "python3"
-#       - "python3-pip"
-
 cache:
   directories:
     - $HOME/.ghc
@@ -46,16 +33,16 @@ jobs:
   include:
     - env: CABALVER=3.2 GHCVER=8.8.3 COGENT_BUILD_FLAGS=$COGENT_FULL_FEATURE
       compiler: "ghc-8.8.3"
-      addons: {apt: {packages: [cabal-install-3.2,ghc-8.8.3,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
+      addons: {apt: {packages: [cabal-install-3.2,ghc-8.8.3,alex-3.1.7,happy-1.19.5,clang-9.0], sources: [hvr-ghc,llvm-toolchain-trusty-9.0], config: {retries: true}}}
     - env: CABALVER=3.2 GHCVER=8.8.3 COGENT_BUILD_FLAGS=$COGENT_NO_FEATURE
       compiler: "ghc-8.8.3"
       addons: {apt: {packages: [cabal-install-3.2,ghc-8.8.3,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
     - env: CABALVER=3.2 GHCVER=8.6.5 COGENT_BUILD_FLAGS=$COGENT_FULL_FEATURE
       compiler: "ghc-8.6.5"
-      addons: {apt: {packages: [cabal-install-3.2,ghc-8.6.5,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
+      addons: {apt: {packages: [cabal-install-3.2,ghc-8.6.5,alex-3.1.7,happy-1.19.5,clang-9.0], sources: [hvr-ghc,llvm-toolchain-trusty-9.0], config: {retries: true}}}
     - env: CABALVER=3.2 GHCVER=8.4.4 COGENT_BUILD_FLAGS=$COGENT_FULL_FEATURE
       compiler: "ghc-8.4.4"
-      addons: {apt: {packages: [cabal-install-3.2,ghc-8.4.4,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
+      addons: {apt: {packages: [cabal-install-3.2,ghc-8.4.4,alex-3.1.7,happy-1.19.5,clang-9.0], sources: [hvr-ghc,llvm-toolchain-trusty-9.0], config: {retries: true}}}
 
   allow_failures:
     # I know that some dependency triggers ghc panic in that version. / zilinc
