@@ -363,19 +363,14 @@ exprToLLVM (TE rt (Op op [a,b])) =
 
 exprToLLVM (TE rt (Op op [a])) =
   do _oa <- exprToLLVM a
-      -- If the operands are known at compile time, should we evaluate the expression here?
-     res <- let oa = Data.Either.fromLeft (error "operand of OP cannot be terminator") _oa
-                mone = ConstantOperand C.Int { C.integerBits = typeSize rt, C.integerValue = -1 }
-                zero = ConstantOperand C.Int { C.integerBits = typeSize rt, C.integerValue = 0 }
+     res <- let oa = fromLeft (error "operand of OP cannot be terminator") _oa
+                nbits = toEnum (typeSize rt)
+                mone = ConstantOperand C.Int { C.integerBits = nbits, C.integerValue = -1 }
               in case op of
-                     Sy.Complement-> instr (toLLVMType rt) (Xor { operand0 = oa
-                                                                , operand1 = mone 
-                                                                , metadata = []} )
-                     Sy.Not -> instr (IntegerType 1) (ICmp { operand0 = oa
-                                                           , operand1 = zero
-                                                           , metadata = []
-                                                           , iPredicate = IntP.EQ
-                                                           })
+                x | x `Data.List.elem` [Sy.Complement, Sy.Not] -> -- Not is just Complement for Bool
+                               instr (toLLVMType rt) (Xor { operand0 = oa
+                                                          , operand1 = mone 
+                                                          , metadata = []} )
      return (Left res)
 
 exprToLLVM (TE _ (Take (a, b) recd fld body)) =
