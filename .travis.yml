@@ -41,6 +41,7 @@ jobs:
             - alex-3.1.7
             - happy-1.19.5
             - clang-9
+            - llvm-9-dev
           sources: 
             - hvr-ghc
             - sourceline: "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-9 main"
@@ -60,6 +61,7 @@ jobs:
             - alex-3.1.7
             - happy-1.19.5
             - clang-9
+            - llvm-9-dev
           sources: 
             - hvr-ghc
             - sourceline: "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-9 main"
@@ -76,6 +78,7 @@ jobs:
             - alex-3.1.7
             - happy-1.19.5
             - clang-9
+            - llvm-9-dev
           sources: 
             - hvr-ghc
             - sourceline: "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-9 main"
@@ -91,7 +94,9 @@ before_install:
  - unset CC
  - export ALEXVER=3.1.7
  - export HAPPYVER=1.19.5
- - export PATH=~/.cabal/bin:/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:/opt/happy/$HAPPYVER/bin:/opt/alex/$ALEXVER/bin:$PATH
+ - export PATH=/usr/lib/llvm-9/bin:~/.cabal/bin:/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:/opt/happy/$HAPPYVER/bin:/opt/alex/$ALEXVER/bin:$PATH
+ - clang --version
+ - llvm-config --version
    # - pip --version
    # - sudo pip --version
  - pip install termcolor ruamel.yaml
@@ -111,7 +116,7 @@ install:
 
  - cabal new-configure --flags="$COGENT_BUILD_FLAGS" --with-compiler=ghc-$GHCVER --enable-tests
  - cat cabal.project.local
- - travis_wait 50 cabal new-install --install-method=copy --installdir=$HOME/.cabal/bin --overwrite-policy=always
+ - travis_wait 70 cabal new-install --install-method=copy --installdir=$HOME/.cabal/bin --overwrite-policy=always
 
 # Install z3
  - cd $REPO
@@ -133,7 +138,7 @@ install:
 # any command which exits with a non-zero exit code causes the build to fail.
 script:
  - cd $REPO/cogent
- - travis_wait cabal new-test test-quickcheck  # the other test is rarely affacted, so not enabled / zilinc
+ - travis_wait 50 cabal new-test test-quickcheck  # the other test is rarely affacted, so not enabled / zilinc
  # - cabal check
  - cabal new-haddock
  # Check if Cogent has been correctly installed
