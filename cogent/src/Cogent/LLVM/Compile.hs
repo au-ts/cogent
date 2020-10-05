@@ -5,7 +5,7 @@
 
 module Cogent.LLVM.Compile where
 
-import           Cogent.Common.Syntax           (VarName)
+import           Cogent.Common.Syntax           (VarName, TagName)
 import qualified Cogent.Common.Syntax           as Sy (Op (..))
 import           Cogent.Common.Types
 import           Cogent.Compiler
@@ -23,6 +23,7 @@ import           Data.Either                    (fromLeft)
 import           Data.Function
 import           Data.List
 import qualified Data.Map                       as Map
+import           Data.Maybe                     (fromMaybe)
 import           Data.Monoid                    ((<>))
 import           Data.String
 import           Data.Word
@@ -40,7 +41,7 @@ import           System.FilePath
 import           System.Info
 import           System.IO
 
-import           Debug.Trace                    (trace)
+import           Debug.Trace                    (traceShowM)
 
 
 -- Module
@@ -59,12 +60,10 @@ def :: ShortByteString
     -> (AST.Type -> Codegen (Either Operand (Named Terminator)))
     -> AST.Definition
 def dName argTys retTy body =
-  let thisPtrType = PointerType { pointerReferent =
-                                    FunctionType { resultType = retTy
-                                                 , argumentTypes = Data.List.map fst argTys
-                                                 , isVarArg = False
-                                                 }
-                                , pointerAddrSpace = AddrSpace 0 }
+  let thisPtrType = ptrTo (FunctionType { resultType = retTy
+                                        , argumentTypes = Data.List.map fst argTys
+                                        , isVarArg = False
+                                        })
       bodyBlock = genBlocks
                     (execCodegen
                       (do enter <- addBlock "entry"
@@ -102,13 +101,10 @@ toLLVMType (TUnit) = VoidType
 toLLVMType (TProduct a b) = StructureType { isPacked = False
                                           , elementTypes = [ toLLVMType a, toLLVMType b ]
                                           }
-toLLVMType (TString )= PointerType { pointerReferent = IntegerType 8, pointerAddrSpace = AddrSpace 0 }
-toLLVMType (TSum ts) =
-  let types = [ t | (_, (t, _)) <- ts ] in
-      let maxType = Data.List.foldl (\a b -> if typeSize a > typeSize b then a else b) (TUnit) types in
-          StructureType { isPacked = False
-                        , elementTypes = [ IntegerType 32 -- default 32 bit tag
-                                         , toLLVMType maxType ]}
+toLLVMType (TString )= ptrTo (IntegerType 8)
+toLLVMType (TSum ts) = StructureType { isPacked = False
+                                     , elementTypes = [ IntegerType 32, toLLVMType $ maxType ts ]
+                                     }
 #ifdef BUILTIN_ARRAYS
 toLLVMType (TArray t l s mh) =
   ArrayType { nArrayElements = __todo "toLLVMType: we cannot evaluate LExpr to a constant"
@@ -116,6 +112,18 @@ toLLVMType (TArray t l s mh) =
             }
 #endif
 toLLVMType _ = VoidType
+
+maxType :: [(TagName, (Core.Type t b, Bool))] -> Core.Type t b
+maxType ts =
+  let types = [ t | (_, (t, _)) <- ts ] in
+    Data.List.foldl (\a b -> if typeSize a > typeSize b then a else b) (TPrim Boolean) types
+
+tagIndex ::  [(TagName, (Core.Type t b, Bool))] -> TagName -> Int
+tagIndex ts tag = fromMaybe (error "cant find tag") 
+                            (Data.List.findIndex ((== tag) . fst) ts)
+
+ptrTo :: AST.Type -> AST.Type
+ptrTo t = PointerType { pointerReferent = t, pointerAddrSpace = AddrSpace 0 }
 
 typeSize :: Core.Type t b -> Int
 typeSize (TPrim p) = case p of
@@ -459,28 +467,52 @@ exprToLLVM (TE _ (LetBang _  _ val body)) = -- let! and let should be the same h
 
 exprToLLVM (TE _ (Promote _ e))= exprToLLVM e
   
-exprToLLVM (TE rt (Con tag e t))=
+exprToLLVM (TE rt (Con tag e _))=
   do
-    res <- instr (toLLVMType rt) (Alloca { allocatedType = toLLVMType rt
-                                         , numElements = Nothing
-                                         , alignment = 4
-                                         , metadata = []
-                                         })
-    v <- exprToLLVM e
-    casted <- instr (PointerType { pointerReferent = toLLVMType t
-                                 , pointerAddrSpace = AddrSpace 0
-                                 })
-                     (BitCast { operand0 = res
-                              , type' = PointerType { pointerReferent = toLLVMType t
-                                                                         , pointerAddrSpace = AddrSpace 0}
-                              , metadata = []})
-    instr (toLLVMType rt) (Store { volatile = False
-                                 , address = casted
-                                 , maybeAtomicity = Nothing
-                                 , value = fromLeft (error "value cannot be a terminator") v
-                                 , alignment = 4
-                                 , metadata = []})
-    return (Left res)
+    let TSum rt_variants = rt
+        tagv = tagIndex rt_variants tag
+        rt_inner = toLLVMType $ maxType rt_variants
+    tagged <- instr (toLLVMType rt) (InsertValue { aggregate = ConstantOperand C.Undef {
+                                                     C.constantType = toLLVMType rt }
+                                                 , element = ConstantOperand C.Int {
+                                                     C.integerBits = 32
+                                                   , C.integerValue = toInteger tagv }
+                                                 , indices' = [0]
+                                                 , metadata = []
+                                                 })
+    case e of
+      (TE TUnit _) -> return (Left tagged)
+      _-> do
+        value <- exprToLLVM e
+        let v = fromLeft (error "value cannot be a terminator") value
+        vp <- instr (ptrTo (typeOf v)) (Alloca { allocatedType = typeOf v
+                                               , numElements = Nothing
+                                               , alignment = 4
+                                               , metadata = []
+                                               })
+        unnamedInstr (Store { volatile = False
+                            , address = vp
+                            , maybeAtomicity = Nothing
+                            , value = v
+                            , alignment = 4
+                            , metadata = []
+                            })
+        cvp <- instr (ptrTo rt_inner) (BitCast { operand0 = vp
+                                      , type' = ptrTo rt_inner
+                                      , metadata = []
+                                      })
+        cv <- instr (rt_inner) (Load { volatile = False
+                                     , address = cvp
+                                     , maybeAtomicity = Nothing
+                                     , alignment = 4
+                                     , metadata = []
+                                     })
+        res <- instr (toLLVMType rt) (InsertValue { aggregate = tagged
+                                                  , element = cv
+                                                  , indices' = [1]
+                                                  , metadata = []
+                                                  })
+        return (Left res)
 
 exprToLLVM (TE _ (If cd tb fb)) =
   do
@@ -514,27 +546,35 @@ exprToLLVM (TE _ (If cd tb fb)) =
 
 exprToLLVM r@(TE rect (Struct flds)) =
   do
-    struct <- instr (PointerType { pointerReferent = (toLLVMType rect) })
+    struct <- instr (ptrTo (toLLVMType rect))
                     (Alloca { allocatedType = (toLLVMType rect)
                             , alignment = 4
+                            , numElements = Nothing
+                            , metadata = []
                             })
     let fldvs = [ (i, exprToLLVM (snd fld)) | (i, fld) <- Data.List.zip [0..] flds] in
       (Data.List.foldr (>>) (pure struct)
                            [ (do
-                                 elmptr <- (instr ((recordType r) !! i)
+                                 elmptr <- instr ((recordType r) !! i)
                                             (GetElementPtr { inBounds = True
                                                            , address = struct
                                                            , indices = [ConstantOperand
-                                                                         C.Int { C.integerBits = 64
+                                                                         C.Int { C.integerBits = 32
                                                                                , C.integerValue = 0}
                                                                        , ConstantOperand
-                                                                         C.Int { C.integerBits = 64
+                                                                         C.Int { C.integerBits = 32
                                                                                , C.integerValue = toInteger i}
-                                                                       ]}))
-                                 fldv >>= (\v -> instr ((recordType r) !! i)
+                                                                       ]
+                                                           , metadata = []
+                                                           })
+                                 fldv >>= (\v -> unnamedInstr
                                           (Store { address = elmptr
+                                                 , maybeAtomicity = Nothing
                                                  , value = (fromLeft (error "field value cannot be terminator") v)
-                                                 , alignment = 4})))
+                                                 , alignment = 4
+                                                 , volatile = False
+                                                 , metadata = []
+                                                 })))
                            | (i, fldv) <- fldvs ]) >>= (\a -> return (Left a))
 
 exprToLLVM (TE vt (Variable (idx, _))) =
@@ -593,10 +633,8 @@ toLLVMDef (FunDef attr name ts ls t rt body) =
       [(argType t, (UnName 0))]
       (argType rt)
       (\ptr -> (exprToLLVM body))
-  where argType at@(TRecord {}) = (PointerType { pointerReferent = (toLLVMType at)
-                                               , pointerAddrSpace = AddrSpace 0})
-        argType at@(TProduct {}) = (PointerType { pointerReferent = (toLLVMType at)
-                                                , pointerAddrSpace = AddrSpace 0})
+  where argType at@(TRecord {}) = ptrTo (toLLVMType at)
+        argType at@(TProduct {}) = ptrTo (toLLVMType at)
         argType at = toLLVMType at
 
 toLLVMDef (TypeDef name tyargs mt) =
