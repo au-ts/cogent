@@ -591,7 +591,7 @@ instance (Pretty t, TypeType t, Pretty e, Pretty l, Eq l) => Pretty (Type e l t)
                        & (if __cogent_fdisambiguate_pp then (<+> comment "{- put -}") else id)
   pretty (TLayout l t) = (prettyT' t <+> typesymbol "layout" <+> pretty l)
            & (if __cogent_fdisambiguate_pp then (<+> comment "{- layout -}") else id)
-  pretty (TBuffer n fs) = keyword "Buffer" <+> brackets (string $ show n) <> record (map (\(a, b) -> fieldname a <+> symbol ":" <+> pretty b) fs)
+  pretty (TBuffer n dt) = keyword "Buffer" <+> brackets (string $ show n) <> pretty dt
 
 instance Pretty RawType where
   pretty (RT t) = pretty t

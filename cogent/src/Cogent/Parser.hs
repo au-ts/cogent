@@ -476,7 +476,12 @@ atomtype = avoidInitial >> LocType <$> getPosition <*> (
                     else Boxed False Nothing
           return $ TCon tn [] s)
   -- <|> TCon <$> typeConName <*> pure [] <*> pure Writable
-  <|> TBuffer <$ reserved "Buffer" <*> brackets (natural) <*> braces (commaSep1 ((\a b -> (a, b)) <$> variableName <* reservedOp ":" <*> monotype))
+  <|> (do reserved "Buffer"
+          n <- brackets (natural)
+          lt <- monotype
+          case typeOfLT lt of
+            (TRecord rp fs s) -> return $ TBuffer n lt
+            _                 -> fail "Only records are allowed inside a Buffer")
   <|> tuple <$> parens (commaSep monotype)
   <|> (\rp -> (\fs -> TRecord rp fs (Boxed False Nothing)))
       <$> recPar
