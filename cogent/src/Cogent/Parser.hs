@@ -330,7 +330,8 @@ term = avoidInitial >> (var <|> (LocExpr <$> getPosition <*>
 #endif
        <|> Buffer <$ reservedOp "Buffer"
                   <*> natural
-                  <*> braces (commaSep1 ((\a b -> (a, b)) <$> variableName <* reservedOp ":" <*> monotype))
+                  <*> parens (do reservedOp "#"
+                                 braces (commaSep1 ((\a b -> (a, b)) <$> variableName <* reservedOp ":" <*> monotype)))
        <|> UnboxedRecord <$ reservedOp "#" <*> braces (commaSep1 recordAssignment)))
     <?> "term")
 
@@ -477,7 +478,7 @@ atomtype = avoidInitial >> LocType <$> getPosition <*> (
           return $ TCon tn [] s)
   -- <|> TCon <$> typeConName <*> pure [] <*> pure Writable
   <|> (do reserved "Buffer"
-          n <- brackets (natural)
+          n <- brackets natural
           lt <- monotype
           case typeOfLT lt of
             (TRecord rp fs s) -> return $ TBuffer n lt
