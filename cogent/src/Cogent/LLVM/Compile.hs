@@ -1,10 +1,12 @@
+{-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 
 module Cogent.LLVM.Compile where
 
-import           Cogent.Common.Syntax           as Sy
+import           Cogent.Common.Syntax           (VarName)
+import qualified Cogent.Common.Syntax           as Sy (Op (..))
 import           Cogent.Common.Types
 import           Cogent.Compiler
 import           Cogent.Core                    as Core
@@ -13,33 +15,27 @@ import qualified Data.Vec
 
 import           Control.Applicative
 import           Control.Monad.State
-import           Data.ByteString                as BS
+import           Data.ByteString.Char8          as BS
 import           Data.ByteString.Internal
 import           Data.ByteString.Short.Internal
 import           Data.Char
-import qualified Data.Either
+import           Data.Either                    (fromLeft)
 import           Data.Function
 import           Data.List
 import qualified Data.Map                       as Map
 import           Data.Monoid                    ((<>))
 import           Data.String
 import           Data.Word
-import           LLVM.AST
-import qualified LLVM.AST                       as AST
+import           LLVM.AST                       as AST
 import           LLVM.AST.AddrSpace
-import qualified LLVM.AST.Attribute             as A
-import qualified LLVM.AST.CallingConvention     as CC
 import qualified LLVM.AST.Constant              as C
-import           LLVM.AST.DataLayout
-import           LLVM.AST.Global
+import           LLVM.AST.DataLayout            (defaultDataLayout, Endianness (LittleEndian))
+import           LLVM.AST.Global                (Global (..))
 import           LLVM.AST.Instruction
 import           LLVM.AST.IntegerPredicate      as IntP
-import           LLVM.AST.Name
-import           LLVM.AST.Operand
-import           LLVM.AST.Type
 import           LLVM.AST.Typed                 (typeOf)
-import           LLVM.Context
-import           LLVM.Module
+import           LLVM.Context                   (withContext)
+import           LLVM.Module                    (moduleLLVMAssembly, withModuleFromAST)
 import           System.FilePath
 import           System.Info
 import           System.IO
@@ -49,53 +45,46 @@ import           Debug.Trace                    (trace)
 
 -- Module
 
-newtype LLVM a = LLVM (State AST.Module a)
-  deriving (Functor, Applicative, Monad, MonadState AST.Module)
+mkModule :: ShortByteString -> ShortByteString -> [AST.Definition] -> AST.Module
+mkModule moduleName fileName defs =
+  defaultModule { moduleName = moduleName
+                , moduleSourceFileName = fileName
+                , moduleDataLayout = Just (defaultDataLayout LittleEndian)
+                , moduleDefinitions = defs
+                }
 
-
-newModule :: ShortByteString -> ShortByteString -> AST.Module
-newModule moduleName fileName = defaultModule { moduleName = moduleName
-                                              , moduleSourceFileName = fileName
-                                              , moduleDataLayout = Just (LLVM.AST.DataLayout.defaultDataLayout
-                                                                         LLVM.AST.DataLayout.LittleEndian)
-                                              }
-
-expandMod :: AST.Definition -> LLVM ()
-expandMod def = do
-  oldDefs <- gets moduleDefinitions
-  modify (\s -> s { moduleDefinitions = oldDefs ++ [def] })
-
-
-def :: ShortByteString -> [(LLVM.AST.Type.Type, Name)] -> LLVM.AST.Type.Type -> (LLVM.AST.Type.Type -> Codegen (Either Operand (Named Terminator))) -> LLVM ()
+def :: ShortByteString
+    -> [(AST.Type, Name)]
+    -> AST.Type
+    -> (AST.Type -> Codegen (Either Operand (Named Terminator)))
+    -> AST.Definition
 def dName argTys retTy body =
-  let thisPtrType = LLVM.AST.Type.PointerType { pointerReferent =
-                                                  FunctionType { resultType = retTy
-                                                               , argumentTypes = Data.List.map fst argTys
-                                                               , isVarArg = False
-                                                               }
-                                              , pointerAddrSpace = AddrSpace 0 }
-  in let bodyBlock = genBlocks
-                       (execCodegen
-                         (do
-                             enter <- addBlock "entry"
-                             setBlock enter
-                             body_exp <- body thisPtrType
-                             case body_exp of
-                               Right trm -> terminator trm
-                               Left val -> terminator (Do (Ret (Just val) []))
-                         ))
-  in expandMod
-      (GlobalDefinition
+  let thisPtrType = PointerType { pointerReferent =
+                                    FunctionType { resultType = retTy
+                                                 , argumentTypes = Data.List.map fst argTys
+                                                 , isVarArg = False
+                                                 }
+                                , pointerAddrSpace = AddrSpace 0 }
+      bodyBlock = genBlocks
+                    (execCodegen
+                      (do enter <- addBlock "entry"
+                          setBlock enter
+                          body_exp <- body thisPtrType
+                          case body_exp of
+                            Right trm -> terminator trm
+                            Left val -> terminator (Do (Ret (Just val) []))
+                      ))
+  in GlobalDefinition
         (functionDefaults
-          { LLVM.AST.Global.name = Name dName
+          { name = Name dName
           , parameters = ([Parameter ty an [] | (ty, an) <- argTys], False)
           , returnType = retTy
-          , basicBlocks = bodyBlock}))
+          , basicBlocks = bodyBlock})
 
 
 -- Types
 
-toLLVMInt :: Cogent.Common.Types.PrimInt -> LLVM.AST.Type.Type
+toLLVMInt :: Cogent.Common.Types.PrimInt -> AST.Type
 toLLVMInt Boolean = IntegerType 1
 toLLVMInt U8      = IntegerType 8
 toLLVMInt U16     = IntegerType 16
@@ -103,7 +92,7 @@ toLLVMInt U32     = IntegerType 32
 toLLVMInt U64     = IntegerType 64
 
 
-toLLVMType :: Core.Type t b -> LLVM.AST.Type.Type
+toLLVMType :: Core.Type t b -> AST.Type
 toLLVMType (TPrim p) = toLLVMInt p
 toLLVMType (TRecord _ ts _) = -- don't know how to deal with sigil, also not handling recursive types
   StructureType { isPacked = False
@@ -113,7 +102,7 @@ toLLVMType (TUnit) = VoidType
 toLLVMType (TProduct a b) = StructureType { isPacked = False
                                           , elementTypes = [ toLLVMType a, toLLVMType b ]
                                           }
-toLLVMType (TString )= LLVM.AST.Type.PointerType { pointerReferent = IntegerType 8, pointerAddrSpace = AddrSpace 0 }
+toLLVMType (TString )= PointerType { pointerReferent = IntegerType 8, pointerAddrSpace = AddrSpace 0 }
 toLLVMType (TSum ts) =
   let types = [ t | (_, (t, _)) <- ts ] in
       let maxType = Data.List.foldl (\a b -> if typeSize a > typeSize b then a else b) (TUnit) types in
@@ -175,9 +164,6 @@ newtype Codegen a = Codegen { cg :: State CodegenState a }
   deriving (Functor, Applicative, Monad, MonadState CodegenState)
 
 
-
-
-
 genBlocks :: CodegenState -> [BasicBlock]
 genBlocks m = Data.List.map mkBlock (sortBy (compare `on` (idx . snd))
                            (Map.toList (blocks m)))
@@ -204,7 +190,7 @@ fresh = do
   modify (\s -> s {unnamedCount = i + 1})
   return (i + 1)
 
-instr :: LLVM.AST.Type.Type -> Instruction -> Codegen (Operand)
+instr :: AST.Type -> Instruction -> Codegen (Operand)
 instr ty ins = do
   n <- fresh
   let localRef = (UnName n)
@@ -261,7 +247,7 @@ setBlock blkName = do
   modify (\s -> s { currentBlock = blkName })
   return blkName
 
-recordType :: TypedExpr t v a b -> [LLVM.AST.Type.Type]
+recordType :: TypedExpr t v a b -> [AST.Type]
 recordType (TE rect _) = case rect of
                    (TRecord _ flds _) -> Data.List.map (\f -> toLLVMType (fst (snd f))) flds
                    _ -> error "cannot get record type from a non-record type"
@@ -287,96 +273,94 @@ exprToLLVM (TE rt (Op op [a,b])) =
   do _oa <- exprToLLVM a
      _ob <- exprToLLVM b
       -- If the operands are known at compile time, should we evaluate the expression here? / z.shang
-     res <- let oa = Data.Either.fromLeft (error "operand of OP cannot be terminator") _oa
-                ob = Data.Either.fromLeft (error "operand of OP cannot be terminator") _ob
+     res <- let oa = fromLeft (error "operand of OP cannot be terminator") _oa
+                ob = fromLeft (error "operand of OP cannot be terminator") _ob
               in case op of
-                     -- What to do about poison values?
-                     Sy.Plus -> instr (toLLVMType rt) (Add { nsw = False
-                                                           , nuw = True
+                   Sy.Plus -> instr (toLLVMType rt) (Add { nsw = False
+                                                         , nuw = True
+                                                         , operand0 = oa
+                                                         , operand1 = ob
+                                                         , metadata = []
+                                                         })
+                   Sy.Minus -> instr (toLLVMType rt) (Sub { nsw = False
+                                                          , nuw = True
+                                                          , operand0 = oa
+                                                          , operand1 = ob
+                                                          , metadata = []
+                                                          })
+                   Sy.Times -> instr (toLLVMType rt) (Mul { nsw = False
+                                                          , nuw = True
+                                                          , operand0 = oa
+                                                          , operand1 = ob
+                                                          , metadata = []
+                                                          })
+                   Sy.Divide -> instr (toLLVMType rt) (SDiv { exact = False -- Or should we do more check here?
+                                                            , operand0 = oa
+                                                            , operand1 = ob
+                                                            , metadata = []
+                                                            })
+                   Sy.Mod -> instr (toLLVMType rt) (SRem { operand0 = oa
+                                                         , operand1 = ob
+                                                         , metadata = []
+                                                         })
+                   Sy.And -> instr (toLLVMType rt) (And { operand0 = oa
+                                                        , operand1 = ob
+                                                        , metadata = []} )
+                   Sy.Or -> instr (toLLVMType rt) (Or { operand0 = oa
+                                                      , operand1 = ob
+                                                      , metadata = []} )
+                   Sy.Gt -> instr (IntegerType 1) (ICmp { operand0 = oa
+                                                        , operand1 = ob
+                                                        , metadata = []
+                                                        , iPredicate = UGT -- assuming unsigned
+                                                        })
+                   Sy.Lt -> instr (IntegerType 1) (ICmp { operand0 = oa
+                                                        , operand1 = ob
+                                                        , metadata = []
+                                                        , iPredicate = ULT -- assuming unsigned
+                                                        })
+                   Sy.Ge -> instr (IntegerType 1) (ICmp { operand0 = oa
+                                                        , operand1 = ob
+                                                        , metadata = []
+                                                        , iPredicate = UGE -- assuming unsigned
+                                                        })
+                   Sy.Le -> instr (IntegerType 1) (ICmp { operand0 = oa
+                                                        , operand1 = ob
+                                                        , metadata = []
+                                                        , iPredicate = ULE -- assuming unsigned
+                                                        })
+                   Sy.Eq -> instr (IntegerType 1) (ICmp { operand0 = oa
+                                                        , operand1 = ob
+                                                        , metadata = []
+                                                        , iPredicate = IntP.EQ -- assuming unsigned
+                                                        })
+                   Sy.NEq -> instr (IntegerType 1) (ICmp { operand0 = oa
+                                                         , operand1 = ob
+                                                         , metadata = []
+                                                         , iPredicate = NE -- assuming unsigned
+                                                         })
+                   Sy.BitAnd -> instr (toLLVMType rt) (And { operand0 = oa
+                                                           , operand1 = ob
+                                                           , metadata = []} )
+                   Sy.BitOr -> instr (toLLVMType rt) (Or { operand0 = oa
+                                                         , operand1 = ob
+                                                         , metadata = []} )
+                   Sy.BitXor -> instr (toLLVMType rt) (Xor { operand0 = oa
+                                                           , operand1 = ob
+                                                           , metadata = []} )
+                   Sy.LShift-> instr (toLLVMType rt) (Shl { nsw = False
+                                                          , nuw = False
+                                                          , operand0 = oa
+                                                          , operand1 = ob
+                                                          , metadata = []
+                                                          })
+                   Sy.RShift-> instr (toLLVMType rt) (LShr { exact = False
                                                            , operand0 = oa
                                                            , operand1 = ob
-                                                           , LLVM.AST.Instruction.metadata = []
+                                                           , metadata = []
                                                            })
-                     Sy.Minus -> instr (toLLVMType rt) (Sub { nsw = False
-                                                            , nuw = True
-                                                            , operand0 = oa
-                                                            , operand1 = ob
-                                                            , LLVM.AST.Instruction.metadata = []
-                                                            })
-                     Sy.Times -> instr (toLLVMType rt) (Mul { nsw = False
-                                                            , nuw = True
-                                                            , operand0 = oa
-                                                            , operand1 = ob
-                                                            , LLVM.AST.Instruction.metadata = []
-                                                            })
-                     Sy.Divide -> instr (toLLVMType rt) (SDiv { exact = False -- Or should we do more check here?
-                                                              , operand0 = oa
-                                                              , operand1 = ob
-                                                              , LLVM.AST.Instruction.metadata = []
-                                                              })
-                     Sy.Mod -> instr (toLLVMType rt) (SRem { operand0 = oa
-                                                           , operand1 = ob
-                                                           , LLVM.AST.Instruction.metadata = []
-                                                           })
-                     Sy.And -> instr (toLLVMType rt) (LLVM.AST.Instruction.And { operand0 = oa
-                                                                               , operand1 = ob
-                                                                               , LLVM.AST.Instruction.metadata = []} )
-                     Sy.Or -> instr (toLLVMType rt) (LLVM.AST.Instruction.Or { operand0 = oa
-                                                                             , operand1 = ob
-                                                                             , LLVM.AST.Instruction.metadata = []} )
-                     Sy.Gt -> instr (IntegerType 1) (LLVM.AST.Instruction.ICmp { operand0 = oa
-                                                                               , operand1 = ob
-                                                                               , LLVM.AST.Instruction.metadata = []
-                                                                               , iPredicate = UGT -- assuming unsigned
-                                                                               })
-                     Sy.Lt -> instr (IntegerType 1) (LLVM.AST.Instruction.ICmp { operand0 = oa
-                                                                               , operand1 = ob
-                                                                               , LLVM.AST.Instruction.metadata = []
-                                                                               , iPredicate = ULT -- assuming unsigned
-                                                                               })
-                     Sy.Ge -> instr (IntegerType 1) (LLVM.AST.Instruction.ICmp { operand0 = oa
-                                                                               , operand1 = ob
-                                                                               , LLVM.AST.Instruction.metadata = []
-                                                                               , iPredicate = UGE -- assuming unsigned
-                                                                               })
-                     Sy.Le -> instr (IntegerType 1) (LLVM.AST.Instruction.ICmp { operand0 = oa
-                                                                               , operand1 = ob
-                                                                               , LLVM.AST.Instruction.metadata = []
-                                                                               , iPredicate = ULE -- assuming unsigned
-                                                                               })
-                     Sy.Eq -> instr (IntegerType 1) (LLVM.AST.Instruction.ICmp { operand0 = oa
-                                                                               , operand1 = ob
-                                                                               , LLVM.AST.Instruction.metadata = []
-                                                                               , iPredicate = IntP.EQ -- assuming unsigned
-                                                                               })
-                     Sy.NEq -> instr (IntegerType 1) (LLVM.AST.Instruction.ICmp { operand0 = oa
-                                                                                , operand1 = ob
-                                                                                , LLVM.AST.Instruction.metadata = []
-                                                                                , iPredicate = NE -- assuming unsigned
-                                                                                })
-                     Sy.BitAnd -> instr (toLLVMType rt) (LLVM.AST.Instruction.And { operand0 = oa
-                                                                                  , operand1 = ob
-                                                                                  , LLVM.AST.Instruction.metadata = []} )
-                     Sy.BitOr -> instr (toLLVMType rt) (LLVM.AST.Instruction.Or { operand0 = oa
-                                                                                , operand1 = ob
-                                                                                , LLVM.AST.Instruction.metadata = []} )
-                     Sy.BitXor -> instr (toLLVMType rt) (LLVM.AST.Instruction.Xor { operand0 = oa
-                                                                                  , operand1 = ob
-                                                                                  , LLVM.AST.Instruction.metadata = []} )
-                     Sy.LShift-> instr (toLLVMType rt) (LLVM.AST.Instruction.Shl { nsw = False
-                                                                                 , nuw = False
-                                                                                 , operand0 = oa
-                                                                                 , operand1 = ob
-                                                                                 , LLVM.AST.Instruction.metadata = []
-                                                                                 })
-                     Sy.RShift-> instr (toLLVMType rt) (LLVM.AST.Instruction.LShr { exact = False
-                                                                                  , operand0 = oa
-                                                                                  , operand1 = ob
-                                                                                  , LLVM.AST.Instruction.metadata = []
-                                                                                  })
      return (Left res)
 
--- unary operators
 exprToLLVM (TE rt (Op op [a])) =
   do _oa <- exprToLLVM a
       -- If the operands are known at compile time, should we evaluate the expression here?
@@ -384,20 +368,20 @@ exprToLLVM (TE rt (Op op [a])) =
                 mone = ConstantOperand C.Int { C.integerBits = typeSize rt, C.integerValue = -1 }
                 zero = ConstantOperand C.Int { C.integerBits = typeSize rt, C.integerValue = 0 }
               in case op of
-                     Sy.Complement-> instr (toLLVMType rt) (LLVM.AST.Instruction.Xor { operand0 = oa
-                                                                                     , operand1 = mone 
-                                                                                     , LLVM.AST.Instruction.metadata = []} )
-                     Sy.Not -> instr (IntegerType 1) (LLVM.AST.Instruction.ICmp { operand0 = oa
-                                                                                , operand1 = zero
-                                                                                , LLVM.AST.Instruction.metadata = []
-                                                                                , iPredicate = IntP.EQ
-                                                                                })
+                     Sy.Complement-> instr (toLLVMType rt) (Xor { operand0 = oa
+                                                                , operand1 = mone 
+                                                                , metadata = []} )
+                     Sy.Not -> instr (IntegerType 1) (ICmp { operand0 = oa
+                                                           , operand1 = zero
+                                                           , metadata = []
+                                                           , iPredicate = IntP.EQ
+                                                           })
      return (Left res)
 
 exprToLLVM (TE _ (Take (a, b) recd fld body)) =
   do
     _recv <- (exprToLLVM recd)
-    let recv = Data.Either.fromLeft (error "address cannot be terminator") _recv
+    let recv = fromLeft (error "address cannot be terminator") _recv
     fldvp <- instr ((recordType recd) !!  fld)
                   (GetElementPtr { inBounds = True
                                  , address = recv
@@ -411,14 +395,14 @@ exprToLLVM (TE _ (Take (a, b) recd fld body)) =
                                                      , C.integerValue = toInteger fld }
 
                                              ]
-                                 , LLVM.AST.Instruction.metadata = []
+                                 , metadata = []
                                  })
-    fldv <- instr ((recordType recd) !! fld) (LLVM.AST.Instruction.Load { volatile = False
-                                                                      , address = fldvp
-                                                                      , maybeAtomicity = Nothing
-                                                                      , LLVM.AST.Instruction.alignment = 4
-                                                                      , LLVM.AST.Instruction.metadata = []
-                                                                      })
+    fldv <- instr ((recordType recd) !! fld) (Load { volatile = False
+                                                   , address = fldvp
+                                                   , maybeAtomicity = Nothing
+                                                   , alignment = 4
+                                                   , metadata = []
+                                                   })
     vars <- gets indexing
     modify (\s -> s { indexing = [fldv, recv] ++ vars })
     res <- exprToLLVM body
@@ -429,9 +413,9 @@ exprToLLVM (TE _ (Take (a, b) recd fld body)) =
 exprToLLVM (TE _ (Put recd fld val)) =
   do
     _recv <- (exprToLLVM recd)
-    let recv = Data.Either.fromLeft (error "address cannot be terminator") _recv
+    let recv = fromLeft (error "address cannot be terminator") _recv
     _v <- (exprToLLVM val)
-    let v = Data.Either.fromLeft (error "address cannot be terminator") _v
+    let v = fromLeft (error "address cannot be terminator") _v
     fldvp <- instr ((recordType recd) !!  fld)
                   (GetElementPtr { inBounds = True
                                  , address = recv
@@ -445,24 +429,21 @@ exprToLLVM (TE _ (Put recd fld val)) =
                                                      , C.integerValue = toInteger fld }
 
                                              ]
-                                 , LLVM.AST.Instruction.metadata = []
+                                 , metadata = []
                                  })
-    unnamedInstr  (LLVM.AST.Instruction.Store { volatile = False
-                                              , address = fldvp
-                                              , LLVM.AST.Instruction.value = v
-                                              , maybeAtomicity = Nothing
-                                              , LLVM.AST.Instruction.alignment = 4
-                                              , LLVM.AST.Instruction.metadata = []
-                                              })
+    unnamedInstr  (Store { volatile = False
+                         , address = fldvp
+                         , value = v
+                         , maybeAtomicity = Nothing
+                         , alignment = 4
+                         , metadata = []
+                         })
     return (Left recv)
-
-
-
 
 exprToLLVM (TE _ (Let _ val body)) = -- it seems that the variable name is not used here
     do
       _v <- (exprToLLVM val)
-      let v = Data.Either.fromLeft (error "let cannot bind a terminator") _v
+      let v = fromLeft (error "let cannot bind a terminator") _v
       vars <- gets indexing
       modify (\s -> s { indexing = [v] ++ vars })
       res <- exprToLLVM body
@@ -473,7 +454,7 @@ exprToLLVM (TE _ (Let _ val body)) = -- it seems that the variable name is not u
 exprToLLVM (TE _ (LetBang _  _ val body)) = -- let! and let should be the same here
     do
       _v <- (exprToLLVM val)
-      let v = Data.Either.fromLeft (error "let cannot bind a terminator") _v
+      let v = fromLeft (error "let cannot bind a terminator") _v
       vars <- gets indexing
       modify (\s -> s { indexing = [v] ++ vars })
       res <- exprToLLVM body
@@ -487,36 +468,34 @@ exprToLLVM (TE rt (Con tag e t))=
   do
     res <- instr (toLLVMType rt) (Alloca { allocatedType = toLLVMType rt
                                          , numElements = Nothing
-                                         , LLVM.AST.Instruction.alignment = 4
-                                         , LLVM.AST.Instruction.metadata = []
+                                         , alignment = 4
+                                         , metadata = []
                                          })
     v <- exprToLLVM e
-    casted <- instr (LLVM.AST.Type.PointerType { pointerReferent = toLLVMType t
+    casted <- instr (PointerType { pointerReferent = toLLVMType t
                                  , pointerAddrSpace = AddrSpace 0
                                  })
-                                 (BitCast { operand0 = res
-                                          , LLVM.AST.Instruction.type' = LLVM.AST.Type.PointerType { pointerReferent = toLLVMType t
-                                                                , pointerAddrSpace = AddrSpace 0}
-                                          , LLVM.AST.Instruction.metadata = []})
+                     (BitCast { operand0 = res
+                              , type' = PointerType { pointerReferent = toLLVMType t
+                                                                         , pointerAddrSpace = AddrSpace 0}
+                              , metadata = []})
     instr (toLLVMType rt) (Store { volatile = False
                                  , address = casted
                                  , maybeAtomicity = Nothing
-                                 , LLVM.AST.Instruction.value = Data.Either.fromLeft (error "value cannot be a terminator") v
-                                 , LLVM.AST.Instruction.alignment = 4
-                                 , LLVM.AST.Instruction.metadata = []})
+                                 , value = fromLeft (error "value cannot be a terminator") v
+                                 , alignment = 4
+                                 , metadata = []})
     return (Left res)
-
-  --error ("rt: " ++ (show rt) ++ " tag: " ++ (show tag) ++ " t: " ++ (show t))
-                  
 
 exprToLLVM (TE _ (If cd tb fb)) =
   do
     _cond <- (exprToLLVM cd)
-    cond <- instr (IntegerType 1) (ICmp { iPredicate = IntP.EQ
-                           , operand0 = Data.Either.fromLeft (error "cond cannot be a terminator") _cond
-                           , operand1 = ConstantOperand C.Int { C.integerBits = 1, C.integerValue = 1}
-                           , LLVM.AST.Instruction.metadata = []
-                           })
+    cond <- instr (IntegerType 1)
+                  (ICmp { iPredicate = IntP.EQ
+                        , operand0 = fromLeft (error "cond cannot be a terminator") _cond
+                        , operand1 = ConstantOperand C.Int { C.integerBits = 1, C.integerValue = 1}
+                        , metadata = []
+                        })
     currentBlk <- gets currentBlock
     blkTrue <- addBlock "brTrue"
     blkFalse <- addBlock "brFalse"
@@ -533,16 +512,16 @@ exprToLLVM (TE _ (If cd tb fb)) =
       Right trm -> terminator trm
     setBlock currentBlk
     (terminator (Do (CondBr { condition = cond
-                                         , trueDest = blkTrue
-                                         , falseDest = blkFalse
-                                         , metadata' = []
-                                         }))) >>= (\a -> return (Right a))
+                            , trueDest = blkTrue
+                            , falseDest = blkFalse
+                            , metadata' = []
+                            }))) >>= (\a -> return (Right a))
 
 exprToLLVM r@(TE rect (Struct flds)) =
   do
-    struct <- instr (LLVM.AST.Type.PointerType { pointerReferent = (toLLVMType rect) })
+    struct <- instr (PointerType { pointerReferent = (toLLVMType rect) })
                     (Alloca { allocatedType = (toLLVMType rect)
-                            , LLVM.AST.Instruction.alignment = 4
+                            , alignment = 4
                             })
     let fldvs = [ (i, exprToLLVM (snd fld)) | (i, fld) <- Data.List.zip [0..] flds] in
       (Data.List.foldr (>>) (pure struct)
@@ -557,12 +536,11 @@ exprToLLVM r@(TE rect (Struct flds)) =
                                                                          C.Int { C.integerBits = 64
                                                                                , C.integerValue = toInteger i}
                                                                        ]}))
-                                 fldv >>= (\v -> instr ((recordType r) !! i) (Store { address = elmptr
-                                                                                  , LLVM.AST.Instruction.value = (Data.Either.fromLeft (error "field value cannot be terminator") v)
-                                                                                  , LLVM.AST.Instruction.alignment = 4})))
+                                 fldv >>= (\v -> instr ((recordType r) !! i)
+                                          (Store { address = elmptr
+                                                 , value = (fromLeft (error "field value cannot be terminator") v)
+                                                 , alignment = 4})))
                            | (i, fldv) <- fldvs ]) >>= (\a -> return (Left a))
-
-
 
 exprToLLVM (TE vt (Variable (idx, _))) =
   do
@@ -606,39 +584,36 @@ hasBlock (TE _ e) = hasBlock' e
     hasBlock' _ = True
 
 
-toLLVMDef :: Core.Definition Core.TypedExpr VarName VarName -> LLVM ()
+toLLVMDef :: Core.Definition Core.TypedExpr VarName VarName -> AST.Definition
 toLLVMDef (AbsDecl attr name ts ls t rt) =
-    expandMod (GlobalDefinition
-               (functionDefaults { LLVM.AST.Global.name = Name (toShort (Data.ByteString.Internal.packChars name))
-                                 , parameters = ([Parameter (toLLVMType t) (UnName 0) []], False)
-                                 , returnType = toLLVMType rt
-                                 , basicBlocks = []
-                                 }))
+  GlobalDefinition
+    (functionDefaults { name = Name (toShort (packChars name))
+                      , parameters = ([Parameter (toLLVMType t) (UnName 0) []], False)
+                      , returnType = toLLVMType rt
+                      , basicBlocks = []
+                      })
 -- if passing in struct, it should be a pointer
 toLLVMDef (FunDef attr name ts ls t rt body) =
-  def (toShort (Data.ByteString.Internal.packChars name))
-      [(argType t,
-         (UnName 0))]
+  def (toShort (packChars name))
+      [(argType t, (UnName 0))]
       (argType rt)
       (\ptr -> (exprToLLVM body))
-  where argType at@(TRecord {}) = (LLVM.AST.PointerType { pointerReferent = (toLLVMType at)
-                                                        , pointerAddrSpace = AddrSpace 0})
-        argType at@(TProduct {}) = (LLVM.AST.PointerType { pointerReferent = (toLLVMType at)
-                                                         , pointerAddrSpace = AddrSpace 0})
+  where argType at@(TRecord {}) = (PointerType { pointerReferent = (toLLVMType at)
+                                               , pointerAddrSpace = AddrSpace 0})
+        argType at@(TProduct {}) = (PointerType { pointerReferent = (toLLVMType at)
+                                                , pointerAddrSpace = AddrSpace 0})
         argType at = toLLVMType at
-        
 
 toLLVMDef (TypeDef name tyargs mt) =
-  expandMod (TypeDefinition (Name (toShort (Data.ByteString.Internal.packChars name)))
-                            (fmap toLLVMType mt))
+  TypeDefinition (Name (toShort (packChars name)))
+                 (fmap toLLVMType mt)
 
 
 to_mod :: [Core.Definition Core.TypedExpr VarName VarName] -> FilePath -> AST.Module
-to_mod (x:xs) source = to_mod' (toLLVMDef x) (to_mod xs source)
-  where to_mod' (LLVM m) mod = execState m mod
-to_mod [] source = (newModule (toShort (Data.ByteString.Internal.packChars source))
-  (toShort (Data.ByteString.Internal.packChars source)))
-
+to_mod ds source =
+  mkModule (toShort (packChars source))
+           (toShort (packChars source))
+           (fmap toLLVMDef ds)
 
 
 print_llvm :: AST.Module -> IO ()
