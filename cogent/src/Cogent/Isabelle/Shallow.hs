@@ -221,13 +221,15 @@ shallowExpr (TE _ (Pop _ arr e)) = __todo "shallowExpr: pop"
 shallowExpr (TE _ (Singleton e)) = __todo "shallowExpr: singleton"
 shallowExpr (TE _ (ArrayMap2 ((v1, v2), fbody) (arr1,arr2))) = do
   fbody' <- shallowExpr fbody
-  let f = mkLambda [snm v1, snm v2] fbody'
-  arr1' <- shallowExpr arr1
-  arr2' <- shallowExpr arr2
   tuples <- asks recoverTuples
-  if tuples then return $ mkApp (mkId "map2") [f, mkPair arr1' arr2']
-            else shallowMaker (exprType fbody)
-                              [("p1" ++ subSymStr "f", arr1), ("p2" ++ subSymStr "f", arr2)]
+  let f = mkLambda [snm v1, snm v2] fbody'
+  mkApp (mkId "map2") . (\x -> [f, x]) <$>
+    if tuples
+    then do
+      arr1' <- shallowExpr arr1
+      arr2' <- shallowExpr arr2
+      return $ mkPair arr1' arr2'
+    else shallowMaker (exprType fbody) [("p1" ++ subSymStr "f", arr1), ("p2" ++ subSymStr "f", arr2)]
 shallowExpr (TE _ (ArrayTake n12 arr idx e)) = do
   idx' <- mkApp (mkId "unat") <$> mapM shallowExpr [idx]
   let nth' = mkApp (mkId "nth'") [idx']
