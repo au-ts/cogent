@@ -816,7 +816,7 @@ parseArgs args = case getOpt' Permute options args of
 #ifdef WITH_LLVM
     llvmg cmds monoed ctygen insts source tced tcst typedefs fts buildinfo log = do
       putProgressLn "Now using the LLVM backend"
-      LLVM.to_llvm monoed source
+      LLVM.toLLVM monoed source
 #endif
 
     cg cmds monoed ctygen insts source tced tcst typedefs fts buildinfo log = do
