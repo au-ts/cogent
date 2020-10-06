@@ -108,7 +108,7 @@ toLLVMType TString = ptrTo (IntegerType 8)
 toLLVMType (TSum ts) =
   StructureType
     { isPacked = False
-    , elementTypes = [IntegerType 32, toLLVMType $ maxType ts]
+    , elementTypes = [IntegerType 32, IntegerType (toEnum (maxTypeSize ts))]
     }
 #ifdef BUILTIN_ARRAYS
 toLLVMType (TArray t l s mh) =
@@ -118,10 +118,10 @@ toLLVMType (TArray t l s mh) =
 #endif
 toLLVMType _ = VoidType
 
-maxType :: [(TagName, (Core.Type t b, Bool))] -> Core.Type t b
-maxType ts =
-  let types = [t | (_, (t, _)) <- ts]
-   in Data.List.foldl (\a b -> if typeSize a > typeSize b then a else b) (TPrim Boolean) types
+maxTypeSize :: [(TagName, (Core.Type t b, Bool))] -> Int
+maxTypeSize ts =
+  let typeSizes = [typeSize t | (_, (t, _)) <- ts]
+   in Data.List.foldr max 8 typeSizes
 
 tagIndex :: [(TagName, (Core.Type t b, Bool))] -> TagName -> Int
 tagIndex ts tag =
@@ -555,75 +555,81 @@ exprToLLVM (TE rt (LetBang _ a val body)) = exprToLLVM (TE rt (Let a val body)) 
 exprToLLVM (TE _ (Promote _ e)) = exprToLLVM e
 exprToLLVM (TE rt (Con tag e _)) =
   do
-    let TSum rt_variants = rt
-        tagv = tagIndex rt_variants tag
-        rt_inner = toLLVMType $ maxType rt_variants
-    tagged <-
+    res <-
       instr
         (toLLVMType rt)
-        ( InsertValue
-            { aggregate = ConstantOperand C.Undef {C.constantType = toLLVMType rt}
-            , element = constInt 32 (toInteger tagv)
-            , indices' = [0]
+        ( Alloca
+            { allocatedType = toLLVMType rt
+            , numElements = Nothing
+            , alignment = 4
             , metadata = []
             }
         )
-    case e of
-      (TE TUnit _) -> return (Left tagged)
-      _ -> do
-        value <- exprToLLVM e
-        let v = fromLeft (error "value cannot be a terminator") value
-        vp <-
-          instr
-            (ptrTo (typeOf v))
-            ( Alloca
-                { allocatedType = typeOf v
-                , numElements = Nothing
-                , alignment = 4
-                , metadata = []
-                }
-            )
-        unnamedInstr
-          ( Store
-              { volatile = False
-              , address = vp
-              , maybeAtomicity = Nothing
-              , value = v
-              , alignment = 4
-              , metadata = []
-              }
-          )
-        cvp <-
-          instr
-            (ptrTo rt_inner)
-            ( BitCast
-                { operand0 = vp
-                , type' = ptrTo rt_inner
-                , metadata = []
-                }
-            )
-        cv <-
-          instr
-            rt_inner
-            ( Load
+    let TSum rt_variants = rt
+        tagv = tagIndex rt_variants tag
+    tagvp <-
+      instr
+        (toLLVMType rt)
+        ( GetElementPtr
+            { inBounds = True
+            , address = res
+            , indices = [constInt 32 0, constInt 32 0]
+            , metadata = []
+            }
+        )
+    unnamedInstr
+      ( Store
+          { volatile = False
+          , address = tagvp
+          , value = constInt 32 (toInteger tagv)
+          , maybeAtomicity = Nothing
+          , alignment = 4
+          , metadata = []
+          }
+      )
+    _value <- exprToLLVM e
+    let value = fromLeft (error "value cannot be a terminator") _value
+    unless
+      (typeOf value == VoidType)
+      ( do
+          let ct =
+                ptrTo
+                  ( StructureType
+                      { isPacked = False
+                      , elementTypes = [IntegerType 32, typeOf value]
+                      }
+                  )
+          casted <-
+            instr
+              ct
+              ( BitCast
+                  { operand0 = res
+                  , type' = ct
+                  , metadata = []
+                  }
+              )
+          valuep <-
+            instr
+              ct
+              ( GetElementPtr
+                  { inBounds = True
+                  , address = casted
+                  , indices = [constInt 32 0, constInt 32 1]
+                  , metadata = []
+                  }
+              )
+          unnamedInstr
+            ( Store
                 { volatile = False
-                , address = cvp
+                , address = valuep
+                , value = value
                 , maybeAtomicity = Nothing
                 , alignment = 4
                 , metadata = []
                 }
             )
-        res <-
-          instr
-            (toLLVMType rt)
-            ( InsertValue
-                { aggregate = tagged
-                , element = cv
-                , indices' = [1]
-                , metadata = []
-                }
-            )
-        return (Left res)
+      )
+    return (Left res)
 exprToLLVM (TE _ (If cd tb fb)) =
   do
     _cond <- exprToLLVM cd
@@ -790,6 +796,7 @@ toLLVMDef (FunDef _ name _ _ t rt body) =
   where
     argType at@TRecord {} = ptrTo (toLLVMType at)
     argType at@TProduct {} = ptrTo (toLLVMType at)
+    argType at@TSum {} = ptrTo (toLLVMType at)
     argType at = toLLVMType at
 toLLVMDef (TypeDef name _ mt) =
   TypeDefinition
