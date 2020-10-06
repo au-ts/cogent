@@ -320,7 +320,7 @@ ML \<open>
 val x   = Induct.vars_of
 \<close>
 
-
+(*
 
 
 
@@ -622,6 +622,7 @@ theorem shallow_C_wordarray_get_corres:
   apply (erule_tac x = "unat (t1_C.p2_C uv\<^sub>C)" in allE)
   apply (force simp: val_rel_simp intro!: u_v_prim[where l = "LU32 _", simplified])
   done
+*)
 (*
 theorem
 "\<lbrakk>\<And>i \<gamma> v' \<Gamma>' \<sigma>' st.

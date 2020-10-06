@@ -494,7 +494,7 @@ lemma lit_type_ex:
 lemma val_wa_foldnb_bod_rename_monoexpr_correct:
   "\<lbrakk>val.proc_env_matches \<xi>\<^sub>m \<Xi>'; proc_ctx_wellformed \<Xi>'; 
     value_sem.rename_mono_prog wa_abs_typing_v rename' \<Xi>' \<xi>\<^sub>m \<xi>\<^sub>p;
-    val_wa_foldnb_bod \<xi>\<^sub>m xs frm to (vvalfun_to_exprfun (val.rename_val rename' (val.monoval f))) 
+    val_wa_foldnb_bod \<xi>\<^sub>m t xs frm to (vvalfun_to_exprfun (val.rename_val rename' (val.monoval f))) 
       (val.rename_val rename' (val.monoval acc )) (val.rename_val rename' (val.monoval obsv)) r;
     is_vval_fun (val.rename_val rename' (val.monoval f)); wa_abs_typing_v (VWA t xs) ''WordArray'' [t]; 
     val.vval_typing \<Xi>' (val.rename_val rename' (val.monoval acc )) u;
@@ -503,7 +503,7 @@ lemma val_wa_foldnb_bod_rename_monoexpr_correct:
       App (vvalfun_to_exprfun (val.rename_val rename' (val.monoval f))) (Var 0) : u; 
     distinct [a0, a1, a2]\<rbrakk>
        \<Longrightarrow> is_vval_fun f \<and> (\<exists>r'. r = val.rename_val rename' (val.monoval r') \<and>
-         val_wa_foldnb_bod \<xi>\<^sub>p xs frm to (vvalfun_to_exprfun f) acc obsv r')"
+         val_wa_foldnb_bod \<xi>\<^sub>p t xs frm to (vvalfun_to_exprfun f) acc obsv r')"
   apply (rule conjI)
    apply (case_tac f; clarsimp)
   apply (induct to arbitrary: r)
@@ -624,7 +624,7 @@ lemma val_proc_env_matches_\<xi>m1_\<Xi>:
 lemma upd_val_wa_foldnb_bod_corres:
   "\<lbrakk>proc_ctx_wellformed \<Xi>'; proc_env_u_v_matches \<xi>\<^sub>u \<xi>\<^sub>v \<Xi>'; 
     upd_wa_foldnb_bod \<xi>\<^sub>u \<sigma> p frm to f acc obsv (ra \<union> s) (\<sigma>', res); 
-    val_wa_foldnb_bod \<xi>\<^sub>v xs (unat frm) (unat to) f acc' obsv' res';
+    val_wa_foldnb_bod \<xi>\<^sub>v v xs (unat frm) (unat to) f acc' obsv' res';
     \<sigma> p = option.Some (UAbstract (UWA v len arr));
     wa_abs_upd_val (UWA v len arr) (VWA v xs) ''WordArray'' [v] (Boxed ReadOnly undefined) r w \<sigma>;
     upd_val_rel \<Xi>' \<sigma> acc acc' u ra wa; upd_val_rel \<Xi>' \<sigma> obsv obsv' t s {}; wa \<inter> s = {};
@@ -712,7 +712,7 @@ lemma val_executes_from_upd_wa_foldnb_bod:
     upd_val_rel \<Xi>' \<sigma> acc acc' u ra wa; upd_val_rel \<Xi>' \<sigma> obsv obsv' t s {}; wa \<inter> s = {};
     \<tau> = TRecord [(a0, (v, Present)), (a1, (u, Present)), (a2, (t, Present))] Unboxed;
      \<Xi>', [], [option.Some \<tau>] \<turnstile> App f (Var 0) : u; distinct [a0, a1, a2]\<rbrakk>
-    \<Longrightarrow> \<exists>res' r w. val_wa_foldnb_bod \<xi>\<^sub>v xs (unat frm) (unat to) f acc' obsv' res' \<and> upd_val_rel \<Xi>' \<sigma>' res res' u r w"
+    \<Longrightarrow> \<exists>res' r w. val_wa_foldnb_bod \<xi>\<^sub>v v xs (unat frm) (unat to) f acc' obsv' res' \<and> upd_val_rel \<Xi>' \<sigma>' res res' u r w"
   apply (induct to arbitrary: \<sigma>' res)
    apply (erule upd_wa_foldnb_bod.elims; clarsimp)
    apply (rule_tac x = acc' in exI)
