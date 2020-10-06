@@ -277,7 +277,7 @@ ptrTo t = PointerType {pointerReferent = t, pointerAddrSpace = AddrSpace 0}
 constInt :: Int -> Integer -> AST.Operand
 constInt n i = ConstantOperand C.Int {C.integerBits = fromIntegral n, C.integerValue = i}
 
-exprToLLVM :: Core.TypedExpr t v a b -> Codegen (Either Operand (Named Terminator))
+exprToLLVM :: TypedExpr t v a b -> Codegen (Either Operand (Named Terminator))
 exprToLLVM (TE t Unit) = return (Left (ConstantOperand C.Undef {C.constantType = toLLVMType t}))
 exprToLLVM (TE t (ILit int _)) = return (Left (constInt (typeSize t) int))
 exprToLLVM (TE _ (SLit str)) =
@@ -496,31 +496,17 @@ exprToLLVM (TE rt (Op op [a])) =
                       }
                   )
     return (Left res)
+exprToLLVM (TE _ (Member recd fld)) =
+  do
+    _recv <- exprToLLVM recd
+    let recv = fromLeft (error "address cannot be terminator") _recv
+    fldv <- loadMember recv recd fld
+    return (Left fldv)
 exprToLLVM (TE _ (Take (_, _) recd fld body)) =
   do
     _recv <- exprToLLVM recd
     let recv = fromLeft (error "address cannot be terminator") _recv
-    fldvp <-
-      instr
-        (recordType recd !! fld)
-        ( GetElementPtr
-            { inBounds = True
-            , address = recv
-            , indices = [constInt 32 0, constInt 32 (toInteger fld)]
-            , metadata = []
-            }
-        )
-    fldv <-
-      instr
-        (recordType recd !! fld)
-        ( Load
-            { volatile = False
-            , address = fldvp
-            , maybeAtomicity = Nothing
-            , alignment = 4
-            , metadata = []
-            }
-        )
+    fldv <- loadMember recv recd fld
     vars <- gets indexing
     modify (\s -> s {indexing = [fldv, recv] ++ vars})
     res <- exprToLLVM body
@@ -735,6 +721,29 @@ exprToLLVM (TE vt (Variable (idx, _))) =
               else return (Left (indexing !! _idx))
 exprToLLVM _ = error "not implemented yet"
 
+loadMember :: Operand -> TypedExpr t v a b -> Int -> Codegen Operand
+loadMember recv recd fld =
+  instr
+    (recordType recd !! fld)
+    ( GetElementPtr
+        { inBounds = True
+        , address = recv
+        , indices = [constInt 32 0, constInt 32 (toInteger fld)]
+        , metadata = []
+        }
+    )
+    >>= \fldvp ->
+      instr
+        (recordType recd !! fld)
+        ( Load
+            { volatile = False
+            , address = fldvp
+            , maybeAtomicity = Nothing
+            , alignment = 4
+            , metadata = []
+            }
+        )
+
 hasBlock :: Core.TypedExpr t v a b -> Bool
 hasBlock (TE _ e) = hasBlock' e
   where
@@ -755,7 +764,7 @@ hasBlock (TE _ e) = hasBlock' e
     hasBlock' (Tuple a b) = hasBlock a || hasBlock b
     hasBlock' (Struct xs) = Data.List.foldl (\a b -> a || hasBlock (snd b)) False xs
     hasBlock' (Esac _) = False
-    hasBlock' (Core.Member a _) = hasBlock a
+    hasBlock' (Member a _) = hasBlock a
     hasBlock' (Put a _ b) = hasBlock a || hasBlock b
     hasBlock' (Promote _ e) = hasBlock e
     hasBlock' (Cast _ e) = hasBlock e
