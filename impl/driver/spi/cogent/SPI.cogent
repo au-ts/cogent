@@ -286,13 +286,9 @@ writeTx #{acc, obsv, idx} =
 -- registers to signal the end of the transaction and call the call back function
 finishSpiTransfer : (SysState, SpiBus) -> SysState
 finishSpiTransfer (s0, b0) = 
-    let b1 { chipSelect = cs, 
-             txBuffer = tx,
-             rxBuffer = rx0,
-             rxCnt = rS, 
-             regs = r0,
-             currSlave = slave } = b0
-    and size = (wordarray_length tx) + rS
+    let b1 { rxBuffer = rx0,
+             regs = r0 } = b0
+    and size = (wordarray_length b1.txBuffer) + b1.rxCnt !b1
     -- Read or flush the "rxfifo" queue
     and ((rx1, r1), _) = seq32 #{ frm = 0, to = size, step = 1, f = readOrFlushRx,
         acc = (rx0, r0), obsv = () }
@@ -300,41 +296,37 @@ finishSpiTransfer (s0, b0) =
     and r3 = putRegister # { regs = r2, field = XferStatus,
         val = xferStat .|. spiXferStsRdy }
     and b2 = b1 { inProgress = False }
+    and cs = b2.chipSelect !b2
     and s1 =
         cs | Some c ->
             let s1' = doChipSelection #{ state = s0, chipSelect = c, 
-                slave = slave, csState = SpiCsAssert } !slave
+                slave = b2.currSlave, csState = SpiCsAssert } !b2
             in s1'
            | None -> s0
-    and b3 = b2 { chipSelect = cs, txBuffer = tx, rxBuffer = rx1, rxCnt = rS,
-        regs = r3, currSlave = slave}
+    and b3 = b2 { rxBuffer = rx1, regs = r3 }
     in doCallBack #{ state = s1, spiBus = b3, res = Success size }
 
 -- Write the transfer buffer to the "txfifo" queue and set the relevant registers
 -- to start the transaction
 startSpiTransfer : (SysState, SpiBus) -> (SysState, SpiBus)
 startSpiTransfer (s0, b0) =
-    let b1 { chipSelect = cs, 
-             txBuffer = tx, 
-             rxCnt = rS, 
-             regs = r0, 
-             currSlave = slave } = b0
+    let b1 { regs = r0 } = b0
+    and cs = b1.chipSelect !b1
     and s1 =
         cs | Some c ->
             let s1' = doChipSelection #{ state = s0, chipSelect = c, 
-                slave = slave, csState = SpiCsAssert } !slave
+                slave = b1.currSlave, csState = SpiCsAssert } !b1
             in s1'
            | None -> s0
-    and size = (wordarray_length tx) + rS
+    and size = (wordarray_length b1.txBuffer) + b1.rxCnt !b1
     and r1 = putRegister #{ regs = r0, field = DmaBlk, val = size - 1 }
     -- Write to the "txfifo" queue
     and (r2, _) = seq32 #{ frm = 0, to = size, step = 1, f = writeTx, acc = r1,
-        obsv = tx }
+        obsv = b1.txBuffer } !b1
     and (r3, cmd1) = getRegister #{ regs = r2, field = Command1 }
     and r4 = putRegister #{ regs = r3, field = Command1, 
         val = cmd1 .|. spiCmd1Go }
-    and b2 = b1 { chipSelect = cs, txBuffer = tx, rxCnt = rS, regs = r4, 
-        currSlave = slave }
+    and b2 = b1 { regs = r4 }
     in (s1, b2)
 
 -- Visible Cogent Functions --
@@ -357,16 +349,15 @@ spiHandleIrq (s0, b0) =
             and (r6, xferStat1) = getRegister #{ regs = r5, field = XferStatus }
             and r7 = putRegister #{ regs = r6, field = XferStatus,
                 val = xferStat1 .|. spiXferStsRdy }
-            and b3 { chipSelect = cs, currSlave = slave } = 
-                b1 { inProgress = False, regs = r7 }
+            and b3 = b1 { inProgress = False, regs = r7 }
+            and cs = b3.chipSelect !b3
             and s1 = 
                 cs | Some c ->
                     let s1' = doChipSelection #{ state = s0, chipSelect = c, 
-                        slave = slave, csState = SpiCsAssert } !slave
+                        slave = b3.currSlave, csState = SpiCsAssert } !b3
                     in s1'
                    | None -> s0
-            and b4 = b3 { chipSelect = cs, currSlave = slave}
-            in doCallBack #{ state = s1, spiBus = b4, res = Error 1}
+            in doCallBack #{ state = s1, spiBus = b3, res = Error 1}
 
 -- Set up the SPI transaction and then begin the transfer
 spiXfer : SpiXferArgs -> SpiXferRet 
@@ -401,13 +392,12 @@ tegraSpiInit (b0, r0, mcs) =
         spiFifoStsRxFifoOvf .|.
         spiFifoStsRxFifoUnr
     and r1 = putRegister #{ regs = r0, field = FifoStatus, val = fifoStatus }
-    and b1 { clockMode = cm } = b0
     and (r2, cmd10) = getRegister #{ regs = r1, field = Command1 }
     and cmd11 = cmd10 .|.
-        (cm << spiCmd1ModeShift) .|.
+        (b0.clockMode << spiCmd1ModeShift) .|.
         spiCmd1TxEn .|.
         spiCmd1RxEn .|.
-        ((8 - 1) << spiCmd1BitLenShift)
+        ((8 - 1) << spiCmd1BitLenShift) !b0
     and cmd12 =
         mcs | None -> cmd11
             | _ -> cmd11 .|. spiCmd1CsSwHw
@@ -425,5 +415,5 @@ tegraSpiInit (b0, r0, mcs) =
     and (r10, xferStatus) = getRegister #{ regs = r9, field = XferStatus }
     and r11 = putRegister #{ regs = r10, field = XferStatus,
         val = xferStatus .|. spiXferStsRdy }
-    and b2 = b1 { clockMode = cm, regs = r11, chipSelect = mcs }
-    in b2
+    and b1 = b0 { regs = r11, chipSelect = mcs }
+    in b1
