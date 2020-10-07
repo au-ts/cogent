@@ -643,6 +643,47 @@ exprToLLVM (TE rt (Con tag e _)) =
             )
       )
     return (Left res)
+exprToLLVM (TE rt (Esac e)) =
+  do
+    _variant <- exprToLLVM e
+    let ct =
+          ptrTo
+            ( StructureType
+                { isPacked = False
+                , elementTypes = [IntegerType 32, toLLVMType rt]
+                }
+            )
+    casted <-
+      instr
+        ct
+        ( BitCast
+            { operand0 = fromLeft (error "variant cannot be a terminator") _variant
+            , type' = ct
+            , metadata = []
+            }
+        )
+    valuep <-
+      instr
+        ct
+        ( GetElementPtr
+            { inBounds = True
+            , address = casted
+            , indices = [constInt 32 0, constInt 32 1]
+            , metadata = []
+            }
+        )
+    res <-
+      instr
+        (toLLVMType rt)
+        ( Load
+            { volatile = False
+            , address = valuep
+            , maybeAtomicity = Nothing
+            , alignment = 4
+            , metadata = []
+            }
+        )
+    return (Left res)
 exprToLLVM (TE _ (If cd tb fb)) =
   do
     _cond <- exprToLLVM cd
