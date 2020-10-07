@@ -226,7 +226,7 @@ shallowExpr (TE _ (ArrayMap2 ((v1, v2), fbody) (arr1,arr2))) = do
         if tuples then return fbody' else do
           e_fst <- (shallowGetter fbody 0 (mkId "r"))
           e_snd <- (shallowGetter fbody 1 (mkId "r"))
-          return $ mkLet "r" fbody' (mkPair get1 get2)
+          return $ mkLet "r" fbody' (mkPair e_fst e_snd)
   let f = mkLambda [snm v1, snm v2] fbody''
   arr1' <- shallowExpr arr1
   arr2' <- shallowExpr arr2
