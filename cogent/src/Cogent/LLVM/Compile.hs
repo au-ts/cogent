@@ -553,6 +553,19 @@ exprToLLVM (TE _ (Let _ val body)) =
       Right trm -> return (Right trm)
 exprToLLVM (TE rt (LetBang _ a val body)) = exprToLLVM (TE rt (Let a val body)) -- same as Let
 exprToLLVM (TE _ (Promote _ e)) = exprToLLVM e
+exprToLLVM (TE rt (Cast _ e)) =
+  do
+    _v <- exprToLLVM e
+    res <-
+      instr
+        (toLLVMType rt)
+        ( ZExt
+            { operand0 = fromLeft (error "cannot cast a terminator") _v
+            , type' = toLLVMType rt
+            , metadata = []
+            }
+        )
+    return (Left res)
 exprToLLVM (TE rt (Con tag e _)) =
   do
     res <-
