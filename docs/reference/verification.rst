@@ -1,0 +1,280 @@
+************************************************************************
+                              Verification
+************************************************************************
+
+.. highlight:: sh
+
+A compiled Cogent program produces many Isabelle/HOL theory files to assist in verification.
+
+Dependencies
+------------
+
+Compiled Cogent theory files have several dependencies:
+
+* `Isabelle/HOL 2019`_, the proof assistant used for generated theory files (.thy)
+* AutoCorres_, an Isabelle/HOL tool to extract C code into an Isabelle/HOL embedding
+* `Cogent theories`_, included in the Cogent repository
+* `C refinement theories`_, included in the Cogent repository
+
+Cogent theories and C refinement theories are properly linked to compiled files using the
+``--root-dir=PATH`` compiler flag, which should specify the root directory of the
+`Cogent repository`_. 
+
+Generated Theory Files
+----------------------
+
+Compiling a program with the ``-A`` flag produces all needed verification files (among with other
+output files). You can
+optionally generate each individual file using it's relevant flag. The files are:
+
+TypeProof
+    A proof of type correctness for the compiled program, generated with ``--typeproof``.
+ShallowShared
+    The shared components of the shallow embedding, generated with either ``--shallow-desugar`` or
+    ``--shallow-normal``.
+Shallow_Desugar
+    The compiled shallow embedding from the desugared compiler code, generated with ``--shallow-desugar``.
+Shallow_Normal
+    The compiled shallow embedding in normal form, generated with ``--shallow-normal``.
+ShallowShared_Tuples, Shallow_Desugar_Tuples
+    Shallow embedding files that feature tuples instead of records, generated with ``--shallow-desugar-tuples``.
+SCorres_Normal
+    Various value relations for each type from the compiled Cogent program, generated with ``--scorres-normal``. Can also come in desugared and monomorphised form.
+Deep_Normal
+    The deep embedding for the compiled file, in normal form, generated with ``--deep-normal``. Can also come in desugared and monomorphised form.
+NormalProof
+    The proof that the compiled shallow embedding is in normal form, generated with ``--normal-proof``.
+ACInstall
+    Creates a shallow embedding of the generated C code via AutoCorres_, generated with ``--ac-install``.
+CorresSetup
+    Various lemmas needed for the correspondence proof, generated with ``--corres-setup``.
+CorresProof
+    Creates the correspondence proof between the Cogent deep embedding and the C shallow embedding, generated with ``--corres-proof``.
+MonoProof
+    Proving the equivalence of polymorphic functions and specialised monomorphic functions, generated with ``--mono-proof``.
+AllRefine
+    The final proof that shows the generated C code is a refinement of the generated shallow embedding, generated with ``--all-refine``.
+
+The generated files depend on each other in a hierarchy, depicted below:
+
+.. graphviz:: assets/dependencies.dot
+
+In addition to the theory files, a ``ROOT`` file is produced for building the
+files. You can reproduce this file by running the compiler with the ``--root``
+flag.
+
+Building/Running The Generated Files
+------------------------------------
+
+Before using the generated theory files, ensure you have built the AutoCorres heap like so::
+
+    L4V_ARCH=X64 isabelle build -v -b -d $AC_DIR AutoCorres
+
+Where ``$AC_DIR`` is the root directory of AutoCorres.
+
+In Jedit
+^^^^^^^^
+
+Launch the Jedit editor with the following command::
+
+    L4V_ARCH=X64 isabelle jedit -d $AC_DIR -l AutoCorres
+
+Where again, ``$AC_DIR`` is the root directory of AutoCorres.
+
+Then, simply open any file you wish to view.
+
+On the command line
+^^^^^^^^^^^^^^^^^^^
+
+Using the generated ``ROOT`` file, you can build the suite of files like so::
+
+    isabelle build -D $GENERATED_FILES_DIR \
+                   -d $REPO_ROOT/cogent/isa \
+                   -d $AC_DIR
+
+This will:
+
+* Select the root file located in the directory specified by ``$GENERATED_FILES_DIR``
+  and evaluate it, which is the directory where your ``ROOT`` file and generated
+  theory files are located;
+* Include the Cogent theory files in ``$REPO_ROOT/cogent/isa``, where ``$REPO_ROOT``
+  is the root directory of the Cogent repository;
+* Include AutoCorres theories located in ``$AC_DIR``.
+
+Examples
+--------
+
+A Simple Example
+^^^^^^^^^^^^^^^^
+
+In this example, we're going to write a function that squares a ``U64``, and prove
+the correctness of the embedding in Isabelle/HOL.
+
+You can find all the code for this example in our `repository <https://github.com/NICTA/cogent/tree/master/cogent/examples/square>`_
+
+We'll use the following Cogent code:
+
+.. literalinclude:: ../cogent/examples/square/square.cogent
+    :language: haskell
+
+And we'll build a shallow embedding using the following command:
+
+.. code-block:: bash
+
+    cogent square.cogent -g -o square\
+        --root-dir="../../.." \
+        --shallow-normal \
+        --entry-funcs=entrypoints.cfg
+
+which gives us the following shallow embedding:
+
+.. code-block:: isabelle
+
+    (*
+      This file is generated by Cogent
+    *)
+
+    theory Square_Shallow_Normal
+    imports "Square_ShallowShared"
+    begin
+
+    definition
+        square :: "64 word ⇒ 64 word"
+    where
+        "square x__ds_var_0 ≡ HOL.Let x__ds_var_0 (λx. (*) x x)" 
+
+    end
+
+Next, we'll create a file and import our shallow embedding, then prove its
+correctness against the specification of square in Isabelle/HOL:
+
+.. literalinclude:: ../cogent/examples/square/SquareProof.thy
+    :language: isabelle
+
+
+A More Involved Example
+^^^^^^^^^^^^^^^^^^^^^^^
+
+The code for this example is more involved than the previous, so follow along with the source located
+`here <https://github.com/NICTA/cogent/tree/master/cogent/examples/system-abstract-verif>`_.
+
+Naturally when writing Cogent code, you'll interface with C code frequently. This C code must go through AutoCorres for
+the refinement proof, so we'll need to put a bit more effort to set up the verification chain for such Cogent programs.
+
+This time, we'll be using abstract functions and types to represent the C functions and types we wish to call and use.
+Our program will take in a toy ``KernelState`` type, and check the status of a magic number in an object of this type. If the number
+has been corrupted, we'll cause a kernel panic; otherwise, continue on.
+
+The C code this time will involve the C standard library, which we don't want to pass into AutoCorres as it often
+causes errors. In realistic situations, the same issue can potentially be caused by system code included into Cogent programs that
+may not directly be verified along with the Cogent code (such as Linux kernel headers), so we need a way to work around this.
+
+Note that, as we will use types from the standard library that are not implemented in our antiquoted C or Cogent code, we
+must inform the compiler of the existence of these types. We do this with the flag ``--ext-type=types.cfg`` (we have explained this flag in :doc:`../introduction/first-program`), which points
+to the file in our example directory. As we'll use the file stream type, the only line in this file is ``FILE``.
+
+We'll write two wrapper files, each called ``wrapper.ac`` that contain different definitions of various library types and functions
+in order to work around AutoCorres. Observe the sample source code directory layout::
+
+    .
+    ├── entrypoints.cfg
+    ├── Kernel.cogent
+    ├── main.ac
+    ├── Makefile
+    ├── plat
+    │   ├── system
+    │   │   └── wrapper.ac
+    │   └── verification
+    │       └── wrapper.ac
+    └── types.cfg
+
+You'll notice in our platform folder (``plat``), we have a ``system`` folder and a ``verification`` folder each with it's own wrapper file.
+
+In the system folder, the wrapper file includes the C library for execution, defines the abstract types used in the Cogent code,
+and finally includes our to be compiled Cogent code followed by the main code. You may also notice that we define two messages as
+string literals in variables (``KERNEL_PANIC_MESSAGE``, ``KERNEL_OK_MESSAGE``). AutoCorres won't accept string literals in C code,
+so it's important to abstract them out of the main code. Finally, the wrapper includes the implementations of our abstract functions
+(``kernelPanic``, ``memMagicNumer``) that our Cogent code uses, and a ``main`` function to test the Cogent code, all located in ``main.ac``.
+
+.. literalinclude:: ../cogent/examples/system-abstract-verif/plat/system/wrapper.ac
+    :language: c
+
+In the ``verification`` folder however, we must provide definitions of the standard library types and functions we use
+(``FILE``, ``fprintf``, ``malloc``, ``free``, ``exit``, ``stdout``). During verification we'll treat these functions like a black box,
+so the actual implementation doesn't matter (as long as AutoCorres can parse them). For example, we can give the following
+definitions to the FILE type and fprintf:
+
+.. code-block:: c
+
+    typedef struct filedummy {
+        int dummy;
+    } FILE;
+
+    int fprintf(FILE * stream, char * str) {
+        // do nothing
+        return 0;
+    }
+
+We can also give dummy definitions to our string literal placeholder variables at this time too:
+
+.. code-block:: c
+
+    char * KERNEL_PANIC_MESSAGE = 0x0;
+    char * KERNEL_OK_MESSAGE    = 0x0;
+
+Now AutoCorres will be happy with our code!
+
+To make the verification build chain simpler, in our ``Makefile`` we simply change which ``wrapper.ac`` is supplied to
+the compiler depending on whether or not we want to build for verification or to build the system to run.
+
+Finally, we're left with our Cogent code:
+
+.. literalinclude:: ../cogent/examples/system-abstract-verif/Kernel.cogent
+    :language: haskell
+
+
+To run this example, run ``make system`` to compile the code into an executable called ``kernel``, or run 
+``make verification`` to build all Isabelle/HOL verification files and C code suited for AutoCorres.
+
+Common Errors
+-------------
+
+ACInstall
+^^^^^^^^^
+
+.. highlight:: none
+
+You may see the following error from AutoCorres when running this file::
+
+    ### In file included from file.c:3:
+    ### file.h:6:10: fatal error: cogent-defns.h: No such file or directory
+    ###  #include <cogent-defns.h>
+
+This is due to ``cpp`` being unable to find the Cogent C header, which is located in the Cogent repository 
+in `cogent/lib/cogent-defns.h <https://github.com/NICTA/cogent/blob/master/cogent/lib/cogent-defns.h>`_. Adding the compiler flag ``--fake-header-dir=$REPO_ROOT/cogent/lib`` will fix this.
+You can additionally set this directory to the result of ``cogent --stdgum-dir``, which will print the location of the Cogent
+standard library directory.
+
+You may also see the following error::
+
+    *** Undeclared constant: "??.\<Gamma>"
+    *** At command "autocorres" (line 14 of "ACInstall.thy")
+
+This can be due to several reasons:
+
+* You have not specified entrypoint functions via the compiler flag ``--entry-funcs=FILE``.
+* Your source file/entrypoiint functions contain only polymorphic functions. Concrete C functions
+  will only be generated when these polymorphic functions are instantiated by your Cogent
+  source file or your entrypoint file. You can do so in the entrypoint file like so: ``functionName[TypeName]`` (also see :doc:`../introduction/abstract` for more explanation).
+
+
+
+
+
+
+
+.. _AutoCorres: https://ts.data61.csiro.au/projects/TS/autocorres/
+.. _`Isabelle/HOL 2019`: https://isabelle.in.tum.de/
+.. _`Cogent theories`: https://github.com/NICTA/cogent/tree/master/cogent/isa/
+.. _`C refinement theories`: https://github.com/NICTA/cogent/tree/master/c-refinement
+.. _`Cogent repository`: https://github.com/NICTA/cogent
