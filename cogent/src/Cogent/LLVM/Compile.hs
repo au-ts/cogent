@@ -123,11 +123,12 @@ maxTypeSize ts =
   let typeSizes = [typeSize t | (_, (t, _)) <- ts]
    in Data.List.foldr max 8 typeSizes
 
-tagIndex :: [(TagName, (Core.Type t b, Bool))] -> TagName -> Int
-tagIndex ts tag =
+tagIndex :: Core.Type t b -> TagName -> Int
+tagIndex (TSum ts) tag =
   fromMaybe
     (error "cant find tag")
     (Data.List.findIndex ((== tag) . fst) ts)
+tagIndex _ _ = error "non variant type has no tags"
 
 typeSize :: Core.Type t b -> Int
 typeSize (TPrim p) = case p of
@@ -578,8 +579,6 @@ exprToLLVM (TE rt (Con tag e _)) =
             , metadata = []
             }
         )
-    let TSum rt_variants = rt
-        tagv = tagIndex rt_variants tag
     tagvp <-
       instr
         (toLLVMType rt)
@@ -594,7 +593,7 @@ exprToLLVM (TE rt (Con tag e _)) =
       ( Store
           { volatile = False
           , address = tagvp
-          , value = constInt 32 (toInteger tagv)
+          , value = constInt 32 (toInteger (tagIndex rt tag))
           , maybeAtomicity = Nothing
           , alignment = 4
           , metadata = []
@@ -643,6 +642,66 @@ exprToLLVM (TE rt (Con tag e _)) =
             )
       )
     return (Left res)
+exprToLLVM (TE _ (Case e@(TE rt _) tag (_, _, tb) (_, _, fb))) =
+  do
+    _variant <- exprToLLVM e
+    tagvp <-
+      instr
+        (toLLVMType rt)
+        ( GetElementPtr
+            { inBounds = True
+            , address = fromLeft (error "variant cannot be a terminator") _variant
+            , indices = [constInt 32 0, constInt 32 0]
+            , metadata = []
+            }
+        )
+    tagv <-
+      instr
+        (IntegerType 32)
+        ( Load
+            { volatile = False
+            , address = tagvp
+            , maybeAtomicity = Nothing
+            , alignment = 4
+            , metadata = []
+            }
+        )
+    cond <-
+      instr
+        (IntegerType 1)
+        ( ICmp
+            { iPredicate = IntP.EQ
+            , operand0 = tagv
+            , operand1 = constInt 32 (toInteger (tagIndex rt tag))
+            , metadata = []
+            }
+        )
+    currentBlk <- gets currentBlock
+    blkCaseTrue <- addBlock "brCaseTrue"
+    blkCaseFalse <- addBlock "brCaseFalse"
+    -- blkEnd <- addBlock "brEnd"
+    setBlock blkCaseTrue
+    _tb <- exprToLLVM tb
+    case _tb of
+      Left val -> terminator (Do (Ret (Just val) []))
+      Right trm -> terminator trm
+    setBlock blkCaseFalse
+    _fb <- exprToLLVM fb
+    case _fb of
+      Left val -> terminator (Do (Ret (Just val) []))
+      Right trm -> terminator trm
+    setBlock currentBlk
+    terminator
+      ( Do
+          ( CondBr
+              { condition = cond
+              , trueDest = blkCaseTrue
+              , falseDest = blkCaseFalse
+              , metadata' = []
+              }
+          )
+      )
+      >>= (return . Right)
 exprToLLVM (TE rt (Esac e)) =
   do
     _variant <- exprToLLVM e
