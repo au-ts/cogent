@@ -101,11 +101,7 @@ toLLVMType (TRecord _ ts _) =
     }
 toLLVMType TUnit = IntegerType 2 -- as VoidType is not a first class type, use i2 for ()
 toLLVMType TString = ptrTo (IntegerType 8)
-toLLVMType (TSum ts) =
-  StructureType
-    { isPacked = False
-    , elementTypes = [IntegerType 32, IntegerType (toEnum (maxTypeSize ts))]
-    }
+toLLVMType (TSum ts) = sumTypeLift (IntegerType (toEnum (maxTypeSize ts)))
 #ifdef BUILTIN_ARRAYS
 toLLVMType (TArray t l s mh) =
   ArrayType { nArrayElements = __todo "toLLVMType: we cannot evaluate LExpr to a constant"
@@ -274,6 +270,14 @@ ptrTo t = PointerType {pointerReferent = t, pointerAddrSpace = AddrSpace 0}
 unPtr :: AST.Type -> AST.Type
 unPtr (PointerType t _) = t
 unPtr t = t
+
+sumTypeLift :: AST.Type -> AST.Type
+sumTypeLift t =
+  ptrTo
+    StructureType
+      { isPacked = False
+      , elementTypes = [IntegerType 32, t]
+      }
 
 constInt :: Int -> Integer -> AST.Operand
 constInt n i = ConstantOperand C.Int {C.integerBits = fromIntegral n, C.integerValue = i}
@@ -569,7 +573,7 @@ exprToLLVM (TE rt (Con tag e _)) =
       instr
         (toLLVMType rt)
         ( Alloca
-            { allocatedType = toLLVMType rt
+            { allocatedType = unPtr (toLLVMType rt)
             , numElements = Nothing
             , alignment = 4
             , metadata = []
@@ -603,13 +607,7 @@ exprToLLVM (TE rt (Con tag e _)) =
           _ -> False
       )
       ( do
-          let ct =
-                ptrTo
-                  ( StructureType
-                      { isPacked = False
-                      , elementTypes = [IntegerType 32, typeOf value]
-                      }
-                  )
+          let ct = sumTypeLift (typeOf value)
           casted <-
             instr
               ct
@@ -704,13 +702,7 @@ exprToLLVM (TE _ (Case e@(TE rt _) tag (_, _, tb) (_, _, fb))) =
 exprToLLVM (TE rt (Esac e)) =
   do
     _variant <- exprToLLVM e
-    let ct =
-          ptrTo
-            ( StructureType
-                { isPacked = False
-                , elementTypes = [IntegerType 32, toLLVMType rt]
-                }
-            )
+    let ct = sumTypeLift (toLLVMType rt)
     casted <-
       instr
         ct
@@ -898,16 +890,12 @@ toLLVMDef (AbsDecl _ name _ _ t rt) =
         , basicBlocks = []
         }
     )
--- if passing in struct, it should be a pointer
 toLLVMDef (FunDef _ name _ _ t rt body) =
   def
     (toShort (packChars name))
-    [(argType t, UnName 0)]
-    (argType rt)
+    [(toLLVMType t, UnName 0)]
+    (toLLVMType rt)
     (const (exprToLLVM body))
-  where
-    argType at@TSum {} = ptrTo (toLLVMType at)
-    argType at = toLLVMType at
 toLLVMDef (TypeDef name _ mt) =
   TypeDefinition
     (Name (toShort (packChars name)))
