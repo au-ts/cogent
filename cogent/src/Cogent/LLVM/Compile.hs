@@ -93,7 +93,8 @@ toLLVMInt U64 = IntegerType 64
 toLLVMType :: Core.Type t b -> AST.Type
 toLLVMType (TPrim p) = toLLVMInt p
 toLLVMType (TRecord _ ts _) =
-  -- don't know how to deal with sigil, also not handling recursive types
+  -- don't know how to deal with sigil
+  ptrTo
   StructureType
     { isPacked = False
     , elementTypes = [toLLVMType t | (_, (t, _)) <- ts]
@@ -269,6 +270,10 @@ recordType (TE rect _) = case rect of
 
 ptrTo :: AST.Type -> AST.Type
 ptrTo t = PointerType {pointerReferent = t, pointerAddrSpace = AddrSpace 0}
+
+unPtr :: AST.Type -> AST.Type
+unPtr (PointerType t _) = t
+unPtr t = t
 
 constInt :: Int -> Integer -> AST.Operand
 constInt n i = ConstantOperand C.Int {C.integerBits = fromIntegral n, C.integerValue = i}
@@ -780,9 +785,9 @@ exprToLLVM r@(TE rect (Struct flds)) =
   do
     struct <-
       instr
-        (ptrTo (toLLVMType rect))
+        (toLLVMType rect)
         ( Alloca
-            { allocatedType = toLLVMType rect
+            { allocatedType = unPtr (toLLVMType rect)
             , alignment = 4
             , numElements = Nothing
             , metadata = []
@@ -901,8 +906,6 @@ toLLVMDef (FunDef _ name _ _ t rt body) =
     (argType rt)
     (const (exprToLLVM body))
   where
-    argType at@TRecord {} = ptrTo (toLLVMType at)
-    argType at@TProduct {} = ptrTo (toLLVMType at)
     argType at@TSum {} = ptrTo (toLLVMType at)
     argType at = toLLVMType at
 toLLVMDef (TypeDef name _ mt) =
