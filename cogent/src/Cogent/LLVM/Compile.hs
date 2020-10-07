@@ -98,12 +98,7 @@ toLLVMType (TRecord _ ts _) =
     { isPacked = False
     , elementTypes = [toLLVMType t | (_, (t, _)) <- ts]
     }
-toLLVMType TUnit = VoidType
-toLLVMType (TProduct a b) =
-  StructureType
-    { isPacked = False
-    , elementTypes = [toLLVMType a, toLLVMType b]
-    }
+toLLVMType TUnit = IntegerType 2 -- as VoidType is not a first class type, use i2 for ()
 toLLVMType TString = ptrTo (IntegerType 8)
 toLLVMType (TSum ts) =
   StructureType
@@ -116,7 +111,7 @@ toLLVMType (TArray t l s mh) =
             , elementType = toLLVMType t
             }
 #endif
-toLLVMType _ = VoidType
+toLLVMType _ = error "unknown type"
 
 maxTypeSize :: [(TagName, (Core.Type t b, Bool))] -> Int
 maxTypeSize ts =
@@ -278,8 +273,7 @@ ptrTo t = PointerType {pointerReferent = t, pointerAddrSpace = AddrSpace 0}
 constInt :: Int -> Integer -> AST.Operand
 constInt n i = ConstantOperand C.Int {C.integerBits = fromIntegral n, C.integerValue = i}
 
-exprToLLVM :: TypedExpr t v a b -> Codegen (Either Operand (Named Terminator))
-exprToLLVM (TE t Unit) = return (Left (ConstantOperand C.Undef {C.constantType = toLLVMType t}))
+exprToLLVM (TE _ Unit) = return (Left (constInt 2 0))
 exprToLLVM (TE t (ILit int _)) = return (Left (constInt (typeSize t) int))
 exprToLLVM (TE _ (SLit str)) =
   return
@@ -479,24 +473,21 @@ exprToLLVM (TE rt (Op op [a, b])) =
                     }
                 )
     return (Left res)
-exprToLLVM (TE rt (Op op [a])) =
+exprToLLVM (TE rt (Op Sy.Complement [a])) =
   do
     _oa <- exprToLLVM a
     res <-
-      let oa = fromLeft (error "operand of OP cannot be terminator") _oa
-          mone = constInt (typeSize rt) (-1)
-       in case op of
-            x
-              | x `Data.List.elem` [Sy.Complement, Sy.Not] -> -- Not is just Complement for Bool
                 instr
                   (toLLVMType rt)
                   ( Xor
-                      { operand0 = oa
-                      , operand1 = mone
+            { operand0 = fromLeft (error "operand of OP cannot be terminator") _oa
+            , operand1 = constInt (typeSize rt) (-1)
                       , metadata = []
                       }
                   )
     return (Left res)
+-- Not is just Complement for Bool
+exprToLLVM (TE rt (Op Sy.Not t)) = exprToLLVM (TE rt (Op Sy.Complement t))
 exprToLLVM (TE _ (Member recd fld)) =
   do
     _recv <- exprToLLVM recd
@@ -602,7 +593,10 @@ exprToLLVM (TE rt (Con tag e _)) =
     _value <- exprToLLVM e
     let value = fromLeft (error "value cannot be a terminator") _value
     unless
-      (typeOf value == VoidType)
+      ( case e of
+          TE TUnit _ -> True
+          _ -> False
+      )
       ( do
           let ct =
                 ptrTo
