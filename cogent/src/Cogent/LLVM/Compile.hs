@@ -937,7 +937,7 @@ toLLVM :: [Core.Definition Core.TypedExpr VarName VarName] -> FilePath -> IO ()
 toLLVM monoed source = do
   let ast = toMod monoed source
   let resName = replaceExtension source "ll"
-  outFile <- openFile resName ReadWriteMode
+  outFile <- openFile resName WriteMode
   writeLLVM ast outFile
   hClose outFile
   return ()
