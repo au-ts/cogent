@@ -14,12 +14,6 @@ branches:
   except:
   - /^auto-deploy-.*$/
 
-# addons:
-#   apt:
-#     packages:
-#       - "python3"
-#       - "python3-pip"
-
 cache:
   directories:
     - $HOME/.ghc
@@ -32,23 +26,65 @@ env:
   global:
     - REPO=$TRAVIS_BUILD_DIR
     - TRAVIS_BUILD_APT_RETRIES_PERCENTAGE=100
-    - COGENT_FULL_FEATURE="+builtin-arrays +refinement-types +docgent +haskell-backend"
-    - COGENT_NO_FEATURE="-builtin-arrays -refinement-types -docgent -haskell-backend"
+    - COGENT_FULL_FEATURE="+builtin-arrays +refinement-types +docgent +haskell-backend +llvm-backend"
+    - COGENT_NO_FEATURE="-builtin-arrays -refinement-types -docgent -haskell-backend -llvm-backend"
 
 jobs:
   include:
     - env: CABALVER=3.2 GHCVER=8.8.3 COGENT_BUILD_FLAGS=$COGENT_FULL_FEATURE
       compiler: "ghc-8.8.3"
-      addons: {apt: {packages: [cabal-install-3.2,ghc-8.8.3,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
+      addons:
+        apt: 
+          packages: 
+            - cabal-install-3.2
+            - ghc-8.8.3
+            - alex-3.1.7
+            - happy-1.19.5
+            - clang-9
+            - llvm-9-dev
+          sources: 
+            - hvr-ghc
+            - sourceline: "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-9 main"
+              key_url: "https://apt.llvm.org/llvm-snapshot.gpg.key"
+          config:
+            retries: true
     - env: CABALVER=3.2 GHCVER=8.8.3 COGENT_BUILD_FLAGS=$COGENT_NO_FEATURE
       compiler: "ghc-8.8.3"
       addons: {apt: {packages: [cabal-install-3.2,ghc-8.8.3,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
     - env: CABALVER=3.2 GHCVER=8.6.5 COGENT_BUILD_FLAGS=$COGENT_FULL_FEATURE
       compiler: "ghc-8.6.5"
-      addons: {apt: {packages: [cabal-install-3.2,ghc-8.6.5,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
+      addons:
+        apt: 
+          packages: 
+            - cabal-install-3.2
+            - ghc-8.6.5
+            - alex-3.1.7
+            - happy-1.19.5
+            - clang-9
+            - llvm-9-dev
+          sources: 
+            - hvr-ghc
+            - sourceline: "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-9 main"
+              key_url: "https://apt.llvm.org/llvm-snapshot.gpg.key"
+          config:
+            retries: truea
     - env: CABALVER=3.2 GHCVER=8.4.4 COGENT_BUILD_FLAGS=$COGENT_FULL_FEATURE
       compiler: "ghc-8.4.4"
-      addons: {apt: {packages: [cabal-install-3.2,ghc-8.4.4,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc], config: {retries: true}}}
+      addons:
+        apt: 
+          packages: 
+            - cabal-install-3.2
+            - ghc-8.4.4
+            - alex-3.1.7
+            - happy-1.19.5
+            - clang-9
+            - llvm-9-dev
+          sources: 
+            - hvr-ghc
+            - sourceline: "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-9 main"
+              key_url: "https://apt.llvm.org/llvm-snapshot.gpg.key"
+          config:
+            retries: true
 
   allow_failures:
     # I know that some dependency triggers ghc panic in that version. / zilinc
@@ -58,7 +94,9 @@ before_install:
  - unset CC
  - export ALEXVER=3.1.7
  - export HAPPYVER=1.19.5
- - export PATH=~/.cabal/bin:/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:/opt/happy/$HAPPYVER/bin:/opt/alex/$ALEXVER/bin:$PATH
+ - export PATH=/usr/lib/llvm-9/bin:~/.cabal/bin:/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:/opt/happy/$HAPPYVER/bin:/opt/alex/$ALEXVER/bin:$PATH
+ - clang --version
+ - llvm-config --version
    # - pip --version
    # - sudo pip --version
  - pip install termcolor ruamel.yaml
@@ -78,7 +116,7 @@ install:
 
  - cabal new-configure --flags="$COGENT_BUILD_FLAGS" --with-compiler=ghc-$GHCVER --enable-tests
  - cat cabal.project.local
- - travis_wait 50 cabal new-install --install-method=copy --installdir=$HOME/.cabal/bin --overwrite-policy=always
+ - travis_wait 70 cabal new-install --install-method=copy --installdir=$HOME/.cabal/bin --overwrite-policy=always
 
 # Install z3
  - cd $REPO
@@ -100,7 +138,7 @@ install:
 # any command which exits with a non-zero exit code causes the build to fail.
 script:
  - cd $REPO/cogent
- - travis_wait cabal new-test test-quickcheck  # the other test is rarely affacted, so not enabled / zilinc
+ - travis_wait 50 cabal new-test test-quickcheck  # the other test is rarely affacted, so not enabled / zilinc
  # - cabal check
  - cabal new-haddock
  # Check if Cogent has been correctly installed

@@ -59,3 +59,7 @@ docs/pseudoxml/
 
 cogent/scripts/*.dat
 cogent/scripts/*.png
+
+# LLVM
+*.ll
+*.bc

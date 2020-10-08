@@ -1,0 +1,115 @@
+/*
+ * Copyright 2020, Data61
+ *
+ * This software may be distributed and modified according to the terms of
+ * the GNU General Public License version 2. Note that NO WARRANTY is provided.
+ * See "LICENSE_GPLv2.txt" for details.
+ *
+ * @TAG(DATA61_GPL)
+ */
+
+$esc:(#include <stdio.h>)
+$esc:(#include <string.h>)
+$esc:(#include <stdint.h>)
+$esc:(#include <stddef.h>)
+
+typedef char EntryBlock;
+typedef char CString;
+typedef void *SysState;
+
+#define SIZE 4096
+
+#include "generated.c"
+#include <gum/anti/iterator.ac>
+#include <gum/anti/common.ac>
+
+char block[SIZE]; // Contains Entry's jammed together; terminated by
+                  // len==0.
+
+$ty:((SysState, EntryBlock!)) $id:get_block ($ty:(SysState) args) {
+   $ty:((SysState, EntryBlock!)) ret;
+   ret.p1 = args;
+   ret.p2 = block;
+   return ret;
+}
+
+$ty:(Entry!) $id:get_entry_at_offset ($ty:((EntryBlock!, U64)) args) {
+   $ty:(EntryBlock!) block = args.p1;
+   $ty:(U64) offset = args.p2;
+   return ($ty:(Entry))((uintptr_t)block + offset);
+}
+
+$ty:(Bool) $id:is_entry ($ty:((EntryBlock!, Entry!)) args) {
+   $ty:(Bool) ret;
+   $ty:(Entry!) e = args.p2;
+   $ty:(EntryBlock!) block = args.p1;
+   ret.boolean = ((uintptr_t)e - (uintptr_t)block) < SIZE;
+}
+
+$ty:(Bool) cstring_cmp($ty:((CString!, CString!)) args) {
+   $ty:(Bool) ret;
+
+   if (!strcmp(args.p1, args.p2)) {
+      ret.boolean = 1;
+   } else {
+      ret.boolean = 0;
+   }
+
+   return ret;
+}
+
+$ty:(Stuff!) stuff_ptr($ty:(Entry!) e) {
+   return &e->stuff;
+}
+
+int in_range($ty:(Entry!) e, unsigned long nlen) {
+  unsigned long p;
+
+  p = (uintptr_t)e + offsetof(Entry,name) + nlen;
+
+  return (p - (uintptr_t)block) < SIZE;
+}
+
+/* Initialise our block of entries. */
+/* Not translated into Cogent. */
+void init(void) {
+  FILE *fp;
+  $ty:(Entry) e;
+  int a, b, c, len;
+  char buf[80];
+
+  memset(block, 0, SIZE);
+
+  if ((fp = fopen("entries.txt", "r")) != NULL) {
+    e = (Entry *)block;
+    while (fscanf(fp, "%s%d%d%d\n", buf, &a, &b, &c) == 4) {
+      len = strlen(buf)+1;
+      if (!in_range(e, len)) {
+        break;
+      }
+      // Point to the next location 
+      e->name = (char*)((uintptr_t)e + offsetof(Entry,name) + sizeof(char*));
+      strcpy(e->name, buf);
+      e->stuff.a = a;
+      e->stuff.b = b;
+      e->stuff.c = c;
+      e->len = ((uintptr_t)e->name + len) - (uintptr_t)e;
+      e = (Entry *) ((uintptr_t)e + e->len);
+    }
+    fclose(fp);
+  }
+}
+
+int main(void){
+  $ty:((SysState, Option Stuff!)) ret;
+  init();
+  char *str = {"wombat"};
+  $ty:((SysState, CString!)) args = {.p1 = NULL , .p2 = str};
+  ret = findStuff(args);
+  if (ret.p2.tag == TAG_ENUM_Some) {
+    printf("Wombat's b is %d.\n", ret.p2.Some->b);
+  } else {
+    printf("Wombat was not found.\n");
+  }
+  return 0;
+}

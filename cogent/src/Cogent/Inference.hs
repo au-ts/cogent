@@ -40,6 +40,7 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core
 import Cogent.Dargent.Allocation
+import Cogent.Dargent.Util
 import Cogent.Util
 import Cogent.PrettyPrint (indent')
 import Data.Ex
@@ -236,9 +237,9 @@ substituteS ls (Boxed b (Layout l)) = Boxed b . Layout $ substituteS' ls l
   where
     substituteS' :: [DataLayout BitRange] -> DataLayout' BitRange -> DataLayout' BitRange
     substituteS' ls l = case l of
-      VarLayout n -> case ls !! (natToInt n) of
+      VarLayout n s -> case ls !! (natToInt n) of
                        CLayout -> __impossible "substituteS in Inference: CLayout shouldn't be here"
-                       Layout l -> l
+                       Layout l -> offset s l
       SumLayout tag alts ->
         let altl = M.toList alts
             fns = fmap fst altl

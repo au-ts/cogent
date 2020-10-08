@@ -36,6 +36,7 @@ import Cogent.Common.Types
 import Cogent.Core
 import Cogent.Dargent.Allocation
 import Cogent.Dargent.Core
+import Cogent.Dargent.Util
 import Cogent.Inference
 import Cogent.Util (Warning, first3, second3, third3, flip3)
 import Data.Fin
@@ -241,10 +242,10 @@ monoLayout CLayout = pure CLayout
 monoLayout (Layout l) = Layout <$> monoLayout' l
   where
     monoLayout' :: DataLayout' BitRange -> Mono b (DataLayout' BitRange)
-    monoLayout' (VarLayout n) = do
+    monoLayout' (VarLayout n s) = do
       rs <- (!!) <$> (fmap snd ask) <*> pure (natToInt n)
       case rs of
-        Layout l -> pure l
+        Layout l -> pure $ offset s l
         CLayout -> __impossible "monoLayout: CLayout shouldn't be in the list of instances"
     monoLayout' (SumLayout tag alts) = do
       let altl = M.toList alts

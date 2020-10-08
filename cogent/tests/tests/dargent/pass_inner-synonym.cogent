@@ -1,0 +1,10 @@
+type A = #{ w : U32 , v : U32 }
+
+layout LA = record { w : 4B at 0B , v : 4B at 4B }
+
+type XY = { x: U32, z : A , y: U32 }
+  layout
+    record { x: 4B at 0B
+           , z: LA at 6B
+           , y: 4B at 14B
+           }

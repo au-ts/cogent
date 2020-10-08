@@ -42,7 +42,7 @@ import Lens.Micro
 import Lens.Micro.Mtl
 import Text.PrettyPrint.ANSI.Leijen as P hiding ((<>), (<$>))
 
--- import Debug.Trace
+import Debug.Trace
 
 -- NOTE: this normalisation process largely comes down to normalise types
 -- and adding error contexts.

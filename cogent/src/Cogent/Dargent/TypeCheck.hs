@@ -55,7 +55,7 @@ pattern TLVariant t ps = TL (Variant t ps)
 pattern TLArray e s    = TL (Array e s)
 #endif
 pattern TLOffset e s   = TL (Offset e s)
-pattern TLRepRef n s   = TL (RepRef n s)
+pattern TLRepRef n es  = TL (RepRef n es)
 pattern TLVar n        = TL (LVar n)
 pattern TLPtr          = TL Ptr
 

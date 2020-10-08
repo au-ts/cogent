@@ -1,0 +1,87 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+-- This is a test file
+-- TODO: poly functions
+
+include "lib.cogent"
+
+type Index = U8
+type ErrCode = U32  -- comment
+type Buf
+type Foo
+type A = () -> ()
+type SimpleObj = { a : U8 , b : U8, c : Foo }
+
+buf_create : U8 -> < Ok Buf | Err ErrCode >
+
+buf_free : Buf -> ()
+
+string_test : String
+string_test = "Hello"
+
+simpleobj_serialise : (Buf, SimpleObj!, Index) -> <Ok  (Buf, Index) |  -- comment here
+                                                   Err (ErrCode, Buf)   >
+simpleobj_new : (U8, U8) -> <Ok SimpleObj | Err ErrCode>
+simpleobj_unserialise : (Buf!, SimpleObj, Index) -> <Ok SimpleObj | Err (ErrCode, SimpleObj)>
+simpleobj_free : SimpleObj -> ()
+print : SimpleObj! -> ()
+
+type USynonym = U8 
+
+-- Don't name them `a' and `b'. Avoiding --hs-shallow conflicts.
+x : U8
+x = 10
+
+y : U8
+y = x
+
+
+buf_size : U8
+buf_size = 42
+
+simpleobj_example : SimpleObj -> <Ok SimpleObj | Err (ErrCode, SimpleObj)>
+simpleobj_example so = buf_create buf_size
+  | Err e -> Err (e, so)
+  | Ok  buf => simpleobj_serialise (buf,so,0) !so
+    | Err (e,buf) -> buf_free buf; Err (e,so)
+    | Ok  (buf,i) => simpleobj_new ('_',0)
+      | Err e   ~> buf_free buf; Err (e,so)
+      | Ok  so2 => simpleobj_unserialise (buf,so2,0) !buf
+        | Err (e,so2) -> buf_free buf; simpleobj_free so2; Err (e,so)
+        | Ok  so2     => 
+          let so' {a, b} = so 
+          and so2' {a = a2, b = b2} = so2
+          in if not (a == a2 && b == b2) then 
+               simpleobj_free (so2' {a = a2 + 1, b = b2});
+               buf_free buf;
+               Err (32, so' {a,b})
+             else 
+               simpleobj_free (so' {a,b}); 
+               buf_free buf;
+               Ok (so2' {a = a2, b = b2})
+
+
+simpleobj_example' : SimpleObj -> <Ok SimpleObj | Err (ErrCode, SimpleObj)>
+simpleobj_example' so = buf_create 42
+  | Err e -> Err (e, so)
+  | Ok  buf => simpleobj_serialise (buf,so,0) !so
+     | Err (e, buf) -> buf_free buf; Err (e, so)
+     | Ok  (buf, i) => simpleobj_new ('_',0)
+       | Err e  -> buf_free buf; Err (e, so) 
+       | Ok so2 => simpleobj_unserialise (buf,so2,0) !buf
+         | Err (e, so2) -> buf_free buf; simpleobj_free so2; Err (e,so)
+         | Ok  so2      => 
+           let ok = so.a == so2.a && so.b == so2.b !so !so2
+           in buf_free buf; 
+              if not ok 
+                then simpleobj_free so2; Err (32, so)
+                else simpleobj_free so ; Ok  so2
+

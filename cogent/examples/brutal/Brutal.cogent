@@ -1,0 +1,60 @@
+-- A first attempt at translating the minimal C example: brutal.c
+-- We use abstract functions to hide the pointer arithmetic and
+-- iteration required by the example. The rest of the example can
+-- be expressed in Cogent.
+
+include <gum/common/common.cogent>
+include <gum/common/iterator.cogent>
+
+type Stuff = {
+  a : U32,
+  b : U32,
+  c : U32
+}
+
+type Entry = {
+  len : U32,
+  stuff : #Stuff,
+  name : CString -- an abstraction over char pointer; closest equivalent
+                 -- to flexible array member.
+}
+
+type EntryBlock
+type CString
+
+get_block : (SysState) -> (SysState, EntryBlock!)
+
+get_entry_at_offset : (EntryBlock!, U64) -> Entry!
+
+is_entry : (EntryBlock!, Entry!) -> Bool
+
+cstring_cmp : (CString!, CString!) -> Bool
+
+stuff_ptr : (Entry!) -> Stuff!
+
+gen_next_entry : #{ acc : U64, obsv : (EntryBlock!, CString!) } ->
+  GeneratorResult Entry! Stuff! () U64
+gen_next_entry #{ acc = offset , obsv = (block, _) } =
+  let e = get_entry_at_offset(block, offset)
+  and new_offset = offset + upcast e.len in
+  if is_entry (block, e) then (new_offset, Yield e)
+  else (offset, Stop ())
+
+cons_next_entry : #{ obj : Entry!, acc : U64, obsv : (EntryBlock!, CString!) } ->
+  ConsumerResult Stuff! () U64
+cons_next_entry #{obj = e, acc = offset, obsv = (block, needle)} =
+  if e.len == 0 then (offset, Stop ())
+  else if cstring_cmp(needle, e.name) then (offset, Return (stuff_ptr e))
+       else (offset, Next)
+
+findStuff : (SysState, CString!) -> (SysState, Option Stuff!)
+findStuff (sys, needle) =
+  let (sys, block) = get_block(sys)
+  and (_, res) = iterate [Entry!, Stuff!, (), U64 , (EntryBlock!, CString!)]
+                         #{ gen = gen_next_entry
+                          , cons = cons_next_entry
+                          , acc = 0
+                          , obsv = (block, needle) }
+  in res
+  | Return s -> (sys, Some s)
+  | Stop () -> (sys, None)

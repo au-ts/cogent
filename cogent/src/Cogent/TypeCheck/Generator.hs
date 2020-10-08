@@ -190,13 +190,14 @@ validateType (RT t) = do
       return (c, T $ TRefine v t' (toTCSExpr e'))
 #endif
 
-    TLayout l t -> do
+    TLayout l tau -> do
       let cl = case runExcept $ tcDataLayoutExpr layouts lvs l of
                  Left (e:_) -> Unsat $ DataLayoutError e
                  Right _    -> Sat
-      (ct,t') <- validateType t
+      (ct,tau') <- validateType tau
       let l' = toTCDL l
-      pure (cl <> ct <> l' :~ t', T $ TLayout l' t')
+          t' = T $ TLayout l' tau'
+      pure (cl <> ct <> LayoutOk t', t')
 
     -- vvv The uninteresting cases; but we still have to match each of them to convince the typechecker / zilinc
     TRPar v b ctxt -> (second T) <$> fmapFoldM validateType (TRPar v b ctxt)
@@ -396,8 +397,9 @@ cg' (ArrayIndex e i) t = do
   s <- freshVar             -- sigil
   idx <- freshEVar (T u32)  -- index
   h <- freshVar             -- hole
-  let ta = A alpha n (Right s) (Left $ Just idx)  -- this is the biggest type 'e' can ever have -- with a hole
-                                                  -- at a location other than 'i'
+  let -- XXX | ta = A alpha n (Right s) (Left $ Just idx)  -- this is the biggest type 'e' can ever have -- with a hole
+      -- XXX |                                             -- at a location other than 'i'
+      ta = A alpha n (Right s) (Left Nothing)  -- For now we disallow holes to appear, due to the lack of symbolic execution
       ta' = A alpha n (Right s) (Right h)
   (ce, e') <- cg e ta'
   (ci, i') <- cg i (T u32)
@@ -405,8 +407,8 @@ cg' (ArrayIndex e i) t = do
         <> ta' :< ta
         <> Share ta UsedInArrayIndexing
         <> Arith (SE (T bool) (PrimOp "<"  [toTCSExpr i', n  ]))
-        <> Arith (SE (T bool) (PrimOp "<"  [idx         , n  ]))
-        <> Arith (SE (T bool) (PrimOp "/=" [toTCSExpr i', idx]))
+        -- <> Arith (SE (T bool) (PrimOp "<"  [idx         , n  ]))
+        -- <> Arith (SE (T bool) (PrimOp "/=" [toTCSExpr i', idx]))
         -- <> Arith (SE (PrimOp ">=" [toSExpr i, SE (IntLit 0)]))  -- as we don't have negative values
   traceTc "gen" (text "array indexing" <> colon
                  L.<$> text "index is" <+> pretty (stripLocE i) <> semi
@@ -591,8 +593,8 @@ cg' (TLApp f ts ls i) t = do
           matchL [] _  = pure (Unsat $ TooManyLayoutArguments f (PT tvs lvs tau), [])
           matchL ts [] = freshLVar >>= matchL ts . return . Just
           matchL (t':t'') (Nothing:l') = freshLVar >>= matchL (t':t'') . (:l') . Just
-          matchL ((v,t):t'') (Just l:l') = do
-            (c, ps) <- matchL t'' l'
+          matchL ((v,t):t') (Just l:l') = do
+            (c, ps) <- matchL t' l'
             return (c <> layoutMatchConstraint t l, (v, l):ps)
       (cts, tps) <- matchT tvs ts'
       (cls, lps) <- matchL (second (substType tps) <$> lvs) ls'

@@ -1,0 +1,14 @@
+- test_name: llvm-simple
+  files:
+    - pass_simple-arith.cogent
+    - pass_simple-con.cogent
+    - pass_simple-cpp.cogent
+    - pass_simple-fun.cogent
+    - pass_simple-if.cogent
+    - pass_simple-obj.cogent
+    - pass_simple-split.cogent
+    - pass_simple-string-lit.cogent
+    - pass_simple-struct.cogent
+  expected_result: wip-pass
+  flags:
+    - --llvm
