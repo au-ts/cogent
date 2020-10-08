@@ -308,7 +308,17 @@ theorems provided by get_thm_def
 fun unfold_thm (g : callgraph) (fn_name : string) 
    (get_thm_def : string -> Proof.context -> thm)  ctxt =
    let  
-     val called_funs = rec_called_funs g fn_name 
+    val called_funs = rec_called_funs g fn_name
+    (* For debugging purpose *)
+    (*
+    val _ = writeln ("unfolding " ^ fn_name) 
+    val _ = writeln (String.concatWith ", " called_funs)
+    val _ = writeln 
+        ( "apply(simp only: " ^
+             (String.concatWith " "  
+                      (called_funs |> map (fn s => s ^ "'_def")))
+         ^ ")") *)
+
     (* generate nice definitions of C getters *)
     val called_funs_def =  List.map (fn s => get_thm_def s ctxt) called_funs
 in
@@ -332,7 +342,8 @@ let
     val simplified_thm_name = fn_name ^ "'_def'"
     val _ = tracing ("generate_isa_get_or_set: generating " ^ isa_fn_name ^ " and " ^ simplified_thm_name)
     (* The unfolded definition of the monadic getter/setter *)
-    val fn_def_thm = unfold_thm g fn_name get_thm_def ctxt
+    val fn_def_thm = unfold_thm g fn_name 
+      (fn s => ((* tracing s ; *) get_thm_def s) ) ctxt
     val term = generator fn_def_thm
     val (thm_def, ctxt) = Utils.define_lemma simplified_thm_name fn_def_thm ctxt
     val ctxt = GetSetDefs.add_local thm_def ctxt
@@ -347,7 +358,7 @@ generate_isa_get_or_set g fn_name ["w"] tidy_C_fun_def
 
 (* heap_fn : the name of the heap setter, e.g. heap_t1_C_update *)
 fun generate_isa_set g heap_fn fn_name heap_setter_thms ctxt =
-generate_isa_get_or_set g fn_name ["w", "v"] fn_C_def_thm
+generate_isa_get_or_set g fn_name ["w", "v"]  fn_C_def_thm (* tidy_C_fun_def does not work for setters *)
   (generate_setter_term ctxt fn_name heap_fn heap_setter_thms) ctxt
 
 fun generate_isa_getset g heap_getter heap_setter heap_setter_thms (* ty *)
@@ -369,7 +380,9 @@ fun generate_isa_getset_record g (heap_info : HeapLiftBase.heap_info) (ty, l) ct
   let
     val _ = tracing ("generate_isa_getset_record: generating getter/setter for " ^ ty)
     val heap_getter = ( Typtab.lookup (#heap_getters heap_info) 
-        (Syntax.read_typ ctxt ty)) |> the |> fst
+        (Syntax.read_typ ctxt ty)) |> 
+           Utils.the' ("heap getter not found for " ^ ty) |> 
+            fst
     val heap_setter = ( Typtab.lookup (#heap_setters heap_info) 
         (Syntax.read_typ ctxt ty)) |> the |> fst
     val (heap_setter_comp, ctxt) = make_heap_setter_comp_thm heap_setter ctxt
@@ -481,6 +494,7 @@ type getset_lem = { prop : term, typ : getSetLemType, name : string, mk_tactic: 
 
 val cheat_tactic : Proof.context -> tactic = fn context => Skip_Proof.cheat_tac context 1
 
+(* for debugging purpose *)
 fun string_of_getset_lem ctxt (lem : getset_lem) =
   "lemma " ^ # name lem ^ "[GetSetSimp] : \"" ^
    Syntax.string_of_term ctxt (# prop lem) ^ "\""
@@ -765,6 +779,7 @@ ML \<open>
 fun prove_put_in_bucket_getset_lemma (lem : getset_lem) lthy = 
    let
      val (lem_name, prop, mk_tac) = (#name lem, #prop lem, #mk_tactic lem);
+     val _ = tracing ("Proving get/set lemma " ^ lem_name)
      (* We want to have schematic variables rather than fixed free variables after registering this lemma.*)
      val names = Variable.add_free_names lthy prop [];
      val some_thm = (SOME (Goal.prove lthy names [] prop (fn {context, prems} => (mk_tac context))))

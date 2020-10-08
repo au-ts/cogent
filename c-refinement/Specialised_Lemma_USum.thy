@@ -38,6 +38,10 @@ ML\<open> (* get_castable_uvals_from *)
 local
 
 infix can_be_casted_to
+(* it means that the cogent types of uval2 constructors are the same as uval1, except
+   that they uval2 has exactly one more checked constructor (the returned number, if any,
+   is the position of the constructor in the list of constructors).
+ *)
 fun (uval1 can_be_casted_to uval2) ctxt heap_info =
 (* Check if a pattern matching failure in case with a scrutinee of type uval1 will result in an expression of type uval2 *)
 (* Returns NONE if uval1 cannot be casted to uval2.*)
@@ -98,6 +102,7 @@ ML\<open> fun mk_case_prop from_uval to_uval variant_ctor_num file_nm ctxt =
   val from_struct_info = get_struct_info from_struct_C_nm;
   val to_struct_info   = get_struct_info to_struct_C_nm;
   val from_field_info  = #field_info from_struct_info;
+  (* a field corresponds to the argument of the constructor with the same name *)
   val nth_field_ml_tag_name = from_field_info |> (fn list => List.nth (list, struct_field_num)) |> #name
                               |> cut_C;
   val nth_field_tag_name = nth_field_ml_tag_name |> Utils.encode_isa_string;
