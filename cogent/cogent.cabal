@@ -295,22 +295,6 @@ Executable cogent
   -- if impl(ghc >= 7.10.1)
   --  ghc-options: -fno-warn-unticked-promoted-constructors
 
-Executable can-frame-1
-  main-is: dargent-examples/can_frame_1/can_frame_1.hs
-
-  build-depends:
-    cogent,
-    ansi-wl-pprint >= 0.6,
-    base,
-    mainland-pretty,
-    template-haskell
-  default-language: Haskell2010
-  ghc-options:
-    -Wall
-    -fno-warn-name-shadowing
-    -fno-warn-missing-signatures
-    -fno-warn-unused-matches
-
 test-suite test-util
   type: exitcode-stdio-1.0
   default-language: Haskell2010
