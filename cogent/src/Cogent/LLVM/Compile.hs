@@ -532,7 +532,7 @@ exprToLLVM (TE _ (Put recd fld val)) =
           , address = fldvp
           , value = v
           , maybeAtomicity = Nothing
-          , alignment = 4
+          , alignment = 0
           , metadata = []
           }
       )
@@ -629,7 +629,7 @@ exprToLLVM (TE rt (Con tag e _)) =
                 , address = valuep
                 , value = value
                 , maybeAtomicity = Nothing
-                , alignment = 4
+                , alignment = 0
                 , metadata = []
                 }
             )
@@ -725,7 +725,7 @@ exprToLLVM (TE rt (Esac e)) =
             { volatile = False
             , address = valuep
             , maybeAtomicity = Nothing
-            , alignment = 4
+            , alignment = 0
             , metadata = []
             }
         )
@@ -803,7 +803,7 @@ exprToLLVM r@(TE rect (Struct flds)) =
                                   { address = elmptr
                                   , maybeAtomicity = Nothing
                                   , value = fromLeft (error "field value cannot be terminator") v
-                                  , alignment = 4
+                                  , alignment = 0
                                   , volatile = False
                                   , metadata = []
                                   }
@@ -847,7 +847,7 @@ loadMember recd fld = do
             { volatile = False
             , address = fldvp
             , maybeAtomicity = Nothing
-            , alignment = 4
+          , alignment = 0
             , metadata = []
             }
         )
