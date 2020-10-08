@@ -499,15 +499,11 @@ exprToLLVM (TE rt (Op Sy.Complement [a])) =
 exprToLLVM (TE rt (Op Sy.Not t)) = exprToLLVM (TE rt (Op Sy.Complement t))
 exprToLLVM (TE _ (Member recd fld)) =
   do
-    _recv <- exprToLLVM recd
-    let recv = fromLeft (error "address cannot be terminator") _recv
-    fldv <- loadMember recv recd fld
+    (_, fldv) <- loadMember recd fld
     return (Left fldv)
 exprToLLVM (TE _ (Take (_, _) recd fld body)) =
   do
-    _recv <- exprToLLVM recd
-    let recv = fromLeft (error "address cannot be terminator") _recv
-    fldv <- loadMember recv recd fld
+    (recv, fldv) <- loadMember recd fld
     vars <- gets indexing
     modify (\s -> s {indexing = [fldv, recv] ++ vars})
     res <- exprToLLVM body
@@ -831,8 +827,10 @@ exprToLLVM (TE vt (Variable (idx, _))) =
               else return (Left (indexing !! _idx))
 exprToLLVM _ = error "not implemented yet"
 
-loadMember :: Operand -> TypedExpr t v a b -> Int -> Codegen Operand
-loadMember recv recd fld =
+loadMember recd fld = do
+  _recv <- exprToLLVM recd
+  let recv = fromLeft (error "address cannot be terminator") _recv
+  fldvp <-
   instr
     (recordType recd !! fld)
     ( GetElementPtr
@@ -842,7 +840,7 @@ loadMember recv recd fld =
         , metadata = []
         }
     )
-    >>= \fldvp ->
+  fldv <-
       instr
         (recordType recd !! fld)
         ( Load
@@ -853,6 +851,7 @@ loadMember recv recd fld =
             , metadata = []
             }
         )
+  return (recv, fldv)
 
 hasBlock :: Core.TypedExpr t v a b -> Bool
 hasBlock (TE _ e) = hasBlock' e
