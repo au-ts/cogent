@@ -536,8 +536,8 @@ known_ctconj:
   "known_ty \<tau> \<Longrightarrow> known_ct (CtDrop \<tau>)"
 | known_ctexhausted:
   "known_ty \<tau> \<Longrightarrow> known_ct (CtExhausted \<tau>)"
-| knwon_ctnotread:
-  "known_ct (CtNotRead s)"
+| known_ctnotread:
+  "known_sigil s \<Longrightarrow> known_ct (CtNotRead s)"
 
 inductive_cases known_ctconjE: "known_ct (CtConj C1 C2)"
 inductive_cases known_cteqE: "known_ct (CtEq C1 C2)"
