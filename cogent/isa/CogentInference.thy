@@ -818,10 +818,15 @@ inductive_cases ct_sem_recsubE1: "A \<turnstile> CtSub (TRecord fs \<alpha> s) \
 inductive_cases ct_sem_recsubE2: "A \<turnstile> CtSub \<tau> (TRecord fs \<alpha> s)"
 inductive_cases ct_sem_vardropE: "A \<turnstile> CtDrop (TVariant Ks None)"
 inductive_cases ct_sem_recdropE: "A \<turnstile> CtDrop (TRecord fs None s)"
+inductive_cases ct_sem_sigilE: "A \<turnstile> CtNotRead s"
 
 lemma ct_sem_sigil_equiv_def:
   "s = Writable \<or> s = Unboxed \<Longrightarrow> A \<turnstile> CtNotRead s"
   using ct_sem_sigil by blast
+
+lemma ct_sem_sigil_iff:
+  "s \<noteq> ReadOnly \<longleftrightarrow> A \<turnstile> CtNotRead s"
+  using ct_sem_sigil ct_sem_sigilE by metis
 
 lemma ct_sem_conj_iff: "A \<turnstile> CtConj C1 C2 \<longleftrightarrow> A \<turnstile> C1 \<and> A \<turnstile> C2"
   using ct_sem_conj ct_sem_conjE by meson
