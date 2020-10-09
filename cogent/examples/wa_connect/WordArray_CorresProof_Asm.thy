@@ -198,16 +198,16 @@ lemma wa_put2_upd_val:
    apply (rule_tac x = "insert p wa" in exI)
    apply clarsimp
    apply (rule conjI)
-    apply (rule_tac a = aa and ptrl = ptrl in u_v_p_abs_w[where ts = "[TPrim _]", simplified]; simp?)
+    apply (rule_tac a = "UWA (TPrim (Num ta)) len arr" and ptrl = ptrl
+      in u_v_p_abs_w[where ts = "[TPrim _]", simplified]; simp?)
      apply (clarsimp simp: wa_abs_upd_val_def)
-     apply (clarsimp split: atyp.splits type.splits prim_type.splits)
      apply (rule conjI)
-      apply (clarsimp simp: wa_abs_typing_u_def)
+      apply (clarsimp simp: wa_abs_typing_u_def split: if_split_asm)
      apply (rule conjI)
       apply (clarsimp simp: wa_abs_typing_v_def)
       apply (erule_tac x = i in allE; clarsimp)+
       apply (case_tac "i = unat idx"; clarsimp)
-     apply clarsimp
+     apply (clarsimp split: if_splits)
      apply (rule conjI; clarsimp)
       apply (drule distinct_indices)
       apply (erule_tac x = i in allE)+
@@ -217,14 +217,15 @@ lemma wa_put2_upd_val:
      apply (erule_tac x = i in allE)
      apply clarsimp
      apply (case_tac "unat i = unat idx"; clarsimp simp: wa_abs_typing_u_def)
+    apply (clarsimp split: if_splits)
     apply (clarsimp simp: wa_abs_upd_val_def)
     apply (erule_tac x = idx in allE)
     apply clarsimp
-   apply (clarsimp simp: frame_def wa_abs_upd_val_def wa_abs_typing_u_def)
-   apply (clarsimp split: atyp.splits type.splits prim_type.splits)
+   apply (clarsimp simp: frame_def wa_abs_upd_val_def wa_abs_typing_u_def split: if_splits)
    apply (rule conjI; clarsimp)
     apply (rule conjI)
      apply clarsimp
+    apply (rule conjI; clarsimp)
     apply (rule conjI; clarsimp)
    apply (rule conjI; clarsimp)
   apply clarsimp
@@ -232,7 +233,7 @@ lemma wa_put2_upd_val:
   apply (clarsimp split: atyp.splits simp: wa_abs_typing_u_def)
   apply (clarsimp split: vatyp.splits simp: wa_abs_typing_v_def)
   apply (simp split: type.splits prim_type.splits)
-  apply (rule_tac x = "VAbstract (VWA t (x12a[unat idx := VPrim l]))" in exI)
+  apply (rule_tac x = "VAbstract (VWA t (x12[unat idx := VPrim l]))" in exI)
   apply (clarsimp simp: val_wa_put2_def)
   done
 
@@ -314,20 +315,14 @@ lemma upd_wa_put2_preservation:
   apply (rule_tac x = r in exI)
   apply (rule_tac x = "insert p wa" in exI)
   apply (rule conjI)
-   apply (rule_tac ptrl = ptrl and a = aa in upd.u_t_p_abs_w[where ts = "[TPrim _]", simplified])
+   apply (rule_tac ptrl = ptrl and a = "UWA (TPrim (lit_type l)) len arr" 
+      in upd.u_t_p_abs_w[where ts = "[TPrim _]", simplified])
       apply simp
-     apply (clarsimp simp: wa_abs_typing_u_def)
-     apply (case_tac aa; clarsimp)
-     apply (case_tac x11; clarsimp)
-     apply (case_tac x5; clarsimp)
-    apply (drule_tac t = "lit_type _" in sym)+
-    apply (clarsimp simp: wa_abs_typing_u_def)
+     apply (clarsimp simp: wa_abs_typing_u_def split: prim_type.splits if_splits)
+    apply (clarsimp simp: wa_abs_typing_u_def split: if_splits prim_type.splits)
    apply clarsimp
-  apply (clarsimp simp: frame_def wa_abs_typing_u_def)
-  apply (case_tac aa; clarsimp)
-  apply (case_tac x11; clarsimp)
-  apply (case_tac x5; clarsimp)
-  apply (rule conjI; clarsimp)
+  apply (clarsimp simp: frame_def wa_abs_typing_u_def split: prim_type.splits)
+  apply (rule conjI; clarsimp split: if_splits)
    apply (rule conjI)
     apply (erule_tac x = idx in allE; clarsimp)+
    apply (rule conjI; clarsimp)

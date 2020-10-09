@@ -16,7 +16,6 @@ section "Helper Word Lemmas"
 
 lemma word_mult_cancel_left: 
   fixes a b c :: "('a::len) word"
-  assumes "0 \<le> a" "0 \<le> b" "0 \<le> c"
   assumes "uint c * uint a \<le> uint (max_word :: ('a::len) word)"
   assumes "uint c * uint b \<le> uint (max_word :: ('a::len) word)"
   shows "c * a = c * b \<longleftrightarrow> c = 0 \<or> a = b"
@@ -26,6 +25,19 @@ lemma word_mult_cancel_left:
     apply (clarsimp simp:Abs_word_inject max_word_def uint_word_of_int m1mod2k uint_0_iff )
    apply fastforce
    done
+
+lemma word_mult_cancel_left_bounded: 
+  fixes a b c d :: "('a::len) word"
+  assumes "a \<le> d" "b \<le> d"
+  assumes "unat c * unat d \<le> unat (max_word :: ('a::len) word)"
+  shows "c * a = c * b \<longleftrightarrow> c = 0 \<or> a = b"
+  using assms
+  apply -
+  apply (clarsimp simp: word_le_nat_alt)
+  apply (frule_tac i = "unat a" and j = "unat d" and k = "unat c" in mult_le_mono2)
+  apply (drule_tac i = "unat b" and j = "unat d" and k = "unat c" in mult_le_mono2)
+  by (metis (mono_tags, hide_lams) assms(3) le_unat_uoi mult_left_cancel mult_zero_left not_less_iff_gr_or_eq unat_0 unat_mono word_arith_nat_mult)
+
 
 fun is_prim_type :: "type \<Rightarrow> bool"
   where
@@ -43,6 +55,10 @@ fun size_of_num_type :: "num_type \<Rightarrow> ptrtyp"
 "size_of_num_type U16 = 2" |
 "size_of_num_type U32 = 4" |
 "size_of_num_type U64 = 8"
+
+lemma size_of_num_type_not_zero:
+  "size_of_num_type t \<noteq> 0"
+  by (case_tac t; clarsimp)
 
 fun zero_num_lit :: "num_type \<Rightarrow> lit"
   where
@@ -92,18 +108,11 @@ lemma distinct_indices:
     \<forall>i < len. \<forall>j < len. i = j \<longleftrightarrow> size_of_num_type t * i = size_of_num_type t * j"
   apply clarsimp
   apply (rule iffI)
-   apply (clarsimp simp: wa_abs_typing_u_def)
+   apply clarsimp
   apply (clarsimp simp: wa_abs_typing_u_def)
-  apply (subgoal_tac "0 \<le> i")
-   apply (frule_tac b = j and c = "size_of_num_type t" in word_mult_cancel_left; clarsimp simp: uint_nat)
-     apply (subgoal_tac "int (unat i) < int (unat len)")
-      apply (case_tac t; clarsimp)
-    apply (simp add: unat_mono)
-    apply (subgoal_tac "int (unat j) < int (unat len)")
-     apply (case_tac t; clarsimp)
-    apply (simp add: unat_mono)
-   apply (case_tac t; clarsimp)
-  apply simp
+  apply (cut_tac a = i and b = j and c = "size_of_num_type t" and d = len in word_mult_cancel_left_bounded; simp)
+  apply (erule disjE; clarsimp)
+  apply (case_tac t; clarsimp)
   done      
 end
 
@@ -374,6 +383,12 @@ end
 
 context WordArray begin
 
+subsection "Abbreviations"
+
+abbreviation upd_store :: "('f, 'a, 'l) store \<Rightarrow> 'l \<Rightarrow> ('f, 'a, 'l) uval \<Rightarrow> ('f, 'a, 'l) store"
+  where
+"upd_store \<sigma> p v \<equiv> (\<lambda>l. (if l = p then option.Some v else \<sigma> l))" 
+
 subsection "Level 0 \<xi> Abstractions"
 
 \<comment>\<open> This section contains the abstractions for first order calls to word array functions \<close>
@@ -385,12 +400,14 @@ definition upd_wa_put2_0
   "upd_wa_put2_0 x y =
       (let (x1, x2) = x;
            (y1, y2) = y
-      in (\<exists>p idx val t. x2 = URecord [
+      in (\<exists>p idx val t len arr. x2 = URecord [
           (UPtr p (RCon ''WordArray'' [RPrim (Num t)]), RPtr (RCon ''WordArray'' [RPrim (Num t)])),
           (UPrim (LU32 idx), RPrim (Num U32)), (val, RPrim (Num t))] \<and>
+          x1 p = option.Some (UAbstract (UWA (TPrim (Num t)) len arr)) \<and>
           y2 = UPtr p (RCon ''WordArray'' [RPrim (Num t)]) \<and>
-          y1 = (\<lambda>l. (if \<exists>len arr. x1 p = option.Some (UAbstract (UWA (TPrim (Num t)) len arr)) \<and> 
-                        l = arr + size_of_num_type t * idx \<and> idx < len then option.Some val else x1 l))))"
+          (if idx < len 
+              then y1 = upd_store x1 (arr + size_of_num_type t * idx) val
+              else y1 = x1)))"
 
 definition upd_wa_get_0
   where
@@ -466,6 +483,17 @@ subsection "Level 1 \<xi> Abstractions"
 
 subsubsection "Update Semantics"
 
+lemma valid_ptr_not_in_frame_same:
+  "\<lbrakk>frame \<sigma> w \<sigma>' w'; p \<notin> w; \<sigma> p = option.Some x\<rbrakk> \<Longrightarrow> \<sigma>' p = option.Some x"
+  apply (clarsimp simp: frame_def)
+  apply (erule_tac x = p in allE)
+  apply clarsimp
+  done
+
+lemma frame_single_update:
+  "frame \<sigma> {l} (upd_store \<sigma> l v) {l}"
+  by (clarsimp simp: frame_def)
+
 type_synonym ('f, 'a, 'l) ufoldmapdef = "(char list, atyp, 32 word) uabsfuns \<Rightarrow> ('f, 'a, 'l) store \<Rightarrow> 
                                          32 word \<Rightarrow> 32 word \<Rightarrow> 32 word \<Rightarrow>
                                         'f expr \<Rightarrow> ('f, 'a, 'l) uval \<Rightarrow> ('f, 'a, 'l) uval \<Rightarrow> ptrtyp set\<Rightarrow>
@@ -519,18 +547,14 @@ declare upd_wa_foldnb_bod.simps[simp del]
 lemma upd_wa_foldnb_bod_to_geq_len:
   "\<lbrakk>upd_wa_foldnb_bod \<xi>\<^sub>u \<sigma> p frm len f acc obsv s (\<sigma>', r); \<sigma> p = option.Some (UAbstract (UWA t len arr));
     to \<ge> len\<rbrakk> \<Longrightarrow> upd_wa_foldnb_bod \<xi>\<^sub>u \<sigma> p frm to f acc obsv s (\<sigma>', r)"
-  apply (induct arbitrary: to arr t 
-                rule: upd_wa_foldnb_bod.induct[of _ \<xi>\<^sub>u \<sigma> p frm len f acc obsv s "(\<sigma>', r)"])
+  apply (induct rule: upd_wa_foldnb_bod.induct[of _ \<xi>\<^sub>u \<sigma> p frm to f acc obsv s "(\<sigma>', r)"])
   apply clarsimp
-  apply (drule_tac x = to in meta_spec)
+  apply (drule_tac x = len in meta_spec)
   apply (subst (asm) upd_wa_foldnb_bod.simps)
   apply (clarsimp split: if_splits)
   apply (erule disjE; clarsimp)
    apply (drule_tac x = acc' in meta_spec)
    apply (drule_tac x = \<sigma>' in meta_spec)
-   apply (drule_tac x = toa in meta_spec)
-   apply (drule_tac x = arr in meta_spec)
-   apply (drule_tac x = "TPrim (Num ta)" in meta_spec)
    apply (subst upd_wa_foldnb_bod.simps)
    apply clarsimp
    apply (rule conjI; clarsimp)
@@ -549,9 +573,6 @@ lemma upd_wa_foldnb_bod_to_geq_len:
   apply clarsimp
   apply (drule_tac x = acc' in meta_spec)
   apply (drule_tac x = \<sigma>' in meta_spec)
-  apply (drule_tac x = toa in meta_spec)
-  apply (drule_tac x = arr in meta_spec)
-  apply (drule_tac x = "TPrim (Num ta)" in meta_spec)
   apply clarsimp
   apply (rule_tac x = acc' in exI)
   apply (rule_tac x = \<sigma>' in exI)
@@ -561,8 +582,7 @@ lemma upd_wa_foldnb_bod_to_geq_len:
   apply (rule conjI)
    apply (rule_tac x = x in exI; clarsimp)
   apply (erule meta_mp)
-  apply (clarsimp simp: frame_def)
-  apply (erule_tac x = p in allE; clarsimp)
+  apply (drule_tac p = p in valid_ptr_not_in_frame_same; simp)
   done
 
 lemma upd_wa_foldnb_bod_to_geq_lenD:
@@ -585,8 +605,8 @@ lemma upd_wa_foldnb_bod_to_geq_lenD:
    apply clarsimp
    apply (rule conjI)
     apply (rule_tac x = x in exI; clarsimp)
-   apply (clarsimp simp: frame_def)
-   apply (erule_tac x = p in allE; clarsimp)
+   apply (drule_tac p = p in valid_ptr_not_in_frame_same; simp?)
+   apply (erule meta_impE; simp)
   apply (case_tac "frm < to")
    apply (subst upd_wa_foldnb_bod.simps)
    apply clarsimp
@@ -600,8 +620,8 @@ lemma upd_wa_foldnb_bod_to_geq_lenD:
    apply clarsimp
    apply (rule conjI)
     apply (rule_tac x = x in exI; clarsimp)
-   apply (clarsimp simp: frame_def)
-   apply (erule_tac x = p in allE; clarsimp)
+   apply (drule_tac p = p in valid_ptr_not_in_frame_same; simp?)
+   apply (erule meta_impE; simp)
   apply clarsimp
   apply (subgoal_tac "\<not> frm < len")
    apply (subst upd_wa_foldnb_bod.simps)
@@ -616,7 +636,7 @@ lemma upd_wa_foldnb_bod_step:
     ({p} \<union> s \<union> {arr + size_of_num_type t * i | i. i < len}) \<inter> w1 = {};
     \<xi>\<^sub>u, [URecord [(v, upd.uval_repr v), (r, upd.uval_repr r), (obsv, upd.uval_repr obsv)]] \<turnstile> (\<sigma>', App f (Var 0))\<Down>! (\<sigma>'', r')\<rbrakk> 
     \<Longrightarrow> upd_wa_foldnb_bod \<xi>\<^sub>u \<sigma> p frm (to + 1) f acc obsv s (\<sigma>'', r')"
-  apply (induct arbitrary: len arr v r r' \<sigma>' \<sigma>'' t w1 w2
+  apply (induct arbitrary: r  \<sigma>'
                 rule: upd_wa_foldnb_bod.induct[of _ \<xi>\<^sub>u \<sigma> p frm to f acc obsv s "(\<sigma>', r)"])
   apply clarsimp
   apply (drule_tac x = len in meta_spec)
@@ -624,16 +644,8 @@ lemma upd_wa_foldnb_bod_step:
   apply (clarsimp split: if_splits)
    apply (drule_tac x = acc' in meta_spec)
    apply (drule_tac x = \<sigma>'''' in meta_spec)
-   apply (drule_tac x = len in meta_spec)
-   apply (drule_tac x = arr in meta_spec)
-   apply (drule_tac x = v in meta_spec)
    apply (drule_tac x = b in meta_spec)
-   apply (drule_tac x = r' in meta_spec)
    apply (drule_tac x = a in meta_spec)
-   apply (drule_tac x = \<sigma>'' in meta_spec)
-   apply (drule_tac x = t in meta_spec)
-   apply (drule_tac x = w1 in meta_spec)
-   apply (drule_tac x = w2 in meta_spec)
    apply clarsimp
    apply (subst upd_wa_foldnb_bod.simps)
    apply clarsimp
@@ -647,17 +659,10 @@ lemma upd_wa_foldnb_bod_step:
      apply (rule_tac x = x in exI; clarsimp)
     apply (case_tac "frma + 1 \<le> toa")
      apply clarsimp
-     apply (erule_tac x = toa in allE; clarsimp)
-     apply (thin_tac "frame _ _ _ _")
-     apply (thin_tac "_ = {}")
-     apply (clarsimp simp: frame_def)
-     apply (frule_tac x = pa in spec)
+     apply (frule_tac p = pa and w = w1a in valid_ptr_not_in_frame_same; simp?)
+     apply (frule_tac p = "arr + size_of_num_type t * toa" and w = w1a in valid_ptr_not_in_frame_same; simp?)
+      apply blast
      apply clarsimp
-     apply (erule_tac x = "arr + size_of_num_type t * toa" in allE)
-     apply clarsimp
-     apply (drule_tac x = "arr + size_of_num_type t * toa" in orthD1; simp)
-     apply (rule disjI2)
-     apply (rule_tac x = toa in exI; clarsimp)
     apply (clarsimp simp: not_le)
     apply (drule_tac i = frma and m = toa in inc_le)
     apply (rule FalseE)
@@ -679,16 +684,12 @@ lemma upd_wa_foldnb_bod_step:
     apply (rule_tac x = len in exI)
     apply (rule_tac x = arr in exI)
     apply (rule conjI)
-     apply (clarsimp simp: frame_def)
-     apply (erule_tac x = pa in allE; clarsimp)
+     apply (drule_tac p = pa in valid_ptr_not_in_frame_same; simp)
     apply clarsimp
     apply (erule_tac x = i in allE; clarsimp)
     apply (rule_tac x = va in exI)
-    apply (clarsimp simp: frame_def)
-    apply (erule_tac x = "arr + size_of_num_type t * i" in allE; clarsimp)
-    apply (drule_tac x = "arr + size_of_num_type t * i" in orthD1; simp)
-    apply (rule disjI2)
-    apply (rule_tac x = i in exI; clarsimp)
+    apply (drule_tac p = "arr + size_of_num_type t * i" in valid_ptr_not_in_frame_same; simp?)
+    apply blast
    apply (clarsimp simp: not_less)
    apply (meson less_is_non_zero_p1 word_le_not_less word_overflow)
   apply (clarsimp simp: not_less)
@@ -698,53 +699,28 @@ lemma upd_wa_foldnb_bod_back_step':
   "\<lbrakk>upd_wa_foldnb_bod \<xi>\<^sub>u \<sigma> p frm to f acc obsv s (\<sigma>', r); 
     \<sigma> p = option.Some (UAbstract (UWA t len arr)); len < to\<rbrakk>
     \<Longrightarrow> upd_wa_foldnb_bod \<xi>\<^sub>u \<sigma> p frm (to - 1) f acc obsv s (\<sigma>', r)"
-  apply (induct arbitrary: len arr t
-                rule: upd_wa_foldnb_bod.induct[of _  \<xi>\<^sub>u \<sigma> p frm to f acc obsv s "(\<sigma>', r)"]; clarsimp)
+  apply (induct rule: upd_wa_foldnb_bod.induct[of _  \<xi>\<^sub>u \<sigma> p frm to f acc obsv s "(\<sigma>', r)"]; clarsimp)
   apply (drule_tac x = len in meta_spec)
   apply (erule upd_wa_foldnb_bod.elims)  
   apply (subst upd_wa_foldnb_bod.simps)
   apply (clarsimp split: if_split_asm)
   apply (rule_tac x = ta in exI)
   apply (rule conjI; clarsimp)
-  apply (erule disjE; clarsimp)
-    apply (drule_tac x = acc' in meta_spec)
-    apply (drule_tac x = \<sigma>'' in meta_spec)
-    apply (drule_tac x = len in meta_spec)
-    apply (drule_tac x = arr in meta_spec)
-    apply (drule_tac x = "TPrim (Num ta)" in meta_spec)
-    apply clarsimp
-    apply (rule_tac x = acc' in exI)
-    apply (rule_tac x = \<sigma>'' in exI)
-    apply clarsimp
-    apply (rule_tac x = w1 in exI)
-    apply clarsimp
-    apply (rule conjI)
-     apply (rule_tac x = x in exI; clarsimp)
-    apply (erule meta_mp)
-    apply (clarsimp simp: frame_def)
-    apply (erule_tac x = pa in allE; clarsimp)
-   apply (erule impE)
-   apply simp
+   apply (cut_tac x = frma and n = "toa - 1" in plus_one_helper2; simp)
+    apply auto[1]
    apply clarsimp
    apply (drule_tac x = acc' in meta_spec)
-   apply (drule_tac x = \<sigma>' in meta_spec)
-   apply (drule_tac x = len in meta_spec)
-   apply (drule_tac x = arr in meta_spec)
-   apply (drule_tac x = "TPrim (Num ta)" in meta_spec)
+   apply (drule_tac x = \<sigma>'' in meta_spec)
    apply clarsimp
    apply (rule_tac x = acc' in exI)
-   apply (rule_tac x = \<sigma>' in exI)
+   apply (rule_tac x = \<sigma>'' in exI)
    apply clarsimp
    apply (rule_tac x = w1 in exI)
    apply clarsimp
    apply (rule conjI)
     apply (rule_tac x = x in exI; clarsimp)
-   apply (erule meta_impE)
-    apply simp
-   apply (erule meta_impE)
-    apply (clarsimp simp: frame_def)
-    apply (erule_tac x = pa in allE; clarsimp)
-   apply simp
+   apply (erule meta_mp)
+   apply (drule_tac p = pa in valid_ptr_not_in_frame_same; simp)
   apply (rule FalseE)
   by (metis (no_types, hide_lams) less_1_simp word_le_less_eq word_not_le)
 
@@ -756,25 +732,21 @@ lemma upd_wa_foldnb_bod_back_step:
         (\<xi>\<^sub>u, [URecord [(v, upd.uval_repr v), (r'', upd.uval_repr r''), 
           (obsv, upd.uval_repr obsv)]] \<turnstile> (\<sigma>'', App f (Var 0))\<Down>! (\<sigma>', r)) \<and>
         frame \<sigma>'' w1 \<sigma>' w2 \<and> ({p} \<union> s \<union> {arr + size_of_num_type t * i | i. i < len}) \<inter> w1 = {}"
-  apply (induct arbitrary: len arr \<sigma>' r t
+  apply (induct arbitrary: \<sigma>' r
                 rule: upd_wa_foldnb_bod.induct[of _ \<xi>\<^sub>u \<sigma> p frm to f acc obsv s "(\<sigma>', r)"]; clarsimp)
   apply (erule upd_wa_foldnb_bod.elims)  
   apply (clarsimp split: if_split_asm)
    apply (drule_tac x = len in meta_spec)
    apply (drule_tac x = acc' in meta_spec)
    apply (drule_tac x = \<sigma>''' in meta_spec)
-   apply (drule_tac x = len in meta_spec)
-   apply (drule_tac x = arr in meta_spec)
    apply (drule_tac x = a in meta_spec)
    apply (drule_tac x = b in meta_spec)
-   apply (drule_tac x = t in meta_spec)
    apply clarsimp
    apply (case_tac "frma < to"; clarsimp)
     apply (drule meta_mp)
      apply (metis (no_types, hide_lams) add.commute inc_le plus_le_left_cancel_wrap word_le_less_eq word_le_not_less word_plus_strict_mono_right)
     apply (drule meta_mp)
-     apply (clarsimp simp: frame_def)
-     apply (erule_tac x = pa in allE; clarsimp)
+     apply (drule_tac p = pa in valid_ptr_not_in_frame_same; simp)
     apply clarsimp
     apply (rule_tac x = \<sigma>'''' in exI)
     apply (rule_tac x = r'' in exI)
@@ -794,9 +766,7 @@ lemma upd_wa_foldnb_bod_back_step:
      apply (metis (no_types, hide_lams) add.commute less_is_non_zero_p1 plus_one_helper plus_one_helper2 word_neq_0_conv word_not_le)
     apply (rule_tac x = va in exI)
     apply clarsimp
-    apply (subst (asm) frame_def)
-    apply (erule_tac x = "arr + size_of_num_type t * to" in allE)
-    apply clarsimp
+    apply (drule_tac p = "arr + size_of_num_type t * to" in valid_ptr_not_in_frame_same; simp; clarsimp)
     apply (drule_tac x = "arr + size_of_num_type t * to" in orthD1; simp)
     apply (rule disjI2)
     apply (rule_tac x = to in exI)
@@ -814,6 +784,321 @@ lemma upd_wa_foldnb_bod_back_step:
   apply (rule FalseE)
   by auto
 
+function upd_wa_mapAccumnb_bod :: "(char list, atyp, ptrtyp) ufoldmapdef"
+  where
+  "upd_wa_mapAccumnb_bod \<xi>\<^sub>u \<sigma> p frm to f acc obsv s res = (\<exists>t len arr. 
+    \<sigma> p = option.Some (UAbstract (UWA (TPrim (Num t)) len arr)) \<and> 
+    (\<forall>i<len. \<exists>v. \<sigma> (arr + size_of_num_type t * i) = option.Some v) \<and>
+    (\<forall>i<len. p \<noteq> (arr + size_of_num_type t * i)) \<and>
+    (if frm < min to len then 
+      (\<exists>v v' acc' \<sigma>' w1 w2. \<sigma> (arr + size_of_num_type t * frm) = option.Some v \<and>
+      (\<xi>\<^sub>u, [(URecord [(v, upd.uval_repr v), (acc, upd.uval_repr acc), (obsv, upd.uval_repr obsv)])]
+        \<turnstile> (\<sigma>, App f (Var 0)) \<Down>! (\<sigma>', URecord [ (v', upd.uval_repr v'), (acc', upd.uval_repr acc')])) \<and>
+      frame \<sigma> w1 \<sigma>' w2 \<and> ({p} \<union> s \<union> {arr + size_of_num_type t * i | i. i < len}) \<inter> w1 = {} \<and>
+      upd_wa_mapAccumnb_bod \<xi>\<^sub>u (upd_store \<sigma>'(arr + size_of_num_type t * frm) v') p (frm + 1) to f 
+        acc' obsv s res) 
+    else res = (\<sigma>, URecord [
+      (UPtr p (RCon ''WordArray'' [RPrim (Num t)]), RPtr (RCon ''WordArray'' [RPrim (Num t)])), 
+      (acc, upd.uval_repr acc)])))"
+  by pat_completeness auto
+termination
+  apply (relation "measure (\<lambda>(_, _, _, frm, to, _, _, _, _,  _). unat to - unat frm)"; clarsimp)
+  apply (clarsimp simp: word_less_nat_alt)
+  apply (cut_tac n = frm in unat_Suc2; clarsimp)
+   apply (cut_tac y = to in word_not_simps(3); clarsimp simp: word_less_nat_alt)
+  apply linarith
+  done
+
+declare upd_wa_mapAccumnb_bod.simps[simp del]
+
+lemma upd_wa_mapAccumnb_bod_to_geq_len:
+  "\<lbrakk>upd_wa_mapAccumnb_bod \<xi>\<^sub>u \<sigma> p frm len f acc obsv s (\<sigma>', r); \<sigma> p = option.Some (UAbstract (UWA t len arr));
+    to \<ge> len\<rbrakk> \<Longrightarrow> upd_wa_mapAccumnb_bod \<xi>\<^sub>u \<sigma> p frm to f acc obsv s (\<sigma>', r)"
+  apply (induct rule: upd_wa_mapAccumnb_bod.induct[of _ \<xi>\<^sub>u \<sigma> p frm to f acc obsv s "(\<sigma>', r)"])
+  apply clarsimp
+  apply (case_tac "frm \<ge> len")
+   apply (erule upd_wa_mapAccumnb_bod.elims; clarsimp split: if_splits)
+   apply (drule_tac x = frma in leD; clarsimp)
+   apply (subst upd_wa_mapAccumnb_bod.simps; clarsimp)
+  apply (erule upd_wa_mapAccumnb_bod.elims)
+  apply (clarsimp split: if_split_asm)
+  apply (drule_tac x = frma in not_le_imp_less; clarsimp)
+  apply (drule_tac x = ta in meta_spec)
+  apply (drule_tac x = len in meta_spec)
+  apply (drule_tac x = arr in meta_spec)
+  apply (drule_tac x = v' in meta_spec)
+  apply (drule_tac x = acc' in meta_spec)
+  apply (drule_tac x = \<sigma>'' in meta_spec)
+  apply clarsimp
+  apply (drule meta_mp)
+   apply (drule_tac c = to in order.strict_trans2; simp)
+  apply (subst upd_wa_mapAccumnb_bod.simps; clarsimp)
+  apply (frule_tac c = to in order.strict_trans2; simp)
+  apply (rule_tac x = v' in exI)
+  apply (rule_tac x = acc' in exI)
+  apply (rule_tac x = \<sigma>'' in exI)
+  apply clarsimp
+  apply (rule_tac x = w1 in exI)
+  apply clarsimp
+  apply (rule conjI)
+   apply (rule_tac x = x in exI)
+   apply clarsimp
+  apply (erule meta_impE; simp?)
+  apply (drule_tac p = pa in valid_ptr_not_in_frame_same; simp)
+  done
+
+lemma upd_wa_mapAccumnb_bod_to_geq_lenD:
+  "\<lbrakk>upd_wa_mapAccumnb_bod \<xi>\<^sub>u \<sigma> p frm to f acc obsv s (\<sigma>', r); \<sigma> p = option.Some (UAbstract (UWA t len arr));
+    to \<ge> len\<rbrakk> \<Longrightarrow> upd_wa_mapAccumnb_bod \<xi>\<^sub>u \<sigma> p frm len f acc obsv s (\<sigma>', r)"
+  apply (induct rule: upd_wa_mapAccumnb_bod.induct[of _ \<xi>\<^sub>u \<sigma> p frm to f acc obsv s "(\<sigma>', r)"])
+  apply clarsimp
+ apply (case_tac "frm \<ge> len")
+   apply (erule upd_wa_mapAccumnb_bod.elims; clarsimp split: if_splits)
+   apply (drule_tac x = frma in leD; clarsimp)
+   apply (subst upd_wa_mapAccumnb_bod.simps; clarsimp)
+  apply (erule upd_wa_mapAccumnb_bod.elims)
+  apply (clarsimp split: if_split_asm)
+  apply (drule_tac x = frma in not_le_imp_less; clarsimp)
+  apply (frule_tac c = toa in order.strict_trans2; clarsimp)
+  apply (drule_tac x = ta in meta_spec)
+  apply (drule_tac x = len in meta_spec)
+  apply (drule_tac x = arr in meta_spec)
+  apply (drule_tac x = v' in meta_spec)
+  apply (drule_tac x = acc' in meta_spec)
+  apply (drule_tac x = \<sigma>'' in meta_spec)
+  apply clarsimp
+  apply (subst upd_wa_mapAccumnb_bod.simps; clarsimp)
+  apply (rule_tac x = v' in exI)
+  apply (rule_tac x = acc' in exI)
+  apply (rule_tac x = \<sigma>'' in exI)
+  apply clarsimp
+  apply (rule_tac x = w1 in exI)
+  apply clarsimp
+  apply (rule conjI)
+   apply (rule_tac x = x in exI)
+   apply clarsimp
+  apply (erule meta_impE; simp?)
+  apply (drule_tac p = pa in valid_ptr_not_in_frame_same; simp)
+  done
+
+lemma upd_wa_mapAccumnb_bod_preservation':
+  "\<lbrakk>upd_wa_mapAccumnb_bod \<xi>\<^sub>u \<sigma> p frm to f acc obsv s r; \<sigma> p = option.Some (UAbstract (UWA t len arr))\<rbrakk>
+    \<Longrightarrow> \<exists>\<sigma>' racc. r = (\<sigma>', URecord [
+      (UPtr p (RCon ''WordArray'' [type_repr t]), RPtr (RCon ''WordArray'' [type_repr t])),
+      (racc, upd.uval_repr racc)])"
+  apply (induct rule: upd_wa_mapAccumnb_bod.induct[of _ \<xi>\<^sub>u \<sigma> p frm to f acc obsv s r])
+  apply (erule upd_wa_mapAccumnb_bod.elims; clarsimp split: if_splits)
+  apply (erule disjE; clarsimp)
+  apply (drule_tac x = ta in meta_spec)
+  apply (drule_tac x = len in meta_spec)
+  apply (drule_tac x = arr in meta_spec)
+  apply (drule_tac x = v' in meta_spec)
+  apply (drule_tac x = acc' in meta_spec)
+  apply (drule_tac x = \<sigma>'' in meta_spec)
+  apply clarsimp
+  apply (drule_tac p = pa in valid_ptr_not_in_frame_same; simp?)
+  apply clarsimp
+  done
+
+lemma upd_wa_mapAccumnb_bod_step:
+  "\<lbrakk>upd_wa_mapAccumnb_bod \<xi>\<^sub>u \<sigma> p frm to f acc obsv s (\<sigma>', URecord [rp, (r, upd.uval_repr r)]); 
+    \<sigma> p = option.Some (UAbstract (UWA (TPrim (Num t)) len arr)); frm \<le> to; to < len;
+    unat (size_of_num_type t) * unat len \<le> unat (max_word :: ptrtyp);
+    \<sigma> (arr + size_of_num_type t * to) = option.Some v; frame \<sigma>' w1 \<sigma>'' w2; 
+    ({p} \<union> s \<union> {arr + size_of_num_type t * i | i. i < len}) \<inter> w1 = {};
+    \<xi>\<^sub>u, [URecord [(v, upd.uval_repr v), (r, upd.uval_repr r), (obsv, upd.uval_repr obsv)]] \<turnstile> 
+      (\<sigma>', App f (Var 0))\<Down>! (\<sigma>'', URecord [ (v', upd.uval_repr v'), (r', upd.uval_repr r')])\<rbrakk> 
+    \<Longrightarrow> upd_wa_mapAccumnb_bod \<xi>\<^sub>u \<sigma> p frm (to + 1) f acc obsv s 
+      (upd_store \<sigma>'' (arr + size_of_num_type t * to) v', URecord [rp, (r', upd.uval_repr r')])"
+  apply (induct arbitrary: r \<sigma>'
+                rule: upd_wa_mapAccumnb_bod.induct[of _ \<xi>\<^sub>u \<sigma> p frm to f acc obsv s "(\<sigma>', URecord [rp, (r, upd.uval_repr r)])"])
+  apply clarsimp
+  apply (drule_tac x = t in meta_spec)
+  apply (drule_tac x = len in meta_spec)
+  apply (drule_tac x = arr in meta_spec)
+  apply (erule upd_wa_mapAccumnb_bod.elims; clarsimp split: if_splits)
+   apply (drule_tac x = v'a in meta_spec)
+   apply (drule_tac x = acc' in meta_spec)
+   apply (drule_tac x = \<sigma>'''' in meta_spec)
+   apply (drule_tac x = r in meta_spec)
+   apply (drule_tac x = a in meta_spec)
+   apply (subst upd_wa_mapAccumnb_bod.simps; clarsimp)
+   apply (rule conjI; clarsimp)
+    apply (rule_tac x = v'a in exI)
+    apply (rule_tac x = acc' in exI)
+    apply (rule_tac x = \<sigma>'''' in exI)
+    apply clarsimp
+    apply (rule_tac x = w1a in exI)
+    apply clarsimp
+    apply (rule conjI)
+     apply (rule_tac x = x in exI)
+     apply clarsimp
+    apply (drule meta_mp)
+     apply (drule_tac p = pa and w = w1a in valid_ptr_not_in_frame_same; simp)
+    apply (drule meta_mp)
+     apply (simp add: inc_le)
+    apply (drule meta_mp; simp)
+    apply (rule conjI; clarsimp)
+     apply (drule_tac a = frma and b = toa in word_mult_cancel_left_bounded[rotated 2]; simp)
+     apply (erule disjE)
+      apply (case_tac t; clarsimp)
+     apply (rule FalseE)
+     apply blast
+    apply (drule_tac p = "arr + size_of_num_type t * toa" and w = w1a in valid_ptr_not_in_frame_same; simp)
+    apply blast
+   apply (rule FalseE)
+   apply (simp add: less_is_non_zero_p1 plus_one_helper2)
+  apply (subst upd_wa_mapAccumnb_bod.simps; clarsimp)
+  apply (rule conjI; clarsimp)
+   apply (rule_tac x = v' in exI)
+   apply (rule_tac x = r' in exI)
+   apply (rule_tac x = \<sigma>'' in exI)
+   apply clarsimp
+   apply (rule_tac x = w1 in exI)
+   apply clarsimp
+   apply (rule conjI)
+    apply (rule_tac x = w2 in exI)
+    apply clarsimp
+   apply (subst upd_wa_mapAccumnb_bod.simps; clarsimp)
+   apply (rule_tac x = len in exI)
+   apply (rule_tac x = arr in exI)
+   apply clarsimp
+   apply (rule conjI)
+    apply (drule_tac p = pa in valid_ptr_not_in_frame_same; simp)
+   apply clarsimp
+   apply (erule_tac x = i in allE)
+   apply clarsimp
+   apply (rule_tac x = va in exI)
+   apply (drule_tac p = "arr + size_of_num_type t * i" in valid_ptr_not_in_frame_same; simp?)
+   apply blast
+  apply (erule impE)
+   apply (metis (no_types, hide_lams) add.commute dual_order.strict_trans less_le max_word_max word_Suc_le word_le_less_eq word_not_le)
+  apply (rule FalseE)
+  apply clarsimp
+  by auto
+
+lemma upd_wa_mapAccumnb_bod_back_step':
+  "\<lbrakk>upd_wa_mapAccumnb_bod \<xi>\<^sub>u \<sigma> p frm to f acc obsv s (\<sigma>', r); 
+    \<sigma> p = option.Some (UAbstract (UWA t len arr)); len < to\<rbrakk>
+    \<Longrightarrow> upd_wa_mapAccumnb_bod \<xi>\<^sub>u \<sigma> p frm (to - 1) f acc obsv s (\<sigma>', r)"
+  apply (induct rule: upd_wa_mapAccumnb_bod.induct[of _  \<xi>\<^sub>u \<sigma> p frm to f acc obsv s "(\<sigma>', r)"]; clarsimp)
+  apply (erule upd_wa_mapAccumnb_bod.elims)
+  apply (subst upd_wa_mapAccumnb_bod.simps)
+  apply (clarsimp split: if_split_asm)
+  apply (rule_tac x = ta in exI)
+  apply (drule_tac x = ta in meta_spec)
+  apply (drule_tac x = len in meta_spec)
+  apply (drule_tac x = arr in meta_spec)
+  apply (rule conjI; clarsimp)
+   apply (cut_tac x = frma and n = "toa - 1" in plus_one_helper2; simp)
+    apply auto[1]
+   apply clarsimp
+   apply (drule_tac x = v' in meta_spec)
+   apply (drule_tac x = acc' in meta_spec)
+   apply (drule_tac x = \<sigma>'' in meta_spec)
+   apply (frule_tac p = pa in valid_ptr_not_in_frame_same; simp)
+   apply clarsimp
+   apply (rule_tac x = v' in exI)
+   apply (rule_tac x = acc' in exI)
+   apply (rule_tac x = \<sigma>'' in exI)
+   apply clarsimp
+   apply (rule_tac x = w1 in exI)
+   apply clarsimp
+   apply (rule_tac x = x in exI; clarsimp)
+  apply (rule FalseE)
+  apply (metis (no_types, hide_lams) not_less_iff_gr_or_eq word_less_cases)
+  done
+
+lemma upd_wa_mapAccumnb_bod_back_step:
+  "\<lbrakk>upd_wa_mapAccumnb_bod \<xi>\<^sub>u \<sigma> p frm (1 + to) f acc obsv s (\<sigma>', URecord [rp, (r, upd.uval_repr r)]);
+    unat (size_of_num_type t) * unat len \<le> unat (max_word :: ptrtyp);
+    1 + to \<le> len; frm < 1 + to; \<sigma> p = option.Some (UAbstract (UWA (TPrim (Num t)) len arr))\<rbrakk>
+    \<Longrightarrow> \<exists>\<sigma>'' \<sigma>''' r'' w1 w2 v v'.
+      upd_wa_mapAccumnb_bod \<xi>\<^sub>u \<sigma> p frm to f acc obsv s (\<sigma>'', URecord [rp, (r'', upd.uval_repr r'')]) \<and>
+      \<sigma> (arr + size_of_num_type t * to) = option.Some v \<and>
+      (\<xi>\<^sub>u, [URecord [(v, upd.uval_repr v), (r'', upd.uval_repr r''), (obsv, upd.uval_repr obsv)]] 
+        \<turnstile> (\<sigma>'', App f (Var 0))\<Down>! (\<sigma>''', URecord [(v', upd.uval_repr v'), (r, upd.uval_repr r)])) \<and> 
+      \<sigma>' = upd_store \<sigma>''' (arr + size_of_num_type t * to) v' \<and> frame \<sigma>'' w1 \<sigma>''' w2 \<and> 
+      ({p} \<union> s \<union> {arr + size_of_num_type t * i | i. i < len}) \<inter> w1 = {}"
+  apply (induct arbitrary: \<sigma>' r
+                rule: upd_wa_mapAccumnb_bod.induct[of _ \<xi>\<^sub>u \<sigma> p frm to f acc obsv s "(\<sigma>', URecord [rp, (r, upd.uval_repr r)])"]; clarsimp)
+  apply (erule upd_wa_mapAccumnb_bod.elims)
+  apply (drule_tac x = t in meta_spec)
+  apply (drule_tac x = len in meta_spec)
+  apply (drule_tac x = arr in meta_spec)
+  apply (clarsimp split: if_split_asm)
+   apply (drule_tac x = v' in meta_spec)
+   apply (drule_tac x = acc' in meta_spec)
+   apply (drule_tac x = \<sigma>''' in meta_spec)
+   apply (drule_tac x = a in meta_spec)
+   apply (drule_tac x = r in meta_spec)
+   apply clarsimp
+   apply (case_tac "frma < to"; clarsimp)
+    apply (drule meta_mp)
+     apply (metis (no_types, hide_lams) add.commute inc_le plus_le_left_cancel_wrap word_le_less_eq word_le_not_less word_plus_strict_mono_right)
+    apply (drule meta_mp)
+     apply (drule_tac p = pa in valid_ptr_not_in_frame_same; simp)
+    apply clarsimp
+    apply (rule_tac x = \<sigma>'''' in exI)
+    apply (rule_tac x = \<sigma>''''' in exI)
+    apply (rule_tac x = r'' in exI)
+    apply (rule conjI)
+     apply (subst upd_wa_mapAccumnb_bod.simps; clarsimp)
+     apply (rule_tac x = v' in exI)
+     apply (rule_tac x = acc' in exI)
+     apply (rule_tac x = \<sigma>''' in exI)
+     apply clarsimp
+     apply (rule_tac x = w1 in exI)
+     apply clarsimp
+     apply (rule_tac x = x in exI)
+     apply clarsimp
+    apply (rule_tac x = w1a in exI)
+    apply (rule_tac x = w2 in exI)
+    apply (rule_tac x = va in exI)
+    apply clarsimp
+    apply (rule conjI)
+     apply (clarsimp split: if_splits)
+     apply (drule_tac a = frma and b = to in word_mult_cancel_left_bounded[rotated 2]; simp?)
+       apply (metis (no_types, hide_lams) add.commute less_imp_le plus_one_helper2 word_not_le word_not_simps(1))
+      apply (erule disjE)
+       apply (case_tac t; clarsimp)
+      apply (rule FalseE)
+      apply blast
+     apply (erule_tac x = to in allE)
+     apply (erule impE)
+      apply (metis (no_types) add.commute plus_one_helper2 word_not_le word_not_simps(1))
+     apply clarsimp
+     apply (drule_tac p = "arr + size_of_num_type t * to" and w = w1 in valid_ptr_not_in_frame_same; simp)
+      apply (drule_tac x = "arr + size_of_num_type t * to"  and S' = w1 in orthD1; simp)
+      apply (rule disjI2)
+      apply (rule_tac x = to in exI)
+      apply clarsimp
+      apply (metis (no_types) add.commute plus_one_helper2 word_not_le word_not_simps(1))
+     apply clarsimp
+    apply (rule_tac x = v'a in exI)
+    apply clarsimp
+   apply (rule_tac x = \<sigma>'' in exI)
+   apply (rule_tac x = \<sigma>''' in exI)
+   apply (rule_tac x = acca in exI)
+   apply (subst upd_wa_mapAccumnb_bod.simps; clarsimp)
+   apply (frule_tac p = pa in valid_ptr_not_in_frame_same; simp?)
+   apply (rule conjI)
+    apply (frule_tac t = "(TPrim (Num t))" and len = len and arr = arr 
+      in upd_wa_mapAccumnb_bod_preservation'; simp?)
+   apply (rule_tac x = w1 in exI)
+   apply (rule_tac x = x in exI)
+   apply (rule_tac x = v in exI)
+   apply clarsimp
+   apply (rule conjI)
+    apply (drule linorder_class.antisym_conv1)
+    apply (cut_tac x = frma and n = to in plus_one_helper; simp add: add.commute)
+   apply (rule_tac x = v' in exI)
+   apply (subgoal_tac "frma = to")
+    apply (erule upd_wa_mapAccumnb_bod.elims)
+    apply (clarsimp simp: add.commute)
+   apply (metis (mono_tags, hide_lams) add.commute not_less_iff_gr_or_eq plus_one_helper word_le_not_less)
+  apply (rule FalseE)
+  by auto
 
 fun is_uval_fun :: "('f, 'a, 'l) uval \<Rightarrow> bool"
   where
