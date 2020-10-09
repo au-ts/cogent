@@ -5548,7 +5548,131 @@ next
   then show ?case sorry
 next
   case (cg_take \<beta> n1 \<alpha> \<gamma> G1 e1 nm G2 n2 C1 e1' e2 \<tau> m l G3 n3 C2 e2' C3 C4 C5 C6)
-  then show ?case sorry
+  let ?e = "Take e1 nm e2"
+  let ?dec2_fv_e2 = "(\<lambda>x. x - 1) ` (\<lambda>x. x - 1) ` (fv e2 - {0,1})"
+  let ?idxs = "Set.filter (\<lambda>x. x \<notin> fv ?e \<and> \<Gamma> ! x \<noteq> None) {0..<length G1}"
+  let ?\<Gamma>1 = "assign_app_ctx S (G1\<bar>fv e1)"
+  let ?\<Gamma>2 = "assign_app_ctx S (G2\<bar>?dec2_fv_e2 \<union> ?idxs)"
+  obtain fs s where fs_s_def: "TRecord fs None s = assign_app_ty S (TRecord [(nm, \<beta>, Present)] \<alpha> \<gamma>)"
+    using cg_take.hyps by simp
+  have "A \<turnstile> \<Gamma> \<leadsto> ?\<Gamma>1 \<box> ?\<Gamma>2"
+    using cg_take ct_sem_conj_iff
+  proof (rule_tac split_checked_take_extR)
+    show "\<And>i. i < length G1 \<Longrightarrow> if i \<in> fv' 0 (Take e1 nm e2) 
+                                then \<Gamma> ! i = Some (assign_app_ty S (fst (G1 ! i)))
+                                else \<Gamma> ! i = None \<or> \<Gamma> ! i = Some (assign_app_ty S (fst (G1 ! i)))"
+      using cg_take.prems by meson
+  qed auto
+  moreover have "distinct (map fst fs)"
+    using fs_s_def cg_take known_assignment_def by metis
+  moreover have "s \<noteq> ReadOnly"
+    using cg_take ct_sem_conj_iff fs_s_def ct_sem_sigil_iff 
+    by (subgoal_tac "A \<turnstile> assign_app_constr S C5"; force)
+  moreover have "A \<ddagger> ?\<Gamma>1 \<turnstile> assign_app_expr S e1' : assign_app_ty S (TRecord [(nm, \<beta>, Present)] \<alpha> \<gamma>)"
+    using assign_app_ctx_len ctx_restrict_len assign_app_ctx_restrict_none 
+      assign_app_ctx_restrict_some cg_take
+  proof (rule_tac cg_take(5))
+    show "A \<turnstile> assign_app_constr S C1"
+      using ct_sem_conj_iff cg_take by simp
+  qed auto
+  moreover have "A \<ddagger> Some (record_nth_taken 0 (TRecord fs None s)) #
+                 Some ((fst \<circ> snd) (fs ! 0)) # ?\<Gamma>2 \<turnstile> assign_app_expr S e2' : assign_app_ty S \<tau>"
+    using cg_take ct_sem_conj_iff assign_app_ctx_len ctx_restrict_len
+  proof (rule_tac cg_take(7))
+    {
+      fix i :: nat
+      assume i_size: "i < length ((TRecord [(nm, \<beta>, Taken)] \<alpha> \<gamma>, 0) # (\<beta>, 0) # G2)"
+      consider (i_zero) "i = 0" | (i_one) "i = Suc 0" | (i_gte_two) "i \<ge> (Suc (Suc 0))" by linarith
+      then show "if i \<in> fv e2 then (Some (record_nth_taken 0 (TRecord fs None s)) # 
+                 Some ((fst \<circ> snd) (fs ! 0)) # assign_app_ctx S (G2 \<bar> ?dec2_fv_e2 \<union> ?idxs)) ! i =
+                 Some (assign_app_ty S (fst (((TRecord [(nm, \<beta>, Taken)] \<alpha> \<gamma>, 0) # (\<beta>, 0) # G2) ! i)))
+                 else (Some (record_nth_taken 0 (TRecord fs None s)) # Some ((fst \<circ> snd) (fs ! 0)) #
+                 assign_app_ctx S (G2 \<bar> ?dec2_fv_e2 \<union> ?idxs)) ! i = None \<or>
+                 (Some (record_nth_taken 0 (TRecord fs None s)) # Some ((fst \<circ> snd) (fs ! 0)) #
+                 assign_app_ctx S (G2 \<bar> ?dec2_fv_e2 \<union> ?idxs)) ! i =
+                 Some (assign_app_ty S (fst (((TRecord [(nm, \<beta>, Taken)] \<alpha> \<gamma>, 0) # (\<beta>, 0) # G2) ! i))) \<and>
+                 A \<turnstile> assign_app_constr S (CtDrop (fst (((TRecord [(nm, \<beta>, Taken)] \<alpha> \<gamma>, 0) # (\<beta>, 0) # G2) ! i)))"
+      proof cases
+        case i_zero
+        then show ?thesis
+        proof (cases "0 \<in> fv e2")
+          case True
+          then show ?thesis using cg_take fs_s_def i_zero by simp
+        next
+          case False
+          then have "m = 0"
+            using cg_take.hyps cg_gen_output_type_unchecked_same i_size i_zero
+            by (metis nth_Cons_0 snd_conv)
+          moreover have "record_nth_taken 0 (assign_app_ty S (TRecord [(nm, \<beta>, Present)] \<alpha> \<gamma>)) =
+                         assign_app_ty S (TRecord [(nm, \<beta>, Taken)] \<alpha> \<gamma>)"
+            using cg_take by simp
+          ultimately show ?thesis
+            using i_zero False cg_take ct_sem_conjE fs_s_def by (simp; meson)
+        qed
+      next
+        case i_one
+        then show ?thesis
+        proof (cases "Suc 0 \<in> fv e2")
+          case True
+          then show ?thesis using i_one fs_s_def cg_take.hyps by simp
+        next
+          case False
+          then have "l = 0"
+            using cg_take cg_gen_output_type_unchecked_same i_one i_size
+            by (metis nth_Cons_0 nth_Cons_Suc snd_conv)
+          then have "A \<turnstile> CtDrop (assign_app_ty S \<beta>)"
+            using assign_app_constr.simps cg_take ct_sem_conjE by metis
+          then show ?thesis   
+            using i_one False fs_s_def cg_take.hyps by simp 
+        qed
+      next
+        case i_gte_two
+        consider (i_in_e2) "i \<in> fv e2" | (i_in_idxs) "i \<notin> fv e2" "i - Suc (Suc 0) \<in> ?idxs" |
+          (i_in_neither) "i \<notin> fv e2" "i - Suc (Suc 0) \<notin> ?idxs" by blast
+        then show ?thesis
+        proof cases
+          case i_in_e2
+          have "assign_app_ctx S (G2 \<bar> ?dec2_fv_e2 \<union> ?idxs) ! (i - Suc (Suc 0)) =
+                Some (assign_app_ty S (fst (G2 ! (i - Suc (Suc 0)))))"
+            using i_gte_two i_in_e2 i_size by (rule_tac assign_app_ctx_restrict_some; force)
+          then show ?thesis 
+            using i_in_e2 i_gte_two One_nat_def Suc_diff_Suc Suc_le_lessD le_zero_eq
+            by (metis (no_types, lifting) nat.simps(3) nth_Cons' nth_Cons_Suc)
+        next
+          case i_in_idxs
+          have "(Some (record_nth_taken 0 (TRecord fs None s)) #
+                 Some ((fst \<circ> snd) (fs ! 0)) #
+                 assign_app_ctx S (G2 \<bar> ?dec2_fv_e2 \<union> ?idxs)) ! i = 
+                 assign_app_ctx S (G2 \<bar> ?dec2_fv_e2 \<union> ?idxs) ! (i - Suc (Suc 0))"
+            using One_nat_def i_gte_two by fastforce
+          moreover have "assign_app_ctx S (G2 \<bar> ?dec2_fv_e2 \<union> ?idxs) ! (i - Suc (Suc 0)) =
+                Some (assign_app_ty S (fst (G2 ! (i - Suc (Suc 0)))))"
+            using i_in_idxs cg_take cg_ctx_length assign_app_ctx_restrict_some
+            by (metis (no_types, lifting) UnCI member_filter atLeastLessThan_iff)
+          moreover have "A \<turnstile> assign_app_constr S (CtDrop (fst (G2 ! (i - Suc (Suc 0)))))"
+            using i_in_idxs cg_take cg_ctx_type_same1[where G=G1 and G'=G2] i_gte_two by fastforce
+          ultimately show ?thesis 
+            using i_gte_two One_nat_def Suc_diff_Suc Suc_le_lessD le_zero_eq
+            by (metis (no_types, lifting)  nat.simps(3) nth_Cons' nth_Cons_Suc)
+        next
+          case i_in_neither
+          have "(Some (record_nth_taken 0 (TRecord fs None s)) #
+                 Some ((fst \<circ> snd) (fs ! 0)) #
+                 assign_app_ctx S (G2 \<bar> ?dec2_fv_e2 \<union> ?idxs)) ! i = 
+                 assign_app_ctx S (G2 \<bar> ?dec2_fv_e2 \<union> ?idxs) ! (i - Suc (Suc 0))"
+            using One_nat_def i_gte_two by simp
+          then show ?thesis
+            using i_gte_two One_nat_def fv'_suc_eq_dec_fv' fv'_suc_eq_dec_fv'_minus i_in_neither i_size
+              i_fv'_suc_iff_suc_i_fv' assign_app_ctx_restrict_none Suc_diff_Suc Suc_le_lessD
+              image_insert insert_is_Un length_Cons
+            by (metis (no_types, lifting) Suc_lessD Suc_less_eq Suc_pred UnE image_empty)
+        qed
+      qed
+    }
+  qed simp+
+  ultimately show ?case
+    using fs_s_def cg_take known_assignment_def typing_take[where ?fs="fs" and ?i="0"] 
+      typing_sig_refl by force
 next
   case (cg_put \<beta> n1 \<alpha> \<gamma> G1 e1 nm G2 n2 C1 e1' e2 G3 n3 C2 e2' C3 \<tau> C4 C5)
   then show ?case sorry
