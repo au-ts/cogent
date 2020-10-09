@@ -5798,7 +5798,67 @@ next
       typing_sig_refl by force
 next
   case (cg_put \<beta> n1 \<alpha> \<gamma> G1 e1 nm G2 n2 C1 e1' e2 G3 n3 C2 e2' C3 \<tau> C4 C5)
-  then show ?case sorry
+  let ?e = "Put e1 nm e2"
+  let ?idxs = "Set.filter (\<lambda>x. x \<notin> fv ?e \<and> \<Gamma> ! x \<noteq> None) {0..<length G1}"
+  let ?\<Gamma>1 = "assign_app_ctx S (G1\<bar>fv e1)"
+  let ?\<Gamma>2 = "assign_app_ctx S (G2\<bar>fv e2 \<union> ?idxs)"
+  obtain fs s where fs_s_def: "TRecord fs None s = assign_app_ty S (TRecord [(nm, \<beta>, Present)] \<alpha> \<gamma>)"
+    using cg_put.hyps by auto
+  have "distinct (map fst fs)"
+    using known_assignment_def fs_s_def cg_put by metis
+  moreover have "0 < length fs" "fst (fs ! 0) = nm" "(snd \<circ> snd) (fs ! 0) = Present"
+    using fs_s_def cg_put by force+
+  moreover have "s \<noteq> ReadOnly"
+    using cg_put ct_sem_conj_iff fs_s_def ct_sem_sigil_iff 
+    by (subgoal_tac "A \<turnstile> assign_app_constr S C4"; auto)
+  moreover have "A \<turnstile> \<Gamma> \<leadsto> ?\<Gamma>1 \<box> ?\<Gamma>2"
+    using cg_put ct_sem_conj_iff
+  proof (rule_tac split_checked_put_extR)
+    show "\<And>i. i < length G1 \<Longrightarrow> if i \<in> fv ?e then \<Gamma> ! i = Some (assign_app_ty S (fst (G1 ! i)))
+                                 else \<Gamma> ! i = None \<or> \<Gamma> ! i = Some (assign_app_ty S (fst (G1 ! i)))"
+      using cg_put.prems by meson
+  qed auto
+  moreover have "assign_app_ty S (TRecord [(nm, \<beta>, Taken)] \<alpha> \<gamma>) = 
+                 record_nth_taken 0 (TRecord fs None s)"
+    using fs_s_def cg_put by simp
+  moreover have "A \<ddagger> ?\<Gamma>1 \<turnstile> assign_app_expr S e1' : assign_app_ty S (TRecord [(nm, \<beta>, Taken)] \<alpha> \<gamma>)"
+    using cg_put assign_app_ctx_len ctx_restrict_len ct_sem_conj_iff 
+    by (rule_tac cg_put(5); simp add: assign_app_ctx_restrict_none assign_app_ctx_restrict_some)
+  moreover have "(fst \<circ> snd) (fs ! 0) = assign_app_ty S \<beta>"
+    using fs_s_def cg_put by simp
+  moreover have "A \<ddagger> ?\<Gamma>2 \<turnstile> assign_app_expr S e2' : assign_app_ty S \<beta>"
+    using cg_put assign_app_ctx_len ctx_restrict_len ct_sem_conj_iff
+  proof (rule_tac cg_put(7))
+    {
+      fix i :: nat
+      assume i_size: "i < length G2"
+      consider (i_in_e2) "i \<in> fv e2" | (i_in_idxs) "i \<notin> fv e2" "i \<in> ?idxs" |
+               (i_in_neither) "i \<notin> fv e2" "i \<notin> ?idxs" by blast
+      then show "if i \<in> fv e2 then assign_app_ctx S (G2 \<bar> fv e2 \<union> ?idxs) ! i = 
+                                   Some (assign_app_ty S (fst (G2 ! i)))
+                 else assign_app_ctx S (G2 \<bar> fv e2 \<union> ?idxs) ! i = None \<or> 
+                      assign_app_ctx S (G2 \<bar> fv e2 \<union> ?idxs) ! i = 
+                      Some (assign_app_ty S (fst (G2 ! i))) \<and>
+                      A \<turnstile> assign_app_constr S (CtDrop (fst (G2 ! i)))"
+      proof cases
+        case i_in_e2
+        then show ?thesis by (simp add: assign_app_ctx_restrict_some i_size)
+      next
+        case i_in_idxs
+        then have "A \<turnstile> assign_app_constr S (CtDrop (fst (G2 ! i)))"
+          using cg_ctx_type_same2 cg_put i_size by fastforce
+        then show ?thesis 
+          using assign_app_ctx_restrict_none assign_app_ctx_restrict_some i_in_idxs i_size by meson
+      next
+        case i_in_neither
+        then show ?thesis by (simp add: assign_app_ctx_restrict_none i_size)
+      qed
+    }
+  qed auto
+  moreover have "A \<turnstile> CtSub (TRecord fs None s) (assign_app_ty S \<tau>)"
+    using assign_app_ty_id fs_s_def known_assignment_def cg_put ct_sem_conj_iff by simp
+  ultimately show ?case
+    using typing_sig[where ?\<tau>'="TRecord fs None s"] typing_put by fastforce
 next
   case (cg_struct \<alpha>s n1 nms es Gs G1 G2 ns n2 Cs es' C' \<tau>)
   then show ?case sorry
