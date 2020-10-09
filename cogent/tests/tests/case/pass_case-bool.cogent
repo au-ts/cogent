@@ -1,0 +1,3 @@
+foo : Bool -> <T | F>
+foo | True -> F
+    | False -> T

@@ -542,7 +542,8 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArrayTake arr [(i,ip)]) pos)) e = do
   desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b1,b2] e) pos
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArrayTake arr ips) pos)) e = __todo "desugarAlts': taking multiple elements out of an array is currently not supported"
 #endif
-desugarAlt' _ _ _ = __impossible "desugarAlt' (_)"  -- literals
+desugarAlt' e0 (S.PBoolLit b) e = desugarExpr e
+desugarAlt' _ _ _ = __impossible "desugarAlt' (_)"  -- literals that cannot be easily exhausted
 
 desugarPrimInt :: B.DepType -> PrimInt
 desugarPrimInt (B.DT (S.TCon "U8"   [] Unboxed)) = U8
