@@ -2131,6 +2131,11 @@ lemma assign_app_ctx_len:
   "length (assign_app_ctx S G) = length G"
   by (induct G arbitrary: S; simp add: assign_app_ctx_def)
 
+lemma assign_app_ty_id:
+  assumes "known_ty \<tau>"
+  shows "assign_app_ty S \<tau> = \<tau>"
+  using assms by (induct \<tau>; simp add: case_prod_beta' map_conv_all_nth)
+
 lemma assign_app_ty_subst_tyvar_commute: 
   assumes "known_ty \<tau>"
   shows "assign_app_ty S (subst_tyvar xs \<tau>) = subst_tyvar (map (assign_app_ty S) xs) \<tau>"
