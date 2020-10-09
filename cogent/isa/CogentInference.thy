@@ -2103,7 +2103,7 @@ fun "assign_app_constr" :: "assignment \<Rightarrow> constraint \<Rightarrow> co
 | "assign_app_constr S (CtDrop t)       = CtDrop (assign_app_ty S t)"
 | "assign_app_constr S (CtExhausted v)  = CtExhausted (assign_app_ty S v)"
 | "assign_app_constr S (CtEscape t)     = CtEscape (assign_app_ty S t)"
-| "assign_app_constr S (CtNotRead s)    = CtNotRead s"
+| "assign_app_constr S (CtNotRead s)    = CtNotRead (assign_app_sigil S s)"
 
 definition assign_app_ctx :: "assignment \<Rightarrow> ctx \<Rightarrow> ctx" where
   "assign_app_ctx S G = map (map_option (assign_app_ty S)) G"
@@ -2173,7 +2173,7 @@ lemma assign_app_constr_subst_tyvar_ct_commute:
   shows "assign_app_constr S (subst_tyvar_ct xs C) = subst_tyvar_ct (map (assign_app_ty S) xs) C"
   using assms
 proof (induct C)
-qed (auto simp add: subst_tyvar_ct_def assign_app_ty_subst_tyvar_commute)+
+qed (auto simp add: subst_tyvar_ct_def assign_app_ty_subst_tyvar_commute known_sigil.simps)+
 
 lemma ct_sem_assign_conj_foldr:
   assumes "A \<turnstile> assign_app_constr S (foldr CtConj Cs CtTop)"
