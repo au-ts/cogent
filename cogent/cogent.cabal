@@ -98,6 +98,7 @@ library
               , Cogent.GetOpt
               , Cogent.Glue
               , Cogent.Inference
+              , Cogent.Inference.SMT
               , Cogent.Interpreter
               , Cogent.Isabelle
               , Cogent.Isabelle.ACInstall

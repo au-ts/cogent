@@ -40,6 +40,7 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core
 import Cogent.Dargent.Allocation
+import Cogent.Inference.SMT
 import Cogent.Util
 import Cogent.PrettyPrint (indent')
 import Data.Ex
@@ -53,6 +54,7 @@ import qualified Data.Vec as Vec
 import Control.Applicative
 import Control.Arrow
 import Control.Monad.Except hiding (fmap, forM_)
+import Control.Monad.IO.Class
 import Control.Monad.Reader hiding (fmap, forM_)
 import Control.Monad.State hiding (fmap, forM_)
 import Control.Monad.Trans.Maybe
@@ -63,6 +65,8 @@ import Data.Map (Map)
 import Data.Maybe (isJust)
 import qualified Data.Map as M
 import Data.Monoid
+import qualified Data.SBV as SMT hiding (proveWith)
+import qualified Data.SBV.Dynamic as SMT
 #if __GLASGOW_HASKELL__ < 709
 import Data.Traversable(traverse)
 #endif
@@ -125,7 +129,22 @@ unroll v (Just ctxt) = erp (Just ctxt) (ctxt M.! v)
 #endif
     erp _ t = t
 
+-- extracts refinement predicates from typing context
+-- extract :: TC t v b (Maybe [LExpr t b])
+extract :: TC t v b [SMT.Symbolic SMT.SVal]
+extract = TC $ do 
+                readers <- ask
+                (v, ls, _) <- get
+                return $ map lexprToSmt ((extractVec v) ++ ls)
+
+extractVec:: Vec v (Maybe (Type t b)) -> [LExpr t b]
+extractVec Nil = []
+extractVec (Cons t v) = case t of
+                          Just (TRefine _ p) -> p : (extractVec v)
+                          _ -> extractVec v
+
 bound :: (Show b, Eq b) => Bound -> Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
+-- bound :: (Show b, Eq b) => Bound -> Type t b -> Type t b -> TCMaybe t v b x (Type t b)
 bound _ t1 t2 | t1 == t2 = return t1
 bound b (TRecord rp1 fs1 s1) (TRecord rp2 fs2 s2)
   | map fst fs1 == map fst fs2, s1 == s2, rp1 == rp2 = do
@@ -165,7 +184,19 @@ bound b (TArray t1 l1 s1 mhole1) (TArray t2 l2 s2 mhole2)
     combineHoles b (Just i1) (Just _ ) = Just i1
     combineHoles b Nothing   (Just i2) = case b of GLB -> Nothing; LUB -> Just i2
     combineHoles b (Just i1) Nothing   = case b of GLB -> Nothing; LUB -> Just i1
-bound b rt1@(TRefine t1 l1) rt2@(TRefine t2 l2) = return rt1 -- FIXME: hack /blaisep
+bound b rt@(TRefine (TPrim t1) l) pt@(TPrim t2) | t1 == t2 = return $ case b of GLB -> rt; LUB -> pt
+bound b pt@(TPrim t1) rt@(TRefine (TPrim t2) l) | t1 == t2 = return $ case b of GLB -> rt; LUB -> pt
+bound b rt1@(TRefine t1 l1) rt2@(TRefine t2 l2) | t1 == t2
+      = do
+        -- go straight to SMT lang from LExpr
+          ls <- MaybeT $ Just <$> extract
+          -- return rt1
+          res <- liftIO $ smtProve (lexprToSmt l1) (lexprToSmt l2) ls
+          case res of
+            (True, True) -> return rt1; -- what happens here? Find which one is most specific?
+            (True, False) -> return $ case b of GLB -> rt1; LUB -> rt2
+            (False, True) -> return $ case b of GLB -> rt2; LUB -> rt1
+            (False, False) -> MaybeT (return Nothing) -- fixme /blaisep
 #endif
 bound _ t1 t2 = __impossible ("bound: not comparable:\n" ++ show t1 ++ "\n" ++ 
                               "----------------------------------------\n" ++ show t2 ++ "\n")
@@ -300,9 +331,9 @@ adjust k f = map (\(a,b) -> (a,) $ if a == k then f b else b)
 newtype TC (t :: Nat) (v :: Nat) b x
   = TC {unTC :: ExceptT String
                         (ReaderT (Vec t Kind, Map FunName (FunctionType b))
-                                 (State (Vec v (Maybe (Type t b)), [LExpr t b], Int)))
+                                 (StateT (Vec v (Maybe (Type t b)), [LExpr t b], Int) IO))
                         x}
-  deriving (Functor, Applicative, Alternative, Monad, MonadPlus,
+  deriving (Functor, Applicative, Alternative, Monad, MonadIO, MonadPlus,
             MonadReader (Vec t Kind, Map FunName (FunctionType b)))
 
 #if MIN_VERSION_base(4,13,0)
@@ -337,19 +368,20 @@ infixl 4 <||>
 
 -- returns list of inputs, and type of output
 opType :: Op -> [Type t b] -> Maybe ([Type t VarName], Type t b)
-opType opr [(TRefine (TPrim t) p), _]
+opType opr [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
   | opr `elem` [Plus, Minus, Times, Mod,
                 BitAnd, BitOr, BitXor, LShift, RShift],
-  t /= Boolean
-  = Just ([TPrim t, TPrim t], TPrim t)
-opType Divide [(TRefine (TPrim t) p), _]
-  | t /= Boolean
-  = let nonZeroType = TRefine (TPrim t) (LOp Gt [LVariable (Zero, "x"), LILit 0 t])
-    in Just ([TPrim t, nonZeroType], TPrim t)
-opType opr [(TRefine (TPrim t) p), _]
-  | opr `elem` [Gt, Lt, Le, Ge, Eq, NEq], t /= Boolean
-  = Just ([TPrim t, TPrim t], TPrim Boolean)
-opType opr [TRefine (TPrim Boolean) p, _]
+  t1 /= Boolean, t1 == t2
+  = Just ([TPrim t1, TPrim t1], (TRefine (TPrim t1) (LOp And $ map upshiftVarLExpr [p1, p2]))) -- unsure
+opType Divide [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
+  | t1 /= Boolean, t1 == t2
+  = let nonZeroPred = LOp Gt [LVariable (Zero, "x"), LILit 0 t1]
+        nonZeroType = TRefine (TPrim t1) nonZeroPred
+    in Just ([TPrim t1, nonZeroType], (TRefine (TPrim t1) (LOp And $ map upshiftVarLExpr [p1, p2])))
+opType opr [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
+  | opr `elem` [Gt, Lt, Le, Ge, Eq, NEq], t1 /= Boolean, t1 == t2
+  = Just ([TPrim t1, TPrim t1], TPrim Boolean)
+opType opr [(TRefine (TPrim Boolean) p1), (TRefine (TPrim Boolean) p2)]
   | opr `elem` [And, Or, Eq, NEq]
   = Just ([TPrim Boolean, TPrim Boolean], TPrim Boolean)
 opType Not [TRefine (TPrim Boolean) p]
@@ -358,6 +390,11 @@ opType Complement [(TRefine (TPrim t) p)]
   | t /= Boolean
   = Just ([TPrim t], TPrim t)
 opType opr ts = __impossible "opType"
+
+toTRefine :: Type t b -> Type t b
+toTRefine (TPrim t) = TRefine (TPrim t) (LILit 1 Boolean)
+toTRefine (TRefine t b) = TRefine t b
+toTRefine _ = __impossible "toTRefine"
 
 useVariable :: Fin v -> TC t v b (Maybe (Type t b))
 useVariable v = TC $ do ret <- (`at` v) <$> fst3 <$> get
@@ -374,10 +411,12 @@ funType v = TC $ (M.lookup (unCoreFunName v) . snd) <$> ask
 runTC :: TC t v b x
       -> (Vec t Kind, Map FunName (FunctionType b))
       -> (Vec v (Maybe (Type t b)), [LExpr t b], Int)
-      -> Either String ((Vec v (Maybe (Type t b)), [LExpr t b], Int), x)
-runTC (TC a) readers st = case runState (runReaderT (runExceptT a) readers) st of
-                            (Left x, s)  -> Left x
-                            (Right x, s) -> Right (s, x)
+      -> IO (Either String ((Vec v (Maybe (Type t b)), [LExpr t b], Int), x))
+runTC (TC a) readers st = do
+  tc <- liftIO $ runStateT (runReaderT (runExceptT a) readers) st
+  return $ case tc of
+    (Left x, s)  -> Left x
+    (Right x, s) -> Right (s, x)
 
 -- XXX | tc_debug :: [Definition UntypedExpr a] -> IO ()
 -- XXX | tc_debug = flip tc_debug' M.empty
@@ -392,44 +431,68 @@ runTC (TC a) readers st = case runState (runReaderT (runExceptT a) readers) st o
 -- XXX |     tc_debug' (_:ds) reader = tc_debug' ds reader
 
 retype :: [Definition TypedExpr VarName VarName]
-       -> Either String [Definition TypedExpr VarName VarName]
-retype ds = fmap fst $ tc $ map untypeD ds
+       -> IO (Either String [Definition TypedExpr VarName VarName])
+retype ds = do 
+  unt <- tc $ map untypeD ds
+  return $ fst <$> unt
 
+-- tc :: [Definition UntypedExpr VarName VarName]
+--    -> Either String ([Definition TypedExpr VarName VarName], Map FunName (FunctionType VarName))
+-- tc = flip tc' M.empty
+--   where
+--     tc' :: [Definition UntypedExpr VarName VarName]
+--         -> Map FunName (FunctionType VarName)  -- the reader
+--         -> Either String ([Definition TypedExpr VarName VarName], Map FunName (FunctionType VarName))
+--     tc' [] reader = return $ Right ([], reader)
+--     tc' ((FunDef attr fn ks ls t rt e):ds) reader =
+--       -- Enable recursion by inserting this function's type into the function type dictionary
+--       let ft = FT (snd <$> ks) (snd <$> ls) t rt in
+--       case liftIO $ runTC (infer e >>= flip typecheck rt) (fmap snd ks, M.insert fn ft reader) ((Cons (Just t) Nil), [], 0) of
+--         Left x -> return $ Left x
+--         Right (_, e') -> return $ Right $ (first (FunDef attr fn ks ls t rt e':)) <$> liftIO $ tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader)
+--     tc' (d@(AbsDecl _ fn ks ls t rt):ds) reader = return $ Right $ (first (Unsafe.unsafeCoerce d:)) <$> liftIO $ tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader)
+--     tc' (d:ds) reader = return $ Right $ (first (Unsafe.unsafeCoerce d:)) <$> liftIO $ tc' ds reader
 tc :: [Definition UntypedExpr VarName VarName]
-   -> Either String ([Definition TypedExpr VarName VarName], Map FunName (FunctionType VarName))
+   -> IO (Either String ([Definition TypedExpr VarName VarName], Map FunName (FunctionType VarName)))
 tc = flip tc' M.empty
   where
     tc' :: [Definition UntypedExpr VarName VarName]
         -> Map FunName (FunctionType VarName)  -- the reader
-        -> Either String ([Definition TypedExpr VarName VarName], Map FunName (FunctionType VarName))
-    tc' [] reader = return ([], reader)
+        -> IO (Either String ([Definition TypedExpr VarName VarName], Map FunName (FunctionType VarName)))
+    tc' [] reader = return $ Right ([], reader)
     tc' ((FunDef attr fn ks ls t rt e):ds) reader =
       -- Enable recursion by inserting this function's type into the function type dictionary
       let ft = FT (snd <$> ks) (snd <$> ls) t rt in
-      case runTC (infer e >>= flip typecheck rt) (fmap snd ks, M.insert fn ft reader) ((Cons (Just t) Nil), [], 0) of
-        Left x -> Left x
-        Right (_, e') -> (first (FunDef attr fn ks ls t rt e':)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader)
-    tc' (d@(AbsDecl _ fn ks ls t rt):ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader)
-    tc' (d:ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds reader
+      do 
+        rtc <- liftIO $ runTC (infer e >>= flip typecheck rt) (fmap snd ks, M.insert fn ft reader) ((Cons (Just t) Nil), [], 0)
+        case rtc of
+          Left x -> return $ Left x
+          Right (_, e') -> (fmap $ first (FunDef attr fn ks ls t rt e':)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader)
+    tc' (d@(AbsDecl _ fn ks ls t rt):ds) reader = (fmap $ first (Unsafe.unsafeCoerce d:)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader)
+    tc' (d:ds) reader = (fmap $ first (Unsafe.unsafeCoerce d:)) <$> tc' ds reader
 
 tc_ :: [Definition UntypedExpr VarName VarName]
-    -> Either String [Definition TypedExpr VarName VarName]
-tc_ = fmap fst . tc
+    -> IO (Either String [Definition TypedExpr VarName VarName])
+-- tc_ ds = do --             r <- tc ds
+--             return (fst <$> r)
+tc_ ds = tc ds >>= (\r -> return (fst <$> r))
 
 tcConsts :: [CoreConst UntypedExpr]
          -> Map FunName (FunctionType VarName)
-         -> Either String ([CoreConst TypedExpr], Map FunName (FunctionType VarName))
-tcConsts [] reader = return ([], reader)
-tcConsts ((v,e):ds) reader =
-  case runTC (infer e) (Nil, reader) (Nil, [], 0) of
-    Left x -> Left x
-    Right (_,e') -> (first ((v,e'):)) <$> tcConsts ds reader
+         -> IO (Either String ([CoreConst TypedExpr], Map FunName (FunctionType VarName)))
+tcConsts [] reader = return $ Right ([], reader)
+tcConsts ((v,e):ds) reader = do 
+    rtc <- liftIO $ runTC (infer e) (Nil, reader) (Nil, [], 0)
+    case rtc of
+      Left x -> return $ Left x
+      Right (_,e') -> (fmap $ first ((v,e'):)) <$> (tcConsts ds reader)
 
 withBinding :: Type t b -> TC t ('Suc v) b x -> TC t v b x
 withBinding t x
   = TC $ do readers <- ask
             (st, p, n) <- get
-            case runTC x readers (Cons (Just t) st, p, n) of
+            rtc <- lift . liftIO $ runTC x readers (Cons (Just t) st, p, n)
+            case rtc of
               Left e -> throwError e
               Right ((Cons Nothing s, p, n), r)  -> do put (s, p, n); return r
               Right ((Cons (Just t) s, p, n), r) -> do
@@ -444,11 +507,12 @@ withBindings (Cons x xs) tc = withBindings xs (withBinding x tc)
 
 withPredicate :: LExpr t b -> TC t v b x -> TC t v b x
 withPredicate l x
-  = TC $ do readers <- ask
-            st      <- get
-            case runTC x readers st of
+  = TC $ do readers  <- ask
+            st       <- get
+            rtc      <- lift . liftIO $ runTC x readers st 
+            case rtc of
               Left e -> throwError e
-              Right ((s, p, n), r) -> do put (s, p ++ [l], n); return r -- probably not the most efficient
+              Right ((s, p, n), r) -> do put (s, p ++ [l], n); return r
 
 withBang :: [Fin v] -> TC t v b x -> TC t v b x
 withBang vs (TC x) = TC $ do (st, p', n) <- get
@@ -526,14 +590,14 @@ typecheck e t = do
 infer :: UntypedExpr t v VarName VarName -> TC t v VarName (TypedExpr t v VarName VarName)
 infer (E (Op o es))
    = do es' <- mapM infer es
-        let operandsTypes = map exprType es'
-        let Just (expectedInputs, t) = opType o operandsTypes
+        let operandsTypes = map toTRefine $ map exprType es'
+        vn <- freshVarName
+        let Just (expectedInputs, (TRefine t p)) = opType o operandsTypes
         -- check that each of o is a subtype of expectedInputs
         inputsOk <- listIsSubtype operandsTypes expectedInputs
-        vn <- freshVarName
         let pred = LOp Eq [LVariable (Zero, vn), upshiftVarLExpr (LOp o $ map (texprToLExpr id) es')]
         return $ case inputsOk of
-          True -> (TE (TRefine t (pred)) (Op o es'))
+          True -> (TE (TRefine t $ LOp And [pred, p]) (Op o es'))
           _ -> __impossible "op types don't match" -- fix me /blaisep
 infer (E (ILit i t))
   = do vn <- freshVarName

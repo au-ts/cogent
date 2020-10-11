@@ -353,7 +353,8 @@ interpExpr q r input =
               QType  -> putDoc $ pretty (Tc.getTypeTE typedE) <> line
               QValue -> do
                 (desugared, desugaredE) <- dsExpr r typedE
-                let coreTced = fromRight [] $ Core.tc_ desugared  -- there shouldn't be any errors
+                ctc <- liftIO $ Core.tc_ desugared
+                let coreTced = fromRight [] ctc  -- there shouldn't be any errors
                 typedCE <- coreTcExpr coreTced desugaredE  -- the state required will be extracted from @coreTced@
                 let absFuns = filter Core.isAbsFun coreTced
                     conFuns = filter Core.isConFun coreTced
@@ -391,7 +392,8 @@ coreTcExpr ds e = do
       mkFunMap (AbsDecl _ fn ps ts ti to  ) = (fn, FT (fmap snd ps) (fmap snd ts) ti to)
       mkFunMap _ = __impossible "coreTcExpr: mkFunMap: not a function definition"
   let funmap = M.fromList $ fmap mkFunMap $ filter (not . isTypeDef) ds
-  case fmap snd $ Core.runTC (Core.infer e) (V.Nil, funmap) (V.Nil, [], 0) of
+  ctc <- liftIO $ Core.runTC (Core.infer e) (V.Nil, funmap) (V.Nil, [], 0)
+  case fmap snd ctc of
     Left err -> __impossible "coreTcExpr: there shouldn't be any error here"
     Right e  -> return e
 
