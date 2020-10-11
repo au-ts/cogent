@@ -126,10 +126,14 @@ validateType (RT t) = do
                        (c, TVariant fs') <- fmapFoldM validateType t
                        pure (c, V (Row.fromMap (fmap (first tuplize) fs')))
 
+    TBuffer n dt  -> do
+      (ct, dt') <- validateType dt
+      return (ct, T $ TBuffer n dt')
+
 #ifdef BUILTIN_ARRAYS
     TArray te l s tkns -> do
       x <- freshEVar (T u32)
-      traceTc "gen" (text "unifier for array length" <+> pretty l L.<$> 
+      traceTc "gen" (text "unifier for array length" <+> pretty l L.<$>
                      text "is" <+> pretty x)
       (cl,l') <- cg (rawToLocE ?loc l) (T u32)
       (ctkn,mhole) <- case tkns of
@@ -212,7 +216,7 @@ validateType (RT t) = do
     -- This can't be done in the current setup because validateType' has no context for the type it is validating.
     -- Not implementing this now, because a new syntax for types is needed anyway, which may make this issue redundant.
     -- /mdimeglio
-    -- In addition to the above: We have an UnboxedNotRecursive constraint now, which checks something similar 
+    -- In addition to the above: We have an UnboxedNotRecursive constraint now, which checks something similar
     -- (that recursive parameters are not used on unboxed records).
     -- We can potentially generalise this constraint to also solve the above issue (or create a similar constraint).
     -- /emmetm
@@ -665,7 +669,7 @@ cg' (Put e ls) t | not (any isNothing ls) = do
   U sigil <- freshTVar
   rp <- freshRPVar
   let row  = R rp (Row.incomplete (zipWith3 mkEntry fs ts (repeat True)) rest) (Right sigil)
-      row' = R rp (Row.incomplete (zipWith3 mkEntry fs ts (repeat False)) rest) (Right sigil) 
+      row' = R rp (Row.incomplete (zipWith3 mkEntry fs ts (repeat False)) rest) (Right sigil)
       c = row' :< t <> alpha :< row <> UnboxedNotRecursive row <>
           NotReadOnly (Right sigil)
       r = Put e' (map Just (zip fs es'))
@@ -699,6 +703,14 @@ cg' (Annot e tau) t = do
                 return (ctau <> tau'' :< t, tau'')
   (c', e') <- cg e t'
   return (c <> c', Annot e' t')
+
+cg' (Buffer n fs) t = do
+  let (fs', ts) = unzip fs
+  (_, ts') <- validateTypes (map stripLocT ts)
+  let e = Buffer n (zip fs' ts')
+      r = R None (Row.complete $ zipWith3 mkEntry fs' ts' (repeat False)) (Left Unboxed)
+      c = r :< t
+  return (c, e)
 
 -- -----------------------------------------------------------------------------
 -- Pattern constraints
@@ -886,7 +898,7 @@ freshLVar = TLU <$> freshVar
 
 freshRPVar :: (?loc :: SourcePos) => CG RP
 freshRPVar = UP <$> freshVar
-      
+
 integral :: TCType -> Constraint
 integral = Upcastable (T (TCon "U8" [] Unboxed))
 

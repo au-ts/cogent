@@ -591,7 +591,7 @@ desugarType = \case
   B.DT (S.TUnit)     -> return TUnit
   B.DT (S.TRPar v b m) -> do
     m' <- mapM id (fmap (\x -> mapM id (M.map desugarType x)) m)
-    return $ 
+    return $
       if b then
         TRParBang v m'
       else
@@ -617,6 +617,9 @@ desugarType = \case
            <*> pure ds
            <*> pure tkns'
 #endif
+  B.DT (S.TBuffer n dt) -> case dt of
+    B.DT S.TUnbox{} -> return $ TBuffer (toNat n) (TType TUnit) -- TODO(luka): temporary
+    _               -> __impossible "desugarType: TBuffer should have an unboxed record as it's type"
   notInWHNF -> __impossible $ "desugarType (type " ++ show (pretty notInWHNF) ++ " is not in WHNF)"
 
 desugarLayout :: TCDataLayout -> DS t l v (DataLayout DA.BitRange)

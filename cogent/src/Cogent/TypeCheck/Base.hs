@@ -353,7 +353,7 @@ data RP = Mu RecParName | None | UP Int
 
 coerceRP :: RecursiveParameter -> RP
 coerceRP (Rec v) = Mu v
-coerceRP NonRec  = None 
+coerceRP NonRec  = None
 
 unCoerceRP :: RP -> RecursiveParameter
 unCoerceRP (Mu v) = Rec v
@@ -517,7 +517,7 @@ toRawType _ = __impossible "toRawType: unification variable found"
 toRawType' :: DepType -> RawType
 toRawType' (DT t) = RT (fffmap toRawExpr'' $ fmap toRawType' t)
 
--- This function although is partial, it should be ok, as we statically know that 
+-- This function although is partial, it should be ok, as we statically know that
 -- we won't run into those undefined cases. / zilinc
 rawToDepType :: RawType -> DepType
 rawToDepType (RT t) = DT $ go t
@@ -535,6 +535,7 @@ rawToDepType (RT t) = DT $ go t
                      TTake mfs t     -> TTake mfs $ f t
                      TPut mfs t      -> TPut mfs $ f t
                      TLayout l t     -> TLayout l $ f t
+                     TBuffer n dt    -> TBuffer n $ f dt
                      _               -> __impossible $ "rawToDepType: we don't allow higher-order refinement types"
 
 toRawTypedExpr :: TypedExpr -> RawTypedExpr
@@ -692,7 +693,7 @@ substLayoutL vs (TLVariant e fs) = TLVariant e $ (\(x,y,z,v) -> (x,y,z,substLayo
 substLayoutL vs (TLArray e p) = TLArray (substLayoutL vs e) p
 #endif
 substLayoutL vs (TLOffset e s) = TLOffset (substLayoutL vs e) s
-substLayoutL vs (TLRepRef n es) = TLRepRef n $ fmap (substLayoutL vs) es 
+substLayoutL vs (TLRepRef n es) = TLRepRef n $ fmap (substLayoutL vs) es
 substLayoutL vs l = l
 
 substLayout :: [(DLVarName, TCDataLayout)] -> TCType -> TCType

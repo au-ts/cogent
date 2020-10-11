@@ -97,7 +97,7 @@ normaliseRWT = rewrite' $ \case
        in pure $ A t l s (Left $ Just idx)
     T (TAPut [idx] (A t l s (Right _))) ->
       __impossible "normaliseRW: TAPut over a hole variable"
-    T (TAPut [idx] (A t l s (Left (Just idx')))) | idx == idx' -> 
+    T (TAPut [idx] (A t l s (Left (Just idx')))) | idx == idx' ->
       let l' = normaliseSExpr l
        in pure $ A t l s (Left Nothing)
 #endif

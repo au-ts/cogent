@@ -479,10 +479,10 @@ atomtype = avoidInitial >> LocType <$> getPosition <*> (
   -- <|> TCon <$> typeConName <*> pure [] <*> pure Writable
   <|> (do reserved "Buffer"
           n <- brackets natural
-          lt <- monotype
+          lt <- parens monotype
           case typeOfLT lt of
-            (TRecord rp fs s) -> return $ TBuffer n lt
-            _                 -> fail "Only records are allowed inside a Buffer")
+            (TUnbox{}) -> return $ TBuffer n lt
+            _          -> error $ "Only unboxed records are allowed inside a Buffer")
   <|> tuple <$> parens (commaSep monotype)
   <|> (\rp -> (\fs -> TRecord rp fs (Boxed False Nothing)))
       <$> recPar

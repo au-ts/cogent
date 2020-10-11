@@ -223,7 +223,7 @@ normaliseT d (T (TLayout l t)) = do
 normaliseT d (T (TCon n ts b)) =
   case lookup n d of
     -- In the first case, the sigil `s` should be `Nothing`
-    -- because 
+    -- because
     Just (ts', Just b) -> normaliseT d (substType (zip ts' ts) b)
     _ -> do
       ts' <- mapM (normaliseT d) ts
@@ -241,7 +241,7 @@ normaliseT d (T (TArray t n s tkns)) = do
   return $ T $ TArray t' n s' tkns
 #endif
 
-normaliseT d (Synonym n ts) = 
+normaliseT d (Synonym n ts) =
   case lookup n d of
     Just (ts', Just b) -> normaliseT d (substType (zip ts' ts) b)
     _ -> __impossible ("normaliseT: unresolved synonym " ++ show n)

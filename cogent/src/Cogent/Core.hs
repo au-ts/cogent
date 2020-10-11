@@ -89,11 +89,20 @@ data Type t b
   | TRefine (Type t b) (LExpr t b)
 -- #endif
     -- The sigil specifies the layout of the element
+  | TBuffer Nat (DType t b)
+  deriving (Show, Eq, Ord, Functor)
+
+data DType t b
+  = DRecord RecursiveParameter [(FieldName, (DType t b, Bool))] (Sigil (DataLayout BitRange))
+  | DArray (DType t b) (LExpr t b) (Sigil (DataLayout BitRange)) (Maybe (LExpr t b))
+  | TType (Type t b)
   deriving (Show, Eq, Ord, Functor)
 
 deriving instance Generic b => Generic (Type 'Zero b)
+deriving instance Generic b => Generic (DType 'Zero b)
 
 instance (Generic b, Binary b) => Binary (Type 'Zero b)
+instance (Generic b, Binary b) => Binary (DType 'Zero b)
 
 
 data SupposedlyMonoType b = forall (t :: Nat) (v :: Nat). SMT (Type t b)
@@ -219,7 +228,7 @@ data LExpr t b
      -- \ ^^^ The first is the record, and the second is the taken field
   | LPut (LExpr t b) FieldIndex (LExpr t b)
   | LPromote (Type t b) (LExpr t b)  -- only for guiding the tc. rep. unchanged.
-  | LCast (Type t b) (LExpr t b)  
+  | LCast (Type t b) (LExpr t b)
   deriving (Show, Eq, Ord, Functor, Generic)
 
 instance (Binary b, Generic b) => Binary (LExpr 'Zero b)
@@ -239,7 +248,7 @@ exprToLExpr fab f f1 f2 = \case
   Unit               -> LUnit
   ILit i pt          -> LILit i pt
   SLit s             -> LSLit s
-  ALit {}            -> __impossible "array expressions in types not allowed" 
+  ALit {}            -> __impossible "array expressions in types not allowed"
   ArrayIndex {}      -> __impossible "array expressions in types not allowed"
   ArrayMap2 {}       -> __impossible "array expressions in types not allowed"
   Pop {}             -> __impossible "array expressions in types not allowed"

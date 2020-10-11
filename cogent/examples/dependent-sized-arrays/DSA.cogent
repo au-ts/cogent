@@ -1,2 +1,2 @@
-fn : Buffer[2000]{len: U32, name: Array len Char}
-fn = Buffer 2000 (#{len: U32, name: Array len Char})
+fn : Buffer[2000](#{len: U32})
+fn = Buffer 2000 (#{len: U32}) -- problem here with leftover constraints
