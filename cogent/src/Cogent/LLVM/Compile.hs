@@ -5,7 +5,7 @@
 
 module Cogent.LLVM.Compile where
 
-import Cogent.Common.Syntax (TagName, VarName)
+import Cogent.Common.Syntax (TagName, VarName, unCoreFunName)
 import qualified Cogent.Common.Syntax as Sy (Op (..))
 import Cogent.Common.Types
 import Cogent.Core as Core
@@ -24,6 +24,7 @@ import Data.Monoid ((<>))
 import Data.String
 import LLVM.AST as AST
 import LLVM.AST.AddrSpace
+import LLVM.AST.CallingConvention as CC
 import qualified LLVM.AST.Constant as C
 import LLVM.AST.DataLayout (Endianness (LittleEndian), defaultDataLayout)
 import LLVM.AST.Global (Global (..))
@@ -102,6 +103,13 @@ toLLVMType (TRecord _ ts _) =
 toLLVMType TUnit = IntegerType 2 -- as VoidType is not a first class type, use i2 for ()
 toLLVMType TString = ptrTo (IntegerType 8)
 toLLVMType (TSum ts) = sumTypeLift (IntegerType (toEnum (maxTypeSize ts)))
+toLLVMType (TFun t1 t2) =
+  ptrTo
+    FunctionType
+      { resultType = toLLVMType t2
+      , argumentTypes = [toLLVMType t1]
+      , isVarArg = False
+      }
 #ifdef BUILTIN_ARRAYS
 toLLVMType (TArray t l s mh) =
   ArrayType { nArrayElements = __todo "toLLVMType: we cannot evaluate LExpr to a constant"
@@ -825,7 +833,36 @@ exprToLLVM (TE vt (Variable (idx, _))) =
                 let pos = fromIntegral unnames - _idx
                  in return (Left (LocalReference (toLLVMType vt) (UnName (fromIntegral pos))))
               else return (Left (indexing !! _idx))
-exprToLLVM _ = error "not implemented yet"
+exprToLLVM (TE ft (Fun f _ _ _)) =
+  return
+    ( Left
+        ( ConstantOperand
+            ( C.GlobalReference
+                (toLLVMType ft)
+                (Name (toShortBS (unCoreFunName f)))
+            )
+        )
+    )
+exprToLLVM (TE rt (App f a)) = do
+  _arg <- exprToLLVM a
+  _fun <- exprToLLVM f
+  let arg = fromLeft (error "argument value cannot be terminator") _arg
+      fun = fromLeft (error "function value cannot be terminator") _arg
+  res <-
+    instr
+      (toLLVMType rt)
+      ( Call
+          { tailCallKind = Nothing
+          , callingConvention = CC.C
+          , returnAttributes = []
+          , function = Right fun
+          , arguments = [(arg, [])]
+          , functionAttributes = []
+          , metadata = []
+          }
+      )
+  return (Left res)
+exprToLLVM _ = error "not implemented yet: "
 
 loadMember recd fld = do
   _recv <- exprToLLVM recd
@@ -879,11 +916,14 @@ hasBlock (TE _ e) = hasBlock' e
     hasBlock' (Cast _ e) = hasBlock e
     hasBlock' _ = True
 
+toShortBS :: String -> ShortByteString
+toShortBS = toShort . packChars
+
 toLLVMDef :: Core.Definition Core.TypedExpr VarName VarName -> AST.Definition
 toLLVMDef (AbsDecl _ name _ _ t rt) =
   GlobalDefinition
     ( functionDefaults
-        { name = Name (toShort (packChars name))
+        { name = Name (toShortBS name)
         , parameters = ([Parameter (toLLVMType t) (UnName 0) []], False)
         , returnType = toLLVMType rt
         , basicBlocks = []
@@ -891,20 +931,20 @@ toLLVMDef (AbsDecl _ name _ _ t rt) =
     )
 toLLVMDef (FunDef _ name _ _ t rt body) =
   def
-    (toShort (packChars name))
+    (toShortBS name)
     [(toLLVMType t, UnName 0)]
     (toLLVMType rt)
     (const (exprToLLVM body))
 toLLVMDef (TypeDef name _ mt) =
   TypeDefinition
-    (Name (toShort (packChars name)))
+    (Name (toShortBS name))
     (fmap toLLVMType mt)
 
 toMod :: [Core.Definition Core.TypedExpr VarName VarName] -> FilePath -> AST.Module
 toMod ds source =
   mkModule
-    (toShort (packChars source))
-    (toShort (packChars source))
+    (toShortBS source)
+    (toShortBS source)
     (fmap toLLVMDef ds)
 
 writeLLVM :: AST.Module -> Handle -> IO ()
