@@ -494,14 +494,14 @@ exprToLLVM (TE rt (Op Sy.Complement [a])) =
   do
     _oa <- exprToLLVM a
     res <-
-                instr
-                  (toLLVMType rt)
-                  ( Xor
+      instr
+        (toLLVMType rt)
+        ( Xor
             { operand0 = fromLeft (error "operand of OP cannot be terminator") _oa
             , operand1 = constInt (typeSize rt) (-1)
-                      , metadata = []
-                      }
-                  )
+            , metadata = []
+            }
+        )
     return (Left res)
 -- Not is just Complement for Bool
 exprToLLVM (TE rt (Op Sy.Not t)) = exprToLLVM (TE rt (Op Sy.Complement t))
@@ -868,26 +868,26 @@ loadMember recd fld = do
   _recv <- exprToLLVM recd
   let recv = fromLeft (error "address cannot be terminator") _recv
   fldvp <-
-  instr
-    (recordType recd !! fld)
-    ( GetElementPtr
-        { inBounds = True
-        , address = recv
-        , indices = [constInt 32 0, constInt 32 (toInteger fld)]
-        , metadata = []
-        }
-    )
+    instr
+      (recordType recd !! fld)
+      ( GetElementPtr
+          { inBounds = True
+          , address = recv
+          , indices = [constInt 32 0, constInt 32 (toInteger fld)]
+          , metadata = []
+          }
+      )
   fldv <-
-      instr
-        (recordType recd !! fld)
-        ( Load
-            { volatile = False
-            , address = fldvp
-            , maybeAtomicity = Nothing
+    instr
+      (recordType recd !! fld)
+      ( Load
+          { volatile = False
+          , address = fldvp
+          , maybeAtomicity = Nothing
           , alignment = 0
-            , metadata = []
-            }
-        )
+          , metadata = []
+          }
+      )
   return (recv, fldv)
 
 hasBlock :: Core.TypedExpr t v a b -> Bool
