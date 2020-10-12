@@ -315,10 +315,97 @@ lemma scorres_wordarray_fold_no_break_u32:
   apply (erule v_sem_varE; clarsimp)
   done
 
+lemma min_word_0:
+  "min x (0 :: ('a :: len8 word)) = 0"
+  by simp
 
-ML \<open>
-val x   = Induct.vars_of
-\<close>
+lemma max_word_0:
+  "max x (0 :: ('a :: len8 word)) = x"
+  apply (unfold max_def)
+  by simp
+
+lemma myslice_nth_last:
+  "\<lbrakk>frm < Suc to; Suc to \<le> length xs; length xs' = to - frm\<rbrakk>
+    \<Longrightarrow> ((List.take frm xs) @ xs' @ x # (List.drop (Suc to) xs)) ! to = x"
+  apply (cut_tac xs = "(List.take frm xs)" and
+      ys = " xs' @ x # (List.drop (Suc to) xs)" and 
+      n = "to - frm" in nth_append_length_plus)
+  apply simp
+  apply (cut_tac xs = xs' and
+      ys = "x # List.drop (Suc to) xs" and
+      n = 0 in nth_append_length_plus)
+  apply simp
+  done
+
+  
+
+lemma scorres_wordarray_map_no_break_u32:
+  "\<lbrakk>valRel \<xi>p \<lparr>WordArrayMapP.arr\<^sub>f = (arr:: 16 word WordArray), frm\<^sub>f = (frm::32 word), to\<^sub>f = to,
+      f\<^sub>f = f, acc\<^sub>f = (acc :: 'b), obsv\<^sub>f = obsv\<rparr> v'; \<forall>x x'. valRel \<xi>p (x :: 'b) x' \<longleftrightarrow> valRel \<xi>p1 x x'\<rbrakk>
+    \<Longrightarrow> val.scorres 
+    (wordarray_map_no_break \<lparr>WordArrayMapP.arr\<^sub>f = arr, frm\<^sub>f = frm, to\<^sub>f = to, f\<^sub>f = f, 
+        acc\<^sub>f = acc, obsv\<^sub>f = obsv\<rparr>) (App (AFun ''wordarray_map_no_break'' ts) (Var 0)) [v'] \<xi>p1"
+  apply (clarsimp simp: val.scorres_def)
+  apply (erule v_sem_appE; erule v_sem_afunE; clarsimp)
+  apply (erule v_sem_varE; clarsimp)
+  apply (clarsimp simp: val_wa_mapAccumnbp_def)
+  apply (clarsimp simp: wordarray_map_no_break' valRel_records valRel_WordArray_simps)
+  apply (induct to arbitrary: v')
+  apply clarsimp
+   apply (erule val_wa_mapAccumnb_bod.elims; clarsimp split: if_split_asm simp: ucast_id)
+  apply clarsimp
+  apply (drule unatSuc; clarsimp)
+  apply (case_tac "length xs < Suc (unat to)")
+   apply (drule val_wa_mapAccumnb_bod_back_step'; simp?)
+   apply (clarsimp simp: ucast_id)
+   apply (drule_tac x = r in meta_spec)
+   apply (drule_tac x = xs in meta_spec)
+   apply (drule_tac x = func in meta_spec)
+   apply (drule_tac x = acca in meta_spec)
+   apply (drule_tac x = obsva in meta_spec)
+   apply (erule meta_allE; erule meta_impE; simp?)
+   apply (clarsimp split: if_split_asm prod.splits simp: word_less_nat_alt word_le_nat_alt)
+  apply (case_tac "unat frm \<ge> Suc (unat to)")
+   apply clarsimp
+   apply (erule val_wa_mapAccumnb_bod.elims)
+   apply (clarsimp split: if_split_asm simp: ucast_id word_less_nat_alt word_le_nat_alt)
+  apply (frule val_wa_mapAccumnb_bod_preservation'; clarsimp)
+  apply (drule val_wa_mapAccumnb_bod_back_step; clarsimp simp: ucast_id)
+  apply (drule_tac x = "VRecord [VAbstract (VWA (TPrim (Num U16))
+    (rxs[unat to := VPrim (LU16 (arr ! unat to))])), racc']" in meta_spec)
+  apply clarsimp
+  apply (drule_tac x = xs in meta_spec)
+  apply (drule_tac x = func in meta_spec)
+  apply (drule_tac x = acca in meta_spec)
+  apply (drule_tac x = obsva in meta_spec)
+  apply clarsimp
+  apply (erule meta_allE; erule meta_impE; simp?)
+  apply (subst take_drop_Suc_app; simp?)+
+  apply (clarsimp simp: mapAccum_step)
+  apply (clarsimp split: prod.splits if_splits simp: word_less_nat_alt word_le_nat_alt)
+  apply (cut_tac acc = acc and 
+      xs = "(take (unat to - unat frm) (List.drop (unat frm) arr))" and 
+      f = "(\<lambda>a b. (RR.p1\<^sub>f (f \<lparr>ElemAO.elem\<^sub>f = a, acc\<^sub>f = b, obsv\<^sub>f = obsv\<rparr>),
+                 RR.p2\<^sub>f (f \<lparr>ElemAO.elem\<^sub>f = a, acc\<^sub>f = b, obsv\<^sub>f = obsv\<rparr>)))" in mapAccum_length)
+  apply (case_tac func; clarsimp)
+   apply (erule_tac x = "\<lparr>ElemAO.elem\<^sub>f = arr ! unat to, acc\<^sub>f = x2, obsv\<^sub>f = obsv\<rparr>" in allE)
+   apply (erule_tac x = "VRecord [VPrim (LU16 (arr ! unat to)), racc', obsva]" in allE)
+   apply clarsimp
+   apply (erule v_sem_appE; clarsimp)
+   apply (erule v_sem_varE; clarsimp)
+   apply (erule_tac x = " VRecord [rxs ! unat to, racc]" in allE; clarsimp)
+   apply (erule_tac x = i in allE; clarsimp)
+   apply (case_tac "i = unat to"; clarsimp simp: myslice_nth_last nth_append)
+  apply (erule_tac x = "\<lparr>ElemAO.elem\<^sub>f = arr ! unat to, acc\<^sub>f = x2, obsv\<^sub>f = obsv\<rparr>" in allE)
+  apply (erule_tac x = "VRecord [VPrim (LU16 (arr ! unat to)), racc', obsva]" in allE)
+  apply clarsimp
+  apply (erule v_sem_appE; erule v_sem_afunE; clarsimp)
+  apply (erule v_sem_varE; clarsimp)
+  apply (erule_tac x = " VRecord [rxs ! unat to, racc]" in allE; clarsimp)
+  apply (erule_tac x = i in allE; clarsimp)
+  apply (case_tac "i = unat to"; clarsimp simp: myslice_nth_last nth_append)
+  done
+
 
 (*
 

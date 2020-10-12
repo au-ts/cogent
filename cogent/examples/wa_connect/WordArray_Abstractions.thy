@@ -182,34 +182,8 @@ fun myslice :: "nat \<Rightarrow> nat \<Rightarrow> 'a list \<Rightarrow> 'a lis
   where
 "myslice frm to xs = List.take (to - frm) (List.drop frm xs)"
 
-(*
-lemma take_1_drop:
-  "i < length xs \<Longrightarrow> List.take (Suc 0) (List.drop i xs) = [xs ! i]"
-  apply (induct xs arbitrary: i)
-   apply (simp add: take_Suc_conv_app_nth)
-  by (simp add: drop_Suc_nth)
-
-lemma take_drop_Suc:
-  "i < l \<and> i < length xs \<Longrightarrow> 
-    List.take (l - i) (List.drop i xs) = (xs ! i) # List.take (l - Suc i) (List.drop (Suc i) xs)"
-  apply clarsimp
-  by (metis Cons_nth_drop_Suc Suc_diff_Suc take_Suc_Cons)
-*)
-
 subsection "Shallow Word Array Value Relation"
-(*
-overloading
-  valRel_word \<equiv> valRel
-begin
-definition valRel_word:
-  "\<And>\<xi> x v. valRel_word (\<xi> :: (funtyp,vabstyp) vabsfuns) (x :: ('a :: len8) word) (v :: (funtyp, vabstyp) vval) \<equiv> 
-      (if len_of TYPE('a) = 8 then v = VPrim (LU8 (ucast x))
-      else if len_of TYPE('a) = 16 then v = VPrim (LU16 (ucast x))
-      else if len_of TYPE('a) = 32 then v = VPrim (LU32 (ucast x))
-      else if len_of TYPE('a) = 64 then v = VPrim (LU64 (ucast x))
-      else False)"
-end
-*)
+
 overloading
   valRel_WordArrayUX \<equiv> valRel
 begin
@@ -226,19 +200,7 @@ begin
       else False)"
 end
 
-
-
-
-
-
-
-
-
-
-
-
-
-(*
+(* Alternate definitions for the valRel relations for word arrays
 
 
 overloading
@@ -340,7 +302,6 @@ lemma mapAccum_length:
   by (metis (no_types, lifting) Product_Type.split_def fst_conv length_append_singleton listAccumStep.simps prod.collapse)
 
 
-
 lemma 
   "map f xs = prod.fst (mapAccum (\<lambda>a b. (f a, b)) xs ())"
   by (induct xs; clarsimp split: prod.split)
@@ -372,14 +333,10 @@ definition wordarray_map_no_break':
           (\<lambda>a b. cogent_isa_pair ((WordArrayMapP.f\<^sub>f x) (ElemAO.make a b (WordArrayMapP.obsv\<^sub>f x)))) 
           (myslice (unat (WordArrayMapP.frm\<^sub>f x)) (unat (WordArrayMapP.to\<^sub>f x)) (WordArrayMapP.arr\<^sub>f x)) 
           (WordArrayMapP.acc\<^sub>f x)
-    in RR.make (xs @ ys @ zs) acc)" 
+    in (if (WordArrayMapP.frm\<^sub>f x) \<le> (WordArrayMapP.to\<^sub>f x) 
+        then RR.make (xs @ ys @ zs) acc 
+        else RR.make (WordArrayMapP.arr\<^sub>f x) acc))" 
 end
-
-
-
-
-
-
 
 context WordArray begin
 
@@ -432,9 +389,9 @@ fun \<xi>0 :: "(char list, atyp, 32 word) uabsfuns"
   where
   "\<xi>0 x y z = 
     (if x = ''wordarray_put2_0'' then upd_wa_put2_0 y z
-     else (if x = ''wordarray_get_0'' then upd_wa_get_0 y z
-           else (if x = ''wordarray_length_0'' then upd_wa_length_0 y z
-                 else False)))" 
+     else if x = ''wordarray_get_0'' then upd_wa_get_0 y z
+     else if x = ''wordarray_length_0'' then upd_wa_length_0 y z
+     else False)" 
 
 subsubsection "Value Semantics"
 
@@ -461,17 +418,17 @@ fun \<xi>m :: "(char list, vatyp) vabsfuns"
   where
   "\<xi>m x y z = 
     (if x = ''wordarray_put2_0'' then val_wa_put2 y z
-     else (if x = ''wordarray_get_0'' then val_wa_get y z
-           else (if x = ''wordarray_length_0'' then val_wa_length y z
-                 else False)))" 
+     else if x = ''wordarray_get_0'' then val_wa_get y z
+     else if x = ''wordarray_length_0'' then val_wa_length y z
+     else False)" 
 
 fun \<xi>p :: "(char list, vatyp) vabsfuns" 
   where
   "\<xi>p x y z = 
     (if x = ''wordarray_put2'' then val_wa_put2 y z
-     else (if x = ''wordarray_get'' then val_wa_get y z
-           else (if x = ''wordarray_length'' then val_wa_length y z
-                 else False)))" 
+     else if x = ''wordarray_get'' then val_wa_get y z
+     else if x = ''wordarray_length'' then val_wa_length y z
+     else False)" 
 
 subsection "Level 1 \<xi> Abstractions"
 
@@ -1133,86 +1090,12 @@ definition upd_wa_foldnb_0
         upd_wa_foldnb_bod \<xi>\<^sub>u y1 p frm to (uvalfun_to_exprfun func) acc obsv (ra \<union> rb) z))"
 
 
-
-
-\<comment>\<open> It is hard to generalise the definition for wordarray_fold because we require the type mapping
-    for functions which is only defined at compiled time, however since this doesn't change for each
-    level then it should actually be fine. However, we should change the definition to take the
-    abstract function relation as an argument so that we can generalise it. Another issue is
-    determining the read-only pointer sets. If we determine this by doing the uval_typing relation,
-    we would then need to show that 
-      \<lbrakk>uval_typing \<Xi> \<sigma> v t r w; uval_typing \<Xi> \<sigma> v t r' w'\<rbrakk> \<Longrightarrow> (r \<subseteq> r' \<or> r' \<subseteq> r)
-    or something along those lines. \<close>
-(*
-function extract_ptr :: "(char list, atyp, ptrtyp) store \<Rightarrow> (char list, atyp, ptrtyp) uval \<Rightarrow> ptrtyp set \<Rightarrow> ptrtyp set"
-  where
-"extract_ptr _ UUnit A = A" |
-"extract_ptr _ (UPrim _) A = A" |
-"extract_ptr s (UProduct a b) A = (extract_ptr s a A) \<union> (extract_ptr s b A)" |
-"extract_ptr s (USum _ a _) A = extract_ptr s a A" |
-"extract_ptr s (URecord fs) A = \<Union> (set (map ((\<lambda>a. extract_ptr s a A) \<circ> prod.fst) fs))" |
-"extract_ptr _ (UFunction _ _) A = A" | 
-"extract_ptr _ (UAFunction _ _) A = A" |
-"extract_ptr s (UAbstract a) A = 
-  (case a of (UWA (TPrim (Num t)) len arr) \<Rightarrow> A \<union> {arr + size_of_num_type t * i | i. i < len}
-      | _ \<Rightarrow> A)" |
-"extract_ptr s (UPtr p _) A = (if p \<in> A then A else 
-  (case s p of
-      option.Some a \<Rightarrow> extract_ptr s a (insert p A)
-    |  _  \<Rightarrow> insert p A))"
-  by pat_completeness auto
-term set
-termination
-  apply (relation "mlex_prod a undefined")
-  sorry
-*)
-(*
-definition upd_wa_foldnb  :: "(char list, atyp, 32 word) uabsfuns \<Rightarrow> (char list, atyp, 32 word) ufundef" 
-  where
-  "upd_wa_foldnb \<xi>\<^sub>u y z = 
-    (let (y1, y2) = y;
-         (z1, z2) = z
-      in (\<exists>p frm to acc r x t u v.
-        y2 = URecord [(UPtr p (RCon ''WordArray'' [RPrim (Num t)]), 
-                      RPtr (RCon ''WordArray'' [RPrim (Num t)])),
-                      (UPrim (LU32 frm), RPrim (Num U32)), (UPrim (LU32 to), RPrim (Num U32)),
-                      (x, RFun), (acc, upd.uval_repr acc), (UUnit, RUnit)] \<and> 
-        y1 = z1 \<and> y1 p = z1 p \<and> (\<exists>len arr. y1 p = option.Some (UAbstract (UWA (TPrim (Num U32)) len arr)) \<and> 
-          (\<forall>i<len. y1 (arr + size_of_num_type t * i) = z1 (arr + size_of_num_type t * i))) \<and> z2 = UPrim (LU32 r) \<and>
-        (case x of
-            UFunction f ts \<Rightarrow> (\<Xi>, [], [option.Some abbreviatedType1] \<turnstile> (App (Fun f ts) (Var 0)) : 
-                                TPrim (Num U32)) \<and> 
-                              upd_wa_foldnb_bod \<xi>\<^sub>u y1 p frm to (Fun f ts) acc (UUnit, {}) z
-          | UAFunction f ts \<Rightarrow> (\<Xi>, [], [option.Some abbreviatedType1] \<turnstile> (App (AFun f ts) (Var 0)) : 
-                                TPrim (Num U32)) \<and>
-                              upd_wa_foldnb_bod \<xi>\<^sub>u y1 p frm to (AFun f ts) acc (UUnit, {}) z
-          | _ \<Rightarrow> False)))"
-*)
-(*
-definition upd_wa_mapnb_0  :: "(char list, atyp, 32 word) ufundef" 
-  where
-  "upd_wa_mapnb_0 y z = 
-    (let (y1, y2) = y;
-         (z1, z2) = z 
-    in (\<exists>p frm to x.
-        y2 = URecord [(UPtr p (RCon ''WordArray'' [RPrim (Num U32)]),
-                      RPtr (RCon ''WordArray'' [RPrim (Num U32)])),
-                      (UPrim (LU32 frm), RPrim (Num U32)), (UPrim (LU32 to), RPrim (Num U32)),
-                      (x, RFun),
-                      (UUnit, RUnit), (UUnit, RUnit)] \<and>
-        y1 p = z1 p \<and> (\<exists>len arr. y1 p = option.Some (UAbstract (UWA (TPrim (Num U32)) len arr)) \<and> 
-          frame y1 ({p} \<union> {arr + 4 * i | i. i < len}) z1 ({p} \<union> {arr + 4 * i | i. i < len})) \<and>
-        (case x of
-            UFunction f ts \<Rightarrow> upd_wa_mapnb_bod_0 \<xi>0 y1 p frm to (Fun f ts) (UUnit) (UUnit, {}) z
-          | UAFunction f ts \<Rightarrow> upd_wa_mapnb_bod_0 \<xi>0 y1 p frm to (AFun f ts) (UUnit) (UUnit, {}) z
-          | _ \<Rightarrow> False)))"
-*)
 fun \<xi>1 :: "(char list, atyp, 32 word) uabsfuns" 
   where
   "\<xi>1 x y z = 
     (if x = ''wordarray_fold_no_break_0'' then upd_wa_foldnb_0 \<Xi> \<xi>0 abbreviatedType1 y z
-     else (if x = ''wordarray_map_no_break_0'' then False 
-           else \<xi>0 x y z))" 
+     else if x = ''wordarray_map_no_break_0'' then False 
+     else \<xi>0 x y z)" 
 
 subsubsection "Value Semantics"
 
@@ -1532,7 +1415,7 @@ lemma val_wa_mapAccumnb_bod_back_step:
 
 lemma val_wa_mapAccumnb_bod_preservation':
   "val_wa_mapAccumnb_bod \<xi>\<^sub>v t xs frm to f acc obsv r 
-    \<Longrightarrow> \<exists>rxs racc. r = VRecord [VAbstract(VWA t rxs), racc] \<and> length xs = length rxs"
+    \<Longrightarrow> \<exists>rxs racc. r = VRecord [VAbstract(VWA t rxs), racc] \<and> length rxs = length xs"
   apply (induct rule: val_wa_mapAccumnb_bod.induct[of _ \<xi>\<^sub>v t xs frm to f acc obsv r])
   apply (erule val_wa_mapAccumnb_bod.elims; clarsimp split: if_split_asm)
   done
@@ -1632,6 +1515,12 @@ definition val_wa_foldnbp
       x = VRecord [VAbstract (VWA t xs), VPrim (LU32 frm), VPrim (LU32 to), func, acc, obsv] \<and>
       is_vval_fun func \<and> val_wa_foldnb_bod \<xi>\<^sub>p t xs (unat frm) (unat to) (vvalfun_to_exprfun func) acc obsv y)"
 
+definition val_wa_mapAccumnbp
+  where
+  "val_wa_mapAccumnbp \<xi>\<^sub>p x y = (\<exists>t xs frm to func acc obsv. 
+      x = VRecord [VAbstract (VWA t xs), VPrim (LU32 frm), VPrim (LU32 to), func, acc, obsv] \<and>
+      is_vval_fun func \<and> val_wa_mapAccumnb_bod \<xi>\<^sub>p t xs (unat frm) (unat to) (vvalfun_to_exprfun func) acc obsv y)"
+
 fun \<xi>m1 :: "(char list, vatyp) vabsfuns" 
   where
   "\<xi>m1 x y z = 
@@ -1644,6 +1533,8 @@ fun \<xi>p1 :: "(char list, vatyp) vabsfuns"
   "\<xi>p1 x y z = 
     (if x = ''wordarray_fold_no_break'' 
       then val_wa_foldnbp \<xi>p y z
+     else if x = ''wordarray_map_no_break''
+      then val_wa_mapAccumnbp \<xi>p y z
      else \<xi>p x y z)" 
 end (* of context *)
 end
