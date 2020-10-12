@@ -1,7 +1,0 @@
-
-foo : () -> { a : U8 } layout record { a : 4B at 1B }
-
-bar : () -> { a : U8 }
-
-qux : () -> { a : U8 } layout record { a : 1B at 1b }
-

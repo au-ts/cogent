@@ -1,7 +1,0 @@
-
-type A = {f : U8}
-
--- `a1` cannot escape.
-bar : A[2] -> A[2]
-bar arr = let a1 = arr@1 !arr
-           in arr

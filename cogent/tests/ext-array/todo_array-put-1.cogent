@@ -1,9 +1,0 @@
-type A = U8[3]
-
--- foo : A @take(2) -> A
--- foo arr = let x = 2 in arr @{ @2 = 3 }
-
-type B = A[3]
-
-bar : (B, A, A) -> B
-bar (arr, a1,a2) = arr @{ @0 = a1, @1 = a2 }

@@ -1,3 +1,0 @@
-
-foo : () -> { a : <> } layout record { a : variant (0B at 0B) { } }
-

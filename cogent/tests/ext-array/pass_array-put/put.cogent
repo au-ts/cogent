@@ -1,8 +1,0 @@
-type A = U8[3] @take (1,2)
-
-foo : A -> A @put(2)
-foo arr = let v = arr @ 0 !arr
-           in arr @{ @1 = v,  @2 = 42 }
-
-bar : A -> A @put(1,2)
-bar arr = arr @{ @1 = 12, @2 = 65 }

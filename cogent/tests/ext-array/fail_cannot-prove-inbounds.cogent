@@ -1,6 +1,0 @@
-type R = A[4]
-type A
-
-foo : (R!, U32) -> A!
-foo (arr, idx) = arr @ idx
-

@@ -1,7 +1,0 @@
-type C
-type A = C[4]
-
-foo : A -> A
-foo arr = let x = 2
-          and arr @{ @x = v } = arr
-           in arr @{ @(x+1) = v }
