@@ -2,11 +2,14 @@ module Cogent.LLVM.Compile (toLLVM) where
 
 import Cogent.Common.Syntax (VarName)
 import Cogent.Core as Core
+import Cogent.LLVM.CCompat (auxCFFIDef, iFDef)
+import qualified Cogent.LLVM.CCompat as Intrinsic (memcpy)
 import Cogent.LLVM.CodeGen (def, toShortBS)
 import Cogent.LLVM.Expr (exprToLLVM)
 import Cogent.LLVM.Types (toLLVMType)
 import qualified Data.ByteString.Char8 as BS
 import Data.ByteString.Short.Internal (ShortByteString)
+import Data.Maybe (mapMaybe)
 import LLVM.AST as AST
 import LLVM.AST.DataLayout (Endianness (LittleEndian), defaultDataLayout)
 import LLVM.AST.Global (Global (..))
@@ -50,7 +53,7 @@ toMod ds source =
   mkModule
     (toShortBS source)
     (toShortBS source)
-    (map toLLVMDef ds)
+    (map toLLVMDef ds ++ mapMaybe auxCFFIDef ds ++ [iFDef Intrinsic.memcpy])
 
 writeLLVM :: AST.Module -> Handle -> IO ()
 writeLLVM mod file =
