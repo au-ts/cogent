@@ -96,39 +96,6 @@ parseVariant ((f, Entry _ ty _): rs) =
   let children = buildMeasure ty []
   in (map (\x -> VariantAST f x) children) ++ (parseVariant rs)
 
--- buildMeasure :: Type -> AST
--- buildMeasure t = 
---   case t of 
---     PrimType p -> 
---       case p of 
---         Unit -> UnitAST
---         Bool -> BoolAST  
---         _ -> IntAST
---     Record recpar row sigil -> 
---       case recpar of 
---         None -> RecordAST $ parseRow row
---         Rec recpar -> RecursiveRecordAST recpar $ parseRow row 
---         UnknownParameter t -> ErrorAST -- used only in type inference
---         -- RecursiveRecordAST t $ parseRow row -- t is the recursive param
---     AbsType name sigil types -> AbsTypeAST name $ map buildMeasure types
---     Variant r -> VariantAST $ parseRow r
---     TypeVar v -> TypeVarAST
---     TypeVarBang v -> TypeVarAST -- Need to consider extra or na?
---     UnifVar v -> TypeVarAST -- ?
---     Function arg ret -> FunctionAST
---     Bang t -> buildMeasure t 
---     RecPar t rc -> RecParAST t
---     RecParBang t rc -> RecParAST t
-
--- parseRow :: Row -> [(String, AST)]
--- parseRow r = parseRowList $ M.toList (rowEntries r)
-
--- parseRowList :: [(FieldName, Entry)] -> [(String, AST)]
--- parseRowList [] = []
--- parseRowList ((f, Entry _ ty _):rs) = (f, buildMeasure ty):(parseRowList rs)
-
-
-
 -- A directed graph maps a node name to all reachable nodes from that node
 type Node  = String
 type Graph = M.Map Node [Node]
