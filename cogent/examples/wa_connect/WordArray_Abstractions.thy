@@ -1508,6 +1508,16 @@ definition val_wa_foldnb_0
       (\<Xi>', [], [option.Some \<tau>] \<turnstile> (App (vvalfun_to_exprfun func) (Var 0)) : u) \<and>
       (val_wa_foldnb_bod \<xi>\<^sub>v t xs (unat frm) (unat to) (vvalfun_to_exprfun func) acc obsv y))"
 
+definition val_wa_mapAccumnb_0
+  where
+  "val_wa_mapAccumnb_0 \<Xi>' \<xi>\<^sub>v \<tau>i \<tau>o x y = (\<exists>xs frm to acc obsv func t u v a0 a1 a2 b0 b1. 
+      x = VRecord [VAbstract (VWA t xs), VPrim (LU32 frm), VPrim (LU32 to), func, acc, obsv] \<and> 
+      wa_abs_typing_v (VWA t xs) ''WordArray'' [t]  \<and>
+      is_vval_fun func \<and> \<tau>i = TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed \<and>
+      \<tau>o = TRecord [(b0, t, Present), (b1, u, Present)] Unboxed \<and>
+      val.vval_typing \<Xi>' acc u \<and> val.vval_typing \<Xi>' obsv v \<and> 
+      (\<Xi>', [], [option.Some \<tau>i] \<turnstile> (App (vvalfun_to_exprfun func) (Var 0)) : \<tau>o) \<and>
+      (val_wa_mapAccumnb_bod \<xi>\<^sub>v t xs (unat frm) (unat to) (vvalfun_to_exprfun func) acc obsv y))"
 
 definition val_wa_foldnbp
   where
