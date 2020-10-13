@@ -26,9 +26,10 @@ mkModule moduleName fileName defs =
     , moduleDefinitions = defs
     }
 
-toLLVMDef :: Core.Definition Core.TypedExpr VarName VarName -> AST.Definition
+toLLVMDef :: Core.Definition Core.TypedExpr VarName VarName -> Maybe AST.Definition
 toLLVMDef (AbsDecl _ name _ _ t rt) =
-  GlobalDefinition
+  Just
+    ( GlobalDefinition
     ( functionDefaults
         { name = Name (toShortBS name)
         , parameters = ([Parameter (toLLVMType t) (UnName 0) []], False)
@@ -36,23 +37,25 @@ toLLVMDef (AbsDecl _ name _ _ t rt) =
         , basicBlocks = []
         }
     )
+    )
 toLLVMDef (FunDef _ name _ _ t rt body) =
-  def
+  Just
+    ( def
     (toShortBS name)
     [Parameter (toLLVMType t) (UnName 0) []]
     (toLLVMType rt)
     (exprToLLVM body)
-toLLVMDef (TypeDef name _ mt) =
-  TypeDefinition
-    (Name (toShortBS name))
-    (fmap toLLVMType mt)
+    )
+toLLVMDef (TypeDef name _ mt) = case mt of
+  Nothing -> Just (TypeDefinition (Name (toShortBS name)) Nothing)
+  _ -> Nothing
 
 toMod :: [Core.Definition Core.TypedExpr VarName VarName] -> FilePath -> AST.Module
 toMod ds source =
   mkModule
     (toShortBS source)
     (toShortBS source)
-    (map toLLVMDef ds ++ mapMaybe auxCFFIDef ds)
+    (mapMaybe toLLVMDef ds ++ mapMaybe auxCFFIDef ds)
 
 writeLLVM :: AST.Module -> Handle -> IO ()
 writeLLVM mod file =
