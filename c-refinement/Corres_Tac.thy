@@ -430,6 +430,7 @@ fun corres_tac ctxt
                (LETBANG_TRUE_def: thm)
                (list_to_map_simps: thm list)
                (verbose : bool)
+               (max_depth : int)
                : tactic =
 let
 
@@ -565,12 +566,16 @@ let
            | _ => all_tac st);
 
   (* Prove corres recursively. *)
-  fun corres_tac_rec typing_tree depth = let
+  fun corres_tac_rec typing_tree max_depth depth =
+    if (max_depth >= 0) andalso (depth > max_depth)
+    then no_tac
+    else
+    let
      fun print msg st = ((if verbose then tracing (String.implode (replicate (depth*2) #" ") ^ msg ^ "\n") else ()); Seq.single st);
      fun tree_nth nth = List.nth (tree_rest typing_tree, nth);
      fun rule_tree nth n st = TRY (TRY_FST (simp n) (rule (tree_hd (tree_nth nth)) n) |> SOLVES) st
              handle Subscript => (print "Warning: rule_tree failed" THEN no_tac) st;
-     fun corres_tac_nth nth st = corres_tac_rec (tree_nth nth) (depth+1) st;
+     fun corres_tac_nth nth st = corres_tac_rec (tree_nth nth) max_depth (depth+1) st;
 
      fun tree_nth' tree nth = List.nth (tree_rest tree, nth);
      fun rule_tree' tree nth n st = rule (tree_hd (tree_nth' tree nth)) n st
@@ -871,7 +876,7 @@ in
   THEN simp_recguard_tac 1
   THEN (fn st => (if verbose then tracing "Fixing unused variables\n" else ();
                   cogent_C_unused_return_tac ctxt 1 st))
-  THEN corres_tac_rec typing_tree 0
+  THEN corres_tac_rec typing_tree max_depth 0
 end
 \<close>
 
@@ -1360,5 +1365,61 @@ fun map_annotations f (CogentCallTree (a, ty, name, calls)) =
                              | SecondOrderCall (a, bs) =>
                                  SecondOrderCall (map_annotations f a, map (apsnd (map_annotations f)) bs)))
 \<close>
+
+ML \<open>
+fun prove_common2 ctxt xs asms props tac =
+  let
+    val pos = Position.thread_data ();
+    fun err msg =
+      cat_error msg
+        ("The error(s) above occurred for the goal statement" ^ Position.here pos ^ ":\n" ^
+          Syntax.string_of_term ctxt (Logic.list_implies (asms, Logic.mk_conjunction_list props)));
+
+    fun cert_safe t = Thm.cterm_of ctxt (Envir.beta_norm (Term.no_dummy_patterns t))
+      handle TERM (msg, _) => err msg | TYPE (msg, _, _) => err msg;
+    val casms = map cert_safe asms;
+    val cprops = map cert_safe props;
+
+    val (prems, ctxt') = ctxt
+      |> Variable.add_fixes_direct xs
+      |> fold Variable.declare_term (asms @ props)
+      |> Assumption.add_assumes casms
+      ||> Variable.set_body true;
+
+    val stmt = Thm.weaken_sorts' ctxt' (Conjunction.mk_conjunction_balanced cprops);
+  in
+    SINGLE (tac {prems = prems, context = ctxt'}) (Goal.init stmt)
+  end;
+
+fun corres_tac_driver2 corres_tac typing_tree_of ctxt (tab : obligations) thm_name
+  = case Symtab.lookup tab thm_name of
+      SOME (fname, CogentFun, assums, prop) =>
+      let
+        val lookup_assums = map (Symtab.lookup tab #> the) assums
+        val (callee_info, callee_abs_info) = lookup_assums
+            |> partition (fn v => #2 v = CogentFun)
+        val (callee_names, callee_abs_names) = (callee_info, callee_abs_info) |> apply2 (map #1)
+        val (callee_thm_props, callee_abs_thm_props) = (callee_info, callee_abs_info) |> apply2 (map #4)
+        val type_unfold_simps = unfold_Cogent_simps ctxt
+        val fun_defs = Proof_Context.get_thms ctxt (fname ^ "_def") @
+                       Proof_Context.get_thms ctxt (fname ^ "'_def'") @
+                       Proof_Context.get_thms ctxt (fname ^ "_type_def") @
+                       type_unfold_simps
+        val x = prove_common2 ctxt []
+            (map Thm.term_of (callee_thm_props @ callee_abs_thm_props))
+                [(Thm.term_of prop)]
+        (fn args => let
+            val callee_thms = take (length callee_thm_props) (#prems args) ~~ callee_names
+                              |> map (fn (assum, name) => unfold_Cogent_types ctxt type_unfold_simps name assum)
+            val callee_abs_thms = drop (length callee_thm_props) (#prems args) ~~ callee_abs_names
+                              |> map (fn (assum, name) => assum |> simp_xi_fully_applied ctxt |> unfold_Cogent_types ctxt type_unfold_simps name)
+            val _ = @{trace} ("Assumptions for " ^ thm_name, callee_thms, callee_abs_thms)
+          in corres_tac ctxt (peel_two (typing_tree_of fname)) fun_defs callee_abs_thms callee_thms
+          end)
+        in x
+      end
+  | _ => raise ERROR "no";
+\<close>
+
 
 end
