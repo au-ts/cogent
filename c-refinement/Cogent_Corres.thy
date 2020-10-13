@@ -495,6 +495,7 @@ assumes
 shows "corres srel (Struct ts (map Var xs)) (gets (\<lambda>_. p)) \<xi> \<gamma> \<Xi> \<Gamma> \<sigma> s"
   by (fastforce intro: u_sem_struct u_sem_all_var simp: assms corres_def snd_return in_return)
 
+
 lemma corres_con:
 assumes "val_rel (USum tag (\<gamma> ! x)  (map (\<lambda>(n,t,_).(n,type_repr t)) typ)) p"
 shows "corres srel (Con typ tag (Var x)) (gets (\<lambda>_. p)) \<xi> \<gamma> \<Xi> \<Gamma> \<sigma> s"
@@ -1440,7 +1441,7 @@ lemma corres_case:
     "\<And>r. r = (\<gamma>!x) \<Longrightarrow> val_rel r x' \<Longrightarrow> corres srel not_match (not_match' x') \<xi>' (r # \<gamma>) \<Xi>' (Some (TSum (tagged_list_update tag (tag_t, Checked) \<tau>s)) # \<Gamma>2) \<sigma> s"
   shows "corres srel (Case (Var x) tag match not_match)
             (condition (\<lambda>_. get_tag' x' = tag')
-              (match' (get_A' x'))
+              ((gets (\<lambda>_. get_A' x')) >>= match')
               (not_match' x'))
             \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
   using assms
@@ -1457,10 +1458,11 @@ lemma corres_case:
   apply (drule_tac x=vval in meta_spec)
   apply (drule_tac x="get_A' x'" in meta_spec)
   apply (drule_tac x="USum vtag vval (map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) \<tau>s)" in meta_spec)
- 
+
   apply (case_tac "get_tag' x' = tag'")
 
    apply clarsimp
+   apply (thin_tac "_ \<longrightarrow> \<not> snd (not_match' _ _) \<and> _")
    apply (erule impE)
     apply (rule_tac x="rx \<union> r2" in exI, rule_tac x="wx \<union> w2" in exI)
     apply (rule matches_ptrs_some)
@@ -1512,6 +1514,7 @@ lemma corres_case:
    apply assumption
   apply simp
   done
+
 
 lemma corres_member_unboxed':
   "\<lbrakk>\<gamma>!x = URecord fs;
@@ -1591,6 +1594,13 @@ lemma corres_promote:
   apply (monad_eq simp: corres_def)
   using assms u_sem_promote u_sem_var by blast
 
+(*
+lemma corres_promote:
+  assumes "corres srel v cf \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
+  shows "corres srel (Promote t v) cf \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
+  using assms
+  by (force intro: u_sem_promote simp: corres_def)
+*)
 
 lemma corres_if_base:
   assumes split\<Gamma>: "[] \<turnstile> \<Gamma>' \<leadsto> \<Gamma>1 | \<Gamma>2"
@@ -1750,7 +1760,7 @@ lemma afun_corres:
 
 end
 
-ML {*
+ML \<open>
 local
   fun make_simp_xi_simpset ctxt xi_simp =
     put_simpset HOL_basic_ss ctxt
@@ -1786,9 +1796,14 @@ val simp_xi_att = Attrib.thms >> (fn thms => Thm.rule_attribute thms (fn cg => l
                    addsimps thms addsimps abb_tys)
   end))
 end
-*}
+\<close>
 
-setup {* Attrib.setup @{binding simp_\<Xi>} simp_xi_att "cleans up thms about \<Xi>" *}
+setup \<open>
+  Attrib.setup
+    @{binding simp_\<Xi>}
+    simp_xi_att
+    "cleans up thms about \<Xi>"
+\<close>
 
 end
 

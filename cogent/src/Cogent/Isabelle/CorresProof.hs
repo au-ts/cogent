@@ -113,7 +113,7 @@ context thy cfile fns ent =
   , "         @{thm LETBANG_TRUE_def}"
   , "         @{thms list_to_map_more[where f=Var]"
   , "                list_to_map_singleton[where f=Var]}"
-  , "         verbose;"
+  , "         verbose ~1;"
   , "\\<close>"
   ] ++
   ttMap fns ++

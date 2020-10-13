@@ -21,22 +21,36 @@ begin
 
 ML \<open>
 
+(*
+ * Turn variant states into booleans
+ * Checked is true
+ *)
 fun bool_of_variant_state @{term Checked} = true
 | bool_of_variant_state @{term Unchecked} = false
 | bool_of_variant_state x = raise ERROR ("bool_of_variant_state: not a variant_state: " ^ @{make_string} x)
 
+(*
+ * Turn booleans into variant states
+ * Checked is true
+ *)
 fun variant_state_of_bool true = @{term Checked}
 | variant_state_of_bool false = @{term Unchecked}
 
+(*
+ * Get the checked/unchecked status of all fields from a uval
+ *)
 fun get_checkeds_of_usum_uval ctxt uval =
     usum_list_of_types ctxt uval |>
     map (fn x => x |> HOLogic.dest_prod |> snd |> HOLogic.dest_prod |> snd |> bool_of_variant_state)
-
 \<close>
 
 ML\<open> (* get_castable_uvals_from *)
 local
 
+(*
+ * Search for the variant-case in uval1 that has been checked in uval2.
+ * Note that this expects exactly one variant-case to be different.
+ *)
 infix can_be_casted_to
 fun (uval1 can_be_casted_to uval2) ctxt heap_info =
 (* Check if a pattern matching failure in case with a scrutinee of type uval1 will result in an expression of type uval2 *)
@@ -64,17 +78,24 @@ fun (uval1 can_be_casted_to uval2) ctxt heap_info =
   else NONE
  end;
 
-fun get_castable_uvals_from' _ _ (_:uval) []        = []
-  | get_castable_uvals_from' ctxt heap (from:uval) (to::tos) =
+(*
+ * Take a uval and a list of uvals with a case checked, and produces the list of these uvals paired
+ * with the index of the checked case, or NONE if there wasn't or was more than one case different.
+ *)
+fun get_castable_uvals_from' _ _ (_ : uval) []        = []
+  | get_castable_uvals_from' ctxt heap (from : uval) (to::tos) =
    let val some_rmved_field_num  = (from can_be_casted_to to) ctxt heap;
-       val some_pair = case some_rmved_field_num of
-                        SOME ix => SOME (ix, to)
-                      | NONE => NONE
+       val some_pair = Option.map (fn ix => (ix, to)) some_rmved_field_num;
    in some_pair :: get_castable_uvals_from' ctxt heap from tos
    end;
 
 in
 
+(*
+ * Take a uval and a list of uvals with a case checked, and produces the list of these uvals paired
+ * with the index of the checked case.
+ * This drops the uval if there wasn't or was more than one case different.
+ *)
 fun get_castable_uvals_from ctxt heap from tos =
     get_castable_uvals_from' ctxt heap from (get_usums tos) |> get_somes
 
@@ -128,7 +149,7 @@ ML\<open> fun mk_case_prop from_uval to_uval variant_ctor_num file_nm ctxt =
    in
     @{term "\<lambda> from_tag_C TAG_ENUM match_tag_getter.
          (condition (\<lambda>_. from_tag_C x' = TAG_ENUM)
-           (match' (match_tag_getter x'))
+           ((gets (\<lambda>_. match_tag_getter x')) >>= match')
            (not_match' x'))"}
      $ from_tag_C $ TAG_ENUM $ match_tag_getter
    end;
