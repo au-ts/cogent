@@ -7,10 +7,11 @@ import qualified Cogent.Common.Syntax as Sy (Op (..))
 import Cogent.Core as Core
 import Cogent.LLVM.CodeGen
 import Cogent.LLVM.Types
-import Control.Monad.State (gets, modify, unless)
+import Control.Monad.State (gets, modify)
 import Data.Char (ord)
 import Data.Either (fromLeft)
 import Data.Fin (finInt)
+import Data.Foldable (foldrM)
 import Data.List (findIndex, null)
 import Data.Maybe (fromMaybe)
 import LLVM.AST as AST
@@ -20,8 +21,8 @@ import LLVM.AST.IntegerPredicate as IntP
 import LLVM.AST.Typed (typeOf)
 
 exprToLLVM :: TypedExpr t v a b -> Codegen (Either Operand (Named Terminator))
-exprToLLVM (TE _ Unit) = return (Left (constInt 2 0))
-exprToLLVM (TE t (ILit int _)) = return (Left (constInt (typeSize t) int))
+exprToLLVM (TE _ Unit) = return (Left (constInt 8 0))
+exprToLLVM (TE _ (ILit int p)) = return (Left (constInt (primBits p) int))
 exprToLLVM (TE _ (SLit str)) =
     return
         ( Left
@@ -220,15 +221,16 @@ exprToLLVM (TE rt (Op op [a, b])) =
                                 }
                             )
         return (Left res)
-exprToLLVM (TE rt (Op Sy.Complement [a])) =
+exprToLLVM (TE rt@(TPrim p) (Op Sy.Complement [a])) =
     do
         _oa <- exprToLLVM a
+        let oa = fromLeft (error "operand of OP cannot be terminator") _oa
         res <-
             instr
                 (toLLVMType rt)
                 ( Xor
-                    { operand0 = fromLeft (error "operand of OP cannot be terminator") _oa
-                    , operand1 = constInt (typeSize rt) (-1)
+                    { operand0 = oa
+                    , operand1 = constInt (primBits p) (-1)
                     , metadata = []
                     }
                 )
@@ -248,33 +250,23 @@ exprToLLVM (TE _ (Take (_, _) recd fld body)) =
         case res of
             Left val -> terminator (Do (Ret (Just val) [])) >>= (return . Right)
             Right trm -> return (Right trm)
-exprToLLVM (TE _ (Put recd fld val)) =
+exprToLLVM (TE rt (Put recd fld val)) =
     do
         _recv <- exprToLLVM recd
         let recv = fromLeft (error "address cannot be terminator") _recv
         _v <- exprToLLVM val
         let v = fromLeft (error "address cannot be terminator") _v
-        fldvp <-
+        res <-
             instr
-                (recordType recd !! fld)
-                ( GetElementPtr
-                    { inBounds = True
-                    , address = recv
-                    , indices = [constInt 32 0, constInt 32 (toInteger fld)]
+                (toLLVMType rt)
+                ( InsertValue
+                    { aggregate = recv
+                    , element = v
+                    , indices' = [toEnum fld]
                     , metadata = []
                     }
                 )
-        unnamedInstr
-            ( Store
-                { volatile = False
-                , address = fldvp
-                , value = v
-                , maybeAtomicity = Nothing
-                , alignment = 0
-                , metadata = []
-                }
-            )
-        return (Left recv)
+        return (Left res)
 exprToLLVM (TE _ (Let _ val body)) =
     -- it seems that the variable name is not used here
     do
@@ -301,99 +293,44 @@ exprToLLVM (TE rt (Cast _ e)) =
                     }
                 )
         return (Left res)
-exprToLLVM (TE rt (Con tag e _)) =
+exprToLLVM (TE rt (Con tag e (TSum ts))) =
     do
-        res <-
+        tagged <-
             instr
                 (toLLVMType rt)
-                ( Alloca
-                    { allocatedType = unPtr (toLLVMType rt)
-                    , numElements = Nothing
-                    , alignment = 4
+                ( InsertValue
+                    { aggregate = constUndef (toLLVMType rt)
+                    , element = constInt 32 (toInteger (tagIndex rt tag))
+                    , indices' = [0]
                     , metadata = []
                     }
                 )
-        tagvp <-
-            instr
-                (toLLVMType rt)
-                ( GetElementPtr
-                    { inBounds = True
-                    , address = res
-                    , indices = [constInt 32 0, constInt 32 0]
-                    , metadata = []
-                    }
-                )
-        unnamedInstr
-            ( Store
-                { volatile = False
-                , address = tagvp
-                , value = constInt 32 (toInteger (tagIndex rt tag))
-                , maybeAtomicity = Nothing
-                , alignment = 4
-                , metadata = []
-                }
-            )
         _value <- exprToLLVM e
         let value = fromLeft (error "value cannot be a terminator") _value
-        unless
-            ( case e of
-                TE TUnit _ -> True
-                _ -> False
-            )
-            ( do
-                let ct = sumTypeLift (typeOf value)
-                casted <-
+        case e of
+            TE TUnit _ -> return (Left tagged)
+            _ -> do
+                casted <- castVal (toLLVMType (maxMember ts)) value
+                res <-
                     instr
-                        ct
-                        ( BitCast
-                            { operand0 = res
-                            , type' = ct
+                        (toLLVMType rt)
+                        ( InsertValue
+                            { aggregate = tagged
+                            , element = casted
+                            , indices' = [1]
                             , metadata = []
                             }
                         )
-                valuep <-
-                    instr
-                        ct
-                        ( GetElementPtr
-                            { inBounds = True
-                            , address = casted
-                            , indices = [constInt 32 0, constInt 32 1]
-                            , metadata = []
-                            }
-                        )
-                unnamedInstr
-                    ( Store
-                        { volatile = False
-                        , address = valuep
-                        , value = value
-                        , maybeAtomicity = Nothing
-                        , alignment = 0
-                        , metadata = []
-                        }
-                    )
-            )
-        return (Left res)
+                return (Left res)
 exprToLLVM (TE _ (Case e@(TE rt _) tag (_, _, tb) (_, _, fb))) =
     do
         _variant <- exprToLLVM e
-        tagvp <-
-            instr
-                (toLLVMType rt)
-                ( GetElementPtr
-                    { inBounds = True
-                    , address = fromLeft (error "variant cannot be a terminator") _variant
-                    , indices = [constInt 32 0, constInt 32 0]
-                    , metadata = []
-                    }
-                )
         tagv <-
             instr
                 (IntegerType 32)
-                ( Load
-                    { volatile = False
-                    , address = tagvp
-                    , maybeAtomicity = Nothing
-                    , alignment = 4
+                ( ExtractValue
+                    { aggregate = fromLeft (error "variant cannot be a terminator") _variant
+                    , indices' = [0]
                     , metadata = []
                     }
                 )
@@ -436,38 +373,18 @@ exprToLLVM (TE _ (Case e@(TE rt _) tag (_, _, tb) (_, _, fb))) =
 exprToLLVM (TE rt (Esac e)) =
     do
         _variant <- exprToLLVM e
-        let ct = sumTypeLift (toLLVMType rt)
-        casted <-
+        let TE (TSum ts) _ = e
+        value <-
             instr
-                ct
-                ( BitCast
-                    { operand0 = fromLeft (error "variant cannot be a terminator") _variant
-                    , type' = ct
+                (toLLVMType (maxMember ts))
+                ( ExtractValue
+                    { aggregate = fromLeft (error "variant cannot be a terminator") _variant
+                    , indices' = [1]
                     , metadata = []
                     }
                 )
-        valuep <-
-            instr
-                ct
-                ( GetElementPtr
-                    { inBounds = True
-                    , address = casted
-                    , indices = [constInt 32 0, constInt 32 1]
-                    , metadata = []
-                    }
-                )
-        res <-
-            instr
-                (toLLVMType rt)
-                ( Load
-                    { volatile = False
-                    , address = valuep
-                    , maybeAtomicity = Nothing
-                    , alignment = 0
-                    , metadata = []
-                    }
-                )
-        return (Left res)
+        casted <- castVal (toLLVMType rt) value
+        return (Left casted)
 exprToLLVM (TE _ (If cd tb fb)) =
     do
         _cond <- exprToLLVM cd
@@ -507,51 +424,23 @@ exprToLLVM (TE _ (If cd tb fb)) =
                 )
             )
             >>= (return . Right)
-exprToLLVM r@(TE rect (Struct flds)) =
-    do
-        struct <-
-            instr
-                (toLLVMType rect)
-                ( Alloca
-                    { allocatedType = unPtr (toLLVMType rect)
-                    , alignment = 4
-                    , numElements = Nothing
-                    , metadata = []
-                    }
-                )
-        let fldvs = [(i, exprToLLVM (snd fld)) | (i, fld) <- zip [0 ..] flds]
-         in ( foldr
-                (>>)
-                (pure struct)
-                [ ( do
-                        elmptr <-
-                            instr
-                                (recordType r !! i)
-                                ( GetElementPtr
-                                    { inBounds = True
-                                    , address = struct
-                                    , indices = [constInt 32 0, constInt 32 (toInteger i)]
-                                    , metadata = []
-                                    }
-                                )
-                        fldv
-                            >>= ( \v ->
-                                    unnamedInstr
-                                        ( Store
-                                            { address = elmptr
-                                            , maybeAtomicity = Nothing
-                                            , value = fromLeft (error "field value cannot be terminator") v
-                                            , alignment = 0
-                                            , volatile = False
-                                            , metadata = []
-                                            }
-                                        )
-                                )
-                  )
-                | (i, fldv) <- fldvs
-                ]
-            )
-                >>= (return . Left)
+exprToLLVM (TE rt (Struct flds)) =
+    foldrM
+        ( \(i, v) struct ->
+            exprToLLVM v >>= \value ->
+                instr
+                    (toLLVMType rt)
+                    ( InsertValue
+                        { aggregate = struct
+                        , element = fromLeft (error "field value cannot be terminator") value
+                        , indices' = [i]
+                        , metadata = []
+                        }
+                    )
+        )
+        (constUndef (toLLVMType rt))
+        [(i, snd fld) | (i, fld) <- zip [0 ..] flds]
+        >>= (return . Left)
 exprToLLVM (TE vt (Variable (idx, _))) =
     do
         unnames <- gets unnamedCount
@@ -598,28 +487,58 @@ loadMember :: TypedExpr t v a b -> Int -> Codegen (Operand, Operand)
 loadMember recd fld = do
     _recv <- exprToLLVM recd
     let recv = fromLeft (error "address cannot be terminator") _recv
-    fldvp <-
-        instr
-            (recordType recd !! fld)
-            ( GetElementPtr
-                { inBounds = True
-                , address = recv
-                , indices = [constInt 32 0, constInt 32 (toInteger fld)]
-                , metadata = []
-                }
-            )
     fldv <-
         instr
             (recordType recd !! fld)
-            ( Load
-                { volatile = False
-                , address = fldvp
-                , maybeAtomicity = Nothing
-                , alignment = 0
+            ( ExtractValue
+                { aggregate = recv
+                , indices' = [toEnum fld]
                 , metadata = []
                 }
             )
     return (recv, fldv)
+
+castVal :: AST.Type -> Operand -> Codegen Operand
+castVal t o = do
+    tmp <-
+        instr
+            (ptrTo (typeOf o))
+            ( Alloca
+                { allocatedType = typeOf o
+                , numElements = Nothing
+                , alignment = 4
+                , metadata = []
+                }
+            )
+    unnamedInstr
+        ( Store
+            { volatile = False
+            , address = tmp
+            , maybeAtomicity = Nothing
+            , value = o
+            , alignment = 4
+            , metadata = []
+            }
+        )
+    casted <-
+        instr
+            (ptrTo t)
+            ( BitCast
+                { operand0 = tmp
+                , type' = ptrTo t
+                , metadata = []
+                }
+            )
+    instr
+        t
+        ( Load
+            { volatile = False
+            , address = casted
+            , maybeAtomicity = Nothing
+            , alignment = 4
+            , metadata = []
+            }
+        )
 
 recordType :: TypedExpr t v a b -> [AST.Type]
 recordType (TE rect _) = case rect of

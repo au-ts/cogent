@@ -4,47 +4,16 @@
 module Cogent.LLVM.CCompat where
 
 import Cogent.Common.Syntax (VarName)
-import Cogent.Common.Types
 import Cogent.Core as Core
 import Cogent.LLVM.CodeGen
+import Cogent.LLVM.Expr (castVal)
 import Cogent.LLVM.Types
-import Data.ByteString.Short.Internal (ShortByteString)
 import LLVM.AST as AST
 import LLVM.AST.CallingConvention as CC
 import qualified LLVM.AST.Constant as C
-import LLVM.AST.Global (Global (..))
 import LLVM.AST.ParameterAttribute
-import LLVM.AST.Typed (typeOf)
 
 data RegLayout = One AST.Type | Two AST.Type AST.Type | Ref deriving (Show)
-
-data TypeLayout = Val Int | Agg [TypeLayout] deriving (Show)
-
-typeLayout :: Core.Type t b -> TypeLayout
-typeLayout (TPrim p) = case p of
-    Boolean -> Val 8 -- boolean takes up a whole byte
-    U8 -> Val 8
-    U16 -> Val 16
-    U32 -> Val 32
-    U64 -> Val 64
-typeLayout TUnit = Val 8 -- so does unit
-typeLayout (TRecord _ ts _) = Agg (map typeLayout (fieldTypes ts))
-typeLayout _ = Val 32
-
-typeAlignment :: TypeLayout -> Int
-typeAlignment (Val i) = i -- self-alignment
-typeAlignment (Agg ts) = maximum (map typeAlignment ts)
-
-sizeof :: TypeLayout -> Int
-sizeof (Val i) = i
-sizeof t@(Agg ts) = roundUp (sizeof' 0 ts) (typeAlignment t)
-
-sizeof' :: Int -> [TypeLayout] -> Int
-sizeof' offset [] = offset
-sizeof' offset (t : ts) =
-    let size = sizeof t
-        alignment = typeAlignment t
-     in sizeof' (size + roundUp offset alignment) ts
 
 regLayout :: Core.Type t b -> RegLayout
 regLayout t
@@ -52,15 +21,11 @@ regLayout t
     | s <= 128 = Two (IntegerType 64) (IntegerType (toEnum (s - 64)))
     | otherwise = Ref
     where
-        s = sizeof (typeLayout t)
-
-roundUp :: Int -> Int -> Int
-roundUp k n
-    | k `mod` n == 0 = k
-    | otherwise = (k `div` n + 1) * n
+        s = typeSize t
 
 needsWrapper :: Core.Type t b -> Bool
 needsWrapper TRecord {} = True
+needsWrapper TSum {} = True
 needsWrapper _ = False
 
 auxCFFIDef :: Core.Definition TypedExpr VarName VarName -> Maybe AST.Definition
@@ -71,11 +36,11 @@ auxCFFIDef (FunDef _ name _ _ t rt _) =
                 [ Parameter a0 "a0" []
                 , Parameter a1 "a1" []
                 ]
-            Ref -> [Parameter (toLLVMType t) "a0" [ByVal]]
+            Ref -> [Parameter (ptrTo (toLLVMType t)) "a0" [ByVal]]
         (returnArgs, returnType) = case regLayout rt of
             One r0 -> ([], r0)
             Two r0 r1 -> ([], StructureType False [r0, r1])
-            Ref -> ([Parameter (toLLVMType rt) "r0" [NoAlias, SRet]], VoidType)
+            Ref -> ([Parameter (ptrTo (toLLVMType rt)) "r0" [NoAlias, SRet]], VoidType)
      in Just
             ( def
                 (toShortBS (name ++ "_ccompat"))
@@ -84,6 +49,165 @@ auxCFFIDef (FunDef _ name _ _ t rt _) =
                 (typeToWrapper name t rt returnType (regLayout t))
             )
 auxCFFIDef _ = Nothing
+
+-- k =
+--     [
+--         ( Name "entry"
+--         , BlockState
+--             { idx = 1
+--             , instrs =
+--                 [ UnName 1
+--                     := Load
+--                         { volatile = False
+--                         , address =
+--                             LocalReference
+--                                 ( StructureType
+--                                     { isPacked = False
+--                                     , elementTypes =
+--                                         [ IntegerType {typeBits = 64}
+--                                         , StructureType
+--                                             { isPacked = False
+--                                             , elementTypes =
+--                                                 [ IntegerType {typeBits = 64}
+--                                                 , IntegerType {typeBits = 64}
+--                                                 ]
+--                                             }
+--                                         ]
+--                                     }
+--                                 )
+--                                 (Name "a0")
+--                         , maybeAtomicity = Nothing
+--                         , alignment = 0
+--                         , metadata = []
+--                         }
+--                 , UnName 2
+--                     := Call
+--                         { tailCallKind = Nothing
+--                         , callingConvention = C
+--                         , returnAttributes = []
+--                         , function =
+--                             Right
+--                                 ( ConstantOperand
+--                                     ( GlobalReference
+--                                         ( PointerType
+--                                             { pointerReferent =
+--                                                 FunctionType
+--                                                     { resultType =
+--                                                         StructureType
+--                                                             { isPacked = False
+--                                                             , elementTypes =
+--                                                                 [ StructureType
+--                                                                     { isPacked = False
+--                                                                     , elementTypes =
+--                                                                         [ IntegerType {typeBits = 64}
+--                                                                         , IntegerType {typeBits = 64}
+--                                                                         ]
+--                                                                     }
+--                                                                 , IntegerType {typeBits = 64}
+--                                                                 ]
+--                                                             }
+--                                                     , argumentTypes =
+--                                                         [ StructureType
+--                                                             { isPacked = False
+--                                                             , elementTypes =
+--                                                                 [ IntegerType {typeBits = 64}
+--                                                                 , StructureType
+--                                                                     { isPacked = False
+--                                                                     , elementTypes =
+--                                                                         [ IntegerType {typeBits = 64}
+--                                                                         , IntegerType {typeBits = 64}
+--                                                                         ]
+--                                                                     }
+--                                                                 ]
+--                                                             }
+--                                                         ]
+--                                                     , isVarArg = False
+--                                                     }
+--                                             , pointerAddrSpace = AddrSpace 0
+--                                             }
+--                                         )
+--                                         (Name "foo")
+--                                     )
+--                                 )
+--                         , arguments =
+--                             [
+--                                 ( LocalReference
+--                                     ( StructureType
+--                                         { isPacked = False
+--                                         , elementTypes =
+--                                             [ IntegerType {typeBits = 64}
+--                                             , StructureType
+--                                                 { isPacked = False
+--                                                 , elementTypes =
+--                                                     [ IntegerType {typeBits = 64}
+--                                                     , IntegerType {typeBits = 64}
+--                                                     ]
+--                                                 }
+--                                             ]
+--                                         }
+--                                     )
+--                                     (UnName 1)
+--                                 , []
+--                                 )
+--                             ]
+--                         , functionAttributes = []
+--                         , metadata = []
+--                         }
+--                 , Do
+--                     ( Store
+--                         { volatile = False
+--                         , address =
+--                             LocalReference
+--                                 ( StructureType
+--                                     { isPacked = False
+--                                     , elementTypes =
+--                                         [ IntegerType {typeBits = 64}
+--                                         , StructureType
+--                                             { isPacked = False
+--                                             , elementTypes =
+--                                                 [ IntegerType {typeBits = 64}
+--                                                 , IntegerType {typeBits = 64}
+--                                                 ]
+--                                             }
+--                                         ]
+--                                     }
+--                                 )
+--                                 (Name "r0")
+--                         , value =
+--                             LocalReference
+--                                 ( StructureType
+--                                     { isPacked = False
+--                                     , elementTypes =
+--                                         [ StructureType
+--                                             { isPacked = False
+--                                             , elementTypes =
+--                                                 [ IntegerType {typeBits = 64}
+--                                                 , IntegerType {typeBits = 64}
+--                                                 ]
+--                                             }
+--                                         , IntegerType {typeBits = 64}
+--                                         ]
+--                                     }
+--                                 )
+--                                 (UnName 2)
+--                         , maybeAtomicity = Nothing
+--                         , alignment = 0
+--                         , metadata = []
+--                         }
+--                     )
+--                 ]
+--             , term =
+--                 Just
+--                     ( Do
+--                         ( Ret
+--                             { returnOperand = Nothing
+--                             , metadata' = []
+--                             }
+--                         )
+--                     )
+--             }
+--         )
+--     ]
 
 typeToWrapper ::
     String ->
@@ -95,89 +219,43 @@ typeToWrapper ::
 typeToWrapper name t rt wrapperRT argLayout = do
     -- Wrap arguments
     arg <- case (argLayout, needsWrapper t) of
-        (Ref, _) -> return (LocalReference (toLLVMType t) "a0")
         (_, False) -> return (LocalReference (toLLVMType t) "a0")
+        (Ref, _) ->
+            instr
+                (toLLVMType t)
+                ( Load
+                    { volatile = False
+                    , address = LocalReference (ptrTo (toLLVMType t)) "a0"
+                    , maybeAtomicity = Nothing
+                    , alignment = 0
+                    , metadata = []
+                    }
+                )
         _ -> do
-            argNative <-
-                instr
-                    (toLLVMType t)
-                    ( Alloca
-                        { allocatedType = unPtr (toLLVMType t)
-                        , numElements = Nothing
-                        , alignment = 8
-                        , metadata = []
-                        }
-                    )
-            let wrapperT =
-                    ptrTo
-                        ( case argLayout of
-                            One a0 -> a0
-                            Two a0 a1 -> StructureType False [a0, a1]
-                        )
-            argCast <-
-                instr
-                    wrapperT
-                    ( BitCast
-                        { operand0 = argNative
-                        , type' = wrapperT
-                        , metadata = []
-                        }
-                    )
-            case argLayout of
-                One a0 ->
-                    unnamedInstr
-                        ( Store
-                            { volatile = False
-                            , address = argCast
-                            , value = LocalReference a0 "a0"
-                            , maybeAtomicity = Nothing
-                            , alignment = 8
-                            , metadata = []
-                            }
-                        )
-                Two a0 a1 -> do
-                    field0 <-
-                        instr
-                            (StructureType False [a0, a1])
-                            ( GetElementPtr
-                                { inBounds = True
-                                , address = argCast
-                                , indices = [constInt 32 0, constInt 32 0]
+            argNative <- case argLayout of
+                One a0 -> return (LocalReference a0 "a0")
+                Two a0 a1 ->
+                    let aggT = StructureType False [a0, a1]
+                     in instr
+                            aggT
+                            ( InsertValue
+                                { aggregate = constUndef aggT
+                                , element = LocalReference a0 "a0"
+                                , indices' = [0]
                                 , metadata = []
                                 }
                             )
-                    unnamedInstr
-                        ( Store
-                            { volatile = False
-                            , address = field0
-                            , value = LocalReference a0 "a0"
-                            , maybeAtomicity = Nothing
-                            , alignment = 8
-                            , metadata = []
-                            }
-                        )
-                    field1 <-
-                        instr
-                            (StructureType False [a0, a1])
-                            ( GetElementPtr
-                                { inBounds = True
-                                , address = argCast
-                                , indices = [constInt 32 0, constInt 32 1]
-                                , metadata = []
-                                }
-                            )
-                    unnamedInstr
-                        ( Store
-                            { volatile = False
-                            , address = field1
-                            , value = LocalReference a1 "a1"
-                            , maybeAtomicity = Nothing
-                            , alignment = 8
-                            , metadata = []
-                            }
-                        )
-                    return ()
-            return argNative
+                            >>= \ref ->
+                                instr
+                                    aggT
+                                    ( InsertValue
+                                        { aggregate = ref
+                                        , element = LocalReference a1 "a1"
+                                        , indices' = [1]
+                                        , metadata = []
+                                        }
+                                    )
+            castVal (toLLVMType t) argNative
     -- Call inner function
     let fun =
             ConstantOperand
@@ -200,108 +278,20 @@ typeToWrapper name t rt wrapperRT argLayout = do
             )
     -- Handle return values
     case (wrapperRT, needsWrapper rt) of
+        (_, False) -> return (Left res)
         (VoidType, _) -> do
-            -- take the return pointer and copy its memory into return argument
-            -- because res was stack allocated, this operation is questionable
-            -- really should not return alloca'd memory at all
-            argCast <-
-                instr
-                    (ptrTo (IntegerType 8))
-                    ( BitCast
-                        { operand0 = LocalReference (toLLVMType t) "r0"
-                        , type' = ptrTo (IntegerType 8)
-                        , metadata = []
-                        }
-                    )
-            retCast <-
-                instr
-                    (ptrTo (IntegerType 8))
-                    ( BitCast
-                        { operand0 = res
-                        , type' = ptrTo (IntegerType 8)
-                        , metadata = []
-                        }
-                    )
             unnamedInstr
-                ( Call
-                    { tailCallKind = Nothing
-                    , callingConvention = CC.C
-                    , returnAttributes = []
-                    , function = Right (iFRef memcpy)
-                    , arguments =
-                        [ (argCast, [Alignment 8])
-                        , (retCast, [Alignment 8])
-                        , (constInt 64 (toInteger (sizeof (typeLayout rt)) `div` 8), [])
-                        , (constInt 1 0, [])
-                        ]
-                    , functionAttributes = []
+                ( Store
+                    { volatile = False
+                    , address = LocalReference (toLLVMType t) "r0"
+                    , maybeAtomicity = Nothing
+                    , value = res
+                    , alignment = 0
                     , metadata = []
                     }
                 )
             ret <- terminator (Do (Ret Nothing []))
             return (Right ret)
-        (_, False) -> return (Left res)
         _ -> do
-            retCast <-
-                instr
-                    (ptrTo wrapperRT)
-                    ( BitCast
-                        { operand0 = res
-                        , type' = ptrTo wrapperRT
-                        , metadata = []
-                        }
-                    )
-            flatRes <-
-                instr
-                    wrapperRT
-                    ( Load
-                        { volatile = False
-                        , address = retCast
-                        , maybeAtomicity = Nothing
-                        , alignment = 8
-                        , metadata = []
-                        }
-                    )
-            return (Left flatRes)
-
-data IntrinsicFunction = IntrinsicFunction
-    { iFDef :: AST.Definition
-    , iFRef :: Operand
-    }
-
-mkIntrinsic :: ShortByteString -> [Parameter] -> Bool -> AST.Type -> IntrinsicFunction
-mkIntrinsic name params va rt =
-    IntrinsicFunction
-        ( GlobalDefinition
-            ( functionDefaults
-                { name = Name name
-                , parameters = (params, va)
-                , returnType = rt
-                , basicBlocks = []
-                }
-            )
-        )
-        ( ConstantOperand
-            ( C.GlobalReference
-                ( ptrTo
-                    FunctionType
-                        { resultType = rt
-                        , argumentTypes = map typeOf params
-                        , isVarArg = va
-                        }
-                )
-                (Name name)
-            )
-        )
-
-memcpy :: IntrinsicFunction
-memcpy =
-    mkIntrinsic
-        "llvm.memcpy.p0i8.p0i8.i64"
-        [ Parameter (ptrTo (IntegerType 8)) (UnName 0) [NoAlias, NoCapture, WriteOnly]
-        , Parameter (ptrTo (IntegerType 8)) (UnName 1) [NoAlias, NoCapture, ReadOnly]
-        , Parameter (IntegerType 64) (UnName 2) []
-        , Parameter (IntegerType 1) (UnName 3) [ImmArg]
-        ]
-        False
-        VoidType
+            retCast <- castVal wrapperRT res
+            return (Left retCast)
