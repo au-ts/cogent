@@ -5,6 +5,7 @@ module Cogent.LLVM.CCompat where
 
 import Cogent.Common.Syntax (VarName)
 import Cogent.Core as Core
+import Cogent.Dargent.Util (pointerSizeBits)
 import Cogent.LLVM.CodeGen
 import Cogent.LLVM.Expr (castVal)
 import Cogent.LLVM.Types
@@ -17,10 +18,11 @@ data RegLayout = One AST.Type | Two AST.Type AST.Type | Ref deriving (Show)
 
 regLayout :: Core.Type t b -> RegLayout
 regLayout t
-    | s <= 64 = One (IntegerType (toEnum s))
-    | s <= 128 = Two (IntegerType 64) (IntegerType (toEnum (s - 64)))
+    | s <= p = One (IntegerType (fromInteger s))
+    | s <= 2 * p = Two (IntegerType (fromInteger p)) (IntegerType (fromInteger (s - p)))
     | otherwise = Ref
     where
+        p = pointerSizeBits
         s = typeSize t
 
 needsWrapper :: Core.Type t b -> Bool

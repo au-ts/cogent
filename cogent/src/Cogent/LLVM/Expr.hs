@@ -4,7 +4,9 @@ module Cogent.LLVM.Expr where
 
 import Cogent.Common.Syntax (TagName, unCoreFunName)
 import qualified Cogent.Common.Syntax as Sy (Op (..))
+import Cogent.Common.Types
 import Cogent.Core as Core
+import Cogent.Dargent.Util (primIntSizeBits)
 import Cogent.LLVM.CodeGen
 import Cogent.LLVM.Types
 import Control.Monad.State (gets, modify)
@@ -22,7 +24,7 @@ import LLVM.AST.Typed (typeOf)
 
 exprToLLVM :: TypedExpr t v a b -> Codegen (Either Operand (Named Terminator))
 exprToLLVM (TE _ Unit) = return (Left (constInt 8 0))
-exprToLLVM (TE _ (ILit int p)) = return (Left (constInt (primBits p) int))
+exprToLLVM (TE _ (ILit int p)) = return (Left (constInt (primIntSizeBits p) int))
 exprToLLVM (TE _ (SLit str)) =
     return
         ( Left
@@ -220,8 +222,20 @@ exprToLLVM (TE rt (Op op [a, b])) =
                                 , metadata = []
                                 }
                             )
-        return (Left res)
-exprToLLVM (TE rt@(TPrim p) (Op Sy.Complement [a])) =
+        Left -- to convert i1 back to i8
+            <$> ( case rt of
+                    TPrim Boolean ->
+                        instr
+                            (toLLVMType rt)
+                            ( ZExt
+                                { operand0 = res
+                                , type' = IntegerType 8
+                                , metadata = []
+                                }
+                            )
+                    _ -> return res
+                )
+exprToLLVM (TE rt (Op Sy.Complement [a])) =
     do
         _oa <- exprToLLVM a
         let oa = fromLeft (error "operand of OP cannot be terminator") _oa
@@ -230,7 +244,7 @@ exprToLLVM (TE rt@(TPrim p) (Op Sy.Complement [a])) =
                 (toLLVMType rt)
                 ( Xor
                     { operand0 = oa
-                    , operand1 = constInt (primBits p) (-1)
+                    , operand1 = constInt (typeSize rt) (-1)
                     , metadata = []
                     }
                 )

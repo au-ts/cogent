@@ -2,8 +2,9 @@
 
 module Cogent.LLVM.Types where
 
-import Cogent.Common.Types
+import Cogent.Common.Syntax (Size)
 import Cogent.Core as Core
+import Cogent.Dargent.Util (pointerSizeBits, primIntSizeBits)
 import Data.Function (on)
 import Data.List (maximumBy)
 import LLVM.AST
@@ -11,18 +12,11 @@ import qualified LLVM.AST as AST
 import LLVM.AST.AddrSpace
 import LLVM.AST.Constant
 
-data TypeLayout = Im Int | St [TypeLayout] | Un [TypeLayout]
+data TypeLayout = Im Size | St [TypeLayout] | Un [TypeLayout]
     deriving (Show)
 
-primBits :: PrimInt -> Int
-primBits Boolean = 1
-primBits U8 = 8
-primBits U16 = 16
-primBits U32 = 32
-primBits U64 = 64
-
 toLLVMType :: Core.Type t b -> AST.Type
-toLLVMType (TPrim p) = IntegerType (toEnum (primBits p))
+toLLVMType (TPrim p) = IntegerType (fromInteger (primIntSizeBits p))
 toLLVMType (TRecord _ ts _) =
     -- don't know how to deal with sigil
     StructureType
@@ -54,36 +48,31 @@ maxMember :: [(s, (Core.Type t b, Bool))] -> Core.Type t b
 maxMember ts = maximumBy (compare `on` typeSize) (fieldTypes ts)
 
 typeLayout :: Core.Type t b -> TypeLayout
-typeLayout (TPrim p) = case p of
-    Boolean -> Im 8 -- boolean takes up a whole byte
-    U8 -> Im 8
-    U16 -> Im 16
-    U32 -> Im 32
-    U64 -> Im 64
-typeLayout TUnit = Im 8 -- so does unit
+typeLayout (TPrim p) = Im (primIntSizeBits p)
+typeLayout TUnit = Im 8
 typeLayout (TRecord _ ts _) = St (map typeLayout (fieldTypes ts))
 typeLayout (TSum ts) = St [Im 32, Un (map typeLayout (fieldTypes ts))]
-typeLayout _ = Im 64
+typeLayout _ = Im pointerSizeBits
 
-typeAlignment :: TypeLayout -> Int
-typeAlignment (Im i) = i -- self-alignment
+typeAlignment :: TypeLayout -> Size
+typeAlignment (Im i) = min i pointerSizeBits
 typeAlignment (St ts) = maximum (map typeAlignment ts)
 typeAlignment (Un ts) = maximum (map typeAlignment ts)
 
-roundUp :: Int -> Int -> Int
+roundUp :: Integer -> Integer -> Integer
 roundUp k n
     | k `mod` n == 0 = k
     | otherwise = (k `div` n + 1) * n
 
-typeSize :: Core.Type t b -> Int
+typeSize :: Core.Type t b -> Size
 typeSize t = typeSize' (typeLayout t)
 
-typeSize' :: TypeLayout -> Int
+typeSize' :: TypeLayout -> Size
 typeSize' (Im i) = i
 typeSize' t@(St ts) = roundUp (typeSize'' 0 ts) (typeAlignment t)
 typeSize' t@(Un ts) = roundUp (maximum (map typeSize' ts)) (typeAlignment t)
 
-typeSize'' :: Int -> [TypeLayout] -> Int
+typeSize'' :: Size -> [TypeLayout] -> Size
 typeSize'' offset [] = offset
 typeSize'' offset (t : ts) =
     let size = typeSize' t
@@ -104,8 +93,8 @@ unPtr :: AST.Type -> AST.Type
 unPtr (PointerType t _) = t
 unPtr t = t
 
-constInt :: Int -> Integer -> Operand
-constInt n i = ConstantOperand Int {integerBits = fromIntegral n, integerValue = i}
+constInt :: Integer -> Integer -> Operand
+constInt n i = ConstantOperand Int {integerBits = fromInteger n, integerValue = i}
 
 constUndef :: AST.Type -> Operand
 constUndef t = ConstantOperand Undef {constantType = t}
