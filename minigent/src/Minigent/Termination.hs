@@ -41,25 +41,7 @@ data AST
   | AbsTypeAST 
   | TypeVarAST 
   | FunctionAST
-  | ErrorAST
   deriving (Show, Eq)
-
-  -- | A type, which may contain unification variables or type operators.
--- data Type
---   = PrimType PrimType
---   | Record RecPar Row Sigil -- ^ A recursive parameter, field entry row and sigil
---   | AbsType AbsTypeName Sigil [Type]
---   | Variant Row
---   | TypeVar VarName -- ^ Refers to a rigid type variable bound with a forall.
---   | TypeVarBang VarName -- ^ A 'TypeVar' with 'Bang' applied.
---   -- ^ Refers to a recursive parameter, with the context of it's recursive references for Unrolling
---   | RecPar VarName RecContext     -- ^ A recursive parameter.
---   | RecParBang VarName RecContext -- ^ A 'RecPar' with 'Bang' applied.
---   | Function Type Type
---   -- used in type inference:
---   | UnifVar VarName -- ^ Stands for an unknown type
---   | Bang Type -- ^ Eliminated by type normalisation.
---   deriving (Show, Eq)
 
 buildMeasure :: Type -> [AST] -> [AST]
 buildMeasure t res = 
@@ -116,17 +98,41 @@ getMeasure f genvs =
         Function x y -> Just (buildMeasure x [])
         _ -> Nothing 
 
+-- get functions
+getRecursiveCalls :: FunName -> Expr -> [Expr] -- starting exp, result list 
+getRecursiveCalls f exp = case exp of 
+  PrimOp o es -> concat $ map (getRecursiveCalls f) es
+  Literal _ -> []
+  Var _ -> []
+  Con _ e -> getRecursiveCalls f e
+  TypeApp _ _ -> []
+  Sig e t -> getRecursiveCalls f e 
+  Apply e1 e2 -> case e1 of 
+    TypeApp funName ts -> if f == funName then [e2] else []
+    _ -> []
+  Struct es -> concat $ map (\(_, e) -> getRecursiveCalls f e) es
+  If e1 e2 e3 -> getRecursiveCalls f e1 ++ getRecursiveCalls f e2 ++ getRecursiveCalls f e3
+  Let v e1 e2 -> getRecursiveCalls f e1 ++ getRecursiveCalls f e2
+  LetBang vs v e1 e2 -> getRecursiveCalls f e1 ++ getRecursiveCalls f e2
+  Take v f' v2 e1 e2 -> getRecursiveCalls f e2
+  Put e1 f' e2 -> getRecursiveCalls f e2
+  Member e f' -> getRecursiveCalls f e
+  Case e1 c v e2 v2 e3 -> getRecursiveCalls f e1 ++ getRecursiveCalls f e2 ++ getRecursiveCalls f e3
+  Esac e1 c v e2 -> getRecursiveCalls f e1 ++ getRecursiveCalls f e2
+
+
 termCheck :: GlobalEnvironments -> ([Error], [(FunName, [Assertion], String)])
 termCheck genvs = M.foldrWithKey go ([],[]) (defns genvs)
   where
     go :: FunName -> (VarName, Expr) -> ([Error], [(FunName, [Assertion], DotGraph)]) -> ([Error], [(FunName, [Assertion], DotGraph)])
     go f (x,e) (errs, dumps) =  
       let measure = getMeasure f genvs
+          recursiveCalls = getRecursiveCalls f e
           (terminates, g, dotGraph) = fst $ runFresh unifVars (init f x e)
           errs' = if terminates then
-                    (show measure ++ " ---- ") :errs
+                    (show measure ++ " ---- \n" ++ show e ++ "-------\n" ++ show recursiveCalls) :errs
                   else
-                    (show measure ++ " ---- " ++ "Error: Function " ++ f ++ " cannot be shown to terminate.") : errs
+                    (show measure ++ " ---- \n" ++ show e ++ "-------\n" ++ show recursiveCalls ++  "Error: Function " ++ f ++ " cannot be shown to terminate.") : errs
         in 
           (errs', (f, g, dotGraph) : dumps)
 
