@@ -65,6 +65,7 @@ import Control.Applicative (liftA, (<$>))
 import Control.Applicative (liftA)
 #endif
 import Control.Monad (forM, forM_, unless, when, (<=<))
+import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
 -- import Control.Monad.Cont
 -- import Control.Monad.Except (runExceptT)
@@ -669,7 +670,7 @@ parseArgs args = case getOpt' Permute options args of
       putProgressLn "Desugaring and typing..."
       let ((desugared,ctygen'),typedefs) = DS.desugar tced ctygen pragmas
       when __cogent_ddump_pretty_ds_no_tc $ pretty stdout desugared
-      case IN.tc desugared of
+      IN.tc desugared >>= \case
         Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
         Right (desugared',fts) -> do
           when (Ast stg `elem` cmds) $ genAst stg desugared'
@@ -698,7 +699,7 @@ parseArgs args = case getOpt' Permute options args of
                    then hPutStrLn stderr "Normalisation failed!" >> exitFailure
                    else do when __cogent_ddump_pretty_normal_no_tc $ pretty stdout nfed
                            putProgressLn "Re-typing NF..."
-                           case IN.tc_ nfed of
+                           IN.tc_ nfed >>= \case
                              Left err -> hPutStrLn stderr ("Re-typing NF failed: " ++ err) >> exitFailure
                              Right nfed' -> return nfed'
       let thy = mkProofName source Nothing
@@ -732,7 +733,7 @@ parseArgs args = case getOpt' Permute options args of
         True  -> do putProgressLn ""
                     let simpled = map untypeD $ SM.simplify nfed
                     putProgressLn "Re-typing simplified AST..."
-                    case IN.tc_ simpled of
+                    IN.tc_ simpled >>= \case
                       Left err -> hPutStrLn stderr ("Re-typing simplified AST failed: " ++ err) >> exitFailure
                       Right simpled' -> return simpled'
       when (Ast stg `elem` cmds) $ genAst stg simpled'
@@ -752,7 +753,7 @@ parseArgs args = case getOpt' Permute options args of
         writeFileMsg afmfile
         output afmfile $ flip hPutStrLn (printAFM (fst insts) simpled)
       putProgressLn "Re-typing monomorphic AST..."
-      case retype monoed of
+      retype monoed >>= \case
         Left err -> hPutStrLn stderr ("Re-typing monomorphic AST failed: " ++ err) >> exitFailure
         Right monoed' -> do
           printWarnings warnings
@@ -974,7 +975,7 @@ parseArgs args = case getOpt' Permute options args of
 #endif
       when ks $ do
         putProgressLn ("Generating shallow constants (" ++ stgMsg stg ++ ")...")
-        case constsTypeCheck of
+        constsTypeCheck >>= \case
           Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
           Right (cs,_) -> do writeFileMsg ksfile
                              output ksfile $ flip LJ.hPutDoc $ shallowConsts False thy stg cs defns log
@@ -998,7 +999,7 @@ parseArgs args = case getOpt' Permute options args of
 #endif
       when ks_tup $ do
         putProgressLn ("Generating shallow constants (with HOL tuples)...")
-        case constsTypeCheck of
+        constsTypeCheck >>= \case
           Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
           Right (cs,_) -> do writeFileMsg ks_tupfile
                              output ks_tupfile $ flip LJ.hPutDoc $ shallowConsts True thy stg cs defns log
