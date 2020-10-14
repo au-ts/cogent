@@ -14,10 +14,11 @@ import LLVM.AST.CallingConvention as CC
 import qualified LLVM.AST.Constant as C
 import LLVM.AST.ParameterAttribute
 
-data RegLayout = One AST.Type | Two AST.Type AST.Type | Ref deriving (Show)
+data RegLayout = One AST.Type | Two AST.Type AST.Type | Ref | NativeRef deriving (Show)
 
 regLayout :: Core.Type t b -> RegLayout
 regLayout t
+    | isNativePointer t = NativeRef
     | s <= p = One (IntegerType (fromInteger s))
     | s <= 2 * p = Two (IntegerType (fromInteger p)) (IntegerType (fromInteger (s - p)))
     | otherwise = Ref
@@ -33,6 +34,7 @@ needsWrapper _ = False
 auxCFFIDef :: Core.Definition TypedExpr VarName VarName -> Maybe AST.Definition
 auxCFFIDef (FunDef _ name _ _ t rt _) =
     let args = case regLayout t of
+            NativeRef -> [Parameter (toLLVMType t) "a0" []]
             One a0 -> [Parameter a0 "a0" []]
             Two a0 a1 ->
                 [ Parameter a0 "a0" []
@@ -40,12 +42,13 @@ auxCFFIDef (FunDef _ name _ _ t rt _) =
                 ]
             Ref -> [Parameter (ptrTo (toLLVMType t)) "a0" [ByVal]]
         (returnArgs, returnType) = case regLayout rt of
+            NativeRef -> ([], toLLVMType rt)
             One r0 -> ([], r0)
             Two r0 r1 -> ([], StructureType False [r0, r1])
             Ref -> ([Parameter (ptrTo (toLLVMType rt)) "r0" [NoAlias, SRet]], VoidType)
      in Just
             ( def
-                (toShortBS (name ++ "_ccompat"))
+                (name ++ "_ccompat")
                 (returnArgs ++ args)
                 returnType
                 (typeToWrapper name t rt returnType (regLayout t))
@@ -104,7 +107,7 @@ typeToWrapper name t rt wrapperRT argLayout = do
             ConstantOperand
                 ( C.GlobalReference
                     (toLLVMType (TFun t rt))
-                    (Name (toShortBS name))
+                    (mkName name)
                 )
     res <-
         instr

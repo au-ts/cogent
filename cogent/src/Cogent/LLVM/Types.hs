@@ -12,7 +12,7 @@ import qualified LLVM.AST as AST
 import LLVM.AST.AddrSpace
 import LLVM.AST.Constant
 
-data TypeLayout = Im Size | St [TypeLayout] | Un [TypeLayout]
+data TypeLayout = Ptr | Im Size | St [TypeLayout] | Un [TypeLayout]
     deriving (Show)
 
 toLLVMType :: Core.Type t b -> AST.Type
@@ -33,6 +33,7 @@ toLLVMType (TFun t1 t2) =
             , argumentTypes = [toLLVMType t1]
             , isVarArg = False
             }
+toLLVMType (TCon name _ _) = NamedTypeReference (mkName name) -- arbitrary pointer
 #ifdef BUILTIN_ARRAYS
 toLLVMType (TArray t l s mh) =
   ArrayType { nArrayElements = __todo "toLLVMType: we cannot evaluate LExpr to a constant"
@@ -47,14 +48,20 @@ fieldTypes = map (fst . snd)
 maxMember :: [(s, (Core.Type t b, Bool))] -> Core.Type t b
 maxMember ts = maximumBy (compare `on` typeSize) (fieldTypes ts)
 
+isNativePointer :: Core.Type t b -> Bool
+isNativePointer t = case typeLayout t of
+    Ptr -> True
+    _ -> False
+
 typeLayout :: Core.Type t b -> TypeLayout
 typeLayout (TPrim p) = Im (primIntSizeBits p)
 typeLayout TUnit = Im 8
 typeLayout (TRecord _ ts _) = St (map typeLayout (fieldTypes ts))
 typeLayout (TSum ts) = St [Im 32, Un (map typeLayout (fieldTypes ts))]
-typeLayout _ = Im pointerSizeBits
+typeLayout _ = Ptr
 
 typeAlignment :: TypeLayout -> Size
+typeAlignment Ptr = pointerSizeBits
 typeAlignment (Im i) = min i pointerSizeBits
 typeAlignment (St ts) = maximum (map typeAlignment ts)
 typeAlignment (Un ts) = maximum (map typeAlignment ts)
@@ -68,6 +75,7 @@ typeSize :: Core.Type t b -> Size
 typeSize t = typeSize' (typeLayout t)
 
 typeSize' :: TypeLayout -> Size
+typeSize' Ptr = pointerSizeBits
 typeSize' (Im i) = i
 typeSize' t@(St ts) = roundUp (typeSize'' 0 ts) (typeAlignment t)
 typeSize' t@(Un ts) = roundUp (maximum (map typeSize' ts)) (typeAlignment t)

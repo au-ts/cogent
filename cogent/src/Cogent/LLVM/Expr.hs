@@ -472,7 +472,7 @@ exprToLLVM (TE ft (Fun f _ _ _)) =
             ( ConstantOperand
                 ( C.GlobalReference
                     (toLLVMType ft)
-                    (Name (toShortBS (unCoreFunName f)))
+                    (mkName (unCoreFunName f))
                 )
             )
         )

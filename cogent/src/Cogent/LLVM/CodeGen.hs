@@ -4,8 +4,7 @@
 module Cogent.LLVM.CodeGen where
 
 import Control.Monad.State
-import Data.ByteString.Internal (packChars)
-import Data.ByteString.Short.Internal (ShortByteString, toShort)
+import Data.ByteString.Short.Internal (ShortByteString)
 import Data.Function (on)
 import Data.List (sortBy)
 import qualified Data.Map as Map
@@ -14,9 +13,6 @@ import LLVM.AST
 import LLVM.AST.Global
 
 type Names = Map.Map ShortByteString Int
-
-toShortBS :: String -> ShortByteString
-toShortBS = toShort . packChars
 
 newName :: ShortByteString -> Names -> (ShortByteString, Names)
 newName name scope =
@@ -140,7 +136,7 @@ setBlock blkName = do
     return blkName
 
 def ::
-    ShortByteString ->
+    String ->
     [Parameter] ->
     Type ->
     Codegen (Either Operand (Named Terminator)) ->
@@ -160,7 +156,7 @@ def dName args retTy body =
                 )
      in GlobalDefinition
             ( functionDefaults
-                { name = Name dName
+                { name = mkName dName
                 , parameters = (args, False)
                 , returnType = retTy
                 , basicBlocks = bodyBlock

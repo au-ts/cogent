@@ -3,11 +3,12 @@ module Cogent.LLVM.Compile (toLLVM) where
 import Cogent.Common.Syntax (VarName)
 import Cogent.Core as Core
 import Cogent.LLVM.CCompat (auxCFFIDef)
-import Cogent.LLVM.CodeGen (def, toShortBS)
+import Cogent.LLVM.CodeGen (def)
 import Cogent.LLVM.Expr (exprToLLVM)
 import Cogent.LLVM.Types (toLLVMType)
 import qualified Data.ByteString.Char8 as BS
-import Data.ByteString.Short.Internal (ShortByteString)
+import Data.ByteString.Internal (packChars)
+import Data.ByteString.Short.Internal (ShortByteString, toShort)
 import Data.Maybe (mapMaybe)
 import LLVM.AST as AST
 import LLVM.AST.DataLayout (Endianness (LittleEndian), defaultDataLayout)
@@ -31,7 +32,7 @@ toLLVMDef (AbsDecl _ name _ _ t rt) =
   Just
     ( GlobalDefinition
     ( functionDefaults
-        { name = Name (toShortBS name)
+            { name = mkName name
         , parameters = ([Parameter (toLLVMType t) (UnName 0) []], False)
         , returnType = toLLVMType rt
         , basicBlocks = []
@@ -41,14 +42,17 @@ toLLVMDef (AbsDecl _ name _ _ t rt) =
 toLLVMDef (FunDef _ name _ _ t rt body) =
   Just
     ( def
-    (toShortBS name)
+        name
     [Parameter (toLLVMType t) (UnName 0) []]
     (toLLVMType rt)
     (exprToLLVM body)
     )
 toLLVMDef (TypeDef name _ mt) = case mt of
-  Nothing -> Just (TypeDefinition (Name (toShortBS name)) Nothing)
+  Nothing -> Just (TypeDefinition (mkName name) Nothing)
   _ -> Nothing
+
+toShortBS :: String -> ShortByteString
+toShortBS = toShort . packChars
 
 toMod :: [Core.Definition Core.TypedExpr VarName VarName] -> FilePath -> AST.Module
 toMod ds source =
