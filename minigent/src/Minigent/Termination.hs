@@ -30,11 +30,13 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.List
 
+import Debug.Trace
+
 data AST
-  = RecordAST String AST 
-  | RecursiveRecordAST String String AST 
-  | RecParAST String
-  | VariantAST String AST 
+  = RecordAST String AST -- field 
+  | RecursiveRecordAST String String AST -- recpar, field 
+  | RecParAST String -- recpar 
+  | VariantAST String AST -- field 
   | IntAST
   | BoolAST 
   | UnitAST 
@@ -89,14 +91,14 @@ type Env = M.Map VarName FreshVar
 type Error    = String
 type DotGraph = String
 
-getMeasure :: FunName -> GlobalEnvironments -> Maybe [AST]
+getMeasure :: FunName -> GlobalEnvironments -> [AST]
 getMeasure f genvs = 
   case M.lookup f (types genvs) of 
-    Nothing -> Nothing 
+    Nothing -> [] 
     Just (Forall _ _ ty) -> 
       case ty of 
-        Function x y -> Just (buildMeasure x [])
-        _ -> Nothing 
+        Function x y -> (buildMeasure x [])
+        _ -> []
 
 -- get functions
 getRecursiveCalls :: FunName -> Expr -> [Expr] -- starting exp, result list 
@@ -120,6 +122,70 @@ getRecursiveCalls f exp = case exp of
   Case e1 c v e2 v2 e3 -> getRecursiveCalls f e1 ++ getRecursiveCalls f e2 ++ getRecursiveCalls f e3
   Esac e1 c v e2 -> getRecursiveCalls f e1 ++ getRecursiveCalls f e2
 
+type Size = (Maybe Expr, Int) -- leftover expression, number of unfoldings
+
+applyMeasure :: AST -> Size -> Size
+applyMeasure ast (e, n) = case ast of 
+  RecursiveRecordAST t f ast' -> 
+    let e' = cutExpr True f e
+    in applyMeasure ast' (e', n)
+  RecordAST f ast' -> 
+    let e' = cutExpr True f e
+    in applyMeasure ast' (e', n)
+  VariantAST f ast' -> 
+    let e' = cutExpr False f e 
+    in applyMeasure ast' (e', n)
+  RecParAST t -> (e, n+1)
+  _ -> (e, n)
+
+
+cutExpr :: Bool -> String -> Maybe Expr -> Maybe Expr 
+-- true: take, false: case, string: field 
+cutExpr b s Nothing = Nothing
+cutExpr b s (Just exp) = 
+  case exp of 
+    PrimOp o (x:xs) -> 
+      case cutExpr b s (Just x) of 
+        Nothing -> case xs of 
+          [] -> Nothing 
+          (y:ys) -> cutExpr b s (Just y)
+        Just me -> Just me
+    Literal v -> Nothing
+    Var v -> Nothing
+    Con c e -> cutExpr b s (Just e)
+    TypeApp f ts -> Nothing
+    Sig e t -> cutExpr b s (Just e)
+    Apply e1 e2 -> case cutExpr b s (Just e1) of 
+      Nothing -> cutExpr b s (Just e2)
+      Just me -> Just me
+    Struct fs -> Nothing -- TODO
+    If e1 e2 e3 -> case cutExpr b s (Just e1) of 
+      Nothing -> case cutExpr b s (Just e2) of
+        Nothing -> cutExpr b s (Just e3)
+        Just me -> Just me 
+      Just me -> Just me
+    Let v e1 e2 -> case cutExpr b s (Just e1) of 
+      Nothing -> cutExpr b s (Just e2)
+      Just me -> Just me
+    LetBang vs v e1 e2 -> case cutExpr b s (Just e1) of 
+      Nothing -> cutExpr b s (Just e2)
+      Just me -> Just me
+    Take v1 f v2 e1 e2 -> 
+      case b of 
+        True -> if f == s then (Just e2) else cutExpr b s (Just e2)
+        False -> cutExpr b s (Just e2)
+    Put e1 f e2 -> case cutExpr b s (Just e1) of 
+      Nothing -> cutExpr b s (Just e2)
+      Just me -> Just me
+    Member e f -> cutExpr b s (Just e)
+    Case e1 c v1 e2 v2 e3 -> 
+      case b of 
+        True -> cutExpr b s (Just e3)
+        False -> if c == s then (Just e2) else cutExpr b s (Just e3)
+    Esac e1 c v e2 ->
+      case b of 
+        True -> cutExpr b s (Just e2)
+        False -> if c == s then (Just e2) else cutExpr b s (Just e2)
 
 termCheck :: GlobalEnvironments -> ([Error], [(FunName, [Assertion], String)])
 termCheck genvs = M.foldrWithKey go ([],[]) (defns genvs)
@@ -128,9 +194,13 @@ termCheck genvs = M.foldrWithKey go ([],[]) (defns genvs)
     go f (x,e) (errs, dumps) =  
       let measure = getMeasure f genvs
           recursiveCalls = getRecursiveCalls f e
+          size = applyMeasure (head $ tail measure) (Just e, 0)
           (terminates, g, dotGraph) = fst $ runFresh unifVars (init f x e)
           errs' = if terminates then
-                    (show measure ++ " ---- \n" ++ show e ++ "-------\n" ++ show recursiveCalls) :errs
+                    (show measure ++ " ---- \n" 
+                    ++ show e ++ "-------\n" 
+                    ++ show recursiveCalls ++ "-------\n" 
+                    ++ "size: " ++ show size) :errs
                   else
                     (show measure ++ " ---- \n" ++ show e ++ "-------\n" ++ show recursiveCalls ++  "Error: Function " ++ f ++ " cannot be shown to terminate.") : errs
         in 
@@ -138,7 +208,7 @@ termCheck genvs = M.foldrWithKey go ([],[]) (defns genvs)
 
     -- Maps the function argument to a name, then runs the termination
     -- assertion generator.
-    -- Returns: 
+    -- Returns:
     --  ( true if the function terminates
     --  , the list of assertions produced from the function
     --  , the `dot' graph file for this particular termination graph
