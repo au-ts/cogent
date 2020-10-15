@@ -189,7 +189,7 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
   TLPrim n       :~ T TUnit | evalSize n >= 0 -> hoistMaybe $ Just []
   TLPrim n       :~ tau
     | isPrimType tau
-    , primTypeSize tau <= evalSize n
+    , primTypeSize tau == evalSize n
     -> hoistMaybe $ Just []
     | isBoxedType tau
     , evalSize n == pointerSizeBits
