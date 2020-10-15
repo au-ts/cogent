@@ -5,21 +5,23 @@ module Cogent.LLVM.CCompat where
 
 import Cogent.Common.Syntax (VarName)
 import Cogent.Core as Core
-import Cogent.Dargent.Util (pointerSizeBits)
-import Cogent.LLVM.CodeGen
+import Cogent.LLVM.Custom (function)
 import Cogent.LLVM.Expr (castVal)
 import Cogent.LLVM.Types
-import LLVM.AST as AST
-import LLVM.AST.CallingConvention as CC
+import LLVM.AST as AST hiding (function)
+import LLVM.AST.Attribute (ParameterAttribute (ByVal, NoAlias, SRet))
 import qualified LLVM.AST.Constant as C
-import LLVM.AST.ParameterAttribute
+import LLVM.AST.Type (ptr)
+import LLVM.IRBuilder.Instruction (call, insertValue, load, ret, retVoid, store)
+import LLVM.IRBuilder.Module (ModuleBuilder, ParameterName (NoParameterName))
+import LLVM.IRBuilder.Monad (MonadIRBuilder, block, named)
 
 data RegLayout = One AST.Type | Two AST.Type AST.Type | Ref | NativeRef deriving (Show)
 
 regLayout :: Core.Type t b -> RegLayout
 regLayout t
     | isNativePointer t = NativeRef
-    | s <= p = One (IntegerType (fromInteger s))
+    | s <= p || isPrim t = One (IntegerType (fromInteger s))
     | s <= 2 * p = Two (IntegerType (fromInteger p)) (IntegerType (fromInteger (s - p)))
     | otherwise = Ref
     where
@@ -31,76 +33,49 @@ needsWrapper TRecord {} = True
 needsWrapper TSum {} = True
 needsWrapper _ = False
 
-auxCFFIDef :: Core.Definition TypedExpr VarName VarName -> Maybe AST.Definition
+auxCFFIDef :: Core.Definition TypedExpr VarName VarName -> ModuleBuilder Operand
 auxCFFIDef (FunDef _ name _ _ t rt _) =
     let args = case regLayout t of
-            NativeRef -> [Parameter (toLLVMType t) "a0" []]
-            One a0 -> [Parameter a0 "a0" []]
+            NativeRef -> [(toLLVMType t, [], NoParameterName)]
+            One a0 -> [(a0, [], NoParameterName)]
             Two a0 a1 ->
-                [ Parameter a0 "a0" []
-                , Parameter a1 "a1" []
+                [ (a0, [], NoParameterName)
+                , (a1, [], NoParameterName)
                 ]
-            Ref -> [Parameter (ptrTo (toLLVMType t)) "a0" [ByVal]]
+            Ref -> [(ptr (toLLVMType t), [ByVal], NoParameterName)]
         (returnArgs, returnType) = case regLayout rt of
             NativeRef -> ([], toLLVMType rt)
             One r0 -> ([], r0)
             Two r0 r1 -> ([], StructureType False [r0, r1])
-            Ref -> ([Parameter (ptrTo (toLLVMType rt)) "r0" [NoAlias, SRet]], VoidType)
-     in Just
-            ( def
-                (name ++ "_ccompat")
-                (returnArgs ++ args)
-                returnType
-                (typeToWrapper name t rt returnType (regLayout t))
-            )
-auxCFFIDef _ = Nothing
+            Ref -> ([(ptr (toLLVMType rt), [NoAlias, SRet], NoParameterName)], VoidType)
+     in function
+            (mkName (name ++ "_ccompat"))
+            (returnArgs ++ args)
+            returnType
+            (typeToWrapper name t rt returnType (regLayout t))
 
 typeToWrapper ::
+    MonadIRBuilder m =>
     String ->
     Core.Type t b ->
     Core.Type t b ->
     AST.Type ->
     RegLayout ->
-    Codegen (Either Operand (Named Terminator))
-typeToWrapper name t rt wrapperRT argLayout = do
+    [Operand] ->
+    m ()
+typeToWrapper name t rt wrapperRT argLayout (r0 : args) = do
+    block `named` "entry"
     -- Wrap arguments
     arg <- case (argLayout, needsWrapper t) of
-        (_, False) -> return (LocalReference (toLLVMType t) "a0")
-        (Ref, _) ->
-            instr
-                (toLLVMType t)
-                ( Load
-                    { volatile = False
-                    , address = LocalReference (ptrTo (toLLVMType t)) "a0"
-                    , maybeAtomicity = Nothing
-                    , alignment = 0
-                    , metadata = []
-                    }
-                )
+        (_, False) -> pure a0
+        (Ref, _) -> load a0 0
         _ -> do
             argNative <- case argLayout of
-                One a0 -> return (LocalReference a0 "a0")
-                Two a0 a1 ->
-                    let aggT = StructureType False [a0, a1]
-                     in instr
-                            aggT
-                            ( InsertValue
-                                { aggregate = constUndef aggT
-                                , element = LocalReference a0 "a0"
-                                , indices' = [0]
-                                , metadata = []
-                                }
-                            )
-                            >>= \ref ->
-                                instr
-                                    aggT
-                                    ( InsertValue
-                                        { aggregate = ref
-                                        , element = LocalReference a1 "a1"
-                                        , indices' = [1]
-                                        , metadata = []
-                                        }
-                                    )
+                One _ -> pure a0
+                Two a0t a1t ->
+                    let aggT = StructureType False [a0t, a1t]
+                     in insertValue (constUndef aggT) a0 [0]
+                            >>= \ref -> insertValue ref a1 [1]
             castVal (toLLVMType t) argNative
     -- Call inner function
     let fun =
@@ -109,35 +84,18 @@ typeToWrapper name t rt wrapperRT argLayout = do
                     (toLLVMType (TFun t rt))
                     (mkName name)
                 )
-    res <-
-        instr
-            (toLLVMType rt)
-            ( Call
-                { tailCallKind = Nothing
-                , callingConvention = CC.C
-                , returnAttributes = []
-                , function = Right fun
-                , arguments = [(arg, [])]
-                , functionAttributes = []
-                , metadata = []
-                }
-            )
+    res <- call fun [(arg, [])]
     -- Handle return values
     case (wrapperRT, needsWrapper rt) of
-        (_, False) -> return (Left res)
+        (_, False) -> ret res
         (VoidType, _) -> do
-            unnamedInstr
-                ( Store
-                    { volatile = False
-                    , address = LocalReference (toLLVMType t) "r0"
-                    , maybeAtomicity = Nothing
-                    , value = res
-                    , alignment = 0
-                    , metadata = []
-                    }
-                )
-            ret <- terminator (Do (Ret Nothing []))
-            return (Right ret)
+            store r0 0 res
+            retVoid
         _ -> do
             retCast <- castVal wrapperRT res
-            return (Left retCast)
+            ret retCast
+    where
+        a0 = case wrapperRT of
+            VoidType -> head args
+            _ -> r0 -- if there is no r0, a0 is actually first arg
+        a1 = last args

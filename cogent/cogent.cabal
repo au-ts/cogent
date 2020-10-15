@@ -206,7 +206,7 @@ library
     build-depends: haskell-src-exts >= 1.19, pretty
   if flag(llvm-backend)
     exposed-modules: Cogent.LLVM.Compile
-    other-modules: Cogent.LLVM.CodeGen
+    other-modules: Cogent.LLVM.Custom
                  , Cogent.LLVM.Expr
                  , Cogent.LLVM.Types
                  , Cogent.LLVM.CCompat
