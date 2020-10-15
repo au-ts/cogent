@@ -29,9 +29,7 @@ regLayout t
         s = typeSize t
 
 needsWrapper :: Core.Type t b -> Bool
-needsWrapper TRecord {} = True
-needsWrapper TSum {} = True
-needsWrapper _ = False
+needsWrapper t = isTRecord t || isTVar t
 
 auxCFFIDef :: Core.Definition TypedExpr VarName VarName -> ModuleBuilder Operand
 auxCFFIDef (FunDef _ name _ _ t rt _) =

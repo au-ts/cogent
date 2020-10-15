@@ -8,6 +8,7 @@ import Cogent.Common.Types (PrimInt (Boolean))
 import Cogent.Core as Core
 import Cogent.Dargent.Util (primIntSizeBits)
 import Cogent.LLVM.Types
+import Control.Monad (void)
 import Control.Monad.Fix (MonadFix)
 import Data.Char (ord)
 import Data.Fin (finInt)
@@ -21,47 +22,60 @@ import LLVM.AST.Type (i8, ptr)
 import LLVM.AST.Typed (typeOf)
 import LLVM.IRBuilder.Constant (array, int32, int8)
 import LLVM.IRBuilder.Instruction as IR
+import LLVM.IRBuilder.Module (MonadModuleBuilder, typedef)
 import LLVM.IRBuilder.Monad (MonadIRBuilder, block, currentBlock, emitInstr, named)
 
 exprToLLVM ::
-    (MonadIRBuilder m, MonadFix m, Show a, Show b) =>
+    (MonadIRBuilder m, MonadModuleBuilder m, MonadFix m, Show a, Show b) =>
     TypedExpr t v a b ->
     [Operand] ->
     m Operand
-exprToLLVM (TE _ Unit) _ = pure $ int8 0
-exprToLLVM (TE _ (ILit int p)) _ = pure $ constInt (primIntSizeBits p) int
-exprToLLVM (TE _ (SLit str)) _ = pure $ array $ map (C.Int 8 . toInteger . ord) str
-exprToLLVM (TE t (Op op [a, b])) vars = do
+exprToLLVM e@(TE t _) vars = monomorphicTypeDef t >> exprToLLVM' e vars
+
+monomorphicTypeDef :: (MonadModuleBuilder m) => Core.Type t b -> m ()
+monomorphicTypeDef t@TCon {} = void $ typedef (mkName (nameType t)) Nothing
+monomorphicTypeDef _ = pure ()
+
+exprToLLVM' ::
+    (MonadIRBuilder m, MonadModuleBuilder m, MonadFix m, Show a, Show b) =>
+    TypedExpr t v a b ->
+    [Operand] ->
+    m Operand
+exprToLLVM' (TE _ Unit) _ = pure $ int8 0
+exprToLLVM' (TE _ (ILit int p)) _ = pure $ constInt (primIntSizeBits p) int
+exprToLLVM' (TE _ (SLit str)) _ = pure $ array $ C.Int 8 . toInteger . ord <$> str
+exprToLLVM' (TE t (Op op [a, b])) vars = do
     oa <- exprToLLVM a vars
     ob <- exprToLLVM b vars
     res <- toLLVMOp op oa ob
     case t of
         TPrim Boolean -> zext res i8
         _ -> pure res
-exprToLLVM (TE t (Op Sy.Complement [a])) vars = do
+exprToLLVM' (TE t (Op Sy.Complement [a])) vars = do
     oa <- exprToLLVM a vars
     xor oa (constInt (typeSize t) (-1))
-exprToLLVM (TE t (Op Sy.Not [a])) vars = exprToLLVM (TE t (Op Sy.Complement [a])) vars
-exprToLLVM (TE _ (Member recd fld)) vars = do
+exprToLLVM' (TE t (Op Sy.Not [a])) vars = exprToLLVM (TE t (Op Sy.Complement [a])) vars
+exprToLLVM' (TE _ (Member recd fld)) vars = do
     recv <- exprToLLVM recd vars
     extractValue recv [toEnum fld]
-exprToLLVM (TE _ (Take _ recd fld body)) vars = do
+exprToLLVM' (TE _ (Take _ recd fld body)) vars = do
     recv <- exprToLLVM recd vars
     fldv <- extractValue recv [toEnum fld]
     exprToLLVM body (fldv : recv : vars)
-exprToLLVM (TE _ (Put recd fld val)) vars = do
+exprToLLVM' (TE _ (Put recd fld val)) vars = do
     recv <- exprToLLVM recd vars
     v <- exprToLLVM val vars
     insertValue recv v [toEnum fld]
-exprToLLVM (TE _ (Let _ val body)) vars = do
+exprToLLVM' (TE _ (Let _ val body)) vars = do
     v <- exprToLLVM val vars
     exprToLLVM body (v : vars)
-exprToLLVM (TE t (LetBang _ a val body)) vars = exprToLLVM (TE t (Let a val body)) vars
-exprToLLVM (TE _ (Promote _ e)) vars = exprToLLVM e vars
-exprToLLVM (TE _ (Cast t e)) vars = do
+exprToLLVM' (TE t (LetBang _ a val body)) vars = exprToLLVM (TE t (Let a val body)) vars
+exprToLLVM' (TE _ (Promote _ e)) vars = exprToLLVM e vars
+exprToLLVM' (TE _ (Cast t e)) vars = do
+    typedef "foo" Nothing
     v <- exprToLLVM e vars
     zext v (toLLVMType t)
-exprToLLVM (TE t (Con tag e (TSum ts))) vars = do
+exprToLLVM' (TE t (Con tag e (TSum ts))) vars = do
     tagged <- insertValue (constUndef (toLLVMType t)) (int32 (tagIndex t tag)) [0]
     v <- exprToLLVM e vars
     case e of
@@ -69,7 +83,7 @@ exprToLLVM (TE t (Con tag e (TSum ts))) vars = do
         _ -> do
             casted <- castVal (toLLVMType (maxMember ts)) v
             insertValue tagged casted [1]
-exprToLLVM (TE _ (Case e@(TE rt _) tag (_, _, tb) (_, _, fb))) vars = mdo
+exprToLLVM' (TE _ (Case e@(TE rt _) tag (_, _, tb) (_, _, fb))) vars = mdo
     variant <- exprToLLVM e vars
     tagv <- extractValue variant [0]
     cond <- icmp P.EQ tagv (int32 (toInteger (tagIndex rt tag)))
@@ -86,11 +100,11 @@ exprToLLVM (TE _ (Case e@(TE rt _) tag (_, _, tb) (_, _, fb))) vars = mdo
     br brExit
     brExit <- block `named` "case.done"
     phi [(valTrue, brMatch'), (valFalse, brNotMatch')]
-exprToLLVM (TE t (Esac e)) vars = do
+exprToLLVM' (TE t (Esac e)) vars = do
     variant <- exprToLLVM e vars
     v <- extractValue variant [1]
     castVal (toLLVMType t) v
-exprToLLVM (TE _ (If cd tb fb)) vars = mdo
+exprToLLVM' (TE _ (If cd tb fb)) vars = mdo
     v <- exprToLLVM cd vars
     cond <- icmp P.EQ v (int8 1)
     condBr cond brTrue brFalse
@@ -104,23 +118,23 @@ exprToLLVM (TE _ (If cd tb fb)) vars = mdo
     br brExit
     brExit <- block `named` "if.done"
     phi [(valTrue, brTrue'), (valFalse, brFalse')]
-exprToLLVM (TE t (Struct flds)) vars =
+exprToLLVM' (TE t (Struct flds)) vars =
     foldrM
         (\(i, v) struct -> exprToLLVM v vars >>= \value -> insertValue struct value [i])
         (constUndef (toLLVMType t))
         [(i, snd fld) | (i, fld) <- zip [0 ..] flds]
-exprToLLVM (TE _ (Variable (idx, _))) vars = pure $ vars !! finInt idx
-exprToLLVM (TE t (Fun f _ _ _)) _ =
+exprToLLVM' (TE _ (Variable (idx, _))) vars = pure $ vars !! finInt idx
+exprToLLVM' (TE t (Fun f _ _ _)) _ =
     pure $
         ConstantOperand $
             C.GlobalReference
                 (toLLVMType t)
                 (mkName (unCoreFunName f))
-exprToLLVM (TE _ (App f a)) vars = do
+exprToLLVM' (TE _ (App f a)) vars = do
     arg <- exprToLLVM a vars
     fun <- exprToLLVM f vars
     call fun [(arg, [])]
-exprToLLVM e _ = error $ "unknown" ++ show e
+exprToLLVM' e _ = error $ "unknown" ++ show e
 
 toLLVMOp :: MonadIRBuilder m => Sy.Op -> (Operand -> Operand -> m Operand)
 toLLVMOp Sy.Plus = add
