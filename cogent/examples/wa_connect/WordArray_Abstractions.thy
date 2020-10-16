@@ -38,6 +38,7 @@ lemma word_mult_cancel_left_bounded:
   apply (drule_tac i = "unat b" and j = "unat d" and k = "unat c" in mult_le_mono2)
   by (metis (mono_tags, hide_lams) assms(3) le_unat_uoi mult_left_cancel mult_zero_left not_less_iff_gr_or_eq unat_0 unat_mono word_arith_nat_mult)
 
+section "Helper Functions"
 
 fun is_prim_type :: "type \<Rightarrow> bool"
   where
@@ -66,6 +67,25 @@ fun zero_num_lit :: "num_type \<Rightarrow> lit"
 "zero_num_lit U16 = LU16 0" |
 "zero_num_lit U32 = LU32 0" |
 "zero_num_lit U64 = LU64 0"
+
+section "Abbreviations"
+
+abbreviation upd_store :: "('f, 'a, 'l) store \<Rightarrow> 'l \<Rightarrow> ('f, 'a, 'l) uval \<Rightarrow> ('f, 'a, 'l) store"
+  where
+"upd_store \<sigma> p v \<equiv> (\<lambda>l. (if l = p then option.Some v else \<sigma> l))"
+
+section "Helper Frame Lemmas"
+
+lemma valid_ptr_not_in_frame_same:
+  "\<lbrakk>frame \<sigma> w \<sigma>' w'; p \<notin> w; \<sigma> p = option.Some x\<rbrakk> \<Longrightarrow> \<sigma>' p = option.Some x"
+  apply (clarsimp simp: frame_def)
+  apply (erule_tac x = p in allE)
+  apply clarsimp
+  done
+
+lemma frame_single_update:
+  "frame \<sigma> {l} (upd_store \<sigma> l v) {l}"
+  by (clarsimp simp: frame_def)
 
 
 section "WordArray Locale Definition"
@@ -113,7 +133,72 @@ lemma distinct_indices:
   apply (cut_tac a = i and b = j and c = "size_of_num_type t" and d = len in word_mult_cancel_left_bounded; simp)
   apply (erule disjE; clarsimp)
   apply (case_tac t; clarsimp)
-  done      
+  done
+
+lemma wa_abs_typing_u_elims:
+  "wa_abs_typing_u a ''WordArray'' \<tau>s s r w \<sigma> 
+    \<Longrightarrow> \<exists>len arr t. a = UWA (TPrim (Num t)) len arr \<and> \<tau>s = [TPrim (Num t)]"
+  "wa_abs_typing_u (UWA (TPrim (Num t)) len arr) n \<tau>s (Boxed ReadOnly ptrl) r w \<sigma>
+    \<Longrightarrow> r = {arr + size_of_num_type t * i | i. i < len} \<and> w = {}"
+  "wa_abs_typing_u (UWA (TPrim (Num t)) len arr) n \<tau>s (Boxed Writable ptrl) r w \<sigma>
+    \<Longrightarrow> r = {} \<and> w = {arr + size_of_num_type t * i | i. i < len}"
+  "wa_abs_typing_u a ''WordArray'' \<tau>s s r w \<sigma> \<Longrightarrow> s \<noteq> Unboxed"
+  "wa_abs_typing_u (UWA (TPrim (Num t)) len arr) n \<tau>s s r w \<sigma>
+    \<Longrightarrow> \<forall>i < len. \<exists>x. \<sigma> (arr + size_of_num_type t * i) = option.Some (UPrim x) \<and> lit_type x = Num t"
+  "wa_abs_typing_u (UWA (TPrim (Num t)) len arr) n \<tau>s s r w \<sigma>
+    \<Longrightarrow> unat (size_of_num_type t) * unat len \<le> unat (max_word :: ptrtyp)"
+  "wa_abs_typing_u (UWA (TPrim (Num t)) len arr) n \<tau>s s r w \<sigma> \<Longrightarrow> n = ''WordArray''"
+  by (unfold wa_abs_typing_u_def[abs_def]; clarsimp split: atyp.splits type.splits prim_type.splits)+
+
+lemma wa_abs_typing_v_elims:
+  "wa_abs_typing_v a ''WordArray'' \<tau>s \<Longrightarrow> \<exists>t xs. a = VWA (TPrim (Num t)) xs \<and> \<tau>s = [TPrim (Num t)]"
+  "wa_abs_typing_v (VWA (TPrim (Num t)) xs) n \<tau>s 
+    \<Longrightarrow> \<forall>i < length xs. \<exists>x. xs ! i = VPrim x \<and> lit_type x = Num t"
+  "wa_abs_typing_v (VWA (TPrim (Num t)) xs) n \<tau>s  \<Longrightarrow> n = ''WordArray''"
+  by (unfold wa_abs_typing_v_def[abs_def]; clarsimp split: vatyp.splits type.splits prim_type.splits)+
+
+lemma wa_abs_upd_val_elims:
+  "wa_abs_upd_val au av n \<tau>s s r w \<sigma> \<Longrightarrow> wa_abs_typing_u au n \<tau>s s r w \<sigma>"
+  "wa_abs_upd_val au av n \<tau>s s r w \<sigma> \<Longrightarrow> wa_abs_typing_v av n \<tau>s"
+  "wa_abs_upd_val (UWA \<tau> len arr) (VWA \<tau> xs) n \<tau>s s r w \<sigma>
+    \<Longrightarrow> unat len = length xs"
+  "wa_abs_upd_val (UWA (TPrim (Num t)) len arr) (VWA (TPrim (Num t)) xs) n \<tau>s s r w \<sigma>
+    \<Longrightarrow> \<forall>i < len. \<exists>x. \<sigma> (arr + size_of_num_type t * i) = option.Some (UPrim x) \<and> 
+      xs ! unat i = VPrim x \<and> lit_type x = Num t"
+  by (unfold wa_abs_upd_val_def[abs_def]; 
+      clarsimp split: atyp.splits vatyp.splits type.splits prim_type.splits)+
+
+lemma wa_abs_typing_u_update:
+  "\<lbrakk>wa_abs_typing_u (UWA (TPrim (Num t)) len arr) n \<tau>s (Boxed Writable ptrl) r w \<sigma>;
+    i < len; lit_type v = Num t\<rbrakk> 
+    \<Longrightarrow> wa_abs_typing_u (UWA (TPrim (Num t)) len arr) n \<tau>s (Boxed Writable ptrl) r w 
+      (upd_store \<sigma> (arr + size_of_num_type t * i) (UPrim v))"
+  by (clarsimp simp: wa_abs_typing_u_def)
+
+lemma wa_abs_typing_v_update:
+  "\<lbrakk>wa_abs_typing_v (VWA (TPrim (Num t)) xs) n \<tau>s; i < length xs; lit_type v = Num t\<rbrakk> 
+    \<Longrightarrow> wa_abs_typing_v (VWA (TPrim (Num t)) (xs[i := VPrim v])) n \<tau>s"
+  apply (clarsimp simp: wa_abs_typing_v_def)
+  apply (erule_tac x = ia in allE)
+  apply (clarsimp simp: nth_list_update)
+  done
+
+lemma wa_abs_upd_val_update:
+  "\<lbrakk>wa_abs_upd_val (UWA (TPrim (Num t)) len arr) (VWA (TPrim (Num t)) xs) n \<tau>s (Boxed Writable ptrl) r w \<sigma>;
+    i < len; lit_type v = Num t\<rbrakk>
+    \<Longrightarrow> wa_abs_upd_val (UWA (TPrim (Num t)) len arr) (VWA (TPrim (Num t)) (xs[unat i := VPrim v])) n 
+      \<tau>s (Boxed Writable ptrl) r w (upd_store \<sigma> (arr + size_of_num_type t * i) (UPrim v))"
+  apply (clarsimp simp: wa_abs_upd_val_def)
+  apply (drule wa_abs_typing_u_update; simp?; clarsimp)
+  apply (drule_tac i = "unat i" in wa_abs_typing_v_update; simp add: word_less_nat_alt; clarsimp)
+  apply (rule conjI; clarsimp simp: nth_list_update)
+  apply (cut_tac a = ia and b = i and c = "size_of_num_type t" and d = len in word_mult_cancel_left_bounded; simp?)
+     apply (clarsimp simp: word_less_nat_alt word_le_nat_alt)+
+   apply (fastforce dest: wa_abs_typing_u_elims(6))
+  apply (case_tac t; clarsimp)
+  done
+
+
 end
 
 section "Sublocale Proof"
@@ -340,12 +425,6 @@ end
 
 context WordArray begin
 
-subsection "Abbreviations"
-
-abbreviation upd_store :: "('f, 'a, 'l) store \<Rightarrow> 'l \<Rightarrow> ('f, 'a, 'l) uval \<Rightarrow> ('f, 'a, 'l) store"
-  where
-"upd_store \<sigma> p v \<equiv> (\<lambda>l. (if l = p then option.Some v else \<sigma> l))" 
-
 subsection "Level 0 \<xi> Abstractions"
 
 \<comment>\<open> This section contains the abstractions for first order calls to word array functions \<close>
@@ -439,17 +518,6 @@ subsection "Level 1 \<xi> Abstractions"
     should probably be automatically generated. \<close>
 
 subsubsection "Update Semantics"
-
-lemma valid_ptr_not_in_frame_same:
-  "\<lbrakk>frame \<sigma> w \<sigma>' w'; p \<notin> w; \<sigma> p = option.Some x\<rbrakk> \<Longrightarrow> \<sigma>' p = option.Some x"
-  apply (clarsimp simp: frame_def)
-  apply (erule_tac x = p in allE)
-  apply clarsimp
-  done
-
-lemma frame_single_update:
-  "frame \<sigma> {l} (upd_store \<sigma> l v) {l}"
-  by (clarsimp simp: frame_def)
 
 type_synonym ('f, 'a, 'l) ufoldmapdef = "(char list, atyp, 32 word) uabsfuns \<Rightarrow> ('f, 'a, 'l) store \<Rightarrow> 
                                          32 word \<Rightarrow> 32 word \<Rightarrow> 32 word \<Rightarrow>
@@ -1272,9 +1340,8 @@ lemma val_wa_foldnb_bod_preservation:
   apply (clarsimp simp: val.matches_def)
   apply (rule val.v_t_record; simp?)
   apply (rule val.v_t_r_cons1)
-   apply (clarsimp simp: wa_abs_typing_v_def)
-   apply (case_tac t; clarsimp)
-   apply (case_tac x5; clarsimp)
+   apply (frule wa_abs_typing_v_elims(1); clarsimp)
+   apply (drule wa_abs_typing_v_elims(2))
    apply (erule_tac x = to in allE; clarsimp)
    apply (rule val.v_t_prim'; clarsimp)
   apply (rule val.v_t_r_cons1; simp?)
@@ -1435,8 +1502,7 @@ lemma val_wa_mapAccumnb_bod_preservation:
    apply (rule val.v_t_record; simp?)
    apply (rule val.v_t_r_cons1; simp?)
     apply (rule val.v_t_abstract; simp)
-    apply (clarsimp simp: wa_abs_typing_v_def)
-    apply (case_tac t; clarsimp)
+    apply (drule wa_abs_typing_v_elims(1); clarsimp)
    apply (rule val.v_t_r_cons1; simp?)
    apply (rule val.v_t_r_empty)
   apply (case_tac "length xs < Suc to")
@@ -1446,8 +1512,7 @@ lemma val_wa_mapAccumnb_bod_preservation:
    apply (rule val.v_t_record; simp?)
    apply (rule val.v_t_r_cons1; simp?)
     apply (rule val.v_t_abstract; simp)
-    apply (clarsimp simp: wa_abs_typing_v_def)
-    apply (case_tac t; clarsimp)
+    apply (drule wa_abs_typing_v_elims(1); clarsimp)
    apply (rule val.v_t_r_cons1; simp?)
    apply (rule val.v_t_r_empty)
   apply (frule val_wa_mapAccumnb_bod_preservation'; clarsimp)
@@ -1464,8 +1529,9 @@ lemma val_wa_mapAccumnb_bod_preservation:
       in val.preservation(1)[of "[]" "[]" _ _ _  \<xi>\<^sub>v, simplified]; simp?)
   apply (clarsimp simp: val.matches_def)
   apply (rule val.v_t_record; simp?)
-  apply (rule val.v_t_r_cons1)
-   apply (clarsimp simp: wa_abs_typing_v_def split: type.splits prim_type.splits)
+   apply (rule val.v_t_r_cons1)
+    apply (frule wa_abs_typing_v_elims(1); clarsimp)
+    apply (drule wa_abs_typing_v_elims(2))
    apply (erule_tac x = to in allE; clarsimp)
    apply (rule val.v_t_prim'; clarsimp)
   apply (rule val.v_t_r_cons1; simp?)
@@ -1478,10 +1544,11 @@ lemma val_wa_mapAccumnb_bod_preservation:
   apply (rule val.v_t_record; simp)
   apply (rule val.v_t_r_cons1)
    apply (rule val.v_t_abstract; simp?)
-    apply (clarsimp simp: wa_abs_typing_v_def split: type.splits prim_type.splits)
-   apply (case_tac "i = to"; simp?)
-    apply (clarsimp simp: val.vval_typing.simps[of _ _ "TPrim _", simplified])
-   apply (erule_tac x = i in allE; clarsimp)+
+   apply (frule wa_abs_typing_v_elims(1); clarsimp)
+   apply (clarsimp simp: val.vval_typing.simps[of _ _ "TPrim _", simplified])
+  apply (drule_tac t = "lit_type _" in sym; clarsimp)
+   apply (drule_tac i = to and v = l and xs = "rxs[to := xs ! to]" in wa_abs_typing_v_update; simp?)
+   apply (drule_tac s = "rxs ! to" in sym; clarsimp)
   apply (rule val.v_t_r_cons1; simp?)
   apply (rule val.v_t_r_empty)
   done
