@@ -18,27 +18,12 @@ import Cogent.Common.Types
 
 import Text.Parsec.Pos (SourcePos)
 
-wordSizeBits :: Size
-wordSizeBits = case architecture of
-                 X86_32 -> 32
-                 X86_64 -> 64
-                 ARM32  -> 32
-
 byteSizeBits :: Size
 byteSizeBits = 8
 
-architecture :: Architecture
-architecture = __cogent_arch
-
-pointerSizeBits :: Size
-pointerSizeBits = wordSizeBits
-
-primIntSizeBits :: PrimInt -> Size
-primIntSizeBits U8      = 8
-primIntSizeBits U16     = 16
-primIntSizeBits U32     = 32
-primIntSizeBits U64     = 64
-primIntSizeBits Boolean = 8
+pointerSizeBits, wordSizeBits :: Size
+pointerSizeBits = primIntSizeBits machineWordType
+wordSizeBits    = primIntSizeBits machineWordType
 
 
 -- When transforming (Offset repExpr offsetSize),

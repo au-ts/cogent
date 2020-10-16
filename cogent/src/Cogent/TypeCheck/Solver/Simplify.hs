@@ -44,7 +44,6 @@ import           Data.List as L (elemIndex, isSubsequenceOf, null, (\\))
 import qualified Data.Map as M
 import           Data.Maybe
 import qualified Data.Set as S
-import           Data.Word (Word32)
 import           Lens.Micro
 
 import           Debug.Trace

@@ -450,6 +450,7 @@ u8MAX  = 256
 u16MAX = 65535
 u32MAX = 4294967296
 
+
 data Bound = GLB | LUB deriving (Eq, Ord)
 
 instance Show Bound where

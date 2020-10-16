@@ -1,3 +1,15 @@
+--
+-- Copyright 2020, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(DATA61_GPL)
+--
+
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
@@ -125,7 +137,7 @@ typeSize (TPrim p) = case p of
                        U32 -> 32
                        U64 -> 64
 typeSize (TUnit) = 0
-typeSize _ = 32 -- assuming 32 bit machine
+typeSize _ = fromIntegral $ primIntSizeBits machineWordType
 
 
 -- Name
