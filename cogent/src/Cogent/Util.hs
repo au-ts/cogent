@@ -428,6 +428,11 @@ getLibgumDir = addTrailingPathSeparator <$> overrideLibgumDirWith "COGENT_LIBGUM
 getStdIncFullPath fp = do sdir <- getLibgumDir
                           return (sdir </> fp)
 
+-- reads a file, ignoring all lines starting with "--" and blank lines, eliminate spaces
+simpleLineParser :: FilePath -> IO [String]
+simpleLineParser = (return . filter (not . L.isPrefixOf "--") . filter (not . null) . map (dropWhile isSpace) . lines) <=< readFile
+
+
 -- If the domain of some maps contains duplicate keys.
 -- Returns Left ks for overlapping keys ks, Right ks for with the set of non-overlapping keys ks.
 overlapping :: (Eq k) => [M.Map k v] -> Either [k] [k]

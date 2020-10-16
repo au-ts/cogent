@@ -61,11 +61,6 @@ import           Cogent.TypeCheck.Base            as TC
 import           Cogent.Util                      as UT
 
 -- import BuildInfo_cogent (githash, buildtime)
-#if __GLASGOW_HASKELL__ < 709
-import           Control.Applicative              (liftA, (<$>))
-#else
-import           Control.Applicative              (liftA)
-#endif
 import           Control.Monad                    (forM, forM_, unless, when, (<=<))
 import           Control.Monad.Trans.Except       (runExceptT)
 -- import Control.Monad.Cont
@@ -647,7 +642,7 @@ parseArgs args = case getOpt' Permute options args of
       parseWithIncludes source __cogent_include >>= \case
         Left err -> hPutStrLn stderr err >> exitFailure
         Right (parsed,pragmas) -> do
-          prune <- T.forM __cogent_prune_call_graph $ return . parseEntryFuncs <=< readFile
+          prune <- T.forM __cogent_prune_call_graph simpleLineParser
           putProgressLn "Resolving dependencies..."
           case reorganize prune parsed of
             Left err -> printError prettyRE [err] >> exitFailure
@@ -763,7 +758,7 @@ parseArgs args = case getOpt' Permute options args of
       let stg = STGMono
       putProgressLn "Monomorphising..."
       efuns <- T.forM __cogent_entry_funcs $
-                 return . (,empty) <=< (readEntryFuncs tced tcst typedefs fts) <=< return . parseEntryFuncs <=< readFile
+                 return . (,empty) <=< (readEntryFuncs tced tcst typedefs fts) <=< simpleLineParser
       entryFuncs <- case efuns of
                       Nothing -> return Nothing
                       Just (Nothing, _) -> exitFailure
@@ -897,7 +892,7 @@ parseArgs args = case getOpt' Permute options args of
         output csfile $ flip LJ.hPutDoc corresSetupThy
       when cp $ do
         putProgressLn "Generating C-refinement proofs..."
-        ent <- T.forM __cogent_entry_funcs $ (liftA parseEntryFuncs) . readFile  -- a simple parser
+        ent <- T.forM __cogent_entry_funcs simpleLineParser  -- a simple parser
         let corresProofThy = corresProof thy inputc (map SY.CoreFunName confns) (map SY.CoreFunName <$> ent) log
         writeFileMsg cpfile
         output cpfile $ flip LJ.hPutDoc corresProofThy
@@ -1049,8 +1044,6 @@ parseArgs args = case getOpt' Permute options args of
         writeFileMsg bifile
         output bifile $ flip hPutStrLn buildinfo
 
-    -- --entry-funcs expects one function name per line; lines starting with -- are comments
-    parseEntryFuncs = filter (not . isPrefixOf "--") . filter (not . null) . map (dropWhile isSpace) . lines
 
     -- ------------------------------------------------------------------------
     -- Helper functions

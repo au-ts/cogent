@@ -75,7 +75,7 @@ source-repository head
 
 custom-setup
   setup-depends:
-                base >= 4.10 && < 4.14
+                base >= 4.10 && < 4.15
               , Cabal >= 3.0
                 -- ^^^ 3.0 is needed as we use Cabal in Setup.hs
               , directory >= 1.2
@@ -175,7 +175,7 @@ library
 
   build-depends:
                 ansi-wl-pprint >= 0.6
-              , base >= 4.10 && < 4.14
+              , base >= 4.10 && < 4.15
               , binary
               , bytestring >= 0.10 
               , containers >= 0.5.8
@@ -255,7 +255,7 @@ Executable cogent
                 cogent
               , ansi-wl-pprint >= 0.6
               , atomic-write >= 0.2.0.4
-              , base >= 4.10 && < 4.14
+              , base >= 4.10 && < 4.15
               , binary
               , containers >= 0.5.8
               , directory >=1.2
@@ -302,7 +302,7 @@ test-suite test-util
   main-is: test-util.hs
   build-depends:
                 cogent
-              , base >= 4.10 && < 4.14
+              , base >= 4.10 && < 4.15
               , containers >= 0.5.8
               , directory >=1.2
               , filepath >= 1.4.0.0
@@ -324,7 +324,7 @@ test-suite test-quickcheck
               , CogentTests.Core
   build-depends:
                 cogent
-              , base >= 4.10 && < 4.14
+              , base >= 4.10 && < 4.15
               , Cabal >= 3.0
               , containers >= 0.5.8
               , mainland-pretty >= 0.2.6

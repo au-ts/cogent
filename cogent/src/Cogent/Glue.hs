@@ -103,7 +103,7 @@ parseFile exts deftypnames filename = do
   let start = startPos filename
 #endif
   s <- lift $ B.readFile filename
-  typnames <- case __cogent_ext_types of Nothing -> lift (return deftypnames); Just f -> lift $ getTypnames f
+  typnames <- case __cogent_ext_types of Nothing -> lift (return deftypnames); Just f -> lift $ simpleLineParser f
   case CP.evalP (__fixme CP.parseUnit) (CP.emptyPState exts typnames s start) of -- FIXME: check for other antiquotes
     Left err -> throwE $ "Error: Failed to parse C: " ++ show err
     Right ds -> return ds
@@ -113,9 +113,6 @@ defaultExts = [Antiquotation, C99, Gcc]
 
 defaultTypnames :: [String]
 defaultTypnames = []
-
-getTypnames :: FilePath -> IO [String]
-getTypnames = liftA lines . readFile
 
 
 -- Desugaring, Monomorphising, and CG
