@@ -55,17 +55,19 @@ exprToLLVM' (TE t (Op Sy.Complement [a])) vars = do
     oa <- exprToLLVM a vars
     xor oa (constInt (typeSize t) (-1))
 exprToLLVM' (TE t (Op Sy.Not [a])) vars = exprToLLVM (TE t (Op Sy.Complement [a])) vars
-exprToLLVM' (TE _ (Member recd fld)) vars = do
-    recv <- exprToLLVM recd vars
-    extractValue recv [toEnum fld]
+exprToLLVM' (TE _ (Member recd fld)) vars = loadMember recd fld vars >>= (pure . fst)
 exprToLLVM' (TE _ (Take _ recd fld body)) vars = do
-    recv <- exprToLLVM recd vars
-    fldv <- extractValue recv [toEnum fld]
+    (recv, fldv) <- loadMember recd fld vars
     exprToLLVM body (fldv : recv : vars)
 exprToLLVM' (TE _ (Put recd fld val)) vars = do
     recv <- exprToLLVM recd vars
     v <- exprToLLVM val vars
-    insertValue recv v [toEnum fld]
+    if isUnboxed (exprType recd)
+        then insertValue recv v [toEnum fld]
+        else do
+            fldp <- gep recv [int32 0, int32 (toEnum fld)]
+            store fldp 0 v
+            pure recv
 exprToLLVM' (TE _ (Let _ val body)) vars = do
     v <- exprToLLVM val vars
     exprToLLVM body (v : vars)
@@ -164,6 +166,20 @@ castVal t o = do
     store tmp 4 o
     casted <- bitcast tmp (ptr t)
     load casted 4
+
+loadMember ::
+    (MonadIRBuilder m, MonadModuleBuilder m, MonadFix m, Show a, Show b) =>
+    TypedExpr t v a b ->
+    Int ->
+    [Operand] ->
+    m (Operand, Operand)
+loadMember recd fld vars = do
+    recv <- exprToLLVM recd vars
+    fldv <-
+        if isUnboxed (exprType recd)
+            then extractValue recv [toEnum fld]
+            else gep recv [int32 0, int32 (toEnum fld)] >>= \fldp -> load fldp 0
+    pure (recv, fldv)
 
 tagIndex :: Core.Type t b -> TagName -> Integer
 tagIndex (TSum ts) tag =

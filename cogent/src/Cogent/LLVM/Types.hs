@@ -118,7 +118,7 @@ isPrim _ = False
 typeLayout :: Core.Type t b -> TypeLayout
 typeLayout (TPrim p) = Im (primIntSizeBits p)
 typeLayout TUnit = Im 8
-typeLayout (TRecord _ ts _) = St (typeLayout <$> fieldTypes ts)
+typeLayout (TRecord _ ts Unboxed) = St (typeLayout <$> fieldTypes ts)
 typeLayout (TSum ts) = St [Im 32, Un (typeLayout <$> fieldTypes ts)]
 typeLayout _ = Ptr
 
