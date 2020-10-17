@@ -1,13 +1,27 @@
+--
+-- Copyright 2020, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(DATA61_GPL)
+--
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Cogent.LLVM.CCompat where
 
+-- This module attempts to create wrapper functions whose signatures should
+-- match those of equivalent C functions compiled with clang
+
 import Cogent.Common.Syntax (VarName)
-import Cogent.Core as Core
+import Cogent.Core as Core (Definition (FunDef), Type (TFun, TRecord, TSum), TypedExpr, isUnboxed)
 import Cogent.LLVM.Custom (function)
-import Cogent.LLVM.Expr (castVal)
-import Cogent.LLVM.Types
+import Cogent.LLVM.Expr (castVal, constUndef)
+import Cogent.LLVM.Types (isNativePointer, isPrim, pointerSizeBits, toLLVMType, typeSize)
 import LLVM.AST as AST hiding (function)
 import LLVM.AST.Attribute (ParameterAttribute (ByVal, NoAlias, SRet))
 import qualified LLVM.AST.Constant as C
@@ -18,6 +32,11 @@ import LLVM.IRBuilder.Monad (MonadIRBuilder, block, named)
 
 data RegLayout = One AST.Type | Two AST.Type AST.Type | Ref | NativeRef deriving (Show)
 
+-- A function parameter or return type may be coerced to:
+--  - a single parameter (if the original parameter can fit into one register)
+--  - two parameters (if the original parameter can fit into two registers)
+--  - a reference (if the original parameter is too large)
+--  - a 'native reference'  (if the original parameter is already a pointer)
 regLayout :: Core.Type t b -> RegLayout
 regLayout t
     | isNativePointer t = NativeRef
@@ -28,11 +47,16 @@ regLayout t
         p = pointerSizeBits
         s = typeSize t
 
+-- We must create wrappers for functions which accept or return variants or unboxed records
 needsWrapper :: Core.Type t b -> Bool
 needsWrapper TSum {} = True
 needsWrapper t@TRecord {} = isUnboxed t
 needsWrapper _ = False
 
+-- Given an original definition, emit a function which wraps it
+-- The arguments for the wrapper are the coerced original arguments, and possibly
+-- a return argument
+-- The return type of the wrapper is either the coerced return type, or void
 auxCFFIDef :: Core.Definition TypedExpr VarName VarName -> ModuleBuilder Operand
 auxCFFIDef (FunDef _ name _ _ t rt _) =
     let args = case regLayout t of
@@ -54,6 +78,8 @@ auxCFFIDef (FunDef _ name _ _ t rt _) =
             returnType
             (typeToWrapper name t rt returnType (regLayout t))
 
+-- Given the original function name and type, and the wrapper's type, produce a
+-- function body which correctly calls the original function and coerces its output
 typeToWrapper ::
     MonadIRBuilder m =>
     String ->
@@ -65,10 +91,13 @@ typeToWrapper ::
     m ()
 typeToWrapper name t rt wrapperRT argLayout (r0 : args) = do
     block `named` "entry"
-    -- Wrap arguments
+    -- Handle arguments
     arg <- case (argLayout, needsWrapper t) of
+        -- No need to coerce arguments
         (_, False) -> pure a0
+        -- Argument is a reference, so all we do is load it
         (Ref, _) -> load a0 0
+        -- Coerce arguments depending on their layout
         _ -> do
             argNative <- case argLayout of
                 One _ -> pure a0
@@ -85,17 +114,23 @@ typeToWrapper name t rt wrapperRT argLayout (r0 : args) = do
                     (mkName name)
                 )
     res <- call fun [(arg, [])]
-    -- Handle return values
+    -- Handle return value
     case (wrapperRT, needsWrapper rt) of
+        -- No need to coerce return value
         (_, False) -> ret res
+        -- Return value should be void, with the value stored in a return argument
         (VoidType, _) -> do
             store r0 0 res
             retVoid
+        -- Coerce the return value
         _ -> do
             retCast <- castVal wrapperRT res
             ret retCast
     where
+        -- a0 is the first non-return argument to the wrapper
         a0 = case wrapperRT of
             VoidType -> head args
             _ -> r0 -- if there is no r0, a0 is actually first arg
+
+        -- a1 is the last argument to the wrapper (possibly = a0)
         a1 = last args
