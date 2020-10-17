@@ -20,6 +20,7 @@ module Cogent.LLVM.Types (
     isNativePointer,
     pointerSizeBits,
     isPrim,
+    fieldTypes,
 ) where
 
 -- This module mostly deals with converting Cogent types to LLVM types, plus
@@ -84,12 +85,6 @@ toLLVMType (TFun t1 t2) =
 toLLVMType t@(TCon _ _ Unboxed) = NamedTypeReference (mkName (nameType t))
 -- A boxed abstract type is a pointer to the unboxed representation
 toLLVMType (TCon tn ts (Boxed _ _)) = ptr $ toLLVMType (TCon tn ts Unboxed)
-#ifdef BUILTIN_ARRAYS
-toLLVMType (TArray t l s mh) =
-  ArrayType { nArrayElements = __todo "toLLVMType: we cannot evaluate LExpr to a constant"
-            , elementType = toLLVMType t
-            }
-#endif
 toLLVMType _ = error "unknown type"
 
 -- Convert a Cogent type to a string name for it

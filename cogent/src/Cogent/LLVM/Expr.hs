@@ -22,7 +22,7 @@ import Cogent.Common.Syntax as Sy
 import Cogent.Common.Types (PrimInt (Boolean))
 import Cogent.Core as Core
 import Cogent.Dargent.Util (primIntSizeBits)
-import Cogent.LLVM.Types (maxMember, nameType, tagType, toLLVMType, typeSize)
+import Cogent.LLVM.Types (fieldTypes, maxMember, nameType, tagType, toLLVMType, typeSize)
 import Control.Monad (void)
 import Control.Monad.Fix (MonadFix)
 import Data.Char (ord)
@@ -54,7 +54,8 @@ exprToLLVM e@(TE t _) vars = monomorphicTypeDef t >> exprToLLVM' e vars
 -- If the provided type is abstract, or contains one, emit a typedef for it
 monomorphicTypeDef :: (MonadModuleBuilder m) => Core.Type t b -> m ()
 monomorphicTypeDef t@TCon {} = void $ typedef (mkName (nameType t)) Nothing
--- TODO: handle types which contain other types
+monomorphicTypeDef (TRecord _ ts _) = mapM_ monomorphicTypeDef $ fieldTypes ts
+monomorphicTypeDef (TSum ts) = mapM_ monomorphicTypeDef $ fieldTypes ts
 monomorphicTypeDef _ = pure ()
 
 -- Given a single typed expression, and a list of in-scope variables, create the
