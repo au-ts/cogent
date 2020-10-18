@@ -11,17 +11,7 @@
 --
 {-# LANGUAGE DisambiguateRecordFields #-}
 
-module Cogent.LLVM.Types (
-    toLLVMType,
-    typeSize,
-    nameType,
-    maxMember,
-    tagType,
-    isNativePointer,
-    pointerSizeBits,
-    isPrim,
-    fieldTypes,
-) where
+module Cogent.LLVM.Types where
 
 -- This module mostly deals with converting Cogent types to LLVM types, plus
 -- various utilities for types
@@ -36,19 +26,6 @@ import Data.Maybe (fromMaybe)
 import LLVM.AST
 import qualified LLVM.AST as AST
 import LLVM.AST.Type (i32, i8, ptr)
-
--- A type can be laid out as:
---  - a pointer
---  - an immediate value of some number of bits
---  - a struct aggregating more type layouts
---  - a union aggregating more type layouts
--- Some stuff here currently ignores Dargent for the sake of simplicity
-data TypeLayout = Ptr | Im Size | St [TypeLayout] | Un [TypeLayout]
-    deriving (Show)
-
--- In future we should just import this from Dargent
-pointerSizeBits :: Size
-pointerSizeBits = 64 -- need to check 32 bit edge cases
 
 -- Given a Cogent type, produce an LLVM type
 toLLVMType :: Core.Type t b -> AST.Type
@@ -131,9 +108,9 @@ nameType _ = error "unknown type"
 fieldTypes :: [(s, (Core.Type t b, Bool))] -> [Core.Type t b]
 fieldTypes = map (fst . snd)
 
--- Get the largest field type
+-- Get the largest field type, preferring earlier fields in the case of a tie
 maxMember :: [(s, (Core.Type t b, Bool))] -> Core.Type t b
-maxMember ts = maximumBy (compare `on` typeSize) (fieldTypes ts)
+maxMember ts = maximumBy (compare `on` typeSize) (reverse (fieldTypes ts))
 
 -- Look up a variant constructor's argument type
 tagType :: Core.Type t b -> TagName -> Core.Type t b
@@ -144,29 +121,35 @@ tagType (TSum ts) tag =
             (lookup tag ts)
 tagType _ _ = error "non variant type has no tags"
 
--- Check whether a type would be represented as a native pointer or not
-isNativePointer :: Core.Type t b -> Bool
-isNativePointer t = case typeLayout t of
-    Ptr -> True
-    _ -> False
-
 -- Check if a type is primitive or not
 isPrim :: Core.Type t b -> Bool
 isPrim TPrim {} = True
 isPrim TUnit = True
 isPrim _ = False
 
--- Calculate the representation of a Cogent type
-typeLayout :: Core.Type t b -> TypeLayout
+-- In future we should just import this from Dargent
+pointerSizeBits :: Size
+pointerSizeBits = 64 -- need to check 32 bit edge cases
+
+-- A C type can be laid out as:
+--  - a pointer
+--  - an immediate value of some number of bits
+--  - a struct aggregating more type layouts
+--  - a union aggregating more type layouts
+-- Some stuff here currently ignores Dargent for the sake of simplicity
+data CLayout = Ptr AST.Type | Im Size | St [CLayout] | Un [CLayout]
+
+-- Calculate the C-like representation of a Cogent type
+typeLayout :: Core.Type t b -> CLayout
 typeLayout (TPrim p) = Im (primIntSizeBits p)
 typeLayout TUnit = Im 8
 typeLayout (TRecord _ ts Unboxed) = St (typeLayout <$> fieldTypes ts)
 typeLayout (TSum ts) = St [Im 32, Un (typeLayout <$> fieldTypes ts)]
-typeLayout _ = Ptr
+typeLayout t = Ptr (toLLVMType t)
 
 -- Calculate the minimum bit alignment of a type layout
-typeAlignment :: TypeLayout -> Size
-typeAlignment Ptr = pointerSizeBits
+typeAlignment :: CLayout -> Size
+typeAlignment (Ptr _) = pointerSizeBits
 typeAlignment (Im i) = min i pointerSizeBits
 typeAlignment (St ts) = maximum (typeAlignment <$> ts)
 typeAlignment (Un ts) = maximum (typeAlignment <$> ts)
@@ -177,21 +160,35 @@ roundUp k n
     | k `mod` n == 0 = k
     | otherwise = (k `div` n + 1) * n
 
--- Given a Cogent type, return how many bits it should occupy
-typeSize :: Core.Type t b -> Size
-typeSize t = typeSize' (typeLayout t)
-    where
-        -- Calculate the bits required for a type layout
-        typeSize' :: TypeLayout -> Size
-        typeSize' Ptr = pointerSizeBits
-        typeSize' (Im i) = i
-        typeSize' t@(St ts) = roundUp (typeSize'' 0 ts) (typeAlignment t)
-        typeSize' t@(Un ts) = roundUp (maximum (typeSize' <$> ts)) (typeAlignment t)
+-- A section of memory is made up of padding, immediate values, and pointer values
+data Field = Padding | Value | Pointer AST.Type | Invalid
+type MemLayout = [(Field, Size)]
 
-        -- The accumulator keeps track of the current offset of the type so far
-        typeSize'' :: Size -> [TypeLayout] -> Size
-        typeSize'' offset [] = offset
-        typeSize'' offset (t : ts) =
-            let size = typeSize' t
+-- Convert a C-like layout to a memory layout including padding
+flatLayout :: CLayout -> (Size, MemLayout)
+flatLayout (Ptr t) = (pointerSizeBits, [(Pointer t, pointerSizeBits)])
+flatLayout (Im i) = (i, [(Value, i)])
+flatLayout (Un ts) = maximumBy (compare `on` fst) (reverse (flatLayout <$> ts))
+flatLayout (St ts) = foldl flatLayout' (0, []) ts
+    where
+        flatLayout' :: (Size, MemLayout) -> CLayout -> (Size, MemLayout)
+        flatLayout' (offset, layout) t =
+            let layout' = flatLayout t
                 alignment = typeAlignment t
-             in typeSize'' (size + roundUp offset alignment) ts
+                offset' = roundUp offset alignment
+                padding = offset' - offset
+             in ( offset' + fst layout'
+                , layout ++ [(Padding, padding) | padding > 0] ++ snd layout'
+                )
+
+-- Given a Cogent type, return how many bits it should occupy with padding
+typeSize :: Core.Type t b -> Size
+typeSize = fst . flatLayout . typeLayout
+
+-- Check if the thing at an offset in a layout is a value, pointer, padding or nothing
+memLookup :: Size -> MemLayout -> Field
+memLookup _ [] = Invalid
+memLookup offset ((m, s) : ms)
+    | offset == 0 = m
+    | offset < 0 = Invalid
+    | otherwise = memLookup (offset - s) ms

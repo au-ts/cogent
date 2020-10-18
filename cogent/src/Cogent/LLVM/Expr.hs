@@ -45,7 +45,7 @@ import LLVM.IRBuilder.Monad (MonadIRBuilder, block, currentBlock, emitInstr, nam
 -- Also create monomorphised typedefs for any abstract types that appear in the
 -- expression type
 exprToLLVM ::
-    (MonadIRBuilder m, MonadModuleBuilder m, MonadFix m, Show a, Show b) =>
+    (MonadIRBuilder m, MonadModuleBuilder m, MonadFix m) =>
     TypedExpr t v a b ->
     [Operand] ->
     m Operand
@@ -61,7 +61,7 @@ monomorphicTypeDef _ = pure ()
 -- Given a single typed expression, and a list of in-scope variables, create the
 -- LLVM IR to compute the expression
 exprToLLVM' ::
-    (MonadIRBuilder m, MonadModuleBuilder m, MonadFix m, Show a, Show b) =>
+    (MonadIRBuilder m, MonadModuleBuilder m, MonadFix m) =>
     TypedExpr t v a b ->
     [Operand] ->
     m Operand
@@ -196,7 +196,7 @@ exprToLLVM' (TE _ (App f a)) vars = do
     arg <- exprToLLVM a vars
     fun <- exprToLLVM f vars
     call fun [(arg, [])]
-exprToLLVM' e _ = error $ "unknown" ++ show e
+exprToLLVM' _ _ = error "unknown expression"
 
 -- Map a Cogent binary operator to LLVM binary operators
 toLLVMOp :: MonadIRBuilder m => Sy.Op -> (Operand -> Operand -> m Operand)
@@ -234,7 +234,7 @@ castVal t o = do
 -- For unboxed records, this is just an extractvalue instruction, for boxed it
 -- requires calculating the field pointer and then loading the value
 loadMember ::
-    (MonadIRBuilder m, MonadModuleBuilder m, MonadFix m, Show a, Show b) =>
+    (MonadIRBuilder m, MonadModuleBuilder m, MonadFix m) =>
     TypedExpr t v a b ->
     Int ->
     [Operand] ->

@@ -17,11 +17,11 @@ module Cogent.LLVM.CCompat where
 -- This module attempts to create wrapper functions whose signatures should
 -- match those of equivalent C functions compiled with clang
 
-import Cogent.Common.Syntax (VarName)
+import Cogent.Common.Syntax (Size, VarName)
 import Cogent.Core as Core (Definition (FunDef), Type (TFun, TRecord, TSum), TypedExpr, isUnboxed)
 import Cogent.LLVM.Custom (function)
 import Cogent.LLVM.Expr (castVal, constUndef)
-import Cogent.LLVM.Types (isNativePointer, isPrim, pointerSizeBits, toLLVMType, typeSize)
+import Cogent.LLVM.Types
 import LLVM.AST as AST hiding (function)
 import LLVM.AST.Attribute (ParameterAttribute (ByVal, NoAlias, SRet))
 import qualified LLVM.AST.Constant as C
@@ -30,7 +30,7 @@ import LLVM.IRBuilder.Instruction (call, insertValue, load, ret, retVoid, store)
 import LLVM.IRBuilder.Module (ModuleBuilder, ParameterName (NoParameterName))
 import LLVM.IRBuilder.Monad (MonadIRBuilder, block, named)
 
-data RegLayout = One AST.Type | Two AST.Type AST.Type | Ref | NativeRef deriving (Show)
+data RegLayout = One AST.Type | Two AST.Type AST.Type | Ref
 
 -- A function parameter or return type may be coerced to:
 --  - a single parameter (if the original parameter can fit into one register)
@@ -39,13 +39,18 @@ data RegLayout = One AST.Type | Two AST.Type AST.Type | Ref | NativeRef deriving
 --  - a 'native reference'  (if the original parameter is already a pointer)
 regLayout :: Core.Type t b -> RegLayout
 regLayout t
-    | isNativePointer t = NativeRef
-    | s <= p || isPrim t = One (IntegerType (fromInteger s))
-    | s <= 2 * p = Two (IntegerType (fromInteger p)) (IntegerType (fromInteger (s - p)))
+    | size <= p || isPrim t = One (toReg 0 layout size)
+    | size <= 2 * p = Two (toReg 0 layout p) (toReg p layout (size - p))
     | otherwise = Ref
     where
         p = pointerSizeBits
-        s = typeSize t
+        (size, layout) = (flatLayout . typeLayout) t
+
+-- Look at offset inside memory layout to convert it to a single register argument
+toReg :: Size -> MemLayout -> Integer -> AST.Type
+toReg offset layout regSize = case memLookup offset layout of
+    Pointer pt -> pt
+    _ -> IntegerType (fromInteger regSize)
 
 -- We must create wrappers for functions which accept or return variants or unboxed records
 needsWrapper :: Core.Type t b -> Bool
@@ -60,7 +65,7 @@ needsWrapper _ = False
 auxCFFIDef :: Core.Definition TypedExpr VarName VarName -> ModuleBuilder Operand
 auxCFFIDef (FunDef _ name _ _ t rt _) =
     let args = case regLayout t of
-            NativeRef -> [(toLLVMType t, [], NoParameterName)]
+            -- NativeRef -> [(toLLVMType t, [], NoParameterName)]
             One a0 -> [(a0, [], NoParameterName)]
             Two a0 a1 ->
                 [ (a0, [], NoParameterName)
@@ -68,7 +73,7 @@ auxCFFIDef (FunDef _ name _ _ t rt _) =
                 ]
             Ref -> [(ptr (toLLVMType t), [ByVal], NoParameterName)]
         (returnArgs, returnType) = case regLayout rt of
-            NativeRef -> ([], toLLVMType rt)
+            -- NativeRef -> ([], toLLVMType rt)
             One r0 -> ([], r0)
             Two r0 r1 -> ([], StructureType False [r0, r1])
             Ref -> ([(ptr (toLLVMType rt), [NoAlias, SRet], NoParameterName)], VoidType)

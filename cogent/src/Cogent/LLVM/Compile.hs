@@ -24,7 +24,6 @@ import Control.Monad (void, (>=>))
 import qualified Data.ByteString.Char8 as BS
 import Data.ByteString.Internal (packChars)
 import Data.ByteString.Short.Internal (toShort)
-import Debug.Trace (traceShowId)
 import LLVM.AST (Module (moduleSourceFileName), mkName)
 import LLVM.Context (withContext)
 import LLVM.IRBuilder.Instruction (ret)
@@ -76,7 +75,7 @@ toLLVM :: [Definition TypedExpr VarName VarName] -> FilePath -> IO ()
 toLLVM monoed source = do
   let sourceFilename = toShort (packChars source)
       ast =
-        (buildModule sourceFilename (mapM_ toLLVMDef (traceShowId monoed)))
+        (buildModule sourceFilename (mapM_ toLLVMDef monoed))
           { moduleSourceFileName = sourceFilename
           }
       resName = replaceExtension source "ll"
