@@ -205,7 +205,6 @@ toLLVMOp Sy.Minus = sub
 toLLVMOp Sy.Times = mul
 toLLVMOp Sy.Divide = udiv
 toLLVMOp Sy.Mod = urem
-toLLVMOp Sy.Not = error "not binary"
 toLLVMOp Sy.And = IR.and
 toLLVMOp Sy.Or = IR.or
 toLLVMOp Sy.Gt = icmp UGT
@@ -220,7 +219,7 @@ toLLVMOp Sy.BitXor = xor
 toLLVMOp Sy.LShift = shl
 -- we can't use the lshr helper because we don't want 'exact' enabled
 toLLVMOp Sy.RShift = \a b -> emitInstr (typeOf a) $ LShr False a b []
-toLLVMOp Sy.Complement = error "not binary"
+toLLVMOp _ = error "not a binary operator"
 
 -- Cast a value by temporarily storing it on the stack and casting the pointer
 castVal :: MonadIRBuilder m => AST.Type -> Operand -> m Operand
@@ -251,9 +250,9 @@ loadMember recd fld vars = do
 tagIndex :: Core.Type t b -> TagName -> Int
 tagIndex (TSum ts) tag =
     fromMaybe
-        (error "cant find tag")
+        (error "unknown tag")
         (findIndex ((== tag) . fst) ts)
-tagIndex _ _ = error "non variant type has no tags"
+tagIndex _ _ = error "not a variant type"
 
 -- Helper to construct integer with a certain size and value
 constInt :: Integer -> Integer -> Operand

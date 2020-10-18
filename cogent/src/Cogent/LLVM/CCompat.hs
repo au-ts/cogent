@@ -18,6 +18,7 @@ module Cogent.LLVM.CCompat where
 -- match those of equivalent C functions compiled with clang
 
 import Cogent.Common.Syntax (Size, VarName)
+import Cogent.Compiler (__impossible)
 import Cogent.Core as Core (Definition (FunDef), Type (TFun, TRecord, TSum), TypedExpr, isUnboxed)
 import Cogent.LLVM.Custom (function)
 import Cogent.LLVM.Expr (castVal, constUndef)
@@ -82,6 +83,7 @@ auxCFFIDef (FunDef _ name _ _ t rt _) =
             (returnArgs ++ args)
             returnType
             (typeToWrapper name t rt returnType (regLayout t))
+auxCFFIDef _ = __impossible "auxCFFIDef"
 
 -- Given the original function name and type, and the wrapper's type, produce a
 -- function body which correctly calls the original function and coerces its output
@@ -110,6 +112,7 @@ typeToWrapper name t rt wrapperRT argLayout (r0 : args) = do
                     let aggT = StructureType False [a0t, a1t]
                      in insertValue (constUndef aggT) a0 [0]
                             >>= \ref -> insertValue ref a1 [1]
+                _ -> __impossible "argLayout can't be Ref here"
             castVal (toLLVMType t) argNative
     -- Call inner function
     let fun =

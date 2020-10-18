@@ -18,6 +18,7 @@ module Cogent.LLVM.Types where
 
 import Cogent.Common.Syntax (Size, TagName, TypeName)
 import Cogent.Common.Types (PrimInt (..), Sigil (Boxed, Unboxed))
+import Cogent.Compiler (__impossible)
 import Cogent.Core as Core (Type (TCon, TFun, TPrim, TRecord, TString, TSum, TUnit))
 import Cogent.Dargent.Util (primIntSizeBits)
 import Data.Function (on)
@@ -73,6 +74,7 @@ nameType (TPrim p) = case p of
     U32 -> "U32"
     U64 -> "U64"
     Boolean -> "Bool"
+    _ -> "Unknown"
 nameType (TRecord _ ts _) =
     "{"
         ++ intercalate
@@ -117,9 +119,9 @@ tagType :: Core.Type t b -> TagName -> Core.Type t b
 tagType (TSum ts) tag =
     fst $
         fromMaybe
-            (error "cant find tag")
+            (error "unknown tag")
             (lookup tag ts)
-tagType _ _ = error "non variant type has no tags"
+tagType _ _ = error "not a variant type"
 
 -- Check if a type is primitive or not
 isPrim :: Core.Type t b -> Bool
@@ -153,6 +155,7 @@ typeAlignment (Ptr _) = pointerSizeBits
 typeAlignment (Im i) = min i pointerSizeBits
 typeAlignment (St ts) = maximum (typeAlignment <$> ts)
 typeAlignment (Un ts) = maximum (typeAlignment <$> ts)
+typeAlignment _ = __impossible "typeAlignment"
 
 -- Round up k to the next multiple of n, unless k already is a multiple of n
 roundUp :: Integer -> Integer -> Integer
@@ -180,6 +183,7 @@ flatLayout (St ts) = foldl flatLayout' (0, []) ts
              in ( offset' + fst layout'
                 , layout ++ [(Padding, padding) | padding > 0] ++ snd layout'
                 )
+flatLayout _ = __impossible "flatLayout"
 
 -- Given a Cogent type, return how many bits it should occupy with padding
 typeSize :: Core.Type t b -> Size

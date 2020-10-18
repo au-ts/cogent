@@ -16,6 +16,7 @@ module Cogent.LLVM.Compile (toLLVM) where
 -- This module provides the external interface to the LLVM backend for Cogent
 
 import Cogent.Common.Syntax (VarName)
+import Cogent.Compiler (__impossible)
 import Cogent.Core as Core (Definition (..), TypedExpr)
 import Cogent.LLVM.CCompat (auxCFFIDef)
 import Cogent.LLVM.Expr (exprToLLVM, monomorphicTypeDef)
@@ -56,11 +57,13 @@ toLLVMDef (AbsDecl _ name _ _ t rt) =
       (mkName name)
       [toLLVMType t]
       (toLLVMType rt)
+      -- do we need a CFFI def for abstract functions?
       >> monomorphicTypeDef t
       >> monomorphicTypeDef rt
 -- Don't declare typedefs now, instead declare a monomorphic one when we see the
 -- type actually used
 toLLVMDef TypeDef {} = pure ()
+toLLVMDef _ = __impossible "toLLVMDef"
 
 -- Write an LLVM module to a file handle
 writeLLVM :: Module -> Handle -> IO ()
