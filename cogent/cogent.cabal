@@ -210,6 +210,7 @@ library
                  , Cogent.LLVM.Expr
                  , Cogent.LLVM.Types
                  , Cogent.LLVM.CCompat
+                 , Cogent.LLVM.CHeader
     cpp-options: -DWITH_LLVM
     build-depends: llvm-hs >= 9.0.1, llvm-hs-pure >= 9.0.0
   if flag(builtin-arrays) || flag(refinement-types)

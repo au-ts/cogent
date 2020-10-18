@@ -19,6 +19,7 @@ import Cogent.Common.Syntax (VarName)
 import Cogent.Compiler (__impossible)
 import Cogent.Core as Core (Definition (..), TypedExpr)
 import Cogent.LLVM.CCompat (auxCFFIDef)
+import Cogent.LLVM.CHeader (createCHeader)
 import Cogent.LLVM.Expr (exprToLLVM, monomorphicTypeDef)
 import Cogent.LLVM.Types (toLLVMType)
 import Control.Monad (void, (>=>))
@@ -43,7 +44,8 @@ toLLVMDef :: Definition TypedExpr VarName VarName -> ModuleBuilder ()
 toLLVMDef f@(FunDef _ name _ _ t rt body) =
   void $
     function
-      (mkName name)
+      -- append . to end of fn name for non-wrapped version
+      (mkName (name ++ "."))
       [(toLLVMType t, NoParameterName)]
       (toLLVMType rt)
       ((\vars -> block `named` "entry" >> exprToLLVM body vars) >=> ret)
@@ -82,7 +84,10 @@ toLLVM monoed source = do
           { moduleSourceFileName = sourceFilename
           }
       resName = replaceExtension source "ll"
+      hName = replaceExtension source "h"
+      base = replaceExtension source ""
   outFile <- openFile resName WriteMode
   writeLLVM ast outFile
   hClose outFile
+  writeFile hName (createCHeader monoed base)
   return ()

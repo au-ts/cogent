@@ -190,7 +190,8 @@ exprToLLVM' (TE t (Fun f _ _ _)) _ =
         ConstantOperand $
             C.GlobalReference
                 (toLLVMType t)
-                (mkName (unCoreFunName f))
+                -- append . to end of fn name for non-wrapped version
+                (mkName (unCoreFunName f ++ "."))
 -- To apply a function, evaluate the argument and function then call it
 exprToLLVM' (TE _ (App f a)) vars = do
     arg <- exprToLLVM a vars

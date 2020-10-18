@@ -12,14 +12,14 @@
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Cogent.LLVM.CCompat where
+module Cogent.LLVM.CCompat (auxCFFIDef) where
 
 -- This module attempts to create wrapper functions whose signatures should
 -- match those of equivalent C functions compiled with clang
 
 import Cogent.Common.Syntax (Size, VarName)
 import Cogent.Compiler (__impossible)
-import Cogent.Core as Core (Definition (FunDef), Type (TFun, TRecord, TSum), TypedExpr, isUnboxed)
+import Cogent.Core as Core (Definition (FunDef), Type (..), TypedExpr, isUnboxed)
 import Cogent.LLVM.Custom (function)
 import Cogent.LLVM.Expr (castVal, constUndef)
 import Cogent.LLVM.Types
@@ -79,7 +79,7 @@ auxCFFIDef (FunDef _ name _ _ t rt _) =
             Two r0 r1 -> ([], StructureType False [r0, r1])
             Ref -> ([(ptr (toLLVMType rt), [NoAlias, SRet], NoParameterName)], VoidType)
      in function
-            (mkName (name ++ "_ccompat"))
+            (mkName name)
             (returnArgs ++ args)
             returnType
             (typeToWrapper name t rt returnType (regLayout t))
@@ -119,7 +119,7 @@ typeToWrapper name t rt wrapperRT argLayout (r0 : args) = do
             ConstantOperand
                 ( C.GlobalReference
                     (toLLVMType (TFun t rt))
-                    (mkName name)
+                    (mkName (name ++ "."))
                 )
     res <- call fun [(arg, [])]
     -- Handle return value
