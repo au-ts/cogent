@@ -1,4 +1,3 @@
-{-# LANGUAGE DisambiguateRecordFields #-}
 --
 -- Copyright 2020, Data61
 -- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
@@ -10,6 +9,7 @@
 --
 -- @TAG(DATA61_GPL)
 --
+{-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecursiveDo #-}
 
@@ -88,7 +88,7 @@ exprToLLVM' (TE t (Op Sy.Complement [a])) vars = do
 -- Not is simply complement but for the Bool type
 exprToLLVM' (TE t (Op Sy.Not [a])) vars = exprToLLVM (TE t (Op Sy.Complement [a])) vars
 -- For record member access just load the member and yield the field value
-exprToLLVM' (TE _ (Member recd fld)) vars = loadMember recd fld vars >>= (pure . fst)
+exprToLLVM' (TE _ (Member recd fld)) vars = fst <$> loadMember recd fld vars
 -- Take requires us to bind the field value and also the record value as new
 -- variables which we can use to evaluate the body of the expression
 exprToLLVM' (TE _ (Take _ recd fld body)) vars = do

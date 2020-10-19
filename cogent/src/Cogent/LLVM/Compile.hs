@@ -73,7 +73,7 @@ writeLLVM mod file =
   withContext $
     \ctx ->
       withModuleFromAST ctx mod moduleLLVMAssembly
-        >>= \ir -> BS.hPut file ir
+        >>= BS.hPut file
 
 -- Take a list of Cogent definitions and output the resultant module to a file
 toLLVM :: [Definition TypedExpr VarName VarName] -> FilePath -> IO ()
