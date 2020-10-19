@@ -2,7 +2,8 @@ module Cogent.LLVM.CHeader (createCHeader) where
 
 -- This module attempts to create a header file so the LLVM code can be compiled
 -- along with C code
--- We should reuse the existing .h file generation but this is simpler for now
+-- We might be able to reuse the existing .h file generation but this is
+-- simpler for now
 
 import Cogent.Common.Syntax (FunName, VarName)
 import Cogent.Common.Types (PrimInt (..), Sigil (Boxed, Unboxed))
@@ -12,7 +13,7 @@ import Data.Char (toUpper)
 import Data.List (intercalate, sort)
 import Debug.Trace (traceShowM)
 
--- Really should be newtype, but adds a lot of complexity
+-- Instead of using strings for everything it would be wiser to use quasiquoted C or something
 type CType = String
 type CIdent = String
 
@@ -30,7 +31,7 @@ cogentDefs :: [String]
 cogentDefs =
     [ "typedef unsigned char u8;"
     , "typedef unsigned short u16;"
-    , "typedef unsigned int u16;"
+    , "typedef unsigned int u32;"
     , "typedef unsigned long long u64;"
     , "typedef u8 bool_t;"
     , "typedef u8 unit_t;"
@@ -54,7 +55,7 @@ createCHeader monoed mod =
 
 -- From a single Cogent definition, emit C definitions
 define :: Core.Definition TypedExpr VarName VarName -> State HGen ()
-define (FunDef _ name _ _ t rt _) = toCFun name t rt
+define (FunDef _ name _ _ t rt _) = toCFun (name ++ "__c") t rt
 define (AbsDecl _ name _ _ t rt) = toCFun name t rt
 define (TypeDef name _ (Just t)) = toCType t >>= typeAlias name
 define _ = pure ()

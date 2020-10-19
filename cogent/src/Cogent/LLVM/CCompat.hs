@@ -12,17 +12,18 @@
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Cogent.LLVM.CCompat (auxCFFIDef) where
+module Cogent.LLVM.CCompat (wrapC, wrapLLVM) where
 
 -- This module attempts to create wrapper functions whose signatures should
 -- match those of equivalent C functions compiled with clang
 
-import Cogent.Common.Syntax (Size, VarName)
+import Cogent.Common.Syntax (FunName, Size)
 import Cogent.Compiler (__impossible)
-import Cogent.Core as Core (Definition (FunDef), Type (..), TypedExpr, isUnboxed)
+import Cogent.Core as Core (Type (..), isUnboxed)
 import Cogent.LLVM.Custom (function)
 import Cogent.LLVM.Expr (castVal, constUndef)
 import Cogent.LLVM.Types
+import Control.Monad (void)
 import LLVM.AST as AST hiding (function)
 import LLVM.AST.Attribute (ParameterAttribute (ByVal, NoAlias, SRet))
 import qualified LLVM.AST.Constant as C
@@ -63,10 +64,9 @@ needsWrapper _ = False
 -- The arguments for the wrapper are the coerced original arguments, and possibly
 -- a return argument
 -- The return type of the wrapper is either the coerced return type, or void
-auxCFFIDef :: Core.Definition TypedExpr VarName VarName -> ModuleBuilder Operand
-auxCFFIDef (FunDef _ name _ _ t rt _) =
+wrapLLVM :: FunName -> Core.Type t b -> Core.Type t b -> ModuleBuilder Operand
+wrapLLVM name t rt =
     let args = case regLayout t of
-            -- NativeRef -> [(toLLVMType t, [], NoParameterName)]
             One a0 -> [(a0, [], NoParameterName)]
             Two a0 a1 ->
                 [ (a0, [], NoParameterName)
@@ -74,7 +74,6 @@ auxCFFIDef (FunDef _ name _ _ t rt _) =
                 ]
             Ref -> [(ptr (toLLVMType t), [ByVal], NoParameterName)]
         (returnArgs, returnType) = case regLayout rt of
-            -- NativeRef -> ([], toLLVMType rt)
             One r0 -> ([], r0)
             Two r0 r1 -> ([], StructureType False [r0, r1])
             Ref -> ([(ptr (toLLVMType rt), [NoAlias, SRet], NoParameterName)], VoidType)
@@ -82,8 +81,25 @@ auxCFFIDef (FunDef _ name _ _ t rt _) =
             (mkName name)
             (returnArgs ++ args)
             returnType
-            (typeToWrapper name t rt returnType (regLayout t))
-auxCFFIDef _ = __impossible "auxCFFIDef"
+            (typeToWrapper (name ++ ".llvm") t rt returnType (regLayout t))
+
+wrapC :: FunName -> Core.Type t b -> Core.Type t b -> ModuleBuilder Operand
+wrapC name t rt =
+    function
+        (mkName (name ++ ".llvm"))
+        [(toLLVMType t, [], NoParameterName)]
+        (toLLVMType rt)
+        ( \[arg] ->
+            call
+                ( ConstantOperand
+                    ( C.GlobalReference
+                        (toLLVMType (TFun t rt))
+                        (mkName name)
+                    )
+                )
+                [(arg, [])]
+                >>= ret
+        )
 
 -- Given the original function name and type, and the wrapper's type, produce a
 -- function body which correctly calls the original function and coerces its output
@@ -119,7 +135,7 @@ typeToWrapper name t rt wrapperRT argLayout (r0 : args) = do
             ConstantOperand
                 ( C.GlobalReference
                     (toLLVMType (TFun t rt))
-                    (mkName (name ++ "."))
+                    (mkName name)
                 )
     res <- call fun [(arg, [])]
     -- Handle return value

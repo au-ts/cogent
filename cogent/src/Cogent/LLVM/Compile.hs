@@ -18,7 +18,7 @@ module Cogent.LLVM.Compile (toLLVM) where
 import Cogent.Common.Syntax (VarName)
 import Cogent.Compiler (__impossible)
 import Cogent.Core as Core (Definition (..), TypedExpr)
-import Cogent.LLVM.CCompat (auxCFFIDef)
+import Cogent.LLVM.CCompat (wrapC, wrapLLVM)
 import Cogent.LLVM.CHeader (createCHeader)
 import Cogent.LLVM.Expr (exprToLLVM, monomorphicTypeDef)
 import Cogent.LLVM.Types (toLLVMType)
@@ -41,15 +41,15 @@ toLLVMDef :: Definition TypedExpr VarName VarName -> ModuleBuilder ()
 -- translated LLVM body inside an entry block
 -- Additionally, emit a wrapper function which allows the original to be called
 -- from C code
-toLLVMDef f@(FunDef _ name _ _ t rt body) =
+toLLVMDef (FunDef _ name _ _ t rt body) =
   void $
     function
-      -- append . to end of fn name for non-wrapped version
-      (mkName (name ++ "."))
+      -- append .llvm to end of fn name for non-wrapped version
+      (mkName (name ++ ".llvm"))
       [(toLLVMType t, NoParameterName)]
       (toLLVMType rt)
       ((\vars -> block `named` "entry" >> exprToLLVM body vars) >=> ret)
-      >> auxCFFIDef f
+      >> wrapLLVM name t rt
 -- For abstract declarations, emit an extern definition and also create
 -- monomorphised typedefs for any abstract types that appear in the function
 -- signature
@@ -59,13 +59,12 @@ toLLVMDef (AbsDecl _ name _ _ t rt) =
       (mkName name)
       [toLLVMType t]
       (toLLVMType rt)
-      -- do we need a CFFI def for abstract functions?
+      >> wrapC name t rt
       >> monomorphicTypeDef t
       >> monomorphicTypeDef rt
 -- Don't declare typedefs now, instead declare a monomorphic one when we see the
 -- type actually used
 toLLVMDef TypeDef {} = pure ()
-toLLVMDef _ = __impossible "toLLVMDef"
 
 -- Write an LLVM module to a file handle
 writeLLVM :: Module -> Handle -> IO ()
