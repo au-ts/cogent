@@ -16,7 +16,6 @@ module Cogent.LLVM.Compile (toLLVM) where
 -- This module provides the external interface to the LLVM backend for Cogent
 
 import Cogent.Common.Syntax (VarName)
-import Cogent.Compiler (__impossible)
 import Cogent.Core as Core (Definition (..), TypedExpr)
 import Cogent.LLVM.CCompat (wrapC, wrapLLVM)
 import Cogent.LLVM.CHeader (createCHeader)
@@ -54,14 +53,9 @@ toLLVMDef (FunDef _ name _ _ t rt body) =
 -- monomorphised typedefs for any abstract types that appear in the function
 -- signature
 toLLVMDef (AbsDecl _ name _ _ t rt) =
-  void $
-    extern
-      (mkName name)
-      [toLLVMType t]
-      (toLLVMType rt)
-      >> wrapC name t rt
-      >> monomorphicTypeDef t
-      >> monomorphicTypeDef rt
+  wrapC name t rt
+    >> monomorphicTypeDef t
+    >> monomorphicTypeDef rt
 -- Don't declare typedefs now, instead declare a monomorphic one when we see the
 -- type actually used
 toLLVMDef TypeDef {} = pure ()

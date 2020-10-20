@@ -55,7 +55,7 @@ createCHeader monoed mod =
 
 -- From a single Cogent definition, emit C definitions
 define :: Core.Definition TypedExpr VarName VarName -> State HGen ()
-define (FunDef _ name _ _ t rt _) = toCFun (name ++ "__c") t rt
+define (FunDef _ name _ _ t rt _) = toCFun name t rt
 define (AbsDecl _ name _ _ t rt) = toCFun name t rt
 define (TypeDef name _ (Just t)) = toCType t >>= typeAlias name
 define _ = pure ()

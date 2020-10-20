@@ -20,16 +20,16 @@ module Cogent.LLVM.CCompat (wrapC, wrapLLVM) where
 import Cogent.Common.Syntax (FunName, Size)
 import Cogent.Compiler (__impossible)
 import Cogent.Core as Core (Type (..), isUnboxed)
-import Cogent.LLVM.Custom (function)
+import Cogent.LLVM.Custom (extern, function)
 import Cogent.LLVM.Expr (castVal, constUndef)
 import Cogent.LLVM.Types
-import Control.Monad (void)
-import LLVM.AST as AST hiding (function)
+import LLVM.AST as AST hiding (extern, function)
 import LLVM.AST.Attribute (ParameterAttribute (ByVal, NoAlias, SRet))
 import qualified LLVM.AST.Constant as C
 import LLVM.AST.Type (ptr)
-import LLVM.IRBuilder.Instruction (call, insertValue, load, ret, retVoid, store)
-import LLVM.IRBuilder.Module (ModuleBuilder, ParameterName (NoParameterName))
+import LLVM.AST.Typed (typeOf)
+import LLVM.IRBuilder.Instruction
+import LLVM.IRBuilder.Module (ModuleBuilder)
 import LLVM.IRBuilder.Monad (MonadIRBuilder, block, named)
 
 data RegLayout = One AST.Type | Two AST.Type AST.Type | Ref
@@ -66,44 +66,42 @@ needsWrapper _ = False
 -- The return type of the wrapper is either the coerced return type, or void
 wrapLLVM :: FunName -> Core.Type t b -> Core.Type t b -> ModuleBuilder Operand
 wrapLLVM name t rt =
+    function (mkName name) ts rt' (wrapLLVMInner (name ++ ".llvm") t rt rt' (regLayout t))
+    where
+        (ts, rt') = optimiseFunctionType t rt
+
+optimiseFunctionType ::
+    Core.Type t b ->
+    Core.Type t b ->
+    ([(AST.Type, [ParameterAttribute])], AST.Type)
+optimiseFunctionType t rt =
     let args = case regLayout t of
-            One a0 -> [(a0, [], NoParameterName)]
+            One a0 -> [(a0, [])]
             Two a0 a1 ->
-                [ (a0, [], NoParameterName)
-                , (a1, [], NoParameterName)
+                [ (a0, [])
+                , (a1, [])
                 ]
-            Ref -> [(ptr (toLLVMType t), [ByVal], NoParameterName)]
+            Ref -> [(ptr (toLLVMType t), [ByVal])]
         (returnArgs, returnType) = case regLayout rt of
             One r0 -> ([], r0)
             Two r0 r1 -> ([], StructureType False [r0, r1])
-            Ref -> ([(ptr (toLLVMType rt), [NoAlias, SRet], NoParameterName)], VoidType)
-     in function
-            (mkName name)
-            (returnArgs ++ args)
-            returnType
-            (typeToWrapper (name ++ ".llvm") t rt returnType (regLayout t))
+            Ref -> ([(ptr (toLLVMType rt), [NoAlias, SRet])], VoidType)
+     in (returnArgs ++ args, returnType)
 
 wrapC :: FunName -> Core.Type t b -> Core.Type t b -> ModuleBuilder Operand
 wrapC name t rt =
-    function
-        (mkName (name ++ ".llvm"))
-        [(toLLVMType t, [], NoParameterName)]
-        (toLLVMType rt)
-        ( \[arg] ->
-            call
-                ( ConstantOperand
-                    ( C.GlobalReference
-                        (toLLVMType (TFun t rt))
-                        (mkName name)
-                    )
-                )
-                [(arg, [])]
-                >>= ret
-        )
+    extern (mkName name) ts rt'
+        >> function
+            (mkName (name ++ ".llvm"))
+            [(toLLVMType t, [])]
+            (toLLVMType rt)
+            (wrapCInner name t rt ts rt' (regLayout t))
+    where
+        (ts, rt') = optimiseFunctionType t rt
 
 -- Given the original function name and type, and the wrapper's type, produce a
 -- function body which correctly calls the original function and coerces its output
-typeToWrapper ::
+wrapLLVMInner ::
     MonadIRBuilder m =>
     String ->
     Core.Type t b ->
@@ -112,7 +110,7 @@ typeToWrapper ::
     RegLayout ->
     [Operand] ->
     m ()
-typeToWrapper name t rt wrapperRT argLayout (r0 : args) = do
+wrapLLVMInner name t rt wrapperRT argLayout (r0 : args) = do
     block `named` "entry"
     -- Handle arguments
     arg <- case (argLayout, needsWrapper t) of
@@ -132,11 +130,10 @@ typeToWrapper name t rt wrapperRT argLayout (r0 : args) = do
             castVal (toLLVMType t) argNative
     -- Call inner function
     let fun =
-            ConstantOperand
-                ( C.GlobalReference
+            ConstantOperand $
+                C.GlobalReference
                     (toLLVMType (TFun t rt))
                     (mkName name)
-                )
     res <- call fun [(arg, [])]
     -- Handle return value
     case (wrapperRT, needsWrapper rt) of
@@ -158,3 +155,57 @@ typeToWrapper name t rt wrapperRT argLayout (r0 : args) = do
 
         -- a1 is the last argument to the wrapper (possibly = a0)
         a1 = last args
+
+wrapCInner ::
+    MonadIRBuilder m =>
+    String ->
+    Core.Type t b ->
+    Core.Type t b ->
+    [(AST.Type, [ParameterAttribute])] ->
+    AST.Type ->
+    RegLayout ->
+    [Operand] ->
+    m ()
+wrapCInner name t rt ts' wrapperRT argLayout [arg] = do
+    block `named` "entry"
+    -- Handle arguments
+    args <- case (argLayout, needsWrapper t) of
+        -- No need to coerce arguments
+        (_, False) -> pure [(arg, [])]
+        -- Argument must be a reference, so we should pass a pointer
+        (Ref, _) -> do
+            tmp <- alloca (typeOf arg) Nothing 4
+            store tmp 4 arg
+            pure [(tmp, [ByVal])]
+        -- Coerce arguments depending on their layout
+        _ -> case argLayout of
+            One a0 -> castVal a0 arg >>= \t -> pure [(t, [])]
+            Two a0t a1t ->
+                let aggT = StructureType False [a0t, a1t]
+                 in do
+                        casted <- castVal aggT arg
+                        arg1 <- extractValue casted [0]
+                        arg2 <- extractValue casted [1]
+                        pure [(arg1, []), (arg2, [])]
+            _ -> __impossible "argLayout can't be Ref here"
+    retArg <- alloca (toLLVMType rt) Nothing 4
+    let args' = case (wrapperRT, needsWrapper rt) of
+            (VoidType, True) -> (retArg, [SRet]) : args
+            _ -> args
+    -- Call inner function
+    let fun =
+            ConstantOperand $
+                C.GlobalReference
+                    (ptr (FunctionType wrapperRT (fst <$> ts') False))
+                    (mkName name)
+    res <- call fun args'
+    -- Handle return value
+    case (wrapperRT, needsWrapper rt) of
+        -- No need to coerce return value
+        (_, False) -> ret res
+        -- Return value was void, with the value stored in a return argument
+        (VoidType, _) -> load retArg 4 >>= ret
+        -- Coerce the return value
+        _ -> do
+            retCast <- castVal (toLLVMType rt) res
+            ret retCast
