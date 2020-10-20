@@ -130,7 +130,6 @@ unroll v (Just ctxt) = erp (Just ctxt) (ctxt M.! v)
     erp _ t = t
 
 bound :: (Show b, Eq b) => Bound -> Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
--- bound :: (Show b, Eq b) => Bound -> Type t b -> Type t b -> TCMaybe t v b x (Type t b)
 bound _ t1 t2 | t1 == t2 = return t1
 bound b (TRecord rp1 fs1 s1) (TRecord rp2 fs2 s2)
   | map fst fs1 == map fst fs2, s1 == s2, rp1 == rp2 = do
@@ -174,10 +173,8 @@ bound b rt@(TRefine (TPrim t1) l) pt@(TPrim t2) | t1 == t2 = return $ case b of 
 bound b pt@(TPrim t1) rt@(TRefine (TPrim t2) l) | t1 == t2 = return $ case b of GLB -> rt; LUB -> pt
 bound b rt1@(TRefine t1 l1) rt2@(TRefine t2 l2) | t1 == t2
       = do
-          ls <- MaybeT $ Just <$> extract
-          l1' <- MaybeT $ Just <$> lexprToSmt l1
-          l2' <- MaybeT $ Just <$> lexprToSmt l2
-          res <- liftIO $ smtProve l1' l2' ls
+          (vec, ls, _) <- get
+          res <- liftIO $ smtProveVerbose vec ls l1 l2
           case res of
             (True, True) -> return rt1; -- what happens here? Find which one is most specific?
             (True, False) -> return $ case b of GLB -> rt1; LUB -> rt2
@@ -367,21 +364,25 @@ opType Divide [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
     in Just ([TPrim t1, nonZeroType], (TRefine (TPrim t1) (LOp And $ map upshiftVarLExpr [p1, p2])))
 opType opr [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
   | opr `elem` [Gt, Lt, Le, Ge, Eq, NEq], t1 /= Boolean, t1 == t2
-  = Just ([TPrim t1, TPrim t1], TPrim Boolean)
+  = Just ([TPrim t1, TPrim t1], toTRefine $ TPrim Boolean)
 opType opr [(TRefine (TPrim Boolean) p1), (TRefine (TPrim Boolean) p2)]
   | opr `elem` [And, Or, Eq, NEq]
-  = Just ([TPrim Boolean, TPrim Boolean], TPrim Boolean)
+  = Just ([TPrim Boolean, TPrim Boolean], toTRefine $ TPrim Boolean)
 opType Not [TRefine (TPrim Boolean) p]
-  = Just ([TPrim Boolean], TPrim Boolean)
+  = Just ([TPrim Boolean], toTRefine $ TPrim Boolean)
 opType Complement [(TRefine (TPrim t) p)]
   | t /= Boolean
-  = Just ([TPrim t], TPrim t)
+  = Just ([TPrim t], toTRefine $ TPrim t)
 opType opr ts = __impossible "opType"
 
 toTRefine :: Type t b -> Type t b
 toTRefine (TPrim t) = TRefine (TPrim t) (LILit 1 Boolean)
 toTRefine (TRefine t b) = TRefine t b
 toTRefine _ = __impossible "toTRefine"
+
+getBaseType :: Type t b -> Type t b
+getBaseType (TRefine t _) = t
+getBaseType _ = __impossible "called getBaseType on a non refinement type"
 
 useVariable :: Fin v -> TC t v b (Maybe (Type t b))
 useVariable v = TC $ do ret <- (`at` v) <$> fst3 <$> get
@@ -536,6 +537,7 @@ kindcheck_ f (TRPar _ _)      = return mempty
 
 #ifdef REFINEMENT_TYPES
 kindcheck_ f (TArray t l s _) = mappend <$> kindcheck_ f t <*> pure (sigilKind s)
+kindcheck_ f (TRefine t _) = kindcheck_ f t
 #endif
 
 kindcheck = kindcheck_ lookupKind
@@ -702,7 +704,7 @@ infer (E (Con tag e tfull))
         return $ TE tfull (Con tag e'' tfull)
 infer (E (If ec et ee))
    = do ec' <- infer ec
-        guardShow "if-1" $ exprType ec' == TPrim Boolean
+        guardShow "if-1" $ getBaseType (exprType ec') == TPrim Boolean
         let lec = texprToLExpr id ec'
         (et', ee') <- (,) <$> withPredicate lec (infer et) <||> withPredicate (LOp Not [lec]) (infer ee)  -- have to use applicative functor, as they share the same initial env
         let tt = exprType et'
