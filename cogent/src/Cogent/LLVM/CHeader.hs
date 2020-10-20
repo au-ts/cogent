@@ -1,3 +1,15 @@
+--
+-- Copyright 2020, Data61
+-- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+-- ABN 41 687 119 230.
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(DATA61_GPL)
+--
+
 module Cogent.LLVM.CHeader (createCHeader) where
 
 -- This module attempts to create a header file so the LLVM code can be compiled
@@ -27,6 +39,7 @@ data HGen = HGen
     , funDefs :: [(CType, CType, CIdent)]
     }
 
+-- We could import <cogent_defs.h> but I want to use this bool & unit definition
 cogentDefs :: [String]
 cogentDefs =
     [ "typedef unsigned char u8;"
@@ -103,7 +116,8 @@ toCFields ts =
 freshType :: State HGen CIdent
 freshType = gets ((("t" ++) . show . (+ 1) . length) . typeDefs)
 
--- Get or define a unique type with a generated or provided name
+-- Get or define a unique type with a generated name
+-- Two structurally equal types should have the same name
 typeDef :: CType -> State HGen CIdent
 typeDef t = do
     types <- gets typeDefs
@@ -114,5 +128,7 @@ typeDef t = do
             modify $ \s -> s {typeDefs = (t, ident) : typeDefs s}
             pure ident
 
+-- Define a type alias
+-- It's fine for the same type to have multiple aliases
 typeAlias :: CIdent -> CType -> State HGen ()
 typeAlias n t = modify $ \s -> s {typeAliases = (t, n) : typeAliases s}

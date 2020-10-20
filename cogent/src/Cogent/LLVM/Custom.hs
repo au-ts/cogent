@@ -25,9 +25,10 @@ import LLVM.IRBuilder hiding (extern, function)
 import LLVM.IRBuilder.Module (MonadModuleBuilder)
 
 -- Modified version of https://hackage.haskell.org/package/llvm-hs-pure-9.0.0/docs/src/LLVM.IRBuilder.Module.html#function
--- The change is to allow parameter attributes to be provided
 -- Copyright (c) 2013, Benjamin S. Scarlet and Google Inc.
 -- All rights reserved.
+
+-- The change is to allow parameter attributes to be provided
 function ::
     MonadModuleBuilder m =>
     Name ->
