@@ -25,12 +25,13 @@ import Control.Monad (void, (>=>))
 import qualified Data.ByteString.Char8 as BS
 import Data.ByteString.Internal (packChars)
 import Data.ByteString.Short.Internal (toShort)
-import LLVM.AST (Module (moduleSourceFileName), mkName)
+import LLVM.AST (Module (moduleSourceFileName), mkName, moduleTargetTriple)
 import LLVM.Context (withContext)
 import LLVM.IRBuilder.Instruction (ret)
 import LLVM.IRBuilder.Module
 import LLVM.IRBuilder.Monad (block, named)
 import LLVM.Module (moduleLLVMAssembly, withModuleFromAST)
+import LLVM.Target (getDefaultTargetTriple)
 import System.FilePath (replaceExtension)
 import System.IO (Handle, IOMode (WriteMode), hClose, openFile)
 
@@ -71,10 +72,12 @@ writeLLVM mod file =
 -- Take a list of Cogent definitions and output the resultant module to a file
 toLLVM :: [Definition TypedExpr VarName VarName] -> FilePath -> IO ()
 toLLVM monoed source = do
+  target <- getDefaultTargetTriple
   let sourceFilename = toShort (packChars source)
       ast =
         (buildModule sourceFilename (mapM_ toLLVMDef monoed))
           { moduleSourceFileName = sourceFilename
+          , moduleTargetTriple = Just target
           }
       resName = replaceExtension source "ll"
       hName = replaceExtension source "h"
