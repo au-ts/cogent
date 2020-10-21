@@ -9,7 +9,7 @@
 * Core Types
     - Primitive types 
         - Integer types are represented as `iN` using their expected number of bits
-        - Bool is represented as an 8-bit integer where 0 = False, otherwise = True)
+        - Bool is represented as an 8-bit integer where 0 = False, otherwise = True, but cannonically 1)
     - Unit type
         - Represented as an `i8` integer of undefined value, but canonically 0
     - Records, boxed and unboxed
@@ -30,7 +30,8 @@
     - Arithmetic, logical, and bitwise binary operators
         - `+` , `-` , `*` , `/` , `%` , `&&` , `||` , `>` , `<` , `<=` , `>=` , `==` , `/=` , `.&.` , `.|.` , `.^.` , `<<` , `>>`
     - Complement and not operators
-        - These are implemented identically using `xor` with the `-1` literal
+        - Complement uses `xor` with the `-1` literal
+        - Not checks if the operand is equal to the `0` literal
     - Let and letbang bindings
         - A list of in-scope variables is threaded though the compiler
     - Variable expressions

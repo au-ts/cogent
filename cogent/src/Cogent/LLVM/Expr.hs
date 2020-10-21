@@ -86,8 +86,11 @@ exprToLLVM' (TE t (Op op [a, b])) vars = do
 exprToLLVM' (TE t (Op Sy.Complement [a])) vars = do
     oa <- exprToLLVM a vars
     xor oa (constInt (typeSize t) (-1))
--- Not is simply complement but for the Bool type
-exprToLLVM' (TE t (Op Sy.Not [a])) vars = exprToLLVM (TE t (Op Sy.Complement [a])) vars
+-- We want not to return 1 for the case of 0, and 0 otherwise, so we can't use xor again
+exprToLLVM' (TE _ (Op Sy.Not [a])) vars = do
+    oa <- exprToLLVM a vars
+    res <- icmp P.EQ oa (int8 0)
+    zext res i8
 -- For record member access just load the member and yield the field value
 exprToLLVM' (TE _ (Member recd fld)) vars = snd <$> loadMember recd fld vars
 -- Take requires us to bind the field value and also the record value as new
