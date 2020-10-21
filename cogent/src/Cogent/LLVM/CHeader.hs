@@ -42,24 +42,13 @@ data HGen = HGen
     , funProtos :: [(CType, CType, CIdent)]
     }
 
--- We could import <cogent_defs.h> but I want to use this bool & unit definition
-cogentDefs :: [String]
-cogentDefs =
-    [ "typedef unsigned char u8;"
-    , "typedef unsigned short u16;"
-    , "typedef unsigned int u32;"
-    , "typedef unsigned long long u64;"
-    , "typedef u8 bool_t;"
-    , "typedef u8 unit_t;"
-    , ""
-    ]
-
 -- Convert  list of Cogent definitions to a header file
 createCHeader :: [Core.Definition TypedExpr VarName VarName] -> String -> String
 createCHeader monoed mod =
     let defs = execState (mapM_ define monoed) (HGen [] [] [])
         guard = toUpper <$> mod ++ "_H__"
         ifndef = ["#ifndef " ++ guard, "#define " ++ guard, ""]
+        cogentDefs = ["#include \"cogent_llvm_defs.h\"", ""]
         endif = ["", "#endif"]
         ts =
             ( \(t, i) ->
@@ -80,7 +69,7 @@ createCHeader monoed mod =
 define :: Core.Definition TypedExpr VarName VarName -> State HGen ()
 define (FunDef _ name _ _ t rt _) = toCProto name t rt
 define (AbsDecl _ name _ _ t rt) = toCProto name t rt
-define (TypeDef name _ (Just t)) = toCType t >>= typeAlias (toCName name)
+define (TypeDef name _ (Just t)) = toCType t >>= typeAlias (toCName name) . filter (/= '*')
 define _ = pure ()
 
 -- Convert to a C function prototype

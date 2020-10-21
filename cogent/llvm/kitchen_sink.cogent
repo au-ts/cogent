@@ -1,8 +1,8 @@
 prim: () -> (Bool, U8, U16, U32, U64)
 prim _ = (True, 92, 42652, 363415312, 9573591166087831551)
 
-unit: () -> ()
-unit _ = ()
+units: () -> ()
+units _ = ()
 
 arith: (U16, U16) -> (U16, U16, U16, U16, U16)
 arith (x, y) = (x + y, x - y, x * y, x / y, x % y)
@@ -55,14 +55,14 @@ type V a = < Z | O a | T a a >
 con: U32 -> (V U32, V U32, V U32)
 con x = (Z, O x, T x x) 
 
-type Bool' = < False' | True' >
+type Bool' = < No | Yes >
 
-and': (Bool', Bool') -> Bool'
-and' (x, y) = x
-    | False' -> False'
-    | True' -> y
-        | False' -> False'
-        | True' -> True'
+both: (Bool', Bool') -> Bool'
+both (x, y) = x
+    | No -> No
+    | Yes -> y
+        | No -> No
+        | Yes -> Yes
 
 inc: U8 -> U8
 inc x = x + 1
@@ -73,7 +73,7 @@ call (f, x) = f x
 run: U8 -> U8
 run x = call (inc, x)
 
-abs: U8 -> U8
+abst: U8 -> U8
 
 type Abs
 
@@ -89,3 +89,8 @@ id'': Poly U32 -> Poly U32
 id'' x = id' x
 
 imp: Poly () -> Poly Bool
+
+mkPoly: () -> Poly()
+
+useImp: () -> Poly Bool
+useImp _ = imp (mkPoly ())
