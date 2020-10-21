@@ -33,20 +33,20 @@ import Data.List
 import Debug.Trace
 
 -- 
-data AST
-  = RecordAST String AST -- field 
-  | RecursiveRecordAST String String AST -- recpar, field 
-  | RecParAST String -- recpar 
-  | VariantAST String AST -- field 
-  -- take args 
-  | IntAST 
-  | BoolAST 
-  | UnitAST 
-  -- ?
-  | AbsTypeAST 
-  | TypeVarAST 
-  | FunctionAST
-  deriving (Show, Eq)
+-- data AST
+--   = RecordAST String AST -- field 
+--   | RecursiveRecordAST String String AST -- recpar, field 
+--   | RecParAST String -- recpar 
+--   | VariantAST String AST -- field 
+--   -- take args 
+--   | IntAST 
+--   | BoolAST 
+--   | UnitAST 
+--   -- ?
+--   | AbsTypeAST 
+--   | TypeVarAST 
+--   | FunctionAST
+--   deriving (Show, Eq)
 
 
 data MeasureOp
@@ -58,58 +58,42 @@ data MeasureOp
   -- | VarAST 
   deriving (Show, Eq)
 
-buildMeasure :: Type -> [AST] -> [AST]
+buildMeasure :: Type -> [MeasureOp] -> [MeasureOp]
 buildMeasure t res = 
   case t of 
-    PrimType p -> IntConstOp 0
-    Variant row -> parseVariant $ M.toList (rowEntries row)
-
-    -- Record recpar row sig -> parseRecord recpar $ M.toList (rowEntries row)
-    
-    -- RecPar t rc -> RecParAST t : res
-    -- RecParBang t rc -> RecParAST t : res
-    -- AbsType name sig ty -> AbsTypeAST : res
-    -- TypeVar v -> TypeVarAST : res
-    -- TypeVarBang v -> TypeVarAST : res
-    -- UnifVar v -> TypeVarAST : res -- ? need more?
-    -- Function x y -> FunctionAST : res
-    -- Bang t -> buildMeasure t []
-
-
-buildMeasure :: Type -> [AST] -> [AST]
-buildMeasure t res = 
-  case t of 
-    PrimType p -> 
-      case p of 
-        Unit -> UnitAST:res
-        Bool -> BoolAST:res
-        _    -> IntAST:res
+    PrimType p -> IntConstOp 0 : res 
     Record recpar row sig -> parseRecord recpar $ M.toList (rowEntries row)
     Variant row -> parseVariant $ M.toList (rowEntries row)
-    RecPar t rc -> RecParAST t : res
-    RecParBang t rc -> RecParAST t : res
-    AbsType name sig ty -> AbsTypeAST : res
-    TypeVar v -> TypeVarAST : res
-    TypeVarBang v -> TypeVarAST : res
-    UnifVar v -> TypeVarAST : res -- ? need more?
-    Function x y -> FunctionAST : res
+    RecPar t rc -> RecParMeasure t : res
+    RecParBang t rc -> RecParMeasure t : res 
+    AbsType name sig ty -> IntConstOp 0: res
+    TypeVar v -> IntConstOp 0 : res 
+    TypeVarBang v -> IntConstOp 0 : res 
+    UnifVar v -> IntConstOp 0 : res
+    Function x y -> IntConstOp 0 : res 
     Bang t -> buildMeasure t []
 
-parseRecord :: RecPar -> [(FieldName, Entry)] -> [AST]
+parseRecord :: RecPar -> [(FieldName, Entry)] -> [MeasureOp]
 parseRecord _ [] = []
 parseRecord recpar ((f, Entry _ ty _): rs) = 
   let children = buildMeasure ty []
       rest = parseRecord recpar rs
   in case recpar of 
-    None -> (map (\x -> RecordAST f x) children) ++ rest
-    Rec recpar' -> (map (\x -> RecursiveRecordAST recpar' f x) children) ++ rest
+    None -> (map (\x -> ProjectOp f x) children) ++ rest
+    Rec recpar' -> (map (\x -> UnfoldOp recpar' f x) children) ++ rest
     UnknownParameter t -> [] -- shouldn't happen, should be caught by type checker
 
-parseVariant :: [(FieldName, Entry)] -> [AST]
+parseVariant :: [(FieldName, Entry)] -> [MeasureOp]
 parseVariant [] = []
 parseVariant ((f, Entry _ ty _): rs) = 
-  let children = buildMeasure ty []
-  in (map (\x -> VariantAST f x) children) ++ (parseVariant rs)
+  let cur = buildMeasure ty []
+      rest = parseVariant rs 
+  in cartesianProduct f cur rest 
+
+cartesianProduct :: FieldName -> [MeasureOp] -> [MeasureOp] -> [MeasureOp]
+cartesianProduct f [] [] = []
+cartesianProduct f ms [] = map (\x -> CaseOp x) [[(f, m)] | m <- ms] 
+cartesianProduct f ms cs = map (\x -> CaseOp x) [(f, m):c | m <- ms, c <- map (\(CaseOp v) -> v) cs] 
 
 -- A directed graph maps a node name to all reachable nodes from that node
 type Node  = String
@@ -122,7 +106,7 @@ type Env = M.Map VarName FreshVar
 type Error    = String
 type DotGraph = String
 
-getMeasure :: FunName -> GlobalEnvironments -> [AST]
+getMeasure :: FunName -> GlobalEnvironments -> [MeasureOp]
 getMeasure f genvs = 
   case M.lookup f (types genvs) of 
     Nothing -> [] 
@@ -155,71 +139,68 @@ getRecursiveCalls f exp = case exp of
 
 type Size = (Maybe Expr, Int) -- leftover expression, number of unfoldings
 
-applyMeasure :: AST -> Size -> Size
-applyMeasure ast (e, n) = case ast of 
-  RecursiveRecordAST t f ast' -> 
-    let e' = cutExpr True f e
-    in applyMeasure ast' (e', n)
-  RecordAST f ast' -> 
-    let e' = cutExpr True f e
-    in applyMeasure ast' (e', n)
-  VariantAST f ast' -> 
-    let e' = cutExpr False f e 
-    in applyMeasure ast' (e', n)
-  RecParAST t -> (e, n+1)
-  _ -> (e, n)
+-- applyMeasure :: AST -> Size -> Size
+-- applyMeasure ast (e, n) = case ast of 
+--   RecursiveRecordAST t f ast' -> 
+--     let e' = cutExpr True f e
+--     in applyMeasure ast' (e', n)
+--   RecordAST f ast' -> 
+--     let e' = cutExpr True f e
+--     in applyMeasure ast' (e', n)
+--   VariantAST f ast' -> 
+--     let e' = cutExpr False f e 
+--     in applyMeasure ast' (e', n)
+--   RecParAST t -> (e, n+1)
+--   _ -> (e, n)
 
 
-cutExpr :: Bool -> String -> Maybe Expr -> Maybe Expr 
--- true: take, false: case, string: field 
-cutExpr b s Nothing = Nothing
-cutExpr b s (Just exp) = 
-  case exp of 
-    PrimOp o (x:xs) -> 
-      case cutExpr b s (Just x) of 
-        Nothing -> case xs of 
-          [] -> Nothing 
-          (y:ys) -> cutExpr b s (Just y)
-        Just me -> Just me
-    Literal v -> Nothing
-    Var v -> Nothing
-    Con c e -> cutExpr b s (Just e)
-    TypeApp f ts -> Nothing
-    Sig e t -> cutExpr b s (Just e)
-    Apply e1 e2 -> case cutExpr b s (Just e1) of 
-      Nothing -> cutExpr b s (Just e2)
-      Just me -> Just me
-    Struct fs -> Nothing -- TODO
-    If e1 e2 e3 -> case cutExpr b s (Just e1) of 
-      Nothing -> case cutExpr b s (Just e2) of
-        Nothing -> cutExpr b s (Just e3)
-        Just me -> Just me 
-      Just me -> Just me
-    Let v e1 e2 -> case cutExpr b s (Just e1) of 
-      Nothing -> cutExpr b s (Just e2)
-      Just me -> Just me
-    LetBang vs v e1 e2 -> case cutExpr b s (Just e1) of 
-      Nothing -> cutExpr b s (Just e2)
-      Just me -> Just me
-    Take v1 f v2 e1 e2 -> 
-      case b of 
-        True -> if f == s then (Just e2) else cutExpr b s (Just e2)
-        False -> cutExpr b s (Just e2)
-    Put e1 f e2 -> case cutExpr b s (Just e1) of 
-      Nothing -> cutExpr b s (Just e2)
-      Just me -> Just me
-    Member e f -> cutExpr b s (Just e)
-    Case e1 c v1 e2 v2 e3 -> 
-      case b of 
-        True -> cutExpr b s (Just e3)
-        False -> if c == s then (Just e2) else cutExpr b s (Just e3)
-    Esac e1 c v e2 ->
-      case b of 
-        True -> cutExpr b s (Just e2)
-        False -> if c == s then (Just e2) else cutExpr b s (Just e2)
-
-
-
+-- cutExpr :: Bool -> String -> Maybe Expr -> Maybe Expr 
+-- -- true: take, false: case, string: field 
+-- cutExpr b s Nothing = Nothing
+-- cutExpr b s (Just exp) = 
+--   case exp of 
+--     PrimOp o (x:xs) -> 
+--       case cutExpr b s (Just x) of 
+--         Nothing -> case xs of 
+--           [] -> Nothing 
+--           (y:ys) -> cutExpr b s (Just y)
+--         Just me -> Just me
+--     Literal v -> Nothing
+--     Var v -> Nothing
+--     Con c e -> cutExpr b s (Just e)
+--     TypeApp f ts -> Nothing
+--     Sig e t -> cutExpr b s (Just e)
+--     Apply e1 e2 -> case cutExpr b s (Just e1) of 
+--       Nothing -> cutExpr b s (Just e2)
+--       Just me -> Just me
+--     Struct fs -> Nothing -- TODO
+--     If e1 e2 e3 -> case cutExpr b s (Just e1) of 
+--       Nothing -> case cutExpr b s (Just e2) of
+--         Nothing -> cutExpr b s (Just e3)
+--         Just me -> Just me 
+--       Just me -> Just me
+--     Let v e1 e2 -> case cutExpr b s (Just e1) of 
+--       Nothing -> cutExpr b s (Just e2)
+--       Just me -> Just me
+--     LetBang vs v e1 e2 -> case cutExpr b s (Just e1) of 
+--       Nothing -> cutExpr b s (Just e2)
+--       Just me -> Just me
+--     Take v1 f v2 e1 e2 -> 
+--       case b of 
+--         True -> if f == s then (Just e2) else cutExpr b s (Just e2)
+--         False -> cutExpr b s (Just e2)
+--     Put e1 f e2 -> case cutExpr b s (Just e1) of 
+--       Nothing -> cutExpr b s (Just e2)
+--       Just me -> Just me
+--     Member e f -> cutExpr b s (Just e)
+--     Case e1 c v1 e2 v2 e3 -> 
+--       case b of 
+--         True -> cutExpr b s (Just e3)
+--         False -> if c == s then (Just e2) else cutExpr b s (Just e3)
+--     Esac e1 c v e2 ->
+--       case b of 
+--         True -> cutExpr b s (Just e2)
+--         False -> if c == s then (Just e2) else cutExpr b s (Just e2)
 
 termCheck :: GlobalEnvironments -> ([Error], [(FunName, [Assertion], String)])
 termCheck genvs = M.foldrWithKey go ([],[]) (defns genvs)
@@ -228,13 +209,14 @@ termCheck genvs = M.foldrWithKey go ([],[]) (defns genvs)
     go f (x,e) (errs, dumps) =  
       let measure = getMeasure f genvs
           recursiveCalls = getRecursiveCalls f e
-          size = applyMeasure (head $ tail measure) (Just e, 0)
+          -- size = applyMeasure (head $ tail measure) (Just e, 0)
           (terminates, g, dotGraph) = fst $ runFresh unifVars (init f x e)
           errs' = if terminates then
                     (show measure ++ " ---- \n" 
                     ++ show e ++ "-------\n" 
-                    ++ show recursiveCalls ++ "-------\n" 
-                    ++ "size: " ++ show size) :errs
+                    ++ show recursiveCalls ++ "-------\n") 
+                    -- ++ "size: " ++ show size) 
+                    :errs
                   else
                     (show measure ++ " ---- \n" ++ show e ++ "-------\n" ++ show recursiveCalls ++  "Error: Function " ++ f ++ " cannot be shown to terminate.") : errs
         in 
