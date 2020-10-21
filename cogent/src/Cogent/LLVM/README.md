@@ -33,7 +33,7 @@
         - Complement uses `xor` with the `-1` literal
         - Not checks if the operand is equal to the `0` literal
     - Let and letbang bindings
-        - A list of in-scope variables is threaded though the compiler
+        - A list of in-scope variables is threaded though the code generator
     - Variable expressions
         - The variable is retrieved from the threaded variable list
     - Integer upcasting

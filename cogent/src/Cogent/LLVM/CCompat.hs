@@ -21,8 +21,9 @@ module Cogent.LLVM.CCompat (wrapC, wrapLLVM) where
 import Cogent.Common.Syntax (FunName, Size)
 import Cogent.Compiler (__impossible)
 import Cogent.Core as Core (Type (..), isUnboxed)
-import Cogent.LLVM.Custom (extern, function)
+import Cogent.LLVM.CodeGen (Codegen, LLVM)
 import Cogent.LLVM.Expr (castVal, constUndef)
+import Cogent.LLVM.Overrides (extern, function)
 import Cogent.LLVM.Types
 import LLVM.AST as AST hiding (extern, function)
 import LLVM.AST.Attribute (ParameterAttribute (ByVal, NoAlias, SRet))
@@ -30,8 +31,7 @@ import qualified LLVM.AST.Constant as C
 import LLVM.AST.Type (ptr)
 import LLVM.AST.Typed (typeOf)
 import LLVM.IRBuilder.Instruction
-import LLVM.IRBuilder.Module (ModuleBuilder)
-import LLVM.IRBuilder.Monad (MonadIRBuilder, block, named)
+import LLVM.IRBuilder.Monad (block, named)
 
 data RegLayout = One AST.Type | Two AST.Type AST.Type | Ref
 
@@ -65,7 +65,7 @@ needsWrapper _ = False
 -- The arguments for the wrapper are the coerced original arguments, and possibly
 -- a return argument
 -- The return type of the wrapper is either the coerced return type, or void
-wrapLLVM :: FunName -> Core.Type t b -> Core.Type t b -> ModuleBuilder Operand
+wrapLLVM :: FunName -> Core.Type t b -> Core.Type t b -> LLVM Operand
 wrapLLVM name t rt =
     function (mkName name) ts rt' (wrapLLVMInner (name ++ ".llvm") t rt rt' (regLayout t))
     where
@@ -89,7 +89,7 @@ optimiseFunctionType t rt =
             Ref -> ([(ptr (toLLVMType rt), [NoAlias, SRet])], VoidType)
      in (returnArgs ++ args, returnType)
 
-wrapC :: FunName -> Core.Type t b -> Core.Type t b -> ModuleBuilder Operand
+wrapC :: FunName -> Core.Type t b -> Core.Type t b -> LLVM Operand
 wrapC name t rt =
     extern (mkName name) ts rt'
         >> function
@@ -103,14 +103,13 @@ wrapC name t rt =
 -- Given the original function name and type, and the wrapper's type, produce a
 -- function body which correctly calls the original function and coerces its output
 wrapLLVMInner ::
-    MonadIRBuilder m =>
     String ->
     Core.Type t b ->
     Core.Type t b ->
     AST.Type ->
     RegLayout ->
     [Operand] ->
-    m ()
+    Codegen ()
 wrapLLVMInner name t rt wrapperRT argLayout (r0 : args) = do
     block `named` "entry"
     -- Handle arguments
@@ -158,7 +157,6 @@ wrapLLVMInner name t rt wrapperRT argLayout (r0 : args) = do
         a1 = last args
 
 wrapCInner ::
-    MonadIRBuilder m =>
     String ->
     Core.Type t b ->
     Core.Type t b ->
@@ -166,7 +164,7 @@ wrapCInner ::
     AST.Type ->
     RegLayout ->
     [Operand] ->
-    m ()
+    Codegen ()
 wrapCInner name t rt ts' wrapperRT argLayout [arg] = do
     block `named` "entry"
     -- Handle arguments

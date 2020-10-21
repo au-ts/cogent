@@ -19,18 +19,20 @@ import Cogent.Common.Syntax (VarName)
 import Cogent.Core as Core (Definition (..), TypedExpr)
 import Cogent.LLVM.CCompat (wrapC, wrapLLVM)
 import Cogent.LLVM.CHeader (createCHeader)
-import Cogent.LLVM.Custom (function)
+import Cogent.LLVM.CodeGen (Env (Env), LLVM, bind)
 import Cogent.LLVM.Expr (exprToLLVM, monomorphicTypeDef)
+import Cogent.LLVM.Overrides (function)
 import Cogent.LLVM.Types (toLLVMType)
 import Cogent.Util (toCName)
 import Control.Monad (void, (>=>))
+import Control.Monad.State (evalState)
 import qualified Data.ByteString.Char8 as BS
 import Data.ByteString.Internal (packChars)
 import Data.ByteString.Short.Internal (toShort)
 import LLVM.AST (Module (moduleSourceFileName), mkName, moduleTargetTriple)
 import LLVM.Context (withContext)
 import LLVM.IRBuilder.Instruction (ret)
-import LLVM.IRBuilder.Module (ModuleBuilder, buildModule)
+import LLVM.IRBuilder.Module (buildModuleT)
 import LLVM.IRBuilder.Monad (block, named)
 import LLVM.Module (moduleLLVMAssembly, withModuleFromAST)
 import LLVM.Target (getDefaultTargetTriple)
@@ -38,7 +40,7 @@ import System.FilePath (replaceExtension)
 import System.IO (Handle, IOMode (WriteMode), hClose, openFile)
 
 -- Given a single Cogent definition, emit an LLVM definition
-toLLVMDef :: Definition TypedExpr VarName VarName -> ModuleBuilder ()
+toLLVMDef :: Definition TypedExpr VarName VarName -> LLVM ()
 -- For function declarations, emit a function definition that contains the
 -- translated LLVM body inside an entry block
 -- Additionally, emit a wrapper function which allows the original to be called
@@ -50,7 +52,7 @@ toLLVMDef (FunDef _ name _ _ t rt body) =
       (mkName (toCName name ++ ".llvm"))
       [(toLLVMType t, [])]
       (toLLVMType rt)
-      ((\vars -> block `named` "entry" >> exprToLLVM body vars) >=> ret)
+      ((\[var] -> block `named` "entry" >> bind var (exprToLLVM body)) >=> ret)
       >> wrapLLVM (toCName name) t rt
 -- For abstract declarations, emit an extern definition and also create
 -- monomorphised typedefs for any abstract types that appear in the function
@@ -75,9 +77,9 @@ writeLLVM mod file =
 toLLVM :: [Definition TypedExpr VarName VarName] -> FilePath -> IO ()
 toLLVM monoed source = do
   target <- getDefaultTargetTriple
-  let sourceFilename = toShort (packChars source)
+  let sourceFilename = toShort $ packChars source
       ast =
-        (buildModule sourceFilename (mapM_ toLLVMDef monoed))
+        (flip evalState (Env []) $ buildModuleT sourceFilename $ mapM_ toLLVMDef monoed)
           { moduleSourceFileName = sourceFilename
           , moduleTargetTriple = Just target
           }
@@ -87,5 +89,5 @@ toLLVM monoed source = do
   outFile <- openFile resName WriteMode
   writeLLVM ast outFile
   hClose outFile
-  writeFile hName (createCHeader monoed base)
+  writeFile hName $ createCHeader monoed base
   return ()

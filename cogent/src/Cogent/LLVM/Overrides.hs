@@ -9,9 +9,10 @@
 --
 -- @TAG(DATA61_GPL)
 --
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Cogent.LLVM.Custom (function, extern) where
+module Cogent.LLVM.Overrides (function, extern) where
 
 -- For any overrides of utility functions originally provided by libraries
 
