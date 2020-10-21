@@ -55,14 +55,14 @@ type V a = < Z | O a | T a a >
 con: U32 -> (V U32, V U32, V U32)
 con x = (Z, O x, T x x) 
 
-type Boo = < Fal | Tru >
+type Bool' = < False' | True' >
 
-and': (Boo, Boo) -> Boo
+and': (Bool', Bool') -> Bool'
 and' (x, y) = x
-    | Fal -> Fal
-    | Tru -> y
-        | Fal -> Fal
-        | Tru -> Tru
+    | False' -> False'
+    | True' -> y
+        | False' -> False'
+        | True' -> True'
 
 inc: U8 -> U8
 inc x = x + 1

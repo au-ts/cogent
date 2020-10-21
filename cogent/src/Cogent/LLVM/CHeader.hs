@@ -20,23 +20,26 @@ module Cogent.LLVM.CHeader (createCHeader) where
 import Cogent.Common.Syntax (FunName, VarName)
 import Cogent.Common.Types (PrimInt (..), Sigil (Boxed, Unboxed))
 import Cogent.Core as Core (Definition (..), Type (..), TypedExpr)
+import Cogent.Util (toCName)
 import Control.Monad.State (State, execState, gets, modify)
+import Data.Bifunctor (Bifunctor (first))
 import Data.Char (toUpper)
 import Data.List (intercalate, sort)
-import Debug.Trace (traceShowM)
 
 -- Instead of using strings for everything it would be wiser to use quasiquoted C or something
 type CType = String
 type CIdent = String
+data TypeDef = Fn CType CType | Ty CType | En CType deriving (Eq)
 
 -- When generating a header file just keep track of:
 --  - unique type definitions
 --  - type aliases
 --  - function prototypes
+--  - function type typedefs
 data HGen = HGen
-    { typeDefs :: [(CType, CIdent)]
+    { typeDefs :: [(TypeDef, CIdent)]
     , typeAliases :: [(CIdent, CIdent)]
-    , funDefs :: [(CType, CType, CIdent)]
+    , funProtos :: [(CType, CType, CIdent)]
     }
 
 -- We could import <cogent_defs.h> but I want to use this bool & unit definition
@@ -59,28 +62,36 @@ createCHeader monoed mod =
         ifndef = ["#ifndef " ++ guard, "#define " ++ guard, ""]
         endif = ["", "#endif"]
         ts =
-            (\(t, i) -> "typedef " ++ t ++ " " ++ i ++ ";")
-                <$> (typeDefs defs ++ typeAliases defs)
+            ( \(t, i) ->
+                "typedef "
+                    ++ ( case t of
+                            Ty t -> t ++ " " ++ i ++ ";"
+                            En t -> t ++ " " ++ i ++ ";"
+                            Fn t rt -> rt ++ "(*" ++ i ++ ")(" ++ t ++ ");"
+                       )
+            )
+                <$> (reverse (typeDefs defs) ++ (first Ty <$> typeAliases defs))
         fs =
             (\(t, rt, i) -> rt ++ " " ++ i ++ "(" ++ t ++ ");")
-                <$> funDefs defs
+                <$> funProtos defs
      in unlines $ ifndef ++ cogentDefs ++ ts ++ fs ++ endif
 
 -- From a single Cogent definition, emit C definitions
 define :: Core.Definition TypedExpr VarName VarName -> State HGen ()
-define (FunDef _ name _ _ t rt _) = toCFun name t rt
-define (AbsDecl _ name _ _ t rt) = toCFun name t rt
-define (TypeDef name _ (Just t)) = toCType t >>= typeAlias name
+define (FunDef _ name _ _ t rt _) = toCProto name t rt
+define (AbsDecl _ name _ _ t rt) = toCProto name t rt
+define (TypeDef name _ (Just t)) = toCType t >>= typeAlias (toCName name)
 define _ = pure ()
 
--- Convert to a C function declaration
-toCFun :: FunName -> Core.Type t b -> Core.Type t b -> State HGen ()
-toCFun name t rt = do
+-- Convert to a C function prototype
+toCProto :: FunName -> Core.Type t b -> Core.Type t b -> State HGen ()
+toCProto name t rt = do
     arg <- toCType t
     ret <- toCType rt
-    modify $ \s -> s {funDefs = (arg, ret, name) : funDefs s}
-    typeAlias (name ++ "_arg") arg
-    typeAlias (name ++ "_ret") ret
+    let cName = toCName name
+    modify $ \s -> s {funProtos = (arg, ret, cName) : funProtos s}
+    typeAlias (cName ++ "_arg") arg
+    typeAlias (cName ++ "_ret") ret
 
 -- Convert to a C type name
 toCType :: Core.Type t b -> State HGen CType
@@ -95,38 +106,43 @@ toCType TString = pure "char*"
 toCType (TRecord r ts (Boxed _ _)) = (++ "*") <$> toCType (TRecord r ts Unboxed)
 toCType (TRecord _ ts Unboxed) =
     toCFields ts
-        >>= \fs -> typeDef ("struct { " ++ fs ++ "}")
+        >>= \fs -> typeDef $ Ty $ "struct { " ++ fs ++ "}"
 toCType (TSum ts) = do
-    traceShowM $ fst <$> ts
     fs <- toCFields ts
-    enum <- typeDef ("enum { " ++ intercalate ", " (sort $ fst <$> ts) ++ " }")
-    typeDef ("struct { " ++ enum ++ " tag; union { " ++ fs ++ "} val; }")
+    enum <- typeDef $ En $ "enum { " ++ intercalate ", " (toCName <$> sort (fst <$> ts)) ++ " }"
+    typeDef $ Ty $ "struct { " ++ enum ++ " tag; union { " ++ fs ++ "} val; }"
 toCType (TCon tn ts (Boxed _ _)) = (++ "*") <$> toCType (TCon tn ts Unboxed)
 toCType (TCon tn ts Unboxed) =
     (tn ++) . filter (/= '*') <$> (concatMap ("_" ++) <$> mapM toCType ts)
+toCType (TFun t rt) = do
+    t' <- toCType t
+    rt' <- toCType rt
+    typeDef $ Fn t' rt'
 toCType _ = error "not implemented"
 
 -- Conver the fields in a record or variant to C fields
 toCFields :: [(String, (Core.Type t b, Bool))] -> State HGen String
 toCFields ts =
-    concatMap (\((n, _), t) -> t ++ " " ++ n ++ "; ") . zip ts
+    concatMap (\((n, _), t) -> t ++ " " ++ toCName n ++ "; ") . zip ts
         <$> mapM (toCType . fst . snd) ts
-
--- Make a fresh type name
-freshType :: State HGen CIdent
-freshType = gets ((("t" ++) . show . (+ 1) . length) . typeDefs)
 
 -- Get or define a unique type with a generated name
 -- Two structurally equal types should have the same name
-typeDef :: CType -> State HGen CIdent
+typeDef :: TypeDef -> State HGen CIdent
 typeDef t = do
     types <- gets typeDefs
     case lookup t types of
         Just ident -> pure ident
         Nothing -> do
-            ident <- freshType
+            ident <- gets (((prefix t ++) . show . (+ 1) . length) . typeDefs)
             modify $ \s -> s {typeDefs = (t, ident) : typeDefs s}
             pure ident
+
+-- What to start type identifiers with
+prefix :: TypeDef -> CIdent
+prefix Ty {} = "t"
+prefix Fn {} = "f"
+prefix En {} = "e"
 
 -- Define a type alias
 -- It's fine for the same type to have multiple aliases

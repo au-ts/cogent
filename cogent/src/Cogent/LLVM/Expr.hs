@@ -23,6 +23,7 @@ import Cogent.Common.Types (PrimInt (Boolean))
 import Cogent.Core as Core
 import Cogent.Dargent.Util (primIntSizeBits)
 import Cogent.LLVM.Types (fieldTypes, maxMember, nameType, tagType, toLLVMType, typeSize)
+import Cogent.Util (toCName)
 import Control.Monad (void)
 import Control.Monad.Fix (MonadFix)
 import Data.Char (ord)
@@ -191,7 +192,7 @@ exprToLLVM' (TE t (Fun f _ _ _)) _ =
             C.GlobalReference
                 (toLLVMType t)
                 -- append .llvm to end of fn name for non-wrapped version
-                (mkName (unCoreFunName f ++ ".llvm"))
+                ((mkName . (++ ".llvm") . toCName . unCoreFunName) f)
 -- To apply a function, evaluate the argument and function then call it
 exprToLLVM' (TE _ (App f a)) vars = do
     arg <- exprToLLVM a vars

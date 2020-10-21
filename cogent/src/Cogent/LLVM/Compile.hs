@@ -22,6 +22,7 @@ import Cogent.LLVM.CHeader (createCHeader)
 import Cogent.LLVM.Custom (function)
 import Cogent.LLVM.Expr (exprToLLVM, monomorphicTypeDef)
 import Cogent.LLVM.Types (toLLVMType)
+import Cogent.Util (toCName)
 import Control.Monad (void, (>=>))
 import qualified Data.ByteString.Char8 as BS
 import Data.ByteString.Internal (packChars)
@@ -46,16 +47,16 @@ toLLVMDef (FunDef _ name _ _ t rt body) =
   void $
     function
       -- append .llvm to end of fn name for non-wrapped version
-      (mkName (name ++ ".llvm"))
+      (mkName (toCName name ++ ".llvm"))
       [(toLLVMType t, [])]
       (toLLVMType rt)
       ((\vars -> block `named` "entry" >> exprToLLVM body vars) >=> ret)
-      >> wrapLLVM name t rt
+      >> wrapLLVM (toCName name) t rt
 -- For abstract declarations, emit an extern definition and also create
 -- monomorphised typedefs for any abstract types that appear in the function
 -- signature
 toLLVMDef (AbsDecl _ name _ _ t rt) =
-  wrapC name t rt
+  wrapC (toCName name) t rt
     >> monomorphicTypeDef t
     >> monomorphicTypeDef rt
 -- Don't declare typedefs now, instead declare a monomorphic one when we see the

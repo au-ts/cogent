@@ -49,12 +49,12 @@
         - For boxed records, we need to `getelementptr` then `store`
     - Record literals
         - Constructed using successive `insertvalue` instructions
-    - Variant promotion
-        - Purely syntactic, this is a `nop` in the compiled code
     - Variant constructors
         - `insertvalue` inserts the tag and then a casted value
     - Variant case and esac
         - A variant's tag field is used to conditionally branch like if-then-else
+    - Variant promotion
+        - Purely syntactic, this is a `nop` in the compiled code
     - Function expressions
         - These are converted to global LLVM function references
     - Function application
@@ -80,6 +80,8 @@
     - Prototypes are generated for each Cogent function definition as well as abstract functions
     - `typedef` s are emitted for each non primitive type used in the code as well as for argument and return types
     - Implementation is hacky and should be rewritten using quasiquoted C or by reusing existing header generation from C backend
+* Function, constructor name sanitisation
+    - Very naive and can result in name collisions e.g. `f'` and `f_prime`
 * String literals and string types
     - Untested and inconsistent use of pointers vs native arrays, leftover from prototype
 
