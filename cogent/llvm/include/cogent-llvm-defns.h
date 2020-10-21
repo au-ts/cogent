@@ -1,5 +1,5 @@
-#ifndef COGENT_LLVM_DEFS_H__
-#define COGENT_LLVM_DEFS_H__
+#ifndef __COGENT_DEFNS_H__
+#define __COGENT_DEFNS_H__
 
 typedef unsigned char u8;
 typedef unsigned short u16;

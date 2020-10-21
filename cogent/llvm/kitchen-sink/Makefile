@@ -1,4 +1,4 @@
-CLANG=clang
+CLANG=clang -I../include
 AS=llvm-as
 LINK=llvm-link
 COGENT=stack exec cogent --

@@ -1,0 +1,27 @@
+type Heap
+
+type Bag = { count : U32, sum : U32 }
+
+newBag : Heap -> < Failure Heap | Success (Bag, Heap) >
+
+freeBag : (Heap, Bag) -> Heap
+
+addToBag : (U32, Bag) -> Bag
+addToBag (x, b { count = c, sum = s }) = b { count = c + 1, sum = s + x }
+
+averageBag : Bag! -> < EmptyBag | SuccessBag U32 >
+averageBag b = if b.count == 0 then EmptyBag else SuccessBag (b.sum / b.count)
+
+type List a
+
+reduce : all (a, b). ((List a)!, (a!, b) -> b, b) -> b
+
+average : (Heap, (List U32)!) -> (Heap, U32)
+average (h, ls) =
+  newBag h
+  | Success (bag, h') ->
+      let bag' = reduce (ls, addToBag, bag)
+       in averageBag bag' !bag'
+          | SuccessBag n -> (freeBag (h', bag'), n)
+          | EmptyBag  -> (freeBag (h', bag'), 0)
+  | Failure h' -> (h', 0)

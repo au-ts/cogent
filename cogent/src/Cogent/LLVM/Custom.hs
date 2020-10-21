@@ -22,7 +22,7 @@ import qualified LLVM.AST.Constant as C
 import LLVM.AST.Global (Global (basicBlocks, name, parameters, returnType), linkage)
 import LLVM.AST.Linkage (Linkage (External))
 import LLVM.AST.Type (ptr)
-import LLVM.IRBuilder hiding (extern, function)
+import LLVM.IRBuilder (IRBuilderT, emitDefn, emptyIRBuilder, fresh, named, runIRBuilderT)
 import LLVM.IRBuilder.Module (MonadModuleBuilder)
 
 -- Modified version of https://hackage.haskell.org/package/llvm-hs-pure-9.0.0/docs/src/LLVM.IRBuilder.Module.html#function

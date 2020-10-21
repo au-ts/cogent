@@ -48,7 +48,7 @@ createCHeader monoed mod =
     let defs = execState (mapM_ define monoed) (HGen [] [] [])
         guard = toUpper <$> mod ++ "_H__"
         ifndef = ["#ifndef " ++ guard, "#define " ++ guard, ""]
-        cogentDefs = ["#include \"cogent_llvm_defs.h\"", ""]
+        cogentDefs = ["#include <cogent-llvm-defns.h>", ""]
         endif = ["", "#endif"]
         ts =
             ( \(t, i) ->
