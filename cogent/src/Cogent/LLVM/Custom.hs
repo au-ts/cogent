@@ -9,6 +9,7 @@
 --
 -- @TAG(DATA61_GPL)
 --
+{-# LANGUAGE OverloadedStrings #-}
 
 module Cogent.LLVM.Custom (function, extern) where
 
@@ -29,6 +30,9 @@ import LLVM.IRBuilder.Module (MonadModuleBuilder)
 -- All rights reserved.
 
 -- The change is to allow parameter attributes to be provided
+-- Additionally, names are given to the arguments for compatibility with Vellvm
+-- Once llvm-hs supports LLVM 10 we can go back to using unnamed parameters as they will be named by
+-- the IR printer then
 function ::
     MonadModuleBuilder m =>
     Name ->
@@ -39,7 +43,7 @@ function ::
 function label argtys retty body = do
     let tys = fst <$> argtys
     (paramNames, blocks) <- runIRBuilderT emptyIRBuilder $ do
-        paramNames <- forM argtys $ const fresh
+        paramNames <- forM argtys (const fresh) `named` "a"
         body $ zipWith LocalReference tys paramNames
         return paramNames
     let def =

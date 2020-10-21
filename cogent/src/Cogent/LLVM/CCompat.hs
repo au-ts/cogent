@@ -11,6 +11,7 @@
 --
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 
 module Cogent.LLVM.CCompat (wrapC, wrapLLVM) where
 
@@ -171,26 +172,26 @@ wrapCInner name t rt ts' wrapperRT argLayout [arg] = do
     -- Handle arguments
     args <- case (argLayout, needsWrapper t) of
         -- No need to coerce arguments
-        (_, False) -> pure [(arg, [])]
+        (_, False) -> pure [arg]
         -- Argument must be a reference, so we should pass a pointer
         (Ref, _) -> do
             tmp <- alloca (typeOf arg) Nothing 4
             store tmp 4 arg
-            pure [(tmp, [ByVal])]
+            pure [tmp]
         -- Coerce arguments depending on their layout
         _ -> case argLayout of
-            One a0 -> castVal a0 arg >>= \t -> pure [(t, [])]
+            One a0 -> (: []) <$> castVal a0 arg
             Two a0t a1t ->
                 let aggT = StructureType False [a0t, a1t]
                  in do
                         casted <- castVal aggT arg
                         arg1 <- extractValue casted [0]
                         arg2 <- extractValue casted [1]
-                        pure [(arg1, []), (arg2, [])]
+                        pure [arg1, arg2]
             _ -> __impossible "argLayout can't be Ref here"
     retArg <- alloca (toLLVMType rt) Nothing 4
     let args' = case (wrapperRT, needsWrapper rt) of
-            (VoidType, True) -> (retArg, [SRet]) : args
+            (VoidType, True) -> retArg : args
             _ -> args
     -- Call inner function
     let fun =
@@ -198,7 +199,7 @@ wrapCInner name t rt ts' wrapperRT argLayout [arg] = do
                 C.GlobalReference
                     (ptr (FunctionType wrapperRT (fst <$> ts') False))
                     (mkName name)
-    res <- call fun args'
+    res <- call fun $ (,[]) <$> args'
     -- Handle return value
     case (wrapperRT, needsWrapper rt) of
         -- No need to coerce return value

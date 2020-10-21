@@ -19,6 +19,7 @@ import Cogent.Common.Syntax (VarName)
 import Cogent.Core as Core (Definition (..), TypedExpr)
 import Cogent.LLVM.CCompat (wrapC, wrapLLVM)
 import Cogent.LLVM.CHeader (createCHeader)
+import Cogent.LLVM.Custom (function)
 import Cogent.LLVM.Expr (exprToLLVM, monomorphicTypeDef)
 import Cogent.LLVM.Types (toLLVMType)
 import Control.Monad (void, (>=>))
@@ -28,7 +29,7 @@ import Data.ByteString.Short.Internal (toShort)
 import LLVM.AST (Module (moduleSourceFileName), mkName, moduleTargetTriple)
 import LLVM.Context (withContext)
 import LLVM.IRBuilder.Instruction (ret)
-import LLVM.IRBuilder.Module
+import LLVM.IRBuilder.Module (ModuleBuilder, buildModule)
 import LLVM.IRBuilder.Monad (block, named)
 import LLVM.Module (moduleLLVMAssembly, withModuleFromAST)
 import LLVM.Target (getDefaultTargetTriple)
@@ -46,7 +47,7 @@ toLLVMDef (FunDef _ name _ _ t rt body) =
     function
       -- append .llvm to end of fn name for non-wrapped version
       (mkName (name ++ ".llvm"))
-      [(toLLVMType t, NoParameterName)]
+      [(toLLVMType t, [])]
       (toLLVMType rt)
       ((\vars -> block `named` "entry" >> exprToLLVM body vars) >=> ret)
       >> wrapLLVM name t rt
