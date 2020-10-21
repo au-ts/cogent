@@ -1,7 +1,7 @@
 
 
 -- |
--- Module      : Minigent.Termination2
+-- Module      : Minigent.Termination
 -- Copyright   : (c) Data61 2018-2019
 --                   Commonwealth Science and Research Organisation (CSIRO)
 --                   ABN 41 687 119 230
@@ -32,18 +32,49 @@ import Data.List
 
 import Debug.Trace
 
+-- 
 data AST
   = RecordAST String AST -- field 
   | RecursiveRecordAST String String AST -- recpar, field 
   | RecParAST String -- recpar 
   | VariantAST String AST -- field 
-  | IntAST
+  -- take args 
+  | IntAST 
   | BoolAST 
   | UnitAST 
+  -- ?
   | AbsTypeAST 
   | TypeVarAST 
   | FunctionAST
   deriving (Show, Eq)
+
+
+data MeasureOp
+  = ProjectOp String MeasureOp -- field 
+  | UnfoldOp String String MeasureOp -- recpar, field 
+  | RecParMeasure String -- recpar 
+  | CaseOp [(String,MeasureOp)] -- field 
+  | IntConstOp Int
+  -- | VarAST 
+  deriving (Show, Eq)
+
+buildMeasure :: Type -> [AST] -> [AST]
+buildMeasure t res = 
+  case t of 
+    PrimType p -> IntConstOp 0
+    Variant row -> parseVariant $ M.toList (rowEntries row)
+
+    -- Record recpar row sig -> parseRecord recpar $ M.toList (rowEntries row)
+    
+    -- RecPar t rc -> RecParAST t : res
+    -- RecParBang t rc -> RecParAST t : res
+    -- AbsType name sig ty -> AbsTypeAST : res
+    -- TypeVar v -> TypeVarAST : res
+    -- TypeVarBang v -> TypeVarAST : res
+    -- UnifVar v -> TypeVarAST : res -- ? need more?
+    -- Function x y -> FunctionAST : res
+    -- Bang t -> buildMeasure t []
+
 
 buildMeasure :: Type -> [AST] -> [AST]
 buildMeasure t res = 
@@ -186,6 +217,9 @@ cutExpr b s (Just exp) =
       case b of 
         True -> cutExpr b s (Just e2)
         False -> if c == s then (Just e2) else cutExpr b s (Just e2)
+
+
+
 
 termCheck :: GlobalEnvironments -> ([Error], [(FunName, [Assertion], String)])
 termCheck genvs = M.foldrWithKey go ([],[]) (defns genvs)
