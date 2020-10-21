@@ -78,7 +78,7 @@ exprToLLVM' (TE t (Op op [a, b])) vars = do
     res <- toLLVMOp op oa ob
     case t of
         -- Coerce boolean results back to a full byte rather than a single bit
-        TPrim Boolean -> zext res i8
+        TPrim Boolean -> if typeOf res == i8 then pure res else zext res i8
         _ -> pure res
 -- Complement must be implemented by xor with an equal-length value consisting
 -- entirely of 1 bits
