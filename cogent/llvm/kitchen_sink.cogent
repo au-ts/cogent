@@ -1,0 +1,91 @@
+prim: () -> (Bool, U8, U16, U32, U64)
+prim _ = (True, 92, 42652, 363415312, 9573591166087831551)
+
+unit: () -> ()
+unit _ = ()
+
+arith: (U16, U16) -> (U16, U16, U16, U16, U16)
+arith (x, y) = (x + y, x - y, x * y, x / y, x % y)
+
+logic: (Bool, Bool) -> (Bool, Bool)
+logic (x, y) = (x && y, x || y)
+
+compare: (U32, U32) -> (Bool, Bool, Bool, Bool, Bool, Bool)
+compare (x, y) = (x > y, x < y, x <= y, x >= y, x == y, x /= y)
+
+bitwise: (U16, U16) -> (U16, U16, U16, U16, U16)
+bitwise (x, y) = (x .&. y, x .|. y, x .^.  y, x << y, x >> y)
+
+unary: (U64, Bool) -> (U64, Bool)
+unary (x, y) = (complement x, not y)
+
+bind: U64 -> U64
+bind x = let y = x + 1 
+          in let z = x + y + 2 
+              in x + y + z
+
+cast: U8 -> (U16, U32, U64)
+cast x = (upcast x, upcast x, upcast x)
+
+branch: (Bool, Bool, U32, U32) -> U32
+branch (b1, b2, i1, i2) = if b1
+    then if b2
+        then i1 + i2
+        else i1 - i2
+    else if b2
+        then i1 * i2
+        else i1 / i2
+
+type B = {a: U32}
+
+member: #B -> U32
+member x = x.a
+
+takeput: #B -> #B
+takeput x {a} = x{a = a + 1}
+
+takeput': B -> B
+takeput' x {a} = x{a = a + 1}
+
+reclit: () -> #{a: U32, b: U32}
+reclit _ = #{ a = 283397, b = 760882904}
+
+type V a = < Z | O a | T a a >
+
+con: U32 -> (V U32, V U32, V U32)
+con x = (Z, O x, T x x) 
+
+type Boo = < Fal | Tru >
+
+and': (Boo, Boo) -> Boo
+and' (x, y) = x
+    | Fal -> Fal
+    | Tru -> y
+        | Fal -> Fal
+        | Tru -> Tru
+
+inc: U8 -> U8
+inc x = x + 1
+
+call: (U8 -> U8, U8) -> U8
+call (f, x) = f x
+
+run: U8 -> U8
+run x = call (inc, x)
+
+abs: U8 -> U8
+
+type Abs
+
+type Poly a
+
+id: Abs -> Abs
+id x = x
+
+id': all a. Poly a -> Poly a
+id' x = x
+
+id'': Poly U32 -> Poly U32
+id'' x = id' x
+
+imp: Poly () -> Poly Bool

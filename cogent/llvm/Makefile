@@ -1,23 +1,20 @@
-CLANG=clang-11
-AS=llvm-as-11
-LINK=llvm-link-11
+CLANG=clang
+AS=llvm-as
+LINK=llvm-link
 COGENT=cogent
 
-all: main.bc adder.bc
-	$(LINK) main.bc adder.bc -o main
+all: main.c kitchen_sink.bc
+	$(CLANG) main.c kitchen_sink.bc -o main
 	chmod +x main
 
-main.bc: main.ll
-	$(AS) main.ll -o main.bc
+kitchen_sink.bc: kitchen_sink.ll
+	$(AS) kitchen_sink.ll -o kitchen_sink.bc
 
-main.ll: main.c
-	$(CLANG) -S -emit-llvm main.c -o main.ll
+kitchen_sink.ll: kitchen_sink.cogent
+	$(COGENT) --llvm kitchen_sink.cogent
 
-adder.bc: adder.ll
-	$(AS) adder.ll -o adder.bc
-
-adder.ll: adder.cogent
-	$(COGENT) --llvm adder.cogent
+kitchen_sink.c: kitchen_sink.cogent
+	$(COGENT) --code-gen kitchen_sink.cogent
 
 .PHONY: clean
 clean:
