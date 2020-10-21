@@ -9,8 +9,8 @@ freeBag : (Heap, Bag) -> Heap
 addToBag : (U32, Bag) -> Bag
 addToBag (x, b { count = c, sum = s }) = b { count = c + 1, sum = s + x }
 
-averageBag : Bag! -> < EmptyBag | SuccessBag U32 >
-averageBag b = if b.count == 0 then EmptyBag else SuccessBag (b.sum / b.count)
+averageBag : Bag! -> < EmptyBag | Success U32 >
+averageBag b = if b.count == 0 then EmptyBag else Success (b.sum / b.count)
 
 type List a
 
@@ -22,6 +22,6 @@ average (h, ls) =
   | Success (bag, h') ->
       let bag' = reduce (ls, addToBag, bag)
        in averageBag bag' !bag'
-          | SuccessBag n -> (freeBag (h', bag'), n)
+          | Success n -> (freeBag (h', bag'), n)
           | EmptyBag  -> (freeBag (h', bag'), 0)
   | Failure h' -> (h', 0)

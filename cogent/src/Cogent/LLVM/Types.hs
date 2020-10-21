@@ -16,14 +16,15 @@ module Cogent.LLVM.Types where
 -- This module mostly deals with converting Cogent types to LLVM types, plus
 -- various utilities for types
 
-import Cogent.Common.Syntax (Size, TagName, TypeName)
+import Cogent.Common.Syntax (Size, TagName, TypeName, VarName)
 import Cogent.Common.Types (PrimInt (..), Sigil (Boxed, Unboxed))
 import Cogent.Compiler (__impossible)
-import Cogent.Core as Core (Type (TCon, TFun, TPrim, TRecord, TString, TSum, TUnit))
+import Cogent.Core as Core
 import Cogent.Dargent.Util (primIntSizeBits)
 import Data.Function (on)
 import Data.List (intercalate, maximumBy)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromJust)
+import Data.Set (Set, empty, fromList, union, unions)
 import LLVM.AST
 import qualified LLVM.AST as AST
 import LLVM.AST.Type (i32, i8, ptr)
@@ -116,11 +117,7 @@ maxMember ts = maximumBy (compare `on` typeSize) (reverse (fieldTypes ts))
 
 -- Look up a variant constructor's argument type
 tagType :: Core.Type t b -> TagName -> Core.Type t b
-tagType (TSum ts) tag =
-    fst $
-        fromMaybe
-            (error "unknown tag")
-            (lookup tag ts)
+tagType (TSum ts) tag = fst $ fromJust $ lookup tag ts
 tagType _ _ = error "not a variant type"
 
 -- Check if a type is primitive or not
@@ -196,3 +193,16 @@ memLookup offset ((m, s) : ms)
     | offset == 0 = m
     | offset < 0 = Invalid
     | otherwise = memLookup (offset - s) ms
+
+-- Collect all the tagnames for a definition or type
+collectTags :: Core.Definition TypedExpr VarName VarName -> Set TagName
+collectTags (FunDef _ _ _ _ t rt _) = collectTags' t `union` collectTags' rt
+collectTags (AbsDecl _ _ _ _ t rt) = collectTags' t `union` collectTags' rt
+collectTags (TypeDef _ _ mt) = maybe empty collectTags' mt
+
+collectTags' :: Core.Type t b -> Set TagName
+collectTags' (TRecord _ ts _) = unions $ collectTags' <$> fieldTypes ts
+collectTags' (TSum ts) = fromList (fst <$> ts) `union` unions (collectTags' <$> fieldTypes ts)
+collectTags' (TFun t1 t2) = collectTags' t1 `union` collectTags' t2
+collectTags' (TCon _ ts _) = unions $ collectTags' <$> ts
+collectTags' _ = empty

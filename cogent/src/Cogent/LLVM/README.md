@@ -102,8 +102,3 @@
     - Sweet syntax is not supported
 * Antiquoted C
     - It's a bit awkward to use without this but I didn't worry about it
-
-## Bugs
-
-* Duplicate variant names
-    - If two different variant types use the same constructor name, this will result in a duplicate enum definition

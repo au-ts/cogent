@@ -18,18 +18,16 @@ module Cogent.LLVM.Expr (exprToLLVM, monomorphicTypeDef, castVal, constUndef) wh
 -- This module converts Cogent expressions into LLVM IR via the IRBuilder
 -- monadic interface
 
-import Cogent.Common.Syntax as Sy
+import Cogent.Common.Syntax as Sy (CoreFunName (unCoreFunName), Op (..))
 import Cogent.Common.Types (PrimInt (Boolean))
 import Cogent.Core as Core
 import Cogent.Dargent.Util (primIntSizeBits)
-import Cogent.LLVM.CodeGen (Codegen, bind, var)
+import Cogent.LLVM.CodeGen (Codegen, bind, tagIndex, var)
 import Cogent.LLVM.Types (fieldTypes, maxMember, nameType, tagType, toLLVMType, typeSize)
 import Cogent.Util (toCName)
 import Control.Monad (void)
 import Data.Char (ord)
 import Data.Foldable (foldrM)
-import Data.List (findIndex)
-import Data.Maybe (fromMaybe)
 import LLVM.AST as AST (Instruction (LShr), Operand (ConstantOperand), Type, mkName)
 import qualified LLVM.AST.Constant as C
 import LLVM.AST.IntegerPredicate as P (IntegerPredicate (EQ, NE, UGE, UGT, ULE, ULT))
@@ -116,7 +114,8 @@ exprToLLVM' (TE _ (Cast t e)) = do
 -- Constructing a sumtype consists of inserting a 32bit tag, followed by a value
 -- The value must be casted to the 'maximum member' of the variant beforehand
 exprToLLVM' (TE t (Con tag e (TSum ts))) = do
-    tagged <- insertValue (constUndef (toLLVMType t)) (int32 (toInteger (tagIndex t tag))) [0]
+    tagv <- tagIndex tag
+    tagged <- insertValue (constUndef (toLLVMType t)) tagv [0]
     v <- exprToLLVM e
     case e of
         -- Don't bother doing anything for constructors with no arguments
@@ -133,7 +132,7 @@ exprToLLVM' (TE t (Con tag e (TSum ts))) = do
 exprToLLVM' (TE _ (Case e@(TE rt _) tag (_, _, tb) (_, _, fb))) = mdo
     variant <- exprToLLVM e
     tagv <- extractValue variant [0]
-    cond <- icmp P.EQ tagv (int32 (toInteger (tagIndex rt tag)))
+    cond <- tagIndex tag >>= icmp P.EQ tagv
     condBr cond brMatch brNotMatch
     brMatch <- block `named` "case.true"
     v <- extractValue variant [1]
@@ -234,14 +233,6 @@ loadMember recd fld = do
             then extractValue recv [toEnum fld]
             else gep recv [int32 0, int32 (toEnum fld)] >>= \fldp -> load fldp 0
     pure (recv, fldv)
-
--- Convert the tag name for a variant to a 32-bit tag unique for that variant
-tagIndex :: Core.Type t b -> TagName -> Int
-tagIndex (TSum ts) tag =
-    fromMaybe
-        (error "unknown tag")
-        (findIndex ((== tag) . fst) ts)
-tagIndex _ _ = error "not a variant type"
 
 -- Helper to construct integer with a certain size and value
 constInt :: Integer -> Integer -> Operand

@@ -17,19 +17,19 @@ module Cogent.LLVM.CHeader (createCHeader) where
 -- We might be able to reuse the existing .h file generation but this is
 -- simpler for now
 
-import Cogent.Common.Syntax (FunName, VarName)
+import Cogent.Common.Syntax (FunName, TagName, VarName)
 import Cogent.Common.Types (PrimInt (..), Sigil (Boxed, Unboxed))
 import Cogent.Core as Core (Definition (..), Type (..), TypedExpr)
 import Cogent.Util (toCName)
 import Control.Monad.State (State, execState, gets, modify)
 import Data.Bifunctor (Bifunctor (first))
 import Data.Char (toUpper)
-import Data.List (intercalate, sort)
+import Data.List (intercalate)
 
 -- Instead of using strings for everything it would be wiser to use quasiquoted C or something
 type CType = String
 type CIdent = String
-data TypeDef = Fn CType CType | Ty CType | En CType deriving (Eq)
+data TypeDef = Fn CType CType | Ty CType deriving (Eq)
 
 -- When generating a header file just keep track of:
 --  - unique type definitions
@@ -43,19 +43,19 @@ data HGen = HGen
     }
 
 -- Convert  list of Cogent definitions to a header file
-createCHeader :: [Core.Definition TypedExpr VarName VarName] -> String -> String
-createCHeader monoed mod =
+createCHeader :: [Core.Definition TypedExpr VarName VarName] -> String -> [TagName] -> String
+createCHeader monoed mod tags =
     let defs = execState (mapM_ define monoed) (HGen [] [] [])
         guard = toUpper <$> mod ++ "_H__"
-        ifndef = ["#ifndef " ++ guard, "#define " ++ guard, ""]
-        cogentDefs = ["#include <cogent-llvm-defns.h>", ""]
-        endif = ["", "#endif"]
+        ifndef = ["#ifndef " ++ guard, "#define " ++ guard]
+        cogentDefs = ["#include <cogent-llvm-defns.h>"]
+        endif = ["#endif"]
+        tag_enum = ["typedef enum { " ++ intercalate ", " tags ++ " } tag_t;"]
         ts =
             ( \(t, i) ->
                 "typedef "
                     ++ ( case t of
                             Ty t -> t ++ " " ++ i ++ ";"
-                            En t -> t ++ " " ++ i ++ ";"
                             Fn t rt -> rt ++ "(*" ++ i ++ ")(" ++ t ++ ");"
                        )
             )
@@ -63,7 +63,7 @@ createCHeader monoed mod =
         fs =
             (\(t, rt, i) -> rt ++ " " ++ i ++ "(" ++ t ++ ");")
                 <$> funProtos defs
-     in unlines $ ifndef ++ cogentDefs ++ ts ++ fs ++ endif
+     in unlines $ intercalate [""] [ifndef, cogentDefs, tag_enum, ts, fs, endif]
 
 -- From a single Cogent definition, emit C definitions
 define :: Core.Definition TypedExpr VarName VarName -> State HGen ()
@@ -98,8 +98,7 @@ toCType (TRecord _ ts Unboxed) =
         >>= \fs -> typeDef $ Ty $ "struct { " ++ fs ++ "}"
 toCType (TSum ts) = do
     fs <- toCFields ts
-    enum <- typeDef $ En $ "enum { " ++ intercalate ", " (toCName <$> sort (fst <$> ts)) ++ " }"
-    typeDef $ Ty $ "struct { " ++ enum ++ " tag; union { " ++ fs ++ "} val; }"
+    typeDef $ Ty $ "struct { tag_t tag; union { " ++ fs ++ "} val; }"
 toCType (TCon tn ts (Boxed _ _)) = (++ "*") <$> toCType (TCon tn ts Unboxed)
 toCType (TCon tn ts Unboxed) =
     (tn ++) . filter (/= '*') <$> (concatMap ("_" ++) <$> mapM toCType ts)
@@ -131,7 +130,6 @@ typeDef t = do
 prefix :: TypeDef -> CIdent
 prefix Ty {} = "t"
 prefix Fn {} = "f"
-prefix En {} = "e"
 
 -- Define a type alias
 -- It's fine for the same type to have multiple aliases
