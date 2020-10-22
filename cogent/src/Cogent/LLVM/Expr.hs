@@ -13,7 +13,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecursiveDo #-}
 
-module Cogent.LLVM.Expr (exprToLLVM, monomorphicTypeDef, castVal, constUndef) where
+module Cogent.LLVM.Expr (exprToLLVM, castVal, constUndef) where
 
 -- This module converts Cogent expressions into LLVM IR via the IRBuilder
 -- monadic interface
@@ -23,9 +23,8 @@ import Cogent.Common.Types (PrimInt (Boolean))
 import Cogent.Core as Core
 import Cogent.Dargent.Util (primIntSizeBits)
 import Cogent.LLVM.CodeGen (Codegen, bind, tagIndex, var)
-import Cogent.LLVM.Types (fieldTypes, maxMember, nameType, tagType, toLLVMType, typeSize)
+import Cogent.LLVM.Types (maxMember, tagType, toLLVMType, typeSize)
 import Cogent.Util (toCName)
-import Control.Monad (void)
 import Data.Char (ord)
 import Data.Foldable (foldrM)
 import LLVM.AST as AST (Instruction (LShr), Operand (ConstantOperand), Type, mkName)
@@ -35,34 +34,19 @@ import LLVM.AST.Type (i8, ptr)
 import LLVM.AST.Typed (typeOf)
 import LLVM.IRBuilder.Constant (array, int32, int8)
 import LLVM.IRBuilder.Instruction as IR
-import LLVM.IRBuilder.Module (MonadModuleBuilder, typedef)
 import LLVM.IRBuilder.Monad (block, currentBlock, emitInstr, named)
 
 -- Given a single typed expression, and a list of in-scope variables, create the
 -- LLVM IR to compute the expression
--- Also create monomorphised typedefs for any abstract types that appear in the
--- expression type
 exprToLLVM :: TypedExpr t v a b -> Codegen Operand
-exprToLLVM e@(TE t _) = monomorphicTypeDef t >> exprToLLVM' e
-
--- If the provided type is abstract, or contains one, emit a typedef for it
-monomorphicTypeDef :: (MonadModuleBuilder m) => Core.Type t b -> m ()
-monomorphicTypeDef t@TCon {} = void $ typedef (mkName (nameType t)) Nothing
-monomorphicTypeDef (TRecord _ ts _) = mapM_ monomorphicTypeDef $ fieldTypes ts
-monomorphicTypeDef (TSum ts) = mapM_ monomorphicTypeDef $ fieldTypes ts
-monomorphicTypeDef _ = pure ()
-
--- Given a single typed expression, and a list of in-scope variables, create the
--- LLVM IR to compute the expression
-exprToLLVM' :: TypedExpr t v a b -> Codegen Operand
 -- Unit is represented as a byte of arbitrary value
-exprToLLVM' (TE _ Unit) = pure $ int8 0
+exprToLLVM (TE _ Unit) = pure $ int8 0
 -- Integer literals are mapped to LLVM integer types
-exprToLLVM' (TE _ (ILit int p)) = pure $ constInt (primIntSizeBits p) int
+exprToLLVM (TE _ (ILit int p)) = pure $ constInt (primIntSizeBits p) int
 -- For string literals use a byte array of ASCII values
-exprToLLVM' (TE _ (SLit str)) = pure $ array $ C.Int 8 . toInteger . ord <$> str
+exprToLLVM (TE _ (SLit str)) = pure $ array $ C.Int 8 . toInteger . ord <$> str
 -- For binary operators evaluate each operand and then the result
-exprToLLVM' (TE t (Op op [a, b])) = do
+exprToLLVM (TE t (Op op [a, b])) = do
     oa <- exprToLLVM a
     ob <- exprToLLVM b
     res <- toLLVMOp op oa ob
@@ -72,26 +56,26 @@ exprToLLVM' (TE t (Op op [a, b])) = do
         _ -> pure res
 -- Complement must be implemented by xor with an equal-length value consisting
 -- entirely of 1 bits
-exprToLLVM' (TE t (Op Sy.Complement [a])) = do
+exprToLLVM (TE t (Op Sy.Complement [a])) = do
     oa <- exprToLLVM a
     xor oa (constInt (typeSize t) (-1))
 -- We want not to return 1 for the case of 0, and 0 otherwise, so we can't use xor again
-exprToLLVM' (TE _ (Op Sy.Not [a])) = do
+exprToLLVM (TE _ (Op Sy.Not [a])) = do
     oa <- exprToLLVM a
     res <- icmp P.EQ oa (int8 0)
     zext res i8
 -- For record member access just load the member and yield the field value
-exprToLLVM' (TE _ (Member recd fld)) = snd <$> loadMember recd fld
+exprToLLVM (TE _ (Member recd fld)) = snd <$> loadMember recd fld
 -- Take requires us to bind the field value and also the record value as new
 -- variables which we can use to evaluate the body of the expression
-exprToLLVM' (TE _ (Take _ recd fld body)) = do
+exprToLLVM (TE _ (Take _ recd fld body)) = do
     (recv, fldv) <- loadMember recd fld
     foldr bind (exprToLLVM body) [recv, fldv]
 -- To put a value into a record, evaluate the record and the value, then for:
 --  - unboxed records: simply use the insertvalue IR instruction
 --  - boxed records: calculate the field pointer and store the value
 -- In either case the yielded result is the updated record
-exprToLLVM' (TE _ (Put recd fld val)) = do
+exprToLLVM (TE _ (Put recd fld val)) = do
     recv <- exprToLLVM recd
     v <- exprToLLVM val
     if isUnboxed (exprType recd)
@@ -102,18 +86,18 @@ exprToLLVM' (TE _ (Put recd fld val)) = do
             pure recv
 -- For a let binding we evalaute the value using the current vars, and then
 -- evaluate the body using the updated set of variables
-exprToLLVM' (TE _ (Let _ val body)) = exprToLLVM val >>= flip bind (exprToLLVM body)
+exprToLLVM (TE _ (Let _ val body)) = exprToLLVM val >>= flip bind (exprToLLVM body)
 -- let! is the same as let
-exprToLLVM' (TE t (LetBang _ a val body)) = exprToLLVM (TE t (Let a val body))
+exprToLLVM (TE t (LetBang _ a val body)) = exprToLLVM (TE t (Let a val body))
 -- Promote is syntactic only
-exprToLLVM' (TE _ (Promote _ e)) = exprToLLVM e
+exprToLLVM (TE _ (Promote _ e)) = exprToLLVM e
 -- To upcast, zero extend the evaluated expression as needed
-exprToLLVM' (TE _ (Cast t e)) = do
+exprToLLVM (TE _ (Cast t e)) = do
     v <- exprToLLVM e
     toLLVMType t >>= zext v
 -- Constructing a sumtype consists of inserting a 32bit tag, followed by a value
 -- The value must be casted to the 'maximum member' of the variant beforehand
-exprToLLVM' (TE t (Con tag e (TSum ts))) = do
+exprToLLVM (TE t (Con tag e (TSum ts))) = do
     tagv <- tagIndex tag
     t' <- toLLVMType t
     tagged <- insertValue (constUndef t') tagv [0]
@@ -130,7 +114,7 @@ exprToLLVM' (TE t (Con tag e (TSum ts))) = do
 --    bound as a new variable
 --  - otherwise, evaluate the false branch with the whole variant bound
 -- The phi instruction is used to yield the final result based on the branch
-exprToLLVM' (TE _ (Case e@(TE rt _) tag (_, _, tb) (_, _, fb))) = mdo
+exprToLLVM (TE _ (Case e@(TE rt _) tag (_, _, tb) (_, _, fb))) = mdo
     variant <- exprToLLVM e
     tagv <- extractValue variant [0]
     cond <- tagIndex tag >>= icmp P.EQ tagv
@@ -148,14 +132,14 @@ exprToLLVM' (TE _ (Case e@(TE rt _) tag (_, _, tb) (_, _, fb))) = mdo
     brExit <- block `named` "case.done"
     phi [(valTrue, brMatch'), (valFalse, brNotMatch')]
 -- Esac requires us to extract the value from the variant and cast it
-exprToLLVM' (TE t (Esac e)) = do
+exprToLLVM (TE t (Esac e)) = do
     variant <- exprToLLVM e
     v <- extractValue variant [1]
     toLLVMType t >>= castVal v
 -- For if the condition must be evaluated and then branching is used to evaluate
 -- the true or false branch
 -- The phi instruction is used to yield the final result based on the branch
-exprToLLVM' (TE _ (If cd tb fb)) = mdo
+exprToLLVM (TE _ (If cd tb fb)) = mdo
     v <- exprToLLVM cd
     cond <- icmp NE v (int8 0)
     condBr cond brTrue brFalse
@@ -170,16 +154,16 @@ exprToLLVM' (TE _ (If cd tb fb)) = mdo
     brExit <- block `named` "if.done"
     phi [(valTrue, brTrue'), (valFalse, brFalse')]
 -- A struct expression is constructed by iteratively inserting field values
-exprToLLVM' (TE t (Struct flds)) = do
+exprToLLVM (TE t (Struct flds)) = do
     t' <- toLLVMType t
     foldrM
         (\(i, v) struct -> exprToLLVM v >>= \value -> insertValue struct value [i])
         (constUndef t')
         [(i, snd fld) | (i, fld) <- zip [0 ..] flds]
 -- Use the variable index to look it up in the current variable context
-exprToLLVM' (TE _ (Variable (idx, _))) = var idx
+exprToLLVM (TE _ (Variable (idx, _))) = var idx
 -- Functions must be references to something already defined globally
-exprToLLVM' (TE t (Fun f _ _ _)) = do
+exprToLLVM (TE t (Fun f _ _ _)) = do
     ft <- toLLVMType t
     pure $
         ConstantOperand $
@@ -188,11 +172,11 @@ exprToLLVM' (TE t (Fun f _ _ _)) = do
                 -- append .llvm to end of fn name for non-wrapped version
                 ((mkName . (++ ".llvm") . toCName . unCoreFunName) f)
 -- To apply a function, evaluate the argument and function then call it
-exprToLLVM' (TE _ (App f a)) = do
+exprToLLVM (TE _ (App f a)) = do
     arg <- exprToLLVM a
     fun <- exprToLLVM f
     call fun [(arg, [])]
-exprToLLVM' _ = error "unknown expression"
+exprToLLVM _ = error "unknown expression"
 
 -- Map a Cogent binary operator to LLVM binary operators
 toLLVMOp :: Sy.Op -> (Operand -> Operand -> Codegen Operand)

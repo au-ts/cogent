@@ -94,14 +94,14 @@ optimiseFunctionType t rt = do
             Ref -> ([(ptr rt', [NoAlias, SRet])], VoidType)
     pure (returnArgs ++ args, returnType)
 
-wrapC :: FunName -> Core.Type t b -> Core.Type t b -> LLVM Operand
+wrapC :: FunName -> Core.Type t b -> Core.Type t b -> LLVM ()
 wrapC name t rt = do
     (ts, rt') <- optimiseFunctionType t rt
     extern (mkName name) ts rt'
     t' <- toLLVMType t
     rt'' <- toLLVMType rt
     argLayout <- regLayout t
-    function (mkName (name ++ ".llvm")) [(t', [])] rt'' (wrapCInner name t rt ts rt' argLayout)
+    void $ function (mkName (name ++ ".llvm")) [(t', [])] rt'' (wrapCInner name t rt ts rt' argLayout)
 
 -- Given the original function name and type, and the wrapper's type, produce a
 -- function body which correctly calls the original function and coerces its output

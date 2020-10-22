@@ -20,7 +20,7 @@ import Cogent.Core as Core (Definition (..), TypedExpr)
 import Cogent.LLVM.CCompat (wrapC, wrapLLVM)
 import Cogent.LLVM.CHeader (createCHeader)
 import Cogent.LLVM.CodeGen (Env (Env), LLVM, bind)
-import Cogent.LLVM.Expr (exprToLLVM, monomorphicTypeDef)
+import Cogent.LLVM.Expr (exprToLLVM)
 import Cogent.LLVM.Overrides (function)
 import Cogent.LLVM.Types (collectTags, toLLVMType)
 import Cogent.Util (toCName)
@@ -56,10 +56,7 @@ toLLVMDef (FunDef _ name _ _ t rt body) = do
 -- For abstract declarations, emit an extern definition and also create
 -- monomorphised typedefs for any abstract types that appear in the function
 -- signature
-toLLVMDef (AbsDecl _ name _ _ t rt) =
-  wrapC (toCName name) t rt
-    >> monomorphicTypeDef t
-    >> monomorphicTypeDef rt
+toLLVMDef (AbsDecl _ name _ _ t rt) = wrapC (toCName name) t rt
 -- Don't declare typedefs now, instead declare a monomorphic one when we see the
 -- type actually used
 toLLVMDef TypeDef {} = pure ()

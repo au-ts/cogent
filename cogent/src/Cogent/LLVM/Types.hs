@@ -28,7 +28,7 @@ import Data.Set (Set, empty, fromList, union, unions)
 import LLVM.AST
 import qualified LLVM.AST as AST
 import LLVM.AST.Type (i32, i8, ptr)
-import LLVM.IRBuilder.Module (MonadModuleBuilder)
+import LLVM.IRBuilder.Module (MonadModuleBuilder, typedef)
 
 -- Given a Cogent type, produce an LLVM type
 toLLVMType :: (MonadModuleBuilder m) => Core.Type t b -> m AST.Type
@@ -51,7 +51,7 @@ toLLVMType (TFun t1 t2) = do
     rt <- toLLVMType t2
     pure $ ptr $ FunctionType rt [at] False
 -- An unboxed abstract type is just a reference to the typedef for it
-toLLVMType t@(TCon _ _ Unboxed) = pure $ NamedTypeReference (mkName (nameType t))
+toLLVMType t@(TCon _ _ Unboxed) = typedef (mkName (nameType t)) Nothing
 -- A boxed abstract type is a pointer to the unboxed representation
 toLLVMType (TCon tn ts (Boxed _ _)) = ptr <$> toLLVMType (TCon tn ts Unboxed)
 toLLVMType _ = error "unknown type"
