@@ -24,7 +24,7 @@ import Cogent.LLVM.Expr (exprToLLVM, monomorphicTypeDef)
 import Cogent.LLVM.Overrides (function)
 import Cogent.LLVM.Types (collectTags, toLLVMType)
 import Cogent.Util (toCName)
-import Control.Monad (void, (>=>))
+import Control.Monad ((>=>))
 import Control.Monad.State (evalState)
 import qualified Data.ByteString.Char8 as BS
 import Data.ByteString.Internal (packChars)
@@ -46,15 +46,13 @@ toLLVMDef :: Definition TypedExpr VarName VarName -> LLVM ()
 -- translated LLVM body inside an entry block
 -- Additionally, emit a wrapper function which allows the original to be called
 -- from C code
-toLLVMDef (FunDef _ name _ _ t rt body) =
-  void $
-    function
-      -- append .llvm to end of fn name for non-wrapped version
-      (mkName (toCName name ++ ".llvm"))
-      [(toLLVMType t, [])]
-      (toLLVMType rt)
-      ((\[var] -> block `named` "entry" >> bind var (exprToLLVM body)) >=> ret)
-      >> wrapLLVM (toCName name) t rt
+toLLVMDef (FunDef _ name _ _ t rt body) = do
+  t' <- toLLVMType t
+  rt' <- toLLVMType rt
+  let body' = (\[var] -> block `named` "entry" >> bind var (exprToLLVM body)) >=> ret
+  -- append .llvm to end of fn name for non-wrapped version
+  function (mkName (toCName name ++ ".llvm")) [(t', [])] rt' body'
+  wrapLLVM (toCName name) t rt
 -- For abstract declarations, emit an extern definition and also create
 -- monomorphised typedefs for any abstract types that appear in the function
 -- signature

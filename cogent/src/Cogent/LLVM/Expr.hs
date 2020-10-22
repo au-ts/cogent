@@ -110,18 +110,19 @@ exprToLLVM' (TE _ (Promote _ e)) = exprToLLVM e
 -- To upcast, zero extend the evaluated expression as needed
 exprToLLVM' (TE _ (Cast t e)) = do
     v <- exprToLLVM e
-    zext v (toLLVMType t)
+    toLLVMType t >>= zext v
 -- Constructing a sumtype consists of inserting a 32bit tag, followed by a value
 -- The value must be casted to the 'maximum member' of the variant beforehand
 exprToLLVM' (TE t (Con tag e (TSum ts))) = do
     tagv <- tagIndex tag
-    tagged <- insertValue (constUndef (toLLVMType t)) tagv [0]
+    t' <- toLLVMType t
+    tagged <- insertValue (constUndef t') tagv [0]
     v <- exprToLLVM e
     case e of
         -- Don't bother doing anything for constructors with no arguments
         TE TUnit _ -> pure tagged
         _ -> do
-            casted <- castVal (toLLVMType (maxMember ts)) v
+            casted <- toLLVMType (maxMember ts) >>= castVal v
             insertValue tagged casted [1]
 -- The binary case expression compares the tag of a variant with the desired tag
 -- Branching is used for each alternative:
@@ -136,7 +137,7 @@ exprToLLVM' (TE _ (Case e@(TE rt _) tag (_, _, tb) (_, _, fb))) = mdo
     condBr cond brMatch brNotMatch
     brMatch <- block `named` "case.true"
     v <- extractValue variant [1]
-    casted <- castVal (toLLVMType (tagType rt tag)) v
+    casted <- toLLVMType (tagType rt tag) >>= castVal v
     valTrue <- bind casted $ exprToLLVM tb
     brMatch' <- currentBlock
     br brExit
@@ -150,7 +151,7 @@ exprToLLVM' (TE _ (Case e@(TE rt _) tag (_, _, tb) (_, _, fb))) = mdo
 exprToLLVM' (TE t (Esac e)) = do
     variant <- exprToLLVM e
     v <- extractValue variant [1]
-    castVal (toLLVMType t) v
+    toLLVMType t >>= castVal v
 -- For if the condition must be evaluated and then branching is used to evaluate
 -- the true or false branch
 -- The phi instruction is used to yield the final result based on the branch
@@ -169,19 +170,21 @@ exprToLLVM' (TE _ (If cd tb fb)) = mdo
     brExit <- block `named` "if.done"
     phi [(valTrue, brTrue'), (valFalse, brFalse')]
 -- A struct expression is constructed by iteratively inserting field values
-exprToLLVM' (TE t (Struct flds)) =
+exprToLLVM' (TE t (Struct flds)) = do
+    t' <- toLLVMType t
     foldrM
         (\(i, v) struct -> exprToLLVM v >>= \value -> insertValue struct value [i])
-        (constUndef (toLLVMType t))
+        (constUndef t')
         [(i, snd fld) | (i, fld) <- zip [0 ..] flds]
 -- Use the variable index to look it up in the current variable context
 exprToLLVM' (TE _ (Variable (idx, _))) = var idx
 -- Functions must be references to something already defined globally
-exprToLLVM' (TE t (Fun f _ _ _)) =
+exprToLLVM' (TE t (Fun f _ _ _)) = do
+    ft <- toLLVMType t
     pure $
         ConstantOperand $
             C.GlobalReference
-                (toLLVMType t)
+                ft
                 -- append .llvm to end of fn name for non-wrapped version
                 ((mkName . (++ ".llvm") . toCName . unCoreFunName) f)
 -- To apply a function, evaluate the argument and function then call it
@@ -215,8 +218,8 @@ toLLVMOp Sy.RShift = \a b -> emitInstr (typeOf a) $ LShr False a b []
 toLLVMOp _ = error "not a binary operator"
 
 -- Cast a value by temporarily storing it on the stack and casting the pointer
-castVal :: AST.Type -> Operand -> Codegen Operand
-castVal t o = do
+castVal :: Operand -> AST.Type -> Codegen Operand
+castVal o t = do
     tmp <- alloca (typeOf o) Nothing 4
     store tmp 4 o
     casted <- bitcast tmp (ptr t)
