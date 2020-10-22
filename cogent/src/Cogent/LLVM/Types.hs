@@ -10,6 +10,7 @@
 -- @TAG(DATA61_GPL)
 --
 {-# LANGUAGE DisambiguateRecordFields #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Cogent.LLVM.Types where
 
@@ -19,19 +20,22 @@ module Cogent.LLVM.Types where
 import Cogent.Common.Syntax (Size, TagName, TypeName, VarName)
 import Cogent.Common.Types (PrimInt (..), Sigil (Boxed, Unboxed))
 import Cogent.Compiler (__impossible)
-import Cogent.Core as Core
+import Cogent.Core as Core (Definition (..), Type (..), TypedExpr)
 import Cogent.Dargent.Util (primIntSizeBits)
+import Cogent.LLVM.CodeGen (Env, typedefs)
+import Control.Monad.State (MonadState, gets, modify)
 import Data.Function (on)
 import Data.List (intercalate, maximumBy)
+import qualified Data.Map as Map
 import Data.Maybe (fromJust)
 import Data.Set (Set, empty, fromList, union, unions)
-import LLVM.AST
+import LLVM.AST (Type (..), mkName)
 import qualified LLVM.AST as AST
 import LLVM.AST.Type (i32, i8, ptr)
 import LLVM.IRBuilder.Module (MonadModuleBuilder, typedef)
 
 -- Given a Cogent type, produce an LLVM type
-toLLVMType :: (MonadModuleBuilder m) => Core.Type t b -> m AST.Type
+toLLVMType :: (MonadState Env m, MonadModuleBuilder m) => Core.Type t b -> m AST.Type
 -- Primitive types are just LLVM integers
 toLLVMType (TPrim p) = pure $ IntegerType $ fromInteger $ primIntSizeBits p
 -- An unboxed record can be represented as an LLVM structure type
@@ -51,7 +55,7 @@ toLLVMType (TFun t1 t2) = do
     rt <- toLLVMType t2
     pure $ ptr $ FunctionType rt [at] False
 -- An unboxed abstract type is just a reference to the typedef for it
-toLLVMType t@(TCon _ _ Unboxed) = typedef (mkName (nameType t)) Nothing
+toLLVMType t@(TCon _ _ Unboxed) = abstractType t
 -- A boxed abstract type is a pointer to the unboxed representation
 toLLVMType (TCon tn ts (Boxed _ _)) = ptr <$> toLLVMType (TCon tn ts Unboxed)
 toLLVMType _ = error "unknown type"
@@ -196,3 +200,16 @@ collectTags' (TSum ts) = fromList (fst <$> ts) `union` unions (collectTags' <$> 
 collectTags' (TFun t1 t2) = collectTags' t1 `union` collectTags' t2
 collectTags' (TCon _ ts _) = unions $ collectTags' <$> ts
 collectTags' _ = empty
+
+-- Get or emit abstract typedef
+abstractType :: (MonadState Env m, MonadModuleBuilder m) => Core.Type t b -> m AST.Type
+abstractType t = do
+    mt <- gets (Map.lookup name . typedefs)
+    case mt of
+        Just td -> pure td
+        Nothing -> do
+            td <- typedef (mkName name) Nothing
+            modify $ \s -> s {typedefs = Map.insert name td (typedefs s)}
+            pure td
+    where
+        name = nameType t

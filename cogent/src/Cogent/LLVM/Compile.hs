@@ -19,7 +19,7 @@ import Cogent.Common.Syntax (VarName)
 import Cogent.Core as Core (Definition (..), TypedExpr)
 import Cogent.LLVM.CCompat (wrapC, wrapLLVM)
 import Cogent.LLVM.CHeader (createCHeader)
-import Cogent.LLVM.CodeGen (Env (Env), LLVM, bind)
+import Cogent.LLVM.CodeGen (LLVM, bind, initialState)
 import Cogent.LLVM.Expr (exprToLLVM)
 import Cogent.LLVM.Overrides (function)
 import Cogent.LLVM.Types (collectTags, toLLVMType)
@@ -76,7 +76,7 @@ toLLVM monoed source = do
   let sourceFilename = toShort $ packChars source
       tags = elems $ unions $ map collectTags monoed
       ast =
-        ( flip evalState (Env [] tags) $
+        ( flip evalState (initialState tags) $
             buildModuleT sourceFilename $ mapM_ toLLVMDef monoed
         )
           { moduleSourceFileName = sourceFilename

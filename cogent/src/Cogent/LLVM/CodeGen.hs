@@ -11,18 +11,27 @@
 --
 {-# LANGUAGE FlexibleContexts #-}
 
-module Cogent.LLVM.CodeGen (LLVM, Codegen, Env (Env), bind, var, tagIndex) where
+module Cogent.LLVM.CodeGen where
 
-import Cogent.Common.Syntax (TagName)
+import Cogent.Common.Syntax (TagName, TypeName)
 import Control.Monad.State (MonadState, State, gets, modify)
 import Data.Fin (Fin, finInt)
 import Data.List (elemIndex)
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Maybe (fromJust)
-import LLVM.AST (Operand)
+import LLVM.AST (Operand, Type)
 import LLVM.IRBuilder (IRBuilderT, int32)
 import LLVM.IRBuilder.Module (ModuleBuilderT)
 
-data Env = Env {vars :: [Operand], tags :: [TagName]}
+data Env = Env
+    { vars :: [Operand]
+    , tags :: [TagName]
+    , typedefs :: Map TypeName Type
+    }
+
+initialState :: [TagName] -> Env
+initialState tags = Env [] tags Map.empty
 
 type LLVM = ModuleBuilderT (State Env)
 type Codegen = IRBuilderT LLVM
