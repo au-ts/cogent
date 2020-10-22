@@ -3,7 +3,7 @@ STACK := stack
 
 # Cabal Flags
 BUILD_FLAGS +=
-INSTALL_FLAGS += --installdir=$(HOME)/.cabal/bin/
+INSTALL_FLAGS += --installdir=$(HOME)/.cabal/bin/ --overwrite-policy=always
 
 
 MACHINE := $(shell $(CC) -dumpmachine)
