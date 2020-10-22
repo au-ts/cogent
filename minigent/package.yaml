@@ -27,6 +27,8 @@ dependencies:
 - directory
 - filepath
 - prettyprinter-ansi-terminal
+- matrix
+- vector
 
 library:
   source-dirs: src

@@ -30,24 +30,10 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.List
 
+import qualified Data.Matrix as Matrix
+import qualified Data.Vector as V
+
 import Debug.Trace
-
--- 
--- data AST
---   = RecordAST String AST -- field 
---   | RecursiveRecordAST String String AST -- recpar, field 
---   | RecParAST String -- recpar 
---   | VariantAST String AST -- field 
---   -- take args 
---   | IntAST 
---   | BoolAST 
---   | UnitAST 
---   -- ?
---   | AbsTypeAST 
---   | TypeVarAST 
---   | FunctionAST
---   deriving (Show, Eq)
-
 
 data MeasureOp
   = ProjectOp String MeasureOp -- field 
@@ -201,6 +187,48 @@ type Size = (Maybe Expr, Int) -- leftover expression, number of unfoldings
 --       case b of 
 --         True -> cutExpr b s (Just e2)
 --         False -> if c == s then (Just e2) else cutExpr b s (Just e2)
+
+-- GLOBAL DESCENT -- 
+data Cmp = Le | Eq | Unknown | Solved deriving (Show, Eq)
+globalDescent :: Matrix.Matrix Cmp -> Bool
+globalDescent m = case (Matrix.ncols m) of 
+  0 -> True -- empty
+  n -> case findCol m n of
+    Nothing -> False
+    Just col -> globalDescent (removeRows m (Matrix.nrows m) col)
+
+removeRows :: Matrix.Matrix Cmp -> Int -> Int -> Matrix.Matrix Cmp -- row, col
+removeRows m 1 col = case m Matrix.! (1, col) of 
+  Le -> Matrix.fromLists [[]]
+  _ -> m
+removeRows m row col = 
+  case m Matrix.! (row, col) of 
+    Le ->
+      let newM = Matrix.fromLists $ deleteRow (Matrix.toLists m) row 
+      in removeRows newM (row-1) col
+    _ -> removeRows m (row-1) col
+
+deleteRow :: [[Cmp]] -> Int -> [[Cmp]]
+deleteRow [] _ = []
+deleteRow (r:rs) 1 = rs
+deleteRow (r:rs) n = r:deleteRow rs (n-1)
+
+findCol :: Matrix.Matrix Cmp -> Int -> Maybe Int -- matrix, col that we're counting, result
+findCol m 0 = Nothing
+findCol m n = 
+  if checkCol (Matrix.getCol n m) 0 then (Just n)
+  else findCol m (n-1)
+
+checkCol :: V.Vector Cmp -> Int -> Bool
+checkCol v n = 
+  case V.null v of
+    True -> case n of
+      0 -> False 
+      1 -> True
+    False -> case V.head v of 
+      Le -> checkCol (V.tail v) 1
+      Eq -> checkCol (V.tail v) n
+      Unknown -> False
 
 termCheck :: GlobalEnvironments -> ([Error], [(FunName, [Assertion], String)])
 termCheck genvs = M.foldrWithKey go ([],[]) (defns genvs)
