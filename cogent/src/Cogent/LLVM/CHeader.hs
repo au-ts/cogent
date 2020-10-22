@@ -50,7 +50,7 @@ createCHeader monoed mod tags =
         ifndef = ["#ifndef " ++ guard, "#define " ++ guard]
         cogentDefs = ["#include <cogent-llvm-defns.h>"]
         endif = ["#endif"]
-        tag_enum = ["typedef enum { " ++ intercalate ", " tags ++ " } tag_t;"]
+        tag_enum = ["typedef enum { " ++ intercalate ", " tags ++ " } tag_t;" | not (null tags)]
         ts =
             ( \(t, i) ->
                 "typedef "
