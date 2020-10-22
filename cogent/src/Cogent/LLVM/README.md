@@ -12,6 +12,8 @@
         - Bool is represented as an 8-bit integer where 0 = False, otherwise = True, but cannonically 1)
     - Unit type
         - Represented as an `i8` integer of undefined value, but canonically 0
+    - String type
+        - Strings are simply pointers to `i8`
     - Records, boxed and unboxed
         - LLVM structure types are used, with no packing
     - Variants
@@ -32,6 +34,8 @@
     - Complement and not operators
         - Complement uses `xor` with the `-1` literal
         - Not checks if the operand is equal to the `0` literal
+    - String literals
+        - A string literal is declared as the address for a constant array containing the characters
     - Let and letbang bindings
         - A list of in-scope variables is threaded though the code generator
     - Variable expressions

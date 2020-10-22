@@ -25,16 +25,15 @@ import Cogent.Dargent.Util (primIntSizeBits)
 import Cogent.LLVM.CodeGen (Codegen, bind, tagIndex, var)
 import Cogent.LLVM.Types (maxMember, tagType, toLLVMType, typeSize)
 import Cogent.Util (toCName)
-import Data.Char (ord)
 import Data.Foldable (foldrM)
 import LLVM.AST as AST (Instruction (LShr), Operand (ConstantOperand), Type, mkName)
 import qualified LLVM.AST.Constant as C
 import LLVM.AST.IntegerPredicate as P (IntegerPredicate (EQ, NE, UGE, UGT, ULE, ULT))
 import LLVM.AST.Type (i8, ptr)
 import LLVM.AST.Typed (typeOf)
-import LLVM.IRBuilder.Constant (array, int32, int8)
+import LLVM.IRBuilder.Constant (int32, int8)
 import LLVM.IRBuilder.Instruction as IR
-import LLVM.IRBuilder.Monad (block, currentBlock, emitInstr, named)
+import LLVM.IRBuilder.Monad (block, currentBlock, emitInstr, freshName, named)
 
 -- Given a single typed expression, and a list of in-scope variables, create the
 -- LLVM IR to compute the expression
@@ -44,7 +43,7 @@ exprToLLVM (TE _ Unit) = pure $ int8 0
 -- Integer literals are mapped to LLVM integer types
 exprToLLVM (TE _ (ILit int p)) = pure $ constInt (primIntSizeBits p) int
 -- For string literals use a byte array of ASCII values
-exprToLLVM (TE _ (SLit str)) = pure $ array $ C.Int 8 . toInteger . ord <$> str
+exprToLLVM (TE _ (SLit str)) = freshName "str" >>= (fmap ConstantOperand . globalStringPtr str)
 -- For binary operators evaluate each operand and then the result
 exprToLLVM (TE t (Op op [a, b])) = do
     oa <- exprToLLVM a

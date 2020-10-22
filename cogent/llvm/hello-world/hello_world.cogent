@@ -1,0 +1,8 @@
+type SysState
+
+print_string: (SysState, String) -> SysState
+
+helloworld: SysState -> SysState
+helloworld st = 
+    let st' = print_string (st,  "Hello, World!")
+     in       print_string (st', "Goodbye, World!")
