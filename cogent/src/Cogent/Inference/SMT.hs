@@ -73,7 +73,7 @@ type NatTcVec t v b = NatVec v (Maybe (Type t b))
 -- Int is the fresh variable count
 type SmtStateM = StateT Int Symbolic
 
-getSmtExpression :: String -> TcVec t v b -> [LExpr t b] -> Type t b -> Type t b -> Symbolic SVal
+getSmtExpression :: (Show b) => String -> TcVec t v b -> [LExpr t b] -> Type t b -> Type t b -> Symbolic SVal
 getSmtExpression dir v e (TRefine t1 p) (TRefine t2 q) = do
   let nv = tcVecToNatVec v
   (e', se) <- runStateT (extract nv e) 0
@@ -83,19 +83,19 @@ getSmtExpression dir v e (TRefine t1 p) (TRefine t2 q) = do
     "Subtype"   -> (svOr (svNot (svAnd p' e')) q') -- ~(P ^ E) v Q
     "Supertype" -> (svOr (svNot (svAnd q' e')) p') -- ~(Q ^ E) v P
 
-extract :: NatTcVec t v b -> [LExpr t b] -> SmtStateM SVal
+extract :: (Show b) => NatTcVec t v b -> [LExpr t b] -> SmtStateM SVal
 extract v ls = do
                   initialSVal <- return $ return svTrue
                   vecPreds <- P.foldr (extractVec v) initialSVal v
                   ctxPreds <- P.foldr (extractLExprs v) initialSVal ls
                   return $ svAnd vecPreds ctxPreds
 
-extractVec :: NatTcVec t v b -> Maybe (Type t b) -> SmtStateM SVal -> SmtStateM SVal
+extractVec :: (Show b) => NatTcVec t v b -> Maybe (Type t b) -> SmtStateM SVal -> SmtStateM SVal
 extractVec vec t acc = case t of
   Just (TRefine _ p)  -> svAnd <$> acc <*> (lexprToSmt vec p)
   _                   -> acc
 
-extractLExprs :: NatTcVec t v b -> LExpr t b -> SmtStateM SVal -> SmtStateM SVal
+extractLExprs :: (Show b) => NatTcVec t v b -> LExpr t b -> SmtStateM SVal -> SmtStateM SVal
 extractLExprs vec l acc = svAnd <$> acc <*> lexprToSmt vec l
 
 strToPrimInt:: [Char] -> PrimInt
@@ -138,12 +138,12 @@ uopToSmt :: Op -> (SVal -> SVal)
 uopToSmt Not = svNot
 uopToSmt Complement = svNot
 
-lexprToSmt :: NatTcVec t v b -> LExpr t b -> SmtStateM SVal
+lexprToSmt :: (Show b) => NatTcVec t v b -> LExpr t b -> SmtStateM SVal
 lexprToSmt vec (LVariable (t, vn)) = 
   let Just t' = vec `nvAt` t in
   do
     t'' <- typeToSmt vec t'
-    sv <- mkQSymVar SMT.ALL vn t''
+    sv <- mkQSymVar SMT.ALL (show vn) t''
     return sv
 -- lexprToSmt (LFun fn ts ls) = LFun fn (map upshiftVarType ts) ls
 lexprToSmt vec (LOp op [e]) = (liftA $ uopToSmt op) $ lexprToSmt vec e
@@ -184,7 +184,7 @@ lexprToSmt _ _ = freshVal >>= \vn -> return $ svUninterpreted KString vn Nothing
 
 -- typeToSmt :: Type t b -> TC t v b (Kind)
 -- typeToSmt :: (MonadState (TcState t v b) m, t ~ v) => Type t b -> m (SmtStateM SMT.Kind)
-typeToSmt :: (t ~ v) => NatTcVec t v b -> Type t b -> SmtStateM SMT.Kind
+typeToSmt :: NatTcVec t v b -> Type t b -> SmtStateM SMT.Kind
 typeToSmt vec (TVar v) = do
     case (vec `nvAt` (finNat v)) of
       Just t' -> typeToSmt vec t'
@@ -205,12 +205,12 @@ typeToSmt vec (TCon n [] Unboxed) = return $ primIntToSmt $ strToPrimInt n
 typeToSmt vec (TRefine t _) = typeToSmt vec t
 typeToSmt vec t = freshVal >>= \s -> return (KUninterpreted s (Left s)) -- check
 
-varIndexToSmt :: (t ~ v) => NatTcVec t v b -> Fin t -> SmtStateM SMT.Kind
+varIndexToSmt :: NatTcVec t v b -> Fin t -> SmtStateM SMT.Kind
 varIndexToSmt vec i = do
   case (vec `nvAt` (finNat i)) of
     Just t' -> typeToSmt vec t'
 
-smtProveVerbose :: (L.Pretty b) => TcVec t v b -> [LExpr t b] -> Type t b -> Type t b -> IO (Bool, Bool)
+smtProveVerbose :: (L.Pretty b, Show b) => TcVec t v b -> [LExpr t b] -> Type t b -> Type t b -> IO (Bool, Bool)
 smtProveVerbose v ls rt1 rt2 = do
     -- traceTc "infer/smt" (pretty ls)
     dumpMsgIfTrue True (L.text "Running core-tc SMT on types"
