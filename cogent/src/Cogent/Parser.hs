@@ -331,7 +331,7 @@ term = avoidInitial >> (var <|> (LocExpr <$> getPosition <*>
        <|> Buffer <$ reservedOp "Buffer"
                   <*> natural
                   <*> parens (do reservedOp "#"
-                                 braces (commaSep1 ((\a b -> (a, b)) <$> variableName <* reservedOp ":" <*> monotype)))
+                                 braces (commaSep1 ((\a b -> (a, b)) <$> variableName <* reservedOp "=" <*> expr 1)))
        <|> UnboxedRecord <$ reservedOp "#" <*> braces (commaSep1 recordAssignment)))
     <?> "term")
 
@@ -479,10 +479,8 @@ atomtype = avoidInitial >> LocType <$> getPosition <*> (
   -- <|> TCon <$> typeConName <*> pure [] <*> pure Writable
   <|> (do reserved "Buffer"
           n <- brackets natural
-          lt <- parens monotype
-          case typeOfLT lt of
-            (TUnbox{}) -> return $ TBuffer n lt
-            _          -> error $ "Only unboxed records are allowed inside a Buffer")
+          fs <- braces (commaSep1 ((\a b -> (a, b)) <$> variableName <* reservedOp ":" <*> monotype))
+          return $ TBuffer n fs)
   <|> tuple <$> parens (commaSep monotype)
   <|> (\rp -> (\fs -> TRecord rp fs (Boxed False Nothing)))
       <$> recPar

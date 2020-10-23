@@ -126,9 +126,11 @@ validateType (RT t) = do
                        (c, TVariant fs') <- fmapFoldM validateType t
                        pure (c, V (Row.fromMap (fmap (first tuplize) fs')))
 
-    TBuffer n dt  -> do
-      (ct, dt') <- validateType dt
-      return (ct, T $ TBuffer n dt')
+    TBuffer n fs -> do
+      (ct, t') <- fmapFoldM validateType t
+      case t' of
+        TBuffer n fs' -> return (ct, T $ TBuffer n fs')
+        _ -> freshTVar >>= \t'' -> return (ct, t'')
 
 #ifdef BUILTIN_ARRAYS
     TArray te l s tkns -> do
@@ -704,13 +706,12 @@ cg' (Annot e tau) t = do
   (c', e') <- cg e t'
   return (c <> c', Annot e' t')
 
-cg' (Buffer n fs) t = do
-  let (fs', ts) = unzip fs
-  (_, ts') <- validateTypes (map stripLocT ts)
-  let e = Buffer n (zip fs' ts')
-      r = R None (Row.complete $ zipWith3 mkEntry fs' ts' (repeat False)) (Left Unboxed)
-      c = r :< t
-  return (c, e)
+cg' (Buffer n fes) t = do
+  let (fs, es) = unzip fes
+  (ts, c', es') <- cgMany es
+  let e = Buffer n (zip fs es')
+      c = T (TBuffer n (zip fs ts)) :< t
+  return (c' <> c, e)
 
 -- -----------------------------------------------------------------------------
 -- Pattern constraints

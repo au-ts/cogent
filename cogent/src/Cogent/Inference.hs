@@ -158,7 +158,7 @@ bound b (TArray t1 l1 s1 mhole1) (TArray t2 l2 s2 mhole2)
     combineHoles b Nothing   (Just i2) = case b of GLB -> Nothing; LUB -> Just i2
     combineHoles b (Just i1) Nothing   = case b of GLB -> Nothing; LUB -> Just i1
 #endif
-bound _ t1 t2 = __impossible ("bound: not comparable:\n" ++ show t1 ++ "\n" ++ 
+bound _ t1 t2 = __impossible ("bound: not comparable:\n" ++ show t1 ++ "\n" ++
                               "----------------------------------------\n" ++ show t2 ++ "\n")
 
 lub :: (Show b, Eq b) => Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
@@ -685,6 +685,11 @@ infer (E (Promote ty e))
         guardShow ("promote: " ++ show t ++ " << " ++ show ty) =<< t `isSubtype` ty
         return $ if t /= ty then promote ty $ TE t e'
                             else TE t e'  -- see NOTE [How to handle type annotations?] in Desugar
+infer (E (Buffer n fs))
+   = do let (ns,es) = unzip fs
+        es' <- mapM infer es
+        let ts' = zipWith (\n e' -> (n, (exprType e', False))) ns es'
+        return $ TE (TBuffer n (typeToDType $ TRecord NonRec ts' Unboxed)) $ Buffer n $ zip ns es'
 
 
 -- | Promote an expression to a given type, pushing down the promote as far as possible.

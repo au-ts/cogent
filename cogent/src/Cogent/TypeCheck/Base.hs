@@ -535,7 +535,7 @@ rawToDepType (RT t) = DT $ go t
                      TTake mfs t     -> TTake mfs $ f t
                      TPut mfs t      -> TPut mfs $ f t
                      TLayout l t     -> TLayout l $ f t
-                     TBuffer n dt    -> TBuffer n $ f dt
+                     TBuffer n fs    -> TBuffer n $ fmap (second f) fs
                      _               -> __impossible $ "rawToDepType: we don't allow higher-order refinement types"
 
 toRawTypedExpr :: TypedExpr -> RawTypedExpr

@@ -62,6 +62,10 @@ natToInt :: Nat -> Int
 natToInt Zero = 0
 natToInt (Suc n) = natToInt n + 1
 
+natToInteger :: Nat -> Integer
+natToInteger Zero = 0
+natToInteger (Suc n) = natToInteger n + 1
+
 toNat :: Integer -> Nat
 toNat 0 = Zero
 toNat n = Suc . toNat $ n - 1

@@ -51,7 +51,7 @@ import Cogent.Dargent.Core
 import Cogent.PrettyPrint hiding (associativity, primop)
 import Cogent.Util
 import Data.Fin
-import Data.Nat (Nat(Zero, Suc), natToInt)
+import Data.Nat (Nat(Zero, Suc), natToInt, natToInteger)
 import qualified Data.Nat as Nat
 import Data.Vec hiding (splitAt, length, zipWith, zip, unzip)
 import qualified Data.Vec as Vec
@@ -97,6 +97,16 @@ data DType t b
   | DArray (DType t b) (LExpr t b) (Sigil (DataLayout BitRange)) (Maybe (LExpr t b))
   | TType (Type t b)
   deriving (Show, Eq, Ord, Functor)
+
+typeToDType :: Type t b -> DType t b
+typeToDType (TRecord rp fs s) = DRecord rp (map (\(f, (t, b)) -> (f, (typeToDType t, b))) fs) s
+typeToDType (TArray t le s mle) = DArray (typeToDType t) le s mle
+typeToDType t = TType t
+
+dTypetoType :: DType t b -> Type t b
+dTypetoType (DRecord rp fs s) = TRecord rp (map (\(f, (t, b)) -> (f, (dTypetoType t, b))) fs) s
+dTypetoType (DArray t le s mle) = TArray (dTypetoType t) le s mle
+dTypetoType (TType t) = t
 
 deriving instance Generic b => Generic (Type 'Zero b)
 deriving instance Generic b => Generic (DType 'Zero b)
@@ -195,6 +205,7 @@ data Expr t v a b e
   | Put (e t v a b) FieldIndex (e t v a b)
   | Promote (Type t b) (e t v a b)  -- only for guiding the tc. rep. unchanged.
   | Cast (Type t b) (e t v a b)  -- only for integer casts. rep. changed
+  | Buffer Nat [(FieldName, e t v a b)]
 -- \ vvv constraint no smaller than header, thus UndecidableInstances
 deriving instance (Show a, Show b, Show (e t v a b), Show (e t ('Suc v) a b), Show (e t ('Suc ('Suc v)) a b))
   => Show (Expr t v a b e)
@@ -398,7 +409,7 @@ insertIdxAtE cut f (Take a rec fld e) = Take a (f cut rec) fld (f (FSuc (FSuc cu
 insertIdxAtE cut f (Put rec fld e) = Put (f cut rec) fld (f cut e)
 insertIdxAtE cut f (Promote ty e) = Promote ty (f cut e)
 insertIdxAtE cut f (Cast ty e) = Cast ty (f cut e)
-
+insertIdxAtE cut f (Buffer n fs) = Buffer n $ map (second $ f cut) fs
 
 
 -- pre-order fold over Expr wrapper
@@ -438,6 +449,7 @@ foldEPre unwrap f e = case unwrap e of
   (Put e1 _ e2)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (Promote _ e1)      -> f e `mappend` foldEPre unwrap f e1
   (Cast _ e1)         -> f e `mappend` foldEPre unwrap f e1
+  (Buffer _ fs)       -> mconcat $ f e : map (foldEPre unwrap f . snd) fs
 
 
 fmapE :: (forall t v. e1 t v a b -> e2 t v a b) -> Expr t v a b e1 -> Expr t v a b e2
@@ -471,6 +483,7 @@ fmapE f (Take a rec fld e)   = Take a (f rec) fld (f e)
 fmapE f (Put rec fld v)      = Put (f rec) fld (f v)
 fmapE f (Promote ty e)       = Promote ty (f e)
 fmapE f (Cast ty e)          = Cast ty (f e)
+fmapE f (Buffer n fs)        = Buffer n (map (second f) fs)
 
 
 untypeE :: TypedExpr t v a b -> UntypedExpr t v a b
@@ -515,6 +528,7 @@ instance (Functor (e t v a),
   fmap f (Flip (Put rec fld v)      )      = Flip $ Put (fmap f rec) fld (fmap f v)
   fmap f (Flip (Promote ty e)       )      = Flip $ Promote (fmap f ty) (fmap f e)
   fmap f (Flip (Cast ty e)          )      = Flip $ Cast (fmap f ty) (fmap f e)
+  fmap f (Flip (Buffer n fs)        )      = Flip $ Buffer n (map (second $ fmap f) fs)
 
 instance (Functor (Flip (e t v) b),
           Functor (Flip (e t ('Suc v)) b),
@@ -550,6 +564,7 @@ instance (Functor (Flip (e t v) b),
   fmap f (Flip2 (Put rec fld v)      )      = Flip2 $ Put (ffmap f rec) fld (ffmap f v)
   fmap f (Flip2 (Promote ty e)       )      = Flip2 $ Promote ty (ffmap f e)
   fmap f (Flip2 (Cast ty e)          )      = Flip2 $ Cast ty (ffmap f e)
+  fmap f (Flip2 (Buffer n fs)        )      = Flip2 $ Buffer n (map (second $ ffmap f) fs)
 
 instance Functor (Flip (TypedExpr t v) b) where  -- over @a@
   fmap f (Flip (TE t e)) = Flip $ TE t (fffmap f e)
@@ -677,6 +692,7 @@ instance (Pretty a, Pretty b, Prec (e t v a b), Pretty (e t v a b), Pretty (e t 
   pretty (Put rec f v) = prettyPrec 1 rec <+> record [fieldIndex f <+> symbol "=" <+> pretty v]
   pretty (Promote t e) = prettyPrec 1 e <+> symbol ":^:" <+> pretty t
   pretty (Cast t e) = prettyPrec 1 e <+> symbol ":::" <+> pretty t
+  pretty (Buffer n fs) = keyword "Buffer" <+> pretty (natToInteger n) <+> symbol "#" L.<> record (map (\(n, e) -> fieldname n <+> symbol "=" <+> pretty e) fs)
 
 instance Pretty FunNote where
   pretty NoInline = empty
@@ -708,6 +724,12 @@ instance (Pretty b) => Pretty (Type t b) where
 #ifdef REFINEMENT_TYPES
   pretty (TRefine t p) = braces (pretty t <+> symbol "|" <+> pretty p)
 #endif
+  pretty (TBuffer n dt) = keyword "Buffer" <+> brackets (string $ show $ natToInteger n) <+> pretty dt
+
+instance (Pretty b) => Pretty (DType t b) where
+  pretty dr@DRecord{} = pretty $ dTypetoType dr
+  pretty da@DArray{} = pretty $ dTypetoType da
+  pretty (TType t) = pretty t
 
 prettyTaken :: Bool -> Doc
 prettyTaken True  = symbol "*"
