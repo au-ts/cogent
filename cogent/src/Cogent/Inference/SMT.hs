@@ -70,6 +70,11 @@ tcVecToNatVec (Cons x xs) = NvCons x (tcVecToNatVec xs)
 type TcVec t v b = Vec v (Maybe (Type t b))
 type NatTcVec t v b = NatVec v (Maybe (Type t b))
 
+-- data SmtTransState = SmtTransState {
+--                                    _vars  :: Map String SVal
+--                                    , _fresh :: Int
+--                                    }
+
 -- Int is the fresh variable count
 type SmtStateM = StateT Int Symbolic
 
@@ -82,6 +87,34 @@ getSmtExpression dir v e (TRefine t1 p) (TRefine t2 q) = do
   return $ case dir of
     "Subtype"   -> (svOr (svNot (svAnd p' e')) q') -- ~(P ^ E) v Q
     "Supertype" -> (svOr (svNot (svAnd q' e')) p') -- ~(Q ^ E) v P
+
+-- rename all LVariable (Zero, vn) to LVariable (Zero, "target")
+-- alphaRename :: LExpr t b -> LExpr t b
+-- alphaRename (LOp opr [a,b]) = LOp opr [alphaRename a, alphaRename b]
+-- alphaRename (LOp opr [e]) = LOp opr [alphaRename e]
+-- alphaRename (LOp opr es)  = LOp opr $ P.map alphaRename es
+-- alphaRename (LVariable (Zero, _)) = LVariable (Zero, "target")
+-- alphaRename (LFun fn ts ls) = LFun fn (P.map alphaRenameT ts) ls -- data layout?
+-- alphaRename (LApp a b) = LApp (alphaRename a) (alphaRename b)
+-- alphaRename (LLet a e1 e2) = LLet a (alphaRename e1) (alphaRename e2) -- care with binding. do we touch it?
+-- alphaRename (LLetBang bs a e1 e2) = LLetBang bs a (alphaRename e1) (alphaRename e2) -- care with binding
+-- alphaRename (LTuple e1 e2) = LTuple (alphaRename e1) (alphaRename e2)
+-- alphaRename (LStruct fs) = LStruct $ P.map (\(n,e) -> (n, alphaRename e)) fs
+-- alphaRename (LCon tn e t) = LCon tn (alphaRename e) (alphaRenameT t)
+-- alphaRename (LIf c t e) = LIf (alphaRename c) (alphaRename t) (alphaRename e)
+-- alphaRename (LCase e tn (v1,a1) (v2,a2)) = LCase (alphaRename e) tn (v1, alphaRename a1) (v2, alphaRename a2)
+-- alphaRename (LEsac e) = LEsac (alphaRename e)
+-- alphaRename (LSplit (v1,v2) e1 e2) = LSplit (v1,v2) (alphaRename e1) (alphaRename e2)
+-- alphaRename (LMember x f) = LMember (alphaRename x) f
+-- alphaRename (LTake (a,b) rec f e) = LTake (a,b) rec f (alphaRename e) -- unsure
+-- alphaRename (LPut rec f v) = LPut rec f (alphaRename v)
+-- alphaRename (LPromote t e) = LPromote (alphaRenameT t) (alphaRename e)
+-- alphaRename (LCast t e) = LCast (alphaRenameT t) (alphaRename e)
+-- alphaRename x = x
+
+-- alphaRenameT :: Type t b -> Type t b
+-- alphaRenameT (TRefine t b) = TRefine t (alphaRename b)
+-- alphaRenameT x = x
 
 extract :: (Show b) => NatTcVec t v b -> [LExpr t b] -> SmtStateM SVal
 extract v ls = do

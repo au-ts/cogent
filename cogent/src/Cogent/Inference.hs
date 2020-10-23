@@ -176,10 +176,13 @@ bound b rt1@(TRefine t1 l1) rt2@(TRefine t2 l2) | t1 == t2
           (vec, ls, _) <- get
           res <- liftIO $ smtProveVerbose vec ls rt1 rt2
           case res of
-            (True, True) -> return rt1; -- doesn't matter which one is returned
+            (True, True) -> return rt1 -- doesn't matter which one is returned
             (True, False) -> return $ case b of GLB -> rt1; LUB -> rt2
             (False, True) -> return $ case b of GLB -> rt2; LUB -> rt1
-            (False, False) -> MaybeT (return Nothing) -- fixme /blaisep
+            -- (False, False) -> MaybeT $ return Nothing -- fixme /blaisep
+            (False, False) -> case b of 
+                                GLB -> MaybeT (return Nothing) 
+                                LUB -> return t1 -- fixme /blaisep
 #endif
 bound _ t1 t2 = __impossible ("bound: not comparable:\n" ++ show t1 ++ "\n" ++ 
                               "----------------------------------------\n" ++ show t2 ++ "\n")

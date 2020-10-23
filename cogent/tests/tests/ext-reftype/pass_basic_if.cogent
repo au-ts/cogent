@@ -1,2 +1,2 @@
 foo : U8 -> U8
-foo a = if a < 0 then 3 else 2
+foo a = if True then 4 else 2+(2*3)
