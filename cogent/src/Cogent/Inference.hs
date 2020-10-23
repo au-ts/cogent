@@ -88,7 +88,7 @@ guardShow' mh mb b = unless b $ TC (throwError $ "GUARD: " ++ mh ++ "\n" ++ unli
 -- Type reconstruction
 
 -- Types that don't have the same representation / don't satisfy subtyping.
-isUpcastable :: (Show b, Eq b) => Type t b -> Type t b -> TC t v b Bool
+isUpcastable :: (Show b, Eq b, Pretty b) => Type t b -> Type t b -> TC t v b Bool
 isUpcastable (TPrim p1) (TPrim p2) = return $ isSubtypePrim p1 p2
 isUpcastable (TSum s1) (TSum s2) = do
   c1 <- flip allM s1 (\(c,(t,b)) -> case lookup c s2 of
@@ -98,11 +98,11 @@ isUpcastable (TSum s1) (TSum s2) = do
   return $ c1 && c2
 isUpcastable _ _ = return False
 
-isSubtype :: (Show b, Eq b) => Type t b -> Type t b -> TC t v b Bool
+isSubtype :: (Show b, Eq b, Pretty b) => Type t b -> Type t b -> TC t v b Bool
 isSubtype t1 t2 = runMaybeT (t1 `lub` t2) >>= \case Just t  -> return $ t == t2
                                                     Nothing -> return False
 
-listIsSubtype :: (Show b, Eq b) => [Type t b] -> [Type t b] -> TC t v b Bool
+listIsSubtype :: (Show b, Eq b, Pretty b) => [Type t b] -> [Type t b] -> TC t v b Bool
 listIsSubtype [] [] = return True
 listIsSubtype (x:xs) (y:ys) = do 
   isSub <- isSubtype x y
@@ -129,7 +129,7 @@ unroll v (Just ctxt) = erp (Just ctxt) (ctxt M.! v)
 #endif
     erp _ t = t
 
-bound :: (Show b, Eq b) => Bound -> Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
+bound :: (Show b, Eq b, Pretty b) => Bound -> Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
 bound _ t1 t2 | t1 == t2 = return t1
 bound b (TRecord rp1 fs1 s1) (TRecord rp2 fs2 s2)
   | map fst fs1 == map fst fs2, s1 == s2, rp1 == rp2 = do
@@ -149,7 +149,7 @@ bound b (TSum s1) (TSum s2) | s1' <- M.fromList s1, s2' <- M.fromList s2, M.keys
 bound b (TProduct t11 t12) (TProduct t21 t22) = TProduct <$> bound b t11 t21 <*> bound b t12 t22
 bound b (TCon c1 t1 s1) (TCon c2 t2 s2) | c1 == c2, s1 == s2 = TCon c1 <$> zipWithM (bound b) t1 t2 <*> pure s1
 bound b (TFun t1 s1) (TFun t2 s2) = TFun <$> bound (theOtherB b) t1 t2 <*> bound b s1 s2
--- At this point, we can assume recursive parameters and records agree
+-- At this point, we can assume recursive parameters and records agree 
 bound b t1@(TRecord rp fs s) t2@(TRPar v ctxt)    = return t2
 bound b t1@(TRPar v ctxt)    t2@(TRecord rp fs s) = return t2
 bound b t1@(TRPar v1 c1)     t2@(TRPar v2 c2)     = return t2
@@ -174,9 +174,9 @@ bound b pt@(TPrim t1) rt@(TRefine (TPrim t2) l) | t1 == t2 = return $ case b of 
 bound b rt1@(TRefine t1 l1) rt2@(TRefine t2 l2) | t1 == t2
       = do
           (vec, ls, _) <- get
-          res <- liftIO $ smtProveVerbose vec ls l1 l2
+          res <- liftIO $ smtProveVerbose vec ls rt1 rt2
           case res of
-            (True, True) -> return rt1; -- what happens here? Find which one is most specific?
+            (True, True) -> return rt1; -- doesn't matter which one is returned
             (True, False) -> return $ case b of GLB -> rt1; LUB -> rt2
             (False, True) -> return $ case b of GLB -> rt2; LUB -> rt1
             (False, False) -> MaybeT (return Nothing) -- fixme /blaisep
@@ -184,10 +184,10 @@ bound b rt1@(TRefine t1 l1) rt2@(TRefine t2 l2) | t1 == t2
 bound _ t1 t2 = __impossible ("bound: not comparable:\n" ++ show t1 ++ "\n" ++ 
                               "----------------------------------------\n" ++ show t2 ++ "\n")
 
-lub :: (Show b, Eq b) => Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
+lub :: (Show b, Eq b, Pretty b) => Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
 lub = bound LUB
 
-glb :: (Show b, Eq b) => Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
+glb :: (Show b, Eq b, Pretty b) => Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
 glb = bound GLB
 
 -- checkUExpr_B :: UntypedExpr -> TC t v Bool
@@ -517,6 +517,8 @@ upshiftVarLExpr (LPut rec f v) = LPut rec f (upshiftVarLExpr v)
 upshiftVarLExpr (LPromote t e) = LPromote t (upshiftVarLExpr e)
 upshiftVarLExpr (LCast t e) = LCast t (upshiftVarLExpr e)
 upshiftVarLExpr x = x
+
+-- also upshift in refinement type preds in context?
 
 lookupKind :: Fin t -> TC t v b Kind
 lookupKind f = TC ((`at` f) . fst <$> ask)
