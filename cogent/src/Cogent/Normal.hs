@@ -79,6 +79,7 @@ isAtom (E (Member rec f)) | isVar rec = True
 isAtom (E (Put rec f v)) | isVar rec && isVar v = True
 isAtom (E (Promote t e)) | isVar e = True
 isAtom (E (Cast t e)) | isVar e = True
+isAtom (E (Buffer n fs)) | all (isVar . snd) fs = True
 isAtom _ = False
 
 isNormal :: UntypedExpr t v a b -> Bool
@@ -262,6 +263,7 @@ normalise v (E (Put rec fld e)) k
     k (sadd n n') (E $ Put (upshiftExpr n' (sadd v n) f0 rec') fld e')
 normalise v (E (Promote ty e)) k = normaliseName v e $ \n e' -> k n (E $ Promote (upshiftType n (finNat f0) ty) e')
 normalise v (E (Cast ty e)) k = normaliseName v e $ \n e' -> k n (E $ Cast (upshiftType n (finNat f0) ty) e')
+normalise v (E (Buffer n fs)) k = let (ns, es) = P.unzip fs in normaliseNames v es $ \sn es' -> k sn (E $ Buffer n (P.zip ns es'))
 
 normaliseAtom :: SNat v -> UntypedExpr t v VarName b
               -> (forall n. SNat n -> UntypedExpr t (v :+: n) VarName b -> AN (UntypedExpr t (v :+: n) VarName b))

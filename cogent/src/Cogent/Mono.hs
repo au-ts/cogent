@@ -203,6 +203,7 @@ monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
     monoExpr' (Put     rec fld e  ) = Put  <$> monoExpr rec <*> pure fld <*> monoExpr e
     monoExpr' (Promote ty e       ) = Promote <$> monoType ty <*> monoExpr e
     monoExpr' (Cast    ty e       ) = Cast <$> monoType ty <*> monoExpr e
+    monoExpr' (Buffer  n  fs      ) = let (ns,ts) = P.unzip fs in Buffer n <$> zipWithM (\n t -> (n,) <$> monoExpr t) ns ts
 
 monoType :: (Ord b) => Type t b -> Mono b (Type 'Zero b)
 monoType (TVar v) = atList <$> (fmap fst ask) <*> pure v
@@ -236,6 +237,14 @@ monoType (TRParBang v m) =  do
 #ifdef BUILTIN_ARRAYS
 monoType (TArray t l s mhole) = TArray <$> monoType t <*> monoLExpr l <*> monoSigil s <*> mapM monoLExpr mhole
 #endif
+monoType (TBuffer n dt) = TBuffer n <$> monoDType dt
+
+monoDType :: (Ord b) => DType t b -> Mono b (DType 'Zero b)
+monoDType (DRecord rp fs s) = DRecord rp <$> mapM (\(f, (t, b)) -> (f,) <$> (,b) <$> monoDType t) fs <*> monoSigil s
+#ifdef BUILTIN_ARRAYS
+monoDType (DArray t l s mhole) = DArray <$> monoDType t <*> monoLExpr l <*> monoSigil s <*> mapM monoLExpr mhole
+#endif
+monoDType (TType t) = TType <$> monoType t
 
 monoLayout :: (Ord b) => DataLayout BitRange -> Mono b (DataLayout BitRange)
 monoLayout CLayout = pure CLayout
