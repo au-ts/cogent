@@ -51,7 +51,7 @@ import Cogent.Dargent.Core
 import Cogent.PrettyPrint hiding (associativity, primop)
 import Cogent.Util
 import Data.Fin
-import Data.Nat (Nat(Zero, Suc), natToInt, natToInteger)
+import Data.Nat (Nat(Zero, Suc), natToInt)
 import qualified Data.Nat as Nat
 import Data.Vec hiding (splitAt, length, zipWith, zip, unzip)
 import qualified Data.Vec as Vec
@@ -89,7 +89,7 @@ data Type t b
   | TRefine (Type t b) (LExpr t b)
 -- #endif
     -- The sigil specifies the layout of the element
-  | TBuffer Nat (DType t b)
+  | TBuffer Integer (DType t b)
   deriving (Show, Eq, Ord, Functor)
 
 data DType t b
@@ -205,7 +205,7 @@ data Expr t v a b e
   | Put (e t v a b) FieldIndex (e t v a b)
   | Promote (Type t b) (e t v a b)  -- only for guiding the tc. rep. unchanged.
   | Cast (Type t b) (e t v a b)  -- only for integer casts. rep. changed
-  | Buffer Nat [(FieldName, e t v a b)]
+  | Buffer Integer [(FieldName, e t v a b)]
 -- \ vvv constraint no smaller than header, thus UndecidableInstances
 deriving instance (Show a, Show b, Show (e t v a b), Show (e t ('Suc v) a b), Show (e t ('Suc ('Suc v)) a b))
   => Show (Expr t v a b e)
@@ -692,7 +692,7 @@ instance (Pretty a, Pretty b, Prec (e t v a b), Pretty (e t v a b), Pretty (e t 
   pretty (Put rec f v) = prettyPrec 1 rec <+> record [fieldIndex f <+> symbol "=" <+> pretty v]
   pretty (Promote t e) = prettyPrec 1 e <+> symbol ":^:" <+> pretty t
   pretty (Cast t e) = prettyPrec 1 e <+> symbol ":::" <+> pretty t
-  pretty (Buffer n fs) = keyword "Buffer" <+> pretty (natToInteger n) <+> symbol "#" L.<> record (map (\(n, e) -> fieldname n <+> symbol "=" <+> pretty e) fs)
+  pretty (Buffer n fs) = keyword "Buffer" <+> pretty n <+> symbol "#" L.<> record (map (\(n, e) -> fieldname n <+> symbol "=" <+> pretty e) fs)
 
 instance Pretty FunNote where
   pretty NoInline = empty
@@ -724,7 +724,7 @@ instance (Pretty b) => Pretty (Type t b) where
 #ifdef REFINEMENT_TYPES
   pretty (TRefine t p) = braces (pretty t <+> symbol "|" <+> pretty p)
 #endif
-  pretty (TBuffer n dt) = keyword "Buffer" <+> brackets (string $ show $ natToInteger n) <+> pretty dt
+  pretty (TBuffer n dt) = keyword "Buffer" <+> brackets (string $ show n) <+> pretty dt
 
 instance (Pretty b) => Pretty (DType t b) where
   pretty dr@DRecord{} = pretty $ dTypetoType dr

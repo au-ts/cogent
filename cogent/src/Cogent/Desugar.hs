@@ -620,7 +620,7 @@ desugarType = \case
   B.DT (S.TBuffer n fs) -> do
     fs' <- mapM (\(f,t) -> (f,) . (,False) <$> desugarType t) fs
     let tr = TRecord NonRec fs' Unboxed
-    return $ TBuffer (toNat n) (typeToDType tr)
+    return $ TBuffer n (typeToDType tr)
   notInWHNF -> __impossible $ "desugarType (type " ++ show (pretty notInWHNF) ++ " is not in WHNF)"
 
 desugarLayout :: TCDataLayout -> DS t l v (DataLayout DA.BitRange)
@@ -825,7 +825,7 @@ desugarExpr (B.TE t (S.Annot e tau) _) = E <$> (Promote <$> desugarType tau <*> 
   -- `(Success a <Success A | Error* E>)' with `Error' taken.
   -- In the case where the annoated type is indeed the same as the core-tc-inferred
   -- type, we can remove the `Promote' later, or keep it even. / zilinc
-desugarExpr (B.TE _ (S.Buffer n fs) _) = E <$> Buffer (toNat n) <$> mapM (\(f, e) -> (f,) <$> desugarExpr e) fs
+desugarExpr (B.TE _ (S.Buffer n fs) _) = E <$> Buffer n <$> mapM (\(f, e) -> (f,) <$> desugarExpr e) fs
 desugarExpr (B.TE t (S.Con c es) p) = __impossible "desugarExpr (Con)"
 -- = do
 --   S.RT (S.TVariant ts) <- return t
