@@ -88,7 +88,7 @@ guardShow' mh mb b = unless b $ TC (throwError $ "GUARD: " ++ mh ++ "\n" ++ unli
 -- Type reconstruction
 
 -- Types that don't have the same representation / don't satisfy subtyping.
-isUpcastable :: (Show b, Eq b, Pretty b) => Type t b -> Type t b -> TC t v b Bool
+isUpcastable :: (Show b, Eq b, Pretty b, Ord b) => Type t b -> Type t b -> TC t v b Bool
 isUpcastable (TPrim p1) (TPrim p2) = return $ isSubtypePrim p1 p2
 isUpcastable (TSum s1) (TSum s2) = do
   c1 <- flip allM s1 (\(c,(t,b)) -> case lookup c s2 of
@@ -98,11 +98,11 @@ isUpcastable (TSum s1) (TSum s2) = do
   return $ c1 && c2
 isUpcastable _ _ = return False
 
-isSubtype :: (Show b, Eq b, Pretty b) => Type t b -> Type t b -> TC t v b Bool
+isSubtype :: (Show b, Eq b, Pretty b, Ord b) => Type t b -> Type t b -> TC t v b Bool
 isSubtype t1 t2 = runMaybeT (t1 `lub` t2) >>= \case Just t  -> return $ t == t2
                                                     Nothing -> return False
 
-listIsSubtype :: (Show b, Eq b, Pretty b) => [Type t b] -> [Type t b] -> TC t v b Bool
+listIsSubtype :: (Show b, Eq b, Pretty b, Ord b) => [Type t b] -> [Type t b] -> TC t v b Bool
 listIsSubtype [] [] = return True
 listIsSubtype (x:xs) (y:ys) = do 
   isSub <- isSubtype x y
@@ -129,7 +129,7 @@ unroll v (Just ctxt) = erp (Just ctxt) (ctxt M.! v)
 #endif
     erp _ t = t
 
-bound :: (Show b, Eq b, Pretty b) => Bound -> Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
+bound :: (Show b, Eq b, Pretty b, Ord b) => Bound -> Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
 bound _ t1 t2 | t1 == t2 = return t1
 bound b (TRecord rp1 fs1 s1) (TRecord rp2 fs2 s2)
   | map fst fs1 == map fst fs2, s1 == s2, rp1 == rp2 = do
@@ -187,10 +187,10 @@ bound b rt1@(TRefine t1 l1) rt2@(TRefine t2 l2) | t1 == t2
 bound _ t1 t2 = __impossible ("bound: not comparable:\n" ++ show t1 ++ "\n" ++ 
                               "----------------------------------------\n" ++ show t2 ++ "\n")
 
-lub :: (Show b, Eq b, Pretty b) => Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
+lub :: (Show b, Eq b, Pretty b, Ord b) => Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
 lub = bound LUB
 
-glb :: (Show b, Eq b, Pretty b) => Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
+glb :: (Show b, Eq b, Pretty b, Ord b) => Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
 glb = bound GLB
 
 -- checkUExpr_B :: UntypedExpr -> TC t v Bool
@@ -362,7 +362,7 @@ opType opr [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
   = Just ([TPrim t1, TPrim t1], (TRefine (TPrim t1) (LOp And $ map upshiftVarLExpr [p1, p2]))) -- unsure
 opType Divide [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
   | t1 /= Boolean, t1 == t2
-  = let nonZeroPred = LOp Gt [LVariable (Zero, "x"), LILit 0 t1]
+  = let nonZeroPred = LOp Gt [LVariable (Zero, "zeroVar" ++ show t1), LILit 0 t1]
         nonZeroType = TRefine (TPrim t1) nonZeroPred
     in Just ([TPrim t1, nonZeroType], (TRefine (TPrim t1) (LOp And $ map upshiftVarLExpr [p1, p2])))
 opType opr [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
@@ -548,7 +548,7 @@ kindcheck_ f (TRefine t _) = kindcheck_ f t
 kindcheck = kindcheck_ lookupKind
 
 
-typecheck :: (Pretty a, Show a, Eq a) => TypedExpr t v a a -> Type t a -> TC t v a (TypedExpr t v a a)
+typecheck :: (Pretty a, Show a, Eq a, Ord a) => TypedExpr t v a a -> Type t a -> TC t v a (TypedExpr t v a a)
 typecheck e t = do
   let t' = exprType e
   isSub <- isSubtype t' t
@@ -569,14 +569,15 @@ infer (E (Op o es))
         vn <- freshVarName
         let Just (expectedInputs, (TRefine t p)) = opType o operandsTypes
         -- check that each of o is a subtype of expectedInputs
+        -- guardShow' "operandsTypes, expectedInputs" ((map show operandsTypes)++(map show expectedInputs)) False
         inputsOk <- listIsSubtype operandsTypes expectedInputs
-        let pred = LOp Eq [LVariable (Zero, vn), upshiftVarLExpr (LOp o $ map (texprToLExpr id) es')]
+        let pred = LOp Eq [LVariable (Zero, vn ++ "_op" ++ show o), upshiftVarLExpr (LOp o $ map (texprToLExpr id) es')]
         return $ case inputsOk of
           True -> (TE (TRefine t $ LOp And [pred, p]) (Op o es'))
           _ -> __impossible "op types don't match" -- fix me /blaisep
 infer (E (ILit i t))
   = do vn <- freshVarName
-       let pred = LOp Eq [LVariable (Zero, vn), LILit i t]
+       let pred = LOp Eq [LVariable (Zero, vn ++ "_ILit"), LILit i t]
        return (TE (TRefine (TPrim t) (pred)) (ILit i t))
 infer (E (SLit s))
   = do vn <- freshVarName
@@ -656,7 +657,7 @@ infer (E (ArrayPut arr i e))
 infer (E (Variable v))
    = do Just t <- useVariable (fst v)
         vn <- freshVarName
-        let pred = LOp Eq [LVariable (Zero, vn), upshiftVarLExpr $ LVariable (finNat $ fst v, snd v)]
+        let pred = LOp Eq [LVariable (Zero, vn ++ "_Variable"), upshiftVarLExpr $ LVariable (finNat $ fst v, snd v)]
         -- if t is a refinement type, extract the old predicate and combine
         case t of
           (TRefine base oldPred) -> return $ TE (TRefine base $ LOp And [pred, oldPred]) (Variable v)

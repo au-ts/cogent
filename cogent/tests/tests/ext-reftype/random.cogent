@@ -1,2 +1,2 @@
-foo: U8 -> U8
-foo x = 5 / 3
+foo: [x: U8 | x > 0] -> U8
+foo x = 12 / 

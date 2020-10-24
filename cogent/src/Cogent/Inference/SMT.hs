@@ -70,23 +70,31 @@ tcVecToNatVec (Cons x xs) = NvCons x (tcVecToNatVec xs)
 type TcVec t v b = Vec v (Maybe (Type t b))
 type NatTcVec t v b = NatVec v (Maybe (Type t b))
 
--- data SmtTransState = SmtTransState {
---                                    _vars  :: Map String SVal
---                                    , _fresh :: Int
---                                    }
+data SmtTransState b = SmtTransState {
+                                   _vars  :: Map b SVal
+                                   , _fresh :: Int
+                                   , _target :: Maybe b
+                                   }
+
+makeLenses ''SmtTransState
 
 -- Int is the fresh variable count
-type SmtStateM = StateT Int Symbolic
+type SmtStateM b = StateT (SmtTransState b) Symbolic
 
-getSmtExpression :: (Show b) => String -> TcVec t v b -> [LExpr t b] -> Type t b -> Type t b -> Symbolic SVal
+getSmtExpression :: (Show b, Ord b) => String -> TcVec t v b -> [LExpr t b] -> Type t b -> Type t b -> Symbolic SVal
 getSmtExpression dir v e (TRefine t1 p) (TRefine t2 q) = do
   let nv = tcVecToNatVec v
-  (e', se) <- runStateT (extract nv e) 0
+  (e', se) <- runStateT (extract nv e) (SmtTransState M.empty 0 Nothing)
   (p', sp) <- runStateT (lexprToSmt (NvCons (Just t1) nv) p) se
+  -- (e', se) <- runStateT (extract nv e) (SmtTransState M.empty 0 Nothing)
+      -- e' = svTrue
+  -- (p', sp) <- runStateT (lexprToSmt (NvCons (Just t1) nv) p) (SmtTransState M.empty 0 Nothing)
   (q', sp) <- runStateT (lexprToSmt (NvCons (Just t2) nv) q) sp
   return $ case dir of
     "Subtype"   -> (svOr (svNot (svAnd p' e')) q') -- ~(P ^ E) v Q
     "Supertype" -> (svOr (svNot (svAnd q' e')) p') -- ~(Q ^ E) v P
+    -- "Subtype"   -> (svOr (svNot p') q') -- ~P v Q
+    -- "Supertype" -> (svOr (svNot q') p') -- ~Q v P
 
 -- rename all LVariable (Zero, vn) to LVariable (Zero, "target")
 -- alphaRename :: LExpr t b -> LExpr t b
@@ -116,19 +124,19 @@ getSmtExpression dir v e (TRefine t1 p) (TRefine t2 q) = do
 -- alphaRenameT (TRefine t b) = TRefine t (alphaRename b)
 -- alphaRenameT x = x
 
-extract :: (Show b) => NatTcVec t v b -> [LExpr t b] -> SmtStateM SVal
+extract :: (Show b, Ord b) => NatTcVec t v b -> [LExpr t b] -> (SmtStateM b) SVal
 extract v ls = do
                   initialSVal <- return $ return svTrue
                   vecPreds <- P.foldr (extractVec v) initialSVal v
                   ctxPreds <- P.foldr (extractLExprs v) initialSVal ls
                   return $ svAnd vecPreds ctxPreds
 
-extractVec :: (Show b) => NatTcVec t v b -> Maybe (Type t b) -> SmtStateM SVal -> SmtStateM SVal
+extractVec :: (Show b, Ord b) => NatTcVec t v b -> Maybe (Type t b) -> (SmtStateM b) SVal -> (SmtStateM b) SVal
 extractVec vec t acc = case t of
   Just (TRefine _ p)  -> svAnd <$> acc <*> (lexprToSmt vec p)
   _                   -> acc
 
-extractLExprs :: (Show b) => NatTcVec t v b -> LExpr t b -> SmtStateM SVal -> SmtStateM SVal
+extractLExprs :: (Show b, Ord b) => NatTcVec t v b -> LExpr t b -> (SmtStateM b) SVal -> (SmtStateM b) SVal
 extractLExprs vec l acc = svAnd <$> acc <*> lexprToSmt vec l
 
 strToPrimInt:: [Char] -> PrimInt
@@ -171,13 +179,35 @@ uopToSmt :: Op -> (SVal -> SVal)
 uopToSmt Not = svNot
 uopToSmt Complement = svNot
 
-lexprToSmt :: (Show b) => NatTcVec t v b -> LExpr t b -> SmtStateM SVal
-lexprToSmt vec (LVariable (t, vn)) = 
-  let Just t' = vec `nvAt` t in
-  do
-    t'' <- typeToSmt vec t'
-    sv <- mkQSymVar SMT.ALL (show vn) t''
-    return sv
+lexprToSmt :: (Show b, Ord b) => NatTcVec t v b -> LExpr t b -> (SmtStateM b) SVal
+lexprToSmt vec (LVariable (t, vn)) =
+  case t of
+    Zero -> do 
+            tar <- use target
+            newvn <- case tar of
+              Nothing   -> do 
+                              target <<.= (Just vn) 
+                              return vn
+              Just name -> return name
+            m <- use vars
+            case M.lookup newvn m of
+              Nothing -> let Just t' = vec `nvAt` t in
+                do
+                  t'' <- typeToSmt vec t'
+                  sv <- mkQSymVar SMT.ALL (show newvn) t''
+                  vars %= (M.insert newvn sv)
+                  return sv
+              Just sv -> return sv
+    _  -> do
+            m <- use vars
+            case M.lookup vn m of
+              Nothing -> let Just t' = vec `nvAt` t in
+                do
+                  t'' <- typeToSmt vec t'
+                  sv <- mkQSymVar SMT.ALL (show vn) t''
+                  vars %= (M.insert vn sv)
+                  return sv
+              Just sv -> return sv
 -- lexprToSmt (LFun fn ts ls) = LFun fn (map upshiftVarType ts) ls
 lexprToSmt vec (LOp op [e]) = (liftA $ uopToSmt op) $ lexprToSmt vec e
 lexprToSmt vec (LOp op [e1, e2]) = (liftA2 $ bopToSmt op) (lexprToSmt vec e1) (lexprToSmt vec e2)
@@ -217,7 +247,7 @@ lexprToSmt _ _ = freshVal >>= \vn -> return $ svUninterpreted KString vn Nothing
 
 -- typeToSmt :: Type t b -> TC t v b (Kind)
 -- typeToSmt :: (MonadState (TcState t v b) m, t ~ v) => Type t b -> m (SmtStateM SMT.Kind)
-typeToSmt :: NatTcVec t v b -> Type t b -> SmtStateM SMT.Kind
+typeToSmt :: NatTcVec t v b -> Type t b -> (SmtStateM b) SMT.Kind
 typeToSmt vec (TVar v) = do
     case (vec `nvAt` (finNat v)) of
       Just t' -> typeToSmt vec t'
@@ -238,12 +268,12 @@ typeToSmt vec (TCon n [] Unboxed) = return $ primIntToSmt $ strToPrimInt n
 typeToSmt vec (TRefine t _) = typeToSmt vec t
 typeToSmt vec t = freshVal >>= \s -> return (KUninterpreted s (Left s)) -- check
 
-varIndexToSmt :: NatTcVec t v b -> Fin t -> SmtStateM SMT.Kind
+varIndexToSmt :: NatTcVec t v b -> Fin t -> (SmtStateM b) SMT.Kind
 varIndexToSmt vec i = do
   case (vec `nvAt` (finNat i)) of
     Just t' -> typeToSmt vec t'
 
-smtProveVerbose :: (L.Pretty b, Show b) => TcVec t v b -> [LExpr t b] -> Type t b -> Type t b -> IO (Bool, Bool)
+smtProveVerbose :: (L.Pretty b, Show b, Ord b) => TcVec t v b -> [LExpr t b] -> Type t b -> Type t b -> IO (Bool, Bool)
 smtProveVerbose v ls rt1 rt2 = do
     -- traceTc "infer/smt" (pretty ls)
     dumpMsgIfTrue True (L.text "Running core-tc SMT on types"
@@ -259,22 +289,18 @@ smtProveVerbose v ls rt1 rt2 = do
                    verbose = True
                    , redirectVerbose = Just $ fromMaybe "/dev/stderr" __cogent_ddump_to_file
                    }
-    smtRes1 <- liftIO (proveWith solver toProve1) >>= \case
-      ThmResult (Satisfiable _ _) -> return True
-      _ -> return False
-    smtRes2 <- liftIO (proveWith solver toProve2) >>= \case
-      ThmResult (Satisfiable _ _) -> return True
-      _ -> return False
-    return (smtRes1, smtRes2)
+    smtRes1 <- liftIO (proveWith solver toProve1)
+    smtRes2 <- liftIO (proveWith solver toProve2)
+    -- if its sat, then its not a subtype
+    let ret = (not $ modelExists smtRes1, not $ modelExists smtRes2)
+    dumpMsgIfTrue True $ L.text (show ret)
+    return ret
 
 prettyLExprs :: (L.Pretty b) => LExpr t b -> L.Doc -> L.Doc
 prettyLExprs l d = (L.pretty l) L.<$> d
 
-mkQSymVar :: SMT.Quantifier -> String -> SMT.Kind -> SmtStateM SVal
+mkQSymVar :: SMT.Quantifier -> String -> SMT.Kind -> (SmtStateM b) SVal
 mkQSymVar q nm k = symbolicEnv >>= liftIO . svMkSymVar (Just q) k (Just nm)
 
-freshVal :: SmtStateM String
-freshVal = do
-  i <- get 
-  modify succ
-  return ("smt_val_" ++ show i)
+freshVal :: (SmtStateM b) String
+freshVal = (("smt_val_" ++) . show) <$> (fresh <<%= succ)
