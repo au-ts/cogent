@@ -174,7 +174,8 @@ bound b pt@(TPrim t1) rt@(TRefine (TPrim t2) l) | t1 == t2 = return $ case b of 
 bound b rt1@(TRefine t1 l1) rt2@(TRefine t2 l2) | t1 == t2
       = do
           (vec, ls, _) <- get
-          res <- liftIO $ smtProveVerbose vec ls rt1 rt2
+          -- res <- liftIO $ smtProveVerbose (upshiftVarVec vec) (map upshiftVarLExpr ls) rt1 rt2
+          res <- liftIO $ smtProveVerbose (upshiftVarVec vec) (map upshiftVarLExpr ls) rt1 rt2
           case res of
             (True, True) -> return rt1 -- doesn't matter which one is returned
             (True, False) -> return $ case b of GLB -> rt1; LUB -> rt2
@@ -501,27 +502,34 @@ freshVarName = TC $ do readers <- ask
                        put (st, p, n + 1)
                        return $ freshVarPrefix ++ show n
 
-upshiftVarLExpr :: LExpr t b -> LExpr t b
-upshiftVarLExpr (LVariable (t, b)) = LVariable (Suc t, b)
-upshiftVarLExpr (LOp opr es) = LOp opr (map upshiftVarLExpr es)
-upshiftVarLExpr (LApp a b) = LApp (upshiftVarLExpr a) (upshiftVarLExpr b)
-upshiftVarLExpr (LCon tn e t) = LCon tn (upshiftVarLExpr e) t
-upshiftVarLExpr (LLet a e1 e2) = LLet a (upshiftVarLExpr e1) (upshiftVarLExpr e2)
-upshiftVarLExpr (LLetBang bs a e1 e2) = LLetBang bs a (upshiftVarLExpr e1) (upshiftVarLExpr e2)
-upshiftVarLExpr (LTuple e1 e2) = LTuple (upshiftVarLExpr e1) (upshiftVarLExpr e2)
-upshiftVarLExpr (LStruct fs) = LStruct $ map (\(fn, e) -> (fn, upshiftVarLExpr e)) fs
-upshiftVarLExpr (LIf c t e) = LIf (upshiftVarLExpr c) (upshiftVarLExpr t) (upshiftVarLExpr e)
-upshiftVarLExpr (LCase e tn (v1, a1) (v2, a2)) = LCase (upshiftVarLExpr e) tn (v1, upshiftVarLExpr a1) (v2, upshiftVarLExpr a2)
-upshiftVarLExpr (LEsac e) = LEsac $ upshiftVarLExpr e
-upshiftVarLExpr (LSplit (v1, v2) e1 e2) = LSplit (v1, v2) (upshiftVarLExpr e1) (upshiftVarLExpr e2)
-upshiftVarLExpr (LMember x f) = LMember (upshiftVarLExpr x) f
-upshiftVarLExpr (LTake (a,b) rec f e) = LTake (a,b) rec f (upshiftVarLExpr e)
-upshiftVarLExpr (LPut rec f v) = LPut rec f (upshiftVarLExpr v)
-upshiftVarLExpr (LPromote t e) = LPromote t (upshiftVarLExpr e)
-upshiftVarLExpr (LCast t e) = LCast t (upshiftVarLExpr e)
-upshiftVarLExpr x = x
+upshiftVarVec :: Vec v (Maybe (Type t b)) -> Vec v (Maybe (Type t b))
+upshiftVarVec Nil         = Nil
+upshiftVarVec (Cons x xs) = case x of
+  Just (TRefine t p) -> Cons (Just (TRefine t (upshiftVarLExpr p))) (upshiftVarVec xs)
+  t2                 -> Cons t2 (upshiftVarVec xs)
 
--- also upshift in refinement type preds in context?
+-- upshiftNonZeroLExpr :: LExpr t b -> LExpr t b
+-- upshiftNonZeroLExpr (LVariable (t,b)) =
+--   case t of
+--     Zero  -> LVariable (t, b)
+--     _     -> LVariable (Suc t, b)
+-- upshiftNonZeroLExpr (LOp opr es) = LOp opr (map upshiftNonZeroLExpr es)
+-- upshiftNonZeroLExpr (LApp a b) = LApp (upshiftNonZeroLExpr a) (upshiftNonZeroLExpr b)
+-- upshiftNonZeroLExpr (LCon tn e t) = LCon tn (upshiftNonZeroLExpr e) t
+-- upshiftNonZeroLExpr (LLet a e1 e2) = LLet a (upshiftNonZeroLExpr e1) (upshiftNonZeroLExpr e2)
+-- upshiftNonZeroLExpr (LLetBang bs a e1 e2) = LLetBang bs a (upshiftNonZeroLExpr e1) (upshiftNonZeroLExpr e2)
+-- upshiftNonZeroLExpr (LTuple e1 e2) = LTuple (upshiftNonZeroLExpr e1) (upshiftNonZeroLExpr e2)
+-- upshiftNonZeroLExpr (LStruct fs) = LStruct $ map (\(fn, e) -> (fn, upshiftNonZeroLExpr e)) fs
+-- upshiftNonZeroLExpr (LIf c t e) = LIf (upshiftNonZeroLExpr c) (upshiftNonZeroLExpr t) (upshiftNonZeroLExpr e)
+-- upshiftNonZeroLExpr (LCase e tn (v1, a1) (v2, a2)) = LCase (upshiftNonZeroLExpr e) tn (v1, upshiftNonZeroLExpr a1) (v2, upshiftNonZeroLExpr a2)
+-- upshiftNonZeroLExpr (LEsac e) = LEsac $ upshiftNonZeroLExpr e
+-- upshiftNonZeroLExpr (LSplit (v1, v2) e1 e2) = LSplit (v1, v2) (upshiftNonZeroLExpr e1) (upshiftNonZeroLExpr e2)
+-- upshiftNonZeroLExpr (LMember x f) = LMember (upshiftNonZeroLExpr x) f
+-- upshiftNonZeroLExpr (LTake (a,b) rec f e) = LTake (a,b) rec f (upshiftNonZeroLExpr e)
+-- upshiftNonZeroLExpr (LPut rec f v) = LPut rec f (upshiftNonZeroLExpr v)
+-- upshiftNonZeroLExpr (LPromote t e) = LPromote t (upshiftNonZeroLExpr e)
+-- upshiftNonZeroLExpr (LCast t e) = LCast t (upshiftNonZeroLExpr e)
+-- upshiftNonZeroLExpr x = x
 
 lookupKind :: Fin t -> TC t v b Kind
 lookupKind f = TC ((`at` f) . fst <$> ask)
@@ -573,11 +581,11 @@ infer (E (Op o es))
         inputsOk <- listIsSubtype operandsTypes expectedInputs
         let pred = LOp Eq [LVariable (Zero, vn ++ "_op" ++ show o), upshiftVarLExpr (LOp o $ map (texprToLExpr id) es')]
         return $ case inputsOk of
-          True -> (TE (TRefine t $ LOp And [pred, p]) (Op o es'))
+          True -> (TE (TRefine t $ LOp And [pred, upshiftVarLExpr p]) (Op o es'))
           _ -> __impossible "op types don't match" -- fix me /blaisep
 infer (E (ILit i t))
   = do vn <- freshVarName
-       let pred = LOp Eq [LVariable (Zero, vn ++ "_ILit"), LILit i t]
+       let pred = LOp Eq [LVariable (Zero, vn ++ "_ILit_" ++ show i), LILit i t]
        return (TE (TRefine (TPrim t) (pred)) (ILit i t))
 infer (E (SLit s))
   = do vn <- freshVarName
@@ -712,7 +720,9 @@ infer (E (If ec et ee))
    = do ec' <- infer ec
         guardShow "if-1" $ getBaseType (exprType ec') == TPrim Boolean
         let lec = texprToLExpr id ec'
-        (et', ee') <- (,) <$> withPredicate lec (infer et) <||> withPredicate (LOp Not [lec]) (infer ee)  -- have to use applicative functor, as they share the same initial env
+        -- guardShow (show lec) False
+        -- (et', ee') <- (,) <$> withPredicate lec (infer et) <||> withPredicate (LOp Not [lec]) (infer ee)  -- have to use applicative functor, as they share the same initial env
+        (et', ee') <- (,) <$> infer et <||> infer ee  -- have to use applicative functor, as they share the same initial env
         let tt = exprType et'
             te = exprType ee'
         Just tlub <- runMaybeT $ tt `lub` te

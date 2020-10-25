@@ -47,6 +47,27 @@ import Lens.Micro.TH
 import Prelude as P
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 
+upshiftVarLExpr :: LExpr t b -> LExpr t b
+upshiftVarLExpr (LVariable (t, b)) = LVariable (Suc t, b)
+upshiftVarLExpr (LOp opr es) = LOp opr (P.map upshiftVarLExpr es)
+upshiftVarLExpr (LApp a b) = LApp (upshiftVarLExpr a) (upshiftVarLExpr b)
+upshiftVarLExpr (LCon tn e t) = LCon tn (upshiftVarLExpr e) t
+upshiftVarLExpr (LLet a e1 e2) = LLet a (upshiftVarLExpr e1) (upshiftVarLExpr e2)
+upshiftVarLExpr (LLetBang bs a e1 e2) = LLetBang bs a (upshiftVarLExpr e1) (upshiftVarLExpr e2)
+upshiftVarLExpr (LTuple e1 e2) = LTuple (upshiftVarLExpr e1) (upshiftVarLExpr e2)
+upshiftVarLExpr (LStruct fs) = LStruct $ P.map (\(fn, e) -> (fn, upshiftVarLExpr e)) fs
+upshiftVarLExpr (LIf c t e) = LIf (upshiftVarLExpr c) (upshiftVarLExpr t) (upshiftVarLExpr e)
+upshiftVarLExpr (LCase e tn (v1, a1) (v2, a2)) = LCase (upshiftVarLExpr e) tn (v1, upshiftVarLExpr a1) (v2, upshiftVarLExpr a2)
+upshiftVarLExpr (LEsac e) = LEsac $ upshiftVarLExpr e
+upshiftVarLExpr (LSplit (v1, v2) e1 e2) = LSplit (v1, v2) (upshiftVarLExpr e1) (upshiftVarLExpr e2)
+upshiftVarLExpr (LMember x f) = LMember (upshiftVarLExpr x) f
+upshiftVarLExpr (LTake (a,b) rec f e) = LTake (a,b) rec f (upshiftVarLExpr e)
+upshiftVarLExpr (LPut rec f v) = LPut rec f (upshiftVarLExpr v)
+upshiftVarLExpr (LPromote t e) = LPromote t (upshiftVarLExpr e)
+upshiftVarLExpr (LCast t e) = LCast t (upshiftVarLExpr e)
+upshiftVarLExpr x = x
+-- also upshift in refinement type preds in context?
+
 data NatVec :: Nat -> * -> * where
   NvNil :: NatVec Zero a
   NvCons :: a -> NatVec n a -> NatVec (Suc n) a
@@ -58,7 +79,7 @@ instance Foldable (NatVec n) where
   foldMap f (NvCons x y) = f x <> foldMap f y
 
 nvAt :: NatVec a t -> Nat -> t
-nvAt NvNil _ = __impossible "`at' called with empty Vector"
+nvAt NvNil _ = __impossible "`nvAt' called with empty Vector"
 nvAt (NvCons x xs) Zero     = x
 nvAt (NvCons x xs) (Suc s)  = nvAt xs s
 
@@ -84,17 +105,14 @@ type SmtStateM b = StateT (SmtTransState b) Symbolic
 getSmtExpression :: (Show b, Ord b) => String -> TcVec t v b -> [LExpr t b] -> Type t b -> Type t b -> Symbolic SVal
 getSmtExpression dir v e (TRefine t1 p) (TRefine t2 q) = do
   let nv = tcVecToNatVec v
-  (e', se) <- runStateT (extract nv e) (SmtTransState M.empty 0 Nothing)
+  (e', se) <- runStateT (extract (NvCons Nothing nv) e) (SmtTransState M.empty 0 Nothing) -- we chuck a nothing here so that upshifting makes sense
   (p', sp) <- runStateT (lexprToSmt (NvCons (Just t1) nv) p) se
-  -- (e', se) <- runStateT (extract nv e) (SmtTransState M.empty 0 Nothing)
-      -- e' = svTrue
-  -- (p', sp) <- runStateT (lexprToSmt (NvCons (Just t1) nv) p) (SmtTransState M.empty 0 Nothing)
   (q', sp) <- runStateT (lexprToSmt (NvCons (Just t2) nv) q) sp
   return $ case dir of
     "Subtype"   -> (svOr (svNot (svAnd p' e')) q') -- ~(P ^ E) v Q
     "Supertype" -> (svOr (svNot (svAnd q' e')) p') -- ~(Q ^ E) v P
-    -- "Subtype"   -> (svOr (svNot p') q') -- ~P v Q
-    -- "Supertype" -> (svOr (svNot q') p') -- ~Q v P
+    -- "Subtype"   -> e' -- ~(P ^ E) v Q
+    -- "Supertype"   -> e' -- ~(P ^ E) v Q
 
 -- rename all LVariable (Zero, vn) to LVariable (Zero, "target")
 -- alphaRename :: LExpr t b -> LExpr t b
@@ -153,6 +171,7 @@ primIntToSmt u
                | u == U16 -> 16
                | u == U32 -> 32
                | u == U64 -> 64
+               | u == Boolean -> 1 -- fixme
       in KBounded False w
 
 bopToSmt :: Op -> (SVal -> SVal -> SVal)
@@ -214,11 +233,19 @@ lexprToSmt vec (LOp op [e1, e2]) = (liftA2 $ bopToSmt op) (lexprToSmt vec e1) (l
 -- lexprToSmt (LApp a b) = LApp (upshiftVarLExpr a) (upshiftVarLExpr b)
 -- lexprToSmt (LCon tn e t) = LCon tn (upshiftVarLExpr e) (upshiftVarType t)
 -- lexprToSmt (LUnit) =
-lexprToSmt vec (LILit i Boolean)
-  = case i of
-      0 -> return svFalse
-      1 -> return svTrue
-lexprToSmt vec (LILit i pt) = return $ svInteger (primIntToSmt pt) i
+-- lexprToSmt vec (LILit i Boolean)
+--   = case i of
+--       0 -> return svFalse
+--       1 -> return svTrue
+lexprToSmt vec (LILit i pt) = 
+  return $ case pt of
+    U8      -> svInteger (KBounded False 8 ) i
+    U16     -> svInteger (KBounded False 16) i
+    U32     -> svInteger (KBounded False 32) i
+    U64     -> svInteger (KBounded False 64) i
+    Boolean -> case i of
+      0 -> svFalse
+      1 -> svTrue
 lexprToSmt vec (LSLit s) = return $ svUninterpreted KString "" Nothing []
 -- lexprToSmt (LLet a e1 e2) = LLet a (upshiftVarLExpr e1) (upshiftVarLExpr e2)
 -- lexprToSmt (LLetBang bs a e1 e2) = LLetBang bs a (upshiftVarLExpr e1) (upshiftVarLExpr e2)
@@ -278,9 +305,15 @@ smtProveVerbose v ls rt1 rt2 = do
     -- traceTc "infer/smt" (pretty ls)
     dumpMsgIfTrue True (L.text "Running core-tc SMT on types"
                       L.<$> indent' (L.pretty rt1)
+                      L.<$> indent' (L.text $ show rt1)
                       L.<$> indent' (L.pretty rt2)
+                      L.<$> indent' (L.text $ show rt2)
+                      L.<$> L.text "Vec"
+                      L.<$> indent' (L.pretty v)
+                      L.<$> indent' (L.text $ show v)
                       L.<$> L.text "Context"
                       L.<$> indent' (P.foldr prettyLExprs (L.text "") ls)
+                      L.<$> indent' (L.text $ show ls)
                       L.<> L.hardline
                       )
     let toProve1 = getSmtExpression "Subtype" v ls rt1 rt2
@@ -293,7 +326,7 @@ smtProveVerbose v ls rt1 rt2 = do
     smtRes2 <- liftIO (proveWith solver toProve2)
     -- if its sat, then its not a subtype
     let ret = (not $ modelExists smtRes1, not $ modelExists smtRes2)
-    dumpMsgIfTrue True $ L.text (show ret)
+    dumpMsgIfTrue True $ L.text (show ret) L.<> L.hardline
     return ret
 
 prettyLExprs :: (L.Pretty b) => LExpr t b -> L.Doc -> L.Doc

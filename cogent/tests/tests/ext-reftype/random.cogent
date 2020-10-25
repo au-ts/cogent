@@ -1,2 +1,2 @@
-foo: [x: U8 | x > 0] -> U8
-foo x = 12 / 
+foo: U8 -> U8
+foo x = let x = 3 in 4/3
