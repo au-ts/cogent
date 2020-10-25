@@ -1,2 +1,5 @@
-foo: U8 -> U8
-foo x = let x = 3 in 4/3
+type Lt3 = [v : U8 | v < 3]
+type Lt8 = [v : U8 | v < 8]
+
+add5 : Lt3 -> Lt8
+add5 x = x + 5
