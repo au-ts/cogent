@@ -616,9 +616,9 @@ desugarType = \case
            <*> pure l'
            <*> pure ds
            <*> pure tkns'
-  B.DT (S.TRefine _ b p) -> do
+  B.DT (S.TRefine vn b p) -> do
     b' <- desugarType b
-    p' <- uexprToLExpr id <$> desugarExpr (fmap B.rawToDepType p)
+    p' <- uexprToLExpr id <$> withBinding vn (desugarExpr (fmap B.rawToDepType p))
     return $ TRefine b' p'
 #endif
   notInWHNF -> __impossible $ "desugarType (type " ++ show (pretty notInWHNF) ++ " is not in WHNF)"

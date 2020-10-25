@@ -581,7 +581,7 @@ infer (E (Op o es))
         inputsOk <- listIsSubtype operandsTypes expectedInputs
         let pred = LOp Eq [LVariable (Zero, vn ++ "_op" ++ show o), upshiftVarLExpr (LOp o $ map (texprToLExpr id) es')]
         return $ case inputsOk of
-          True -> (TE (TRefine t $ LOp And [pred, upshiftVarLExpr p]) (Op o es'))
+          True -> (TE (TRefine t $ LOp And [pred, p]) (Op o es'))
           _ -> __impossible "op types don't match" -- fix me /blaisep
 infer (E (ILit i t))
   = do vn <- freshVarName
