@@ -1,5 +1,5 @@
-type Lt3 = [v : U8 | v < 3]
+type Lt5 = [v : U8 | v < 5]
 type Lt8 = [v : U8 | v < 8]
 
-add5 : Lt3 -> Lt8
-add5 x = x + 5
+add5 : Lt5 -> U8
+add5 x = let z = 1 in let y = 2 in x/(y-z)

@@ -175,7 +175,7 @@ bound b rt1@(TRefine t1 l1) rt2@(TRefine t2 l2) | t1 == t2
       = do
           (vec, ls, _) <- get
           -- res <- liftIO $ smtProveVerbose (upshiftVarVec vec) (map upshiftVarLExpr ls) rt1 rt2
-          res <- liftIO $ smtProveVerbose (upshiftVarVec vec) (map upshiftVarLExpr ls) rt1 rt2
+          res <- liftIO $ smtProveVerbose (vec) (ls) rt1 rt2
           case res of
             (True, True) -> return rt1 -- doesn't matter which one is returned
             (True, False) -> return $ case b of GLB -> rt1; LUB -> rt2
@@ -581,7 +581,8 @@ infer (E (Op o es))
         inputsOk <- listIsSubtype operandsTypes expectedInputs
         let pred = LOp Eq [LVariable (Zero, vn ++ "_op" ++ show o), upshiftVarLExpr (LOp o $ map (texprToLExpr id) es')]
         return $ case inputsOk of
-          True -> (TE (TRefine t $ LOp And [pred, p]) (Op o es'))
+          -- True -> (TE (TRefine t $ LOp And [pred, p]) (Op o es'))
+          True -> (TE (TRefine t pred) (Op o es'))
           _ -> __impossible "op types don't match" -- fix me /blaisep
 infer (E (ILit i t))
   = do vn <- freshVarName
@@ -665,10 +666,13 @@ infer (E (ArrayPut arr i e))
 infer (E (Variable v))
    = do Just t <- useVariable (fst v)
         vn <- freshVarName
-        let pred = LOp Eq [LVariable (Zero, vn ++ "_Variable"), upshiftVarLExpr $ LVariable (finNat $ fst v, snd v)]
+        let pred = LOp Eq [LVariable (Zero, vn ++ "_Variable"), 
+                            upshiftVarLExpr $ LVariable (finNat $ fst v, snd v)]
         -- if t is a refinement type, extract the old predicate and combine
         case t of
-          (TRefine base oldPred) -> return $ TE (TRefine base $ LOp And [pred, oldPred]) (Variable v)
+          (TRefine base oldPred) -> return $ TE (TRefine base 
+                  -- (LOp And [pred, upshiftVarLExpr oldPred])) (Variable v)
+                  pred) (Variable v)
           _ -> return $ TE (TRefine t pred) (Variable v)
 infer (E (Fun f ts ls note))
    | ExI (Flip ts') <- Vec.fromList ts

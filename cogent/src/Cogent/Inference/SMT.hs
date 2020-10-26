@@ -47,25 +47,26 @@ import Lens.Micro.TH
 import Prelude as P
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 
-upshiftVarLExpr :: LExpr t b -> LExpr t b
-upshiftVarLExpr (LVariable (t, b)) = LVariable (Suc t, b)
-upshiftVarLExpr (LOp opr es) = LOp opr (P.map upshiftVarLExpr es)
-upshiftVarLExpr (LApp a b) = LApp (upshiftVarLExpr a) (upshiftVarLExpr b)
-upshiftVarLExpr (LCon tn e t) = LCon tn (upshiftVarLExpr e) t
-upshiftVarLExpr (LLet a e1 e2) = LLet a (upshiftVarLExpr e1) (upshiftVarLExpr e2)
-upshiftVarLExpr (LLetBang bs a e1 e2) = LLetBang bs a (upshiftVarLExpr e1) (upshiftVarLExpr e2)
-upshiftVarLExpr (LTuple e1 e2) = LTuple (upshiftVarLExpr e1) (upshiftVarLExpr e2)
-upshiftVarLExpr (LStruct fs) = LStruct $ P.map (\(fn, e) -> (fn, upshiftVarLExpr e)) fs
-upshiftVarLExpr (LIf c t e) = LIf (upshiftVarLExpr c) (upshiftVarLExpr t) (upshiftVarLExpr e)
-upshiftVarLExpr (LCase e tn (v1, a1) (v2, a2)) = LCase (upshiftVarLExpr e) tn (v1, upshiftVarLExpr a1) (v2, upshiftVarLExpr a2)
-upshiftVarLExpr (LEsac e) = LEsac $ upshiftVarLExpr e
-upshiftVarLExpr (LSplit (v1, v2) e1 e2) = LSplit (v1, v2) (upshiftVarLExpr e1) (upshiftVarLExpr e2)
-upshiftVarLExpr (LMember x f) = LMember (upshiftVarLExpr x) f
-upshiftVarLExpr (LTake (a,b) rec f e) = LTake (a,b) rec f (upshiftVarLExpr e)
-upshiftVarLExpr (LPut rec f v) = LPut rec f (upshiftVarLExpr v)
-upshiftVarLExpr (LPromote t e) = LPromote t (upshiftVarLExpr e)
-upshiftVarLExpr (LCast t e) = LCast t (upshiftVarLExpr e)
-upshiftVarLExpr x = x
+upshiftVarLExpr :: Int -> LExpr t b -> LExpr t b
+upshiftVarLExpr 0 (LVariable (t, b)) = LVariable (Suc t, b)
+upshiftVarLExpr n (LVariable (t, b)) = upshiftVarLExpr (n - 1) $ LVariable (Suc t, b)
+upshiftVarLExpr n (LOp opr es) = LOp opr (P.map upshiftVarLExpr n es)
+upshiftVarLExpr n (LApp a b) = LApp (upshiftVarLExpr n a) (upshiftVarLExpr n b)
+upshiftVarLExpr n (LCon tn e t) = LCon tn (upshiftVarLExpr n e) t
+upshiftVarLExpr n (LLet a e1 e2) = LLet a (upshiftVarLExpr n e1) (upshiftVarLExpr n e2)
+upshiftVarLExpr n (LLetBang bs a e1 e2) = LLetBang bs a (upshiftVarLExpr n e1) (upshiftVarLExpr n e2)
+upshiftVarLExpr n (LTuple e1 e2) = LTuple (upshiftVarLExpr n e1) (upshiftVarLExpr n e2)
+upshiftVarLExpr n (LStruct fs) = LStruct $ P.map (\(fn, e) -> (fn, upshiftVarLExpr n e)) fs
+upshiftVarLExpr n (LIf c t e) = LIf (upshiftVarLExpr n c) (upshiftVarLExpr n t) (upshiftVarLExpr n e)
+upshiftVarLExpr n (LCase e tn (v1, a1) (v2, a2)) = LCase (upshiftVarLExpr n e) tn (v1, upshiftVarLExpr n a1) (v2, upshiftVarLExpr n a2)
+upshiftVarLExpr n (LEsac e) = LEsac $ upshiftVarLExpr n e
+upshiftVarLExpr n (LSplit (v1, v2) e1 e2) = LSplit (v1, v2) (upshiftVarLExpr n e1) (upshiftVarLExpr n e2)
+upshiftVarLExpr n (LMember x f) = LMember (upshiftVarLExpr n x) f
+upshiftVarLExpr n (LTake (a,b) rec f e) = LTake (a,b) rec f (upshiftVarLExpr n e)
+upshiftVarLExpr n (LPut rec f v) = LPut rec f (upshiftVarLExpr n v)
+upshiftVarLExpr n (LPromote t e) = LPromote t (upshiftVarLExpr n e)
+upshiftVarLExpr n (LCast t e) = LCast t (upshiftVarLExpr n e)
+upshiftVarLExpr n x = x
 -- also upshift in refinement type preds in context?
 
 data NatVec :: Nat -> * -> * where
@@ -92,7 +93,7 @@ type TcVec t v b = Vec v (Maybe (Type t b))
 type NatTcVec t v b = NatVec v (Maybe (Type t b))
 
 data SmtTransState b = SmtTransState {
-                                   _vars  :: Map b SVal
+                                   _vars  :: Map String SVal
                                    , _fresh :: Int
                                    , _target :: Maybe b
                                    }
@@ -199,34 +200,46 @@ uopToSmt Not = svNot
 uopToSmt Complement = svNot
 
 lexprToSmt :: (Show b, Ord b) => NatTcVec t v b -> LExpr t b -> (SmtStateM b) SVal
-lexprToSmt vec (LVariable (t, vn)) =
-  case t of
-    Zero -> do 
-            tar <- use target
-            newvn <- case tar of
-              Nothing   -> do 
-                              target <<.= (Just vn) 
-                              return vn
-              Just name -> return name
+lexprToSmt vec (LVariable (t, vn)) = 
+      do
             m <- use vars
-            case M.lookup newvn m of
+            let newn = show t
+            case M.lookup newn m of
               Nothing -> let Just t' = vec `nvAt` t in
                 do
                   t'' <- typeToSmt vec t'
-                  sv <- mkQSymVar SMT.ALL (show newvn) t''
-                  vars %= (M.insert newvn sv)
+                  sv <- mkQSymVar SMT.ALL newn t''
+                  vars %= (M.insert newn sv)
                   return sv
               Just sv -> return sv
-    _  -> do
-            m <- use vars
-            case M.lookup vn m of
-              Nothing -> let Just t' = vec `nvAt` t in
-                do
-                  t'' <- typeToSmt vec t'
-                  sv <- mkQSymVar SMT.ALL (show vn) t''
-                  vars %= (M.insert vn sv)
-                  return sv
-              Just sv -> return sv
+
+  -- case t of
+  --   Zero -> do 
+  --           tar <- use target
+  --           newvn <- case tar of
+  --             Nothing   -> do 
+  --                             target <<.= (Just vn) 
+  --                             return vn
+  --             Just name -> return name
+  --           m <- use vars
+  --           case M.lookup newvn m of
+  --             Nothing -> let Just t' = vec `nvAt` t in
+  --               do
+  --                 t'' <- typeToSmt vec t'
+  --                 sv <- mkQSymVar SMT.ALL (show newvn) t''
+  --                 vars %= (M.insert newvn sv)
+  --                 return sv
+  --             Just sv -> return sv
+  --   _  -> do
+  --           m <- use vars
+  --           case M.lookup vn m of
+  --             Nothing -> let Just t' = vec `nvAt` t in
+  --               do
+  --                 t'' <- typeToSmt vec t'
+  --                 sv <- mkQSymVar SMT.ALL (show vn) t''
+  --                 vars %= (M.insert vn sv)
+  --                 return sv
+  --             Just sv -> return sv
 -- lexprToSmt (LFun fn ts ls) = LFun fn (map upshiftVarType ts) ls
 lexprToSmt vec (LOp op [e]) = (liftA $ uopToSmt op) $ lexprToSmt vec e
 lexprToSmt vec (LOp op [e1, e2]) = (liftA2 $ bopToSmt op) (lexprToSmt vec e1) (lexprToSmt vec e2)

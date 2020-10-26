@@ -1,0 +1,2 @@
+foo : U8 -> U8
+foo x = let y = 0 in x/0
