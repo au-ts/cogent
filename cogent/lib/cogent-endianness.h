@@ -19,35 +19,35 @@ static inline u64 swap_u64(u64 v) {
   return (v << 32) | (v >> 32);
 }
 
-static inline u8 be_u8(u8 v) {
+static inline u8 be_u8_swap(u8 v) {
   return v;
 }
 
-static inline u16 be_u16(u16 v) {
+static inline u16 be_u16_swap(u16 v) {
   return IS_BIG_ENDIAN ? v : swap_u16(v);
 }
 
-static inline u32 be_u32(u32 v) {
+static inline u32 be_u32_swap(u32 v) {
   return IS_BIG_ENDIAN ? v : swap_u32(v);
 }
 
-static inline u64 be_u64(u64 v) {
+static inline u64 be_u64_swap(u64 v) {
   return IS_BIG_ENDIAN ? v : swap_u64(v);
 }
 
-static inline u8 le_u8(u8 v) {
+static inline u8 le_u8_swap(u8 v) {
   return v;
 }
 
-static inline u16 le_u16(u16 v) {
+static inline u16 le_u16_swap(u16 v) {
   return IS_BIG_ENDIAN ? swap_u16(v) : v;
 }
 
-static inline u32 le_u32(u32 v) {
+static inline u32 le_u32_swap(u32 v) {
   return IS_BIG_ENDIAN ? swap_u32(v) : v;
 }
 
-static inline u64 le_u64(u64 v) {
+static inline u64 le_u64_swap(u64 v) {
   return IS_BIG_ENDIAN ? swap_u64(v) : v;
 }
 
