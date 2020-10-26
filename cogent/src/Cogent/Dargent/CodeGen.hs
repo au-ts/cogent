@@ -600,8 +600,8 @@ composedAlignedRangeGetterSetter
     -- If called, `endianness` should not be `ME`, as no conversion functions are defined for machine endianness
     endiannessConversionFunctionName :: FunName
     endiannessConversionFunctionName = case intTypeForType embeddedType of
-      (CIdent cid) -> map toLower $ show endianness ++ "_" ++ cid
-      (CInt _ _)   -> map toLower $ show endianness ++ "_" ++ "u8"
+      (CIdent cid) -> map toLower $ show endianness ++ "_" ++ cid ++ "_swap"
+      (CInt _ _)   -> map toLower $ show endianness ++ "_" ++ "u8" ++ "_swap"
       _            -> __impossible "endiannessConversionFunctionName called with invalid embedded type"
 
     {-
