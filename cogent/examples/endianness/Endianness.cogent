@@ -5,13 +5,13 @@ type XY = { x: U32, y: U32 }
            }
 
 type AVariant = { a: <X U16 | Y U32> }
-	layout
-		record {
-			a : variant (1B at 0B) {
-						X(1) : 2B at 1B using BE,
-						Y(2) : 4B at 3B using LE
-				} at 0B
-		}
+  layout
+    record {
+      a : variant (1B at 0B) {
+            X(1) : 2B at 1B using BE,
+            Y(2) : 4B at 3B using LE
+        } at 0B
+    }
 
 init : XY -> XY
 init xy = xy {x = 1, y = 1}
