@@ -175,7 +175,7 @@ bound b rt1@(TRefine t1 l1) rt2@(TRefine t2 l2) | t1 == t2
       = do
           (vec, ls, _) <- get
           -- res <- liftIO $ smtProveVerbose (upshiftVarVec vec) (map upshiftVarLExpr ls) rt1 rt2
-          res <- liftIO $ smtProveVerbose (vec) (ls) rt1 rt2
+          res <- liftIO $ smtProveVerbose (upshiftVarVec 1 vec) (ls) rt1 rt2
           case res of
             (True, True) -> return rt1 -- doesn't matter which one is returned
             (True, False) -> return $ case b of GLB -> rt1; LUB -> rt2
@@ -360,12 +360,12 @@ opType opr [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
   | opr `elem` [Plus, Minus, Times, Mod,
                 BitAnd, BitOr, BitXor, LShift, RShift],
   t1 /= Boolean, t1 == t2
-  = Just ([TPrim t1, TPrim t1], (TRefine (TPrim t1) (LOp And $ map upshiftVarLExpr [p1, p2]))) -- unsure
+  = Just ([TPrim t1, TPrim t1], (TRefine (TPrim t1) (LOp And $ map (upshiftVarLExpr 1) [p1, p2]))) -- unsure
 opType Divide [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
   | t1 /= Boolean, t1 == t2
   = let nonZeroPred = LOp Gt [LVariable (Zero, "zeroVar" ++ show t1), LILit 0 t1]
         nonZeroType = TRefine (TPrim t1) nonZeroPred
-    in Just ([TPrim t1, nonZeroType], (TRefine (TPrim t1) (LOp And $ map upshiftVarLExpr [p1, p2])))
+    in Just ([TPrim t1, nonZeroType], (TRefine (TPrim t1) (LOp And $ map (upshiftVarLExpr 1) [p1, p2])))
 opType opr [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
   | opr `elem` [Gt, Lt, Le, Ge, Eq, NEq], t1 /= Boolean, t1 == t2
   = Just ([TPrim t1, TPrim t1], toTRefine $ TPrim Boolean)
@@ -502,11 +502,12 @@ freshVarName = TC $ do readers <- ask
                        put (st, p, n + 1)
                        return $ freshVarPrefix ++ show n
 
-upshiftVarVec :: Vec v (Maybe (Type t b)) -> Vec v (Maybe (Type t b))
-upshiftVarVec Nil         = Nil
-upshiftVarVec (Cons x xs) = case x of
-  Just (TRefine t p) -> Cons (Just (TRefine t (upshiftVarLExpr p))) (upshiftVarVec xs)
-  t2                 -> Cons t2 (upshiftVarVec xs)
+-- upshift first entry by 1, second by 2 ...
+upshiftVarVec :: Int -> Vec v (Maybe (Type t b)) -> Vec v (Maybe (Type t b))
+upshiftVarVec n Nil         = Nil
+upshiftVarVec n (Cons x xs) = case x of
+  Just (TRefine t p) -> Cons (Just (TRefine t (upshiftVarLExpr n p))) (upshiftVarVec (n + 1) xs)
+  t2                 -> Cons t2 (upshiftVarVec (n + 1) xs)
 
 -- upshiftNonZeroLExpr :: LExpr t b -> LExpr t b
 -- upshiftNonZeroLExpr (LVariable (t,b)) =
@@ -579,7 +580,7 @@ infer (E (Op o es))
         -- check that each of o is a subtype of expectedInputs
         -- guardShow' "operandsTypes, expectedInputs" ((map show operandsTypes)++(map show expectedInputs)) False
         inputsOk <- listIsSubtype operandsTypes expectedInputs
-        let pred = LOp Eq [LVariable (Zero, vn ++ "_op" ++ show o), upshiftVarLExpr (LOp o $ map (texprToLExpr id) es')]
+        let pred = LOp Eq [LVariable (Zero, vn ++ "_op" ++ show o), upshiftVarLExpr 1 (LOp o (reverse $ map (texprToLExpr id) es'))]
         return $ case inputsOk of
           -- True -> (TE (TRefine t $ LOp And [pred, p]) (Op o es'))
           True -> (TE (TRefine t pred) (Op o es'))
@@ -667,7 +668,7 @@ infer (E (Variable v))
    = do Just t <- useVariable (fst v)
         vn <- freshVarName
         let pred = LOp Eq [LVariable (Zero, vn ++ "_Variable"), 
-                            upshiftVarLExpr $ LVariable (finNat $ fst v, snd v)]
+                            upshiftVarLExpr 1 $ LVariable (finNat $ fst v, snd v)]
         -- if t is a refinement type, extract the old predicate and combine
         case t of
           (TRefine base oldPred) -> return $ TE (TRefine base 

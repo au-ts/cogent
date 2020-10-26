@@ -48,9 +48,9 @@ import Prelude as P
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 
 upshiftVarLExpr :: Int -> LExpr t b -> LExpr t b
-upshiftVarLExpr 0 (LVariable (t, b)) = LVariable (Suc t, b)
+upshiftVarLExpr 1 (LVariable (t, b)) = LVariable (Suc t, b)
 upshiftVarLExpr n (LVariable (t, b)) = upshiftVarLExpr (n - 1) $ LVariable (Suc t, b)
-upshiftVarLExpr n (LOp opr es) = LOp opr (P.map upshiftVarLExpr n es)
+upshiftVarLExpr n (LOp opr es) = LOp opr (P.map (upshiftVarLExpr n) es)
 upshiftVarLExpr n (LApp a b) = LApp (upshiftVarLExpr n a) (upshiftVarLExpr n b)
 upshiftVarLExpr n (LCon tn e t) = LCon tn (upshiftVarLExpr n e) t
 upshiftVarLExpr n (LLet a e1 e2) = LLet a (upshiftVarLExpr n e1) (upshiftVarLExpr n e2)
