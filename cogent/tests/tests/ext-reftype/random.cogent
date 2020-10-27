@@ -1,6 +1,2 @@
-type Lt2 = [v: U32 | v < 2]
-
-foo : Lt2 -> U32
-foo idx = let y  = 2 + idx
-          and xs = [1, 2, 3, 4]
-           in xs @ y
+foo : U8 -> U8
+foo a = if a > 0 then a+2 else a

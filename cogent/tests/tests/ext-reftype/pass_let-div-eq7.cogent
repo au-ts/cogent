@@ -1,0 +1,5 @@
+type Eq7 = [v: U8 | v == 7]
+
+foo : U8 -> Eq7
+foo x = let y = 21 in 
+            (y / 3) : Eq7
