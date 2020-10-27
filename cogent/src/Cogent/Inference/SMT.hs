@@ -147,7 +147,7 @@ extract :: (Show b, Ord b) => NatTcVec t v b -> [LExpr t b] -> (SmtStateM b) SVa
 extract v ls = do
                   initialSVal <- return $ return svTrue
                   vecPreds <- P.foldr (extractVec v) initialSVal v
-                  ctxPreds <- P.foldr (extractLExprs v) initialSVal ls
+                  ctxPreds <- P.foldr (extractLExprs v) initialSVal (P.map (upshiftVarLExpr 1) ls)
                   return $ svAnd vecPreds ctxPreds
 
 extractVec :: (Show b, Ord b) => NatTcVec t v b -> Maybe (Type t b) -> (SmtStateM b) SVal -> (SmtStateM b) SVal

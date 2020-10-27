@@ -1,0 +1,6 @@
+type InBounds = [v: U32 | v < 4]
+
+foo : InBounds -> U32
+foo idx = let y  = idx
+          and xs = [1, 2, 3, 4]
+           in xs @ y

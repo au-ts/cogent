@@ -177,7 +177,7 @@ bound b rt1@(TRefine t1 l1) rt2@(TRefine t2 l2) | t1 == t2
           -- res <- liftIO $ smtProveVerbose (upshiftVarVec vec) (map upshiftVarLExpr ls) rt1 rt2
           res <- liftIO $ smtProveVerbose (upshiftVarVec 1 vec) (ls) rt1 rt2
           case res of
-            (True, True) -> return rt1 -- doesn't matter which one is returned
+            (True, True) -> return rt2 -- doesn't matter which one is returned
             (True, False) -> return $ case b of GLB -> rt1; LUB -> rt2
             (False, True) -> return $ case b of GLB -> rt2; LUB -> rt1
             -- (False, False) -> MaybeT $ return Nothing -- fixme /blaisep
@@ -580,10 +580,15 @@ infer (E (Op o es))
         -- check that each of o is a subtype of expectedInputs
         -- guardShow' "operandsTypes, expectedInputs" ((map show operandsTypes)++(map show expectedInputs)) False
         inputsOk <- listIsSubtype operandsTypes expectedInputs
-        let pred = LOp Eq [LVariable (Zero, vn ++ "_op" ++ show o), upshiftVarLExpr 1 (LOp o (reverse $ map (texprToLExpr id) es'))]
-        return $ case inputsOk of
+        let pred = LOp Eq [LVariable (Zero, vn ++ "_op" ++ show o), upshiftVarLExpr 1 (LOp o (map (texprToLExpr id) es'))]
+        case inputsOk of
           -- True -> (TE (TRefine t $ LOp And [pred, p]) (Op o es'))
-          True -> (TE (TRefine t pred) (Op o es'))
+          -- True -> 
+          --         let [op1, op2] = operandsTypes in
+          --           do
+          --             ret <- withBindings (Cons op1 (Cons op2 Nil)) $ return (TE (TRefine t pred) (Op o es'))
+          --             return ret
+          True -> return (TE (TRefine t pred) (Op o es'))
           _ -> __impossible "op types don't match" -- fix me /blaisep
 infer (E (ILit i t))
   = do vn <- freshVarName
@@ -610,8 +615,18 @@ infer (E (ALit es))
                            lubAll (t:ts)
 infer (E (ArrayIndex arr idx))
    = do arr'@(TE ta _) <- infer arr
-        let TArray te l _ _ = ta
+        let TRefine (TArray te l _ _) _ = ta
         idx' <- infer idx
+        vn <- freshVarName
+        let idxt = exprType idx'
+            LILit len t = l -- could be any lexpr, not just LILit
+            bt@(TPrim pt) = getBaseType idxt
+            -- pred = LOp And [
+            --     LOp Ge [LVariable (Zero, vn ++ "_arrILit_" ++ show 0), LILit 0 t],
+            --     LOp Lt [LVariable (Zero, vn ++ "_arrILit_" ++ show len), LILit len t]
+            --   ]
+            pred = LOp Lt [LVariable (Zero, vn ++ "_arrILit_" ++ show len), LILit len t]
+        inBound <- idxt `isSubtype` (TRefine bt pred) 
         -- guardShow ("arr-idx out of bound") $ idx >= 0 && idx < l  -- no way to check it. need ref types. / zilinc
         guardShow ("arr-idx on non-linear") . canShare =<< kindcheck ta
         return (TE te (ArrayIndex arr' idx'))
@@ -726,8 +741,8 @@ infer (E (If ec et ee))
         guardShow "if-1" $ getBaseType (exprType ec') == TPrim Boolean
         let lec = texprToLExpr id ec'
         -- guardShow (show lec) False
-        -- (et', ee') <- (,) <$> withPredicate lec (infer et) <||> withPredicate (LOp Not [lec]) (infer ee)  -- have to use applicative functor, as they share the same initial env
-        (et', ee') <- (,) <$> infer et <||> infer ee  -- have to use applicative functor, as they share the same initial env
+        (et', ee') <- (,) <$> withPredicate lec (infer et) <||> withPredicate (LOp Not [lec]) (infer ee)  -- have to use applicative functor, as they share the same initial env
+        -- (et', ee') <- (,) <$> infer et <||> infer ee  -- have to use applicative functor, as they share the same initial env
         let tt = exprType et'
             te = exprType ee'
         Just tlub <- runMaybeT $ tt `lub` te
@@ -778,7 +793,7 @@ infer (E (Struct fs))
 infer (E (Take a e f e2))
    = do e'@(TE t _) <- infer e
         -- trace ("@@@@t is " ++ show t) $ return ()
-        let TRecord rp ts s = t
+        let TRefine (TRecord rp ts s) _ = t
         -- a common cause of this error is taking a field when you could have used member
         guardShow ("take: sigil cannot be readonly: " ++ show (pretty e)) $ not (readonly s)
         guardShow "take-1" $ f < length ts

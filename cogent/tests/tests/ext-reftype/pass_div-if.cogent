@@ -1,2 +1,0 @@
-foo : U8 -> U8
-foo a = if True then 5 else 3

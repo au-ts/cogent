@@ -1,0 +1,6 @@
+type Lt3 = [v : U8 | v < 3]
+type Lt8 = [v : U8 | v < 8]
+
+add5 : Lt3 -> Lt8
+add5 x = let y = 5 in
+            x + y : Lt8
