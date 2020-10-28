@@ -87,7 +87,7 @@ instance Foldable (NatVec n) where
   foldMap f (NvCons x y) = f x <> foldMap f y
 
 nvAt :: NatVec a t -> Nat -> t 
-nvAt NvNil _ = __impossible "`nvAt' called with empty Vector" -- out of bounds
+nvAt NvNil _ = __impossible "`nvAt' called out of vector bounds"
 nvAt (NvCons x xs) Zero     = x
 nvAt (NvCons x xs) (Suc s)  = nvAt xs s
 

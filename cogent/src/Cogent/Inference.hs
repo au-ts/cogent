@@ -191,7 +191,7 @@ bound b rt1@(TRefine t1 l1) rt2@(TRefine t2 l2) | t1 == t2
             (False, True) -> return $ case b of GLB -> rt2; LUB -> rt1
             -- (False, False) -> MaybeT $ return Nothing -- fixme /blaisep
             (False, False) -> case b of
-                                GLB -> MaybeT (return Nothing) -- conjunction of the two?
+                                GLB -> return (TRefine t1 (LOp And [l1, l2]))
                                 LUB -> return t1 -- fixme /blaisep
 #endif
 bound _ t1 t2 = __impossible ("bound: not comparable:\n" ++ show t1 ++ "\n" ++ 
@@ -487,14 +487,14 @@ withBindings :: Vec k (Type t b) -> TC t (v :+: k) b x -> TC t v b x
 withBindings Nil tc = tc
 withBindings (Cons x xs) tc = withBindings xs (withBinding x tc)
 
-withPredicate :: LExpr t b -> TC t v b x -> TC t v b x
+withPredicate :: (Show b) => LExpr t b -> TC t v b x -> TC t v b x
 withPredicate l x
-  = TC $ do readers  <- ask
-            st       <- get
-            rtc      <- lift . liftIO $ runTC x readers st 
+  = TC $ do readers    <- ask
+            (st, p, n) <- get
+            rtc        <- lift . liftIO $ runTC x readers (st, p ++ [l], n) 
             case rtc of
               Left e -> throwError e
-              Right ((s, p, n), r) -> do put (s, p ++ [l], n); return r
+              Right ((s, p, n), r) -> do put (s, p, n); return r
 
 withBang :: [Fin v] -> TC t v b x -> TC t v b x
 withBang vs (TC x) = TC $ do (st, p', n) <- get
@@ -581,6 +581,10 @@ infer (E (Op o es))
         let Just (expectedInputs, (TRefine t p)) = opType o operandsTypes
         -- check that each of o is a subtype of expectedInputs
         -- guardShow' "operandsTypes, expectedInputs" ((map show operandsTypes)++(map show expectedInputs)) False
+        trace ("operandsTypes " ++ (show operandsTypes)) $ return ()
+        trace ("expectedInputs " ++ (show expectedInputs)) $ return ()
+        (_,ls,_) <- get
+        trace ("context " ++ (show ls)) $ return ()
         inputsOk <- listIsSubtype operandsTypes expectedInputs
         let pred = LOp Eq [LVariable (Zero, vn ++ "_op" ++ show o), upshiftVarLExpr 1 (LOp o (map (texprToLExpr id) es'))]
         case inputsOk of
@@ -740,16 +744,15 @@ infer (E (Con tag e tfull))
         return $ TE tfull (Con tag e'' tfull)
 infer (E (If ec et ee))
    = do ec' <- infer ec
+        trace "If" $ return ()
         guardShow "if-1" $ getBaseType (exprType ec') == TPrim Boolean
         let lec = texprToLExpr id ec'
         -- guardShow (show lec) False
         (et', ee') <- (,) <$> withPredicate lec (infer et) <||> withPredicate (LOp Not [lec]) (infer ee)  -- have to use applicative functor, as they share the same initial env
         let tt = exprType et'
             te = exprType ee'
-        -- Just tlub <- runMaybeT $ tt `lub` te
-        -- isSub <- (&&) <$> tt `isSubtype` tlub <*> te `isSubtype` tlub
-        isSub1 <- tt `isSubtype` te
-        isSub2 <- te `isSubtype` tt
+        Just tlub <- runMaybeT $ tt `lub` te
+        isSub <- (&&) <$> tt `isSubtype` tlub <*> te `isSubtype` tlub
         guardShow' "if-2" ["Then type:", show (pretty tt) ++ ";", "else type:", show (pretty te)] isSub
         let et'' = if tt /= tlub then promote tlub et' else et'
             ee'' = if te /= tlub then promote tlub ee' else ee'

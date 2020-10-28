@@ -1,2 +1,4 @@
-foo : U8 -> U8
-foo a = if a > 0 then 5/a : U8 else a : U8
+type Gt1 = [v: U8 | v > 1]
+
+foo : U8 -> Gt1
+foo a = if a == 1 then 2/a : Gt1 else 5 : Gt1
