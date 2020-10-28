@@ -69,6 +69,13 @@ upshiftVarLExpr n (LCast t e) = LCast t (upshiftVarLExpr n e)
 upshiftVarLExpr n x = x
 -- also upshift in refinement type preds in context?
 
+-- upshift first entry by 1, second by 2 ...
+upshiftVarVec :: Int -> Vec v (Maybe (Type t b)) -> Vec v (Maybe (Type t b))
+upshiftVarVec n Nil         = Nil
+upshiftVarVec n (Cons x xs) = case x of
+  Just (TRefine t p) -> Cons (Just (TRefine t (upshiftVarLExpr n p))) (upshiftVarVec (n + 1) xs)
+  t2                 -> Cons t2 (upshiftVarVec (n + 1) xs)
+
 data NatVec :: Nat -> * -> * where
   NvNil :: NatVec Zero a
   NvCons :: a -> NatVec n a -> NatVec (Suc n) a
@@ -79,8 +86,8 @@ instance Foldable (NatVec n) where
   foldMap f NvNil = mempty
   foldMap f (NvCons x y) = f x <> foldMap f y
 
-nvAt :: NatVec a t -> Nat -> t
-nvAt NvNil _ = __impossible "`nvAt' called with empty Vector"
+nvAt :: NatVec a t -> Nat -> t 
+nvAt NvNil _ = __impossible "`nvAt' called with empty Vector" -- out of bounds
 nvAt (NvCons x xs) Zero     = x
 nvAt (NvCons x xs) (Suc s)  = nvAt xs s
 
@@ -105,7 +112,7 @@ type SmtStateM b = StateT (SmtTransState b) Symbolic
 
 getSmtExpression :: (Show b, Ord b) => String -> TcVec t v b -> [LExpr t b] -> Type t b -> Type t b -> Symbolic SVal
 getSmtExpression dir v e (TRefine t1 p) (TRefine t2 q) = do
-  let nv = tcVecToNatVec v
+  let nv = tcVecToNatVec (upshiftVarVec 1 v)
   (e', se) <- runStateT (extract (NvCons Nothing nv) e) (SmtTransState M.empty 0 Nothing) -- we chuck a nothing here so that upshifting makes sense
   (p', sp) <- runStateT (lexprToSmt (NvCons (Just t1) nv) p) se
   (q', sp) <- runStateT (lexprToSmt (NvCons (Just t2) nv) q) sp
@@ -302,9 +309,9 @@ typeToSmt vec (TProduct t1 t2) = do
 -- typeToSmt (TSum alts) = variant (map (\(n,(t,b)) -> tagname n L.<> prettyTaken b <+> pretty t) alts)
 -- typeToSmt (TFun t1 t2) = prettyT' t1 <+> typesymbol "->" <+> pretty t2
 -- typeToSmt (TRecord rp fs s) = pretty rp <+> record (map (\(f,(t,b)) -> fieldname f <+> symbol ":" L.<> prettyTaken b <+> pretty t) fs)
-typeToSmt vec (TCon "Bool" [] Unboxed) = return $ KBool
-typeToSmt vec (TCon "String" [] Unboxed) = return $ KString
-typeToSmt vec (TCon n [] Unboxed) = return $ primIntToSmt $ strToPrimInt n
+-- typeToSmt vec (TCon "Bool" [] Unboxed) = return $ KBool
+-- typeToSmt vec (TCon "String" [] Unboxed) = return $ KString
+-- typeToSmt vec (TCon n [] Unboxed) = return $ primIntToSmt $ strToPrimInt n
 typeToSmt vec (TRefine t _) = typeToSmt vec t
 typeToSmt vec t = freshVal >>= \s -> return (KUninterpreted s (Left s)) -- check
 

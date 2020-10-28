@@ -88,7 +88,7 @@ guardShow' mh mb b = unless b $ TC (throwError $ "GUARD: " ++ mh ++ "\n" ++ unli
 -- Type reconstruction
 
 -- Types that don't have the same representation / don't satisfy subtyping.
-isUpcastable :: (Show b, Eq b, Pretty b, Ord b) => Type t b -> Type t b -> TC t v b Bool
+isUpcastable :: (Eq b, Ord b, Pretty b, Show b) => Type t b -> Type t b -> TC t v b Bool
 isUpcastable (TPrim p1) (TPrim p2) = return $ isSubtypePrim p1 p2
 isUpcastable (TSum s1) (TSum s2) = do
   c1 <- flip allM s1 (\(c,(t,b)) -> case lookup c s2 of
@@ -98,11 +98,22 @@ isUpcastable (TSum s1) (TSum s2) = do
   return $ c1 && c2
 isUpcastable _ _ = return False
 
-isSubtype :: (Show b, Eq b, Pretty b, Ord b) => Type t b -> Type t b -> TC t v b Bool
+compareRefTypes :: (Eq b, Ord b, Pretty b, Show b) => Type t b -> Type t b -> TC t v b (Bool, Bool)
+compareRefTypes rt1@(TRefine t1 l1) rt2@(TRefine t2 l2) | t1 == t2 
+  = do
+      (vec, ls, _) <- get
+      res <- liftIO $ smtProveVerbose vec ls rt1 rt2
+      return res
+compareRefTypes _ _ = __impossible "compareRefTypes incompatible"
+
+isSubtype :: (Eq b, Pretty b, Show b, Ord b) => Type t b -> Type t b -> TC t v b Bool
+isSubtype rt1@(TRefine t1 l1) rt2@(TRefine t2 l2) | t1 == t2 =
+  compareRefTypes rt1 rt2 >>= \case (True, _) -> return True
+                                    _         -> return False
 isSubtype t1 t2 = runMaybeT (t1 `lub` t2) >>= \case Just t  -> return $ t == t2
                                                     Nothing -> return False
 
-listIsSubtype :: (Show b, Eq b, Pretty b, Ord b) => [Type t b] -> [Type t b] -> TC t v b Bool
+listIsSubtype :: (Eq b, Ord b, Pretty b, Show b) => [Type t b] -> [Type t b] -> TC t v b Bool
 listIsSubtype [] [] = return True
 listIsSubtype (x:xs) (y:ys) = do 
   isSub <- isSubtype x y
@@ -173,16 +184,14 @@ bound b rt@(TRefine (TPrim t1) l) pt@(TPrim t2) | t1 == t2 = return $ case b of 
 bound b pt@(TPrim t1) rt@(TRefine (TPrim t2) l) | t1 == t2 = return $ case b of GLB -> rt; LUB -> pt
 bound b rt1@(TRefine t1 l1) rt2@(TRefine t2 l2) | t1 == t2
       = do
-          (vec, ls, _) <- get
-          -- res <- liftIO $ smtProveVerbose (upshiftVarVec vec) (map upshiftVarLExpr ls) rt1 rt2
-          res <- liftIO $ smtProveVerbose (upshiftVarVec 1 vec) (ls) rt1 rt2
-          case res of
-            (True, True) -> return rt2 -- doesn't matter which one is returned
+          ret <- lift $ compareRefTypes rt1 rt2
+          case ret of
+            (True, True) -> return rt1 -- doesn't matter which one is returned
             (True, False) -> return $ case b of GLB -> rt1; LUB -> rt2
             (False, True) -> return $ case b of GLB -> rt2; LUB -> rt1
             -- (False, False) -> MaybeT $ return Nothing -- fixme /blaisep
-            (False, False) -> case b of 
-                                GLB -> MaybeT (return Nothing) 
+            (False, False) -> case b of
+                                GLB -> MaybeT (return Nothing) -- conjunction of the two?
                                 LUB -> return t1 -- fixme /blaisep
 #endif
 bound _ t1 t2 = __impossible ("bound: not comparable:\n" ++ show t1 ++ "\n" ++ 
@@ -502,13 +511,6 @@ freshVarName = TC $ do readers <- ask
                        put (st, p, n + 1)
                        return $ freshVarPrefix ++ show n
 
--- upshift first entry by 1, second by 2 ...
-upshiftVarVec :: Int -> Vec v (Maybe (Type t b)) -> Vec v (Maybe (Type t b))
-upshiftVarVec n Nil         = Nil
-upshiftVarVec n (Cons x xs) = case x of
-  Just (TRefine t p) -> Cons (Just (TRefine t (upshiftVarLExpr n p))) (upshiftVarVec (n + 1) xs)
-  t2                 -> Cons t2 (upshiftVarVec (n + 1) xs)
-
 -- upshiftNonZeroLExpr :: LExpr t b -> LExpr t b
 -- upshiftNonZeroLExpr (LVariable (t,b)) =
 --   case t of
@@ -742,11 +744,12 @@ infer (E (If ec et ee))
         let lec = texprToLExpr id ec'
         -- guardShow (show lec) False
         (et', ee') <- (,) <$> withPredicate lec (infer et) <||> withPredicate (LOp Not [lec]) (infer ee)  -- have to use applicative functor, as they share the same initial env
-        -- (et', ee') <- (,) <$> infer et <||> infer ee  -- have to use applicative functor, as they share the same initial env
         let tt = exprType et'
             te = exprType ee'
-        Just tlub <- runMaybeT $ tt `lub` te
-        isSub <- (&&) <$> tt `isSubtype` tlub <*> te `isSubtype` tlub
+        -- Just tlub <- runMaybeT $ tt `lub` te
+        -- isSub <- (&&) <$> tt `isSubtype` tlub <*> te `isSubtype` tlub
+        isSub1 <- tt `isSubtype` te
+        isSub2 <- te `isSubtype` tt
         guardShow' "if-2" ["Then type:", show (pretty tt) ++ ";", "else type:", show (pretty te)] isSub
         let et'' = if tt /= tlub then promote tlub et' else et'
             ee'' = if te /= tlub then promote tlub ee' else ee'
