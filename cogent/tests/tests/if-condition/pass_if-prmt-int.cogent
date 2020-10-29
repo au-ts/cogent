@@ -9,4 +9,4 @@
 --
 
 foo : U16 -> U32
-foo a = if a == 5 then 3 else upcast a + 2
+foo a = if a == 5 then 3 : U32 else (upcast (a + 2 : U16) : U32)

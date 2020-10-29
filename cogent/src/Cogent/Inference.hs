@@ -252,6 +252,7 @@ substitute _  (TUnit)           = TUnit
 substitute vs (TRPar v m)       = TRPar v $ fmap (M.map (substitute vs)) m
 #ifdef REFINEMENT_TYPES
 substitute vs (TArray t l s mhole) = TArray (substitute vs t) (substituteLE vs l) s (fmap (substituteLE vs) mhole)
+substitute vs (TRefine t b)     = TRefine (substitute vs t) (substituteLE vs b) -- check this
 #endif
 
 substituteL :: [DataLayout BitRange] -> Type t b -> Type t b
@@ -262,6 +263,7 @@ substituteL ls (TRecord rp ts s) = TRecord rp (map (second (first $ substituteL 
 substituteL ls (TSum ts)         = TSum (map (second (first $ substituteL ls)) ts)
 #ifdef REFINEMENT_TYPES
 substituteL ls (TArray t l s mhole) = TArray (substituteL ls t) l (substituteS ls s) mhole
+substituteL ls (TRefine t b)     = TRefine (substituteL ls t) b -- check this 
 #endif
 substituteL _  t                 = t
 
@@ -580,11 +582,10 @@ infer (E (Op o es))
         vn <- freshVarName
         let Just (expectedInputs, (TRefine t p)) = opType o operandsTypes
         -- check that each of o is a subtype of expectedInputs
-        -- guardShow' "operandsTypes, expectedInputs" ((map show operandsTypes)++(map show expectedInputs)) False
-        trace ("operandsTypes " ++ (show operandsTypes)) $ return ()
-        trace ("expectedInputs " ++ (show expectedInputs)) $ return ()
-        (_,ls,_) <- get
-        trace ("context " ++ (show ls)) $ return ()
+        -- trace ("operandsTypes " ++ (show operandsTypes)) $ return ()
+        -- trace ("expectedInputs " ++ (show expectedInputs)) $ return ()
+        -- (_,ls,_) <- get
+        -- trace ("context " ++ (show ls)) $ return ()
         inputsOk <- listIsSubtype operandsTypes expectedInputs
         let pred = LOp Eq [LVariable (Zero, vn ++ "_op" ++ show o), upshiftVarLExpr 1 (LOp o (map (texprToLExpr id) es'))]
         case inputsOk of
@@ -621,7 +622,7 @@ infer (E (ALit es))
                            lubAll (t:ts)
 infer (E (ArrayIndex arr idx))
    = do arr'@(TE ta _) <- infer arr
-        let TRefine (TArray te l _ _) _ = ta
+        let TArray te l _ _ = ta
         idx' <- infer idx
         vn <- freshVarName
         let idxt = exprType idx'
@@ -687,15 +688,18 @@ infer (E (ArrayPut arr i e))
 #endif
 infer (E (Variable v))
    = do Just t <- useVariable (fst v)
-        vn <- freshVarName
-        let pred = LOp Eq [LVariable (Zero, vn ++ "_Variable"), 
-                            upshiftVarLExpr 1 $ LVariable (finNat $ fst v, snd v)]
-        -- if t is a refinement type, extract the old predicate and combine
-        case t of
-          (TRefine base oldPred) -> return $ TE (TRefine base 
-                  -- (LOp And [pred, upshiftVarLExpr oldPred])) (Variable v)
-                  pred) (Variable v)
-          _ -> return $ TE (TRefine t pred) (Variable v)
+        case (isBaseType t) of
+          True -> do
+            vn <- freshVarName
+            let pred = LOp Eq [LVariable (Zero, vn ++ "_Variable"), 
+                                upshiftVarLExpr 1 $ LVariable (finNat $ fst v, snd v)]
+            -- if t is a refinement type, extract the old predicate and combine
+            case t of
+              (TRefine base oldPred) -> return $ TE (TRefine base 
+                      -- (LOp And [pred, upshiftVarLExpr oldPred])) (Variable v)
+                      pred) (Variable v)
+              _ -> return $ TE (TRefine t pred) (Variable v)
+          False -> return $ TE t (Variable v)
 infer (E (Fun f ts ls note))
    | ExI (Flip ts') <- Vec.fromList ts
    , ExI (Flip ls') <- Vec.fromList ls
@@ -744,7 +748,7 @@ infer (E (Con tag e tfull))
         return $ TE tfull (Con tag e'' tfull)
 infer (E (If ec et ee))
    = do ec' <- infer ec
-        trace "If" $ return ()
+        -- trace "If" $ return ()
         guardShow "if-1" $ getBaseType (exprType ec') == TPrim Boolean
         let lec = texprToLExpr id ec'
         -- guardShow (show lec) False
@@ -799,7 +803,7 @@ infer (E (Struct fs))
 infer (E (Take a e f e2))
    = do e'@(TE t _) <- infer e
         -- trace ("@@@@t is " ++ show t) $ return ()
-        let TRefine (TRecord rp ts s) _ = t
+        let TRecord rp ts s = t
         -- a common cause of this error is taking a field when you could have used member
         guardShow ("take: sigil cannot be readonly: " ++ show (pretty e)) $ not (readonly s)
         guardShow "take-1" $ f < length ts

@@ -114,6 +114,11 @@ recordHasLayout :: Type t b -> Bool
 recordHasLayout (TRecord _ _ (Boxed _ Layout{})) = True
 recordHasLayout _ = False
 
+isBaseType :: Type t b -> Bool -- is a type that supports refinement
+isBaseType (TPrim _) = True
+isBaseType (TRefine t _) = isBaseType t
+isBaseType _ = False
+
 -- ASSUME: input in a record type
 recordFields :: Type t b -> [FieldName]
 recordFields (TRecord _ fs _) = map fst fs

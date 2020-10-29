@@ -9,7 +9,7 @@
 --
 
 foo : U32 -> U32
-foo x = let a = if x > 32 then 1 else 0
-        and a = if x < 43 then 2 else a
-        and a = if x == 42 then 3 else 4
+foo x = let a = if x > 32 then 1 else 0 : U32
+        and a = if x < 43 then 2 else a : U32
+        and a = if x == 42 then 3 else 4 : U32
         in a + 4

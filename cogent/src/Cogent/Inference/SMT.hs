@@ -323,30 +323,31 @@ varIndexToSmt vec i = do
 smtProveVerbose :: (L.Pretty b, Show b, Ord b) => TcVec t v b -> [LExpr t b] -> Type t b -> Type t b -> IO (Bool, Bool)
 smtProveVerbose v ls rt1 rt2 = do
     -- traceTc "infer/smt" (pretty ls)
-    dumpMsgIfTrue True (L.text "Running core-tc SMT on types"
+    dumpMsgIfTrue True (L.text "----------------------------"
+                      L.<$> L.text "Running core-tc SMT on types:"
                       L.<$> indent' (L.pretty rt1)
-                      L.<$> indent' (L.text $ show rt1)
+                      -- L.<$> indent' (L.text $ show rt1)
                       L.<$> indent' (L.pretty rt2)
-                      L.<$> indent' (L.text $ show rt2)
-                      L.<$> L.text "Vec"
+                      -- L.<$> indent' (L.text $ show rt2)
+                      L.<$> L.text "Vector of types:"
                       L.<$> indent' (L.pretty v)
-                      L.<$> indent' (L.text $ show v)
-                      L.<$> L.text "Context"
+                      -- L.<$> indent' (L.text $ show v)
+                      L.<$> L.text "Other predicates:"
                       L.<$> indent' (P.foldr prettyLExprs (L.text "") ls)
-                      L.<$> indent' (L.text $ show ls)
+                      -- L.<$> indent' (L.text $ show ls)
                       L.<> L.hardline
                       )
     let toProve1 = getSmtExpression "Subtype" v ls rt1 rt2
         toProve2 = getSmtExpression "Supertype" v ls rt1 rt2
         solver = z3 { -- verbose = __cogent_ddump_smt
-                   verbose = True
+                   verbose = False
                    , redirectVerbose = Just $ fromMaybe "/dev/stderr" __cogent_ddump_to_file
                    }
     smtRes1 <- liftIO (proveWith solver toProve1)
     smtRes2 <- liftIO (proveWith solver toProve2)
     -- if its sat, then its not a subtype
     let ret = (not $ modelExists smtRes1, not $ modelExists smtRes2)
-    dumpMsgIfTrue True $ L.text (show ret) L.<> L.hardline
+    dumpMsgIfTrue True $ L.text ("Result: " ++ show ret) L.<> L.hardline
     return ret
 
 prettyLExprs :: (L.Pretty b) => LExpr t b -> L.Doc -> L.Doc
