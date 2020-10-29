@@ -1,4 +1,4 @@
-type InBounds = [v: U32 | v < 10]
+type InBounds = [v: U32 | v < 5]
 
 foo : InBounds -> U32
 foo idx = let y  = idx

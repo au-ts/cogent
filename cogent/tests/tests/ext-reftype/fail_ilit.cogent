@@ -1,0 +1,4 @@
+type Gt2 = [v : U8 | v > 2] 
+
+foo: U8 -> Gt2
+foo x = 1

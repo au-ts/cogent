@@ -1,2 +1,2 @@
 foo : U8 -> U8
-foo a = if a < 1 then 3 else 5/a
+foo a = if a > 0 then 3/a else 5

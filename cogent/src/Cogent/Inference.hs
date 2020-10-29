@@ -98,18 +98,16 @@ isUpcastable (TSum s1) (TSum s2) = do
   return $ c1 && c2
 isUpcastable _ _ = return False
 
-compareRefTypes :: (Eq b, Ord b, Pretty b, Show b) => Type t b -> Type t b -> TC t v b (Bool, Bool)
+compareRefTypes :: (Eq b, Ord b, Pretty b, Show b) => Type t b -> Type t b -> TC t v b Bool
 compareRefTypes rt1@(TRefine t1 l1) rt2@(TRefine t2 l2) | t1 == t2 
   = do
       (vec, ls, _) <- get
-      res <- liftIO $ smtProveVerbose vec ls rt1 rt2
+      res <- liftIO $ smtProve vec ls rt1 rt2
       return res
 compareRefTypes _ _ = __impossible "compareRefTypes incompatible"
 
 isSubtype :: (Eq b, Pretty b, Show b, Ord b) => Type t b -> Type t b -> TC t v b Bool
-isSubtype rt1@(TRefine t1 l1) rt2@(TRefine t2 l2) | t1 == t2 =
-  compareRefTypes rt1 rt2 >>= \case (True, _) -> return True
-                                    _         -> return False
+isSubtype rt1@(TRefine t1 l1) rt2@(TRefine t2 l2) | t1 == t2 = compareRefTypes rt1 rt2
 isSubtype t1 t2 = runMaybeT (t1 `lub` t2) >>= \case Just t  -> return $ t == t2
                                                     Nothing -> return False
 
@@ -184,12 +182,12 @@ bound b rt@(TRefine (TPrim t1) l) pt@(TPrim t2) | t1 == t2 = return $ case b of 
 bound b pt@(TPrim t1) rt@(TRefine (TPrim t2) l) | t1 == t2 = return $ case b of GLB -> rt; LUB -> pt
 bound b rt1@(TRefine t1 l1) rt2@(TRefine t2 l2) | t1 == t2
       = do
-          ret <- lift $ compareRefTypes rt1 rt2
-          case ret of
+          resSub <- lift $ compareRefTypes rt1 rt2  -- subtype
+          resSuper <- lift $ compareRefTypes rt2 rt1  -- supertype
+          case (resSub, resSuper) of
             (True, True) -> return rt1 -- doesn't matter which one is returned
             (True, False) -> return $ case b of GLB -> rt1; LUB -> rt2
             (False, True) -> return $ case b of GLB -> rt2; LUB -> rt1
-            -- (False, False) -> MaybeT $ return Nothing -- fixme /blaisep
             (False, False) -> case b of
                                 GLB -> return (TRefine t1 (LOp And [l1, l2]))
                                 LUB -> return t1 -- fixme /blaisep

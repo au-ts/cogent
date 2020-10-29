@@ -102,7 +102,6 @@ type NatTcVec t v b = NatVec v (Maybe (Type t b))
 data SmtTransState b = SmtTransState {
                                    _vars  :: Map String SVal
                                    , _fresh :: Int
-                                   , _target :: Maybe b
                                    }
 
 makeLenses ''SmtTransState
@@ -110,15 +109,14 @@ makeLenses ''SmtTransState
 -- Int is the fresh variable count
 type SmtStateM b = StateT (SmtTransState b) Symbolic
 
-getSmtExpression :: (Show b, Ord b) => String -> TcVec t v b -> [LExpr t b] -> Type t b -> Type t b -> Symbolic SVal
-getSmtExpression dir v e (TRefine t1 p) (TRefine t2 q) = do
+getSmtExpression :: (Show b, Ord b) => TcVec t v b -> [LExpr t b] -> Type t b -> Type t b -> Symbolic SVal
+getSmtExpression v e (TRefine t1 p) (TRefine t2 q) = do
   let nv = tcVecToNatVec (upshiftVarVec 1 v)
-  (e', se) <- runStateT (extract (NvCons Nothing nv) e) (SmtTransState M.empty 0 Nothing) -- we chuck a nothing here so that upshifting makes sense
+  (e', se) <- runStateT (extract (NvCons Nothing nv) e) (SmtTransState M.empty 0) -- we chuck a nothing here so that upshifting makes sense
   (p', sp) <- runStateT (lexprToSmt (NvCons (Just t1) nv) p) se
   (q', sp) <- runStateT (lexprToSmt (NvCons (Just t2) nv) q) sp
-  return $ case dir of
-    "Subtype"   -> (svOr (svNot (svAnd p' e')) q') -- ~(P ^ E) v Q
-    "Supertype" -> (svOr (svNot (svAnd q' e')) p') -- ~(Q ^ E) v P
+  return $ svOr (svNot (svAnd p' e')) q' -- ~(P ^ E) v Q
+    -- "Supertype" -> (svOr (svNot (svAnd q' e')) p') -- ~(Q ^ E) v P
     -- "Subtype"   -> e' -- ~(P ^ E) v Q
     -- "Supertype"   -> e' -- ~(P ^ E) v Q
 
@@ -320,11 +318,11 @@ varIndexToSmt vec i = do
   case (vec `nvAt` (finNat i)) of
     Just t' -> typeToSmt vec t'
 
-smtProveVerbose :: (L.Pretty b, Show b, Ord b) => TcVec t v b -> [LExpr t b] -> Type t b -> Type t b -> IO (Bool, Bool)
-smtProveVerbose v ls rt1 rt2 = do
+smtProve :: (L.Pretty b, Show b, Ord b) => TcVec t v b -> [LExpr t b] -> Type t b -> Type t b -> IO Bool
+smtProve v ls rt1 rt2 = do
     -- traceTc "infer/smt" (pretty ls)
-    dumpMsgIfTrue True (L.text "----------------------------"
-                      L.<$> L.text "Running core-tc SMT on types:"
+    dumpMsgIfTrue True (L.hardline L.<> L.text "Running core-tc SMT on types:"
+                      L.<$> L.text "----------------------------"
                       L.<$> indent' (L.pretty rt1)
                       -- L.<$> indent' (L.text $ show rt1)
                       L.<$> indent' (L.pretty rt2)
@@ -335,23 +333,23 @@ smtProveVerbose v ls rt1 rt2 = do
                       L.<$> L.text "Other predicates:"
                       L.<$> indent' (P.foldr prettyLExprs (L.text "") ls)
                       -- L.<$> indent' (L.text $ show ls)
-                      L.<> L.hardline
+                      L.<$> L.hardline
                       )
-    let toProve1 = getSmtExpression "Subtype" v ls rt1 rt2
-        toProve2 = getSmtExpression "Supertype" v ls rt1 rt2
+    let toProve = getSmtExpression v ls rt1 rt2
+        -- toProve2 = getSmtExpression "Supertype" v ls rt1 rt2
         solver = z3 { -- verbose = __cogent_ddump_smt
                    verbose = False
                    , redirectVerbose = Just $ fromMaybe "/dev/stderr" __cogent_ddump_to_file
                    }
-    smtRes1 <- liftIO (proveWith solver toProve1)
-    smtRes2 <- liftIO (proveWith solver toProve2)
+    smtRes <- liftIO (proveWith solver toProve)
+    -- smtRes2 <- liftIO (proveWith solver toProve2)
     -- if its sat, then its not a subtype
-    let ret = (not $ modelExists smtRes1, not $ modelExists smtRes2)
-    dumpMsgIfTrue True $ L.text ("Result: " ++ show ret) L.<> L.hardline
+    let ret = not $ modelExists smtRes
+    dumpMsgIfTrue True $ L.text ("Subtyping Result: " ++ show ret) L.<> L.hardline
     return ret
 
 prettyLExprs :: (L.Pretty b) => LExpr t b -> L.Doc -> L.Doc
-prettyLExprs l d = (L.pretty l) L.<$> d
+prettyLExprs l d = (L.pretty l) L.<+> d
 
 mkQSymVar :: SMT.Quantifier -> String -> SMT.Kind -> (SmtStateM b) SVal
 mkQSymVar q nm k = symbolicEnv >>= liftIO . svMkSymVar (Just q) k (Just nm)
