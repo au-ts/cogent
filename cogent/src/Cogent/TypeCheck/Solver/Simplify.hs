@@ -160,6 +160,7 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
 #ifdef BUILTIN_ARRAYS
   LayoutOk (A t e (Left Unboxed) h) -> hoistMaybe $ Just [LayoutOk t]
 #endif
+  LayoutOk t -> hoistMaybe $ Just []  -- for all the rest, the layouts should be trivially well-formed, as there's no layout.
   TLVar n        :~ tau | Just t <- lookup n lts -> hoistMaybe $ Just [tau :~~ t]  -- `l :~ t ==> l :~ tau` gets simplified to `tau :~~ t`
   TLRepRef _ _   :~ _ -> hoistMaybe Nothing
 

@@ -5,6 +5,7 @@
     - pass_zero-sized-field.cogent
     - pass_inner-synonym.cogent
     - pass_layout-poly.cogent
+    - pass_dargent-unspec.cogent
   expected_result: pass
   flags:
     - -g
