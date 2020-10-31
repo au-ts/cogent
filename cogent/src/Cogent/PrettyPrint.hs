@@ -496,7 +496,11 @@ instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Prett
                                              <$> keyword "in" <+> indent (pretty e)
   pretty (Put e fs)          = prettyPrec 10 e <+> record (map handlePutAssign fs)
   pretty (Annot e t)         = prettyPrec 31 e <+> symbol ":" <+> pretty t
-  pretty (Buffer n es)       = keyword "Buffer" <+> literal (string $ show n) <> space <> parens (typesymbol "#" <> record (map (\(a, b) -> fieldname a <+> symbol ":" <+> pretty b) es))
+  pretty (Buffer n es)
+    | length es == 0 = initial <+> symbol "(" <> symbol ")"
+    | otherwise = initial <> space <> parens (typesymbol "#" <> record (map (\(a, b) -> fieldname a <+> symbol ":" <+> pretty b) es))
+    where
+      initial = keyword "Buffer" <+> literal (string $ show n)
 
 instance Pretty RawExpr where
   pretty (RE e) = pretty e
@@ -591,7 +595,9 @@ instance (Pretty t, TypeType t, Pretty e, Pretty l, Eq l) => Pretty (Type e l t)
                        & (if __cogent_fdisambiguate_pp then (<+> comment "{- put -}") else id)
   pretty (TLayout l t) = (prettyT' t <+> typesymbol "layout" <+> pretty l)
            & (if __cogent_fdisambiguate_pp then (<+> comment "{- layout -}") else id)
-  pretty (TBuffer n fs) = keyword "Buffer" <+> brackets (string $ show n) <> record (map (\(a, b) -> fieldname a <+> symbol ":" <+> pretty b) fs)
+  pretty (TBuffer n dt) = keyword "Buffer" <+> brackets (string $ show n) <> parens (pretty dt)
+  pretty (DRecord fs) = typesymbol "#" <> record (map (\(a, b) -> fieldname a <+> symbol ":" <+> pretty b) fs)
+  pretty (DArray f dt) = keyword "DArray" <+> fieldname f <+> pretty dt
 
 instance Pretty RawType where
   pretty (RT t) = pretty t

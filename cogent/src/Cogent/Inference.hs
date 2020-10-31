@@ -158,6 +158,7 @@ bound b (TArray t1 l1 s1 mhole1) (TArray t2 l2 s2 mhole2)
     combineHoles b Nothing   (Just i2) = case b of GLB -> Nothing; LUB -> Just i2
     combineHoles b (Just i1) Nothing   = case b of GLB -> Nothing; LUB -> Just i1
 #endif
+bound _ t1@TBuffer{} t2@TBuffer{} = return t2
 bound _ t1 t2 = __impossible ("bound: not comparable:\n" ++ show t1 ++ "\n" ++
                               "----------------------------------------\n" ++ show t2 ++ "\n")
 
@@ -449,6 +450,7 @@ kindcheck_ f (TRecord _ ts s) = mconcat <$> ((sigilKind s :) <$> mapM (kindcheck
 kindcheck_ f (TSum ts)        = mconcat <$> mapM (kindcheck_ f . fst . snd) (filter (not . snd . snd) ts)
 kindcheck_ f (TUnit)          = return mempty
 kindcheck_ f (TRPar _ _)      = return mempty
+kindcheck_ f (TBuffer _ _)    = return mempty
 
 #ifdef BUILTIN_ARRAYS
 kindcheck_ f (TArray t l s _) = mappend <$> kindcheck_ f t <*> pure (sigilKind s)
@@ -686,10 +688,10 @@ infer (E (Promote ty e))
         return $ if t /= ty then promote ty $ TE t e'
                             else TE t e'  -- see NOTE [How to handle type annotations?] in Desugar
 infer (E (Buffer n fs))
-   = do let (ns,es) = unzip fs
+   = do let (ns, es) = unzip fs
         es' <- mapM infer es
-        let ts' = zipWith (\n e' -> (n, (exprType e', False))) ns es'
-        return $ TE (TBuffer n (typeToDType $ TRecord NonRec ts' Unboxed)) $ Buffer n $ zip ns es'
+        let ts' = zipWith (\n e' -> (n, typeToDType $ exprType e')) ns es'
+        return $ TE (TBuffer n (DRecord ts')) $ Buffer n $ zip ns es'
 
 
 -- | Promote an expression to a given type, pushing down the promote as far as possible.

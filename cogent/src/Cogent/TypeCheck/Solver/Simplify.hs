@@ -98,10 +98,6 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
   Share  (T (TTuple xs)) m -> hoistMaybe $ Just (map (flip Share  m) xs)
   Escape (T (TTuple xs)) m -> hoistMaybe $ Just (map (flip Escape m) xs)
 
-  Drop   (T (TBuffer n fs)) m -> hoistMaybe $ Just (map (flip Drop   m) (map snd fs))
-  Share  (T (TBuffer n fs)) m -> hoistMaybe $ Just (map (flip Share  m) (map snd fs))
-  Escape (T (TBuffer n fs)) m -> hoistMaybe $ Just (map (flip Escape m) (map snd fs))
-
   Share  (V r) m | Row.isComplete r ->
     hoistMaybe $ Just (map (flip Share  m) (Row.presentPayloads r))
   Drop   (V r) m | Row.isComplete r ->
@@ -271,8 +267,9 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
   T (TTuple ts) :<  T (TTuple us) | length ts == length us -> hoistMaybe $ Just (zipWith (:< ) ts us)
   T (TTuple ts) :=: T (TTuple us) | length ts == length us -> hoistMaybe $ Just (zipWith (:=:) ts us)
 
-  T (TBuffer n fs) :<  T (TBuffer n' us) | length fs == length us -> hoistMaybe $ Just (zipWith (:< ) (map snd fs) (map snd us))
-  T (TBuffer n fs) :=: T (TBuffer n' us) | length fs == length us -> hoistMaybe $ Just (zipWith (:=:) (map snd fs) (map snd us))
+  T (TBuffer n dt) :<  T (TBuffer n' dt') | n == n' -> hoistMaybe $ Just [dt :< dt']
+  T (DRecord fs)   :<  T (DRecord fs')
+    | length fs == length fs' || length fs == 0 -> hoistMaybe $ Just (zipWith (:< ) (map snd fs) (map snd fs'))
 
   V r1 :< V r2 | Row.isEmpty r1 && Row.isEmpty r2 -> hoistMaybe $ Just []
                | Row.isComplete r1 && Row.isComplete r2 && psub r1 r2 ->

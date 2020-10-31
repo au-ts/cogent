@@ -143,7 +143,10 @@ data Type e l t =
                 | TTake (Maybe [FieldName]) t
                 | TPut  (Maybe [FieldName]) t
                 | TLayout l t
-                | TBuffer Integer [(FieldName, t)]
+                | TBuffer Integer t
+                | DArray FieldName t
+                      -- ^ name of field array size depends on
+                | DRecord  [(FieldName, t)]
                 deriving (Show, Functor, Data, Eq, Ord, Foldable, Traversable)
 
 -- A few commonly used typed
@@ -291,7 +294,9 @@ instance Traversable (Flip (Type e) t) where  -- l
   traverse _ (Flip (TVariant alts))      = pure $ Flip (TVariant alts)
   traverse _ (Flip (TTuple ts))          = pure $ Flip (TTuple ts)
   traverse _ (Flip (TUnit))              = pure $ Flip (TUnit)
-  traverse _ (Flip (TBuffer n fs))       = pure $ Flip (TBuffer n fs)
+  traverse _ (Flip (TBuffer n dt))       = pure $ Flip (TBuffer n dt)
+  traverse _ (Flip (DRecord fs))         = pure $ Flip (DRecord fs)
+  traverse _ (Flip (DArray f dt))        = pure $ Flip (DArray f dt)
 #ifdef BUILTIN_ARRAYS
   traverse f (Flip (TArray t e s tkns))  = Flip <$> (TArray t e <$> traverse (traverse f) s <*> pure tkns)
   traverse _ (Flip (TATake idxs t))      = pure $ Flip (TATake idxs t)
@@ -315,7 +320,9 @@ instance Traversable (Flip2 Type t l) where  -- e
   traverse _ (Flip2 (TVariant alts))      = pure $ Flip2 (TVariant alts)
   traverse _ (Flip2 (TTuple ts))          = pure $ Flip2 (TTuple ts)
   traverse _ (Flip2 (TUnit))              = pure $ Flip2 (TUnit)
-  traverse _ (Flip2 (TBuffer n fs))       = pure $ Flip2 (TBuffer n fs)
+  traverse _ (Flip2 (TBuffer n dt))       = pure $ Flip2 (TBuffer n dt)
+  traverse _ (Flip2 (DRecord fs))         = pure $ Flip2 (DRecord fs)
+  traverse _ (Flip2 (DArray f dt))        = pure $ Flip2 (DArray f dt)
 #ifdef BUILTIN_ARRAYS
   traverse f (Flip2 (TArray t e s tkns))  = Flip2 <$> (TArray t <$> f e <*> pure s <*> traverse (firstM f) tkns)
   traverse f (Flip2 (TATake idxs t))      = Flip2 <$> (TATake <$> traverse f idxs <*> pure t)
@@ -501,7 +508,9 @@ fvT (RT (TBang    t)) = fvT t
 fvT (RT (TTake  _ t)) = fvT t
 fvT (RT (TPut   _ t)) = fvT t
 fvT (RT (TLayout _ t)) = fvT t
-fvT (RT (TBuffer _ fs)) = foldMap (fvT . snd) fs
+fvT (RT (TBuffer _ dt)) = fvT dt
+fvT (RT (DRecord fs)) = foldMap (fvT . snd) fs
+fvT (RT (DArray _ dt)) = fvT dt
 
 fcA :: Alt v RawExpr -> [TagName]
 fcA (Alt _ _ e) = fcE e
@@ -551,7 +560,9 @@ tvT (RT (TBang    t)) = tvT t
 tvT (RT (TTake  _ t)) = tvT t
 tvT (RT (TPut   _ t)) = tvT t
 tvT (RT (TLayout _ t)) = tvT t
-tvT (RT (TBuffer _ fs)) = foldMap (tvT . snd) fs
+tvT (RT (TBuffer _ dt)) = tvT dt
+tvT (RT (DRecord fs)) = foldMap (tvT . snd) fs
+tvT (RT (DArray _ dt)) = tvT dt
 
 tvE :: RawExpr -> [TyVarName]
 tvE (RE (PrimOp op es))     = foldMap tvE es
@@ -610,7 +621,9 @@ lvT (RT (TUnbox   t)) = lvT t
 lvT (RT (TBang    t)) = lvT t
 lvT (RT (TTake  _ t)) = lvT t
 lvT (RT (TPut   _ t)) = lvT t
-lvT (RT (TBuffer _ fs)) = foldMap (lvT . snd) fs
+lvT (RT (TBuffer _ dt)) = lvT dt
+lvT (RT (DRecord fs)) = foldMap (lvT . snd) fs
+lvT (RT (DArray _ dt)) = lvT dt
 lvT (RT _) = []
 
 lvL :: DataLayoutExpr -> [DLVarName]

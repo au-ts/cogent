@@ -93,20 +93,10 @@ data Type t b
   deriving (Show, Eq, Ord, Functor)
 
 data DType t b
-  = DRecord RecursiveParameter [(FieldName, (DType t b, Bool))] (Sigil (DataLayout BitRange))
-  | DArray (DType t b) (LExpr t b) (Sigil (DataLayout BitRange)) (Maybe (LExpr t b))
-  | TType (Type t b)
+  = DRecord [(FieldName, DType t b)]
+  | DArray FieldName (DType t b)
+  | Type (Type t b)
   deriving (Show, Eq, Ord, Functor)
-
-typeToDType :: Type t b -> DType t b
-typeToDType (TRecord rp fs s) = DRecord rp (map (\(f, (t, b)) -> (f, (typeToDType t, b))) fs) s
-typeToDType (TArray t le s mle) = DArray (typeToDType t) le s mle
-typeToDType t = TType t
-
-dTypetoType :: DType t b -> Type t b
-dTypetoType (DRecord rp fs s) = TRecord rp (map (\(f, (t, b)) -> (f, (dTypetoType t, b))) fs) s
-dTypetoType (DArray t le s mle) = TArray (dTypetoType t) le s mle
-dTypetoType (TType t) = t
 
 deriving instance Generic b => Generic (Type 'Zero b)
 deriving instance Generic b => Generic (DType 'Zero b)
@@ -692,7 +682,11 @@ instance (Pretty a, Pretty b, Prec (e t v a b), Pretty (e t v a b), Pretty (e t 
   pretty (Put rec f v) = prettyPrec 1 rec <+> record [fieldIndex f <+> symbol "=" <+> pretty v]
   pretty (Promote t e) = prettyPrec 1 e <+> symbol ":^:" <+> pretty t
   pretty (Cast t e) = prettyPrec 1 e <+> symbol ":::" <+> pretty t
-  pretty (Buffer n fs) = keyword "Buffer" <+> pretty n <+> symbol "#" L.<> record (map (\(n, e) -> fieldname n <+> symbol "=" <+> pretty e) fs)
+  pretty (Buffer n fs)
+    | length fs == 0 = initial <+> symbol "(" <> symbol ")"
+    | otherwise = initial <+> symbol "#" L.<> record (map (\(n, e) -> fieldname n <+> symbol "=" <+> pretty e) fs)
+    where
+      initial = keyword "Buffer" <+> pretty n
 
 instance Pretty FunNote where
   pretty NoInline = empty
@@ -726,10 +720,20 @@ instance (Pretty b) => Pretty (Type t b) where
 #endif
   pretty (TBuffer n dt) = keyword "Buffer" <+> brackets (string $ show n) <+> pretty dt
 
+typeToDType :: Type t b -> DType t b
+typeToDType (TRecord _ fs _) = DRecord (map (\(f, (t, b)) -> (f, typeToDType t)) fs)
+-- typeToDType (TArray t le s mle) = DArray (typeToDType t) le s mle
+typeToDType t = Type t
+
+-- dTypetoType :: DType t b -> Type t b
+-- dTypetoType (DRecord fs) = TRecord NonRec (map (\(f, (t, b)) -> (f, (dTypetoType t, b))) fs) Unboxed
+-- dTypetoType (DArray t le s mle) = TArray (dTypetoType t) le s mle
+-- dTypetoType (Type t) = t
+
 instance (Pretty b) => Pretty (DType t b) where
-  pretty dr@DRecord{} = pretty $ dTypetoType dr
-  pretty da@DArray{} = pretty $ dTypetoType da
-  pretty (TType t) = pretty t
+  pretty (DRecord fs) = typesymbol "#" <> record (map (\(f, t) -> fieldname f <+> symbol ":" <+> pretty t) fs)
+  pretty (DArray f dt) = keyword "DArray" <+> fieldname f <+> pretty dt
+  pretty (Type t) = pretty t
 
 prettyTaken :: Bool -> Doc
 prettyTaken True  = symbol "*"

@@ -66,7 +66,7 @@ language = haskellStyle
            , T.reservedNames   = ["let","in","type","include","all","take","put","inline","upcast"
                                  ,"variant","record","at","rec","layout","pointer"
                                  ,"if","then","else","not","complement","and","True","False","o"
-                                 ,"Buffer"
+                                 ,"Buffer","DArray"
 #ifdef BUILTIN_ARRAYS
                                  ,"array","map2","@take","@put"]
 #else
@@ -330,8 +330,8 @@ term = avoidInitial >> (var <|> (LocExpr <$> getPosition <*>
 #endif
        <|> Buffer <$ reservedOp "Buffer"
                   <*> natural
-                  <*> parens (do reservedOp "#"
-                                 braces (commaSep1 ((\a b -> (a, b)) <$> variableName <* reservedOp "=" <*> expr 1)))
+                  <*> parens (try (do reservedOp "#"; braces (commaSep1 ((\a b -> (a, b)) <$> variableName <* reservedOp "=" <*> expr 1)))
+                              <|> (pure []))
        <|> UnboxedRecord <$ reservedOp "#" <*> braces (commaSep1 recordAssignment)))
     <?> "term")
 
@@ -477,10 +477,12 @@ atomtype = avoidInitial >> LocType <$> getPosition <*> (
                     else Boxed False Nothing
           return $ TCon tn [] s)
   -- <|> TCon <$> typeConName <*> pure [] <*> pure Writable
-  <|> (do reserved "Buffer"
+  <|> (do p <- getPosition
+          reserved "Buffer"
           n <- brackets natural
-          fs <- braces (commaSep1 ((\a b -> (a, b)) <$> variableName <* reservedOp ":" <*> monotype))
-          return $ TBuffer n fs)
+          dr <- parens (do reservedOp "#"
+                           braces dRecord)
+          return $ TBuffer n $ LocType p dr)
   <|> tuple <$> parens (commaSep monotype)
   <|> (\rp -> (\fs -> TRecord rp fs (Boxed False Nothing)))
       <$> recPar
@@ -495,6 +497,17 @@ atomtype = avoidInitial >> LocType <$> getPosition <*> (
       tuple [] = TUnit
       tuple [e] = typeOfLT e
       tuple es  = TTuple es
+
+      dRecord = do
+        fs <- commaSep ((\a b -> (a, b)) <$> variableName <* reservedOp ":" <*> try (monotype <|> dRecordType))
+        return $ DRecord fs
+
+      dRecordType = do
+        p <- getPosition
+        t <- dArray
+        return $ LocType p t
+
+      dArray = DArray <$ reserved "DArray" <*> variableName <*> monotype
 
       recPar = Rec <$> (reserved "rec" *> variableName)
            <|> return NonRec

@@ -617,11 +617,14 @@ desugarType = \case
            <*> pure ds
            <*> pure tkns'
 #endif
-  B.DT (S.TBuffer n fs) -> do
-    fs' <- mapM (\(f,t) -> (f,) . (,False) <$> desugarType t) fs
-    let tr = TRecord NonRec fs' Unboxed
-    return $ TBuffer n (typeToDType tr)
+  B.DT (S.TBuffer n dt) -> TBuffer n <$> desugarDType dt
   notInWHNF -> __impossible $ "desugarType (type " ++ show (pretty notInWHNF) ++ " is not in WHNF)"
+
+desugarDType :: B.DepType -> DS t l v (DType t VarName)
+desugarDType = \case
+  B.DT (S.DRecord fs) -> DRecord <$> mapM (\(f,t) -> (f,) <$> desugarDType t) fs
+  B.DT (S.DArray f dt) -> DArray f <$> desugarDType dt
+  t -> Type <$> desugarType t
 
 desugarLayout :: TCDataLayout -> DS t l v (DataLayout DA.BitRange)
 desugarLayout l = Layout <$> desugarLayout' l

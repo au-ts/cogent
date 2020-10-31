@@ -126,10 +126,22 @@ validateType (RT t) = do
                        (c, TVariant fs') <- fmapFoldM validateType t
                        pure (c, V (Row.fromMap (fmap (first tuplize) fs')))
 
-    TBuffer n fs -> do
+    TBuffer n dt -> do
       (ct, t') <- fmapFoldM validateType t
       case t' of
-        TBuffer n fs' -> return (ct, T $ TBuffer n fs')
+        TBuffer n dt' -> return (ct, T $ TBuffer n dt')
+        _ -> freshTVar >>= \t'' -> return (ct, t'')
+
+    DRecord fs -> do
+      (ct, t') <- fmapFoldM validateType t
+      case t' of
+        DRecord fs' -> return (ct, T $ DRecord fs')
+        _ -> freshTVar >>= \t'' -> return (ct, t'')
+
+    DArray f dt -> do
+      (ct, t') <- fmapFoldM validateType t
+      case t' of
+        DArray f dt' -> return (ct, T $ DArray f dt')
         _ -> freshTVar >>= \t'' -> return (ct, t'')
 
 #ifdef BUILTIN_ARRAYS
@@ -709,8 +721,10 @@ cg' (Annot e tau) t = do
 cg' (Buffer n fes) t = do
   let (fs, es) = unzip fes
   (ts, c', es') <- cgMany es
+
   let e = Buffer n (zip fs es')
-      c = T (TBuffer n (zip fs ts)) :< t
+      r = T $ DRecord (zip fs ts)
+      c = T (TBuffer n r) :< t
   return (c' <> c, e)
 
 -- -----------------------------------------------------------------------------

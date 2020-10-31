@@ -240,11 +240,9 @@ monoType (TArray t l s mhole) = TArray <$> monoType t <*> monoLExpr l <*> monoSi
 monoType (TBuffer n dt) = TBuffer n <$> monoDType dt
 
 monoDType :: (Ord b) => DType t b -> Mono b (DType 'Zero b)
-monoDType (DRecord rp fs s) = DRecord rp <$> mapM (\(f, (t, b)) -> (f,) <$> (,b) <$> monoDType t) fs <*> monoSigil s
-#ifdef BUILTIN_ARRAYS
-monoDType (DArray t l s mhole) = DArray <$> monoDType t <*> monoLExpr l <*> monoSigil s <*> mapM monoLExpr mhole
-#endif
-monoDType (TType t) = TType <$> monoType t
+monoDType (DRecord fs) = DRecord <$> mapM (\(f, t) -> (f,) <$> monoDType t) fs
+monoDType (DArray f t) = DArray f <$> monoDType t
+monoDType (Type t) = Type <$> monoType t
 
 monoLayout :: (Ord b) => DataLayout BitRange -> Mono b (DataLayout BitRange)
 monoLayout CLayout = pure CLayout
