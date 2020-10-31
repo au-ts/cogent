@@ -725,11 +725,6 @@ typeToDType (TRecord _ fs _) = DRecord (map (\(f, (t, b)) -> (f, typeToDType t))
 -- typeToDType (TArray t le s mle) = DArray (typeToDType t) le s mle
 typeToDType t = Type t
 
--- dTypetoType :: DType t b -> Type t b
--- dTypetoType (DRecord fs) = TRecord NonRec (map (\(f, (t, b)) -> (f, (dTypetoType t, b))) fs) Unboxed
--- dTypetoType (DArray t le s mle) = TArray (dTypetoType t) le s mle
--- dTypetoType (Type t) = t
-
 instance (Pretty b) => Pretty (DType t b) where
   pretty (DRecord fs) = typesymbol "#" <> record (map (\(f, t) -> fieldname f <+> symbol ":" <+> pretty t) fs)
   pretty (DArray f dt) = keyword "DArray" <+> fieldname f <+> pretty dt
