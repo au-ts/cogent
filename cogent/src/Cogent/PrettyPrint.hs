@@ -823,6 +823,7 @@ instance Pretty TypeError where
                                           <$$> err " is not compatible with layout " <$$> indent' (pretty l2)
   pretty (TypesNotFit t1 t2)          = err "The layout of type " <$$> indent' (pretty t1)
                                           <$$> err " does not fit the layout of type " <$$> indent' (pretty t2)
+  pretty (OtherTypeError s)           = err s
   pretty (TypeWarningAsError w)       = pretty w
 
 instance Pretty TypeWarning where

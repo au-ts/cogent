@@ -1,2 +1,7 @@
-fn : U32 -> Buffer[2000](#{ len: U8, name: DArray len U8 })
+type DirEntry = Buffer[2000](#{ len: U8, name: DArray len U8 })
+
+fn : U32 -> DirEntry
 fn x = Buffer 2000 ()
+
+--fn2 : U32 -> DirEntry
+--fn2 x = Buffer 2000 (#{ len = 3, name = [1, 2, 3] })

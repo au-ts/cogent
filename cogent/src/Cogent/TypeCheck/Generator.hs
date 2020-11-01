@@ -46,7 +46,7 @@ import Control.Monad.State
 import Control.Monad.Trans.Except
 import Data.Foldable (fold)
 import Data.Functor.Compose
-import Data.List (nub, (\\))
+import Data.List (elemIndex, find, nub, (\\))
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
 import Data.Maybe (catMaybes, isNothing, isJust)
@@ -132,11 +132,35 @@ validateType (RT t) = do
         TBuffer n dt' -> return (ct, T $ TBuffer n dt')
         _ -> freshTVar >>= \t'' -> return (ct, t'')
 
-    DRecord fs -> do
-      (ct, t') <- fmapFoldM validateType t
-      case t' of
-        DRecord fs' -> return (ct, T $ DRecord fs')
-        _ -> freshTVar >>= \t'' -> return (ct, t'')
+    DRecord fs | fields  <- map fst fs
+               , fields' <- nub fields
+              -> if fields' == fields
+                  then do
+                    (ct, t') <- fmapFoldM validateType t
+                    let ts      = map unRT (map snd fs)
+                        dArrayT = find isDArray ts
+                    case dArrayT of
+                      Just (DArray f _) ->
+                        case elemIndex f fields of
+                          Just fIndex -> do
+                            let fType = ts !! fIndex
+                            if isPrimType fType
+                              then case t' of
+                                DRecord fs' -> return (ct, T $ DRecord fs')
+                                _ -> freshTVar >>= \t'' -> return (ct, t'')
+                              else freshTVar >>= \t' -> return (Unsat $ OtherTypeError "DArray dependent field must be a numeric primitive type", t')
+                          Nothing -> freshTVar >>= \t' -> return (Unsat $ UnknownTypeVariable f, t')
+                      Nothing -> freshTVar >>= \t' -> return (Unsat $ OtherTypeError "Must have a DArray inside a DRecord", t')
+                  else freshTVar >>= \t' -> return (Unsat $ DuplicateRecordFields (fields \\ fields'), t')
+               | otherwise -> second T <$> fmapFoldM validateType (DRecord fs)
+        where
+          isDArray :: Type t l b -> Bool
+          isDArray DArray{} = True
+          isDArray _ = False
+
+          isPrimType :: Type t l b -> Bool
+          isPrimType (TCon t [] Unboxed) = t `elem` ["U8", "U16", "U32", "U64"]
+          isPrimType _ = False
 
     DArray f dt -> do
       (ct, t') <- fmapFoldM validateType t
