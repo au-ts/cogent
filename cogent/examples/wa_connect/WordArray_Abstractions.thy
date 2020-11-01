@@ -261,168 +261,6 @@ sublocale WordArray \<subseteq> Generated_cogent_shallow _ wa_abs_repr wa_abs_ty
 
 section "Abstractions for Word Arrays"
 
-subsection "Helper Functions and Lemmas"
-
-fun myslice :: "nat \<Rightarrow> nat \<Rightarrow> 'a list \<Rightarrow> 'a list"
-  where
-"myslice frm to xs = List.take (to - frm) (List.drop frm xs)"
-
-subsection "Shallow Word Array Value Relation"
-
-overloading
-  valRel_WordArrayUX \<equiv> valRel
-begin
-  definition valRel_WordArrayUX: 
-    "\<And>\<xi> x v. valRel_WordArrayUX (\<xi> :: (funtyp,vabstyp) vabsfuns) (x :: (('a :: len8) word) WordArray) (v :: (funtyp, vabstyp) vval) \<equiv> 
-      (if len_of TYPE('a) = 8 then 
-        \<exists>xs. v = VAbstract (VWA (TPrim (Num U8)) xs) \<and> length x = length xs \<and> (\<forall>i < length xs. (xs ! i) = VPrim (LU8 (ucast (x ! i))))
-      else if len_of TYPE('a) = 16 then 
-        \<exists>xs. v = VAbstract (VWA (TPrim (Num U16)) xs) \<and> length x = length xs \<and> (\<forall>i < length xs. (xs ! i) = VPrim (LU16 (ucast (x ! i))))
-      else if len_of TYPE('a) = 32 then 
-        \<exists>xs. v = VAbstract (VWA (TPrim (Num U32)) xs) \<and> length x = length xs \<and> (\<forall>i < length xs. (xs ! i) = VPrim (LU32 (ucast (x ! i))))
-      else if len_of TYPE('a) = 64 then 
-        \<exists>xs. v = VAbstract (VWA (TPrim (Num U64)) xs) \<and> length x = length xs \<and> (\<forall>i < length xs. (xs ! i) = VPrim (LU64 (ucast (x ! i))))
-      else False)"
-end
-
-(* Alternate definitions for the valRel relations for word arrays
-
-
-overloading
-  valRel_WordArrayU8 \<equiv> valRel
-begin
-  definition valRel_WordArrayU8: 
-    "\<And>\<xi> x v. valRel_WordArrayU8 (\<xi> :: (funtyp,vabstyp) vabsfuns) (x :: (8 word) WordArray) (v :: (funtyp, vabstyp) vval) \<equiv> 
-      \<exists>xs. v = VAbstract (VWA (TPrim (Num U8)) xs) \<and> length x = length xs \<and> (\<forall>i < length xs. xs ! i = VPrim (LU8 (x ! i)))"
-end
-
-overloading
-  valRel_WordArrayU16 \<equiv> valRel
-begin
-  definition valRel_WordArrayU16: 
-    "\<And>\<xi> x v. valRel_WordArrayU16 (\<xi> :: (funtyp,vabstyp) vabsfuns) (x :: (16 word) WordArray) (v :: (funtyp, vabstyp) vval) \<equiv> 
-      \<exists>xs. v = VAbstract (VWA (TPrim (Num U16)) xs) \<and> length x = length xs \<and> (\<forall>i < length xs. xs ! i = VPrim (LU16 (x ! i)))"
-end
-
-overloading
-  valRel_WordArrayU32 \<equiv> valRel
-begin
-  definition valRel_WordArrayU32: 
-    "\<And>\<xi> x v. valRel_WordArrayU32 (\<xi> :: (funtyp,vabstyp) vabsfuns) (x :: (32 word) WordArray) (v :: (funtyp, vabstyp) vval) \<equiv> 
-      \<exists>xs. v = VAbstract (VWA (TPrim (Num U32)) xs) \<and> length x = length xs \<and> (\<forall>i < length xs. xs ! i = VPrim (LU32 (x ! i)))"
-end
-
-overloading
-  valRel_WordArrayU64 \<equiv> valRel
-begin
-  definition valRel_WordArrayU64: 
-    "\<And>\<xi> x v. valRel_WordArrayU64 (\<xi> :: (funtyp,vabstyp) vabsfuns) (x :: (64 word) WordArray) (v :: (funtyp, vabstyp) vval) \<equiv> 
-      \<exists>xs. v = VAbstract (VWA (TPrim (Num U64)) xs) \<and> length x = length xs \<and> (\<forall>i < length xs. xs ! i = VPrim (LU64 (x ! i)))"
-end
-
-
-*)
-subsection "Shallow Word Array Function Definitions"
-
-overloading
-  wordarray_put2' \<equiv> wordarray_put2
-begin
-definition wordarray_put2':
- "wordarray_put2' (x :: ('a WordArray, 32 word, 'a) WordArrayPutP) \<equiv> (WordArrayPutP.arr\<^sub>f x)[unat (WordArrayPutP.idx\<^sub>f x) := WordArrayPutP.val\<^sub>f x]" 
-end
-
-overloading
-  wordarray_length' \<equiv> wordarray_length
-begin
-definition wordarray_length':
- "wordarray_length' (x :: 'a WordArray) \<equiv> (of_nat (length x) :: 32 word)" 
-end
-
-overloading
-  wordarray_get' \<equiv> wordarray_get
-begin
-definition wordarray_get':
- "wordarray_get' (x :: (('a::len8) word WordArray, 32 word) RR) \<equiv> (if unat (RR.p2\<^sub>f x) < length (RR.p1\<^sub>f x) then (RR.p1\<^sub>f x) ! unat (RR.p2\<^sub>f x) else 0)" 
-end
-
-
-overloading
-  wordarray_fold_no_break' \<equiv> wordarray_fold_no_break
-begin
-definition wordarray_fold_no_break':
- "wordarray_fold_no_break' (x :: ('a WordArray, 32 word, 32 word, ('a, 'acc, 'obsv) ElemAO \<Rightarrow> 'acc, 'acc, 'obsv) WordArrayMapP) \<equiv> 
-    fold (\<lambda>a b. (WordArrayMapP.f\<^sub>f x) (ElemAO.make a b (WordArrayMapP.obsv\<^sub>f x))) 
-         (myslice (unat (WordArrayMapP.frm\<^sub>f x)) (unat (WordArrayMapP.to\<^sub>f x)) (WordArrayMapP.arr\<^sub>f x)) 
-         (WordArrayMapP.acc\<^sub>f x)" 
-end
-
-
-fun mapAccum :: "('a \<Rightarrow> 'b  \<Rightarrow> ('c \<times> 'b)) \<Rightarrow> 'a list \<Rightarrow> 'b \<Rightarrow> ('c list \<times> 'b)"
-  where
-"mapAccum _ [] acc = ([], acc)" |
-"mapAccum f (x#xs) acc = 
-  (let (a, b) = f x acc;
-       (as, b') = mapAccum f xs b
-   in (a#as, b'))"
-
-fun listAccumStep :: "('a \<Rightarrow> 'b  \<Rightarrow> ('c \<times> 'b)) \<Rightarrow> 'a \<Rightarrow> ('c list \<times> 'b) \<Rightarrow> ('c list \<times> 'b)"
-  where
-"listAccumStep f x (ys, acc) = (let (y, acc') = f x acc in (ys @ [y], acc'))"
-
-lemma mapAccum_step:
-  "mapAccum f (xs @ [x]) acc = listAccumStep f x (mapAccum f xs acc)"
-  apply (induct arbitrary: x acc rule: list.induct)
-   apply clarsimp
-  apply (clarsimp split: prod.split)
-  done
-
-
-lemma mapAccum_length:
-  "length (prod.fst (mapAccum f xs acc)) = length xs"
-  apply (induct arbitrary: acc rule: rev_induct)
-   apply simp
-  apply (subst mapAccum_step)
-  apply clarsimp
-  apply (drule_tac x = acc in meta_spec)
-  by (metis (no_types, lifting) Product_Type.split_def fst_conv length_append_singleton listAccumStep.simps prod.collapse)
-
-
-lemma 
-  "map f xs = prod.fst (mapAccum (\<lambda>a b. (f a, b)) xs ())"
-  by (induct xs; clarsimp split: prod.split)
-
-lemma
-  "fold f xs acc = prod.snd (mapAccum (\<lambda>a b. (a, f a b)) xs acc)"
-  apply (induct rule: rev_induct; clarsimp split: prod.split)
-  apply (subst mapAccum_step)
-  by (metis (no_types, lifting) case_prod_beta listAccumStep.simps prod.collapse snd_conv)
-
-
-
-fun cogent_isa_pair :: "('a, 'b) RR \<Rightarrow> ('a \<times> 'b)"
-  where
-"cogent_isa_pair x = (RR.p1\<^sub>f x, RR.p2\<^sub>f x)"
-
-term "mapAccum 
-          (\<lambda>a b. cogent_isa_pair ((WordArrayMapP.f\<^sub>f x) (ElemAO.make a b (WordArrayMapP.obsv\<^sub>f x)))) 
-          (myslice (unat (WordArrayMapP.frm\<^sub>f x)) (unat (WordArrayMapP.to\<^sub>f x)) (WordArrayMapP.arr\<^sub>f x)) 
-          (WordArrayMapP.acc\<^sub>f x)"
-overloading
-  wordarray_map_no_break' \<equiv> wordarray_map_no_break
-begin
-definition wordarray_map_no_break':
- "wordarray_map_no_break' (x :: ('a WordArray, 32 word, 32 word, ('a, 'acc, 'obsv) ElemAO \<Rightarrow> ('a, 'acc) RR, 'acc, 'obsv) WordArrayMapP) \<equiv> 
-    (let xs = List.take (unat (WordArrayMapP.frm\<^sub>f x)) (WordArrayMapP.arr\<^sub>f x);
-         zs = List.drop (unat (WordArrayMapP.to\<^sub>f x)) (WordArrayMapP.arr\<^sub>f x);
-        (ys, acc) = mapAccum 
-          (\<lambda>a b. cogent_isa_pair ((WordArrayMapP.f\<^sub>f x) (ElemAO.make a b (WordArrayMapP.obsv\<^sub>f x)))) 
-          (myslice (unat (WordArrayMapP.frm\<^sub>f x)) (unat (WordArrayMapP.to\<^sub>f x)) (WordArrayMapP.arr\<^sub>f x)) 
-          (WordArrayMapP.acc\<^sub>f x)
-    in (if (WordArrayMapP.frm\<^sub>f x) \<le> (WordArrayMapP.to\<^sub>f x) 
-        then RR.make (xs @ ys @ zs) acc 
-        else RR.make (WordArrayMapP.arr\<^sub>f x) acc))" 
-end
-
 context WordArray begin
 
 subsection "Level 0 \<xi> Abstractions"
@@ -516,6 +354,34 @@ subsection "Level 1 \<xi> Abstractions"
     abstractions from level 0. So far, this seems to be the best solution, however, when more
     levels are introduced, i.e. when third, fourth ... calls are introduced, these abstractions
     should probably be automatically generated. \<close>
+
+
+fun funarg_type :: "type \<Rightarrow> type"
+  where
+"funarg_type (TFun a b) = a" |
+"funarg_type _ = undefined"
+
+fun funret_type :: "type \<Rightarrow> type"
+  where
+"funret_type (TFun a b) = b" |
+"funret_type _ = undefined"
+
+fun present_type :: "name \<times> type \<times> record_state \<Rightarrow> type"
+  where
+"present_type (_, t, Present) = t" |
+"present_type (_, _, Taken) = undefined"
+
+fun rec_type_list :: "type \<Rightarrow> (name \<times> type \<times> record_state) list"
+  where
+"rec_type_list (TRecord ts _) = ts" |
+"rec_type_list _ = undefined"
+
+abbreviation "foldmap_funarg_type x 
+  \<equiv> (funarg_type \<circ> present_type \<circ> (\<lambda>xs. xs ! 3) \<circ> rec_type_list \<circ> prod.fst \<circ> prod.snd \<circ> \<Xi>) x"
+
+abbreviation "foldmap_funret_type x 
+  \<equiv> (funret_type \<circ> present_type \<circ> (\<lambda>xs. xs ! 3) \<circ> rec_type_list \<circ> prod.fst \<circ> prod.snd \<circ> \<Xi>) x"
+
 
 subsubsection "Update Semantics"
 
@@ -1149,20 +1015,38 @@ definition upd_wa_foldnb_0
       in (\<exists>p frm to func acc obsv t u v a0 a1 a2 ra wa rb.
         y2 = URecord [(UPtr p (RCon ''WordArray'' [RPrim (Num t)]), RPtr (RCon ''WordArray'' [RPrim (Num t)])),
                       (UPrim (LU32 frm), RPrim (Num U32)), (UPrim (LU32 to), RPrim (Num U32)),
+                      (func, RFun), (acc, upd.uval_repr acc), (obsv, upd.uval_repr obsv)] \<and>
+        (\<exists>len arr. y1 p = option.Some (UAbstract (UWA (TPrim (Num t)) len arr)) \<and> 
+          (\<forall>i<len. \<exists>x. y1 (arr + size_of_num_type t * i) = option.Some (UPrim x) \<and> lit_type x = Num t)) \<and>
+        is_uval_fun func \<and> upd.uval_typing \<Xi>' y1 acc u ra wa \<and> upd.uval_typing \<Xi>' y1 obsv v rb {} \<and>
+        \<tau> = TRecord [(a0, TPrim (Num t), Present), (a1, u, Present), (a2, v, Present)] Unboxed \<and>
+        distinct [a0, a1, a2] \<and> (\<Xi>', [], [option.Some \<tau>] \<turnstile> (App (uvalfun_to_exprfun func) (Var 0)) : u) \<and>
+        upd_wa_foldnb_bod \<xi>\<^sub>u y1 p frm to (uvalfun_to_exprfun func) acc obsv (ra \<union> rb) z))"
+
+definition upd_wa_mapAccumnb
+  where
+  "upd_wa_mapAccumnb \<Xi>' \<xi>\<^sub>u \<tau>i \<tau>o y z = 
+    (let (y1, y2) = y
+      in (\<exists>p frm to func acc obsv t u v a0 a1 a2 b0 b1 ra wa rb.
+        y2 = URecord [(UPtr p (RCon ''WordArray'' [RPrim (Num t)]), RPtr (RCon ''WordArray'' [RPrim (Num t)])),
+                      (UPrim (LU32 frm), RPrim (Num U32)), (UPrim (LU32 to), RPrim (Num U32)),
                       (func, RFun), (acc, upd.uval_repr acc), (obsv, upd.uval_repr obsv)] \<and> 
         (\<exists>len arr. y1 p = option.Some (UAbstract (UWA (TPrim (Num t)) len arr)) \<and> 
           (\<forall>i<len. \<exists>x. y1 (arr + size_of_num_type t * i) = option.Some (UPrim x) \<and> lit_type x = Num t)) \<and> 
         is_uval_fun func \<and> upd.uval_typing \<Xi>' y1 acc u ra wa \<and> upd.uval_typing \<Xi>' y1 obsv v rb {} \<and>
-        \<tau> = TRecord [(a0, TPrim (Num t), Present), (a1, u, Present), (a2, v, Present)] Unboxed \<and>
-        (\<Xi>', [], [option.Some \<tau>] \<turnstile> (App (uvalfun_to_exprfun func) (Var 0)) : TPrim (Num U32)) \<and> 
-        upd_wa_foldnb_bod \<xi>\<^sub>u y1 p frm to (uvalfun_to_exprfun func) acc obsv (ra \<union> rb) z))"
+        \<tau>i = TRecord [(a0, TPrim (Num t), Present), (a1, u, Present), (a2, v, Present)] Unboxed \<and>
+        \<tau>o = TRecord [(b0, TPrim (Num t), Present), (b1, u, Present)] Unboxed \<and>
+        distinct [a0, a1, a2] \<and> distinct [b0, b1] \<and>
+        (\<Xi>', [], [option.Some \<tau>i] \<turnstile> (App (uvalfun_to_exprfun func) (Var 0)) : \<tau>o) \<and> 
+        upd_wa_mapAccumnb_bod \<xi>\<^sub>u y1 p frm to (uvalfun_to_exprfun func) acc obsv (ra \<union> rb) z))"
 
 
 fun \<xi>1 :: "(char list, atyp, 32 word) uabsfuns" 
   where
   "\<xi>1 x y z = 
-    (if x = ''wordarray_fold_no_break_0'' then upd_wa_foldnb_0 \<Xi> \<xi>0 abbreviatedType1 y z
-     else if x = ''wordarray_map_no_break_0'' then False 
+    (if x = ''wordarray_fold_no_break_0'' then upd_wa_foldnb_0 \<Xi> \<xi>0 (foldmap_funarg_type x) y z
+     else if x = ''wordarray_map_no_break_0''
+        then upd_wa_mapAccumnb \<Xi> \<xi>0 (foldmap_funarg_type x) (foldmap_funret_type x) y z 
      else \<xi>0 x y z)" 
 
 subsubsection "Value Semantics"
@@ -1571,18 +1455,18 @@ definition val_wa_foldnb_0
       x = VRecord [VAbstract (VWA t xs), VPrim (LU32 frm), VPrim (LU32 to), func, acc, obsv] \<and> 
       wa_abs_typing_v (VWA t xs) ''WordArray'' [t]  \<and>
       is_vval_fun func \<and> \<tau> = TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed \<and>
-      val.vval_typing \<Xi>' acc u \<and> val.vval_typing \<Xi>' obsv v \<and> 
+      val.vval_typing \<Xi>' acc u \<and> val.vval_typing \<Xi>' obsv v \<and> distinct [a0, a1, a2] \<and>
       (\<Xi>', [], [option.Some \<tau>] \<turnstile> (App (vvalfun_to_exprfun func) (Var 0)) : u) \<and>
       (val_wa_foldnb_bod \<xi>\<^sub>v t xs (unat frm) (unat to) (vvalfun_to_exprfun func) acc obsv y))"
 
-definition val_wa_mapAccumnb_0
+definition val_wa_mapAccumnb
   where
-  "val_wa_mapAccumnb_0 \<Xi>' \<xi>\<^sub>v \<tau>i \<tau>o x y = (\<exists>xs frm to acc obsv func t u v a0 a1 a2 b0 b1. 
+  "val_wa_mapAccumnb \<Xi>' \<xi>\<^sub>v \<tau>i \<tau>o x y = (\<exists>xs frm to acc obsv func t u v a0 a1 a2 b0 b1. 
       x = VRecord [VAbstract (VWA t xs), VPrim (LU32 frm), VPrim (LU32 to), func, acc, obsv] \<and> 
       wa_abs_typing_v (VWA t xs) ''WordArray'' [t]  \<and>
       is_vval_fun func \<and> \<tau>i = TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed \<and>
       \<tau>o = TRecord [(b0, t, Present), (b1, u, Present)] Unboxed \<and>
-      val.vval_typing \<Xi>' acc u \<and> val.vval_typing \<Xi>' obsv v \<and> 
+      val.vval_typing \<Xi>' acc u \<and> val.vval_typing \<Xi>' obsv v \<and> distinct [a0, a1, a2] \<and> distinct [b0, b1] \<and>
       (\<Xi>', [], [option.Some \<tau>i] \<turnstile> (App (vvalfun_to_exprfun func) (Var 0)) : \<tau>o) \<and>
       (val_wa_mapAccumnb_bod \<xi>\<^sub>v t xs (unat frm) (unat to) (vvalfun_to_exprfun func) acc obsv y))"
 
@@ -1601,8 +1485,9 @@ definition val_wa_mapAccumnbp
 fun \<xi>m1 :: "(char list, vatyp) vabsfuns" 
   where
   "\<xi>m1 x y z = 
-    (if x = ''wordarray_fold_no_break_0'' 
-      then val_wa_foldnb_0 \<Xi> \<xi>m abbreviatedType1 y z
+    (if x = ''wordarray_fold_no_break_0'' then val_wa_foldnb_0 \<Xi> \<xi>m (foldmap_funarg_type x) y z
+     else if x = ''wordarray_map_no_break_0''
+      then val_wa_mapAccumnb \<Xi> \<xi>m (foldmap_funarg_type x) (foldmap_funret_type x) y z
      else \<xi>m x y z)" 
 
 fun \<xi>p1 :: "(char list, vatyp) vabsfuns" 

@@ -2,9 +2,65 @@
   This file contains all the Isabelle shallow embedding to C correspondence theorems for word
   array functions.
 *)
-theory WordArray_SCCorres
-  imports WordArray_Abstractions
+theory WordArray_SVCorres
+  imports WordArray_Abstractions WordArray_Shallow
 begin
+
+subsection "Shallow Word Array Value Relation"
+
+overloading
+  valRel_WordArrayUX \<equiv> valRel
+begin
+  definition valRel_WordArrayUX: 
+    "\<And>\<xi> x v. valRel_WordArrayUX (\<xi> :: (funtyp,vabstyp) vabsfuns) (x :: (('a :: len8) word) WordArray) (v :: (funtyp, vabstyp) vval) \<equiv> 
+      (if len_of TYPE('a) = 8 then 
+        \<exists>xs. v = VAbstract (VWA (TPrim (Num U8)) xs) \<and> length x = length xs \<and> (\<forall>i < length xs. (xs ! i) = VPrim (LU8 (ucast (x ! i))))
+      else if len_of TYPE('a) = 16 then 
+        \<exists>xs. v = VAbstract (VWA (TPrim (Num U16)) xs) \<and> length x = length xs \<and> (\<forall>i < length xs. (xs ! i) = VPrim (LU16 (ucast (x ! i))))
+      else if len_of TYPE('a) = 32 then 
+        \<exists>xs. v = VAbstract (VWA (TPrim (Num U32)) xs) \<and> length x = length xs \<and> (\<forall>i < length xs. (xs ! i) = VPrim (LU32 (ucast (x ! i))))
+      else if len_of TYPE('a) = 64 then 
+        \<exists>xs. v = VAbstract (VWA (TPrim (Num U64)) xs) \<and> length x = length xs \<and> (\<forall>i < length xs. (xs ! i) = VPrim (LU64 (ucast (x ! i))))
+      else False)"
+end
+
+(* Alternate definitions for the valRel relations for word arrays
+
+
+overloading
+  valRel_WordArrayU8 \<equiv> valRel
+begin
+  definition valRel_WordArrayU8: 
+    "\<And>\<xi> x v. valRel_WordArrayU8 (\<xi> :: (funtyp,vabstyp) vabsfuns) (x :: (8 word) WordArray) (v :: (funtyp, vabstyp) vval) \<equiv> 
+      \<exists>xs. v = VAbstract (VWA (TPrim (Num U8)) xs) \<and> length x = length xs \<and> (\<forall>i < length xs. xs ! i = VPrim (LU8 (x ! i)))"
+end
+
+overloading
+  valRel_WordArrayU16 \<equiv> valRel
+begin
+  definition valRel_WordArrayU16: 
+    "\<And>\<xi> x v. valRel_WordArrayU16 (\<xi> :: (funtyp,vabstyp) vabsfuns) (x :: (16 word) WordArray) (v :: (funtyp, vabstyp) vval) \<equiv> 
+      \<exists>xs. v = VAbstract (VWA (TPrim (Num U16)) xs) \<and> length x = length xs \<and> (\<forall>i < length xs. xs ! i = VPrim (LU16 (x ! i)))"
+end
+
+overloading
+  valRel_WordArrayU32 \<equiv> valRel
+begin
+  definition valRel_WordArrayU32: 
+    "\<And>\<xi> x v. valRel_WordArrayU32 (\<xi> :: (funtyp,vabstyp) vabsfuns) (x :: (32 word) WordArray) (v :: (funtyp, vabstyp) vval) \<equiv> 
+      \<exists>xs. v = VAbstract (VWA (TPrim (Num U32)) xs) \<and> length x = length xs \<and> (\<forall>i < length xs. xs ! i = VPrim (LU32 (x ! i)))"
+end
+
+overloading
+  valRel_WordArrayU64 \<equiv> valRel
+begin
+  definition valRel_WordArrayU64: 
+    "\<And>\<xi> x v. valRel_WordArrayU64 (\<xi> :: (funtyp,vabstyp) vabsfuns) (x :: (64 word) WordArray) (v :: (funtyp, vabstyp) vval) \<equiv> 
+      \<exists>xs. v = VAbstract (VWA (TPrim (Num U64)) xs) \<and> length x = length xs \<and> (\<forall>i < length xs. xs ! i = VPrim (LU64 (x ! i)))"
+end
+
+
+*)
 
 context WordArray begin
 
