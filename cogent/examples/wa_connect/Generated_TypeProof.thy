@@ -16,22 +16,40 @@ where
 definition
   abbreviatedType2 :: " Cogent.type"
 where
-  "abbreviatedType2 \<equiv> TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined), Present)), (''idx'', (TPrim (Num U32), Present)), (''val'', (TPrim (Num U32), Present))] Unboxed"
+  "abbreviatedType2 \<equiv> TRecord [(''p1'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined), Present)), (''p2'', (TUnit, Present))] Unboxed"
 
 definition
   abbreviatedType3 :: " Cogent.type"
 where
-  "abbreviatedType3 \<equiv> TRecord [(''p1'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Present)), (''p2'', (TPrim (Num U32), Present))] Unboxed"
+  "abbreviatedType3 \<equiv> TRecord [(''p1'', (TPrim (Num U32), Present)), (''p2'', (TUnit, Present))] Unboxed"
+
+definition
+  abbreviatedType4 :: " Cogent.type"
+where
+  "abbreviatedType4 \<equiv> TRecord [(''elem'', (TPrim (Num U32), Present)), (''acc'', (TUnit, Present)), (''obsv'', (TUnit, Present))] Unboxed"
+
+definition
+  abbreviatedType5 :: " Cogent.type"
+where
+  "abbreviatedType5 \<equiv> TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined), Present)), (''idx'', (TPrim (Num U32), Present)), (''val'', (TPrim (Num U32), Present))] Unboxed"
+
+definition
+  abbreviatedType6 :: " Cogent.type"
+where
+  "abbreviatedType6 \<equiv> TRecord [(''p1'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Present)), (''p2'', (TPrim (Num U32), Present))] Unboxed"
 
 lemmas abbreviated_type_defs =
-  abbreviatedType2_def
+  abbreviatedType5_def
+  abbreviatedType4_def
   abbreviatedType1_def
   abbreviatedType3_def
+  abbreviatedType6_def
+  abbreviatedType2_def
 
 definition
   wordarray_get_0_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
-  "wordarray_get_0_type \<equiv> ([], (abbreviatedType3, TPrim (Num U32)))"
+  "wordarray_get_0_type \<equiv> ([], (abbreviatedType6, TPrim (Num U32)))"
 
 definition
   wordarray_length_0_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
@@ -41,7 +59,7 @@ where
 definition
   wordarray_put2_0_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
-  "wordarray_put2_0_type \<equiv> ([], (abbreviatedType2, TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined)))"
+  "wordarray_put2_0_type \<equiv> ([], (abbreviatedType5, TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined)))"
 
 definition
   wordarray_fold_no_break_0_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
@@ -49,9 +67,14 @@ where
   "wordarray_fold_no_break_0_type \<equiv> ([], (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType1 (TPrim (Num U32)), Present)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TUnit, Present))] Unboxed, TPrim (Num U32)))"
 
 definition
+  wordarray_map_no_break_0_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
+where
+  "wordarray_map_no_break_0_type \<equiv> ([], (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType4 abbreviatedType3, Present)), (''acc'', (TUnit, Present)), (''obsv'', (TUnit, Present))] Unboxed, abbreviatedType2))"
+
+definition
   wordarray_get_u32_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
-  "wordarray_get_u32_type \<equiv> ([], (abbreviatedType3, TPrim (Num U32)))"
+  "wordarray_get_u32_type \<equiv> ([], (abbreviatedType6, TPrim (Num U32)))"
 
 definition
   wordarray_get_u32 :: "string Cogent.expr"
@@ -71,12 +94,52 @@ where
 definition
   wordarray_put2_u32_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
-  "wordarray_put2_u32_type \<equiv> ([], (abbreviatedType2, TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined)))"
+  "wordarray_put2_u32_type \<equiv> ([], (abbreviatedType5, TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined)))"
 
 definition
   wordarray_put2_u32 :: "string Cogent.expr"
 where
   "wordarray_put2_u32 \<equiv> Let (Var 0) (App (AFun ''wordarray_put2_0'' []) (Var 0))"
+
+definition
+  dec_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
+where
+  "dec_type \<equiv> ([], (abbreviatedType4, abbreviatedType3))"
+
+definition
+  dec :: "string Cogent.expr"
+where
+  "dec \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Take (Var 1) 2 (Let (Lit (LU32 1)) (Let (Prim (Minus U32) [Var 5, Var 0]) (Struct [TPrim (Num U32), TUnit] [Var 0, Var 4])))))"
+
+definition
+  dec_arr_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
+where
+  "dec_arr_type \<equiv> ([], (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined), abbreviatedType2))"
+
+definition
+  dec_arr :: "string Cogent.expr"
+where
+  "dec_arr \<equiv> Let (Var 0) (LetBang (set [0]) (App (AFun ''wordarray_length_0'' []) (Var 0)) (Let (Lit (LU32 0)) (Let (Fun dec []) (Let Unit (Let Unit (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined), TPrim (Num U32), TPrim (Num U32), TFun abbreviatedType4 abbreviatedType3, TUnit, TUnit] [Var 5, Var 3, Var 4, Var 2, Var 1, Var 0]) (App (AFun ''wordarray_map_no_break_0'' []) (Var 0))))))))"
+
+definition
+  inc_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
+where
+  "inc_type \<equiv> ([], (abbreviatedType4, abbreviatedType3))"
+
+definition
+  inc :: "string Cogent.expr"
+where
+  "inc \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Take (Var 1) 2 (Let (Lit (LU32 1)) (Let (Prim (Plus U32) [Var 5, Var 0]) (Struct [TPrim (Num U32), TUnit] [Var 0, Var 4])))))"
+
+definition
+  inc_arr_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
+where
+  "inc_arr_type \<equiv> ([], (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined), abbreviatedType2))"
+
+definition
+  inc_arr :: "string Cogent.expr"
+where
+  "inc_arr \<equiv> Let (Var 0) (LetBang (set [0]) (App (AFun ''wordarray_length_0'' []) (Var 0)) (Let (Lit (LU32 0)) (Let (Fun inc []) (Let Unit (Let Unit (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined), TPrim (Num U32), TPrim (Num U32), TFun abbreviatedType4 abbreviatedType3, TUnit, TUnit] [Var 5, Var 3, Var 4, Var 2, Var 1, Var 0]) (App (AFun ''wordarray_map_no_break_0'' []) (Var 0))))))))"
 
 definition
   mul_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
@@ -119,26 +182,38 @@ where
   "sum_arr \<equiv> Let (Var 0) (Let (App (AFun ''wordarray_length_0'' []) (Var 0)) (Let (Lit (LU32 0)) (Let (Fun sum []) (Let (Lit (LU32 0)) (Let Unit (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), TPrim (Num U32), TPrim (Num U32), TFun abbreviatedType1 (TPrim (Num U32)), TPrim (Num U32), TUnit] [Var 5, Var 3, Var 4, Var 2, Var 1, Var 0]) (App (AFun ''wordarray_fold_no_break_0'' []) (Var 0))))))))"
 
 ML \<open>
-val Cogent_functions = ["wordarray_get_u32", "wordarray_length_u32", "wordarray_put2_u32", "mul", "mul_arr", "sum", "sum_arr"]
-val Cogent_abstract_functions = ["wordarray_get_0", "wordarray_length_0", "wordarray_put2_0", "wordarray_fold_no_break_0"]
+val Cogent_functions = ["wordarray_get_u32", "wordarray_length_u32", "wordarray_put2_u32", "dec", "dec_arr", "inc", "inc_arr", "mul", "mul_arr", "sum", "sum_arr"]
+val Cogent_abstract_functions = ["wordarray_get_0", "wordarray_length_0", "wordarray_put2_0", "wordarray_fold_no_break_0", "wordarray_map_no_break_0"]
 \<close>
 
 definition
   \<Xi> :: " string \<Rightarrow>  Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
-  "\<Xi> \<equiv> assoc_lookup [(''wordarray_get_0'', wordarray_get_0_type), (''wordarray_length_0'', wordarray_length_0_type), (''wordarray_put2_0'', wordarray_put2_0_type), (''wordarray_fold_no_break_0'', wordarray_fold_no_break_0_type), (''wordarray_get_u32'', wordarray_get_u32_type), (''wordarray_length_u32'', wordarray_length_u32_type), (''wordarray_put2_u32'', wordarray_put2_u32_type), (''mul'', mul_type), (''mul_arr'', mul_arr_type), (''sum'', sum_type), (''sum_arr'', sum_arr_type)] ([], TUnit, TUnit)"
+  "\<Xi> \<equiv> assoc_lookup [(''wordarray_get_0'', wordarray_get_0_type), (''wordarray_length_0'', wordarray_length_0_type), (''wordarray_put2_0'', wordarray_put2_0_type), (''wordarray_fold_no_break_0'', wordarray_fold_no_break_0_type), (''wordarray_map_no_break_0'', wordarray_map_no_break_0_type), (''wordarray_get_u32'', wordarray_get_u32_type), (''wordarray_length_u32'', wordarray_length_u32_type), (''wordarray_put2_u32'', wordarray_put2_u32_type), (''dec'', dec_type), (''dec_arr'', dec_arr_type), (''inc'', inc_type), (''inc_arr'', inc_arr_type), (''mul'', mul_type), (''mul_arr'', mul_arr_type), (''sum'', sum_type), (''sum_arr'', sum_arr_type)] ([], TUnit, TUnit)"
 
 definition
-  "\<xi> \<equiv> assoc_lookup [(''wordarray_get_0'', (\<lambda>_ _. False)), (''wordarray_length_0'', (\<lambda>_ _. False)), (''wordarray_put2_0'', (\<lambda>_ _. False)), (''wordarray_fold_no_break_0'', (\<lambda>_ _. False))]"
+  "\<xi> \<equiv> assoc_lookup [(''wordarray_get_0'', (\<lambda>_ _. False)), (''wordarray_length_0'', (\<lambda>_ _. False)), (''wordarray_put2_0'', (\<lambda>_ _. False)), (''wordarray_fold_no_break_0'', (\<lambda>_ _. False)), (''wordarray_map_no_break_0'', (\<lambda>_ _. False))]"
 
 definition
-  "wordarray_get_u32_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some abbreviatedType3] TyTrLeaf"
+  "wordarray_get_u32_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some abbreviatedType6] TyTrLeaf"
 
 definition
   "wordarray_length_u32_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined))] TyTrLeaf"
 
 definition
-  "wordarray_put2_u32_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some abbreviatedType2] TyTrLeaf"
+  "wordarray_put2_u32_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some abbreviatedType5] TyTrLeaf"
+
+definition
+  "dec_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TUnit, Present)), (''obsv'', (TUnit, Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons None []))) [] TyTrLeaf [Some TUnit, Some (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TUnit, Taken)), (''obsv'', (TUnit, Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_R) (append (replicate 2 None) [])))) [] TyTrLeaf [Some TUnit, Some (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TUnit, Taken)), (''obsv'', (TUnit, Taken))] Unboxed)] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 2 None) [])))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_L) (append (replicate 2 None) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_L) (append (replicate 2 None) [])))))) [] TyTrLeaf [Some (TPrim (Num U32))] TyTrLeaf))))"
+
+definition
+  "dec_arr_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined))] (TyTrSplit (Cons (Some TSK_NS) (Cons None [])) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None []))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None [])))) [] TyTrLeaf [Some (TFun abbreviatedType4 abbreviatedType3)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None []))))) [] TyTrLeaf [Some TUnit] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None [])))))) [] TyTrLeaf [Some TUnit] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons None []))))))) [] TyTrLeaf [Some (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType4 abbreviatedType3, Present)), (''acc'', (TUnit, Present)), (''obsv'', (TUnit, Present))] Unboxed)] TyTrLeaf))))))"
+
+definition
+  "inc_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TUnit, Present)), (''obsv'', (TUnit, Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons None []))) [] TyTrLeaf [Some TUnit, Some (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TUnit, Taken)), (''obsv'', (TUnit, Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_R) (append (replicate 2 None) [])))) [] TyTrLeaf [Some TUnit, Some (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TUnit, Taken)), (''obsv'', (TUnit, Taken))] Unboxed)] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 2 None) [])))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_L) (append (replicate 2 None) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_L) (append (replicate 2 None) [])))))) [] TyTrLeaf [Some (TPrim (Num U32))] TyTrLeaf))))"
+
+definition
+  "inc_arr_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined))] (TyTrSplit (Cons (Some TSK_NS) (Cons None [])) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None []))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None [])))) [] TyTrLeaf [Some (TFun abbreviatedType4 abbreviatedType3)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None []))))) [] TyTrLeaf [Some TUnit] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None [])))))) [] TyTrLeaf [Some TUnit] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons None []))))))) [] TyTrLeaf [Some (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType4 abbreviatedType3, Present)), (''acc'', (TUnit, Present)), (''obsv'', (TUnit, Present))] Unboxed)] TyTrLeaf))))))"
 
 definition
   "mul_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TUnit, Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons None []))) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TPrim (Num U32), Taken)), (''obsv'', (TUnit, Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_R) (append (replicate 2 None) [])))) [] TyTrLeaf [Some TUnit, Some (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TPrim (Num U32), Taken)), (''obsv'', (TUnit, Taken))] Unboxed)] TyTrLeaf))"
@@ -161,7 +236,7 @@ val typing_helper_1_script : tac list = [
 
 
 lemma typing_helper_1[unfolded abbreviated_type_defs] :
-  "kinding [] abbreviatedType3 {S, D}"
+  "kinding [] abbreviatedType6 {S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_1_script |> EVERY \<close>)
   done
@@ -173,7 +248,7 @@ val typing_helper_2_script : tac list = [
 
 
 lemma typing_helper_2[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 abbreviatedType3"
+  "type_wellformed 0 abbreviatedType6"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_2_script |> EVERY \<close>)
   done
@@ -197,7 +272,7 @@ val typing_helper_4_script : tac list = [
 
 
 lemma typing_helper_4[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 (TFun abbreviatedType3 (TPrim (Num U32)))"
+  "type_wellformed 0 (TFun abbreviatedType6 (TPrim (Num U32)))"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_4_script |> EVERY \<close>)
   done
@@ -245,7 +320,7 @@ val typing_helper_8_script : tac list = [
 
 
 lemma typing_helper_8[unfolded abbreviated_type_defs] :
-  "kinding [] abbreviatedType2 {E}"
+  "kinding [] abbreviatedType5 {E}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_8_script |> EVERY \<close>)
   done
@@ -257,7 +332,7 @@ val typing_helper_9_script : tac list = [
 
 
 lemma typing_helper_9[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 abbreviatedType2"
+  "type_wellformed 0 abbreviatedType5"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_9_script |> EVERY \<close>)
   done
@@ -269,7 +344,7 @@ val typing_helper_10_script : tac list = [
 
 
 lemma typing_helper_10[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 (TFun abbreviatedType2 (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined)))"
+  "type_wellformed 0 (TFun abbreviatedType5 (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined)))"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_10_script |> EVERY \<close>)
   done
@@ -281,7 +356,7 @@ val typing_helper_11_script : tac list = [
 
 
 lemma typing_helper_11[unfolded abbreviated_type_defs] :
-  "kinding [] abbreviatedType1 {E, S, D}"
+  "kinding [] abbreviatedType4 {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_11_script |> EVERY \<close>)
   done
@@ -305,7 +380,7 @@ val typing_helper_13_script : tac list = [
 
 
 lemma typing_helper_13[unfolded abbreviated_type_defs] :
-  "kinding [] (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TUnit, Present))] Unboxed) {E, S, D}"
+  "kinding [] (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TUnit, Present)), (''obsv'', (TUnit, Present))] Unboxed) {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_13_script |> EVERY \<close>)
   done
@@ -317,7 +392,7 @@ val typing_helper_14_script : tac list = [
 
 
 lemma typing_helper_14[unfolded abbreviated_type_defs] :
-  "kinding [] (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TPrim (Num U32), Taken)), (''obsv'', (TUnit, Present))] Unboxed) {E, S, D}"
+  "kinding [] TUnit {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_14_script |> EVERY \<close>)
   done
@@ -329,7 +404,7 @@ val typing_helper_15_script : tac list = [
 
 
 lemma typing_helper_15[unfolded abbreviated_type_defs] :
-  "kinding [] TUnit {E, S, D}"
+  "kinding [] (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TUnit, Taken)), (''obsv'', (TUnit, Present))] Unboxed) {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_15_script |> EVERY \<close>)
   done
@@ -341,7 +416,7 @@ val typing_helper_16_script : tac list = [
 
 
 lemma typing_helper_16[unfolded abbreviated_type_defs] :
-  "kinding [] (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TPrim (Num U32), Taken)), (''obsv'', (TUnit, Taken))] Unboxed) {E, S, D}"
+  "kinding [] (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TUnit, Taken)), (''obsv'', (TUnit, Taken))] Unboxed) {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_16_script |> EVERY \<close>)
   done
@@ -353,43 +428,43 @@ val typing_helper_17_script : tac list = [
 
 
 lemma typing_helper_17[unfolded abbreviated_type_defs] :
-  "kinding [] (TFun abbreviatedType1 (TPrim (Num U32))) {E, S, D}"
+  "kinding [] (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined)) {E}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_17_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_18_script : tac list = [
-(ForceTac [])
+(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
 ] \<close>
 
 
 lemma typing_helper_18[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 abbreviatedType1"
+  "kinding [] (TFun abbreviatedType4 abbreviatedType3) {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_18_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_19_script : tac list = [
-(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+(ForceTac [])
 ] \<close>
 
 
 lemma typing_helper_19[unfolded abbreviated_type_defs] :
-  "kinding [] (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType1 (TPrim (Num U32)), Present)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TUnit, Present))] Unboxed) {S, D}"
+  "type_wellformed 0 abbreviatedType4"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_19_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_20_script : tac list = [
-(ForceTac [])
+(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
 ] \<close>
 
 
 lemma typing_helper_20[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType1 (TPrim (Num U32)), Present)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TUnit, Present))] Unboxed)"
+  "kinding [] (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType4 abbreviatedType3, Present)), (''acc'', (TUnit, Present)), (''obsv'', (TUnit, Present))] Unboxed) {E}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_20_script |> EVERY \<close>)
   done
@@ -401,9 +476,129 @@ val typing_helper_21_script : tac list = [
 
 
 lemma typing_helper_21[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 (TFun (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType1 (TPrim (Num U32)), Present)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TUnit, Present))] Unboxed) (TPrim (Num U32)))"
+  "type_wellformed 0 (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType4 abbreviatedType3, Present)), (''acc'', (TUnit, Present)), (''obsv'', (TUnit, Present))] Unboxed)"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_21_script |> EVERY \<close>)
+  done
+
+ML_quiet \<open>
+val typing_helper_22_script : tac list = [
+(ForceTac [])
+] \<close>
+
+
+lemma typing_helper_22[unfolded abbreviated_type_defs] :
+  "type_wellformed 0 (TFun (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType4 abbreviatedType3, Present)), (''acc'', (TUnit, Present)), (''obsv'', (TUnit, Present))] Unboxed) abbreviatedType2)"
+  apply (unfold abbreviated_type_defs)?
+  apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_22_script |> EVERY \<close>)
+  done
+
+ML_quiet \<open>
+val typing_helper_23_script : tac list = [
+(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+] \<close>
+
+
+lemma typing_helper_23[unfolded abbreviated_type_defs] :
+  "kinding [] abbreviatedType1 {E, S, D}"
+  apply (unfold abbreviated_type_defs)?
+  apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_23_script |> EVERY \<close>)
+  done
+
+ML_quiet \<open>
+val typing_helper_24_script : tac list = [
+(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+] \<close>
+
+
+lemma typing_helper_24[unfolded abbreviated_type_defs] :
+  "kinding [] (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TUnit, Present))] Unboxed) {E, S, D}"
+  apply (unfold abbreviated_type_defs)?
+  apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_24_script |> EVERY \<close>)
+  done
+
+ML_quiet \<open>
+val typing_helper_25_script : tac list = [
+(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+] \<close>
+
+
+lemma typing_helper_25[unfolded abbreviated_type_defs] :
+  "kinding [] (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TPrim (Num U32), Taken)), (''obsv'', (TUnit, Present))] Unboxed) {E, S, D}"
+  apply (unfold abbreviated_type_defs)?
+  apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_25_script |> EVERY \<close>)
+  done
+
+ML_quiet \<open>
+val typing_helper_26_script : tac list = [
+(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+] \<close>
+
+
+lemma typing_helper_26[unfolded abbreviated_type_defs] :
+  "kinding [] (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TPrim (Num U32), Taken)), (''obsv'', (TUnit, Taken))] Unboxed) {E, S, D}"
+  apply (unfold abbreviated_type_defs)?
+  apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_26_script |> EVERY \<close>)
+  done
+
+ML_quiet \<open>
+val typing_helper_27_script : tac list = [
+(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+] \<close>
+
+
+lemma typing_helper_27[unfolded abbreviated_type_defs] :
+  "kinding [] (TFun abbreviatedType1 (TPrim (Num U32))) {E, S, D}"
+  apply (unfold abbreviated_type_defs)?
+  apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_27_script |> EVERY \<close>)
+  done
+
+ML_quiet \<open>
+val typing_helper_28_script : tac list = [
+(ForceTac [])
+] \<close>
+
+
+lemma typing_helper_28[unfolded abbreviated_type_defs] :
+  "type_wellformed 0 abbreviatedType1"
+  apply (unfold abbreviated_type_defs)?
+  apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_28_script |> EVERY \<close>)
+  done
+
+ML_quiet \<open>
+val typing_helper_29_script : tac list = [
+(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+] \<close>
+
+
+lemma typing_helper_29[unfolded abbreviated_type_defs] :
+  "kinding [] (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType1 (TPrim (Num U32)), Present)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TUnit, Present))] Unboxed) {S, D}"
+  apply (unfold abbreviated_type_defs)?
+  apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_29_script |> EVERY \<close>)
+  done
+
+ML_quiet \<open>
+val typing_helper_30_script : tac list = [
+(ForceTac [])
+] \<close>
+
+
+lemma typing_helper_30[unfolded abbreviated_type_defs] :
+  "type_wellformed 0 (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType1 (TPrim (Num U32)), Present)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TUnit, Present))] Unboxed)"
+  apply (unfold abbreviated_type_defs)?
+  apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_30_script |> EVERY \<close>)
+  done
+
+ML_quiet \<open>
+val typing_helper_31_script : tac list = [
+(ForceTac [])
+] \<close>
+
+
+lemma typing_helper_31[unfolded abbreviated_type_defs] :
+  "type_wellformed 0 (TFun (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType1 (TPrim (Num U32)), Present)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TUnit, Present))] Unboxed) (TPrim (Num U32)))"
+  apply (unfold abbreviated_type_defs)?
+  apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_31_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
@@ -485,7 +680,7 @@ lemma wordarray_put2_u32_typecorrect :
   done
 
 ML_quiet \<open>
-val mul_typecorrect_script : hints treestep list = [
+val dec_typecorrect_script : hints treestep list = [
 StepDown,
 Val (KindingTacs [(RTac @{thm typing_helper_11})]),
 StepDown,
@@ -497,18 +692,262 @@ Val (TypingTacs []),
 Val (KindingTacs [(RTac @{thm typing_helper_12})]),
 StepDown,
 StepDown,
-Val (KindingTacs [(RTac @{thm typing_helper_12})]),
 Val (KindingTacs [(RTac @{thm typing_helper_14})]),
+Val (KindingTacs [(RTac @{thm typing_helper_15})]),
 StepUp,
 Val (TypingTacs []),
-Val (KindingTacs [(RTac @{thm typing_helper_12})]),
+Val (KindingTacs [(RTac @{thm typing_helper_14})]),
 StepDown,
 StepDown,
-Val (KindingTacs [(RTac @{thm typing_helper_15})]),
+Val (KindingTacs [(RTac @{thm typing_helper_14})]),
 Val (KindingTacs [(RTac @{thm typing_helper_16})]),
 StepUp,
 Val (TypingTacs []),
+Val (KindingTacs [(RTac @{thm typing_helper_14})]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_12})]),
+StepUp,
+Val (TypingTacs [(RTac @{thm typing_lit'}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_14},@{thm typing_helper_16}]),(SimpSolveTac ([],[]))]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_12})]),
+StepUp,
+Val (TypingTacs []),
+Val (TypingTacs []),
+StepUp,
+StepUp,
+StepUp,
+StepUp,
+StepUp,
+StepUp
+] \<close>
+
+
+ML_quiet \<open>
+val dec_ttyping_details_future = get_all_typing_details_future false @{context} "dec"
+   dec_typecorrect_script
+\<close>
+
+
+lemma dec_typecorrect :
+  "\<Xi>, prod.fst dec_type, (dec_typetree, [Some (prod.fst (prod.snd dec_type))]) T\<turnstile> dec : prod.snd (prod.snd dec_type)"
+  apply (tactic \<open> resolve_future_typecorrect @{context} dec_ttyping_details_future \<close>)
+  done
+
+ML_quiet \<open>
+val dec_arr_typecorrect_script : hints treestep list = [
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_17})]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_17})]),
+StepUp,
+Val (TypingTacs []),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_5})]),
+StepUp,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_12})]),
+StepUp,
+Val (TypingTacs [(RTac @{thm typing_app}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_6})],NONE]),(RTac @{thm typing_afun'}),(SimpTac ([@{thm \<Xi>_def},@{thm wordarray_length_0_type_def[unfolded abbreviated_type_defs]}],[])),(RTac @{thm typing_helper_3}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_7}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_5}]),(SimpSolveTac ([],[]))]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_12})]),
+StepUp,
+Val (TypingTacs [(RTac @{thm typing_lit'}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(SimpSolveTac ([],[]))]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_18})]),
+StepUp,
+Val (TypingTacs [(RTac @{thm typing_fun'}),(RTac @{thm dec_typecorrect[simplified dec_type_def dec_typetree_def abbreviated_type_defs, simplified]}),(RTac @{thm typing_helper_3}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_19}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [])]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_14})]),
+StepUp,
+Val (TypingTacs [(RTac @{thm typing_unit}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [])]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_14})]),
+StepUp,
+Val (TypingTacs [(RTac @{thm typing_unit}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [])]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_20})]),
+StepUp,
+Val (TypingTacs []),
+Val (TypingTacs [(RTac @{thm typing_app}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_21})],NONE]),(RTac @{thm typing_afun'}),(SimpTac ([@{thm \<Xi>_def},@{thm wordarray_map_no_break_0_type_def[unfolded abbreviated_type_defs]}],[])),(RTac @{thm typing_helper_3}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_22}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_20}]),(SimpSolveTac ([],[]))]),
+StepUp,
+StepUp,
+StepUp,
+StepUp,
+StepUp,
+Val (KindingTacs [(RTac @{thm typing_helper_12})]),
+StepUp,
+StepUp,
+StepUp
+] \<close>
+
+
+ML_quiet \<open>
+val dec_arr_ttyping_details_future = get_all_typing_details_future false @{context} "dec_arr"
+   dec_arr_typecorrect_script
+\<close>
+
+
+lemma dec_arr_typecorrect :
+  "\<Xi>, prod.fst dec_arr_type, (dec_arr_typetree, [Some (prod.fst (prod.snd dec_arr_type))]) T\<turnstile> dec_arr : prod.snd (prod.snd dec_arr_type)"
+  apply (tactic \<open> resolve_future_typecorrect @{context} dec_arr_ttyping_details_future \<close>)
+  done
+
+ML_quiet \<open>
+val inc_typecorrect_script : hints treestep list = [
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_11})]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_12})]),
+Val (KindingTacs [(RTac @{thm typing_helper_13})]),
+StepUp,
+Val (TypingTacs []),
+Val (KindingTacs [(RTac @{thm typing_helper_12})]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_14})]),
 Val (KindingTacs [(RTac @{thm typing_helper_15})]),
+StepUp,
+Val (TypingTacs []),
+Val (KindingTacs [(RTac @{thm typing_helper_14})]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_14})]),
+Val (KindingTacs [(RTac @{thm typing_helper_16})]),
+StepUp,
+Val (TypingTacs []),
+Val (KindingTacs [(RTac @{thm typing_helper_14})]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_12})]),
+StepUp,
+Val (TypingTacs [(RTac @{thm typing_lit'}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_14},@{thm typing_helper_16}]),(SimpSolveTac ([],[]))]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_12})]),
+StepUp,
+Val (TypingTacs []),
+Val (TypingTacs []),
+StepUp,
+StepUp,
+StepUp,
+StepUp,
+StepUp,
+StepUp
+] \<close>
+
+
+ML_quiet \<open>
+val inc_ttyping_details_future = get_all_typing_details_future false @{context} "inc"
+   inc_typecorrect_script
+\<close>
+
+
+lemma inc_typecorrect :
+  "\<Xi>, prod.fst inc_type, (inc_typetree, [Some (prod.fst (prod.snd inc_type))]) T\<turnstile> inc : prod.snd (prod.snd inc_type)"
+  apply (tactic \<open> resolve_future_typecorrect @{context} inc_ttyping_details_future \<close>)
+  done
+
+ML_quiet \<open>
+val inc_arr_typecorrect_script : hints treestep list = [
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_17})]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_17})]),
+StepUp,
+Val (TypingTacs []),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_5})]),
+StepUp,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_12})]),
+StepUp,
+Val (TypingTacs [(RTac @{thm typing_app}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_6})],NONE]),(RTac @{thm typing_afun'}),(SimpTac ([@{thm \<Xi>_def},@{thm wordarray_length_0_type_def[unfolded abbreviated_type_defs]}],[])),(RTac @{thm typing_helper_3}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_7}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_5}]),(SimpSolveTac ([],[]))]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_12})]),
+StepUp,
+Val (TypingTacs [(RTac @{thm typing_lit'}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(SimpSolveTac ([],[]))]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_18})]),
+StepUp,
+Val (TypingTacs [(RTac @{thm typing_fun'}),(RTac @{thm inc_typecorrect[simplified inc_type_def inc_typetree_def abbreviated_type_defs, simplified]}),(RTac @{thm typing_helper_3}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_19}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [])]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_14})]),
+StepUp,
+Val (TypingTacs [(RTac @{thm typing_unit}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [])]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_14})]),
+StepUp,
+Val (TypingTacs [(RTac @{thm typing_unit}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [])]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_20})]),
+StepUp,
+Val (TypingTacs []),
+Val (TypingTacs [(RTac @{thm typing_app}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_21})],NONE]),(RTac @{thm typing_afun'}),(SimpTac ([@{thm \<Xi>_def},@{thm wordarray_map_no_break_0_type_def[unfolded abbreviated_type_defs]}],[])),(RTac @{thm typing_helper_3}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_22}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_20}]),(SimpSolveTac ([],[]))]),
+StepUp,
+StepUp,
+StepUp,
+StepUp,
+StepUp,
+Val (KindingTacs [(RTac @{thm typing_helper_12})]),
+StepUp,
+StepUp,
+StepUp
+] \<close>
+
+
+ML_quiet \<open>
+val inc_arr_ttyping_details_future = get_all_typing_details_future false @{context} "inc_arr"
+   inc_arr_typecorrect_script
+\<close>
+
+
+lemma inc_arr_typecorrect :
+  "\<Xi>, prod.fst inc_arr_type, (inc_arr_typetree, [Some (prod.fst (prod.snd inc_arr_type))]) T\<turnstile> inc_arr : prod.snd (prod.snd inc_arr_type)"
+  apply (tactic \<open> resolve_future_typecorrect @{context} inc_arr_ttyping_details_future \<close>)
+  done
+
+ML_quiet \<open>
+val mul_typecorrect_script : hints treestep list = [
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_23})]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_12})]),
+Val (KindingTacs [(RTac @{thm typing_helper_24})]),
+StepUp,
+Val (TypingTacs []),
+Val (KindingTacs [(RTac @{thm typing_helper_12})]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_12})]),
+Val (KindingTacs [(RTac @{thm typing_helper_25})]),
+StepUp,
+Val (TypingTacs []),
+Val (KindingTacs [(RTac @{thm typing_helper_12})]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_14})]),
+Val (KindingTacs [(RTac @{thm typing_helper_26})]),
+StepUp,
+Val (TypingTacs []),
+Val (KindingTacs [(RTac @{thm typing_helper_14})]),
 Val (TypingTacs []),
 StepUp,
 StepUp,
@@ -549,9 +988,9 @@ StepUp,
 Val (TypingTacs [(RTac @{thm typing_lit'}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(SimpSolveTac ([],[]))]),
 StepDown,
 StepDown,
-Val (KindingTacs [(RTac @{thm typing_helper_17})]),
+Val (KindingTacs [(RTac @{thm typing_helper_27})]),
 StepUp,
-Val (TypingTacs [(RTac @{thm typing_fun'}),(RTac @{thm mul_typecorrect[simplified mul_type_def mul_typetree_def abbreviated_type_defs, simplified]}),(RTac @{thm typing_helper_3}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_18}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [])]),
+Val (TypingTacs [(RTac @{thm typing_fun'}),(RTac @{thm mul_typecorrect[simplified mul_type_def mul_typetree_def abbreviated_type_defs, simplified]}),(RTac @{thm typing_helper_3}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_28}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [])]),
 StepDown,
 StepDown,
 Val (KindingTacs [(RTac @{thm typing_helper_12})]),
@@ -559,15 +998,15 @@ StepUp,
 Val (TypingTacs [(RTac @{thm typing_lit'}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(SimpSolveTac ([],[]))]),
 StepDown,
 StepDown,
-Val (KindingTacs [(RTac @{thm typing_helper_15})]),
+Val (KindingTacs [(RTac @{thm typing_helper_14})]),
 StepUp,
 Val (TypingTacs [(RTac @{thm typing_unit}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [])]),
 StepDown,
 StepDown,
-Val (KindingTacs [(RTac @{thm typing_helper_19})]),
+Val (KindingTacs [(RTac @{thm typing_helper_29})]),
 StepUp,
 Val (TypingTacs []),
-Val (TypingTacs [(RTac @{thm typing_app}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_20})],NONE]),(RTac @{thm typing_afun'}),(SimpTac ([@{thm \<Xi>_def},@{thm wordarray_fold_no_break_0_type_def[unfolded abbreviated_type_defs]}],[])),(RTac @{thm typing_helper_3}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_21}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_19}]),(SimpSolveTac ([],[]))]),
+Val (TypingTacs [(RTac @{thm typing_app}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_30})],NONE]),(RTac @{thm typing_afun'}),(SimpTac ([@{thm \<Xi>_def},@{thm wordarray_fold_no_break_0_type_def[unfolded abbreviated_type_defs]}],[])),(RTac @{thm typing_helper_3}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_31}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_29}]),(SimpSolveTac ([],[]))]),
 StepUp,
 StepUp,
 StepUp,
@@ -593,28 +1032,28 @@ lemma mul_arr_typecorrect :
 ML_quiet \<open>
 val sum_typecorrect_script : hints treestep list = [
 StepDown,
-Val (KindingTacs [(RTac @{thm typing_helper_11})]),
+Val (KindingTacs [(RTac @{thm typing_helper_23})]),
 StepDown,
 StepDown,
 Val (KindingTacs [(RTac @{thm typing_helper_12})]),
-Val (KindingTacs [(RTac @{thm typing_helper_13})]),
+Val (KindingTacs [(RTac @{thm typing_helper_24})]),
 StepUp,
 Val (TypingTacs []),
 Val (KindingTacs [(RTac @{thm typing_helper_12})]),
 StepDown,
 StepDown,
 Val (KindingTacs [(RTac @{thm typing_helper_12})]),
+Val (KindingTacs [(RTac @{thm typing_helper_25})]),
+StepUp,
+Val (TypingTacs []),
+Val (KindingTacs [(RTac @{thm typing_helper_12})]),
+StepDown,
+StepDown,
 Val (KindingTacs [(RTac @{thm typing_helper_14})]),
+Val (KindingTacs [(RTac @{thm typing_helper_26})]),
 StepUp,
 Val (TypingTacs []),
-Val (KindingTacs [(RTac @{thm typing_helper_12})]),
-StepDown,
-StepDown,
-Val (KindingTacs [(RTac @{thm typing_helper_15})]),
-Val (KindingTacs [(RTac @{thm typing_helper_16})]),
-StepUp,
-Val (TypingTacs []),
-Val (KindingTacs [(RTac @{thm typing_helper_15})]),
+Val (KindingTacs [(RTac @{thm typing_helper_14})]),
 Val (TypingTacs []),
 StepUp,
 StepUp,
@@ -655,9 +1094,9 @@ StepUp,
 Val (TypingTacs [(RTac @{thm typing_lit'}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(SimpSolveTac ([],[]))]),
 StepDown,
 StepDown,
-Val (KindingTacs [(RTac @{thm typing_helper_17})]),
+Val (KindingTacs [(RTac @{thm typing_helper_27})]),
 StepUp,
-Val (TypingTacs [(RTac @{thm typing_fun'}),(RTac @{thm sum_typecorrect[simplified sum_type_def sum_typetree_def abbreviated_type_defs, simplified]}),(RTac @{thm typing_helper_3}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_18}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [])]),
+Val (TypingTacs [(RTac @{thm typing_fun'}),(RTac @{thm sum_typecorrect[simplified sum_type_def sum_typetree_def abbreviated_type_defs, simplified]}),(RTac @{thm typing_helper_3}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_28}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [])]),
 StepDown,
 StepDown,
 Val (KindingTacs [(RTac @{thm typing_helper_12})]),
@@ -665,15 +1104,15 @@ StepUp,
 Val (TypingTacs [(RTac @{thm typing_lit'}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(SimpSolveTac ([],[]))]),
 StepDown,
 StepDown,
-Val (KindingTacs [(RTac @{thm typing_helper_15})]),
+Val (KindingTacs [(RTac @{thm typing_helper_14})]),
 StepUp,
 Val (TypingTacs [(RTac @{thm typing_unit}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [])]),
 StepDown,
 StepDown,
-Val (KindingTacs [(RTac @{thm typing_helper_19})]),
+Val (KindingTacs [(RTac @{thm typing_helper_29})]),
 StepUp,
 Val (TypingTacs []),
-Val (TypingTacs [(RTac @{thm typing_app}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_20})],NONE]),(RTac @{thm typing_afun'}),(SimpTac ([@{thm \<Xi>_def},@{thm wordarray_fold_no_break_0_type_def[unfolded abbreviated_type_defs]}],[])),(RTac @{thm typing_helper_3}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_21}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_19}]),(SimpSolveTac ([],[]))]),
+Val (TypingTacs [(RTac @{thm typing_app}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_30})],NONE]),(RTac @{thm typing_afun'}),(SimpTac ([@{thm \<Xi>_def},@{thm wordarray_fold_no_break_0_type_def[unfolded abbreviated_type_defs]}],[])),(RTac @{thm typing_helper_3}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_31}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_29}]),(SimpSolveTac ([],[]))]),
 StepUp,
 StepUp,
 StepUp,
@@ -711,6 +1150,30 @@ val (_, wordarray_length_u32_typing_tree, wordarray_length_u32_typing_bucket)
 ML_quiet \<open>
 val (_, wordarray_put2_u32_typing_tree, wordarray_put2_u32_typing_bucket)
 = Future.join wordarray_put2_u32_ttyping_details_future
+\<close>
+
+
+ML_quiet \<open>
+val (_, dec_typing_tree, dec_typing_bucket)
+= Future.join dec_ttyping_details_future
+\<close>
+
+
+ML_quiet \<open>
+val (_, dec_arr_typing_tree, dec_arr_typing_bucket)
+= Future.join dec_arr_ttyping_details_future
+\<close>
+
+
+ML_quiet \<open>
+val (_, inc_typing_tree, inc_typing_bucket)
+= Future.join inc_ttyping_details_future
+\<close>
+
+
+ML_quiet \<open>
+val (_, inc_arr_typing_tree, inc_arr_typing_bucket)
+= Future.join inc_arr_ttyping_details_future
 \<close>
 
 

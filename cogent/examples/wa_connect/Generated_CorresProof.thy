@@ -76,6 +76,10 @@ ML \<open>
 fun typing_tree_of "wordarray_get_u32" = wordarray_get_u32_typing_tree
   | typing_tree_of "wordarray_length_u32" = wordarray_length_u32_typing_tree
   | typing_tree_of "wordarray_put2_u32" = wordarray_put2_u32_typing_tree
+  | typing_tree_of "dec" = dec_typing_tree
+  | typing_tree_of "dec_arr" = dec_arr_typing_tree
+  | typing_tree_of "inc" = inc_typing_tree
+  | typing_tree_of "inc_arr" = inc_arr_typing_tree
   | typing_tree_of "mul" = mul_typing_tree
   | typing_tree_of "mul_arr" = mul_arr_typing_tree
   | typing_tree_of "sum" = sum_typing_tree
@@ -148,7 +152,11 @@ val entry_func_names = [
       "sum",
       "mul",
       "sum_arr",
-      "mul_arr"
+      "mul_arr",
+      "inc",
+      "dec",
+      "inc_arr",
+      "dec_arr"
 ]
 val entry_funcs = Symtab.dest Cogent_main_tree
       |> filter (fn (n, _) => member (op =) entry_func_names n) |> Symtab.make

@@ -18,7 +18,7 @@ lemma shallow_anormal_case_distribs :
   done
 
 ML \<open>
-val Cogent_functions = ["snd","second","min_u64","min_u32","max_u64","max_u32","in_range_u32","fst","first","drop","cogent_low_16_bits","cogent_high_16_bits","align64","align32","wordarray_get_u32","wordarray_length_u32","wordarray_put2_u32","wordarray_free'","error","safe_add32","safe_add64","safe_sub32","safe_sub64","success","wordarray_clone","wordarray_get_bounded","optionToResult","resultToOption","copy_n","mul","mul_arr","sum","sum_arr"]
+val Cogent_functions = ["snd","second","min_u64","min_u32","max_u64","max_u32","in_range_u32","fst","first","drop","cogent_low_16_bits","cogent_high_16_bits","align64","align32","wordarray_get_u32","wordarray_length_u32","wordarray_put2_u32","wordarray_free'","error","safe_add32","safe_add64","safe_sub32","safe_sub64","success","wordarray_clone","wordarray_get_bounded","optionToResult","resultToOption","copy_n","dec","dec_arr","inc","inc_arr","mul","mul_arr","sum","sum_arr"]
 \<close>
 
 ML \<open>

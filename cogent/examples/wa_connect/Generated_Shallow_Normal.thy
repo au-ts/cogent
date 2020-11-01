@@ -153,6 +153,26 @@ where
   "copy_n ds\<^sub>0 \<equiv> HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ds\<^sub>0 ElemAO.elem\<^sub>f) (\<lambda>(elem,ds\<^sub>2). HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ds\<^sub>2 ElemAO.acc\<^sub>f) (\<lambda>(idx,ds\<^sub>3). HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ds\<^sub>3 ElemAO.obsv\<^sub>f) (\<lambda>(afrm,ds\<^sub>1). HOL.Let (RR.make afrm idx) (\<lambda>an\<^sub>1\<^sub>9\<^sub>5. HOL.Let (wordarray_get an\<^sub>1\<^sub>9\<^sub>5) (\<lambda>an\<^sub>1\<^sub>9\<^sub>4. HOL.Let (1 :: 32 word) (\<lambda>an\<^sub>2\<^sub>0\<^sub>0. HOL.Let ((+) idx an\<^sub>2\<^sub>0\<^sub>0) (\<lambda>an\<^sub>1\<^sub>9\<^sub>8. RR.make an\<^sub>1\<^sub>9\<^sub>4 an\<^sub>1\<^sub>9\<^sub>8)))))))"
 
 definition
+  dec :: "(32 word, unit, unit) ElemAO \<Rightarrow> (32 word, unit) RR"
+where
+  "dec ds\<^sub>0 \<equiv> HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ds\<^sub>0 ElemAO.elem\<^sub>f) (\<lambda>(elem,ds\<^sub>2). HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ds\<^sub>2 ElemAO.acc\<^sub>f) (\<lambda>(acc,ds\<^sub>3). HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ds\<^sub>3 ElemAO.obsv\<^sub>f) (\<lambda>(obsv,ds\<^sub>1). HOL.Let (1 :: 32 word) (\<lambda>an\<^sub>2\<^sub>0\<^sub>6. HOL.Let ((-) elem an\<^sub>2\<^sub>0\<^sub>6) (\<lambda>an\<^sub>2\<^sub>0\<^sub>4. RR.make an\<^sub>2\<^sub>0\<^sub>4 acc)))))"
+
+definition
+  dec_arr :: "32 word WordArray \<Rightarrow> (32 word WordArray, unit) RR"
+where
+  "dec_arr ds\<^sub>0 \<equiv> HOL.Let ds\<^sub>0 (\<lambda>wa. HOL.Let (wordarray_length wa) (\<lambda>end. HOL.Let (0 :: 32 word) (\<lambda>an\<^sub>2\<^sub>1\<^sub>0. HOL.Let dec (\<lambda>an\<^sub>2\<^sub>1\<^sub>2. HOL.Let () (\<lambda>an\<^sub>2\<^sub>1\<^sub>3. HOL.Let () (\<lambda>an\<^sub>2\<^sub>1\<^sub>4. HOL.Let (WordArrayMapP.make wa an\<^sub>2\<^sub>1\<^sub>0 end an\<^sub>2\<^sub>1\<^sub>2 an\<^sub>2\<^sub>1\<^sub>3 an\<^sub>2\<^sub>1\<^sub>4) (\<lambda>arg. wordarray_map_no_break arg)))))))"
+
+definition
+  inc :: "(32 word, unit, unit) ElemAO \<Rightarrow> (32 word, unit) RR"
+where
+  "inc ds\<^sub>0 \<equiv> HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ds\<^sub>0 ElemAO.elem\<^sub>f) (\<lambda>(elem,ds\<^sub>2). HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ds\<^sub>2 ElemAO.acc\<^sub>f) (\<lambda>(acc,ds\<^sub>3). HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ds\<^sub>3 ElemAO.obsv\<^sub>f) (\<lambda>(obsv,ds\<^sub>1). HOL.Let (1 :: 32 word) (\<lambda>an\<^sub>2\<^sub>2\<^sub>1. HOL.Let ((+) elem an\<^sub>2\<^sub>2\<^sub>1) (\<lambda>an\<^sub>2\<^sub>1\<^sub>9. RR.make an\<^sub>2\<^sub>1\<^sub>9 acc)))))"
+
+definition
+  inc_arr :: "32 word WordArray \<Rightarrow> (32 word WordArray, unit) RR"
+where
+  "inc_arr ds\<^sub>0 \<equiv> HOL.Let ds\<^sub>0 (\<lambda>wa. HOL.Let (wordarray_length wa) (\<lambda>end. HOL.Let (0 :: 32 word) (\<lambda>an\<^sub>2\<^sub>2\<^sub>5. HOL.Let inc (\<lambda>an\<^sub>2\<^sub>2\<^sub>7. HOL.Let () (\<lambda>an\<^sub>2\<^sub>2\<^sub>8. HOL.Let () (\<lambda>an\<^sub>2\<^sub>2\<^sub>9. HOL.Let (WordArrayMapP.make wa an\<^sub>2\<^sub>2\<^sub>5 end an\<^sub>2\<^sub>2\<^sub>7 an\<^sub>2\<^sub>2\<^sub>8 an\<^sub>2\<^sub>2\<^sub>9) (\<lambda>arg. wordarray_map_no_break arg)))))))"
+
+definition
   mul :: "(32 word, 32 word, unit) ElemAO \<Rightarrow> 32 word"
 where
   "mul ds\<^sub>0 \<equiv> HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ds\<^sub>0 ElemAO.elem\<^sub>f) (\<lambda>(elem,ds\<^sub>2). HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ds\<^sub>2 ElemAO.acc\<^sub>f) (\<lambda>(acc,ds\<^sub>3). HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ds\<^sub>3 ElemAO.obsv\<^sub>f) (\<lambda>(obsv,ds\<^sub>1). (*) elem acc)))"
@@ -160,7 +180,7 @@ where
 definition
   mul_arr :: "32 word WordArray \<Rightarrow> 32 word"
 where
-  "mul_arr ds\<^sub>0 \<equiv> HOL.Let ds\<^sub>0 (\<lambda>wa. HOL.Let (wordarray_length wa) (\<lambda>e. HOL.Let (0 :: 32 word) (\<lambda>an\<^sub>2\<^sub>0\<^sub>8. HOL.Let mul (\<lambda>an\<^sub>2\<^sub>1\<^sub>0. HOL.Let (0 :: 32 word) (\<lambda>an\<^sub>2\<^sub>1\<^sub>1. HOL.Let () (\<lambda>an\<^sub>2\<^sub>1\<^sub>2. HOL.Let (WordArrayMapP.make wa an\<^sub>2\<^sub>0\<^sub>8 e an\<^sub>2\<^sub>1\<^sub>0 an\<^sub>2\<^sub>1\<^sub>1 an\<^sub>2\<^sub>1\<^sub>2) (\<lambda>arg. wordarray_fold_no_break arg)))))))"
+  "mul_arr ds\<^sub>0 \<equiv> HOL.Let ds\<^sub>0 (\<lambda>wa. HOL.Let (wordarray_length wa) (\<lambda>e. HOL.Let (0 :: 32 word) (\<lambda>an\<^sub>2\<^sub>3\<^sub>8. HOL.Let mul (\<lambda>an\<^sub>2\<^sub>4\<^sub>0. HOL.Let (0 :: 32 word) (\<lambda>an\<^sub>2\<^sub>4\<^sub>1. HOL.Let () (\<lambda>an\<^sub>2\<^sub>4\<^sub>2. HOL.Let (WordArrayMapP.make wa an\<^sub>2\<^sub>3\<^sub>8 e an\<^sub>2\<^sub>4\<^sub>0 an\<^sub>2\<^sub>4\<^sub>1 an\<^sub>2\<^sub>4\<^sub>2) (\<lambda>arg. wordarray_fold_no_break arg)))))))"
 
 definition
   sum :: "(32 word, 32 word, unit) ElemAO \<Rightarrow> 32 word"
@@ -170,6 +190,6 @@ where
 definition
   sum_arr :: "32 word WordArray \<Rightarrow> 32 word"
 where
-  "sum_arr ds\<^sub>0 \<equiv> HOL.Let ds\<^sub>0 (\<lambda>wa. HOL.Let (wordarray_length wa) (\<lambda>e. HOL.Let (0 :: 32 word) (\<lambda>an\<^sub>2\<^sub>2\<^sub>1. HOL.Let sum (\<lambda>an\<^sub>2\<^sub>2\<^sub>3. HOL.Let (0 :: 32 word) (\<lambda>an\<^sub>2\<^sub>2\<^sub>4. HOL.Let () (\<lambda>an\<^sub>2\<^sub>2\<^sub>5. HOL.Let (WordArrayMapP.make wa an\<^sub>2\<^sub>2\<^sub>1 e an\<^sub>2\<^sub>2\<^sub>3 an\<^sub>2\<^sub>2\<^sub>4 an\<^sub>2\<^sub>2\<^sub>5) (\<lambda>arg. wordarray_fold_no_break arg)))))))"
+  "sum_arr ds\<^sub>0 \<equiv> HOL.Let ds\<^sub>0 (\<lambda>wa. HOL.Let (wordarray_length wa) (\<lambda>e. HOL.Let (0 :: 32 word) (\<lambda>an\<^sub>2\<^sub>5\<^sub>1. HOL.Let sum (\<lambda>an\<^sub>2\<^sub>5\<^sub>3. HOL.Let (0 :: 32 word) (\<lambda>an\<^sub>2\<^sub>5\<^sub>4. HOL.Let () (\<lambda>an\<^sub>2\<^sub>5\<^sub>5. HOL.Let (WordArrayMapP.make wa an\<^sub>2\<^sub>5\<^sub>1 e an\<^sub>2\<^sub>5\<^sub>3 an\<^sub>2\<^sub>5\<^sub>4 an\<^sub>2\<^sub>5\<^sub>5) (\<lambda>arg. wordarray_fold_no_break arg)))))))"
 
 end
