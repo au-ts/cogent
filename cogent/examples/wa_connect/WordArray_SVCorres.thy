@@ -3,7 +3,7 @@
   array functions.
 *)
 theory WordArray_SVCorres
-  imports WordArray_Abstractions WordArray_Shallow
+  imports WordArray_Shallow WordArray_VAbsFun
 begin
 
 subsection "Shallow Word Array Value Relation"
