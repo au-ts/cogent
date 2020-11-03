@@ -327,6 +327,8 @@ section "Helper Elim Lemmas"
 context WordArray begin
 
 inductive_cases u_t_primtE: "upd.uval_typing \<Xi>' \<sigma> u (TPrim l) r w"
+inductive_cases u_t_unittE: "upd.uval_typing \<Xi>' \<sigma> u TUnit r w"
+inductive_cases u_t_funafuntE: "upd.uval_typing \<Xi>' \<sigma> f (TFun a b) r w"
 inductive_cases v_t_primtE : "val.vval_typing \<Xi>' v (TPrim l)"
 inductive_cases u_v_t_primtE : "upd_val_rel \<Xi>' \<sigma> u v (TPrim l) r w"
 inductive_cases u_v_t_funE: "upd_val_rel \<Xi>' \<sigma> (UFunction f ts) v t r w"
