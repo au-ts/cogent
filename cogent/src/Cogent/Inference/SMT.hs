@@ -90,7 +90,7 @@ type SmtStateM b = StateT (SmtTransState b) Symbolic
 
 getSmtExpression :: (Show b, Ord b) => [Maybe (Type t b)] -> [LExpr t b] -> Type t b -> Type t b -> Symbolic SVal
 getSmtExpression v e (TRefine t1 p) (TRefine t2 q) = do
-  (e', se) <- runStateT (extract v e) (SmtTransState M.empty 0) -- we chuck a nothing here so that upshifting makes sense
+  (e', se) <- runStateT (extract (Nothing:v) e) (SmtTransState M.empty 0) -- we chuck a nothing here so that upshifting makes sense
   (p', sp) <- runStateT (lexprToSmt ((Just t1):v) p) se
   (q', sp) <- runStateT (lexprToSmt ((Just t2):v) q) sp
   return $ svOr (svNot (svAnd p' e')) q' -- ~(P ^ E) v Q
@@ -292,34 +292,62 @@ varIndexToSmt vec i = do
     Just t' -> typeToSmt vec t'
 
 smtProve :: (L.Pretty b, Show b, Ord b) => TcVec t v b -> [LExpr t b] -> Type t b -> Type t b -> IO Bool
-smtProve v ls rt1@(TRefine t1 _) rt2 = do
+smtProve v ls rt1@(TRefine t1 p1) rt2@(TRefine t2 p2) = do
     -- traceTc "infer/smt" (pretty ls)
-    let v' = (Just t1) : (tcVecToList 1 v)
+    let v' = tcVecToList 1 v
         ls' = P.map (upshiftVarLExpr 1) ls
         toProve = getSmtExpression v' ls' rt1 rt2
         solver = z3 { -- verbose = __cogent_ddump_smt
                    verbose = False
                    , redirectVerbose = Just $ fromMaybe "/dev/stderr" __cogent_ddump_to_file
                    }
-    dumpMsgIfTrue True (L.hardline L.<> L.text "Running core-tc SMT on refinement types:"
+    -- ugly dump
+    dumpMsgIfTrue False (L.hardline L.<> L.text "Running core-tc SMT on refinement types:"
                       L.<$>             L.text "----------------------------------------"
                       L.<$> indent' (L.pretty rt1)
-                      -- L.<$> indent' (L.text $ show rt1)
                       L.<$> indent' (L.pretty rt2)
-                      -- L.<$> indent' (L.text $ show rt2)
                       L.<$> L.text "Types in context:"
-                      L.<$> indent' (L.pretty v')
-                      -- L.<$> indent' (L.text $ show v')
+                      L.<$> indent' (L.pretty v)
+                      L.<$> indent' (L.text (show v))
                       L.<$> L.text "Other predicates:"
-                      L.<$> indent' (L.pretty ls')
-                      -- L.<$> indent' (L.text $ show ls')
+                      L.<$> indent' (L.pretty ls)
+                      L.<$> indent' (L.text (show ls))
                       L.<> L.hardline
+                      )
+    -- pretty
+    dumpMsgIfTrue True (
+                      L.text "Gamma =" L.<+> (prettyGamma v' ls')
+                      L.<$> L.text "Gamma" L.<+> L.dullyellow (L.text "|-") 
+                          L.<+> (L.pretty rt1) L.<+> L.dullyellow (L.text "<:") L.<+> (L.pretty rt2)
+                      -- L.<$> L.text "Gamma: " L.<+> (L.pretty v') L.<+> (L.pretty ls')
+                      -- L.<$> L.text "extract(Gamma) /\\" L.<+> (L.pretty p1) L.<+> L.text "==>" L.<+> (L.pretty p2) L.<> L.hardline
+                      L.<$> (prettyProofObligation ((typeListToPreds v') ++ ls') p1 p2) L.<> L.hardline
                       )
     smtRes <- liftIO (proveWith solver toProve)
     -- if its sat, then its not a subtype
     let ret = not $ modelExists smtRes
-    dumpMsgIfTrue True $ L.text ("Subtyping Result: " ++ show ret) L.<> L.hardline
+    dumpMsgIfTrue True $ L.text ("Subtyping Result: " ++ show ret) L.<$> L.hardline
     return ret
+
+-- pretty print the context
+prettyGamma :: (L.Pretty b) => [Maybe (Type t b)] -> [LExpr t b] -> L.Doc
+prettyGamma [] [] = L.empty
+prettyGamma [t] [] = L.pretty t
+prettyGamma (t:ts) ls = (L.pretty t) L.<> (L.text ",") L.<+> (prettyGamma ts ls)
+prettyGamma [] [l] = (L.pretty l)
+prettyGamma [] (l:ls) = (L.pretty l) L.<> (L.text ",") L.<+> (prettyGamma [] ls)
+
+typeListToPreds :: [Maybe (Type t b)] -> [LExpr t b]
+typeListToPreds [] = []
+typeListToPreds (t:ts) = case t of
+  Just (TRefine t1 p1)  -> p1:typeListToPreds(ts)
+  _                     -> typeListToPreds(ts)
+
+-- extract(Gamma) /\ p1 ==> p2 
+prettyProofObligation :: (L.Pretty b) => [LExpr t b] -> LExpr t b -> LExpr t b -> L.Doc
+prettyProofObligation [] p1 p2 = (L.pretty p1) L.<+> L.dullyellow (L.text "==>") L.<+> (L.pretty p2)
+prettyProofObligation [l] p1 p2 = (L.pretty l) L.<+> L.dullyellow (L.text ("/\\")) L.<+> (prettyProofObligation [] p1 p2)
+prettyProofObligation (l:ls) p1 p2 = (L.pretty l) L.<+> L.dullyellow (L.text "/\\") L.<+> (prettyProofObligation ls p1 p2) 
 
 mkQSymVar :: SMT.Quantifier -> String -> SMT.Kind -> (SmtStateM b) SVal
 mkQSymVar q nm k = symbolicEnv >>= liftIO . svMkSymVar (Just q) k (Just nm)

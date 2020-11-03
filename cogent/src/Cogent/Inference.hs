@@ -372,7 +372,7 @@ opType opr [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
   = Just ([TPrim t1, TPrim t1], (TRefine (TPrim t1) (LOp And $ map (upshiftVarLExpr 1) [p1, p2]))) -- unsure
 opType Divide [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
   | t1 /= Boolean, t1 == t2
-  = let nonZeroPred = LOp Gt [LVariable (Zero, "zeroVar" ++ show t1), LILit 0 t1]
+  = let nonZeroPred = LOp Gt [LVariable (Zero, "zero"), LILit 0 t1]
         nonZeroType = TRefine (TPrim t1) nonZeroPred
     in Just ([TPrim t1, nonZeroType], (TRefine (TPrim t1) (LOp And $ map (upshiftVarLExpr 1) [p1, p2])))
 opType opr [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
@@ -585,7 +585,7 @@ infer (E (Op o es))
         -- (_,ls,_) <- get
         -- trace ("context " ++ (show ls)) $ return ()
         inputsOk <- listIsSubtype operandsTypes expectedInputs
-        let pred = LOp Eq [LVariable (Zero, vn ++ "_op" ++ show o), upshiftVarLExpr 1 (LOp o (map (texprToLExpr id) es'))]
+        let pred = LOp Eq [LVariable (Zero, vn), upshiftVarLExpr 1 (LOp o (map (texprToLExpr id) es'))]
         case inputsOk of
           -- True -> (TE (TRefine t $ LOp And [pred, p]) (Op o es'))
           -- True -> 
@@ -597,7 +597,7 @@ infer (E (Op o es))
           _ -> __impossible "op types don't match" -- fix me /blaisep
 infer (E (ILit i t))
   = do vn <- freshVarName
-       let pred = LOp Eq [LVariable (Zero, vn ++ "_ILit_" ++ show i), LILit i t]
+       let pred = LOp Eq [LVariable (Zero, vn), LILit i t]
        return (TE (TRefine (TPrim t) (pred)) (ILit i t))
 infer (E (SLit s))
   = do vn <- freshVarName
@@ -626,11 +626,7 @@ infer (E (ArrayIndex arr idx))
         let idxt = exprType idx'
             LILit len t = l -- could be any lexpr, not just LILit
             bt@(TPrim pt) = getBaseType idxt
-            -- pred = LOp And [
-            --     LOp Ge [LVariable (Zero, vn ++ "_arrILit_" ++ show 0), LILit 0 t],
-            --     LOp Lt [LVariable (Zero, vn ++ "_arrILit_" ++ show len), LILit len t]
-            --   ]
-            pred = LOp Lt [LVariable (Zero, vn ++ "_arrILit_" ++ show len), LILit len t]
+            pred = LOp Lt [LVariable (Zero, vn), LILit len t]
         inBound <- idxt `isSubtype` (TRefine bt pred) 
         -- guardShow ("arr-idx out of bound") $ idx >= 0 && idx < l  -- no way to check it. need ref types. / zilinc
         guardShow ("arr-idx on non-linear") . canShare =<< kindcheck ta
@@ -689,13 +685,11 @@ infer (E (Variable v))
         case (isBaseType t) of
           True -> do
             vn <- freshVarName
-            let pred = LOp Eq [LVariable (Zero, vn ++ "_Variable"), 
+            let pred = LOp Eq [LVariable (Zero, vn), 
                                 upshiftVarLExpr 1 $ LVariable (finNat $ fst v, snd v)]
             -- if t is a refinement type, extract the old predicate and combine
             case t of
-              (TRefine base oldPred) -> return $ TE (TRefine base 
-                      -- (LOp And [pred, upshiftVarLExpr oldPred])) (Variable v)
-                      pred) (Variable v)
+              (TRefine base oldPred) -> return $ TE (TRefine base pred) (Variable v)
               _ -> return $ TE (TRefine t pred) (Variable v)
           False -> return $ TE t (Variable v)
 infer (E (Fun f ts ls note))
