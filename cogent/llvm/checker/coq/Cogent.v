@@ -1,7 +1,5 @@
 From Coq Require Import List String ZArith.
 
-Import ListNotations.
-
 Variant PrimInt : Set :=
   | U8
   | U16
@@ -10,7 +8,7 @@ Variant PrimInt : Set :=
   | Boolean.
 
 Variant Sigil : Set :=
-  | Boxed (r:bool)
+  | Boxed (* Ignore ReadOnly *)
   | Unboxed.
 
 Inductive type : Set :=

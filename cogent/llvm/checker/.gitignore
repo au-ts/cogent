@@ -1,3 +1,4 @@
+.vscode/
 .Makefile.d
 Makefile.conf
 *.aux
