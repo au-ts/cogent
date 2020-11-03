@@ -502,7 +502,7 @@ fillTemplates funName exp tem env n =
             _ -> ([], env)  
         -- case and esac only cover var and member expressions
         _ -> ([], env)
-    Esac e1 c v1 e2 -> 
+    Esac e1 c v1 e2 ->  
       case e1 of 
         Var v -> 
           case tem of 
