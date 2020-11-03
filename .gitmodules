@@ -5,3 +5,6 @@
 [submodule "z3"]
 	path = z3
 	url = https://github.com/Z3Prover/z3.git
+[submodule "cogent/llvm/checker/vellvm"]
+	path = cogent/llvm/checker/vellvm
+	url = https://github.com/vellvm/vellvm

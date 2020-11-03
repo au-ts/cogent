@@ -1,0 +1,6 @@
+-Q vellvm/src/coq Vellvm
+-Q vellvm/lib/InteractionTrees/theories ITree
+-R coq Checker
+./coq/Checker.v
+./coq/Cogent.v
+./coq/Types.v
