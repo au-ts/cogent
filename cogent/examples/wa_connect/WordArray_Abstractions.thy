@@ -114,15 +114,17 @@ fun vvalfun_to_exprfun :: "('f, 'a) vval \<Rightarrow> 'f expr"
 
 section "Abbreviations"
 
-abbreviation upd_store :: "('f, 'a, 'l) store \<Rightarrow> 'l \<Rightarrow> ('f, 'a, 'l) uval \<Rightarrow> ('f, 'a, 'l) store"
-  where
-"upd_store \<sigma> p v \<equiv> (\<lambda>l. (if l = p then option.Some v else \<sigma> l))"
-
 abbreviation "foldmap_funarg_type x 
   \<equiv> (funarg_type \<circ> present_type \<circ> (\<lambda>xs. xs ! 3) \<circ> rec_type_list \<circ> prod.fst \<circ> prod.snd \<circ> \<Xi>) x"
 
 abbreviation "foldmap_funret_type x 
   \<equiv> (funret_type \<circ> present_type \<circ> (\<lambda>xs. xs ! 3) \<circ> rec_type_list \<circ> prod.fst \<circ> prod.snd \<circ> \<Xi>) x"
+
+abbreviation "foldmap_acc_type x 
+  \<equiv> (present_type \<circ> (\<lambda>xs. xs ! 4) \<circ> rec_type_list \<circ> prod.fst \<circ> prod.snd \<circ> \<Xi>) x"
+
+abbreviation "foldmap_obsv_type x 
+  \<equiv> (present_type \<circ> (\<lambda>xs. xs ! 5) \<circ> rec_type_list \<circ> prod.fst \<circ> prod.snd \<circ> \<Xi>) x"
 
 section "Helper Frame Lemmas"
 
@@ -132,10 +134,6 @@ lemma valid_ptr_not_in_frame_same:
   apply (erule_tac x = p in allE)
   apply clarsimp
   done
-
-lemma frame_single_update:
-  "frame \<sigma> {l} (upd_store \<sigma> l v) {l}"
-  by (clarsimp simp: frame_def)
 
 lemma readonly_not_in_frame:
   "\<lbrakk>frame \<sigma> w \<sigma>' w'; \<sigma> p = option.Some v; p \<notin> w\<rbrakk> \<Longrightarrow> p \<notin> w'"
@@ -236,7 +234,7 @@ lemma wa_abs_typing_u_update:
   "\<lbrakk>wa_abs_typing_u (UWA (TPrim (Num t)) len arr) n \<tau>s (Boxed Writable ptrl) r w \<sigma>;
     i < len; lit_type v = Num t\<rbrakk> 
     \<Longrightarrow> wa_abs_typing_u (UWA (TPrim (Num t)) len arr) n \<tau>s (Boxed Writable ptrl) r w 
-      (upd_store \<sigma> (arr + size_of_num_type t * i) (UPrim v))"
+      (\<sigma> ((arr + size_of_num_type t * i) \<mapsto> (UPrim v)))"
   by (clarsimp simp: wa_abs_typing_u_def)
 
 lemma wa_abs_typing_v_update:
@@ -251,7 +249,7 @@ lemma wa_abs_upd_val_update:
   "\<lbrakk>wa_abs_upd_val (UWA (TPrim (Num t)) len arr) (VWA (TPrim (Num t)) xs) n \<tau>s (Boxed Writable ptrl) r w \<sigma>;
     i < len; lit_type v = Num t\<rbrakk>
     \<Longrightarrow> wa_abs_upd_val (UWA (TPrim (Num t)) len arr) (VWA (TPrim (Num t)) (xs[unat i := VPrim v])) n 
-      \<tau>s (Boxed Writable ptrl) r w (upd_store \<sigma> (arr + size_of_num_type t * i) (UPrim v))"
+      \<tau>s (Boxed Writable ptrl) r w (\<sigma> ((arr + size_of_num_type t * i) \<mapsto> (UPrim v)))"
   apply (clarsimp simp: wa_abs_upd_val_def)
   apply (drule wa_abs_typing_u_update; simp?; clarsimp)
   apply (drule_tac i = "unat i" in wa_abs_typing_v_update; simp add: word_less_nat_alt; clarsimp)
@@ -329,6 +327,8 @@ context WordArray begin
 inductive_cases u_t_primtE: "upd.uval_typing \<Xi>' \<sigma> u (TPrim l) r w"
 inductive_cases u_t_unittE: "upd.uval_typing \<Xi>' \<sigma> u TUnit r w"
 inductive_cases u_t_funafuntE: "upd.uval_typing \<Xi>' \<sigma> f (TFun a b) r w"
+inductive_cases u_t_rectE: "upd.uval_typing \<Xi>' \<sigma> u (TRecord ts s) r w"
+inductive_cases u_t_r_contE: "upd.uval_typing_record \<Xi>' \<sigma> us ts r w"
 inductive_cases v_t_primtE : "val.vval_typing \<Xi>' v (TPrim l)"
 inductive_cases u_v_t_primtE : "upd_val_rel \<Xi>' \<sigma> u v (TPrim l) r w"
 inductive_cases u_v_t_funE: "upd_val_rel \<Xi>' \<sigma> (UFunction f ts) v t r w"

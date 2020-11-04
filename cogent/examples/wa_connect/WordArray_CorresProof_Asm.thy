@@ -574,7 +574,7 @@ lemma upd_val_wa_mapAccumnb_bod_corres:
   apply (drule val_wa_mapAccumnb_bod_back_step; simp?)
    apply (drule wa_abs_upd_val_elims(3); clarsimp)
   apply clarsimp
-  apply (drule_tac x = \<sigma>'' in meta_spec)
+  apply (drule_tac x = \<sigma>a in meta_spec)
   apply (erule meta_allE; erule meta_allE; erule meta_impE; simp?; erule meta_impE; simp?)
   apply clarsimp
   apply (erule u_v_recE; clarsimp)
@@ -636,11 +636,11 @@ lemma upd_val_wa_mapAccumnb_bod_corres:
   apply (drule_tac t = "RCon _ _" in sym; clarsimp)
   apply (frule_tac p = p in valid_ptr_not_in_frame_same; simp?)
   apply clarsimp
-  apply (frule_tac \<sigma> = \<sigma>'' in wa_abs_upd_val_elims(4))
+  apply (frule_tac \<sigma> = \<sigma>a in wa_abs_upd_val_elims(4))
   apply (erule_tac x = to in allE; clarsimp simp: word_less_nat_alt)
-  apply (frule_tac \<sigma> = \<sigma>'' in wa_abs_upd_val_elims(3))
+  apply (frule_tac \<sigma> = \<sigma>a in wa_abs_upd_val_elims(3))
   apply (subst (asm) nth_list_update_eq; simp)
-  apply (frule_tac \<sigma> = \<sigma>'' and p = "arr + size_of_num_type ta * to" in readonly_not_in_frame; simp?)
+  apply (frule_tac \<sigma> = \<sigma>a and p = "arr + size_of_num_type ta * to" in readonly_not_in_frame; simp?)
    apply (drule_tac w = wba in wa_abs_upd_val_elims(1))
    apply (drule wa_abs_typing_u_elims(3); clarsimp simp: word_less_nat_alt not_le not_less)
    apply (drule Suc_le_lessD)
@@ -649,7 +649,7 @@ lemma upd_val_wa_mapAccumnb_bod_corres:
   apply (frule_tac r = r in wa_abs_upd_val_elims(1))
   apply (drule_tac r = r in abs_upd_val_frame; simp?)
    apply (drule_tac wa_abs_typing_u_elims(3); simp)
-  apply (cut_tac \<sigma> = \<sigma>''' and l = "arr + size_of_num_type ta * to" and v = "UPrim l" in frame_single_update)
+  apply (cut_tac \<sigma> = \<sigma>b and l = "arr + size_of_num_type ta * to" and v = "UPrim l" in upd.frame_single_update)
   apply (drule_tac r = rca in upd_val_rel_frame(1)[rotated 3]; simp?)
     apply clarsimp
    apply (drule_tac x = "arr + size_of_num_type ta * to" and S = wba and S' = raa in orthD1; simp?)
@@ -672,22 +672,22 @@ lemma upd_val_wa_mapAccumnb_bod_corres:
    apply (rule u_v_r_cons1; simp?)
        apply (rule_tac a = "UWA (TPrim (Num ta)) len arr" and 
       ptrl = ptrl in u_v_p_abs_w[where ts = "[TPrim _]", simplified]; simp?)
-        apply (drule_tac \<sigma> = \<sigma>''' and  i = to in wa_abs_upd_val_update; simp?)
+        apply (drule_tac \<sigma> = \<sigma>b and  i = to in wa_abs_upd_val_update; simp?)
          apply (clarsimp simp: word_less_nat_alt)
         apply (drule_tac s = "rxs ! unat to" in sym; clarsimp)
        apply (drule wa_abs_upd_val_elims(1))
        apply (drule_tac \<sigma> = \<sigma> in wa_abs_typing_u_elims(3); clarsimp)
        apply (rule conjI; clarsimp)
-       apply (drule_tac p = p and \<sigma> = \<sigma>'' in valid_ptr_not_in_frame_same; simp?)
+       apply (drule_tac p = p and \<sigma> = \<sigma>a in valid_ptr_not_in_frame_same; simp?)
       apply (rule u_v_r_cons1[where r' = "{}" and w' = "{}", simplified]; simp?)
       apply (rule u_v_r_empty)
-     apply (frule_tac p = p and \<sigma>= \<sigma>'' in readonly_not_in_frame; simp?)
+     apply (frule_tac p = p and \<sigma> = \<sigma>a in readonly_not_in_frame; simp?)
      apply (rule disjointI)
      apply (drule wa_abs_typing_u_elims(5))
      apply (drule_tac w = wba in wa_abs_upd_val_elims(1))
      apply (drule wa_abs_typing_u_elims(3); clarsimp)
      apply (erule_tac x = i in allE; clarsimp)+
-     apply (drule_tac p = "arr + size_of_num_type ta * i" and \<sigma> = \<sigma>'' in readonly_not_in_frame; simp?)
+     apply (drule_tac p = "arr + size_of_num_type ta * i" and \<sigma> = \<sigma>a in readonly_not_in_frame; simp?)
      apply clarsimp
      apply (drule_tac x = "arr + size_of_num_type ta * i" and S' = waa in orthD1; simp?)
      apply (rule_tac x = i in exI; simp)
@@ -706,14 +706,14 @@ lemma upd_val_wa_mapAccumnb_bod_corres:
    apply (rule_tac B = "raa \<union> rc" in subset_trans; simp?)
   apply (subst (asm) insert_ident; simp?)
    apply (drule_tac p = p and \<sigma> = \<sigma> in readonly_not_in_frame; simp?)
-  apply (drule_tac s = wba and \<sigma> = \<sigma>'' in frame_expand(2); simp?)
+  apply (drule_tac s = wba and \<sigma> = \<sigma>a in frame_expand(2); simp?)
    apply (frule wa_abs_typing_u_elims(5))
    apply (drule wa_abs_typing_u_elims(3); clarsimp)
    apply (erule_tac x = i in allE; clarsimp)+
   apply (drule wa_abs_typing_u_elims(3); clarsimp)
   apply (drule wa_abs_upd_val_elims(1))
   apply (drule wa_abs_typing_u_elims(3); clarsimp)
-  apply (drule_tac \<sigma> = \<sigma>'' and \<sigma>' = \<sigma>''' in upd.frame_app; simp?)
+  apply (drule_tac \<sigma> = \<sigma>a and \<sigma>' = \<sigma>b in upd.frame_app; simp?)
   apply (rule upd.frame_trans; simp?)
   apply (subst (asm) insert_absorb[where A = "_ \<union> _", simplified]; simp?)
    apply (rule disjI1)
@@ -772,7 +772,7 @@ lemma val_executes_fron_upd_wa_mapAccumnb_bod:
   apply (drule_tac t = "type_repr _" in sym; clarsimp)
   apply (erule u_v_r_emptyE; clarsimp)
   apply (drule unatSuc; clarsimp simp: word_less_nat_alt word_le_nat_alt)
-  apply (subgoal_tac "u_v_matches \<Xi>' \<sigma>'' 
+  apply (subgoal_tac "u_v_matches \<Xi>' \<sigma>a 
     [URecord [(va, upd.uval_repr va), (x, upd.uval_repr x), (obsv, upd.uval_repr obsv)]]
     [VRecord [xs ! unat to, racca, obsv']]
     [option.Some (TRecord [(a0, TPrim (Num ta), Present), (a1, u, Present), (a2, v, Present)] Unboxed)]
