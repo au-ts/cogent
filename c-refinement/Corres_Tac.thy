@@ -1366,6 +1366,8 @@ fun map_annotations f (CogentCallTree (a, ty, name, calls)) =
                                  SecondOrderCall (map_annotations f a, map (apsnd (map_annotations f)) bs)))
 \<close>
 
+
+(* alternate version for debugging *)
 ML \<open>
 fun prove_common2 ctxt xs asms props tac =
   let
