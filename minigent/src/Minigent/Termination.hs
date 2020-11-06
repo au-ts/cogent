@@ -327,13 +327,13 @@ fillTemplates funName exp tem env n =
       [x] -> 
         let (res1, env1, err1) = fillTemplates funName e tem env n
             (res2, env2, err2) = fillTemplates funName x tem env n
-        in (res1 ++ res2, env2, err1 ++ err2)
+        in (res1 ++ res2, env2, err1 ++ err2 ++ ["hi"])
       _ -> fillTemplates funName e tem env n
     Literal _ -> ([], env, ["Empty Lit"])
     Var y -> 
       -- if it doesn't exist, add to env. Maybe unnecessary?
       let env1 = envAdd (Var y) env
-      in ([], env1, [])-- do we need to add to env .. surely not? If we do, we do it already.. 
+      in ([], env1, ["Empty Var"])-- do we need to add to env .. surely not? If we do, we do it already.. 
     Con c e -> ([], env, ["Empty Con"]) -- CHECK THIS LATER
     TypeApp f ts -> ([], env, ["Empty TypeApp"])
     Sig e t -> ([], env, ["Empty Sig"]) -- ???
@@ -341,8 +341,11 @@ fillTemplates funName exp tem env n =
       TypeApp f ts -> 
         if f == funName then 
           let env1 = envAdd e2 env 
-          in fillTemplates funName e2 tem env1 (n+1)         
-        else ([], env, ["TypeApp Error"])
+              -- consider unfolding more than once?
+          in ([(RecParAST "t" Nothing, e2)], env1, [])
+          -- in fillTemplates funName e2 tem env1 (n+1)
+        else ([], env, ["TypeApp: not the recursive function"])         
+        -- else ([(RecParAST "t" Nothing, e2)], env, ["TypeApp Error"])
     Struct [(fieldname, e)] -> ([], env, ["Empty Struct"])
     If e1 e2 e3 -> ([], env, ["Empty If"])
     Let v e1 e2 -> ([], env, ["Empty Let"])
@@ -352,20 +355,26 @@ fillTemplates funName exp tem env n =
       case tem of 
         RecordAST mv xs -> 
           case find (\(f', mv', t') -> f == f') xs of 
-            Nothing -> ([], env, ["Take R"])
+            Nothing -> ([], env, ["Take R Empty"])
             Just (f', mv', t') -> 
-              let (res1, env1, err1) = fillTemplates funName e2 t' env (n+1)
-              in case res1 of 
-                [] -> ([], env1, err1 ++ ["Take R"])
-                _ -> (map (\(x, y) -> (RecordAST mv [(f', mv', x)], y)) res1, env1, err1)
+              let env1 = envAdd (Var v2) env
+                  (res1, env2, err1) = fillTemplates funName e2 t' env1 (n+1)
+              in case res1 of
+                -- if res1 is empty, then take res2
+                [] -> ([], env2, err1 ++ ["Take R"])
+                _ -> (map (\(x, y) -> (RecordAST mv [(f', mv', x)], y)) res1, env2, err1)
         RecursiveRecordAST rp mv xs -> 
+          -- check that e1 exists in the env as well.
           case find (\(f', mv', t') -> f == f') xs of 
-            Nothing -> ([], env, ["Take RR"])
+            Nothing -> ([], env, ["Take RR Empty"])
             Just (f', mv', t') -> 
-              let (res1, env1, err1) = fillTemplates funName e2 t' env (n+1)
-              in case res1 of 
-                [] -> ([], env1, ["Take RR"])
-                _ -> (map (\(x, y) -> (RecursiveRecordAST rp mv [(f', mv', x)], y)) res1, env1, err1)
+              let env1 = envAdd (Var v2) env
+                  xs' = delete (f', mv', t') xs
+                  (res1, env2, err1) = fillTemplates funName e2 t' env1 (n+1)
+              in case res1 of
+                [] -> ([], env2, err1 ++ ["Take RR"])
+                _ -> (map (\(x, y) -> (RecursiveRecordAST rp mv [(f', mv', x)], y)) res1, env2, err1)
+                -- _ -> ((map (\(x, y) -> (RecursiveRecordAST rp mv [(f', mv', x)], y)) res1) ++ res2, env3, err1 ++ err2)
         _ -> ([], env, ["Take Error"]) -- Error, as we should only be seeing a record when taking ?
     Put e1 f e2 -> ([], env, ["Empty Put"])
     Member e f ->
@@ -389,8 +398,8 @@ fillTemplates funName exp tem env n =
                 Nothing -> ([], env, ["Member RR"])
                 Just (f', mv', t') ->
                   case t' of 
-                    PrimitiveAST mv1 -> ([], env, ["Member RR"])
-                    RecParAST rp mv1 -> ([(RecParAST rp mv1, e)], env, [])
+                    PrimitiveAST mv1 -> ([], env, ["Member-RR-Primitive"])
+                    RecParAST rp mv1 -> ([(RecParAST rp mv1, e)], env, ["Member-RR-RecPar"])
                     -- anything else?
                     _ -> ([], env, ["Member RR"])
             _ -> ([], env, ["Member RR"])
@@ -513,9 +522,7 @@ fillTemplates funName exp tem env n =
                           (res1, env2, err1) = fillTemplates funName e2 t' env1 (n+1)
                       in 
                         case res1 of 
-                          -- if the first one is empty, return the second
                           [] -> ([], env2, err1 ++ ["EsacVV res1 empty"])
-                          -- else, add them together
                           _ -> (map (\(x, y) -> (VariantAST mv [(f', mv', t')], y)) res1, env2, err1)
             -- not a variant, problem.
             _ -> ([], env, ["Case not a variant"])
@@ -578,7 +585,7 @@ fillTemplates funName exp tem env n =
         _ -> ([], env, ["EsacM only covers var and member exps"])
     -- _ -> ([], env)
 
-envExists :: Expr -> Env -> Bool 
+envExists :: Expr -> Env -> Bool
 envExists exp env = 
   case find (\x -> x == exp) (exprEnv env) of 
     Just _ -> True
@@ -590,10 +597,6 @@ envAdd exp env =
     True -> env 
     False -> let env1 = (env {exprEnv = exp:(exprEnv env)})
           in env1
-
--- Helper functions:
--- Expression exists inside environment
--- Add expression to environment
 
 -- fill :: FunName -> Expr -> Env -> Int -> Template -> Template -> [(Template, Template)]
 -- fill f exp env n ft pt = case exp of
