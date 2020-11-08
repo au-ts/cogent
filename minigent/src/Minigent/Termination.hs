@@ -274,7 +274,7 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
           let (funName, b) = fst $ runFresh unifVars (init' f x e ty)
               measure = buildMeasure ty []
               template = buildTemplate ty
-              (templates, env, err) = fillTemplates funName e template (envAdd (Var "r") emptyEnv) 0
+              (templates, env, err) = fst $ runFresh unifVars $ fillTemplates funName e template (envAdd (Var "r") emptyEnv) 0
               recursiveCalls = getRecursiveCalls f e
               -- (b', t, mt) = split e template
               msg = ("\n\nExpression:\n"
@@ -285,7 +285,6 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
                     ++ show templates ++ "-------\n\nEnv:\n"
                     ++ show env ++ "-------\n\nErr:\n"
                     ++ show err)
-                    -- ++ show (b', t, mt) ++ "-------\n\n")
               errs' = case b of 
                         True -> ((show "terminates") ++ msg) : errs
                         _ -> ((show "fails terminates") ++ msg) : errs
@@ -320,89 +319,129 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
 
 -- ASSUMPTIONS:
 -- Case e1s: only contain Var v or Member e f expressions.
-fillTemplates :: FunName -> Expr -> Template -> Env -> Int -> ([(Template, Expr)], Env, [Error])
+
+fillTemplateHelper :: [(Template, Expr)] -> Template -> Env -> [Error] -> FreshVar -> Int -> ([(Template, Expr)], Env, [Error])
+fillTemplateHelper [] tem env err fvar n = ([], env, err)
+fillTemplateHelper ((t, e):ts) tem env err fvar n = 
+  let (res, env1, err1) = fillTemplateHelper ts tem env err fvar (n+1)
+  in
+    case t of 
+      RecordAST mv [(f', mv', x)] -> 
+        let alpha = fvar ++ show n
+            res' = (RecordAST (Just alpha) [(f', mv', tem)], e)
+            -- add alpha to the env 
+        in (res':res, env, err ++ err1 ++ ["helper func"])
+      RecursiveRecordAST rp mv [(f', mv', x)] ->
+        let alpha = fvar ++ show n 
+            res' = (RecursiveRecordAST rp (Just alpha) [(f', mv', tem)], e)
+            -- add alpha to env 
+        in (res':res, env, err ++ err1 ++ ["helper func"])
+      VariantAST mv [(f', mv', x)] ->
+        let alpha = fvar ++ show n 
+            res' = (VariantAST (Just alpha) [(f', mv', tem)], e)
+            -- add alpha to env
+        in (res':res, env, err ++ err1 ++ ["helper func"])
+      _ -> ([], env, ["Helper: template does not match"])
+
+fillTemplates :: FunName -> Expr -> Template -> Env -> Int -> Fresh VarName ([(Template, Expr)], Env, [Error])
 fillTemplates funName exp tem env n = 
   case exp of 
     PrimOp op (e:es) -> case es of 
-      [x] -> 
-        let (res1, env1, err1) = fillTemplates funName e tem env n
-            (res2, env2, err2) = fillTemplates funName x tem env n
-        in (res1 ++ res2, env2, err1 ++ err2 ++ ["hi"])
+      [x] -> do
+          (res1, env1, err1) <- fillTemplates funName e tem env n
+          (res2, env2, err2) <- fillTemplates funName x tem env n
+          return (res1 ++ res2, env2, err1 ++ err2)
       _ -> fillTemplates funName e tem env n
-    Literal _ -> ([], env, ["Empty Lit"])
+    Literal _ -> return ([], env, ["Empty Lit"])
     Var y -> 
       -- if it doesn't exist, add to env. Maybe unnecessary?
       let env1 = envAdd (Var y) env
-      in ([], env1, ["Empty Var"])-- do we need to add to env .. surely not? If we do, we do it already.. 
-    Con c e -> ([], env, ["Empty Con"]) -- CHECK THIS LATER
-    TypeApp f ts -> ([], env, ["Empty TypeApp"])
-    Sig e t -> ([], env, ["Empty Sig"]) -- ???
+      in return ([], env1, ["Empty Var"])
+    Con c e -> return ([], env, ["Empty Con"]) -- CHECK THIS LATER
+    TypeApp f ts -> return ([], env, ["Empty TypeApp"])
+    Sig e t -> return ([], env, ["Empty Sig"]) -- ???
     Apply e1 e2 -> case e1 of 
       TypeApp f ts -> 
-        if f == funName then 
-          let env1 = envAdd e2 env 
-              -- consider unfolding more than once?
-          in ([(RecParAST "t" Nothing, e2)], env1, [])
-          -- in fillTemplates funName e2 tem env1 (n+1)
-        else ([], env, ["TypeApp: not the recursive function"])         
-        -- else ([(RecParAST "t" Nothing, e2)], env, ["TypeApp Error"])
-    Struct [(fieldname, e)] -> ([], env, ["Empty Struct"])
-    If e1 e2 e3 -> ([], env, ["Empty If"])
-    Let v e1 e2 -> ([], env, ["Empty Let"])
-    LetBang vs v e1 e2 -> ([], env, ["Empty LetBang"])
+        if f == funName then do
+          -- check the arg
+          let env1 = envAdd e2 env
+          (res1, env2, err1) <- fillTemplates funName e2 tem env1 n
+          alpha <- fresh
+          return $ 
+            case res1 of 
+              [] -> case tem of 
+                RecParAST rp mv -> ([(RecParAST "t" (Just alpha), e2)], env1, err1)
+                _ -> ([], env2, err1 ++ ["Error: Apply not happening on RP"])
+              _ -> (res1, env2, err1) 
+        else return ([], env, ["TypeApp: not the recursive function"])
+    Struct [(fieldname, e)] -> return ([], env, ["Empty Struct"])
+    If e1 e2 e3 -> return ([], env, ["Empty If"])
+    Let v e1 e2 -> return ([], env, ["Empty Let"])
+    LetBang vs v e1 e2 -> return ([], env, ["Empty LetBang"])
     Take v1 f v2 e1 e2 -> 
       -- check that e1 is the correct record ?
       case tem of 
         RecordAST mv xs -> 
           case find (\(f', mv', t') -> f == f') xs of 
-            Nothing -> ([], env, ["Take R Empty"])
-            Just (f', mv', t') -> 
+            Nothing -> return ([], env, ["Take R Empty"])
+            Just (f', mv', t') -> do
+              alpha <- fresh
               let env1 = envAdd (Var v2) env
-                  (res1, env2, err1) = fillTemplates funName e2 t' env1 (n+1)
-              in case res1 of
+              (res1, env2, err1) <- fillTemplates funName e2 t' env1 (n+1)
+              return $ case res1 of
                 -- if res1 is empty, then take res2
                 [] -> ([], env2, err1 ++ ["Take R"])
-                _ -> (map (\(x, y) -> (RecordAST mv [(f', mv', x)], y)) res1, env2, err1)
+                _ -> fillTemplateHelper res1 (RecordAST mv [(f', mv', t')]) env2 err1 alpha 0
+                -- _ -> (map (\(x, y) -> (RecordAST mv [(f', mv', t')], y)) res1, env2, err1)
         RecursiveRecordAST rp mv xs -> 
           -- check that e1 exists in the env as well.
           case find (\(f', mv', t') -> f == f') xs of 
-            Nothing -> ([], env, ["Take RR Empty"])
-            Just (f', mv', t') -> 
+            Nothing -> return ([], env, ["Take RR Empty"])
+            Just (f', mv', t') -> do
+              alpha <- fresh
               let env1 = envAdd (Var v2) env
                   xs' = delete (f', mv', t') xs
-                  (res1, env2, err1) = fillTemplates funName e2 t' env1 (n+1)
-              in case res1 of
+              (res1, env2, err1) <- fillTemplates funName e2 t' env1 (n+1)
+              return $ case res1 of
                 [] -> ([], env2, err1 ++ ["Take RR"])
-                _ -> (map (\(x, y) -> (RecursiveRecordAST rp mv [(f', mv', x)], y)) res1, env2, err1)
-                -- _ -> ((map (\(x, y) -> (RecursiveRecordAST rp mv [(f', mv', x)], y)) res1) ++ res2, env3, err1 ++ err2)
-        _ -> ([], env, ["Take Error"]) -- Error, as we should only be seeing a record when taking ?
-    Put e1 f e2 -> ([], env, ["Empty Put"])
+                _ -> fillTemplateHelper res1 (RecursiveRecordAST rp mv [(f', mv', t')]) env2 err1 alpha 0
+                -- _ -> (traverse
+                --       (\(x, y) -> do
+                --         alpha <- fresh
+                --         (RecursiveRecordAST rp alpha [(f', mv', x)], y)) res1, env2, err1)
+                -- _ -> (map (\(x, y) -> (RecursiveRecordAST rp mv [(f', mv', x)], y)) res1, env2, err1)
+        _ -> return ([], env, ["Take Error"]) -- Error, as we should only be seeing a record when taking ?
+    Put e1 f e2 -> return ([], env, ["Empty Put"])
     Member e f ->
       -- check that e exists inside the thing. 
       case envExists e env of 
-        False -> ([], env, ["Member e does not exist"])
+        False -> return ([], env, ["Member e does not exist"])
         True -> 
           case tem of 
           -- check for records. this doesn't continue bc no expression to work on.
             RecordAST mv xs -> 
               case find (\(f', mv', t') -> f == f') xs of 
-                Nothing -> ([], env, ["Member R:" ++ f ++ " missing"])
+                Nothing -> return ([], env, ["Member R:" ++ f ++ " missing"])
                 Just (f', mv', t') ->
                   case t' of 
-                    PrimitiveAST mv1 -> ([], env, ["Member R Primitive"])
-                    RecParAST rp mv1 -> ([(RecParAST rp mv1, e)], env, ["Member R RecPar"])
+                    PrimitiveAST mv1 -> return ([], env, ["Member R Primitive"])
+                    RecParAST rp mv1 -> do 
+                      alpha <- fresh
+                      return ([(RecordAST mv [(f', mv', RecParAST rp (Just alpha))], e)], env, ["Member R RecPar"])
                     -- anything else?
-                    _ -> ([], env, ["Member R Other"])
+                    _ -> return ([], env, ["Member R Other"])
             RecursiveRecordAST rp mv xs -> 
               case find (\(f', mv', t') -> f == f') xs of 
-                Nothing -> ([], env, ["Member RR"])
+                Nothing -> return ([], env, ["Member RR"])
                 Just (f', mv', t') ->
                   case t' of 
-                    PrimitiveAST mv1 -> ([], env, ["Member-RR-Primitive"])
-                    RecParAST rp mv1 -> ([(RecParAST rp mv1, e)], env, ["Member-RR-RecPar"])
+                    PrimitiveAST mv1 -> return ([], env, ["Member-RR-Primitive"])
+                    RecParAST rp mv1 -> do 
+                      alpha <- fresh
+                      return ([(RecursiveRecordAST rp mv [(f', mv', RecParAST rp (Just alpha))], e)], env, ["Member-RR-RecPar"])
                     -- anything else?
-                    _ -> ([], env, ["Member RR"])
-            _ -> ([], env, ["Member RR"])
+                    _ -> return ([], env, ["Member RR"])
+            _ -> return ([], env, ["Member RR"])
     Case e1 c v1 e2 v2 e3 -> 
       case e1 of 
         Var v -> 
@@ -410,97 +449,94 @@ fillTemplates funName exp tem env n =
             VariantAST mv xs -> 
               -- check what v is inside the environment.
               case envExists (Var v) env of 
-                False -> ([], env, ["Case V does not exist"])
+                False -> return ([], env, ["Case V does not exist"])
                 True -> 
                   -- if OK, add v1 into the env, get results for e2 and e3.
                   -- find the matching ConName + template, try it. 
                   -- Try on the others and then combine.
                   -- Match on the ConName
                   case find (\(f', mv', t') -> c == f') xs of 
-                    Nothing -> ([], env, ["Case V"]) -- error; we should always be able to find a match in the variant list from the template.
-                    Just (f', mv', t') ->
+                    Nothing -> return ([], env, ["Case V"]) -- error; we should always be able to find a match in the variant list from the template.
+                    Just (f', mv', t') -> do
                       -- try on e2
                       let env1 = envAdd (Var v2) env
-                          (res1, env2, err1) = fillTemplates funName e2 t' env1 (n+1)
-                          -- remove the match from the variant list
                           xs' = delete (f', mv', t') xs
+                      (res1, env2, err1) <- fillTemplates funName e2 t' env1 (n+1)
+                          -- remove the match from the variant list
                           -- try the variant stuff on e3
-                          (res2, env3, err2) = fillTemplates funName e3 (VariantAST mv xs') env2 n
-                      in 
-                        case res1 of 
-                          -- if the first one is empty, return the second
-                          [] -> (res2, env3, err1 ++ err2)
-                          -- else, add them together
-                          _ -> 
-                            let res3 = map (\(x, y) -> (VariantAST mv [(f', mv', t')], y)) res1
-                            in (res2 ++ res3, env3, err1 ++ err2)
+                      (res2, env3, err2) <- fillTemplates funName e3 (VariantAST mv xs') env2 n
+                      return $ case res1 of 
+                        -- if the first one is empty, return the second
+                        [] -> (res2, env3, err1 ++ err2)
+                        -- else, add them together
+                        _ ->
+                          let res3 = map (\(x, y) -> (VariantAST mv [(f', mv', x)], y)) res1
+                          in (res2 ++ res3, env3, err1 ++ err2)
             -- not a variant, problem.
-            _ -> ([], env, ["Case error: not V"])
+            _ -> return ([], env, ["Case error: not V"])
         Member e4 f -> 
           case tem of
             -- unpack the record.
             RecordAST mv xs ->
               case find (\(f', mv', t') -> f == f') xs of 
-                Nothing -> ([], env, ["Case-MR"])
+                Nothing -> return ([], env, ["Case-MR"])
                 Just (f', mv', t') ->
                   -- the leftover thing _should_ be a variant (for casing on) 
                   case t' of
                     VariantAST mv1 xs1 ->
                       -- match the variant with the ConName and try.
                       case find (\(f'', mv'', t'') -> c == f'') xs1 of 
-                        Nothing -> ([], env, ["Case-MRV error"]) -- error; we should always be able to find a match in the variant list.
-                        Just (f'', mv'', t'') -> 
+                        Nothing -> return ([], env, ["Case-MRV error"]) -- error; we should always be able to find a match in the variant list.
+                        Just (f'', mv'', t'') -> do
                           -- try on e2 
                           -- add v2 into the env
                           let env1 = envAdd (Var v2) env
-                              (res1, env2, err1) = fillTemplates funName e2 t''   env1 (n+1) 
                               xs1' = delete (f'', mv'', t'') xs1 
-                              (res2, env3, err2) = fillTemplates funName e3 (VariantAST mv xs1') env2 n
-                          in
-                            case res1 of
+                          (res1, env2, err1) <- fillTemplates funName e2 t''   env1 (n+1) 
+                          (res2, env3, err2) <- fillTemplates funName e3 (VariantAST mv xs1') env2 n
+                          return $ case res1 of
                               [] -> (res2, env3, err1 ++ err2)
                               _ ->
                                 -- wrap in variant for res1
                                 -- wrap in record for all.
-                                let res3 = map (\(x, y) -> (VariantAST mv1 [(f', mv', t')], y)) res1 
+                                let res3 = map (\(x, y) -> (VariantAST mv1 [(f', mv', x)], y)) res1 
                                     res4 = map (\(x, y) -> (RecordAST mv [(f', mv', x)], y)) (res2 ++ res3)
                                 in (res4, env3, err1 ++ err2)
                     -- Error, we should always be seeing a variant template here.
-                    _ -> ([], env, ["Case-MRV error not V"])
+                    _ -> return ([], env, ["Case-MRV error not V"])
             RecursiveRecordAST rp mv xs ->
               case find (\(f', mv', t') -> f == f') xs of 
-                Nothing -> ([], env, ["Case-MRR"])
+                Nothing -> return ([], env, ["Case-MRR"])
                 Just (f', mv', t') ->
                   -- the leftover thing _should_ be a variant (for casing on) 
                   case t' of
                     VariantAST mv1 xs1 ->
                       -- match the variant with the ConName and try.
                       case find (\(f'', mv'', t'') -> c == f'') xs1 of 
-                        Nothing -> ([], env, ["Case-MRRV"]) -- error; we should always be able to find a match in the variant list.
-                        Just (f'', mv'', t'') -> 
+                        Nothing -> return ([], env, ["Case-MRRV"]) -- error; we should always be able to find a match in the variant list.
+                        Just (f'', mv'', t'') -> do
                           -- try on e2 
                           let env1 = envAdd (Var v2) env 
-                              (res1, env2, err1) = fillTemplates funName e2 t'' env1 (n+1) 
                               xs1' = delete (f'', mv'', t'') xs1 
-                              (res2, env3, err2) = fillTemplates funName e3 (VariantAST mv xs1') env2 n
-                          in 
-                            case res1 of 
-                              [] ->
-                                -- wrap res2 inside a record.
-                                let res3 = map (\(x, y) -> (RecursiveRecordAST rp mv [(f', mv', x)], y)) res2 
-                                in (res3, env3, err1 ++ err2 ++ ["Case-MRRV no res1"])
-                              _ -> 
-                                -- wrap in variant for res1
-                                -- wrap in record for all.
-                                let res3 = map (\(x, y) -> (VariantAST mv1 [(f', mv', t')], y)) res1 
-                                    res4 = map (\(x, y) -> (RecursiveRecordAST rp mv [(f', mv', x)], y)) (res2 ++ res3)
-                                in (res4, env3, err1 ++ err2)
+                          (res1, env2, err1) <- fillTemplates funName e2 t'' env1 (n+1)     
+                          (res2, env3, err2) <- fillTemplates funName e3 (VariantAST mv xs1') env2 n
+                          return $ case res1 of 
+                            [] ->
+                              -- wrap res2 inside a record.
+                              let res3 = map (\(x, y) -> (RecursiveRecordAST rp mv [(f', mv', x)], y)) res2 
+                              in (res3, env3, err1 ++ err2 ++ ["Case-MRRV no res1"])
+                            _ -> 
+                              -- wrap in variant for res1
+                              -- wrap in record for all.
+                              let res3 = map (\(x, y) -> (VariantAST mv1 [(f', mv', x)], y)) res1 
+                                  res4 = map (\(x, y) -> (RecursiveRecordAST rp mv [(f', mv', x)], y)) (res2 ++ res3)
+                              in (res4, env3, err1 ++ err2)
                     -- Error, we should always be seeing a variant template here.
-                    _ -> ([], env, ["Case-MRRV error no V"])
+                    _ -> return ([], env, ["Case-MRRV error no V"])
             -- Member is neither a R or RR, problem.
-            _ -> ([], env, ["CaseM isn't R or RR"])  
+            _ -> return ([], env, ["CaseM isn't R or RR"])  
         -- case and esac only cover var and member expressions
-        _ -> ([], env, ["Case only covers Var and Member exps"])
+        _ -> return ([], env, ["Case only covers Var and Member exps"])
     Esac e1 c v1 e2 -> 
       case e1 of 
         Var v -> 
@@ -508,82 +544,79 @@ fillTemplates funName exp tem env n =
             VariantAST mv xs -> 
               -- check what v1 is inside the environment.
               case envExists (Var v) env of 
-                False -> ([], env, ["EsacVV does not exist"])
+                False -> return ([], env, ["EsacVV does not exist"])
                 True -> 
                   -- if OK, add v1 into the env, get results for e2 and e3.
                   -- find the matching ConName + template, try it. 
                   -- Try on the others and then combine.
                   -- Match on the ConName
                   case find (\(f', mv', t') -> c == f') xs of 
-                    Nothing -> ([], env, ["EsacVV"]) -- error; we should always be able to find a match in the variant list from the template.
-                    Just (f', mv', t') ->
+                    Nothing -> return ([], env, ["EsacVV"]) -- error; we should always be able to find a match in the variant list from the template.
+                    Just (f', mv', t') -> do
                       -- try on e2
                       let env1 = envAdd (Var v1) env 
-                          (res1, env2, err1) = fillTemplates funName e2 t' env1 (n+1)
-                      in 
-                        case res1 of 
-                          [] -> ([], env2, err1 ++ ["EsacVV res1 empty"])
-                          _ -> (map (\(x, y) -> (VariantAST mv [(f', mv', t')], y)) res1, env2, err1)
+                      (res1, env2, err1) <- fillTemplates funName e2 t' env1 (n+1)
+                      return $ case res1 of 
+                        [] -> ([], env2, err1 ++ ["EsacVV res1 empty"])
+                        _ -> (map (\(x, y) -> (VariantAST mv [(f', mv', x)], y)) res1, env2, err1)
             -- not a variant, problem.
-            _ -> ([], env, ["Case not a variant"])
+            _ -> return ([], env, ["Case not a variant"])
         Member e4 f -> 
           case tem of
             -- unpack the record.
             RecordAST mv xs ->
               case find (\(f', mv', t') -> f == f') xs of 
-                Nothing -> ([], env, ["EsacMR"])
+                Nothing -> return ([], env, ["EsacMR"])
                 Just (f', mv', t') ->
                   -- the leftover thing _should_ be a variant (for casing on) 
                   case t' of
                     VariantAST mv1 xs1 ->
                       -- match the variant with the ConName and try.
                       case find (\(f'', mv'', t'') -> c == f'') xs1 of 
-                        Nothing -> ([], env, ["Case-MV no match"]) -- error; we should always be able to find a match in the variant list.
-                        Just (f'', mv'', t'') -> 
+                        Nothing -> return ([], env, ["Case-MV no match"]) -- error; we should always be able to find a match in the variant list.
+                        Just (f'', mv'', t'') -> do
                           -- try on e2 
                           let env1 = envAdd (Var v1) env
-                              (res1, env2, err1) = fillTemplates funName e2 t'' env1 (n+1) 
-                          in 
-                            case res1 of 
-                              [] -> ([], env2, err1 ++ ["EsacMR"])
-                              _ -> 
-                                -- wrap in variant for res1
-                                -- wrap in record for all.
-                                let res2 = map (\(x, y) -> (VariantAST mv1 [(f', mv', t')], y)) res1 
-                                    res3 = map (\(x, y) -> (RecordAST mv [(f', mv', x)], y)) res2
-                                in (res3, env2, err1)
+                          (res1, env2, err1) <- fillTemplates funName e2 t'' env1 (n+1) 
+                          return $ case res1 of 
+                            [] -> ([], env2, err1 ++ ["EsacMR"])
+                            _ -> 
+                              -- wrap in variant for res1
+                              -- wrap in record for all.
+                              let res2 = map (\(x, y) -> (VariantAST mv1 [(f', mv', x)], y)) res1 
+                                  res3 = map (\(x, y) -> (RecordAST mv [(f', mv', x)], y)) res2
+                              in (res3, env2, err1 ++ ["hi, esac"])
                     -- Error, we should always be seeing a variant template here.
-                    _ -> ([], env, ["Case-M no variant"])
+                    _ -> return ([], env, ["Case-M no variant"])
             RecursiveRecordAST rp mv xs ->
               case find (\(f', mv', t') -> f == f') xs of 
-                Nothing -> ([], env, ["EsacMRR"])
-                Just (f', mv', t') ->
+                Nothing -> return ([], env, ["EsacMRR"])
+                Just (f', mv', t') -> 
                   -- the leftover thing _should_ be a variant (for casing on) 
                   case t' of
                     VariantAST mv1 xs1 ->
                       -- match the variant with the ConName and try.
                       case find (\(f'', mv'', t'') -> c == f'') xs1 of 
-                        Nothing -> ([], env, ["EsacMRRV"]) -- error; we should always be able to find a match in the variant list.
-                        Just (f'', mv'', t'') -> 
+                        Nothing -> return ([], env, ["EsacMRRV"]) -- error; we should always be able to find a match in the variant list.
+                        Just (f'', mv'', t'') -> do
                           -- try on e2 
                           let env1 = envAdd (Var v1) env 
-                              (res1, env2, err1) = fillTemplates funName e2 t'' env1 (n+1) 
-                          in 
-                            case res1 of 
-                              [] -> ([], env2, err1 ++ ["EsacMRRV"])
-                              _ -> 
-                                -- wrap in variant for res1
-                                -- wrap in record for all.
-                                let res2 = map (\(x, y) -> (VariantAST mv1 [(f', mv', t')], y)) res1 
-                                    res3 = map (\(x, y) -> (RecursiveRecordAST rp mv [(f', mv', x)], y)) res2
-                                in (res3, env2, err1)
+                          (res1, env2, err1) <- fillTemplates funName e2 t'' env1 (n+1) 
+                          return $ case res1 of 
+                            [] -> ([], env2, err1 ++ ["EsacMRRV"])
+                            _ -> 
+                              -- wrap in variant for res1
+                              -- wrap in record for all.
+                              let res2 = map (\(x, y) -> (VariantAST mv1 [(f', mv', x)], y)) res1 
+                                  res3 = map (\(x, y) -> (RecursiveRecordAST rp mv [(f', mv', x)], y)) res2
+                              in (res3, env2, err1)
                     -- Error, we should always be seeing a variant template here.
-                    _ -> ([], env, ["EsacMRR Error"])
+                    _ -> return ([], env, ["EsacMRR Error"])
             -- Member is neither a R or RR, problem.
-            _ -> ([], env, ["EsacM is neither R nor RR"])  
+            _ -> return ([], env, ["EsacM is neither R nor RR"])  
         -- case and esac only cover var and member expressions
-        _ -> ([], env, ["EsacM only covers var and member exps"])
-    -- _ -> ([], env)
+        _ -> return ([], env, ["EsacM only covers var and member exps"])
+    _ -> return ([], env, ["Expr did not match"])
 
 envExists :: Expr -> Env -> Bool
 envExists exp env = 
@@ -592,73 +625,11 @@ envExists exp env =
     Nothing -> False
 
 envAdd :: Expr -> Env -> Env
-envAdd exp env = 
+envAdd exp env =   
   case envExists exp env of 
     True -> env 
     False -> let env1 = (env {exprEnv = exp:(exprEnv env)})
           in env1
-
--- fill :: FunName -> Expr -> Env -> Int -> Template -> Template -> [(Template, Template)]
--- fill f exp env n ft pt = case exp of
---     -- TODO
---     PrimOp op (x:xs) ->
---       let res' = fill f x env (n+1) ft pt
---       in 
---         case xs of 
---           [y] -> res' ++ (fill f y env (n+1) ft pt)
---           _ -> res'
---     Literal v -> []
---     Var v -> []
---     Con c e -> fill f e env (n+1) ft pt 
---     TypeApp f ts -> []
---     Sig e t' -> fill f e env n ft pt
---     Apply e1 e2 -> 
---       -- If you see a recursive call, add to the results list.
---       case e1 of 
---         TypeApp funName ts -> 
---           if funName == f then
---             -- check up on e2 as a type?? Maybe - TO DO.
---             -- fill in the templates with stuff as well. Resolve e2 
---             [(pt, ft)] -- Add in the var names tho.
---           else []
---         _ -> []
-
---     Struct fs -> [] -- TODO
---     If e1 e2 e3 -> 
---       let res1 = fill f e1 env (n+1) ft pt 
---           res2 = fill f e2 env (n+1) ft pt
---           res3 = fill f e3 env (n+1) ft pt 
---       in res1 ++ res2 ++ res3
---     Let v e1 e2 -> 
---       let res1 = fill f e1 env (n+1) ft pt 
---           res2 = fill f e2 env (n+1) ft pt
---       in res1 ++ res2
---     LetBang vs v e1 e2 ->
---       let res1 = fill f e1 env (n+1) ft pt 
---           res2 = fill f e2 env (n+1) ft pt
---       in res1 ++ res2
---     Take v1 f' v2 e1 e2 -> 
---       let res1 = fill f e1 env (n+1) ft pt 
---           res2 = fill f e2 env (n+1) ft pt
---       in res1 ++ res2
---     Put e1 f e2 -> fill f e1 env (n+1) ft pt
---     Member e' f' -> fill f e' env (n+1) ft pt
---     Case e1 c v1 e2 v2 e3 -> case split e1 pt of 
---       (False, _, _) -> [] -- means it is irrelevant to our thing?? 
---       (True, x, Nothing) -> [] -- umm, templates should not have ended??
---       (True, x, Just y) -> -- eg Member, Var, etc.
---         -- Try both branches.
---         let res2 = fill f e2 env (n+1) ft y
---             res3 = fill f e3 env (n+1) ft y
---         -- TODO: STICK THEM BACK TOGETHER.
---         in res2 ++ res3
---       -- Split up the partial template.
---     Esac e1 c v e2 -> case split e1 pt of 
---       (False, _, _) -> []
---       (True, x, Nothing) -> []
---       -- TODO: STITCH BACK TGT.
---       (True, x, Just y) -> fill f e2 env (n+1) ft pt
---     _ -> []
 
 -- split :: Expr -> Template -> (Bool, Template, Maybe Template)
 -- split exp t = case exp of 
