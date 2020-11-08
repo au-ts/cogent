@@ -276,7 +276,6 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
               template = buildTemplate ty
               (templates, env, err) = fst $ runFresh unifVars $ fillTemplates funName e template (envAdd (Var "r") emptyEnv) 0
               recursiveCalls = getRecursiveCalls f e
-              -- (b', t, mt) = split e template
               msg = ("\n\nExpression:\n"
                     ++ show e ++ "-------\n\nRecursive Calls:\n" 
                     ++ show recursiveCalls ++ "-------\n\nMeasures:\n"
@@ -330,6 +329,7 @@ fillTemplateHelper ((t, e):ts) tem env err fvar n =
       RecordAST mv [(f', mv', x)] -> 
         let alpha = fvar ++ show n
             res' = (RecordAST (Just alpha) [(f', mv', t)], e)
+            -- env1 = envAddFresh (alpha, )
             -- add alpha to the env 
         in (res':res, env, err ++ err1 ++ ["helper func"])
       RecursiveRecordAST rp mv [(f', mv', x)] ->
@@ -371,9 +371,9 @@ fillTemplates funName exp tem env n =
           return $ 
             case res1 of 
               [] -> case tem of 
-                RecParAST rp mv -> ([(RecParAST "t" (Just alpha), e2)], env1, err1)
+                RecParAST rp mv -> ([(RecParAST rp (Just alpha), e2)], (envAddFresh [(alpha, e2)] env1), err1)
                 _ -> ([], env2, err1 ++ ["Error: Apply not happening on RP"])
-              _ -> (res1, env2, err1) 
+              _ -> (res1, env2, err1)
         else return ([], env, ["TypeApp: not the recursive function"])
     Struct [(fieldname, e)] -> return ([], env, ["Empty Struct"])
     If e1 e2 e3 -> return ([], env, ["Empty If"])
@@ -392,7 +392,7 @@ fillTemplates funName exp tem env n =
               return $ case res1 of
                 -- if res1 is empty, then take res2
                 [] -> ([], env2, err1 ++ ["Take R"])
-                _ -> fillTemplateHelper res1 (RecordAST mv [(f', mv', t')]) env2 err1 alpha 0
+                _ -> fillTemplateHelper res1 (RecordAST mv [(f', mv', t')]) (envAddFresh [(alpha, Var v2)] env2) err1 alpha 0
         RecursiveRecordAST rp mv xs -> 
           -- check that e1 exists in the env as well.
           case find (\(f', mv', t') -> f == f') xs of 
@@ -402,9 +402,9 @@ fillTemplates funName exp tem env n =
               let env1 = envAdd (Var v2) env
                   xs' = delete (f', mv', t') xs
               (res1, env2, err1) <- fillTemplates funName e2 t' env1 (n+1)
-              return $ case res1 of
+              return $ case res1 of 
                 [] -> ([], env2, err1 ++ ["Take RR"])
-                _ -> fillTemplateHelper res1 (RecursiveRecordAST rp mv [(f', mv', t')]) env2 err1 alpha 0
+                _ -> fillTemplateHelper res1 (RecursiveRecordAST rp mv [(f', mv', t')]) (envAddFresh [(alpha, Var v2)] env2) err1 alpha 0
         _ -> return ([], env, ["Take Error"]) -- Error, as we should only be seeing a record when taking ?
     Put e1 f e2 -> return ([], env, ["Empty Put"])
     Member e f ->
@@ -422,7 +422,9 @@ fillTemplates funName exp tem env n =
                     PrimitiveAST mv1 -> return ([], env, ["Member R Primitive"])
                     RecParAST rp mv1 -> do 
                       alpha <- fresh
-                      return ([(RecordAST mv [(f', mv', RecParAST rp (Just alpha))], e)], env, ["Member R RecPar"])
+                      beta <- fresh
+                      gamma <- fresh
+                      return ([(RecordAST (Just gamma) [(f', Just beta, RecParAST rp (Just alpha))], e)], (envAddFresh [(alpha, (Member e f)), (beta, (Member e f)), (gamma, e)] env), ["Member R RecPar"])
                     -- anything else?
                     _ -> return ([], env, ["Member R Other"])
             RecursiveRecordAST rp mv xs -> 
@@ -433,7 +435,9 @@ fillTemplates funName exp tem env n =
                     PrimitiveAST mv1 -> return ([], env, ["Member-RR-Primitive"])
                     RecParAST rp mv1 -> do 
                       alpha <- fresh
-                      return ([(RecursiveRecordAST rp mv [(f', mv', RecParAST rp (Just alpha))], e)], env, ["Member-RR-RecPar"])
+                      beta <- fresh
+                      gamma <- fresh
+                      return ([(RecursiveRecordAST rp (Just gamma) [(f', (Just beta), RecParAST rp (Just alpha))], e)], (envAddFresh [(alpha, (Member e f)), (beta, (Member e f)), (gamma, e)] env), ["Member-RR-RecPar"])
                     -- anything else?
                     _ -> return ([], env, ["Member RR"])
             _ -> return ([], env, ["Member RR"])
@@ -453,12 +457,11 @@ fillTemplates funName exp tem env n =
                   case find (\(f', mv', t') -> c == f') xs of 
                     Nothing -> return ([], env, ["Case V"]) -- error; we should always be able to find a match in the variant list from the template.
                     Just (f', mv', t') -> do
-                      -- try on e2
                       let env1 = envAdd (Var v2) env
                           xs' = delete (f', mv', t') xs
+                      -- try on e2
                       (res1, env2, err1) <- fillTemplates funName e2 t' env1 (n+1)
-                          -- remove the match from the variant list
-                          -- try the variant stuff on e3
+                      -- try on e3 with the match removed from the variant list
                       (res2, env3, err2) <- fillTemplates funName e3 (VariantAST mv xs') env2 n
                       alpha <- fresh
                       return $ case res1 of 
@@ -466,7 +469,8 @@ fillTemplates funName exp tem env n =
                         [] -> (res2, env3, err1 ++ err2)
                         -- else, add them together
                         _ ->
-                          let (res3, env4, err3) = fillTemplateHelper res1 (VariantAST mv [(f', mv', t')]) env3 (err1 ++ err2) alpha 0
+                          -- add alpha:e1 into env, as e1 is the variant exp (the thing we are casing on)
+                          let (res3, env4, err3) = fillTemplateHelper res1 (VariantAST mv [(f', mv', t')]) (envAddFresh [(alpha, e1)] env3) (err1 ++ err2) alpha 0
                           in (res2 ++ res3, env4, err3)
             -- not a variant, problem.
             _ -> return ([], env, ["Case error: not V"])
@@ -488,24 +492,30 @@ fillTemplates funName exp tem env n =
                           -- add v2 into the env
                           let env1 = envAdd (Var v2) env
                               xs1' = delete (f'', mv'', t'') xs1 
-                          (res1, env2, err1) <- fillTemplates funName e2 t''   env1 (n+1) 
+                          (res1, env2, err1) <- fillTemplates funName e2 t'' env1 (n+1) 
                           (res2, env3, err2) <- fillTemplates funName e3 (VariantAST mv xs1') env2 n
-                          alpha <- fresh
-                          beta <- fresh
+                          alpha <- fresh -- for variant e1
+                          beta <- fresh -- for record e4
                           return $ case res1 of
-                              [] -> (res2, env3, err1 ++ err2)
+                              [] -> 
+                                -- wrap in record for res2
+                                -- add beta:e4 to the env, as that's the record we took from.
+                                fillTemplateHelper res2 (RecordAST mv [(f', mv', t')]) (envAddFresh [(beta, e4)] env3) (err1 ++ err2) beta 0
+                                --(res2, env3, err1 ++ err2)
                               _ ->
                                 -- wrap in variant for res1
-                                let (res3, env4, err3) = fillTemplateHelper res1 (VariantAST mv1 [(f', mv', t')]) env3 err2 alpha 0
+                                -- add alpha:e1 to the env, as that is the variant we case on.
+                                let (res3, env4, err3) = fillTemplateHelper res1 (VariantAST mv1 [(f', mv', t')]) (envAddFresh [(alpha, e1)] env3) err2 alpha 0
                                 -- wrap in record for all.
-                                in fillTemplateHelper (res2 ++ res3) (RecordAST mv [(f', mv', t')]) env4 err3 beta 0
+                                -- add beta:e4 to the env, as that is the record that we took from.
+                                in fillTemplateHelper (res2 ++ res3) (RecordAST mv [(f', mv', t')]) (envAddFresh [(beta, e4)] env4) err3 beta 0
                     -- Error, we should always be seeing a variant template here.
                     _ -> return ([], env, ["Case-MRV error not V"])
             RecursiveRecordAST rp mv xs ->
               case find (\(f', mv', t') -> f == f') xs of 
                 Nothing -> return ([], env, ["Case-MRR"])
                 Just (f', mv', t') ->
-                  -- the leftover thing _should_ be a variant (for casing on) 
+                  -- the leftover thing _should_ be a variant (for casing on)
                   case t' of
                     VariantAST mv1 xs1 ->
                       -- match the variant with the ConName and try.
@@ -517,18 +527,18 @@ fillTemplates funName exp tem env n =
                               xs1' = delete (f'', mv'', t'') xs1 
                           (res1, env2, err1) <- fillTemplates funName e2 t'' env1 (n+1)     
                           (res2, env3, err2) <- fillTemplates funName e3 (VariantAST mv xs1') env2 n
-                          alpha <- fresh
-                          beta <- fresh
+                          alpha <- fresh -- for the variant (e1)
+                          beta <- fresh -- for the record (e4)
                           return $ case res1 of 
                             [] ->
                               -- wrap res2 inside a record.
-                              let (res3, env4, err3) = fillTemplateHelper res2 (RecursiveRecordAST rp mv [(f', mv', t')]) env3 (err1 ++ err2) alpha 0
+                              let (res3, env4, err3) = fillTemplateHelper res2 (RecursiveRecordAST rp mv [(f', mv', t')]) (envAddFresh [(alpha, e1)] env3) (err1 ++ err2) alpha 0
                               in (res3, env4, err3 ++ ["Case-MRRV no res1"])
                             _ -> 
                               -- wrap in variant for res1
-                              let (res3, env4, err3) = fillTemplateHelper res1 (VariantAST mv1 [(f'', mv'', t'')]) env3 (err1 ++ err2) alpha 0
+                              let (res3, env4, err3) = fillTemplateHelper res1 (VariantAST mv1 [(f'', mv'', t'')]) (envAddFresh [(alpha, e1)] env3) (err1 ++ err2) alpha 0
                               -- wrap in record for all.
-                              in fillTemplateHelper res3 (RecursiveRecordAST rp mv [(f', mv', t')]) env4 err3 beta 0
+                              in fillTemplateHelper res3 (RecursiveRecordAST rp mv [(f', mv', t')]) (envAddFresh [(beta, e4)] env4) err3 beta 0
                     -- Error, we should always be seeing a variant template here.
                     _ -> return ([], env, ["Case-MRRV error no V"])
             -- Member is neither a R or RR, problem.
@@ -554,10 +564,10 @@ fillTemplates funName exp tem env n =
                       -- try on e2
                       let env1 = envAdd (Var v1) env 
                       (res1, env2, err1) <- fillTemplates funName e2 t' env1 (n+1)
-                      alpha <- fresh
+                      alpha <- fresh -- for the variant e1
                       return $ case res1 of 
                         [] -> ([], env2, err1 ++ ["EsacVV res1 empty"])
-                        _ -> fillTemplateHelper res1 (VariantAST mv [(f', mv', t')]) env2 err1 alpha 0
+                        _ -> fillTemplateHelper res1 (VariantAST mv [(f', mv', t')]) (envAddFresh [(alpha, e1)] env2) err1 alpha 0
             -- not a variant, problem.
             _ -> return ([], env, ["Case not a variant"])
         Member e4 f -> 
@@ -577,15 +587,15 @@ fillTemplates funName exp tem env n =
                           -- try on e2 
                           let env1 = envAdd (Var v1) env
                           (res1, env2, err1) <- fillTemplates funName e2 t'' env1 (n+1) 
-                          alpha <- fresh
-                          beta <- fresh
+                          alpha <- fresh -- for the variant e1
+                          beta <- fresh -- for the record e4
                           return $ case res1 of 
                             [] -> ([], env2, err1 ++ ["EsacMR"])
                             _ -> 
                               -- wrap in variant for res1
-                              let (res2, env3, err2) = fillTemplateHelper res1 (VariantAST mv1 [(f'', mv'', t'')]) env2 err1 alpha 0
+                              let (res2, env3, err2) = fillTemplateHelper res1 (VariantAST mv1 [(f'', mv'', t'')]) (envAddFresh [(alpha, e1)] env2) err1 alpha 0
                               -- wrap in record for all.
-                              in fillTemplateHelper res2 (RecordAST mv [(f', mv', t')]) env3 err2 beta 0
+                              in fillTemplateHelper res2 (RecordAST mv [(f', mv', t')]) (envAddFresh [(beta, e4)] env3) err2 beta 0
                     -- Error, we should always be seeing a variant template here.
                     _ -> return ([], env, ["Case-M no variant"])
             RecursiveRecordAST rp mv xs ->
@@ -602,16 +612,16 @@ fillTemplates funName exp tem env n =
                           -- try on e2 
                           let env1 = envAdd (Var v1) env 
                           (res1, env2, err1) <- fillTemplates funName e2 t'' env1 (n+1) 
-                          alpha <- fresh
-                          beta <- fresh
+                          alpha <- fresh -- for the variant e1
+                          beta <- fresh -- for the record e4
                           return $ case res1 of 
                             [] -> ([], env2, err1 ++ ["EsacMRRV"])
                             _ -> 
                               -- wrap in variant for res1
-                              let (res2, env3, err2) = fillTemplateHelper res1 (VariantAST mv1 [(f'', mv'', t'')]) env2 err1 alpha 0
+                              let (res2, env3, err2) = fillTemplateHelper res1 (VariantAST mv1 [(f'', mv'', t'')]) (envAddFresh [(alpha, e1)] env2) err1 alpha 0
                               in 
                               -- wrap in record for all.
-                              fillTemplateHelper res2 (RecursiveRecordAST rp mv [(f', mv', t')]) env3 err2 beta 0
+                              fillTemplateHelper res2 (RecursiveRecordAST rp mv [(f', mv', t')]) (envAddFresh [(beta, e4)] env3) err2 beta 0
                     -- Error, we should always be seeing a variant template here.
                     _ -> return ([], env, ["EsacMRR Error"])
             -- Member is neither a R or RR, problem.
@@ -632,6 +642,13 @@ envAdd exp env =
     True -> env 
     False -> let env1 = (env {exprEnv = exp:(exprEnv env)})
           in env1
+
+envAddFresh :: [(FreshVar, Expr)] -> Env -> Env
+envAddFresh [] env = env 
+envAddFresh ((fvar, exp): xs) env = 
+  let env' = envAddFresh xs env 
+  in env' {freshEnv = M.insert fvar exp (freshEnv env')}
+
 
 -- split :: Expr -> Template -> (Bool, Template, Maybe Template)
 -- split exp t = case exp of 
