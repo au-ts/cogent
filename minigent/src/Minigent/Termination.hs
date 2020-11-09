@@ -23,8 +23,11 @@ import Minigent.Syntax.Utils
 import Minigent.Environment
 import Minigent.Syntax.PrettyPrint
 
+import Control.Arrow (first, second)
+import Control.Monad.List
 import Control.Monad.State.Strict
-import Data.Maybe (maybeToList, catMaybes)
+
+import Data.Maybe (maybeToList, catMaybes, fromMaybe)
 
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -216,19 +219,24 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
       case getType f genvs of 
         Nothing -> ([], [])
         Just ty ->
-          let (funName, b, m, te, tt, sizes, env) = (init' f x e ty)
+          let (funName, b, m, te, tt, sizes, env, argpairs) = (init' f x e ty)
               msg = ("\n\nMatrix\n" ++ (show m) 
                   ++ "\n\nTemplate Expr Tuples\n" ++ (show te)
                   ++ "\n\nTemplate Tuples\n" ++ (show tt)
                   ++ "\n\nSizes\n" ++ (show sizes)
                   ++ "\n\nEnv\n" ++ (show env)
+                  ++ "\n\nArgPairs\n" ++ show argpairs
                   )
               errs' = case b of 
                 True -> ((show "Passes termination") ++ msg):errs
                 False -> ((show "Fails termination") ++ msg):errs
             in (errs', (funName, b):[])
 
-    init' :: FunName -> VarName -> Expr -> Type -> (FunName, Bool, Matrix.Matrix Cmp, [(Template, Expr)], [(Template, Template)], [(Size, Size)],Env)
+    init' :: FunName ->
+             VarName ->
+                Expr ->
+                Type ->
+             (FunName, Bool, Matrix.Matrix Cmp, [(Template, Expr)], [(Template, Template)], [(Size, Size)], Env, [(ArgExpr, ArgExpr)])
     init' funName x e ty =
       let 
         -- generate list of measures
@@ -243,6 +251,8 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
         -- generate assertions
         env2 = assertions templateTemplate env1
         env3 = resolveEnv env2
+        -- generate argument pairs
+        argPairs = genArgPairs funName x M.empty e
         -- apply measures 
         -- matrix = Matrix.fromLists [[]]
         -- generate local descent arrays
@@ -256,7 +266,7 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
         -- run global descent
         result = globalDescent matrix
         -- result = True
-      in (funName, result, matrix, templateExpr, templateTemplate, sizes, env3)
+      in (funName, result, matrix, templateExpr, templateTemplate, sizes, env3, argPairs)
 
 generateSize :: Env -> (Template, Template) -> [MeasureOp] -> [(Size, Size)]
 generateSize env (t1, t2) [] = []
@@ -758,6 +768,108 @@ fillTemplates funName exp tem env n =
         _ -> return ([], env, ["EsacM only covers var and member exps"])
     _ -> return ([], env, ["Expr did not match"])
 
+
+
+{-
+ - The intent of this data structure is to represent a canonical expression
+ - which is the argument of a function call.
+ - The structure contains a variant projection operation, which projects the
+ - variant name from the variant; the application of this variant projection
+ - means that the expression _is actually in_ that state.
+ -}
+data ArgExpr
+  = AEVar VarName
+  | AEStruct [(FieldName, ArgExpr)]
+  | AEFieldProj FieldName ArgExpr
+  | AEVariant FieldName ArgExpr
+  | AEVariantProj FieldName ArgExpr
+  | AECase [(FieldName, ArgExpr)]
+  | AELit PrimValue
+  | AEUnit
+  | AEUnknown
+  deriving (Show, Eq)
+
+-- e[u/z]
+argExprSubst :: M.Map VarName ArgExpr -> ArgExpr -> ArgExpr
+argExprSubst ctxt e@(AEVar x)         = (case M.lookup x ctxt of Just u -> u; Nothing -> e)
+argExprSubst ctxt (AEStruct fs)       = AEStruct $ map (second (argExprSubst ctxt)) fs
+argExprSubst ctxt (AEFieldProj f e)   = AEFieldProj f (argExprSubst ctxt e)
+argExprSubst ctxt (AEVariant v e)     = AEVariant v (argExprSubst ctxt e)
+argExprSubst ctxt (AEVariantProj v e) = AEVariantProj v (argExprSubst ctxt e)
+argExprSubst ctxt e@AELit{}           = e
+argExprSubst ctxt e@AEUnit            = e
+argExprSubst ctxt e@AEUnknown         = e
+
+exprToArgExpr :: Expr -> ArgExpr
+exprToArgExpr (PrimOp op es)         = AEUnknown
+exprToArgExpr (Literal l)            = AELit l
+exprToArgExpr (Var x)                = AEVar x
+exprToArgExpr (Con cn e)             = AEVariant cn $ exprToArgExpr e
+exprToArgExpr (Apply e0 e1)          = AEUnknown
+exprToArgExpr (TypeApp fnName _)     = AEUnknown
+exprToArgExpr (Sig e t)              = exprToArgExpr e
+exprToArgExpr (Struct fs)            = AEStruct $ map (second exprToArgExpr) fs
+exprToArgExpr (If ec ett eff)        = AEUnknown
+exprToArgExpr (Let x e0 e1)          = AEUnknown
+exprToArgExpr (LetBang ys x e0 e1)   = AEUnknown
+exprToArgExpr (Take x f y e0 e1)     = AEUnknown
+exprToArgExpr (Put e0 f e1)          = AEUnknown
+exprToArgExpr (Member e f)           = AEFieldProj f $ exprToArgExpr e
+exprToArgExpr (Case e0 cn x e1 y e2) = AEUnknown
+exprToArgExpr (Esac e0 cn x e1)      = AEUnknown
+
+genArgPairs :: FunName -> VarName -> M.Map VarName ArgExpr -> Expr -> [(ArgExpr, ArgExpr)]
+genArgPairs n r env (PrimOp op es)    = concatMap (genArgPairs n r env) es
+genArgPairs n r _ (Literal l)         = []
+genArgPairs n r _ (Var x)             = []
+genArgPairs n r env (Con cn e)        = genArgPairs n r env e
+genArgPairs n r _ (TypeApp fnName _)  = []
+genArgPairs n r env (Apply (TypeApp fnName ts) arg) | (fnName == n) =
+  let mainArg = fromMaybe (AEVar r) (M.lookup r env)
+      recArg = argExprSubst env $ exprToArgExpr arg
+   in [(mainArg, recArg)]
+genArgPairs n r env (Apply e0 e1)    =    genArgPairs n r env e0
+                                     ++ genArgPairs n r env e1
+genArgPairs n r env (Sig e t)        = genArgPairs n r env e
+genArgPairs n r env (Struct fs)      = concatMap (genArgPairs n r env . snd) fs
+genArgPairs n r env (If ec ett eff)  =    genArgPairs n r env ec
+                                     ++ genArgPairs n r env ett
+                                     ++ genArgPairs n r env eff
+genArgPairs n r env (Let x e0 e1) =
+  genArgPairs n r env e0 ++
+    (let ae = argExprSubst env $ exprToArgExpr e0
+         env' = M.insert x ae env
+      in genArgPairs n r env' e1)
+genArgPairs n r env (LetBang ys x e0 e1) =
+  genArgPairs n r env e0 ++
+    (let ae = argExprSubst env $ exprToArgExpr e0
+         env' = M.insert x ae env
+      in genArgPairs n r env e1)
+genArgPairs n r env (Take x f y e0 e1) =
+  genArgPairs n r env e0 ++
+    (let aeRecord = argExprSubst env $ exprToArgExpr e0
+         aeField = AEFieldProj f aeRecord
+         env' = M.insert x aeRecord $ M.insert y aeField $ env
+      in genArgPairs n r env' e1)
+genArgPairs n r env (Put e0 f e1) = genArgPairs n r env e0 ++ genArgPairs n r env e1
+genArgPairs n r env (Member e f) = genArgPairs n r env e
+genArgPairs n r env (Case e0 cn x e1 y e2) =
+  let aeVariant = argExprSubst env $ exprToArgExpr e0
+   in    genArgPairs n r env e0
+      ++ (let aeVarCase = AEVariantProj cn aeVariant
+              env' = M.insert x aeVarCase env
+          in genArgPairs n r env' e1)
+      ++ (let env' = M.insert y aeVariant env
+          in genArgPairs n r env' e2)
+genArgPairs n r env (Esac e0 cn x e1) =
+  genArgPairs n r env e0 ++
+    (let aeVariant = argExprSubst env $ exprToArgExpr e0
+         aeVarCase = AEVariantProj cn aeVariant
+         env' = M.insert x aeVarCase env
+      in genArgPairs n r env' e1)
+
+
+
 envExists :: Expr -> Env -> Bool
 envExists exp env = 
   case find (\x -> x == exp) (exprEnv env) of 
@@ -826,7 +938,7 @@ addAssertion f1 f2 env =
 --     init f x e = do
 --       alpha <- fresh
 --       let env = M.insert x alpha M.empty
---       (a,c) <- termAssertionGen env e
+--       (a,c) <- termAssertionGen r env e
 
 --       let graph = toGraph a
 --       let goals = catMaybes c
@@ -845,55 +957,55 @@ addAssertion f1 f2 env =
 --         )
 
 -- termAssertionGen ::  Env -> Expr -> Fresh VarName ([Assertion], [Maybe FreshVar])
--- termAssertionGen env expr
+-- termAssertionGen r env expr
 --   = case expr of
 --     PrimOp _ es ->
---       join $ map (termAssertionGen env) es
+--       join $ map (termAssertionGen r env) es
       
 --     Sig e _ -> 
---       termAssertionGen env e
+--       termAssertionGen r env e
 
 --     Apply f e -> do
---       a <- termAssertionGen env f
---       b <- termAssertionGen env e
+--       a <- termAssertionGen r env f
+--       b <- termAssertionGen r env e
 --       return $ flatten [([], [getv env e]), a, b]
       
 --     Struct fs ->
 --       let es = map snd fs 
---       in join $ map (termAssertionGen env) es
+--       in join $ map (termAssertionGen r env) es
       
 --     If b e1 e2 ->
---       join $ map (termAssertionGen env) [b, e1, e2]
+--       join $ map (termAssertionGen r env) [b, e1, e2]
       
 --     Let x e1 e2 -> do
 --       -- First evaluate the variable binding expression
---       a <- termAssertionGen env e1
+--       a <- termAssertionGen r env e1
 
 --       -- Map our bound program variable to a new name and evaluate the rest
 --       alpha <- fresh
 --       let env' = M.insert x alpha env 
---       res <- termAssertionGen env' e2
+--       res <- termAssertionGen r env' e2
 
 --       -- Generate assertion
---       let l = toAssertion env e1 (alpha :~:)
+--       let l = toAssertion r env e1 (alpha :~:)
 --       return $ flatten [(l,[]), res]
     
 --     LetBang vs v e1 e2 ->
---       termAssertionGen env (Let v e1 e2)
+--       termAssertionGen r env (Let v e1 e2)
 
 --     Take r' f x e1 e2 -> do
 --       alpha <- fresh 
 --       beta  <- fresh
       
---       res <- termAssertionGen env e1
+--       res <- termAssertionGen r env e1
 
 --       -- Update variable to fresh name bindings and generate assertions recursively
 --       let env' = M.insert r' beta (M.insert x alpha env)
---       res' <- termAssertionGen env' e2
+--       res' <- termAssertionGen r env' e2
 
 --       -- Generate assertions
---       let assertions = toAssertion env e1 (alpha :<:)
---                     ++ toAssertion env e1 (beta :~:)
+--       let assertions = toAssertion r env e1 (alpha :<:)
+--                     ++ toAssertion r env e1 (beta :~:)
 
 --       return $ flatten [(assertions, []), res', res]
 
@@ -901,32 +1013,32 @@ addAssertion f1 f2 env =
 --       alpha <- fresh
 --       beta  <- fresh
 
---       res  <- termAssertionGen env e1
---       res' <- termAssertionGen env e2
+--       res  <- termAssertionGen r env e1
+--       res' <- termAssertionGen r env e2
 
 --       let assertions = [alpha :<: beta] 
---                     ++ toAssertion env e1 (beta :~:)
---                     ++ toAssertion env e2 (alpha :~:)
+--                     ++ toAssertion r env e1 (beta :~:)
+--                     ++ toAssertion r env e2 (alpha :~:)
 
 --       return $ flatten [(assertions, []), res', res]
 
 --     Member e f -> 
---       termAssertionGen env e
+--       termAssertionGen r env e
 
 --     Case e1 _ x e2 y e3 -> do
 --       alpha <- fresh
 --       beta  <- fresh
 --       gamma <- fresh
 
---       res <- termAssertionGen env e1
+--       res <- termAssertionGen r env e1
 
 --       let env' = M.insert x alpha env
---       res' <- termAssertionGen env' e2
+--       res' <- termAssertionGen r env' e2
 
 --       let env'' = M.insert y gamma env
---       res'' <- termAssertionGen env'' e3
+--       res'' <- termAssertionGen r env'' e3
 
---       let assertions = toAssertion env e1 (beta :~:)
+--       let assertions = toAssertion r env e1 (beta :~:)
 --                     ++ [alpha :<: beta, gamma :~: beta]
 
 --       return $ flatten [(assertions, []), res, res', res'']
@@ -935,12 +1047,12 @@ addAssertion f1 f2 env =
 --       alpha <- fresh
 --       beta  <- fresh
 
---       res <- termAssertionGen env e1
+--       res <- termAssertionGen r env e1
 
 --       let env' = M.insert x alpha env
---       res' <- termAssertionGen env' e2
+--       res' <- termAssertionGen r env' e2
 
---       let assertions = toAssertion env e1 (beta :~:)
+--       let assertions = toAssertion r env e1 (beta :~:)
 --                     ++ [alpha :<: beta]
 
 --       return $ flatten [(assertions, []), res, res']
@@ -951,12 +1063,12 @@ addAssertion f1 f2 env =
 --   where
     
 --     toAssertion :: Env -> Expr -> (FreshVar -> Assertion) -> [Assertion]
---     toAssertion env e f = 
+--     toAssertion r env e f = 
 --       case getv env e of
 --         Just x -> [f x]
 --         Nothing -> []
 
---     -- Returns the variable name from an environment if it exists, otherwise nothing
+--     -- Returns the variable name from an r environment if it exists, otherwise nothing
 --     getv :: Env -> Expr -> Maybe FreshVar 
 --     getv env e =
 --       case e of
