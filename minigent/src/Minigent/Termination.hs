@@ -211,7 +211,7 @@ removeExpr b f exp =
         False -> if c == f then (Just e2) else removeExpr b f e2
 
 -- GLOBAL DESCENT -- 
-data Cmp = Le | Eq | Unknown | Solved deriving (Show, Eq)
+data Cmp = Le | Eq | Unknown deriving (Show, Eq)
 globalDescent :: Matrix.Matrix Cmp -> Bool
 globalDescent m = case (Matrix.ncols m) of 
   0 -> True -- empty
@@ -274,7 +274,8 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
           let (funName, b) = fst $ runFresh unifVars (init' f x e ty)
               measure = buildMeasure ty []
               template = buildTemplate ty
-              (templates, env, err) = fst $ runFresh unifVars $ fillTemplates funName e template (envAdd (Var "r") emptyEnv) 0
+              (templates, env, err) = fst $ runFresh unifVars $ fillTemplates  funName e template (envAdd (Var "r") emptyEnv) 0
+              (test, env1) = fst $ runFresh unifVars $ exprToTemplate (snd $ head templates) env template
               recursiveCalls = getRecursiveCalls f e
               msg = ("\n\nExpression:\n"
                     ++ show e ++ "-------\n\nRecursive Calls:\n" 
@@ -282,9 +283,10 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
                     ++ show measure ++ " ---- \n\nTemplate:\n" 
                     ++ show template ++ " ---- \n\nFilled Templates:\n" 
                     ++ show templates ++ "-------\n\nEnv:\n"
-                    ++ show env ++ "-------\n\nErr:\n"
-                    ++ show err)
-              errs' = case b of 
+                    ++ show env1 ++ "-------\n\nErr:\n"
+                    ++ show err ++ "-------\n\ntest:\n"
+                    ++ show test)
+              errs' = case b of
                         True -> ((show "terminates") ++ msg) : errs
                         _ -> ((show "fails terminates") ++ msg) : errs
             in (errs', (funName, b):dumps)
@@ -316,9 +318,97 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
       -- return $ (f, result)
 -- function name, expression, env, counter, COMPLETE template, PARTIAL template.
 
+-- for each template + expression, apply the measure
+generateMatrix :: Env -> [(Template, Template)] -> [MeasureOp] -> [[Cmp]]
+generateMatrix _ [] _ = [[]]
+generateMatrix _ _ [] = [[]]
+generateMatrix env (t:ts) ms = 
+  -- for each template, apply ALL the measures 
+  let input = map (\m -> applyMeasure env m (fst t) m) ms 
+      recCalls = map (\m -> applyMeasure env m (snd t) m) ms
+  in
+    [map (\(i, r) -> compareMeasure i r) $ zip input recCalls] ++ (generateMatrix env ts ms)
+
+type Size = (Maybe MeasureOp, Maybe Expr, Int)
+compareMeasure :: Size -> Size -> Cmp
+-- input, then recursive measure.
+-- These are errors.
+compareMeasure (_, _, -1) _ = Unknown
+compareMeasure _ (_, _, -1) = Unknown
+compareMeasure (Nothing, Nothing, n) (Nothing, Nothing, m) = 
+  if (m < n) then Le
+  else
+    if (m == n) then Eq 
+    else Unknown
+compareMeasure (mOp, exp, n) (rMOp, rExp, eN) = undefined
+
+-- case find (\(f', mv', t') -> f == f') xs of 
+  -- M.lookup f (freshEnv env)
+applyMeasure :: Env -> MeasureOp -> Template -> MeasureOp -> Size
+-- applyMeasure = undefined
+-- original template, current template, current measureOp
+applyMeasure env mOp (RecordAST (Just alpha) [(f, (Just v), t)]) (ProjectOp f' m) = 
+  if (f == f') then 
+    case applyMeasure env mOp t m of 
+      -- if it's an error, return the current position.
+      (Nothing, Nothing, -1) -> 
+        case M.lookup alpha (freshEnv env) of 
+          -- Mm, this shouldn't happen
+          Nothing -> (Just (ProjectOp f' m), Nothing, 0)
+          Just x -> (Just (ProjectOp f' m), Just x, 0)
+      x -> x
+  else (Nothing, Nothing, -1)
+applyMeasure env mOp (RecursiveRecordAST rp (Just alpha) [(f, (Just v), t)]) (UnfoldOp rp' f' m) = 
+  if (f == f') then 
+    case applyMeasure env mOp t m of -- continue
+      -- if error, return the current position.
+      (Nothing, Nothing, -1) -> 
+        case M.lookup alpha (freshEnv env) of
+          -- Mm, this shouldn't happen
+          Nothing -> (Just (UnfoldOp rp' f' m), Nothing, 0)
+          Just x -> (Just (UnfoldOp rp' f' m), Just x, 0)
+      x -> x
+  else
+    (Nothing, Nothing, -1)
+applyMeasure env mOp (VariantAST (Just alpha) [(f, Just v, t)]) (CaseOp cs) =
+  case (find (\(f', m') -> f' == f) cs) of 
+    Nothing -> (Nothing, Nothing, -1)
+    -- found, so move on.
+    Just (f', m') -> case applyMeasure env mOp t m' of 
+      (Nothing, Nothing, -1) -> 
+        case M.lookup alpha (freshEnv env) of 
+          Nothing -> (Just (CaseOp cs), Nothing, 0)
+          Just x -> (Just (CaseOp cs), Just x, 0)
+      x -> x
+applyMeasure env mOp (RecParAST rp (Just alpha)) (RecParMeasure rp') =
+  case (rp == rp') of
+    -- make sure they match
+    False -> (Nothing, Nothing, -1)
+    -- search up the exp related to alpha
+    True -> case M.lookup alpha (freshEnv env) of 
+      Just x -> (Just mOp, Just x, 1)
+      -- hmm, shouldn't happen
+      Nothing -> (Nothing, Nothing, 0)
+-- Check this: no unfoldings have happened. so its ok.
+applyMeasure env mOp (PrimitiveAST (Just alpha)) (IntConstOp n) = (Nothing, Nothing, 0)
+-- if any of the variable names are 'Nothing'
+-- if any of the template/mOp pairs don't match
+applyMeasure env mOp _ _ = (Nothing, Nothing, -1)
+
+-- Build template from expression
+-- TODO: finish this off.
+exprToTemplate :: Expr -> Env -> Template -> Fresh VarName (Template, Env)
+exprToTemplate exp env tem =
+  case exp of 
+    Member e f ->
+      case tem of 
+        RecursiveRecordAST rp mv t -> do 
+          alpha <- fresh
+          return $ (RecursiveRecordAST rp (Just alpha) t, envAddFresh [(alpha, exp)] env)
+    _ -> return $ (tem, env)
+
 -- ASSUMPTIONS:
 -- Case e1s: only contain Var v or Member e f expressions.
-
 fillTemplateHelper :: [(Template, Expr)] -> Template -> Env -> [Error] -> Int -> ([(Template, Expr)], Env, [Error])
 -- list of results, template to wrap with, env, error, freshvar to use, int (for more fresh vars)
 fillTemplateHelper [] tem env err n = ([], env, err)
@@ -327,41 +417,13 @@ fillTemplateHelper ((t, e):ts) tem env err n =
   in
     case tem of 
       RecordAST mv [(f', mv', x)] -> 
-        case mv of 
-          Nothing -> ([], env, ["Helper: Missing freshvar"])
-          (Just x) -> 
-            case mv' of 
-              Nothing -> ([], env, ["Helper: Missing freshvar"])
-              (Just y) ->
-                let alpha = x ++ show n
-                    beta = y ++ show n
-                    res' = (RecordAST (Just alpha) [(f', (Just beta), t)], e)
-                    -- add alpha to the env
-                in (res':res, env, err ++ err1 ++ ["helper func"])
-      RecursiveRecordAST rp mv [(f', mv', x)] ->
-        case mv of
-          Nothing -> ([], env, ["Helper: Missing freshvar"])
-          (Just x) -> 
-            case mv' of 
-              Nothing -> ([], env, ["Helper: Missing freshvar"])
-              (Just y) -> 
-                let alpha = x ++ show n
-                    beta = y ++ show n
-                    res' = (RecursiveRecordAST rp (Just alpha) [(f', (Just beta), t)], e)
-                    -- add alpha to env 
-                in (res':res, env, err ++ err1 ++ ["helper func"])
+        (((RecordAST mv [(f', mv', t)], e):res), env, err ++ err1 ++ ["helper func"])
+      RecursiveRecordAST rp mv [(f', mv', x)] -> 
+        (((RecursiveRecordAST rp mv [(f', mv', t)], e):res), env, err ++ err1 ++ ["helper func"])
       VariantAST mv [(f', mv', x)] ->
         case mv of 
           Nothing -> ([], env, ["Helper: Missing freshvar"])
-          (Just x) ->
-            case mv' of 
-              Nothing -> ([], env, ["Helper: Missing freshvar"])
-              (Just y) ->
-                let alpha = x ++ show n 
-                    beta = y ++ show n
-                    res' = (VariantAST (Just alpha) [(f', (Just beta), t)], e)
-                    -- add alpha to env
-                in (res':res, env, err ++ err1 ++ ["helper func"])
+          (Just x) -> (((VariantAST mv [(f', mv', t)], e):res), env, err ++ err1 ++ ["helper func"])
       _ -> ([], env, ["Helper: template does not match"]++ [show tem])
 
 fillTemplates :: FunName -> Expr -> Template -> Env -> Int -> Fresh VarName ([(Template, Expr)], Env, [Error])
@@ -683,86 +745,8 @@ envAddFresh ((fvar, exp): xs) env =
   let env' = envAddFresh xs env 
   in env' {freshEnv = M.insert fvar exp (freshEnv env')}
 
-
--- split :: Expr -> Template -> (Bool, Template, Maybe Template)
--- split exp t = case exp of 
---   PrimOp o (x:xs) -> 
---     let (b, t, mt) = split x t 
---     in
---       case b of 
---         True -> (b, t, mt)
---         False -> case xs of 
---           [y] -> split y t
---           _ -> (b, t, mt) 
---   Literal v ->
---     case t of 
---       PrimitiveAST x -> (True, (PrimitiveAST x), Nothing)
---       _ -> (False, t, Nothing)
---   Var v ->
---     case t of 
---       RecordAST mv fs -> case find (\(f', v', t') -> v == f') fs of 
---         Just (f', v', t') -> (True, RecordAST mv [], Just t')
---         Nothing -> (False, t, Nothing)
---       RecursiveRecordAST r mv fs -> case find (\(f', v', t') -> v == f') fs of 
---         Just (f', v', t') -> (True, RecursiveRecordAST r mv [], Just t')
---         Nothing -> (False, t, Nothing)
---       VariantAST mv fs -> case find (\(f', v', t') -> v == f') fs of 
---         Just (f', v', t') -> (True, VariantAST mv [], Just t')
---         Nothing -> (False, t, Nothing)
---       _ -> (False, t, Nothing)
---   Con c e -> split e t 
---   TypeApp f ts -> (False, t, Nothing)
---   Sig e t' -> split e t
---   Apply e1 e2 -> case split e1 t of 
---     (True, x, y) -> (True, x, y)
---     _ -> split e2 t
---   -- TODO
---   Struct fs -> (False, t, Nothing)
---   If e1 e2 e3 -> case split e1 t of 
---     (True, x, y) -> (True, x, y)
---     _ -> case split e2 t of 
---       (True, x, y) -> (True, x, y)
---       _ -> split e3 t
---   Let v e1 e2 -> case split e1 t of 
---     (True, x, y) -> (True, x, y)
---     _ -> split e2 t 
---   LetBang vs v e1 e2 -> case split e1 t of 
---     (True, x, y) -> (True, x, y)
---     _ -> split e2 t 
---   Take v1 f v2 e1 e2 -> case t of 
---     RecordAST v fs -> case find (\(f', v', t) -> f == f') fs of 
---       Just (f, v', t) -> (True, RecordAST v [], Just t)
---       Nothing -> (False, t, Nothing)
---     RecursiveRecordAST r v fs -> case find (\(f', v', t) -> f == f') fs of 
---       Just (f, v', t) -> (True, RecursiveRecordAST r v [], Just t)
---       Nothing -> (False, t, Nothing)
---     _ -> split e2 t
---   Put e1 f e2 -> case t of
---     RecordAST v fs -> case find (\(f', v', t') -> f == f') fs of 
---       Just (f', v', t') -> (True, RecordAST v [], Just t')
---       Nothing -> (False, t, Nothing)
---     RecursiveRecordAST r v fs -> case find (\(f', v', t') -> f == f') fs of 
---       Just (f', v', t') -> (True, RecursiveRecordAST r v [], Just t')
---       Nothing -> (False, t, Nothing)
---     _ -> split e2 t
---   -- DO WE NEED TO CHECK THE TEMPLATES ATTACHED TO FIELDNAMES FOR THESE?
---   Member e f -> case t of 
---     RecordAST v fs -> case find (\(f', v', t') -> f == f') fs of 
---       Just (f', v', t') -> (True, RecordAST v [], Just t')
---       Nothing -> (False, t, Nothing)
---     RecursiveRecordAST r v fs -> case find (\(f', v', t') -> f == f') fs of 
---       Just (f', v', t') -> (True, RecursiveRecordAST r v [], Just t')
---       Nothing -> (False, t, Nothing)
---     _ -> (False, t, Nothing)
---   Case e1 c v1 e2 v2 e3 -> case split e1 t of 
---     (True, x, y) -> (True, x, y)
---     _ -> case split e2 t of
---       (True, x, y) -> (True, x, y)
---       _ -> split e3 t
---   Esac e1 c v e2 -> case split e1 t of 
---     (True, x, y) -> (True, x, y)
---     _ -> split e2 t 
-
+-- envExistsFresh :: FreshVar -> Env -> Maybe Expr
+-- envExistsFresh f env = M.lookup f (freshEnv env)
 
 -- termCheck' :: GlobalEnvironments -> ([Error], [(FunName, [Assertion], String)])
 -- termCheck' genvs = M.foldrWithKey go ([],[]) (defns genvs)
