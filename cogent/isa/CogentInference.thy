@@ -580,6 +580,9 @@ lemma empty_none:
   "i < n \<Longrightarrow> (empty n) ! i = None"
   by (simp add: local.empty_def)
 
+lemma empty_len:
+  "length (empty n) = n"
+  by (simp add: empty_def)
 
 definition singleton :: "nat \<Rightarrow> index \<Rightarrow> type \<Rightarrow> ctx" where
   "singleton n i t \<equiv> (empty n)[i := Some t]"
@@ -1365,6 +1368,10 @@ definition weakening :: "axm_set \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarro
 lemma weak_keep_refl: "weakening_comp K (Some \<tau>) (Some \<rho>) \<Longrightarrow> \<tau> = \<rho>"
   using weakening_comp.cases by auto
 
+lemma weakening_eq: "weakening K \<Gamma> \<Gamma>"
+  using weak_keep weak_none
+  by (clarsimp simp add: weakening_def list_all2_conv_all_nth combine_options_cases)
+
 
 section {* Typing Rules (Fig 3.3 3.8 3.13) *}
 inductive typing :: "axm_set \<Rightarrow> ctx \<Rightarrow> 'fnname expr \<Rightarrow> type \<Rightarrow> bool"
@@ -1733,8 +1740,8 @@ cg_var1:
 | cg_struct:
   "\<lbrakk> \<alpha>s = map (TUnknown \<circ> (+) n1) [0..<length nms]
     ; distinct nms 
-    ; length nms = length es
-    ; length nms =  length es'
+    ; length es = length nms
+    ; length es' =  length nms
     ; length Gs = Suc (length nms)
     ; hd Gs = G1 \<and> last Gs = G2 
     ; length ns = Suc (length nms)
@@ -1777,7 +1784,7 @@ proof (cases "length nms = 0")
     using assms cg_struct[where ?Gs="[G1]" and ?ns="[n1]"] by force
 next
   case False
-  have nms_es_length: "length nms = length es" "length nms = length es'"
+  have nms_es_length: "length es = length nms" "length es' = length nms"
     using assms cg_gen_elab_all_len by fastforce+
   {
     fix G n es \<tau>s G' n' C es'
@@ -4765,10 +4772,11 @@ lemma split_checked_struct_extL:
     and "\<forall>i<length nms. Gs ! i,ns ! i \<turnstile> es ! i : \<tau>s ! i \<leadsto> Gs ! Suc i,ns ! Suc i | Cs ! i | es' ! i"
     and "A \<turnstile> assign_app_constr S (foldr CtConj Cs CtTop)"
     and "known_assignment S"
-    and "\<And>i. i < length G1 \<Longrightarrow>
+    and "\<And>i. i < length (Gs ! 0)  \<Longrightarrow>
              if i \<in> fv' 0 (Struct nms es) 
-             then \<Gamma> ! i = Some (assign_app_ty S (fst (G1 ! i)))
-             else \<Gamma> ! i = None \<or> \<Gamma> ! i = Some (assign_app_ty S (fst (G1 ! i)))"
+             then \<Gamma> ! i = Some (assign_app_ty S (fst ((Gs ! 0) ! i)))
+             else \<Gamma> ! i = None \<or> \<Gamma> ! i = Some (assign_app_ty S (fst ((Gs ! 0) ! i)))"
+    and "length \<Gamma>  = length (Gs ! 0)"
     and "length es = length nms"
     and "length Gs = Suc (length nms)"
     and "length Cs = length nms"
@@ -4781,7 +4789,8 @@ lemma split_checked_struct_extL:
   shows "(\<forall>i<length \<Gamma>2s - 1. A \<turnstile> \<Gamma>2s ! i \<leadsto> \<Gamma>1s ! i \<box> \<Gamma>2s ! Suc i) \<and> (hd \<Gamma>2s = \<Gamma>)"
 proof -
   have lengths: "length \<Gamma>1s' = length nms" "length \<Gamma>1s = length nms" "length fvs = Suc (length nms)"
-                "length \<Gamma>2s' = Suc (length nms)" "length \<Gamma>2s = Suc (length nms)"
+                "length \<Gamma>2s' = Suc (length nms)" "length \<Gamma>2s = Suc (length nms)" 
+                "length es = length nms" "length Gs = Suc (length nms)" "length Cs = length nms"
     using map2_nth assms by simp+
   {
     fix i :: nat
@@ -4798,7 +4807,7 @@ proof -
         have "A \<turnstile> assign_app_ctx S (Gs ! 0\<bar>fvs ! 0) \<leadsto> 
                   assign_app_ctx S (Gs ! 0\<bar>fv (es ! 0)) \<box> 
                   assign_app_ctx S (Gs ! (Suc 0)\<bar>fvs ! (Suc 0))"
-          using assms split_check map2_nth i_size True by simp
+          using assms split_check map2_nth i_size True by force 
         moreover have "\<And>i. i < length (Gs ! 0) \<Longrightarrow> fst (Gs ! 0 ! i) = fst (Gs ! Suc 0 ! i)"
         proof -
           have "0 < length nms"
@@ -4836,13 +4845,66 @@ proof -
         using split_check assms i_size by simp
     qed
   }
-  moreover have "hd \<Gamma>2s = assign_app_ctx S (Gs ! 0 \<bar> fvs ! 0 \<union> idxs)"
-    using assms sorry
   moreover have "hd \<Gamma>2s = \<Gamma>"
-    using assms
-    sorry
-  ultimately show ?thesis
-    by blast
+  proof -
+    have "hd \<Gamma>2s = assign_app_ctx S (Gs ! 0 \<bar> fvs ! 0 \<union> idxs)"
+    proof -
+      have "hd \<Gamma>2s = \<Gamma>2s ! 0"
+        using lengths by (subgoal_tac "\<Gamma>2s \<noteq> []"; fastforce simp add: hd_conv_nth)
+      then show ?thesis
+        using assms by force
+    qed 
+    moreover have "\<Gamma> = assign_app_ctx S (Gs ! 0 \<bar> fvs ! 0 \<union> idxs)"
+    proof -
+      have "length \<Gamma> = length (assign_app_ctx S (Gs ! 0\<bar>fv e \<union> idxs))"
+        using assign_app_ctx_len assms ctx_restrict_def assms by simp
+      moreover { 
+        fix i :: nat
+        assume i_size: "i < length \<Gamma>"
+        consider (case_1) "i \<in> fv e" | (case_2) "i \<notin> fv e" "\<Gamma> ! i = None" 
+          | (case_3) "i \<notin> fv e" "\<Gamma> ! i \<noteq> None"
+          by fast
+        then have "\<Gamma> ! i = assign_app_ctx S (Gs ! 0\<bar>fv e \<union> idxs) ! i" 
+        proof cases
+          case case_1
+          then show ?thesis
+            using assign_app_ctx_restrict_some assms i_size by auto
+        next
+          case case_2
+          then have "i \<notin> fv e \<union> idxs"
+            using assms by auto
+          then have "assign_app_ctx S (Gs ! 0 \<bar> fv e \<union> idxs) ! i = None"
+            using assign_app_ctx_none_iff assms ctx_restrict_len ctx_restrict_nth_none i_size case_2 
+            by simp
+          then show ?thesis
+            using case_2 by auto
+        next
+          case case_3
+          then have "i \<in> fv e \<union> idxs"
+            using assms i_size 
+            by (metis (mono_tags, lifting) UnI2 atLeastLessThan_iff member_filter zero_le)
+          then show ?thesis
+            using assms case_3 assign_app_ctx_restrict_some i_size by metis
+        qed
+      } 
+      moreover have "fv e = fvs ! 0"
+      proof -
+        have "map (\<lambda>i. \<Union>j\<in>set [i..<length nms]. fv' 0 (es ! j)) [0..<Suc (length nms)] ! 0 =
+            (\<Union>j\<in>set [([0..<Suc (length nms)] ! 0)..<length nms]. fv' 0 (es ! j))"
+          by (rule nth_map; fastforce)
+        moreover have "(\<Union>j\<in>set [([0..<Suc (length nms)] ! 0)..<length nms]. fv (es ! j)) =
+            (\<Union>e\<in>set es. fv e)"
+          using lengths add.left_neutral nth_upt zero_less_Suc
+          by (metis UN_extend_simps(10) list.set_map map_nth set_upt)
+        ultimately show ?thesis
+          using assms by simp 
+      qed
+      ultimately show ?thesis
+        using nth_equalityI by metis
+    qed
+    ultimately show ?thesis by fast
+  qed
+  ultimately show ?thesis by auto
 qed
 
 
@@ -6132,47 +6194,44 @@ next
   ultimately show ?case
     using typing_sig[where ?\<tau>'="TRecord fs None s"] typing_put by fastforce
 next
-  case (cg_struct \<alpha>s n1 nms es es' Gs G1 G2 ns n2 Cs C' \<tau>)
+case (cg_struct \<alpha>s n1 nms es es' Gs G1 G2 ns n2 Cs C' \<tau>)
   let ?e = "Struct nms es"
   let ?idxs = "Set.filter (\<lambda>x. x \<notin> fv ?e \<and> \<Gamma> ! x \<noteq> None) {0..<length (Gs ! 0)}"
-  let ?\<Gamma>1s' = "map (\<lambda>i. assign_app_ctx S (Gs ! i\<bar>fv (es ! i))) [0..<length nms]"
+  let ?\<Gamma>1s' = "List.map2 (\<lambda>G e. assign_app_ctx S (G\<bar>fv e)) Gs es"
   let ?\<Gamma>1s = "?\<Gamma>1s'[0 := assign_app_ctx S(Gs ! 0\<bar>fv (es ! 0) \<union> ?idxs)]"
   let ?fvs = "map (\<lambda>i. (\<Union>j \<in> set [i..<length nms]. fv (es ! j))) [0..<Suc (length nms)]"
   let ?\<Gamma>2s' = "List.map2 (\<lambda>G is. assign_app_ctx S (G\<bar>is)) Gs ?fvs"
   let ?\<Gamma>2s = "?\<Gamma>2s'[0 := assign_app_ctx S (Gs ! 0\<bar>?fvs ! 0 \<union> ?idxs)]"
+  have hd_Gs: "Gs ! 0 = G1"
+    using hd_conv_nth cg_struct by (metis Zero_not_Suc list.size(3)) 
   obtain fs s where fs_s_def: 
     "TRecord fs None s = assign_app_ty S (TRecord (List.map2 (\<lambda>x y. (x, y, Present)) nms \<alpha>s) 
                                                   None Unboxed)"
     using cg_struct.hyps by simp 
+  have lengths: "length nms = length es" "length nms = length es'" "length Gs = Suc (length nms)"
+    "length ns = Suc (length nms)" "length Cs = length nms" "length ?\<Gamma>1s' = length nms" 
+    "length ?\<Gamma>1s = length nms" "length ?fvs = Suc (length nms)" "length fs = length nms"
+    "length ?\<Gamma>2s' = Suc (length nms)" "length ?\<Gamma>2s = Suc (length nms)"
+    using cg_struct fs_s_def by simp+
   have "distinct (map fst fs)"   
     using fs_s_def cg_struct.hyps by auto
   moreover have "nms = map fst fs"
-  using fs_s_def cg_struct.hyps by auto
+    using fs_s_def cg_struct.hyps by auto
   moreover have "\<forall>i<length fs. (snd \<circ> snd) (fs ! i) = Present"
     using fs_s_def by auto
   moreover have "length ?\<Gamma>1s = length nms"
-    by simp
-  moreover have "length ?\<Gamma>2s = Suc (length nms)"
-    by (simp add: map2_length cg_struct.hyps)
-  moreover have "\<forall>i<length ?\<Gamma>2s - 1. A \<turnstile> ?\<Gamma>2s ! i \<leadsto> ?\<Gamma>1s ! i \<box> ?\<Gamma>2s ! Suc i"
-    sorry
-  moreover have "hd ?\<Gamma>2s = \<Gamma> \<and> A \<turnstile> last ?\<Gamma>2s \<leadsto>w local.empty (length (last ?\<Gamma>2s))"
-    apply (rule conjI)
-    sorry
-  moreover have "TRecord fs None s = TRecord fs None Unboxed"
-    using fs_s_def by auto
-  moreover have "A \<turnstile> CtSub (TRecord fs None s) (assign_app_ty S \<tau>)"
-    using fs_s_def cg_struct ct_sem_conj_iff by auto
-  moreover have "\<forall>i<length ?\<Gamma>1s. A \<ddagger> ?\<Gamma>1s ! i \<turnstile> map (assign_app_expr S) es' ! i : (fst \<circ> snd) (fs ! i)"
+    using lengths by blast
+  moreover have "\<forall>i<length ?\<Gamma>1s. A \<ddagger> ?\<Gamma>1s ! i \<turnstile> map (assign_app_expr S) es' ! i : 
+                                                (fst \<circ> snd) (fs ! i)"
   proof -
     {
       fix i :: nat
       assume i_size: "i < length ?\<Gamma>1s"
       have "A \<turnstile> assign_app_constr S (Cs ! i)" 
         using assign_app_constr.simps cg_struct ct_sem_assign_conj_foldr ct_sem_conjE i_size 
-          length_list_update by (metis (no_types, lifting)  length_map map_nth)
+          length_list_update lengths by (metis (no_types, lifting))
       moreover have "i < length nms" "known_assignment S"
-        using cg_struct.prems i_size by auto
+        using cg_struct.prems i_size lengths  by auto
       moreover have "length (Gs ! i) = length (?\<Gamma>1s ! i)" 
         using assign_app_ctx_len ctx_restrict_len i_size by (case_tac "i = 0"; simp)
       moreover {
@@ -6219,12 +6278,90 @@ next
     }
     then show ?thesis by blast
   qed
+  moreover have "length ?\<Gamma>2s = Suc (length nms)"
+    using lengths by blast
+  moreover have "(\<forall>i<length ?\<Gamma>2s - 1. A \<turnstile> ?\<Gamma>2s ! i \<leadsto> ?\<Gamma>1s ! i \<box> ?\<Gamma>2s ! Suc i) \<and> (hd ?\<Gamma>2s = \<Gamma>)"
+  proof -
+    have "Gs ! 0 = G1"
+      using hd_conv_nth cg_struct by (metis Zero_not_Suc list.size(3)) 
+    then have "\<And>i. i < length (Gs ! 0) \<Longrightarrow>
+                   if i \<in> fv' 0 (Struct nms es) 
+                   then \<Gamma> ! i = Some (assign_app_ty S (fst (Gs ! 0 ! i)))
+                   else \<Gamma> ! i = None \<or> \<Gamma> ! i = Some (assign_app_ty S (fst (Gs ! 0 ! i)))" 
+              "length \<Gamma> = length (Gs ! 0)"
+      using cg_struct by metis+
+    moreover have "\<forall>i<length nms. Gs ! i,ns ! i \<turnstile> es ! i : \<alpha>s ! i \<leadsto> 
+                                  Gs ! Suc i,ns ! Suc i | Cs ! i | es' ! i"
+      using cg_struct by simp
+    moreover have "A \<turnstile> assign_app_constr S (foldr CtConj Cs CtTop)"
+      using cg_struct ct_sem_conjE by fastforce 
+    ultimately show ?thesis
+      using cg_struct by (rule_tac split_checked_struct_extL; blast)
+  qed
+  moreover have "A \<turnstile> last ?\<Gamma>2s \<leadsto>w empty (length (last ?\<Gamma>2s))"
+  proof -
+    have \<Gamma>2s_nonempty: "?\<Gamma>2s \<noteq> []"
+      using lengths by (metis Zero_not_Suc list.size(3))
+    consider (len_eq_one) "length ?\<Gamma>2s = Suc 0" | (len_gt_one) "length ?\<Gamma>2s > Suc 0"
+      using less_antisym \<Gamma>2s_nonempty by blast
+    then show ?thesis
+    proof cases
+      case len_eq_one
+      have "A \<turnstile> assign_app_ctx S (Gs ! 0\<bar>?idxs) \<leadsto>w 
+                empty (length (assign_app_ctx S (Gs ! 0\<bar>?idxs)))"
+      proof -
+        {
+          fix i :: nat
+          assume i_size: "i < length (assign_app_ctx S (Gs ! 0\<bar>?idxs))"
+          have "empty (length (assign_app_ctx S (Gs ! 0\<bar>?idxs))) ! i = None"
+            using empty_none i_size by blast
+          have "weakening_comp A (assign_app_ctx S (Gs ! 0\<bar>?idxs) ! i) 
+                                 (empty (length (assign_app_ctx S (Gs ! 0\<bar>?idxs))) ! i)"
+          proof (cases "i \<in> ?idxs")
+            case True
+            have "A \<turnstile> assign_app_constr S (CtDrop (fst (G1 ! i)))"
+              using cg_struct True i_size hd_Gs assign_app_ctx_len ctx_restrict_len by fastforce
+            then show ?thesis
+              using weak_drop hd_Gs empty_none i_size empty_none assign_app_ctx_restrict_some True
+              by auto
+          next
+            case False
+            then show ?thesis
+              using weak_none empty_none assign_app_ctx_len assign_app_ctx_restrict_none
+                ctx_restrict_len i_size by presburger
+          qed
+        }
+        then show ?thesis
+          by (simp add: weakening_def list_all2_conv_all_nth empty_len)
+      qed
+      moreover have "\<exists>x. ?\<Gamma>2s' = [x]"
+        using len_eq_one lengths by (metis (no_types, lifting) length_0_conv length_Suc_conv)
+      ultimately show ?thesis 
+        using len_eq_one lengths by force
+    next
+      case len_gt_one   
+      have "?fvs ! (length  nms) = {}"
+        using Sup_empty add.left_neutral atLeastLessThan_empty diff_zero
+        by (metis (no_types, lifting) image_empty lessI nth_map_upt order_refl set_upt)
+      then have "\<forall>i < length (?\<Gamma>2s' ! (length ?\<Gamma>2s' - 1)). ?\<Gamma>2s' ! (length ?\<Gamma>2s' - 1) ! i = None"
+        by (simp add: assign_app_ctx_len assign_app_ctx_restrict_none ctx_restrict_len lengths)
+      then have "?\<Gamma>2s' ! (length ?\<Gamma>2s' - 1) = empty (length (?\<Gamma>2s' ! (length ?\<Gamma>2s' - 1)))"
+        using nth_equalityI empty_len empty_none  by (metis (no_types, lifting))
+      then have "A \<turnstile> ?\<Gamma>2s' ! (length ?\<Gamma>2s' - 1) \<leadsto>w empty (length (?\<Gamma>2s' ! (length ?\<Gamma>2s' - 1)))"
+        using weakening_eq by presburger
+      moreover have "last ?\<Gamma>2s = ?\<Gamma>2s ! (length ?\<Gamma>2s - 1)"
+        using last_conv_nth \<Gamma>2s_nonempty by blast
+      ultimately show ?thesis
+        using len_gt_one lengths by force
+    qed
+  qed
+  moreover have "TRecord fs None s = TRecord fs None Unboxed"
+    using fs_s_def by auto
+  moreover have "A \<turnstile> CtSub (TRecord fs None s) (assign_app_ty S \<tau>)"
+    using fs_s_def cg_struct ct_sem_conj_iff by auto
   ultimately show ?case
-    apply simp
-    apply (rule typing_sig[where \<tau>'="TRecord fs None s"])
-     apply (rule typing_struct[where ?fs=fs and ?\<Gamma>1s="?\<Gamma>1s" and ?\<Gamma>2s="?\<Gamma>2s"])
-    apply simp+
-    sorry
+    using typing_struct[where ?fs=fs and ?\<Gamma>1s="?\<Gamma>1s" and ?\<Gamma>2s="?\<Gamma>2s"] 
+          typing_sig[where \<tau>'="TRecord fs None s"] by auto
 qed
 
 lemma cg_sound:
