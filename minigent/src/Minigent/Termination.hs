@@ -84,7 +84,6 @@ data MeasureOp
   | RecParMeasure RecParName -- recpar 
   | CaseOp [(String,MeasureOp)] -- field 
   | IntConstOp Int
-  -- | VarAST 
   deriving (Show, Eq)
 
 -- BUILD MEASURE FROM REC ARG TYPE -- 
@@ -155,61 +154,6 @@ getRecursiveCalls f exp = case exp of
   Case e1 c v e2 v2 e3 -> getRecursiveCalls f e1 ++ getRecursiveCalls f e2 ++ getRecursiveCalls f e3
   Esac e1 c v e2 -> getRecursiveCalls f e1 ++ getRecursiveCalls f e2
 
-removeExpr :: Bool -> String -> Expr -> Maybe Expr 
--- true(unfold) false(case), field, expression to search, result 
-removeExpr b f exp = 
-  case exp of 
-    PrimOp op (x:xs) -> 
-      case removeExpr b f x of
-        Nothing -> case xs of
-          [] -> Nothing
-          (y:ys) -> removeExpr b f y
-        Just r -> Just r
-    Literal v -> Nothing 
-    Var v -> Nothing 
-    Con c e -> removeExpr b f e
-    TypeApp f ts -> Nothing
-    Sig e t -> removeExpr b f e
-    -- double check this. 
-    Apply e1 e2 -> case removeExpr b f e1 of 
-      Nothing -> removeExpr b f e2
-      Just r -> Just r
-    Struct fs -> Nothing -- TODO
-    -- Cont fixing up here
-    If e1 e2 e3 -> case removeExpr b f e1 of 
-      Nothing -> case removeExpr b f e2 of
-        Nothing -> removeExpr b f e3
-        Just r -> Just r 
-      Just r -> Just r
-    Let v e1 e2 -> case removeExpr b f e1 of 
-      Nothing -> removeExpr b f e2
-      Just r -> Just r
-    LetBang vs v e1 e2 -> case removeExpr b f e1 of 
-      Nothing -> removeExpr b f e2
-      Just r -> Just r
-    Take v1 f' v2 e1 e2 -> 
-      case b of 
-        True -> if f == f' then (Just e2) else removeExpr b f e2
-        False -> removeExpr b f e2
-    Put e1 f e2 -> case removeExpr b f e1 of 
-      Nothing -> removeExpr b f e2
-      Just r -> Just r
-    -- Member has same problem as prev thing, need to access the outer scope.
-    Member e' f' -> removeExpr b f e'
-    Case e1 c v1 e2 v2 e3 -> 
-      case b of 
-        -- unfold: check member
-        True -> case e1 of 
-          -- check e2 and also check e3? Depends on the measure?
-          Member e f' -> removeExpr b f e2
-          _ -> removeExpr b f e3
-        -- case
-        False -> if c == f then (Just e2) else removeExpr b f e3
-    Esac e1 c v e2 ->
-      case b of 
-        True -> removeExpr b f e2
-        False -> if c == f then (Just e2) else removeExpr b f e2
-
 -- GLOBAL DESCENT -- 
 data Cmp = Le | Eq | Unknown deriving (Show, Eq)
 globalDescent :: Matrix.Matrix Cmp -> Bool
@@ -258,10 +202,11 @@ type ExprEnv = [(Expr, FreshVar)]
 
 data Env = Env {
   freshEnv :: M.Map FreshVar Expr,
-  exprEnv :: [Expr]
+  exprEnv :: [Expr],
+  assertionsEnv :: M.Map FreshVar [FreshVar] -- each freshvar may be linked to a series of other freshvars.
 } deriving (Show)
 
-emptyEnv = Env M.empty []
+emptyEnv = Env M.empty [] M.empty
 
 termCheck :: GlobalEnvironments -> ([Error], [(FunName, Bool)])
 termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
@@ -276,6 +221,8 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
               template = buildTemplate ty
               (templates, env, err) = fst $ runFresh unifVars $ fillTemplates  funName e template (envAdd (Var "r") emptyEnv) 0
               (test, env1) = fst $ runFresh unifVars $ exprToTemplate (snd $ head templates) env template
+
+              applied = applyMeasure env1 (head measure)  (fst $ head templates) (head measure) 
               recursiveCalls = getRecursiveCalls f e
               msg = ("\n\nExpression:\n"
                     ++ show e ++ "-------\n\nRecursive Calls:\n" 
@@ -284,8 +231,8 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
                     ++ show template ++ " ---- \n\nFilled Templates:\n" 
                     ++ show templates ++ "-------\n\nEnv:\n"
                     ++ show env1 ++ "-------\n\nErr:\n"
-                    ++ show err ++ "-------\n\ntest:\n"
-                    ++ show test)
+                    ++ show err ++ "-------\n\napplied:\n"
+                    ++ show applied)
               errs' = case b of
                         True -> ((show "terminates") ++ msg) : errs
                         _ -> ((show "fails terminates") ++ msg) : errs
@@ -295,6 +242,7 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
     init' f x e ty = do
       -- get measures + typeasts
       let measures = buildMeasure ty []
+
           -- template = buildTemplate ty
           -- templates = fill f e emptyEnv 0 template []
       -- SETUP
@@ -327,23 +275,31 @@ generateMatrix env (t:ts) ms =
   let input = map (\m -> applyMeasure env m (fst t) m) ms 
       recCalls = map (\m -> applyMeasure env m (snd t) m) ms
   in
-    [map (\(i, r) -> compareMeasure i r) $ zip input recCalls] ++ (generateMatrix env ts ms)
+    [map (\(i, r) -> compareMeasure i r env) $ zip input recCalls] ++ (generateMatrix env ts ms)
 
-type Size = (Maybe MeasureOp, Maybe Expr, Int)
-compareMeasure :: Size -> Size -> Cmp
+type Size = (Maybe MeasureOp, Maybe FreshVar, Int)
+compareMeasure :: Size -> Size -> Env -> Cmp
 -- input, then recursive measure.
 -- These are errors.
-compareMeasure (_, _, -1) _ = Unknown
-compareMeasure _ (_, _, -1) = Unknown
-compareMeasure (Nothing, Nothing, n) (Nothing, Nothing, m) = 
-  if (m < n) then Le
-  else
-    if (m == n) then Eq 
+-- Not all cases covered - check nothing cases.
+compareMeasure (_, _, -1) _ _ = Unknown
+compareMeasure _ (_, _, -1) _ = Unknown
+compareMeasure (_, Just e1, n1) (_, Just e2, n2) env = 
+  if (n1 > n2 && (equivExpr e1 e2 env)) then Le 
+  else 
+    if (n1 == n2 && (equivExpr e1 e2 env)) then Eq 
     else Unknown
-compareMeasure (mOp, exp, n) (rMOp, rExp, eN) = undefined
 
--- case find (\(f', mv', t') -> f == f') xs of 
-  -- M.lookup f (freshEnv env)
+-- do something fancier?? Resolve somehow
+equivExpr :: FreshVar -> FreshVar -> Env -> Bool
+equivExpr e1 e2 env = 
+  if (e1 == e2) then True 
+  else case M.lookup e1 (assertionsEnv env) of 
+    Nothing -> False 
+    Just xs -> case find (\x -> x == e2) xs of 
+      Nothing -> False 
+      Just x -> True
+
 applyMeasure :: Env -> MeasureOp -> Template -> MeasureOp -> Size
 -- applyMeasure = undefined
 -- original template, current template, current measureOp
@@ -351,22 +307,14 @@ applyMeasure env mOp (RecordAST (Just alpha) [(f, (Just v), t)]) (ProjectOp f' m
   if (f == f') then 
     case applyMeasure env mOp t m of 
       -- if it's an error, return the current position.
-      (Nothing, Nothing, -1) -> 
-        case M.lookup alpha (freshEnv env) of 
-          -- Mm, this shouldn't happen
-          Nothing -> (Just (ProjectOp f' m), Nothing, 0)
-          Just x -> (Just (ProjectOp f' m), Just x, 0)
+      (Nothing, Nothing, -1) -> (Just (ProjectOp f' m), Just alpha, 0)
       x -> x
   else (Nothing, Nothing, -1)
 applyMeasure env mOp (RecursiveRecordAST rp (Just alpha) [(f, (Just v), t)]) (UnfoldOp rp' f' m) = 
   if (f == f') then 
     case applyMeasure env mOp t m of -- continue
       -- if error, return the current position.
-      (Nothing, Nothing, -1) -> 
-        case M.lookup alpha (freshEnv env) of
-          -- Mm, this shouldn't happen
-          Nothing -> (Just (UnfoldOp rp' f' m), Nothing, 0)
-          Just x -> (Just (UnfoldOp rp' f' m), Just x, 0)
+      (Nothing, Nothing, -1) -> (Just (UnfoldOp rp' f' m), Just alpha, 0)
       x -> x
   else
     (Nothing, Nothing, -1)
@@ -375,20 +323,14 @@ applyMeasure env mOp (VariantAST (Just alpha) [(f, Just v, t)]) (CaseOp cs) =
     Nothing -> (Nothing, Nothing, -1)
     -- found, so move on.
     Just (f', m') -> case applyMeasure env mOp t m' of 
-      (Nothing, Nothing, -1) -> 
-        case M.lookup alpha (freshEnv env) of 
-          Nothing -> (Just (CaseOp cs), Nothing, 0)
-          Just x -> (Just (CaseOp cs), Just x, 0)
+      (Nothing, Nothing, -1) -> (Just (CaseOp cs), Just alpha, 0)
       x -> x
 applyMeasure env mOp (RecParAST rp (Just alpha)) (RecParMeasure rp') =
   case (rp == rp') of
     -- make sure they match
     False -> (Nothing, Nothing, -1)
     -- search up the exp related to alpha
-    True -> case M.lookup alpha (freshEnv env) of 
-      Just x -> (Just mOp, Just x, 1)
-      -- hmm, shouldn't happen
-      Nothing -> (Nothing, Nothing, 0)
+    True -> (Just mOp, Just alpha, 1)
 -- Check this: no unfoldings have happened. so its ok.
 applyMeasure env mOp (PrimitiveAST (Just alpha)) (IntConstOp n) = (Nothing, Nothing, 0)
 -- if any of the variable names are 'Nothing'
@@ -406,6 +348,26 @@ exprToTemplate exp env tem =
           alpha <- fresh
           return $ (RecursiveRecordAST rp (Just alpha) t, envAddFresh [(alpha, exp)] env)
     _ -> return $ (tem, env)
+
+generateAssertions :: Template -> Env -> Env 
+generateAssertions tem env = 
+  case tem of 
+    RecordAST (Just alpha) [(f', (Just beta), t')] -> 
+      case t' of 
+        RecordAST (Just gamma) _ -> generateAssertions t' (envAddAssertion beta gamma env)
+        RecursiveRecordAST rp (Just gamma) _ -> generateAssertions t' (envAddAssertion beta gamma env)
+        VariantAST (Just gamma) _ -> generateAssertions t' (envAddAssertion beta gamma env)
+        PrimitiveAST (Just gamma) -> envAddAssertion beta gamma env
+        RecParAST rp (Just gamma) -> envAddAssertion beta gamma env
+    RecursiveRecordAST rp (Just alpha) [(f', (Just beta), t')] ->
+      case t' of 
+        RecordAST (Just gamma) _ -> generateAssertions t' (envAddAssertion beta gamma env)
+        RecursiveRecordAST rp (Just gamma) _ -> generateAssertions t' (envAddAssertion beta gamma env)
+        VariantAST (Just gamma) _ -> generateAssertions t' (envAddAssertion beta gamma env)
+        PrimitiveAST (Just gamma) -> envAddAssertion beta gamma env
+        RecParAST rp (Just gamma) -> envAddAssertion beta gamma env
+    VariantAST (Just alpha) [(f', (Just beta), t')] -> generateAssertions t' (envAddAssertion alpha beta env)
+    _ -> env
 
 -- ASSUMPTIONS:
 -- Case e1s: only contain Var v or Member e f expressions.
@@ -449,9 +411,9 @@ fillTemplates funName exp tem env n =
           let env1 = envAdd e2 env
           (res1, env2, err1) <- fillTemplates funName e2 tem env1 n
           alpha <- fresh
-          return $ 
-            case res1 of 
-              [] -> case tem of 
+          return $
+            case res1 of
+              [] -> case tem of
                 -- map alpha:e2 (e2 is the recursive arg)
                 RecParAST rp mv -> ([(RecParAST rp (Just alpha), e2)], (envAddFresh [(alpha, e2)] env1), err1)
                 _ -> ([], env2, err1 ++ ["Error: Apply not happening on RP"])
@@ -745,8 +707,18 @@ envAddFresh ((fvar, exp): xs) env =
   let env' = envAddFresh xs env 
   in env' {freshEnv = M.insert fvar exp (freshEnv env')}
 
--- envExistsFresh :: FreshVar -> Env -> Maybe Expr
--- envExistsFresh f env = M.lookup f (freshEnv env)
+envAddAssertion :: FreshVar -> FreshVar -> Env -> Env 
+envAddAssertion f1 f2 env = 
+  let env' = addAssertion f1 f2 env 
+  in addAssertion f2 f1 env'
+
+addAssertion :: FreshVar -> FreshVar -> Env -> Env
+addAssertion f1 f2 env = 
+  case M.lookup f1 (assertionsEnv env) of 
+    Nothing -> env {assertionsEnv = M.insert f1 [f2] (assertionsEnv env)}
+    Just xs -> case find (\x -> x == f2) xs of 
+      Just x -> env
+      Nothing -> env {assertionsEnv = M.insert f1 (f2:xs) (assertionsEnv env)}
 
 -- termCheck' :: GlobalEnvironments -> ([Error], [(FunName, [Assertion], String)])
 -- termCheck' genvs = M.foldrWithKey go ([],[]) (defns genvs)
