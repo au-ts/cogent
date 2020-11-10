@@ -216,10 +216,11 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
       case getType f genvs of 
         Nothing -> ([], [])
         Just ty ->
-          let (funName, b, m, te, tt, env) = (init' f x e ty)
+          let (funName, b, m, te, tt, sizes, env) = (init' f x e ty)
               msg = ("\n\nMatrix\n" ++ (show m) 
                   ++ "\n\nTemplate Expr Tuples\n" ++ (show te)
                   ++ "\n\nTemplate Tuples\n" ++ (show tt)
+                  ++ "\n\nSizes\n" ++ (show sizes)
                   ++ "\n\nEnv\n" ++ (show env)
                   )
               errs' = case b of 
@@ -227,7 +228,7 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
                 False -> ((show "Fails termination") ++ msg):errs
             in (errs', (funName, b):[])
 
-    init' :: FunName -> VarName -> Expr -> Type -> (FunName, Bool, Matrix.Matrix Cmp, [(Template, Expr)], [(Template, Template)], Env)
+    init' :: FunName -> VarName -> Expr -> Type -> (FunName, Bool, Matrix.Matrix Cmp, [(Template, Expr)], [(Template, Template)], [(Size, Size)],Env)
     init' funName x e ty =
       let 
         -- generate list of measures
@@ -246,13 +247,35 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
         -- matrix = Matrix.fromLists [[]]
         -- generate local descent arrays
         -- generate matrix
-        matrix = Matrix.fromLists $ generateMatrix env2 templateTemplate measures
+        sizes = generateSize env3 (templateTemplate !! 0) measures
+        row1 = generateRow env3 (templateTemplate !! 0) measures
+        matrix = Matrix.fromLists $ [row1]
+        
+        -- matrix = Matrix.fromLists $ generateMatrix env2 templateTemplate measures
         -- run global descent
         result = globalDescent matrix
         -- result = True
-      in (funName, result, matrix, templateExpr, templateTemplate, env3)
+      in (funName, result, matrix, templateExpr, templateTemplate, sizes, env3)
+
+generateSize :: Env -> (Template, Template) -> [MeasureOp] -> [(Size, Size)]
+generateSize env (t1, t2) [] = []
+generateSize env (t1, t2) (m:ms) = 
+  let s1 = applyMeasure env m t1 m 
+      s2 = applyMeasure env m t2 m 
+  in (s1, s2):generateSize env (t1, t2) ms
 
 -- for each template + expression, apply the measure
+generateRow :: Env -> (Template, Template) -> [MeasureOp] -> [Cmp]
+generateRow env _ [] = []
+generateRow env (t1, t2) (m:ms) = 
+  let s1 = applyMeasure env m t1 m 
+      s2 = applyMeasure env m t2 m 
+      res = compareMeasure s1 s2 env
+  in res:(generateRow env (t1, t2) ms)
+
+-- applyMeasure :: Env -> MeasureOp -> Template -> MeasureOp -> Size
+-- original template, current template, current measureOp
+
 generateMatrix :: Env -> [(Template, Template)] -> [MeasureOp] -> [[Cmp]]
 generateMatrix _ [] _ = [[]]
 generateMatrix _ _ [] = [[]]
@@ -266,15 +289,19 @@ generateMatrix env (t:ts) ms =
 type Size = (Maybe MeasureOp, Maybe FreshVar, Int)
 compareMeasure :: Size -> Size -> Env -> Cmp
 -- input, then recursive measure.
--- These are errors.
--- Not all cases covered - check nothing cases.
 compareMeasure (_, _, -1) _ _ = Unknown
 compareMeasure _ (_, _, -1) _ = Unknown
-compareMeasure (_, Just e1, n1) (_, Just e2, n2) env = 
-  if (n1 > n2 && (equivExpr e1 e2 env)) then Le 
-  else 
-    if (n1 == n2 && (equivExpr e1 e2 env)) then Eq 
-    else Unknown
+compareMeasure (_, e1, n1) (_, e2, n2) env = 
+  case e1 of 
+    Just x ->
+      case e2 of 
+        Just y -> 
+          if (n1 > n2 && (equivExpr x y env)) then Le 
+          else 
+            if (n1 == n2 && (equivExpr x y env)) then Eq 
+            else Unknown 
+        _ -> Unknown
+    _ -> Unknown 
 
 -- do something fancier?? Resolve somehow
 equivExpr :: FreshVar -> FreshVar -> Env -> Bool
@@ -312,21 +339,21 @@ exprToTemplate exp env tem alpha =
 
 applyMeasure :: Env -> MeasureOp -> Template -> MeasureOp -> Size
 -- original template, current template, current measureOp
-applyMeasure env mOp (RecordAST (Just alpha) [(f, (Just v), t)]) (ProjectOp f' m) = 
+applyMeasure env mOp (RecordAST (Just alpha) [(f, mv, t)]) (ProjectOp f' m) = 
   if (f == f') then 
     case applyMeasure env mOp t m of 
       -- if it's an error, return the current position.
       (Nothing, Nothing, -1) -> (Just (ProjectOp f' m), Just alpha, 0)
       x -> x
   else (Nothing, Nothing, -1)
-applyMeasure env mOp (RecursiveRecordAST rp (Just alpha) [(f, (Just v), t)]) (UnfoldOp rp' f' m) = 
+applyMeasure env mOp (RecursiveRecordAST rp (Just alpha) [(f, mv, t)]) (UnfoldOp rp' f' m) = 
   if (f == f') then 
     case applyMeasure env mOp t m of -- continue
       -- if error, return the current position.
       (Nothing, Nothing, -1) -> (Just (UnfoldOp rp' f' m), Just alpha, 0)
       x -> x
   else (Nothing, Nothing, -1)
-applyMeasure env mOp (VariantAST (Just alpha) [(f, Just v, t)]) (CaseOp cs) =
+applyMeasure env mOp (VariantAST (Just alpha) [(f, mv, t)]) (CaseOp cs) =
   case (find (\(f', m') -> f' == f) cs) of 
     Nothing -> (Nothing, Nothing, -1)
     -- found, so move on.
