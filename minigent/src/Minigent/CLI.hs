@@ -209,7 +209,8 @@ tcPhase colour envs = do
       pure []
     go (Right b) = pure [b]
 
-terminationPhase :: Bool -> GlobalEnvironments -> IO [(FunName, [Assertion], String)]
+-- terminationPhase :: Bool -> GlobalEnvironments -> IO [(FunName, [Assertion], String)]
+terminationPhase :: Bool -> GlobalEnvironments -> IO [(FunName, Bool)]
 terminationPhase b envs
   = let (errs, dumps) = termCheck envs in
       case errs of
@@ -293,6 +294,7 @@ tcDump tops (Dump TC out fmt) =
 tcDump _ _ = return ()
 
 termDump :: [(FunName, [Assertion], String)] -> Directive -> IO ()
+-- termDump :: [(FunName, Bool)]
 termDump dumps (Dump Term out fmt) = do
     write out $ intercalate "\n" $ map (\(f, as, _) -> "Function " ++ f ++ ":\n" ++ format fmt as) dumps
     return ()
@@ -311,7 +313,7 @@ termDump dumps (Dump Term out fmt) = do
                         . layoutPretty defaultLayoutOptions
                         . vcat . map prettyAssertion
 termDump dumps (GenTermGraph f) = do
-    writeFile f $ intercalate "\n" $ map (\(_, _, g) -> g) dumps
+    -- writeFile f $ intercalate "\n" $ map (\(_, _, g) -> g) dumps
     return ()
 termDump _ _ = return ()
 
@@ -343,7 +345,7 @@ compiler phase dirs files = do
     mapM_ (tcDump binds) dirs
     upTo Term
     funDumps <- terminationPhase False envs
-    mapM_ (termDump funDumps) dirs
+    -- mapM_ (termDump funDumps) dirs
     upTo CG
     barf <- cgPhase binds
     mapM_ (cgDump barf) dirs

@@ -248,9 +248,10 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
         -- generate local descent arrays
         -- generate matrix
         sizes = generateSize env3 (templateTemplate !! 0) measures
-        row1 = generateRow env3 (templateTemplate !! 0) measures
-        matrix = Matrix.fromLists $ [row1]
-        
+        -- row1 = generateRow env3 (templateTemplate !! 0) measures
+        cmps = generateMatrix env3 templateTemplate measures
+        matrix = Matrix.fromLists $ cmps
+
         -- matrix = Matrix.fromLists $ generateMatrix env2 templateTemplate measures
         -- run global descent
         result = globalDescent matrix
@@ -273,18 +274,13 @@ generateRow env (t1, t2) (m:ms) =
       res = compareMeasure s1 s2 env
   in res:(generateRow env (t1, t2) ms)
 
--- applyMeasure :: Env -> MeasureOp -> Template -> MeasureOp -> Size
--- original template, current template, current measureOp
-
 generateMatrix :: Env -> [(Template, Template)] -> [MeasureOp] -> [[Cmp]]
-generateMatrix _ [] _ = [[]]
-generateMatrix _ _ [] = [[]]
-generateMatrix env (t:ts) ms = 
-  -- for each template, apply ALL the measures 
-  let input = map (\m -> applyMeasure env m (fst t) m) ms 
-      recCalls = map (\m -> applyMeasure env m (snd t) m) ms
-  in
-    [map (\(i, r) -> compareMeasure i r env) $ zip input recCalls] ++ (generateMatrix env ts ms)
+generateMatrix env _ [] = [[]]
+generateMatrix env [] _ = [[]]
+generateMatrix env (t:ts) ms =
+  case ts of 
+    [] -> [(generateRow env t ms)]
+    xs -> [(generateRow env t ms)] ++ (generateMatrix env ts ms)
 
 type Size = (Maybe MeasureOp, Maybe FreshVar, Int)
 compareMeasure :: Size -> Size -> Env -> Cmp
@@ -380,12 +376,8 @@ resolveEnv env =
   in case x of 
     [] -> env 
     xs -> foldr (resolveEnvHelper) env xs
--- envAddAssertion :: FreshVar -> FreshVar -> Env -> Env 
--- envAddAssertion f1 f2 env = 
---   let env' = addAssertion f1 f2 env 
---   in addAssertion f2 f1 env'
 
--- from the MissingH library
+-- TODO: from the MissingH library
 {- | Flips an association list.  Converts (key1, val), (key2, val) pairs
 to (val, [key1, key2]). -}
 flipAL :: (Eq key, Eq val) => [(key, val)] -> [(val, [key])]
@@ -460,6 +452,12 @@ fillTemplateHelper ((t, e):ts) tem env err n =
           (Just x) -> (((VariantAST mv [(f', mv', t)], e):res), env, err ++ err1 ++ ["helper func"])
       _ -> ([], env, ["Helper: template does not match"]++ [show tem])
 
+-- env: fresh: expr
+--    : fresh: [fresh]
+-- -> if a fresh var exists for an exp, can use that instead of creating a new one
+-- can drop the eq assertions.
+
+-- remove the int
 fillTemplates :: FunName -> Expr -> Template -> Env -> Int -> Fresh VarName ([(Template, Expr)], Env, [Error])
 fillTemplates funName exp tem env n = 
   case exp of 
