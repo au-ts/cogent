@@ -216,9 +216,10 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
       case getType f genvs of 
         Nothing -> ([], [])
         Just ty ->
-          let (funName, b, m, t, env) = (init' f x e ty)
+          let (funName, b, m, te, tt, env) = (init' f x e ty)
               msg = ("\n\nMatrix\n" ++ (show m) 
-                  ++ "\n\nTemplate Tuples\n" ++ (show t)
+                  ++ "\n\nTemplate Expr Tuples\n" ++ (show te)
+                  ++ "\n\nTemplate Tuples\n" ++ (show tt)
                   ++ "\n\nEnv\n" ++ (show env)
                   )
               errs' = case b of 
@@ -226,7 +227,7 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
                 False -> ((show "Fails termination") ++ msg):errs
             in (errs', (funName, b):[])
 
-    init' :: FunName -> VarName -> Expr -> Type -> (FunName, Bool, Matrix.Matrix Cmp, [(Template, Template)], Env)
+    init' :: FunName -> VarName -> Expr -> Type -> (FunName, Bool, Matrix.Matrix Cmp, [(Template, Expr)], [(Template, Template)], Env)
     init' funName x e ty =
       let 
         -- generate list of measures
@@ -240,16 +241,16 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
         (templateTemplate, env1) = fillTemplateExp template templateExprChar env
         -- generate assertions
         env2 = assertions templateTemplate env1
+        env3 = resolveEnv env2
         -- apply measures 
-        -- applyMeasure :: Env -> MeasureOp -> Template -> MeasureOp -> Size
-        matrix = Matrix.fromLists [[]]
-        -- matrix = Matrix.fromLists $ generateMatrix env2 templateTemplate measures
-        -- result = globalDescent matrix
-        result = True
+        -- matrix = Matrix.fromLists [[]]
         -- generate local descent arrays
         -- generate matrix
+        matrix = Matrix.fromLists $ generateMatrix env2 templateTemplate measures
         -- run global descent
-      in (funName, result, matrix, templateTemplate, env2)
+        result = globalDescent matrix
+        -- result = True
+      in (funName, result, matrix, templateExpr, templateTemplate, env3)
 
 -- for each template + expression, apply the measure
 generateMatrix :: Env -> [(Template, Template)] -> [MeasureOp] -> [[Cmp]]
@@ -288,20 +289,25 @@ equivExpr e1 e2 env =
 fillTemplateExp :: Template -> [((Template, Expr), Char)] -> Env -> ([(Template, Template)], Env)
 fillTemplateExp tem [] env = ([], env)
 fillTemplateExp tem (((t, e), c):ts) env = 
-  let (t', env') = exprToTemplate e env tem c 0
-      (res, env'') = fillTemplateExp tem ts env'
-  in ((t, t'):res, env'')
+  let (t', env1) = exprToTemplate e env tem (c:[c])
+      (res, env2) = fillTemplateExp tem ts env1
+  in ((t, t'):res, env2)
 
 -- Build template from expression
 -- TODO: finish this off.
-exprToTemplate :: Expr -> Env -> Template -> Char -> Int -> (Template, Env)
-exprToTemplate exp env tem c n =
+exprToTemplate :: Expr -> Env -> Template -> String -> (Template, Env)
+exprToTemplate exp env tem alpha =
   case exp of 
     Member e f ->
       case tem of 
-        RecursiveRecordAST rp mv t -> 
-          let alpha = [c] ++ show n
-          in (RecursiveRecordAST rp (Just alpha) t, (envAddFresh [(alpha, exp)] env))
+        RecursiveRecordAST rp mv t ->
+          (RecursiveRecordAST rp (Just alpha) t, (envAddFresh [(alpha, exp)] env))
+        _ -> (tem, env)
+    Var v -> 
+      case tem of 
+        RecursiveRecordAST rp mv t ->
+          (RecursiveRecordAST rp (Just alpha) t, (envAddFresh [(alpha, exp)] env))
+        _ -> (tem, env)
     _ -> (tem, env)
 
 applyMeasure :: Env -> MeasureOp -> Template -> MeasureOp -> Size
@@ -319,8 +325,7 @@ applyMeasure env mOp (RecursiveRecordAST rp (Just alpha) [(f, (Just v), t)]) (Un
       -- if error, return the current position.
       (Nothing, Nothing, -1) -> (Just (UnfoldOp rp' f' m), Just alpha, 0)
       x -> x
-  else
-    (Nothing, Nothing, -1)
+  else (Nothing, Nothing, -1)
 applyMeasure env mOp (VariantAST (Just alpha) [(f, Just v, t)]) (CaseOp cs) =
   case (find (\(f', m') -> f' == f) cs) of 
     Nothing -> (Nothing, Nothing, -1)
@@ -339,6 +344,48 @@ applyMeasure env mOp (PrimitiveAST (Just alpha)) (IntConstOp n) = (Nothing, Noth
 -- if any of the variable names are 'Nothing'
 -- if any of the template/mOp pairs don't match
 applyMeasure env mOp _ _ = (Nothing, Nothing, -1)
+
+resolveEnv :: Env -> Env 
+resolveEnv env = 
+  -- take stuff out from the freshEnv and group on the second element
+  -- flipAL :: (Eq key, Eq val) => [(key, val)] -> [(val, [key])]Source
+  let x = map (\x -> snd x) $ flipAL $ M.toList (freshEnv env)
+  in case x of 
+    [] -> env 
+    xs -> foldr (resolveEnvHelper) env xs
+-- envAddAssertion :: FreshVar -> FreshVar -> Env -> Env 
+-- envAddAssertion f1 f2 env = 
+--   let env' = addAssertion f1 f2 env 
+--   in addAssertion f2 f1 env'
+
+-- from the MissingH library
+{- | Flips an association list.  Converts (key1, val), (key2, val) pairs
+to (val, [key1, key2]). -}
+flipAL :: (Eq key, Eq val) => [(key, val)] -> [(val, [key])]
+flipAL oldl =
+    let worker :: (Eq key, Eq val) => [(key, val)] -> [(val, [key])] -> [(val, [key])]
+        worker [] accum = accum
+        worker ((k, v):xs) accum =
+            case lookup v accum of
+                                Nothing -> worker xs ((v, [k]) : accum)
+                                Just y  -> worker xs (addToAL accum v (k:y))
+        in
+        worker oldl []
+{- | Adds the specified (key, value) pair to the given list, removing any
+existing pair with the same key already present. -}
+addToAL :: Eq key => [(key, elt)] -> key -> elt -> [(key, elt)]
+addToAL l key value = (key, value) : delFromAL l key
+
+{- | Removes all (key, value) pairs from the given list where the key
+matches the given one. -}
+delFromAL :: Eq key => [(key, a)] -> key -> [(key, a)]
+delFromAL l key = filter (\a -> (fst a) /= key) l
+
+resolveEnvHelper :: [FreshVar] -> Env -> Env
+resolveEnvHelper [] env = env 
+resolveEnvHelper (f:fs) env = 
+  let env' = foldr (envAddAssertion f) env fs
+  in resolveEnvHelper fs env'
 
 assertions :: [(Template, Template)] -> Env -> Env 
 assertions [] env = env 
