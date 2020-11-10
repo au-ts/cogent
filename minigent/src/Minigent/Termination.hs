@@ -216,55 +216,40 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
       case getType f genvs of 
         Nothing -> ([], [])
         Just ty ->
-          let (funName, b) = fst $ runFresh unifVars (init' f x e ty)
-              measure = buildMeasure ty []
-              template = buildTemplate ty
-              (templates, env, err) = fst $ runFresh unifVars $ fillTemplates  funName e template (envAdd (Var "r") emptyEnv) 0
-              (test, env1) = fst $ runFresh unifVars $ exprToTemplate (snd $ head templates) env template
+          let (funName, b, m, t, env) = (init' f x e ty)
+              msg = ("\n\nMatrix\n" ++ (show m) 
+                  ++ "\n\nTemplate Tuples\n" ++ (show t)
+                  ++ "\n\nEnv\n" ++ (show env)
+                  )
+              errs' = case b of 
+                True -> ((show "Passes termination") ++ msg):errs
+                False -> ((show "Fails termination") ++ msg):errs
+            in (errs', (funName, b):[])
 
-              applied = applyMeasure env1 (head measure)  (fst $ head templates) (head measure) 
-              recursiveCalls = getRecursiveCalls f e
-              msg = ("\n\nExpression:\n"
-                    ++ show e ++ "-------\n\nRecursive Calls:\n" 
-                    ++ show recursiveCalls ++ "-------\n\nMeasures:\n"
-                    ++ show measure ++ " ---- \n\nTemplate:\n" 
-                    ++ show template ++ " ---- \n\nFilled Templates:\n" 
-                    ++ show templates ++ "-------\n\nEnv:\n"
-                    ++ show env1 ++ "-------\n\nErr:\n"
-                    ++ show err ++ "-------\n\napplied:\n"
-                    ++ show applied)
-              errs' = case b of
-                        True -> ((show "terminates") ++ msg) : errs
-                        _ -> ((show "fails terminates") ++ msg) : errs
-            in (errs', (funName, b):dumps)
-
-    init' :: FunName -> VarName -> Expr -> Type -> Fresh VarName (FunName, Bool)
-    init' f x e ty = do
-      -- get measures + typeasts
-      let measures = buildMeasure ty []
-
-          -- template = buildTemplate ty
-          -- templates = fill f e emptyEnv 0 template []
-      -- SETUP
-        -- Map each recursive argument to a template - link using a freshvar? Put these freshvars into the env. 
-        -- Go through the func expression.
-          -- Add stuff to the environment: freshvars + expr, expr + freshvars
-          -- Add stuff to the templates.
-      -- Take EACH template and compare to input template for local descent.
-      -- Generate a matrix from local descent.
-      -- Solve matrix with global descent. 
-  
-      -- initialise the env
-      -- templateEnv <- initEnv typeast
-      -- fill fs out the typeASTs and environment.
-      -- env' <- setUp f x e typeast env
-          -- matrix <- localDescent measures typeASTs env
-          -- result <- globalDescent Matrix.fromList $ matrix
-      -- get measures 
-      -- get type ast
-      return $ (f, True)
-      -- return $ (f, result)
--- function name, expression, env, counter, COMPLETE template, PARTIAL template.
+    init' :: FunName -> VarName -> Expr -> Type -> (FunName, Bool, Matrix.Matrix Cmp, [(Template, Template)], Env)
+    init' funName x e ty =
+      let 
+        -- generate list of measures
+        measures = buildMeasure ty []
+        -- generate template
+        template = buildTemplate ty
+        -- generate (template, expr) tuples, environment and error msg
+        (templateExpr, env, err) = fst $ runFresh unifVars $ fillTemplates funName e template (envAdd (Var "r") emptyEnv) 0
+        -- convert the expressions into templates
+        templateExprChar = zip templateExpr ['a'..'z'] -- lol, fix later
+        (templateTemplate, env1) = fillTemplateExp template templateExprChar env
+        -- generate assertions
+        env2 = assertions templateTemplate env1
+        -- apply measures 
+        -- applyMeasure :: Env -> MeasureOp -> Template -> MeasureOp -> Size
+        matrix = Matrix.fromLists [[]]
+        -- matrix = Matrix.fromLists $ generateMatrix env2 templateTemplate measures
+        -- result = globalDescent matrix
+        result = True
+        -- generate local descent arrays
+        -- generate matrix
+        -- run global descent
+      in (funName, result, matrix, templateTemplate, env2)
 
 -- for each template + expression, apply the measure
 generateMatrix :: Env -> [(Template, Template)] -> [MeasureOp] -> [[Cmp]]
@@ -300,8 +285,26 @@ equivExpr e1 e2 env =
       Nothing -> False 
       Just x -> True
 
+fillTemplateExp :: Template -> [((Template, Expr), Char)] -> Env -> ([(Template, Template)], Env)
+fillTemplateExp tem [] env = ([], env)
+fillTemplateExp tem (((t, e), c):ts) env = 
+  let (t', env') = exprToTemplate e env tem c 0
+      (res, env'') = fillTemplateExp tem ts env'
+  in ((t, t'):res, env'')
+
+-- Build template from expression
+-- TODO: finish this off.
+exprToTemplate :: Expr -> Env -> Template -> Char -> Int -> (Template, Env)
+exprToTemplate exp env tem c n =
+  case exp of 
+    Member e f ->
+      case tem of 
+        RecursiveRecordAST rp mv t -> 
+          let alpha = [c] ++ show n
+          in (RecursiveRecordAST rp (Just alpha) t, (envAddFresh [(alpha, exp)] env))
+    _ -> (tem, env)
+
 applyMeasure :: Env -> MeasureOp -> Template -> MeasureOp -> Size
--- applyMeasure = undefined
 -- original template, current template, current measureOp
 applyMeasure env mOp (RecordAST (Just alpha) [(f, (Just v), t)]) (ProjectOp f' m) = 
   if (f == f') then 
@@ -337,17 +340,12 @@ applyMeasure env mOp (PrimitiveAST (Just alpha)) (IntConstOp n) = (Nothing, Noth
 -- if any of the template/mOp pairs don't match
 applyMeasure env mOp _ _ = (Nothing, Nothing, -1)
 
--- Build template from expression
--- TODO: finish this off.
-exprToTemplate :: Expr -> Env -> Template -> Fresh VarName (Template, Env)
-exprToTemplate exp env tem =
-  case exp of 
-    Member e f ->
-      case tem of 
-        RecursiveRecordAST rp mv t -> do 
-          alpha <- fresh
-          return $ (RecursiveRecordAST rp (Just alpha) t, envAddFresh [(alpha, exp)] env)
-    _ -> return $ (tem, env)
+assertions :: [(Template, Template)] -> Env -> Env 
+assertions [] env = env 
+assertions ((t1, t2):ts) env = 
+  let env1 = generateAssertions t1 env 
+      env2 = generateAssertions t2 env1
+  in assertions ts env2
 
 generateAssertions :: Template -> Env -> Env 
 generateAssertions tem env = 
