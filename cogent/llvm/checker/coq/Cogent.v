@@ -1,53 +1,94 @@
-From Coq Require Import List String ZArith.
+From Coq Require Import List ListSet String ZArith.
 
-Variant PrimInt : Set :=
-  | U8
-  | U16
-  | U32
-  | U64
-  | Boolean.
+Definition name := string.
 
-Variant Sigil : Set :=
-  | Boxed (* Ignore ReadOnly *)
+Definition index := nat.
+
+Definition field := nat.
+
+Variant num_type : Set := U8 | U16 | U32 | U64.
+
+Variant prim_type : Set := Num (n:num_type) | Bool | String.
+
+Variant prim_op : Set :=
+  | Plus (t:num_type)
+  | Minus (t:num_type)
+  | Times (t:num_type)
+  | Divide (t:num_type)
+  | Mod (t:num_type)
+  | Not | And | Or
+  | Gt (t:num_type)
+  | Lt (t:num_type)
+  | Le (t:num_type)
+  | Ge (t:num_type)
+  | Eq (t:prim_type)
+  | NEq (t:prim_type)
+  | BitAnd (t:num_type)
+  | BitOr (t:num_type)
+  | BitXor (t:num_type)
+  | LShift (t:num_type)
+  | RShift (t:num_type)
+  | Complement (t:num_type).
+
+Variant sigil : Set :=
+  | Boxed (* Ignore access_perm, ptr_layout *)
   | Unboxed.
 
+Variant variant_state : Set := Checked | Unchecked.
+Variant record_state : Set := Taken | Present.
+
 Inductive type : Set :=
-  | TPrim (p:PrimInt)
-  | TUnit
-  | TString
+  | TVar (i:index)
+  | TVarBang (i:index)
+  | TCon (n:name) (ts:list type) (s:sigil)
   | TFun (t:type) (rt:type)
-  | TRecord (fs:list (string * (type * bool))) (s:Sigil) (* Ignore RecursiveParameter, DataLayout *)
-  | TSum (vs:list (string * (type * bool)))
-  | TCon (tn:string) (ts:list type) (s:Sigil).
+  | TPrim (t:prim_type)
+  | TSum (vs:list (name * (type * variant_state)))
+  (* | TProduct (t1:type) (t2:type) *)
+  | TRecord (fs:list (name * (type * record_state))) (s:sigil)
+  | TUnit.
 
-Variant Operator : Set :=
-  | Plus | Minus | Times | Divide | Mod
-  | Not | And | Or
-  | Gt | Lt | Le | Ge | Eq | NEq
-  | BitAnd | BitOr | BitXor | LShift | RShift | Complement.
+Variant lit : Set :=
+  | LBool (b:bool)
+  | LU8 (w:Z)
+  | LU16 (w:Z)
+  | LU32 (w:Z)
+  | LU64 (w:Z).
+(* NOTE: not represented as n-bit words *)
 
-Inductive expr : Set :=
-  | Var (n:nat * string)
-  | Fun (fn:string) (ts:list type) (* Ignore DataLayout, FunNote *)
-  | Op (o:Operator) (os:list expr)
+Inductive expr : Type :=
+  | Var (i:index)
+  (* | AFun (funtyp:'f)  (ts:list type) *)
+  | Fun (f:expr) (ts:list type) 
+  | Prim (op:prim_op) (os:list expr)
   | App (f:expr) (a:expr)
-  | Con (tn:string) (e:expr) (t:type)
-  | Unit 
-  | ILit (i:Z)
+  | Con (ts:list (name * type * variant_state)) (n:name) (e:expr)
+  | Struct (ts:list type) (es:list expr)
+  | Member (e:expr) (f:field)
+  | Unit
+  | Lit (l:lit)
   | SLit (s:string)
-  | Let (v:string) (e:expr) (b:expr)
-  | LetBang (vs:list (nat * string)) (v:string) (e:expr) (b:expr)
-  | Struct (fs:list (string * expr))
+  | Cast (t:num_type) (e:expr)
+  (* | Tuple (e1:expr) (e2:expr) *)
+  | Put (e:expr) (f:field) (v:expr)
+  | Let (e:expr) (b:expr)
+  | LetBang (is:set index) (e:expr) (b:expr)
+  | Case (e:expr) (n:name) (b1:expr) (b2:expr)
+  | Esac (e:expr) (n:name)
   | If (c:expr) (b1:expr) (b2:expr)
-  | Case (e:expr) (tn:string) (b1:string * expr) (b2:string * expr) (* Ignore Likelihood *)
-  | Esac (e:expr)
-  | Member (e:expr) (i:Z)
-  | Take (vs:string * string) (e:expr) (i:Z) (b:expr)
-  | Put (e:expr) (i:Z) (v:expr)
-  | Promote (t:type) (e:expr)
-  | Cast (t:type) (e:expr).
+  | Take (e:expr) (f:field) (b:expr)
+  (* | Split (e1:expr) (e2:expr) *)
+  | Promote (t:type) (e:expr).
 
-Variant definition : Set :=
-  | FunDef (fn:string) (t:type) (rt:type) (b:expr) (* Ignore Attr, TyVarName, Kind, DLVarName *)
-  | AbsDecl (fn:string) (t:type) (rt:type) (* Ignore Attr, TyVarName, Kind, DLVarName *)
-  | TypeDef (tn:string) (tv:list string) (t:option type).
+(* Pretty AST Notation *)
+
+Import ListNotations.
+
+Declare Scope cogent_scope.
+
+Notation "x `+ y" := (Prim (Plus U32) [x; y]) (at level 50) : cogent_scope.
+Notation "x `- y" := (Prim (Minus U32) [x; y]) (at level 50) : cogent_scope.
+Notation "x `* y" := (Prim (Times U32) [x; y]) (at level 25) : cogent_scope.
+Notation "x `/ y" := (Prim (Divide U32) [x; y]) (at level 25) : cogent_scope.
+Notation "x `% y" := (Prim (Mod U32) [x; y]) (at level 25) : cogent_scope.
+Notation "` n" := (Lit (LU32 n)) (at level 0) : cogent_scope.
