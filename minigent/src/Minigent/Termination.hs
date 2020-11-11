@@ -783,7 +783,6 @@ data ArgExpr
   | AEFieldProj FieldName ArgExpr
   | AEVariant FieldName ArgExpr
   | AEVariantProj FieldName ArgExpr
-  | AECase [(FieldName, ArgExpr)]
   | AELit PrimValue
   | AEUnit
   | AEUnknown
@@ -800,6 +799,7 @@ argExprSubst ctxt e@AELit{}           = e
 argExprSubst ctxt e@AEUnit            = e
 argExprSubst ctxt e@AEUnknown         = e
 
+-- secretly a very simple evaluator/rewriter
 exprToArgExpr :: Expr -> ArgExpr
 exprToArgExpr (PrimOp op es)         = AEUnknown
 exprToArgExpr (Literal l)            = AELit l
@@ -809,14 +809,27 @@ exprToArgExpr (Apply e0 e1)          = AEUnknown
 exprToArgExpr (TypeApp fnName _)     = AEUnknown
 exprToArgExpr (Sig e t)              = exprToArgExpr e
 exprToArgExpr (Struct fs)            = AEStruct $ map (second exprToArgExpr) fs
-exprToArgExpr (If ec ett eff)        = AEUnknown
-exprToArgExpr (Let x e0 e1)          = AEUnknown
-exprToArgExpr (LetBang ys x e0 e1)   = AEUnknown
-exprToArgExpr (Take x f y e0 e1)     = AEUnknown
-exprToArgExpr (Put e0 f e1)          = AEUnknown
+exprToArgExpr (If ec ett eff)
+  | AELit (BoolV b) <- exprToArgExpr ec =
+    if b then exprToArgExpr ett else exprToArgExpr eff
+  | otherwise = AEUnknown
+exprToArgExpr (Let x e0 e1) =
+  argExprSubst (M.insert x (exprToArgExpr e0) M.empty) $ exprToArgExpr e1
+exprToArgExpr (LetBang ys x e0 e1) =
+  argExprSubst (M.insert x (exprToArgExpr e0) M.empty) $ exprToArgExpr e1
+exprToArgExpr (Take x f y e0 e1) =
+  argExprSubst (M.insert x AEUnknown -- TODO
+               $ M.insert y (exprToArgExpr e0)
+               $ M.empty)
+               (exprToArgExpr e1)
+exprToArgExpr (Put e0 f e1)
+  | (AEStruct fs) <- exprToArgExpr e0 =
+    let aeField = exprToArgExpr e1
+     in AEStruct (updateField f aeField fs)
+  | otherwise = AEUnknown
 exprToArgExpr (Member e f)           = AEFieldProj f $ exprToArgExpr e
-exprToArgExpr (Case e0 cn x e1 y e2) = AEUnknown
-exprToArgExpr (Esac e0 cn x e1)      = AEUnknown
+exprToArgExpr (Case e0 cn x e1 y e2) = AEUnknown -- TODO
+exprToArgExpr (Esac e0 cn x e1)      = AEUnknown -- TODO
 
 genArgPairs :: FunName -> VarName -> M.Map VarName ArgExpr -> Expr -> [(ArgExpr, ArgExpr)]
 genArgPairs n r env (PrimOp op es)    = concatMap (genArgPairs n r env) es
@@ -868,7 +881,42 @@ genArgPairs n r env (Esac e0 cn x e1) =
          env' = M.insert x aeVarCase env
       in genArgPairs n r env' e1)
 
+reduceArgExprHead :: ArgExpr -> Maybe ArgExpr
+reduceArgExprHead (AEFieldProj f (AEStruct fs))
+  | Just ae <- lookup f fs = Just ae
+  | otherwise              = Just AEUnknown
+reduceArgExprHead (AEVariantProj v0 (AEVariant v1 ae))
+  | v0 == v1  = Just ae
+  | otherwise = Just AEUnknown
+reduceArgExprHead ae = Nothing
 
+reduceArgExpr :: ArgExpr -> ArgExpr
+reduceArgExpr ae0@(AEFieldProj _ ae) =
+  case reduceArgExprHead ae0 of
+    Just ae1 -> reduceArgExpr ae1
+    Nothing -> reduceArgExpr ae
+reduceArgExpr ae0@(AEVariantProj _ ae) =
+  case reduceArgExprHead ae0 of
+    Just ae1 -> reduceArgExpr ae1
+    Nothing -> reduceArgExpr ae
+reduceArgExpr (AEStruct fs) = AEStruct $ map (second reduceArgExpr) fs
+reduceArgExpr (AEVariant f ae) = AEVariant f $ reduceArgExpr ae
+reduceArgExpr ae = ae
+
+applyMeasureToArg :: MeasureOp -> ArgExpr -> Int -> (MeasureOp, ArgExpr, Int)
+applyMeasureToArg m0@(ProjectOp f m) ae0@(AEStruct fs) i =
+  case lookup f fs of
+    Just ae -> applyMeasureToArg m ae i
+    Nothing -> (m0, ae0, i)
+applyMeasureToArg m0@(CaseOp vs) ae0@(AEVariant v ae) i =
+  case lookup v vs of
+    Just m -> applyMeasureToArg m ae i
+    Nothing -> (m0, ae0, i)
+applyMeasureToArg m0@(UnfoldOp _ f m) ae0@(AEStruct fs) i =
+  case lookup f fs of
+    Just ae -> applyMeasureToArg m ae (i+1)
+    Nothing -> (m0, ae0, i)
+applyMeasureToArg m0 ae0 i = (m0, ae0, i)
 
 envExists :: Expr -> Env -> Bool
 envExists exp env = 

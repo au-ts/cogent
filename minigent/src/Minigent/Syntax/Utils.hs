@@ -54,6 +54,8 @@ module Minigent.Syntax.Utils
   , -- * Fresh Unification Variables
     unifVars
   , withUnifVars
+  , -- * Field manipulation
+    updateField
   )
 where
 
@@ -377,3 +379,8 @@ unifVars = S.fromList names
   where
     names = [ g:n | n <- nums, g <- "𝛂𝛃𝛄𝛅𝛆𝛇𝛈𝛉𝛊𝛋𝛍𝛎𝛏𝛑𝛖𝛗𝛘𝛙" ]
     nums = "":map show [1 :: Integer ..]
+
+updateField :: Eq a => a -> b -> [(a,b)] -> [(a,b)]
+updateField a0 b0 ((a1,b1):fs)
+  | a0 == a1 = (a0,b0) : fs
+  | otherwise = (a1,b1) : updateField a0 b0 fs
