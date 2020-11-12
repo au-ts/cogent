@@ -1,0 +1,17 @@
+
+merge : {x: rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}!, y: rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}!}# 
+-> rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}!;
+
+merge m = 
+  case m.x.l of
+    Nil u -> m.y
+    | xs -> 
+        case m.y.l of 
+          Nil u -> m.x
+          | ys -> 
+              if xs.data < ys.data 
+              then merge {x = xs.rest, y = m.y} 
+              else merge {x = m.x, y = ys.rest}
+              end
+        end
+  end;

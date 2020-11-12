@@ -1,0 +1,47 @@
+sumList : rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}! -> U32;
+sumList r = 
+  case 
+    if True
+      then r 
+    else r
+    end
+  of
+    Nil u -> 0
+    | v2 ->
+      case v2 of
+        Cons s ->
+          s.data + sumList s.rest
+      end
+  end;
+  
+  
+merge m = 
+  case m.x.l of
+    Nil u -> m.y
+    | xs -> 
+        case m.y.l of 
+          Nil u -> m.x
+          | ys -> 
+              if xs.data < ys.data 
+              then merge {x = xs.rest, y = m.y} 
+              else merge {x = m.x, y = ys.rest}
+              end
+        end
+  end;
+merge m = 
+  take mx {x = xs} = m in 
+    take my {y = ys} = mx in 
+      case mx.l of 
+        Nil u -> my
+      | xss -> 
+          case my.l of 
+            Nil u -> mx 
+          | yss -> 
+              if xss.data < yss.data 
+              then merge {x = xss.rest, y = ys}
+              else merge {x = xs, y = yss.rest}
+              end
+          end
+      end
+    end
+  end;
