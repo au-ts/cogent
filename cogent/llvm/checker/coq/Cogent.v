@@ -1,13 +1,16 @@
 From Coq Require Import List ListSet String ZArith.
 
+From ExtLib Require Import Structures.Monads.
+From ITree Require Import ITree.
+From Vellvm Require Import Util.
+
+Import ListNotations.
+
 Definition name := string.
-
 Definition index := nat.
-
 Definition field := nat.
 
 Variant num_type : Set := U8 | U16 | U32 | U64.
-
 Variant prim_type : Set := Num (n:num_type) | Bool | String.
 
 Variant prim_op : Set :=
@@ -80,9 +83,89 @@ Inductive expr : Type :=
   (* | Split (e1:expr) (e2:expr) *)
   | Promote (t:type) (e:expr).
 
-(* Pretty AST Notation *)
+Definition prim_lbool (l:lit) : bool :=
+  match l with
+  | LBool b => b
+  | _ => false
+  end.
 
-Import ListNotations.
+Definition default := LBool false.
+
+Definition prim_word_op (f:Z -> Z -> Z) (xs:list lit) : lit :=
+  match (firstn 2 xs) with
+  | [LU8 x; LU8 y] => LU8 (f x y)
+  | [LU16 x; LU16 y] => LU16 (f x y)
+  | [LU32 x; LU32 y] => LU32 (f x y)
+  | [LU64 x; LU64 y] => LU64 (f x y)
+  | _ => default
+  end.
+
+Definition prim_word_comp (f:Z -> Z -> bool) (xs:list lit) : lit :=
+  match (firstn 2 xs) with
+  | [LU8 x; LU8 y] => LBool (f x y)
+  | [LU16 x; LU16 y] => LBool (f x y)
+  | [LU32 x; LU32 y] => LBool (f x y)
+  | [LU64 x; LU64 y] => LBool (f x y)
+  | _ => default
+  end.
+
+Definition eval_prim_op (op:prim_op) (xs:list lit) : lit :=
+  match op with
+  | Plus _ => prim_word_op Z.add xs
+  | Minus _ => prim_word_op Z.sub xs
+  | Times _ => prim_word_op Z.mul xs
+  | Divide _ => prim_word_op Z.div xs
+  | Mod _ => prim_word_op Z.modulo xs
+  (* | Not = LBool (negb (prim_lbool (hd default xs)))
+  | And = LBool (prim_lbool (hd xs) && prim_lbool (xs ! 1))
+  | Or = LBool (prim_lbool (hd xs) || prim_lbool (xs ! 1))
+  | Eq _ = LBool (hd xs = xs ! 1)
+  | NEq _ = LBool (hd xs \<noteq> xs ! 1)
+  | (Gt _) = prim_word_comp (>) xs
+  | (Lt _) = prim_word_comp (<) xs
+  | (Le _) = prim_word_comp (<=) xs
+  | (Ge _) = prim_word_comp (>=) xs
+  | (BitAnd _) = prim_word_op bitAND bitAND bitAND bitAND xs
+  | (BitOr _)s = prim_word_op bitOR bitOR bitOR bitOR xs
+  | (BitXor _) = prim_word_op bitXOR bitXOR bitXOR bitXOR xs
+  | (LShift _) = prim_word_op (checked_shift shiftl) (checked_shift shiftl)
+        (checked_shift shiftl) (checked_shift shiftl) xs
+  | (RShift _) = prim_word_op (checked_shift shiftr) (checked_shift shiftr)
+        (checked_shift shiftr) (checked_shift shiftr) xs
+  | (Complement _) = prim_word_op (\<lambda>x y. bitNOT x) (\<lambda>x y. bitNOT x)
+        (\<lambda>x y. bitNOT x) (\<lambda>x y. bitNOT x) [hd xs, hd xs] *)
+  | _ => default
+  end.
+
+Variant CogentState : Type -> Type := .
+
+Section Denote.
+
+  Import MonadNotation.
+  Local Open Scope monad_scope.
+
+  Context {eff : Type -> Type}.
+  Context {HasCogentState : CogentState -< eff}.
+
+  Inductive uval : Set :=
+  | UPrim (l:lit)
+  | UUnit.
+
+  Definition denote_prim (op:prim_op) (xs:list uval) : uval := 
+    UPrim (eval_prim_op op (map (fun x => match x with UPrim v => v | _ => default end) xs)).
+
+  Fixpoint denote_expr (e:expr) : itree eff uval :=
+    match e with
+    | Prim op os =>
+        os' <- map_monad denote_expr os ;;
+        ret (denote_prim op os')
+    | Lit l => ret (UPrim l)
+    | _ => ret UUnit
+    end.
+
+End Denote.
+
+(* Pretty AST Notation *)
 
 Declare Scope cogent_scope.
 

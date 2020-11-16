@@ -2,5 +2,6 @@
 -Q vellvm/lib/InteractionTrees/theories ITree
 -R coq Checker
 ./coq/Checker.v
+./coq/Compiler.v
 ./coq/Cogent.v
 ./coq/Types.v
