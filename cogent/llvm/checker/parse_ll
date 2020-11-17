@@ -1,0 +1,43 @@
+#!/bin/bash
+
+# Flakey wrapper around Vellvm binary. Should instead be written in OCaml.
+
+# Check arguments
+if [ $# -eq 0 ]; then
+    echo "Usage: ./parse_ll llvm_file"
+    exit 1
+fi
+
+# Get realname of input file
+input="$(
+    cd "$(dirname "$1")" || exit 1
+    pwd
+)/$(basename "$1")"
+
+# Check directory is clean
+if ls input/*.v.ast >/dev/null 2>&1; then
+    echo "input directory is not clean. Please delete any .v.ast files."
+    exit 1
+fi
+
+# Run vellvm
+cd "$(dirname "$0")/vellvm/src" || exit 1
+if [ ! -f "vellvm" ]; then
+    echo "vellvm binary does not exist. Please compile Vellvm."
+    exit 1
+fi
+./vellvm -v -op ../../input --print-ast "$input"
+
+# Prepare LLVM instance
+cd ../../input || exit 1
+output="$(find ./*.v.ast)"
+sed -i '/^Internal Coq representation of the ast:/ s/$/\n*)/' "$output"
+cat LLVM.template.v "$output" >LLVM.v
+rm "$output"
+
+# Prepare Cogent instance
+# - nothing to do yet
+
+# Compile checker
+cd ..
+make

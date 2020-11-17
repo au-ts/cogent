@@ -6,3 +6,5 @@ Makefile.conf
 *.vo
 *.vok
 *.vos
+*.v.ast
+input/LLVM.v
