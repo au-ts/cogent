@@ -19,7 +19,6 @@ module Cogent.LLVM.Types where
 
 import Cogent.Common.Syntax (Size, TagName, TypeName, VarName)
 import Cogent.Common.Types (PrimInt (..), Sigil (Boxed, Unboxed))
-import Cogent.Compiler (__impossible)
 import Cogent.Core as Core (Definition (..), Type (..), TypedExpr)
 import Cogent.Dargent.Util (primIntSizeBits)
 import Cogent.LLVM.CodeGen (Env, typedefs)
@@ -69,7 +68,6 @@ nameType (TPrim p) = case p of
     U32 -> "U32"
     U64 -> "U64"
     Boolean -> "Bool"
-    _ -> "Unknown"
 nameType (TRecord _ ts _) =
     "{"
         ++ intercalate
@@ -146,7 +144,6 @@ typeAlignment (Ptr _) = pointerSizeBits
 typeAlignment (Im i) = min i pointerSizeBits
 typeAlignment (St ts) = maximum (typeAlignment <$> ts)
 typeAlignment (Un ts) = maximum (typeAlignment <$> ts)
-typeAlignment _ = __impossible "typeAlignment"
 
 -- Round up k to the next multiple of n, unless k already is a multiple of n
 roundUp :: Integer -> Integer -> Integer
@@ -174,7 +171,6 @@ flatLayout (St ts) = foldl flatLayout' (0, []) ts
              in ( offset' + fst layout'
                 , layout ++ [(Padding, padding) | padding > 0] ++ snd layout'
                 )
-flatLayout _ = __impossible "flatLayout"
 
 -- Given a Cogent type, return how many bits it should occupy with padding
 typeSize :: Core.Type t b -> Size

@@ -47,12 +47,12 @@ toLLVMDef :: Definition TypedExpr VarName VarName -> LLVM ()
 -- Additionally, emit a wrapper function which allows the original to be called
 -- from C code
 toLLVMDef (FunDef _ name _ _ t rt body) = do
-  t' <- toLLVMType t
-  rt' <- toLLVMType rt
-  let body' = (\[var] -> block `named` "entry" >> bind var (exprToLLVM body)) >=> ret
-  -- append .llvm to end of fn name for non-wrapped version
-  function (mkName (toCName name ++ ".llvm")) [(t', [])] rt' body'
-  wrapLLVM (toCName name) t rt
+    t' <- toLLVMType t
+    rt' <- toLLVMType rt
+    let body' = (\[var] -> block `named` "entry" >> bind var (exprToLLVM body)) >=> ret
+    -- append .llvm to end of fn name for non-wrapped version
+    function (mkName (toCName name ++ ".llvm")) [(t', [])] rt' body'
+    wrapLLVM (toCName name) t rt
 -- For abstract declarations, emit an extern definition and also create
 -- monomorphised typedefs for any abstract types that appear in the function
 -- signature
@@ -64,29 +64,29 @@ toLLVMDef TypeDef {} = pure ()
 -- Write an LLVM module to a file handle
 writeLLVM :: Module -> Handle -> IO ()
 writeLLVM mod file =
-  withContext $
-    \ctx ->
-      withModuleFromAST ctx mod moduleLLVMAssembly
-        >>= BS.hPut file
+    withContext $
+        \ctx ->
+            withModuleFromAST ctx mod moduleLLVMAssembly
+                >>= BS.hPut file
 
 -- Take a list of Cogent definitions and output the resultant module to a file
 toLLVM :: [Definition TypedExpr VarName VarName] -> FilePath -> IO ()
 toLLVM monoed source = do
-  target <- getDefaultTargetTriple
-  let sourceFilename = toShort $ packChars source
-      tags = elems $ unions $ map collectTags monoed
-      ast =
-        ( flip evalState (initialState tags) $
-            buildModuleT sourceFilename $ mapM_ toLLVMDef monoed
-        )
-          { moduleSourceFileName = sourceFilename
-          , moduleTargetTriple = Just target
-          }
-      resName = replaceExtension source "ll"
-      hName = replaceExtension source "h"
-      base = replaceExtension source ""
-  outFile <- openFile resName WriteMode
-  writeLLVM ast outFile
-  hClose outFile
-  writeFile hName $ createCHeader monoed base tags
-  return ()
+    target <- getDefaultTargetTriple
+    let sourceFilename = toShort $ packChars source
+        tags = elems $ unions $ map collectTags monoed
+        ast =
+            ( flip evalState (initialState tags) $
+                buildModuleT sourceFilename $ mapM_ toLLVMDef monoed
+            )
+                { moduleSourceFileName = sourceFilename
+                , moduleTargetTriple = Just target
+                }
+        resName = replaceExtension source "ll"
+        hName = replaceExtension source "h"
+        base = replaceExtension source ""
+    outFile <- openFile resName WriteMode
+    writeLLVM ast outFile
+    hClose outFile
+    writeFile hName $ createCHeader monoed base tags
+    return ()
