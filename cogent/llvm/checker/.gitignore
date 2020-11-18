@@ -8,3 +8,4 @@ Makefile.conf
 *.vos
 *.v.ast
 input/LLVM.v
+input/Source.v

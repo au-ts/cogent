@@ -4,7 +4,10 @@ From ExtLib Require Import Structures.Monads.
 From ITree Require Import ITree.
 From Vellvm Require Import Util.
 
+Import Monads.
 Import ListNotations.
+Import MonadNotation.
+Local Open Scope monad_scope.
 
 Definition name := string.
 Definition index := nat.
@@ -83,6 +86,10 @@ Inductive expr : Type :=
   (* | Split (e1:expr) (e2:expr) *)
   | Promote (t:type) (e:expr).
 
+Variant def : Type :=
+  | FunDef (n:name) (t:type) (rt:type) (b:expr).
+  (* AbsDecl, TypeDef *)
+
 Definition prim_lbool (l:lit) : bool :=
   match l with
   | LBool b => b
@@ -137,19 +144,19 @@ Definition eval_prim_op (op:prim_op) (xs:list lit) : lit :=
   | _ => default
   end.
 
-Variant CogentState : Type -> Type := .
+Inductive uval : Set :=
+  | UPrim (l:lit)
+  | UUnit.
+
+Variant CogentState : Type -> Type :=
+  | GetVar (i:index) : CogentState uval
+  | LetVar (u:uval) : CogentState unit
+  | RemVar : CogentState unit.
 
 Section Denote.
 
-  Import MonadNotation.
-  Local Open Scope monad_scope.
-
   Context {eff : Type -> Type}.
   Context {HasCogentState : CogentState -< eff}.
-
-  Inductive uval : Set :=
-  | UPrim (l:lit)
-  | UUnit.
 
   Definition denote_prim (op:prim_op) (xs:list uval) : uval := 
     UPrim (eval_prim_op op (map (fun x => match x with UPrim v => v | _ => default end) xs)).
@@ -160,10 +167,30 @@ Section Denote.
         os' <- map_monad denote_expr os ;;
         ret (denote_prim op os')
     | Lit l => ret (UPrim l)
+    | Var i => trigger (GetVar i)
+    | Let e b => 
+        e' <- denote_expr e ;;
+        trigger (LetVar e') ;;
+        b' <- denote_expr b ;;
+        trigger RemVar ;;
+        ret b'
     | _ => ret UUnit
     end.
 
 End Denote.
+
+Definition env := list uval.
+
+Definition handle_state : forall A, CogentState A -> stateT env (itree void1) A :=
+  fun _ e gamma =>
+    match e with
+    | GetVar i => ret (gamma, nth i gamma UUnit)
+    | LetVar u => ret (u :: gamma, tt)
+    | RemVar => ret (tl gamma, tt)
+    end.
+
+Definition interp_cogent : forall A, itree CogentState A -> itree void1 (env * A) :=
+  fun _ t => interp handle_state t [].
 
 (* Pretty AST Notation *)
 
