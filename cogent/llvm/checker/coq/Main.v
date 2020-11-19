@@ -1,9 +1,9 @@
 From Coq Require Import List String ZArith.
 
-From ITree Require Import ITree.
-From Vellvm Require Import LLVMAst TopLevel.
+From ITree Require Import ITree. 
+From Vellvm Require Import LLVMAst.
 
-From Checker Require Import Cogent Compiler.
+From Checker Require Import Cogent Compiler Denote.
 From Input Require Import LLVM Source.
 
 (* Definition checkExp (cogentExp:expr) (llvmExp:exp typ) : Prop := compile cogentExp = llvmExp. *)
@@ -56,6 +56,10 @@ Compute (burn 100 (denote_expr prog)). *)
 
 (* Cogent Import *)
 
-Compute CogentInput.
-(* Compute (burn 100 (interp_cogent (denote_expr CogentInput))). *)
-Compute (run CogentInput).
+Compute map compile_def CogentInput.
+
+Compute burn 50 (
+  run_cogent
+    (UPrim (LU8 1)) 
+    (Let (Var 0) (Let (Lit (LU8 1)) (Prim (Plus U8) [Var 1;Var 0])))
+).

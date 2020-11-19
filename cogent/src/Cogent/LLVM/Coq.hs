@@ -6,8 +6,8 @@ import Cogent.Common.Syntax (Op, VarName)
 import qualified Cogent.Common.Syntax as S (Op (..))
 import Cogent.Common.Types (PrimInt)
 import qualified Cogent.Common.Types as T (PrimInt (..))
-import Cogent.Core (Definition (FunDef), Type (..), TypedExpr (TE))
-import qualified Cogent.Core as E (Expr (..))
+import Cogent.Core (Definition, TypedExpr (TE))
+import qualified Cogent.Core as C (Definition (..), Expr (..), Type (..))
 import Control.Monad (void)
 import Data.Fin (finInt)
 import Data.List (intercalate)
@@ -53,6 +53,20 @@ data PrimOp
     | Complement NumType
     deriving (Show)
 
+data Sigil = Boxed | Unboxed deriving (Show)
+data VariantState = Checked | Unchecked deriving (Show)
+data RecordState = Taken | Present deriving (Show)
+
+data Type
+    = TVar Index
+    | TVarBang Index
+    | TCon Name [Type] Sigil
+    | TFun Type Type
+    | TPrim PrimType
+    | TSum [(Name, (Type, VariantState))]
+    | TRecord [(Name, (Type, RecordState))] Sigil
+    | TUnit
+    deriving (Show)
 data Lit
     = LBool CoqBool
     | LU8 Integer
@@ -83,8 +97,7 @@ data Expr
       If Expr Expr Expr
     deriving (Show)
 
--- data Def = FunDef Name Type Type Expr
-type Def = Expr
+data Def = FunDef Name Type Type Expr deriving (Show)
 
 -- Take a list of Cogent definitions and output the resultant definition to a file
 toCoq :: [Definition TypedExpr VarName VarName] -> FilePath -> IO ()
@@ -93,11 +106,12 @@ toCoq monoed source = void $ writeFile (replaceExtension source "v") $ genModule
 fileHeader :: String
 fileHeader =
     unlines
-        [ "From Coq Require Import List ZArith."
+        [ "From Coq Require Import List String ZArith."
         , ""
         , "From Checker Require Import Cogent."
         , ""
         , "Import ListNotations."
+        , "Local Open Scope string_scope."
         , ""
         , "Definition CogentInput :="
         ]
@@ -106,15 +120,23 @@ genModule :: [Definition TypedExpr VarName VarName] -> String
 genModule defs = fileHeader ++ ppShow (genDefinition <$> defs) ++ "."
 
 genDefinition :: Definition TypedExpr VarName VarName -> Def
-genDefinition (FunDef _ name _ _ t rt body) = genExpr body -- TODO: generate function definition
+genDefinition (C.FunDef _ name _ _ t rt body) = FunDef name (genType t) (genType rt) (genExpr body)
 genDefinition _ = error "not implemented"
 
+genType :: Show b => C.Type t b -> Type
+genType C.TUnit = TUnit
+-- genType (C.TFun t rt) = TFun (genType t) (genType rt)
+genType t@(C.TPrim _) = TPrim (Num (genNumType t))
+genType C.TString = TPrim String
+genType t = error $ show t
+
 genExpr :: (Show a, Show b) => TypedExpr t v a b -> Expr
-genExpr (TE _ (E.ILit int p)) = Lit $ genLit int p
-genExpr (TE _ (E.Op op os@((TE t' _) : _))) = Prim (genOp t' op) $ CoqList (genExpr <$> os)
-genExpr (TE _ (E.Let _ val body)) = Let (genExpr val) (genExpr body)
-genExpr (TE _ (E.Variable (idx, _))) = Var (finInt idx) -- TODO: generate variable
-genExpr t = error $ show t
+genExpr (TE _ (C.ILit int p)) = Lit $ genLit int p
+genExpr (TE _ (C.Op op os@((TE t' _) : _))) = Prim (genOp t' op) $ CoqList (genExpr <$> os)
+genExpr (TE _ (C.Let _ val body)) = Let (genExpr val) (genExpr body)
+genExpr (TE _ (C.Variable (idx, _))) = Var (finInt idx)
+genExpr (TE _ C.Unit) = Unit
+genExpr e = error $ show e
 
 genLit :: Integer -> PrimInt -> Lit
 genLit w T.U8 = LU8 w
@@ -123,7 +145,7 @@ genLit w T.U32 = LU32 w
 genLit w T.U64 = LU64 w
 genLit w T.Boolean = LBool (CoqBool (w /= 0))
 
-genOp :: Type t b -> Op -> PrimOp
+genOp :: C.Type t b -> Op -> PrimOp
 genOp t S.Plus = Plus $ genNumType t
 genOp t S.Minus = Minus $ genNumType t
 genOp t S.Times = Times $ genNumType t
@@ -145,15 +167,15 @@ genOp t S.LShift = LShift $ genNumType t
 genOp t S.RShift = RShift $ genNumType t
 genOp t S.Complement = Complement $ genNumType t
 
-genPrimType :: Type t b -> PrimType
-genPrimType (TPrim T.Boolean) = Bool
-genPrimType t@(TPrim _) = Num $ genNumType t
-genPrimType TString = String
+genPrimType :: C.Type t b -> PrimType
+genPrimType (C.TPrim T.Boolean) = Bool
+genPrimType t@(C.TPrim _) = Num $ genNumType t
+genPrimType C.TString = String
 genPrimType _ = error "not  a PrimType"
 
-genNumType :: Type t b -> NumType
-genNumType (TPrim T.U8) = U8
-genNumType (TPrim T.U16) = U16
-genNumType (TPrim T.U32) = U32
-genNumType (TPrim T.U64) = U64
+genNumType :: C.Type t b -> NumType
+genNumType (C.TPrim T.U8) = U8
+genNumType (C.TPrim T.U16) = U16
+genNumType (C.TPrim T.U32) = U32
+genNumType (C.TPrim T.U64) = U64
 genNumType _ = error "not a NumType"

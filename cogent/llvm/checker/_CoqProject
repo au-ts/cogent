@@ -2,9 +2,10 @@
 -Q vellvm/lib/InteractionTrees/theories ITree
 -R coq Checker
 -R input Input
-./coq/Checker.v
+./coq/Main.v
 ./coq/Compiler.v
 ./coq/Cogent.v
 ./coq/Types.v
+./coq/Denote.v
 ./input/LLVM.v
 ./input/Source.v

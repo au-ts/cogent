@@ -5,36 +5,35 @@ From Vellvm Require Import LLVMAst.
 
 From Checker Require Import Cogent Types.
 
-Definition T := typ.
+Import ListNotations.
 
 Section Compiler.
 
   Import MonadNotation.
   Import FunctorNotation.
-  Import ListNotations.
   Local Open Scope monad_scope.
 
-  Definition CodegenValue : Type := texp T.
+  Definition CodegenValue : Type := texp typ.
   (* Can't use record for state?: https://github.com/coq-community/coq-ext-lib/issues/48 *)
-  Definition CodegenState : Type := (code T * Z * list (texp T)).
+  Definition CodegenState : Type := (code typ * Z * list (texp typ)).
   Definition fresh : CodegenState -> Z := fun x => snd (fst x).
-  Definition block : CodegenState -> code T := fun x => fst (fst x).
-  Definition vars : CodegenState -> list (texp T) := snd.
+  Definition blocks : CodegenState -> code typ := fun x => fst (fst x).
+  Definition vars : CodegenState -> list (texp typ) := snd.
 
   Variable m : Type -> Type.
   Context {Monad_m: Monad m}.
   Context {State_m: MonadState CodegenState m}.
 
 
-  Definition instr (t:T) (i:instr T) : m CodegenValue :=
+  Definition instr (t:typ) (i:instr typ) : m CodegenValue :=
     s <- get ;;
     let n := fresh s in
-      put (block s ++ [(IId (Anon n), i)], n + 1, vars s) ;;
+      put (blocks s ++ [(IId (Anon n), i)], n + 1, vars s) ;;
       ret (t, EXP_Ident (ID_Local (Anon n))).
   
-  Definition set_vars (vs:list (texp T)) : m unit :=
+  Definition set_vars (vs:list (texp typ)) : m unit :=
     s <- get ;;
-    put (block s, fresh s, vs).
+    put (blocks s, fresh s, vs).
 
   Definition compile_prim_op (o:prim_op) : (ibinop * typ * typ) :=
     match o with
@@ -89,10 +88,49 @@ Section Compiler.
         ret b'
     | _ => ret undef
     end.
+  
+  Definition compile_type (t:type) : typ :=
+    match t with
+    | TPrim p => match p with
+      | Num n => convert_num_type n
+      | Bool => TYPE_I 8
+      | String => TYPE_Pointer (TYPE_I 8)
+      end
+    | TUnit => TYPE_I 8
+    | _ => TYPE_Void
+    end.
 
   Definition startState: CodegenState := ([], 0, []).
 
-
 End Compiler.
 
-Definition run (p:expr) := runState (compile_expr (state CodegenState) p) startState.
+Definition build_expr (p:expr) : CodegenValue * CodegenState :=
+  runState (compile_expr (state CodegenState) p) startState.
+
+Definition compile_def (d:def) : toplevel_entity typ (block typ * list (block typ)) :=
+  match d with
+  | FunDef n t rt b => 
+      let (value, state) := build_expr b in  
+        TLE_Definition {|
+          df_prototype := {|
+            dc_name := Name n
+          ; dc_type := TYPE_Function (compile_type rt) [compile_type t]
+          ; dc_param_attrs := ([], [])
+          ; dc_linkage := None
+          ; dc_visibility := None
+          ; dc_dll_storage := None
+          ; dc_cconv := None
+          ; dc_attrs := []
+          ; dc_section := None
+          ; dc_align := None
+          ; dc_gc := None|}
+        ; df_args := [(Name "a_0")]
+        ; df_instrs := ({|
+            blk_id := Name "entry_0"
+          ; blk_phis := []
+          ; blk_code := blocks state
+          ; blk_term := (IVoid 0, TERM_Ret value)
+          ; blk_comments := None
+          |}, [])
+        |}
+  end.

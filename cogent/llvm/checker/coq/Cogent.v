@@ -1,13 +1,6 @@
 From Coq Require Import List ListSet String ZArith.
 
-From ExtLib Require Import Structures.Monads.
-From ITree Require Import ITree.
-From Vellvm Require Import Util.
-
-Import Monads.
 Import ListNotations.
-Import MonadNotation.
-Local Open Scope monad_scope.
 
 Definition name := string.
 Definition index := nat.
@@ -50,7 +43,6 @@ Inductive type : Set :=
   | TFun (t:type) (rt:type)
   | TPrim (t:prim_type)
   | TSum (vs:list (name * (type * variant_state)))
-  (* | TProduct (t1:type) (t2:type) *)
   | TRecord (fs:list (name * (type * record_state))) (s:sigil)
   | TUnit.
 
@@ -75,7 +67,6 @@ Inductive expr : Type :=
   | Lit (l:lit)
   | SLit (s:string)
   | Cast (t:num_type) (e:expr)
-  (* | Tuple (e1:expr) (e2:expr) *)
   | Put (e:expr) (f:field) (v:expr)
   | Let (e:expr) (b:expr)
   | LetBang (is:set index) (e:expr) (b:expr)
@@ -83,7 +74,6 @@ Inductive expr : Type :=
   | Esac (e:expr) (n:name)
   | If (c:expr) (b1:expr) (b2:expr)
   | Take (e:expr) (f:field) (b:expr)
-  (* | Split (e1:expr) (e2:expr) *)
   | Promote (t:type) (e:expr).
 
 Variant def : Type :=
@@ -143,54 +133,6 @@ Definition eval_prim_op (op:prim_op) (xs:list lit) : lit :=
         (\<lambda>x y. bitNOT x) (\<lambda>x y. bitNOT x) [hd xs, hd xs] *)
   | _ => default
   end.
-
-Inductive uval : Set :=
-  | UPrim (l:lit)
-  | UUnit.
-
-Variant CogentState : Type -> Type :=
-  | GetVar (i:index) : CogentState uval
-  | LetVar (u:uval) : CogentState unit
-  | RemVar : CogentState unit.
-
-Section Denote.
-
-  Context {eff : Type -> Type}.
-  Context {HasCogentState : CogentState -< eff}.
-
-  Definition denote_prim (op:prim_op) (xs:list uval) : uval := 
-    UPrim (eval_prim_op op (map (fun x => match x with UPrim v => v | _ => default end) xs)).
-
-  Fixpoint denote_expr (e:expr) : itree eff uval :=
-    match e with
-    | Prim op os =>
-        os' <- map_monad denote_expr os ;;
-        ret (denote_prim op os')
-    | Lit l => ret (UPrim l)
-    | Var i => trigger (GetVar i)
-    | Let e b => 
-        e' <- denote_expr e ;;
-        trigger (LetVar e') ;;
-        b' <- denote_expr b ;;
-        trigger RemVar ;;
-        ret b'
-    | _ => ret UUnit
-    end.
-
-End Denote.
-
-Definition env := list uval.
-
-Definition handle_state : forall A, CogentState A -> stateT env (itree void1) A :=
-  fun _ e γ =>
-    match e with
-    | GetVar i => ret (γ, nth i γ UUnit)
-    | LetVar u => ret (u :: γ, tt)
-    | RemVar => ret (tl γ, tt)
-    end.
-
-Definition interp_cogent {A} (t:itree CogentState A) : itree void1 (env * A) :=
-  interp handle_state t [].
 
 (* Pretty AST Notation *)
 
