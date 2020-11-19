@@ -35,6 +35,9 @@ sed -i '/^Internal Coq representation of the ast:/ s/$/\n*)/' "$output"
 cat LLVM.template.v "$output" >LLVM.v
 rm "$output"
 
+# Fix Vellvm pretty printer bugs, should make PR
+sed -ri 's/(TLE_(Source_filename|Target)) ([^;]*);/\1 "\3";/' LLVM.v
+
 # Prepare Cogent instance
 # - nothing to do yet
 

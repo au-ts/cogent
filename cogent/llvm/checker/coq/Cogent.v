@@ -182,15 +182,15 @@ End Denote.
 Definition env := list uval.
 
 Definition handle_state : forall A, CogentState A -> stateT env (itree void1) A :=
-  fun _ e gamma =>
+  fun _ e γ =>
     match e with
-    | GetVar i => ret (gamma, nth i gamma UUnit)
-    | LetVar u => ret (u :: gamma, tt)
-    | RemVar => ret (tl gamma, tt)
+    | GetVar i => ret (γ, nth i γ UUnit)
+    | LetVar u => ret (u :: γ, tt)
+    | RemVar => ret (tl γ, tt)
     end.
 
-Definition interp_cogent : forall A, itree CogentState A -> itree void1 (env * A) :=
-  fun _ t => interp handle_state t [].
+Definition interp_cogent {A} (t:itree CogentState A) : itree void1 (env * A) :=
+  interp handle_state t [].
 
 (* Pretty AST Notation *)
 

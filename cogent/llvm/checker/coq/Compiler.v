@@ -16,9 +16,10 @@ Section Compiler.
 
   Definition CodegenValue : Type := texp T.
   (* Can't use record for state?: https://github.com/coq-community/coq-ext-lib/issues/48 *)
-  Definition CodegenState : Type := (code T * Z).
-  Definition fresh : CodegenState -> Z := snd.
-  Definition block : CodegenState -> code T := fst.
+  Definition CodegenState : Type := (code T * Z * list (texp T)).
+  Definition fresh : CodegenState -> Z := fun x => snd (fst x).
+  Definition block : CodegenState -> code T := fun x => fst (fst x).
+  Definition vars : CodegenState -> list (texp T) := snd.
 
   Variable m : Type -> Type.
   Context {Monad_m: Monad m}.
@@ -28,8 +29,12 @@ Section Compiler.
   Definition instr (t:T) (i:instr T) : m CodegenValue :=
     s <- get ;;
     let n := fresh s in
-      put (block s ++ [(IId (Anon n), i)], 1) ;;
+      put (block s ++ [(IId (Anon n), i)], n + 1, vars s) ;;
       ret (t, EXP_Ident (ID_Local (Anon n))).
+  
+  Definition set_vars (vs:list (texp T)) : m unit :=
+    s <- get ;;
+    put (block s, fresh s, vs).
 
   Definition compile_prim_op (o:prim_op) : (ibinop * typ * typ) :=
     match o with
@@ -56,6 +61,8 @@ Section Compiler.
     | Complement t *)
     end.
 
+  Definition undef : CodegenValue := (TYPE_Void, EXP_Null). (* undefined *)
+
   Fixpoint compile_expr (e:expr) : m CodegenValue :=
     match e with
     | Prim op [oa; ob] =>
@@ -70,10 +77,20 @@ Section Compiler.
       | LU32 w => (TYPE_I 32, EXP_Integer w)
       | LU64 w => (TYPE_I 64, EXP_Integer w)
       end
-    | _ => ret (TYPE_I 8, EXP_Integer 123) (* undefined *)
+    | Var i =>
+        s <- get ;;
+        ret (nth i (vars s) undef)
+    | Let e b =>
+        e' <- compile_expr e ;;
+        s <- get ;;
+        set_vars (e' :: vars s) ;;
+        b' <- compile_expr b ;;
+        set_vars (vars s) ;;
+        ret b'
+    | _ => ret undef
     end.
 
-  Definition startState: CodegenState := ([], 0).
+  Definition startState: CodegenState := ([], 0, []).
 
 
 End Compiler.
