@@ -1,0 +1,36 @@
+include <gum/common/wordarray.cogent>
+
+decode_letter 
+	: ElemAO U8 (U64, U64) (WordArray U32, WordArray U32, U64)
+	-> (U8, (U64, U64))
+
+encode_letter : ElemAO U8 (U64, U64) (WordArray U32, WordArray U32) -> (U64, U64)
+encode_letter #{elem, acc, obsv} =
+	let (low, width) = acc
+	and (freq, cum) = obsv
+	and i = (wordarray_length freq) - 1
+	and ttl = (wordarray_get (freq, i)) + (wordarray_get (cum, i))
+	and f = wordarray_get (freq , upcast elem)
+	and c = wordarray_get (cum , upcast elem)
+	and w = (width * (upcast f)) / (upcast ttl)
+	and l = (width * (upcast c)) / (upcast ttl)
+	in (low + l, w)
+
+static_encode
+	: ((WordArray U32)!, (WordArray U32)!, (WordArray U8)!, U64)
+	-> U64
+static_encode (freq, cum, msg, width) =
+	let e = (wordarray_length msg) - 1
+	and (l', _) = wordarray_fold_no_break #{ arr = msg, frm = 0, to = e,
+		f = encode_letter, acc = (0, width), obsv = (freq, cum) }
+	in l'
+
+static_decode
+	: ((WordArray U32)!, (WordArray U32)!, WordArray U8, U64, U64)
+	-> WordArray U8
+static_decode (freq, cum, msg, code, width) =
+	let e = (wordarray_length msg) - 1 !msg
+	and (msg', _) = wordarray_map_no_break #{ arr = msg, frm = 0, to = e,
+		f = decode_letter, acc = (0, width), obsv = (freq, cum, code) }
+	in msg'
+	
