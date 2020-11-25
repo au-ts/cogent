@@ -20,26 +20,36 @@ typedef void* SysState;
 $ty:((U8, (U64, U64))) $id:decode_letter($ty:(ElemAO U8 (U64, U64)
 	(WordArray U32, WordArray U32, U64)) args) {
 	$ty:((U8, (U64, U64))) ret;
-	int e = args.obsv.p1->len;
+	$ty:(WordArrayIndex) s = 0;
+	$ty:(WordArrayIndex) e = args.obsv.p1->len;
 	ret.p1 = e;
 	ret.p2.p1 = args.acc.p1;
 	ret.p2.p2 = args.acc.p2;
+
+	if (e == 0)
+		return ret;
+	
 	$ty:(U64) ttl = args.obsv.p1->values[e-1] + args.obsv.p2->values[e-1];
-	for (int i = 0; i < e; i++) {
-		$ty:(U64) f = args.obsv.p1->values[i];
-		$ty:(U64) c = args.obsv.p2->values[i];
+
+	while (s < e) {
+		$ty:(WordArrayIndex) m = s + (e - s) / 2;
+		$ty:(U64) f = args.obsv.p1->values[m];
+		$ty:(U64) c = args.obsv.p2->values[m];
 		$ty:(U64) l = (args.acc.p2 * c) / ttl;
 		$ty:(U64) w = (args.acc.p2 * f) / ttl;
-		if (args.acc.p1 + l <= args.obsv.p3 && 
-			args.obsv.p3 < args.acc.p1 + l + w) {
-			ret.p1 = ($ty:(U8))i;
+
+		if (args.acc.p1 + l + w <= args.obsv.p3) {
+			s = m + 1;
+		} else if (args.obsv.p3 < args.acc.p1 + l) {
+			e = m;
+		} else {
+			ret.p1 = ($ty:(U8))m;
 			ret.p2.p1 = args.acc.p1 + l;
 			ret.p2.p2 = w;
 			break;
-		}
+		} 
 	}
 	return ret;
-
 }
 
 
