@@ -687,12 +687,6 @@ infer (E (Promote ty e))
         guardShow ("promote: " ++ show t ++ " << " ++ show ty) =<< t `isSubtype` ty
         return $ if t /= ty then promote ty $ TE t e'
                             else TE t e'  -- see NOTE [How to handle type annotations?] in Desugar
-infer (E (Buffer n fs))
-   = do let (ns, es) = unzip fs
-        es' <- mapM infer es
-        let ts' = zipWith (\n e' -> (n, typeToDType $ exprType e')) ns es'
-        return $ TE (TBuffer n (DRecord ts')) $ Buffer n $ zip ns es'
-
 
 -- | Promote an expression to a given type, pushing down the promote as far as possible.
 -- This structure is useful when destructing runs of case expressions, for example in Cogent.Isabelle.Compound.

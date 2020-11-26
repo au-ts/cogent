@@ -203,7 +203,6 @@ monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
     monoExpr' (Put     rec fld e  ) = Put  <$> monoExpr rec <*> pure fld <*> monoExpr e
     monoExpr' (Promote ty e       ) = Promote <$> monoType ty <*> monoExpr e
     monoExpr' (Cast    ty e       ) = Cast <$> monoType ty <*> monoExpr e
-    monoExpr' (Buffer  n  fs      ) = let (ns,ts) = P.unzip fs in Buffer n <$> zipWithM (\n t -> (n,) <$> monoExpr t) ns ts
 
 monoType :: (Ord b) => Type t b -> Mono b (Type 'Zero b)
 monoType (TVar v) = atList <$> (fmap fst ask) <*> pure v
@@ -240,7 +239,9 @@ monoType (TArray t l s mhole) = TArray <$> monoType t <*> monoLExpr l <*> monoSi
 monoType (TBuffer n dt) = TBuffer n <$> monoDType dt
 
 monoDType :: (Ord b) => DType t b -> Mono b (DType 'Zero b)
-monoDType (DRecord fs) = DRecord <$> mapM (\(f, t) -> (f,) <$> monoDType t) fs
+monoDType (DRecord f fs) = do
+  t' <- monoDType $ snd f
+  DRecord (fst f, t') <$> mapM (\(f, t) -> (f,) <$> monoDType t) fs
 monoDType (DArray f t) = DArray f <$> monoDType t
 monoDType (Type t) = Type <$> monoType t
 

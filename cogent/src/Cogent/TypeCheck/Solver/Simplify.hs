@@ -268,8 +268,8 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
   T (TTuple ts) :=: T (TTuple us) | length ts == length us -> hoistMaybe $ Just (zipWith (:=:) ts us)
 
   T (TBuffer n dt) :<  T (TBuffer n' dt') | n == n' -> hoistMaybe $ Just [dt :< dt']
-  T (DRecord fs)   :<  T (DRecord fs')
-    | length fs == length fs' || length fs == 0 -> hoistMaybe $ Just (zipWith (:< ) (map snd fs) (map snd fs'))
+  T (DRecord f fs) :<  T (DRecord f' fs')
+    | length fs == length fs' || length fs == 0 -> hoistMaybe $ Just (zipWith (:< ) (map snd (f:fs)) (map snd (f':fs')))
 
   V r1 :< V r2 | Row.isEmpty r1 && Row.isEmpty r2 -> hoistMaybe $ Just []
                | Row.isComplete r1 && Row.isComplete r2 && psub r1 r2 ->

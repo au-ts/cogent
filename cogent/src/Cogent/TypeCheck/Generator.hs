@@ -132,27 +132,30 @@ validateType (RT t) = do
         TBuffer n dt' -> return (ct, T $ TBuffer n dt')
         _ -> freshTVar >>= \t'' -> return (ct, t'')
 
-    DRecord fs | fields  <- map fst fs
-               , fields' <- nub fields
-              -> if fields' == fields
-                  then do
-                    (ct, t') <- fmapFoldM validateType t
-                    let ts      = map unRT (map snd fs)
-                        dArrayT = find isDArray ts
-                    case dArrayT of
-                      Just (DArray f _) ->
-                        case elemIndex f fields of
-                          Just fIndex -> do
-                            let fType = ts !! fIndex
-                            if isPrimType fType
-                              then case t' of
-                                DRecord fs' -> return (ct, T $ DRecord fs')
-                                _ -> freshTVar >>= \t'' -> return (ct, t'')
-                              else freshTVar >>= \t' -> return (Unsat $ OtherTypeError "DArray dependent field must be a numeric primitive type", t')
-                          Nothing -> freshTVar >>= \t' -> return (Unsat $ UnknownTypeVariable f, t')
-                      Nothing -> freshTVar >>= \t' -> return (Unsat $ OtherTypeError "Must have a DArray inside a DRecord", t')
-                  else freshTVar >>= \t' -> return (Unsat $ DuplicateRecordFields (fields \\ fields'), t')
-               | otherwise -> second T <$> fmapFoldM validateType (DRecord fs)
+    DRecord f fs
+      | not $ isPrimType $ unRT $ snd f ->
+          freshTVar >>= \t' -> return (Unsat $ OtherTypeError "DRecord size field must be a numeric primitive type", t')
+      | fields  <- map fst fs
+        , fields' <- nub fields
+      -> if fields' == fields
+          then do
+            (ct, t') <- fmapFoldM validateType t
+            let ts      = map unRT (map snd fs)
+                dArrayT = find isDArray ts
+            case dArrayT of
+              Just (DArray df _) ->
+                case elemIndex df fields of
+                  Just fIndex -> do
+                    let fType = ts !! fIndex
+                    if isPrimType fType
+                      then case t' of
+                        DRecord f' fs' -> return (ct, T $ DRecord f' fs')
+                        _ -> freshTVar >>= \t'' -> return (ct, t'')
+                      else freshTVar >>= \t' -> return (Unsat $ OtherTypeError "DArray dependent field must be a numeric primitive type", t')
+                  Nothing -> freshTVar >>= \t' -> return (Unsat $ UnknownTypeVariable df, t')
+              Nothing -> freshTVar >>= \t' -> return (Unsat $ OtherTypeError "Must have a DArray inside a DRecord", t')
+          else freshTVar >>= \t' -> return (Unsat $ DuplicateRecordFields (fields \\ fields'), t')
+      | otherwise -> second T <$> fmapFoldM validateType (DRecord f fs)
         where
           isDArray :: Type t l b -> Bool
           isDArray DArray{} = True
@@ -741,15 +744,6 @@ cg' (Annot e tau) t = do
                 return (ctau <> tau'' :< t, tau'')
   (c', e') <- cg e t'
   return (c <> c', Annot e' t')
-
-cg' (Buffer n fes) t = do
-  let (fs, es) = unzip fes
-  (ts, c', es') <- cgMany es
-
-  let e = Buffer n (zip fs es')
-      r = T $ DRecord (zip fs ts)
-      c = T (TBuffer n r) :< t
-  return (c' <> c, e)
 
 -- -----------------------------------------------------------------------------
 -- Pattern constraints

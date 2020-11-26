@@ -622,7 +622,9 @@ desugarType = \case
 
 desugarDType :: B.DepType -> DS t l v (DType t VarName)
 desugarDType = \case
-  B.DT (S.DRecord fs) -> DRecord <$> mapM (\(f,t) -> (f,) <$> desugarDType t) fs
+  B.DT (S.DRecord f fs) -> do
+    t' <- desugarDType $ snd f
+    DRecord (fst f, t') <$> mapM (\(f,t) -> (f,) <$> desugarDType t) fs
   B.DT (S.DArray f dt) -> DArray f <$> desugarDType dt
   t -> Type <$> desugarType t
 
@@ -828,7 +830,6 @@ desugarExpr (B.TE t (S.Annot e tau) _) = E <$> (Promote <$> desugarType tau <*> 
   -- `(Success a <Success A | Error* E>)' with `Error' taken.
   -- In the case where the annoated type is indeed the same as the core-tc-inferred
   -- type, we can remove the `Promote' later, or keep it even. / zilinc
-desugarExpr (B.TE _ (S.Buffer n fs) _) = E <$> Buffer n <$> mapM (\(f, e) -> (f,) <$> desugarExpr e) fs
 desugarExpr (B.TE t (S.Con c es) p) = __impossible "desugarExpr (Con)"
 -- = do
 --   S.RT (S.TVariant ts) <- return t

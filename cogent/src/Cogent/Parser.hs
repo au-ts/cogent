@@ -328,10 +328,6 @@ term = avoidInitial >> (var <|> (LocExpr <$> getPosition <*>
 #ifdef BUILTIN_ARRAYS
        <|> ArrayLit <$> brackets (commaSep1 $ expr 1)
 #endif
-       <|> Buffer <$ reservedOp "Buffer"
-                  <*> natural
-                  <*> parens (try (do reservedOp "#"; braces (commaSep1 ((\a b -> (a, b)) <$> variableName <* reservedOp "=" <*> expr 1)))
-                              <|> (pure []))
        <|> UnboxedRecord <$ reservedOp "#" <*> braces (commaSep1 recordAssignment)))
     <?> "term")
 
@@ -499,13 +495,18 @@ atomtype = avoidInitial >> LocType <$> getPosition <*> (
       tuple es  = TTuple es
 
       dRecord = do
-        fs <- commaSep ((\a b -> (a, b)) <$> variableName <* reservedOp ":" <*> try (monotype <|> dRecordType))
-        return $ DRecord fs
+        reservedOp ">"
+        f <- dRecordField
+        comma
+        fs <- commaSep dRecordField
+        return $ DRecord f fs
 
       dRecordType = do
         p <- getPosition
         t <- dArray
         return $ LocType p t
+
+      dRecordField = (\a b -> (a, b)) <$> variableName <* reservedOp ":" <*> try (monotype <|> dRecordType)
 
       dArray = DArray <$ reserved "DArray" <*> variableName <*> monotype
 
