@@ -259,23 +259,17 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
         -- reverse each thing. use it to fill out template.
         -- templatePairs = map (completeTemplate) templateEnvs
         completed = map completeTemplate templateEnvs
-        message = show completed
+        -- message = show completed
+        (input, recursive) = head completed
+        m0 = measures !! 1
+        res = (applyMeasures m0 input 0, applyMeasures m0 recursive 0)
+        message = show res
+
         firstElem = head templateEnvs
         envs = map (\(t1, t2, e) -> e) templateEnvs
         firstMap = M.toList (head envs)
         tes = map (\(x, y) -> (reverseAE x y)) firstMap
         -- message = show tes
-
-        {-
-        -- For each pair of input, recT:
-        (inputT, recT, info) = runFresh .. mapConstructors (ae, ae) tem
-        -- For each remaining ae, reverse
-        TEs = map (reverseAE) infoToList
-        -- For each TE, use to fill out template
-        fillTemplate inputT, recT
-        -- continue as before: reduce size, etc.
-        -}
-
         -- generate (template, expr) tuples, environment and error msg
         (templateExpr, env, err) = fst $ runFresh unifVars $ fillTemplates funName e template (envAdd (Var "r") emptyEnv) 0
         -- convert the expressions into templates
@@ -306,8 +300,58 @@ type Info = M.Map FreshVar ArgExpr
 --   | CaseOp [(String,MeasureOp)] -- field 
 --   | IntConstOp Int
 --   deriving (Show, Eq)
--- applyMeasures :: Template -> MeasureOp -> (Template, MeasureOp, Int)
--- applyMeasures ()
+
+type Siz = Maybe (Either Template FreshVar, MeasureOp, Int)
+-- Nothing for mismatch, otherwise thing. 
+
+compareSizes :: Siz -> Siz -> Cmp
+compareSizes Nothing _ = Unknown
+compareSizes _ Nothing = Unknown 
+compareSizes (Just (Right v0, m0, i0)) (Just (Right v1, m1, i1)) = 
+  if (v0 == v1) then 
+    if (i0 > i1) then Le
+    else if (i0 == i1) then Eq 
+    else Unknown
+  else 
+    Unknown
+
+-- consider leaving the mOp in? need to or nah?
+applyMeasures :: MeasureOp -> Template -> Int -> Siz
+applyMeasures m0@(ProjectOp f0 m) t0@(RecordAST mv ts) i =
+  case find (\(f, mv, t) -> f0 == f) ts of 
+    Just (f, mv, t) -> case mv of 
+      Just "ok" -> applyMeasures m t i
+      Just v ->
+        case t of
+          RecParAST rp' mv' -> Just (Right v, m0, i+1)
+          _ -> Just (Right v, m0, i)
+      Nothing -> Just (Left t0, m0, i)
+    -- template doesnt exist: this shouldn't happen
+    Nothing -> Nothing
+-- check that rps are the same?
+applyMeasures m0@(UnfoldOp rp0 f0 m) t0@(RecursiveRecordAST rp mv ts) i = 
+  case find (\(f, mv, t) -> f0 == f) ts of 
+    Just (f, mv, t) -> case mv of 
+      Just "ok" -> applyMeasures m t i
+      Just v -> 
+        case t of
+          -- match rps again...?
+          RecParAST rp' mv' -> Just (Right v, m0, i+1)
+          _ -> Just (Right v, m0, i)
+      Nothing -> Just (Left t0, m0, i) -- no need to keep traversing
+    Nothing -> Nothing
+-- NOTE: will be confused when there are multiple elements in the VariantAST
+applyMeasures m0@(CaseOp cs) t0@(VariantAST mv [(f0, mv0, t)]) i = 
+  case find (\(f, m) -> f0 == f) cs of 
+    Just (f, m) -> case mv of 
+      Just "ok" -> applyMeasures m t i
+      Just v -> 
+        case t of 
+          RecParAST rp' mv' -> Just (Right v, m0, i+1)
+          _ -> Just (Right v, m0, i)
+      Nothing -> Just (Left t0, m0, i)
+    Nothing -> Nothing
+applyMeasures m0 t0 i = Just (Left t0, m0, i)
 
 mapConstructors :: Template -> (ArgExpr, ArgExpr) -> (Template, Template, Info)
 mapConstructors tem (AEVar v, recursive) = 
@@ -333,12 +377,14 @@ removeConstructors (AEStruct ae) (RecordAST mv ts) n =
                   (f, Just c, (removeConstructors ae t' (n+1)))
                 Nothing -> (f', mv', (t', M.empty))) ts
       -- remove the environments 
-      templates = map (\(f, mv, (t, e)) -> (f, mv, t)) templatesWithEnv
+      templates = map (\(f', mv', (t, e)) -> (f', mv', t)) templatesWithEnv
       -- combine environments from recursion
-      envs = map (\(f, mv, (t, e)) -> e) templatesWithEnv
+      envs = map (\(_, _, (t, e)) -> e) templatesWithEnv
       envsCombined = foldr M.union M.empty envs
       envsCombined' = foldr (\(c, (f, ae)) -> M.insert c ae) envsCombined fresh
-  in (RecordAST mv templates, envsCombined')
+  in case mv of 
+    Nothing -> (RecordAST placeHolder templates, envsCombined')
+    _ -> (RecordAST mv templates, envsCombined')
 removeConstructors ae tem n = 
   let alpha = ('a':show n)
       tem' = fillFreshName tem alpha 
