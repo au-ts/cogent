@@ -1,17 +1,51 @@
+alloc : Unit -> rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# > take }!;
 
 merge : {x: rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}!, y: rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}!}# 
 -> rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}!;
 
 merge m = 
-  case m.x.l of
+  case m.x.l of 
     Nil u -> m.y
-    | xs -> 
+    | x ->
+    case x of
+      Cons xs ->  
         case m.y.l of 
-          Nil u -> m.x
-          | ys -> 
-              if xs.data < ys.data 
-              then merge {x = xs.rest, y = m.y} 
-              else merge {x = m.x, y = ys.rest}
+          Nil u -> m.x 
+          | y -> 
+          case y of 
+            Cons ys ->
+              if (xs.data < ys.data) then
+                let result = merge {x = xs.rest, y = m.y} in
+                  let item = alloc Unit in
+                    let item1 = 
+                      put item.l := 
+                        Cons {
+                          data = ys.data,
+                          rest = result
+                        } end
+                    in
+                      item1
+                    end
+                  end
+                end
+              else 
+                let result = merge {x = m.x, y = ys.rest} in
+                  let item = alloc Unit in
+                    let item1 = 
+                      put item.l := 
+                        Cons {
+                          data = xs.data,
+                          rest = result
+                        } end
+                    in
+                      item1
+                    end
+                  end
+                end
               end
+          end
         end
+      end
   end;
+
+
