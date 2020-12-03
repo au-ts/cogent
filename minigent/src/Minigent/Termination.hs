@@ -221,18 +221,14 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
       case getType f genvs of 
         Nothing -> ([], [])
         Just ty ->
-          let (funName, b, m, te, tt, sizes, env, argpairs, message) = (init' f x e ty)
+          let (funName, b, matrix, argPairs, templatePairs, sizes, message) = (init' f x e ty)
               measures = buildMeasure ty []
-              template = buildTemplate ty
-              msg = ("\n\nMatrix\n" ++ (show m) 
+              msg = ("\n\nMatrix\n" ++ (show matrix) 
                   ++ "\n\nMeasures\n" ++ (show measures)
-                  ++ "\n\nTemplate\n" ++ (show template)
-                  ++ "\n\nTemplate Expr Tuples\n" ++ (show te)
-                  -- ++ "\n\nTemplate Tuples\n" ++ (show tt)
-                  -- ++ "\n\nSizes\n" ++ (show sizes)
-                  -- ++ "\n\nEnv\n" ++ (show env)
-                  ++ "\n\nArgPairs\n" ++ show argpairs
-                  ++ "\n\nArgs\n" ++ message
+                  ++ "\n\nArgPairs\n" ++ (show argPairs)
+                  ++ "\n\nTemplate Pairs\n" ++ (show templatePairs)
+                  ++ "\n\nSizes\n" ++ (show sizes)
+                  ++ "\n\nMsg\n" ++ message
                   )
               errs' = case b of 
                 True -> ((show "Passes termination") ++ msg):errs
@@ -243,7 +239,7 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
              VarName ->
                 Expr ->
                 Type ->
-             (FunName, Bool, Matrix.Matrix Cmp, [(Template, Expr)], [(Template, Template)], [(Size, Size)], Env, [(ArgExpr, ArgExpr)], String)
+             (FunName, Bool, Matrix.Matrix Cmp, [(ArgExpr, ArgExpr)], [(Template, Template)], [[(Siz, Siz)]], String)
     init' funName x e ty =
       let 
         -- generate list of measures
@@ -255,54 +251,48 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
         argPairs = genArgPairs funName x M.empty e
         -- list of (inputTemplate, recursiveTemplate, env) tuples
         templateEnvs = map (mapConstructors template) argPairs
-        -- for each tuple: 
-        -- reverse each thing. use it to fill out template.
-        -- templatePairs = map (completeTemplate) templateEnvs
-        completed = map completeTemplate templateEnvs
-        -- message = show completed
-        (input, recursive) = head completed
-        m0 = measures !! 1
-        res = (applyMeasures m0 input 0, applyMeasures m0 recursive 0)
-        message = show res
-
-        firstElem = head templateEnvs
-        envs = map (\(t1, t2, e) -> e) templateEnvs
-        firstMap = M.toList (head envs)
-        tes = map (\(x, y) -> (reverseAE x y)) firstMap
-        -- message = show tes
-        -- generate (template, expr) tuples, environment and error msg
-        (templateExpr, env, err) = fst $ runFresh unifVars $ fillTemplates funName e template (envAdd (Var "r") emptyEnv) 0
-        -- convert the expressions into templates
-        templateExprChar = zip templateExpr ['a'..'z'] -- lol, fix later
-        (templateTemplate, env1) = fillTemplateExp template templateExprChar env
-        -- generate assertions
-        env2 = assertions templateTemplate env1
-        env3 = resolveEnv env2
-        -- apply measures 
-        -- matrix = Matrix.fromLists [[]]
-        -- generate local descent arrays
-        -- generate matrix
-        sizes = generateSize env3 (templateTemplate !! 0) measures
-        -- row1 = generateRow env3 (templateTemplate !! 0) measures
-        cmps = generateMatrix env3 templateTemplate measures
-        matrix = Matrix.fromLists $ cmps
-        -- matrix = Matrix.fromLists $ generateMatrix env2 templateTemplate measures
-        -- run global descent
+        templatePairs = map completeTemplate templateEnvs
+        lists = map (genLists measures) templatePairs
+        matrix = Matrix.fromLists lists
         result = globalDescent matrix
+        message = show (genSizes measures (head templatePairs))
+      in (funName, result, matrix, argPairs, templatePairs, [], message)
+
+        ------------
+        -- (templateExpr, env, err) = fst $ runFresh unifVars $ fillTemplates funName e template (envAdd (Var "r") emptyEnv) 0
+        -- -- convert the expressions into templates
+        -- templateExprChar = zip templateExpr ['a'..'z'] -- lol, fix later
+        -- (templateTemplate, env1) = fillTemplateExp template templateExprChar env
+        -- -- generate assertions
+        -- env2 = assertions templateTemplate env1
+        -- env3 = resolveEnv env2
+        -- -- apply measures 
+        -- -- matrix = Matrix.fromLists [[]]
+        -- -- generate local descent arrays
+        -- -- generate matrix
+        -- sizes = generateSize env3 (templateTemplate !! 0) measures
+        -- -- row1 = generateRow env3 (templateTemplate !! 0) measures
+        -- cmps = generateMatrix env3 templateTemplate measures
+        -- matrix = Matrix.fromLists $ cmps
+        -- -- matrix = Matrix.fromLists $ generateMatrix env2 templateTemplate measures
+        -- -- run global descent
+        -- result = globalDescent matrix
         -- result = True
-      in (funName, result, matrix, templateExpr, templateTemplate, sizes, env3, argPairs, message)
 
 type Info = M.Map FreshVar ArgExpr
--- data MeasureOp
---   = ProjectOp FieldName MeasureOp -- field 
---   | UnfoldOp RecParName FieldName MeasureOp -- recpar, field 
---   | RecParMeasure RecParName -- recpar 
---   | CaseOp [(String,MeasureOp)] -- field 
---   | IntConstOp Int
---   deriving (Show, Eq)
 
 type Siz = Maybe (Either Template FreshVar, MeasureOp, Int)
 -- Nothing for mismatch, otherwise thing. 
+
+genSizes :: [MeasureOp] -> (Template, Template) -> [(Siz, Siz)]
+genSizes [] _ = []
+genSizes ms (input, recursive) = 
+  map (\m -> ((applyMeasures m input 0), (applyMeasures m recursive 0))) ms
+
+genLists :: [MeasureOp] -> (Template, Template) -> [Cmp]
+genLists [] _ = []
+genLists ms (input, recursive) = 
+  map (\m -> (compareSizes (applyMeasures m input 0) (applyMeasures m recursive 0))) ms
 
 compareSizes :: Siz -> Siz -> Cmp
 compareSizes Nothing _ = Unknown
@@ -312,12 +302,13 @@ compareSizes (Just (Right v0, m0, i0)) (Just (Right v1, m1, i1)) =
     if (i0 > i1) then Le
     else if (i0 == i1) then Eq 
     else Unknown
-  else 
+  else
     Unknown
+compareSizes x y = Unknown
 
 -- consider leaving the mOp in? need to or nah?
 applyMeasures :: MeasureOp -> Template -> Int -> Siz
-applyMeasures m0@(ProjectOp f0 m) t0@(RecordAST mv ts) i =
+applyMeasures m0@(ProjectOp f0 m) t0@(RecordAST mv0 ts) i =
   case find (\(f, mv, t) -> f0 == f) ts of 
     Just (f, mv, t) -> case mv of 
       Just "ok" -> applyMeasures m t i
@@ -325,11 +316,13 @@ applyMeasures m0@(ProjectOp f0 m) t0@(RecordAST mv ts) i =
         case t of
           RecParAST rp' mv' -> Just (Right v, m0, i+1)
           _ -> Just (Right v, m0, i)
-      Nothing -> Just (Left t0, m0, i)
+      Nothing -> case mv0 of 
+        Just v -> Just (Right v, m0, i)
+        Nothing -> Just (Left t0, m0, i)
     -- template doesnt exist: this shouldn't happen
     Nothing -> Nothing
 -- check that rps are the same?
-applyMeasures m0@(UnfoldOp rp0 f0 m) t0@(RecursiveRecordAST rp mv ts) i = 
+applyMeasures m0@(UnfoldOp rp0 f0 m) t0@(RecursiveRecordAST rp mv0 ts) i = 
   case find (\(f, mv, t) -> f0 == f) ts of 
     Just (f, mv, t) -> case mv of 
       Just "ok" -> applyMeasures m t i
@@ -338,7 +331,9 @@ applyMeasures m0@(UnfoldOp rp0 f0 m) t0@(RecursiveRecordAST rp mv ts) i =
           -- match rps again...?
           RecParAST rp' mv' -> Just (Right v, m0, i+1)
           _ -> Just (Right v, m0, i)
-      Nothing -> Just (Left t0, m0, i) -- no need to keep traversing
+      Nothing -> case mv0 of 
+        Just v -> Just (Right v, m0, i)
+        Nothing -> Just (Left t0, m0, i) -- no need to keep traversing
     Nothing -> Nothing
 -- NOTE: will be confused when there are multiple elements in the VariantAST
 applyMeasures m0@(CaseOp cs) t0@(VariantAST mv [(f0, mv0, t)]) i = 
@@ -360,35 +355,55 @@ mapConstructors tem (AEVar v, recursive) =
       -- v is the input argument name
       inputTemplate = fillFreshName tem v
       inputEnv = M.insert alpha (AEVar v) M.empty
-      -- (inputTemplate, inputEnv) = removeConstructors (AEVar v) tem 0
   in (inputTemplate, recursiveTemplate, M.union inputEnv recursiveEnv)
 -- should not happen
 mapConstructors tem (ae1, ae2) = (tem, tem, M.empty)
 
+reverseMapLookup :: [(FreshVar, ArgExpr)] -> ArgExpr -> Maybe FreshVar
+reverseMapLookup [] _ = Nothing
+reverseMapLookup ((f, ae0):xs) ae = if (ae0 == ae) then Just f
+                                  else reverseMapLookup xs ae
+
 -- NOTE some elements in the map will be the same, mapped to different 'freshvars'
 -- remove constructors from the argExpr, use them to fill in the template initially.
 removeConstructors :: ArgExpr -> Template -> Int -> (Template, Info)
-removeConstructors (AEStruct ae) (RecordAST mv ts) n = 
+removeConstructors (AEStruct ae) (RecordAST mv ts) n =
+  -- map each struct element to a freshvar
   let fresh = zip (map (\x -> x:(show n)) ['a'..'z']) ae
-      -- match the field names + recurse
-      templatesWithEnv = map (\(f', mv', t') ->
-              case find (\(c, (f, ae)) -> f' == f) fresh of 
-                Just (c, (f, ae)) -> 
-                  (f, Just c, (removeConstructors ae t' (n+1)))
-                Nothing -> (f', mv', (t', M.empty))) ts
-      -- remove the environments 
-      templates = map (\(f', mv', (t, e)) -> (f', mv', t)) templatesWithEnv
-      -- combine environments from recursion
-      envs = map (\(_, _, (t, e)) -> e) templatesWithEnv
-      envsCombined = foldr M.union M.empty envs
-      envsCombined' = foldr (\(c, (f, ae)) -> M.insert c ae) envsCombined fresh
-  in case mv of 
-    Nothing -> (RecordAST placeHolder templates, envsCombined')
-    _ -> (RecordAST mv templates, envsCombined')
+    -- match the field names and recurse
+      (ts', info) = removeConstructorsList ts fresh 0
+    -- wrap the Record up again.
+  in case mv of
+    Nothing -> (RecordAST placeHolder ts', info)
+    fv -> (RecordAST fv ts', info)
+-- no constructors
 removeConstructors ae tem n = 
   let alpha = ('a':show n)
       tem' = fillFreshName tem alpha 
   in (tem', M.insert alpha ae M.empty)
+
+-- for each element in the struct, fix it up and continue 
+removeConstructorsList :: [(FieldName, Maybe FreshVar, Template)] -> [([Char],(FieldName, ArgExpr))] -> Int -> ([(FieldName, Maybe FreshVar, Template)], Info)
+-- find the argExpr that fits, and 
+removeConstructorsList [] _ i = ([], M.empty)
+removeConstructorsList _ [] i = ([], M.empty)
+removeConstructorsList ((f0, mv, t):fs) ae0 i =
+  let (res, resInfo) = removeConstructorsList fs ae0 i
+  in
+    case find (\(c, (f, ae)) -> f == f0) ae0 of
+      Just (c, (f, ae)) ->
+        -- check if ae is already inside the map: if yes, then use the map value
+        case reverseMapLookup (M.toList resInfo) ae of 
+          Just fv -> 
+            let (template, info) = removeConstructors ae t (i+1)
+                info' = M.union info resInfo
+            in ((f, Just fv, template):res, info')
+          Nothing -> 
+            let (template, info) = removeConstructors ae t (i+1)
+                info' = M.insert c ae (M.union info resInfo)
+            -- add to env, set template.
+            in ((f, Just c, template):res, info')
+      Nothing -> ((f0, mv, t):res, resInfo)
 
 fillFreshName :: Template -> FreshVar -> Template
 fillFreshName tem alpha =
@@ -423,15 +438,15 @@ completeTemplate :: (Template, Template, Info) -> (Template, Template)
 completeTemplate (inputT, recursiveT, env) =
   -- reverse each element inside the env. use it to 'fill' the template multiple times through on each path. 
   let templateExprs = map (\(x, y) -> (reverseAE x y)) (M.toList env)
-      input = completeTemplate' inputT templateExprs 
-      recursive = completeTemplate' recursiveT templateExprs 
+      input = completeTemplateList inputT templateExprs 
+      recursive = completeTemplateList recursiveT templateExprs 
   in (input, recursive)
   -- for each template exp, 'fill' the template.
   -- check if the current thing is the same.
 
-completeTemplate' :: Template -> [TemplateExpr] -> Template
-completeTemplate' tem [] = tem
-completeTemplate' tem (t:ts) = completeTemplate' (matchTemplate t tem) ts
+completeTemplateList :: Template -> [TemplateExpr] -> Template
+completeTemplateList tem [] = tem
+completeTemplateList tem (t:ts) = completeTemplateList (matchTemplate t tem) ts
 
 matchTemplate :: TemplateExpr -> Template -> Template
 matchTemplate te@(TEVar v ae) tem@(RecordAST mv ts) =
@@ -453,27 +468,36 @@ matchTemplate te tem = tem
 fill :: TemplateExpr -> Template -> Template
 fill (TERecord f ae) (RecordAST mv ts) = 
   case find (\(f', mv', t') -> f' == f) ts of 
-    Just (f', mv', t') -> 
-      case ae of 
-        TELeaf fv -> RecordAST placeHolder [(f', fv, (fill ae t'))]
-        _ -> RecordAST placeHolder [(f', placeHolder, (fill ae t'))]
+    Just (f', mv', t') -> case mv of
+      Nothing -> RecordAST placeHolder (findAndReplace f ts ae)
+      _ -> RecordAST mv (findAndReplace f ts ae)
     Nothing -> (RecordAST mv ts)
 fill (TERecord f ae) (RecursiveRecordAST rp mv ts) = 
   case find (\(f', mv', t') -> f' == f) ts of 
-    Just (f', mv', t') -> 
-      case ae of 
-        TELeaf fv -> RecursiveRecordAST rp placeHolder [(f', fv, (fill ae t'))]
-        _ -> RecursiveRecordAST rp placeHolder [(f', placeHolder, (fill ae t'))]
-    Nothing -> (RecordAST mv ts)
+    Just (f', mv', t') -> case mv of 
+      Nothing -> RecursiveRecordAST rp placeHolder (findAndReplace f ts ae)
+      _ -> RecursiveRecordAST rp placeHolder (findAndReplace f ts ae)
+    Nothing -> (RecursiveRecordAST rp mv ts)
 fill (TEVariant f ae) (VariantAST mv ts) = 
   case find (\(f', mv', t') -> f' == f) ts of
     Just (f', mv', t') -> 
       case ae of 
-        TELeaf fv -> VariantAST placeHolder [(f', fv, (fill ae t'))]
+        TELeaf fv -> case mv' of 
+          Nothing -> VariantAST placeHolder [(f', fv, (fill ae t'))]
+          _ -> VariantAST mv [(f', fv, (fill ae t'))]
         _ -> VariantAST placeHolder [(f', placeHolder, (fill ae t'))]
     Nothing -> (VariantAST mv ts)
 -- TODO: other cases?
 fill ae template = template
+
+findAndReplace :: FieldName -> [((FieldName, Maybe FreshVar, Template))] -> TemplateExpr -> [(FieldName, Maybe FreshVar, Template)]
+findAndReplace f0 ((f, mv, t):fs) ae = 
+  if f0 == f then 
+    -- fill in and continue. 
+    case ae of 
+      TELeaf fv -> (f, fv, fill ae t):fs
+      _ -> (f, placeHolder, fill ae t):fs
+  else (f, mv, t):(findAndReplace f0 fs ae)
 
 data TemplateExpr 
   = TERecord FieldName TemplateExpr -- for both recursive and non-recursive
