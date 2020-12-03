@@ -1,0 +1,23 @@
+mergeDestroy : {x: rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}!, y: rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}!}# 
+-> rec t { l: < Nil Unit | Cons { data: U32, rest: t! }# >}!;
+
+mergeDestroy m = 
+  case m.x.l of 
+    Nil u -> m.y
+    | x -> 
+    case x of 
+      Cons xs ->
+        case m.y.l of 
+          Nil u -> m.x 
+          | y -> 
+          case y of 
+            Cons ys ->
+              if (xs.data < ys.data) then 
+                mergeDestroy {x = xs.rest, y = m.y}
+              else 
+                mergeDestroy {x = m.x, y = ys.rest}
+              end
+          end
+        end 
+    end 
+  end;
