@@ -258,27 +258,6 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
         message = show (genSizes measures (head templatePairs))
       in (funName, result, matrix, argPairs, templatePairs, [], message)
 
-        ------------
-        -- (templateExpr, env, err) = fst $ runFresh unifVars $ fillTemplates funName e template (envAdd (Var "r") emptyEnv) 0
-        -- -- convert the expressions into templates
-        -- templateExprChar = zip templateExpr ['a'..'z'] -- lol, fix later
-        -- (templateTemplate, env1) = fillTemplateExp template templateExprChar env
-        -- -- generate assertions
-        -- env2 = assertions templateTemplate env1
-        -- env3 = resolveEnv env2
-        -- -- apply measures 
-        -- -- matrix = Matrix.fromLists [[]]
-        -- -- generate local descent arrays
-        -- -- generate matrix
-        -- sizes = generateSize env3 (templateTemplate !! 0) measures
-        -- -- row1 = generateRow env3 (templateTemplate !! 0) measures
-        -- cmps = generateMatrix env3 templateTemplate measures
-        -- matrix = Matrix.fromLists $ cmps
-        -- -- matrix = Matrix.fromLists $ generateMatrix env2 templateTemplate measures
-        -- -- run global descent
-        -- result = globalDescent matrix
-        -- result = True
-
 type Info = M.Map FreshVar ArgExpr
 
 type Siz = Maybe (Either Template FreshVar, MeasureOp, Int)
@@ -364,7 +343,6 @@ reverseMapLookup [] _ = Nothing
 reverseMapLookup ((f, ae0):xs) ae = if (ae0 == ae) then Just f
                                   else reverseMapLookup xs ae
 
--- NOTE some elements in the map will be the same, mapped to different 'freshvars'
 -- remove constructors from the argExpr, use them to fill in the template initially.
 removeConstructors :: ArgExpr -> Template -> Int -> (Template, Info)
 removeConstructors (AEStruct ae) (RecordAST mv ts) n =
@@ -441,8 +419,6 @@ completeTemplate (inputT, recursiveT, env) =
       input = completeTemplateList inputT templateExprs 
       recursive = completeTemplateList recursiveT templateExprs 
   in (input, recursive)
-  -- for each template exp, 'fill' the template.
-  -- check if the current thing is the same.
 
 completeTemplateList :: Template -> [TemplateExpr] -> Template
 completeTemplateList tem [] = tem
@@ -504,8 +480,7 @@ data TemplateExpr
   | TEVariant FieldName TemplateExpr
   | TEPrim PrimValue
   | TEVar VarName TemplateExpr -- includes recpars...
-  | TELeaf (Maybe VarName) -- leaf node. either empty, or contains recursive link
-  -- | TFresh VarName -- recursive link (kinda)
+  | TELeaf (Maybe VarName) -- leaf node. either empty, or contains recursive
   | TEUnknown
   deriving (Show, Eq)
 
