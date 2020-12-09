@@ -68,8 +68,6 @@ findEquateCandidates mentions (c:cs) =
     isBaseUnif x = case IM.lookup x mentions of
                      Just (_,_,_,True) -> True
                      _                 -> False
-    isRefinementType (T (TRefine {})) = True
-    isRefinementType _  = False
   in case c ^. goal of
        U a :< b
          | canEquate (\m -> m^._1 + m^._2) a b
@@ -79,6 +77,16 @@ findEquateCandidates mentions (c:cs) =
          | canEquate (^._3) b a  -- why? / zilinc
          , not (isRefinementType a && isBaseUnif b)
          -> (sups, c : subs, others)
+#ifdef REFINEMENT_TYPES
+       T (TRefine v b (HApp x _ _)) :< t
+         | canEquate (^._2) x t
+         , isRefinementType t
+         -> (c : sups, subs, others)
+       t :< T (TRefine v b (HApp x _ _))
+         | canEquate (^._3) x t
+         , isRefinementType t
+         -> (sups, c : subs, others)
+#endif
        V r1 :< t
          | Just a <- Row.var r1
          , Row.justVar r1
@@ -89,15 +97,6 @@ findEquateCandidates mentions (c:cs) =
          , Row.justVar r1
          , canEquate (^._2) a t
          -> (c : sups, subs, others)
-#ifdef REFINEMENT_TYPES
-       -- NOTE: This is Ok and we don't need to look into unifVars in
-       -- elt1, len1 and s1, because h here is the only thing which
-       -- plays a role in array subtyping. If h is the only occurrence
-       -- of a unifVar, then we can equate it. / zilinc
-       A elt1 len1 s1 (Right h) :< t
-         | canEquate (^._2) h t
-         -> (c : sups, subs, others)
-#endif
        t :< V r1
          | Just a <- Row.var r1
          , Row.justVar r1
@@ -109,6 +108,13 @@ findEquateCandidates mentions (c:cs) =
          , canEquate (^._3) a t
          -> (sups, c : subs, others)
 #ifdef REFINEMENT_TYPES
+       -- NOTE: This is Ok and we don't need to look into unifVars in
+       -- elt1, len1 and s1, because h here is the only thing which
+       -- plays a role in array subtyping. If h is the only occurrence
+       -- of a unifVar, then we can equate it. / zilinc
+       A elt1 len1 s1 (Right h) :< t
+         | canEquate (^._2) h t
+         -> (c : sups, subs, others)
        t :< A elt2 len2 s2 (Right h)
          | canEquate (^._2) h t
          -> (sups, c : subs, others)

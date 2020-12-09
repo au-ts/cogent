@@ -89,7 +89,7 @@ getMentions gs =
   mentionEnv (gamma, es) c = -- fmap (\v -> (v, (1,0,0))) $ unifVarsEnv env
     -- NOTE: we only register a unifvar in the environment when the variable is used in the RHS. / zilinc
     let pvs = progVarsC c
-        ms  = fmap (\(t,_) -> unifVars t) gamma  -- a map from progvars to the unifvars appearing in that entry.
+        ms  = fmap (\(t,_) -> unifVars t ++ unknowns t) gamma  -- a map from progvars to the unifvars appearing in that entry.
         ms' = fmap (\v -> (v, (1,0,0,False))) $ concat $ M.elems $ M.restrictKeys ms pvs
      in ms'
         -- trace ("##### gamma = " ++ show (prettyGoalEnv (gamma,es)) ++ "\n" ++
@@ -97,8 +97,8 @@ getMentions gs =
         --        "      pvs = " ++ show pvs ++ "\n" ++
         --        "      ms = " ++ show ms ++ "\n" ++
         --        "      ms' = " ++ show ms' ++ "\n") ms'
-  mentionL   = fmap (\v -> (v, (0,1,0,False))) . unifVars
-  mentionR   = fmap (\v -> (v, (0,0,1,False))) . unifVars
+  mentionL t = fmap (\v -> (v, (0,1,0,False))) $ unifVars t ++ unknowns t
+  mentionR t = fmap (\v -> (v, (0,0,1,False))) $ unifVars t ++ unknowns t
 
   isBase (U x) = [(x, (0,0,0,True))]
   isBase _ = []

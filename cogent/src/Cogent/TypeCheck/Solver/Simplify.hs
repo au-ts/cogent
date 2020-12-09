@@ -301,15 +301,11 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
     hoistMaybe $ Just [T (TFun (Just v) t1 t2) :<  T (TFun (Just u) r1 r2)]
 
   T (TFun (Just v) t1 t2) :=: T (TFun (Just u) r1 r2) -> do
-    vr <- freshRefVarName _2
-    let t2' = substExprT [(v, SE t1 (Var vr))] t2
-        r2' = substExprT [(u, SE r1 (Var vr))] r2
-    hoistMaybe $ Just [r1 :=: t1, (M.singleton vr (r1,0), []) :|- t2' :=: r2']
+    let r2' = if v == u then r2 else substVarExprT [(u, v)] r2
+    hoistMaybe $ Just [r1 :=: t1, (M.singleton u (r1,0), []) :|- t2 :=: r2']
   T (TFun (Just v) t1 t2) :<  T (TFun (Just u) r1 r2) -> do
-    vr <- freshRefVarName _2
-    let t2' = substExprT [(v, SE t1 (Var vr))] t2
-        r2' = substExprT [(u, SE r1 (Var vr))] r2
-    hoistMaybe $ Just [r1 :<  t1, (M.singleton vr (r1,0), []) :|- t2' :<  r2']
+    let r2' = if v == u then r2 else substVarExprT [(u, v)] r2
+    hoistMaybe $ Just [r1 :<  t1, (M.singleton u (r1,0), []) :|- t2 :<  r2']
 
   T (TTuple ts) :<  T (TTuple us) | length ts == length us -> hoistMaybe $ Just (zipWith (:< ) ts us)
   T (TTuple ts) :=: T (TTuple us) | length ts == length us -> hoistMaybe $ Just (zipWith (:=:) ts us)
@@ -365,29 +361,33 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
     let drop = case (r1,r2) of
                  (r1, r2) | r1 == r2 -> Sat
                  (Nothing, Just i2) -> Drop t1 ImplicitlyTaken
-                 (Just i1, Just i2) -> Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [i1,i2]))
-    hoistMaybe $ Just ([Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [l1,l2])), t1 :< t2, drop] <> c)
+                 (Just i1, Just i2) -> Arith (SE (T bool) (PrimOp "==" [i1,i2]))
+    hoistMaybe $ Just ([Arith (SE (T bool) (PrimOp "==" [l1,l2])), t1 :< t2, drop] <> c)
 
   A t1 l1 s1 (Left r1) :=: A t2 l2 s2 (Left r2) | Just c <- doSigilMatch s1 s2 -> do
     guard (isJust r1 && isJust r2 || isNothing r1 && isNothing r2)
     let drop = case (r1,r2) of
                  (r1, r2) | r1 == r2 -> Sat
-                 (Just i1, Just i2) -> Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [i1,i2]))
-    hoistMaybe $ Just ([Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [l1,l2])), t1 :=: t2, drop] <> c)
+                 (Just i1, Just i2) -> Arith (SE (T bool) (PrimOp "==" [i1,i2]))
+    hoistMaybe $ Just ([Arith (SE (T bool) (PrimOp "==" [l1,l2])), t1 :=: t2, drop] <> c)
 
-  T (TRefine v1 b1 e1) :< T (TRefine v2 b2 e2) -> do
-    vr <- freshRefVarName _2
-    let e1' = substExpr [(v1, SE b1 (Var vr))] e1
-        e2' = substExpr [(v2, SE b2 (Var vr))] e2
+  T (TRefine v1 b1 e1) :< T (TRefine v2 b2 e2) | null (unknownsE e1 ++ unknownsE e2) -> do
+    let e2' = if v1 == v2 then e2 else substVarExpr [(v2, v1)] e2
     return [ b1 :< b2
-           , (M.singleton vr (b2,0), []) :|- Arith (SE (T bool) (PrimOp "||" [SE (T bool) (PrimOp "not" [e1']), e2']))
+           , (M.singleton v1 (b2,0), []) :|- Arith (SE (T bool) (PrimOp "||" [SE (T bool) (PrimOp "not" [e1]), e2']))
            ]
 
-  t1@(T {}) :< t2@(T (TRefine {})) -> do  -- @t1@ is not a refinement type
+  T (TRefine v1 b1 e1) :=: T (TRefine v2 b2 e2) | null (unknownsE e1 ++ unknownsE e2) -> do
+    let e2' = if v1 == v2 then e2 else substVarExpr [(v2, v1)] e2
+    return [ b1 :=: b2
+           , (M.singleton v1 (b2,0), []) :|- Arith (SE (T bool) (PrimOp "==" [e1, e2']))
+           ]
+
+  t1@(T {}) :< t2@(T (TRefine {})) | not (isRefinementType t1) -> do
     vr <- freshRefVarName _2
     return [T (TRefine vr t1 (SE (T bool) (BoolLit True))) :< t2]
 
-  (T (TRefine _ b1 _)) :< t2@(T {}) ->  -- @t2@ is not a refinement type
+  (T (TRefine _ b1 _)) :< t2@(T {}) | not (isRefinementType t2)->
     return [b1 :< t2]  -- an optimisation, contrary to the case above. / zilinc
 
   t1@(R {}) :< T (TRefine v2 b2 e2) ->

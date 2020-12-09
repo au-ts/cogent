@@ -215,6 +215,11 @@ applySE (Subst f) (SU t x)
   = applySE (Subst f) e
   | otherwise
   = SU t x
+applySE (Subst f) (HApp x v vs)
+  | Just (Expr e) <- IM.lookup x f
+  = applySE (Subst f) e  -- FIXME
+  | otherwise
+  = HApp x v vs
 applySE s (SE t e) = SE (apply s t)
                           ( fmap (applySE s)
                           $ fffmap (fmap (apply s))

@@ -53,7 +53,7 @@ import Data.Functor.Identity
 import qualified Data.IntMap as IM
 import Data.List (nub, (\\))
 import qualified Data.Map as M
-import Data.Maybe (maybeToList)
+import Data.Maybe (catMaybes, maybeToList)
 #if __GLASGOW_HASKELL__ < 803
 import Data.Monoid ((<>))
 #endif
@@ -355,11 +355,13 @@ data TCType         = T (Type TCSExpr TCDataLayout TCType)
 
 data SExpr t l      = SE { getTypeSE :: t, getExprSE :: Expr t (TPatn t) (TIrrefPatn t) l (SExpr t l) }
                     | SU t Int
+                    | HApp Int VarName [VarName]  -- Horn application
                     deriving (Show, Eq, Ord)
-                    
+
 -- deriving instance Foldable (SExpr t)
 -- deriving instance Traversable (SExpr t)
 -- deriving instance Foldable (SExpr t)
+
 
 data RP = Mu RecParName | None | UP Int
           deriving (Show, Eq, Ord)
@@ -401,11 +403,13 @@ type TCSExpr = SExpr TCType TCDataLayout
 instance Bifunctor SExpr where
   bimap f g (SE t e) = SE (f t) (fffffmap f $ ffffmap (fmap f) $ fffmap (fmap f) $ ffmap g $ fmap (bimap f g) e)
   bimap f g (SU t x) = SU (f t) x
+  bimap f g (HApp x v vs) = HApp x v vs
 instance Bifoldable SExpr where
   bifoldMap f g e = getConst $ bitraverse (Const . f) (Const . g) e
 instance Bitraversable SExpr where
   bitraverse f g (SE t e) = SE <$> f t <*> pentatraverse f (traverse f) (traverse f) g (bitraverse f g) e
   bitraverse f g (SU t x) = SU <$> f t <*> pure x
+  bitraverse f g (HApp x v vs) = pure $ HApp x v vs
 
 ifBang :: Banged -> TCType -> TCType
 ifBang True t = T (TBang t)
@@ -706,7 +710,7 @@ extractGamma m = go $ M.toList m
   where 
     go [] = []
     go ((x, (T (TRefine v beta phi),_)):xs) | null (unifVars beta) =
-      substExpr [(v, SE beta (Var x))] phi : go xs
+      substVarExpr [(v, x)] phi : go xs
     go ((x,_):xs) = go xs
 #endif
 
@@ -750,22 +754,45 @@ substLayout vs (A t l s tkns) = A (substLayout vs t) l (bimap (fmap (fmap (subst
 #endif
 substLayout vs (Synonym n ts) = Synonym n $ substLayout vs <$> ts
 
-substExpr :: [(VarName, TCSExpr)] -> TCSExpr -> TCSExpr
-substExpr vs (SU t x) = SU t x
-substExpr vs (SE t (Var x)) | Just e' <- lookup x vs = e'
-substExpr vs (SE t e) = SE t $ fmap (substExpr vs) e
+-- substExpr :: [(VarName, TCSExpr)] -> TCSExpr -> TCSExpr
+-- substExpr vs (SU t x) = SU t x
+-- substExpr vs (HApp x us) = __todo "substExpr"
+-- substExpr vs (SE t (Var x)) | Just e' <- lookup x vs = e'
+-- substExpr vs (SE t e) = SE t $ fmap (substExpr vs) e
+-- 
+-- substExprT :: [(VarName, TCSExpr)] -> TCType -> TCType
+-- substExprT vs (T (TRefine v b p)) =
+--   T $ TRefine v b $ substExpr (filter ((/= v) . fst) vs) p
+-- substExprT vs (T (TFun (Just v) t1 t2)) =
+--   T $ TFun (Just v) (substExprT vs t1) (substExprT (filter ((/= v) . fst) vs) t2)
+-- substExprT vs (T t) = T $ fffmap (substExpr vs) t
+-- substExprT vs (U x) = U x
+-- substExprT vs (V x) = V $ fmap (substExprT vs) x
+-- substExprT vs (R rp x s) = R rp (fmap (substExprT vs) x) s
+-- substExprT vs (A t l s mh) = A (substExprT vs t) (substExpr vs l) s (first (fmap (substExpr vs)) mh)
+-- substExprT vs (Synonym n ts) = Synonym n $ fmap (substExprT vs) ts
 
-substExprT :: [(VarName, TCSExpr)] -> TCType -> TCType
-substExprT vs (T (TRefine v b p)) =
-  T $ TRefine v b $ substExpr (filter ((/= v) . fst) vs) p
-substExprT vs (T (TFun (Just v) t1 t2)) =
-  T $ TFun (Just v) (substExprT vs t1) (substExprT (filter ((/= v) . fst) vs) t2)
-substExprT vs (T t) = T $ fffmap (substExpr vs) t
-substExprT vs (U x) = U x
-substExprT vs (V x) = V $ fmap (substExprT vs) x
-substExprT vs (R rp x s) = R rp (fmap (substExprT vs) x) s
-substExprT vs (A t l s mh) = A (substExprT vs t) (substExpr vs l) s (first (fmap (substExpr vs)) mh)
-substExprT vs (Synonym n ts) = Synonym n $ fmap (substExprT vs) ts
+substVarExpr :: [(VarName, VarName)] -> TCSExpr -> TCSExpr
+substVarExpr vs (SU t x) = SU t x
+substVarExpr vs (HApp x v us) = HApp x v $ for us $ \u ->
+  case lookup u vs of
+    Just u' -> u'
+    Nothing -> u
+substVarExpr vs (SE t (Var x)) | Just u <- lookup x vs = SE t (Var u)
+substVarExpr vs (SE t e) = SE t $ fmap (substVarExpr vs) e
+
+substVarExprT :: [(VarName, VarName)] -> TCType -> TCType
+substVarExprT vs (T (TRefine v b p)) =
+  T $ TRefine v b $ substVarExpr (filter ((/= v) . fst) vs) p
+substVarExprT vs (T (TFun (Just v) t1 t2)) =
+  T $ TFun (Just v) (substVarExprT vs t1) (substVarExprT (filter ((/= v) . fst) vs) t2)
+substVarExprT vs (T t) = T $ fffmap (substVarExpr vs) t
+substVarExprT vs (U x) = U x
+substVarExprT vs (V x) = V $ fmap (substVarExprT vs) x
+substVarExprT vs (R rp x s) = R rp (fmap (substVarExprT vs) x) s
+substVarExprT vs (A t l s mh) = A (substVarExprT vs t) (substVarExpr vs l) s (first (fmap (substVarExpr vs)) mh)
+substVarExprT vs (Synonym n ts) = Synonym n $ fmap (substVarExprT vs) ts
+
 
 flexOf (U x) = Just x
 flexOf (T (TTake _ t))   = flexOf t
@@ -793,6 +820,9 @@ isIntType _ = False
 isVariantType :: RawType -> Bool
 isVariantType (RT (TVariant _)) = True
 isVariantType _ = False
+
+isRefinementType (T (TRefine {})) = True
+isRefinementType _  = False
 
 isMonoType :: RawType -> Bool
 isMonoType (RT (TVar {})) = False
@@ -826,6 +856,7 @@ unifLVarsS (Left (Boxed _ (Just l))) = unifLVars l
 unifLVarsS _ = []
 
 unifLVarsT :: TCType -> [Int]
+unifLVarsT (U _) = []
 unifLVarsT (Synonym _ ts) = concatMap unifLVarsT ts
 unifLVarsT (R _ r s) = unifLVarsS s <> nub (concatMap unifLVarsT $ Row.payloads r)
 unifLVarsT (V r) = nub (concatMap unifLVarsT $ Row.payloads r)
@@ -841,6 +872,7 @@ unifVarsE (SE t e) = unifVars t ++ foldMap unifVarsE e
                                 ++ ffffoldMap (foldMap unifVars) e
                                 ++ fffffoldMap unifVars e
 unifVarsE (SU t _) = unifVars t
+unifVarsE (HApp x v vs) = []
 
 unifVarsEnv :: ConstraintEnv -> [Int]
 unifVarsEnv (gamma, es) = unifVarsGamma gamma ++ foldMap unifVarsE es
@@ -853,18 +885,21 @@ unknowns (Synonym n ts) = concatMap unknowns ts
 unknowns (V r) = concatMap unknowns (Row.payloads r)
 unknowns (R _ r s) = concatMap unknowns (Row.payloads r)
 unknowns (A t l s tkns) = unknowns t ++ unknownsE l ++ bifoldMap (foldMap unknownsE) (const mempty) tkns
-unknowns (T x) = foldMap unknowns x
+unknowns (T x) = foldMap unknowns x ++ fffoldMap unknownsE x
 
 unknownsE :: SExpr t l -> [Int]
 unknownsE (SU _ x) = [x]
+unknownsE (HApp x v vs) = [x]
 unknownsE (SE _ e) = foldMap unknownsE e
 
 isKnown :: SExpr t l -> Bool
 isKnown (SU _ _) = False
+isKnown (HApp {}) = False
 isKnown (SE _ e) = all isKnown e
 
 isTrivialSE :: TCSExpr -> Bool
 isTrivialSE (SU {})  = False
+isTrivialSE (HApp {}) = False
 isTrivialSE (SE t e) = null (unifVarsE $ SE t e) && go e
   where go (Var {})   = False
         go (Con {})   = False
@@ -894,6 +929,7 @@ progVars (Synonym _ ts) = foldMap progVars ts
 
 progVarsE :: SExpr t l -> S.Set VarName
 progVarsE (SU {}) = S.empty
+progVarsE (HApp _ _ vs) = S.fromList vs
 progVarsE (SE t (Var x)) = S.singleton x
 progVarsE (SE t e) = foldMap progVarsE e
 

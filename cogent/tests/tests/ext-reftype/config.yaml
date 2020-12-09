@@ -5,6 +5,10 @@
     - pass_ref-type-simple-fun.cogent
     - pass_array-index-in-bounds.cogent
     - pass_upcast-plus.cogent
+    - pass_dep-function-1.cogent
+    - pass_dep-function-2.cogent
+    - pass_let-1.cogent
+    - pass_let-2.cogent
   expected_result: pass
   flags:
     - -t

@@ -1,0 +1,5 @@
+type Lt2 = [v : U8 | v < 2]
+type Lt3 = [v : U8 | v < 3]
+
+foo : Lt2 -> Lt3
+foo a = let x = 1 in a + x

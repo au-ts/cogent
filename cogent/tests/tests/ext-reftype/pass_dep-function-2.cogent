@@ -1,2 +1,2 @@
 foo : (x : [ v : U8 | v < 3]) -> [v : U8| v > x]
-foo x = x + 1
+foo y = y + 1

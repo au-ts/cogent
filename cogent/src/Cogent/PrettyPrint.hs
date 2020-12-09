@@ -189,6 +189,7 @@ instance Prec (TExpr t) where
 instance Prec (SExpr t l) where
   prec (SE _ e) = prec e
   prec (SU {}) = 0
+  prec (HApp {}) = 0
 
 -- NOTE: they differ from the definition of the fixity of Constraint
 instance Prec (Constraint' t l) where
@@ -514,6 +515,7 @@ instance (Pretty t, Pretty l) => Pretty (SExpr t l) where
                   | otherwise = pretty e
   pretty (SU t n) | __cogent_fshow_types_in_pretty = parens $ warn ('?':show n) <+> comment "::" <+> pretty t
                   | otherwise = warn ('?':show n)
+  pretty (HApp n v xs) = warn ('?':show n) <> parens (commaList $ map varname $ v:xs)
 
 instance Pretty RecursiveParameter where
   pretty (Rec p) = typesymbol "rec" <+> symbol p

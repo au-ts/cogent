@@ -45,6 +45,7 @@ import Prelude as P
 
 data SmtTransState = SmtTransState { _unifs :: IntMap SVal
                                    , _vars  :: Map String SVal
+                                   , _unintrp :: Map TCType String
                                    , _fresh :: Int
                                    }
 
@@ -66,7 +67,17 @@ typeToSmt (T (TUnit))      = return $ KTuple []
 #ifdef REFINEMENT_TYPES
 typeToSmt (T (TRefine _ b _)) = typeToSmt b
 #endif
-typeToSmt t = freshSort >>= \s -> return (KUninterpreted s (Left s))
+typeToSmt t = do u <- use unintrp
+                 case M.lookup t u of
+                   Nothing -> do s <- freshSort
+                                 unintrp %= M.insert t s
+#if MIN_VERSION_sbv(8,8,0)
+                                 return (KUserSort s (Just [s]))
+                   Just s' -> return (KUserSort s' (Just [s']))
+#else
+                                 return (KUninterpreted s (Left s))
+                   Just s' -> return (KUninterpreted s' (Left s'))
+#endif
 
 sexprToSmt :: TCSExpr -> SmtTransM SVal
 sexprToSmt (SU t x) = do
@@ -77,6 +88,7 @@ sexprToSmt (SU t x) = do
                   unifs %= (IM.insert x sv)
                   return sv
     Just sv -> return sv
+sexprToSmt (HApp x v vs) = __impossible "sexprToSmt: HApp should never slip to SMT"
 sexprToSmt (SE t (PrimOp op [e])) = (liftA $ uopToSmt op) (sexprToSmt e)
 sexprToSmt (SE t (PrimOp op [e1,e2])) = (liftA2 $ bopToSmt op) (sexprToSmt e1) (sexprToSmt e2)
 sexprToSmt (SE t (Var vn)) = do

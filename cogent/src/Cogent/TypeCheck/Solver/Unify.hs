@@ -130,9 +130,18 @@ assignOf (R rp1 _ _ :< R rp2 _ _ )
       (None, UP x) -> pure [Subst.ofRecPar x rp1]
       _            -> empty 
 
-assignOf (l1 :~< l2) = assignOfL l1 l2
 
 #ifdef REFINEMENT_TYPES
+assignOf (t1@(T (TRefine v1 b1 p1)) :=: t2@(T (TRefine v2 b2 p2)))
+  | U x <- b1, rigid b2, x `notOccurs` b2 = pure [ Subst.ofType x b2 ]
+  | U x <- b2, rigid b1, x `notOccurs` b1 = pure [ Subst.ofType x b1 ]
+  | HApp x v _ <- p1, null (unknownsE p2)
+  = __assert_ (v == v1) ("assignOf: ill-formed ref.type: " ++ show (pretty t1)) $
+      pure [ Subst.ofExpr x (substVarExpr [(v2,v)] p2) ]
+  | HApp x v _ <- p2, null (unknownsE p1)
+  = __assert_ (v == v2) ("assignOf: ill-formed ref.type: " ++ show (pretty t2)) $
+      pure [ Subst.ofExpr x (substVarExpr [(v1,v)] p1) ]
+
 -- TODO: This will be moved to a separately module for SMT-solving. Eventually the results
 -- returned from the solver will be a Subst object. / zilinc
 assignOf (Arith (SE t (PrimOp "==" [SU _ x, e]))) | null (unknownsE e)
@@ -144,6 +153,8 @@ assignOf (Arith (SE t (PrimOp "==" [e, SU _ x]))) | null (unknownsE e)
 -- Unboxed records are not recursive
 assignOf (UnboxedNotRecursive (R (UP x) _ (Left Unboxed))) 
   = pure [Subst.ofRecPar x None]
+
+assignOf (l1 :~< l2) = assignOfL l1 l2
 
 assignOf _ = empty
 
