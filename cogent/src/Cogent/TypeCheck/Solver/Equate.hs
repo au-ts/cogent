@@ -78,14 +78,14 @@ findEquateCandidates mentions (c:cs) =
          , not (isRefinementType a && isBaseUnif b)
          -> (sups, c : subs, others)
 #ifdef REFINEMENT_TYPES
-       T (TRefine v b (HApp x _ _)) :< t
-         | canEquate (^._2) x t
-         , isRefinementType t
-         -> (c : sups, subs, others)
        t :< T (TRefine v b (HApp x _ _))
          | canEquate (^._3) x t
          , isRefinementType t
          -> (sups, c : subs, others)
+       T (TRefine v b (HApp x _ _)) :< t
+         | canEquate (^._2) x t
+         , isRefinementType t
+         -> (c : sups, subs, others)
 #endif
        V r1 :< t
          | Just a <- Row.var r1

@@ -572,6 +572,7 @@ toTCSExpr (TE t e l) = SE t (fmap toTCSExpr e)
 toTCExpr :: TCSExpr -> TCExpr
 toTCExpr (SE t e) = TE t (fmap toTCExpr e) noPos
 toTCExpr (SU _ x) = __impossible $ "toTCExpr: unification term variable ?" ++ show x ++ " found"
+toTCExpr (HApp x _ _) = __impossible $ "toTCExpr: Horn variable ?" ++ show x ++ " found"
 
 toRawPatn :: TypedPatn -> RawPatn
 toRawPatn (TP p _) = RP (fmap toRawIrrefPatn p)
@@ -823,6 +824,12 @@ isVariantType _ = False
 
 isRefinementType (T (TRefine {})) = True
 isRefinementType _  = False
+
+-- This is not the opposite of `isRefinementType'. Both functions are "constructive".
+notRefinementType (U _) = False
+notRefinementType (T (TRefine {})) = False
+notRefinementType (Synonym {}) = False
+notRefinementType _ = True
 
 isMonoType :: RawType -> Bool
 isMonoType (RT (TVar {})) = False

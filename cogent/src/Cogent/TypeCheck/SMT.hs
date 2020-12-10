@@ -56,7 +56,7 @@ type SmtTransM = StateT SmtTransState Symbolic
 typeToSmt :: TCType -> SmtTransM SMT.Kind
 typeToSmt (T (TCon "Bool" [] Unboxed)) = return KBool
 typeToSmt (T (TCon "String" [] Unboxed)) = return KString
-typeToSmt (T (TCon n [] Unboxed))
+typeToSmt (T (TCon n [] Unboxed)) | n `elem` ["U8", "U16", "U32", "U64"]
   = let w = if | n == "U8"  -> 8
                | n == "U16" -> 16
                | n == "U32" -> 32

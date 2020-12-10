@@ -40,7 +40,7 @@ import qualified Data.IntMap as IM
 import qualified Data.Map as M
 import Lens.Micro
 import Lens.Micro.Mtl
-import Text.PrettyPrint.ANSI.Leijen as P hiding ((<>), (<$>))
+import Text.PrettyPrint.ANSI.Leijen as P hiding ((<>), (<$>), bool)
 
 -- import Debug.Trace
 
@@ -88,6 +88,9 @@ normaliseE d te@(TE t e l) = do
                   >=> tttraverse (normaliseIP d)
                   >=> ttttraverse (normaliseP d)
                   >=> tttttraverse (normaliseT d)
+
+normaliseSE :: TypeDict -> TCSExpr -> Post TCSExpr
+normaliseSE d e = toTCSExpr <$> normaliseE d (toTCExpr e)
 
 normaliseL :: TCDataLayout -> Post TCDataLayout
 normaliseL l = do
@@ -239,6 +242,14 @@ normaliseT d (T (TArray t n s tkns)) = do
   t' <- normaliseT d t
   s' <- normaliseS   s
   return $ T $ TArray t' n s' tkns
+
+normaliseT d (T (TRefine v b p)) = do
+  if p == SE (T bool) (BoolLit True) then
+     normaliseT d b
+  else do
+    b' <- normaliseT d b
+    p' <- normaliseSE d p
+    return $ T (TRefine v b' p')
 #endif
 
 normaliseT d (Synonym n ts) = 

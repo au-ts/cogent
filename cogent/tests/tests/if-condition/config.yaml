@@ -16,10 +16,3 @@
   expected_result: fail
   flags:
     - -t
-
-- test_name: reftypes-if
-  files:
-    - wip_herp-if-if.cogent
-  expected_result: wip
-  flags:
-    - -g

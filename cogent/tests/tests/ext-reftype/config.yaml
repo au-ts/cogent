@@ -9,6 +9,7 @@
     - pass_dep-function-2.cogent
     - pass_let-1.cogent
     - pass_let-2.cogent
+    - pass_herp-if.cogent
   expected_result: pass
   flags:
     - -t

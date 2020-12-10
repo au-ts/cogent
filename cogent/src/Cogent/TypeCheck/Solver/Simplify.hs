@@ -383,24 +383,21 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
            , (M.singleton v1 (b2,0), []) :|- Arith (SE (T bool) (PrimOp "==" [e1, e2']))
            ]
 
-  t1@(T {}) :< t2@(T (TRefine {})) | not (isRefinementType t1) -> do
-    vr <- freshRefVarName _2
-    return [T (TRefine vr t1 (SE (T bool) (BoolLit True))) :< t2]
+  t1 :< t2@(T (TRefine v _ _)) | notRefinementType t1 ->
+    return [T (TRefine v t1 (SE (T bool) (BoolLit True))) :< t2]
 
-  (T (TRefine _ b1 _)) :< t2@(T {}) | not (isRefinementType t2)->
-    return [b1 :< t2]  -- an optimisation, contrary to the case above. / zilinc
+  t1@(T (TRefine v _ _)) :< t2 | notRefinementType t2 ->
+    -- NOTE: Even though the truth value of the refinement predicate
+    -- in t1 no longer matters, we still keep it from being optimised
+    -- away, as it may contain unifiers, that needs to be solved, at
+    -- a later stage. / zilinc
+    return [t1 :< T (TRefine v t2 (SE (T bool) (BoolLit True)))]
+ 
+  t1 :=: t2@(T (TRefine v _ _)) | notRefinementType t1 ->
+    return [T (TRefine v t1 (SE (T bool) (BoolLit True))) :=: t2]
 
-  t1@(R {}) :< T (TRefine v2 b2 e2) ->
-    return [t1 :< b2, (M.singleton v2 (b2,0), []) :|- Arith e2]
-
-  T (TRefine v1 b1 e1) :< t2@(R {}) ->
-    return [b1 :< t2]
-
-  t1@(V {}) :< T (TRefine v2 b2 e2) ->
-    return [t1 :< b2, (M.singleton v2 (b2,0), []) :|- Arith e2]
-
-  T (TRefine v1 b1 e1) :< t2@(V {}) ->
-    return [b1 :< t2]
+  t1@(T (TRefine v _ _)) :=: t2 | notRefinementType t2 ->
+    return [t1 :=: T (TRefine v t2 (SE (T bool) (BoolLit True)))]
 
   BaseType (T (TCon _ ts _)) -> hoistMaybe $ Just $ map BaseType ts
   BaseType (T (TUnit)) -> hoistMaybe $ Just []

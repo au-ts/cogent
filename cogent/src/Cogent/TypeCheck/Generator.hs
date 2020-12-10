@@ -1036,15 +1036,14 @@ withBindings [] e top = do
   (c, e') <- cg e top
   return (c, [], e')
 withBindings (Binding pat mτ e0 bs : xs) e top = do
-  β <- freshTVar
+  α <- freshTVar
   v <- freshRefVarName freshVars
-  (c0, e0') <- letBang bs (cg e0) β
-  let α = T (TRefine v β (SE (T bool) (PrimOp "==" [SE β (Var v), toTCSExpr e0'])))
+  (c0, e0') <- letBang bs (cg e0) α
   (ct, α') <- case mτ of
     Nothing -> return (Sat, α)
     Just τ  -> do (cτ,τ') <- validateType (stripLocT τ)
                   return (cτ <> α :< τ', τ')
-  (s, prds, cp, pat') <- match pat Nothing α'  -- FIXME: mv
+  (s, prds, cp, pat') <- match pat (Just $ SE α (Var v)) α'
   context %= C.addScope s
   (c', xs', e') <- withBindings xs e top
   rs <- context %%= C.dropScope
@@ -1052,8 +1051,10 @@ withBindings (Binding pat mτ e0 bs : xs) e top = do
         case us of
           Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v)
           _ -> Sat
-      c'' = (fmap (\(t,_,occ) -> (t, Seq.length occ)) s, prds) :|- c'
-      c = BaseType β <> ct <> c0 <> c'' <> cp <> dropConstraintFor rs <> unused
+      c'' = ( M.insert v (α,0) $ fmap (\(t,_,occ) -> (t, Seq.length occ)) s
+            , (SE (T bool) (PrimOp "==" [SE α (Var v), toTCSExpr e0'])) : prds
+            ) :|- c'
+      c = ct <> c0 <> c'' <> cp <> dropConstraintFor rs <> unused
       b' = Binding pat' (fmap (const α) mτ) e0' bs
   traceTc "gen" (text "bound expression" <+> pretty e0' <+>
                  text "with banged" <+> pretty bs
