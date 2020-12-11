@@ -822,10 +822,12 @@ isVariantType :: RawType -> Bool
 isVariantType (RT (TVariant _)) = True
 isVariantType _ = False
 
+isRefinementType :: TCType -> Bool
 isRefinementType (T (TRefine {})) = True
 isRefinementType _  = False
 
 -- This is not the opposite of `isRefinementType'. Both functions are "constructive".
+notRefinementType :: TCType -> Bool
 notRefinementType (U _) = False
 notRefinementType (T (TRefine {})) = False
 notRefinementType (Synonym {}) = False

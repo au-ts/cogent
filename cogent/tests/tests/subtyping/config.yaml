@@ -12,4 +12,4 @@
     - sinkfloat_promotion_test.cogent
   expected_result: pass
   flags:
-    - -t
+    - -g

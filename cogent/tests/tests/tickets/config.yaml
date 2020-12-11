@@ -66,4 +66,4 @@
     - wip_ticket-e29.cogent
   expected_result: wip
   flags:
-    - -t
+    - -g

@@ -153,6 +153,9 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   Upcastable (T (TRefine _ b _)) t@(T (TCon n [] Unboxed))
     | Just n' <- elemIndex n primTypeCons
     -> hoistMaybe $ Just [Upcastable b t]
+  Upcastable (T (TRefine _ b1 _)) (T (TRefine _ b2 _))
+    -> hoistMaybe $ Just [Upcastable b1 b2]
+
 
   Drop  (T (TRPar _ True _)) m -> hoistMaybe $ Just []
   Share (T (TRPar _ True _)) m -> hoistMaybe $ Just []

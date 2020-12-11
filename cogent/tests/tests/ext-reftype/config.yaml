@@ -12,7 +12,7 @@
     - pass_herp-if.cogent
   expected_result: pass
   flags:
-    - -t
+    - -g
 
 - test_name: fail-reftypes
   files:
