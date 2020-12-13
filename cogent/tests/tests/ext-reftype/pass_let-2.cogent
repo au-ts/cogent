@@ -1,0 +1,4 @@
+type Lt2 = [v : U8 | v < 2]
+
+foo : Lt2 -> [v : Bool | v == True]
+foo a = let x = a in a == x
