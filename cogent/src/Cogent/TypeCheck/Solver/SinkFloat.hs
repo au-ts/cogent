@@ -10,6 +10,7 @@
 -- @TAG(DATA61_GPL)
 --
 
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Cogent.TypeCheck.Solver.SinkFloat ( sinkfloat ) where
@@ -30,33 +31,51 @@ import Cogent.Surface (Type(..), Expr(..), bool)
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Solver.Goal
 import Cogent.TypeCheck.Solver.Monad
-import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
+import Cogent.TypeCheck.Solver.Rewrite as Rewrite hiding (lift)
 import qualified Cogent.TypeCheck.Row as R
 import qualified Cogent.TypeCheck.Subst as Subst
 import Cogent.TypeCheck.Util
-import Cogent.Util (elemBy, notElemBy)
+import Cogent.Util (elemBy, notElemBy, hoistMaybe)
 
 import Control.Applicative (empty)
 import Control.Monad.Writer
 import Control.Monad.Trans.Maybe
 import Data.Foldable (asum)
 import qualified Data.IntMap as IM
+import qualified Data.IntSet as IS
+import qualified Data.Map as M
+import qualified Data.Set as S
 import Lens.Micro
+import Lens.Micro.Mtl
 import Text.PrettyPrint.ANSI.Leijen (text, pretty)
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import Debug.Trace
 
+onGoal :: (Monad m) => (Constraint -> MaybeT m [Constraint]) -> Goal -> MaybeT m [Goal]
+onGoal f g = fmap (map (derivedGoal g)) (f (g ^. goal))
+
 sinkfloat :: Rewrite.RewriteT TcSolvM [Goal]
 sinkfloat = Rewrite.rewrite' $ \gs -> do
   let mentions = getMentions gs
       cs = map (strip . _goal) gs
-  a <- asum $ map (genStructSubst mentions) cs -- a list of 'Maybe' substitutions.
-                                               -- only return the first 'Just' substitution.
+  a <- asum $ map (genStructSubst mentions) cs  -- a list of 'Maybe' substitutions.
+                                                -- only return the first 'Just' substitution.
   tell [a]
   traceTc "solver" (text "Sink/Float writes subst:" P.<$>
                     P.indent 2 (pretty a))
-  return $ map ((goalEnv %~ Subst.applyGoalEnv a) . (goal %~ Subst.applyC a)) gs
+  let gs' = map ((goalEnv %~ Subst.applyGoalEnv a) . (goal %~ Subst.applyC a)) gs
+
+
+  gss <- forM gs' $ onGoal $ \case
+    t1@(T (TRefine v b p)) :< U x
+      | IS.member x (snd mentions)
+      -> hoistMaybe $ Just [t1 :< T (TRefine v (U x) true)]
+    U x :< t2@(T (TRefine v b p))
+      | IS.member x (snd mentions)
+      -> hoistMaybe $ Just [T (TRefine v (U x) true) :< t2]
+    c -> hoistMaybe $ Just [c]
+  return $ concat gss
 
   where
     strip :: Constraint -> Constraint
@@ -71,15 +90,15 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
     strip c = c
 
     -- For sinking row information in a subtyping constraint
-    canSink :: IM.IntMap (Int,Int,Int,Bool) -> Int -> Bool
+    canSink :: IM.IntMap (Int,Int,Int) -> Int -> Bool
     canSink mentions v | Just m <- IM.lookup v mentions = m ^. _2 <= 1
                        | otherwise = False
 
-    canFloat :: IM.IntMap (Int,Int,Int,Bool) -> Int -> Bool
+    canFloat :: IM.IntMap (Int,Int,Int) -> Int -> Bool
     canFloat mentions v | Just m <- IM.lookup v mentions = m ^. _3 <= 1
                         | otherwise = False
 
-    genStructSubst :: IM.IntMap (Int,Int,Int,Bool) -> Constraint -> MaybeT TcSolvM Subst.Subst
+    genStructSubst :: (IM.IntMap (Int,Int,Int), IS.IntSet) -> Constraint -> MaybeT TcSolvM Subst.Subst
     -- record rows
     genStructSubst _ (R rp r s :< U i) = do
       s' <- case s of
@@ -93,7 +112,7 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
       -- Subst. a record structure for the unifier with only present entries of
       -- the record r (respecting the lattice order for records).
       makeRowUnifSubsts (flip (R rp) s') (filter R.present (R.entries r)) i
-    genStructSubst mentions (R _ r1 s1 :< R _ r2 s2)
+    genStructSubst (mentions,_) (R _ r1 s1 :< R _ r2 s2)
       {- The most tricky case.
          For Records, present is the bottom of the order, taken is the top.
          If present things are in r2, then we can infer they must be in r1.
@@ -153,7 +172,7 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
       makeRowUnifSubsts V (filter R.present (R.entries r)) i
     genStructSubst _ (U i :< V r) =
       makeRowUnifSubsts V (filter R.taken (R.entries r)) i
-    genStructSubst mentions (V r1 :< V r2)
+    genStructSubst (mentions,_) (V r1 :< V r2)
       -- \ | trace ("#### r1 = " ++ show r1 ++ "\n#### r2 = " ++ show r2) False = undefined
       {- The most tricky case.
          For variants, taken is the bottom of the order.
@@ -222,6 +241,17 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
     genStructSubst _ (t@(T TUnit) :=: U i) = return $ Subst.ofType i t
     genStructSubst _ (U i :=: t@(T TUnit)) = return $ Subst.ofType i t
 
+    -- refinement types
+    genStructSubst (_,basetypes) (T (TRefine v b p) :< U x)
+      | IS.notMember x basetypes
+      = do q <- lift solvFresh
+           u <- freshRefVarName _2
+           return $ Subst.ofType x (T (TRefine u b (HApp q u [])))
+    genStructSubst (_,basetypes) (U x :< T (TRefine v b p))
+      | IS.notMember x basetypes
+      = do q <- lift solvFresh
+           u <- freshRefVarName _2
+           return $ Subst.ofType x (T (TRefine u b (HApp q u [])))
 
     -- default
     genStructSubst _ _ = empty
@@ -265,4 +295,6 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
       tus <- traverse (const (U <$> lift solvFresh)) ts
       let t = T (TCon n tus s)  -- FIXME: A[R] :< (?0)! will break if ?0 ~> A[W] is needed somewhere else
       return $ Subst.ofType i t
+
+    true = SE (T bool) (BoolLit True)
 

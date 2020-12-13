@@ -12,7 +12,7 @@
 
 {-# LANGUAGE FlexibleContexts #-}
 
-module Cogent.TypeCheck.Solver.JoinMeet (joinMeet, reShape) where
+module Cogent.TypeCheck.Solver.JoinMeet (joinMeet) where
 
 import Cogent.Surface
 import Cogent.TypeCheck.Base
@@ -33,12 +33,8 @@ import Control.Monad.Trans.Maybe
 import Control.Monad.Writer (tell)
 import Data.Foldable (asum, fold)
 import qualified Data.IntMap as IM
-import qualified Data.IntSet as IS
 import Data.List (partition)
-import qualified Data.Map as M
-import qualified Data.Set as S
 import Lens.Micro
-import Lens.Micro.Mtl
 import qualified Text.PrettyPrint.ANSI.Leijen as P hiding (bool, empty)
 
 import Debug.Trace
@@ -48,69 +44,13 @@ data Candidate = Meet [ErrorContext] [ErrorContext] TCType TCType TCType
 
 
 
-reShape :: RewriteT TcSolvM [Goal]
-reShape = rewrite' $ \gs -> do
-            let baseTypes = getBaseTypes gs
-            a <- asum (map (expand baseTypes . view goal) gs)
-            tell [a]
-            traceTc "solver" (P.text "ReShape writes subst:" P.<$> 
-                              P.indent 2 (P.pretty a))
-            return $ map ((goalEnv %~ Subst.applyGoalEnv a) . (goal %~ Subst.applyC a)) gs
-
-  where
-    expand :: IS.IntSet -> Constraint -> MaybeT TcSolvM Subst.Subst
-    expand mentions (T (TRefine v b p) :< U x)
-      | IS.notMember x mentions
-      = do q <- lift $ solvFresh
-           u <- freshRefVarName _2
-           return $ Subst.ofType x (T (TRefine u b (SU (T bool) q)))
-    expand mentions (U x :< T (TRefine v b p))
-      | IS.notMember x mentions
-      = do q <- lift $ solvFresh
-           u <- freshRefVarName _2
-           return $ Subst.ofType x (T (TRefine u b (SU (T bool) q)))
-    expand mentions c
-      = empty
-
-compBase :: RewriteT TcSolvM [Goal]
-compBase = rewrite $ \gs ->
-  let mentions = getBaseTypes gs
-   in each (onGoal $ simp mentions) gs
-
-  where
-    each :: (Goal -> Maybe [Goal]) -> [Goal] -> Maybe [Goal]
-    each f [] = empty
-    each f (c:cs) =
-      case f c of
-        Nothing  -> (c:) <$> each f cs
-        Just cs' -> Just $ cs' ++ cs
-
-    onGoal :: (Constraint -> Maybe [Constraint]) -> Goal -> Maybe [Goal]
-    onGoal f g = fmap (map (derivedGoal g)) (f (g ^. goal))
-
-    true = SE (T bool) (BoolLit True)
-
-    simp :: IS.IntSet -> Constraint -> Maybe [Constraint]
-    simp mentions (t1@(T (TRefine v b p)) :< U x)
-      | IS.member x mentions = Just [t1 :< T (TRefine v (U x) true)]
-    simp mentions (U x :< t2@(T (TRefine v b p)))
-      | IS.member x mentions = Just [T (TRefine v (U x) true) :< t2]
-    simp _ c = Nothing
-
-getBaseTypes :: [Goal] -> IS.IntSet
-getBaseTypes = foldl go IS.empty
-  where
-    go :: IS.IntSet -> Goal -> IS.IntSet
-    go acc (Goal _ _ (BaseType (U x))) = IS.insert x acc
-    -- \ ^^^ We know that when generating constraints, the @BaseType@ is always on a unifier. / zilinc
-    go acc _ = acc
 
 
 -- | Find pairs of subtyping constraints that involve the same unification variable
 --   on the right or left hand side, and compute the join/meet to simplify the
 --   constraint graph.
 joinMeet :: RewriteT TcSolvM [Goal]
-joinMeet = reShape <> compBase
+joinMeet = mempty
 
 {-
 joinMeet = Rewrite.withTransform find $ \c -> case c of

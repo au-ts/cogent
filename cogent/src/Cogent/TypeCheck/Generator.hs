@@ -270,7 +270,7 @@ cgFunDef alts t = do
   let α2 = T (TRefine v β ϕ)
   let ?isRefType = True
   (c, alts') <- cgAlts alts α2 (Just x) α1
-  return (c <> (T (TFun (Just x) α1 α2)) :< t, alts')
+  return (c <> {- BaseType β <> -} (T (TFun (Just x) α1 α2)) :< t, alts')  -- FIXME!!!!!!
 
 -- cgAlts alts out_type in_type
 -- NOTE the order of arguments!

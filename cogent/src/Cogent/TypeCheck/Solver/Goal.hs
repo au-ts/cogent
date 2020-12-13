@@ -23,6 +23,7 @@ import           Cogent.PrettyPrint
 
 import qualified Data.Foldable as F
 import qualified Data.IntMap as IM
+import qualified Data.IntSet as IS
 import qualified Data.Map as M
 import           Lens.Micro
 import           Lens.Micro.TH
@@ -74,32 +75,31 @@ derivedGoal (Goal c env g) g' = makeGoal (SolvingConstraint g:c) env g'
 -- have already broken down function types. Vincent worries that if a
 -- function type appears within a record, it might block Simplify.
 -- / zilinc (06-08-2020)
-getMentions :: [Goal] -> IM.IntMap (Int,Int,Int,Bool)
+getMentions :: [Goal] -> (IM.IntMap (Int,Int,Int), IS.IntSet)
 getMentions gs =
-    foldl (IM.unionWith adds) IM.empty $ fmap mentionsOfGoal gs
+  foldl (\(ms,ss) (m,s) -> (IM.unionWith adds ms m, IS.union ss s)) (IM.empty, IS.empty) $ fmap mentionsOfGoal gs
  where
-  adds (env1,a,b,x) (env2,c,d,y) = (env1 + env2, a + c, b + d, x || y)
+  adds (env1,a,b) (env2,c,d) = (env1 + env2, a + c, b + d)
 
+  mentionsOfGoal :: Goal -> (IM.IntMap (Int,Int,Int), IS.IntSet)
   mentionsOfGoal g = case g ^. goal of
-   r :< s     -> IM.fromListWith adds (mentionEnv (g ^. goalEnv) (r :< s) ++ mentionL r ++ mentionR s)
-   Arith e    -> IM.fromListWith adds (mentionEnv (g ^. goalEnv) (Arith e))
-   BaseType t -> IM.fromListWith adds (mentionEnv (g ^. goalEnv) (BaseType t) ++ isBase t)
-   _          -> IM.empty
+   r :< s     -> (IM.fromListWith adds (mentionEnv (g ^. goalEnv) (r :< s) ++ mentionL r ++ mentionR s), IS.empty)
+   Arith e    -> (IM.fromListWith adds (mentionEnv (g ^. goalEnv) (Arith e)), IS.empty)
+   BaseType t -> (IM.fromListWith adds (mentionEnv (g ^. goalEnv) (BaseType t)), basetype t)
+   _          -> (IM.empty, IS.empty)
 
   mentionEnv (gamma, es) c = -- fmap (\v -> (v, (1,0,0))) $ unifVarsEnv env
     -- NOTE: we only register a unifvar in the environment when the variable is used in the RHS. / zilinc
     let pvs = progVarsC c
         ms  = fmap (\(t,_) -> unifVars t ++ unknowns t) gamma  -- a map from progvars to the unifvars appearing in that entry.
-        ms' = fmap (\v -> (v, (1,0,0,False))) $ concat $ M.elems $ M.restrictKeys ms pvs
-     in ms'
+     in fmap (\v -> (v, (1,0,0))) $ concat $ M.elems $ M.restrictKeys ms pvs
         -- trace ("##### gamma = " ++ show (prettyGoalEnv (gamma,es)) ++ "\n" ++
         --        "      c = " ++ show (prettyC c) ++ "\n" ++
         --        "      pvs = " ++ show pvs ++ "\n" ++
         --        "      ms = " ++ show ms ++ "\n" ++
         --        "      ms' = " ++ show ms' ++ "\n") ms'
-  mentionL t = fmap (\v -> (v, (0,1,0,False))) $ unifVars t ++ unknowns t
-  mentionR t = fmap (\v -> (v, (0,0,1,False))) $ unifVars t ++ unknowns t
+  mentionL t = fmap (\v -> (v, (0,1,0))) $ unifVars t ++ unknowns t
+  mentionR t = fmap (\v -> (v, (0,0,1))) $ unifVars t ++ unknowns t
 
-  isBase (U x) = [(x, (0,0,0,True))]
-  isBase _ = []
-
+  basetype (U x) = IS.singleton x
+  basetype _  = IS.empty

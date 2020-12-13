@@ -32,7 +32,7 @@ import           Cogent.Surface
 import           Cogent.TypeCheck.Base
 import           Cogent.TypeCheck.Solver.Default
 import           Cogent.TypeCheck.Solver.Equate
-import           Cogent.TypeCheck.Solver.JoinMeet (joinMeet, reShape)
+import           Cogent.TypeCheck.Solver.JoinMeet
 import           Cogent.TypeCheck.Solver.Monad
 import           Cogent.TypeCheck.Solver.Normalise
 import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite

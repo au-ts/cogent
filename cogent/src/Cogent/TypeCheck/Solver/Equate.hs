@@ -26,6 +26,7 @@ import Control.Monad.Trans.Maybe
 import Control.Monad.Writer
 import Data.Foldable (asum)
 import qualified Data.IntMap as IM
+import qualified Data.IntSet as IS
 import Data.Maybe
 import qualified Data.Set as S
 import Lens.Micro
@@ -55,20 +56,18 @@ equate = Rewrite.withTransform findEquatable (pure . map toEquality)
     toEquality (Goal c env (a :< b)) = Goal c env $ a :=: b
     toEquality c = c
 
-findEquateCandidates :: IM.IntMap (Int,Int,Int,Bool) -> [Goal] -> ([Goal], [Goal], [Goal])
+findEquateCandidates :: (IM.IntMap (Int,Int,Int), IS.IntSet) -> [Goal] -> ([Goal], [Goal], [Goal])
 findEquateCandidates _ [] = ([], [], [])
-findEquateCandidates mentions (c:cs) =
+findEquateCandidates (mentions, basetypes) (c:cs) =
   let
-    (sups, subs, others) = findEquateCandidates mentions cs
+    (sups, subs, others) = findEquateCandidates (mentions, basetypes) cs
     canEquate f v t
      | Just m <- IM.lookup v mentions
      = f m <= 1 && rigid t && notOccurs v t
      | otherwise
      = False
-    isBaseUnif x = case IM.lookup x mentions of
-                     Just (_,_,_,True) -> True
-                     _                 -> False
-  in case c ^. goal of
+    isBaseUnif x = IS.member x basetypes
+   in case c ^. goal of
        U a :< b
          | canEquate (\m -> m^._1 + m^._2) a b
          , not (isRefinementType b && isBaseUnif a)
