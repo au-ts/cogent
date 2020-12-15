@@ -1,6 +1,7 @@
 prim_not : Bool -> Bool
-send_foo : (U8[1], U8) -> Bool
-recv_foo : (U8[1], U8) -> Bool
+send_foo : (U8#[1], U8) -> Bool
+recv_foo : (U8#[1], U8) -> Bool
+
 type State_hiccup =
    < State_hiccup_0
    | State_hiccup_1
@@ -12,16 +13,14 @@ type State_hiccup =
    | State_hiccup_7
    | State_hiccup_8
    | State_hiccup_9 >
-type Vars_hiccup = { foo : U8[1]
+
+type Vars_hiccup = { foo : U8#[1]
                    , i : U32
-                   , str : U8[11] }
-delta_hiccup : (State_hiccup
-               , #Vars_hiccup) -> < Left < Failure
-                                         | Success >
-                                  | Right (State_hiccup
-                                          , #Vars_hiccup) >
-delta_hiccup (state_hiccup
-             , #{ foo, i, str }) =
+                   , str : U8#[11] }
+delta_hiccup : (State_hiccup , #Vars_hiccup)
+             -> < Left < Failure | Success >
+                | Right (State_hiccup, #Vars_hiccup) >
+delta_hiccup (state_hiccup , #{ foo, i, str }) =
    let foo = #{ foo, i, str }.foo
    and i = #{ foo, i, str }.i
    and str = #{ foo, i, str }.str
@@ -47,14 +46,10 @@ delta_hiccup (state_hiccup
       | State_hiccup_4 -> Left Success
       | State_hiccup_5 -> if i < 11 then 
          if send_foo (foo, str @ i)
-           then Right (State_hiccup_6
-                      , #{ foo, i, str })
-           else Right (State_hiccup_9
-                      , #{ foo, i, str })
+           then Right (State_hiccup_6, #{ foo, i, str })
+           else Right (State_hiccup_9, #{ foo, i, str })
          else Right (State_hiccup_9, #{foo,i,str})
-      | State_hiccup_6 -> Right (State_hiccup_7
-                                , #{ foo, i = i + 1, str })
+      | State_hiccup_6 -> Right (State_hiccup_7, #{ foo, i = i + 1, str })
       | State_hiccup_7 -> Left Success
-      | State_hiccup_8 -> Right (State_hiccup_5
-                                , #{ foo, i, str })
+      | State_hiccup_8 -> Right (State_hiccup_5, #{ foo, i, str })
       | State_hiccup_9 -> Left Success

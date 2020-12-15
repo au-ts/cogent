@@ -21,6 +21,7 @@ import qualified Cogent.Context as C
 import           Cogent.TypeCheck.Base
 import           Cogent.PrettyPrint
 
+import           Control.Monad.Trans.Maybe (MaybeT)
 import qualified Data.Foldable as F
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
@@ -29,6 +30,8 @@ import           Lens.Micro
 import           Lens.Micro.TH
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
+
+import Debug.Trace
 
 -- A more efficient implementation would be a term net
 
@@ -60,6 +63,9 @@ makeGoal ctx env g = Goal ctx env g
 
 derivedGoal :: Goal -> Constraint -> Goal
 derivedGoal (Goal c env g) g' = makeGoal (SolvingConstraint g:c) env g'
+
+onGoal :: (Monad m) => (Constraint -> MaybeT m [Constraint]) -> Goal -> MaybeT m [Goal]
+onGoal f g = fmap (map (derivedGoal g)) (f (g ^. goal))
 
 
 -- This function should actually be defined in a separate module,

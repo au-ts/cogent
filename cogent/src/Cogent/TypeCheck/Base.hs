@@ -212,6 +212,7 @@ data Constraint' t l = (:<) t t
                      deriving (Eq, Show, Ord) -- , Functor, Foldable, Traversable)
 
 infix 9 :<
+infix 9 >:
 infix 9 :=:
 infixl 1 :&
 infixl 3 :@
@@ -357,6 +358,8 @@ data SExpr t l      = SE { getTypeSE :: t, getExprSE :: Expr t (TPatn t) (TIrref
                     | SU t Int
                     | HApp Int VarName [VarName]  -- Horn application
                     deriving (Show, Eq, Ord)
+
+true = SE (T bool) (BoolLit True)
 
 -- deriving instance Foldable (SExpr t)
 -- deriving instance Traversable (SExpr t)
@@ -830,6 +833,7 @@ isRefinementType _  = False
 notRefinementType :: TCType -> Bool
 notRefinementType (U _) = False
 notRefinementType (T (TRefine {})) = False
+notRefinementType (T (TVar {})) = False
 notRefinementType (Synonym {}) = False
 notRefinementType _ = True
 
@@ -961,12 +965,9 @@ rigid (R _ r _) = not $ Row.justVar r
 rigid (V r) = not $ Row.justVar r
 #ifdef REFINEMENT_TYPES
 rigid (A t l _ _) = True  -- rigid t && null (unknownsE l) -- FIXME: is it correct? / zilinc
-rigid (T (TRefine v t e)) = True  -- ???
+rigid (T (TRefine v t e)) = rigid t && isKnown e
 #endif
 rigid _ = True
-
-floppy :: TCType -> Bool
-floppy = not . rigid
 
 --
 -- Dargent

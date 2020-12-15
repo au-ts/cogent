@@ -135,6 +135,7 @@ assignOf (R rp1 _ _ :< R rp2 _ _ )
 assignOf (t1@(T (TRefine v1 b1 p1)) :=: t2@(T (TRefine v2 b2 p2)))
   | U x <- b1, rigid b2, x `notOccurs` b2 = pure [ Subst.ofType x b2 ]
   | U x <- b2, rigid b1, x `notOccurs` b1 = pure [ Subst.ofType x b1 ]
+  -- | U x <- b1, U y <- b2, x /= y = pure [ Subst.ofType x (U y) ]
   | HApp x v _ <- p1, null (unknownsE p2)
   = __assert_ (v == v1) ("assignOf: ill-formed ref.type: " ++ show (pretty t1)) $
       pure [ Subst.ofExpr x (substVarExpr [(v2,v)] p2) ]

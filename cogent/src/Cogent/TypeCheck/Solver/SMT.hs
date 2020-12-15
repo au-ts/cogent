@@ -78,7 +78,9 @@ extractPredicates g = do
   -- traceM $ "#### gamma = " ++ show gamma
   -- traceM $ "#### gs = " ++ show gs ++ "\n#### pred = " ++ show pred
   if null es || not (null $ concatMap unifVarsE gs ++
-                            concatMap unifVarsE pred) then
+                            concatMap unifVarsE pred ++
+                            concatMap unknownsE gs ++
+                            concatMap unknownsE pred) then
     hoistMaybe $ Nothing
   else do
     modify (\(SmtState es') -> SmtState (map (\e -> implTCSExpr (andTCSExprs $ gs ++ pred) e) es))
@@ -91,7 +93,7 @@ simp g = do
   let ks' = constEquations ks
   traceTc "sol/smt" (L.text "Constants" L.<> L.colon L.<$> L.prettyList ks')
   res <- liftIO $ smtSatResult $ implTCSExpr (andTCSExprs ks') (andTCSExprs c)
-  case res of (_ , _, []) -> hoistMaybe $ Nothing
+  case res of (_, _, []) -> hoistMaybe $ Nothing
               -- \ ^^^ Returns no models, meaning it's unsat.
               (False, False, [m]) -> hoistMaybe $ Just g
               -- \ ^^^ Only one model (or unique up to prefix existentials). We should

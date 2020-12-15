@@ -54,8 +54,6 @@ import           Cogent.PrettyPrint (prettyC)
 -- import qualified Text.PrettyPrint.ANSI.Leijen as P
 -- import Debug.Trace
 
-onGoal :: (Monad m) => (Constraint -> MaybeT m [Constraint]) -> Goal -> MaybeT m [Goal]
-onGoal f g = fmap (map (derivedGoal g)) (f (g ^. goal))
 
 unsat :: (Monad m) => TypeError -> MaybeT m [Constraint]
 unsat x = hoistMaybe $ Just [Unsat x]

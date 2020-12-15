@@ -264,13 +264,13 @@ cgFunDef :: (?loc :: SourcePos)
 cgFunDef alts t = do
   α1 <- freshTVar
   v <- freshRefVarName freshVars
-  β <- freshTVar
+  α2 <- freshTVar  -- Here we cannot introduce flexes and construct a refinement type.
+                   -- E.g., when t is a type var, it would make the {v:?0|?1(v,x)} unable
+                   -- to unify. / zilinc
   x <- freshEName
-  ϕ <- freshHVar v [x]
-  let α2 = T (TRefine v β ϕ)
   let ?isRefType = True
   (c, alts') <- cgAlts alts α2 (Just x) α1
-  return (c <> {- BaseType β <> -} (T (TFun (Just x) α1 α2)) :< t, alts')  -- FIXME!!!!!!
+  return (c <> (T (TFun (Just x) α1 α2)) :< t, alts')
 
 -- cgAlts alts out_type in_type
 -- NOTE the order of arguments!

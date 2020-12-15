@@ -47,7 +47,7 @@ equate = Rewrite.withTransform findEquatable (pure . map toEquality)
          -- If we have constraint system (T :< a :&: a :< U), either subtyping constraint are convertible
          -- to equalities without changing the satisfiability of the constraint system, however converting
          -- both makes the constraint system unsatisfiable.
-         -- Thus, we convert LHS constraints if possible first, and only convert LHS if there are no available.
+         -- Thus, we convert a :< U constraints if possible first, and only convert T :< a if there are no available.
          allEqs = if null sups then subs else sups 
          allOthers = (if null sups then [] else subs) ++ others
       in guard (not (null allEqs)) >> pure (allEqs, allOthers)
@@ -70,7 +70,8 @@ findEquateCandidates (mentions, basetypes) (c:cs) =
    in case c ^. goal of
        U a :< b
          | canEquate (\m -> m^._1 + m^._2) a b
-         , not (isRefinementType b && isBaseUnif a)
+         , not (isRefinementType b && isBaseUnif a)  -- when a is a BaseType and b is a refinment type, we have to
+                                                     -- defer this equate rule until sink-float kicks in.
          -> (c : sups, subs, others)
        a :< U b
          | canEquate (^._3) b a  -- why? / zilinc

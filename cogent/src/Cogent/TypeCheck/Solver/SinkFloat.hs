@@ -52,9 +52,6 @@ import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import Debug.Trace
 
-onGoal :: (Monad m) => (Constraint -> MaybeT m [Constraint]) -> Goal -> MaybeT m [Goal]
-onGoal f g = fmap (map (derivedGoal g)) (f (g ^. goal))
-
 sinkfloat :: Rewrite.RewriteT TcSolvM [Goal]
 sinkfloat = Rewrite.rewrite' $ \gs -> do
   let mentions = getMentions gs
@@ -295,6 +292,4 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
       tus <- traverse (const (U <$> lift solvFresh)) ts
       let t = T (TCon n tus s)  -- FIXME: A[R] :< (?0)! will break if ?0 ~> A[W] is needed somewhere else
       return $ Subst.ofType i t
-
-    true = SE (T bool) (BoolLit True)
 
