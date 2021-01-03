@@ -952,7 +952,7 @@ typing_var      : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (leng
 
 | typing_member : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> e : TRecord ts s
                    ; K \<turnstile> TRecord ts s :\<kappa> k
-                   ; S \<in> k
+                   ; D \<in> k
                    ; f < length ts
                    ; ts ! f = (n, t, Present)
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Member e f : t"
