@@ -943,10 +943,10 @@ inductive tyinf_synth :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<
 | tyinf_unit   : "\<Xi>, K, \<Gamma>, replicate (length \<Gamma>) 0 \<turnstile>\<down> Unit : TUnit"
 
 | tyinf_member : "\<lbrakk> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> e : TRecord ts s
-                  ; shareable K (TRecord ts s)
                   ; f < length ts
-                  ; snd (snd (ts ! f)) = Present
-                  \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> Member e f : fst (snd (ts ! f))"
+                  ; ts ! f = (n, t, Present)
+                  ; droppable K (TRecord (ts[f := (n, t, Taken)]) s)
+                  \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> Member e f : t"
 
 | tyinf_put    : "\<lbrakk> \<Xi>, K, \<Gamma>, C1 \<turnstile>\<down> e : \<tau>1
                   ; \<tau>1 = TRecord ts s
@@ -1265,6 +1265,10 @@ lemma tyinf_context_lengths:
   "\<Xi>, K, \<Gamma>, C \<turnstile>\<down>* es : ts \<Longrightarrow> length C = length \<Gamma>"
   by (induct rule: tyinf_synth_tyinf_check_tyinf_all_synth.inducts) simp+
 
+lemma list_all_update:
+  "list_all P (xs[i := x]) \<longleftrightarrow> list_all P (take i xs) \<and> (i < length xs \<longrightarrow> P x) \<and> list_all P (drop (Suc i) xs)"
+  by (induct xs arbitrary: i) (clarsimp split: nat.splits)+
+
 lemma tyinf_preserves_wellformed[dest]:
   "\<Xi>, K, \<Gamma>, C \<turnstile>\<down> e : t    \<Longrightarrow> K \<turnstile>* \<Gamma> wellformed \<Longrightarrow> K \<turnstile> t wellformed"
   "\<Xi>, K, \<Gamma>, C \<turnstile>\<up> e : t    \<Longrightarrow> K \<turnstile>* \<Gamma> wellformed \<Longrightarrow> K \<turnstile> t wellformed"
@@ -1282,6 +1286,9 @@ next
 next
   case tyinf_letb then show ?case
     by (simp add: context_bang_types_wellformed_iff)
+next
+  case tyinf_member then show ?case
+    by (fastforce dest: type_wellformed_fstsnd_triple_nth)
 next
   case tyinf_case then show ?case
     by (force simp add: list_all_iff)
@@ -1589,16 +1596,15 @@ next case tyinf_tuple then show ?case
         intro!: typing_typing_all.intros tycount_context_gen_split
         simp add: tyinf_shareable_constraint_plus_iff)
 next
-  case (tyinf_member _ K _ _ _ ts _ f) then show ?case
-    apply (auto intro!: typing_typing_all.intros kinding_kinding_allI
-              simp add: prod_eq_iff_proj_eq shareable_def tyinf_context_lengths
-              shareable_constraint_plus_iff
-              )
-     apply (simp add: kinding_defs)
-     apply (intro conjI)
-        apply (force dest: distinct_fst_tags_update)
-       apply (force intro: type_wellformed_fstsnd_list_updI dest: type_wellformed_fstsnd_triple_nth)
+  case (tyinf_member \<Xi> K \<Gamma> C e ts s f n t)
+  moreover have
+    "K \<turnstile> TRecord ts s wellformed"
+    using tyinf_member by blast
+  moreover have
+    "D \<in> kinding_fn K (TRecord ts s)"
     sorry
+  ultimately show ?case
+    by (force intro!: typing_typing_all.intros kinding_kinding_allI)
 next
   case tyinf_put then show ?case
     by (simp add: tyinf_shareable_constraint_plus_iff droppable_def,
