@@ -174,7 +174,11 @@ applyL s (TLOffset e n) = TLOffset (applyL s e) n
 applyL s l = l
 
 applyGoalEnv :: Subst -> ConstraintEnv -> ConstraintEnv
+#ifdef REFINEMENT_TYPES
 applyGoalEnv s (g, es) = (applyGamma s g, fmap (applySE s) es)
+#else
+applyGoalEnv s (g, es) = (applyGamma s g, es)
+#endif
   where
     applyGamma s m = fmap (first $ apply s) m
 

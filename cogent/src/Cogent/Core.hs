@@ -55,17 +55,18 @@ import Data.Nat (Nat(Zero, Suc), natToInt)
 import qualified Data.Nat as Nat
 import Data.Vec hiding (splitAt, length, zipWith, zip, unzip)
 import qualified Data.Vec as Vec
-import qualified Data.Map as M
 
 import Control.Arrow hiding ((<+>))
 import Data.Binary (Binary)
 -- import Data.Data hiding (Refl)
 import Data.Function ((&))
 import Data.IntMap as IM (IntMap, null, filter, keys)
+import qualified Data.Map as M
 #if __GLASGOW_HASKELL__ < 709
 import Data.Traversable(traverse)
 #endif
 import GHC.Generics (Generic)
+import Prelude as P
 import Text.PrettyPrint.ANSI.Leijen as L hiding (tupled, indent, (<$>))
 import qualified Text.PrettyPrint.ANSI.Leijen as L ((<$>))
 
@@ -84,11 +85,16 @@ data Type t b
   | TUnit
   | TRPar     RecParName (RecContext (Type t b))
   | TRParBang RecParName (RecContext (Type t b))
--- #ifdef REFINEMENT_TYPES
-  | TArray (Type t b) (LExpr t b) (Sigil (DataLayout BitRange)) (Maybe (LExpr t b))  -- the hole
+#ifdef REFINEMENT_TYPES
+  | TArray (Type t b) (LExpr t b) (Sigil (DataLayout BitRange)) (Maybe (LExpr t b))
+                              --                               \ ^^^ the hole
+                              -- \ ^^^ The sigil specifies the layout of the element
   | TRefine (Type t b) (LExpr t b)
--- #endif
-    -- The sigil specifies the layout of the element
+#endif
+  | TXXX (Fin t) b  -- FIXME: don't know why but we have to have something like this
+                    -- otherwise the typechecker won't work out the derived type class
+                    -- instances. It can also be a constructor using (any) other datatype
+                    -- that has @t@ and @b@ / zilinc
   deriving (Show, Eq, Ord, Functor)
 
 deriving instance Generic b => Generic (Type 'Zero b)
@@ -114,10 +120,12 @@ recordHasLayout :: Type t b -> Bool
 recordHasLayout (TRecord _ _ (Boxed _ Layout{})) = True
 recordHasLayout _ = False
 
+#ifdef REFINEMENT_TYPES
 isBaseType :: Type t b -> Bool -- is a type that supports refinement
 isBaseType (TPrim _) = True
 isBaseType (TRefine t _) = isBaseType t
 isBaseType _ = False
+#endif
 
 -- ASSUME: input in a record type
 recordFields :: Type t b -> [FieldName]
@@ -149,6 +157,7 @@ unroll v (Just ctxt) = erp (Just ctxt) (ctxt M.! v)
     erp c (TRPar v Nothing) = TRPar v c
 #ifdef REFINEMENT_TYPES
     erp c (TArray t e s h) = TArray (erp c t) e s h
+    -- TODO: TRefine
 #endif
     erp _ t = t
 unroll v _ = __impossible "unroll in core given an empty context - this usually means a recursive parameter was not unrolled before being used"
@@ -190,6 +199,7 @@ data Expr t v a b e
   | Promote (Type t b) (e t v a b)  -- only for guiding the tc. rep. unchanged.
   | Cast (Type t b) (e t v a b)  -- only for integer casts. rep. changed
 -- \ vvv constraint no smaller than header, thus UndecidableInstances
+
 deriving instance (Show a, Show b, Show (e t v a b), Show (e t ('Suc v) a b), Show (e t ('Suc ('Suc v)) a b))
   => Show (Expr t v a b e)
 deriving instance (Eq a, Eq b, Eq (e t v a b), Eq (e t ('Suc v) a b), Eq (e t ('Suc ('Suc v)) a b))
@@ -393,7 +403,29 @@ insertIdxAtE cut f (Put rec fld e) = Put (f cut rec) fld (f cut e)
 insertIdxAtE cut f (Promote ty e) = Promote ty (f cut e)
 insertIdxAtE cut f (Cast ty e) = Cast ty (f cut e)
 
-
+#ifdef REFINEMENT_TYPES
+upshiftVarLExpr :: Int -> LExpr t b -> LExpr t b
+upshiftVarLExpr 1 (LVariable (t, b)) = LVariable (Suc t, b)
+upshiftVarLExpr n (LVariable (t, b)) = upshiftVarLExpr (n - 1) $ LVariable (Suc t, b)
+upshiftVarLExpr n (LOp opr es) = LOp opr (P.map (upshiftVarLExpr n) es)
+upshiftVarLExpr n (LApp a b) = LApp (upshiftVarLExpr n a) (upshiftVarLExpr n b)
+upshiftVarLExpr n (LCon tn e t) = LCon tn (upshiftVarLExpr n e) t
+upshiftVarLExpr n (LLet a e1 e2) = LLet a (upshiftVarLExpr n e1) (upshiftVarLExpr n e2)
+upshiftVarLExpr n (LLetBang bs a e1 e2) = LLetBang bs a (upshiftVarLExpr n e1) (upshiftVarLExpr n e2)
+upshiftVarLExpr n (LTuple e1 e2) = LTuple (upshiftVarLExpr n e1) (upshiftVarLExpr n e2)
+upshiftVarLExpr n (LStruct fs) = LStruct $ P.map (\(fn, e) -> (fn, upshiftVarLExpr n e)) fs
+upshiftVarLExpr n (LIf c t e) = LIf (upshiftVarLExpr n c) (upshiftVarLExpr n t) (upshiftVarLExpr n e)
+upshiftVarLExpr n (LCase e tn (v1, a1) (v2, a2)) = LCase (upshiftVarLExpr n e) tn (v1, upshiftVarLExpr n a1) (v2, upshiftVarLExpr n a2)
+upshiftVarLExpr n (LEsac e) = LEsac $ upshiftVarLExpr n e
+upshiftVarLExpr n (LSplit (v1, v2) e1 e2) = LSplit (v1, v2) (upshiftVarLExpr n e1) (upshiftVarLExpr n e2)
+upshiftVarLExpr n (LMember x f) = LMember (upshiftVarLExpr n x) f
+upshiftVarLExpr n (LTake (a,b) rec f e) = LTake (a,b) rec f (upshiftVarLExpr n e)
+upshiftVarLExpr n (LPut rec f v) = LPut rec f (upshiftVarLExpr n v)
+upshiftVarLExpr n (LPromote t e) = LPromote t (upshiftVarLExpr n e)
+upshiftVarLExpr n (LCast t e) = LCast t (upshiftVarLExpr n e)
+upshiftVarLExpr n x = x
+-- also upshift in refinement type preds in context?
+#endif
 
 -- pre-order fold over Expr wrapper
 foldEPre :: (Monoid m)

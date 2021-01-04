@@ -550,7 +550,9 @@ desugarPrimInt (B.DT (S.TCon "U16"  [] Unboxed)) = U16
 desugarPrimInt (B.DT (S.TCon "U32"  [] Unboxed)) = U32
 desugarPrimInt (B.DT (S.TCon "U64"  [] Unboxed)) = U64
 desugarPrimInt (B.DT (S.TCon "Bool" [] Unboxed)) = Boolean
+#ifdef REFINEMENT_TYPES
 desugarPrimInt (B.DT (S.TRefine _ b _)) = desugarPrimInt b
+#endif
 desugarPrimInt t = __impossible $ "desugarPrimInt: " ++ show t
 
 desugarType :: B.DepType -> DS t l v (Type t VarName)

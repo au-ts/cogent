@@ -145,6 +145,7 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
     | Just n' <- elemIndex n primTypeCons
     , Just m' <- elemIndex m primTypeCons
     , n' <= m' , not (m `elem` ["String","Bool"]) -> hoistMaybe $ Just []
+#ifdef REFINEMENT_TYPES
   Upcastable t@(T (TCon n [] Unboxed)) (T (TRefine _ b _))
     | Just n' <- elemIndex n primTypeCons
     -> hoistMaybe $ Just [Upcastable t b]
@@ -153,7 +154,7 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
     -> hoistMaybe $ Just [Upcastable b t]
   Upcastable (T (TRefine _ b1 _)) (T (TRefine _ b2 _))
     -> hoistMaybe $ Just [Upcastable b1 b2]
-
+#endif
 
   Drop  (T (TRPar _ True _)) m -> hoistMaybe $ Just []
   Share (T (TRPar _ True _)) m -> hoistMaybe $ Just []
@@ -303,10 +304,18 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
 
   T (TFun (Just v) t1 t2) :=: T (TFun (Just u) r1 r2) -> do
     let r2' = if v == u then r2 else substVarExprT [(u, v)] r2
+#ifdef REFINEMENT_TYPES
     hoistMaybe $ Just [r1 :=: t1, (M.singleton u (r1,0), []) :|- t2 :=: r2']
+#else
+    hoistMaybe $ Just [r1 :=: t1, t2 :=: r2']
+#endif
   T (TFun (Just v) t1 t2) :<  T (TFun (Just u) r1 r2) -> do
     let r2' = if v == u then r2 else substVarExprT [(u, v)] r2
+#ifdef REFINEMENT_TYPES
     hoistMaybe $ Just [r1 :<  t1, (M.singleton u (r1,0), []) :|- t2 :<  r2']
+#else
+    hoistMaybe $ Just [r1 :<  t1, t2 :<  r2']
+#endif
 
   T (TTuple ts) :<  T (TTuple us) | length ts == length us -> hoistMaybe $ Just (zipWith (:< ) ts us)
   T (TTuple ts) :=: T (TTuple us) | length ts == length us -> hoistMaybe $ Just (zipWith (:=:) ts us)

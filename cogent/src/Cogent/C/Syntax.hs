@@ -448,6 +448,7 @@ strlCogentTypeEq (TRecord _ fs1 s1) (TRecord _ fs2 s2) = strlSigilEq s1 s2 && al
 strlCogentTypeEq TUnit            TUnit            = True
 #ifdef REFINEMENT_TYPES
 strlCogentTypeEq a1@(TArray t1 l1 s1 _) (TArray t2 l2 s2 _) = t1 == t2 && l1 == l2 && strlSigilEq s1 s2
+strlCogentTypeEq (TRefine b1 _) (TRefine b2 _) = strlCogentTypeEq b1 b2
 #endif
 strlCogentTypeEq a1@(TProduct _ _)(TProduct _ _)   = __impossible $ "Cogent.C.Syntax: StrlCogentType instance Eq: Type " ++ show a1 ++ " cannot be embedded in a boxed record."
 strlCogentTypeEq a1@(TString)     (TString)        = __impossible $ "Cogent.C.Syntax: StrlCogentType instance Eq: Type " ++ show a1 ++ " cannot be embedded in a boxed record."

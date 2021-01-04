@@ -786,15 +786,18 @@ substVarExpr vs (SE t (Var x)) | Just u <- lookup x vs = SE t (Var u)
 substVarExpr vs (SE t e) = SE t $ fmap (substVarExpr vs) e
 
 substVarExprT :: [(VarName, VarName)] -> TCType -> TCType
-substVarExprT vs (T (TRefine v b p)) =
-  T $ TRefine v b $ substVarExpr (filter ((/= v) . fst) vs) p
 substVarExprT vs (T (TFun (Just v) t1 t2)) =
   T $ TFun (Just v) (substVarExprT vs t1) (substVarExprT (filter ((/= v) . fst) vs) t2)
 substVarExprT vs (T t) = T $ fffmap (substVarExpr vs) t
 substVarExprT vs (U x) = U x
 substVarExprT vs (V x) = V $ fmap (substVarExprT vs) x
 substVarExprT vs (R rp x s) = R rp (fmap (substVarExprT vs) x) s
-substVarExprT vs (A t l s mh) = A (substVarExprT vs t) (substVarExpr vs l) s (first (fmap (substVarExpr vs)) mh)
+#ifdef REFINEMENT_TYPES
+substVarExprT vs (A t l s mh) =
+  A (substVarExprT vs t) (substVarExpr vs l) s (first (fmap (substVarExpr vs)) mh)
+substVarExprT vs (T (TRefine v b p)) =
+  T $ TRefine v b $ substVarExpr (filter ((/= v) . fst) vs) p
+#endif
 substVarExprT vs (Synonym n ts) = Synonym n $ fmap (substVarExprT vs) ts
 
 
@@ -807,6 +810,7 @@ flexOf (T (TUnbox t))    = flexOf t
 #ifdef REFINEMENT_TYPES
 flexOf (T (TATake _ t))  = flexOf t
 flexOf (T (TAPut  _ t))  = flexOf t
+flexOf (T (TRefine _ t _)) = flexOf t
 #endif
 flexOf _ = Nothing
 
@@ -825,6 +829,7 @@ isVariantType :: RawType -> Bool
 isVariantType (RT (TVariant _)) = True
 isVariantType _ = False
 
+#ifdef REFINEMENT_TYPES
 isRefinementType :: TCType -> Bool
 isRefinementType (T (TRefine {})) = True
 isRefinementType _  = False
@@ -836,6 +841,7 @@ notRefinementType (T (TRefine {})) = False
 notRefinementType (T (TVar {})) = False
 notRefinementType (Synonym {}) = False
 notRefinementType _ = True
+#endif
 
 isMonoType :: RawType -> Bool
 isMonoType (RT (TVar {})) = False

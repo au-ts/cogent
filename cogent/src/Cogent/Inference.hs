@@ -40,7 +40,9 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core
 import Cogent.Dargent.Allocation
+#ifdef REFINEMENT_TYPES
 import Cogent.Inference.SMT
+#endif
 import Cogent.Util
 import Cogent.PrettyPrint (indent')
 import Data.Ex
@@ -65,8 +67,10 @@ import Data.Map (Map)
 import Data.Maybe (isJust)
 import qualified Data.Map as M
 import Data.Monoid
+#ifdef REFINEMENT_TYPES
 import qualified Data.SBV as SMT hiding (proveWith)
 import qualified Data.SBV.Dynamic as SMT
+#endif
 #if __GLASGOW_HASKELL__ < 709
 import Data.Traversable(traverse)
 #endif
@@ -98,6 +102,7 @@ isUpcastable (TSum s1) (TSum s2) = do
   return $ c1 && c2
 isUpcastable _ _ = return False
 
+#ifdef REFINEMENT_TYPES
 compareRefTypes :: (Eq b, Ord b, Pretty b, Show b) => Type t b -> Type t b -> TC t v b Bool
 compareRefTypes rt1@(TRefine t1 l1) rt2@(TRefine t2 l2) | t1 == t2 
   = do
@@ -105,9 +110,12 @@ compareRefTypes rt1@(TRefine t1 l1) rt2@(TRefine t2 l2) | t1 == t2
       res <- liftIO $ smtProve vec ls rt1 rt2
       return res
 compareRefTypes _ _ = __impossible "compareRefTypes incompatible"
+#endif
 
 isSubtype :: (Eq b, Pretty b, Show b, Ord b) => Type t b -> Type t b -> TC t v b Bool
+#ifdef REFINEMENT_TYPES
 isSubtype rt1@(TRefine t1 l1) rt2@(TRefine t2 l2) | t1 == t2 = compareRefTypes rt1 rt2
+#endif
 isSubtype t1 t2 = runMaybeT (t1 `lub` t2) >>= \case Just t  -> return $ t == t2
                                                     Nothing -> return False
 
@@ -135,6 +143,7 @@ unroll v (Just ctxt) = erp (Just ctxt) (ctxt M.! v)
     erp c (TRPar v Nothing) = TRPar v c
 #ifdef REFINEMENT_TYPES
     erp c (TArray t l s h) = TArray (erp c t) l s h
+    -- TODO: TRefine
 #endif
     erp _ t = t
 
@@ -222,6 +231,7 @@ bang (TRPar n ctxt)    = TRPar n ctxt
 bang (TUnit)           = TUnit
 #ifdef REFINEMENT_TYPES
 bang (TArray t l s tkns) = TArray (bang t) l (bangSigil s) tkns
+bang (TRefine b p)     = TRefine (bang b) p
 #endif
 
 unbox :: Type t b -> Type t b
@@ -291,6 +301,7 @@ substituteS ls (Boxed b (Layout l)) = Boxed b . Layout $ substituteS' ls l
 #endif
       _ -> l
 
+#ifdef REFINEMENT_TYPES
 substituteLE :: Vec t (Type u b) -> LExpr t b -> LExpr u b
 substituteLE vs = \case
   LVariable va       -> LVariable va
@@ -316,6 +327,7 @@ substituteLE vs = \case
   LPromote t e       -> LPromote (substitute vs t) (go e)
   LCast t e          -> LCast (substitute vs t) (go e)
  where go = substituteLE vs
+#endif
 
 remove :: (Eq a) => a -> [(a,b)] -> [(a,b)]
 remove k = filter ((/= k) . fst)
@@ -364,6 +376,7 @@ infixl 4 <||>
                              return (f arg)
 
 -- returns list of inputs, and type of output
+#ifdef REFINEMENT_TYPES
 opType :: Op -> [Type t b] -> Maybe ([Type t VarName], Type t b)
 opType opr [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
   | opr `elem` [Plus, Minus, Times, Mod,
@@ -386,8 +399,23 @@ opType Not [TRefine (TPrim Boolean) p]
 opType Complement [(TRefine (TPrim t) p)]
   | t /= Boolean
   = Just ([TPrim t], toTRefine $ TPrim t)
+#else
+opType :: Op -> [Type t b] -> Maybe (Type t b)
+opType opr [TPrim p1, TPrim p2]
+  | opr `elem` [Plus, Minus, Times, Divide, Mod,
+                BitAnd, BitOr, BitXor, LShift, RShift],
+    p1 == p2, p1 /= Boolean = Just $ TPrim p1
+opType opr [TPrim p1, TPrim p2]
+  | opr `elem` [Gt, Lt, Le, Ge, Eq, NEq],
+    p1 == p2, p1 /= Boolean = Just $ TPrim Boolean
+opType opr [TPrim Boolean, TPrim Boolean]
+  | opr `elem` [And, Or, Eq, NEq] = Just $ TPrim Boolean
+opType Not [TPrim Boolean] = Just $ TPrim Boolean
+opType Complement [TPrim p] | p /= Boolean = Just $ TPrim p
+#endif
 opType opr ts = __impossible "opType"
 
+#ifdef REFINEMENT_TYPES
 toTRefine :: Type t b -> Type t b
 toTRefine (TPrim t) = TRefine (TPrim t) (LILit 1 Boolean)
 toTRefine (TRefine t b) = TRefine t b
@@ -396,6 +424,7 @@ toTRefine _ = __impossible "toTRefine"
 getBaseType :: Type t b -> Type t b
 getBaseType (TRefine t _) = t
 getBaseType _ = __impossible "called getBaseType on a non refinement type"
+#endif
 
 useVariable :: Fin v -> TC t v b (Maybe (Type t b))
 useVariable v = TC $ do ret <- (`at` v) <$> fst3 <$> get
@@ -511,29 +540,6 @@ freshVarName = TC $ do readers <- ask
                        put (st, p, n + 1)
                        return $ freshVarPrefix ++ show n
 
--- upshiftNonZeroLExpr :: LExpr t b -> LExpr t b
--- upshiftNonZeroLExpr (LVariable (t,b)) =
---   case t of
---     Zero  -> LVariable (t, b)
---     _     -> LVariable (Suc t, b)
--- upshiftNonZeroLExpr (LOp opr es) = LOp opr (map upshiftNonZeroLExpr es)
--- upshiftNonZeroLExpr (LApp a b) = LApp (upshiftNonZeroLExpr a) (upshiftNonZeroLExpr b)
--- upshiftNonZeroLExpr (LCon tn e t) = LCon tn (upshiftNonZeroLExpr e) t
--- upshiftNonZeroLExpr (LLet a e1 e2) = LLet a (upshiftNonZeroLExpr e1) (upshiftNonZeroLExpr e2)
--- upshiftNonZeroLExpr (LLetBang bs a e1 e2) = LLetBang bs a (upshiftNonZeroLExpr e1) (upshiftNonZeroLExpr e2)
--- upshiftNonZeroLExpr (LTuple e1 e2) = LTuple (upshiftNonZeroLExpr e1) (upshiftNonZeroLExpr e2)
--- upshiftNonZeroLExpr (LStruct fs) = LStruct $ map (\(fn, e) -> (fn, upshiftNonZeroLExpr e)) fs
--- upshiftNonZeroLExpr (LIf c t e) = LIf (upshiftNonZeroLExpr c) (upshiftNonZeroLExpr t) (upshiftNonZeroLExpr e)
--- upshiftNonZeroLExpr (LCase e tn (v1, a1) (v2, a2)) = LCase (upshiftNonZeroLExpr e) tn (v1, upshiftNonZeroLExpr a1) (v2, upshiftNonZeroLExpr a2)
--- upshiftNonZeroLExpr (LEsac e) = LEsac $ upshiftNonZeroLExpr e
--- upshiftNonZeroLExpr (LSplit (v1, v2) e1 e2) = LSplit (v1, v2) (upshiftNonZeroLExpr e1) (upshiftNonZeroLExpr e2)
--- upshiftNonZeroLExpr (LMember x f) = LMember (upshiftNonZeroLExpr x) f
--- upshiftNonZeroLExpr (LTake (a,b) rec f e) = LTake (a,b) rec f (upshiftNonZeroLExpr e)
--- upshiftNonZeroLExpr (LPut rec f v) = LPut rec f (upshiftNonZeroLExpr v)
--- upshiftNonZeroLExpr (LPromote t e) = LPromote t (upshiftNonZeroLExpr e)
--- upshiftNonZeroLExpr (LCast t e) = LCast t (upshiftNonZeroLExpr e)
--- upshiftNonZeroLExpr x = x
-
 lookupKind :: Fin t -> TC t v b Kind
 lookupKind f = TC ((`at` f) . fst <$> ask)
 
@@ -575,6 +581,7 @@ typecheck e t = do
 
 infer :: UntypedExpr t v VarName VarName -> TC t v VarName (TypedExpr t v VarName VarName)
 infer (E (Op o es))
+#ifdef REFINEMENT_TYPES
    = do es' <- mapM infer es
         let operandsTypes = map toTRefine $ map exprType es'
         vn <- freshVarName
@@ -587,22 +594,29 @@ infer (E (Op o es))
         inputsOk <- listIsSubtype operandsTypes expectedInputs
         let pred = LOp Eq [LVariable (Zero, vn), upshiftVarLExpr 1 (LOp o (map (texprToLExpr id) es'))]
         case inputsOk of
-          -- True -> (TE (TRefine t $ LOp And [pred, p]) (Op o es'))
-          -- True -> 
-          --         let [op1, op2] = operandsTypes in
-          --           do
-          --             ret <- withBindings (Cons op1 (Cons op2 Nil)) $ return (TE (TRefine t pred) (Op o es'))
-          --             return ret
           True -> return (TE (TRefine t pred) (Op o es'))
           _ -> __impossible "op types don't match" -- fix me /blaisep
+#else
+  = do es' <- mapM infer es
+       let Just t = opType o (map exprType es')
+       return (TE t (Op o es'))
+#endif
 infer (E (ILit i t))
+#ifdef REFINEMENT_TYPES
   = do vn <- freshVarName
        let pred = LOp Eq [LVariable (Zero, vn), LILit i t]
        return (TE (TRefine (TPrim t) (pred)) (ILit i t))
+#else
+  = return (TE (TPrim t) (ILit i t))
+#endif
 infer (E (SLit s))
+#ifdef REFINEMENT_TYPES
   = do vn <- freshVarName
        let pred = LOp Eq [LVariable (Zero, vn), LSLit s]
        return (TE (TRefine TString (pred)) (SLit s))
+#else
+  = return (TE TString (SLit s))
+#endif
 #ifdef REFINEMENT_TYPES
 infer (E (ALit [])) = __impossible "We don't allow 0-size array literals"
 infer (E (ALit es))
@@ -682,16 +696,21 @@ infer (E (ArrayPut arr i e))
 #endif
 infer (E (Variable v))
    = do Just t <- useVariable (fst v)
-        case (isBaseType t) of
+#ifdef REFINEMENT_TYPES
+        case isBaseType t of
           True -> do
             vn <- freshVarName
-            let pred = LOp Eq [LVariable (Zero, vn), 
-                                upshiftVarLExpr 1 $ LVariable (finNat $ fst v, snd v)]
+            let pred = LOp Eq [ LVariable (Zero, vn)
+                              , upshiftVarLExpr 1 $ LVariable (finNat $ fst v, snd v) 
+                              ]
             -- if t is a refinement type, extract the old predicate and combine
             case t of
-              (TRefine base oldPred) -> return $ TE (TRefine base pred) (Variable v)
+              TRefine base oldPred -> return $ TE (TRefine base pred) (Variable v)
               _ -> return $ TE (TRefine t pred) (Variable v)
           False -> return $ TE t (Variable v)
+#else
+        return $ TE t (Variable v)
+#endif
 infer (E (Fun f ts ls note))
    | ExI (Flip ts') <- Vec.fromList ts
    , ExI (Flip ls') <- Vec.fromList ls
@@ -740,11 +759,18 @@ infer (E (Con tag e tfull))
         return $ TE tfull (Con tag e'' tfull)
 infer (E (If ec et ee))
    = do ec' <- infer ec
-        -- trace "If" $ return ()
+#ifdef REFINEMENT_TYPES
         guardShow "if-1" $ getBaseType (exprType ec') == TPrim Boolean
         let lec = texprToLExpr id ec'
         -- guardShow (show lec) False
-        (et', ee') <- (,) <$> withPredicate lec (infer et) <||> withPredicate (LOp Not [lec]) (infer ee)  -- have to use applicative functor, as they share the same initial env
+        (et', ee') <- (,) <$>  withPredicate lec (infer et)
+                          <||> withPredicate (LOp Not [lec]) (infer ee)
+        -- \ ^^^ have to use <||>, as they share the same initial env
+#else
+        guardShow "if-1" $ exprType ec' == TPrim Boolean
+        (et',ee') <- (,) <$>  infer et
+                         <||> infer ee
+#endif
         let tt = exprType et'
             te = exprType ee'
         Just tlub <- runMaybeT $ tt `lub` te

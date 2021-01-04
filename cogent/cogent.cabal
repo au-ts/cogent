@@ -98,7 +98,6 @@ library
               , Cogent.GetOpt
               , Cogent.Glue
               , Cogent.Inference
-              , Cogent.Inference.SMT
               , Cogent.Interpreter
               , Cogent.Isabelle
               , Cogent.Isabelle.ACInstall
@@ -140,7 +139,6 @@ library
               , Cogent.TypeCheck.Solver.Normalise
               , Cogent.TypeCheck.Solver.Equate
               , Cogent.TypeCheck.Solver.Goal
-              , Cogent.TypeCheck.Solver.JoinMeet
               , Cogent.TypeCheck.Solver.Monad
               , Cogent.TypeCheck.Solver.Rewrite
               , Cogent.TypeCheck.Solver.SinkFloat
@@ -198,7 +196,9 @@ library
     build-depends: haskell-src-exts >= 1.19, pretty
   if flag(refinement-types)
     exposed-modules: 
-                     Cogent.TypeCheck.SMT
+                     Cogent.Inference.SMT
+                   , Cogent.TypeCheck.SMT
+                   , Cogent.TypeCheck.Solver.JoinMeet
                    , Cogent.TypeCheck.Solver.SMT
     build-depends: sbv >= 8.0
     cpp-options: -DREFINEMENT_TYPES

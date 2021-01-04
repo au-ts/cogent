@@ -61,7 +61,9 @@ getMentions gs = foldl (IM.unionWith (+)) IM.empty $ fmap (\g -> occ (g ^. goal)
     occ (a :<  b) = IM.unionsWith (+) $ fmap (flip IM.singleton 1) $ unifVars a ++ unifVars b
     occ (a :=: b) = IM.unionsWith (+) $ fmap (flip IM.singleton 1) $ unifVars a ++ unifVars b
     -- occ (a :-> b) = IM.unionWith (+) (occ a) (occ b)
+#ifdef REFINEMENT_TYPES
     occ (g :|- c) = occ c
+#endif
     occ c         = IM.empty
 
 -- | It returns a pair:

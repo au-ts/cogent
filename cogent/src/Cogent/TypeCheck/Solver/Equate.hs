@@ -66,16 +66,22 @@ findEquateCandidates (mentions, basetypes) (c:cs) =
      = f m <= 1 && rigid t && notOccurs v t
      | otherwise
      = False
+#ifdef REFINEMENT_TYPES
     isBaseUnif x = IS.member x basetypes
+#endif
    in case c ^. goal of
        U a :< b
          | canEquate (\m -> m^._1 + m^._2) a b
+#ifdef REFINEMENT_TYPES
          , not (isRefinementType b && isBaseUnif a)  -- when a is a BaseType and b is a refinment type, we have to
                                                      -- defer this equate rule until sink-float kicks in.
+#endif
          -> (c : sups, subs, others)
        a :< U b
          | canEquate (^._3) b a  -- why? / zilinc
+#ifdef REFINEMENT_TYPES
          , not (isRefinementType a && isBaseUnif b)
+#endif
          -> (sups, c : subs, others)
 #ifdef REFINEMENT_TYPES
        t :< T (TRefine v b (HApp x _ _))

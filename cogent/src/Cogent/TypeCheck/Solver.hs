@@ -32,7 +32,9 @@ import           Cogent.Surface
 import           Cogent.TypeCheck.Base
 import           Cogent.TypeCheck.Solver.Default
 import           Cogent.TypeCheck.Solver.Equate
+#ifdef REFINEMENT_TYPES
 import           Cogent.TypeCheck.Solver.JoinMeet
+#endif
 import           Cogent.TypeCheck.Solver.Monad
 import           Cogent.TypeCheck.Solver.Normalise
 import qualified Cogent.TypeCheck.Solver.Rewrite as Rewrite
@@ -72,7 +74,9 @@ solve ks ms c = let gs     = makeGoals [] (M.empty, []) c
                              <> debug  "Unify"      printC unify
                              <> debugL "Equate"     printC equate
                              <> debug  "Sink/Float" printC sinkfloat
+#ifdef REFINEMENT_TYPES
                              <> debug  "Join/Meet"  printC joinMeet
+#endif
                              <> debugL "Defaults"   printC defaults
 #ifdef REFINEMENT_TYPES
                              <> debug  "SMT"        printC smt

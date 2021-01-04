@@ -180,7 +180,6 @@ validateType (RT t) = do
                      text "generate constraint" <+> prettyC (mconcat ces))
       (ct,t') <- validateType t
       return (mconcat ces <> ct, T $ TAPut xs t')
-#endif
 
     TRefine v t e -> do
       (ct,t') <- validateType t
@@ -193,6 +192,7 @@ validateType (RT t) = do
       traceTc "gen" (text "cg for reftype" L.<$>
                      text "generate constraint" <+> prettyC c)
       return (c, T $ TRefine v t' (toTCSExpr e'))
+#endif
 
     TLayout l t -> do
       let cl = case runExcept $ tcDataLayoutExpr layouts lvs l of
@@ -291,7 +291,11 @@ cgAlts alts top mv alpha = do
       let cctx = case mv of
             Nothing -> fmap (\(t,_,occ) -> (t, Seq.length occ)) s
             Just v  -> M.insert v (t,0) $ fmap (\(t,_,occ) -> (t, Seq.length occ)) s
+#ifdef REFINEMENT_TYPES
           c'' = (cctx, prds) :|- c'
+#else
+          c'' = c'
+#endif
       rs <- context %%= C.dropScope
       let unused = flip foldMap (M.toList rs) $ \(v,(_,_,us)) ->
             case us of Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v); _ -> Sat
@@ -332,22 +336,25 @@ cg' :: (?loc :: SourcePos, ?isRefType :: Bool)
     -> TCType
     -> CG (Constraint, Expr TCType TCPatn TCIrrefPatn TCDataLayout TCExpr)
 cg' (PrimOp o [e1, e2]) t
+#ifdef REFINEMENT_TYPES
   | o `elem` words "+ - * / % .&. .|. .^. >> <<"
-  = if ?isRefType then do
-      β <- freshTVar
-      v <- freshRefVarName freshVars
-      (c1, e1') <- cg e1 β
-      (c2, e2') <- cg e2 β
-      let ϕ = SE (T bool) $ PrimOp "==" [SE β (Var v), SE β (PrimOp o [toTCSExpr e1', toTCSExpr e2'])]
-          ρ = T $ TRefine v β ϕ
-          c = ρ :< t
-      traceTc "gen" (text "[ref-types] cg for primitive op" <+> symbol o L.<$>
-                     text "generate constraint" <+> prettyC c)
-      return (integral β <> BaseType β <> c <> c1 <> c2, PrimOp o [e1', e2'])
-    else do
-      (c1, e1') <- cg e1 t
-      (c2, e2') <- cg e2 t
-      return (integral t <> c1 <> c2, PrimOp o [e1', e2'])
+  , ?isRefType
+  = do β <- freshTVar
+       v <- freshRefVarName freshVars
+       (c1, e1') <- cg e1 β
+       (c2, e2') <- cg e2 β
+       let ϕ = SE (T bool) $ PrimOp "==" [SE β (Var v), SE β (PrimOp o [toTCSExpr e1', toTCSExpr e2'])]
+           ρ = T $ TRefine v β ϕ
+           c = ρ :< t
+       traceTc "gen" (text "[ref-types] cg for primitive op" <+> symbol o L.<$>
+                      text "generate constraint" <+> prettyC c)
+       return (integral β <> BaseType β <> c <> c1 <> c2, PrimOp o [e1', e2'])
+#endif
+  | o `elem` words "+ - * / % .&. .|. .^. >> <<"
+  , not ?isRefType
+  = do (c1, e1') <- cg e1 t
+       (c2, e2') <- cg e2 t
+       return (integral t <> c1 <> c2, PrimOp o [e1', e2'])
   | o `elem` words "&& ||"
   = do (c1, e1') <- cg e1 t
        (c2, e2') <- cg e2 t
@@ -360,6 +367,7 @@ cg' (PrimOp o [e1, e2]) t
        let c  = T bool :< t
            c' = IsPrimType alpha
        return (c <> c' <> c1 <> c2, PrimOp o [e1', e2'])
+#ifdef REFINEMENT_TYPES
   | o `elem` words "== /= >= <= > <"
   , ?isRefType
   = do beta <- freshTVar
@@ -373,6 +381,7 @@ cg' (PrimOp o [e1, e2]) t
        traceTc "gen" (text "[ref-types] cg for primitive op" <+> symbol o L.<$>
                       text "generate constraint" <+> prettyC c)
        return (c <> IsPrimType beta <> BaseType beta <> c1 <> c2, PrimOp o [e1', e2'])
+#endif
 cg' (PrimOp o [e]) t
   | o == "complement"  = do
       (c, e') <- cg e t
@@ -445,6 +454,7 @@ cg' (IntLit i) t = do
                       | i < u32MAX     = "U32"
                       | otherwise      = "U64"
       e = IntLit i
+#ifdef REFINEMENT_TYPES
   c <- if ?isRefType then
          do beta <- freshTVar
             v <- freshRefVarName freshVars
@@ -453,6 +463,9 @@ cg' (IntLit i) t = do
                     BaseType beta
             return c
        else return $ Upcastable (T (TCon minimumBitwidth [] Unboxed)) t
+#else
+      c = Upcastable (T (TCon minimumBitwidth [] Unboxed)) t
+#endif
   traceTc "gen" (text "cg for int literal" <+> integer i L.<$>
                  text "generate constraint" <+> prettyC c)
   return (c,e)
@@ -583,7 +596,11 @@ cg' exp@(Lam pat mt e) t = do
         case us of
           Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v)
           _ -> Sat
+#ifdef REFINEMENT_TYPES
       c = ct <> cp <> ((fmap (\(t,_,o) -> (t, Seq.length o)) s, prds) :|- ce)
+#else
+      c = ct <> cp <> ce
+#endif
              <> (T $ TFun Nothing alpha beta) :< t
              <> dropConstraintFor rs <> unused
       lam = Lam  pat' (fmap (const alpha) mt) e'
@@ -1051,9 +1068,13 @@ withBindings (Binding pat mτ e0 bs : xs) e top = do
         case us of
           Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v)
           _ -> Sat
+#ifdef REFINEMENT_TYPES
       c'' = ( M.insert v (α,0) $ fmap (\(t,_,occ) -> (t, Seq.length occ)) s
             , (SE (T bool) (PrimOp "==" [SE α (Var v), toTCSExpr e0'])) : prds
             ) :|- c'
+#else
+      c'' = c'
+#endif
       c = ct <> c0 <> c'' <> cp <> dropConstraintFor rs <> unused
       b' = Binding pat' (fmap (const α) mτ) e0' bs
   traceTc "gen" (text "bound expression" <+> pretty e0' <+>

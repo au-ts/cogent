@@ -234,6 +234,7 @@ monoType (TRParBang v m) =  do
   return $ TRParBang v m'
 #ifdef REFINEMENT_TYPES
 monoType (TArray t l s mhole) = TArray <$> monoType t <*> monoLExpr l <*> monoSigil s <*> mapM monoLExpr mhole
+monoType (TRefine b p) = TRefine <$> monoType b <*> monoLExpr p
 #endif
 
 monoLayout :: (Ord b) => DataLayout BitRange -> Mono b (DataLayout BitRange)

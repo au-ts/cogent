@@ -63,7 +63,7 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
                     P.indent 2 (pretty a))
   let gs' = map ((goalEnv %~ Subst.applyGoalEnv a) . (goal %~ Subst.applyC a)) gs
 
-
+#ifdef REFINEMENT_TYPES
   gss <- forM gs' $ onGoal $ \case
     t1@(T (TRefine v b p)) :< U x
       | IS.member x (snd mentions)
@@ -73,7 +73,9 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
       -> hoistMaybe $ Just [T (TRefine v (U x) true) :< t2]
     c -> hoistMaybe $ Just [c]
   return $ concat gss
-
+#else
+  return []
+#endif
   where
     strip :: Constraint -> Constraint
     strip (T (TBang t)    :<  v          )   = t :< v
@@ -238,6 +240,7 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
     genStructSubst _ (t@(T TUnit) :=: U i) = return $ Subst.ofType i t
     genStructSubst _ (U i :=: t@(T TUnit)) = return $ Subst.ofType i t
 
+#ifdef REFINEMENT_TYPES
     -- refinement types
     genStructSubst (_,basetypes) (T (TRefine v b p) :< U x)
       | IS.notMember x basetypes
@@ -249,6 +252,7 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
       = do q <- lift solvFresh
            u <- freshRefVarName _2
            return $ Subst.ofType x (T (TRefine u b (HApp q u [])))
+#endif
 
     -- default
     genStructSubst _ _ = empty

@@ -52,13 +52,17 @@ makeLenses ''Goal
 
 makeGoals :: [ErrorContext] -> ConstraintEnv -> Constraint -> [Goal]
 makeGoals ctx env (constraint :@ c) = makeGoals (c:ctx) env constraint
+#ifdef REFINEMENT_TYPES
 makeGoals ctx env (g :|- c) = makeGoals ctx (g `mergeConstraintEnvs` env) c
+#endif
 makeGoals ctx env (c1 :& c2) = makeGoals ctx env c1 ++ makeGoals ctx env c2
 makeGoals ctx env g = pure $ Goal ctx env g
 
 makeGoal :: [ErrorContext] -> ConstraintEnv -> Constraint -> Goal
 makeGoal ctx env (constraint :@ c) = makeGoal (c:ctx) env constraint
+#ifdef REFINEMENT_TYPES
 makeGoal ctx env (g :|- c) = makeGoal ctx (g `mergeConstraintEnvs` env) c
+#endif
 makeGoal ctx env g = Goal ctx env g
 
 derivedGoal :: Goal -> Constraint -> Goal
@@ -90,11 +94,14 @@ getMentions gs =
   mentionsOfGoal :: Goal -> (IM.IntMap (Int,Int,Int), IS.IntSet)
   mentionsOfGoal g = case g ^. goal of
    r :< s     -> (IM.fromListWith adds (mentionEnv (g ^. goalEnv) (r :< s) ++ mentionL r ++ mentionR s), IS.empty)
+#ifdef REFINEMENT_TYPES
    Arith e    -> (IM.fromListWith adds (mentionEnv (g ^. goalEnv) (Arith e)), IS.empty)
    BaseType t -> (IM.fromListWith adds (mentionEnv (g ^. goalEnv) (BaseType t)), basetype t)
+#endif
    _          -> (IM.empty, IS.empty)
 
   mentionEnv (gamma, es) c = -- fmap (\v -> (v, (1,0,0))) $ unifVarsEnv env
+#ifdef REFINEMENT_TYPES
     -- NOTE: we only register a unifvar in the environment when the variable is used in the RHS. / zilinc
     let pvs = progVarsC c
         ms  = fmap (\(t,_) -> unifVars t ++ unknowns t) gamma  -- a map from progvars to the unifvars appearing in that entry.
@@ -106,6 +113,11 @@ getMentions gs =
         --        "      ms' = " ++ show ms' ++ "\n") ms'
   mentionL t = fmap (\v -> (v, (0,1,0))) $ unifVars t ++ unknowns t
   mentionR t = fmap (\v -> (v, (0,0,1))) $ unifVars t ++ unknowns t
+#else
+    mempty
+  mentionL t = fmap (\v -> (v, (0,1,0))) $ unifVars t
+  mentionR t = fmap (\v -> (v, (0,0,1))) $ unifVars t
+#endif
 
   basetype (U x) = IS.singleton x
   basetype _  = IS.empty

@@ -50,28 +50,6 @@ import Lens.Micro.TH
 import Prelude as P
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 
-upshiftVarLExpr :: Int -> LExpr t b -> LExpr t b
-upshiftVarLExpr 1 (LVariable (t, b)) = LVariable (Suc t, b)
-upshiftVarLExpr n (LVariable (t, b)) = upshiftVarLExpr (n - 1) $ LVariable (Suc t, b)
-upshiftVarLExpr n (LOp opr es) = LOp opr (P.map (upshiftVarLExpr n) es)
-upshiftVarLExpr n (LApp a b) = LApp (upshiftVarLExpr n a) (upshiftVarLExpr n b)
-upshiftVarLExpr n (LCon tn e t) = LCon tn (upshiftVarLExpr n e) t
-upshiftVarLExpr n (LLet a e1 e2) = LLet a (upshiftVarLExpr n e1) (upshiftVarLExpr n e2)
-upshiftVarLExpr n (LLetBang bs a e1 e2) = LLetBang bs a (upshiftVarLExpr n e1) (upshiftVarLExpr n e2)
-upshiftVarLExpr n (LTuple e1 e2) = LTuple (upshiftVarLExpr n e1) (upshiftVarLExpr n e2)
-upshiftVarLExpr n (LStruct fs) = LStruct $ P.map (\(fn, e) -> (fn, upshiftVarLExpr n e)) fs
-upshiftVarLExpr n (LIf c t e) = LIf (upshiftVarLExpr n c) (upshiftVarLExpr n t) (upshiftVarLExpr n e)
-upshiftVarLExpr n (LCase e tn (v1, a1) (v2, a2)) = LCase (upshiftVarLExpr n e) tn (v1, upshiftVarLExpr n a1) (v2, upshiftVarLExpr n a2)
-upshiftVarLExpr n (LEsac e) = LEsac $ upshiftVarLExpr n e
-upshiftVarLExpr n (LSplit (v1, v2) e1 e2) = LSplit (v1, v2) (upshiftVarLExpr n e1) (upshiftVarLExpr n e2)
-upshiftVarLExpr n (LMember x f) = LMember (upshiftVarLExpr n x) f
-upshiftVarLExpr n (LTake (a,b) rec f e) = LTake (a,b) rec f (upshiftVarLExpr n e)
-upshiftVarLExpr n (LPut rec f v) = LPut rec f (upshiftVarLExpr n v)
-upshiftVarLExpr n (LPromote t e) = LPromote t (upshiftVarLExpr n e)
-upshiftVarLExpr n (LCast t e) = LCast t (upshiftVarLExpr n e)
-upshiftVarLExpr n x = x
--- also upshift in refinement type preds in context?
-
 tcVecToList :: Int -> TcVec t v b -> [Maybe (Type t b)]
 tcVecToList n Nil = []
 tcVecToList n (Cons x xs) = case x of

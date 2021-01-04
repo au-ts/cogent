@@ -585,6 +585,7 @@ lvT (RT (TRPar _ _ rc)) = __fixme [] -- FIXME: check this
 lvT (RT (TArray t _ _ _)) = lvT t
 lvT (RT (TATake _ t)) = lvT t
 lvT (RT (TAPut  _ t)) = lvT t
+lvT (RT (TRefine _ t _)) = lvT t
 #endif
 lvT (RT (TUnbox   t)) = lvT t
 lvT (RT (TBang    t)) = lvT t
