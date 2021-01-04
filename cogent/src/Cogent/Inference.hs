@@ -758,6 +758,9 @@ infer (E (Case e tag (lt,at,et) (le,ae,ee)))
         let TSum ts = exprType e'
             Just (t, taken) = lookup tag ts
             restt = TSum $ adjust tag (second $ const True) ts  -- set the tag to taken
+            e'' = case taken of
+                    True  -> promote (TSum $ OM.toList $ OM.adjust (\(t,True) -> (t,False)) tag $ OM.fromList ts) e'
+                    False -> e'
         (et',ee') <- (,) <$>  withBinding t     (infer et)
                          <||> withBinding restt (infer ee)
         let tt = exprType et'

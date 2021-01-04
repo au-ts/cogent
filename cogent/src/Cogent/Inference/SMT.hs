@@ -41,6 +41,9 @@ import Data.Map    as M
 import Data.Maybe (fromMaybe)
 import Data.SBV as SMT hiding (proveWith)
 import Data.SBV.Dynamic as SMT
+#if MIN_VERSION_sbv(8,8,0)
+import Data.SBV.Internals (VarContext(NonQueryVar))
+#endif
 import Data.Vec hiding (repeat, splitAt, length, zipWith, zip, unzip)
 import Lens.Micro.Mtl
 import Lens.Micro.TH
@@ -284,7 +287,11 @@ typeToSmt vec (TProduct t1 t2) = do
 -- typeToSmt vec (TCon "String" [] Unboxed) = return $ KString
 -- typeToSmt vec (TCon n [] Unboxed) = return $ primIntToSmt $ strToPrimInt n
 typeToSmt vec (TRefine t _) = typeToSmt vec t
+#if MIN_VERSION_sbv(8,8,0)
+typeToSmt vec t = freshVal >>= \s -> return (KUserSort s (Just [s])) -- check
+#else
 typeToSmt vec t = freshVal >>= \s -> return (KUninterpreted s (Left s)) -- check
+#endif
 
 varIndexToSmt :: [Maybe (Type t b)]-> Int -> (SmtStateM b) SMT.Kind
 varIndexToSmt vec i = do
@@ -350,7 +357,11 @@ prettyProofObligation [l] p1 p2 = (L.pretty l) L.<+> L.dullyellow (L.text ("/\\"
 prettyProofObligation (l:ls) p1 p2 = (L.pretty l) L.<+> L.dullyellow (L.text "/\\") L.<+> (prettyProofObligation ls p1 p2) 
 
 mkQSymVar :: SMT.Quantifier -> String -> SMT.Kind -> (SmtStateM b) SVal
+#if MIN_VERSION_sbv(8,8,0)
+mkQSymVar q nm k = symbolicEnv >>= liftIO . svMkSymVar (NonQueryVar (Just q)) k (Just nm)
+#else
 mkQSymVar q nm k = symbolicEnv >>= liftIO . svMkSymVar (Just q) k (Just nm)
+#endif
 
 freshVal :: (SmtStateM b) String
 freshVal = (("smt_val_" ++) . show) <$> (fresh <<%= succ)

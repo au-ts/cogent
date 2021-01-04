@@ -968,7 +968,7 @@ parseArgs args = case getOpt' Permute options args of
 #ifdef WITH_HASKELL
       when shhs $ do
         putProgressLn ("Generating Haskell shallow embedding (" ++ stgMsg stg ++ ")...")
-        case constsTypeCheck of
+        constsTypeCheck >>= \case
           Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
           Right (cs,_) -> do writeFileMsg hsShalFile
                              output hsShalFile $ flip hPutStrLn (hsShal cs)
@@ -992,7 +992,7 @@ parseArgs args = case getOpt' Permute options args of
 #ifdef WITH_HASKELL
       when shhs_tup $ do
         putProgressLn ("Generating Haskell shallow embedding (with Haskell tuples)...")
-        case constsTypeCheck of
+        constsTypeCheck >>= \case
           Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
           Right (cs,_) -> do writeFileMsg hsShalTupFile
                              output hsShalTupFile $ flip hPutStrLn (hsShalTup cs)
