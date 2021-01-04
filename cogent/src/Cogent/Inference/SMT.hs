@@ -59,67 +59,40 @@ tcVecToList n (Cons x xs) = case x of
 -- State from the core TC monad
 type TcVec t v b = Vec v (Maybe (Type t b))
 
-data SmtTransState b = SmtTransState {
-                                   _vars  :: Map String SVal
-                                   , _fresh :: Int
-                                   }
+data SmtTransState b = SmtTransState { _vars  :: Map String SVal
+                                     , _fresh :: Int
+                                     }
 
 makeLenses ''SmtTransState
 
 -- Int is the fresh variable count
 type SmtStateM b = StateT (SmtTransState b) Symbolic
 
-getSmtExpression :: (Show b, Ord b) => [Maybe (Type t b)] -> [LExpr t b] -> Type t b -> Type t b -> Symbolic SVal
+getSmtExpression :: (Show b, Ord b)
+                 => [Maybe (Type t b)] -> [LExpr t b] -> Type t b -> Type t b -> Symbolic SVal
 getSmtExpression v e (TRefine t1 p) (TRefine t2 q) = do
   (e', se) <- runStateT (extract (Nothing:v) e) (SmtTransState M.empty 0) -- we chuck a nothing here so that upshifting makes sense
   (p', sp) <- runStateT (lexprToSmt ((Just t1):v) p) se
   (q', sp) <- runStateT (lexprToSmt ((Just t2):v) q) sp
   return $ svOr (svNot (svAnd p' e')) q' -- ~(P ^ E) v Q
 
--- rename all LVariable (Zero, vn) to LVariable (Zero, "target")
--- alphaRename :: LExpr t b -> LExpr t b
--- alphaRename (LOp opr [a,b]) = LOp opr [alphaRename a, alphaRename b]
--- alphaRename (LOp opr [e]) = LOp opr [alphaRename e]
--- alphaRename (LOp opr es)  = LOp opr $ P.map alphaRename es
--- alphaRename (LVariable (Zero, _)) = LVariable (Zero, "target")
--- alphaRename (LFun fn ts ls) = LFun fn (P.map alphaRenameT ts) ls -- data layout?
--- alphaRename (LApp a b) = LApp (alphaRename a) (alphaRename b)
--- alphaRename (LLet a e1 e2) = LLet a (alphaRename e1) (alphaRename e2) -- care with binding. do we touch it?
--- alphaRename (LLetBang bs a e1 e2) = LLetBang bs a (alphaRename e1) (alphaRename e2) -- care with binding
--- alphaRename (LTuple e1 e2) = LTuple (alphaRename e1) (alphaRename e2)
--- alphaRename (LStruct fs) = LStruct $ P.map (\(n,e) -> (n, alphaRename e)) fs
--- alphaRename (LCon tn e t) = LCon tn (alphaRename e) (alphaRenameT t)
--- alphaRename (LIf c t e) = LIf (alphaRename c) (alphaRename t) (alphaRename e)
--- alphaRename (LCase e tn (v1,a1) (v2,a2)) = LCase (alphaRename e) tn (v1, alphaRename a1) (v2, alphaRename a2)
--- alphaRename (LEsac e) = LEsac (alphaRename e)
--- alphaRename (LSplit (v1,v2) e1 e2) = LSplit (v1,v2) (alphaRename e1) (alphaRename e2)
--- alphaRename (LMember x f) = LMember (alphaRename x) f
--- alphaRename (LTake (a,b) rec f e) = LTake (a,b) rec f (alphaRename e) -- unsure
--- alphaRename (LPut rec f v) = LPut rec f (alphaRename v)
--- alphaRename (LPromote t e) = LPromote (alphaRenameT t) (alphaRename e)
--- alphaRename (LCast t e) = LCast (alphaRenameT t) (alphaRename e)
--- alphaRename x = x
-
--- alphaRenameT :: Type t b -> Type t b
--- alphaRenameT (TRefine t b) = TRefine t (alphaRename b)
--- alphaRenameT x = x
-
 extract :: (Show b, Ord b) => [Maybe (Type t b)] -> [LExpr t b] -> (SmtStateM b) SVal
-extract v ls = do
-                  initialSVal <- return $ return svTrue
+extract v ls = do initialSVal <- return $ return svTrue
                   vecPreds <- P.foldr (extractVec v) initialSVal v
                   ctxPreds <- P.foldr (extractLExprs v) initialSVal ls
                   return $ svAnd vecPreds ctxPreds
 
-extractVec :: (Show b, Ord b) => [Maybe (Type t b)] -> Maybe (Type t b) -> (SmtStateM b) SVal -> (SmtStateM b) SVal
+extractVec :: (Show b, Ord b)
+           => [Maybe (Type t b)] -> Maybe (Type t b) -> (SmtStateM b) SVal -> (SmtStateM b) SVal
 extractVec vec t acc = case t of
   Just (TRefine _ p)  -> svAnd <$> acc <*> (lexprToSmt vec p)
   _                   -> acc
 
-extractLExprs :: (Show b, Ord b) => [Maybe (Type t b)] -> LExpr t b -> (SmtStateM b) SVal -> (SmtStateM b) SVal
+extractLExprs :: (Show b, Ord b)
+              => [Maybe (Type t b)] -> LExpr t b -> (SmtStateM b) SVal -> (SmtStateM b) SVal
 extractLExprs vec l acc = svAnd <$> acc <*> lexprToSmt vec l
 
-strToPrimInt:: [Char] -> PrimInt
+strToPrimInt :: [Char] -> PrimInt
 strToPrimInt "U8"  = U8
 strToPrimInt "U16" = U16
 strToPrimInt "U32" = U32
@@ -136,7 +109,7 @@ primIntToSmt u
                | u == Boolean -> 1 -- fixme
       in KBounded False w
 
-bopToSmt :: Op -> (SVal -> SVal -> SVal)
+bopToSmt :: Op -> SVal -> SVal -> SVal
 bopToSmt Plus = svPlus
 bopToSmt Minus = svMinus
 bopToSmt Times = svTimes
@@ -156,61 +129,25 @@ bopToSmt BitXor = svXOr
 bopToSmt LShift = svShiftLeft
 bopToSmt RShift = svShiftRight
 
-uopToSmt :: Op -> (SVal -> SVal)
+uopToSmt :: Op -> SVal -> SVal
 uopToSmt Not = svNot
 uopToSmt Complement = svNot
 
 lexprToSmt :: (Show b, Ord b) => [Maybe (Type t b)] -> LExpr t b -> (SmtStateM b) SVal
 lexprToSmt vec (LVariable (t, vn)) = 
-      do
-            m <- use vars
-            let newn = show t
-            case M.lookup newn m of
-              Nothing -> let Just t' = vec !! (natToInt t) in
-                do
-                  t'' <- typeToSmt vec t'
-                  sv <- mkQSymVar SMT.ALL newn t''
-                  vars %= (M.insert newn sv)
-                  return sv
-              Just sv -> return sv
+  do m <- use vars
+     let newn = show t
+     case M.lookup newn m of
+       Nothing -> let Just t' = vec !! (natToInt t) in
+                   do t'' <- typeToSmt vec t'
+                      sv <- mkQSymVar SMT.ALL newn t''
+                      vars %= (M.insert newn sv)
+                      return sv
+       Just sv -> return sv
 
-  -- case t of
-  --   Zero -> do 
-  --           tar <- use target
-  --           newvn <- case tar of
-  --             Nothing   -> do 
-  --                             target <<.= (Just vn) 
-  --                             return vn
-  --             Just name -> return name
-  --           m <- use vars
-  --           case M.lookup newvn m of
-  --             Nothing -> let Just t' = vec `nvAt` t in
-  --               do
-  --                 t'' <- typeToSmt vec t'
-  --                 sv <- mkQSymVar SMT.ALL (show newvn) t''
-  --                 vars %= (M.insert newvn sv)
-  --                 return sv
-  --             Just sv -> return sv
-  --   _  -> do
-  --           m <- use vars
-  --           case M.lookup vn m of
-  --             Nothing -> let Just t' = vec `nvAt` t in
-  --               do
-  --                 t'' <- typeToSmt vec t'
-  --                 sv <- mkQSymVar SMT.ALL (show vn) t''
-  --                 vars %= (M.insert vn sv)
-  --                 return sv
-  --             Just sv -> return sv
--- lexprToSmt (LFun fn ts ls) = LFun fn (map upshiftVarType ts) ls
 lexprToSmt vec (LOp op [e]) = (liftA $ uopToSmt op) $ lexprToSmt vec e
-lexprToSmt vec (LOp op [e1, e2]) = (liftA2 $ bopToSmt op) (lexprToSmt vec e1) (lexprToSmt vec e2)
--- lexprToSmt (LApp a b) = LApp (upshiftVarLExpr a) (upshiftVarLExpr b)
--- lexprToSmt (LCon tn e t) = LCon tn (upshiftVarLExpr e) (upshiftVarType t)
--- lexprToSmt (LUnit) =
--- lexprToSmt vec (LILit i Boolean)
---   = case i of
---       0 -> return svFalse
---       1 -> return svTrue
+lexprToSmt vec (LOp op [e1, e2]) =
+  (liftA2 $ bopToSmt op) (lexprToSmt vec e1) (lexprToSmt vec e2)
 lexprToSmt vec (LILit i pt) = 
   return $ case pt of
     U8      -> svInteger (KBounded False 8 ) i
@@ -221,10 +158,6 @@ lexprToSmt vec (LILit i pt) =
       0 -> svFalse
       1 -> svTrue
 lexprToSmt vec (LSLit s) = return $ svUninterpreted KString "" Nothing []
--- lexprToSmt (LLet a e1 e2) = LLet a (upshiftVarLExpr e1) (upshiftVarLExpr e2)
--- lexprToSmt (LLetBang bs a e1 e2) = LLetBang bs a (upshiftVarLExpr e1) (upshiftVarLExpr e2)
--- lexprToSmt (LTuple e1 e2) = LTuple (upshiftVarLExpr e1) (upshiftVarLExpr e2)
--- lexprToSmt (LStruct fs) = LStruct $ map (\(fn, e) -> (fn, upshiftVarLExpr e)) fs
 lexprToSmt vec (LIf c t e) = do
     c' <- lexprToSmt vec c
     t' <- lexprToSmt vec t
@@ -232,19 +165,7 @@ lexprToSmt vec (LIf c t e) = do
     let thenBranch = svOr (svNot c') t'   -- c => t
         elseBranch = svOr c' e'           -- ~c => e
     return $ svAnd thenBranch elseBranch 
--- lexprToSmt (LCase e tn (v1, a1) (v2, a2)) = LCase (upshiftVarLExpr e) tn (v1, upshiftVarLExpr a1) (v2, upshiftVarLExpr a2)
--- lexprToSmt (LEsac e) = LEsac $ upshiftVarLExpr e
--- lexprToSmt (LSplit (v1, v2) e1 e2) = LSplit (v1, v2) (upshiftVarLExpr e1) (upshiftVarLExpr e2)
--- lexprToSmt (LMember x f) = LMember (upshiftVarLExpr x) f
--- lexprToSmt (LTake (a,b) rec f e) = LTake (a,b) rec f (upshiftVarLExpr e)
--- lexprToSmt (LPut rec f v) = LPut rec f (upshiftVarLExpr v)
--- lexprToSmt (LPromote t e) = LPromote (upshiftVarType t) (upshiftVarLExpr e)
--- lexprToSmt (LCast t e) = LCast (upshiftVarType t) (upshiftVarLExpr e)
 lexprToSmt _ _ = freshVal >>= \vn -> return $ svUninterpreted KString vn Nothing []
-
--- toBaseType :: Type t b -> Type t b
--- toBaseType (TRefine t _) = t
--- toBaseType x = x
 
 typeToSmt :: [Maybe (Type t b)] -> Type t b -> (SmtStateM b) SMT.Kind
 typeToSmt vec (TVar v) = do
@@ -253,17 +174,10 @@ typeToSmt vec (TVar v) = do
 typeToSmt vec (TVarBang v) = varIndexToSmt vec (finInt v)
 typeToSmt vec (TVarUnboxed v) = varIndexToSmt vec (finInt v)
 typeToSmt vec (TPrim pt) = return $ primIntToSmt pt
--- typeToSmt (TString) = typename "String"
 typeToSmt vec (TUnit) = return $ KTuple []
 typeToSmt vec (TProduct t1 t2) = do 
   ts <- mapM (typeToSmt vec) [t1, t2]
   return $ KTuple ts
--- typeToSmt (TSum alts) = variant (map (\(n,(t,b)) -> tagname n L.<> prettyTaken b <+> pretty t) alts)
--- typeToSmt (TFun t1 t2) = prettyT' t1 <+> typesymbol "->" <+> pretty t2
--- typeToSmt (TRecord rp fs s) = pretty rp <+> record (map (\(f,(t,b)) -> fieldname f <+> symbol ":" L.<> prettyTaken b <+> pretty t) fs)
--- typeToSmt vec (TCon "Bool" [] Unboxed) = return $ KBool
--- typeToSmt vec (TCon "String" [] Unboxed) = return $ KString
--- typeToSmt vec (TCon n [] Unboxed) = return $ primIntToSmt $ strToPrimInt n
 typeToSmt vec (TRefine t _) = typeToSmt vec t
 #if MIN_VERSION_sbv(8,8,0)
 typeToSmt vec t = freshVal >>= \s -> return (KUserSort s (Just [s])) -- check
@@ -271,12 +185,13 @@ typeToSmt vec t = freshVal >>= \s -> return (KUserSort s (Just [s])) -- check
 typeToSmt vec t = freshVal >>= \s -> return (KUninterpreted s (Left s)) -- check
 #endif
 
-varIndexToSmt :: [Maybe (Type t b)]-> Int -> (SmtStateM b) SMT.Kind
+varIndexToSmt :: [Maybe (Type t b)] -> Int -> (SmtStateM b) SMT.Kind
 varIndexToSmt vec i = do
   case (vec !! i) of
     Just t' -> typeToSmt vec t'
 
-smtProve :: (L.Pretty b, Show b, Ord b) => TcVec t v b -> [LExpr t b] -> Type t b -> Type t b -> IO Bool
+smtProve :: (L.Pretty b, Show b, Ord b)
+         => TcVec t v b -> [LExpr t b] -> Type t b -> Type t b -> IO Bool
 smtProve v ls rt1@(TRefine t1 p1) rt2@(TRefine t2 p2) = do
     -- traceTc "infer/smt" (pretty ls)
     let v' = tcVecToList 1 v
@@ -288,7 +203,7 @@ smtProve v ls rt1@(TRefine t1 p1) rt2@(TRefine t2 p2) = do
                    }
     -- ugly dump
     dumpMsgIfTrue False (L.hardline L.<> L.text "Running core-tc SMT on refinement types:"
-                      L.<$>             L.text "----------------------------------------"
+                      L.<$>              L.text "----------------------------------------"
                       L.<$> indent' (L.pretty rt1)
                       L.<$> indent' (L.pretty rt2)
                       L.<$> L.text "Types in context:"
@@ -301,13 +216,13 @@ smtProve v ls rt1@(TRefine t1 p1) rt2@(TRefine t2 p2) = do
                       )
     -- pretty
     dumpMsgIfTrue True (
-                      L.text "Gamma =" L.<+> (prettyGamma v' ls')
-                      L.<$> L.text "Gamma" L.<+> L.dullyellow (L.text "|-") 
-                          L.<+> (L.pretty rt1) L.<+> L.dullyellow (L.text "<:") L.<+> (L.pretty rt2)
-                      -- L.<$> L.text "Gamma: " L.<+> (L.pretty v') L.<+> (L.pretty ls')
-                      -- L.<$> L.text "extract(Gamma) /\\" L.<+> (L.pretty p1) L.<+> L.text "==>" L.<+> (L.pretty p2) L.<> L.hardline
-                      L.<$> (prettyProofObligation ((typeListToPreds v') ++ ls') p1 p2) L.<> L.hardline
-                      )
+      L.text "Gamma =" L.<+> (prettyGamma v' ls')
+      L.<$> L.text "Gamma" L.<+> L.dullyellow (L.text "|-")
+      L.<+> (L.pretty rt1) L.<+> L.dullyellow (L.text "<:") L.<+> (L.pretty rt2)
+      -- L.<$> L.text "Gamma: " L.<+> (L.pretty v') L.<+> (L.pretty ls')
+      -- L.<$> L.text "extract(Gamma) /\\" L.<+> (L.pretty p1) L.<+> L.text "==>" L.<+> (L.pretty p2) L.<> L.hardline
+      L.<$> (prettyProofObligation ((typeListToPreds v') ++ ls') p1 p2) L.<> L.hardline
+      )
     smtRes <- liftIO (proveWith solver toProve)
     -- if its sat, then its not a subtype
     let ret = not $ modelExists smtRes
