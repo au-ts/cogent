@@ -5,5 +5,4 @@ type Lt10 = [x : U8 | x < 10]
 foo : U8 -> Lt5
 
 bar : U8 -> Lt10
-bar x = let y = foo x 
-         in y + 5 : Lt10
+bar x = let y = foo x in y + 5

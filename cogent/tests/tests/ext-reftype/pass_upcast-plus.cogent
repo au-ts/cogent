@@ -1,4 +1,4 @@
-chain_blocks_to_allocate: (U32, U64, U32) -> U64
+chain_blocks_to_allocate : (U32, U64, U32) -> U64
 chain_blocks_to_allocate (indirect, blocks, boundary) = 
     if blocks < upcast boundary + 1
       then blocks
