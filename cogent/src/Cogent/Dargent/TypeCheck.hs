@@ -48,6 +48,7 @@ import Debug.Trace
 
 data TCDataLayout   = TL { unTCDataLayout :: DataLayoutExpr' TCDataLayout }
                     | TLU Int
+                    | TLDU Int
                     deriving (Show, Data, Eq, Ord)
 
 pattern TLPrim s       = TL (Prim s)
@@ -77,8 +78,9 @@ toDLExpr (TLAfter e f)  = DLAfter (toDLExpr e) f
 toDLExpr (TLRepRef n s) = DLRepRef n $ toDLExpr <$> s
 toDLExpr (TLVar n) = DLVar n
 toDLExpr TLPtr = DLPtr
-toDLExpr TLDefault = DLDefault
+toDLExpr TLDefault = __impossible "toDLExpr: TLDefault shouldn't be used"
 toDLExpr (TLU _) = __impossible "toDLExpr: layout unifiers shouldn't be here"
+toDLExpr (TLDU _) = __impossible "toDLExpr: default layout unifiers shouldn't be here"
 
 toTCDL :: DataLayoutExpr -> TCDataLayout
 toTCDL (DLPrim n) = TLPrim n
@@ -92,7 +94,7 @@ toTCDL (DLAfter e s) = TLAfter (toTCDL e) s
 toTCDL (DLRepRef n s) = TLRepRef n $ toTCDL <$> s
 toTCDL (DLVar n) = TLVar n
 toTCDL DLPtr = TLPtr
-toTCDL DLDefault = TLDefault
+toTCDL DLDefault = __impossible "toTCDL: TLDefault shouldn't be used"
 
 repRefTL :: TCDataLayout -> [RepName]
 repRefTL (TLOffset e _) = repRefTL e
@@ -105,6 +107,7 @@ repRefTL (TLArray e _) = repRefTL e
 repRefTL (TLRepRef n s) = n : concatMap repRefTL s
 repRefTL _ = []
 
+-- | Get allocation end of record or variant field
 fieldEnd :: [(FieldName, TCDataLayout)] -> FieldName -> Except [DataLayoutTcError] Size
 fieldEnd t f = case fromJust $ lookup f t of
   TLAfter e f' -> (+) <$> fieldEnd t f' <*> mapExcept (second allocationEnd) (checkAlloc e)
@@ -191,8 +194,10 @@ checkAlloc (TLArray e p) = mapPaths (InElmt p) $ checkAlloc e
 checkAlloc TLPtr = return $ singletonAllocation (pointerBitRange, PathEnd)
 checkAlloc TLDefault = __impossible "checkAlloc: TLDefault should be checked at its parent level"
 checkAlloc (TLU n) = return $ undeterminedAllocation n
+checkAlloc (TLDU n) = return $ undeterminedAllocation n
 checkAlloc (TLVar n) = return emptyAllocation
 checkAlloc l = __impossible $ "checkAlloc; tried to typecheck unexpected layout: " ++ show l
+
 
 -- | Replaces refs with concrete layout expression
 normaliseLayout :: NamedDataLayouts -> TCDataLayout -> TCDataLayout
@@ -211,7 +216,6 @@ normaliseLayout env (TLArray l p) = TLArray (normaliseLayout env l) p
 normaliseLayout _ (TLPrim n) = TLPrim n
 normaliseLayout _ (TLVar n) = TLVar n
 normaliseLayout _ TLPtr = TLPtr
-normaliseLayout _ TLDefault = TLDefault
 normaliseLayout _ l = __impossible $ "normaliseLayout: unexpeced layout " ++ show l
 
 -- | Substitutes layout variables with concrete layouts

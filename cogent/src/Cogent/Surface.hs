@@ -639,7 +639,6 @@ dvE (RE e) = foldMap dvE e
 allRepRefs :: DataLayoutExpr -> [RepName]
 allRepRefs (DL d) = allRepRefs' d
   where
-    allRepRefs' (Prim _) = []
     allRepRefs' (Record fs) = concatMap (allRepRefs . thd3) fs
     allRepRefs' (Variant tag cs) = allRepRefs tag ++ concatMap (\(_,_,_,e) -> allRepRefs e) cs
 #ifdef BUILTIN_ARRAYS
@@ -648,8 +647,7 @@ allRepRefs (DL d) = allRepRefs' d
     allRepRefs' (Offset e _) = allRepRefs e
     allRepRefs' (After e _) = allRepRefs e
     allRepRefs' (RepRef n s) = n : concatMap allRepRefs s
-    allRepRefs' (LVar _) = []
-    allRepRefs' Ptr = []
+    allRepRefs' _ = []
 
 
 -- -----------------------------------------------------------------------------

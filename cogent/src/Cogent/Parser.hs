@@ -112,6 +112,7 @@ repSize = avoidInitial >> buildExpressionParser [[Infix (reservedOp "+" *> pure 
                x <- fromIntegral <$> natural
                (Bits <$ reserved "b" <*> pure x <|> Bytes <$ reserved "B" <*> pure x))
 
+-- WIP: disallow top level default
 repExpr :: Parser DataLayoutExpr
 repExpr = repExpr' offsetOT (repRefM offsetOT) <|> parens repExpr
   where

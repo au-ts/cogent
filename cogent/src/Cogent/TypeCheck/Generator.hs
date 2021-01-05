@@ -195,10 +195,9 @@ validateType (RT t) = do
 #endif
 
     TLayout l t -> do
-      (c,l') <- unifyTypeLayout t l
-      (cl,l'') <- validateLayout l'
+      (cl,l') <- validateLayout l
       (ct,t') <- validateType t
-      pure (c <> cl <> ct <> LayoutOk t', T $ TLayout l'' t')
+      pure (cl <> ct <> LayoutOk t', T $ TLayout l' t')
 
     -- vvv The uninteresting cases; but we still have to match each of them to convince the typechecker / zilinc
     TRPar v b ctxt -> (second T) <$> fmapFoldM validateType (TRPar v b ctxt)
@@ -224,7 +223,7 @@ validateTypes = fmapFoldM validateType
 
 -- --------------------------------------------------------------------------
 
-validateLayout :: DataLayoutExpr -> CG (Constraint, TCDataLayout)
+validateLayout :: (?loc :: SourcePos) => DataLayoutExpr -> CG (Constraint, TCDataLayout)
 validateLayout = let unsat = Unsat . DataLayoutError in \case
   DLRepRef n s   -> do
     (c, s') <- validateLayouts s
@@ -262,109 +261,11 @@ validateLayout = let unsat = Unsat . DataLayoutError in \case
     if n `elem` lvs
        then return (Sat, TLVar n)
        else return (unsat $ unknownDataLayoutVar n, TLVar n)
+  DLDefault      -> (Sat,) <$> freshDLVar
   DLPtr          -> return (Sat, TLPtr)
 
-validateLayouts :: Traversable t => t DataLayoutExpr -> CG (Constraint, t TCDataLayout)
+validateLayouts :: (?loc :: SourcePos, Traversable t) => t DataLayoutExpr -> CG (Constraint, t TCDataLayout)
 validateLayouts = fmapFoldM validateLayout
-
--- -----------------------------------------------------------------------------
-
--- WIP
-unifyTypeLayout :: RawType -> DataLayoutExpr -> CG (Constraint, DataLayoutExpr)
-unifyTypeLayout (RT t) l | hasDefaultLayout l = unifyTypeLayout' t l
-                         | otherwise = sat l
-  where
-    unexpectedDefault' = pure . (Unsat . DataLayoutError $ unexpectedDefault,)
-    sat = pure . (Sat,)
-    unifyTypeLayout' :: Type RawExpr DataLayoutExpr RawType -> DataLayoutExpr -> CG (Constraint, DataLayoutExpr)
-    unifyTypeLayout' t@(TRecord rp fs s) DLDefault
-      | Boxed _ (Just l) <- s = sat l
-      | Boxed _ Nothing <- s  = sat . genDefaultLayout $ toUnboxedType t
-    unifyTypeLayout' t@(TRecord rp fs s) (DLRecord fls) = second DLRecord <$>
-      foldM (\(cs,ls) (f,p,m) -> do (c,l) <- m; pure (cs <> c, (f,p,l):ls)) (Sat,[]) (do
-        (fn,(t,_)) <- fs
-        (fn',p,l) <- fls
-        guard $ fn == fn'
-        return (fn,p,if hasDefaultLayout l then unifyTypeLayout' (unRT t) l else sat l))
-    unifyTypeLayout' t@(TArray te l s tkns) DLDefault
-      | Boxed _ (Just l) <- s = sat l
-      | Boxed _ Nothing <- s  = sat . genDefaultLayout $ toUnboxedType t
-    unifyTypeLayout' t@(TArray te l s tkns) (DLArray e _) = unifyTypeLayout' (unRT te) e
-    unifyTypeLayout' t@(TVariant fs) DLDefault = sat . genDefaultLayout $ RT t
-    unifyTypeLayout' t@(TVariant fs) l@(DLVariant e fls)
-      | hasDefaultLayout e = unexpectedDefault' l
-      | otherwise          = second (DLVariant e) <$>
-        foldM (\(cs,ls) (f,p,v,m) -> do (c,l) <- m; pure (cs <> c, (f,p,v,l):ls)) (Sat,[]) (do
-          (fn,p,v,l) <- fls
-          case M.lookup fn fs of
-            Just ([t],_) -> return (fn,p,v,if hasDefaultLayout l then unifyTypeLayout' (unRT t) l else sat l)
-            Just _       -> __todo "unifyTypeLayout: multifield of TVariant"
-            Nothing      -> mempty)
-    unifyTypeLayout' t DLDefault = sat . genDefaultLayout $ RT t
-    unifyTypeLayout' t l = sat l
-
-toUnboxedType :: Type RawExpr DataLayoutExpr RawType -> RawType
-toUnboxedType (TRecord rp fs (Boxed _ _)) = RT $ TRecord rp fs Unboxed
-#ifdef BUILTIN_ARRAYS
-toUnboxedType (TArray te l (Boxed _ _) tkns) = RT $ TArray te l Unboxed tkns
-#endif
-toUnboxedType (TUnbox t) = toUnboxedType (unRT t)
-toUnboxedType t = RT t
-
-hasDefaultLayout :: DataLayoutExpr -> Bool
-hasDefaultLayout (DLPrim _) = False
-hasDefaultLayout (DLRecord fs) = any (hasDefaultLayout . thd3) fs
-hasDefaultLayout (DLVariant e fs) = any (hasDefaultLayout . (\(a,b,c,d) -> d)) fs || hasDefaultLayout e
-#ifdef BUILTIN_ARRAYS
-hasDefaultLayout (DLArray e _) = hasDefaultLayout e
-#endif
-hasDefaultLayout (DLOffset e _) = hasDefaultLayout e
-hasDefaultLayout (DLAfter e _) = hasDefaultLayout e
-hasDefaultLayout (DLRepRef _ es) = any hasDefaultLayout es
-hasDefaultLayout (DLVar _) = False
-hasDefaultLayout DLPtr = False
-hasDefaultLayout DLDefault = True
-
-genDefaultLayout :: RawType -> DataLayoutExpr
-genDefaultLayout (RT t) = case t of
-  TRecord rp fs s
-    | Unboxed <- s   -> DLRecord . fst $ foldl (\(l,mf) (f,(t,_)) ->
-      ((f,noPos,case mf of Just fn -> DLAfter (genDefaultLayout t) fn
-                           Nothing -> genDefaultLayout t):l, Just f)) ([],Nothing) fs
-    | Boxed _ _ <- s -> DLPtr
-  TVariant fs ->
-    let (fs',_,tv) = M.foldlWithKey
-          (\(l,mf,tv) f (ts,_) ->
-            ((f,noPos,tv,case mf of Just fn -> DLAfter (foldDefaultLayout $ genDefaultLayout <$> ts) fn
-                                    Nothing -> foldDefaultLayout $ genDefaultLayout <$> ts):l, Just f, tv+1))
-          ([],Nothing,0) fs
-        sz = Bits . ceiling . logBase 2.0 . fromIntegral $ tv
-     in DLVariant (DLPrim sz) (fmap (fourth4 (`DLOffset` sz)) fs')
-#ifdef BUILTIN_ARRAYS
-  TArray te l s tkns
-    | Unboxed <- s    -> flip DLArray noPos $ genDefaultLayout te
-    | Boxed _ _  <- s -> DLPtr
-#endif
-  TCon tn [] Unboxed
-    | tn == "U8"   -> DLPrim (Bytes 1)
-    | tn == "U16"  -> DLPrim (Bytes 2)
-    | tn == "U32"  -> DLPrim (Bytes 4)
-    | tn == "U64"  -> DLPrim (Bytes 8)
-    | tn == "Bool" -> DLPrim (Bytes 1)
-  TUnbox t -> genDefaultLayout (toUnboxedType (unRT t))
-  _ -> __todo "genDefaultLayout: type reprefs and so on"
-
-foldDefaultLayout :: [DataLayoutExpr] -> DataLayoutExpr
-foldDefaultLayout = foldl foldDefaultLayout' (DLPrim (Bytes 0))
-  where
-    foldDefaultLayout' (DLPrim n) (DLPrim a) = DLPrim . Add n $ a
-    foldDefaultLayout' (DLPrim n) DLPtr = DLPrim . Add n $ Bits pointerSizeBits
-    foldDefaultLayout' (DLPrim n) (DLRecord fs) = __todo "foldDefaultLayout': DLPrim \\/ DLRecord"
-    foldDefaultLayout' (DLPrim n) (DLVariant e fs) = __todo "foldDefaultLayout': DLPrim \\/ DLVariant"
-#ifdef BUILTIN_ARRAYS
-    foldDefaultLayout' (DLPrim n) (DLArray e _) = __todo "foldDefaultLayout': DLPrim \\/ DLArray"
-#endif
-
 
 -- -----------------------------------------------------------------------------
 -- Layout-related constraints
@@ -1045,6 +946,9 @@ freshEVar t = SU t <$> freshVar
 
 freshLVar :: (?loc :: SourcePos) => CG TCDataLayout
 freshLVar = TLU <$> freshVar
+
+freshDLVar :: (?loc :: SourcePos) => CG TCDataLayout
+freshDLVar = TLDU <$> freshVar
 
 freshRPVar :: (?loc :: SourcePos) => CG RP
 freshRPVar = UP <$> freshVar

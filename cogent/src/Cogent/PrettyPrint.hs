@@ -700,7 +700,8 @@ instance Pretty DataLayoutExpr where
 
 instance Pretty TCDataLayout where
   pretty (TL l) = pretty l
-  pretty (TLU n) = warn ('?':show n)
+  pretty (TLU n) = warn ("?" ++ show n)
+  pretty (TLDU n) = warn ("?d" ++ show n)
 
 instance Pretty Metadata where
   pretty (Constant {constName})              = err "the binding" <+> funname constName <$> err "is a global constant"

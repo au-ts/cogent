@@ -15,6 +15,7 @@ module Cogent.TypeCheck.Solver.Unify where
 import           Cogent.Common.Syntax
 import           Cogent.Common.Types
 import           Cogent.Compiler
+import           Cogent.Dargent.DefaultGen
 import           Cogent.Dargent.TypeCheck
 import           Cogent.Surface
 import qualified Cogent.TypeCheck.ARow           as ARow
@@ -123,6 +124,8 @@ assignOf (R rp1 _ _ :< R rp2 _ _ )
       _            -> empty 
 
 assignOf (l1 :~< l2) = assignOfL l1 l2
+
+assignOf (TLDU n :~ t) | Just l <- genDefaultLayout t = pure [Subst.ofLayout n l]
 
 #ifdef BUILTIN_ARRAYS
 -- TODO: This will be moved to a separately module for SMT-solving. Eventually the results

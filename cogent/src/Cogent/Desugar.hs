@@ -654,7 +654,6 @@ desugarLayout l = Layout <$> desugarLayout' l
         alts' <- mapM f alts
         pure $ SumLayout tr (M.fromList alts')
       TLPtr -> pure $ PrimLayout DA.pointerBitRange
-      TLDefault -> __todo "desugarLayout: TLDefault"
 #ifdef BUILTIN_ARRAYS
       TLArray e _ -> ArrayLayout <$> desugarLayout' e
 #endif

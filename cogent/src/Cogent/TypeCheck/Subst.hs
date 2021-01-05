@@ -164,6 +164,9 @@ applyL :: Subst -> TCDataLayout -> TCDataLayout
 applyL (Subst m) (TLU n)
   | Just (Layout' l) <- M.lookup n m = applyL (Subst m) l
   | otherwise = TLU n
+applyL (Subst m) (TLDU n)
+  | Just (Layout' l) <- M.lookup n m = l
+  | otherwise = TLDU n
 applyL s (TLRecord fs) = TLRecord $ (\(a,b,c) -> (a,b,applyL s c)) <$> fs
 applyL s (TLVariant e fs) = TLVariant (applyL s e) $
                                       (\(a,b,c,d) -> (a,b,c,applyL s d)) <$> fs

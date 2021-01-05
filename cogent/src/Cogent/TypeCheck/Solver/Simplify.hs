@@ -162,6 +162,7 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
   LayoutOk (A t e (Left Unboxed) h) -> hoistMaybe $ Just [LayoutOk t]
 #endif
   LayoutOk t -> hoistMaybe $ Just []  -- for all the rest, the layouts should be trivially well-formed, as there's no layout.
+
   TLVar n        :~ tau | Just t <- lookup n lts -> hoistMaybe $ Just [tau :~~ t]  -- `l :~ t ==> l :~ tau` gets simplified to `tau :~~ t`
   TLRepRef _ _   :~ _ -> hoistMaybe Nothing
 
@@ -212,6 +213,8 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
 #endif
   _              :~ Synonym _ _      -> hoistMaybe Nothing
   l              :~ tau | TLU _ <- l -> hoistMaybe Nothing
+                        | TLDU _ <- l -> hoistMaybe Nothing
+                        | otherwise  -> unsat $ LayoutDoesNotMatchType l tau -- all legal cases should be listed above
 
   TLRepRef _ _     :~< TLRepRef _ _  -> hoistMaybe Nothing
   TLRepRef _ _     :~< _             -> hoistMaybe Nothing
