@@ -20,6 +20,7 @@
 module Cogent.Dargent.TypeCheck where
 
 import qualified Data.Graph.Wrapper as G
+import Data.List ((\\))
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Maybe (fromJust, fromMaybe)
@@ -27,13 +28,13 @@ import Data.Maybe (fromJust, fromMaybe)
 import Control.Monad (guard, when, foldM)
 import Control.Monad.Trans.Except
 
-import Cogent.Common.Syntax (FieldName, TagName, DataLayoutName, Size, DLVarName)
+import Cogent.Common.Syntax (FieldName, TagName, DataLayoutName, Size, DLVarName, RepName)
 import Cogent.Common.Types (Sigil)
 import Cogent.Compiler (__fixme, __impossible, __todo)
 import Cogent.Dargent.Allocation
 import Cogent.Dargent.Surface
 import Cogent.Dargent.Util
-import Cogent.Util (WriterMaybe, tellEmpty, mapTells, third3, fourth4)
+import Cogent.Util (WriterMaybe, tellEmpty, mapTells, third3, fourth4, fst3, thd3)
 import Cogent.Surface (Type(..))
 import qualified Cogent.TypeCheck.LRow as LRow
 
@@ -269,6 +270,7 @@ data DataLayoutTcErrorP p
   | DataLayoutArgsNotMatch  DataLayoutName Int Int p
   | OverlappingFields       [FieldName] p
   | CyclicFieldDepedency    [FieldName] p
+  | NonExistingFields       [FieldName] p
   deriving (Eq, Show, Ord, Functor)
 
 
@@ -316,6 +318,9 @@ overlappingFields fs = OverlappingFields fs PathEnd
 
 cyclicFieldDependency :: G.SCC FieldName -> DataLayoutTcError
 cyclicFieldDependency (G.CyclicSCC fs) = CyclicFieldDepedency fs PathEnd
+
+nonExistingFields :: [FieldName] -> DataLayoutTcError
+nonExistingFields fs = NonExistingFields fs PathEnd
 
 mapPaths
   :: (DataLayoutPath -> DataLayoutPath)

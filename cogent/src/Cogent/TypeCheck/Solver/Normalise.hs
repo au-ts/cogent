@@ -91,12 +91,12 @@ normaliseRWT = rewrite' $ \case
 
 #ifdef BUILTIN_ARRAYS
     T (TATake [idx] (A t l s (Right _))) ->
-      __impossible "normaliseRW: TATake over a hole variable"
+      __impossible "normaliseRWT: TATake over a hole variable"
     T (TATake [idx] (A t l s (Left Nothing))) ->
       let l' = normaliseSExpr l
        in pure $ A t l s (Left $ Just idx)
     T (TAPut [idx] (A t l s (Right _))) ->
-      __impossible "normaliseRW: TAPut over a hole variable"
+      __impossible "normaliseRWT: TAPut over a hole variable"
     T (TAPut [idx] (A t l s (Left (Just idx')))) | idx == idx' -> 
       let l' = normaliseSExpr l
        in pure $ A t l s (Left Nothing)
@@ -105,7 +105,7 @@ normaliseRWT = rewrite' $ \case
     T (TLayout l (R rp row (Left (Boxed p _)))) ->
       pure $ R rp row $ Left $ Boxed p (Just l)
     T (TLayout l (R _ row (Right i))) ->
-      __impossible "normaliseRW: TLayout over a sigil variable (R)"
+      __impossible "normaliseRWT: TLayout over a sigil variable (R)"
 #ifdef BUILTIN_ARRAYS
     T (TLayout l (A t n (Left (Boxed p _)) tkns)) ->
       pure $ A t n (Left (Boxed p (Just l))) tkns
@@ -135,13 +135,13 @@ whnf input = do
         _                -> pure input
     fromMaybe step <$> runMaybeT (runRewriteT (untilFixedPoint $ debug "Normalise Type" printPretty normaliseRWT) step)
 
--- TODO: TLAfter
 normaliseRWL :: RewriteT TcSolvM TCDataLayout
 normaliseRWL = rewrite' $ \case
   TLRepRef n s -> do
     ls <- view knownDataLayouts
     case M.lookup n ls of
-      Just (vars, expr) -> MaybeT $ Just <$> normL (substTCDataLayout (zip vars s) expr)
+      Just (vars, expr) | length vars == length s -> MaybeT $ Just <$> normL (substTCDataLayout (zip vars s) expr)
+                        | otherwise -> __impossible "normaliseRWL: data layout args mismatch"
       _ -> __impossible "normaliseRWL: missing layout synonym"
   _ -> empty
 

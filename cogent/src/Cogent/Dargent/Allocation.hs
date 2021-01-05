@@ -38,6 +38,7 @@ module Cogent.Dargent.Allocation
   , (/\)
   , overlaps
   , isZeroSizedAllocation
+  , allocationEnd
   , AlignedBitRange (..)
   , alignSize
   , alignOffsettable
@@ -56,6 +57,7 @@ import GHC.Generics (Generic)
 import Cogent.Common.Types
 import Cogent.Common.Syntax
 import Cogent.Compiler
+import Cogent.Dargent.Surface
 import Cogent.Dargent.Util
 import Cogent.Util
 
@@ -124,25 +126,25 @@ newtype OverlappingAllocationBlocks p =
 -- Represents the set which is the union of the sets represented by the 'BitRange's in the list.
 --
 -- We keep an internal invariant that the list is sorted.
-newtype Allocation' p = Allocation { unAllocation :: [AllocationBlock p] }
+data Allocation' p = Allocation { unAllocation :: [AllocationBlock p], unAllocationUnifier :: Maybe [Int] }
   deriving (Eq, Show, Ord, Functor)
 
 instance Offsettable (Allocation' p) where
-  offset n = Allocation . fmap (first (offset n)) . unAllocation
+  offset n a = flip Allocation (unAllocationUnifier a) $ (fmap (first (offset n)) . unAllocation) a
 
 emptyAllocation :: Allocation' p
-emptyAllocation = Allocation []
+emptyAllocation = Allocation [] Nothing
 
 singletonAllocation :: AllocationBlock p -> Allocation' p
-singletonAllocation b = Allocation [b]
+singletonAllocation b = Allocation [b] Nothing
 
-undeterminedAllocation :: Allocation' p
-undeterminedAllocation = __fixme $ Allocation [] -- FIXME: we may need different rep
+undeterminedAllocation :: Int -> Allocation' p
+undeterminedAllocation n = Allocation [] $ Just [n]
 
 -- | Disjunction of allocations
 --
 (\/) :: forall p. Ord p => Allocation' p -> Allocation' p -> Allocation' p
-(Allocation a1) \/ (Allocation a2) = Allocation (a1 ++ a2)
+(Allocation a1 u1) \/ (Allocation a2 u2) = Allocation (a1 ++ a2) $ (++) <$> u1 <*> u2
 
 
 -- | Conjunction of allocations
@@ -152,10 +154,10 @@ undeterminedAllocation = __fixme $ Allocation [] -- FIXME: we may need different
 -- It will either succeed, with an allocation, or return overlapping allocation blocks
 -- if the two allocations overlap.
 (/\) :: forall p. Ord p => Allocation' p -> Allocation' p -> Either [OverlappingAllocationBlocks p] (Allocation' p)
-(Allocation a1) /\ (Allocation a2) =
+(Allocation a1 u1) /\ (Allocation a2 u2) =
   case allOverlappingBlocks a1 a2 of
     overlappingBlocks@(_ : _) -> Left overlappingBlocks
-    []                        -> return $ Allocation (a1 ++ a2)
+    []                        -> return $ Allocation (a1 ++ a2) ((++) <$> u1 <*> u2)
   where
     allOverlappingBlocks :: [AllocationBlock p] -> [AllocationBlock p] -> [OverlappingAllocationBlocks p]
     allOverlappingBlocks xbs ybs =
@@ -176,7 +178,13 @@ overlaps (BitRange s1 o1) (BitRange s2 o2) =
   o1 < o2 + s2 && o2 < o1 + s1 && s1 > 0 && s2 > 0
 
 isZeroSizedAllocation :: Allocation' p -> Bool
-isZeroSizedAllocation = all (isZeroSizedBR . fst) . unAllocation
+isZeroSizedAllocation a = (all (isZeroSizedBR . fst) . unAllocation) a && (isNothing . unAllocationUnifier) a
+  where
+    isNothing Nothing = True
+    isNothing _       = False
+
+allocationEnd :: Allocation' p -> Size
+allocationEnd a = foldr max 0 $ (\b -> bitOffsetBR b + bitSizeBR b) . fst <$> unAllocation a
 
 
 type Allocation = Allocation' DataLayoutPath
