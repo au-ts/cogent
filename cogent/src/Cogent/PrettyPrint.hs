@@ -889,7 +889,7 @@ instance Pretty Constraint where
   pretty (l :~ n)         = pretty l </> warn ":~" </> pretty n
   pretty (l :~< m)        = pretty l </> warn ":~<" </> pretty m
   pretty (a :~~ b)        = pretty a </> warn ":~~" </> pretty b
-  pretty (Wellformed l)   = warn "Wellformed" <+> pretty l
+  pretty (WellformedLayout l) = warn "WellformedLayout" <+> pretty l
 
 -- a more verbose version of constraint pretty-printer which is mostly used for debugging
 prettyC :: Constraint -> Doc
@@ -1002,6 +1002,10 @@ instance Pretty DataLayoutTcError where
     err "Number of arguments for data layout synonym" <+> reprname n <+> err "not matched,"
     </> err "expected" <+> int exp <+> err "args, but actual" <+> int act <+> err "args"
     <$$> indent (pretty ctx)
+  pretty (OverlappingFields fs ctx) =
+    err "Overlapping fields" <+> foldr1 (<+>) (fmap fieldname fs) <$$> indent (pretty ctx)
+  pretty (CyclicFieldDepedency fs ctx) =
+    err "Cyclic dependency of fields" <+> foldr1 (<+>) (fmap fieldname fs) <$$> indent (pretty ctx)
 
 instance Pretty DataLayoutPath where
   pretty (InField n po ctx) = context' "for field" <+> fieldname n <+> context' "(" <> pretty po <> context' ")" </> pretty ctx

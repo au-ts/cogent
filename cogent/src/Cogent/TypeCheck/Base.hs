@@ -194,7 +194,7 @@ data Constraint' t l = (:<) t t
                      | (:~<) l l
                      | (:~~) t t  -- t1 :~~ t2 means that t1 can fit in any layout that t2 can fit in
                      | LayoutOk t
-                     | Wellformed l  -- TODO local env
+                     | WellformedLayout l
                      | (:@) (Constraint' t l) ErrorContext
                      | Unsat TypeError
                      | SemiSat TypeWarning
@@ -277,7 +277,7 @@ instance Bifunctor Constraint' where
   bimap f g (l  :~  t)         = (g l) :~ (f t)
   bimap f g (l1 :~< l2)        = (g l1) :~< (g l2)
   bimap f g (t1 :~~ t2)        = (f t1) :~~ (f t2)
-  bimap f g (Wellformed l)     = Wellformed (g l)
+  bimap f g (WellformedLayout l) = WellformedLayout (g l)
   bimap f g (c  :@  e)         = (bimap f g c) :@ e
   bimap f g (Exhaustive t ps)  = Exhaustive (f t) ps
   bimap f g (Solved t)         = Solved (f t)
@@ -305,7 +305,7 @@ instance Bitraversable Constraint' where
   bitraverse f g (l  :~  t)         = (:~)  <$> g l <*> f t
   bitraverse f g (l1 :~< l2)        = (:~<) <$> g l1 <*> g l2
   bitraverse f g (t1 :~~ t2)        = (:~~) <$> f t1 <*> f t2
-  bitraverse f g (Wellformed l)     = Wellformed <$> g l
+  bitraverse f g (WellformedLayout l) = WellformedLayout <$> g l
   bitraverse f g (c  :@  e)         = (:@)  <$> bitraverse f g c <*> pure e
   bitraverse f g (Exhaustive t ps)  = Exhaustive <$> f t <*> pure ps
   bitraverse f g (Solved t)         = Solved <$> f t
@@ -696,6 +696,7 @@ substLayoutL vs (TLVariant e fs) = TLVariant e $ (\(x,y,z,v) -> (x,y,z,substLayo
 substLayoutL vs (TLArray e p) = TLArray (substLayoutL vs e) p
 #endif
 substLayoutL vs (TLOffset e s) = TLOffset (substLayoutL vs e) s
+substLayoutL vs (TLAfter e f) = TLAfter (substLayoutL vs e) f
 substLayoutL vs (TLRepRef n es) = TLRepRef n $ fmap (substLayoutL vs) es 
 substLayoutL vs l = l
 
@@ -704,7 +705,7 @@ substLayout vs (T (TLayout l t)) = T (TLayout (substLayoutL vs l) t)
 substLayout vs (T t) = T (fmap (substLayout vs) t)
 substLayout vs (U x) = U x
 substLayout vs (V x) = V $ substLayout vs <$> x
-substLayout vs (R rp x s) = R rp (substLayout vs <$> x) (bimap (fmap (fmap (substLayoutL vs))) id s)
+substLayout vs (R rp x s) = R rp (substLayout vs <$> x) (first (fmap (fmap (substLayoutL vs))) s)
 #ifdef BUILTIN_ARRAYS
 substLayout vs (A t l s tkns) = A (substLayout vs t) l (bimap (fmap (fmap (substLayoutL vs))) id s) tkns
 #endif
@@ -763,6 +764,7 @@ unifLVars (TLVariant t ps) = unifLVars t <> concatMap unifLVars ((\(_,_,_,a) -> 
 unifLVars (TLArray e _) = unifLVars e
 #endif
 unifLVars (TLOffset e _) = unifLVars e
+unifLVars (TLAfter e _) = unifLVars e
 unifLVars _ = []
 
 unifLVarsS :: TCSigil -> [Int]
@@ -878,6 +880,7 @@ isTypeLayoutExprCompatible env (T (TArray t _ (Boxed {}) _)) (TLPtr) = True
 isTypeLayoutExprCompatible env (T (TArray t _ Unboxed _)) (TLArray l _) = isTypeLayoutExprCompatible env t l
 #endif
 isTypeLayoutExprCompatible env t (TLOffset l _) = isTypeLayoutExprCompatible env t l
+isTypeLayoutExprCompatible env t (TLAfter l _) = isTypeLayoutExprCompatible env t l
 isTypeLayoutExprCompatible env t (TLRepRef n s) =
   case M.lookup n env of
     Just (v, l) -> isTypeLayoutExprCompatible env t (substTCDataLayout (zip v s) l)
