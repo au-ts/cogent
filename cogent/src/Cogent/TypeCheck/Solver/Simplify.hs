@@ -363,6 +363,10 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
   NotReadOnly (Left (Boxed False _)) -> hoistMaybe $ Just []
   NotReadOnly (Left (Unboxed      )) -> hoistMaybe $ Just []
 
+  -- TODO TODO TODO
+  Wellformed l -> hoistMaybe $ Just []
+  -- TODO TODO TODO
+
   t -> hoistMaybe $ Nothing
 
 -- | Returns 'True' iff the given argument type is not subject to subtyping. That is, if @a :\< b@

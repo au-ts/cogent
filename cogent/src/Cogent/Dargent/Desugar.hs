@@ -37,6 +37,7 @@ import Cogent.Common.Syntax         ( DataLayoutName
                                     , FieldName
                                     )
 import Cogent.Common.Types          ( Sigil(Unboxed, Boxed), PrimInt(..))
+import Cogent.Core                  ( Type(..) )
 import Cogent.Dargent.Allocation
 import Cogent.Dargent.Core
 import Cogent.Dargent.Surface       ( DataLayoutSize(Bytes, Bits, Add)
@@ -44,8 +45,8 @@ import Cogent.Dargent.Surface       ( DataLayoutSize(Bytes, Bits, Add)
                                     , DataLayoutExpr'(..)
                                     , evalSize
                                     )
+import Cogent.Dargent.TypeCheck     ( TCDataLayout )
 import Cogent.Dargent.Util
-import Cogent.Core                  ( Type(..) )
 
 {- * Helper functions used in Core.Desugar -}
 
@@ -53,12 +54,12 @@ import Cogent.Core                  ( Type(..) )
 --   Primitive types have no sigil, and abstract types may be boxed or unboxed but have no layout.
 --   'desugarAbstractTypeSigil' should only be used when desugaring the sigils of abstract types, to eliminate the @Maybe DataLayoutExpr@.
 desugarAbstractTypeSigil
-  :: Sigil (Maybe DataLayoutExpr)
+  :: Sigil (Maybe TCDataLayout)
   -> Sigil ()
 desugarAbstractTypeSigil = fmap desugarMaybeLayout
   where
     desugarMaybeLayout Nothing = ()
-    desugarMaybeLayout _       = __impossible $ "desugarAbstractTypeSigil (Called on TCon after normalisation, only for case when it is an abstract type)"
+    desugarMaybeLayout _       = __impossible "desugarAbstractTypeSigil (Called on TCon after normalisation, only for case when it is an abstract type)"
 
 desugarSize :: DataLayoutSize -> Size
 desugarSize = evalSize
