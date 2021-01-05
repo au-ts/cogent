@@ -196,7 +196,8 @@ library
     build-depends: haskell-src-exts >= 1.19, pretty
   if flag(refinement-types)
     exposed-modules: 
-                     Cogent.Inference.SMT
+                     Cogent.C.Erase
+                   , Cogent.Inference.SMT
                    , Cogent.TypeCheck.SMT
                    , Cogent.TypeCheck.Solver.JoinMeet
                    , Cogent.TypeCheck.Solver.SMT

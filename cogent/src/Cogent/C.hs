@@ -22,6 +22,9 @@ module Cogent.C (
   , cgen
   ) where
 
+#ifdef REFINEMENT_TYPES
+import Cogent.C.Erase
+#endif
 import Cogent.C.Expr
 import Cogent.C.Monad
 import Cogent.C.Render
@@ -44,6 +47,8 @@ import Data.Set as S
 import qualified Language.C as C (Definition)
 import Text.PrettyPrint.ANSI.Leijen as Leijen
 
+-- import Debug.Trace
+
 cgen :: FilePath
      -> [FilePath]
      -> FilePath
@@ -54,7 +59,12 @@ cgen :: FilePath
      -> String
      -> ([C.Definition], [C.Definition], [(TypeName, S.Set [CId])], [TableCTypes], [NewTableCTypes], Leijen.Doc, String, GenState)
 cgen hName cNames hscName hsName defs mcache ctygen log =
-  let (enums,tydefns,fndecls,disps,tysyms,fndefns,absts,corres,corres',fclsts,st) = compile defs mcache ctygen
+#ifdef REFINEMENT_TYPES
+  let defs' = erase defs
+#else
+  let defs' = defs
+#endif
+      (enums,tydefns,fndecls,disps,tysyms,fndefns,absts,corres,corres',fclsts,st) = compile defs' mcache ctygen
       (h,c) = render hName (enums++tydefns++fndecls++disps++tysyms) fndefns log
 #ifdef WITH_HASKELL
       hsc = ffiHsc hscName cNames tydefns enums absts fclsts log

@@ -12,7 +12,7 @@
 
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DataKinds #-}
-{- LANGUAGE DeriveDataTypeable -}
+{- LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ExistentialQuantification #-}
@@ -63,7 +63,7 @@ import Data.Function ((&))
 import Data.IntMap as IM (IntMap, null, filter, keys)
 import qualified Data.Map as M
 #if __GLASGOW_HASKELL__ < 709
-import Data.Traversable(traverse)
+import Data.Traversable (traverse)
 #endif
 import GHC.Generics (Generic)
 import Prelude as P
@@ -427,6 +427,7 @@ upshiftVarLExpr n x = x
 -- also upshift in refinement type preds in context?
 #endif
 
+
 -- pre-order fold over Expr wrapper
 foldEPre :: (Monoid m)
          => (forall t v. e1 t v a b -> Expr t v a b e1)
@@ -466,6 +467,27 @@ foldEPre unwrap f e = case unwrap e of
   (Cast _ e1)         -> f e `mappend` foldEPre unwrap f e1
 
 
+fmapT :: (Type t b -> Type t b) -> Type t b -> Type t b
+fmapT f e = case e of
+  TVar v           -> TVar v
+  TVarBang v       -> TVarBang v
+  TVarUnboxed v    -> TVarUnboxed v
+  TCon tn ts s     -> TCon tn (fmap f ts) s
+  TFun t1 t2       -> TFun (f t1) (f t2)
+  TPrim t          -> TPrim t
+  TString          -> TString
+  TSum alts        -> TSum $ fmap (second $ first f) alts
+  TProduct t1 t2   -> TProduct (f t1) (f t2)
+  TRecord r fs s   -> TRecord r (fmap (second $ first f) fs) s
+  TUnit            -> TUnit
+  TRPar     rn ctx -> TRPar rn (fmap (fmap f) ctx)
+  TRParBang rn ctx -> TRPar rn (fmap (fmap f) ctx)
+#ifdef REFINEMENT_TYPES
+  TArray t l s mh  -> TArray (f t) l s mh
+  TRefine t p      -> TRefine (f t) p
+#endif
+  TXXX v b         -> TXXX v b
+
 fmapE :: (forall t v. e1 t v a b -> e2 t v a b) -> Expr t v a b e1 -> Expr t v a b e2
 fmapE f (Variable v)         = Variable v
 fmapE f (Fun fn ts ls nt)    = Fun fn ts ls nt
@@ -497,6 +519,39 @@ fmapE f (Take a rec fld e)   = Take a (f rec) fld (f e)
 fmapE f (Put rec fld v)      = Put (f rec) fld (f v)
 fmapE f (Promote ty e)       = Promote ty (f e)
 fmapE f (Cast ty e)          = Cast ty (f e)
+
+fmapTypeE :: (Type t b -> Type t b) -> Expr t v a b e -> Expr t v a b e
+fmapTypeE f e = case e of
+    Variable v          -> Variable v
+    Fun fn ts ls nt     -> Fun fn (fmap f ts) ls nt
+    Op opr es           -> Op opr es
+    App e1 e2           -> App e1 e2
+    Con cn e t          -> Con cn e (f t)
+    Unit                -> Unit
+    ILit i pt           -> ILit i pt
+    SLit s              -> SLit s
+#ifdef REFINEMENT_TYPES
+    ALit es             -> ALit es
+    ArrayIndex e i      -> ArrayIndex e i
+    ArrayMap2 (as,e) (e1,e2) -> ArrayMap2 (as, e) (e1, e2)
+    Pop a e1 e2         -> Pop a e1 e2
+    Singleton e         -> Singleton e
+    ArrayTake as arr fld e   -> ArrayTake as arr fld e
+    ArrayPut arr fld e  -> ArrayPut arr fld e
+#endif
+    Let a e1 e2         -> Let a e1 e2
+    LetBang vs a e1 e2  -> LetBang vs a e1 e2
+    Tuple e1 e2         -> Tuple e1 e2
+    Struct fs           -> Struct fs
+    If e1 e2 e3         -> If e1 e2 e3
+    Case e tn (l1,a1,e1) (l2,a2,e2) -> Case e tn (l1,a1,e1) (l2,a2,e2)
+    Esac e              -> Esac e
+    Split a e1 e2       -> Split a e1 e2
+    Member rec fld      -> Member rec fld
+    Take a rec fld e    -> Take a rec fld e
+    Put rec fld v       -> Put rec fld v
+    Promote ty e        -> Promote (f ty) e
+    Cast ty e           -> Cast (f ty) e
 
 
 untypeE :: TypedExpr t v a b -> UntypedExpr t v a b

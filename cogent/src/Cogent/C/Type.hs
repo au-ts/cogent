@@ -310,6 +310,7 @@ typeCId t = use custTypeGen >>= \ctg ->
         Layout ArrayLayout {} -> getStrlTypeCId (ArrayL al)
         CLayout -> getStrlTypeCId =<< Array <$> genType t <*> pure Nothing
         _ -> __impossible "Tried to get the c-type of an array with a non-array record"
+    typeCId' (TRefine b _) = __impossible "typeCId': refinement types should have been erased"
 #endif
 
     typeCIdFlat :: CC.Type 'Zero VarName -> Gen v CId
