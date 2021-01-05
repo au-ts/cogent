@@ -21,7 +21,7 @@ module Cogent.Dargent.TypeCheck where
 
 import Data.Map (Map)
 import qualified Data.Map as M
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, fromMaybe)
 
 import Control.Monad (guard, when, foldM)
 import Control.Monad.Trans.Except
@@ -57,6 +57,7 @@ pattern TLArray e s    = TL (Array e s)
 #endif
 pattern TLOffset e s   = TL (Offset e s)
 pattern TLRepRef n es  = TL (RepRef n es)
+pattern TLAfter e f    = TL (After e f)
 pattern TLVar n        = TL (LVar n)
 pattern TLPtr          = TL Ptr
 
@@ -71,6 +72,7 @@ toDLExpr (TLArray e p) = DLArray (toDLExpr e) p
 #endif
 toDLExpr (TLOffset e s) = DLOffset (toDLExpr e) s
 toDLExpr (TLRepRef n s) = DLRepRef n $ toDLExpr <$> s
+toDLExpr (TLAfter e f)  = flip DLAfter f $ toDLExpr e
 toDLExpr (TLVar n) = DLVar n
 toDLExpr TLPtr = DLPtr
 toDLExpr (TLU _) = __impossible "toDLExpr: layout unifiers shouldn't be here"
@@ -83,6 +85,7 @@ toTCDL (DLVariant e fs) = TLVariant (toTCDL e) ((\(x,y,z,v) -> (x,y,z,toTCDL v))
 toTCDL (DLArray e p) = TLArray (toTCDL e) p
 #endif
 toTCDL (DLOffset e s) = TLOffset (toTCDL e) s
+toTCDL (DLAfter e s) = TLAfter (toTCDL e) s
 toTCDL (DLRepRef n s) = TLRepRef n $ toTCDL <$> s
 toTCDL (DLVar n) = TLVar n
 toTCDL DLPtr = TLPtr
@@ -195,33 +198,21 @@ normaliseDataLayoutExpr _ r = r
 normaliseTCDataLayout :: NamedDataLayouts -> TCDataLayout -> TCDataLayout
 normaliseTCDataLayout env (TLRepRef n s) =
   case M.lookup n env of
-    Just (vars, expr, _) -> let s' = toDLExpr <$> s
-                             in toTCDL $ normaliseDataLayoutExpr env (substDataLayoutExpr (zip vars s') expr)
-    Nothing -> __impossible $ "normaliseTCDataLayout (RepRef " ++ show n ++ " already known to exist)"
-normaliseTCDataLayout env (TLRecord fs) = TLRecord $ (\(n, p, l) -> (n, p, normaliseTCDataLayout env l)) <$> fs
-normaliseTCDataLayout env (TLVariant t as) = TLVariant t $ (\(n, p, s, l) -> (n, p, s, normaliseTCDataLayout env l)) <$> as
-normaliseTCDataLayout env (TLOffset l n) = TLOffset (normaliseTCDataLayout env l) n
+    Just (vars, expr) -> normaliseLayout env (substTCDataLayout (zip vars s) expr)
+    Nothing -> __impossible $ "normaliseLayout (RepRef " ++ show n ++ " already known to exist)"
+normaliseLayout env (TLRecord fs) = TLRecord $ (\(n, p, l) -> (n, p, normaliseLayout env l)) <$> fs
+normaliseLayout env (TLVariant t as) = TLVariant (normaliseLayout env t) $
+  (\(n, p, s, l) -> (n, p, s, normaliseLayout env l)) <$> as
+normaliseLayout env (TLOffset l n) = TLOffset (normaliseLayout env l) n
 #ifdef BUILTIN_ARRAYS
-normaliseTCDataLayout env (TLArray l p) = TLArray (normaliseTCDataLayout env l) p
+normaliseLayout env (TLArray l p) = TLArray (normaliseLayout env l) p
 #endif
-normaliseTCDataLayout _ l = l
+normaliseLayout _ (TLPrim n) = TLPrim n
+normaliseLayout _ (TLVar n) = TLVar n
+normaliseLayout _ TLPtr = TLPtr
+normaliseLayout _ l = __impossible $ "normaliseLayout: unexpeced layout " ++ show l
 
 -- | Substitutes layout variables with concrete layouts
-substDataLayoutExpr :: [(DLVarName, DataLayoutExpr)] -> DataLayoutExpr -> DataLayoutExpr
-substDataLayoutExpr = f
-  where
-    f ps (DLRepRef n s) = DLRepRef n $ f ps <$> s
-    f ps (DLRecord fs) = DLRecord $ third3 (f ps) <$> fs
-    f ps (DLVariant t fs) = DLVariant (f ps t) $ fourth4 (f ps) <$> fs
-    f ps (DLOffset e s) = flip DLOffset s $ f ps e
-#ifdef BUILTIN_ARRAYS
-    f ps (DLArray e p) = flip DLArray p $ f ps e
-#endif
-    f ps (DLVar n) = case lookup n ps of
-                       Just v -> v
-                       Nothing -> DLVar n
-    f ps e = e
-
 substTCDataLayout :: [(DLVarName, TCDataLayout)] -> TCDataLayout -> TCDataLayout
 substTCDataLayout = f
   where
@@ -232,14 +223,12 @@ substTCDataLayout = f
 #ifdef BUILTIN_ARRAYS
     f ps (TLArray e p) = flip TLArray p $ f ps e
 #endif
-    f ps (TLVar n) = case lookup n ps of
-                       Just v -> v
-                       Nothing -> TLVar n
+    f ps (TLVar n) = fromMaybe (TLVar n) (lookup n ps)
     f ps e = e
 
 {- * Types -}
--- TODO: we may change DataLayoutExpr within NamedDataLayouts
-type NamedDataLayouts = Map DataLayoutName ([DLVarName], DataLayoutExpr, Maybe Allocation)
+type DataLayoutEnv e = Map DataLayoutName ([DLVarName], e)
+type NamedDataLayouts = DataLayoutEnv TCDataLayout
 type DataLayoutTcError = DataLayoutTcErrorP DataLayoutPath
 -- type DataLayoutTypeMatchError = DataLayoutTcErrorP DataLayoutPath -- TODO: needed to implement `tcDataLayoutTypeMatch`
 
@@ -274,8 +263,7 @@ data DataLayoutTcErrorP p
   -- This could generate an array of length 0, which is disallowed by C
 
   | UnknownDataLayoutVar    DLVarName p
-  | TooFewDataLayoutArgs    DataLayoutName p
-  | TooManyDataLayoutArgs   DataLayoutName p
+  | DataLayoutArgsNotMatch  DataLayoutName Int Int p
   deriving (Eq, Show, Ord, Functor)
 
 
@@ -304,17 +292,19 @@ data DataLayoutTypeMatchErrorP p
 
 
 {- * Other exported functions -}
-tcDataLayoutDecl :: NamedDataLayouts -> DataLayoutDecl -> Except [DataLayoutTcError] Allocation
-tcDataLayoutDecl env (DataLayoutDecl pos name vars expr) =
-  mapPaths (InDecl name) (tcDataLayoutExpr env vars expr)
-
-normaliseDataLayoutDecl :: NamedDataLayouts -> DataLayoutDecl -> DataLayoutDecl
-normaliseDataLayoutDecl env (DataLayoutDecl pos name vars expr) =
-  DataLayoutDecl pos name vars (normaliseDataLayoutExpr env expr)
 
 -- Normalises the layout in the sigil to remove references to named layouts
 normaliseSigil :: NamedDataLayouts -> Sigil (Maybe TCDataLayout) -> Sigil (Maybe TCDataLayout)
-normaliseSigil env = fmap (fmap (normaliseTCDataLayout env))
+normaliseSigil env = fmap (fmap (normaliseLayout env))
+
+unknownDataLayout :: DataLayoutName -> DataLayoutTcError
+unknownDataLayout n = UnknownDataLayout n PathEnd
+
+unknownDataLayoutVar :: DLVarName -> DataLayoutTcError
+unknownDataLayoutVar n = UnknownDataLayoutVar n PathEnd
+
+dataLayoutArgsNotMatch :: DLVarName -> Int -> Int -> DataLayoutTcError
+dataLayoutArgsNotMatch n exp act = DataLayoutArgsNotMatch n exp act PathEnd
 
 mapPaths
   :: (DataLayoutPath -> DataLayoutPath)
