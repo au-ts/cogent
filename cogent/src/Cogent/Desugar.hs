@@ -633,7 +633,7 @@ desugarLayout l = Layout <$> desugarLayout' l
       TLOffset e n -> do
         e' <- desugarLayout' e
         pure $ offset (DD.desugarSize n) e'
-      TLAfter e f -> __impossible "desugarLayout: TLAfter should already be normalised before"
+      TLAfter e f -> __todo "code gen schedule for \"after\" fields"
       TLRecord fs -> do
         let f (n,_,l) = (n,) <$> desugarLayout' l
         fs' <- mapM f fs

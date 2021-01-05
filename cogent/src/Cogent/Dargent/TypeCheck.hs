@@ -19,6 +19,7 @@
 
 module Cogent.Dargent.TypeCheck where
 
+import qualified Data.Graph.Wrapper as G
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Maybe (fromJust, fromMaybe)
@@ -71,8 +72,8 @@ toDLExpr (TLVariant e fs) = DLVariant (toDLExpr e) ((\(x,y,z,v) -> (x,y,z,toDLEx
 toDLExpr (TLArray e p) = DLArray (toDLExpr e) p
 #endif
 toDLExpr (TLOffset e s) = DLOffset (toDLExpr e) s
+toDLExpr (TLAfter e f)  = DLAfter (toDLExpr e) f
 toDLExpr (TLRepRef n s) = DLRepRef n $ toDLExpr <$> s
-toDLExpr (TLAfter e f)  = flip DLAfter f $ toDLExpr e
 toDLExpr (TLVar n) = DLVar n
 toDLExpr TLPtr = DLPtr
 toDLExpr (TLU _) = __impossible "toDLExpr: layout unifiers shouldn't be here"
@@ -204,6 +205,7 @@ normaliseLayout env (TLRecord fs) = TLRecord $ (\(n, p, l) -> (n, p, normaliseLa
 normaliseLayout env (TLVariant t as) = TLVariant (normaliseLayout env t) $
   (\(n, p, s, l) -> (n, p, s, normaliseLayout env l)) <$> as
 normaliseLayout env (TLOffset l n) = TLOffset (normaliseLayout env l) n
+normaliseLayout env (TLAfter l f) = TLAfter (normaliseLayout env l) f
 #ifdef BUILTIN_ARRAYS
 normaliseLayout env (TLArray l p) = TLArray (normaliseLayout env l) p
 #endif
@@ -220,6 +222,7 @@ substTCDataLayout = f
     f ps (TLRecord fs) = TLRecord $ third3 (f ps) <$> fs
     f ps (TLVariant t fs) = TLVariant (f ps t) $ fourth4 (f ps) <$> fs
     f ps (TLOffset e s) = flip TLOffset s $ f ps e
+    f ps (TLAfter e n) = flip TLAfter n $ f ps e
 #ifdef BUILTIN_ARRAYS
     f ps (TLArray e p) = flip TLArray p $ f ps e
 #endif
@@ -264,6 +267,8 @@ data DataLayoutTcErrorP p
 
   | UnknownDataLayoutVar    DLVarName p
   | DataLayoutArgsNotMatch  DataLayoutName Int Int p
+  | OverlappingFields       [FieldName] p
+  | CyclicFieldDepedency    [FieldName] p
   deriving (Eq, Show, Ord, Functor)
 
 
@@ -305,6 +310,12 @@ unknownDataLayoutVar n = UnknownDataLayoutVar n PathEnd
 
 dataLayoutArgsNotMatch :: DLVarName -> Int -> Int -> DataLayoutTcError
 dataLayoutArgsNotMatch n exp act = DataLayoutArgsNotMatch n exp act PathEnd
+
+overlappingFields :: [FieldName] -> DataLayoutTcError
+overlappingFields fs = OverlappingFields fs PathEnd
+
+cyclicFieldDependency :: G.SCC FieldName -> DataLayoutTcError
+cyclicFieldDependency (G.CyclicSCC fs) = CyclicFieldDepedency fs PathEnd
 
 mapPaths
   :: (DataLayoutPath -> DataLayoutPath)
