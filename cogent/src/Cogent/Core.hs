@@ -125,6 +125,15 @@ isBaseType :: Type t b -> Bool -- is a type that supports refinement
 isBaseType (TPrim _) = True
 isBaseType (TRefine t _) = isBaseType t
 isBaseType _ = False
+
+toTRefine :: Type t b -> Type t b
+toTRefine (TPrim t) = TRefine (TPrim t) (LILit 1 Boolean)
+toTRefine (TRefine t b) = TRefine t b
+toTRefine _ = __impossible "toTRefine"
+
+getBaseType :: Type t b -> Type t b
+getBaseType (TRefine t _) = t
+getBaseType _ = __impossible "called getBaseType on a non refinement type"
 #endif
 
 -- ASSUME: input in a record type

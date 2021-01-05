@@ -104,11 +104,8 @@ isUpcastable _ _ = return False
 
 #ifdef REFINEMENT_TYPES
 compareRefTypes :: (Eq b, Ord b, Pretty b, Show b) => Type t b -> Type t b -> TC t v b Bool
-compareRefTypes rt1@(TRefine t1 l1) rt2@(TRefine t2 l2) | t1 == t2 
-  = do
-      (vec, ls, _) <- get
-      res <- liftIO $ smtProve vec ls rt1 rt2
-      return res
+compareRefTypes rt1@(TRefine t1 l1) rt2@(TRefine t2 l2)
+  | t1 == t2 = get >>= \(vec, ls, _) -> liftIO (smtProve vec ls rt1 rt2)
 compareRefTypes _ _ = __impossible "compareRefTypes incompatible"
 #endif
 
@@ -121,11 +118,7 @@ isSubtype t1 t2 = runMaybeT (t1 `lub` t2) >>= \case Just t  -> return $ t == t2
 
 listIsSubtype :: (Eq b, Ord b, Pretty b, Show b) => [Type t b] -> [Type t b] -> TC t v b Bool
 listIsSubtype [] [] = return True
-listIsSubtype (x:xs) (y:ys) = do 
-  isSub <- isSubtype x y
-  case isSub of
-    True -> listIsSubtype xs ys
-    _ -> return False
+listIsSubtype (x:xs) (y:ys) = (&&) <$> isSubtype x y <*> listIsSubtype xs ys
 
 unroll :: RecParName -> RecContext (Type t b) -> Type t b
 unroll v (Just ctxt) = erp (Just ctxt) (ctxt M.! v)
@@ -147,7 +140,8 @@ unroll v (Just ctxt) = erp (Just ctxt) (ctxt M.! v)
 #endif
     erp _ t = t
 
-bound :: (Show b, Eq b, Pretty b, Ord b) => Bound -> Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
+bound :: (Show b, Eq b, Pretty b, Ord b)
+      => Bound -> Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
 bound _ t1 t2 | t1 == t2 = return t1
 bound b (TRecord rp1 fs1 s1) (TRecord rp2 fs2 s2)
   | map fst fs1 == map fst fs2, s1 == s2, rp1 == rp2 = do
@@ -160,12 +154,15 @@ bound b (TRecord rp1 fs1 s1) (TRecord rp2 fs2 s2)
     let (fs, oks) = unzip blob
     if and oks then return $ TRecord rp1 fs s1
                else MaybeT (return Nothing)
-bound b (TSum s1) (TSum s2) | s1' <- M.fromList s1, s2' <- M.fromList s2, M.keys s1' == M.keys s2' = do
-  let op = case b of LUB -> (&&); GLB -> (||)
-  s <- flip3 unionWithKeyM s2' s1' $ \k (t1,b1) (t2,b2) -> (,) <$> bound b t1 t2 <*> pure (b1 `op` b2)
-  return $ TSum $ M.toList s
+bound b (TSum s1) (TSum s2)
+  | s1' <- M.fromList s1, s2' <- M.fromList s2, M.keys s1' == M.keys s2' = do
+    let op = case b of LUB -> (&&); GLB -> (||)
+    s <- flip3 unionWithKeyM s2' s1' $
+           \k (t1,b1) (t2,b2) -> (,) <$> bound b t1 t2 <*> pure (b1 `op` b2)
+    return $ TSum $ M.toList s
 bound b (TProduct t11 t12) (TProduct t21 t22) = TProduct <$> bound b t11 t21 <*> bound b t12 t22
-bound b (TCon c1 t1 s1) (TCon c2 t2 s2) | c1 == c2, s1 == s2 = TCon c1 <$> zipWithM (bound b) t1 t2 <*> pure s1
+bound b (TCon c1 t1 s1) (TCon c2 t2 s2)
+  | c1 == c2, s1 == s2 = TCon c1 <$> zipWithM (bound b) t1 t2 <*> pure s1
 bound b (TFun t1 s1) (TFun t2 s2) = TFun <$> bound (theOtherB b) t1 t2 <*> bound b s1 s2
 -- At this point, we can assume recursive parameters and records agree 
 bound b t1@(TRecord rp fs s) t2@(TRPar v ctxt)    = return t2
@@ -173,33 +170,35 @@ bound b t1@(TRPar v ctxt)    t2@(TRecord rp fs s) = return t2
 bound b t1@(TRPar v1 c1)     t2@(TRPar v2 c2)     = return t2
 #ifdef REFINEMENT_TYPES
 bound b (TArray t1 l1 s1 mhole1) (TArray t2 l2 s2 mhole2)
-  | l1 == l2, s1 == s2 = do
-      t <- bound b t1 t2
-      ok <- lift $ case (mhole1, mhole2) of
-                     (Nothing, Nothing) -> return True
-                     (Just i1, Just i2) -> return $ i1 == i2  -- FIXME: change to propositional equality / zilinc
-                     _ -> kindcheck t >>= \k -> return (canDiscard k)
-      let mhole = combineHoles b mhole1 mhole2
-      if ok then return $ TArray t l1 s1 mhole
-            else MaybeT (return Nothing)
+  | l1 == l2, s1 == s2
+  = do t <- bound b t1 t2
+       ok <- lift $ case (mhole1, mhole2) of
+               (Nothing, Nothing) -> return True
+               (Just i1, Just i2) -> return $ i1 == i2  -- FIXME: change to propositional equality / zilinc
+               _ -> kindcheck t >>= \k -> return (canDiscard k)
+       let mhole = combineHoles b mhole1 mhole2
+       if ok then return $ TArray t l1 s1 mhole
+             else MaybeT (return Nothing)
   where
     combineHoles b Nothing   Nothing   = Nothing
     combineHoles b (Just i1) (Just _ ) = Just i1
     combineHoles b Nothing   (Just i2) = case b of GLB -> Nothing; LUB -> Just i2
     combineHoles b (Just i1) Nothing   = case b of GLB -> Nothing; LUB -> Just i1
-bound b rt@(TRefine (TPrim t1) l) pt@(TPrim t2) | t1 == t2 = return $ case b of GLB -> rt; LUB -> pt
-bound b pt@(TPrim t1) rt@(TRefine (TPrim t2) l) | t1 == t2 = return $ case b of GLB -> rt; LUB -> pt
-bound b rt1@(TRefine t1 l1) rt2@(TRefine t2 l2) | t1 == t2
-      = do
-          resSub <- lift $ compareRefTypes rt1 rt2  -- subtype
-          resSuper <- lift $ compareRefTypes rt2 rt1  -- supertype
-          case (resSub, resSuper) of
-            (True, True) -> return rt1 -- doesn't matter which one is returned
-            (True, False) -> return $ case b of GLB -> rt1; LUB -> rt2
-            (False, True) -> return $ case b of GLB -> rt2; LUB -> rt1
-            (False, False) -> case b of
-                                GLB -> return (TRefine t1 (LOp And [l1, l2]))
-                                LUB -> return t1 -- fixme /blaisep
+bound b rt@(TRefine (TPrim t1) l) pt@(TPrim t2)
+  | t1 == t2 = return $ case b of GLB -> rt; LUB -> pt
+bound b pt@(TPrim t1) rt@(TRefine (TPrim t2) l)
+  | t1 == t2 = return $ case b of GLB -> rt; LUB -> pt
+bound b rt1@(TRefine t1 l1) rt2@(TRefine t2 l2)
+  | t1 == t2
+  = do resSub <- lift $ compareRefTypes rt1 rt2  -- subtype
+       resSuper <- lift $ compareRefTypes rt2 rt1  -- supertype
+       case (resSub, resSuper) of
+         (True, True) -> return rt1 -- doesn't matter which one is returned
+         (True, False) -> return $ case b of GLB -> rt1; LUB -> rt2
+         (False, True) -> return $ case b of GLB -> rt2; LUB -> rt1
+         (False, False) -> case b of
+                             GLB -> return (TRefine t1 (LOp And [l1, l2]))
+                             LUB -> return t1 -- fixme /blaisep
 #endif
 bound _ t1 t2 = __impossible ("bound: not comparable:\n" ++ show t1 ++ "\n" ++ 
                               "----------------------------------------\n" ++ show t2 ++ "\n")
@@ -209,11 +208,6 @@ lub = bound LUB
 
 glb :: (Show b, Eq b, Pretty b, Ord b) => Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
 glb = bound GLB
-
--- checkUExpr_B :: UntypedExpr -> TC t v Bool
--- checkUExpr_B (E (Op op [e])) = return True
--- checkUExpr_B (E (Op op [e1,e2])) = return True
--- checkUExpr_B _ = return True
 
 
 bang :: Type t b -> Type t b
@@ -415,16 +409,6 @@ opType Complement [TPrim p] | p /= Boolean = Just $ TPrim p
 #endif
 opType opr ts = __impossible "opType"
 
-#ifdef REFINEMENT_TYPES
-toTRefine :: Type t b -> Type t b
-toTRefine (TPrim t) = TRefine (TPrim t) (LILit 1 Boolean)
-toTRefine (TRefine t b) = TRefine t b
-toTRefine _ = __impossible "toTRefine"
-
-getBaseType :: Type t b -> Type t b
-getBaseType (TRefine t _) = t
-getBaseType _ = __impossible "called getBaseType on a non refinement type"
-#endif
 
 useVariable :: Fin v -> TC t v b (Maybe (Type t b))
 useVariable v = TC $ do ret <- (`at` v) <$> fst3 <$> get
@@ -448,17 +432,6 @@ runTC (TC a) readers st = do
     (Left x, s)  -> Left x
     (Right x, s) -> Right (s, x)
 
--- XXX | tc_debug :: [Definition UntypedExpr a] -> IO ()
--- XXX | tc_debug = flip tc_debug' M.empty
--- XXX |   where
--- XXX |     tc_debug' :: [Definition UntypedExpr a] -> Map FunName FunctionType -> IO ()
--- XXX |     tc_debug' [] _ = putStrLn "tc2... OK!"
--- XXX |     tc_debug' ((FunDef _ fn ts t rt e):ds) reader =
--- XXX |       case runTC (infer e) (fmap snd ts, reader) (Cons (Just t) Nil) of
--- XXX |         Left x -> putStrLn $ "tc2... failed! Due to: " ++ x
--- XXX |         Right _ -> tc_debug' ds (M.insert fn (FT (fmap snd ts) t rt) reader)
--- XXX |     tc_debug' ((AbsDecl _ fn ts t rt):ds) reader = tc_debug' ds (M.insert fn (FT (fmap snd ts) t rt) reader)
--- XXX |     tc_debug' (_:ds) reader = tc_debug' ds reader
 
 retype :: [Definition TypedExpr VarName VarName]
        -> IO (Either String [Definition TypedExpr VarName VarName])
@@ -565,7 +538,8 @@ kindcheck_ f (TRefine t _) = kindcheck_ f t
 kindcheck = kindcheck_ lookupKind
 
 
-typecheck :: (Pretty a, Show a, Eq a, Ord a) => TypedExpr t v a a -> Type t a -> TC t v a (TypedExpr t v a a)
+typecheck :: (Pretty a, Show a, Eq a, Ord a)
+          => TypedExpr t v a a -> Type t a -> TC t v a (TypedExpr t v a a)
 typecheck e t = do
   let t' = exprType e
   isSub <- isSubtype t' t
@@ -582,20 +556,20 @@ typecheck e t = do
 infer :: UntypedExpr t v VarName VarName -> TC t v VarName (TypedExpr t v VarName VarName)
 infer (E (Op o es))
 #ifdef REFINEMENT_TYPES
-   = do es' <- mapM infer es
-        let operandsTypes = map toTRefine $ map exprType es'
-        vn <- freshVarName
-        let Just (expectedInputs, (TRefine t p)) = opType o operandsTypes
-        -- check that each of o is a subtype of expectedInputs
-        -- trace ("operandsTypes " ++ (show operandsTypes)) $ return ()
-        -- trace ("expectedInputs " ++ (show expectedInputs)) $ return ()
-        -- (_,ls,_) <- get
-        -- trace ("context " ++ (show ls)) $ return ()
-        inputsOk <- listIsSubtype operandsTypes expectedInputs
-        let pred = LOp Eq [LVariable (Zero, vn), upshiftVarLExpr 1 (LOp o (map (texprToLExpr id) es'))]
-        case inputsOk of
-          True -> return (TE (TRefine t pred) (Op o es'))
-          _ -> __impossible "op types don't match" -- fix me /blaisep
+  = do es' <- mapM infer es
+       let operandsTypes = map toTRefine $ map exprType es'
+       vn <- freshVarName
+       let Just (expectedInputs, (TRefine t p)) = opType o operandsTypes
+       -- check that each of o is a subtype of expectedInputs
+       -- trace ("operandsTypes " ++ (show operandsTypes)) $ return ()
+       -- trace ("expectedInputs " ++ (show expectedInputs)) $ return ()
+       -- (_,ls,_) <- get
+       -- trace ("context " ++ (show ls)) $ return ()
+       inputsOk <- listIsSubtype operandsTypes expectedInputs
+       let pred = LOp Eq [LVariable (Zero, vn), upshiftVarLExpr 1 (LOp o (map (texprToLExpr id) es'))]
+       case inputsOk of
+         True -> return (TE (TRefine t pred) (Op o es'))
+         _ -> __impossible "op types don't match" -- fix me /blaisep
 #else
   = do es' <- mapM infer es
        let Just t = opType o (map exprType es')
