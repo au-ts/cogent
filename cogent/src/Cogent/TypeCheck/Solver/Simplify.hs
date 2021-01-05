@@ -38,9 +38,9 @@ import           Cogent.Util (hoistMaybe)
 import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad.Trans.Except (runExcept)
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.Trans.Class (lift)
-import qualified Data.Graph.Wrapper as G
 import           Data.List as L (elemIndex, isSubsequenceOf, null, (\\))
 import qualified Data.Map as M
 import           Data.Maybe
@@ -186,6 +186,7 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
 #endif
 
   TLOffset e _   :~ tau -> hoistMaybe $ Just [e :~ tau]
+  TLAfter  e _   :~ tau -> hoistMaybe $ Just [e :~ tau]
 
   TLPrim n       :~ T TUnit | evalSize n >= 0 -> hoistMaybe $ Just []
   TLPrim n       :~ tau
@@ -218,6 +219,7 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
   TLVar v1         :~< TLVar v2      | v1 == v2 -> hoistMaybe $ Just []
   TLPrim n1        :~< TLPrim n2     | n1 <= n2 -> hoistMaybe $ Just []
   TLOffset e1 _    :~< TLOffset e2 _ -> hoistMaybe $ Just [e1 :~< e2]
+  TLAfter e1 _     :~< TLAfter e2 _  -> hoistMaybe $ Just [e1 :~< e2]
 
   TLRecord fs1     :~< TLRecord fs2
     | r1 <- LRow.fromList $ map (\(a,b,c) -> (a,c,())) fs1
@@ -364,25 +366,12 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
   NotReadOnly (Left (Boxed False _)) -> hoistMaybe $ Just []
   NotReadOnly (Left (Unboxed      )) -> hoistMaybe $ Just []
 
-  -- TODO: check for overlapping & tag expression & tag values
-  WellformedLayout (TLRecord fs) ->
-    do let dep = fmap (\(a,_,c) -> case c of TLAfter e f -> (a,(),[f]); _ -> (a,(),[])) fs
-       let grp = G.fromListLenient dep
-       let cyc = [x | x@(G.CyclicSCC _) <- G.stronglyConnectedComponents grp]
-       let miv = [a | x@(a,_,_) <- dep, G.indegree grp a >= 2]
-       case (null cyc, null miv) of
-         (True, True) -> hoistMaybe $ Just []
-         (True, False) -> unsat . DataLayoutError $ overlappingFields [a | (a,_,c@[f])<- dep, [f] == [head miv]]
-         (False, _) -> unsat . DataLayoutError $ cyclicFieldDependency (head cyc)
-  WellformedLayout (TLVariant e fs) ->
-    do let dep = fmap (\(a,_,_,d) -> case d of TLAfter e f -> (a,(),[f]); _ -> (a,(),[])) fs
-       let grp = G.fromListLenient dep
-       let cyc = [x | x@(G.CyclicSCC _) <- G.stronglyConnectedComponents grp]
-       let miv = [a | x@(a,_,_) <- dep, G.indegree grp a >= 2]
-       case (null cyc, null miv) of
-         (True, True) -> hoistMaybe $ Just []
-         (True, False) -> unsat . DataLayoutError $ overlappingFields [a | (a,_,c@[f]) <- dep, [f] == [head miv]]
-         (False, _) -> unsat . DataLayoutError $ cyclicFieldDependency (head cyc)
+  WellformedLayout l -> do
+    guard (null (unifLVars l))
+    guard (null (repRefTL l))
+    case runExcept $ checkAlloc l of
+      Left (e:_) -> unsat $ DataLayoutError e
+      Right r -> hoistMaybe $ Just []
 
   t -> hoistMaybe $ Nothing
 

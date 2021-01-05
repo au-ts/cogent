@@ -758,6 +758,7 @@ unifVars (A t l s tkns) = unifVars t ++ rights [s] ++ rights [tkns]
 unifVars (T x) = foldMap unifVars x
 
 unifLVars :: TCDataLayout -> [Int]
+unifLVars (TLU n) = [n]
 unifLVars (TLRecord ps) = concatMap unifLVars (thd3 <$> ps)
 unifLVars (TLVariant t ps) = unifLVars t <> concatMap unifLVars ((\(_,_,_,a) -> a) <$> ps)
 #ifdef BUILTIN_ARRAYS

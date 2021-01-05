@@ -1006,6 +1006,8 @@ instance Pretty DataLayoutTcError where
     err "Overlapping fields" <+> foldr1 (<+>) (fmap fieldname fs) <$$> indent (pretty ctx)
   pretty (CyclicFieldDepedency fs ctx) =
     err "Cyclic dependency of fields" <+> foldr1 (<+>) (fmap fieldname fs) <$$> indent (pretty ctx)
+  pretty (NonExistingFields fs ctx) =
+    err "Non-existing fields" <+> foldr1 (<+>) (fmap fieldname fs) <$$> indent (pretty ctx)
 
 instance Pretty DataLayoutPath where
   pretty (InField n po ctx) = context' "for field" <+> fieldname n <+> context' "(" <> pretty po <> context' ")" </> pretty ctx
