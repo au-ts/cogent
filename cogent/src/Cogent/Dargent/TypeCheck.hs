@@ -61,6 +61,7 @@ pattern TLRepRef n es  = TL (RepRef n es)
 pattern TLAfter e f    = TL (After e f)
 pattern TLVar n        = TL (LVar n)
 pattern TLPtr          = TL Ptr
+pattern TLDefault      = TL Default
 
 {- * Utility functions -}
 
@@ -76,6 +77,7 @@ toDLExpr (TLAfter e f)  = DLAfter (toDLExpr e) f
 toDLExpr (TLRepRef n s) = DLRepRef n $ toDLExpr <$> s
 toDLExpr (TLVar n) = DLVar n
 toDLExpr TLPtr = DLPtr
+toDLExpr TLDefault = DLDefault
 toDLExpr (TLU _) = __impossible "toDLExpr: layout unifiers shouldn't be here"
 
 toTCDL :: DataLayoutExpr -> TCDataLayout
@@ -90,6 +92,7 @@ toTCDL (DLAfter e s) = TLAfter (toTCDL e) s
 toTCDL (DLRepRef n s) = TLRepRef n $ toTCDL <$> s
 toTCDL (DLVar n) = TLVar n
 toTCDL DLPtr = TLPtr
+toTCDL DLDefault = TLDefault
 
 repRefTL :: TCDataLayout -> [RepName]
 repRefTL (TLOffset e _) = repRefTL e
@@ -186,6 +189,7 @@ checkAlloc (TLVariant tagExpr alternatives) = do
 checkAlloc (TLArray e p) = mapPaths (InElmt p) $ checkAlloc e
 #endif
 checkAlloc TLPtr = return $ singletonAllocation (pointerBitRange, PathEnd)
+checkAlloc TLDefault = __impossible "checkAlloc: TLDefault should be checked at its parent level"
 checkAlloc (TLU n) = return $ undeterminedAllocation n
 checkAlloc (TLVar n) = return emptyAllocation
 checkAlloc l = __impossible $ "checkAlloc; tried to typecheck unexpected layout: " ++ show l
@@ -207,6 +211,7 @@ normaliseLayout env (TLArray l p) = TLArray (normaliseLayout env l) p
 normaliseLayout _ (TLPrim n) = TLPrim n
 normaliseLayout _ (TLVar n) = TLVar n
 normaliseLayout _ TLPtr = TLPtr
+normaliseLayout _ TLDefault = TLDefault
 normaliseLayout _ l = __impossible $ "normaliseLayout: unexpeced layout " ++ show l
 
 -- | Substitutes layout variables with concrete layouts
@@ -264,6 +269,7 @@ data DataLayoutTcErrorP p
   | OverlappingFields       [FieldName] p
   | CyclicFieldDepedency    [FieldName] p
   | NonExistingFields       [FieldName] p
+  | UnexpectedDefault       p
   deriving (Eq, Show, Ord, Functor)
 
 
@@ -314,6 +320,9 @@ cyclicFieldDependency (G.CyclicSCC fs) = CyclicFieldDepedency fs PathEnd
 
 nonExistingFields :: [FieldName] -> DataLayoutTcError
 nonExistingFields fs = NonExistingFields fs PathEnd
+
+unexpectedDefault :: DataLayoutTcError
+unexpectedDefault = UnexpectedDefault PathEnd
 
 mapPaths
   :: (DataLayoutPath -> DataLayoutPath)

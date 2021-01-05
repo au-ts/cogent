@@ -692,6 +692,7 @@ instance Pretty d => Pretty (DataLayoutExpr' d) where
   pretty (Array e s) = keyword "array" <+> parens (pretty e) <+> keyword "at" <+> pretty s
 #endif
   pretty Ptr = keyword "pointer"
+  pretty Default = keyword "default"
   pretty (LVar n) = dlvarname n
 
 instance Pretty DataLayoutExpr where

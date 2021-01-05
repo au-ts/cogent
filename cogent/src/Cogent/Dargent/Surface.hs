@@ -68,6 +68,7 @@ data DataLayoutExpr' e
   | After   e FieldName
   | LVar    DLVarName
   | Ptr
+  | Default
   deriving (Show, Data, Eq, Ord)
 
 -- We use 'tying the knot' here so we can make single level layouts later
@@ -85,4 +86,5 @@ pattern DLRepRef n s   = DL (RepRef n s)
 pattern DLAfter e f    = DL (After e f)
 pattern DLVar n        = DL (LVar n)
 pattern DLPtr          = DL Ptr
+pattern DLDefault      = DL Default
 

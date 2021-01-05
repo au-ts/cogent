@@ -123,6 +123,7 @@ repExpr = repExpr' offsetOT (repRefM offsetOT) <|> parens repExpr
 #endif
       <|> (Prim <$> repSize)
       <|> (Ptr <$ reserved "pointer")
+      <|> (Default <$ reserved "default")
       <|> (LVar <$> variableName)
       <|> rfp))
     repExprS' ot = parens (repExpr' ot (repRefM ot)) <|> repExpr' ot repRefS
