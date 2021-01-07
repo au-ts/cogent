@@ -797,18 +797,18 @@ shallowDefinition (FunDef _ fn ps _ ti to e) =
     pure ([Left $ Definition (Def (Just (Sig (snm fn) (Just types))) term)], Just $ snm fn)
   where fn'   = mkId (snm fn)
         arg0  = mkId $ snm $ D.freshVarPrefix ++ "0"
-        typar = map fst $ Vec.cvtToList ps
+        typar = map fst $ Vec.toList ps
 shallowDefinition (AbsDecl _ fn ps _ ti to) =
     local (typarUpd typar) $ do
       types <- shallowType $ TFun ti to
       pure ([Right $ ConstsDecl $ Consts (Sig (snm fn) (Just types))], Nothing)
-  where typar = map fst $ Vec.cvtToList ps
+  where typar = map fst $ Vec.toList ps
 shallowDefinition (TypeDef tn ps Nothing) =
     local (typarUpd typar) $ pure ([Right $ TypeDeclDecl $ TypeDecl tn typar], Nothing)
-  where typar = Vec.cvtToList ps
+  where typar = Vec.toList ps
 shallowDefinition (TypeDef tn ps (Just t)) =
     local (typarUpd typar) $ (, Nothing) <$> (map Right <$> shallowTypeDef tn typar t)
-  where typar = Vec.cvtToList ps
+  where typar = Vec.toList ps
 
 shallowDefinitions :: (Show b) => [Definition TypedExpr VarName b] -> SG ([Either (TheoryDecl I.Type I.Term) (TheoryDecl I.Type I.Term)], [FunName])
 shallowDefinitions = (((concat *** catMaybes) . P.unzip) <$>) . mapM ((varNameGen .= 0 >>) . shallowDefinition)

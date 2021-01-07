@@ -100,9 +100,9 @@ cvtFromList SZero _  = Nothing
 cvtFromList (SSuc n) [] = Nothing
 cvtFromList (SSuc n) (x:xs) = Cons x <$> cvtFromList n xs
 
-cvtToList :: Vec n a -> [a]
-cvtToList Nil = []
-cvtToList (Cons a v) = a:cvtToList v
+toList :: Vec n a -> [a]
+toList Nil = []
+toList (Cons a v) = a : toList v
 
 head :: Vec ('Suc a) t -> t
 head (Cons x xs) = x

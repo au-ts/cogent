@@ -24,7 +24,7 @@ import Cogent.Isabelle.IsabelleName
 import Cogent.Isabelle.Shallow (snm)
 import Cogent.Util (NameMod, Stage(..))
 import Data.Fin (Fin, finInt)
-import Data.Vec (cvtToList)
+import Data.Vec (toList)
 import Isabelle.ExprTH
 import Isabelle.InnerAST as I
 import Isabelle.OuterAST as O
@@ -196,7 +196,7 @@ deepKind :: Kind -> Term
 deepKind (K e s d) = ListTerm "{" [ mkId str | (sig, str) <- [(e, "E"), (s, "S"), (d, "D")], sig ] "}"
 
 deepPolyType :: (Ord b, Pretty b) => NameMod -> TypeAbbrevs -> FunctionType b -> Term
-deepPolyType mod ta (FT ks ts ti to) = mkPair (mkList $ map deepKind $ cvtToList ks)  -- FIXME
+deepPolyType mod ta (FT ks ts ti to) = mkPair (mkList $ map deepKind $ toList ks)  -- FIXME
                                               (mkPair (deepType mod ta ti) (deepType mod ta to))
 
 imports :: TheoryImports

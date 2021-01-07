@@ -225,8 +225,8 @@ follow_tt :: (Ord b, Pretty b)
 follow_tt k env env_x env_y = hintListSequence $ map (kindingHint k) new
   where
     l = Nat.toInt (Vec.length env)
-    n_x = take (Nat.toInt (Vec.length env_x) - l) (cvtToList env_x)
-    n_y = take (Nat.toInt (Vec.length env_y) - l) (cvtToList env_y)
+    n_x = take (Nat.toInt (Vec.length env_x) - l) (toList env_x)
+    n_y = take (Nat.toInt (Vec.length env_y) - l) (toList env_y)
     new = catMaybes (n_x ++ n_y)
 
 proofSteps :: (Ord b, Show b, Pretty b) => Xi a b -> Vec t Kind -> Type t b -> EnvExpr t v a b
@@ -573,7 +573,7 @@ kinding k t = do
 
 kindingRaw :: (Ord b, Pretty b) => Vec t Kind -> Type t b -> State TypingSubproofs SubproofId
 kindingRaw k t = do
-  let k' = cvtToList k
+  let k' = toList k
       t' = stripType t
       gk = mostGeneralKind k t
   ta <- use tsTypeAbbrevs
@@ -590,7 +590,7 @@ kindingRaw k t = do
 
 kinding' :: (Ord b, Pretty b) => Vec t Kind -> Type t b -> Kind -> State TypingSubproofs [Tactic]
 kinding' ks t k = do
-  let ks' = cvtToList ks
+  let ks' = toList ks
       t' = stripType t
   ta <- use tsTypeAbbrevs
   kmap <- use subproofKinding
@@ -629,9 +629,9 @@ kindingVariant _ _ k = return [simp_add ["kinding_def", "kinding_all_def", "kind
 
 allKindCorrect :: (Ord b, Pretty b) => Vec t' Kind -> [Type t' b] -> Vec t Kind -> State TypingSubproofs [Tactic]
 allKindCorrect k ts ks = do
-  let k' = cvtToList k
+  let k' = toList k
       ts' = map stripType ts
-      ks' = cvtToList ks
+      ks' = toList ks
   ta <- use tsTypeAbbrevs
   akmap <- use subproofAllKindCorrect
   case M.lookup (k', ts', ks') akmap of
@@ -739,8 +739,8 @@ consumed k g = weakens k g $ cleared g
 -- K ⊢ Γ ↝w Γ'
 weakens :: (Ord b, Pretty b) => Vec t Kind -> Vec v (Maybe (Type t b)) -> Vec v (Maybe (Type t b)) -> State TypingSubproofs [Tactic]
 weakens k g g' = do
-  let k' = cvtToList k
-      [gl, gl'] = map cvtToList [g, g']
+  let k' = toList k
+      [gl, gl'] = map toList [g, g']
       [glt, glt'] = map (map (fmap stripType)) [gl, gl']
   ta <- use tsTypeAbbrevs
   if not cacheWeakeningProofs

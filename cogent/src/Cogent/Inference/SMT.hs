@@ -20,6 +20,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Cogent.Inference.SMT where
 
@@ -29,84 +30,75 @@ import Cogent.Common.Types
 import Cogent.Core
 import Cogent.PrettyPrint (indent', warn)
 import Cogent.TypeCheck.Util (traceTc)
+import Data.Nat
+import Data.Fin
+import Data.Vec as Vec (toList)
 
 import Control.Applicative
 import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Control.Monad.State
-import Data.Nat
-import Data.Fin
 import Data.IntMap as IM
 import Data.Map    as M
-import Data.Maybe (fromMaybe)
+import Data.Maybe (catMaybes, fromMaybe)
 import Data.SBV as SMT hiding (proveWith)
 import Data.SBV.Dynamic as SMT
 #if MIN_VERSION_sbv(8,8,0)
 import Data.SBV.Internals (VarContext(NonQueryVar))
 #endif
 import Data.Vec hiding (repeat, splitAt, length, zipWith, zip, unzip)
+import Lens.Micro.GHC
 import Lens.Micro.Mtl
 import Lens.Micro.TH
 import Prelude as P
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 
-tcVecToList :: Int -> TcVec t v b -> [Maybe (Type t b)]
-tcVecToList n Nil = []
-tcVecToList n (Cons x xs) = case x of
-  Just (TRefine t p)  -> (Just (TRefine t (upshiftVarLExpr n p))) : (tcVecToList (n+1) xs)
-  t2                  -> t2 : (tcVecToList (n+1) xs)
+-- import Debug.Trace
 
--- State from the core TC monad
-type TcVec t v b = Vec v (Maybe (Type t b))
-
-data SmtTransState b = SmtTransState { _vars  :: Map String SVal
-                                     , _fresh :: Int
-                                     }
+data SmtTransState t b = SmtTransState { _vars    :: [Maybe SVal]
+                                       , _unintrp :: Map (Type t b) String
+                                       , _fresh   :: Int
+                                       }
 
 makeLenses ''SmtTransState
 
 -- Int is the fresh variable count
-type SmtStateM b = StateT (SmtTransState b) Symbolic
+type SmtStateM t b = StateT (SmtTransState t b) Symbolic
 
 getSmtExpression :: (Show b, Ord b)
-                 => [Maybe (Type t b)] -> [LExpr t b] -> Type t b -> Type t b -> Symbolic SVal
-getSmtExpression v e (TRefine t1 p) (TRefine t2 q) = do
-  (e', se) <- runStateT (extract (Nothing:v) e) (SmtTransState M.empty 0) -- we chuck a nothing here so that upshifting makes sense
-  (p', sp) <- runStateT (lexprToSmt ((Just t1):v) p) se
-  (q', sp) <- runStateT (lexprToSmt ((Just t2):v) q) sp
-  return $ svOr (svNot (svAnd p' e')) q' -- ~(P ^ E) v Q
+                 => [Maybe (Type t b)]
+                 -> [LExpr t b]
+                 -> Type t b -> LExpr t b -> LExpr t b -> Symbolic SVal
+getSmtExpression vec ls β p q = do
+  (e',p',q') <- flip evalStateT (SmtTransState (replicate (length vec) Nothing) M.empty 0) $ do
+     e' <- P.foldr svAnd svTrue <$> extract vec ls
+     vars %= (Nothing :)
+     p' <- lexprToSmt (Just β : vec) p
+     vars %= (ix 0 .~ Nothing)
+     q' <- lexprToSmt (Just β : vec) q
+     vars %= P.tail
+     return (e',p',q')
+  return $ svOr (svNot (svAnd p' e')) q'  -- (E ∧ P) ⟶ Q
 
-extract :: (Show b, Ord b) => [Maybe (Type t b)] -> [LExpr t b] -> (SmtStateM b) SVal
-extract v ls = do initialSVal <- return $ return svTrue
-                  vecPreds <- P.foldr (extractVec v) initialSVal v
-                  ctxPreds <- P.foldr (extractLExprs v) initialSVal ls
-                  return $ svAnd vecPreds ctxPreds
+extract :: (Show b, Ord b) => [Maybe (Type t b)] -> [LExpr t b] -> SmtStateM t b [SVal]
+extract vec ls = (++) <$> (catMaybes <$> mapM (extractT vec) vec) <*> mapM (extractL vec) ls
 
-extractVec :: (Show b, Ord b)
-           => [Maybe (Type t b)] -> Maybe (Type t b) -> (SmtStateM b) SVal -> (SmtStateM b) SVal
-extractVec vec t acc = case t of
-  Just (TRefine _ p)  -> svAnd <$> acc <*> (lexprToSmt vec p)
-  _                   -> acc
+extractT :: (Show b, Ord b)
+         => [Maybe (Type t b)] -> Maybe (Type t b) -> SmtStateM t b (Maybe SVal)
+extractT vec (Just (TRefine t p)) = Just <$> lexprToSmt (Just t : vec) p
+extractT _ _ = pure Nothing
 
-extractLExprs :: (Show b, Ord b)
-              => [Maybe (Type t b)] -> LExpr t b -> (SmtStateM b) SVal -> (SmtStateM b) SVal
-extractLExprs vec l acc = svAnd <$> acc <*> lexprToSmt vec l
-
-strToPrimInt :: [Char] -> PrimInt
-strToPrimInt "U8"  = U8
-strToPrimInt "U16" = U16
-strToPrimInt "U32" = U32
-strToPrimInt "U64" = U64
+extractL :: (Show b, Ord b) => [Maybe (Type t b)] -> LExpr t b -> SmtStateM t b SVal
+extractL vec l = lexprToSmt vec l
 
 primIntToSmt :: PrimInt -> SMT.Kind
--- it shouldn't be bool, we do bool case first
--- primIntToSmt Boolean = return KBool
+primIntToSmt Boolean = KBool
 primIntToSmt u
   = let w = if | u == U8  -> 8
                | u == U16 -> 16
                | u == U32 -> 32
                | u == U64 -> 64
-               | u == Boolean -> 1 -- fixme
+               -- | u == Boolean -> 1 -- fixme
       in KBounded False w
 
 bopToSmt :: Op -> SVal -> SVal -> SVal
@@ -114,7 +106,7 @@ bopToSmt Plus = svPlus
 bopToSmt Minus = svMinus
 bopToSmt Times = svTimes
 bopToSmt Divide = svDivide
-bopToSmt Mod = svRem -- care with the defn, x rem 0 = 0
+bopToSmt Mod = svRem  -- care with the defn, x rem 0 = 0
 bopToSmt And = svAnd
 bopToSmt Or = svOr 
 bopToSmt Gt = svGreaterThan 
@@ -133,18 +125,17 @@ uopToSmt :: Op -> SVal -> SVal
 uopToSmt Not = svNot
 uopToSmt Complement = svNot
 
-lexprToSmt :: (Show b, Ord b) => [Maybe (Type t b)] -> LExpr t b -> (SmtStateM b) SVal
-lexprToSmt vec (LVariable (t, vn)) = 
+lexprToSmt :: (Show b, Ord b) => [Maybe (Type t b)] -> LExpr t b -> SmtStateM t b SVal
+lexprToSmt vec (LVariable (natToInt -> v, vn)) = 
   do m <- use vars
-     let newn = show t
-     case M.lookup newn m of
-       Nothing -> let Just t' = vec !! (natToInt t) in
-                   do t'' <- typeToSmt vec t'
-                      sv <- mkQSymVar SMT.ALL newn t''
-                      vars %= (M.insert newn sv)
-                      return sv
+     case m !! v of
+       Nothing -> do n <- freshVal
+                     let Just t = vec !! v
+                     t' <- typeToSmt t
+                     sv <- mkQSymVar SMT.ALL n t'
+                     vars %= (ix v .~ Just sv)
+                     return sv
        Just sv -> return sv
-
 lexprToSmt vec (LOp op [e]) = (liftA $ uopToSmt op) $ lexprToSmt vec e
 lexprToSmt vec (LOp op [e1, e2]) =
   (liftA2 $ bopToSmt op) (lexprToSmt vec e1) (lexprToSmt vec e2)
@@ -165,63 +156,42 @@ lexprToSmt vec (LIf c t e) = do
     let thenBranch = svOr (svNot c') t'   -- c => t
         elseBranch = svOr c' e'           -- ~c => e
     return $ svAnd thenBranch elseBranch 
-lexprToSmt _ _ = freshVal >>= \vn -> return $ svUninterpreted KString vn Nothing []
+lexprToSmt _ _ = freshVal >>= \vn -> return $ svUninterpreted KString vn Nothing []  -- FIXME: KString
 
-typeToSmt :: [Maybe (Type t b)] -> Type t b -> (SmtStateM b) SMT.Kind
-typeToSmt vec (TVar v) = do
-    case (vec !! (finInt v)) of
-      Just t' -> typeToSmt vec t'
-typeToSmt vec (TVarBang v) = varIndexToSmt vec (finInt v)
-typeToSmt vec (TVarUnboxed v) = varIndexToSmt vec (finInt v)
-typeToSmt vec (TPrim pt) = return $ primIntToSmt pt
-typeToSmt vec (TUnit) = return $ KTuple []
-typeToSmt vec (TProduct t1 t2) = do 
-  ts <- mapM (typeToSmt vec) [t1, t2]
-  return $ KTuple ts
-typeToSmt vec (TRefine t _) = typeToSmt vec t
+typeToSmt :: (Ord b) => Type t b -> SmtStateM t b SMT.Kind
+typeToSmt (TPrim pt) = return $ primIntToSmt pt
+typeToSmt (TUnit) = return $ KTuple []
+typeToSmt (TProduct t1 t2) = KTuple <$> mapM typeToSmt [t1, t2]
+typeToSmt (TRefine t _) = typeToSmt t
+typeToSmt t = do
+  u <- use unintrp
+  case M.lookup t u of
+    Nothing -> do s <- freshSort
+                  unintrp %= M.insert t s
 #if MIN_VERSION_sbv(8,8,0)
-typeToSmt vec t = freshVal >>= \s -> return (KUserSort s (Just [s])) -- check
+                  return (KUserSort s (Just [s]))
+    Just s -> return (KUserSort s (Just [s]))
 #else
-typeToSmt vec t = freshVal >>= \s -> return (KUninterpreted s (Left s)) -- check
+                  return (KUninterpreted s (Left s))
+    Just s -> return (KUninterpreted s (Left s))
 #endif
 
-varIndexToSmt :: [Maybe (Type t b)] -> Int -> (SmtStateM b) SMT.Kind
-varIndexToSmt vec i = do
-  case (vec !! i) of
-    Just t' -> typeToSmt vec t'
-
 smtProve :: (L.Pretty b, Show b, Ord b)
-         => TcVec t v b -> [LExpr t b] -> Type t b -> Type t b -> IO Bool
-smtProve v ls rt1@(TRefine t1 p1) rt2@(TRefine t2 p2) = do
-    -- traceTc "infer/smt" (pretty ls)
-    let v' = tcVecToList 1 v
-        ls' = P.map (upshiftVarLExpr 1) ls
-        toProve = getSmtExpression v' ls' rt1 rt2
-        solver = z3 { -- verbose = __cogent_ddump_smt
-                   verbose = False
-                   , redirectVerbose = Just $ fromMaybe "/dev/stderr" __cogent_ddump_to_file
-                   }
-    -- ugly dump
-    dumpMsgIfTrue False (L.hardline L.<> L.text "Running core-tc SMT on refinement types:"
-                      L.<$>              L.text "----------------------------------------"
-                      L.<$> indent' (L.pretty rt1)
-                      L.<$> indent' (L.pretty rt2)
-                      L.<$> L.text "Types in context:"
-                      L.<$> indent' (L.pretty v)
-                      L.<$> indent' (L.text (show v))
-                      L.<$> L.text "Other predicates:"
-                      L.<$> indent' (L.pretty ls)
-                      L.<$> indent' (L.text (show ls))
-                      L.<> L.hardline
-                      )
+         => Vec v (Maybe (Type t b))
+         -> [LExpr t b]
+         -> Type t b -> LExpr t b -> LExpr t b -> IO Bool
+smtProve (Vec.toList -> vec) ls β p1 p2 = do
+    let ls' = P.map (upshiftVarLExpr 1) ls
+        toProve = getSmtExpression vec ls' β p1 p2
+        solver = z3 { verbose = True
+                    , redirectVerbose = Just $ fromMaybe "/dev/stderr" __cogent_ddump_to_file
+                    }
     -- pretty
     dumpMsgIfTrue True (
-      L.text "Gamma =" L.<+> (prettyGamma v' ls')
-      L.<$> L.text "Gamma" L.<+> L.dullyellow (L.text "|-")
-      L.<+> (L.pretty rt1) L.<+> L.dullyellow (L.text "<:") L.<+> (L.pretty rt2)
-      -- L.<$> L.text "Gamma: " L.<+> (L.pretty v') L.<+> (L.pretty ls')
-      -- L.<$> L.text "extract(Gamma) /\\" L.<+> (L.pretty p1) L.<+> L.text "==>" L.<+> (L.pretty p2) L.<> L.hardline
-      L.<$> (prettyProofObligation ((typeListToPreds v') ++ ls') p1 p2) L.<> L.hardline
+      L.text "Γ =" L.<+> (prettyGamma vec ls')
+      L.<$> L.pretty β L.<> L.comma L.<+> L.text "Γ" L.<+> L.dullyellow (L.text "⊢")
+      L.<+> (L.pretty p1) L.<+> L.dullyellow (L.text "==>") L.<+> L.pretty p2
+      L.<$> L.empty
       )
     smtRes <- liftIO (proveWith solver toProve)
     -- if its sat, then its not a subtype
@@ -231,30 +201,21 @@ smtProve v ls rt1@(TRefine t1 p1) rt2@(TRefine t2 p2) = do
 
 -- pretty print the context
 prettyGamma :: (L.Pretty b) => [Maybe (Type t b)] -> [LExpr t b] -> L.Doc
-prettyGamma [] [] = L.empty
-prettyGamma [t] [] = L.pretty t
-prettyGamma (t:ts) ls = (L.pretty t) L.<> (L.text ",") L.<+> (prettyGamma ts ls)
-prettyGamma [] [l] = (L.pretty l)
-prettyGamma [] (l:ls) = (L.pretty l) L.<> (L.text ",") L.<+> (prettyGamma [] ls)
+prettyGamma ts ls = L.list (fmap prettyMb ts) L.<> L.comma L.<+> L.list (fmap L.pretty ls)
+  where prettyMb Nothing  = L.text "✗"
+        prettyMb (Just t) = L.pretty t
 
-typeListToPreds :: [Maybe (Type t b)] -> [LExpr t b]
-typeListToPreds [] = []
-typeListToPreds (t:ts) = case t of
-  Just (TRefine t1 p1)  -> p1:typeListToPreds(ts)
-  _                     -> typeListToPreds(ts)
 
--- extract(Gamma) /\ p1 ==> p2 
-prettyProofObligation :: (L.Pretty b) => [LExpr t b] -> LExpr t b -> LExpr t b -> L.Doc
-prettyProofObligation [] p1 p2 = (L.pretty p1) L.<+> L.dullyellow (L.text "==>") L.<+> (L.pretty p2)
-prettyProofObligation [l] p1 p2 = (L.pretty l) L.<+> L.dullyellow (L.text ("/\\")) L.<+> (prettyProofObligation [] p1 p2)
-prettyProofObligation (l:ls) p1 p2 = (L.pretty l) L.<+> L.dullyellow (L.text "/\\") L.<+> (prettyProofObligation ls p1 p2) 
-
-mkQSymVar :: SMT.Quantifier -> String -> SMT.Kind -> (SmtStateM b) SVal
+mkQSymVar :: SMT.Quantifier -> String -> SMT.Kind -> SmtStateM t b SVal
 #if MIN_VERSION_sbv(8,8,0)
 mkQSymVar q nm k = symbolicEnv >>= liftIO . svMkSymVar (NonQueryVar (Just q)) k (Just nm)
 #else
 mkQSymVar q nm k = symbolicEnv >>= liftIO . svMkSymVar (Just q) k (Just nm)
 #endif
 
-freshVal :: (SmtStateM b) String
+freshVal :: SmtStateM t b String
 freshVal = (("smt_val_" ++) . show) <$> (fresh <<%= succ)
+
+freshSort :: SmtStateM t b String
+freshSort = (("smt_sort_" ++) . show) <$> (fresh <<%= succ)
+

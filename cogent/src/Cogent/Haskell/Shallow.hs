@@ -248,7 +248,7 @@ shallowDefinition (CC.FunDef _ fn ps _ ti to e) = __fixme $  -- FIXME: dlvars ig
     pure [tidef,todef,sig,dec]
   where fn'   = snm fn
         arg0  = mkName $ snm $ D.freshVarPrefix ++ "0"
-        typar = map fst $ Vec.cvtToList ps
+        typar = map fst $ Vec.toList ps
 shallowDefinition (CC.AbsDecl _ fn ps _ ti to) = __fixme $  -- FIXME: dlvars ignored here
   local (typarUpd typar) $ do
     ti' <- shallowType ti
@@ -265,7 +265,7 @@ shallowDefinition (CC.AbsDecl _ fn ps _ ti to) = __fixme $  -- FIXME: dlvars ign
         todef = TypeDecl () (mkDeclHead (mkName toname) tyvars) to'
     pure [tidef,todef,sig,dec]
   where fn' = snm fn
-        typar = map fst $ Vec.cvtToList ps
+        typar = map fst $ Vec.toList ps
 shallowDefinition (CC.TypeDef tn ps Nothing) =
     let dec = DataDecl () (DataType ()) Nothing (mkDeclHead (mkName tn) (P.map (mkName . snm) typar)) []
 #if MIN_VERSION_haskell_src_exts(1,20,0)
@@ -274,10 +274,10 @@ shallowDefinition (CC.TypeDef tn ps Nothing) =
                 Nothing
 #endif
      in local (typarUpd typar) $ pure [dec]
-  where typar = Vec.cvtToList ps
+  where typar = Vec.toList ps
 shallowDefinition (CC.TypeDef tn ps (Just t)) = do
     local (typarUpd typar) $ (:[]) <$> shallowTypeDef tn typar t
-  where typar = Vec.cvtToList ps
+  where typar = Vec.toList ps
 
 
 shallowDefinitions :: [CC.Definition TypedExpr VarName b] -> SG [Decl ()]

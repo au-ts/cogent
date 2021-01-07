@@ -22,7 +22,7 @@ import Cogent.Isabelle.Deep hiding (imports)
 import Cogent.Mono
 import Cogent.Util
 import Data.Nat (Nat(Zero, Suc))
-import Data.Vec
+import Data.Vec hiding (toList)
 import Cogent.Isabelle.IsabelleName
 import Isabelle.ExprTH
 import Isabelle.InnerAST as I

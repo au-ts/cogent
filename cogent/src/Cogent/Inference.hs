@@ -100,20 +100,27 @@ isUpcastable (TSum s1) (TSum s2) = do
           Just (t',b') -> (&&) <$> t `isSubtype` t' <*> pure (b == b'))
   c2 <- flip allM s2 (\(c,(t,b)) -> return $ case lookup c s1 of Nothing -> b; Just _ -> True)  -- other tags are all taken
   return $ c1 && c2
+#ifdef REFINEMENT_TYPES
+isUpcastable (TPrim p1) (TRefine (TPrim p2) _) = return $ isSubtypePrim p1 p2
+isUpcastable (TRefine (TPrim p1) _) (TPrim p2) = return $ isSubtypePrim p1 p2
+isUpcastable (TRefine (TPrim p1) _) (TRefine (TPrim p2) _) = return $ isSubtypePrim p1 p2
+#endif
 isUpcastable _ _ = return False
 
 #ifdef REFINEMENT_TYPES
-compareRefTypes :: (Eq b, Ord b, Pretty b, Show b) => Type t b -> Type t b -> TC t v b Bool
-compareRefTypes rt1@(TRefine t1 l1) rt2@(TRefine t2 l2)
-  | t1 == t2 = get >>= \(vec, ls, _) -> liftIO (smtProve vec ls rt1 rt2)
-compareRefTypes _ _ = __impossible "compareRefTypes incompatible"
+entails :: (Eq b, Ord b, Pretty b, Show b)
+        => Type t b -> LExpr t b -> LExpr t b -> TC t v b Bool
+entails β p1 p2 = get >>= \(vec, ls, _) -> liftIO (smtProve vec ls β p1 p2)
 #endif
 
 isSubtype :: (Eq b, Pretty b, Show b, Ord b) => Type t b -> Type t b -> TC t v b Bool
 #ifdef REFINEMENT_TYPES
-isSubtype rt1@(TRefine t1 l1) rt2@(TRefine t2 l2) | t1 == t2 = compareRefTypes rt1 rt2
+isSubtype rt1@(TRefine t1 p1) rt2@(TRefine t2 p2) | t1 == t2 = entails t1 p1 p2
+isSubtype rt1@(TRefine t1 p1) t2 | t1 == t2 = return True
+isSubtype t1 rt2@(TRefine t2 p2) | t1 == t2 = entails t1 (LILit 1 Boolean) p2
 #endif
 isSubtype t1 t2 = runMaybeT (t1 `lub` t2) >>= \case Just t  -> return $ t == t2
+-- The structural equality check t == t2 is not adequate for refinement equality.
                                                     Nothing -> return False
 
 listIsSubtype :: (Eq b, Ord b, Pretty b, Show b) => [Type t b] -> [Type t b] -> TC t v b Bool
@@ -184,21 +191,21 @@ bound b (TArray t1 l1 s1 mhole1) (TArray t2 l2 s2 mhole2)
     combineHoles b (Just i1) (Just _ ) = Just i1
     combineHoles b Nothing   (Just i2) = case b of GLB -> Nothing; LUB -> Just i2
     combineHoles b (Just i1) Nothing   = case b of GLB -> Nothing; LUB -> Just i1
-bound b rt@(TRefine (TPrim t1) l) pt@(TPrim t2)
-  | t1 == t2 = return $ case b of GLB -> rt; LUB -> pt
-bound b pt@(TPrim t1) rt@(TRefine (TPrim t2) l)
-  | t1 == t2 = return $ case b of GLB -> rt; LUB -> pt
-bound b rt1@(TRefine t1 l1) rt2@(TRefine t2 l2)
+bound b rt1@(TRefine t1 p1) rt2@(TRefine t2 p2)
   | t1 == t2
-  = do resSub <- lift $ compareRefTypes rt1 rt2  -- subtype
-       resSuper <- lift $ compareRefTypes rt2 rt1  -- supertype
-       case (resSub, resSuper) of
+  = do isSub <- lift $ entails t1 p1 p2  -- subtype
+       isSup <- lift $ entails t1 p2 p1  -- supertype
+       case (isSub, isSup) of
          (True, True) -> return rt1 -- doesn't matter which one is returned
          (True, False) -> return $ case b of GLB -> rt1; LUB -> rt2
          (False, True) -> return $ case b of GLB -> rt2; LUB -> rt1
          (False, False) -> case b of
-                             GLB -> return (TRefine t1 (LOp And [l1, l2]))
-                             LUB -> return t1 -- fixme /blaisep
+                             GLB -> return (TRefine t1 (LOp And [p1, p2]))
+                             LUB -> return (TRefine t1 (LOp Or  [p1, p2]))
+bound b t1@(TRefine t l) t2
+  | t == t2 = return $ case b of GLB -> t1; LUB -> t2
+bound b t1 t2@(TRefine t l)
+  | t1 == t = return $ case b of GLB -> t2; LUB -> t1
 #endif
 bound _ t1 t2 = __impossible ("bound: not comparable:\n" ++ show t1 ++ "\n" ++ 
                               "----------------------------------------\n" ++ show t2 ++ "\n")
@@ -496,7 +503,7 @@ withPredicate l x
             rtc        <- lift . liftIO $ runTC x readers (st, p ++ [l], n) 
             case rtc of
               Left e -> throwError e
-              Right ((s, p, n), r) -> do put (s, p, n); return r
+              Right ((st', p, n), r) -> do put (st', p, n); return r
 
 withBang :: [Fin v] -> TC t v b x -> TC t v b x
 withBang vs (TC x) = TC $ do (st, p', n) <- get
@@ -542,7 +549,7 @@ typecheck :: (Pretty a, Show a, Eq a, Ord a)
           => TypedExpr t v a a -> Type t a -> TC t v a (TypedExpr t v a a)
 typecheck e t = do
   let t' = exprType e
-  isSub <- isSubtype t' t
+  isSub <- t' `isSubtype` t
   if | t == t' -> return e
      | isSub -> return (promote t e)
      | otherwise -> __impossible $ "Inferred type of\n" ++
@@ -688,9 +695,7 @@ infer (E (Variable v))
 infer (E (Fun f ts ls note))
    | ExI (Flip ts') <- Vec.fromList ts
    , ExI (Flip ls') <- Vec.fromList ls
-   = do myMap <- ask
-        x <- funType f
-        case x of
+   = do funType f >>= \case
           Just (FT ks lts ti to) ->
             case (Vec.length ts' =? Vec.length ks, Vec.length ls' =? Vec.length lts)
               of (Just Refl, Just Refl) -> let ti' = substitute ts' $ substituteL ls ti

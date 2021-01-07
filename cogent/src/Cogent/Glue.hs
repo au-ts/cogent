@@ -545,7 +545,7 @@ parseType s loc = parseAnti s PS.monotype loc 4
 tcType :: SF.LocType -> GlDefn t TC.DepType
 tcType t = do
   let ?loc = SF.posOfT t
-  tvs <- L.map fst <$> (Vec.cvtToList <$> view kenv)
+  tvs <- L.map fst <$> (Vec.toList <$> view kenv)
   flip tcAnti t $ \t -> do TC.errCtx %= (TC.AntiquotedType t :)
                            base <- lift . lift $ use TC.knownConsts
                            let ctx = Ctx.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) Ctx.empty
@@ -596,7 +596,7 @@ tcExp :: SF.LocExpr -> Maybe TC.TCType -> GlDefn t TC.TypedExpr
 tcExp e mt = do
   base <- lift . lift $ use (tcState.consts)
   let ctx = Ctx.addScope (fmap (\(t,_,p) -> (t, p, Seq.singleton p)) base) Ctx.empty
-  vs <- Vec.cvtToList <$> view kenv
+  vs <- Vec.toList <$> view kenv
   flip tcAnti e $ \e ->
     do let ?loc = SF.posOfE e
        let ?isRefType = False  -- FIXME: zilinc
