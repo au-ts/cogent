@@ -201,6 +201,8 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
   TLPtr          :~ A t e (Left (Boxed _ (Just l))) h -> hoistMaybe $ Just [l :~ A t e (Left Unboxed) h]
   TLPtr          :~ A t e (Left (Boxed _ Nothing )) h -> hoistMaybe $ Just [LayoutOk (A t e (Left Unboxed) h)]
 #endif
+  TLPtr          :~ T (TCon tn ts (Boxed _ (Just l))) -> hoistMaybe $ Just [l :~ T (TCon tn ts Unboxed)]
+  TLPtr          :~ T (TCon tn ts (Boxed _ Nothing))  -> hoistMaybe $ Just [LayoutOk (T (TCon tn ts Unboxed))]
   l              :~ T (TBang tau)    -> hoistMaybe $ Just [l :~ tau]
   l              :~ T (TTake _ tau)  -> hoistMaybe $ Just [l :~ tau]
   l              :~ T (TPut  _ tau)  -> hoistMaybe $ Just [l :~ tau]
