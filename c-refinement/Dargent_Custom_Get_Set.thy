@@ -503,6 +503,88 @@ fun string_of_getset_lem ctxt (lem : getset_lem) =
 \<close>
 
 
+(* Section about simplifying chains of Array updates (for the deterministic vs indeterministic
+getter/setter correspondence). 
+
+Sometimes you need to compare chains of Array updates at different indices, of the same array.
+
+The definitions and lemmas below are used by the tactic array_updates_simp to transform such a chain
+into a canonical, where the updates are sorted by their indices and duplicates are removed (only
+the last update at a specific index is relevant).
+ *)
+
+fun array_updates where
+  "array_updates arr [] = arr"
+| "array_updates arr ((n, v) # tail) = array_updates (Arrays.update arr n v) tail"
+
+lemma array_update_updates : "Arrays.update arr n v = array_updates arr [(n,v)]"
+  by simp
+
+lemma array_updates_append :
+   "\<And> arr. array_updates (array_updates arr l1) l2 = array_updates arr (l1 @ l2)"
+  by(induct l1;clarsimp)
+   
+lemma array_updates_insert :  "\<And> arr. array_updates (Arrays.update arr aa ba) l =
+       array_updates arr (insort_key fst (aa, ba) l)"
+by(induct l;clarsimp)
+
+
+lemma array_updates_order :
+    " \<And> arr. array_updates arr l \<equiv> array_updates arr (sort_key fst l)"
+  apply(induct l; clarsimp)
+  apply(simp add:array_updates_insert)
+  done
+
+fun remdups_key_adj :: "('a \<Rightarrow> 'b) \<Rightarrow> 'a list \<Rightarrow> 'a list" where
+ "remdups_key_adj f [] = []" |
+"remdups_key_adj f [x] = [x]" |
+"remdups_key_adj f (x # y # xs) = (if f x = f y then remdups_key_adj f (y # xs) else x # remdups_key_adj f (y # xs))"
+
+ 
+lemma array_updates_remdups_adj_aux :
+   
+ "(\<forall> arr. f = fst \<longrightarrow>  array_updates arr l = array_updates arr (remdups_key_adj f l)) "  
+  
+  by(rule remdups_key_adj.induct[of _ f l]; clarsimp)
+  
+
+
+lemma array_updates_remdups_adj :
+  "  array_updates arr l \<equiv> array_updates arr (remdups_key_adj fst l)"
+  apply(simp add: HOL.atomize_eq)
+  apply(rule allE[ OF  array_updates_remdups_adj_aux])
+  apply (erule impE;simp)
+  done
+
+(* this intermediate definition prevents simplification to loop
+when using array_updates_simp
+*)
+definition simplified_array_updates
+  where "simplified_array_updates = array_updates"
+
+lemma array_updates_simp :
+  "array_updates arr l \<equiv> simplified_array_updates arr (remdups_key_adj fst (sort_key fst l))"
+  apply (subst  array_updates_order)
+  apply (subst array_updates_remdups_adj)
+  apply (simp add:simplified_array_updates_def)
+  done
+
+(* 
+
+rewrite Arrays.update (Arrays.update (Arrays.update 7 a) 7 b)) 3 c) as 
+Arrays.update (Arrays.update 3 c) 7 b
+(i.e., remove duplicates, and sort the indices)
+*)
+ML \<open>
+fun array_updates_simp ctxt : int -> tactic = 
+simp_tac (clear_simpset ctxt addsimps @{thms array_update_updates array_updates_append})
+THEN_ALL_NEW
+simp_tac (clear_simpset ctxt addsimps @{thms array_updates_simp})
+THEN_ALL_NEW
+simp_tac (ctxt addsimps @{thms simplified_array_updates_def})
+\<close>
+
+
 
 
 (* This lemmas is used to prove some
@@ -550,9 +632,14 @@ fun custom_get_set_monadic_direct_tac ctxt = let
     val getset_defs = GetSetDefs.get ctxt; 
     val facts = @{thms L2opt unat_le condition_cst}
 in  
-  simp_tac (ctxt addsimps getset_defs) THEN'
-  simp_tac (ctxt addsimps facts) THEN'
-  (fn _ => monad_eq_tac (ctxt addsimps @{thms comp_def})) 
+
+  simp_tac (ctxt addsimps getset_defs) THEN_ALL_NEW
+  simp_tac (ctxt addsimps facts) THEN_ALL_NEW
+  (fn _ => monad_eq_tac (ctxt addsimps @{thms comp_def ucast_id})) 
+  THEN_ALL_NEW
+   array_updates_simp ctxt
+
+  (* fn _ => cheat_tactic ctxt  *)
 end
 
 \<close>
