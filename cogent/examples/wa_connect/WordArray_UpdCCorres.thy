@@ -1569,7 +1569,7 @@ lemma
 
 
   oops
-
+  value "((ucast (1 :: 64 word)) :: 32 word)"
 
 end (* of context *)
 end

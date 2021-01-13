@@ -12,10 +12,16 @@ theory WordArrayT
 imports
   "../adt/BilbyT"
   "../lib/Loops"
+  "../adt/WordArray_Shallow"
 begin
 
-consts \<alpha>wa :: "'a WordArray \<Rightarrow> 'a list"
-consts make :: "'a list \<Rightarrow> 'a WordArray"
+definition \<alpha>wa :: "(('a::len0) word) WordArray \<Rightarrow> ('a word) list"
+  where
+"\<alpha>wa wa = wa"
+
+definition make :: "(('a::len0) word) list \<Rightarrow> ('a word) WordArray"
+  where
+"make xs = xs"
 
 definition
   mapAccumObs :: "nat \<Rightarrow> nat \<Rightarrow> (('a, 'acc, 'obsv) ElemAO \<Rightarrow> ('a \<times> 'acc))
@@ -25,7 +31,7 @@ where
    (let (ys, acc) = fold (\<lambda>elem (ys,acc).
            let (elem,acc) = fn (ElemAO.make elem acc obs)
             in  (ys@[elem], acc)) (slice frm to xs) ([],vacc)
-     in (take frm xs @ ys @ drop (max frm to) xs, acc))"
+     in (take frm xs @ ys @ List.drop (max frm to) xs, acc))"
 
 lemma length_mapAccum_helper:
   "length (fst $ fold (\<lambda>x (ys,a'). let  (elem, acc) = loopbody x a'
@@ -57,7 +63,7 @@ lemma slice_length:
 lemma length_mapAccum_slice_helper':
   "length (take frm xs @ fst (let (xs', acc) = fold (\<lambda>x (ys,a'). let  (elem, acc) = loopbody x a'
                                   in  (ys@[elem],acc)) (slice frm to xs) (ys,a)
-           in (xs',acc))  @ drop (max frm to) xs) = length ys + length xs"
+           in (xs',acc))  @ List.drop (max frm to) xs) = length ys + length xs"
   unfolding Let_def  prod.case_eq_if
   using length_mapAccum_slice_helper[unfolded prod.case_eq_if Let_def, where xs=xs and ys=ys and frm=frm and to=to and loopbody=loopbody and a=a]
   by (simp add: slice_length)
@@ -70,33 +76,74 @@ lemma length_mapAccum:
 
 
 lemma length_mapAccumI:
-  " P (length xs) \<Longrightarrow> P (length (fst (mapAccumObs frm to fn xs a obs)))"
- by (simp add : length_mapAccum)
+  "P (length xs) \<Longrightarrow> P (length (fst (mapAccumObs frm to fn xs a obs)))"
+  by (simp add : length_mapAccum)
+
+lemma wordarray_make:
+  "\<And>xs. \<alpha>wa (WordArrayT.make xs) = xs"
+  by (simp add: \<alpha>wa_def WordArrayT.make_def)
+
+lemma wordarray_make':
+  "\<And>wa. WordArrayT.make (\<alpha>wa wa) = wa"
+  by (simp add: \<alpha>wa_def WordArrayT.make_def)
+
+lemma wordarray_get_ret:
+  "\<lbrakk> unat index < length (\<alpha>wa arr) \<rbrakk> \<Longrightarrow>
+    wordarray_get (arr, index) = \<alpha>wa arr ! unat index"
+  by (simp add: wordarray_get' \<alpha>wa_def)
+
+lemma mapAccum_fold_helper:
+  "fold (\<lambda>a (ys, b). case f (ElemAO.make a b obs) of (a', b') \<Rightarrow> (ys @ [a'], b')) xs ([], acc)
+    = mapAccum (\<lambda>a b. f (ElemAO.make a b obs)) xs acc"
+  apply (induct arbitrary: acc rule: rev_induct)
+   apply clarsimp
+  apply (clarsimp simp: mapAccum_step split: prod.splits)
+  done
+
+lemma wordarray_map_no_break_ret:
+  "\<And>P. (let (aarr, vacc) = mapAccumObs (unat frm) (unat to) body (\<alpha>wa arr) acc obs
+          in P ((WordArrayT.make aarr), vacc)) 
+   \<Longrightarrow> P (wordarray_map_no_break (ArrayMapP.make arr frm to body acc obs))"
+  apply (unfold mapAccumObs_def wordarray_map_no_break')
+  apply clarsimp
+  apply (clarsimp split: prod.splits)
+  apply (rename_tac vacc xs xs' vacc')
+  apply (rule conjI; clarsimp simp: ArrayMapP.make_def \<alpha>wa_def WordArrayT.make_def)
+  apply (clarsimp simp: mapAccum_fold_helper word_le_nat_alt max_def)
+  apply (clarsimp simp: slice_def not_le word_less_nat_alt max_def)
+  done
 
 axiomatization
 where
-  wordarray_make: "\<And>xs. \<alpha>wa (WordArrayT.make xs) = xs"
+(*  wordarray_make: "\<And>xs. \<alpha>wa (WordArrayT.make xs) = xs"
  and
   wordarray_make': "\<And>wa. WordArrayT.make (\<alpha>wa wa) = wa"
- and
-  wordarray_create_ret:
+ and*)
+\<comment> \<open> We need to add that the maximum length of a word array is less than the maximum 32-bit word
+    since wordarray_length returns a 32-bit word.\<close>
+  wordarray_length_max: 
+    "\<And>wa. length (\<alpha>wa wa) \<le> unat (max_word :: 32 word)"
+  and wordarray_length_max': 
+    "\<And>xs. wordarray_length (WordArrayT.make xs) \<le> (max_word :: 32 word)"
+  and wordarray_create_ret:
    "\<And>P.\<lbrakk>  \<And>ex'. (ex', Option.None ()) = malloc ex \<Longrightarrow> P (Error ex');
            \<And>ex' v. \<lbrakk> sz > 0 ; (ex', Option.Some v) = malloc ex; length (\<alpha>wa v) = unat sz \<rbrakk> \<Longrightarrow>
                  P (Success (ex', v))
         \<rbrakk> \<Longrightarrow>
       P (wordarray_create (ex, sz))"
-
+(*
    and wordarray_length_ret:
    "unat (wordarray_length arr) = length (\<alpha>wa arr)"
-
+*)
+(*
   and wordarray_get_ret:
   "\<lbrakk> unat index < length (\<alpha>wa arr) \<rbrakk> \<Longrightarrow>
     wordarray_get (arr, index) = \<alpha>wa arr ! unat index"
-
+*)
   and wordarray_modify_ret:
    "\<And>P. \<lbrakk> unat index < List.length (\<alpha>wa varr);
        let r = modifier (ElemAO.make ((\<alpha>wa varr)!unat index) vacc obs) in
-       P (ArrA.make (WordArrayT.make (\<alpha>wa varr[unat index:=ElemA.elem\<^sub>f r])) (ElemA.acc\<^sub>f r)) \<rbrakk> \<Longrightarrow>
+       P (ArrA.make (WordArrayT.make ((\<alpha>wa varr)[(unat index) := (ElemA.elem\<^sub>f r)])) (ElemA.acc\<^sub>f r)) \<rbrakk> \<Longrightarrow>
         P (wordarray_modify (ArrayUseValueP.make varr index modifier vacc obs))"
 (* Alternative that does not use WordArray.make
   and wordarray_modify_ret:
@@ -105,26 +152,39 @@ where
        \<And>arr'. \<alpha>wa arr' = (\<alpha>wa varr)[unat index:=a] \<Longrightarrow> P (ArrA.make arr' acc'') \<rbrakk> \<Longrightarrow>
         P (wordarray_modify (ArrayUseValueP.make varr index modifier vacc obs))"
 *)
+(*
    and wordarray_map_no_break_ret:
    "\<And>P. (let (aarr, vacc) = mapAccumObs (unat frm) (unat to) body (\<alpha>wa arr) acc obs
           in P ((WordArrayT.make aarr), vacc)) 
    \<Longrightarrow> P (wordarray_map_no_break (ArrayMapP.make arr frm to body acc obs))"
+*)
   and wordarray_cmp_ret:
   "\<And>P. P(\<alpha>wa a1 = \<alpha>wa a2) \<Longrightarrow> P (wordarray_cmp(a1, a2))"
   and wordarray_set_ret:
   "(offs::U32) \<le> offs + len \<Longrightarrow>
    wordarray_set (wa, offs, len, (v::U8)) =
    WordArrayT.make ((take (unat offs) (\<alpha>wa wa) @
-                   replicate (unat len) v @ drop (unat (offs + len)) (\<alpha>wa wa)))"
+                   replicate (unat len) v @ List.drop (unat (offs + len)) (\<alpha>wa wa)))"
 
   and wordarray_copy_ret:
   "\<And>P. \<lbrakk>  length (\<alpha>wa dst) = length (\<alpha>wa src) \<Longrightarrow>
                   offs = src_offs \<Longrightarrow>
                   offs \<le> offs + len \<Longrightarrow>
                   unat (offs + len) \<le> length (\<alpha>wa src) \<Longrightarrow>
-         P (WordArrayT.make (take (unat offs) (\<alpha>wa dst) @ slice (unat offs) (unat offs + unat len) (\<alpha>wa src) @ drop (unat (offs+len)) (\<alpha>wa dst))) \<rbrakk>
+         P (WordArrayT.make (take (unat offs) (\<alpha>wa dst) @ slice (unat offs) (unat offs + unat len) (\<alpha>wa src) @ List.drop (unat (offs+len)) (\<alpha>wa dst))) \<rbrakk>
      \<Longrightarrow>
       P (wordarray_copy(dst, src, offs, src_offs, len))"
+
+
+lemma wordarray_length_ret:
+  "unat (wordarray_length arr) = length (\<alpha>wa arr)"
+  apply (insert wordarray_length_max)
+  apply (drule_tac x = arr in meta_spec)
+  apply (clarsimp simp: wordarray_length' \<alpha>wa_def)
+  apply (rule unat_of_nat_eq)
+  apply (clarsimp simp: max_word_def)
+  done
+
 
 lemma wordarray_\<alpha>wa_eq:
   "\<And>xs ys. (xs = ys) \<longleftrightarrow> \<alpha>wa xs = \<alpha>wa ys"
