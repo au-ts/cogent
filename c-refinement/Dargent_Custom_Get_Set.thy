@@ -642,6 +642,112 @@ in
   (* fn _ => cheat_tactic ctxt  *)
 end
 
+
+(* 
+proves a statement of the shape 
+
+`
+get_a (set_b f v) = get_a f
+`
+
+
+*)
+
+
+fun custom_get_set_different_field_tac ctxt = 
+let
+    val gets = Proof_Context.get_thms ctxt
+    val get  = Proof_Context.get_thm ctxt    
+    val getset_defs = GetSetDefs.get ctxt;
+    val tag_defs =
+      gets "tag_t_defs" handle ERROR _ => []
+in  
+  asm_full_simp_tac (ctxt addsimps getset_defs addsimps tag_defs) 
+ THEN_ALL_NEW
+   K (TRY ( REPEAT_SOME
+  (K (Method.intros_tac ctxt @{thms conjI impI} []))))
+  THEN_ALL_NEW
+ bw_tac_signed ctxt
+THEN_ALL_NEW asm_full_simp_tac ctxt
+
+  (* fn _ => cheat_tactic ctxt  *)
+
+end
+\<close>
+
+(* This rewrite x \<noteq> 0 with x && 0 after
+unfolding the definition of the value relation
+for booleans
+*)
+(*
+lemma bool_val_rel_simp :
+  " ((x = 0) \<or> (x = 1)) \<Longrightarrow>
+ ((x \<noteq> 0) = ( (x :: 8 word) && 1 = 1))"
+  by (erule disjE; simp)    
+*)
+
+(* This avoids disjonctive elimination when 
+dealing with booleans *)
+lemma word8_le1 : "((x :: 8 word) = 0 \<or> x = 1) \<equiv> x \<le> 1"
+  by unat_arith
+
+ML \<open>
+(*
+
+proves a statement of the shape
+"val_rel x v \<Longrightarrow>  val_rel x (get (set b v))"
+*)
+fun custom_get_set_same_field_tac ctxt = 
+let
+
+   val valsimps = ValRelSimp.get ctxt;
+   val getset_defs = GetSetDefs.get ctxt;
+   val gets = Proof_Context.get_thms ctxt ;
+   val tag_defs =
+      gets "tag_t_defs" handle ERROR _ => []
+   val variable = Syntax.read_term ctxt "v";
+in  
+(* Sometimes, for example when v is a pointer,
+ it helps to deconstruct it *)
+Induct.cases_tac ctxt false [ [ SOME variable ] ] NONE []
+THEN_ALL_NEW
+(* substitute *)
+hyp_subst_tac ctxt
+THEN_ALL_NEW
+asm_full_simp_tac (ctxt addsimps valsimps
+addsimps @{thms word8_le1}
+)
+THEN_ALL_NEW 
+(*
+With nested variants, the disjunction elimination 
+may create a very large number of goals  
+(exponentially in some respect, I guess), because all the 
+possibilites are then investigated.
+This needs to be fixed.
+*)
+K (TRY ( Method.elim ctxt  @{thms exE conjE disjE } []
+ |> Method.NO_CONTEXT_TACTIC ctxt))
+(* THEN_ALL_NEW
+(* not necessary, but increases the speed *)
+clarsimp_tac ctxt *)
+THEN_ALL_NEW
+(* the following was copied from custom_get_set_different_field_tac
+Calling custom_get_set_different_field_tac does not work here,
+because the THEN_ALL_NEW is not associative. This causes
+a problem because the bw_tac_signed tactic acts on all goals,
+even after THEN_ALL_NEW (not only the new goals emerging
+from the previous one), some of them
+may not be simplified enough at this time.
+ *)
+  asm_full_simp_tac (ctxt addsimps getset_defs addsimps tag_defs) 
+ THEN_ALL_NEW
+   K (TRY ( REPEAT_SOME
+  (K (Method.intros_tac ctxt @{thms conjI impI} []))))
+  THEN_ALL_NEW
+  (bw_tac_signed ctxt )
+THEN_ALL_NEW asm_full_simp_tac ctxt
+end
+
 \<close>
 
 
@@ -786,12 +892,13 @@ ML\<open> fun mk_getset_lems_for_rec file_nm ctxt name (infos : field_layout lis
       if field_numA = field_numB then
         {prop = mk_getset_prop field_infoA ctxt, typ = GetSet, 
         name = lem_name,
-        mk_tactic = cheat_tactic}
+        mk_tactic = fn ctxt => custom_get_set_same_field_tac ctxt 1}
       else
         {prop = mk_getAsetB_prop field_infoA field_infoB ctxt, 
         typ = GetASetB, 
         name = lem_name,
-        mk_tactic = cheat_tactic}
+        mk_tactic = 
+            fn ctxt => custom_get_set_different_field_tac ctxt 1}
 
    in
     [ lem  ]
