@@ -201,7 +201,11 @@ findTypeSyn t = findType t >>= \(TCon nm _ _) -> pure nm
 
 shallowExpr :: (Show b) => TypedExpr t v VarName b -> SG Term
 shallowExpr (TE _ (Variable (_,v))) = pure $ mkId (snm v)
-shallowExpr (TE _ (Fun fn ts ls _)) = pure $ mkId $ snm $ unCoreFunName fn  -- only prints the fun name
+shallowExpr (TE t (Fun fn ts ls _)) = 
+    if null ts 
+       then pure $ mkId $ snm $ unCoreFunName fn
+       else -- for polymorphic functions add its type
+            TermWithType (mkId $ snm $ unCoreFunName fn) <$> shallowType t
 shallowExpr (TE _ (Op opr es)) = shallowPrimOp <$> pure opr <*> (mapM shallowExpr es)
 shallowExpr (TE _ (App f arg)) = mkApp <$> shallowExpr f <*> (mapM shallowExpr [arg])
 shallowExpr (TE t (Con cn e _))  = do
