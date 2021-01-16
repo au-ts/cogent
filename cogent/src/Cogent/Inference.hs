@@ -340,11 +340,11 @@ adjust k f = map (\(a,b) -> (a,) $ if a == k then f b else b)
 newtype TC (t :: Nat) (v :: Nat) b x
   = TC {unTC :: ExceptT String
                         (ReaderT (Vec t Kind, Map FunName (FunctionType b))
-                                 (StateT (Vec v (Maybe (Type t b)), [LExpr t b], Int) IO))
+                                 (StateT (Vec v (Maybe (Type t b)), Vec v [LExpr t b], Int) IO))
                         x}
   deriving (Functor, Applicative, Alternative, Monad, MonadIO, MonadPlus,
             MonadReader (Vec t Kind, Map FunName (FunctionType b)), 
-            MonadState ((Vec v (Maybe (Type t b)), [LExpr t b], Int)))
+            MonadState ((Vec v (Maybe (Type t b)), Vec v [LExpr t b], Int)))
 
 #if MIN_VERSION_base(4,13,0)
 instance MonadFail (TC t v b) where
@@ -431,8 +431,8 @@ funType v = TC $ (M.lookup (unCoreFunName v) . snd) <$> ask
 
 runTC :: TC t v b x
       -> (Vec t Kind, Map FunName (FunctionType b))
-      -> (Vec v (Maybe (Type t b)), [LExpr t b], Int)
-      -> IO (Either String ((Vec v (Maybe (Type t b)), [LExpr t b], Int), x))
+      -> (Vec v (Maybe (Type t b)), Vec v [LExpr t b], Int)
+      -> IO (Either String ((Vec v (Maybe (Type t b)), Vec v [LExpr t b], Int), x))
 runTC (TC a) readers st = do
   tc <- liftIO $ runStateT (runReaderT (runExceptT a) readers) st
   return $ case tc of
@@ -458,7 +458,9 @@ tc = flip tc' M.empty
       -- Enable recursion by inserting this function's type into the function type dictionary
       let ft = FT (snd <$> ks) (snd <$> ls) t rt in
       do 
-        rtc <- liftIO $ runTC (infer e >>= flip typecheck rt) (fmap snd ks, M.insert fn ft reader) ((Cons (Just t) Nil), [], 0)
+        rtc <- liftIO $ runTC (infer e >>= flip typecheck rt)
+                              (fmap snd ks, M.insert fn ft reader)
+                              ((Cons (Just t) Nil), Cons [] Nil, 0)
         case rtc of
           Left x -> return $ Left x
           Right (_, e') -> (fmap $ first (FunDef attr fn ks ls t rt e':)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader)
@@ -474,7 +476,7 @@ tcConsts :: [CoreConst UntypedExpr]
          -> IO (Either String ([CoreConst TypedExpr], Map FunName (FunctionType VarName)))
 tcConsts [] reader = return $ Right ([], reader)
 tcConsts ((v,e):ds) reader = do 
-    rtc <- liftIO $ runTC (infer e) (Nil, reader) (Nil, [], 0)
+    rtc <- liftIO $ runTC (infer e) (Nil, reader) (Nil, Nil, 0)
     case rtc of
       Left x -> return $ Left x
       Right (_,e') -> (fmap $ first ((v,e'):)) <$> (tcConsts ds reader)
@@ -482,12 +484,12 @@ tcConsts ((v,e):ds) reader = do
 withBinding :: Type t b -> TC t ('Suc v) b x -> TC t v b x
 withBinding t x
   = TC $ do readers <- ask
-            (st, p, n) <- get
-            rtc <- lift . liftIO $ runTC x readers (Cons (Just t) st, p, n)
+            (tvec, pvec, n) <- get
+            rtc <- lift . liftIO $ runTC x readers (Cons (Just t) tvec, Cons [] pvec, n)
             case rtc of
               Left e -> throwError e
-              Right ((Cons Nothing s, p, n), r)  -> do put (s, p, n); return r
-              Right ((Cons (Just t) s, p, n), r) -> do
+              Right ((Cons Nothing s, Cons _ p, n), r)  -> do put (s, p, n); return r
+              Right ((Cons (Just t) s, Cons _ p, n), r) -> do
                 ok <- canDiscard <$> unTC (kindcheck t)
                 if ok then put (s,p,n) >> return r
                       else throwError "Didn't use linear variable"
@@ -498,12 +500,12 @@ withBindings (Cons x xs) tc = withBindings xs (withBinding x tc)
 
 withPredicate :: (Show b) => LExpr t b -> TC t v b x -> TC t v b x
 withPredicate l x
-  = TC $ do readers    <- ask
-            (st, p, n) <- get
-            rtc        <- lift . liftIO $ runTC x readers (st, p ++ [l], n) 
+  = TC $ do readers <- ask
+            (s, Cons p ps, n) <- get
+            rtc <- lift . liftIO $ runTC x readers (s, Cons (l:p) ps, n) 
             case rtc of
               Left e -> throwError e
-              Right ((st', p, n), r) -> do put (st', p, n); return r
+              Right ((s', Cons (l':p') ps', n), r) -> do put (s', Cons p' ps', n); return r
 
 withBang :: [Fin v] -> TC t v b x -> TC t v b x
 withBang vs (TC x) = TC $ do (st, p', n) <- get
@@ -694,7 +696,7 @@ infer (E (ArrayPut arr i e))
 infer (E (Variable v))
    = do Just t <- useVariable (fst v)
 #ifdef REFINEMENT_TYPES
-        case isBaseType t of
+        case inEqTypeClass t of
           True -> do
             vn <- freshVarName
             let pred = LOp Eq [ LVariable (Zero, vn)
@@ -731,10 +733,7 @@ infer (E (App e1 e2))
                      else return $ TE to (App e1' e2')
 infer (E (Let a e1 e2))
    = do e1' <- infer e1
-        (vec,_,_) <- get
-        traceM $ "ENTERING Let: " ++ show (pretty vec) ++ "\n ... adding " ++ show (pretty $ exprType e1')
         e2' <- withBinding (exprType e1') (infer e2)
-        traceM $ "LEAVING Let"
         return $ TE (exprType e2') (Let a e1' e2')  -- FIXME: the type is wrong! needs substitute away the binder.
 infer (E (LetBang vs a e1 e2))
    = do e1' <- withBang (map fst vs) (infer e1)

@@ -32,7 +32,7 @@ import Cogent.PrettyPrint (indent', warn)
 import Cogent.TypeCheck.Util (traceTc)
 import Data.Nat
 import Data.Fin
-import Data.Vec as Vec (toList)
+import Data.Vec as Vec (length, toList)
 
 import Control.Applicative
 import Control.Monad.IO.Class
@@ -73,39 +73,40 @@ traceX s vec p = do
   traceM $ ("p = " ++ show (L.pretty p))
 
 getSmtExpression :: (L.Pretty b, Show b, Ord b)
-                 => [Maybe (Type t b)]
-                 -> [LExpr t b]
+                 => Vec v (Maybe (Type t b))
+                 -> Vec v [LExpr t b]
                  -> Type t b -> LExpr t b -> LExpr t b -> Symbolic SVal
-getSmtExpression vec ls β p q = do
-  (e',p',q') <- flip evalStateT (SmtTransState (replicate (length vec) Nothing) M.empty 0) $ do
+getSmtExpression tvec pvec β p q = do
+  (e',p',q') <- flip evalStateT (SmtTransState (replicate (toInt $ Vec.length tvec) Nothing) M.empty 0) $ do
     vars %= (Nothing :)
-    e' <- P.foldr svAnd svTrue <$> extract (Just β : vec)
-                                           (fmap (insertIdxAtLE Zero) ls)
-    vars %= (ix 0 .~ Nothing)
-    p' <- lexprToSmt (Just β : vec) p
-    q' <- lexprToSmt (Just β : vec) q
+    e' <- P.foldr svAnd svTrue <$> extract (Just β `Cons` tvec) (Cons [] pvec)
+    p' <- lexprToSmt (Vec.toList $ Just β `Cons` tvec) p
+    q' <- lexprToSmt (Vec.toList $ Just β `Cons` tvec) q
     vars %= P.tail
     return (e',p',q')
   return $ svOr (svNot (svAnd p' e')) q'  -- (E ∧ P) ⟶ Q
 
-extract :: (L.Pretty b, Show b, Ord b) => [Maybe (Type t b)] -> [LExpr t b] -> SmtStateM t b [SVal]
-extract vec ls = (++) <$> extractΓ vec <*> mapM (lexprToSmt vec) ls
-
-extractΓ :: (L.Pretty b, Show b, Ord b) => [Maybe (Type t b)] -> SmtStateM t b [SVal]
-extractΓ vec = go (fmap (fmap toBaseType) vec) vec
+extract :: (L.Pretty b, Show b, Ord b)
+        => Vec v (Maybe (Type t b)) -> Vec v [LExpr t b] -> SmtStateM t b [SVal]
+extract tvec pvec = go (fmap (fmap toBaseType) tvec) (Vec.toList tvec) (Vec.toList pvec)
   where 
-    go γ [] = return []
-    go γ (mt : ts) = do rest <- go γ $ fmap (fmap $ upshiftIdxsT) ts
-                        case mt of
-                          Nothing -> return rest
-                          Just t  -> extractT γ t >>= \case
-                            Nothing -> pure rest
-                            Just v  -> return $ v : rest
+    go γ [] [] = return []
+    go γ (mt:ts) (p:ps) = do
+      rest <- go γ (fmap (fmap $ upshiftIdxsT) ts) (fmap (fmap $ insertIdxAtLE Zero) ps)
+      case (mt,p) of
+        (Nothing,[]) -> return rest
+        (Just t,ls)  -> do
+          mt' <- extractT γ t
+          ls' <- mapM (lexprToSmt (Vec.toList γ)) ls
+          case mt' of
+            Nothing -> pure $ ls' ++ rest
+            Just t  -> return $ t : ls' ++ rest
+    go _ _ _ = __impossible "extract: tvec and pvec are of different lengths"
 
 -- ASSUME: the vec contains only base types.
 extractT :: (L.Pretty b, Show b, Ord b)
-         => [Maybe (Type t b)] -> Type t b -> SmtStateM t b (Maybe SVal)
-extractT vec (TRefine t p) = Just <$> lexprToSmt vec p
+         => Vec v (Maybe (Type t b)) -> Type t b -> SmtStateM t b (Maybe SVal)
+extractT vec (TRefine t p) = Just <$> lexprToSmt (Vec.toList vec) p
 extractT _ _ = pure Nothing
 
 primIntToSmt :: PrimInt -> SMT.Kind
@@ -180,7 +181,9 @@ lexprToSmt vec (LILit i pt) =
     Boolean -> case i of
       0 -> svFalse
       1 -> svTrue
-lexprToSmt vec (LSLit s) = return $ svUninterpreted KString "" Nothing []
+lexprToSmt vec (LSLit s) = do
+  s <- freshVal
+  return $ svUninterpreted KString s Nothing []
 lexprToSmt vec (LIf c t e) = do
     c' <- lexprToSmt vec c
     t' <- lexprToSmt vec t
@@ -211,16 +214,16 @@ typeToSmt t = do
 
 smtProve :: (L.Pretty b, Show b, Ord b)
          => Vec v (Maybe (Type t b))
-         -> [LExpr t b]
+         -> Vec v [LExpr t b]
          -> Type t b -> LExpr t b -> LExpr t b -> IO Bool
-smtProve (Vec.toList -> vec) ls β p1 p2 = do
-    let toProve = getSmtExpression vec ls β p1 p2
+smtProve tvec pvec β p1 p2 = do
+    let toProve = getSmtExpression tvec pvec β p1 p2
         solver = z3 { verbose = True
                     , redirectVerbose = Just $ fromMaybe "/dev/stderr" __cogent_ddump_to_file
                     }
     -- pretty
     dumpMsgIfTrue True (
-      L.text "Γ =" L.<+> prettyGamma (Just β : vec) ls
+      L.text "Γ =" L.<+> prettyGamma (Just β `Cons` tvec) (Cons [] pvec)
       L.<$> L.text "Γ" L.<+> L.dullyellow (L.text "⊢")
       L.<+> (L.pretty p1) L.<+> L.dullyellow (L.text "==>") L.<+> L.pretty p2
       L.<$> L.empty
@@ -232,8 +235,8 @@ smtProve (Vec.toList -> vec) ls β p1 p2 = do
     return ret
 
 -- pretty print the context
-prettyGamma :: (L.Pretty b) => [Maybe (Type t b)] -> [LExpr t b] -> L.Doc
-prettyGamma ts ls = L.list (fmap prettyMb ts) L.<> L.comma L.<+> L.list (fmap L.pretty ls)
+prettyGamma :: (L.Pretty b) => Vec v (Maybe (Type t b)) -> Vec v [LExpr t b] -> L.Doc
+prettyGamma ts ls = L.pretty (fmap prettyMb ts) L.<> L.comma L.<+> L.pretty (fmap L.pretty ls)
   where prettyMb Nothing  = L.text "✗"
         prettyMb (Just t) = L.pretty t
 

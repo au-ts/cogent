@@ -121,10 +121,16 @@ recordHasLayout (TRecord _ _ (Boxed _ Layout{})) = True
 recordHasLayout _ = False
 
 #ifdef REFINEMENT_TYPES
+inEqTypeClass :: Type t b -> Bool
+inEqTypeClass (TRefine t _) = inEqTypeClass t
+inEqTypeClass (TPrim _) = True
+inEqTypeClass (TString) = True
+inEqTypeClass _ = False
+
 isBaseType :: Type t b -> Bool -- is a type that supports refinement
-isBaseType (TPrim _) = True
-isBaseType (TRefine t _) = isBaseType t
-isBaseType _ = False
+isBaseType (TRefine {}) = False
+isBaseType (TFun t1 t2) = isBaseType t1 && isBaseType t2
+isBaseType _ = True
 
 toRefType :: Type t b -> Type t b
 toRefType (TPrim t) = TRefine (TPrim t) (LILit 1 Boolean)

@@ -500,7 +500,7 @@ desugarAnti m a = view kenv >>= \(fmap fst -> ts) -> lift . lift $
 coreTcAnti :: (a -> IN.TC t 'Zero VarName b) -> a -> GlDefn t b
 coreTcAnti m a = view kenv >>= \(fmap snd -> ts) -> lift . lift $
   StateT $ \s -> let reader = (ts, view (coreTcState.funtypes) s)
-    in ExceptT $ (flip evalStateT (Nil, [], 0) $ flip runReaderT reader $ runExceptT $ IN.unTC $ m a) >>= \case
+    in ExceptT $ (flip evalStateT (Nil,Nil,0) $ flip runReaderT reader $ runExceptT $ IN.unTC $ m a) >>= \case
         Left  e -> __impossible "coreTcAnti"
         Right x -> return (Right (x, s))
 
