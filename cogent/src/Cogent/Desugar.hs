@@ -368,7 +368,13 @@ desugarAlt e0 (B.TP p pos) = desugarAlt' e0 p
 -- FIXME: this function should take a position
 desugarAlt' :: B.TypedExpr -> S.Pattern B.TypedIrrefPatn -> B.TypedExpr -> DS t l v (UntypedExpr t v VarName VarName)
 desugarAlt' e0 (S.PCon tag [B.TIP (S.PVar tn) _]) e =
+#ifdef REFINEMENT_TYPES
+  do e' <- E <$> (Let (fst tn) <$> (E . Esac <$> desugarExpr e0) <*> withBinding (fst tn) (desugarExpr e))
+     τ <- desugarType $ B.getTypeTE e
+     return $ E $ Promote τ e'
+#else
   E <$> (Let (fst tn) <$> (E . Esac <$> desugarExpr e0) <*> withBinding (fst tn) (desugarExpr e))
+#endif
   -- Idea:
   --   Base case: e0 | PCon cn [PVar v] in e ~~> let v = esac e0 in e
   --   Ind. step: A) e0 | PCon vn [p] in e ==> e0 | PCon cn [PVar v] in (let p = v in e)
@@ -390,7 +396,13 @@ desugarAlt' (B.TE t e0 l) (S.PCon tag ps) e =  -- B2)
                                                           -- At this point, t and e0 do not match!
                                                           -- but hopefully they will after e0 gets desugared
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PVar v) _)) e =
+#ifdef REFINEMENT_TYPES
+  do e' <- E <$> (Let (fst v) <$> desugarExpr e0 <*> (withBinding (fst v) $ desugarExpr e))
+     τ <- desugarType $ B.getTypeTE e
+     return $ E $ Promote τ e'
+#else
   E <$> (Let (fst v) <$> desugarExpr e0 <*> (withBinding (fst v) $ desugarExpr e))
+#endif
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple []) p)) e = desugarAlt' e0 (S.PIrrefutable (B.TIP S.PUnitel p)) e
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple [irf]) _)) e = __impossible "desugarAlt' (singleton tuple)"
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple [B.TIP (S.PVar tn1) _, B.TIP (S.PVar tn2) _]) _)) e
@@ -825,7 +837,7 @@ desugarExpr (B.TE t (S.Annot e tau) _) = E <$> (Promote <$> desugarType tau <*> 
   -- (Success a : <Success A | Error B>) :: <Success A | Error B>
   -- If the above is given by the surface Tc, after desugaring the inner, it becomes
   -- `(Success a <Success A | Error* E>)' with `Error' taken.
-  -- In the case where the annoated type is indeed the same as the core-tc-inferred
+  -- In the case where the annotated type is indeed the same as the core-tc-inferred
   -- type, we can remove the `Promote' later, or keep it even. / zilinc
 desugarExpr (B.TE t (S.Con c es) p) = __impossible "desugarExpr (Con)"
 -- = do

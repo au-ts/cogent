@@ -53,7 +53,7 @@ import Lens.Micro.TH
 import Prelude as P
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 
--- import Debug.Trace
+import Debug.Trace
 
 data SmtTransState t b = SmtTransState { _vars    :: [Maybe SVal]
                                        , _unintrp :: Map (Type t b) String
@@ -65,31 +65,48 @@ makeLenses ''SmtTransState
 -- Int is the fresh variable count
 type SmtStateM t b = StateT (SmtTransState t b) Symbolic
 
-getSmtExpression :: (Show b, Ord b)
+traceX s vec p = do
+  m <- use vars
+  traceM ("******** extract " ++ s ++ " ****************")
+  traceM $ ("st = " ++ show m)
+  traceM $ ("vec = " ++ show (L.pretty vec))
+  traceM $ ("p = " ++ show (L.pretty p))
+
+getSmtExpression :: (L.Pretty b, Show b, Ord b)
                  => [Maybe (Type t b)]
                  -> [LExpr t b]
                  -> Type t b -> LExpr t b -> LExpr t b -> Symbolic SVal
 getSmtExpression vec ls β p q = do
   (e',p',q') <- flip evalStateT (SmtTransState (replicate (length vec) Nothing) M.empty 0) $ do
-     e' <- P.foldr svAnd svTrue <$> extract vec ls
-     vars %= (Nothing :)
-     p' <- lexprToSmt (Just β : vec) p
-     vars %= (ix 0 .~ Nothing)
-     q' <- lexprToSmt (Just β : vec) q
-     vars %= P.tail
-     return (e',p',q')
+    vars %= (Nothing :)
+    e' <- P.foldr svAnd svTrue <$> extract (Just β : vec)
+                                           (fmap (insertIdxAtLE Zero) ls)
+    vars %= (ix 0 .~ Nothing)
+    p' <- lexprToSmt (Just β : vec) p
+    q' <- lexprToSmt (Just β : vec) q
+    vars %= P.tail
+    return (e',p',q')
   return $ svOr (svNot (svAnd p' e')) q'  -- (E ∧ P) ⟶ Q
 
-extract :: (Show b, Ord b) => [Maybe (Type t b)] -> [LExpr t b] -> SmtStateM t b [SVal]
-extract vec ls = (++) <$> (catMaybes <$> mapM (extractT vec) vec) <*> mapM (extractL vec) ls
+extract :: (L.Pretty b, Show b, Ord b) => [Maybe (Type t b)] -> [LExpr t b] -> SmtStateM t b [SVal]
+extract vec ls = (++) <$> extractΓ vec <*> mapM (lexprToSmt vec) ls
 
-extractT :: (Show b, Ord b)
-         => [Maybe (Type t b)] -> Maybe (Type t b) -> SmtStateM t b (Maybe SVal)
-extractT vec (Just (TRefine t p)) = Just <$> lexprToSmt (Just t : vec) p
+extractΓ :: (L.Pretty b, Show b, Ord b) => [Maybe (Type t b)] -> SmtStateM t b [SVal]
+extractΓ vec = go (fmap (fmap toBaseType) vec) vec
+  where 
+    go γ [] = return []
+    go γ (mt : ts) = do rest <- go γ $ fmap (fmap $ upshiftIdxsT) ts
+                        case mt of
+                          Nothing -> return rest
+                          Just t  -> extractT γ t >>= \case
+                            Nothing -> pure rest
+                            Just v  -> return $ v : rest
+
+-- ASSUME: the vec contains only base types.
+extractT :: (L.Pretty b, Show b, Ord b)
+         => [Maybe (Type t b)] -> Type t b -> SmtStateM t b (Maybe SVal)
+extractT vec (TRefine t p) = Just <$> lexprToSmt vec p
 extractT _ _ = pure Nothing
-
-extractL :: (Show b, Ord b) => [Maybe (Type t b)] -> LExpr t b -> SmtStateM t b SVal
-extractL vec l = lexprToSmt vec l
 
 primIntToSmt :: PrimInt -> SMT.Kind
 primIntToSmt Boolean = KBool
@@ -125,12 +142,27 @@ uopToSmt :: Op -> SVal -> SVal
 uopToSmt Not = svNot
 uopToSmt Complement = svNot
 
-lexprToSmt :: (Show b, Ord b) => [Maybe (Type t b)] -> LExpr t b -> SmtStateM t b SVal
+-- The expression has been substituted, and the indices are absolute, viz. they
+-- have been upshifted, and are not telescopic. E.g.
+-- +-----+----------+------------+---------+
+-- | [0] | [0] == 1 | [0] == [1] | [0] < 2 | (the telescope goes to the right,
+-- +-----+----------+------------+---------+  and the context extends to the left)
+-- will become:
+-- +-----+----------+------------+---------+
+-- | [0] | [1] == 1 | [2] == [3] | [3] < 2 |
+-- +-----+----------+------------+---------+
+-- And the context are always the full context, and doesn't need to be popped when
+-- a binder goes out of scope.
+--
+-- ASSUME: the vec contains only base types.
+lexprToSmt :: (L.Pretty b, Show b, Ord b)
+           => [Maybe (Type t b)] -> LExpr t b -> SmtStateM t b SVal
 lexprToSmt vec (LVariable (natToInt -> v, vn)) = 
   do m <- use vars
      case m !! v of
        Nothing -> do n <- freshVal
                      let Just t = vec !! v
+                     __assert (isBaseType t) $ "lexprToSmt: vec contains non-base type: " ++ show (L.pretty t)
                      t' <- typeToSmt t
                      sv <- mkQSymVar SMT.ALL n t'
                      vars %= (ix v .~ Just sv)
@@ -155,7 +187,8 @@ lexprToSmt vec (LIf c t e) = do
     e' <- lexprToSmt vec e
     let thenBranch = svOr (svNot c') t'   -- c => t
         elseBranch = svOr c' e'           -- ~c => e
-    return $ svAnd thenBranch elseBranch 
+    return $ svAnd thenBranch elseBranch
+-- lexprToSmt vec (LLet a e1 e2) = undefined
 lexprToSmt _ _ = freshVal >>= \vn -> return $ svUninterpreted KString vn Nothing []  -- FIXME: KString
 
 typeToSmt :: (Ord b) => Type t b -> SmtStateM t b SMT.Kind
@@ -181,15 +214,14 @@ smtProve :: (L.Pretty b, Show b, Ord b)
          -> [LExpr t b]
          -> Type t b -> LExpr t b -> LExpr t b -> IO Bool
 smtProve (Vec.toList -> vec) ls β p1 p2 = do
-    let ls' = P.map (upshiftVarLExpr 1) ls
-        toProve = getSmtExpression vec ls' β p1 p2
+    let toProve = getSmtExpression vec ls β p1 p2
         solver = z3 { verbose = True
                     , redirectVerbose = Just $ fromMaybe "/dev/stderr" __cogent_ddump_to_file
                     }
     -- pretty
     dumpMsgIfTrue True (
-      L.text "Γ =" L.<+> (prettyGamma vec ls')
-      L.<$> L.pretty β L.<> L.comma L.<+> L.text "Γ" L.<+> L.dullyellow (L.text "⊢")
+      L.text "Γ =" L.<+> prettyGamma (Just β : vec) ls
+      L.<$> L.text "Γ" L.<+> L.dullyellow (L.text "⊢")
       L.<+> (L.pretty p1) L.<+> L.dullyellow (L.text "==>") L.<+> L.pretty p2
       L.<$> L.empty
       )

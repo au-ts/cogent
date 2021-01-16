@@ -137,7 +137,7 @@ upshiftExpr (SSuc n) sv v e | Refl <- addSucLeft sv n
 -- | @upshiftType n cut t@: upshift by @n@, for all the indices starting from @cut@
 upshiftType :: SNat n -> Nat -> Type t a -> Type t a
 upshiftType SZero cut t = t
-upshiftType (SSuc n) cut t = let t' = upshiftType n cut t in insertIdxAtType cut t'
+upshiftType (SSuc n) cut t = let t' = upshiftType n cut t in insertIdxAtT cut t'
 
 normalise :: SNat v
           -> UntypedExpr t v VarName b

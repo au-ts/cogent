@@ -126,14 +126,16 @@ isBaseType (TPrim _) = True
 isBaseType (TRefine t _) = isBaseType t
 isBaseType _ = False
 
-toTRefine :: Type t b -> Type t b
-toTRefine (TPrim t) = TRefine (TPrim t) (LILit 1 Boolean)
-toTRefine (TRefine t b) = TRefine t b
-toTRefine _ = __impossible "toTRefine"
+toRefType :: Type t b -> Type t b
+toRefType (TPrim t) = TRefine (TPrim t) (LILit 1 Boolean)
+toRefType (TRefine t b) = TRefine t b
+toRefType _ = __impossible "toRefType"
 
-getBaseType :: Type t b -> Type t b
-getBaseType (TRefine t _) = t
-getBaseType _ = __impossible "called getBaseType on a non refinement type"
+-- ASSUME: the input type is normalised
+toBaseType :: Type t b -> Type t b
+toBaseType (TRefine t _) = t
+toBaseType (TFun t1 t2) = TFun (toBaseType t1) (toBaseType t2)
+toBaseType t = t
 #endif
 
 -- ASSUME: input in a record type
@@ -370,14 +372,11 @@ isAbsTyp :: Definition e a b -> Bool
 isAbsTyp (TypeDef _ _ Nothing) = True
 isAbsTyp _ = False
 
-insertIdxAtType :: Nat -> Type t b -> Type t b
-insertIdxAtType cut t = __fixme t
-
 insertIdxAtUntypedExpr :: Fin ('Suc v) -> UntypedExpr t v a b -> UntypedExpr t ('Suc v) a b
 insertIdxAtUntypedExpr cut (E e) = E $ insertIdxAtE cut insertIdxAtUntypedExpr e
 
 insertIdxAtTypedExpr :: Fin ('Suc v) -> TypedExpr t v a b -> TypedExpr t ('Suc v) a b
-insertIdxAtTypedExpr cut (TE t e) = TE (insertIdxAtType (finNat cut) t) (insertIdxAtE cut insertIdxAtTypedExpr e)
+insertIdxAtTypedExpr cut (TE t e) = TE (insertIdxAtT (finNat cut) t) (insertIdxAtE cut insertIdxAtTypedExpr e)
 
 insertIdxAtE :: Fin ('Suc v)
              -> (forall v. Fin ('Suc v) -> e t v a b -> e t ('Suc v) a b)
@@ -413,27 +412,39 @@ insertIdxAtE cut f (Promote ty e) = Promote ty (f cut e)
 insertIdxAtE cut f (Cast ty e) = Cast ty (f cut e)
 
 #ifdef REFINEMENT_TYPES
-upshiftVarLExpr :: Int -> LExpr t b -> LExpr t b
-upshiftVarLExpr 1 (LVariable (t, b)) = LVariable (Suc t, b)
-upshiftVarLExpr n (LVariable (t, b)) = upshiftVarLExpr (n - 1) $ LVariable (Suc t, b)
-upshiftVarLExpr n (LOp opr es) = LOp opr (P.map (upshiftVarLExpr n) es)
-upshiftVarLExpr n (LApp a b) = LApp (upshiftVarLExpr n a) (upshiftVarLExpr n b)
-upshiftVarLExpr n (LCon tn e t) = LCon tn (upshiftVarLExpr n e) t
-upshiftVarLExpr n (LLet a e1 e2) = LLet a (upshiftVarLExpr n e1) (upshiftVarLExpr n e2)
-upshiftVarLExpr n (LLetBang bs a e1 e2) = LLetBang bs a (upshiftVarLExpr n e1) (upshiftVarLExpr n e2)
-upshiftVarLExpr n (LTuple e1 e2) = LTuple (upshiftVarLExpr n e1) (upshiftVarLExpr n e2)
-upshiftVarLExpr n (LStruct fs) = LStruct $ P.map (\(fn, e) -> (fn, upshiftVarLExpr n e)) fs
-upshiftVarLExpr n (LIf c t e) = LIf (upshiftVarLExpr n c) (upshiftVarLExpr n t) (upshiftVarLExpr n e)
-upshiftVarLExpr n (LCase e tn (v1, a1) (v2, a2)) = LCase (upshiftVarLExpr n e) tn (v1, upshiftVarLExpr n a1) (v2, upshiftVarLExpr n a2)
-upshiftVarLExpr n (LEsac e) = LEsac $ upshiftVarLExpr n e
-upshiftVarLExpr n (LSplit (v1, v2) e1 e2) = LSplit (v1, v2) (upshiftVarLExpr n e1) (upshiftVarLExpr n e2)
-upshiftVarLExpr n (LMember x f) = LMember (upshiftVarLExpr n x) f
-upshiftVarLExpr n (LTake (a,b) rec f e) = LTake (a,b) rec f (upshiftVarLExpr n e)
-upshiftVarLExpr n (LPut rec f v) = LPut rec f (upshiftVarLExpr n v)
-upshiftVarLExpr n (LPromote t e) = LPromote t (upshiftVarLExpr n e)
-upshiftVarLExpr n (LCast t e) = LCast t (upshiftVarLExpr n e)
-upshiftVarLExpr n x = x
--- also upshift in refinement type preds in context?
+-- ASSUME refinement types are normalised.
+insertIdxAtT :: Nat -> Type t b -> Type t b
+insertIdxAtT cut (TRefine t p) = TRefine t $ insertIdxAtLE (Suc cut) p
+insertIdxAtT cut (TFun t1 t2) = TFun (insertIdxAtT cut t1) (insertIdxAtT (Suc cut) t2)
+insertIdxAtT cut (TArray t l s mh) = TArray (insertIdxAtT cut t) (insertIdxAtLE cut l) s (fmap (insertIdxAtLE cut) mh)
+insertIdxAtT cut t = t
+
+insertIdxAtLE :: Nat -> LExpr t b -> LExpr t b
+insertIdxAtLE n (LVariable (v, b)) | n <= v = LVariable (Suc v, b)
+                                   | otherwise = LVariable (v, b)
+insertIdxAtLE n (LOp opr es) = LOp opr (P.map (insertIdxAtLE n) es)
+insertIdxAtLE n (LApp a b) = LApp (insertIdxAtLE n a) (insertIdxAtLE n b)
+insertIdxAtLE n (LCon tn e t) = LCon tn (insertIdxAtLE n e) t
+insertIdxAtLE n (LLet a e1 e2) = LLet a (insertIdxAtLE n e1) (insertIdxAtLE (Suc n) e2)
+insertIdxAtLE n (LLetBang bs a e1 e2) = LLetBang bs a (insertIdxAtLE n e1) (insertIdxAtLE (Suc n) e2)
+insertIdxAtLE n (LTuple e1 e2) = LTuple (insertIdxAtLE n e1) (insertIdxAtLE n e2)
+insertIdxAtLE n (LStruct fs) = LStruct $ P.map (\(fn, e) -> (fn, insertIdxAtLE n e)) fs
+insertIdxAtLE n (LIf c t e) = LIf (insertIdxAtLE n c) (insertIdxAtLE n t) (insertIdxAtLE n e)
+insertIdxAtLE n (LCase e tn (v1, a1) (v2, a2)) = LCase (insertIdxAtLE n e) tn (v1, insertIdxAtLE n a1) (v2, insertIdxAtLE n a2)
+insertIdxAtLE n (LEsac e) = LEsac $ insertIdxAtLE n e
+insertIdxAtLE n (LSplit (v1, v2) e1 e2) = LSplit (v1, v2) (insertIdxAtLE n e1) (insertIdxAtLE (Suc $ Suc n) e2)
+insertIdxAtLE n (LMember x f) = LMember (insertIdxAtLE n x) f
+insertIdxAtLE n (LTake (a,b) rec f e) = LTake (a,b) rec f (insertIdxAtLE (Suc $ Suc n) e)
+insertIdxAtLE n (LPut rec f v) = LPut rec f (insertIdxAtLE n v)
+insertIdxAtLE n (LPromote t e) = LPromote t (insertIdxAtLE n e)
+insertIdxAtLE n (LCast t e) = LCast t (insertIdxAtLE n e)
+insertIdxAtLE n x = x
+
+upshiftIdxsT :: Type t b -> Type t b
+upshiftIdxsT (TRefine t p) = TRefine (upshiftIdxsT t) (insertIdxAtLE Zero p)
+upshiftIdxsT (TFun t1 t2) = TFun (upshiftIdxsT t1) (upshiftIdxsT t2)
+upshiftIdxsT (TArray t l s mh) = TArray (upshiftIdxsT t) (insertIdxAtLE Zero l) s (fmap (insertIdxAtLE Zero) mh)
+upshiftIdxsT t = t
 #endif
 
 

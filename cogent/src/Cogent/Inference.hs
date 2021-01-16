@@ -383,23 +383,23 @@ opType opr [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
   | opr `elem` [Plus, Minus, Times, Mod,
                 BitAnd, BitOr, BitXor, LShift, RShift],
   t1 /= Boolean, t1 == t2
-  = Just ([TPrim t1, TPrim t1], (TRefine (TPrim t1) (LOp And $ map (upshiftVarLExpr 1) [p1, p2]))) -- unsure
+  = Just ([TPrim t1, TPrim t1], (TRefine (TPrim t1) (LOp And $ map (insertIdxAtLE Zero) [p1, p2]))) -- unsure
 opType Divide [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
   | t1 /= Boolean, t1 == t2
   = let nonZeroPred = LOp Gt [LVariable (Zero, "zero"), LILit 0 t1]
         nonZeroType = TRefine (TPrim t1) nonZeroPred
-    in Just ([TPrim t1, nonZeroType], (TRefine (TPrim t1) (LOp And $ map (upshiftVarLExpr 1) [p1, p2])))
+    in Just ([TPrim t1, nonZeroType], (TRefine (TPrim t1) (LOp And $ map (insertIdxAtLE Zero) [p1, p2])))
 opType opr [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
   | opr `elem` [Gt, Lt, Le, Ge, Eq, NEq], t1 /= Boolean, t1 == t2
-  = Just ([TPrim t1, TPrim t1], toTRefine $ TPrim Boolean)
+  = Just ([TPrim t1, TPrim t1], toRefType $ TPrim Boolean)
 opType opr [(TRefine (TPrim Boolean) p1), (TRefine (TPrim Boolean) p2)]
   | opr `elem` [And, Or, Eq, NEq]
-  = Just ([TPrim Boolean, TPrim Boolean], toTRefine $ TPrim Boolean)
+  = Just ([TPrim Boolean, TPrim Boolean], toRefType $ TPrim Boolean)
 opType Not [TRefine (TPrim Boolean) p]
-  = Just ([TPrim Boolean], toTRefine $ TPrim Boolean)
+  = Just ([TPrim Boolean], toRefType $ TPrim Boolean)
 opType Complement [(TRefine (TPrim t) p)]
   | t /= Boolean
-  = Just ([TPrim t], toTRefine $ TPrim t)
+  = Just ([TPrim t], toRefType $ TPrim t)
 #else
 opType :: Op -> [Type t b] -> Maybe (Type t b)
 opType opr [TPrim p1, TPrim p2]
@@ -549,10 +549,13 @@ typecheck :: (Pretty a, Show a, Eq a, Ord a)
           => TypedExpr t v a a -> Type t a -> TC t v a (TypedExpr t v a a)
 typecheck e t = do
   let t' = exprType e
+  (vec, _, _) <- get
   isSub <- t' `isSubtype` t
   if | t == t' -> return e
      | isSub -> return (promote t e)
-     | otherwise -> __impossible $ "Inferred type of\n" ++
+     | otherwise -> __impossible $ "Under context\n" ++
+                                   show (indent' $ pretty vec) ++
+                                   "\nInferred type of\n" ++
                                    show (indent' $ pretty e) ++
                                    "\ndoesn't agree with the given type signature:\n" ++
                                    "Inferred type:\n" ++
@@ -560,11 +563,24 @@ typecheck e t = do
                                    "\nGiven type:\n" ++
                                    show (indent' $ pretty t) ++ "\n"
 
+
+-- We for now only check those where a continuation is involved. When we have refinement types,
+-- when there's a continuation and when the context is popped, then we cannot infer the refinement
+-- type; we have to check using the Promote node.
+check :: UntypedExpr t v VarName VarName -> Type t VarName -> TC t v VarName (TypedExpr t v VarName VarName)
+check (E (Let a e1 e2)) t = do
+  e1' <- infer e1
+  e2' <- withBinding (exprType e1') $ check e2 t
+  return $ TE t (Let a e1' e2')
+-- TODO: other cases
+check e t = do e' <- infer e
+               typecheck e' t
+
 infer :: UntypedExpr t v VarName VarName -> TC t v VarName (TypedExpr t v VarName VarName)
 infer (E (Op o es))
 #ifdef REFINEMENT_TYPES
   = do es' <- mapM infer es
-       let operandsTypes = map toTRefine $ map exprType es'
+       let operandsTypes = map toRefType $ map exprType es'
        vn <- freshVarName
        let Just (expectedInputs, (TRefine t p)) = opType o operandsTypes
        -- check that each of o is a subtype of expectedInputs
@@ -573,7 +589,7 @@ infer (E (Op o es))
        -- (_,ls,_) <- get
        -- trace ("context " ++ (show ls)) $ return ()
        inputsOk <- listIsSubtype operandsTypes expectedInputs
-       let pred = LOp Eq [LVariable (Zero, vn), upshiftVarLExpr 1 (LOp o (map (texprToLExpr id) es'))]
+       let pred = LOp Eq [LVariable (Zero, vn), insertIdxAtLE Zero (LOp o (map (texprToLExpr id) es'))]
        case inputsOk of
          True -> return (TE (TRefine t pred) (Op o es'))
          _ -> __impossible "op types don't match" -- fix me /blaisep
@@ -586,7 +602,7 @@ infer (E (ILit i t))
 #ifdef REFINEMENT_TYPES
   = do vn <- freshVarName
        let pred = LOp Eq [LVariable (Zero, vn), LILit i t]
-       return (TE (TRefine (TPrim t) (pred)) (ILit i t))
+       return (TE (TRefine (TPrim t) pred) (ILit i t))
 #else
   = return (TE (TPrim t) (ILit i t))
 #endif
@@ -620,7 +636,7 @@ infer (E (ArrayIndex arr idx))
         vn <- freshVarName
         let idxt = exprType idx'
             LILit len t = l -- could be any lexpr, not just LILit
-            bt@(TPrim pt) = getBaseType idxt
+            bt@(TPrim pt) = toBaseType idxt
             pred = LOp Lt [LVariable (Zero, vn), LILit len t]
         inBound <- idxt `isSubtype` (TRefine bt pred) 
         -- guardShow ("arr-idx out of bound") $ idx >= 0 && idx < l  -- no way to check it. need ref types. / zilinc
@@ -682,7 +698,7 @@ infer (E (Variable v))
           True -> do
             vn <- freshVarName
             let pred = LOp Eq [ LVariable (Zero, vn)
-                              , upshiftVarLExpr 1 $ LVariable (finNat $ fst v, snd v) 
+                              , insertIdxAtLE Zero $ LVariable (finNat $ fst v, snd v) 
                               ]
             -- if t is a refinement type, extract the old predicate and combine
             case t of
@@ -715,8 +731,11 @@ infer (E (App e1 e2))
                      else return $ TE to (App e1' e2')
 infer (E (Let a e1 e2))
    = do e1' <- infer e1
+        (vec,_,_) <- get
+        traceM $ "ENTERING Let: " ++ show (pretty vec) ++ "\n ... adding " ++ show (pretty $ exprType e1')
         e2' <- withBinding (exprType e1') (infer e2)
-        return $ TE (exprType e2') (Let a e1' e2')
+        traceM $ "LEAVING Let"
+        return $ TE (exprType e2') (Let a e1' e2')  -- FIXME: the type is wrong! needs substitute away the binder.
 infer (E (LetBang vs a e1 e2))
    = do e1' <- withBang (map fst vs) (infer e1)
         k <- kindcheck (exprType e1')
@@ -739,7 +758,7 @@ infer (E (Con tag e tfull))
 infer (E (If ec et ee))
    = do ec' <- infer ec
 #ifdef REFINEMENT_TYPES
-        guardShow "if-1" $ getBaseType (exprType ec') == TPrim Boolean
+        guardShow "if-1" $ toBaseType (exprType ec') == TPrim Boolean
         let lec = texprToLExpr id ec'
         -- guardShow (show lec) False
         (et', ee') <- (,) <$>  withPredicate lec (infer et)
@@ -824,16 +843,19 @@ infer (E (Put e1 f e2))
         guardShow "put-3" isSub
         let e2'' = if t2 /= tau then promote tau e2' else e2'
         return $ TE (TRecord rp (init ++ (fn,(tau,False)):rest) s) (Put e1' f e2'')  -- put it regardless
-infer (E (Cast ty e))
+infer (E (Cast τ e))
    = do (TE t e') <- infer e
-        guardShow ("cast: " ++ show t ++ " <<< " ++ show ty) =<< t `isUpcastable` ty
-        return $ TE ty (Cast ty $ TE t e')
-infer (E (Promote ty e))
+        guardShow ("cast: " ++ show t ++ " <<< " ++ show τ) =<< t `isUpcastable` τ
+        return $ TE τ (Cast τ $ TE t e')
+infer (E (Promote τ e))
+#ifdef REFINEMENT_TYPES
+   = check e τ
+#else
    = do (TE t e') <- infer e
-        guardShow ("promote: " ++ show t ++ " << " ++ show ty) =<< t `isSubtype` ty
-        return $ if t /= ty then promote ty $ TE t e'
-                            else TE t e'  -- see NOTE [How to handle type annotations?] in Desugar
-
+        guardShow ("promote: " ++ show t ++ " << " ++ show τ) =<< t `isSubtype` τ
+        return $ if t /= τ then promote τ $ TE t e'
+                           else TE t e'  -- see NOTE [How to handle type annotations?] in Desugar
+#endif
 
 -- | Promote an expression to a given type, pushing down the promote as far as possible.
 -- This structure is useful when destructing runs of case expressions, for example in Cogent.Isabelle.Compound.
