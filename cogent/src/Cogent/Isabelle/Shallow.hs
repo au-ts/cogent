@@ -371,6 +371,9 @@ sanitizeType (TRecord rp ts _) = TRecord rp (map (\(tn, (t,_)) -> (tn, (sanitize
 sanitizeType (TCon tn ts _) = TCon tn (map sanitizeType ts) Unboxed
 sanitizeType (TFun ti to) = TFun (sanitizeType ti) (sanitizeType to)
 sanitizeType (TProduct t t') = TProduct (sanitizeType t) (sanitizeType t')
+#ifdef BUILTIN_ARRAYS
+sanitizeType (TArray t _ _ _) = TArray (sanitizeType t) (LSLit "") Unboxed Nothing
+#endif
 sanitizeType t = t
 
 -- | Produce a hash for a record or variant type. Only the structure of the type matters;
@@ -378,6 +381,9 @@ sanitizeType t = t
 hashType :: (Show b) => CC.Type t b -> String
 hashType (TSum ts)      = show (sanitizeType $ TSum ts)
 hashType (TRecord rp ts s) = show (sanitizeType $ TRecord rp ts s)
+#ifdef BUILTIN_ARRAYS
+hashType (TArray t sz s tk) = show (sanitizeType $ TArray t sz s tk)
+#endif
 hashType _              = error "hashType: should only pass Variant and Record types"
 
 -- | A subscript @T@ will be added when generating type synonyms.
