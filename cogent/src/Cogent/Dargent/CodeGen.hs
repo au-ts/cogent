@@ -26,6 +26,7 @@ import Cogent.Compiler
   , __todo
   , __assert_
   , Architecture (..)
+  , __cogent_arch
   )
 import Cogent.Core (Type (..))
 import Cogent.Dargent.Allocation
@@ -883,7 +884,7 @@ intTypeForType _                          = intTypeForPointer -- embedded boxed 
 
 type CogentType = Type 'Zero VarName
 
-intTypeForPointer = case architecture of
+intTypeForPointer = case __cogent_arch of
   X86_64 -> unsignedLongType
   X86_32 -> unsignedIntType
   ARM32  -> unsignedIntType

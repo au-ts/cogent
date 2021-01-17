@@ -44,7 +44,6 @@ import           Data.List as L (elemIndex, isSubsequenceOf, null, (\\))
 import qualified Data.Map as M
 import           Data.Maybe
 import qualified Data.Set as S
-import           Data.Word (Word32)
 import           Lens.Micro
 
 import           Debug.Trace
@@ -161,6 +160,7 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
 #ifdef BUILTIN_ARRAYS
   LayoutOk (A t e (Left Unboxed) h) -> hoistMaybe $ Just [LayoutOk t]
 #endif
+  LayoutOk t -> hoistMaybe $ Just []  -- for all the rest, the layouts should be trivially well-formed, as there's no layout.
   TLVar n        :~ tau | Just t <- lookup n lts -> hoistMaybe $ Just [tau :~~ t]  -- `l :~ t ==> l :~ tau` gets simplified to `tau :~~ t`
   TLRepRef _ _   :~ _ -> hoistMaybe Nothing
 
@@ -189,7 +189,7 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
   TLPrim n       :~ T TUnit | evalSize n >= 0 -> hoistMaybe $ Just []
   TLPrim n       :~ tau
     | isPrimType tau
-    , primTypeSize tau <= evalSize n
+    , primTypeSize tau == evalSize n
     -> hoistMaybe $ Just []
     | isBoxedType tau
     , evalSize n == pointerSizeBits

@@ -5,6 +5,7 @@
     - pass_zero-sized-field.cogent
     - pass_inner-synonym.cogent
     - pass_layout-poly.cogent
+    - pass_dargent-unspec.cogent
   expected_result: pass
   flags:
     - -g
@@ -17,6 +18,7 @@
     - fail_layout-no-overlapping.cogent    
     - fail_layout-too-small-prim.cogent    
     - fail_layout-unboxed.cogent
+    - fail_ticket-381.cogent
   expected_result: fail
   flags:
     - -t

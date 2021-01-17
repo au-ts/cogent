@@ -1,0 +1,4 @@
+type R =  { f : U32 } layout record { f: 77b at 44b }
+
+foo : R -> R
+foo r { f } = r { f }

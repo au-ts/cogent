@@ -67,7 +67,6 @@ import Data.Monoid
 #if __GLASGOW_HASKELL__ < 709
 import Data.Traversable(traverse)
 #endif
-import Data.Word (Word32)
 import Lens.Micro (_2)
 import Lens.Micro.Mtl (view)
 import Text.PrettyPrint.ANSI.Leijen (Pretty, pretty)
