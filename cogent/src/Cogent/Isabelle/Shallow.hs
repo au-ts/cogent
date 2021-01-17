@@ -22,6 +22,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE ExistentialQuantification #-}
 
 module Cogent.Isabelle.Shallow
 --   ( shallow
@@ -58,7 +59,7 @@ import Control.Monad.Writer (Writer, runWriter)
 import Data.Char (ord, chr, intToDigit, isDigit)
 import Data.Either (lefts, rights)
 import Data.Function (on)
-import Data.List (isPrefixOf, isSuffixOf, stripPrefix, partition, sortBy, minimumBy, groupBy, unzip5, intercalate)
+import Data.List (isPrefixOf, isSuffixOf, stripPrefix, partition, sortBy, minimumBy, groupBy, unzip5, intercalate, nub)
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Set as S
@@ -83,10 +84,12 @@ data SGTables = SGTables { typeStrs      :: [TypeStr]
                          }
 
 type MapConcTypeSyn = M.Map String TypeName
+data PolyTypeSyn = forall t b. PTS TypeName [TyVarName] (CC.Type t b)
 
 data StateGen = StateGen {
     _varNameGen   :: Int,            -- ^ counter for fresh variables
-    _concTypeSyns :: MapConcTypeSyn  -- ^ @type structure hash &#x21A6; Cogent type synonym name@
+    _concTypeSyns :: MapConcTypeSyn, -- ^ @type structure hash &#x21A6; Cogent type synonym name@
+    _polyTypeSyns :: [PolyTypeSyn]   -- ^ polymorphic type synonyms
 }
 
 makeLenses ''StateGen
@@ -102,13 +105,13 @@ isaReservedNames = ["o", "value", "from"]
 shallowTVar :: Int -> String
 shallowTVar v = [chr $ ord 'a' + fromIntegral v]
 
-shallowTypeWithName :: (Show b) => CC.Type t b -> SG I.Type
+shallowTypeWithName :: (Show b,Eq b) => CC.Type t b -> SG I.Type
 shallowTypeWithName t = shallowType =<< findShortType t
 
-shallowRecTupleType :: (Show b) => [(FieldName, (CC.Type t b, Bool))] -> SG I.Type
+shallowRecTupleType :: (Show b,Eq b) => [(FieldName, (CC.Type t b, Bool))] -> SG I.Type
 shallowRecTupleType fs = shallowTupleType <$> mapM shallowType (map (fst . snd) fs)
 
-shallowType :: forall t b. (Show b) => CC.Type t b -> SG I.Type
+shallowType :: forall t b. (Show b,Eq b) => CC.Type t b -> SG I.Type
 shallowType (TVar v) = I.TyVar <$> ((!!) <$> asks typeVars <*> pure (finInt v))
 shallowType (TVarBang v) = shallowType (TVar v :: CC.Type t b)
 shallowType (TCon tn ts _) = I.TyDatatype tn <$> mapM shallowType ts
@@ -189,17 +192,91 @@ findType :: CC.Type t b -> SG (CC.Type t b)
 findType t = getStrlType <$> asks typeNameMap <*> asks typeStrs <*> pure t
 
 -- | Reverse engineer the type synonym of a algebraic data type
-findShortType :: (Show b) => CC.Type t b -> SG (CC.Type t b)
+findShortType :: (Show b,Eq b) => CC.Type t b -> SG (CC.Type t b)
 findShortType t = do
   map <- use concTypeSyns
   case M.lookup (hashType t) map of
-   Nothing -> findType t
+   Nothing -> do
+       polys <- use polyTypeSyns
+       case lookupPolySyn t polys of
+            Nothing -> findType t
+            Just (tn,args) -> pure $ TCon tn args (__impossible "findShortType")
    Just tn -> pure $ TCon tn [] (__impossible "findShortType")
+
+lookupPolySyn :: (Show b,Eq b) => CC.Type t b -> [PolyTypeSyn] -> Maybe (TypeName, [CC.Type t b])
+lookupPolySyn t polys = 
+    if (null matches) 
+       then Nothing
+       else -- FIXME: simple strategy using only the first match found
+            Just $ P.head matches
+    where matches = catMaybes $ map (matchPolySyn t) polys 
+
+matchPolySyn :: (Show b,Eq b) => CC.Type t b -> PolyTypeSyn -> Maybe (TypeName, [CC.Type t b])
+matchPolySyn t (PTS sn svs r) = 
+    case matchType svs t r of
+         Nothing -> Nothing
+         Just binds -> 
+            let 
+                mbinds = nub binds 
+            in if (P.length svs) /= (P.length mbinds)
+                  then Nothing
+                  else let 
+                           mapbinds = M.fromList mbinds
+                       in if (P.length svs) /= (M.size mapbinds)
+                             then Nothing
+                             else Just (sn, map (\v -> M.findWithDefault TUnit v mapbinds) svs)
+
+-- | Match a type to a polymorphic type.
+-- The first argument is the list of type variables which may occur in the polymorphic type.
+-- The second argument is the type to be matched, the third argument is the polymorphic type.
+-- The result is Nothing, if there is no structural match.
+-- Otherwise it is an association list of bindings for the type variables.
+-- The same variable may have several entries in result list, for a match they must all bind the same type.
+-- FIXME: recursive record parameters and refinement types are not handled yet.
+matchType :: [TyVarName] -> CC.Type t1 b1 -> CC.Type t2 b2 -> Maybe [(TyVarName, CC.Type t1 b1)]
+matchType vs (TCon tn targs _) (TCon rn rargs _) | tn == rn && (P.length targs) == (P.length rargs) = 
+    matchTypes vs targs rargs
+matchType vs (TRecord tr tfs _) (TRecord rr rfs _) | tr == rr && (P.length tfs) == (P.length rfs) =
+    if (map fst tfs) /= (map fst rfs)
+       then Nothing
+       else matchTypes vs (map (fst . snd) tfs) (map (fst . snd) rfs)
+matchType vs (TSum tts) (TSum rts) | (P.length tts) == (P.length rts) =
+    if (map fst tts) /= (map fst rts)
+       then Nothing
+       else matchTypes vs (map (fst . snd) tts) (map (fst . snd) rts)
+matchType vs (TProduct t1 t2) (TProduct r1 r2) = matchTypes vs [t1,t2] [r1,r2]
+matchType vs (TFun tf1 tf2) (TFun rf1 rf2) = matchTypes vs [tf1,tf2] [rf1,rf2]
+matchType _ (TPrim tp) (TPrim rp) | tp == rp = Just []
+matchType _ TUnit TUnit = Just []
+matchType _ TString TString = Just []
+matchType vs t (TVar n) = matchTypeVar vs t n
+matchType vs t (TVarBang n) = matchTypeVar vs t n
+matchType vs t (TVarUnboxed n) = matchTypeVar vs t n
+#ifdef BUILTIN_ARRAYS
+-- FIXME: array size is ignored upon matching
+matchType vs (TArray te _ _ _) (TArray re _ _ _) = matchType vs te re
+#endif
+matchType _ _ _ = Nothing
+
+matchTypeVar :: [TyVarName] -> CC.Type t1 b -> Fin t2 -> Maybe [(TyVarName, CC.Type t1 b)]
+matchTypeVar vs t n =
+    if i >= P.length vs 
+       then Nothing
+       else Just [(vs!!i,t)]
+    where i = finInt n
+
+-- | Pairwise match two type lists of the same length and concatenate the results.
+matchTypes :: [TyVarName] -> [CC.Type t1 b1] -> [CC.Type t2 b2] -> Maybe [(TyVarName, CC.Type t1 b1)]
+matchTypes vs ts rs =
+    if any isNothing pmatch
+       then Nothing
+       else Just $ concat $ catMaybes pmatch
+    where pmatch = map (\(t,r) -> matchType vs t r) $ P.zip ts rs
 
 findTypeSyn :: CC.Type t b -> SG String
 findTypeSyn t = findType t >>= \(TCon nm _ _) -> pure nm
 
-shallowExpr :: (Show b) => TypedExpr t v VarName b -> SG Term
+shallowExpr :: (Show b,Eq b) => TypedExpr t v VarName b -> SG Term
 shallowExpr (TE _ (Variable (_,v))) = pure $ mkId (snm v)
 shallowExpr (TE t (Fun fn ts ls _)) = 
     if null ts 
@@ -316,7 +393,7 @@ mkLet nm t1 t2 =
  else
     mkApp (mkId "HOL.Let") [t1, mkLambda [snm nm] t2]
 
-shallowLet :: (Show b) => VarName -> TypedExpr t v VarName b -> TypedExpr t ('Suc v) VarName b -> SG Term
+shallowLet :: (Show b,Eq b) => VarName -> TypedExpr t v VarName b -> TypedExpr t ('Suc v) VarName b -> SG Term
 shallowLet nm e1 e2 = mkLet nm <$> shallowExpr e1 <*> shallowExpr e2
 
 mkStr :: [String] -> Term
@@ -325,7 +402,7 @@ mkStr = mkId . concat
 mkPrettyPair :: VarName -> VarName -> String
 mkPrettyPair n1 n2 = "(" ++ snm n1 ++ "," ++ snm n2 ++ ")"
 
-mkLambdaE :: (Show b) => [VarName] -> TypedExpr t v VarName b -> SG Term
+mkLambdaE :: (Show b,Eq b) => [VarName] -> TypedExpr t v VarName b -> SG Term
 mkLambdaE vs e = mkLambda vs <$> shallowExpr e
 
 -- | Reverse engineer whether a record type was a tuple by looking at the field names.
@@ -335,7 +412,7 @@ isRecTuple fs =
   P.length fs > 1 &&
   filter (\xs -> xs!!0 == 'p' && let ys = drop 1 xs in filter isDigit ys == ys) fs == fs
 
-shallowMaker :: (Show b) => CC.Type t b -> [(FieldName, TypedExpr t v VarName b)] -> SG Term
+shallowMaker :: (Show b,Eq b) => CC.Type t b -> [(FieldName, TypedExpr t v VarName b)] -> SG Term
 shallowMaker t fs = do
   tn <- findTypeSyn t
   let fnms = map fst fs
@@ -344,7 +421,7 @@ shallowMaker t fs = do
   then mkTuple <$> mapM (shallowExpr . snd) fs
   else mkApp <$> pure (mkStr [tn, ".make"]) <*> (mapM (shallowExpr . snd) fs)
 
-shallowSetter :: (Show b) => TypedExpr t v VarName b -> Int -> TypedExpr t v VarName b -> SG Term
+shallowSetter :: (Show b,Eq b) => TypedExpr t v VarName b -> Int -> TypedExpr t v VarName b -> SG Term
 shallowSetter rec idx e = do
   tn <- getRecordFieldName (exprType rec) idx
   let setter = tn ++ "_update"
@@ -389,17 +466,18 @@ hashType _              = error "hashType: should only pass Variant and Record t
 -- | A subscript @T@ will be added when generating type synonyms.
 --   Also adds an entry to the type synonyms table if it's not parameterised so that
 --   a shorter (and hence more readable) name can be retrieved when a type is used.
-shallowTypeDefSaveSyn:: (Show b) => TypeName -> [TyVarName] -> CC.Type t b -> SG [TheoryDecl I.Type I.Term]
+shallowTypeDefSaveSyn:: (Show b,Eq b) => TypeName -> [TyVarName] -> CC.Type t b -> SG [TheoryDecl I.Type I.Term]
 shallowTypeDefSaveSyn tn ps r = do
   st <- shallowType r
   let syname = tn ++ subSymStr "T"
       hash = hashType r
   -- FIXME: We might want to support type parameters but I can't be bothered.
   when (null ps) (concTypeSyns %= M.insert hash syname)
+  when (not $ null ps) (polyTypeSyns %= (:) (PTS syname ps r))
   pure [TypeSynonym (TypeSyn syname st ps)]
 
 -- | Generates @type_synonym@ definitions for types.
-shallowTypeDef :: (Show b) => TypeName -> [TyVarName] -> CC.Type t b -> SG [TheoryDecl I.Type I.Term]
+shallowTypeDef :: (Show b,Eq b) => TypeName -> [TyVarName] -> CC.Type t b -> SG [TheoryDecl I.Type I.Term]
 shallowTypeDef tn ps (TPrim p)      = pure [TypeSynonym (TypeSyn tn (shallowPrimType p) ps)]
 shallowTypeDef tn ps (TRecord rp fs s) = shallowTypeDefSaveSyn tn ps (TRecord rp fs s)
 shallowTypeDef tn ps (TSum ts)      = shallowTypeDefSaveSyn tn ps (TSum ts)
@@ -798,7 +876,7 @@ scorresFieldLemmas types tmap =
 
 
 -- Left is concrete funs, Right is shared
-shallowDefinition :: (Show b) => Definition TypedExpr VarName b -> SG ([Either (TheoryDecl I.Type I.Term) (TheoryDecl I.Type I.Term)], Maybe FunName)
+shallowDefinition :: (Show b,Eq b) => Definition TypedExpr VarName b -> SG ([Either (TheoryDecl I.Type I.Term) (TheoryDecl I.Type I.Term)], Maybe FunName)
 shallowDefinition (FunDef _ fn ps _ ti to e) =
     local (typarUpd typar) $ do
     e' <- shallowExpr e
@@ -820,11 +898,11 @@ shallowDefinition (TypeDef tn ps (Just t)) =
     local (typarUpd typar) $ (, Nothing) <$> (map Right <$> shallowTypeDef tn typar t)
   where typar = Vec.cvtToList ps
 
-shallowDefinitions :: (Show b) => [Definition TypedExpr VarName b] -> SG ([Either (TheoryDecl I.Type I.Term) (TheoryDecl I.Type I.Term)], [FunName])
+shallowDefinitions :: (Show b,Eq b) => [Definition TypedExpr VarName b] -> SG ([Either (TheoryDecl I.Type I.Term) (TheoryDecl I.Type I.Term)], [FunName])
 shallowDefinitions = (((concat *** catMaybes) . P.unzip) <$>) . mapM ((varNameGen .= 0 >>) . shallowDefinition)
 
 -- | Returns @(shallow, shallow_shared, scorres, type names)@
-shallowFile :: (Show b) => String -> Stage -> [Definition TypedExpr VarName b]
+shallowFile :: (Show b, Eq b) => String -> Stage -> [Definition TypedExpr VarName b]
             -> SG (Theory I.Type I.Term, Theory I.Type I.Term, Theory I.Type I.Term, MapTypeName)
 shallowFile thy stg defs = do
   t <- asks typeStrs
@@ -858,11 +936,11 @@ shallowFile thy stg defs = do
            )
 
 -- | Returns @(shallow, shallow_shared, scorres, type names)@
-shallow :: (Show b) => Bool -> String -> Stage -> [Definition TypedExpr VarName b] -> String -> (Doc, Doc, Doc, MapTypeName)
+shallow :: (Show b,Eq b) => Bool -> String -> Stage -> [Definition TypedExpr VarName b] -> String -> (Doc, Doc, Doc, MapTypeName)
 shallow recoverTuples thy stg defs log =
   let (shal,shrd,scor,typeMap) = fst $ evalRWS (runSG (shallowFile thy stg defs))
                                                (SGTables (st defs) (stsyn defs) [] recoverTuples)
-                                               (StateGen 0 M.empty)
+                                               (StateGen 0 M.empty [])
       header = (string ("(*\n" ++ log ++ "\n*)\n") L.<$$>)
   in (header $ pretty shal, header $ pretty shrd, header $ pretty scor, typeMap)
 
@@ -883,7 +961,7 @@ shallowConsts recoverTuples thy stg consts defs log =
                    (genConstTheoryDecls consts defs))
  where genConstTheoryDecls cs defs = fst $ evalRWS (runSG $ shallowConsts cs)
                                      (SGTables (st defs) (stsyn defs) [] recoverTuples)
-                                     (StateGen 0 M.empty)
+                                     (StateGen 0 M.empty [])
        shallowConsts = mapM genConstDecl
        header = (string ("(*\n" ++ log ++ "\n*)\n") L.<$$>)
 
