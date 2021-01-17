@@ -32,51 +32,55 @@ instance Arbitrary DataLayoutExpr where
   arbitrary = sized genDataLayoutExpr
 
 genDataLayoutExpr :: Int -> Gen DataLayoutExpr
-genDataLayoutExpr size = oneof
+genDataLayoutExpr size =
+  if size == 0 then
+    return $ DL (Prim (Bits 0))
+  else
+  oneof
   [ genPrim size
   , genRecord size
   , genOffset size
   , genVariant size
   ]
-  where
-    genPrim :: Int -> Gen DataLayoutExpr
-    genPrim size = DL . Prim <$> arbitrary
 
-    genRecord :: Int -> Gen DataLayoutExpr
-    genRecord size = DL . Record <$> genFields size
+genPrim :: Int -> Gen DataLayoutExpr
+genPrim size = DL . Prim <$> arbitrary
 
-    genFields :: Int -> Gen [(FieldName, SourcePos, DataLayoutExpr)]
-    genFields size = do
-      fieldSize <- choose (0, size)
-      if fieldSize == 0
-        then return []
-        else do
-          otherFields <- genFields (size - fieldSize)
-          fieldName <- arbitrary
-          fieldDataLayoutExpr <- genDataLayoutExpr fieldSize
-          sourcePos <- arbitrary
-          return $ (fieldName, sourcePos, fieldDataLayoutExpr) : otherFields
+genRecord :: Int -> Gen DataLayoutExpr
+genRecord size = DL . Record <$> genFields 1 size
 
-    genVariant :: Int -> Gen DataLayoutExpr
-    genVariant size = do
-      tagSize <- choose (0, size)
-      tagExpr <- genPrim tagSize
-      alternatives <- genAlternatives (size - tagSize)
-      return $ DL $ Variant tagExpr alternatives
+genFields :: Int -> Int -> Gen [(FieldName, SourcePos, DataLayoutExpr)]
+genFields nth size = do
+  fieldSize <- choose (0, size)
+  if fieldSize == 0
+    then return []
+    else do
+      otherFields <- genFields (nth + 1)(size - fieldSize)
+      fieldName <- return ("field" ++ show nth) -- arbitrary
+      fieldDataLayoutExpr <- genDataLayoutExpr fieldSize
+      sourcePos <- arbitrary
+      return $ (fieldName, sourcePos, fieldDataLayoutExpr) : otherFields
 
-    genAlternatives :: Int -> Gen [(TagName, SourcePos, Size, DataLayoutExpr)]
-    genAlternatives size = do
-      altSize <- choose (0, size)
-      if altSize == 0
-        then return []
-        else do
-          otherAlts <- genAlternatives (size - altSize)
-          altName <- arbitrary
-          altValue <- arbitrary
-          altDataLayoutExpr <- genDataLayoutExpr altSize
-          sourcePos <- arbitrary
-          return $ (altName, sourcePos, altValue, altDataLayoutExpr) : otherAlts
+genVariant :: Int -> Gen DataLayoutExpr
+genVariant size = do
+  tagSize <- choose (0, size)
+  tagExpr <- genDataLayoutExpr tagSize
+  alternatives <- genAlternatives 1 (size - tagSize)
+  return $ DL $ Variant tagExpr alternatives
 
-    genOffset :: Int -> Gen DataLayoutExpr
-    genOffset size = DL <$> (Offset <$> genDataLayoutExpr size <*> arbitrary)
+genAlternatives :: Int -> Int -> Gen [(TagName, SourcePos, Size, DataLayoutExpr)]
+genAlternatives nth size = do
+  altSize <- choose (0, size)
+  if altSize == 0
+    then return []
+    else do
+      otherAlts <- genAlternatives (nth + 1) (size - altSize)
+      altName <- return ("con" ++ show nth) -- arbitrary
+      altValue <- arbitrary
+      altDataLayoutExpr <- genDataLayoutExpr altSize
+      sourcePos <- arbitrary
+      return $ (altName, sourcePos, altValue, altDataLayoutExpr) : otherAlts
+
+genOffset :: Int -> Gen DataLayoutExpr
+genOffset size = DL <$> (Offset <$> genDataLayoutExpr size <*> arbitrary)
 

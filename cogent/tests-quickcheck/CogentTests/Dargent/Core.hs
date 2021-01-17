@@ -16,6 +16,7 @@ module CogentTests.Dargent.Core where
 
 import Control.Arrow (first)
 import Data.Map (Map)
+import Data.List as List
 import qualified Data.Map as M
 import Text.Parsec.Pos (SourcePos, newPos)
 import Test.QuickCheck
@@ -26,6 +27,8 @@ import Cogent.Dargent.Core
 -- import Cogent.Dargent.Surface
 import Cogent.Dargent.TypeCheck
 import Cogent.Dargent.Util
+
+possiblePrimBitSizes = [0, 1, 8, 16, 32, 64]
 
 {- PROPERTIES -}
 
@@ -86,13 +89,24 @@ genDataLayout'
   -> Allocation -- existing allocation
   -> Gen (DataLayout' BitRange, Allocation)
 genDataLayout' maxBitIndex maxSize alloc =
-  if maxSize == 0
+  if maxSize == 0 -- || maxBitIndex = 0
   then return (UnitLayout, alloc)
-  else oneof
-    [ genPrimLayout   maxBitIndex maxSize alloc
-    , genSumLayout    maxBitIndex maxSize alloc
-    , genRecordLayout maxBitIndex maxSize alloc
-    ]
+  else
+    let primWeight = 
+         if maxSize <= 16 then
+           -- 15
+           10
+         else if maxSize <= 32 then
+           -- 12
+           5
+          else
+            4
+    in
+      frequency
+      [ (primWeight, genPrimLayout   maxBitIndex maxSize alloc)
+      , (1         , genSumLayout    maxBitIndex maxSize alloc)
+      , (1         , genRecordLayout maxBitIndex maxSize alloc)
+      ]
 
 genPrimLayout
   :: Size -- max allowed allocated bit index
@@ -100,7 +114,10 @@ genPrimLayout
   -> Allocation -- Existing allocation
   -> Gen (DataLayout' BitRange, Allocation)
 genPrimLayout maxBitIndex maxSize alloc = do
-  (range, alloc') <- genBitRange maxBitIndex maxSize alloc
+  (range, alloc') <- genBitRangeAllowed maxBitIndex 
+      (\n -> n <= fromIntegral maxSize &&
+         List.elem n possiblePrimBitSizes )       
+      alloc
   return (PrimLayout range, alloc')
 
 genSumLayout
@@ -109,13 +126,16 @@ genSumLayout
   -> Allocation -- Existing allocation
   -> Gen (DataLayout' BitRange, Allocation)
 genSumLayout maxBitIndex maxSize alloc =
-  do
-    let maxTagSize = min 4 maxSize
-    (tagBitRange, alloc') <- genBitRange maxBitIndex maxTagSize alloc
-    let alloc''            = fmap InTag alloc'
-    let maxNumAlternatives = 2^(bitSizeBR tagBitRange)
-    (alts, alloc''') <- genAlts (maxSize - maxTagSize) 0 maxNumAlternatives alloc''
-    return (SumLayout tagBitRange alts, alloc''')
+    let maxTagSize = min 4 maxSize in
+    let dSize = maxSize - maxTagSize in
+    if dSize == 0 then
+      genPrimLayout maxBitIndex maxSize alloc
+    else do
+      (tagBitRange, alloc') <- genBitRange maxBitIndex maxTagSize alloc
+      let alloc''            = fmap InTag alloc'
+      let maxNumAlternatives = 2^(bitSizeBR tagBitRange)
+      (alts, alloc''') <- genAlts dSize 0 maxNumAlternatives alloc''
+      return (SumLayout tagBitRange alts, alloc''')
   where
     genAlts
       :: Size -- max allowed total bit size for remaining fields
@@ -170,11 +190,30 @@ genBitRange
   :: Size -- Max allowed bit index
   -> Size -- Max size for the new range
   -> Allocation -- Existing allocation which range must not overlap
+  -- -> [Size] -- List of allowed sizes, by order of preference
   -> Gen (BitRange, Allocation)
-genBitRange maxBitIndex maxSize accumAlloc = do
-  let allRanges      = allNonAllocatedRanges maxBitIndex accumAlloc
-  let allSizedRanges = filter ((<= fromIntegral maxSize) . bitSizeBR . fst) allRanges
-  elements allSizedRanges
+genBitRange maxBitIndex maxSize =
+  genBitRangeAllowed maxBitIndex (\ s -> s <= fromIntegral maxSize)
+
+-- Generates an unallocated BitRange
+-- of the biggest size that is allowed
+-- and the corresponding new allocation
+genBitRangeAllowed
+  :: Size -- Max allowed bit index
+  -> (Size -> Bool) -- allowed sizes    
+  -> Allocation -- Existing allocation which range must not overlap
+  -- -> [Size] -- List of allowed sizes, by order of preference
+  -> Gen (BitRange, Allocation)
+genBitRangeAllowed maxBitIndex allowedSizes accumAlloc =
+  let allRanges      = allNonAllocatedRanges maxBitIndex accumAlloc in
+  let allSizedRanges = filter (allowedSizes . bitSizeBR . fst) allRanges in
+  let maxRange = maximumBy (\ (a, _) (b, _) -> compare (bitSizeBR a) (bitSizeBR b)) allSizedRanges in
+  -- let smallerAllowedSizes = filter (((<=) fromIntegral maxSize) . bitSizeBR . fst ) in
+  return maxRange
+  -- oneof [return maxRange -- ,
+  --        -- return maxRange,
+  --        -- elements allSizedRanges
+  --       ] 
 
 -- Enumerates all bitranges from smallest last bit index to maxBitIndex
 allNonEmptyRanges :: Size -> [BitRange]

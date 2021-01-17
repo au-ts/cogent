@@ -53,7 +53,7 @@ primIntSizeBits' U64     = 64
 primIntSizeBits' Boolean = 1
 
 possiblePrimInt :: Size -> [ PrimInt ]
-possiblePrimInt n = filter (\p ->  primIntSizeBits' p <= n) [ U8, U16, U32, U64, Boolean ]
+possiblePrimInt n = filter (\p ->  primIntSizeBits' p == n) [ U8, U16, U32, U64, Boolean ]
 
 primIntSurfName :: PrimInt -> String
 primIntSurfName U8      = "U8"
@@ -122,9 +122,9 @@ bitRangeToDL (BitRange bitSizeBR bitOffsetBR) =
 genSurfaceLayout :: DataLayout' BitRange -> Gen DataLayoutExpr
 genSurfaceLayout UnitLayout = return (DL (Prim (Bits 0)))
 genSurfaceLayout (PrimLayout bitrange@(BitRange bitSizeBR bitOffsetBR)) =
-  oneof $ map return  ((bitRangeToDL bitrange) :
+  frequency $  ((3, return $ bitRangeToDL bitrange) :
         if bitSizeBR >= pointerSizeBits then
-          [ DL $ Offset (DL Ptr) $ Bits bitOffsetBR]
+          [ (1, return $ DL $ Offset (DL Ptr) $ Bits bitOffsetBR)]
         else
           [])
 
@@ -144,7 +144,7 @@ genSurfaceLayout (SumLayout bitrange fs) =
         sl <- genSurfaceLayout dl
         return (name, somePos, v, sl)
 
-genSurfaceLayout (VarLayout _) = return $ DL $ LVar "error_VarLayout"
+genSurfaceLayout (VarLayout _ _) = return $ DL $ LVar "error_VarLayout"
 
 -- Set the custom layout
 setRecordLayout :: DataLayoutExpr -> RawType -> RawType

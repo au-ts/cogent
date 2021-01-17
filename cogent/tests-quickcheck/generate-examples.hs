@@ -49,5 +49,5 @@ main = do
   _ <- sequence $ zipWith (\ prog filename -> writeFile (dir ++ "/" ++ filename) (show prog)) exs filenames
   return ()
   where
-    size = 128
+    size = 300
     dir =  "tests/tests/dargent-verifs"
