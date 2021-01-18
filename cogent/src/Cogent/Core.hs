@@ -743,7 +743,7 @@ instance (Pretty a, Pretty b, Prec (e t v a b), Pretty (e t v a b), Pretty (e t 
   pretty (Op opr [e]) = primop opr <+> prettyPrec 1 e
   pretty (Op opr es)  = primop opr <+> tupled (map pretty es)
   pretty (ILit i pt) = literal (string $ show i) <+> symbol "::" <+> pretty pt
-  pretty (SLit s) = literal $ string s
+  pretty (SLit s) = literal $ string $ show s
 #ifdef REFINEMENT_TYPES
   pretty (ALit es) = array $ map pretty es
   pretty (ArrayIndex arr idx) = prettyPrec 2 arr <+> symbol "@" <+> prettyPrec 2 idx
@@ -777,7 +777,7 @@ instance (Pretty a, Pretty b, Prec (e t v a b), Pretty (e t v a b), Pretty (e t 
   pretty (Esac e) = keyword "esac" <+> parens (pretty e)
   pretty (Split (v1,v2) e1 e2) = align (keyword "split" <+> parens (pretty v1 <> comma <> pretty v2) <+> symbol "=" <+> pretty e1 L.<$>
                                   keyword "in" <+> pretty e2)
-  pretty (Member x f) = prettyPrec 1 x L.<> symbol "." L.<> fieldIndex f
+  pretty (Member x f) = prettyPrec 1 x L.<> fieldIndex f
   pretty (Take (a,b) rec f e) = align (keyword "take" <+> tupled [pretty a, pretty b] <+> symbol "="
                                                       <+> prettyPrec 1 rec <+> record (fieldIndex f:[]) L.<$>
                                        keyword "in" <+> pretty e)
@@ -827,7 +827,7 @@ instance (Pretty b) => Pretty (LExpr t b) where
   pretty (LOp opr [e]) = primop opr <+> prettyPrec 1 e
   pretty (LOp opr es)  = primop opr <+> tupled (map pretty es)
   pretty (LILit i pt) = literal (string $ show i) <+> symbol "::" <+> pretty pt
-  pretty (LSLit s) = literal $ string s
+  pretty (LSLit s) = literal $ string $ show s
   pretty (LVariable x) = pretty (snd x) L.<> angles (L.int . natToInt $ fst x)
   pretty (LFun fn ts ls) = funname (unCoreFunName fn) <+> pretty ts <+> pretty ls
   pretty (LApp a b) = prettyPrec 2 a <+> prettyPrec 1 b

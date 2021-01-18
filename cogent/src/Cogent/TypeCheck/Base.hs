@@ -244,8 +244,7 @@ arithTCExpr _ = False
 
 #ifdef REFINEMENT_TYPES
 andTCSExprs :: [TCSExpr] -> TCSExpr
-andTCSExprs [] = SE (T bool) (BoolLit True)
-andTCSExprs (e:es) = SE (T bool) (PrimOp "&&" [e, andTCSExprs es])
+andTCSExprs = foldl (\conj e -> SE (T bool) (PrimOp "&&" [conj, e])) (SE (T bool) (BoolLit True))
 
 implTCSExpr :: TCSExpr -> TCSExpr -> TCSExpr
 implTCSExpr e1 e2 = SE (T bool) (PrimOp "||" [notTCSExpr e1, e2])

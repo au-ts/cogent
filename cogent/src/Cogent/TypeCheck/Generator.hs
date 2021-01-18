@@ -429,8 +429,17 @@ cg' (Upcast e) t = do
   return (c <> c1, Upcast e1')
 
 cg' (BoolLit b) t = do
+#ifdef REFINEMENT_TYPES
+  c <- if ?isRefType then
+         do v <- freshRefVarName freshVars
+            let pred = if b then SE (T bool) (Var v)
+                            else SE (T bool) (PrimOp "not" [SE (T bool) (Var v)])
+            return $ T (TRefine v (T bool) pred) :< t
+       else return (T bool :< t)
+#else
   let c = T bool :< t
-      e = BoolLit b
+#endif
+  let e = BoolLit b
   return (c,e)
 
 cg' (CharLit l) t = do
@@ -753,7 +762,17 @@ cg' (MultiWayIf es el) t = do
   (c,bodies) <- parallel' $ zip ctxs (map (\(_,_,_,e) -> cg e t) es ++ [cg el t])
   let ((ces,es'),(cel,el')) = (unzip $ init bodies, last bodies)
       e' = MultiWayIf (zipWith3 (\(_,bs,l,_) cond' e' -> (cond',bs,l,e')) es conds' es') el'
+#ifdef REFINEMENT_TYPES
+      conds'' = fmap toTCSExpr conds'
+      poss = scanl1 (\conj c -> andTCSExprs [conj,c]) conds''
+      condes = zipWith (\pos c -> andTCSExprs [SE (T bool) (PrimOp "not" [pos]), c]) poss conds''
+      condel = SE (T bool) (PrimOp "not" [andTCSExprs conds''])
+      c' = c <> mconcat cconds <>
+           mconcat (zipWith (\cc ce -> (M.empty,[cc]) :|- ce) condes ces) <>
+           ((M.empty,[condel]) :|- cel)
+#else
       c' = c <> mconcat cconds <> mconcat ces <> cel
+#endif
   traceTc "gen" (text "cg for multiway-if:" <+> prettyE e'
            L.<$> text "generate constraints:" <+> prettyC c')
   return (c',e')

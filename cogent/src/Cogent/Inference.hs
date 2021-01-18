@@ -376,30 +376,32 @@ infixl 4 <||>
                              -- / v.jackson, zilinc
                              return (f arg)
 
--- returns list of inputs, and type of output
+-- returns list of inputs, and (base) type of output
 #ifdef REFINEMENT_TYPES
-opType :: Op -> [Type t b] -> Maybe ([Type t VarName], Type t b)
+opType :: Op -> [Type t b] -> TC t v b (Maybe ([Type t VarName], Type t b))
 opType opr [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
-  | opr `elem` [Plus, Minus, Times, Mod,
+  | opr `elem` [Plus, Minus, Times, Mod, Divide,
                 BitAnd, BitOr, BitXor, LShift, RShift],
   t1 /= Boolean, t1 == t2
-  = Just ([TPrim t1, TPrim t1], (TRefine (TPrim t1) (LOp And $ map (insertIdxAtLE Zero) [p1, p2]))) -- unsure
-opType Divide [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
-  | t1 /= Boolean, t1 == t2
-  = let nonZeroPred = LOp Gt [LVariable (Zero, "zero"), LILit 0 t1]
-        nonZeroType = TRefine (TPrim t1) nonZeroPred
-    in Just ([TPrim t1, nonZeroType], (TRefine (TPrim t1) (LOp And $ map (insertIdxAtLE Zero) [p1, p2])))
+  = pure $ Just ([TPrim t1, TPrim t1], TPrim t1)
+-- Cogent currently allows for undefined behaviour.
+-- opType Divide [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
+--   | t1 /= Boolean, t1 == t2
+--   = do v <- freshVarName
+--        let nonZeroPred = LOp Gt [LVariable (Zero, v), LILit 0 t1]
+--            nonZeroType = TRefine (TPrim t1) nonZeroPred
+--        return $ Just ([TPrim t1, nonZeroType], TPrim t1)
 opType opr [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
   | opr `elem` [Gt, Lt, Le, Ge, Eq, NEq], t1 /= Boolean, t1 == t2
-  = Just ([TPrim t1, TPrim t1], toRefType $ TPrim Boolean)
+  = pure $ Just ([TPrim t1, TPrim t1], TPrim Boolean)
 opType opr [(TRefine (TPrim Boolean) p1), (TRefine (TPrim Boolean) p2)]
   | opr `elem` [And, Or, Eq, NEq]
-  = Just ([TPrim Boolean, TPrim Boolean], toRefType $ TPrim Boolean)
+  = pure $ Just ([TPrim Boolean, TPrim Boolean], TPrim Boolean)
 opType Not [TRefine (TPrim Boolean) p]
-  = Just ([TPrim Boolean], toRefType $ TPrim Boolean)
+  = pure $ Just ([TPrim Boolean], TPrim Boolean)
 opType Complement [(TRefine (TPrim t) p)]
   | t /= Boolean
-  = Just ([TPrim t], toRefType $ TPrim t)
+  = pure $ Just ([TPrim t], TPrim t)
 #else
 opType :: Op -> [Type t b] -> Maybe (Type t b)
 opType opr [TPrim p1, TPrim p2]
@@ -584,7 +586,7 @@ infer (E (Op o es))
   = do es' <- mapM infer es
        let operandsTypes = map toRefType $ map exprType es'
        vn <- freshVarName
-       let Just (expectedInputs, (TRefine t p)) = opType o operandsTypes
+       Just (expectedInputs, to) <- opType o operandsTypes
        -- check that each of o is a subtype of expectedInputs
        -- trace ("operandsTypes " ++ (show operandsTypes)) $ return ()
        -- trace ("expectedInputs " ++ (show expectedInputs)) $ return ()
@@ -593,7 +595,7 @@ infer (E (Op o es))
        inputsOk <- listIsSubtype operandsTypes expectedInputs
        let pred = LOp Eq [LVariable (Zero, vn), insertIdxAtLE Zero (LOp o (map (texprToLExpr id) es'))]
        case inputsOk of
-         True -> return (TE (TRefine t pred) (Op o es'))
+         True -> return (TE (TRefine to pred) (Op o es'))
          _ -> __impossible "op types don't match" -- fix me /blaisep
 #else
   = do es' <- mapM infer es
@@ -612,7 +614,7 @@ infer (E (SLit s))
 #ifdef REFINEMENT_TYPES
   = do vn <- freshVarName
        let pred = LOp Eq [LVariable (Zero, vn), LSLit s]
-       return (TE (TRefine TString (pred)) (SLit s))
+       return (TE (TRefine TString pred) (SLit s))
 #else
   = return (TE TString (SLit s))
 #endif
@@ -772,7 +774,9 @@ infer (E (If ec et ee))
             te = exprType ee'
         Just tlub <- runMaybeT $ tt `lub` te
         isSub <- (&&) <$> tt `isSubtype` tlub <*> te `isSubtype` tlub
-        guardShow' "if-2" ["Then type:", show (pretty tt) ++ ";", "else type:", show (pretty te)] isSub
+        guardShow' "if-2" ["Then type:", show (pretty tt) ++ ";",
+                           "else type:", show (pretty te) ++ ";",
+                           "calculated LUB type:", show (pretty tlub)] isSub
         let et'' = if tt /= tlub then promote tlub et' else et'
             ee'' = if te /= tlub then promote tlub ee' else ee'
         return $ TE tlub (If ec' et'' ee'')

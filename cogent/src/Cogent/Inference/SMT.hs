@@ -46,6 +46,7 @@ import Data.SBV.Dynamic as SMT
 #if MIN_VERSION_sbv(8,8,0)
 import Data.SBV.Internals (VarContext(NonQueryVar))
 #endif
+import Data.SBV.Internals (SVal(..))
 import Data.Vec hiding (repeat, splitAt, length, zipWith, zip, unzip)
 import Lens.Micro.GHC
 import Lens.Micro.Mtl
@@ -181,9 +182,7 @@ lexprToSmt vec (LILit i pt) =
     Boolean -> case i of
       0 -> svFalse
       1 -> svTrue
-lexprToSmt vec (LSLit s) = do
-  s <- freshVal
-  return $ svUninterpreted KString s Nothing []
+lexprToSmt vec (LSLit s) = return $ SVal KString (Left $ CV KString (CString s))
 lexprToSmt vec (LIf c t e) = do
     c' <- lexprToSmt vec c
     t' <- lexprToSmt vec t
@@ -192,10 +191,11 @@ lexprToSmt vec (LIf c t e) = do
         elseBranch = svOr c' e'           -- ~c => e
     return $ svAnd thenBranch elseBranch
 -- lexprToSmt vec (LLet a e1 e2) = undefined
-lexprToSmt _ _ = freshVal >>= \vn -> return $ svUninterpreted KString vn Nothing []  -- FIXME: KString
+lexprToSmt vec _ = freshVal >>= \vn -> return $ svUninterpreted KString vn Nothing []  -- FIXME: KString
 
 typeToSmt :: (Ord b) => Type t b -> SmtStateM t b SMT.Kind
 typeToSmt (TPrim pt) = return $ primIntToSmt pt
+typeToSmt (TString) = return KString
 typeToSmt (TUnit) = return $ KTuple []
 typeToSmt (TProduct t1 t2) = KTuple <$> mapM typeToSmt [t1, t2]
 typeToSmt (TRefine t _) = typeToSmt t
