@@ -17,11 +17,18 @@
  *)
 theory Value_Relation
   imports
-  "AutoCorres.AutoCorres"
-  "HOL-Word.Word"
-  "Cogent.UpdateSemantics"
-  "Type_Args"
+    "HOL-Word.Word"
+    "AutoCorres.AutoCorres"
+    "Cogent.UpdateSemantics"
 begin
+
+type_synonym funtyp = "char list"
+
+(* Placeholder. We will need to add proper abstract value representations later on. *)
+type_synonym abstyp = unit
+
+type_synonym ptrtyp = addr
+
 
 (* Mechanism to get different instances of cogent_C_val for signed and unsigned words. *)
 class knows_sign = fixes is_signed :: "'a itself \<Rightarrow> bool"
