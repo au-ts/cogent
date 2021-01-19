@@ -578,6 +578,23 @@ check (E (Let a e1 e2)) t = do
   e1' <- infer e1
   e2' <- withBinding (exprType e1') $ check e2 t
   return $ TE t (Let a e1' e2')
+
+check (E (If c th el)) t = do
+  c' <- infer c
+#ifdef REFINEMENT_TYPES
+  guardShow "check: if-1" $ toBaseType (exprType c') == TPrim Boolean
+  let lc = texprToLExpr id c'
+  -- guardShow (show lec) False
+  (th',el') <- (,) <$>  withPredicate lc (check th t)
+                   <||> withPredicate (LOp Not [lc]) (check el t)
+  -- \ ^^^ have to use <||>, as they share the same initial env
+#else
+  guardShow "check: if-1" $ exprType c' == TPrim Boolean
+  (th',el') <- (,) <$>  check th t
+                   <||> check el t
+#endif
+  return $ TE t (If c' th' el')
+
 -- TODO: other cases
 check e t = do e' <- infer e
                typecheck e' t
@@ -764,8 +781,8 @@ infer (E (If ec et ee))
         guardShow "if-1" $ toBaseType (exprType ec') == TPrim Boolean
         let lec = texprToLExpr id ec'
         -- guardShow (show lec) False
-        (et', ee') <- (,) <$>  withPredicate lec (infer et)
-                          <||> withPredicate (LOp Not [lec]) (infer ee)
+        (et',ee') <- (,) <$>  withPredicate lec (infer et)
+                         <||> withPredicate (LOp Not [lec]) (infer ee)
         -- \ ^^^ have to use <||>, as they share the same initial env
 #else
         guardShow "if-1" $ exprType ec' == TPrim Boolean
@@ -775,10 +792,11 @@ infer (E (If ec et ee))
         let tt = exprType et'
             te = exprType ee'
         Just tlub <- runMaybeT $ tt `lub` te
-        isSub <- (&&) <$> tt `isSubtype` tlub <*> te `isSubtype` tlub
+        (isSubThen, isSubElse) <- (,) <$>  withPredicate lec             (tt `isSubtype` tlub)
+                                      <||> withPredicate (LOp Not [lec]) (te `isSubtype` tlub)
         guardShow' "if-2" ["Then type:", show (pretty tt) ++ ";",
                            "else type:", show (pretty te) ++ ";",
-                           "calculated LUB type:", show (pretty tlub)] isSub
+                           "calculated LUB type:", show (pretty tlub)] (isSubThen && isSubElse)
         let et'' = if tt /= tlub then promote tlub et' else et'
             ee'' = if te /= tlub then promote tlub ee' else ee'
         return $ TE tlub (If ec' et'' ee'')
