@@ -337,7 +337,7 @@ cg' :: (?loc :: SourcePos, ?isRefType :: Bool)
     -> CG (Constraint, Expr TCType TCPatn TCIrrefPatn TCDataLayout TCExpr)
 cg' (PrimOp o [e1, e2]) t
 #ifdef REFINEMENT_TYPES
-  | o `elem` words "+ - * / % .&. .|. .^. >> <<"
+  | o `elem` words "+ - * .&. .|. .^. >> <<" || (o `elem` ["/", "%"] && not __cogent_ftypecheck_undef)
   , ?isRefType
   = do β <- freshTVar
        v <- freshRefVarName freshVars
@@ -349,6 +349,20 @@ cg' (PrimOp o [e1, e2]) t
        traceTc "gen" (text "[ref-types] cg for primitive op" <+> symbol o L.<$>
                       text "generate constraint" <+> prettyC c)
        return (integral β <> BaseType β <> c <> c1 <> c2, PrimOp o [e1', e2'])
+  | o `elem` ["/", "%"]
+  , __cogent_ftypecheck_undef
+  , ?isRefType
+  = do β <- freshTVar
+       v <- freshRefVarName freshVars
+       (c1, e1') <- cg e1 β
+       let nonZeroType = T (TRefine v β (SE (T bool) (PrimOp ">" [SE β (Var v), SE β (IntLit 0)])))
+       (c2, e2') <- cg e2 nonZeroType
+       let ϕ = SE (T bool) $ PrimOp "==" [SE β (Var v), SE β (PrimOp o [toTCSExpr e1', toTCSExpr e2'])]
+           ρ = T $ TRefine v β ϕ
+           c = ρ :< t
+       traceTc "gen" (text "[ref-types] cg for primitive op" <+> symbol o L.<$>
+                      text "generate constraint" <+> prettyC c)
+       return (integral β <> BaseType β <> c <> c1 <> c2, PrimOp o [e1', e2']) 
 #endif
   | o `elem` words "+ - * / % .&. .|. .^. >> <<"
   , not ?isRefType

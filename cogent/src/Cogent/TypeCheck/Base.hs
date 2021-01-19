@@ -787,7 +787,6 @@ substVarExpr vs (SE t e) = SE t $ fmap (substVarExpr vs) e
 substVarExprT :: [(VarName, VarName)] -> TCType -> TCType
 substVarExprT vs (T (TFun (Just v) t1 t2)) =
   T $ TFun (Just v) (substVarExprT vs t1) (substVarExprT (filter ((/= v) . fst) vs) t2)
-substVarExprT vs (T t) = T $ fffmap (substVarExpr vs) t
 substVarExprT vs (U x) = U x
 substVarExprT vs (V x) = V $ fmap (substVarExprT vs) x
 substVarExprT vs (R rp x s) = R rp (fmap (substVarExprT vs) x) s
@@ -798,6 +797,7 @@ substVarExprT vs (T (TRefine v b p)) =
   T $ TRefine v b $ substVarExpr (filter ((/= v) . fst) vs) p
 #endif
 substVarExprT vs (Synonym n ts) = Synonym n $ fmap (substVarExprT vs) ts
+substVarExprT vs (T t) = T $ fffmap (substVarExpr vs) t
 
 
 flexOf (U x) = Just x

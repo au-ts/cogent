@@ -504,6 +504,11 @@ flags =
   , Option []         ["fno-untyped-func-enum"]  2 (NoArg set_flag_fnoUntypedFuncEnum)     "reverse of --funtyped-func-enum"
   , Option []         ["fno-use-compound-literals"] 1 (NoArg set_flag_fnoUseCompoundLiterals)   "reverse of --fuse-compound-literals, it instead creates new variables"
   , Option []         ["fno-wrap-put-in-let"] 2 (NoArg set_flag_fnoWrapPutInLet)           "(default) reverse of --fwrap-put-in-let"
+#ifdef REFINEMENT_TYPES
+  , Option []         ["fno-typecheck-undef"] 2 (NoArg set_flag_fnoTypecheckUndef)         "reverse of --ftypecheck-undef"
+#else
+  , Option []         ["fno-typecheck-undef"] 2 (NoArg set_flag_fnoTypecheckUndef)         "reverse of --ftypecheck-undef [disabled in this build]"
+#endif
   , Option []         ["fpragmas"]            2 (NoArg set_flag_fpragmas)                  "(default) preprocess pragmas"
   , Option []         ["fpretty-errmsgs"]     3 (NoArg set_flag_fprettyErrmsgs)            "(default) pretty-print error messages (requires ANSI support)"
   , Option []         ["freverse-tc-errors"]  1 (NoArg set_flag_freverseTcErrors)          "Print type errors in reverse order"
@@ -517,6 +522,11 @@ flags =
   , Option []         ["ftc-ctx-len"]         3 (ReqArg (set_flag_ftcCtxLen . read) "NUMBER")   "set the depth for printing error context in typechecker (default=3)"
   , Option []         ["ftp-with-bodies"]     2 (NoArg set_flag_ftpWithBodies)             "(default) generate type proof with bodies"
   , Option []         ["ftp-with-decls"]      2 (NoArg set_flag_ftpWithDecls)              "(default) generate type proof with declarations"
+#ifdef REFINEMENT_TYPES
+  , Option []         ["ftypecheck-undef"]    2 (NoArg set_flag_ftypecheckUndef)           "(default) use refinement types to check for undefined behaviours"
+#else
+  , Option []         ["ftypecheck-undef"]    2 (NoArg set_flag_ftypecheckUndef)           "(default) use refinement types to check for undefined behaviours [disabled in this build]"
+#endif
   , Option []         ["funion-for-variants"] 2 (NoArg set_flag_funionForVariants)         "use union types for variants in C code (cannot be verified)"
   , Option []         ["funtyped-func-enum"]  2 (NoArg set_flag_funtypedFuncEnum)          "(default) use untyped function enum type"
   , Option []         ["fuse-compound-literals"] 2 (NoArg set_flag_fuseCompoundLiterals)   "(default) use compound literals when possible in C code"

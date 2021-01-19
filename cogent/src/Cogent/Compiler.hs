@@ -168,6 +168,7 @@ set_flag_fnoTcCtxConstraints = writeIORef __cogent_ftc_ctx_constraints_ref False
 set_flag_fnoTpWithBodies = writeIORef __cogent_ftp_with_bodies_ref False
 set_flag_fnoTpWithDecls = writeIORef __cogent_ftp_with_decls_ref False
 set_flag_fnoTuplesAsSugar = writeIORef __cogent_ftuples_as_sugar_ref False
+set_flag_fnoTypecheckUndef = writeIORef __cogent_ftypecheck_undef_ref False
 set_flag_fnoUnionForVariants = writeIORef __cogent_funion_for_variants_ref False
 set_flag_fnoUntypedFuncEnum = writeIORef __cogent_funtyped_func_enum_ref False
 set_flag_fnoUseCompoundLiterals = writeIORef __cogent_fuse_compound_literals_ref False
@@ -185,6 +186,7 @@ set_flag_ftcCtxLen = writeIORef __cogent_ftc_ctx_len_ref
 set_flag_ftpWithBodies = writeIORef __cogent_ftp_with_bodies_ref True
 set_flag_ftpWithDecls = writeIORef __cogent_ftp_with_decls_ref True
 set_flag_ftuplesAsSugar = writeIORef __cogent_ftuples_as_sugar_ref True
+set_flag_ftypecheckUndef = writeIORef __cogent_ftypecheck_undef_ref True
 set_flag_funionForVariants = writeIORef __cogent_funion_for_variants_ref True
 set_flag_funtypedFuncEnum = writeIORef __cogent_funtyped_func_enum_ref True
 set_flag_fuseCompoundLiterals = writeIORef __cogent_fuse_compound_literals_ref True
@@ -614,6 +616,14 @@ __cogent_ftuples_as_sugar = unsafePerformIO $ readIORef __cogent_ftuples_as_suga
 __cogent_ftuples_as_sugar_ref :: IORef Bool
 {-# NOINLINE __cogent_ftuples_as_sugar_ref #-}
 __cogent_ftuples_as_sugar_ref = unsafePerformIO $ newIORef True
+
+__cogent_ftypecheck_undef :: Bool
+__cogent_ftypecheck_undef = unsafePerformIO $ readIORef __cogent_ftypecheck_undef_ref
+
+__cogent_ftypecheck_undef_ref :: IORef Bool
+{-# NOINLINE __cogent_ftypecheck_undef_ref #-}
+__cogent_ftypecheck_undef_ref = unsafePerformIO $ newIORef True
+
 
 -- TODO
 __cogent_funboxed_arg_by_ref :: Bool

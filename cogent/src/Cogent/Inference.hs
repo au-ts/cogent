@@ -380,17 +380,19 @@ infixl 4 <||>
 #ifdef REFINEMENT_TYPES
 opType :: Op -> [Type t b] -> TC t v b (Maybe ([Type t VarName], Type t b))
 opType opr [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
-  | opr `elem` [Plus, Minus, Times, Mod, Divide,
-                BitAnd, BitOr, BitXor, LShift, RShift],
-  t1 /= Boolean, t1 == t2
+  | opr `elem` [Plus, Minus, Times,
+                BitAnd, BitOr, BitXor, LShift, RShift]
+  , t1 /= Boolean, t1 == t2
   = pure $ Just ([TPrim t1, TPrim t1], TPrim t1)
--- Cogent currently allows for undefined behaviour.
--- opType Divide [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
---   | t1 /= Boolean, t1 == t2
---   = do v <- freshVarName
---        let nonZeroPred = LOp Gt [LVariable (Zero, v), LILit 0 t1]
---            nonZeroType = TRefine (TPrim t1) nonZeroPred
---        return $ Just ([TPrim t1, nonZeroType], TPrim t1)
+opType opr [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
+  | opr `elem` [Divide, Mod]
+  , t1 /= Boolean, t1 == t2
+  = if __cogent_ftypecheck_undef then
+      do v <- freshVarName
+         let nonZeroPred = LOp Gt [LVariable (Zero, v), LILit 0 t1]
+             nonZeroType = TRefine (TPrim t1) nonZeroPred
+         return $ Just ([TPrim t1, nonZeroType], TPrim t1)
+    else pure $ Just ([TPrim t1, TPrim t1], TPrim t1)
 opType opr [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
   | opr `elem` [Gt, Lt, Le, Ge, Eq, NEq], t1 /= Boolean, t1 == t2
   = pure $ Just ([TPrim t1, TPrim t1], TPrim Boolean)

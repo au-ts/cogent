@@ -119,9 +119,9 @@ bopToSmt = \case
   "+"   -> svPlus
   "-"   -> svMinus
   "*"   -> svTimes
-  "/"   -> svDivide
-  "%"   -> svQuot  -- NOTE: the behaviour of `svDivide` and `svQuot` here. / zilinc
-                   -- http://hackage.haskell.org/package/sbv-8.5/docs/Data-SBV-Dynamic.html#v:svDivide
+  "/"   -> svDivide  -- NOTE: the behaviour of `svDivide` and `svQuot` here. / zilinc
+                     -- http://hackage.haskell.org/package/sbv-8.5/docs/Data-SBV-Dynamic.html#v:svDivide
+  "%"   -> svRem
   "&&"  -> svAnd
   "||"  -> svOr
   ".&." -> svAnd
