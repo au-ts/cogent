@@ -49,29 +49,29 @@ where
  "pTrans [] = ([],[])"
 |pTrans_Cons: "pTrans data =
     (let obj = pObj data 0
-    (* We stop at the first obviously invalid object. *)
+    \<comment>\<open> We stop at the first obviously invalid object. \<close>
      in if \<not>is_valid_ObjHeader obj data then
-       (drop (max (unat bilbyFsObjHeaderSize) (unat (Obj.len\<^sub>f obj))) data, [])
+       (List.drop (max (unat bilbyFsObjHeaderSize) (unat (Obj.len\<^sub>f obj))) data, [])
      else if Obj.trans\<^sub>f obj = bilbyFsTransIn then
-       (\<lambda>(d,os). (d, (obj#os))) (pTrans (drop (unat (Obj.len\<^sub>f obj)) data))
+       (\<lambda>(d,os). (d, (obj#os))) (pTrans (List.drop (unat (Obj.len\<^sub>f obj)) data))
      else
-       (drop (unat (Obj.len\<^sub>f obj)) data, [obj])
+       (List.drop (unat (Obj.len\<^sub>f obj)) data, [obj])
 )"
 
 lemma drop_0_eq[simp]:
-  "\<exists>n. xs = drop n xs"
+  "\<exists>n. xs = List.drop n xs"
  by (rule_tac x=0 in exI, simp)
 
 lemma pTrans_data_is_substring:
-  "(\<exists>n. prod.fst (pTrans data) = drop n data)"
+  "(\<exists>n. prod.fst (pTrans data) = List.drop n data)"
   by (induct data rule: pTrans.induct) (fastforce simp: Let_def prod.case_eq_if)+
 
 lemma pTrans_length_helper:
 assumes len: "is_valid_ObjHeader (pObj (d # data) 0) (d # data)"
 shows
-  "length (prod.fst (pTrans (drop (unat (Obj.len\<^sub>f (pObj (d # data) 0))) (d # data)))) < length (d # data)"
+  "length (prod.fst (pTrans (List.drop (unat (Obj.len\<^sub>f (pObj (d # data) 0))) (d # data)))) < length (d # data)"
   using pTrans_data_is_substring apply clarsimp
-  apply (drule_tac x="(drop (unat (Obj.len\<^sub>f (pObj (d # data) 0))) (d # data))" in meta_spec)
+  apply (drule_tac x="(List.drop (unat (Obj.len\<^sub>f (pObj (d # data) 0))) (d # data))" in meta_spec)
   using is_valid_ObjHeader_len[OF len]  apply (clarsimp simp: bilbyFsObjHeaderSize_def)
   apply unat_arith
  done
@@ -116,12 +116,12 @@ function
 where
 "list_trans data = 
     (case pTrans data of
-      (_, []) \<Rightarrow> (data, []) (* We return the beginning of an invalid transaction as it's obviously non-empty *)
+      (_, []) \<Rightarrow> (data, []) \<comment>\<open> We return the beginning of an invalid transaction as it's obviously non-empty \<close>
     | ([],objs) \<Rightarrow> ([], [objs])
     | (newdata, objs) \<Rightarrow>
-      (*let objs = if length objs = 1 \<and>
-                    otype\<^sub>f (objs!0) = bilbyFsObjTypePad then [] else objs
-       in*) (\<lambda>(d,txs). (d,objs#txs)) (list_trans (nopad newdata)))"
+      \<comment>\<open>let objs = if length objs = 1 \<and>
+                    @{term otype\<^sub>f} (objs!0) = bilbyFsObjTypePad then [] else objs
+       in\<close> (\<lambda>(d,txs). (d,objs#txs)) (list_trans (nopad newdata)))"
   by pat_completeness auto
   termination
   apply (relation "measure length")
@@ -157,7 +157,7 @@ definition
  list_eb_log :: "ubi_leb list \<Rightarrow> EbLog list"
 where
  "list_eb_log wubi \<equiv>
-   map (prod.snd o list_trans_no_pad) (drop (unat bilbyFsFirstLogEbNum) wubi)"
+   map (prod.snd o list_trans_no_pad) (List.drop (unat bilbyFsFirstLogEbNum) wubi)"
 
 definition
   prune_ostore :: "Obj\<^sub>T \<Rightarrow> ostore_map \<Rightarrow> ostore_map"
@@ -259,12 +259,12 @@ lemma bilbyFsTrans_diff[simp]:
 lemmas is_valid_ObjTrans = is_valid_ObjIn_def is_valid_ObjCommit_def
 
 lemma drop_n_ge_0:
-  "0<n \<Longrightarrow> drop n (v # va) = drop (n - 1) va"
+  "0<n \<Longrightarrow> List.drop n (v # va) = List.drop (n - 1) va"
  by (case_tac n, simp+)
 
 lemma is_valid_ObjHeader_drop_non_zero: 
  "is_valid_ObjHeader (pObj (v # va) 0) (v # va) \<Longrightarrow>
-  drop (unat (Obj.len\<^sub>f (pObj (v # va) 0))) (v # va) = drop (unat (Obj.len\<^sub>f (pObj (v # va) 0)) - 1) (va)
+  List.drop (unat (Obj.len\<^sub>f (pObj (v # va) 0))) (v # va) = List.drop (unat (Obj.len\<^sub>f (pObj (v # va) 0)) - 1) (va)
  "
   apply (frule is_valid_ObjHeader_len_facts)
   apply (clarsimp simp:  bilbyFsObjHeaderSize_def unat_arith_simps)
@@ -285,7 +285,7 @@ where
 "valid_trans [] = False"
 |valid_trans_Cons: "valid_trans buf =
    (if is_valid_ObjIn (pObj buf 0) buf then
-     valid_trans (drop (unat $ Obj.len\<^sub>f $ pObj buf 0) buf)
+     valid_trans (List.drop (unat $ Obj.len\<^sub>f $ pObj buf 0) buf)
    else is_valid_ObjCommit (pObj buf 0) buf)"
 
 declare valid_trans.simps[simp del]
@@ -293,7 +293,7 @@ declare valid_trans.simps[simp del]
 lemma valid_trans_simps[simp]:
   "valid_trans [] = False"
   "is_valid_ObjIn (pObj xs 0) xs \<Longrightarrow>
-    valid_trans xs = valid_trans (drop (unat $ Obj.len\<^sub>f $ pObj xs 0) xs)"
+    valid_trans xs = valid_trans (List.drop (unat $ Obj.len\<^sub>f $ pObj xs 0) xs)"
   "is_valid_ObjCommit (pObj xs 0) xs \<Longrightarrow>
     valid_trans xs = True"
     apply (simp add: valid_trans.simps)
@@ -325,7 +325,7 @@ trans_len_Nil: "trans_len [] = max (unat bilbyFsObjHeaderSize) (unat $ Obj.len\<
    (if \<not>is_valid_ObjHeader (pObj buf 0) buf then
         max (unat bilbyFsObjHeaderSize) (unat $ Obj.len\<^sub>f $ pObj buf 0)
     else if is_valid_ObjIn (pObj buf 0) buf then
-     (unat $ Obj.len\<^sub>f $ pObj buf 0) + trans_len (drop (unat $ Obj.len\<^sub>f $ pObj buf 0) buf)
+     (unat $ Obj.len\<^sub>f $ pObj buf 0) + trans_len (List.drop (unat $ Obj.len\<^sub>f $ pObj buf 0) buf)
     else
      unat $ Obj.len\<^sub>f $ pObj buf 0)"
 
@@ -333,7 +333,7 @@ declare trans_len.simps [simp del]
 lemma trans_len_simps[simp]:
   "trans_len [] = max (unat bilbyFsObjHeaderSize) (unat $ Obj.len\<^sub>f $ pObj [] 0)"
   "is_valid_ObjIn (pObj xs 0) xs \<Longrightarrow>
-    trans_len xs = (unat $ Obj.len\<^sub>f $ pObj xs 0) + trans_len (drop (unat $ Obj.len\<^sub>f $ pObj xs 0) xs)"
+    trans_len xs = (unat $ Obj.len\<^sub>f $ pObj xs 0) + trans_len (List.drop (unat $ Obj.len\<^sub>f $ pObj xs 0) xs)"
   "is_valid_ObjCommit (pObj xs 0) xs \<Longrightarrow>
     trans_len xs = unat (Obj.len\<^sub>f $ pObj xs 0)"
   apply (case_tac xs, (clarsimp simp: is_valid_ObjTrans is_valid_ObjHeader_def bilbyFsObjHeaderSize_def trans_len.simps)+)
@@ -379,8 +379,8 @@ where
 "valid_list_trans [] = False"
 |"valid_list_trans (b#buf) =
    (valid_trans (b#buf) \<and>
-    (if nopad (drop (trans_len (b#buf)) (b#buf)) = [] then True
-     else valid_list_trans (nopad (drop (trans_len (b#buf)) (b#buf)))))"
+    (if nopad (List.drop (trans_len (b#buf)) (b#buf)) = [] then True
+     else valid_list_trans (nopad (List.drop (trans_len (b#buf)) (b#buf)))))"
 
 by pat_completeness simp+
 termination
@@ -458,10 +458,10 @@ definition
 where
  "inv_sum_consistent sumobj ostore_st \<equiv>
    True
-   (* ignore summary consistency for now:
-   otype\<^sub>f sumobj = bilbyFsObjTypeSum \<and>
+   \<comment>\<open> ignore summary consistency for now:
+   @{term otype\<^sub>f} sumobj = bilbyFsObjTypeSum \<and>
    let sum = obj_osummary sumobj
-   in summary_map sum ostore_st = fold id (\<alpha>_summary_updates ostore_st) Map.empty*)"
+   in summary_map sum ostore_st = fold id (\<alpha>_summary_updates ostore_st) Map.empty \<close>"
 
 definition
   room_for_summary :: "MountState\<^sub>T \<Rightarrow> OstoreState\<^sub>T \<Rightarrow> bool"
@@ -486,17 +486,17 @@ definition
 where
  "inv_ostore_summary mount_st ostore_st \<equiv>
  True
- (* No summary invariant for now.
-   let eb_size = eb_size\<^sub>f (super\<^sub>f mount_st)
-   in nb_sum_entry\<^sub>f (summary\<^sub>f ostore_st) < (eb_size div bilbyFsMinObjSize) \<and>
+ \<comment>\<open> No summary invariant for now.
+   let eb_size = @{term eb_size\<^sub>f} (@{term super\<^sub>f} mount_st)
+   in @{term nb_sum_entry\<^sub>f} (@{term summary\<^sub>f} ostore_st) < (eb_size div bilbyFsMinObjSize) \<and>
    room_for_summary mount_st ostore_st \<and>
-   (if used\<^sub>f ostore_st = eb_size then
-    inv_sum_consistent (sum_from_wbuf (wbuf\<^sub>f ostore_st)) ostore_st
+   (if @{term used\<^sub>f} ostore_st = eb_size then
+    inv_sum_consistent (sum_from_wbuf (@{term wbuf\<^sub>f} ostore_st)) ostore_st
    else
-     used\<^sub>f ostore_st < used\<^sub>f ostore_st + os_sum_sz ostore_st \<and> 
-     used\<^sub>f ostore_st + os_sum_sz ostore_st \<le> eb_size \<and>
-     inv_sum_consistent ((sum_obj\<^sub>f ostore_st)\<lparr> ounion\<^sub>f:= TObjSummary (summary\<^sub>f ostore_st) \<rparr>) ostore_st)
-     *)
+     @{term used\<^sub>f} ostore_st < @{term used\<^sub>f} ostore_st + os_sum_sz ostore_st \<and> 
+     @{term  ostore_st} + os_sum_sz ostore_st \<le> eb_size \<and>
+     inv_sum_consistent ((@{term sum_obj\<^sub>f} ostore_st)\<lparr> @{term ounion\<^sub>f}:= TObjSummary (@{term summary\<^sub>f} ostore_st) \<rparr>) ostore_st)
+     \<close>
   "
 
 text {*
@@ -531,7 +531,7 @@ definition
 where
  "list_eb_log_wbuf ostore_st \<equiv>
   let eblogs = list_eb_log (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st));
-      wbuflog = prod.snd (list_trans_no_pad ((* pollute_buf *)buf_slice (wbuf\<^sub>f ostore_st) 0 (used\<^sub>f ostore_st)))
+      wbuflog = prod.snd (list_trans_no_pad (\<comment>\<open> pollute_buf \<close>buf_slice (wbuf\<^sub>f ostore_st) 0 (used\<^sub>f ostore_st)))
   in eblogs[unat (wbuf_eb\<^sub>f ostore_st) - unat bilbyFsFirstLogEbNum:=wbuflog]"
 
 text {* Attempt at on-flash invariant.
@@ -585,17 +585,17 @@ definition
   inv_flash :: "EbLog list \<Rightarrow> bool"
 where
  "inv_flash flash \<equiv> True
-(*
+\<comment>\<open>
   let all = ostore_log_objects flash in
   (* The root inode exists, we don't really need to know that for the object store *)
   (* (\<exists>obj\<in>set all. get_obj_oid obj = obj_id_inode_mk bilbyFsRootIno \<and> obj_is_alive obj (set all)) \<and> *) 
   (* all sqnums are uniq *)
-  (card (Obj.sqnum\<^sub>f ` set all) = length (map Obj.sqnum\<^sub>f all)) \<and>
+  (card (@{term Obj.sqnum\<^sub>f} ` set all) = length (map @{term Obj.sqnum\<^sub>f} all)) \<and>
   (\<forall>eblog\<in>set flash. inv_eb_log eblog (set all)) \<and>
   (* There is maximum 1 erase-block with garbage, (stripping out unmapped erase-blocks) *)
   length ((filter (op \<noteq> []) $ map (prod.fst o the) $ filter (op \<noteq> option.None) flash)) \<le> 1
   (*rel dentarr inode and inode data blocks? no cyclic dependencies in graph? *)
-  *)"
+  \<close>"
 
 definition
  is_obj_addr_consistent :: "Obj\<^sub>T \<Rightarrow> ObjAddr\<^sub>T \<Rightarrow> bool"
@@ -634,28 +634,28 @@ definition
 where
  "inv_ostore_fsm mount_st ostore_st \<equiv>
  (\<alpha>wa $ used_eb\<^sub>f $ fsm_st\<^sub>f ostore_st) ! unat (wbuf_eb\<^sub>f ostore_st) \<noteq> 0 \<and>
-(* Count on each gimnode is equal to the number of objects with the same oid
-   in the log *)
+\<comment>\<open> Count on each gimnode is equal to the number of objects with the same oid
+   in the log \<close>
   (\<forall>oid \<in> dom(\<alpha>_fsm_gim $ gim\<^sub>f $ fsm_st\<^sub>f ostore_st).
    let gimnode = the $ (\<alpha>_fsm_gim $ gim\<^sub>f $ fsm_st\<^sub>f ostore_st) oid
    in unat (GimNode.count\<^sub>f gimnode) =
      card {x. x \<in> (set $ ostore_log_objects $ list_eb_log_wbuf ostore_st)  \<and>
               oid_is_deleted_by (get_obj_oid x) oid}) \<and>
 
-(* All Ubi erase-block with data are marked as used in the FSM used_eb\<^sub>f bit map *)
+\<comment>\<open> All Ubi erase-block with data are marked as used in the FSM @{term used_eb\<^sub>f} bit map \<close>
   (\<forall>ebnum\<in> {bilbyFsFirstLogEbNum..<nb_eb\<^sub>f (super\<^sub>f mount_st)}.
      (unat ebnum \<noteq> unat (wbuf_eb\<^sub>f ostore_st) \<longrightarrow>
      ((\<alpha>wubi $ OstoreState.ubi_vol\<^sub>f ostore_st)  ! (unat ebnum) = [] \<longleftrightarrow>
      ((\<alpha>wa $ used_eb\<^sub>f $ fsm_st\<^sub>f ostore_st) ! (unat ebnum) \<noteq> 0))))
 
-(* Dirty space book-keeping (commented out for now) *)
-  (* let ebnum = wbuf_eb\<^sub>f ostore_st in
-  ((\<alpha>wa $ used_eb\<^sub>f $ fsm_st\<^sub>f ostore_st) ! (unat ebnum) \<noteq> 0)  \<longrightarrow>
+\<comment>\<open> Dirty space book-keeping (commented out for now) \<close>
+  \<comment>\<open> let ebnum = @{term wbuf_eb\<^sub>f} ostore_st in
+  ((\<alpha>wa $ @{term used_eb\<^sub>f} $ @{term fsm_st\<^sub>f} ostore_st) ! (unat ebnum) \<noteq> 0)  \<longrightarrow>
    (let eb_log = list_eb_log_wbuf ostore_st ! (unat ebnum);
-       eb_size =  unat (eb_size\<^sub>f (super\<^sub>f mount_st));
-       nondirt = listsum (map (unat o Obj.len\<^sub>f) (concat eb_log)) ;
-       nonused = (if ebnum = wbuf_eb\<^sub>f ostore_st then eb_size - unat (used\<^sub>f ostore_st) else 0) in
-  (unat ((\<alpha>wa $ dirty_space\<^sub>f $ fsm_st\<^sub>f ostore_st) ! unat ebnum) = eb_size - nondirt - nonused))*)
+       eb_size =  unat (@{term eb_size\<^sub>f} (@{term super\<^sub>f} mount_st));
+       nondirt = listsum (map (unat o @{term Obj.len\<^sub>f}) (concat eb_log)) ;
+       nonused = (if ebnum = @{term wbuf_eb\<^sub>f} ostore_st then eb_size - unat (@{term used\<^sub>f} ostore_st) else 0) in
+  (unat ((\<alpha>wa $ @{term dirty_space\<^sub>f} $ @{term fsm_st\<^sub>f} ostore_st) ! unat ebnum) = eb_size - nondirt - nonused))\<close>
 "
 
 definition
@@ -673,13 +673,13 @@ where
    (used\<^sub>f ostore_st > 0 \<longrightarrow> valid_list_trans_no_pad synced) \<and>
    sort_key trans_order (prod.snd (list_trans_no_pad sync_to_used)) =
      prod.snd (list_trans_no_pad sync_to_used))
-(*
-  (let nb_eb = nb_eb\<^sub>f (super\<^sub>f mount_st) in
+\<comment>\<open>
+  (let nb_eb = @{term nb_eb\<^sub>f} (@{term super\<^sub>f} mount_st) in
    (\<forall>ebnum\<in>{bilbyFsFirstLogEbNum..nb_eb}.
-      (case ubi_to_buf (OstoreState.ubi_vol\<^sub>f ostore_st) ebnum of
+      (case ubi_to_buf (@{term OstoreState.ubi_vol\<^sub>f} ostore_st) ebnum of
          option.None \<Rightarrow> True |
          option.Some buf \<Rightarrow> valid_list_trans buf)))
-*)"
+\<close>"
 
 definition
   inv_log :: "Trans list list \<Rightarrow> Trans list \<Rightarrow> bool"
@@ -748,6 +748,9 @@ by (simp add: inv_ostore_def)
 lemma inv_ostore_wbuf_lengthD: "inv_ostore mount_st ostore_st \<Longrightarrow> buf_length (wbuf\<^sub>f ostore_st) = eb_size\<^sub>f (super\<^sub>f mount_st)"
 by (simp add: inv_ostore_def)
 
+lemma inv_ostore_rbuf_lengthD: "inv_ostore mount_st ostore_st \<Longrightarrow> buf_length (rbuf\<^sub>f ostore_st) = eb_size\<^sub>f (super\<^sub>f mount_st)"
+by (simp add: inv_ostore_def)
+
 lemma inv_ostore_wbuf_boundD: "inv_ostore mount_st ostore_st \<Longrightarrow> buf_bound (wbuf\<^sub>f ostore_st) = eb_size\<^sub>f (super\<^sub>f mount_st)"
 by (simp add: inv_ostore_def)
 
@@ -756,13 +759,24 @@ lemma inv_ostore_usedD:
   used\<^sub>f ostore_st \<le> eb_size\<^sub>f (super\<^sub>f mount_st)"
 by (clarsimp simp:inv_ostore_def)
 
+\<comment>\<open> ALTERNATIVE proof which does not rely on @{thm wordarray_length_ret} \<close>
+lemma inv_ostore_used_len_wbufD:
+  "inv_ostore mount_st ostore_st \<Longrightarrow> inv_mount_st mount_st \<Longrightarrow> unat (used\<^sub>f ostore_st) \<le> length (\<alpha>wa $ data\<^sub>f $ wbuf\<^sub>f ostore_st)"
+  apply (frule inv_ostore_wbuf_lengthD[THEN sym])
+  apply (frule inv_ostore_usedD)
+  apply (clarsimp simp: buf_simps word_le_nat_alt)
+  apply (cut_tac wa = "data\<^sub>f (wbuf\<^sub>f ostore_st)" in wordarray_length_leq_length)
+  apply simp
+ done
+(*
+\<comment>\<open> ORIGINAL proof which relies on @{thm wordarray_length_ret} \<close>
 lemma inv_ostore_used_len_wbufD:
   "inv_ostore mount_st ostore_st \<Longrightarrow> inv_mount_st mount_st \<Longrightarrow> unat (used\<^sub>f ostore_st) \<le> length (\<alpha>wa $ data\<^sub>f $ wbuf\<^sub>f ostore_st)"
   apply (frule inv_ostore_wbuf_lengthD[THEN sym])
   apply (frule inv_ostore_usedD)
   apply (clarsimp simp: word_unat.Rep_inject[symmetric] word_le_nat_alt buf_simps inv_mount_st_def Let_def wordarray_length_ret)
  done
-
+*)
 lemma inv_ostore_sync_offsD:
   "inv_ostore mount_st ostore_st \<Longrightarrow>  sync_offs\<^sub>f ostore_st \<le>  used\<^sub>f ostore_st"
 by (clarsimp simp:inv_ostore_def)
@@ -781,20 +795,35 @@ lemma inv_bufsD[simplified inv_bufs_def Let_def]:
  "inv_ostore mount_st ostore_st \<Longrightarrow> inv_bufs mount_st ostore_st"
   by (simp add: inv_ostore_def)          
 
+\<comment>\<open> ALTERNATIVE proof that does not rely on @{thm wordarray_length_ret} \<close>
+lemma length_ubi_buf_eq_sync_offsD:
+  "inv_ostore mount_st ostore_st \<Longrightarrow>
+   inv_mount_st mount_st \<Longrightarrow>
+  length (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st) ! unat (wbuf_eb\<^sub>f ostore_st)) =
+    unat (sync_offs\<^sub>f ostore_st)"
+  apply (frule inv_bufsD)
+  apply (subgoal_tac "unat (sync_offs\<^sub>f ostore_st) \<le> unat (buf_length (wbuf\<^sub>f ostore_st))")
+   apply (cut_tac wa = "data\<^sub>f (wbuf\<^sub>f ostore_st)" in  wordarray_length_leq_length)
+   apply (clarsimp simp: buf_simps min_absorb1)
+  apply (frule inv_ostore_usedD)
+  apply (clarsimp simp: inv_ostore_def buf_simps inv_mount_st_def Let_def, unat_arith+)
+  done
+(*
+\<comment>\<open> ORIGINAL proof that relies on @{thm wordarray_length_ret} \<close>
 lemma length_ubi_buf_eq_sync_offsD:
   "inv_ostore mount_st ostore_st \<Longrightarrow>
    inv_mount_st mount_st \<Longrightarrow>
   length (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st) ! unat (wbuf_eb\<^sub>f ostore_st)) =
     unat (sync_offs\<^sub>f ostore_st)"
    apply (frule inv_bufsD)
-   apply (subgoal_tac "unat (sync_offs\<^sub>f ostore_st) \<le> unat (buf_length (wbuf\<^sub>f ostore_st))")
+  apply (subgoal_tac "unat (sync_offs\<^sub>f ostore_st) \<le> unat (buf_length (wbuf\<^sub>f ostore_st))")
    using wordarray_length_ret[where arr="data\<^sub>f (wbuf\<^sub>f ostore_st)"]
    apply (clarsimp simp:  inv_bufs_def buf_simps min_absorb1 Let_def)
    apply unat_arith
  apply (frule inv_ostore_usedD)
  apply (clarsimp simp: inv_ostore_def buf_simps inv_mount_st_def Let_def, unat_arith+)
 done
-
+*)
 lemma inv_ubi_volD:
  "inv_ostore mount_st ostore_st \<Longrightarrow> inv_ubi_vol mount_st (OstoreState.ubi_vol\<^sub>f ostore_st)"
  by (drule inv_bufsD, clarsimp simp: inv_bufs_def)
@@ -803,24 +832,35 @@ lemma inv_ostore_indexD:
  "inv_ostore mount_st ostore_st \<Longrightarrow> inv_ostore_index mount_st ostore_st"
  by (clarsimp simp: inv_ostore_def)
 
+\<comment>\<open> REQUIRES @{thm wordarray_length_ret} \<close>
 lemma inv_ostore_eb_size_wbuf_eqD:
   "inv_ostore mount_st ostore_st  \<Longrightarrow>
    unat (eb_size\<^sub>f (super\<^sub>f mount_st)) = length (\<alpha>wa (data\<^sub>f (wbuf\<^sub>f ostore_st)))"
 using wordarray_length_ret[where arr="(data\<^sub>f (wbuf\<^sub>f ostore_st))"]
 by (clarsimp simp: inv_ostore_def Let_def buf_simps wordarray_length_ret)
 
+\<comment>\<open> REQUIRES @{thm wordarray_length_ret} \<close>
 lemma inv_ostore_eb_size_rbuf_eqD:
   "inv_ostore mount_st ostore_st  \<Longrightarrow>
    unat (eb_size\<^sub>f (super\<^sub>f mount_st)) = length (\<alpha>wa (data\<^sub>f (rbuf\<^sub>f ostore_st)))"
 using wordarray_length_ret[where arr="(data\<^sub>f (rbuf\<^sub>f ostore_st))"]
 by (clarsimp simp: inv_ostore_def Let_def buf_simps wordarray_length_ret)
 
+\<comment>\<open> ALTERNATIVE proof that does not rely on @{thm wordarray_length_ret} \<close>
+lemma inv_ostore_buf_boundD:
+  "inv_ostore mount_st ostore_st \<Longrightarrow>
+   unat (buf_bound (wbuf\<^sub>f ostore_st)) \<le> length (\<alpha>wa (data\<^sub>f (wbuf\<^sub>f ostore_st)))"
+  using wordarray_length_leq_length[of "data\<^sub>f (wbuf\<^sub>f ostore_st)"]
+  by (clarsimp simp: inv_ostore_def buf_simps)
+(*
+\<comment>\<open> ORIGINAL proof that relies on @{thm wordarray_length_ret} \<close>
 lemma inv_ostore_buf_boundD:
   "inv_ostore mount_st ostore_st \<Longrightarrow>
    unat (buf_bound (wbuf\<^sub>f ostore_st)) \<le> length (\<alpha>wa (data\<^sub>f (wbuf\<^sub>f ostore_st)))"
 using wordarray_length_ret[where arr="(data\<^sub>f (wbuf\<^sub>f ostore_st))",symmetric]
 by (clarsimp simp: inv_ostore_def buf_simps)
-
+*)
+\<comment>\<open> REQUIRES @{thm wordarray_length_ret} \<close>
 lemma inv_ostore_buf_bound_eqD:
   "inv_ostore mount_st ostore_st \<Longrightarrow>
    unat (buf_bound (wbuf\<^sub>f ostore_st)) = length (\<alpha>wa (data\<^sub>f (wbuf\<^sub>f ostore_st)))"

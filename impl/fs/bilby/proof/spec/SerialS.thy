@@ -60,7 +60,7 @@ where
        
 definition sObjDel :: "ObjDel\<^sub>T \<Rightarrow> U8 list"
 where
-  "sObjDel odel \<equiv> (sle64 $ ObjDel.id\<^sub>f odel) (* id *) (* End 8 bytes *)"
+  "sObjDel odel \<equiv> (sle64 $ ObjDel.id\<^sub>f odel) \<comment>\<open> id \<close> \<comment>\<open> End 8 bytes \<close>"
 
 lemma objDel_inverse:
  "pObjDel (sObjDel odel) 0 = odel"
@@ -72,9 +72,9 @@ lemma objDel_inverse:
 definition pObjData :: "U8 list \<Rightarrow> U32 \<Rightarrow> U32 \<Rightarrow> ObjData\<^sub>T"
 where
   "pObjData data offs olen \<equiv>
-   ObjData.make (ple64 data offs) (* id *)
+   ObjData.make (ple64 data offs) \<comment>\<open> id \<close>
      (WordArrayT.make $ slice (unat (offs + 8)) (unat (offs + 8) + unat (olen - bilbyFsObjHeaderSize - bilbyFsObjDataHeaderSize)) data)"
-
+ 
 definition sObjData :: "ObjData\<^sub>T \<Rightarrow> U32 \<Rightarrow> U8 list"
 where
   "sObjData odata len \<equiv> (sle64 $ ObjData.id\<^sub>f odata) @ take (unat len) (\<alpha>wa (ObjData.odata\<^sub>f odata))"
@@ -110,11 +110,11 @@ where
  "pObjDentry data offs \<equiv>
    let nlen = ple16 data (offs+6)
    in ObjDentry.make
-    (ple32 data (offs+0)) (* ino *)
-    (pu8 data (offs+4))  (* dtype *)
-    (* 1 byte padding *)
-    nlen  (* nlen *)
-    (WordArrayT.make $ slice (unat (offs+ 8)) (unat (offs + 8) + unat nlen) data)  (* name *)"
+    (ple32 data (offs+0)) \<comment>\<open> ino \<close>
+    (pu8 data (offs+4))  \<comment>\<open> dtype \<close>
+    \<comment>\<open> 1 byte padding \<close>
+    nlen  \<comment>\<open> nlen \<close>
+    (WordArrayT.make $ slice (unat (offs+ 8)) (unat (offs + 8) + unat nlen) data)  \<comment>\<open> name \<close>"
 
 definition pArrObjDentry :: "U8 list \<Rightarrow> U32 \<Rightarrow> U32 \<Rightarrow> (ObjDentry\<^sub>T Array \<times> 32 word \<times> 32 word list)"
 where
@@ -131,8 +131,8 @@ where
 "pObjDentarr data offs olen \<equiv>
  let nb_dentry = ple32 data (offs+8)
  in ObjDentarr.make
-     (ple64 data offs) (* id *)
-     (nb_dentry) (* nb_dentry *)
+     (ple64 data offs) \<comment>\<open> id \<close>
+     (nb_dentry) \<comment>\<open> nb_dentry \<close>
      (prod.fst (pArrObjDentry (take (unat (offs+olen-bilbyFsObjHeaderSize)) data) (offs+bilbyFsObjDentarrHeaderSize) nb_dentry))
      "
 
@@ -147,15 +147,15 @@ definition pObjSuper :: "U8 list \<Rightarrow> U32 \<Rightarrow> ObjSuper\<^sub>
 where
   "pObjSuper data offs \<equiv>
    ObjSuper.make
-     (ple32 data offs) (* nb_eb *)
-     (ple32 data (offs+4)) (* eb_size *)
-     (ple32 data (offs+8)) (* io_size *)
-     (ple32 data (offs+12)) (* nb_reserved_gc *)
-     (ple32 data (offs+16)) (* nb_reserved_del *)
-     (ple32 data (offs+20)) (* cur_eb *)
-     (ple32 data (offs+24)) (* cur_offs *)
-     (ple32 data (offs+28)) (* last_inum *)
-     (ple64 data (offs+32)) (* next_sqnum *)
+     (ple32 data offs) \<comment>\<open> nb_eb \<close>
+     (ple32 data (offs+4)) \<comment>\<open> eb_size \<close>
+     (ple32 data (offs+8)) \<comment>\<open> io_size \<close>
+     (ple32 data (offs+12)) \<comment>\<open> nb_reserved_gc \<close>
+     (ple32 data (offs+16)) \<comment>\<open> nb_reserved_del \<close>
+     (ple32 data (offs+20)) \<comment>\<open> cur_eb \<close>
+     (ple32 data (offs+24)) \<comment>\<open> cur_offs \<close>
+     (ple32 data (offs+28)) \<comment>\<open> last_inum \<close>
+     (ple64 data (offs+32)) \<comment>\<open> next_sqnum \<close>
      "
 
 (* TODO: we do not have pObjSumEntry . Probably we need it.*)
@@ -179,6 +179,11 @@ where
 definition wellformed_buf :: "Buffer\<^sub>T \<Rightarrow> bool"
 where
  "wellformed_buf buf \<equiv> unat (bound\<^sub>f buf) \<le> List.length (\<alpha>wa (Buffer.data\<^sub>f buf))"
+
+definition wellformed_buf' :: "Buffer\<^sub>T \<Rightarrow> bool"
+where
+ "wellformed_buf' buf \<equiv> bound\<^sub>f buf \<le> wordarray_length (Buffer.data\<^sub>f buf)"
+
 
 lemma elem_take_n:
  "i<n \<Longrightarrow> (take n xs ! i) = xs ! i"
@@ -253,7 +258,7 @@ using valid_offs
 definition buf_unchanged :: "Buffer\<^sub>T \<Rightarrow> Buffer\<^sub>T \<Rightarrow> U32 \<Rightarrow> U32 \<Rightarrow> bool"
 where
  "buf_unchanged newbuf oldbuf offs' l \<equiv> take (unat offs') (\<alpha>wa (data\<^sub>f newbuf)) = take (unat offs') (\<alpha>wa (data\<^sub>f oldbuf)) \<and>
-  drop (unat offs' + unat l) (\<alpha>wa (data\<^sub>f newbuf)) = drop (unat offs' + unat l) (\<alpha>wa (data\<^sub>f oldbuf)) \<and>
+  List.drop (unat offs' + unat l) (\<alpha>wa (data\<^sub>f newbuf)) = List.drop (unat offs' + unat l) (\<alpha>wa (data\<^sub>f oldbuf)) \<and>
   bound\<^sub>f newbuf = bound\<^sub>f oldbuf"
 
 lemma bounded_le_length:
@@ -380,17 +385,17 @@ definition pObjInode :: "U8 list \<Rightarrow> U32 \<Rightarrow> ObjInode\<^sub>
 where
  "pObjInode data offs \<equiv>
      ObjInode.make
-       (((ple64 data offs) AND (NOT (bilbyFsOidMaskAll OR ucast word32Max))) OR bilbyFsOidMaskInode) (* id *)
-       (ple64 data (offs+8)) (* size *)
-       (ple64 data (offs+16)) (* atime *)
-       (ple64 data (offs+24)) (* ctime *)
-       (ple64 data (offs+32)) (* mtime *)
-       (ple32 data (offs+40)) (* nlink *)
-       (ple32 data (offs+44)) (* uid *)
-       (ple32 data (offs+48)) (* gid *)
-       (ple32 data (offs+52)) (* mode *)
-       (ple32 data (offs+56)) (* flags *)
-       (* End 60 bytes *)"
+       (((ple64 data offs) AND (NOT (bilbyFsOidMaskAll OR ucast word32Max))) OR bilbyFsOidMaskInode) \<comment>\<open> id \<close>
+       (ple64 data (offs+8)) \<comment>\<open> size \<close>
+       (ple64 data (offs+16)) \<comment>\<open> atime \<close>
+       (ple64 data (offs+24)) \<comment>\<open> ctime \<close>
+       (ple64 data (offs+32)) \<comment>\<open> mtime \<close>
+       (ple32 data (offs+40)) \<comment>\<open> nlink \<close>
+       (ple32 data (offs+44)) \<comment>\<open> uid \<close>
+       (ple32 data (offs+48)) \<comment>\<open> gid \<close>
+       (ple32 data (offs+52)) \<comment>\<open> mode \<close>
+       (ple32 data (offs+56)) \<comment>\<open> flags \<close>
+       \<comment>\<open> End 60 bytes \<close>"
 
 definition sObjInode :: "ObjInode\<^sub>T \<Rightarrow> U8 list"
 where
@@ -404,22 +409,22 @@ where
  @ (sle32 $ ObjInode.uid\<^sub>f odata)
  @ (sle32 $ ObjInode.gid\<^sub>f odata)
  @ (sle32 $ ObjInode.mode\<^sub>f odata)
- @ (sle32 $ ObjInode.flags\<^sub>f odata)  (* End 60 bytes *)"
+ @ (sle32 $ ObjInode.flags\<^sub>f odata)  \<comment>\<open> End 60 bytes \<close>"
 
 definition pObjHeader :: "U8 list \<Rightarrow> U32 \<Rightarrow> Obj\<^sub>T"
 where
  "pObjHeader data offs \<equiv>
      Obj.make
-       (ple32 data offs)      (* magic *)
-       (ple32 data (offs+4))  (* crc *)
-       (ple64 data (offs+8))  (* sqnum *)
-       (offs)                    (* offs not stored on medium *) (* changed back to offs, otherwise this doesnt correspond to the code*)
-       (ple32 data (offs+16)) (* len *)
-       (* 2 padding bytes *)
-       (data!unat (offs+22))  (* trans *)
-       (data!unat (offs+23))  (* otype *)
-       undefined               (* ounion *)
-       (* End 24 bytes *)"
+       (ple32 data offs)      \<comment>\<open> magic \<close>
+       (ple32 data (offs+4))  \<comment>\<open> crc \<close>
+       (ple64 data (offs+8))  \<comment>\<open> sqnum \<close>
+       (offs)                    \<comment>\<open> offs not stored on medium *) (* changed back to offs, otherwise this doesnt correspond to the code \<close>
+       (ple32 data (offs+16)) \<comment>\<open> len \<close>
+       \<comment>\<open> 2 padding bytes \<close>
+       (data!unat (offs+22))  \<comment>\<open> trans \<close>
+       (data!unat (offs+23))  \<comment>\<open> otype \<close>
+       undefined               \<comment>\<open> ounion \<close>
+       \<comment>\<open> End 24 bytes \<close>"
 
 definition sObjHeader :: "Obj\<^sub>T \<Rightarrow> U8 list"
 where
@@ -431,7 +436,7 @@ where
  @ [bilbyFsPadByte]
  @ [bilbyFsPadByte]
  @ [Obj.trans\<^sub>f obj]
- @ [Obj.otype\<^sub>f obj] (* End 24 bytes *)"
+ @ [Obj.otype\<^sub>f obj] \<comment>\<open> End 24 bytes \<close>"
 
 lemma ObjHeader_inverse:
   "pObjHeader (sObjHeader obj@xs) 0 = (obj\<lparr> Obj.ounion\<^sub>f := undefined, Obj.offs\<^sub>f := 0\<rparr>) "
@@ -585,8 +590,8 @@ where
     TObjDel (pObjDel data offs)
    else if otype = bilbyFsObjTypeSuper then
     TObjSuper (pObjSuper data offs)
-   else (*if otype = bilbyFsObjTypeSum then
-    TObjSummary (pObjSummary data offs) *) (* see comments in: serial.cogent for deserialise_ObjUnion:*)
+   else \<comment>\<open>if otype = bilbyFsObjTypeSum then
+    TObjSummary (pObjSummary data offs) \<close> \<comment>\<open> see comments in: serial.cogent for deserialise_ObjUnion:\<close>
     TObjPad ()"
 
 definition pObj :: "U8 list \<Rightarrow> U32 \<Rightarrow> Obj\<^sub>T"
@@ -724,12 +729,12 @@ definition
 where
  "sObjUnion (ou::ObjUnion\<^sub>T) (otype::U8) (olen::U32) \<equiv> 
   case ou of
-    TObjDentarr odent \<Rightarrow> undefined (* TODO: no dentarr support for now *)
+    TObjDentarr odent \<Rightarrow> undefined \<comment>\<open> TODO: no dentarr support for now \<close>
   | TObjInode oinod \<Rightarrow> sObjInode oinod
   | TObjData odata \<Rightarrow> sObjData odata olen
   | TObjDel odel \<Rightarrow> sObjDel odel
   | TObjSuper osup \<Rightarrow> sObjSuper osup
-  | TObjSummary g \<Rightarrow> undefined (* TODO: sObjSummary is undefined*)
+  | TObjSummary g \<Rightarrow> undefined \<comment>\<open> TODO: sObjSummary is undefined \<close>
   | TObjPad opad \<Rightarrow>  sObjPad olen"
 
 lemmas bilbyFsObjTypes = 
@@ -791,7 +796,7 @@ lemma buf_sub_slice_len_simplified:
     unat offs < unat (offs + j) \<Longrightarrow>
      length (take (unat offs) (\<alpha>wa (data\<^sub>f buf)) @
               v1 @
-              drop (unat (offs + j)) (\<alpha>wa (data\<^sub>f buf))) = length (\<alpha>wa (data\<^sub>f buf))"
+              List.drop (unat (offs + j)) (\<alpha>wa (data\<^sub>f buf))) = length (\<alpha>wa (data\<^sub>f buf))"
     by simp unat_arith
  
 lemma buf_sub_slice_absorb:
@@ -831,14 +836,14 @@ lemma buf_sub_slice_absorb:
       using len1 len2 j_less by unat_arith
     have take_prefix: "(take (unat (offs + j))
            (take (unat offs) (\<alpha>wa (data\<^sub>f buf)) @
-            v1 @ drop (unat (offs + j)) (\<alpha>wa (data\<^sub>f buf)))) 
+            v1 @ List.drop (unat (offs + j)) (\<alpha>wa (data\<^sub>f buf)))) 
          = take (unat offs) (\<alpha>wa (data\<^sub>f buf)) @
             v1" 
         using len1 no_of' len_ge' j_sub by simp
-    have drop_prefix: "drop (unat (offs + k))
+    have drop_prefix: "List.drop (unat (offs + k))
            (take (unat offs) (\<alpha>wa (data\<^sub>f buf)) @
-            v1 @ drop (unat (offs + j)) (\<alpha>wa (data\<^sub>f buf))) 
-             = drop (unat (offs + k))(\<alpha>wa (data\<^sub>f buf))"
+            v1 @ List.drop (unat (offs + j)) (\<alpha>wa (data\<^sub>f buf))) 
+             = List.drop (unat (offs + k))(\<alpha>wa (data\<^sub>f buf))"
         apply (subgoal_tac "(unat k - unat j + unat (offs + j)) = unat (offs + k)")
          prefer 2
          using no_of j_less apply unat_arith
@@ -913,7 +918,7 @@ lemma serialise_u8_ret':
 
 lemma serialise_ObjHeader_ret:
   assumes no_overflow: "offs \<le> offs + bilbyFsObjHeaderSize"
-  and     is_valid_obj: "is_valid_ObjHeader obj (drop (unat offs) (\<alpha>wa (data\<^sub>f buf)))"
+  and     is_valid_obj: "is_valid_ObjHeader obj (List.drop (unat offs) (\<alpha>wa (data\<^sub>f buf)))"
   and     suc: "\<And>buf' offs'. 
    offs' = offs + bilbyFsObjHeaderSize \<Longrightarrow>
    buf' = buf\<lparr>data\<^sub>f := WordArrayT.make (buf_sub_slice buf offs (offs +bilbyFsObjHeaderSize) (sObjHeader obj))\<rparr> \<Longrightarrow>
@@ -1042,7 +1047,7 @@ qed
   
 lemmas ObjUnion_splits = ObjUnion.splits
 
-lemma take_drop_decomp:"x \<ge> a \<Longrightarrow> take (x - a) (drop a xs) @ drop x xs = drop a xs"
+lemma take_drop_decomp:"x \<ge> a \<Longrightarrow> take (x - a) (List.drop a xs) @ List.drop x xs = List.drop a xs"
   by (metis drop_take drop_take_drop)
 
 lemma serialise_ObjPad_ret:
@@ -1130,7 +1135,7 @@ lemma data\<^sub>f_of_data\<^sub>f_update:
 
 lemma serialise_Obj_ret:
   assumes no_overflow: "offs \<le> offs + Obj.len\<^sub>f obj"
-  and     is_valid_obj: "is_valid_ObjHeader obj (drop (unat offs) (\<alpha>wa (data\<^sub>f buf)))"
+  and     is_valid_obj: "is_valid_ObjHeader obj (List.drop (unat offs) (\<alpha>wa (data\<^sub>f buf)))"
   and     otype: "otype\<^sub>f obj = bilbyFsObjTypePad"
   and     ounion: "\<And>v. ounion\<^sub>f obj = TObjPad v"
   and     bound: " offs + Obj.len\<^sub>f obj \<le> bound\<^sub>f buf \<and>
@@ -1288,8 +1293,8 @@ qed
 lemma slice_Cons_helper:
   "i < length xs \<Longrightarrow>
     xs \<noteq> [] \<Longrightarrow>
-    drop i xs = 
-    (xs !  i) # drop ( (i + 1)) xs" 
+    List.drop i xs = 
+    (xs !  i) # List.drop ( (i + 1)) xs" 
     apply (cases xs, simp_all)
     by (metis (no_types, hide_lams) drop_Suc_Cons Cons_nth_drop_Suc length_Cons)
 
@@ -1503,6 +1508,16 @@ lemma no_offs_overflow:
   using assms
   by (auto simp add: bilbyFsMaxEbSize_def wellformed_buf_def unat_arith_simps)
 
+lemma no_offs_overflow':
+  assumes wellformed_buf: "wellformed_buf' buf"
+  assumes no_overflow: "wordarray_length (data\<^sub>f buf) \<le> bilbyFsMaxEbSize"
+  assumes offs_bound: "offs \<le> (bound\<^sub>f buf)"
+  assumes "n < bilbyFsMaxEbSize"
+  assumes "m < bilbyFsMaxEbSize"
+  shows "offs + n \<le> offs + n + m"
+  using assms
+  by (auto simp add: bilbyFsMaxEbSize_def wellformed_buf'_def unat_arith_simps)
+
 lemma no_offs_overflow_le:
   assumes wellformed_buf: "wellformed_buf buf"
   assumes no_overflow: "length (\<alpha>wa $ data\<^sub>f buf) \<le> unat bilbyFsMaxEbSize"
@@ -1514,6 +1529,17 @@ lemma no_offs_overflow_le:
   using assms
   by (auto simp add: bilbyFsMaxEbSize_def wellformed_buf_def unat_arith_simps)
 
+lemma no_offs_overflow_le':
+  assumes wellformed_buf: "wellformed_buf' buf"
+  assumes no_overflow: "wordarray_length (data\<^sub>f buf) \<le> bilbyFsMaxEbSize"
+  assumes offs_bound: "offs \<le> (bound\<^sub>f buf)"
+  assumes "n < bilbyFsMaxEbSize"
+  assumes "m < bilbyFsMaxEbSize"
+  assumes "m > 0"
+  shows "offs + n < offs + n + m"
+  using assms
+  by (auto simp add: bilbyFsMaxEbSize_def wellformed_buf'_def unat_arith_simps)
+
 lemma conc_offs_no_of:
   assumes wellformed_buf: "wellformed_buf buf"
   assumes no_overflow: "length (\<alpha>wa $ data\<^sub>f buf) \<le> unat bilbyFsMaxEbSize"
@@ -1523,6 +1549,16 @@ lemma conc_offs_no_of:
   shows "offs < offs + m"
   using assms
   by (auto simp add: bilbyFsMaxEbSize_def wellformed_buf_def unat_arith_simps)
+
+lemma conc_offs_no_of':
+  assumes wellformed_buf: "wellformed_buf' buf"
+  assumes no_overflow: "wordarray_length (data\<^sub>f buf) \<le> bilbyFsMaxEbSize"
+  assumes offs_bound: "offs \<le> (bound\<^sub>f buf)"
+  assumes "m < bilbyFsMaxEbSize"
+  assumes "m > 0"
+  shows "offs < offs + m"
+  using assms
+  by (auto simp add: bilbyFsMaxEbSize_def wellformed_buf'_def unat_arith_simps)
 
 lemma slice_take:
   "m \<le> l \<Longrightarrow> 
@@ -1564,6 +1600,335 @@ lemma pu8_take:
   apply (rule slice_take)
  using ntake offs by unat_arith
 
+\<comment>\<open> ALTERNATIVE proof that does not rely on @{thm wordarray_length_ret} \<close>
+lemma deserialise_ObjDentry_ret:
+  assumes wellformed_buf: "wellformed_buf buf"
+  assumes no_buf_overflow: "length (\<alpha>wa $ data\<^sub>f buf) \<le> unat bilbyFsMaxEbSize"
+  assumes bound: "end_offs \<le> bound\<^sub>f buf"
+  assumes off_less_end_offs: "offs \<le> end_offs"
+  assumes err:
+    "\<And>ex e. e \<in> {eInval, eNoMem} \<Longrightarrow> P (Error (e, ex))"
+  assumes suc:
+    "\<And>ex dentry offs'. \<lbrakk>
+      unat offs + 8 + unat (wordarray_length (name\<^sub>f dentry)) \<le> unat (bound\<^sub>f buf);
+      wordarray_length (name\<^sub>f dentry) \<le> bilbyFsMaxNameLen + 1;
+      offs + 8 + wordarray_length (name\<^sub>f dentry) \<le> end_offs ;
+      dentry = pObjDentry (take (unat end_offs) (\<alpha>wa (data\<^sub>f buf))) offs ;
+      offs' = offs + 8 + wordarray_length (name\<^sub>f dentry);
+      offs' \<le> (bound\<^sub>f buf)
+        \<rbrakk> \<Longrightarrow>
+      P (Success (ex, dentry, offs'))"
+  shows "P (deserialise_ObjDentry (ex, buf, offs, end_offs))"
+proof -
+  {
+    fix ex' dentry offs'
+    assume des_suc: "unat offs + 8 \<le> unat (bound\<^sub>f buf)"
+
+    then have offs_ok:"\<forall>n\<in>{0..7}. unat (offs + n)  < length (\<alpha>wa $ data\<^sub>f buf)"
+    proof -
+      from wellformed_buf[unfolded wellformed_buf_def] des_suc
+      have "unat offs + 8 \<le> length (\<alpha>wa $ data\<^sub>f buf)"
+        by unat_arith
+
+      thus ?thesis
+        by unat_arith
+    qed
+
+    from des_suc have deserialises:
+      "deserialise_le32 (buf, offs)     = (ple32 (\<alpha>wa $ data\<^sub>f buf) offs)"
+      "deserialise_u8   (buf, offs + 4) = (pu8 (\<alpha>wa $ data\<^sub>f buf) (offs + 4))"
+      "deserialise_le16 (buf, offs + 6) = (ple16 (\<alpha>wa $ data\<^sub>f buf) (offs + 6))"
+        apply clarsimp
+        apply(rule deserialise_le32_ret[simplified])
+      using assms[simplified bilbyFsMaxEbSize_def wellformed_buf_def]
+         apply unat_arith 
+      using assms[simplified bilbyFsMaxEbSize_def ]
+        apply unat_arith
+       apply (subst deserialise_pu8_ret)
+      using offs_ok des_suc wellformed_buf
+         apply (simp add: wellformed_buf_def, unat_arith)
+      using des_suc
+        apply unat_arith
+       apply simp+
+      apply(rule deserialise_le16_ret[simplified])
+      using offs_ok des_suc wellformed_buf apply (simp add: wellformed_buf_def, unat_arith)
+      using des_suc
+      apply unat_arith
+      done
+  }
+  note deserialises = this
+
+  have offs_le_bound: "offs  \<le> bound\<^sub>f buf"
+    using off_less_end_offs bound by simp
+
+  have const_offs_no_of: "\<And>n. n < bilbyFsMaxEbSize \<Longrightarrow> 0 < n \<Longrightarrow> offs < offs + n"
+    apply (rule conc_offs_no_of[OF wellformed_buf no_buf_overflow, unfolded bilbyFsMaxEbSize_def, simplified])
+    using offs_le_bound by (simp add:bilbyFsMaxEbSize_def)+
+  note no_of_8 = no_offs_overflow[OF wellformed_buf no_buf_overflow offs_le_bound, where m=8 and n=0, unfolded bilbyFsMaxEbSize_def, simplified, simplified unat_plus_simple]
+  show ?thesis
+    unfolding deserialise_ObjDentry_def[simplified tuple_simps sanitizers]
+    apply (clarsimp simp: Let_def err[unfolded eNoMem_def eInval_def])
+    apply (subst (asm) not_less)+
+    apply (rule deserialise_wordarray_U8_ret)
+     apply (clarsimp simp add: err)
+    apply(clarsimp simp add: err eNoMem_def Let_def prod.case_eq_if split: R.splits)
+    apply (erule impE)
+     apply (rule no_offs_overflow[OF wellformed_buf no_buf_overflow])
+    using off_less_end_offs bound apply fastforce
+      apply (simp add: bilbyFsMaxEbSize_def)+
+     apply unat_arith
+    apply (subgoal_tac "unat offs + unat (8::32word) + unat (ucast (deserialise_le16 (buf, offs + 6))) \<le> unat end_offs")
+     prefer 2
+     apply (subst add.assoc)
+     apply (subst unat_plus_simple[THEN iffD1, symmetric])
+      apply (simp add: unat_arith_simps)
+     apply (subst unat_plus_simple[THEN iffD1, symmetric])
+      apply (rule no_offs_overflow[OF wellformed_buf no_buf_overflow, where n=0, simplified])
+    using off_less_end_offs bound apply fastforce
+       apply (simp add: bilbyFsMaxEbSize_def)+
+      apply (simp add: unat_arith_simps)
+     apply (simp add: word_le_nat_alt[symmetric] add.assoc)
+    apply (erule impE)
+    using bound wellformed_buf[unfolded wellformed_buf_def] 
+     apply (simp add: unat_arith_simps)
+     apply unat_arith
+    apply (subgoal_tac "unat offs + 8 \<le> unat (bound\<^sub>f buf)")
+     prefer 2 
+     apply (subst unat_plus_simple[THEN iffD1, symmetric, 
+          where y="8::32word", simplified])
+      apply (rule no_offs_overflow[OF wellformed_buf no_buf_overflow, 
+          where n=0, simplified])
+    using off_less_end_offs bound apply fastforce
+       apply (simp add: bilbyFsMaxEbSize_def)+ 
+     apply (subst word_le_nat_alt[symmetric])
+     apply (cut_tac no_offs_overflow[OF wellformed_buf no_buf_overflow, 
+          where offs=offs and n=8 and m="ucast (deserialise_le16 (buf, offs + 6))"])
+    using off_less_end_offs bound apply (simp_all add: bilbyFsMaxEbSize_def)
+     apply unat_arith
+    apply (simp add: deserialises) 
+    apply (subgoal_tac "wordarray_length (WordArrayT.make
+         (FunBucket.slice (unat (offs + 8)) 
+          (unat (offs + 8) + unat (ucast (ple16 (\<alpha>wa (data\<^sub>f buf)) (offs + 6)) :: 32 word))
+          (\<alpha>wa (data\<^sub>f buf)))) \<le> ucast (ple16 (\<alpha>wa (data\<^sub>f buf)) (offs + 6))")
+     prefer 2
+     apply (subst wordarray_length_ofnat')
+     apply (subst wordarray_make)
+     apply (simp add: slice_length)
+     apply (subst min_absorb1)  
+      prefer 3
+    using wellformed_buf[unfolded wellformed_buf_def]  no_buf_overflow[unfolded bilbyFsMaxEbSize_def]
+      apply (simp add: unat_arith_simps)
+      apply (subgoal_tac 
+        "unat (ucast (ple16 (\<alpha>wa (data\<^sub>f buf)) (offs + 6)) :: 32 word) = 
+              unat (ple16 (\<alpha>wa (data\<^sub>f buf)) (offs + 6))")
+       prefer 2 
+       apply (fastforce intro: uint_up_ucast simp: eq_nat_nat_iff unat_def is_up) 
+      apply (rule suc)  
+           apply (simp_all add: Let_def pObjDentry_def ObjDentry.make_def bilbyFsMaxNameLen_def)
+    using bound apply unat_arith
+    using wellformed_buf[unfolded wellformed_buf_def]  no_buf_overflow[unfolded bilbyFsMaxEbSize_def]
+        apply (simp add: unat_arith_simps)
+       apply (simp add: ple16_take ple32_take const_offs_no_of bilbyFsMaxEbSize_def plus_no_overflow_unat_lift[OF const_offs_no_of[unfolded bilbyFsMaxEbSize_def, simplified]])
+       apply (subst ple16_take)
+         apply (rule no_offs_overflow_le[OF wellformed_buf no_buf_overflow offs_le_bound])
+           apply (simp add: bilbyFsMaxEbSize_def)+
+    using no_of_8
+        apply (simp add: add.commute)
+       apply (subst ple16_take)
+         apply (rule no_offs_overflow_le[OF wellformed_buf no_buf_overflow offs_le_bound])
+           apply (simp add: bilbyFsMaxEbSize_def)+
+    using no_of_8
+        apply (simp add: add.commute)
+       apply (subst pu8_take)
+    using no_offs_overflow[OF wellformed_buf no_buf_overflow offs_le_bound, where m=5 and n=0, unfolded bilbyFsMaxEbSize_def, simplified]
+      no_offs_overflow[OF wellformed_buf no_buf_overflow offs_le_bound, where m=4 and n=0, unfolded bilbyFsMaxEbSize_def, simplified]
+         apply (simp add: add.commute unat_plus_simple)
+         apply unat_arith
+    using no_of_8
+      no_offs_overflow[OF wellformed_buf no_buf_overflow offs_le_bound, where m=5 and n=0, unfolded bilbyFsMaxEbSize_def, simplified]
+        apply (fastforce simp add: unat_plus_simple add.commute)
+       apply (subst ObjDentry.surjective, simp)
+       apply (rule arg_cong[where f=WordArrayT.make])
+       apply (rule slice_take[symmetric], simp)
+      apply (rule word_unat.Rep_eqD)
+      apply (subst wordarray_length_ret')
+       apply (simp add: wordarray_make slice_length max_word_def)
+      apply (simp add: wordarray_make length_slice)
+    using no_of_8 wellformed_buf
+     apply (simp add: wellformed_buf_def)
+     apply unat_arith
+    using wellformed_buf[unfolded wellformed_buf_def]  no_buf_overflow[unfolded bilbyFsMaxEbSize_def]
+    apply (simp add: unat_arith_simps)
+    done
+qed
+
+lemma deserialise_ObjDentry_ret':
+  assumes wellformed_buf: "wellformed_buf' buf"
+  assumes no_buf_overflow: "wordarray_length (data\<^sub>f buf) \<le> bilbyFsMaxEbSize"
+  assumes bound: "end_offs \<le> bound\<^sub>f buf"
+  assumes off_less_end_offs: "offs \<le> end_offs"
+  assumes err:
+    "\<And>ex e. e \<in> {eInval, eNoMem} \<Longrightarrow> P (Error (e, ex))"
+  assumes suc:
+    "\<And>ex dentry offs'. \<lbrakk>
+      unat offs + 8 + unat (wordarray_length (name\<^sub>f dentry)) \<le> unat (bound\<^sub>f buf);
+      wordarray_length (name\<^sub>f dentry) \<le> bilbyFsMaxNameLen + 1;
+      offs + 8 + wordarray_length (name\<^sub>f dentry) \<le> end_offs ;
+      dentry = pObjDentry (take (unat end_offs) (\<alpha>wa (data\<^sub>f buf))) offs ;
+      offs' = offs + 8 + wordarray_length (name\<^sub>f dentry);
+      offs' \<le> (bound\<^sub>f buf)
+        \<rbrakk> \<Longrightarrow>
+      P (Success (ex, dentry, offs'))"
+  shows "P (deserialise_ObjDentry (ex, buf, offs, end_offs))"
+proof -
+  {
+    fix ex' dentry offs'
+    assume des_suc: "unat offs + 8 \<le> unat (bound\<^sub>f buf)"
+
+    then have offs_ok:"\<forall>n\<in>{0..7}. unat (offs + n)  < length (\<alpha>wa $ data\<^sub>f buf)"
+    proof -
+      from wellformed_buf[unfolded wellformed_buf'_def] des_suc wordarray_length_leq_length[of "data\<^sub>f buf"]
+      have "unat offs + 8 \<le> length (\<alpha>wa $ data\<^sub>f buf)"
+        by unat_arith
+
+      thus ?thesis
+        by unat_arith
+    qed
+
+    from des_suc have deserialises:
+      "deserialise_le32 (buf, offs)     = (ple32 (\<alpha>wa $ data\<^sub>f buf) offs)"
+      "deserialise_u8   (buf, offs + 4) = (pu8 (\<alpha>wa $ data\<^sub>f buf) (offs + 4))"
+      "deserialise_le16 (buf, offs + 6) = (ple16 (\<alpha>wa $ data\<^sub>f buf) (offs + 6))"
+        apply clarsimp
+        apply(rule deserialise_le32_ret[simplified])
+      using assms[simplified bilbyFsMaxEbSize_def wellformed_buf'_def] wordarray_length_leq_length[of "data\<^sub>f buf"]
+         apply unat_arith 
+      using assms[simplified bilbyFsMaxEbSize_def ]
+        apply unat_arith
+       apply (subst deserialise_pu8_ret)
+      using offs_ok des_suc wellformed_buf wordarray_length_leq_length[of "data\<^sub>f buf"]
+         apply (simp add: wellformed_buf'_def, unat_arith)
+      using des_suc
+        apply unat_arith
+       apply simp+
+      apply(rule deserialise_le16_ret[simplified])
+      using offs_ok des_suc wellformed_buf wordarray_length_leq_length[of "data\<^sub>f buf"]
+       apply (simp add: wellformed_buf'_def, unat_arith)
+      using des_suc
+      apply unat_arith
+      done
+  }
+  note deserialises = this
+
+  have offs_le_bound: "offs  \<le> bound\<^sub>f buf"
+    using off_less_end_offs bound by simp
+
+  have const_offs_no_of: "\<And>n. n < bilbyFsMaxEbSize \<Longrightarrow> 0 < n \<Longrightarrow> offs < offs + n"
+    apply (rule conc_offs_no_of'[OF wellformed_buf no_buf_overflow, unfolded bilbyFsMaxEbSize_def, simplified])
+    using offs_le_bound by (simp add:bilbyFsMaxEbSize_def)+
+  note no_of_8 = no_offs_overflow'[OF wellformed_buf no_buf_overflow offs_le_bound, where m=8 and n=0, unfolded bilbyFsMaxEbSize_def, simplified, simplified unat_plus_simple]
+  show ?thesis
+    unfolding deserialise_ObjDentry_def[simplified tuple_simps sanitizers]
+    apply (clarsimp simp: Let_def err[unfolded eNoMem_def eInval_def])
+    apply (subst (asm) not_less)+
+    apply (rule deserialise_wordarray_U8_ret)
+     apply (clarsimp simp add: err)
+    apply(clarsimp simp add: err eNoMem_def Let_def prod.case_eq_if split: R.splits)
+    apply (erule impE)
+     apply (rule no_offs_overflow'[OF wellformed_buf no_buf_overflow])
+    using off_less_end_offs bound apply fastforce
+      apply (simp add: bilbyFsMaxEbSize_def)+
+     apply unat_arith
+    apply (subgoal_tac "unat offs + unat (8::32word) + unat (ucast (deserialise_le16 (buf, offs + 6))) \<le> unat end_offs")
+     prefer 2
+     apply (subst add.assoc)
+     apply (subst unat_plus_simple[THEN iffD1, symmetric])
+      apply (simp add: unat_arith_simps)
+     apply (subst unat_plus_simple[THEN iffD1, symmetric])
+      apply (rule no_offs_overflow'[OF wellformed_buf no_buf_overflow, where n=0, simplified])
+    using off_less_end_offs bound apply fastforce
+       apply (simp add: bilbyFsMaxEbSize_def)+
+      apply (simp add: unat_arith_simps)
+     apply (simp add: word_le_nat_alt[symmetric] add.assoc)
+    apply (erule impE)
+    using bound wellformed_buf[unfolded wellformed_buf'_def] wordarray_length_leq_length[of "data\<^sub>f buf"]
+     apply (simp add: unat_arith_simps)
+     apply unat_arith
+    apply (subgoal_tac "unat offs + 8 \<le> unat (bound\<^sub>f buf)")
+     prefer 2 
+     apply (subst unat_plus_simple[THEN iffD1, symmetric, 
+          where y="8::32word", simplified])
+      apply (rule no_offs_overflow'[OF wellformed_buf no_buf_overflow, 
+          where n=0, simplified])
+    using off_less_end_offs bound apply fastforce
+       apply (simp add: bilbyFsMaxEbSize_def)+ 
+     apply (subst word_le_nat_alt[symmetric])
+     apply (cut_tac no_offs_overflow'[OF wellformed_buf no_buf_overflow, 
+          where offs=offs and n=8 and m="ucast (deserialise_le16 (buf, offs + 6))"])
+    using off_less_end_offs bound apply (simp_all add: bilbyFsMaxEbSize_def)
+     apply unat_arith
+    apply (simp add: deserialises) 
+    apply (subgoal_tac "wordarray_length (WordArrayT.make
+         (FunBucket.slice (unat (offs + 8)) 
+          (unat (offs + 8) + unat (ucast (ple16 (\<alpha>wa (data\<^sub>f buf)) (offs + 6)) :: 32 word))
+          (\<alpha>wa (data\<^sub>f buf)))) \<le> ucast (ple16 (\<alpha>wa (data\<^sub>f buf)) (offs + 6))")
+     prefer 2
+     apply (cut_tac wellformed_buf[simplified wellformed_buf'_def])
+    apply (subst word_le_nat_alt)
+     apply (subst wordarray_length_ret')
+     apply (subst wordarray_make)
+      apply (simp add: slice_length)
+      apply (rule linorder_class.min.coboundedI1)
+      apply (cut_tac max_word_max[of "(ple16 (\<alpha>wa (data\<^sub>f buf)) (offs + 6))"])
+      apply (simp add: max_word_def)
+      apply unat_arith
+     apply (subst wordarray_make)
+     apply (simp add: slice_length)
+      apply (rule suc)  
+           apply (simp_all add: Let_def pObjDentry_def ObjDentry.make_def bilbyFsMaxNameLen_def)
+    using bound apply unat_arith
+    using wellformed_buf[unfolded wellformed_buf'_def]  no_buf_overflow[unfolded bilbyFsMaxEbSize_def]
+        apply (simp add: unat_arith_simps)
+       apply (simp add: ple16_take ple32_take const_offs_no_of bilbyFsMaxEbSize_def plus_no_overflow_unat_lift[OF const_offs_no_of[unfolded bilbyFsMaxEbSize_def, simplified]])
+       apply (subst ple16_take)
+         apply (rule no_offs_overflow_le'[OF wellformed_buf no_buf_overflow offs_le_bound])
+           apply (simp add: bilbyFsMaxEbSize_def)+
+    using no_of_8
+        apply (simp add: add.commute)
+       apply (subst ple16_take)
+         apply (rule no_offs_overflow_le'[OF wellformed_buf no_buf_overflow offs_le_bound])
+           apply (simp add: bilbyFsMaxEbSize_def)+
+    using no_of_8
+        apply (simp add: add.commute)
+       apply (subst pu8_take)
+    using no_offs_overflow'[OF wellformed_buf no_buf_overflow offs_le_bound, where m=5 and n=0, unfolded bilbyFsMaxEbSize_def, simplified]
+      no_offs_overflow'[OF wellformed_buf no_buf_overflow offs_le_bound, where m=4 and n=0, unfolded bilbyFsMaxEbSize_def, simplified]
+         apply (simp add: add.commute unat_plus_simple)
+         apply unat_arith
+    using no_of_8
+      no_offs_overflow'[OF wellformed_buf no_buf_overflow offs_le_bound, where m=5 and n=0, unfolded bilbyFsMaxEbSize_def, simplified]
+        apply (fastforce simp add: unat_plus_simple add.commute)
+       apply (subst ObjDentry.surjective, simp)
+       apply (rule arg_cong[where f=WordArrayT.make])
+       apply (clarsimp simp: unat_ucast_up_simp)
+       apply (rule slice_take[symmetric], simp)
+      apply (rule word_unat.Rep_eqD)
+      apply (subst wordarray_length_ret')
+       apply (clarsimp simp: unat_ucast_up_simp)
+       apply (cut_tac max_word_max[of "(ple16 (\<alpha>wa (data\<^sub>f buf)) (offs + 6))"])
+       apply (simp add: wordarray_make slice_length max_word_def)
+       apply (rule linorder_class.min.coboundedI1)
+       apply unat_arith
+       apply (simp add: wordarray_make length_slice unat_ucast_up_simp)
+    using no_of_8 wellformed_buf wordarray_length_leq_length[of "data\<^sub>f buf"]
+     apply (simp add: wellformed_buf'_def)
+     apply unat_arith
+    done
+qed
+
+
+(*
+\<comment>\<open> ORIGINAL proof that relies on @{thm wordarray_length_ret} \<close>
 lemma deserialise_ObjDentry_ret:
   assumes wellformed_buf: "wellformed_buf buf"
   assumes no_buf_overflow: "length (\<alpha>wa $ data\<^sub>f buf) \<le> unat bilbyFsMaxEbSize"
@@ -1715,7 +2080,7 @@ proof -
        apply (rule arg_cong[where f=WordArrayT.make])
        apply (rule slice_take[symmetric], simp)
       apply (rule word_unat.Rep_eqD)
-      apply (simp add: wordarray_length_ret wordarray_make length_slice)
+     apply (simp add: wordarray_length_ret wordarray_make length_slice)
     using no_of_8 wellformed_buf
      apply (simp add: wellformed_buf_def)
      apply unat_arith
@@ -1723,6 +2088,7 @@ proof -
     apply (simp add: unat_arith_simps)
     done
 qed
+*)
 
 lemma loop_deserialise_ObjDentry_ret:
   assumes wellformed_buf: "wellformed_buf buf"
@@ -1744,6 +2110,28 @@ lemma loop_deserialise_ObjDentry_ret:
   apply (clarsimp simp: Let_def OptElemAO.make_def)
   apply (rule deserialise_ObjDentry_ret[OF assms(1-4)])
   by (clarsimp simp: eInval_def)+
+
+lemma loop_deserialise_ObjDentry_ret':
+  assumes wellformed_buf: "wellformed_buf' buf"
+  assumes no_buf_overflow: "wordarray_length (data\<^sub>f buf) \<le> bilbyFsMaxEbSize"
+  assumes bound: "end_offs \<le> bound\<^sub>f buf"
+  assumes off_less_end_offs: "offs  \<le> end_offs"
+  assumes st_offs: "st_offs \<le> offs"
+  shows "case loop_deserialise_ObjDentry (OptElemAO.make dentry (ex, offs) (buf, end_offs)) of
+            Break (none, e, ex) \<Rightarrow> none= Option.None () \<and> e = eInval 
+          | Iterate (optdentry, ex, offs') \<Rightarrow>
+             \<exists>dentry. optdentry = Option.Some dentry \<and>
+                unat offs + 8 + unat (wordarray_length (name\<^sub>f dentry)) \<le> unat (bound\<^sub>f buf)  \<and>
+                wordarray_length (name\<^sub>f dentry) \<le> bilbyFsMaxNameLen + 1  \<and>
+                offs + 8 + wordarray_length (name\<^sub>f dentry) \<le> end_offs  \<and>
+                dentry = pObjDentry (take (unat end_offs) (\<alpha>wa (data\<^sub>f buf))) offs  \<and>
+                offs' = offs + 8 + wordarray_length (name\<^sub>f dentry) \<and>
+                offs' \<le> (bound\<^sub>f buf)"
+  unfolding loop_deserialise_ObjDentry_def[unfolded tuple_simps sanitizers]
+  apply (clarsimp simp: Let_def OptElemAO.make_def)
+  apply (rule deserialise_ObjDentry_ret'[OF assms(1-4)])
+  by (clarsimp simp: eInval_def)+
+
 
 lemma slice_Cons:
   "frm < length xs \<Longrightarrow> frm < to
@@ -1792,7 +2180,7 @@ proof -
     apply clarsimp
     done
 
-  from frm have drop_helper: "\<And>x xs. drop (to - frm) (x # xs) = drop (to - Suc frm) xs"
+  from frm have drop_helper: "\<And>x xs. List.drop (to - frm) (x # xs) = List.drop (to - Suc frm) xs"
     apply (cases "to - frm", simp_all)
     apply (cases to, simp_all)
     apply (cases frm, simp_all)
@@ -1806,7 +2194,7 @@ proof -
      apply (clarsimp simp: fold_break)
      apply (simp add: slice_def upd_conv_take_nth_drop max_absorb2)
      apply (subst append_take_drop_id
-                  [where xs="drop (Suc frm) xs" and n="to -frm - 1", 
+                  [where xs="List.drop (Suc frm) xs" and n="to -frm - 1", 
                     simplified take_drop, symmetric])
      apply simp
     apply (clarsimp simp: mapAccumObsOpt_def slice_list_update take_list_update)
@@ -1864,7 +2252,7 @@ definition dentarr_offs_list_drop :: "U8 list \<Rightarrow> U32 \<Rightarrow> na
 where
  "dentarr_offs_list_drop data ost entriesno offs =
     prod.snd (fold (\<lambda>_ (doffs, offslist).
-      let dentry = pObjDentry (drop (unat offs) data) (doffs - offs);
+      let dentry = pObjDentry (List.drop (unat offs) data) (doffs - offs);
           newoffs = doffs + 8 + wordarray_length (ObjDentry.name\<^sub>f dentry)
        in (newoffs, offslist @ [newoffs]))
       entriesno (ost, []))
@@ -1952,7 +2340,7 @@ lemma pObjDentry_drop_eq:
  and     offs_olen_ys: "unat end_offs \<le> length ys"
  and     ys_le_max: " length ys \<le> unat bilbyFsMaxEbSize"
  and     end_offs: "end_offs_nat = unat end_offs"
- shows " pObjDentry (take end_offs_nat ys) ost = pObjDentry (drop (unat offs) (take end_offs_nat ys)) (ost - offs)"
+ shows " pObjDentry (take end_offs_nat ys) ost = pObjDentry (List.drop (unat offs) (take end_offs_nat ys)) (ost - offs)"
 proof -
  have ost_4_nat: "unat (ost + 4) = unat ost + 4"
    using ost_no_of8 by (simp add: unat_arith_simps) unat_arith
@@ -2001,7 +2389,7 @@ proof -
                    "(unat ost - unat offs + 8 + unat offs) = unat ost + 8"
   using offs_le_ost[simplified word_less_nat_alt] by unat_arith+
 
- have ple16_eq: "ple16 (take end_offs_nat ys) (ost + 6) = ple16 (drop (unat offs) (take end_offs_nat ys)) (ost - offs + 6)"
+ have ple16_eq: "ple16 (take end_offs_nat ys) (ost + 6) = ple16 (List.drop (unat offs) (take end_offs_nat ys)) (ost - offs + 6)"
    apply (simp add: ple16_def)
    apply (rule arg_cong[where f=word_rcat])
    apply (rule arg_cong[where f=rev])
@@ -2034,7 +2422,103 @@ proof -
    apply (subst add.commute, fastforce simp only: offs_cancel)
   apply (simp add: ple16_eq )
   apply (rule arg_cong[where f=WordArrayT.make])
-  apply (subgoal_tac "\<exists>v. ple16 (drop (unat offs) (take (unat offs + unat (Obj.len\<^sub>f obj)) ys)) (ost - offs + 6) = v")
+  apply (subgoal_tac "\<exists>v. ple16 (List.drop (unat offs) (take (unat offs + unat (Obj.len\<^sub>f obj)) ys)) (ost - offs + 6) = v")
+   apply (erule exE)
+   apply (simp only: ost_offs_x less_to_le[OF ost_no_of8, simplified unat_plus_simple])
+   apply (simp add: slice_def take_drop )
+   apply (simp add: offs_cancel offs_cancel')+
+  done
+qed
+lemma pObjDentry_drop_eq':
+ assumes offs_le_ost: "offs \<le> ost"
+ and     ost_no_of8: " ost < ost + 8"
+ and     ost_le_offs_olen: " ost \<le> end_offs"
+ and     offs_olen_ys: "end_offs \<le> wordarray_length (WordArrayT.make ys)"
+ and     ys_le_max: " wordarray_length (WordArrayT.make ys) \<le> bilbyFsMaxEbSize"
+ and     end_offs: "end_offs_nat = unat end_offs"
+ shows " pObjDentry (take end_offs_nat ys) ost = pObjDentry (List.drop (unat offs) (take end_offs_nat ys)) (ost - offs)"
+proof -
+ have ost_4_nat: "unat (ost + 4) = unat ost + 4"
+   using ost_no_of8 by (simp add: unat_arith_simps) unat_arith
+
+ have ost_le_max: "ost \<le> bilbyFsMaxEbSize" using ys_le_max offs_olen_ys ost_le_offs_olen
+  by unat_arith
+
+ hence offs_le_max: "offs \<le> bilbyFsMaxEbSize"
+  using offs_le_ost by unat_arith
+
+
+ have ost_minus_offs_bound: "ost - offs \<le> bilbyFsMaxEbSize"
+  using  offs_le_ost ost_le_max
+  by unat_arith
+
+ have ost_no_ofs: "ost < ost + 4" "ost < ost + 6" using ost_no_of8
+   by (clarsimp simp add: unat_arith_simps , unat_arith)+
+
+ hence ost_offs_x: "unat (ost - offs + 4) = unat ost - unat offs + 4"
+                   "unat (ost - offs + 6) = unat ost - unat offs + 6"
+                   "unat (ost - offs + 8) = unat ost - unat offs + 8"
+   using offs_le_ost offs_le_ost[simplified word_le_nat_alt] ost_4_nat 
+   ost_minus_offs_bound
+   apply (simp_all add: bilbyFsMaxEbSize_def)
+   apply ((drule plus_no_overflow_unat_lift)+, 
+      (subst unat_plus_simple_imp,
+       simp only: word_le_nat_alt, unat_arith,subst unat_sub, simp+))
+
+   apply ((drule plus_no_overflow_unat_lift)+, 
+      (subst unat_plus_simple_imp,
+       simp only: word_le_nat_alt, unat_arith,subst unat_sub, simp+))
+
+   apply ((drule plus_no_overflow_unat_lift)+)
+   apply (subst unat_plus_simple_imp)
+   apply (simp only: word_le_nat_alt word_less_nat_alt)
+   using offs_le_max[simplified bilbyFsMaxEbSize_def word_le_nat_alt]
+   ost_no_of8
+
+   apply (simp only:unat_arith_simps)
+   apply unat_arith
+  apply (subst unat_sub, simp+)
+ done
+
+ have offs_cancel: "(unat ost - unat offs + 4 + unat offs) = unat ost + 4" 
+                   "(unat ost - unat offs + 6 + unat offs) = unat ost + 6"
+                   "(unat ost - unat offs + 8 + unat offs) = unat ost + 8"
+  using offs_le_ost[simplified word_less_nat_alt] by unat_arith+
+
+ have ple16_eq: "ple16 (take end_offs_nat ys) (ost + 6) = ple16 (List.drop (unat offs) (take end_offs_nat ys)) (ost - offs + 6)"
+   apply (simp add: ple16_def)
+   apply (rule arg_cong[where f=word_rcat])
+   apply (rule arg_cong[where f=rev])
+   apply (rule arg_cong[where f="take 2"])
+   apply (fastforce simp add: ost_offs_x offs_cancel less_to_le[OF ost_no_ofs(2), simplified unat_plus_simple])
+  done
+
+ have offs_cancel': "\<forall>v. unat ost - unat offs + 8 + unat v + unat offs = unat ost + 8 + unat v"
+  using offs_le_ost[simplified word_less_nat_alt]
+  by unat_arith
+
+ show ?thesis
+  apply (simp add: pObjDentry_def Let_def ObjDentry.make_def)
+  apply (rule conjI)
+   apply (simp add: ple32_def)
+   apply (rule arg_cong[where f=word_rcat])
+   apply (rule arg_cong[where f=rev])
+   apply (rule arg_cong[where f="take 4"])
+   apply (subst unat_sub[OF offs_le_ost])
+   using offs_le_ost
+   apply (subst add_diff_assoc2, fastforce simp: word_le_nat_alt)
+   apply fastforce
+  apply (rule conjI)
+   apply (simp add: pu8_def )
+   apply (rule arg_cong[where f=word_rcat])
+   apply (simp only: slice_def drop_take fun_app_def)
+   using ost_offs_x ost_4_nat
+   apply simp
+   apply (simp add: take_drop offs_cancel)
+   apply (subst add.commute, fastforce simp only: offs_cancel)
+  apply (simp add: ple16_eq )
+  apply (rule arg_cong[where f=WordArrayT.make])
+  apply (subgoal_tac "\<exists>v. ple16 (List.drop (unat offs) (take (unat offs + unat (Obj.len\<^sub>f obj)) ys)) (ost - offs + 6) = v")
    apply (erule exE)
    apply (simp only: ost_offs_x less_to_le[OF ost_no_of8, simplified unat_plus_simple])
    apply (simp add: slice_def take_drop )
@@ -2042,13 +2526,33 @@ proof -
   done
 qed
 
+\<comment>\<open> ALTERNATIVE proof that does not rely on @{thm wordarray_length_ret} \<close>
+lemma wa_length_ObjDentry_name_le:
+ "unat (wordarray_length (ObjDentry.name\<^sub>f (pObjDentry xs ost))) \<le> length xs"
+  apply (simp add: pObjDentry_def Let_def ObjDentry.make_def)
+  apply (rule order_class.order.trans[OF wordarray_length_leq_length])
+  apply (simp add: wordarray_make slice_length)
+  done
+(*
+\<comment>\<open> ORIGINAL proof that relies on @{thm wordarray_length_ret} \<close>
 lemma wa_length_ObjDentry_name_le:
  "unat (wordarray_length (ObjDentry.name\<^sub>f (pObjDentry xs ost))) \<le> length xs"
  by (simp add: pObjDentry_def Let_def ObjDentry.make_def wordarray_make wordarray_length_ret slice_def)
+*)
 
+\<comment>\<open> ALTERNATIVE proof that does not rely on @{thm wordarray_length_ret} \<close>
+lemma wa_length_ObjDentry_name_le_len:
+ "unat (wordarray_length (ObjDentry.name\<^sub>f (pObjDentry xs ost))) \<le> unat (ple16 xs (ost + 6))"
+  apply (simp add: pObjDentry_def Let_def ObjDentry.make_def)
+  apply (rule order_class.order.trans[OF wordarray_length_leq_length])
+  apply (simp add: wordarray_make slice_length)
+  done
+(*
+\<comment>\<open> ORIGINAL proof that relies on @{thm wordarray_length_ret} \<close>
 lemma wa_length_ObjDentry_name_le_len:
  "unat (wordarray_length (ObjDentry.name\<^sub>f (pObjDentry xs ost))) \<le> unat (ple16 xs (ost + 6))"
  by (simp add: pObjDentry_def Let_def ObjDentry.make_def wordarray_make wordarray_length_ret slice_def)
+*)
 
 lemma dentarr_end_offs_list_induct_helper:
  assumes diff: "Suc diff = unat to - frm"
@@ -2101,7 +2605,7 @@ lemma mapAccumObsOpt_loop_deserialise_ObjDentry_ret:
              in (xs@[Option.Some dentry], 
                 newoffs, offslist @ [newoffs])) 
            [frm..<unat to] ([], offs, [])) 
-         of (xs, offs) \<Rightarrow> ((take frm ys) @ xs @ (drop (unat to) ys), offs);
+         of (xs, offs) \<Rightarrow> ((take frm ys) @ xs @ (List.drop (unat to) ys), offs);
       data = take (unat end_offs) (\<alpha>wa (data\<^sub>f buf)) in
   (case mapAccumObsOpt frm (unat to) loop_deserialise_ObjDentry 
      ys (ex, offs) (buf, end_offs) of
@@ -2135,7 +2639,7 @@ next
    by (simp add: wellformed_buf_def bilbyFsMaxEbSize_def unat_arith_simps)
 
   have pObjDentry_eq: 
-  "pObjDentry (drop (unat st_offs) (take (unat end_offs) (\<alpha>wa (data\<^sub>f buf)))) (offs - st_offs) = pObjDentry (take (unat end_offs) (\<alpha>wa (data\<^sub>f buf))) offs"
+  "pObjDentry (List.drop (unat st_offs) (take (unat end_offs) (\<alpha>wa (data\<^sub>f buf)))) (offs - st_offs) = pObjDentry (take (unat end_offs) (\<alpha>wa (data\<^sub>f buf))) offs"
       using rest offs_pl_8 by (fastforce intro: pObjDentry_drop_eq[symmetric,where end_offs=end_offs and offs=st_offs]
                                 simp add: wellformed_buf_def word_le_nat_alt)
   
@@ -2205,6 +2709,126 @@ next
   done
 qed 
 
+lemma mapAccumObsOpt_loop_deserialise_ObjDentry_ret':
+  assumes wellformed_buf: "wellformed_buf' buf"
+  assumes no_buf_overflow: "wordarray_length (data\<^sub>f buf) \<le> bilbyFsMaxEbSize"
+  assumes bound: "end_offs \<le> bound\<^sub>f buf"
+  assumes off_less_end_offs: "offs  \<le> end_offs"
+  assumes frm: "frm \<le> unat (to::word32)" "unat to \<le> length ys" 
+  assumes st_offs: "st_offs \<le> offs"
+  shows 
+  "let list_spec = 
+      case (fold (\<lambda>_ (xs, doffs, offslist).
+             let dentry = pObjDentry (take (unat end_offs) (\<alpha>wa (data\<^sub>f buf))) doffs ;
+                 newoffs = doffs +  8 + wordarray_length (ObjDentry.name\<^sub>f dentry)
+             in (xs@[Option.Some dentry], 
+                newoffs, offslist @ [newoffs])) 
+           [frm..<unat to] ([], offs, [])) 
+         of (xs, offs) \<Rightarrow> ((take frm ys) @ xs @ (List.drop (unat to) ys), offs);
+      data = take (unat end_offs) (\<alpha>wa (data\<^sub>f buf)) in
+  (case mapAccumObsOpt frm (unat to) loop_deserialise_ObjDentry 
+     ys (ex, offs) (buf, end_offs) of
+       Break (ys, d, ex) \<Rightarrow> 
+        d \<in> {eInval, eNoMem}
+     | Iterate (ys, ex, offs') \<Rightarrow> 
+        
+        (ys, ex, offs') = (prod.fst list_spec, ex, prod.fst (prod.snd list_spec)) \<and>
+        offs' \<le> end_offs \<and>
+        dentarr_offs_list_end_offs_pred data offs [frm..<unat to] end_offs \<and>
+        dentarr_offs_list_drop_end_offs_pred data offs [frm..<unat to] st_offs end_offs)"
+  using assms
+  proof (induct "unat to - frm" arbitrary: frm ys ex offs)
+  case 0
+  thus ?case
+   by (simp add: dentarr_end_offs_simps mapAccumObsOpt_n_n dentarr_drop_end_offs_simps)
+next   
+  case (Suc diff) 
+  note IH = this(1) and rest = this(2-)
+
+  have offs_le_max: "offs \<le> bilbyFsMaxEbSize"
+   using rest by (simp add: unat_arith_simps wellformed_buf'_def) 
+
+  hence offs_pl_8: "offs < offs + 8"
+   by (simp add: bilbyFsMaxEbSize_def unat_arith_simps)
+
+  have offs_pl_8_pl_name:
+  "offs + 8 \<le> offs + 8 + wordarray_length (ObjDentry.name\<^sub>f (pObjDentry (take (unat end_offs) (\<alpha>wa (data\<^sub>f buf))) offs))"
+   using wa_length_ObjDentry_name_le[where xs="take (unat end_offs) (\<alpha>wa (data\<^sub>f buf))" and ost=offs] rest offs_le_max
+     less_to_le[OF offs_pl_8]
+   by (simp add: wellformed_buf'_def bilbyFsMaxEbSize_def unat_arith_simps)
+
+  have pObjDentry_eq: 
+  "pObjDentry (List.drop (unat st_offs) (take (unat end_offs) (\<alpha>wa (data\<^sub>f buf)))) (offs - st_offs) = pObjDentry (take (unat end_offs) (\<alpha>wa (data\<^sub>f buf))) offs"
+      using rest offs_pl_8 by (fastforce intro: pObjDentry_drop_eq'[symmetric,where end_offs=end_offs and offs=st_offs]
+                                simp add: wellformed_buf'_def word_le_nat_alt wordarray_make')
+  
+  from rest show ?case
+  apply (subst mapAccumObsOpt_step, simp, simp)
+  apply (clarsimp simp: Let_def split: LoopResult.split)
+  apply (rule conjI)
+   using loop_deserialise_ObjDentry_ret'[OF wellformed_buf no_buf_overflow bound , 
+    where dentry="ys ! frm" and  ex = ex and offs=offs]
+   apply fastforce
+  apply clarsimp
+  apply (rename_tac elem ex' offs')
+  apply (cut_tac 
+            frm="Suc frm" and 
+            ys= "ys[frm := elem]" and    
+            ex =ex' and offs = offs' in IH[OF _ wellformed_buf no_buf_overflow bound], simp_all)
+    apply(cut_tac loop_deserialise_ObjDentry_ret'[OF wellformed_buf no_buf_overflow bound ,
+          where dentry="ys ! frm" and  ex = ex and offs=offs and st_offs=st_offs], simp_all)
+   apply(cut_tac loop_deserialise_ObjDentry_ret'[OF wellformed_buf no_buf_overflow bound ,
+      where dentry="ys ! frm" and  ex = ex and offs=offs and st_offs=st_offs], simp_all)
+   apply clarsimp
+   using  offs_pl_8_pl_name less_to_le[OF offs_pl_8]
+   apply (fastforce simp add:  unat_plus_simple word_le_nat_alt)
+  apply (clarsimp simp: Let_def)
+  apply (rule conjI)
+   apply fastforce
+  apply (clarsimp simp: Let_def)
+  apply (rename_tac ex'')
+  apply (thin_tac "mapAccumObsOpt _ _ _ _ _ _ = _")
+  apply(cut_tac loop_deserialise_ObjDentry_ret'[OF wellformed_buf no_buf_overflow bound, 
+      where dentry="ys ! frm" and  ex = ex and offs=offs], simp_all)
+
+  apply (clarsimp simp: Let_def fst_fold_triple_simp fst_snd_fold_triple_simp prod.case_eq_if)
+  apply (rule conjI)
+   apply (simp add: upt_conv_Cons[where i = frm])
+   apply (subst take_Suc_conv_app_nth, simp)
+   apply (simp add: take_list_update prod.case_eq_if snd_fold_simp)
+   apply (subst fst_fold_append_simp[where xs="[]", simplified, symmetric]) 
+   apply fastforce
+
+  apply (rule conjI)
+   apply (simp add: snd_fold_simp)
+    apply (case_tac "[frm..<unat to]")
+     apply (fastforce+)
+   apply (rename_tac l ls)
+   apply (subgoal_tac "[Suc frm..<unat to] = ls")
+    prefer 2
+    apply (subst (asm) upt_rec[where i=frm], case_tac "frm = unat to"; fastforce)
+   apply simp
+
+  apply (rule conjI)
+   apply (erule (2) dentarr_end_offs_list_induct_helper)
+
+  apply (simp add: dentarr_offs_list_drop_end_offs_pred_def)
+  apply clarsimp
+  apply (rename_tac offs')
+  apply (simp add:  snd_fold_simp)
+  apply (case_tac "offs' = offs + 8 + wordarray_length (ObjDentry.name\<^sub>f (pObjDentry (take (unat end_offs) (\<alpha>wa (data\<^sub>f buf))) offs))")
+   apply simp
+
+  apply (simp add: dentarr_offs_list_drop_def)
+  apply (subst (asm) split_upt_on_l_n[where l=frm and n=frm, simplified], fastforce)
+  apply (simp add: Let_def)
+  apply (subst (asm) snd_fold_append_simp[where xs="[_]"])
+  apply (erule_tac x="offs' " in ballE, fastforce)
+  apply (fastforce simp add: pObjDentry_eq)
+  done
+qed 
+
+
 lemma replicate_simp:
   "replicate (unat to + 1 - unat to) (Option.None ()) = [Option.None ()]"
   by (simp add: unat_arith_simps)
@@ -2236,6 +2860,34 @@ lemma mapAccumObsOpt_loop_deserialise_ObjDentry_array_ret:
   apply (clarsimp split: LoopResult.splits) 
   done
 
+lemma mapAccumObsOpt_loop_deserialise_ObjDentry_array_ret':
+  assumes wellformed_buf: "wellformed_buf' buf"
+  assumes no_buf_overflow: "wordarray_length (data\<^sub>f buf) \<le> bilbyFsMaxEbSize"
+  assumes bound: "end_offs \<le> bound\<^sub>f buf"
+  assumes off_less_end_offs: "offs  \<le> end_offs"
+  assumes st_offs: "st_offs \<le> offs"
+  shows
+  "let data = take (unat end_offs) (\<alpha>wa (data\<^sub>f buf));
+       arr_spec = pArrObjDentry data offs to in 
+   (case mapAccumObsOpt 0 (unat to) loop_deserialise_ObjDentry 
+      (replicate (unat to + 1) (Option.None ())) (ex, offs) (buf, end_offs) of
+        LoopResult.Break (ys, d, ex) \<Rightarrow> 
+         d \<in> {eInval, eNoMem}
+      | LoopResult.Iterate (ys, ex, offs') \<Rightarrow> 
+         (ys, ex, offs') = (\<alpha>a (prod.fst arr_spec), ex, prod.fst (prod.snd arr_spec)) \<and> 
+         offs' \<le> end_offs \<and>
+        dentarr_offs_list_end_offs_pred data offs [0..<unat to] end_offs \<and>
+        dentarr_offs_list_drop_end_offs_pred data offs [0..<unat to] st_offs end_offs)"
+  unfolding pArrObjDentry_def Let_def
+  apply (clarsimp simp: array_make split: LoopResult.splits prod.splits)
+  using mapAccumObsOpt_loop_deserialise_ObjDentry_ret'[OF assms(1-4), simplified Let_def, 
+       where frm=0 and to=to and ex=ex  and st_offs=st_offs and
+       ys="replicate (unat to + 1)(Option.None ())", simplified take_0 drop_replicate replicate_simp]
+   st_offs
+  apply (clarsimp split: LoopResult.splits) 
+  done
+
+
 lemma array_map_loop_deserialise_ObjDentry_ret:
   assumes wellformed_buf: "wellformed_buf buf"
   assumes no_buf_overflow: "length (\<alpha>wa $ data\<^sub>f buf) \<le> unat bilbyFsMaxEbSize"
@@ -2258,6 +2910,30 @@ lemma array_map_loop_deserialise_ObjDentry_ret:
   using assms mapAccumObsOpt_loop_deserialise_ObjDentry_array_ret
   [unfolded Let_def, where to=to and buf=buf and ex=ex and offs=offs and end_offs=end_offs and st_offs=st_offs]
   by (clarsimp simp: array_make' Let_def split: LoopResult.splits)
+
+lemma array_map_loop_deserialise_ObjDentry_ret':
+  assumes wellformed_buf: "wellformed_buf' buf"
+  assumes no_buf_overflow: "wordarray_length (data\<^sub>f buf) \<le> bilbyFsMaxEbSize"
+  assumes bound: "end_offs \<le> bound\<^sub>f buf"
+  assumes off_less_end_offs: "offs  \<le> end_offs"
+  assumes st_offs: "st_offs \<le> offs"
+  shows "case array_map (ArrayMapP.make (ArrayT.make (replicate (unat to + 1) (Option.None ())))
+                   0 to loop_deserialise_ObjDentry (ex, offs) (buf, end_offs)) of
+         LoopResult.Break (arr, err, ex) \<Rightarrow> err \<in> {eInval, eNoMem}
+       | LoopResult.Iterate (arr, ex', offs') \<Rightarrow>
+                  let data = take (unat end_offs) (\<alpha>wa (data\<^sub>f buf));
+                      (parr, poffs, poffslist) = pArrObjDentry data offs to;
+                      ostlist = pArrObjDentry data offs to
+                  in
+                   arr = parr \<and> offs' = poffs \<and>
+                  offs' \<le> end_offs \<and>
+        dentarr_offs_list_end_offs_pred data offs [0..<unat to] end_offs \<and>
+        dentarr_offs_list_drop_end_offs_pred data offs [0..<unat to] st_offs end_offs"
+  apply (clarsimp simp: ArrayMapP.make_def array_make array_map_ret)
+  using assms mapAccumObsOpt_loop_deserialise_ObjDentry_array_ret'
+  [unfolded Let_def, where to=to and buf=buf and ex=ex and offs=offs and end_offs=end_offs and st_offs=st_offs]
+  by (clarsimp simp: array_make' Let_def split: LoopResult.splits)
+
 
 lemma deserialise_Array_ObjDentry_ret:
   assumes wellformed_buf: "wellformed_buf buf"
@@ -2293,6 +2969,42 @@ lemma deserialise_Array_ObjDentry_ret:
    apply (metis array_make')
   apply unat_arith
  done
+
+lemma deserialise_Array_ObjDentry_ret':
+  assumes wellformed_buf: "wellformed_buf' buf"
+  assumes no_buf_overflow: "wordarray_length (data\<^sub>f buf) \<le> bilbyFsMaxEbSize"
+  assumes bound: "end_offs \<le> bound\<^sub>f buf"
+  assumes off_less_end_offs: "offs  \<le> end_offs"
+  assumes st_offs: "st_offs \<le> offs"
+  assumes offs_pl_8_no_of: "offs \<le> offs + 8"
+  assumes offs_pl_8_le_end_offs: "offs + 8 \<le> end_offs"
+  assumes err: "\<And>ex e. e \<in> {eInval, eNoMem} \<Longrightarrow> P (Error (e, ex))"
+  assumes suc:
+   "\<And>ex arr offs' offslist data.
+    \<lbrakk> (arr, offs',offslist) = (pArrObjDentry (take (unat end_offs) (\<alpha>wa (data\<^sub>f buf))) offs nb_dentry);
+       offs' \<le>  end_offs;
+       data = take (unat end_offs) (\<alpha>wa (data\<^sub>f buf));
+        dentarr_offs_list_end_offs_pred data offs [0..<unat nb_dentry] end_offs;
+        dentarr_offs_list_drop_end_offs_pred data offs [0..<unat nb_dentry] st_offs end_offs \<rbrakk> \<Longrightarrow>
+      P (Success (ex, arr, offs'))"
+  shows "P (deserialise_Array_ObjDentry (ex, buf, offs, nb_dentry, end_offs))"
+  unfolding deserialise_Array_ObjDentry_def[unfolded tuple_simps sanitizers]
+  apply (simp add: Let_def)
+  apply (rule array_create_ret)
+   apply (simp add: err[unfolded eNoMem_def])
+  apply (rename_tac ex' arr a)
+  apply (subgoal_tac "unat nb_dentry + 1 = unat (nb_dentry+1) ")
+   apply (clarsimp simp: prod.case_eq_if id_def Let_def split: LoopResult.splits)
+   apply (subgoal_tac "a = ArrayT.make (replicate (unat (nb_dentry + 1)) (Option.None ()))", simp)
+    apply (cut_tac ex=ex' in array_map_loop_deserialise_ObjDentry_ret'[OF assms(1-5), where to = nb_dentry])
+    apply (clarsimp simp: Let_def err split: LoopResult.splits)
+    apply (rename_tac offslist a ex'' offs')
+    apply (rule suc)
+     apply simp+
+   apply (metis array_make')
+  apply unat_arith
+ done
+
 
 lemma word_add_diff_assoc:
  "(a::'a:: len0 word) + b - c = a + (b - c)"
@@ -2391,6 +3103,97 @@ lemma deserialise_ObjDentarr_ret:
   done
 qed
 
+lemma deserialise_ObjDentarr_ret':
+  assumes wf: "wellformed_buf' buf"
+  assumes buf_len: "wordarray_length (data\<^sub>f buf) \<le> bilbyFsMaxEbSize"
+  assumes err: "\<And>ex e. e \<in> {eInval, eNoMem} \<Longrightarrow> P (Error (e, ex))"
+  assumes offs_bound: "offs + olen - bilbyFsObjHeaderSize \<le> (bound\<^sub>f buf)"
+  assumes offs_olen: "offs < offs + olen - bilbyFsObjHeaderSize"
+  assumes olen: "bilbyFsObjHeaderSize + bilbyFsObjDentarrHeaderSize + bilbyFsObjDentryHeaderSize \<le> olen"
+  assumes st_offs: "st_offs \<le> offs"
+  assumes suc:
+  "\<And>ex dentarr offs'. \<lbrakk>
+  dentarr = pObjDentarr (\<alpha>wa (data\<^sub>f buf)) offs olen;
+  offs' = pObjDentarrSize (\<alpha>wa (data\<^sub>f buf)) offs olen;
+  let end_offs = offs + olen - bilbyFsObjHeaderSize;
+  data = take (unat end_offs) (\<alpha>wa (data\<^sub>f buf));
+  nb_dentry = ple32 (\<alpha>wa (data\<^sub>f buf)) (offs+8) in
+  dentarr_offs_list_end_offs_pred data (offs+bilbyFsObjDentarrHeaderSize) [0..<unat nb_dentry] end_offs \<and>
+  dentarr_offs_list_drop_end_offs_pred data (offs+bilbyFsObjDentarrHeaderSize) [0..<unat nb_dentry] st_offs end_offs;
+  offs' \<le> offs + olen - bilbyFsObjHeaderSize
+  \<rbrakk> \<Longrightarrow>
+  P (Success (ex, dentarr, offs'))"
+ notes bilbyFsObjDentarrHeaderSize_def[simp] bilbyFsObjHeaderSize_def[simp]
+       bilbyFsObjDentryHeaderSize_def[simp]
+  shows "P (deserialise_ObjDentarr (ex, buf, offs, olen))"
+  proof -
+
+  have offs_no_of: "offs < offs + bilbyFsObjDentarrHeaderSize"
+    using olen and offs_olen by simp unat_arith
+
+   have bound_max: "bound\<^sub>f buf \<le> bilbyFsMaxEbSize"
+     using wf and buf_len by (simp add: wellformed_buf'_def)
+
+   have offs_bound':  "offs < bilbyFsMaxEbSize"
+     using offs_bound offs_olen bound_max offs_no_of by simp
+
+   have offs_hdr_no_of: "offs < offs + bilbyFsObjDentarrHeaderSize"
+     using offs_bound' by (simp add: bilbyFsMaxEbSize_def unat_arith_simps)
+
+  have offs_pl_hdr_le_len: "offs + bilbyFsObjDentarrHeaderSize \<le> wordarray_length (data\<^sub>f buf)"
+   using offs_bound wf[simplified wellformed_buf'_def] offs_no_of offs_olen olen
+   apply simp
+   by unat_arith
+  have deserialises:
+    "deserialise_le32 (buf, offs + 8) = (ple32 (\<alpha>wa $ data\<^sub>f buf) (offs + 8))"
+    "deserialise_le64 (buf, offs) = (ple64 (\<alpha>wa $ data\<^sub>f buf) offs)"
+       using offs_pl_hdr_le_len apply (clarsimp simp:)
+        apply (rule deserialise_le32_ret'[simplified])
+         using offs_hdr_no_of apply unat_arith
+       using offs_hdr_no_of apply (simp add: unat_arith_simps)
+       apply unat_arith
+
+     using offs_pl_hdr_le_len wordarray_length_leq_length[of "data\<^sub>f buf"] apply (clarsimp)
+     apply (rule deserialise_le64_ret'[simplified])
+    using offs_hdr_no_of  apply (simp add: unat_arith_simps)
+    apply unat_arith
+   using offs_hdr_no_of apply (simp add: unat_arith_simps)
+   apply unat_arith
+  done
+  show ?thesis
+  unfolding deserialise_ObjDentarr_def[unfolded tuple_simps sanitizers]
+   apply (clarsimp simp: Let_def err[unfolded eInval_def])
+   apply (subgoal_tac "\<exists>v. olen - bilbyFsObjHeaderSize = v \<and> bilbyFsObjDentarrHeaderSize + bilbyFsObjDentryHeaderSize \<le> v")
+    apply (erule exE)
+    apply (erule conjE)
+    apply (rule deserialise_Array_ObjDentry_ret'[OF assms(1,2), where st_offs=st_offs,
+             simplified])
+         using offs_bound apply simp
+        subgoal using offs_olen olen by - offs_olen_of_solver
+       subgoal for v
+        using st_offs  offs_olen by - offs_olen_of_solver
+      subgoal for v
+       using offs_olen by - offs_olen_of_solver
+     subgoal for v
+      using offs_olen by (simp add: word_add_diff_assoc add.commute)
+                         (rule word_plus_mono_right; simp)
+    subgoal for v _ e by (fastforce intro: err)
+   subgoal for v ex arr offs' offslist
+    apply (case_tac "R.Success (ex, arr, offs')", simp_all)
+    apply (clarsimp simp: Let_def err[unfolded eNoMem_def] split: R.split)
+    apply (rule suc)
+        subgoal
+        apply (simp add: pObjDentarr_def Let_def)
+        apply (subst ObjDentarr.surjective, simp add: ObjDentarr.make_def deserialises prod_eq_iff)
+        done
+       subgoal by (clarsimp simp add: prod_eq_iff pObjDentarrSize_def deserialises)
+      subgoal by (simp add: Let_def deserialises)
+     subgoal by simp
+   done
+  subgoal using olen by (simp) unat_arith
+  done
+qed
+
 lemmas pObjUnion_def' = 
   pObjUnion_def[unfolded otype_simps, simplified]
 
@@ -2427,7 +3230,7 @@ lemma deserialise_ObjUnion_ret:
   assumes err:
   "\<And>ex e. e \<in> {eInval, eNoMem} \<Longrightarrow> P (Error (e, ex))"
   assumes suc:
-  "\<And>ex ounion offs'. ounion = pObjUnion ((*take (unat (offs + olen))*) (\<alpha>wa (data\<^sub>f buf))) otype olen offs  \<Longrightarrow>
+  "\<And>ex ounion offs'. ounion = pObjUnion (\<comment>\<open>take (unat (offs + olen))\<close> (\<alpha>wa (data\<^sub>f buf))) otype olen offs  \<Longrightarrow>
    offs' \<le> (offs + olen - bilbyFsObjHeaderSize) \<Longrightarrow>
   let end_offs = offs + olen - bilbyFsObjHeaderSize;
   data = take (unat end_offs) (\<alpha>wa (data\<^sub>f buf));
@@ -2541,6 +3344,146 @@ lemma deserialise_ObjUnion_ret:
       using len_otype_rel offs_no_of bound
          bound wf offs_no_of
        apply (simp add: bilbyFsObjHeaderSize_def wellformed_buf_def )
+     using len_otype_rel  apply (simp add: otype_simps len_otype_ok)
+       apply unat_arith
+     using len_otype_rel  apply (simp add: otype_simps len_otype_ok)
+       using  offs_no_of
+       apply (simp add: bilbyFsObjHeaderSize_def)
+       apply unat_arith
+     apply (simp add: err)
+     using len_otype_rel  apply (simp add: otype_simps len_otype_ok)
+    apply (simp add: suc_simps)
+  apply clarsimp
+  apply (rule deserialise_ObjPad_ret)
+   apply (simp add:err)  
+  apply (simp add: suc_simps add_diff_eq)+
+ done
+
+lemma deserialise_ObjUnion_ret':
+  assumes wf: "wellformed_buf' buf"
+  assumes no_buf_overflow: "wordarray_length (data\<^sub>f buf) \<le> bilbyFsMaxEbSize"
+  assumes bound: "offs + olen - bilbyFsObjHeaderSize \<le> bound\<^sub>f buf"
+  assumes len_otype_rel: "is_len_and_type_ok (otype, olen)"
+  assumes offs_no_of: "offs \<le> offs + olen - bilbyFsObjHeaderSize"
+  assumes offs_no_underflow: "offs - bilbyFsObjHeaderSize \<le> offs"
+  assumes err:
+  "\<And>ex e. e \<in> {eInval, eNoMem} \<Longrightarrow> P (Error (e, ex))"
+  assumes suc:
+  "\<And>ex ounion offs'. ounion = pObjUnion (\<comment>\<open>take (unat (offs + olen))\<close> (\<alpha>wa (data\<^sub>f buf))) otype olen offs  \<Longrightarrow>
+   offs' \<le> (offs + olen - bilbyFsObjHeaderSize) \<Longrightarrow>
+  let end_offs = offs + olen - bilbyFsObjHeaderSize;
+  data = take (unat end_offs) (\<alpha>wa (data\<^sub>f buf));
+  nb_dentry = ple32 (\<alpha>wa (data\<^sub>f buf)) (offs+8) in
+  dentarr_otype_end_offs_pred otype data offs end_offs \<and>
+  dentarr_otype_drop_end_offs_st_pred otype data offs (offs - bilbyFsObjHeaderSize) end_offs 
+  \<Longrightarrow>
+   P (Success (ex, ounion, offs'))"
+  notes suc_simps = len_otype_ok Let_def  pObjUnion_def' suc add.commute bilbyFsObjHeaderSize_def
+          otype_simps dentarr_end_offs_simps  dentarr_drop_end_offs_simps
+  shows "P (deserialise_ObjUnion (ex, buf, offs, (otype, olen)))"
+  unfolding deserialise_ObjUnion_def[unfolded tuple_simps, simplified sanitizers]
+  using is_len_and_type_ok_hdr_szD[OF len_otype_rel] 
+  apply (clarsimp simp: Let_def)
+  apply (rule conjI)
+   apply clarsimp
+   apply (rule deserialise_ObjSuper_ret, simp)
+      using len_otype_rel offs_no_of bound wf wordarray_length_leq_length[of "data\<^sub>f buf"]
+      apply (simp add: len_otype_ok Let_def prod.case_eq_if wellformed_buf'_def bilbyFsObjHeaderSize_def)
+      apply unat_arith
+     using len_otype_rel offs_no_of bound wf wordarray_length_leq_length[of "data\<^sub>f buf"]
+     apply (simp add: len_otype_ok Let_def prod.case_eq_if wellformed_buf'_def bilbyFsObjHeaderSize_def)
+     apply unat_arith
+    apply (simp add: err)
+
+   using len_otype_rel
+   apply (simp add: suc_simps)
+  apply clarsimp
+  apply (rule conjI)
+   apply clarsimp
+   apply (rule deserialise_ObjDel_ret, simp)
+      using len_otype_rel offs_no_of bound wf wordarray_length_leq_length[of "data\<^sub>f buf"]
+      apply (simp add: len_otype_ok Let_def prod.case_eq_if wellformed_buf'_def bilbyFsObjHeaderSize_def)
+      apply unat_arith
+     apply (simp add: err)
+      using len_otype_rel offs_no_of bound wf
+      apply (simp add: len_otype_ok Let_def prod.case_eq_if wellformed_buf'_def bilbyFsObjHeaderSize_def)
+      apply unat_arith
+   using len_otype_rel
+   apply (simp add: suc_simps)
+
+  apply clarsimp
+  apply (rule conjI)
+   apply clarsimp
+   apply (rule deserialise_ObjDentarr_ret'[OF wf no_buf_overflow, where st_offs ="offs - bilbyFsObjHeaderSize"])
+        apply (simp add: err)
+       using bound  offs_no_of len_otype_rel 
+       apply (simp add: len_otype_ok Let_def prod.case_eq_if wellformed_buf_def bilbyFsObjHeaderSize_def)
+      using offs_no_of len_otype_rel 
+      apply (simp add: len_otype_ok bilbyFsObjHeaderSize_def )
+      apply (simp add: word_add_diff_assoc unat_plus_simple word_less_nat_alt )
+      apply unat_arith
+     using  len_otype_rel
+     apply (simp add: len_otype_ok bilbyFsObjHeaderSize_def bilbyFsObjDentryHeaderSize_def bilbyFsObjDentarrHeaderSize_def)
+     using offs_no_underflow apply simp
+   apply (simp add: suc pObjUnion_def' )
+   apply (rule suc)
+      apply (clarsimp simp add: pObjUnion_def')+
+   apply (simp add: dentarr_otype_drop_end_offs_st_pred_def dentarr_otype_end_offs_pred_def dentarr_otype_drop_end_offs_pred_def
+        bilbyFsObjTypeDentarr_def Let_def)
+   apply clarsimp
+   apply (subgoal_tac "ple32 (take (unat (offs + olen - bilbyFsObjHeaderSize)) (\<alpha>wa (data\<^sub>f buf))) (offs + 8) = ple32 (\<alpha>wa (data\<^sub>f buf)) (offs + 8)")
+    apply simp
+   apply (subgoal_tac "\<exists>v. olen - bilbyFsObjHeaderSize = v")
+    apply (erule exE)
+    apply (subst ple32_take)
+(* <automate?> *)
+      using len_otype_rel 
+      apply (simp add: len_otype_ok bilbyFsObjHeaderSize_def)
+      using offs_no_of apply (simp add: word_add_diff_assoc  bilbyFsObjHeaderSize_def)
+      apply (simp add: word_add_diff_assoc unat_plus_simple word_less_nat_alt word_le_nat_alt add.commute)
+      apply (subst (asm) add.commute)
+      using offs_no_of apply (simp add: bilbyFsObjHeaderSize_def) apply (simp add: word_add_diff_assoc word_le_nat_alt)
+      apply (simp only: unat_arith_simps)
+      apply unat_arith
+    apply (simp add: bilbyFsObjHeaderSize_def word_add_diff_assoc)
+     using offs_no_of 
+     apply (simp add: bilbyFsObjHeaderSize_def word_add_diff_assoc word_less_nat_alt  add.commute)
+     apply (subst (asm) add.commute, simp add: unat_plus_simple)
+     using offs_no_of apply (simp add: bilbyFsObjHeaderSize_def)
+     apply (simp add: word_add_diff_assoc)
+     using len_otype_rel
+      apply (simp add: len_otype_ok)
+     apply (subgoal_tac "offs \<le> offs + 0xC")
+      apply (simp add: unat_plus_simple add.commute, simp only: word_le_nat_alt)
+      apply unat_arith
+     apply (simp add: unat_plus_simple add.commute, simp only: word_le_nat_alt)
+     apply unat_arith
+(* </automate?> *)
+    apply simp
+   apply (fastforce)
+  apply clarsimp
+  apply (rule conjI)
+   apply clarsimp
+   apply (rule deserialise_ObjData_ret[OF ])
+       using offs_no_of 
+       apply (simp only: diff_conv_add_uminus)
+       apply (simp only: add.assoc)
+      using bound wf offs_no_of wordarray_length_leq_length[of "data\<^sub>f buf"]
+       apply (simp add: bilbyFsObjHeaderSize_def
+        wellformed_buf'_def diff_conv_add_uminus add.assoc) 
+      apply unat_arith
+     using len_otype_rel   apply (simp add: otype_simps)
+    apply (simp add: err)
+   apply simp
+   apply (simp add: suc_simps)
+
+  apply (clarsimp)
+  apply (rule conjI)
+   apply clarsimp
+   apply (rule deserialise_ObjInode_ret)
+      using len_otype_rel offs_no_of bound
+         bound wf offs_no_of wordarray_length_leq_length[of "data\<^sub>f buf"]
+       apply (simp add: bilbyFsObjHeaderSize_def wellformed_buf'_def )
      using len_otype_rel  apply (simp add: otype_simps len_otype_ok)
        apply unat_arith
      using len_otype_rel  apply (simp add: otype_simps len_otype_ok)
@@ -2697,6 +3640,75 @@ lemma deserialise_Obj_ret:
    apply (simp add: err)
   apply simp
   apply (rule deserialise_ObjUnion_ret[OF wf buf_len])
+      apply (simp)
+     apply (clarsimp, drule sym[where t="pObjHeader (\<alpha>wa (data\<^sub>f buf)) offs"])
+     apply (clarsimp simp  add: is_valid_ObjHeader_def)
+    apply simp
+    apply (drule is_valid_ObjHeader_len)
+    apply (clarsimp, drule sym[where t="pObjHeader (\<alpha>wa (data\<^sub>f buf)) offs"])
+    apply (drule arg_cong[where f=Obj.len\<^sub>f])
+    using no_of bound
+    apply simp
+    apply  (simp only: word_le_nat_alt plus_no_overflow_unat_lift)
+   apply (drule is_valid_ObjHeader_len)
+    apply (clarsimp, drule sym[where t="pObjHeader (\<alpha>wa (data\<^sub>f buf)) offs"])
+    apply (drule arg_cong[where f=Obj.len\<^sub>f])
+   apply (clarsimp simp add: )
+   apply unat_arith
+   apply (simp add: err)
+
+  apply simp
+  apply (rule suc)
+       apply (clarsimp simp add: is_valid_ObjHeader_def bounded_def)
+      apply simp
+   apply (clarsimp simp add: pObj_def Let_def)
+   apply (drule sym[where t="pObjHeader (\<alpha>wa (data\<^sub>f buf)) offs"])
+   apply (subst pObjUnion_take[simplified], (fastforce simp add: is_valid_ObjHeader_def)+)
+   apply (rename_tac obj offs' v)
+   apply (subgoal_tac "pObjUnion (take (unat (offs + Obj.len\<^sub>f obj)) (\<alpha>wa (data\<^sub>f buf))) (otype\<^sub>f obj)
+              (Obj.len\<^sub>f obj) (offs + 0x18) = pObjUnion
+           (take (unat offs + unat (Obj.len\<^sub>f (pObjHeader (\<alpha>wa (data\<^sub>f buf)) offs))) (\<alpha>wa (data\<^sub>f buf)))
+           (otype\<^sub>f (pObjHeader (\<alpha>wa (data\<^sub>f buf)) offs))
+           (Obj.len\<^sub>f (pObjHeader (\<alpha>wa (data\<^sub>f buf)) offs)) (offs + 0x18)")
+    apply simp
+   apply (case_tac "pObjHeader (\<alpha>wa (data\<^sub>f buf)) offs", case_tac obj, simp)
+   apply (case_tac "pObjHeader (\<alpha>wa (data\<^sub>f buf)) offs", case_tac obj, simp)
+   apply (simp add: plus_no_overflow_unat_lift)+
+ done
+
+lemma wf_buf'_imp_wf_buf:
+  "wellformed_buf' buf \<Longrightarrow> wellformed_buf buf"
+  apply (clarsimp simp: wellformed_buf_def wellformed_buf'_def)
+  apply (rule order.trans[OF _ wordarray_length_leq_length])
+  by (simp add: word_le_nat_alt)
+
+lemma deserialise_Obj_ret':
+  assumes wf: "wellformed_buf' buf"
+  assumes buf_len: "wordarray_length (data\<^sub>f buf) \<le> bilbyFsMaxEbSize"
+  assumes bound: "offs + bilbyFsObjHeaderSize \<le> bound\<^sub>f buf"
+  assumes no_of: "offs < offs + bilbyFsObjHeaderSize"
+  assumes err: "\<And>ex e. e \<in> {eInval, eNoMem} \<Longrightarrow> P (Error (e, ex))"
+  assumes suc:
+   "\<And>ex obj offs'. \<lbrakk> 
+    is_valid_ObjHeader (pObjHeader (\<alpha>wa (data\<^sub>f buf)) offs) (\<alpha>wa (data\<^sub>f buf)) ;
+
+    let end_offs = offs + (Obj.len\<^sub>f obj);
+    data = take (unat end_offs) (\<alpha>wa (data\<^sub>f buf));
+    nb_dentry = ple32 (\<alpha>wa (data\<^sub>f buf)) (offs+8) in
+    dentarr_otype_end_offs_pred (Obj.otype\<^sub>f obj) data (offs + bilbyFsObjHeaderSize) end_offs \<and>
+    dentarr_otype_drop_end_offs_st_pred (Obj.otype\<^sub>f obj) data (offs + bilbyFsObjHeaderSize) offs end_offs;
+    obj = pObj (\<alpha>wa (data\<^sub>f buf)) offs;
+    offs' \<le> offs + Obj.len\<^sub>f obj \<rbrakk> \<Longrightarrow> 
+
+   P (Success (ex, obj, offs'))"
+  notes bilbyFsObjHeaderSize_def[simp]
+  shows "P (deserialise_Obj (ex, buf, offs))"
+  unfolding deserialise_Obj_def[unfolded tuple_simps sanitizers]
+  apply (clarsimp simp: err eNoMem_def split: R.split)
+  apply (rule deserialise_ObjHeader_ret[OF wf_buf'_imp_wf_buf[OF wf] bound no_of])
+   apply (simp add: err)
+  apply simp
+  apply (rule deserialise_ObjUnion_ret'[OF wf buf_len])
       apply (simp)
      apply (clarsimp, drule sym[where t="pObjHeader (\<alpha>wa (data\<^sub>f buf)) offs"])
      apply (clarsimp simp  add: is_valid_ObjHeader_def)

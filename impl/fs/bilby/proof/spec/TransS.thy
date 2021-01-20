@@ -16,7 +16,7 @@ imports
 begin
 
 lemma pTrans_remainder:
- "prod.fst (pTrans buf) = drop (trans_len buf) buf"
+ "prod.fst (pTrans buf) = List.drop (trans_len buf) buf"
   apply (induct buf rule:trans_len.induct)
    apply simp
   apply (rename_tac v va)
@@ -25,7 +25,7 @@ lemma pTrans_remainder:
    apply (rule conjI)
     apply (fastforce simp: trans_len_Cons bilbyFsObjHeaderSize_def )
    apply (clarsimp simp: trans_len_Cons drop_n_ge_0 prod.case_eq_if)
-   apply (rule_tac f="\<lambda>a. drop a (v#va)" in arg_cong, fastforce)
+   apply (rule_tac f="\<lambda>a. List.drop a (v#va)" in arg_cong, fastforce)
   apply (fastforce simp: Let_def trans_len_Cons bilbyFsObjHeaderSize_def is_valid_ObjTrans)
  done
 
@@ -59,7 +59,7 @@ lemma take_length_eq:
 
 lemma take_drop_eq_bounded:
   "\<lbrakk>take n xs = take n ys; j + k < n\<rbrakk>
-    \<Longrightarrow> take j (drop k xs) = take j (drop k ys)"
+    \<Longrightarrow> take j (List.drop k xs) = take j (List.drop k ys)"
   apply (case_tac "length xs \<ge> n")
    apply (subgoal_tac "length ys \<ge> n")
     prefer 2
@@ -293,7 +293,7 @@ by (simp add: is_valid_ObjTrans)
 lemma trans_len_induct:
  "P [] \<Longrightarrow>
  (\<And>v vs. (is_valid_ObjIn (pObj (v#vs) 0) (v#vs) \<Longrightarrow>
-          P (drop (unat $ Obj.len\<^sub>f $ pObj (v#vs) 0) (v#vs))) \<Longrightarrow>
+          P (List.drop (unat $ Obj.len\<^sub>f $ pObj (v#vs) 0) (v#vs))) \<Longrightarrow>
          P (v#vs)) \<Longrightarrow> P a0"
 by (erule trans_len.induct)
    (fastforce intro: validObjIn_imp_validObjHeader) 
@@ -312,9 +312,9 @@ proof (induction xs rule: trans_len_induct)
   next
   fix v vs
   assume IH: "is_valid_ObjIn (pObj (v#vs) 0) (v#vs) \<Longrightarrow>
-   trans_len (take (trans_len (drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs)))
-     (drop (unat $ Obj.len\<^sub>f $ pObj (v#vs) 0) (v # vs))) =
-     trans_len (drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs))"
+   trans_len (take (trans_len (List.drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs)))
+     (List.drop (unat $ Obj.len\<^sub>f $ pObj (v#vs) 0) (v # vs))) =
+     trans_len (List.drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs))"
    have hdr_sz_le_tl: "unat bilbyFsObjHeaderSize \<le> trans_len (v#vs)" 
      using hdr_sz_le_trans_len[where xs="v#vs"] .
    hence hdr_eq: "pObjHeader (take (trans_len (v#vs)) (v#vs)) 0 = pObjHeader (v#vs) 0"
@@ -339,24 +339,24 @@ proof (induction xs rule: trans_len_induct)
           ple32_take[where ys="v#vs"] ple64_take[where ys="v#vs"] pObjHeader_def
           bilbyFsObjHeaderSize_def min_absorb1) (* this takes ages *)
    let ?olen = "unat (Obj.len\<^sub>f (pObj (v # vs) 0))"
-   let ?dropolen = "drop ?olen (v # vs)"
+   let ?dropolen = "List.drop ?olen (v # vs)"
 
     have tl: "trans_len (v#vs) = ?olen + trans_len ?dropolen"
       using valid_in trans_len_Cons by (simp add: is_valid_ObjTrans)
 
     have tl': "trans_len (take (trans_len (v # vs)) (v # vs)) = (unat $ Obj.len\<^sub>f $ pObj (take (trans_len (v # vs)) (v # vs)) 0) +
-            trans_len (drop (unat $ Obj.len\<^sub>f $ pObj (take (trans_len (v # vs)) (v # vs)) 0) (take (trans_len (v # vs)) (v # vs)))"
+            trans_len (List.drop (unat $ Obj.len\<^sub>f $ pObj (take (trans_len (v # vs)) (v # vs)) 0) (take (trans_len (v # vs)) (v # vs)))"
       using valid_in' trans_len_Cons by (simp add: is_valid_ObjTrans)
 
     have olen_assoc: "?olen + trans_len ?dropolen = trans_len ?dropolen + ?olen"
      by simp
 
-    have tl_plus_eq: "trans_len (drop ?olen (take (?olen + trans_len ?dropolen) (v # vs))) =
+    have tl_plus_eq: "trans_len (List.drop ?olen (take (?olen + trans_len ?dropolen) (v # vs))) =
      trans_len (take (trans_len ?dropolen) ?dropolen)"
       by (rule arg_cong[where f="trans_len"]) (simp add: take_drop olen_assoc)
 
     have "?olen + trans_len ?dropolen = (unat $ Obj.len\<^sub>f $ pObj (take (trans_len (v # vs)) (v # vs)) 0) +
-     trans_len (drop (unat $ Obj.len\<^sub>f $ pObj (take (trans_len (v # vs)) (v # vs)) 0)
+     trans_len (List.drop (unat $ Obj.len\<^sub>f $ pObj (take (trans_len (v # vs)) (v # vs)) 0)
      (take (trans_len (v # vs)) (v # vs)))"
       using len_eq IH[OF valid_in,simplified] tl_plus_eq
       by (simp add: len_eq  valid_in valid_hdr trans_len_Cons)
@@ -412,14 +412,14 @@ lemma trans_len_take_drop_eq:
 assumes is_in:"is_valid_ObjIn (pObj (v # vs) 0) (v # vs)"
 and valid_trans: "valid_trans (v#vs)"
 shows
- "take (trans_len (drop (unat (Obj.len\<^sub>f (pObj (v # vs) 0))) (v # vs)))
-  (drop (unat (Obj.len\<^sub>f (pObj (v # vs) 0))) (v # vs)) =
-  drop (unat (Obj.len\<^sub>f (pObj (v # vs) 0))) (take (trans_len (v # vs)) (v # vs))"
+ "take (trans_len (List.drop (unat (Obj.len\<^sub>f (pObj (v # vs) 0))) (v # vs)))
+  (List.drop (unat (Obj.len\<^sub>f (pObj (v # vs) 0))) (v # vs)) =
+  List.drop (unat (Obj.len\<^sub>f (pObj (v # vs) 0))) (take (trans_len (v # vs)) (v # vs))"
 proof -
-  have "valid_trans (drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs))"
+  have "valid_trans (List.drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs))"
     using valid_trans is_in by - (erule valid_trans.elims, fastforce)
   let ?lenobj = "unat (Obj.len\<^sub>f (pObj (v # vs) 0))"
-  have "trans_len (drop ?lenobj (v#vs)) + ?lenobj = trans_len (v#vs)"
+  have "trans_len (List.drop ?lenobj (v#vs)) + ?lenobj = trans_len (v#vs)"
     using is_in by (subst trans_len.simps) (clarsimp simp: is_valid_ObjTrans)
   thus ?thesis
     by (simp add: take_drop)
@@ -431,20 +431,20 @@ assumes yys_eq: "y#ys = take (trans_len (v#vs)) (v#vs)"
 and is_in': "is_valid_ObjIn (pObj (v#vs) 0) (v#vs)"
 and len_eq: "(unat (Obj.len\<^sub>f (pObj (y#ys) 0))) = (unat (Obj.len\<^sub>f (pObj (v#vs) 0)))"
 shows
- "take (trans_len (drop (unat (Obj.len\<^sub>f (pObj (v#vs) 0))) (v#vs)))
-  (drop (unat (Obj.len\<^sub>f (pObj (v#vs) 0))) (v#vs)) =
-  drop (unat (Obj.len\<^sub>f (pObj (v#vs) 0))) (y#ys)"
+ "take (trans_len (List.drop (unat (Obj.len\<^sub>f (pObj (v#vs) 0))) (v#vs)))
+  (List.drop (unat (Obj.len\<^sub>f (pObj (v#vs) 0))) (v#vs)) =
+  List.drop (unat (Obj.len\<^sub>f (pObj (v#vs) 0))) (y#ys)"
   apply (simp add: yys_eq)
   apply (subst trans_len_Cons)
   using is_in' apply (clarsimp simp: is_valid_ObjTrans)
   apply (simp add: take_drop len_eq[simplified yys_eq])
-  apply (case_tac "(drop (unat (Obj.len\<^sub>f (pObj (v # vs) 0))) (v # vs))")
+  apply (case_tac "(List.drop (unat (Obj.len\<^sub>f (pObj (v # vs) 0))) (v # vs))")
    apply simp
   apply (rename_tac x xs)
   apply (drule_tac t="x#xs" in sym)
-  apply (subgoal_tac "(trans_len (drop (unat (Obj.len\<^sub>f (pObj (v # vs) 0))) (v # vs)) +
+  apply (subgoal_tac "(trans_len (List.drop (unat (Obj.len\<^sub>f (pObj (v # vs) 0))) (v # vs)) +
                unat (Obj.len\<^sub>f (pObj (v # vs) 0))) = ( unat (Obj.len\<^sub>f (pObj (v # vs) 0)) +
-  trans_len (drop (unat (Obj.len\<^sub>f (pObj (v # vs) 0))) (v # vs)))")
+  trans_len (List.drop (unat (Obj.len\<^sub>f (pObj (v # vs) 0))) (v # vs)))")
    apply (simp only:)+
 done
 
@@ -496,10 +496,10 @@ next
   assume valid: "valid_trans (v # vs)"
   and tllen: "trans_len (v # vs) \<le> length (v # vs)"
   and IH:"\<lbrakk>  is_valid_ObjIn (pObj (v#vs) 0) (v#vs);
-           trans_len (drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs))
-             \<le> length (drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs));
-           valid_trans (drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs)) \<rbrakk> \<Longrightarrow>
-        valid_trans (take (trans_len (drop (unat $ Obj.len\<^sub>f $ pObj (v#vs) 0) (v#vs))) (drop (unat $ Obj.len\<^sub>f $ pObj (v#vs) 0) (v#vs)))"
+           trans_len (List.drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs))
+             \<le> length (List.drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs));
+           valid_trans (List.drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs)) \<rbrakk> \<Longrightarrow>
+        valid_trans (take (trans_len (List.drop (unat $ Obj.len\<^sub>f $ pObj (v#vs) 0) (v#vs))) (List.drop (unat $ Obj.len\<^sub>f $ pObj (v#vs) 0) (v#vs)))"
   thus "valid_trans (take (trans_len (v # vs)) (v # vs))"
   proof (cases "is_valid_ObjIn (pObj (v#vs) 0) (v#vs)")
     case True
@@ -507,13 +507,13 @@ next
         using trans_len_non_zero[where xs="v#vs"]
         by (drule_tac x=v and y="take (trans_len (v#vs) - 1) vs" in meta_spec2)
            (case_tac "trans_len (v # vs)", fastforce+)
-      have trans_len_le: "trans_len (drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs))
-             \<le> length (drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs))"
+      have trans_len_le: "trans_len (List.drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs))
+             \<le> length (List.drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs))"
         using valid True
         by - (fastforce split: if_splits dest: valid_trans_imp_valid_trans_trans_len)
-      have valid_nxt: "valid_trans (drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs))"
+      have valid_nxt: "valid_trans (List.drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs))"
          using valid True by - fastforce
-      have valid_trans_len: "valid_trans (take (trans_len (drop (unat $ Obj.len\<^sub>f $ pObj (v#vs) 0) (v#vs))) (drop (unat $ Obj.len\<^sub>f $ pObj (v#vs) 0) (v#vs)))"
+      have valid_trans_len: "valid_trans (take (trans_len (List.drop (unat $ Obj.len\<^sub>f $ pObj (v#vs) 0) (v#vs))) (List.drop (unat $ Obj.len\<^sub>f $ pObj (v#vs) 0) (v#vs)))"
        using IH[OF True trans_len_le valid_nxt] .
 
       have "is_valid_ObjHeader (pObj (v#vs) 0) (v#vs)"
@@ -555,7 +555,7 @@ next
 qed
 
 lemma drop_append':
- "drop n (x#xs @ ys) = drop n (x#xs) @ drop (n - length (x#xs)) ys"
+ "List.drop n (x#xs @ ys) = List.drop n (x#xs) @ List.drop (n - length (x#xs)) ys"
 by (metis append_Cons drop_append)
 
 lemma obj_len_append:
@@ -575,9 +575,9 @@ proof (induction "xs" rule: valid_trans.induct)
   fix v vs
   assume valid: "valid_trans (take (trans_len (v # vs)) (v # vs))"
   and IH: "is_valid_ObjIn (pObj (v # vs) 0) (v # vs) \<Longrightarrow>
-           valid_trans (take (trans_len (drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs)))
-                (drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs))) \<Longrightarrow>
-           valid_trans (drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs))"
+           valid_trans (take (trans_len (List.drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs)))
+                (List.drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs))) \<Longrightarrow>
+           valid_trans (List.drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs))"
   obtain y ys where yys_eq: "y#ys = take (trans_len (v#vs)) (v#vs)"
    using trans_len_non_zero[where xs="v#vs"] by (cases "take (trans_len (v # vs)) (v # vs)" ,simp+)
   have len_le_trans_len: "unat (Obj.len\<^sub>f (pObj (y#ys) 0)) \<le> trans_len (y#ys)"
@@ -607,17 +607,17 @@ proof (induction "xs" rule: valid_trans.induct)
        apply (frule is_valid_ObjHeader_len)
        using len_eq min_obj_len_trans_len 
        by (auto elim: pObjI[OF _ len_lower_bound] simp:  bilbyFsObjHeaderSize_def)
-    have "valid_trans (drop (unat $ Obj.len\<^sub>f $ pObj (y#ys) 0) (y#ys))"
+    have "valid_trans (List.drop (unat $ Obj.len\<^sub>f $ pObj (y#ys) 0) (y#ys))"
       using valid yys_eq[symmetric] by - (erule valid_trans.elims,simp add: is_in)
     hence valid_take_trans_len_nxt:
-     "valid_trans (take (trans_len (drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs)))
-                (drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs)))"
+     "valid_trans (take (trans_len (List.drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs)))
+                (List.drop (unat $ Obj.len\<^sub>f $ pObj (v # vs) 0) (v # vs)))"
       apply (simp add: yys_eq len_eq[simplified yys_eq])
       apply (erule  subst[rotated,where P=valid_trans])
       using trans_len_take_drop_eq'[OF yys_eq is_in'] len_eq
       by (simp add: yys_eq)
 
-    have "valid_trans (drop (unat $ Obj.len\<^sub>f $ pObj (v#vs) 0) (v#vs))"
+    have "valid_trans (List.drop (unat $ Obj.len\<^sub>f $ pObj (v#vs) 0) (v#vs))"
       using IH[OF is_in' valid_take_trans_len_nxt] .
     thus ?thesis
       using is_in' by (simp add: valid_trans_Cons)
@@ -680,7 +680,7 @@ lemma valid_trans_prefixD:
     apply (simp add:  pObj_def pObjHeader_simp ple32_append_Cons)
    apply (drule_tac x=zs in meta_spec)
    apply (erule_tac P="\<lambda>xs. trans_len xs =
-       trans_len (drop (unat (Obj.len\<^sub>f (pObj (v # vs @ zs) 0))) (v # vs))" in subst[rotated])
+       trans_len (List.drop (unat (Obj.len\<^sub>f (pObj (v # vs @ zs) 0))) (v # vs))" in subst[rotated])
    apply (subgoal_tac " (unat (Obj.len\<^sub>f (pObj (v # vs @ zs) 0))) \<le> length (v#vs)")
     apply (simp add: )
     apply (subgoal_tac "unat bilbyFsObjHeaderSize \<le> unat (Obj.len\<^sub>f (pObj (v # vs @ zs) 0)) ")
@@ -711,20 +711,20 @@ lemma valid_trans_prefix_imp:
 
 lemma drop_prefixI:
  "prefix xs ys \<Longrightarrow>
-  prefix (drop n xs) (drop n ys)"
+  prefix (List.drop n xs) (List.drop n ys)"
 by (auto simp: prefix_def)
 
 lemma drop_Nil_prefixD:
  "prefix xs ys \<Longrightarrow>
- drop n xs \<noteq> [] \<Longrightarrow> (drop n ys) \<noteq> []"
+ List.drop n xs \<noteq> [] \<Longrightarrow> (List.drop n ys) \<noteq> []"
 by (auto simp: prefix_def)
 
 lemma drop_length_append:
- "drop (length xs) (xs@ys) = ys"
+ "List.drop (length xs) (xs@ys) = ys"
 by auto
 
 lemma drop_trans_len_Nil_eq_length:
-  "drop (trans_len xs) xs = [] \<Longrightarrow>
+  "List.drop (trans_len xs) xs = [] \<Longrightarrow>
    valid_trans xs \<Longrightarrow>
    trans_len xs = length xs"
    apply (induct xs rule: trans_len.induct)
@@ -792,7 +792,7 @@ lemma is_valid_ObjHeader_pObj_eq:
 
 
 lemma pTrans_remainderD:
- "P (prod.fst (pTrans buf)) \<Longrightarrow> P (drop (trans_len buf) buf)"
+ "P (prod.fst (pTrans buf)) \<Longrightarrow> P (List.drop (trans_len buf) buf)"
  by (simp add: pTrans_remainder)
 
 lemma is_valid_ObjHeader_trans_len_le_buf_len:
@@ -812,7 +812,7 @@ lemma snd_pTrans_append:
    apply (frule_tac  ys="(v # vs @ ys)" in is_valid_ObjHeader_prefix)
     apply simp
    apply (simp add: prod.case_eq_if)
-  apply (subgoal_tac "(drop (unat (Obj.len\<^sub>f (pObj (v # vs) 0))) (v # vs) @ ys) = (drop (unat (Obj.len\<^sub>f (pObj (v # vs) 0))) (v # vs @ ys))")
+  apply (subgoal_tac "(List.drop (unat (Obj.len\<^sub>f (pObj (v # vs) 0))) (v # vs) @ ys) = (List.drop (unat (Obj.len\<^sub>f (pObj (v # vs) 0))) (v # vs @ ys))")
    apply simp
    apply (drule is_valid_ObjHeader_trans_len_le_buf_len)
    apply (simp add: drop_append' prod.case_eq_if)
@@ -872,16 +872,16 @@ unfolding nopad_def
 by simp
 
 lemma nopad_padding_drop_eq_Nil:
- "(nopad (drop n (xs @ padding m)) = []) = (nopad (drop n xs) = [])"
+ "(nopad (List.drop n (xs @ padding m)) = []) = (nopad (List.drop n xs) = [])"
  by (auto simp add: drop_append' nopad_def padding_def)
 
 lemma nopad_padding_drop_eq_NilD:
- "(nopad (drop n xs) = []) \<Longrightarrow> ( nopad (drop n (xs @ padding m)) = [])"
+ "(nopad (List.drop n xs) = []) \<Longrightarrow> ( nopad (List.drop n (xs @ padding m)) = [])"
 using nopad_padding_drop_eq_Nil
 by auto
 
 lemma nopad_padding_drop_eq_Nil':
- "( nopad (drop n (x # xs @ padding m)) = []) = (nopad (drop n (x # xs)) = [])"
+ "( nopad (List.drop n (x # xs @ padding m)) = []) = (nopad (List.drop n (x # xs)) = [])"
 using nopad_padding_drop_eq_Nil[where xs="(x # xs)" and n=n and m=m]
 by (subst Cons_append) auto
 
@@ -905,11 +905,11 @@ lemma valid_list_trans_append_padding:
    apply assumption
   apply (frule_tac ys="(b # buf @ padding n)" in valid_trans_prefix_imp, simp)
   apply simp
-  apply (subgoal_tac "(nopad (drop (trans_len (b # buf)) (b # buf)) @ padding n) = (nopad (drop (trans_len (b # buf)) (b # buf @ padding n)))")
+  apply (subgoal_tac "(nopad (List.drop (trans_len (b # buf)) (b # buf)) @ padding n) = (nopad (List.drop (trans_len (b # buf)) (b # buf @ padding n)))")
    apply simp
   apply (frule valid_trans_imp_valid_trans_trans_len)
   apply (simp add: drop_append')
-  apply (case_tac "nopad (drop (trans_len (b # buf)) (b # buf))")
+  apply (case_tac "nopad (List.drop (trans_len (b # buf)) (b # buf))")
    apply (simp add: nopad_padding_drop_eq_Nil' nopad_padding_append)+
  done
 
@@ -928,7 +928,7 @@ shows
   apply clarsimp
   apply (rename_tac pad_len buf b)
   apply (clarsimp split: if_splits)
-     apply (subgoal_tac "nopad (drop (trans_len (b # buf @ padding (Suc pad_len))) (b # buf @ padding (Suc pad_len))) = nopad (drop (trans_len (b # buf)) (b # buf))")
+     apply (subgoal_tac "nopad (List.drop (trans_len (b # buf @ padding (Suc pad_len))) (b # buf @ padding (Suc pad_len))) = nopad (List.drop (trans_len (b # buf)) (b # buf))")
       prefer 2
       apply (drule valid_trans_valid_ObjHeaderD,drule is_valid_ObjHeader_trans_len_le_buf_len)
       apply (simp add: drop_append')
@@ -936,13 +936,13 @@ shows
      apply (rule sym, subst list_trans.simps, rule sym)
      apply (frule_tac xs="(b # buf)" and ys="padding (Suc pad_len)" in  snd_pTrans_append)
      apply (simp only: prod.case_eq_if list.case_eq_if pTrans_remainder)
-     apply (case_tac "drop (trans_len (b # buf)) (b # buf)")
+     apply (case_tac "List.drop (trans_len (b # buf)) (b # buf)")
       apply (simp add: snd_list_trans_Nil)+
     apply (subst list_trans.simps)
     apply (rule sym, subst list_trans.simps, rule sym)
     apply (frule_tac xs="(b # buf)" and ys="padding (Suc pad_len)" in  snd_pTrans_append)
     apply (simp only: prod.case_eq_if list.case_eq_if pTrans_remainder)
-    apply (subgoal_tac "drop (trans_len (b # buf @ padding (Suc pad_len))) (b # buf @ padding (Suc pad_len)) \<noteq> []")
+    apply (subgoal_tac "List.drop (trans_len (b # buf @ padding (Suc pad_len))) (b # buf @ padding (Suc pad_len)) \<noteq> []")
      prefer 2
      apply (frule_tac ys="b # buf @ padding (Suc pad_len)" in valid_trans_prefixD, simp)
      apply (drule valid_trans_imp_valid_trans_trans_len)
@@ -1015,9 +1015,9 @@ lemma valid_list_trans_nth_0_neq_pad_byte:
  
 lemma nopad_drop_trans_len_Nil_append:
  "valid_list_trans ys \<Longrightarrow>
-  nopad (drop (trans_len xs) xs) = [] \<Longrightarrow>
+  nopad (List.drop (trans_len xs) xs) = [] \<Longrightarrow>
   valid_trans xs \<Longrightarrow>
-  nopad (drop (trans_len (xs @ ys)) (xs @ ys)) = ys"
+  nopad (List.drop (trans_len (xs @ ys)) (xs @ ys)) = ys"
   apply (frule valid_trans_prefixD[where ys="(xs @ ys)"], simp)
   apply (frule valid_trans_imp_valid_trans_trans_len)
   apply (simp add: nopad_def)
@@ -1027,9 +1027,9 @@ lemma nopad_drop_trans_len_Nil_append:
 
 lemma nopad_drop_trans_len_Nil_append':
  "valid_list_trans ys \<Longrightarrow>
-  nopad (drop (trans_len xs) xs) = [] \<Longrightarrow>
+  nopad (List.drop (trans_len xs) xs) = [] \<Longrightarrow>
   valid_trans xs \<Longrightarrow>
-  nopad (drop (trans_len xs) (xs @ ys)) = ys"
+  nopad (List.drop (trans_len xs) (xs @ ys)) = ys"
   apply (frule valid_trans_prefixD[where ys="(xs @ ys)"], simp)
   apply (frule valid_trans_imp_valid_trans_trans_len)
   apply (simp add: nopad_def)
@@ -1039,9 +1039,9 @@ lemma nopad_drop_trans_len_Nil_append':
 
 
 lemma nopad_drop_trans_len_not_Nil_append:
-  "nopad (drop (trans_len xs) xs) \<noteq> [] \<Longrightarrow>
+  "nopad (List.drop (trans_len xs) xs) \<noteq> [] \<Longrightarrow>
     valid_trans xs \<Longrightarrow>
-    nopad (drop (trans_len (xs @ ys)) (xs @ ys)) \<noteq> []"
+    nopad (List.drop (trans_len (xs @ ys)) (xs @ ys)) \<noteq> []"
   apply (frule valid_trans_prefixD[where ys="xs@ys"], simp)
   apply (frule valid_trans_imp_valid_trans_trans_len)
   apply (fastforce simp add: nopad_def)
@@ -1070,7 +1070,7 @@ proof -
    apply simp
   apply (rename_tac x' xs')
   apply (clarsimp simp add:   split: if_splits)
-  apply (case_tac "nopad (drop (trans_len (x' # xs' @ ys)) (x' # xs' @ ys)) = []")
+  apply (case_tac "nopad (List.drop (trans_len (x' # xs' @ ys)) (x' # xs' @ ys)) = []")
    apply simp
     apply (erule valid_trans_prefix_imp, simp)
    apply simp
@@ -1184,7 +1184,7 @@ proof -
       using valid_data by (simp add: data_cons)
 
     show "prod.snd (list_trans data) @ prod.snd (list_trans ys) = prod.snd (list_trans (data @ ys))"
-    proof (cases "nopad (drop (trans_len data) data)")
+    proof (cases "nopad (List.drop (trans_len data) data)")
       case Nil
        show ?thesis
        using Nil
@@ -1268,8 +1268,8 @@ lemma valid_list_trans_no_pad_imp_valid_list_trans:
  by (simp add: valid_list_trans_no_pad_def)
 
 lemma slice_drop:
- "to \<le> length xs \<Longrightarrow> frm \<le> to \<Longrightarrow> slice frm to xs @ drop to xs = drop frm xs"
-  using drop_append[where xs="take to xs" and ys="drop to xs" and n=frm]
+ "to \<le> length xs \<Longrightarrow> frm \<le> to \<Longrightarrow> slice frm to xs @ List.drop to xs = List.drop frm xs"
+  using drop_append[where xs="take to xs" and ys="List.drop to xs" and n=frm]
   by (simp add: slice_def min_absorb1 min_absorb2 unat_arith_simps)
 
 lemma list_trans_no_pad_append:

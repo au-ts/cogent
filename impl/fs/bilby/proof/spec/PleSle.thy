@@ -56,8 +56,8 @@ lemma take_decomp:
   by (induct l) (simp add: take_Cons split: nat.split)+
   
 lemma take_drop_decomp:
-  "k < length l \<Longrightarrow> length (drop k l) \<ge> n \<Longrightarrow> n > 0 
-    \<Longrightarrow> take n (drop k l) = (l ! k) # take (n - 1) (drop (k + 1) l)"
+  "k < length l \<Longrightarrow> length (List.drop k l) \<ge> n \<Longrightarrow> n > 0 
+    \<Longrightarrow> take n (List.drop k l) = (l ! k) # take (n - 1) (List.drop (k + 1) l)"
   by (simp add: take_decomp hd_drop_conv_nth drop_Suc[symmetric] drop_tl[symmetric])
 
 lemma elem_take_n:
@@ -81,14 +81,14 @@ lemma drop_n_then_nth_eq:
  assumes "n + i \<le> length xs"
  assumes "n + i \<le> length ys"
  assumes "ys ! (n + i) = xs ! (n + i)"
- shows "drop n ys ! (0 + i) = drop n xs ! (0 + i)"
+ shows "List.drop n ys ! (0 + i) = List.drop n xs ! (0 + i)"
  using assms by auto
  
  lemma drop_n_then_nth_eq_wo_0:
  assumes "n + i \<le> length xs"
  assumes "n + i \<le> length ys"
  assumes "ys ! (n + i) = xs ! (n + i)"
- shows "drop n ys ! i = drop n xs ! i"
+ shows "List.drop n ys ! i = List.drop n xs ! i"
  using assms by auto
 
 lemma plus_no_overflow_unat_lift: 
@@ -108,12 +108,12 @@ lemma take_list_update:
 
 lemma drop_list_update:
   "i < length xs
-    \<Longrightarrow> drop n (xs[i := x]) = (if i < n then drop n xs else (drop n xs)[i - n := x])"
+    \<Longrightarrow> List.drop n (xs[i := x]) = (if i < n then List.drop n xs else (List.drop n xs)[i - n := x])"
   by (induct xs arbitrary: n i, simp_all add: drop_Cons split: nat.split)
 
 definition ple16 :: "8 word list \<Rightarrow> 32 word \<Rightarrow> 16 word"
 where
-  "ple16 data offs \<equiv> word_rcat (rev (take 2 (drop (unat offs) data)))"
+  "ple16 data offs \<equiv> word_rcat (rev (take 2 (List.drop (unat offs) data)))"
   
 definition sle16 :: "U16 \<Rightarrow> U8 list"
 where
@@ -239,11 +239,11 @@ qed
 
 definition ple64 :: "8 word list \<Rightarrow> 32 word \<Rightarrow> 64 word"
 where
-  "ple64 data offs \<equiv> word_rcat (rev (take 8 (drop (unat offs) data)))"
+  "ple64 data offs \<equiv> word_rcat (rev (take 8 (List.drop (unat offs) data)))"
 
 definition ple32 :: "8 word list \<Rightarrow> 32 word \<Rightarrow> 32 word"
 where
-  "ple32 data offs \<equiv> word_rcat (rev (take 4 (drop (unat offs) data)))"
+  "ple32 data offs \<equiv> word_rcat (rev (take 4 (List.drop (unat offs) data)))"
 
 definition sle32 :: "U32 \<Rightarrow> U8 list"
 where
@@ -276,6 +276,41 @@ using valid_offs
   apply (subst word_rsplit_upt[where n=4], simp add: word_size)
    apply simp
   apply (simp add: upt_rec shiftr_over_or_dist shiftl_shiftr1 shiftl_shiftr2 word_size)
+  apply (safe intro!: word_eqI, simp_all add: word_size word_ops_nth_size nth_ucast
+        nth_shiftr nth_shiftl add.commute[where b=offs] test_bit_out_of_bounds)
+  done
+
+lemma deserialise_le32_ret':
+assumes valid_offs:
+  "offs + 3 < wordarray_length (data\<^sub>f buf)"
+assumes no_ovf:
+  "offs < offs + 3"
+shows
+  "deserialise_le32 (buf, offs) = (ple32 (\<alpha>wa $ data\<^sub>f buf) offs)"
+using valid_offs
+  apply (subgoal_tac "(\<forall>i\<in>{0..3}. unat (offs+i) < length (\<alpha>wa (data\<^sub>f buf)))")
+  prefer 2
+   apply clarsimp
+   apply (rule order.strict_trans2[OF _ wordarray_length_leq_length])
+   using no_ovf apply unat_arith
+  apply (clarsimp simp: wordarray_get_ret[where arr="data\<^sub>f buf"] ple32_def 
+                        deserialise_le32_def)
+  apply (subgoal_tac "\<forall>j\<in>{1..3}. (unat (offs + j) > 0)")
+   prefer 2
+   apply clarsimp
+   apply (drule_tac x=j in bspec, simp)
+   using no_ovf apply unat_arith
+   apply (frule_tac x=3 in bspec, simp)
+   apply (cut_tac plus_no_overflow_unat_lift[OF no_ovf])
+  apply (subst take_drop_decomp, (simp+))+
+  apply (subst unatSuc[symmetric], (simp add: unat_gt_0[symmetric] add.commute[where b=offs]))+
+  apply simp
+  apply (rule trans, rule word_rcat_rsplit[symmetric])
+  apply (rule arg_cong[where f=word_rcat])
+  apply (subst word_rsplit_upt[where n=4], simp add: word_size)
+   apply simp
+  apply (simp add: upt_rec shiftr_over_or_dist shiftl_shiftr1 shiftl_shiftr2 word_size)
+  apply (clarsimp simp: wordarray_get_ret)
   apply (safe intro!: word_eqI, simp_all add: word_size word_ops_nth_size nth_ucast
         nth_shiftr nth_shiftl add.commute[where b=offs] test_bit_out_of_bounds)
   done
@@ -415,6 +450,54 @@ using valid_offs
   apply (simp add: upt_rec shiftr_over_or_dist shiftl_shiftr1 shiftl_shiftr2 word_size)
   apply (safe intro!: word_eqI, simp_all add: word_size word_ops_nth_size nth_ucast
         nth_shiftr nth_shiftl add.commute[where b=offs] test_bit_out_of_bounds)
+  done
+
+lemma word_leq_plus:"\<lbrakk>(a::('a::len) word) \<le> a + b; c < b\<rbrakk> \<Longrightarrow> a \<le> a + c"
+by (metis order_less_imp_le word_random)
+
+lemma plus_le_bound_unat_lift:
+  "\<lbrakk> (x::('a::len) word) \<le> x + j; i < j \<rbrakk> \<Longrightarrow> unat (x + i) = unat x + unat i"
+  apply (drule word_leq_plus; simp?)
+  apply (clarsimp simp: unat_plus_simple)
+  done
+
+lemma deserialise_le64_ret':
+assumes valid_offs:
+  "offs + 8 \<le> wordarray_length (data\<^sub>f buf)"
+assumes no_ovf:
+  "offs \<le> offs + 8"
+shows
+  "deserialise_le64 (buf, offs) = (ple64 (\<alpha>wa $ data\<^sub>f buf) offs)"
+using valid_offs
+  apply (subgoal_tac "(\<forall>i\<in>{0..7}. unat (offs+i) < length (\<alpha>wa (data\<^sub>f buf)))")
+  prefer 2
+   apply clarsimp
+   apply (rule order.strict_trans2[OF _ wordarray_length_leq_length])
+   apply (cut_tac i = i in plus_le_bound_unat_lift[OF no_ovf], unat_arith)
+   apply (cut_tac no_ovf; clarsimp simp: unat_plus_simple)
+   apply (clarsimp simp: word_le_nat_alt)
+  apply (clarsimp simp: wordarray_get_ret[where arr="data\<^sub>f buf"] ple64_def 
+                        deserialise_le64_def)
+  apply (subgoal_tac "\<forall>j\<in>{1..7}. (unat (offs + j) > 0)")
+   prefer 2
+   apply clarsimp
+   apply (drule_tac x=j in bspec, simp)
+   using no_ovf apply unat_arith
+   apply auto[1]
+  apply (subgoal_tac "unat offs + 8 \<le> length (\<alpha>wa $ data\<^sub>f buf)")
+   apply (subst take_drop_decomp, (simp+))+
+   apply (subst unatSuc[symmetric], (simp add: unat_gt_0[symmetric] add.commute[where b=offs])[1])+
+   apply simp
+   apply (rule trans, rule word_rcat_rsplit[symmetric])
+   apply (rule arg_cong[where f=word_rcat])
+   apply (subst word_rsplit_upt[where n=8], simp add: word_size)
+    apply simp
+   apply (simp add: upt_rec shiftr_over_or_dist shiftl_shiftr1 shiftl_shiftr2 word_size)
+   apply (clarsimp simp: wordarray_get_ret)
+   apply (safe intro!: word_eqI, simp_all add: word_size word_ops_nth_size nth_ucast
+        nth_shiftr nth_shiftl add.commute[where b=offs] test_bit_out_of_bounds)
+   apply (rule order.trans[OF _ wordarray_length_leq_length])
+  apply (cut_tac no_ovf; clarsimp simp: unat_plus_simple; clarsimp simp: word_le_nat_alt)
   done
 
 lemma serial_le64_helper:

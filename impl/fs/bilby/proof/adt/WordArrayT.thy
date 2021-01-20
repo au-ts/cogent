@@ -15,11 +15,11 @@ imports
   "../adt/WordArray_Shallow"
 begin
 
-definition \<alpha>wa :: "(('a::len0) word) WordArray \<Rightarrow> ('a word) list"
+definition \<alpha>wa :: "'a WordArray \<Rightarrow> 'a list"
   where
 "\<alpha>wa wa = wa"
 
-definition make :: "(('a::len0) word) list \<Rightarrow> ('a word) WordArray"
+definition make :: "'a list \<Rightarrow> 'a WordArray"
   where
 "make xs = xs"
 
@@ -123,8 +123,6 @@ where
     since wordarray_length returns a 32-bit word.\<close>
   wordarray_length_max: 
     "\<And>wa. length (\<alpha>wa wa) \<le> unat (max_word :: 32 word)"
-  and wordarray_length_max': 
-    "\<And>xs. wordarray_length (WordArrayT.make xs) \<le> (max_word :: 32 word)"
   and wordarray_create_ret:
    "\<And>P.\<lbrakk>  \<And>ex'. (ex', Option.None ()) = malloc ex \<Longrightarrow> P (Error ex');
            \<And>ex' v. \<lbrakk> sz > 0 ; (ex', Option.Some v) = malloc ex; length (\<alpha>wa v) = unat sz \<rbrakk> \<Longrightarrow>
@@ -220,6 +218,27 @@ lemma wordarray_length_ofnat:
   "unat (wordarray_length wa) = length (\<alpha>wa wa) \<Longrightarrow>
   wordarray_length wa = of_nat (length (\<alpha>wa wa))"
   by (drule sym, simp)
+
+lemma wordarray_length_ofnat':
+  "wordarray_length wa = of_nat (length (\<alpha>wa wa))"
+  by (simp add: wordarray_length' \<alpha>wa_def)
+
+lemma length_eq_imp_wordarray_length_eq:
+  "length (\<alpha>wa xs) = length (\<alpha>wa ys) 
+    \<Longrightarrow> wordarray_length xs = wordarray_length ys"
+  by (simp add: wordarray_length' \<alpha>wa_def)
+
+lemma wordarray_length_ret':
+  "length (\<alpha>wa wa) \<le> unat (max_word :: 32 word) \<Longrightarrow> unat (wordarray_length wa) = length (\<alpha>wa wa)"
+  apply (simp add: wordarray_length' \<alpha>wa_def)
+  apply (rule unat_of_nat_eq)
+  apply (clarsimp simp: max_word_def)
+  done
+
+lemma wordarray_length_leq_length:
+  "unat (wordarray_length wa) \<le> length (\<alpha>wa wa)"
+  apply (simp add: wordarray_length' \<alpha>wa_def)
+  by (metis (mono_tags, hide_lams) le_cases le_unat_uoi)
 
 lemmas wordarray_make_rev = wordarray_make'
 

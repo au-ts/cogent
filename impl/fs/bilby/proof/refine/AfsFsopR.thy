@@ -38,8 +38,8 @@ definition
 where
   "obj_inode_type_to_afs_type i afsinode \<equiv> (if S_ISREG (ObjInode.mode\<^sub>f i) then IReg (i_data afsinode) else
                 (if S_ISDIR (ObjInode.mode\<^sub>f i) then IDir (i_dir afsinode) else
-                 ((*if S_ISLNK (mode\<^sub>f i) then *)ILnk (i_path afsinode)(* else
-                   undefined*))))" 
+                 (\<comment>\<open>if S_ISLNK (@{term mode\<^sub>f} i) then \<close>ILnk (i_path afsinode)\<comment>\<open> else
+                   undefined\<close>)))" 
 
 definition
   obj_inode_to_afs_inode :: "Obj\<^sub>T \<Rightarrow> afs_inode \<Rightarrow> afs_inode"

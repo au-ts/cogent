@@ -38,7 +38,7 @@ where
        | Option.Some tval \<Rightarrow>
        (case lr of Break xrbrk \<Rightarrow> (ys@[Option.Some tval],Break xrbrk)
          | Iterate accx \<Rightarrow> 
-          (case fx (tval,accx,obs) of (* This is wrong break returns a truncated array *)
+          (case fx (tval,accx,obs) of \<comment>\<open> This is wrong break returns a truncated array \<close>
            Break (tval,xrbrk) \<Rightarrow> (ys@[Option.Some tval], Break xrbrk)
            | Iterate (tval,accx) \<Rightarrow> (ys@[Option.Some tval], Iterate accx)))))
        xs ([],Iterate xacc)"
@@ -79,9 +79,9 @@ where
                         | Break (oelem, d) \<Rightarrow> Break (ys @ [oelem], d))
                    | Break (ys, d) \<Rightarrow> Break (ys @ [elem], d)))
                (slice frm to xs) (Iterate ([],vacc)))
-     of Iterate (ys, acc) \<Rightarrow> Iterate (take frm xs @ ys @ drop (max frm to) xs, acc) 
-      | Break  (ys, d) \<Rightarrow> Break (take frm xs @ ys @ drop (max frm to) xs, d))"
-
+     of Iterate (ys, acc) \<Rightarrow> Iterate (take frm xs @ ys @ List.drop (max frm to) xs, acc) 
+      | Break  (ys, d) \<Rightarrow> Break (take frm xs @ ys @ List.drop (max frm to) xs, d))"
+print_antiquotations
 axiomatization where 
   array_make: "\<alpha>a (ArrayT.make xs) = xs"
   and
@@ -105,10 +105,10 @@ axiomatization where
    "\<And>P r arr'. \<lbrakk> unat index < length (\<alpha>a arr);
        r = modifier (OptElemA.make ((\<alpha>a arr)!unat index)  acc);
        arr' = ArrayT.make ((\<alpha>a arr)[unat index:= OptElemA.oelem\<^sub>f r]); 
-(*       \<alpha>a arr' = ((\<alpha>a arr)[unat index:= OptElemA.oelem\<^sub>f r]); *)
+
        P (ArrA.make arr' (OptElemA.acc\<^sub>f r)) \<rbrakk> \<Longrightarrow>
         P (array_modify (ArrayModifyP.make arr index modifier acc))"
-
+(* Line 108:       \<alpha>a arr' = ((\<alpha>a arr)[unat index:= OptElemA.oelem\<^sub>f r]);*)
       (* arr' = snd (select (arr,{v. \<alpha>a v = (\<alpha>a arr)[unat index:=Some (OptElemA.oelem\<^sub>f r)]})); *)
 (*
 axiomatization where array_iterate_existing_ret:

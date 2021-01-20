@@ -27,7 +27,7 @@ where
  "buf_sub_slice buf frm to xs \<equiv>
  take (length (\<alpha>wa $ data\<^sub>f buf)) (take (unat frm) (\<alpha>wa $ data\<^sub>f buf) @ 
  (take (unat to - unat frm) (xs@replicate (unat to - unat frm) 0)) @
-  drop (max (unat to) (unat frm)) (\<alpha>wa $ data\<^sub>f buf))"
+  List.drop (max (unat to) (unat frm)) (\<alpha>wa $ data\<^sub>f buf))"
   
 
 lemma buf_sub_slice_length:
@@ -43,7 +43,7 @@ done
 definition
   buf_drop :: "Buffer\<^sub>T \<Rightarrow> U32 \<Rightarrow> U8 list"
 where
- "buf_drop buf offs \<equiv> drop (unat offs) (\<alpha>wa $ data\<^sub>f buf)"
+ "buf_drop buf offs \<equiv> List.drop (unat offs) (\<alpha>wa $ data\<^sub>f buf)"
 
 definition
   buf_take :: "Buffer\<^sub>T \<Rightarrow> U32 \<Rightarrow> U8 list"
@@ -55,7 +55,7 @@ definition
 where
  "buf_update_bounded buf buf_updated \<equiv>
     take (min (unat $ bound\<^sub>f buf) (length $ \<alpha>wa $ data\<^sub>f buf)) buf_updated @
-    drop (min (unat $ bound\<^sub>f buf) (length buf_updated)) (\<alpha>wa $ data\<^sub>f buf) "
+    List.drop (min (unat $ bound\<^sub>f buf) (length buf_updated)) (\<alpha>wa $ data\<^sub>f buf) "
 
 definition
   buf_memset' :: "Buffer\<^sub>T \<Rightarrow> U32 \<Rightarrow> U32 \<Rightarrow> U8 \<Rightarrow> U8 list"
@@ -74,7 +74,7 @@ lemmas buf_simps = buf_take_def buf_drop_def buf_slice_def
     slice_def
 
 lemma drop_take_drop:
-  "n \<le> m \<Longrightarrow> drop n (take m xs) @ drop m xs = drop n xs"
+  "n \<le> m \<Longrightarrow> List.drop n (take m xs) @ List.drop m xs = List.drop n xs"
   by (metis add.commute atd_lem drop_drop drop_take le_add_diff_inverse)
 
 lemma buf_memset_bound_assm_eq:
@@ -173,12 +173,28 @@ lemma buf_memset_eq:
   apply (simp add: buf_memset_offs_bound)
  done
 
+\<comment>\<open> ALTERNATIVE proof that does not rely on @{thm wordarray_length_ret} \<close>
+lemma buf_memset'_length:
+  "length (buf_memset' buf offs len v) = length (\<alpha>wa $ data\<^sub>f buf)"
+  by (simp add: buf_memset'_def buf_update_bounded_length)
+(*
+\<comment>\<open> ORIGINAL proof that relies on @{thm wordarray_length_ret} \<close>
 lemma buf_memset_length_eq:
   "unat (bound\<^sub>f buf) \<le> length (\<alpha>wa (data\<^sub>f buf)) \<Longrightarrow>
  offs \<le> offs + len \<Longrightarrow>
 buf_length (buf_memset (buf, offs, len, v)) = buf_length buf"
  by (simp add: buf_length_def wordarray_length_ofnat[OF wordarray_length_ret] 
       buf_memset_eq wordarray_make buf_update_bounded_length buf_memset'_def)
+*)
+
+lemma buf_memset_length_eq:
+  "unat (bound\<^sub>f buf) \<le> length (\<alpha>wa (data\<^sub>f buf)) \<Longrightarrow>
+ offs \<le> offs + len \<Longrightarrow>
+buf_length (buf_memset (buf, offs, len, v)) = buf_length buf"
+  apply (simp add: buf_length_def buf_memset_eq)
+  apply (rule length_eq_imp_wordarray_length_eq)
+  apply (simp add: wordarray_make buf_memset'_length)
+  done
 
 lemma buf_take_buf_slice_adjacent:
  "st \<le>  end \<Longrightarrow> buf_take b st @ buf_slice b st end = buf_take b end"
@@ -208,12 +224,22 @@ lemma buf_slice_out_of_buf_memset:
   apply (simp add:  buf_simps wordarray_make min_absorb1 min_absorb2)
   apply (simp only: unat_arith_simps)
   apply (simp add: min_absorb1 min_absorb2)
+  done
+
+lemma buf_slice_out_of_buf_memset':
+ "frm \<le> to \<Longrightarrow> to \<le> st \<Longrightarrow> st \<le> st + len \<Longrightarrow> st \<le> bound\<^sub>f b \<Longrightarrow> unat (bound\<^sub>f b) \<le> length (\<alpha>wa (data\<^sub>f b)) \<Longrightarrow>
+  buf_slice (buf_memset (b, st, len, v)) frm to = buf_slice b frm to"
+  apply (subst buf_memset_eq)
+   apply simp+
+  apply (simp add:  buf_simps wordarray_make min_absorb1 min_absorb2)
+  apply (simp only: unat_arith_simps)
+  apply (simp add: min_absorb1 min_absorb2)
  done
 
 lemma buf_update_boundedI:
  "unat (buf_bound wbuf) \<le> length (\<alpha>wa (data\<^sub>f wbuf)) \<Longrightarrow>
   length xs = length (\<alpha>wa (data\<^sub>f wbuf)) \<Longrightarrow>
-  drop (unat (bound\<^sub>f wbuf)) (\<alpha>wa (data\<^sub>f wbuf)) = drop (unat (bound\<^sub>f wbuf)) xs \<Longrightarrow>
+  List.drop (unat (bound\<^sub>f wbuf)) (\<alpha>wa (data\<^sub>f wbuf)) = List.drop (unat (bound\<^sub>f wbuf)) xs \<Longrightarrow>
   P xs \<Longrightarrow>
   P (buf_update_bounded wbuf xs)"
 by (simp add: buf_bound_def buf_update_bounded_def min_absorb1)
@@ -237,6 +263,6 @@ lemma slice_buf_sub_slice:
     apply (subgoal_tac "unat frm \<le> unat mid")
   apply (simp add: buf_simps buf_sub_slice_def min_absorb1 min_absorb2 word_le_nat_alt)
   apply unat_arith+
- done
+  done
 
 end

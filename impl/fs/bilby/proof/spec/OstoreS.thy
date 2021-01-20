@@ -159,9 +159,8 @@ definition
 where
  "inv_read_obj obj \<equiv>
   obj_is_valid obj \<and> obj_inv_oid obj \<and> (obj_is_dentarr obj \<longrightarrow>
-    (length $ stripNone $ \<alpha>a $ ObjDentarr.entries\<^sub>f $ obj_odentarr obj) > 0)
- (* FIXME: add something like @{otype\<^sub>f obj = otype_from_ounion obj} *)
-"
+    (length $ stripNone $ \<alpha>a $ ObjDentarr.entries\<^sub>f $ obj_odentarr obj) > 0)"
+(* FIXME: add something like @{otype\<^sub>f obj = otype_from_ounion obj} *)
 
 text {* inv_\<alpha>_ostore: invariant on the object store \<alpha> projection (user point-of-view invariant *) *}
 definition

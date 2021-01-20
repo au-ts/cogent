@@ -48,14 +48,22 @@ lemma index_get_addr_ret:
   apply (clarsimp simp add: rbt_get_value_ret option.case_eq_if R.splits)
   apply (auto intro: err suc)
  done
-
+thm inv_ostore_buf_boundD
+\<comment>\<open> ALTERNATIVE proof that does not rely on @{thm inv_ostore_eb_size_wbuf_eqD} \<close>
+lemma inv_ostore_wellformed_bufD:
+ "inv_ostore mount_st ostore_st \<Longrightarrow> inv_mount_st mount_st \<Longrightarrow>  wellformed_buf (wbuf\<^sub>f ostore_st)"
+  apply (frule inv_ostore_buf_boundD)
+  apply (clarsimp simp add: inv_ostore_def wellformed_buf_def buf_simps)
+ done
+(*
+\<comment>\<open> ORIGINAL proof that relies on @{thm inv_ostore_eb_size_wbuf_eqD} \<close>
 lemma inv_ostore_wellformed_bufD:
  "inv_ostore mount_st ostore_st \<Longrightarrow> inv_mount_st mount_st \<Longrightarrow>  wellformed_buf (wbuf\<^sub>f ostore_st)"
   apply (frule inv_ostore_wbuf_boundD)
   apply (drule inv_ostore_eb_size_wbuf_eqD)
   apply (clarsimp simp add: inv_ostore_def wellformed_buf_def buf_simps)
  done
-
+*)
 lemma inv_ostore_runtimeD:
  "inv_ostore mount_st ostore_st \<Longrightarrow>
    \<alpha>_ostore_runtime ostore_st = \<alpha>_ostore_uptodate ostore_st"
@@ -269,6 +277,50 @@ proof -
   thus ?thesis by (simp add: xdef[symmetric] ydef[symmetric] arith)
 qed
 
+lemma align32_le_eb_size:
+  assumes inv_ostore: "inv_ostore mount_st ostore_st"
+  and     inv_mount_st: "inv_mount_st mount_st"
+  and     oaddr: "\<alpha>rbt (addrs\<^sub>f (index_st\<^sub>f ostore_st)) oid = TypBucket.Some oaddr"
+  shows 
+ "align32 (ObjAddr.offs\<^sub>f oaddr + ObjAddr.len\<^sub>f oaddr, io_size\<^sub>f (super\<^sub>f mount_st))
+       \<le> eb_size\<^sub>f (super\<^sub>f mount_st)"
+proof -
+  have le_eb_size: "ObjAddr.offs\<^sub>f oaddr + ObjAddr.len\<^sub>f oaddr \<le> eb_size\<^sub>f (super\<^sub>f mount_st)"
+    using oaddr_is_valid_addr[OF inv_ostore inv_mount_st oaddr] by (clarsimp simp: is_valid_addr_def)
+
+  have udvd_eb_size: "io_size\<^sub>f (super\<^sub>f mount_st) udvd eb_size\<^sub>f (super\<^sub>f mount_st)"
+    using inv_mount_st by (simp add: inv_mount_st_def Let_def)
+
+  have "ObjAddr.offs\<^sub>f oaddr + ObjAddr.len\<^sub>f oaddr < ObjAddr.offs\<^sub>f oaddr + ObjAddr.len\<^sub>f oaddr + io_size\<^sub>f (super\<^sub>f mount_st)"
+    using oaddr_add_len_pl_iosz_no_of[OF inv_ostore inv_mount_st oaddr] by (simp)
+  thus ?thesis
+    by (rule align32_upper_bound[OF le_eb_size inv_mount_st_iosz_is_pow[OF inv_mount_st] udvd_eb_size])
+qed
+
+\<comment>\<open> ALTERNATIVE proof that does not rely on @{thm wordarray_length_ret} \<close>
+lemma align32_le_len_rbuf:
+  assumes inv_ostore: "inv_ostore mount_st ostore_st"
+  and     inv_mount_st: "inv_mount_st mount_st"
+  and     oaddr: "\<alpha>rbt (addrs\<^sub>f (index_st\<^sub>f ostore_st)) oid = TypBucket.Some oaddr"
+  shows 
+ "unat (align32 (ObjAddr.offs\<^sub>f oaddr + ObjAddr.len\<^sub>f oaddr, io_size\<^sub>f (super\<^sub>f mount_st)))
+       \<le> length (\<alpha>wa $ data\<^sub>f (rbuf\<^sub>f ostore_st))"
+proof -
+   have len_geq_ebsz: "length (\<alpha>wa $ data\<^sub>f (rbuf\<^sub>f ostore_st)) \<ge> unat (eb_size\<^sub>f (super\<^sub>f mount_st))"
+     using inv_ostore apply (clarsimp simp add: inv_ostore_def Let_def buf_length_def)
+     apply (simp only: word_unat.Rep_inject[symmetric])
+     using  wordarray_length_leq_length[of "data\<^sub>f (rbuf\<^sub>f ostore_st)"]
+     apply unat_arith
+     done
+  
+  have "unat (align32 (ObjAddr.offs\<^sub>f oaddr + ObjAddr.len\<^sub>f oaddr, io_size\<^sub>f (super\<^sub>f mount_st))) \<le> unat (eb_size\<^sub>f (super\<^sub>f mount_st))"  
+    by (rule align32_le_eb_size[OF inv_ostore inv_mount_st oaddr, simplified word_le_nat_alt])
+  thus ?thesis
+    using len_geq_ebsz
+    by (rule order.trans; simp?)
+qed
+(*
+\<comment>\<open> ORIGINAL proof that relies on @{thm wordarray_length_ret} \<close>
 lemma align32_le_len_rbuf:
   assumes inv_ostore: "inv_ostore mount_st ostore_st"
   and     inv_mount_st: "inv_mount_st mount_st"
@@ -291,7 +343,7 @@ proof -
  thus ?thesis
   by (simp add: len_eq_ebsz[symmetric])
 qed
-
+*)
 lemma plus_no_of_unat_lift: 
   "(a::'a::len word )  \<le> a + b \<Longrightarrow>  unat (a+b) = unat a + unat b"
   by unat_arith 
@@ -327,6 +379,20 @@ lemma read_pages_buf_length:
   apply (subgoal_tac "unat frm + unat len \<le> length ubib")
    apply (simp add: min_absorb1)
    apply unat_arith+
+  done
+
+lemma read_pages_buf_length':
+ "frm \<le> frm+len \<Longrightarrow> unat (frm + len) \<le> length (\<alpha>wa $ data\<^sub>f rbuf) \<Longrightarrow>
+ unat (frm + len) \<le> length ubib \<Longrightarrow>
+ length (\<alpha>wa (data\<^sub>f (read_pages_rbuf rbuf frm len ubib))) = length (\<alpha>wa $ data\<^sub>f rbuf)"
+  apply (simp add: read_pages_rbuf_def wordarray_make length_slice buf_simps)
+  apply (subgoal_tac "(length ubib) \<ge> (unat frm)")
+   prefer 2
+  apply unat_arith
+  apply (simp add: min_absorb1)
+  apply (subgoal_tac "unat frm + unat len \<le> length ubib")
+   apply (simp add: min_absorb1)
+   apply unat_arith+
  done
 
 lemma x_minus_x_mod_y_le_x:
@@ -353,6 +419,93 @@ lemma oaddr_ebnum_rangeD:
   apply unat_arith
  done
 
+lemma oaddr_offs_sb_mod_offs_le_offs_pl_olen:
+  assumes inv_ostore: "inv_ostore mount_st ostore_st"
+  assumes inv_mount_st: "inv_mount_st mount_st"
+  and     oaddr: "\<alpha>rbt (addrs\<^sub>f (index_st\<^sub>f ostore_st)) oid = TypBucket.Some oaddr"
+  shows 
+  "ObjAddr.offs\<^sub>f oaddr - ObjAddr.offs\<^sub>f oaddr mod io_size\<^sub>f (super\<^sub>f mount_st) \<le> ObjAddr.offs\<^sub>f oaddr + ObjAddr.len\<^sub>f oaddr"
+  using oaddr_is_valid_addr[OF inv_ostore inv_mount_st oaddr]
+  apply (clarsimp simp: is_valid_addr_def Let_def)
+  apply unat_arith
+  done
+
+\<comment>\<open> ALTERNATIVE proof that does not rely on @{thm wordarray_length_ret inv_ostore_eb_size_rbuf_eqD} \<close>
+lemma read_obj_pages_in_buf_ret:
+  assumes inv_ostore: "inv_ostore mount_st ostore_st"
+  assumes inv_mount_st: "inv_mount_st mount_st"
+  and     oaddr: "\<alpha>rbt (addrs\<^sub>f (index_st\<^sub>f ostore_st)) oid = TypBucket.Some oaddr"
+  and     ebnum: "ObjAddr.ebnum\<^sub>f oaddr \<noteq> wbuf_eb\<^sub>f ostore_st"
+  and     err: "\<And>ex buf'. \<exists>v. buf'\<lparr>data\<^sub>f := v\<rparr> = rbuf\<^sub>f ostore_st \<and> wordarray_length (data\<^sub>f buf') = eb_size\<^sub>f (super\<^sub>f mount_st) \<Longrightarrow> P ((ex, buf'), Error eBadF)"
+  and     suc: "\<And>ex buf. buf = read_pages_rbuf (rbuf\<^sub>f ostore_st) (ObjAddr.offs\<^sub>f oaddr - ObjAddr.offs\<^sub>f oaddr mod io_size\<^sub>f (super\<^sub>f mount_st))
+    (align32 (ObjAddr.offs\<^sub>f oaddr + ObjAddr.len\<^sub>f oaddr, io_size\<^sub>f (super\<^sub>f mount_st)) -
+                      (ObjAddr.offs\<^sub>f oaddr - ObjAddr.offs\<^sub>f oaddr mod io_size\<^sub>f (super\<^sub>f mount_st)))
+  (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st) ! unat (ObjAddr.ebnum\<^sub>f oaddr)) \<Longrightarrow>
+  wellformed_buf buf \<Longrightarrow>
+length (\<alpha>wa (data\<^sub>f buf)) = length (\<alpha>wa (data\<^sub>f (rbuf\<^sub>f ostore_st))) \<Longrightarrow>
+    P ((ex, buf), R.Success ())"
+  shows 
+ "P (read_obj_pages_in_buf (ex, mount_st, OstoreState.ubi_vol\<^sub>f ostore_st, rbuf\<^sub>f ostore_st, oaddr))"
+  unfolding read_obj_pages_in_buf_def[unfolded tuple_simps sanitizers]
+  apply (simp add: Let_def)
+  using inv_mount_st_io_size_not_0D[OF inv_mount_st]
+  apply clarsimp
+  apply (rule wubi_leb_read_ret[OF _ _ inv_ubi_volD[OF inv_ostore]])
+     apply (rule inv_ostore_rbuf_lengthD[OF inv_ostore])
+    apply (rule oaddr_add_le_eb_size[OF inv_ostore inv_mount_st oaddr])
+   apply simp
+   apply (rule err)
+  using inv_ostore_rbuf_lengthD[OF inv_ostore]
+   apply (clarsimp simp: buf_length_def)
+  apply (simp, rule suc, simp add: read_pages_rbuf_def)
+   apply (simp add: wellformed_buf_def )
+   apply (simp only: wordarray_make)
+   apply (cut_tac oaddr_offs_sb_mod_offs_le_offs_pl_olen[OF inv_ostore inv_mount_st oaddr])
+   apply (cut_tac oaddr_offs_pl_olen_le_align[OF inv_ostore inv_mount_st oaddr])
+   apply (cut_tac align32_le_eb_size[OF inv_ostore inv_mount_st oaddr])
+   apply (cut_tac inv_ostore_rbuf_lengthD[OF inv_ostore, simplified buf_length_def Let_def])
+   apply (cut_tac read_pages_buf_length'[symmetric,where frm="(ObjAddr.offs\<^sub>f oaddr - ObjAddr.offs\<^sub>f oaddr mod io_size\<^sub>f (super\<^sub>f mount_st))"
+       and len="(align32
+                          (ObjAddr.offs\<^sub>f oaddr + ObjAddr.len\<^sub>f oaddr, io_size\<^sub>f (super\<^sub>f mount_st)) -
+                       (ObjAddr.offs\<^sub>f oaddr - ObjAddr.offs\<^sub>f oaddr mod io_size\<^sub>f (super\<^sub>f mount_st)))"
+      and rbuf="rbuf\<^sub>f ostore_st"
+      and ubib="(\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st) ! unat (ObjAddr.ebnum\<^sub>f oaddr))", symmetric]; simp?)   
+     apply (simp add: wordarray_make read_pages_rbuf_def)
+  using wordarray_length_leq_length[of "data\<^sub>f (rbuf\<^sub>f ostore_st)"]
+     apply unat_arith
+  using wordarray_length_leq_length[of "data\<^sub>f (rbuf\<^sub>f ostore_st)"]
+    apply unat_arith
+  using oaddr_ebnum_rangeD[OF inv_ostore inv_mount_st oaddr ebnum]
+         inv_bufsD[OF inv_ostore]
+         inv_ubi_volD[OF inv_ostore, simplified inv_ubi_vol_def]
+         oaddr_is_valid_addr[OF inv_ostore inv_mount_st oaddr]
+         ebnum
+         align32_le_eb_size[OF inv_ostore inv_mount_st oaddr, simplified word_le_nat_alt]
+   apply clarsimp
+  apply (cut_tac oaddr_offs_sb_mod_offs_le_offs_pl_olen[OF inv_ostore inv_mount_st oaddr])
+  apply (cut_tac oaddr_offs_pl_olen_le_align[OF inv_ostore inv_mount_st oaddr])
+  apply (cut_tac align32_le_eb_size[OF inv_ostore inv_mount_st oaddr])
+  apply (cut_tac inv_ostore_rbuf_lengthD[OF inv_ostore, simplified buf_length_def Let_def])
+  apply (cut_tac read_pages_buf_length'[symmetric,where frm="(ObjAddr.offs\<^sub>f oaddr - ObjAddr.offs\<^sub>f oaddr mod io_size\<^sub>f (super\<^sub>f mount_st))"
+       and len="(align32
+                          (ObjAddr.offs\<^sub>f oaddr + ObjAddr.len\<^sub>f oaddr, io_size\<^sub>f (super\<^sub>f mount_st)) -
+                       (ObjAddr.offs\<^sub>f oaddr - ObjAddr.offs\<^sub>f oaddr mod io_size\<^sub>f (super\<^sub>f mount_st)))"
+      and rbuf="rbuf\<^sub>f ostore_st"
+      and ubib="(\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st) ! unat (ObjAddr.ebnum\<^sub>f oaddr))"]; simp?)
+  apply (simp add: wordarray_make read_pages_rbuf_def)
+  using wordarray_length_leq_length[of "data\<^sub>f (rbuf\<^sub>f ostore_st)"]
+   apply unat_arith
+  using oaddr_ebnum_rangeD[OF inv_ostore inv_mount_st oaddr ebnum]
+         inv_bufsD[OF inv_ostore]
+         inv_ubi_volD[OF inv_ostore, simplified inv_ubi_vol_def]
+         oaddr_is_valid_addr[OF inv_ostore inv_mount_st oaddr]
+         ebnum
+         align32_le_eb_size[OF inv_ostore inv_mount_st oaddr, simplified word_le_nat_alt]
+  apply clarsimp
+  done
+
+(*
+\<comment>\<open> ORIGINAL proof that relies on @{thm wordarray_length_ret inv_ostore_eb_size_rbuf_eqD} \<close>
 lemma read_obj_pages_in_buf_ret:
   assumes inv_ostore: "inv_ostore mount_st ostore_st"
   assumes inv_mount_st: "inv_mount_st mount_st"
@@ -431,6 +584,77 @@ length (\<alpha>wa (data\<^sub>f buf)) = length (\<alpha>wa (data\<^sub>f (rbuf\
          inv_ostore_eb_size_rbuf_eqD[OF inv_ostore]
   apply clarsimp
  done
+*)
+lemma read_obj_pages_in_buf_ret':
+  assumes inv_ostore: "inv_ostore mount_st ostore_st"
+  assumes inv_mount_st: "inv_mount_st mount_st"
+  and     oaddr: "\<alpha>rbt (addrs\<^sub>f (index_st\<^sub>f ostore_st)) oid = TypBucket.Some oaddr"
+  and     ebnum: "ObjAddr.ebnum\<^sub>f oaddr \<noteq> wbuf_eb\<^sub>f ostore_st"
+  and     err: "\<And>ex buf'. \<exists>v. buf'\<lparr>data\<^sub>f := v\<rparr> = rbuf\<^sub>f ostore_st \<and> wordarray_length (data\<^sub>f buf') = eb_size\<^sub>f (super\<^sub>f mount_st) \<Longrightarrow> P ((ex, buf'), Error eBadF)"
+  and     suc: "\<And>ex buf. buf = read_pages_rbuf (rbuf\<^sub>f ostore_st) (ObjAddr.offs\<^sub>f oaddr - ObjAddr.offs\<^sub>f oaddr mod io_size\<^sub>f (super\<^sub>f mount_st))
+    (align32 (ObjAddr.offs\<^sub>f oaddr + ObjAddr.len\<^sub>f oaddr, io_size\<^sub>f (super\<^sub>f mount_st)) -
+                      (ObjAddr.offs\<^sub>f oaddr - ObjAddr.offs\<^sub>f oaddr mod io_size\<^sub>f (super\<^sub>f mount_st)))
+  (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st) ! unat (ObjAddr.ebnum\<^sub>f oaddr)) \<Longrightarrow>
+  wellformed_buf' buf \<Longrightarrow>
+length (\<alpha>wa (data\<^sub>f buf)) = length (\<alpha>wa (data\<^sub>f (rbuf\<^sub>f ostore_st))) \<Longrightarrow>
+    P ((ex, buf), R.Success ())"
+  shows 
+ "P (read_obj_pages_in_buf (ex, mount_st, OstoreState.ubi_vol\<^sub>f ostore_st, rbuf\<^sub>f ostore_st, oaddr))"
+  unfolding read_obj_pages_in_buf_def[unfolded tuple_simps sanitizers]
+  apply (simp add: Let_def)
+  using inv_mount_st_io_size_not_0D[OF inv_mount_st]
+  apply clarsimp
+  apply (rule wubi_leb_read_ret[OF _ _ inv_ubi_volD[OF inv_ostore]])
+     apply (rule inv_ostore_rbuf_lengthD[OF inv_ostore])
+    apply (rule oaddr_add_le_eb_size[OF inv_ostore inv_mount_st oaddr])
+   apply simp
+   apply (rule err)
+  using inv_ostore_rbuf_lengthD[OF inv_ostore]
+   apply (clarsimp simp: buf_length_def)
+  apply (simp, rule suc, simp add: read_pages_rbuf_def)
+   apply (simp add: wellformed_buf'_def )
+   apply (cut_tac oaddr_offs_sb_mod_offs_le_offs_pl_olen[OF inv_ostore inv_mount_st oaddr])
+   apply (cut_tac oaddr_offs_pl_olen_le_align[OF inv_ostore inv_mount_st oaddr])
+   apply (cut_tac align32_le_eb_size[OF inv_ostore inv_mount_st oaddr])
+   apply (cut_tac inv_ostore_rbuf_lengthD[OF inv_ostore, simplified buf_length_def Let_def])
+   apply (cut_tac read_pages_buf_length'[symmetric,where frm="(ObjAddr.offs\<^sub>f oaddr - ObjAddr.offs\<^sub>f oaddr mod io_size\<^sub>f (super\<^sub>f mount_st))"
+       and len="(align32
+                          (ObjAddr.offs\<^sub>f oaddr + ObjAddr.len\<^sub>f oaddr, io_size\<^sub>f (super\<^sub>f mount_st)) -
+                       (ObjAddr.offs\<^sub>f oaddr - ObjAddr.offs\<^sub>f oaddr mod io_size\<^sub>f (super\<^sub>f mount_st)))"
+      and rbuf="rbuf\<^sub>f ostore_st"
+      and ubib="(\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st) ! unat (ObjAddr.ebnum\<^sub>f oaddr))"]; simp?)
+     apply (drule length_eq_imp_wordarray_length_eq[symmetric])
+     apply (simp add: wordarray_make read_pages_rbuf_def)
+  using wordarray_length_leq_length[of "data\<^sub>f (rbuf\<^sub>f ostore_st)"]
+    apply unat_arith
+  using oaddr_ebnum_rangeD[OF inv_ostore inv_mount_st oaddr ebnum]
+         inv_bufsD[OF inv_ostore]
+         inv_ubi_volD[OF inv_ostore, simplified inv_ubi_vol_def]
+         oaddr_is_valid_addr[OF inv_ostore inv_mount_st oaddr]
+         ebnum
+         align32_le_eb_size[OF inv_ostore inv_mount_st oaddr, simplified word_le_nat_alt]
+   apply clarsimp
+  apply (cut_tac oaddr_offs_sb_mod_offs_le_offs_pl_olen[OF inv_ostore inv_mount_st oaddr])
+  apply (cut_tac oaddr_offs_pl_olen_le_align[OF inv_ostore inv_mount_st oaddr])
+  apply (cut_tac align32_le_eb_size[OF inv_ostore inv_mount_st oaddr])
+  apply (cut_tac inv_ostore_rbuf_lengthD[OF inv_ostore, simplified buf_length_def Let_def])
+  apply (cut_tac read_pages_buf_length'[symmetric,where frm="(ObjAddr.offs\<^sub>f oaddr - ObjAddr.offs\<^sub>f oaddr mod io_size\<^sub>f (super\<^sub>f mount_st))"
+       and len="(align32
+                          (ObjAddr.offs\<^sub>f oaddr + ObjAddr.len\<^sub>f oaddr, io_size\<^sub>f (super\<^sub>f mount_st)) -
+                       (ObjAddr.offs\<^sub>f oaddr - ObjAddr.offs\<^sub>f oaddr mod io_size\<^sub>f (super\<^sub>f mount_st)))"
+      and rbuf="rbuf\<^sub>f ostore_st"
+      and ubib="(\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st) ! unat (ObjAddr.ebnum\<^sub>f oaddr))"]; simp?)
+  apply (simp add: wordarray_make read_pages_rbuf_def)
+  using wordarray_length_leq_length[of "data\<^sub>f (rbuf\<^sub>f ostore_st)"]
+   apply unat_arith
+  using oaddr_ebnum_rangeD[OF inv_ostore inv_mount_st oaddr ebnum]
+         inv_bufsD[OF inv_ostore]
+         inv_ubi_volD[OF inv_ostore, simplified inv_ubi_vol_def]
+         oaddr_is_valid_addr[OF inv_ostore inv_mount_st oaddr]
+         ebnum
+         align32_le_eb_size[OF inv_ostore inv_mount_st oaddr, simplified word_le_nat_alt]
+  apply clarsimp
+  done
 
 lemma ostore_maps_eq_rbuf_agnostic:
  " \<alpha>_ostore_runtime ostore_st = \<alpha>_ostore_uptodate ostore_st \<Longrightarrow>
@@ -483,7 +707,7 @@ lemma oaddr_is_obj_addr_consistent:
       elim: ballE[where x=oid])
 
 lemma drop_eq_increase:
- "drop n xs = drop n ys \<Longrightarrow> n \<le> m \<Longrightarrow> drop m xs = drop m ys"
+ "List.drop n xs = List.drop n ys \<Longrightarrow> n \<le> m \<Longrightarrow> List.drop m xs = List.drop m ys"
 by (metis drop_drop le_add_diff_inverse2)
 
 lemma take_eq_decrease:
@@ -543,7 +767,7 @@ lemma ple64_slice_eq_no_add:
  done
 
 text {* undefined is so weird, I can't prove this: *}
-lemma "drop 1 xs = drop 1 ys \<Longrightarrow> xs!1 = ys ! 1"
+lemma "List.drop 1 xs = List.drop 1 ys \<Longrightarrow> xs!1 = ys ! 1"
   oops
 
 text {* Yet I can prove this *}
@@ -552,7 +776,7 @@ lemma "xs = ys \<Longrightarrow> xs!1 = ys!1"
   by simp+
 
 lemma take_add_nth_eq_drop:
- "a + b \<le> length xs \<Longrightarrow> n < b \<Longrightarrow> take (a + b) xs ! (a + n) = drop a xs ! n"
+ "a + b \<le> length xs \<Longrightarrow> n < b \<Longrightarrow> take (a + b) xs ! (a + n) = List.drop a xs ! n"
   by simp
 
 lemma u8_slice_eq_no_add:
@@ -773,6 +997,18 @@ proof -
   by (simp add: bilbyFsMaxEbSize_def unat_arith_simps)
 qed
 
+lemma x0_le_8_pl_max_eb':
+assumes a: "v \<le> v'"
+and b: "v' \<le> bilbyFsMaxEbSize"
+shows " 0 < 8 + (v::U32)"
+proof -
+  have v_le_max: "v \<le> bilbyFsMaxEbSize"
+  using a b by (simp)
+
+  thus ?thesis
+  by (simp add: bilbyFsMaxEbSize_def unat_arith_simps)
+qed
+
 lemma max_eb_size_pl_8:
  "v \<le> bilbyFsMaxEbSize \<Longrightarrow>
  v < (v::U32) + 8"
@@ -847,6 +1083,67 @@ proof -
    apply unat_arith
   done
 qed
+
+lemma ost_pl_4_le_offs_pl_wa_len:
+assumes a:" wordarray_length (WordArrayT.make ys) \<le> bilbyFsMaxEbSize"
+and g: "ost + 8 + walen \<le> offs + Obj.len\<^sub>f obj"
+and b: "walen \<le> wordarray_length (WordArrayT.make ys)"
+and c: "walen \<le> offs + (Obj.len\<^sub>f obj)"
+and d: "(ost::U32) < ost + 8"
+and e: "ost \<le> offs + Obj.len\<^sub>f obj"
+and f: "offs < offs + Obj.len\<^sub>f obj"
+and h: "offs + Obj.len\<^sub>f obj \<le> wordarray_length (WordArrayT.make ys)"
+
+ shows "unat ost + 4 < unat offs + unat (Obj.len\<^sub>f obj)"
+proof -
+
+ from d have d': "ost < ost + 4"
+ by (simp add: unat_arith_simps) unat_arith
+
+ have walen_le_max: "walen \<le> bilbyFsMaxEbSize"
+  using b a by (simp add: unat_arith_simps)
+
+ have ost_le_max: "ost \<le> bilbyFsMaxEbSize"
+   using d e a f h by (simp add: unat_arith_simps bilbyFsMaxEbSize_def)
+
+ obtain ost8 where ost8_def: "ost8 = ost + 8" by simp
+ have lc: "ost8 \<le> ost8 + walen"
+  proof (rule ccontr)
+   assume cpos: "\<not>(ost8 \<le> ost8 + walen)"
+   have ost8_neq_m1: "ost8 \<noteq> -1"
+    apply (simp add: overflow_plus_one_self[symmetric])
+    using ost_le_max ost8_def apply (simp add:  bilbyFsMaxEbSize_def  unat_arith_simps)
+    done
+
+   from cpos and walen_le_max have "ost8 \<in> {-1 - bilbyFsMaxEbSize.. -1}"
+    apply simp
+   using d 
+    apply (simp add: bilbyFsMaxEbSize_def unat_arith_simps)
+    apply unat_arith
+    done
+   hence "ost \<in> {-1 - bilbyFsMaxEbSize - 8 .. -1}"
+    using d ost8_def
+     by (clarsimp simp add: bilbyFsMaxEbSize_def)
+      unat_arith
+
+   hence "ost > bilbyFsMaxEbSize"
+    by (simp add: bilbyFsMaxEbSize_def unat_arith_simps)
+
+   thus "False"
+     using e h f a by unat_arith
+  qed
+
+ show ?thesis
+  using order_class.order.strict_implies_order[OF d'] 
+     order_class.order.strict_implies_order[OF d]
+      g 
+     lc
+   apply (simp add: unat_plus_simple)
+   apply (simp only: word_le_nat_alt ost8_def)
+   apply unat_arith
+  done
+qed
+
 
 lemma fold_triple_append_simp_gen:
  "fold (\<lambda>_ (a, b, c). (f a b, f' b, c @ f'' b)) ns (a, b, xs @ ys) =
@@ -930,7 +1227,7 @@ lemma pArrObjDentry_slice_eq_induct:
     apply (erule_tac x="ost + 8 +
                    wordarray_length
                     (ObjDentry.name\<^sub>f
-                      (pObjDentry (drop (unat offs) (take (unat offs + unat (Obj.len\<^sub>f obj)) xs))
+                      (pObjDentry (List.drop (unat offs) (take (unat offs + unat (Obj.len\<^sub>f obj)) xs))
                         (ost - offs)))" in ballE)
      prefer 2
      apply fastforce
@@ -950,7 +1247,7 @@ lemma pArrObjDentry_slice_eq_induct:
      apply assumption
     
     apply (erule notE)
-    apply (subgoal_tac "pObjDentry (drop (unat offs) (take (unat offs + unat (Obj.len\<^sub>f obj)) xs)) (ost - offs) = pObjDentry (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) ost")
+    apply (subgoal_tac "pObjDentry (List.drop (unat offs) (take (unat offs + unat (Obj.len\<^sub>f obj)) xs)) (ost - offs) = pObjDentry (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) ost")
      apply (simp only:)
     apply (fastforce simp: plus_no_overflow_unat_lift intro: pObjDentry_drop_eq[symmetric])
    done
@@ -970,7 +1267,146 @@ lemma pArrObjDentry_slice_eq_induct:
     apply (fastforce dest: order_class.order.strict_implies_order[where a=offs and b=" offs + Obj.len\<^sub>f obj"] simp add: unat_plus_simple)+
   apply (subst (asm) snd_fold_append_simp )
   apply clarsimp
- done
+  done
+
+lemma wa_length_ObjDentry_name_bound:
+  "offs < ost \<Longrightarrow>
+   ost < ost + 8 \<Longrightarrow>
+   ost \<le> offs + Obj.len\<^sub>f obj \<Longrightarrow>
+   offs < offs + Obj.len\<^sub>f obj \<Longrightarrow>
+   offs + Obj.len\<^sub>f obj \<le> wordarray_length (WordArrayT.make xs) \<Longrightarrow>
+   wordarray_length (ObjDentry.name\<^sub>f (pObjDentry (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) ost)) 
+      \<le> wordarray_length (WordArrayT.make xs)"
+  apply (cut_tac wa_length_ObjDentry_name_le[of "take (unat offs + unat (Obj.len\<^sub>f obj)) xs" ost])
+  apply (cut_tac length_take[of "unat offs + unat (Obj.len\<^sub>f obj)" xs])
+  apply (frule plus_no_overflow_unat_lift[of offs])
+  apply (clarsimp simp: word_le_nat_alt unat_plus_simple)
+  done
+
+lemma pArrObjDentry_slice_eq_induct':
+"slice (unat offs) (unat offs + unat (Obj.len\<^sub>f obj)) xs =
+   slice (unat offs) (unat offs + unat (Obj.len\<^sub>f obj)) ys \<Longrightarrow>
+  offs < ost \<Longrightarrow>
+  ost < ost + 8 \<Longrightarrow>
+  ost \<le> offs + Obj.len\<^sub>f obj \<Longrightarrow>
+  offs < offs + Obj.len\<^sub>f obj \<Longrightarrow>
+  offs + Obj.len\<^sub>f obj \<le> wordarray_length (WordArrayT.make xs) \<Longrightarrow>
+  offs + Obj.len\<^sub>f obj \<le> wordarray_length (WordArrayT.make ys) \<Longrightarrow>
+  wordarray_length (WordArrayT.make xs) \<le> bilbyFsMaxEbSize \<Longrightarrow>
+  wordarray_length (WordArrayT.make ys) \<le> bilbyFsMaxEbSize \<Longrightarrow>
+  dentarr_offs_list_end_offs_pred (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) ost entriesno (offs + Obj.len\<^sub>f obj) \<Longrightarrow>
+  dentarr_offs_list_drop_end_offs_pred (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) ost entriesno offs (offs + Obj.len\<^sub>f obj) \<Longrightarrow>
+  (fold (\<lambda>_ (xsa, doffs, offslist).
+                  let dentry = pObjDentry (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) doffs;
+                      newoffs = doffs + 8 + wordarray_length (ObjDentry.name\<^sub>f dentry)
+                  in (xsa @ [Option.Some dentry], newoffs, offslist @ [newoffs]))
+          entriesno
+          (accxs, ost, [])) =
+     (fold (\<lambda>_ (xs, doffs, offslist).
+                  let dentry = pObjDentry (take (unat offs + unat (Obj.len\<^sub>f obj)) ys) doffs;
+                      newoffs = doffs + 8 + wordarray_length (ObjDentry.name\<^sub>f dentry)
+                  in (xs @ [Option.Some dentry], newoffs, offslist @ [newoffs]))
+          entriesno
+          (accxs, ost, [])) "
+  apply (induct "entriesno" arbitrary:ost accxs)
+   apply simp
+  apply (simp)
+  apply (drule_tac x="ost + 8 + wordarray_length (ObjDentry.name\<^sub>f (pObjDentry (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) ost))" in meta_spec)
+  apply (drule_tac x="accxs @ [Option.Some (pObjDentry (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) ost)]" in meta_spec)
+  apply (erule meta_impE)
+   apply (simp add: Let_def dentarr_end_offs_simps)
+   apply (subst (asm) snd_fold_append_simp)
+   apply (cut_tac ost = ost in wa_length_ObjDentry_name_bound[of offs _ obj xs]; simp?)
+  
+   (*apply (subgoal_tac "wordarray_length (ObjDentry.name\<^sub>f (pObjDentry (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) ost)) \<le> wordarray_length (WordArrayT.make ys)")*)
+  thm wa_length_ObjDentry_name_le
+   (*apply (cut_tac ost=ost in wa_length_ObjDentry_name_le[where xs="(take (unat offs + unat (Obj.len\<^sub>f obj)) xs)"])*)
+   apply (subgoal_tac "ost <  ost + 8 +
+            wordarray_length (ObjDentry.name\<^sub>f (pObjDentry (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) ost))")
+    apply clarsimp
+    apply unat_arith
+   apply (subgoal_tac "\<exists>v. 8 +
+           wordarray_length (ObjDentry.name\<^sub>f (pObjDentry (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) ost)) = v")
+    apply (erule exE)
+    apply (simp only: add.assoc)
+    apply (subgoal_tac "v \<le> bilbyFsMaxEbSize + 8")
+     apply (clarsimp simp add: )
+     apply (erule of_trivial)
+      apply unat_arith
+     apply (erule x0_le_8_pl_max_eb')
+     apply (simp add: plus_no_overflow_unat_lift)
+    apply (simp add: unat_arith_simps bilbyFsMaxEbSize_def)
+   apply simp
+  apply (cut_tac ost=ost in wa_length_ObjDentry_name_le[where xs="(take (unat offs + unat (Obj.len\<^sub>f obj)) xs)"])
+  apply (erule meta_impE)
+   subgoal for a entriesno ost accxs
+    apply (rule max_eb_size_pl_8)
+     apply (simp add: dentarr_end_offs_simps Let_def)
+     apply (erule_tac x="ost + 8 + wordarray_length (ObjDentry.name\<^sub>f (pObjDentry (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) ost))" in ballE)
+      apply unat_arith
+    apply (subst (asm) snd_fold_append_simp, fastforce)
+   done
+
+  apply (erule meta_impE)
+   subgoal for a entriesno ost accxs
+    apply (simp add: dentarr_end_offs_simps Let_def)
+    apply (subst (asm) snd_fold_append_simp, fastforce)
+   done
+
+  apply (erule meta_impE)
+   subgoal for a entriesno ost accxs
+    apply (simp add: dentarr_drop_end_offs_simps Let_def)
+    apply (subst (asm) snd_fold_append_simp)
+    apply (erule_tac x="ost + 8 +
+                   wordarray_length
+                    (ObjDentry.name\<^sub>f
+                      (pObjDentry (List.drop (unat offs) (take (unat offs + unat (Obj.len\<^sub>f obj)) xs))
+                        (ost - offs)))" in ballE)
+     prefer 2
+     apply fastforce
+    apply (clarsimp simp add: dentarr_end_offs_simps Let_def)
+    apply (rename_tac offs'')
+    apply (erule_tac x=offs'' in ballE, fastforce)
+    apply (subst (asm) snd_fold_append_simp, fastforce)
+   done
+
+  apply (erule meta_impE)
+   subgoal for a entriesno ost accxs
+    apply (clarsimp simp: Let_def dentarr_drop_end_offs_simps)
+    apply (rename_tac offs'')
+    apply (subst (asm) snd_fold_append_simp)
+    apply clarsimp
+    apply (erule_tac x=offs'' in ballE)
+     apply assumption
+    
+    apply (erule notE)
+    apply (subgoal_tac "pObjDentry (List.drop (unat offs) (take (unat offs + unat (Obj.len\<^sub>f obj)) xs)) (ost - offs) = pObjDentry (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) ost")
+     apply (simp only:)
+    apply (fastforce simp: plus_no_overflow_unat_lift intro: pObjDentry_drop_eq'[symmetric])
+   done
+
+  apply (simp add: Let_def  dentarr_end_offs_simps)
+  apply (subgoal_tac "pObjDentry (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) ost = pObjDentry (take (unat offs + unat (Obj.len\<^sub>f obj)) ys) ost")
+   apply (simp add: Let_def)
+   apply (subst fold_triple_append_simp, simp)
+   apply (rule sym, subst  fold_triple_append_simp, rule sym, simp)
+  apply (erule_tac x="ost + 8 +
+                                  wordarray_length
+                                   (ObjDentry.name\<^sub>f
+                                     (pObjDentry (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) ost))" in ballE)
+  apply clarsimp
+  apply (frule plus_no_overflow_unat_lift[of offs])
+  apply (frule plus_no_overflow_unat_lift)
+  apply (cut_tac ost = ost in wa_length_ObjDentry_name_bound[of offs _ obj xs]; simp?)
+  apply (cut_tac wordarray_length_leq_length[of "WordArrayT.make xs", simplified wordarray_make])
+  apply (cut_tac wordarray_length_leq_length[of "WordArrayT.make ys", simplified wordarray_make])
+  apply (rule pObjDentry_slice_eq; simp?)
+    apply (erule ost_pl_4_le_offs_pl_wa_len[where ys=xs]; fastforce simp: word_le_nat_alt)
+   apply (rule order.trans[of _ "unat (wordarray_length (WordArrayT.make xs))"]; simp add: word_le_nat_alt)
+  apply (rule order.trans[of _ "unat (wordarray_length (WordArrayT.make ys))"]; simp add: word_le_nat_alt)
+  apply (subst (asm) snd_fold_append_simp )
+  apply clarsimp
+  done
 
 lemma conj_arg_cong:
  "a = b \<and> c \<Longrightarrow> f a = f b \<and> c"
@@ -1023,6 +1459,53 @@ shows"
    apply simp
 done
 
+lemma pArrObjDentry_slice_eq':
+assumes len_type: "is_len_and_type_ok (2, Obj.len\<^sub>f obj)"
+assumes slice_eq: " slice (unat offs) (unat offs + unat (Obj.len\<^sub>f obj)) xs =
+   slice (unat offs) (unat offs + unat (Obj.len\<^sub>f obj)) ys"
+shows"
+    offs < offs + Obj.len\<^sub>f obj \<Longrightarrow>
+    offs + Obj.len\<^sub>f obj \<le> wordarray_length (WordArrayT.make xs) \<Longrightarrow>
+    offs + Obj.len\<^sub>f obj \<le> wordarray_length (WordArrayT.make ys) \<Longrightarrow>
+    wordarray_length (WordArrayT.make xs) \<le> bilbyFsMaxEbSize \<Longrightarrow>
+    wordarray_length (WordArrayT.make ys) \<le> bilbyFsMaxEbSize \<Longrightarrow>
+    otype\<^sub>f obj = bilbyFsObjTypeDentarr \<Longrightarrow>
+  dentarr_otype_end_offs_pred (otype\<^sub>f obj) (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) (offs+bilbyFsObjHeaderSize) (offs + Obj.len\<^sub>f obj) \<Longrightarrow>
+  dentarr_otype_drop_end_offs_st_pred (otype\<^sub>f obj) (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) (offs+bilbyFsObjHeaderSize) offs (offs + Obj.len\<^sub>f obj) \<Longrightarrow>
+ (pArrObjDentry (take (unat offs + unat (Obj.len\<^sub>f obj)) xs)
+      (offs + bilbyFsObjHeaderSize + bilbyFsObjDentarrHeaderSize)
+      (ple32 (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) (offs + bilbyFsObjHeaderSize + 8))) =
+ (pArrObjDentry (take (unat offs + unat (Obj.len\<^sub>f obj)) ys)
+      (offs + bilbyFsObjHeaderSize + bilbyFsObjDentarrHeaderSize)
+      (ple32 (take (unat offs + unat (Obj.len\<^sub>f obj)) ys) (offs + bilbyFsObjHeaderSize + 8)))"
+ using assms apply -
+  apply (subst ple32_slice_eq[where n=0, simplified] ple64_slice_eq ple32_slice_eq, simp+)
+  apply (simp add: is_len_and_type_ok_def otype_simps bilbyFsObjHeaderSize_def, unat_arith)
+
+  apply (simp only: pArrObjDentry_def prod.case_eq_if prod.sel)
+  apply simp
+  apply (rule conj_arg_cong[where f=ArrayT.make])
+  apply simp
+  apply (simp only: prod_eq_iff[symmetric])
+  apply (erule  pArrObjDentry_slice_eq_induct')
+           apply (simp add: is_len_and_type_ok_def otype_simps bilbyFsObjDentarrHeaderSize_def bilbyFsObjHeaderSize_def, unat_arith)
+          apply (simp add: is_len_and_type_ok_def otype_simps bilbyFsObjDentarrHeaderSize_def bilbyFsObjHeaderSize_def, simp only: add.commute)
+         apply (frule order_class.order.strict_implies_order, simp only: unat_plus_simple)
+         apply (simp add: word_less_nat_alt ; unat_arith)
+        apply (simp add: is_len_and_type_ok_def otype_simps bilbyFsObjDentarrHeaderSize_def bilbyFsObjHeaderSize_def, simp only: add.commute)
+       apply (frule order_class.order.strict_implies_order, simp only: unat_plus_simple)
+       apply (simp add: word_less_nat_alt ; unat_arith)
+       apply simp+
+   apply (simp add: dentarr_end_offs_simps,
+          subst ple32_slice_eq[OF slice_eq[symmetric]];
+         simp add: is_len_and_type_ok_def otype_simps bilbyFsObjHeaderSize_def, unat_arith?)
+
+   apply (simp add: dentarr_drop_end_offs_simps)
+   apply (subst ple32_slice_eq[OF slice_eq[symmetric]], simp+)
+   apply (simp add: is_len_and_type_ok_def otype_simps bilbyFsObjHeaderSize_def, unat_arith)
+   apply simp
+  done
+
 lemma ple32_slice_eq_4:
 "slice (unat offs) (unat offs + unat olen) xs =
  slice (unat offs) (unat offs + unat olen) ys \<Longrightarrow>
@@ -1072,7 +1555,33 @@ lemma pObjDentarr_slice_eq:
   apply (rule arg_cong[where f=prod.fst])
   apply (rule pArrObjDentry_slice_eq)
       apply (simp add: unat_plus_simple)+
- done
+  done
+
+lemma pObjDentarr_slice_eq':
+ "is_len_and_type_ok (2, Obj.len\<^sub>f obj) \<Longrightarrow>
+  slice (unat offs) (unat offs + unat (Obj.len\<^sub>f obj)) xs =
+  slice (unat offs) (unat offs + unat (Obj.len\<^sub>f obj)) ys \<Longrightarrow>
+  offs < offs + Obj.len\<^sub>f obj \<Longrightarrow>
+  wordarray_length (WordArrayT.make xs) \<le> bilbyFsMaxEbSize \<Longrightarrow>
+  wordarray_length (WordArrayT.make ys) \<le> bilbyFsMaxEbSize \<Longrightarrow>
+  offs + (Obj.len\<^sub>f obj) \<le> wordarray_length (WordArrayT.make xs) \<Longrightarrow>
+  offs + (Obj.len\<^sub>f obj) \<le> wordarray_length (WordArrayT.make ys) \<Longrightarrow>
+  (otype\<^sub>f obj) = bilbyFsObjTypeDentarr \<Longrightarrow>
+  dentarr_otype_end_offs_pred (otype\<^sub>f obj) (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) (offs+bilbyFsObjHeaderSize) (offs + Obj.len\<^sub>f obj) \<Longrightarrow>
+  dentarr_otype_drop_end_offs_st_pred (otype\<^sub>f obj) (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) (offs+bilbyFsObjHeaderSize) offs (offs + Obj.len\<^sub>f obj) \<Longrightarrow>
+
+    pObjDentarr (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) (offs + bilbyFsObjHeaderSize) (Obj.len\<^sub>f obj) =
+    pObjDentarr (take (unat offs + unat (Obj.len\<^sub>f obj)) ys) (offs + bilbyFsObjHeaderSize) (Obj.len\<^sub>f obj)"
+  apply (simp add: pObjDentarr_def ObjDentarr.make_def Let_def)
+  apply (subst ple64_slice_eq[where n=0, simplified] ple64_slice_eq ple32_slice_eq,
+        ((simp add: otype_simps len_otype_ok bilbyFsObjHeaderSize_def unat_arith_simps)[2])+, simp)+
+
+  apply (frule less_to_le)
+  apply (simp add: unat_plus_simple)
+  apply (rule arg_cong[where f=prod.fst])
+  apply (rule pArrObjDentry_slice_eq')
+      apply (simp add: unat_plus_simple)+
+  done
 
 lemma pObjSuper_slice_eq:
  "is_len_and_type_ok (4, Obj.len\<^sub>f obj) \<Longrightarrow>
@@ -1116,7 +1625,38 @@ lemma pObjUnion_slice_eq:
    apply (simp, rule pObjDel_slice_eq, simp+)
   apply (case_tac "otype\<^sub>f (pObjHeader ys offs) = 4")
    apply (simp, rule pObjSuper_slice_eq, simp+)
- done
+  done
+
+lemma pObjUnion_slice_eq':
+ "is_len_and_type_ok (otype\<^sub>f obj, Obj.len\<^sub>f obj) \<Longrightarrow>
+  slice (unat offs) (unat offs + unat (Obj.len\<^sub>f obj)) xs =
+  slice (unat offs) (unat offs + unat (Obj.len\<^sub>f obj)) ys \<Longrightarrow>
+  offs < offs + Obj.len\<^sub>f obj \<Longrightarrow>
+  wordarray_length (WordArrayT.make xs) \<le> bilbyFsMaxEbSize \<Longrightarrow>
+  wordarray_length (WordArrayT.make ys) \<le> bilbyFsMaxEbSize \<Longrightarrow>
+  offs + (Obj.len\<^sub>f obj) \<le> wordarray_length (WordArrayT.make xs) \<Longrightarrow>
+  offs + (Obj.len\<^sub>f obj) \<le> wordarray_length (WordArrayT.make ys) \<Longrightarrow>
+  pObjHeader ys offs = obj \<Longrightarrow>
+  dentarr_otype_end_offs_pred (otype\<^sub>f obj) (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) (offs+bilbyFsObjHeaderSize) (offs + Obj.len\<^sub>f obj) \<Longrightarrow>
+  dentarr_otype_drop_end_offs_st_pred (otype\<^sub>f obj) (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) (offs+bilbyFsObjHeaderSize) offs (offs + Obj.len\<^sub>f obj) \<Longrightarrow>
+
+  pObjUnion (take (unat offs + unat (Obj.len\<^sub>f obj)) xs) (otype\<^sub>f obj) (Obj.len\<^sub>f obj)
+     (offs + bilbyFsObjHeaderSize) =
+  pObjUnion (take (unat offs + unat (Obj.len\<^sub>f obj)) ys) (otype\<^sub>f obj) (Obj.len\<^sub>f obj)
+     (offs + bilbyFsObjHeaderSize)"
+  apply (simp add: pObjUnion_def')
+  apply (case_tac "otype\<^sub>f (pObjHeader ys offs) = 0")
+   apply (simp, rule pObjInode_slice_eq, simp+)
+  apply (case_tac "otype\<^sub>f (pObjHeader ys offs) = 1")
+   apply (simp, rule pObjData_slice_eq, simp+)
+  apply (case_tac "otype\<^sub>f (pObjHeader ys offs) = 2")
+   apply (simp)
+   apply (rule pObjDentarr_slice_eq', (simp add: bilbyFsObjTypeDentarr_def )+)
+  apply (case_tac "otype\<^sub>f (pObjHeader ys offs) = 3")
+   apply (simp, rule pObjDel_slice_eq, simp+)
+  apply (case_tac "otype\<^sub>f (pObjHeader ys offs) = 4")
+   apply (simp, rule pObjSuper_slice_eq, simp+)
+  done
 
 
 lemma pObj_eq:
@@ -1149,6 +1689,43 @@ lemma pObj_eq:
      apply (clarsimp simp add: plus_no_overflow_unat_lift)+
   apply (frule is_valid_ObjHeader_len_facts)
   apply (clarsimp simp add: bilbyFsObjHeaderSize_def, unat_arith)
+  done
+
+lemma pObj_eq':
+ "is_valid_ObjHeader hdr ys \<Longrightarrow>
+  dentarr_otype_end_offs_pred (otype\<^sub>f hdr) (take (unat (offs + Obj.len\<^sub>f hdr)) ys) (offs+bilbyFsObjHeaderSize) (offs + Obj.len\<^sub>f hdr) \<Longrightarrow>
+  dentarr_otype_drop_end_offs_st_pred (otype\<^sub>f hdr) (take (unat (offs + Obj.len\<^sub>f hdr)) ys) (offs+bilbyFsObjHeaderSize) offs (offs + Obj.len\<^sub>f hdr) \<Longrightarrow>
+  hdr = pObjHeader ys offs \<Longrightarrow>
+  slice (unat offs) (unat offs + unat (Obj.len\<^sub>f hdr)) xs = slice (unat offs) (unat offs + unat (Obj.len\<^sub>f hdr)) ys \<Longrightarrow>
+   offs < offs + Obj.len\<^sub>f hdr \<Longrightarrow>
+  is_len_and_type_ok (otype\<^sub>f hdr, Obj.len\<^sub>f hdr) \<Longrightarrow>
+  offs + (Obj.len\<^sub>f hdr) \<le> wordarray_length (WordArrayT.make xs) \<Longrightarrow>
+  offs + (Obj.len\<^sub>f hdr) \<le> wordarray_length (WordArrayT.make ys) \<Longrightarrow>
+  wordarray_length (WordArrayT.make xs) \<le> bilbyFsMaxEbSize \<Longrightarrow>
+  wordarray_length (WordArrayT.make ys) \<le> bilbyFsMaxEbSize \<Longrightarrow>
+  pObj xs offs = pObj ys offs"
+   apply (simp (no_asm) add: pObj_def Let_def)
+  apply (subgoal_tac "offs < offs + bilbyFsObjHeaderSize")
+   apply (frule is_valid_ObjHeader_len)
+  apply (frule plus_no_overflow_unat_lift)
+   apply (frule pObjHeader_slice_eq[rotated 1]; simp?)
+     apply (rule order.trans[OF _ wordarray_length_leq_length[of "WordArrayT.make _", simplified wordarray_make]])
+     apply (simp add: word_le_nat_alt)
+    apply (rule order.trans[OF _ wordarray_length_leq_length[of "WordArrayT.make _", simplified wordarray_make]])
+    apply (simp add: word_le_nat_alt)
+   apply (simp only: pObjHeader_take_olen[where xs=xs,symmetric])
+  apply (subst  pObjHeader_take_olen[where xs=ys,symmetric], assumption+)+
+   apply (rule trans[OF Obj.surjective])
+   apply (rule sym)
+   apply (rule trans[OF Obj.surjective])
+   apply (simp add: is_valid_ObjHeader_def)
+   apply (frule order_class.order.strict_implies_order[where b="offs + Obj.len\<^sub>f (pObjHeader ys offs)"])
+   apply (rule pObjUnion_slice_eq', simp+)
+         apply (simp only: unat_plus_simple)+
+     apply (erule (1) pObjHeader_take_olen[symmetric])
+     apply (clarsimp simp add: plus_no_overflow_unat_lift)+
+  apply (frule is_valid_ObjHeader_len_facts)
+  apply (clarsimp simp add: bilbyFsObjHeaderSize_def, unat_arith)
  done
 
 lemma slice_Nil:
@@ -1160,6 +1737,92 @@ lemma slice_append':
  slice n m (xs @ ys) = slice n m xs"
  by (simp add: slice_def)
 
+\<comment>\<open> ALTERNATIVE proof that does not rely on @{thm wordarray_length_ret inv_ostore_eb_size_rbuf_eqD} \<close>
+lemma slice_eq:
+  assumes inv_ostore: "inv_ostore mount_st ostore_st"
+  and     inv_mount_st: "inv_mount_st mount_st"
+  and     oaddr: "\<alpha>rbt (addrs\<^sub>f (index_st\<^sub>f ostore_st)) oid = TypBucket.Some oaddr"
+  and     xdef: "ObjAddr.offs\<^sub>f oaddr - ObjAddr.offs\<^sub>f oaddr mod io_size\<^sub>f (super\<^sub>f mount_st) = x"
+  and     ydef: "align32 (ObjAddr.offs\<^sub>f oaddr + ObjAddr.len\<^sub>f oaddr, io_size\<^sub>f (super\<^sub>f mount_st)) = y"
+  and     ebnum: "ObjAddr.ebnum\<^sub>f oaddr \<noteq> wbuf_eb\<^sub>f ostore_st"
+  and  ubibdef: "\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st) !
+       unat (ObjAddr.ebnum\<^sub>f oaddr) = ubib"
+  and  soffsdef: "(ObjAddr.offs\<^sub>f oaddr + 0x10) = soffs"
+  shows
+ "slice (unat soffs) (unat soffs + 4) (buf_take (rbuf\<^sub>f ostore_st) x @ slice (unat x) (unat x + unat (y - x)) (ubib @ replicate (unat (y - x)) 0xFF) @
+     buf_drop (rbuf\<^sub>f ostore_st) y) =
+    slice (unat soffs) (unat soffs + 4) ubib"
+proof -
+ have lenx: "length (buf_take (rbuf\<^sub>f ostore_st) x) = unat x"
+   using oaddr_is_valid_addr[OF inv_ostore inv_mount_st oaddr]
+             inv_ostore_rbuf_lengthD[OF inv_ostore, simplified buf_length_def Let_def]
+             wordarray_length_leq_length[of "data\<^sub>f (rbuf\<^sub>f ostore_st)"]
+  by (clarsimp simp add: buf_simps xdef[symmetric] is_valid_addr_def)
+   unat_arith
+
+  have soffs_no_of: "soffs < soffs + 4"
+  using oaddr_is_valid_addr[OF inv_ostore inv_mount_st oaddr]
+  by (clarsimp simp add: soffsdef[symmetric] is_valid_addr_def
+    bilbyFsMinObjSize_def bilbyFsObjHeaderSize_def)
+    unat_arith
+
+ have x_le_soffs: "x \<le> soffs"
+  using oaddr_is_valid_addr[OF inv_ostore inv_mount_st oaddr]
+  by (clarsimp simp add: xdef[symmetric] soffsdef[symmetric] is_valid_addr_def bilbyFsMinObjSize_def bilbyFsObjHeaderSize_def)
+    unat_arith
+
+   have x_le_soffs4: "unat x \<le> unat soffs + 4"
+    using x_le_soffs soffs_no_of by unat_arith
+
+  have  soffs4_le_y: "soffs + 4 \<le> y"
+  using oaddr_is_valid_addr[OF inv_ostore inv_mount_st oaddr]
+        oaddr_offs_pl_objhdr_le_align[OF inv_ostore inv_mount_st oaddr]
+  by (clarsimp simp add: ydef[symmetric] soffsdef[symmetric] bilbyFsObjHeaderSize_def is_valid_addr_def bilbyFsMinObjSize_def)
+   unat_arith
+
+  have y_arith: "unat x + unat (y - x) = unat y"
+   using  x_le_soffs  soffs4_le_y soffs_no_of
+    by unat_arith
+
+  have soffs_x_dance: "(unat soffs - unat x + unat x) = unat soffs"
+  using  le_add_diff_inverse2[OF x_le_soffs[simplified unat_arith_simps]] .
+  
+  have  lenubib: "length ubib = unat (eb_size\<^sub>f (super\<^sub>f mount_st))"
+    using oaddr_ebnum_rangeD[OF inv_ostore inv_mount_st oaddr ebnum]
+          inv_bufsD[OF inv_ostore]
+          ebnum
+          ubibdef[symmetric]
+    by simp
+  
+ show ?thesis
+  apply (subst slice_append)
+  apply (simp add: lenx x_le_soffs4 min_absorb1)
+   apply (simp add: slice_Nil lenx  x_le_soffs[simplified unat_arith_simps])
+   apply (simp add: y_arith)
+   apply (subst slice_append')
+    apply (simp add: length_slice lenubib)
+    apply (subst min_absorb2)
+     apply (simp add: ydef[symmetric])
+     using align32_le_eb_size[OF inv_ostore inv_mount_st oaddr, simplified word_le_nat_alt]
+    apply (simp add:)
+   using soffs4_le_y soffs_no_of 
+   apply (simp add: unat_arith_simps)
+   apply unat_arith
+  apply (subst slice_append')
+   apply (simp add: lenubib ydef[symmetric])
+   using align32_le_eb_size[OF inv_ostore inv_mount_st oaddr, simplified word_le_nat_alt]
+   apply simp
+  apply (simp add: slice_def)
+  using x_le_soffs x_le_soffs4 soffs4_le_y[simplified ]
+  apply (simp add: take_drop )
+  apply (subst min_absorb1)
+   using soffs_no_of
+   apply (simp add: unat_arith_simps, unat_arith)
+  apply (simp add: soffs_x_dance)
+ done
+qed
+(*
+\<comment>\<open> ORIGINAL proof that relies on @{thm wordarray_length_ret inv_ostore_eb_size_rbuf_eqD} \<close>
 lemma slice_eq:
   assumes inv_ostore: "inv_ostore mount_st ostore_st"
   and     inv_mount_st: "inv_mount_st mount_st"
@@ -1244,7 +1907,98 @@ proof -
   apply (simp add: soffs_x_dance)
  done
 qed
+*)
+\<comment>\<open> ALTERNATIVE proof that does not rely on @{thm wordarray_length_ret inv_ostore_eb_size_rbuf_eqD} \<close>
+lemma slice_eq2:
+  assumes inv_ostore: "inv_ostore mount_st ostore_st"
+  and     inv_mount_st: "inv_mount_st mount_st"
+  and     oaddr: "\<alpha>rbt (addrs\<^sub>f (index_st\<^sub>f ostore_st)) oid = TypBucket.Some oaddr"
+  and     xdef: "ObjAddr.offs\<^sub>f oaddr - ObjAddr.offs\<^sub>f oaddr mod io_size\<^sub>f (super\<^sub>f mount_st) = x"
+  and  ydef: "align32 (ObjAddr.offs\<^sub>f oaddr + ObjAddr.len\<^sub>f oaddr, io_size\<^sub>f (super\<^sub>f mount_st)) = y"
+  and     ebnum: "ObjAddr.ebnum\<^sub>f oaddr \<noteq> wbuf_eb\<^sub>f ostore_st"
+  and  ubibdef: "\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st) !
+       unat (ObjAddr.ebnum\<^sub>f oaddr) = ubib"
+  and  offs: "ObjAddr.offs\<^sub>f oaddr = offs"
+  and  olen: "(Obj.len\<^sub>f
+                (pObjHeader (\<alpha>wa (data\<^sub>f (read_pages_rbuf (rbuf\<^sub>f ostore_st) x (y - x) ubib)))
+                  (ObjAddr.offs\<^sub>f oaddr))) = olen"
+  and  olen_oaddr: "ObjAddr.len\<^sub>f oaddr = olen"
+  shows
+ "slice (unat offs) (unat offs + unat olen) ubib =
+  slice (unat offs) (unat offs + unat olen)
+  (\<alpha>wa (data\<^sub>f (read_pages_rbuf (rbuf\<^sub>f ostore_st) x (y - x) ubib)))"
+proof -
+ have lenx: "length (buf_take (rbuf\<^sub>f ostore_st) x) = unat x"
+   using oaddr_is_valid_addr[OF inv_ostore inv_mount_st oaddr]
+         inv_ostore_rbuf_lengthD[OF inv_ostore, simplified buf_length_def Let_def]
+         wordarray_length_leq_length[of "data\<^sub>f (rbuf\<^sub>f ostore_st)"]
+  by (clarsimp simp add: buf_simps xdef[symmetric] is_valid_addr_def)
+   unat_arith
 
+  have offs_no_of: "offs < offs + olen"
+  using oaddr_is_valid_addr[OF inv_ostore inv_mount_st oaddr]
+  by (clarsimp simp add: offs[symmetric] olen[symmetric] is_valid_addr_def
+    bilbyFsMinObjSize_def bilbyFsObjHeaderSize_def olen_oaddr)
+
+ have x_le_soffs: "x \<le> offs"
+  using oaddr_is_valid_addr[OF inv_ostore inv_mount_st oaddr]
+  by (clarsimp simp add: xdef[symmetric] offs[symmetric] is_valid_addr_def bilbyFsMinObjSize_def bilbyFsObjHeaderSize_def)
+    unat_arith
+
+
+   have x_le_offsolen: "unat x \<le> unat offs + unat olen"
+    using x_le_soffs offs_no_of by unat_arith
+
+  have  offsolen_le_y: "offs + olen \<le> y"
+  using oaddr_is_valid_addr[OF inv_ostore inv_mount_st oaddr]
+         oaddr_offs_pl_olen_le_align[OF inv_ostore inv_mount_st oaddr]
+  by (clarsimp simp add: ydef[symmetric] olen_oaddr[symmetric] offs[symmetric]
+    is_valid_addr_def)
+
+  have y_arith: "unat x + unat (y - x) = unat y"
+   using  x_le_soffs  offsolen_le_y offs_no_of
+    by unat_arith
+
+  have soffs_x_dance: "(unat offs - unat x + unat x) = unat offs"
+  using  le_add_diff_inverse2[OF x_le_soffs[simplified unat_arith_simps]] .
+  
+  have  lenubib: "length ubib = unat (eb_size\<^sub>f (super\<^sub>f mount_st))"
+   using oaddr_is_valid_addr[OF inv_ostore inv_mount_st oaddr]
+         ebnum
+         inv_bufsD[OF inv_ostore]
+         oaddr_ebnum_rangeD[OF inv_ostore inv_mount_st oaddr ebnum]
+   by (clarsimp simp add: ubibdef[symmetric] is_valid_addr_def)
+  
+ show ?thesis
+  apply (simp add: read_pages_rbuf_def wordarray_make)
+  apply (subst slice_append)
+  apply (simp add: lenx x_le_offsolen min_absorb1)
+  apply (simp add: slice_Nil lenx  x_le_soffs[simplified unat_arith_simps])
+  apply (simp add: y_arith)
+  apply (subst slice_append')
+   apply (simp add: length_slice lenubib)
+   apply (subst min_absorb2)
+    apply (simp add: ydef[symmetric])
+    using align32_le_eb_size[OF inv_ostore inv_mount_st oaddr, simplified word_le_nat_alt]
+    apply (simp add:)
+   using offsolen_le_y offs_no_of 
+   apply (simp add: unat_arith_simps)
+   apply unat_arith
+  apply (subst slice_append')
+   apply (simp add: lenubib ydef[symmetric])
+   using align32_le_eb_size[OF inv_ostore inv_mount_st oaddr, simplified word_le_nat_alt]
+   apply simp
+  apply (simp add: slice_def)
+  using x_le_soffs x_le_offsolen offsolen_le_y[simplified ]
+  apply (simp add: take_drop )
+  apply (subst min_absorb1)
+   using offs_no_of
+   apply (simp add: unat_arith_simps, unat_arith)
+  apply (simp add: soffs_x_dance)
+ done
+qed
+(*
+\<comment>\<open> ORIGINAL proof that relies on @{thm wordarray_length_ret inv_ostore_eb_size_rbuf_eqD} \<close>
 lemma slice_eq2:
   assumes inv_ostore: "inv_ostore mount_st ostore_st"
   and     inv_mount_st: "inv_mount_st mount_st"
@@ -1335,7 +2089,7 @@ proof -
   apply (simp add: soffs_x_dance)
  done
 qed
-
+*)
 lemma ple32_take_eq:
  "offs = offs' \<Longrightarrow>
 slice (unat offs) (unat offs + 4) xs = slice (unat offs) (unat offs + 4) ys  \<Longrightarrow>
@@ -1354,6 +2108,310 @@ lemma unat_lift_plus_simpleE:
 lemma handy_lemma: "a = Some b \<Longrightarrow> the a = b"
   by simp
 
+\<comment>\<open> ALTERNATIVE proof which does not rely on @{thm wordarray_length_ret inv_ostore_eb_size_wbuf_eqD inv_ostore_eb_size_rbuf_eqD} \<close>
+lemma ostore_read_ret:
+  assumes inv_ostore: "inv_ostore mount_st ostore_st"
+  assumes inv_mount_st: "inv_mount_st mount_st"
+  assumes inv_\<alpha>_ostore: "inv_\<alpha>_ostore (\<alpha>_ostore_uptodate ostore_st)"
+  assumes suc: 
+    "\<And>ex' ostore_st' obj.\<lbrakk> inv_ostore mount_st ostore_st';
+    \<alpha>_ostore_uptodate ostore_st' oid = option.Some obj;
+    inv_\<alpha>_ostore (\<alpha>_ostore_uptodate ostore_st');
+    \<alpha>_ostore_medium ostore_st' = \<alpha>_ostore_medium ostore_st;
+    \<alpha>_updates ostore_st' = \<alpha>_updates ostore_st\<rbrakk> \<Longrightarrow> 
+    P ((ex', ostore_st'), Success obj)"
+  assumes err: 
+    "\<And>ex' ostore_st' e.\<lbrakk> inv_ostore mount_st ostore_st' ;
+    e \<in> {eIO, eNoMem, eInval, eBadF, eNoEnt};
+    e = eNoEnt \<longleftrightarrow> \<alpha>_ostore_uptodate ostore_st' oid = option.None;
+    inv_\<alpha>_ostore (\<alpha>_ostore_uptodate ostore_st');
+    \<alpha>_ostore_medium ostore_st' = \<alpha>_ostore_medium ostore_st;
+    \<alpha>_updates ostore_st' = \<alpha>_updates ostore_st \<rbrakk> \<Longrightarrow> 
+    P ((ex', ostore_st'), Error e)"
+  shows "P (ostore_read (ex, mount_st, ostore_st, oid))"
+  using [[goals_limit=1]]
+  unfolding ostore_read_def[unfolded tuple_simps sanitizers]
+  apply (clarsimp simp add: Let_def )
+  apply (rule index_get_addr_ret)
+   apply (simp add: error_def)
+   apply (rule err[OF inv_ostore _ _ inv_\<alpha>_ostore])
+      apply simp
+     apply simp
+     apply (simp add: dom_def )
+  using dom_uptodate_eq_dom_index[OF inv_ostore]
+     apply (simp add: )
+     apply auto[1]
+    apply simp
+   apply simp
+  apply simp
+  apply (clarsimp)
+  apply (rename_tac oaddr)
+  apply (rule conjI)
+   apply (clarsimp simp: Let_def)
+   apply (rule deserialise_Obj_ret')
+  using inv_ostore_wbuf_lengthD[OF inv_ostore, simplified buf_length_def Let_def] 
+    inv_ostore_usedD[OF inv_ostore]
+        apply (simp add:  wellformed_buf'_def )
+  using inv_mount_st_eb_size_boundD[OF inv_mount_st]
+    inv_ostore_wbuf_lengthD[OF inv_ostore, simplified buf_length_def Let_def]
+       apply (simp add:)
+      apply simp
+      apply (erule (1) offs_pl_olen_le_used[OF inv_ostore ])
+     apply (erule (1) offs_lt_offs_pl_hdr[OF inv_ostore])
+    apply (simp add: error_def) (* try remove success_def *)
+    apply (rule err)
+         apply (simp add: inv_ostore_bound_upd[OF inv_ostore])
+        apply force
+       apply (rename_tac e)
+       apply (subgoal_tac "e \<noteq> eNoEnt")
+        prefer 2
+        apply (force simp add: error_code_simps)
+       apply (simp add: inv_ostore_runtimeD[OF inv_ostore_bound_upd[OF inv_ostore],symmetric] \<alpha>_index_def \<alpha>_ostore_runtime_def)
+      apply (simp add: inv_\<alpha>_ostore_wbuf_bound_eq_eb_size[OF inv_ostore inv_\<alpha>_ostore])
+     apply (simp add: \<alpha>_ostore_medium_def)
+    apply (simp add: \<alpha>_updates_def buf_simps)
+   apply (clarsimp split: R.splits)
+   apply(rule conjI)
+    prefer 2
+    apply clarsimp
+    apply(rule conjI)
+     apply clarsimp
+     apply (rule suc[OF inv_ostore_bound_upd[OF inv_ostore]])
+        apply (drule sym[where s=oid])
+        apply simp
+  using inv_ostore_indexD[OF inv_ostore]
+        apply (simp add: inv_ostore_index_def \<alpha>_index_def)
+        apply (erule_tac x=oid in ballE)
+  using inv_ostore_runtimeD[OF inv_ostore_bound_upd[OF inv_ostore],symmetric]
+         apply(clarsimp simp: Let_def ostore_get_obj_def \<alpha>_ostore_runtime_def \<alpha>_index_def)
+         apply (simp add: pObj_take pObj_offs success_def)
+        apply clarsimp
+       apply (simp add: inv_\<alpha>_ostore_wbuf_bound_eq_eb_size[OF inv_ostore inv_\<alpha>_ostore])
+      apply (simp add: \<alpha>_ostore_medium_def)
+     apply (simp add: \<alpha>_updates_def buf_simps)
+    apply(clarsimp simp: success_def)
+    apply (rule err)
+         apply (simp add: inv_ostore_bound_upd[OF inv_ostore])
+        apply (erule notE)
+  using inv_ostore_indexD[OF inv_ostore]
+        apply (simp add: inv_ostore_index_def)
+        apply (erule_tac x=oid in ballE)
+         apply (clarsimp simp add: Let_def ostore_get_obj_def)
+         apply (frule handy_lemma[THEN sym])
+         apply (simp add: \<alpha>_index_def pObj_take get_obj_oid_offs_agnostic)
+         apply (subst pObj_take[symmetric]; simp)
+        apply (simp add: dom_def \<alpha>_index_def)
+       apply (simp add: error_code_simps)
+    (* Copy-pasted (and tweaked) from above, begin: *)
+  using inv_ostore_indexD[OF inv_ostore]
+       apply (simp add: inv_ostore_index_def \<alpha>_index_def)
+       apply (erule_tac x=oid in ballE)
+        apply (simp add: )
+  using inv_ostore_runtimeD[OF inv_ostore_bound_upd[OF inv_ostore],symmetric]
+        apply (rule_tac x="pObj (\<alpha>wa (data\<^sub>f (wbuf\<^sub>f ostore_st))) (ObjAddr.offs\<^sub>f oaddr)" in exI)
+        apply (clarsimp simp add: Let_def \<alpha>_ostore_runtime_def \<alpha>_index_def ostore_get_obj_def)
+        apply (simp add: pObj_take pObj_offs)
+    (* End *)
+       apply (simp add: dom_def)
+      apply (simp add: inv_\<alpha>_ostore_wbuf_bound_eq_eb_size[OF inv_ostore inv_\<alpha>_ostore])
+     apply (simp add: \<alpha>_ostore_medium_def)
+    apply (simp add: \<alpha>_updates_def buf_simps)
+   apply(simp add: success_def)
+  apply clarsimp
+  apply (frule handy_lemma[THEN sym])
+  apply (rule read_obj_pages_in_buf_ret'[OF inv_ostore inv_mount_st,where oid=oid])
+     apply (fastforce simp add: dom_def)+
+   apply (simp add: error_def)
+   apply (rule err)
+        apply clarsimp
+        apply (rule_tac b="bound\<^sub>f buf'" in  inv_ostore_rbuf_agnostic[OF inv_ostore], simp)
+        apply assumption
+       apply simp
+      apply (clarsimp simp add: error_code_simps)
+      apply (simp add: \<alpha>_ostore_uptodate_rbuf_agnostic inv_ostore_runtimeD[OF inv_ostore,symmetric])
+      apply (fastforce simp add: \<alpha>_ostore_runtime_def \<alpha>_index_def \<alpha>_updates_def \<alpha>_ostore_medium_def split:option.splits)
+  using inv_\<alpha>_ostore apply (simp add: \<alpha>_ostore_uptodate_def \<alpha>_index_def \<alpha>_updates_def \<alpha>_ostore_medium_def)
+    apply (simp add: \<alpha>_ostore_medium_def)
+   apply (simp add: \<alpha>_updates_def buf_simps)
+  apply clarsimp
+  apply (erule deserialise_Obj_ret')
+      apply simp
+      apply (drule length_eq_imp_wordarray_length_eq; simp)
+  using inv_ostore_rbuf_lengthD[OF inv_ostore, simplified buf_length_def Let_def]
+    inv_mount_st_eb_size_boundD[OF inv_mount_st]
+      apply unat_arith
+     apply (simp add: read_pages_rbuf_def)
+     apply (erule oaddr_offs_pl_objhdr_le_align[OF inv_ostore inv_mount_st])
+    apply (drule oaddr_is_valid_addr[OF inv_ostore inv_mount_st])
+    apply (clarsimp simp add: is_valid_addr_def bilbyFsObjHeaderSize_def bilbyFsMinObjSize_def)
+    apply unat_arith
+   apply(simp add: error_def)
+   apply (rule err)
+        apply (rule inv_ostore_rbuf_agnostic[OF inv_ostore, where v="data\<^sub>f (rbuf\<^sub>f ostore_st)" and b="bound\<^sub>f (rbuf\<^sub>f ostore_st)"])
+         apply simp
+        apply (simp add:  )
+        apply (drule length_eq_imp_wordarray_length_eq)
+  using inv_ostore_rbuf_lengthD[OF inv_ostore]
+        apply (simp add: buf_simps)
+       apply fastforce
+      apply (clarsimp simp add: error_code_simps)
+      apply (simp add: \<alpha>_ostore_uptodate_rbuf_agnostic inv_ostore_runtimeD[OF inv_ostore,symmetric])
+      apply (fastforce simp add: \<alpha>_ostore_runtime_def \<alpha>_index_def \<alpha>_updates_def \<alpha>_ostore_medium_def split:option.splits)
+  using inv_\<alpha>_ostore apply (simp add: \<alpha>_ostore_uptodate_def \<alpha>_index_def \<alpha>_updates_def \<alpha>_ostore_medium_def)
+    apply (simp add: \<alpha>_ostore_medium_def)
+   apply (simp add: \<alpha>_updates_def buf_simps)
+
+  subgoal for _ _ obj offs
+    apply (subgoal_tac "\<exists>x. ObjAddr.offs\<^sub>f (the (\<alpha>rbt (addrs\<^sub>f (index_st\<^sub>f ostore_st)) oid)) -
+                   ObjAddr.offs\<^sub>f (the (\<alpha>rbt (addrs\<^sub>f (index_st\<^sub>f ostore_st)) oid)) mod io_size\<^sub>f (super\<^sub>f mount_st) = x")
+     prefer 2
+     apply fastforce
+    apply (erule exE)
+    apply (subgoal_tac "\<exists>y. align32 (ObjAddr.offs\<^sub>f (the (\<alpha>rbt (addrs\<^sub>f (index_st\<^sub>f ostore_st)) oid)) +
+                                          ObjAddr.len\<^sub>f (the (\<alpha>rbt (addrs\<^sub>f (index_st\<^sub>f ostore_st)) oid)),
+                                          io_size\<^sub>f (super\<^sub>f mount_st)) = y")
+     prefer 2
+     apply fastforce
+    apply (erule exE)
+    apply (subgoal_tac "\<exists>ubib. (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st) !
+                   unat (ObjAddr.ebnum\<^sub>f (the (\<alpha>rbt (addrs\<^sub>f (index_st\<^sub>f ostore_st)) oid)))) = ubib")
+     prefer 2
+     apply fastforce
+    apply (erule exE)
+    apply (simp only:)
+    apply (drule sym[where s=obj])
+    apply (subgoal_tac "ostore_get_obj ostore_st (the (\<alpha>rbt (addrs\<^sub>f (index_st\<^sub>f ostore_st)) oid)) = obj")
+     prefer 2
+     apply (erule trans[where t=obj, rotated])
+     apply (simp add: ostore_get_obj_def pObj_offs pObj_update_offs)
+     apply (subgoal_tac " unat (ple32 (\<alpha>wa (data\<^sub>f (read_pages_rbuf (rbuf\<^sub>f ostore_st) x (y - x) ubib)))
+                (ObjAddr.offs\<^sub>f (the (\<alpha>rbt (addrs\<^sub>f (index_st\<^sub>f ostore_st)) oid)) + 0x10)) =
+             unat (ple32 (take (unat (ObjAddr.offs\<^sub>f (the (\<alpha>rbt (addrs\<^sub>f (index_st\<^sub>f ostore_st)) oid))) +
+                          unat (ObjAddr.len\<^sub>f (the (\<alpha>rbt (addrs\<^sub>f (index_st\<^sub>f ostore_st)) oid))))
+                     ubib)
+              (ObjAddr.offs\<^sub>f (the (\<alpha>rbt (addrs\<^sub>f (index_st\<^sub>f ostore_st)) oid)) + 0x10))")
+      prefer 2
+      apply (simp only:  word_unat.Rep_inject)
+      apply (rule  ple32_take_eq, simp)
+      apply (subst  slice_take)
+       apply (drule oaddr_is_valid_addr[OF inv_ostore inv_mount_st])
+       apply (clarsimp simp add: is_valid_addr_def bilbyFsObjHeaderSize_def bilbyFsMinObjSize_def)
+       apply (simp only: unat_arith_simps)
+       apply (unat_arith)
+      apply (simp add: read_pages_rbuf_def wordarray_make)
+      apply (erule (4) slice_eq[OF inv_ostore inv_mount_st])
+      apply simp
+
+     apply (rule pObj_eq')
+               apply (fastforce simp add: )+
+              apply (fastforce simp add: Let_def pObj_def)+
+           apply (subst slice_take)   
+            apply (frule oaddr_is_obj_addr_consistent[OF inv_ostore inv_mount_st])
+            apply (drule is_obj_addr_consistent_lenD[symmetric])
+            apply (unfold ostore_get_obj_def)
+            apply (simp add: Let_def pObj_def pObjHeader_def Obj.make_def)
+           apply (rule slice_eq2[OF inv_ostore inv_mount_st], simp+)
+           apply (frule oaddr_is_obj_addr_consistent[OF inv_ostore inv_mount_st])
+           apply (drule is_obj_addr_consistent_lenD[symmetric])
+           apply (unfold ostore_get_obj_def, simp add: Let_def pObj_def pObjHeader_def Obj.make_def)
+          apply (frule oaddr_is_obj_addr_consistent[OF inv_ostore inv_mount_st, THEN is_obj_addr_consistent_lenD])
+          apply (drule oaddr_is_valid_addr[OF inv_ostore inv_mount_st])
+          apply (fastforce simp add: Let_def pObj_def pObjHeader_def Obj.make_def is_valid_addr_def ostore_get_obj_def)
+         apply (drule oaddr_is_valid_addr[OF inv_ostore inv_mount_st])
+         apply (simp add: is_valid_addr_def)
+      (* We could assume is_len_and_type_ok in the invariant but because we check it at runtime
+       we only assume the minimum we need for the values we do not check *)
+         apply (drule is_valid_ObjHeader_is_len_and_type_okD, simp)
+        apply (frule oaddr_is_obj_addr_consistent[OF inv_ostore inv_mount_st])
+        apply (frule oaddr_is_valid_addr[OF inv_ostore inv_mount_st])
+        apply (drule_tac t=ubib in sym)
+        apply (subgoal_tac "length
+        (take (unat (ObjAddr.offs\<^sub>f (the (\<alpha>rbt (addrs\<^sub>f (index_st\<^sub>f ostore_st)) oid))) +
+               unat (ObjAddr.len\<^sub>f (the (\<alpha>rbt (addrs\<^sub>f (index_st\<^sub>f ostore_st)) oid))))
+          (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st) !
+           unat (ObjAddr.ebnum\<^sub>f (the (\<alpha>rbt (addrs\<^sub>f (index_st\<^sub>f ostore_st)) oid))))) = unat (ObjAddr.offs\<^sub>f (the (\<alpha>rbt (addrs\<^sub>f (index_st\<^sub>f ostore_st)) oid))) +
+               unat (ObjAddr.len\<^sub>f (the (\<alpha>rbt (addrs\<^sub>f (index_st\<^sub>f ostore_st)) oid)))")
+         apply (subst word_le_nat_alt)
+         apply (subst wordarray_length_ret')
+          apply (clarsimp simp add: pObjHeader_def Obj.make_def is_valid_ObjHeader_def
+                  is_valid_addr_def is_obj_addr_consistent_def ostore_get_obj_def
+                  pObj_def Let_def
+        simp del: length_take)
+          apply (frule plus_no_overflow_unat_lift)
+          apply (simp add: wordarray_make)
+          apply (rule order.trans[of _ "unat bilbyFsMaxEbSize"])
+           apply (rule order.trans[OF _ inv_mount_st_eb_size_boundD[OF inv_mount_st, simplified word_le_nat_alt]])
+           apply (simp add: word_le_nat_alt)
+          apply (simp add: bilbyFsMaxEbSize_def  max_word_def)
+         apply (clarsimp simp add: pObjHeader_def Obj.make_def is_valid_ObjHeader_def
+                is_valid_addr_def is_obj_addr_consistent_def ostore_get_obj_def
+                pObj_def Let_def wordarray_make
+                simp del: length_take)
+         apply (frule plus_no_overflow_unat_lift; simp)
+        apply (clarsimp simp add: )
+        apply (frule (1) oaddr_ebnum_rangeD[OF inv_ostore inv_mount_st])
+    using inv_bufsD[OF inv_ostore]
+        apply clarsimp
+        apply (erule ballE[where x="unat (ObjAddr.ebnum\<^sub>f (the (\<alpha>rbt (addrs\<^sub>f (index_st\<^sub>f ostore_st)) oid)))"])
+         apply (clarsimp simp add: is_valid_addr_def)
+         apply (frule plus_no_overflow_unat_lift)
+         apply (simp add: word_le_nat_alt)
+        apply simp
+       apply simp
+       apply (frule oaddr_is_obj_addr_consistent[OF inv_ostore inv_mount_st, THEN is_obj_addr_consistent_lenD])
+       apply (drule oaddr_is_valid_addr[OF inv_ostore inv_mount_st])
+       apply (clarsimp simp: is_valid_addr_def pObj_def pObjHeader_def Obj.make_def ostore_get_obj_def)
+       apply (drule length_eq_imp_wordarray_length_eq)
+       apply (simp add: wordarray_make')
+       apply (cut_tac inv_ostore_rbuf_lengthD[OF inv_ostore, simplified buf_length_def Let_def])
+       apply simp
+   
+      apply (frule oaddr_is_obj_addr_consistent[OF inv_ostore inv_mount_st, THEN is_obj_addr_consistent_lenD])
+      apply (drule oaddr_is_valid_addr[OF inv_ostore inv_mount_st])
+      apply (clarsimp simp: is_valid_addr_def pObj_def pObjHeader_def Obj.make_def ostore_get_obj_def)
+      apply (subst word_le_nat_alt)
+      apply (rule order.trans[OF wordarray_length_leq_length])
+      apply (simp add: wordarray_make)
+      apply (frule plus_no_overflow_unat_lift)
+      apply (subst linorder_class.min.coboundedI2)
+       apply (rule order.trans[OF _ inv_mount_st_eb_size_boundD[OF inv_mount_st, simplified word_le_nat_alt]])
+       apply (simp add: word_le_nat_alt)
+      apply (simp add: bilbyFsMaxEbSize_def  max_word_def)
+     apply simp
+     apply (drule length_eq_imp_wordarray_length_eq)
+     apply (simp add: wordarray_make')
+    using inv_ostore_rbuf_lengthD[OF inv_ostore, simplified buf_length_def Let_def]
+          inv_mount_st_eb_size_boundD[OF inv_mount_st]
+     apply simp
+
+    apply (subgoal_tac "get_obj_oid obj = oid")
+     prefer 2
+    using inv_ostore_indexD[OF inv_ostore]
+     apply ( simp add: inv_ostore_index_def Let_def \<alpha>_index_def ostore_get_obj_def)
+     apply (erule ballE[where x=oid])
+      apply simp
+     apply fastforce
+    apply(simp add: success_def)
+    apply (rule suc)
+        apply (rule inv_ostore_rbuf_agnostic[OF inv_ostore, where v="data\<^sub>f (rbuf\<^sub>f ostore_st)" and b="bound\<^sub>f (rbuf\<^sub>f ostore_st)"])
+         apply simp
+        apply (drule length_eq_imp_wordarray_length_eq)
+    using inv_ostore_rbuf_lengthD[OF inv_ostore]
+        apply (simp add: buf_simps)
+       apply (subst inv_ostore_runtimeD[OF inv_ostore_rbuf_agnostic[OF inv_ostore, where v="data\<^sub>f (rbuf\<^sub>f ostore_st)" and b="bound\<^sub>f (rbuf\<^sub>f ostore_st)", simplified],symmetric])
+        apply (drule length_eq_imp_wordarray_length_eq)
+    using inv_ostore_rbuf_lengthD[OF inv_ostore]
+        apply (simp add: buf_simps)
+       apply (case_tac "\<alpha>rbt (addrs\<^sub>f (index_st\<^sub>f ostore_st)) oid")
+        apply simp
+       apply (clarsimp simp add: Let_def \<alpha>_ostore_runtime_def \<alpha>_index_def ostore_get_obj_def )
+    using inv_\<alpha>_ostore apply (simp add: \<alpha>_ostore_uptodate_def \<alpha>_index_def \<alpha>_updates_def \<alpha>_ostore_medium_def)
+     apply (simp add: \<alpha>_ostore_medium_def)
+    apply (simp add: \<alpha>_updates_def buf_simps)
+    done
+  done
+(*
+\<comment>\<open> ORIGINAL proof that relies on @{thm wordarray_length_ret inv_ostore_eb_size_wbuf_eqD inv_ostore_eb_size_rbuf_eqD} \<close>
 lemma ostore_read_ret:
   assumes inv_ostore: "inv_ostore mount_st ostore_st"
   assumes inv_mount_st: "inv_mount_st mount_st"
@@ -1650,5 +2708,5 @@ lemma ostore_read_ret:
     apply (simp add: \<alpha>_updates_def buf_simps)
     done
   done
-
+*)
 end

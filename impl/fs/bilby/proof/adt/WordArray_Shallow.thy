@@ -23,7 +23,7 @@ overloading
   wordarray_get' \<equiv> wordarray_get
 begin
 definition wordarray_get':
-  "wordarray_get' (x :: ((('a ::len0) word) WordArray \<times> 32 word)) \<equiv> (if unat (prod.snd x) < length (prod.fst x) then (prod.fst x) ! unat (prod.snd x) else 0)"
+  "wordarray_get' (x :: ('a WordArray \<times> 32 word)) \<equiv> (if unat (prod.snd x) < length (prod.fst x) then (prod.fst x) ! unat (prod.snd x) else undefined)"
 end
 
 fun mapAccum :: "('a \<Rightarrow> 'b  \<Rightarrow> ('c \<times> 'b)) \<Rightarrow> 'a list \<Rightarrow> 'b \<Rightarrow> ('c list \<times> 'b)"

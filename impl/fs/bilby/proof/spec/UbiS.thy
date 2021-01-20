@@ -32,7 +32,7 @@ where
         inv_ubi_vol mount_st ubi_vol;
         \<And>ex . P ((ex,ubi_vol), Error eIO);
         \<And>ex ubi_vol'.  \<lbrakk> inv_ubi_vol mount_st ubi_vol';
-        (\<alpha>wubi ubi_vol') = \<alpha>wubi ubi_vol[(unat ebnum):=(\<alpha>wubi ubi_vol!(unat ebnum)@buf_slice wbuf sync_offs (sync_offs + nb_bytes))]
+        (\<alpha>wubi ubi_vol') = (\<alpha>wubi ubi_vol)[(unat ebnum):=(\<alpha>wubi ubi_vol!(unat ebnum)@buf_slice wbuf sync_offs (sync_offs + nb_bytes))]
         \<rbrakk> \<Longrightarrow> P ((ex, ubi_vol'), Success ())
   \<rbrakk> \<Longrightarrow> P (wubi_leb_write (WubiLebWriteP.make ex ubi_vol ebnum wbuf sync_offs nb_bytes))"
 and
@@ -44,7 +44,7 @@ and
         inv_ubi_vol mount_st ubi_vol;
         \<And>ex . P ((ex,ubi_vol), Error eIO);
         \<And>ex ubi_vol'.  \<lbrakk> inv_ubi_vol mount_st ubi_vol';
-        (\<alpha>wubi ubi_vol') = \<alpha>wubi ubi_vol[(unat ebnum):= buf_take wbuf nb_bytes]
+        (\<alpha>wubi ubi_vol') = (\<alpha>wubi ubi_vol)[(unat ebnum):= buf_take wbuf nb_bytes]
         \<rbrakk> \<Longrightarrow> P ((ex, ubi_vol'), Success ())
   \<rbrakk> \<Longrightarrow> P (wubi_leb_change ( (WubiLebChangeP.make ex ubi_vol ebnum wbuf nb_bytes)))"
 and
