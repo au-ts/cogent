@@ -202,7 +202,7 @@ data Constraint' t l = (:<) t t
                      | UnboxedNotRecursive t
                      | NotReadOnly TCSigil
                      | Solved t
-                     | IsPrimType t  -- FIXME: should be changed to Ord-types and Eq-types / zilinc
+                     | PrimType t  -- FIXME: should be changed to Ord-types and Eq-types / zilinc
 #ifdef REFINEMENT_TYPES
                      | Arith (SExpr t l)
                      -- | (:->) (Constraint' t l) (Constraint' t l)
@@ -284,7 +284,7 @@ instance Bifunctor Constraint' where
   bimap f g (c  :@  e)         = (bimap f g c) :@ e
   bimap f g (Exhaustive t ps)  = Exhaustive (f t) ps
   bimap f g (Solved t)         = Solved (f t)
-  bimap f g (IsPrimType t)     = IsPrimType (f t)
+  bimap f g (PrimType t)       = PrimType (f t)
 #ifdef REFINEMENT_TYPES
   bimap f g (Arith se)         = Arith (bimap f g se)
   -- bimap f g (c1 :-> c2)        = (bimap f g c1) :-> (bimap f g c2)
@@ -312,7 +312,7 @@ instance Bitraversable Constraint' where
   bitraverse f g (c  :@  e)         = (:@)  <$> bitraverse f g c <*> pure e
   bitraverse f g (Exhaustive t ps)  = Exhaustive <$> f t <*> pure ps
   bitraverse f g (Solved t)         = Solved <$> f t
-  bitraverse f g (IsPrimType t)     = IsPrimType <$> f t
+  bitraverse f g (PrimType t)       = PrimType <$> f t
   bitraverse f g (UnboxedNotRecursive t) = UnboxedNotRecursive <$> f t
   bitraverse f g (NotReadOnly s)    = pure $ NotReadOnly s
 #ifdef REFINEMENT_TYPES

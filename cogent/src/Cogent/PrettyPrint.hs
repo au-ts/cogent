@@ -901,7 +901,7 @@ instance (Pretty t, Pretty l) => Pretty (Constraint' t l) where
           prettyS (Right x) = warn ('?':show x)
   pretty (Exhaustive t p) = warn "Exhaustive" <+> pretty t <+> pretty p
   pretty (Solved t)       = warn "Solved" <+> pretty t
-  pretty (IsPrimType t)   = warn "IsPrimType" <+> pretty t
+  pretty (PrimType t)   = warn "PrimType" <+> pretty t
   pretty (x :@ _)         = pretty x
 #ifdef REFINEMENT_TYPES
   pretty (Arith e)        = pretty e

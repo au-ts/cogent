@@ -207,7 +207,7 @@ applyC (Subst f) (NotReadOnly (Right x))
   | otherwise = NotReadOnly (Right x)
 applyC s (NotReadOnly x) = NotReadOnly x
 applyC s (Solved t) = Solved (apply s t)
-applyC s (IsPrimType t) = IsPrimType (apply s t)
+applyC s (PrimType t) = PrimType (apply s t)
 applyC s (l :~  t) = applyL s l :~  apply s t
 applyC s (l :~< m) = applyL s l :~< applyL s m
 applyC s (a :~~ b) = apply s a :~~ apply s b

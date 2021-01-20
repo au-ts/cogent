@@ -39,7 +39,7 @@ import Lens.Micro
 import Lens.Micro.Mtl (view)
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 
--- import Debug.Trace
+import Debug.Trace
 
 data SmtState = SmtState { constraints :: [TCSExpr] }
 
@@ -75,8 +75,9 @@ extractPredicates g = do
       gs = extractGamma gamma
       g' = g & goal .~ c
   -- traceM $ "#### es = " ++ show (L.pretty es)
-  -- traceM $ "#### gamma = " ++ show gamma
-  -- traceM $ "#### gs = " ++ show gs ++ "\n#### pred = " ++ show pred
+  -- traceM $ "#### gamma = " ++ show (L.pretty gamma)
+  -- traceM $ "#### gs = " ++ show (L.pretty gs)
+  -- traceM $ "#### pred = " ++ show (L.pretty pred)
   if null es || not (null $ concatMap unifVarsE gs ++
                             concatMap unifVarsE pred ++
                             concatMap unknownsE gs ++

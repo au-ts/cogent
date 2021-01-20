@@ -1,0 +1,5 @@
+id : all a. a -> a
+id x = x
+
+foo : [x : U8 | x > 1] -> [x : U8 | x > 1]
+foo a = id a

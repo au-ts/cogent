@@ -1,0 +1,6 @@
+type U32_Lt3 = [x: U32 | x < 3]
+type U8_Lt3 = [x: U8 | x < 3]
+type U32_Lt5 = [x: U32 | x < 5 ]
+
+foo1 : (U32_Lt3, U8_Lt3) -> U32_Lt5
+foo1 (x, y) = let z : U32_Lt3 = upcast y in z + x

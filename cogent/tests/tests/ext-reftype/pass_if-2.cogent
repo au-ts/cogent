@@ -1,0 +1,5 @@
+type Lt2 = [x: U8 | x < 2]
+type Lt3 = [x: U8 | x < 3]
+
+foo : Lt2 -> Lt3
+foo x = if x < 3 then x + 1 else x * 1

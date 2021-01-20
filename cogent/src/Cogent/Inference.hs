@@ -792,8 +792,12 @@ infer (E (If ec et ee))
         let tt = exprType et'
             te = exprType ee'
         Just tlub <- runMaybeT $ tt `lub` te
+#ifdef REFINEMENT_TYPES
         (isSubThen, isSubElse) <- (,) <$>  withPredicate lec             (tt `isSubtype` tlub)
                                       <||> withPredicate (LOp Not [lec]) (te `isSubtype` tlub)
+#else
+        (isSubThen, isSubElse) <- (,) <$> tt `isSubtype` tlub <*> te `isSubtype` tlub
+#endif
         guardShow' "if-2" ["Then type:", show (pretty tt) ++ ";",
                            "else type:", show (pretty te) ++ ";",
                            "calculated LUB type:", show (pretty tlub)] (isSubThen && isSubElse)

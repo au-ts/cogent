@@ -1,6 +1,7 @@
 - test_name: pass-reftypes
   files:
-    - pass_if.cogent
+    - pass_if-1.cogent
+    - pass_if-2.cogent
     - pass_ref-type-simple-1.cogent
     - pass_ref-type-simple-fun.cogent
     - pass_array-index-in-bounds.cogent
@@ -10,6 +11,8 @@
     - pass_let-1.cogent
     - pass_let-2.cogent
     - pass_herp-if.cogent
+    - pass_upcast.cogent
+    - pass_poly-inst.cogent
   expected_result: pass
   flags:
     - -g

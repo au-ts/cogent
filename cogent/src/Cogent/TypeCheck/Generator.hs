@@ -365,7 +365,9 @@ cg' (PrimOp o [e1, e2]) t
        return (integral β <> BaseType β <> c <> c1 <> c2, PrimOp o [e1', e2']) 
 #endif
   | o `elem` words "+ - * / % .&. .|. .^. >> <<"
+#ifdef REFINEMENT_TYPES
   , not ?isRefType
+#endif
   = do (c1, e1') <- cg e1 t
        (c2, e2') <- cg e2 t
        return (integral t <> c1 <> c2, PrimOp o [e1', e2'])
@@ -374,12 +376,14 @@ cg' (PrimOp o [e1, e2]) t
        (c2, e2') <- cg e2 t
        return (T bool :< t <> c1 <> c2, PrimOp o [e1', e2'])
   | o `elem` words "== /= >= <= > <"
+#ifdef REFINEMENT_TYPES
   , not ?isRefType
+#endif
   = do alpha <- freshTVar
        (c1, e1') <- cg e1 alpha
        (c2, e2') <- cg e2 alpha
        let c  = T bool :< t
-           c' = IsPrimType alpha
+           c' = PrimType alpha
        return (c <> c' <> c1 <> c2, PrimOp o [e1', e2'])
 #ifdef REFINEMENT_TYPES
   | o `elem` words "== /= >= <= > <"
@@ -394,7 +398,7 @@ cg' (PrimOp o [e1, e2]) t
            c = rho :< t
        traceTc "gen" (text "[ref-types] cg for primitive op" <+> symbol o L.<$>
                       text "generate constraint" <+> prettyC c)
-       return (c <> IsPrimType beta <> BaseType beta <> c1 <> c2, PrimOp o [e1', e2'])
+       return (c <> PrimType beta <> BaseType beta <> c1 <> c2, PrimOp o [e1', e2'])
 #endif
 cg' (PrimOp o [e]) t
   | o == "complement"  = do

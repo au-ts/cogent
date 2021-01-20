@@ -31,13 +31,13 @@ import Cogent.Surface (Type(..), Expr(..), bool)
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Solver.Goal
 import Cogent.TypeCheck.Solver.Monad
-import Cogent.TypeCheck.Solver.Rewrite as Rewrite hiding (lift)
+import Cogent.TypeCheck.Solver.Rewrite as Rewrite hiding (lift, pickOne)
 import qualified Cogent.TypeCheck.Row as R
 import qualified Cogent.TypeCheck.Subst as Subst
 import Cogent.TypeCheck.Util
 import Cogent.Util (elemBy, notElemBy, hoistMaybe)
 
-import Control.Applicative (empty)
+import Control.Applicative (empty, (<|>))
 import Control.Monad.Writer
 import Control.Monad.Trans.Maybe
 import Data.Foldable (asum)
@@ -53,29 +53,39 @@ import qualified Text.PrettyPrint.ANSI.Leijen as P
 import Debug.Trace
 
 sinkfloat :: Rewrite.RewriteT TcSolvM [Goal]
-sinkfloat = Rewrite.rewrite' $ \gs -> do
-  let mentions = getMentions gs
-      cs = map (strip . _goal) gs
-  a <- asum $ map (genStructSubst mentions) cs  -- a list of 'Maybe' substitutions.
-                                                -- only return the first 'Just' substitution.
-  tell [a]
-  traceTc "solver" (text "Sink/Float writes subst:" P.<$>
-                    P.indent 2 (pretty a))
-  let gs' = map ((goalEnv %~ Subst.applyGoalEnv a) . (goal %~ Subst.applyC a)) gs
-
+sinkfloat = Rewrite.rewrite' $ \gs ->
+  let mentions = getMentions gs in
+      ( do
+        let cs = map (strip . _goal) gs
+        a <- asum $ map (genStructSubst mentions) cs  -- a list of 'Maybe' substitutions.
+                                                       -- only return the first 'Just' substitution.
+        tell [a]
+        traceTc "solver" (text "Sink/Float writes subst:" P.<$>
+                          P.indent 2 (pretty a))
+        return $ map ((goalEnv %~ Subst.applyGoalEnv a) . (goal %~ Subst.applyC a)) gs
+       )
+      <|>
 #ifdef REFINEMENT_TYPES
-  gss <- forM gs' $ onGoal $ \case
-    t1@(T (TRefine v b p)) :< U x
-      | IS.member x (snd mentions)
-      -> hoistMaybe $ Just [t1 :< T (TRefine v (U x) true)]
-    U x :< t2@(T (TRefine v b p))
-      | IS.member x (snd mentions)
-      -> hoistMaybe $ Just [T (TRefine v (U x) true) :< t2]
-    c -> hoistMaybe $ Just [c]
-  return $ concat gss
+      ( let pickOne :: (Goal -> MaybeT TcSolvM [Goal]) -> [Goal] -> MaybeT TcSolvM [Goal]
+            pickOne f [] = empty
+            pickOne f (c:cs) = MaybeT $ do
+              m <- runMaybeT (f c)
+              case m of
+                Nothing  -> fmap (c:) <$> runMaybeT (pickOne f cs)
+                Just cs' -> pure (Just (cs' ++ cs))
+         in flip pickOne gs $ onGoal $ \case
+                 t1@(T (TRefine v b p)) :< U x
+                   | IS.member x (snd mentions)
+                   -> hoistMaybe $ Just [t1 :< T (TRefine v (U x) true)]
+                 U x :< t2@(T (TRefine v b p))
+                   | IS.member x (snd mentions)
+                   -> hoistMaybe $ Just [T (TRefine v (U x) true) :< t2]
+                 c -> hoistMaybe $ Nothing
+       )
 #else
-  return []
+      (return Nothing)
 #endif
+
   where
     strip :: Constraint -> Constraint
     strip (T (TBang t)    :<  v          )   = t :< v
@@ -247,11 +257,24 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
       = do q <- lift solvFresh
            u <- freshRefVarName _2
            return $ Subst.ofType x (T (TRefine u b (HApp q u [])))
+      -- NOTE: This is not valid, because it will render constraints like
+      --   @PrimType ?3@
+      -- into
+      --   @PrimType {?4 | True}@
+      -- which becomes unsolvable.
+      -- | otherwise
+      -- = do x' <- lift solvFresh
+      --      u <- freshRefVarName _2
+      --      return $ Subst.ofType x (T (TRefine u (U x') true))
     genStructSubst (_,basetypes) (U x :< T (TRefine v b p))
       | IS.notMember x basetypes
       = do q <- lift solvFresh
            u <- freshRefVarName _2
            return $ Subst.ofType x (T (TRefine u b (HApp q u [])))
+      -- | otherwise
+      -- = do x' <- lift solvFresh
+      --      u <- freshRefVarName _2
+      --      return $ Subst.ofType x (T (TRefine u (U x') true))
 #endif
 
     -- default

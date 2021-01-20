@@ -381,8 +381,8 @@ isAbsTyp _ = False
 insertIdxAtUntypedExpr :: Fin ('Suc v) -> UntypedExpr t v a b -> UntypedExpr t ('Suc v) a b
 insertIdxAtUntypedExpr cut (E e) = E $ insertIdxAtE cut insertIdxAtUntypedExpr e
 
-insertIdxAtTypedExpr :: Fin ('Suc v) -> TypedExpr t v a b -> TypedExpr t ('Suc v) a b
-insertIdxAtTypedExpr cut (TE t e) = TE (insertIdxAtT (finNat cut) t) (insertIdxAtE cut insertIdxAtTypedExpr e)
+-- insertIdxAtTypedExpr :: Fin ('Suc v) -> TypedExpr t v a b -> TypedExpr t ('Suc v) a b
+-- insertIdxAtTypedExpr cut (TE t e) = TE (insertIdxAtT (finNat cut) t) (insertIdxAtE cut insertIdxAtTypedExpr e)
 
 insertIdxAtE :: Fin ('Suc v)
              -> (forall v. Fin ('Suc v) -> e t v a b -> e t ('Suc v) a b)

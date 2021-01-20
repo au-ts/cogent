@@ -167,7 +167,7 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
 
   Solved t | isSolved t -> hoistMaybe $ Just []
 
-  IsPrimType (T (TCon x _ Unboxed)) | x `elem` primTypeCons -> hoistMaybe $ Just []
+  PrimType (T (TCon x _ Unboxed)) | x `elem` primTypeCons -> hoistMaybe $ Just []
 
   TLVar n        :~ tau | Just t <- lookup n ts
                         -> hoistMaybe $ Just [tau :~~ t]
