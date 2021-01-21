@@ -944,10 +944,6 @@ lemma wellformed_sum_wellformed_elem:
   shows "K \<turnstile> t wellformed"
   by (metis assms fst_conv in_set_conv_nth list_all_length snd_conv type_wellformed.simps(6) type_wellformed_pretty_def)
 
-lemma bang_preserves_wellformed:
-  "type_wellformed n t \<Longrightarrow> type_wellformed n (bang t)"
-  by (induct t rule: type_wellformed.induct) (clarsimp simp add: list.pred_map list_all_iff)+
-
 section {* Kinding lemmas *}
 
 (* kinding in terms of the higher level kinding judgements *)
