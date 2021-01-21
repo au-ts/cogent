@@ -360,7 +360,7 @@ cg' (PrimOp o [e1, e2]) t
        let ϕ = SE (T bool) $ PrimOp "==" [SE β (Var v), SE β (PrimOp o [toTCSExpr e1', toTCSExpr e2'])]
            ρ = T $ TRefine v β ϕ
            c = ρ :< t
-       traceTc "gen" (text "[ref-types] cg for primitive op" <+> symbol o L.<$>
+       traceTc "gen" (text "[ref-types] cg for primitive op (undef check on)" <+> symbol o L.<$>
                       text "generate constraint" <+> prettyC c)
        return (integral β <> BaseType β <> c <> c1 <> c2, PrimOp o [e1', e2']) 
 #endif

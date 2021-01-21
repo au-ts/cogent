@@ -74,10 +74,10 @@ extractPredicates g = do
       (gamma, pred) = g ^. goalEnv
       gs = extractGamma gamma
       g' = g & goal .~ c
-  -- traceM $ "#### es = " ++ show (L.pretty es)
-  -- traceM $ "#### gamma = " ++ show (L.pretty gamma)
-  -- traceM $ "#### gs = " ++ show (L.pretty gs)
-  -- traceM $ "#### pred = " ++ show (L.pretty pred)
+  traceM $ "#### es = " ++ show (L.pretty es)
+  traceM $ "#### gamma = " ++ show (L.pretty gamma)
+  traceM $ "#### gs = " ++ show (L.pretty gs)
+  traceM $ "#### pred = " ++ show (L.pretty pred)
   if null es || not (null $ concatMap unifVarsE gs ++
                             concatMap unifVarsE pred ++
                             concatMap unknownsE gs ++

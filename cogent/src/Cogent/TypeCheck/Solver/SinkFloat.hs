@@ -275,6 +275,16 @@ sinkfloat = Rewrite.rewrite' $ \gs ->
       -- = do x' <- lift solvFresh
       --      u <- freshRefVarName _2
       --      return $ Subst.ofType x (T (TRefine u (U x') true))
+
+    genStructSubst _ (T (TRefine v b p) :<  T (TRefine u (U x) q))
+      | rigid b = return $ Subst.ofType x b
+    genStructSubst _ (T (TRefine v b p) :=: T (TRefine u (U x) q))
+      | rigid b = return $ Subst.ofType x b
+    genStructSubst _ (T (TRefine v (U x) p) :<  T (TRefine u b q))
+      | rigid b = return $ Subst.ofType x b
+    genStructSubst _ (T (TRefine v (U x) p) :=: T (TRefine u b q))
+      | rigid b = return $ Subst.ofType x b
+
 #endif
 
     -- default

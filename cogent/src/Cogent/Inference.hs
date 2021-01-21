@@ -607,8 +607,8 @@ infer (E (Op o es))
        vn <- freshVarName
        Just (expectedInputs, to) <- opType o operandsTypes
        -- check that each of o is a subtype of expectedInputs
-       -- trace ("operandsTypes " ++ (show operandsTypes)) $ return ()
-       -- trace ("expectedInputs " ++ (show expectedInputs)) $ return ()
+       -- traceM ("operandsTypes " ++ (show $ pretty operandsTypes))
+       -- traceM ("expectedInputs " ++ (show $ pretty expectedInputs))
        -- (_,ls,_) <- get
        -- trace ("context " ++ (show ls)) $ return ()
        inputsOk <- listIsSubtype operandsTypes expectedInputs

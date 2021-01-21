@@ -108,7 +108,7 @@ sexprToSmt (SE t (Var vn)) = do
 sexprToSmt (SE t (IntLit i)) = svInteger <$> typeToSmt t <*> pure i
 sexprToSmt (SE t (BoolLit b)) = return $ svBool b
 sexprToSmt (SE t (If e _ th el)) = (liftA3 svIte) (sexprToSmt e) (sexprToSmt th) (sexprToSmt el)
-sexprToSmt (SE t (Upcast e)) = sexprToSmt e
+sexprToSmt (SE t (Upcast e)) = svFromIntegral <$> typeToSmt t <*> sexprToSmt e
 sexprToSmt (SE t (Annot e _)) = sexprToSmt e
 sexprToSmt (SE t _) = freshVal >>= \f -> typeToSmt t >>= \t' -> return (svUninterpreted t' f Nothing [])
 

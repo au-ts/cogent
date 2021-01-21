@@ -97,10 +97,6 @@ const_sizeof_Inode = 0
 const_maxIndexPathSize : U32
 const_maxIndexPathSize = 0
 
-u8_to_u32 : U8 -> U32
-u16_to_u64 : U16 -> U64
-u32_to_u64 : U32 -> U64
-
 ext2_max_size: U64 -> U64
 
 free_FsState: (ExState, FsState take (..)) -> ExState
@@ -249,10 +245,10 @@ fs_mount #{ex, options} =
 
                                                     -- build mountinfo for vfs
                                                     and mountinfo = #{
-                                                          s_magic = u16_to_u64 const_ext2Magic,
+                                                          s_magic = upcast const_ext2Magic,
                                                           s_flags = 0,
                                                           s_max_links = const_ext2LinkMax,
-                                                          s_maxbytes = ext2_max_size (u32_to_u64 const_blockSizeBits),
+                                                          s_maxbytes = ext2_max_size (upcast const_blockSizeBits),
                                                           s_blocksize = const_blockSize,
                                                           s_blocksize_bits = const_blockSizeBits
                                                         }

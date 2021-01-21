@@ -78,6 +78,8 @@ findUpcasts gs = do
     pure (ms, gs')
   where
     mentions = IM.empty  -- getMentions gs
+    -- \ ^^^ FIXME: How do we ensure that all the Upcastable constraints are solved
+    -- only if the involved unifier cannot be furthre processed by other constraints? / zilinc
 
     go (m,gs) g@(Goal _ _ (Upcastable t (U x))) = 
       case x `IM.lookup` mentions of
