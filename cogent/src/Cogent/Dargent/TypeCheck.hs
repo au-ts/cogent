@@ -193,8 +193,8 @@ checkAlloc (TLArray e p) = mapPaths (InElmt p) $ checkAlloc e
 #endif
 checkAlloc TLPtr = return $ singletonAllocation (pointerBitRange, PathEnd)
 checkAlloc TLDefault = __impossible "checkAlloc: TLDefault should be checked at its parent level"
-checkAlloc (TLU n) = return $ undeterminedAllocation n
-checkAlloc (TLDU n) = return $ undeterminedAllocation n
+checkAlloc (TLU n) = __impossible "checkAlloc: unexpected unifiers in input layout, check TypeCheck/Solver/Simplify.hs"
+checkAlloc (TLDU n) = __impossible "checkAlloc: unexpected unifiers in input layout, check TypeCheck/Solver/Simplify.hs"
 checkAlloc (TLVar n) = return emptyAllocation
 checkAlloc l = __impossible $ "checkAlloc; tried to typecheck unexpected layout: " ++ show l
 
