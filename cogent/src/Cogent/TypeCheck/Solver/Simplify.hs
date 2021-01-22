@@ -213,7 +213,6 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
 #endif
   _              :~ Synonym _ _      -> hoistMaybe Nothing
   l              :~ tau | TLU _ <- l -> hoistMaybe Nothing
-                        | TLDU _ <- l -> hoistMaybe Nothing
                         | otherwise  -> unsat $ LayoutDoesNotMatchType l tau -- all legal cases should be listed above
 
   TLRepRef _ _     :~< TLRepRef _ _  -> hoistMaybe Nothing

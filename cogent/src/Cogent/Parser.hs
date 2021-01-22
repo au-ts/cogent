@@ -112,9 +112,9 @@ repSize = avoidInitial >> buildExpressionParser [[Infix (reservedOp "+" *> pure 
                x <- fromIntegral <$> natural
                (Bits <$ reserved "b" <*> pure x <|> Bytes <$ reserved "B" <*> pure x))
 
--- WIP: disallow top level default
+-- we disallow "abstract" default in next stage
 repExpr :: Parser DataLayoutExpr
-repExpr = repExpr' offsetOT (repRefM offsetOT) <|> parens repExpr
+repExpr = repExpr' outterOT (repRefM outterOT) <|> parens repExpr
   where
     repExpr' ot rfp = avoidInitial >> buildExpressionParser ot (DL <$>
          ((Record <$ reserved "record" <*> braces (commaSep recordRepr))
@@ -129,16 +129,17 @@ repExpr = repExpr' offsetOT (repRefM offsetOT) <|> parens repExpr
       <|> rfp))
     repExprS' ot = parens (repExpr' ot (repRefM ot)) <|> repExpr' ot repRefS
     -- operator table with only postfix at
-    offsetOT = [[Postfix (flip DLOffset <$ reserved "at" <*> repSize)]]
+    outterOT = [[Postfix (flip DLOffset <$ reserved "at" <*> repSize)]]
     -- operator table with both postfix at & postfix after
-    afterOT = [head offsetOT <> [Postfix (flip DLAfter <$ reserved "after" <*> variableName)]]
-    -- repref without args
+    innerOT = [[Postfix (flip DLOffset <$ reserved "at" <*> repSize),
+                Postfix (flip DLAfter <$ reserved "after" <*> variableName)]]
+    -- repref disallowing args
     repRefS = RepRef <$> typeConName <*> pure []
     -- repref allowing args
     repRefM ot = RepRef <$> typeConName <*> many (repExprS' ot)
-    recordRepr = (,,) <$> variableName <*> getPosition <* reservedOp ":" <*> repExpr' afterOT (repRefM afterOT)
+    recordRepr = (,,) <$> variableName <*> getPosition <* reservedOp ":" <*> repExpr' innerOT (repRefM innerOT)
     variantRepr = (,,,) <$> typeConName <*> getPosition <*> parens (fromIntegral <$> natural)
-      <* reservedOp ":" <*> repExpr' afterOT (repRefM afterOT)
+      <* reservedOp ":" <*> repExpr' innerOT (repRefM innerOT)
 
 -- TODO: add support for patterns like `_ {f1, f2}', where the record name is anonymous / zilinc
 irrefutablePattern :: Parser LocIrrefPatn

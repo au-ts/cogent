@@ -125,8 +125,6 @@ assignOf (R rp1 _ _ :< R rp2 _ _ )
 
 assignOf (l1 :~< l2) = assignOfL l1 l2
 
-assignOf (TLDU n :~ t) | Just l <- genDefaultLayout t = pure [Subst.ofLayout n l]
-
 #ifdef BUILTIN_ARRAYS
 -- TODO: This will be moved to a separately module for SMT-solving. Eventually the results
 -- returned from the solver will be a Subst object. / zilinc

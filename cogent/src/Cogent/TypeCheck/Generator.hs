@@ -261,7 +261,7 @@ validateLayout = let unsat = Unsat . DataLayoutError in \case
     if n `elem` lvs
        then return (Sat, TLVar n)
        else return (unsat $ unknownDataLayoutVar n, TLVar n)
-  DLDefault      -> (Sat,) <$> freshDLVar
+  DLDefault      -> __impossible "validateLayout: DLDefault should be already replaced with concrete layouts"
   DLPtr          -> return (Sat, TLPtr)
 
 validateLayouts :: (?loc :: SourcePos, Traversable t) => t DataLayoutExpr -> CG (Constraint, t TCDataLayout)
@@ -946,9 +946,6 @@ freshEVar t = SU t <$> freshVar
 
 freshLVar :: (?loc :: SourcePos) => CG TCDataLayout
 freshLVar = TLU <$> freshVar
-
-freshDLVar :: (?loc :: SourcePos) => CG TCDataLayout
-freshDLVar = TLDU <$> freshVar
 
 freshRPVar :: (?loc :: SourcePos) => CG RP
 freshRPVar = UP <$> freshVar

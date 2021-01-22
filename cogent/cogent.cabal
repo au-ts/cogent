@@ -131,6 +131,7 @@ library
               , Cogent.Parser
               , Cogent.PrettyPrint
               , Cogent.Preprocess
+              , Cogent.PreTypeCheck
               , Cogent.Quote
               , Cogent.Reorganizer
               , Cogent.Simplify

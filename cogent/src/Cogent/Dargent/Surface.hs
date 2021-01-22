@@ -26,6 +26,8 @@ where
 
 import Cogent.Common.Syntax (FieldName, TagName, RepName, Size, DLVarName)
 import Cogent.Compiler (__fixme, __todo, __impossible)
+import Cogent.Util
+
 import Cogent.Dargent.Util
 
 import Data.Data
@@ -88,3 +90,16 @@ pattern DLVar n        = DL (LVar n)
 pattern DLPtr          = DL Ptr
 pattern DLDefault      = DL Default
 
+containDefault :: DataLayoutExpr -> Bool
+containDefault = f
+  where
+    f DLDefault = True
+    f (DLOffset e _) = f e
+    f (DLAfter e _) = f e
+    f (DLRecord fs) = any (f . thd3) fs
+    f (DLVariant t alt) = f t || any (\(_,_,_,x) -> f x) alt
+#ifdef BUILTIN_ARRAYS
+    f (DLArray e _) = f e
+#endif
+    f (DLRepRef _ s) = any f s
+    f _ = False

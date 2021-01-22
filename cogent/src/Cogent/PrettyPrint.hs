@@ -24,6 +24,7 @@ import qualified Cogent.Common.Syntax as S (associativity)
 import Cogent.Common.Syntax hiding (associativity)
 import Cogent.Common.Types
 import Cogent.Compiler
+import Cogent.PreTypeCheck
 import Cogent.Reorganizer (ReorganizeError(..), SourceObject(..))
 import Cogent.Surface
 -- import Cogent.TypeCheck --hiding (context)
@@ -701,7 +702,6 @@ instance Pretty DataLayoutExpr where
 instance Pretty TCDataLayout where
   pretty (TL l) = pretty l
   pretty (TLU n) = warn ("?" ++ show n)
-  pretty (TLDU n) = warn ("?d" ++ show n)
 
 instance Pretty Metadata where
   pretty (Constant {constName})              = err "the binding" <+> funname constName <$> err "is a global constant"
@@ -907,6 +907,9 @@ prettyC c = pretty c
 prettyCPrec :: Int -> Constraint -> Doc
 prettyCPrec l x | prec x < l = prettyC x
                 | otherwise  = parens (indent (prettyC x))
+
+instance Pretty PreTCError where
+  pretty DefaultUninferrable = err "uninferrable default layout"
 
 instance Pretty SourceObject where
   pretty (TypeName n) = typename n
@@ -1123,6 +1126,10 @@ handlePutAssign (Just (s, e)) = fieldname s <+> symbol "=" <+> pretty e
 
 -- top-level function
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+-- pre-typecheck errors
+prettyPTE :: (PreTCError, SourcePos) -> Doc
+prettyPTE (err,pos) = pretty err <$> indent' (context "(" <> pretty pos <> context ")")
 
 -- typechecker errors/warnings
 prettyTWE :: Int -> ContextualisedTcLog -> Doc
