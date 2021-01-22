@@ -1,0 +1,4 @@
+type Lt10 = [v : U8 | v < 10]
+
+foo : U8 -> Lt10
+foo x = 0 - 1 -- equals to 255

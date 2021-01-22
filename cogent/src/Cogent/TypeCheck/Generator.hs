@@ -336,6 +336,9 @@ cg' :: (?loc :: SourcePos, ?isRefType :: Bool)
     -> TCType
     -> CG (Constraint, Expr TCType TCPatn TCIrrefPatn TCDataLayout TCExpr)
 cg' (PrimOp o [e1, e2]) t
+-- /////////////////////////////////////
+-- +, -, *, /, %, .&., .|., .^., >>, <<
+-- /////////////////////////////////////
 #ifdef REFINEMENT_TYPES
   | o `elem` words "+ - * .&. .|. .^. >> <<" || (o `elem` ["/", "%"] && not __cogent_ftypecheck_undef)
   , ?isRefType
@@ -371,42 +374,124 @@ cg' (PrimOp o [e1, e2]) t
   = do (c1, e1') <- cg e1 t
        (c2, e2') <- cg e2 t
        return (integral t <> c1 <> c2, PrimOp o [e1', e2'])
+-- ////////////////////////////////////
+--               &&, ||
+-- ////////////////////////////////////
+#ifdef REFINEMENT_TYPES
   | o `elem` words "&& ||"
-  = do (c1, e1') <- cg e1 t
-       (c2, e2') <- cg e2 t
-       return (T bool :< t <> c1 <> c2, PrimOp o [e1', e2'])
-  | o `elem` words "== /= >= <= > <"
+  , ?isRefType
+  = do v <- freshRefVarName freshVars
+       (c1, e1') <- cg e1 (T bool)
+       (c2, e2') <- cg e2 (T bool)
+       let ϕ = SE (T bool) $ PrimOp o [toTCSExpr e1', toTCSExpr e2']
+           ρ = T $ TRefine v (T bool) ϕ
+           c = ρ :< t
+       traceTc "gen" (text "[ref-types] cg for primitive op" <+> symbol o L.<$>
+                      text "generate constraint" <+> prettyC c)
+       return (c <> c1 <> c2, PrimOp o [e1', e2'])
+#endif
+  | o `elem` words "&& ||"
 #ifdef REFINEMENT_TYPES
   , not ?isRefType
 #endif
-  = do alpha <- freshTVar
-       (c1, e1') <- cg e1 alpha
-       (c2, e2') <- cg e2 alpha
-       let c  = T bool :< t
-           c' = PrimType alpha
-       return (c <> c' <> c1 <> c2, PrimOp o [e1', e2'])
+  = do (c1, e1') <- cg e1 t
+       (c2, e2') <- cg e2 t
+       return (T bool :< t <> c1 <> c2, PrimOp o [e1', e2'])
+-- ////////////////////////////////////
+--            >=, <=, >, <
+-- ////////////////////////////////////
 #ifdef REFINEMENT_TYPES
-  | o `elem` words "== /= >= <= > <"
+  | o `elem` words ">= <= > <"
   , ?isRefType
-  = do beta <- freshTVar
+  = do β <- freshTVar
        v <- freshRefVarName freshVars
-       (c1, e1') <- cg e1 beta
-       (c2, e2') <- cg e2 beta
-       let phi = SE (T bool) $ PrimOp "==" [ SE (T bool) (Var v)
-                                           , SE (T bool) (PrimOp o [toTCSExpr e1', toTCSExpr e2']) ]
-           rho = T $ TRefine v (T bool) phi
-           c = rho :< t
+       (c1, e1') <- cg e1 β
+       (c2, e2') <- cg e2 β
+       let ϕ = SE (T bool) $ PrimOp "==" [ SE (T bool) (Var v)
+                                         , SE (T bool) (PrimOp o [toTCSExpr e1', toTCSExpr e2']) ]
+           ρ = T $ TRefine v (T bool) ϕ
+           c = ρ :< t
        traceTc "gen" (text "[ref-types] cg for primitive op" <+> symbol o L.<$>
                       text "generate constraint" <+> prettyC c)
-       return (c <> PrimType beta <> BaseType beta <> c1 <> c2, PrimOp o [e1', e2'])
+       return (integral β <> BaseType β <> c <> c1 <> c2, PrimOp o [e1', e2'])
 #endif
+  | o `elem` words ">= <= > <"
+#ifdef REFINEMENT_TYPES
+  , not ?isRefType
+#endif
+  = do α <- freshTVar
+       (c1, e1') <- cg e1 α
+       (c2, e2') <- cg e2 α
+       let c  = T bool :< t
+           c' = integral α
+       return (c <> c' <> c1 <> c2, PrimOp o [e1', e2'])
+-- ////////////////////////////////////
+--               ==, /=
+-- ////////////////////////////////////
+#ifdef REFINEMENT_TYPES
+  | o `elem` words "== /="
+  , ?isRefType
+  = do β <- freshTVar
+       v <- freshRefVarName freshVars
+       (c1, e1') <- cg e1 β
+       (c2, e2') <- cg e2 β
+       let ϕ = SE (T bool) $ PrimOp "==" [ SE (T bool) (Var v)
+                                         , SE (T bool) (PrimOp o [toTCSExpr e1', toTCSExpr e2']) ]
+           ρ = T $ TRefine v (T bool) ϕ
+           c = ρ :< t
+       traceTc "gen" (text "[ref-types] cg for primitive op" <+> symbol o L.<$>
+                      text "generate constraint" <+> prettyC c)
+       return (PrimType β <> BaseType β <> c <> c1 <> c2, PrimOp o [e1', e2'])
+#endif
+  | o `elem` words "== /="
+#ifdef REFINEMENT_TYPES
+  , not ?isRefType
+#endif
+  = do α <- freshTVar
+       (c1, e1') <- cg e1 α
+       (c2, e2') <- cg e2 α
+       let c  = T bool :< t
+           c' = PrimType α
+       return (c <> c' <> c1 <> c2, PrimOp o [e1', e2'])
+
 cg' (PrimOp o [e]) t
-  | o == "complement"  = do
-      (c, e') <- cg e t
-      return (integral t :& c, PrimOp o [e'])
-  | o == "not"         = do
-      (c, e') <- cg e t
-      return (T bool :< t :& c, PrimOp o [e'])
+-- ////////////////////////////////////
+--             complement
+-- ////////////////////////////////////
+#ifdef REFINEMENT_TYPES
+  | o == "complement"
+  , ?isRefType
+  = do β <- freshTVar
+       v <- freshRefVarName freshVars
+       (ce, e') <- cg e β
+       let ρ = SE (T bool) (PrimOp "==" [SE β (Var v), SE β (PrimOp o [toTCSExpr e'])])
+           ϕ = T (TRefine v β ρ)
+       return (integral β <> BaseType β <> ϕ :< t <> ce, PrimOp o [e'])
+#endif
+  | o == "complement"
+#ifdef REFINEMENT_TYPES
+  , not ?isRefType
+#endif
+  = do (c, e') <- cg e t
+       return (integral t :& c, PrimOp o [e'])
+-- ////////////////////////////////////
+--                 not
+-- ////////////////////////////////////
+#ifdef REFINEMENT_TYPES
+  | o == "not"
+  , ?isRefType
+  = do v <- freshRefVarName freshVars
+       (ce, e') <- cg e (T bool)
+       let ϕ = T (TRefine v (T bool) (SE (T bool) $ PrimOp o [toTCSExpr e']))
+       return (ϕ :< t <> ce, PrimOp o [e'])
+#endif
+  | o == "not"
+#ifdef REFINEMENT_TYPES
+  , not ?isRefType
+#endif
+  = do (c, e') <- cg e t
+       return (T bool :< t :& c, PrimOp o [e'])
+
 cg' (PrimOp _ _) _ = __impossible "cg': unimplemented primops"
 cg' (Var n) t = do
   let e = Var n  -- it has a different type than the above `Var n' pattern

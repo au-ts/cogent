@@ -13,6 +13,9 @@
     - pass_herp-if.cogent
     - pass_upcast.cogent
     - pass_poly-inst.cogent
+    - pass_underflow.cogent
+    - pass_mod.cogent
+    - pass_int-cmp.cogent
   expected_result: pass
   flags:
     - -g
@@ -20,6 +23,7 @@
 - test_name: fail-reftypes
   files:
     - fail_if.cogent
+    - fail_underflow.cogent
   expected_result: fail
   flags:
     - -t

@@ -12,3 +12,11 @@
   expected_result: pass
   flags:
     - -g
+
+- test_name: fail-simple
+  files:
+    - fail_bool-cmp.cogent
+  expected_result: fail
+  flags:
+    - -t
+

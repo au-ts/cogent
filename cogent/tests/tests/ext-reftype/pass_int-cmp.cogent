@@ -1,0 +1,5 @@
+type A = [v : U32 | v < 4]
+type B = [v : U32 | v >= 4]
+
+foo : (A, B) -> [v : Bool | v]
+foo (a, b) = a < b

@@ -1,0 +1,4 @@
+type Lt3 = [x: U32 | x < 3]
+
+bar : U32 -> Lt3
+bar x = x % 3

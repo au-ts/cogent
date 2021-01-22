@@ -456,10 +456,11 @@ flags =
   , Option []         ["cpp"]            2 (ReqArg (set_flag_cpp) "PROG")                  "set which C-preprocessor to use (default to cpp)"
   , Option []         ["cpp-args"]       2 (ReqArg (set_flag_cppArgs . words) "ARG..")     "arguments given to C-preprocessor (default to $CPPIN -P -o $CPPOUT)"
   -- debugging options
-  , Option []         ["ddump-smt"]        3 (NoArg set_flag_ddumpSmt)                     "dump verbose SMT-solving information"
+  , Option []         ["ddump-core-smt"]   4 (NoArg set_flag_ddumpCoreSmt)                 "dump verbose core SMT-solving information"
   , Option []         ["ddump-tc"]         3 (NoArg set_flag_ddumpTc)                      "dump (massive) surface typechecking internals"
   , Option []         ["ddump-tc-ctx"]     3 (NoArg set_flag_ddumpTcCtx)                   "dump surface typechecking with context"
   , Option []         ["ddump-tc-filter"]  3 (ReqArg set_flag_ddumpTcFilter "KEYWORDS")    "a space-separated list of keywords to indicate which groups of info to display (gen, sol, post, tc)"
+  , Option []         ["ddump-tcsmt"]      3 (NoArg set_flag_ddumpTcSmt)                   "dump verbose surface SMT-solving information"
   , Option []         ["ddump-to-file"]    3 (ReqArg set_flag_ddumpToFile "FILE")          "dump debugging output to specific file instead of terminal"
   , Option []         ["ddump-pretty-ds-no-tc"]  3 (NoArg set_flag_ddumpPrettyDsNoTc)                "dump the pretty printed desugared expression before typechecking"
   , Option []         ["ddump-pretty-normal-no-tc"]  3 (NoArg set_flag_ddumpPrettyNormalNoTc)        "dump the pretty printed normalised expression before typechecking"

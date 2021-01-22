@@ -66,12 +66,14 @@ makeLenses ''SmtTransState
 -- Int is the fresh variable count
 type SmtStateM t b = StateT (SmtTransState t b) Symbolic
 
+{-
 traceX s vec p = do
   m <- use vars
   traceM ("******** extract " ++ s ++ " ****************")
   traceM $ ("st = " ++ show m)
   traceM $ ("vec = " ++ show (L.pretty vec))
   traceM $ ("p = " ++ show (L.pretty p))
+-}
 
 getSmtExpression :: (L.Pretty b, Show b, Ord b)
                  => Vec v (Maybe (Type t b))
@@ -218,11 +220,11 @@ smtProve :: (L.Pretty b, Show b, Ord b)
          -> Type t b -> LExpr t b -> LExpr t b -> IO Bool
 smtProve tvec pvec β p1 p2 = do
     let toProve = getSmtExpression tvec pvec β p1 p2
-        solver = z3 { verbose = True
+        solver = z3 { verbose = __cogent_ddump_core_smt
                     , redirectVerbose = Just $ fromMaybe "/dev/stderr" __cogent_ddump_to_file
                     }
     -- pretty
-    dumpMsgIfTrue True (
+    dumpMsgIfTrue __cogent_ddump_core_smt (
       L.text "Γ =" L.<+> prettyGamma (Just β `Cons` tvec) (Cons [] pvec)
       L.<$> L.text "Γ" L.<+> L.dullyellow (L.text "⊢")
       L.<+> (L.pretty p1) L.<+> L.dullyellow (L.text "==>") L.<+> L.pretty p2
@@ -231,7 +233,7 @@ smtProve tvec pvec β p1 p2 = do
     smtRes <- liftIO (proveWith solver toProve)
     -- if its sat, then its not a subtype
     let ret = not $ modelExists smtRes
-    dumpMsgIfTrue True $ L.text ("Subtyping Result: " ++ show ret) L.<$> L.hardline
+    dumpMsgIfTrue __cogent_ddump_core_smt $ L.text ("Subtyping Result: " ++ show ret) L.<$> L.hardline
     return ret
 
 -- pretty print the context

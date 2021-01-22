@@ -74,10 +74,10 @@ extractPredicates g = do
       (gamma, pred) = g ^. goalEnv
       gs = extractGamma gamma
       g' = g & goal .~ c
-  traceM $ "#### es = " ++ show (L.pretty es)
-  traceM $ "#### gamma = " ++ show (L.pretty gamma)
-  traceM $ "#### gs = " ++ show (L.pretty gs)
-  traceM $ "#### pred = " ++ show (L.pretty pred)
+  -- traceM $ "#### es = " ++ show (L.pretty es)
+  -- traceM $ "#### gamma = " ++ show (L.pretty gamma)
+  -- traceM $ "#### gs = " ++ show (L.pretty gs)
+  -- traceM $ "#### pred = " ++ show (L.pretty pred)
   if null es || not (null $ concatMap unifVarsE gs ++
                             concatMap unifVarsE pred ++
                             concatMap unknownsE gs ++
@@ -111,20 +111,20 @@ simp g = do
 -- | Returns a detailed result of satisfiability of a logical predicate.
 smtSatResult :: TCSExpr -> IO (Bool, Bool, [SMTResult])
 smtSatResult e = do
-  dumpMsgIfTrue __cogent_ddump_smt (warn "SMT solving:" L.<+> L.pretty e L.<> L.hardline)
+  dumpMsgIfTrue __cogent_ddump_tc_smt (warn "SMT solving:" L.<+> L.pretty e L.<> L.hardline)
   -- NOTE: sbv will perform Skolemisation to reduce existentials, while preserving satisfiability. / zilinc
 #if MIN_VERSION_sbv(8,8,0)
   res@(AllSatResult limit _ unknown _ models) <-
 #else
   res@(AllSatResult (limit, _, unknown, models)) <-
 #endif
-    allSatWith (z3 { verbose = __cogent_ddump_smt
+    allSatWith (z3 { verbose = __cogent_ddump_tc_smt
                    , redirectVerbose = Just $ fromMaybe "/dev/stderr" __cogent_ddump_to_file
                    , allSatMaxModelCount = Just 1
                    })
                (evalStateT (sexprToSmt e)
                (SmtTransState IM.empty M.empty M.empty 0))
-  dumpMsgIfTrue __cogent_ddump_smt (L.text (replicate 80 '-') L.<> L.hardline)
+  dumpMsgIfTrue __cogent_ddump_tc_smt (L.text (replicate 80 '-') L.<> L.hardline)
   traceTc "sol/smt" (L.text "Running SMT on expression"
                      L.<$> indent' (L.pretty e)
                      L.<$> L.text "gives result"

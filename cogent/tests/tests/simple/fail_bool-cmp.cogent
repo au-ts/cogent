@@ -1,0 +1,2 @@
+foo : Bool -> Bool
+foo a = a > False
