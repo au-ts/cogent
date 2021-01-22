@@ -1,0 +1,4 @@
+type T = [v: Bool | v]
+
+foo : Bool -> T
+foo x = x || not x

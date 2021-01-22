@@ -1,0 +1,7 @@
+type Lt3 = [x: U32 | x < 3]
+
+foo : Lt3 -> U8
+foo x = if x >=3 then False else x
+--                    ^^^ This branch is deadcode.
+-- However we still require it to be well-typed, even
+-- under a false context.

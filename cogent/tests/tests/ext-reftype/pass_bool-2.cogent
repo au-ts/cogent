@@ -1,0 +1,4 @@
+type T = [v: Bool | v]
+
+foo : T -> T
+foo x = True

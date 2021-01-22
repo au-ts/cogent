@@ -16,6 +16,9 @@
     - pass_underflow.cogent
     - pass_mod.cogent
     - pass_int-cmp.cogent
+    - pass_bool-1.cogent
+    - pass_bool-2.cogent
+    - pass_lem-type.cogent
   expected_result: pass
   flags:
     - -g
@@ -24,6 +27,8 @@
   files:
     - fail_if.cogent
     - fail_underflow.cogent
+    - fail_if-deadcode-illtype.cogent
+    - fail_funapp-let.cogent
   expected_result: fail
   flags:
     - -t

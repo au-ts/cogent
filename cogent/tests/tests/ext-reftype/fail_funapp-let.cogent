@@ -1,0 +1,7 @@
+f1: U8 -> [v: U8 | v < 10]
+f2: U8 -> [v: U8 | v < 2]
+
+bar : U8 -> [v: U8 | v > 100]
+bar x = let y = f1 x
+        and z = f2 x
+         in y + z

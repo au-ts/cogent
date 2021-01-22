@@ -383,7 +383,8 @@ cg' (PrimOp o [e1, e2]) t
   = do v <- freshRefVarName freshVars
        (c1, e1') <- cg e1 (T bool)
        (c2, e2') <- cg e2 (T bool)
-       let ϕ = SE (T bool) $ PrimOp o [toTCSExpr e1', toTCSExpr e2']
+       let ϕ = SE (T bool) $ PrimOp "==" [ SE (T bool) (Var v)
+                                         , SE (T bool) (PrimOp o [toTCSExpr e1', toTCSExpr e2']) ]
            ρ = T $ TRefine v (T bool) ϕ
            c = ρ :< t
        traceTc "gen" (text "[ref-types] cg for primitive op" <+> symbol o L.<$>
@@ -482,7 +483,8 @@ cg' (PrimOp o [e]) t
   , ?isRefType
   = do v <- freshRefVarName freshVars
        (ce, e') <- cg e (T bool)
-       let ϕ = T (TRefine v (T bool) (SE (T bool) $ PrimOp o [toTCSExpr e']))
+       let ρ = SE (T bool) (PrimOp "==" [SE (T bool) (Var v), SE (T bool) (PrimOp o [toTCSExpr e'])])
+       let ϕ = T (TRefine v (T bool) ρ)
        return (ϕ :< t <> ce, PrimOp o [e'])
 #endif
   | o == "not"
