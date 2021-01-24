@@ -417,6 +417,19 @@ and   "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs :ur \<tau>s \<langle> r , w \<
     (force simp add: kinding_simps kinding_record_simps kinding_variant_set
       dest: abs_typing_readonly[where s = Unboxed,simplified])+
 
+lemma discardable_or_shareable_not_writeable:
+assumes "D \<in> k \<or> S \<in> k"
+shows "\<lbrakk> \<Xi>, \<sigma> \<turnstile>  v  :u  \<tau>  \<langle> r , w \<rangle>; K \<turnstile>  \<tau>  :\<kappa>  k \<rbrakk> \<Longrightarrow> w = {}"
+and   "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs :ur \<tau>s \<langle> r , w \<rangle>; K \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> w = {}"
+  using assms
+   apply -
+   apply (erule disjE)
+    apply (rule discardable_not_writable; simp?)
+   apply (rule shareable_not_writable; simp?)
+  apply (erule disjE)
+   apply (rule discardable_not_writable(2); simp?)
+  apply (rule shareable_not_writable(2); simp?)
+  done
 
 lemma discardable_not_writable_all:
 assumes "D \<in> k"
