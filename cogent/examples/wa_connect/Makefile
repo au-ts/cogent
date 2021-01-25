@@ -15,7 +15,7 @@ OUTPUT=WordArray # $(SRC:.cogent=-gen)
 COUTPUT=$(addsuffix .c, $(OUTPUT))
 HOUTPUT=$(addsuffix .h, $(OUTPUT))
 
-STDGUM=$(shell cogent --stdgum-dir)
+STDGUM=$(shell cogent --libgum-dir)
 
 AHFILES=$(STDGUM)/gum/anti/abstract/WordArray.ah
 ACFILES=main.ac

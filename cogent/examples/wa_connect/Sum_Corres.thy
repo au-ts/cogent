@@ -539,6 +539,49 @@ lemma sum_arr_corres_shallow_C_concrete_stronger:
         proc_ctx_wellformed_\<Xi> upd_proc_env_matches_ptrs_\<xi>1_\<Xi> proc_env_u_v_matches_\<xi>1_\<xi>m1_\<Xi>]; simp?)
   done
 
+section "Proving Functional Correctness"
+
+text
+  "We can now easily prove the functional correctness of our @{term sum_arr'} C function. In this
+   case, our @{term sum_arr'} C function should sum all the elements of the list which is of type
+   @{typ \<open>32 word list\<close>} in our shallow embeeding. Our functional correctness specification would
+   look like following:"
+
+definition sum_list :: "32 word list \<Rightarrow> 32 word"
+  where
+"sum_list xs = fold (+) xs 0"
+
+text
+  "Our functional correctness specification @{term sum_list} calls the @{term fold} function to
+   iterate of the list and add up all of its elements.
+
+   Before we prove functional correctness, we need to observe that @{term wordarray_length} returns
+   a value of type @{typ \<open>32 word\<close>}. This means that any list that refines to a word array in our
+   C code should in fact be of length at most @{term \<open>max_word :: 32 word\<close>}. In fact, it should
+   actually be less depending on the maximum heap size. You may notice that in our abstract typing
+   in the update semantics @{thm wa_abs_typing_u_def}, we enforced that the length of an array times
+   the size of an element in the array, should in fact be less than the maximum word, since an array
+   larger than that would not fit in memory. So a using thing to prove is the following:"
+
+lemma len_eq_walen_if_le_max32:
+  "length xs \<le> unat (max_word :: 32 word)
+    \<Longrightarrow> unat (wordarray_length xs) = length xs"
+  apply (clarsimp simp: wordarray_length')
+  apply (rule le_unat_uoi; simp)
+  done
+
+text
+  "With this we can now prove functional correctness."
+
+lemma sum_arr_correct:
+  "length xs \<le> unat (max_word :: 32 word)
+    \<Longrightarrow> sum_list xs = Generated_Shallow_Desugar.sum_arr xs"
+  apply (clarsimp simp: sum_list_def Generated_Shallow_Desugar.sum_arr_def
+      valRel_records wordarray_fold_no_break' Generated_Shallow_Desugar.sum_def
+      len_eq_walen_if_le_max32 take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t_def)
+  done
+
+(*
 term "{(a, b, c) | a b c. \<xi>0 a b c}"
 definition \<xi>_le
   where "\<xi>_le \<xi>a \<xi>b = ({(a, b, c) | a b c. \<xi>a a b c} \<subseteq> {(a, b, c) | a b c. \<xi>b a b c})"
@@ -578,6 +621,7 @@ lemma "\<lbrakk>\<xi>_le \<xi>a \<xi>b; valRel \<xi>a (a :: 'c \<Rightarrow> 'd)
   apply (clarsimp simp: valRel_records)
   apply (erule disjE; clarsimp)
   oops
+*)
 end (* of context *)
 
 end
