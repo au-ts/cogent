@@ -15,7 +15,7 @@ OUTPUT=WordArray # $(SRC:.cogent=-gen)
 COUTPUT=$(addsuffix .c, $(OUTPUT))
 HOUTPUT=$(addsuffix .h, $(OUTPUT))
 
-STDGUM=$(shell cogent --stdgum-dir)
+STDGUM=$(shell cogent --libgum-dir)
 
 AHFILES=$(STDGUM)/gum/anti/abstract/WordArray.ah
 ACFILES=main.ac
@@ -36,15 +36,11 @@ default: all
 
 all:
 	mkdir -p $(ABSDIR)
-	cogent $(SRC) -g -Od -ogenerated --fno-fncall-as-macro --ffunc-purity-attr \
+	cogent -g -Od -ogenerated \
 		--infer-c-types="$(AHFILES)" \
 		--Wno-warn --infer-c-funcs="$(ACFILES)" \
 		--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
-		--entry-funcs=entrypoints.cfg 
+		--entry-funcs=entrypoints.cfg $(SRC)
 
 clean:
-	rm -f $(COUTPUT) $(HOUTPUT) $(PP) $(PPINFER) $(OBJ)
-	@# rm -f *-gen.*
-	rm -rf $(ABSDIR)
-	rm -f $(NAME)
-	rm -f generated*
+	rm -r $(ABSDIR) generated* main_pp*
