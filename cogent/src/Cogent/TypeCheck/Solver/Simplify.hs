@@ -212,6 +212,7 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
   l              :~ T (TAPut  _ tau) -> hoistMaybe $ Just [l :~ tau]
 #endif
   _              :~ Synonym _ _      -> hoistMaybe Nothing
+  _              :~ U _              -> hoistMaybe Nothing
   l              :~ tau | TLU _ <- l -> hoistMaybe Nothing
                         | otherwise  -> unsat $ LayoutDoesNotMatchType l tau -- all legal cases should be listed above
 
