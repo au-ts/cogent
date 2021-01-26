@@ -85,7 +85,9 @@ rewriteDefault t@(typeOfLT -> t') = LocType (posOfLT t) <$> f t'
 
 isBoxedType :: LocType -> Bool
 isBoxedType t@(typeOfLT -> TRecord _ _ Boxed{}) = True
+#ifdef BUILTIN_ARRAYS
 isBoxedType t@(typeOfLT -> TArray _ _ Boxed{} _) = True
+#endif
 isBoxedType (typeOfLT -> TBang t) = isBoxedType t
 isBoxedType _ = False
 
