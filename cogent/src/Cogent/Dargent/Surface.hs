@@ -26,6 +26,8 @@ where
 
 import Cogent.Common.Syntax (FieldName, TagName, RepName, Size, DLVarName)
 import Cogent.Compiler (__fixme, __todo, __impossible)
+import Cogent.Util
+
 import Cogent.Dargent.Util
 
 import Data.Data
@@ -65,8 +67,10 @@ data DataLayoutExpr' e
 #endif
   | Offset  e DataLayoutSize
   | RepRef  RepName [e]
+  | After   e FieldName
   | LVar    DLVarName
   | Ptr
+  | Default
   deriving (Show, Data, Eq, Ord)
 
 -- We use 'tying the knot' here so we can make single level layouts later
@@ -81,6 +85,21 @@ pattern DLArray e s    = DL (Array e s)
 #endif
 pattern DLOffset e s   = DL (Offset e s)
 pattern DLRepRef n s   = DL (RepRef n s)
+pattern DLAfter e f    = DL (After e f)
 pattern DLVar n        = DL (LVar n)
 pattern DLPtr          = DL Ptr
+pattern DLDefault      = DL Default
 
+containDefault :: DataLayoutExpr -> Bool
+containDefault = f
+  where
+    f DLDefault = True
+    f (DLOffset e _) = f e
+    f (DLAfter e _) = f e
+    f (DLRecord fs) = any (f . thd3) fs
+    f (DLVariant t alt) = f t || any (\(_,_,_,x) -> f x) alt
+#ifdef BUILTIN_ARRAYS
+    f (DLArray e _) = f e
+#endif
+    f (DLRepRef _ s) = any f s
+    f _ = False

@@ -15,6 +15,7 @@ module Cogent.TypeCheck.Solver.Unify where
 import           Cogent.Common.Syntax
 import           Cogent.Common.Types
 import           Cogent.Compiler
+import           Cogent.Dargent.DefaultGen
 import           Cogent.Dargent.TypeCheck
 import           Cogent.Surface
 import qualified Cogent.TypeCheck.ARow           as ARow

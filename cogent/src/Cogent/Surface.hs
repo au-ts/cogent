@@ -608,6 +608,7 @@ lvT (RT _) = []
 lvL :: DataLayoutExpr -> [DLVarName]
 lvL (DLVar n) = [n]
 lvL (DLOffset e _) = lvL e
+lvL (DLAfter e _) = lvL e
 lvL (DLRecord fs) = foldMap (\(_, _, x) -> lvL x) fs
 lvL (DLVariant t alt) = lvL t <> foldMap (\(_, _, _, x) -> lvL x) alt
 #ifdef BUILTIN_ARRAYS
@@ -638,16 +639,15 @@ dvE (RE e) = foldMap dvE e
 allRepRefs :: DataLayoutExpr -> [RepName]
 allRepRefs (DL d) = allRepRefs' d
   where
-    allRepRefs' (Prim _) = []
     allRepRefs' (Record fs) = concatMap (allRepRefs . thd3) fs
     allRepRefs' (Variant tag cs) = allRepRefs tag ++ concatMap (\(_,_,_,e) -> allRepRefs e) cs
 #ifdef BUILTIN_ARRAYS
     allRepRefs' (Array e _) = allRepRefs e
 #endif
     allRepRefs' (Offset e _) = allRepRefs e
-    allRepRefs' (RepRef n s) = [n] ++ concatMap allRepRefs s
-    allRepRefs' (LVar _) = []
-    allRepRefs' Ptr = []
+    allRepRefs' (After e _) = allRepRefs e
+    allRepRefs' (RepRef n s) = n : concatMap allRepRefs s
+    allRepRefs' _ = []
 
 
 -- -----------------------------------------------------------------------------

@@ -51,7 +51,8 @@ import           Cogent.Mono                      as MN (mono, printAFM)
 import           Cogent.Normal                    as NF (normal, verifyNormal)
 import           Cogent.Parser                    as PA (parseCustTyGen, parseWithIncludes)
 import           Cogent.Preprocess                as PR
-import           Cogent.PrettyPrint               as PP (prettyPrint, prettyRE, prettyTWE)
+import           Cogent.PreTypeCheck              as PT (preTc)
+import           Cogent.PrettyPrint               as PP (prettyPrint, prettyRE, prettyTWE, prettyPTE)
 import           Cogent.Reorganizer               as RO (reorganize)
 import           Cogent.Simplify                  as SM
 import           Cogent.SuParser                  as SU (parse)
@@ -301,6 +302,7 @@ type Flags = [IO ()]
 
 stgMsg :: Stage -> String
 stgMsg STGParse     = "surface"
+-- stgMsg STGPreTypeCheck = "pre type-checked surface"
 stgMsg STGTypeCheck = "type-checked surface"
 stgMsg STGDesugar   = "desugared core"
 stgMsg STGNormal    = "normalised core"
@@ -656,8 +658,15 @@ parseArgs args = case getOpt' Permute options args of
                                   ctygen <- mapM parseCustTyGen __cogent_cust_ty_gen
                                   case sequence ctygen of
                                     Left err -> hPutStrLn stderr err >> exitFailure
-                                    Right ctygen' -> typecheck cmds (map noDocs reorged) (fold ctygen') source pragmas buildinfo log
+                                    Right ctygen' -> pretypecheck cmds (map noDocs reorged) (fold ctygen') source pragmas buildinfo log
                                 exitSuccessWithBuildInfo cmds buildinfo
+
+    pretypecheck cmds reorged ctygen source pragmas buildinfo log = do
+      -- let stg = STGPreTypeCheck
+      putProgressLn "Preprocessing for Typecheck..."
+      case PT.preTc reorged ctygen of
+        Left err -> printError prettyPTE [err] >> exitFailure
+        Right (reorged', ctygen') -> typecheck cmds reorged' ctygen' source pragmas buildinfo log
 
     typecheck cmds reorged ctygen source pragmas buildinfo log = do
       let stg = STGTypeCheck

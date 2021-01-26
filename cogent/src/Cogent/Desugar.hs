@@ -610,7 +610,7 @@ desugarType = \case
     -- NOTE: if the user specify boxed array containing boxed types with layout defined as pointer,
     --       we simply turn that into CLayout to avoid generating extra getters & setters
     ds <- case sigil of
-            Boxed ro (Just (S.DLArray S.DLPtr _)) -> pure $ Boxed ro CLayout
+            Boxed ro (Just (TLArray TLPtr _)) -> pure $ Boxed ro CLayout
             _ -> desugarSigil sigil
     TArray <$> pure t'
            <*> pure l'
@@ -633,17 +633,24 @@ desugarLayout l = Layout <$> desugarLayout' l
       TLOffset e n -> do
         e' <- desugarLayout' e
         pure $ offset (DD.desugarSize n) e'
+      TLAfter e f -> __impossible "desugarLayout: TLAfter should be desugared at its parent level"
       TLRecord fs -> do
-        let f (n,_,l) = desugarLayout' l >>= pure . (n,)
+        let fieldEnd' = fieldEnd $ (\(a,_,c) -> (a,c)) <$> fs
+        let f (n,_,l) = case l of
+                          TLAfter e f -> (n,) <$> (offset <$> fieldEnd' f <*> desugarLayout' e)
+                          l -> (n,) <$> desugarLayout' l
         fs' <- mapM f fs
         pure $ RecordLayout (M.fromList fs')
       TLVariant te alts -> do
         te' <- desugarLayout' te
         let tr = case te' of
                    PrimLayout range -> range
-                   UnitLayout       -> __impossible $ "desugarLayout: zero sized bit range for variant tag"
-                   _                -> __impossible $ "desugarLayout: tag layout known to be a single range"
-        let f (n,_,s,l) = desugarLayout' l >>= pure . (n,) . (s,)
+                   UnitLayout       -> __impossible "desugarLayout: zero sized bit range for variant tag"
+                   _                -> __impossible "desugarLayout: tag layout known to be a single range"
+        let fieldEnd' = fieldEnd $ (\(a,_,_,d) -> (a,d)) <$> alts
+        let f (n,_,s,l) = case l of
+                            TLAfter e f -> (n,) . (s,) <$> (offset <$> fieldEnd' f <*> desugarLayout' e)
+                            l -> (n,) . (s,) <$> desugarLayout' l
         alts' <- mapM f alts
         pure $ SumLayout tr (M.fromList alts')
       TLPtr -> pure $ PrimLayout DA.pointerBitRange
@@ -653,10 +660,17 @@ desugarLayout l = Layout <$> desugarLayout' l
       TLVar n -> (findIx n <$> use layCtx) >>= \case
         Just v -> pure $ VarLayout (finNat v) 0
         Nothing -> __impossible "desugarLayout: unexpected layout variable - check typecheck"
+    fieldEnd :: [(FieldName, TCDataLayout)] -> FieldName -> DS t l v Size
+    fieldEnd t f = case fromJust $ lookup f t of
+      TLAfter e f' -> do
+        be <- fieldEnd t f'
+        fe <- endAllocatedBits' <$> desugarLayout' e
+        return $ be + fe
+      e -> endAllocatedBits' <$> desugarLayout' e
 
-desugarSigil :: Sigil (Maybe DataLayoutExpr) -> DS t l v (Sigil (DataLayout DA.BitRange))
+desugarSigil :: Sigil (Maybe TCDataLayout) -> DS t l v (Sigil (DataLayout DA.BitRange))
 desugarSigil (Boxed b Nothing)  = pure $ Boxed b CLayout
-desugarSigil (Boxed b (Just l)) = Boxed b <$> desugarLayout (toTCDL l)
+desugarSigil (Boxed b (Just l)) = Boxed b <$> desugarLayout l
 desugarSigil Unboxed            = pure Unboxed
 
 desugarNote :: S.Inline -> FunNote

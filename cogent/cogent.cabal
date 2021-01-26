@@ -101,6 +101,7 @@ library
               , Cogent.Dargent.CodeGen
               , Cogent.Dargent.Core
               , Cogent.Dargent.Desugar
+              , Cogent.Dargent.DefaultGen
               , Cogent.Dargent.Surface
               , Cogent.Dargent.TypeCheck
               , Cogent.Dargent.Util
@@ -130,6 +131,7 @@ library
               , Cogent.Parser
               , Cogent.PrettyPrint
               , Cogent.Preprocess
+              , Cogent.PreTypeCheck
               , Cogent.Quote
               , Cogent.Reorganizer
               , Cogent.Simplify

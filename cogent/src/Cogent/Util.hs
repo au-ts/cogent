@@ -398,7 +398,14 @@ delimiter d = unlines . go d . lines
         go d (x:xs) = (x++d) : go d xs
 
 
-data Stage = STGParse | STGTypeCheck | STGDesugar | STGNormal | STGSimplify | STGMono | STGCodeGen
+data Stage = STGParse
+           -- | STGPreTypeCheck
+           | STGTypeCheck
+           | STGDesugar
+           | STGNormal
+           | STGSimplify
+           | STGMono
+           | STGCodeGen
            deriving (Enum, Eq, Ord, Show)
 
 type NameMod = String -> String

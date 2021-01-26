@@ -24,6 +24,7 @@ import qualified Cogent.Common.Syntax as S (associativity)
 import Cogent.Common.Syntax hiding (associativity)
 import Cogent.Common.Types
 import Cogent.Compiler
+import Cogent.PreTypeCheck
 import Cogent.Reorganizer (ReorganizeError(..), SourceObject(..))
 import Cogent.Surface
 -- import Cogent.TypeCheck --hiding (context)
@@ -684,6 +685,7 @@ instance Pretty d => Pretty (DataLayoutExpr' d) where
   pretty (RepRef n s) = if null s then reprname n else parens $ reprname n <+> hsep (fmap pretty s)
   pretty (Prim sz) = pretty sz
   pretty (Offset e s) = pretty e <+> keyword "at" <+> pretty s
+  pretty (After e f) = pretty e <+> keyword "after" <+> pretty f
   pretty (Record fs) = keyword "record" <+> record (map (\(f,_,e) -> fieldname f <+> symbol ":" <+> pretty e ) fs)
   pretty (Variant e vs) = keyword "variant" <+> parens (pretty e)
                                                  <+> record (map (\(f,_,i,e) -> tagname f <+> tupled [literal $ string $ show i] <> symbol ":" <+> pretty e) vs)
@@ -691,6 +693,7 @@ instance Pretty d => Pretty (DataLayoutExpr' d) where
   pretty (Array e s) = keyword "array" <+> parens (pretty e) <+> keyword "at" <+> pretty s
 #endif
   pretty Ptr = keyword "pointer"
+  pretty Default = keyword "default"
   pretty (LVar n) = dlvarname n
 
 instance Pretty DataLayoutExpr where
@@ -698,7 +701,7 @@ instance Pretty DataLayoutExpr where
 
 instance Pretty TCDataLayout where
   pretty (TL l) = pretty l
-  pretty (TLU n) = warn ('?':show n)
+  pretty (TLU n) = warn ("?" ++ show n)
 
 instance Pretty Metadata where
   pretty (Constant {constName})              = err "the binding" <+> funname constName <$> err "is a global constant"
@@ -888,6 +891,7 @@ instance Pretty Constraint where
   pretty (l :~ n)         = pretty l </> warn ":~" </> pretty n
   pretty (l :~< m)        = pretty l </> warn ":~<" </> pretty m
   pretty (a :~~ b)        = pretty a </> warn ":~~" </> pretty b
+  pretty (WellformedLayout l) = warn "WellformedLayout" <+> pretty l
 
 -- a more verbose version of constraint pretty-printer which is mostly used for debugging
 prettyC :: Constraint -> Doc
@@ -904,9 +908,13 @@ prettyCPrec :: Int -> Constraint -> Doc
 prettyCPrec l x | prec x < l = prettyC x
                 | otherwise  = parens (indent (prettyC x))
 
+instance Pretty PreTCError where
+  pretty DefaultUninferrable = err "uninferrable default layout"
+
 instance Pretty SourceObject where
   pretty (TypeName n) = typename n
   pretty (ValName  n) = varname n
+  pretty (RepName  n) = reprname n
   pretty (DocBlock' _) = __fixme empty  -- FIXME: not implemented
 
 instance Pretty ReorganizeError where
@@ -995,10 +1003,16 @@ instance Pretty DataLayoutTcError where
     indent (pretty context)
   pretty (UnknownDataLayoutVar n ctx) =
     err "Undeclared data layout variable" <+> dlvarname n <$$> indent (pretty ctx)
-  pretty (TooFewDataLayoutArgs n ctx) =
-    err "Too few arguments data layout synonym" <+> reprname n <$$> indent (pretty ctx)
-  pretty (TooManyDataLayoutArgs n ctx) =
-    err "Too many arguments for data layout synonym" <+> reprname n <$$> indent (pretty ctx)
+  pretty (DataLayoutArgsNotMatch n exp act ctx) =
+    err "Number of arguments for data layout synonym" <+> reprname n <+> err "not matched,"
+    </> err "expected" <+> int exp <+> err "args, but actual" <+> int act <+> err "args"
+    <$$> indent (pretty ctx)
+  pretty (OverlappingFields fs ctx) =
+    err "Overlapping fields" <+> foldr1 (<+>) (fmap fieldname fs) <$$> indent (pretty ctx)
+  pretty (CyclicFieldDepedency fs ctx) =
+    err "Cyclic dependency of fields" <+> foldr1 (<+>) (fmap fieldname fs) <$$> indent (pretty ctx)
+  pretty (NonExistingFields fs ctx) =
+    err "Non-existing fields" <+> foldr1 (<+>) (fmap fieldname fs) <$$> indent (pretty ctx)
 
 instance Pretty DataLayoutPath where
   pretty (InField n po ctx) = context' "for field" <+> fieldname n <+> context' "(" <> pretty po <> context' ")" </> pretty ctx
@@ -1112,6 +1126,10 @@ handlePutAssign (Just (s, e)) = fieldname s <+> symbol "=" <+> pretty e
 
 -- top-level function
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+-- pre-typecheck errors
+prettyPTE :: (PreTCError, SourcePos) -> Doc
+prettyPTE (err,pos) = pretty err <$> indent' (context "(" <> pretty pos <> context ")")
 
 -- typechecker errors/warnings
 prettyTWE :: Int -> ContextualisedTcLog -> Doc

@@ -112,13 +112,11 @@ repSize = avoidInitial >> buildExpressionParser [[Infix (reservedOp "+" *> pure 
                x <- fromIntegral <$> natural
                (Bits <$ reserved "b" <*> pure x <|> Bytes <$ reserved "B" <*> pure x))
 
+-- we disallow "abstract" default in next stage
 repExpr :: Parser DataLayoutExpr
-repExpr = repExpr' repRefM <|> parens repExpr
+repExpr = repExpr' outterOT (repRefM outterOT) <|> parens repExpr
   where
-    repRefM = many repExprS
-    repRefS = pure []
-    repExprS = repExpr' repRefS <|> parens repExpr
-    repExpr' p = avoidInitial >> buildExpressionParser [[Postfix (flip DLOffset <$ reserved "at" <*> repSize)]] (DL <$>
+    repExpr' ot rfp = avoidInitial >> buildExpressionParser ot (DL <$>
          ((Record <$ reserved "record" <*> braces (commaSep recordRepr))
       <|> (Variant <$ reserved "variant" <*> parens repExpr <*> braces (commaSep variantRepr))
 #ifdef BUILTIN_ARRAYS
@@ -126,10 +124,22 @@ repExpr = repExpr' repRefM <|> parens repExpr
 #endif
       <|> (Prim <$> repSize)
       <|> (Ptr <$ reserved "pointer")
+      <|> (Default <$ reserved "default")
       <|> (LVar <$> variableName)
-      <|> (RepRef <$> typeConName <*> p)))
-    recordRepr = (,,) <$> variableName <*> getPosition <* reservedOp ":" <*> repExpr
-    variantRepr = (,,,) <$> typeConName <*> getPosition <*> parens (fromIntegral <$> natural) <* reservedOp ":" <*> repExpr
+      <|> rfp))
+    repExprS' ot = parens (repExpr' ot (repRefM ot)) <|> repExpr' ot repRefS
+    -- operator table with only postfix at
+    outterOT = [[Postfix (flip DLOffset <$ reserved "at" <*> repSize)]]
+    -- operator table with both postfix at & postfix after
+    innerOT = [[Postfix (flip DLOffset <$ reserved "at" <*> repSize),
+                Postfix (flip DLAfter <$ reserved "after" <*> variableName)]]
+    -- repref disallowing args
+    repRefS = RepRef <$> typeConName <*> pure []
+    -- repref allowing args
+    repRefM ot = RepRef <$> typeConName <*> many (repExprS' ot)
+    recordRepr = (,,) <$> variableName <*> getPosition <* reservedOp ":" <*> repExpr' innerOT (repRefM innerOT)
+    variantRepr = (,,,) <$> typeConName <*> getPosition <*> parens (fromIntegral <$> natural)
+      <* reservedOp ":" <*> repExpr' innerOT (repRefM innerOT)
 
 -- TODO: add support for patterns like `_ {f1, f2}', where the record name is anonymous / zilinc
 irrefutablePattern :: Parser LocIrrefPatn

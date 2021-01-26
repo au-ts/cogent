@@ -33,11 +33,11 @@ module Cogent.Dargent.Allocation
   , Allocation' (..)
   , emptyAllocation
   , singletonAllocation
-  , undeterminedAllocation
   , (\/)
   , (/\)
   , overlaps
   , isZeroSizedAllocation
+  , allocationEnd
   , AlignedBitRange (..)
   , alignSize
   , alignOffsettable
@@ -56,6 +56,7 @@ import GHC.Generics (Generic)
 import Cogent.Common.Types
 import Cogent.Common.Syntax
 import Cogent.Compiler
+import Cogent.Dargent.Surface
 import Cogent.Dargent.Util
 import Cogent.Util
 
@@ -136,9 +137,6 @@ emptyAllocation = Allocation []
 singletonAllocation :: AllocationBlock p -> Allocation' p
 singletonAllocation b = Allocation [b]
 
-undeterminedAllocation :: Allocation' p
-undeterminedAllocation = __fixme $ Allocation [] -- FIXME: we may need different rep
-
 -- | Disjunction of allocations
 --
 (\/) :: forall p. Ord p => Allocation' p -> Allocation' p -> Allocation' p
@@ -177,6 +175,9 @@ overlaps (BitRange s1 o1) (BitRange s2 o2) =
 
 isZeroSizedAllocation :: Allocation' p -> Bool
 isZeroSizedAllocation = all (isZeroSizedBR . fst) . unAllocation
+
+allocationEnd :: Allocation' p -> Size
+allocationEnd a = foldr max 0 $ (\b -> bitOffsetBR b + bitSizeBR b) . fst <$> unAllocation a
 
 
 type Allocation = Allocation' DataLayoutPath
