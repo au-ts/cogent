@@ -508,11 +508,16 @@ cg' (Var n) t = do
 
     Just (t', p, used) -> do
       context %= C.use n ?loc
-      -- c <- if ?isRefType then
-      --        do beta <- freshTVar
-      --           let rho = T $ TRefine refVarName beta (SE (T bool) (PrimOp "==" [SE beta (Var refVarName), SE beta (Var n)]))
-      --           return (t' :< t <> rho :< t')
-      --      else return $ t' :< t
+{-
+#ifdef REFINEMENT_TYPES
+      c <- if ?isRefType then
+             do v <- freshRefVarName freshVars
+                β <- freshTVar
+                let ρ = T $ TRefine v β (SE (T bool) (PrimOp "==" [SE β (Var v), SE β (Var n)]))
+                return (t' :< ρ <> ρ :< t)  -- FIXMEXXX
+           else return $ t' :< t
+#endif
+-}
       let c = t' :< t
       share <- case used of
                  Seq.Empty -> do  -- Variable used for the first time, mark the use, and continue

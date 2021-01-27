@@ -80,15 +80,16 @@ typeToSmt t = do u <- use unintrp
 #endif
 
 sexprToSmt :: TCSExpr -> SmtTransM SVal
-sexprToSmt (SU t x) = do
-  m <- use unifs
-  case IM.lookup x m of
-    Nothing -> do t' <- typeToSmt t
-                  sv <- mkQSymVar SMT.EX ('?':show x) t'
-                  unifs %= (IM.insert x sv)
-                  return sv
-    Just sv -> return sv
-sexprToSmt (HApp x v vs) = __impossible "sexprToSmt: HApp should never slip to SMT"
+sexprToSmt (SU t x) = __impossible $ "sexprToSmt: SU " ++ show x ++ " should never slip to SMT"
+-- sexprToSmt (SU t x) = do
+--   m <- use unifs
+--   case IM.lookup x m of
+--     Nothing -> do t' <- typeToSmt t
+--                   sv <- mkQSymVar SMT.EX ('?':show x) t'
+--                   unifs %= (IM.insert x sv)
+--                   return sv
+--     Just sv -> return sv
+sexprToSmt (HApp x v vs) = __impossible $ "sexprToSmt: HApp " ++ show x ++ " should never slip to SMT"
 sexprToSmt (SE t (PrimOp op [e])) = (liftA $ uopToSmt op) (sexprToSmt e)
 sexprToSmt (SE t (PrimOp op [e1,e2])) = (liftA2 $ bopToSmt op) (sexprToSmt e1) (sexprToSmt e2)
 sexprToSmt (SE t (Var vn)) = do

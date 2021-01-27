@@ -34,7 +34,7 @@ import qualified Data.IntMap as IM (empty)
 import qualified Data.Map as M (Map, empty, map, toList)
 import Data.Maybe (fromMaybe)
 import Data.SBV (AllSatResult (..), SatResult (..), ThmResult (..), SMTResult (..), z3)
-import Data.SBV.Dynamic (allSatWith, satWith, proveWith, SMTConfig (..))
+import Data.SBV.Dynamic (allSatWith, satWith, proveWith, SMTConfig (..), Symbolic, SVal)
 import Lens.Micro
 import Lens.Micro.Mtl (view)
 import qualified Text.PrettyPrint.ANSI.Leijen as L
@@ -93,7 +93,8 @@ simp g = do
   SmtState c <- get
   let ks' = constEquations ks
   traceTc "sol/smt" (L.text "Constants" L.<> L.colon L.<$> L.prettyList ks')
-  res <- liftIO $ smtSatResult $ implTCSExpr (andTCSExprs ks') (andTCSExprs c)
+  res <- liftIO $ smtProve $ implTCSExpr (andTCSExprs ks') (andTCSExprs c)
+{-
   case res of (_, _, []) -> hoistMaybe $ Nothing
               -- \ ^^^ Returns no models, meaning it's unsat.
               (False, False, [m]) -> hoistMaybe $ Just g
@@ -105,7 +106,8 @@ simp g = do
               -- shouldn't affect the satisfiability of other typing constraints,
               -- we can choose an arbitrary assignment. (TODO) / zilinc
               _ -> __impossible "smtSolve: I only asked for one result, and you give me more!?"
-
+-}
+  if res then hoistMaybe (Just g) else hoistMaybe Nothing
 
 
 -- | Returns a detailed result of satisfiability of a logical predicate.
@@ -137,3 +139,28 @@ smtSat e =
   smtSatResult e >>= \case
     (_, False, models) | length models > 0 -> return True
     _ -> return False
+
+
+smtProve :: TCSExpr -> IO Bool
+smtProve e = do
+  dumpMsgIfTrue __cogent_ddump_tc_smt (warn "SMT solving:" L.<+> L.pretty e L.<> L.hardline)
+  res <- isTheoremWith (z3 { verbose = __cogent_ddump_tc_smt
+                       , redirectVerbose = Just $ fromMaybe "/dev/stderr" __cogent_ddump_to_file
+                       , allSatMaxModelCount = Just 1
+                       })
+                       (evalStateT (sexprToSmt e)
+                                   (SmtTransState IM.empty M.empty M.empty 0))
+  dumpMsgIfTrue __cogent_ddump_tc_smt (L.text (replicate 80 '-') L.<> L.hardline)
+  traceTc "sol/smt" (L.text "Running SMT on expression"
+                     L.<$> indent' (L.pretty e)
+                     L.<$> L.text "gives result: is theorem?"
+                     L.<+> indent' (L.text $ show res))
+  return res 
+ where
+  -- | A dynamic version of 'Data.SBV.isTheoremWith'.
+  isTheoremWith :: SMTConfig -> Symbolic SVal -> IO Bool
+  isTheoremWith cfg p = do r <- proveWith cfg p
+                           case r of
+                             ThmResult Unsatisfiable{} -> return True
+                             ThmResult Satisfiable{}   -> return False
+                             _                         -> error $ "SBV.isTheorem: Received:\n" ++ show r

@@ -11,6 +11,7 @@
     - pass_let-1.cogent
     - pass_let-2.cogent
     - pass_herp-if.cogent
+    - pass_let-if.cogent
     - pass_upcast.cogent
     - pass_poly-inst.cogent
     - pass_underflow.cogent
@@ -29,6 +30,7 @@
     - fail_underflow.cogent
     - fail_if-deadcode-illtype.cogent
     - fail_funapp-let.cogent
+    - fail_missing-arg.cogent
   expected_result: fail
   flags:
     - -t
