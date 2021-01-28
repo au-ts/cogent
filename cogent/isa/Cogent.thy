@@ -11,9 +11,7 @@
  *)
 
 theory Cogent 
-  imports Util 
-(* TODO: without Eisbach *)
-"HOL-Eisbach.Eisbach_Tools"
+  imports Util
 begin
 
 type_synonym name = string
@@ -430,33 +428,47 @@ fun sigil_kind :: "sigil \<Rightarrow> kind" where
 | "sigil_kind Unboxed            = {D,S,E}"
 
 
-
-fun matches_type_layout :: "type \<Rightarrow> ptr_layout \<Rightarrow> bool"
+inductive matches_type_layout :: "type \<Rightarrow> ptr_layout \<Rightarrow> bool"
+  and matches_type_layout_all :: "type list \<Rightarrow> ptr_layout list \<Rightarrow> bool"
   where
-  "matches_type_layout (TVar i) _ = True"
-| "matches_type_layout (TVarBang i) _ = True"
-| "matches_type_layout (TPrim String) _ = False"
-| "matches_type_layout (TPrim t) (LayBitRange (s, _)) = 
-     (s = size_prim_layout t)"
-| "matches_type_layout (TSum ts) (LayVariant _ ls) = 
-    (
-(map fst ts :: name list) = map fst ls
-  \<and>
-   list_all2 (\<lambda>  (_,t,_)(_, _, p) . matches_type_layout t p) ts ls )"
-| "matches_type_layout (TProduct t1 t2)
-    (LayProduct p1 p2) = 
-    (matches_type_layout t1 p1 \<and> matches_type_layout t2 p2)"
-| "matches_type_layout (TRecord ts (Boxed _ _)) (LayBitRange (s, _)) = 
-               (s = size_ptr)"
+  "matches_type_layout (TVar i) l"
+| "matches_type_layout (TVarBang i) l"
+| "(s = size_prim_layout t) \<Longrightarrow> matches_type_layout (TPrim t) (LayBitRange (s, x))"
+| "\<lbrakk> (map fst ts :: name list) = map fst ls
+   ; matches_type_layout_all (map (fst \<circ> snd) ts) (map (snd \<circ> snd) ls)
+   \<rbrakk> \<Longrightarrow> matches_type_layout (TSum ts) (LayVariant x ls)"
+| "\<lbrakk> matches_type_layout t1 p1
+   ; matches_type_layout t2 p2
+   \<rbrakk> \<Longrightarrow> matches_type_layout (TProduct t1 t2) (LayProduct p1 p2)"
+| "(s = size_ptr) \<Longrightarrow> matches_type_layout (TRecord ts (Boxed x0 x1)) (LayBitRange (s, n))"
+| "\<lbrakk> (map fst ts :: name list) = map fst ls
+   ; matches_type_layout_all (map (fst \<circ> snd) ts) (map snd ls)
+   \<rbrakk> \<Longrightarrow> matches_type_layout (TRecord ts Unboxed) (LayRecord ls)"
+| "s = 0 \<Longrightarrow> matches_type_layout TUnit (LayBitRange (s, n))"
 
-| "matches_type_layout (TRecord ts Unboxed) (LayRecord l) = 
- ((map fst ts :: name list) = map fst l \<and>
-     list_all2 (\<lambda> (_,t,_)(_, p) . 
-      matches_type_layout t p
-     ) 
-     ts l) "
-| "matches_type_layout TUnit (LayBitRange (0, _)) = True"
-| "matches_type_layout _ _ = False" 
+| "matches_type_layout_all [] []"
+| "matches_type_layout t l \<Longrightarrow> matches_type_layout_all ts ls \<Longrightarrow> matches_type_layout_all (t # ts) (l # ls)"
+
+lemma matches_type_layout_simps:
+  "\<And>i l. matches_type_layout (TVar i) l"
+  "\<And>i l. matches_type_layout (TVarBang i) l"
+  "\<And>t p. matches_type_layout (TPrim t) (LayBitRange p) \<longleftrightarrow> fst p = size_prim_layout t"
+  "\<And>ts ls x. matches_type_layout (TSum ts) (LayVariant x ls) \<longleftrightarrow>
+      map fst ts = map fst ls \<and> matches_type_layout_all (map (fst \<circ> snd) ts) (map (snd \<circ> snd) ls)"
+  "\<And>t1 t2 p1 p2. matches_type_layout (TProduct t1 t2) (LayProduct p1 p2) \<longleftrightarrow>
+      matches_type_layout t1 p1 \<and> matches_type_layout t2 p2"
+  "\<And>ts x0 x1 p. matches_type_layout (TRecord ts (Boxed x0 x1)) (LayBitRange p) \<longleftrightarrow> fst p = size_ptr"
+  "\<And>ts ls. matches_type_layout (TRecord ts Unboxed) (LayRecord ls) \<longleftrightarrow>
+      map fst ts = map fst ls \<and> matches_type_layout_all (map (fst \<circ> snd) ts) (map snd ls)"
+  "\<And>p. matches_type_layout TUnit (LayBitRange p) \<longleftrightarrow> fst p = 0"
+  by (force intro: matches_type_layout_matches_type_layout_all.intros
+      elim: matches_type_layout.cases)+
+
+lemma matches_type_layout_all_simps:
+  "matches_type_layout_all [] []"
+  "\<And>t l ts ls. matches_type_layout_all (t # ts) (l # ls) \<longleftrightarrow> matches_type_layout t l \<and> matches_type_layout_all ts ls"
+  by (force intro: matches_type_layout_matches_type_layout_all.intros
+      elim: matches_type_layout_all.cases)+
 
 fun matches_type_perm :: "(char list \<times> Cogent.type \<times> record_state) list
               \<Rightarrow> sigil \<Rightarrow> bool"
@@ -666,6 +678,20 @@ inductive subtyping :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightar
                   ; list_all2 variant_kind_subty ts1 ts2
                   \<rbrakk> \<Longrightarrow> K \<turnstile> TSum ts1 \<sqsubseteq> TSum ts2"
 | subty_tunit  : "K \<turnstile> TUnit \<sqsubseteq> TUnit"
+
+inductive_cases subty_tvar_leftE[elim]: "K \<turnstile> TVar n1 \<sqsubseteq> t"
+inductive_cases subty_tvarb_leftE[elim]: "K \<turnstile> TVarBang n1 \<sqsubseteq> t"
+inductive_cases subty_tcon_leftE[elim]: "K \<turnstile> TCon n1 ts1 s1 \<sqsubseteq> t"
+inductive_cases subty_tfun_leftE[elim]: "K \<turnstile> TFun t1 u1 \<sqsubseteq> t"
+inductive_cases subty_tprim_leftE[elim]: "K \<turnstile> TPrim p1 \<sqsubseteq> t"
+inductive_cases subty_trecord_leftE[elim]: "K \<turnstile> TRecord ts1 s1 \<sqsubseteq> t"
+inductive_cases subty_tprod_leftE[elim]: "K \<turnstile> TProduct t1 u1 \<sqsubseteq> t"
+inductive_cases subty_tsum_leftE[elim]: "K \<turnstile> TSum ts1 \<sqsubseteq> t"
+inductive_cases subty_tunit_leftE[elim]: "K \<turnstile> TUnit \<sqsubseteq> t"
+
+lemmas subtyping_leftE =
+  subty_tvar_leftE subty_tvarb_leftE subty_tcon_leftE subty_tfun_leftE subty_tprim_leftE
+  subty_trecord_leftE subty_tprod_leftE subty_tsum_leftE subty_tunit_leftE
 
 
 section {* Contexts *}
@@ -1417,38 +1443,22 @@ lemma bang_sigil_boxed : " bang_sigil (Boxed r ptrl) =
 Boxed ReadOnly ptrl"
   by(cases r;simp)
 
-lemma bang_matches_type_layout :
-"matches_type_layout t ptr_layout \<Longrightarrow>
- matches_type_layout (bang t) ptr_layout"
-  apply (induct t ptr_layout rule:matches_type_layout.induct; 
-        simp add:bang_sigil_boxed list_all2_map1)
-   apply(rule list.rel_mono_strong)
-    apply assumption
-   apply clarsimp
+lemma bang_matches_type_layout:
+  "matches_type_layout t l \<Longrightarrow> matches_type_layout (bang t) l"
+  "matches_type_layout_all ts ls \<Longrightarrow> matches_type_layout_all (map bang ts) ls"
+  by (induct rule: matches_type_layout_matches_type_layout_all.inducts)
+    (simp add: matches_type_layout_simps matches_type_layout_all_simps bang_sigil_boxed)+
 
-  apply(rule list.rel_mono_strong)
-   apply assumption
-  apply clarsimp
-  done
-
-
-lemma bang_matches_type_perm 
- :  " matches_type_perm ts s \<Longrightarrow>
-       matches_type_perm (map (\<lambda>(n, t, b). (n, bang t, b)) ts) (bang_sigil s)"
-  apply (induct ts s rule:matches_type_perm.induct)
-
-    apply (clarsimp simp add:bang_sigil_boxed bang_matches_type_layout)+
-  prefer 2
-   apply (clarsimp simp add:bang_sigil_boxed)+
-  apply(drule bang_matches_type_layout)
-  apply simp
-  done
-
+lemma bang_matches_type_perm:
+  "matches_type_perm ts s \<Longrightarrow>
+   matches_type_perm (map (\<lambda>(n, t, b). (n, bang t, b)) ts) (bang_sigil s)"
+  by (induct ts s rule:matches_type_perm.induct)
+    (force dest: bang_matches_type_layout simp add: bang_sigil_boxed)+
 
 lemma bang_wellformed:
   "type_wellformed n t \<Longrightarrow> type_wellformed n (bang t)"
   by (induct t rule: type_wellformed.induct) 
-       (clarsimp simp add: list.pred_map list_all_iff bang_matches_type_perm)+
+    (clarsimp simp add: list.pred_map list_all_iff bang_matches_type_perm)+
   
 
 lemma bang_kinding_fn:
@@ -1499,79 +1509,21 @@ lemma subtyping_simps:
   "K \<turnstile> TUnit \<sqsubseteq> TUnit"
   by (auto simp: subtyping.intros intro!: subtyping.intros elim!: subtyping.cases)
 
-lemma subtyping_matches_type_layout : "K \<turnstile> t1 \<sqsubseteq> t2 \<Longrightarrow> matches_type_layout t1 ptrl
-\<Longrightarrow> matches_type_layout t2 ptrl"
+lemma subtyping_matches_type_layout:
+  "matches_type_layout t1 l \<Longrightarrow> K \<turnstile> t1 \<sqsubseteq> t2 \<Longrightarrow> matches_type_layout t2 l"
+  "matches_type_layout_all ts1 ls \<Longrightarrow> list_all2 (subtyping K) ts1 ts2 \<Longrightarrow> matches_type_layout_all ts2 ls"
+  by (induct arbitrary: t2 and ts2 rule: matches_type_layout_matches_type_layout_all.inducts)
+    (force simp add: list.rel_map matches_type_layout_simps matches_type_layout_all_simps list_all2_Cons1)+
 
-  apply(induct  arbitrary:t1 rule:matches_type_layout.induct;
-ind_cases "K \<turnstile> _ \<sqsubseteq>  _" ; simp)
+lemma subtyping_matches_type_perm:
+  "list_all2 (record_kind_subty K) ts1 ts2 \<Longrightarrow>
+   list_all2 (\<lambda>p1 p2. K \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2)) ts1 ts2  \<Longrightarrow>
+   map fst ts1 = map fst ts2 \<Longrightarrow>
+   matches_type_perm ts1 s \<Longrightarrow>
+   matches_type_perm ts2 s"
+  by (induct ts1 s rule: matches_type_perm.induct;
+      clarsimp simp add:subtyping_simps subtyping_matches_type_layout)
 
-  (* *******************
-
-sum case
-
-************** *)
-     apply(simp add:list_all2_conv_all_nth)
-     apply rule+
-     apply(erule conjE )+
-     apply (erule_tac x = i in allE)+
-     apply simp
-(* induction hypothesis:
-I use Eisbach to find the induction hypothesis 
- *)
-      apply(match premises in I: "\<And>(z::char list \<times> Cogent.type \<times> _). z \<in> set _ \<Longrightarrow> _"  \<Rightarrow> 
-  \<open> rule I\<close>;assumption?)
-        apply simp
-       apply(rule_tac n = i in List.nth_mem)
-       apply simp         
-(* I use Eisbach to put the equations in the right order:
- (a,b) = c is rewritten a c = (a,b) *)
-      apply(match premises in I[thin, symmetric]: "(_,_) = _"  \<Rightarrow>  \<open> insert I\<close>)+
-      apply simp     
-     apply clarsimp
-
- (* *******************
-
-record case
-
-************** *)
-    apply (case_tac s2; simp)
-(* the following is literally copied and pasted from the sum case *)
-     apply(simp add:list_all2_conv_all_nth)
-     apply rule+
-     apply(erule conjE )+
-     apply (erule_tac x = i in allE)+
-     apply simp
-(* induction hypothesis:
-I use Eisbach to find the induction hypothesis 
- *)
-      apply(match premises in I: "\<And>(z::char list \<times> Cogent.type \<times> _). z \<in> set _ \<Longrightarrow> _"  \<Rightarrow> 
-  \<open> rule I\<close>;assumption?)
-        apply simp
-       apply(rule_tac n = i in List.nth_mem)
-       apply simp         
-(* I use Eisbach to put the equations in the right order:
- (a,b) = c is rewritten a c = (a,b) *)
-      apply(match premises in I[thin, symmetric]: "(_,_) = _"  \<Rightarrow>  \<open> insert I\<close>)+
-      apply simp     
-     apply clarsimp
-(* end of pasting *)
-
-  apply (case_tac s2; simp)
-  done
-
-lemma subtyping_matches_type_perm : " list_all2 (record_kind_subty K) ts1 ts2 \<Longrightarrow>
-list_all2 (\<lambda>p1 p2. K \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2)) ts1 ts2  \<Longrightarrow>
-map fst ts1 = map fst ts2 \<Longrightarrow>
-matches_type_perm ts1 s \<Longrightarrow>
-     matches_type_perm ts2 s"
-  apply (induct ts1 s rule:matches_type_perm.induct;simp add:subtyping_simps
-subtyping_matches_type_layout
-)
-  apply (erule conjE)
-  apply (rule subtyping_matches_type_layout[rotated 1])
-   apply simp
-  
-  by (simp add:subtyping_simps)
 
 lemma subtyping_refl: "K \<turnstile> t \<sqsubseteq> t"
 proof (induct t)
