@@ -104,6 +104,13 @@ val proof_state = Goal.init goal;
 val n = proof_state |> wa_length_tac @{context} |>  Seq.hd
 \<close>
 
+lemma
+  "\<xi>p' ''wordarray_length'' =  val_wa_length \<Longrightarrow> val.scorres((wordarray_length:: ('a :: len8) word WordArray \<Rightarrow> 32 word)) (AFun ''wordarray_length'' ts) \<gamma> \<xi>p'"
+  apply (clarsimp simp: val.scorres_def)
+  apply (erule v_sem_afunE)
+  apply (clarsimp simp: val_wa_length_def  wordarray_length' valRel_WordArray_simps split: if_splits)
+  done
+
 lemma scorres_wordarray_length:
   "\<lbrakk>i < length \<gamma>; \<xi>p' ''wordarray_length'' =  val_wa_length;
     valRel \<xi>p' (v:: ('a :: len8) word WordArray) (\<gamma> ! i)\<rbrakk>

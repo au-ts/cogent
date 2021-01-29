@@ -13,191 +13,30 @@ text
   arrays. So if we want to prove that our compilation is correct for 
   @{term Generated_Shallow_Desugar.sum_arr}, we need to prove that the "
 
+text
+  "First we overload the abstract function environments for the Update semantics with our own
+   definitions."
+
+overloading
+  user_\<xi>_0' \<equiv> user_\<xi>_0
+begin
+definition user_\<xi>_0':
+ "user_\<xi>_0' \<equiv> WordArray.\<xi>0" 
+end
+
+overloading
+  user_\<xi>_1' \<equiv> user_\<xi>_1
+begin
+definition user_\<xi>_1':
+ "user_\<xi>_1' \<equiv> WordArray.\<xi>1" 
+end
+
 context WordArray begin
 text 
   "The two word array functions that we need to manually verify are @{term wordarray_length} and
    @{term wordarray_fold_no_break}"
-lemma sum_corres:
-  "val_rel a a' \<Longrightarrow>
-  corres state_rel Generated_TypeProof.sum (local.sum' a') \<xi>' [a] \<Xi>
-  [option.Some (prod.fst (prod.snd Generated_TypeProof.sum_type))] \<sigma> s"
-  apply (unfold sum_def sum'_def sum_type_def abbreviated_type_defs val_rel_simp)
-  apply (elim exE conjE)
-  apply (subst unknown_bind_ignore)
-  apply (subst snd_conv)
-  apply (subst fst_conv)
-  apply (monad_eq simp: corres_def)
-  apply (intro exI conjI; (simp add: val_rel_simp)?)
-  apply (rule u_sem_take_ub)
-   apply (rule u_sem_var[of _ "[_]" _ 0, simplified])
-  apply clarsimp
-  apply (rule u_sem_take_ub; simp?)
-   apply (rule u_sem_var[of _ "[_, _, _]" _ "Suc 0", simplified])
-  apply clarsimp
-  apply (rule u_sem_take_ub; simp?)
-   apply (rule u_sem_var[of _ "[_, _, _, _, _]" _ "Suc 0", simplified])
-  apply clarsimp
-  apply (rename_tac b ba bb r x)
-  apply (cut_tac 
-      \<gamma> = "[UUnit,
-            URecord [(UPrim (LU32 (t3_C.elem_C a')), b), (UPrim (LU32 (t3_C.acc_C a')), ba), (UUnit, bb)],
-            UPrim (LU32 (t3_C.acc_C a')),
-            URecord [(UPrim (LU32 (t3_C.elem_C a')), b), (UPrim (LU32 (t3_C.acc_C a')), ba), (UUnit, bb)],
-            UPrim (LU32 (t3_C.elem_C a')),
-            URecord [(UPrim (LU32 (t3_C.elem_C a')), b), (UPrim (LU32 (t3_C.acc_C a')), ba), (UUnit, bb)],
-            URecord [(UPrim (LU32 (t3_C.elem_C a')), b), (UPrim (LU32 (t3_C.acc_C a')), ba), (UUnit, bb)]]"
-      in u_sem_prim[of \<xi>' _ \<sigma> "[Var 4, Var 2]" \<sigma> 
-        "[UPrim (LU32 (t3_C.elem_C a')), UPrim (LU32 (t3_C.acc_C a'))]" "Plus U32"])
-   apply (rule u_sem_all_cons[of _ _ _ _ \<sigma>])
-    apply (rule u_sem_var[of _ "[_, _, _, _, _, _, _]" _ "4", simplified])
-   apply (rule u_sem_all_cons[of _ _ _ _ \<sigma>])
-    apply (rule u_sem_var[of _ "[_, _, _, _, _, _, _]" _ "2", simplified])
-   apply (rule u_sem_all_empty)
-  apply (clarsimp simp: eval_prim_u_def)
-  done
-
-lemma sum_arr_corres:
-  "\<lbrakk>\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
-    \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v';
-     \<Gamma>' ! i = option.Some (prod.fst (prod.snd (\<Xi> ''wordarray_length_0'')))\<rbrakk>
-    \<Longrightarrow> corres state_rel (App (AFun ''wordarray_length_0'' []) (Var i))
-      (do x <- wordarray_length_0' v'; gets (\<lambda>s. x) od) \<xi>' \<gamma> \<Xi>  \<Gamma>' \<sigma> st;
-    \<And>v' i \<gamma> \<Gamma> \<sigma> s.
-    \<lbrakk>t5_C.f_C v' = FUN_ENUM_sum; i < length \<gamma>; val_rel (\<gamma> ! i) v';
-     \<Gamma> ! i = option.Some (prod.fst (prod.snd (\<Xi> ''wordarray_fold_no_break_0'')))\<rbrakk>
-    \<Longrightarrow> corres state_rel (App (AFun ''wordarray_fold_no_break_0'' []) (Var i))
-      (do x <- wordarray_fold_no_break_0' v'; gets (\<lambda>s. x) od) \<xi>' \<gamma> \<Xi> \<Gamma> \<sigma> s;
-    val_rel a a'\<rbrakk>
-    \<Longrightarrow> corres state_rel Generated_TypeProof.sum_arr (sum_arr' a') \<xi>' [a] \<Xi>
-     [option.Some (prod.fst (prod.snd Generated_TypeProof.sum_arr_type))] \<sigma> s"
-  apply (unfold sum_arr_def sum_arr'_def sum_arr_type_def abbreviated_type_defs val_rel_simp cogent_function_val_rel)
-  apply (elim exE conjE)
-  apply (subst unknown_bind_ignore)
-  apply (subst snd_conv)
-  apply (subst fst_conv)
-  apply (monad_eq simp: corres_def)
-  apply (drule_tac x = 0 in meta_spec)
-  apply (drule_tac x = "[a]" in meta_spec)
-  apply (drule_tac x = a' in meta_spec)
-  apply clarsimp
-  apply (drule_tac x = "[option.Some (prod.fst (prod.snd (\<Xi> ''wordarray_length_0'')))]" in meta_spec)
-  apply (drule_tac x = \<sigma> in meta_spec)
-  apply (drule_tac x = s in meta_spec)
-  apply clarsimp
-  apply (rename_tac repr r w)
-  apply (erule impE)
-   apply (rule_tac x = r in exI)
-   apply (rule_tac x = w in exI)
-   apply (clarsimp simp: \<Xi>_def wordarray_length_0_type_def abbreviated_type_defs)
-  apply clarsimp
-  apply (intro exI conjI; (simp add: val_rel_simp)?)
-   apply (rule allI)+
-   apply (rename_tac r' s')
-   apply (erule_tac x = r' in allE)
-   apply (erule_tac x = s' in allE)
-   apply (rule impI)
-   apply (erule impE, assumption)
-   apply (drule_tac x = "t5_C a' 0 r' FUN_ENUM_sum 0 (unit_t_C 0)" in meta_spec)
-   apply (drule_tac x = 0 in meta_spec)
-   apply clarsimp
-   apply (drule_tac 
-      x = "[mk_urecord [UPtr (ptr_val a') repr, 
-            UPrim (LU32 0), UPrim (LU32 r'),  
-            UFunction Generated_TypeProof.sum [], 
-            UPrim (LU32 0), 
-            UUnit]]" in meta_spec)
-   apply clarsimp
-   apply (drule_tac x = "[option.Some (prod.fst (prod.snd (\<Xi> ''wordarray_fold_no_break_0'')))]" in meta_spec)
-   apply (rename_tac \<sigma>')
-   apply (drule_tac x = \<sigma>' in meta_spec)
-   apply (drule_tac x = s' in meta_spec)
-   apply clarsimp
-   apply (elim u_sem_appE u_sem_afunE u_sem_funE u_sem_varE; simp?)
-   apply (erule upd.matches_ptrs_consE; clarsimp)
-   apply (rename_tac ra wa rb wb)
-   apply (drule upd.proc_env_matches_ptrs_abstract[where \<tau>s = "[]", simplified]; simp?,
-      (simp add: \<Xi>_def wordarray_length_0_type_def abbreviated_type_defs)?)
-   apply (clarsimp simp: abbreviated_type_defs[symmetric] wordarray_length_0_type_def[symmetric] \<Xi>_def[symmetric])
-   apply (frule_tac k = "{D, S}" and K = "[]" in upd.shareable_not_writable(1)[rotated 1]; simp?)
-    apply (rule kindingI; simp?)
-   apply (drule upd.uval_typing_frame; simp?)
-   apply (erule_tac x = ra in allE)
-   apply (erule_tac x = "{}" in allE)
-  apply (rotate_tac -1)
-   apply (erule notE)
-   apply (clarsimp simp: wordarray_fold_no_break_0_type_def abbreviated_type_defs)
-  apply (intro upd.matches_ptrs_some[where r' = "{}" and w' = "{}", simplified]
-      upd.matches_ptrs_empty[where \<tau>s = "[]", simplified])
-   apply (rule upd.u_t_struct; simp?)
-   apply (intro upd.u_t_r_cons1[where r' = "{}" and w' = "{}", simplified] 
-      upd.u_t_prim' upd.u_t_unit upd.u_t_r_empty; simp?)
-    apply (rule upd.u_t_function[OF sum_typecorrect']; (simp add: sum_type_def abbreviated_type_defs subtyping_refl)?)
-   apply (drule upd.type_repr_uval_repr; simp)
-  apply clarsimp
-  apply (rename_tac r'a s'a r' s')
-  apply (erule_tac x = r' in allE)
-  apply (erule_tac x = s' in allE)
-  apply (erule impE, assumption)
-  apply (drule_tac x = "t5_C a' 0 r' FUN_ENUM_sum 0 (unit_t_C 0)" in meta_spec)
-  apply (drule_tac x = 0 in meta_spec)
-  apply clarsimp
-  apply (drule_tac 
-      x = "[mk_urecord [UPtr (ptr_val a') repr, 
-            UPrim (LU32 0), UPrim (LU32 r'),  
-            UFunction Generated_TypeProof.sum [], 
-            UPrim (LU32 0), 
-            UUnit]]" in meta_spec)
-  apply clarsimp
-  apply (drule_tac x = "[option.Some (prod.fst (prod.snd (\<Xi> ''wordarray_fold_no_break_0'')))]" in meta_spec)
-  apply (rename_tac \<sigma>')
-  apply (drule_tac x = \<sigma>' in meta_spec)
-  apply (drule_tac x = s' in meta_spec)
-  apply clarsimp
-  apply (erule impE)
-   apply (elim u_sem_appE u_sem_afunE u_sem_funE u_sem_varE; simp?)
-   apply (erule upd.matches_ptrs_consE; clarsimp)
-   apply (rename_tac ra wa rb wb)
-   apply (drule upd.proc_env_matches_ptrs_abstract[where \<tau>s = "[]", simplified]; simp?,
-      (simp add: \<Xi>_def wordarray_length_0_type_def abbreviated_type_defs)?)
-   apply (clarsimp simp: abbreviated_type_defs[symmetric] wordarray_length_0_type_def[symmetric] \<Xi>_def[symmetric])
-   apply (frule_tac k = "{D, S}" and K = "[]" in upd.shareable_not_writable(1)[rotated 1]; simp?)
-    apply (rule kindingI; simp?)
-   apply (drule upd.uval_typing_frame; simp?)
-   apply (rule_tac x = ra in exI)
-   apply (rule_tac x = "{}" in exI)
-   apply (clarsimp simp: wordarray_fold_no_break_0_type_def abbreviated_type_defs)
-   apply (intro upd.matches_ptrs_some[where r' = "{}" and w' = "{}", simplified]
-      upd.matches_ptrs_empty[where \<tau>s = "[]", simplified])
-   apply (rule upd.u_t_struct; simp?)
-   apply (intro upd.u_t_r_cons1[where r' = "{}" and w' = "{}", simplified] 
-      upd.u_t_prim' upd.u_t_unit upd.u_t_r_empty; simp?)
-    apply (rule upd.u_t_function[OF sum_typecorrect']; (simp add: sum_type_def abbreviated_type_defs subtyping_refl)?)
-   apply (drule upd.type_repr_uval_repr; simp)
-  apply clarsimp
-  apply (erule_tac x = r'a in allE)
-  apply (erule_tac x = s'a in allE)
-  apply clarsimp
-  apply (rename_tac \<sigma>'')
-  apply (intro exI conjI; simp?)
-  apply (elim u_sem_appE u_sem_afunE u_sem_funE; simp)
-  apply clarsimp
-  apply (intro u_sem_let u_sem_var u_sem_afun u_sem_abs_app u_sem_lit u_sem_fun u_sem_unit u_sem_struct; simp?; clarsimp?)
-          apply (rule u_sem_afun)
-         apply (rule u_sem_var[of _ "[_, _]" _ 0, simplified])
-        apply (rule u_sem_lit)
-       apply (rule u_sem_fun)
-      apply (rule u_sem_lit)
-     apply (rule u_sem_unit)
-    apply (rule u_sem_struct)
-    apply (rule u_sem_all_cons, rule u_sem_var)+
-    apply (rule u_sem_all_empty)
-   apply (rule u_sem_afun)
-  apply clarsimp
-  apply (elim u_sem_varE; clarsimp)
-  apply (erule upd.matches_ptrs_consE; clarsimp)
-  apply (drule upd.type_repr_uval_repr; simp)
-  apply (rule u_sem_var[of _ "[_, _, _, _, _, _, _, _]" _ 0, simplified])
-  done
+lemmas sum_corres = corres_sum[simplified \<Xi>_def[symmetric] \<xi>_0_def user_\<xi>_0']
+lemmas sum_arr_corres = corres_sum_arr[simplified \<Xi>_def[symmetric] \<xi>_1_def user_\<xi>_1']
 
 lemma sum_scorres:
   "valRel \<xi>' v v' \<Longrightarrow> val.scorres (Generated_Shallow_Normal.sum v) (specialise ts Generated_Deep_Normal.sum) [v'] \<xi>'"
@@ -260,58 +99,17 @@ lemma sum_arr_scorres:
 
 section "The Shallow to C Correspondence With Assumptions"
 
-lemma sum_arr_corres_shallow_C:
-  "\<lbrakk>\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
-    \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v'; \<Gamma>' ! i = option.Some (prod.fst (prod.snd (\<Xi> ''wordarray_length_0'')))\<rbrakk>
-    \<Longrightarrow> update_sem_init.corres wa_abs_typing_u wa_abs_repr (Generated.state_rel wa_abs_repr)
-         (App (AFun ''wordarray_length_0'' []) (Var i))
-         (do x <- main_pp_inferred.wordarray_length_0' v'; gets (\<lambda>s. x) od)
-         \<xi>1' \<gamma> \<Xi> \<Gamma>' \<sigma> st;
-    \<And>v' i \<gamma> \<Gamma> \<sigma> s.
-    \<lbrakk>t5_C.f_C v' = FUN_ENUM_sum; i < length \<gamma>; val_rel (\<gamma> ! i) v';
-     \<Gamma> ! i = option.Some (prod.fst (prod.snd (\<Xi> ''wordarray_fold_no_break_0'')))\<rbrakk>
-    \<Longrightarrow> update_sem_init.corres wa_abs_typing_u wa_abs_repr (Generated.state_rel wa_abs_repr)
-         (App (AFun ''wordarray_fold_no_break_0'' []) (Var i))
-         (do x <- main_pp_inferred.wordarray_fold_no_break_0' v'; gets (\<lambda>s. x) od)
-         \<xi>1' \<gamma> \<Xi> \<Gamma> \<sigma> s;
-    \<And>i \<gamma> v ts.
-    \<lbrakk>i < length \<gamma>; valRel \<xi>\<^sub>p (v::(32 word) WordArray) (\<gamma> ! i)\<rbrakk>
-    \<Longrightarrow> val.scorres (wordarray_length v) (App (AFun ''wordarray_length'' ts) (Var i)) \<gamma> \<xi>\<^sub>p;
-    \<And>i \<gamma> v ts.
-    \<lbrakk>i < length \<gamma>; valRel \<xi>\<^sub>p (v::((32 word) WordArray, 32 word, 32 word,
-      (32 word, 32 word, unit) ElemAO \<Rightarrow> 32 word, 32 word, unit) WordArrayMapP) (\<gamma> ! i);
-     WordArrayMapP.f\<^sub>f v = Generated_Shallow_Normal.sum;
-     \<exists>fs. \<gamma> ! i = VRecord fs \<and> fs ! 3 = (VFunction Generated_Deep_Normal.sum [])\<rbrakk>
-    \<Longrightarrow> val.scorres (wordarray_fold_no_break v) (App (AFun ''wordarray_fold_no_break'' ts) (Var i)) \<gamma> \<xi>\<^sub>p;
-    value_sem.rename_mono_prog wa_abs_typing_v rename \<Xi> \<xi>\<^sub>m \<xi>\<^sub>p; vv\<^sub>m = value_sem.rename_val rename (value_sem.monoval vv\<^sub>p);
-    correspondence_init.val_rel_shallow_C wa_abs_repr wa_abs_upd_val rename vv\<^sub>s uv\<^sub>C vv\<^sub>p uv\<^sub>m \<xi>\<^sub>p \<sigma> \<Xi>; proc_ctx_wellformed \<Xi>;
-    value_sem.proc_env_matches wa_abs_typing_v \<xi>\<^sub>m \<Xi>;
-    value_sem.matches wa_abs_typing_v \<Xi> [vv\<^sub>m] [option.Some (prod.fst (prod.snd Generated_TypeProof.sum_arr_type))]\<rbrakk>
-    \<Longrightarrow> correspondence_init.corres_shallow_C wa_abs_repr wa_abs_typing_u wa_abs_upd_val rename (Generated.state_rel wa_abs_repr)
-     (Generated_Shallow_Desugar.sum_arr vv\<^sub>s) Generated_TypeProof.sum_arr (main_pp_inferred.sum_arr' uv\<^sub>C) \<xi>1' \<xi>\<^sub>m \<xi>\<^sub>p
-     [uv\<^sub>m] [vv\<^sub>m] \<Xi> [option.Some (prod.fst (prod.snd Generated_TypeProof.sum_arr_type))] \<sigma> s"
-  apply (subgoal_tac "Generated_Shallow_Desugar.sum_arr = Generated_Shallow_Normal.sum_arr")
-   apply (rule corres_shallow_C_intro[OF _ _ _ _ sum_arr_typecorrect',
-        of rename Generated_Deep_Normal.sum_arr vv\<^sub>m vv\<^sub>p _ _ _ _ uv\<^sub>C _ _ _ _ _ vv\<^sub>s]; simp)
-     apply (simp add: Generated_TypeProof.sum_arr_def Generated_Deep_Normal.sum_arr_def)
-     apply (subst rename_def; simp)+
-     apply (simp add: Generated_Deep_Normal.sum_def Generated_TypeProof.sum_def 
-      Generated_TypeProof.abbreviated_type_defs Generated_Deep_Normal.abbreviated_type_defs)
-    apply (rule sum_arr_corres; simp?)
-    apply (drule val_rel_shallow_C_elim; simp)
-   apply (rule sum_arr_scorres[where ts = "[]", simplified])
-     apply (drule val_rel_shallow_C_elim; simp)+
-   apply (clarsimp simp: Generated_Shallow_Desugar.sum_arr_def Generated_Shallow_Normal.sum_arr_def fun_eq_iff)
-   apply (unfold Generated_Shallow_Desugar.sum_def Generated_Shallow_Normal.sum_def)
-   apply simp
-  done
 
-lemma \<xi>1_wordarray_length:
-  "\<xi>1 ''wordarray_length_0'' = upd_wa_length_0"
-  apply (clarsimp simp: fun_eq_iff)
-  done
+lemmas sum_arr_corres_shallow_C = 
+  Generated_cogent_shallow.corres_shallow_C_sum_arr[
+    of wa_abs_repr wa_abs_typing_v wa_abs_typing_u wa_abs_upd_val,
+    simplified \<Xi>_def[symmetric] \<xi>_1_def user_\<xi>_1',
+    OF local.Generated_cogent_shallow_axioms _ _ local.correspondence_init_axioms]
 
-lemmas wordarray_length_u32_corres = upd_C_wordarray_length_corres_gen[rotated -1, of \<xi>1, OF \<xi>1_wordarray_length]
+section "Getting Our Theorems to Line Up"
+
+lemmas wordarray_length_u32_corres = 
+  upd_C_wordarray_length_corres_gen[rotated -1, of \<xi>1, simplified fun_eq_iff \<xi>1.simps, simplified]
 
 lemma wordarray_fold_no_break_u32_corres:
   "\<And>v' i \<gamma> \<Gamma> \<sigma> s.
@@ -376,12 +174,12 @@ lemma wordarray_fold_no_break_u32_corres:
    apply (clarsimp simp: \<Xi>_def wordarray_fold_no_break_0_type_def abbreviated_type_defs)
   apply (clarsimp simp: val_rel_simp)
   done
-
+(*
 lemma wordarray_length_u32_scorres:
   "\<And>i \<gamma> v ts.
    \<lbrakk>i < length \<gamma>; valRel \<xi>p1 (v::32 word WordArray) (\<gamma> ! i)\<rbrakk> 
     \<Longrightarrow> val.scorres (wordarray_length v) (App (AFun ''wordarray_length'' ts) (Var i)) \<gamma> \<xi>p1"
-  apply (rule scorres_wordarray_length; clarsimp simp: fun_eq_iff \<xi>p.simps)
+  apply (rule scorres_wordarray_length; clarsimp simp: fun_eq_iff)
   done
 
 lemma wordarray_fold_no_break_u32_scorres:
@@ -410,29 +208,18 @@ lemma wordarray_fold_no_break_u32_scorres:
   apply (rule_tac x = "WordArrayMapP.acc\<^sub>f v" in exI)
   apply clarsimp
   done
-
+*)
 section "Putting It All Together"
 
 text
-  "Now with @{thm wordarray_length_u32_corres wordarray_fold_no_break_u32_corres
-   wordarray_length_u32_scorres wordarray_fold_no_break_u32_scorres} we can remove the assumptions
-   about about @{term corres} and @{term val.scorres} for @{term wordarray_length} and
+  "Now with @{thm wordarray_length_u32_corres wordarray_fold_no_break_u32_corres} we can remove the
+   assumptions about about @{term corres} and @{term val.scorres} for @{term wordarray_length} and
    @{term wordarray_fold_no_break}."
 
-lemma sum_arr_corres_shallow_C_concrete:
-  "\<lbrakk>value_sem.rename_mono_prog wa_abs_typing_v rename \<Xi> \<xi>m1 \<xi>p1; vv\<^sub>m = value_sem.rename_val rename (value_sem.monoval vv\<^sub>p);
-    correspondence_init.val_rel_shallow_C wa_abs_repr wa_abs_upd_val rename vv\<^sub>s uv\<^sub>C vv\<^sub>p uv\<^sub>m \<xi>p1 \<sigma> \<Xi>; proc_ctx_wellformed \<Xi>;
-    value_sem.proc_env_matches wa_abs_typing_v \<xi>m1 \<Xi>;
-    value_sem.matches wa_abs_typing_v \<Xi> [vv\<^sub>m] [option.Some (prod.fst (prod.snd Generated_TypeProof.sum_arr_type))]\<rbrakk>
-    \<Longrightarrow> correspondence_init.corres_shallow_C wa_abs_repr wa_abs_typing_u wa_abs_upd_val rename (Generated.state_rel wa_abs_repr)
-     (Generated_Shallow_Desugar.sum_arr vv\<^sub>s) Generated_TypeProof.sum_arr (main_pp_inferred.sum_arr' uv\<^sub>C) \<xi>1 \<xi>m1 \<xi>p1
-     [uv\<^sub>m] [vv\<^sub>m] \<Xi> [option.Some (prod.fst (prod.snd Generated_TypeProof.sum_arr_type))] \<sigma> s"
-  apply (rule sum_arr_corres_shallow_C; simp?)
-     apply (rule wordarray_length_u32_corres[simplified]; simp)
-    apply (rule wordarray_fold_no_break_u32_corres[simplified]; simp)
-   apply (rule wordarray_length_u32_scorres; simp)
-  apply (rule wordarray_fold_no_break_u32_scorres; simp)
-  done
+lemmas sum_arr_corres_shallow_C_concrete =  sum_arr_corres_shallow_C[
+  of \<xi>m1 \<xi>p1, simplified,
+  OF wordarray_length_u32_corres, simplified,
+  OF wordarray_fold_no_break_u32_corres[simplified], simplified TrueI, simplified]
 
 section "Further Improvements"
 
@@ -580,48 +367,6 @@ lemma sum_arr_correct:
       valRel_records wordarray_fold_no_break' Generated_Shallow_Desugar.sum_def
       len_eq_walen_if_le_max32 take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t_def)
   done
-
-(*
-term "{(a, b, c) | a b c. \<xi>0 a b c}"
-definition \<xi>_le
-  where "\<xi>_le \<xi>a \<xi>b = ({(a, b, c) | a b c. \<xi>a a b c} \<subseteq> {(a, b, c) | a b c. \<xi>b a b c})"
-
-lemma "\<xi>_le \<xi>0 \<xi>1"
-  apply (clarsimp simp: \<xi>_le_def)
-  apply (drule Meson.imp_to_disjD; clarsimp)
-  apply (drule Meson.imp_to_disjD; clarsimp)
-  apply (erule disjE; clarsimp)
-  apply (drule Meson.imp_to_disjD; clarsimp)
-  apply (drule Meson.imp_to_disjD; clarsimp)
-  apply (drule Meson.imp_to_disjD; clarsimp)
-  apply (erule disjE; clarsimp)
-   apply (intro exI conjI impI; simp)
-  apply (intro exI conjI impI; simp)
-  done
-
-
-lemma "\<xi>_le \<xi>m \<xi>m1"
-  apply (clarsimp simp: \<xi>_le_def)
-  apply (drule Meson.imp_to_disjD; clarsimp)
-  apply (drule Meson.imp_to_disjD; clarsimp)
-  apply (erule disjE; clarsimp)
-  apply (drule Meson.imp_to_disjD; clarsimp)
-  apply (drule Meson.imp_to_disjD; clarsimp)
-  apply (drule Meson.imp_to_disjD; clarsimp)
-  apply (erule disjE; clarsimp)
-   apply (intro exI conjI impI; simp)
-  apply (intro exI conjI impI; simp)
-  done
-
-lemma \<xi>_le_imp: "\<xi>_le \<xi>a \<xi>b \<Longrightarrow> \<xi>a a b c \<longrightarrow> \<xi>b a b c"
-  apply (clarsimp simp: \<xi>_le_def subset_eq)
-  done
-
-lemma "\<lbrakk>\<xi>_le \<xi>a \<xi>b; valRel \<xi>a (a :: 'c \<Rightarrow> 'd) b\<rbrakk> \<Longrightarrow> valRel \<xi>b a b"
-  apply (clarsimp simp: valRel_records)
-  apply (erule disjE; clarsimp)
-  oops
-*)
 end (* of context *)
 
 end

@@ -24,7 +24,7 @@ corresSetup thy cfile log =
       theory = Theory { thyName = thy ++ __cogent_suffix_of_corres_setup
                       , thyImports = imports thy
                       , thyBody = (:[]) . TheoryString . unlines $
-                                    libRel ++ updSemInit ++ cHeapTypeClass ++ localSetup cfile ++ locale thy cfile
+                                    absFuns ++ libRel ++ updSemInit ++ cHeapTypeClass ++ localSetup cfile ++ locale thy cfile
                       } :: O.Theory I.Type I.Term
   in header $ L.pretty theory
 
@@ -38,6 +38,12 @@ imports thy = TheoryImports $
   , "CogentCRefinement.Type_Relation_Generation"
   , thy ++ __cogent_suffix_of_ac_install
   , thy ++ __cogent_suffix_of_type_proof
+  ]
+
+absFuns :: [String]
+  [ "(* Abstract function environment *)"
+  , "consts user_\\<xi>_0 :: \"(funtyp, abstyp, ptrtyp) uabsfuns\""
+  , "consts user_\\<xi>_1 :: \"(funtyp, abstyp, ptrtyp) uabsfuns\""
   ]
 
 libRel :: [String]

@@ -46,8 +46,8 @@ lemma updates_take_eq:
  "na \<le> (length xs - n) \<Longrightarrow>
   n \<le> length xs \<Longrightarrow>
   length xs = length ys \<Longrightarrow>
-  take (min (length ys) n + min (length (drop n ys)) na) xs =
-    take n xs @ take na (drop n xs)"
+  take (min (length ys) n + min (length (List.drop n ys)) na) xs =
+    take n xs @ take na (List.drop n xs)"
   by (simp add: min_absorb2 take_add)
 
 lemma refine_sync:
