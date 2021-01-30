@@ -416,6 +416,15 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   BaseType (V {}) -> hoistMaybe $ Just []  -- FIXME: ditto
   BaseType (A t _ _ _) -> hoistMaybe $ Just [BaseType t]
 
+  Self x t t'
+    | isEquatableType t' -> do
+        v <- freshRefVarName _2
+        let ϕ = SE (T bool) (PrimOp "==" [SE t' (Var v), SE t' (Var x)])
+        hoistMaybe $ Just [T (TRefine v t' ϕ) :< t]
+    | T (TRefine v β p) <- t' -> do
+        let ϕ = SE (T bool) (PrimOp "&&" [p, SE (T bool) (PrimOp "==" [SE β (Var v), SE β (Var x)])])
+        hoistMaybe $ Just [T (TRefine v β ϕ) :< t]
+    | nonSelfificableType t' -> hoistMaybe $ Just [t' :< t]
 #endif
 
   T t1 :< x | unorderedType t1 -> hoistMaybe $ Just [T t1 :=: x]
@@ -476,14 +485,6 @@ isSolved t = L.null (unifVars t) && L.null (unifLVarsT t)
 #ifdef REFINEMENT_TYPES
           && L.null (unknowns t)
 #endif
-
-isPrimType :: TCType -> Bool
-isPrimType (T (TCon n [] Unboxed))
-  | n `elem` primTypeCons = True
-  | otherwise = False
-isPrimType (T (TBang t)) = isPrimType t
-isPrimType (T (TUnbox t)) = isPrimType t
-isPrimType _ = False
 
 fullyNormalise :: TCType -> Rewrite.RewriteT TcSolvM TCType
 fullyNormalise t = undefined

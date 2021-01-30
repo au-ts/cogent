@@ -45,7 +45,8 @@ import Prelude as P
 
 data SmtTransState = SmtTransState { _unifs :: IntMap SVal
                                    , _vars  :: Map String SVal
-                                   , _unintrp :: Map TCType String
+                                   , _ut    :: Map TCType String    -- uninterpreted types
+                                   , _ue    :: Map TCSExpr String   -- uninterpreted expressions
                                    , _fresh :: Int
                                    }
 
@@ -67,10 +68,10 @@ typeToSmt (T (TUnit))      = return $ KTuple []
 #ifdef REFINEMENT_TYPES
 typeToSmt (T (TRefine _ b _)) = typeToSmt b
 #endif
-typeToSmt t = do u <- use unintrp
+typeToSmt t = do u <- use ut
                  case M.lookup t u of
                    Nothing -> do s <- freshSort
-                                 unintrp %= M.insert t s
+                                 ut %= M.insert t s
 #if MIN_VERSION_sbv(8,8,0)
                                  return (KUserSort s (Just [s]))
                    Just s' -> return (KUserSort s' (Just [s']))
@@ -111,7 +112,14 @@ sexprToSmt (SE t (BoolLit b)) = return $ svBool b
 sexprToSmt (SE t (If e _ th el)) = (liftA3 svIte) (sexprToSmt e) (sexprToSmt th) (sexprToSmt el)
 sexprToSmt (SE t (Upcast e)) = svFromIntegral <$> typeToSmt t <*> sexprToSmt e
 sexprToSmt (SE t (Annot e _)) = sexprToSmt e
-sexprToSmt (SE t _) = freshVal >>= \f -> typeToSmt t >>= \t' -> return (svUninterpreted t' f Nothing [])
+sexprToSmt e@(SE t _) = do
+  m <- use ue
+  case M.lookup e m of
+    Nothing -> do f <- freshVal
+                  t' <- typeToSmt t
+                  ue %= (M.insert e f)
+                  return (svUninterpreted t' f Nothing [])
+    Just v  -> typeToSmt t >>= \t' -> return (svUninterpreted t' v Nothing [])
 
 -- type SmtM a = StateT (UVars, EVars) V.Symbolic a
 

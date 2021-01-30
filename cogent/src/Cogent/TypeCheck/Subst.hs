@@ -196,6 +196,7 @@ applyC s (Arith e) = Arith $ applySE s e
 -- applyC s (a :-> b) = applyC s a :-> applyC s b
 applyC s (env :|- a) = applyGoalEnv s env :|- applyC s a
 applyC s (BaseType t) = BaseType $ apply s t
+applyC s (Self x t t') = Self x (apply s t) (apply s t')
 #endif
 applyC s (Unsat e) = Unsat $ applyErr s e
 applyC s (SemiSat w) = SemiSat (applyWarn s w)

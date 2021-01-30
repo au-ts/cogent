@@ -508,17 +508,18 @@ cg' (Var n) t = do
 
     Just (t', p, used) -> do
       context %= C.use n ?loc
-{-
 #ifdef REFINEMENT_TYPES
       c <- if ?isRefType then
-             do v <- freshRefVarName freshVars
-                β <- freshTVar
-                let ρ = T $ TRefine v β (SE (T bool) (PrimOp "==" [SE β (Var v), SE β (Var n)]))
-                return (t' :< ρ <> ρ :< t)  -- FIXMEXXX
+             return $ Self n t t'
+                -- See the definition of @Self@ in Base.hs
+                -- c.f. [Jhala & Vazou, 16 Oct 2020. §4.3.2]
+                -- In [Lehmann & Tanter, 16. CoqPL], the VAR rule is like:
+                --     Γ(x) = {y : B | p}
+                -- ------------------------- VAR
+                --  Γ ⊢ x : {z : B | z = x}
+                -- which is slightly different from [Jhala & Vazou, 2020]
            else return $ t' :< t
 #endif
--}
-      let c = t' :< t
       share <- case used of
                  Seq.Empty -> do  -- Variable used for the first time, mark the use, and continue
                    traceTc "gen" (text "variable" <+> pretty n <+> text "used for the first time" <> semi
@@ -526,7 +527,7 @@ cg' (Var n) t = do
                    return Sat
                  us -> do  -- Variable already used before, emit a Share constraint.
                    traceTc "gen" (text "variable" <+> pretty n <+> text "used before" <> semi
-                            L.<$> text "generate constraint" <+> prettyC (t' :< t) <+> text "and share constraint")
+                            L.<$> text "generate constraint" <+> prettyC c <+> text "and share constraint")
                    return (Share t' $ Reused n p us)
       return (c <> share, e)
 
@@ -942,21 +943,20 @@ matchA :: (?isRefType :: Bool)
        -> CG (M.Map VarName (C.Assumption TCType), [TCSExpr], Constraint, TCPatn, TCType)
 matchA x@(LocPatn l p) mv t = do
   let ?loc = l
-  let me = mv <&> SE t . Var
-  (s,prds,c,p',t') <- matchA' p me t
+  (s,prds,c,p',t') <- matchA' p mv t
   return (s, prds, c :@ InPattern x, TP p' l, t')
 
 matchA' :: (?loc :: SourcePos, ?isRefType :: Bool)
         => Pattern LocIrrefPatn
-        -> Maybe TCSExpr
+        -> Maybe VarName
         -> TCType
         -> CG (M.Map VarName (C.Assumption TCType), [TCSExpr], Constraint, Pattern TCIrrefPatn, TCType)
 
-matchA' (PIrrefutable i) me t = do
-  (s, prds, c, i') <- match i me t
+matchA' (PIrrefutable i) mv t = do
+  (s, prds, c, i') <- match i mv t
   return (s, prds, c, PIrrefutable i', t)
 
-matchA' (PCon k [i]) me t = do
+matchA' (PCon k [i]) _ t = do
   beta <- freshTVar
   (s, prds, c, i') <- match i Nothing beta
   U rest <- freshTVar
@@ -969,10 +969,10 @@ matchA' (PCon k [i]) me t = do
            L.<$> text "generate constraint" <+> prettyC c)
   return (s, prds, c <> c', PCon k [i'], V row')
 
-matchA' (PCon k []) me t = matchA' (PCon k [LocIrrefPatn ?loc PUnitel]) Nothing t
-matchA' (PCon k is) me t = matchA' (PCon k [LocIrrefPatn ?loc (PTuple is)]) Nothing t
+matchA' (PCon k []) _ t = matchA' (PCon k [LocIrrefPatn ?loc PUnitel]) Nothing t
+matchA' (PCon k is) _ t = matchA' (PCon k [LocIrrefPatn ?loc (PTuple is)]) Nothing t
 
-matchA' (PIntLit i) me t = do
+matchA' (PIntLit i) _ t = do
   let minimumBitwidth | i < u8MAX      = "U8"
                       | i < u16MAX     = "U16"
                       | i < u32MAX     = "U32"
@@ -981,43 +981,49 @@ matchA' (PIntLit i) me t = do
       -- ^^^ FIXME: I think if we restrict this constraint, then we can possibly get rid of `Upcast' / zilinc
   return (M.empty, [], c, PIntLit i, t)
 
-matchA' (PBoolLit b) me t =
+matchA' (PBoolLit b) _ t =
   return (M.empty, [], t :< T bool, PBoolLit b, t)
 
-matchA' (PCharLit c) me t =
+matchA' (PCharLit c) _ t =
   return (M.empty, [], t :< T u8, PCharLit c, t)
 
 match :: (?isRefType :: Bool)
       => LocIrrefPatn
-      -> Maybe TCSExpr
+      -> Maybe VarName
       -> TCType
       -> CG (M.Map VarName (C.Assumption TCType), [TCSExpr], Constraint, TCIrrefPatn)
-match x@(LocIrrefPatn l ip) me t = do
+match x@(LocIrrefPatn l ip) mv t = do
   let ?loc = l
-  (s,prds,c,ip') <- match' ip me t
+  (s,prds,c,ip') <- match' ip mv t
   return (s, prds, c :@ InIrrefutablePattern x, TIP ip' l)
 
 match' :: (?loc :: SourcePos, ?isRefType :: Bool)
        => IrrefutablePattern VarName LocIrrefPatn LocExpr
-       -> Maybe TCSExpr
+       -> Maybe VarName
        -> TCType
        -> CG (M.Map VarName (C.Assumption TCType), [TCSExpr], Constraint, IrrefutablePattern TCName TCIrrefPatn TCExpr)
 
-match' (PVar x) me t = do
-  let p = PVar (x,t)
-      prds = case me of Just e  -> [SE (T bool) (PrimOp "==" [SE t (Var x), e])]
-                        Nothing -> []
+match' (PVar x) mv t = do
+  (t', c) <- case mv of
+               Nothing -> return (t, Sat)
+               Just v' -> do α <- freshTVar
+                             return (α, Self v' α t)
+  let p = PVar (x,t')
+  --    prds = case mv of Just v  -> [SE (T bool) (PrimOp "==" [SE t (Var x), e])]
+  --                      Nothing -> []
   traceTc "gen" (text "match var pattern:" <+> prettyIP p
-           L.<$> text "of type" <+> pretty t)
-  return (M.fromList [(x, (t,?loc,Seq.empty))], prds, Sat, p)
+           L.<$> text "of type" <+> pretty t
+           L.<$> text "inferred as" <+> pretty t'
+           L.<$> text "generate constraint" <+> prettyC c)
+  return (M.fromList [(x, (t',?loc,Seq.empty))], [], c, p)
 
-match' (PUnderscore) me t =
+match' (PUnderscore) _ t =
   let c = dropConstraintFor (M.singleton "_" (t, ?loc, Seq.empty))
    in return (M.empty, [], c, PUnderscore)
 
-match' (PUnitel) me t = return (M.empty, [], t :< T TUnit, PUnitel)
+match' (PUnitel) _ t = return (M.empty, [], t :< T TUnit, PUnitel)
 
-match' (PTuple ps) me t = do
+match' (PTuple ps) _ t = do
   (vs, blob) <- unzip <$> mapM (\p -> do v <- freshTVar; (v,) <$> match p Nothing v) ps
   let (ss, prdss, cs, ps') = unzip4 blob
       p' = PTuple ps'
@@ -1030,7 +1036,7 @@ match' (PTuple ps) me t = do
            L.<$> text "generate constraint" <+> prettyC c)
   return (M.unions ss, [], co <> mconcat cs <> c, p')
 
-match' (PUnboxedRecord fs) me t | not (any isNothing fs) = do
+match' (PUnboxedRecord fs) _ t | not (any isNothing fs) = do
   let (ns, ps) = unzip (catMaybes fs)
   (vs, blob) <- unzip <$> mapM (\p -> do v <- freshTVar; (v,) <$> match p Nothing v) ps
   U rest <- freshTVar
@@ -1052,7 +1058,7 @@ match' (PUnboxedRecord fs) me t | not (any isNothing fs) = do
   | otherwise = over _3 (:& Unsat RecordWildcardsNotSupported) <$>
                   match' (PUnboxedRecord (filter isJust fs)) Nothing t
 
-match' (PTake r fs) me t | not (any isNothing fs) = do
+match' (PTake r fs) _ t | not (any isNothing fs) = do
   let (ns, ps) = unzip (catMaybes fs)
   (vs, blob) <- unzip <$> mapM (\p -> do v <- freshTVar; (v,) <$> match p Nothing v) ps
   U rest <- freshTVar
@@ -1077,7 +1083,7 @@ match' (PTake r fs) me t | not (any isNothing fs) = do
                   match' (PTake r (filter isJust fs)) Nothing t
 
 #ifdef REFINEMENT_TYPES
-match' (PArray ps) me t = do
+match' (PArray ps) _ t = do
   alpha <- freshTVar  -- element type
   blob  <- mapM (\p -> match p Nothing alpha) ps
   let (ss,prdss,cs,ps') = unzip4 blob
@@ -1089,7 +1095,7 @@ match' (PArray ps) me t = do
                  text "generate constraint" <+> prettyC c)
   return (M.unions ss, concat prdss, mconcat cs <> c, PArray ps')
 
-match' (PArrayTake arr [(idx,p)]) me t = do
+match' (PArrayTake arr [(idx,p)]) _ t = do
   alpha <- freshTVar  -- array elmt type
   len   <- freshEVar (T u32)  -- array length
   sigil <- freshVar   -- sigil
@@ -1108,7 +1114,7 @@ match' (PArrayTake arr [(idx,p)]) me t = do
                  text "generate constraint" <+> prettyC (mconcat c))
   return (s `M.union` sp, prds, cp `mappend` mconcat c, PArrayTake (arr, tarr) [(idx',p')])
 
-match' (PArrayTake arr _) me t = __todo "match': taking multiple elements from array is not supported"
+match' (PArrayTake arr _) _ t = __todo "match': taking multiple elements from array is not supported"
 #endif
 
 -- -----------------------------------------------------------------------------
@@ -1189,7 +1195,7 @@ withBindings (Binding pat mτ e0 bs : xs) e top = do
     Nothing -> return (Sat, α)
     Just τ  -> do (cτ,τ') <- validateType (stripLocT τ)
                   return (cτ <> α :< τ', τ')
-  (s, prds, cp, pat') <- match pat (Just $ SE α (Var v)) α'
+  (s, prds, cp, pat') <- match pat (Just v) α'
   context %= C.addScope s
   (c', xs', e') <- withBindings xs e top
   rs <- context %%= C.dropScope
@@ -1198,14 +1204,16 @@ withBindings (Binding pat mτ e0 bs : xs) e top = do
           Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v)
           _ -> Sat
 #ifdef REFINEMENT_TYPES
-      c'' = ( M.insert v (α,0) $ fmap (\(t,_,occ) -> (t, Seq.length occ)) s
-            , (SE (T bool) (PrimOp "==" [SE α (Var v), toTCSExpr e0'])) : prds
-            ) :|- c'
+      c'' = if ?isRefType then
+              ( M.insert v (α,0) $ fmap (\(t,_,occ) -> (t, Seq.length occ)) s
+              , {- (SE (T bool) (PrimOp "==" [SE α (Var v), toTCSExpr e0'])) : -} prds
+              ) :|- cp <> c'
+            else c'
 #else
       c'' = c'
 #endif
-      c = ct <> c0 <> c'' <> cp <> dropConstraintFor rs <> unused
-      b' = Binding pat' (fmap (const α) mτ) e0' bs
+      c = ct <> c0 <> c'' <> dropConstraintFor rs <> unused
+      b' = Binding pat' (fmap (const α') mτ) e0' bs
   traceTc "gen" (text "bound expression" <+> pretty e0' <+>
                  text "with banged" <+> pretty bs
            L.<$> text "of type" <+> pretty α <> semi

@@ -93,12 +93,13 @@ getMentions gs =
 
   mentionsOfGoal :: Goal -> (IM.IntMap (Int,Int,Int), IS.IntSet)
   mentionsOfGoal g = case g ^. goal of
-   r :< s     -> (IM.fromListWith adds (mentionEnv (g ^. goalEnv) (r :< s) ++ mentionL r ++ mentionR s), IS.empty)
+   r :< s      -> (IM.fromListWith adds (mentionEnv (g ^. goalEnv) (r :< s) ++ mentionL r ++ mentionR s), IS.empty)
 #ifdef REFINEMENT_TYPES
-   Arith e    -> (IM.fromListWith adds (mentionEnv (g ^. goalEnv) (Arith e)), IS.empty)
-   BaseType t -> (IM.fromListWith adds (mentionEnv (g ^. goalEnv) (BaseType t)), basetype t)
+   Arith e     -> (IM.fromListWith adds (mentionEnv (g ^. goalEnv) (Arith e)), IS.empty)
+   BaseType t  -> (IM.fromListWith adds (mentionEnv (g ^. goalEnv) (BaseType t)), basetype t)
+   Self x t t' -> (IM.fromListWith adds (mentionEnv (g ^. goalEnv) (Self x t t') ++ mentionL t' ++ mentionR t), IS.empty)
 #endif
-   _          -> (IM.empty, IS.empty)
+   _           -> (IM.empty, IS.empty)
 
   mentionEnv (gamma, es) c = -- fmap (\v -> (v, (1,0,0))) $ unifVarsEnv env
 #ifdef REFINEMENT_TYPES

@@ -92,6 +92,10 @@ findEquateCandidates (mentions, basetypes) (c:cs) =
          | canEquate (^._2) x t
          , isRefinementType t
          -> (c : sups, subs, others)
+       -- Self v t (U x)
+       --   | canEquate (\m -> m^._1 + m^._2) x t
+       --   , not (isRefinementType t && isBaseUnif x)
+       --   -> undefined
 #endif
        V r1 :< t
          | Just a <- Row.var r1

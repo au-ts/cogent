@@ -125,7 +125,7 @@ smtSatResult e = do
                    , allSatMaxModelCount = Just 1
                    })
                (evalStateT (sexprToSmt e)
-               (SmtTransState IM.empty M.empty M.empty 0))
+               (SmtTransState IM.empty M.empty M.empty M.empty 0))
   dumpMsgIfTrue __cogent_ddump_tc_smt (L.text (replicate 80 '-') L.<> L.hardline)
   traceTc "sol/smt" (L.text "Running SMT on expression"
                      L.<$> indent' (L.pretty e)
@@ -149,7 +149,7 @@ smtProve e = do
                        , allSatMaxModelCount = Just 1
                        })
                        (evalStateT (sexprToSmt e)
-                                   (SmtTransState IM.empty M.empty M.empty 0))
+                                   (SmtTransState IM.empty M.empty M.empty M.empty 0))
   dumpMsgIfTrue __cogent_ddump_tc_smt (L.text (replicate 80 '-') L.<> L.hardline)
   traceTc "sol/smt" (L.text "Running SMT on expression"
                      L.<$> indent' (L.pretty e)

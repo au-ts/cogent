@@ -51,7 +51,7 @@ import Data.Foldable (all)
 import Data.Functor.Const
 import Data.Functor.Identity
 import qualified Data.IntMap as IM
-import Data.List (nub, (\\))
+import Data.List (lookup, nub, (\\))
 import qualified Data.Map as M
 import Data.Maybe (catMaybes, maybeToList)
 #if __GLASGOW_HASKELL__ < 803
@@ -208,6 +208,9 @@ data Constraint' t l = (:<) t t
                      -- | (:->) (Constraint' t l) (Constraint' t l)
                      | (:|-) (M.Map VarName (t, Int), [SExpr t l]) (Constraint' t l)
                      | BaseType t
+                     | Self VarName t t  -- selfification [Ou et al., 04]
+                                         -- Self x t t' = if t' = {v : B | p} then {v : B | p ∧ v = x} :< t
+                                         --                                   else t' :< t
 #endif
                      deriving (Eq, Show, Ord) -- , Functor, Foldable, Traversable)
 
@@ -290,6 +293,7 @@ instance Bifunctor Constraint' where
   -- bimap f g (c1 :-> c2)        = (bimap f g c1) :-> (bimap f g c2)
   bimap f g (env :|- c)        = (fmap (first f) `bimap` fmap (bimap f g)) env :|- bimap f g c
   bimap f g (BaseType t)       = BaseType (f t)
+  bimap f g (Self x t t')      = Self x (f t) (f t')
 #endif
   bimap f g Sat                = Sat
   bimap f g (SemiSat w)        = SemiSat w
@@ -320,6 +324,7 @@ instance Bitraversable Constraint' where
   -- bitraverse f g (c1 :-> c2)        = (:->) <$> bitraverse f g c1 <*> bitraverse f g c2
   bitraverse f g (env :|- c)        = (:|-) <$> (traverse (firstM f) ***^^ traverse (bitraverse f g)) env <*> bitraverse f g c
   bitraverse f g (BaseType t)       = BaseType <$> f t
+  bitraverse f g (Self x t t')      = Self x <$> f t <*> f t'
 #endif
   bitraverse f g Sat                = pure Sat
   bitraverse f g (SemiSat w)        = pure $ SemiSat w
@@ -828,6 +833,24 @@ isVariantType :: RawType -> Bool
 isVariantType (RT (TVariant _)) = True
 isVariantType _ = False
 
+isPrimType :: TCType -> Bool
+isPrimType (T (TCon n [] Unboxed))
+  | n `elem` primTypeCons = True
+  | otherwise = False
+isPrimType (T (TBang t)) = isPrimType t
+isPrimType (T (TUnbox t)) = isPrimType t
+isPrimType _ = False
+
+isEquatableType :: TCType -> Bool
+isEquatableType (T (TCon n [] Unboxed))
+  | n `elem` primTypeCons = True
+  | "String" <- n = True
+  | otherwise = False
+isEquatableType (T (TBang t)) = isEquatableType t
+isEquatableType (T (TUnbox t)) = isEquatableType t
+isEquatableType _ = False
+
+
 #ifdef REFINEMENT_TYPES
 isRefinementType :: TCType -> Bool
 isRefinementType (T (TRefine {})) = True
@@ -838,8 +861,23 @@ notRefinementType :: TCType -> Bool
 notRefinementType (U _) = False
 notRefinementType (T (TRefine {})) = False
 notRefinementType (T (TVar {})) = False
+notRefinementType (T (TLayout _ t)) = notRefinementType t
+notRefinementType (T (TBang t)) = notRefinementType t
+notRefinementType (T (TUnbox t)) = notRefinementType t
 notRefinementType (Synonym {}) = False
 notRefinementType _ = True
+
+-- The result is constructive. It only returns True when we're sure it's not selfificable.
+nonSelfificableType :: TCType -> Bool
+nonSelfificableType (U _) = False
+nonSelfificableType t | isPrimType t = False
+nonSelfificableType (T (TRefine {})) = False
+nonSelfificableType (T (TLayout _ t)) = nonSelfificableType t
+nonSelfificableType (T (TBang t)) = nonSelfificableType t
+nonSelfificableType (T (TUnbox t)) = nonSelfificableType t
+nonSelfificableType (Synonym {}) = False
+nonSelfificableType _ = True
+
 #endif
 
 isMonoType :: RawType -> Bool
@@ -954,6 +992,7 @@ progVarsE (SE t e) = foldMap progVarsE e
 progVarsC :: Constraint -> S.Set VarName
 progVarsC (r :< s) = progVars r `S.union` progVars s
 progVarsC (Arith e) = progVarsE e
+progVarsC (Self x t t') = progVars t `S.union` progVars t'
 progVarsC _ = S.empty
 
 #endif

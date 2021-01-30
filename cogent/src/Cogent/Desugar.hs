@@ -686,6 +686,10 @@ desugarExpr (B.TE _ (S.PrimOp opr es) _) = E . Op (symbolOp opr) <$> mapM desuga
 desugarExpr (B.TE _ (S.Var vn) _) = (findIx vn <$> use varCtx) >>= \case
   Just v  -> return $ E $ Variable (v, vn)
   Nothing -> do constdefs <- view _2
+                ctx <- use varCtx
+                -- traceM ("ctx = " ++ show (pretty ctx))
+                -- traceM ("constdefs = " ++ show (constdefs))
+                -- traceM ("vn = " ++ show vn)
                 let Just e = M.lookup vn constdefs
                 desugarExpr e
 desugarExpr (B.TE _ (S.Match e _ []) _) = __impossible "desugarExpr (Match)"

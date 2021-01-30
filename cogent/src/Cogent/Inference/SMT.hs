@@ -57,7 +57,8 @@ import qualified Text.PrettyPrint.ANSI.Leijen as L
 import Debug.Trace
 
 data SmtTransState t b = SmtTransState { _vars    :: [Maybe SVal]
-                                       , _unintrp :: Map (Type t b) String
+                                       , _ut      :: Map (Type t b) String
+                                       , _ue      :: Map (LExpr t b) String
                                        , _fresh   :: Int
                                        }
 
@@ -80,7 +81,7 @@ getSmtExpression :: (L.Pretty b, Show b, Ord b)
                  -> Vec v [LExpr t b]
                  -> Type t b -> LExpr t b -> LExpr t b -> Symbolic SVal
 getSmtExpression tvec pvec β p q = do
-  (e',p',q') <- flip evalStateT (SmtTransState (replicate (toInt $ Vec.length tvec) Nothing) M.empty 0) $ do
+  (e',p',q') <- flip evalStateT (SmtTransState (replicate (toInt $ Vec.length tvec) Nothing) M.empty M.empty 0) $ do
     vars %= (Nothing :)
     e' <- P.foldr svAnd svTrue <$> extract (Just β `Cons` tvec) (Cons [] pvec)
     p' <- lexprToSmt (Vec.toList $ Just β `Cons` tvec) p
@@ -193,21 +194,27 @@ lexprToSmt vec (LIf c t e) = do
         elseBranch = svOr c' e'           -- ~c => e
     return $ svAnd thenBranch elseBranch
 -- lexprToSmt vec (LLet a e1 e2) = undefined
-lexprToSmt vec _ = freshVal >>= \vn -> return $ svUninterpreted KString vn Nothing []  -- FIXME: KString
+lexprToSmt vec e = do
+  m <- use ue
+  case M.lookup e m of
+    Nothing -> do f <- freshVal
+                  ue %= (M.insert e f)
+                  return $ svUninterpreted KString f Nothing []  -- FIXME: KString
+    Just f  -> return $ svUninterpreted KString f Nothing []   -- FIXME: ditto
 
-typeToSmt :: (Ord b) => Type t b -> SmtStateM t b SMT.Kind
+typeToSmt :: (L.Pretty b, Show b, Ord b) => Type t b -> SmtStateM t b SMT.Kind
 typeToSmt (TPrim pt) = return $ primIntToSmt pt
 typeToSmt (TString) = return KString
 typeToSmt (TUnit) = return $ KTuple []
 typeToSmt (TProduct t1 t2) = KTuple <$> mapM typeToSmt [t1, t2]
 typeToSmt (TRefine t _) = typeToSmt t
 typeToSmt t = do
-  u <- use unintrp
+  u <- use ut
   case M.lookup t u of
     Nothing -> do s <- freshSort
-                  unintrp %= M.insert t s
+                  ut %= M.insert t s
 #if MIN_VERSION_sbv(8,8,0)
-                  return (KUserSort s (Just [s]))
+                  return (trace ("@@@@ t = " ++ show (L.pretty t) ++ "\n sort = " ++ show s) $ KUserSort s (Just [s]))
     Just s -> return (KUserSort s (Just [s]))
 #else
                   return (KUninterpreted s (Left s))

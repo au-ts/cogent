@@ -63,6 +63,7 @@ getMentions gs = foldl (IM.unionWith (+)) IM.empty $ fmap (\g -> occ (g ^. goal)
     -- occ (a :-> b) = IM.unionWith (+) (occ a) (occ b)
 #ifdef REFINEMENT_TYPES
     occ (g :|- c) = occ c
+    occ (Self x t t') = IM.unionsWith (+) $ fmap (flip IM.singleton 1) $ unifVars t' ++ unifVars t
 #endif
     occ c         = IM.empty
 
@@ -77,7 +78,7 @@ findUpcasts gs = do
     guard (not $ IM.null ms)
     pure (ms, gs')
   where
-    mentions = IM.empty  -- getMentions gs
+    mentions = getMentions gs
     -- \ ^^^ FIXME: How do we ensure that all the Upcastable constraints are solved
     -- only if the involved unifier cannot be furthre processed by other constraints? / zilinc
 

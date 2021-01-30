@@ -908,6 +908,7 @@ instance (Pretty t, Pretty l) => Pretty (Constraint' t l) where
   -- pretty (a :-> b)        = prettyPrec 2 a </> warn ":->" </> prettyPrec 1 b
   pretty (env :|- a)      = prettyGoalEnv env <+> warn "⊢" <+> prettyPrec 1 a
   pretty (BaseType t)     = warn "BaseType" <+> pretty t
+  pretty (Self x t t')    = warn "Self" <> tupled [pretty x, pretty t, pretty t']
 #endif
   pretty (l :~ n)         = pretty l </> warn ":~" </> pretty n
   pretty (l :~< m)        = pretty l </> warn ":~<" </> pretty m
