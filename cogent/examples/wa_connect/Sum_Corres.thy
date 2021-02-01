@@ -216,6 +216,9 @@ text
    assumptions about about @{term corres} and @{term val.scorres} for @{term wordarray_length} and
    @{term wordarray_fold_no_break}."
 
+declare \<xi>0.simps[simp del]
+declare \<xi>1.simps[simp del]
+
 lemmas sum_arr_corres_shallow_C_concrete =  sum_arr_corres_shallow_C[
   of \<xi>m1 \<xi>p1, simplified,
   OF wordarray_length_u32_corres, simplified,
@@ -367,6 +370,7 @@ lemma sum_arr_correct:
       valRel_records wordarray_fold_no_break' Generated_Shallow_Desugar.sum_def
       len_eq_walen_if_le_max32 take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t_def)
   done
+
 end (* of context *)
 
 end

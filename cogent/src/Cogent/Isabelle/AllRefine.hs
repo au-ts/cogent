@@ -108,10 +108,10 @@ initFinalLocale thy output = TheoryString $ unlines
   [ "(* Initialise final locale. *)"
   , "locale " ++ thy ++ "_cogent_shallow ="
   , "  \"" ++ output ++ "\" + correspondence +"
-  , "  constrains val_abs_typing :: \"vabstyp \\<Rightarrow> name \\<Rightarrow> type list \\<Rightarrow> bool\""
+  , "  constrains val_abs_typing :: \"'b \\<Rightarrow> name \\<Rightarrow> type list \\<Rightarrow> bool\""
   , "         and upd_abs_typing :: \"abstyp \\<Rightarrow> name \\<Rightarrow> type list \\<Rightarrow> sigil \\<Rightarrow> ptrtyp set \\<Rightarrow> ptrtyp set \\<Rightarrow> (funtyp, abstyp, ptrtyp) store \\<Rightarrow> bool\""
   , "         and abs_repr       :: \"abstyp \\<Rightarrow> name \\<times> repr list\""
-  , "         and abs_upd_val    :: \"abstyp \\<Rightarrow> vabstyp \\<Rightarrow> char list \\<Rightarrow> Cogent.type list \\<Rightarrow> sigil \\<Rightarrow> ptrtyp set \\<Rightarrow> ptrtyp set \\<Rightarrow> (funtyp, abstyp, ptrtyp) store \\<Rightarrow> bool\""
+  , "         and abs_upd_val    :: \"abstyp \\<Rightarrow> 'b \\<Rightarrow> char list \\<Rightarrow> Cogent.type list \\<Rightarrow> sigil \\<Rightarrow> ptrtyp set \\<Rightarrow> ptrtyp set \\<Rightarrow> (funtyp, abstyp, ptrtyp) store \\<Rightarrow> bool\""
   ]
 
 sublocales :: String -> TheoryDecl I.Type I.Term

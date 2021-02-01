@@ -1001,7 +1001,8 @@ fun define_uabsfuns (defs : string list list) ctxt : ((term * (string * thm)) li
     | define n (absfuns::defs') ctxt = let
         val name = "\<xi>_" ^ string_of_int n
         val typ = @{typ "(funtyp, abstyp, ptrtyp) uabsfuns"}
-        val rhs = Const (@{const_name undefined}, typ) (* FIXME *)
+        (*val b = ((@{binding name}, typ), NoSyn)*)
+        val rhs = Syntax.read_term ctxt ("user_" ^ name) (*Const (@{const_name undefined}, typ)*) (* FIXME *)
         val (thm, ctxt) = Specification.definition
               NONE [] [] ((Binding.name (name ^ "_def"), []),
                       @{mk_term "?name \<equiv> ?def" (name, def)} (Free (name, typ), rhs)) ctxt

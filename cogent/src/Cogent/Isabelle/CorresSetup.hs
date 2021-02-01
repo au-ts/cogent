@@ -41,6 +41,7 @@ imports thy = TheoryImports $
   ]
 
 absFuns :: [String]
+absFuns =
   [ "(* Abstract function environment *)"
   , "consts user_\\<xi>_0 :: \"(funtyp, abstyp, ptrtyp) uabsfuns\""
   , "consts user_\\<xi>_1 :: \"(funtyp, abstyp, ptrtyp) uabsfuns\""

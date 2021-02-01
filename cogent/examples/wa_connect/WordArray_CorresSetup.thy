@@ -15,6 +15,10 @@ imports "CogentCRefinement.Deep_Embedding_Auto"
 "Generated_TypeProof"
 begin
 
+(* Abstract function environment *)
+consts user_\<xi>_0 :: "(funtyp, abstyp, ptrtyp) uabsfuns"
+consts user_\<xi>_1 :: "(funtyp, abstyp, ptrtyp) uabsfuns"
+
 (* C type and value relations *)
 
 instantiation unit_t_C :: cogent_C_val
