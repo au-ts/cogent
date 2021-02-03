@@ -117,7 +117,7 @@ sinkfloat = Rewrite.rewrite' $ \gs ->
     genStructSubst _ (U i :< R rp r s) = do
       s' <- case s of
         Left Unboxed -> return $ Left Unboxed -- unboxed is preserved by bang and TUnbox, so we may propagate it
-        _            ->  Right <$> lift solvFresh
+        _            -> Right <$> lift solvFresh
       -- Subst. a record structure for the unifier with only present entries of
       -- the record r (respecting the lattice order for records).
       makeRowUnifSubsts (flip (R rp) s') (filter R.present (R.entries r)) i
@@ -131,36 +131,37 @@ sinkfloat = Rewrite.rewrite' $ \gs ->
                      (R.entries r2)
       , not $ null es
       , Just rv <- R.var r1
-         = makeRowVarSubsts rv es
+      = makeRowVarSubsts rv es
+
       | es <- filter (\e -> R.taken e && notElemBy R.compatEntry e (R.entries r2))
                      (R.entries r1)
       , not $ null es
       , Just rv <- R.var r2
-         = makeRowVarSubsts rv es
+      = makeRowVarSubsts rv es
 
       | R.isComplete r2 && all (\e -> elemBy R.compatEntry e (R.entries r2)) (R.entries r1)
       , Just rv <- R.var r1
       , es <- filter (\e -> R.taken e && notElemBy R.compatEntry e (R.entries r1))
                      (R.entries r2)
       , canSink mentions rv && not (null es)
-         = makeRowVarSubsts rv es
+      = makeRowVarSubsts rv es
 
       | R.isComplete r1 && all (\e -> elemBy R.compatEntry e (R.entries r1)) (R.entries r2)
       , Just rv <- R.var r2
       , es <- filter (\e -> R.present e && notElemBy R.compatEntry e (R.entries r2))
                      (R.entries r1)
       , canFloat mentions rv && not (null es)
-         = makeRowVarSubsts rv es
+      = makeRowVarSubsts rv es
 
       | R.isComplete r1
       , null (R.diff r1 r2)
       , Just rv <- R.var r2
-         = makeRowShapeSubsts rv r1
+      = makeRowShapeSubsts rv r1
 
       | R.isComplete r2
       , null (R.diff r2 r1)
       , Just rv <- R.var r1
-         = makeRowShapeSubsts rv r2
+      = makeRowShapeSubsts rv r2
   
       | Left Unboxed <- s1 , Right i <- s2 = return $ Subst.ofSigil i Unboxed
       | Right i <- s1 , Left Unboxed <- s2 = return $ Subst.ofSigil i Unboxed
@@ -192,36 +193,37 @@ sinkfloat = Rewrite.rewrite' $ \gs ->
                      (R.entries r2)
       , not $ null es
       , Just rv <- R.var r1
-         = makeRowVarSubsts rv es
+      = makeRowVarSubsts rv es
+
       | es <- filter (\e -> R.present e && notElemBy R.compatEntry e (R.entries r2))
                      (R.entries r1)
       , not $ null es
       , Just rv <- R.var r2
-         = makeRowVarSubsts rv es
+      = makeRowVarSubsts rv es
 
       | R.isComplete r2 && all (\e -> elemBy R.compatEntry e (R.entries r2)) (R.entries r1)
       , Just rv <- R.var r1
       , es <- filter (\e -> R.present e && notElemBy R.compatEntry e (R.entries r1))
                      (R.entries r2)
       , canSink mentions rv && not (null es)
-         = makeRowVarSubsts rv es
+      = makeRowVarSubsts rv es
 
       | R.isComplete r1 && all (\e -> elemBy R.compatEntry e (R.entries r1)) (R.entries r2)
       , Just rv <- R.var r2
       , es <- filter (\e -> R.taken e && notElemBy R.compatEntry e (R.entries r2))
                      (R.entries r1)
       , canFloat mentions rv && not (null es)
-         = makeRowVarSubsts rv es
+      = makeRowVarSubsts rv es
 
       | R.isComplete r1
       , null (R.diff r1 r2)
       , Just rv <- R.var r2
-         = makeRowShapeSubsts rv r1
+      = makeRowShapeSubsts rv r1
 
       | R.isComplete r2
       , null (R.diff r2 r1)
       , Just rv <- R.var r1
-         = makeRowShapeSubsts rv r2
+      = makeRowShapeSubsts rv r2
 
     genStructSubst _ (V r :~~ U i) = makeRowUnifSubsts V (filter R.present (R.entries r)) i
     genStructSubst _ (U i :~~ V r) = makeRowUnifSubsts V (filter R.present (R.entries r)) i
@@ -258,23 +260,37 @@ sinkfloat = Rewrite.rewrite' $ \gs ->
            u <- freshRefVarName _2
            return $ Subst.ofType x (T (TRefine u b (HApp q u [])))
       -- NOTE: This is not valid, because it will render constraints like
-      --   @PrimType ?3@
+      --   @BaseType ?3@
       -- into
-      --   @PrimType {?4 | True}@
+      --   @BaseType {?4 | True}@
       -- which becomes unsolvable.
-      -- | otherwise
-      -- = do x' <- lift solvFresh
-      --      u <- freshRefVarName _2
-      --      return $ Subst.ofType x (T (TRefine u (U x') true))
+      -- XXX | | otherwise
+      -- XXX | = do x' <- lift solvFresh
+      -- XXX |      u <- freshRefVarName _2
+      -- XXX |      return $ Subst.ofType x (T (TRefine u (U x') true))
     genStructSubst (_,basetypes) (U x :< T (TRefine v b p))
       | IS.notMember x basetypes
       = do q <- lift solvFresh
            u <- freshRefVarName _2
            return $ Subst.ofType x (T (TRefine u b (HApp q u [])))
-      -- | otherwise
-      -- = do x' <- lift solvFresh
-      --      u <- freshRefVarName _2
-      --      return $ Subst.ofType x (T (TRefine u (U x') true))
+      -- XXX | | otherwise
+      -- XXX | = do x' <- lift solvFresh
+      -- XXX |      u <- freshRefVarName _2
+      -- XXX |      return $ Subst.ofType x (T (TRefine u (U x') true))
+
+    -- self
+    genStructSubst (_,basetypes) (Self v (U x) t2@(T (TCon tn [] Unboxed)))
+      | tn `elem` primTypeCons
+      , IS.notMember x basetypes
+      = do q <- lift solvFresh
+           u <- freshRefVarName _2
+           return $ Subst.ofType x (T (TRefine u t2 (HApp q u [])))
+
+    genStructSubst (_,basetype) (Self v (U x) t2@(T (TRefine v' b p)))
+      | IS.notMember x basetype
+      = do q <- lift solvFresh
+           u <- freshRefVarName _2
+           return $ Subst.ofType x (T (TRefine u b (HApp q u [])))
 
     genStructSubst _ (T (TRefine v b p) :<  T (TRefine u (U x) q))
       | rigid b = return $ Subst.ofType x b

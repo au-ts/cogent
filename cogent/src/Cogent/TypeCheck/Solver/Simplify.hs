@@ -382,6 +382,9 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
     hoistMaybe $ Just ([Arith (SE (T bool) (PrimOp "==" [l1,l2])), t1 :=: t2, drop] <> c)
 
   T (TRefine v1 b1 e1) :< T (TRefine v2 b2 e2) | null (unknownsE e1 ++ unknownsE e2) -> do
+  --                                           \ ^^^ NOTE:
+  -- We need to first solver all unifiers in the refinement before they can be made
+  -- into an Arith. / zilinc
     let e2' = if v1 == v2 then e2 else substVarExpr [(v2, v1)] e2
     return [ b1 :< b2
            , (M.singleton v1 (b2,0), []) :|- Arith (SE (T bool) (PrimOp "||" [SE (T bool) (PrimOp "not" [e1]), e2']))
@@ -417,14 +420,15 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   BaseType (A t _ _ _) -> hoistMaybe $ Just [BaseType t]
 
   Self x t t'
-    | isEquatableType t' -> do
+    | isEquatableType t -> do
         v <- freshRefVarName _2
-        let ϕ = SE (T bool) (PrimOp "==" [SE t' (Var v), SE t' (Var x)])
-        hoistMaybe $ Just [T (TRefine v t' ϕ) :< t]
-    | T (TRefine v β p) <- t' -> do
+        let ϕ = SE (T bool) (PrimOp "==" [SE t (Var v), SE t (Var x)])
+        hoistMaybe $ Just [T (TRefine v t ϕ) :< t']
+    | T (TRefine v β p) <- t -> do
         let ϕ = SE (T bool) (PrimOp "&&" [p, SE (T bool) (PrimOp "==" [SE β (Var v), SE β (Var x)])])
-        hoistMaybe $ Just [T (TRefine v β ϕ) :< t]
-    | nonSelfificableType t' -> hoistMaybe $ Just [t' :< t]
+        hoistMaybe $ Just [T (TRefine v β ϕ) :< t']
+    | nonSelfificableType t  -> hoistMaybe $ Just [t :< t']
+    | nonSelfificableType t' -> hoistMaybe $ Just [t :< t']
 #endif
 
   T t1 :< x | unorderedType t1 -> hoistMaybe $ Just [T t1 :=: x]

@@ -54,6 +54,7 @@ equate = Rewrite.withTransform findEquatable (pure . map toEquality)
 
     toEquality :: Goal -> Goal
     toEquality (Goal c env (a :< b)) = Goal c env $ a :=: b
+    -- toEquality (Goal c env (Self x a b)) = Goal c env $ a :=: b
     toEquality c = c
 
 findEquateCandidates :: (IM.IntMap (Int,Int,Int), IS.IntSet) -> [Goal] -> ([Goal], [Goal], [Goal])
@@ -84,6 +85,15 @@ findEquateCandidates (mentions, basetypes) (c:cs) =
 #endif
          -> (sups, c : subs, others)
 #ifdef REFINEMENT_TYPES
+       -- Self v (U a) b
+       --   | canEquate (\m -> m^._1 + m^._2) a b
+       --   , not (isRefinementType b && isBaseUnif a)
+       --   -> (c : sups, subs, others)
+       -- Self v a (U b)
+       --   | canEquate (^._3) b a
+       --   , not (isRefinementType a && isBaseUnif b)
+       --   -> (sups, c : subs, others)
+
        t :< T (TRefine v b (HApp x _ _))
          | canEquate (^._3) x t
          , isRefinementType t
@@ -92,10 +102,6 @@ findEquateCandidates (mentions, basetypes) (c:cs) =
          | canEquate (^._2) x t
          , isRefinementType t
          -> (c : sups, subs, others)
-       -- Self v t (U x)
-       --   | canEquate (\m -> m^._1 + m^._2) x t
-       --   , not (isRefinementType t && isBaseUnif x)
-       --   -> undefined
 #endif
        V r1 :< t
          | Just a <- Row.var r1

@@ -510,7 +510,7 @@ cg' (Var n) t = do
       context %= C.use n ?loc
 #ifdef REFINEMENT_TYPES
       c <- if ?isRefType then
-             return $ Self n t t'
+             return $ Self n t' t
                 -- See the definition of @Self@ in Base.hs
                 -- c.f. [Jhala & Vazou, 16 Oct 2020. §4.3.2]
                 -- In [Lehmann & Tanter, 16. CoqPL], the VAR rule is like:
@@ -1007,10 +1007,15 @@ match' (PVar x) mv t = do
   (t', c) <- case mv of
                Nothing -> return (t, Sat)
                Just v' -> do α <- freshTVar
-                             return (α, Self v' α t)
+                             return (α, Self v' t α)
   let p = PVar (x,t')
-  --    prds = case mv of Just v  -> [SE (T bool) (PrimOp "==" [SE t (Var x), e])]
-  --                      Nothing -> []
+  -- let p = PVar (x,t)
+  -- (prds,c) <- case mv of
+  --               Just v  -> do β <- freshTVar
+  --                             u <- freshRefVarName freshVars
+  --                             ϕ <- freshHVar u []
+  --                             return ([SE (T bool) (PrimOp "==" [SE β (Var x), SE β (Var v)])], BaseType β <> t :=: T (TRefine u β ϕ))
+  --               Nothing -> return ([], Sat)
   traceTc "gen" (text "match var pattern:" <+> prettyIP p
            L.<$> text "of type" <+> pretty t
            L.<$> text "inferred as" <+> pretty t'

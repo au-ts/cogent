@@ -97,7 +97,7 @@ getMentions gs =
 #ifdef REFINEMENT_TYPES
    Arith e     -> (IM.fromListWith adds (mentionEnv (g ^. goalEnv) (Arith e)), IS.empty)
    BaseType t  -> (IM.fromListWith adds (mentionEnv (g ^. goalEnv) (BaseType t)), basetype t)
-   Self x t t' -> (IM.fromListWith adds (mentionEnv (g ^. goalEnv) (Self x t t') ++ mentionL t' ++ mentionR t), IS.empty)
+   Self x t t' -> (IM.fromListWith adds (mentionEnv (g ^. goalEnv) (Self x t t') ++ mentionL t ++ mentionR t'), IS.empty)
 #endif
    _           -> (IM.empty, IS.empty)
 

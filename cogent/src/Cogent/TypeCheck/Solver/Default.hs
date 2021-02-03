@@ -78,7 +78,7 @@ findUpcasts gs = do
     guard (not $ IM.null ms)
     pure (ms, gs')
   where
-    mentions = getMentions gs
+    mentions = IM.empty  -- getMentions gs
     -- \ ^^^ FIXME: How do we ensure that all the Upcastable constraints are solved
     -- only if the involved unifier cannot be furthre processed by other constraints? / zilinc
 

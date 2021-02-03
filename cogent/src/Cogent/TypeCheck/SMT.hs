@@ -68,6 +68,7 @@ typeToSmt (T (TUnit))      = return $ KTuple []
 #ifdef REFINEMENT_TYPES
 typeToSmt (T (TRefine _ b _)) = typeToSmt b
 #endif
+-- typeToSmt (T (TFun a b)) = __impossible "typeToSmt: can't be a function type"
 typeToSmt t = do u <- use ut
                  case M.lookup t u of
                    Nothing -> do s <- freshSort

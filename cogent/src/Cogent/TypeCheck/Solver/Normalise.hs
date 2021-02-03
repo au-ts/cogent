@@ -54,6 +54,7 @@ normaliseRWT = rewrite' $ \case
     T (TBang (T (TRPar v _ m))) -> pure (T (TRPar v True m))
 #ifdef REFINEMENT_TYPES
     T (TBang (A t l (Left s) tkns)) -> pure (A (T . TBang $ t) l (Left (bangSigil s)) tkns)  -- FIXME
+    T (TBang (T (TRefine x t p))) -> pure (T (TRefine x (T $ TBang t) p))  -- FIXME: bang x in p
 #endif
 
     T (TUnbox (T (TVar v b u))) -> pure (T (TVar v b True))

@@ -209,8 +209,8 @@ data Constraint' t l = (:<) t t
                      | (:|-) (M.Map VarName (t, Int), [SExpr t l]) (Constraint' t l)
                      | BaseType t
                      | Self VarName t t  -- selfification [Ou et al., 04]
-                                         -- Self x t t' = if t' = {v : B | p} then {v : B | p ∧ v = x} :< t
-                                         --                                   else t' :< t
+                                         -- Self x t t' = if t = {v : B | p} then {v : B | p ∧ v = x} :< t'
+                                         --                                  else t :< t'
 #endif
                      deriving (Eq, Show, Ord) -- , Functor, Foldable, Traversable)
 
@@ -841,6 +841,7 @@ isPrimType (T (TBang t)) = isPrimType t
 isPrimType (T (TUnbox t)) = isPrimType t
 isPrimType _ = False
 
+-- Can't be a refinement type
 isEquatableType :: TCType -> Bool
 isEquatableType (T (TCon n [] Unboxed))
   | n `elem` primTypeCons = True
@@ -870,7 +871,9 @@ notRefinementType _ = True
 -- The result is constructive. It only returns True when we're sure it's not selfificable.
 nonSelfificableType :: TCType -> Bool
 nonSelfificableType (U _) = False
-nonSelfificableType t | isPrimType t = False
+nonSelfificableType (T (TCon tn [] Unboxed))
+  | tn `elem` primTypeCons = False
+  | "String" <- tn = False
 nonSelfificableType (T (TRefine {})) = False
 nonSelfificableType (T (TLayout _ t)) = nonSelfificableType t
 nonSelfificableType (T (TBang t)) = nonSelfificableType t
