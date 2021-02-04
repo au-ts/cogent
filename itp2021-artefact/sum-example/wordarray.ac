@@ -1,0 +1,59 @@
+$ty:a $id:wordarray_get($ty:(((WordArray a)!, WordArrayIndex)) args)
+{
+        if (args.p2 >= (args.p1)->len) {
+                return 0;
+        }
+        return (args.p1)->values[args.p2];
+}
+
+u32 $id:wordarray_length($ty:((WordArray a)!) array)
+{
+        return array->len;
+}
+
+$ty:((WordArray a, acc)) $id:wordarray_map_no_break($ty:(WordArrayMapNoBreakP a acc obsv) args)
+{
+        $ty:((WordArray a, acc)) ret;
+        $ty:(ElemAO a acc obsv) fargs;
+        $ty:((a, acc)) fret;
+        u32 to = args.to > args.arr->len ? args.arr->len : args.to;
+        u32 i;
+
+        fargs.acc = args.acc;
+        fargs.obsv = args.obsv;
+        for (i = args.frm; i < to; i++) {
+                fargs.elem = args.arr->values[i];
+                fret = (($spec:(WordArrayMapNoBreakF a acc obsv)) args.f)(fargs);
+                args.arr->values[i] = fret.p1;
+                fargs.acc = fret.p2;
+        }
+        ret.p1 = args.arr;
+        ret.p2 = fargs.acc;
+        return ret;
+}
+
+$ty:(acc) $id:wordarray_fold_no_break($ty:(WordArrayFoldNoBreakP a acc obsv) args)
+{
+        $ty:(ElemAO a acc obsv) fargs;
+        u32 to = args.to > args.arr->len ? args.arr->len : args.to;
+        u32 i;
+
+        fargs.obsv = args.obsv;
+        fargs.acc = args.acc;
+
+        for (i = args.frm; i < to; i++) {
+               fargs.elem = args.arr->values[i];
+               fargs.acc = (($spec:(WordArrayFoldNoBreakF a acc obsv)) args.f) (fargs);
+        }
+
+        return fargs.acc;
+}
+
+$ty:(WordArray a) $id:wordarray_put2($ty:(WordArrayPutP a) args)
+{
+	if (likely(args.idx < (args.arr)->len)) {
+		args.arr->values[args.idx] = args.val;
+	}
+
+	return args.arr;
+}

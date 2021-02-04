@@ -1,0 +1,32 @@
+(*
+ * Copyright 2016, NICTA
+ *
+ * This software may be distributed and modified according to the terms of
+ * the BSD 2-Clause license. Note that NO WARRANTY is provided.
+ * See "LICENSE_BSD2.txt" for details.
+ *
+ * @TAG(NICTA_BSD)
+ *)
+
+session CogentCRefinement = CogentShallow +
+  theories
+    Cogent_C_Heap_Auto
+    Cogent_Corres
+    Cogent_Corres_Sanity_Check
+    Cogent_Corres_Shallow_C
+    Cogent_C_Val_Auto
+    CogentHigherOrder
+    Corres_Tac
+    Deep_Embedding_Auto
+    Heap_Relation_Generation
+    Read_Table
+    Specialised_Lemma
+    SpecialisedLemmaTactic
+    Specialised_Lemma_URecord
+    Specialised_Lemma_USum
+    Specialised_Lemma_Utils
+    Tidy
+    Type_Relation_Generation
+    Utils
+    Value_Relation
+    Value_Relation_Generation
