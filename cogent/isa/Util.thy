@@ -247,6 +247,19 @@ proof -
   then show "x \<in> set (xs[i := y])"
     by (metis assms in_set_conv_nth length_list_update nth_list_update_neq set_update_memI)
 qed
+
+lemma in_length_decomp:
+  "i < length xs \<Longrightarrow> (\<exists>ys zs. xs = ys @ (xs ! i) # zs \<and> length ys = i \<and> length zs = length xs - Suc i)"
+proof (induct xs arbitrary: i)
+  case (Cons a xs)
+  then show ?case
+    apply (clarsimp simp add: less_Suc_eq_0_disj)
+    apply (erule disjE)
+     apply clarsimp
+    apply (clarsimp, metis append_Cons length_Cons)
+    done
+qed simp
+  
   
 
 lemma distinct_fst_tags_update:

@@ -1389,13 +1389,9 @@ proof (induct arbitrary: f rule: uval_typing_record_induct)
   case Nil then show ?case by simp
 next
   case ConsPresent then show ?case
-  (* TODO write a nicer proof *)
     apply (simp add: nth.nth_Cons split: nat.splits)
      apply (fastforce dest: discardable_not_writable')
-    apply clarsimp
-    apply (drule discardable_not_writable', assumption)
-    apply clarsimp
-    apply (drule meta_spec, (drule meta_mp, force)+, blast)
+    apply (clarsimp, drule(1) discardable_not_writable', simp, meson le_supI2)
     done
 next
   case ConsTake then show ?case
@@ -2018,7 +2014,6 @@ lemma u_t_p_rec_w':
   shows "\<Xi>, \<sigma> \<turnstile> UPtr l rp :u TRecord ts (Boxed Writable ptrl) \<langle> r, insert l w \<rangle>"
   using assms
   by (auto intro: u_t_p_rec_w)
-
 
 
 theorem preservation:

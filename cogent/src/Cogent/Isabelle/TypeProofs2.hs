@@ -35,6 +35,7 @@ import Cogent.Isabelle.ProofGen
 import Cogent.Util (NameMod)
 import Data.Fin
 import Data.LeafTree
+import Data.List (intercalate)
 import Data.Vec hiding (splitAt, length, zipWith, zip, unzip, head)
 import qualified Data.Vec as V
 

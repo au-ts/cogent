@@ -2209,7 +2209,6 @@ lemma substutivity_wellkinded_record_updated:
   by (force intro: substutivity_kinding_fn_all_recordD simp add: wellkinded_imp_kinded comp_assoc
       map_update[where y=\<open>(a,b,c)\<close> and f=\<open>\<lambda>(n, t, b). (n, instantiate \<delta> t, b)\<close> for a b c, simplified, symmetric])
 
-
 lemma substitutivity_single:
   assumes
     "list_all2 (kinding K') \<delta> K"

@@ -15,12 +15,12 @@ lemma canonical_trans_le_add2:
 chapter \<open> Cogent lemmas \<close>
 (* TODO move *)
 
-lemma case_variant_state_True[simp]:
-  "case_variant_state True True tk = True"
+lemma case_variant_state_repeat[simp]:
+  "case_variant_state x x tk = x"
   by (clarsimp split: variant_state.splits)
 
-lemma case_record_state_True[simp]:
-  "case_record_state True True tk = True"
+lemma case_record_state_repeat[simp]:
+  "case_record_state x x tk = x"
   by (clarsimp split: record_state.splits)
 
 subsection \<open> Weakening Lemmas \<close>
@@ -1048,15 +1048,12 @@ inductive tyinf_synth :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<
                      ; \<Xi>, K, \<Gamma>, C2 \<turnstile>\<down>* es : ts
                      \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C1 \<oplus> C2 \<turnstile>\<down>* (e # es) : (t # ts)"
 
-(*
 | tyinf_afun   : "\<lbrakk> \<Xi> f = (K', t, u)
-                   ; t' = instantiate ts t
-                   ; u' = instantiate ts u
-                   ; list_all2 (kinding K) ts K'
-                   ; K' \<turnstile> TFun t u wellformed
-                   ; K \<turnstile> \<Gamma> consumed
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile> AFun f ts : TFun t' u'"
-*)
+                  ; list_all2 (kinding K) ts K'
+                  ; K \<turnstile>* ts wellformed
+                  ; type_wellformed (length ts) t
+                  ; type_wellformed (length ts) u
+                  \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, replicate (length \<Gamma>) 0 \<turnstile>\<down> AFun f ts : TFun (instantiate ts t) (instantiate ts u)"
 
 | tyinf_fun    : "\<lbrakk> \<Xi>, K', [t], [1] \<turnstile>\<up> f : u
                   ; well_kinded_all K'
@@ -1275,6 +1272,9 @@ lemma tyinf_preserves_wellformed[dest]:
   "\<Xi>, K, \<Gamma>, C \<turnstile>\<down>* es : ts \<Longrightarrow> K \<turnstile>* \<Gamma> wellformed \<Longrightarrow> K \<turnstile>* ts wellformed"
 proof (induct rule: tyinf_synth_tyinf_check_tyinf_all_synth.inducts)
   case tyinf_fun then show ?case
+    by (force intro: instantiate_wellformed)
+next
+  case tyinf_afun then show ?case
     by (force intro: instantiate_wellformed)
 next
   case tyinf_esac then show ?case
@@ -1600,11 +1600,15 @@ next
   moreover have
     "K \<turnstile> TRecord ts s wellformed"
     using tyinf_member by blast
+  moreover then have
+    "K \<turnstile> t wellformed"
+    using tyinf_member
+    by (force intro: type_wellformed_fstsnd_triple_indexed)
   moreover have
-    "D \<in> kinding_fn K (TRecord ts s)"
-    sorry
+    "D \<in> kinding_fn K (TRecord (ts[f := (n, t, Taken)]) s)"
+    using tyinf_member droppable_def by blast
   ultimately show ?case
-    by (force intro!: typing_typing_all.intros kinding_kinding_allI)
+    by (force intro!: typing_typing_all.intros kinding_kinding_allI wellformed_record_update_wellformed)
 next
   case tyinf_put then show ?case
     by (simp add: tyinf_shareable_constraint_plus_iff droppable_def,
@@ -1642,6 +1646,14 @@ next
     "K' \<turnstile> t wellformed"
     using tyinf_fun
     by (simp add: is_share_safe_def list_all2_conv_all_nth)+
+  ultimately show ?case
+    by (force intro!: typing_typing_all.intros simp add: is_consumed_conv_all_nth)
+next
+  case (tyinf_afun \<Xi> f K' t u K ts \<Gamma>)
+  moreover then have
+    "K' \<turnstile> t wellformed"
+    "K' \<turnstile> u wellformed"
+    by (simp add: list_all2_conv_all_nth)+
   ultimately show ?case
     by (force intro!: typing_typing_all.intros simp add: is_consumed_conv_all_nth)
 next
