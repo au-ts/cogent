@@ -170,6 +170,8 @@ locale update_sem =
   and     abs_typing_unique_repr   : "abs_typing av n \<tau>s s r w \<Longrightarrow> abs_typing av n' \<tau>s' s' r' w'
                                     \<Longrightarrow> type_repr (TCon n \<tau>s s) = type_repr (TCon n' \<tau>s' s')"
   and     abs_typing_repr : "abs_typing av n \<tau>s s r w \<Longrightarrow> abs_repr av = (n, map type_repr \<tau>s)"
+  and     abs_typing_functional_readset : "abs_typing av n \<tau>s s r w \<Longrightarrow> abs_typing av n \<tau>s s r' w' \<Longrightarrow> r = r'"
+  and     abs_typing_functional_writeset : "abs_typing av n \<tau>s s r w \<Longrightarrow> abs_typing av n \<tau>s s r' w' \<Longrightarrow> w = w'"
 
 context update_sem begin
 
@@ -201,14 +203,14 @@ inductive uval_typing :: "('f \<Rightarrow> poly_type)
                        \<Rightarrow> type
                        \<Rightarrow> 'l set
                        \<Rightarrow> 'l set
-                       \<Rightarrow> bool"  ("_, _ \<turnstile> _ :u _ \<langle>_, _\<rangle>" [30,0,0,0,20] 80)
+                       \<Rightarrow> bool"  ("_, _ \<turnstile> _ :u _ \<langle>_, _\<rangle>" [60,0,0,0,59] 60)
 and uval_typing_record :: "('f \<Rightarrow> poly_type)
                         \<Rightarrow> ('f, 'a, 'l) store
                         \<Rightarrow> (('f, 'a, 'l) uval \<times> repr) list
                         \<Rightarrow> (name \<times> type \<times> record_state) list
                         \<Rightarrow> 'l set
                         \<Rightarrow> 'l set
-                        \<Rightarrow> bool" ("_, _ \<turnstile>* _ :ur _ \<langle>_, _\<rangle>" [30,0,0,0,20] 80) where
+                        \<Rightarrow> bool" ("_, _ \<turnstile>* _ :ur _ \<langle>_, _\<rangle>" [60,0,0,0,59] 60) where
 
 
   u_t_prim     : "\<Xi>, \<sigma> \<turnstile> UPrim l :u TPrim (lit_type l) \<langle>{}, {}\<rangle>"
@@ -290,17 +292,25 @@ and uval_typing_record :: "('f \<Rightarrow> poly_type)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile>* ((x,rp) # xs) :ur ((n, t, Taken) # ts) \<langle>r, w\<rangle>"
 
 lemma u_t_prim' : "\<tau> = lit_type l \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPrim l :u TPrim \<tau> \<langle>{}, {}\<rangle>"
-   by (simp add: u_t_prim)
+  by (simp add: u_t_prim)
 
 inductive_cases u_t_primE     [elim] : "\<Xi>, \<sigma> \<turnstile> UPrim l :u TPrim \<tau> \<langle>r, w\<rangle>"
 inductive_cases u_t_functionE [elim] : "\<Xi>, \<sigma> \<turnstile> UFunction f ts :u TFun \<tau> \<rho> \<langle>r, w\<rangle>"
 inductive_cases u_t_afunE     [elim] : "\<Xi>, \<sigma> \<turnstile> UAFunction f ts :u TFun \<tau> \<rho> \<langle>r, w\<rangle>"
-inductive_cases u_t_sumE      [elim] : "\<Xi>, \<sigma> \<turnstile> v :u TSum \<tau>s \<langle>r, w\<rangle>"
 inductive_cases u_t_productE  [elim] : "\<Xi>, \<sigma> \<turnstile> UProduct a b :u TProduct \<tau> \<rho> \<langle>r, w\<rangle>"
-inductive_cases u_t_recE      [elim] : "\<Xi>, \<sigma> \<turnstile> URecord fs :u \<tau> \<langle>r, w\<rangle>"
+inductive_cases u_t_unitE     [elim] : "\<Xi>, \<sigma> \<turnstile> UUnit :u TUnit \<langle>r, w\<rangle>"
+inductive_cases u_t_sumE      [elim] : "\<Xi>, \<sigma> \<turnstile> v :u TSum \<tau>s \<langle>r, w\<rangle>"
+inductive_cases u_t_tconE     [elim] : "\<Xi>, \<sigma> \<turnstile> v :u TCon ns ts s  \<langle>r, w\<rangle>"
+inductive_cases u_t_abstractE [elim] : "\<Xi>, \<sigma> \<turnstile> UAbstract a :u t \<langle>r, w\<rangle>"
+inductive_cases u_t_recE      [elim] : "\<Xi>, \<sigma> \<turnstile> URecord fs :u t \<langle>r, w\<rangle>"
 inductive_cases u_t_p_recE    [elim] : "\<Xi>, \<sigma> \<turnstile> UPtr p rp :u TRecord fs s \<langle>r, w\<rangle>"
 inductive_cases u_t_r_emptyE  [elim] : "\<Xi>, \<sigma> \<turnstile>* [] :ur \<tau>s \<langle>r, w\<rangle>"
-inductive_cases u_t_r_consE   [elim] : "\<Xi>, \<sigma> \<turnstile>* (x # xs) :ur \<tau>s \<langle>r, w\<rangle>"
+inductive_cases u_t_r_consE   [elim] : "\<Xi>, \<sigma> \<turnstile>* x # xs :ur \<tau>s \<langle>r, w\<rangle>"
+
+lemmas uval_typing_record_induct =
+  uval_typing_uval_typing_record.inducts(2)[
+    where ?P1.0=\<open>\<lambda>_ _ _ _ _ _. True\<close>, simplified,
+      consumes 1, case_names Nil ConsPresent ConsTake]
 
 inductive uval_typing_all :: "('f \<Rightarrow> poly_type)
                             \<Rightarrow> ('f, 'a, 'l) store
@@ -347,6 +357,7 @@ definition frame :: "('f, 'a, 'l) store \<Rightarrow> 'l set \<Rightarrow> ('f, 
                        \<and>  (p \<notin> pi \<and> p \<in> po \<longrightarrow> \<sigma>  p = None)
                        \<and>  (p \<notin> pi \<and> p \<notin> po \<longrightarrow> \<sigma>  p = \<sigma>' p)"
 
+
 definition proc_env_matches_ptrs :: "(('f,'a,'l) uabsfuns) \<Rightarrow> ('f \<Rightarrow> poly_type) \<Rightarrow> bool"
            ("_ matches-u _" [30,20] 60) where
   "\<xi> matches-u \<Xi> \<equiv> (\<forall> f. let (K, \<tau>i, \<tau>o) = \<Xi> f
@@ -356,6 +367,10 @@ definition proc_env_matches_ptrs :: "(('f,'a,'l) uabsfuns) \<Rightarrow> ('f \<R
                                              \<longrightarrow> (\<exists>r' w'. (\<Xi> , \<sigma>' \<turnstile> v' :u instantiate \<tau>s \<tau>o \<langle>r', w'\<rangle>)
                                               \<and> r' \<subseteq> r \<and> frame \<sigma> w \<sigma>' w')))"
 
+
+lemma uval_typing_record_same_length:
+  "\<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle> \<Longrightarrow> length fs = length ts"
+  by (induct rule: uval_typing_record_induct) simp+
 
 lemma uval_typing_to_wellformed:
   shows "\<Xi>, \<sigma> \<turnstile> v :u t \<langle>r, w\<rangle> \<Longrightarrow> [] \<turnstile> t wellformed"
@@ -1091,9 +1106,42 @@ using assms by ( clarsimp simp: proc_env_matches_ptrs_def
 
 section {* frame *}
 
-theorem frame_id:
-shows "frame \<sigma> w \<sigma> w"
-by (simp add: frame_def)
+theorem frame_id: "frame \<sigma> w \<sigma> w"
+  by (simp add: frame_def)
+
+lemma frame_symm:
+  assumes "frame s1 p1 s2 p2"
+  shows "frame s2 p2 s1 p1"
+  using assms
+  by (simp add: frame_def)
+
+lemma frame_trans:
+  assumes
+    "frame s1 p1 s2 p2"
+    "frame s2 p2 s3 p3"
+  shows "frame s1 p1 s3 p3"
+  using assms
+  by (simp add: frame_def, metis)
+
+lemma frame_let:
+  assumes
+    "frame \<sigma> w \<sigma>' w'"
+    "frame \<sigma>' (u \<union> w') \<sigma>'' u''"
+  shows "frame \<sigma> (w \<union> u) \<sigma>'' u''"
+  using assms
+  by (simp add: frame_def, metis)
+
+lemma frame_app:
+  assumes
+    "frame \<sigma> w \<sigma>' w'"
+    "frame \<sigma>' u \<sigma>'' u'"
+  shows "frame \<sigma> (w \<union> u) \<sigma>'' (w' \<union> u')"
+  using assms
+  by (simp add: frame_def, metis)
+
+lemma frame_single_update:
+  shows  "frame \<sigma> {l} (\<sigma>(l \<mapsto> v)) {l}"
+  by (simp add: frame_def)
 
 section {* Type Safety *}
 
@@ -1180,10 +1228,6 @@ next case matches_ptrs_some  then show ?case by (fast dest:   uval_typing_frame(
                                                       intro!: matches_ptrs.intros)
 qed
 
-lemma frame_single_update:
-shows  "frame \<sigma> {l} (\<sigma>(l \<mapsto> v)) {l}"
-by (simp add: frame_def)
-
 lemma frame_noalias_uval_typing :
 assumes "frame \<sigma> u \<sigma>' u'"
 and     "\<Xi>, \<sigma> \<turnstile> v :u \<tau> \<langle>r, w\<rangle>"
@@ -1224,38 +1268,6 @@ from assms(1,3,5) have "u' \<inter> w = {}"by (rule frame_noalias_matches_ptrs)
 with assms(2,4)   show ?thesis      by (rule frame_noalias_uval_typing')
 qed
 
-lemma frame_let:
-assumes "frame \<sigma> w \<sigma>' w'"
-and     "frame \<sigma>' (u \<union> w') \<sigma>'' u''"
-shows   "frame \<sigma> (w \<union> u) \<sigma>'' u''"
-using assms apply -
-  apply (simp add: frame_def)
-  apply (clarsimp)
-  apply (drule_tac x = p in spec)
-  apply (drule_tac x = p in spec)
-  apply (clarsimp)
-  apply (auto)
-done
-
-lemma frame_app:
-assumes "frame \<sigma> w \<sigma>' w'"
-and     "frame \<sigma>' u \<sigma>'' u'"
-shows   "frame \<sigma> (w \<union> u) \<sigma>'' (w' \<union> u')"
-using assms apply -
-  apply (simp add: frame_def)
-  apply (clarsimp)
-  apply (drule_tac x = p in spec)
-  apply (drule_tac x = p in spec)
-  apply (clarsimp)
-  apply (auto)
-done
-
-
-lemma frame_trans:
-assumes "frame \<sigma>  w  \<sigma>'  w'"
-and     "frame \<sigma>' w' \<sigma>'' w''"
-shows   "frame \<sigma>  w  \<sigma>'' w''"
-using assms by (rule frame_let [where u = "{}", simplified])
 
 lemma subset_helper:
 assumes "x \<inter> y = {}"
@@ -1288,6 +1300,70 @@ next case Cons then show ?case
   next case Suc with Cons(2-) show ?thesis by (elim u_t_r_consE, auto dest!: Cons(1))
   qed
 qed
+
+
+lemma uval_typing_eq_reprs:
+  shows "\<Xi>, \<sigma> \<turnstile>  x  :u  t  \<langle>r, w\<rangle> \<Longrightarrow> uval_repr x = type_repr t \<and> uval_repr_deep x =  type_repr t"
+    and "\<Xi>, \<sigma> \<turnstile>* xs :ur ts \<langle>r, w\<rangle> \<Longrightarrow> map snd xs = map (type_repr \<circ> fst \<circ> snd) ts \<and> map snd xs = map (uval_repr_deep \<circ> fst) xs"
+proof (induct rule: uval_typing_uval_typing_record.inducts)
+  case (u_t_struct \<Xi> \<sigma> fs ts r w)
+  then show ?case
+    apply (clarsimp simp add: abs_typing_repr split: prod.splits)
+    apply (metis (no_types, lifting) case_prod_conv map_ext prod.collapse u_t_struct.hyps(2))
+    done
+qed (force simp add: abs_typing_repr)+
+
+lemma uval_typing_record_empty_pointer_sets:
+  "\<Xi>, \<sigma> \<turnstile>* [] :ur [] \<langle>r, w\<rangle> \<longleftrightarrow> r = {} \<and> w = {}"
+  using u_t_r_empty by blast
+
+lemma uval_typing_record_functional_pointersets:
+  shows "\<Xi>, \<sigma> \<turnstile> f :u t \<langle>r1, w1\<rangle> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> f :u t \<langle>r2, w2\<rangle> \<Longrightarrow> r1 = r2 \<and> w1 = w2"
+  and "\<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r1, w1\<rangle> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r2, w2\<rangle> \<Longrightarrow> r1 = r2 \<and> w1 = w2"
+proof (induct arbitrary: r2 w2 and r2 w2 rule: uval_typing_uval_typing_record.inducts)
+  case u_t_sum then show ?case
+    apply -
+    apply (erule u_t_sumE)
+    apply (metis distinct_fst fst_conv uval.inject(3))
+    done
+next
+  case u_t_abstract then show ?case
+    using abs_typing_functional_readset abs_typing_functional_writeset
+    by blast
+next
+  case u_t_p_rec_ro then show ?case
+    by (elim u_t_p_recE) clarsimp+
+next
+  case u_t_p_rec_w then show ?case
+    apply (elim u_t_p_recE)
+     apply blast
+    apply (metis option.inject uval.inject(4))
+    done
+next
+  case u_t_p_abs_ro then show ?case
+    apply (elim u_t_tconE)
+      apply force
+     apply (metis abs_typing_functional_readset option.inject uval.inject(5,8))
+    apply force
+    done
+next
+  case u_t_p_abs_w then show ?case
+    apply (elim u_t_tconE)
+      apply force
+     apply force
+    apply (metis abs_typing_functional_readset abs_typing_functional_writeset option.inject uval.inject(5) uval.inject(8))
+    done
+next
+  case u_t_r_cons1 then show ?case
+    by (elim u_t_r_consE) blast+
+next
+  case u_t_r_cons2 then show ?case
+    by (elim u_t_r_consE) blast+
+qed (fastforce elim!: u_t_productE u_t_recE)+
+
+lemmas uval_typing_record_functional_readset = uval_typing_record_functional_pointersets[THEN conjunct1]
+lemmas uval_typing_record_functional_writeset = uval_typing_record_functional_pointersets[THEN conjunct2]
+
 
 lemma sum_downcast_u:
   assumes uval_tsum_ts: "\<Xi>, \<sigma> \<turnstile> USum tag v xs :u TSum ts \<langle>r, w\<rangle>"
@@ -1671,7 +1747,7 @@ next
   obtain rts2' where field_rest:
     "\<Xi>, \<sigma> \<turnstile>* xs :ur ts2' \<langle>rts2', w'\<rangle>"
     "rts2' \<subseteq> r'"
-    using u_t_r_cons1 trec_subty by blast
+    using u_t_r_cons1 trec_subty by meson
 
   have t2_wf: "type_wellformed 0 t2"
     using field_is' local.u_t_r_cons1(1) subtyping_wellformed_preservation(1) uval_typing_to_wellformed(1) by fastforce
@@ -2299,7 +2375,7 @@ next case (u_sem_if _ _ _ _ _ b)
                         , OF _ _ matches_ptrs_frame ])
         apply (blast, simp, cases b, simp, simp, cases b, simp, simp)
     apply (fastforce intro: frame_let)
-  done
+    done
 next case u_sem_struct    then show ?case by ( cases e, simp_all
                                              , fastforce intro!: uval_typing_uval_typing_record.intros
                                                          intro:  uval_typing_all_record
