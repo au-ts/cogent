@@ -113,10 +113,8 @@ lemma prod_eq:
   "\<lbrakk> a = fst x ; b = snd x \<rbrakk> \<Longrightarrow> x = (a,b)"
   by simp
 
-
-lemma if_args_cong_weak[cong]: "ab = bb \<Longrightarrow> at = bt \<Longrightarrow> af = bf \<Longrightarrow> (if ab then at else af) = (if bb then bt else bf)"
-  by blast
-
+lemma prod_eq_iff_proj_eq: "p = (a,b) \<longleftrightarrow> fst p = a \<and> snd p = b"
+  by fastforce
 
 section \<open> list related lemmas \<close>
 
@@ -702,6 +700,11 @@ primrec tagged_list_update :: "'a \<Rightarrow> 'b \<Rightarrow> ('a \<times> 'b
                                        then (a, b') # xs
                                        else (a, b) # tagged_list_update a' b' xs))"
 
+
+lemma tagged_list_update_length[simp]:
+  "length (tagged_list_update f g xs) = length xs"
+  by (induct xs) (simp split: prod.split)+
+
 lemma tagged_list_update_tag_not_present[simp]:
   assumes "\<forall>i<length xs. fst (xs ! i) \<noteq> tag"
   shows "tagged_list_update tag b xs = xs"
@@ -765,6 +768,18 @@ proof (induct xs arbitrary: i)
   qed simp
 qed simp
 
+
+lemma map_circsnd_eq_map_snd_apsnd:
+  "map (f \<circ> snd) xs = map snd (map (apsnd f) xs)"
+  by (induct xs) clarsimp+
+
+lemma tagged_list_apsnd_tagupd_eq_tagupd_apsnd:
+  shows "map (apsnd f) (tagged_list_update tag b' xs) = tagged_list_update tag (f b') (map (apsnd f) xs)"
+  by (induct xs) clarsimp+
+
+lemma tagged_list_circsnd_tagupd_iff_map_snd_tagupd_apsnd:
+  shows "map (f \<circ> snd) (tagged_list_update tag b' xs) = map snd (tagged_list_update tag (f b') (map (apsnd f) xs))"
+  by (simp add: map_circsnd_eq_map_snd_apsnd tagged_list_apsnd_tagupd_eq_tagupd_apsnd del: map_map)
 
 lemma tagged_list_update_preserves_tags[simp]:
   shows "map fst (tagged_list_update tag b' xs) = map fst xs"
