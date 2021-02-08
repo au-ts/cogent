@@ -253,10 +253,12 @@ lemma vval_typing_to_wellformed:
     and "\<Xi> \<turnstile>* vs :vr fs \<Longrightarrow> [] \<turnstile>* map (fst \<circ> snd) fs wellformed"
 proof (induct rule: vval_typing_vval_typing_record.inducts)
   case v_t_function then show ?case
-    by (metis instantiate_wellformed list_all2_kinding_wellformedD subtyping_wellformed_preservation(1) type_wellformed.simps(4) type_wellformed_pretty_def typing_to_wellformed(1))
+    by (meson kinding_iff_wellformed(1) substitutivity_single subtyping_wellformed_preservation(1)
+        type_wellformed_pretty_intros(4) typing_to_wellformed(1))
 next case v_t_afun  then show ?case
-    by (metis instantiate_wellformed list_all2_kinding_wellformedD subtyping_wellformed_preservation(1) type_wellformed.simps(4) type_wellformed_pretty_def)
-qed (auto intro: supersumption simp add: list_all_iff kinding_simps dest: kinding_all_record'[simplified o_def])
+    by (metis instantiate.simps(4) instantiate_wellformed list_all2_conv_all_nth
+        subtyping_wellformed_preservation(1) wellkinded_imp_wellformed)
+qed (auto intro: supersumption simp add: list_all_iff kinding_simps)
 
 lemma vval_typing_bang:
   shows "\<Xi> \<turnstile> x :v \<tau> \<Longrightarrow> \<Xi> \<turnstile> x :v bang \<tau>"
@@ -265,10 +267,11 @@ proof (induct rule: vval_typing_vval_typing_record.inducts)
   case v_t_sum      then show ?case
     by (force simp add: list_all_iff intro: vval_typing_vval_typing_record.intros
                                                         bang_wellformed rev_image_eqI)
-next case v_t_abstract then show ?case by (force intro: vval_typing_vval_typing_record.intros
-                                                        abs_typing_bang bang_wellformed)
-next case v_t_r_cons2  then show ?case by (force intro: vval_typing_vval_typing_record.intros
-                                                        bang_wellformed)
+next case v_t_abstract then show ?case
+    by (force intro: vval_typing_vval_typing_record.intros abs_typing_bang
+        simp add: bang_preserves_wellformed_all)
+next case v_t_r_cons2  then show ?case
+    by (force intro: vval_typing_vval_typing_record.intros bang_wellformed)
 next case v_t_afun
   show ?case
     using subtyping_bang_preservation v_t_afun vval_typing_vval_typing_record.v_t_afun by fastforce
@@ -578,7 +581,7 @@ proof -
 
   show ?thesis
     using assms tfun_sub
-    by (meson list_all2_substitutivity type_wellformed.simps(4) type_wellformed_pretty_def v_t_afun)
+    by (meson list_all2_substitutivity type_wellformed.simps(4) v_t_afun)
 qed
 
 lemma v_t_function_instantiate:
@@ -604,7 +607,7 @@ from assms have "TFun (instantiate \<delta> (instantiate ts t))
 
   then show ?thesis
     using assms
-    by (meson list_all2_substitutivity type_wellformed.simps(4) type_wellformed_pretty_def v_t_function)
+    by (meson list_all2_substitutivity type_wellformed.simps(4) v_t_function)
 qed
 
 section {* matches lemmas *}

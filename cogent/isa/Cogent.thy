@@ -1456,6 +1456,18 @@ next
     by simp+
 qed simp+
 
+lemma subtyping_wellformed_record_variant_all_preservation_left:
+  "list_all2 (\<lambda>t u. K \<turnstile> fst (snd t) \<sqsubseteq> fst (snd u)) ts ts' \<Longrightarrow>
+   list_all (\<lambda>x. K \<turnstile> (fst (snd x)) wellformed) ts' \<Longrightarrow>
+   list_all (\<lambda>x. K \<turnstile> (fst (snd x)) wellformed) ts"
+  by (force dest: subtyping_wellformed_preservation(2) simp add: list_all2_conv_all_nth list_all_length)
+
+lemma subtyping_wellformed_record_variant_all_preservation_right:
+  "list_all2 (\<lambda>t u. K \<turnstile> fst (snd t) \<sqsubseteq> fst (snd u)) ts ts' \<Longrightarrow>
+   list_all (\<lambda>x. K \<turnstile> (fst (snd x)) wellformed) ts \<Longrightarrow>
+   list_all (\<lambda>x. K \<turnstile> (fst (snd x)) wellformed) ts'"
+  by (force dest: subtyping_wellformed_preservation(1) simp add: list_all2_conv_all_nth list_all_length)
+
 lemma subtyping_bang_preservation:
   assumes
     "K \<turnstile> t1 \<sqsubseteq> t2"

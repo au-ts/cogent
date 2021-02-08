@@ -202,7 +202,7 @@ next
       "K \<turnstile> TRecord ts1 s wellformed"
       "K \<turnstile> TRecord ts2 s wellformed"
       using lub_trecord.hyps type_lub_type_glb_wellformed_produce_wellformed
-      by (metis (mono_tags, lifting) list_all3_conv_all_nth list_all_length type_wellformed.simps(8) type_wellformed_pretty_def)+
+      by (fastforce simp add: kinding_simps list_all3_conv_all_nth list_all_length)+
     have "K \<turnstile> TRecord ts1 s1 :\<kappa> {D}"
       using lub_trecord
     proof (clarsimp simp: kinding_record_conv_all_nth kinding_simps)
@@ -270,7 +270,7 @@ next
       "K \<turnstile> TSum ts1 wellformed"
       "K \<turnstile> TSum ts2 wellformed"
       using lub_tsum.hyps type_lub_type_glb_wellformed_produce_wellformed
-      by (metis (mono_tags, lifting) list_all3_conv_all_nth list_all_length type_wellformed.simps(6) type_wellformed_pretty_def)+
+      by (fastforce simp add: list_all_length list_all3_conv_all_nth)+
     have "K \<turnstile> TSum ts1 :\<kappa> {D}"
       using lub_tsum
     proof (clarsimp simp: kinding_variant_conv_all_nth kinding_simps)
@@ -291,10 +291,9 @@ next
         case Unchecked
         then show ?thesis
           using lub_tsum.hyps lub_tsum.prems tsLength
-          apply (clarsimp
+          by (clarsimp
               simp add: kinding_simps list_all3_conv_all_nth kinding_variant_conv_all_nth
               split: variant_state.splits)
-          done
       qed
     qed
     moreover have "K \<turnstile> TSum ts2 :\<kappa> {D}"
@@ -347,7 +346,7 @@ next
       using glb_trecord.hyps
       apply (clarsimp simp add: list_all3_conv_all_nth)
       using type_lub_type_glb_wellformed
-      by (metis (no_types, lifting) list_all_length type_wellformed_pretty_def)
+      by (metis (no_types, lifting) list_all_length)
     {
       fix i :: nat
       assume tsLength: "i < length ts"
@@ -385,7 +384,7 @@ next
       using glb_tsum.hyps
       apply (clarsimp simp add: list_all3_conv_all_nth)
       using type_lub_type_glb_wellformed
-      by (metis (no_types, lifting) list_all_length type_wellformed_pretty_def)
+      by (metis (no_types, lifting) list_all_length)
     {
       fix i :: nat
       assume tsLength: "i < length ts"
@@ -436,9 +435,8 @@ proof (induct rule: type_lub_type_glb.inducts)
         using lub_trecord.hyps 
         by (clarsimp simp add: list_all2_conv_all_nth list_all3_conv_all_nth)
       show "list_all2 (record_kind_subty K) ts1 ts"
-        using lub_trecord.hyps le_neq_trans
-        apply (clarsimp simp add: list_all2_conv_all_nth list_all3_conv_all_nth)
-        by fastforce
+        using lub_trecord.hyps
+        by (simp add: list_all2_conv_all_nth list_all3_conv_all_nth list_all_length, meson less_le)
     qed (simp add: lub_trecord.hyps)+
     moreover have "K \<turnstile> TRecord ts2 s2 \<sqsubseteq> TRecord ts s"
     proof (rule subty_trecord)
@@ -446,9 +444,8 @@ proof (induct rule: type_lub_type_glb.inducts)
         using lub_trecord.hyps
         by (clarsimp simp add: list_all2_conv_all_nth list_all3_conv_all_nth)
       show "list_all2 (record_kind_subty K) ts2 ts"
-        using lub_trecord.hyps le_neq_trans
-        apply (clarsimp simp add: list_all2_conv_all_nth list_all3_conv_all_nth)
-        by fastforce
+        using lub_trecord.hyps
+        by (simp add: list_all2_conv_all_nth list_all3_conv_all_nth list_all_length, meson less_le)
     qed (simp add: lub_trecord.hyps)+
     ultimately show ?thesis
       by simp

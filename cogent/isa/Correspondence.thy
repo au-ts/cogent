@@ -392,18 +392,18 @@ next case u_v_product  then show ?case by (auto  dest:  upd_val_rel_upd_val_rel_
                                                  intro: u_v_pointerset_helper)
 next case (u_v_sum \<Xi> \<sigma> a a' t r w g ts rs)
   moreover from u_v_sum have wf: "[] \<turnstile> TSum (map (\<lambda>(c, t, b). (c, bang t, b)) ts) wellformed"
-    using bang_wellformed type_wellformed_pretty_def by fastforce
+    using bang_wellformed by fastforce
 
   moreover from this u_v_sum have "map (\<lambda>(c, \<tau>, uu). (c, type_repr \<tau>)) ts = map (\<lambda>(c, \<tau>, uu). (c, type_repr \<tau>)) (map (\<lambda>(c, t, b). (c, bang t, b)) ts)"
-    using bang_wellformed wellformed_bang_type_repr
-    by (clarsimp, metis kinding_iff_wellformed(1) kinding_simps(6) kinding_variant_wellformed_elem u_v_sum.hyps(5))
+    by (metis (mono_tags) bang.simps(6) repr.inject(4) type_repr.simps(3) wellformed_bang_type_repr(1))
 
   ultimately show ?case by (force intro: upd_val_rel_upd_val_rel_record.intros)
 next case u_v_struct   then show ?case by (auto intro: upd_val_rel_upd_val_rel_record.intros
                                                 simp add: map_snd3_keep)
-next case u_v_abstract then show ?case by (force intro!: upd_val_rel_upd_val_rel_record.intros
-                                                 intro : bang_wellformed bang_kind
-                                                         abs_upd_val_bang[where s=Unboxed, simplified])
+next case u_v_abstract then show ?case by (force intro: upd_val_rel_upd_val_rel_record.intros
+                                                  bang_wellformed bang_kind
+                                                 simp add: bang_preserves_wellformed_all
+                                                 dest: abs_upd_val_bang)
 next case u_v_function then show ?case by (force intro: upd_val_rel_upd_val_rel_record.intros)
 next case u_v_afun     then show ?case by (force intro: upd_val_rel_upd_val_rel_record.intros)
 next case u_v_unit     then show ?case by (force intro: upd_val_rel_upd_val_rel_record.intros)
@@ -432,7 +432,7 @@ next
     by force
   
   have "\<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr (map bang ts))) \<sim> VAbstract a' : TCon n (map bang ts) (bang_sigil s) \<langle>insert l r , {}\<rangle>"
-    using u_v_p_abs_ro bang_wellformed
+    using u_v_p_abs_ro
   proof (intro upd_val_rel_upd_val_rel_record.u_v_p_abs_ro)
     have "upd_abs_typing a n ts s r w"
       using u_v_p_abs_ro abs_upd_val_to_uval_typing by blast
@@ -442,10 +442,12 @@ next
       using u_v_p_abs_ro(2) abs_upd_val_bang by simp
     ultimately show "abs_upd_val a a' n (map bang ts) (bang_sigil s) r {}"
       by simp
-  qed force+
+  qed (force simp add: bang_preserves_wellformed_all)+
   then show ?case
     by (simp add: f1)
-next case u_v_p_abs_w  then show ?case by (auto intro!: u_v_p_abs_ro' bang_wellformed dest: bang_kind abs_upd_val_bang)
+next case u_v_p_abs_w  then show ?case
+    by (auto intro!: u_v_p_abs_ro' bang_wellformed dest: bang_kind abs_upd_val_bang
+        simp add: bang_preserves_wellformed_all)
 next case u_v_r_empty  then show ?case by (force intro: upd_val_rel_upd_val_rel_record.intros)
 next
   case (u_v_r_cons1 \<Xi> \<sigma> x x' t r w xs xs' ts r' w' rp)
@@ -1236,6 +1238,10 @@ using assms proof (cases taken)
 next case Taken   with assms show ?thesis by (fastforce intro!: upd_val_rel_record_put_taken)
 qed
 
+lemma list_all2_left_nth_extractD:
+  "list_all2 P xs ys \<Longrightarrow> i < length xs \<Longrightarrow> xs ! i = x \<Longrightarrow> P x (ys ! i)"
+  by (force simp add: list_all2_conv_all_nth)
+
 lemma value_subtyping:
   shows "\<Xi>, \<sigma> \<turnstile> v \<sim> v' : t \<langle>r, w\<rangle>
           \<Longrightarrow> [] \<turnstile> t \<sqsubseteq> t'
@@ -1243,7 +1249,6 @@ lemma value_subtyping:
     and "\<Xi>, \<sigma> \<turnstile>* vs \<sim> vs' :r ts \<langle>r, w\<rangle>
           \<Longrightarrow> [] \<turnstile> TRecord ts s \<sqsubseteq> TRecord ts' s
           \<Longrightarrow> \<exists>r'. r' \<subseteq> r \<and> \<Xi>, \<sigma> \<turnstile>* vs \<sim> vs' :r ts' \<langle>r', w\<rangle>"
-(* TODO clean up and rewrite as Isar proof *)
 proof (induct arbitrary: t' and ts' s rule: upd_val_rel_upd_val_rel_record.inducts)
   case (u_v_product \<Xi> \<sigma> a a' t r w b b' u r' w')
   then show ?case
@@ -1258,24 +1263,22 @@ proof (induct arbitrary: t' and ts' s rule: upd_val_rel_upd_val_rel_record.induc
     done
 next
   case (u_v_sum \<Xi> \<sigma> a a' t r w g ts rs)
-  from u_v_sum show ?case
+  from u_v_sum(3-) show ?case
     apply -
+    apply (insert subtyping_preserves_type_repr[OF u_v_sum.prems]
+        subtyping_wellformed_preservation(1)[OF u_v_sum.prems])
     apply (erule subtyping.cases; clarsimp)
-    apply (erule(1) list_all2_in_set1_impl_in_set_zip12_sat)
-    apply (drule(1) list_all2_in_set_impl_sat)
+    apply (clarsimp simp add: in_set_conv_nth)
+    apply (frule(2) list_all2_left_nth_extractD, simp, drule u_v_sum.hyps(2))
     apply clarsimp
-    apply (rule_tac V="\<exists>r'\<subseteq>r. \<Xi>, \<sigma> \<turnstile> a \<sim> a' : ab \<langle>r', w\<rangle>" in revcut_rl, blast)
-    apply (elim exE)
-    apply (elim conjE)
-    apply (rule_tac x="r'" in exI)
-    apply (intro conjI, simp)
-    apply (case_tac b, simp)
-    apply (intro upd_val_rel_upd_val_rel_record.intros; auto?)
-      apply (rule_tac s="aa" and t="g" in subst)
-       using map_proj_eq_set_zip_impl_proj_eq apply fastforce
-      apply (meson set_zip_rightD)
-     apply (metis set_zip_rightD subtyping_wellformed_preservation(1) u_v_sum.hyps(5) u_v_sum.prems u_v_sumE upd_val_rel_upd_val_rel_record.u_v_sum)
-    using subtyping_preserves_type_repr u_v_sum.prems apply force
+    apply (intro exI conjI, assumption)
+    apply (intro upd_val_rel_upd_val_rel_record.intros)
+        apply force
+       apply (simp add: in_set_conv_nth)
+       apply (rule_tac x=i in exI)
+       apply (fastforce intro: top_le[where a=\<open>a::variant_state\<close> for a, simplified]
+        simp add: list_eq_iff_nth_eq list_all2_conv_all_nth prod_eq_iff_proj_eq)
+      apply force+
     done
 next
   case (u_v_struct \<Xi> \<sigma> fs fs' ts r w)

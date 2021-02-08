@@ -553,7 +553,8 @@ next
     by (force intro!: uval_typing_uval_typing_record.intros simp: list_all_iff)
 next
   case u_t_abstract then show ?case
-    by (force intro: uval_typing_uval_typing_record.intros bang_wellformed abs_typing_bang[where s = Unboxed, simplified])
+    by (force intro: uval_typing_uval_typing_record.intros dest: abs_typing_bang
+        simp add: bang_preserves_wellformed_all)
 next
   case (u_t_p_rec_ro \<Xi> \<sigma> fs ts r l ptrl)
   moreover have "\<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (type_repr \<circ> fst \<circ> snd \<circ> apsnd (apfst bang)) ts)) :u TRecord (map (apsnd (apfst bang)) ts) (Boxed ReadOnly ptrl) \<langle>insert l r, {}\<rangle>"
@@ -570,13 +571,15 @@ next
 next
   case (u_t_p_abs_ro s ptrl a n ts r \<sigma> l \<Xi>)
   then have "\<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr (map bang ts))) :u TCon n (map bang ts) (Boxed ReadOnly ptrl) \<langle>insert l r, {}\<rangle>"
-    by (fastforce intro!: uval_typing_uval_typing_record.intros dest: abs_typing_bang bang_kind(2) bang_wellformed)
+    by (fastforce intro!: uval_typing_uval_typing_record.intros dest: abs_typing_bang
+        simp add: bang_preserves_wellformed_all)
   then show ?case
     using u_t_p_abs_ro by clarsimp
 next
   case (u_t_p_abs_w s ptrl a n ts r w \<sigma> l \<Xi>)
   then have "\<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr (map bang ts))) :u TCon n (map bang ts) (Boxed ReadOnly ptrl) \<langle>insert l (r \<union> w), {}\<rangle>"
-    by (fastforce intro!: uval_typing_uval_typing_record.intros dest: abs_typing_bang bang_kind(2) bang_wellformed)
+    by (fastforce intro!: uval_typing_uval_typing_record.intros dest: abs_typing_bang
+        simp add: bang_preserves_wellformed_all)
   then show ?case
     using u_t_p_abs_w by clarsimp
 next
@@ -2051,7 +2054,7 @@ next case (u_sem_con \<xi> \<gamma> \<sigma> x_spec \<sigma>' x' ts_inst tag)
       show "[] \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) wellformed"
         using typing_elims u_sem_con.prems Con
         using instantiate_wellformed list_all2_kinding_wellformedD
-        by (metis expr.inject(6) instantiate.simps(6) spec_simps(1) specialise.simps(6) type_wellformed_pretty_def u_sem_con.hyps(3))
+        by (metis (full_types) instantiate.simps(6))
     qed simp+
     then show ?thesis
       using r'_sub_r frame_w_w' spec_simps typing_elims
