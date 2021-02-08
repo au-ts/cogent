@@ -862,8 +862,9 @@ typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Struct ts es : TRecord ts' Unboxed"
 
 | typing_member : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> e : TRecord ts s
-                   ; K \<turnstile> TRecord ts s :\<kappa> k
-                   ; S \<in> k
+                   ; K \<turnstile> TRecord (ts[f := (n, t, Taken)]) s :\<kappa> k
+                   ; D \<in> k
+                   ; sigil_perm s \<noteq> Some Writable
                    ; f < length ts
                    ; ts ! f = (n, t, Present)
                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Member e f : t"
