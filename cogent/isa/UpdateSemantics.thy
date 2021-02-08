@@ -1143,6 +1143,7 @@ lemma frame_single_update:
   shows  "frame \<sigma> {l} (\<sigma>(l \<mapsto> v)) {l}"
   by (simp add: frame_def)
 
+
 section {* Type Safety *}
 
 theorem u_progress:
@@ -1286,20 +1287,55 @@ assumes "x \<union> y = z"
 shows   "y \<subseteq> z"
 using assms by blast
 
-
-lemma uval_typing_record_nth:
-assumes "\<Xi>, \<sigma> \<turnstile>* fs :ur \<tau>s \<langle>r, {}\<rangle>"
-and     "\<tau>s ! f = (n, \<tau>, Present)"
-and     "f < length \<tau>s"
-shows "\<exists>r' \<subseteq> r. \<Xi>, \<sigma> \<turnstile> fst (fs ! f) :u \<tau> \<langle>r', {}\<rangle>"
-using assms proof (induct fs arbitrary: f r \<tau>s)
-     case Nil  then show ?case by force
-next case Cons then show ?case
-  proof (cases f)
-       case 0   with Cons(2-) show ?thesis by (force elim!: u_t_r_consE)
-  next case Suc with Cons(2-) show ?thesis by (elim u_t_r_consE, auto dest!: Cons(1))
-  qed
+lemma uval_typing_record_present_nth:
+  assumes
+    "\<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>ra, wa\<rangle>"
+    "ts ! f = (n, t, Present)"
+    "f < length ts"
+  shows "\<exists>rb\<subseteq>ra. \<exists>wb\<subseteq>wa. \<Xi>, \<sigma> \<turnstile> fst (fs ! f) :u t \<langle>rb, wb\<rangle>"
+  using assms
+proof (induct arbitrary: f n t rule: uval_typing_record_induct)
+  case Nil then show ?case
+    by simp
+next
+  case ConsPresent then show ?case
+    apply (simp add: nth.nth_Cons split: nat.splits)
+     apply blast
+    apply (meson frame_id le_supI2)
+    done
+next
+  case ConsTake then show ?case
+    by (clarsimp simp add: nth.nth_Cons split: nat.splits)
 qed
+
+lemma
+  "\<Xi>, \<sigma> \<turnstile> x :u t \<langle>r, w\<rangle> \<Longrightarrow> D \<in> kinding_fn K t \<Longrightarrow> w = {}"
+  "\<Xi>, \<sigma> \<turnstile>* xs :ur ts \<langle>r, w\<rangle> \<Longrightarrow> D \<in> kinding_fn_all_record K ts \<Longrightarrow> w = {}"
+   apply (induct rule: uval_typing_uval_typing_record.inducts)
+                apply force+
+  apply (clarsimp split: record_state.splits)
+
+
+lemma uval_typing_record_present_nth_droppable:
+  assumes
+    "\<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle>"
+    "ts ! f = (n, t, Present)"
+    "f < length ts"
+    "D \<in> kinding_fn_all_record K (ts[f := (n, \<tau>, Taken)])"
+  shows "\<exists>r'\<subseteq>r. \<Xi>, \<sigma> \<turnstile> fst (fs ! f) :u t \<langle>r', w\<rangle>"
+  using assms
+proof (induct arbitrary: f n t rule: uval_typing_record_induct)
+  case Nil then show ?case by simp
+next
+  case ConsPresent then show ?case
+    apply (simp add: nth.nth_Cons split: nat.splits)
+    apply clarsimp
+    sorry
+next
+  case ConsTake then show ?case
+    by (simp add: nth.nth_Cons split: nat.splits)
+qed
+
 
 
 lemma uval_typing_eq_reprs:
@@ -1312,6 +1348,14 @@ proof (induct rule: uval_typing_uval_typing_record.inducts)
     apply (metis (no_types, lifting) case_prod_conv map_ext prod.collapse u_t_struct.hyps(2))
     done
 qed (force simp add: abs_typing_repr)+
+
+
+fun u_t_record_pred where
+  "u_t_record_pred \<Xi> \<sigma> r' w' (x,rp) (n,t,tk) =
+  (case tk of
+    Taken \<Rightarrow> type_wellformed 0 t \<and> (type_repr t = rp) \<and> (uval_repr x = rp) \<and> (uval_repr_deep x = rp)
+  | Present \<Rightarrow> \<exists>r\<subseteq>r'. \<exists>w\<subseteq>w'. \<Xi>, \<sigma> \<turnstile> x :u t \<langle>r,w\<rangle> \<and> w \<inter> (w' - w) = {} \<and> w \<inter> (r' - r) = {} \<and> (w' - w) \<inter> r  = {} \<and> type_repr t = rp)"
+
 
 lemma uval_typing_record_empty_pointer_sets:
   "\<Xi>, \<sigma> \<turnstile>* [] :ur [] \<langle>r, w\<rangle> \<longleftrightarrow> r = {} \<and> w = {}"
@@ -1363,6 +1407,54 @@ qed (fastforce elim!: u_t_productE u_t_recE)+
 
 lemmas uval_typing_record_functional_readset = uval_typing_record_functional_pointersets[THEN conjunct1]
 lemmas uval_typing_record_functional_writeset = uval_typing_record_functional_pointersets[THEN conjunct2]
+
+lemma uval_typing_record_take_pointer_subset:
+  assumes "\<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle>"
+    and "\<Xi>, \<sigma> \<turnstile>* fs :ur ts[f := (nm, t, Taken)] \<langle>r', w'\<rangle> "
+    and "f < length ts"
+    and "ts ! f = (nm, t, tk)"
+  shows "r' \<subseteq> r \<and> w' \<subseteq> w"
+  using assms
+proof (induct arbitrary: f r' w' nm tk t rule: uval_typing_record_induct)
+  case (ConsPresent \<Xi> \<sigma> x t r w xs ts r' w' rp n i r'' w'' n' tk' t')
+  show ?case
+  proof (cases i)
+    case 0
+    moreover have "r'' = r'"
+      using ConsPresent 0
+      by (fastforce elim!: u_t_r_consE dest: uval_typing_record_functional_readset)
+    moreover have "w'' = w'"
+      using ConsPresent 0
+      by (fastforce elim!: u_t_r_consE dest: uval_typing_record_functional_writeset)
+    ultimately show ?thesis
+      by simp
+  next
+    case (Suc nat)
+    moreover then obtain r1 w1 r2 w2 j
+      where u_t_elim_lems:
+      "\<Xi>, \<sigma> \<turnstile> x :u t \<langle>r1, w1\<rangle>"
+      "\<Xi>, \<sigma> \<turnstile>* xs :ur ts[j := (n', t', Taken)] \<langle>r2, w2\<rangle>"
+      "r'' = r1 \<union> r2"
+      "w'' = w1 \<union> w2"
+      "i = Suc j"
+      using ConsPresent(8) Suc
+      by (force elim!: u_t_r_consE)
+    moreover have "r1 = r" "w1 = w"
+      using u_t_elim_lems ConsPresent
+        uval_typing_record_functional_readset uval_typing_record_functional_writeset
+      by metis+
+    moreover have
+      "r2 \<subseteq> r'" "w2 \<subseteq> w'"
+      using u_t_elim_lems ConsPresent
+      by simp+
+    ultimately show ?thesis
+      using ConsPresent
+      by blast
+  qed
+next
+  case ConsTake then show ?case
+    by (fastforce elim!: u_t_r_consE dest: uval_typing_record_functional_pointersets split: nat.splits)
+qed simp
 
 
 lemma sum_downcast_u:
@@ -2371,7 +2463,7 @@ next case (u_sem_if _ _ _ _ _ b)
     apply (frule(5) IH1, clarsimp)
     apply (erule u_t_primE, clarsimp)
     apply (frule(4) IH2 [ rotated 2
-                        , where e17 (* FIXME: unstable name *) = "if b then e2 else e3" for e2 and e3
+                        , where e22 (* FIXME: unstable name *) = "if b then e2 else e3" for e2 and e3
                         , OF _ _ matches_ptrs_frame ])
         apply (blast, simp, cases b, simp, simp, cases b, simp, simp)
     apply (fastforce intro: frame_let)

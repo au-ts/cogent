@@ -457,8 +457,12 @@ lemma kinding_fn_all_variant_Cons[simp]:
 
 
 (* better the record and sum simps *)
+lemma kinding_fn_simp_tcon[simp]:
+  "kinding_fn K (TCon n ts s) = kinding_fn_all K ts \<inter> sigil_kind s"
+  by (simp add: kinding_fn_all_def)
+
 lemma kinding_fn_simp_record[simp]:
-  "kinding_fn K (TRecord ts s) = kinding_fn_all_record K ts \<inter> (sigil_kind s)"
+  "kinding_fn K (TRecord ts s) = kinding_fn_all_record K ts \<inter> sigil_kind s"
   by (simp add: kinding_fn_all_record_def case_prod_beta')
 
 lemma kinding_fn_simp_variant[simp]:
@@ -466,7 +470,7 @@ lemma kinding_fn_simp_variant[simp]:
   by (simp add: kinding_fn_all_variant_def case_prod_beta')
 
 (* delete the record and sum simps *)
-declare kinding_fn.simps(6,8)[simp del]
+declare kinding_fn.simps(3,6,8)[simp del]
 
 
 definition kinding :: "kind env \<Rightarrow> type \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile> _ :\<kappa> _" [30,0,30] 60) where
@@ -488,10 +492,10 @@ lemma kinding_all_Cons:
   by (force simp add: kinding_all_def kinding_def)
 
 definition kinding_variant :: "kind env \<Rightarrow> (name \<times> type \<times> variant_state) list \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa>v _" [60,0,60] 60) where
-  "K \<turnstile>* ts :\<kappa>v k \<equiv> (K \<turnstile>* map (fst \<circ> snd) ts wellformed) \<and> k \<subseteq> (\<Inter>(_,t,b)\<in>set ts. (case b of Checked \<Rightarrow> UNIV | Unchecked \<Rightarrow> kinding_fn K t))"
+  "K \<turnstile>* ts :\<kappa>v k \<equiv> (K \<turnstile>* map (fst \<circ> snd) ts wellformed) \<and> k \<subseteq> kinding_fn_all_variant K ts"
 
 definition kinding_record  :: "kind env \<Rightarrow> (name \<times> type \<times> record_state) list \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa>r _" [60,0,60] 60) where
-  "K \<turnstile>* ts :\<kappa>r k \<equiv> (K \<turnstile>* map (fst \<circ> snd) ts wellformed) \<and> k \<subseteq> (\<Inter>(_,t,b)\<in>set ts. (case b of Taken \<Rightarrow> UNIV | Present \<Rightarrow> kinding_fn K t))"
+  "K \<turnstile>* ts :\<kappa>r k \<equiv> (K \<turnstile>* map (fst \<circ> snd) ts wellformed) \<and> k \<subseteq> kinding_fn_all_record K ts"
 
 lemmas kinding_defs = kinding_def kinding_all_def kinding_variant_def kinding_record_def
 
@@ -1108,7 +1112,7 @@ lemma kinding_simps:
   "\<And>K ts s k.   K \<turnstile> (TRecord ts s) :\<kappa> k   \<longleftrightarrow> (K \<turnstile>* ts :\<kappa>r k) \<and> k \<subseteq> sigil_kind s \<and> distinct (map fst ts)"
   "\<And>K k.        K \<turnstile> TUnit :\<kappa> k            \<longleftrightarrow> k \<subseteq> UNIV"
   by (force simp add: kinding_defs list_all_iff kinding_fn_all_record_def kinding_fn_all_variant_def
-      case_prod_beta')+
+      kinding_fn_all_def case_prod_beta')+
 
 lemma kinding_all_simps:
   "\<And>K k.        K \<turnstile>* [] :\<kappa> k       \<longleftrightarrow> True"
@@ -1126,6 +1130,20 @@ lemma kinding_record_simps:
   "\<And>K n t ts k. K \<turnstile>* ((n,t,Present) # ts) :\<kappa>r k \<longleftrightarrow> (K \<turnstile> t :\<kappa> k) \<and> (K \<turnstile>* ts :\<kappa>r k)"
   "\<And>K n t ts k. K \<turnstile>* ((n,t,Taken) # ts) :\<kappa>r k   \<longleftrightarrow> (K \<turnstile> t wellformed) \<and> (K \<turnstile>* ts :\<kappa>r k)"
   by (auto simp add: kinding_defs list_all_iff)
+
+
+lemma kinding_fn_all_nthD:
+  "k \<in> kinding_fn_all K ts \<Longrightarrow>
+   i < length ts \<Longrightarrow>
+   k \<in> kinding_fn K (ts ! i)"
+  by (induct ts arbitrary: i)
+    (simp add: nth.nth_Cons split: nat.splits record_state.splits)+
+
+lemma kinding_fn_all_elemD:
+  "k \<in> kinding_fn_all K ts \<Longrightarrow>
+   t \<in> set ts \<Longrightarrow>
+   k \<in> kinding_fn K t"
+  by (force dest: kinding_fn_all_nthD simp add: in_set_conv_nth)
 
 
 lemma kinding_fn_all_record_taken_nthD:
@@ -1434,7 +1452,7 @@ lemma bang_kinding_fn:
 proof (induct K t rule: kinding_fn_induct)
   case (kind_tcon K n ts s)
   then show ?case
-    using bang_sigil_kind by (simp add: list_all_iff)
+    using bang_sigil_kind by (simp add: list_all_iff kinding_fn_all_def)
 next
   case (kind_tsum K ts)
   then show ?case
@@ -1455,6 +1473,7 @@ and   "K \<turnstile>* map (fst \<circ> snd) xs wellformed \<Longrightarrow> k \
 and   "K \<turnstile>* map (fst \<circ> snd) fs wellformed \<Longrightarrow> k \<subseteq> {D, S} \<Longrightarrow> K \<turnstile>* map (\<lambda>(n,t,b). (n, bang t, b)) fs :\<kappa>r k"
   using bang_kinding_fn
   by (fastforce simp add: kinding_defs list.pred_map comp_def prod.case_eq_if
+      kinding_fn_all_variant_def kinding_fn_all_record_def
       split: variant_state.split record_state.split)+
 
 
@@ -1841,6 +1860,42 @@ lemma instantiate_ctx_nothing_id[simp]:
 shows "instantiate_ctx [] = id"
 by (rule ext, simp add: instantiate_ctx_nothing)
 
+lemma specialise_eq_convs:
+  "\<And>i us.       Var i           = specialise us x \<longleftrightarrow> x = Var i"
+  "\<And>us f ts.    Fun f ts        = specialise us x \<longleftrightarrow> (\<exists>ts'. x = Fun f ts' \<and> ts = map (instantiate us) ts')"
+  "\<And>us f ts.    AFun f ts       = specialise us x \<longleftrightarrow> (\<exists>ts'. x = AFun f ts' \<and> ts = map (instantiate us) ts')"
+  "\<And>us p es.    Prim p es       = specialise us x \<longleftrightarrow> (\<exists>es'. x = Prim p es' \<and> es = map (specialise us) es')"
+  "\<And>us a b.     App a b         = specialise us x \<longleftrightarrow> (\<exists>a' b'. x = App a' b' \<and> a = specialise us a' \<and> b = specialise us b')"
+  "\<And>us as t e.  Con as t e      = specialise us x \<longleftrightarrow>
+                  (\<exists>as' e'. x = Con as' t e' \<and> as = map (\<lambda>(c,t,b). (c, instantiate us t, b)) as' \<and> e = specialise us e')"
+  "\<And>us ts vs.   Struct ts vs    = specialise us x \<longleftrightarrow>
+                  (\<exists>ts' vs'. x = Struct ts' vs' \<and> ts = map (instantiate us) ts' \<and> vs = map (specialise us) vs')"
+  "\<And>us v f.     Member v f      = specialise us x \<longleftrightarrow> (\<exists>v'. x = Member v' f \<and> v = specialise us v')"
+  "\<And>us.         Unit            = specialise us x \<longleftrightarrow> x = Unit"
+  "\<And>us t e.     Cast t e        = specialise us x \<longleftrightarrow> (\<exists>e'. x = Cast t e' \<and> e = specialise us e')"
+  "\<And>us v.       Lit v           = specialise us x \<longleftrightarrow> x = Lit v"
+  "\<And>us s.       SLit s          = specialise us x \<longleftrightarrow> x = SLit s"
+  "\<And>us a b.     Tuple a b       = specialise us x \<longleftrightarrow>
+                  (\<exists>a' b'. x = Tuple a' b' \<and> a = specialise us a' \<and> b = specialise us b')"
+  "\<And>us e1 f e2. Put e1 f e2     = specialise us x \<longleftrightarrow>
+                  (\<exists>e1' e2'. x = Put e1' f e2' \<and> e1 = specialise us e1' \<and> e2 = specialise us e2')"
+  "\<And>us e1 e2. Let e1 e2       = specialise us x \<longleftrightarrow>
+                  (\<exists>e1' e2'. x = Let e1' e2' \<and> e1 = specialise us e1' \<and> e2 = specialise us e2')"
+  "\<And>us vs e1 e2. LetBang vs e1 e2 = specialise us x \<longleftrightarrow>
+                  (\<exists>e1' e2'. x = LetBang vs e1' e2' \<and> e1 = specialise us e1' \<and> e2 = specialise us e2')"
+  "\<And>us e t a b. Case e t a b    = specialise us x \<longleftrightarrow>
+                  (\<exists>e' a' b'. x = Case e' t a' b' \<and> e = specialise us e' \<and> a = specialise us a' \<and> b = specialise us b')"
+  "\<And>us e t.     Esac e t        = specialise us x \<longleftrightarrow> (\<exists>e'. x = Esac e' t \<and> e = specialise us e')"
+  "\<And>us c t e.   If c t e        = specialise us x \<longleftrightarrow>
+                  (\<exists>c' t' e'. x = If c' t' e' \<and> c = specialise us c' \<and> t = specialise us t' \<and> e = specialise us e')"
+  "\<And>us e1 f e2. Take e1 f e2    = specialise us x \<longleftrightarrow>
+                  (\<exists>e1' e2'. x = Take e1' f e2' \<and> e1 = specialise us e1' \<and> e2 = specialise us e2')"
+  "\<And>us v va.    Split v va      = specialise us x \<longleftrightarrow>
+                  (\<exists>v' va'. x = Split v' va' \<and> v = specialise us v' \<and> va = specialise us va')"
+  "\<And>us t e.     Promote t e     = specialise us x \<longleftrightarrow>
+                  (\<exists>t' e'. x = Promote t' e' \<and> t = instantiate us t' \<and> e = specialise us e')"
+  by (cases x; force)+
+
 lemma specialise_nothing:
 shows "specialise [] e = e"
 by (induct e) (auto simp: prod_set_defs intro: map_idI)
@@ -1851,11 +1906,18 @@ by (rule ext, simp add: specialise_nothing)
 
 lemmas typing_struct_instantiate = typing_struct[where ts = "map (instantiate \<delta>) ts" for \<delta> ts, simplified]
 
+
 lemma wellkinded_imp_kinded: "list_all2 (kinding K') \<delta> K \<Longrightarrow> list_all2 (\<lambda>t k. k \<subseteq> kinding_fn K' t) \<delta> K"
   by (clarsimp simp add: list_all2_conv_all_nth kinding_def)
 
 lemma wellkinded_imp_wellformed: "list_all2 (kinding K') \<delta> K \<Longrightarrow> list_all (type_wellformed (length K')) \<delta>"
   by (clarsimp simp add: list_all2_conv_all_nth list_all_length kinding_def)
+
+lemma wellkinded_iff_wellformed_and_kinded:
+  "list_all2 (kinding K') \<delta> K \<longleftrightarrow>
+    list_all (type_wellformed (length K')) \<delta> \<and> list_all2 (\<lambda>t k. k \<subseteq> kinding_fn K' t) \<delta> K"
+  by (force simp add: list_all2_conv_all_nth kinding_def list_all_length all_conj_distrib)
+
 
 lemma instantiate_over_variants_subvariants:
   assumes tags_same: "map fst ts = map fst ts'"
@@ -1916,7 +1978,7 @@ next
   case (TRecord ts s)
   then show ?case
     by (fastforce split: record_state.split simp add: list_all_iff kinding_fn_all_record_def)
-qed (fastforce simp add: list_all2_conv_all_nth list_all_iff)+
+qed (fastforce simp add: list_all2_conv_all_nth list_all_iff kinding_fn_all_def)+
 
 
 lemma substitutivity_kinding_fn_inD:
