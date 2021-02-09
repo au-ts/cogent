@@ -209,8 +209,9 @@ data Constraint' t l = (:<) t t
                      | (:|-) (M.Map VarName (t, Int), [SExpr t l]) (Constraint' t l)
                      | BaseType t
                      | Self VarName t t  -- selfification [Ou et al., 04]
-                                         -- Self x t t' = if t = {v : B | p} then {v : B | p ∧ v = x} :< t'
+                                         -- Self x t t' = if t = {v : B | p} then {v : B | v = x} :< t'
                                          --                                  else t :< t'
+                                         -- Also see note [Selfification] in Generator.hs
 #endif
                      deriving (Eq, Show, Ord) -- , Functor, Foldable, Traversable)
 

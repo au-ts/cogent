@@ -334,7 +334,13 @@ desugarAlts e0@(B.TE t v@(S.Var _) _) (S.Alt (B.TP p1 pos1) l1 e1 : alts) =  -- 
           t0' = B.DT $ S.TVariant (M.delete cn1 talts)  -- type of e0 without alternative cn
       e1' <- withBinding (fst v1) $ desugarExpr e1
       e2' <- withBinding e0' $ desugarAlts (B.TE t0' (S.Var e0') noPos) alts
+#ifdef REFINEMENT_TYPES
+      let t1' = B.getTypeTE e1  -- should be the same as that of e2
+      t1'' <- desugarType t1'
+      E . Promote t1'' <$> (E <$> (Case <$> desugarExpr e0 <*> pure cn1 <*> pure (l1,fst v1,e1') <*> pure (mempty,e0',e2')))
+#else
       E <$> (Case <$> desugarExpr e0 <*> pure cn1 <*> pure (l1,fst v1,e1') <*> pure (mempty,e0',e2'))
+#endif
     S.PCon cn1 [p1'] -> do  -- This is B) for PCon
       v1 <- freshVar
       let B.DT (S.TVariant talts) = t
@@ -687,9 +693,9 @@ desugarExpr (B.TE _ (S.Var vn) _) = (findIx vn <$> use varCtx) >>= \case
   Just v  -> return $ E $ Variable (v, vn)
   Nothing -> do constdefs <- view _2
                 ctx <- use varCtx
-                -- traceM ("ctx = " ++ show (pretty ctx))
-                -- traceM ("constdefs = " ++ show (constdefs))
-                -- traceM ("vn = " ++ show vn)
+                traceM ("ctx = " ++ show (pretty ctx))
+                traceM ("constdefs = " ++ show (constdefs))
+                traceM ("vn = " ++ show vn)
                 let Just e = M.lookup vn constdefs
                 desugarExpr e
 desugarExpr (B.TE _ (S.Match e _ []) _) = __impossible "desugarExpr (Match)"

@@ -418,25 +418,45 @@ insertIdxAtE cut f (Promote ty e) = Promote ty (f cut e)
 insertIdxAtE cut f (Cast ty e) = Cast ty (f cut e)
 
 #ifdef REFINEMENT_TYPES
--- ASSUME refinement types are normalised.
+-- insert a new term var binding
 insertIdxAtT :: Nat -> Type t b -> Type t b
-insertIdxAtT cut (TRefine t p) = TRefine t $ insertIdxAtLE (Suc cut) p
+insertIdxAtT cut (TVar x) = TVar x
+insertIdxAtT cut (TVarBang x) = TVarBang x
+insertIdxAtT cut (TVarUnboxed x) = TVarUnboxed x
+insertIdxAtT cut (TCon tn ts s) = TCon tn (fmap (insertIdxAtT cut) ts) s
 insertIdxAtT cut (TFun t1 t2) = TFun (insertIdxAtT cut t1) (insertIdxAtT (Suc cut) t2)
+insertIdxAtT cut (TPrim p) = TPrim p
+insertIdxAtT cut (TString) = TString
+insertIdxAtT cut (TSum as) = TSum $ fmap (second $ first $ insertIdxAtT cut) as
+insertIdxAtT cut (TProduct t1 t2) = TProduct (insertIdxAtT cut t1) (insertIdxAtT cut t2)
+insertIdxAtT cut (TRecord tp fs s) = TRecord tp (fmap (second $ first $ insertIdxAtT cut) fs) s
+insertIdxAtT cut (TUnit) = TUnit
+insertIdxAtT cut (TRPar rn ctx) = TRPar rn (fmap (fmap $ insertIdxAtT cut) ctx)
+insertIdxAtT cut (TRParBang rn ctx) = TRParBang rn (fmap (fmap $ insertIdxAtT cut) ctx)
 insertIdxAtT cut (TArray t l s mh) = TArray (insertIdxAtT cut t) (insertIdxAtLE cut l) s (fmap (insertIdxAtLE cut) mh)
-insertIdxAtT cut t = t
+insertIdxAtT cut (TRefine t p) = TRefine (insertIdxAtT cut t) (insertIdxAtLE (Suc cut) p)
+insertIdxAtT cut t = __impossible "insertIdxAtT"
+
+insertIdxAtByT :: Nat -> Nat -> Type t b -> Type t b
+insertIdxAtByT Zero cut t = t
+insertIdxAtByT (Suc n) cut t = insertIdxAtT n $ insertIdxAtT cut t
 
 insertIdxAtLE :: Nat -> LExpr t b -> LExpr t b
 insertIdxAtLE n (LVariable (v, b)) | n <= v = LVariable (Suc v, b)
                                    | otherwise = LVariable (v, b)
+insertIdxAtLE n (LFun fn ts ls) = LFun fn ts ls
 insertIdxAtLE n (LOp opr es) = LOp opr (P.map (insertIdxAtLE n) es)
 insertIdxAtLE n (LApp a b) = LApp (insertIdxAtLE n a) (insertIdxAtLE n b)
 insertIdxAtLE n (LCon tn e t) = LCon tn (insertIdxAtLE n e) t
+insertIdxAtLE n (LUnit) = LUnit
+insertIdxAtLE n (LILit i p) = LILit i p
+insertIdxAtLE n (LSLit s) = LSLit s
 insertIdxAtLE n (LLet a e1 e2) = LLet a (insertIdxAtLE n e1) (insertIdxAtLE (Suc n) e2)
 insertIdxAtLE n (LLetBang bs a e1 e2) = LLetBang bs a (insertIdxAtLE n e1) (insertIdxAtLE (Suc n) e2)
 insertIdxAtLE n (LTuple e1 e2) = LTuple (insertIdxAtLE n e1) (insertIdxAtLE n e2)
 insertIdxAtLE n (LStruct fs) = LStruct $ P.map (\(fn, e) -> (fn, insertIdxAtLE n e)) fs
 insertIdxAtLE n (LIf c t e) = LIf (insertIdxAtLE n c) (insertIdxAtLE n t) (insertIdxAtLE n e)
-insertIdxAtLE n (LCase e tn (v1, a1) (v2, a2)) = LCase (insertIdxAtLE n e) tn (v1, insertIdxAtLE n a1) (v2, insertIdxAtLE n a2)
+insertIdxAtLE n (LCase e tn (v1, a1) (v2, a2)) = LCase (insertIdxAtLE n e) tn (v1, insertIdxAtLE (Suc n) a1) (v2, insertIdxAtLE (Suc n) a2)
 insertIdxAtLE n (LEsac e) = LEsac $ insertIdxAtLE n e
 insertIdxAtLE n (LSplit (v1, v2) e1 e2) = LSplit (v1, v2) (insertIdxAtLE n e1) (insertIdxAtLE (Suc $ Suc n) e2)
 insertIdxAtLE n (LMember x f) = LMember (insertIdxAtLE n x) f
@@ -444,13 +464,29 @@ insertIdxAtLE n (LTake (a,b) rec f e) = LTake (a,b) rec f (insertIdxAtLE (Suc $ 
 insertIdxAtLE n (LPut rec f v) = LPut rec f (insertIdxAtLE n v)
 insertIdxAtLE n (LPromote t e) = LPromote t (insertIdxAtLE n e)
 insertIdxAtLE n (LCast t e) = LCast t (insertIdxAtLE n e)
-insertIdxAtLE n x = x
 
+-- upshift everything
 upshiftIdxsT :: Type t b -> Type t b
-upshiftIdxsT (TRefine t p) = TRefine (upshiftIdxsT t) (insertIdxAtLE Zero p)
+upshiftIdxsT (TVar x) = TVar x
+upshiftIdxsT (TVarBang x) = TVarBang x
+upshiftIdxsT (TVarUnboxed x) = TVarUnboxed x
+upshiftIdxsT (TCon tn ts s) = TCon tn (fmap upshiftIdxsT ts) s
 upshiftIdxsT (TFun t1 t2) = TFun (upshiftIdxsT t1) (upshiftIdxsT t2)
+upshiftIdxsT (TPrim p) = TPrim p
+upshiftIdxsT (TString) = TString
+upshiftIdxsT (TSum as) = TSum $ fmap (second $ first upshiftIdxsT) as
+upshiftIdxsT (TProduct t1 t2) = TProduct (upshiftIdxsT t1) (upshiftIdxsT t2)
+upshiftIdxsT (TRecord tp fs s) = TRecord tp (fmap (second $ first upshiftIdxsT) fs) s
+upshiftIdxsT (TUnit) = TUnit
+upshiftIdxsT (TRPar rn ctx) = TRPar rn (fmap (fmap upshiftIdxsT) ctx)
+upshiftIdxsT (TRParBang rn ctx) = TRParBang rn (fmap (fmap upshiftIdxsT) ctx)
 upshiftIdxsT (TArray t l s mh) = TArray (upshiftIdxsT t) (insertIdxAtLE Zero l) s (fmap (insertIdxAtLE Zero) mh)
-upshiftIdxsT t = t
+upshiftIdxsT (TRefine t p) = TRefine (upshiftIdxsT t) (insertIdxAtLE Zero p)
+upshiftIdxsT t = __impossible "upshiftIdxsT"
+
+upshiftIdxsByT :: Nat -> Type t b -> Type t b
+upshiftIdxsByT Zero t = t
+upshiftIdxsByT (Suc n) t = upshiftIdxsByT n (upshiftIdxsT t)
 #endif
 
 
@@ -782,8 +818,8 @@ instance (Pretty a, Pretty b, Prec (e t v a b), Pretty (e t v a b), Pretty (e t 
                                                       <+> prettyPrec 1 rec <+> record (fieldIndex f:[]) L.<$>
                                        keyword "in" <+> pretty e)
   pretty (Put rec f v) = prettyPrec 1 rec <+> record [fieldIndex f <+> symbol "=" <+> pretty v]
-  pretty (Promote t e) = prettyPrec 1 e <+> symbol ":^:" <+> pretty t
-  pretty (Cast t e) = prettyPrec 1 e <+> symbol ":::" <+> pretty t
+  pretty (Promote t e) = prettyPrec 1 e <+> symbol ":↑" <+> pretty t
+  pretty (Cast t e) = prettyPrec 1 e <+> symbol ":↑ᵘ" <+> pretty t
 
 instance Pretty FunNote where
   pretty NoInline = empty
@@ -853,8 +889,8 @@ instance (Pretty b) => Pretty (LExpr t b) where
                                                       <+> prettyPrec 1 rec <+> record (fieldIndex f:[]) L.<$>
                                        keyword "in" <+> pretty e)
   pretty (LPut rec f v) = prettyPrec 1 rec <+> record [fieldIndex f <+> symbol "=" <+> pretty v]
-  pretty (LPromote t e) = prettyPrec 1 e <+> symbol ":^:" <+> pretty t
-  pretty (LCast t e) = prettyPrec 1 e <+> symbol ":::" <+> pretty t
+  pretty (LPromote t e) = prettyPrec 1 e <+> symbol ":↑" <+> pretty t
+  pretty (LCast t e) = prettyPrec 1 e <+> symbol ":↑ᵘ" <+> pretty t
 #endif
 
 

@@ -1,0 +1,5 @@
+type V = < TAG_a U8 | TAG_b U8 >
+
+foo : V -> U8
+foo | TAG_a va -> va
+    | TAG_b vb -> vb + 1

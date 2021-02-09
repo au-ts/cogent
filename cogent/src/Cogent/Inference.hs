@@ -80,7 +80,7 @@ import Lens.Micro.Mtl (view)
 import Text.PrettyPrint.ANSI.Leijen (Pretty, pretty)
 import qualified Unsafe.Coerce as Unsafe (unsafeCoerce)  -- NOTE: used safely to coerce phantom types only
 
-import Debug.Trace
+-- import Debug.Trace
 
 guardShow :: String -> Bool -> TC t v b ()
 guardShow x b = unless b $ TC (throwError $ "GUARD: " ++ x)
@@ -421,14 +421,17 @@ opType Complement [TPrim p] | p /= Boolean = Just $ TPrim p
 opType opr ts = __impossible "opType"
 
 
-useVariable :: Fin v -> TC t v b (Maybe (Type t b))
+useVariable :: (Pretty b) => Fin v -> TC t v b (Maybe (Type t b))
 useVariable v = TC $ do ret <- (`at` v) <$> fst3 <$> get
                         case ret of
                           Nothing -> return ret
                           Just t  -> do
                             ok <- canShare <$> unTC (kindcheck t)
                             unless ok $ modify (\(s, p, n) -> (update s v Nothing, p, n))
-                            return ret
+                            let t' = insertIdxAtByT (Suc $ finNat v) (Suc Zero) t
+                            traceM ("*****> v is " ++ show v ++ "\n ..... t was " ++ show (pretty t) ++ "\n ..... t' is " ++ show (pretty t'))
+                            return $ Just t'
+                            -- return ret
 
 funType :: CoreFunName -> TC t v b (Maybe (FunctionType b))
 funType v = TC $ (M.lookup (unCoreFunName v) . snd) <$> ask
@@ -462,7 +465,7 @@ tc = flip tc' M.empty
       -- Enable recursion by inserting this function's type into the function type dictionary
       let ft = FT (snd <$> ks) (snd <$> ls) t rt in
       do 
-        rtc <- liftIO $ runTC (infer e >>= flip typecheck rt)
+        rtc <- liftIO $ runTC (check e rt)
                               (fmap snd ks, M.insert fn ft reader)
                               ((Cons (Just t) Nil), Cons [] Nil, 0)
         case rtc of
@@ -556,6 +559,7 @@ typecheck :: (Pretty a, Show a, Eq a, Ord a)
 typecheck e t = do
   let t' = exprType e
   (vec, _, _) <- get
+  traceM ("!!!!! under context " ++ show (pretty vec) ++ "\n ... checking if " ++ show (pretty t') ++ " ... is a subtype of " ++ show (pretty t))
   isSub <- t' `isSubtype` t
   if | t == t' -> return e
      | isSub -> return (promote t e)
@@ -576,7 +580,8 @@ typecheck e t = do
 check :: UntypedExpr t v VarName VarName -> Type t VarName -> TC t v VarName (TypedExpr t v VarName VarName)
 check (E (Let a e1 e2)) t = do
   e1' <- infer e1
-  e2' <- withBinding (exprType e1') $ check e2 t
+  traceM ("------> (check let) push a = " ++ show a ++ " of type " ++ show (pretty $ exprType e1'))
+  e2' <- withBinding (exprType e1') $ check e2 (insertIdxAtT Zero t)
   return $ TE t (Let a e1' e2')
 
 check (E (If c th el)) t = do
@@ -594,6 +599,20 @@ check (E (If c th el)) t = do
                    <||> check el t
 #endif
   return $ TE t (If c' th' el')
+
+check (E (Case e tag (lt,at,et) (le,ae,ee))) t
+   = do e' <- infer e
+        let TSum ts = exprType e'
+            Just (t', taken) = lookup tag ts
+            restt = TSum $ adjust tag (second $ const True) ts  -- set the tag to taken
+            e'' = case taken of
+                    True  -> promote (TSum $ OM.toList $ OM.adjust (\(t,True) -> (t,False)) tag $ OM.fromList ts) e'
+                    False -> e'
+        traceM ("------> (check case) push at = " ++ show at ++ " of type " ++ show (pretty $ t'))
+        traceM ("------> (check case) push ae = " ++ show ae ++ " of type " ++ show (pretty $ restt))
+        (et',ee') <- (,) <$>  withBinding t'    (check et $ insertIdxAtT Zero t)
+                         <||> withBinding restt (check ee $ insertIdxAtT Zero t)
+        return $ TE t (Case e'' tag (lt,at,et') (le,ae,ee'))
 
 -- TODO: other cases
 check e t = do e' <- infer e
@@ -716,6 +735,7 @@ infer (E (ArrayPut arr i e))
 #endif
 infer (E (Variable v))
    = do Just t <- useVariable (fst v)
+        xxx <- get
 #ifdef REFINEMENT_TYPES
         case inEqTypeClass t of
           True -> do
@@ -723,11 +743,10 @@ infer (E (Variable v))
             let pred = LOp Eq [ LVariable (Zero, vn)
                               , insertIdxAtLE Zero $ LVariable (finNat $ fst v, snd v) 
                               ]
-            -- if t is a refinement type, extract the old predicate and combine
             case t of
-              TRefine base oldPred -> return $ TE (TRefine base pred) (Variable v)
+              TRefine base _ -> return $ TE (TRefine base pred) (Variable v)
               _ -> return $ TE (TRefine t pred) (Variable v)
-          False -> return $ TE t (Variable v)
+          False -> return $ trace ("!!!!! Under the context " ++ show (pretty xxx) ++ "\n... the type of variable " ++ show v ++ " is " ++ show (pretty t)) $ TE t (Variable v)
 #else
         return $ TE t (Variable v)
 #endif
@@ -754,14 +773,15 @@ infer (E (App e1 e2))
                      else return $ TE to (App e1' e2')
 infer (E (Let a e1 e2))
    = do e1' <- infer e1
+        traceM ("------> push a = " ++ show a ++ " of type " ++ show (pretty $ exprType e1'))
         e2' <- withBinding (exprType e1') (infer e2)
-        return $ TE (exprType e2') (Let a e1' e2')  -- FIXME: the type is wrong! needs substitute away the binder.
+        return $ TE (insertIdxAtT Zero $ exprType e2') (Let a e1' e2')
 infer (E (LetBang vs a e1 e2))
    = do e1' <- withBang (map fst vs) (infer e1)
         k <- kindcheck (exprType e1')
         guardShow "let!" $ canEscape k
         e2' <- withBinding (exprType e1') (infer e2)
-        return $ TE (exprType e2') (LetBang vs a e1' e2')
+        return $ TE (insertIdxAtT Zero $ exprType e2') (LetBang vs a e1' e2')
 infer (E Unit) = return $ TE TUnit Unit
 infer (E (Tuple e1 e2))
    = do e1' <- infer e1
@@ -812,6 +832,8 @@ infer (E (Case e tag (lt,at,et) (le,ae,ee)))
             e'' = case taken of
                     True  -> promote (TSum $ OM.toList $ OM.adjust (\(t,True) -> (t,False)) tag $ OM.fromList ts) e'
                     False -> e'
+        traceM ("------> push at = " ++ show at ++ " of type " ++ show (pretty $ t))
+        traceM ("------> push ae = " ++ show ae ++ " of type " ++ show (pretty $ restt))
         (et',ee') <- (,) <$>  withBinding t     (infer et)
                          <||> withBinding restt (infer ee)
         let tt = exprType et'
@@ -855,7 +877,9 @@ infer (E (Take a e f e2))
         guardShow "take-1" $ f < length ts
         let (init, (fn,(tau,False)):rest) = splitAt f ts
         k <- kindcheck tau
-        e2' <- withBindings (Cons tau (Cons (TRecord rp (init ++ (fn,(tau,True)):rest) s) Nil)) (infer e2)  -- take that field regardless of its shareability
+        let trec = TRecord rp (init ++ (fn,(tau,True)):rest) s
+        traceM ("------> push a = " ++ show a ++ " of type " ++ show (pretty $ (tau, trec)))
+        e2' <- withBindings (Cons tau (Cons trec Nil)) (infer e2)  -- take that field regardless of its shareability
         return $ TE (exprType e2') (Take a e' f e2')
 infer (E (Put e1 f e2))
    = do e1'@(TE t1 _) <- infer e1
@@ -876,7 +900,7 @@ infer (E (Cast τ e))
         return $ TE τ (Cast τ $ TE t e')
 infer (E (Promote τ e))
 #ifdef REFINEMENT_TYPES
-   = check e τ
+   = TE τ <$> (Promote τ <$> check e τ)  -- keeps the Promote nodes
 #else
    = do (TE t e') <- infer e
         guardShow ("promote: " ++ show t ++ " << " ++ show τ) =<< t `isSubtype` τ
@@ -916,13 +940,13 @@ infer (E (Promote τ e))
 promote :: Type t b -> TypedExpr t v a b -> TypedExpr t v a b
 promote t (TE t' e) = case e of
   -- For continuation forms, push the promote into the continuations
-  Let a e1 e2         -> TE t $ Let a e1 $ promote t e2
+  Let a e1 e2         -> TE t $ Let a e1 $ promote (insertIdxAtT Zero t) e2
   LetBang vs a e1 e2  -> TE t $ LetBang vs a e1 $ promote t e2
   If ec et ee         -> TE t $ If ec (promote t et) (promote t ee)
   Case e tag (l1,a1,e1) (l2,a2,e2)
                       -> TE t $ Case e tag
-                                  (l1, a1, promote t e1)
-                                  (l2, a2, promote t e2)
+                                  (l1, a1, promote (insertIdxAtT Zero t) e1)
+                                  (l2, a2, promote (insertIdxAtT Zero t) e2)
   -- Collapse consecutive promotes
   Promote _ e'        -> promote t e'
   -- Otherwise, no simplification is necessary; construct a Promote expression as usual.

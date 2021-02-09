@@ -511,13 +511,25 @@ cg' (Var n) t = do
 #ifdef REFINEMENT_TYPES
       c <- if ?isRefType then
              return $ Self n t' t
+                -- [Note: Selfification] / zilinc (090221)
                 -- See the definition of @Self@ in Base.hs
-                -- c.f. [Jhala & Vazou, 16 Oct 2020. §4.3.2]
+                -- In [Jhala & Vazou, 16 Oct 2020. §4.3.2], the rule is:
+                --   self (x, {v : b | p}) = {v : b | p ∧ v = x}
+                --   self (x, t)           = t
                 -- In [Lehmann & Tanter, 16. CoqPL], the VAR rule is like:
                 --     Γ(x) = {y : B | p}
                 -- ------------------------- VAR
                 --  Γ ⊢ x : {z : B | z = x}
-                -- which is slightly different from [Jhala & Vazou, 2020]
+                -- which is slightly different from [Jhala & Vazou, 2020].
+                -- It feels to me that [L&T,16]'s definition is easier to work with,
+                -- especially in core when we use de Bruijn indices.
+                -- If we follow [J&V,20], if we had a program:
+                --    let x = v in let y = x in ...
+                -- When x was introduced and added to the context, it's type
+                -- would be something like {u : b | u = v} under a context Γ.
+                -- When we check x in the binding y = x, it's under an
+                -- extended context Γ ▸ x. The type of x will
+                -- become {u : b | u = x ∧ u = v}. Indices will need to be shifted.
            else return $ t' :< t
 #endif
       share <- case used of
@@ -1004,12 +1016,14 @@ match' :: (?loc :: SourcePos, ?isRefType :: Bool)
        -> CG (M.Map VarName (C.Assumption TCType), [TCSExpr], Constraint, IrrefutablePattern TCName TCIrrefPatn TCExpr)
 
 match' (PVar x) mv t = do
-  (t', c) <- case mv of
-               Nothing -> return (t, Sat)
-               Just v' -> do α <- freshTVar
-                             return (α, Self v' t α)
-  let p = PVar (x,t')
-  -- let p = PVar (x,t)
+  -- (t', c) <- case mv of
+  --              Nothing -> return (t, Sat)
+  --              Just v' -> do α <- freshTVar
+  --                            return (α, Self v' t α)
+  -- let p = PVar (x,t')
+  let p = PVar (x,t)
+      prds = case mv of Just v  -> [SE (T bool) (PrimOp "==" [SE t (Var x), SE t (Var v)])]
+                        Nothing -> []
   -- (prds,c) <- case mv of
   --               Just v  -> do β <- freshTVar
   --                             u <- freshRefVarName freshVars
@@ -1017,10 +1031,10 @@ match' (PVar x) mv t = do
   --                             return ([SE (T bool) (PrimOp "==" [SE β (Var x), SE β (Var v)])], BaseType β <> t :=: T (TRefine u β ϕ))
   --               Nothing -> return ([], Sat)
   traceTc "gen" (text "match var pattern:" <+> prettyIP p
-           L.<$> text "of type" <+> pretty t
-           L.<$> text "inferred as" <+> pretty t'
-           L.<$> text "generate constraint" <+> prettyC c)
-  return (M.fromList [(x, (t',?loc,Seq.empty))], [], c, p)
+           L.<$> text "of type" <+> pretty t)
+           -- L.<$> text "inferred as" <+> pretty t'
+           -- L.<$> text "generate constraint" <+> prettyC c)
+  return (M.fromList [(x, (t,?loc,Seq.empty))], prds, Sat, p)
 
 match' (PUnderscore) _ t =
   let c = dropConstraintFor (M.singleton "_" (t, ?loc, Seq.empty))

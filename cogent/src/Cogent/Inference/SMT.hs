@@ -32,7 +32,7 @@ import Cogent.PrettyPrint (indent', warn)
 import Cogent.TypeCheck.Util (traceTc)
 import Data.Nat
 import Data.Fin
-import Data.Vec as Vec (length, toList)
+import Data.Vec as Vec (length, toList, update, Vec (..))
 
 import Control.Applicative
 import Control.Monad.IO.Class
@@ -54,7 +54,10 @@ import Lens.Micro.TH
 import Prelude as P
 import qualified Text.PrettyPrint.ANSI.Leijen as L
 
-import Debug.Trace
+-- import Debug.Trace
+traceM _ = pure ()
+trace = flip const
+
 
 data SmtTransState t b = SmtTransState { _vars    :: [Maybe SVal]
                                        , _ut      :: Map (Type t b) String
@@ -76,42 +79,69 @@ traceX s vec p = do
   traceM $ ("p = " ++ show (L.pretty p))
 -}
 
+-- When extracting the logic predicates from the context and from the subtyping relation
+-- as in Γ ⊢ {v : B | p} ⊑ {v : B | q}, we need to line up the indices in Γ and in p and q.
+-- For all of them, we use a context B ▸ Γ, and making the indices upshifted, non-telescopic.
+-- E.g.
+-- +-----+----------+------------+---------+
+-- | [0] | [0] == 1 | [0] == [1] | [0] < 2 | (the telescope goes to the right,
+-- +-----+----------+------------+---------+  and the context extends to the left)
+-- will become:
+-- +-----+----------+------------+---------+
+-- | [0] | [1] == 1 | [2] == [3] | [3] < 2 |
+-- +-----+----------+------------+---------+
+-- And the context are always the full context, and doesn't need to be popped when
+-- a binder goes out of scope.
+--
 getSmtExpression :: (L.Pretty b, Show b, Ord b)
                  => Vec v (Maybe (Type t b))
                  -> Vec v [LExpr t b]
                  -> Type t b -> LExpr t b -> LExpr t b -> Symbolic SVal
 getSmtExpression tvec pvec β p q = do
+  traceM ("@@@@ β = " ++ show (L.pretty β))
   (e',p',q') <- flip evalStateT (SmtTransState (replicate (toInt $ Vec.length tvec) Nothing) M.empty M.empty 0) $ do
     vars %= (Nothing :)
-    e' <- P.foldr svAnd svTrue <$> extract (Just β `Cons` tvec) (Cons [] pvec)
-    p' <- lexprToSmt (Vec.toList $ Just β `Cons` tvec) p
-    q' <- lexprToSmt (Vec.toList $ Just β `Cons` tvec) q
+    traceM "==================== Context ============================"
+    e' <- P.foldr svAnd svTrue <$> extract tvec pvec
+    let tvec' = fmap (fmap toBaseType) $ Vec.toList $ Just β `Cons` tvec
+    traceM "==================== type p ============================"
+    p' <- lexprToSmt tvec' p
+    traceM "==================== type q ============================"
+    q' <- lexprToSmt tvec' q
     vars %= P.tail
     return (e',p',q')
   return $ svOr (svNot (svAnd p' e')) q'  -- (E ∧ P) ⟶ Q
 
 extract :: (L.Pretty b, Show b, Ord b)
         => Vec v (Maybe (Type t b)) -> Vec v [LExpr t b] -> SmtStateM t b [SVal]
-extract tvec pvec = go (fmap (fmap toBaseType) tvec) (Vec.toList tvec) (Vec.toList pvec)
+extract tvec pvec = go 1 ((Nothing :) . Vec.toList $ fmap (fmap toBaseType) tvec)
+                       (fmap (fmap upshiftIdxsT) $ Vec.toList tvec)
+                       (fmap (fmap $ insertIdxAtLE Zero) $ Vec.toList pvec)
   where 
-    go γ [] [] = return []
-    go γ (mt:ts) (p:ps) = do
-      rest <- go γ (fmap (fmap $ upshiftIdxsT) ts) (fmap (fmap $ insertIdxAtLE Zero) ps)
+    go :: (L.Pretty b, Show b, Ord b)
+       => Int -> [Maybe (Type t b)] -> [Maybe (Type t b)] -> [[LExpr t b]] -> SmtStateM t b [SVal]
+    go _ _ [] [] = return []
+    go ι γ (mt:ts) (p:ps) = do
+      rest <- go (ι + 1) γ (fmap (fmap upshiftIdxsT) ts) (fmap (fmap $ insertIdxAtLE Zero) ps)
       case (mt,p) of
         (Nothing,[]) -> return rest
         (Just t,ls)  -> do
-          mt' <- extractT γ t
-          ls' <- mapM (lexprToSmt (Vec.toList γ)) ls
+          mt' <- extractT ι γ t
+          ls' <- mapM (lexprToSmt γ) ls
           case mt' of
             Nothing -> pure $ ls' ++ rest
             Just t  -> return $ t : ls' ++ rest
-    go _ _ _ = __impossible "extract: tvec and pvec are of different lengths"
+    go _ _ _ _ = __impossible "extract: tvec and pvec are of different lengths"
 
--- ASSUME: the vec contains only base types.
+-- This is irrelevant for now, as we only handle top-level refinment.
+-- XXX | It doesn't assume that the vec is normalised. That ι is specifically for that:
+-- XXX | when the type is not normalised, say <A {x : U8 | x > 3} | B ()>, then that index
+-- XXX | <0> in the refinement is not the <ι>-th in the context, which is the variant type.
+-- XXX | But here <0> is that U8.
 extractT :: (L.Pretty b, Show b, Ord b)
-         => Vec v (Maybe (Type t b)) -> Type t b -> SmtStateM t b (Maybe SVal)
-extractT vec (TRefine t p) = Just <$> lexprToSmt (Vec.toList vec) p
-extractT _ _ = pure Nothing
+         => Int -> [Maybe (Type t b)] -> Type t b -> SmtStateM t b (Maybe SVal)
+extractT ι vec (TRefine t p) = Just <$> lexprToSmt (vec & ix ι .~ Just t) p
+extractT _ _ _ = pure Nothing
 
 primIntToSmt :: PrimInt -> SMT.Kind
 primIntToSmt Boolean = KBool
@@ -147,23 +177,13 @@ uopToSmt :: Op -> SVal -> SVal
 uopToSmt Not = svNot
 uopToSmt Complement = svNot
 
--- The expression has been substituted, and the indices are absolute, viz. they
--- have been upshifted, and are not telescopic. E.g.
--- +-----+----------+------------+---------+
--- | [0] | [0] == 1 | [0] == [1] | [0] < 2 | (the telescope goes to the right,
--- +-----+----------+------------+---------+  and the context extends to the left)
--- will become:
--- +-----+----------+------------+---------+
--- | [0] | [1] == 1 | [2] == [3] | [3] < 2 |
--- +-----+----------+------------+---------+
--- And the context are always the full context, and doesn't need to be popped when
--- a binder goes out of scope.
---
+
 -- ASSUME: the vec contains only base types.
 lexprToSmt :: (L.Pretty b, Show b, Ord b)
            => [Maybe (Type t b)] -> LExpr t b -> SmtStateM t b SVal
 lexprToSmt vec (LVariable (natToInt -> v, vn)) = 
   do m <- use vars
+     traceM ("#### vec = " ++ show (L.pretty vec))
      case m !! v of
        Nothing -> do n <- freshVal
                      let Just t = vec !! v
@@ -171,6 +191,7 @@ lexprToSmt vec (LVariable (natToInt -> v, vn)) =
                      t' <- typeToSmt t
                      sv <- mkQSymVar SMT.ALL n t'
                      vars %= (ix v .~ Just sv)
+                     traceM ("**** Generating " ++ show n ++ "; on var " ++ show vn ++ " <" ++ show v ++ ">\n  ... with type " ++ show (L.pretty t))
                      return sv
        Just sv -> return sv
 lexprToSmt vec (LOp op [e]) = (liftA $ uopToSmt op) $ lexprToSmt vec e
@@ -199,6 +220,7 @@ lexprToSmt vec e = do
   case M.lookup e m of
     Nothing -> do f <- freshVal
                   ue %= (M.insert e f)
+                  traceM ("**** Generating " ++ show f ++ "; on expression " ++ show (L.pretty e))
                   return $ svUninterpreted KString f Nothing []  -- FIXME: KString
     Just f  -> return $ svUninterpreted KString f Nothing []   -- FIXME: ditto
 
@@ -234,7 +256,7 @@ smtProve tvec pvec β p1 p2 = do
     dumpMsgIfTrue __cogent_ddump_core_smt (
       L.text "Γ =" L.<+> prettyGamma (Just β `Cons` tvec) (Cons [] pvec)
       L.<$> L.text "Γ" L.<+> L.dullyellow (L.text "⊢")
-      L.<+> (L.pretty p1) L.<+> L.dullyellow (L.text "==>") L.<+> L.pretty p2
+      L.<+> L.pretty p1 L.<+> L.dullyellow (L.text "==>") L.<+> L.pretty p2
       L.<$> L.empty
       )
     smtRes <- liftIO (proveWith solver toProve)
@@ -245,7 +267,7 @@ smtProve tvec pvec β p1 p2 = do
 
 -- pretty print the context
 prettyGamma :: (L.Pretty b) => Vec v (Maybe (Type t b)) -> Vec v [LExpr t b] -> L.Doc
-prettyGamma ts ls = L.pretty (fmap prettyMb ts) L.<> L.comma L.<+> L.pretty (fmap L.pretty ls)
+prettyGamma ts ls = L.pretty (fmap prettyMb ts) L.<> L.semi L.<+> L.pretty (fmap L.pretty ls)
   where prettyMb Nothing  = L.text "✗"
         prettyMb (Just t) = L.pretty t
 

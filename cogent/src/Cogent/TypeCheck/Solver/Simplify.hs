@@ -291,16 +291,18 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
   T (TFun Nothing t1 t2) :=: T (TFun (Just u) r1 r2) -> do
     v <- freshRefVarName _2
     hoistMaybe $ Just [T (TFun (Just v) t1 t2) :=: T (TFun (Just u) r1 r2)]
-  T (TFun (Just v) t1 t2) :=: T (TFun Nothing r1 r2) -> do
-    u <- freshRefVarName _2
-    hoistMaybe $ Just [T (TFun (Just v) t1 t2) :=: T (TFun (Just u) r1 r2)]
-
   T (TFun Nothing t1 t2) :<  T (TFun (Just u) r1 r2) -> do
     v <- freshRefVarName _2
     hoistMaybe $ Just [T (TFun (Just v) t1 t2) :<  T (TFun (Just u) r1 r2)]
+    -- hoistMaybe $ Just [r1 :< t1, (M.singleton u (r1,0), []) :|- t2 :< r2]
+
+  T (TFun (Just v) t1 t2) :=: T (TFun Nothing r1 r2) -> do
+    u <- freshRefVarName _2
+    hoistMaybe $ Just [T (TFun (Just v) t1 t2) :=: T (TFun (Just u) r1 r2)]
   T (TFun (Just v) t1 t2) :<  T (TFun Nothing r1 r2) -> do
     u <- freshRefVarName _2
     hoistMaybe $ Just [T (TFun (Just v) t1 t2) :<  T (TFun (Just u) r1 r2)]
+    -- hoistMaybe $ Just [r1 :< t1, (M.singleton v (t1,0), []) :|- t2 :< r2]
 
   T (TFun (Just v) t1 t2) :=: T (TFun (Just u) r1 r2) -> do
     let r2' = if v == u then r2 else substVarExprT [(u, v)] r2
@@ -425,7 +427,7 @@ simplify ks ts = Rewrite.pickOne' $ onGoal $ \case
         let ϕ = SE (T bool) (PrimOp "==" [SE t (Var v), SE t (Var x)])
         hoistMaybe $ Just [T (TRefine v t ϕ) :< t']
     | T (TRefine v β p) <- t -> do
-        let ϕ = SE (T bool) (PrimOp "&&" [p, SE (T bool) (PrimOp "==" [SE β (Var v), SE β (Var x)])])
+        let ϕ = SE (T bool) (PrimOp "==" [SE β (Var v), SE β (Var x)])
         hoistMaybe $ Just [T (TRefine v β ϕ) :< t']
     | nonSelfificableType t  -> hoistMaybe $ Just [t :< t']
     | nonSelfificableType t' -> hoistMaybe $ Just [t :< t']
