@@ -136,6 +136,15 @@ proof -
   then show ?thesis by (auto simp add: map_update)
 qed
 
+lemma map_zip_iff_zip_map_weak:
+  fixes f :: "'a \<times> 'b \<Rightarrow> 'c \<times> 'd"
+  assumes
+    "length as = length bs"
+    "\<forall>p. f p = (f1 (fst p), f2 (snd p))"
+  shows "map f (zip as bs) = zip (map f1 as) (map f2 bs)"
+  using assms
+  by (induct rule: list_induct2) (fastforce simp add: prod_eq_iff)+
+
 lemma map_zip [simp]:
   shows "map (\<lambda> (a , b). (f a, g b)) (zip as bs) = zip (map f as) (map g bs)"
   by (induct as arbitrary:bs, simp, case_tac bs, simp_all)
@@ -226,8 +235,23 @@ lemma distinct_fst_tags_update:
   done
 
 
+lemma zip_map_fst_eq: "zip (map f xs) ys = map (apfst f) (zip xs ys)"
+  by (induct xs arbitrary: ys)
+    (simp add: zip_Cons1 split: list.splits)+
+
+lemma map_fst_zip_eq: "length xs = length ys \<Longrightarrow> map (\<lambda>x. f (fst x)) (zip xs ys) = map f xs"
+  by (induct rule: list_induct2) simp+
+
+
 lemma list_all_nil: "list_all P []" by simp
 lemma list_all_cons: "P x \<Longrightarrow> list_all P xs \<Longrightarrow> list_all P (x # xs)" by simp
+
+lemma list_all_eq_const_eq: "list_all (\<lambda>x. f x = k) xs \<longleftrightarrow> list_all ((=) k) (map f xs)"
+  by (induct xs) force+
+
+lemma list_all_replicate: "list_all P (replicate n x) \<longleftrightarrow> (n = 0 \<or> P x)"
+  by (induct n) force+
+
 
 subsection \<open> list_all2 \<close>
 
@@ -236,6 +260,10 @@ lemmas list_all2_cons = List.list.rel_intros(2)
 
 lemma list_all2_eq_iff_map_eq: "list_all2 (\<lambda>x y. f x = g y) xs ys = (map f xs = map g ys)"
   by (induct xs arbitrary: ys; simp add: Cons_eq_map_conv list_all2_Cons1)
+
+lemma list_all2_reversed_eq_eq: "list_all2 (\<lambda>a b. f b = g a) xs ys = (map g xs = map f ys)"
+  by (induct xs arbitrary: ys)
+    (force simp add: list_all2_Cons1)+
 
 lemma list_all2_split_conj:
   shows "list_all2 (\<lambda>x y. P x y \<and> Q x y) xs ys \<longleftrightarrow> list_all2 P xs ys \<and> list_all2 Q xs ys"

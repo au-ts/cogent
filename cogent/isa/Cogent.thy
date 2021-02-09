@@ -1941,6 +1941,11 @@ qed
 
 subsection {* substitutivity *}
 
+lemmas map_zip_instantiate = map_zip_iff_zip_map_weak[where f="\<lambda>x. (fst x, instantiate \<tau>s (snd x), Present)"
+                                                        and ?f1.0="\<lambda>a. a"
+                                                        and ?f2.0="\<lambda>b. (instantiate \<tau>s b, Present)" for \<tau>s,
+                                                        simplified]
+
 lemma instantiate_wellformed:
   assumes
     "list_all (type_wellformed n') \<delta>"

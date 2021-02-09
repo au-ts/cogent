@@ -128,6 +128,12 @@ and upd_val_rel_record :: "('f \<Rightarrow> poly_type)
                   ; upd.uval_repr_deep x = rp
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile>* ((x,rp) # xs) \<sim> (x' # xs') :r ((n, t, Taken) # ts) \<langle>r, w\<rangle>"
 
+lemmas upd_val_rel_record_induct =
+  upd_val_rel_upd_val_rel_record.inducts(2)[
+    where ?P1.0=\<open>\<lambda>_ _ _ _ _ _ _. True\<close>, simplified,
+      consumes 1, case_names Nil ConsPresent ConsTake]
+
+
 lemma upd_val_rel_to_vval_typing:
 shows "\<Xi>, \<sigma> \<turnstile>  u  \<sim> v  :  \<tau>  \<langle>r, w\<rangle> \<Longrightarrow> val.vval_typing \<Xi> v \<tau>"
 and   "\<Xi>, \<sigma> \<turnstile>* us \<sim> vs :r \<tau>s \<langle>r, w\<rangle> \<Longrightarrow> val.vval_typing_record \<Xi> vs \<tau>s"
@@ -303,6 +309,17 @@ shows "\<lbrakk> \<Xi>, \<sigma> \<turnstile>  v  \<sim> v'  :  \<tau>  \<langle
 and   "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* vs \<sim> vs' :r \<tau>s \<langle> r , w \<rangle> \<rbrakk> \<Longrightarrow> r \<inter> w = {}"
 by (auto dest!: upd_val_rel_to_uval_typing  upd.uval_typing_pointers_noalias)
 
+
+lemma u_v_shareable_not_writable':
+  "\<Xi>, \<sigma> \<turnstile> u \<sim> v : t \<langle>r, w\<rangle> \<Longrightarrow> S \<in> kinding_fn K t \<Longrightarrow> w = {}"
+  "\<Xi>, \<sigma> \<turnstile>* us \<sim> vs :r ts \<langle>r, w\<rangle> \<Longrightarrow> S \<in> kinding_fn_all_record K ts \<Longrightarrow> w = {}"
+  by (force dest: upd_val_rel_to_uval_typing upd.shareable_not_writable')+
+
+lemma u_v_discardable_not_writable':
+  "\<Xi>, \<sigma> \<turnstile> u \<sim> v : t \<langle>r, w\<rangle> \<Longrightarrow> D \<in> kinding_fn K t \<Longrightarrow> w = {}"
+  "\<Xi>, \<sigma> \<turnstile>* us \<sim> vs :r ts \<langle>r, w\<rangle> \<Longrightarrow> D \<in> kinding_fn_all_record K ts \<Longrightarrow> w = {}"
+  by (force dest: upd_val_rel_to_uval_typing upd.discardable_not_writable')+
+
 lemma u_v_shareable_not_writable:
 assumes "S \<in> k"
 shows "\<lbrakk> \<Xi>, \<sigma> \<turnstile>  v  \<sim> v'  :  \<tau>  \<langle> r , w \<rangle>; K \<turnstile>  \<tau>  :\<kappa>  k \<rbrakk> \<Longrightarrow> w = {}"
@@ -325,6 +342,32 @@ lemma u_v_escapable_no_readers:
 shows   "\<lbrakk> \<Xi> , \<sigma> \<turnstile>  x  \<sim> x'  :  \<tau>  \<langle>r, w\<rangle> ; E \<in> k; [] \<turnstile>  \<tau>  :\<kappa>  k \<rbrakk> \<Longrightarrow> r = {}"
 and     "\<lbrakk> \<Xi> , \<sigma> \<turnstile>* xs \<sim> xs' :r \<tau>s \<langle>r, w\<rangle> ; E \<in> k; [] \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> r = {}"
 by (auto dest: upd_val_rel_to_uval_typing upd.escapable_no_readers)
+
+lemma u_v_typing_record_discardable_nth_read_subset:
+  assumes
+    "\<Xi> , \<sigma> \<turnstile>* us \<sim> vs :r ts \<langle>r, w\<rangle>"
+    "ts ! f = (n, t, Present)"
+    "f < length ts"
+    "D \<in> kinding_fn_all_record K (ts[f := (n, t, Taken)])"
+  shows "\<exists>r'\<subseteq>r. \<Xi>, \<sigma> \<turnstile> fst (us ! f) \<sim> vs ! f : t \<langle>r', w\<rangle>"
+  using assms
+proof (induct arbitrary: f rule: upd_val_rel_record_induct)
+  case Nil then show ?case by simp
+next
+  case ConsPresent then show ?case
+  (* TODO write a nicer proof *)
+    apply (simp add: nth.nth_Cons split: nat.splits)
+     apply (fastforce dest: u_v_discardable_not_writable')
+    apply clarsimp
+    apply (drule u_v_discardable_not_writable', assumption)
+    apply clarsimp
+    apply (drule meta_spec, (drule meta_mp, force)+, blast)
+    done
+next
+  case ConsTake then show ?case
+    by (simp add: nth.nth_Cons split: nat.splits)
+qed
+
 
 lemma u_v_tprim_no_pointers:
 assumes "\<Xi> , \<sigma> \<turnstile> u \<sim> v : TPrim \<tau> \<langle>r, w\<rangle>"
@@ -1900,7 +1943,7 @@ next case (u_sem_if _ _ _ _ _ b)
     apply (erule u_v_primE)
     apply (clarsimp)
     apply (frule(4) IH2 [ rotated 3
-                        , where e23 (* FIXME: unstable name *) = "if b then e2 else e3" for e2 and e3
+                        , where e28 (* FIXME: unstable name *) = "if b then e2 else e3" for e2 and e3
                         , OF _ _ u_v_matches_frame ])
          apply (blast, simp)
        apply (cases b, simp, simp)+
@@ -1911,35 +1954,51 @@ next case u_sem_struct    then show ?case by ( cases e, simp_all
                                                          intro:  upd_val_rel_record
                                                                  [where ts = "map (instantiate \<tau>s) ts"
                                                                     for ts, simplified])
-next case u_sem_member
- then show ?case
-   apply ( cases e
-         , simp_all )
-   apply ( clarsimp elim!: typing_memberE)
-   apply ( frule(6) u_sem_member(2)
-         , clarsimp )
-   apply ( frule(1) u_v_shareable_not_writable
-         , fastforce simp add: kinding_simps
-                     intro!: substitutivity
-         , clarsimp elim!: u_v_recE)
-   apply ( auto dest!: upd_val_rel_record_nth
-         , fastforce )
- done
-next case u_sem_memb_b
- then show ?case
-   apply ( cases e
-         , simp_all )
-   apply ( clarsimp elim!: typing_memberE)
-   apply ( frule(6) u_sem_memb_b(2)
-         , clarsimp )
-   apply ( frule(1) u_v_shareable_not_writable
-         , fastforce simp add: kinding_simps
-                     intro!: substitutivity
-         , clarsimp)
-   apply ( erule u_v_p_recE)
-   apply ( auto dest!: upd_val_rel_record_nth
-         , fastforce )
- done
+next case (u_sem_member \<xi> \<gamma> \<sigma> e' \<sigma>' fs f)
+  moreover then obtain ts s n k ea
+    where
+      "e' = specialise \<tau>s ea"
+      "e = Member ea f"
+      "\<Xi>, K, \<Gamma> \<turnstile> ea : TRecord ts s"
+      "K \<turnstile> TRecord (ts[f := (n, \<tau>, Taken)]) s :\<kappa> k"
+      "D \<in> k"
+      "sigil_perm s \<noteq> Some Writable"
+      "f < length ts"
+      "ts ! f = (n, \<tau>, Present)"
+    by (clarsimp elim!: typing_memberE simp add: specialise_eq_convs)
+  moreover then have
+    "D \<in> kinding_fn_all_record [] ((map (\<lambda>(n, t, b). (n, instantiate \<tau>s t, b)) ts)[f := (n, instantiate \<tau>s \<tau>, Taken)])"
+    using u_sem_member.prems
+    by (fastforce dest: substutivity_kinding_fn_all_recordD
+        simp add: wellkinded_iff_wellformed_and_kinded kinding_def comp_def subset_iff map_update)
+  ultimately show ?case
+    apply clarsimp
+    apply (frule(6) u_sem_member(2), clarsimp)
+    apply (elim u_v_recE)
+    apply (fastforce dest!: u_v_typing_record_discardable_nth_read_subset[where f=f])
+    done
+next case (u_sem_memb_b \<xi> \<gamma> \<sigma> e' \<sigma>' p repr  fs f)
+  moreover then obtain ts s n k ea
+    where
+      "e' = specialise \<tau>s ea"
+      "e = Member ea f"
+      "\<Xi>, K, \<Gamma> \<turnstile> ea : TRecord ts s"
+      "K \<turnstile> TRecord (ts[f := (n, \<tau>, Taken)]) s :\<kappa> k"
+      "D \<in> k"
+      "sigil_perm s \<noteq> Some Writable"
+      "f < length ts"
+      "ts ! f = (n, \<tau>, Present)"
+    by (clarsimp elim!: typing_memberE simp add: specialise_eq_convs)
+  moreover then have
+    "D \<in> kinding_fn_all_record [] ((map (\<lambda>(n, t, b). (n, instantiate \<tau>s t, b)) ts)[f := (n, instantiate \<tau>s \<tau>, Taken)])"
+    using u_sem_memb_b.prems
+    by (fastforce dest: substutivity_kinding_fn_all_recordD
+        simp add: wellkinded_iff_wellformed_and_kinded kinding_def comp_def subset_iff map_update)
+  ultimately show ?case
+    apply clarsimp
+    apply (frule(6) u_sem_memb_b(2), clarsimp)
+    apply (elim u_v_p_recE; fastforce dest!: u_v_typing_record_discardable_nth_read_subset[where f=f])
+    done
 next case (u_sem_take \<xi> \<gamma> \<sigma> x \<sigma>'' p ra fs f e)
   note IH1  = this(2)
   and  IH2  = this(5)

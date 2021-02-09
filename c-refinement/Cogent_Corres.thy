@@ -1557,13 +1557,12 @@ lemma corres_member_boxed:
   apply clarsimp
   apply (rename_tac rf')
   apply (frule uval_typing.cases, simp_all)
-   apply (rename_tac \<Xi>'' \<sigma>' fs' typ' r' p')
-   apply (erule impE, fast)
-   apply clarsimp
-   apply (rule_tac x=\<sigma> in exI)
-   apply (rule exI)
-   apply (fastforce intro!: u_sem_memb_b u_sem_var elim: subst)
-  using shareable_not_writable(1) apply fastforce
+  apply (rename_tac \<Xi>'' \<sigma>' fs' typ' r' p')
+  apply (erule impE, fast)
+  apply clarsimp
+  apply (rule_tac x=\<sigma> in exI)
+  apply (rule exI)
+  apply (fastforce intro!: u_sem_memb_b u_sem_var elim: subst)
   done
 
 lemma corres_fun:
