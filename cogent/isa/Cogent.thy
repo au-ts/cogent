@@ -415,8 +415,13 @@ fun kinding_fn :: "kind env \<Rightarrow> type \<Rightarrow> kind" where
 
 lemmas kinding_fn_induct = kinding_fn.induct[case_names kind_tvar kind_tvarb kind_tcon kind_tfun kind_tprim kind_tsum kind_tprod kind_trec kind_tunit]
 
+
 definition kinding_fn_all :: "kind env \<Rightarrow> type list \<Rightarrow> kind" where
   "kinding_fn_all K ts \<equiv> Inter (set (map (kinding_fn K) ts))"
+
+lemma kinding_fn_all_Nil[simp]:
+  "kinding_fn_all K [] = UNIV"
+  by (simp add: kinding_fn_all_def)
 
 lemma kinding_fn_all_Cons[simp]:
   "kinding_fn_all K (t # ts) = kinding_fn K t \<inter> kinding_fn_all K ts"
@@ -435,6 +440,34 @@ lemma kinding_fn_all_record_Cons[simp]:
     (case snd (snd p) of Present \<Rightarrow> kinding_fn K (fst (snd p)) | Taken \<Rightarrow> UNIV)
     \<inter> kinding_fn_all_record K fs"
   by (simp add: kinding_fn_all_record_def)
+
+definition kinding_fn_all_variant :: "kind env \<Rightarrow> (name \<times> type \<times> variant_state) list \<Rightarrow> kind" where
+  "kinding_fn_all_variant K fs \<equiv>
+    Inter (set (map (\<lambda>p. case snd (snd p) of Unchecked \<Rightarrow> kinding_fn K (fst (snd p)) | Checked \<Rightarrow> UNIV) fs))"
+
+lemma kinding_fn_all_variant_Nil[simp]:
+  "kinding_fn_all_variant K [] = UNIV"
+  by (simp add: kinding_fn_all_variant_def)
+
+lemma kinding_fn_all_variant_Cons[simp]:
+  "kinding_fn_all_variant K (p # fs) =
+    (case snd (snd p) of Unchecked \<Rightarrow> kinding_fn K (fst (snd p)) | Checked \<Rightarrow> UNIV)
+    \<inter> kinding_fn_all_variant K fs"
+  by (simp add: kinding_fn_all_variant_def)
+
+
+(* better the record and sum simps *)
+lemma kinding_fn_simp_record[simp]:
+  "kinding_fn K (TRecord ts s) = kinding_fn_all_record K ts \<inter> (sigil_kind s)"
+  by (simp add: kinding_fn_all_record_def case_prod_beta')
+
+lemma kinding_fn_simp_variant[simp]:
+  "kinding_fn K (TSum ts) = kinding_fn_all_variant K ts"
+  by (simp add: kinding_fn_all_variant_def case_prod_beta')
+
+(* delete the record and sum simps *)
+declare kinding_fn.simps(6,8)[simp del]
+
 
 definition kinding :: "kind env \<Rightarrow> type \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile> _ :\<kappa> _" [30,0,30] 60) where
   "K \<turnstile> t :\<kappa> k \<equiv> K \<turnstile> t wellformed \<and> k \<subseteq> kinding_fn K t"
@@ -1073,7 +1106,8 @@ lemma kinding_simps:
   "\<And>K ta tb k.  K \<turnstile> (TProduct ta tb) :\<kappa> k \<longleftrightarrow> (K \<turnstile> ta :\<kappa> k) \<and> (K \<turnstile> tb :\<kappa> k)"
   "\<And>K ts s k.   K \<turnstile> (TRecord ts s) :\<kappa> k   \<longleftrightarrow> (K \<turnstile>* ts :\<kappa>r k) \<and> k \<subseteq> sigil_kind s \<and> distinct (map fst ts)"
   "\<And>K k.        K \<turnstile> TUnit :\<kappa> k            \<longleftrightarrow> k \<subseteq> UNIV"
-  by (auto simp add: kinding_defs list_all_iff)
+  by (force simp add: kinding_defs list_all_iff kinding_fn_all_record_def kinding_fn_all_variant_def
+      case_prod_beta')+
 
 lemma kinding_all_simps:
   "\<And>K k.        K \<turnstile>* [] :\<kappa> k       \<longleftrightarrow> True"
@@ -1091,6 +1125,42 @@ lemma kinding_record_simps:
   "\<And>K n t ts k. K \<turnstile>* ((n,t,Present) # ts) :\<kappa>r k \<longleftrightarrow> (K \<turnstile> t :\<kappa> k) \<and> (K \<turnstile>* ts :\<kappa>r k)"
   "\<And>K n t ts k. K \<turnstile>* ((n,t,Taken) # ts) :\<kappa>r k   \<longleftrightarrow> (K \<turnstile> t wellformed) \<and> (K \<turnstile>* ts :\<kappa>r k)"
   by (auto simp add: kinding_defs list_all_iff)
+
+
+lemma kinding_fn_all_record_taken_nthD:
+  "k \<in> kinding_fn_all_record K ts \<Longrightarrow>
+   i < length ts \<Longrightarrow>
+   ts ! i = (n, t, tk) \<Longrightarrow>
+   tk = Present \<Longrightarrow>
+   k \<in> kinding_fn K t"
+  by (induct ts arbitrary: i)
+    (simp add: nth.nth_Cons split: nat.splits record_state.splits)+
+
+lemma kinding_fn_all_record_taken_elemD:
+  "k \<in> kinding_fn_all_record K ts \<Longrightarrow>
+   (n, t, tk) \<in> set ts \<Longrightarrow>
+   tk = Present \<Longrightarrow>
+   k \<in> kinding_fn K t"
+  by (meson in_set_conv_nth kinding_fn_all_record_taken_nthD)
+
+
+lemma kinding_fn_all_variant_unchecked_nthD:
+  "k \<in> kinding_fn_all_variant K ts \<Longrightarrow>
+   i < length ts \<Longrightarrow>
+   ts ! i = (n, t, tk) \<Longrightarrow>
+   tk = Unchecked \<Longrightarrow>
+   k \<in> kinding_fn K t"
+  by (induct ts arbitrary: i)
+    (simp add: nth.nth_Cons split: nat.splits variant_state.splits)+
+
+
+lemma kinding_fn_all_variant_unchecked_elemD:
+  "k \<in> kinding_fn_all_variant K ts \<Longrightarrow>
+   (n, t, tk) \<in> set ts \<Longrightarrow>
+   tk = Unchecked \<Longrightarrow>
+   k \<in> kinding_fn K t"
+  by (meson in_set_conv_nth kinding_fn_all_variant_unchecked_nthD)
+
 
 lemma kinding_iff_wellformed:
   shows
@@ -1367,12 +1437,14 @@ proof (induct K t rule: kinding_fn_induct)
 next
   case (kind_tsum K ts)
   then show ?case
-    by (fastforce simp add: list_all_iff simp del: insert_subset split: variant_state.split)
+    by (fastforce simp add: list_all_iff kinding_fn_all_variant_def simp del: insert_subset
+        split: variant_state.split)
 next
   case (kind_trec K ts s)
   then show ?case
     using bang_sigil_kind
-    by (fastforce simp add: list_all_iff simp del: insert_subset split: record_state.split)
+    by (fastforce simp add: list_all_iff kinding_fn_all_record_def simp del: insert_subset
+        split: record_state.split)
 qed auto
 
 lemma bang_kind:
@@ -1518,10 +1590,11 @@ proof (induct rule: subtyping.inducts)
       by (auto simp add: list_all2_conv_all_nth map_eq_iff_nth_eq le_less)
     ultimately show "D \<in> (case bp of Taken \<Rightarrow> UNIV | Present \<Rightarrow> kinding_fn K tp)"
       using subty_trecord.prems
-      by (force simp add: kinding_def all_set_conv_all_nth split: record_state.splits)
+      by (force simp add: kinding_def all_set_conv_all_nth
+          dest: kinding_fn_all_record_taken_nthD split: record_state.splits)
   qed
   ultimately show ?case
-    by clarsimp
+    by (clarsimp simp add: kinding_fn_all_record_def)
 next
   case (subty_tsum K pts qts)
   moreover have kind_pts: "\<And>n pt pb. (n, pt, pb) \<in> set pts \<Longrightarrow> D \<in> (case pb of Checked \<Rightarrow> UNIV | Unchecked \<Rightarrow> kinding_fn K pt)"
@@ -1543,12 +1616,13 @@ next
       by (auto simp add: list_all2_conv_all_nth map_eq_iff_nth_eq)
     moreover have "bq = Unchecked \<longrightarrow> D \<in> kinding_fn K tq"
       using subty_tsum.prems elems_at_i
-      by (fastforce simp add: all_set_conv_all_nth split: prod.splits)
+      by (fastforce simp add: all_set_conv_all_nth split: prod.splits
+          dest: kinding_fn_all_variant_unchecked_nthD)
     ultimately show "D \<in> (case bp of Checked \<Rightarrow> UNIV | Unchecked \<Rightarrow> kinding_fn K tp)"
       using less_eq_variant_state.elims
       by (auto split: variant_state.splits)
   qed
-  ultimately show ?case by auto
+  ultimately show ?case by (clarsimp simp add: kinding_fn_all_variant_def)
 qed auto
 
 
@@ -1836,11 +1910,11 @@ proof (induct t arbitrary: k)
 next
   case (TSum ts)
   then show ?case
-    by (fastforce split: variant_state.split simp add: list_all_iff)
+    by (fastforce split: variant_state.split simp add: list_all_iff kinding_fn_all_variant_def)
 next
   case (TRecord ts s)
   then show ?case
-    by (fastforce split: record_state.split simp add: list_all_iff)
+    by (fastforce split: record_state.split simp add: list_all_iff kinding_fn_all_record_def)
 qed (fastforce simp add: list_all2_conv_all_nth list_all_iff)+
 
 
