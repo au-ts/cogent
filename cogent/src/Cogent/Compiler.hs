@@ -119,6 +119,7 @@ set_flag_cpp = writeIORef __cogent_cpp_ref
 set_flag_cppArgs = writeIORef __cogent_cpp_args_ref
 set_flag_custTyGen = writeIORef __cogent_cust_ty_gen_ref . Just
 set_flag_ddumpCoreSmt = writeIORef __cogent_ddump_core_smt_ref True
+set_flag_ddumpCoreTc = writeIORef __cogent_ddump_core_tc_ref True
 set_flag_ddumpTc = writeIORef __cogent_ddump_tc_ref True
 set_flag_ddumpTcCtx = writeIORef __cogent_ddump_tc_ctx_ref True
 set_flag_ddumpTcFilter = writeIORef __cogent_ddump_tc_filter_ref . Just . words
@@ -288,6 +289,13 @@ __cogent_cust_ty_gen = unsafePerformIO $ readIORef __cogent_cust_ty_gen_ref
 __cogent_cust_ty_gen_ref :: IORef (Maybe FilePath)
 {-# NOINLINE __cogent_cust_ty_gen_ref #-}
 __cogent_cust_ty_gen_ref = unsafePerformIO $ newIORef Nothing
+
+__cogent_ddump_core_tc :: Bool
+__cogent_ddump_core_tc = unsafePerformIO $ readIORef __cogent_ddump_core_tc_ref
+
+__cogent_ddump_core_tc_ref :: IORef Bool
+{-# NOINLINE __cogent_ddump_core_tc_ref #-}
+__cogent_ddump_core_tc_ref = unsafePerformIO $ newIORef False
 
 
 __cogent_ddump_core_smt :: Bool
@@ -960,4 +968,7 @@ dumpMsgIfTrue dumpOn d
 
 dumpTcMsg :: Doc -> IO ()
 dumpTcMsg = dumpMsgIfTrue __cogent_ddump_tc
+
+dumpCoreTcMsg :: Doc -> IO ()
+dumpCoreTcMsg = dumpMsgIfTrue __cogent_ddump_core_tc
 

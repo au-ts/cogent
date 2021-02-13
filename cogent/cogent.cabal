@@ -95,9 +95,12 @@ library
               , Cogent.Dargent.TypeCheck
               , Cogent.Dargent.Util
               , Cogent.Desugar
+              , Cogent.DesugarV2
               , Cogent.GetOpt
               , Cogent.Glue
               , Cogent.Inference
+              , Cogent.InferenceV2
+              , Cogent.Inference.Util
               , Cogent.Interpreter
               , Cogent.Isabelle
               , Cogent.Isabelle.ACInstall
@@ -117,6 +120,7 @@ library
               , Cogent.Isabelle.IsabelleName
               , Cogent.Mono
               , Cogent.Normal
+              , Cogent.NormalV2
               , Cogent.Parser
               , Cogent.PrettyPrint
               , Cogent.Preprocess

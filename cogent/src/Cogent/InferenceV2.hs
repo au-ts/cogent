@@ -1,5 +1,5 @@
 --
--- Copyright 2018, Data61
+-- Copyright 2021, Data61
 -- Commonwealth Scientific and Industrial Research Organisation (CSIRO)
 -- ABN 41 687 119 230.
 --
@@ -33,7 +33,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Cogent.Inference where
+module Cogent.InferenceV2 (tcV2, retypeV2, tcConstsV2) where
 
 import Cogent.Common.Syntax
 import Cogent.Common.Types
@@ -448,15 +448,15 @@ runTC (TC a) readers st = do
     (Right x, s) -> Right (s, x)
 
 
-retype :: [Definition TypedExpr VarName VarName]
-       -> IO (Either String [Definition TypedExpr VarName VarName])
-retype ds = do 
-  unt <- tc $ map untypeD ds
+retypeV2 :: [Definition TypedExpr VarName VarName]
+         -> IO (Either String [Definition TypedExpr VarName VarName])
+retypeV2 ds = do 
+  unt <- tcV2 $ map untypeD ds
   return $ fst <$> unt
 
-tc :: [Definition UntypedExpr VarName VarName]
-   -> IO (Either String ([Definition TypedExpr VarName VarName], Map FunName (FunctionType VarName)))
-tc = flip tc' M.empty
+tcV2 :: [Definition UntypedExpr VarName VarName]
+     -> IO (Either String ([Definition TypedExpr VarName VarName], Map FunName (FunctionType VarName)))
+tcV2 = flip tc' M.empty
   where
     tc' :: [Definition UntypedExpr VarName VarName]
         -> Map FunName (FunctionType VarName)  -- the reader
@@ -475,19 +475,19 @@ tc = flip tc' M.empty
     tc' (d@(AbsDecl _ fn ks ls t rt):ds) reader = (fmap $ first (Unsafe.unsafeCoerce d:)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader)
     tc' (d:ds) reader = (fmap $ first (Unsafe.unsafeCoerce d:)) <$> tc' ds reader
 
-tc_ :: [Definition UntypedExpr VarName VarName]
+tcV2_ :: [Definition UntypedExpr VarName VarName]
     -> IO (Either String [Definition TypedExpr VarName VarName])
-tc_ ds = tc ds >>= (\r -> return (fst <$> r))
+tcV2_ ds = tcV2 ds >>= (\r -> return (fst <$> r))
 
-tcConsts :: [CoreConst UntypedExpr]
-         -> Map FunName (FunctionType VarName)
-         -> IO (Either String ([CoreConst TypedExpr], Map FunName (FunctionType VarName)))
-tcConsts [] reader = return $ Right ([], reader)
-tcConsts ((v,e):ds) reader = do 
-    rtc <- liftIO $ runTC (infer e) (Nil, reader) (Nil, Nil, 0)
+tcConstsV2 :: [CoreConst TypedExpr]
+           -> Map FunName (FunctionType VarName)
+           -> IO (Either String ([CoreConst TypedExpr], Map FunName (FunctionType VarName)))
+tcConstsV2 [] reader = return $ Right ([], reader)
+tcConstsV2 ((v,e):ds) reader = do 
+    rtc <- liftIO $ runTC (pure e) (Nil, reader) (Nil, Nil, 0)
     case rtc of
       Left x -> return $ Left x
-      Right (_,e') -> (fmap $ first ((v,e'):)) <$> (tcConsts ds reader)
+      Right (_,e') -> (fmap $ first ((v,e'):)) <$> (tcConstsV2 ds reader)
 
 withBinding :: Type t b -> TC t ('Suc v) b x -> TC t v b x
 withBinding t x

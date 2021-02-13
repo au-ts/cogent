@@ -30,8 +30,9 @@ module Main where
 import Cogent.C                        as CG (cgen, printCTable, printATM)
 import Cogent.Common.Syntax            as SY (CoreFunName(..))
 import Cogent.Compiler
-import Cogent.Core                     as CC (isConFun, getDefinitionId, untypeD)  -- FIXME: zilinc
+import Cogent.Core                     as CC (isConFun, getDefinitionId, untypeD, untypeE)  -- FIXME: zilinc
 import Cogent.Desugar                  as DS (desugar)
+import Cogent.DesugarV2                as DSv2 (desugarV2)
 #ifdef WITH_DOCGENT
 import Cogent.DocGent                  as DG (docGent)
 #endif
@@ -43,6 +44,7 @@ import Cogent.Glue                     as GL (defaultExts, defaultTypnames,
 import Cogent.Haskell.Shallow          as HS
 #endif
 import Cogent.Inference                as IN (tc, tc_, tcConsts, retype)
+import Cogent.InferenceV2              as INv2 (tcV2, tcConstsV2, retypeV2)
 import Cogent.Interpreter              as Repl (replWithState)
 import Cogent.Isabelle                 as Isa
 import Cogent.Mono                     as MN (mono, printAFM)
@@ -64,6 +66,7 @@ import Control.Applicative (liftA, (<$>))
 #else
 import Control.Applicative (liftA)
 #endif
+import Control.Arrow (second)
 import Control.Monad (forM, forM_, unless, when, (<=<))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
@@ -457,6 +460,7 @@ flags =
   , Option []         ["cpp-args"]       2 (ReqArg (set_flag_cppArgs . words) "ARG..")     "arguments given to C-preprocessor (default to $CPPIN -P -o $CPPOUT)"
   -- debugging options
   , Option []         ["ddump-core-smt"]   4 (NoArg set_flag_ddumpCoreSmt)                 "dump verbose core SMT-solving information"
+  , Option []         ["ddump-core-tc"]    4 (NoArg set_flag_ddumpCoreTc)                  "dump verbose core typechecker information"
   , Option []         ["ddump-tc"]         3 (NoArg set_flag_ddumpTc)                      "dump (massive) surface typechecking internals"
   , Option []         ["ddump-tc-ctx"]     3 (NoArg set_flag_ddumpTcCtx)                   "dump surface typechecking with context"
   , Option []         ["ddump-tc-filter"]  3 (ReqArg set_flag_ddumpTcFilter "KEYWORDS")    "a space-separated list of keywords to indicate which groups of info to display (gen, sol, post, tc)"
@@ -679,15 +683,17 @@ parseArgs args = case getOpt' Permute options args of
     desugar cmds tced ctygen tcst source pragmas buildinfo log = do
       let stg = STGDesugar
       putProgressLn "Desugaring and typing..."
-      let ((desugared,ctygen'),typedefs) = DS.desugar tced ctygen pragmas
+      let ((desugared,ctygen'),typedefs) = desugarV2 tced ctygen pragmas
+      -- !!!
+          typedefs' = fmap (\(a,b,c) -> (a,b, fmap (second $ untypeE) c)) typedefs
       when __cogent_ddump_pretty_ds_no_tc $ pretty stdout desugared
-      IN.tc desugared >>= \case
+      IN.tc (map untypeD desugared) >>= \case
         Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
         Right (desugared',fts) -> do
           when (Ast stg `elem` cmds) $ genAst stg desugared'
           when (Pretty stg `elem` cmds) $ genPretty stg desugared'
-          when (Deep stg `elem` cmds) $ genDeep cmds source stg desugared' typedefs fts log
-          _ <- genShallow cmds source stg desugared' typedefs fts log (Shallow stg `elem` cmds,
+          when (Deep stg `elem` cmds) $ genDeep cmds source stg desugared' typedefs' fts log
+          _ <- genShallow cmds source stg desugared' typedefs' fts log (Shallow stg `elem` cmds,
                                                                        SCorres stg `elem` cmds,
                                                                        ShallowConsts stg `elem` cmds,
                                                                        ShallowTuples `elem` cmds,
@@ -696,7 +702,7 @@ parseArgs args = case getOpt' Permute options args of
                                                                        HsShallow `elem` cmds,
                                                                        HsShallowTuples `elem` cmds)
           when (TableShallow `elem` cmds) $ putProgressLn ("Generating shallow table...") >> putStrLn (printTable $ st desugared')
-          when (Compile (succ stg) `elem` cmds) $ normal cmds desugared' ctygen' source tced tcst typedefs fts buildinfo log
+          when (Compile (succ stg) `elem` cmds) $ normal cmds desugared' ctygen' source tced tcst typedefs' fts buildinfo log
           exitSuccessWithBuildInfo cmds buildinfo
 
     normal cmds desugared ctygen source tced tcst typedefs fts buildinfo log = do
