@@ -1,0 +1,3 @@
+foo : [v : U8 | v < 3] -> U8
+foo x = let y = x + 2
+         in y : [v : U8 | v < 100] 

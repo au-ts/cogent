@@ -30,7 +30,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Cogent.DesugarV2 (desugarV2) where
+module Cogent.DesugarV2 (desugar) where
 
 import Cogent.Common.Syntax
 import Cogent.Common.Types
@@ -115,12 +115,12 @@ instance MonadFail (DS t l v) where
 #endif
 
 
-desugarV2 :: [S.TopLevel B.DepType B.TypedPatn B.TypedExpr]
-          -> [(B.DepType, String)]
-          -> [Pragma]
-          -> ( ([Definition TypedExpr VarName VarName], [(SupposedlyMonoType VarName, String)])
-             , Last (Typedefs, Constants, [CoreConst TypedExpr]) )
-desugarV2 tls ctygen pragmas =
+desugar :: [S.TopLevel B.DepType B.TypedPatn B.TypedExpr]
+        -> [(B.DepType, String)]
+        -> [Pragma]
+        -> ( ([Definition TypedExpr VarName VarName], [(SupposedlyMonoType VarName, String)])
+           , Last (Typedefs, Constants, [CoreConst TypedExpr]) )
+desugar tls ctygen pragmas =
   let fundefs    = filter isFunDef     tls where isFunDef     S.FunDef     {} = True; isFunDef     _ = False
       absdecs    = filter isAbsDec     tls where isAbsDec     S.AbsDec     {} = True; isAbsDec     _ = False
       typedecs   = filter isTypeDec    tls where isTypeDec    S.TypeDec    {} = True; isTypeDec    _ = False
@@ -872,7 +872,11 @@ desugarExpr (B.TE τ (S.Upcast e) _) = do
   τ' <- desugarType τ
   TE τ' <$> (Cast τ' <$> desugarExpr e)
 desugarExpr (B.TE τ (S.Annot e t) _) = do
-  __assert (τ == t) "desugarExpr (Annot): inferred type doesn't agree with annotated type"
+  -- NOTE: τ and t are not always equal
+  -- XXX | __assert (τ == t) $
+  -- XXX |   "desugarExpr (Annot): inferred type doesn't agree with annotated type:\n" ++
+  -- XXX |   "  τ = " ++ show (pretty τ) ++ "\n" ++
+  -- XXX |   "  t = " ++ show (pretty t)
   τ' <- desugarType τ
   TE τ' <$> (Promote τ' <$> desugarExpr e)
   -- \ ^^^ NOTE [How to handle type annotations?]

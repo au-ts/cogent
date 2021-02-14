@@ -32,7 +32,7 @@ import Cogent.Common.Syntax            as SY (CoreFunName(..))
 import Cogent.Compiler
 import Cogent.Core                     as CC (isConFun, getDefinitionId, untypeD, untypeE)  -- FIXME: zilinc
 import Cogent.Desugar                  as DS (desugar)
-import Cogent.DesugarV2                as DSv2 (desugarV2)
+import Cogent.DesugarV2                as DSv2 (desugar)
 #ifdef WITH_DOCGENT
 import Cogent.DocGent                  as DG (docGent)
 #endif
@@ -44,7 +44,7 @@ import Cogent.Glue                     as GL (defaultExts, defaultTypnames,
 import Cogent.Haskell.Shallow          as HS
 #endif
 import Cogent.Inference                as IN (tc, tc_, tcConsts, retype)
-import Cogent.InferenceV2              as INv2 (tcV2, tcConstsV2, retypeV2)
+import Cogent.InferenceV2              as INv2 (tc, tcConsts, retype)
 import Cogent.Interpreter              as Repl (replWithState)
 import Cogent.Isabelle                 as Isa
 import Cogent.Mono                     as MN (mono, printAFM)
@@ -683,7 +683,7 @@ parseArgs args = case getOpt' Permute options args of
     desugar cmds tced ctygen tcst source pragmas buildinfo log = do
       let stg = STGDesugar
       putProgressLn "Desugaring and typing..."
-      let ((desugared,ctygen'),typedefs) = desugarV2 tced ctygen pragmas
+      let ((desugared,ctygen'),typedefs) = DSv2.desugar tced ctygen pragmas
       -- !!!
           typedefs' = fmap (\(a,b,c) -> (a,b, fmap (second $ untypeE) c)) typedefs
       when __cogent_ddump_pretty_ds_no_tc $ pretty stdout desugared
@@ -770,7 +770,7 @@ parseArgs args = case getOpt' Permute options args of
         writeFileMsg afmfile
         output afmfile $ flip hPutStrLn (printAFM (fst insts) simpled)
       putProgressLn "Re-typing monomorphic AST..."
-      retype monoed >>= \case
+      IN.retype monoed >>= \case
         Left err -> hPutStrLn stderr ("Re-typing monomorphic AST failed: " ++ err) >> exitFailure
         Right monoed' -> do
           printWarnings warnings

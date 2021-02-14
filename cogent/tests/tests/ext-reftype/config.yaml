@@ -21,6 +21,7 @@
     - pass_bool-2.cogent
     - pass_lem-type.cogent
     - pass_case-binding.cogent
+    - pass_annot-promote.cogent
   expected_result: pass
   flags:
     - -g
