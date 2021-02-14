@@ -1,0 +1,6 @@
+foo : U8#[11] -> U8
+foo arr = let i = bar ()
+           in if i < 11 then arr @ i else 0
+
+bar : () -> U32
+

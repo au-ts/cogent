@@ -1,0 +1,8 @@
+type Lt2 = [x : U8 | x < 2]
+type Lt3 = [x : U8 | x < 3]
+
+get_lt2 : () -> Lt2
+
+bar : () -> Lt3
+bar () = let x = get_lt2
+          in if x < 3 then x + 1 else x * 1
