@@ -442,7 +442,9 @@ desugarAlt' τ e0 (S.PIrrefutable (B.TIP (S.PTuple (p1:p2:ps)) pos)) e | not __c
   let p2' = B.TIP (S.PTuple (p2:ps)) pos
       p'  = S.PIrrefutable $ B.TIP (S.PTuple [p1, p2']) pos
   in desugarAlt' τ e0 p' e
-desugarAlt' τ e0 (S.PIrrefutable (B.TIP (S.PTuple ps) _)) e | __cogent_ftuples_as_sugar, all isPVar ps = do
+desugarAlt' τ e0 (S.PIrrefutable (B.TIP (S.PTuple ps) _)) e
+  | __cogent_ftuples_as_sugar, all isPVar ps
+  = do
   -- Idea: PTuple ps = e0 in e
   --   Base case: PTuple [PVar v1, PVar v2, ..., PVar vn] = e0 in e ~~>
   --              let e0'' {p1=v1, ..., pn=vn} = e0' in e'  -- nested take's in sugarfree
@@ -452,25 +454,29 @@ desugarAlt' τ e0 (S.PIrrefutable (B.TIP (S.PTuple ps) _)) e | __cogent_ftuples_
   --              ...
   --              and pn = vn
   --              in e  -- The implemention is optimised so that PVars in ps don't need to assign to new vars again
-  let vs = P.map (fst . getPVar . snd) $ P.zip (map (('p':) . show) [1::Int ..]) ps
-  mkTake τ e0 vs e 0
+       e0' <- desugarExpr e0
+       let vs = P.map (fst . getPVar) ps
+       mkTake τ e0' vs e 0
+  -- We must construct desugared expression manually, as we have to call
+  -- @desugarExpr e0@ to get the e0 desugared to unboxed records.
+
  where isPVar (B.TIP (S.PVar _) _) = True; isPVar _ = False
        getPVar (B.TIP (S.PVar v) _) = v; getPVar _ = __impossible "getPVar (in desugarAlt')"
-       mkTake :: B.DepType -> B.TypedExpr -> [VarName] -> B.TypedExpr -> Int -> DS t l v (TypedExpr t v VarName VarName)
+       
+       mkTake :: B.DepType -> TypedExpr t v VarName VarName -> [VarName] -> B.TypedExpr -> Int
+              -> DS t l v (TypedExpr t v VarName VarName)
        mkTake _ _ [] _ _ = __impossible "mkTake (in desugarAlt')"
        mkTake τ e0 [v] e idx = do
-         e0' <- desugarExpr e0
          e1 <- freshVar
-         TE <$> desugarType τ <*> (Take (v,e1) e0' idx <$> withBindings (Cons v (Cons e1 Nil)) (desugarExpr e))
+         e' <- Take (v,e1) e0 idx <$> withBindings (Cons v (Cons e1 Nil)) (desugarExpr e)
+         TE <$> desugarType τ <*> pure e'
        mkTake τ e0 (v:vs) e idx = do
-         e0' <- desugarExpr e0
          e1 <- freshVar
-         let B.DT (S.TRecord rp fts s) = B.getTypeTE e0  -- NOTE: no ref.type
-             fts' = map (\(f,(t,b)) -> if f == v then (f,(t,True)) else (f,(t,b))) fts
-             t = B.DT (S.TRecord rp fts' s)
-             pos = B.getLocTE e0
-         e'  <- withBindings (Cons v (Cons e1 Nil)) (mkTake τ (B.TE t (S.Var e1) pos) vs e (idx + 1))
-         TE <$> desugarType τ <*> pure (Take (v,e1) e0' idx e')
+         let TRecord rp fts s = exprType e0
+             t1' = TRecord rp (P.map (\(f,(t,b)) -> (f,(t,f == ('p':show idx) || b))) fts) s
+             es  = mkTake τ (TE t1' $ Variable (f1, e1)) vs e (idx + 1)
+         e' <- Take (v,e1) e0 idx <$> withBindings (Cons v (Cons e1 Nil)) es
+         TE <$> desugarType τ <*> pure e'
 desugarAlt' τ e0 (S.PIrrefutable (B.TIP (S.PTuple ps) _)) e | __cogent_ftuples_as_sugar = do
   let B.DT (S.TTuple ts) = B.getTypeTE e0  -- NOTE: assuming e0 is not of a refinement type / zilinc
   __assert (P.length ps == P.length ts) $ "desugarAlt': |ps| /= |ts|\nps = " ++ show ps ++ "\nts = " ++ show ts
