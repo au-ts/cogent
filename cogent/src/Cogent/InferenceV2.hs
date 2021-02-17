@@ -123,14 +123,14 @@ isSubtype (TRecord rp1 fs1 s1) (TRecord rp2 fs2 s2)
   | map fst fs1 == map fst fs2, s1 == s2, rp1 == rp2 = do
     oks <- flip3 zipWithM fs2 fs1 $ \(_,(t1,b1)) (_, (t2,b2)) -> do
       sub <- t1 `isSubtype` t2
-      return $ sub && (not b2 || b1)
+      return $ sub && (not b1 || b2)
     return $ and oks
 
 isSubtype (TSum s1) (TSum s2)
   | s1' <- M.fromList s1, s2' <- M.fromList s2, M.keys s1' == M.keys s2' = do
     oks <- flip3 zipWithM s2 s1 $ \(_,(t1,b1)) (_,(t2,b2)) -> do
       sub <- t1 `isSubtype` t2
-      return $ sub && (not b1 || b2)
+      return $ sub && (not b2 || b1)
     return $ and oks
 
 isSubtype (TProduct t11 t12) (TProduct t21 t22) =
@@ -549,9 +549,22 @@ check e@(TE t _) τ = do
   check' e
 
 check' :: TypedExpr t v VarName VarName -> TC t v VarName (TypedExpr t v VarName VarName)
-check' (TE t (Variable v))
+check' e@(TE t (Variable v))
   = do Just t' <- useVariable (fst v)
-       checkSub "check'(var)" t' t
+       traceTc "check'/var" (text "checking variable" <+> pretty e L.<$>
+                             text "type from the context is" <+> pretty t' L.<$>
+                             text "surface tc gives" <+> pretty t)
+       t'' <- case inEqTypeClass t' of
+                True -> do
+                  vn <- freshVarName
+                  let ϕ = LOp Eq [ LVariable (Zero, vn)
+                                 , insertIdxAtLE Zero $ LVariable (first finNat v) ]
+                  case t' of
+                    TRefine β _ -> return $ TRefine β ϕ
+                    _           -> return $ TRefine t' ϕ
+                False -> return t'
+       -- t'' is the selfified type
+       checkSub "check'(var)" t'' t
        return $ TE t (Variable v)
 
 check' (TE t (Fun f ts ls note))
@@ -759,6 +772,7 @@ check' (TE t (Member e f)) = do
 
 check' (TE t (Take a e f e2)) = do
   e'@(TE trec _) <- infer e
+  traceTc "check'/take" (text "checking" <+> pretty e <+> text "of type" <+> pretty trec)
   let TRecord rp ts s = trec
   -- a common cause of this error is taking a field when you could have used member
   guardShow ("take: sigil cannot be readonly: " ++ show (pretty e)) $ not (readonly s)

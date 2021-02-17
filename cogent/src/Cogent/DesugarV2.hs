@@ -53,7 +53,7 @@ import Data.PropEq ((:=:)(Refl))
 import Data.Vec as Vec
 
 import Control.Applicative
-import Control.Arrow ((&&&), first)
+import Control.Arrow ((&&&), first, second)
 import Lens.Micro as Lens
 import Lens.Micro.TH as Lens
 import Lens.Micro.Mtl as Lens
@@ -333,7 +333,7 @@ desugarAlts τ e0@(B.TE t v@(S.Var _) vpos) (S.Alt (B.TP p1 pos1) l1 e1 : alts) 
     S.PCon cn1 [B.TIP (S.PVar v1) _] -> do  -- this is A) for PCon
       e0' <- freshVar
       let B.DT (S.TVariant talts) = t
-          t0' = B.DT $ S.TVariant (M.delete cn1 talts)  -- type of e0 without alternative cn
+          t0' = B.DT $ S.TVariant (M.adjust (second $ const True) cn1 talts)
       e1' <- withBinding (fst v1) $ desugarExpr e1
       e2' <- withBinding e0' $ desugarAlts τ (B.TE t0' (S.Var e0') noPos) alts
       let t1' = B.getTypeTE e1  -- should be the same as that of e2
@@ -473,7 +473,7 @@ desugarAlt' τ e0 (S.PIrrefutable (B.TIP (S.PTuple ps) _)) e
        mkTake τ e0 (v:vs) e idx = do
          e1 <- freshVar
          let TRecord rp fts s = exprType e0
-             t1' = TRecord rp (P.map (\(f,(t,b)) -> (f,(t,f == ('p':show idx) || b))) fts) s
+             t1' = TRecord rp (P.map (\(f,(t,b)) -> (f, (t, f == ('p' : show (idx + 1)) || b))) fts) s
              es  = mkTake τ (TE t1' $ Variable (f1, e1)) vs e (idx + 1)
          e' <- Take (v,e1) e0 idx <$> withBindings (Cons v (Cons e1 Nil)) es
          TE <$> desugarType τ <*> pure e'
@@ -516,7 +516,7 @@ desugarAlt' τ e0 (S.PIrrefutable (B.TIP (S.PTake rec [Just (f,p)]) pos)) e = do
   desugarExpr $ B.TE τ (S.Let [b1,b2] e) ?pos
 desugarAlt' τ e0 (S.PIrrefutable (B.TIP (S.PTake rec (fp:fps)) pos)) e = do
   e1 <- freshVar
-  let B.DT (S.TRecord rp fts s) = snd rec  -- NOTE: no ref.type
+  let B.DT (S.TRecord rp fts s) = B.getTypeTE e0  -- NOTE: no ref.type
       t1 = B.DT $ S.TRecord rp (P.map (\ft@(f,(t,x)) -> if f == fst (fromJust fp) then (f,(t,True)) else ft) fts) s  -- type of e1
       b0 = S.Binding (B.TIP (S.PTake (e1, t1) [fp]) ?pos) Nothing e0 []
       bs = S.Binding (B.TIP (S.PTake rec fps) pos) Nothing (B.TE t1 (S.Var e1) ?pos) []
@@ -864,7 +864,7 @@ desugarExpr (B.TE τ (S.Put e [Just (f,a)]) _) = do
       Just f' = elemIndex f (P.map fst fs)
   TE <$> desugarType τ <*> (Put <$> desugarExpr e <*> pure f' <*> desugarExpr a)
 desugarExpr (B.TE τ (S.Put e (fa@(Just (f0,_)):fas)) l) = do
-  let B.DT (S.TRecord rp fs s) = τ
+  let B.DT (S.TRecord rp fs s) = B.getTypeTE e
       fs' = map (\ft@(f,(t,b)) -> if f == f0 then (f,(t,False)) else ft) fs
       t' = B.DT (S.TRecord rp fs' s)
   desugarExpr $ B.TE τ (S.Put (B.TE t' (S.Put e [fa]) l) fas) l
