@@ -55,7 +55,7 @@ import Data.Vec hiding (repeat, splitAt, length, zipWith, zip, unzip)
 import qualified Data.Vec as Vec
 
 import Control.Applicative
-import Control.Arrow
+import Control.Arrow hiding ((<+>))
 import Control.Monad.Except hiding (fmap, forM_)
 import Control.Monad.IO.Class
 import Control.Monad.Reader hiding (fmap, forM_)
@@ -78,7 +78,8 @@ import Data.Traversable(traverse)
 import Data.Word (Word32)
 import Lens.Micro (_2)
 import Lens.Micro.Mtl (view)
-import Text.PrettyPrint.ANSI.Leijen (Pretty, pretty)
+import Text.PrettyPrint.ANSI.Leijen as L hiding ((<$>))
+import qualified Text.PrettyPrint.ANSI.Leijen as L
 import qualified Unsafe.Coerce as Unsafe (unsafeCoerce)  -- NOTE: used safely to coerce phantom types only
 
 -- import Debug.Trace
@@ -114,15 +115,58 @@ entails :: (Eq b, Ord b, Pretty b, Show b)
 entails β p1 p2 = get >>= \(vec, ls, _) -> liftIO (smtProve vec ls β p1 p2)
 #endif
 
+
 isSubtype :: (Eq b, Pretty b, Show b, Ord b) => Type t b -> Type t b -> TC t v b Bool
+isSubtype t1 t2 | t1 == t2 = return True
+
+isSubtype (TRecord rp1 fs1 s1) (TRecord rp2 fs2 s2)
+  | map fst fs1 == map fst fs2, s1 == s2, rp1 == rp2 = do
+    oks <- flip3 zipWithM fs2 fs1 $ \(_,(t1,b1)) (_, (t2,b2)) -> do
+      sub <- t1 `isSubtype` t2
+      return $ sub && (not b2 || b1)
+    return $ and oks
+
+isSubtype (TSum s1) (TSum s2)
+  | s1' <- M.fromList s1, s2' <- M.fromList s2, M.keys s1' == M.keys s2' = do
+    oks <- flip3 zipWithM s2 s1 $ \(_,(t1,b1)) (_,(t2,b2)) -> do
+      sub <- t1 `isSubtype` t2
+      return $ sub && (not b1 || b2)
+    return $ and oks
+
+isSubtype (TProduct t11 t12) (TProduct t21 t22) =
+  (&&) <$> t11 `isSubtype` t21 <*> t12 `isSubtype` t22
+
+isSubtype (TFun t1 s1) (TFun t2 s2) =
+  (&&) <$> t2 `isSubtype` t1 <*> s1 `isSubtype` s2
+
+-- At this point, we can assume recursive parameters and records agree 
+isSubtype t1@(TRecord rp fs s) t2@(TRPar v ctxt)    = return True
+isSubtype t1@(TRPar v ctxt)    t2@(TRecord rp fs s) = return True
+isSubtype t1@(TRPar v1 c1)     t2@(TRPar v2 c2)     = return True
+
 #ifdef REFINEMENT_TYPES
 isSubtype rt1@(TRefine t1 p1) rt2@(TRefine t2 p2) | t1 == t2 = entails t1 p1 p2
 isSubtype rt1@(TRefine t1 p1) t2 | t1 == t2 = return True
 isSubtype t1 rt2@(TRefine t2 p2) | t1 == t2 = entails t1 (LILit 1 Boolean) p2
+
+isSubtype (TArray t1 l1 s1 mhole1) (TArray t2 l2 s2 mhole2)
+  | s1 == s2
+  = do sub <- t1 `isSubtype` t2
+       let holesOk = subHoles mhole1 mhole2
+       return $ sub && l1 == l2 && holesOk  -- FIXME: change to propositional equality
+  where
+    subHoles Nothing   Nothing   = True
+    subHoles (Just i1) (Just i2) = i1 == i2  -- FIXME: change to propositional equality
+    subHoles Nothing   (Just i2) = False
+    subHoles (Just i1) Nothing   = True
 #endif
-isSubtype t1 t2 = runMaybeT (t1 `lub` t2) >>= \case Just t  -> return $ t == t2
--- The structural equality check t == t2 is not adequate for refinement equality.
-                                                    Nothing -> return False
+
+isSubtype t1 t2 = __impossible $
+                    "isSubtype: incomparable types:\n" ++
+                    "  ... t1 = " ++ show (pretty t1) ++ "\n" ++
+                    "  ... t2 = " ++ show (pretty t2)
+
+
 
 listIsSubtype :: (Eq b, Ord b, Pretty b, Show b) => [Type t b] -> [Type t b] -> TC t v b Bool
 listIsSubtype [] [] = return True
@@ -147,75 +191,6 @@ unroll v (Just ctxt) = erp (Just ctxt) (ctxt M.! v)
     -- TODO: TRefine
 #endif
     erp _ t = t
-
-bound :: (Show b, Eq b, Pretty b, Ord b)
-      => Bound -> Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
-bound _ t1 t2 | t1 == t2 = return t1
-bound b (TRecord rp1 fs1 s1) (TRecord rp2 fs2 s2)
-  | map fst fs1 == map fst fs2, s1 == s2, rp1 == rp2 = do
-    let op = case b of LUB -> (||); GLB -> (&&)
-    blob <- flip3 zipWithM fs2 fs1 $ \(f1,(t1,b1)) (_, (t2,b2)) -> do
-      t <- bound b t1 t2
-      ok <- lift $ if b1 == b2 then return True
-                               else kindcheck t >>= \k -> return (canDiscard k)
-      return ((f1, (t, b1 `op` b2)), ok)
-    let (fs, oks) = unzip blob
-    if and oks then return $ TRecord rp1 fs s1
-               else MaybeT (return Nothing)
-bound b (TSum s1) (TSum s2)
-  | s1' <- M.fromList s1, s2' <- M.fromList s2, M.keys s1' == M.keys s2' = do
-    let op = case b of LUB -> (&&); GLB -> (||)
-    s <- flip3 unionWithKeyM s2' s1' $
-           \k (t1,b1) (t2,b2) -> (,) <$> bound b t1 t2 <*> pure (b1 `op` b2)
-    return $ TSum $ M.toList s
-bound b (TProduct t11 t12) (TProduct t21 t22) = TProduct <$> bound b t11 t21 <*> bound b t12 t22
-bound b (TCon c1 t1 s1) (TCon c2 t2 s2)
-  | c1 == c2, s1 == s2 = TCon c1 <$> zipWithM (bound b) t1 t2 <*> pure s1
-bound b (TFun t1 s1) (TFun t2 s2) = TFun <$> bound (theOtherB b) t1 t2 <*> bound b s1 s2
--- At this point, we can assume recursive parameters and records agree 
-bound b t1@(TRecord rp fs s) t2@(TRPar v ctxt)    = return t2
-bound b t1@(TRPar v ctxt)    t2@(TRecord rp fs s) = return t2
-bound b t1@(TRPar v1 c1)     t2@(TRPar v2 c2)     = return t2
-#ifdef REFINEMENT_TYPES
-bound b (TArray t1 l1 s1 mhole1) (TArray t2 l2 s2 mhole2)
-  | l1 == l2, s1 == s2
-  = do t <- bound b t1 t2
-       ok <- lift $ case (mhole1, mhole2) of
-               (Nothing, Nothing) -> return True
-               (Just i1, Just i2) -> return $ i1 == i2  -- FIXME: change to propositional equality / zilinc
-               _ -> kindcheck t >>= \k -> return (canDiscard k)
-       let mhole = combineHoles b mhole1 mhole2
-       if ok then return $ TArray t l1 s1 mhole
-             else MaybeT (return Nothing)
-  where
-    combineHoles b Nothing   Nothing   = Nothing
-    combineHoles b (Just i1) (Just _ ) = Just i1
-    combineHoles b Nothing   (Just i2) = case b of GLB -> Nothing; LUB -> Just i2
-    combineHoles b (Just i1) Nothing   = case b of GLB -> Nothing; LUB -> Just i1
-bound b rt1@(TRefine t1 p1) rt2@(TRefine t2 p2)
-  | t1 == t2
-  = do isSub <- lift $ entails t1 p1 p2  -- subtype
-       isSup <- lift $ entails t1 p2 p1  -- supertype
-       case (isSub, isSup) of
-         (True, True) -> return rt1 -- doesn't matter which one is returned
-         (True, False) -> return $ case b of GLB -> rt1; LUB -> rt2
-         (False, True) -> return $ case b of GLB -> rt2; LUB -> rt1
-         (False, False) -> case b of
-                             GLB -> return (TRefine t1 (LOp And [p1, p2]))
-                             LUB -> return (TRefine t1 (LOp Or  [p1, p2]))
-bound b t1@(TRefine t l) t2
-  | t == t2 = return $ case b of GLB -> t1; LUB -> t2
-bound b t1 t2@(TRefine t l)
-  | t1 == t = return $ case b of GLB -> t2; LUB -> t1
-#endif
-bound _ t1 t2 = __impossible ("bound: not comparable:\n" ++ show t1 ++ "\n" ++ 
-                              "----------------------------------------\n" ++ show t2 ++ "\n")
-
-lub :: (Show b, Eq b, Pretty b, Ord b) => Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
-lub = bound LUB
-
-glb :: (Show b, Eq b, Pretty b, Ord b) => Type t b -> Type t b -> MaybeT (TC t v b) (Type t b)
-glb = bound GLB
 
 
 bang :: Type t b -> Type t b
@@ -377,15 +352,16 @@ infixl 4 <||>
                              -- / v.jackson, zilinc
                              return (f arg)
 
--- returns list of inputs, and (base) type of output
 #ifdef REFINEMENT_TYPES
-opType :: Op -> [Type t b] -> TC t v b (Maybe ([Type t VarName], Type t b))
-opType opr [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
+-- returns list of inputs, and (base) type of output
+-- ASSUME inputs are base types.
+opType :: (Pretty b) => Op -> [Type t b] -> TC t v b (Maybe ([Type t VarName], Type t b))
+opType opr [TPrim t1, TPrim t2]
   | opr `elem` [Plus, Minus, Times,
                 BitAnd, BitOr, BitXor, LShift, RShift]
   , t1 /= Boolean, t1 == t2
   = pure $ Just ([TPrim t1, TPrim t1], TPrim t1)
-opType opr [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
+opType opr [TPrim t1, TPrim t2]
   | opr `elem` [Divide, Mod]
   , t1 /= Boolean, t1 == t2
   = if __cogent_ftypecheck_undef then
@@ -394,15 +370,15 @@ opType opr [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
              nonZeroType = TRefine (TPrim t1) nonZeroPred
          return $ Just ([TPrim t1, nonZeroType], TPrim t1)
     else pure $ Just ([TPrim t1, TPrim t1], TPrim t1)
-opType opr [(TRefine (TPrim t1) p1), (TRefine (TPrim t2) p2)]
+opType opr [TPrim t1, TPrim t2]
   | opr `elem` [Gt, Lt, Le, Ge, Eq, NEq], t1 /= Boolean, t1 == t2
   = pure $ Just ([TPrim t1, TPrim t1], TPrim Boolean)
-opType opr [(TRefine (TPrim Boolean) p1), (TRefine (TPrim Boolean) p2)]
+opType opr [TPrim Boolean, TPrim Boolean]
   | opr `elem` [And, Or, Eq, NEq]
   = pure $ Just ([TPrim Boolean, TPrim Boolean], TPrim Boolean)
-opType Not [TRefine (TPrim Boolean) p]
+opType Not [TPrim Boolean]
   = pure $ Just ([TPrim Boolean], TPrim Boolean)
-opType Complement [(TRefine (TPrim t) p)]
+opType Complement [TPrim t]
   | t /= Boolean
   = pure $ Just ([TPrim t], TPrim t)
 #else
@@ -419,20 +395,24 @@ opType opr [TPrim Boolean, TPrim Boolean]
 opType Not [TPrim Boolean] = Just $ TPrim Boolean
 opType Complement [TPrim p] | p /= Boolean = Just $ TPrim p
 #endif
-opType opr ts = __impossible "opType"
+opType opr ts = __impossible $ "opType(" ++ show opr ++ ")\n" ++
+                               "ts = " ++ show (pretty ts) 
 
 
 useVariable :: (Pretty b) => Fin v -> TC t v b (Maybe (Type t b))
-useVariable v = TC $ do ret <- (`at` v) <$> fst3 <$> get
-                        case ret of
-                          Nothing -> return ret
-                          Just t  -> do
-                            ok <- canShare <$> unTC (kindcheck t)
-                            unless ok $ modify (\(s, p, n) -> (update s v Nothing, p, n))
-                            let t' = insertIdxAtByT (Suc $ finNat v) (Suc Zero) t
-                            traceM ("*****> v is " ++ show v ++ "\n ..... t was " ++ show (pretty t) ++ "\n ..... t' is " ++ show (pretty t'))
-                            return $ Just t'
-                            -- return ret
+useVariable v = TC $ do
+  ret <- (`at` v) <$> fst3 <$> get
+  case ret of
+    Nothing -> return ret
+    Just t  -> do
+      ok <- canShare <$> unTC (kindcheck t)
+      unless ok $ modify (\(s, p, n) -> (update s v Nothing, p, n))
+      let t' = insertIdxAtByT (Suc $ finNat v) (Suc Zero) t
+      -- traceM ("*****> v is " ++ show v ++
+      --         "\n ..... t was " ++ show (pretty t) ++
+      --         "\n ..... t' is " ++ show (pretty t'))
+      return $ Just t'
+      -- return ret
 
 funType :: CoreFunName -> TC t v b (Maybe (FunctionType b))
 funType v = TC $ (M.lookup (unCoreFunName v) . snd) <$> ask
@@ -450,15 +430,14 @@ runTC (TC a) readers st = do
 
 retype :: [Definition TypedExpr VarName VarName]
        -> IO (Either String [Definition TypedExpr VarName VarName])
-retype ds = do 
-  unt <- tc $ map untypeD ds
-  return $ fst <$> unt
+retype ds = do ds' <- tc ds
+               return $ fst <$> ds'
 
-tc :: [Definition UntypedExpr VarName VarName]
+tc :: [Definition TypedExpr VarName VarName]
    -> IO (Either String ([Definition TypedExpr VarName VarName], Map FunName (FunctionType VarName)))
 tc = flip tc' M.empty
   where
-    tc' :: [Definition UntypedExpr VarName VarName]
+    tc' :: [Definition TypedExpr VarName VarName]
         -> Map FunName (FunctionType VarName)  -- the reader
         -> IO (Either String ([Definition TypedExpr VarName VarName], Map FunName (FunctionType VarName)))
     tc' [] reader = return $ Right ([], reader)
@@ -475,7 +454,7 @@ tc = flip tc' M.empty
     tc' (d@(AbsDecl _ fn ks ls t rt):ds) reader = (fmap $ first (Unsafe.unsafeCoerce d:)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader)
     tc' (d:ds) reader = (fmap $ first (Unsafe.unsafeCoerce d:)) <$> tc' ds reader
 
-tc_ :: [Definition UntypedExpr VarName VarName]
+tc_ :: [Definition TypedExpr VarName VarName]
     -> IO (Either String [Definition TypedExpr VarName VarName])
 tc_ ds = tc ds >>= (\r -> return (fst <$> r))
 
@@ -554,360 +533,270 @@ kindcheck_ f (TRefine t _) = kindcheck_ f t
 
 kindcheck = kindcheck_ lookupKind
 
+checkSub :: String -> Type t VarName -> Type t VarName -> TC t v VarName ()
+checkSub s t1 t2 = do
+  traceTc ("sub/" ++ s)
+          (L.line <>
+           text "t1:" <+> pretty t1 L.<$>
+           text "t2:" <+> pretty t2)
+  guardShow s =<< t1 `isSubtype` t2
 
-typecheck :: (Pretty a, Show a, Eq a, Ord a)
-          => TypedExpr t v a a -> Type t a -> TC t v a (TypedExpr t v a a)
-typecheck e t = do
-  let t' = exprType e
-  (vec, _, _) <- get
-  traceM ("!!!!! under context " ++ show (pretty vec) ++ "\n ... checking if " ++ show (pretty t') ++ " ... is a subtype of " ++ show (pretty t))
-  isSub <- t' `isSubtype` t
-  if | t == t' -> return e
-     | isSub -> return (promote t e)
-     | otherwise -> __impossible $ "Under context\n" ++
-                                   show (indent' $ pretty vec) ++
-                                   "\nInferred type of\n" ++
-                                   show (indent' $ pretty e) ++
-                                   "\ndoesn't agree with the given type signature:\n" ++
-                                   "Inferred type:\n" ++
-                                   show (indent' $ pretty t') ++
-                                   "\nGiven type:\n" ++
-                                   show (indent' $ pretty t) ++ "\n"
+check :: TypedExpr t v VarName VarName
+      -> Type t VarName
+      -> TC t v VarName (TypedExpr t v VarName VarName)
+check e@(TE t _) τ = do
+  checkSub ("check(" ++ show (pretty e) ++ ")") t τ
+  check' e
 
+check' :: TypedExpr t v VarName VarName -> TC t v VarName (TypedExpr t v VarName VarName)
+check' (TE t (Variable v))
+  = do Just t' <- useVariable (fst v)
+       checkSub "check'(var)" t' t
+       return $ TE t (Variable v)
 
--- We for now only check those where a continuation is involved. When we have refinement types,
--- when there's a continuation and when the context is popped, then we cannot infer the refinement
--- type; we have to check using the Promote node.
-check :: UntypedExpr t v VarName VarName -> Type t VarName -> TC t v VarName (TypedExpr t v VarName VarName)
-check (E (Let a e1 e2)) t = do
+check' (TE t (Fun f ts ls note))
+  | ExI (Flip ts') <- Vec.fromList ts
+  , ExI (Flip ls') <- Vec.fromList ls
+  = funType f >>= \case
+      Just (FT ks lts ti to) ->
+        case (Vec.length ts' =? Vec.length ks, Vec.length ls' =? Vec.length lts)
+          of (Just Refl, Just Refl) -> do
+               let ti' = substitute ts' $ substituteL ls ti
+                   to' = substitute ts' $ substituteL ls to
+               forM_ (Vec.zip ts' ks) $ \(t, k) -> do
+                 k' <- kindcheck t
+                 when ((k <> k') /= k) $ __impossible "kind not matched in type instantiation"
+               checkSub "check'(fun)" (TFun ti' to') t
+               return $ TE t (Fun f ts ls note)
+             _ -> __impossible "lengths don't match"
+      _ -> error $ "Something went wrong in lookup of function type: '" ++ unCoreFunName f ++ "'"
+
+check' (TE t (Op o es)) = do
+  es' <- mapM infer es
+  let operandsTypes = map exprType es'
+  vn <- freshVarName
+  Just (expectedInputs, to) <- opType o (map toBaseType operandsTypes)
+  inputsOk <- listIsSubtype operandsTypes expectedInputs
+  guardShow "check'(op)-in" inputsOk
+  checkSub "check'(op)-out" t to
+  return (TE t (Op o es'))
+
+check' (TE t (App e1 e2)) = do
+  e1'@(TE (TFun ti to) _) <- infer e1
+  e2' <- check e2 ti
+  checkSub "check'(app)" to t
+  return $ TE t (App e1' e2')
+
+check' (TE t (Con tag e tfull)) = do
+  -- Find type of payload for given tag
+  let TSum ts          = tfull
+      Just (t', False) = lookup tag ts
+  e' <- check e t'
+  checkSub "check'(con)" tfull t
+  return $ TE t (Con tag e' tfull)
+
+check' (TE t Unit) = do
+  checkSub "check'(unit)" t TUnit
+  return $ TE t Unit
+
+check' (TE t (ILit i pt)) = do
+  checkSub "check'(int)" t (TPrim pt)
+  return $ TE t (ILit i pt)
+
+check' (TE t (SLit s)) = do
+  checkSub "check'(string)" t TString
+  return $ TE t (SLit s)
+
+#ifdef REFINEMENT_TYPES
+-- array stuff
+
+check' (TE t (ALit [])) = __impossible "We don't allow 0-size array literals"
+
+check' (TE t (ALit es)) = do
+  let TArray telt n _ _ = t
+  -- n == |es|
+  es' <- mapM (flip check telt) es
+  return $ TE t (ALit es')
+
+check' (TE t (ArrayIndex arr idx)) = do
+  arr'@(TE ta _) <- infer arr
+  let TArray te len _ _ = ta
+  vn <- freshVarName
+  let ϕ = LOp Lt [LVariable (Zero, vn), len]
+  idx' <- check idx (TRefine (TPrim U32) ϕ)
+  guardShow ("arr-idx on non-linear") . canShare =<< kindcheck ta
+  checkSub "check'(index)" te t
+  return $ TE t (ArrayIndex arr' idx')
+
+check' (TE t (ArrayMap2 (as,f) (e1,e2))) = do
+  e1'@(TE t1 _) <- infer e1
+  e2'@(TE t2 _) <- infer e2
+  let TArray te1 l1 _ _ = t1
+      TArray te2 l2 _ _ = t2
+  f' <- withBindings (Cons te2 (Cons te1 Nil)) $ infer f
+  let t' = case __cogent_ftuples_as_sugar of
+             False -> TProduct t1 t2
+             True  -> TRecord NonRec (zipWith (\f t -> (f,(t,False))) tupleFieldNames [t1,t2]) Unboxed
+  checkSub "check'(map2)" t' t
+  return $ TE t $ ArrayMap2 (as,f') (e1',e2')
+
+check' (TE t (Pop a e1 e2)) = do
+  e1'@(TE t1 _) <- infer e1
+  let TArray te l s tkns = t1
+      thd = te
+      ttl = TArray te (LOp Minus [l, LILit 1 U32]) s tkns
+  -- guardShow "arr-pop on a singleton array" $ l > 1
+  e2' <- withBindings (Cons thd (Cons ttl Nil)) $ check e2 t
+  return $ TE t (Pop a e1' e2')
+
+check' (TE t (Singleton e)) = do
+  e'@(TE tarr _) <- infer e
+  let TArray te l _ _ = t
+  -- guardShow "singleton on a non-singleton array" $ l == 1
+  return $ TE te (Singleton e')
+
+check' (TE t (ArrayTake as arr i e)) = do
+  arr'@(TE tarr _) <- infer arr
+  v <- freshVarName
+  let TArray telt len s Nothing = tarr
+      ϕ = LOp Lt [LVariable (Zero, v), len]
+  i' <- check i (TRefine (TPrim U32) ϕ)
+  let tarr' = TArray telt len s (Just $ texprToLExpr id i')
+  e' <- withBindings (Cons telt (Cons tarr' Nil)) $ check e t
+  return $ TE t (ArrayTake as arr' i' e')
+
+check' (TE t (ArrayPut arr i e)) = do
+  arr'@(TE tarr _) <- infer arr
+  v <- freshVarName
+  let TArray telt len s tkns = tarr
+      ϕ = LOp Lt [LVariable (Zero, v), len]
+  -- check i is not present if it's linear
+  i' <- check i (TRefine (TPrim U32) ϕ)
+  e' <- check e telt
+  -- XXX | mi <- evalExpr i'
+  -- XXX | guardShow "@put index not a integral constant" $ isJust mi
+  -- XXX | let Just i'' = mi
+  -- XXX | guardShow "@put index is out of range" $ i'' `IM.member` tkns
+  -- XXX | let Just itkn = IM.lookup i'' tkns
+  -- XXX | k <- kindcheck telm
+  -- XXX | unless itkn $ guardShow "@put a non-Discardable untaken element" $ canDiscard k
+  return $ TE t (ArrayPut arr' i' e')
+
+#endif
+-- end of arrays extension
+
+check' (TE t (Let a e1 e2)) = do
   e1' <- infer e1
-  traceM ("------> (check let) push a = " ++ show a ++ " of type " ++ show (pretty $ exprType e1'))
   e2' <- withBinding (exprType e1') $ check e2 (insertIdxAtT Zero t)
   return $ TE t (Let a e1' e2')
 
-check (E (If c th el)) t = do
-  c' <- infer c
+check' (TE t (LetBang vs a e1 e2)) = do
+  e1' <- withBang (map fst vs) (infer e1)
+  k <- kindcheck (exprType e1')
+  guardShow "let!" $ canEscape k
+  e2' <- withBinding (exprType e1') $ check e2 (insertIdxAtT Zero t)
+  return $ TE t (LetBang vs a e1' e2')
+
+check' (TE t (Tuple e1 e2)) = do
+  e1' <- infer e1
+  e2' <- infer e2
+  checkSub "check'(tuple)" (TProduct (exprType e1') (exprType e2')) t
+  return $ TE t (Tuple e1' e2')
+
+check' (TE t (Struct fs)) = do
+  let (ns,es) = unzip fs
+  es' <- mapM infer es
+  let ts' = zipWith (\n e' -> (n, (exprType e', False))) ns es'
+  checkSub "check'(struct)" (TRecord NonRec ts' Unboxed) t
+  return $ TE t $ Struct $ zip ns es'
+
+check' (TE t (If c th el)) = do
+  c' <- check c (TPrim Boolean)
 #ifdef REFINEMENT_TYPES
-  guardShow "check: if-1" $ toBaseType (exprType c') == TPrim Boolean
   let lc = texprToLExpr id c'
-  -- guardShow (show lec) False
   (th',el') <- (,) <$>  withPredicate lc (check th t)
                    <||> withPredicate (LOp Not [lc]) (check el t)
   -- \ ^^^ have to use <||>, as they share the same initial env
 #else
-  guardShow "check: if-1" $ exprType c' == TPrim Boolean
   (th',el') <- (,) <$>  check th t
                    <||> check el t
 #endif
   return $ TE t (If c' th' el')
 
-check (E (Case e tag (lt,at,et) (le,ae,ee))) t
-   = do e' <- infer e
-        let TSum ts = exprType e'
-            Just (t', taken) = lookup tag ts
-            restt = TSum $ adjust tag (second $ const True) ts  -- set the tag to taken
-            e'' = case taken of
-                    True  -> promote (TSum $ OM.toList $ OM.adjust (\(t,True) -> (t,False)) tag $ OM.fromList ts) e'
-                    False -> e'
-        traceM ("------> (check case) push at = " ++ show at ++ " of type " ++ show (pretty $ t'))
-        traceM ("------> (check case) push ae = " ++ show ae ++ " of type " ++ show (pretty $ restt))
-        (et',ee') <- (,) <$>  withBinding t'    (check et $ insertIdxAtT Zero t)
-                         <||> withBinding restt (check ee $ insertIdxAtT Zero t)
-        return $ TE t (Case e'' tag (lt,at,et') (le,ae,ee'))
+check' (TE t (Case e tag (lt,at,et) (le,ae,ee))) = do
+  e' <- infer e
+  let TSum ts = exprType e'
+      Just (t', taken) = lookup tag ts
+      restt = TSum $ adjust tag (second $ const True) ts  -- set the tag to taken
+      e'' = case taken of
+              True  -> promote (TSum $ OM.toList $ OM.adjust (\(t,True) -> (t,False)) tag $ OM.fromList ts) e'
+              False -> e'
+  (et',ee') <- (,) <$>  withBinding t'    (check et $ insertIdxAtT Zero t)
+                   <||> withBinding restt (check ee $ insertIdxAtT Zero t)
+  return $ TE t (Case e'' tag (lt,at,et') (le,ae,ee'))
 
--- TODO: other cases
-check e t = do e' <- infer e
-               typecheck e' t
+check' (TE t (Esac e)) = do
+  e'@(TE (TSum ts) _) <- infer e
+  let [(_, (t', False))] = filter (not . snd . snd) ts
+  checkSub "check'(esac)" t' t
+  return $ TE t (Esac e')
 
-infer :: UntypedExpr t v VarName VarName -> TC t v VarName (TypedExpr t v VarName VarName)
-infer (E (Op o es))
-#ifdef REFINEMENT_TYPES
-  = do es' <- mapM infer es
-       let operandsTypes = map toRefType $ map exprType es'
-       vn <- freshVarName
-       Just (expectedInputs, to) <- opType o operandsTypes
-       -- check that each of o is a subtype of expectedInputs
-       -- traceM ("operandsTypes " ++ (show $ pretty operandsTypes))
-       -- traceM ("expectedInputs " ++ (show $ pretty expectedInputs))
-       -- (_,ls,_) <- get
-       -- trace ("context " ++ (show ls)) $ return ()
-       inputsOk <- listIsSubtype operandsTypes expectedInputs
-       let pred = LOp Eq [LVariable (Zero, vn), insertIdxAtLE Zero (LOp o (map (texprToLExpr id) es'))]
-       case inputsOk of
-         True -> return (TE (TRefine to pred) (Op o es'))
-         _ -> __impossible "op types don't match" -- fix me /blaisep
-#else
-  = do es' <- mapM infer es
-       let Just t = opType o (map exprType es')
-       return (TE t (Op o es'))
-#endif
-infer (E (ILit i t))
-#ifdef REFINEMENT_TYPES
-  = do vn <- freshVarName
-       let pred = LOp Eq [LVariable (Zero, vn), LILit i t]
-       return (TE (TRefine (TPrim t) pred) (ILit i t))
-#else
-  = return (TE (TPrim t) (ILit i t))
-#endif
-infer (E (SLit s))
-#ifdef REFINEMENT_TYPES
-  = do vn <- freshVarName
-       let pred = LOp Eq [LVariable (Zero, vn), LSLit s]
-       return (TE (TRefine TString pred) (SLit s))
-#else
-  = return (TE TString (SLit s))
-#endif
-#ifdef REFINEMENT_TYPES
-infer (E (ALit [])) = __impossible "We don't allow 0-size array literals"
-infer (E (ALit es))
-   = do es' <- mapM infer es
-        let ts = map exprType es'
-            n = LILit (fromIntegral $ length es) U32
-        t <- lubAll ts
-        isSub <- allM (`isSubtype` t) ts
-        return (TE (TArray t n Unboxed Nothing) (ALit es'))
-  where
-    lubAll :: [Type t VarName] -> TC t v VarName (Type t VarName)
-    lubAll [] = __impossible "lubAll: empty list"
-    lubAll [t] = return t
-    lubAll (t1:t2:ts) = do Just t <- runMaybeT $ lub t1 t2
-                           lubAll (t:ts)
-infer (E (ArrayIndex arr idx))
-   = do arr'@(TE ta _) <- infer arr
-        let TArray te l _ _ = ta
-        idx' <- infer idx
-        vn <- freshVarName
-        let idxt = exprType idx'
-            LILit len t = l -- could be any lexpr, not just LILit
-            bt@(TPrim pt) = toBaseType idxt
-            pred = LOp Lt [LVariable (Zero, vn), LILit len t]
-        inBound <- idxt `isSubtype` (TRefine bt pred) 
-        -- guardShow ("arr-idx out of bound") $ idx >= 0 && idx < l  -- no way to check it. need ref types. / zilinc
-        guardShow ("arr-idx on non-linear") . canShare =<< kindcheck ta
-        return (TE te (ArrayIndex arr' idx'))
-infer (E (ArrayMap2 (as,f) (e1,e2)))
-   = do e1'@(TE t1 _) <- infer e1
-        e2'@(TE t2 _) <- infer e2
-        let TArray te1 l1 _ _ = t1
-            TArray te2 l2 _ _ = t2
-        f' <- withBindings (Cons te2 (Cons te1 Nil)) $ infer f
-        let t = case __cogent_ftuples_as_sugar of
-                  False -> TProduct t1 t2
-                  True  -> TRecord NonRec (zipWith (\f t -> (f,(t,False))) tupleFieldNames [t1,t2]) Unboxed
-        return $ TE t $ ArrayMap2 (as,f') (e1',e2')
-infer (E (Pop a e1 e2))
-   = do e1'@(TE t1 _) <- infer e1
-        let TArray te l s tkns = t1
-            thd = te
-            ttl = TArray te (LOp Minus [l, LILit 1 U32]) s tkns
-        -- guardShow "arr-pop on a singleton array" $ l > 1
-        e2'@(TE t2 _) <- withBindings (Cons thd (Cons ttl Nil)) $ infer e2
-        return (TE t2 (Pop a e1' e2'))
-infer (E (Singleton e))
-   = do e'@(TE t _) <- infer e
-        let TArray te l _ _ = t
-        -- guardShow "singleton on a non-singleton array" $ l == 1
-        return (TE te (Singleton e'))
-infer (E (ArrayTake as arr i e))
-   = do arr'@(TE tarr _) <- infer arr
-        i' <- infer i
-        let TArray telt len s Nothing = tarr
-            tarr' = TArray telt len s (Just $ texprToLExpr id i')
-        e'@(TE te _) <- withBindings (Cons telt (Cons tarr' Nil)) $ infer e
-        return (TE te $ ArrayTake as arr' i' e')
-infer (E (ArrayPut arr i e))
-   = do arr'@(TE tarr _) <- infer arr
-        i' <- infer i
-        e'@(TE te _)   <- infer e
-        -- FIXME: all the checks are disabled here, for the lack of a proper
-        -- refinement type system. Also, we cannot know the exact index that
-        -- is being put, thus there's no way that we can infer the precise type
-        -- for the new array (tarr').
-        let TArray telm len s tkns = tarr
-        -- XXX | mi <- evalExpr i'
-        -- XXX | guardShow "@put index not a integral constant" $ isJust mi
-        -- XXX | let Just i'' = mi
-        -- XXX | guardShow "@put index is out of range" $ i'' `IM.member` tkns
-        -- XXX | let Just itkn = IM.lookup i'' tkns
-        -- XXX | k <- kindcheck telm
-        -- XXX | unless itkn $ guardShow "@put a non-Discardable untaken element" $ canDiscard k
-        let tarr' = TArray telm len s Nothing
-        return (TE tarr' (ArrayPut arr' i' e'))
-#endif
-infer (E (Variable v))
-   = do Just t <- useVariable (fst v)
-        xxx <- get
-#ifdef REFINEMENT_TYPES
-        case inEqTypeClass t of
-          True -> do
-            vn <- freshVarName
-            let pred = LOp Eq [ LVariable (Zero, vn)
-                              , insertIdxAtLE Zero $ LVariable (finNat $ fst v, snd v) 
-                              ]
-            case t of
-              TRefine base _ -> return $ TE (TRefine base pred) (Variable v)
-              _ -> return $ TE (TRefine t pred) (Variable v)
-          False -> return $ trace ("!!!!! Under the context " ++ show (pretty xxx) ++ "\n... the type of variable " ++ show v ++ " is " ++ show (pretty t)) $ TE t (Variable v)
-#else
-        return $ TE t (Variable v)
-#endif
-infer (E (Fun f ts ls note))
-   | ExI (Flip ts') <- Vec.fromList ts
-   , ExI (Flip ls') <- Vec.fromList ls
-   = do funType f >>= \case
-          Just (FT ks lts ti to) ->
-            case (Vec.length ts' =? Vec.length ks, Vec.length ls' =? Vec.length lts)
-              of (Just Refl, Just Refl) -> let ti' = substitute ts' $ substituteL ls ti
-                                               to' = substitute ts' $ substituteL ls to
-                                            in do forM_ (Vec.zip ts' ks) $ \(t, k) -> do
-                                                    k' <- kindcheck t
-                                                    when ((k <> k') /= k) $ __impossible "kind not matched in type instantiation"
-                                                  return $ TE (TFun ti' to') (Fun f ts ls note)
-                 _ -> __impossible "lengths don't match"
-          _        -> error $ "Something went wrong in lookup of function type: '" ++ unCoreFunName f ++ "'"
-infer (E (App e1 e2))
-   = do e1'@(TE (TFun ti to) _) <- infer e1
-        e2'@(TE ti' _) <- infer e2
-        isSub <- ti' `isSubtype` ti
-        guardShow ("app (actual: " ++ show ti' ++ "; formal: " ++ show ti ++ ")") $ isSub
-        if ti' /= ti then return $ TE to (App e1' (promote ti e2'))
-                     else return $ TE to (App e1' e2')
-infer (E (Let a e1 e2))
-   = do e1' <- infer e1
-        traceM ("------> push a = " ++ show a ++ " of type " ++ show (pretty $ exprType e1'))
-        e2' <- withBinding (exprType e1') (infer e2)
-        return $ TE (insertIdxAtT Zero $ exprType e2') (Let a e1' e2')
-infer (E (LetBang vs a e1 e2))
-   = do e1' <- withBang (map fst vs) (infer e1)
-        k <- kindcheck (exprType e1')
-        guardShow "let!" $ canEscape k
-        e2' <- withBinding (exprType e1') (infer e2)
-        return $ TE (insertIdxAtT Zero $ exprType e2') (LetBang vs a e1' e2')
-infer (E Unit) = return $ TE TUnit Unit
-infer (E (Tuple e1 e2))
-   = do e1' <- infer e1
-        e2' <- infer e2
-        return $ TE (TProduct (exprType e1') (exprType e2')) (Tuple e1' e2')
-infer (E (Con tag e tfull))
-   = do e' <- infer e
-        -- Find type of payload for given tag
-        let TSum ts          = tfull
-            Just (t, False) = lookup tag ts
-        -- Make sure to promote the payload to type t if necessary
-        e'' <- typecheck e' t
-        return $ TE tfull (Con tag e'' tfull)
-infer (E (If ec et ee))
-   = do ec' <- infer ec
-#ifdef REFINEMENT_TYPES
-        guardShow "if-1" $ toBaseType (exprType ec') == TPrim Boolean
-        let lec = texprToLExpr id ec'
-        -- guardShow (show lec) False
-        (et',ee') <- (,) <$>  withPredicate lec (infer et)
-                         <||> withPredicate (LOp Not [lec]) (infer ee)
-        -- \ ^^^ have to use <||>, as they share the same initial env
-#else
-        guardShow "if-1" $ exprType ec' == TPrim Boolean
-        (et',ee') <- (,) <$>  infer et
-                         <||> infer ee
-#endif
-        let tt = exprType et'
-            te = exprType ee'
-        Just tlub <- runMaybeT $ tt `lub` te
-#ifdef REFINEMENT_TYPES
-        (isSubThen, isSubElse) <- (,) <$>  withPredicate lec             (tt `isSubtype` tlub)
-                                      <||> withPredicate (LOp Not [lec]) (te `isSubtype` tlub)
-#else
-        (isSubThen, isSubElse) <- (,) <$> tt `isSubtype` tlub <*> te `isSubtype` tlub
-#endif
-        guardShow' "if-2" ["Then type:", show (pretty tt) ++ ";",
-                           "else type:", show (pretty te) ++ ";",
-                           "calculated LUB type:", show (pretty tlub)] (isSubThen && isSubElse)
-        let et'' = if tt /= tlub then promote tlub et' else et'
-            ee'' = if te /= tlub then promote tlub ee' else ee'
-        return $ TE tlub (If ec' et'' ee'')
-infer (E (Case e tag (lt,at,et) (le,ae,ee)))
-   = do e' <- infer e
-        let TSum ts = exprType e'
-            Just (t, taken) = lookup tag ts
-            restt = TSum $ adjust tag (second $ const True) ts  -- set the tag to taken
-            e'' = case taken of
-                    True  -> promote (TSum $ OM.toList $ OM.adjust (\(t,True) -> (t,False)) tag $ OM.fromList ts) e'
-                    False -> e'
-        traceM ("------> push at = " ++ show at ++ " of type " ++ show (pretty $ t))
-        traceM ("------> push ae = " ++ show ae ++ " of type " ++ show (pretty $ restt))
-        (et',ee') <- (,) <$>  withBinding t     (infer et)
-                         <||> withBinding restt (infer ee)
-        let tt = exprType et'
-            te = exprType ee'
-        Just tlub <- runMaybeT $ tt `lub` te
-        isSub <- (&&) <$> tt `isSubtype` tlub <*> te `isSubtype` tlub
-        guardShow' "case" ["Match type:", show (pretty tt) ++ ";", "rest type:", show (pretty te)] isSub
-        let et'' = if tt /= tlub then promote tlub et' else et'
-            ee'' = if te /= tlub then promote tlub ee' else ee'
-        return $ TE tlub (Case e'' tag (lt,at,et'') (le,ae,ee''))
-infer (E (Esac e))
-   = do e'@(TE (TSum ts) _) <- infer e
-        let t1 = filter (not . snd . snd) ts
-        case t1 of
-          [(_, (t, False))] -> return $ TE t (Esac e')
-          _ -> __impossible $ "infer: esac (t1 = " ++ show t1 ++ ", ts = " ++ show ts ++ ")"
-infer (E (Split a e1 e2))
-   = do e1' <- infer e1
-        let (TProduct t1 t2) = exprType e1'
-        e2' <- withBindings (Cons t1 (Cons t2 Nil)) (infer e2)
-        return $ TE (exprType e2') (Split a e1' e2')
-infer (E (Member e f))
-   = do e'@(TE t _) <- infer e  -- canShare
-        let TRecord _ fs _ = t
-        guardShow "member-1" . canShare =<< kindcheck t
-        guardShow "member-2" $ f < length fs
-        let (_,(tau,c)) = fs !! f
-        guardShow "member-3" $ not c  -- not taken
-        return $ TE tau (Member e' f)
-infer (E (Struct fs))
-   = do let (ns,es) = unzip fs
-        es' <- mapM infer es
-        let ts' = zipWith (\n e' -> (n, (exprType e', False))) ns es'
-        return $ TE (TRecord NonRec ts' Unboxed) $ Struct $ zip ns es'
-infer (E (Take a e f e2))
-   = do e'@(TE t _) <- infer e
-        -- trace ("@@@@t is " ++ show t) $ return ()
-        let TRecord rp ts s = t
-        -- a common cause of this error is taking a field when you could have used member
-        guardShow ("take: sigil cannot be readonly: " ++ show (pretty e)) $ not (readonly s)
-        guardShow "take-1" $ f < length ts
-        let (init, (fn,(tau,False)):rest) = splitAt f ts
-        k <- kindcheck tau
-        let trec = TRecord rp (init ++ (fn,(tau,True)):rest) s
-        traceM ("------> push a = " ++ show a ++ " of type " ++ show (pretty $ (tau, trec)))
-        e2' <- withBindings (Cons tau (Cons trec Nil)) (infer e2)  -- take that field regardless of its shareability
-        return $ TE (exprType e2') (Take a e' f e2')
-infer (E (Put e1 f e2))
-   = do e1'@(TE t1 _) <- infer e1
-        let TRecord rp ts s = t1
-        guardShow "put: sigil not readonly" $ not (readonly s)
-        guardShow "put-1" $ f < length ts
-        let (init, (fn,(tau,taken)):rest) = splitAt f ts
-        k <- kindcheck tau
-        unless taken $ guardShow "put-2" $ canDiscard k  -- if it's not taken, then it has to be discardable; if taken, then just put
-        e2'@(TE t2 _) <- infer e2
-        isSub <- t2 `isSubtype` tau
-        guardShow "put-3" isSub
-        let e2'' = if t2 /= tau then promote tau e2' else e2'
-        return $ TE (TRecord rp (init ++ (fn,(tau,False)):rest) s) (Put e1' f e2'')  -- put it regardless
-infer (E (Cast τ e))
-   = do (TE t e') <- infer e
-        guardShow ("cast: " ++ show t ++ " <<< " ++ show τ) =<< t `isUpcastable` τ
-        return $ TE τ (Cast τ $ TE t e')
-infer (E (Promote τ e))
-#ifdef REFINEMENT_TYPES
-   = TE τ <$> (Promote τ <$> check e τ)  -- keeps the Promote nodes
-#else
-   = do (TE t e') <- infer e
-        guardShow ("promote: " ++ show t ++ " << " ++ show τ) =<< t `isSubtype` τ
-        return $ if t /= τ then promote τ $ TE t e'
-                           else TE t e'  -- see NOTE [How to handle type annotations?] in Desugar
-#endif
+check' (TE t (Split a e1 e2)) = do
+  e1' <- infer e1
+  let TProduct t1 t2 = exprType e1'
+  e2' <- withBindings (Cons t1 (Cons t2 Nil)) (check e2 t)
+  return $ TE t (Split a e1' e2')
+
+check' (TE t (Member e f)) = do
+  e'@(TE trec _) <- infer e  -- canShare
+  let TRecord _ fs _ = trec
+  guardShow "member-1" . canShare =<< kindcheck trec
+  guardShow "member-2" $ f < length fs
+  let (_,(t',c)) = fs !! f
+  guardShow "member-3" $ not c  -- not taken
+  checkSub "check'(member)" t' t
+  return $ TE t (Member e' f)
+
+check' (TE t (Take a e f e2)) = do
+  e'@(TE trec _) <- infer e
+  let TRecord rp ts s = trec
+  -- a common cause of this error is taking a field when you could have used member
+  guardShow ("take: sigil cannot be readonly: " ++ show (pretty e)) $ not (readonly s)
+  guardShow "take-1" $ f < length ts
+  let (init, (fn,(t',False)):rest) = splitAt f ts
+  k <- kindcheck t'
+  let trec' = TRecord rp (init ++ (fn,(t',True)):rest) s
+  e2' <- withBindings (Cons t' (Cons trec' Nil)) (check e2 t)  -- take that field regardless of its shareability
+  return $ TE t (Take a e' f e2')
+
+check' (TE t (Put e1 f e2)) = do
+  e1'@(TE t1 _) <- infer e1
+  let TRecord rp ts s = t1
+  guardShow "put: sigil not readonly" $ not (readonly s)
+  guardShow "put-1" $ f < length ts
+  let (init, (fn,(t',taken)):rest) = splitAt f ts
+  k <- kindcheck t'
+  unless taken $ guardShow "put-2" $ canDiscard k  -- if it's not taken, then it has to be discardable; if taken, then just put
+  e2' <- check e2 t'
+  checkSub "check'(put)" (TRecord rp (init ++ (fn,(t',False)):rest) s) t
+  return $ TE t (Put e1' f e2')  -- put it regardless
+
+check' (TE t (Cast τ e)) = do
+  e'@(TE t' _) <- infer e
+  guardShow ("cast: " ++ show t' ++ " <<< " ++ show τ) =<< t' `isUpcastable` τ
+  checkSub "check'(cast)" τ t
+  return $ TE t (Cast τ e')
+
+check' (TE t (Promote τ e)) = do
+  e' <- check e τ
+  checkSub "check'(promote)" τ t
+  return $ TE t (Promote τ e)
+
+
+infer :: TypedExpr t v VarName VarName -> TC t v VarName (TypedExpr t v VarName VarName)
+infer e = check' e
+
+
 
 -- | Promote an expression to a given type, pushing down the promote as far as possible.
 -- This structure is useful when destructing runs of case expressions, for example in Cogent.Isabelle.Compound.

@@ -687,7 +687,7 @@ parseArgs args = case getOpt' Permute options args of
       -- !!!
           typedefs' = fmap (\(a,b,c) -> (a,b, fmap (second $ untypeE) c)) typedefs
       when __cogent_ddump_pretty_ds_no_tc $ pretty stdout desugared
-      IN.tc (map untypeD desugared) >>= \case
+      INv2.tc desugared >>= \case
         Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
         Right (desugared',fts) -> do
           when (Ast stg `elem` cmds) $ genAst stg desugared'
