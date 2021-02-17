@@ -23,7 +23,7 @@ import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Maybe (fromJust)
 
-import Control.Monad (guard, foldM)
+import Control.Monad (guard, when, foldM)
 import Control.Monad.Trans.Except
 
 import Cogent.Common.Syntax (FieldName, TagName, DataLayoutName, Size, DLVarName)
@@ -130,10 +130,15 @@ tcDataLayoutExpr env vs (DLVariant tagExpr alternatives) =
     Just tagBits | isZeroSizedBR tagBits -> throwE [ZeroSizedBitRange (InTag PathEnd)]
                  | otherwise ->
       do
+        when (2 ^ (bitSizeBR tagBits - 1) > maximum_ (fmap (\(_,_,x,_) -> x) alternatives)) $
+          throwE [TagSizeTooLarge (InTag PathEnd)]
         altsAlloc <- fst <$> foldM (tcAlternative tagBits) (emptyAllocation, M.empty) alternatives
         except $ first (fmap OverlappingBlocks) $ singletonAllocation (tagBits, InTag PathEnd) /\ altsAlloc
     Nothing      -> throwE [TagNotSingleBlock (InTag PathEnd)]
   where
+    maximum_ [] = __fixme 1  -- FIXME: currently allowing 1-bit tag for empty variant
+    maximum_ li = maximum li
+
     tcAlternative
       :: BitRange -- Of the variant's tag
       -> (Allocation, Map Size TagName)  -- The accumulated (allocation, set of used tag values) from already evaluated alternatives
@@ -255,6 +260,7 @@ data DataLayoutTcErrorP p
   | BadDataLayout           DataLayoutName p
   -- ^ Have referenced a data layout which isn't correct
 
+  | TagSizeTooLarge         p
   | TagNotSingleBlock       p
 
   | SameTagValues           p TagName TagName Size
