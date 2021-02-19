@@ -69,14 +69,17 @@ type ParserM a = Parsec String () a
 --
 -- FIXME: Don't duplicate the names here and elsewhere. Define as one constant in one place.
 --
+
 reservedWords :: [String]
 reservedWords = [
-  "and", "apply", "apply_end", "assumes", "begin", "by", "chapter", "class", "consts",
+  "abbreviation", "and", "apply", "apply_end", "assumes", "begin", "by", "chapter", "class", "consts",
   "datatype", "definition", "defs", "domintros", "done", "end", "fixes", "for", "fun",
   "function", "imports", "instance", "instantiation", "is", "keywords", "lemma", "lemmas",
   "no_translations", "open", "overloaded", "primrec", "record ", "section", "sequential", "sorry",
   "subsection", "subsubsection", "termination", "text", "theorems", "theory", "translations",
-  "type_synonym", "typedecl", "unchecked", "uses", "where" ]
+  "type_synonym", "typedecl", "unchecked", "uses", "where", "declare"]
+
+reservedWordsInner = ["case", "of", "if", "then", "else", "do", "od", "let", "in", "o"]
 
 ---------------------------------------------------------------
 -- Utility functions and combinators
@@ -122,6 +125,12 @@ parensL p = do { stringL "("; r <- p; stringL ")"; return r }
 
 quotedL :: ParserM a -> ParserM a
 quotedL p = do { stringL "\""; r <- p; stringL "\""; return r }
+
+bracketL :: ParserM a -> ParserM a 
+bracketL p = do { stringL "["; r <- p; stringL "]"; return r }
+
+bracesL :: ParserM a -> ParserM a 
+bracesL p = do { stringL "{"; r <- p; stringL "}"; return r }
 
 --------------------------------------------------------------------------------
 -- Primitive parsers
@@ -179,8 +188,22 @@ reserved = lexeme . reservedS
 identS :: ParserM String
 identS = letterS <++> manyP quasiletterS
 
+identSL :: ParserM String
+identSL = letterS <++> manyP quasiletterSL
+
 identL :: ParserM String
-identL = lexeme identS
+identL = lexeme . try $
+  do { s <- identS 
+     ; if s `elem` reservedWordsInner
+       then unexpected ("'" ++ s ++ "' is a reserved word")
+       else return s }
+
+identLL :: ParserM String
+identLL = lexeme . try $
+  do { s <- identSL 
+     ; if s `elem` reservedWordsInner
+       then unexpected ("'" ++ s ++ "' is a reserved word")
+       else return s }
 
 antiquoteS :: ParserM String 
 antiquoteS = char '$' >> lookAhead anyChar >>= \case
@@ -220,9 +243,14 @@ greekS = oneStringOf ["\\<alpha>",  "\\<beta>", "\\<gamma>", "\\<delta>",
                            "\\<Lambda>", "\\<Xi>", "\\<Pi>", "\\<Sigma>",
                            "\\<Upsilon>", "\\<Phi>", "\\<Psi>", "\\<Omega>" ]
 
+symbolS :: ParserM String 
+symbolS = oneStringOf ["\\<^sub>"]
 
 quasiletterS :: ParserM String
-quasiletterS = ((letterS <||> digitS <||> charString '_') <||> charString '\'') <?> "quasi-letter"
+quasiletterS = ((letterS <||> digitS <||> charString '_' <||> symbolS) <||> charString '\'') <?> "quasi-letter"
+
+quasiletterSL :: ParserM String
+quasiletterSL = ((letterS <||> digitS <||> charString '_' <||> symbolS) <||> charString '\'' <||> charString '.') <?> "quasi-letterL"
 
 digitS :: ParserM String
 digitS =  s $ oneOf "0123456789"
@@ -314,8 +342,37 @@ theoryDeclL = (Definition <$> definitionL) <||>
               (TypeDeclDecl <$> typeDeclL) <||>
               (ConstsDecl <$> constsL) <||>
               (RecordDecl <$> recordL) <||>
-              (DataTypeDecl <$> datatypeL)
+              (DataTypeDecl <$> datatypeL) <||>
+              (PrimRec <$> primRecL) <||>
+              (Declare <$> declareL)
 
+declareL :: ParserM (L Dcl)
+declareL = do 
+  reserved "declare"
+  name <- nameL 
+  rules <- bracketL $ sepBy1 nameL (stringL ",")
+  return $ Dcl name rules 
+
+primRecL :: ParserM (L Prc)
+primRecL = do 
+  reserved "primrec"
+  res <- alt1 <||> alt2
+  return res
+
+  where
+    alt1 = do
+      t <- sepBy1 (try $ quotedL eqTermL) (stringL "|")
+      return (Prc Nothing t)
+    alt2 = do
+      sig <- sigL
+      reserved "where"
+      alts <- sepBy1 (try $ quotedL eqTermL) (stringL "|")
+      return $ Prc (Just sig) alts
+
+eqTermL :: ParserM (Term, Term)
+eqTermL = do
+  TermBinOp Eq term1 term2 <- termL
+  return (term1, term2)
 
 definitionL :: ParserM (L Def)
 definitionL = do
@@ -342,9 +399,19 @@ sigL = do
 
 abbreviationL :: ParserM (L Abbrev)
 abbreviationL = do
-  mbSig <- mb sigL
-  t     <- quotedTermL
-  return (Abbrev mbSig t)
+  reserved "abbreviation"
+  res <- alt1 <||> alt2
+  return res
+
+  where
+    alt1 = do
+      t <- quotedTermL
+      return (Abbrev Nothing t) 
+    alt2 = do
+      sig <- sigL
+      reserved "where"
+      t     <- quotedTermL
+      return $ Abbrev (Just sig) t
 
 lemmaL :: ParserM (L Lemma)
 lemmaL = do 
@@ -396,8 +463,15 @@ recFieldL :: ParserM (L RecField)
 recFieldL = do
   name  <- nameL
   stringL "::"
-  typ <- quotedL typeL
+  typ <- alt1 <||> alt2 
   return $ RecField name typ
+    where 
+      alt1 = do 
+        res <- quotedL typeL
+        return res 
+      alt2 = do 
+        res <- (TyDatatype <$> identL <*> pure [])
+        return res
 
 recordL :: ParserM (L Record)
 recordL = do
@@ -420,7 +494,7 @@ datatypeL = do
   tyvars <- tyParamsL
   name  <- nameL
   stringL "="
-  cons <- many1 dtConsL
+  cons <- sepBy1 dtConsL (stringL "|")   
   return $ Datatype name cons tyvars
 
 thmDeclL :: ParserM TheoremDecl
@@ -503,6 +577,7 @@ methodWithArgsL = do
           return $ n ++ mbColon
         argL = lexeme argS
 
+
 quotedTermL :: ParserM Term
 quotedTermL = quotedL termL
 
@@ -560,21 +635,25 @@ antiquoteTermL =  AntiTerm <$> antiquoteL
 -- unary operators.  The quantifier plus the identifiers that follow
 -- it are considered as a unary operator. (.e.g. "\<exists>x y z." is
 -- considered to be a unary operator which is applied to a term.)
--- 
+--
 termL :: ParserM Term
 termL = buildExpressionParser table restL
   where
     table =  sortExprParserTable $
-              appParser:typedTermParser:(mkBinOpTable termBinOpRec TermBinOp binOps ++ 
-                                         map quantifierParser quantifiers ++
-                                         map unOpParser termUnOps)
+               compParser      :
+               appParser       :
+               typedTermParser :
+               (  mkBinOpTable termBinOpRec TermBinOp binOps
+               ++ map quantifierParser quantifiers
+               ++ map unOpParser termUnOps
+                )
 
     -- Think of application as an infix operator which is the empty string!
     appParser  = (termAppPrec, Infix (do { return TermApp }) AssocLeft)
-    typedTermParser = (typeAnnotationPrec, Postfix (do { stringL "::"; ty <- typeL
+    typedTermParser = (typeAnnotationPrec, Postfix (try$ do { stringL "::"; ty <- typeL
                                                        ; return (\t -> TermWithType t ty) }))
     quantifierParser q = (quantifierPrec q, Prefix (do { try (stringL (quantifierSym q))
-                                                       ; is <- many1 innerIdentL
+                                                       ; is <- many1 (try listTermL <||> (TermIdent <$> innerIdentL))
                                                        -- note that string "." must be followed by at least one space
                                                        ; string "." 
                                                        ; many1 (satisfy isSpace)
@@ -583,11 +662,195 @@ termL = buildExpressionParser table restL
                                            ; return (TermUnOp u) }))
 
 
-    restL =  antiquoteTermL <||> parensTermL <||> constTermL <||> (TermIdent <$> innerIdentL)
+    restL =  antiquoteTermL <||> parensTermL <||> constTermL <||> doBlockTermL <||> 
+             caseOfTermL <||> recordUpdTermL <||> recordDclTermL <||> ifThenElseTermL <||> 
+             listTermL <||> setTermL <||> (TermIdent <$> innerIdentLL) 
+             <||> letInTermL
     parensTermL = parensL termL
+    compParser :: (Precedence, OperatorM Term)
+    compParser = ( termBinOpPrec Comp
+                 , Infix ((try (char 'o' >>
+                               notFollowedBy quasiletterS >>
+                               many (satisfy isSpace))) >>
+                          return (TermBinOp Comp))
+                         (termBinOpAssoc Comp)
+                 )
+
+letInTermL :: ParserM Term 
+letInTermL = do 
+  reserved "let"
+  eles <- sepBy1 letTermL (stringL ";")
+  reserved "in"
+  i <- termL
+  return $ LetIn eles i 
+
+letTermL :: ParserM (Term, Term) 
+letTermL = do 
+  term1 <- try listTermL <||> (TermIdent <$> innerIdentLL) 
+  stringL "="
+  term2 <- termL
+  return (term1, term2) 
+
+setTermL :: ParserM Term
+setTermL = do 
+  stringL "{"
+  st <- (try st1) <||> (try st2) <||> (try st3) <||> (try st4) 
+  return $ Set st
+
+  where 
+    st1 = do 
+      stringL "}"
+      return $ Listing []
+    st2 = do 
+      eles <- sepBy1 termL (stringL ",") 
+      stringL "}"
+      return $ Listing eles 
+    st3 = do 
+      term1 <- try termL 
+      stringL ".."
+      term2 <- termL
+      stringL "}"
+      return $ Range term1 term2
+    st4 = do 
+      q <- try termL  
+      stringL "."
+      c <- termL
+      stringL "}" 
+      return $ Quant q c 
+
+
+-- FIXME: Does not check if return exists 
+doBlockTermL :: ParserM Term 
+doBlockTermL = do 
+  reserved "do"
+  dos <- sepBy1 (try dosTermL) (stringL ";") 
+  reserved "od"
+  return $ DoBlock dos
+
+dosTermL :: ParserM Term
+dosTermL = do 
+  res <- (try do1) <||> do2 
+  return res 
+  
+  where 
+    do1 = do 
+      term1 <- try termL
+      stringL "\\<leftarrow>"
+      term2 <- try termL
+      return $ DoItem term1 term2
+    do2 = do 
+      term <- termL 
+      return term
+
+listTermL :: ParserM Term 
+listTermL = do  
+  lstt <- list <||> tuple <||> pair
+  return lstt
+  where 
+    list = do 
+      stringL "["
+      res <- alt1 <||> alt2 
+      return $ ListTerm "[" res "]"
+      where 
+        alt1 = do 
+          eles <- sepBy1 termL (stringL ",")
+          stringL "]"
+          return eles
+        alt2 = do 
+          stringL "]"
+          return []
+    
+    tuple = do 
+      stringL "("
+      res <- alt1 <||> alt2 
+      return $ ListTerm "(" res ")"
+      where 
+        alt1 = do 
+          eles <- sepBy1 termL (stringL ",")
+          stringL ")"
+          return eles
+        alt2 = do 
+          stringL ")"
+          return []
+    
+    pair = do 
+      stringL "("
+      stringL "["
+      e1 <- termL 
+      stringL ","
+      e2 <- termL 
+      stringL "]"
+      stringL ")"
+      return $ ListTerm "(" [e1, e2] ")"
+
+
+ifThenElseTermL :: ParserM Term
+ifThenElseTermL = do
+  reserved "if"
+  cond <- termL 
+  reserved "then"
+  case1 <- termL
+  reserved "else"
+  case2 <- termL
+  return $ IfThenElse cond case1 case2
+
+recordDclTermL :: ParserM Term 
+recordDclTermL = do  
+  stringL "\\<lparr>"
+  dcls <- sepBy1 (try dclTermL) (stringL ",")
+  stringL "\\<rparr>"
+  return $ RecordDcl dcls 
+
+dclTermL :: ParserM (Term, Term)
+dclTermL = do
+  term1 <- fieldL
+  stringL "="
+  term2 <- termL
+  return (TermIdent $ Id term1, term2) 
+
+recordUpdTermL :: ParserM Term 
+recordUpdTermL = do 
+  stringL "\\<lparr>"
+  upds <- sepBy1 (try updTermL) (stringL ",")
+  stringL "\\<rparr>"
+  return $ RecordUpd upds 
+
+updTermL :: ParserM (Term, Term)
+updTermL = do
+  term1 <- fieldL
+  stringL ":="
+  term2 <- termL
+  return (TermIdent $ Id term1, term2) 
+
+fieldL :: ParserM String 
+fieldL = notReservedLexeme fieldS 
+
+fieldS :: ParserM String 
+fieldS = letterS <++> manyP fieldLetters
+    where 
+      fieldLetters = ((letterS <||> digitS <||> charString '_') <||> charString '\'' <||> charString '.') <?> "quasi-letter"
+
+caseOfTermL :: ParserM Term
+caseOfTermL = do 
+  reserved "case"
+  term <- termL
+  reserved "of"
+  alts <- sepBy1 (try altTermL) (stringL "|") 
+  return $ CaseOf term alts 
+
+altTermL :: ParserM (Term, Term)
+altTermL = do 
+  term1 <- termL
+  stringL "\\<Rightarrow>"
+  term2 <- termL
+  return (term1, term2) 
 
 innerIdentL :: ParserM Ident
 innerIdentL = (Id <$> identL) <||> wildcardL <||> parensL typedIdentL
+
+
+innerIdentLL :: ParserM Ident
+innerIdentLL = (Id <$> identLL) <||> wildcardL <||> parensL typedIdentL
 
 wildcardL :: ParserM Ident
 wildcardL = do { char '_'; return Wildcard }
@@ -607,10 +870,12 @@ typedTermL = do
   return (TermWithType t ty)
   
 constTermL :: ParserM Term
-constTermL = ConstTerm <$> (trueL <||> falseL)  -- TODO: only support very limited forms of constants / zilinc
+constTermL = ConstTerm <$> (trueL <||> falseL <||> (IntLiteral <$> intL))  -- TODO: only support very limited forms of constants / zilinc
   where
     trueL  = stringL "True" >> return TrueC
     falseL = stringL "False" >> return FalseC
+    intL = read <$> natL
+
 
 antiquoteTypeL :: ParserM Type 
 antiquoteTypeL = AntiType <$> antiquoteL
@@ -644,7 +909,7 @@ multiParamDatatypeL = do
 tyVarL :: ParserM Type
 tyVarL = do
   char '\''
-  v <- identL -- FIXME: Could be wrong
+  v <- lexeme (letterS <++> manyP quasiletterS)
   return $ TyVar v
 
 stripTyVar = map (\t -> let (TyVar v) = t in v)

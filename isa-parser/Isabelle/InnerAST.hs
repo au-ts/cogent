@@ -20,6 +20,9 @@ import Text.Parsec.Expr (Assoc(..))
 import Text.PrettyPrint.ANSI.Leijen
 import Data.Char (ord)
 import Text.Printf (printf)
+#if __GLASGOW_HASKELL__ >= 709
+import Prelude hiding ((<$>))
+#endif
 
 -- friends
 import Isabelle.PrettyHelper
@@ -34,14 +37,26 @@ import Isabelle.PrettyHelper
 data Term = TermIdent      Ident
           | TermApp                   Term    Term
           | TermWithType              Term    Type  -- A :: bool
-          | QuantifiedTerm Quantifier [Ident] Term  -- \\<
+          | QuantifiedTerm Quantifier [Term]  Term  -- \\<
           | TermUnOp       TermUnOp   Term
           | TermBinOp      TermBinOp  Term    Term
           | AntiTerm       String
           | ConstTerm      Const
           | ListTerm       String     [Term]  String
           | CaseOf         Term       [(Term, Term)]
+          | RecordUpd                 [(Term, Term)]
+          | RecordDcl                 [(Term, Term)]
+          | IfThenElse     Term       Term    Term
+          | DoBlock                   [Term]
+          | DoItem                    Term    Term 
+          | Set            SetType    
+          | LetIn          [(Term, Term)]     Term
   deriving (Data, Typeable, Eq, Ord, Show)
+
+data SetType = Quant Term Term 
+             | Listing [Term]
+             | Range Term Term
+ deriving (Data, Typeable, Eq, Ord, Show)
 
 data Const = TrueC | FalseC
            | IntLiteral    Integer
@@ -68,11 +83,38 @@ data TermBinOp =
                | Conj
                | Disj
                | Implies
+               | DollarApp
+               | Bind
+               | Image
+               | Union 
+               | Ge 
+               | Alt
+               | Append
+               | Greater
+               | Minus
+               | Less
+               | In 
+               | Add
+               | Times
+               | BitAND 
+               | BitOR 
+               | BitXOR 
+               | Shiftl
+               | Shiftr    
+               | TestBit 
+               | Nth
+               | SubSetEq
+               | RestrictMp
+               | Comp
+               | MapsTo
+               | MapUpd
   deriving (Data, Typeable, Eq, Ord, Show)
 
 data TermUnOp =
-  -- Isabelle/HOL
-  Not deriving (Data, Typeable, Eq, Ord, Show)
+            -- Isabelle/HOL
+                Not
+              | Uminus
+  deriving (Data, Typeable, Eq, Ord, Show)
 
 type Id = String
 
@@ -132,7 +174,7 @@ mkTuple :: [Term] -> Term
 mkTuple xs = ListTerm "(" xs ")"
 
 lamTerm :: [Ident] -> Term -> Term
-lamTerm ids t = QuantifiedTerm Lambda ids t
+lamTerm ids t = QuantifiedTerm Lambda (map TermIdent ids) t
 
 mkLambda :: [Id] -> Term -> Term
 mkLambda vs t = lamTerm (map Id vs) t
@@ -151,18 +193,50 @@ subSymStr = foldl (\s v -> s ++ subSym ++ [v]) []
 --
 termBinOpRec :: TermBinOp -> BinOpRec
 termBinOpRec b = case b of
-  Equiv     -> BinOpRec AssocRight 2  "\\<equiv>"
-  MetaImp   -> BinOpRec AssocRight 1  "\\<Longrightarrow>"
-  Eq        -> BinOpRec AssocLeft  50 "="
-  NotEq     -> BinOpRec AssocLeft  50 "\\<noteq>"
-  Iff       -> BinOpRec AssocRight 24 "\\<Leftrightarrow>"
-  Conj      -> BinOpRec AssocRight 35 "\\<and>"
-  Disj      -> BinOpRec AssocRight 30 "\\<or>"
-  Implies   -> BinOpRec AssocRight 25 "\\<longrightarrow>"
+  Equiv     -> BinOpRec AssocRight 2   "\\<equiv>"
+  MetaImp   -> BinOpRec AssocRight 1   "\\<Longrightarrow>"
+  Eq        -> BinOpRec AssocLeft  50  "="
+  NotEq     -> BinOpRec AssocLeft  50  "\\<noteq>"
+  Iff       -> BinOpRec AssocRight 24  "\\<Leftrightarrow>"
+  Conj      -> BinOpRec AssocRight 35  "\\<and>"
+  Disj      -> BinOpRec AssocRight 30  "\\<or>"
+  Implies   -> BinOpRec AssocRight 25  "\\<longrightarrow>"
+  DollarApp -> BinOpRec AssocRight 10  "$"
+  Bind      -> BinOpRec AssocRight 60  ">>="
+  Image     -> BinOpRec AssocRight 90  "`"
+  Union     -> BinOpRec AssocLeft  65  "\\<union>"
+  Ge        -> BinOpRec AssocRight 50  "\\<ge>"
+  Alt       -> BinOpRec AssocRight 20  "\\<sqinter>"
+  Append    -> BinOpRec AssocLeft  65  "@"
+  Greater   -> BinOpRec AssocRight 50  ">"
+  Minus     -> BinOpRec AssocLeft  65  "-"
+  Less      -> BinOpRec AssocLeft  50  "<"
+  In        -> BinOpRec AssocRight 50  "\\<in>"
+  Add       -> BinOpRec AssocLeft  65  "+"
+  Times     -> BinOpRec AssocLeft  70  "*"
+  BitAND    -> BinOpRec AssocLeft  64  "AND"
+  BitOR     -> BinOpRec AssocLeft  59  "OR"
+  BitXOR    -> BinOpRec AssocLeft  59  "XOR"
+  Shiftl    -> BinOpRec AssocLeft  55  "<<"
+  Shiftr    -> BinOpRec AssocLeft  55  ">>"
+  TestBit   -> BinOpRec AssocLeft  100 "!!"
+  Nth       -> BinOpRec AssocLeft  100 "!"
+  SubSetEq  -> BinOpRec AssocRight 50  "\\<subseteq>"
+  RestrictMp-> BinOpRec AssocRight 110 "|`"
+  Comp      -> BinOpRec AssocRight 55  "o"
+  MapsTo    -> BinOpRec AssocRight 100 "\\<mapsto>"
+  MapUpd    -> BinOpRec AssocRight 100 ":="
+
 
 -- You must include all binary operators in this list. Miss one and it doesn't get parsed.
 -- Order does NOT matter. They are sorted by precedence.
-binOps = [Equiv, MetaImp, Eq, NotEq, Iff, Conj, Disj, Implies]
+binOps = [Equiv,   MetaImp, Eq,      NotEq,         Iff,
+          Conj,    Disj,    Implies, DollarApp,     Bind, 
+          Image,   Union,   Ge,      Alt,           Append, 
+          Greater, Minus,   Less,    In,            Add, 
+          Times,   BitAND,  BitOR,   BitXOR,        Shiftl,
+          Shiftr,  TestBit, Nth,     SubSetEq,      RestrictMp,
+          MapsTo,  MapUpd]
 
 termBinOpPrec :: TermBinOp -> Precedence
 termBinOpPrec b = if p >= termAppPrec
@@ -186,14 +260,15 @@ termBinOpAssoc = binOpRecAssoc . termBinOpRec
 --
 termUnOpRec :: TermUnOp -> UnOpRec
 termUnOpRec u = case u of
-  Not -> UnOpRec 40 "\\<not>"
+  Not    -> UnOpRec 40 "\\<not>"
+  Uminus -> UnOpRec 81 "-" 
 
 termUnOpPrec = unOpRecPrec . termUnOpRec
 termUnOpSym = unOpRecSym . termUnOpRec
 
 -- You must include all unary operators in this list. Miss one and it doesn't get parsed.
 -- Order does NOT matter. They are sorted by precedence.
-termUnOps = [Not]
+termUnOps = [Not, Uminus]
 
 
 data QuantifierRec = QuantifierRec { quantifierRecPrecedence :: Precedence, quantifierRecSymbol :: String }
@@ -252,10 +327,20 @@ prettyTerm p t = case t of
   ListTerm l ts r       -> pretty l <> hcat (intersperse (string ", ") (map (prettyTerm termAppPrec) ts)) <> pretty r
   ConstTerm const       -> pretty const
   AntiTerm str          -> pretty str  -- FIXME: zilinc
-  CaseOf e alts         -> parens (string "case" <+> pretty e <+> string "of" <+> sep (punctuate (text "|") (map prettyAlt alts)))
+  CaseOf e alts         -> parens (string "case" <+> pretty e <+> string "of" <$> sep (punctuate (text "|") (map (prettyAssis "\\<Rightarrow>") alts)))
+  RecordUpd upds        -> string "\\<lparr>" <+> sep (punctuate (text ",") (map (prettyAssis ":=") upds)) <+> string "\\<rparr>"
+  RecordDcl dcls        -> string "\\<lparr>" <+> sep (punctuate (text ",") (map (prettyAssis "=") dcls)) <+> string "\\<rparr>"
+  IfThenElse cond c1 c2 -> parens (string "if" <+> prettyTerm p cond <+> string "then" <+> prettyTerm p c1 <+> string "else" <+> prettyTerm p c2)
+  DoBlock dos           -> string "do" <$> sep (punctuate (text ";") (map pretty dos)) <$> string "od"
+  DoItem  a b           -> pretty a <+> string "\\<leftarrow>" <+> pretty b 
+  Set st                -> string "{" <> (case st of 
+                              Quant q c -> pretty q <> string "." <+> pretty c
+                              Range a b -> pretty a <> string ".." <> pretty b 
+                              Listing lst -> sep (punctuate (text ",") (map pretty lst))) <> string "}"
+  LetIn lt i            -> string "let" <+> sep (punctuate (text ";") (map (prettyAssis "=") lt)) <+> string "in" <+> pretty i
 
-prettyAlt :: (Term, Term) -> Doc
-prettyAlt (p, e) = pretty p <+> pretty "\\<Rightarrow>" <+> pretty e
+prettyAssis :: String -> (Term, Term) -> Doc 
+prettyAssis s (p, e) = pretty p <+> pretty s <+> pretty e
 
 prettyBinOpTerm :: Precedence -> TermBinOp -> Term -> Term -> Doc
 prettyBinOpTerm p b = prettyBinOp p prettyTerm (termBinOpRec b) prettyTerm
@@ -279,9 +364,9 @@ prettyMetaImp p t t' = case t' of
       (hsep . punctuate semi . map (prettyTerm (p'+1)) . reverse $ ts) <>
       string "\\<rbrakk>" <+> string (termBinOpSym MetaImp) <+> prettyTerm p' t
 
-prettyQuantifier :: Precedence -> Quantifier -> [Ident] -> Term -> Doc
+prettyQuantifier :: Precedence -> Quantifier -> [Term] -> Term -> Doc
 prettyQuantifier p q is t = prettyParen (p > quantifierPrec q) $ string (quantifierSym q) <>
-                              (hsep . map pretty $ is) <> char '.' <+> pretty t
+                              (hsep . map (prettyTerm 0) $ is) <> char '.' <+> pretty t
 
 instance Pretty Ident where
   pretty ident = case ident of
