@@ -2,6 +2,7 @@
   files:
     - pass_let-if.cogent
     - pass_simple-let.cogent
+    - pass_let-let.cogent
   expected_result: pass
   flags:
     - -g
@@ -20,11 +21,4 @@
   expected_result: fail
   flags:
     - -t
-
-- test_name: wip-let
-  files:
-    - wip_let-let.cogent
-  expected_result: wip
-  flags:
-    - -g
 

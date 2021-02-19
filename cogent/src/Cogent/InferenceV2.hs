@@ -664,9 +664,10 @@ check' (TE t (Pop a e1 e2)) = do
 
 check' (TE t (Singleton e)) = do
   e'@(TE tarr _) <- infer e
-  let TArray te l _ _ = t
+  let TArray te l _ _ = tarr
+  checkSub "check'(singleton)" te t
   -- guardShow "singleton on a non-singleton array" $ l == 1
-  return $ TE te (Singleton e')
+  return $ TE t (Singleton e')
 
 check' (TE t (ArrayTake as arr i e)) = do
   arr'@(TE tarr _) <- infer arr

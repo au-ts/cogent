@@ -8,6 +8,6 @@ type Buffer = {
 
 foo : (Buffer, U32, U32) -> Buffer
 foo (buf {data}, frm, len) =
-  let frm = frm
-  and len = (if frm < buf.bound then len else buf.bound - frm) !buf
+  let len = (if frm < buf.bound then len else buf.bound - frm) !buf
   in buf {data}
+

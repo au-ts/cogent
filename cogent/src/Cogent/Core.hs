@@ -884,7 +884,7 @@ instance (Pretty b) => Pretty (LExpr t b) where
   pretty (LEsac e) = keyword "esac" <+> parens (pretty e)
   pretty (LSplit (v1,v2) e1 e2) = align (keyword "split" <+> parens (pretty v1 <> comma <> pretty v2) <+> symbol "=" <+> pretty e1 L.<$>
                                   keyword "in" <+> pretty e2)
-  pretty (LMember x f) = prettyPrec 1 x L.<> symbol "." L.<> fieldIndex f
+  pretty (LMember x f) = prettyPrec 1 x L.<> fieldIndex f
   pretty (LTake (a,b) rec f e) = align (keyword "take" <+> tupled [pretty a, pretty b] <+> symbol "="
                                                       <+> prettyPrec 1 rec <+> record (fieldIndex f:[]) L.<$>
                                        keyword "in" <+> pretty e)

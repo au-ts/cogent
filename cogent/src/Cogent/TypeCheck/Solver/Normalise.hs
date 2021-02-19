@@ -159,9 +159,10 @@ normL l = do
 
 -- | Normalise both types and layouts within a set of constraints
 normalise :: [Goal] -> TcSolvM [Goal]
-normalise = mapM $ \g -> do
-  c' <- bimapM whnf normL (g ^. goal)
-  pure $ set goal c' g
+normalise = mapM $ \(Goal ctx env g) -> do
+  env' <- (mapM (firstM $ whnf) ***^^ mapM (bimapM whnf normL)) env
+  g'   <- bimapM whnf normL g
+  pure $ Goal ctx env' g'
 
 normaliseSExpr :: TCSExpr -> Int
 normaliseSExpr (SE _ (IntLit n)) = fromIntegral n

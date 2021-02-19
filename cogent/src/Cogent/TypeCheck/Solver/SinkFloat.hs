@@ -55,14 +55,13 @@ import Debug.Trace
 sinkfloat :: Rewrite.RewriteT TcSolvM [Goal]
 sinkfloat = Rewrite.rewrite' $ \gs ->
   let mentions = getMentions gs in
-      ( do
-        let cs = map (strip . _goal) gs
-        a <- asum $ map (genStructSubst mentions) cs  -- a list of 'Maybe' substitutions.
-                                                       -- only return the first 'Just' substitution.
-        tell [a]
-        traceTc "solver" (text "Sink/Float writes subst:" P.<$>
-                          P.indent 2 (pretty a))
-        return $ map ((goalEnv %~ Subst.applyGoalEnv a) . (goal %~ Subst.applyC a)) gs
+      ( do let blob = map (\(Goal _ γ g) -> (γ, strip g)) gs
+           a <- asum $ map (uncurry $ genStructSubst mentions) blob  -- a list of 'Maybe' substitutions.
+                                                                     -- only return the first 'Just' substitution.
+           tell [a]
+           traceTc "solver" (text "Sink/Float writes subst:" P.<$>
+                             P.indent 2 (pretty a))
+           return $ map ((goalEnv %~ Subst.applyGoalEnv a) . (goal %~ Subst.applyC a)) gs
        )
       <|>
 #ifdef REFINEMENT_TYPES
@@ -107,21 +106,21 @@ sinkfloat = Rewrite.rewrite' $ \gs ->
     canFloat mentions v | Just m <- IM.lookup v mentions = m ^. _3 <= 1
                         | otherwise = False
 
-    genStructSubst :: (IM.IntMap (Int,Int,Int), IS.IntSet) -> Constraint -> MaybeT TcSolvM Subst.Subst
+    genStructSubst :: (IM.IntMap (Int,Int,Int), IS.IntSet) -> ConstraintEnv -> Constraint -> MaybeT TcSolvM Subst.Subst
     -- record rows
-    genStructSubst _ (R rp r s :< U i) = do
+    genStructSubst _ _ (R rp r s :< U i) = do
       s' <- case s of
         Left Unboxed -> return $ Left Unboxed -- unboxed is preserved by bang and TUnbox, so we may propagate it
         _            -> Right <$> lift solvFresh
       makeRowUnifSubsts (flip (R rp) s') (filter R.taken (R.entries r)) i
-    genStructSubst _ (U i :< R rp r s) = do
+    genStructSubst _ _ (U i :< R rp r s) = do
       s' <- case s of
         Left Unboxed -> return $ Left Unboxed -- unboxed is preserved by bang and TUnbox, so we may propagate it
         _            -> Right <$> lift solvFresh
       -- Subst. a record structure for the unifier with only present entries of
       -- the record r (respecting the lattice order for records).
       makeRowUnifSubsts (flip (R rp) s') (filter R.present (R.entries r)) i
-    genStructSubst (mentions,_) (R _ r1 s1 :< R _ r2 s2)
+    genStructSubst (mentions,_) _ (R _ r1 s1 :< R _ r2 s2)
       {- The most tricky case.
          For Records, present is the bottom of the order, taken is the top.
          If present things are in r2, then we can infer they must be in r1.
@@ -166,23 +165,23 @@ sinkfloat = Rewrite.rewrite' $ \gs ->
       | Left Unboxed <- s1 , Right i <- s2 = return $ Subst.ofSigil i Unboxed
       | Right i <- s1 , Left Unboxed <- s2 = return $ Subst.ofSigil i Unboxed
 
-    genStructSubst _ (R rp r s :~~ U i) = do
+    genStructSubst _ _ (R rp r s :~~ U i) = do
       s' <- case s of
               Left Unboxed -> return $ Left Unboxed
               _            -> Right <$> lift solvFresh
       makeRowUnifSubsts (flip (R rp) s') (filter R.taken (R.entries r)) i
-    genStructSubst _ (U i :~~ R rp r s) = do
+    genStructSubst _ _ (U i :~~ R rp r s) = do
       s' <- case s of
               Left Unboxed -> return $ Left Unboxed
               _            -> Right <$> lift solvFresh
       makeRowUnifSubsts (flip (R rp) s') (filter R.taken (R.entries r)) i
 
     -- variant rows
-    genStructSubst _ (V r :< U i) =
+    genStructSubst _ _ (V r :< U i) =
       makeRowUnifSubsts V (filter R.present (R.entries r)) i
-    genStructSubst _ (U i :< V r) =
+    genStructSubst _ _ (U i :< V r) =
       makeRowUnifSubsts V (filter R.taken (R.entries r)) i
-    genStructSubst (mentions,_) (V r1 :< V r2)
+    genStructSubst (mentions,_) _ (V r1 :< V r2)
       -- \ | trace ("#### r1 = " ++ show r1 ++ "\n#### r2 = " ++ show r2) False = undefined
       {- The most tricky case.
          For variants, taken is the bottom of the order.
@@ -225,40 +224,42 @@ sinkfloat = Rewrite.rewrite' $ \gs ->
       , Just rv <- R.var r1
       = makeRowShapeSubsts rv r2
 
-    genStructSubst _ (V r :~~ U i) = makeRowUnifSubsts V (filter R.present (R.entries r)) i
-    genStructSubst _ (U i :~~ V r) = makeRowUnifSubsts V (filter R.present (R.entries r)) i
+    genStructSubst _ _ (V r :~~ U i) = makeRowUnifSubsts V (filter R.present (R.entries r)) i
+    genStructSubst _ _ (U i :~~ V r) = makeRowUnifSubsts V (filter R.present (R.entries r)) i
 
     -- tuples
-    genStructSubst _ (T (TTuple ts) :< U i) = makeTupleUnifSubsts ts i
-    genStructSubst _ (U i :< T (TTuple ts)) = makeTupleUnifSubsts ts i
-    genStructSubst _ (T (TTuple ts) :=: U i) = makeTupleUnifSubsts ts i
-    genStructSubst _ (U i :=: T (TTuple ts)) = makeTupleUnifSubsts ts i
+    genStructSubst _ _ (T (TTuple ts) :< U i) = makeTupleUnifSubsts ts i
+    genStructSubst _ _ (U i :< T (TTuple ts)) = makeTupleUnifSubsts ts i
+    genStructSubst _ _ (T (TTuple ts) :=: U i) = makeTupleUnifSubsts ts i
+    genStructSubst _ _ (U i :=: T (TTuple ts)) = makeTupleUnifSubsts ts i
 
     -- tcon
-    genStructSubst _ (T (TCon n ts s) :< U i) = makeTConUnifSubsts n ts s i
-    genStructSubst _ (U i :< T (TCon n ts s)) = makeTConUnifSubsts n ts s i
-    genStructSubst _ (T (TCon n ts s) :=: U i) = makeTConUnifSubsts n ts s i
-    genStructSubst _ (U i :=: T (TCon n ts s)) = makeTConUnifSubsts n ts s i
+    genStructSubst _ _ (T (TCon n ts s) :< U i) = makeTConUnifSubsts n ts s i
+    genStructSubst _ _ (U i :< T (TCon n ts s)) = makeTConUnifSubsts n ts s i
+    genStructSubst _ _ (T (TCon n ts s) :=: U i) = makeTConUnifSubsts n ts s i
+    genStructSubst _ _ (U i :=: T (TCon n ts s)) = makeTConUnifSubsts n ts s i
 
     -- tfun
-    genStructSubst _ (T (TFun mv _ _) :< U i)  = makeFunUnifSubsts mv i
-    genStructSubst _ (U i :< T (TFun mv _ _))  = makeFunUnifSubsts mv i
-    genStructSubst _ (T (TFun mv _ _) :=: U i) = makeFunUnifSubsts mv i
-    genStructSubst _ (U i :=: T (TFun mv _ _)) = makeFunUnifSubsts mv i
+    genStructSubst _ _ (T (TFun mv _ _) :< U i)  = makeFunUnifSubsts mv i
+    genStructSubst _ _ (U i :< T (TFun mv _ _))  = makeFunUnifSubsts mv i
+    genStructSubst _ _ (T (TFun mv _ _) :=: U i) = makeFunUnifSubsts mv i
+    genStructSubst _ _ (U i :=: T (TFun mv _ _)) = makeFunUnifSubsts mv i
 
     -- tunit
-    genStructSubst _ (t@(T TUnit) :< U i) = return $ Subst.ofType i t
-    genStructSubst _ (U i :< t@(T TUnit)) = return $ Subst.ofType i t
-    genStructSubst _ (t@(T TUnit) :=: U i) = return $ Subst.ofType i t
-    genStructSubst _ (U i :=: t@(T TUnit)) = return $ Subst.ofType i t
+    genStructSubst _ _ (t@(T TUnit) :< U i) = return $ Subst.ofType i t
+    genStructSubst _ _ (U i :< t@(T TUnit)) = return $ Subst.ofType i t
+    genStructSubst _ _ (t@(T TUnit) :=: U i) = return $ Subst.ofType i t
+    genStructSubst _ _ (U i :=: t@(T TUnit)) = return $ Subst.ofType i t
 
 #ifdef REFINEMENT_TYPES
     -- refinement types
-    genStructSubst (_,basetypes) (T (TRefine v b p) :< U x)
+    genStructSubst (_,basetypes) (env,_) (T (TRefine v b p) :< U x)
       | IS.notMember x basetypes
       = do q <- lift solvFresh
            u <- freshRefVarName _2
-           return $ Subst.ofType x (T (TRefine u b (HApp q u [])))
+           let vs = M.keys env  -- FIXME: we need to find all constraints involving ?x and find a disjunction of in-scope vars
+                                -- we may need to generate HApp's from the very beginning, in the Generator phase.
+           return $ Subst.ofType x (T (TRefine u b (HApp q u vs)))
       -- NOTE: This is not valid, because it will render constraints like
       --   @BaseType ?3@
       -- into
@@ -268,43 +269,46 @@ sinkfloat = Rewrite.rewrite' $ \gs ->
       -- XXX | = do x' <- lift solvFresh
       -- XXX |      u <- freshRefVarName _2
       -- XXX |      return $ Subst.ofType x (T (TRefine u (U x') true))
-    genStructSubst (_,basetypes) (U x :< T (TRefine v b p))
+    genStructSubst (_,basetypes) (env,_) (U x :< T (TRefine v b p))
       | IS.notMember x basetypes
       = do q <- lift solvFresh
            u <- freshRefVarName _2
-           return $ Subst.ofType x (T (TRefine u b (HApp q u [])))
+           let vs = M.keys env
+           return $ Subst.ofType x (T (TRefine u b (HApp q u vs)))
       -- XXX | | otherwise
       -- XXX | = do x' <- lift solvFresh
       -- XXX |      u <- freshRefVarName _2
       -- XXX |      return $ Subst.ofType x (T (TRefine u (U x') true))
 
     -- self
-    genStructSubst (_,basetypes) (Self v (U x) t2@(T (TCon tn [] Unboxed)))
+    genStructSubst (_,basetypes) (env,_) (Self v (U x) t2@(T (TCon tn [] Unboxed)))
       | tn `elem` primTypeCons
       , IS.notMember x basetypes
       = do q <- lift solvFresh
            u <- freshRefVarName _2
-           return $ Subst.ofType x (T (TRefine u t2 (HApp q u [])))
+           let vs = M.keys env
+           return $ Subst.ofType x (T (TRefine u t2 (HApp q u vs)))
 
-    genStructSubst (_,basetype) (Self v (U x) t2@(T (TRefine v' b p)))
+    genStructSubst (_,basetype) (env,_) (Self v (U x) t2@(T (TRefine v' b p)))
       | IS.notMember x basetype
       = do q <- lift solvFresh
            u <- freshRefVarName _2
-           return $ Subst.ofType x (T (TRefine u b (HApp q u [])))
+           let vs = M.keys env
+           return $ Subst.ofType x (T (TRefine u b (HApp q u vs)))
 
-    genStructSubst _ (T (TRefine v b p) :<  T (TRefine u (U x) q))
+    genStructSubst _ _ (T (TRefine v b p) :<  T (TRefine u (U x) q))
       | rigid b = return $ Subst.ofType x b
-    genStructSubst _ (T (TRefine v b p) :=: T (TRefine u (U x) q))
+    genStructSubst _ _ (T (TRefine v b p) :=: T (TRefine u (U x) q))
       | rigid b = return $ Subst.ofType x b
-    genStructSubst _ (T (TRefine v (U x) p) :<  T (TRefine u b q))
+    genStructSubst _ _ (T (TRefine v (U x) p) :<  T (TRefine u b q))
       | rigid b = return $ Subst.ofType x b
-    genStructSubst _ (T (TRefine v (U x) p) :=: T (TRefine u b q))
+    genStructSubst _ _ (T (TRefine v (U x) p) :=: T (TRefine u b q))
       | rigid b = return $ Subst.ofType x b
 
 #endif
 
     -- default
-    genStructSubst _ _ = empty
+    genStructSubst _ _ _ = empty
 
     --
     -- Helper Functions

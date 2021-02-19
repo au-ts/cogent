@@ -1,0 +1,4 @@
+foo : U8 -> [v : U8 | v == 1]
+foo x = let y = let z = 1
+                 in z 
+         in y

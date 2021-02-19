@@ -263,11 +263,10 @@ cgFunDef :: (?loc :: SourcePos)
          -> CG (Constraint, [Alt TCPatn TCExpr])
 cgFunDef alts t = do
   α1 <- freshTVar
-  v <- freshRefVarName freshVars
+  x <- freshEName
   α2 <- freshTVar  -- Here we cannot introduce flexes and construct a refinement type.
                    -- E.g., when t is a type var, it would make the {v:?0|?1(v,x)} unable
                    -- to unify. / zilinc
-  x <- freshEName
   let ?isRefType = True
   (c, alts') <- cgAlts alts α2 (Just x) α1
   return (c <> (T (TFun (Just x) α1 α2)) :< t, alts')
@@ -319,9 +318,9 @@ cgMany :: (?loc :: SourcePos, ?isRefType :: Bool)
        => [LocExpr] -> CG ([TCType], Constraint, [TCExpr])
 cgMany es = do
   let each (ts,c,es') e = do
-        alpha    <- freshTVar
-        (c', e') <- cg e alpha
-        return (alpha:ts, c <> c', e':es')
+        α <- freshTVar
+        (c', e') <- cg e α
+        return (α:ts, c <> c', e':es')
   (ts, c', es') <- foldM each ([], Sat, []) es  -- foldM is the same as foldlM
   return (reverse ts, c', reverse es')
 
@@ -588,11 +587,11 @@ cg' (IntLit i) t = do
       e = IntLit i
 #ifdef REFINEMENT_TYPES
   c <- if ?isRefType then
-         do beta <- freshTVar
+         do β <- freshTVar
             v <- freshRefVarName freshVars
-            let c = T (TRefine v beta (SE (T bool) (PrimOp "==" [SE beta (Var v), SE beta e]))) :< t <>
-                    Upcastable (T (TCon minimumBitwidth [] Unboxed)) beta <>
-                    BaseType beta
+            let c = T (TRefine v β (SE (T bool) (PrimOp "==" [SE β (Var v), SE β e]))) :< t <>
+                    Upcastable (T (TCon minimumBitwidth [] Unboxed)) β <>
+                    BaseType β
             return c
        else return $ Upcastable (T (TCon minimumBitwidth [] Unboxed)) t
 #else
@@ -1159,6 +1158,14 @@ freshEVar t = SU t <$> freshVar
 freshHVar :: (?loc :: SourcePos) => VarName -> [VarName] -> CG TCSExpr
 freshHVar v vs = HApp <$> freshVar <*> pure v <*> pure vs
 
+freshTemplate :: (?loc :: SourcePos) => CG TCType
+freshTemplate = do v <- freshRefVarName freshVars
+                   β <- freshTVar
+                   C.Context [ctx] <- C.collapse <$> use context
+                   let vs = M.keys ctx
+                   ϕ <- freshHVar v vs
+                   return $ T (TRefine v β ϕ)
+
 
 freshLVar :: (?loc :: SourcePos) => CG TCDataLayout
 freshLVar = TLU <$> freshVar
@@ -1207,13 +1214,15 @@ withBindings [] e top = do
   (c, e') <- cg e top
   return (c, [], e')
 withBindings (Binding pat mτ e0 bs : xs) e top = do
-  α <- freshTVar
+#ifdef REFINEMENT_TYPES
+  α1 <- freshTVar
   v <- freshRefVarName freshVars
-  (c0, e0') <- letBang bs (cg e0) α
+  (c0, e0') <- letBang bs (cg e0) α1
   (ct, α') <- case mτ of
-    Nothing -> return (Sat, α)
+    Nothing -> do α2 <- freshTVar
+                  return (α1 :< α2, α2)
     Just τ  -> do (cτ,τ') <- validateType (stripLocT τ)
-                  return (cτ <> α :< τ', τ')
+                  return (cτ <> α1 :< τ', τ')
   (s, prds, cp, pat') <- match pat (Just v) α'
   context %= C.addScope s
   (c', xs', e') <- withBindings xs e top
@@ -1222,23 +1231,22 @@ withBindings (Binding pat mτ e0 bs : xs) e top = do
         case us of
           Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v)
           _ -> Sat
-#ifdef REFINEMENT_TYPES
       c'' = if ?isRefType then
-              ( M.insert v (α,0) $ fmap (\(t,_,occ) -> (t, Seq.length occ)) s
+              ( M.insert v (α',0) $ fmap (\(t,_,occ) -> (t, Seq.length occ)) s
               , {- (SE (T bool) (PrimOp "==" [SE α (Var v), toTCSExpr e0'])) : -} prds
-              ) :|- cp <> c'
+              ) :|- c'
             else c'
-#else
-      c'' = c'
-#endif
-      c = ct <> c0 <> c'' <> dropConstraintFor rs <> unused
+      c = ct <> c0 <> cp <> c'' <> dropConstraintFor rs <> unused
       b' = Binding pat' (fmap (const α') mτ) e0' bs
   traceTc "gen" (text "bound expression" <+> pretty e0' <+>
                  text "with banged" <+> pretty bs
-           L.<$> text "of type" <+> pretty α <> semi
+           L.<$> text "of type" <+> pretty α1 <> semi
            L.<$> text "generate constraint" <+> prettyC c0 <> semi
            L.<$> text "constraint for ascribed type:" <+> prettyC ct)
   return (c, b':xs', e')
+#else
+
+#endif
 withBindings (BindingAlts pat tau e0 bs alts : xs) e top = do
   alpha <- freshTVar
   (c0, e0') <- letBang bs (cg e0) alpha

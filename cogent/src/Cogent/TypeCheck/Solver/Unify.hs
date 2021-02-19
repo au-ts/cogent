@@ -33,6 +33,7 @@ import Control.Monad.Trans.Maybe
 import Control.Monad.Writer
 import Data.Foldable (asum)
 import qualified Data.IntMap as IM (null)
+import qualified Data.Set as S (delete, elems)
 import Lens.Micro
 import Lens.Micro.Mtl
 import Text.PrettyPrint.ANSI.Leijen as P hiding (empty)
@@ -136,10 +137,10 @@ assignOf (t1@(T (TRefine v1 b1 p1)) :=: t2@(T (TRefine v2 b2 p2)))
   | U x <- b1, rigid b2, x `notOccurs` b2 = pure [ Subst.ofType x b2 ]
   | U x <- b2, rigid b1, x `notOccurs` b1 = pure [ Subst.ofType x b1 ]
   -- | U x <- b1, U y <- b2, x /= y = pure [ Subst.ofType x (U y) ]
-  | HApp x v _ <- p1, null (unknownsE p2)
+  | HApp x v vs <- p1, null (unknownsE p2), all (\v -> v `elem` vs) (S.elems $ S.delete v2 $ progVarsE p2)
   = __assert_ (v == v1) ("assignOf: ill-formed ref.type: " ++ show (pretty t1)) $
       pure [ Subst.ofExpr x (substVarExpr [(v2,v)] p2) ]
-  | HApp x v _ <- p2, null (unknownsE p1)
+  | HApp x v vs <- p2, null (unknownsE p1), all (\v -> v `elem` vs) (S.elems $ S.delete v1 $ progVarsE p1)
   = __assert_ (v == v2) ("assignOf: ill-formed ref.type: " ++ show (pretty t2)) $
       pure [ Subst.ofExpr x (substVarExpr [(v1,v)] p1) ]
 
