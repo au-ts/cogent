@@ -259,14 +259,14 @@ prettyTerm p t = case t of
 
 termIfPrec = 10  -- taken from HOL
 termLetPrec = 10 -- taken from HOL
-termUpdatePrec = 90 -- in HOL it is 900, here we can use 90 to stay below termAppPrec, because no other precedence is higher than 90. 
+termUpdatePrec = 90 -- in HOL it is 900, here we can use 90 to stay below termAppPrec, because no other precedence is higher than 90.
 
 prettyApp :: Precedence -> Term -> Term -> Doc
 prettyApp p t t' = case t of
-  TermApp (TermApp (TermIdent (Id s)) cnd) thn | s == "nestIf" || s == "HOL.If" -> 
-      prettyParen (p > termIfPrec) $ sep 
-        [string "if" <+> nest 2 (pretty cnd), 
-         string "then" <+> nest 2 (pretty thn), 
+  TermApp (TermApp (TermIdent (Id s)) cnd) thn | s == "nestIf" || s == "HOL.If" ->
+      prettyParen (p > termIfPrec) $ sep
+        [string "if" <+> nest 2 (pretty cnd),
+         string "then" <+> nest 2 (pretty thn),
          string "else" <+> nest 2 (prettyTerm termIfPrec t')]
   TermApp (TermIdent (Id s)) bnd | s == "HOL.Let" -> prettyLet p [] [bnd] t'
   TermApp (TermIdent (Id s)) (QuantifiedTerm Lambda [v] val) | ("_update" `isSuffixOf` s) && (v == (Id "_") || v == Wildcard)
@@ -277,10 +277,10 @@ prettyLet :: Precedence -> [Ident] -> [Term] -> Term -> Doc
 prettyLet p vs ts (QuantifiedTerm Lambda [vnam] bdy) =
     case bdy of
          TermApp (TermApp (TermIdent (Id s)) bnd) t' | s == "HOL.Let" -> prettyLet p (vnam:vs) (bnd:ts) t'
-         _ -> dolet $ reverse $ zip (vnam:vs) ts 
-    where 
-        dolet bnds = 
-            prettyParen (p > termLetPrec) $ string "let" <+> 
+         _ -> dolet $ reverse $ zip (vnam:vs) ts
+    where
+        dolet bnds =
+            prettyParen (p > termLetPrec) $ string "let" <+>
             (nest 2 . sep . punctuate semi . map (\(v,t) -> pretty v <+> string "=" <+> nest 2 (pretty t)) $ bnds) <$>
             string "in" <+> nest 2 (prettyTerm termLetPrec bdy)
 
@@ -298,8 +298,8 @@ prettyUpdate p uds rec =
                 else prettyrec <+> nest 2 (sep (((string "\\<lparr>"):(punctuate comma $ map prettyupd updts)) ++ [nest (-2) $ string "\\<rparr>"]))
         prettyupd (f,t) = string f <+> string ":=" <+> pretty t
         prettyrec = prettyTerm termUpdatePrec rec
-            
-             
+
+
 prettyAlt :: (Term, Term) -> Doc
 prettyAlt (p, e) = pretty p <+> pretty "\\<Rightarrow>" <+> pretty e
 
