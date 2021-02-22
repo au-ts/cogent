@@ -17,3 +17,5 @@ extra-deps:
   - haskell-exp-parser-0.1.1
   - pretty-show-ansi-wl-1.9.2.1
   - Cabal-3.2.0.0@sha256:d0d7a1f405f25d0000f5ddef684838bc264842304fd4e7f80ca92b997b710874,27320
+  - llvm-hs-9.0.1
+  - llvm-hs-pure-9.0.0

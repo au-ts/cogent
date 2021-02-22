@@ -56,9 +56,9 @@ cgen :: FilePath
      -> [(Type 'Zero VarName, String)]
      -- -> [PBTInfo]
      -> String
-     -> ([C.Definition], [C.Definition], [(TypeName, S.Set [CId])], [TableCTypes], Leijen.Doc, String, GenState)
+     -> ([C.Definition], [C.Definition], [(TypeName, S.Set [CId])], [TableCTypes], [NewTableCTypes], Leijen.Doc, String, GenState)
 cgen hName cNames hscName hsName defs mcache ctygen log =
-  let (enums,tydefns,fndecls,disps,tysyms,fndefns,absts,corres,fclsts,st) = compile defs mcache ctygen
+  let (enums,tydefns,fndecls,disps,tysyms,fndefns,absts,corres,corres',fclsts,st) = compile defs mcache ctygen
       (h,c) = render hName (enums++tydefns++fndecls++disps++tysyms) fndefns log
 #ifdef WITH_HASKELL
       hsc = ffiHsc hscName cNames tydefns enums absts fclsts log
@@ -69,6 +69,6 @@ cgen hName cNames hscName hsName defs mcache ctygen log =
       hs = mempty
       -- pbt = mempty
 #endif
-   in (h,c,absts,corres,hsc,hs,st)
+   in (h,c,absts,corres,corres',hsc,hs,st)
 
 

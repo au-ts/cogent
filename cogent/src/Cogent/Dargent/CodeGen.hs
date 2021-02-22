@@ -16,7 +16,7 @@
 module Cogent.Dargent.CodeGen where
 
 import Cogent.C.Monad
-import Cogent.C.Type (genType, simplifyType)
+import Cogent.C.Type (genType, typeCId, simplifyType)
 import Cogent.C.Syntax
 import Cogent.Common.Syntax (FieldName, FunName, VarName, Size)
 import Cogent.Common.Types (Sigil (..))
@@ -24,7 +24,9 @@ import Cogent.Compiler
   ( __fixme
   , __impossible
   , __todo
+  , __assert_
   , Architecture (..)
+  , __cogent_arch
   )
 import Cogent.Core (Type (..))
 import Cogent.Dargent.Allocation
@@ -37,6 +39,7 @@ import Cogent.Dargent.Core
   )
 import Cogent.Dargent.Util
 import Data.Nat
+import qualified Data.OMap as OMap
 
 import Control.Monad.Writer.Class (tell)
 import Data.List (foldl', scanl')
@@ -82,7 +85,7 @@ genBoxedGetSetField
      -- for the field of the record.
 
 genBoxedGetSetField cogentType fieldName getOrSet = do
-  boxedRecordGetterSetter    <- use ((case getOrSet of Get -> boxedRecordGetters; Set -> boxedRecordSetters) . at (cogentType, fieldName))
+  boxedRecordGetterSetter    <- use ((case getOrSet of Get -> boxedRecordGetters; Set -> boxedRecordSetters) . at (StrlCogentType cogentType, fieldName))
   case boxedRecordGetterSetter of
     Just getSetFieldFunction -> return getSetFieldFunction
     Nothing                  ->
@@ -92,9 +95,17 @@ genBoxedGetSetField cogentType fieldName getOrSet = do
             let fieldType       = fst $ (fromList fieldTypes) ! fieldName
                 fieldLayout     = alignLayout' $ fieldLayouts ! fieldName
             boxCType            <- genType cogentType
+            cid                 <- typeCId cogentType
             getSetFieldFunction <- genBoxedGetterSetter True boxCType fieldType fieldLayout [fieldName] getOrSet
-            ((case getOrSet of Get -> boxedRecordGetters; Set -> boxedRecordSetters) . at (cogentType, fieldName))
+            ((case getOrSet of Get -> boxedRecordGetters; Set -> boxedRecordSetters) . at (StrlCogentType cogentType, fieldName))
                                 ?= getSetFieldFunction
+            let updGS Get f (Nothing, s) = (Just f, s)
+                updGS Get f (Just g , s) = __assert_ (f == g) "genBoxedGetSetField: different getter for the same field" (Just g, s)
+                updGS Set f (g, Nothing) = (g, Just f)
+                updGS Set f (g, Just s ) = __assert_ (f == s) "genBoxedGetSetField: different setter for the same field" (g, Just s)
+                updSort (SRecord ss (Just as)) =
+                  SRecord ss $ Just $ OMap.adjust (updGS getOrSet getSetFieldFunction) fieldName as  -- it only updates the functions
+            typeCorres' %= (OMap.adjust updSort cid)
             return getSetFieldFunction
         TRecord _ fieldTypes (Boxed _ CLayout) ->
           error "genBoxedGetSetField: tried to gen a getter/setter for a c-type"
@@ -873,7 +884,7 @@ intTypeForType _                          = intTypeForPointer -- embedded boxed 
 
 type CogentType = Type 'Zero VarName
 
-intTypeForPointer = case architecture of
+intTypeForPointer = case __cogent_arch of
   X86_64 -> unsignedLongType
   X86_32 -> unsignedIntType
   ARM32  -> unsignedIntType

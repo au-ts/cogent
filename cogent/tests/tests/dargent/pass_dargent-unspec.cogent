@@ -1,0 +1,8 @@
+type R = { f1 : S, f2 : T } layout record { f1 : pointer , f2 : pointer at 4B }
+
+type S = { g1 : U8, g2 : Bool }
+type T = { h1 : Bool, h2 : Bool } layout record { h1 : 1b, h2 : 1b at 1b }
+
+foo : R -> R
+foo x = let x'{f1} = x in x'{f1}
+

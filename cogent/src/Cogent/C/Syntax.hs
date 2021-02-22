@@ -35,7 +35,9 @@ import Cogent.Compiler
 import Cogent.Core           as CC
 import Cogent.Dargent.Allocation
 import Cogent.Util (tupleFieldNames)
+import qualified Data.DList  as DList
 import Data.Nat              as Nat
+import qualified Data.OMap   as OMap
 
 import Data.Binary (Binary)
 import Data.Map as M hiding (map)
@@ -203,11 +205,43 @@ data StrlType = Record  [(CId, CType)]         -- ^ @(fieldname &#x21A6; fieldty
 
 instance Binary StrlType
 
+type RecordAccessors = OMap.OMap FieldName (Maybe FunName, Maybe FunName)
+
+data Sort = SRecord (DList.DList (Sigil ())) (Maybe RecordAccessors)
+          | SVariant
+          | SAbstract
+          | SArray
+          deriving (Eq, Ord, Show, Generic)
+
+instance Binary Sort
+
+typeToSort :: CC.Type 'Zero a -> Sort
+typeToSort (CC.TCon {}) = SAbstract
+typeToSort (CC.TSum {}) = SVariant
+typeToSort (CC.TRecord _ fs s) = SRecord (DList.singleton $ fmap (const ()) s) mfs
+  where mfs = case s of Unboxed  -> Nothing
+                        Boxed {} -> Just $ OMap.fromList $ map (\(f,_) -> (f, (Nothing, Nothing))) fs
+#ifdef BUILTIN_ARRAYS
+typeToSort (CC.TArray {}) = SArray
+typeToSort (CC.TRefine b _) = typeToSort b
+#endif
+typeToSort _ = __impossible "typeToSort"
+
+extendSort :: CC.Type 'Zero a -> Sort -> Sort
+extendSort (CC.TRecord _ fs s') (SRecord ss ma) =
+  SRecord (fmap (const ()) s' `DList.cons` ss) $
+    case (s', ma) of
+      (Unboxed,  Nothing) -> Nothing
+      (Boxed {}, Nothing) -> Just $ OMap.fromList $ map (\(f,_) -> (f, (Nothing, Nothing))) fs
+      (_, Just ma') -> Just ma'
+extendSort _ s = s
+
+
 -- Custom equality for `BoxedRecord` case of `StrlType`
 -- Needed to allow us to ignore whether fields/alternatives are/aren't "taken"
 -- when deciding whether two cogent types should go to the same C type
 newtype StrlCogentType = StrlCogentType (CC.Type 'Zero VarName)
-                       deriving Show
+                       deriving (Show, Binary)
 
 instance Eq StrlCogentType where
   (StrlCogentType t1) == (StrlCogentType t2) = strlCogentTypeEq t1 t2

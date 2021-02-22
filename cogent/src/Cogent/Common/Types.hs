@@ -19,6 +19,7 @@
 module Cogent.Common.Types where
 
 import Cogent.Common.Syntax
+import Cogent.Compiler
 import Data.Binary (Binary)
 import Data.Data
 import Data.Map as M
@@ -66,6 +67,20 @@ unboxed _ = False
 data PrimInt = U8 | U16 | U32 | U64 | Boolean deriving (Show, Data, Eq, Ord, Generic)
 
 instance Binary PrimInt
+
+machineWordType :: PrimInt
+machineWordType = case __cogent_arch of
+                    ARM32  -> U32
+                    X86_32 -> U32
+                    X86_64 -> U64
+
+primIntSizeBits :: PrimInt -> Size
+primIntSizeBits U8      = 8
+primIntSizeBits U16     = 16
+primIntSizeBits U32     = 32
+primIntSizeBits U64     = 64
+primIntSizeBits Boolean = 8
+
 
 isSubtypePrim :: PrimInt -> PrimInt -> Bool
 isSubtypePrim U8  U8  = True

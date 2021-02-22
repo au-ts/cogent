@@ -19,8 +19,12 @@ export REPO_ROOT="../../../.."
 
 export ISABELLE_IDENTIFIER="BilbyFs2019Refinement"
 
+export LOG_PATH="bilby-run-$(date +'%F-%H-%M').log"
+
 time isabelle build -d plat/verification \
                     -d $REPO_ROOT \
                     -d $REPO_ROOT/autocorres \
                     -b -o process_output_limit=999 \
-                    BilbyFs_AllRefine | tee "bilby-run-$(date +'%F-%H-%M').log"
+                    BilbyFs_AllRefine | tee $LOG_PATH
+
+grep -F '***' $LOG_PATH && exit 1

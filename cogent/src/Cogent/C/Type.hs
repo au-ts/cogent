@@ -54,6 +54,7 @@ import           Cogent.Surface               (noPos)
 import           Cogent.Util                  (behead, decap, extTup2l, extTup3r, first3, secondM, toCName, whenM, flip3)
 import qualified Data.DList          as DList
 import           Data.Nat            as Nat
+import qualified Data.OMap           as OMap
 import           Data.Vec            as Vec   hiding (repeat, zipWith)
 
 import           Control.Applicative          hiding (empty)
@@ -89,8 +90,9 @@ import           Lens.Micro                   hiding (at)
 import           Lens.Micro.Mtl               hiding (assign)
 import           Lens.Micro.TH
 import           Control.Monad.Identity (runIdentity)
-import Debug.Trace
-import Unsafe.Coerce (unsafeCoerce)
+
+-- import Debug.Trace
+-- import Unsafe.Coerce (unsafeCoerce)
 
 
 -- * Type generation
@@ -213,9 +215,15 @@ typeCId t = use custTypeGen >>= \ctg ->
               Just (n,_) -> return n
               Nothing -> do
                 n <- t & if __cogent_fflatten_nestings then typeCIdFlat else typeCId'
-                when (isUnstable t) (typeCorres %= DList.cons (toCName n, t))
+                when (isUnstable t) $ do
+                  typeCorres  %= DList.cons (toCName n, t)
+                  typeCorres' %= OMap.alter addToTypeCorres (toCName n)
                 return n
   where
+    addToTypeCorres :: Maybe Sort -> Maybe Sort
+    addToTypeCorres Nothing  = Just (typeToSort t  )
+    addToTypeCorres (Just s) = Just (extendSort t s)
+
     typeCId' :: CC.Type 'Zero VarName -> Gen v CId
     typeCId' (TVar     {}) = __impossible "typeCId' (in typeCId)"
     typeCId' (TVarBang {}) = __impossible "typeCId' (in typeCId)"

@@ -107,15 +107,17 @@ validateType (RT t) = do
                     , fields' <- nub fields
                    -> let toRow (T (TRecord rp fs s)) = R (coerceRP rp) (Row.complete $ Row.toEntryList fs) (Left s)
                       in if fields' == fields
-                           then case s of
-                             Boxed _ (Just dlexpr)
-                               | Left (anError : _) <- runExcept $ tcDataLayoutExpr layouts lvs dlexpr  -- layout is bad
-                               -> freshTVar >>= \t' -> return (Unsat $ DataLayoutError anError, t')
-                             _ -> -- layout is good, or no layout
-                                  -- We have to pattern match on 'TRecord' otherwise it's a type error.
-                                  do (c, TRecord rp' fs' s') <- fmapFoldM validateType t
-                                     return (c, toRow . T $ TRecord rp' fs' (fmap (fmap toTCDL) s'))
-                           else freshTVar >>= \t' -> return (Unsat $ DuplicateRecordFields (fields \\ fields'), t')
+                         then do
+                           (ct, t') <- case s of
+                             Boxed _ (Just dlexpr) -> do
+                                (cl, l') <- validateLayout dlexpr
+                                (ct, t') <- fmapFoldM validateType t
+                                return (cl <> ct, t')
+                             _ -> fmapFoldM validateType t
+                           case t' of
+                             TRecord rp' fs' s' -> return (ct, toRow . T $ TRecord rp' fs' (fmap (fmap toTCDL) s'))
+                             _ -> freshTVar >>= \t'' -> return (ct, t'')  -- something must have gone wrong; @ct <> cl@ should already contains the unsats / zilinc
+                         else freshTVar >>= \t' -> return (Unsat $ DuplicateRecordFields (fields \\ fields'), t')
                     | otherwise -> (second T) <$> fmapFoldM validateType (TRecord rp fs (fmap (fmap toTCDL) s))
 
     TVariant fs  -> do let tuplize [] = T TUnit
@@ -188,13 +190,14 @@ validateType (RT t) = do
       return (c, T $ TRefine v t' (toTCSExpr e'))
 #endif
 
-    TLayout l t -> do
+    TLayout l tau -> do
       let cl = case runExcept $ tcDataLayoutExpr layouts lvs l of
                  Left (e:_) -> Unsat $ DataLayoutError e
                  Right _    -> Sat
-      (ct,t') <- validateType t
+      (ct,tau') <- validateType tau
       let l' = toTCDL l
-      pure (cl <> ct <> l' :~ t', T $ TLayout l' t')
+          t' = T $ TLayout l' tau'
+      pure (cl <> ct <> LayoutOk t', t')
 
     -- vvv The uninteresting cases; but we still have to match each of them to convince the typechecker / zilinc
     TRPar v b ctxt -> (second T) <$> fmapFoldM validateType (TRPar v b ctxt)
@@ -232,27 +235,6 @@ validateLayout l = do
 validateLayouts :: Traversable t => t DataLayoutExpr -> CG (Constraint, t TCDataLayout)
 validateLayouts = fmapFoldM validateLayout
 
-cgSubstedType :: TCType -> CG Constraint
-cgSubstedType (T (TLayout l t)) = cgSubstedLayout l
-cgSubstedType (T t) = foldMapM cgSubstedType t
-cgSubstedType (U x) = pure Sat
-cgSubstedType (V x) = foldMapM cgSubstedType x
-cgSubstedType (R _ x s) = (<>) <$> foldMapM cgSubstedType x <*> cgSubstedSigil s
-#ifdef BUILTIN_ARRAYS
-cgSubstedType (A t l s tkns) = (<>) <$> cgSubstedType t <*> cgSubstedSigil s
-#endif
-cgSubstedType (Synonym n ts) = foldMapM cgSubstedType ts
-
-cgSubstedSigil :: Either (Sigil (Maybe TCDataLayout)) Int -> CG Constraint
-cgSubstedSigil (Left (Boxed _ (Just l))) = cgSubstedLayout l
-cgSubstedSigil _ = pure Sat
-
-cgSubstedLayout :: TCDataLayout -> CG Constraint
-cgSubstedLayout l = do
-  ls <- lift $ use knownDataLayouts
-  case runExcept $ tcTCDataLayout ls l of
-    Left (e:_) -> pure $ Unsat (DataLayoutError e)
-    Right _    -> pure Sat
 
 -- -----------------------------------------------------------------------------
 -- Term-level constraints
@@ -415,8 +397,9 @@ cg' (ArrayIndex e i) t = do
   s <- freshVar             -- sigil
   idx <- freshEVar (T u32)  -- index
   h <- freshVar             -- hole
-  let ta = A alpha n (Right s) (Left $ Just idx)  -- this is the biggest type 'e' can ever have -- with a hole
-                                                  -- at a location other than 'i'
+  let -- XXX | ta = A alpha n (Right s) (Left $ Just idx)  -- this is the biggest type 'e' can ever have -- with a hole
+      -- XXX |                                             -- at a location other than 'i'
+      ta = A alpha n (Right s) (Left Nothing)  -- For now we disallow holes to appear, due to the lack of symbolic execution
       ta' = A alpha n (Right s) (Right h)
   (ce, e') <- cg e ta'
   (ci, i') <- cg i (T u32)
@@ -424,8 +407,8 @@ cg' (ArrayIndex e i) t = do
         <> ta' :< ta
         <> Share ta UsedInArrayIndexing
         <> Arith (SE (T bool) (PrimOp "<"  [toTCSExpr i', n  ]))
-        <> Arith (SE (T bool) (PrimOp "<"  [idx         , n  ]))
-        <> Arith (SE (T bool) (PrimOp "/=" [toTCSExpr i', idx]))
+        -- <> Arith (SE (T bool) (PrimOp "<"  [idx         , n  ]))
+        -- <> Arith (SE (T bool) (PrimOp "/=" [toTCSExpr i', idx]))
         -- <> Arith (SE (PrimOp ">=" [toSExpr i, SE (IntLit 0)]))  -- as we don't have negative values
   traceTc "gen" (text "array indexing" <> colon
                  L.<$> text "index is" <+> pretty (stripLocE i) <> semi
@@ -610,20 +593,19 @@ cg' (TLApp f ts ls i) t = do
           matchL [] _  = pure (Unsat $ TooManyLayoutArguments f (PT tvs lvs tau), [])
           matchL ts [] = freshLVar >>= matchL ts . return . Just
           matchL (t':t'') (Nothing:l') = freshLVar >>= matchL (t':t'') . (:l') . Just
-          matchL ((v,t):t'') (Just l:l') = do
-            (c, ps) <- matchL t'' l'
+          matchL ((v,t):t') (Just l:l') = do
+            (c, ps) <- matchL t' l'
             return (c <> layoutMatchConstraint t l, (v, l):ps)
       (cts, tps) <- matchT tvs ts'
       (cls, lps) <- matchL (second (substType tps) <$> lvs) ls'
       let rt = substLayout lps $ substType tps tau
           rc = rt :< t
           re = TLApp f (Just . snd <$> tps) (Just . snd <$> lps) i
-      sc <- cgSubstedType rt
       traceTc "gen" (text "cg for tlapp:" <+> prettyE re
                L.<$> text "of type" <+> pretty t <> semi
                L.<$> text "type signature is" <+> pretty (PT tvs lvs tau) <> semi
                L.<$> text "generate constraint" <+> prettyC rc)
-      return (ct <> cl <> cts <> cls <> rc <> sc, re)
+      return (ct <> cl <> cts <> cls <> rc, re)
     Nothing -> do
       let e = TLApp f ts' ls' i
           c = Unsat (FunctionNotFound f)

@@ -1,0 +1,7 @@
+type R = { f1 : (), f2 : Bool } layout L
+layout L = record { f1 : 0b, f2 : 1b at 0b }
+
+foo : R! -> (Bool, ())
+foo x = (x.f2, x.f1)
+
+

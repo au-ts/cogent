@@ -1,0 +1,3 @@
+type X = { cc : U8 }
+
+foo : { aa : #X layout record { cc : 1B } } -> ()

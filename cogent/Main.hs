@@ -11,102 +11,101 @@
 --
 
 {- LANGUAGE BangPatterns -}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE CPP                        #-}
+{-# LANGUAGE DeriveFunctor              #-}
+{-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE MultiWayIf #-}
-{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE MultiWayIf                 #-}
+{-# LANGUAGE NamedFieldPuns             #-}
 {- LANGUAGE QuasiQuotes -}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
 {- LANGUAGE TemplateHaskell -}
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TupleSections              #-}
 {-# OPTIONS_GHC -Wwarn #-}
 
 module Main where
 
-import Cogent.C                        as CG (cgen, printCTable, printATM)
-import Cogent.Common.Syntax            as SY (CoreFunName(..))
-import Cogent.Compiler
-import Cogent.Core                     as CC (isConFun, getDefinitionId, untypeD)  -- FIXME: zilinc
-import Cogent.Desugar                  as DS (desugar)
+import           Cogent.C                         as CG (cgen, printCTable, printATM)
+import           Cogent.Common.Syntax             as SY (CoreFunName (..))
+import           Cogent.Compiler
+import           Cogent.Core                      as CC (getDefinitionId, isConFun, untypeD)
+import           Cogent.Desugar                   as DS (desugar)
 #ifdef WITH_DOCGENT
-import Cogent.DocGent                  as DG (docGent)
+import           Cogent.DocGent                   as DG (docGent)
 #endif
-import Cogent.GetOpt
-import Cogent.Glue                     as GL (defaultExts, defaultTypnames,
-                                              GlState, glue, GlueMode(..), mkGlState,
-                                              parseFile, readEntryFuncs)
+import           Cogent.GetOpt
+import           Cogent.Glue                      as GL (GlState, GlueMode (..), defaultExts, defaultTypnames,
+                                                         glue, mkGlState, parseFile, readEntryFuncs)
 #ifdef WITH_HASKELL
 import Cogent.Haskell.Shallow          as HS
 import Cogent.Haskell.ParseDSL         as HSP
 import Cogent.Haskell.PBTGen           as HSPBT
 #endif
-import Cogent.Inference                as IN (tc, tc_, tcConsts, retype)
-import Cogent.Interpreter              as Repl (replWithState)
-import Cogent.Isabelle                 as Isa
-import Cogent.Mono                     as MN (mono, printAFM)
-import Cogent.Normal                   as NF (normal, verifyNormal)
-import Cogent.Parser                   as PA (parseWithIncludes, parseCustTyGen)
-import Cogent.Preprocess               as PR
-import Cogent.PrettyPrint              as PP (prettyPrint, prettyRE, prettyTWE)
-import Cogent.Reorganizer              as RO (reorganize)
-import Cogent.Simplify                 as SM
-import Cogent.SuParser                 as SU (parse)
-import Cogent.Surface                  as SR (stripAllLoc)
-import Cogent.TypeCheck                as TC (tc)
-import Cogent.TypeCheck.Base           as TC
-import Cogent.Util                     as UT
+import           Cogent.Inference                 as IN (retype, tc, tcConsts, tc_)
+import           Cogent.Interpreter               as Repl (replWithState)
+import           Cogent.Isabelle                  as Isa
+#ifdef WITH_LLVM
+import           Cogent.LLVM.Compile              as LLVM
+#endif
+import           Cogent.Mono                      as MN (mono, printAFM)
+import           Cogent.Normal                    as NF (normal, verifyNormal)
+import           Cogent.Parser                    as PA (parseCustTyGen, parseWithIncludes)
+import           Cogent.Preprocess                as PR
+import           Cogent.PrettyPrint               as PP (prettyPrint, prettyRE, prettyTWE)
+import           Cogent.Reorganizer               as RO (reorganize)
+import           Cogent.Simplify                  as SM
+import           Cogent.SuParser                  as SU (parse)
+import           Cogent.Surface                   as SR (stripAllLoc)
+import           Cogent.TypeCheck                 as TC (tc)
+import           Cogent.TypeCheck.Base            as TC
+import           Cogent.Util                      as UT
 
 -- import BuildInfo_cogent (githash, buildtime)
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative (liftA, (<$>))
-#else
-import Control.Applicative (liftA)
-#endif
-import Control.Monad (forM, forM_, unless, when, (<=<))
-import Control.Monad.Trans.Except (runExceptT)
+import           Control.Monad                    (forM, forM_, unless, when, (<=<))
+import           Control.Monad.Trans.Except       (runExceptT)
 -- import Control.Monad.Cont
 -- import Control.Monad.Except (runExceptT)
 -- import Control.Monad.Trans.Either (eitherT, runEitherT)
-import Data.Binary (encodeFile, decodeFileOrFail)
-import Data.Char (isSpace)
-import Data.Either (isLeft, fromLeft)
-import Data.Foldable (fold, foldrM)
-import Data.List as L (find, intersect, isPrefixOf, nub, partition)
-import Data.Map (empty)
-import Data.Maybe (fromJust, isJust)
-import Data.Monoid (getLast)
-import Data.Time
-import qualified Data.Traversable as T (forM)
+import           Data.Binary                      (decodeFileOrFail, encodeFile)
+import           Data.Char                        (isSpace)
+import           Data.Either                      (fromLeft, isLeft)
+import           Data.Foldable                    (fold, foldrM)
+import           Data.List                        as L (find, intersect, isPrefixOf, nub, partition)
+import           Data.Map                         (empty, fromList)
+import           Data.Maybe                       (fromJust, isJust)
+import           Data.Monoid                      (getLast)
+import           Data.Time
+import qualified Data.Traversable                 as T (forM)
 -- import Isabelle.InnerAST (subSymStr)
 -- import Language.Haskell.TH.Ppr ()
-import Prelude hiding (mapM_)
-import System.AtomicWrite.Writer.String (atomicWithFile)
+import           Lens.Micro                       ((^.))
+import           Prelude                          hiding (mapM_)
+import           System.AtomicWrite.Writer.String (atomicWithFile)
 -- import System.Console.GetOpt
-import System.Directory
-import System.Environment
-import System.Exit hiding (exitSuccess, exitFailure)
-import System.FilePath hiding ((</>))
-import System.IO
-import System.Process (readProcessWithExitCode)
-import Text.PrettyPrint.ANSI.Leijen as LJ (displayIO, Doc, hPutDoc, plain)
+import           System.Directory
+import           System.Environment
+import           System.Exit                      hiding (exitFailure, exitSuccess)
+import           System.FilePath                  hiding ((</>))
+import           System.IO
+import           System.Process                   (readProcessWithExitCode)
+import           Text.PrettyPrint.ANSI.Leijen     as LJ (Doc, displayIO, hPutDoc, plain)
 #if MIN_VERSION_mainland_pretty(0,6,0)
-import Text.PrettyPrint.Mainland as M (hPutDoc, line, string, (</>))
-import Text.PrettyPrint.Mainland.Class as M (ppr)
+import           Text.PrettyPrint.Mainland        as M (hPutDoc, line, string, (</>))
+import           Text.PrettyPrint.Mainland.Class  as M (ppr)
 #else
-import Text.PrettyPrint.Mainland as M (ppr, hPutDoc, line, string, (</>))
+import           Text.PrettyPrint.Mainland        as M (hPutDoc, line, ppr, string, (</>))
 #endif
-import Text.Show.Pretty (ppShow)
-import Lens.Micro((^.))
+import           Text.Show.Pretty                 (ppShow)
+-- import Debug.Trace
 
 -- Major modes of operation.
 data Mode = ModeAstC
           | ModeStackUsage
           | ModeCompiler
           | ModeInterpreter
+          | ModeLLVM
           | ModeAbout
           deriving (Eq, Show)
 
@@ -120,6 +119,7 @@ data Command = AstC
              | Compile Stage
              | Interpret
              | CodeGen
+             | LLVMGen
              | ACInstall
              | CorresSetup
              | CorresProof
@@ -136,6 +136,7 @@ data Command = AstC
              | ShallowConsts Stage
              | ShallowConstsTuples -- STGDesugar
              | TableCType
+             | NewTableCType
              | TableAbsFuncMono
              | TableAbsTypeMono
              | TableShallow
@@ -160,37 +161,42 @@ data Command = AstC
 
 isAstC :: Command -> Bool
 isAstC AstC = True
-isAstC _ = False
+isAstC _    = False
 
 isStackUsage :: Command -> Bool
 isStackUsage (StackUsage _) = True
-isStackUsage _ = False
+isStackUsage _              = False
+
+ 
+isLLVMGen :: Command -> Bool
+isLLVMGen LLVMGen = True
+isLLVMGen _       = False
 
 isDeep :: Stage -> Command -> Bool
 isDeep s (Deep s') = s == s'
-isDeep _ _ = False
+isDeep _ _         = False
 
 isShallow :: Stage -> Command -> Bool
-isShallow s (Shallow s') = s == s'
+isShallow s (Shallow s')           = s == s'
 isShallow STGDesugar ShallowTuples = True
-isShallow _ _ = False
+isShallow _ _                      = False
 
 isSCorres :: Stage -> Command -> Bool
 isSCorres s (SCorres s') = s == s'
-isSCorres _ _ = False
+isSCorres _ _            = False
 
 isShallowConsts :: Stage -> Command -> Bool
-isShallowConsts s (ShallowConsts s') = s == s'
+isShallowConsts s (ShallowConsts s')           = s == s'
 isShallowConsts STGDesugar ShallowConstsTuples = True
-isShallowConsts _ _ = False
+isShallowConsts _ _                            = False
 
 isHelp :: Command -> Bool
 isHelp (Help _) = True
-isHelp _ = False
+isHelp _        = False
 
 addCommands :: [Command] -> Either String (Mode, [Command])
-addCommands [] = Left "no command is given"
-addCommands [c] = Right (getMode c, setActions c)
+addCommands []     = Left "no command is given"
+addCommands [c]    = Right (getMode c, setActions c)
 addCommands (c:cs) = foldrM addCommand (getMode c, setActions c) cs
 
 addCommand :: Command -> (Mode, [Command]) -> Either String (Mode, [Command])
@@ -201,12 +207,13 @@ addCommand c = \(m',cs) -> if getMode c == m'
                             else Left $ "command conflicts with others: " ++ show c
 
 getMode :: Command -> Mode
-getMode AstC = ModeAstC
+getMode AstC           = ModeAstC
 getMode (StackUsage _) = ModeStackUsage
-getMode LibgumDir = ModeAbout
-getMode (Help _) = ModeAbout
-getMode Version = ModeAbout
-getMode _ = ModeCompiler
+getMode LibgumDir      = ModeAbout
+getMode (Help _)       = ModeAbout
+getMode Version        = ModeAbout
+getMode LLVMGen        = ModeLLVM
+getMode _              = ModeCompiler
 
 ccStandalone :: Command -> [Command] -> Maybe Command
 ccStandalone c cs | null cs = Nothing
@@ -222,10 +229,13 @@ setActions :: Command -> [Command]
 setActions c@AstC = [c]
 -- Stack Usage
 setActions c@(StackUsage x) = [c]
+-- LLVM
+setActions c@LLVMGen = setActions (Compile STGMono) ++ [c]
 -- Cogent
 setActions c@(Compile STGParse) = [c]
 setActions c@(CodeGen      ) = setActions (Compile STGCodeGen) ++ [c]
 setActions c@(TableCType   ) = setActions (Compile STGCodeGen) ++ [c]
+setActions c@(NewTableCType) = setActions (Compile STGCodeGen) ++ [c]
 setActions c@(Compile   stg) = setActions (Compile $ pred stg) ++ [c]
 setActions c@(Interpret    ) = [c]
 setActions c@(Ast       stg) = setActions (Compile stg) ++ [c]
@@ -270,6 +280,7 @@ setActions c@(CRefinement  ) = nub $ setActions (CodeGen) ++
                                      setActions (MonoProof) ++  -- although technically only needed for C-refinement,
                                                                 -- it's only invoked in AllRefine.
                                      setActions (TableCType) ++
+                                     setActions (NewTableCType) ++
                                      setActions (Root) ++
                                      [ACInstall, CorresSetup, CorresProof, BuildInfo]
 setActions c@(FunctionalCorrectness) = nub $ setActions (ShallowTuplesProof) ++
@@ -347,6 +358,12 @@ options = [
   , Option []         ["ast-mono"]        2 (NoArg $ Ast STGMono)           (astMsg STGMono)
   -- interpreter
   , Option ['i']      ["repl"]            1 (NoArg $ Interpret)             "run Cogent REPL"
+  -- llvm
+#ifdef WITH_LLVM
+  , Option []         ["llvm"]            0 (NoArg LLVMGen)                 "use the experimental LLVM backend"
+#else
+  , Option []         ["llvm"]            0 (NoArg LLVMGen)                 "use the experimental LLVM backend [disabled in this build]"
+#endif
   -- documentation
 #ifdef WITH_DOCGENT
   , Option []         ["docgent"]         2 (NoArg $ Documentation)         "generate HTML documentation"
@@ -409,6 +426,7 @@ options = [
   -- misc.
   , Option []         ["root"]              1 (NoArg Root)                ("generate Isabelle " ++ __cogent_root_name ++ " file")
   , Option []         ["table-c-types"]     1 (NoArg TableCType)          "generate a table of Cogent and C type correspondence"
+  , Option []         ["new-table-c-types"] 1 (NoArg NewTableCType)       "generate a table of Cogent and C type correspondence, and getter/setter functions for Dargent"
   , Option []         ["table-shallow"]     1 (NoArg TableShallow)        "generate a table of type synonyms for shallow embedding"
   , Option []         ["table-abs-func-mono"] 3 (NoArg TableAbsFuncMono)  "generate a table of monomorphised abstract functions"
   , Option []         ["table-abs-type-mono"] 3 (NoArg TableAbsTypeMono)  "generate a table of monomorphised abstract types"
@@ -546,7 +564,7 @@ flags =
 parseArgs :: [String] -> IO ()
 parseArgs args = case getOpt' Permute options args of
     (cmds,xs,us,[]) -> case addCommands cmds of
-                         Left  err -> exitErr (err ++ "\n")
+                         Left  err       -> exitErr (err ++ "\n")
                          Right (_,cmds') -> withCommands (cmds',xs,us,args)  -- XXX | noCommandError (cmds',xs,us,args)
     (_,_,us,errs)   -> exitErr (concat errs)
   where
@@ -592,7 +610,7 @@ parseArgs args = case getOpt' Permute options args of
              utc <- getCurrentTime
              zone <- getCurrentTimeZone
              let zoned = utcToZonedTime zone utc
-                 buildinfo = 
+                 buildinfo =
                    "-----------------------------------------------------------------------------\n" ++
                    "This file is generated by " ++ versionInfo ++ "\n" ++
                    "with command ./cogent " ++ unwords args ++ "\n" ++
@@ -628,7 +646,7 @@ parseArgs args = case getOpt' Permute options args of
       parseWithIncludes source __cogent_include >>= \case
         Left err -> hPutStrLn stderr err >> exitFailure
         Right (parsed,pragmas) -> do
-          prune <- T.forM __cogent_prune_call_graph $ return . parseEntryFuncs <=< readFile
+          prune <- T.forM __cogent_prune_call_graph simpleLineParser
           putProgressLn "Resolving dependencies..."
           case reorganize prune parsed of
             Left err -> printError prettyRE [err] >> exitFailure
@@ -743,8 +761,13 @@ parseArgs args = case getOpt' Permute options args of
     mono cmds simpled ctygen source tced tcst typedefs fts buildinfo log = do
       let stg = STGMono
       putProgressLn "Monomorphising..."
-      entryFuncs <- T.forM __cogent_entry_funcs $
-                      return . (,empty) <=< (readEntryFuncs tced tcst typedefs fts) <=< return . parseEntryFuncs <=< readFile
+      efuns <- T.forM __cogent_entry_funcs $
+                 return . (,empty) <=< (readEntryFuncs tced tcst typedefs fts) <=< simpleLineParser
+      entryFuncs <- case efuns of
+                      Nothing -> return Nothing
+                      Just (Nothing, _) -> exitFailure
+                      Just (Just f, i) -> return $ Just (f, i)
+
       let (insts,(warnings,monoed,ctygen')) = MN.mono simpled ctygen entryFuncs
       when (TableAbsFuncMono `elem` cmds) $ do
         let afmfile = mkFileName source Nothing __cogent_ext_of_afm
@@ -763,6 +786,10 @@ parseArgs args = case getOpt' Permute options args of
                                                                     SCorres stg `elem` cmds,
                                                                     ShallowConsts stg `elem` cmds,
                                                                     False, False, False, False, False)
+          -- LLVM Entrance
+#ifdef WITH_LLVM
+          when (LLVMGen `elem` cmds) $ llvmg cmds monoed' ctygen' insts source tced tcst typedefs fts buildinfo log
+#endif
           when (Compile (succ stg) `elem` cmds) $ cg cmds monoed' ctygen' insts source tced tcst typedefs fts buildinfo log
           c_refinement source monoed' insts log (ACInstall `elem` cmds, CorresSetup `elem` cmds, CorresProof `elem` cmds)
           when (MonoProof `elem` cmds) $ do
@@ -785,6 +812,12 @@ parseArgs args = case getOpt' Permute options args of
           when (GraphGen `elem` cmds) $ putProgressLn ("Generating graph...") >> graphGen monoed' log
           exitSuccessWithBuildInfo cmds buildinfo
 
+#ifdef WITH_LLVM
+    llvmg cmds monoed ctygen insts source tced tcst typedefs fts buildinfo log = do
+      putProgressLn "Now using the LLVM backend"
+      LLVM.to_llvm monoed source
+#endif
+
     cg cmds monoed ctygen insts source tced tcst typedefs fts buildinfo log = do
       let hName = mkOutputName source Nothing <.> __cogent_ext_of_h
           hscName = mkOutputName' toHsModName source (Just __cogent_suffix_of_ffi_types)
@@ -801,7 +834,7 @@ parseArgs args = case getOpt' Permute options args of
                     case decodeResult of
                       Left (_, err) -> hPutStrLn stderr ("Decoding name cache file failed: " ++ err ++ ".\nNot using name cache.") >> return (Nothing, True)
                       Right cache -> return (Just cache, False)
-      let (h,c,atm,ct,hsc,hs,genst) = cgen hName cNames hscName hsName monoed mcache ctygen log
+      let (h,c,atm,ct,ct',hsc,hs,genst) = cgen hName cNames hscName hsName monoed mcache ctygen log
       when (TableAbsTypeMono `elem` cmds) $ do
         let atmfile = mkFileName source Nothing __cogent_ext_of_atm
         putProgressLn "Generating table for monomorphised asbtract types..."
@@ -812,6 +845,11 @@ parseArgs args = case getOpt' Permute options args of
         putProgressLn "Generating table for C-Cogent type correspondence..."
         writeFileMsg ctyfile
         output ctyfile $ \h -> fontSwitch h >>= \s -> printCTable h s ct log
+      when (NewTableCType `elem` cmds) $ do
+        let ctyfile' = mkFileName source Nothing (__cogent_ext_of_c_type_table ++ ".new")
+        putProgressLn "Generating (new) table for C-Cogent type correspondence..."
+        writeFileMsg ctyfile'
+        output ctyfile' $ \h -> fontSwitch h >>= \s -> printCTable h s ct' log
 #ifdef WITH_HASKELL
       when (HsFFIGen `elem` cmds) $ do
         putProgressLn "Generating Hsc file..."
@@ -863,7 +901,7 @@ parseArgs args = case getOpt' Permute options args of
         output csfile $ flip LJ.hPutDoc corresSetupThy
       when cp $ do
         putProgressLn "Generating C-refinement proofs..."
-        ent <- T.forM __cogent_entry_funcs $ (liftA parseEntryFuncs) . readFile  -- a simple parser
+        ent <- T.forM __cogent_entry_funcs simpleLineParser  -- a simple parser
         let corresProofThy = corresProof thy inputc (map SY.CoreFunName confns) (map SY.CoreFunName <$> ent) log
         writeFileMsg cpfile
         output cpfile $ flip LJ.hPutDoc corresProofThy
@@ -1055,8 +1093,6 @@ parseArgs args = case getOpt' Permute options args of
         writeFileMsg bifile
         output bifile $ flip hPutStrLn buildinfo
 
-    -- --entry-funcs expects one function name per line; lines starting with -- are comments
-    parseEntryFuncs = filter (not . isPrefixOf "--") . filter (not . null) . map (dropWhile isSpace) . lines
 
     -- ------------------------------------------------------------------------
     -- Helper functions

@@ -1,0 +1,2 @@
+poly : all (a, b :< D). (a,b) -> a
+poly (a,b) = a

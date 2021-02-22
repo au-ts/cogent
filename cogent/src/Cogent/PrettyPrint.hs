@@ -89,8 +89,8 @@ symbol = string
 kindsig = red . string
 typeargs [] = brackets empty
 typeargs xs = encloseSep lbracket rbracket (comma <> space) xs
-layoutargs [] = braces empty
-layoutargs xs = encloseSep lbrace rbrace (comma <> space) xs
+layoutargs [] = braces $ braces empty
+layoutargs xs = encloseSep (lbrace <> lbrace) (rbrace <> rbrace) (comma <> space) xs
 array = encloseSep lbracket rbracket (comma <> space)
 record = encloseSep (lbrace <> space) (space <> rbrace) (comma <> space)
 variant = encloseSep (langle <> space) rangle (symbol "|" <> space) . map (<> space)
@@ -684,7 +684,7 @@ instance Pretty d => Pretty (DataLayoutExpr' d) where
   pretty (RepRef n s) = if null s then reprname n else parens $ reprname n <+> hsep (fmap pretty s)
   pretty (Prim sz) = pretty sz
   pretty (Offset e s) = pretty e <+> keyword "at" <+> pretty s
-  pretty (Record fs) = keyword "record" <+> record (map (\(f,_,e) -> fieldname f <> symbol ":" <+> pretty e ) fs)
+  pretty (Record fs) = keyword "record" <+> record (map (\(f,_,e) -> fieldname f <+> symbol ":" <+> pretty e ) fs)
   pretty (Variant e vs) = keyword "variant" <+> parens (pretty e)
                                                  <+> record (map (\(f,_,i,e) -> tagname f <+> tupled [literal $ string $ show i] <> symbol ":" <+> pretty e) vs)
 #ifdef BUILTIN_ARRAYS
@@ -698,7 +698,7 @@ instance Pretty DataLayoutExpr where
 
 instance Pretty TCDataLayout where
   pretty (TL l) = pretty l
-  pretty (TLU n) = text "?" <> pretty n
+  pretty (TLU n) = warn ('?':show n)
 
 instance Pretty Metadata where
   pretty (Constant {constName})              = err "the binding" <+> funname constName <$> err "is a global constant"
@@ -884,6 +884,7 @@ instance Pretty Constraint where
   pretty (Arith e)        = pretty e
   pretty (a :-> b)        = prettyPrec 2 a </> warn ":->" </> prettyPrec 1 b
 #endif
+  pretty (LayoutOk t)     = warn "LayoutOk" <+> pretty t
   pretty (l :~ n)         = pretty l </> warn ":~" </> pretty n
   pretty (l :~< m)        = pretty l </> warn ":~<" </> pretty m
   pretty (a :~~ b)        = pretty a </> warn ":~~" </> pretty b
@@ -972,15 +973,17 @@ instance Pretty a => Pretty (I.IntMap a) where
 
 
 instance Pretty DataLayoutTcError where
-  pretty (UnknownDataLayout r ctx) 
-     =  err "Undeclared data layout" <+> reprname r <$$> pretty ctx
-  pretty (TagNotSingleBlock ctx) 
-     = err "Variant tag must be a single block of bits" <$$> pretty ctx
   pretty (OverlappingBlocks blks)
     = let ((range1, c1),(range2, c2)) = unOverlappingAllocationBlocks blks
        in err "Declared data blocks" <+> parens (pretty range1) <+> err "and" <+> parens (pretty range2) <+> err " which cannot overlap" <$$>
           indent (pretty c1) <$$>
           indent (pretty c2)
+  pretty (UnknownDataLayout r ctx) 
+     =  err "Undeclared data layout" <+> reprname r <$$> pretty ctx
+
+  pretty (BadDataLayout l p) = err "Bad data layout" <+> pretty l
+  pretty (TagNotSingleBlock ctx) 
+     = err "Variant tag must be a single block of bits" <$$> pretty ctx
   pretty (SameTagValues context name1 name2 value) =
     err "Alternatives" <+> tagname name1 <+> err "and" <+> tagname name2 <+> err "of same variant cannot have the same tag value" <+> literal (pretty value) <$$>
     indent (pretty context)
@@ -1024,11 +1027,13 @@ instance Pretty a => Pretty (DataLayout' a) where
 
   pretty RecordLayout {fieldsDL} =
     record (map prettyField $ M.toList fieldsDL)
-    where prettyField (f,l) = fieldname f <> colon <> pretty l
+    where prettyField (f,l) = fieldname f <+> symbol ":" <+> pretty l
 #ifdef BUILTIN_ARRAYS
   pretty (ArrayLayout l) = brackets (pretty l)
 #endif
-  pretty (VarLayout n) = parens (dullcyan . string . ("_l" ++) . show . natToInt $ n)
+  pretty (VarLayout n s) = (dullcyan . string . ("_l" ++) . show $ natToInt n) <> prettyOffset s
+    where prettyOffset 0 = empty
+          prettyOffset n = space <> symbol "offset" <+> integer n <> symbol "b"
 
 instance Pretty BitRange where
   pretty br = literal (pretty $ bitSizeBR br) <> symbol "b" <+> symbol "at" <+> literal (pretty $ bitOffsetBR br) <> symbol "b"

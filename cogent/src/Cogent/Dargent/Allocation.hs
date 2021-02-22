@@ -165,10 +165,15 @@ undeterminedAllocation = __fixme $ Allocation [] -- FIXME: we may need different
         guard $ overlaps (fst xb) (fst yb) -- if they overlap, continue
         return $ OverlappingAllocationBlocks (xb,yb)
 
+
+{- [Isabelle/HOL] / v.jackson
+lemma
+  "{o1::int..<o1+s1} ∩ {o2..<o2+s2} ≠ {} ⟷ o1 < o2 + s2 ∧ o2 < o1 + s1 ∧ 0 < s1 ∧ 0 < s2"
+  by clarsimp
+-}
 overlaps :: BitRange -> BitRange -> Bool
 overlaps (BitRange s1 o1) (BitRange s2 o2) =
-  not $ (o1 <= o2  ==>  o1 + s1 <= o2) &&
-        (o2 <= o1  ==>  o2 + s2 <= o1)
+  o1 < o2 + s2 && o2 < o1 + s1 && s1 > 0 && s2 > 0
 
 isZeroSizedAllocation :: Allocation' p -> Bool
 isZeroSizedAllocation = all (isZeroSizedBR . fst) . unAllocation

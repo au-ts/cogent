@@ -40,11 +40,13 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core
 import Cogent.Dargent.Allocation
+import Cogent.Dargent.Util
 import Cogent.Util
 import Cogent.PrettyPrint (indent')
 import Data.Ex
 import Data.Fin
 import Data.Nat
+import qualified Data.OMap as OM
 import Data.PropEq
 import Data.Vec hiding (repeat, splitAt, length, zipWith, zip, unzip)
 import qualified Data.Vec as Vec
@@ -65,7 +67,6 @@ import Data.Monoid
 #if __GLASGOW_HASKELL__ < 709
 import Data.Traversable(traverse)
 #endif
-import Data.Word (Word32)
 import Lens.Micro (_2)
 import Lens.Micro.Mtl (view)
 import Text.PrettyPrint.ANSI.Leijen (Pretty, pretty)
@@ -235,9 +236,9 @@ substituteS ls (Boxed b (Layout l)) = Boxed b . Layout $ substituteS' ls l
   where
     substituteS' :: [DataLayout BitRange] -> DataLayout' BitRange -> DataLayout' BitRange
     substituteS' ls l = case l of
-      VarLayout n -> case ls !! (natToInt n) of
+      VarLayout n s -> case ls !! (natToInt n) of
                        CLayout -> __impossible "substituteS in Inference: CLayout shouldn't be here"
-                       Layout l -> l
+                       Layout l -> offset s l
       SumLayout tag alts ->
         let altl = M.toList alts
             fns = fmap fst altl
@@ -612,8 +613,11 @@ infer (E (If ec et ee))
 infer (E (Case e tag (lt,at,et) (le,ae,ee)))
    = do e' <- infer e
         let TSum ts = exprType e'
-            Just (t, False) = lookup tag ts  -- must not have been taken
+            Just (t, taken) = lookup tag ts
             restt = TSum $ adjust tag (second $ const True) ts  -- set the tag to taken
+        let e'' = case taken of
+                    True  -> promote (TSum $ OM.toList $ OM.adjust (\(t,True) -> (t,False)) tag $ OM.fromList ts) e'
+                    False -> e'
         (et',ee') <- (,) <$>  withBinding t     (infer et)
                          <||> withBinding restt (infer ee)
         let tt = exprType et'
@@ -623,7 +627,7 @@ infer (E (Case e tag (lt,at,et) (le,ae,ee)))
         guardShow' "case" ["Match type:", show (pretty tt) ++ ";", "rest type:", show (pretty te)] isSub
         let et'' = if tt /= tlub then promote tlub et' else et'
             ee'' = if te /= tlub then promote tlub ee' else ee'
-        return $ TE tlub (Case e' tag (lt,at,et'') (le,ae,ee''))
+        return $ TE tlub (Case e'' tag (lt,at,et'') (le,ae,ee''))
 infer (E (Esac e))
    = do e'@(TE (TSum ts) _) <- infer e
         let t1 = filter (not . snd . snd) ts

@@ -1,0 +1,5 @@
+type R = { f1 : (), f2 : () } layout N
+layout N = record { f1 : 0b, f2 : 0b }
+
+foo : R! -> ()
+foo x = x.f1

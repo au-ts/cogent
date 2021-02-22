@@ -101,38 +101,38 @@ apply (Subst f) (U x)
   = U x
 apply sub@(Subst f) (V r)
   | Just rv <- Row.var r
-  , Just (Row e) <- M.lookup rv f =
+  , Just (Row e) <- M.lookup rv f
     -- Expand an incomplete row with some more entries (and a fresh row
     -- variable), or close an incomplete row by assigning an ordering (a
     -- shape) to its fields.
-    case e of
+  = case e of
       Left r' -> apply sub (V (Row.expand r r'))
       Right sh -> apply sub (V (Row.close r sh))
 apply sub@(Subst f) (R rp r s)
   | Just rv <- Row.var r
-  , Just (Row e) <- M.lookup rv f =
-    case e of
+  , Just (Row e) <- M.lookup rv f
+  = case e of
       Left  r' -> apply sub (R rp (Row.expand r r') s)
       Right sh -> apply sub (R rp (Row.close  r sh) s)
-apply (Subst f) t@(R rp r (Right x))
-  | Just (Sigil s) <- M.lookup x f = apply (Subst f) (R rp r (Left s))
 apply f (V x) = V (fmap (apply f) x)
 apply (Subst f) (R (UP x) r s)
   | Just (RecP rp) <- M.lookup x f = apply (Subst f) (R rp r s)
-apply f (R rp x s) = R rp (fmap (apply f) x) s
+apply f (R rp x s) = R rp (fmap (apply f) x) $ applyS f s
 #ifdef BUILTIN_ARRAYS
-apply (Subst f) (A t l (Right x) mhole)
-  | Just (Sigil s) <- M.lookup x f = apply (Subst f) (A t l (Left s) mhole)
 apply (Subst f) (A t l s (Right x))
   | Just (Hole mh) <- M.lookup x f = apply (Subst f) (A t l s (Left mh))
-apply f (A x l s tkns) = A (apply f x) (applySE f l) s (left (fmap $ applySE f) tkns)
-apply f (T x) = T (fffmap (applySE f) $ fmap (apply f) x)
+apply f (A x l s tkns) = A (apply f x) (applySE f l) (applyS f s) (left (fmap $ applySE f) tkns)
+apply f (T x) = T (fffmap (applySE f) $ ffmap (applyL f) $ fmap (apply f) x)
 #else
-apply f (T x) = T (fmap (apply f) x)
+apply f (T x) = T (ffmap (applyL f) $ fmap (apply f) x)
 #endif
 apply f (Synonym n ts) = Synonym n (fmap (apply f) ts)
 
-
+applyS :: Subst -> TCSigil -> TCSigil
+applyS subst (Left Unboxed) = Left Unboxed
+applyS subst (Left (Boxed m ml)) = Left $ Boxed m $ fmap (applyL subst) ml
+applyS (Subst f) (Right x) | Just (Sigil s) <- M.lookup x f = applyS (Subst f) $ Left s
+                           | otherwise = Right x
 
 applyAlts :: Subst -> [Alt TCPatn TCExpr] -> [Alt TCPatn TCExpr]
 applyAlts = map . applyAlt
@@ -171,6 +171,7 @@ applyL s (TLVariant e fs) = TLVariant (applyL s e) $
 applyL s (TLArray e p) = TLArray (applyL s e) p
 #endif
 applyL s (TLOffset e n) = TLOffset (applyL s e) n
+applyL s (TLRepRef n es) = TLRepRef n $ fmap (applyL s) es
 applyL s l = l
 
 applyC :: Subst -> Constraint -> Constraint
@@ -196,6 +197,7 @@ applyC (Subst f) (NotReadOnly (Right x))
 applyC s (NotReadOnly x) = NotReadOnly x
 applyC s (Solved t) = Solved (apply s t)
 applyC s (IsPrimType t) = IsPrimType (apply s t)
+applyC s (LayoutOk t) = LayoutOk $ apply s t
 applyC s (l :~  t) = applyL s l :~  apply s t
 applyC s (l :~< m) = applyL s l :~< applyL s m
 applyC s (a :~~ b) = apply s a :~~ apply s b

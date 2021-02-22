@@ -60,10 +60,12 @@ import           Cogent.Normal                (isAtom)
 import           Cogent.Util                  (behead, decap, extTup2l, extTup3r, first3, for, secondM, toCName, whenM, flip3)
 import qualified Data.DList          as DList
 import           Data.Nat            as Nat
+import qualified Data.OMap           as OMap
 import           Data.Vec            as Vec   hiding (repeat, zipWith)
 
 import           Control.Applicative          hiding (empty)
 import           Control.Arrow                       ((***), (&&&), first, second)
+import           Control.Monad.Identity (runIdentity)
 import           Control.Monad.RWS.Strict     hiding (mapM, mapM_, Dual, (<>), Product, Sum)
 import           Data.Char                    (isAlphaNum, toUpper)
 #if __GLASGOW_HASKELL__ < 709
@@ -82,6 +84,9 @@ import qualified Data.Set            as S
 import           Data.String
 import           Data.Traversable             (mapM)
 import           Data.Tuple                   (swap)
+import           Lens.Micro                   hiding (at)
+import           Lens.Micro.Mtl               hiding (assign)
+import           Lens.Micro.TH
 #if __GLASGOW_HASKELL__ < 709
 import           Prelude             as P     hiding (mapM, mapM_)
 #else
@@ -89,10 +94,8 @@ import           Prelude             as P     hiding (mapM)
 #endif
 import           System.IO (Handle, hPutChar)
 import qualified Text.PrettyPrint.ANSI.Leijen as PP
-import           Lens.Micro                   hiding (at)
-import           Lens.Micro.Mtl               hiding (assign)
-import           Lens.Micro.TH
-import           Control.Monad.Identity (runIdentity)
+
+
 -- import Debug.Trace
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -910,6 +913,7 @@ compile :: [Definition TypedExpr VarName VarName]
            , [CExtDecl]  -- function definitions
            , [(TypeName, S.Set [CId])]
            , [TableCTypes]
+           , [NewTableCTypes]
            , [TypeName]
            , GenState
            )
@@ -921,6 +925,7 @@ compile defs mcache ctygen =
                                     , _cTypeDefMap  = M.empty
                                     , _typeSynonyms = M.empty
                                     , _typeCorres   = DList.empty
+                                    , _typeCorres'  = OMap.empty
                                     , _absTypes     = M.empty
                                     , _custTypeGen  = M.fromList $ P.map (second $ (,CTGI)) ctygen
                                     , _recParCIds   = M.empty
@@ -948,6 +953,7 @@ compile defs mcache ctygen =
       tsyns' = M.toList $ st ^. typeSynonyms
       absts' = M.toList $ st ^. absTypes
       tycorr = reverse $ updateWithGSs st $ DList.toList $ st^.typeCorres
+      tycorr' = reverse $ OMap.toList $ st^.typeCorres'
       (tdefs'', tdecls'') = (concat *** concat) $ P.unzip (map (flip genTyDecl tns) tdefs')
   in ( enum ++ fenums
      , tdecls'' ++ tdefs''  -- type definitions
@@ -957,6 +963,7 @@ compile defs mcache ctygen =
      , gsDecls ++ fndefns
      , absts'  -- table of abstract types
      , map TableCTypes tycorr  -- table of Cogent types |-> C types (with getter/setters)
+     , map NewTableCTypes tycorr'  -- new table
      , tns  -- list of funclass typenames (for HscGen)
      , st''
      )
@@ -968,11 +975,12 @@ compile defs mcache ctygen =
                       else -- FIXME: only generate getter/setters for records for now / zilinc
                            let recordGetters = M.toList $ st^.boxedRecordGetters
                                recordSetters = M.toList $ st^.boxedRecordSetters
-                               getters = map (first snd) $ filter (\x -> fst (fst x) == t) recordGetters
-                               setters = map (first snd) $ filter (\x -> fst (fst x) == t) recordSetters
+                               getters = map (first snd) $ filter (\x -> fst (fst x) == StrlCogentType t) recordGetters
+                               setters = map (first snd) $ filter (\x -> fst (fst x) == StrlCogentType t) recordSetters
                                fields = recordFields t
                             in P.map (\f -> (P.lookup f getters, P.lookup f setters)) fields
            in (cid,t,gss)
+
 
 -- ----------------------------------------------------------------------------
 -- * Table of Abstract types
@@ -987,7 +995,8 @@ printATM = L.concat . L.map (\(tn,S.toList -> ls) -> tn ++ "\n" ++
 
 newtype TableCTypes = TableCTypes (CId, CC.Type 'Zero VarName, [(Maybe FunName, Maybe FunName)])
 
-printCTable :: Handle -> (PP.Doc -> PP.Doc) -> [TableCTypes] -> String -> IO ()
+printCTable :: (PP.Pretty tentry)
+            => Handle -> (PP.Doc -> PP.Doc) -> [tentry] -> String -> IO ()
 printCTable h m ts log = mapM_ ((>> hPutChar h '\n') . PP.displayIO h . PP.renderPretty 0 80 . m) $
                            L.map (PP.string . ("-- " ++)) (lines log) ++ PP.line : L.map PP.pretty ts
 
@@ -1008,6 +1017,36 @@ instance PP.Pretty TableCTypes where
 
           prettyGetterSetter (getter, setter) =
             maybeP PP.text getter PP.<+> PP.text "/" PP.<+> maybeP PP.text setter
+
+
+newtype NewTableCTypes = NewTableCTypes (CId, Sort)
+
+instance PP.Pretty NewTableCTypes where
+  pretty (NewTableCTypes (n,s)) =
+    PP.pretty n PP.<+> PP.string ":=:" PP.<+> prettySort s
+
+    where
+      prettySort :: Sort -> PP.Doc
+      prettySort (SRecord ss ma) =
+        PP.text "TRecord" PP.<+>
+        PP.brackets (PP.hsep $ PP.punctuate PP.comma $ map prettySigil $ DList.toList ss) PP.<>
+        (case ma of Nothing -> PP.empty; Just as -> PP.empty PP.<+> prettyAccessors as)
+      prettySort SVariant     = PP.text "TVariant"
+      prettySort SAbstract    = PP.text "TCon"
+
+      prettySigil (Unboxed)       = PP.text "Unboxed"
+      prettySigil (Boxed True  _) = PP.text "ReadOnly"
+      prettySigil (Boxed False _) = PP.text "Writable"
+
+      prettyAccessors :: RecordAccessors -> PP.Doc
+      prettyAccessors ((map snd . OMap.toList) -> fs) =
+        PP.brackets $ PP.hsep $ PP.punctuate PP.comma (map prettyAccessor fs)
+
+      prettyAccessor :: (Maybe FunName, Maybe FunName) -> PP.Doc
+      prettyAccessor (mg, ms) = prettyMaybe mg PP.<+> PP.text "/" PP.<+> prettyMaybe ms
+
+      prettyMaybe Nothing  = PP.text "_"
+      prettyMaybe (Just f) = PP.text f
 
 
 -- ////////////////////////////////////////////////////////////////////////////

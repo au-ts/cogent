@@ -63,6 +63,11 @@ flag haskell-backend
   manual: True
   default: False
 
+flag llvm-backend
+  description: Enable LLVM backend
+  manual: True
+  default: False
+
 
 source-repository head
   type:     git
@@ -70,7 +75,7 @@ source-repository head
 
 custom-setup
   setup-depends:
-                base >= 4.10 && < 4.14
+                base >= 4.10 && < 4.15
               , Cabal >= 3.0
                 -- ^^^ 3.0 is needed as we use Cabal in Setup.hs
               , directory >= 1.2
@@ -157,6 +162,7 @@ library
               , Data.Fin
               , Data.LeafTree
               , Data.Nat
+              , Data.OMap
               , Data.PropEq
               , Data.Vec
               -- Generated
@@ -169,7 +175,7 @@ library
 
   build-depends:
                 ansi-wl-pprint >= 0.6
-              , base >= 4.10 && < 4.14
+              , base >= 4.10 && < 4.15
               , binary
               , bytestring >= 0.10 
               , containers >= 0.5.8
@@ -206,6 +212,10 @@ library
                  , indents
                  , generics-sop >= 0.5
                  , haskell-names
+  if flag(llvm-backend)
+    exposed-modules: Cogent.LLVM.Compile
+    cpp-options: -DWITH_LLVM
+    build-depends: llvm-hs >= 9.0.1, llvm-hs-pure >= 9.0.0
   if flag(builtin-arrays) || flag(refinement-types)
     exposed-modules: 
                      Cogent.TypeCheck.SMT
@@ -254,9 +264,9 @@ Executable cogent
                 cogent
               , ansi-wl-pprint >= 0.6
               , atomic-write >= 0.2.0.4
-              , base >= 4.10 && < 4.14
+              , base >= 4.10 && < 4.15
               , binary
-              , containers >= 0.5
+              , containers >= 0.5.8
               , directory >=1.2
               , filepath >= 1.4.0.0
               , mainland-pretty >= 0.2.6
@@ -268,6 +278,8 @@ Executable cogent
               , microlens >= 0.4.8
               , extra
 
+  if flag(llvm-backend)
+    cpp-options: -DWITH_LLVM
   if flag(haskell-backend)
     cpp-options: -DWITH_HASKELL
   if flag(builtin-arrays)
@@ -300,8 +312,8 @@ test-suite test-util
   main-is: test-util.hs
   build-depends:
                 cogent
-              , base >= 4.10 && < 4.14
-              , containers >= 0.5
+              , base >= 4.10 && < 4.15
+              , containers >= 0.5.8
               , directory >=1.2
               , filepath >= 1.4.0.0
               , mtl >= 2.2.1
@@ -322,12 +334,11 @@ test-suite test-quickcheck
               , CogentTests.Core
   build-depends:
                 cogent
-              , base >= 4.10 && < 4.14
+              , base >= 4.10 && < 4.15
               , Cabal >= 3.0
-              , containers >= 0.5
+              , containers >= 0.5.8
               , mainland-pretty >= 0.2.6
               , parsec >= 3.1
               , QuickCheck >= 2.11.3
               , transformers
               , mtl >= 2.2.1
-

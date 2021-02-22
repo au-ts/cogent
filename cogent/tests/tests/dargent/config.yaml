@@ -1,0 +1,31 @@
+- test_name: pass-dargent
+  files:
+    - pass_dargent-layout-preserved.cogent
+    - pass_layout-operator.cogent
+    - pass_zero-sized-field.cogent
+    - pass_inner-synonym.cogent
+    - pass_layout-poly.cogent
+    - pass_dargent-unspec.cogent
+  expected_result: pass
+  flags:
+    - -g
+
+- test_name: fail-dargent
+  files:
+    - fail_zero-sized-tag.cogent
+    - fail_layout-wrong-shape.cogent
+    - fail_layout-different-fields.cogent  
+    - fail_layout-no-overlapping.cogent    
+    - fail_layout-too-small-prim.cogent    
+    - fail_layout-unboxed.cogent
+    - fail_ticket-381.cogent
+  expected_result: fail
+  flags:
+    - -t
+
+- test_name: wip-dargent
+  files:
+    - wip_zero-sized-record.cogent
+  expected_result: wip
+  flags:
+    - -g

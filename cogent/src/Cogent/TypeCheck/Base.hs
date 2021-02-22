@@ -191,7 +191,8 @@ data Constraint' t l = (:<) t t
                      | Escape t Metadata
                      | (:~) l t
                      | (:~<) l l
-                     | (:~~) t t
+                     | (:~~) t t  -- t1 :~~ t2 means that t1 can fit in any layout that t2 can fit in
+                     | LayoutOk t
                      | (:@) (Constraint' t l) ErrorContext
                      | Unsat TypeError
                      | SemiSat TypeWarning
@@ -297,6 +298,7 @@ instance Bitraversable Constraint' where
   bitraverse f g (Share t m)        = Share <$> f t <*> pure m
   bitraverse f g (Drop t m)         = Drop  <$> f t <*> pure m
   bitraverse f g (Escape t m)       = Escape <$> f t <*> pure m
+  bitraverse f g (LayoutOk t)       = LayoutOk <$> f t
   bitraverse f g (l  :~  t)         = (:~)  <$> g l <*> f t
   bitraverse f g (l1 :~< l2)        = (:~<) <$> g l1 <*> g l2
   bitraverse f g (t1 :~~ t2)        = (:~~) <$> f t1 <*> f t2
@@ -689,6 +691,8 @@ substLayoutL vs (TLVariant e fs) = TLVariant e $ (\(x,y,z,v) -> (x,y,z,substLayo
 #ifdef BUILTIN_ARRAYS
 substLayoutL vs (TLArray e p) = TLArray (substLayoutL vs e) p
 #endif
+substLayoutL vs (TLOffset e s) = TLOffset (substLayoutL vs e) s
+substLayoutL vs (TLRepRef n es) = TLRepRef n $ fmap (substLayoutL vs) es 
 substLayoutL vs l = l
 
 substLayout :: [(DLVarName, TCDataLayout)] -> TCType -> TCType
@@ -848,6 +852,7 @@ isTypeLayoutExprCompatible env (T (TCon n [] Unboxed)) (TLPrim rs) =
             "U64" -> 64
             "Bool" -> 1)
    in s' <= s
+isTypeLayoutExprCompatible env (T TUnit) (TLPrim rs) = evalSize rs >= 0
 isTypeLayoutExprCompatible env (T (TRecord _ fs1 Boxed{})) (TLPtr) = True
 isTypeLayoutExprCompatible env (T (TRecord _ fs1 Unboxed)) (TLRecord fs2) =
   all

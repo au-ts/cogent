@@ -57,6 +57,7 @@ import           Cogent.Util
 import qualified Data.DList as DList
 import           Data.Ex
 import           Data.Nat (Nat(Zero,Suc))
+import qualified Data.OMap as OMap
 import           Data.Vec as Vec hiding (repeat)
 
 import           Control.Applicative
@@ -72,7 +73,7 @@ import qualified Data.ByteString.Char8 as B
 import           Data.Loc
 import           Data.List as L
 import           Data.Map as M
-import           Data.Maybe (fromJust, fromMaybe, isJust, maybe)
+import           Data.Maybe (fromJust, fromMaybe, isJust, maybe, catMaybes)
 import qualified Data.Sequence as Seq
 import           Data.Set as S
 
@@ -84,6 +85,7 @@ import           Lens.Micro hiding (to)
 import           Lens.Micro.Mtl
 import           Lens.Micro.TH
 import           System.FilePath (replaceBaseName, replaceExtension, takeBaseName, takeExtension, (<.>))
+import           System.IO (hPutStrLn, stderr)
 import           Text.Parsec.Pos (newPos, SourcePos)
 import           Text.Parsec.Prim as PP hiding (State)
 import           Text.PrettyPrint.ANSI.Leijen (vsep)
@@ -101,7 +103,7 @@ parseFile exts deftypnames filename = do
   let start = startPos filename
 #endif
   s <- lift $ B.readFile filename
-  typnames <- case __cogent_ext_types of Nothing -> lift (return deftypnames); Just f -> lift $ getTypnames f
+  typnames <- case __cogent_ext_types of Nothing -> lift (return deftypnames); Just f -> lift $ simpleLineParser f
   case CP.evalP (__fixme CP.parseUnit) (CP.emptyPState exts typnames s start) of -- FIXME: check for other antiquotes
     Left err -> throwE $ "Error: Failed to parse C: " ++ show err
     Right ds -> return ds
@@ -111,9 +113,6 @@ defaultExts = [Antiquotation, C99, Gcc]
 
 defaultTypnames :: [String]
 defaultTypnames = []
-
-getTypnames :: FilePath -> IO [String]
-getTypnames = liftA lines . readFile
 
 
 -- Desugaring, Monomorphising, and CG
@@ -138,6 +137,7 @@ data CgState = CgState { _cTypeDefs    :: [(CG.StrlType, CG.CId)]
                        , _cTypeDefMap  :: M.Map CG.StrlType CG.CId
                        , _typeSynonyms :: M.Map TypeName CG.CType
                        , _typeCorres   :: DList.DList (CG.CId, CC.Type 'Zero VarName)
+                       , _typeCorres'  :: OMap.OMap CG.CId CG.Sort
                        , _absTypes     :: M.Map TypeName (S.Set [CG.CId])
                        , _custTypeGen  :: M.Map (CC.Type 'Zero VarName) (CG.CId, CustTyGenInfo)
                        , _funClasses   :: CG.FunClass
@@ -515,6 +515,7 @@ genAnti m a =
                                           , CG._cTypeDefMap  = view (cgState.cTypeDefMap ) s
                                           , CG._typeSynonyms = view (cgState.typeSynonyms) s
                                           , CG._typeCorres   = view (cgState.typeCorres  ) s
+                                          , CG._typeCorres'  = view (cgState.typeCorres' ) s
                                           , CG._absTypes     = view (cgState.absTypes    ) s
                                           , CG._custTypeGen  = view (cgState.custTypeGen ) s
                                           , CG._funClasses   = view (cgState.funClasses  ) s
@@ -803,6 +804,7 @@ mkGlState tced tcState (Last (Just (typedefs, constdefs, _))) ftypes (funMono, t
                                , _cTypeDefMap  = view CG.cTypeDefMap  genState
                                , _typeSynonyms = view CG.typeSynonyms genState
                                , _typeCorres   = view CG.typeCorres   genState
+                               , _typeCorres'  = view CG.typeCorres'  genState
                                , _absTypes     = view CG.absTypes     genState
                                , _custTypeGen  = view CG.custTypeGen  genState
                                , _funClasses   = view CG.funClasses   genState
@@ -833,25 +835,53 @@ readEntryFuncs :: [SF.TopLevel TC.DepType TC.TypedPatn TC.TypedExpr]
                -> Last (DS.Typedefs, DS.Constants, [CC.CoreConst CC.UntypedExpr])
                -> M.Map FunName (CC.FunctionType VarName)
                -> [String]
-               -> IO (MN.FunMono VarName)
+               -> IO (Maybe (MN.FunMono VarName))
 readEntryFuncs tced tcState dsState ftypes lns
-  = foldM (\m ln -> readEntryFunc ln >>= \(fn,inst) -> return $ updateFunMono m fn inst) M.empty lns
+  = foldM run (Just M.empty) lns
   where
+    run md ln = do 
+      f <- readEntryFunc ln
+      return $ do
+        m <- md
+        (fn, inst) <- f
+        return $ updateFunMono m fn inst
+
     updateFunMono m fn ([],[]) = M.insertWith (\_ entry -> entry) fn M.empty m
     updateFunMono m fn inst    = M.insertWith (\_ entry -> M.insertWith (flip const) inst (M.size entry) entry) fn (M.singleton inst 0) m
 
     -- Each string is a line in the @--entry-funcs@ file.
-    readEntryFunc :: String -> IO (FunName, MN.Instance VarName)
+    readEntryFunc :: String -> IO (Maybe (FunName, MN.Instance VarName))
     readEntryFunc ln = do
       er <- runExceptT $ flip evalStateT (mkGlState [] tcState dsState mempty (mempty, mempty) undefined) $
               flip runReaderT (FileState "--entry-funcs file") $ do
                 (fnName, targs) <- genFuncId ln noLoc
-                inst <- forM targs $ \mt ->
-                          case mt of
-                            Nothing -> throwError "No wildcard allowed."
-                            Just t  -> flip runReaderT (DefnState Vec.Nil []) $
+                let nargs = SF.numTypeVars $
+                      case find (isFnName fnName) tced of
+                          Just f  -> f
+                          Nothing -> __impossible "Could not find function in top level declarations"
+                if nargs /= L.length targs then do
+                  throwError ("Number of type arguments for function " ++
+                              fnName ++ " (" ++ show nargs ++
+                              ") does not match amount specified in --entry-funcs file (" ++
+                              show (L.length targs) ++ ").\n" ++
+                              optMsg (nargs > L.length targs))
+                else do
+                  inst <- forM targs $ \mt ->
+                            case mt of
+                              Nothing -> throwError "Use of wildcard disallowed in --entry-funcs file"
+                              Just t  -> flip runReaderT (DefnState Vec.Nil []) $
                                          flip runReaderT (MonoState (([], []), Nothing))
                                                          (lift . tcType >=> lift . desugarType >=> monoType $ t)
-                return (fnName, inst)
-      case er of Left s  -> putStrLn s >> return (ln, ([], []))
-                 Right r -> return $ (fst r,) (snd r, [])
+                  return (fnName, inst)
+      case er of Left s  -> hPutStrLn stderr ("\nError: " ++ s) >> return Nothing
+                 Right r -> return $ Just $ (fst r,) (snd r, [])
+
+    isFnName n (SF.FunDef fn _ _) = fn == n
+    isFnName n (SF.AbsDec fn _) = fn == n
+    isFnName _ _ = False
+
+    optMsg :: Bool -> String
+    optMsg b = if b then
+                 "Functions in a --entry-funcs file cannot be partially applied."
+               else
+                 "Did you apply too many type arguments in an --entry-funcs file?"

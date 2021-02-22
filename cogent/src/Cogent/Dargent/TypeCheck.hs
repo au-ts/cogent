@@ -55,7 +55,7 @@ pattern TLVariant t ps = TL (Variant t ps)
 pattern TLArray e s    = TL (Array e s)
 #endif
 pattern TLOffset e s   = TL (Offset e s)
-pattern TLRepRef n s   = TL (RepRef n s)
+pattern TLRepRef n es  = TL (RepRef n es)
 pattern TLVar n        = TL (LVar n)
 pattern TLPtr          = TL Ptr
 
@@ -167,69 +167,6 @@ tcDataLayoutExpr _ vs (DLVar n) = if n `elem` vs then return undeterminedAllocat
                                                  else throwE [UnknownDataLayoutVar n PathEnd]
 tcDataLayoutExpr _ _ l = __impossible $ "tcDataLayoutExpr; tried to typecheck unexpected layout: " ++ show l
 
-
--- | Check the layout after subsitution within constraint generator for TLApp
--- We may simplify this function or refactor the layout related constraints later
-tcTCDataLayout :: NamedDataLayouts -> TCDataLayout -> Except [DataLayoutTcError] Allocation
-tcTCDataLayout env (TLRepRef n s) =
-  case M.lookup n env of
-    Just ([], _, Just allocation) | length s > 0 -> throwE [TooManyDataLayoutArgs n PathEnd]
-                                  | otherwise    -> mapPaths (InDecl n) $ return allocation
-    Just ([], _, Nothing) -> throwE [BadDataLayout n PathEnd]
-    Just (vars, expr, _)  | length vars == length s
-                          -> tcTCDataLayout env (substTCDataLayout (zip vars s) $ toTCDL expr)
-                          | length vars >  length s
-                          -> throwE [TooFewDataLayoutArgs n PathEnd]
-                          | length vars <  length s
-                          -> throwE [TooManyDataLayoutArgs n PathEnd]
-    Nothing               -> throwE [UnknownDataLayout n PathEnd]
-
-tcTCDataLayout _ (TLPrim size) = return $ singletonAllocation (bitRange, PathEnd)
-  where
-    bitSize  = evalSize size
-    bitRange = fromJust $ newBitRangeBaseSize 0 bitSize {- 0 <= bitSize -}
-
-tcTCDataLayout env (TLOffset dataLayout offsetSize) =
-  offset (evalSize offsetSize) <$> tcTCDataLayout env dataLayout
-
-tcTCDataLayout env (TLRecord fields) = foldM tcField emptyAllocation fields
-  where
-    tcField accumAlloc (fn, pos, tcl) = do
-      fieldsAlloc <- mapPaths (InField fn pos) $ tcTCDataLayout env tcl
-      except $ first (fmap OverlappingBlocks) $ accumAlloc /\ fieldsAlloc
-
-tcTCDataLayout env (TLVariant tagExpr alternatives) =
-  case primitiveBitRange tagExpr of
-    Just tagBits | isZeroSizedBR tagBits -> throwE [ZeroSizedBitRange (InTag PathEnd)]
-                 | otherwise ->
-      do
-        altsAlloc <- fst <$> foldM (tcAlternative tagBits) (emptyAllocation, M.empty) alternatives
-        except $ first (fmap OverlappingBlocks) $ singletonAllocation (tagBits, InTag PathEnd) /\ altsAlloc
-    Nothing      -> throwE [TagNotSingleBlock (InTag PathEnd)]
-  where
-    tcAlternative range (accumAlloc, accumTagValues) (tagName, pos, tagValue, tcl) = do
-      alloc     <- (\/) accumAlloc <$> mapPaths (InAlt tagName pos) (tcTCDataLayout env tcl)
-      tagValues <- checkedTagValues
-      return (alloc, tagValues)
-      where
-        checkedTagValues :: Except [DataLayoutTcError] (Map Size TagName)
-        checkedTagValues
-          | tagValue < 0 || tagValue >= 2 ^ bitSizeBR range =
-            throwE [OversizedTagValue (InAlt tagName pos PathEnd) range tagName tagValue]
-          | Just conflictingTagName <- tagValue `M.lookup` accumTagValues =
-            throwE [SameTagValues (InAlt tagName pos PathEnd) conflictingTagName tagName tagValue]
-          | otherwise =
-            return $ M.insert tagValue tagName accumTagValues
-    primitiveBitRange (TLPrim size)        = newBitRangeBaseSize 0 (evalSize size)
-    primitiveBitRange (TLOffset expr size) = offset (evalSize size) <$> primitiveBitRange expr
-    primitiveBitRange _                    = Nothing
-
-#ifdef BUILTIN_ARRAYS
-tcTCDataLayout env (TLArray e p) = mapPaths (InElmt p) $ tcTCDataLayout env e
-#endif
-tcTCDataLayout _ TLPtr = return $ singletonAllocation (pointerBitRange, PathEnd)
-tcTCDataLayout _ (TLU _) = return undeterminedAllocation
-tcTCDataLayout _ l = __impossible $ "tcTCDataLayout; tried to typecheck unexpected layout: " ++ show l
 
 
 -- NOTE: the check for type-layout compatibility is in Cogent.TypeCheck.Base

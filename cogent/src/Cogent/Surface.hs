@@ -191,6 +191,12 @@ typeOfLT (Documentation s t) = typeOfLT t
 posOfLT (LocType p _) = p
 posOfLT (Documentation _ t) = posOfLT t
 
+numTypeVars :: TopLevel t p e -> Int
+numTypeVars (FunDef _ pt _) = numOfArgs pt
+numTypeVars (AbsDec _ pt)   = numOfArgs pt
+numTypeVars (AbsTypeDec _ ts _) = length ts
+numTypeVars (TypeDec _ ts _)    = length ts
+
 data RawType = RT { unRT :: Type RawExpr DataLayoutExpr RawType } deriving (Data, Eq, Ord, Show)
 data RawExpr = RE { unRE :: Expr RawType RawPatn RawIrrefPatn DataLayoutExpr RawExpr } deriving (Data, Eq, Ord, Show)
 data RawPatn = RP { unRP :: Pattern RawIrrefPatn } deriving (Data, Eq, Ord, Show)
