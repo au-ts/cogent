@@ -94,13 +94,15 @@ findEquateCandidates (mentions, basetypes) (c:cs) =
        --   , not (isRefinementType a && isBaseUnif b)
        --   -> (sups, c : subs, others)
 
-       t :< T (TRefine v b (HApp x _ _))
+       t :< T (TRefine v b (HApp x _ vs))
          | canEquate (^._3) x t
          , isRefinementType t
+         , all (`elem` vs) (S.toList $ progVars t)
          -> (sups, c : subs, others)
-       T (TRefine v b (HApp x _ _)) :< t
+       T (TRefine v b (HApp x _ vs)) :< t
          | canEquate (^._2) x t
          , isRefinementType t
+         , all (`elem` vs) (S.toList $ progVars t)
          -> (c : sups, subs, others)
 #endif
        V r1 :< t
