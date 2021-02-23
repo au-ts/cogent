@@ -166,12 +166,14 @@ lemma upd_C_wordarray_get_corres_gen:
 
 lemmas upd_C_wordarray_get_corres = upd_C_wordarray_get_corres_gen[rotated -1, of \<xi>0, simplified fun_eq_iff]
 
+
 abbreviation "mk_urecord xs \<equiv> URecord (map (\<lambda>x. (x, upd.uval_repr x)) xs)"
 definition "foldmap_measure i end \<equiv> unat end - unat i"
 definition "foldmap_bounds frm to len i e 
   \<equiv> frm \<le> i \<and> e = min to len \<and> (frm < e \<longrightarrow> i \<le> e) \<and> ((\<not>(frm < e)) \<longrightarrow> frm = i)"
-definition "foldmap_inv foldmap \<xi>' \<sigma> p frm i f acc obsv r \<sigma>' res s' res'
-  \<equiv> foldmap \<xi>' \<sigma> p frm i f acc obsv r (\<sigma>', res) \<and> val_rel res res' \<and> (\<sigma>', s') \<in> state_rel"
+definition "foldmap_inv foldmap n \<xi>' \<sigma> p frm i f acc obsv \<sigma>' res s' res'
+  \<equiv> foldmap \<xi>' \<sigma> p frm i f (foldmap_acc_type n) acc (foldmap_obsv_type n) obsv (\<sigma>', res) \<and>
+      val_rel res res' \<and> (\<sigma>', s') \<in> state_rel"
 definition "foldmap_inv_stat obsv obsv' \<equiv> val_rel obsv obsv'"
 
 lemma whileLoop_add_invI:
@@ -183,19 +185,6 @@ lemma validNF_select_UNIV:
   "\<lbrace>\<lambda>s. \<forall>x. Q x s\<rbrace> select UNIV \<lbrace>Q\<rbrace>!"
   apply (subst select_UNIV_unknown)
   apply (rule validNF_unknown)
-  done
-
-lemma
-  "cogent_function_val_rel f (sint FUN_ENUM_mul) \<Longrightarrow> 
-    \<forall>x x' \<sigma> s. val_rel x x' \<longrightarrow> update_sem_init.corres wa_abs_typing_u wa_abs_repr (Generated.state_rel wa_abs_repr) 
-      (App (uvalfun_to_exprfun f) (Var 0)) (do ret <- dispatch_t4' FUN_ENUM_mul x'; gets (\<lambda>s. ret) od) 
-      \<xi>_0 [x] \<Xi> [option.Some (foldmap_funarg_type ''wordarray_fold_no_break_0'')] \<sigma> s"
-  apply (clarsimp simp: cogent_function_val_rel untyped_func_enum_defs)
-  apply (rule corres_app_concrete[simplified]; simp?)
-  apply (subgoal_tac "foldmap_funarg_type ''wordarray_fold_no_break_0'' = prod.fst (prod.snd Generated_TypeProof.mul_type)")
-   apply (monad_eq simp: dispatch_t4'_def FUN_ENUM_mul_def unknown_bind_ignore \<Xi>_def)
-   apply (rule corres_mul; simp)
-  apply (clarsimp simp: \<Xi>_def wordarray_fold_no_break_0_type_def mul_type_def abbreviated_type_defs)
   done
 
 lemma \<Xi>_wordarray_fold_no_break_0:
@@ -221,11 +210,11 @@ lemma fold_dispatch_wp:
     \<lbrace>\<lambda>sa. (a', n') = (a, n) \<and> n < e \<and>
       (\<exists>\<sigma>' res x v. args = t3_C.elem_C_update (\<lambda>_. v) a \<and>
         \<sigma>' (arr + size_of_num_type num * n) = option.Some x \<and> val_rel x v \<and>
-      foldmap_inv upd_wa_foldnb_bod \<xi>0' \<sigma> p frm n f acc obsv (ra \<union> ro) \<sigma>' res sa (t3_C.acc_C args)) \<and>
+      foldmap_inv upd_wa_foldnb_bod ''wordarray_fold_no_break_0'' \<xi>0' \<sigma> p frm n f acc obsv \<sigma>' res sa (t3_C.acc_C args)) \<and>
       foldmap_bounds frm to len n e \<and> foldmap_inv_stat obsv (t3_C.obsv_C args)\<rbrace>
       dispatch f_num args 
     \<lbrace>\<lambda>ret sb. (\<exists>\<sigma>' res.
-        foldmap_inv upd_wa_foldnb_bod \<xi>0' \<sigma> p frm (n + 1) f acc obsv (ra \<union> ro) \<sigma>' res sb ret) \<and>
+        foldmap_inv upd_wa_foldnb_bod ''wordarray_fold_no_break_0'' \<xi>0' \<sigma> p frm (n + 1) f acc obsv \<sigma>' res sb ret) \<and>
       foldmap_inv_stat obsv (t3_C.obsv_C args) \<and> foldmap_bounds frm to len (n + 1) e \<and> 
       foldmap_measure (n + 1) to < foldmap_measure n' to\<rbrace>!"
   apply (subst validNF_def)
@@ -243,18 +232,30 @@ lemma fold_dispatch_wp:
   apply (erule_tac x = \<sigma>' in allE)
   apply (erule_tac x = sa in allE)
   apply (clarsimp simp: corres_def)
-  apply (frule_tac t = "TPrim (Num num)" in upd_wa_foldnb_bod_preservation[rotated 2]; simp?; clarsimp?)
+  apply (frule_tac t = "TPrim (Num num)" and
+      ptrl = ptrl and
+      ra = r and
+      wa = w and
+      rb = ra and
+      wb = wa and
+      rc = ro in upd_wa_foldnb_bod_preservation[rotated -1];
+      (simp add: \<Xi>_wordarray_fold_no_break_0 wordarray_fold_no_break_0_type_def abbreviated_type_defs)?;
+      (clarsimp simp: Int_commute)?)
+      apply (frule wa_abs_typing_u_elims(2); clarsimp)
+     apply (frule wa_abs_typing_u_elims(2); clarsimp)
+    apply (frule wa_abs_typing_u_elims(2); clarsimp)
+   apply (frule wa_abs_typing_u_elims(2); clarsimp)
   apply (rename_tac r' w')
   apply (subgoal_tac "upd.matches_ptrs \<Xi> \<sigma>' [(mk_urecord [x, res, obsv])]
       [option.Some (foldmap_funarg_type ''wordarray_fold_no_break_0'')] (r' \<union> ro) w'")
    apply (clarsimp simp: \<Xi>_wordarray_fold_no_break_0 wordarray_fold_no_break_0_type_def abbreviated_type_defs)
-    apply (erule impE, blast)
+   apply (erule impE, blast)
    apply clarsimp
    apply (rename_tac ret sb)
    apply (erule_tac x = ret in allE)
    apply (erule_tac x = sb in allE)
    apply clarsimp
-   apply (drule upd.preservation[where \<tau>s = "[]" and K = "[]", simplified]; simp?)
+   apply (frule upd.preservation[where \<tau>s = "[]" and K = "[]", simplified]; simp?)
    apply clarsimp
    apply (rename_tac \<sigma>'' res' rb wb)
    apply (clarsimp simp: foldmap_bounds_def)
@@ -262,38 +263,28 @@ lemma fold_dispatch_wp:
    apply (frule wa_abs_typing_u_elims(5))
    apply (erule_tac x = n in allE; clarsimp)
    apply (frule_tac p = "arr + (size_of_num_type num) * n" in valid_ptr_not_in_frame_same; simp?)
-    apply (drule_tac x = "arr + 4 * n" and S' = r in orthD2; simp?)
+    apply (drule_tac x = "arr + 4 * n" and S = r in orthD1; simp?)
     apply (drule_tac wa_abs_typing_u_elims(2)[where \<tau>s = "[_]", simplified]; simp)
     apply blast
    apply clarsimp
-   apply (drule_tac t = num and arr = arr and len = len and r' = res' 
-      in upd_wa_foldnb_bod_step; simp?; clarsimp?)
-    apply (rule conjI)
-     apply (drule_tac p = p in readonly_not_in_frame; simp?)
-    apply (subst Int_Un_distrib2)+
-    apply clarsimp
-    apply (rule conjI)
-     apply (rule disjointI)
-     apply (frule_tac p = x and r = ra and w = wa in upd.uval_typing_valid(1)[rotated 1]; simp?)
-     apply clarsimp
-     apply (drule_tac p = y in readonly_not_in_frame; simp?)
-     apply (drule upd.uval_typing_pointers_noalias; blast)
-    apply (rule conjI)
-     apply (rule disjointI)
-     apply (frule_tac p = x and r = ro and w = "{}" in upd.uval_typing_valid(1)[rotated 1]; simp?)
-     apply clarsimp
-     apply (drule_tac p = y in readonly_not_in_frame; simp?)
-     apply blast
-    apply (rule disjointI)
-    apply (frule wa_abs_typing_u_elims(5))
-    apply clarsimp
-    apply (erule_tac x = i in allE; clarsimp)
-    apply (drule_tac p = "arr + (size_of_num_type num) * i" in readonly_not_in_frame; simp?)
+   apply (drule_tac ta = num and 
+      arr = arr and 
+      len = len and 
+      res' = res' and 
+      \<sigma>' = \<sigma>' and 
+      \<sigma>'' = \<sigma>'' and
+      ptrl = ptrl and
+      ra = r and 
+      wa = w and
+      rc = ro in upd_wa_foldnb_bod_step[rotated -5]; simp?; clarsimp?)
+        apply (drule_tac v = obsv in upd.type_repr_uval_repr(1); simp)
+        apply (drule_tac v = res in upd.type_repr_uval_repr(1); simp)
+       apply (drule wa_abs_typing_u_elims(2); clarsimp)
+      apply (drule wa_abs_typing_u_elims(2); clarsimp)
+     apply (drule wa_abs_typing_u_elims(2); clarsimp)
     apply (drule wa_abs_typing_u_elims(2); clarsimp)
-    apply blast
    apply (rule conjI)
-    apply (rule_tac x = \<sigma>'' in exI)
-    apply (rule_tac x = res' in exI; simp)
+    apply (intro exI conjI; simp)
    apply (frule_tac a = n and k = to in less_is_non_zero_p1)
    apply (drule unatSuc2; clarsimp simp: word_less_nat_alt word_le_nat_alt foldmap_measure_def)
    apply linarith
@@ -305,15 +296,15 @@ lemma fold_dispatch_wp:
      apply (rule upd.u_t_prim'; clarsimp)
     apply (rule upd.u_t_r_cons1[where r' = ro and w' = "{}", simplified]; simp?)
       apply (drule_tac u = obsv in upd.uval_typing_frame(1); simp?)
-       apply blast
       apply (rule upd.u_t_r_cons1[where r' = "{}" and w' = "{}", simplified]; simp?)
        apply (rule upd.u_t_r_empty)
       apply (drule_tac v = obsv in upd.type_repr_uval_repr(1); simp)
      apply (rule disjointI)
+     apply (rename_tac y)
      apply (frule_tac p = y and r = ro in upd.uval_typing_valid(1)[where w = "{}", simplified]; simp?)
      apply clarsimp
      apply (drule_tac p = y in readonly_not_in_frame; simp?)
-     apply (drule_tac x = y and S' = ro in orthD2; simp?)
+     apply (drule_tac x = y and S = ro in orthD1; simp?)
     apply (drule_tac v = res in upd.type_repr_uval_repr(1); simp)
   apply (subst (asm) val_rel_word; clarsimp)
   apply (rule upd.matches_ptrs_empty[where \<tau>s = "[]", simplified])
@@ -374,8 +365,9 @@ gets (\<lambda>s. x)
       apply (clarsimp simp: unknown_bind_ignore split: prod.split)
       apply (rename_tac var e)
       apply (rule_tac M = "\<lambda>((_, i), _). foldmap_measure i (t5_C.to_C v')" and 
-      I = "\<lambda>(a, b) s. (\<exists>\<sigma>' res. foldmap_inv upd_wa_foldnb_bod \<xi>0' \<sigma> (ptr_val (t5_C.arr_C v'))
-          (t5_C.frm_C v') b (uvalfun_to_exprfun f) acc obsv (ra \<union> ro) \<sigma>' res s (t3_C.acc_C a)) \<and>
+      I = "\<lambda>(a, b) s. (\<exists>\<sigma>' res.
+          foldmap_inv upd_wa_foldnb_bod ''wordarray_fold_no_break_0'' \<xi>0' \<sigma> (ptr_val (t5_C.arr_C v'))
+          (t5_C.frm_C v') b (uvalfun_to_exprfun f) acc obsv \<sigma>' res s (t3_C.acc_C a)) \<and>
           foldmap_inv_stat obsv (t3_C.obsv_C a) \<and>
           foldmap_bounds (t5_C.frm_C v') (t5_C.to_C v') len b e" in whileLoop_add_invI; simp?)
       apply (wp; clarsimp simp: unknown_bind_ignore split: prod.splits)
@@ -390,11 +382,18 @@ gets (\<lambda>s. x)
        apply (clarsimp simp: foldmap_bounds_def foldmap_inv_def)
        apply (frule wa_abs_typing_u_elims(5))
        apply (erule_tac x = j in allE; clarsimp)
-       apply (drule_tac acc = acc and obsv = obsv and rb = ra and wb = wa and rc = ro
-          in upd_wa_foldnb_bod_preservation; simp?; clarsimp?)
+       apply (clarsimp simp: \<Xi>_wordarray_fold_no_break_0 wordarray_fold_no_break_0_type_def abbreviated_type_defs)
+       apply (drule_tac acc = acc and
+      obsv = obsv and
+      rb = ra and
+      wb = wa and
+      rc = ro and
+      ptrl = undefined and
+      ra = r and
+      wa = "{}" in upd_wa_foldnb_bod_preservation; simp?; (clarsimp simp: Int_commute)?)
        apply (frule_tac p = "ptr_val (t5_C.arr_C v')" in valid_ptr_not_in_frame_same; simp?)
        apply (drule_tac p = "arr + (size_of_num_type num) * j" in valid_ptr_not_in_frame_same; simp?)
-        apply (drule_tac x = "arr + (size_of_num_type num) * j" and S = wa and S' = r in orthD2; simp?)
+        apply (drule_tac x = "arr + (size_of_num_type num) * j" and S' = wa and S = r in orthD1; simp?)
         apply (drule wa_abs_typing_u_elims(2); clarsimp)
         apply blast
        apply (thin_tac "_ \<in> state_rel")
@@ -419,28 +418,12 @@ gets (\<lambda>s. x)
         apply (clarsimp simp: type_rel_simp wa_abs_repr_def)
        apply (clarsimp simp: is_valid_simp heap_simp val_rel_WordArray_u32_C_def ptr_add_def mult.commute)
       apply (rule conjI)
-       apply (erule u_t_primtE; clarsimp)
-      apply (rule conjI)
-       apply (drule_tac v = obsv in upd.type_repr_uval_repr(1); simp?)
-      apply (rule conjI)
-       apply (drule wa_abs_typing_u_elims(5); simp)
-      apply (rule conjI)
        apply (erule u_t_funafuntE; clarsimp)
       apply (rename_tac x' j \<sigma>' res)
       apply (rule_tac x = \<sigma>' in exI)
       apply (rule_tac x = res in exI)
       apply (clarsimp simp: foldmap_inv_def)
-      apply (rule_tac x = "foldmap_acc_type ''wordarray_fold_no_break_0''" in exI)
-      apply (rule_tac x = "foldmap_obsv_type ''wordarray_fold_no_break_0''" in exI)
-      apply (rule_tac x = "''elem''" in exI)
-      apply (rule_tac x = "''acc''" in exI)
-      apply (rule_tac x = "''obsv''" in exI)
       apply (clarsimp simp: \<Xi>_wordarray_fold_no_break_0 wordarray_fold_no_break_0_type_def abbreviated_type_defs)
-      apply (rule_tac x = ra in exI)
-      apply (rule conjI)
-       apply (intro exI, assumption)
-      apply (rule_tac x = ro in exI)
-      apply (rule conjI, simp)
       apply (unfold foldmap_bounds_def)
       apply (erule conjE)+
       apply (case_tac "t5_C.frm_C v' < e")
@@ -448,7 +431,12 @@ gets (\<lambda>s. x)
        apply (thin_tac "_ \<longrightarrow> _")
        apply clarsimp
        apply (case_tac "j < t5_C.to_C v'"; clarsimp)
-       apply (rule upd_wa_foldnb_bod_to_geq_len; simp?)
+       apply (rule_tac ptrl = undefined and
+      ra = r and 
+      wa = "{}" and
+      rb = ra and
+      wb = wa and
+      rc = ro in upd_wa_foldnb_bod_to_geq_len; (simp add: Int_commute)?; clarsimp?)
       apply (erule impE, assumption)
       apply (thin_tac "_ \<longrightarrow> _")
       apply clarsimp
@@ -463,28 +451,11 @@ gets (\<lambda>s. x)
   apply (frule_tac p = "t5_C.arr_C v'" in all_heap_rel_ptrD; simp?)
    apply (clarsimp simp: type_rel_simp wa_abs_repr_def)
   apply (clarsimp simp: is_valid_simp val_rel_WordArray_u32_C_def heap_simp)
+  apply (subst upd_wa_foldnb_bod.simps; clarsimp)+
   apply (rule conjI; clarsimp)
-   apply (rule conjI)
-    apply (rule_tac x = \<sigma> in exI)
-    apply (rule_tac x = acc in exI)
-    apply clarsimp
-    apply (drule wa_abs_typing_u_elims(5))
-    apply (subst upd_wa_foldnb_bod.simps; clarsimp)
-    apply (rule conjI; clarsimp)
-    apply (rename_tac j)
-    apply (erule_tac x = j in allE; clarsimp)
    apply (subst min_def)
    apply (subst (asm) not_le[symmetric])+
    apply (subst if_not_P; simp?)
-  apply (rule conjI)
-   apply (rule_tac x = \<sigma> in exI)
-   apply (rule_tac x = acc in exI)
-   apply clarsimp
-   apply (drule wa_abs_typing_u_elims(5))
-   apply (subst upd_wa_foldnb_bod.simps; clarsimp)
-   apply (rule conjI; clarsimp)
-   apply (rename_tac j)
-   apply (erule_tac x = j in allE; clarsimp)
   apply (subst min_def)
   apply (clarsimp simp: not_le)
   done
@@ -510,11 +481,12 @@ lemma map_dispatch_wp:
     \<lbrace>\<lambda>sa. (a', n') = (a, n) \<and> n < e \<and>
       (\<exists>\<sigma>' res x v. args = t6_C.elem_C_update (\<lambda>_. v) a \<and>
         \<sigma>' (arr + size_of_num_type U32 * n) = option.Some x \<and> val_rel x v \<and>
-      foldmap_inv upd_wa_mapAccumnb_bod \<xi>0' \<sigma> p frm n f acc obsv (ra \<union> ro) \<sigma>' res sa (t10_C p' (t6_C.acc_C args))) \<and>
+      foldmap_inv upd_wa_mapAccumnb_bod ''wordarray_map_no_break_0'' \<xi>0' \<sigma> p frm n f acc obsv \<sigma>'
+        res sa (t10_C p' (t6_C.acc_C args))) \<and>
       foldmap_bounds frm to len n e \<and> foldmap_inv_stat obsv (t6_C.obsv_C args)\<rbrace>
       dispatch f_num args 
      \<lbrace>\<lambda>ret sb. (\<exists>\<sigma>' res. 
-        foldmap_inv upd_wa_mapAccumnb_bod \<xi>0' \<sigma> p frm (n + 1) f acc obsv (ra \<union> ro) \<sigma>' res 
+        foldmap_inv upd_wa_mapAccumnb_bod ''wordarray_map_no_break_0'' \<xi>0' \<sigma> p frm (n + 1) f acc obsv \<sigma>' res 
           (heap_w32_update (\<lambda>x a. if a = values_C (heap_WordArray_u32_C sb p') +\<^sub>p uint n 
             then t7_C.p1_C ret else x a) sb) (t10_C p' (t7_C.p2_C ret))) \<and>
         foldmap_inv_stat obsv (t6_C.obsv_C args) \<and>
@@ -529,10 +501,16 @@ lemma map_dispatch_wp:
   apply clarsimp
   apply (subst all_imp_conj_distrib[symmetric])
   apply (clarsimp simp: foldmap_inv_def)
+  apply (clarsimp simp: \<Xi>_wordarray_map_no_break_0 wordarray_map_no_break_0_type_def abbreviated_type_defs)
   apply (rename_tac sa \<sigma>' res x v)
-  apply (frule upd_wa_mapAccumnb_bod_preservation'; simp?)
-  apply clarsimp
-  apply (rename_tac racc)
+  apply (subst (asm) Int_Un_distrib; clarsimp)
+  apply (frule_tac t = "TPrim (Num num)" and
+      ra = r and
+      wa = w and
+      rb = ra and
+      wb = wa and
+      rc = ro in upd_wa_mapAccumnb_bod_preservation; simp?; (clarsimp simp: Int_commute)?)
+  apply (rename_tac sa \<sigma>' x v racc r' w')
   apply (erule_tac x = "mk_urecord [x, racc, obsv]" in allE)
   apply (erule_tac x = args in allE)
   apply clarsimp
@@ -541,27 +519,8 @@ lemma map_dispatch_wp:
   apply (erule_tac x = \<sigma>' in allE)
   apply (erule_tac x = sa in allE)
   apply (clarsimp simp: corres_def)
-  apply (frule_tac t = "TPrim (Num num)" in upd_wa_mapAccumnb_bod_preservation; simp?; clarsimp?)
-    apply (subst Int_Un_distrib2; clarsimp)
-    apply (subst (asm) Int_Un_distrib; clarsimp)
-   apply (subst (asm) Int_Un_distrib; clarsimp)
-  apply (rename_tac r' w')
-  apply (erule upd.u_t_recE; clarsimp)
-  apply (erule upd.u_t_r_consE; simp)
-  apply (erule conjE)+
-  apply (drule_tac t = "type_repr _" in sym; clarsimp)
-  apply (erule upd.u_t_r_consE; clarsimp)
-  apply (erule upd.u_t_r_emptyE; clarsimp)
-  apply (rename_tac w' rb wb racc rc wc)
-  apply (erule upd.u_t_p_con_wrE)
-  apply (drule_tac t = "RCon _ _" in sym; clarsimp)
-  apply (frule_tac p = p in valid_ptr_not_in_frame_same; simp?)
-  apply clarsimp
-  apply (frule_tac p = p in readonly_not_in_frame; simp?)
-  apply (subst (asm) insert_ident; clarsimp)
-  apply (rename_tac wb)
   apply (subgoal_tac "upd.matches_ptrs \<Xi> \<sigma>' [(mk_urecord [x, racc, obsv])]
-      [option.Some (foldmap_funarg_type ''wordarray_map_no_break_0'')] (rc \<union> ro) wc")
+      [option.Some (foldmap_funarg_type ''wordarray_map_no_break_0'')] (r' \<union> ro) w'")
    apply (clarsimp simp: \<Xi>_wordarray_map_no_break_0 wordarray_map_no_break_0_type_def abbreviated_type_defs)
    apply (erule impE, blast)
    apply clarsimp
@@ -569,102 +528,96 @@ lemma map_dispatch_wp:
    apply (erule_tac x = ret in allE)
    apply (erule_tac x = sb in allE)
    apply clarsimp
-   apply (drule upd.preservation[where \<tau>s = "[]" and K = "[]", simplified]; simp?)
+   apply (frule upd.preservation[where \<tau>s = "[]" and K = "[]", simplified]; simp?)
    apply clarsimp
-   apply (rename_tac \<sigma>'' res' r' w')
+   apply (rename_tac \<sigma>'' res' r'a w'a)
    apply (erule u_t_rectE; clarsimp)
    apply (erule u_t_r_contE; clarsimp)
    apply (erule u_t_r_contE; clarsimp)
    apply (erule u_t_r_contE; clarsimp)
-   apply (rename_tac x' rd wd racc' r' w')
+   apply (rename_tac x' rd wd racc' r'a w'a)
    apply (frule_tac v = x' in upd.tprim_no_pointers(1); clarsimp)
    apply (frule_tac v = x' in upd.tprim_no_pointers(2); clarsimp)
    apply (clarsimp simp: foldmap_bounds_def)
    apply (case_tac "frm < to \<and> frm < len"; clarsimp)
-   apply (thin_tac "wa_abs_typing_u _ _ _ _ _ _ _")
-   apply (drule_tac t = num and arr = arr and len = len and v' = x' and r' = racc'
-      in upd_wa_mapAccumnb_bod_step; simp?; clarsimp?)
-      apply (drule wa_abs_typing_u_elims(6); simp?)
-     apply (subst Int_Un_distrib2)+
-     apply clarsimp
-     apply (rule conjI)
-      apply (rule disjointI)
-      apply (rename_tac y y')
-      apply (frule_tac p = y and r = ra and w = wa in upd.uval_typing_valid(1)[rotated 1]; simp?)
-      apply clarsimp
-      apply (drule_tac p = y' in readonly_not_in_frame; simp?)
-      apply (drule_tac x = y' and S' = "ra \<union> ro" in orthD2; simp?)
-      apply (drule upd.uval_typing_pointers_noalias)
-      apply (drule_tac x = y' and S = ra and S' = wa in orthD1; simp?)
-     apply (rule conjI)
-      apply (rule disjointI)
-      apply (rename_tac y y')
-      apply (frule_tac p = y and r = ro and w = "{}" in upd.uval_typing_valid(1)[rotated 1]; simp?)
-      apply clarsimp
-      apply (drule_tac p = y' in readonly_not_in_frame; simp?)
-      apply blast
-     apply (drule wa_abs_typing_u_elims(3); clarsimp)
-    apply (drule_tac v = x' in upd.type_repr_uval_repr(1); simp)
-    apply (drule_tac v = racc' in upd.type_repr_uval_repr(1); simp)
+   apply (drule_tac ta = num and
+      arr = arr and
+      len = len and
+      va = x and
+      racc' = racc' and
+      va' = x' and
+      ra = r and
+      wa = w and
+      ptrl = ptrl and
+      \<sigma>' = \<sigma>' and
+      \<sigma>'' = \<sigma>'' and
+      racc = racc and
+      rc = ro in upd_wa_mapAccumnb_bod_step; simp?; clarsimp?)
+    apply (drule_tac v = obsv in upd.type_repr_uval_repr(1))
+    apply (drule_tac v = racc in upd.type_repr_uval_repr(1))
+    apply (clarsimp simp: val_rel_word)
    apply (thin_tac "_ \<in> state_rel")
    apply (clarsimp simp: state_rel_def heap_rel_def heap_rel_ptr_meta heap_rel_ptr_w32_meta)
-   apply (frule_tac p = p and \<sigma> = \<sigma>' in valid_ptr_not_in_frame_same; simp?)
-   apply (drule_tac p = "arr + (size_of_num_type num) * n" and \<sigma> = \<sigma>' in valid_ptr_not_in_frame_same; simp?)
-    apply (drule_tac x = "arr + (size_of_num_type num) * n" and S' = wc in orthD1; simp?)
+   apply (frule_tac p = p and \<sigma> = \<sigma> in valid_ptr_not_in_frame_same; simp?)
     apply (drule wa_abs_typing_u_elims(3); clarsimp)
-    apply (rule_tac x = n in exI; clarsimp)
+   apply (drule_tac p = "ptr_val p'" and \<sigma> = \<sigma>' and \<sigma>' = \<sigma>'' and w = w' in valid_ptr_not_in_frame_same[rotated -1]; simp?)
+   apply (drule_tac p = "arr + (size_of_num_type num) * n" and \<sigma> = \<sigma>' in valid_ptr_not_in_frame_same; simp?)
+    apply (drule_tac x = "arr + (size_of_num_type num) * n" and S = w' in orthD2; simp?)
+    apply (drule wa_abs_typing_u_elims(3); clarsimp)
+    apply (intro exI conjI; simp)
    apply (frule_tac p = p' in all_heap_rel_ptrD; simp?)
     apply (clarsimp simp: type_rel_simp wa_abs_repr_def)
    apply (frule_tac p = "values_C (heap_WordArray_u32_C sb p') +\<^sub>p uint n" and uv = x in all_heap_rel_ptrD; simp?)
      apply (clarsimp simp: val_rel_simp heap_simp)
     apply (clarsimp simp: type_rel_simp val_rel_simp)
+   apply (clarsimp simp: is_valid_simp heap_simp)
    apply (rule conjI)
-    apply (rule_tac x = "\<sigma>''(arr + (size_of_num_type num) * n \<mapsto> x')" in exI)
-    apply (rule_tac x = "mk_urecord [UPtr (ptr_val p') (RCon ''WordArray'' [RPrim (Num U32)]), racc']" in exI)
-    apply clarsimp
-    apply (rule conjI)
+    apply (intro exI conjI, assumption, clarsimp simp: val_rel_simp)
+     apply (drule_tac upd_h = "(heap_w32_update 
+      (\<lambda>x a. if a = values_C (heap_WordArray_u32_C sb p') +\<^sub>p uint n then t7_C.p1_C ret else x a) sb)" and
+      uv = x and uv' = x' and x = "values_C (heap_WordArray_u32_C sb p') +\<^sub>p uint n"
+      in all_heap_rel_updE; simp?; clarsimp?)
+        apply (clarsimp simp: val_rel_simp)
+       apply (drule_tac v = x' in upd.type_repr_uval_repr(1); simp add: val_rel_simp)
+      apply (clarsimp simp: val_rel_simp type_rel_simp)
      apply (clarsimp simp: val_rel_simp)
-    apply (clarsimp simp: heap_simp is_valid_simp)
-    apply (drule_tac upd_h = "(heap_w32_update 
+     apply (drule_tac upd_h = "(heap_w32_update 
       (\<lambda>x a. if a = values_C (heap_WordArray_u32_C sb p') +\<^sub>p uint n then t7_C.p1_C ret else x a) sb)" and
-      uv = x and uv' = x' and x = "values_C (heap_WordArray_u32_C sb p') +\<^sub>p uint n"
-      in all_heap_rel_updE; simp?; clarsimp?)
-       apply (clarsimp simp: val_rel_simp)
-      apply (drule_tac v = x' in upd.type_repr_uval_repr(1); simp add: val_rel_simp)
-     apply (clarsimp simp: val_rel_simp type_rel_simp)
-    apply (drule_tac upd_h = "(heap_w32_update 
-      (\<lambda>x a. if a = values_C (heap_WordArray_u32_C sb p') +\<^sub>p uint n then t7_C.p1_C ret else x a) sb)" and
-      uv = x and uv' = x' and x = "values_C (heap_WordArray_u32_C sb p') +\<^sub>p uint n"
-      in all_heap_rel_updE; simp?; clarsimp?)
-       apply (clarsimp simp: val_rel_simp)
-      apply (drule_tac v = x' in upd.type_repr_uval_repr(1); simp add: val_rel_simp)
-     apply (rule conjI)
+      uv = x and uv' = x' and x = "values_C (heap_WordArray_u32_C sb p') +\<^sub>p uint n" and
+      is_v = is_valid_w32 in all_heap_rel_updE; simp?; clarsimp?)
+        apply (clarsimp simp: val_rel_simp)
+       apply (drule_tac v = x' in upd.type_repr_uval_repr(1); simp add: val_rel_simp)
+      apply (rule conjI)
       apply (clarsimp simp: val_rel_simp)
-     apply (cut_tac p = pa and q = "values_C (heap_WordArray_u32_C sb p') +\<^sub>p uint n" in ptr_val_inj)
-     apply clarsimp
-    apply (clarsimp simp: ptr_add_def mult.commute val_rel_simp)
-   apply (clarsimp simp: is_valid_simp)
+     apply (rename_tac pa)
+      apply (cut_tac p = pa and q = "values_C (heap_WordArray_u32_C sb p') +\<^sub>p uint n" in ptr_val_inj)
+      apply clarsimp
+     apply (clarsimp simp: ptr_add_def mult.commute val_rel_simp)
    apply (frule_tac a = n and k = to in less_is_non_zero_p1)
    apply (drule unatSuc2; clarsimp simp: word_less_nat_alt word_le_nat_alt foldmap_measure_def)
    apply linarith
   apply (clarsimp simp: \<Xi>_wordarray_map_no_break_0 wordarray_map_no_break_0_type_def abbreviated_type_defs)
   apply (rule upd.matches_ptrs_some[where r' = "{}" and w' = "{}", simplified])
    apply (rule upd.u_t_struct; simp?)
-   apply (rule upd.u_t_r_cons1[where r = "{}" and w = "{}", simplified]; simp?)
+  apply (rule upd.u_t_r_cons1[where r = "{}" and w = "{}", simplified]; simp?)
      apply (subst (asm) val_rel_word; clarsimp)
      apply (rule upd.u_t_prim'; clarsimp)
     apply (rule upd.u_t_r_cons1[where r' = ro and w' = "{}", simplified]; simp?)
-     apply (drule_tac u = obsv in upd.uval_typing_frame(1); simp?)
-      apply blast
-     apply (rule upd.u_t_r_cons1[where r' = "{}" and w' = "{}", simplified]; simp?)
-      apply (rule upd.u_t_r_empty)
-     apply (drule_tac v = obsv in upd.type_repr_uval_repr(1); simp)
-    apply (rule disjointI)
-    apply (frule_tac p = y and r = ro in upd.uval_typing_valid(1)[where w = "{}", simplified]; simp?)
-    apply clarsimp
-    apply (drule_tac p = y in readonly_not_in_frame; simp?)
-    apply (drule_tac x = y and S' = ro in orthD2; simp?)
-    apply (drule_tac x = y and S' = "ra \<union> ro" in orthD2; simp?)
+      apply (drule_tac u = obsv in upd.uval_typing_frame(1); simp?)
+       apply (drule wa_abs_typing_u_elims(3); clarsimp)
+       apply blast
+      apply (rule upd.u_t_r_cons1[where r' = "{}" and w' = "{}", simplified]; simp?)
+       apply (rule upd.u_t_r_empty)
+      apply (drule_tac v = obsv in upd.type_repr_uval_repr(1); simp)
+     apply (rule disjointI)
+     apply (rename_tac y)
+     apply (frule_tac p = y and r = ro in upd.uval_typing_valid(1)[where w = "{}", simplified]; simp?)
+     apply clarsimp
+     apply (drule_tac p = y in readonly_not_in_frame; simp?)
+     apply (drule_tac x = y and S = ro in orthD1; simp?)
+     apply (drule wa_abs_typing_u_elims(3); clarsimp)
+     apply blast
+    apply (drule_tac v = racc in upd.type_repr_uval_repr(1); simp)
    apply (subst (asm) val_rel_word; clarsimp)
   apply (rule upd.matches_ptrs_empty[where \<tau>s = "[]", simplified])
   done
@@ -726,8 +679,9 @@ gets (\<lambda>s. x)
       apply (clarsimp simp: unknown_bind_ignore split: prod.split)
        apply (rename_tac var e)
        apply (rule_tac M = "\<lambda>((_, i), _). foldmap_measure i (t9_C.to_C v')" and 
-      I = "\<lambda>(a, b) s. (\<exists>\<sigma>' res. foldmap_inv upd_wa_mapAccumnb_bod \<xi>0' \<sigma> (ptr_val (t9_C.arr_C v'))
-          (t9_C.frm_C v') b (uvalfun_to_exprfun f) acc obsv (ra \<union> ro) \<sigma>' res s (t10_C (t9_C.arr_C v') (t6_C.acc_C a))) \<and>
+      I = "\<lambda>(a, b) s. (\<exists>\<sigma>' res.
+          foldmap_inv upd_wa_mapAccumnb_bod ''wordarray_map_no_break_0'' \<xi>0' \<sigma> (ptr_val (t9_C.arr_C v'))
+          (t9_C.frm_C v') b (uvalfun_to_exprfun f) acc obsv  \<sigma>' res s (t10_C (t9_C.arr_C v') (t6_C.acc_C a))) \<and>
           foldmap_inv_stat obsv (t6_C.obsv_C a) \<and>
           foldmap_bounds (t9_C.frm_C v') (t9_C.to_C v') len b e" in whileLoop_add_invI; simp?)
        apply (wp; clarsimp simp: unknown_bind_ignore split: prod.splits)
@@ -742,71 +696,53 @@ gets (\<lambda>s. x)
         apply clarsimp
         apply (rename_tac args j \<sigma>' res)
         apply (clarsimp simp: foldmap_inv_def foldmap_bounds_def)
-        apply (drule upd_wa_mapAccumnb_bod_preservation; simp?; clarsimp?)
-          apply (subst Int_Un_distrib2; clarsimp)
-          apply (cut_tac A = w and B = ra and C = ro in Int_Un_distrib; clarsimp)
-         apply (cut_tac A = w and B = ra and C = ro in Int_Un_distrib; clarsimp)
-        apply (frule_tac p = "ptr_val (t9_C.arr_C v')" in valid_ptr_not_in_frame_same; simp?)
-        apply (thin_tac "_ \<in> state_rel")
-        apply (frule_tac upd_wa_mapAccumnb_bod_preservation'; simp?)
-        apply clarsimp
-        apply (erule upd.u_t_recE; clarsimp)
-        apply (erule upd.u_t_r_consE; simp)
-        apply (erule conjE)+
-        apply (drule_tac t = "type_repr _" in sym; clarsimp)
-        apply (erule upd.u_t_p_con_wrE)
-        apply (drule_tac t = "RCon _ _" in sym; clarsimp)
-        apply (thin_tac "wa_abs_typing_u _ _ _ _ _ _ _")
-        apply (drule wa_abs_typing_u_elims(5))
-        apply (erule_tac x = j in allE; clarsimp)
+        apply (clarsimp simp: \<Xi>_wordarray_map_no_break_0 wordarray_map_no_break_0_type_def abbreviated_type_defs)
+        apply (subst (asm) Int_Un_distrib; clarsimp)
+        apply (drule_tac ptrl = undefined and
+      ra = r and
+      wa = w and
+      rb = ra and
+      wb = wa and
+      rc = ro in upd_wa_mapAccumnb_bod_preservation; simp?; (clarsimp simp: Int_commute)?)  
+        apply (subst conj_commute[of "is_valid_w32 _ _"]; clarsimp)
+        apply (subst conj_commute[of "is_valid_w32 _ _"]; clarsimp)
+        apply (frule_tac \<sigma> = \<sigma>' in wa_abs_typing_u_elims(5), erule_tac x = j in allE, clarsimp)
         apply (clarsimp simp: state_rel_def heap_rel_def heap_rel_ptr_meta heap_rel_ptr_w32_meta)
-        apply (frule_tac p = "t9_C.arr_C v'" in all_heap_rel_ptrD; simp?)
+        apply (frule_tac p = "ptr_val (t9_C.arr_C v')" in valid_ptr_not_in_frame_same; simp?)
+         apply (drule wa_abs_typing_u_elims(3); clarsimp)
+        apply (frule_tac p = "t9_C.arr_C v'" and \<sigma> = \<sigma>' in all_heap_rel_ptrD; simp?)
          apply (clarsimp simp: type_rel_simp wa_abs_repr_def)
-        apply (rotate_tac -2)
-         apply (frule_tac p = "Ptr(arr + (size_of_num_type num) * j)" in all_heap_rel_ptrD; simp?)
+        apply (clarsimp simp: is_valid_simp heap_simp)
+        apply (frule_tac p = "Ptr(arr + (size_of_num_type num) * j)" and
+      \<sigma> = \<sigma>' and 
+      is_v = is_valid_w32 in all_heap_rel_ptrD; simp?)
          apply (clarsimp simp: type_rel_simp)
-        apply (rule conjI)
-         apply (rule_tac x = \<sigma>' in exI)
-         apply (rule_tac x = "mk_urecord [UPtr (ptr_val (t9_C.arr_C v'))
-          (RCon ''WordArray'' [RPrim (Num num)]), racc]" in exI)
-         apply (rule_tac x = "UPrim x" in exI)
-         apply (rule_tac x = "heap_w32 s (PTR(32 word) (arr + (size_of_num_type num) * j))" in exI)
-         apply (clarsimp simp: val_rel_WordArray_u32_C_def ptr_add_def heap_simp mult.commute)
-        apply (clarsimp simp: val_rel_WordArray_u32_C_def ptr_add_def is_valid_simp heap_simp mult.commute)
-       apply (rule conjI)
-        apply (drule_tac v = acc in upd.type_repr_uval_repr(1); simp)
-       apply (rule conjI)
-        apply (drule_tac v = obsv in upd.type_repr_uval_repr(1); simp)
-       apply (rule conjI)
-        apply (drule wa_abs_typing_u_elims(5); simp)
+        apply clarsimp
+        apply (intro conjI exI; simp?)
+         apply (clarsimp simp: val_rel_simp ptr_add_def mult.commute)
+        apply (clarsimp simp: val_rel_simp ptr_add_def mult.commute)
        apply (rule conjI)
         apply (erule u_t_funafuntE; clarsimp)
+       apply (rename_tac args j \<sigma>' res)
        apply (rule_tac x = \<sigma>' in exI)
        apply (rule_tac x = res in exI)
        apply (clarsimp simp: foldmap_inv_def)
+       apply (clarsimp simp: \<Xi>_wordarray_map_no_break_0 wordarray_map_no_break_0_type_def abbreviated_type_defs)
+       apply (unfold foldmap_bounds_def)
+       apply (erule conjE)+
        apply (rule conjI)
-        apply (rule_tac x = "foldmap_acc_type ''wordarray_map_no_break_0''" in exI)
-        apply (rule_tac x = "foldmap_obsv_type ''wordarray_map_no_break_0''" in exI)
-        apply (rule_tac x = "''elem''" in exI)
-        apply (rule_tac x = "''acc''" in exI)
-        apply (rule_tac x = "''obsv''" in exI)
-        apply (rule_tac x = "''p1''" in exI)
-        apply (rule_tac x = "''p2''" in exI)
-        apply (rule_tac x = ra in exI)
-        apply (clarsimp simp: \<Xi>_wordarray_map_no_break_0 wordarray_map_no_break_0_type_def abbreviated_type_defs)
-        apply (rule conjI)
-         apply (intro exI, assumption)
-        apply (rule_tac x = ro in exI)
-        apply clarsimp
-        apply (rename_tac j \<sigma>' res)
-        apply (unfold foldmap_bounds_def)
-        apply (erule conjE)+
         apply (case_tac "t9_C.frm_C v' < e")
          apply (erule impE, assumption)
          apply (thin_tac "_ \<longrightarrow> _")
          apply clarsimp
          apply (case_tac "j < t9_C.to_C v'"; clarsimp)
-         apply (rule upd_wa_mapAccumnb_bod_to_geq_len; simp?)
+         apply (subst (asm) Int_Un_distrib; clarsimp)
+         apply (rule_tac ptrl = undefined and
+      ra = r and
+      wa = w and
+      rb = ra and
+      wb = wa and
+      rc = ro in upd_wa_mapAccumnb_bod_to_geq_len; (simp add: Int_commute)?; clarsimp?)
         apply (erule impE, assumption)
         apply (thin_tac "_ \<longrightarrow> _")
         apply clarsimp
@@ -823,38 +759,12 @@ gets (\<lambda>s. x)
   apply (frule_tac p = "t9_C.arr_C v'" in all_heap_rel_ptrD; simp?)
    apply (clarsimp simp: type_rel_simp wa_abs_repr_def)
   apply (clarsimp simp: is_valid_simp val_rel_WordArray_u32_C_def heap_simp)
+  apply (subst upd_wa_mapAccumnb_bod.simps; clarsimp)+
+  apply (clarsimp simp: val_rel_simp)
   apply (rule conjI; clarsimp)
-   apply (rule conjI)
-    apply (rule_tac x = \<sigma> in exI)
-    apply (rule_tac x = "mk_urecord [UPtr (ptr_val (t9_C.arr_C v'))
-      (RCon ''WordArray'' [RPrim (Num num)]), acc]" in exI)
-    apply (subst upd_wa_mapAccumnb_bod.simps; clarsimp)
-    apply (rule conjI)
-     apply (drule wa_abs_typing_u_elims(5); clarsimp)
-     apply (rename_tac j)
-     apply (erule_tac x = j in allE; clarsimp)
-    apply (rule conjI)
-     apply (drule wa_abs_typing_u_elims(3); clarsimp)
-    apply (rule conjI)
-     apply (clarsimp simp: val_rel_simp)
-    apply (rule conjI; clarsimp)
    apply (subst min_def)
    apply (subst (asm) not_le[symmetric])+
    apply (subst if_not_P; simp?)
-  apply (rule conjI)
-   apply (rule_tac x = \<sigma> in exI)
-   apply (rule_tac x = "mk_urecord [UPtr (ptr_val (t9_C.arr_C v'))
-      (RCon ''WordArray'' [RPrim (Num num)]), acc]" in exI)
-   apply (subst upd_wa_mapAccumnb_bod.simps; clarsimp)
-   apply (rule conjI)
-    apply (drule wa_abs_typing_u_elims(5); clarsimp)
-    apply (rename_tac j)
-    apply (erule_tac x = j in allE; clarsimp)
-   apply (rule conjI)
-    apply (drule wa_abs_typing_u_elims(3); clarsimp)
-   apply (rule conjI)
-    apply (clarsimp simp: val_rel_simp)
-   apply (rule conjI; clarsimp)
   apply (subst min_def)
   apply (clarsimp simp: not_le)
   done

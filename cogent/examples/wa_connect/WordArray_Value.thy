@@ -3,18 +3,61 @@ theory WordArray_Value
 
 begin
 
-context WordArray begin
-
 type_synonym ('f, 'a) vfoldmapdef = "(char list, vatyp) vabsfuns \<Rightarrow> type \<Rightarrow> ('f, 'a) vval list \<Rightarrow> nat \<Rightarrow> 
                                       nat \<Rightarrow> 'f expr \<Rightarrow> ('f, 'a) vval \<Rightarrow> ('f, 'a) vval \<Rightarrow> 
                                       ('f, 'a) vval \<Rightarrow> bool"
-
-section wordarray_length
 
 definition val_wa_length
   where
   "val_wa_length x y = (\<exists>xs len t. x = VAbstract (VWA (TPrim (Num t)) xs) \<and> y = VPrim (LU32 len) \<and> 
                           length xs = unat len)" 
+
+definition val_wa_get
+  where
+  "val_wa_get x y =
+      (\<exists>xs t idx v. x = VRecord [VAbstract (VWA (TPrim (Num t)) xs), VPrim (LU32 idx)] \<and>
+       y = VPrim v \<and> lit_type v = Num t \<and> (unat idx < length xs \<longrightarrow> xs ! unat idx = y) \<and> 
+       (\<not> unat idx < length xs \<longrightarrow> zero_num_lit t = v))" 
+
+definition val_wa_put2
+  where
+  "val_wa_put2 x y =
+      (\<exists>xs t idx val. x = VRecord [VAbstract (VWA (TPrim (Num t)) xs), VPrim (LU32 idx), VPrim val] \<and>
+       lit_type val = Num t \<and> y = VAbstract (VWA (TPrim (Num t)) (xs[unat idx := VPrim val])))" 
+
+function val_wa_foldnb_bod :: "(char list, vatyp) vfoldmapdef"
+  where
+  "val_wa_foldnb_bod \<xi>\<^sub>v t xs frm to f acc obsv res = 
+    (if frm < min to (length xs)
+      then (\<exists>acc'. (\<xi>\<^sub>v, [(VRecord [xs ! frm, acc, obsv])] \<turnstile> App f (Var 0) \<Down> acc') \<and>
+          val_wa_foldnb_bod \<xi>\<^sub>v t xs (Suc frm) to f acc' obsv res)
+    else acc = res)"
+  by pat_completeness auto
+termination
+  apply (relation "measure (\<lambda>(_, _, _, frm, to, _, _, _, _). to - frm)"; clarsimp)
+  apply linarith
+  done
+
+declare val_wa_foldnb_bod.simps[simp del]
+
+function val_wa_mapAccumnb_bod :: "(char list, vatyp) vfoldmapdef"
+  where
+  "val_wa_mapAccumnb_bod \<xi>\<^sub>v t xs frm to f acc obsv res = 
+    (if frm < min to (length xs)
+      then (\<exists>v acc'. (\<xi>\<^sub>v, [(VRecord [xs ! frm, acc, obsv])] \<turnstile> App f (Var 0) \<Down> VRecord [v, acc']) \<and>
+          val_wa_mapAccumnb_bod \<xi>\<^sub>v t (xs[frm := v]) (Suc frm) to f acc' obsv res)
+    else res = VRecord [VAbstract (VWA t xs), acc])"
+  by pat_completeness auto
+termination
+  apply (relation "measure (\<lambda>(_, _, _, frm, to, _, _, _, _). to - frm)"; clarsimp)
+  apply linarith
+  done
+
+declare val_wa_mapAccumnb_bod.simps[simp del]
+
+context WordArray begin
+
+section wordarray_length
 
 lemma val_wa_length_rename_monoexpr_correct:
   "\<lbrakk>val_wa_length (val.rename_val rename' (val.monoval v)) v'; val.proc_env_matches \<xi>\<^sub>v \<Xi>'; proc_ctx_wellformed \<Xi>'\<rbrakk>
@@ -31,13 +74,6 @@ lemma val_wa_length_preservation:
   done
 
 section wordarray_get
-
-definition val_wa_get
-  where
-  "val_wa_get x y =
-      (\<exists>xs t idx v. x = VRecord [VAbstract (VWA (TPrim (Num t)) xs), VPrim (LU32 idx)] \<and>
-       y = VPrim v \<and> lit_type v = Num t \<and> (unat idx < length xs \<longrightarrow> xs ! unat idx = y) \<and> 
-       (\<not> unat idx < length xs \<longrightarrow> zero_num_lit t = v))" 
 
 lemma val_wa_get_rename_monoexpr_correct:
   "\<lbrakk>val_wa_get (val.rename_val rename' (val.monoval v)) v'; val.proc_env_matches \<xi>\<^sub>v \<Xi>'; proc_ctx_wellformed \<Xi>'\<rbrakk>
@@ -60,12 +96,6 @@ lemma val_wa_get_preservation:
   done
 
 section wordarray_put2
-
-definition val_wa_put2
-  where
-  "val_wa_put2 x y =
-      (\<exists>xs t idx val. x = VRecord [VAbstract (VWA (TPrim (Num t)) xs), VPrim (LU32 idx), VPrim val] \<and>
-       lit_type val = Num t \<and> y = VAbstract (VWA (TPrim (Num t)) (xs[unat idx := VPrim val])))" 
 
 lemma val_wa_put2_rename_monoexpr_correct:
   "\<lbrakk>val_wa_put2 (val.rename_val rename' (val.monoval v)) v'; val.proc_env_matches \<xi>\<^sub>v \<Xi>'; proc_ctx_wellformed \<Xi>'\<rbrakk>
@@ -91,21 +121,6 @@ lemma val_wa_put2_preservation:
   done
 
 section wordarray_fold_no_break
-
-function val_wa_foldnb_bod :: "(char list, vatyp) vfoldmapdef"
-  where
-  "val_wa_foldnb_bod \<xi>\<^sub>v t xs frm to f acc obsv res = 
-    (if frm < min to (length xs)
-      then (\<exists>acc'. (\<xi>\<^sub>v, [(VRecord [xs ! frm, acc, obsv])] \<turnstile> App f (Var 0) \<Down> acc') \<and>
-          val_wa_foldnb_bod \<xi>\<^sub>v t xs (Suc frm) to f acc' obsv res)
-    else acc = res)"
-  by pat_completeness auto
-termination
-  apply (relation "measure (\<lambda>(_, _, _, frm, to, _, _, _, _). to - frm)"; clarsimp)
-  apply linarith
-  done
-
-declare val_wa_foldnb_bod.simps[simp del]
 
 lemma val_wa_foldnb_bod_append:
   "\<lbrakk>to \<le> length xs; val_wa_foldnb_bod \<xi>\<^sub>v t (xs @ [x]) frm to f acc obsv r\<rbrakk>
@@ -242,7 +257,6 @@ lemma val_wa_foldnb_bod_back_step:
   apply linarith
   done
 
-
 lemma val_wa_foldnb_bod_preservation:
   "\<lbrakk>proc_ctx_wellformed \<Xi>'; val.proc_env_matches \<xi>\<^sub>v \<Xi>'; val_wa_foldnb_bod \<xi>\<^sub>v t xs frm to f acc obsv r; 
     wa_abs_typing_v (VWA t xs) ''WordArray'' [t]; val.vval_typing \<Xi>' acc u; val.vval_typing \<Xi>' obsv v;
@@ -353,21 +367,6 @@ definition val_wa_foldnbp
       is_vval_fun func \<and> val_wa_foldnb_bod \<xi>\<^sub>p t xs (unat frm) (unat to) (vvalfun_to_exprfun func) acc obsv y)"
 
 section wordarray_map_no_break
-
-function val_wa_mapAccumnb_bod :: "(char list, vatyp) vfoldmapdef"
-  where
-  "val_wa_mapAccumnb_bod \<xi>\<^sub>v t xs frm to f acc obsv res = 
-    (if frm < min to (length xs)
-      then (\<exists>v acc'. (\<xi>\<^sub>v, [(VRecord [xs ! frm, acc, obsv])] \<turnstile> App f (Var 0) \<Down> VRecord [v, acc']) \<and>
-          val_wa_mapAccumnb_bod \<xi>\<^sub>v t (xs[frm := v]) (Suc frm) to f acc' obsv res)
-    else res = VRecord [VAbstract (VWA t xs), acc])"
-  by pat_completeness auto
-termination
-  apply (relation "measure (\<lambda>(_, _, _, frm, to, _, _, _, _). to - frm)"; clarsimp)
-  apply linarith
-  done
-
-declare val_wa_mapAccumnb_bod.simps[simp del]
 
 lemma val_wa_mapAccumnb_bod_to_geq_len:
   "\<lbrakk>val_wa_mapAccumnb_bod \<xi>\<^sub>v t xs frm (length xs) f acc obsv r; length xs \<le> to\<rbrakk> 
