@@ -211,6 +211,7 @@ genDecls PBTInfo{..} defs =
 mkGenBody :: String -> Type () -> Exp ()
 mkGenBody name icT = function "undefined" -- "arbitrary"
 
+-- Dummy func for Gen functions (test data generators)
 genDecls' :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
 genDecls' PBTInfo{..} defs = do
         let FunAbsF{absf=_, ityps=ityps} = fabsf
@@ -228,6 +229,7 @@ genDecls' PBTInfo{..} defs = do
             -- cls    = ClassDecl () () [] ()
           in return $ [dec, hs_dec] --[sig, dec] --, icT']
 
+-- Abstraction Function Generator
 absFDecl :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
 absFDecl PBTInfo{..} defs =  do
         let FunAbsF{absf=_, ityps=ityps} = fabsf
@@ -241,6 +243,7 @@ absFDecl PBTInfo{..} defs =  do
             dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "ic"] (UnGuardedRhs () absE) Nothing]
         return $ [sig, dec] --, icT']
 
+-- Refinement Relation Generator
 rrelDecl :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
 rrelDecl PBTInfo{..} defs = do
         let FunRRel{rrel=_, otyps=otyps} = frrel
@@ -253,29 +256,35 @@ rrelDecl PBTInfo{..} defs = do
             dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "oa", pvar $ mkName "oc"] (UnGuardedRhs () rrelE) Nothing]
         return $ [sig, dec]
  
+-- Get Function Type and Expression
+-- ------------------------------------------
+-- @fname@ is the name of the function
+-- @iaTyp@ is the abstract input type
+-- @defs@ is the list of Cogent definitions
+--
 getFnTyp :: String -> Type () -> [CC.Definition TypedExpr VarName b] -> SG (Type (), Type (), Exp ()) 
 getFnTyp fname iaTyp defs = do 
-    let d = fromJust $ find defFilt defs
-    (icT, iaT, absE) <- getFnTyp' d iaTyp
+    let def = fromJust $ find (\x -> CC.getDefinitionId x == fname) defs
+    (icT, iaT, absE) <- getFnTyp' def iaTyp
     pure $ (icT, iaT, absE)
-        where 
-            defFilt :: (CC.Definition e a b) -> Bool
-            defFilt x = (CC.getDefinitionId x) == fname
 
+-- Helper: get function type and expression
 getFnTyp' :: (CC.Definition TypedExpr VarName b) -> Type () -> SG ( (Type (), Type (), Exp ()) )
-getFnTyp' (CC.FunDef _ fn ps _ ti to _) iaT = local (typarUpd typar) $ do
+getFnTyp' def iaT | (CC.FunDef _ fn ps _ ti to _) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
     ti' <- shallowType ti
     absE <- mkAbsFBody ti iaT
     pure $ ({-TyCon () (mkQName "Unknown") -} ti', iaT, absE)
-    where
-        typar = map fst $ Vec.cvtToList ps
-getFnTyp' (CC.AbsDecl _ fn ps _ ti to) iaT = local (typarUpd typar) $ do
+
+getFnTyp' def iaT | (CC.AbsDecl _ fn ps _ ti to) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
     ti' <- shallowType ti
     absE <- mkAbsFBody ti iaT
     pure $ ( {-TyCon () (mkQName "Unknown")-} ti', iaT, absE)
-    where
-        typar = map fst $ Vec.cvtToList ps
-getFnTyp' (CC.TypeDef tn _ _) iaT = pure $ (TyCon () (mkQName "Unknown"), iaT, function $ "undefined")
+
+getFnTyp' def iaT | (CC.TypeDef tn _ _) <- def 
+    = pure $ (TyCon () (mkQName "Unknown"), iaT, function $ "undefined")
+
+
+
 
 getFnOutTyp :: String -> Type () -> [CC.Definition TypedExpr VarName b] -> SG (Type (), Type (), Exp ()) 
 getFnOutTyp fname oaTyp defs = do 
@@ -305,58 +314,50 @@ getFnOutTyp' (CC.TypeDef tn _ _) oaT = pure $ (TyCon () (mkQName "Unknown"), oaT
 -- |    - direct mapping
 -- |    - Abstract Input Type is the input type of the Haskell abstract spec
 -- |    - Concrete Input Type is the input type of the concrete function (Cogent HS embedding)
---
-mkAbsFBody :: CC.Type t a -> Type () -> SG (Exp ())
-mkAbsFBody concT (TyParen _ t   ) = mkAbsFBody concT t 
 -- ^^ Type surrounded by parens, recurse on inside type
-
-mkAbsFBody concT (TyTuple _ _ tfs) = unwrapRTup concT --"ic"
 -- ^^ IA is Tuple, fs is [(FieldName, (Type t b, Bool))]
 --
 
-mkAbsFBody concT (TyCon _ cn    ) = pure $ function $ "undefined"
-mkAbsFBody concT (TyList _ t    ) = pure $ function $ "undefined" 
+
+-- checking the provided Abstract type
+mkAbsFBody :: CC.Type t a -> Type () -> SG (Exp ())
+mkAbsFBody icTyp (TyParen _ t   ) = mkAbsFBody icTyp t
+mkAbsFBody icTyp (TyTuple _ _ tfs) = mkTupFrom icTyp "ic"
+mkAbsFBody icTyp (TyCon _ cn    ) = __impossible "Bad abstraction"
+mkAbsFBody icTyp (TyList _ t    ) = __impossible "Bad abstraction"
+
+-- Convert Cogent type to Tuple
+mkTupFrom :: CC.Type t a -> String -> SG (Exp ())
+mkTupFrom icTyp name 
+    -- | TVar (Fin t)
+    -- | TVarBang (Fin t)
+    -- | TVarUnboxed (Fin t)
+    -- | TCon TypeName [Type t b] (Sigil ()) -- Layout will be nothing for abstract types
+    -- | TFun (Type t b) (Type t b)
+    -- | TPrim PrimInt
+    -- | TString
+    | (CC.TSum tags) <- icTyp = undefined
+    | (CC.TProduct l r) <- icTyp = undefined
+    | (CC.TRecord _ fs _) <- icTyp = do 
+        let icName = mkConE $ mkName name
+            iaFieldNames = map (\v -> mkName $ snm $ fst v) fs
+            iaBindPats = map (\v -> pvar . mkName $ snm $ fst v) fs
+            body = tuple $ map var iaFieldNames
+        shGetFields <- P.mapM (\x -> shGetter' icTyp (map fst fs) x icName) [0..P.length iaBindPats]
+        let
+            binds = P.zip iaBindPats shGetFields
+        pure $ mkLetE binds body
+    -- | TUnit
+    -- | TRPar     RecParName (RecContext (Type t b))
+    -- | TRParBang RecParName (RecContext (Type t b))
+-- #ifdef BUILTIN_ARRAYS
+    -- | TArray (Type t b) (LExpr t b) (Sigil (DataLayout BitRange)) (Maybe (LExpr t b))  -- the hole
+    -- | TRefine (Type t b) (LExpr t b)
+    -- | _ <- icTyp = undefined
 
 
-
-unwrapRTup :: CC.Type t a -> SG (Exp ())
-unwrapRTup concT = case concT of 
-    (CC.TRecord _ fs _) -> do
-             --vs <- mapM (\x -> fst x) fs
-             --vs <- concatMapM fst fs
-             (tn,_) <- nominalType concT
-             let rec' = mkConE $ mkName "ic"
-                 bs = P.map (\v -> mkName $ snm $ fst v) fs
-                 p' = PRec () (UnQual () $ mkName tn) --[PFieldWildcard ()] -- bs
-                        (P.zipWith (\(f,_) b -> PFieldPat () (UnQual () . mkName $ snm f) (pvar b)) fs bs)
-             pure $ mkLetE [(p',rec')] $ tuple $ map (\x -> app (function "fromIntegral") (var x)) bs
-    (CC.TCon tn ts _)   -> pure $ function $ "undefined"
-    (CC.TSum ts)        -> pure $ function $ "undefined"
-    (CC.TProduct t1 t2) -> pure $ var $ mkName "ic"
-
-    -- ^^ Cogent Tuple, unwrap with letE, 
-    _                   -> pure $ function $ "undefined"
-
-{-
-unwrapRTup :: CC.Type t a -> String -> SG (Exp ())
-unwrapRTup concT varN | (CC.TRecord _ fs _) <- concT = do
-      let rec' = mkConE $ mkName varN
-          bs = P.map (\v -> mkName $ snm $ fst v) fs
-          p1 = pvar . mkName $ snm "p1"  -- taken field
-          p2 = pvar . mkName $ snm "p2"  -- new record
-          rect@(CC.TRecord _ fs _) = concT
-      p1' <- shGetter' concT (map fst fs) 0 rec'
-      p2' <- shGetter' concT (map fst fs) 1 rec'
-      pure $ mkLetE [(p1, p1'), (p2, p2')] $ tuple $ map var bs
-
-unwrapRTup concT varN | (CC.TCon tn ts _) <- concT = pure $ function $ "undefined" 
-unwrapRTup concT varN | (CC.TSum ts) <- concT = pure $ function $ "undefined"
-unwrapRTup concT varN | (CC.TProduct t1 t2) <- concT = pure $ function $ "undefined"
-unwrapRTup concT varN = pure $ var $ mkName varN
--}
-
-
-
+-- | Like shallowGetter functions but for Cogent Type
+-- --------------------------------------------------
 shGetter :: CC.Type t a -> [FieldName] -> FieldIndex -> Exp () -> SG (Exp ())
 shGetter rec fnms idx rec' = do
   tuples <- view recoverTuples
@@ -383,7 +384,74 @@ getRecordFieldName' _ _ = __impossible "input should be of record type"
 
 
 
+
+
+
+
+
+
+
+
+
+unwrapRTup :: CC.Type t a -> SG (Exp ())
+unwrapRTup concT = case concT of 
+    (CC.TRecord _ fs _) -> do
+             --vs <- mapM (\x -> fst x) fs
+             --vs <- concatMapM fst fs
+             (tn,_) <- nominalType concT
+             let rec' = mkConE $ mkName "ic"
+                 bs = P.map (\v -> mkName $ snm $ fst v) fs
+                 p' = PRec () (UnQual () $ mkName tn) --[PFieldWildcard ()] -- bs
+                        (P.zipWith (\(f,_) b -> PFieldPat () (UnQual () . mkName $ snm f) (pvar b)) fs bs)
+             pure $ mkLetE [(p',rec')] $ tuple $ map (\x -> app (function "fromIntegral") (var x)) bs
+    (CC.TCon tn ts _)   -> pure $ function $ "undefined"
+    (CC.TSum ts)        -> pure $ function $ "undefined"
+    (CC.TProduct t1 t2) -> pure $ var $ mkName "ic"
+
+    -- ^^ Cogent Tuple, unwrap with letE, 
+    _                   -> pure $ function $ "undefined"
+
+
+        
+        {-
+-- field 
+unwrapFields :: [(FieldName, (Type t b, Bool))] -> [(Pat (), Exp ())]
+unwrapFields l 
+    = map unwrapField l
+    
+unwrapField :: (FieldName, (Type t b, Bool)) -> [FieldName] -> Int -> (Pat (), Exp ())
+unwrapField (fieldName, (fieldType, _)) fieldNames index 
+    = (mkN
+
+    -- TODO: continue generalising for record with n many fields
+
+-}
+
+-- this kinda works 
+-- 
+unwrapRTup' :: CC.Type t a -> String -> (CC.Definition TypedExpr VarName b) -> SG (Exp ())
+unwrapRTup' concT varN def | (CC.TRecord _ fs _) <- concT = do
+      let rec' = mkConE $ mkName varN
+          bs = P.map (\v -> mkName $ snm $ fst v) fs
+          p1 = pvar . mkName $ snm "p1"  -- taken field
+          p2 = pvar . mkName $ snm "p2"  -- new record
+          -- rect@(CC.TRecord _ fs _) = concT
+      p1' <- shGetter' concT (map fst fs) 0 rec'  -- SH.shallowGetter typedExpr (map fst fs) 0 rec'
+      p2' <- shGetter' concT (map fst fs) 1 rec'
+      pure $ mkLetE [(p1, p1'), (p2, p2')] $ tuple $ map var bs
+
+unwrapRTup' concT varN def | (CC.TCon tn ts _) <- concT = pure $ function $ "undefined" 
+unwrapRTup' concT varN def | (CC.TSum ts) <- concT = pure $ function $ "undefined"
+unwrapRTup' concT varN def | (CC.TProduct t1 t2) <- concT = pure $ function $ "undefined"
+unwrapRTup' concT varN def = pure $ var $ mkName varN
+
+
+
+
+
+
 -- | mkRrelBody 
 -- | dummy func ATM
+-- --------------------------------------------------
 mkRrelBody :: CC.Type t a -> Type () -> SG (Exp ())
 mkRrelBody concT absT = pure $ function $ "undefined"
