@@ -204,23 +204,23 @@ findShortType t = do
    Just tn -> pure $ TCon tn [] (__impossible "findShortType")
 
 lookupPolySyn :: (Show b,Eq b) => CC.Type t b -> [PolyTypeSyn] -> Maybe (TypeName, [CC.Type t b])
-lookupPolySyn t polys = 
-    if (null matches) 
+lookupPolySyn t polys =
+    if (null matches)
        then Nothing
        else -- FIXME: simple strategy using only the first match found
             Just $ P.head matches
-    where matches = catMaybes $ map (matchPolySyn t) polys 
+    where matches = catMaybes $ map (matchPolySyn t) polys
 
 matchPolySyn :: (Show b,Eq b) => CC.Type t b -> PolyTypeSyn -> Maybe (TypeName, [CC.Type t b])
-matchPolySyn t (PTS sn svs r) = 
+matchPolySyn t (PTS sn svs r) =
     case matchType svs t r of
          Nothing -> Nothing
-         Just binds -> 
-            let 
-                mbinds = nub binds 
+         Just binds ->
+            let
+                mbinds = nub binds
             in if (P.length svs) /= (P.length mbinds)
                   then Nothing
-                  else let 
+                  else let
                            mapbinds = M.fromList mbinds
                        in if (P.length svs) /= (M.size mapbinds)
                              then Nothing
@@ -234,7 +234,7 @@ matchPolySyn t (PTS sn svs r) =
 -- The same variable may have several entries in result list, for a match they must all bind the same type.
 -- FIXME: recursive record parameters and refinement types are not handled yet.
 matchType :: [TyVarName] -> CC.Type t1 b1 -> CC.Type t2 b2 -> Maybe [(TyVarName, CC.Type t1 b1)]
-matchType vs (TCon tn targs _) (TCon rn rargs _) | tn == rn && (P.length targs) == (P.length rargs) = 
+matchType vs (TCon tn targs _) (TCon rn rargs _) | tn == rn && (P.length targs) == (P.length rargs) =
     matchTypes vs targs rargs
 matchType vs (TRecord tr tfs _) (TRecord rr rfs _) | tr == rr && (P.length tfs) == (P.length rfs) =
     if (map fst tfs) /= (map fst rfs)
@@ -260,7 +260,7 @@ matchType _ _ _ = Nothing
 
 matchTypeVar :: [TyVarName] -> CC.Type t1 b -> Fin t2 -> Maybe [(TyVarName, CC.Type t1 b)]
 matchTypeVar vs t n =
-    if i >= P.length vs 
+    if i >= P.length vs
        then Nothing
        else Just [(vs!!i,t)]
     where i = finInt n
@@ -278,8 +278,8 @@ findTypeSyn t = findType t >>= \(TCon nm _ _) -> pure nm
 
 shallowExpr :: (Show b,Eq b) => TypedExpr t v VarName b -> SG Term
 shallowExpr (TE _ (Variable (_,v))) = pure $ mkId (snm v)
-shallowExpr (TE t (Fun fn ts ls _)) = 
-    if null ts 
+shallowExpr (TE t (Fun fn ts ls _)) =
+    if null ts
        then pure $ mkId $ snm $ unCoreFunName fn
        else -- for polymorphic functions add its type
             TermWithType (mkId $ snm $ unCoreFunName fn) <$> shallowType t
