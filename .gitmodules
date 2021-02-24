@@ -8,3 +8,6 @@
 [submodule "cogent/llvm/checker/vellvm"]
 	path = cogent/llvm/checker/vellvm
 	url = https://github.com/vellvm/vellvm
+[submodule "cogent/llvm/checker/coq-record-update"]
+	path = cogent/llvm/checker/coq-record-update
+	url = https://github.com/tchajed/coq-record-update.git

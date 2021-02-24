@@ -1,5 +1,6 @@
 -Q vellvm/src/coq Vellvm
 -Q vellvm/lib/InteractionTrees/theories ITree
+-Q coq-record-update/src RecordUpdate
 -R coq Checker
 -R input Input
 ./coq/Main.v
@@ -7,5 +8,6 @@
 ./coq/Cogent.v
 ./coq/Types.v
 ./coq/Denote.v
+./coq/State.v
 ./input/LLVM.v
 ./input/Source.v

@@ -18,6 +18,8 @@ Compute (burn 100 (denote_expr prog)). *)
 
 (* LLVM Import *)
 
+(* Check LLVMInput. *)
+
 (* Definition never : block typ := mk_block (Name "never") [] [] (IVoid 0%Z, TERM_Ret_void) None. *)
 
 (* Definition fixer : list (toplevel_entity typ (list (block typ))) -> list (toplevel_entity typ (block typ * list (block typ))) :=
@@ -58,8 +60,8 @@ Compute (burn 100 (denote_expr prog)). *)
 
 Compute map compile_def CogentInput.
 
-Compute burn 50 (
+(* Compute burn 50 (
   run_cogent
     (UPrim (LU8 1)) 
     (Let (Var 0) (Let (Lit (LU8 1)) (Prim (Plus U8) [Var 1;Var 0])))
-).
+). *)

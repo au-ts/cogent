@@ -126,7 +126,7 @@ genDefinition _ = error "not implemented"
 genType :: Show b => C.Type t b -> Type
 genType C.TUnit = TUnit
 -- genType (C.TFun t rt) = TFun (genType t) (genType rt)
-genType t@(C.TPrim _) = TPrim (Num (genNumType t))
+genType t@(C.TPrim _) = TPrim (genPrimType t)
 genType C.TString = TPrim String
 genType t = error $ show t
 
@@ -136,6 +136,7 @@ genExpr (TE _ (C.Op op os@((TE t' _) : _))) = Prim (genOp t' op) $ CoqList (genE
 genExpr (TE _ (C.Let _ val body)) = Let (genExpr val) (genExpr body)
 genExpr (TE _ (C.Variable (idx, _))) = Var (finInt idx)
 genExpr (TE _ C.Unit) = Unit
+genExpr (TE _ (C.If c b1 b2)) = If (genExpr c) (genExpr b1) (genExpr b2)
 genExpr e = error $ show e
 
 genLit :: Integer -> PrimInt -> Lit
