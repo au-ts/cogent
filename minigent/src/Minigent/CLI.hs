@@ -144,7 +144,7 @@ printHelp = putStrLn $ unlines
   , ""
   , " Compiles up to a given phase, carrying out any relevant directives for each file."
   , ""
-  , "  PHASE - one of: lexer, parse, reorg, tc, cg. "
+  , "  PHASE - one of: lexer, parse, reorg, tc, term, cg. "
   , ""
   , "  DIRECTIVES - one of: "
   , "    --dump PHASE [FORMAT] FILE     (writes the output of the given phase to the given file)"
