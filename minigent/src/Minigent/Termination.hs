@@ -82,52 +82,37 @@ parseTypes :: [(FieldName, Entry)] -> [(FieldName, (Maybe VarName), Template)]
 parseTypes [] = []
 parseTypes xs = map (\(f, Entry _ ty _) -> (f, Nothing, buildTemplate ty)) xs
 
--- MEASURES AST --
-data MeasureOp
-  = ProjectOp FieldName MeasureOp -- field 
-  | UnfoldOp RecParName FieldName MeasureOp -- recpar, field 
-  | RecParMeasure RecParName -- recpar 
-  | CaseOp [(String,MeasureOp)] -- field 
-  | IntConstOp Int
-  deriving (Show, Eq)
+-- Expression AST --
 
--- BUILD MEASURE FROM REC ARG TYPE -- 
-buildMeasure :: Type -> [MeasureOp] -> [MeasureOp]
-buildMeasure t res = 
-  case t of 
-    PrimType p -> IntConstOp 0 : res 
-    Record recpar row sig -> parseRecord recpar $ M.toList (rowEntries row)
-    Variant row -> parseVariant $ M.toList (rowEntries row)
-    RecPar t rc -> RecParMeasure t : res
-    RecParBang t rc -> RecParMeasure t : res 
-    AbsType name sig ty -> IntConstOp 0: res
-    TypeVar v -> IntConstOp 0 : res 
-    TypeVarBang v -> IntConstOp 0 : res 
-    UnifVar v -> IntConstOp 0 : res
-    Function x y -> IntConstOp 0 : res 
-    Bang t -> buildMeasure t []
+data TermExpr
+  = Var VarName
+  | Lam (TermExpr -> TermExpr)
+  | Proj FieldName TermExpr
+  | Case [(FieldName, TermExpr -> TermExpr)] TermExpr
+  | IntLit Int
+  | Unpack TermExpr
+  | RecPar VarName
+  | MkStruct [(FieldName, TermExpr)]
+  | MkVariant FieldName TermExpr
+  | MkRec VarName TermExpr
 
-parseRecord :: RecPar -> [(FieldName, Entry)] -> [MeasureOp]
-parseRecord _ [] = []
-parseRecord recpar ((f, Entry _ ty _): rs) = 
-  let children = buildMeasure ty []
-      rest = parseRecord recpar rs
-  in case recpar of 
-    None -> (map (\x -> ProjectOp f x) children) ++ rest
-    Rec recpar' -> (map (\x -> UnfoldOp recpar' f x) children) ++ rest
-    UnknownParameter t -> [] -- shouldn't happen, should be caught by type checker
-
-parseVariant :: [(FieldName, Entry)] -> [MeasureOp]
-parseVariant [] = []
-parseVariant ((f, Entry _ ty _): rs) = 
-  let cur = buildMeasure ty []
-      rest = parseVariant rs 
-  in cartesianProduct f cur rest 
-
-cartesianProduct :: FieldName -> [MeasureOp] -> [MeasureOp] -> [MeasureOp]
-cartesianProduct f [] [] = []
-cartesianProduct f ms [] = map (\x -> CaseOp x) [[(f, m)] | m <- ms] 
-cartesianProduct f ms cs = map (\x -> CaseOp x) [(f, m):c | m <- ms, c <- map (\(CaseOp v) -> v) cs] 
+-- Build possible measures from the structure of the type
+buildMeasure :: Type -> [TermExpr -> TermExpr]
+buildMeasure (PrimType p)          = [\_ -> IntLit 0]
+buildMeasure (Record rp row sig)   =
+  let fs = M.toList (rowEntries row)
+   in [ m . Project f | Entry f t _ <- fs, m <- buildMeasure t ]
+buildMeasure (Variant row)         =
+  let vs = M.toList (rowEntries row)
+   in Case $ map (\Entry n t _ -> (f, buildMeasure t)) vs
+buildMeasure (RecPar _ _)          = [Unpack]
+buildMeasure (RecParBang _ _)      = [Unpack]
+buildMeasure (AbsType _ _ _)       = [\_ -> IntLit 0]
+buildMeasure (TypeVar v)           = [\_ -> IntLit 0]
+buildMeasure (TypeVarBang v)       = [\_ -> IntLit 0]
+buildMeasure (UnifVar v)           = [\_ -> IntLit 0]
+buildMeasure (Function x y)        = [\_ -> IntLit 0]
+buildMeasure (Bang t)              = buildMeasure t
 
 getType :: FunName -> GlobalEnvironments -> Maybe Type
 getType f genvs = 
