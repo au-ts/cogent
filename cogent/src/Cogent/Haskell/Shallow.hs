@@ -230,11 +230,11 @@ shallow tuples name stg defs consts log =
              , ImportDecl () (ModuleName () "Prelude"  ) False False False Nothing Nothing (Just $ ImportSpecList () False import_prelude)
              ]
       hsModule = Module () (Just moduleHead) exts imps $ tds ++ decls
-      in hsModule & header .
+      in (hsModule & header .
            prettyPrintStyleMode
              (style {lineLength = 220, ribbonsPerLine = 0.1})
              -- \ ^ if using https://github.com/zilinc/haskell-src-exts, no need for very long lines
-             (defaultMode {caseIndent = 2})
+             (defaultMode {caseIndent = 2}))
 
 -- ----------------------------------------------------------------------------
 -- * Top-level definition generation

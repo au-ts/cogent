@@ -70,6 +70,8 @@ data FunWelF = FunWelF { welf :: (String, [String])
 
 -- data PBTInfoList = PBTInfoList [PBTInfo]
 -- Prototyping ...
+{-
+
 data ICType = Pointer
             | CList 
             | Tree
@@ -93,3 +95,4 @@ data FuncInfo = FuncInfo { name :: String
                          , nondet :: Bool
                          , ictype :: ICType
                          } deriving (Show)
+                         -}
