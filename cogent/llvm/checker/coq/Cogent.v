@@ -134,6 +134,21 @@ Definition eval_prim_op (op:prim_op) (xs:list lit) : lit :=
   | _ => default
   end.
 
+Definition cast_to (n:num_type) (l:lit) : option lit :=
+  match n, l with
+  | U8, (LU8  x)  => Some (LU8 x)
+  | U16, (LU8  x) => Some (LU16 x)
+  | U16, (LU16 x) => Some (LU16 x)
+  | U32, (LU8  x) => Some (LU32 x)
+  | U32, (LU16 x) => Some (LU32 x)
+  | U32, (LU32 x) => Some (LU32 x)
+  | U64, (LU8  x) => Some (LU64 x)
+  | U64, (LU16 x) => Some (LU64 x)
+  | U64, (LU32 x) => Some (LU64 x)
+  | U64, (LU64 x) => Some (LU64 x)
+  | _, _ => None
+  end.
+
 (* Pretty AST Notation *)
 
 Declare Scope cogent_scope.

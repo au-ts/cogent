@@ -137,6 +137,7 @@ genExpr (TE _ (C.Let _ val body)) = Let (genExpr val) (genExpr body)
 genExpr (TE _ (C.Variable (idx, _))) = Var (finInt idx)
 genExpr (TE _ C.Unit) = Unit
 genExpr (TE _ (C.If c b1 b2)) = If (genExpr c) (genExpr b1) (genExpr b2)
+genExpr (TE _ (C.Cast t e)) = Cast (genNumType t) (genExpr e)
 genExpr e = error $ show e
 
 genLit :: Integer -> PrimInt -> Lit

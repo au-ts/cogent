@@ -13,7 +13,8 @@ Local Open Scope monad_scope.
 
 Inductive uval : Set :=
 | UPrim (l:lit)
-| UUnit.
+| UUnit
+| UError.
 
 Variant CogentState : Type -> Type :=
 | PeekVar (i:index) : CogentState uval
@@ -41,7 +42,24 @@ Section Denote.
         b' <- denote_expr b ;;
         trigger PopVar ;;
         ret b'
-    | _ => ret UUnit
+    | Unit => ret UUnit
+    | If c t e =>
+        c' <- denote_expr c ;;
+        match c' with
+        | UPrim (LBool b) => denote_expr (if b then t else e)
+        | _ => ret UError
+        end
+    | Cast t e =>
+        e' <- denote_expr e ;;
+        ret match e' with
+        | UPrim l => 
+            match cast_to t l with
+            | Some l' => UPrim l'
+            | None => UError
+            end
+        | _ => UError
+        end
+    | _ => ret UError
     end.
 
   Definition denote_fun (b:expr) : uval -> itree eff uval :=

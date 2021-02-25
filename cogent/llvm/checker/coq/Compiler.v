@@ -136,24 +136,6 @@ Section Compiler.
       | LU32 w => (TYPE_I 32, EXP_Integer w)
       | LU64 w => (TYPE_I 64, EXP_Integer w)
       end
-    | Unit => ret (TYPE_I 2, EXP_Integer 0)
-    | If c b1 b2 =>
-        c' <- compile_expr c ;;
-        '(br_true, br_false, br_exit) <- branch_blocks ;;
-        term (TERM_Br c' br_true br_false) ;;
-
-        new_block br_true ;;
-        b1' <- compile_expr b1 ;;
-        br_true' <- current_block ;;
-        term (TERM_Br_1 br_exit) ;;
-
-        new_block br_false;;
-        b2' <- compile_expr b2 ;;
-        br_false' <- current_block ;;
-        term (TERM_Br_1 br_exit) ;;
-
-        new_block br_exit ;;
-        phi (fst b1') [(br_true', snd b1'); (br_false', snd b2')]
     | Var i =>
         s <- get ;;
         ret (nth i (vars s) undef)
@@ -164,6 +146,28 @@ Section Compiler.
         b' <- compile_expr b ;;
         set_vars (vars s) ;;
         ret b'
+    | Unit => ret (TYPE_I 2, EXP_Integer 0)
+    | If c t e =>
+        c' <- compile_expr c ;;
+        '(br_true, br_false, br_exit) <- branch_blocks ;;
+        term (TERM_Br c' br_true br_false) ;;
+
+        new_block br_true ;;
+        t' <- compile_expr t ;;
+        br_true' <- current_block ;;
+        term (TERM_Br_1 br_exit) ;;
+
+        new_block br_false;;
+        e' <- compile_expr e ;;
+        br_false' <- current_block ;;
+        term (TERM_Br_1 br_exit) ;;
+
+        new_block br_exit ;;
+        phi (fst t') [(br_true', snd t'); (br_false', snd e')]
+    | Cast t e =>
+        e' <- compile_expr e ;;
+        let t' := convert_num_type t in
+        instr t' (INSTR_Op (OP_Conversion Zext (fst e') (snd e') t')) 
     | _ => ret undef
     end.
   
