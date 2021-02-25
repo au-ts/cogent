@@ -110,6 +110,8 @@ propModule name hscname pbtinfos decls =
                    , "NamedFieldPuns"
                    , "NoImplicitPrelude"
                    , "PartialTypeSignatures"
+                   , "PartialTypeSignatures"
+                   , "TemplateHaskell"
                    ]
       importVar s = IVar () $ Ident  () s
       importSym s = IVar () $ Symbol () s
@@ -130,6 +132,8 @@ propModule name hscname pbtinfos decls =
              -- custom corres
              , ImportDecl () (ModuleName () "Corres" ) False False False Nothing Nothing Nothing
              , ImportDecl () (ModuleName () hscname) False False False Nothing Nothing Nothing
+             , ImportDecl () (ModuleName () "Lens.Micro") False False False Nothing Nothing Nothing
+             , ImportDecl () (ModuleName () "Lens.Micro.TH") False False False Nothing Nothing Nothing
              -- , ImportDecl () (ModuleName () (hscname ++ "_Abs")) False False False Nothing (Just (ModuleName () "FFI")) Nothing
              , ImportDecl () (ModuleName () "Prelude"  ) False False False Nothing Nothing (Just $ ImportSpecList () False import_prelude)
              , ImportDecl () (ModuleName () "Data.Bits") False False False Nothing Nothing (Just $ ImportSpecList () False import_bits)
@@ -333,24 +337,24 @@ mkTupFrom'' :: CC.Type t a -> Type () -> Type () -> SG (Exp ())
 mkTupFrom'' cogIcTyp icTyp iaTyp 
     = do
         accessorMap <- mkAbsFBobyWithLens cogIcTyp icTyp iaTyp 
-        let iaFieldNames = map (\v -> mkName $ snm $ fst v) $ M.toList accessorMap
-            iaBindPats = map (\v -> pvar . mkName $ snm $ fst v) $ M.toList accessorMap
+        let iaFieldNames = map (\v -> mkName $ (snm $ fst v)++"'") $ M.toList accessorMap
+            iaBindPats = map (\v -> pvar . mkName $ (snm $ fst v)++"'") $ M.toList accessorMap
             iaBindExps = map snd $ M.toList accessorMap
             body = tuple $ map var iaFieldNames
             binds = P.zip iaBindPats iaBindExps
         pure $ mkLetE binds body
             
 
--- @cogentIcTyp@ is the original cogent type
+-- @cogIcTyp@ is the original cogent type
 -- @icTyp@ is the hs embedding of cogent type 
 -- @iaTyp@ is the user supplied type we are trying to abstract to
 mkAbsFBobyWithLens :: CC.Type t a -> Type () -> Type () -> SG (M.Map String (Exp ()))
-mkAbsFBobyWithLens cogentIcTyp hsIcTyp hsIaTyp 
+mkAbsFBobyWithLens cogIcTyp hsIcTyp hsIaTyp 
     = case hsIcTyp of
-        (TyParen _ t   ) -> mkAbsFBobyWithLens cogentIcTyp t hsIaTyp
-        (TyTuple _ _ tfs) -> handleIcTup cogentIcTyp hsIcTyp hsIaTyp
-        (TyCon _ cn    ) -> handleIcCon cogentIcTyp hsIcTyp hsIaTyp
-        (TyApp _ conT fsT) -> handleIcApp cogentIcTyp hsIcTyp hsIaTyp
+        (TyParen _ t   ) -> mkAbsFBobyWithLens cogIcTyp t hsIaTyp
+        (TyTuple _ _ tfs) -> handleIcTup cogIcTyp hsIcTyp hsIaTyp
+        (TyCon _ cn    ) -> handleIcCon cogIcTyp hsIcTyp hsIaTyp
+        (TyApp _ conT fsT) -> handleIcApp cogIcTyp hsIcTyp hsIaTyp
         (TyList _ t    ) -> __impossible "TODO"
         otherwise -> __impossible "TODO"
 
