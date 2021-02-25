@@ -110,7 +110,7 @@ import Lens.Micro
 import Lens.Micro.TH
 import Lens.Micro.Mtl
 import Control.Monad.RWS hiding (Product, Sum, mapM)
--- import Data.Char (ord, chr)
+import Data.Char (isUpper)
 import Data.Foldable (toList)
 import Data.Function (on)
 import Data.Generics.Aliases (mkQ)
@@ -330,6 +330,7 @@ keywords = ["data", "type", "newtype", "if", "then", "else", "case", "of", "wher
 -- | name modifier --- map Cogent namespace to Haskell namespace
 --
 --   __FIXME:__ it's not very robust / zilinc
+--   Crude fix: for Lens in generated file need a "_" infront
 snm :: String -> String
 snm s | s `elem` keywords = s ++ "_"
 snm s = s
@@ -440,7 +441,7 @@ decTypeStr (RecordStr fs) = do
   vn <- freshInt <<+= 1
   let tn = recTypeName ++ show vn
       tvns = P.zipWith (\_ n -> mkName $ typeParam ++ show n) fs [1::Int ..]
-      rfs = P.zipWith (\f n -> FieldDecl () [mkName $ snm f] (mkVarT n)) fs tvns
+      rfs = P.zipWith (\f n -> FieldDecl () [mkName $ "_"++(snm f)] (mkVarT n)) fs tvns
       irule = IRule () Nothing Nothing (IHCon () (UnQual () (mkName "Show")))
       dec = DataDecl () (DataType ()) Nothing (mkDeclHead (mkName tn) tvns)
               [QualConDecl () Nothing Nothing $ RecDecl () (mkName tn) rfs]
@@ -691,7 +692,7 @@ shallowGetter :: TypedExpr t v VarName b -> [FieldName] -> FieldIndex -> Exp () 
 shallowGetter rec fnms idx rec' = do
   tuples <- view recoverTuples
   return $ if | tuples, isRecTuple fnms -> appFun (mkQVarE "Tup" . mkName $ "sel" ++ show (idx+1)) [rec']
-              | otherwise -> appFun (var . mkName . snm $ getRecordFieldName rec idx) [rec']
+              | otherwise -> appFun (var . mkName . (\x -> "_"++x) . snm $ getRecordFieldName rec idx) [rec']
 
 -- | Another way to extract a field from a record. E.g.:
 --
@@ -711,7 +712,7 @@ shallowGetter' rec fnms idx rec' = do
          (tn,_) <- nominalType t
          let bs = P.map (\v -> mkName $ internalVar ++ show v) vs
              p' = PRec () (UnQual () $ mkName tn)
-                       (P.zipWith (\(f,_) b -> PFieldPat () (UnQual () . mkName $ snm f) (pvar b)) fs bs)
+                       (P.zipWith (\(f,_) b -> PFieldPat () (UnQual () . mkName $ "_"++snm f) (pvar b)) fs bs)
          pure $ mkLetE [(p',rec')] $ var (bs !! idx)
 
 -- | @'shallowSetter' rec idx rec\' rect\' e\'@:
@@ -733,7 +734,7 @@ shallowSetter rec fnms idx rec' rect' e' = do
   tuples <- view recoverTuples
   return $ if | tuples, isRecTuple fnms -> appFun (mkQVarE "Tup" . mkName $ "upd" ++ show (idx+1)) [e', rec']
               | otherwise -> RecUpdate () (Paren () $ ExpTypeSig () rec' rect')
-                               [FieldUpdate () (UnQual () . mkName . snm $ getRecordFieldName rec idx) e']
+                               [FieldUpdate () (UnQual () . mkName . (\x -> "_"++x) . snm $ getRecordFieldName rec idx) e']
 
 
 -- | prefix for internally introduced variables

@@ -245,6 +245,12 @@ absFDecl PBTInfo{..} defs = do
             to     = iaT
             sig    = TypeSig () [mkName fnName] (TyFun () ti to)
             dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "ic"] (UnGuardedRhs () absE) Nothing]
+            {-
+            lens   = nameBind (mkName "makeLenses") (var (mkName ((\x -> case x of 
+                                                                        (TyCon _ (UnQual _ ((Symbol _ n)))) -> "''"++n
+                                                                        otherwise -> "undefined"
+                                                                  ) icT)))
+                                                                  -}
         return $ [sig, dec] --, icT']
 
 -- Refinement Relation Generator
@@ -331,6 +337,7 @@ mkAbsFBody'' :: CC.Type t a -> Type () -> Type () -> SG (Exp ())
 mkAbsFBody'' cogIcTyp icTyp iaTyp 
     = case iaTyp of 
         (TyTuple _ _ tfs) -> mkTupFrom'' cogIcTyp icTyp iaTyp
+        -- (TyTuple _ _ tfs) -> mkTupFrom'' cogIcTyp icTyp iaTyp
         otherwise -> __impossible "boom"
     
 mkTupFrom'' :: CC.Type t a -> Type () -> Type () -> SG (Exp ())
