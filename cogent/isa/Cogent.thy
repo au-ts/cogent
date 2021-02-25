@@ -65,8 +65,6 @@ fun size_prim_layout :: "prim_type \<Rightarrow> nat" where
 datatype ptr_layout = LayBitRange BitRange 
   | LayVar index
   | LayProduct ptr_layout ptr_layout
-(*  | LayPointer *)
-(*  | LayOffset ptr_layout nat *)
   | LayVariant BitRange (* size and offset of the tag  *) "(name \<times> nat \<times> ptr_layout) list"
   | LayRecord "(name \<times> ptr_layout) list"
 
@@ -76,7 +74,6 @@ fun bitrange_taken_bits :: "BitRange \<Rightarrow> nat \<Rightarrow> bool" where
 
 fun layout_taken_bits :: "ptr_layout \<Rightarrow> nat \<Rightarrow> bool" where
   "layout_taken_bits (LayVar _) _ = False"
-(* | "layout_taken_bits (LayOffset l off) n = (if n \<ge> off then layout_taken_bits l (n - off) else False)" *)
 | "layout_taken_bits (LayVariant b ls) n = 
        (bitrange_taken_bits b n \<or> 
          list_ex (\<lambda> (_, _, l) \<Rightarrow>
@@ -96,12 +93,11 @@ definition at_most_one :: "('a \<Rightarrow> bool) \<Rightarrow> 'a list \<Right
   (length (filter f l) \<le> 1)"
 
 
-fun layout_wellformed :: "ptr_layout \<Rightarrow> bool" where
-  "layout_wellformed (LayVar i) = True"
-(* | "layout_wellformed (LayOffset l off) = layout_wellformed l" *)
-| "layout_wellformed (LayBitRange _) = True"
-| "layout_wellformed  (LayVariant b ls) = 
-  (list_all (\<lambda> (_, _, l) . layout_wellformed l) ls
+fun layout_wellformed :: "nat \<Rightarrow> ptr_layout \<Rightarrow> bool" where
+  "layout_wellformed n (LayVar i) = (i < n)"
+| "layout_wellformed _ (LayBitRange _) = True"
+| "layout_wellformed m (LayVariant b ls) = 
+  (list_all (\<lambda> (_, _, l) . layout_wellformed m l) ls
 \<and> (\<forall> n. bitrange_taken_bits b n \<longrightarrow> 
   list_all (\<lambda> (_, idx, l) . \<not> (layout_taken_bits l n) \<and>
     idx < 2 ^ fst b
@@ -110,12 +106,12 @@ fun layout_wellformed :: "ptr_layout \<Rightarrow> bool" where
 \<and> distinct (map (\<lambda>(_, idx, _). idx) ls)
 )
 "
-| "layout_wellformed (LayRecord ls) =
-  (list_all (\<lambda> (_, l) . layout_wellformed l) ls
+| "layout_wellformed m (LayRecord ls) =
+  (list_all (\<lambda> (_, l) . layout_wellformed m l) ls
  \<and> (\<forall> n. at_most_one (\<lambda> (_, l) . layout_taken_bits l n) ls))"
 
-| "layout_wellformed (LayProduct p1 p2) = 
-(layout_wellformed p1 \<and> layout_wellformed p2
+| "layout_wellformed m (LayProduct p1 p2) = 
+(layout_wellformed m p1 \<and> layout_wellformed m p2
 \<and> (\<forall> n. \<not> layout_taken_bits p1 n \<or> \<not> layout_taken_bits p2 n))
 "
 
@@ -406,6 +402,85 @@ datatype 'f expr = Var index
                  | Split "'f expr" "'f expr"
                  | Promote type "'f expr"
 
+section {* Bang *}
+
+fun bang_sigil :: "sigil \<Rightarrow> sigil" where
+  "bang_sigil (Boxed ReadOnly r) = Boxed ReadOnly r"
+| "bang_sigil (Boxed Writable r) = Boxed ReadOnly r"
+| "bang_sigil Unboxed            = Unboxed"
+
+fun bang :: "type \<Rightarrow> type" where
+  "bang (TVar i)       = TVarBang i"
+| "bang (TVarBang i)   = TVarBang i"
+| "bang (TCon n ts s)  = TCon n (map bang ts) (bang_sigil s)"
+| "bang (TFun a b)     = TFun a b"
+| "bang (TPrim p)      = TPrim p"
+| "bang (TSum ps)      = TSum (map (\<lambda> (c, (t, b)). (c, (bang t, b))) ps)"
+| "bang (TProduct t u) = TProduct (bang t) (bang u)"
+| "bang (TRecord ts s) = TRecord (map (\<lambda>(n, t, b). (n, bang t, b)) ts) (bang_sigil s)"
+| "bang (TUnit)        = TUnit"
+
+section {* Representation Types (for use in C-refinement) *}
+
+
+datatype repr = RPtr repr
+              | RCon name "repr list"
+              | RFun
+              | RPrim prim_type
+              | RSum "(name \<times> repr) list"
+              | RProduct "repr" "repr"
+              | RRecord "repr list"
+              | RUnit
+
+fun type_repr :: "type \<Rightarrow> repr" where
+  "type_repr (TFun t t')          = RFun"
+| "type_repr (TPrim t)            = RPrim t"
+| "type_repr (TSum ts)            = RSum (map (\<lambda>(a,b,_).(a, type_repr b)) ts)"
+| "type_repr (TProduct a b)       = RProduct (type_repr a) (type_repr b)"
+| "type_repr (TCon n ts Unboxed)  = RCon n (map type_repr ts)"
+| "type_repr (TCon n ts _)        = RPtr (RCon n (map type_repr ts))"
+| "type_repr (TRecord ts Unboxed) = RRecord (map (\<lambda>(_,b,_). type_repr b) ts)"
+| "type_repr (TRecord ts _)       = RPtr (RRecord (map (\<lambda>(_,b,_). type_repr b) ts))"
+| "type_repr (TUnit)              = RUnit"
+
+section {* Representation Types (for use in layout) *}
+
+
+datatype lrepr = LRPtr
+              | LRCon name "lrepr list"
+              | LRFun
+              | LRPrim prim_type
+              | LRSum "(name \<times> lrepr) list"
+              | LRProduct "lrepr" "lrepr"
+              | LRRecord "(name \<times> lrepr) list"
+              | LRUnit
+              | LRVar nat
+
+fun type_lrepr :: "type \<Rightarrow> lrepr" where
+  "type_lrepr (TFun t t')          = LRFun"
+| "type_lrepr (TPrim t)            = LRPrim t"
+| "type_lrepr (TSum ts)            = LRSum (map (\<lambda>(a,b,_).(a, type_lrepr b)) ts)"
+| "type_lrepr (TProduct a b)       = LRProduct (type_lrepr a) (type_lrepr b)"
+| "type_lrepr (TCon n ts Unboxed)  = LRCon n (map type_lrepr ts)"
+| "type_lrepr (TCon n ts _)        = LRPtr "
+| "type_lrepr (TRecord ts Unboxed) = LRRecord (map (\<lambda>(a,b,_). (a, type_lrepr b)) ts)"
+| "type_lrepr (TRecord ts _)       = LRPtr"
+| "type_lrepr (TUnit)              = LRUnit"
+| "type_lrepr (TVar v) = LRVar v"
+| "type_lrepr (TVarBang v) = LRVar v"
+
+fun lrepr_wellformed :: "nat \<Rightarrow> lrepr \<Rightarrow> bool" where
+  "lrepr_wellformed n LRFun                = True"
+| "lrepr_wellformed n (LRPrim _)           = True"
+| "lrepr_wellformed n LRUnit               = True"
+| "lrepr_wellformed n LRPtr                = True"
+| "lrepr_wellformed n (LRSum ts)           = list_all (\<lambda>(_,b). lrepr_wellformed n b) ts"
+| "lrepr_wellformed n (LRProduct a b)      = (lrepr_wellformed n a \<and> lrepr_wellformed n b)"
+| "lrepr_wellformed n (LRCon _ ts)         = list_all (lrepr_wellformed n) ts"
+| "lrepr_wellformed n (LRRecord ts)        = list_all (\<lambda>(_,b). lrepr_wellformed n b) ts"
+| "lrepr_wellformed n (LRVar v) = (v < n)"
+
+
 section {* Kinds *}
 
 datatype kind_comp
@@ -428,109 +503,159 @@ fun sigil_kind :: "sigil \<Rightarrow> kind" where
 | "sigil_kind Unboxed            = {D,S,E}"
 
 
-inductive matches_type_layout :: "type \<Rightarrow> ptr_layout \<Rightarrow> bool"
-  and matches_type_layout_all :: "type list \<Rightarrow> ptr_layout list \<Rightarrow> bool"
+inductive match_repr_layout :: "lrepr \<Rightarrow> ptr_layout \<Rightarrow> bool"
   where
-  "matches_type_layout (TVar i) l"
-| "matches_type_layout (TVarBang i) l"
-| "(s = size_prim_layout t) \<Longrightarrow> matches_type_layout (TPrim t) (LayBitRange (s, x))"
-| "\<lbrakk> (map fst ts :: name list) = map fst ls
-   ; matches_type_layout_all (map (fst \<circ> snd) ts) (map (snd \<circ> snd) ls)
-   \<rbrakk> \<Longrightarrow> matches_type_layout (TSum ts) (LayVariant x ls)"
-| "\<lbrakk> matches_type_layout t1 p1
-   ; matches_type_layout t2 p2
-   \<rbrakk> \<Longrightarrow> matches_type_layout (TProduct t1 t2) (LayProduct p1 p2)"
-| "(s = size_ptr) \<Longrightarrow> matches_type_layout (TRecord ts (Boxed x0 x1)) (LayBitRange (s, n))"
-| "\<lbrakk> (map fst ts :: name list) = map fst ls
-   ; matches_type_layout_all (map (fst \<circ> snd) ts) (map snd ls)
-   \<rbrakk> \<Longrightarrow> matches_type_layout (TRecord ts Unboxed) (LayRecord ls)"
-| "s = 0 \<Longrightarrow> matches_type_layout TUnit (LayBitRange (s, n))"
+  match_lrvar :  "match_repr_layout (LRVar i) l"
+| match_lrprim : "(s = size_prim_layout t) \<Longrightarrow> match_repr_layout (LRPrim t) (LayBitRange (s, x))"
+| match_lrsum : "\<lbrakk> (map fst ts :: name list) = map fst ls
+   ; list_all2 match_repr_layout (map snd ts) (map (snd \<circ> snd) ls)
+   \<rbrakk> \<Longrightarrow> match_repr_layout (LRSum ts) (LayVariant x ls)"
+| match_lrproduct : "\<lbrakk> match_repr_layout t1 p1
+   ; match_repr_layout t2 p2
+   \<rbrakk> \<Longrightarrow> match_repr_layout (LRProduct t1 t2) (LayProduct p1 p2)"
+| match_lrptr : "(s = size_ptr) \<Longrightarrow> match_repr_layout LRPtr (LayBitRange (s, n))"
+| match_lrrecord : "\<lbrakk> (map fst ts :: name list) = map fst ls
+   \<comment> \<open>; match_repr_layout_all (map snd ts) (map snd ls)\<close>
+; list_all2 match_repr_layout (map snd ts) (map snd ls)
+   \<rbrakk> \<Longrightarrow> match_repr_layout (LRRecord ts) (LayRecord ls)"
+| match_lrunit : "s = 0 \<Longrightarrow> match_repr_layout LRUnit (LayBitRange (s, n))"
 
-| "matches_type_layout_all [] []"
-| "matches_type_layout t l \<Longrightarrow> matches_type_layout_all ts ls \<Longrightarrow> matches_type_layout_all (t # ts) (l # ls)"
 
-lemma matches_type_layout_simps:
-  "\<And>i l. matches_type_layout (TVar i) l"
-  "\<And>i l. matches_type_layout (TVarBang i) l"
-  "\<And>t p. matches_type_layout (TPrim t) (LayBitRange p) \<longleftrightarrow> fst p = size_prim_layout t"
-  "\<And>ts ls x. matches_type_layout (TSum ts) (LayVariant x ls) \<longleftrightarrow>
-      map fst ts = map fst ls \<and> matches_type_layout_all (map (fst \<circ> snd) ts) (map (snd \<circ> snd) ls)"
-  "\<And>t1 t2 p1 p2. matches_type_layout (TProduct t1 t2) (LayProduct p1 p2) \<longleftrightarrow>
-      matches_type_layout t1 p1 \<and> matches_type_layout t2 p2"
-  "\<And>ts x0 x1 p. matches_type_layout (TRecord ts (Boxed x0 x1)) (LayBitRange p) \<longleftrightarrow> fst p = size_ptr"
-  "\<And>ts ls. matches_type_layout (TRecord ts Unboxed) (LayRecord ls) \<longleftrightarrow>
-      map fst ts = map fst ls \<and> matches_type_layout_all (map (fst \<circ> snd) ts) (map snd ls)"
-  "\<And>p. matches_type_layout TUnit (LayBitRange p) \<longleftrightarrow> fst p = 0"
-  by (force intro: matches_type_layout_matches_type_layout_all.intros
-      elim: matches_type_layout.cases)+
+lemma match_repr_layout_simps:
+  "\<And> l i. match_repr_layout (LRVar i) l"
+  
+  "\<And>t p. match_repr_layout (LRPrim t) (LayBitRange p) \<longleftrightarrow> fst p = size_prim_layout t"
+  "\<And>ts ls x. match_repr_layout (LRSum ts) (LayVariant x ls) \<longleftrightarrow>
+      map fst ts = map fst ls \<and> list_all2 match_repr_layout (map snd ts) (map (snd \<circ> snd) ls)"
+  "\<And>t1 t2 p1 p2. match_repr_layout (LRProduct t1 t2) (LayProduct p1 p2) \<longleftrightarrow>
+      match_repr_layout t1 p1 \<and> match_repr_layout t2 p2"
+  "\<And>ts x0 x1 p. match_repr_layout LRPtr (LayBitRange p) \<longleftrightarrow> fst p = size_ptr"
+  "\<And>ts ls. match_repr_layout (LRRecord ts ) (LayRecord ls) \<longleftrightarrow>
+      map fst ts = map fst ls \<and> list_all2 match_repr_layout (map snd ts) (map snd ls)"
+  "\<And>p. match_repr_layout LRUnit (LayBitRange p) \<longleftrightarrow> fst p = 0"
+  by (force intro: match_repr_layout.intros
+      elim: match_repr_layout.cases)+
+(*
+lemma match_repr_layout_all_simps:
+  "match_repr_layout_all [] []"
+  "\<And>t l ts ls. match_repr_layout_all (t # ts) (l # ls) \<longleftrightarrow> match_repr_layout t l \<and> match_repr_layout_all ts ls"
+  by (force intro: match_repr_layout_match_repr_layout_all.intros
+      elim: match_repr_layout_all.cases)+
+*)
+(*
+lemma match_repr_layout_all_simps_list_all2:
+ "match_repr_layout_all ts ls  \<longleftrightarrow>  list_all2 match_repr_layout ts ls"
+  apply rule
+   apply (rule match_repr_layout_match_repr_layout_all.inducts(2)[of _ _ "\<lambda> _ _ . True", simplified]; simp)
+  apply(induct rule: list_all2_induct; simp add:match_repr_layout_all_simps)
+  done  
+*)
 
-lemma matches_type_layout_all_simps:
-  "matches_type_layout_all [] []"
-  "\<And>t l ts ls. matches_type_layout_all (t # ts) (l # ls) \<longleftrightarrow> matches_type_layout t l \<and> matches_type_layout_all ts ls"
-  by (force intro: matches_type_layout_matches_type_layout_all.intros
-      elim: matches_type_layout_all.cases)+
 
-fun matches_type_perm :: "(char list \<times> Cogent.type \<times> record_state) list
+
+type_synonym lay_env = nat
+type_synonym field_types = "(char list \<times> Cogent.type \<times> record_state) list"
+(*  (fst t, f (fst (snd t)), snd (snd t) *)
+abbreviation map_field_type where
+  "map_field_type f \<equiv> map (\<lambda> (n, t, b).(n, f t, b))"
+
+(* in practice, lrepr is a record *)
+type_synonym lay_constraints = "(ptr_layout \<times> lrepr) set"
+
+definition match_constraint :: "lay_constraints \<Rightarrow> ptr_layout \<Rightarrow> lrepr \<Rightarrow> bool"
+
+where "match_constraint C ptr_layout rep \<equiv> 
+\<comment> \<open>TODO: No need to keep track of the constraint: if the type and the layout do not contain
+any variable, then we know that any substitution of them will remain valid\<close>
+(layout_wellformed 0 ptr_layout \<and> lrepr_wellformed 0 rep) 
+   \<or> (ptr_layout, rep) \<in> C"
+
+
+
+definition matches_fields_layout where
+ "matches_fields_layout nl C rep ptr_layout \<equiv>
+   match_repr_layout rep ptr_layout \<and>
+   layout_wellformed nl ptr_layout \<and>
+match_constraint C ptr_layout rep
+"    
+
+fun matches_type_sigil :: "lay_env \<Rightarrow> lay_constraints \<Rightarrow> lrepr
               \<Rightarrow> sigil \<Rightarrow> bool"
   where
-  "matches_type_perm ts Unboxed = True"
-| "matches_type_perm ts (Boxed _ (Some ptr_layout)) =
-   (matches_type_layout (TRecord ts Unboxed) ptr_layout \<and>
-   layout_wellformed ptr_layout)"
-| "matches_type_perm ts (Boxed _ None) = True"
+  "matches_type_sigil nl C t Unboxed = True"
+| "matches_type_sigil nl C t (Boxed _ (Some ptr_layout)) =
+     matches_fields_layout nl C t ptr_layout"
+| "matches_type_sigil nl C t (Boxed _ None) = True"
+
+lemma matches_type_sigil_boxed : 
+  "matches_type_sigil L C \<tau> (Boxed Writable s) =
+matches_type_sigil L C \<tau> (Boxed ReadOnly s)"  
+  by(cases s) simp+
+
+lemma sigil_lay_cases[case_names BoxedLay BoxedNoLay Unboxed]:
+  assumes "\<And> p ptrl. P (Boxed p (Some ptrl))"
+          "\<And> p. P (Boxed p None)"
+          "P Unboxed" 
+  shows "P s"
+  apply (cases s)
+   apply(rename_tac p ptrl)
+   apply (case_tac ptrl)  
+  using assms 
+  by simp_all
 
 
 
-fun type_wellformed :: "nat \<Rightarrow> type \<Rightarrow> bool" where
-  "type_wellformed n (TVar i) = (i < n)"
-| "type_wellformed n (TVarBang i) = (i < n)"
-| "type_wellformed n (TCon _ ts _) = list_all (\<lambda>x. type_wellformed n x) ts"
-| "type_wellformed n (TFun t1 t2) = (type_wellformed n t1 \<and> type_wellformed n t2)"
-| "type_wellformed n (TPrim _) = True"
-| "type_wellformed n (TSum ts) = (distinct (map fst ts) \<and> (list_all (\<lambda>x. type_wellformed n (fst (snd x))) ts))"
-| "type_wellformed n (TProduct t1 t2) = (type_wellformed n t1 \<and> type_wellformed n t2)"
-| "type_wellformed n (TRecord ts perm) = 
-  ( distinct (map fst ts) \<and> (list_all (\<lambda>x. type_wellformed n (fst (snd x))) ts)
-   \<and> matches_type_perm ts perm )
-"
-| "type_wellformed n TUnit = True"
+fun type_wellformed :: "lay_env \<Rightarrow> nat \<Rightarrow> lay_constraints \<Rightarrow> type \<Rightarrow> bool" where
+  "type_wellformed nl n C (TVar i) = (i < n)"
+| "type_wellformed nl n C (TVarBang i) = (i < n)"
+| "type_wellformed nl n C (TCon _ ts _) = list_all (\<lambda>x. type_wellformed nl n C x) ts"
+| "type_wellformed nl n C (TFun t1 t2) = (type_wellformed nl n C t1 \<and> type_wellformed nl n C t2)"
+| "type_wellformed nl n C (TPrim _) = True"
+| "type_wellformed nl n C (TSum ts) = (distinct (map fst ts) \<and> (list_all (\<lambda>x. type_wellformed nl n C (fst (snd x))) ts))"
+| "type_wellformed nl n C (TProduct t1 t2) = (type_wellformed nl n C t1 \<and> type_wellformed nl n C t2)"
+| "type_wellformed nl n C (TRecord ts perm) = 
+  ( distinct (map fst ts) \<and> (list_all (\<lambda>x. type_wellformed nl n C (fst (snd x))) ts)
+   \<and> matches_type_sigil nl C 
+   (LRRecord (map (\<lambda>(n,t,_). (n, type_lrepr t)) ts)) perm )"
+| "type_wellformed nl n C TUnit = True"
 
-definition type_wellformed_pretty :: "kind env \<Rightarrow> type \<Rightarrow> bool" ("_ \<turnstile> _ wellformed" [30,20] 60) where
-  "K \<turnstile> t wellformed \<equiv> type_wellformed (length K) t"
+
+definition type_wellformed_pretty :: " lay_env \<Rightarrow> kind env \<Rightarrow> lay_constraints \<Rightarrow> type \<Rightarrow> bool" ("_, _, _ \<turnstile> _ wellformed" [30,30,20] 60) where
+  "L, K, C \<turnstile> t wellformed \<equiv> type_wellformed L (length K) C t"
 declare type_wellformed_pretty_def[simp]
 
 lemma type_wellformed_intros:
-  "\<And>n i. i < n \<Longrightarrow> type_wellformed n (TVar i)"
-  "\<And>n i. i < n \<Longrightarrow> type_wellformed n (TVarBang i)"
-  "\<And>n name ts s. list_all (\<lambda>x. type_wellformed n x) ts \<Longrightarrow> type_wellformed n (TCon name ts s)"
-  "\<And>n t1 t2. \<lbrakk> type_wellformed n t1 ; type_wellformed n t2 \<rbrakk> \<Longrightarrow> type_wellformed n (TFun t1 t2)"
-  "\<And>n p. type_wellformed n (TPrim p)"
-  "\<And>n ts. \<lbrakk> distinct (map fst ts) ; list_all (\<lambda>x. type_wellformed n (fst (snd x))) ts \<rbrakk> \<Longrightarrow> type_wellformed n (TSum ts)"
-  "\<And>n t1 t2. \<lbrakk> type_wellformed n t1 ; type_wellformed n t2 \<rbrakk> \<Longrightarrow> type_wellformed n (TProduct t1 t2)"
-  "\<And>n ts s. \<lbrakk> distinct (map fst ts) ; list_all (\<lambda>x. type_wellformed n (fst (snd x))) ts ;
-     matches_type_perm ts s \<rbrakk> \<Longrightarrow> type_wellformed n (TRecord ts s)"
-  "\<And>n. type_wellformed n TUnit"
+  "\<And>nl n C i. i < n \<Longrightarrow> type_wellformed nl n C (TVar i)"
+  "\<And>nl n C i. i < n \<Longrightarrow> type_wellformed nl n C (TVarBang i)"
+  "\<And>nl n C name ts s. list_all (\<lambda>x. type_wellformed nl n C x) ts \<Longrightarrow> type_wellformed nl n C (TCon name ts s)"
+  "\<And>nl n C t1 t2. \<lbrakk> type_wellformed nl n C t1 ; type_wellformed nl n C t2 \<rbrakk> \<Longrightarrow> type_wellformed nl n C (TFun t1 t2)"
+  "\<And>nl n C p. type_wellformed nl n C (TPrim p)"
+  "\<And>nl n C ts. \<lbrakk> distinct (map fst ts) ; list_all (\<lambda>x. type_wellformed nl n C (fst (snd x))) ts \<rbrakk> \<Longrightarrow> type_wellformed nl n C (TSum ts)"
+  "\<And>nl n C t1 t2. \<lbrakk> type_wellformed nl n C t1 ; type_wellformed nl n C t2 \<rbrakk> \<Longrightarrow> type_wellformed nl n C (TProduct t1 t2)"
+  "\<And>nl n C ts s. \<lbrakk> distinct (map fst ts) ; list_all (\<lambda>x. type_wellformed nl n C (fst (snd x))) ts ;
+     matches_type_sigil nl C (LRRecord (map (\<lambda>(n,t,_). (n, type_lrepr t)) ts)) s \<rbrakk> \<Longrightarrow> type_wellformed nl n C (TRecord ts s)"
+  "\<And>nl n C. type_wellformed nl n C TUnit"
   by (simp add: list_all_iff)+
 
 lemma type_wellformed_pretty_intros:
-  "\<And>K i. i < length K \<Longrightarrow> type_wellformed_pretty K (TVar i)"
-  "\<And>K i. i < length K \<Longrightarrow> type_wellformed_pretty K (TVarBang i)"
-  "\<And>K name ts s. list_all (\<lambda>x. type_wellformed_pretty K x) ts \<Longrightarrow> type_wellformed_pretty K (TCon name ts s)"
-  "\<And>K t1 t2. \<lbrakk> type_wellformed_pretty K t1 ; type_wellformed_pretty K t2 \<rbrakk> \<Longrightarrow> type_wellformed_pretty K (TFun t1 t2)"
-  "\<And>K p. type_wellformed_pretty K (TPrim p)"
-  "\<And>K ts. \<lbrakk> distinct (map fst ts) ; list_all (\<lambda>x. type_wellformed_pretty K (fst (snd x))) ts \<rbrakk> \<Longrightarrow> type_wellformed_pretty K (TSum ts)"
-  "\<And>K t1 t2. \<lbrakk> type_wellformed_pretty K t1 ; type_wellformed_pretty K t2 \<rbrakk> \<Longrightarrow> type_wellformed_pretty K (TProduct t1 t2)"
-  "\<And>K ts s. \<lbrakk> distinct (map fst ts) ; list_all (\<lambda>x. type_wellformed_pretty K (fst (snd x))) ts
-    ; matches_type_perm ts s \<rbrakk> \<Longrightarrow> type_wellformed_pretty K (TRecord ts s)"
-  "\<And>K. type_wellformed_pretty K TUnit"
+  "\<And>nl K C i. i < length K \<Longrightarrow> type_wellformed_pretty nl K C (TVar i)"
+  "\<And>nl K C i. i < length K \<Longrightarrow> type_wellformed_pretty nl K C (TVarBang i)"
+  "\<And>nl K C name ts s. list_all (\<lambda>x. type_wellformed_pretty nl K C x) ts \<Longrightarrow> type_wellformed_pretty nl K C (TCon name ts s)"
+  "\<And>nl K C t1 t2. \<lbrakk> type_wellformed_pretty nl K C t1 ; type_wellformed_pretty nl K C t2 \<rbrakk> \<Longrightarrow> type_wellformed_pretty nl K C (TFun t1 t2)"
+  "\<And>nl K C p. type_wellformed_pretty nl K C (TPrim p)"
+  "\<And>nl K C ts. \<lbrakk> distinct (map fst ts) ; list_all (\<lambda>x. type_wellformed_pretty nl K C (fst (snd x))) ts \<rbrakk> \<Longrightarrow> type_wellformed_pretty nl K C (TSum ts)"
+  "\<And>nl K C t1 t2. \<lbrakk> type_wellformed_pretty nl K C t1 ; type_wellformed_pretty nl K C t2 \<rbrakk> \<Longrightarrow> type_wellformed_pretty nl K C (TProduct t1 t2)"
+  "\<And>nl K C ts s. \<lbrakk> distinct (map fst ts) ; list_all (\<lambda>x. type_wellformed_pretty nl K C (fst (snd x))) ts
+    ; matches_type_sigil nl C (LRRecord (map (\<lambda>(n,t,_). (n, type_lrepr t)) ts)) s \<rbrakk> \<Longrightarrow> type_wellformed_pretty nl K C (TRecord ts s)"
+  "\<And>nl K C. type_wellformed_pretty nl K C TUnit"
   by (simp add: list_all_iff)+
 
-definition type_wellformed_all_pretty :: "kind env \<Rightarrow> type list \<Rightarrow> bool" ("_ \<turnstile>* _ wellformed" [30,20] 60) where
-  "K \<turnstile>* ts wellformed \<equiv> (\<forall>t\<in>set ts. type_wellformed (length K) t)"
+definition type_wellformed_all_pretty :: "lay_env \<Rightarrow> kind env \<Rightarrow> lay_constraints \<Rightarrow> type list \<Rightarrow> bool" ("_, _, _ \<turnstile>* _ wellformed" [30, 0, 0,20] 60) where
+  "L, K, C \<turnstile>* ts wellformed \<equiv> (\<forall>t\<in>set ts. type_wellformed L (length K) C t)"
 declare type_wellformed_all_pretty_def[simp]
 
 definition proc_ctx_wellformed :: "('f \<Rightarrow> poly_type) \<Rightarrow> bool" where
-  "proc_ctx_wellformed \<Xi> = (\<forall> f. let (K, \<tau>i, \<tau>o) = \<Xi> f in K \<turnstile> TFun \<tau>i \<tau>o wellformed)"
+  "proc_ctx_wellformed \<Xi> = (\<forall> f. let (K, \<tau>i, \<tau>o) = \<Xi> f in 0, K, {} \<turnstile> TFun \<tau>i \<tau>o wellformed)"
 
 
 fun kinding_fn :: "kind env \<Rightarrow> type \<Rightarrow> kind" where
@@ -547,152 +672,133 @@ fun kinding_fn :: "kind env \<Rightarrow> type \<Rightarrow> kind" where
 lemmas kinding_fn_induct = kinding_fn.induct[case_names kind_tvar kind_tvarb kind_tcon kind_tfun kind_tprim kind_tsum kind_tprod kind_trec kind_tunit]
 
 
-definition kinding :: "kind env \<Rightarrow> type \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile> _ :\<kappa> _" [30,0,30] 60) where
-  "K \<turnstile> t :\<kappa> k \<equiv> K \<turnstile> t wellformed \<and> k \<subseteq> kinding_fn K t"
+definition kinding :: "lay_env \<Rightarrow> kind env \<Rightarrow> lay_constraints \<Rightarrow> type \<Rightarrow> kind \<Rightarrow> bool" ("_, _, _ \<turnstile> _ :\<kappa> _" [30,0,0,0,30] 60) where
+  "L, K, C \<turnstile> t :\<kappa> k \<equiv> L, K, C \<turnstile> t wellformed \<and> k \<subseteq> kinding_fn K t"
 
 lemma kindingI:
-  "K \<turnstile> t wellformed \<Longrightarrow> k \<subseteq> kinding_fn K t \<Longrightarrow> K \<turnstile> t :\<kappa> k"
+  "L, K, C \<turnstile> t wellformed \<Longrightarrow> k \<subseteq> kinding_fn K t \<Longrightarrow> L, K, C \<turnstile> t :\<kappa> k"
   by (simp add: kinding_def)
 
-definition kinding_all :: "kind env \<Rightarrow> type list \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa> _" [30,0,30] 60) where
-  "K \<turnstile>* ts :\<kappa> k \<equiv> (\<forall>t\<in>set ts. K \<turnstile> t wellformed) \<and> k \<subseteq> (\<Inter>t\<in>set ts. kinding_fn K t)"
+definition kinding_all :: "lay_env \<Rightarrow> kind env \<Rightarrow> lay_constraints \<Rightarrow> type list \<Rightarrow> kind \<Rightarrow> bool" ("_, _, _ \<turnstile>* _ :\<kappa> _" [30,0,0,0,30] 60) where
+  "L, K, C \<turnstile>* ts :\<kappa> k \<equiv> (\<forall>t\<in>set ts. L, K, C \<turnstile> t wellformed) \<and> k \<subseteq> (\<Inter>t\<in>set ts. kinding_fn K t)"
 
-definition kinding_variant :: "kind env \<Rightarrow> (name \<times> type \<times> variant_state) list \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa>v _" [30,0,60] 60) where
-  "K \<turnstile>* ts :\<kappa>v k \<equiv> (\<forall>(_,t,_)\<in>set ts. K \<turnstile> t wellformed) \<and> k \<subseteq> (\<Inter>(_,t,b)\<in>set ts. (case b of Checked \<Rightarrow> UNIV | Unchecked \<Rightarrow> kinding_fn K t))"
+definition kinding_variant :: "lay_env \<Rightarrow> kind env \<Rightarrow> lay_constraints \<Rightarrow> (name \<times> type \<times> variant_state) list \<Rightarrow> kind \<Rightarrow> bool" ("_, _, _ \<turnstile>* _ :\<kappa>v _" [30,0,0,0,60] 60) where
+  "L, K, C \<turnstile>* ts :\<kappa>v k \<equiv> (\<forall>(_,t,_)\<in>set ts. L, K, C \<turnstile> t wellformed) \<and> k \<subseteq> (\<Inter>(_,t,b)\<in>set ts. (case b of Checked \<Rightarrow> UNIV | Unchecked \<Rightarrow> kinding_fn K t))"
 
-definition kinding_record  :: "kind env \<Rightarrow> (name \<times> type \<times> record_state) list \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile>* _ :\<kappa>r _" [30,0,30] 60) where
-  "K \<turnstile>* ts :\<kappa>r k \<equiv> (\<forall>(_,t,_)\<in>set ts. K \<turnstile> t wellformed) \<and> k \<subseteq> (\<Inter>(_,t,b)\<in>set ts. (case b of Taken \<Rightarrow> UNIV | Present \<Rightarrow> kinding_fn K t))"
+definition kinding_record  :: "lay_env \<Rightarrow> kind env \<Rightarrow> lay_constraints \<Rightarrow> (name \<times> type \<times> record_state) list \<Rightarrow> kind \<Rightarrow> bool" ("_, _, _ \<turnstile>* _ :\<kappa>r _" [30,0,0,0,30] 60) where
+  "L, K, C \<turnstile>* ts :\<kappa>r k \<equiv> (\<forall>(_,t,_)\<in>set ts. L, K, C \<turnstile> t wellformed) \<and> k \<subseteq> (\<Inter>(_,t,b)\<in>set ts. (case b of Taken \<Rightarrow> UNIV | Present \<Rightarrow> kinding_fn K t))"
 
 lemmas kinding_defs = kinding_def kinding_all_def kinding_variant_def kinding_record_def
 
 
 section {* Observation and type instantiation *}
 
-fun bang_sigil :: "sigil \<Rightarrow> sigil" where
-  "bang_sigil (Boxed ReadOnly r) = Boxed ReadOnly r"
-| "bang_sigil (Boxed Writable r) = Boxed ReadOnly r"
-| "bang_sigil Unboxed            = Unboxed"
-
-fun bang :: "type \<Rightarrow> type" where
-  "bang (TVar i)       = TVarBang i"
-| "bang (TVarBang i)   = TVarBang i"
-| "bang (TCon n ts s)  = TCon n (map bang ts) (bang_sigil s)"
-| "bang (TFun a b)     = TFun a b"
-| "bang (TPrim p)      = TPrim p"
-| "bang (TSum ps)      = TSum (map (\<lambda> (c, (t, b)). (c, (bang t, b))) ps)"
-| "bang (TProduct t u) = TProduct (bang t) (bang u)"
-| "bang (TRecord ts s) = TRecord (map (\<lambda>(n, t, b). (n, bang t, b)) ts) (bang_sigil s)"
-| "bang (TUnit)        = TUnit"
-
-fun instantiate :: "type substitution \<Rightarrow> type \<Rightarrow> type" where
-  "instantiate \<delta> (TVar i)       = (if i < length \<delta> then \<delta> ! i else TVar i)"
-| "instantiate \<delta> (TVarBang i)   = (if i < length \<delta> then bang (\<delta> ! i) else TVarBang i)"
-| "instantiate \<delta> (TCon n ts s)  = TCon n (map (instantiate \<delta>) ts) s"
-| "instantiate \<delta> (TFun a b)     = TFun (instantiate \<delta> a) (instantiate \<delta> b)"
-| "instantiate \<delta> (TPrim p)      = TPrim p"
-| "instantiate \<delta> (TSum ps)      = TSum (map (\<lambda> (c, t, b). (c, instantiate \<delta> t, b)) ps)"
-| "instantiate \<delta> (TProduct t u) = TProduct (instantiate \<delta> t) (instantiate \<delta> u)"
-| "instantiate \<delta> (TRecord ts s) = TRecord (map (\<lambda> (n, t, b). (n, instantiate \<delta> t, b)) ts) s"
-| "instantiate \<delta> (TUnit)        = TUnit"
-
-fun specialise :: "type substitution \<Rightarrow> 'f expr \<Rightarrow> 'f expr" where
-  "specialise \<delta> (Var i)           = Var i"
-| "specialise \<delta> (Fun f ts ls)        = Fun f (map (instantiate \<delta>) ts) ls"
-| "specialise \<delta> (AFun f ts)       = AFun f (map (instantiate \<delta>) ts)"
-| "specialise \<delta> (Prim p es)       = Prim p (map (specialise \<delta>) es)"
-| "specialise \<delta> (App a b)         = App (specialise \<delta> a) (specialise \<delta> b)"
-| "specialise \<delta> (Con as t e)      = Con (map (\<lambda> (c,t,b). (c, instantiate \<delta> t, b)) as) t (specialise \<delta> e)"
-| "specialise \<delta> (Struct ts vs)    = Struct (map (instantiate \<delta>) ts) (map (specialise \<delta>) vs)"
-| "specialise \<delta> (Member v f)      = Member (specialise \<delta> v) f"
-| "specialise \<delta> (Unit)            = Unit"
-| "specialise \<delta> (Cast t e)        = Cast t (specialise \<delta> e)"
-| "specialise \<delta> (Lit v)           = Lit v"
-| "specialise \<delta> (SLit s)          = SLit s"
-| "specialise \<delta> (Tuple a b)       = Tuple (specialise \<delta> a) (specialise \<delta> b)"
-| "specialise \<delta> (Put e f e')      = Put (specialise \<delta> e) f (specialise \<delta> e')"
-| "specialise \<delta> (Let e e')        = Let (specialise \<delta> e) (specialise \<delta> e')"
-| "specialise \<delta> (LetBang vs e e') = LetBang vs (specialise \<delta> e) (specialise \<delta> e')"
-| "specialise \<delta> (Case e t a b)    = Case (specialise \<delta> e) t (specialise \<delta> a) (specialise \<delta> b)"
-| "specialise \<delta> (Esac e t)        = Esac (specialise \<delta> e) t"
-| "specialise \<delta> (If c t e)        = If (specialise \<delta> c) (specialise \<delta> t) (specialise \<delta> e)"
-| "specialise \<delta> (Take e f e')     = Take (specialise \<delta> e) f (specialise \<delta> e')"
-| "specialise \<delta> (Split v va)      = Split (specialise \<delta> v) (specialise \<delta> va)"
-| "specialise \<delta> (Promote t x)     = Promote (instantiate \<delta> t) (specialise \<delta> x)"
+fun instantiate_lrepr :: "lrepr substitution \<Rightarrow> lrepr \<Rightarrow> lrepr" where
+  "instantiate_lrepr \<delta> (LRVar i) = (if i < length \<delta> then \<delta> ! i else LRVar i)"
+| "instantiate_lrepr _ LRPtr = LRPtr"
+| "instantiate_lrepr \<delta> (LRCon n ts) = LRCon n (map (instantiate_lrepr \<delta>) ts)"
+| "instantiate_lrepr _ LRFun = LRFun"
+| "instantiate_lrepr _ LRUnit = LRUnit"
+| "instantiate_lrepr _ (LRPrim t) = LRPrim t "
+| "instantiate_lrepr \<delta> (LRSum ts) = LRSum (map (\<lambda>(n, t). (n, instantiate_lrepr \<delta> t)) ts) "
+| "instantiate_lrepr \<delta> (LRProduct t1 t2) = LRProduct (instantiate_lrepr \<delta> t1)  (instantiate_lrepr \<delta> t2)"
+| "instantiate_lrepr \<delta> (LRRecord ts) = LRRecord (map (\<lambda>(n, t). (n, instantiate_lrepr \<delta> t)) ts) "
 
 (* layout instantiation *)
-fun lay_instantiate_lay :: "ptr_layout substitution \<Rightarrow> ptr_layout \<Rightarrow> ptr_layout"
+fun instantiate_lay :: "ptr_layout substitution \<Rightarrow> ptr_layout \<Rightarrow> ptr_layout"
   where
 (* TODO: use an environment to keep track of the constraints of the layout variables, as
 in the dargent write-up *)
-  "lay_instantiate_lay \<delta> (LayVar i) = (if i < length \<delta> then \<delta> ! i else LayVar i)"
-| "lay_instantiate_lay \<delta> (LayProduct l1 l2) = LayProduct (lay_instantiate_lay \<delta> l1) (lay_instantiate_lay \<delta> l2)"
-| "lay_instantiate_lay \<delta> (LayVariant b ls) = LayVariant b (map (\<lambda>(n, tag, l). (n, tag, lay_instantiate_lay \<delta> l)) ls)"
-| "lay_instantiate_lay \<delta> (LayRecord ls) = LayRecord (map (\<lambda>(n, l). (n, lay_instantiate_lay \<delta> l)) ls)"
-| "lay_instantiate_lay _ (LayBitRange v) = LayBitRange v"
+  "instantiate_lay \<delta> (LayVar i) = (if i < length \<delta> then \<delta> ! i else LayVar i)"
+| "instantiate_lay \<delta> (LayProduct l1 l2) = LayProduct (instantiate_lay \<delta> l1) (instantiate_lay \<delta> l2)"
+| "instantiate_lay \<delta> (LayVariant b ls) = LayVariant b (map (\<lambda>(n, tag, l). (n, tag, instantiate_lay \<delta> l)) ls)"
+| "instantiate_lay \<delta> (LayRecord ls) = LayRecord (map (\<lambda>(n, l). (n, instantiate_lay \<delta> l)) ls)"
+| "instantiate_lay _ (LayBitRange v) = LayBitRange v"
 
-fun lay_instantiate_sigil :: "ptr_layout substitution \<Rightarrow> sigil \<Rightarrow> sigil"
+fun instantiate_sigil :: "ptr_layout substitution \<Rightarrow> sigil \<Rightarrow> sigil"
   where
-  "lay_instantiate_sigil \<delta> (Boxed perm (Some ptrl)) = Boxed perm (Some (lay_instantiate_lay \<delta> ptrl))"
-| "lay_instantiate_sigil \<delta> s = s"
+  "instantiate_sigil \<delta> (Boxed perm ptrl) = Boxed perm (map_option (instantiate_lay \<delta>) ptrl)"
+| "instantiate_sigil \<delta> s = s"
 
-fun lay_instantiate :: "ptr_layout substitution \<Rightarrow> type \<Rightarrow> type" where
-  "lay_instantiate \<delta> (TVar i)       = TVar i"
-| "lay_instantiate \<delta> (TVarBang i)   = TVarBang i"
-| "lay_instantiate \<delta> (TCon n ts s)  = TCon n (map (lay_instantiate \<delta>) ts) s"
-| "lay_instantiate \<delta> (TFun a b)     = TFun (lay_instantiate \<delta> a) (lay_instantiate \<delta> b)"
-| "lay_instantiate \<delta> (TPrim p)      = TPrim p"
-| "lay_instantiate \<delta> (TSum ps)      = TSum (map (\<lambda> (c, t, b). (c, lay_instantiate \<delta> t, b)) ps)"
-| "lay_instantiate \<delta> (TProduct t u) = TProduct (lay_instantiate \<delta> t) (lay_instantiate \<delta> u)"
-| "lay_instantiate \<delta> (TRecord ts s) = TRecord (map (\<lambda> (n, t, b). (n, lay_instantiate \<delta> t, b)) ts) s"
-| "lay_instantiate \<delta> (TUnit)        = TUnit"
+lemma sigil_perm_instantiate_sigil[simp] : "sigil_perm (instantiate_sigil \<epsilon> s) = sigil_perm s"
+proof(induct s rule:sigil_lay_cases)
+case (BoxedLay p ptrl)
+  then show ?case 
+    by (cases p) (simp)+
+next
+  case (BoxedNoLay p)
+  then show ?case 
+     by (cases p) (simp)+
+qed simp
+
+fun instantiate :: "ptr_layout substitution \<Rightarrow> type substitution \<Rightarrow> type \<Rightarrow> type" where
+  "instantiate \<epsilon> \<delta> (TVar i)       = (if i < length \<delta> then \<delta> ! i else TVar i)"
+| "instantiate \<epsilon> \<delta> (TVarBang i)   = (if i < length \<delta> then bang (\<delta> ! i) else TVarBang i)"
+| "instantiate \<epsilon> \<delta> (TCon n ts s)  = TCon n (map (instantiate \<epsilon> \<delta>) ts) s"
+| "instantiate \<epsilon> \<delta> (TFun a b)     = TFun (instantiate \<epsilon> \<delta> a) (instantiate \<epsilon> \<delta> b)"
+| "instantiate \<epsilon> \<delta> (TPrim p)      = TPrim p"
+| "instantiate \<epsilon> \<delta> (TSum ps)      = TSum (map (\<lambda> (c, t, b). (c, instantiate \<epsilon> \<delta> t, b)) ps)"
+| "instantiate \<epsilon> \<delta> (TProduct t u) = TProduct (instantiate \<epsilon> \<delta> t) (instantiate \<epsilon> \<delta> u)"
+| "instantiate \<epsilon> \<delta> (TRecord ts s) = TRecord (map (\<lambda> (n, t, b). (n, instantiate \<epsilon> \<delta> t, b)) ts) 
+             (instantiate_sigil \<epsilon> s)"
+| "instantiate \<epsilon> \<delta> (TUnit)        = TUnit"
+
+fun specialise :: "ptr_layout substitution \<Rightarrow> type substitution \<Rightarrow> 'f expr \<Rightarrow> 'f expr" where
+  "specialise \<epsilon> \<delta> (Var i)           = Var i"
+| "specialise \<epsilon> \<delta> (Fun f ts ls)     = Fun f (map (instantiate \<epsilon> \<delta>) ts) (map (instantiate_lay \<epsilon>) ls)"
+| "specialise \<epsilon> \<delta> (AFun f ts)       = AFun f (map (instantiate \<epsilon> \<delta>) ts)"
+| "specialise \<epsilon> \<delta> (Prim p es)       = Prim p (map (specialise \<epsilon> \<delta>) es)"
+| "specialise \<epsilon> \<delta> (App a b)         = App (specialise \<epsilon> \<delta> a) (specialise \<epsilon> \<delta> b)"
+| "specialise \<epsilon> \<delta> (Con as t e)      = Con (map (\<lambda> (c,t,b). (c, instantiate \<epsilon> \<delta> t, b)) as) t (specialise \<epsilon> \<delta> e)"
+| "specialise \<epsilon> \<delta> (Struct ts vs)    = Struct (map (instantiate \<epsilon> \<delta>) ts) (map (specialise \<epsilon> \<delta>) vs)"
+| "specialise \<epsilon> \<delta> (Member v f)      = Member (specialise \<epsilon> \<delta> v) f"
+| "specialise \<epsilon> \<delta> (Unit)            = Unit"
+| "specialise \<epsilon> \<delta> (Cast t e)        = Cast t (specialise \<epsilon> \<delta> e)"
+| "specialise \<epsilon> \<delta> (Lit v)           = Lit v"
+| "specialise \<epsilon> \<delta> (SLit s)          = SLit s"
+| "specialise \<epsilon> \<delta> (Tuple a b)       = Tuple (specialise \<epsilon> \<delta> a) (specialise \<epsilon> \<delta> b)"
+| "specialise \<epsilon> \<delta> (Put e f e')      = Put (specialise \<epsilon> \<delta> e) f (specialise \<epsilon> \<delta> e')"
+| "specialise \<epsilon> \<delta> (Let e e')        = Let (specialise \<epsilon> \<delta> e) (specialise \<epsilon> \<delta> e')"
+| "specialise \<epsilon> \<delta> (LetBang vs e e') = LetBang vs (specialise \<epsilon> \<delta> e) (specialise \<epsilon> \<delta> e')"
+| "specialise \<epsilon> \<delta> (Case e t a b)    = Case (specialise \<epsilon> \<delta> e) t (specialise \<epsilon> \<delta> a) (specialise \<epsilon> \<delta> b)"
+| "specialise \<epsilon> \<delta> (Esac e t)        = Esac (specialise \<epsilon> \<delta> e) t"
+| "specialise \<epsilon> \<delta> (If c t e)        = If (specialise \<epsilon> \<delta> c) (specialise \<epsilon> \<delta> t) (specialise \<epsilon> \<delta> e)"
+| "specialise \<epsilon> \<delta> (Take e f e')     = Take (specialise \<epsilon> \<delta> e) f (specialise \<epsilon> \<delta> e')"
+| "specialise \<epsilon> \<delta> (Split v va)      = Split (specialise \<epsilon> \<delta> v) (specialise \<epsilon> \<delta> va)"
+| "specialise \<epsilon> \<delta> (Promote t x)     = Promote (instantiate \<epsilon> \<delta> t) (specialise \<epsilon> \<delta> x)"
 
 section {* Subtyping *}
 
-abbreviation record_kind_subty :: "kind_comp set list \<Rightarrow> name \<times> Cogent.type \<times> record_state \<Rightarrow> name \<times> Cogent.type \<times> record_state \<Rightarrow> bool" where
-  "record_kind_subty K p1 p2 \<equiv> snd (snd p1) = snd (snd p2) \<or> ((K \<turnstile> (fst (snd p1)) :\<kappa> {D}) \<and> snd (snd p1) < snd (snd p2))"
+abbreviation record_kind_subty :: "lay_env \<Rightarrow> kind_comp set list \<Rightarrow> lay_constraints \<Rightarrow> name \<times> Cogent.type \<times> record_state \<Rightarrow> name \<times> Cogent.type \<times> record_state \<Rightarrow> bool" where
+  "record_kind_subty L K C p1 p2 \<equiv> snd (snd p1) = snd (snd p2) \<or> ((L, K, C \<turnstile> (fst (snd p1)) :\<kappa> {D}) \<and> snd (snd p1) < snd (snd p2))"
 
 abbreviation variant_kind_subty :: "name \<times> Cogent.type \<times> variant_state \<Rightarrow> name \<times> Cogent.type \<times> variant_state \<Rightarrow> bool" where
   "variant_kind_subty p1 p2 \<equiv> snd (snd p1) \<le> snd (snd p2)"
 
-inductive subtyping :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightarrow> bool" ("_ \<turnstile> _ \<sqsubseteq> _" [40,0,40] 60) where
-  subty_tvar   : "n1 = n2 \<Longrightarrow> K \<turnstile> TVar n1 \<sqsubseteq> TVar n2"
-| subty_tvarb  : "n1 = n2 \<Longrightarrow> K \<turnstile> TVarBang n1 \<sqsubseteq> TVarBang n2"
+inductive subtyping :: "lay_env \<Rightarrow> kind env \<Rightarrow> lay_constraints \<Rightarrow> type \<Rightarrow> type \<Rightarrow> bool" ("_, _, _ \<turnstile> _ \<sqsubseteq> _" [40,0,0,0,40] 60) where
+  subty_tvar   : "n1 = n2 \<Longrightarrow> L, K, C \<turnstile> TVar n1 \<sqsubseteq> TVar n2"
+| subty_tvarb  : "n1 = n2 \<Longrightarrow> L, K, C \<turnstile> TVarBang n1 \<sqsubseteq> TVarBang n2"
 | subty_tcon   : "\<lbrakk> n1 = n2 ; s1 = s2 ; ts1 = ts2
-                  \<rbrakk> \<Longrightarrow> K \<turnstile> TCon n1 ts1 s1 \<sqsubseteq> TCon n2 ts2 s2"
-| subty_tfun   : "\<lbrakk> K \<turnstile> t2 \<sqsubseteq> t1
-                  ; K \<turnstile> u1 \<sqsubseteq> u2
-                  \<rbrakk> \<Longrightarrow> K \<turnstile> TFun t1 u1 \<sqsubseteq> TFun t2 u2"
+                  \<rbrakk> \<Longrightarrow> L, K, C \<turnstile> TCon n1 ts1 s1 \<sqsubseteq> TCon n2 ts2 s2"
+| subty_tfun   : "\<lbrakk> L, K, C \<turnstile> t2 \<sqsubseteq> t1
+                  ; L, K, C \<turnstile> u1 \<sqsubseteq> u2
+                  \<rbrakk> \<Longrightarrow> L, K, C \<turnstile> TFun t1 u1 \<sqsubseteq> TFun t2 u2"
 | subty_tprim  : "\<lbrakk> p1 = p2
-                  \<rbrakk> \<Longrightarrow> K \<turnstile> TPrim p1 \<sqsubseteq> TPrim p2"
+                  \<rbrakk> \<Longrightarrow> L, K, C \<turnstile> TPrim p1 \<sqsubseteq> TPrim p2"
 (* TODO: adapt with dargent *)
-| subty_trecord: "\<lbrakk> list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) ts1 ts2
+| subty_trecord: "\<lbrakk> list_all2 (\<lambda>p1 p2. subtyping L K C (fst (snd p1)) (fst (snd p2))) ts1 ts2
                   ; map fst ts1 = map fst ts2
-                  ; list_all2 (record_kind_subty K) ts1 ts2
+                  ; list_all2 (record_kind_subty L K C) ts1 ts2
                   ; s1 = s2
-                  \<rbrakk> \<Longrightarrow> K \<turnstile> TRecord ts1 s1 \<sqsubseteq> TRecord ts2 s2"
-| subty_tprod  : "\<lbrakk> K \<turnstile> t1 \<sqsubseteq> t2
-                  ; K \<turnstile> u1 \<sqsubseteq> u2
-                  \<rbrakk> \<Longrightarrow> K \<turnstile> TProduct t1 u1 \<sqsubseteq> TProduct t2 u2"
-| subty_tsum   : "\<lbrakk> list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) ts1 ts2
+                  \<rbrakk> \<Longrightarrow> L, K, C \<turnstile> TRecord ts1 s1 \<sqsubseteq> TRecord ts2 s2"
+| subty_tprod  : "\<lbrakk> L, K, C \<turnstile> t1 \<sqsubseteq> t2
+                  ; L, K, C \<turnstile> u1 \<sqsubseteq> u2
+                  \<rbrakk> \<Longrightarrow> L, K, C \<turnstile> TProduct t1 u1 \<sqsubseteq> TProduct t2 u2"
+| subty_tsum   : "\<lbrakk> list_all2 (\<lambda>p1 p2. subtyping L K C (fst (snd p1)) (fst (snd p2))) ts1 ts2
                   ; map fst ts1 = map fst ts2
                   ; list_all2 variant_kind_subty ts1 ts2
-                  \<rbrakk> \<Longrightarrow> K \<turnstile> TSum ts1 \<sqsubseteq> TSum ts2"
-| subty_tunit  : "K \<turnstile> TUnit \<sqsubseteq> TUnit"
-
-inductive_cases subty_tvar_leftE[elim]: "K \<turnstile> TVar n1 \<sqsubseteq> t"
-inductive_cases subty_tvarb_leftE[elim]: "K \<turnstile> TVarBang n1 \<sqsubseteq> t"
-inductive_cases subty_tcon_leftE[elim]: "K \<turnstile> TCon n1 ts1 s1 \<sqsubseteq> t"
-inductive_cases subty_tfun_leftE[elim]: "K \<turnstile> TFun t1 u1 \<sqsubseteq> t"
-inductive_cases subty_tprim_leftE[elim]: "K \<turnstile> TPrim p1 \<sqsubseteq> t"
-inductive_cases subty_trecord_leftE[elim]: "K \<turnstile> TRecord ts1 s1 \<sqsubseteq> t"
-inductive_cases subty_tprod_leftE[elim]: "K \<turnstile> TProduct t1 u1 \<sqsubseteq> t"
-inductive_cases subty_tsum_leftE[elim]: "K \<turnstile> TSum ts1 \<sqsubseteq> t"
-inductive_cases subty_tunit_leftE[elim]: "K \<turnstile> TUnit \<sqsubseteq> t"
-
-lemmas subtyping_leftE =
-  subty_tvar_leftE subty_tvarb_leftE subty_tcon_leftE subty_tfun_leftE subty_tprim_leftE
-  subty_trecord_leftE subty_tprod_leftE subty_tsum_leftE subty_tunit_leftE
-
+                  \<rbrakk> \<Longrightarrow> L, K, C \<turnstile> TSum ts1 \<sqsubseteq> TSum ts2"
+| subty_tunit  : "L, K, C \<turnstile> TUnit \<sqsubseteq> TUnit"
 
 section {* Contexts *}
 
@@ -706,70 +812,70 @@ definition singleton :: "nat \<Rightarrow> index \<Rightarrow> type \<Rightarrow
 
 declare singleton_def [simp]
 
-definition instantiate_ctx :: "type substitution \<Rightarrow> ctx \<Rightarrow> ctx" where
-  "instantiate_ctx \<delta> \<Gamma> \<equiv> map (map_option (instantiate \<delta>)) \<Gamma>"
+definition instantiate_ctx :: "ptr_layout substitution \<Rightarrow> type substitution \<Rightarrow> ctx \<Rightarrow> ctx" where
+  "instantiate_ctx \<epsilon> \<delta> \<Gamma> \<equiv> map (map_option (instantiate \<epsilon> \<delta>)) \<Gamma>"
 
-inductive split_comp :: "kind env \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool"
-          ("_ \<turnstile> _ \<leadsto> _ \<parallel> _" [30,0,0,20] 60) where
-  none  : "K \<turnstile> None \<leadsto> None \<parallel> None"
-| left  : "\<lbrakk> K \<turnstile> t wellformed \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> Some t \<parallel> None"
-| right : "\<lbrakk> K \<turnstile> t wellformed \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> None   \<parallel> Some t"
-| share : "\<lbrakk> K \<turnstile> t :\<kappa> k; S \<in> k \<rbrakk> \<Longrightarrow> K \<turnstile> Some t \<leadsto> Some t \<parallel> Some t"
+inductive split_comp :: "lay_env \<Rightarrow> kind env \<Rightarrow> lay_constraints \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool"
+          ("_, _, _ \<turnstile> _ \<leadsto> _ \<parallel> _" [30,0,0,0,0,20] 60) where
+  none  : "L, K, C \<turnstile> None \<leadsto> None \<parallel> None"
+| left  : "\<lbrakk> L, K, C \<turnstile> t wellformed \<rbrakk> \<Longrightarrow> L, K, C \<turnstile> Some t \<leadsto> Some t \<parallel> None"
+| right : "\<lbrakk> L, K, C \<turnstile> t wellformed \<rbrakk> \<Longrightarrow> L, K, C \<turnstile> Some t \<leadsto> None   \<parallel> Some t"
+| share : "\<lbrakk> L, K, C \<turnstile> t :\<kappa> k; S \<in> k \<rbrakk> \<Longrightarrow> L, K, C \<turnstile> Some t \<leadsto> Some t \<parallel> Some t"
 
-definition split :: "kind env \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ \<leadsto> _ | _" [30,0,0,20] 60) where
-  "split K \<equiv> list_all3 (split_comp K)"
+definition split :: "lay_env \<Rightarrow> kind env \<Rightarrow> lay_constraints \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" ("_, _, _ \<turnstile> _ \<leadsto> _ | _" [30,0,0,0,0,20] 60) where
+  "split L K C \<equiv> list_all3 (split_comp L K C)"
 
 lemmas split_induct[consumes 1, case_names split_empty split_cons, induct set: list_all3]
- = list_all3_induct[where P="split_comp K" for K, simplified split_def[symmetric]]
+ = list_all3_induct[where P="split_comp L K C" for L K C, simplified split_def[symmetric]]
 
-lemmas split_empty = all3Nil[where P="split_comp K" for K, simplified split_def[symmetric]]
-lemmas split_cons = all3Cons[where P="split_comp K" for K, simplified split_def[symmetric]]
+lemmas split_empty = all3Nil[where P="split_comp L K C" for L K C, simplified split_def[symmetric]]
+lemmas split_cons = all3Cons[where P="split_comp L K C" for L K C, simplified split_def[symmetric]]
 
-lemmas split_Cons = list_all3_Cons[where P="split_comp K" for K, simplified split_def[symmetric]]
-lemmas split_Cons1 = list_all3_Cons1[where P="split_comp K" for K, simplified split_def[symmetric]]
-lemmas split_Cons2 = list_all3_Cons2[where P="split_comp K" for K, simplified split_def[symmetric]]
-lemmas split_Cons3 = list_all3_Cons3[where P="split_comp K" for K, simplified split_def[symmetric]]
+lemmas split_Cons = list_all3_Cons[where P="split_comp L K C" for L K C, simplified split_def[symmetric]]
+lemmas split_Cons1 = list_all3_Cons1[where P="split_comp L K C" for L K C, simplified split_def[symmetric]]
+lemmas split_Cons2 = list_all3_Cons2[where P="split_comp L K C" for L K C, simplified split_def[symmetric]]
+lemmas split_Cons3 = list_all3_Cons3[where P="split_comp L K C" for L K C, simplified split_def[symmetric]]
 
-lemmas split_conv_all_nth = list_all3_conv_all_nth[where P="split_comp K" for K, simplified split_def[symmetric]]
+lemmas split_conv_all_nth = list_all3_conv_all_nth[where P="split_comp L K C" for L K C, simplified split_def[symmetric]]
 
 definition pred :: "nat \<Rightarrow> nat" where
   "pred n \<equiv> (case n of Suc n' \<Rightarrow> n')"
 
-inductive split_bang_comp :: "kind env \<Rightarrow> bool \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" ("_ , _ \<turnstile> _ \<leadsto>b _ \<parallel> _" [55,0,0,0,55] 60) where
-  none   : "K \<turnstile> x \<leadsto> a \<parallel> b \<Longrightarrow> K , False \<turnstile> x \<leadsto>b a \<parallel> b"
-| dobang : "K \<turnstile> x wellformed \<Longrightarrow> K , True \<turnstile> Some x \<leadsto>b Some (bang x) \<parallel> Some x"
+inductive split_bang_comp :: "lay_env \<Rightarrow> kind env \<Rightarrow> lay_constraints \<Rightarrow> bool \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" ("_, _ , _ , _ \<turnstile> _ \<leadsto>b _ \<parallel> _" [55,0,0,0,0,0,55] 60) where
+  none   : "L, K, C \<turnstile> x \<leadsto> a \<parallel> b \<Longrightarrow> L, K, C , False \<turnstile> x \<leadsto>b a \<parallel> b"
+| dobang : "L, K, C \<turnstile> x wellformed \<Longrightarrow> L, K, C , True \<turnstile> Some x \<leadsto>b Some (bang x) \<parallel> Some x"
 
-inductive split_bang :: "kind env \<Rightarrow> index set \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool"  ("_ , _ \<turnstile> _ \<leadsto>b _ | _" [55,0,0,0,55] 60) where
-  split_bang_empty : "K , is \<turnstile> [] \<leadsto>b [] | []"
-| split_bang_cons  : "\<lbrakk> K , (pred ` Set.remove (0 :: index) is) \<turnstile> xs \<leadsto>b as | bs
-                      ; K, (0 \<in> is) \<turnstile> x \<leadsto>b a \<parallel> b
-                      \<rbrakk> \<Longrightarrow> K , is \<turnstile> x # xs \<leadsto>b a # as | b # bs"
+inductive split_bang :: "lay_env \<Rightarrow> kind env \<Rightarrow> lay_constraints \<Rightarrow> index set \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool"  ("_, _ , _ , _ \<turnstile> _ \<leadsto>b _ | _" [55,0,0,0,0,0,55] 60) where
+  split_bang_empty : "L, K, C , is \<turnstile> [] \<leadsto>b [] | []"
+| split_bang_cons  : "\<lbrakk> L, K, C , (pred ` Set.remove (0 :: index) is) \<turnstile> xs \<leadsto>b as | bs
+                      ; L, K, C, (0 \<in> is) \<turnstile> x \<leadsto>b a \<parallel> b
+                      \<rbrakk> \<Longrightarrow> L, K, C , is \<turnstile> x # xs \<leadsto>b a # as | b # bs"
 
 lemma split_bang_Cons:
-  "K , is \<turnstile> x # xs \<leadsto>b a # as | b # bs \<longleftrightarrow> (K, (0 \<in> is) \<turnstile> x \<leadsto>b a \<parallel> b \<and> K , (pred ` Set.remove (0 :: index) is) \<turnstile> xs \<leadsto>b as | bs)"
+  "L, K, C , is \<turnstile> x # xs \<leadsto>b a # as | b # bs \<longleftrightarrow> (L, K, C, (0 \<in> is) \<turnstile> x \<leadsto>b a \<parallel> b \<and> L, K, C , (pred ` Set.remove (0 :: index) is) \<turnstile> xs \<leadsto>b as | bs)"
   by (auto elim: split_bang.cases intro: split_bang.intros)
 
-inductive weakening_comp :: "kind env \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" where
-  none : "weakening_comp K None None"
-| keep : "\<lbrakk> K \<turnstile> t wellformed \<rbrakk> \<Longrightarrow> weakening_comp K (Some t) (Some t)"
-| drop : "\<lbrakk> K \<turnstile> t :\<kappa> k; D \<in> k \<rbrakk> \<Longrightarrow> weakening_comp K (Some t) None"
+inductive weakening_comp :: "lay_env \<Rightarrow> kind env \<Rightarrow> lay_constraints \<Rightarrow> type option \<Rightarrow> type option \<Rightarrow> bool" where
+  none : "weakening_comp L K C None None"
+| keep : "\<lbrakk> L, K, C \<turnstile> t wellformed \<rbrakk> \<Longrightarrow> weakening_comp L K C (Some t) (Some t)"
+| drop : "\<lbrakk> L, K, C \<turnstile> t :\<kappa> k; D \<in> k \<rbrakk> \<Longrightarrow> weakening_comp L K C (Some t) None"
 
-definition weakening :: "kind env \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ \<leadsto>w _" [30,0,20] 60) where
-  "weakening K \<equiv> list_all2 (weakening_comp K)"
+definition weakening :: "lay_env \<Rightarrow> kind env \<Rightarrow> lay_constraints \<Rightarrow> ctx \<Rightarrow> ctx \<Rightarrow> bool" ("_, _, _ \<turnstile> _ \<leadsto>w _" [30,0,0,0,20] 60) where
+  "weakening L K C \<equiv> list_all2 (weakening_comp L K C)"
 
 lemmas weakening_induct[consumes 1, case_names weakening_empty weakening_cons, induct set: list_all2]
- = list_all2_induct[where P="weakening_comp K" for K, simplified weakening_def[symmetric]]
+ = list_all2_induct[where P="weakening_comp L K C" for L K C, simplified weakening_def[symmetric]]
 
-lemmas weakening_nil = List.list.rel_intros(1)[where R="weakening_comp K" for K, simplified weakening_def[symmetric]]
-lemmas weakening_cons =  List.list.rel_intros(2)[where R="weakening_comp K" for K, simplified weakening_def[symmetric]]
+lemmas weakening_nil = List.list.rel_intros(1)[where R="weakening_comp L K C" for L K C, simplified weakening_def[symmetric]]
+lemmas weakening_cons =  List.list.rel_intros(2)[where R="weakening_comp L K C" for L K C, simplified weakening_def[symmetric]]
 
-lemmas weakening_Cons = list_all2_Cons[where P="weakening_comp K" for K, simplified weakening_def[symmetric]]
+lemmas weakening_Cons = list_all2_Cons[where P="weakening_comp L K C" for L K C, simplified weakening_def[symmetric]]
 
-lemmas weakening_conv_all_nth = list_all2_conv_all_nth[where P="weakening_comp K" for K, simplified weakening_def[symmetric]]
+lemmas weakening_conv_all_nth = list_all2_conv_all_nth[where P="weakening_comp L K C" for L K C, simplified weakening_def[symmetric]]
 
 
-definition is_consumed :: "kind env \<Rightarrow> ctx \<Rightarrow> bool" ("_ \<turnstile> _ consumed" [30,20] 60 ) where
-  "K \<turnstile> \<Gamma> consumed \<equiv> K \<turnstile> \<Gamma> \<leadsto>w empty (length \<Gamma>)"
+definition is_consumed :: "lay_env \<Rightarrow> kind env \<Rightarrow> lay_constraints \<Rightarrow> ctx \<Rightarrow> bool" ("_, _, _ \<turnstile> _ consumed" [30,0,0,20] 60 ) where
+  "L, K, C \<turnstile> \<Gamma> consumed \<equiv> L, K, C \<turnstile> \<Gamma> \<leadsto>w empty (length \<Gamma>)"
 
 declare is_consumed_def [simp]
 
@@ -873,187 +979,213 @@ lemma eval_prim_op_lit_type:
     \<Longrightarrow> lit_type (eval_prim_op pop xs) = \<tau>"
   by (cases pop, auto split: lit.split)
 
+
+definition subst_wellformed :: 
+ "
+ lay_env \<Rightarrow> kind env \<Rightarrow> lay_constraints
+ \<Rightarrow> ptr_layout substitution \<Rightarrow>
+ type substitution \<Rightarrow> 
+ lay_env \<Rightarrow> kind env \<Rightarrow> lay_constraints \<Rightarrow>
+ bool" ("_, _, _ \<turnstile> _, _ :s _, _, _" [30,0,0,0,0,0,0,20] 60) where
+"L', K', C' \<turnstile> \<epsilon>, \<delta> :s L, K, C \<equiv> list_all2 (kinding L' K' C') \<delta> K \<and>
+ (
+length \<epsilon> = L \<and>
+  (\<forall>(l,t) \<in> C. 
+\<comment> \<open>I need theses hypotheses to prove that
+the composite of two wellformed substitutions
+is wellformed. With this hypothesis, I can then use
+associativity of instantiate_lrepr and instantiate_lay\<close>
+layout_wellformed L l \<longrightarrow>
+lrepr_wellformed (length K) t \<longrightarrow>
+matches_fields_layout L' C' 
+ (instantiate_lrepr (map type_lrepr \<delta>) t) (instantiate_lay \<epsilon> l)
+)
+)"
+
 section {* Typing rules *}
 
-inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Rightarrow> ctx \<Rightarrow> 'f expr \<Rightarrow> type \<Rightarrow> bool"
-          ("_, _, _ \<turnstile> _ : _" [30,0,0,0,20] 60)
-      and typing_all :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Rightarrow> ctx \<Rightarrow> 'f expr list \<Rightarrow> type list \<Rightarrow> bool"
-          ("_, _, _ \<turnstile>* _ : _" [30,0,0,0,20] 60) where
+inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> lay_env \<Rightarrow> kind env \<Rightarrow> lay_constraints \<Rightarrow> ctx \<Rightarrow> 'f expr \<Rightarrow> type \<Rightarrow> bool"
+          ("_, _, _, _, _ \<turnstile> _ : _" [30,0,0,0,0,0,20] 60)
+      and typing_all :: "('f \<Rightarrow> poly_type) \<Rightarrow> lay_env \<Rightarrow> kind env \<Rightarrow> lay_constraints \<Rightarrow> ctx \<Rightarrow> 'f expr list \<Rightarrow> type list \<Rightarrow> bool"
+          ("_, _, _, _, _ \<turnstile>* _ : _" [30,0,0,0,0,0,20] 60) where
 
-typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i t
+typing_var    : "\<lbrakk> L, K, C \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i t
                    ; i < length \<Gamma>
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Var i : t"
+                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Var i : t"
 
 | typing_afun   : "\<lbrakk> \<Xi> f = (K', t, u)
-                   ; t' = instantiate ts t
-                   ; u' = instantiate ts u
-                   ; list_all2 (kinding K) ts K'
-                   ; K' \<turnstile> TFun t u wellformed
-                   ; K \<turnstile> \<Gamma> consumed
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> AFun f ts : TFun t' u'"
+                   ; t' = instantiate [] ts t
+                   ; u' = instantiate [] ts u
+                   ; L, K, C \<turnstile> \<Gamma> consumed
+                   ; 0, K', {} \<turnstile> TFun t u wellformed
+                   ; L, K, C \<turnstile> [], ts :s 0 , K', {}
+                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> AFun f ts : TFun t' u'"
 
-| typing_fun    : "\<lbrakk> \<Xi>, K', [Some t] \<turnstile> f : u                 
-                   ; t' = lay_instantiate ls (instantiate ts t)
-                   ; u' = lay_instantiate ls (instantiate ts u)
-                   ; K \<turnstile> \<Gamma> consumed
-                   
-                   ; list_all2 (kinding K) ts K'
+| typing_fun    : "\<lbrakk> \<Xi>, L', K', C', [Some t] \<turnstile> f : u                 
+                   ; t' = instantiate \<epsilon> \<delta> t
+                   ; u' = instantiate \<epsilon> \<delta> u
+                   ; L, K, C \<turnstile> \<Gamma> consumed
+\<comment> \<open>why don't we ask for TFun t u to be well formed as
+for abstract functions? Because we know that typing implies
+wellformedness\<close>
+                   ; L', K', C' \<turnstile> t wellformed
+                   ; L, K, C \<turnstile> \<epsilon>, \<delta> :s L', K', C'
                    \<comment> \<open>These two additional requirements ensure that the layouts are good\<close>
                    \<comment> \<open>but then, do we still need K' \<turnstile> t wellformed ?\<close>
-                   ; K \<turnstile> t' wellformed
-                   ; K \<turnstile> u' wellformed
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Fun f ts ls : TFun t' u'"
+                 \<comment> \<open>  ; L, K, C \<turnstile> t' wellformed
+                   ; L, K, C \<turnstile> u' wellformed\<close>
+                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Fun f \<delta> \<epsilon> : TFun t' u'"
 (* The original one *)
 (*
-| typing_fun_orig    : "\<lbrakk> \<Xi>, K', [Some t] \<turnstile> f : u                 
+| typing_fun_orig    : "\<lbrakk> \<Xi>, L, K, C', [Some t] \<turnstile> f : u                 
                    ; t' = instantiate ts t
                    ; u' = instantiate ts u
-                   ; K \<turnstile> \<Gamma> consumed
+                   ; L, K, C \<turnstile> \<Gamma> consumed
                    ; K' \<turnstile> t wellformed
-                   ; list_all2 (kinding K) ts K'
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Fun f ts ls : TFun t' u'"
+                   ; list_all2 (kinding L K C) ts K'
+                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Fun f ts ls : TFun t' u'"
 *)
-(* | typing_fun_alt : "\<lbrakk> \<Xi>, K, [Some t] \<turnstile> f : u                 
-                    ; K \<turnstile> \<Gamma> consumed                  
-                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Fun f ts : TFun t u"
+(* | typing_fun_alt : "\<lbrakk> \<Xi>, L, K, C, [Some t] \<turnstile> f : u                 
+                    ; L, K, C \<turnstile> \<Gamma> consumed                  
+                    \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Fun f ts : TFun t u"
 *)
 
-| typing_app    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
-                   ; \<Xi>, K, \<Gamma>1 \<turnstile> a : TFun x y
-                   ; \<Xi>, K, \<Gamma>2 \<turnstile> b : x
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> App a b : y"
+| typing_app    : "\<lbrakk> L, K, C \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
+                   ; \<Xi>, L, K, C, \<Gamma>1 \<turnstile> a : TFun x y
+                   ; \<Xi>, L, K, C, \<Gamma>2 \<turnstile> b : x
+                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> App a b : y"
 
-| typing_cast   : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> e : TPrim (Num \<tau>)
+| typing_cast   : "\<lbrakk> \<Xi>, L, K, C, \<Gamma> \<turnstile> e : TPrim (Num \<tau>)
                    ; upcast_valid \<tau> \<tau>'
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Cast \<tau>' e : TPrim (Num \<tau>')"
+                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Cast \<tau>' e : TPrim (Num \<tau>')"
 
-| typing_tuple  : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
-                   ; \<Xi>, K, \<Gamma>1 \<turnstile> t : T
-                   ; \<Xi>, K, \<Gamma>2 \<turnstile> u : U
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Tuple t u : TProduct T U"
+| typing_tuple  : "\<lbrakk> L, K, C \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
+                   ; \<Xi>, L, K, C, \<Gamma>1 \<turnstile> t : T
+                   ; \<Xi>, L, K, C, \<Gamma>2 \<turnstile> u : U
+                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Tuple t u : TProduct T U"
 
-| typing_split  : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
-                   ; \<Xi>, K, \<Gamma>1 \<turnstile> x : TProduct t u
-                   ; \<Xi>, K, (Some t)#(Some u)#\<Gamma>2 \<turnstile> y : t'
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Split x y : t'"
+| typing_split  : "\<lbrakk> L, K, C \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
+                   ; \<Xi>, L, K, C, \<Gamma>1 \<turnstile> x : TProduct t u
+                   ; \<Xi>, L, K, C, (Some t)#(Some u)#\<Gamma>2 \<turnstile> y : t'
+                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Split x y : t'"
 
-| typing_let    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
-                   ; \<Xi>, K, \<Gamma>1 \<turnstile> x : t
-                   ; \<Xi>, K, (Some t # \<Gamma>2) \<turnstile> y : u
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Let x y : u"
+| typing_let    : "\<lbrakk> L, K, C \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
+                   ; \<Xi>, L, K, C, \<Gamma>1 \<turnstile> x : t
+                   ; \<Xi>, L, K, C, (Some t # \<Gamma>2) \<turnstile> y : u
+                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Let x y : u"
 
-| typing_letb   : "\<lbrakk> K, is \<turnstile> \<Gamma> \<leadsto>b \<Gamma>1 | \<Gamma>2
-                   ; \<Xi>, K, \<Gamma>1 \<turnstile> x : t
-                   ; \<Xi>, K, (Some t # \<Gamma>2) \<turnstile> y : u
-                   ; K \<turnstile> t :\<kappa> k
+| typing_letb   : "\<lbrakk> L, K, C, is \<turnstile> \<Gamma> \<leadsto>b \<Gamma>1 | \<Gamma>2
+                   ; \<Xi>, L, K, C, \<Gamma>1 \<turnstile> x : t
+                   ; \<Xi>, L, K, C, (Some t # \<Gamma>2) \<turnstile> y : u
+                   ; L, K, C \<turnstile> t :\<kappa> k
                    ; E \<in> k
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> LetBang is x y : u"
+                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> LetBang is x y : u"
 
-| typing_con    : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t
+| typing_con    : "\<lbrakk> \<Xi>, L, K, C, \<Gamma> \<turnstile> x : t
                    ; (tag, t, Unchecked) \<in> set ts
-                   ; K \<turnstile> TSum ts wellformed
+                   ; L, K, C \<turnstile> TSum ts wellformed
                    ; ts = ts'
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Con ts tag x : TSum ts'"
+                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Con ts tag x : TSum ts'"
 
-| typing_case   : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
-                   ; \<Xi>, K, \<Gamma>1 \<turnstile> x : TSum ts
+| typing_case   : "\<lbrakk> L, K, C \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
+                   ; \<Xi>, L, K, C, \<Gamma>1 \<turnstile> x : TSum ts
                    ; (tag, t, Unchecked) \<in> set ts
-                   ; \<Xi>, K, (Some t # \<Gamma>2) \<turnstile> a : u
-                   ; \<Xi>, K, (Some (TSum (tagged_list_update tag (t, Checked) ts)) # \<Gamma>2) \<turnstile> b : u
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Case x tag a b : u"
+                   ; \<Xi>, L, K, C, (Some t # \<Gamma>2) \<turnstile> a : u
+                   ; \<Xi>, L, K, C, (Some (TSum (tagged_list_update tag (t, Checked) ts)) # \<Gamma>2) \<turnstile> b : u
+                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Case x tag a b : u"
 
-| typing_esac   : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : TSum ts
+| typing_esac   : "\<lbrakk> \<Xi>, L, K, C, \<Gamma> \<turnstile> x : TSum ts
                    ; [(n, t, Unchecked)] = filter ((=) Unchecked \<circ> snd \<circ> snd) ts
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Esac x n : t"
+                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Esac x n : t"
 
-| typing_if     : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
-                   ; \<Xi>, K, \<Gamma>1 \<turnstile> x : TPrim Bool
-                   ; \<Xi>, K, \<Gamma>2 \<turnstile> a : t
-                   ; \<Xi>, K, \<Gamma>2 \<turnstile> b : t
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> If x a b : t"
+| typing_if     : "\<lbrakk> L, K, C \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
+                   ; \<Xi>, L, K, C, \<Gamma>1 \<turnstile> x : TPrim Bool
+                   ; \<Xi>, L, K, C, \<Gamma>2 \<turnstile> a : t
+                   ; \<Xi>, L, K, C, \<Gamma>2 \<turnstile> b : t
+                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> If x a b : t"
 
-| typing_prim   : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile>* args : map TPrim ts
+| typing_prim   : "\<lbrakk> \<Xi>, L, K, C, \<Gamma> \<turnstile>* args : map TPrim ts
                    ; prim_op_type oper = (ts,t)
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Prim oper args : TPrim t"
+                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Prim oper args : TPrim t"
 
-| typing_lit    : "\<lbrakk> K \<turnstile> \<Gamma> consumed
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Lit l : TPrim (lit_type l)"
+| typing_lit    : "\<lbrakk> L, K, C \<turnstile> \<Gamma> consumed
+                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Lit l : TPrim (lit_type l)"
 
-| typing_slit   : "\<lbrakk> K \<turnstile> \<Gamma> consumed
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> SLit s : TPrim String"
+| typing_slit   : "\<lbrakk> L, K, C \<turnstile> \<Gamma> consumed
+                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> SLit s : TPrim String"
 
-| typing_unit   : "\<lbrakk> K \<turnstile> \<Gamma> consumed
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Unit : TUnit"
+| typing_unit   : "\<lbrakk> L, K, C \<turnstile> \<Gamma> consumed
+                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Unit : TUnit"
 
-| typing_struct : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile>* es : ts
+| typing_struct : "\<lbrakk> \<Xi>, L, K, C, \<Gamma> \<turnstile>* es : ts
                    ; distinct ns
                    ; length ns = length ts
                    ; ts' = zip ns (zip ts (replicate (length ts) Present))
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Struct ts es : TRecord ts' Unboxed"
+                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Struct ts es : TRecord ts' Unboxed"
 
-| typing_member : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> e : TRecord ts s
-                   ; K \<turnstile> TRecord ts s :\<kappa> k
+| typing_member : "\<lbrakk> \<Xi>, L, K, C, \<Gamma> \<turnstile> e : TRecord ts s
+                   ; L, K, C \<turnstile> TRecord ts s :\<kappa> k
                    ; S \<in> k
                    ; f < length ts
                    ; ts ! f = (n, t, Present)
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Member e f : t"
+                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Member e f : t"
 
-| typing_take   : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
-                   ; \<Xi>, K, \<Gamma>1 \<turnstile> e : TRecord ts s
+| typing_take   : "\<lbrakk> L, K, C \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
+                   ; \<Xi>, L, K, C, \<Gamma>1 \<turnstile> e : TRecord ts s
                    ; sigil_perm s \<noteq> Some ReadOnly
                    ; f < length ts
                    ; ts ! f = (n, t, Present)
-                   ; K \<turnstile> t :\<kappa> k
+                   ; L, K, C \<turnstile> t :\<kappa> k
                    ; S \<in> k \<or> taken = Taken
-                   ; \<Xi>, K, (Some t # Some (TRecord (ts [f := (n,t,taken)]) s) # \<Gamma>2) \<turnstile> e' : u
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Take e f e' : u"
+                   ; \<Xi>, L, K, C, (Some t # Some (TRecord (ts [f := (n,t,taken)]) s) # \<Gamma>2) \<turnstile> e' : u
+                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Take e f e' : u"
 
-| typing_put    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
-                   ; \<Xi>, K, \<Gamma>1 \<turnstile> e : TRecord ts s
+| typing_put    : "\<lbrakk> L, K, C \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
+                   ; \<Xi>, L, K, C, \<Gamma>1 \<turnstile> e : TRecord ts s
                    ; sigil_perm s \<noteq> Some ReadOnly
                    ; f < length ts
                    ; ts ! f = (n, t, taken)
-                   ; K \<turnstile> t :\<kappa> k
+                   ; L, K, C \<turnstile> t :\<kappa> k
                    ; D \<in> k \<or> taken = Taken
-                   ; \<Xi>, K, \<Gamma>2 \<turnstile> e' : t
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Put e f e' : TRecord (ts [f := (n,t,Present)]) s"
+                   ; \<Xi>, L, K, C, \<Gamma>2 \<turnstile> e' : t
+                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Put e f e' : TRecord (ts [f := (n,t,Present)]) s"
 
-| typing_promote: "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t' ; K \<turnstile> t' \<sqsubseteq> t \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Promote t x : t"
+| typing_promote: "\<lbrakk> \<Xi>, L, K, C, \<Gamma> \<turnstile> x : t' ; L, K, C \<turnstile> t' \<sqsubseteq> t \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Promote t x : t"
 
-| typing_all_empty : "\<Gamma> = empty n \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile>* [] : []"
+| typing_all_empty : "\<Gamma> = empty n \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile>* [] : []"
 
-| typing_all_cons  : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
-                      ; \<Xi>, K, \<Gamma>1 \<turnstile>  e  : t
-                      ; \<Xi>, K, \<Gamma>2 \<turnstile>* es : ts
-                      \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile>* (e # es) : (t # ts)"
+| typing_all_cons  : "\<lbrakk> L, K, C \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
+                      ; \<Xi>, L, K, C, \<Gamma>1 \<turnstile>  e  : t
+                      ; \<Xi>, L, K, C, \<Gamma>2 \<turnstile>* es : ts
+                      \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile>* (e # es) : (t # ts)"
 
 
-inductive_cases typing_num     [elim]: "\<Xi>, K, \<Gamma> \<turnstile> e : TPrim (Num \<tau>)"
-inductive_cases typing_bool    [elim]: "\<Xi>, K, \<Gamma> \<turnstile> e : TPrim Bool"
-inductive_cases typing_varE    [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Var i : \<tau>"
-inductive_cases typing_appE    [elim]: "\<Xi>, K, \<Gamma> \<turnstile> App x y : \<tau>"
-inductive_cases typing_litE    [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Lit l : \<tau>"
-inductive_cases typing_slitE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> SLit l : \<tau>"
-inductive_cases typing_funE    [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Fun f ts ls : \<tau>"
-inductive_cases typing_afunE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> AFun f ts : \<tau>"
-inductive_cases typing_ifE     [elim]: "\<Xi>, K, \<Gamma> \<turnstile> If c t e : \<tau>"
-inductive_cases typing_conE    [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Con ts t e : \<tau>"
-inductive_cases typing_unitE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Unit : \<tau>"
-inductive_cases typing_primE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Prim p es : \<tau>"
-inductive_cases typing_memberE [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Member e f : \<tau>"
-inductive_cases typing_tupleE  [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Tuple a b : \<tau>"
-inductive_cases typing_caseE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Case x t m n : \<tau>"
-inductive_cases typing_esacE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Esac e t : \<tau>"
-inductive_cases typing_castE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Cast t e : \<tau>"
-inductive_cases typing_letE    [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Let a b : \<tau>"
-inductive_cases typing_structE [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Struct ts es : \<tau>"
-inductive_cases typing_letbE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> LetBang vs a b : \<tau>"
-inductive_cases typing_takeE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Take x f e : \<tau>"
-inductive_cases typing_putE    [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Put x f e : \<tau>"
-inductive_cases typing_splitE  [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Split x e : \<tau>"
-inductive_cases typing_promoteE[elim]: "\<Xi>, K, \<Gamma> \<turnstile> Promote \<tau>' x : \<tau>"
-inductive_cases typing_all_emptyE [elim]: "\<Xi>, K, \<Gamma> \<turnstile>* []       : \<tau>s"
-inductive_cases typing_all_consE  [elim]: "\<Xi>, K, \<Gamma> \<turnstile>* (x # xs) : \<tau>s"
+inductive_cases typing_num     [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> e : TPrim (Num \<tau>)"
+inductive_cases typing_bool    [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> e : TPrim Bool"
+inductive_cases typing_varE    [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Var i : \<tau>"
+inductive_cases typing_appE    [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> App x y : \<tau>"
+inductive_cases typing_litE    [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Lit l : \<tau>"
+inductive_cases typing_slitE   [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> SLit l : \<tau>"
+inductive_cases typing_funE    [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Fun f ts ls : \<tau>"
+inductive_cases typing_afunE   [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> AFun f ts : \<tau>"
+inductive_cases typing_ifE     [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> If c t e : \<tau>"
+inductive_cases typing_conE    [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Con ts t e : \<tau>"
+inductive_cases typing_unitE   [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Unit : \<tau>"
+inductive_cases typing_primE   [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Prim p es : \<tau>"
+inductive_cases typing_memberE [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Member e f : \<tau>"
+inductive_cases typing_tupleE  [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Tuple a b : \<tau>"
+inductive_cases typing_caseE   [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Case x t m n : \<tau>"
+inductive_cases typing_esacE   [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Esac e t : \<tau>"
+inductive_cases typing_castE   [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Cast t e : \<tau>"
+inductive_cases typing_letE    [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Let a b : \<tau>"
+inductive_cases typing_structE [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Struct ts es : \<tau>"
+inductive_cases typing_letbE   [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> LetBang vs a b : \<tau>"
+inductive_cases typing_takeE   [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Take x f e : \<tau>"
+inductive_cases typing_putE    [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Put x f e : \<tau>"
+inductive_cases typing_splitE  [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Split x e : \<tau>"
+inductive_cases typing_promoteE[elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Promote \<tau>' x : \<tau>"
+inductive_cases typing_all_emptyE [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile>* []       : \<tau>s"
+inductive_cases typing_all_consE  [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile>* (x # xs) : \<tau>s"
 
 section {* Syntax structural judgements *}
 
@@ -1095,108 +1227,147 @@ inductive_cases a_normal_IfE: "a_normal (If x t e)"
 inductive_cases a_normal_Split: "a_normal (Split x y)"
 inductive_cases a_normal_TakeE:  "a_normal (Take x f e)"
 
-section {* Representation Types (for use in C-refinement) *}
-
-
-datatype repr = RPtr repr
-              | RCon name "repr list"
-              | RFun
-              | RPrim prim_type
-              | RSum "(name \<times> repr) list"
-              | RProduct "repr" "repr"
-              | RRecord "repr list"
-              | RUnit
-
-fun type_repr :: "type \<Rightarrow> repr" where
-  "type_repr (TFun t t')          = RFun"
-| "type_repr (TPrim t)            = RPrim t"
-| "type_repr (TSum ts)            = RSum (map (\<lambda>(a,b,_).(a, type_repr b)) ts)"
-| "type_repr (TProduct a b)       = RProduct (type_repr a) (type_repr b)"
-| "type_repr (TCon n ts Unboxed)  = RCon n (map type_repr ts)"
-| "type_repr (TCon n ts _)        = RPtr (RCon n (map type_repr ts))"
-| "type_repr (TRecord ts Unboxed) = RRecord (map (\<lambda>(_,b,_). type_repr b) ts)"
-| "type_repr (TRecord ts _)       = RPtr (RRecord (map (\<lambda>(_,b,_). type_repr b) ts))"
-| "type_repr (TUnit)              = RUnit"
 
 
 section {* Wellformed lemmas *}
 
 lemma wellformed_record_wellformed_elem:
-  assumes "K \<turnstile> TRecord ts s wellformed"
+  assumes "L, K, C \<turnstile> TRecord ts s wellformed"
     and "(name, t, taken) \<in> set ts"
-  shows "K \<turnstile> t wellformed"
+  shows "L, K, C \<turnstile> t wellformed"
   by (metis assms fst_conv in_set_conv_nth list_all_length snd_conv type_wellformed.simps(8) type_wellformed_pretty_def)
 
 lemma wellformed_sum_wellformed_elem:
-  assumes "K \<turnstile> TSum ts wellformed"
+  assumes "L, K, C \<turnstile> TSum ts wellformed"
     and "(name, t, taken) \<in> set ts"
-  shows "K \<turnstile> t wellformed"
+  shows "L, K, C \<turnstile> t wellformed"
   by (metis assms fst_conv in_set_conv_nth list_all_length snd_conv type_wellformed.simps(6) type_wellformed_pretty_def)
+
+lemma type_lrepr_wellformed : "type_wellformed L n C t \<Longrightarrow> 
+  lrepr_wellformed n (type_lrepr t)"
+  by(induct t rule:type_lrepr.induct) (fastforce simp add:list_all_iff)+
+
+ (*
+lemma lrepr_wellformed_mono :
+  "lrepr_wellformed n t \<Longrightarrow>
+ n \<le> n'  \<Longrightarrow>
+lrepr_wellformed n'  t"
+  by (induct t)(fastforce simp add:list_all_iff)+
+*)
+lemma layout_wellformed_mono :
+  "layout_wellformed n t \<Longrightarrow>
+ n \<le> n'  \<Longrightarrow>
+layout_wellformed n'  t"
+  by (induct t)(fastforce simp add:list_all_iff)+
+
+
+lemma type_wellformed_mono :
+  "type_wellformed L n C t \<Longrightarrow>
+L \<le> L' \<Longrightarrow> n \<le> n' \<Longrightarrow> C \<subseteq> C' \<Longrightarrow>
+ type_wellformed L' n' C' t"
+proof(induct t)
+  case (TRecord perm s)
+  then show ?case 
+  proof(induct s rule:sigil_lay_cases)
+    case (BoxedLay p ptrl)
+    then show ?case 
+      by (fastforce intro:layout_wellformed_mono simp add:list_all_iff matches_fields_layout_def match_constraint_def)                
+  qed (fastforce simp add:list_all_iff)+
+qed (fastforce simp add:list_all_iff)+
+
+
+lemma match_type_sigil_empty_constraint:
+"matches_type_sigil 0 C t s \<Longrightarrow>
+lrepr_wellformed 0 t 
+\<Longrightarrow>
+matches_type_sigil 0 {} t s"
+proof(induct s rule:sigil_lay_cases)
+  case (BoxedLay p ptrl)
+  then show ?case 
+    by(simp add:matches_fields_layout_def match_constraint_def)
+qed simp+
+
+lemma wellformed_empty_constraint :
+  "0, [], C \<turnstile> t wellformed \<Longrightarrow> 0, [], {} \<turnstile> t wellformed"
+proof(induct t)
+  case (TRecord perm s)
+  then show ?case 
+
+    
+    by (fastforce intro: match_type_sigil_empty_constraint simp add:list_all_iff prod.case_distrib type_lrepr_wellformed) 
+qed (fastforce simp add:list_all_iff)+
+
+
 
 section {* Kinding lemmas *}
 
 (* kinding in terms of the higher level kinding judgements *)
 lemma kinding_simps:
-  "\<And>K i k.      K \<turnstile> (TVar i) :\<kappa> k         \<longleftrightarrow> i < length K \<and> k \<subseteq> K ! i"
-  "\<And>K i k.      K \<turnstile> (TVarBang i) :\<kappa> k     \<longleftrightarrow> i < length K \<and> k \<subseteq> {D,S}"
-  "\<And>K n ts s k. K \<turnstile> (TCon n ts s) :\<kappa> k    \<longleftrightarrow> (K \<turnstile>* ts :\<kappa> k) \<and> k \<subseteq> sigil_kind s"
-  "\<And>K ta tb k.  K \<turnstile> (TFun ta tb) :\<kappa> k     \<longleftrightarrow> k \<subseteq> UNIV \<and> (K \<turnstile> ta wellformed) \<and> (K \<turnstile> tb wellformed)"
-  "\<And>K p k.      K \<turnstile> (TPrim p) :\<kappa> k        \<longleftrightarrow> k \<subseteq> UNIV"
-  "\<And>K ts k.     K \<turnstile> (TSum ts) :\<kappa> k        \<longleftrightarrow> (K \<turnstile>* ts :\<kappa>v k) \<and> distinct (map fst ts)"
-  "\<And>K ta tb k.  K \<turnstile> (TProduct ta tb) :\<kappa> k \<longleftrightarrow> (K \<turnstile> ta :\<kappa> k) \<and> (K \<turnstile> tb :\<kappa> k)"
-  "\<And>K ts s k.   K \<turnstile> (TRecord ts s) :\<kappa> k   \<longleftrightarrow> (K \<turnstile>* ts :\<kappa>r k) \<and> k \<subseteq> sigil_kind s \<and> distinct (map fst ts)
-                                                   \<and> matches_type_perm ts s"
-  "\<And>K k.        K \<turnstile> TUnit :\<kappa> k            \<longleftrightarrow> k \<subseteq> UNIV"
+  "\<And>L K C i k.      L, K, C \<turnstile> (TVar i) :\<kappa> k         \<longleftrightarrow> i < length K \<and> k \<subseteq> K ! i"
+  "\<And>L K C i k.      L, K, C \<turnstile> (TVarBang i) :\<kappa> k     \<longleftrightarrow> i < length K \<and> k \<subseteq> {D,S}"
+  "\<And>L K C n ts s k. L, K, C \<turnstile> (TCon n ts s) :\<kappa> k    \<longleftrightarrow> (L, K, C \<turnstile>* ts :\<kappa> k) \<and> k \<subseteq> sigil_kind s"
+  "\<And>L K C ta tb k.  L, K, C \<turnstile> (TFun ta tb) :\<kappa> k     \<longleftrightarrow> k \<subseteq> UNIV \<and> (L, K, C \<turnstile> ta wellformed) \<and> (L, K, C \<turnstile> tb wellformed)"
+  "\<And>L K C p k.      L, K, C \<turnstile> (TPrim p) :\<kappa> k        \<longleftrightarrow> k \<subseteq> UNIV"
+  "\<And>L K C ts k.     L, K, C \<turnstile> (TSum ts) :\<kappa> k        \<longleftrightarrow> (L, K, C \<turnstile>* ts :\<kappa>v k) \<and> distinct (map fst ts)"
+  "\<And>L K C ta tb k.  L, K, C \<turnstile> (TProduct ta tb) :\<kappa> k \<longleftrightarrow> (L, K, C \<turnstile> ta :\<kappa> k) \<and> (L, K, C \<turnstile> tb :\<kappa> k)"
+  "\<And>L K C ts s k.   L, K, C \<turnstile> (TRecord ts s) :\<kappa> k   \<longleftrightarrow> (L, K, C \<turnstile>* ts :\<kappa>r k) \<and> k \<subseteq> sigil_kind s \<and> distinct (map fst ts)
+                                                   \<and> matches_type_sigil L C (LRRecord (map (\<lambda>(n,t,_). (n, type_lrepr t)) ts)) s"
+  "\<And>L K C k.        L, K, C \<turnstile> TUnit :\<kappa> k            \<longleftrightarrow> k \<subseteq> UNIV"
   by (auto simp add: kinding_defs list_all_iff)
 
 lemma kinding_all_simps:
-  "\<And>K k.        K \<turnstile>* [] :\<kappa> k       \<longleftrightarrow> True"
-  "\<And>K t ts k.   K \<turnstile>* (t # ts) :\<kappa> k \<longleftrightarrow> (K \<turnstile> t :\<kappa> k) \<and> (K \<turnstile>* ts :\<kappa> k)"
+  "\<And>L K C k.        L, K, C \<turnstile>* [] :\<kappa> k       \<longleftrightarrow> True"
+  "\<And>L K C t ts k.   L, K, C \<turnstile>* (t # ts) :\<kappa> k \<longleftrightarrow> (L, K, C \<turnstile> t :\<kappa> k) \<and> (L, K, C \<turnstile>* ts :\<kappa> k)"
   by (auto simp add: kinding_defs list_all_iff)
 
 lemma kinding_variant_simps:
-  "\<And>K k.        K \<turnstile>* [] :\<kappa>v k                     \<longleftrightarrow> True"
-  "\<And>K n t ts k. K \<turnstile>* ((n,t,Unchecked) # ts) :\<kappa>v k \<longleftrightarrow> (K \<turnstile> t :\<kappa> k) \<and> (K \<turnstile>* ts :\<kappa>v k)"
-  "\<And>K n t ts k. K \<turnstile>* ((n,t,Checked) # ts) :\<kappa>v k   \<longleftrightarrow> (K \<turnstile> t wellformed) \<and> (K \<turnstile>* ts :\<kappa>v k)"
+  "\<And>L K C k.        L, K, C \<turnstile>* [] :\<kappa>v k                     \<longleftrightarrow> True"
+  "\<And>L K C n t ts k. L, K, C \<turnstile>* ((n,t,Unchecked) # ts) :\<kappa>v k \<longleftrightarrow> (L, K, C \<turnstile> t :\<kappa> k) \<and> (L, K, C \<turnstile>* ts :\<kappa>v k)"
+  "\<And>L K C n t ts k. L, K, C \<turnstile>* ((n,t,Checked) # ts) :\<kappa>v k   \<longleftrightarrow> (L, K, C \<turnstile> t wellformed) \<and> (L, K, C \<turnstile>* ts :\<kappa>v k)"
   by (auto simp add: kinding_defs list_all_iff)
 
 lemma kinding_record_simps:
-  "\<And>K k.        K \<turnstile>* [] :\<kappa>r k                   \<longleftrightarrow> True"
-  "\<And>K n t ts k. K \<turnstile>* ((n,t,Present) # ts) :\<kappa>r k \<longleftrightarrow> (K \<turnstile> t :\<kappa> k) \<and> (K \<turnstile>* ts :\<kappa>r k)"
-  "\<And>K n t ts k. K \<turnstile>* ((n,t,Taken) # ts) :\<kappa>r k   \<longleftrightarrow> (K \<turnstile> t wellformed) \<and> (K \<turnstile>* ts :\<kappa>r k)"
+  "\<And>L K C k.        L, K, C \<turnstile>* [] :\<kappa>r k                   \<longleftrightarrow> True"
+  "\<And>L K C n t ts k. L, K, C \<turnstile>* ((n,t,Present) # ts) :\<kappa>r k \<longleftrightarrow> (L, K, C \<turnstile> t :\<kappa> k) \<and> (L, K, C \<turnstile>* ts :\<kappa>r k)"
+  "\<And>L K C n t ts k. L, K, C \<turnstile>* ((n,t,Taken) # ts) :\<kappa>r k   \<longleftrightarrow> (L, K, C \<turnstile> t wellformed) \<and> (L, K, C \<turnstile>* ts :\<kappa>r k)"
   by (auto simp add: kinding_defs list_all_iff)
 
 lemma kinding_imp_wellformed:
-  "K \<turnstile> t :\<kappa> k \<Longrightarrow> K \<turnstile> t wellformed"
+  "L, K, C \<turnstile> t :\<kappa> k \<Longrightarrow> L, K, C \<turnstile> t wellformed"
   by (simp add: kinding_def)
 
 lemma kinding_iff_wellformed:
   shows
-    "(\<exists>k. K \<turnstile> t :\<kappa> k) \<longleftrightarrow> K \<turnstile> t wellformed"
-    "(\<exists>k. K \<turnstile>* ts :\<kappa> k) \<longleftrightarrow> K \<turnstile>* ts wellformed"
-    "(\<exists>k. K \<turnstile>* tvs :\<kappa>v k) \<longleftrightarrow> K \<turnstile>* map (fst \<circ> snd) tvs wellformed"
-    "(\<exists>k. K \<turnstile>* trs :\<kappa>r k) \<longleftrightarrow> K \<turnstile>* map (fst \<circ> snd) trs wellformed"
+    "(\<exists>k. L, K, C \<turnstile> t :\<kappa> k) \<longleftrightarrow> L, K, C \<turnstile> t wellformed"
+    "(\<exists>k. L, K, C \<turnstile>* ts :\<kappa> k) \<longleftrightarrow> L, K, C \<turnstile>* ts wellformed"
+    "(\<exists>k. L, K, C \<turnstile>* tvs :\<kappa>v k) \<longleftrightarrow> L, K, C \<turnstile>* map (fst \<circ> snd) tvs wellformed"
+    "(\<exists>k. L, K, C \<turnstile>* trs :\<kappa>r k) \<longleftrightarrow> L, K, C \<turnstile>* map (fst \<circ> snd) trs wellformed"
   by (auto simp add: kinding_defs)
 
 lemma kinding_to_wellformedD:
   shows
-    "K \<turnstile> t :\<kappa> k \<Longrightarrow> K \<turnstile> t wellformed"
-    "K \<turnstile>* ts :\<kappa> k \<Longrightarrow> K \<turnstile>* ts wellformed"
-    "K \<turnstile>* tvs :\<kappa>v k \<Longrightarrow> K \<turnstile>* map (fst \<circ> snd) tvs wellformed"
-    "K \<turnstile>* trs :\<kappa>r k \<Longrightarrow> K \<turnstile>* map (fst \<circ> snd) trs wellformed"
+    "L, K, C \<turnstile> t :\<kappa> k \<Longrightarrow> L, K, C \<turnstile> t wellformed"
+    "L, K, C \<turnstile>* ts :\<kappa> k \<Longrightarrow> L, K, C \<turnstile>* ts wellformed"
+    "L, K, C \<turnstile>* tvs :\<kappa>v k \<Longrightarrow> L, K, C \<turnstile>* map (fst \<circ> snd) tvs wellformed"
+    "L, K, C \<turnstile>* trs :\<kappa>r k \<Longrightarrow> L, K, C \<turnstile>* map (fst \<circ> snd) trs wellformed"
   by (auto simp add: kinding_defs)
 
+lemma subst_wellformed_list_all2_kindingD:
+  "L, K, C \<turnstile>  ls, ts :s L', K', C' \<Longrightarrow> list_all2 (kinding L K C) ts K'"
+  by (simp add: subst_wellformed_def)
+
+
 lemma list_all2_kinding_wellformedD:
-  "list_all2 (kinding K) ts K' \<Longrightarrow> list_all (type_wellformed (length K)) ts \<and> length ts = length K'"
+  "list_all2 (kinding L K C) ts K' \<Longrightarrow> list_all (type_wellformed L (length K) C) ts \<and> length ts = length K'"
   by (simp add: kinding_def list_all2_conv_all_nth list_all_length)
 
 lemma supersumption:
 fixes k' :: kind
 assumes k_is_superset : "k' \<subseteq> k"
-shows "K \<turnstile>  t  :\<kappa> k  \<Longrightarrow> K \<turnstile>  t  :\<kappa> k'"
-and   "K \<turnstile>* ts :\<kappa> k  \<Longrightarrow> K \<turnstile>* ts :\<kappa> k'"
-and   "K \<turnstile>* xs :\<kappa>v k \<Longrightarrow> K \<turnstile>* xs :\<kappa>v k'"
-and   "K \<turnstile>* fs :\<kappa>r k \<Longrightarrow> K \<turnstile>* fs :\<kappa>r k'"
+shows "L, K, C \<turnstile>  t  :\<kappa> k  \<Longrightarrow> L, K, C \<turnstile>  t  :\<kappa> k'"
+and   "L, K, C \<turnstile>* ts :\<kappa> k  \<Longrightarrow> L, K, C \<turnstile>* ts :\<kappa> k'"
+and   "L, K, C \<turnstile>* xs :\<kappa>v k \<Longrightarrow> L, K, C \<turnstile>* xs :\<kappa>v k'"
+and   "L, K, C \<turnstile>* fs :\<kappa>r k \<Longrightarrow> L, K, C \<turnstile>* fs :\<kappa>r k'"
   using k_is_superset
   by (fastforce simp add: kinding_defs)+
 
@@ -1206,51 +1377,51 @@ by (force intro: kind_comp.exhaust)
 
 lemma kinding_all_nth:
 fixes n :: nat
-assumes "K \<turnstile>* ts :\<kappa> k"
+assumes "L, K, C \<turnstile>* ts :\<kappa> k"
 and     "n < length ts"
-shows   "K \<turnstile> (ts ! n) :\<kappa> k"
+shows   "L, K, C \<turnstile> (ts ! n) :\<kappa> k"
 using assms proof (induct ts arbitrary: n)
      case Nil  then show ?case by auto
 next case Cons then show ?case by (case_tac n, auto simp add: kinding_defs)
 qed
 
 lemma kinding_all_set:
-  shows "(K \<turnstile>* ts :\<kappa> k) = (\<forall>t\<in>set ts. K \<turnstile> t :\<kappa> k)"
+  shows "(L, K, C \<turnstile>* ts :\<kappa> k) = (\<forall>t\<in>set ts. L, K, C \<turnstile> t :\<kappa> k)"
   by (auto simp add: kinding_defs)
 
 lemma kinding_all_subset:
-assumes "K \<turnstile>* ts :\<kappa> k"
+assumes "L, K, C \<turnstile>* ts :\<kappa> k"
 and     "set us \<subseteq> set ts"
-shows   "K \<turnstile>* us :\<kappa> k"
+shows   "L, K, C \<turnstile>* us :\<kappa> k"
 using assms by (auto simp add: kinding_all_set)
 
 lemma kinding_all_list_all:
-  shows "(K \<turnstile>* ts :\<kappa> k) = list_all (\<lambda>t. K \<turnstile> t :\<kappa> k) ts"
+  shows "(L, K, C \<turnstile>* ts :\<kappa> k) = list_all (\<lambda>t. L, K, C \<turnstile> t :\<kappa> k) ts"
   by (induct ts; fastforce simp add: kinding_defs)
 
 lemma kinding_typelist_wellformed_elem:
-  assumes "K \<turnstile>* ts :\<kappa> k"
+  assumes "L, K, C \<turnstile>* ts :\<kappa> k"
     and "t \<in> set ts"
-  shows "K \<turnstile> t wellformed"
+  shows "L, K, C \<turnstile> t wellformed"
   using assms kinding_all_set kinding_def by auto
 
 lemma kinding_in_kind_helper:
   assumes
     "x \<in> k"
-    "K \<turnstile> t :\<kappa> k"
-  shows "K \<turnstile> t :\<kappa> {x}"
+    "L, K, C \<turnstile> t :\<kappa> k"
+  shows "L, K, C \<turnstile> t :\<kappa> {x}"
   using assms
   unfolding kinding_def
   by blast
 
 lemma kinding_variant_cons:
-  shows "(K \<turnstile>* t # ts :\<kappa>v k) \<longleftrightarrow> (case snd (snd t) of Checked \<Rightarrow> K \<turnstile> fst (snd t) wellformed | Unchecked \<Rightarrow> K \<turnstile> fst (snd t) :\<kappa> k) \<and> (K \<turnstile>* ts :\<kappa>v k)"
+  shows "(L, K, C \<turnstile>* t # ts :\<kappa>v k) \<longleftrightarrow> (case snd (snd t) of Checked \<Rightarrow> L, K, C \<turnstile> fst (snd t) wellformed | Unchecked \<Rightarrow> L, K, C \<turnstile> fst (snd t) :\<kappa> k) \<and> (L, K, C \<turnstile>* ts :\<kappa>v k)"
   by (cases t, case_tac c; force simp add: kinding_defs)
 
 lemma kinding_variant_conv_all_nth:
-  shows "(K \<turnstile>* ts :\<kappa>v k) \<longleftrightarrow> (\<forall>i < length ts. case snd (snd (ts ! i)) of
-                                                Checked \<Rightarrow> K \<turnstile> fst (snd (ts ! i)) wellformed
-                                              | Unchecked \<Rightarrow> K \<turnstile> fst (snd (ts ! i)) :\<kappa> k)"
+  shows "(L, K, C \<turnstile>* ts :\<kappa>v k) \<longleftrightarrow> (\<forall>i < length ts. case snd (snd (ts ! i)) of
+                                                Checked \<Rightarrow> L, K, C \<turnstile> fst (snd (ts ! i)) wellformed
+                                              | Unchecked \<Rightarrow> L, K, C \<turnstile> fst (snd (ts ! i)) :\<kappa> k)"
 proof (induct ts)
   case (Cons a ts)
   then show ?case
@@ -1260,7 +1431,7 @@ proof (induct ts)
 qed (simp add: kinding_defs)
 
 lemma kinding_variant_set:
-  shows "(K \<turnstile>* ts :\<kappa>v k) = (\<forall>(n,t,b)\<in>set ts. case b of Checked \<Rightarrow> K \<turnstile> t wellformed | Unchecked \<Rightarrow> K \<turnstile> t :\<kappa> k)"
+  shows "(L, K, C \<turnstile>* ts :\<kappa>v k) = (\<forall>(n,t,b)\<in>set ts. case b of Checked \<Rightarrow> L, K, C \<turnstile> t wellformed | Unchecked \<Rightarrow> L, K, C \<turnstile> t :\<kappa> k)"
 proof (induct ts)
   case (Cons a ts)
   then show ?case
@@ -1268,23 +1439,23 @@ proof (induct ts)
 qed (simp add: kinding_defs)
 
 lemma kinding_variant_wellformed_elem:
-  assumes "K \<turnstile>* ts :\<kappa>v k"
+  assumes "L, K, C \<turnstile>* ts :\<kappa>v k"
     and "(n,t,b) \<in> set ts"
-  shows "K \<turnstile> t wellformed"
+  shows "L, K, C \<turnstile> t wellformed"
   using assms
   by (induct ts; force simp add: kinding_defs)
 
 lemma kinding_variant_all_wellformed:
   assumes
-    "K \<turnstile>* ts :\<kappa>v k"
+    "L, K, C \<turnstile>* ts :\<kappa>v k"
     "(n,t,b) \<in> set ts"
-  shows   "K \<turnstile> t wellformed"
+  shows   "L, K, C \<turnstile> t wellformed"
   using assms
   by (case_tac b; force simp add: kinding_variant_set kinding_defs)
 
 lemma kinding_all_variant':
-  assumes "K \<turnstile>* map (fst \<circ> snd) ts :\<kappa> k"
-  shows   "K \<turnstile>* ts :\<kappa>v k"
+  assumes "L, K, C \<turnstile>* map (fst \<circ> snd) ts :\<kappa> k"
+  shows   "L, K, C \<turnstile>* ts :\<kappa>v k"
   using assms
 proof (induct ts)
   case (Cons a ts)
@@ -1296,27 +1467,27 @@ lemma variant_tagged_list_update_wellformedI:
   assumes
     "n \<in> fst ` set ts"
     "distinct (map fst ts)"
-    "K \<turnstile> t wellformed"
-    "K \<turnstile>* map (fst \<circ> snd) ts wellformed"
-  shows "K \<turnstile> TSum (tagged_list_update n (t, b) ts) wellformed"
+    "L, K, C \<turnstile> t wellformed"
+    "L, K, C \<turnstile>* map (fst \<circ> snd) ts wellformed"
+  shows "L, K, C \<turnstile> TSum (tagged_list_update n (t, b) ts) wellformed"
   using assms
   by (induct ts arbitrary: n t b; fastforce simp add: list_all_iff)
 
 lemma variant_tagged_list_update_kinding:
   assumes "n \<in> fst ` set ts"
   shows
-    "K \<turnstile>* (tagged_list_update n (\<tau>, Checked) ts) :\<kappa>v k \<Longrightarrow> K \<turnstile> \<tau> wellformed"
-    "K \<turnstile>* (tagged_list_update n (\<tau>, Unchecked) ts) :\<kappa>v k \<Longrightarrow> K \<turnstile> \<tau> :\<kappa> k"
+    "L, K, C \<turnstile>* (tagged_list_update n (\<tau>, Checked) ts) :\<kappa>v k \<Longrightarrow> L, K, C \<turnstile> \<tau> wellformed"
+    "L, K, C \<turnstile>* (tagged_list_update n (\<tau>, Unchecked) ts) :\<kappa>v k \<Longrightarrow> L, K, C \<turnstile> \<tau> :\<kappa> k"
   using assms tagged_list_update_success_contains_updated_elem
   by (fastforce dest: bspec[where x="(n,\<tau>,Checked)"] simp add: kinding_variant_set)+
 
 lemma kinding_variant_downcast:
   assumes
-    "K \<turnstile>* ts :\<kappa>v k"
+    "L, K, C \<turnstile>* ts :\<kappa>v k"
     "distinct (map fst ts)"
     "(tag, t, Unchecked) \<in> set ts"
   shows
-    "K \<turnstile>* tagged_list_update tag (t, Checked) ts :\<kappa>v k"
+    "L, K, C \<turnstile>* tagged_list_update tag (t, Checked) ts :\<kappa>v k"
 proof -
   obtain i
     where tag_elem_at:
@@ -1324,12 +1495,12 @@ proof -
       "i < length ts"
     using assms by (meson in_set_conv_nth)
   then have
-    "K \<turnstile> t :\<kappa> k"
-    "\<forall>(n, t, b) \<in> set ts. case b of Checked \<Rightarrow> K \<turnstile> t wellformed | Unchecked \<Rightarrow> K \<turnstile> t :\<kappa> k"
+    "L, K, C \<turnstile> t :\<kappa> k"
+    "\<forall>(n, t, b) \<in> set ts. case b of Checked \<Rightarrow> L, K, C \<turnstile> t wellformed | Unchecked \<Rightarrow> L, K, C \<turnstile> t :\<kappa> k"
     using assms kinding_variant_conv_all_nth kinding_variant_set by auto
-  then have "\<forall>(n, t, b) \<in> insert (tag, t, Checked) (set ts). case b of Checked \<Rightarrow> K \<turnstile> t wellformed | Unchecked \<Rightarrow> K \<turnstile> t :\<kappa> k"
+  then have "\<forall>(n, t, b) \<in> insert (tag, t, Checked) (set ts). case b of Checked \<Rightarrow> L, K, C \<turnstile> t wellformed | Unchecked \<Rightarrow> L, K, C \<turnstile> t :\<kappa> k"
     by (clarsimp simp add: Ball_def kinding_def split: variant_state.splits)
-  then have "\<forall>(n, t, b) \<in> set (ts[i := (tag, t, Checked)]). case b of Checked \<Rightarrow> K \<turnstile> t wellformed | Unchecked \<Rightarrow> K \<turnstile> t :\<kappa> k"
+  then have "\<forall>(n, t, b) \<in> set (ts[i := (tag, t, Checked)]). case b of Checked \<Rightarrow> L, K, C \<turnstile> t wellformed | Unchecked \<Rightarrow> L, K, C \<turnstile> t :\<kappa> k"
     by (metis (no_types, lifting) set_update_subset_insert subsetCE)
   then show ?thesis
     using tag_elem_at assms
@@ -1338,13 +1509,13 @@ qed
 
 
 lemma kinding_record_cons:
-  shows "(K \<turnstile>* t # ts :\<kappa>r k) \<longleftrightarrow> (case snd (snd t) of Taken \<Rightarrow> K \<turnstile> fst (snd t) wellformed | Present \<Rightarrow> K \<turnstile> fst (snd t) :\<kappa> k) \<and> (K \<turnstile>* ts :\<kappa>r k)"
+  shows "(L, K, C \<turnstile>* t # ts :\<kappa>r k) \<longleftrightarrow> (case snd (snd t) of Taken \<Rightarrow> L, K, C \<turnstile> fst (snd t) wellformed | Present \<Rightarrow> L, K, C \<turnstile> fst (snd t) :\<kappa> k) \<and> (L, K, C \<turnstile>* ts :\<kappa>r k)"
   by (cases t; case_tac c; force simp add: kinding_defs)
 
 lemma kinding_record_conv_all_nth:
-  shows "(K \<turnstile>* ts :\<kappa>r k) \<longleftrightarrow> (\<forall>i < length ts. case snd (snd (ts ! i)) of
-                                                Taken \<Rightarrow> K \<turnstile> fst (snd (ts ! i)) wellformed
-                                              | Present \<Rightarrow> K \<turnstile> fst (snd (ts ! i)) :\<kappa> k)"
+  shows "(L, K, C \<turnstile>* ts :\<kappa>r k) \<longleftrightarrow> (\<forall>i < length ts. case snd (snd (ts ! i)) of
+                                                Taken \<Rightarrow> L, K, C \<turnstile> fst (snd (ts ! i)) wellformed
+                                              | Present \<Rightarrow> L, K, C \<turnstile> fst (snd (ts ! i)) :\<kappa> k)"
 proof (induct ts)
   case (Cons a ts)
   then show ?case
@@ -1354,7 +1525,7 @@ proof (induct ts)
 qed (simp add: kinding_defs)
 
 lemma kinding_record_set:
-  shows "(K \<turnstile>* ts :\<kappa>r k) = (\<forall>(n,t,b)\<in>set ts. case b of Taken \<Rightarrow> K \<turnstile> t wellformed | Present \<Rightarrow> K \<turnstile> t :\<kappa> k)"
+  shows "(L, K, C \<turnstile>* ts :\<kappa>r k) = (\<forall>(n,t,b)\<in>set ts. case b of Taken \<Rightarrow> L, K, C \<turnstile> t wellformed | Present \<Rightarrow> L, K, C \<turnstile> t :\<kappa> k)"
 proof (induct ts)
   case (Cons a ts)
   then show ?case
@@ -1362,17 +1533,17 @@ proof (induct ts)
 qed (simp add: kinding_defs)
 
 lemma kinding_record_wellformed_elem:
-  assumes "K \<turnstile>* ts :\<kappa>r k"
+  assumes "L, K, C \<turnstile>* ts :\<kappa>r k"
     and "(name,t,taken) \<in> set ts"
-  shows "K \<turnstile> t wellformed"
+  shows "L, K, C \<turnstile> t wellformed"
   using assms
   by (induct ts; force simp add: kinding_defs)
 
 lemma kinding_record_wellformed_nth:
-assumes "K \<turnstile>* ts :\<kappa>r k"
+assumes "L, K, C \<turnstile>* ts :\<kappa>r k"
 and     "ts ! n = (name,t,taken)"
 and     "n < length ts"
-shows   "K \<turnstile> t wellformed"
+shows   "L, K, C \<turnstile> t wellformed"
 using assms(1)
   and assms(2) [THEN sym]
   and assms(3) by (force intro: kinding_record_wellformed_elem[simplified]
@@ -1380,10 +1551,10 @@ using assms(1)
 
 lemma kinding_all_record:
   assumes
-    "K \<turnstile>* ts :\<kappa> k"
+    "L, K, C \<turnstile>* ts :\<kappa> k"
     "length ns = length ts"
   shows
-    "K \<turnstile>* zip ns (zip ts (replicate (length ts) Present)) :\<kappa>r k"
+    "L, K, C \<turnstile>* zip ns (zip ts (replicate (length ts) Present)) :\<kappa>r k"
   using assms
 proof (induct ts arbitrary: ns)
   case (Cons a ts)
@@ -1394,8 +1565,8 @@ proof (induct ts arbitrary: ns)
 qed (force simp add: kinding_defs)
 
 lemma kinding_all_record':
-  assumes "K \<turnstile>* map (fst \<circ> snd) ts :\<kappa> k"
-  shows   "K \<turnstile>* ts :\<kappa>r k"
+  assumes "L, K, C \<turnstile>* map (fst \<circ> snd) ts :\<kappa> k"
+  shows   "L, K, C \<turnstile>* ts :\<kappa>r k"
   using assms
 proof (induct ts)
   case (Cons a ts)
@@ -1404,10 +1575,10 @@ proof (induct ts)
 qed (force simp add: kinding_defs)
 
 lemma kinding_record_update:
-  assumes "K \<turnstile>* ts :\<kappa>r k"
+  assumes "L, K, C \<turnstile>* ts :\<kappa>r k"
     and "ts ! n = (name, a, b)"
-    and "K \<turnstile> a :\<kappa> k'"
-  shows "K \<turnstile>* (ts[ n := (name, a, Present)]) :\<kappa>r (k \<inter> k')"
+    and "L, K, C \<turnstile> a :\<kappa> k'"
+  shows "L, K, C \<turnstile>* (ts[ n := (name, a, Present)]) :\<kappa>r (k \<inter> k')"
   using assms
 proof (induct ts arbitrary: n)
   case (Cons a ts)
@@ -1443,22 +1614,30 @@ lemma bang_sigil_boxed : " bang_sigil (Boxed r ptrl) =
 Boxed ReadOnly ptrl"
   by(cases r;simp)
 
-lemma bang_matches_type_layout:
-  "matches_type_layout t l \<Longrightarrow> matches_type_layout (bang t) l"
-  "matches_type_layout_all ts ls \<Longrightarrow> matches_type_layout_all (map bang ts) ls"
-  by (induct rule: matches_type_layout_matches_type_layout_all.inducts)
-    (simp add: matches_type_layout_simps matches_type_layout_all_simps bang_sigil_boxed)+
 
-lemma bang_matches_type_perm:
-  "matches_type_perm ts s \<Longrightarrow>
-   matches_type_perm (map (\<lambda>(n, t, b). (n, bang t, b)) ts) (bang_sigil s)"
-  by (induct ts s rule:matches_type_perm.induct)
-    (force dest: bang_matches_type_layout simp add: bang_sigil_boxed)+
+lemma bang_matches_type_sigil:
+  "
+matches_type_sigil L C t (bang_sigil s) =
+matches_type_sigil L C t s 
+   "
+  by(induct s rule:sigil_lay_cases)  (simp add:bang_sigil_boxed)+
+ 
+  
+lemma bang_lrepr : "type_lrepr (bang t) = type_lrepr t"
+  by (induct t rule:type_lrepr.induct;clarsimp simp add:bang_sigil_boxed )
+(*
+lemma bang_lrepr_trecord : "type_lrepr (TRecord (map_field_type bang ts) (bang_sigil s)) = 
+   type_lrepr (TRecord ts s)"
+  by (rule bang_lrepr[of "TRecord ts s", simplified])
+  *)
+  
 
 lemma bang_wellformed:
-  "type_wellformed n t \<Longrightarrow> type_wellformed n (bang t)"
-  by (induct t rule: type_wellformed.induct) 
-    (clarsimp simp add: list.pred_map list_all_iff bang_matches_type_perm)+
+  "type_wellformed L C n t \<Longrightarrow> type_wellformed L C n (bang t)"
+  apply(induct t rule: type_wellformed.induct)           
+          apply   (clarsimp simp add: list.pred_map list_all_iff  bang_matches_type_sigil)+
+   apply(clarsimp simp add:prod.case_distrib comp_def bang_lrepr)+
+  done
   
 
 lemma bang_kinding_fn:
@@ -1479,10 +1658,10 @@ next
 qed auto
 
 lemma bang_kind:
-shows "K \<turnstile>  t  wellformed \<Longrightarrow> k \<subseteq> {D, S} \<Longrightarrow> K \<turnstile> bang t :\<kappa> k"
-and   "K \<turnstile>* ts wellformed \<Longrightarrow> k \<subseteq> {D, S} \<Longrightarrow> K \<turnstile>* map bang ts :\<kappa> k"
-and   "K \<turnstile>* map (fst \<circ> snd) xs wellformed \<Longrightarrow> k \<subseteq> {D, S} \<Longrightarrow> K \<turnstile>* map (\<lambda>(n,t,b). (n, bang t, b)) xs :\<kappa>v k"
-and   "K \<turnstile>* map (fst \<circ> snd) fs wellformed \<Longrightarrow> k \<subseteq> {D, S} \<Longrightarrow> K \<turnstile>* map (\<lambda>(n,t,b). (n, bang t, b)) fs :\<kappa>r k"
+shows "L, K, C \<turnstile>  t  wellformed \<Longrightarrow> k \<subseteq> {D, S} \<Longrightarrow> L, K, C \<turnstile> bang t :\<kappa> k"
+and   "L, K, C \<turnstile>* ts wellformed \<Longrightarrow> k \<subseteq> {D, S} \<Longrightarrow> L, K, C \<turnstile>* map bang ts :\<kappa> k"
+and   "L, K, C \<turnstile>* map (fst \<circ> snd) xs wellformed \<Longrightarrow> k \<subseteq> {D, S} \<Longrightarrow> L, K, C \<turnstile>* map (\<lambda>(n,t,b). (n, bang t, b)) xs :\<kappa>v k"
+and   "L, K, C \<turnstile>* map (fst \<circ> snd) fs wellformed \<Longrightarrow> k \<subseteq> {D, S} \<Longrightarrow> L, K, C \<turnstile>* map (\<lambda>(n,t,b). (n, bang t, b)) fs :\<kappa>r k"
   using bang_wellformed bang_kinding_fn
   by (fastforce simp add: kinding_defs INT_subset_iff simp del: insert_subset
       split: variant_state.split record_state.split)+
@@ -1491,124 +1670,36 @@ section {* Subtyping lemmas *}
 
 lemma subtyping_simps:
   shows
-  "\<And>n1 n2. K \<turnstile> TVar n1 \<sqsubseteq> TVar n2 \<longleftrightarrow> n1 = n2"
-  "\<And>n1 n2. K \<turnstile> TVarBang n1 \<sqsubseteq> TVarBang n2 \<longleftrightarrow> n1 = n2"
-  "\<And>n1 ts1 s1 n2 ts2 s2. K \<turnstile> TCon n1 ts1 s1 \<sqsubseteq> TCon n2 ts2 s2 \<longleftrightarrow> n1 = n2 \<and> s1 = s2 \<and> ts1 = ts2"
-  "\<And>t1 u1 t2 u2. K \<turnstile> TFun t1 u1 \<sqsubseteq> TFun t2 u2 \<longleftrightarrow> K \<turnstile> t2 \<sqsubseteq> t1 \<and> K \<turnstile> u1 \<sqsubseteq> u2"
-  "\<And>p1 p2. K \<turnstile> TPrim p1 \<sqsubseteq> TPrim p2 \<longleftrightarrow> p1 = p2"
-  "\<And>ts1 s1 ts2 s2. K \<turnstile> TRecord ts1 s1 \<sqsubseteq> TRecord ts2 s2
-                    \<longleftrightarrow> list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) ts1 ts2
-                    \<and> list_all2 (record_kind_subty K) ts1 ts2
+  "\<And>n1 n2. L, K, C \<turnstile> TVar n1 \<sqsubseteq> TVar n2 \<longleftrightarrow> n1 = n2"
+  "\<And>n1 n2. L, K, C \<turnstile> TVarBang n1 \<sqsubseteq> TVarBang n2 \<longleftrightarrow> n1 = n2"
+  "\<And>n1 ts1 s1 n2 ts2 s2. L, K, C \<turnstile> TCon n1 ts1 s1 \<sqsubseteq> TCon n2 ts2 s2 \<longleftrightarrow> n1 = n2 \<and> s1 = s2 \<and> ts1 = ts2"
+  "\<And>t1 u1 t2 u2. L, K, C \<turnstile> TFun t1 u1 \<sqsubseteq> TFun t2 u2 \<longleftrightarrow> L, K, C \<turnstile> t2 \<sqsubseteq> t1 \<and> L, K, C \<turnstile> u1 \<sqsubseteq> u2"
+  "\<And>p1 p2. L, K, C \<turnstile> TPrim p1 \<sqsubseteq> TPrim p2 \<longleftrightarrow> p1 = p2"
+  "\<And>ts1 s1 ts2 s2. L, K, C \<turnstile> TRecord ts1 s1 \<sqsubseteq> TRecord ts2 s2
+                    \<longleftrightarrow> list_all2 (\<lambda>p1 p2. subtyping L K C (fst (snd p1)) (fst (snd p2))) ts1 ts2
+                    \<and> list_all2 (record_kind_subty L K C) ts1 ts2
                     \<and> map fst ts1 = map fst ts2
                     \<and> s1 = s2"
-  "\<And>t1 u1 t2 u2. K \<turnstile> TProduct t1 u1 \<sqsubseteq> TProduct t2 u2 \<longleftrightarrow> K \<turnstile> t1 \<sqsubseteq> t2 \<and> K \<turnstile> u1 \<sqsubseteq> u2"
-  "\<And>ts1 ts2. K \<turnstile> TSum ts1 \<sqsubseteq> TSum ts2
-                    \<longleftrightarrow> list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) ts1 ts2
+  "\<And>t1 u1 t2 u2. L, K, C \<turnstile> TProduct t1 u1 \<sqsubseteq> TProduct t2 u2 \<longleftrightarrow> L, K, C \<turnstile> t1 \<sqsubseteq> t2 \<and> L, K, C \<turnstile> u1 \<sqsubseteq> u2"
+  "\<And>ts1 ts2. L, K, C \<turnstile> TSum ts1 \<sqsubseteq> TSum ts2
+                    \<longleftrightarrow> list_all2 (\<lambda>p1 p2. subtyping L K C (fst (snd p1)) (fst (snd p2))) ts1 ts2
                     \<and> list_all2 (variant_kind_subty) ts1 ts2
                     \<and> map fst ts1 = map fst ts2"
-  "K \<turnstile> TUnit \<sqsubseteq> TUnit"
+  "L, K, C \<turnstile> TUnit \<sqsubseteq> TUnit"
   by (auto simp: subtyping.intros intro!: subtyping.intros elim!: subtyping.cases)
-
-lemma subtyping_matches_type_layout:
-  "matches_type_layout t1 l \<Longrightarrow> K \<turnstile> t1 \<sqsubseteq> t2 \<Longrightarrow> matches_type_layout t2 l"
-  "matches_type_layout_all ts1 ls \<Longrightarrow> list_all2 (subtyping K) ts1 ts2 \<Longrightarrow> matches_type_layout_all ts2 ls"
-  by (induct arbitrary: t2 and ts2 rule: matches_type_layout_matches_type_layout_all.inducts)
-    (force simp add: list.rel_map matches_type_layout_simps matches_type_layout_all_simps list_all2_Cons1)+
-
-lemma subtyping_matches_type_perm:
-  "list_all2 (record_kind_subty K) ts1 ts2 \<Longrightarrow>
-   list_all2 (\<lambda>p1 p2. K \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2)) ts1 ts2  \<Longrightarrow>
-   map fst ts1 = map fst ts2 \<Longrightarrow>
-   matches_type_perm ts1 s \<Longrightarrow>
-   matches_type_perm ts2 s"
-  by (induct ts1 s rule: matches_type_perm.induct;
-      clarsimp simp add:subtyping_simps subtyping_matches_type_layout)
-
-
-lemma subtyping_refl: "K \<turnstile> t \<sqsubseteq> t"
-proof (induct t)
-  case (TSum ts)
-  moreover then have "\<And>i. i < length ts \<Longrightarrow> K \<turnstile> fst (snd (ts ! i)) \<sqsubseteq> fst (snd (ts ! i))"
-    using fsts.intros snds.intros nth_mem by blast
-  ultimately show ?case
-    by (fastforce intro!: subtyping.intros simp add: list_all2_conv_all_nth list_all_length)
-next
-  case (TRecord ts s)
-  moreover then have "\<And>i. i < length ts \<Longrightarrow> K \<turnstile> fst (snd (ts ! i)) \<sqsubseteq> fst (snd (ts ! i))"
-    using fsts.intros snds.intros nth_mem by blast
-  ultimately show ?case
-    by (fastforce intro!: subtyping.intros simp add: list_all2_conv_all_nth list_all_length)
-qed (auto intro!: subtyping.intros simp add: list.rel_refl_strong list_all_iff)
-
-lemma subtyping_wellformed_preservation:
-  assumes
-    "K \<turnstile> t1 \<sqsubseteq> t2"
-  shows
-    "K \<turnstile> t1 wellformed \<Longrightarrow> K \<turnstile> t2 wellformed"
-    "K \<turnstile> t2 wellformed \<Longrightarrow> K \<turnstile> t1 wellformed"
-  using assms
-proof (induct rule: subtyping.inducts)
-  fix K
-  case (subty_tcon n1 n2 s1 s2 ts1 ts2)
-  then show
-    "K \<turnstile> TCon n1 ts1 s1 wellformed \<Longrightarrow> K \<turnstile> TCon n2 ts2 s2 wellformed"
-    "K \<turnstile> TCon n2 ts2 s2 wellformed \<Longrightarrow> K \<turnstile> TCon n1 ts1 s1 wellformed"
-    by (fastforce simp add: list_all2_conv_all_nth Ball_def in_set_conv_nth list_all_iff)+
-next
-  case (subty_trecord K ts1 ts2 s1 s2)
-  moreover then have aux :
-    "list_all (\<lambda>p1. K \<turnstile> fst (snd p1) wellformed) ts1 \<longleftrightarrow> list_all (\<lambda>p2. K \<turnstile> fst (snd p2) wellformed) ts2"
-    by (clarsimp simp add: list_all2_mono iff_conv_conj_imp list_all2_conv_all_nth list_all_length)
-  
-  ultimately show
-    "K \<turnstile> TRecord ts1 s1 wellformed \<Longrightarrow> K \<turnstile> TRecord ts2 s2 wellformed"
-    "K \<turnstile> TRecord ts2 s2 wellformed \<Longrightarrow> K \<turnstile> TRecord ts1 s1 wellformed"
-    
-    apply(simp add:subtyping_matches_type_perm list_all2_mono)
-    using aux subty_trecord
-    apply(simp add:subtyping_matches_type_perm list_all2_mono)
-    apply(rule subtyping_matches_type_perm; assumption? ; simp?)
-using aux subty_trecord
-    sledgehammer
-    using aux subty_trecord
-
-    apply simp+ TODO fix
-    using this
-    apply simp+
-    apply(erule conjE)
-     apply(rule subtyping_matches_type_perm; assumption?; simp?)  
-     apply (simp add: list_all2_mono)
-      apply (simp add: list.rel_refl subtyping_refl)
-    sledgehammer
-apply (simp add: list.rel_refl subtyping_refl)
-    apply simp
-    apply simp
-    term matches_type_perm
-    find_theorems matches_type_perm
-    by simp+
-next
-  case (subty_tsum K ts1 ts2)
-  moreover then have
-    "list_all (\<lambda>p1. K \<turnstile> fst (snd p1) wellformed) ts1 \<longleftrightarrow> list_all (\<lambda>p2. K \<turnstile> fst (snd p2) wellformed) ts2"
-    by (clarsimp simp add: list_all2_mono iff_conv_conj_imp list_all2_conv_all_nth list_all_length)
-  ultimately show
-    "K \<turnstile> TSum ts1 wellformed \<Longrightarrow> K \<turnstile> TSum ts2 wellformed"
-    "K \<turnstile> TSum ts2 wellformed \<Longrightarrow> K \<turnstile> TSum ts1 wellformed"
-    by simp+
-qed simp+
 
 lemma subtyping_bang_preservation:
   assumes
-    "K \<turnstile> t1 \<sqsubseteq> t2"
-    "K \<turnstile> t1 wellformed"
-  shows "K \<turnstile> bang t1 \<sqsubseteq> bang t2"
+    "L, K, C \<turnstile> t1 \<sqsubseteq> t2"
+    "L, K, C \<turnstile> t1 wellformed"
+  shows "L, K, C \<turnstile> bang t1 \<sqsubseteq> bang t2"
   using assms
 proof (induct rule: subtyping.induct)
   case subty_tcon then show ?case
     by (force simp add: list_all2_conv_all_nth intro: subtyping.intros)
 next
-  case (subty_trecord K ts1 ts2 s1 s2)
-  moreover then have "\<And>i k. i < length ts2 \<Longrightarrow> K \<turnstile> bang (fst (snd (ts1 ! i))) :\<kappa> {D}"
+  case (subty_trecord L K C ts1 ts2 s1 s2)
+  moreover then have "\<And>i k. i < length ts2 \<Longrightarrow> L, K, C \<turnstile> bang (fst (snd (ts1 ! i))) :\<kappa> {D}"
     by (auto simp add: list_all_length intro!: bang_kind, metis length_map)
   moreover have "\<And>i. i < length ts2 \<Longrightarrow> snd (snd (ts1 ! i)) \<le> snd (snd (ts2 ! i))"
     using subty_trecord.hyps
@@ -1620,14 +1711,90 @@ next
     by (slowsimp intro!: subtyping.intros simp add: list_all2_conv_all_nth list_all_length split: prod.splits)
 qed (simp add: subtyping_simps)+
 
+lemma subtyping_lrepr : "L, K, C \<turnstile> t1 \<sqsubseteq> t2 \<Longrightarrow> type_lrepr t1 = type_lrepr t2"
+proof(induct rule:subtyping.induct)
+  case (subty_trecord L K C ts1 ts2 s1 s2)
+  then show ?case
+    by (cases s2)
+     ( simp add: case_prod_beta' map_eq_iff_nth_eq list_all2_conv_all_nth  )+
+next
+  case (subty_tsum L K C ts1 ts2)
+  then show ?case
+    by (simp add: case_prod_beta' map_eq_iff_nth_eq list_all2_conv_all_nth  )+
+    
+qed (simp+)
+
+lemma subtyping_refl: "L, K, C \<turnstile> t \<sqsubseteq> t"
+proof (induct t)
+  case (TSum ts)
+  moreover then have "\<And>i. i < length ts \<Longrightarrow> L, K, C \<turnstile> fst (snd (ts ! i)) \<sqsubseteq> fst (snd (ts ! i))"
+    using fsts.intros snds.intros nth_mem by blast
+  ultimately show ?case
+    by (fastforce intro!: subtyping.intros simp add: list_all2_conv_all_nth list_all_length)
+next
+  case (TRecord ts s)
+  moreover then have "\<And>i. i < length ts \<Longrightarrow> L, K, C \<turnstile> fst (snd (ts ! i)) \<sqsubseteq> fst (snd (ts ! i))"
+    using fsts.intros snds.intros nth_mem by blast
+  ultimately show ?case
+    by (fastforce intro!: subtyping.intros simp add: list_all2_conv_all_nth list_all_length)
+qed (auto intro!: subtyping.intros simp add: list.rel_refl_strong list_all_iff)
+
+lemma subtyping_wellformed_preservation:
+  assumes
+    "L, K, C \<turnstile> t1 \<sqsubseteq> t2"
+  shows
+    "L, K, C \<turnstile> t1 wellformed \<Longrightarrow> L, K, C \<turnstile> t2 wellformed"
+    "L, K, C \<turnstile> t2 wellformed \<Longrightarrow> L, K, C \<turnstile> t1 wellformed"
+  using assms
+proof (induct rule: subtyping.inducts)
+  fix L K C 
+  case (subty_tcon n1 n2 s1 s2 ts1 ts2)
+  then show
+    "L, K, C \<turnstile> TCon n1 ts1 s1 wellformed \<Longrightarrow> L, K, C \<turnstile> TCon n2 ts2 s2 wellformed"
+    "L, K, C \<turnstile> TCon n2 ts2 s2 wellformed \<Longrightarrow> L, K, C \<turnstile> TCon n1 ts1 s1 wellformed"
+    by (fastforce simp add: list_all2_conv_all_nth Ball_def in_set_conv_nth list_all_iff)+
+next
+  case (subty_trecord L K C ts1 ts2 s1 s2)
+  moreover then have aux :
+    "list_all (\<lambda>p1. L, K, C \<turnstile> fst (snd p1) wellformed) ts1 \<longleftrightarrow> list_all (\<lambda>p2. L, K, C \<turnstile> fst (snd p2) wellformed) ts2"
+    by (clarsimp simp add: list_all2_mono iff_conv_conj_imp list_all2_conv_all_nth list_all_length)
+  moreover then have 
+  "map (\<lambda>(n, t, _). (n, type_lrepr t)) ts1 = 
+   map (\<lambda>(n, t, _). (n, type_lrepr t)) ts2"   
+
+    using subty_trecord
+    
+    
+    
+    by(fastforce dest:subtyping_lrepr split:prod.split simp add:
+ list_all2_conv_all_nth map_eq_iff_nth_eq)
+    
+
+  ultimately show
+    "L, K, C \<turnstile> TRecord ts1 s1 wellformed \<Longrightarrow> L, K, C \<turnstile> TRecord ts2 s2 wellformed"
+    "L, K, C \<turnstile> TRecord ts2 s2 wellformed \<Longrightarrow> L, K, C \<turnstile> TRecord ts1 s1 wellformed"   
+    by simp+
+next
+  case (subty_tsum L K C ts1 ts2)
+  moreover then have
+    "list_all (\<lambda>p1. L, K, C \<turnstile> fst (snd p1) wellformed) ts1 \<longleftrightarrow> list_all (\<lambda>p2. L, K, C \<turnstile> fst (snd p2) wellformed) ts2"
+    by (clarsimp simp add: list_all2_mono iff_conv_conj_imp list_all2_conv_all_nth list_all_length)
+  ultimately show
+    "L, K, C \<turnstile> TSum ts1 wellformed \<Longrightarrow> L, K, C \<turnstile> TSum ts2 wellformed"
+    "L, K, C \<turnstile> TSum ts2 wellformed \<Longrightarrow> L, K, C \<turnstile> TSum ts1 wellformed"
+    by simp+
+qed simp+
+
+
+
 
 lemma subtyping_kinding_fn_drop_super_impl_drop_sub:
-  assumes "K \<turnstile> p \<sqsubseteq> q"
+  assumes "L, K, C \<turnstile> p \<sqsubseteq> q"
   and "D \<in> kinding_fn K q"
   shows "D \<in> kinding_fn K p"
   using assms
 proof (induct rule: subtyping.inducts)
-  case (subty_trecord K pts qts ps qs)
+  case (subty_trecord L K C pts qts ps qs)
   moreover have kind_pts:
     "\<And>n pt pb. (n, pt, pb) \<in> set pts \<Longrightarrow> D \<in> (case pb of Taken \<Rightarrow> UNIV | Present \<Rightarrow> kinding_fn K pt)"
   proof -
@@ -1642,7 +1809,7 @@ proof (induct rule: subtyping.inducts)
       by (simp add: in_set_conv_nth map_eq_iff_nth_eq, metis fst_conv surj_pair)
     moreover have ih_elim:
       "D \<in> kinding_fn K tq \<longrightarrow> D \<in> kinding_fn K tp"
-      "bp = bq \<or> ((K \<turnstile> tp :\<kappa> {D}) \<and> bp < bq)"
+      "bp = bq \<or> ((L, K, C \<turnstile> tp :\<kappa> {D}) \<and> bp < bq)"
       using subty_trecord.hyps elems_at_i
       by (auto simp add: list_all2_conv_all_nth map_eq_iff_nth_eq le_less)
     ultimately show "D \<in> (case bp of Taken \<Rightarrow> UNIV | Present \<Rightarrow> kinding_fn K tp)"
@@ -1652,7 +1819,7 @@ proof (induct rule: subtyping.inducts)
   ultimately show ?case
     by clarsimp
 next
-  case (subty_tsum K pts qts)
+  case (subty_tsum L K C pts qts)
   moreover have kind_pts: "\<And>n pt pb. (n, pt, pb) \<in> set pts \<Longrightarrow> D \<in> (case pb of Checked \<Rightarrow> UNIV | Unchecked \<Rightarrow> kinding_fn K pt)"
   proof -
     fix n tp bp
@@ -1682,15 +1849,15 @@ qed auto
 
 
 lemma subtyping_drop_super_impl_drop_sub:
-  assumes "K \<turnstile> p \<sqsubseteq> q"
-  and "K \<turnstile> q :\<kappa> {D}"
-  shows "K \<turnstile> p :\<kappa> {D}"
+  assumes "L, K, C \<turnstile> p \<sqsubseteq> q"
+  and "L, K, C \<turnstile> q :\<kappa> {D}"
+  shows "L, K, C \<turnstile> p :\<kappa> {D}"
   using assms kinding_def subtyping_kinding_fn_drop_super_impl_drop_sub subtyping_wellformed_preservation(2) by auto
 
 lemma subtyping_trans:
-  assumes "K \<turnstile> p \<sqsubseteq> q"
-  and     "K \<turnstile> q \<sqsubseteq> r"
-  shows   "K \<turnstile> p \<sqsubseteq> r"
+  assumes "L, K, C \<turnstile> p \<sqsubseteq> q"
+  and     "L, K, C \<turnstile> q \<sqsubseteq> r"
+  shows   "L, K, C \<turnstile> p \<sqsubseteq> r"
   using assms
 proof (induct q arbitrary: p r rule: type.induct)
 next
@@ -1704,26 +1871,25 @@ next
     done
 next
   case (TSum qts)
-  thm subtyping.cases[OF TSum.prems(1), simplified]
   moreover obtain pts where p_elims:
     "p = TSum pts"
     "map fst pts = map fst qts"
-    "list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) pts qts"
+    "list_all2 (\<lambda>p1 p2. subtyping L K C (fst (snd p1)) (fst (snd p2))) pts qts"
     "list_all2 variant_kind_subty pts qts"
     using TSum.prems by (auto elim: subtyping.cases)
   moreover obtain rts where r_elims:
     "r = TSum rts"
     "map fst qts = map fst rts"
-    "list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) qts rts"
+    "list_all2 (\<lambda>p1 p2. subtyping L K C (fst (snd p1)) (fst (snd p2))) qts rts"
     "list_all2 (\<lambda>p1 p2. snd (snd p1) \<le> snd (snd p2)) qts rts"
     using TSum.prems by (auto elim: subtyping.cases)
   moreover have IH:
     "(\<And>i tp tq tr. i < length qts \<Longrightarrow>
-      K \<turnstile> fst (snd (pts ! i)) \<sqsubseteq> fst (snd (qts ! i)) \<Longrightarrow>
-      K \<turnstile> fst (snd (qts ! i)) \<sqsubseteq> fst (snd (rts ! i)) \<Longrightarrow>
-      K \<turnstile> fst (snd (pts ! i)) \<sqsubseteq> fst (snd (rts ! i)))"
+      L, K, C \<turnstile> fst (snd (pts ! i)) \<sqsubseteq> fst (snd (qts ! i)) \<Longrightarrow>
+      L, K, C \<turnstile> fst (snd (qts ! i)) \<sqsubseteq> fst (snd (rts ! i)) \<Longrightarrow>
+      L, K, C \<turnstile> fst (snd (pts ! i)) \<sqsubseteq> fst (snd (rts ! i)))"
     using TSum.hyps fsts.intros nth_mem snds.intros by blast
-  moreover have "list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) pts rts"
+  moreover have "list_all2 (\<lambda>p1 p2. subtyping L K C (fst (snd p1)) (fst (snd p2))) pts rts"
     using p_elims(3) r_elims(3) IH
     by (clarsimp simp add: list_all2_conv_all_nth)
   moreover have "list_all2 (\<lambda>p1 p2. snd (snd p1) \<le> snd (snd p2)) pts rts"
@@ -1747,36 +1913,36 @@ next
   obtain pts where p_elims:
     "p = TRecord pts s"
     "map fst pts = map fst qts"
-    "list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) pts qts"
-    "list_all2 (record_kind_subty K) pts qts"
+    "list_all2 (\<lambda>p1 p2. subtyping L K C (fst (snd p1)) (fst (snd p2))) pts qts"
+    "list_all2 (record_kind_subty L K C) pts qts"
     using TRecord.prems by (auto elim: subtyping.cases)
   moreover obtain rts where r_elims:
     "r = TRecord rts s"
     "map fst qts = map fst rts"
-    "list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) qts rts"
-    "list_all2 (record_kind_subty K) qts rts"
+    "list_all2 (\<lambda>p1 p2. subtyping L K C (fst (snd p1)) (fst (snd p2))) qts rts"
+    "list_all2 (record_kind_subty L K C) qts rts"
     using TRecord.prems by (auto elim: subtyping.cases)
   moreover have IH:
     "(\<And>i tp tq tr. i < length qts \<Longrightarrow>
-      K \<turnstile> fst (snd (pts ! i)) \<sqsubseteq> fst (snd (qts ! i)) \<Longrightarrow>
-      K \<turnstile> fst (snd (qts ! i)) \<sqsubseteq> fst (snd (rts ! i)) \<Longrightarrow>
-      K \<turnstile> fst (snd (pts ! i)) \<sqsubseteq> fst (snd (rts ! i)))"
+      L, K, C \<turnstile> fst (snd (pts ! i)) \<sqsubseteq> fst (snd (qts ! i)) \<Longrightarrow>
+      L, K, C \<turnstile> fst (snd (qts ! i)) \<sqsubseteq> fst (snd (rts ! i)) \<Longrightarrow>
+      L, K, C \<turnstile> fst (snd (pts ! i)) \<sqsubseteq> fst (snd (rts ! i)))"
     using TRecord.hyps fsts.intros nth_mem snds.intros by blast
-  moreover have "list_all2 (\<lambda>p1 p2. subtyping K (fst (snd p1)) (fst (snd p2))) pts rts"
+  moreover have "list_all2 (\<lambda>p1 p2. subtyping L K C (fst (snd p1)) (fst (snd p2))) pts rts"
     using p_elims(3) r_elims(3) IH
     by (clarsimp simp add: list_all2_conv_all_nth)
-  moreover have sat_p_r: "\<And>i. i < length pts \<Longrightarrow> record_kind_subty K (pts ! i) (rts ! i)"
+  moreover have sat_p_r: "\<And>i. i < length pts \<Longrightarrow> record_kind_subty L K C (pts ! i) (rts ! i)"
   proof -
     fix i
     assume i_len: "i < length pts"
-    moreover have "K \<turnstile> (fst \<circ> snd) (pts ! i) \<sqsubseteq> (fst \<circ> snd) (qts ! i)"
+    moreover have "L, K, C \<turnstile> (fst \<circ> snd) (pts ! i) \<sqsubseteq> (fst \<circ> snd) (qts ! i)"
       using i_len list_all2_lengthD list_all2_nthD2 p_elims by fastforce
     moreover have
-      "record_kind_subty K (pts ! i) (qts ! i)"
-      "record_kind_subty K (qts ! i) (rts ! i)"
+      "record_kind_subty L K C (pts ! i) (qts ! i)"
+      "record_kind_subty L K C (qts ! i) (rts ! i)"
       using p_elims r_elims i_len
       by (simp add: list_all2_conv_all_nth)+
-    ultimately show "record_kind_subty K (pts ! i) (rts ! i)"
+    ultimately show "record_kind_subty L K C (pts ! i) (rts ! i)"
       by (auto
           simp add: if_bool_eq_conj kinding_defs not_less_iff_gr_or_eq
           dest: subtyping_wellformed_preservation subtyping_kinding_fn_drop_super_impl_drop_sub)
@@ -1788,19 +1954,19 @@ qed (fast elim: subtyping.cases)+
 
 
 lemma subtyping_preserves_type_repr:
-  "K \<turnstile> t \<sqsubseteq> t' \<Longrightarrow> type_repr t = type_repr t'"
+  "L, K, C \<turnstile> t \<sqsubseteq> t' \<Longrightarrow> type_repr t = type_repr t'"
 proof (induct rule: subtyping.induct)
-  case (subty_trecord K ts1 ts2 s1 s2)
+  case (subty_trecord L K C ts1 ts2 s1 s2)
   then show ?case
     by (cases s1; induct rule: list_all2_induct; auto)
 next
-  case (subty_tsum K ts1 ts2)
+  case (subty_tsum L K C ts1 ts2)
   then show ?case
     by (induct rule: list_all2_induct; auto)
 qed auto
 
 lemma subtyping_preserves_type_repr_map:
-  "list_all2 (\<lambda>p1 p2. [] \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2)) as bs
+  "list_all2 (\<lambda>p1 p2. L, K, C \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2)) as bs
   \<Longrightarrow> map (type_repr \<circ> fst \<circ> snd) as = map (type_repr \<circ> fst \<circ> snd) bs"
   by (induct rule: list_all2_induct, auto simp add: subtyping_preserves_type_repr)
 
@@ -1809,9 +1975,9 @@ section {* Typing lemmas *}
 
 lemma typing_all_Cons1I:
   assumes
-    "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
-    "\<exists>ta tsa. ts = ta # tsa \<and> \<Xi>, K, \<Gamma>1 \<turnstile>  e : ta \<and> \<Xi>, K, \<Gamma>2 \<turnstile>* es : tsa"
-  shows "\<Xi>, K, \<Gamma> \<turnstile>* (e # es) : ts"
+    "L, K, C \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+    "\<exists>ta tsa. ts = ta # tsa \<and> \<Xi>, L, K, C, \<Gamma>1 \<turnstile>  e : ta \<and> \<Xi>, L, K, C, \<Gamma>2 \<turnstile>* es : tsa"
+  shows "\<Xi>, L, K, C, \<Gamma> \<turnstile>* (e # es) : ts"
   using assms
   by (force intro: typing_all_cons)
 
@@ -1858,74 +2024,148 @@ qed
 
 section {* Instantiation *}
 
+lemma instantiate_sigil_bang [simp] :
+  "instantiate_sigil \<epsilon> (bang_sigil s) = bang_sigil (instantiate_sigil \<epsilon> s)"
+proof(cases s)
+  case (Boxed perm ptrl)
+  then show ?thesis 
+    by(cases ptrl) (simp add:bang_sigil_boxed)+    
+qed (simp)
+
+
+
 lemma instantiate_bang [simp]:
-shows "instantiate \<delta> (bang \<tau>) = bang (instantiate \<delta> \<tau>)"
-by (force intro: bang.induct [where P = "\<lambda> \<tau>. instantiate \<delta> (bang \<tau>) = bang (instantiate \<delta> \<tau>)"]
-          simp:  bang_idempotent)
+  shows "instantiate \<epsilon> \<delta> (bang \<tau>) = bang (instantiate \<epsilon> \<delta> \<tau>)"
+  by (force intro: bang.induct [where P = "\<lambda> \<tau>. instantiate \<epsilon> \<delta> (bang \<tau>) = bang (instantiate \<epsilon> \<delta> \<tau>)"]
+          simp:  bang_idempotent bang_lrepr  prod.case_distrib)+
+
+
+lemma instantiate_lay_instantiate_lay[simp] :
+  assumes "layout_wellformed L ptrl"
+  "L \<le> length \<epsilon>'"
+shows "
+instantiate_lay \<epsilon> (instantiate_lay \<epsilon>' ptrl) = instantiate_lay (map (instantiate_lay \<epsilon>) \<epsilon>') ptrl"
+  using assms
+  by(induct ptrl) (fastforce simp add: list_all_iff)+
+
+lemma instantiate_lrepr_instantiate_lrepr[simp] :
+  assumes "lrepr_wellformed n t"
+  "n \<le> length \<delta>'"
+shows "
+instantiate_lrepr \<delta> (instantiate_lrepr \<delta>' t) = instantiate_lrepr (map (instantiate_lrepr \<delta>) \<delta>') t"
+  using assms
+  by(induct n t rule:lrepr_wellformed.induct) (fastforce simp add: list_all_iff)+
+  
+
+
+lemma instantiate_sigil_instantiate_sigil [simp] :
+  assumes "matches_type_sigil L C \<tau> s"
+    "L \<le> length \<epsilon>'"
+  shows
+"instantiate_sigil \<epsilon> (instantiate_sigil \<epsilon>' s) = instantiate_sigil (map (instantiate_lay \<epsilon>) \<epsilon>') s"
+  using assms
+  by(induct s rule:sigil_lay_cases)  (fastforce simp add:matches_fields_layout_def)+
 
 lemma instantiate_instantiate [simp]:
-assumes "list_all2 (kinding K') \<delta>' K"
-and     "length K' = length \<delta>"
-shows   "K \<turnstile> x wellformed \<Longrightarrow> instantiate \<delta> (instantiate \<delta>' x) = instantiate (map (instantiate \<delta>) \<delta>') x"
+(*assumes "list_all2 (kinding L K C') \<delta>' K"
+and     "length K' = length \<delta>" *)
+  assumes "length K \<le> length \<delta>'"
+          "L \<le> length \<epsilon>'"
+  shows   "L, K, C \<turnstile> x wellformed \<Longrightarrow> 
+  instantiate \<epsilon> \<delta> (instantiate \<epsilon>' \<delta>' x) = 
+  instantiate (map (instantiate_lay \<epsilon>) \<epsilon>')(map (instantiate \<epsilon> \<delta>) \<delta>') x"
   using assms
 proof (induct x arbitrary: \<delta>' rule: instantiate.induct)
 next case 3 then show ?case by (force dest: kinding_typelist_wellformed_elem simp add: list_all_iff kinding_simps)
-next case 8 then show ?case by (fastforce dest: kinding_record_wellformed_elem simp add: list_all_iff kinding_simps)
-next case 6 then show ?case by (fastforce dest: kinding_variant_wellformed_elem simp add: list_all_iff kinding_simps)
+next case 8 then show ?case 
+    by(fastforce dest: kinding_record_wellformed_elem simp add: list_all_iff kinding_simps)
+ next case 6 then show ?case by (fastforce dest: kinding_variant_wellformed_elem simp add: list_all_iff kinding_simps)
 qed (auto simp add: kinding_def kinding_simps dest: list_all2_lengthD)
 
+
+
 lemma instantiate_tprim [simp]:
-shows "instantiate \<delta> \<circ> TPrim = TPrim"
-by (rule ext, simp)
+shows "instantiate \<epsilon> \<delta> \<circ> TPrim = TPrim"
+  by (rule ext, simp)
+
+lemma instantiate_lay_nothing:
+  shows "instantiate_lay [] l = l"
+by (induct l) (auto simp: prod_set_defs intro: map_idI)
+
+lemma instantiate_lay_nothing_id[simp]:
+shows "instantiate_lay [] = id"
+by (rule ext, simp add: instantiate_lay_nothing)
+
+lemma instantiate_sigil_nothing_id[simp]:
+  shows "instantiate_sigil [] = id"
+  apply(rule ext)
+  apply(induct_tac x rule:sigil_lay_cases)
+  by simp+
 
 lemma instantiate_nothing:
-shows "instantiate [] e = e"
+shows "instantiate [] [] e = e"
 by (induct e) (auto simp: prod_set_defs intro: map_idI)
 
 lemma instantiate_nothing_id[simp]:
-shows "instantiate [] = id"
+shows "instantiate [] [] = id"
 by (rule ext, simp add: instantiate_nothing)
 
 lemma instantiate_ctx_nothing:
-shows "instantiate_ctx [] e = e"
+shows "instantiate_ctx [] [] e = e"
 unfolding instantiate_ctx_def
 by (induct e, auto simp: map_option.id [simplified id_def])
 
 lemma instantiate_ctx_nothing_id[simp]:
-shows "instantiate_ctx [] = id"
+shows "instantiate_ctx [] [] = id"
 by (rule ext, simp add: instantiate_ctx_nothing)
 
+lemma sigil_kind_instantiate[simp] : "sigil_kind (instantiate_sigil \<epsilon> s) = sigil_kind s"
+proof(induct s rule:sigil_lay_cases)
+case (BoxedLay p ptrl)
+  then show ?case
+    by(cases p)(simp)+
+qed (simp)+
+
+lemma instantiate_sigil_boxed_invert : "instantiate_sigil \<epsilon> s = Boxed perm ptrl \<longleftrightarrow> ( \<exists> ptrl'. s = Boxed perm ptrl' \<and> ptrl = map_option (instantiate_lay \<epsilon>) ptrl')"
+  by (cases s ) (fastforce)+
+
+
+
 lemma specialise_nothing:
-shows "specialise [] e = e"
+shows "specialise [] [] e = e"
 by (induct e) (auto simp: prod_set_defs intro: map_idI)
 
 lemma specialise_nothing_id[simp]:
-shows "specialise [] = id"
-by (rule ext, simp add: specialise_nothing)
+shows "specialise [] [] = id"
+  by (rule ext, simp add: specialise_nothing)
 
-lemmas typing_struct_instantiate = typing_struct[where ts = "map (instantiate \<delta>) ts" for \<delta> ts, simplified]
+lemma subst_wellformed_nothing : "L, K, C \<turnstile> [], [] :s 0, [], {}"
+  by(simp add: subst_wellformed_def )
 
-lemma wellkinded_imp_kinded: "list_all2 (kinding K') \<delta> K \<Longrightarrow> list_all2 (\<lambda>t k. k \<subseteq> kinding_fn K' t) \<delta> K"
+
+lemmas typing_struct_instantiate = typing_struct[where ts = "map (instantiate \<epsilon> \<delta>) ts" for \<epsilon> \<delta> ts, simplified]
+
+lemma wellkinded_imp_kinded: "list_all2 (kinding L' K' C') \<delta> K \<Longrightarrow> list_all2 (\<lambda>t k. k \<subseteq> kinding_fn K' t) \<delta> K"
   by (clarsimp simp add: list_all2_conv_all_nth kinding_def)
 
-lemma wellkinded_imp_wellformed: "list_all2 (kinding K') \<delta> K \<Longrightarrow> list_all (type_wellformed (length K')) \<delta>"
+lemma wellkinded_imp_wellformed: "list_all2 (kinding L' K' C') \<delta> K \<Longrightarrow> list_all (type_wellformed L' (length K') C') \<delta>"
   by (clarsimp simp add: list_all2_conv_all_nth list_all_length kinding_def)
 
 lemma instantiate_over_variants_subvariants:
   assumes tags_same: "map fst ts = map fst ts'"
     and types_same: "map (fst \<circ> snd) ts = map (fst \<circ> snd) ts'"
-  shows "map (\<lambda>(n, t, _). (n, type_repr t)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) =
-         map (\<lambda>(c, t, _). (c, type_repr t)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts')"
+  shows "map (\<lambda>(n, t, _). (n, type_repr t)) (map (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<tau>s t, b)) ts) =
+         map (\<lambda>(c, t, _). (c, type_repr t)) (map (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<tau>s t, b)) ts')"
 proof -
-  have f1: "((\<lambda>(n, t, _). (n, type_repr t)) \<circ> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) = (\<lambda>(n, t, _). (n, type_repr (instantiate \<tau>s t)))"
+  have f1: "((\<lambda>(n, t, _). (n, type_repr t)) \<circ> (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<tau>s t, b))) = (\<lambda>(n, t, _). (n, type_repr (instantiate \<epsilon> \<tau>s t)))"
     by fastforce
-  have f2: "(\<lambda>(n, t, _). (n, type_repr (instantiate \<tau>s t))) = (\<lambda>p. (fst p, (type_repr \<circ> (instantiate \<tau>s) \<circ> (fst \<circ> snd)) p))"
+  have f2: "(\<lambda>(n, t, _). (n, type_repr (instantiate \<epsilon> \<tau>s t))) = (\<lambda>p. (fst p, (type_repr \<circ> (instantiate \<epsilon> \<tau>s) \<circ> (fst \<circ> snd)) p))"
     by fastforce
 
-  have "(map (type_repr \<circ> (instantiate \<tau>s) \<circ> (fst \<circ> snd)) ts) = (map (type_repr \<circ> (instantiate \<tau>s) \<circ> (fst \<circ> snd)) ts')"
+  have "(map (type_repr \<circ> (instantiate \<epsilon> \<tau>s) \<circ> (fst \<circ> snd)) ts) = (map (type_repr \<circ> (instantiate \<epsilon> \<tau>s) \<circ> (fst \<circ> snd)) ts')"
     using types_same map_map by metis
-  then have "map (\<lambda>(n, t, _). (n, type_repr (instantiate \<tau>s t))) ts =
-          map (\<lambda>(n, t, _). (n, type_repr (instantiate \<tau>s t))) ts'"
+  then have "map (\<lambda>(n, t, _). (n, type_repr (instantiate \<epsilon> \<tau>s t))) ts =
+          map (\<lambda>(n, t, _). (n, type_repr (instantiate \<epsilon> \<tau>s t))) ts'"
     by (fastforce intro: pair_list_eqI simp add: f2 comp_def tags_same)
   then show ?thesis
     by (simp add: f1)
@@ -1933,30 +2173,131 @@ qed
 
 subsection {* substitutivity *}
 
+
+lemma instantiate_lay_closed[simp] : "layout_wellformed 0 ptrl \<Longrightarrow>
+instantiate_lay \<epsilon> ptrl = ptrl"
+  by (induct ptrl) (fastforce intro:map_idI simp add:list_all_iff)+
+
+
+lemma instantiate_lrepr_closed[simp] : "lrepr_wellformed 0 rep \<Longrightarrow>
+instantiate_lrepr \<delta> rep = rep"
+  by (induct rep) (fastforce intro:map_idI simp add:list_all_iff)+
+
+
+(* could be stated more generally for substitution of lrepr,
+but this would require a specific wellformedness predicate
+on substitution *)
+
+lemma instantiate_matches_fields_layout :
+  assumes "matches_fields_layout L C \<tau> ptrl"
+   "lrepr_wellformed (length K) \<tau>"
+    "L', K', C' \<turnstile> \<epsilon>, \<delta> :s L, K, C"  
+  shows "matches_fields_layout L' C' (instantiate_lrepr (map type_lrepr \<delta>) \<tau>) (instantiate_lay \<epsilon> ptrl)"
+  using assms
+  by(fastforce dest:layout_wellformed_mono simp add:
+   matches_fields_layout_def subst_wellformed_def match_constraint_def)
+
+lemma instantiate_match_type_sigil:
+  assumes "matches_type_sigil L C \<tau> s"
+  "lrepr_wellformed (length K) \<tau>"
+   "L', K', C' \<turnstile> \<epsilon>, \<delta> :s L, K, C"
+ shows "matches_type_sigil L' C' (instantiate_lrepr (map type_lrepr \<delta>) \<tau>) (instantiate_sigil \<epsilon> s)" 
+  using assms
+proof(induct s rule:sigil_lay_cases)
+  case (BoxedLay p ptrl)
+  then show ?case 
+    by (simp add:instantiate_matches_fields_layout)
+qed simp+ 
+
+(* TODO: move before *)
+lemma type_lrepr_instantiate[simp] : "type_lrepr (instantiate \<epsilon> \<delta> t) =
+    instantiate_lrepr (map type_lrepr \<delta>) (type_lrepr t)"
+proof(induct rule:instantiate.induct)
+  (* bang variable *)
+  case (2 \<epsilon> \<delta> i)
+  then show ?case by (simp add:bang_lrepr)
+next
+(* TCon *)
+  case (3 \<epsilon> \<delta> n ts s)
+  then show ?case 
+    by(cases s;simp)
+next
+(* TRecord *)
+  case (8 \<epsilon> \<delta> ts s)
+
+  then show ?case
+    by(induct_tac s rule:sigil_lay_cases; fastforce)
+qed fastforce+
+
+
+
+lemma instantiate_match_type_sigil_record:
+  assumes "matches_type_sigil L C (LRRecord \<tau>s) s"
+   "list_all (\<lambda>(_, y). lrepr_wellformed (length K) y) \<tau>s"
+   "L', K', C' \<turnstile> \<epsilon>, \<delta> :s L, K, C"
+ shows "matches_type_sigil L' C' (LRRecord (map (\<lambda>(n, t). (n, instantiate_lrepr (map type_lrepr \<delta>) t)) \<tau>s)) (instantiate_sigil \<epsilon> s)"
+  using assms
+  by(simp add: instantiate_match_type_sigil[where \<tau> = "LRRecord \<tau>s", simplified])
+  
+
+            
+
+(* 
+
+This is no longer true with dargent: 
+a type variable matches any layout.
+
+*)
 lemma instantiate_wellformed:
   assumes
-    "list_all (type_wellformed n') \<delta>"
-    "length \<delta> = n"
-  shows "type_wellformed n t \<Longrightarrow> type_wellformed n' (instantiate \<delta> t)"
+    (* "list_all (type_wellformed n') \<delta>"
+    "length \<delta> = n" *)
+    "L', K', C' \<turnstile> \<epsilon>, \<delta> :s L, K, C"
+    "n  = length K"
+    "n' = length K'"
+  shows "type_wellformed L n C t \<Longrightarrow> type_wellformed L' n' C' (instantiate \<epsilon> \<delta> t)"
   using assms
 proof (induct t)
   case (TVar i)
   then show ?case
-    by (simp add: list_all_length)
+    by(fastforce dest:list_all2_kinding_wellformedD 
+             simp add:list_all_length subst_wellformed_def)
+  
 next
   case (TVarBang x)
   then show ?case
     using bang_wellformed
-    by (clarsimp simp add: list_all_length)
-qed (auto simp add: list_all_iff)
+    by(fastforce dest:list_all2_kinding_wellformedD 
+             simp add:list_all_length subst_wellformed_def)
+next
+  case (TRecord ts s)
+  show ?case     
+    apply (simp) 
+    using TRecord instantiate_match_type_sigil_record type_lrepr_wellformed
+    by (fastforce simp add: list_all_iff prod.case_distrib comp_def)+
+qed (auto simp add: list_all_iff) 
+
+lemma instantiate_lrepr_wellformed:
+  assumes
+     "list_all (lrepr_wellformed n') \<delta>"
+    "length \<delta> = n" 
+(*    "L', K', C' \<turnstile> \<epsilon>, \<delta> :s L, K, C" *)
+    (* "n  = length K" *)
+    "n' = length K'"
+  shows "lrepr_wellformed n t \<Longrightarrow> lrepr_wellformed n' (instantiate_lrepr 
+\<delta> t)"
+  using assms
+  by (induct t)
+   (fastforce dest:list_all2_lengthD simp add: 
+list_all2_conv_all_nth  list_all_iff )+
 
 lemma substitutivity_kinding_fn:
   assumes
-    "list_all (type_wellformed (length K')) \<delta>"
+(*    "list_all (type_wellformed L' (length K') C') \<delta>" *)
     "list_all2 (\<lambda>t k. k \<subseteq> kinding_fn K' t) \<delta> K"
-    "type_wellformed (length K) t"
+    "type_wellformed L (length K) C t" 
     "k \<subseteq> kinding_fn K t"
-  shows "k \<subseteq> kinding_fn K' (instantiate \<delta> t)"
+  shows "k \<subseteq> kinding_fn K' (instantiate \<epsilon> \<delta> t)"
   using assms
 proof (induct t arbitrary: k)
   case (TVarBang i)
@@ -1970,56 +2311,113 @@ next
 next
   case (TRecord ts s)
   then show ?case
-    by (fastforce split: record_state.split simp add: list_all_iff)
+  proof(induct s rule:sigil_lay_cases)
+    case (BoxedLay perm ptrl) 
+    then show ?case
+      by (cases perm) (fastforce split: record_state.split simp add:list_all2_conv_all_nth list_all_iff)+
+  next
+   case (BoxedNoLay p)
+   then show ?case
+     by (fastforce split: record_state.split simp add:list_all2_conv_all_nth list_all_iff)+
+     
+  next
+    case Unboxed
+    then show ?case
+
+      using TRecord
+      by (fastforce split: record_state.split simp add: list_all_iff) 
+  qed
+(*    by (fastforce split: record_state.split simp add: list_all_iff) *)
 qed (fastforce simp add: list_all2_conv_all_nth list_all_iff)+
 
 lemma substitutivity_single:
   assumes
-    "list_all2 (kinding K') \<delta> K"
-    "K \<turnstile> t :\<kappa> k"
-  shows "K' \<turnstile> instantiate \<delta> t :\<kappa> k"
+(*    "list_all2 (kinding L K C') \<delta> K" *)
+"L', K', C' \<turnstile> \<epsilon>, \<delta> :s L, K, C"
+    "L, K, C \<turnstile> t :\<kappa> k"
+  shows "L', K', C' \<turnstile> instantiate \<epsilon> \<delta> t :\<kappa> k"
 proof -
-  have "type_wellformed (length K') (instantiate \<delta> t)"
+  have "type_wellformed L' (length K') C' (instantiate \<epsilon> \<delta> t)"
     using assms
     by (auto intro!: instantiate_wellformed simp add: kinding_def list_all2_conv_all_nth list_all_length)
-  moreover then have "k \<subseteq> kinding_fn K' (instantiate \<delta> t)"
+  moreover then have "k \<subseteq> kinding_fn K' (instantiate \<epsilon> \<delta> t)"
     using assms
-    by (intro substitutivity_kinding_fn; auto simp add: kinding_def list_all2_conv_all_nth list_all_length)
-  ultimately show "K' \<turnstile> instantiate \<delta> t :\<kappa> k"
+    by (intro substitutivity_kinding_fn; auto simp add:
+subst_wellformed_def kinding_def list_all2_conv_all_nth list_all_length)
+  ultimately show "L', K', C' \<turnstile> instantiate \<epsilon> \<delta> t :\<kappa> k"
     by (simp add: kinding_def)
 qed
+
+lemma substitutivity_single_kinding_fn:
+  assumes
+    "list_all2 (kinding L' K' C') \<delta> K"
+    "L, K, C \<turnstile> t :\<kappa> k"
+  shows "k \<subseteq> kinding_fn K' (instantiate \<epsilon> \<delta> t)"
+
+  using assms  
+  by (intro substitutivity_kinding_fn; auto simp add: kinding_def list_all2_conv_all_nth list_all_length) 
+
+
 
 lemma substitutivity_rest:
 fixes \<delta>    :: "type substitution"
 and   K K' :: "kind env"
-assumes well_kinded: "list_all2 (kinding K') \<delta> K"
-shows "K \<turnstile>* ts :\<kappa> k  \<Longrightarrow> K' \<turnstile>* map (instantiate \<delta>) ts                :\<kappa> k"
-and   "K \<turnstile>* xs :\<kappa>v k \<Longrightarrow> K' \<turnstile>* map (\<lambda>(n,a,b). (n,instantiate \<delta> a, b)) xs :\<kappa>v k"
-and   "K \<turnstile>* fs :\<kappa>r k \<Longrightarrow> K' \<turnstile>* map (\<lambda>(n,a,b). (n,instantiate \<delta> a, b)) fs :\<kappa>r k"
+assumes well_kinded: (* "list_all2 (kinding L' K' C') \<delta> K" *)
+"L', K', C' \<turnstile> \<epsilon>, \<delta> :s L, K, C"
+shows "L, K, C \<turnstile>* ts :\<kappa> k  \<Longrightarrow> L', K', C' \<turnstile>* map (instantiate \<epsilon> \<delta>) ts                :\<kappa> k"
+and   "L, K, C \<turnstile>* xs :\<kappa>v k \<Longrightarrow> L', K', C' \<turnstile>* map (\<lambda>(n,a,b). (n,instantiate \<epsilon> \<delta> a, b)) xs :\<kappa>v k"
+and   "L, K, C \<turnstile>* fs :\<kappa>r k \<Longrightarrow> L', K', C' \<turnstile>* map (\<lambda>(n,a,b). (n,instantiate \<epsilon> \<delta> a, b)) fs :\<kappa>r k"
   using substitutivity_single well_kinded instantiate_wellformed
     list_all2_kinding_wellformedD list_all2_lengthD
      apply -
-     apply (simp add: kinding_all_set kinding_iff_wellformed)+
+    apply (simp add: kinding_all_set kinding_iff_wellformed)+
    apply (fastforce simp add: kinding_variant_set kinding_iff_wellformed split: variant_state.split)
   apply (fastforce simp add: kinding_record_set kinding_iff_wellformed split: record_state.split)
   done
 
 lemmas substitutivity = substitutivity_single substitutivity_rest
 
+(* TODO: improve the proof (Vincent?) *)
 lemma list_all2_substitutivity:
 fixes \<delta>    :: "type substitution"
 and   K K' :: "kind env"
-assumes well_kinded: "list_all2 (kinding K') \<delta> K"
-shows "list_all2 (kinding K) ts ks \<Longrightarrow> list_all2 (kinding K') (map (instantiate \<delta>) ts) ks"
-by ( induct rule: list_all2_induct
-   , auto dest: substitutivity [OF well_kinded])
+assumes well_kinded: (* "list_all2 (kinding L K C') \<delta> K" *)
+"L', K', C' \<turnstile> \<epsilon>, \<delta> :s L, K, C"
+shows "L, K, C \<turnstile> es, ts :s ls, ks, cs \<Longrightarrow> 
+L', K', C' \<turnstile> (map (instantiate_lay \<epsilon>) es), map (instantiate \<epsilon> \<delta>) ts :s ls, ks, cs"
+proof -
+
+  assume yop : "L, K, C \<turnstile> es, ts :s ls, ks, cs"
+  show "L', K', C' \<turnstile> (map (instantiate_lay \<epsilon>) es), map (instantiate \<epsilon> \<delta>) ts :s ls, ks, cs"
+  apply(simp add: subst_wellformed_def)  
+  apply(intro conjI)+
+    using assms substitutivity
+    using yop
+      apply (fastforce simp add:list_all2_conv_all_nth subst_wellformed_def)
+    using yop
+      apply (fastforce simp add:list_all2_conv_all_nth subst_wellformed_def)
+  apply(intro ballI)
+  apply clarify
+  apply(rename_tac l' t')
+    using yop
+    apply(simp add:subst_wellformed_def)
+    apply(erule conjE)+
+  apply(erule_tac x = "(l', t')" in  ballE;simp)
+     apply(drule instantiate_matches_fields_layout[OF _ _ assms])
+     apply (fastforce 
+intro:instantiate_lrepr_wellformed
+simp add: kinding_def type_lrepr_wellformed list_all2_conv_all_nth list_all_length
+comp_def )+  
+    done
+qed
 
 subsection {* Instantiation of contexts *}
 
 lemma instantiate_ctx_weaken:
-assumes "K \<turnstile> \<Gamma> \<leadsto>w \<Gamma>'"
-and     "list_all2 (kinding K') \<delta> K"
-shows   "K' \<turnstile> instantiate_ctx \<delta> \<Gamma> \<leadsto>w instantiate_ctx \<delta> \<Gamma>'"
+assumes "L, K, C \<turnstile> \<Gamma> \<leadsto>w \<Gamma>'"
+  and    (*  "list_all2 (kinding L K C') \<delta> K" *)
+   "L', K', C' \<turnstile> \<epsilon>, \<delta> :s L, K, C"
+shows   "L', K', C' \<turnstile> instantiate_ctx \<epsilon> \<delta> \<Gamma> \<leadsto>w instantiate_ctx \<epsilon> \<delta> \<Gamma>'"
 using assms(1) [simplified weakening_def] and assms(2) proof (induct rule: list_all2_induct)
      case Nil  then show ?case by (simp add: instantiate_ctx_def weakening_def)
 next case Cons then show ?case
@@ -2030,48 +2428,52 @@ qed
 
 
 lemma instantiate_ctx_empty [simplified, simp]:
-shows "instantiate_ctx \<delta> (empty l) = empty l"
+shows "instantiate_ctx \<epsilon> \<delta> (empty l) = empty l"
 by (induct l, simp_all add: empty_def
                             instantiate_ctx_def)
 
 
 
 lemma instantiate_ctx_singleton [simplified, simp]:
-shows "instantiate_ctx \<delta> (singleton l i \<tau>) = singleton l i (instantiate \<delta> \<tau>)"
+shows "instantiate_ctx \<epsilon> \<delta> (singleton l i \<tau>) = singleton l i (instantiate \<epsilon> \<delta> \<tau>)"
 by (induct l arbitrary: i, simp_all add:   instantiate_ctx_def
                                            empty_def
                                     split: nat.split)
 
 lemma instantiate_ctx_length [simp]:
-shows "length (instantiate_ctx \<delta> \<Gamma>) = length \<Gamma>"
+shows "length (instantiate_ctx \<epsilon> \<delta> \<Gamma>) = length \<Gamma>"
 by (simp add: instantiate_ctx_def)
 
 lemma instantiate_ctx_consumed [simplified]:
-assumes "K \<turnstile> \<Gamma> consumed"
-and     "list_all2 (kinding K') \<delta> K"
-shows   "K' \<turnstile> instantiate_ctx \<delta> \<Gamma> consumed"
+assumes "L, K, C \<turnstile> \<Gamma> consumed"
+and     (* "list_all2 (kinding L K C') \<delta> K" *)
+   "L', K', C' \<turnstile> \<epsilon>, \<delta> :s L, K, C"
+shows   "L', K', C' \<turnstile> instantiate_ctx \<epsilon> \<delta> \<Gamma> consumed"
 using assms by (auto intro: instantiate_ctx_weaken [where \<Gamma>' = "empty (length \<Gamma>)", simplified])
 
 lemma map_option_instantiate_split_comp:
-assumes "K \<turnstile> c \<leadsto> c1 \<parallel> c2"
-and     "list_all2 (kinding K') \<delta> K"
-shows   "K' \<turnstile> map_option (instantiate \<delta>) c \<leadsto> map_option (instantiate \<delta>) c1 \<parallel> map_option (instantiate \<delta>) c2"
+assumes "L, K, C \<turnstile> c \<leadsto> c1 \<parallel> c2"
+and     (* "list_all2 (kinding L K C') \<delta> K" *)
+ "L', K', C' \<turnstile> \<epsilon>, \<delta> :s L, K, C"
+shows   "L', K', C' \<turnstile> map_option (instantiate \<epsilon> \<delta>) c \<leadsto> map_option (instantiate \<epsilon> \<delta>) c1 \<parallel> map_option (instantiate \<epsilon> \<delta>) c2"
   using assms
   by (auto elim!: split_comp.cases simp add: instantiate_wellformed split_comp.intros
       dest: substitutivity_single list_all2_kinding_wellformedD)
 
 lemma instantiate_ctx_split:
-assumes "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
-and     "list_all2 (kinding K') \<delta> K"
-shows   "K' \<turnstile> instantiate_ctx \<delta> \<Gamma> \<leadsto> instantiate_ctx \<delta> \<Gamma>1 | instantiate_ctx \<delta> \<Gamma>2"
+assumes "L, K, C \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+and     (* "list_all2 (kinding L K C') \<delta> K" *)
+ "L', K', C' \<turnstile> \<epsilon>, \<delta> :s L, K, C"
+shows   "L', K', C' \<turnstile> instantiate_ctx \<epsilon> \<delta> \<Gamma> \<leadsto> instantiate_ctx \<epsilon> \<delta> \<Gamma>1 | instantiate_ctx \<epsilon> \<delta> \<Gamma>2"
   using assms
   by (auto intro: list_all3_map_over simp: map_option_instantiate_split_comp instantiate_ctx_def split_def)
 
 
 lemma instantiate_ctx_split_bang:
-assumes "split_bang K is \<Gamma> \<Gamma>1 \<Gamma>2"
-and     "list_all2 (kinding K') \<delta> K"
-shows   "split_bang K' is (instantiate_ctx \<delta> \<Gamma>) (instantiate_ctx \<delta> \<Gamma>1) (instantiate_ctx \<delta> \<Gamma>2)"
+assumes "split_bang L K C is \<Gamma> \<Gamma>1 \<Gamma>2"
+and     (* "list_all2 (kinding L K C') \<delta> K" *)
+ "L', K', C' \<turnstile> \<epsilon>, \<delta> :s L, K, C"
+shows   "split_bang L' K' C' is (instantiate_ctx \<epsilon> \<delta> \<Gamma>) (instantiate_ctx \<epsilon> \<delta> \<Gamma>1) (instantiate_ctx \<epsilon> \<delta> \<Gamma>2)"
   using assms
 proof (induct rule: split_bang.induct)
   case split_bang_empty
@@ -2089,17 +2491,19 @@ qed
 
 
 lemma instantiate_ctx_cons [simp]:
-shows   "instantiate_ctx \<delta> (Some x # \<Gamma>) = Some (instantiate \<delta> x) # instantiate_ctx \<delta> \<Gamma>"
+shows   "instantiate_ctx \<epsilon> \<delta> (Some x # \<Gamma>) = Some (instantiate \<epsilon> \<delta> x) # instantiate_ctx \<epsilon> \<delta> \<Gamma>"
 by (simp add: instantiate_ctx_def)
 
 
 lemma specialisation_subtyping:
   assumes
-    "K \<turnstile> t \<sqsubseteq> t'"
-    "K \<turnstile> t wellformed"
-    "K \<turnstile> t' wellformed"
-    "list_all2 (kinding K') \<delta> K"
-  shows "K' \<turnstile> instantiate \<delta> t \<sqsubseteq> instantiate \<delta>  t'"
+    "L, K, C \<turnstile> t \<sqsubseteq> t'"
+    "L, K, C \<turnstile> t wellformed"
+    "L, K, C \<turnstile> t' wellformed"
+(*    "list_all2 (kinding L' K' C') \<delta> K" *)
+     "L', K', C' \<turnstile> \<epsilon>, \<delta> :s L, K, C" 
+
+  shows "L', K', C' \<turnstile> instantiate \<epsilon> \<delta> t \<sqsubseteq> instantiate \<epsilon> \<delta>  t'"
   using assms
 proof (induct rule: subtyping.inducts)
   case (subty_tvar i' i K)
@@ -2107,8 +2511,10 @@ proof (induct rule: subtyping.inducts)
     by (auto intro!: subtyping.intros subtyping_refl simp add: kinding_def list_all2_conv_all_nth)
 next
   case (subty_tvarb i' i K)
-  moreover then have "type_wellformed (length K') (bang (\<delta> ! i))"
-    by (auto dest: bang_wellformed simp add: kinding_def list_all2_conv_all_nth)
+  moreover then have "type_wellformed L' (length K') C' (bang (\<delta> ! i))"
+    by (auto dest: bang_wellformed simp add: kinding_def list_all2_conv_all_nth
+subst_wellformed_def
+)
   ultimately show ?case
     by (auto intro!: subtyping.intros subtyping_refl simp add: kinding_def list_all2_conv_all_nth)
 next
@@ -2116,16 +2522,16 @@ next
   then show ?case
     by (simp add: subtyping_simps(3))
 next
-  case (subty_trecord K ts1 ts2 s1 s2)
+  case (subty_trecord L K C ts1 ts2 s1 s2)
   then show ?case
   proof (clarsimp, intro subtyping.intros)
-    show "list_all2 (\<lambda>p1 p2. K' \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2)) (map (\<lambda>(n, t, b). (n, instantiate \<delta> t, b)) ts1) (map (\<lambda>(n, t, b). (n, instantiate \<delta> t, b)) ts2)"
+    show "list_all2 (\<lambda>p1 p2. L', K', C' \<turnstile> fst (snd p1) \<sqsubseteq> fst (snd p2)) (map (\<lambda>(n, t, b). (n, instantiate \<epsilon> \<delta> t, b)) ts1) (map (\<lambda>(n, t, b). (n, instantiate \<epsilon> \<delta> t, b)) ts2)"
       using subty_trecord.prems subty_trecord.hyps(1)
       by (fastforce simp add: list_all2_conv_all_nth list_all_length split: prod.splits)
   next
     have "length ts1 = length ts2"
       using list_all2_conv_all_nth subty_trecord.hyps by blast
-    then show "list_all2 (record_kind_subty K') (map (\<lambda>(n, t, b). (n, instantiate \<delta> t, b)) ts1) (map (\<lambda>(n, t, b). (n, instantiate \<delta> t, b)) ts2)"
+    then show "list_all2 (record_kind_subty L' K' C') (map (\<lambda>(n, t, b). (n, instantiate \<epsilon> \<delta> t, b)) ts1) (map (\<lambda>(n, t, b). (n, instantiate \<epsilon> \<delta> t, b)) ts2)"
     proof (clarsimp simp add: list_all2_conv_all_nth split: prod.splits)
       fix i n1 t1 b1 n2 t2 b2
       presume localassms:
@@ -2133,11 +2539,11 @@ next
         "ts2 ! i = (n2, t2, b2)"
         "i < length ts2"
         "i < length ts1"
-        "K' \<turnstile> instantiate \<delta> t1 :\<kappa> {D} \<longrightarrow> \<not> b1 < b2"
-      moreover then have "b1 = b2 \<or> ((K \<turnstile> t1 :\<kappa> {D}) \<and> b1 < b2)"
+        "L', K', C' \<turnstile> instantiate \<epsilon> \<delta> t1 :\<kappa> {D} \<longrightarrow> \<not> b1 < b2"
+      moreover then have "b1 = b2 \<or> ((L, K, C \<turnstile> t1 :\<kappa> {D}) \<and> b1 < b2)"
         using subty_trecord.hyps(3)
         by (force simp add: list_all2_conv_all_nth split: prod.splits)
-      moreover then have "K \<turnstile> t1 :\<kappa> {D} \<Longrightarrow> K' \<turnstile> (instantiate \<delta> t1) :\<kappa> {D}"
+      moreover then have "L, K, C \<turnstile> t1 :\<kappa> {D} \<Longrightarrow> L', K', C' \<turnstile> (instantiate \<epsilon> \<delta> t1) :\<kappa> {D}"
         using subty_trecord.prems substitutivity_single
         by blast
       ultimately show "b1 = b2"
@@ -2145,9 +2551,9 @@ next
     qed force+
   qed force+
 next
-  case (subty_tsum K ts1 ts2)
+  case (subty_tsum L K C ts1 ts2)
   moreover then have "\<And>i. i < length ts1 \<Longrightarrow>
-    K' \<turnstile> instantiate \<delta> (fst (snd (ts1 ! i))) \<sqsubseteq> instantiate \<delta> (fst (snd (ts2 ! i)))"
+    L', K', C' \<turnstile> instantiate \<epsilon> \<delta> (fst (snd (ts1 ! i))) \<sqsubseteq> instantiate \<epsilon> \<delta> (fst (snd (ts2 ! i)))"
     by (auto simp add: list_all2_conv_all_nth list_all_length)
   ultimately show ?case
     by (fastforce intro!: subtyping.intros simp add: list_all2_conv_all_nth split: prod.splits)
@@ -2164,28 +2570,28 @@ by (induct n, simp_all add: empty_def)
 subsection {* split *}
 
 lemma split_length:
-  assumes "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+  assumes "L, K, C \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
   shows "length \<Gamma> = length \<Gamma>1"
     and "length \<Gamma> = length \<Gamma>2"
   using assms
   by (induct rule: split_induct, force+)
 
 lemma split_preservation_some_left:
-  assumes splits: "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+  assumes splits: "L, K, C \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
     and idx: "\<Gamma>1 ! i = Some t"
   shows "\<Gamma> ! i  = Some t"
   using assms
   by (induct arbitrary: i rule: split_induct; fastforce simp add: nth_Cons' elim: split_comp.cases)
 
 lemma split_preservation_some_right:
-  assumes splits: "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+  assumes splits: "L, K, C \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
     and idx: "\<Gamma>2 ! i = Some t"
   shows "\<Gamma> ! i  = Some t"
   using assms
   by (induct arbitrary: i rule: split_induct; fastforce simp add: nth_Cons' elim: split_comp.cases)
 
 lemma split_preserves_none:
-  assumes splits: "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+  assumes splits: "L, K, C \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
     and idx: "\<Gamma> ! i  = None"
   shows "\<Gamma>1 ! i = None"
     and "\<Gamma>2 ! i = None"
@@ -2195,7 +2601,7 @@ lemma split_preserves_none:
 subsection {* split bang *}
 
 lemma split_bang_length:
-  assumes "K , isa \<turnstile> \<Gamma> \<leadsto>b \<Gamma>1 | \<Gamma>2"
+  assumes "L, K , C, isa \<turnstile> \<Gamma> \<leadsto>b \<Gamma>1 | \<Gamma>2"
   shows "length \<Gamma> = length \<Gamma>1"
     and "length \<Gamma> = length \<Gamma>2"
     and "length \<Gamma>1 = length \<Gamma>2"
@@ -2203,10 +2609,10 @@ lemma split_bang_length:
   by (induct rule: split_bang.induct, force+)
 
 lemma split_bang_Cons1:
-  shows "(K , isa \<turnstile> x # \<Gamma>' \<leadsto>b \<Gamma>1 | \<Gamma>2) \<longleftrightarrow>
+  shows "(L, K, C, isa \<turnstile> x # \<Gamma>' \<leadsto>b \<Gamma>1 | \<Gamma>2) \<longleftrightarrow>
           (\<exists>a \<Gamma>1' b \<Gamma>2'.
-            (K, (0 \<in> isa) \<turnstile> x \<leadsto>b a \<parallel> b) \<and>
-            (K , (pred ` Set.remove (0 :: index) isa) \<turnstile> \<Gamma>' \<leadsto>b \<Gamma>1' | \<Gamma>2') \<and>
+            (L, K, C, (0 \<in> isa) \<turnstile> x \<leadsto>b a \<parallel> b) \<and>
+            (L, K, C, (pred ` Set.remove (0 :: index) isa) \<turnstile> \<Gamma>' \<leadsto>b \<Gamma>1' | \<Gamma>2') \<and>
             \<Gamma>1 = a # \<Gamma>1' \<and>
             \<Gamma>2 = b # \<Gamma>2' \<and>
             length \<Gamma>1' = length \<Gamma>' \<and>
@@ -2214,10 +2620,10 @@ lemma split_bang_Cons1:
   by (fastforce dest: split_bang_length elim: split_bang.cases intro!: split_bang.intros)
 
 lemma split_bang_Cons2:
-  shows "(K , isa \<turnstile> \<Gamma> \<leadsto>b a # \<Gamma>1' | \<Gamma>2) \<longleftrightarrow>
+  shows "(L, K, C, isa \<turnstile> \<Gamma> \<leadsto>b a # \<Gamma>1' | \<Gamma>2) \<longleftrightarrow>
           (\<exists>x \<Gamma>' b \<Gamma>2'.
-            (K, (0 \<in> isa) \<turnstile> x \<leadsto>b a \<parallel> b) \<and>
-            (K , (pred ` Set.remove (0 :: index) isa) \<turnstile> \<Gamma>' \<leadsto>b \<Gamma>1' | \<Gamma>2') \<and>
+            (L, K, C, (0 \<in> isa) \<turnstile> x \<leadsto>b a \<parallel> b) \<and>
+            (L, K, C, (pred ` Set.remove (0 :: index) isa) \<turnstile> \<Gamma>' \<leadsto>b \<Gamma>1' | \<Gamma>2') \<and>
             \<Gamma> = x # \<Gamma>' \<and>
             \<Gamma>2 = b # \<Gamma>2' \<and>
             length \<Gamma>' = length \<Gamma>1' \<and>
@@ -2225,10 +2631,10 @@ lemma split_bang_Cons2:
   by (fastforce dest: split_bang_length elim: split_bang.cases intro!: split_bang.intros)
 
 lemma split_bang_Cons3:
-  shows "(K , isa \<turnstile> \<Gamma> \<leadsto>b \<Gamma>1 | b # \<Gamma>2') \<longleftrightarrow>
+  shows "(L, K, C, isa \<turnstile> \<Gamma> \<leadsto>b \<Gamma>1 | b # \<Gamma>2') \<longleftrightarrow>
           (\<exists>x \<Gamma>' a \<Gamma>1'.
-            (K, (0 \<in> isa) \<turnstile> x \<leadsto>b a \<parallel> b) \<and>
-            (K , (pred ` Set.remove (0 :: index) isa) \<turnstile> \<Gamma>' \<leadsto>b \<Gamma>1' | \<Gamma>2') \<and>
+            (L, K, C, (0 \<in> isa) \<turnstile> x \<leadsto>b a \<parallel> b) \<and>
+            (L, K, C, (pred ` Set.remove (0 :: index) isa) \<turnstile> \<Gamma>' \<leadsto>b \<Gamma>1' | \<Gamma>2') \<and>
             \<Gamma> = x # \<Gamma>' \<and>
             \<Gamma>1 = a # \<Gamma>1' \<and>
             length \<Gamma>' = length \<Gamma>2' \<and>
@@ -2246,8 +2652,8 @@ lemma Suc_mem_image_pred_remove:
   by (simp add: Suc_mem_image_pred[symmetric])
 
 lemma split_bang_nth:
-  "split_bang K is \<Gamma> \<Gamma>1 \<Gamma>2 = (length \<Gamma>1 = length \<Gamma> \<and> length \<Gamma>2 = length \<Gamma>
-        \<and> (\<forall>i < length \<Gamma>. K , i \<in> is \<turnstile> \<Gamma> ! i \<leadsto>b \<Gamma>1 ! i \<parallel> \<Gamma>2 ! i))"
+  "split_bang L K C is \<Gamma> \<Gamma>1 \<Gamma>2 = (length \<Gamma>1 = length \<Gamma> \<and> length \<Gamma>2 = length \<Gamma>
+        \<and> (\<forall>i < length \<Gamma>. L, K, C, i \<in> is \<turnstile> \<Gamma> ! i \<leadsto>b \<Gamma>1 ! i \<parallel> \<Gamma>2 ! i))"
 proof (induct \<Gamma> arbitrary: "is" \<Gamma>1 \<Gamma>2)
   case (Cons a \<Gamma>)
   then show ?case
@@ -2270,11 +2676,11 @@ qed (fastforce elim: split_bang.cases intro: split_bang_empty)
 
 
 lemma weakening_length:
-shows "K \<turnstile> \<Gamma> \<leadsto>w \<Gamma>' \<Longrightarrow> length \<Gamma> = length \<Gamma>'"
+shows "L, K, C \<turnstile> \<Gamma> \<leadsto>w \<Gamma>' \<Longrightarrow> length \<Gamma> = length \<Gamma>'"
 by (auto simp: weakening_def dest:list_all2_lengthD)
 
 lemma weakening_preservation_some:
-assumes weak: "K \<turnstile> \<Gamma> \<leadsto>w \<Gamma>'"
+assumes weak: "L, K, C \<turnstile> \<Gamma> \<leadsto>w \<Gamma>'"
 and     idx:  "\<Gamma>' ! x = Some t"
 shows   "\<Gamma>  ! x = Some t"
 using weak[simplified weakening_def]
@@ -2286,7 +2692,7 @@ next case (Cons x xs y ys a) then show ?case by (case_tac a, auto elim: weakenin
 qed
 
 lemma weakening_preserves_none:
-assumes weak: "K \<turnstile> \<Gamma> \<leadsto>w \<Gamma>'"
+assumes weak: "L, K, C \<turnstile> \<Gamma> \<leadsto>w \<Gamma>'"
 and     idx:  "\<Gamma>  ! x = None"
 shows   "\<Gamma>' ! x = None"
 using weak[simplified weakening_def]
@@ -2299,7 +2705,7 @@ qed
 
 lemma same_type_as_weakened:
   assumes
-    "K \<turnstile> \<Gamma> \<leadsto>w \<Gamma>'[i := Some t]"
+    "L, K, C \<turnstile> \<Gamma> \<leadsto>w \<Gamma>'[i := Some t]"
     "i < length \<Gamma>"
   shows "\<Gamma> ! i = Some t"
   using assms weakening_length weakening_preservation_some
@@ -2307,45 +2713,68 @@ lemma same_type_as_weakened:
 
 lemma same_type_as_split_weakened_left:
   assumes
-    "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
-    "K \<turnstile> \<Gamma>1 \<leadsto>w \<Gamma>1'[x := Some t]"
+    "L, K, C \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+    "L, K, C \<turnstile> \<Gamma>1 \<leadsto>w \<Gamma>1'[x := Some t]"
     "x < length \<Gamma>1"
   shows "\<Gamma> ! x = Some t"
   using assms same_type_as_weakened split_preservation_some_left by blast
 
 lemma same_type_as_split_weakened_right:
   assumes
-    "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
-    "K \<turnstile> \<Gamma>2 \<leadsto>w \<Gamma>2'[x := Some t]"
+    "L, K, C \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+    "L, K, C \<turnstile> \<Gamma>2 \<leadsto>w \<Gamma>2'[x := Some t]"
     "x < length \<Gamma>2"
   shows "\<Gamma> ! x = Some t"
   using assms same_type_as_weakened split_preservation_some_right by blast
 
 
 lemma weakening_nth:
-assumes weak: "K \<turnstile> \<Gamma> \<leadsto>w \<Gamma>'"
+assumes weak: "L, K, C \<turnstile> \<Gamma> \<leadsto>w \<Gamma>'"
 and           "i < length \<Gamma>"
-shows         "weakening_comp K (\<Gamma>!i) (\<Gamma>'!i)"
+shows         "weakening_comp L K C (\<Gamma>!i) (\<Gamma>'!i)"
 using assms by (auto simp add: weakening_def dest: list_all2_nthD)
 
-
 lemma typing_to_wellformed:
-shows "\<Xi>, K, \<Gamma> \<turnstile>  e  : t  \<Longrightarrow> K \<turnstile>  t  wellformed"
-and   "\<Xi>, K, \<Gamma> \<turnstile>* es : ts \<Longrightarrow> K \<turnstile>* ts wellformed"
+shows "\<Xi>, L, K, C, \<Gamma> \<turnstile>  e  : t  \<Longrightarrow> L, K, C \<turnstile>  t  wellformed"
+and   "\<Xi>, L, K, C, \<Gamma> \<turnstile>* es : ts \<Longrightarrow> L, K, C \<turnstile>* ts wellformed"
 proof (induct rule: typing_typing_all.inducts)
   case typing_var then show ?case
     by (fastforce dest: weakening_nth elim: weakening_comp.cases simp add: kinding_defs empty_def)
 next case typing_afun then show ?case
-    by (clarsimp simp add: kinding_defs instantiate_wellformed list_all2_kinding_wellformedD list_all2_lengthD)
+    
+    by (clarsimp simp add: kinding_defs instantiate_wellformed list_all2_kinding_wellformedD list_all2_lengthD 
+ )
+    
 next case typing_fun then show ?case
-    by (clarsimp simp add: kinding_defs instantiate_wellformed list_all2_kinding_wellformedD list_all2_lengthD)
+    by (clarsimp simp add: kinding_defs  instantiate_wellformed  list_all2_kinding_wellformedD list_all2_lengthD)
 next case typing_esac then show ?case
     by (fastforce dest: filter_member2  simp add: kinding_simps kinding_variant_set list_all_iff)
 next case typing_struct then show ?case by (clarsimp simp add: in_set_zip list_all_iff)
 next case typing_member then show ?case
     by (fastforce simp add: kinding_defs INT_subset_iff list_all_iff dest: nth_mem split: prod.splits record_state.splits)
-next case typing_put then show ?case
-    by (clarsimp, auto intro: distinct_list_update simp add: list_all_iff map_update in_set_conv_nth Ball_def nth_list_update)
+next case (typing_put L K C \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> e ts s f n t taken k e')
+  then show ?case
+  proof(induct s rule:sigil_lay_cases)
+    case (BoxedLay p ptrl)
+    have hyp : " map (\<lambda>(n, t, _). (n, type_lrepr t)) ts 
+   =   map (\<lambda>(n, t, _). (n, type_lrepr t)) (ts[f := (n, t, Present)])" 
+
+      using  `f < length ts`
+             `ts ! f = (n, t, taken)`      
+      by (simp add:list.rel_eq[symmetric] list_all2_conv_all_nth nth_list_update)      
+
+    show ?case
+      apply simp
+      apply(intro conjI)+
+      using BoxedLay apply(fastforce intro:distinct_list_update simp add: map_update   )
+      using BoxedLay apply(simp add:list_all_length nth_list_update)
+      using BoxedLay apply(simp add: hyp)
+        done
+    qed
+     (clarsimp, auto intro: distinct_list_update simp add: list_all_iff map_update in_set_conv_nth Ball_def nth_list_update)+
+(*     matches_type_sigil_taken) *)
+  
+    
 next case typing_promote then show ?case
     using subtyping_wellformed_preservation by blast
 qed (auto intro: supersumption simp add: kinding_defs)
@@ -2358,7 +2787,7 @@ obtains x where "cast_to \<tau>' l = Some x"
 using assms by (cases l, auto elim: upcast_valid.elims)
 
 lemma wellformed_imp_bang_type_repr:
-  assumes "[] \<turnstile> t wellformed"
+  assumes "0, [], C \<turnstile> t wellformed"
   shows "type_repr (bang t) = type_repr t"
   using assms
 proof (induct t)
@@ -2372,61 +2801,79 @@ next
 qed (auto simp add: list_all_iff)
 
 lemma wellformed_bang_type_repr[simp]:
-  shows "[] \<turnstile> t wellformed \<Longrightarrow> type_repr (bang t) = type_repr t"
-    and "[] \<turnstile>* ts wellformed \<Longrightarrow> (map (type_repr \<circ> bang) ts) = map (type_repr) ts "
-    and "[] \<turnstile>* map (fst \<circ> snd) xs wellformed \<Longrightarrow> (map (type_repr \<circ>  bang \<circ> fst \<circ> snd) xs) = map (type_repr \<circ> fst \<circ> snd) xs"
-    and "[] \<turnstile>* map (fst \<circ> snd) fs wellformed \<Longrightarrow> (map (type_repr \<circ>  bang \<circ> fst \<circ> snd) fs) = map (type_repr \<circ> fst \<circ> snd) fs"
+  shows "0, [], C \<turnstile> t wellformed \<Longrightarrow> type_repr (bang t) = type_repr t"
+    and "0, [], C \<turnstile>* ts wellformed \<Longrightarrow> (map (type_repr \<circ> bang) ts) = map (type_repr) ts "
+    and "0, [], C \<turnstile>* map (fst \<circ> snd) xs wellformed \<Longrightarrow> (map (type_repr \<circ>  bang \<circ> fst \<circ> snd) xs) = map (type_repr \<circ> fst \<circ> snd) xs"
+    and "0, [], C \<turnstile>* map (fst \<circ> snd) fs wellformed \<Longrightarrow> (map (type_repr \<circ>  bang \<circ> fst \<circ> snd) fs) = map (type_repr \<circ> fst \<circ> snd) fs"
   by (force intro: wellformed_imp_bang_type_repr simp add: kinding_all_set kinding_def)+
 
 lemma bang_type_repr[simp]:
-  shows "[] \<turnstile> t :\<kappa> k \<Longrightarrow> (type_repr (bang t) = type_repr t)"
-    and "[] \<turnstile>* ts :\<kappa> k \<Longrightarrow> (map (type_repr \<circ> bang) ts) = map (type_repr) ts "
-    and "[] \<turnstile>* xs :\<kappa>v k \<Longrightarrow> (map (type_repr \<circ>  bang \<circ> fst \<circ> snd) xs) = map (type_repr \<circ> fst \<circ> snd) xs"
-    and "[] \<turnstile>* fs :\<kappa>r k \<Longrightarrow> (map (type_repr \<circ>  bang \<circ> fst \<circ> snd) fs) = map (type_repr \<circ> fst \<circ> snd) fs"
+  shows "0, [], C \<turnstile> t :\<kappa> k \<Longrightarrow> (type_repr (bang t) = type_repr t)"
+    and "0, [], C \<turnstile>* ts :\<kappa> k \<Longrightarrow> (map (type_repr \<circ> bang) ts) = map (type_repr) ts "
+    and "0, [], C \<turnstile>* xs :\<kappa>v k \<Longrightarrow> (map (type_repr \<circ>  bang \<circ> fst \<circ> snd) xs) = map (type_repr \<circ> fst \<circ> snd) xs"
+    and "0, [], C \<turnstile>* fs :\<kappa>r k \<Longrightarrow> (map (type_repr \<circ>  bang \<circ> fst \<circ> snd) fs) = map (type_repr \<circ> fst \<circ> snd) fs"
   using wellformed_bang_type_repr
   by (force dest: kinding_to_wellformedD)+
 
 subsection {* Specialisation *}
 
 lemma specialisation:
-assumes well_kinded: "list_all2 (kinding K') \<delta> K"
-shows "\<Xi> , K , \<Gamma> \<turnstile>  e  : \<tau>  \<Longrightarrow> \<Xi> , K' , instantiate_ctx \<delta> \<Gamma> \<turnstile> specialise \<delta> e : instantiate \<delta> \<tau> "
-and   "\<Xi> , K , \<Gamma> \<turnstile>* es : \<tau>s \<Longrightarrow> \<Xi> , K' , instantiate_ctx \<delta> \<Gamma> \<turnstile>* map (specialise \<delta>) es : map (instantiate \<delta>) \<tau>s"
+  assumes well_kinded: 
+ "L', K', C' \<turnstile> \<epsilon>, \<delta> :s L, K, C"   
+(* "list_all2 (kinding L K C') \<delta> K" *)
+shows "\<Xi> , L, K, C, \<Gamma> \<turnstile>  e  : \<tau>  \<Longrightarrow> \<Xi> , L', K', C', instantiate_ctx \<epsilon> \<delta> \<Gamma> \<turnstile> specialise \<epsilon> \<delta> e : instantiate \<epsilon> \<delta> \<tau> "
+and   "\<Xi> , L, K, C, \<Gamma> \<turnstile>* es : \<tau>s \<Longrightarrow> \<Xi> , L', K', C', instantiate_ctx \<epsilon> \<delta> \<Gamma> \<turnstile>* map (specialise \<epsilon> \<delta>) es : map (instantiate \<epsilon> \<delta>) \<tau>s"
   using assms
 proof (induct rule: typing_typing_all.inducts)
-  have f1: "(\<lambda>(c, p). (c, case p of (t, b) \<Rightarrow> (instantiate \<delta> t, b))) = (\<lambda>(c, t, b). (c, instantiate \<delta> t, b))"
+  have f1: "(\<lambda>(c, p). (c, case p of (t, b) \<Rightarrow> (instantiate \<epsilon> \<delta> t, b))) = (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<delta> t, b))"
     by force
-  case (typing_case K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> x ts tag t a u b)
-  then have "\<Xi>, K', instantiate_ctx \<delta> \<Gamma> \<turnstile> Case (specialise \<delta> x) tag (specialise \<delta> a) (specialise \<delta> b) : instantiate \<delta> u"
+ case (typing_case L K C \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> x ts tag t a u b)
+  then have "\<Xi>, L', K', C', instantiate_ctx \<epsilon> \<delta> \<Gamma> \<turnstile> Case (specialise \<epsilon> \<delta> x) tag (specialise \<epsilon> \<delta> a) (specialise \<epsilon> \<delta> b) : instantiate \<epsilon> \<delta> u"
   proof (intro typing_typing_all.typing_case)
-    have "\<Xi>, K', instantiate_ctx \<delta> (Some (TSum (tagged_list_update tag (t, Checked) ts)) # \<Gamma>2) \<turnstile> specialise \<delta> b : instantiate \<delta> u"
-      using typing_case.hyps(8) typing_case.prems by blast
-    moreover have "(map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) (tagged_list_update tag (t, Checked) ts)) = (tagged_list_update tag (instantiate \<delta> t, Checked) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts))"
-      using case_prod_conv f1 tagged_list_update_map_over1[where f = id and g = "\<lambda>_ (t,b). (instantiate \<delta> t, b)", simplified]
+    have "\<Xi>, L', K', C', instantiate_ctx \<epsilon> \<delta> (Some (TSum (tagged_list_update tag (t, Checked) ts)) # \<Gamma>2) \<turnstile> specialise \<epsilon> \<delta> b : instantiate \<epsilon> \<delta> u"
+      using typing_case.hyps(8) typing_case.prems 
+      by blast
+    moreover have "(map (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<delta> t, b)) (tagged_list_update tag (t, Checked) ts)) = (tagged_list_update tag (instantiate \<epsilon> \<delta> t, Checked) (map (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<delta> t, b)) ts))"
+      using case_prod_conv f1 tagged_list_update_map_over1[where f = id and g = "\<lambda>_ (t,b). (instantiate \<epsilon> \<delta> t, b)", simplified]
       by metis
-    ultimately show "\<Xi>, K', Some (TSum (tagged_list_update tag (instantiate \<delta> t, Checked) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts))) # instantiate_ctx \<delta> \<Gamma>2 \<turnstile> specialise \<delta> b : instantiate \<delta> u"
+    ultimately show "\<Xi>, L', K', C', Some (TSum (tagged_list_update tag (instantiate \<epsilon> \<delta> t, Checked) (map (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<delta> t, b)) ts))) # instantiate_ctx \<epsilon> \<delta> \<Gamma>2 \<turnstile> specialise \<epsilon> \<delta> b : instantiate \<epsilon> \<delta> u"
       by clarsimp
   qed (force intro: instantiate_ctx_split)+
   then show ?case by simp
-next case (typing_afun \<Xi> f ks t u K ts ks)
-  then also have "instantiate \<delta> (instantiate ts t) = instantiate (map (instantiate \<delta>) ts) t"
-    and "instantiate \<delta> (instantiate ts u) = instantiate (map (instantiate \<delta>) ts) u"
-    by (auto dest: list_all2_lengthD intro!: instantiate_instantiate kinding_simps)
-  ultimately show ?case by (auto intro!: list_all2_substitutivity
+next case (typing_afun \<Xi> f ks t u t' ts u' L K C \<Gamma>  )
+  moreover have "instantiate \<epsilon> \<delta> (instantiate [] ts t) = instantiate [] (map (instantiate \<epsilon> \<delta>) ts) t"
+    and "instantiate \<epsilon> \<delta> (instantiate [] ts u) = instantiate [] (map (instantiate \<epsilon> \<delta>) ts) u"
+    using typing_afun
+     
+    by(fastforce  intro!: instantiate_instantiate[where \<epsilon>' = "[]", simplified, rotated 1]
+simp add: list_all2_lengthD subst_wellformed_def)+
+  ultimately show ?case 
+    
+    apply simp
+    using instantiate_ctx_consumed
+    apply(intro typing_typing_all.typing_afun [simplified])
+         apply(simp_all)
+    
+    using instantiate_ctx_consumed list_all2_substitutivity
+
+    by (fastforce)
+
+    (* by (auto intro!: list_all2_substitutivity
         typing_typing_all.typing_afun [simplified]
-        instantiate_ctx_consumed)
-next case (typing_fun \<Xi> K t f u t' ts u' ks \<Gamma>)
-  then also have "instantiate \<delta> (instantiate ts t) = instantiate (map (instantiate \<delta>) ts) t"
-    and  "instantiate \<delta> (instantiate ts u) = instantiate (map (instantiate \<delta>) ts) u"
-    by (force dest: list_all2_lengthD intro: instantiate_instantiate dest!: typing_to_wellformed)+
+        instantiate_ctx_consumed) *)
+    
+next case (typing_fun \<Xi> ls ks cs t f u t' \<epsilon>' ts u' L K C \<Gamma>  )
+  then also have "instantiate \<epsilon> \<delta> (instantiate \<epsilon>' ts t) = instantiate (map (instantiate_lay \<epsilon>) \<epsilon>') (map (instantiate \<epsilon> \<delta>) ts) t"
+    and  "instantiate \<epsilon> \<delta> (instantiate \<epsilon>' ts u) = instantiate (map (instantiate_lay \<epsilon>) \<epsilon>') (map (instantiate \<epsilon> \<delta>) ts) u"
+    by (force simp add: list_all2_lengthD subst_wellformed_def intro!: instantiate_instantiate dest!: typing_to_wellformed)+
   ultimately show ?case by (auto intro!: list_all2_substitutivity
         typing_typing_all.typing_fun [simplified]
         instantiate_ctx_consumed)
 next
-  case (typing_con \<Xi> K \<Gamma> x t tag ts ts')
+  case (typing_con \<Xi> K L C \<Gamma> x t tag ts ts')
   then show ?case
   proof (clarsimp, intro typing_typing_all.intros)
-  next show "K' \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts') wellformed"
+  next show "L', K', C' \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<delta> t, b)) ts') wellformed"
       using typing_con
       by (fastforce simp add: list_all_iff intro: substitutivity instantiate_wellformed dest: list_all2_kinding_wellformedD list_all2_lengthD)
   qed (force intro: specialisation_subtyping substitutivity)+
@@ -2440,6 +2887,43 @@ next
   case (typing_all_empty \<Gamma> \<Xi> K)
   then show ?case
     by (force intro!: typing_typing_all.intros simp add: instantiate_ctx_def empty_def)
+
+next
+  case (typing_take L K C \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> e ts s f n t k taken e' u)
+  then show ?case 
+(* Help Vincent: why doesn't the force after the qed work here? *)
+    apply simp
+    apply(intro typing_typing_all.intros)    
+
+    by (force intro!: typing_struct_instantiate
+                   typing_typing_all.intros
+           dest:   substitutivity
+                   instantiate_ctx_split
+                   instantiate_ctx_split_bang
+                   instantiate_ctx_weaken
+                   instantiate_ctx_consumed
+           simp:   instantiate_ctx_def [where \<Gamma> = "[]", simplified]
+                   map_update                   
+           split:  prod.splits)+
+
+
+next
+  case (typing_put L K C \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> e ts s f n t taken k e')
+   then show ?case
+     apply(simp add:map_update)
+    apply(intro typing_typing_all.intros)    
+
+    by (force intro!: typing_struct_instantiate
+                   typing_typing_all.intros
+           dest:   substitutivity
+                   instantiate_ctx_split
+                   instantiate_ctx_split_bang
+                   instantiate_ctx_weaken
+                   instantiate_ctx_consumed
+           simp:   instantiate_ctx_def [where \<Gamma> = "[]", simplified]
+                   map_update                   
+           split:  prod.splits)+
+ 
 qed (force intro!: typing_struct_instantiate
                    typing_typing_all.intros
            dest:   substitutivity
@@ -2456,7 +2940,7 @@ qed (force intro!: typing_struct_instantiate
 fun expr_size :: "'f expr \<Rightarrow> nat" where
   "expr_size (Let a b) = Suc ((expr_size a) + (expr_size b))"
 | "expr_size (LetBang vs a b) = Suc ((expr_size a) + (expr_size b))"
-| "expr_size (Fun f ts) = Suc (expr_size f)"
+| "expr_size (Fun f ts ls) = Suc (expr_size f)"
 | "expr_size (Unit) = 0"
 | "expr_size (Member x f) = Suc (expr_size x)"
 | "expr_size (Cast t x) = Suc (expr_size x)"
@@ -2478,12 +2962,13 @@ fun expr_size :: "'f expr \<Rightarrow> nat" where
 | "expr_size (Promote t x) = Suc (expr_size x)"
 
 lemma specialise_size [simp]:
-  shows "expr_size (specialise \<tau>s x) = expr_size x"
+  shows "expr_size (specialise \<epsilon> \<tau>s x) = expr_size x"
 proof -
-have "\<forall> as . (\<forall> x. x \<in> set as \<longrightarrow> expr_size (specialise \<tau>s x) = expr_size x) \<longrightarrow>
-  sum_list (map (expr_size \<circ> specialise \<tau>s) as) = sum_list (map expr_size as)"
+have "\<forall> as . (\<forall> x. x \<in> set as \<longrightarrow> expr_size (specialise \<epsilon> \<tau>s x) = expr_size x) \<longrightarrow>
+  sum_list (map (expr_size \<circ> specialise \<epsilon> \<tau>s) as) = sum_list (map expr_size as)"
 by (rule allI, induct_tac as, simp+)
 then show ?thesis by (induct x rule: expr_size.induct, auto)
 qed
+
 
 end
