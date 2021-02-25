@@ -241,9 +241,14 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
                 Type ->
              (FunName, Bool, Matrix.Matrix Cmp, [(ArgExpr, ArgExpr)], [(Template, Template)], [[(Siz, Siz)]], String)
     init' funName x e ty =
-      let 
+      let
+        -- Generate Measures --
+
         -- generate list of measures
         measures = buildMeasure ty []
+
+        -- Local Descent --
+
         -- generate template
         template = buildTemplate ty
   -- MAIN --
@@ -254,6 +259,9 @@ termCheck genvs = M.foldrWithKey go ([], []) (defns genvs)
         templatePairs = map completeTemplate templateEnvs
         lists = map (genLists measures) templatePairs
         matrix = Matrix.fromLists lists
+
+        -- Global Descent --
+
         result = globalDescent matrix
         message = show (genSizes measures (head templatePairs))
       in (funName, result, matrix, argPairs, templatePairs, [], message)
