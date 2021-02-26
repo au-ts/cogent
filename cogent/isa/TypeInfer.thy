@@ -927,9 +927,8 @@ inductive tyinf_synth :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<
 
 | tyinf_con    : "\<lbrakk> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> x : t
                   ; (tag, t, Unchecked) \<in> set ts
-                  ; K \<turnstile> TSum ts wellformed
-                  ; ts = ts'
-                  \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> Con ts tag x : TSum ts'"
+                  ; K \<turnstile> TSum ts wellformed \<^cancel>\<open>FIXME: we don't need to check t\<close>
+                  \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> Con ts tag x : TSum ts"
 
 | tyinf_esac   : "\<lbrakk> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> x : TSum ts
                   ; [(n, t, Unchecked)] = filter ((=) Unchecked \<circ> snd \<circ> snd) ts
@@ -946,6 +945,7 @@ inductive tyinf_synth :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<
                   ; f < length ts
                   ; ts ! f = (n, t, Present)
                   ; droppable K (TRecord (ts[f := (n, t, Taken)]) s)
+                  ; sigil_perm s \<noteq> Some Writable
                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> Member e f : t"
 
 | tyinf_put    : "\<lbrakk> \<Xi>, K, \<Gamma>, C1 \<turnstile>\<down> e : \<tau>1
@@ -957,16 +957,16 @@ inductive tyinf_synth :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<
                   ; \<Xi>, K, \<Gamma>, C2 \<turnstile>\<up> e' : t
                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C1 \<oplus> C2 \<turnstile>\<down> Put e f e' : TRecord (ts[f := (n,t,Present)]) s"
 
-| tyinf_prim   : "\<lbrakk> \<Xi>, K, \<Gamma>, C \<turnstile>\<down>* args : map TPrim ts
+| tyinf_prim   : "\<lbrakk> \<Xi>, K, \<Gamma>, C \<turnstile>\<down>* args : ts' \<^cancel>\<open>FIXME: should this be checking?\<close>
                   ; prim_op_type oper = (ts,t)
+                  ; ts' = map TPrim ts
                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> Prim oper args : TPrim t"
 
 | tyinf_struct : "\<lbrakk> \<Xi>, K, \<Gamma>, C \<turnstile>\<down>* es : ts
                   ; ts = ts' \<^cancel>\<open>FIXME: remove ts'\<close>
                   ; length ns = length ts'
                   ; distinct ns
-                  ; vs = zip ns (map (\<lambda>t. (t,Present)) ts)
-                  \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> Struct ns ts' es : TRecord vs Unboxed"
+                  \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> Struct ns ts' es : TRecord (zip ns (map (\<lambda>t. (t,Present)) ts)) Unboxed"
 
 | tyinf_app    : "\<lbrakk> \<Xi>, K, \<Gamma>, C1 \<turnstile>\<down> a : \<tau>1
                   ; \<tau>1 = TFun x y
@@ -995,7 +995,8 @@ inductive tyinf_synth :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<
                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C1 \<oplus> C2 \<turnstile>\<up> Let x y : u"
 
 | tyinf_letb   : "\<lbrakk> \<Xi>, K, context_bang_types is \<Gamma>, C1 \<turnstile>\<down> x : t
-                  ; \<Xi>, K, (t # \<Gamma>), (ct # C2) \<turnstile>\<up> y : u
+                  ; \<Xi>, K, (t # \<Gamma>), C2o \<turnstile>\<up> y : u
+                  ; C2o = ct # C2
                   ; is_used K t ct
                   ; E \<in> kinding_fn K t
                   ; ensure_use_bang is C2
@@ -1038,6 +1039,10 @@ inductive tyinf_synth :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<
                   ; t'' = t
                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile>\<up> Promote t'' x : t"
 
+(* TODO: this can be absorbed into the subtyping case once promote expressions are removed.
+ *       For the sake of efficiency, the "is the subtyping a refl" case should still be checked
+ *       first by the tactic, using the subtyping_refl lemma.
+ *)
 | tyinf_switch: "\<lbrakk> \<Xi>, K, \<Gamma>, C \<turnstile>\<down> x : \<tau>
                  ; \<tau> = \<tau>'
                  \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma>, C \<turnstile>\<up> x : \<tau>'"
@@ -1597,9 +1602,6 @@ next case tyinf_tuple then show ?case
         simp add: tyinf_shareable_constraint_plus_iff)
 next
   case (tyinf_member \<Xi> K \<Gamma> C e ts s f n t)
-  moreover have
-    "K \<turnstile> TRecord ts s wellformed"
-    using tyinf_member by blast
   moreover then have
     "K \<turnstile> t wellformed"
     using tyinf_member
@@ -1672,7 +1674,7 @@ next
         intro: weakening_refl wellformed_types_impl_context_gen_wellformed typing_weaken_context)
     done
 next
-  case (tyinf_letb \<Xi> K N \<Gamma> C1 x t ct C2 y u)
+  case (tyinf_letb \<Xi> K N \<Gamma> C1 x t C2o y u ct C2)
   moreover have
     "length C1 = length C2"
     using tyinf_letb
