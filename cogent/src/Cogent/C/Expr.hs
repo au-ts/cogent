@@ -1033,6 +1033,7 @@ instance PP.Pretty NewTableCTypes where
         (case ma of Nothing -> PP.empty; Just as -> PP.empty PP.<+> prettyAccessors as)
       prettySort SVariant     = PP.text "TVariant"
       prettySort SAbstract    = PP.text "TCon"
+      prettySort SArray       = PP.text "TArray"
 
       prettySigil (Unboxed)       = PP.text "Unboxed"
       prettySigil (Boxed True  _) = PP.text "ReadOnly"

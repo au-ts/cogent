@@ -105,13 +105,13 @@ isaReservedNames = ["o", "value", "from"]
 shallowTVar :: Int -> String
 shallowTVar v = [chr $ ord 'a' + fromIntegral v]
 
-shallowTypeWithName :: (Show b,Eq b) => CC.Type t b -> SG I.Type
+shallowTypeWithName :: (Show b, Eq b) => CC.Type t b -> SG I.Type
 shallowTypeWithName t = shallowType =<< findShortType t
 
-shallowRecTupleType :: (Show b,Eq b) => [(FieldName, (CC.Type t b, Bool))] -> SG I.Type
+shallowRecTupleType :: (Show b, Eq b) => [(FieldName, (CC.Type t b, Bool))] -> SG I.Type
 shallowRecTupleType fs = shallowTupleType <$> mapM shallowType (map (fst . snd) fs)
 
-shallowType :: forall t b. (Show b,Eq b) => CC.Type t b -> SG I.Type
+shallowType :: forall t b. (Show b, Eq b) => CC.Type t b -> SG I.Type
 shallowType (TVar v) = I.TyVar <$> ((!!) <$> asks typeVars <*> pure (finInt v))
 shallowType (TVarBang v) = shallowType (TVar v :: CC.Type t b)
 shallowType (TCon tn ts _) = I.TyDatatype tn <$> mapM shallowType ts
@@ -186,7 +186,7 @@ list2 a b = [a,b]
 
 shallowILit :: Integer -> PrimInt -> Term
 shallowILit n Boolean = if n > 0 then mkTru else mkFls
-shallowILit n v = TermWithType (mkId $ show n) (shallowPrimType v)
+shallowILit n v = TermWithType (mkInt n) (shallowPrimType v)
 
 findType :: CC.Type t b -> SG (CC.Type t b)
 findType t = getStrlType <$> asks typeNameMap <*> asks typeStrs <*> pure t
@@ -276,7 +276,7 @@ matchTypes vs ts rs =
 findTypeSyn :: CC.Type t b -> SG String
 findTypeSyn t = findType t >>= \(TCon nm _ _) -> pure nm
 
-shallowExpr :: (Show b,Eq b) => TypedExpr t v VarName b -> SG Term
+shallowExpr :: (Show b, Eq b) => TypedExpr t v VarName b -> SG Term
 shallowExpr (TE _ (Variable (_,v))) = pure $ mkId (snm v)
 shallowExpr (TE t (Fun fn ts ls _)) =
     if null ts
@@ -375,6 +375,21 @@ shallowExpr (TE _ (Promote ty e)) = shallowExpr e
 shallowExpr (TE _ (Cast    (TPrim pt) (TE _ (ILit n _)))) = pure $ shallowILit n pt
 shallowExpr (TE _ (Cast    (TPrim pt) e)) =
   TermWithType <$> (mkApp (mkId "ucast") <$> ((:[]) <$> shallowExpr e)) <*> pure (shallowPrimType pt)
+
+#ifdef BUILTIN_ARRAYS
+shallowLExpr :: LExpr t VarName -> Term
+shallowLExpr (LOp op es) = shallowPrimOp op $ map shallowLExpr es
+shallowLExpr (LILit n pt) = mkInt n
+shallowLExpr (LLet b e1 e2) = mkLet b (shallowLExpr e1) (shallowLExpr e2)
+shallowLExpr (LTuple e1 e2) = mkTuple [shallowLExpr e1, shallowLExpr e2]
+shallowLExpr (LIf c e1 e2) = mkApp (mkId "HOL.If") (map shallowLExpr [c,e1,e2])
+shallowLExpr (LSplit (b1,b2) e1 e2) = mkApp (mkLambda [mkPrettyPair b1 b2] (shallowLExpr e2))
+                                         [shallowLExpr e1]
+shallowLExpr (LCast t e) | TPrim pt <- t = TermWithType (mkApp (mkId "ucast") [shallowLExpr e]) (shallowPrimType pt)
+shallowLExpr _ = __todo "shallowLExpr: currently unsupported (must be a constant)"
+#endif
+
+
 
 -- | @'mkL' nm t1 t2@:
 --

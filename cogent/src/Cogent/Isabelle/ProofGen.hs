@@ -27,6 +27,7 @@ import Cogent.Compiler
 import Cogent.Core hiding (kind)
 import Cogent.Dargent.Allocation
 import Cogent.Isabelle.Deep
+import Cogent.Isabelle.Shallow (shallowLExpr, mkLet, mkPrettyPair, shallowPrimType, shallowPrimOp)
 import Cogent.PrettyPrint
 import Cogent.Util
 import Data.LeafTree
@@ -136,7 +137,30 @@ data Type'
   | TProduct' Type' Type'
   | TRecord' RecursiveParameter [(FieldName, (Type', Bool))] (Sigil (DataLayout BitRange))
   | TUnit'
+  | TArray' Type' LExpr' (Sigil ()) (Maybe LExpr')
   deriving (Eq, Ord)
+
+
+data LExpr' = LOp' Op [LExpr']
+            | LILit' Integer PrimInt
+            | LLet' VarName LExpr' LExpr'
+            | LTuple' LExpr' LExpr'
+            | LIf' LExpr' LExpr' LExpr'
+            | LSplit' (VarName, VarName) LExpr' LExpr'
+            | LCast' Type' LExpr'
+            deriving (Eq, Ord)
+
+shallowLExpr' :: LExpr' -> Term
+shallowLExpr' (LOp' op es) = shallowPrimOp op $ map shallowLExpr' es
+shallowLExpr' (LILit' n pt) = mkInt n
+shallowLExpr' (LLet' b e1 e2) = mkLet b (shallowLExpr' e1) (shallowLExpr' e2)
+shallowLExpr' (LTuple' e1 e2) = mkTuple [shallowLExpr' e1, shallowLExpr' e2]
+shallowLExpr' (LIf' c e1 e2) = mkApp (mkId "HOL.If") (map shallowLExpr' [c,e1,e2])
+shallowLExpr' (LSplit' (b1,b2) e1 e2) = mkApp (mkLambda [mkPrettyPair b1 b2] (shallowLExpr' e2))
+                                              [shallowLExpr' e1]
+shallowLExpr' (LCast' t e) | TPrim' pt <- t = TermWithType (mkApp (mkId "ucast") [shallowLExpr' e]) (shallowPrimType pt)
+shallowLExpr' _ = __todo "shallowLExpr': currently unsupported (must be a constant)"
+
 
 deepType' :: Type' -> Term
 deepType' (TVar' v) = mkApp (mkId "TVar") [mkInt $ toInteger v]
@@ -149,8 +173,9 @@ deepType' (TSum' alts) = mkApp (mkId "TSum") [mkList $ map (\(n,(t,b)) -> mkPair
 deepType' (TProduct' t1 t2) = mkApp (mkId "TProduct") [deepType' t1, deepType' t2]
 deepType' (TRecord' rp fs s) = mkApp (mkId "TRecord") [mkList $ map (\(fn,(t,b)) -> mkPair (deepType' t) (mkBool b)) fs, deepSigil s]  -- FIXME: @rp@ / zilinc
 deepType' (TUnit') = mkId "TUnit"
+deepType' (TArray' t l s _) = mkApp (mkId "TArray") [deepType' t, shallowLExpr' l, deepSigil s]
 
-stripType :: Type t b -> Type'
+stripType :: Type t VarName -> Type'
 stripType (TVar n) = TVar' (finInt n)
 stripType (TVarBang n) = TVarBang' (finInt n)
 stripType (TCon t ts s) = TCon' t (map stripType ts) s
@@ -162,6 +187,18 @@ stripType (TProduct t u) = TProduct' (stripType t) (stripType u)
 -- FIXME: recPars and isabelle
 stripType (TRecord rp fs s) = TRecord' rp (map (\(n,(t,b)) -> (n, (stripType t, b))) fs) s
 stripType TUnit = TUnit'
+stripType (TArray t l s mh) = TArray' (stripType t) (stripLExpr l) (fmap (const ()) s) (fmap stripLExpr mh)
+
+stripLExpr :: LExpr t VarName -> LExpr'
+stripLExpr (LOp op es) = LOp' op $ fmap stripLExpr es
+stripLExpr (LILit n pt) = LILit' n pt
+stripLExpr (LLet b e1 e2) = LLet' b (stripLExpr e1) (stripLExpr e2)
+stripLExpr (LTuple e1 e2) = LTuple' (stripLExpr e1) (stripLExpr e2)
+stripLExpr (LIf c e1 e2) = LIf' (stripLExpr c) (stripLExpr e1) (stripLExpr e2)
+stripLExpr (LSplit bs e1 e2) = LSplit' bs (stripLExpr e1) (stripLExpr e2)
+stripLExpr (LCast t e) = LCast' (stripType t) (stripLExpr e)
+stripLExpr _ = __todo "stripLExpr: unimplemented"
+
 
 {-
 We cache some subproofs to avoid duplication.
@@ -210,17 +247,16 @@ tacSequence = fmap concat . sequence
 hintListSequence :: [State TypingSubproofs (LeafTree Hints)] -> State TypingSubproofs (LeafTree Hints)
 hintListSequence sths = Branch <$> sequence sths
 
-kindingHint :: (Ord b, Pretty b) => Vec t Kind -> Type t b -> State TypingSubproofs (LeafTree Hints)
+kindingHint :: Vec t Kind -> Type t VarName -> State TypingSubproofs (LeafTree Hints)
 kindingHint k t = (pure . KindingTacs) `fmap` kinding k t
 
-wellformedHint :: (Ord b, Pretty b) => Vec t Kind -> Type t b -> State TypingSubproofs (LeafTree Hints)
+wellformedHint :: Vec t Kind -> Type t VarName -> State TypingSubproofs (LeafTree Hints)
 wellformedHint k t = (pure . KindingTacs) `fmap` wellformed k t
 
-follow_tt :: (Ord b, Pretty b)
-          => Vec t Kind
-          -> Vec v  (Maybe (Type t b))
-          -> Vec vx (Maybe (Type t b))
-          -> Vec vy (Maybe (Type t b))
+follow_tt :: Vec t Kind
+          -> Vec v  (Maybe (Type t VarName))
+          -> Vec vx (Maybe (Type t VarName))
+          -> Vec vy (Maybe (Type t VarName))
           -> State TypingSubproofs (LeafTree Hints)
 follow_tt k env env_x env_y = hintListSequence $ map (kindingHint k) new
   where
@@ -229,11 +265,11 @@ follow_tt k env env_x env_y = hintListSequence $ map (kindingHint k) new
     n_y = take (Nat.toInt (Vec.length env_y) - l) (cvtToList env_y)
     new = catMaybes (n_x ++ n_y)
 
-proofSteps :: (Ord b, Show b, Pretty b) => Xi a b -> Vec t Kind -> Type t b -> EnvExpr t v a b
+proofSteps :: Xi a VarName -> Vec t Kind -> Type t VarName -> EnvExpr t v a VarName
            -> State TypingSubproofs (LeafTree Hints)
 proofSteps xi k ti x = hintListSequence [ kindingHint k ti, ttyping xi k x ]
 
-ttyping :: (Ord b, Show b, Pretty b) => Xi a b -> Vec t Kind -> EnvExpr t v a b -> State TypingSubproofs (LeafTree Hints)
+ttyping :: Xi a VarName -> Vec t Kind -> EnvExpr t v a VarName -> State TypingSubproofs (LeafTree Hints)
 ttyping xi k (EE t' (Split a x y) env) = hintListSequence [ -- Ξ, K, Γ ⊢ Split x y : t' if
   follow_tt k env (envOf x) (envOf y),
   ttyping xi k x,                            -- Ξ, K, Γ1 ⊢ x : TProduct t u
@@ -271,7 +307,7 @@ ttyping xi k (EE u (Take a e@(EE (TRecord _ ts _) _ _) f e') env) = hintListSequ
   ]
 ttyping xi k e = pure . TypingTacs <$> typingWrapper xi k e
 
-typingWrapper :: (Ord b, Show b, Pretty b) => Xi a b -> Vec t Kind -> EnvExpr t v a b
+typingWrapper :: Xi a VarName -> Vec t Kind -> EnvExpr t v a VarName
               -> State TypingSubproofs [Tactic]
 typingWrapper xi k (EE t (Variable i) env) = tacSequence [ ]
 typingWrapper xi k (EE t (Struct fs) env)
@@ -280,12 +316,12 @@ typingWrapper xi k (EE (TPrim t) (Op o es) env)
     | allVars (map eexprExpr es) = tacSequence [ ]
 typingWrapper xi k e = typing xi k e
 
-allVars :: [Expr t v a b e] -> Bool
+allVars :: [Expr t v a VarName e] -> Bool
 allVars (Variable _ : vs) = allVars vs
 allVars [] = True
 allVars _ = False
 
-typing :: (Eq b, Ord b, Show b, Pretty b) => Xi a b -> Vec t Kind -> EnvExpr t v a b -> State TypingSubproofs [Tactic]
+typing :: Xi a VarName -> Vec t Kind -> EnvExpr t v a VarName -> State TypingSubproofs [Tactic]
 typing xi k (EE t (Variable i) env) = tacSequence [
   return $ [rule "typing_var"],           -- Ξ, K, Γ ⊢ Var i : t if
   weakens k env (singleton (fst i) env),  -- K ⊢ Γ ↝w singleton (length Γ) i t
@@ -483,11 +519,10 @@ typing xi k (EE _ (Promote t e@(EE t' _ _)) env) = tacSequence [
 
 typing xi k _ = error "attempted to generate proof of ill-typed program"
 
-typingAll :: (Ord b, Show b, Pretty b)
-          => Xi a b
+typingAll :: Xi a VarName
           -> Vec t Kind
-          -> Vec v (Maybe (Type t b))
-          -> [EnvExpr t v a b]
+          -> Vec v (Maybe (Type t VarName))
+          -> [EnvExpr t v a VarName]
           -> State TypingSubproofs [Tactic]
 -- Γ = empty n ⟹  Ξ, K, Γ ⊢* [] : []
 typingAll xi k g [] = return [rule_tac "typing_all_empty'" [("n", show . Nat.toInt $ Vec.length g)],
@@ -502,11 +537,10 @@ typingAll xi k g (e:es) =
     ]
 
 
-subtyping :: (Eq b, Ord b, Pretty b) => Vec t Kind -> Type t b -> Type t b -> State TypingSubproofs Tactic
+subtyping :: Vec t Kind -> Type t VarName -> Type t VarName -> State TypingSubproofs Tactic
 subtyping k t1 t2 = SubtypingTac <$> subtyping' k t1 t2
 
-subtyping'  :: (Eq b, Ord b, Pretty b) => Vec t Kind -> Type t b -> Type t b -> State TypingSubproofs [Tactic]
-subtyping'' :: (Eq b, Ord b, Pretty b) => Vec t Kind -> Type t b -> Type t b -> State TypingSubproofs [Tactic]
+subtyping', subtyping'' :: Vec t Kind -> Type t VarName -> Type t VarName -> State TypingSubproofs [Tactic]
 
 subtyping' k t1 t2 =
   if t1 == t2
@@ -565,13 +599,13 @@ subtyping'' k (TSum v1s)       (TSum v2s)  =
     ]
 
 
-kinding :: (Ord b, Pretty b) => Vec t Kind -> Type t b -> State TypingSubproofs [Tactic]
+kinding :: Vec t Kind -> Type t VarName -> State TypingSubproofs [Tactic]
 kinding k t = do
   proofId <- kindingRaw k t
   thm <- thmTypeAbbrev $ typingSubproofPrefix ++ show proofId
   return [RuleTac thm]
 
-kindingRaw :: (Ord b, Pretty b) => Vec t Kind -> Type t b -> State TypingSubproofs SubproofId
+kindingRaw :: Vec t Kind -> Type t VarName -> State TypingSubproofs SubproofId
 kindingRaw k t = do
   let k' = cvtToList k
       t' = stripType t
@@ -588,7 +622,7 @@ kindingRaw k t = do
                   return proofId
     Just (proofId, _, _) -> return proofId
 
-kinding' :: (Ord b, Pretty b) => Vec t Kind -> Type t b -> Kind -> State TypingSubproofs [Tactic]
+kinding' :: Vec t Kind -> Type t VarName -> Kind -> State TypingSubproofs [Tactic]
 kinding' ks t k = do
   let ks' = cvtToList ks
       t' = stripType t
@@ -627,7 +661,7 @@ kindingRecord _ _ k = return [simp_add ["kinding_def", "kinding_all_def", "kindi
 kindingVariant :: Vec t Kind -> [(Type t b, Bool)] -> Kind -> State TypingSubproofs [Tactic]
 kindingVariant _ _ k = return [simp_add ["kinding_def", "kinding_all_def", "kinding_variant_def", "kinding_record_def"]]
 
-allKindCorrect :: (Ord b, Pretty b) => Vec t' Kind -> [Type t' b] -> Vec t Kind -> State TypingSubproofs [Tactic]
+allKindCorrect :: Vec t' Kind -> [Type t' VarName] -> Vec t Kind -> State TypingSubproofs [Tactic]
 allKindCorrect k ts ks = do
   let k' = cvtToList k
       ts' = map stripType ts
@@ -645,26 +679,24 @@ allKindCorrect k ts ks = do
                   return [rule $ typingSubproofPrefix ++ show proofId]
     Just (proofId, _, _) -> return [rule $ typingSubproofPrefix ++ show proofId]
 
-allKindCorrect' :: (Ord b, Pretty b) => Vec t' Kind -> [Type t' b] -> Vec t Kind -> State TypingSubproofs [Tactic]
+allKindCorrect' :: Vec t' Kind -> [Type t' VarName] -> Vec t Kind -> State TypingSubproofs [Tactic]
 allKindCorrect' kind (t:ts) (Cons k ks)
   = tacSequence [return (breakConj ts), kinding' kind t k, allKindCorrect' kind ts ks]
 allKindCorrect' _ [] Nil = return []
 allKindCorrect' _ _ _ = error "kind mismatch"
 
-splits :: (Ord b, Show b, Pretty b)
-       => Vec t Kind
-       -> Vec v (Maybe (Type t b))
-       -> Vec v (Maybe (Type t b))
-       -> Vec v (Maybe (Type t b))
+splits :: Vec t Kind
+       -> Vec v (Maybe (Type t VarName))
+       -> Vec v (Maybe (Type t VarName))
+       -> Vec v (Maybe (Type t VarName))
        -> State TypingSubproofs [Tactic]
 splits k g g1 g2 = (:[]) . SplitsTac <$> splitsHint False k g g1 g2
 
-splitsHint :: (Ord b, Show b, Pretty b)
-           => Bool
+splitsHint :: Bool
            -> Vec t Kind
-           -> Vec v (Maybe (Type t b))
-           -> Vec v (Maybe (Type t b))
-           -> Vec v (Maybe (Type t b))
+           -> Vec v (Maybe (Type t VarName))
+           -> Vec v (Maybe (Type t VarName))
+           -> Vec v (Maybe (Type t VarName))
            -> State TypingSubproofs [MLOption [Tactic]]
 splitsHint b k (Cons Nothing gs) (Cons Nothing xs) (Cons Nothing ys) =
   if b then splitsHint b k gs xs ys else (NONE :) <$> splitsHint True k gs xs ys
@@ -674,11 +706,10 @@ splitsHint _ k Nil         Nil         Nil         = return []
 splitsHint _ _ _ _ _ = __ghc_t4139 "ProofGen.splitsHint"
 #endif
 
-splitHint :: (Ord b, Show b, Pretty b)
-          => Vec t Kind
-          -> Maybe (Type t b)
-          -> Maybe (Type t b)
-          -> Maybe (Type t b)
+splitHint :: Vec t Kind
+          -> Maybe (Type t VarName)
+          -> Maybe (Type t VarName)
+          -> Maybe (Type t VarName)
           -> State TypingSubproofs (MLOption [Tactic])
 splitHint k Nothing  Nothing  Nothing  = __impossible "splitHint got case none"
 splitHint k (Just t) (Just _) Nothing  = (\wf -> SOME $ rule "split_comp.left" : wf) <$> wellformed k t
@@ -686,8 +717,8 @@ splitHint k (Just t) Nothing  (Just _) = (\wf -> SOME $ rule "split_comp.right" 
 splitHint k (Just t) (Just _) (Just _) = (\wf -> SOME $ rule "split_comp.share" : wf) <$> kinding k t
 splitHint k g x y = error $ "bad split: " ++ show (g, x, y)
 
-ttsplit_bang :: (Ord b, Pretty b) => Vec t Kind -> Int -> [Int] -> Vec n (Maybe (Type t b))
-             -> Vec n (Maybe (Type t b)) -> State TypingSubproofs [LeafTree Hints]
+ttsplit_bang :: Vec t Kind -> Int -> [Int] -> Vec n (Maybe (Type t VarName))
+             -> Vec n (Maybe (Type t VarName)) -> State TypingSubproofs [LeafTree Hints]
 ttsplit_bang k ix ixs (Cons g gs) (Cons (Just x) xs) = do
     this <- if ix `elem` ixs then Just <$> kindingHint k x else pure Nothing
     rest <- ttsplit_bang k (ix + 1) ixs gs xs
@@ -705,13 +736,13 @@ ttsplit_bang _ _ _ _ _ = error "bad split_bang end"
 distinct _ = [simp_solve]
 
 -- K ⊢ τ wellformed
-wellformed :: (Ord b, Pretty b) => Vec t Kind -> Type t b -> State TypingSubproofs [Tactic]
+wellformed :: Vec t Kind -> Type t VarName -> State TypingSubproofs [Tactic]
 wellformed k t = do
   proofId <- wellformedRaw k t
   thm <- thmTypeAbbrev $ typingSubproofPrefix ++ show proofId
   return [rule "type_wellformed_prettyI", Simplifier (ThmList []) (Thms "type_wellformed.simps"), RuleTac thm]
 
-wellformedRaw :: (Ord b, Pretty b) => Vec t Kind -> Type t b -> State TypingSubproofs SubproofId
+wellformedRaw :: Vec t Kind -> Type t VarName -> State TypingSubproofs SubproofId
 wellformedRaw k t = do
   let n' = toInteger $ Nat.toInt $ Vec.length k
       t' = stripType t
@@ -728,16 +759,16 @@ wellformedRaw k t = do
 
 -- TODO use cached proofs here
 -- K ⊢* τs wellformed
-wellformedAll :: Vec t Kind -> [Type t b] -> State TypingSubproofs [Tactic]
+wellformedAll :: Vec t Kind -> [Type t VarName] -> State TypingSubproofs [Tactic]
 wellformedAll ks ts = tacSequence [return [simp_solve]]
   -- where k = foldr (<>) mempty (map (mostGeneralKind ks) ts)
 
 -- K ⊢ Γ consumed ≡ K ⊢ Γ ↝w empty (length Γ)
-consumed :: (Ord b, Pretty b) => Vec t Kind -> Vec v (Maybe (Type t b)) -> State TypingSubproofs [Tactic]
+consumed :: Vec t Kind -> Vec v (Maybe (Type t VarName)) -> State TypingSubproofs [Tactic]
 consumed k g = weakens k g $ cleared g
 
 -- K ⊢ Γ ↝w Γ'
-weakens :: (Ord b, Pretty b) => Vec t Kind -> Vec v (Maybe (Type t b)) -> Vec v (Maybe (Type t b)) -> State TypingSubproofs [Tactic]
+weakens :: Vec t Kind -> Vec v (Maybe (Type t VarName)) -> Vec v (Maybe (Type t VarName)) -> State TypingSubproofs [Tactic]
 weakens k g g' = do
   let k' = cvtToList k
       [gl, gl'] = map cvtToList [g, g']
@@ -785,10 +816,11 @@ mostGeneralKind k (TUnit)          = mempty
 mostGeneralKind k (TProduct t1 t2) = mostGeneralKind k t1 <> mostGeneralKind k t2
 mostGeneralKind k (TSum ts)        = foldl (<>) mempty $ map (mostGeneralKind k) [t | (_, (t, b)) <- ts, not b]
 mostGeneralKind k (TFun ti to)     = mempty
-mostGeneralKind k (TRecord _ ts s)   = foldl (<>) (sigilKind s) $ map (mostGeneralKind k) [t | (_, (t, b)) <- ts, not b]
+mostGeneralKind k (TRecord _ ts s) = foldl (<>) (sigilKind s) $ map (mostGeneralKind k) [t | (_, (t, b)) <- ts, not b]
 mostGeneralKind k (TPrim i)        = mempty
 mostGeneralKind k (TString)        = mempty
 mostGeneralKind k (TCon n ts s)    = foldl (<>) (sigilKind s) $ map (mostGeneralKind k) ts
+mostGeneralKind k (TArray t _ s _) = mostGeneralKind k t <> sigilKind s
 
 kindRule :: Type t b -> String
 kindRule TVar     {} = "kind_tvar"
@@ -801,6 +833,7 @@ kindRule TRecord  {} = "kind_trec"
 kindRule TPrim    {} = "kind_tprim"
 kindRule TString     = "kind_tprim"
 kindRule TCon     {} = "kind_tcon"
+kindRule TArray   {} = "kind_tarray"
 
 envOf = eexprEnv
 typeOf = eexprType
@@ -831,7 +864,7 @@ deepMaybe :: Maybe Term -> Term
 deepMaybe Nothing = mkId "None"
 deepMaybe (Just x) = mkApp (mkId "Some") [x]
 
-deepMaybeTy :: (Ord b, Pretty b) => NameMod -> TypeAbbrevs -> Maybe (Type t b) -> Term
+deepMaybeTy :: NameMod -> TypeAbbrevs -> Maybe (Type t VarName) -> Term
 deepMaybeTy mod ta = deepMaybe . fmap (deepType mod ta)
 
 
