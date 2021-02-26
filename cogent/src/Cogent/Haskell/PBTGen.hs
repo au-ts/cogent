@@ -141,7 +141,11 @@ propModule name hscname pbtinfos decls =
              , ImportDecl () (ModuleName () "Data.Tuple.Update") True False False Nothing (Just $ ModuleName () "Tup") Nothing
              , ImportDecl () (ModuleName () "Data.Word") False False False Nothing Nothing (Just $ ImportSpecList () False import_word)
              ]
-      hs_decls = (P.concatMap propDecls pbtinfos) ++ cogDecls-- ++ (P.concatMap (\x -> genDecls x decls) pbtinfos)
+            -- TODO: need to have a list of record names
+      hs_decls = (map mkLens ["R4"]) ++ (P.concatMap propDecls pbtinfos) ++ cogDecls
+                                -- ++ (P.concatMap (\x -> genDecls x decls) pbtinfos)
+            where mkLens t = SpliceDecl () $ app (function "makeLenses") 
+                                (TypQuote () (UnQual () (mkName t)))
   in 
   Module () (Just moduleHead) exts imps hs_decls
 
@@ -245,13 +249,7 @@ absFDecl PBTInfo{..} defs = do
             to     = iaT
             sig    = TypeSig () [mkName fnName] (TyFun () ti to)
             dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "ic"] (UnGuardedRhs () absE) Nothing]
-            {-
-            lens   = nameBind (mkName "makeLenses") (var (mkName ((\x -> case x of 
-                                                                        (TyCon _ (UnQual _ ((Symbol _ n)))) -> "''"++n
-                                                                        otherwise -> "undefined"
-                                                                  ) icT)))
-                                                                  -}
-        return $ [sig, dec] --, icT']
+        return $ [sig, dec]
 
 -- Refinement Relation Generator
 rrelDecl :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
@@ -333,12 +331,22 @@ getFnOutTyp' (CC.TypeDef tn _ _) oaT = pure $ (TyCon () (mkQName "Unknown"), oaT
 {- match on haskell types -> default access using Lens
     every type has a lens
 -}
+-- TODO: probably want to gleam some info about the iaTyp
+-- TODO: clear up function name
+-- TODO: Prim and Strings, Sum 
 mkAbsFBody'' :: CC.Type t a -> Type () -> Type () -> SG (Exp ())
 mkAbsFBody'' cogIcTyp icTyp iaTyp 
     = case iaTyp of 
+        (TyParen _ insideTy) -> mkAbsFBody'' cogIcTyp icTyp insideTy
         (TyTuple _ _ tfs) -> mkTupFrom'' cogIcTyp icTyp iaTyp
-        -- (TyTuple _ _ tfs) -> mkTupFrom'' cogIcTyp icTyp iaTyp
-        otherwise -> __impossible "boom"
+        (TyUnboxedSum _ tfs) -> mkTupFrom'' cogIcTyp icTyp iaTyp
+        (TyList _ ty) -> __impossible "TODO: Abstacting to List"
+        (TyFun _ iTy oTy) -> __impossible "TODO: Abstacting to function"
+        (TyApp _ lTy rTy) -> __impossible "TODO: Abstacting to Constructor w/ application"
+        (TyVar _ name) -> __impossible "TODO: Abstacting to a type variable"
+        (TyCon _ name) -> __impossible "TODO: Abstacting to a named type or type constructor"
+        (TyInfix _ lTy name rTy) -> __impossible "TODO: Abstacting to a infix type constructor"
+        otherwise -> __impossible "Bad abstraction"
     
 mkTupFrom'' :: CC.Type t a -> Type () -> Type () -> SG (Exp ())
 mkTupFrom'' cogIcTyp icTyp iaTyp 
@@ -352,6 +360,9 @@ mkTupFrom'' cogIcTyp icTyp iaTyp
         pure $ mkLetE binds body
             
 
+-- TODO: probably want to gleam some info about the icTyp
+-- TODO: clear up function name
+-- TODO: Prim and Strings, Sum 
 -- @cogIcTyp@ is the original cogent type
 -- @icTyp@ is the hs embedding of cogent type 
 -- @iaTyp@ is the user supplied type we are trying to abstract to
@@ -360,10 +371,14 @@ mkAbsFBobyWithLens cogIcTyp hsIcTyp hsIaTyp
     = case hsIcTyp of
         (TyParen _ t   ) -> mkAbsFBobyWithLens cogIcTyp t hsIaTyp
         (TyTuple _ _ tfs) -> handleIcTup cogIcTyp hsIcTyp hsIaTyp
+        (TyUnboxedSum _ tfs) -> handleIcTup cogIcTyp hsIcTyp hsIaTyp 
         (TyCon _ cn    ) -> handleIcCon cogIcTyp hsIcTyp hsIaTyp
         (TyApp _ conT fsT) -> handleIcApp cogIcTyp hsIcTyp hsIaTyp
-        (TyList _ t    ) -> __impossible "TODO"
-        otherwise -> __impossible "TODO"
+        (TyList _ ty) -> __impossible "TODO: Abstacting from List"
+        (TyFun _ iTy oTy) -> __impossible "TODO: Abstacting from function"
+        (TyVar _ name) -> __impossible "TODO: Abstacting from a type variable"
+        (TyInfix _ lTy name rTy) -> __impossible "TODO: Abstacting from a infix type constructor"
+        otherwise -> __impossible "Bad abstraction"
 
 
 -- Handle when IC is tuple --> Lens view for each field
@@ -416,6 +431,55 @@ mkAccess i = var $ mkName $ "_"++show i
 mkAccess' :: String -> Exp ()
 mkAccess' i = var $ mkName i
     
+
+analyseTypes :: CC.Type t a -> Type () -> Int -> TyLayout
+analyseTypes cogIcTyp icTyp depth
+    = case icTyp of
+        (TyParen _ t   ) -> analyseTypes cogIcTyp t depth
+        (TyTuple _ _ tfs) 
+            -> TyLayout icTyp (getTupFields cogIcTyp tfs)
+            where
+              getTupFields cogTy tfs 
+                = let fs = getFields cogTy
+                    in M.fromList [ (show i, Right (analyseTypes (fst (snd (fs!!i))) (tfs!!i) (depth+1)))
+                              | i <- [0..(P.length tfs)-1]
+                              ]
+              getFields :: CC.Type t a -> [(FieldName, (CC.Type t a, Bool))]
+              getFields (CC.TRecord _ fs _) = fs
+              getFields (CC.TProduct l r) = [("0", (l,False)),("1", (r,False))]
+              getFields _ = __impossible "TODO"
+        (TyCon _ cn    ) 
+            -- check for prims
+            -> TyLayout icTyp (getConFields cn)
+            where getConFields cn 
+                    = let p = case cn of (UnQual _ n) -> find (\x -> mkName x == n) prims
+                                         _ -> Nothing
+                    in M.fromList $ case p of 
+                                      Just x -> [("0", Left depth)] 
+                                      Nothing -> []
+        (TyApp _ conT fsT) -> __impossible "TODO"
+            {-
+             - TODO:
+             - cogIcTyp will tell you the field names 
+             - icTyp will tell you the concrete version of the type 
+             - since the shallow embedding creates a type constructor and 
+             - icTyp is the type created using that constructor for this specific function
+             -
+             - e.g. R4 Word32 Word32
+             -}
+            -- check for Con app
+            -- check for type being a variable
+        (TyList _ ty) -> __impossible "TODO: Abstacting from List"
+        (TyFun _ iTy oTy) -> __impossible "TODO: Abstacting from function"
+        (TyVar _ name) -> __impossible "TODO: Abstacting from a type variable"
+        (TyInfix _ lTy name rTy) -> __impossible "TODO: Abstacting from a infix type constructor"
+        (TyUnboxedSum _ tfs) 
+            -> __impossible "Compiler should never produce TyUnboxedSum embedding"
+        otherwise -> __impossible "Bad abstraction"
+
+
+prims = ["Word8","Word16","Word32","Word64","Bool", "String"]
+
 
 
 -- checking the provided Abstract type
