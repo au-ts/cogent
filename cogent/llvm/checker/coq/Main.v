@@ -58,10 +58,10 @@ Compute (burn 100 (denote_expr prog)). *)
 
 (* Cogent Import *)
 
-Compute map compile_def CogentInput.
+Compute compile_cogent CogentInput.
 
-(* Compute burn 50 (
+Compute burn 50 (
   run_cogent
     (UPrim (LU8 1)) 
     (Let (Var 0) (Let (Lit (LU8 1)) (Prim (Plus U8) [Var 1;Var 0])))
-). *)
+).

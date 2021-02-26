@@ -9,5 +9,6 @@
 ./coq/Types.v
 ./coq/Denote.v
 ./coq/State.v
+./coq/Corres.v
 ./input/LLVM.v
 ./input/Source.v

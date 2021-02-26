@@ -80,6 +80,8 @@ Variant def : Type :=
   | FunDef (n:name) (t:type) (rt:type) (b:expr).
   (* AbsDecl, TypeDef *)
 
+Definition cogent_prog := list def.
+
 Definition prim_lbool (l:lit) : bool :=
   match l with
   | LBool b => b

@@ -1,6 +1,6 @@
 From Coq Require Import List.
 
-From ExtLib Require Import Structures.Monads.
+From ExtLib Require Import Structures.Monads Data.Map.FMapAList.
 From ITree Require Import ITree.
 From Vellvm Require Import Util.
 
@@ -69,6 +69,12 @@ Section Denote.
       trigger PopVar ;;
       ret b'.
 
+  (* Definition denote_funs (p:cogent_prog) (uval -> itree eff uval ):= .
+  
+  
+  Definition denote_cogent (p:cogent_prog) := . *)
+  
+
 End Denote.
 
 Definition env := list uval.
@@ -81,7 +87,7 @@ fun _ e γ =>
   | PopVar => ret (tl γ, tt)
   end.
 
-Definition interp_cogent {A} (t:itree CogentState A) : itree void1 (env * A) :=
-  interp handle_state t [].
+Definition interp_cogent {A} (t:itree CogentState A) (e:env) : itree void1 (env * A) :=
+  interp handle_state t e.
 
-Definition run_cogent (a:uval) (f:expr) := interp_cogent (denote_fun f a).
+Definition run_cogent (a:uval) (f:expr) := interp_cogent (denote_fun f a) [].

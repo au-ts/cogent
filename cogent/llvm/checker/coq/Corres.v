@@ -25,29 +25,40 @@ where
 .
 *)
 
+From Coq Require Import List String.
+
 From Checker Require Import Denote.
 
-Definition vellvm_env := Cogent.env. (* TODO: replace with actual vellvm environment *)
-Definition vellvm_eff := eff. (* TODO: replace with actual vellvm effects *)
+From ITree Require Import ITree Simple.
+From Vellvm Require Import LLVMAst LLVMEvents TopLevel Handlers.Handlers InterpreterMCFG TopLevelRefinements DynamicTypes.
+
+Import ListNotations.
 
 
-Definition  relate_env (c_env : env) (v_env: vellvm_env) : Prop := True.
+Definition vellvm_prog : Type := list (toplevel_entity typ (block typ * list (block typ))).
+Definition denote_vellvm (l:vellvm_prog) : itree L0 uvalue :=
+  denote_vellvm_main (mcfg_of_tle l).
+Definition vellvm_env : Type := memory_stack * (local_env * global_env).
+Definition interp_vellvm (t:itree L0 uvalue) (e:vellvm_env) : itree L3 res_L3 :=
+  interp_to_L3 [] t (snd (snd e)) (fst (snd e), []) (fst e).
 
-Definition  state_invariant (a: env * unit) (b: vellvm_env *) : Prop := 
-  relate_env (fst a) (fst b).
+Definition relate_env (c_env : env) (v_env: vellvm_env) : Prop := True.
 
-Definition bisimilar (t1: itree eff unit) (t2: itree vellvm_eff unit) := 
-  forall c_env v_env,
-    relate_env c_env v_env ->
-      eutt state_invariant
-        (interp_cogent t1 c_env)
-        (interp_cogent t2 v_env).
+Section AB.
 
+  Context {A B : Type}.  
 
+  Definition  state_invariant (a: env * A) (b: vellvm_env * uvalue) : Prop := 
+    relate_env (fst a) (fst b).
 
+  Definition bisimilar (t1: itree CogentState A) (t2: itree L0 uvalue) := 
+    forall c_env v_env,
+      relate_env c_env v_env ->
+        eutt (interp_cogent t1 c_env) (interp_vellvm t2 v_env).
 
-Definition equivalent (c:cogent) (l:vellvm) : Prop :=
-   bisimilar (denote_cogent c) (denote_llvm l).
+End AB.
 
+Definition equivalent (c:cogent_prog) (l:vellvm_prog) : Prop :=
+   bisimilar (denote_cogent c) (denote_vellvm l).
 
-Theorem compile_correct (p: cogent) : equivalent p (compile p).
+Theorem compile_correct (c:cogent_prog) : equivalent c (compile_cogent c).

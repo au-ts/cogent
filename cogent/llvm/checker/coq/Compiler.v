@@ -170,7 +170,7 @@ Section Compiler.
         instr t' (INSTR_Op (OP_Conversion Zext (fst e') (snd e') t')) 
     | _ => ret undef
     end.
-  
+
   Definition compile_type (t:type) : typ :=
     match t with
     | TPrim p => match p with
@@ -217,3 +217,5 @@ Definition compile_def (d:def) : toplevel_entity typ (block typ * list (block ty
         ; df_instrs := (entry state, rev (blocks state))
         |}
   end.
+
+Definition compile_cogent := map compile_def.
