@@ -277,7 +277,7 @@ genAbsFTypsAndExp' :: (CC.Definition TypedExpr VarName b) -> Type () -> SG ( (Ty
 genAbsFTypsAndExp' def iaT | (CC.FunDef _ fn ps _ ti to _) <- def 
     = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
         ti' <- shallowType ti
-        absE <- mkAbsFBody'' ti ti' iaT
+        absE <- mkAbsFBody''' ti ti' iaT
         pure $ ({-TyCon () (mkQName "Unknown") -} ti', iaT, absE)
 
 genAbsFTypsAndExp' def iaT | (CC.AbsDecl _ fn ps _ ti to) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
@@ -418,6 +418,13 @@ mkGetter' varToView fields
         | fn <- fields
       ]
 
+
+
+
+
+-- Better building of AbsF body
+-- ----------------------------------------------------------------------------------------------------
+
 viewInfixExp :: QOp ()
 viewInfixExp = op $ mkName "^."
 
@@ -433,37 +440,22 @@ mkAccess' i = var $ mkName i
 mkAccess'' :: String -> Exp ()
 mkAccess'' i = var $ mkName $ "_"++show i
 
-
-
-
-
-
-
-
-
--- Better building of AbsF body
--- ----------------------------------------------------------------------------------------------------
-
-
 mkAbsFBody''' :: CC.Type t a -> Type () -> Type () -> SG (Exp ())
 mkAbsFBody''' cogIcTyp icTyp iaTyp 
-    = let tyL = analyseTypes cogIcTyp icTyp 0 "NA"
+    = let tyL = analyseTypes cogIcTyp icTyp 0 "None"
           lens = mkLensView tyL Nothing
           binds = P.zip (map (\x -> pvar . mkName . fst $ x) lens) (map snd lens)
           body = case iaTyp of
-                   (TyTuple _ _ ftys) -> tuple $ map (\x -> var . mkName . fst $ x) lens  
+                   -- TODO: handle more abstractions
+                   (TyTuple _ _ ftys) -> tuple $ map (\(toTyp, varToPut) 
+                                                          -> if (isInt toTyp) then app (function "fromIntegral") (var . mkName . fst $ varToPut)
+                                                             else (var . mkName . fst $ varToPut)
+                                                     ) $ P.zip ftys lens  
                    _ -> __impossible "TODO"
        in pure $ mkLetE binds body
 
-
-{-
-        let iaFieldNames = map (\v -> mkName $ (snm $ fst v)++"'") $ M.toList accessorMap
-            iaBindPats = map (\v -> pvar . mkName $ (snm $ fst v)++"'") $ M.toList accessorMap
-            iaBindExps = map snd $ M.toList accessorMap
-            body = tuple $ map var iaFieldNames
-            binds = P.zip iaBindPats iaBindExps
-            -}
-
+isInt :: Type () -> Bool
+isInt (TyCon _ (UnQual _ (Ident _ n))) = any (\x -> n == x) ["Int"]
 
 -- from Layout return list of pairs: variable name for bind and the view expression
 -- key = var name ++ depth tag
@@ -497,23 +489,6 @@ mkLensView tyL prev
           ) (M.toList fld) 
 
 
-                       {-
-
-mkGetter'' :: Exp () -> [String] -> [(String, Exp ())]
-mkGetter'' varToView fields 
-    = [ (fn, infixApp varToView viewInfixExp (mkAccess' fn)) 
-        | fn <- fields
-      ]
-                        -}
--- TODO: need to change Type in layout to some custom type
-
-{-
-data TyLayout = TyLayout { _hsTyp :: Type ()
-                         , _typ :: HelperType
-                         , _fieldMap :: Map String (Either Int TyLayout)
-                         } deriving (Show)
- -}
-
 analyseTypes :: CC.Type t a -> Type () -> Int -> String -> TyLayout
 analyseTypes cogIcTyp icTyp depth fieldName
     = case icTyp of
@@ -542,9 +517,12 @@ analyseTypes cogIcTyp icTyp depth fieldName
              - since the shallow embedding creates a type constructor and 
              - icTyp is the type created using that constructor for this specific function
              -}
-            -> let (name, fieldTypes) = case l of 
-                                          (TyCon _ (UnQual _ n)) -> (n, unfoldAppCon r)
-                                          _ -> __impossible "Compiler should not produce such an embedding"
+            -> let (name, fieldTypes) = let (conHead:conParams) = unfoldAppCon icTyp 
+                                         in ( case conHead of 
+                                                (TyCon _ (UnQual _ (Ident _ n))) -> n
+                                                _ -> __impossible $ "Bad Constructor name"++show l++"--"++show r
+                                            , conParams
+                                            )
                    fields = getFields cogIcTyp
                 in TyLayout l HsRecord $ M.fromList [ ( (fst (fields!!i))
                                                       , let f = fields!!i
@@ -575,7 +553,9 @@ getFields _ = __impossible "TODO"
 
 -- unfolding Constructor Application
 unfoldAppCon :: Type () -> [Type ()]
-unfoldAppCon (TyApp _ l r) = [l] ++ unfoldAppCon r
+unfoldAppCon t = case t of 
+                   (TyApp _ l r) -> unfoldAppCon l ++ unfoldAppCon r
+                   (TyCon _ n) -> [t]
 --unfoldAppCon (TyApp _ l _) = [l]
 --unfoldAppCon (TyApp _ _ _) = []
 
