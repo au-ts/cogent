@@ -59,12 +59,6 @@ import Data.Vec as Vec hiding (sym)
 import Cogent.Util (Stage(..), delimiter, secondM, toHsTypeName, concatMapM, (<<+=))
 import Cogent.Isabelle.Shallow (isRecTuple)
 
-
-
-
-
-
-
 -- type FFIFuncs = M.Map FunName (CType, CType)
 -- FFIFuncs       -- FFI functions, mapping func name to input/output type
 -- -> String         -- Hsc file name
@@ -116,7 +110,7 @@ propModule name hscname pbtinfos decls =
                     P.map importVar ["complement", "xor", "shiftL", "shiftR"]
       import_word = P.map importAbs ["Word8", "Word16", "Word32", "Word64"]
       import_prelude = P.map importVar ["not", "div", "mod", "fromIntegral", "undefined", "return"] ++
-                       P.map importSym ["+", "-", "*", "&&", "||", ">", ">=", "<", "<=", "==", "/="] ++
+                       P.map importSym [".", "+", "-", "*", "&&", "||", ">", ">=", "<", "<=", "==", "/="] ++
                        P.map importAbs ["Char", "String", "Int", "Show", "Maybe"] ++
                        [IThingAll () $ Ident () "Bool"]
       imps = [ ImportDecl () (ModuleName () "Test.QuickCheck" ) False False False Nothing Nothing Nothing
@@ -277,19 +271,16 @@ genAbsFTypsAndExp' :: (CC.Definition TypedExpr VarName b) -> Type () -> SG ( (Ty
 genAbsFTypsAndExp' def iaT | (CC.FunDef _ fn ps _ ti to _) <- def 
     = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
         ti' <- shallowType ti
-        absE <- mkAbsFBody''' ti ti' iaT
+        absE <- mkAbsFBody ti ti' iaT
         pure $ ({-TyCon () (mkQName "Unknown") -} ti', iaT, absE)
 
 genAbsFTypsAndExp' def iaT | (CC.AbsDecl _ fn ps _ ti to) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
     ti' <- shallowType ti
-    absE <- mkAbsFBody ti iaT
+    absE <- mkAbsFBody ti ti' iaT
     pure $ ( {-TyCon () (mkQName "Unknown")-} ti', iaT, absE)
 
 genAbsFTypsAndExp' def iaT | (CC.TypeDef tn _ _) <- def 
     = pure $ (TyCon () (mkQName "Unknown"), iaT, function $ "undefined")
-
-
-
 
 getFnOutTyp :: String -> Type () -> [CC.Definition TypedExpr VarName b] -> SG (Type (), Type (), Exp ()) 
 getFnOutTyp fname oaTyp defs = do 
@@ -315,24 +306,43 @@ getFnOutTyp' (CC.AbsDecl _ fn ps _ ti to) oaT = local (typarUpd typar) $ do
         typar = map fst $ Vec.cvtToList ps
 getFnOutTyp' (CC.TypeDef tn _ _) oaT = pure $ (TyCon () (mkQName "Unknown"), oaT, function $ "undefined")
 
+-- TODO: clean up
+-- ---------------------------------
 -- | mkAbsFBody 
 -- |    - direct mapping
 -- |    - Abstract Input Type is the input type of the Haskell abstract spec
 -- |    - Concrete Input Type is the input type of the concrete function (Cogent HS embedding)
 -- ^^ Type surrounded by parens, recurse on inside type
 -- ^^ IA is Tuple, fs is [(FieldName, (Type t b, Bool))]
-
-
-
 {- match on haskell types -> default access using Lens
     every type has a lens
 -}
 -- TODO: probably want to gleam some info about the iaTyp
 -- TODO: clear up function name
 -- TODO: Prim and Strings, Sum 
-mkAbsFBody'' :: CC.Type t a -> Type () -> Type () -> SG (Exp ())
-mkAbsFBody'' cogIcTyp icTyp iaTyp 
-    = case iaTyp of 
+-- TODO: probably want to gleam some info about the icTyp
+-- TODO: clear up function name
+-- TODO: Prim and Strings, Sum 
+-- @cogIcTyp@ is the original cogent type
+-- @icTyp@ is the hs embedding of cogent type 
+-- @iaTyp@ is the user supplied type we are trying to abstract to
+-- Handle when IC is tuple --> Lens view for each field
+-- return map where field name maps to view expression
+--
+
+
+-- ----------------------------------------------------------------------------------------------------
+mkAbsFBody :: CC.Type t a -> Type () -> Type () -> SG (Exp ())
+mkAbsFBody cogIcTyp icTyp iaTyp 
+    = let tyL = analyseTypes cogIcTyp icTyp 0 "None"
+          lens = mkLensView tyL Nothing
+          binds = P.zip (map (\x -> pvar . mkName . fst $ x) lens) (map snd lens)
+          body = case iaTyp of
+                   (TyTuple _ _ ftys) -> tuple $ map (\(toTyp, varToPut) 
+                                                          -> if (isInt toTyp) then app (function "fromIntegral") (var . mkName . fst $ varToPut)
+                                                             else (var . mkName . fst $ varToPut)
+                                                     ) $ P.zip ftys lens  
+{- TODO: handle more abstractions
         (TyParen _ insideTy) -> mkAbsFBody'' cogIcTyp icTyp insideTy
         (TyTuple _ _ tfs) -> mkTupFrom'' cogIcTyp icTyp iaTyp
         (TyUnboxedSum _ tfs) -> mkTupFrom'' cogIcTyp icTyp iaTyp
@@ -343,114 +353,8 @@ mkAbsFBody'' cogIcTyp icTyp iaTyp
         (TyCon _ name) -> __impossible "TODO: Abstacting to a named type or type constructor"
         (TyInfix _ lTy name rTy) -> __impossible "TODO: Abstacting to a infix type constructor"
         otherwise -> __impossible "Bad abstraction"
-    
-mkTupFrom'' :: CC.Type t a -> Type () -> Type () -> SG (Exp ())
-mkTupFrom'' cogIcTyp icTyp iaTyp 
-    = do
-        accessorMap <- mkAbsFBobyWithLens cogIcTyp icTyp iaTyp 
-        let iaFieldNames = map (\v -> mkName $ (snm $ fst v)++"'") $ M.toList accessorMap
-            iaBindPats = map (\v -> pvar . mkName $ (snm $ fst v)++"'") $ M.toList accessorMap
-            iaBindExps = map snd $ M.toList accessorMap
-            body = tuple $ map var iaFieldNames
-            binds = P.zip iaBindPats iaBindExps
-        pure $ mkLetE binds body
-            
 
--- TODO: probably want to gleam some info about the icTyp
--- TODO: clear up function name
--- TODO: Prim and Strings, Sum 
--- @cogIcTyp@ is the original cogent type
--- @icTyp@ is the hs embedding of cogent type 
--- @iaTyp@ is the user supplied type we are trying to abstract to
-mkAbsFBobyWithLens :: CC.Type t a -> Type () -> Type () -> SG (M.Map String (Exp ()))
-mkAbsFBobyWithLens cogIcTyp hsIcTyp hsIaTyp 
-    = case hsIcTyp of
-        (TyParen _ t   ) -> mkAbsFBobyWithLens cogIcTyp t hsIaTyp
-        (TyTuple _ _ tfs) -> handleIcTup cogIcTyp hsIcTyp hsIaTyp
-        (TyUnboxedSum _ tfs) -> handleIcTup cogIcTyp hsIcTyp hsIaTyp 
-        (TyCon _ cn    ) -> handleIcCon cogIcTyp hsIcTyp hsIaTyp
-        (TyApp _ conT fsT) -> handleIcApp cogIcTyp hsIcTyp hsIaTyp
-        (TyList _ ty) -> __impossible "TODO: Abstacting from List"
-        (TyFun _ iTy oTy) -> __impossible "TODO: Abstacting from function"
-        (TyVar _ name) -> __impossible "TODO: Abstacting from a type variable"
-        (TyInfix _ lTy name rTy) -> __impossible "TODO: Abstacting from a infix type constructor"
-        otherwise -> __impossible "Bad abstraction"
-
-
--- Handle when IC is tuple --> Lens view for each field
--- return map where field name maps to view expression
-handleIcTup :: CC.Type t a -> Type () -> Type () -> SG (M.Map String (Exp ()))
-handleIcTup cogIcTyp (TyTuple _ _ tfs) hsIaTyp 
-    -- for each tuple field create view
-    = let 
-        icVarName = var $ mkName "ic"
-       in case cogIcTyp of 
-           (CC.TRecord _ fs _) -> pure $ M.fromList $ mkGetter icVarName $ P.zip (map fst fs) tfs
-           (CC.TSum tags) -> undefined
-           (CC.TProduct l r) -> undefined
-
-handleIcApp :: CC.Type t a -> Type () -> Type () -> SG (M.Map String (Exp ()))
-handleIcApp cogIcTyp (TyApp _ conT fsT) hsIaTyp 
-    -- for each tuple field create view
-    = let 
-        icVarName = var $ mkName "ic"
-       in case cogIcTyp of 
-           (CC.TRecord _ fs _) -> pure $ M.fromList $ mkGetter' icVarName $ map fst fs
-           (CC.TSum tags) -> undefined
-           (CC.TProduct l r) -> undefined
-
-
-handleIcCon :: CC.Type t a -> Type () -> Type () -> SG (M.Map String (Exp ()))
-handleIcCon cogIcTyp (TyCon _ cn) hsIaTyp 
-    = undefined
-
-
-mkGetter :: Exp () -> [(FieldName, Type ())] -> [(String, Exp ())]
-mkGetter varToView fields 
-    = [ let (fn, ty) = fields !! i 
-         in (fn, infixApp varToView viewInfixExp (mkAccess i)) 
-            | i <- [0..(P.length fields)-1]
-      ]
-
-mkGetter' :: Exp () -> [FieldName] -> [(String, Exp ())]
-mkGetter' varToView fields 
-    = [ (fn, infixApp varToView viewInfixExp (mkAccess' fn)) 
-        | fn <- fields
-      ]
-
-
-
-
-
--- Better building of AbsF body
--- ----------------------------------------------------------------------------------------------------
-
-viewInfixExp :: QOp ()
-viewInfixExp = op $ mkName "^."
-
-viewInfixExp' :: QOp ()
-viewInfixExp' = op $ mkName "."
-
-mkAccess :: Int -> Exp ()
-mkAccess i = var $ mkName $ "_"++show i
-
-mkAccess' :: String -> Exp ()
-mkAccess' i = var $ mkName i
-    
-mkAccess'' :: String -> Exp ()
-mkAccess'' i = var $ mkName $ "_"++show i
-
-mkAbsFBody''' :: CC.Type t a -> Type () -> Type () -> SG (Exp ())
-mkAbsFBody''' cogIcTyp icTyp iaTyp 
-    = let tyL = analyseTypes cogIcTyp icTyp 0 "None"
-          lens = mkLensView tyL Nothing
-          binds = P.zip (map (\x -> pvar . mkName . fst $ x) lens) (map snd lens)
-          body = case iaTyp of
-                   -- TODO: handle more abstractions
-                   (TyTuple _ _ ftys) -> tuple $ map (\(toTyp, varToPut) 
-                                                          -> if (isInt toTyp) then app (function "fromIntegral") (var . mkName . fst $ varToPut)
-                                                             else (var . mkName . fst $ varToPut)
-                                                     ) $ P.zip ftys lens  
+ -}
                    _ -> __impossible "TODO"
        in pure $ mkLetE binds body
 
@@ -461,6 +365,7 @@ isInt (TyCon _ (UnQual _ (Ident _ n))) = any (\x -> n == x) ["Int"]
 -- key = var name ++ depth tag
 -- val = 
 -- mkLensView {} (infixApp (mkName "ic") viewInfixExp
+-- ----------------------------------------------------------------------------------------------------
 mkLensView :: TyLayout -> Maybe (Exp ()) -> [(String, (Exp ()))]
 mkLensView tyL prev 
     = let hsTy = tyL ^. hsTyp
@@ -478,8 +383,8 @@ mkLensView tyL prev
                    HsTuple -> case v of 
                                    (Left depth) -> __impossible "boom"
                                    (Right next) -> case prev of 
-                                                     Just x -> mkLensView next $ Just $ infixApp x viewInfixExp' (mkAccess'' k)
-                                                     Nothing -> mkLensView next $ Just $ infixApp (var (mkName "ic")) viewInfixExp (mkAccess'' k)
+                                                     Just x -> mkLensView next $ Just $ infixApp x viewInfixExp' (mkAccess' k)
+                                                     Nothing -> mkLensView next $ Just $ infixApp (var (mkName "ic")) viewInfixExp (mkAccess' k)
                    -- HsRecord | HsList
                    _ -> case v of 
                       (Left depth) -> __impossible "boom"
@@ -489,6 +394,7 @@ mkLensView tyL prev
           ) (M.toList fld) 
 
 
+-- ----------------------------------------------------------------------------------------------------
 analyseTypes :: CC.Type t a -> Type () -> Int -> String -> TyLayout
 analyseTypes cogIcTyp icTyp depth fieldName
     = case icTyp of
@@ -497,7 +403,8 @@ analyseTypes cogIcTyp icTyp depth fieldName
             -> TyLayout icTyp HsTuple (getTupFields cogIcTyp tfs)
             where getTupFields cogTy tfs 
                     = let fs = getFields cogTy
-                        in M.fromList [ (show i, Right (analyseTypes (fst (snd (fs!!i))) (tfs!!i) (depth+1) (show i)))
+                        in M.fromList [ let k = "_"++show (i+1)
+                                          in (k , Right (analyseTypes (fst (snd (fs!!i))) (tfs!!i) (depth+1) k))
                                       | i <- [0..(P.length tfs)-1]
                                       ]
         (TyCon _ cn) 
@@ -535,20 +442,35 @@ analyseTypes cogIcTyp icTyp depth fieldName
             -> let elemCogTy = case cogIcTyp of 
                                  (CC.TArray t _ _ _) -> t
                                  _ -> __impossible "Compiler should not produce such an embedding"
-                in TyLayout icTyp HsList $ M.fromList [ ( "0" , Right (analyseTypes elemCogTy ty (depth+1) "0")) ]
+                in TyLayout icTyp HsList $ M.fromList [ ( "1" , Right (analyseTypes elemCogTy ty (depth+1) "1")) ]
         (TyFun _ iTy oTy) -> __impossible "TODO: Abstacting from function"
         (TyVar _ name) -> __impossible "TODO: Abstacting from a type variable"
         (TyInfix _ lTy name rTy) -> __impossible "TODO: Abstacting from a infix type constructor"
         (TyUnboxedSum _ tfs) -> __impossible "Compiler should never produce TyUnboxedSum embedding"
         otherwise -> __impossible "Bad abstraction"
 
+-- ----------------------------------------------------------------------------------------------------
+viewInfixExp :: QOp ()
+viewInfixExp = op $ mkName "^."
+
+viewInfixExp' :: QOp ()
+viewInfixExp' = op $ mkName "."
+
+mkAccess :: Int -> Exp ()
+mkAccess i = var $ mkName $ "_"++show i
+
+mkAccess' :: String -> Exp ()
+mkAccess' i = var $ mkName i
+    
+mkAccess'' :: String -> Exp ()
+mkAccess'' i = var $ mkName $ "_"++show i
 
 prims = ["Word8","Word16","Word32","Word64","Bool", "String"]
 
 getFields :: CC.Type t a -> [(String, (CC.Type t a, Bool))]
 getFields (CC.TRecord _ fs _) = fs
 getFields (CC.TSum alts) = alts
-getFields (CC.TProduct l r) = [("0", (l,False)), ("1", (r,False))]
+getFields (CC.TProduct l r) = [("1", (l,False)), ("2", (r,False))]
 getFields _ = __impossible "TODO"
 
 -- unfolding Constructor Application
@@ -556,130 +478,7 @@ unfoldAppCon :: Type () -> [Type ()]
 unfoldAppCon t = case t of 
                    (TyApp _ l r) -> unfoldAppCon l ++ unfoldAppCon r
                    (TyCon _ n) -> [t]
---unfoldAppCon (TyApp _ l _) = [l]
---unfoldAppCon (TyApp _ _ _) = []
-
-
 -- ----------------------------------------------------------------------------------------------------
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
--- OLD  --> TODO: DELETE
--- ----------------------------------------------------------------------------------------------------
-
--- checking the provided Abstract type
-mkAbsFBody :: CC.Type t a -> Type () -> SG (Exp ())
-mkAbsFBody icTyp (TyParen _ t   ) = mkAbsFBody icTyp t
-mkAbsFBody icTyp (TyTuple _ _ tfs) = mkTupFrom icTyp "ic"
-mkAbsFBody icTyp (TyCon _ cn    ) = __impossible "Bad abstraction"
-mkAbsFBody icTyp (TyList _ t    ) = __impossible "Bad abstraction"
-
--- Convert Cogent type to Tuple
-mkTupFrom :: CC.Type t a -> String -> SG (Exp ())
-mkTupFrom icTyp name 
-    -- | TVar (Fin t)
-    -- | TVarBang (Fin t)
-    -- | TVarUnboxed (Fin t)
-    -- | TCon TypeName [Type t b] (Sigil ()) -- Layout will be nothing for abstract types
-    -- | TFun (Type t b) (Type t b)
-    -- | TPrim PrimInt
-    -- | TString
-    | (CC.TSum tags) <- icTyp = undefined
-    | (CC.TProduct l r) <- icTyp = undefined
-    | (CC.TRecord _ fs _) <- icTyp = do 
-        let icName = mkConE $ mkName name
-            iaFieldNames = map (\v -> mkName $ snm $ fst v) fs
-            iaBindPats = map (\v -> pvar . mkName $ snm $ fst v) fs
-            body = tuple $ map var iaFieldNames
-        shGetFields <- P.mapM (\x -> shGetter' icTyp (map fst fs) x icName) [0..P.length iaBindPats]
-        let
-            binds = P.zip iaBindPats shGetFields
-        pure $ mkLetE binds body
-    -- | TUnit
-    -- | TRPar     RecParName (RecContext (Type t b))
-    -- | TRParBang RecParName (RecContext (Type t b))
--- #ifdef BUILTIN_ARRAYS
-    -- | TArray (Type t b) (LExpr t b) (Sigil (DataLayout BitRange)) (Maybe (LExpr t b))  -- the hole
-    -- | TRefine (Type t b) (LExpr t b)
-
-
--- | Like shallowGetter functions but for Cogent Type
--- --------------------------------------------------
-shGetter :: CC.Type t a -> [FieldName] -> FieldIndex -> Exp () -> SG (Exp ())
-shGetter rec fnms idx rec' = do
-  tuples <- view recoverTuples
-  return $ if | tuples, isRecTuple fnms -> appFun (mkQVarE "Tup" . mkName $ "sel" ++ show (idx+1)) [rec']
-              | otherwise -> appFun (var . mkName . snm $ getRecordFieldName' rec idx) [rec']
-
-
-shGetter' :: CC.Type t a -> [FieldName] -> FieldIndex -> Exp () -> SG (Exp ()) 
-shGetter' rec fnms idx rec' = do
-  tuples <- view recoverTuples
-  if | tuples, isRecTuple fnms -> shGetter rec fnms idx rec'
-     | otherwise -> do
-         let t@(CC.TRecord _ fs _) = rec
-         vs <- mapM (\_ -> freshInt <<+= 1) fs
-         (tn,_) <- nominalType t
-         let bs = P.map (\v -> mkName $ internalVar ++ show v) vs
-             p' = PRec () (UnQual () $ mkName tn)
-                       (P.zipWith (\(f,_) b -> PFieldPat () (UnQual () . mkName $ snm f) (pvar b)) fs bs)
-         pure $ mkLetE [(p',rec')] $ var (bs !! idx)
-
-getRecordFieldName' :: CC.Type t a -> FieldIndex -> FieldName
-getRecordFieldName' rec idx | CC.TRecord _ fs _ <- rec = P.map fst fs !! idx
-getRecordFieldName' _ _ = __impossible "input should be of record type"
-
-unwrapRTup :: CC.Type t a -> SG (Exp ())
-unwrapRTup concT = case concT of 
-    (CC.TRecord _ fs _) -> do
-             --vs <- mapM (\x -> fst x) fs
-             --vs <- concatMapM fst fs
-             (tn,_) <- nominalType concT
-             let rec' = mkConE $ mkName "ic"
-                 bs = P.map (\v -> mkName $ snm $ fst v) fs
-                 p' = PRec () (UnQual () $ mkName tn) --[PFieldWildcard ()] -- bs
-                        (P.zipWith (\(f,_) b -> PFieldPat () (UnQual () . mkName $ snm f) (pvar b)) fs bs)
-             pure $ mkLetE [(p',rec')] $ tuple $ map (\x -> app (function "fromIntegral") (var x)) bs
-    (CC.TCon tn ts _)   -> pure $ function $ "undefined"
-    (CC.TSum ts)        -> pure $ function $ "undefined"
-    (CC.TProduct t1 t2) -> pure $ var $ mkName "ic"
-
-    -- ^^ Cogent Tuple, unwrap with letE, 
-    _                   -> pure $ function $ "undefined"
-unwrapRTup' :: CC.Type t a -> String -> (CC.Definition TypedExpr VarName b) -> SG (Exp ())
-unwrapRTup' concT varN def | (CC.TRecord _ fs _) <- concT = do
-      let rec' = mkConE $ mkName varN
-          bs = P.map (\v -> mkName $ snm $ fst v) fs
-          p1 = pvar . mkName $ snm "p1"  -- taken field
-          p2 = pvar . mkName $ snm "p2"  -- new record
-          -- rect@(CC.TRecord _ fs _) = concT
-      p1' <- shGetter' concT (map fst fs) 0 rec'  -- SH.shallowGetter typedExpr (map fst fs) 0 rec'
-      p2' <- shGetter' concT (map fst fs) 1 rec'
-      pure $ mkLetE [(p1, p1'), (p2, p2')] $ tuple $ map var bs
-
-unwrapRTup' concT varN def | (CC.TCon tn ts _) <- concT = pure $ function $ "undefined" 
-unwrapRTup' concT varN def | (CC.TSum ts) <- concT = pure $ function $ "undefined"
-unwrapRTup' concT varN def | (CC.TProduct t1 t2) <- concT = pure $ function $ "undefined"
-unwrapRTup' concT varN def = pure $ var $ mkName varN
--- ----------------------------------------------------------------------------------------------------
-
-
-
 
 
 -- | mkRrelBody 
