@@ -64,3 +64,4 @@ cogent/scripts/*.png
 # LLVM
 *.ll
 *.bc
+*.ghc.*

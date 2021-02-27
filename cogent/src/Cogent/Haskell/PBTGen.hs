@@ -1,9 +1,5 @@
---
---
-
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE ViewPatterns #-}
-
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE PatternGuards #-}
@@ -432,44 +428,77 @@ mkAccess' :: String -> Exp ()
 mkAccess' i = var $ mkName i
     
 
+
+
+
+
+
+
+
+
+-- Better building of AbsF body
+-- ----------------------------------------------------------------------------------------------------
+
+
+mkAbsFBody''' :: CC.Type t a -> Type () -> Type () -> SG (Exp ())
+mkAbsFBody''' cogIcTyp icTyp iaTyp 
+    = undefined
+
+
+-- from Layout return list of pairs: variable name for bind and the view expression
+mkLensView :: TyLayout -> [(Exp (), Exp ())]
+mkLensView tyL = undefined
+
+-- TODO: need to change Type in layout to some custom type
+
+{-
+data TyLayout = TyLayout { typ :: Type ()
+                         , fieldMap :: Map String (Either Int TyLayout)
+                         } deriving (Show)
+ -}
+
 analyseTypes :: CC.Type t a -> Type () -> Int -> TyLayout
 analyseTypes cogIcTyp icTyp depth
     = case icTyp of
         (TyParen _ t   ) -> analyseTypes cogIcTyp t depth
         (TyTuple _ _ tfs) 
-            -> TyLayout icTyp (getTupFields cogIcTyp tfs)
-            where
-              getTupFields cogTy tfs 
-                = let fs = getFields cogTy
-                    in M.fromList [ (show i, Right (analyseTypes (fst (snd (fs!!i))) (tfs!!i) (depth+1)))
-                              | i <- [0..(P.length tfs)-1]
-                              ]
-              getFields :: CC.Type t a -> [(FieldName, (CC.Type t a, Bool))]
-              getFields (CC.TRecord _ fs _) = fs
-              getFields (CC.TProduct l r) = [("0", (l,False)),("1", (r,False))]
-              getFields _ = __impossible "TODO"
-        (TyCon _ cn    ) 
+            -> TyLayout icTyp HsTuple (getTupFields cogIcTyp tfs)
+            where getTupFields cogTy tfs 
+                    = let fs = getFields cogTy
+                        in M.fromList [ (show i, Right (analyseTypes (fst (snd (fs!!i))) (tfs!!i) (depth+1)))
+                                      | i <- [0..(P.length tfs)-1]
+                                      ]
+        (TyCon _ cn) 
             -- check for prims
-            -> TyLayout icTyp (getConFields cn)
+            -> TyLayout icTyp HsPrim (getConFields cn)
             where getConFields cn 
                     = let p = case cn of (UnQual _ n) -> find (\x -> mkName x == n) prims
                                          _ -> Nothing
                     in M.fromList $ case p of 
                                       Just x -> [("0", Left depth)] 
+                                      -- no prims found
                                       Nothing -> []
-        (TyApp _ conT fsT) -> __impossible "TODO"
+        (TyApp _ l r) 
             {-
-             - TODO:
              - cogIcTyp will tell you the field names 
              - icTyp will tell you the concrete version of the type 
              - since the shallow embedding creates a type constructor and 
              - icTyp is the type created using that constructor for this specific function
-             -
-             - e.g. R4 Word32 Word32
              -}
-            -- check for Con app
-            -- check for type being a variable
-        (TyList _ ty) -> __impossible "TODO: Abstacting from List"
+            -> let (name, fieldTypes) = case l of 
+                                          (TyCon _ (UnQual _ n)) -> (n, unfoldAppCon r)
+                                          _ -> __impossible "Compiler should not produce such an embedding"
+                   fields = getFields cogIcTyp
+                in TyLayout l HsRecord $ M.fromList [ ( (fst (fields!!i))
+                                                      , Right (analyseTypes (fst (snd (fields!!i))) (fieldTypes!!i) (depth+1))
+                                                      )
+                                                    | i <- [0..(P.length fields)-1]
+                                                    ]
+        (TyList _ ty) 
+            -> let elemCogTy = case cogIcTyp of 
+                                 (CC.TArray t _ _ _) -> t
+                                 _ -> __impossible "Compiler should not produce such an embedding"
+                in TyLayout icTyp HsList $ M.fromList [ ( "0" , Right (analyseTypes elemCogTy ty (depth+1))) ]
         (TyFun _ iTy oTy) -> __impossible "TODO: Abstacting from function"
         (TyVar _ name) -> __impossible "TODO: Abstacting from a type variable"
         (TyInfix _ lTy name rTy) -> __impossible "TODO: Abstacting from a infix type constructor"
@@ -480,7 +509,40 @@ analyseTypes cogIcTyp icTyp depth
 
 prims = ["Word8","Word16","Word32","Word64","Bool", "String"]
 
+getFields :: CC.Type t a -> [(String, (CC.Type t a, Bool))]
+getFields (CC.TRecord _ fs _) = fs
+getFields (CC.TSum alts) = alts
+getFields (CC.TProduct l r) = [("0", (l,False)), ("1", (r,False))]
+getFields _ = __impossible "TODO"
 
+-- unfolding Constructor Application
+unfoldAppCon :: Type () -> [Type ()]
+unfoldAppCon (TyApp _ l r) = [l] ++ unfoldAppCon r
+--unfoldAppCon (TyApp _ l _) = [l]
+--unfoldAppCon (TyApp _ _ _) = []
+
+
+-- ----------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- OLD  --> TODO: DELETE
+-- ----------------------------------------------------------------------------------------------------
 
 -- checking the provided Abstract type
 mkAbsFBody :: CC.Type t a -> Type () -> SG (Exp ())
@@ -544,17 +606,6 @@ getRecordFieldName' :: CC.Type t a -> FieldIndex -> FieldName
 getRecordFieldName' rec idx | CC.TRecord _ fs _ <- rec = P.map fst fs !! idx
 getRecordFieldName' _ _ = __impossible "input should be of record type"
 
-
-
-
-
-
-
-
-
-
-
-
 unwrapRTup :: CC.Type t a -> SG (Exp ())
 unwrapRTup concT = case concT of 
     (CC.TRecord _ fs _) -> do
@@ -572,9 +623,6 @@ unwrapRTup concT = case concT of
 
     -- ^^ Cogent Tuple, unwrap with letE, 
     _                   -> pure $ function $ "undefined"
-
-
-
 unwrapRTup' :: CC.Type t a -> String -> (CC.Definition TypedExpr VarName b) -> SG (Exp ())
 unwrapRTup' concT varN def | (CC.TRecord _ fs _) <- concT = do
       let rec' = mkConE $ mkName varN
@@ -590,7 +638,7 @@ unwrapRTup' concT varN def | (CC.TCon tn ts _) <- concT = pure $ function $ "und
 unwrapRTup' concT varN def | (CC.TSum ts) <- concT = pure $ function $ "undefined"
 unwrapRTup' concT varN def | (CC.TProduct t1 t2) <- concT = pure $ function $ "undefined"
 unwrapRTup' concT varN def = pure $ var $ mkName varN
-
+-- ----------------------------------------------------------------------------------------------------
 
 
 

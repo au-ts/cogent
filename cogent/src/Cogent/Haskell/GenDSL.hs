@@ -31,9 +31,18 @@ data FunDefs = FunInfo { ispure :: Bool
 -- val = with be either a int or another map
 --       this int represents position in the current structure
 -- help with build lens view / set
-data TyLayout = TyLayout { typ :: Type ()
+
+data HelperType = HsTuple
+                | HsRecord 
+                | HsList
+                | HsPrim
+                deriving (Show)
+
+data TyLayout = TyLayout { hsTyp :: Type ()
+                         , typ :: HelperType
                          , fieldMap :: Map String (Either Int TyLayout)
                          } deriving (Show)
+
 
 makeLenses ''TyLayout
 
