@@ -421,12 +421,17 @@ mkGetter' varToView fields
 viewInfixExp :: QOp ()
 viewInfixExp = op $ mkName "^."
 
+viewInfixExp' :: QOp ()
+viewInfixExp' = op $ mkName "."
+
 mkAccess :: Int -> Exp ()
 mkAccess i = var $ mkName $ "_"++show i
 
 mkAccess' :: String -> Exp ()
 mkAccess' i = var $ mkName i
     
+mkAccess'' :: String -> Exp ()
+mkAccess'' i = var $ mkName $ "_"++show i
 
 
 
@@ -442,30 +447,82 @@ mkAccess' i = var $ mkName i
 
 mkAbsFBody''' :: CC.Type t a -> Type () -> Type () -> SG (Exp ())
 mkAbsFBody''' cogIcTyp icTyp iaTyp 
-    = undefined
+    = let tyL = analyseTypes cogIcTyp icTyp 0 "NA"
+          lens = mkLensView tyL Nothing
+          binds = P.zip (map (\x -> pvar . mkName . fst $ x) lens) (map snd lens)
+          body = case iaTyp of
+                   (TyTuple _ _ ftys) -> tuple $ map (\x -> var . mkName . fst $ x) lens  
+                   _ -> __impossible "TODO"
+       in pure $ mkLetE binds body
+
+
+{-
+        let iaFieldNames = map (\v -> mkName $ (snm $ fst v)++"'") $ M.toList accessorMap
+            iaBindPats = map (\v -> pvar . mkName $ (snm $ fst v)++"'") $ M.toList accessorMap
+            iaBindExps = map snd $ M.toList accessorMap
+            body = tuple $ map var iaFieldNames
+            binds = P.zip iaBindPats iaBindExps
+            -}
 
 
 -- from Layout return list of pairs: variable name for bind and the view expression
-mkLensView :: TyLayout -> [(Exp (), Exp ())]
-mkLensView tyL = undefined
+-- key = var name ++ depth tag
+-- val = 
+-- mkLensView {} (infixApp (mkName "ic") viewInfixExp
+mkLensView :: TyLayout -> Maybe (Exp ()) -> [(String, (Exp ()))]
+mkLensView tyL prev 
+    = let hsTy = tyL ^. hsTyp
+          ty = tyL ^. typ
+          fld = tyL ^. fieldMap
+          -- field map is a tree with int leaves -> only build vars for leaves
+       in concat $ map (\(k, v) 
+              -> case ty of 
+                   HsPrim 
+                     -> case v of                          -- ic ^. bag . _1
+                          (Left depth) -> case prev of 
+                                            Just x -> [ (k++(replicate depth (P.head "'")), x)]
+                                            Nothing -> [(k++(replicate depth (P.head "'")), (var (mkName "ic")))]
+                          (Right next) -> __impossible "boom"
+                   HsTuple -> case v of 
+                                   (Left depth) -> __impossible "boom"
+                                   (Right next) -> case prev of 
+                                                     Just x -> mkLensView next $ Just $ infixApp x viewInfixExp' (mkAccess'' k)
+                                                     Nothing -> mkLensView next $ Just $ infixApp (var (mkName "ic")) viewInfixExp (mkAccess'' k)
+                   -- HsRecord | HsList
+                   _ -> case v of 
+                      (Left depth) -> __impossible "boom"
+                      (Right next) -> case prev of 
+                                        Just x -> mkLensView next $ Just $ infixApp x viewInfixExp' (mkAccess' k)
+                                        Nothing -> mkLensView next $ Just $ infixApp (var (mkName "ic")) viewInfixExp (mkAccess' k)
+          ) (M.toList fld) 
 
+
+                       {-
+
+mkGetter'' :: Exp () -> [String] -> [(String, Exp ())]
+mkGetter'' varToView fields 
+    = [ (fn, infixApp varToView viewInfixExp (mkAccess' fn)) 
+        | fn <- fields
+      ]
+                        -}
 -- TODO: need to change Type in layout to some custom type
 
 {-
-data TyLayout = TyLayout { typ :: Type ()
-                         , fieldMap :: Map String (Either Int TyLayout)
+data TyLayout = TyLayout { _hsTyp :: Type ()
+                         , _typ :: HelperType
+                         , _fieldMap :: Map String (Either Int TyLayout)
                          } deriving (Show)
  -}
 
-analyseTypes :: CC.Type t a -> Type () -> Int -> TyLayout
-analyseTypes cogIcTyp icTyp depth
+analyseTypes :: CC.Type t a -> Type () -> Int -> String -> TyLayout
+analyseTypes cogIcTyp icTyp depth fieldName
     = case icTyp of
-        (TyParen _ t   ) -> analyseTypes cogIcTyp t depth
+        (TyParen _ t   ) -> analyseTypes cogIcTyp t depth fieldName
         (TyTuple _ _ tfs) 
             -> TyLayout icTyp HsTuple (getTupFields cogIcTyp tfs)
             where getTupFields cogTy tfs 
                     = let fs = getFields cogTy
-                        in M.fromList [ (show i, Right (analyseTypes (fst (snd (fs!!i))) (tfs!!i) (depth+1)))
+                        in M.fromList [ (show i, Right (analyseTypes (fst (snd (fs!!i))) (tfs!!i) (depth+1) (show i)))
                                       | i <- [0..(P.length tfs)-1]
                                       ]
         (TyCon _ cn) 
@@ -475,7 +532,7 @@ analyseTypes cogIcTyp icTyp depth
                     = let p = case cn of (UnQual _ n) -> find (\x -> mkName x == n) prims
                                          _ -> Nothing
                     in M.fromList $ case p of 
-                                      Just x -> [("0", Left depth)] 
+                                      Just x -> [(fieldName, Left depth)] 
                                       -- no prims found
                                       Nothing -> []
         (TyApp _ l r) 
@@ -490,7 +547,9 @@ analyseTypes cogIcTyp icTyp depth
                                           _ -> __impossible "Compiler should not produce such an embedding"
                    fields = getFields cogIcTyp
                 in TyLayout l HsRecord $ M.fromList [ ( (fst (fields!!i))
-                                                      , Right (analyseTypes (fst (snd (fields!!i))) (fieldTypes!!i) (depth+1))
+                                                      , let f = fields!!i
+                                                      -- should hit a prim eventually
+                                                         in Right (analyseTypes (fst (snd f)) (fieldTypes!!i) (depth+1) (fst f))
                                                       )
                                                     | i <- [0..(P.length fields)-1]
                                                     ]
@@ -498,12 +557,11 @@ analyseTypes cogIcTyp icTyp depth
             -> let elemCogTy = case cogIcTyp of 
                                  (CC.TArray t _ _ _) -> t
                                  _ -> __impossible "Compiler should not produce such an embedding"
-                in TyLayout icTyp HsList $ M.fromList [ ( "0" , Right (analyseTypes elemCogTy ty (depth+1))) ]
+                in TyLayout icTyp HsList $ M.fromList [ ( "0" , Right (analyseTypes elemCogTy ty (depth+1) "0")) ]
         (TyFun _ iTy oTy) -> __impossible "TODO: Abstacting from function"
         (TyVar _ name) -> __impossible "TODO: Abstacting from a type variable"
         (TyInfix _ lTy name rTy) -> __impossible "TODO: Abstacting from a infix type constructor"
-        (TyUnboxedSum _ tfs) 
-            -> __impossible "Compiler should never produce TyUnboxedSum embedding"
+        (TyUnboxedSum _ tfs) -> __impossible "Compiler should never produce TyUnboxedSum embedding"
         otherwise -> __impossible "Bad abstraction"
 
 

@@ -38,9 +38,9 @@ data HelperType = HsTuple
                 | HsPrim
                 deriving (Show)
 
-data TyLayout = TyLayout { hsTyp :: Type ()
-                         , typ :: HelperType
-                         , fieldMap :: Map String (Either Int TyLayout)
+data TyLayout = TyLayout { _hsTyp :: Type ()
+                         , _typ :: HelperType
+                         , _fieldMap :: Map String (Either Int TyLayout)
                          } deriving (Show)
 
 
