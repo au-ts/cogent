@@ -255,15 +255,16 @@ prettyTerm p t = case t of
   ListTerm l ts r       -> pretty l <> hcat (intersperse (string ", ") (map (prettyTerm termAppPrec) ts)) <> pretty r
   ConstTerm const       -> pretty const
   AntiTerm str          -> pretty str  -- FIXME: zilinc
-  CaseOf e alts         -> parens (string "case" <+> pretty e <+> string "of" <+> sep (punctuate (text "|") (map prettyAlt alts)))
+  CaseOf e alts         -> prettyCase p e alts
 
-termIfPrec = 10  -- taken from HOL
-termLetPrec = 10 -- taken from HOL
+termIfPrec = 10   -- taken from HOL
+termLetPrec = 10  -- taken from HOL
+termCasePrec = 10 -- taken from HOL
 termUpdatePrec = 90 -- in HOL it is 900, here we can use 90 to stay below termAppPrec, because no other precedence is higher than 90.
 
 prettyApp :: Precedence -> Term -> Term -> Doc
 prettyApp p t t' = case t of
-  TermApp (TermApp (TermIdent (Id s)) cnd) thn | s == "nestIf" || s == "HOL.If" ->
+  TermApp (TermApp (TermIdent (Id s)) cnd) thn | s == "If" || s == "HOL.If" ->
       prettyParen (p > termIfPrec) $ sep
         [string "if" <+> nest 2 (pretty cnd),
          string "then" <+> nest 2 (pretty thn),
@@ -294,14 +295,20 @@ prettyUpdate p uds rec =
         doupd updts =
             prettyParen (p > termUpdatePrec) $
             if length updts == 1
-                then prettyrec </> nest 2 (enclose (string "\\<lparr>") (string "\\<rparr>") $ prettyupd $ head updts)
+                then prettyrec <> nest 2 (softline <> enclose (string "\\<lparr>") (string "\\<rparr>") (prettyupd $ head updts))
                 else prettyrec <+> nest 2 (sep (((string "\\<lparr>"):(punctuate comma $ map prettyupd updts)) ++ [nest (-2) $ string "\\<rparr>"]))
-        prettyupd (f,t) = string f <+> string ":=" <+> pretty t
+        prettyupd (f,t) = nest 2 (string f <+> string ":=" </> pretty t)
         prettyrec = prettyTerm termUpdatePrec rec
 
+prettyCase :: Precedence -> Term -> [(Term,Term)] -> Doc
+prettyCase p e (a1:alts) =
+    prettyParen (p > termCasePrec) $
+        sep ([nest 2 (string "case" <+> pretty e), nest 2 (string "of" <+> prettyAlt a1)] ++ (map (\a -> nest 2 (text "|" <+> prettyAlt a)) alts))
 
 prettyAlt :: (Term, Term) -> Doc
-prettyAlt (p, e) = pretty p <+> pretty "\\<Rightarrow>" <+> pretty e
+-- nested case terms can produce parse ambiguities for |-alternatives. 
+-- Therefore we increase the precedence for e to cause parens for nested if/let/case
+prettyAlt (p, e) = pretty p <+> pretty "\\<Rightarrow>" </> prettyTerm (termCasePrec+1) e
 
 prettyBinOpTerm :: Precedence -> TermBinOp -> Term -> Term -> Doc
 prettyBinOpTerm p b = prettyBinOp p prettyTerm (termBinOpRec b) prettyTerm
