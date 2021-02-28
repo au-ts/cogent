@@ -337,11 +337,18 @@ mkAbsFBody cogIcTyp icTyp iaTyp
     = let tyL = analyseTypes cogIcTyp icTyp 0 "None"
           lens = mkLensView tyL Nothing
           binds = P.zip (map (\x -> pvar . mkName . fst $ x) lens) (map snd lens)
-          body = case iaTyp of
+          body = packAbsCon iaTyp (map fst lens) 0
+
+
+{-
+
+          case iaTyp of
                    (TyTuple _ _ ftys) -> tuple $ map (\(toTyp, varToPut) 
                                                           -> if (isInt toTyp) then app (function "fromIntegral") (var . mkName . fst $ varToPut)
                                                              else (var . mkName . fst $ varToPut)
                                                      ) $ P.zip ftys lens  
+                                                     -}
+-- Now has to scan the iaTyp and follow to the structure when building
 {- TODO: handle more abstractions
         (TyParen _ insideTy) -> mkAbsFBody'' cogIcTyp icTyp insideTy
         (TyTuple _ _ tfs) -> mkTupFrom'' cogIcTyp icTyp iaTyp
@@ -353,14 +360,68 @@ mkAbsFBody cogIcTyp icTyp iaTyp
         (TyCon _ name) -> __impossible "TODO: Abstacting to a named type or type constructor"
         (TyInfix _ lTy name rTy) -> __impossible "TODO: Abstacting to a infix type constructor"
         otherwise -> __impossible "Bad abstraction"
+                   _ -> __impossible "TODO"
 
  -}
-                   _ -> __impossible "TODO"
        in pure $ mkLetE binds body
 
-isInt :: Type () -> Bool
-isInt (TyCon _ (UnQual _ (Ident _ n))) = any (\x -> n == x) ["Int"]
 
+-- generate exp for packing the constructor that is returned by absf
+-- 1st = type
+-- 2nd = list of vars to put in the constructor
+-- 3rd = position in structure
+-- vars are pack left to right from the list
+-- removing vars from list as they are added in the recursion
+-- TODO: unify the vars with the outgoing matching type
+-- TODO: pair varsToPut with types for that var
+packAbsCon :: Type () -> [String] -> Int -> Exp ()
+packAbsCon (TyParen _ insideTy) varsToPut pos = packAbsCon insideTy varsToPut pos
+packAbsCon (TyTuple _ _ ftys) varsToPut pos 
+    -- give each subtype is appropriate var
+    = tuple $ if | P.length ftys == P.length varsToPut 
+                    -> [ packAbsCon (ftys!!i) varsToPut i | i <- [0..(P.length ftys)-1] ]
+                 | otherwise 
+                    -> __impossible $ "TODO: Indirect abstraction"++show ftys 
+packAbsCon (TyCon _ name) varsToPut pos 
+    = case (checkIsPrim name) of 
+        Just x -> if | isInt' name 
+                        -> app (function "fromIntegral") $ mkVar $ varsToPut!!pos
+                     | otherwise 
+                        -> mkVar $ varsToPut!!pos
+        Nothing -> __impossible $ "bad abstraction"++show name
+packAbsCon (TyApp _ lTy rTy) varsToPut prev 
+
+        -- TODO: gets interesting here: any complex abstract types -> try to build from list and tups
+        -- Map String String -> if "Map" the app (function "M.fromList")
+        = undefined
+packAbsCon (TyList _ ty) varsToPut prev = undefined
+packAbsCon iaTyp varsToPut prev | _ <- iaTyp = __impossible $ "Bad Abstraction"++" --> "++"Hs: "++show iaTyp
+
+{-
+
+        -> if (isInt toTyp) then app (function "fromIntegral") (var . mkName . fst $ varToPut)
+                                                             else (var . mkName . fst $ varToPut)
+                                                             -}
+
+
+
+
+
+        {-
+         - TODO: ensure these can never happen
+        (TyUnboxedSum _ tfs) -> mkTupFrom'' cogIcTyp icTyp iaTyp
+        (TyFun _ iTy oTy) -> __impossible "TODO: Abstacting to function"
+        (TyVar _ name) -> __impossible "TODO: Abstacting to a type variable"
+        (TyInfix _ lTy name rTy) -> __impossible "TODO: Abstacting to a infix type constructor"
+        otherwise -> __impossible "Bad abstraction"
+        -}
+-- ----------------------------------------------------------------------------------------------------
+
+
+
+-- | mkLensView
+-- ---------------
+-- TODO: clean up comment
 -- from Layout return list of pairs: variable name for bind and the view expression
 -- key = var name ++ depth tag
 -- val = 
@@ -372,83 +433,76 @@ mkLensView tyL prev
           ty = tyL ^. typ
           fld = tyL ^. fieldMap
           -- field map is a tree with int leaves -> only build vars for leaves
-       in concat $ map (\(k, v) 
-              -> case ty of 
-                   HsPrim 
-                     -> case v of                          -- ic ^. bag . _1
-                          (Left depth) -> case prev of 
-                                            Just x -> [ (k++(replicate depth (P.head "'")), x)]
-                                            Nothing -> [(k++(replicate depth (P.head "'")), (var (mkName "ic")))]
-                          (Right next) -> __impossible "boom"
-                   HsTuple -> case v of 
-                                   (Left depth) -> __impossible "boom"
-                                   (Right next) -> case prev of 
-                                                     Just x -> mkLensView next $ Just $ infixApp x viewInfixExp' (mkAccess' k)
-                                                     Nothing -> mkLensView next $ Just $ infixApp (var (mkName "ic")) viewInfixExp (mkAccess' k)
-                   -- HsRecord | HsList
-                   _ -> case v of 
-                      (Left depth) -> __impossible "boom"
-                      (Right next) -> case prev of 
-                                        Just x -> mkLensView next $ Just $ infixApp x viewInfixExp' (mkAccess' k)
-                                        Nothing -> mkLensView next $ Just $ infixApp (var (mkName "ic")) viewInfixExp (mkAccess' k)
-          ) (M.toList fld) 
+       in concat $ map ( \(k, v) -> case ty of 
+           HsPrim -> case v of
+              (Left depth) -> case prev of 
+                    Just x -> [(k++(replicate depth (P.head "'")), x)]
+                    Nothing -> [(k++(replicate depth (P.head "'")), mkVar "ic")]
+              (Right next) -> __impossible "boom"
+           _      -> case v of
+              (Left depth) -> __impossible "boom"
+              (Right next) -> case prev of 
+                    Just x -> mkLensView next $ Just $ infixApp x viewInfixExp' (mkVar k)
+                    Nothing -> mkLensView next $ Just $ infixApp (mkVar "ic") viewInfixExp (mkVar k)
+       ) (M.toList fld) 
 
 
+-- | analyseTypes
+-- ---------------
+-- | Builds the structure used for generating the body of absf
 -- ----------------------------------------------------------------------------------------------------
 analyseTypes :: CC.Type t a -> Type () -> Int -> String -> TyLayout
-analyseTypes cogIcTyp icTyp depth fieldName
-    = case icTyp of
-        (TyParen _ t   ) -> analyseTypes cogIcTyp t depth fieldName
-        (TyTuple _ _ tfs) 
-            -> TyLayout icTyp HsTuple (getTupFields cogIcTyp tfs)
-            where getTupFields cogTy tfs 
-                    = let fs = getFields cogTy
-                        in M.fromList [ let k = "_"++show (i+1)
-                                          in (k , Right (analyseTypes (fst (snd (fs!!i))) (tfs!!i) (depth+1) k))
-                                      | i <- [0..(P.length tfs)-1]
-                                      ]
-        (TyCon _ cn) 
-            -- check for prims
-            -> TyLayout icTyp HsPrim (getConFields cn)
-            where getConFields cn 
-                    = let p = case cn of (UnQual _ n) -> find (\x -> mkName x == n) prims
-                                         _ -> Nothing
-                    in M.fromList $ case p of 
-                                      Just x -> [(fieldName, Left depth)] 
-                                      -- no prims found
-                                      Nothing -> []
-        (TyApp _ l r) 
-            {-
-             - cogIcTyp will tell you the field names 
-             - icTyp will tell you the concrete version of the type 
-             - since the shallow embedding creates a type constructor and 
-             - icTyp is the type created using that constructor for this specific function
-             -}
-            -> let (name, fieldTypes) = let (conHead:conParams) = unfoldAppCon icTyp 
-                                         in ( case conHead of 
-                                                (TyCon _ (UnQual _ (Ident _ n))) -> n
-                                                _ -> __impossible $ "Bad Constructor name"++show l++"--"++show r
-                                            , conParams
-                                            )
-                   fields = getFields cogIcTyp
-                in TyLayout l HsRecord $ M.fromList [ ( (fst (fields!!i))
-                                                      , let f = fields!!i
-                                                      -- should hit a prim eventually
-                                                         in Right (analyseTypes (fst (snd f)) (fieldTypes!!i) (depth+1) (fst f))
-                                                      )
-                                                    | i <- [0..(P.length fields)-1]
-                                                    ]
-        (TyList _ ty) 
-            -> let elemCogTy = case cogIcTyp of 
-                                 (CC.TArray t _ _ _) -> t
-                                 _ -> __impossible "Compiler should not produce such an embedding"
-                in TyLayout icTyp HsList $ M.fromList [ ( "1" , Right (analyseTypes elemCogTy ty (depth+1) "1")) ]
+analyseTypes cogIcTyp (TyParen _ t   ) depth fieldName = analyseTypes cogIcTyp t depth fieldName
+analyseTypes cogIcTyp icTyp depth fieldName 
+    | (TyTuple _ _ tfs) <- icTyp = TyLayout icTyp HsTuple $ getTupFields cogIcTyp tfs
+    where getTupFields cogTy tfs 
+            = let fs = getFields cogTy
+                in M.fromList [ let k = "_"++show (i+1)
+                                  in (k , Right (analyseTypes (fst (snd (fs!!i))) (tfs!!i) (depth+1) k))
+                              | i <- [0..(P.length tfs)-1]
+                              ]
+analyseTypes cogIcTyp icTyp depth fieldName 
+    | (TyCon _ cn) <- icTyp = TyLayout icTyp HsPrim (getConFields cn)
+    where getConFields cn = M.fromList $ case (checkIsPrim cn) of 
+                          Just x -> [(fieldName, Left depth)] 
+                          Nothing -> []
+analyseTypes cogIcTyp icTyp depth fieldName 
+    | (TyApp _ l r) <- icTyp 
+    = let (name, fieldTypes) = let (conHead:conParams) = unfoldAppCon icTyp 
+                                 in ( case conHead of 
+                                            (TyCon _ (UnQual _ (Ident _ n))) -> n
+                                            _ -> __impossible $ "Bad Constructor name"++show l++"--"++show r
+                                    , conParams
+                                    )
+          fields = getFields cogIcTyp
+        in TyLayout l HsRecord $ M.fromList [ ( (fst (fields!!i))
+                                              , let f = fields!!i
+                                                 in Right (analyseTypes (fst (snd f)) (fieldTypes!!i) (depth+1) (fst f))
+                                              )
+                                            | i <- [0..(P.length fields)-1]
+                                            ]
+analyseTypes cogIcTyp icTyp depth fieldName 
+    | (TyList _ ty) <- icTyp 
+    = let elemCogTy = case cogIcTyp of 
+                     (CC.TArray t _ _ _) -> t
+                     _ -> __impossible $ "Bad Abstraction"++" --> "++"Hs: "++show icTyp
+        in TyLayout icTyp HsList $ M.fromList [ ( "1" , Right (analyseTypes elemCogTy ty (depth+1) "1")) ]
+analyseTypes cogIcTyp icTyp depth fieldName 
+    | _ <- icTyp 
+    = __impossible $ "Bad Abstraction"++" --> "++"Hs: "++show icTyp
+
+{-
+ - TODO: 
+ -      For the sake of completeness ... ensure these can never really occur
+ -
         (TyFun _ iTy oTy) -> __impossible "TODO: Abstacting from function"
         (TyVar _ name) -> __impossible "TODO: Abstacting from a type variable"
         (TyInfix _ lTy name rTy) -> __impossible "TODO: Abstacting from a infix type constructor"
         (TyUnboxedSum _ tfs) -> __impossible "Compiler should never produce TyUnboxedSum embedding"
         otherwise -> __impossible "Bad abstraction"
+-}
 
+-- Helpers
 -- ----------------------------------------------------------------------------------------------------
 viewInfixExp :: QOp ()
 viewInfixExp = op $ mkName "^."
@@ -456,16 +510,8 @@ viewInfixExp = op $ mkName "^."
 viewInfixExp' :: QOp ()
 viewInfixExp' = op $ mkName "."
 
-mkAccess :: Int -> Exp ()
-mkAccess i = var $ mkName $ "_"++show i
-
-mkAccess' :: String -> Exp ()
-mkAccess' i = var $ mkName i
-    
-mkAccess'' :: String -> Exp ()
-mkAccess'' i = var $ mkName $ "_"++show i
-
-prims = ["Word8","Word16","Word32","Word64","Bool", "String"]
+mkVar :: String -> Exp ()
+mkVar = var . mkName
 
 getFields :: CC.Type t a -> [(String, (CC.Type t a, Bool))]
 getFields (CC.TRecord _ fs _) = fs
@@ -478,6 +524,26 @@ unfoldAppCon :: Type () -> [Type ()]
 unfoldAppCon t = case t of 
                    (TyApp _ l r) -> unfoldAppCon l ++ unfoldAppCon r
                    (TyCon _ n) -> [t]
+
+prims = ["Word8","Word16","Word32","Word64","Bool","String"]
+        ++ ["Int"]
+
+checkIsPrim :: QName () -> Maybe String
+checkIsPrim x = case x of 
+    (UnQual _ (Ident _ n)) -> find (\x -> x == n) prims
+    _ -> Nothing
+
+isInt' :: QName () -> Bool
+isInt' (UnQual _ (Ident _ n)) = checkTy n ["Int"]
+isInt' _ = False
+
+isInt :: Type () -> Bool
+isInt (TyCon _ (UnQual _ (Ident _ n))) = checkTy n ["Int"]
+
+checkTy :: String -> [String] -> Bool
+checkTy n xs = any (\x -> n == x) xs
+
+
 -- ----------------------------------------------------------------------------------------------------
 
 
