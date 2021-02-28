@@ -46,7 +46,7 @@ import Prelude as P
 import Data.Tuple
 import Data.Function
 import Data.Maybe
-import Data.List (find)
+import Data.List (find, partition, group, sort)
 import Data.Generics.Schemes (everything)
 
 import Control.Arrow (second, (***))
@@ -132,10 +132,11 @@ propModule name hscname pbtinfos decls =
              , ImportDecl () (ModuleName () "Data.Word") False False False Nothing Nothing (Just $ ImportSpecList () False import_word)
              ]
             -- TODO: need to have a list of record names
-      hs_decls = (map mkLens ["R4"]) ++ (P.concatMap propDecls pbtinfos) ++ cogDecls
+      (ls, cogD) = partition (\x -> case x of 
+                                      (SpliceDecl _ _) -> True
+                                      _ -> False) cogDecls
+      hs_decls = (rmdups ls) ++ (P.concatMap propDecls pbtinfos) ++ cogD
                                 -- ++ (P.concatMap (\x -> genDecls x decls) pbtinfos)
-            where mkLens t = SpliceDecl () $ app (function "makeLenses") 
-                                (TypQuote () (UnQual () (mkName t)))
   in 
   Module () (Just moduleHead) exts imps hs_decls
 
@@ -228,18 +229,20 @@ genDecls' PBTInfo{..} defs = do
           in return $ [dec, hs_dec] --[sig, dec] --, icT']
 
 -- Abstraction Function Generator
-absFDecl :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
+absFDecl :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> SG ([Decl ()])
 absFDecl PBTInfo{..} defs = do
         let FunAbsF{absf=_, ityps=ityps} = fabsf
             -- icT = fromJust $ P.lookup "IC" ityps
             iaT = fromJust $ P.lookup "IA" ityps
             fnName = "abs_" ++fname
-        (icT, _, absE) <- genAbsFTypsAndExp fname iaT defs
+        (icT, _, absE, conNames) <- genAbsFTypsAndExp fname iaT defs
         let ti     = icT
             to     = iaT
             sig    = TypeSig () [mkName fnName] (TyFun () ti to)
             dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "ic"] (UnGuardedRhs () absE) Nothing]
-        return $ [sig, dec]
+            mkLens t = SpliceDecl () $ app (function "makeLenses") 
+                                (TypQuote () (UnQual () (mkName t)))
+        return $ (map mkLens conNames)++[sig, dec]
 
 -- Refinement Relation Generator
 rrelDecl :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
@@ -260,27 +263,27 @@ rrelDecl PBTInfo{..} defs = do
 -- @iaTyp@ is the abstract input type
 -- @defs@ is the list of Cogent definitions
 --
-genAbsFTypsAndExp :: String -> Type () -> [CC.Definition TypedExpr VarName b] -> SG (Type (), Type (), Exp ()) 
+genAbsFTypsAndExp :: String -> Type () -> [CC.Definition TypedExpr VarName b] -> SG (Type (), Type (), Exp (), [String]) 
 genAbsFTypsAndExp fname iaTyp defs = do 
     let def = fromJust $ find (\x -> CC.getDefinitionId x == fname) defs
-    (icT, iaT, absE) <- genAbsFTypsAndExp' def iaTyp
-    pure $ (icT, iaT, absE)
+    (icT, iaT, absE, conNames) <- genAbsFTypsAndExp' def iaTyp
+    pure $ (icT, iaT, absE, conNames)
 
 -- Helper: get function type and expression
-genAbsFTypsAndExp' :: (CC.Definition TypedExpr VarName b) -> Type () -> SG ( (Type (), Type (), Exp ()) )
+genAbsFTypsAndExp' :: (CC.Definition TypedExpr VarName b) -> Type () -> SG ( (Type (), Type (), Exp (), [String]) )
 genAbsFTypsAndExp' def iaT | (CC.FunDef _ fn ps _ ti to _) <- def 
     = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
         ti' <- shallowType ti
-        absE <- mkAbsFBody ti ti' iaT
-        pure $ ({-TyCon () (mkQName "Unknown") -} ti', iaT, absE)
+        (absE, conNames) <- mkAbsFBody ti ti' iaT
+        pure $ ({-TyCon () (mkQName "Unknown") -} ti', iaT, absE, conNames)
 
 genAbsFTypsAndExp' def iaT | (CC.AbsDecl _ fn ps _ ti to) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
     ti' <- shallowType ti
-    absE <- mkAbsFBody ti ti' iaT
-    pure $ ( {-TyCon () (mkQName "Unknown")-} ti', iaT, absE)
+    (absE, conNames) <- mkAbsFBody ti ti' iaT
+    pure $ ( {-TyCon () (mkQName "Unknown")-} ti', iaT, absE, conNames)
 
 genAbsFTypsAndExp' def iaT | (CC.TypeDef tn _ _) <- def 
-    = pure $ (TyCon () (mkQName "Unknown"), iaT, function $ "undefined")
+    = pure $ (TyCon () (mkQName "Unknown"), iaT, function $ "undefined", [])
 
 getFnOutTyp :: String -> Type () -> [CC.Definition TypedExpr VarName b] -> SG (Type (), Type (), Exp ()) 
 getFnOutTyp fname oaTyp defs = do 
@@ -328,44 +331,15 @@ getFnOutTyp' (CC.TypeDef tn _ _) oaT = pure $ (TyCon () (mkQName "Unknown"), oaT
 -- @iaTyp@ is the user supplied type we are trying to abstract to
 -- Handle when IC is tuple --> Lens view for each field
 -- return map where field name maps to view expression
---
-
 
 -- ----------------------------------------------------------------------------------------------------
-mkAbsFBody :: CC.Type t a -> Type () -> Type () -> SG (Exp ())
+mkAbsFBody :: CC.Type t a -> Type () -> Type () -> SG (Exp (), [String])
 mkAbsFBody cogIcTyp icTyp iaTyp 
     = let tyL = analyseTypes cogIcTyp icTyp 0 "None"
           lens = mkLensView tyL Nothing
           binds = P.zip (map (\x -> pvar . mkName . fst $ x) lens) (map snd lens)
           body = packAbsCon iaTyp (map fst lens) 0
-
-
-{-
-
-          case iaTyp of
-                   (TyTuple _ _ ftys) -> tuple $ map (\(toTyp, varToPut) 
-                                                          -> if (isInt toTyp) then app (function "fromIntegral") (var . mkName . fst $ varToPut)
-                                                             else (var . mkName . fst $ varToPut)
-                                                     ) $ P.zip ftys lens  
-                                                     -}
--- Now has to scan the iaTyp and follow to the structure when building
-{- TODO: handle more abstractions
-        (TyParen _ insideTy) -> mkAbsFBody'' cogIcTyp icTyp insideTy
-        (TyTuple _ _ tfs) -> mkTupFrom'' cogIcTyp icTyp iaTyp
-        (TyUnboxedSum _ tfs) -> mkTupFrom'' cogIcTyp icTyp iaTyp
-        (TyList _ ty) -> __impossible "TODO: Abstacting to List"
-        (TyFun _ iTy oTy) -> __impossible "TODO: Abstacting to function"
-        (TyApp _ lTy rTy) -> __impossible "TODO: Abstacting to Constructor w/ application"
-        (TyVar _ name) -> __impossible "TODO: Abstacting to a type variable"
-        (TyCon _ name) -> __impossible "TODO: Abstacting to a named type or type constructor"
-        (TyInfix _ lTy name rTy) -> __impossible "TODO: Abstacting to a infix type constructor"
-        otherwise -> __impossible "Bad abstraction"
-                   _ -> __impossible "TODO"
-
- -}
-       in pure $ mkLetE binds body
-
-
+       in pure $ (mkLetE binds body, getConNames tyL []) 
 -- generate exp for packing the constructor that is returned by absf
 -- 1st = type
 -- 2nd = list of vars to put in the constructor
@@ -378,46 +352,40 @@ packAbsCon :: Type () -> [String] -> Int -> Exp ()
 packAbsCon (TyParen _ insideTy) varsToPut pos = packAbsCon insideTy varsToPut pos
 packAbsCon (TyTuple _ _ ftys) varsToPut pos 
     -- give each subtype is appropriate var
-    = tuple $ if | P.length ftys == P.length varsToPut 
-                    -> [ packAbsCon (ftys!!i) varsToPut i | i <- [0..(P.length ftys)-1] ]
-                 | otherwise 
-                    -> __impossible $ "TODO: Indirect abstraction"++show ftys 
+    = tuple $ let vs = if | P.length ftys == P.length varsToPut -> varsToPut
+                          | otherwise -> take (P.length ftys) varsToPut
+                in [ packAbsCon (ftys!!i) vs i | i <- [0..(P.length ftys)-1] ]
 packAbsCon (TyCon _ name) varsToPut pos 
     = case (checkIsPrim name) of 
+        -- transform if needs coercion
         Just x -> if | isInt' name 
                         -> app (function "fromIntegral") $ mkVar $ varsToPut!!pos
                      | otherwise 
                         -> mkVar $ varsToPut!!pos
-        Nothing -> __impossible $ "bad abstraction"++show name
-packAbsCon (TyApp _ lTy rTy) varsToPut prev 
-
-        -- TODO: gets interesting here: any complex abstract types -> try to build from list and tups
-        -- Map String String -> if "Map" the app (function "M.fromList")
-        = undefined
-packAbsCon (TyList _ ty) varsToPut prev = undefined
+        Nothing -> mkVar $ varsToPut!!pos
+packAbsCon iaTyp varsToPut pos 
+    | (TyApp _ lTy rTy) <- iaTyp
+    = let (name, fieldTypes) = let (conHead:conParams) = unfoldAppCon iaTyp 
+                                 in ( case conHead of 
+                                            (TyCon _ (UnQual _ (Ident _ n))) -> n
+                                            _ -> "Unknown"
+                                    , conParams
+                                    )
+        -- Constructors with application, some need to be handled differently -> Set | Map | List -> try to build `from` list and tups
+        -- e.g Map String String -> if "Map" the app (function "M.fromList")
+        in -- if -- | name == "Map" -> undefined 
+              -- | name == "Set" -> app (function "S.fromList") $ mkVar $ varsToPut!!pos
+             --  | otherwise 
+                -- -> 
+                 appFun (mkVar name) $ let vs = if | P.length fieldTypes == P.length varsToPut -> varsToPut
+                                                      | otherwise -> take (P.length fieldTypes) varsToPut
+                                               in [ packAbsCon (fieldTypes!!i) vs i | i <- [0..(P.length fieldTypes)-1] ]
+                where 
+packAbsCon (TyList _ ty) varsToPut pos = mkVar $ varsToPut!!pos
 packAbsCon iaTyp varsToPut prev | _ <- iaTyp = __impossible $ "Bad Abstraction"++" --> "++"Hs: "++show iaTyp
-
-{-
-
-        -> if (isInt toTyp) then app (function "fromIntegral") (var . mkName . fst $ varToPut)
-                                                             else (var . mkName . fst $ varToPut)
-                                                             -}
-
-
-
-
-
-        {-
-         - TODO: ensure these can never happen
-        (TyUnboxedSum _ tfs) -> mkTupFrom'' cogIcTyp icTyp iaTyp
-        (TyFun _ iTy oTy) -> __impossible "TODO: Abstacting to function"
-        (TyVar _ name) -> __impossible "TODO: Abstacting to a type variable"
-        (TyInfix _ lTy name rTy) -> __impossible "TODO: Abstacting to a infix type constructor"
-        otherwise -> __impossible "Bad abstraction"
-        -}
 -- ----------------------------------------------------------------------------------------------------
 
-
+-- ----------------------------------------------------------------------------------------------------
 
 -- | mkLensView
 -- ---------------
@@ -445,7 +413,6 @@ mkLensView tyL prev
                     Just x -> mkLensView next $ Just $ infixApp x viewInfixExp' (mkVar k)
                     Nothing -> mkLensView next $ Just $ infixApp (mkVar "ic") viewInfixExp (mkVar k)
        ) (M.toList fld) 
-
 
 -- | analyseTypes
 -- ---------------
@@ -524,6 +491,7 @@ unfoldAppCon :: Type () -> [Type ()]
 unfoldAppCon t = case t of 
                    (TyApp _ l r) -> unfoldAppCon l ++ unfoldAppCon r
                    (TyCon _ n) -> [t]
+                   _ -> [t]
 
 prims = ["Word8","Word16","Word32","Word64","Bool","String"]
         ++ ["Int"]
@@ -543,6 +511,24 @@ isInt (TyCon _ (UnQual _ (Ident _ n))) = checkTy n ["Int"]
 checkTy :: String -> [String] -> Bool
 checkTy n xs = any (\x -> n == x) xs
 
+rmdups :: (Ord a) => [a] -> [a]
+rmdups = map P.head . group . sort
+
+getConNames :: TyLayout -> [String] -> [String]
+getConNames tyL acc 
+    = let hsTy = tyL ^. hsTyp
+          ty = tyL ^. typ
+          fld = tyL ^. fieldMap
+        in concatMap (\(_,f) -> case f of 
+            Left _ -> acc
+            Right next -> case ty of 
+                               HsPrim -> acc
+                               HsRecord -> let (c:cs) = unfoldAppCon hsTy
+                                             in getConNames next $ acc ++ case c of 
+                                                     (TyCon _ (UnQual _ (Ident _ n))) -> [n]
+                                                     _ -> []
+                               _ -> getConNames next acc
+        ) $ M.toList fld
 
 -- ----------------------------------------------------------------------------------------------------
 
