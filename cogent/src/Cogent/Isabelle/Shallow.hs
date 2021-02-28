@@ -59,7 +59,7 @@ import Control.Monad.Writer (Writer, runWriter)
 import Data.Char (ord, chr, intToDigit, isDigit)
 import Data.Either (lefts, rights)
 import Data.Function (on)
-import Data.List (isPrefixOf, isSuffixOf, stripPrefix, partition, sortBy, minimumBy, groupBy, unzip5, intercalate, nub)
+import Data.List (isPrefixOf, isSuffixOf, stripPrefix, partition, sortBy, sortOn, minimumBy, groupBy, unzip5, intercalate, nub, replicate, dropWhileEnd)
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Set as S
@@ -323,14 +323,26 @@ shallowExpr e
  , tscrut              <- exprType escrut
  , TSum talts          <- tscrut
  = do
+  tuples <- asks recoverTuples
   escrut' <- shallowExpr escrut
-  tn      <- findTypeSyn tscrut
-  ealts'  <- traverse (\(n,e) -> mkLambdaE [snm n] e) ealts
-  let es   = flip map talts $ \(tag',(t',b')) ->
+  if tuples 
+     then do
+         -- in tuples form use the case-of representation
+         let es   = flip map talts $ \(tag,_) ->
+              case M.lookup tag ealts of
+               Just (n,e) -> (tag,n,e) 
+               Nothing -> __impossible ("shallowExpr: takeFlatCase succeeded but returned map missing tag " ++ show tag)
+         es' <- mapM shallowAlt es
+         pure $ CaseOf escrut' es'
+     else do
+         -- otherwise use case_x application since the Let\^<sub>d\^<sub>s will interfere with case-of syntax
+         tn      <- findTypeSyn tscrut
+         ealts'  <- traverse (\(n,e) -> mkLambdaE [snm n] e) ealts
+         let es   = flip map talts $ \(tag',(t',b')) ->
               case M.lookup tag' ealts' of
                Just e' -> e'
                Nothing -> __impossible ("shallowExpr: takeFlatCase succeeded but returned map missing tag " ++ show tag')
-  pure $ mkApp (mkStr ["case_",tn]) $ es ++ [escrut']
+         pure $ mkApp (mkStr ["case_",tn]) $ es ++ [escrut']
 
 shallowExpr (TE t (Case e tag (_,n1,e1) (_,n2,e2))) = do
   e' <- shallowExpr e
@@ -376,6 +388,11 @@ shallowExpr (TE _ (Cast    (TPrim pt) (TE _ (ILit n _)))) = pure $ shallowILit n
 shallowExpr (TE _ (Cast    (TPrim pt) e)) =
   TermWithType <$> (mkApp (mkId "ucast") <$> ((:[]) <$> shallowExpr e)) <*> pure (shallowPrimType pt)
 
+shallowAlt :: (Show b,Eq b) => (TagName,VarName,TypedExpr t v VarName b) -> SG (Term,Term)
+shallowAlt (tag,n,e) = do
+    e' <- shallowExpr e
+    pure (TermApp (mkId tag) (mkId n),e')
+
 -- | @'mkL' nm t1 t2@:
 --
 --   It generates term @(&#x03bb; nm. t2) t1@
@@ -394,7 +411,8 @@ mkLet nm t1 t2 =
     mkApp (mkId "HOL.Let") [t1, mkLambda [snm nm] t2]
 
 shallowLet :: (Show b,Eq b) => VarName -> TypedExpr t v VarName b -> TypedExpr t ('Suc v) VarName b -> SG Term
-shallowLet nm e1 e2 = mkLet nm <$> shallowExpr e1 <*> shallowExpr e2
+shallowLet nm e1 e2 = do
+    mkLet nm <$> shallowExpr e1 <*> shallowExpr e2
 
 mkStr :: [String] -> Term
 mkStr = mkId . concat
@@ -438,6 +456,125 @@ getRecordFieldName t@(TRecord _ fs _) ind = do
   let prefix = if tuples && isRecTuple fnms then recTupleName fnms ++ "_" else tn ++ "."
   pure $ prefix ++ (map fst fs !! ind) ++ subSymStr "f"
 getRecordFieldName _ _ = __impossible "getRecordFieldName"
+
+-- Simplify generated terms for better readability:
+-- - eliminate take_cogent: let (a,b) = take_cogent rec sel in e --> let b = rec; a = sel b in e
+-- - eliminate Let_ds: replace by HOL.Let
+-- - eliminate bindings of variables not used in the body 
+-- - eliminate chain bindings of variables by variable substitution
+-- - eliminate tuple accessor functions by using tuple bindings
+-- This is only applied to the recoverTuples form and must be respected in the TuplesProof.
+simplifyTerm :: Term -> Term
+simplifyTerm = useTupleBindings . simplifyLets
+
+simplifyLets :: Term -> Term
+simplifyLets (TermApp t t') =
+    case t of
+         TermApp hl@(TermIdent (Id s)) bnd 
+           | s == "HOL.Let" -> 
+             let (QuantifiedTerm Lambda [w@(Id ws)] bdy) = t'
+             in case bnd of
+                 TermApp (TermApp (TermIdent (Id tk)) rec) sel | tk == "take" ++ subSymStr "cogent" ->
+                   let (v1,v2) = parsePrettyPair ws
+                   in simplifyLets $ mkHOLLet (Id v2) rec $ mkHOLLet (Id v1) (mkApp sel [(mkId v2)]) bdy
+                 TermIdent v -> 
+                   let sbdy = simplifyLets bdy
+                   in if v == w || (not $ isFreeInTerm w sbdy) then sbdy else substVarInTerm v w $ sbdy
+                 _ -> let sbdy = simplifyLets bdy in if not $ isFreeInTerm w sbdy then sbdy else recurse
+           | s == ("Let" ++ subSymStr "ds") -> simplifyLets $ TermApp (TermApp (mkId "HOL.Let") bnd) t'
+         _ -> recurse
+    where recurse = (TermApp (simplifyLets t) (simplifyLets t'))
+simplifyLets (TermWithType t tp) = TermWithType (simplifyLets t) tp
+simplifyLets (QuantifiedTerm qnt ids t) = QuantifiedTerm qnt ids $ simplifyLets t
+simplifyLets (TermUnOp op t) = TermUnOp op $ simplifyLets t
+simplifyLets (TermBinOp op t t') = TermBinOp op (simplifyLets t) (simplifyLets t')
+simplifyLets (ListTerm opn ts cls) = ListTerm opn (map simplifyLets ts) cls
+simplifyLets (CaseOf t alts) = CaseOf (simplifyLets t) $ map (\(p,t) -> (p,simplifyLets t)) alts
+simplifyLets t = t
+
+useTupleBindings :: Term -> Term
+useTupleBindings (TermApp (TermApp (TermIdent (Id s)) (TermApp (TermIdent (Id tacc)) tup)) (QuantifiedTerm Lambda [(Id ws)] bdy))
+    | (Just acc) <- parseTupleAcc tacc, s == "HOL.Let" = mkTupleBinding [(acc,ws)] tup bdy
+useTupleBindings (TermApp t t') = TermApp (useTupleBindings t) (useTupleBindings t')
+useTupleBindings (TermWithType t tp) = TermWithType (useTupleBindings t) tp
+useTupleBindings (QuantifiedTerm qnt ids t) = QuantifiedTerm qnt ids $ useTupleBindings t
+useTupleBindings (TermUnOp op t) = TermUnOp op $ useTupleBindings t
+useTupleBindings (TermBinOp op t t') = TermBinOp op (useTupleBindings t) (useTupleBindings t')
+useTupleBindings (ListTerm opn ts cls) = ListTerm opn (map useTupleBindings ts) cls
+useTupleBindings (CaseOf t alts) = CaseOf (useTupleBindings t) $ map (\(p,t) -> (p,useTupleBindings t)) alts
+useTupleBindings t = t
+
+substVarInTerm :: Ident -> Ident -> Term -> Term
+substVarInTerm v w (TermIdent x) | x == w = (TermIdent v)
+-- [v/w] let v = bnd in bdy --> let w = v; v = bnd in bdy
+-- [v/w] let w = bnd in bdy --> let w = [v/w] bnd in bdy
+-- [v/w] let x = bnd in bdy --> let x = [v/w] bnd in [v/w] bdy
+substVarInTerm v w t@(TermApp (TermApp hl@(TermIdent (Id s)) bnd) (QuantifiedTerm Lambda [x] bdy)) | s == "HOL.Let" = 
+    if w == x || (not $ isFreeInTerm w bdy)
+       then mkHOLLet x (substVarInTerm v w bnd) bdy
+       else if v == x then mkHOLLet w (TermIdent v) t
+                      else mkHOLLet x (substVarInTerm v w bnd) (substVarInTerm v w bdy)
+substVarInTerm v w (TermApp t t') = TermApp (substVarInTerm v w t) (substVarInTerm v w t')
+substVarInTerm v w (TermWithType t tp) = TermWithType (substVarInTerm v w t) tp
+substVarInTerm v w t@(QuantifiedTerm qnt ids bdy) = 
+    if elem v ids
+       then mkHOLLet w (TermIdent v) t
+       else if elem w ids then t else QuantifiedTerm qnt ids $ substVarInTerm v w bdy
+substVarInTerm v w (TermUnOp op t) = TermUnOp op (substVarInTerm v w t)
+substVarInTerm v w (TermBinOp op t t') = TermBinOp op (substVarInTerm v w t) (substVarInTerm v w t')
+substVarInTerm v w (ListTerm opn ts cls) = ListTerm opn (map (substVarInTerm v w) ts) cls
+substVarInTerm v w t@(CaseOf splt alts) = 
+    if any (isBoundInAlt v) alts then mkHOLLet w (TermIdent v) t 
+                                 else CaseOf (substVarInTerm v w splt) $ map (substVarInAlt v w) alts
+substVarInTerm v w t = t
+
+isBoundInAlt :: Ident -> (Term,Term) -> Bool
+isBoundInAlt v (TermApp _ (TermIdent x),_) = v == x
+
+substVarInAlt :: Ident -> Ident -> (Term,Term) -> (Term,Term)
+substVarInAlt v w (p@(TermApp _ (TermIdent x)),t) = 
+    if w == x then (p,t) else (p,substVarInTerm v w t)
+
+isFreeInTerm :: Ident -> Term -> Bool
+isFreeInTerm v (TermIdent x) | x == v = True
+isFreeInTerm v (TermApp t t') = (isFreeInTerm v t) || (isFreeInTerm v t')
+isFreeInTerm v (TermWithType t tp) = isFreeInTerm v t
+isFreeInTerm v (QuantifiedTerm qnt ids t) = if elem v ids then False else isFreeInTerm v t
+isFreeInTerm v (TermUnOp op t) = isFreeInTerm v t
+isFreeInTerm v (TermBinOp op t t') = (isFreeInTerm v t) || (isFreeInTerm v t')
+isFreeInTerm v (ListTerm opn ts cls) = any (isFreeInTerm v) ts
+isFreeInTerm v (CaseOf t alts) = (isFreeInTerm v t) || any (isFreeInAlt v) alts
+isFreeInTerm v _ = False
+
+isFreeInAlt :: Ident -> (Term,Term) -> Bool
+isFreeInAlt v (TermApp _ (TermIdent x),t) = if v == x then False else isFreeInTerm v t
+
+mkTupleBinding :: [((Int,Int),VarName)] -> Term -> Term -> Term
+mkTupleBinding cmps tup bdy = 
+    case bdy of
+         (TermApp (TermApp hl@(TermIdent (Id s)) (TermApp (TermIdent (Id tacc)) tup')) (QuantifiedTerm Lambda [(Id w)] bdy'))
+             | (Just acc) <- parseTupleAcc tacc, s == "HOL.Let" && tup == tup' -> mkTupleBinding ((acc,w):cmps) tup bdy'
+         _ -> mkHOLLet (Id bndtup) (useTupleBindings tup) $ useTupleBindings bdy
+    where bndtup = mkPrettyTuple $ fillFrom 1 $ sortOn (snd . fst) cmps
+
+fillFrom :: Int -> [((Int,Int),VarName)] -> [VarName]
+fillFrom i cmps@(((siz,el),v):cmps') =
+    if i < el then "_" : fillFrom (i+1) cmps
+              else v : (if null cmps' then replicate (siz-el) "_" else fillFrom (i+1) cmps')
+
+parseTupleAcc :: String -> Maybe (Int,Int)
+parseTupleAcc s = if upp=="P" && p=="_p" && subf=="\\<^sub>f" then Just (read siz, read el) else Nothing
+    where (upp,r1) = break isDigit s
+          (siz,r2) = span isDigit r1
+          (p,r3) = break isDigit r2
+          (el,subf) = span isDigit r3
+
+parsePrettyPair :: String -> (String,String)
+parsePrettyPair vpr = (h1, dropWhileEnd (== ')') $ drop 1 h2)
+    where (h1,h2) = break (== ',') $ drop 1 vpr
+
+mkHOLLet :: Ident -> Term -> Term -> Term
+mkHOLLet v bnd bdy = mkApp (TermIdent (Id "HOL.Let")) [bnd, lamTerm [v] bdy]
 
 typarUpd typar v = v {typeVars = typar}
 
@@ -880,8 +1017,10 @@ shallowDefinition :: (Show b,Eq b) => Definition TypedExpr VarName b -> SG ([Eit
 shallowDefinition (FunDef _ fn ps _ ti to e) =
     local (typarUpd typar) $ do
     e' <- shallowExpr e
+    tuples <- asks recoverTuples
+    let e'' = if tuples && __cogent_fsimplify_shallow_tuples then simplifyTerm e' else e'
     types <- shallowType $ TFun ti to
-    let term = [isaTerm| $fn' $arg0 \<equiv> $e' |]
+    let term = [isaTerm| $fn' $arg0 \<equiv> $e'' |]
     pure ([Left $ Definition (Def (Just (Sig (snm fn) (Just types))) term)], Just $ snm fn)
   where fn'   = mkId (snm fn)
         arg0  = mkId $ snm $ D.freshVarPrefix ++ "0"
@@ -1012,6 +1151,10 @@ shallowTuplesProof baseName sharedDefThy defThy tupSharedDefThy tupDefThy typeMa
     {- Define shallow_tuples_rel instances and proof rules for all our types.
        We expect that typeMap contains all types, and that the tupled shallow embedding
        uses the same type names (except for tuples, which are omitted). -}
+    {- The rules for record fields and the variant case are put into the proof bucket instead of the rule bucket.
+       That makes them available in the main proof iteration in proofBucket ++ "[THEN shallow_tuples_rel_funD].
+       This is necessary for higher order functions where an applied function can be taken from a record field
+       or specified by a case expression. -}
     -- FIXME: use less TheoryString?
     dataRelations = map makeRel $ M.toList typeMap
       where makeRel (RecordStr fields, typeName) =
@@ -1024,7 +1167,7 @@ shallowTuplesProof baseName sharedDefThy defThy tupSharedDefThy tupDefThy typeMa
                 relName = "shallow_tuples_rel_" ++ typeName
                 fieldEquivs = mapInitLast (++ " \\<and>") (++ "\"") $
                               [ "shallow_tuples_rel (" ++ fullName ++ "." ++ isaRecField field ++ " x) " ++
-                                "(P" ++ show (P.length fields) ++ "_" ++ isaRecField ("p" ++ show (f :: Int)) ++ " xt)"
+                                tupAccess (P.length fields) (f :: Int) "xt"
                               | (f, field) <- P.zip [1..] fields ]
 
                 constrAssms = mapInitLast (++ ";") id $
@@ -1052,10 +1195,10 @@ shallowTuplesProof baseName sharedDefThy defThy tupSharedDefThy tupDefThy typeMa
 
                    -- fields
                    concat [
-                     [ "lemma " ++ mangleNames ["shallow_tuples_rule", typeName, field] ++ " [" ++ ruleBucket ++ "]:"
+                     [ "lemma " ++ mangleNames ["shallow_tuples_rule", typeName, field] ++ " [" ++ proofBucket ++ "]:"
                      , "  \"shallow_tuples_rel (x :: " ++ fullType ++ ") (xt :: " ++ tupleFullType ++ ") \\<Longrightarrow>"
                      , "   shallow_tuples_rel (" ++ fullName ++ "." ++ field ++ " x) " ++
-                       "(P" ++ show (P.length fields) ++ "_" ++ isaRecField ("p" ++ show f) ++ " xt)\""
+                       tupAccess (P.length fields) f "xt" ++ "\""
                      , "  by (simp add: shallow_tuples_rel_" ++ typeName ++ "_def)"
                      ] | (f, field) <- P.zip [(1::Int) ..] (map isaRecField fields)
                    ]
@@ -1099,7 +1242,7 @@ shallowTuplesProof baseName sharedDefThy defThy tupSharedDefThy tupDefThy typeMa
 
                    -- fields
                    concat [
-                     [ "lemma " ++ mangleNames ["shallow_tuples_rule", typeName, field] ++ " [" ++ ruleBucket ++ "]:"
+                     [ "lemma " ++ mangleNames ["shallow_tuples_rule", typeName, field] ++ " [" ++ proofBucket ++ "]:"
                      , "  \"shallow_tuples_rel (x :: " ++ fullType ++ ") (xt :: " ++ tupleFullType ++ ") \\<Longrightarrow>"
                      , "   shallow_tuples_rel (" ++ fullName ++ "." ++ field ++ " x) (" ++ tupleFullName ++ "." ++ field ++ " xt)\""
                      , "  by (simp add: shallow_tuples_rel_" ++ typeName ++ "_def)"
@@ -1147,7 +1290,7 @@ shallowTuplesProof baseName sharedDefThy defThy tupSharedDefThy tupDefThy typeMa
                  [ "end" ] ++
 
                  -- case
-                 [ "lemma " ++ mangleNames ["shallow_tuples_rule_case", typeName] ++ " [" ++ ruleBucket ++ "]:"
+                 [ "lemma " ++ mangleNames ["shallow_tuples_rule_case", typeName] ++ " [" ++ proofBucket ++ "]:"
                  , "  \"\\<lbrakk> shallow_tuples_rel x xt;"
                  ] ++
                  indent 5 caseAssms ++
@@ -1168,6 +1311,16 @@ shallowTuplesProof baseName sharedDefThy defThy tupSharedDefThy tupDefThy typeMa
                  ]
 
             isaRecField = (++ subSymStr "f") -- sync with getRecordFieldName
+            
+            tupAccess siz i t = 
+                if __cogent_fsimplify_shallow_tuples
+                   then tupAccOuter siz i ++ tupAccInner siz i ++ t ++ tupAccClose siz i
+                   else "(P" ++ show siz ++ "_" ++ isaRecField ("p" ++ show i) ++ " " ++ t ++ ")"
+            tupAccOuter siz i = if siz == i then tupAccSnd else tupAccFst
+            tupAccInner siz i = concat $ replicate (if siz == i then i-2 else i-1) tupAccSnd
+            tupAccClose siz i = concat $ replicate (if siz == i then i-1 else i) ")"
+            tupAccFst = "(prod.fst "
+            tupAccSnd = "(prod.snd "
 
             polyType name baseVar numArgs =
               "(" ++ intercalate ", " ["'" ++ baseVar ++ show n | n <- [1 .. numArgs]] ++ ") " ++ name
@@ -1184,9 +1337,14 @@ shallowTuplesProof baseName sharedDefThy defThy tupSharedDefThy tupDefThy typeMa
                  [ "lemma " ++ mangleNames ["shallow_tuples", funName] ++ " [" ++ proofBucket ++ "]:"
                  , "  \"shallow_tuples_rel " ++ fullName ++ " " ++ tupleFullName ++ "\""
                  , "  apply (rule shallow_tuples_rel_funI)"
-                 , "  apply (unfold " ++ unwords [funDef, tupleFunDef, "id_def" {- in Esacs -}] ++ ")"
+                 , "  apply (unfold " ++ unwords [funDef, tupleFunDef, "id_def" {- in Esacs -}] ++ ")"]
+                 ++ (if __cogent_fsimplify_shallow_tuples 
+                       -- fully substitute all bindings so that the simplified tuple terms can be compared with the core terms
+                       then ["  apply ((unfold " ++ "take" ++ (subSymStr "cogent") ++ "_def " 
+                           ++ "Let" ++ (subSymStr "ds") ++ "_def " ++ "Let_def split_def)?,(simp only: fst_conv snd_conv)?)"]
+                       else []) ++
                    -- main iteration
-                 , "  by (assumption |"
+                 [ "  by (assumption |"
                  , "      rule shallow_tuples_basic_bucket " ++ ruleBucket
                  , "           " ++ proofBucket ++ " " ++ proofBucket ++ "[THEN shallow_tuples_rel_funD])+"
                  ]
