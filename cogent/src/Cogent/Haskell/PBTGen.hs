@@ -340,6 +340,7 @@ mkAbsFBody cogIcTyp icTyp iaTyp
           binds = P.zip (map (\x -> pvar . mkName . fst $ x) lens) (map snd lens)
           body = packAbsCon iaTyp (map fst lens) 0
        in pure $ (mkLetE binds body, getConNames tyL []) 
+
 -- generate exp for packing the constructor that is returned by absf
 -- 1st = type
 -- 2nd = list of vars to put in the constructor
@@ -371,13 +372,14 @@ packAbsCon iaTyp varsToPut pos
                                             _ -> "Unknown"
                                     , conParams
                                     )
+        -- TODO:
         -- Constructors with application, some need to be handled differently -> Set | Map | List -> try to build `from` list and tups
         -- e.g Map String String -> if "Map" the app (function "M.fromList")
-        in -- if -- | name == "Map" -> undefined 
+        -- if -- | name == "Map" -> undefined 
               -- | name == "Set" -> app (function "S.fromList") $ mkVar $ varsToPut!!pos
              --  | otherwise 
                 -- -> 
-                 appFun (mkVar name) $ let vs = if | P.length fieldTypes == P.length varsToPut -> varsToPut
+        in appFun (mkVar name) $ let vs = if | P.length fieldTypes == P.length varsToPut -> varsToPut
                                                       | otherwise -> take (P.length fieldTypes) varsToPut
                                                in [ packAbsCon (fieldTypes!!i) vs i | i <- [0..(P.length fieldTypes)-1] ]
                 where 
@@ -393,35 +395,34 @@ packAbsCon iaTyp varsToPut prev | _ <- iaTyp = __impossible $ "Bad Abstraction"+
 -- from Layout return list of pairs: variable name for bind and the view expression
 -- key = var name ++ depth tag
 -- val = 
--- mkLensView {} (infixApp (mkName "ic") viewInfixExp
 -- ----------------------------------------------------------------------------------------------------
-mkLensView :: TyLayout -> Maybe (Exp ()) -> [(String, (Exp ()))]
+mkLensView :: HsEmbedLayout -> Maybe (Exp ()) -> [(String, (Exp ()))]
 mkLensView tyL prev 
     = let hsTy = tyL ^. hsTyp
-          ty = tyL ^. typ
+          ty = tyL ^. grTag
           fld = tyL ^. fieldMap
           -- field map is a tree with int leaves -> only build vars for leaves
        in concat $ map ( \(k, v) -> case ty of 
            HsPrim -> case v of
-              (Left depth) -> case prev of 
-                    Just x -> [(k++(replicate depth (P.head "'")), x)]
-                    Nothing -> [(k++(replicate depth (P.head "'")), mkVar "ic")]
-              (Right next) -> __impossible "boom"
-           _      -> case v of
-              (Left depth) -> __impossible "boom"
-              (Right next) -> case prev of 
-                    Just x -> mkLensView next $ Just $ infixApp x viewInfixExp' (mkVar k)
-                    Nothing -> mkLensView next $ Just $ infixApp (mkVar "ic") viewInfixExp (mkVar k)
+              (Left depth) -> [ ( k ++ replicate depth (P.head "'")
+                                , case prev of Just x -> x
+                                               Nothing -> mkVar "ic" 
+                                )
+                              ]
+              (Right next) -> __impossible $ show k ++ " " ++ show v
+           _ -> case v of
+              (Left depth) -> __impossible $ show k ++ " " ++ show v
+              (Right next) -> mkLensView next $ Just $ mkViewInfixE "ic" ty prev k
        ) (M.toList fld) 
 
 -- | analyseTypes
 -- ---------------
 -- | Builds the structure used for generating the body of absf
 -- ----------------------------------------------------------------------------------------------------
-analyseTypes :: CC.Type t a -> Type () -> Int -> String -> TyLayout
+analyseTypes :: CC.Type t a -> Type () -> Int -> String -> HsEmbedLayout
 analyseTypes cogIcTyp (TyParen _ t   ) depth fieldName = analyseTypes cogIcTyp t depth fieldName
 analyseTypes cogIcTyp icTyp depth fieldName 
-    | (TyTuple _ _ tfs) <- icTyp = TyLayout icTyp HsTuple $ getTupFields cogIcTyp tfs
+    | (TyTuple _ _ tfs) <- icTyp = HsEmbedLayout icTyp HsTuple $ getTupFields cogIcTyp tfs
     where getTupFields cogTy tfs 
             = let fs = getFields cogTy
                 in M.fromList [ let k = "_"++show (i+1)
@@ -429,31 +430,33 @@ analyseTypes cogIcTyp icTyp depth fieldName
                               | i <- [0..(P.length tfs)-1]
                               ]
 analyseTypes cogIcTyp icTyp depth fieldName 
-    | (TyCon _ cn) <- icTyp = TyLayout icTyp HsPrim (getConFields cn)
+    | (TyCon _ cn) <- icTyp = HsEmbedLayout icTyp HsPrim (getConFields cn)
     where getConFields cn = M.fromList $ case (checkIsPrim cn) of 
                           Just x -> [(fieldName, Left depth)] 
                           Nothing -> []
 analyseTypes cogIcTyp icTyp depth fieldName 
     | (TyApp _ l r) <- icTyp 
-    = let (name, fieldTypes) = let (conHead:conParams) = unfoldAppCon icTyp 
-                                 in ( case conHead of 
-                                            (TyCon _ (UnQual _ (Ident _ n))) -> n
-                                            _ -> __impossible $ "Bad Constructor name"++show l++"--"++show r
-                                    , conParams
-                                    )
-          fields = getFields cogIcTyp
-        in TyLayout l HsRecord $ M.fromList [ ( (fst (fields!!i))
-                                              , let f = fields!!i
-                                                 in Right (analyseTypes (fst (snd f)) (fieldTypes!!i) (depth+1) (fst f))
-                                              )
-                                            | i <- [0..(P.length fields)-1]
-                                            ]
+    = let (maybeConName:fieldTypes) = unfoldAppCon icTyp
+          cogFields = getFields cogIcTyp
+          conName = case maybeConName of 
+                      (TyCon _ (UnQual _ (Ident _ n))) -> n
+                      _ -> __impossible $ "Bad Constructor name"++show l++"--"++show r
+          groupTag = case cogIcTyp of 
+                       (CC.TRecord _ fs _) -> HsRecord
+                       (CC.TSum alts) -> HsVariant
+        in HsEmbedLayout l groupTag $ 
+            M.fromList [ ( (fst (cogFields!!i))
+                         , let f = cogFields!!i
+                             in Right (analyseTypes (fst (snd f)) (fieldTypes!!i) (depth+1) (fst f))
+                         )
+                       | i <- [0..(P.length cogFields)-1]
+                       ]
 analyseTypes cogIcTyp icTyp depth fieldName 
     | (TyList _ ty) <- icTyp 
     = let elemCogTy = case cogIcTyp of 
                      (CC.TArray t _ _ _) -> t
                      _ -> __impossible $ "Bad Abstraction"++" --> "++"Hs: "++show icTyp
-        in TyLayout icTyp HsList $ M.fromList [ ( "1" , Right (analyseTypes elemCogTy ty (depth+1) "1")) ]
+        in HsEmbedLayout icTyp HsList $ M.fromList [ ( "1" , Right (analyseTypes elemCogTy ty (depth+1) "1")) ]
 analyseTypes cogIcTyp icTyp depth fieldName 
     | _ <- icTyp 
     = __impossible $ "Bad Abstraction"++" --> "++"Hs: "++show icTyp
@@ -471,14 +474,27 @@ analyseTypes cogIcTyp icTyp depth fieldName
 
 -- Helpers
 -- ----------------------------------------------------------------------------------------------------
-viewInfixExp :: QOp ()
-viewInfixExp = op $ mkName "^."
 
-viewInfixExp' :: QOp ()
-viewInfixExp' = op $ mkName "."
+mkViewInfixE :: String -> GroupTag -> Maybe (Exp ()) -> String -> Exp ()
+mkViewInfixE varToView tag prev accessor
+    = let viewE = case tag of 
+                    HsVariant -> mkOp "^?"
+                    _ -> mkOp "^."
+        in case prev of 
+             Just x -> infixApp x (mkOp ".") $ mkVar accessor
+             Nothing -> infixApp (mkVar varToView) viewE $ mkVar accessor
+
+mkFromIntE :: Type () -> Exp () -> Exp ()
+mkFromIntE ty prev = 
+    if | isFromIntegral ty -> infixApp prev (mkOp "$") (function "fromIntegral")
+       | otherwise -> prev
 
 mkVar :: String -> Exp ()
 mkVar = var . mkName
+
+mkOp :: String -> QOp ()
+mkOp = op . mkName
+
 
 getFields :: CC.Type t a -> [(String, (CC.Type t a, Bool))]
 getFields (CC.TRecord _ fs _) = fs
@@ -508,26 +524,32 @@ isInt' _ = False
 isInt :: Type () -> Bool
 isInt (TyCon _ (UnQual _ (Ident _ n))) = checkTy n ["Int"]
 
+isFromIntegral :: Type () -> Bool
+isFromIntegral (TyCon _ (UnQual _ (Ident _ n))) 
+    = any (==n) ["Word8","Word16","Word32","Word64"]
+
 checkTy :: String -> [String] -> Bool
 checkTy n xs = any (\x -> n == x) xs
 
 rmdups :: (Ord a) => [a] -> [a]
 rmdups = map P.head . group . sort
 
-getConNames :: TyLayout -> [String] -> [String]
+getConNames :: HsEmbedLayout -> [String] -> [String]
 getConNames tyL acc 
     = let hsTy = tyL ^. hsTyp
-          ty = tyL ^. typ
+          ty = tyL ^. grTag
           fld = tyL ^. fieldMap
         in concatMap (\(_,f) -> case f of 
             Left _ -> acc
             Right next -> case ty of 
                                HsPrim -> acc
-                               HsRecord -> let (c:cs) = unfoldAppCon hsTy
-                                             in getConNames next $ acc ++ case c of 
-                                                     (TyCon _ (UnQual _ (Ident _ n))) -> [n]
-                                                     _ -> []
+                               HsRecord -> getConNames next acc++conNames hsTy
+                               HsVariant -> getConNames next acc++conNames hsTy
                                _ -> getConNames next acc
+                where conNames hsTy = let (c:cs) = unfoldAppCon hsTy
+                                        in case c of 
+                                             (TyCon _ (UnQual _ (Ident _ n))) -> [n]
+                                             _ -> []
         ) $ M.toList fld
 
 -- ----------------------------------------------------------------------------------------------------

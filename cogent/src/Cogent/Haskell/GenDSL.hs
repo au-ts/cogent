@@ -32,20 +32,21 @@ data FunDefs = FunInfo { ispure :: Bool
 --       this int represents position in the current structure
 -- help with build lens view / set
 
-data HelperType = HsTuple
+-- for generators, as each group has differing syntax for views
+data GroupTag = HsTuple
                 | HsRecord 
+                | HsVariant
                 | HsList
                 | HsPrim
                 deriving (Show)
 
-data TyLayout = TyLayout { _hsTyp :: Type ()
-                         , _typ :: HelperType
-                         , _fieldMap :: Map String (Either Int TyLayout)
-                         } deriving (Show)
+data HsEmbedLayout = HsEmbedLayout 
+    { _hsTyp :: Type ()
+    , _grTag :: GroupTag
+    , _fieldMap :: Map String (Either Int HsEmbedLayout)
+    } deriving (Show)
 
-
-makeLenses ''TyLayout
-
+makeLenses ''HsEmbedLayout
 
 -- TODO: update/include in FunDefs
 data FunWelF = FunWelF { welf :: (String, [String])
