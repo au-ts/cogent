@@ -38,6 +38,7 @@ data GroupTag = HsTuple
                 | HsVariant
                 | HsList
                 | HsPrim
+                | Unknown
                 deriving (Show)
 
 data HsEmbedLayout = HsEmbedLayout 
