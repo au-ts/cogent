@@ -36,7 +36,12 @@ cat LLVM.template.v "$output" >LLVM.v
 rm "$output"
 
 # Fix Vellvm pretty printer bugs, should make PR
+# Strings not quoted
 sed -ri 's/(TLE_(Source_filename|Target)) ([^;]*);/\1 "\3";/' LLVM.v
+# int literals used where nat literals required
+sed -ri 's/TYPE_I ([0-9]+)%Z/TYPE_I \1/g' LLVM.v
+# second block needs to have a semicolon before it
+perl -i -p0e 's/\|\}(\s*?)\{\|/\|\};\1\{\|/g' LLVM.v
 
 # Prepare Cogent instance
 # - nothing to do yet

@@ -19,7 +19,6 @@ Section Compiler.
     entry : block typ
   ; blocks: list (block typ)
   ; fresh_anon : Z
-  ; fresh_void : Z
   ; fresh_block : Z
   ; vars : list (texp typ)
   }.
@@ -27,7 +26,6 @@ Section Compiler.
     entry
   ; blocks
   ; fresh_anon
-  ; fresh_void
   ; fresh_block
   ; vars
   >.
@@ -35,7 +33,7 @@ Section Compiler.
   Instance etaBlock : Settable _ := settable! (@mk_block typ) <blk_id;blk_phis; blk_code; blk_term; blk_comments>.
 
   Definition empty_block (n:block_id) : block typ :=
-    mk_block n [] [] (IVoid 0, TERM_Ret_void) None.
+    mk_block n [] [] TERM_Ret_void None.
 
   Variable m : Type -> Type.
   Context {Monad_m: Monad m}.
@@ -77,9 +75,8 @@ Section Compiler.
 
   Definition term (t:terminator typ) : m unit :=
     s <- get ;;
-    let n := fresh_void s in
-      put (update_block (fun x => x <|blk_term := (IVoid n, t)|>) s <|fresh_void := n + 1|>) ;;
-      ret tt.
+    put (update_block (fun x => x <|blk_term := t|>) s) ;;
+    ret tt.
   
   Definition phi (t:typ) (args:list (block_id * exp typ)) : m CodegenValue :=
     s <- get ;;
@@ -186,7 +183,6 @@ Section Compiler.
     entry := empty_block (Name "entry_0")
   ; blocks := []
   ; fresh_anon := 0
-  ; fresh_void := 0
   ; fresh_block := 0
   ; vars := [(t, EXP_Ident (ID_Local (Name "a_0")))]
   |}.
