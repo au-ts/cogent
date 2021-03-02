@@ -1,7 +1,7 @@
 From Coq Require Import List.
 
-From ExtLib Require Import Structures.Monads Data.Map.FMapAList.
-From ITree Require Import ITree.
+From ExtLib Require Import Structures.Monads.
+From ITree Require Import ITree Events.State.
 From Vellvm Require Import Util.
 
 From Checker Require Import Cogent.
@@ -16,20 +16,20 @@ Inductive uval : Set :=
 | UUnit
 | UError.
 
-Variant CogentState : Type -> Type :=
-| PeekVar (i:index) : CogentState uval
-| PushVar (u:uval) : CogentState unit
-| PopVar : CogentState unit.
+Variant VarE : Type -> Type :=
+| PeekVar (i:index) : VarE uval
+| PushVar (u:uval) : VarE unit
+| PopVar : VarE unit.
 
 Section Denote.
 
-  Context {eff : Type -> Type}.
-  Context {HasCogentState : CogentState -< eff}.
+  Context {E : Type -> Type}.
+  Context {HasVar : VarE -< E}.
 
   Definition denote_prim (op:prim_op) (xs:list uval) : uval := 
     UPrim (eval_prim_op op (map (fun x => match x with UPrim v => v | _ => default end) xs)).
 
-  Fixpoint denote_expr (e:expr) : itree eff uval :=
+  Fixpoint denote_expr (e:expr) : itree E uval :=
     match e with
     | Prim op os =>
         os' <- map_monad denote_expr os ;;
@@ -62,14 +62,14 @@ Section Denote.
     | _ => ret UError
     end.
 
-  Definition denote_fun (b:expr) : uval -> itree eff uval :=
+  Definition denote_fun (b:expr) : uval -> itree E uval :=
     fun a =>
       trigger (PushVar a) ;;
       b' <- denote_expr b ;;
       trigger PopVar ;;
       ret b'.
 
-  (* Definition denote_funs (p:cogent_prog) (uval -> itree eff uval ):= .
+  (* Definition denote_funs (p:cogent_prog) (uval -> itree E uval ):= .
   
   
   Definition denote_cogent (p:cogent_prog) := . *)
@@ -77,17 +77,22 @@ Section Denote.
 
 End Denote.
 
-Definition env := list uval.
+Definition vars := list uval.
 
-Definition handle_state : forall A, CogentState A -> stateT env (itree void1) A :=
-fun _ e γ =>
-  match e with
-  | PeekVar i => ret (γ, nth i γ UUnit)
-  | PushVar u => ret (u :: γ, tt)
-  | PopVar => ret (tl γ, tt)
-  end.
+Definition h_var {E : Type -> Type } `{stateE vars -< E} : VarE ~> itree E :=
+  fun _ e =>
+    match e with
+    | PeekVar i => s <- get ;; ret (nth i s UError)
+    | PushVar u => s <- get ;; put (u :: s)
+    | PopVar => s <- get ;; put (tl s)
+    end.
 
-Definition interp_cogent {A} (t:itree CogentState A) (e:env) : itree void1 (env * A) :=
-  interp handle_state t e.
 
-Definition run_cogent (a:uval) (f:expr) := interp_cogent (denote_fun f a) [].
+Definition interp_cogent {E A} (t:itree (VarE +' E) A) : stateT vars (itree E) A :=
+  let t' := interp (bimap h_var (id_ E)) t in
+  run_state t'.
+
+
+
+Definition run_cogent (a:uval) (f:expr) : itree void1 (vars * uval) :=
+  interp_cogent (denote_fun f a) [].
