@@ -35,7 +35,7 @@ Section Simple.
     let cogent_itree := interp_cogent (denote_expr b) [] in
     eutt (fun x y => True) cogent_itree vellvm_itree.
 
-  Lemma TestCase: correct "f"
+  (* Lemma TestCase: correct "f"
     (TPrim (Num U8 ))
     (TPrim (Num U32 ))
     (Let
@@ -46,11 +46,11 @@ Section Simple.
     rewrite tau_eutt.
     tau_steps.
     unfold denote_ocfg; simpl.
-  Abort.
+  Abort. *)
 
 End Simple.
 
-Section RAB.
+(* Section RAB.
 
   Context {A B : Type}.
   Context (RAB : A -> B -> Prop).
@@ -71,4 +71,4 @@ Hint Unfold TT: core.
 Definition equivalent (c:cogent_prog) (l:vellvm_prog) : Prop :=
    bisimilar TT (denote_cogent c) (denote_vellvm l).
 
-Theorem compile_correct (c:cogent_prog) : equivalent c (compile_cogent c).
+Theorem compile_correct (c:cogent_prog) : equivalent c (compile_cogent c). *)

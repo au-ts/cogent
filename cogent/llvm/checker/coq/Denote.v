@@ -13,7 +13,9 @@ Local Open Scope monad_scope.
 
 Inductive uval : Set :=
 | UPrim (l:lit)
+| URecord (us:list (uval * repr))
 | UUnit
+| UPtr (r:repr)
 | UError.
 
 Variant VarE : Type -> Type :=
@@ -59,7 +61,7 @@ Section Denote.
             end
         | _ => UError
         end
-    | _ => ret UError
+    (* | _ => ret UError *)
     end.
 
   Definition denote_fun (b:expr) : uval -> itree E uval :=

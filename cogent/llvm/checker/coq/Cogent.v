@@ -37,14 +37,23 @@ Variant variant_state : Set := Checked | Unchecked.
 Variant record_state : Set := Taken | Present.
 
 Inductive type : Set :=
-  | TVar (i:index)
+  (* | TVar (i:index)
   | TVarBang (i:index)
   | TCon (n:name) (ts:list type) (s:sigil)
-  | TFun (t:type) (rt:type)
+  | TFun (t:type) (rt:type) *)
   | TPrim (t:prim_type)
-  | TSum (vs:list (name * (type * variant_state)))
-  | TRecord (fs:list (name * (type * record_state))) (s:sigil)
+  (* | TSum (vs:list (name * (type * variant_state))) *)
+  (* | TRecord (fs:list (name * (type * record_state))) (s:sigil) *)
   | TUnit.
+
+Inductive repr : Set :=
+  | RPtr (r:repr)
+  (* | RCon (n:name) (rs:list repr) *)
+  (* | RFun *)
+  | RPrim (t:prim_type)
+  (* | RSum (ts:list (name * repr)) *)
+  | RRecord (rs:list repr)
+  | RUnit.
 
 Variant lit : Set :=
   | LBool (b:bool)
@@ -57,24 +66,25 @@ Variant lit : Set :=
 Inductive expr : Type :=
   | Var (i:index)
   (* | AFun (funtyp:'f)  (ts:list type) *)
-  | Fun (f:expr) (ts:list type) 
+  (* | Fun (f:expr) (ts:list type)  *)
   | Prim (op:prim_op) (os:list expr)
-  | App (f:expr) (a:expr)
-  | Con (ts:list (name * type * variant_state)) (n:name) (e:expr)
-  | Struct (ts:list type) (es:list expr)
-  | Member (e:expr) (f:field)
+  (* | App (f:expr) (a:expr) *)
+  (* | Con (ts:list (name * type * variant_state)) (n:name) (e:expr) *)
+  (* | Struct (ts:list type) (es:list expr) *)
+  (* | Member (e:expr) (f:field) *)
   | Unit
   | Lit (l:lit)
-  | SLit (s:string)
+  (* | SLit (s:string) *)
   | Cast (t:num_type) (e:expr)
-  | Put (e:expr) (f:field) (v:expr)
+  (* | Put (e:expr) (f:field) (v:expr) *)
   | Let (e:expr) (b:expr)
-  | LetBang (is:set index) (e:expr) (b:expr)
-  | Case (e:expr) (n:name) (b1:expr) (b2:expr)
-  | Esac (e:expr) (n:name)
+  (* | LetBang (is:set index) (e:expr) (b:expr) *)
+  (* | Case (e:expr) (n:name) (b1:expr) (b2:expr) *)
+  (* | Esac (e:expr) (n:name) *)
   | If (c:expr) (b1:expr) (b2:expr)
-  | Take (e:expr) (f:field) (b:expr)
-  | Promote (t:type) (e:expr).
+  (* | Take (e:expr) (f:field) (b:expr) *)
+  (* | Promote (t:type) (e:expr) *)
+  .
 
 Variant def : Type :=
   | FunDef (n:name) (t:type) (rt:type) (b:expr).
