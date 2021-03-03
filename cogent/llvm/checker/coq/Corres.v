@@ -1,33 +1,6 @@
-(*
-Definition corres := 
-  ((funtyp, abstyp, ptrtyp) store \<times> 's) set \<Rightarrow> (* state relation between cogent and C states*)
-  (* convert to function to bool rather than set *)
-   funtyp expr \<Rightarrow>                          (* cogent program *)
-   ('s,('a::cogent_C_val)) nondet_monad \<Rightarrow> (* monadic autocorres embedding of C program *)
-(*
-   (funtyp, abstyp, ptrtyp) uabsfuns \<Rightarrow>    (* value environment for abstract functions *)
-*)
-   (funtyp, abstyp, ptrtyp) uval env \<Rightarrow>    (* value environment for cogent functions *)
-(*
-   (funtyp \<Rightarrow> poly_type) \<Rightarrow>     (* type environment for abstract functions *)
-   ctx \<Rightarrow>                                  (* type environment for cogent functions *)
-*)
-   (funtyp, abstyp, ptrtyp) store \<Rightarrow>       (* cogent store *)
-   's \<Rightarrow>                                   (* C store *)
-   bool                                               (* whether refinement holds or not *)
-where
-  corres srel c m \<gamma> \<sigma> s \<equiv>
-    proc_ctx_wellformed \<Xi> \<longrightarrow> \<xi> matches-u \<Xi> \<longrightarrow> (\<sigma>,s) \<in> srel \<longrightarrow>
-   (\<exists>r w. \<Xi>, \<sigma> \<turnstile> \<gamma> matches \<Gamma> \<langle>r, w\<rangle>) \<longrightarrow>
-   (\<not> snd (m s) \<and>
-   (\<forall>r' s'. (r',s') \<in> fst (m s) \<longrightarrow>
-     (\<exists>\<sigma>' r.(\<xi>, \<gamma> \<turnstile> (\<sigma>,c)  \<Down>! (\<sigma>',r)) \<and> (\<sigma>',s') \<in> srel \<and> val_rel r r')))
-.
-*)
+From Coq Require Import List String ZArith.
 
-From Coq Require Import List String.
-
-From Checker Require Import Denote.
+From Checker Require Import Denote Cogent Compiler.
 
 From ITree Require Import ITree ITreeFacts.
 
@@ -50,23 +23,52 @@ Definition vellvm_env : Type := memory_stack * (local_env * global_env).
 Definition interp_vellvm (t:itree L0 uvalue) (e:vellvm_env) : itree L3 res_L3 :=
   interp_mcfg3 t (snd (snd e)) (fst (snd e), []) (fst e).
 
-Definition relate_env (c_env : vars) (v_env: vellvm_env) : Prop := True.
+Definition relate_env (c_env : local_vars) (v_env: vellvm_env) : Prop := True.
 
-Section AB.
+Section Simple.
 
-  Context {A B : Type}.  
+  (* want to try and relate a CFG to a function *)
+  
+  Definition correct (n:name) (t:type) (rt:type) (b:expr) :=
+    let generated_cfg := convert_typ [] (cfg_of_definition typ (compile_fun n t rt b)) in
+    let vellvm_itree := interp_cfg2 (denote_cfg generated_cfg) [] [] in
+    let cogent_itree := interp_cogent (denote_expr b) [] in
+    eutt (fun x y => True) cogent_itree vellvm_itree.
 
-  Definition  state_invariant (a: vars * A) (b: vellvm_env * uvalue) : Prop := 
-    relate_env (fst a) (fst b).
+  Lemma TestCase: correct "f"
+    (TPrim (Num U8 ))
+    (TPrim (Num U32 ))
+    (Let
+    (Var 0) (Cast U32  (Var 0))).
+  Proof.
+    unfold correct.
+    force_left.
+    rewrite tau_eutt.
+    tau_steps.
+    unfold denote_ocfg; simpl.
+  Abort.
 
-  Definition bisimilar (t1: itree VarE A) (t2: itree L0 uvalue) := 
+End Simple.
+
+Section RAB.
+
+  Context {A B : Type}.
+  Context (RAB : A -> B -> Prop).
+
+  Definition  state_invariant (a: local_vars * A) (b: vellvm_env * B) : Prop := 
+    relate_env (fst a) (fst b) /\ (RAB (snd a) (snd b)).
+
+  Definition bisimilar {E} (t1: itree (VarE +' E) A) (t2: itree E_mcfg B) := 
     forall c_env v_env,
       relate_env c_env v_env ->
         eutt state_invariant (interp_cogent t1 c_env) (interp_vellvm t2 v_env).
 
-End AB.
+End RAB.
+
+Definition TT {A B}: A -> B -> Prop  := fun _ _ => True.
+Hint Unfold TT: core.
 
 Definition equivalent (c:cogent_prog) (l:vellvm_prog) : Prop :=
-   bisimilar (denote_cogent c) (denote_vellvm l).
+   bisimilar TT (denote_cogent c) (denote_vellvm l).
 
 Theorem compile_correct (c:cogent_prog) : equivalent c (compile_cogent c).

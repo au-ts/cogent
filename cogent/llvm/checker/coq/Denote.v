@@ -77,9 +77,9 @@ Section Denote.
 
 End Denote.
 
-Definition vars := list uval.
+Definition local_vars := list uval.
 
-Definition h_var {E : Type -> Type } `{stateE vars -< E} : VarE ~> itree E :=
+Definition h_var {E : Type -> Type } `{stateE local_vars -< E} : VarE ~> itree E :=
   fun _ e =>
     match e with
     | PeekVar i => s <- get ;; ret (nth i s UError)
@@ -88,11 +88,11 @@ Definition h_var {E : Type -> Type } `{stateE vars -< E} : VarE ~> itree E :=
     end.
 
 
-Definition interp_cogent {E A} (t:itree (VarE +' E) A) : stateT vars (itree E) A :=
+Definition interp_cogent {E A} (t:itree (VarE +' E) A) : stateT local_vars (itree E) A :=
   let t' := interp (bimap h_var (id_ E)) t in
   run_state t'.
 
 
 
-Definition run_cogent (a:uval) (f:expr) : itree void1 (vars * uval) :=
+Definition run_cogent (a:uval) (f:expr) : itree void1 (local_vars * uval) :=
   interp_cogent (denote_fun f a) [].

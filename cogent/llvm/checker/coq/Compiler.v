@@ -192,26 +192,28 @@ End Compiler.
 Definition build_expr (p:expr) (t:type) : CodegenState :=
   execState (v <- compile_expr _ p ;; term _ (TERM_Ret v)) (start_state (compile_type t)).
 
+Definition compile_fun n t rt b : definition typ (block typ * list (block typ)) :=
+  let state := build_expr b t in  
+    {|
+      df_prototype := {|
+        dc_name := Name n
+      ; dc_type := TYPE_Function (compile_type rt) [compile_type t]
+      ; dc_param_attrs := ([], [])
+      ; dc_linkage := None
+      ; dc_visibility := None
+      ; dc_dll_storage := None
+      ; dc_cconv := None
+      ; dc_attrs := []
+      ; dc_section := None
+      ; dc_align := None
+      ; dc_gc := None|}
+    ; df_args := [(Name "a_0")]
+    ; df_instrs := (entry state, rev (blocks state))
+    |}.
+
 Definition compile_def (d:def) : toplevel_entity typ (block typ * list (block typ)) :=
   match d with
-  | FunDef n t rt b => 
-      let state := build_expr b t in  
-        TLE_Definition {|
-          df_prototype := {|
-            dc_name := Name n
-          ; dc_type := TYPE_Function (compile_type rt) [compile_type t]
-          ; dc_param_attrs := ([], [])
-          ; dc_linkage := None
-          ; dc_visibility := None
-          ; dc_dll_storage := None
-          ; dc_cconv := None
-          ; dc_attrs := []
-          ; dc_section := None
-          ; dc_align := None
-          ; dc_gc := None|}
-        ; df_args := [(Name "a_0")]
-        ; df_instrs := (entry state, rev (blocks state))
-        |}
+  | FunDef n t rt b => TLE_Definition (compile_fun n t rt b)
   end.
 
 Definition compile_cogent := map compile_def.
