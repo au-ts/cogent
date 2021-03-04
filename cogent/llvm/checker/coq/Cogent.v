@@ -104,27 +104,25 @@ Section Primitive.
     | _ => false
     end.
 
-  Definition default := LBool false.
-
-  Definition prim_word_op (f : Z -> Z -> Z) (xs : list lit) : lit :=
+  Definition prim_word_op (f : Z -> Z -> Z) (xs : list lit) : option lit :=
     match (firstn 2 xs) with
-    | [LU8 x; LU8 y] => LU8 (f x y)
-    | [LU16 x; LU16 y] => LU16 (f x y)
-    | [LU32 x; LU32 y] => LU32 (f x y)
-    | [LU64 x; LU64 y] => LU64 (f x y)
-    | _ => default
+    | [LU8 x; LU8 y] => Some (LU8 (f x y))
+    | [LU16 x; LU16 y] => Some (LU16 (f x y))
+    | [LU32 x; LU32 y] => Some (LU32 (f x y))
+    | [LU64 x; LU64 y] => Some (LU64 (f x y))
+    | _ => None
     end.
 
-  Definition prim_word_comp (f : Z -> Z -> bool) (xs : list lit) : lit :=
+  Definition prim_word_comp (f : Z -> Z -> bool) (xs : list lit) : option lit :=
     match (firstn 2 xs) with
-    | [LU8 x; LU8 y] => LBool (f x y)
-    | [LU16 x; LU16 y] => LBool (f x y)
-    | [LU32 x; LU32 y] => LBool (f x y)
-    | [LU64 x; LU64 y] => LBool (f x y)
-    | _ => default
+    | [LU8 x; LU8 y] => Some (LBool (f x y))
+    | [LU16 x; LU16 y] => Some (LBool (f x y))
+    | [LU32 x; LU32 y] => Some (LBool (f x y))
+    | [LU64 x; LU64 y] => Some (LBool (f x y))
+    | _ => None
     end.
 
-  Definition eval_prim_op (op : prim_op) (xs : list lit) : lit :=
+  Definition eval_prim_op (op : prim_op) (xs : list lit) : option lit :=
     match op with
     | Plus _ => prim_word_op Z.add xs
     | Minus _ => prim_word_op Z.sub xs
@@ -149,7 +147,7 @@ Section Primitive.
           (checked_shift shiftr) (checked_shift shiftr) xs
     | (Complement _) = prim_word_op (\<lambda>x y. bitNOT x) (\<lambda>x y. bitNOT x)
           (\<lambda>x y. bitNOT x) (\<lambda>x y. bitNOT x) [hd xs, hd xs] *)
-    | _ => default
+    | _ => None
     end.
 
   Definition cast_to (n : num_type) (l : lit) : option lit :=
