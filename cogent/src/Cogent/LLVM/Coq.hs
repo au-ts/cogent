@@ -5,8 +5,8 @@ module Cogent.LLVM.Coq (toCoq) where
 import Cogent.Common.Syntax (Op, VarName)
 import qualified Cogent.Common.Syntax as S (Op (..))
 import Cogent.Common.Types (PrimInt)
-import qualified Cogent.Common.Types as T (PrimInt (..))
-import Cogent.Core (Definition, TypedExpr (TE))
+import qualified Cogent.Common.Types as T (PrimInt (..), Sigil (..))
+import Cogent.Core (Definition, TypedExpr (TE, exprType))
 import qualified Cogent.Core as C (Definition (..), Expr (..), Type (..))
 import Control.Monad (void)
 import Data.Fin (finInt)
@@ -64,7 +64,7 @@ data Type
     | TFun Type Type
     | TPrim PrimType
     | TSum [(Name, (Type, VariantState))]
-    | TRecord [(Name, (Type, RecordState))] Sigil
+    | TRecord (CoqList (Name, (Type, RecordState))) Sigil
     | TUnit
     deriving (Show)
 data Lit
@@ -86,9 +86,9 @@ data Expr
     | Var Index
     | Case Expr Name Expr Expr
     | Esac Expr Name
+    | Struct (CoqList Type) (CoqList Expr)
     | -- | Fun Expr (CoqList Type)
       -- | Con (CoqList (Name, Type, VariantState)) Name Expr
-      -- | Struct (CoqList Type) (CoqList Expr)
       -- | Member Expr Field
       -- | Put Expr Field Expr
       -- | LetBang (Set Index) Expr Expr
@@ -128,6 +128,9 @@ genType C.TUnit = TUnit
 -- genType (C.TFun t rt) = TFun (genType t) (genType rt)
 genType t@(C.TPrim _) = TPrim (genPrimType t)
 genType C.TString = TPrim String
+genType (C.TRecord _ flds s) =
+    let flds' = ([(f, (genType t, if b then Taken else Present)) | (f, (t, b)) <- flds])
+     in TRecord (CoqList flds') (genSigil s)
 genType t = error $ show t
 
 genExpr :: (Show a, Show b) => TypedExpr t v a b -> Expr
@@ -138,6 +141,7 @@ genExpr (TE _ (C.Variable (idx, _))) = Var (finInt idx)
 genExpr (TE _ C.Unit) = Unit
 genExpr (TE _ (C.If c b1 b2)) = If (genExpr c) (genExpr b1) (genExpr b2)
 genExpr (TE _ (C.Cast t e)) = Cast (genNumType t) (genExpr e)
+genExpr (TE _ (C.Struct flds)) = Struct (CoqList (genType . exprType . snd <$> flds)) (CoqList (genExpr . snd <$> flds))
 genExpr e = error $ show e
 
 genLit :: Integer -> PrimInt -> Lit
@@ -181,3 +185,7 @@ genNumType (C.TPrim T.U16) = U16
 genNumType (C.TPrim T.U32) = U32
 genNumType (C.TPrim T.U64) = U64
 genNumType _ = error "not a NumType"
+
+genSigil :: T.Sigil r -> Sigil
+genSigil (T.Boxed _ _) = Boxed
+genSigil T.Unboxed = Unboxed

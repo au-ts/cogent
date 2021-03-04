@@ -1,6 +1,6 @@
 From Coq Require Import List ZArith String.
 
-From ExtLib Require Import Structures.Monads Structures.Functor.
+From ExtLib Require Import Structures.Monads Structures.Functor Structures.Reducible Data.List.
 From RecordUpdate Require Import RecordSet.
 From Vellvm Require Import LLVMAst Util Utils.Error.
 
@@ -117,7 +117,18 @@ Section Compiler.
     | Complement t *)
     end.
 
-  Definition undef : CodegenValue := (TYPE_Void, EXP_Null). (* undefined *)
+  Fixpoint compile_type (t : type) : typ :=
+    match t with
+    | TPrim p => match p with
+      | Num n => convert_num_type n
+      | Bool => TYPE_I 8
+      | String => TYPE_Pointer (TYPE_I 8)
+      end
+    | TRecord ts s => 
+        let t' := TYPE_Struct (map (fun '(_, (f, _)) => compile_type f) ts) in
+          match s with Boxed => TYPE_Pointer t' | Unboxed => t' end
+    | TUnit => TYPE_I 8
+    end.
 
   Fixpoint compile_expr (e : expr) : cerr CodegenValue :=
     match e with
@@ -139,7 +150,10 @@ Section Compiler.
       end
     | Var i =>
         s <- get ;;
-        ret (nth i (vars s) undef)
+        match (nth_error (vars s) i) with
+        | Some v => ret v
+        | None => raise "unknown variable"
+        end
     | Let e b =>
         e' <- compile_expr e ;;
         s <- get ;;
@@ -168,19 +182,14 @@ Section Compiler.
     | Cast t e =>
         '(from_t, v) <- compile_expr e ;;
         let t' := convert_num_type t in
-        instr t' (INSTR_Op (OP_Conversion Zext from_t v t')) 
-    (* | _ => ret undef *)
-    end.
-
-  Definition compile_type (t : type) : typ :=
-    match t with
-    | TPrim p => match p with
-      | Num n => convert_num_type n
-      | Bool => TYPE_I 8
-      | String => TYPE_Pointer (TYPE_I 8)
-      end
-    | TUnit => TYPE_I 8
-    (* | _ => TYPE_Void *)
+        instr t' (INSTR_Op (OP_Conversion Zext from_t v t'))
+    | Struct ts es =>
+        (* foldM *)
+        let t := TYPE_Struct (map compile_type ts) in
+        let undef := (t, EXP_Undef) in
+        es' <- map_monad compile_expr es ;;
+        let zipped := (combine (seq 0 (length es')) es') in
+        foldM (fun '(i, v) s => instr t (INSTR_Op (OP_InsertValue s v [Z.of_nat i]))) (ret undef) zipped
     end.
 
   Definition start_state (t : typ) : CodegenState := {|

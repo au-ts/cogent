@@ -72,6 +72,9 @@ Section Denote.
             end
         | _ => throw "invalid cast"
         end
+    | Struct ts es =>
+        es' <- map_monad denote_expr es ;;
+        ret (URecord (combine es' (map type_repr ts)))
     end.
 
   Definition denote_fun (b : expr) : uval -> itree CogentE uval :=

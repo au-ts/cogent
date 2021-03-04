@@ -45,7 +45,7 @@ Section Syntax.
     | TFun (t : type) (rt : type) *)
     | TPrim (t : prim_type)
     (* | TSum (vs : list (name * (type * variant_state))) *)
-    (* | TRecord (fs : list (name * (type * record_state))) (s : sigil) *)
+    | TRecord (fs : list (name * (type * record_state))) (s : sigil)
     | TUnit.
 
   Inductive repr : Set :=
@@ -57,6 +57,15 @@ Section Syntax.
     | RRecord (rs : list repr)
     | RUnit.
 
+  Fixpoint type_repr (t : type) : repr :=
+    match t with
+    | TPrim p => RPrim p
+    | TRecord ts s => 
+        let r := RRecord (map (fun '(_, (f, _)) => type_repr f) ts) in
+          match s with Boxed => RPtr r | Unboxed => r end
+    | TUnit => RUnit
+    end.
+  
   Variant lit : Set :=
     | LBool (b : bool)
     | LU8 (w : Z)
@@ -72,7 +81,7 @@ Section Syntax.
     | Prim (op : prim_op) (os : list expr)
     (* | App (f : expr) (a : expr) *)
     (* | Con (ts : list (name * type * variant_state)) (n : name) (e : expr) *)
-    (* | Struct (ts : list type) (es : list expr) *)
+    | Struct (ts : list type) (es : list expr)
     (* | Member (e : expr) (f : field) *)
     | Unit
     | Lit (l : lit)
