@@ -106,7 +106,7 @@ shallowTVar :: Int -> String
 shallowTVar v = [chr $ ord 'a' + fromIntegral v]
 
 shallowTypeWithName :: (Show b,Eq b) => CC.Type t b -> SG I.Type
-shallowTypeWithName t = shallowType =<< findShortType t
+shallowTypeWithName t = shallowType =<< findShortType True t
 
 shallowRecTupleType :: (Show b,Eq b) => [(FieldName, (CC.Type t b, Bool))] -> SG I.Type
 shallowRecTupleType fs = shallowTupleType <$> mapM shallowType (map (fst . snd) fs)
@@ -115,20 +115,31 @@ shallowType :: forall t b. (Show b,Eq b) => CC.Type t b -> SG I.Type
 shallowType (TVar v) = I.TyVar <$> ((!!) <$> asks typeVars <*> pure (finInt v))
 shallowType (TVarBang v) = shallowType (TVar v :: CC.Type t b)
 shallowType (TCon tn ts _) = I.TyDatatype tn <$> mapM shallowType ts
-shallowType (TFun t1 t2) = I.TyArrow <$> shallowType t1 <*> shallowType t2
+shallowType t@(TFun t1 t2) = do
+  st <- findShortType False t
+  case st of
+       (TCon _ _ _) -> shallowType st
+       _ -> I.TyArrow <$> shallowType t1 <*> shallowType t2
 shallowType (TPrim pt) = pure $ shallowPrimType pt
 shallowType (TString) = pure $ I.AntiType "string"
 shallowType (TSum alts) = shallowTypeWithName (TSum alts)
 shallowType (TProduct t1 t2) = I.TyTuple <$> shallowType t1 <*> shallowType t2
-shallowType (TRecord rp fs s) = do
+shallowType t@(TRecord rp fs s) = do
   tuples <- asks recoverTuples
-  if tuples && isRecTuple (map fst fs) then
-    shallowRecTupleType fs
+  if tuples && isRecTuple (map fst fs) then do
+      st <- findShortType False t
+      case st of
+           (TCon _ _ _) -> shallowType st
+           _ -> shallowRecTupleType fs
   else
     shallowTypeWithName (TRecord rp fs s)
 shallowType (TUnit) = return $ I.AntiType "unit"
 #ifdef BUILTIN_ARRAYS
-shallowType (TArray t _ _ _) = I.TyDatatype "list" <$> mapM shallowType [t]
+shallowType t@(TArray el _ _ _) = do
+  st <- findShortType False t
+  case st of
+       (TCon _ _ _) -> shallowType st
+       _ -> I.TyDatatype "list" <$> mapM shallowType [el]
 #endif
 
 shallowPrimType :: PrimInt -> I.Type
@@ -192,14 +203,16 @@ findType :: CC.Type t b -> SG (CC.Type t b)
 findType t = getStrlType <$> asks typeNameMap <*> asks typeStrs <*> pure t
 
 -- | Reverse engineer the type synonym of a algebraic data type
-findShortType :: (Show b,Eq b) => CC.Type t b -> SG (CC.Type t b)
-findShortType t = do
+--   First argument must be True for Records and Variants so that
+--   the record/datatype is returned when not type synonym is found.
+findShortType :: (Show b,Eq b) => Bool -> CC.Type t b -> SG (CC.Type t b)
+findShortType rv t = do
   map <- use concTypeSyns
   case M.lookup (hashType t) map of
    Nothing -> do
        polys <- use polyTypeSyns
        case lookupPolySyn t polys of
-            Nothing -> findType t
+            Nothing -> if rv then findType t else pure t
             Just (tn,args) -> pure $ TCon tn args (__impossible "findShortType")
    Just tn -> pure $ TCon tn [] (__impossible "findShortType")
 
@@ -437,7 +450,16 @@ shallowMaker t fs = do
   tuples <- asks recoverTuples
   if tuples && isRecTuple fnms
   then mkTuple <$> mapM (shallowExpr . snd) fs
-  else mkApp <$> pure (mkStr [tn, ".make"]) <*> (mapM (shallowExpr . snd) fs)
+  else if tuples
+       then mkRecord tn fs
+       else mkApp <$> pure (mkStr [tn, ".make"]) <*> (mapM (shallowExpr . snd) fs)
+
+mkRecord :: (Show b,Eq b) => String -> [(FieldName, TypedExpr t v VarName b)] -> SG Term
+mkRecord tn fs = do
+    fts <- mapM (shallowExpr . snd) fs
+    pure $ ListTerm "\\<lparr>" (map (\(fn,t) -> (TermBinOp I.Eq (mkId fn) t)) $ P.zip ffs fts) "\\<rparr>"
+    where ffs = addtn $ map (\(f,t) -> f ++ subSymStr "f") fs
+          addtn (f1:ffs) = (tn++ "." ++ f1) : ffs
 
 shallowSetter :: (Show b,Eq b) => TypedExpr t v VarName b -> Int -> TypedExpr t v VarName b -> SG Term
 shallowSetter rec idx e = do
@@ -595,29 +617,38 @@ sanitizeType t = t
 hashType :: (Show b) => CC.Type t b -> String
 hashType (TSum ts)      = show (sanitizeType $ TSum ts)
 hashType (TRecord rp ts s) = show (sanitizeType $ TRecord rp ts s)
+hashType (TFun ti to) = show (sanitizeType $ TFun ti to)
 #ifdef BUILTIN_ARRAYS
 hashType (TArray t sz s tk) = show (sanitizeType $ TArray t sz s tk)
 #endif
-hashType _              = error "hashType: should only pass Variant and Record types"
+hashType _              = error "hashType: should only pass Variant, Record, Array or Function types"
 
--- | A subscript @T@ will be added when generating type synonyms.
---   Also adds an entry to the type synonyms table if it's not parameterised so that
+-- | A subscript @T@ will be added when generating type synonyms for records and variants.
+--   Also adds an entry to the type synonyms table (if it's not parameterised) or the
+--   polymorphic type synonyms table (if it is parameterized) so that
 --   a shorter (and hence more readable) name can be retrieved when a type is used.
+--   Uses hashType, so it may only be applied to Variant, Record, Array and Function types.
 shallowTypeDefSaveSyn:: (Show b,Eq b) => TypeName -> [TyVarName] -> CC.Type t b -> SG [TheoryDecl I.Type I.Term]
 shallowTypeDefSaveSyn tn ps r = do
   st <- shallowType r
-  let syname = tn ++ subSymStr "T"
+  let syname = syName tn r
       hash = hashType r
-  -- FIXME: We might want to support type parameters but I can't be bothered.
   when (null ps) (concTypeSyns %= M.insert hash syname)
   when (not $ null ps) (polyTypeSyns %= (:) (PTS syname ps r))
   pure [TypeSynonym (TypeSyn syname st ps)]
+    where syName tn (TSum _) = tn ++ subSymStr "T"
+          syName tn (TRecord _ _ _) = tn ++ subSymStr "T"
+          syName tn _ = tn
 
 -- | Generates @type_synonym@ definitions for types.
 shallowTypeDef :: (Show b,Eq b) => TypeName -> [TyVarName] -> CC.Type t b -> SG [TheoryDecl I.Type I.Term]
 shallowTypeDef tn ps (TPrim p)      = pure [TypeSynonym (TypeSyn tn (shallowPrimType p) ps)]
-shallowTypeDef tn ps (TRecord rp fs s) = shallowTypeDefSaveSyn tn ps (TRecord rp fs s)
-shallowTypeDef tn ps (TSum ts)      = shallowTypeDefSaveSyn tn ps (TSum ts)
+shallowTypeDef tn ps t@(TRecord _ _ _)  = shallowTypeDefSaveSyn tn ps t
+shallowTypeDef tn ps t@(TSum _)         = shallowTypeDefSaveSyn tn ps t
+shallowTypeDef tn ps t@(TFun _ _)       = shallowTypeDefSaveSyn tn ps t
+#ifdef BUILTIN_ARRAYS
+shallowTypeDef tn ps t@(TArray _ _ _ _) = shallowTypeDefSaveSyn tn ps t
+#endif
 shallowTypeDef tn ps t = do
   st <- shallowType t
   pure [TypeSynonym (TypeSyn tn st ps)]
@@ -1235,7 +1266,8 @@ shallowTuplesProof baseName sharedDefThy defThy tupSharedDefThy tupDefThy typeMa
                    indent 5 constrAssms ++
                    [ "  \\<rbrakk> \\<Longrightarrow> shallow_tuples_rel " ++
                      "(" ++ fullName ++ ".make " ++ unwords ["x" ++ show f | f <- [1 .. P.length fields]] ++ ") " ++
-                     "(" ++ tupleFullName ++ ".make " ++ unwords ["xt" ++ show f | f <- [1 .. P.length fields]] ++ ")\""
+                     "\\<lparr>" ++ tupleFullName ++ "." ++ isaRecField (P.head fields) ++ " = xt1" ++ 
+                     unwords [", " ++ field ++ " = xt" ++ show f | (f, field) <- P.zip [(2::Int) ..] (map isaRecField $ P.tail fields)] ++ "\\<rparr>\""
                    , "  by (simp add: shallow_tuples_rel_" ++ typeName ++ "_def " ++
                      fullName ++ ".defs " ++ tupleFullName ++ ".defs)"
                    ] ++
