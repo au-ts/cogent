@@ -6,7 +6,7 @@ From Vellvm Require Import LLVMAst.
 From Checker Require Import Cogent Compiler Denote.
 From Input Require Import LLVM Source.
 
-(* Definition checkExp (cogentExp:expr) (llvmExp:exp typ) : Prop := compile cogentExp = llvmExp. *)
+(* Definition checkExp (cogentExp : expr) (llvmExp : exp typ) : Prop := compile cogentExp = llvmExp. *)
 
 Import ListNotations.
 

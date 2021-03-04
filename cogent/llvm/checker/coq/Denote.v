@@ -13,14 +13,14 @@ Local Open Scope monad_scope.
 Local Open Scope string_scope.
 
 Inductive uval : Set :=
-| UPrim (l:lit)
-| URecord (us:list (uval * repr))
+| UPrim (l : lit)
+| URecord (us : list (uval * repr))
 | UUnit
-| UPtr (r:repr).
+| UPtr (r : repr).
 
 Variant VarE : Type -> Type :=
-| PeekVar (i:index) : VarE uval
-| PushVar (u:uval) : VarE unit
+| PeekVar (i : index) : VarE uval
+| PushVar (u : uval) : VarE unit
 | PopVar : VarE unit.
 
 Definition FailE := exceptE string.
@@ -28,10 +28,11 @@ Definition FailE := exceptE string.
 Definition Event := VarE +' FailE.
 
 Section Denote.
-  Definition denote_prim (op:prim_op) (xs:list uval) : uval := 
+
+  Definition denote_prim (op : prim_op) (xs : list uval) : uval := 
     UPrim (eval_prim_op op (map (fun x => match x with UPrim v => v | _ => default end) xs)).
 
-  Fixpoint denote_expr (e:expr) : itree Event uval :=
+  Fixpoint denote_expr (e : expr) : itree Event uval :=
     match e with
     | Prim op os =>
         os' <- map_monad denote_expr os ;;
@@ -63,48 +64,52 @@ Section Denote.
         end
     end.
 
-  Definition denote_fun (b:expr) : uval -> itree Event uval :=
+  Definition denote_fun (b : expr) : uval -> itree Event uval :=
     fun a =>
       trigger (PushVar a) ;;
       b' <- denote_expr b ;;
       trigger PopVar ;;
       ret b'.
 
-  (* Definition denote_funs (p:cogent_prog) (uval -> itree E uval ):= .
+  (* Definition denote_funs (p : cogent_prog) (uval -> itree E uval ) : = .
   
   
-  Definition denote_cogent (p:cogent_prog) := . *)
+  Definition denote_cogent (p : cogent_prog) := . *)
   
 
 End Denote.
 
-Definition local_vars := list uval.
+Section Interpretation.
 
-Definition handle_var: VarE ~> stateT local_vars (itree FailE) :=
-  fun _ e s =>
-    match e with
-    | PeekVar i =>
-        match (nth_error s i) with
-        | Some v => ret (s, v)
-        | None => throw "unknown variable"
-        end
-    | PushVar u => ret (u :: s, tt)
-    | PopVar => ret (tl s, tt)
-    end.
+  Definition local_vars := list uval.
 
-Definition interp_var: itree Event ~> stateT local_vars (itree FailE) :=
-  interp_state (case_ handle_var pure_state).
+  Definition handle_var : VarE ~> stateT local_vars (itree FailE) :=
+    fun _ e s =>
+      match e with
+      | PeekVar i =>
+          match (nth_error s i) with
+          | Some v => ret (s, v)
+          | None => throw "unknown variable"
+          end
+      | PushVar u => ret (u :: s, tt)
+      | PopVar => ret (tl s, tt)
+      end.
 
-(* from Helix *)
-Definition handle_failure: FailE ~> failT (itree void1) :=
-  fun _ _ => ret None.
+  Definition interp_var : itree Event ~> stateT local_vars (itree FailE) :=
+    interp_state (case_ handle_var pure_state).
 
-Definition inject_signature {E} : void1 ~> E := fun _ (x:void1 _) => match x with end.
-Hint Unfold inject_signature : core.
+  (* from Helix *)
+  Definition handle_failure : FailE ~> failT (itree void1) :=
+    fun _ _ => ret None.
 
-Definition interp_cogent {E A} (t:itree Event A) (vars:local_vars) : failT (itree E) (local_vars * A) :=
-  translate inject_signature (interp_fail handle_failure (interp_var _ t vars)).
-(* end from Helix *)
+  Definition inject_signature {E} : void1 ~> E := fun _ (x : void1 _) => match x with end.
+  Hint Unfold inject_signature : core.
 
-Definition run_cogent (a:uval) (f:expr) : failT (itree void1) (local_vars * uval) :=
-  interp_cogent (denote_fun f a) [].
+  Definition interp_cogent {E A} (t : itree Event A) (vars : local_vars) : failT (itree E) (local_vars * A) :=
+    translate inject_signature (interp_fail handle_failure (interp_var _ t vars)).
+  (* end from Helix *)
+
+  Definition run_cogent (a : uval) (f : expr) : failT (itree void1) (local_vars * uval) :=
+    interp_cogent (denote_fun f a) [].
+
+End Interpretation.

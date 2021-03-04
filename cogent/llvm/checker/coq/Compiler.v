@@ -18,7 +18,7 @@ Section Compiler.
 
   Record CodegenState : Type := mk_state {
     entry : block typ
-  ; blocks: list (block typ)
+  ; blocks : list (block typ)
   ; fresh_anon : Z
   ; fresh_block : Z
   ; vars : list (texp typ)
@@ -34,7 +34,7 @@ Section Compiler.
 
   Instance etaBlock : Settable _ := settable! (@mk_block typ) <blk_id;blk_phis; blk_code; blk_term; blk_comments>.
 
-  Definition empty_block (n:block_id) : block typ :=
+  Definition empty_block (n : block_id) : block typ :=
     mk_block n [] [] TERM_Ret_void None.
 
   Definition cerr := errS CodegenState.
@@ -43,13 +43,13 @@ Section Compiler.
     s <- get ;;
     ret (blk_id (hd (entry s) (blocks s))).
 
-  Definition update_block (f:block typ -> block typ) (s:CodegenState) : CodegenState :=
+  Definition update_block (f : block typ -> block typ) (s : CodegenState) : CodegenState :=
     match blocks s with
     | [] => s <|entry := f (entry s)|>
     | x :: xs => s <|blocks := f x :: xs|>
     end.
   
-  Definition new_block (n:block_id) : cerr unit :=
+  Definition new_block (n : block_id) : cerr unit :=
     s <- get ;;
     put (s <|blocks := empty_block n :: blocks s|>).
   
@@ -63,7 +63,7 @@ Section Compiler.
       , Name ("done_" ++ string_of_Z n)
       ).
 
-  Definition instr (t:typ) (i:instr typ) : cerr CodegenValue :=
+  Definition instr (t : typ) (i : instr typ) : cerr CodegenValue :=
     s <- get ;;
     let n := fresh_anon s in
       put (
@@ -73,12 +73,12 @@ Section Compiler.
       ) ;;
       ret (t, EXP_Ident (ID_Local (Anon n))).
 
-  Definition term (t:terminator typ) : cerr unit :=
+  Definition term (t : terminator typ) : cerr unit :=
     s <- get ;;
     put (update_block (fun x => x <|blk_term := t|>) s) ;;
     ret tt.
   
-  Definition phi (t:typ) (args:list (block_id * exp typ)) : cerr CodegenValue :=
+  Definition phi (t : typ) (args : list (block_id * exp typ)) : cerr CodegenValue :=
     s <- get ;;
     let n := fresh_anon s in
       put (
@@ -88,11 +88,11 @@ Section Compiler.
       ) ;;
       ret (t, EXP_Ident (ID_Local (Anon n))).
   
-  Definition set_vars (vs:list (texp typ)) : cerr unit :=
+  Definition set_vars (vs : list (texp typ)) : cerr unit :=
     s <- get ;;
     put (s <|vars := vs|>).
 
-  Definition compile_prim_op (o:prim_op) : (exp typ -> exp typ -> exp typ) * typ :=
+  Definition compile_prim_op (o : prim_op) : (exp typ -> exp typ -> exp typ) * typ :=
     match o with
     | Plus t => (OP_IBinop (Add false false) (convert_num_type t), convert_num_type t)
     | Minus t => (OP_IBinop (Sub false false) (convert_num_type t), convert_num_type t)
@@ -107,8 +107,8 @@ Section Compiler.
     | Lt t
     | Le t
     | Ge t
-    | Eq (t:prim_type)
-    | NEq (t:prim_type)
+    | Eq (t : prim_type)
+    | NEq (t : prim_type)
     | BitAnd t
     | BitOr t
     | BitXor t
@@ -119,7 +119,7 @@ Section Compiler.
 
   Definition undef : CodegenValue := (TYPE_Void, EXP_Null). (* undefined *)
 
-  Fixpoint compile_expr (e:expr) : cerr CodegenValue :=
+  Fixpoint compile_expr (e : expr) : cerr CodegenValue :=
     match e with
     | Prim op os =>
         match os with
@@ -172,7 +172,7 @@ Section Compiler.
     (* | _ => ret undef *)
     end.
 
-  Definition compile_type (t:type) : typ :=
+  Definition compile_type (t : type) : typ :=
     match t with
     | TPrim p => match p with
       | Num n => convert_num_type n
@@ -183,7 +183,7 @@ Section Compiler.
     (* | _ => TYPE_Void *)
     end.
 
-  Definition start_state (t:typ) : CodegenState := {|
+  Definition start_state (t : typ) : CodegenState := {|
     entry := empty_block (Name "entry_0")
   ; blocks := []
   ; fresh_anon := 0
@@ -191,33 +191,33 @@ Section Compiler.
   ; vars := [(t, EXP_Ident (ID_Local (Name "a_0")))]
   |}.
 
+  Definition build_expr (p : expr) (t : type) : err CodegenState :=
+    execErrS (v <- compile_expr p ;; term (TERM_Ret v)) (start_state (compile_type t)).
+
+  Definition compile_fun n t rt b : err (definition typ (block typ * list (block typ))) :=
+    state <- build_expr b t ;;
+    ret {|
+      df_prototype := {|
+        dc_name := Name n
+      ; dc_type := TYPE_Function (compile_type rt) [compile_type t]
+      ; dc_param_attrs := ([], [])
+      ; dc_linkage := None
+      ; dc_visibility := None
+      ; dc_dll_storage := None
+      ; dc_cconv := None
+      ; dc_attrs := []
+      ; dc_section := None
+      ; dc_align := None
+      ; dc_gc := None|}
+    ; df_args := [(Name "a_0")]
+    ; df_instrs := (entry state, rev (blocks state))
+    |}.
+
+  Definition compile_def (d : def) : err (toplevel_entity typ (block typ * list (block typ))) :=
+    match d with
+    | FunDef n t rt b => TLE_Definition <$> compile_fun n t rt b
+    end.
+
+  Definition compile_cogent := map_monad compile_def.
+
 End Compiler.
-
-Definition build_expr (p:expr) (t:type) : err CodegenState :=
-  execErrS (v <- compile_expr p ;; term (TERM_Ret v)) (start_state (compile_type t)).
-
-Definition compile_fun n t rt b : err (definition typ (block typ * list (block typ))) :=
-  state <- build_expr b t ;;
-  ret {|
-    df_prototype := {|
-      dc_name := Name n
-    ; dc_type := TYPE_Function (compile_type rt) [compile_type t]
-    ; dc_param_attrs := ([], [])
-    ; dc_linkage := None
-    ; dc_visibility := None
-    ; dc_dll_storage := None
-    ; dc_cconv := None
-    ; dc_attrs := []
-    ; dc_section := None
-    ; dc_align := None
-    ; dc_gc := None|}
-  ; df_args := [(Name "a_0")]
-  ; df_instrs := (entry state, rev (blocks state))
-  |}.
-
-Definition compile_def (d:def) : err (toplevel_entity typ (block typ * list (block typ))) :=
-  match d with
-  | FunDef n t rt b => TLE_Definition <$> compile_fun n t rt b
-  end.
-
-Definition compile_cogent := map_monad compile_def.
