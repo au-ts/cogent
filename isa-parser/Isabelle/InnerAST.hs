@@ -21,7 +21,8 @@ import Text.PrettyPrint.ANSI.Leijen
 #if __GLASGOW_HASKELL__ >= 709
 import Prelude hiding ((<$>))
 #endif
-import Data.Char (ord)
+import Data.Char (ord, isLower)
+import Data.Maybe (fromJust)
 import Text.Printf (printf)
 
 -- friends
@@ -252,7 +253,7 @@ prettyTerm p t = case t of
                               MetaImp -> prettyMetaImp p t t'
                               _       -> prettyBinOpTerm p b t t')
   TermUnOp u t          -> prettyUnOpTerm p u t
-  ListTerm l ts r       -> pretty l <> hcat (intersperse (string ", ") (map (prettyTerm termAppPrec) ts)) <> pretty r
+  ListTerm l ts r       -> prettyListTerm l ts r
   ConstTerm const       -> pretty const
   AntiTerm str          -> pretty str  -- FIXME: zilinc
   CaseOf e alts         -> prettyCase p e alts
@@ -309,6 +310,11 @@ prettyAlt :: (Term, Term) -> Doc
 -- nested case terms can produce parse ambiguities for |-alternatives. 
 -- Therefore we increase the precedence for e to cause parens for nested if/let/case
 prettyAlt (p, e) = pretty p <+> pretty "\\<Rightarrow>" </> prettyTerm (termCasePrec+1) e
+
+prettyListTerm :: String -> [Term] -> String -> Doc
+prettyListTerm l ts r =
+    nest 2 (fillSep ((string l):(punctuate comma $ map (prettyTerm elPrec) ts))) </> string r
+    where elPrec = if l == "\\<lparr>" then 0 else termAppPrec -- do not parenthesize elements in record term
 
 prettyBinOpTerm :: Precedence -> TermBinOp -> Term -> Term -> Doc
 prettyBinOpTerm p b = prettyBinOp p prettyTerm (termBinOpRec b) prettyTerm
