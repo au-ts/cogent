@@ -1,7 +1,7 @@
-From Coq Require Import List.
+From Coq Require Import List String.
 
 From ExtLib Require Import Structures.Monads.
-From ITree Require Import ITree Events.State.
+From ITree Require Import ITree Events.State Events.Exception Events.FailFacts.
 From Vellvm Require Import Util.
 
 From Checker Require Import Cogent.
@@ -10,28 +10,28 @@ Import Monads.
 Import ListNotations.
 Import MonadNotation.
 Local Open Scope monad_scope.
+Local Open Scope string_scope.
 
 Inductive uval : Set :=
 | UPrim (l:lit)
 | URecord (us:list (uval * repr))
 | UUnit
-| UPtr (r:repr)
-| UError.
+| UPtr (r:repr).
 
 Variant VarE : Type -> Type :=
 | PeekVar (i:index) : VarE uval
 | PushVar (u:uval) : VarE unit
 | PopVar : VarE unit.
 
+Definition FailE := exceptE string.
+
+Definition Event := VarE +' FailE.
+
 Section Denote.
-
-  Context {E : Type -> Type}.
-  Context {HasVar : VarE -< E}.
-
   Definition denote_prim (op:prim_op) (xs:list uval) : uval := 
     UPrim (eval_prim_op op (map (fun x => match x with UPrim v => v | _ => default end) xs)).
 
-  Fixpoint denote_expr (e:expr) : itree E uval :=
+  Fixpoint denote_expr (e:expr) : itree Event uval :=
     match e with
     | Prim op os =>
         os' <- map_monad denote_expr os ;;
@@ -49,22 +49,21 @@ Section Denote.
         c' <- denote_expr c ;;
         match c' with
         | UPrim (LBool b) => denote_expr (if b then t else e)
-        | _ => ret UError
+        | _ => throw "condition is not boolean"
         end
     | Cast t e =>
         e' <- denote_expr e ;;
-        ret match e' with
+        match e' with
         | UPrim l => 
             match cast_to t l with
-            | Some l' => UPrim l'
-            | None => UError
+            | Some l' => ret (UPrim l')
+            | None => throw "invalid cast"
             end
-        | _ => UError
+        | _ => throw "invalid cast"
         end
-    (* | _ => ret UError *)
     end.
 
-  Definition denote_fun (b:expr) : uval -> itree E uval :=
+  Definition denote_fun (b:expr) : uval -> itree Event uval :=
     fun a =>
       trigger (PushVar a) ;;
       b' <- denote_expr b ;;
@@ -81,20 +80,31 @@ End Denote.
 
 Definition local_vars := list uval.
 
-Definition h_var {E : Type -> Type } `{stateE local_vars -< E} : VarE ~> itree E :=
-  fun _ e =>
+Definition handle_var: VarE ~> stateT local_vars (itree FailE) :=
+  fun _ e s =>
     match e with
-    | PeekVar i => s <- get ;; ret (nth i s UError)
-    | PushVar u => s <- get ;; put (u :: s)
-    | PopVar => s <- get ;; put (tl s)
+    | PeekVar i =>
+        match (nth_error s i) with
+        | Some v => ret (s, v)
+        | None => throw "unknown variable"
+        end
+    | PushVar u => ret (u :: s, tt)
+    | PopVar => ret (tl s, tt)
     end.
 
+Definition interp_var: itree Event ~> stateT local_vars (itree FailE) :=
+  interp_state (case_ handle_var pure_state).
 
-Definition interp_cogent {E A} (t:itree (VarE +' E) A) : stateT local_vars (itree E) A :=
-  let t' := interp (bimap h_var (id_ E)) t in
-  run_state t'.
+(* from Helix *)
+Definition handle_failure: FailE ~> failT (itree void1) :=
+  fun _ _ => ret None.
 
+Definition inject_signature {E} : void1 ~> E := fun _ (x:void1 _) => match x with end.
+Hint Unfold inject_signature : core.
 
+Definition interp_cogent {E A} (t:itree Event A) (vars:local_vars) : failT (itree E) (local_vars * A) :=
+  translate inject_signature (interp_fail handle_failure (interp_var _ t vars)).
+(* end from Helix *)
 
-Definition run_cogent (a:uval) (f:expr) : itree void1 (local_vars * uval) :=
+Definition run_cogent (a:uval) (f:expr) : failT (itree void1) (local_vars * uval) :=
   interp_cogent (denote_fun f a) [].
