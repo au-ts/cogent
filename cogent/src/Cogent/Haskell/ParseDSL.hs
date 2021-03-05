@@ -148,37 +148,35 @@ wspace = many $ char ' '
 -- -----------------------------------------
 -- -----------------------------------------
 -- -----------------------------------------
-pTypExpr lhs = do
-    e <- colon *> pstrId
+pTypExpr lhs = trace ("1--------typ") $do
+    e <- tyOp *> pstrId
     return $ PbtDescExpr (Just (convertStr' lhs)) (HSS.QuasiQuote () (lhs) (e))
 
-pMapExpr lhs = do
-    e <- colon *> equ *> pstrId
-    return $ PbtDescExpr (Just (convertStr' lhs)) (HSS.QuasiQuote () (lhs) (e))
+pMapExpr lhs = trace ("2--------map") $ do
+    e <- mapOp *> pstrId <* pspaces semi
+    let r = PbtDescExpr (Just (convertStr' lhs)) (HSS.QuasiQuote () (lhs) (e))
+    _ <- trace (show r) $ seeNext 10
+    return $  r
 
-pJustExpr lhs = do
+pJustExpr lhs = trace ("3--------just") $do
     -- e <- pstrId
     return $ PbtDescExpr Nothing (HSS.QuasiQuote () "x" lhs)
 
 pExpr :: Parser PbtDescExpr 
 pExpr = do
     lhs <- pstrId
-    op <- lookAhead $ (   (colon ) 
-                      <|> (colon >> equ)
-                      <|> (rcurly)
-                      )
-    let v = find (\x -> isInfixOf x lhs) keyvars
+    op <- lookAhead (try (trace (show "tyOp") tyOp) <|> (trace (show "mapOp") mapOp) <|> (trace (show "rcurly") rcurly))
+    let v = trace ("lhs="++show lhs++" op="++show op) $ find (\x -> isInfixOf x lhs) keyvars
     e <- case v of
         Just x -> if | op == ':' -> pTypExpr x
                      | op == '=' -> pMapExpr x
                      | otherwise -> pJustExpr x
         Nothing -> pJustExpr lhs
-    
     return $ e
 
 pExprs :: Parser [PbtDescExpr]
 pExprs = do 
-    es <- pExpr `sepBy` (seeNext 1 >> semi)
+    es <- pExpr `sepEndBy` (semi)
     return $ es
 
     {-
@@ -189,15 +187,17 @@ pExprs = do
        | otherwise -> return $ es
        -}
 
+{-
 pExprs' :: Parser [PbtDescExpr]
 pExprs' = do
     es <- pExprs `manyTillLookAhead` rcurly
     return $ concat es
+    -}
 
 pDecl :: Parser PbtDescDecl
 pDecl = do
-    k <- pstrId
-    exprs <- pbetweenCurlys pExprs'
+    k <- pstrId <* (lookAhead lcurly)
+    exprs <- trace ("k="++show k) $ pbetweenCurlys pExprs
     return $ PbtDescDecl (convertStr k) exprs
 
 pDecls :: Parser [PbtDescDecl]
@@ -244,6 +244,9 @@ rcurly = char '}'
 colon = char ':'
 equ = char '='
 semi = char ';'
+
+tyOp = colon >> colon
+mapOp = colon >> equ
 
 manyTillLookAhead p1 p2 = p1 `manyTill` (lookAhead $ try p2)
 
@@ -313,16 +316,16 @@ exampleFile' = unlines $
         , "    pure { True }                \r"
         , "    nond { False }               \r"
         , "    absf {                       \r"
-        , "         ic : R4 Word32 Word32;  \r"
-        , "         ia : (Int, Int);        \r"
-        , "         ia := ic               \r"
+        , "         ic :: R4 Word32 Word32;  \r"
+        , "         ia :: (Int, Int);        \r"
+        , "         ia := ic;               \r"
         , "    }                            \r"
         , "    rrel {                       \r"
-        , "         oc : V0 () Word32;      \r"
-        , "         oa : Maybe Int;         \r"
-        , "         oa := oc               \r"
+        , "         oc :: V0 () Word32;      \r"
+        , "         oa :: Maybe Int;         \r"
+        , "         oa := oc ;              \r"
         , "    }                            \r"
-        , "}\r"
+        , "}                                \r"
         ]
          
 exampleFile :: String
