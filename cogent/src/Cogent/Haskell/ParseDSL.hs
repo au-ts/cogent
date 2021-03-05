@@ -21,6 +21,7 @@ import Language.Haskell.Exts.SrcLoc
 import Language.Haskell.Names.SyntaxUtils (dropAnn)
 import qualified Language.Haskell.Exts.Syntax as HSS
 import Data.List (find, isInfixOf)
+import Debug.Trace
 
 
 -- DSL Format Rules:
@@ -162,24 +163,41 @@ pJustExpr lhs = do
 pExpr :: Parser PbtDescExpr 
 pExpr = do
     lhs <- pstrId
-    op <- lookAhead $ (   (colon) 
+    op <- lookAhead $ (   (colon ) 
                       <|> (colon >> equ)
                       <|> (rcurly)
                       )
     let v = find (\x -> isInfixOf x lhs) keyvars
-    case v of
+    e <- case v of
         Just x -> if | op == ':' -> pTypExpr x
                      | op == '=' -> pMapExpr x
                      | otherwise -> pJustExpr x
         Nothing -> pJustExpr lhs
+    
+    return $ e
 
 pExprs :: Parser [PbtDescExpr]
-pExprs = pExpr `sepEndBy1` (char ';')
+pExprs = do 
+    es <- pExpr `sepBy` (seeNext 1 >> semi)
+    return $ es
+
+    {-
+    last <- lookAhead $ (semi <|> rcurly)
+    if | last == ';' -> do
+                        s <- semi
+                        return $ es
+       | otherwise -> return $ es
+       -}
+
+pExprs' :: Parser [PbtDescExpr]
+pExprs' = do
+    es <- pExprs `manyTillLookAhead` rcurly
+    return $ concat es
 
 pDecl :: Parser PbtDescDecl
 pDecl = do
     k <- pstrId
-    exprs <- pbetweenCurlys pExprs
+    exprs <- pbetweenCurlys pExprs'
     return $ PbtDescDecl (convertStr k) exprs
 
 pDecls :: Parser [PbtDescDecl]
@@ -187,8 +205,8 @@ pDecls = pDecl `manyTillLookAhead` rcurly
 
 parsePbtDescStmt :: Parser PbtDescStmt
 parsePbtDescStmt = do
-    fname <- pbetweenQuotes pstrId
-    decls <- pbetweenCurlys pDecls
+    fname <- pspaces $ pbetweenQuotes pstrId
+    decls <- pspaces $ pbetweenCurlys pDecls
     return $ PbtDescStmt fname decls
 
 -- -----------------------------------------
@@ -209,7 +227,7 @@ keyvars = ["ic", "ia", "oc", "oa"]
 stopChars = ['\"', '\r', '\n', ':', '{', '}', ';']
 
 pstrId :: Parser String 
-pstrId = many1 $ noneOf $ stopChars
+pstrId = pspaces $ many1 $ noneOf $ stopChars
 
 pspaces :: Parser a -> Parser a
 pspaces a = spaces *> a <* spaces
@@ -225,8 +243,19 @@ rcurly = char '}'
 
 colon = char ':'
 equ = char '='
+semi = char ';'
 
 manyTillLookAhead p1 p2 = p1 `manyTill` (lookAhead $ try p2)
+
+
+println a = trace "->" $ traceShowM a
+
+seeNext :: Int -> Parser ()
+seeNext n = do
+  s <- getParserState
+  let out = take n (stateInput s)
+  println out
+
 
 -- -----------------------------------------
 
@@ -286,12 +315,12 @@ exampleFile' = unlines $
         , "    absf {                       \r"
         , "         ic : R4 Word32 Word32;  \r"
         , "         ia : (Int, Int);        \r"
-        , "         ia := ic;               \r"
+        , "         ia := ic               \r"
         , "    }                            \r"
         , "    rrel {                       \r"
         , "         oc : V0 () Word32;      \r"
         , "         oa : Maybe Int;         \r"
-        , "         oa := oc;               \r"
+        , "         oa := oc               \r"
         , "    }                            \r"
         , "}\r"
         ]
