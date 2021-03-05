@@ -29,24 +29,16 @@ Section Simple.
 
   (* want to try and relate a CFG to a function *)
   
-  Definition correct (n : name) (t : type) (rt : type) (b : expr) :=
-    let generated_cfg := convert_typ [] (cfg_of_definition typ (compile_fun n t rt b)) in
-    let vellvm_itree := interp_cfg2 (denote_cfg generated_cfg) [] [] in
-    let cogent_itree := interp_cogent (denote_expr b) [] in
-    eutt (fun x y => True) cogent_itree vellvm_itree.
+  Definition TT {A B} (x: A) (y: B):= True.
 
-  (* Lemma TestCase: correct "f"
-    (TPrim (Num U8 ))
-    (TPrim (Num U32 ))
-    (Let
-    (Var 0) (Cast U32  (Var 0))).
+  Lemma correct :
+    forall
+      (n : name) (t rt : type) (b : expr) 
+      (d : definition typ (block typ * list (block typ))),
+      compile_fun n t rt b = inr d ->
+        eutt TT (interp_cogent (denote_expr b) []) (interp_cfg2 (denote_cfg (convert_typ [] (cfg_of_definition typ d))) [] []).
   Proof.
-    unfold correct.
-    force_left.
-    rewrite tau_eutt.
-    tau_steps.
-    unfold denote_ocfg; simpl.
-  Abort. *)
+  Abort.
 
 End Simple.
 
