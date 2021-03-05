@@ -140,6 +140,89 @@ lexeme p = wspace *> p <* wspace
 wspace :: IParser String 
 wspace = many $ char ' '
 
+-- -----------------------------------------
+-- -----------------------------------------
+-- -----------------------------------------
+pTypExpr lhs = do
+    e <- char ':' *> pstrId
+    return $ PbtDescExpr (Just lhs) (QuasiQuote () (lhs) (e))
+
+pMapExpr lhs = do
+    e <- char ':' *> char '=' *> pstrId
+    return $ PbtDescExpr (Just lhs) (QuasiQuote () (lhs) (e))
+
+pJustExpr lhs = do
+    -- e <- pstrId
+    return $ PbtDescExpr Nothing (QuasiQuote () "x" lhs)
+
+pExpr :: Parser PbtDescExpr 
+pExpr = do
+    lhs <- pstrId
+    op <- lookAhead $   ( (char ':' `notFollowedBy` char '=') 
+                      <|> (char ':' >> char '=')
+                      <|> (char '}')
+                        )
+    let v = find (\x -> isInfixOf x lhs) keyvars
+    case v of
+        Just x -> if | op == ':' -> pTypExpr lhs
+                     | op == '=' -> pMapExpr lhs
+                     | otherwise -> pJustExpr lhs
+        Nothing -> pJustExpr lhs
+
+pExprs :: Parser PbtDescExpr
+pExprs = pExpr `sepEndBy1` (char ';')
+
+pDecl :: Parser PbtDescDecl
+pDecl = do
+    k <- pKeyword
+    exprs <- pbetweenCurlys pExprs
+    return $ PbtDescDecl (convertStr k) exprs
+
+pDecls :: Parser [PbtDescDecl]
+pDecls = pDecl `manyTillLookAhead` rcurly
+
+parsePbtDescStmt :: Parser PbtDescStmt
+parsePbtDescStmt = do
+    fname <- pbetweenQuotes pstrId
+    decls <- pbetweenCurlys pDecls
+    return $ PbtDescStmt fname decls
+
+-- -----------------------------------------
+
+convertStr "absf" = Absf
+convertStr "rrel" = Rrel
+convertStr "welf" = Welf
+convertStr "pure" = Pure
+convertStr "nond" = Nond
+
+keyvars = ["ic", "ia", "oc", "oa"]
+
+stopChars = ['\"', '\r', '\n', ':', '{', '}', ';']
+
+pstrId :: Parser String 
+pstrId = many1 $ noneOf $ stopChars
+
+pspaces :: Parser a -> Parser a
+pspaces a = spaces *> a <* spaces
+
+pbetweenCurlys :: Parser a -> Parser a
+pbetweenCurlys a = between lcurly rcurly a
+
+pbetweenQuotes :: Parser a -> Parser a
+pbetweenQuotes a = between (char '"') (char '"') a
+
+lcurly = char '{'
+rcurly = char '}'
+
+manyTillLookAhead p1 p2 = p1 `manyTill` (lookAhead $ try p2)
+
+-- -----------------------------------------
+
+
+
+
+
+
 -- Top level parser
 -- -----------------------------------------
 pbtinfo :: IParser PBTInfo
@@ -180,6 +263,27 @@ getPBTFile = liftA lines . readFile
 testPBTParse :: IO ()
 testPBTParse = pPrint $ iParse pbtinfos "" exampleFile
 
+testPBTParse' :: IO ()
+testPBTParse' = pPrint $ parse parsePbtDescStmt "" exampleFile'
+
+exampleFile' :: String
+exampleFile' = unlines $
+        [ "\"averageBag\" {                 \r"
+        , "    pure { True }                \r"
+        , "    nond { False }               \r"
+        , "    absf {                       \r"
+        , "         ic : R4 Word32 Word32;  \r"
+        , "         ia : (Int, Int);        \r"
+        , "         ia := ic;               \r"
+        , "    }                            \r"
+        , "    rrel {                       \r"
+        , "         oc : V0 () Word32;      \r"
+        , "         oa : Maybe Int;         \r"
+        , "         oa := oc;               \r"
+        , "    }                            \r"
+        , "}\r"
+        ]
+         
 exampleFile :: String
 exampleFile = unlines $
         [ "\"averageBag\" {\r"
