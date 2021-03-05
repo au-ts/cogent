@@ -19,6 +19,8 @@ import Language.Haskell.Exts.Parser
 import Language.Haskell.Exts (Type)
 import Language.Haskell.Exts.SrcLoc
 import Language.Haskell.Names.SyntaxUtils (dropAnn)
+import qualified Language.Haskell.Exts.Syntax as HSS
+import Data.List (find, isInfixOf)
 
 
 -- DSL Format Rules:
@@ -30,6 +32,8 @@ import Language.Haskell.Names.SyntaxUtils (dropAnn)
 -- Indent Parser Type
 -- ------------------------------
 type IParser a = IndentParser String () a
+
+type Parser a = Parsec String () a
 
 keywords :: [String]
 keywords = ["pure", "nond", "absf", "rrel", "welf"]
@@ -144,37 +148,37 @@ wspace = many $ char ' '
 -- -----------------------------------------
 -- -----------------------------------------
 pTypExpr lhs = do
-    e <- char ':' *> pstrId
-    return $ PbtDescExpr (Just lhs) (QuasiQuote () (lhs) (e))
+    e <- colon *> pstrId
+    return $ PbtDescExpr (Just (convertStr' lhs)) (HSS.QuasiQuote () (lhs) (e))
 
 pMapExpr lhs = do
-    e <- char ':' *> char '=' *> pstrId
-    return $ PbtDescExpr (Just lhs) (QuasiQuote () (lhs) (e))
+    e <- colon *> equ *> pstrId
+    return $ PbtDescExpr (Just (convertStr' lhs)) (HSS.QuasiQuote () (lhs) (e))
 
 pJustExpr lhs = do
     -- e <- pstrId
-    return $ PbtDescExpr Nothing (QuasiQuote () "x" lhs)
+    return $ PbtDescExpr Nothing (HSS.QuasiQuote () "x" lhs)
 
 pExpr :: Parser PbtDescExpr 
 pExpr = do
     lhs <- pstrId
-    op <- lookAhead $   ( (char ':' `notFollowedBy` char '=') 
-                      <|> (char ':' >> char '=')
-                      <|> (char '}')
-                        )
+    op <- lookAhead $ (   (colon) 
+                      <|> (colon >> equ)
+                      <|> (rcurly)
+                      )
     let v = find (\x -> isInfixOf x lhs) keyvars
     case v of
-        Just x -> if | op == ':' -> pTypExpr lhs
-                     | op == '=' -> pMapExpr lhs
-                     | otherwise -> pJustExpr lhs
+        Just x -> if | op == ':' -> pTypExpr x
+                     | op == '=' -> pMapExpr x
+                     | otherwise -> pJustExpr x
         Nothing -> pJustExpr lhs
 
-pExprs :: Parser PbtDescExpr
+pExprs :: Parser [PbtDescExpr]
 pExprs = pExpr `sepEndBy1` (char ';')
 
 pDecl :: Parser PbtDescDecl
 pDecl = do
-    k <- pKeyword
+    k <- pstrId
     exprs <- pbetweenCurlys pExprs
     return $ PbtDescDecl (convertStr k) exprs
 
@@ -195,6 +199,11 @@ convertStr "welf" = Welf
 convertStr "pure" = Pure
 convertStr "nond" = Nond
 
+convertStr' "ic" = Ic
+convertStr' "ia" = Ia
+convertStr' "oc" = Oc
+convertStr' "oa" = Oa
+
 keyvars = ["ic", "ia", "oc", "oa"]
 
 stopChars = ['\"', '\r', '\n', ':', '{', '}', ';']
@@ -213,6 +222,9 @@ pbetweenQuotes a = between (char '"') (char '"') a
 
 lcurly = char '{'
 rcurly = char '}'
+
+colon = char ':'
+equ = char '='
 
 manyTillLookAhead p1 p2 = p1 `manyTill` (lookAhead $ try p2)
 
@@ -264,7 +276,7 @@ testPBTParse :: IO ()
 testPBTParse = pPrint $ iParse pbtinfos "" exampleFile
 
 testPBTParse' :: IO ()
-testPBTParse' = pPrint $ parse parsePbtDescStmt "" exampleFile'
+testPBTParse' = pPrint $ Text.Parsec.parse parsePbtDescStmt "" exampleFile'
 
 exampleFile' :: String
 exampleFile' = unlines $
