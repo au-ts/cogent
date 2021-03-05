@@ -207,11 +207,10 @@ library
                    , Cogent.Haskell.ParseDSL
     cpp-options: -DWITH_HASKELL
     build-depends: haskell-src-exts >= 1.19
+                 , haskell-names
                  , pretty
                  , extra
                  , indents
-                 , generics-sop >= 0.5
-                 , haskell-names
   if flag(llvm-backend)
     exposed-modules: Cogent.LLVM.Compile
     cpp-options: -DWITH_LLVM
