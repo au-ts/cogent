@@ -21,6 +21,7 @@ import Language.Haskell.Exts.SrcLoc
 import Language.Haskell.Names.SyntaxUtils (dropAnn)
 import qualified Language.Haskell.Exts.Syntax as HSS
 import Data.List (find, isInfixOf)
+import Data.List.Extra (trim)
 import Debug.Trace
 
 
@@ -149,11 +150,11 @@ wspace = many $ char ' '
 -- -----------------------------------------
 -- -----------------------------------------
 pTypExpr lhs = trace ("1--------typ") $do
-    e <- tyOp *> pstrId
+    e <- tyOp *> pstrId 
     return $ PbtDescExpr (Just (convertStr' lhs)) (HSS.QuasiQuote () (lhs) (e))
 
 pMapExpr lhs = trace ("2--------map") $ do
-    e <- mapOp *> pstrId <* pspaces semi
+    e <- mapOp *> pstrId
     let r = PbtDescExpr (Just (convertStr' lhs)) (HSS.QuasiQuote () (lhs) (e))
     _ <- trace (show r) $ seeNext 10
     return $  r
@@ -176,8 +177,12 @@ pExpr = do
 
 pExprs :: Parser [PbtDescExpr]
 pExprs = do 
-    es <- pExpr `sepEndBy` (semi)
+    es <- pExpr `sepEndBy` (pspaces semi)
     return $ es
+
+    {-
+    delim <- lookAhead (try (trace (show "semi") semi) <|> (trace (show "rcurly") rcurly))
+    es' <- if delim == ';' then semi >> es
 
     {-
     last <- lookAhead $ (semi <|> rcurly)
@@ -185,6 +190,7 @@ pExprs = do
                         s <- semi
                         return $ es
        | otherwise -> return $ es
+       -}
        -}
 
 {-
@@ -197,7 +203,8 @@ pExprs' = do
 pDecl :: Parser PbtDescDecl
 pDecl = do
     k <- pstrId <* (lookAhead lcurly)
-    exprs <- trace ("k="++show k) $ pbetweenCurlys pExprs
+    _ <- trace ("pDecl: k=" ++ show ( trim k)) $ seeNext 3
+    exprs <- pspaces $ pbetweenCurlys pExprs
     return $ PbtDescDecl (convertStr k) exprs
 
 pDecls :: Parser [PbtDescDecl]
@@ -216,11 +223,13 @@ convertStr "rrel" = Rrel
 convertStr "welf" = Welf
 convertStr "pure" = Pure
 convertStr "nond" = Nond
+convertStr s = convertStr . trim $ s
 
 convertStr' "ic" = Ic
 convertStr' "ia" = Ia
 convertStr' "oc" = Oc
 convertStr' "oa" = Oa
+convertStr' s = convertStr' . trim $ s
 
 keyvars = ["ic", "ia", "oc", "oa"]
 
