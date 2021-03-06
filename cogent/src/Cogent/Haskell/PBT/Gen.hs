@@ -37,6 +37,7 @@ import Prelude as P
 import Data.Tuple
 import Data.Function
 import Data.Maybe
+import Data.Either
 import Data.List (find, partition, group, sort)
 import Data.Generics.Schemes (everything)
 import Control.Arrow (second, (***), (&&&))
@@ -146,6 +147,49 @@ propDecls PBTInfo{..} =
                                  (UnGuardedRhs () $ mkPropBody fname finfo ) Nothing]
             in [sig, dec]
 
+propDecls' :: PbtDescStmt -> [Decl ()]
+propDecls' desc 
+    = let fn    = desc ^. funcname
+          ds    = mkPropBody' fn $ desc ^. decls
+          fnName = "prop_" ++ fn
+          toName = "Property"
+          to     = TyCon   () (mkQName toName)
+          sig    = TypeSig () [mkName fnName] to
+          dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $ ds ) Nothing]
+        in [sig, dec]
+
+mkPropBody' :: String -> [PbtDescDecl] -> Exp ()
+mkPropBody' n ds
+    = let find' x = let res = fromJust $ find (\d -> case (d ^. kword) of x -> True; _ -> False) ds
+                      in res ^. kexprs
+          isPure = and $ map (\e -> case (e ^. kexp) of
+                                        Left x -> boolResult x
+                                        Right _ -> False
+                             ) $ find' Pure 
+          isNond = and $ map (\e -> case (e ^. kexp) of
+                                        Left x -> boolResult x
+                                        Right _ -> False
+                             ) $ find' Nond
+          f  = if isPure then function "forAll" else function "forAllM"
+          fs = [ function $ "gen_"++n
+               , lamE [pvar $ mkName "ic"] (if isPure 
+                                            then letE binds body
+                                            else doE binds') ]
+            where ia = app (function $ "abs_"++n) (var $ mkName "ic")
+                  oc = app (function n)           (var $ mkName "ic")
+                  oa = app (function $ "hs_"++n)  ia
+                  binds = [ FunBind () [Match () (mkName "oc") [] (UnGuardedRhs () oc  ) Nothing]
+                          , FunBind () [Match () (mkName "oa") [] (UnGuardedRhs () oa  ) Nothing] ]
+                  binds' =  [ genStmt (pvar $ mkName "oc") oc
+                            , genStmt (pvar $ mkName "oa") (app (function "return") oa)
+                            , qualStmt body ]
+                  body  = appFun (function $ (if isPure then "corres" else "corresM")++(if not isNond then "'" else ""))
+                                 [ function $ "rel_"++n
+                                 , var $ mkName "oa"
+                                 , var $ mkName "oc" ]
+        in if isPure then appFun f fs
+            else app (function "monadicIO") $ appFun f fs
+          
 mkPropBody :: String -> FunDefs -> Exp ()
 mkPropBody n FunInfo{ispure=True, nondet=nd} =
     let f  = function "forAll"
@@ -620,6 +664,13 @@ isInt' _ = False
 
 isInt :: Type () -> Bool
 isInt (TyCon _ (UnQual _ (Ident _ n))) = checkTy n ["Int"]
+
+isBool :: Type () -> Bool
+isBool (TyCon _ (UnQual _ (Ident _ n))) = checkTy n ["Bool"]
+
+boolResult :: Type () -> Bool
+boolResult (TyCon _ (UnQual _ (Ident _ n))) = read n
+boolResult _ = False
 
 isFromIntegral :: Type () -> Bool
 isFromIntegral (TyCon _ (UnQual _ (Ident _ n)))

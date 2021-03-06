@@ -79,13 +79,15 @@ pExpr = do
 
 pTypExpr lhs = do
     e <- tyOp *> pstrId 
-    return $ PbtDescExpr (Just (toPbtTyp' lhs)) (HSS.QuasiQuote () (lhs) (e))
+    return $ PbtDescExpr (Just (toPbtTyp' lhs)) (Left (parseHsTyp e))
 
 pMapExpr lhs = do
     e <- mapOp *> pstrId
-    return $ PbtDescExpr (Just (toPbtTyp' lhs)) (HSS.QuasiQuote () (lhs) (e))
+    return $ PbtDescExpr (Just (toPbtTyp' lhs)) (Right (parseHsExp e))
 
-pJustExpr lhs = return $ PbtDescExpr Nothing (HSS.QuasiQuote () "x" lhs)
+pJustExpr lhs = return $ PbtDescExpr Nothing (Left (parseHsTyp lhs))
+
+-- (HSS.QuasiQuote () "x" lhs)
 
 -- Helpers
 -- -----------------------------------------

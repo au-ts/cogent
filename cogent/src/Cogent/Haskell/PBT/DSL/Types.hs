@@ -12,19 +12,21 @@ import Lens.Micro.TH
 -- -----------------------------------------------------------------------
 -- | contains info parsed in from PBT Description DSL
 
-data PbtDescStmt = PbtDescStmt { _name :: String
+data PbtDescStmt = PbtDescStmt { _funcname :: String
                                , _decls :: [PbtDescDecl]
                                } deriving (Show)
 
 data PbtDescDecl = PbtDescDecl { _kword :: PbtKeyword
-                               , _exprs :: [PbtDescExpr]
+                               , _kexprs :: [PbtDescExpr]
                                } deriving (Show)
 
-data PbtDescExpr = PbtDescExpr { _var :: Maybe PbtKeyvars 
-                               , _exp :: HS.Exp ()
+data PbtDescExpr = PbtDescExpr { _kvar :: Maybe PbtKeyvars 
+                               , _kexp :: Either (HS.Type ()) (HS.Exp ())
                                } deriving Show
 
 data PbtKeyword = Absf | Rrel | Welf | Pure | Nond deriving Show
 data PbtKeyvars = Ic | Ia | Oc | Oa deriving Show
 
 makeLenses ''PbtDescStmt
+makeLenses ''PbtDescDecl
+makeLenses ''PbtDescExpr
