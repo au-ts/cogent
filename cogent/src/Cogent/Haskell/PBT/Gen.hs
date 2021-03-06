@@ -158,38 +158,40 @@ propDecls' desc
           dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $ ds ) Nothing]
         in [sig, dec]
 
+findExprsInDecl :: PbtKeyword -> [PbtDescDecl] -> [PbtDescExpr]
+findExprsInDecl x ds = let res = fromJust $ find (\d -> case (d ^. kword) of x -> True; _ -> False) ds
+                         in res ^. kexprs
+
+findExprsInDeclWithKvars :: PbtKeyword -> PbtKeyvars -> [PbtDescDecl] -> Either (HS.Type ()) (HS.Exp ())
+findExprsInDeclWithKvars  x y ds 
+    = let res = fromJust $ find (\d -> case (d ^. kword) of x -> True; _ -> False) ds
+          res' = fromJust $ find (\e -> case (e ^. kvar) of 
+                             Just y' -> case y' of y -> True; _ -> False;
+                             _ -> False
+                    ) $ res ^. kexprs
+          in res' ^. kexp
+
 mkPropBody' :: String -> [PbtDescDecl] -> Exp ()
 mkPropBody' n ds
-    = let find' x = let res = fromJust $ find (\d -> case (d ^. kword) of x -> True; _ -> False) ds
-                      in res ^. kexprs
-          isPure = and $ map (\e -> case (e ^. kexp) of
-                                        Left x -> boolResult x
-                                        Right _ -> False
-                             ) $ find' Pure 
-          isNond = and $ map (\e -> case (e ^. kexp) of
-                                        Left x -> boolResult x
-                                        Right _ -> False
-                             ) $ find' Nond
+    = let isPure = and $ map (\e -> case (e ^. kexp) of Left x -> boolResult x; Right _ -> False) $ findExprsInDecl Pure ds
+          isNond = and $ map (\e -> case (e ^. kexp) of Left x -> boolResult x; Right _ -> False) $ findExprsInDecl Nond ds
+          ia = app (function $ "abs_"++n) (var $ mkName "ic")
+          oc = app (function n)           (var $ mkName "ic")
+          oa = app (function $ "hs_"++n)  ia
+          binds = [ FunBind () [Match () (mkName "oc") [] (UnGuardedRhs () oc  ) Nothing]
+                  , FunBind () [Match () (mkName "oa") [] (UnGuardedRhs () oa  ) Nothing] ]
+          binds' =  [ genStmt (pvar $ mkName "oc") oc
+                    , genStmt (pvar $ mkName "oa") (app (function "return") oa)
+                    , qualStmt body ]
+          body  = appFun (function $ (if isPure then "corres" else "corresM")++(if not isNond then "'" else ""))
+                         [ function $ "rel_"++n , var $ mkName "oa" , var $ mkName "oc" ]
           f  = if isPure then function "forAll" else function "forAllM"
           fs = [ function $ "gen_"++n
-               , lamE [pvar $ mkName "ic"] (if isPure 
-                                            then letE binds body
-                                            else doE binds') ]
-            where ia = app (function $ "abs_"++n) (var $ mkName "ic")
-                  oc = app (function n)           (var $ mkName "ic")
-                  oa = app (function $ "hs_"++n)  ia
-                  binds = [ FunBind () [Match () (mkName "oc") [] (UnGuardedRhs () oc  ) Nothing]
-                          , FunBind () [Match () (mkName "oa") [] (UnGuardedRhs () oa  ) Nothing] ]
-                  binds' =  [ genStmt (pvar $ mkName "oc") oc
-                            , genStmt (pvar $ mkName "oa") (app (function "return") oa)
-                            , qualStmt body ]
-                  body  = appFun (function $ (if isPure then "corres" else "corresM")++(if not isNond then "'" else ""))
-                                 [ function $ "rel_"++n
-                                 , var $ mkName "oa"
-                                 , var $ mkName "oc" ]
+               , lamE [pvar $ mkName "ic"] (if isPure then letE binds body else doE binds') ]
         in if isPure then appFun f fs
-            else app (function "monadicIO") $ appFun f fs
+           else app (function "monadicIO") $ appFun f fs
           
+-- TODO: Delete !!!
 mkPropBody :: String -> FunDefs -> Exp ()
 mkPropBody n FunInfo{ispure=True, nondet=nd} =
     let f  = function "forAll"
@@ -205,6 +207,7 @@ mkPropBody n FunInfo{ispure=True, nondet=nd} =
                                  , var $ mkName "oa"
                                  , var $ mkName "oc" ]
         in appFun f fs
+-- TODO: Delete !!!
 mkPropBody n FunInfo{ispure=False, nondet=nd} =
     let f  = function "forAllM"
         fs = [ function $ "gen_"++n
@@ -225,6 +228,7 @@ mkPropBody n FunInfo{ispure=False, nondet=nd} =
 -- -----------------------------------------------------------------------
 -- Cogent PBT: Generator for Test data generators
 -- -----------------------------------------------------------------------
+-- TODO: fix up DSL to handle this
 genDecls :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> [Decl ()]
 genDecls PBTInfo{..} defs =
         let FunAbsF{absf=_, ityps=ityps} = fabsf
@@ -261,6 +265,68 @@ genDecls' PBTInfo{..} defs = do
                         function "undefined") Nothing]
             -- cls    = ClassDecl () () [] ()
           in return [dec, hs_dec] --[sig, dec] --, icT']
+
+{-
+-- Dummy func for Gen functions (test data generators)
+genDecls' :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
+genDecls' PBTInfo{..} defs = do
+        let FunAbsF{absf=_, ityps=ityps} = fabsf
+            icT' = fromJust $ P.lookup "IC" ityps
+            icT = fromJust $ P.lookup "IA" ityps
+        -- (icT, _, absE) <- mkAbsFExp fname iaT defs
+        let fnName = "gen_" ++fname
+            --toName = "Gen " ++ show icT' -- ++icT
+            --to     = TyCon   () (mkQName toName)
+            --sig    = TypeSig () [mkName fnName] to
+            dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $
+                        mkGenBody fname icT) Nothing]
+            hs_dec    = FunBind () [Match () (mkName $ "hs_"++fname) [] (UnGuardedRhs () $
+                        function "undefined") Nothing]
+            -- cls    = ClassDecl () () [] ()
+          in return [dec, hs_dec] --[sig, dec] --, icT']
+          -}
+
+{-
+-- Dummy func for Gen functions (test data generators)
+genDecls'' :: PbtDescStmt -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
+genDecls'' PBTInfo{..} defs = do
+        let FunAbsF{absf=_, ityps=ityps} = find (\x -> case (x ^? _Just . ) of Just x ->   findExprsInDecl Absf decls 
+            icT' = fromJust $ P.lookup "IC" ityps
+            icT = fromJust $ P.lookup "IA" ityps
+        -- (icT, _, absE) <- mkAbsFExp fname iaT defs
+        let fnName = "gen_" ++fname
+            --toName = "Gen " ++ show icT' -- ++icT
+            --to     = TyCon   () (mkQName toName)
+            --sig    = TypeSig () [mkName fnName] to
+            dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $
+                        mkGenBody fname icT) Nothing]
+            hs_dec    = FunBind () [Match () (mkName $ "hs_"++fname) [] (UnGuardedRhs () $
+                        function "undefined") Nothing]
+            -- cls    = ClassDecl () () [] ()
+          in return [dec, hs_dec] --[sig, dec] --, icT']
+
+
+
+
+-- Dummy func for Gen functions (test data generators)
+genDecls' :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
+genDecls' PBTInfo{..} defs = do
+        let FunAbsF{absf=_, ityps=ityps} = fabsf
+            icT' = fromJust $ P.lookup "IC" ityps
+            icT = fromJust $ P.lookup "IA" ityps
+        -- (icT, _, absE) <- mkAbsFExp fname iaT defs
+        let fnName = "gen_" ++fname
+            --toName = "Gen " ++ show icT' -- ++icT
+            --to     = TyCon   () (mkQName toName)
+            --sig    = TypeSig () [mkName fnName] to
+            dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $
+                        mkGenBody fname icT) Nothing]
+            hs_dec    = FunBind () [Match () (mkName $ "hs_"++fname) [] (UnGuardedRhs () $
+                        function "undefined") Nothing]
+            -- cls    = ClassDecl () () [] ()
+          in return [dec, hs_dec] --[sig, dec] --, icT']
+
+-}
 
 -- Abstraction Function Generator
 absFDecl :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]

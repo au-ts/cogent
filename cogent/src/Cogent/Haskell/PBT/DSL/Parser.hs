@@ -68,7 +68,7 @@ pExprs = pExpr `sepEndBy` (pspaces semi)
 pExpr :: Parser PbtDescExpr 
 pExpr = do
     lhs <- pstrId
-    op <- lookAhead $ try tyOp <|> mapOp <|> rcurly
+    op <- lookAhead $ try tyOp <|> mapOp <|> rcurly <|> semi
     let v = find (\x -> isInfixOf x lhs) keyvars
     e <- case v of
         Just x -> if | op == ':' -> pTypExpr x
@@ -165,6 +165,9 @@ exampleFile = unlines $
         , "         oc :: V0 () Word32;      \r"
         , "         oa :: Maybe Int;         \r"
         , "         oa := oc;               \r"
+        , "    }                            \r"
+        , "    welf {                       \r"
+        , "        ic := ic ^. sum >= ic ^. count; \r"
         , "    }                            \r"
         , "}                                \r"
         ]
