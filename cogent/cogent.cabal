@@ -205,6 +205,8 @@ library
                    , Cogent.Haskell.GenDSL
                    , Cogent.Haskell.PBTGen
                    , Cogent.Haskell.ParseDSL
+                   , Cogent.Haskell.PbtDescDsl.Parser
+                   , Cogent.Haskell.PbtDescDsl.Types
     cpp-options: -DWITH_HASKELL
     build-depends: haskell-src-exts >= 1.19
                  , haskell-names

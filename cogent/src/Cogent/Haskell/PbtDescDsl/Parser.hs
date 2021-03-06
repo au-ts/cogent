@@ -2,7 +2,7 @@
 
 module Cogent.Haskell.PbtDescDsl.Parser (parsePbtDescFile) where
 
-import Cogent.Haskell.GenDSL
+import Cogent.Haskell.PbtDescDsl.Types
 import Cogent.Compiler (__cogent_pbt_info, __impossible)
 import qualified Language.Haskell.Exts.Syntax as HSS (Exp(..), Type(..))
 import qualified Language.Haskell.Exts.Parser as HSP (parseType, parseExp, fromParseResult)
@@ -19,6 +19,9 @@ import Data.List.Extra (trim)
 import Data.Maybe
 import Debug.Trace
 
+-- Parser type
+type Parser a = Parsec String () a
+
 -- Top level parser functions (for parsing PBT description file, aka: __cogent_pbt_info)
 -- -----------------------------------------
 parsePbtDescFile :: FilePath -> ExceptT String IO [PbtDescStmt]
@@ -29,7 +32,7 @@ readPbtFile = liftA lines . readFile
 pPbtFile :: Parser a -> FilePath -> ExceptT String IO a
 pPbtFile p f = do
     pbtFileLs <- case __cogent_pbt_info of 
-                   Just f -> lift $ getPBTFile f
+                   Just f -> lift $ readPbtFile f
                    Nothing -> undefined
     case (Text.Parsec.parse p "" (unlines pbtFileLs)) of 
         Right pbtF -> return pbtF

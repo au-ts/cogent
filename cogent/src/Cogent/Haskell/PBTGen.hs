@@ -18,6 +18,7 @@ import Cogent.Core (TypedExpr(..))
 import Cogent.C.Syntax
 import Cogent.Common.Syntax
 import Cogent.Haskell.HscGen
+import Cogent.Haskell.ParseDSL
 import Cogent.Util ( concatMapM, Stage(..), delimiter, secondM, toHsTypeName, concatMapM, (<<+=) )
 import Cogent.Compiler (__impossible)
 import qualified Cogent.Haskell.HscSyntax as Hsc
@@ -28,6 +29,7 @@ import Language.Haskell.Exts.Syntax as HS
 import Language.Haskell.Exts.SrcLoc
 import Text.PrettyPrint
 import Debug.Trace
+import Cogent.Haskell.PbtDescDsl.Types
 import Cogent.Haskell.GenDSL
 import Cogent.Haskell.Shallow as SH
 import Prelude as P
