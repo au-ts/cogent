@@ -8,7 +8,7 @@
 --
 -- Generates Hs functions which are used in Property-Based Testing
 
-module Cogent.Haskell.PBTGen (
+module Cogent.Haskell.PBT.Gen (
   pbtHs
 ) where
 
@@ -29,7 +29,8 @@ import Language.Haskell.Exts.Syntax as HS
 import Language.Haskell.Exts.SrcLoc
 import Text.PrettyPrint
 import Debug.Trace
-import Cogent.Haskell.PbtDescDsl.Types
+import Cogent.Haskell.PBT.DSL.Types
+import Cogent.Haskell.PBT.Types
 import Cogent.Haskell.GenDSL
 import Cogent.Haskell.Shallow as SH
 import Prelude as P

@@ -1,8 +1,8 @@
 {-# LANGUAGE MultiWayIf #-}
 
-module Cogent.Haskell.PbtDescDsl.Parser (parsePbtDescFile) where
+module Cogent.Haskell.PBT.DSL.Parser (parsePbtDescFile) where
 
-import Cogent.Haskell.PbtDescDsl.Types
+import Cogent.Haskell.PBT.DSL.Types
 import Cogent.Compiler (__cogent_pbt_info, __impossible)
 import qualified Language.Haskell.Exts.Syntax as HSS (Exp(..), Type(..))
 import qualified Language.Haskell.Exts.Parser as HSP (parseType, parseExp, fromParseResult)
@@ -146,11 +146,11 @@ seeNext n = do
   let out = take n (stateInput s)
   println out
 
-testPBTParse' :: IO ()
-testPBTParse' = pPrint $ Text.Parsec.parse pStmt "" exampleFile'
+testPBTParse :: IO ()
+testPBTParse = pPrint $ Text.Parsec.parse pStmt "" exampleFile
 
-exampleFile' :: String
-exampleFile' = unlines $
+exampleFile :: String
+exampleFile = unlines $
         [ "\"averageBag\" {                 \r"
         , "    pure { True }                \r"
         , "    nond { False }               \r"

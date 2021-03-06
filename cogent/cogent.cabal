@@ -202,11 +202,15 @@ library
                    , Cogent.Haskell.HscGen
                    , Cogent.Haskell.HscSyntax
                    , Cogent.Haskell.Shallow
+                   , Cogent.Haskell.PBT.Gen
+                   , Cogent.Haskell.PBT.Types
+                   , Cogent.Haskell.PBT.DSL.Parser
+                   , Cogent.Haskell.PBT.DSL.Types
+
+-- TODO: DELETE !!!
                    , Cogent.Haskell.GenDSL
-                   , Cogent.Haskell.PBTGen
                    , Cogent.Haskell.ParseDSL
-                   , Cogent.Haskell.PbtDescDsl.Parser
-                   , Cogent.Haskell.PbtDescDsl.Types
+
     cpp-options: -DWITH_HASKELL
     build-depends: haskell-src-exts >= 1.19
                  , haskell-names
