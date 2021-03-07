@@ -58,7 +58,7 @@ import Cogent.Isabelle.Shallow (isRecTuple)
 
 pbtHs :: String         -- Module Name
       -> String         -- Hsc Module Name (for imports)
-      -> [PBTInfo]      -- List of PBT info for the Cogent Functions
+      -> [PbtDescStmt]      -- List of PBT info for the Cogent Functions
       -> [CC.Definition TypedExpr VarName b]  -- A list of Cogent definitions
       -> [CC.CoreConst TypedExpr]             -- A list of Cogent constants
       -> String         -- Log header 
@@ -69,13 +69,13 @@ pbtHs name hscname pbtinfos decls consts log = render $
     in text "{-" $+$ text log $+$ text "-}" $+$ prettyPrim mod
 
 -- -> Gen (Module ()) 
-propModule :: String -> String -> [PBTInfo] -> [CC.Definition TypedExpr VarName b] -> Module ()
+propModule :: String -> String -> [PbtDescStmt] -> [CC.Definition TypedExpr VarName b] -> Module ()
 propModule name hscname pbtinfos decls =
   let (cogDecls, w) = evalRWS (runSG $ do
                                           shallowTypesFromTable
-                                          genDs <- concatMapM (\x -> genDecls' x decls) pbtinfos
-                                          absDs <- concatMapM (\x -> absFDecl x decls) pbtinfos
-                                          rrelDs <- concatMapM (\x -> rrelDecl x decls) pbtinfos
+                                          genDs <- concatMapM (\x -> genDecls'' x decls) pbtinfos
+                                          absDs <- concatMapM (\x -> absFDecl' x decls) pbtinfos
+                                          rrelDs <- concatMapM (\x -> rrelDecl' x decls) pbtinfos
                                           -- genDecls x decls shallowTypesFromTable
                                           --cs <- concatMapM shallowConst consts
                                           --ds <- shallowDefinitions decls
@@ -126,7 +126,7 @@ propModule name hscname pbtinfos decls =
       (ls, cogD) = partition (\x -> case x of
                                       (SpliceDecl _ _) -> True
                                       _ -> False) cogDecls
-      hs_decls = rmdups ls ++ P.concatMap propDecls pbtinfos ++ cogD
+      hs_decls = rmdups ls ++ P.concatMap propDecls' pbtinfos ++ cogD
                                 -- ++ (P.concatMap (\x -> genDecls x decls) pbtinfos)
   in
   Module () (Just moduleHead) exts imps hs_decls
@@ -162,14 +162,21 @@ findExprsInDecl :: PbtKeyword -> [PbtDescDecl] -> [PbtDescExpr]
 findExprsInDecl x ds = let res = fromJust $ find (\d -> case (d ^. kword) of x -> True; _ -> False) ds
                          in res ^. kexprs
 
-findExprsInDeclWithKvars :: PbtKeyword -> PbtKeyvars -> [PbtDescDecl] -> Either (HS.Type ()) (HS.Exp ())
-findExprsInDeclWithKvars  x y ds 
-    = let res = fromJust $ find (\d -> case (d ^. kword) of x -> True; _ -> False) ds
-          res' = fromJust $ find (\e -> case (e ^. kvar) of 
+-- find ic/ia/oc/oa type and expression
+findKvarsInDecl :: PbtKeyword -> PbtKeyvars -> [PbtDescDecl] -> (PbtKeyvars, Maybe (Type ()), Maybe (Exp ()))
+findKvarsInDecl x y ds 
+    = let decl = case (find (\d -> case (d ^. kword) of x -> True; _ -> False) ds) of 
+                   Just x -> x
+                   Nothing -> __impossible $ "The decl: "++show x++ " was not specified"
+          exprs = filter (\e -> case (e ^. kvar) of 
                              Just y' -> case y' of y -> True; _ -> False;
                              _ -> False
-                    ) $ res ^. kexprs
-          in res' ^. kexp
+                  ) $ decl ^. kexprs
+          in ( y
+               -- find ty
+             , (exprs ^.. each . kexp . _Left) ^? ix 0
+               -- find mapping exp associated with this keyvar
+             , (exprs ^.. each . kexp . _Right) ^? ix 0 )
 
 mkPropBody' :: String -> [PbtDescDecl] -> Exp ()
 mkPropBody' n ds
@@ -266,67 +273,24 @@ genDecls' PBTInfo{..} defs = do
             -- cls    = ClassDecl () () [] ()
           in return [dec, hs_dec] --[sig, dec] --, icT']
 
-{-
--- Dummy func for Gen functions (test data generators)
-genDecls' :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
-genDecls' PBTInfo{..} defs = do
-        let FunAbsF{absf=_, ityps=ityps} = fabsf
-            icT' = fromJust $ P.lookup "IC" ityps
-            icT = fromJust $ P.lookup "IA" ityps
-        -- (icT, _, absE) <- mkAbsFExp fname iaT defs
-        let fnName = "gen_" ++fname
-            --toName = "Gen " ++ show icT' -- ++icT
-            --to     = TyCon   () (mkQName toName)
-            --sig    = TypeSig () [mkName fnName] to
-            dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $
-                        mkGenBody fname icT) Nothing]
-            hs_dec    = FunBind () [Match () (mkName $ "hs_"++fname) [] (UnGuardedRhs () $
-                        function "undefined") Nothing]
-            -- cls    = ClassDecl () () [] ()
-          in return [dec, hs_dec] --[sig, dec] --, icT']
-          -}
-
-{-
--- Dummy func for Gen functions (test data generators)
+-- TODO: WIRE UP 
 genDecls'' :: PbtDescStmt -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
-genDecls'' PBTInfo{..} defs = do
-        let FunAbsF{absf=_, ityps=ityps} = find (\x -> case (x ^? _Just . ) of Just x ->   findExprsInDecl Absf decls 
-            icT' = fromJust $ P.lookup "IC" ityps
-            icT = fromJust $ P.lookup "IA" ityps
-        -- (icT, _, absE) <- mkAbsFExp fname iaT defs
-        let fnName = "gen_" ++fname
-            --toName = "Gen " ++ show icT' -- ++icT
-            --to     = TyCon   () (mkQName toName)
-            --sig    = TypeSig () [mkName fnName] to
+genDecls'' stmt defs = do
+        let (_, icTy, icExp) = findKvarsInDecl Absf Ic $ stmt ^. decls
+            fnName = "gen_" ++ stmt ^. funcname
+            genCon = TyCon () (mkQName "Gen")
+            tyOut = TyApp () genCon $ case icTy of 
+                                        Just x -> TyParen () x
+                                        Nothing -> TyCon () $ mkQName "Unknown"
+            sig    = TypeSig () [mkName fnName] tyOut
+            -- TODO: better gen_* body
+            --       - what else do you need for arbitrary?
             dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $
-                        mkGenBody fname icT) Nothing]
-            hs_dec    = FunBind () [Match () (mkName $ "hs_"++fname) [] (UnGuardedRhs () $
-                        function "undefined") Nothing]
-            -- cls    = ClassDecl () () [] ()
-          in return [dec, hs_dec] --[sig, dec] --, icT']
-
-
-
-
--- Dummy func for Gen functions (test data generators)
-genDecls' :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
-genDecls' PBTInfo{..} defs = do
-        let FunAbsF{absf=_, ityps=ityps} = fabsf
-            icT' = fromJust $ P.lookup "IC" ityps
-            icT = fromJust $ P.lookup "IA" ityps
-        -- (icT, _, absE) <- mkAbsFExp fname iaT defs
-        let fnName = "gen_" ++fname
-            --toName = "Gen " ++ show icT' -- ++icT
-            --to     = TyCon   () (mkQName toName)
-            --sig    = TypeSig () [mkName fnName] to
-            dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $
-                        mkGenBody fname icT) Nothing]
-            hs_dec    = FunBind () [Match () (mkName $ "hs_"++fname) [] (UnGuardedRhs () $
-                        function "undefined") Nothing]
-            -- cls    = ClassDecl () () [] ()
-          in return [dec, hs_dec] --[sig, dec] --, icT']
-
--}
+                        function "arbitrary") Nothing]
+            -- TODO: this is a dummy HS spec function def -> replace with something better
+            hs_dec    = FunBind () [Match () (mkName $ "hs_"++fnName) [] (UnGuardedRhs () $
+                           function "undefined") Nothing]
+          in return [sig, dec, hs_dec]
 
 -- Abstraction Function Generator
 absFDecl :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
@@ -342,6 +306,21 @@ absFDecl PBTInfo{..} defs = do
             dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "ic"] (UnGuardedRhs () absE) Nothing]
         return $ map mkLens (takeWhile (\x -> notElem x hsSumTypes) conNames)++[sig, dec]
 
+-- Abstraction Function Generator
+absFDecl' :: PbtDescStmt -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
+absFDecl' stmt defs = do
+        let (_, iaTy, iaExp) = findKvarsInDecl Absf Ia $ stmt ^. decls
+            fnName = "abs_" ++ stmt ^. funcname
+            iaT = case iaTy of 
+                      Just x -> x
+                      Nothing -> __impossible "specify ia type please"
+        (icT, _, absE, conNames) <- mkAbsFExp (stmt ^. funcname) iaT defs
+        let ti     = icT
+            to     = iaT
+            sig    = TypeSig () [mkName fnName] (TyFun () ti to)
+            dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "ic"] (UnGuardedRhs () absE) Nothing]
+        return $ map mkLens (takeWhile (\x -> notElem x hsSumTypes) conNames)++[sig, dec]
+
 -- Refinement Relation Generator
 rrelDecl :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
 rrelDecl PBTInfo{..} defs = do
@@ -350,6 +329,21 @@ rrelDecl PBTInfo{..} defs = do
             fnName = "rel_" ++fname
         (ocT, _, rrelE, conNames) <- mkRrelExp fname oaT defs
         -- (ocT, _, rrelE) <- mkAbsFExp fname oaT defs
+        let to     = mkTyConT $ mkName "Bool"
+            ti     = TyFun () oaT $ TyFun () ocT to
+            sig    = TypeSig () [mkName fnName] ti
+            dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "oa", pvar $ mkName "oc"] (UnGuardedRhs () rrelE) Nothing]
+        return $ map mkLens (takeWhile (\x -> notElem x hsSumTypes) conNames)++[sig, dec]
+
+-- Refinement Relation Generator
+rrelDecl' :: PbtDescStmt -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
+rrelDecl' stmt defs = do
+        let (_, oaTy, oaExp) = findKvarsInDecl Absf Oa $ stmt ^. decls
+            fnName = "rel_" ++ stmt ^. funcname
+            oaT = case oaTy of 
+                      Just x -> x
+                      Nothing -> __impossible "specify oa type please"
+        (ocT, _, rrelE, conNames) <- mkRrelExp (stmt ^. funcname) oaT defs
         let to     = mkTyConT $ mkName "Bool"
             ti     = TyFun () oaT $ TyFun () ocT to
             sig    = TypeSig () [mkName fnName] ti

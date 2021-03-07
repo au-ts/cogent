@@ -40,8 +40,8 @@ import           Cogent.Glue                      as GL (GlState, GlueMode (..),
                                                          glue, mkGlState, parseFile, readEntryFuncs)
 #ifdef WITH_HASKELL
 import Cogent.Haskell.Shallow          as HS
-import Cogent.Haskell.ParseDSL         as HSP
-import Cogent.Haskell.PBTGen           as HSPBT
+import Cogent.Haskell.PBT.DSL.Parser         as PBTParser
+import Cogent.Haskell.PBT.Gen           as PBTGen
 #endif
 import           Cogent.Inference                 as IN (retype, tc, tcConsts, tc_)
 import           Cogent.Interpreter               as Repl (replWithState)
@@ -970,7 +970,7 @@ parseArgs args = case getOpt' Permute options args of
       -- PBT info parse
       pbtinfos <- do 
           putProgressLn "Parsing PBT info file..."
-          res <- runExceptT $ HSP.parseFile (fromJust __cogent_pbt_info) 
+          res <- runExceptT $ PBTParser.parsePbtDescFile (fromJust __cogent_pbt_info) 
           case res of 
             Left err -> hPutStrLn stderr (ppShow err) >> exitFailure
             Right defs -> return defs
@@ -1001,7 +1001,7 @@ parseArgs args = case getOpt' Permute options args of
 
           hsShal    = \consts -> HS.shallow False hsShalName    stg defns consts log
           hsShalTup = \consts -> HS.shallow True  hsShalTupName stg defns consts log
-          hsPBTTup  = \consts -> HSPBT.pbtHs hsPBTTupName hsShalTupName pbtinfos  defns consts log 
+          hsPBTTup  = \consts -> PBTGen.pbtHs hsPBTTupName hsShalTupName pbtinfos  defns consts log 
            
            -- HsPBT.pbtHs -- True  hsShalTupName stg defns consts log
      -- pbt = pbtHs (st^.ffiFuncs) pbtName hscName fndecls pbtinfos log
