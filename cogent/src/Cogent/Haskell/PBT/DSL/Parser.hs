@@ -79,6 +79,11 @@ pExpr = do
 
 pTypExpr lhs = do
     e <- tyOp *> pstrId 
+    let parsedTy = case (toPbtTyp' lhs) of
+                     Ic -> e; Oc -> e;
+                     _ -> parseHsTyp e
+                     -- TODO:  how to best handle
+                     --        Maybe (Either Type Exp)
     return $ PbtDescExpr (Just (toPbtTyp' lhs)) (Left (parseHsTyp e))
 
 pMapExpr lhs = do
@@ -149,7 +154,7 @@ seeNext n = do
   println out
 
 testPBTParse :: IO ()
-testPBTParse = pPrint $ Text.Parsec.parse pStmt "" exampleFile
+testPBTParse = pPrint $ Text.Parsec.parse pStmts "" exampleFile
 
 exampleFile :: String
 exampleFile = unlines $
@@ -162,12 +167,29 @@ exampleFile = unlines $
         , "         ia := ic;               \r"
         , "    }                            \r"
         , "    rrel {                       \r"
+        , "         oc :: < Failure | Success U32 > ;      \r"
+        , "         oa :: Maybe Int;         \r"
+        , "         oa := oc;               \r"
+        , "    }                            \r"
+        --, "    welf {                       \r"
+        --, "        ic := ic ^. sum >= ic ^. count; \r"
+        --, "    }                            \r"
+        , "}                                \r"
+        , "\"addToBag\" {                 \r"
+        , "    pure { True }                \r"
+        , "    nond { False }               \r"
+        , "    absf {                       \r"
+        , "         ic :: R4 Word32 Word32;  \r"
+        , "         ia :: (Int, Int);        \r"
+        , "         ia := ic;               \r"
+        , "    }                            \r"
+        , "    rrel {                       \r"
         , "         oc :: V0 () Word32;      \r"
         , "         oa :: Maybe Int;         \r"
         , "         oa := oc;               \r"
         , "    }                            \r"
-        , "    welf {                       \r"
-        , "        ic := ic ^. sum >= ic ^. count; \r"
-        , "    }                            \r"
+        --, "    welf {                       \r"
+        --, "        ic := ic ^. sum >= ic ^. count; \r"
+        --, "    }                            \r"
         , "}                                \r"
         ]

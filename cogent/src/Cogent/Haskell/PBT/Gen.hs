@@ -338,11 +338,11 @@ rrelDecl PBTInfo{..} defs = do
 -- Refinement Relation Generator
 rrelDecl' :: PbtDescStmt -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
 rrelDecl' stmt defs = do
-        let (_, oaTy, oaExp) = findKvarsInDecl Absf Oa $ stmt ^. decls
+        let (_, oaTy, oaExp) = findKvarsInDecl Rrel Oa $ stmt ^. decls
             fnName = "rel_" ++ stmt ^. funcname
             oaT = case oaTy of 
                       Just x -> x
-                      Nothing -> __impossible "specify oa type please"
+                      Nothing -> __impossible $ "specify oa type please, stmt: "++ show stmt
         (ocT, _, rrelE, conNames) <- mkRrelExp (stmt ^. funcname) oaT defs
         let to     = mkTyConT $ mkName "Bool"
             ti     = TyFun () oaT $ TyFun () ocT to
