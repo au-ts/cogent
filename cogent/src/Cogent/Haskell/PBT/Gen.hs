@@ -173,14 +173,19 @@ findKvarsInDecl x y ds
                   ) $ decl ^. kexprs
           in ( y
                -- find ty
-             , (exprs ^.. each . kexp . _Left) ^? ix 0
+             , (exprs ^.. each . kexp . _Just . _Left) ^? ix 0
                -- find mapping exp associated with this keyvar
-             , (exprs ^.. each . kexp . _Right) ^? ix 0 )
+             , (exprs ^.. each . kexp . _Just . _Right) ^? ix 0 )
+
+checkBoolE :: [PbtDescExpr] -> Bool
+checkBoolE a = case ((a ^.. each . kexp . _Just . _Left) ^? ix 0) of 
+                     Just x -> boolResult x
+                     _ -> False
 
 mkPropBody' :: String -> [PbtDescDecl] -> Exp ()
 mkPropBody' n ds
-    = let isPure = and $ map (\e -> case (e ^. kexp) of Left x -> boolResult x; Right _ -> False) $ findExprsInDecl Pure ds
-          isNond = and $ map (\e -> case (e ^. kexp) of Left x -> boolResult x; Right _ -> False) $ findExprsInDecl Nond ds
+    = let isPure = checkBoolE $ findExprsInDecl Pure ds
+          isNond = checkBoolE $ findExprsInDecl Nond ds
           ia = app (function $ "abs_"++n) (var $ mkName "ic")
           oc = app (function n)           (var $ mkName "ic")
           oa = app (function $ "hs_"++n)  ia
@@ -285,7 +290,7 @@ genDecls'' stmt defs = do
             -- TODO: better gen_* body
             --       - what else do you need for arbitrary?
             dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $
-                        function "arbitrary") Nothing]
+                        function "undefined") Nothing]
             -- TODO: this is a dummy HS spec function def -> replace with something better
             hs_dec    = FunBind () [Match () (mkName $ "hs_"++(stmt ^. funcname)) [] (UnGuardedRhs () $
                            function "undefined") Nothing]

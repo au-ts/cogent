@@ -79,6 +79,7 @@ pExpr = do
 
 pTypExpr lhs = do
     e <- tyOp *> pstrId 
+    let t = toPbtTyp' lhs
     {-
     let parsedTy = case (toPbtTyp' lhs) of
                      Ic -> e; Oc -> e;
@@ -86,13 +87,14 @@ pTypExpr lhs = do
                      -}
                      -- TODO:  how to best handle
                      --        Maybe (Either Type Exp)
-    return $ PbtDescExpr (Just (toPbtTyp' lhs)) (Left (parseHsTyp e))
+    return $ PbtDescExpr (Just t) $ if | t == Ic || t == Oc -> Nothing 
+                                              | otherwise -> Just $ Left (parseHsTyp e)
 
 pMapExpr lhs = do
     e <- mapOp *> pstrId
-    return $ PbtDescExpr (Just (toPbtTyp' lhs)) (Right (parseHsExp e))
+    return $ PbtDescExpr (Just (toPbtTyp' lhs)) $ Just $ Right (parseHsExp e)
 
-pJustExpr lhs = return $ PbtDescExpr Nothing (Left (parseHsTyp lhs))
+pJustExpr lhs = return $ PbtDescExpr Nothing $ Just $ Left (parseHsTyp lhs)
 
 -- (HSS.QuasiQuote () "x" lhs)
 

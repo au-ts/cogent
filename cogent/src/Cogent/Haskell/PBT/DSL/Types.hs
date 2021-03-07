@@ -21,7 +21,7 @@ data PbtDescDecl = PbtDescDecl { _kword :: PbtKeyword
                                } deriving (Show)
 
 data PbtDescExpr = PbtDescExpr { _kvar :: Maybe PbtKeyvars 
-                               , _kexp :: Either (HS.Type ()) (HS.Exp ())
+                               , _kexp :: Maybe (Either (HS.Type ()) (HS.Exp ()))
                                } deriving Show
 
 data PbtKeyword = Absf | Rrel | Welf | Pure | Nond deriving (Show, Eq)
