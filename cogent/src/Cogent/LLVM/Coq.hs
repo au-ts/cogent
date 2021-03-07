@@ -87,9 +87,9 @@ data Expr
     | Case Expr Name Expr Expr
     | Esac Expr Name
     | Struct (CoqList Type) (CoqList Expr)
+    | Member Expr Field
     | -- | Fun Expr (CoqList Type)
       -- | Con (CoqList (Name, Type, VariantState)) Name Expr
-      -- | Member Expr Field
       -- | Put Expr Field Expr
       -- | LetBang (Set Index) Expr Expr
       -- | Take Expr Field Expr
@@ -142,6 +142,7 @@ genExpr (TE _ C.Unit) = Unit
 genExpr (TE _ (C.If c b1 b2)) = If (genExpr c) (genExpr b1) (genExpr b2)
 genExpr (TE _ (C.Cast t e)) = Cast (genNumType t) (genExpr e)
 genExpr (TE _ (C.Struct flds)) = Struct (CoqList (genType . exprType . snd <$> flds)) (CoqList (genExpr . snd <$> flds))
+genExpr (TE _ (C.Member recd fld)) = Member (genExpr recd) fld
 genExpr e = error $ show e
 
 genLit :: Integer -> PrimInt -> Lit

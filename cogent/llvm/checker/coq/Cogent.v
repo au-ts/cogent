@@ -7,6 +7,7 @@ Section Syntax.
   Definition name := string.
   Definition index := nat.
   Definition field := nat.
+  Definition addr := nat. (* doesn't actually matter *)
 
   Variant num_type : Set := U8 | U16 | U32 | U64.
   Variant prim_type : Set := Num (n : num_type) | Bool | String.
@@ -16,8 +17,8 @@ Section Syntax.
     | Minus (t : num_type)
     | Times (t : num_type)
     | Divide (t : num_type)
-    | Mod (t : num_type)
-    | Not | And | Or
+    | Mod (t : num_type).
+    (* | Not | And | Or
     | Gt (t : num_type)
     | Lt (t : num_type)
     | Le (t : num_type)
@@ -29,7 +30,7 @@ Section Syntax.
     | BitXor (t : num_type)
     | LShift (t : num_type)
     | RShift (t : num_type)
-    | Complement (t : num_type).
+    | Complement (t : num_type). *)
 
   Variant sigil : Set :=
     | Boxed (* Ignore access_perm, ptr_layout *)
@@ -82,7 +83,7 @@ Section Syntax.
     (* | App (f : expr) (a : expr) *)
     (* | Con (ts : list (name * type * variant_state)) (n : name) (e : expr) *)
     | Struct (ts : list type) (es : list expr)
-    (* | Member (e : expr) (f : field) *)
+    | Member (e : expr) (f : field)
     | Unit
     | Lit (l : lit)
     (* | SLit (s : string) *)
@@ -156,7 +157,6 @@ Section Primitive.
           (checked_shift shiftr) (checked_shift shiftr) xs
     | (Complement _) = prim_word_op (\<lambda>x y. bitNOT x) (\<lambda>x y. bitNOT x)
           (\<lambda>x y. bitNOT x) (\<lambda>x y. bitNOT x) [hd xs, hd xs] *)
-    | _ => None
     end.
 
   Definition cast_to (n : num_type) (l : lit) : option lit :=

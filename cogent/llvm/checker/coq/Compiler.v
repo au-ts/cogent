@@ -92,6 +92,9 @@ Section Compiler.
     s <- get ;;
     put (s <|vars := vs|>).
 
+  Definition int32 (n : int) : texp typ := (TYPE_I 32, EXP_Integer n).
+  
+
   Definition compile_prim_op (o : prim_op) : (exp typ -> exp typ -> exp typ) * typ :=
     match o with
     | Plus t => (OP_IBinop (Add false false) (convert_num_type t), convert_num_type t)
@@ -99,7 +102,6 @@ Section Compiler.
     | Times t => (OP_IBinop (Mul false false) (convert_num_type t), convert_num_type t)
     | Divide t => (OP_IBinop (UDiv false) (convert_num_type t), convert_num_type t)
     | Mod t => (OP_IBinop URem (convert_num_type t), convert_num_type t)
-    | _ => (OP_IBinop Xor TYPE_Void, TYPE_Void)
     (* | Not 
     | And 
     | Or
@@ -184,12 +186,21 @@ Section Compiler.
         let t' := convert_num_type t in
         instr t' (INSTR_Op (OP_Conversion Zext from_t v t'))
     | Struct ts es =>
-        (* foldM *)
         let t := TYPE_Struct (map compile_type ts) in
         let undef := (t, EXP_Undef) in
         es' <- map_monad compile_expr es ;;
         let zipped := (combine (seq 0 (length es')) es') in
         foldM (fun '(i, v) s => instr t (INSTR_Op (OP_InsertValue s v [Z.of_nat i]))) (ret undef) zipped
+    | Member e f =>
+        e' <- compile_expr e ;;
+        match field_type (fst e') f with
+        | UnboxField t => instr t (INSTR_Op (OP_ExtractValue e' [Z.of_nat f]))
+        | BoxField t => 
+            let idxs := map int32 [0; Z.of_nat f] in
+            p <- instr (TYPE_Pointer t) (INSTR_Op (OP_GetElementPtr (deref_type (fst e')) e' idxs)) ;;
+            instr (TYPE_Pointer t) (INSTR_Load false t p None)
+        | Invalid => raise "invalid member access"
+        end
     end.
 
   Definition start_state (t : typ) : CodegenState := {|

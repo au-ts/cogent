@@ -62,6 +62,6 @@ Compute compile_cogent CogentInput.
 
 Compute burn 50 (
   run_cogent
-    (UPrim (LU8 1)) 
-    (Let (Var 0) (Let (Lit (LU8 1)) (Let (Lit (LU8 2)) (Struct [TPrim (Num U8);TPrim (Num U8)] [Var 1;Var 0]))))
+    (UPtr 23 (RRecord [RPrim (Num U8)])) 
+    (Let (Var 0) (Member (Var 0) 0))
 ).
