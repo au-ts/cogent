@@ -79,9 +79,11 @@ pExpr = do
 
 pTypExpr lhs = do
     e <- tyOp *> pstrId 
+    {-
     let parsedTy = case (toPbtTyp' lhs) of
                      Ic -> e; Oc -> e;
                      _ -> parseHsTyp e
+                     -}
                      -- TODO:  how to best handle
                      --        Maybe (Either Type Exp)
     return $ PbtDescExpr (Just (toPbtTyp' lhs)) (Left (parseHsTyp e))

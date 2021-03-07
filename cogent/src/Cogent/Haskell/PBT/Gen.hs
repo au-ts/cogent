@@ -165,12 +165,11 @@ findExprsInDecl x ds = let res = fromJust $ find (\d -> case (d ^. kword) of x -
 -- find ic/ia/oc/oa type and expression
 findKvarsInDecl :: PbtKeyword -> PbtKeyvars -> [PbtDescDecl] -> (PbtKeyvars, Maybe (Type ()), Maybe (Exp ()))
 findKvarsInDecl x y ds 
-    = let decl = case (find (\d -> case (d ^. kword) of x -> True; _ -> False) ds) of 
+    = let decl = case (find (\d -> (d ^. kword) == x) ds) of 
                    Just x -> x
                    Nothing -> __impossible $ "The decl: "++show x++ " was not specified"
           exprs = filter (\e -> case (e ^. kvar) of 
-                             Just y' -> case y' of y -> True; _ -> False;
-                             _ -> False
+                             Just y' -> y' == y; _ -> False
                   ) $ decl ^. kexprs
           in ( y
                -- find ty
@@ -282,15 +281,15 @@ genDecls'' stmt defs = do
             tyOut = TyApp () genCon $ case icTy of 
                                         Just x -> TyParen () x
                                         Nothing -> TyCon () $ mkQName "Unknown"
-            sig    = TypeSig () [mkName fnName] tyOut
+            -- sig    = TypeSig () [mkName fnName] tyOut
             -- TODO: better gen_* body
             --       - what else do you need for arbitrary?
             dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $
                         function "arbitrary") Nothing]
             -- TODO: this is a dummy HS spec function def -> replace with something better
-            hs_dec    = FunBind () [Match () (mkName $ "hs_"++fnName) [] (UnGuardedRhs () $
+            hs_dec    = FunBind () [Match () (mkName $ "hs_"++(stmt ^. funcname)) [] (UnGuardedRhs () $
                            function "undefined") Nothing]
-          in return [sig, dec, hs_dec]
+          in return [dec, hs_dec]
 
 -- Abstraction Function Generator
 absFDecl :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
