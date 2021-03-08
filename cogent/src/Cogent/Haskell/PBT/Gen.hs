@@ -277,7 +277,6 @@ genDecls' PBTInfo{..} defs = do
             -- cls    = ClassDecl () () [] ()
           in return [dec, hs_dec] --[sig, dec] --, icT']
 
--- TODO: WIRE UP 
 genDecls'' :: PbtDescStmt -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
 genDecls'' stmt defs = do
         let (_, icTy, icExp) = findKvarsInDecl Absf Ic $ stmt ^. decls
@@ -310,6 +309,7 @@ absFDecl PBTInfo{..} defs = do
             dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "ic"] (UnGuardedRhs () absE) Nothing]
         return $ map mkLens (takeWhile (\x -> notElem x hsSumTypes) conNames)++[sig, dec]
 
+
 -- Abstraction Function Generator
 absFDecl' :: PbtDescStmt -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
 absFDecl' stmt defs = do
@@ -319,12 +319,23 @@ absFDecl' stmt defs = do
                       Just x -> x
                       Nothing -> __impossible "specify ia type please"
         (icT, _, absE, conNames) <- mkAbsFExp (stmt ^. funcname) iaT defs
+        let e = case iaExp of 
+                  Just x -> x
+                  -- TODO: ^^ any automation we can add in here? e.g. fromIntegral
+                  --          --> just allow any haskell func defn
+                  {-
+                   let upack = determineUnpack' icT 0 "None"
+                                tyns = getAllTypeNames upack []
+                              in if | any (\x -> x `elem` ["Word8","Word16","Word32","Word64"])
+                              -}
+                  Nothing -> absE
         let ti     = icT
             to     = iaT
             sig    = TypeSig () [mkName fnName] (TyFun () ti to)
-            dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "ic"] (UnGuardedRhs () absE) Nothing]
+            dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "ic"] (UnGuardedRhs () e) Nothing]
         return $ map mkLens (takeWhile (\x -> notElem x hsSumTypes) conNames)++[sig, dec]
 
+-- TODO: delete
 -- Refinement Relation Generator
 rrelDecl :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
 rrelDecl PBTInfo{..} defs = do
@@ -740,6 +751,9 @@ isFromIntegral :: Type () -> Bool
 isFromIntegral (TyCon _ (UnQual _ (Ident _ n)))
     = n `elem` ["Word8","Word16","Word32","Word64"]
 
+--isFromIntegral' :: [Type ()] -> Bool
+--isFromIntegral' ts = foldl isFromIntegral ts
+
 checkTy :: String -> [String] -> Bool
 checkTy n xs = n `elem` xs
 
@@ -763,6 +777,26 @@ getConNames tyL acc
                                              (TyCon _ (UnQual _ (Ident _ n))) -> [n]
                                              _ -> []
         ) $ M.toList fld
+
+{-
+getAllTypeNames :: HsEmbedLayout -> [(String,String)] -> [(String, String)]
+getAllTypeNames tyL acc
+    = let hsTy = tyL ^. hsTyp
+          ty = tyL ^. grTag
+          fld = tyL ^. fieldMap
+        in concatMap (\(k,f) -> case f of
+            Left _ -> acc
+            Right next -> case ty of
+                               HsPrim -> acc++tyName hsTy
+                               HsRecord -> getAllTypeNames next acc++tyName hsTy
+                               HsVariant -> getAllTypeNames next acc++tyName hsTy
+                               _ -> getAllTypeNames next acc
+                where tyName hsTy = map (\x -> case x of
+                                                 (TyCon _ (UnQual _ (Ident _ n))) -> [(k,n)]
+                                                 _ -> []
+                                                 ) P.tail $ unfoldAppCon hsTy
+        ) $ M.toList fld
+        -}
 
 -- ----------------------------------------------------------------------------------------------------
 

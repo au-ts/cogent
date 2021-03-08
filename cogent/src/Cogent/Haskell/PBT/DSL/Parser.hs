@@ -80,15 +80,8 @@ pExpr = do
 pTypExpr lhs = do
     e <- tyOp *> pstrId 
     let t = toPbtTyp' lhs
-    {-
-    let parsedTy = case (toPbtTyp' lhs) of
-                     Ic -> e; Oc -> e;
-                     _ -> parseHsTyp e
-                     -}
-                     -- TODO:  how to best handle
-                     --        Maybe (Either Type Exp)
     return $ PbtDescExpr (Just t) $ if | t == Ic || t == Oc -> Nothing 
-                                              | otherwise -> Just $ Left (parseHsTyp e)
+                                       | otherwise -> Just $ Left (parseHsTyp e)
 
 pMapExpr lhs = do
     e <- mapOp *> pstrId
