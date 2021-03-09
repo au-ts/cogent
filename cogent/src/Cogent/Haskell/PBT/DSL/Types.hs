@@ -20,12 +20,12 @@ data PbtDescDecl = PbtDescDecl { _kword :: PbtKeyword
                                , _kexprs :: [PbtDescExpr]
                                } deriving (Show)
 
-data PbtDescExpr = PbtDescExpr { _kvar :: Maybe PbtKeyvars 
+data PbtDescExpr = PbtDescExpr { _kident :: Maybe PbtKeyidents 
                                , _kexp :: Maybe (Either (HS.Type ()) (HS.Exp ()))
                                } deriving Show
 
 data PbtKeyword = Absf | Rrel | Welf | Pure | Nond deriving (Show, Eq)
-data PbtKeyvars = Ic | Ia | Oc | Oa deriving (Show, Eq)
+data PbtKeyidents = Ic | Ia | Oc | Oa deriving (Show, Eq)
 
 makeLenses ''PbtDescStmt
 makeLenses ''PbtDescDecl

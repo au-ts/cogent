@@ -46,6 +46,7 @@ pStmts = (pspaces pStmt) `manyTill` eof
 pStmt :: Parser PbtDescStmt
 pStmt = do
     fname <- pspaces $ pbetweenQuotes pstrId
+    -- TODO: lookAhead for checking for args 
     decls <- pspaces $ pbetweenCurlys pDecls
     return $ PbtDescStmt fname decls
 
@@ -68,30 +69,114 @@ pExprs = pExpr `sepEndBy` (pspaces semi)
 pExpr :: Parser PbtDescExpr 
 pExpr = do
     lhs <- pstrId
-    op <- lookAhead $ try tyOp <|> mapOp <|> rcurly <|> semi
-    let v = find (\x -> isInfixOf x lhs) keyvars
+    -- op <- lookAhead $ try tyOp <|> mapOp <|> rcurly <|> semi
+    op <- trace (show lhs) $ lookAhead $ try typOp <|> mapOp <|> eqlOp <|> endOp
+    -- need to check if keyident is contained in LHS
+    -- Hs syntax allowed on both lhs and rhs of operator but must be a transform on one of the key identifiers
+    let (ident, v) = if (trim lhs) `elem` keyidents 
+                        then (trim lhs, find (\x -> isInfixOf x lhs) keyidents)
+                        else ( case (find (\x -> isInfixOf x lhs) keyidents) of 
+                                 Just x -> x
+                                 Nothing -> __impossible $ "LHS must contain a key identifier: one of " ++ show keyidents
+                             , Just $ lhs )
     e <- case v of
-        Just x -> if | op == ':' -> pTypExpr x
-                     | op == '=' -> pMapExpr x
+        Just x -> if | op == typStr -> pTypExpr x
+                     | op == mapStr -> pMapExpr x
+                     | op == eqlStr -> pEqlExpr ident x
                      | otherwise -> pJustExpr x
         Nothing -> pJustExpr lhs
     return $ e
 
 pTypExpr lhs = do
-    e <- tyOp *> pstrId 
+    e <- typOp *> pHsExp 
     let t = toPbtTyp' lhs
-    return $ PbtDescExpr (Just t) $ if | t == Ic || t == Oc -> Nothing 
-                                       | otherwise -> Just $ Left (parseHsTyp e)
+    return $ PbtDescExpr (Just t) $ 
+        -- prevent cogent syntax from being parsed as HS syntax
+        if | t == Ic || t == Oc -> Nothing 
+           | otherwise -> Just $ Left (parseHsTyp e)
 
 pMapExpr lhs = do
-    e <- mapOp *> pstrId
+    e <- mapOp *> pHsExp
     return $ PbtDescExpr (Just (toPbtTyp' lhs)) $ Just $ Right (parseHsExp e)
+
+pEqlExpr ident lhs = do
+    e <- eqlOp *> pHsExp
+    _ <- trace (show lhs) $ seeNext 10
+    return $ PbtDescExpr (Just (toPbtTyp' ident)) $ Just $ 
+        -- concat entire exp and parse a HS exp -> since it is effectively a predicate
+        Right (parseHsExp (lhs++eqlStr++e))
 
 pJustExpr lhs = return $ PbtDescExpr Nothing $ Just $ Left (parseHsTyp lhs)
 
--- (HSS.QuasiQuote () "x" lhs)
+{-
+pSomeExpr :: Maybe (Parser a) -> Parser a -> Parser a
+pSomeExpr op e = 
+    e' <- op *> pstrId
+    return $ PbtDescExpr (Just t) $ if | t == Ic || t == Oc -> Nothing 
+                                        | otherwise -> Just $ Left (parseHsTyp e)
+                                        -}
 
--- Helpers
+-- Parsing Identifiers/Hs Exps transforming identifiers
+-- ----------------------------------------------------
+pHsExp :: Parser String 
+pHsExp = pspaces $ many1 $ noneOf $ hsExpStopChars
+
+pstrId :: Parser String 
+pstrId = pspaces $ many1 $ noneOf $ stopChars
+
+-- Combinators for parsing structure
+-- -----------------------------------------
+pspaces :: Parser a -> Parser a
+pspaces a = spaces *> a <* spaces
+
+pbetweenCurlys :: Parser a -> Parser a
+pbetweenCurlys a = between lcurly rcurly a
+
+pbetweenQuotes :: Parser a -> Parser a
+pbetweenQuotes a = between backtic backtic a
+
+manyTillLookAhead p1 p2 = p1 `manyTill` (lookAhead $ try p2)
+
+-- Operators / Strings / Chars / Key-Identifiers
+-- -----------------------------------------
+-- key identifiers
+keyidents = ["ic", "ia", "oc", "oa"]
+
+-- chars for when parsing of Hs syntax will stop
+-- important these don't overlap with HS syntax
+hsExpStopChars = [semiCh]
+
+-- chars for when parsing of PBT DSL syntax will stop
+stopChars = [backticCh, colCh, lcurlyCh, rcurlyCh, semiCh, eqlCh, '\r', '\n']
+
+-- important (for structure) chars
+lcurly = char lcurlyCh
+rcurly = char rcurlyCh
+backtic = char backticCh
+semi = char semiCh
+
+-- important operators
+typOp = string typStr
+mapOp = string mapStr
+eqlOp = string eqlStr
+endOp = try (string semiStr) <|> string rcurlyStr
+
+-- Operator strings
+typStr = "::"
+mapStr = ":="
+eqlStr = "=="
+semiStr = ";"
+rcurlyStr = "}"
+
+-- Operator chars
+semiCh = ';'
+colCh = ':'
+backticCh = '`'
+lcurlyCh = '{'
+rcurlyCh = '}'
+eqlCh = '='
+
+-- Converting to Strings to Types
 -- -----------------------------------------
 toPbtTyp "absf" = Absf
 toPbtTyp "rrel" = Rrel
@@ -112,34 +197,6 @@ parseHsTyp = HSN.dropAnn . HSP.fromParseResult . HSP.parseType
 parseHsExp :: String -> HSS.Exp ()
 parseHsExp = HSN.dropAnn . HSP.fromParseResult . HSP.parseExp
 
-keyvars = ["ic", "ia", "oc", "oa"]
-
-stopChars = ['\"', '\r', '\n', ':', '{', '}', ';']
-
-pstrId :: Parser String 
-pstrId = pspaces $ many1 $ noneOf $ stopChars
-
-pspaces :: Parser a -> Parser a
-pspaces a = spaces *> a <* spaces
-
-pbetweenCurlys :: Parser a -> Parser a
-pbetweenCurlys a = between lcurly rcurly a
-
-pbetweenQuotes :: Parser a -> Parser a
-pbetweenQuotes a = between (char '"') (char '"') a
-
-lcurly = char '{'
-rcurly = char '}'
-
-colon = char ':'
-equ = char '='
-semi = char ';'
-
-tyOp = colon >> colon
-mapOp = colon >> equ
-
-manyTillLookAhead p1 p2 = p1 `manyTill` (lookAhead $ try p2)
-
 -- Debugging/Testing
 -- -----------------------------------------
 println a = traceShowM a
@@ -155,7 +212,7 @@ testPBTParse = pPrint $ Text.Parsec.parse pStmts "" exampleFile
 
 exampleFile :: String
 exampleFile = unlines $
-        [ "\"averageBag\" {                 \r"
+        [ "`averageBag` {                 \r"
         , "    pure { True }                \r"
         , "    nond { False }               \r"
         , "    absf {                       \r"
@@ -166,24 +223,25 @@ exampleFile = unlines $
         , "    rrel {                       \r"
         , "         oc :: < Failure | Success U32 > ;      \r"
         , "         oa :: Maybe Int;         \r"
-        , "         oa := oc;               \r"
+        , "         (oa ^? _Just) == (oc ^? _V0_Success <&> fromIntegral) ;              \r"
         , "    }                            \r"
         --, "    welf {                       \r"
         --, "        ic := ic ^. sum >= ic ^. count; \r"
         --, "    }                            \r"
         , "}                                \r"
-        , "\"addToBag\" {                 \r"
+        , "`addToBag` {                 \r"
         , "    pure { True }                \r"
         , "    nond { False }               \r"
         , "    absf {                       \r"
         , "         ic :: R4 Word32 Word32;  \r"
-        , "         ia :: (Int, Int);        \r"
-        , "         ia := ic;               \r"
+        , "         ia :: Int;        \r"
+        , "         ia :=                    \r"
+        , "               ic ^. count;               \r"
         , "    }                            \r"
         , "    rrel {                       \r"
         , "         oc :: V0 () Word32;      \r"
         , "         oa :: Maybe Int;         \r"
-        , "         oa := oc;               \r"
+        , "         oa == oc ;               \r"
         , "    }                            \r"
         --, "    welf {                       \r"
         --, "        ic := ic ^. sum >= ic ^. count; \r"

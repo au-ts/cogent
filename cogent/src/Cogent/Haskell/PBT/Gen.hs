@@ -163,12 +163,12 @@ findExprsInDecl x ds = let res = fromJust $ find (\d -> case (d ^. kword) of x -
                          in res ^. kexprs
 
 -- find ic/ia/oc/oa type and expression
-findKvarsInDecl :: PbtKeyword -> PbtKeyvars -> [PbtDescDecl] -> (PbtKeyvars, Maybe (Type ()), Maybe (Exp ()))
+findKvarsInDecl :: PbtKeyword -> PbtKeyidents -> [PbtDescDecl] -> (PbtKeyidents, Maybe (Type ()), Maybe (Exp ()))
 findKvarsInDecl x y ds 
     = let decl = case (find (\d -> (d ^. kword) == x) ds) of 
                    Just x -> x
                    Nothing -> __impossible $ "The decl: "++show x++ " was not specified"
-          exprs = filter (\e -> case (e ^. kvar) of 
+          exprs = filter (\e -> case (e ^. kident) of 
                              Just y' -> y' == y; _ -> False
                   ) $ decl ^. kexprs
           in ( y
@@ -359,10 +359,13 @@ rrelDecl' stmt defs = do
                       Just x -> x
                       Nothing -> __impossible $ "specify oa type please, stmt: "++ show stmt
         (ocT, _, rrelE, conNames) <- mkRrelExp (stmt ^. funcname) oaT defs
+        let e = case oaExp of 
+                  Just x -> x
+                  Nothing -> rrelE
         let to     = mkTyConT $ mkName "Bool"
             ti     = TyFun () oaT $ TyFun () ocT to
             sig    = TypeSig () [mkName fnName] ti
-            dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "oa", pvar $ mkName "oc"] (UnGuardedRhs () rrelE) Nothing]
+            dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "oa", pvar $ mkName "oc"] (UnGuardedRhs () e) Nothing]
         return $ map mkLens (takeWhile (\x -> notElem x hsSumTypes) conNames)++[sig, dec]
 
 mkLens :: String -> Decl ()
