@@ -94,7 +94,7 @@ Section Syntax.
     (* | Case (e : expr) (n : name) (b1 : expr) (b2 : expr) *)
     (* | Esac (e : expr) (n : name) *)
     | If (c : expr) (b1 : expr) (b2 : expr)
-    (* | Take (e : expr) (f : field) (b : expr) *)
+    | Take (e : expr) (f : field) (b : expr)
     (* | Promote (t : type) (e : expr) *)
     .
 

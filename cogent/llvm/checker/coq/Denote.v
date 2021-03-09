@@ -1,14 +1,15 @@
 From Coq Require Import List ZArith String.
 
-From ExtLib Require Import Structures.Monads.
+From ExtLib Require Import Structures.Monads Structures.Functor Structures.Reducible.
 From ITree Require Import ITree Events.State Events.Exception Events.FailFacts.
 From Vellvm Require Import Util Utils.Error.
 
-From Checker Require Import Cogent.
+From Checker Require Import Cogent Util.Instances.
 
 Import Monads.
 Import ListNotations.
 Import MonadNotation.
+Import FunctorNotation.
 Local Open Scope monad_scope.
 Local Open Scope string_scope.
 
@@ -45,26 +46,41 @@ Section Denote.
     | _ => throw "not a prim"
     end.
   
-  Definition denote_prim (op : prim_op) (xs : list uval) : itree CogentE uval := 
+  Definition denote_prim (op : prim_op) (xs : list uval) : itree CogentE uval :=
     xs' <- map_monad extract_prim xs ;;
     option_bind (eval_prim_op op xs') UPrim "op error".
 
   Definition access_member (fs : list (uval * repr)) (f : nat) : itree CogentE uval :=
     option_bind (nth_error fs f) fst "invalid member access".
   
+  Definition denote_bind {A} (v : uval) (b : itree CogentE A) : itree CogentE A :=
+    trigger (PushVar v) ;;
+    b' <- b ;;
+    trigger PopVar ;; (* do we actually need to do this? *)
+    ret b'.
+
   Fixpoint denote_expr (e : expr) : itree CogentE uval :=
+    (* define some nested functions that are mutually recursive with denote_expr *)
+    let fix denote_member (e : expr) (f : nat) : itree CogentE (uval * uval) :=
+      e' <- denote_expr e ;;
+      m <- match e' with
+      | URecord fs => access_member fs f
+      | UPtr p r =>
+          m <- trigger (LoadMem p) ;;
+          match m with
+          | Some (URecord fs) => access_member fs f
+          | _ => throw "invalid memory access"
+          end
+      | _ => throw "expression is not a record"
+      end ;;
+      ret (e', m) in
     match e with
     | Prim op os =>
         os' <- map_monad denote_expr os ;;
         denote_prim op os'
     | Lit l => ret (UPrim l)
     | Var i => trigger (PeekVar i)
-    | Let e b => 
-        e' <- denote_expr e ;;
-        trigger (PushVar e') ;;
-        b' <- denote_expr b ;;
-        trigger PopVar ;;
-        ret b'
+    | Let e b => denote_expr e >>= flip denote_bind (denote_expr b)
     | Unit => ret UUnit
     | If c t e =>
         c' <- denote_expr c ;;
@@ -81,18 +97,8 @@ Section Denote.
     | Struct ts es =>
         es' <- map_monad denote_expr es ;;
         ret (URecord (combine es' (map type_repr ts)))
-    | Member e f =>
-        e' <- denote_expr e ;;
-        match e' with
-        | URecord fs => access_member fs f
-        | UPtr p r =>
-            m <- trigger (LoadMem p) ;;
-            match m with
-            | Some (URecord fs) => access_member fs f
-            | _ => throw "invalid memory access"
-            end
-        | _ => throw "expression is not a record"
-        end
+    | Member e f => snd <$> denote_member e f
+    | Take e f b => denote_member e f >>= fold denote_bind (denote_expr b)
     end.
 
   Definition denote_fun (b : expr) : uval -> itree CogentE uval :=
@@ -101,12 +107,6 @@ Section Denote.
       b' <- denote_expr b ;;
       trigger PopVar ;;
       ret b'.
-
-  (* Definition denote_funs (p : cogent_prog) (uval -> itree E uval ) : = .
-  
-  
-  Definition denote_cogent (p : cogent_prog) := . *)
-  
 
 End Denote.
 

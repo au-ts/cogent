@@ -4,7 +4,7 @@ From ExtLib Require Import Structures.Monads Structures.Functor Structures.Reduc
 From RecordUpdate Require Import RecordSet.
 From Vellvm Require Import LLVMAst Util Utils.Error.
 
-From Checker Require Import Cogent Types Util.ErrorWithState.
+From Checker Require Import Cogent Types Util.ErrorWithState Util.Instances.
 
 Import ListNotations.
 Import RecordSetNotations.
@@ -92,8 +92,15 @@ Section Compiler.
     s <- get ;;
     put (s <|vars := vs|>).
 
+  Definition bind {A} (var : CodegenValue) (action : cerr A) : cerr A :=
+    s <- get ;;
+    set_vars (var :: vars s) ;;
+    res <- action ;;
+    set_vars (vars s) ;;
+    ret res.
+
   Definition int32 (n : int) : texp typ := (TYPE_I 32, EXP_Integer n).
-  
+
 
   Definition compile_prim_op (o : prim_op) : (exp typ -> exp typ -> exp typ) * typ :=
     match o with
@@ -102,21 +109,6 @@ Section Compiler.
     | Times t => (OP_IBinop (Mul false false) (convert_num_type t), convert_num_type t)
     | Divide t => (OP_IBinop (UDiv false) (convert_num_type t), convert_num_type t)
     | Mod t => (OP_IBinop URem (convert_num_type t), convert_num_type t)
-    (* | Not 
-    | And 
-    | Or
-    | Gt t
-    | Lt t
-    | Le t
-    | Ge t
-    | Eq (t : prim_type)
-    | NEq (t : prim_type)
-    | BitAnd t
-    | BitOr t
-    | BitXor t
-    | LShift t
-    | RShift t
-    | Complement t *)
     end.
 
   Fixpoint compile_type (t : type) : typ :=
@@ -133,6 +125,18 @@ Section Compiler.
     end.
 
   Fixpoint compile_expr (e : expr) : cerr CodegenValue :=
+    (* define some nested functions that are mutually recursive with compile_expr *)
+    let fix load_member e f : cerr (CodegenValue * CodegenValue) :=
+      e' <- compile_expr e ;;
+      f' <- match field_type (fst e') f with
+      | UnboxField t => instr t (INSTR_Op (OP_ExtractValue e' [Z.of_nat f]))
+      | BoxField t => 
+          let idxs := map int32 [0; Z.of_nat f] in
+          p <- instr (TYPE_Pointer t) (INSTR_Op (OP_GetElementPtr (deref_type (fst e')) e' idxs)) ;;
+          instr t (INSTR_Load false t p None)
+      | Invalid => raise "invalid member access"
+      end ;;
+      ret (e', f') in
     match e with
     | Prim op os =>
         match os with
@@ -156,13 +160,7 @@ Section Compiler.
         | Some v => ret v
         | None => raise "unknown variable"
         end
-    | Let e b =>
-        e' <- compile_expr e ;;
-        s <- get ;;
-        set_vars (e' :: vars s) ;;
-        b' <- compile_expr b ;;
-        set_vars (vars s) ;;
-        ret b'
+    | Let e b => compile_expr e >>= flip bind (compile_expr b)
     | Unit => ret (TYPE_I 2, EXP_Integer 0)
     | If c t e =>
         c' <- compile_expr c ;;
@@ -191,16 +189,8 @@ Section Compiler.
         es' <- map_monad compile_expr es ;;
         let zipped := (combine (seq 0 (length es')) es') in
         foldM (fun '(i, v) s => instr t (INSTR_Op (OP_InsertValue s v [Z.of_nat i]))) (ret undef) zipped
-    | Member e f =>
-        e' <- compile_expr e ;;
-        match field_type (fst e') f with
-        | UnboxField t => instr t (INSTR_Op (OP_ExtractValue e' [Z.of_nat f]))
-        | BoxField t => 
-            let idxs := map int32 [0; Z.of_nat f] in
-            p <- instr (TYPE_Pointer t) (INSTR_Op (OP_GetElementPtr (deref_type (fst e')) e' idxs)) ;;
-            instr (TYPE_Pointer t) (INSTR_Load false t p None)
-        | Invalid => raise "invalid member access"
-        end
+    | Member e f => snd <$> load_member e f
+    | Take e f b => load_member e f >>= fold bind (compile_expr b)
     end.
 
   Definition start_state (t : typ) : CodegenState := {|

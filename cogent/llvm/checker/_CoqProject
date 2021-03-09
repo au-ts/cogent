@@ -10,6 +10,7 @@
 ./coq/Types.v
 ./coq/Denote.v
 ./coq/Util/ErrorWithState.v
+./coq/Util/Instances.v
 ./coq/Corres.v
 ./input/LLVM.v
 ./input/Source.v
