@@ -131,22 +131,8 @@ propModule name hscname pbtinfos decls =
   in
   Module () (Just moduleHead) exts imps hs_decls
 
+-- | top level builder for prop_* :: Property function 
 -- -----------------------------------------------------------------------
--- Cogent PBT: Refinement statement property generator
--- -----------------------------------------------------------------------
-propDecls :: PBTInfo -> [Decl ()]
-propDecls PBTInfo{..} =
-        --let FunInfo{..} = finfo
-        --    FunTypes{..} = ftyps
-        --    FunRels{..} = frels
-        let fnName = "prop_" ++ fname
-            toName = "Property"
-            to     = TyCon   () (mkQName toName)
-            sig    = TypeSig () [mkName fnName] to
-            dec    = FunBind () [Match () (mkName fnName) []
-                                 (UnGuardedRhs () $ mkPropBody fname finfo ) Nothing]
-            in [sig, dec]
-
 propDecls' :: PbtDescStmt -> [Decl ()]
 propDecls' desc 
     = let fn    = desc ^. funcname
@@ -158,6 +144,8 @@ propDecls' desc
           dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $ ds ) Nothing]
         in [sig, dec]
 
+-- | Helpers
+-- -----------------------------------------------------------------------
 findExprsInDecl :: PbtKeyword -> [PbtDescDecl] -> [PbtDescExpr]
 findExprsInDecl x ds = let res = fromJust $ find (\d -> case (d ^. kword) of x -> True; _ -> False) ds
                          in res ^. kexprs
@@ -182,6 +170,8 @@ checkBoolE a = case ((a ^.. each . kexp . _Just . _Left) ^? ix 0) of
                      Just x -> boolResult x
                      _ -> False
 
+-- | builder for function body of prop_* :: Property
+-- -----------------------------------------------------------------------
 mkPropBody' :: String -> [PbtDescDecl] -> Exp ()
 mkPropBody' n ds
     = let isPure = checkBoolE $ findExprsInDecl Pure ds
@@ -202,81 +192,13 @@ mkPropBody' n ds
         in if isPure then appFun f fs
            else app (function "monadicIO") $ appFun f fs
           
--- TODO: Delete !!!
-mkPropBody :: String -> FunDefs -> Exp ()
-mkPropBody n FunInfo{ispure=True, nondet=nd} =
-    let f  = function "forAll"
-        fs = [ function $ "gen_"++n
-             , lamE [pvar $ mkName "ic"] (letE binds body) ]
-            where ia = app (function $ "abs_"++n) (var $ mkName "ic")
-                  oc = app (function n)           (var $ mkName "ic")
-                  oa = app (function $ "hs_"++n)  ia
-                  binds = [ FunBind () [Match () (mkName "oc") [] (UnGuardedRhs () oc  ) Nothing]
-                          , FunBind () [Match () (mkName "oa") [] (UnGuardedRhs () oa  ) Nothing] ]
-                  body  = appFun (function $ "corres"++(if not nd then "'" else ""))
-                                 [ function $ "rel_"++n
-                                 , var $ mkName "oa"
-                                 , var $ mkName "oc" ]
-        in appFun f fs
--- TODO: Delete !!!
-mkPropBody n FunInfo{ispure=False, nondet=nd} =
-    let f  = function "forAllM"
-        fs = [ function $ "gen_"++n
-             , lamE [pvar $ mkName "ic"] (doE binds)
-             ]
-           where ia = app (function $ "abs_"++n) (var $ mkName "ic")
-                 oc = app (function n)           (var $ mkName "ic")
-                 oa = app (function $ "hs_"++n)  ia
-                 binds = [ genStmt (pvar $ mkName "oc") oc
-                         , genStmt (pvar $ mkName "oa") (app (function "return") oa)
-                         , qualStmt body ]
-                 body  = appFun (function $ "corresM"++(if not nd then "'" else ""))
-                                [ function $ "rel_"++n
-                                , var $ mkName "oa"
-                                , var $ mkName "oc" ]
-        in app (function "monadicIO") (appFun f fs)
-
--- -----------------------------------------------------------------------
--- Cogent PBT: Generator for Test data generators
--- -----------------------------------------------------------------------
--- TODO: fix up DSL to handle this
-genDecls :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> [Decl ()]
-genDecls PBTInfo{..} defs =
-        let FunAbsF{absf=_, ityps=ityps} = fabsf
-            icT = fromJust $ P.lookup "IC" ityps
-            --FunWelF{..} = fwelf
--- FuncInfo{name=n, ispure=_, nondet=_, ictype=icT} = 
-        --let 
-            fnName = "gen_" ++fname
-            toName = "Gen" -- ++icT
-            to     = TyCon   () (mkQName toName)
-            sig    = TypeSig () [mkName fnName] to
-            dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $
-                        mkGenBody fname icT) Nothing]
-            -- cls    = ClassDecl () () [] ()
-            in [sig, dec]
-
 mkGenBody :: String -> Type () -> Exp ()
 mkGenBody name icT = function "undefined" -- "arbitrary"
 
--- Dummy func for Gen functions (test data generators)
-genDecls' :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
-genDecls' PBTInfo{..} defs = do
-        let FunAbsF{absf=_, ityps=ityps} = fabsf
-            icT' = fromJust $ P.lookup "IC" ityps
-            icT = fromJust $ P.lookup "IA" ityps
-        -- (icT, _, absE) <- mkAbsFExp fname iaT defs
-        let fnName = "gen_" ++fname
-            --toName = "Gen " ++ show icT' -- ++icT
-            --to     = TyCon   () (mkQName toName)
-            --sig    = TypeSig () [mkName fnName] to
-            dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $
-                        mkGenBody fname icT) Nothing]
-            hs_dec    = FunBind () [Match () (mkName $ "hs_"++fname) [] (UnGuardedRhs () $
-                        function "undefined") Nothing]
-            -- cls    = ClassDecl () () [] ()
-          in return [dec, hs_dec] --[sig, dec] --, icT']
 
+
+-- | top level builder for gen_* :: Gen function 
+-- -----------------------------------------------------------------------
 genDecls'' :: PbtDescStmt -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
 genDecls'' stmt defs = do
         let (_, icTy, icExp) = findKvarsInDecl Absf Ic $ stmt ^. decls
@@ -295,22 +217,8 @@ genDecls'' stmt defs = do
                            function "undefined") Nothing]
           in return [dec, hs_dec]
 
--- Abstraction Function Generator
-absFDecl :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
-absFDecl PBTInfo{..} defs = do
-        let FunAbsF{absf=_, ityps=ityps} = fabsf
-            -- icT = fromJust $ P.lookup "IC" ityps
-            iaT = fromJust $ P.lookup "IA" ityps
-            fnName = "abs_" ++fname
-        (icT, _, absE, conNames) <- mkAbsFExp fname iaT defs
-        let ti     = icT
-            to     = iaT
-            sig    = TypeSig () [mkName fnName] (TyFun () ti to)
-            dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "ic"] (UnGuardedRhs () absE) Nothing]
-        return $ map mkLens (takeWhile (\x -> notElem x hsSumTypes) conNames)++[sig, dec]
-
-
--- Abstraction Function Generator
+-- | Top level Builder for Abstraction Function
+-- -----------------------------------------------------------------------
 absFDecl' :: PbtDescStmt -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
 absFDecl' stmt defs = do
         let (_, iaTy, iaExp) = findKvarsInDecl Absf Ia $ stmt ^. decls
@@ -335,22 +243,8 @@ absFDecl' stmt defs = do
             dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "ic"] (UnGuardedRhs () e) Nothing]
         return $ map mkLens (takeWhile (\x -> notElem x hsSumTypes) conNames)++[sig, dec]
 
--- TODO: delete
--- Refinement Relation Generator
-rrelDecl :: PBTInfo -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
-rrelDecl PBTInfo{..} defs = do
-        let FunRRel{rrel=_, otyps=otyps} = frrel
-            oaT = fromJust $ P.lookup "OA" otyps
-            fnName = "rel_" ++fname
-        (ocT, _, rrelE, conNames) <- mkRrelExp fname oaT defs
-        -- (ocT, _, rrelE) <- mkAbsFExp fname oaT defs
-        let to     = mkTyConT $ mkName "Bool"
-            ti     = TyFun () oaT $ TyFun () ocT to
-            sig    = TypeSig () [mkName fnName] ti
-            dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "oa", pvar $ mkName "oc"] (UnGuardedRhs () rrelE) Nothing]
-        return $ map mkLens (takeWhile (\x -> notElem x hsSumTypes) conNames)++[sig, dec]
-
--- Refinement Relation Generator
+-- | Top level Builder for Refinement Relation
+-- -----------------------------------------------------------------------
 rrelDecl' :: PbtDescStmt -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
 rrelDecl' stmt defs = do
         let (_, oaTy, oaExp) = findKvarsInDecl Rrel Oa $ stmt ^. decls
@@ -375,86 +269,56 @@ mkLens t
                      | otherwise -> "undefined"
        in SpliceDecl () $ app (function fname) (TypQuote () (UnQual () (mkName t)))
 
--- Get Function Type and Expression
--- ------------------------------------------
--- @fname@ is the name of the function
--- @iaTyp@ is the abstract input type
--- @defs@ is the list of Cogent definitions
---
--- ------------------------------------------------------
+-- | Builder for abstraction function body expression, also returns function input/output type
+-- -----------------------------------------------------------------------
+-- | @fname@ is the name of the function
+-- | @iaTyp@ is the abstract input type
+-- | @defs@ is the list of Cogent definitions
 mkAbsFExp :: String -> Type () -> [CC.Definition TypedExpr VarName b] -> SG (Type (), Type (), Exp (), [String])
 mkAbsFExp fname iaTyp defs = do
     let def = fromJust $ find (\x -> CC.getDefinitionId x == fname) defs
     (icT, iaT, absE, conNames) <- mkAbsFExp' def iaTyp
     pure (icT, iaT, absE, conNames)
-
--- Helper: get function type and expression
 mkAbsFExp' :: CC.Definition TypedExpr VarName b -> Type () -> SG (Type (), Type (), Exp (), [String])
 mkAbsFExp' def iaT | (CC.FunDef _ fn ps _ ti to _) <- def
     = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
         ti' <- shallowType ti
         (absE, conNames) <- mkAbsFBody ti ti' iaT
         pure (ti', iaT, absE, conNames)
-
 mkAbsFExp' def iaT | (CC.AbsDecl _ fn ps _ ti to) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
     ti' <- shallowType ti
     (absE, conNames) <- mkAbsFBody ti ti' iaT
     pure ( ti', iaT, absE, conNames)
-
 mkAbsFExp' def iaT | (CC.TypeDef tn _ _) <- def
     = pure (TyCon () (mkQName "Unknown"), iaT, function $ "undefined", [])
--- ------------------------------------------------------
 
--- ------------------------------------------------------
+-- | Builder for Refinement Relation body expression, also returns function input/output type
+-- -----------------------------------------------------------------------
 mkRrelExp :: String -> Type () -> [CC.Definition TypedExpr VarName b] -> SG (Type (), Type (), Exp (), [String])
 mkRrelExp fname oaTyp defs = do
     let def = fromJust $ find (\x -> CC.getDefinitionId x == fname) defs
     (ocT, oaT, rrelE, conNames) <- mkRrelExp' def oaTyp
     pure (ocT, oaT, rrelE, conNames)
-
--- Helper: get function type and expression
 mkRrelExp' :: CC.Definition TypedExpr VarName b -> Type () -> SG (Type (), Type (), Exp (), [String])
 mkRrelExp' def oaT | (CC.FunDef _ fn ps _ ti to _) <- def
     = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
         to' <- shallowType to
         (rrel, conNames) <- mkRrelBody to to' oaT
         pure (to', oaT, rrel, conNames)
-
 mkRrelExp' def oaT | (CC.AbsDecl _ fn ps _ ti to) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
     to' <- shallowType to
     (absE, conNames) <- mkRrelBody to to' oaT
     pure ( to', oaT, absE, conNames)
-
 mkRrelExp' def oaT | (CC.TypeDef tn _ _) <- def
     = pure (TyCon () (mkQName "Unknown"), oaT, function $ "undefined", [])
 
--- ------------------------------------------------------
-
-
--- TODO: clean up
--- ---------------------------------
--- | mkAbsFBody 
--- |    - direct mapping
--- |    - Abstract Input Type is the input type of the Haskell abstract spec
--- |    - Concrete Input Type is the input type of the concrete function (Cogent HS embedding)
--- ^^ Type surrounded by parens, recurse on inside type
--- ^^ IA is Tuple, fs is [(FieldName, (Type t b, Bool))]
-{- match on haskell types -> default access using Lens
-    every type has a lens
--}
--- TODO: probably want to gleam some info about the iaTyp
--- TODO: clear up function name
--- TODO: Prim and Strings, Sum 
--- TODO: probably want to gleam some info about the icTyp
--- TODO: clear up function name
--- TODO: Prim and Strings, Sum 
--- @cogIcTyp@ is the original cogent type
--- @icTyp@ is the hs embedding of cogent type 
--- @iaTyp@ is the user supplied type we are trying to abstract to
--- Handle when IC is tuple --> Lens view for each field
--- return map where field name maps to view expression
-
--- ----------------------------------------------------------------------------------------------------
+-- | Builder for abstraction function body. For direct abstraction (default), builds a 
+-- | let expression which binds lens views to variables that and then used 
+-- | to pack the outgoing Constructor
+-- -----------------------------------------------------------------------
+-- | @cogIcTyp@ is the cogent type of the concrete input
+-- | @icTyp@ is the Haskell type of the concrete input
+-- | @iaTyp@ is the Haskell type of the abstract input (what we are trying to abstract to)
 mkAbsFBody :: CC.Type t a -> Type () -> Type () -> SG (Exp (), [String])
 mkAbsFBody cogIcTyp icTyp iaTyp
     = let icLayout = determineUnpack cogIcTyp icTyp 0 "None"
@@ -463,9 +327,13 @@ mkAbsFBody cogIcTyp icTyp iaTyp
           body = packAbsCon iaTyp (map fst lens) 0
        in pure (mkLetE binds body, getConNames icLayout [])
 
--- | mkRrelBody 
--- | dummy func ATM
--- --------------------------------------------------
+-- | Builder for refinement relation body. For pointwise equality (default), builds a 
+-- | let expression which binds lens views to variables that and then compared with
+-- | equality in a && chain.
+-- -----------------------------------------------------------------------
+-- | @cogOcTyp@ is the cogent type of the concrete output
+-- | @ocTyp@ is the Haskell type of the concrete output
+-- | @oaTyp@ is the Haskell type of the abstract output
 mkRrelBody :: CC.Type t a -> Type () -> Type () -> SG (Exp (), [String])
 mkRrelBody cogOcTyp ocTyp oaTyp
     = let ocLy = determineUnpack cogOcTyp ocTyp 0 "None"
@@ -483,14 +351,13 @@ mkRrelBody cogOcTyp ocTyp oaTyp
           body = mkCmpExp (zip3 oaVars ocVars tys) Nothing
        in pure (mkLetE binds body, cNames)
 
--- generate exp for packing the constructor that is returned by absf
--- 1st = type
--- 2nd = list of vars to put in the constructor
--- 3rd = position in structure
--- vars are pack left to right from the list
--- removing vars from list as they are added in the recursion
--- TODO: unify the vars with the outgoing matching type
--- TODO: pair varsToPut with types for that var
+-- | Builder for packing the constructor of the abstract type.
+-- | Given the type of the constructor and a list of vars to put in the constructor,
+-- | builds expression of constructor being packed by these vars
+-- -----------------------------------------------------------------------
+-- | @iaTyp@ is the Haskell type of the abstract input (concrete input is transformed to abstract input)
+-- | @varsToPut@ is a list containing the names of the vars to be put in the constructor
+-- | TODO: maybe unify the vars with the outgoing matching type
 -- ----------------------------------------------------------------------------------------------------
 packAbsCon :: Type () -> [String] -> Int -> Exp ()
 packAbsCon (TyParen _ insideTy) varsToPut pos = packAbsCon insideTy varsToPut pos
@@ -523,10 +390,9 @@ packAbsCon iaTyp varsToPut pos
                 where
 packAbsCon (TyList _ ty) varsToPut pos = mkVar $ varsToPut!!pos
 packAbsCon iaTyp varsToPut prev | _ <- iaTyp = __impossible $ "Bad Abstraction"++" --> "++"Hs: "++show iaTyp
--- ----------------------------------------------------------------------------------------------------
 
--- default to equality now
--- ----------------------------------------------------------------------------------------------------
+-- | Builder for comparison expression used in refinement relation
+-- -----------------------------------------------------------------------
 mkCmpExp :: [(String, String, (Type (), GroupTag))] -> Maybe (Exp ()) -> Exp ()
 mkCmpExp [] prev 
     = case prev of 
@@ -536,7 +402,6 @@ mkCmpExp (v:vs) prev
     = case prev of 
         Just x -> mkCmpExp vs $ Just $ infixApp x (mkOp "&&") $ mkEqExp v
         Nothing -> mkCmpExp vs $ Just $ mkEqExp v
-
 mkEqExp :: (String, String, (Type (), GroupTag)) -> Exp ()
 mkEqExp (oa, oc, (ty, grp)) 
     = let op = case grp of 
@@ -546,15 +411,13 @@ mkEqExp (oa, oc, (ty, grp))
         in if isFromIntegral ty 
             then mkInfixEq (mkVar oa) $ paren $ infixApp (mkVar oc) (mkOp op) (function "fromIntegral")
             else mkInfixEq (mkVar oa) (mkVar oc) 
--- ----------------------------------------------------------------------------------------------------
 
--- | mkLensView
--- ---------------
--- TODO: clean up comment
--- from Layout return list of pairs: variable name for bind and the view expression
--- key = var name ++ depth tag
--- val = 
--- ----------------------------------------------------------------------------------------------------
+-- | Builder the lens view expression that extracts the fields from complex types
+-- -----------------------------------------------------------------------
+-- | @layout@ is a tree like structure containing info about the layout of fields in a constructor
+-- | @varToView@ is the var that the view transform is being applied to
+-- | @prevGroup@ is the previous kind of type, which is essentially what type are we in right now in the recursion
+-- | @prev@ previous expression, which is the tail rec var being built up
 mkLensView :: HsEmbedLayout -> String -> GroupTag -> Maybe (Exp ()) -> [((String, Exp ()), (Type (), GroupTag))]
 mkLensView layout varToView prevGroup prev
     = let hsTy = layout ^. hsTyp
@@ -576,10 +439,16 @@ mkLensView layout varToView prevGroup prev
            (Right next) -> mkLensView next varToView group $ Just $ mkViewInfixE varToView group prev k
        ) $ M.toList fld
 
--- | determineUnpack
--- ---------------
--- | Builds the structure used for generating the body of absf
--- ----------------------------------------------------------------------------------------------------
+-- | Builder for the layout type that is used for building the lens view, which encodes structure
+-- | and other info used in building the view.
+-- | Recurse through both @cogIcTyp@ and @icTyp@ at the same time until we reach a primitive, means
+-- | we can gather info on every field in the type.
+-- -----------------------------------------------------------------------
+-- | @cogIcTyp@ cogent type of the concrete input
+-- | @icTyp@ haskell shallow embedding of cogent type
+-- | @depth@ depth of recursion
+-- | @fieldName@ name of field we are in, since we recurse until we reach a prim, this will tell us the
+-- |             field that prim is bound to.
 determineUnpack :: CC.Type t a -> Type () -> Int -> String -> HsEmbedLayout
 determineUnpack cogIcTyp (TyParen _ t   ) depth fieldName = determineUnpack cogIcTyp t depth fieldName
 determineUnpack cogIcTyp icTyp depth fieldName
@@ -623,23 +492,22 @@ determineUnpack cogIcTyp icTyp depth fieldName
 determineUnpack cogIcTyp icTyp depth fieldName
     | _ <- icTyp
     = __impossible $ "Bad Abstraction"++" --> "++"Hs: "++show icTyp
-
+-- TODO: For the sake of completeness ... ensure these can never really occur
 {-
- - TODO: 
- -      For the sake of completeness ... ensure these can never really occur
- -
-        (TyFun _ iTy oTy) -> __impossible "TODO: Abstacting from function"
-        (TyVar _ name) -> __impossible "TODO: Abstacting from a type variable"
-        (TyInfix _ lTy name rTy) -> __impossible "TODO: Abstacting from a infix type constructor"
-        (TyUnboxedSum _ tfs) -> __impossible "Compiler should never produce TyUnboxedSum embedding"
-        otherwise -> __impossible "Bad abstraction"
+    (TyFun _ iTy oTy) ->
+    (TyVar _ name) -> 
+    (TyInfix _ lTy name rTy) ->
+    (TyUnboxedSum _ tfs) -> 
 -}
 
 
--- | determineUnpack'
--- ---------------
--- | Builds the structure used for generating the body of rrel
--- ----------------------------------------------------------------------------------------------------
+-- | Builder for the layout type that is used for building the lens view. Similar to determineUnpack
+-- | but without the cogent type supplied.
+-- -- -----------------------------------------------------------------------
+-- | @icTyp@ haskell type
+-- | @depth@ depth of recursion
+-- | @fieldName@ name of field we are in, since we recurse until we reach a prim, this will tell us the
+-- |             field that prim is bound to.
 determineUnpack' :: Type () -> Int -> String -> HsEmbedLayout
 determineUnpack' (TyParen _ t   ) depth fieldName = determineUnpack' t depth fieldName
 determineUnpack' hsTyp depth fieldName | (TyTuple _ _ tfs) <- hsTyp
@@ -675,9 +543,13 @@ determineUnpack' hsTyp depth fieldName | (TyList _ ty) <- hsTyp
 determineUnpack' hsTyp depth fieldName | _ <- hsTyp = __impossible $ "Bad Abstraction"++" --> "++"Hs: "++show hsTyp
 
 
--- Helpers
+-- | Builder the actual lens view infix expression 
+-- -----------------------------------------------------------------------
+-- | @varToView@ is the var that the view transform is being applied to
+-- | @tag@ is the kind of type the view is being built for
+-- | @prev@ previous expression, which is the tail rec var being built up
+-- | @accessor@ the actual variable we want to view 
 -- ----------------------------------------------------------------------------------------------------
-
 mkViewInfixE :: String -> GroupTag -> Maybe (Exp ()) -> String -> Exp ()
 mkViewInfixE varToView tag prev accessor
     = let viewE = case tag of
@@ -800,7 +672,3 @@ getAllTypeNames tyL acc
                                                  ) P.tail $ unfoldAppCon hsTy
         ) $ M.toList fld
         -}
-
--- ----------------------------------------------------------------------------------------------------
-
-

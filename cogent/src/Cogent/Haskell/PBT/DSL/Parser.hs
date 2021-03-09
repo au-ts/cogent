@@ -70,7 +70,7 @@ pExpr :: Parser PbtDescExpr
 pExpr = do
     lhs <- pstrId
     -- op <- lookAhead $ try tyOp <|> mapOp <|> rcurly <|> semi
-    op <- trace (show lhs) $ lookAhead $ try typOp <|> mapOp <|> eqlOp <|> endOp
+    op <- lookAhead $ try typOp <|> mapOp <|> eqlOp <|> endOp
     -- need to check if keyident is contained in LHS
     -- Hs syntax allowed on both lhs and rhs of operator but must be a transform on one of the key identifiers
     let (ident, v) = if (trim lhs) `elem` keyidents 
@@ -101,7 +101,6 @@ pMapExpr lhs = do
 
 pEqlExpr ident lhs = do
     e <- eqlOp *> pHsExp
-    _ <- trace (show lhs) $ seeNext 10
     return $ PbtDescExpr (Just (toPbtTyp' ident)) $ Just $ 
         -- concat entire exp and parse a HS exp -> since it is effectively a predicate
         Right (parseHsExp (lhs++eqlStr++e))
