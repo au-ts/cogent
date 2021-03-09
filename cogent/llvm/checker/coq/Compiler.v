@@ -4,7 +4,7 @@ From ExtLib Require Import Structures.Monads Structures.Functor Structures.Reduc
 From RecordUpdate Require Import RecordSet.
 From Vellvm Require Import LLVMAst Util Utils.Error.
 
-From Checker Require Import Cogent Types Util.ErrorWithState Util.Instances.
+From Checker Require Import Cogent Types Utils.ErrorWithState Utils.Instances.
 
 Import ListNotations.
 Import RecordSetNotations.
@@ -191,6 +191,18 @@ Section Compiler.
         foldM (fun '(i, v) s => instr t (INSTR_Op (OP_InsertValue s v [Z.of_nat i]))) (ret undef) zipped
     | Member e f => snd <$> load_member e f
     | Take e f b => load_member e f >>= fold bind (compile_expr b)
+    | Put e f v =>
+        e' <- compile_expr e ;;
+        v' <- compile_expr v ;;
+        match field_type (fst e') f with
+        | UnboxField t => instr t (INSTR_Op (OP_InsertValue e' v' [Z.of_nat f]))
+        | BoxField t => 
+            let idxs := map int32 [0; Z.of_nat f] in
+            p <- instr (TYPE_Pointer t) (INSTR_Op (OP_GetElementPtr (deref_type (fst e')) e' idxs)) ;;
+            instr t (INSTR_Store false v' p None) ;;
+            ret e'
+        | Invalid => raise "invalid member access"
+        end
     end.
 
   Definition start_state (t : typ) : CodegenState := {|

@@ -9,8 +9,9 @@
 ./coq/Cogent.v
 ./coq/Types.v
 ./coq/Denote.v
-./coq/Util/ErrorWithState.v
-./coq/Util/Instances.v
+./coq/Utils/ErrorWithState.v
+./coq/Utils/Instances.v
+./coq/Utils/Fail.v
 ./coq/Corres.v
 ./input/LLVM.v
 ./input/Source.v

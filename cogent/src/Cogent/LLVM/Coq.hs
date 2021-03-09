@@ -89,9 +89,9 @@ data Expr
     | Struct (CoqList Type) (CoqList Expr)
     | Member Expr Field
     | Take Expr Field Expr
+    | Put Expr Field Expr
     | -- | Fun Expr (CoqList Type)
       -- | Con (CoqList (Name, Type, VariantState)) Name Expr
-      -- | Put Expr Field Expr
       -- | LetBang (Set Index) Expr Expr
       -- | Promote Type Expr
       If Expr Expr Expr
@@ -144,6 +144,7 @@ genExpr (TE _ (C.Cast t e)) = Cast (genNumType t) (genExpr e)
 genExpr (TE _ (C.Struct flds)) = Struct (CoqList (genType . exprType . snd <$> flds)) (CoqList (genExpr . snd <$> flds))
 genExpr (TE _ (C.Member recd fld)) = Member (genExpr recd) fld
 genExpr (TE _ (C.Take _ recd fld body)) = Take (genExpr recd) fld (genExpr body)
+genExpr (TE _ (C.Put recd fld val)) = Put (genExpr recd) fld (genExpr val)
 genExpr e = error $ show e
 
 genLit :: Integer -> PrimInt -> Lit

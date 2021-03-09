@@ -88,7 +88,7 @@ Section Syntax.
     | Lit (l : lit)
     (* | SLit (s : string) *)
     | Cast (t : num_type) (e : expr)
-    (* | Put (e : expr) (f : field) (v : expr) *)
+    | Put (e : expr) (f : field) (v : expr)
     | Let (e : expr) (b : expr)
     (* | LetBang (is : set index) (e : expr) (b : expr) *)
     (* | Case (e : expr) (n : name) (b1 : expr) (b2 : expr) *)
