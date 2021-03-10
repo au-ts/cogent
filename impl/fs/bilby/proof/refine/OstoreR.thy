@@ -1507,7 +1507,7 @@ lemma prepare_wbuf_ret:
   shows "P (prepare_wbuf (ex, mount_st, ostore_st, pad_to))"
  proof cases
   assume no_padding_obj: "pad_to - used\<^sub>f ostore_st < bilbyFsObjHeaderSize"
-  let ?wbuf = "buf_memset (wbuf\<^sub>f ostore_st, used\<^sub>f ostore_st,  pad_to - used\<^sub>f ostore_st, bilbyFsPadByte)"
+  let ?wbuf = "buf_memset (wbuf\<^sub>f ostore_st, used\<^sub>f ostore_st, pad_to - used\<^sub>f ostore_st, bilbyFsPadByte)"
   let ?ostore_st = "ostore_st\<lparr>wbuf\<^sub>f := ?wbuf, used\<^sub>f := pad_to\<rparr>"
   have bound: "unat (bound\<^sub>f (wbuf\<^sub>f ostore_st)) \<le> length (\<alpha>wa (data\<^sub>f (wbuf\<^sub>f ostore_st)))"
    using  inv_ostore_bound_le_lenD[OF inv_ostore] by simp
@@ -1575,6 +1575,10 @@ lemma prepare_wbuf_ret:
 
   have ostore_upds_reorder: "\<And>x a b c d e f. x\<lparr>OstoreState.next_sqnum\<^sub>f := a, used\<^sub>f := b, opad\<^sub>f := c, wbuf\<^sub>f := d, fsm_st\<^sub>f := e, OstoreState.oaddr\<^sub>f := f\<rparr> = x\<lparr>wbuf\<^sub>f := d, opad\<^sub>f := c, used\<^sub>f := b, OstoreState.next_sqnum\<^sub>f := a, fsm_st\<^sub>f := e, OstoreState.oaddr\<^sub>f := f\<rparr>" by simp
 
+  have ostore_upds_reorder': "\<And>x a b c d e f. x\<lparr>OstoreState.next_sqnum\<^sub>f := a, used\<^sub>f := b, opad\<^sub>f := c, wbuf\<^sub>f := d, fsm_st\<^sub>f := e, OstoreState.oaddr\<^sub>f := f\<rparr> = x\<lparr>wbuf\<^sub>f := d, used\<^sub>f := b, fsm_st\<^sub>f := e, OstoreState.oaddr\<^sub>f := f, OstoreState.next_sqnum\<^sub>f := a, opad\<^sub>f := c\<rparr>" by simp
+
+  have obj_upds_reorder: "\<And>x a b c. x \<lparr>trans\<^sub>f := a, Obj.len\<^sub>f := b, Obj.sqnum\<^sub>f := c\<rparr> = x \<lparr>Obj.sqnum\<^sub>f := c, Obj.len\<^sub>f := b, trans\<^sub>f := a\<rparr>" by simp
+
   from padding_obj show ?thesis
     unfolding prepare_wbuf_def[unfolded tuple_simps sanitizers, folded bilbyFsObjHeaderSize_def]
     apply (simp add: Let_def)
@@ -1610,8 +1614,7 @@ lemma prepare_wbuf_ret:
      using inv_ostore_wbuf_eb_rangeD[OF inv_ostore] apply simp
 
     apply (rule suc)
-      apply simp thm inv_ostore_preserved_padding_obj[OF inv_ostore 
-                    inv_mount_st _ used_gt_zero sync_lt_used]
+      apply simp
      apply(subst ostore_upds_reorder)
      apply (rule inv_ostore_preserved_padding_obj[OF inv_ostore 
                     inv_mount_st _ used_gt_zero sync_lt_used])
@@ -1637,7 +1640,7 @@ lemma prepare_wbuf_ret:
      using pad_to_upd apply (clarsimp simp add: pad_to ostore_update_padding_obj' prepared_fsm_padding_obj_def)
     using inv_step apply simp
    apply simp
-  using [[goals_limit=1]]
+  using [[goals_limit=2]]
    apply (rule_tac x="pad_to - used\<^sub>f ostore_st" in exI)
       apply (rule_tac x="OstoreState.next_sqnum\<^sub>f ostore_st" in exI)
       apply (rule_tac x="crc\<^sub>f (opad\<^sub>f ostore_st)" in exI)
@@ -1651,8 +1654,10 @@ lemma prepare_wbuf_ret:
     the type of opad is part of the invariant *)
       using inv_opadD[OF inv_ostore] apply (clarsimp simp: bilbyFsTransCommit_def)
       using inv_ostore_wbuf_eb_rangeD[OF inv_ostore]
-       apply (subst ostore_upds_reorder)
-      sorry
+      apply (subst ostore_upds_reorder')
+      apply (subst obj_upds_reorder)+
+      apply (simp)+
+      done
   qed
 
 definition
