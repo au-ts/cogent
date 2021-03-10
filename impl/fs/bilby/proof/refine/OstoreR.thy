@@ -13,7 +13,7 @@ imports
   "../spec/OstoreS"
   "../spec/OstoreInvS"
   "../spec/TransS"
-  "../impl/BilbyFs_Shallow_Desugar_Tuples"
+  "BilbyFsConsts.BilbyFs_Shallow_Desugar_Tuples"
   "../adt/BufferT"
   "../spec/SerialS"
   "HOL-Library.Sublist"
@@ -681,7 +681,7 @@ lemma fsm_mark_ebnum_dirty:
   and     suc: "P (fsm_st
        \<lparr>dirty_space\<^sub>f :=
           WordArrayT.make
-           (\<alpha>wa (dirty_space\<^sub>f fsm_st)[unat ebnum := \<alpha>wa (dirty_space\<^sub>f fsm_st) ! unat ebnum + len])\<rparr>)"
+           ((\<alpha>wa (dirty_space\<^sub>f fsm_st))[unat ebnum := \<alpha>wa (dirty_space\<^sub>f fsm_st) ! unat ebnum + len])\<rparr>)"
   shows
   "P (fsm_mark_ebnum_dirty (fsm_st, ebnum, len))"
   unfolding fsm_mark_ebnum_dirty_def[unfolded tuple_simps sanitizers]
@@ -700,7 +700,7 @@ lemma fsm_mark_dirty_ret: (* This a specialise lemma for fsm_mark_diry when oid 
   and     suc: "\<And>ex. P(ex, fsm_st
           \<lparr>dirty_space\<^sub>f :=
              WordArrayT.make
-              (\<alpha>wa (dirty_space\<^sub>f fsm_st)
+              ((\<alpha>wa (dirty_space\<^sub>f fsm_st))
                [unat (ObjAddr.ebnum\<^sub>f oaddr) :=
                   \<alpha>wa (dirty_space\<^sub>f fsm_st) ! unat (ObjAddr.ebnum\<^sub>f oaddr) + ObjAddr.len\<^sub>f oaddr])\<rparr>,
           gimpool)"
@@ -747,7 +747,7 @@ where
  "prepared_fsm_padding_obj ostore_st pad_to \<equiv>
    if \<not> (pad_to - used\<^sub>f ostore_st < bilbyFsObjHeaderSize) then
     fsm_st\<^sub>f ostore_st \<lparr>dirty_space\<^sub>f :=
-      WordArrayT.make (\<alpha>wa (dirty_space\<^sub>f (fsm_st\<^sub>f ostore_st))
+      WordArrayT.make ((\<alpha>wa (dirty_space\<^sub>f (fsm_st\<^sub>f ostore_st)))
       [unat (wbuf_eb\<^sub>f ostore_st) := \<alpha>wa (dirty_space\<^sub>f (fsm_st\<^sub>f ostore_st)) ! unat (wbuf_eb\<^sub>f ostore_st)
         + (pad_to - used\<^sub>f ostore_st)])\<rparr>
   else fsm_st\<^sub>f ostore_st"
@@ -760,7 +760,7 @@ lemma update_obj_pad_ret:
    \<lparr>fsm_st\<^sub>f := fsm_st\<^sub>f ostore_st
       \<lparr>dirty_space\<^sub>f :=
          WordArrayT.make
-          (\<alpha>wa (dirty_space\<^sub>f (fsm_st\<^sub>f ostore_st))
+          ((\<alpha>wa (dirty_space\<^sub>f (fsm_st\<^sub>f ostore_st)))
            [unat (ebnum\<^sub>f oaddr) := \<alpha>wa (dirty_space\<^sub>f (fsm_st\<^sub>f ostore_st)) ! unat (ebnum\<^sub>f oaddr) +
               ObjAddr.len\<^sub>f oaddr])\<rparr>,
       OstoreState.oaddr\<^sub>f :=v\<rparr>)"
@@ -1529,7 +1529,7 @@ lemma prepare_wbuf_ret:
    by (rule prepare_wbuf_memset_\<alpha>_updates_eq[OF inv_ostore inv_mount_st pad_to sync_lt_used])
   have \<alpha>_medium_eq: "\<alpha>_ostore_medium ?ostore_st = \<alpha>_ostore_medium ostore_st"
    by (simp add: \<alpha>_ostore_medium_def abstract_mount_\<alpha>_ostore_def list_eb_log_eq)
-  have inv_step': "inv_\<alpha>_ostore (\<alpha>_ostore_uptodate  ?ostore_st)"
+  have inv_step': "inv_\<alpha>_ostore (\<alpha>_ostore_uptodate ?ostore_st)"
    using inv_step
    by (clarsimp simp add: \<alpha>_ostore_uptodate_def Let_def \<alpha>_medium_eq \<alpha>_updates_eq)
   have inv_ostore': "inv_ostore mount_st ?ostore_st"
@@ -1540,8 +1540,10 @@ lemma prepare_wbuf_ret:
   using no_padding_obj apply (simp add: pad_to')
   apply (rule suc)
       apply (fold bilbyFsPadByte_def)
-     using inv_ostore'  apply (simp add: pad_to padding_to_def ostoreWriteNone_def)
-    using inv_step' apply (simp add: pad_to padding_to_def ostoreWriteNone_def)
+  using inv_ostore'  apply (simp add: pad_to padding_to_def ostoreWriteNone_def)
+     apply(fastforce intro: subst[where P=\<open>inv_ostore mount_st\<close>,rotated])
+  using inv_step' apply (simp add: pad_to padding_to_def ostoreWriteNone_def)
+    apply (fastforce intro: subst[where P=\<open>\<lambda>x. inv_\<alpha>_ostore (\<alpha>_ostore_uptodate x)\<close>,rotated])
    apply (rule_tac x="Obj.len\<^sub>f (opad\<^sub>f ?ostore_st)" in exI)
    apply (rule_tac x="Obj.sqnum\<^sub>f (opad\<^sub>f ?ostore_st)" in exI)
    apply (rule_tac x="Obj.crc\<^sub>f (opad\<^sub>f ?ostore_st)" in exI)
@@ -1550,12 +1552,11 @@ lemma prepare_wbuf_ret:
       apply (subst buf_memset_eq)
          using bound apply simp
         using used_le_padding_to[OF inv_ostore inv_mount_st] apply (simp add: pad_to' pad_simps)
-
-
    apply (fastforce simp add: pad_to padding_to_def 
            ostoreWriteNone_def buf_prepared_def prepared_fsm_padding_obj_def)
   apply simp
  done
+
  next
   assume padding_obj: "\<not> (pad_to - used\<^sub>f ostore_st < bilbyFsObjHeaderSize)"
 
@@ -1568,6 +1569,11 @@ lemma prepare_wbuf_ret:
 
   have dummy_upds: "\<And>x. x = x\<lparr>fsm_st\<^sub>f := fsm_st\<^sub>f x, OstoreState.oaddr\<^sub>f := OstoreState.oaddr\<^sub>f x\<rparr>"
    by simp
+
+  have dummy_upds': "\<And>x a b c d. x\<lparr>OstoreState.next_sqnum\<^sub>f := a, used\<^sub>f := b, opad\<^sub>f := c, wbuf\<^sub>f := d\<rparr> = x\<lparr>wbuf\<^sub>f := d, opad\<^sub>f := c, used\<^sub>f := b, OstoreState.next_sqnum\<^sub>f := a, fsm_st\<^sub>f := fsm_st\<^sub>f x, OstoreState.oaddr\<^sub>f := OstoreState.oaddr\<^sub>f x\<rparr>"
+    by simp
+
+  have ostore_upds_reorder: "\<And>x a b c d e f. x\<lparr>OstoreState.next_sqnum\<^sub>f := a, used\<^sub>f := b, opad\<^sub>f := c, wbuf\<^sub>f := d, fsm_st\<^sub>f := e, OstoreState.oaddr\<^sub>f := f\<rparr> = x\<lparr>wbuf\<^sub>f := d, opad\<^sub>f := c, used\<^sub>f := b, OstoreState.next_sqnum\<^sub>f := a, fsm_st\<^sub>f := e, OstoreState.oaddr\<^sub>f := f\<rparr>" by simp
 
   from padding_obj show ?thesis
     unfolding prepare_wbuf_def[unfolded tuple_simps sanitizers, folded bilbyFsObjHeaderSize_def]
@@ -1588,9 +1594,9 @@ lemma prepare_wbuf_ret:
              apply (clarsimp simp add: pad_to buf_simps ostore_update_padding_obj' bilbyFsObjHeaderSize_def)
       apply (rename_tac buf')
       apply (simp add: prod.case_eq_if)
-      apply (rule update_obj_pad_ret[OF _ inv_mount_st])
-       apply (subst dummy_upds,rule inv_ostore_preserved_padding_obj[OF inv_ostore 
-                    inv_mount_st _ used_gt_zero sync_lt_used])
+       apply (rule update_obj_pad_ret[OF _ inv_mount_st])
+       apply (rule ssubst[OF dummy_upds'])
+       apply (rule inv_ostore_preserved_padding_obj[OF inv_ostore inv_mount_st _ used_gt_zero sync_lt_used])
           using pad_to_upd apply (simp add: pad_to)
          apply (simp add: ostore_update_padding_obj' pad_to pad_simps bilbyFsObjHeaderSize_def)
          apply (rule_tac x="crc\<^sub>f (opad\<^sub>f ostore_st)" in exI)
@@ -1604,8 +1610,10 @@ lemma prepare_wbuf_ret:
      using inv_ostore_wbuf_eb_rangeD[OF inv_ostore] apply simp
 
     apply (rule suc)
-      apply simp
-       apply (rule inv_ostore_preserved_padding_obj[OF inv_ostore 
+      apply simp thm inv_ostore_preserved_padding_obj[OF inv_ostore 
+                    inv_mount_st _ used_gt_zero sync_lt_used]
+     apply(subst ostore_upds_reorder)
+     apply (rule inv_ostore_preserved_padding_obj[OF inv_ostore 
                     inv_mount_st _ used_gt_zero sync_lt_used])
            using pad_to_upd apply (simp add: pad_to)
           apply (simp add: ostore_update_padding_obj' pad_to pad_simps bilbyFsObjHeaderSize_def)
@@ -1617,7 +1625,8 @@ lemma prepare_wbuf_ret:
       using inv_ostore_wbuf_eb_rangeD[OF inv_ostore]
       apply (simp add: ostore_update_padding_obj' pad_to pad_simps bilbyFsObjHeaderSize_def)
      using padding_obj apply (simp add: prepared_fsm_padding_obj_def pad_simps bilbyFsObjHeaderSize_def pad_to' ostore_update_padding_obj')
-    apply simp
+       apply simp
+     apply(subst ostore_upds_reorder)
     apply (rule inv_step_padding_obj[OF inv_ostore inv_mount_st _  used_gt_zero sync_lt_used ])
           using pad_to_upd apply (simp add: pad_to)
          apply (rule_tac x="crc\<^sub>f (opad\<^sub>f ostore_st)" in exI)
@@ -1641,9 +1650,10 @@ lemma prepare_wbuf_ret:
  (* FIX Cogent code, currently it updates the otype field but shouldn't because
     the type of opad is part of the invariant *)
       using inv_opadD[OF inv_ostore] apply (clarsimp simp: bilbyFsTransCommit_def)
-     using inv_ostore_wbuf_eb_rangeD[OF inv_ostore] apply simp
- done
-qed
+      using inv_ostore_wbuf_eb_rangeD[OF inv_ostore]
+       apply (subst ostore_upds_reorder)
+      sorry
+  qed
 
 definition
   sync_summary_serial :: "OstoreState\<^sub>T \<Rightarrow> (Obj\<^sub>T \<times> Buffer\<^sub>T \<times> U32)"
@@ -1667,14 +1677,14 @@ lemma ostore_sync_summary_if_eb_new_ret:
 lemma ostore_write_buf_inv_ostore_index:
   assumes inv_ostore: "inv_ostore mount_st ostore_st"
   and inv_mount_st: "inv_mount_st mount_st"
-  and ubi_vol:"\<alpha>wubi ubi_vol' = \<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st)
+  and ubi_vol:"\<alpha>wubi ubi_vol' = (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st))
        [unat (wbuf_eb\<^sub>f ostore_st) :=
           \<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st) ! unat (wbuf_eb\<^sub>f ostore_st) @
           buf_slice (wbuf\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st + nb_bytes)]"
 shows
  "inv_ostore_index mount_st (ostore_st\<lparr>OstoreState.ubi_vol\<^sub>f := ubi_vol'\<rparr>)"
      using inv_ostore inv_mount_st[unfolded inv_mount_st_def]
-  apply (clarsimp simp: inv_ostore_def Let_def inv_ostore_index_def ostore_get_obj_def )
+  apply (clarsimp simp: inv_ostore_def Let_def inv_ostore_index_def ostore_get_obj_def)
   apply (rename_tac oid addr)
   apply (erule_tac x=oid in ballE)
   apply (case_tac "ObjAddr.ebnum\<^sub>f addr \<noteq> wbuf_eb\<^sub>f ostore_st")
@@ -1682,8 +1692,8 @@ shows
  done
 
 lemma map_list_trans_upd_eq:
- "map f (drop m (xs[n:=y'']))[n-m:=y] =
-  map f (drop m xs)[n-m:=y]"
+ "(map f (drop m (xs[n:=y''])))[n-m:=y] =
+  (map f (drop m xs))[n-m:=y]"
   apply (clarsimp simp: list_eq_iff_nth_eq )
   apply (rename_tac i, case_tac "i = n-m")
    apply (clarsimp simp del: list_trans.simps)+
@@ -1691,7 +1701,7 @@ lemma map_list_trans_upd_eq:
 
 lemma ostore_write_buf_inv_ostore_fsm:
  " inv_ubi_vol mount_st ubi_vol' \<Longrightarrow>
-   \<alpha>wubi ubi_vol' = \<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st)
+   \<alpha>wubi ubi_vol' = (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st))
    [unat (wbuf_eb\<^sub>f ostore_st) :=
     \<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st) ! unat (wbuf_eb\<^sub>f ostore_st) @
     buf_slice (wbuf\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st + nb_bytes)] \<Longrightarrow>
@@ -1955,7 +1965,7 @@ lemma sort_key_concat_ignores_order:
 shows
 "sort_key trans_order
  (concat (map (prod.snd \<circ> list_trans_no_pad) (drop (unat bilbyFsFirstLogEbNum)
-  (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st) [unat (wbuf_eb\<^sub>f ostore_st) :=
+  ((\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st)) [unat (wbuf_eb\<^sub>f ostore_st) :=
     \<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st) ! unat (wbuf_eb\<^sub>f ostore_st) @ xs])))) =
 sort_key trans_order
  (concat (map (prod.snd \<circ> list_trans_no_pad) (drop (unat bilbyFsFirstLogEbNum)
@@ -1987,7 +1997,7 @@ lemma ostore_sync_\<alpha>_ostore_uptodate:
   and     used_gt_zero: "0 < used\<^sub>f ostore_st"
   and     sync_lt_used: "sync_offs\<^sub>f ostore_st < used\<^sub>f ostore_st"
   and     wubi: "list_eb_log (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st')) = 
-list_eb_log (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st)
+list_eb_log ((\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st))
  [unat (wbuf_eb\<^sub>f ostore_st) :=
     \<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st) ! unat (wbuf_eb\<^sub>f ostore_st) @
     buf_slice
@@ -2076,7 +2086,7 @@ lemma inv_ostore_updated_ubi_preserved:
   and     sync_lt_used: "sync_offs\<^sub>f ostore_st < used\<^sub>f ostore_st"
   and     inv_ubi_vol: "inv_ubi_vol mount_st ubi_vol'"
   and     wubi:
- "\<alpha>wubi ubi_vol' = \<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st)
+ "\<alpha>wubi ubi_vol' = (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st))
    [unat (wbuf_eb\<^sub>f ostore_st) :=
       \<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st) ! unat (wbuf_eb\<^sub>f ostore_st) @
       buf_slice (wbuf\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st + nb_bytes)]"
@@ -2108,7 +2118,7 @@ have sort_key_trans_key_eq:
   "sort_key trans_order
      (concat (map (prod.snd \<circ> list_trans_no_pad)
                (drop (unat bilbyFsFirstLogEbNum)
-                 (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st)
+                 ((\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st))
                   [unat (wbuf_eb\<^sub>f ostore_st) :=
                      \<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st) ! unat (wbuf_eb\<^sub>f ostore_st) @
                      buf_slice (wbuf\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st) (used\<^sub>f ostore_st)])))) =
@@ -2313,7 +2323,7 @@ lemma ostore_write_buf_ret:
   "\<And>ex' ostore_st'. \<lbrakk>
      inv_ostore mount_st (ostore_st' \<lparr> sync_offs\<^sub>f := used\<^sub>f ostore_st\<rparr>);
      \<exists>v. ostore_st'\<lparr>OstoreState.ubi_vol\<^sub>f := v\<rparr> = ostore_st;
-     \<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st') = \<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st)[(unat (wbuf_eb\<^sub>f ostore_st)):=((\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st)!(unat (wbuf_eb\<^sub>f ostore_st)))@buf_slice (wbuf\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st + nb_bytes))] \<rbrakk> \<Longrightarrow>
+     \<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st') = (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st))[(unat (wbuf_eb\<^sub>f ostore_st)):=((\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st)!(unat (wbuf_eb\<^sub>f ostore_st)))@buf_slice (wbuf\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st) (sync_offs\<^sub>f ostore_st + nb_bytes))] \<rbrakk> \<Longrightarrow>
       P ((ex', ostore_st'), Success ())
  "
 shows

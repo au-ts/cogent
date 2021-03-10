@@ -16,7 +16,7 @@ all: cogent
 	L4V_ARCH=ARM $(ISABELLE) build -v -d . -d $(BUILD_ENV_MK_DIR) -d $(BUILD_ENV_MK_DIR)/autocorres -b BilbyFs
 
 cogent:
-	cogent --shallow-consts-desugar-tuples --shallow-desugar-tuples --proof-name=BilbyFs \
+	cogent-master --shallow-consts-desugar-tuples --shallow-desugar-tuples --proof-name=BilbyFs \
 				--dist-dir="impl" --root-dir="$(BUILD_ENV_MK_DIR)" $(COGENT_FLAGS) \
 				../cogent/src/fsop.cogent
 sync: cogent
