@@ -69,20 +69,27 @@ pExprs = pExpr `sepEndBy` pspaces semi
 pExpr :: Parser PbtDescExpr
 pExpr = do
     lhs <- pstrId
-    -- op <- lookAhead $ try tyOp <|> mapOp <|> rcurly <|> semi
-    op <- lookAhead $ try typOp <|> mapOp <|> eqlOp <|> endOp
+    op <- lookAhead $ try typOp 
+                      <|> mapOp 
+                      <|> eqlOp 
+                      <|> gtOp
+                      <|> ltOp
+                      <|> endOp -- check for end of exp, i.e. no RHS
     -- need to check if keyident is contained in LHS
     -- Hs syntax allowed on both lhs and rhs of operator but must be a transform on one of the key identifiers
     let (ident, v) = if trim lhs `elem` keyidents
-                        then (trim lhs, find (`isInfixOf` lhs) keyidents)
-                        else ( case find (\x -> isInfixOf x lhs) keyidents of
+                        then ( trim lhs
+                             , find (`isInfixOf` lhs) keyidents )
+                        else ( case find (`isInfixOf` lhs) keyidents of
                                  Just x -> x
                                  Nothing -> __impossible $ "LHS must contain a key identifier: one of " ++ show keyidents
                              , Just lhs )
     case v of
        Just x -> if | op == typStr -> pTypExpr x
                     | op == mapStr -> pMapExpr x
-                    | op == eqlStr -> pEqlExpr ident x
+                    | op == eqlStr -> pRelationExpr eqlOp eqlStr ident x
+                    | op == gtStr -> pRelationExpr gtOp gtStr ident x
+                    | op == ltStr -> pRelationExpr ltOp ltStr ident x
                     | otherwise -> pJustExpr x
        Nothing -> pJustExpr lhs
 
@@ -103,6 +110,12 @@ pEqlExpr ident lhs = do
         -- concat entire exp and parse a HS exp -> since it is effectively a predicate
         Right (parseHsExp (lhs++eqlStr++e))
 
+pRelationExpr :: (Parser a) -> String -> String -> String -> Parser PbtDescExpr
+pRelationExpr opParser opStr ident lhs = do
+    e <- opParser *> pHsExp
+    _ <- trace ("hi: " ++ show lhs ++ show opStr ++ show e) $ seeNext 10
+    return $ PbtDescExpr (Just (toPbtTyp' ident)) $ Just $ Right (parseHsExp (lhs++opStr++e))
+    
 pJustExpr lhs = return $ PbtDescExpr Nothing $ Just $ Left (parseHsTyp lhs)
 
 {-
@@ -144,7 +157,7 @@ keyidents = ["ic", "ia", "oc", "oa"]
 hsExpStopChars = [semiCh]
 
 -- chars for when parsing of PBT DSL syntax will stop
-stopChars = [backticCh, colCh, lcurlyCh, rcurlyCh, semiCh, eqlCh, '\r', '\n']
+stopChars = [backticCh, colCh, lcurlyCh, rcurlyCh, semiCh, eqlCh, gtCh, ltCh, '\r', '\n']
 
 -- important (for structure) chars
 lcurly = char lcurlyCh
@@ -156,12 +169,16 @@ semi = char semiCh
 typOp = string typStr
 mapOp = string mapStr
 eqlOp = string eqlStr
+gtOp = string gtStr
+ltOp = string ltStr
 endOp = try (string semiStr) <|> string rcurlyStr
 
 -- Operator strings
 typStr = "::"
 mapStr = ":="
 eqlStr = "=="
+gtStr = ">"
+ltStr = "<"
 semiStr = ";"
 rcurlyStr = "}"
 
@@ -172,6 +189,8 @@ backticCh = '`'
 lcurlyCh = '{'
 rcurlyCh = '}'
 eqlCh = '='
+gtCh = '>'
+ltCh = '<'
 
 -- Converting to Strings to Types
 -- -----------------------------------------
@@ -222,9 +241,9 @@ exampleFile = unlines $
         , "         oa :: Maybe Int;         \r"
         , "         (oa ^? _Just) == (oc ^? _V0_Success <&> fromIntegral) ;              \r"
         , "    }                            \r"
-        --, "    welf {                       \r"
-        --, "        ic := ic ^. sum >= ic ^. count; \r"
-        --, "    }                            \r"
+        , "    welf {                       \r"
+        , "        (ic ^. sum) > (ic ^. count) ; \r"
+        , "    }                            \r"
         , "}                                \r"
         , "`addToBag` {                 \r"
         , "    pure { True }                \r"
@@ -240,8 +259,8 @@ exampleFile = unlines $
         , "         oa :: Maybe Int;         \r"
         , "         oa == oc ;               \r"
         , "    }                            \r"
-        --, "    welf {                       \r"
-        --, "        ic := ic ^. sum >= ic ^. count; \r"
-        --, "    }                            \r"
+        , "    welf {                       \r"
+        , "        ic ^. sum < ic ^. count; \r"
+        , "    }                            \r"
         , "}                                \r"
         ]
