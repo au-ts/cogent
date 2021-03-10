@@ -210,11 +210,6 @@ library
                    , Cogent.Haskell.PBT.Builders.Welf
                    , Cogent.Haskell.PBT.DSL.Parser
                    , Cogent.Haskell.PBT.DSL.Types
-
--- TODO: DELETE !!!
-                   , Cogent.Haskell.GenDSL
-                   , Cogent.Haskell.ParseDSL
-
     cpp-options: -DWITH_HASKELL
     build-depends: haskell-src-exts >= 1.19
                  , haskell-names

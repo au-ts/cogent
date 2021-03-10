@@ -1,3 +1,35 @@
+`averageBag` {
+    pure { True }
+    nond { False }
+    absf {
+        ic :: Bag ;
+        ia :: Int ;
+        ia := ic ^. count & fromIntegral;
+    }
+    rrel {
+        oc :: < Failure | Success U32 > ;
+        oa :: Maybe Int;
+        (oa ^? _Just) == (oc ^? _V0_Success <&> fromIntegral) ;
+    }
+}
+`addToBag` {
+    pure { True }
+    nond { False }
+    absf {
+        ic :: (U32, Bag) ;
+        ia :: (Int, Int, Int);
+    }
+    rrel {
+        oc :: Unknown ;
+        oa :: (Int, Int);
+    }
+}
+
+
+
+-- NOTE: OLD SYNTAX BELOW -> TO DELETE
+-- ------------------------------------
+
 -- list paired with length of that list
 -- abstracted into just the list
 absf: indirect
