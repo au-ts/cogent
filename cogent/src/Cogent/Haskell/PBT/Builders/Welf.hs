@@ -1,8 +1,8 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE MultiWayIf #-}
-{-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE RecordWildCards #-}
+
+
+
 
 -- | Haskell PBT generator
 --
@@ -57,7 +57,7 @@ genDecls'' stmt defs = do
         let (_, icTy, icExp) = findKvarsInDecl Absf Ic $ stmt ^. decls
             fnName = "gen_" ++ stmt ^. funcname
             genCon = TyCon () (mkQName "Gen")
-            tyOut = TyApp () genCon $ case icTy of 
+            tyOut = TyApp () genCon $ case icTy of
                                         Just x -> TyParen () x
                                         Nothing -> TyCon () $ mkQName "Unknown"
             -- sig    = TypeSig () [mkName fnName] tyOut

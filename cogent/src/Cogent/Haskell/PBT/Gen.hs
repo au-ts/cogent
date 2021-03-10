@@ -1,8 +1,8 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE MultiWayIf #-}
-{-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE RecordWildCards #-}
+
+
+
 
 -- | Haskell PBT generator
 --
@@ -75,9 +75,9 @@ propModule :: String -> String -> [PbtDescStmt] -> [CC.Definition TypedExpr VarN
 propModule name hscname pbtinfos decls =
   let (cogDecls, w) = evalRWS (runSG $ do
                                           shallowTypesFromTable
-                                          genDs <- concatMapM (\x -> genDecls'' x decls) pbtinfos
-                                          absDs <- concatMapM (\x -> absFDecl' x decls) pbtinfos
-                                          rrelDs <- concatMapM (\x -> rrelDecl' x decls) pbtinfos
+                                          genDs <- concatMapM (`genDecls''` decls) pbtinfos
+                                          absDs <- concatMapM (`absFDecl'` decls) pbtinfos
+                                          rrelDs <- concatMapM (`rrelDecl'` decls) pbtinfos
                                           -- genDecls x decls shallowTypesFromTable
                                           --cs <- concatMapM shallowConst consts
                                           --ds <- shallowDefinitions decls
@@ -136,14 +136,14 @@ propModule name hscname pbtinfos decls =
 -- | top level builder for prop_* :: Property function 
 -- -----------------------------------------------------------------------
 propDecls' :: PbtDescStmt -> [Decl ()]
-propDecls' desc 
+propDecls' desc
     = let fn    = desc ^. funcname
           ds    = mkPropBody' fn $ desc ^. decls
           fnName = "prop_" ++ fn
           toName = "Property"
           to     = TyCon   () (mkQName toName)
           sig    = TypeSig () [mkName fnName] to
-          dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $ ds ) Nothing]
+          dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () ds ) Nothing]
         in [sig, dec]
 
 -- | Helpers

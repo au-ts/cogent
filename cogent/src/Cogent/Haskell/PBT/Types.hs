@@ -22,7 +22,7 @@ import Lens.Micro.TH
 
 data GroupTag = HsTuple | HsRecord | HsVariant | HsList | HsPrim | Unknown deriving (Show)
 
-data HsEmbedLayout = HsEmbedLayout 
+data HsEmbedLayout = HsEmbedLayout
     { _hsTyp :: HS.Type ()
     , _grTag :: GroupTag
     , _fieldMap :: M.Map String (Either Int HsEmbedLayout)
@@ -35,16 +35,16 @@ makeLenses ''HsEmbedLayout
 -- | Helper functions for accessing structure
 -- -----------------------------------------------------------------------
 findExprsInDecl :: PbtKeyword -> [PbtDescDecl] -> [PbtDescExpr]
-findExprsInDecl x ds = let res = fromMaybe (__impossible "No expression found!") $ find (\d -> case (d ^. kword) of x -> True; _ -> False) ds
+findExprsInDecl x ds = let res = fromMaybe (__impossible "No expression found!") $ find (\d -> case d ^. kword of x -> True; _ -> False) ds
                          in res ^. kexprs
 
 -- find ic/ia/oc/oa type and expression
 findKvarsInDecl :: PbtKeyword -> PbtKeyidents -> [PbtDescDecl] -> (PbtKeyidents, Maybe (HS.Type ()), Maybe (HS.Exp ()))
-findKvarsInDecl x y ds 
-    = let decl = case (find (\d -> (d ^. kword) == x) ds) of 
+findKvarsInDecl x y ds
+    = let decl = case find (\d -> (d ^. kword) == x) ds of
                    Just x -> x
                    Nothing -> __impossible $ "The decl: "++show x++ " was not specified"
-          exprs = filter (\e -> case (e ^. kident) of 
+          exprs = filter (\e -> case e ^. kident of
                              Just y' -> y' == y; _ -> False
                   ) $ decl ^. kexprs
           in ( y
@@ -54,7 +54,7 @@ findKvarsInDecl x y ds
              , (exprs ^.. each . kexp . _Just . _Right) ^? ix 0 )
 
 checkBoolE :: [PbtDescExpr] -> Bool
-checkBoolE a = case ((a ^.. each . kexp . _Just . _Left) ^? ix 0) of 
+checkBoolE a = case (a ^.. each . kexp . _Just . _Left) ^? ix 0 of
                      Just x -> boolResult x
                      _ -> False
 

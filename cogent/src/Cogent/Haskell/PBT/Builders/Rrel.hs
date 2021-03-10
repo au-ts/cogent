@@ -1,8 +1,8 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE MultiWayIf #-}
+
 {-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE RecordWildCards #-}
+
 
 -- | Haskell PBT generator
 --
@@ -56,18 +56,16 @@ rrelDecl' :: PbtDescStmt -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
 rrelDecl' stmt defs = do
         let (_, oaTy, oaExp) = findKvarsInDecl Rrel Oa $ stmt ^. decls
             fnName = "rel_" ++ stmt ^. funcname
-            oaT = case oaTy of 
+            oaT = case oaTy of
                       Just x -> x
                       Nothing -> __impossible $ "specify oa type please, stmt: "++ show stmt
         (ocT, _, rrelE, conNames) <- mkRrelExp (stmt ^. funcname) oaT defs
-        let e = case oaExp of 
-                  Just x -> x
-                  Nothing -> rrelE
+        let e = fromMaybe rrelE oaExp
         let to     = mkTyConT $ mkName "Bool"
             ti     = TyFun () oaT $ TyFun () ocT to
             sig    = TypeSig () [mkName fnName] ti
             dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "oa", pvar $ mkName "oc"] (UnGuardedRhs () e) Nothing]
-        return $ map mkLens (takeWhile (\x -> notElem x hsSumTypes) conNames)++[sig, dec]
+        return $ map mkLens (takeWhile (`notElem` hsSumTypes) conNames)++[sig, dec]
 
 -- | Builder for Refinement Relation body expression, also returns function input/output type
 -- -----------------------------------------------------------------------
@@ -87,7 +85,7 @@ mkRrelExp' def oaT | (CC.AbsDecl _ fn ps _ ti to) <- def = local (typarUpd (map 
     (absE, conNames) <- mkRrelBody to to' oaT
     pure ( to', oaT, absE, conNames)
 mkRrelExp' def oaT | (CC.TypeDef tn _ _) <- def
-    = pure (TyCon () (mkQName "Unknown"), oaT, function $ "undefined", [])
+    = pure (TyCon () (mkQName "Unknown"), oaT, function "undefined", [])
 
 -- | Builder for refinement relation body. For pointwise equality (default), builds a 
 -- | let expression which binds lens views to variables that and then compared with
@@ -107,7 +105,7 @@ mkRrelBody cogOcTyp ocTyp oaTyp
           ls = oaLens ++ ocLens
           cNames = getConNames ocLy [] ++ getConNames oaLy []
           binds = map ((\x -> pvar . mkName . fst $ x) &&& snd) ls
-          tys = map snd ocLens' 
+          tys = map snd ocLens'
           ocVars = map fst ocLens
           oaVars = map fst oaLens
           body = mkCmpExp (zip3 oaVars ocVars tys) Nothing
@@ -116,23 +114,23 @@ mkRrelBody cogOcTyp ocTyp oaTyp
 -- | Builder for comparison expression used in refinement relation
 -- -----------------------------------------------------------------------
 mkCmpExp :: [(String, String, (Type (), GroupTag))] -> Maybe (Exp ()) -> Exp ()
-mkCmpExp [] prev 
-    = case prev of 
+mkCmpExp [] prev
+    = case prev of
         Just x -> x
         Nothing -> __impossible "boom!"
-mkCmpExp (v:vs) prev 
-    = case prev of 
+mkCmpExp (v:vs) prev
+    = case prev of
         Just x -> mkCmpExp vs $ Just $ infixApp x (mkOp "&&") $ mkEqExp v
         Nothing -> mkCmpExp vs $ Just $ mkEqExp v
 mkEqExp :: (String, String, (Type (), GroupTag)) -> Exp ()
-mkEqExp (oa, oc, (ty, grp)) 
-    = let op = case grp of 
+mkEqExp (oa, oc, (ty, grp))
+    = let op = case grp of
                  HsVariant -> "<&>"
                  _ -> "&"
           mkInfixEq x y = infixApp x (mkOp "==") y
-        in if isFromIntegral ty 
+        in if isFromIntegral ty
             then mkInfixEq (mkVar oa) $ paren $ infixApp (mkVar oc) (mkOp op) (function "fromIntegral")
-            else mkInfixEq (mkVar oa) (mkVar oc) 
+            else mkInfixEq (mkVar oa) (mkVar oc)
 
 -- | Builder for the layout type that is used for building the lens view. Similar to determineUnpack
 -- | but without the cogent type supplied.
@@ -159,7 +157,7 @@ determineUnpack' hsTyp depth fieldName | (TyApp _ l r) <- hsTyp
           conName = case maybeConName of
                       (TyCon _ (UnQual _ (Ident _ n))) -> n
                       _ -> __impossible $ "Bad Constructor name"++show l++"--"++show r
-          groupTag = if elem conName hsSumTypes then HsVariant else HsRecord
+          groupTag = if conName `elem` hsSumTypes then HsVariant else HsRecord
           -- TODO: unsure if this works - when would oa be a custom record?
           --       Makes more sense to restrict oa to either a prim or a built in hs type rather then allowing
           --       them to define there own records

@@ -27,21 +27,21 @@ type Parser a = Parsec String () a
 parsePbtDescFile :: FilePath -> ExceptT String IO [PbtDescStmt]
 parsePbtDescFile f = pPbtFile pStmts f
 
-readPbtFile = liftA lines . readFile
+readPbtFile = fmap lines . readFile
 
 pPbtFile :: Parser a -> FilePath -> ExceptT String IO a
 pPbtFile p f = do
-    pbtFileLs <- case __cogent_pbt_info of 
+    pbtFileLs <- case __cogent_pbt_info of
                    Just f -> lift $ readPbtFile f
                    Nothing -> undefined
-    case (Text.Parsec.parse p "" (unlines pbtFileLs)) of 
+    case Text.Parsec.parse p "" (unlines pbtFileLs) of
         Right pbtF -> return pbtF
         Left err -> throwE $ "Error: Failed to parse PBT Info file: " ++ show err
 
 -- PBT DSL statement
 -- -----------------------------------------
 pStmts :: Parser [PbtDescStmt]
-pStmts = (pspaces pStmt) `manyTill` eof
+pStmts = pspaces pStmt `manyTill` eof
 
 pStmt :: Parser PbtDescStmt
 pStmt = do
@@ -57,43 +57,41 @@ pDecls = pDecl `manyTillLookAhead` rcurly
 
 pDecl :: Parser PbtDescDecl
 pDecl = do
-    k <- pstrId <* (lookAhead lcurly)
+    k <- pstrId <* lookAhead lcurly
     exprs <- pspaces $ pbetweenCurlys pExprs
     return $ PbtDescDecl (toPbtTyp k) exprs
 
 -- PBT DSL expressions
 -- -----------------------------------------
 pExprs :: Parser [PbtDescExpr]
-pExprs = pExpr `sepEndBy` (pspaces semi)
+pExprs = pExpr `sepEndBy` pspaces semi
 
-pExpr :: Parser PbtDescExpr 
+pExpr :: Parser PbtDescExpr
 pExpr = do
     lhs <- pstrId
     -- op <- lookAhead $ try tyOp <|> mapOp <|> rcurly <|> semi
     op <- lookAhead $ try typOp <|> mapOp <|> eqlOp <|> endOp
     -- need to check if keyident is contained in LHS
     -- Hs syntax allowed on both lhs and rhs of operator but must be a transform on one of the key identifiers
-    let (ident, v) = if (trim lhs) `elem` keyidents 
-                        then (trim lhs, find (\x -> isInfixOf x lhs) keyidents)
-                        else ( case (find (\x -> isInfixOf x lhs) keyidents) of 
+    let (ident, v) = if trim lhs `elem` keyidents
+                        then (trim lhs, find (`isInfixOf` lhs) keyidents)
+                        else ( case find (\x -> isInfixOf x lhs) keyidents of
                                  Just x -> x
                                  Nothing -> __impossible $ "LHS must contain a key identifier: one of " ++ show keyidents
-                             , Just $ lhs )
-    e <- case v of
-        Just x -> if | op == typStr -> pTypExpr x
-                     | op == mapStr -> pMapExpr x
-                     | op == eqlStr -> pEqlExpr ident x
-                     | otherwise -> pJustExpr x
-        Nothing -> pJustExpr lhs
-    return $ e
+                             , Just lhs )
+    case v of
+       Just x -> if | op == typStr -> pTypExpr x
+                    | op == mapStr -> pMapExpr x
+                    | op == eqlStr -> pEqlExpr ident x
+                    | otherwise -> pJustExpr x
+       Nothing -> pJustExpr lhs
 
 pTypExpr lhs = do
-    e <- typOp *> pHsExp 
+    e <- typOp *> pHsExp
     let t = toPbtTyp' lhs
-    return $ PbtDescExpr (Just t) $ 
+    return $ PbtDescExpr (Just t) $
         -- prevent cogent syntax from being parsed as HS syntax
-        if | t == Ic || t == Oc -> Nothing 
-           | otherwise -> Just $ Left (parseHsTyp e)
+        if t == Ic || t == Oc then Nothing else Just $ Left (parseHsTyp e)
 
 pMapExpr lhs = do
     e <- mapOp *> pHsExp
@@ -101,7 +99,7 @@ pMapExpr lhs = do
 
 pEqlExpr ident lhs = do
     e <- eqlOp *> pHsExp
-    return $ PbtDescExpr (Just (toPbtTyp' ident)) $ Just $ 
+    return $ PbtDescExpr (Just (toPbtTyp' ident)) $ Just $
         -- concat entire exp and parse a HS exp -> since it is effectively a predicate
         Right (parseHsExp (lhs++eqlStr++e))
 
@@ -117,10 +115,10 @@ pSomeExpr op e =
 
 -- Parsing Identifiers/Hs Exps transforming identifiers
 -- ----------------------------------------------------
-pHsExp :: Parser String 
+pHsExp :: Parser String
 pHsExp = pspaces $ many1 $ noneOf $ hsExpStopChars
 
-pstrId :: Parser String 
+pstrId :: Parser String
 pstrId = pspaces $ many1 $ noneOf $ stopChars
 
 -- Combinators for parsing structure

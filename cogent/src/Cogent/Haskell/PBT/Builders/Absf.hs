@@ -2,12 +2,12 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE RecordWildCards #-}
+
 
 -- | Abstraction Function Builder
 -- ----------------------------------------------------------------
 
-module Cogent.Haskell.PBT.Builders.Absf 
+module Cogent.Haskell.PBT.Builders.Absf
 
 -- (
    --  absFDecl'
@@ -36,7 +36,6 @@ import Language.Haskell.Exts.SrcLoc
 import Text.PrettyPrint
 import Debug.Trace
 import Cogent.Haskell.PBT.DSL.Types
-import Cogent.Haskell.PBT.Types
 import Cogent.Haskell.Shallow as SH
 import Prelude as P
 import Data.Tuple
@@ -60,11 +59,11 @@ absFDecl' :: PbtDescStmt -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
 absFDecl' stmt defs = do
         let (_, iaTy, iaExp) = findKvarsInDecl Absf Ia $ stmt ^. decls
             fnName = "abs_" ++ stmt ^. funcname
-            iaT = case iaTy of 
+            iaT = case iaTy of
                       Just x -> x
                       Nothing -> __impossible "specify ia type please"
         (icT, _, absE, conNames) <- mkAbsFExp (stmt ^. funcname) iaT defs
-        let e = case iaExp of 
+        let e = case iaExp of
                   Just x -> x
                   -- TODO: ^^ any automation we can add in here? e.g. fromIntegral
                   --          --> just allow any haskell func defn
@@ -78,7 +77,7 @@ absFDecl' stmt defs = do
             to     = iaT
             sig    = TypeSig () [mkName fnName] (TyFun () ti to)
             dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "ic"] (UnGuardedRhs () e) Nothing]
-        return $ map mkLens (takeWhile (\x -> notElem x hsSumTypes) conNames)++[sig, dec]
+        return $ map mkLens (takeWhile (`notElem` hsSumTypes) conNames)++[sig, dec]
 
 mkLens :: String -> Decl ()
 mkLens t
@@ -108,7 +107,7 @@ mkAbsFExp' def iaT | (CC.AbsDecl _ fn ps _ ti to) <- def = local (typarUpd (map 
     (absE, conNames) <- mkAbsFBody ti ti' iaT
     pure ( ti', iaT, absE, conNames)
 mkAbsFExp' def iaT | (CC.TypeDef tn _ _) <- def
-    = pure (TyCon () (mkQName "Unknown"), iaT, function $ "undefined", [])
+    = pure (TyCon () (mkQName "Unknown"), iaT, function "undefined", [])
 
 -- | Builder for abstraction function body. For direct abstraction (default), builds a 
 -- | let expression which binds lens views to variables that and then used 
