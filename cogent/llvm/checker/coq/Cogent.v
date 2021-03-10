@@ -42,8 +42,8 @@ Section Syntax.
   Inductive type : Set :=
     (* | TVar (i : index)
     | TVarBang (i : index)
-    | TCon (n : name) (ts : list type) (s : sigil)
-    | TFun (t : type) (rt : type) *)
+    | TCon (n : name) (ts : list type) (s : sigil) *)
+    | TFun (t : type) (rt : type)
     | TPrim (t : prim_type)
     (* | TSum (vs : list (name * (type * variant_state))) *)
     | TRecord (fs : list (name * (type * record_state))) (s : sigil)
@@ -52,7 +52,7 @@ Section Syntax.
   Inductive repr : Set :=
     | RPtr (r : repr)
     (* | RCon (n : name) (rs : list repr) *)
-    (* | RFun *)
+    | RFun
     | RPrim (t : prim_type)
     (* | RSum (ts : list (name * repr)) *)
     | RRecord (rs : list repr)
@@ -61,6 +61,7 @@ Section Syntax.
   Fixpoint type_repr (t : type) : repr :=
     match t with
     | TPrim p => RPrim p
+    | TFun _ _ => RFun
     | TRecord ts s => 
         let r := RRecord (map (fun '(_, (f, _)) => type_repr f) ts) in
           match s with Boxed => RPtr r | Unboxed => r end
@@ -78,9 +79,9 @@ Section Syntax.
   Inductive expr : Type :=
     | Var (i : index)
     (* | AFun (funtyp : 'f)  (ts : list type) *)
-    (* | Fun (f : expr) (ts : list type)  *)
+    | Fun (n : name) (ft : type)
     | Prim (op : prim_op) (os : list expr)
-    (* | App (f : expr) (a : expr) *)
+    | App (f : expr) (a : expr)
     (* | Con (ts : list (name * type * variant_state)) (n : name) (e : expr) *)
     | Struct (ts : list type) (es : list expr)
     | Member (e : expr) (f : field)

@@ -33,3 +33,5 @@ Definition field_type (t : typ) (f : field) : FieldType :=
   end.
 
 Definition deref_type (t : typ) : typ := match t with TYPE_Pointer t' | t' => t' end.
+
+Definition return_type (t : typ) : typ := match t with TYPE_Function t' _ | t' => t' end.

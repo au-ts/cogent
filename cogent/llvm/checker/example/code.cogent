@@ -1,2 +1,5 @@
-f : {a: U8} -> {a: U8}
-f x {a} = x{a = a + 1}
+f : U8 -> U8
+f x = x + 1
+
+main : () -> U8
+main _ = f 6

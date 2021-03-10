@@ -1,6 +1,6 @@
 From Coq Require Import List ZArith String.
 
-From ExtLib Require Import Structures.Monads Structures.Functor Structures.Reducible.
+From ExtLib Require Import Structures.Monads Structures.Functor Structures.Reducible Data.Map.FMapAList.
 From ITree Require Import ITree Events.State Events.Exception.
 From Vellvm Require Import Util Utils.Error.
 
@@ -17,7 +17,11 @@ Inductive uval : Set :=
 | UPrim (l : lit)
 | URecord (us : list (uval * repr))
 | UUnit
-| UPtr (a : addr) (r : repr).
+| UPtr (a : addr) (r : repr)
+| UFunction (f : name).
+
+Variant CallE : Type -> Type :=
+| Call (f : uval) (a : uval) : CallE uval.
 
 Variant VarE : Type -> Type :=
 | PeekVar (i : index) : VarE uval
@@ -30,7 +34,11 @@ Variant MemE : Type -> Type :=
 
 Definition FailE := exceptE string.
 
-Definition CogentE := VarE +' MemE +' FailE.
+Definition CogentE := CallE +' VarE +' MemE +' FailE.
+
+Definition CogentL0 := VarE +' MemE +' FailE.
+Definition CogentL1 := MemE +' FailE.
+Definition CogentL2 := FailE.
 
 Section Denote.
 
@@ -126,26 +134,52 @@ Section Denote.
             end
         | _ => throw "expression is not a record"
         end
-
+    | Fun n ft => ret (UFunction n)
+    | App f a =>
+        f' <- denote_expr f ;;
+        a' <- denote_expr a ;;
+        trigger (Call f' a')
     end.
 
-  Definition denote_fun (b : expr) : uval -> itree CogentE uval :=
+  Definition function_denotation := uval -> itree CogentE uval.
+
+  Definition denote_fun (b : expr) : function_denotation :=
     fun a =>
       trigger (PushVar a) ;;
       b' <- denote_expr b ;;
       trigger PopVar ;;
       ret b'.
 
+  Definition module := alist name function_denotation.
+
+  Definition prog_to_module (p : cogent_prog) : module :=
+    map (fun '(FunDef n t rt b) => (n, denote_fun b)) p.
+
 End Denote.
 
-From ExtLib Require Import Data.Map.FMapAList Core.RelDec Data.String Structures.Maps.
+From ExtLib Require Import Structures.Maps.
 
 Section Interpretation.
 
+  Definition handle_call (m : module) : CallE ~> itree CogentE :=
+    fun _ '(Call f a) =>
+      match f with
+      | UFunction fn => 
+          match alist_find _ fn m with
+          | Some f' => f' a
+          | None => throw ("unknown function " ++ fn)
+          (* or maybe it's an abstract function? *)
+          end
+      | _ => throw "expression is not a function"
+      end.
+
+  Definition interp_call (m : module) (entry_f : uval) (entry_a : uval) : itree CogentL0 uval :=
+    mrec (handle_call m) (Call entry_f entry_a).
+
   Definition locals := list uval.
-  Definition empty_locals : locals:= [].
+  Definition empty_locals : locals := [].
   
-  Definition handle_var : VarE ~> stateT locals (itree (MemE +' FailE)) :=
+  Definition handle_var : VarE ~> stateT locals (itree CogentL1) :=
     fun _ e γ =>
       match e with
       | PeekVar i =>
@@ -157,7 +191,7 @@ Section Interpretation.
       | PopVar => ret (tl γ, tt)
       end.
 
-  Definition interp_var : itree CogentE ~> stateT locals (itree (MemE +' FailE)) :=
+  Definition interp_var : itree CogentL0 ~> stateT locals (itree CogentL1) :=
     interp_state (case_ handle_var pure_state).
 
   Definition memory := alist addr uval.
@@ -165,14 +199,14 @@ Section Interpretation.
   Definition dummy_memory : memory := 
     alist_add _ 23 (URecord [(UPrim (LU8 5), RPrim (Num U8))]) empty_memory.
 
-  Definition handle_mem : MemE ~> stateT memory (itree FailE) :=
+  Definition handle_mem : MemE ~> stateT memory (itree CogentL2) :=
     fun _ e σ =>
       match e with
       | LoadMem a => ret (σ, alist_find _ a σ)
       | StoreMem a u => ret (alist_add _ a u σ, tt)
       end.
   
-  Definition interp_mem : itree (MemE +' FailE) ~> stateT memory (itree FailE) :=
+  Definition interp_mem : itree CogentL1 ~> stateT memory (itree CogentL2) :=
     interp_state (case_ handle_mem pure_state).
 
   Definition handle_failure : FailE ~> failT (itree void1) :=
@@ -182,13 +216,17 @@ Section Interpretation.
   Definition inject_signature {E} : void1 ~> E := fun _ (x : void1 _) => match x with end.
   Hint Unfold inject_signature : core.
 
-  Definition interp_cogent {E A} (l0 : itree CogentE A) (vars : locals) (mem : memory) : failT (itree E) (memory * (locals * A)) :=
+  Definition interp_cogent {E} (m : module) 
+                               (entry_f : uval) (entry_a : uval)
+                               (vars : locals) (mem : memory) 
+                             : failT (itree E) (memory * (locals * uval)) :=
+    let l0 := interp_call m entry_f entry_a in
     let l1 := interp_var _ l0 vars in
     let l2 := interp_mem _ l1 mem in
     let l3 := interp handle_failure l2 in
     translate inject_signature l3.
 
-  Definition run_cogent (a : uval) (f : expr) : failT (itree void1) (memory * (locals * uval)) :=
-    interp_cogent (denote_fun f a) empty_locals dummy_memory.
+  Definition run_cogent (p : cogent_prog) : failT (itree void1) (memory * (locals * uval)) :=
+    interp_cogent (prog_to_module p) (UFunction "main") UUnit empty_locals dummy_memory.
 
 End Interpretation.

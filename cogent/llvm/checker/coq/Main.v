@@ -60,11 +60,4 @@ Compute (burn 100 (denote_expr prog)). *)
 
 Compute compile_cogent CogentInput.
 
-Compute burn 50 (
-  run_cogent
-    (UPtr 23 (RRecord [RPrim (Num U8)])) 
-    (Take (Var 0) 0
-        (Let (Lit (LU8 1)) 
-            (Let (Prim (Plus U8) [Var 1;Var 0]) 
-                (Put (Var 3) 0 (Var 0)))))
-).
+Compute burn 50 (run_cogent CogentInput).

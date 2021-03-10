@@ -2,7 +2,7 @@
 
 module Cogent.LLVM.Coq (toCoq) where
 
-import Cogent.Common.Syntax (Op, VarName)
+import Cogent.Common.Syntax (CoreFunName (..), Op, VarName)
 import qualified Cogent.Common.Syntax as S (Op (..))
 import Cogent.Common.Types (PrimInt)
 import qualified Cogent.Common.Types as T (PrimInt (..), Sigil (..))
@@ -17,6 +17,9 @@ import Text.Show.Pretty (ppShow)
 newtype CoqList a = CoqList [a]
 instance Show a => Show (CoqList a) where
     show (CoqList xs) = "[" ++ intercalate ";" (show <$> xs) ++ "]"
+
+mkCoqList :: (a -> b) -> [a] -> CoqList b
+mkCoqList f x = CoqList (f <$> x)
 
 newtype CoqBool = CoqBool Bool
 instance Show CoqBool where show (CoqBool b) = if b then "true" else "false"
@@ -80,19 +83,19 @@ data Expr
     | App Expr Expr
     | Unit
     | Lit Lit
-    | SLit String
     | Cast NumType Expr
     | Let Expr Expr
     | Var Index
-    | Case Expr Name Expr Expr
-    | Esac Expr Name
     | Struct (CoqList Type) (CoqList Expr)
     | Member Expr Field
     | Take Expr Field Expr
     | Put Expr Field Expr
-    | -- | Fun Expr (CoqList Type)
-      -- | Con (CoqList (Name, Type, VariantState)) Name Expr
+    | Fun Name Type
+    | -- | Con (CoqList (Name, Type, VariantState)) Name Expr
+      -- | SLit String
       -- | LetBang (Set Index) Expr Expr
+      -- | Case Expr Name Expr Expr
+      -- | Esac Expr Name
       -- | Promote Type Expr
       If Expr Expr Expr
     deriving (Show)
@@ -117,7 +120,7 @@ fileHeader =
         ]
 
 genModule :: [Definition TypedExpr VarName VarName] -> String
-genModule defs = fileHeader ++ ppShow (genDefinition <$> defs) ++ "."
+genModule defs = fileHeader ++ ppShow (mkCoqList genDefinition defs) ++ "."
 
 genDefinition :: Definition TypedExpr VarName VarName -> Def
 genDefinition (C.FunDef _ name _ _ t rt body) = FunDef name (genType t) (genType rt) (genExpr body)
@@ -131,20 +134,23 @@ genType C.TString = TPrim String
 genType (C.TRecord _ flds s) =
     let flds' = ([(f, (genType t, if b then Taken else Present)) | (f, (t, b)) <- flds])
      in TRecord (CoqList flds') (genSigil s)
+genType (C.TFun t rt) = TFun (genType t) (genType rt)
 genType t = error $ show t
 
 genExpr :: (Show a, Show b) => TypedExpr t v a b -> Expr
 genExpr (TE _ (C.ILit int p)) = Lit $ genLit int p
-genExpr (TE _ (C.Op op os@((TE t' _) : _))) = Prim (genOp t' op) $ CoqList (genExpr <$> os)
+genExpr (TE _ (C.Op op os@((TE t' _) : _))) = Prim (genOp t' op) $ mkCoqList genExpr os
 genExpr (TE _ (C.Let _ val body)) = Let (genExpr val) (genExpr body)
 genExpr (TE _ (C.Variable (idx, _))) = Var (finInt idx)
 genExpr (TE _ C.Unit) = Unit
 genExpr (TE _ (C.If c b1 b2)) = If (genExpr c) (genExpr b1) (genExpr b2)
 genExpr (TE _ (C.Cast t e)) = Cast (genNumType t) (genExpr e)
-genExpr (TE _ (C.Struct flds)) = Struct (CoqList (genType . exprType . snd <$> flds)) (CoqList (genExpr . snd <$> flds))
+genExpr (TE _ (C.Struct flds)) = Struct (mkCoqList (genType . exprType . snd) flds) (mkCoqList (genExpr . snd) flds)
 genExpr (TE _ (C.Member recd fld)) = Member (genExpr recd) fld
 genExpr (TE _ (C.Take _ recd fld body)) = Take (genExpr recd) fld (genExpr body)
 genExpr (TE _ (C.Put recd fld val)) = Put (genExpr recd) fld (genExpr val)
+genExpr (TE t (C.Fun f _ _ _)) = Fun (unCoreFunName f) (genType t)
+genExpr (TE _ (C.App f a)) = App (genExpr f) (genExpr a)
 genExpr e = error $ show e
 
 genLit :: Integer -> PrimInt -> Lit

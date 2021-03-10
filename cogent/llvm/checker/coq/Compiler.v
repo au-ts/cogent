@@ -118,6 +118,7 @@ Section Compiler.
       | Bool => TYPE_I 8
       | String => TYPE_Pointer (TYPE_I 8)
       end
+    | TFun t rt => TYPE_Pointer (TYPE_Function (compile_type rt) [compile_type t])
     | TRecord ts s => 
         let t' := TYPE_Struct (map (fun '(_, (f, _)) => compile_type f) ts) in
           match s with Boxed => TYPE_Pointer t' | Unboxed => t' end
@@ -203,6 +204,11 @@ Section Compiler.
             ret e'
         | Invalid => raise "invalid member access"
         end
+    | Fun n ft => ret (compile_type ft, EXP_Ident (ID_Global (Name n)))
+    | App f a =>
+        a' <- compile_expr a ;;
+        f' <- compile_expr f ;;
+        instr (return_type (deref_type (fst f'))) (INSTR_Call f' [a'])
     end.
 
   Definition start_state (t : typ) : CodegenState := {|
