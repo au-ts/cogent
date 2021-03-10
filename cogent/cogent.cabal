@@ -202,8 +202,12 @@ library
                    , Cogent.Haskell.HscGen
                    , Cogent.Haskell.HscSyntax
                    , Cogent.Haskell.Shallow
+
                    , Cogent.Haskell.PBT.Gen
                    , Cogent.Haskell.PBT.Types
+                   , Cogent.Haskell.PBT.Builders.Absf
+                   , Cogent.Haskell.PBT.Builders.Rrel
+                   , Cogent.Haskell.PBT.Builders.Welf
                    , Cogent.Haskell.PBT.DSL.Parser
                    , Cogent.Haskell.PBT.DSL.Types
 
