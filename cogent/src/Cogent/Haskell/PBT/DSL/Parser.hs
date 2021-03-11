@@ -12,6 +12,7 @@ import Text.Parsec.Char
 import Text.Parsec.Indent
 import Text.Show.Pretty
 import Control.Monad.Trans.Except
+import Control.Monad (guard)
 import Control.Monad.Trans.Class
 import Control.Applicative hiding ((<|>), optional, many)
 import Data.List (find, isInfixOf)
@@ -68,15 +69,17 @@ pExprs = pExpr `sepEndBy` pspaces semi
 
 pExpr :: Parser PbtDescExpr
 pExpr = do
-    lhs <- pstrId
-    op <- lookAhead $ try typOp 
-                      <|> mapOp 
-                      <|> eqlOp 
-                      <|> gtOp
-                      <|> ltOp
+    _ <- seeNext 10
+    lhs <- try (pspaces predOp) <|> pstrId
+    _ <- trace ("++"++show lhs)  $ seeNext 10
+    if (lhs == predStr) 
+     then trace (show "75") pExpr'
+     else trace (show "76") pExpr'' lhs
+
+pExpr'' lhs = do
+    op <- lookAhead $ try mapOp 
+                      <|> typOp 
                       <|> endOp -- check for end of exp, i.e. no RHS
-    -- need to check if keyident is contained in LHS
-    -- Hs syntax allowed on both lhs and rhs of operator but must be a transform on one of the key identifiers
     let (ident, v) = if trim lhs `elem` keyidents
                         then ( trim lhs
                              , find (`isInfixOf` lhs) keyidents )
@@ -85,36 +88,49 @@ pExpr = do
                                  Nothing -> __impossible $ "LHS must contain a key identifier: one of " ++ show keyidents
                              , Just lhs )
     case v of
-       Just x -> if | op == typStr -> pTypExpr x
+       Just x -> if | op == typStr -> trace (show "92") $ pTypExpr x
                     | op == mapStr -> pMapExpr x
-                    | op == eqlStr -> pRelationExpr eqlOp eqlStr ident x
-                    | op == gtStr -> pRelationExpr gtOp gtStr ident x
-                    | op == ltStr -> pRelationExpr ltOp ltStr ident x
-                    | otherwise -> pJustExpr x
-       Nothing -> pJustExpr lhs
+                    | otherwise -> trace (show "96") $ pJustExpr x
+       Nothing ->  pJustExpr lhs
+
+
+pExpr' :: Parser PbtDescExpr
+pExpr' = do
+    e <- pHsExp
+    -- _ <- trace (show e) $ seeNext 3
+    let ident = case find (`isInfixOf` e) keyidents of
+                  Just x -> x
+                  Nothing -> __impossible $ "Predicate must contain a key identifier: one of " ++ show keyidents
+    return $ PbtDescExpr (Just (toPbtTyp' "pred"))  $ Just $ Right (parseHsExp e)
 
 pTypExpr lhs = do
     e <- typOp *> pHsExp
     let t = toPbtTyp' lhs
+    _ <- trace (show e ++ show t) $ seeNext 2
     return $ PbtDescExpr (Just t) $
         -- prevent cogent syntax from being parsed as HS syntax
         if t == Ic || t == Oc then Nothing else Just $ Left (parseHsTyp e)
 
 pMapExpr lhs = do
     e <- mapOp *> pHsExp
+    _ <- trace (show e) $ seeNext 3
     return $ PbtDescExpr (Just (toPbtTyp' lhs)) $ Just $ Right (parseHsExp e)
 
+{-
 pEqlExpr ident lhs = do
     e <- eqlOp *> pHsExp
     return $ PbtDescExpr (Just (toPbtTyp' ident)) $ Just $
         -- concat entire exp and parse a HS exp -> since it is effectively a predicate
         Right (parseHsExp (lhs++eqlStr++e))
+        -}
 
 pRelationExpr :: (Parser a) -> String -> String -> String -> Parser PbtDescExpr
 pRelationExpr opParser opStr ident lhs = do
     e <- opParser *> pHsExp
     _ <- trace ("hi: " ++ show lhs ++ show opStr ++ show e) $ seeNext 10
-    return $ PbtDescExpr (Just (toPbtTyp' ident)) $ Just $ Right (parseHsExp (lhs++opStr++e))
+    return $ PbtDescExpr (Just (toPbtTyp' ident)) $ Just $ Right (parseHsExp (
+       if | opStr == predStr -> e
+          | otherwise -> lhs++opStr++e ))
     
 pJustExpr lhs = return $ PbtDescExpr Nothing $ Just $ Left (parseHsTyp lhs)
 
@@ -150,14 +166,18 @@ manyTillLookAhead p1 p2 = p1 `manyTill` (lookAhead $ try p2)
 -- Operators / Strings / Chars / Key-Identifiers
 -- -----------------------------------------
 -- key identifiers
-keyidents = ["ic", "ia", "oc", "oa"]
+keyidents = ["ia","oa","ic","oc"]
 
 -- chars for when parsing of Hs syntax will stop
 -- important these don't overlap with HS syntax
 hsExpStopChars = [semiCh]
 
 -- chars for when parsing of PBT DSL syntax will stop
-stopChars = [backticCh, colCh, lcurlyCh, rcurlyCh, semiCh, eqlCh, gtCh, ltCh, '\r', '\n']
+stopChars = [ backticCh     -- func name
+            , colCh         -- operator
+            , semiCh        -- end exp
+            -- , eqlCh         
+            , lcurlyCh , rcurlyCh , '\r' , '\n' ]
 
 -- important (for structure) chars
 lcurly = char lcurlyCh
@@ -168,17 +188,15 @@ semi = char semiCh
 -- important operators
 typOp = string typStr
 mapOp = string mapStr
-eqlOp = string eqlStr
-gtOp = string gtStr
-ltOp = string ltStr
+-- eqlOp = string eqlStr
+predOp = string predStr
 endOp = try (string semiStr) <|> string rcurlyStr
 
 -- Operator strings
-typStr = "::"
+typStr = ":"
 mapStr = ":="
-eqlStr = "=="
-gtStr = ">"
-ltStr = "<"
+-- eqlStr = "=="
+predStr = ":|"  -- :| <hs-exp> ;
 semiStr = ";"
 rcurlyStr = "}"
 
@@ -188,9 +206,8 @@ colCh = ':'
 backticCh = '`'
 lcurlyCh = '{'
 rcurlyCh = '}'
-eqlCh = '='
-gtCh = '>'
-ltCh = '<'
+-- eqlCh = '='
+-- predCh = '|'
 
 -- Converting to Strings to Types
 -- -----------------------------------------
@@ -205,6 +222,7 @@ toPbtTyp' "ic" = Ic
 toPbtTyp' "ia" = Ia
 toPbtTyp' "oc" = Oc
 toPbtTyp' "oa" = Oa
+toPbtTyp' "pred" = Pred
 toPbtTyp' s = toPbtTyp' . trim $ s
 
 parseHsTyp :: String -> HSS.Type ()
@@ -232,35 +250,35 @@ exampleFile = unlines $
         , "    pure { True }                \r"
         , "    nond { False }               \r"
         , "    absf {                       \r"
-        , "         ic :: R4 Word32 Word32;  \r"
-        , "         ia :: (Int, Int);        \r"
-        , "         ia := ic;               \r"
+        --, "         ic : R4 Word32 Word32;  \r"
+        , "         ia : (Int, Int);        \r"
+        , "         ia := ic ;               \r"
         , "    }                            \r"
         , "    rrel {                       \r"
-        , "         oc :: < Failure | Success U32 > ;      \r"
-        , "         oa :: Maybe Int;         \r"
-        , "         (oa ^? _Just) == (oc ^? _V0_Success <&> fromIntegral) ;              \r"
+        -- , "       oc : < Failure | Success U32 > ;      \r"
+        , "       oa : Maybe Int;         \r"
+        , "       :| (oa ^? _Just) == (oc ^? _V0_Success <&> fromIntegral) ;              \r"
         , "    }                            \r"
         , "    welf {                       \r"
-        , "        (ic ^. sum) > (ic ^. count) ; \r"
+        , "       :| (ic ^. sum) > (ic ^. count) ; \r"
         , "    }                            \r"
         , "}                                \r"
         , "`addToBag` {                 \r"
         , "    pure { True }                \r"
         , "    nond { False }               \r"
         , "    absf {                       \r"
-        , "         ic :: R4 Word32 Word32;  \r"
-        , "         ia :: Int;        \r"
+        , "         ic : R4 Word32 Word32;  \r"
+        , "         ia : Int;        \r"
         , "         ia :=                    \r"
         , "               ic ^. count;               \r"
         , "    }                            \r"
         , "    rrel {                       \r"
-        , "         oc :: V0 () Word32;      \r"
-        , "         oa :: Maybe Int;         \r"
-        , "         oa == oc ;               \r"
+        , "         oc : V0 () Word32;      \r"
+        , "         oa : Maybe Int;         \r"
+        -- , "         oa := oc ;               \r"
         , "    }                            \r"
         , "    welf {                       \r"
-        , "        ic ^. sum < ic ^. count; \r"
+        , "        :| ic ^. sum < ic ^. count; \r"
         , "    }                            \r"
         , "}                                \r"
         ]

@@ -54,21 +54,42 @@ import Cogent.Isabelle.Shallow (isRecTuple)
 -- -----------------------------------------------------------------------
 genDecls'' :: PbtDescStmt -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
 genDecls'' stmt defs = do
-        let (_, icTy, icExp) = findKvarsInDecl Absf Ic $ stmt ^. decls
+        icTy <- getFnIcTy (stmt ^. funcname) defs
+        let (_, _, predExp) = findKvarsInDecl Welf Pred $ stmt ^. decls
             fnName = "gen_" ++ stmt ^. funcname
             genCon = TyCon () (mkQName "Gen")
-            tyOut = TyApp () genCon $ case icTy of
-                                        Just x -> TyParen () x
-                                        Nothing -> TyCon () $ mkQName "Unknown"
-            -- sig    = TypeSig () [mkName fnName] tyOut
+            tyOut = TyApp () genCon $ TyParen () icTy
+            e = mkGenBody predExp
+            
+            sig    = TypeSig () [mkName fnName] tyOut
             -- TODO: better gen_* body
             --       - what else do you need for arbitrary?
-            dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $
-                        function "undefined") Nothing]
+            dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $ e) Nothing]
             -- TODO: this is a dummy HS spec function def -> replace with something better
             hs_dec    = FunBind () [Match () (mkName $ "hs_"++(stmt ^. funcname)) [] (UnGuardedRhs () $
                            function "undefined") Nothing]
-          in return [dec, hs_dec]
+          in return [sig, dec, hs_dec]
 
-mkGenBody :: String -> Type () -> Exp ()
-mkGenBody name icT = function "undefined" -- "arbitrary"
+-- this needs to take a predicate and turn it into a generator
+-- this is naive method so far
+-- TODO: advanced method
+--  -> convert predicate into functions, this is refinement in a way
+--  -> see figuring out
+mkGenBody :: Maybe (Exp ()) -> Exp ()
+mkGenBody predExp = case predExp of 
+                      Just x -> infixApp genfn predOp $ predFunc x
+                      Nothing -> genfn
+    where genfn = function "arbitrary" -- "arbitrary"
+          predOp = op $ mkName "suchThat"
+          predFunc x = lamE [pvar $ mkName "ic"] x
+
+
+getFnIcTy :: String -> [CC.Definition TypedExpr VarName b] -> SG (Type ())
+getFnIcTy funcname defs =
+    let fnDef = fromJust $ find (\x -> CC.getDefinitionId x == funcname) defs
+      in getFnIcTy' fnDef
+
+getFnIcTy' :: CC.Definition TypedExpr VarName b -> SG (Type ())
+getFnIcTy' (CC.FunDef _ fn ps _ ti to _) = shallowType ti
+getFnIcTy' (CC.AbsDecl _ fn ps _ ti to) = shallowType ti
+getFnIcTy' _ = __impossible "could not get input type"

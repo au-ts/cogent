@@ -54,13 +54,14 @@ import Cogent.Isabelle.Shallow (isRecTuple)
 -- -----------------------------------------------------------------------
 rrelDecl' :: PbtDescStmt -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
 rrelDecl' stmt defs = do
-        let (_, oaTy, oaExp) = findKvarsInDecl Rrel Oa $ stmt ^. decls
+        let (_, oaTy, _) = findKvarsInDecl Rrel Oa $ stmt ^. decls
             fnName = "rel_" ++ stmt ^. funcname
             oaT = case oaTy of
                       Just x -> x
                       Nothing -> __impossible $ "specify oa type please, stmt: "++ show stmt
         (ocT, _, rrelE, conNames) <- mkRrelExp (stmt ^. funcname) oaT defs
-        let e = fromMaybe rrelE oaExp
+        let (_, _, predExp) = findKvarsInDecl Rrel Pred $ stmt ^. decls
+            e = fromMaybe rrelE predExp
         let to     = mkTyConT $ mkName "Bool"
             ti     = TyFun () oaT $ TyFun () ocT to
             sig    = TypeSig () [mkName fnName] ti
