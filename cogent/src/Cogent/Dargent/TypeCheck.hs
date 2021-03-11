@@ -38,6 +38,7 @@ import qualified Cogent.TypeCheck.LRow as LRow
 
 import Data.Data
 import Data.Bifunctor (bimap, first, second)
+import Lens.Micro ((<&>), (^.), _3)
 import Text.Parsec.Pos (SourcePos)
 
 import Debug.Trace
@@ -130,15 +131,13 @@ tcDataLayoutExpr env vs (DLVariant tagExpr alternatives) =
     Just tagBits | isZeroSizedBR tagBits -> throwE [ZeroSizedBitRange (InTag PathEnd)]
                  | otherwise ->
       do
-        when (2 ^ (bitSizeBR tagBits - 1) > maximum_ (fmap (\(_,_,x,_) -> x) alternatives)) $
+        when (2 ^ (bitSizeBR tagBits) - 1 > maximum (alternatives <&> (^. _3))) $  -- we don't allow a variant without any alternatives
           throwE [TagSizeTooLarge (InTag PathEnd)]
         altsAlloc <- fst <$> foldM (tcAlternative tagBits) (emptyAllocation, M.empty) alternatives
         except $ first (fmap OverlappingBlocks) $ singletonAllocation (tagBits, InTag PathEnd) /\ altsAlloc
     Nothing      -> throwE [TagNotSingleBlock (InTag PathEnd)]
-  where
-    maximum_ [] = __fixme 1  -- FIXME: currently allowing 1-bit tag for empty variant
-    maximum_ li = maximum li
 
+  where
     tcAlternative
       :: BitRange -- Of the variant's tag
       -> (Allocation, Map Size TagName)  -- The accumulated (allocation, set of used tag values) from already evaluated alternatives

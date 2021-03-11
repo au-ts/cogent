@@ -78,7 +78,7 @@ instance Arbitrary BitRange where
 genDataLayout
   :: Size -- For sizing
   -> Gen (DataLayout BitRange, Allocation)
-genDataLayout n = first Layout <$> genDataLayout' (fromIntegral n) n (Allocation [])
+genDataLayout n = first Layout <$> genDataLayout' n n (Allocation [])
 
 genDataLayout'
   :: Size -- max allowed allocated bit index
@@ -113,30 +113,22 @@ genSumLayout maxBitIndex maxSize alloc =
     let maxTagSize = min 4 maxSize
     (tagBitRange, alloc') <- genBitRange maxBitIndex maxTagSize alloc
     let alloc''            = fmap InTag alloc'
-    let maxNumAlternatives = 2^(bitSizeBR tagBitRange)
+    let maxNumAlternatives = 2 ^ (bitSizeBR tagBitRange)
     (alts, alloc''') <- genAlts (maxSize - maxTagSize) 0 maxNumAlternatives alloc''
     return (SumLayout tagBitRange alts, alloc''')
   where
     genAlts
-      :: Size -- max allowed total bit size for remaining fields
-      -> Size -- tag value for alternative
-      -> Size -- max number of alternatives
+      :: Size     -- max allowed total bit size for remaining fields
+      -> Integer  -- tag value for alternative
+      -> Size     -- max number of alternatives
       -> Allocation -- existing allocation
       -> Gen (Map TagName (Size, DataLayout' BitRange), Allocation)
 
     genAlts _ m n alloc | m == n = return (M.empty, alloc)
 
-    genAlts 0 tagValue maxTagValue alloc = do
-      sourcePos <- arbitrary
-      (remainingAlts, remainingAlloc) <- genAlts 0 (tagValue + 1) maxTagValue alloc
-      let altName = show tagValue
-      (altLayout, altAlloc) <- genDataLayout' maxBitIndex 0 alloc
-      let altAlloc' = fmap (InAlt altName sourcePos) altAlloc
-      return (M.insert altName (tagValue, altLayout) remainingAlts, altAlloc' \/ remainingAlloc)
-
     genAlts maxSize tagValue maxTagValue alloc = do
       sourcePos <- arbitrary
-      altSize <- choose (1, maxSize)
+      altSize <- if 1 <= maxSize then choose (1, maxSize) else return 0
       (remainingAlts, remainingAlloc) <- genAlts (maxSize - altSize) (tagValue + 1) maxTagValue alloc
       let altName = show tagValue
       (altLayout, altAlloc) <- genDataLayout' maxBitIndex altSize alloc
@@ -180,7 +172,7 @@ genBitRange
   -> Gen (BitRange, Allocation)
 genBitRange maxBitIndex maxSize accumAlloc = do
   let allRanges      = allNonAllocatedRanges maxBitIndex accumAlloc
-  let allSizedRanges = filter ((<= fromIntegral maxSize) . bitSizeBR . fst) allRanges
+  let allSizedRanges = filter ((<= maxSize) . bitSizeBR . fst) allRanges
   elements allSizedRanges
 
 -- Enumerates all bitranges from smallest last bit index to maxBitIndex
