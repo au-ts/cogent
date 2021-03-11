@@ -57,7 +57,7 @@ and upd_val_rel_record :: "('f \<Rightarrow> poly_type)
 | u_v_sum      : "\<lbrakk> \<Xi>, \<sigma> \<turnstile> a \<sim> a' : t \<langle>r, w\<rangle>
                   ; (g, t, Unchecked) \<in> set ts
                   ; distinct (map fst ts)
-                  ; [] \<turnstile> TSum ts wellformed
+                  ; 0, [], {} \<turnstile> TSum ts wellformed
                   ; rs = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) ts
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> USum g a rs \<sim> VSum g a' : TSum ts \<langle>r, w\<rangle>"
 
@@ -67,19 +67,19 @@ and upd_val_rel_record :: "('f \<Rightarrow> poly_type)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> URecord fs \<sim> VRecord fs' : TRecord ts Unboxed \<langle>r, w\<rangle>"
 
 | u_v_abstract : "\<lbrakk> abs_upd_val a a' n ts Unboxed r w
-                  ; [] \<turnstile>* ts wellformed
+                  ; 0, [], {} \<turnstile>* ts wellformed
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UAbstract a \<sim> VAbstract a' : TCon n ts Unboxed \<langle>r, w\<rangle>"
 
-| u_v_function : "\<lbrakk> \<Xi> , ks , [ Some a ] \<turnstile> f : b
-                  ; list_all2 (kinding []) ts ks
-                  ; ks \<turnstile> a wellformed
-                  ; [] \<turnstile> TFun (instantiate ts a) (instantiate ts b) \<sqsubseteq> TFun a' b'
-                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UFunction f ts \<sim> VFunction f ts : TFun a' b' \<langle>{}, {}\<rangle>"
+| u_v_function : "\<lbrakk> \<Xi> , nl, ks , cs, [ Some a ] \<turnstile> f : b
+                  ; 0, [], {} \<turnstile> ls, ts :s nl, ks, cs
+                  ; nl, ks, cs \<turnstile> a wellformed
+                  ; 0, [], {} \<turnstile> TFun (instantiate ls ts a) (instantiate ls ts b) \<sqsubseteq> TFun a' b'
+                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UFunction f ts ls \<sim> VFunction f ts ls : TFun a' b' \<langle>{}, {}\<rangle>"
 
 | u_v_afun     : "\<lbrakk> \<Xi> f = (ks, a, b)
-                  ; list_all2 (kinding []) ts ks
-                  ; ks \<turnstile> TFun a b wellformed
-                  ; [] \<turnstile> TFun (instantiate ts a) (instantiate ts b) \<sqsubseteq> TFun a' b'
+                  ; 0, [], {} \<turnstile> [], ts :s 0, ks, {}
+                  ; 0, ks, {} \<turnstile> TFun a b wellformed
+                  ; 0, [], {} \<turnstile> TFun (instantiate [] ts a) (instantiate [] ts b) \<sqsubseteq> TFun a' b'
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UAFunction f ts \<sim> VAFunction f ts : TFun a' b' \<langle>{}, {}\<rangle>"
 
 | u_v_unit     : "\<Xi>, \<sigma> \<turnstile> UUnit \<sim> VUnit : TUnit \<langle>{}, {}\<rangle>"
@@ -88,6 +88,7 @@ and upd_val_rel_record :: "('f \<Rightarrow> poly_type)
                   ; \<sigma> l = Some (URecord fs)
                   ; s = Boxed ReadOnly ptrl
                   ; distinct (map fst ts)
+                  ; matches_type_sigil 0 {} (LRRecord (map (\<lambda>(n, t, _). (n, type_lrepr t)) ts)) (Boxed ReadOnly ptrl)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (type_repr \<circ> fst \<circ> snd) ts)) \<sim> VRecord fs' : TRecord ts s \<langle>insert l r, {}\<rangle>"
 
 | u_v_p_rec_w  : "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' :r ts \<langle>r, w\<rangle>
@@ -95,18 +96,19 @@ and upd_val_rel_record :: "('f \<Rightarrow> poly_type)
                   ; l \<notin> (w \<union> r)
                   ; s = Boxed Writable ptrl
                   ; distinct (map fst ts)
+                  ;  matches_type_sigil 0 {} (LRRecord (map (\<lambda>(n, t, _). (n, type_lrepr t)) ts)) (Boxed Writable ptrl)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (type_repr \<circ> fst \<circ> snd) ts)) \<sim> VRecord fs' : TRecord ts s \<langle>r, insert l w\<rangle>"
 
 | u_v_p_abs_ro : "\<lbrakk> s = Boxed ReadOnly ptrl
                   ; abs_upd_val a a' n ts s r w
-                  ; [] \<turnstile>* ts wellformed
+                  ; 0, [], {} \<turnstile>* ts wellformed
                   ; \<sigma> l = Some (UAbstract a)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr ts)) \<sim> VAbstract a' : TCon n ts s \<langle>insert l r, {}\<rangle>"
 
 
 | u_v_p_abs_w  : "\<lbrakk> s = Boxed Writable ptrl
                   ; abs_upd_val a a' n ts s r w
-                  ; [] \<turnstile>* ts wellformed
+                  ; 0, [], {} \<turnstile>* ts wellformed
                   ; \<sigma> l = Some (UAbstract a)
                   ; l \<notin> (w \<union> r)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr ts)) \<sim> VAbstract a' : TCon n ts s \<langle>r, insert l w\<rangle>"
@@ -122,7 +124,7 @@ and upd_val_rel_record :: "('f \<Rightarrow> poly_type)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile>* ((x,rp) # xs) \<sim> (x' # xs') :r ((n, t, Present) # ts) \<langle>r \<union> r', w \<union> w'\<rangle>"
 
 | u_v_r_cons2  : "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* xs \<sim> xs' :r ts \<langle>r, w\<rangle>
-                  ; [] \<turnstile> t wellformed
+                  ; 0, [], {} \<turnstile> t wellformed
                   ; type_repr t = rp
                   ; upd.uval_repr x = rp
                   ; upd.uval_repr_deep x = rp
@@ -168,7 +170,7 @@ lemma u_v_prim' : "\<tau> = lit_type l \<Longrightarrow> l = l' \<Longrightarrow
    by (simp add: u_v_prim)
 
 inductive_cases u_v_primE     [elim] : "\<Xi>, \<sigma> \<turnstile> UPrim l \<sim> VPrim l' : TPrim \<tau> \<langle>r, w\<rangle>"
-inductive_cases u_v_functionE [elim] : "\<Xi>, \<sigma> \<turnstile> UFunction f ts \<sim> VFunction f' ts' : TFun \<tau> \<rho> \<langle>r, w\<rangle>"
+inductive_cases u_v_functionE [elim] : "\<Xi>, \<sigma> \<turnstile> UFunction f ts ls \<sim> VFunction f' ts' ls' : TFun \<tau> \<rho> \<langle>r, w\<rangle>"
 inductive_cases u_v_afunE     [elim] : "\<Xi>, \<sigma> \<turnstile> UAFunction f ts \<sim> VAFunction f' ts' : TFun \<tau> \<rho> \<langle>r, w\<rangle>"
 inductive_cases u_v_sumE      [elim] : "\<Xi>, \<sigma> \<turnstile> u \<sim> v : TSum \<tau>s \<langle>r, w\<rangle>"
 inductive_cases u_v_productE  [elim] : "\<Xi>, \<sigma> \<turnstile> UProduct a b \<sim> VProduct a' b' : TProduct \<tau> \<rho> \<langle>r, w\<rangle>"
@@ -180,7 +182,7 @@ inductive_cases u_v_r_consE'  [elim] : "\<Xi>, \<sigma> \<turnstile>* (a # b) \<
 
 lemma u_v_p_abs_ro': "\<lbrakk> s = Boxed ReadOnly ptrl
                       ; abs_upd_val a a' n ts s r w
-                      ; [] \<turnstile>* ts wellformed
+                      ; 0, [], {} \<turnstile>* ts wellformed
                       ; \<sigma> l = Some (UAbstract a)
                       ; ts' = map type_repr ts
                       \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n ts') \<sim> VAbstract a' : TCon n ts s \<langle>insert l r, {}\<rangle>"
@@ -188,7 +190,7 @@ lemma u_v_p_abs_ro': "\<lbrakk> s = Boxed ReadOnly ptrl
 
 lemma u_v_p_abs_w': "\<lbrakk> s = Boxed Writable ptrl
                      ; abs_upd_val a a' n ts s r w
-                     ; [] \<turnstile>* ts wellformed
+                     ; 0, [], {} \<turnstile>* ts wellformed
                      ; \<sigma> l = Some (UAbstract a)
                      ; l \<notin> (w \<union> r)
                      ; ts' = map type_repr ts
@@ -280,11 +282,11 @@ definition proc_env_u_v_matches :: "(('f, 'au, 'l) uabsfuns)
   "\<xi> \<sim> \<xi>' matches-u-v \<Xi>
           \<equiv> (\<forall> f. let (K, \<tau>i, \<tau>o) = \<Xi> f
                   in (\<forall> \<sigma> \<sigma>' \<tau>s a a' v v' r w.
-                         list_all2 (kinding []) \<tau>s K
-                      \<longrightarrow> (\<Xi> , \<sigma> \<turnstile> a \<sim> a' : instantiate \<tau>s \<tau>i \<langle>r, w\<rangle>)
+                         list_all2 (kinding 0 [] {}) \<tau>s K
+                      \<longrightarrow> (\<Xi> , \<sigma> \<turnstile> a \<sim> a' : instantiate [] \<tau>s \<tau>i \<langle>r, w\<rangle>)
                       \<longrightarrow> \<xi> f (\<sigma>, a) (\<sigma>', v)
                       \<longrightarrow> (\<xi>' f a' v'
-                           \<longrightarrow> (\<exists>r' w'. (\<Xi> , \<sigma>' \<turnstile> v \<sim> v' : instantiate \<tau>s \<tau>o \<langle>r', w'\<rangle>)
+                           \<longrightarrow> (\<exists>r' w'. (\<Xi> , \<sigma>' \<turnstile> v \<sim> v' : instantiate [] \<tau>s \<tau>o \<langle>r', w'\<rangle>)
                                     \<and> r' \<subseteq> r \<and> upd.frame \<sigma> w \<sigma>' w'))
                        \<and> (\<exists> v'. \<xi>' f a' v')))"
 
@@ -305,25 +307,25 @@ by (auto dest!: upd_val_rel_to_uval_typing  upd.uval_typing_pointers_noalias)
 
 lemma u_v_shareable_not_writable:
 assumes "S \<in> k"
-shows "\<lbrakk> \<Xi>, \<sigma> \<turnstile>  v  \<sim> v'  :  \<tau>  \<langle> r , w \<rangle>; K \<turnstile>  \<tau>  :\<kappa>  k \<rbrakk> \<Longrightarrow> w = {}"
-and   "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' :r \<tau>s \<langle> r , w \<rangle>; K \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> w = {}"
+shows "\<lbrakk> \<Xi>, \<sigma> \<turnstile>  v  \<sim> v'  :  \<tau>  \<langle> r , w \<rangle>; L, K, C \<turnstile>  \<tau>  :\<kappa>  k \<rbrakk> \<Longrightarrow> w = {}"
+and   "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' :r \<tau>s \<langle> r , w \<rangle>; L, K, C \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> w = {}"
 using assms by (fastforce dest: upd_val_rel_to_uval_typing upd.shareable_not_writable)+
 
 lemma u_v_discardable_not_writable:
 assumes "D \<in> k"
-shows "\<lbrakk> \<Xi>, \<sigma> \<turnstile>  v  \<sim> v'  :  \<tau>  \<langle> r , w \<rangle>; K \<turnstile>  \<tau>  :\<kappa>  k \<rbrakk> \<Longrightarrow> w = {}"
-and   "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' :r \<tau>s \<langle> r , w \<rangle>; K \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> w = {}"
+shows "\<lbrakk> \<Xi>, \<sigma> \<turnstile>  v  \<sim> v'  :  \<tau>  \<langle> r , w \<rangle>; L, K, C \<turnstile>  \<tau>  :\<kappa>  k \<rbrakk> \<Longrightarrow> w = {}"
+and   "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' :r \<tau>s \<langle> r , w \<rangle>; L, K, C \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> w = {}"
 using assms by (fastforce dest: upd_val_rel_to_uval_typing upd.discardable_not_writable)+
 
 
 lemma u_v_discardable_not_writable_all:
 assumes "D \<in> k"
-shows   "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' : \<tau>s \<langle> r , w \<rangle>; K \<turnstile>* \<tau>s :\<kappa> k \<rbrakk> \<Longrightarrow> w = {}"
+shows   "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' : \<tau>s \<langle> r , w \<rangle>; L, K, C \<turnstile>* \<tau>s :\<kappa> k \<rbrakk> \<Longrightarrow> w = {}"
 using assms by (fastforce dest: upd_val_rel_all_to_uval_typing_all upd.discardable_not_writable_all)
 
 lemma u_v_escapable_no_readers:
-shows   "\<lbrakk> \<Xi> , \<sigma> \<turnstile>  x  \<sim> x'  :  \<tau>  \<langle>r, w\<rangle> ; E \<in> k; [] \<turnstile>  \<tau>  :\<kappa>  k \<rbrakk> \<Longrightarrow> r = {}"
-and     "\<lbrakk> \<Xi> , \<sigma> \<turnstile>* xs \<sim> xs' :r \<tau>s \<langle>r, w\<rangle> ; E \<in> k; [] \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> r = {}"
+shows   "\<lbrakk> \<Xi> , \<sigma> \<turnstile>  x  \<sim> x'  :  \<tau>  \<langle>r, w\<rangle> ; E \<in> k; 0, [], {} \<turnstile>  \<tau>  :\<kappa>  k \<rbrakk> \<Longrightarrow> r = {}"
+and     "\<lbrakk> \<Xi> , \<sigma> \<turnstile>* xs \<sim> xs' :r \<tau>s \<langle>r, w\<rangle> ; E \<in> k; 0, [], {} \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> r = {}"
 by (auto dest: upd_val_rel_to_uval_typing upd.escapable_no_readers)
 
 lemma u_v_tprim_no_pointers:
@@ -391,7 +393,7 @@ proof (induct rule: upd_val_rel_upd_val_rel_record.inducts)
 next case u_v_product  then show ?case by (auto  dest:  upd_val_rel_upd_val_rel_record.u_v_product
                                                  intro: u_v_pointerset_helper)
 next case (u_v_sum \<Xi> \<sigma> a a' t r w g ts rs)
-  moreover from u_v_sum have wf: "[] \<turnstile> TSum (map (\<lambda>(c, t, b). (c, bang t, b)) ts) wellformed"
+  moreover from u_v_sum have wf: "0, [], {} \<turnstile> TSum (map (\<lambda>(c, t, b). (c, bang t, b)) ts) wellformed"
     using bang_wellformed type_wellformed_pretty_def by fastforce
 
   moreover from this u_v_sum have "map (\<lambda>(c, \<tau>, uu). (c, type_repr \<tau>)) ts = map (\<lambda>(c, \<tau>, uu). (c, type_repr \<tau>)) (map (\<lambda>(c, t, b). (c, bang t, b)) ts)"
@@ -415,6 +417,7 @@ next case u_v_p_rec_ro
     apply (frule upd_val_rel_upd_val_rel_record.u_v_p_rec_ro)
        apply (auto dest!: kinding_all_record' upd.bang_type_repr'
         simp add: fst_apfst_compcomp snd_apsnd_compcomp map_snd3_keep)
+    apply(simp add:compose_triple map_snd3_keep[symmetric] bang_lrepr)
     done
 next case u_v_p_rec_w
   then show ?case
@@ -423,7 +426,12 @@ next case u_v_p_rec_w
     apply (drule upd.uval_typing_to_wellformed(2))
     apply (frule upd_val_rel_upd_val_rel_record.u_v_p_rec_ro)
        apply (auto dest!: kinding_all_record' upd.bang_type_repr'
-        simp add: fst_apfst_compcomp snd_apsnd_compcomp map_snd3_keep)
+        simp add: fst_apfst_compcomp snd_apsnd_compcomp map_snd3_keep
+    )
+    apply(simp add: compose_triple  map_snd3_keep[symmetric] bang_lrepr
+matches_type_sigil_boxed
+ )
+
     done
 next
   case (u_v_p_abs_ro s ptrl a a' n ts r w \<sigma> l \<Xi>)
@@ -463,26 +471,31 @@ qed
 
 
 lemma u_v_function_instantiate:
-assumes "list_all2 (kinding K') ts K"
-and     "list_all2 (kinding []) \<delta> K'"
-and     "K \<turnstile> t wellformed"
-and     "K \<turnstile> u wellformed"
-and     "\<Xi>, K, [Some t] \<turnstile> f : u"
-shows   "\<Xi>, \<sigma> \<turnstile> UFunction f (map (instantiate \<delta>) ts)
-              \<sim> VFunction f (map (instantiate \<delta>) ts) : TFun (instantiate \<delta> (instantiate ts t))
-                                                            (instantiate \<delta> (instantiate ts u)) \<langle>{}, {}\<rangle>"
+  assumes " L', K', C' \<turnstile> ls, ts :s L, K, C"
+ (* "list_all2 (kinding K') ts K" *)
+and     (* "list_all2 (kinding []) \<delta> K'" *)
+        "0, [], {} \<turnstile> \<epsilon> , \<delta> :s L', K', C'"
+and     "L, K, C \<turnstile> t wellformed"
+and     "L, K, C \<turnstile> u wellformed"
+and     "\<Xi>, L, K, C, [Some t] \<turnstile> f : u"
+shows   "\<Xi>, \<sigma> \<turnstile> UFunction f (map (instantiate \<epsilon> \<delta>) ts) (map (instantiate_lay \<epsilon>) ls)
+              \<sim> VFunction f (map (instantiate \<epsilon> \<delta>) ts) (map (instantiate_lay \<epsilon>) ls) : TFun (instantiate \<epsilon> \<delta> (instantiate ls ts t))
+                                                            (instantiate \<epsilon> \<delta> (instantiate ls ts u)) \<langle>{}, {}\<rangle>"
 proof -
   from assms have tfun_eq:
-    "TFun (instantiate \<delta> (instantiate ts t))
-          (instantiate \<delta> (instantiate ts u))
-   = TFun (instantiate (map (instantiate \<delta>) ts) t)
-          (instantiate (map (instantiate \<delta>) ts) u)"
-  by (force intro: instantiate_instantiate dest: list_all2_lengthD)
+    "TFun (instantiate \<epsilon> \<delta> (instantiate ls ts t))
+          (instantiate \<epsilon> \<delta> (instantiate ls ts u))
+   = TFun (instantiate (map (instantiate_lay \<epsilon>) ls) (map (instantiate \<epsilon> \<delta>) ts) t)
+          (instantiate (map (instantiate_lay \<epsilon>) ls) (map (instantiate \<epsilon> \<delta>) ts) u)"
+    by (force intro: instantiate_instantiate dest: list_all2_lengthD
+simp add:subst_wellformed_def
+)
 
 
   have tfun_sub:
-    "[] \<turnstile> TFun (instantiate (map (instantiate \<delta>) ts) t) (instantiate (map (instantiate \<delta>) ts) u)
-        \<sqsubseteq> TFun (instantiate       \<delta> (instantiate ts t)) (instantiate       \<delta> (instantiate ts u))"
+    "0, [], {} \<turnstile> TFun (instantiate (map (instantiate_lay \<epsilon>) ls) (map (instantiate \<epsilon> \<delta>) ts) t) 
+   (instantiate (map (instantiate_lay \<epsilon>) ls) (map (instantiate \<epsilon> \<delta>) ts) u)
+        \<sqsubseteq> TFun (instantiate    \<epsilon>   \<delta> (instantiate ls ts t)) (instantiate   \<epsilon>    \<delta> (instantiate ls ts u))"
     using assms tfun_eq
     by (metis (mono_tags, lifting) list_all2_substitutivity specialisation_subtyping subty_tfun subtyping_refl)
 
@@ -492,31 +505,36 @@ proof -
 qed
 
 lemma u_v_afun_instantiate:
-assumes "list_all2 (kinding K') ts K"
-and     "list_all2 (kinding []) \<delta> K'"
-and     "K \<turnstile> t wellformed"
-and     "K \<turnstile> u wellformed"
+  assumes (* "list_all2 (kinding K') ts K" *)
+ "L', K', C' \<turnstile> [] , ts :s 0, K, {}"
+and     (* "list_all2 (kinding []) \<delta> K'" *)
+"0, [], {} \<turnstile> \<epsilon> , \<delta> :s L', K', C'"
+and     "0, K, {} \<turnstile> t wellformed"
+and     "0, K, {} \<turnstile> u wellformed"
 and     "\<Xi> f = (K, t, u)"
-shows   "\<Xi>, \<sigma> \<turnstile> UAFunction f (map (instantiate \<delta>) ts)
-              \<sim> VAFunction f (map (instantiate \<delta>) ts) : TFun (instantiate \<delta> (instantiate ts t))
-                                                            (instantiate \<delta> (instantiate ts u)) \<langle>{}, {}\<rangle>"
+shows   "\<Xi>, \<sigma> \<turnstile> UAFunction f (map (instantiate \<epsilon> \<delta>) ts) 
+              \<sim> VAFunction f (map (instantiate \<epsilon> \<delta>) ts) 
+                 : TFun (instantiate \<epsilon> \<delta> (instantiate [] ts t))
+                                                            (instantiate \<epsilon> \<delta> (instantiate [] ts u)) \<langle>{}, {}\<rangle>"
 proof -
   from assms have tfun_eq:
-    "TFun (instantiate \<delta> (instantiate ts t))
-          (instantiate \<delta> (instantiate ts u))
-   = TFun (instantiate (map (instantiate \<delta>) ts) t)
-          (instantiate (map (instantiate \<delta>) ts) u)"
-     by (force intro: instantiate_instantiate dest: list_all2_lengthD)
+    "TFun (instantiate \<epsilon> \<delta> (instantiate [] ts t))
+          (instantiate \<epsilon> \<delta> (instantiate [] ts u))
+   = TFun (instantiate  (map (instantiate_lay \<epsilon>) []) (map (instantiate \<epsilon> \<delta>) ts) t)
+          (instantiate  (map (instantiate_lay \<epsilon>) []) (map (instantiate \<epsilon> \<delta>) ts) u)"
+by (fastforce intro: instantiate_instantiate simp add:subst_wellformed_def dest: list_all2_lengthD)
 
+(*
   have tfun_sub:
-    "[] \<turnstile> TFun (instantiate (map (instantiate \<delta>) ts) t) (instantiate (map (instantiate \<delta>) ts) u)
-        \<sqsubseteq> TFun (instantiate       \<delta> (instantiate ts t)) (instantiate       \<delta> (instantiate ts u))"
+    "0, [], {} \<turnstile> TFun (instantiate  (map (instantiate_lay \<epsilon>) []) (map (instantiate \<epsilon> \<delta>) ts) t) (instantiate  (map (instantiate_lay \<epsilon>) []) (map (instantiate \<epsilon> \<delta>) ts) u)
+        \<sqsubseteq> TFun (instantiate \<epsilon>      \<delta> (instantiate [] ts t)) (instantiate   \<epsilon>    \<delta> (instantiate [] ts u))"
     using assms tfun_eq
     by (metis (mono_tags, lifting) list_all2_substitutivity specialisation_subtyping subty_tfun subtyping_refl)
+*)
 
-  with assms show ?thesis by (force intro: upd_val_rel_upd_val_rel_record.intros
-                                          list_all2_substitutivity
-                              simp add: kinding_simps)
+  show ?thesis
+    using assms list_all2_substitutivity
+  by(fastforce intro:upd_val_rel_upd_val_rel_record.intros simp add:tfun_eq subtyping_refl)
 qed
 
 lemma u_v_matches_noalias:
@@ -541,7 +559,7 @@ from assms show ?thesis by (auto simp:  SetLemma
 qed
 
 lemma u_v_matches_split':
-assumes "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+assumes "0, [], {} \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
 and     "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches \<Gamma> \<langle>r, w\<rangle>"
 shows   "\<exists>r' w' r'' w''. r = r' \<union> r''
                        \<and> w = w' \<union> w''
@@ -592,20 +610,21 @@ next case (split_cons x xs a as b bs)
 qed
 
 lemma u_v_matches_split:
-assumes "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
-and     "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<tau>s \<Gamma>) \<langle>r, w\<rangle>"
-and     "list_all2 (kinding []) \<tau>s K"
+assumes "L, K, C \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+and     "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<epsilon> \<tau>s \<Gamma>) \<langle>r, w\<rangle>"
+(* and     "list_all2 (kinding []) \<tau>s K" *)
+and     "0, [], {} \<turnstile> \<epsilon>, \<tau>s :s L, K, C"
 shows   "\<exists>r' w' r'' w''. r = r' \<union> r''
                        \<and> w = w' \<union> w''
                        \<and> w' \<inter> w'' = {}
-                       \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<tau>s \<Gamma>1) \<langle>r' , w' \<rangle>)
-                       \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<tau>s \<Gamma>2) \<langle>r'', w''\<rangle>)"
+                       \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<epsilon> \<tau>s \<Gamma>1) \<langle>r' , w' \<rangle>)
+                       \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<epsilon> \<tau>s \<Gamma>2) \<langle>r'', w''\<rangle>)"
 using assms by (auto dest:  instantiate_ctx_split
                      intro: u_v_matches_split' [simplified])
 
 
 lemma u_v_matches_split_bang':
-assumes "split_bang [] vs \<Gamma> \<Gamma>1 \<Gamma>2"
+assumes "split_bang 0 [] {} vs \<Gamma> \<Gamma>1 \<Gamma>2"
 and     "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches \<Gamma> \<langle>r, w\<rangle>"
 shows   "\<exists>r' w' r'' w'' b. r = r' \<union> r''
                          \<and> w' \<inter> w'' = {}
@@ -617,7 +636,7 @@ shows   "\<exists>r' w' r'' w'' b. r = r' \<union> r''
 proof (induct arbitrary: \<gamma> \<gamma>' r w rule: split_bang.induct)
   case split_bang_empty then show ?case
     by (fastforce elim: u_v_matches.cases intro: u_v_matches.intros)
-next case (split_bang_cons K "is" xs as bs x a b)
+next case (split_bang_cons L K C "is" xs as bs x a b)
   then show ?case
   proof (cases x)
     case None
@@ -693,7 +712,7 @@ next case (split_bang_cons K "is" xs as bs x a b)
     next
       case False
 
-      have "K \<turnstile> Some t \<leadsto> a \<parallel> b"
+      have "L, K, C \<turnstile> Some t \<leadsto> a \<parallel> b"
         using False split_bang_cons.hyps
         by (simp add: Some split_bang_comp.simps)
       then show ?thesis
@@ -746,20 +765,21 @@ qed
 
 
 lemma u_v_matches_split_bang:
-assumes "split_bang K vs \<Gamma> \<Gamma>1 \<Gamma>2"
-and     "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<tau>s \<Gamma>) \<langle>r, w\<rangle>"
-and     "list_all2 (kinding []) \<tau>s K"
+assumes "split_bang L K C vs \<Gamma> \<Gamma>1 \<Gamma>2"
+and     "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<epsilon> \<tau>s \<Gamma>) \<langle>r, w\<rangle>"
+(* and     "list_all2 (kinding []) \<tau>s K" *)
+and     "0, [], {} \<turnstile> \<epsilon>, \<tau>s :s L, K, C"
 shows   "\<exists>r' w' r'' w'' b. r = r' \<union> r''
                          \<and> w' \<inter> w'' = {}
                          \<and> w = w' \<union> w'' \<union> b
                          \<and> b \<inter> (w' \<union> w'') = {}
-                         \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<tau>s \<Gamma>1) \<langle>r'  \<union> b , w'     \<rangle>)
-                         \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<tau>s \<Gamma>2) \<langle>r''     , w'' \<union> b\<rangle>)"
+                         \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<epsilon> \<tau>s \<Gamma>1) \<langle>r'  \<union> b , w'     \<rangle>)
+                         \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<epsilon> \<tau>s \<Gamma>2) \<langle>r''     , w'' \<union> b\<rangle>)"
 using assms by (auto dest:  instantiate_ctx_split_bang
                      intro: u_v_matches_split_bang' [simplified])
 
 lemma u_v_matches_weaken':
-assumes "[] \<turnstile> \<Gamma> \<leadsto>w \<Gamma>'"
+assumes "0, [], {} \<turnstile> \<Gamma> \<leadsto>w \<Gamma>'"
 and     "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches \<Gamma>  \<langle>r, w\<rangle>"
 shows   "\<exists> r'. (r' \<subseteq> r) \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches \<Gamma>' \<langle>r', w\<rangle>)"
 using assms(1) [simplified weakening_def] and assms(2-)
@@ -786,27 +806,27 @@ next case (drop t)
 qed
 
 lemma u_v_matches_weaken:
-assumes "K \<turnstile> \<Gamma> \<leadsto>w \<Gamma>'"
-and     "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<tau>s \<Gamma>) \<langle>r, w\<rangle>"
-and     "list_all2 (kinding []) \<tau>s K"
-shows   "\<exists>r'. (r' \<subseteq> r) \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<tau>s \<Gamma>') \<langle>r', w\<rangle>) "
+assumes "L, K, C \<turnstile> \<Gamma> \<leadsto>w \<Gamma>'"
+and     "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<epsilon> \<tau>s \<Gamma>) \<langle>r, w\<rangle>"
+and     "0, [], {} \<turnstile> \<epsilon>, \<tau>s :s L, K, C"
+shows   "\<exists>r'. (r' \<subseteq> r) \<and> (\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<epsilon> \<tau>s \<Gamma>') \<langle>r', w\<rangle>) "
 using assms by (auto dest:  instantiate_ctx_weaken
                      intro: u_v_matches_weaken' [simplified])
 
 
 
 lemma u_v_matches_cons:
-assumes "list_all2 (kinding []) \<tau>s K"
-and     "\<Xi> , \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<tau>s \<Gamma>) \<langle>r', w'\<rangle>"
-and     "\<Xi> , \<sigma> \<turnstile> x \<sim> x' : instantiate \<tau>s \<tau> \<langle>r, w\<rangle>"
+assumes "0, [], {} \<turnstile> \<epsilon>, \<tau>s :s L, K, C"
+and     "\<Xi> , \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<epsilon> \<tau>s \<Gamma>) \<langle>r', w'\<rangle>"
+and     "\<Xi> , \<sigma> \<turnstile> x \<sim> x' : instantiate \<epsilon> \<tau>s \<tau> \<langle>r, w\<rangle>"
 and     "w  \<inter> w' = {}"
 and     "w  \<inter> r' = {}"
 and     "w' \<inter> r  = {}"
-shows   "\<Xi> , \<sigma> \<turnstile> (x # \<gamma>) \<sim> (x' # \<gamma>') matches (instantiate_ctx \<tau>s (Some \<tau> # \<Gamma>)) \<langle>r \<union> r', w \<union> w'\<rangle>"
+shows   "\<Xi> , \<sigma> \<turnstile> (x # \<gamma>) \<sim> (x' # \<gamma>') matches (instantiate_ctx \<epsilon> \<tau>s (Some \<tau> # \<Gamma>)) \<langle>r \<union> r', w \<union> w'\<rangle>"
 using assms by (auto intro: u_v_matches_some)
 
 lemma u_v_matches_empty:
-shows "\<Xi> , \<sigma> \<turnstile> [] \<sim> [] matches instantiate_ctx \<tau>s [] \<langle>{}, {}\<rangle>"
+shows "\<Xi> , \<sigma> \<turnstile> [] \<sim> [] matches instantiate_ctx \<epsilon> \<tau>s [] \<langle>{}, {}\<rangle>"
 by (simp add: u_v_matches_empty instantiate_ctx_def)
 
 lemma u_v_matches_length:
@@ -822,7 +842,7 @@ using assms by (auto dest: u_v_matches_to_matches_ptrs upd.matches_ptrs_empty_en
 
 lemma u_v_matches_proj':
 assumes "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches \<Gamma> \<langle>r, w\<rangle>"
-and     "[] \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i \<tau>"
+and     "0, [], {} \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i \<tau>"
 and     "i < length \<Gamma>"
 shows   "\<exists> r' \<subseteq> r. \<Xi>, \<sigma> \<turnstile> (\<gamma> ! i) \<sim> (\<gamma>' ! i) : \<tau> \<langle>r', w\<rangle>"
 proof -
@@ -862,11 +882,11 @@ qed
 
 
 lemma u_v_matches_proj:
-assumes "list_all2 (kinding []) \<tau>s K"
-and     "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<tau>s \<Gamma>) \<langle>r, w\<rangle>"
-and     "K \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i \<tau>"
+assumes "0, [], {} \<turnstile> \<epsilon>, \<tau>s :s L, K, C"
+and     "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<epsilon> \<tau>s \<Gamma>) \<langle>r, w\<rangle>"
+and     "L, K, C \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i \<tau>"
 and     "i < length \<Gamma>"
-shows   "\<exists> r' \<subseteq> r. \<Xi>, \<sigma> \<turnstile> (\<gamma> ! i) \<sim> (\<gamma>' ! i) : (instantiate \<tau>s \<tau>) \<langle>r', w\<rangle>"
+shows   "\<exists> r' \<subseteq> r. \<Xi>, \<sigma> \<turnstile> (\<gamma> ! i) \<sim> (\<gamma>' ! i) : (instantiate \<epsilon> \<tau>s \<tau>) \<langle>r', w\<rangle>"
 using assms by (fastforce dest:   instantiate_ctx_weaken
                           intro!: u_v_matches_proj' [simplified])
 
@@ -897,7 +917,7 @@ qed
 
 lemma u_v_matches_proj_consumed':
 assumes "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches \<Gamma> \<langle>r, w\<rangle>"
-and     "[] \<turnstile> \<Gamma> consumed"
+and     "0, [], {} \<turnstile> \<Gamma> consumed"
 shows   "w = {}"
 using assms proof(induction rule: u_v_matches.induct)
      case u_v_matches_empty then show ?case by auto
@@ -910,19 +930,19 @@ qed
 
 
 lemma u_v_matches_proj_consumed:
-assumes "list_all2 (kinding []) \<tau>s K"
-and     "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<tau>s \<Gamma>) \<langle>r, w\<rangle>"
-and     "K \<turnstile> \<Gamma> consumed"
+assumes "0, [], {} \<turnstile> \<epsilon>, \<tau>s :s L, K, C"
+and     "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<epsilon> \<tau>s \<Gamma>) \<langle>r, w\<rangle>"
+and     "L, K, C \<turnstile> \<Gamma> consumed"
 shows   "w = {}"
 using assms by (auto dest:   instantiate_ctx_weaken
                      intro!: u_v_matches_proj_consumed')
 
 lemma u_v_matches_proj_single:
-assumes "list_all2 (kinding []) \<tau>s K"
-and     "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<tau>s \<Gamma>) \<langle>r, w\<rangle>"
+assumes "0, [], {} \<turnstile> \<epsilon>, \<tau>s :s L, K, C"
+and     "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<epsilon> \<tau>s \<Gamma>) \<langle>r, w\<rangle>"
 and     "i < length \<Gamma>"
 and     "\<Gamma> ! i = Some \<tau>"
-shows   "\<exists> r' w'. (r' \<subseteq> r) \<and> (w' \<subseteq> w) \<and> (\<Xi>, \<sigma> \<turnstile> (\<gamma> ! i) \<sim> (\<gamma>' ! i) : instantiate \<tau>s \<tau> \<langle>r', w'\<rangle>)"
+shows   "\<exists> r' w'. (r' \<subseteq> r) \<and> (w' \<subseteq> w) \<and> (\<Xi>, \<sigma> \<turnstile> (\<gamma> ! i) \<sim> (\<gamma>' ! i) : instantiate \<epsilon> \<tau>s \<tau> \<langle>r', w'\<rangle>)"
 using assms by (auto intro!: u_v_matches_proj_single' [simplified]
                      simp:   instantiate_ctx_def)
 
@@ -932,14 +952,18 @@ section {* procedure environment matches *}
 lemma proc_env_u_v_matches_abstract:
 assumes "\<xi> \<sim> \<xi>' matches-u-v \<Xi>"
 and     "\<Xi> f = (K, \<tau>i, \<tau>o)"
-and     "list_all2 (kinding []) \<tau>s K"
-and     "\<Xi> , \<sigma> \<turnstile> a \<sim> a'   : instantiate \<tau>s \<tau>i \<langle>r, w\<rangle>"
+and     "0, [], {} \<turnstile> [], \<tau>s :s 0, K, {}"
+and     "\<Xi> , \<sigma> \<turnstile> a \<sim> a'   : instantiate [] \<tau>s \<tau>i \<langle>r, w\<rangle>"
 and     "\<xi> f (\<sigma>, a) (\<sigma>', v)"
 and     "\<xi>' f a' v'"
 shows   "\<exists>r' w'.
-             \<Xi> , \<sigma>' \<turnstile> v \<sim> v' : instantiate \<tau>s \<tau>o \<langle>r', w'\<rangle>
+             \<Xi> , \<sigma>' \<turnstile> v \<sim> v' : instantiate [] \<tau>s \<tau>o \<langle>r', w'\<rangle>
             \<and> r' \<subseteq> r \<and> upd.frame \<sigma> w \<sigma>' w'"
-  using assms by (clarsimp simp: proc_env_u_v_matches_def, drule_tac x = f in spec, fastforce)
+  using assms 
+  by ( clarsimp simp: proc_env_u_v_matches_def 
+               , drule_tac x = f in spec
+               , auto simp add:subst_wellformed_def)
+
 
 section {* frame *}
 
@@ -1093,7 +1117,7 @@ proof -
       "\<Xi>, \<sigma> \<turnstile> v \<sim> v' : \<tau>1 \<langle>r, w\<rangle>"
       "(tag, \<tau>1, Unchecked) \<in> set ts"
       "distinct (map fst ts)"
-      "[] \<turnstile> TSum ts wellformed"
+      "0, [], {} \<turnstile> TSum ts wellformed"
     using u_v_val_ts by force
   moreover obtain i
     where tag_at:
@@ -1114,11 +1138,12 @@ proof -
       using uv_val_elim_lemmas tag_neq_tag' tagged_list_update_different_tag_preserves_values2
       by metis
   next
-    show "[] \<turnstile> TSum (tagged_list_update tag' (\<tau>, Checked) ts) wellformed"
+    show "0, [], {} \<turnstile> TSum (tagged_list_update tag' (\<tau>, Checked) ts) wellformed"
       using uv_val_elim_lemmas tag'_in_ts
       apply (intro variant_tagged_list_update_wellformedI)
          apply (fastforce dest: prod_in_set(1))
-      using kinding_iff_wellformed kinding_simps(6) kinding_variant_wellformed_elem by blast+
+      using kinding_iff_wellformed kinding_simps(6) kinding_variant_wellformed_elem         
+      by (auto simp add:list_all_iff)
   qed simp+
 qed
 
@@ -1126,7 +1151,7 @@ qed
 lemma upd_val_rel_record_take:
 assumes "\<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' :r \<tau>s \<langle>r, w\<rangle>"
 and     "\<tau>s ! f = (n, \<tau>, Present)"
-and     "[] \<turnstile> \<tau> wellformed"
+and     "0, [], {} \<turnstile> \<tau> wellformed"
 and     "f < length \<tau>s"
 shows   "\<exists>r' w' r'' w''. (\<Xi>, \<sigma> \<turnstile>  fst (fs ! f) \<sim> fs' ! f :  \<tau>                     \<langle>r' , w' \<rangle>)
                        \<and> (\<Xi>, \<sigma> \<turnstile>* fs           \<sim> fs'     :r (\<tau>s [f := (n, \<tau>, Taken)]) \<langle>r'', w''\<rangle>)
@@ -1186,7 +1211,7 @@ lemma upd_val_rel_record_put_discardable:
 assumes "\<Xi>, \<sigma> \<turnstile>  v  \<sim> v'  :  t  \<langle>r'b, w'b\<rangle>"
 and     "\<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' :r ts \<langle>r'a, w'a\<rangle>"
 and     "ts ! f = (n, t, Present)"
-and     "[] \<turnstile> t :\<kappa> k"
+and     "0, [], {} \<turnstile> t :\<kappa> k"
 and     "D \<in> k"
 and     "w'b \<inter> r'a = {}"
 and     "w'a \<inter> r'b = {}"
@@ -1229,7 +1254,7 @@ and     "w'b \<inter> r'a = {}"
 and     "w'a \<inter> r'b = {}"
 and     "w'a \<inter> w'b = {}"
 and     "f < length ts"
-and     "[] \<turnstile> t :\<kappa> k"
+and     "0, [], {} \<turnstile> t :\<kappa> k"
 shows   "\<exists>r''a\<subseteq> r'a. \<Xi>, \<sigma> \<turnstile>* fs[f := (v, snd(fs!f))] \<sim> fs'[f := v'] :r (ts[f := (n, t, Present)]) \<langle>r''a \<union> r'b, w'a \<union> w'b\<rangle>"
 using assms proof (cases taken)
      case Present with assms show ?thesis by (fastforce intro!: upd_val_rel_record_put_discardable)
@@ -1238,10 +1263,10 @@ qed
 
 lemma value_subtyping:
   shows "\<Xi>, \<sigma> \<turnstile> v \<sim> v' : t \<langle>r, w\<rangle>
-          \<Longrightarrow> [] \<turnstile> t \<sqsubseteq> t'
+          \<Longrightarrow> 0, [], {} \<turnstile> t \<sqsubseteq> t'
           \<Longrightarrow> \<exists>r'. r' \<subseteq> r \<and> \<Xi>, \<sigma> \<turnstile> v \<sim> v' : t' \<langle>r', w\<rangle>"
     and "\<Xi>, \<sigma> \<turnstile>* vs \<sim> vs' :r ts \<langle>r, w\<rangle>
-          \<Longrightarrow> [] \<turnstile> TRecord ts s \<sqsubseteq> TRecord ts' s
+          \<Longrightarrow> 0, [], {} \<turnstile> TRecord ts s \<sqsubseteq> TRecord ts' s
           \<Longrightarrow> \<exists>r'. r' \<subseteq> r \<and> \<Xi>, \<sigma> \<turnstile>* vs \<sim> vs' :r ts' \<langle>r', w\<rangle>"
 (* TODO clean up and rewrite as Isar proof *)
 proof (induct arbitrary: t' and ts' s rule: upd_val_rel_upd_val_rel_record.inducts)
@@ -1282,7 +1307,7 @@ next
   then show ?case
     apply -
     apply (erule subtyping.cases; clarsimp)
-    apply (rule_tac V="[] \<turnstile> TRecord ts Unboxed \<sqsubseteq> TRecord ts2 Unboxed" in revcut_rl)
+    apply (rule_tac V="0, [], {} \<turnstile> TRecord ts Unboxed \<sqsubseteq> TRecord ts2 Unboxed" in revcut_rl)
      using u_v_struct.prems apply blast
     apply (rule_tac V="\<exists>r'\<subseteq>r. \<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' :r ts2 \<langle>r', w\<rangle>" in revcut_rl, blast)
     apply (erule exE)
@@ -1322,22 +1347,25 @@ next
   then show ?case
     apply -
     apply (erule subtyping.cases; clarsimp)
-    apply (rule_tac V="[] \<turnstile> TRecord ts (Boxed ReadOnly ptrl) \<sqsubseteq> TRecord ts2 (Boxed ReadOnly ptrl)" in revcut_rl)
+    apply (rule_tac V="0, [], {} \<turnstile> TRecord ts (Boxed ReadOnly ptrl) \<sqsubseteq> TRecord ts2 (Boxed ReadOnly ptrl)" in revcut_rl)
      using u_v_p_rec_ro.prems apply blast
     apply (rule_tac V="\<exists>r'\<subseteq>r. \<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' :r ts2 \<langle>r', {}\<rangle>" in revcut_rl, blast)
     apply (erule exE)
     apply (erule conjE)
     apply (rule_tac x="insert l r'" in exI)
     apply (intro conjI, blast)
-    apply (rule subst[OF sym[OF subtyping_preserves_type_repr_map]], assumption)
-    apply (intro upd_val_rel_upd_val_rel_record.intros; blast)
-    done
+     apply (rule subst[OF sym[OF subtyping_preserves_type_repr_map]], assumption)
+
+     apply (intro upd_val_rel_upd_val_rel_record.intros)
+     apply(simp_all add:case_prod_beta' list_all2_conv_all_nth  )
+     using map_eq_iff_nth_eq subtyping_lrepr
+     by (metis (mono_tags, lifting))
 next
   case (u_v_p_rec_w \<Xi> \<sigma> fs fs' ts r w l s ptrl)
   then show ?case
     apply -
     apply (erule subtyping.cases; clarsimp)
-    apply (rule_tac V="[] \<turnstile> TRecord ts (Boxed Writable ptrl) \<sqsubseteq> TRecord ts2 (Boxed Writable ptrl)" in revcut_rl)
+    apply (rule_tac V="0, [], {} \<turnstile> TRecord ts (Boxed Writable ptrl) \<sqsubseteq> TRecord ts2 (Boxed Writable ptrl)" in revcut_rl)
      using u_v_p_rec_w.prems apply blast
     apply (rule_tac V="\<exists>r'\<subseteq>r. \<Xi>, \<sigma> \<turnstile>* fs \<sim> fs' :r ts2 \<langle>r', w\<rangle>" in revcut_rl, blast)
     apply (erule exE)
@@ -1345,8 +1373,11 @@ next
     apply (rule_tac x="r'" in exI)
     apply (intro conjI, blast)
     apply (rule subst[OF sym[OF subtyping_preserves_type_repr_map]], assumption)
-    apply (intro upd_val_rel_upd_val_rel_record.intros; blast)
-    done
+     apply (intro upd_val_rel_upd_val_rel_record.intros)
+          apply(simp_all add:case_prod_beta' list_all2_conv_all_nth  )
+      apply blast
+     using map_eq_iff_nth_eq subtyping_lrepr
+     by (metis (mono_tags, lifting))+
 next
   case (u_v_p_abs_ro s ptrl a a' n ts r w \<sigma> l \<Xi>)
   then show ?case
@@ -1408,7 +1439,7 @@ qed (auto elim: subtyping.cases intro: upd_val_rel_upd_val_rel_record.intros)
 
 inductive_cases v_sem_primE   [elim!] : " \<xi> , \<gamma> \<turnstile> (Prim p as) \<Down> v"
 inductive_cases v_sem_litE    [elim!] : " \<xi> , \<gamma> \<turnstile> Lit l \<Down> v"
-inductive_cases v_sem_funE    [elim!] : " \<xi> , \<gamma> \<turnstile> Fun e ts \<Down> v"
+inductive_cases v_sem_funE    [elim!] : " \<xi> , \<gamma> \<turnstile> Fun e ts ls \<Down> v"
 inductive_cases v_sem_unitE   [elim!] : " \<xi> , \<gamma> \<turnstile> Unit \<Down> v"
 inductive_cases v_sem_castE   [elim!] : " \<xi> , \<gamma> \<turnstile> Cast a b \<Down> v"
 inductive_cases v_sem_esacE   [elim!] : " \<xi> , \<gamma> \<turnstile> Esac e n \<Down> v"
@@ -1434,30 +1465,31 @@ and     "l \<notin> w \<union> r"
 and     "rp = (RRecord (map (type_repr \<circ> fst \<circ> snd) ts)) "
 and     "s = Boxed Writable ptrl"
 and     "distinct (map fst ts)"
+and     "matches_type_sigil 0 {} (LRRecord (map (\<lambda>(n, t, _). (n, type_lrepr t)) ts)) (Boxed Writable ptrl)"
 shows   "\<Xi>, \<sigma> \<turnstile> UPtr l rp \<sim> VRecord fs' : TRecord ts s \<langle> r, insert l w \<rangle>"
-  using assms by (auto intro: u_v_p_rec_w)
+  using assms by (auto intro: u_v_p_rec_w) 
 
 theorem correspondence:
-assumes "list_all2 (kinding []) \<tau>s K"
+  assumes  " 0, [], {} \<turnstile> \<epsilon>, \<tau>s :s L, K, C"
 and     "proc_ctx_wellformed \<Xi>"
-and     "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<tau>s \<Gamma>) \<langle>r, w\<rangle>"
+and     "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches (instantiate_ctx \<epsilon> \<tau>s \<Gamma>) \<langle>r, w\<rangle>"
 and     "\<xi> \<sim> \<xi>' matches-u-v \<Xi>"
-shows   "\<lbrakk> \<xi> , \<gamma>  \<turnstile> (\<sigma>, specialise \<tau>s e) \<Down>! (\<sigma>', v)
-         ; \<xi>', \<gamma>' \<turnstile>     specialise \<tau>s e  \<Down>       v'
-         ; \<Xi>, K, \<Gamma> \<turnstile> e : \<tau>
-         \<rbrakk> \<Longrightarrow> \<exists>r' w'. (\<Xi> , \<sigma>' \<turnstile> v \<sim> v' : instantiate \<tau>s \<tau> \<langle>r', w'\<rangle>)
+shows   "\<lbrakk> \<xi> , \<gamma>  \<turnstile> (\<sigma>, specialise \<epsilon> \<tau>s e) \<Down>! (\<sigma>', v)
+         ; \<xi>', \<gamma>' \<turnstile>     specialise \<epsilon> \<tau>s e  \<Down>       v'
+         ; \<Xi>, L, K, C, \<Gamma> \<turnstile> e : \<tau>
+         \<rbrakk> \<Longrightarrow> \<exists>r' w'. (\<Xi> , \<sigma>' \<turnstile> v \<sim> v' : instantiate \<epsilon> \<tau>s \<tau> \<langle>r', w'\<rangle>)
                      \<and> r' \<subseteq> r
                      \<and> upd.frame \<sigma> w \<sigma>' w'"
-and     "\<lbrakk> \<xi> , \<gamma>  \<turnstile>* (\<sigma>, map (specialise \<tau>s) es) \<Down>! (\<sigma>', vs)
-         ; \<xi>', \<gamma>' \<turnstile>*     map (specialise \<tau>s) es  \<Down>       vs'
-         ; \<Xi>, K, \<Gamma> \<turnstile>* es : \<tau>s'
-         \<rbrakk> \<Longrightarrow> \<exists>r' w'. (\<Xi>, \<sigma>' \<turnstile>* vs \<sim> vs' : map (instantiate \<tau>s) \<tau>s' \<langle>r', w'\<rangle>)
+and     "\<lbrakk> \<xi> , \<gamma>  \<turnstile>* (\<sigma>, map (specialise \<epsilon> \<tau>s) es) \<Down>! (\<sigma>', vs)
+         ; \<xi>', \<gamma>' \<turnstile>*     map (specialise \<epsilon> \<tau>s) es  \<Down>       vs'
+         ; \<Xi>, L, K, C, \<Gamma> \<turnstile>* es : \<tau>s'
+         \<rbrakk> \<Longrightarrow> \<exists>r' w'. (\<Xi>, \<sigma>' \<turnstile>* vs \<sim> vs' : map (instantiate \<epsilon> \<tau>s) \<tau>s' \<langle>r', w'\<rangle>)
                      \<and> r' \<subseteq> r
                      \<and> upd.frame \<sigma> w \<sigma>' w'"
-using assms proof (induct "(\<sigma>, specialise \<tau>s e)"        "(\<sigma>', v )"
-                      and "(\<sigma>, map (specialise \<tau>s) es)" "(\<sigma>', vs)"
-                      arbitrary:  e  \<tau>s K \<tau>   \<Gamma> r w v  \<sigma>' \<sigma> \<gamma>' v'
-                             and  es \<tau>s K \<tau>s' \<Gamma> r w vs \<sigma>' \<sigma> \<gamma>' vs'
+using assms proof (induct "(\<sigma>, specialise \<epsilon> \<tau>s e)"        "(\<sigma>', v )"
+                      and "(\<sigma>, map (specialise \<epsilon> \<tau>s) es)" "(\<sigma>', vs)"
+                      arbitrary:  e  \<epsilon> \<tau>s L K C \<tau>   \<Gamma> r w v  \<sigma>' \<sigma> \<gamma>' v'
+                             and  es \<epsilon> \<tau>s L K C \<tau>s' \<Gamma> r w vs \<sigma>' \<sigma> \<gamma>' vs'
                       rule: u_sem_u_sem_all.inducts)
      case u_sem_var       then show ?case by ( cases e, simp_all
                                              , fastforce elim!:  typing_varE
@@ -1510,7 +1542,7 @@ next case (u_sem_app \<xi> \<gamma> \<sigma> x \<sigma>' f ts y \<sigma>'' a)
      apply (force intro!: u_v_matches.intros simp: instantiate_ctx_def)
     apply (elim exE conjE)
 
-    apply (rule_tac V="\<exists>r'c'\<subseteq>r'c. \<Xi>, \<sigma>' \<turnstile> v \<sim> v' : instantiate \<tau>s \<tau> \<langle>r'c', w'b\<rangle>" in revcut_rl)
+    apply (rule_tac V="\<exists>r'c'\<subseteq>r'c. \<Xi>, \<sigma>' \<turnstile> v \<sim> v' : instantiate \<epsilon> \<tau>s \<tau> \<langle>r'c', w'b\<rangle>" in revcut_rl)
      apply (rule value_subtyping; fast elim: subtyping.cases)
     apply (elim exE conjE)
     apply (clarsimp, auto intro!: exI
@@ -1536,7 +1568,7 @@ next case (u_sem_abs_app \<xi> \<gamma> \<sigma> x \<sigma>' f ts y \<sigma>'' a
      apply (elim exE conjE)
      apply (frule(5) proc_env_u_v_matches_abstract)
      apply (elim exE conjE)
-     apply (rule_tac V="\<exists>r'c' \<subseteq> r'c. \<Xi>, \<sigma>''' \<turnstile> ra \<sim> v' : instantiate \<tau>s \<tau> \<langle>r'c', w'a\<rangle>" in revcut_rl)
+     apply (rule_tac V="\<exists>r'c' \<subseteq> r'c. \<Xi>, \<sigma>''' \<turnstile> ra \<sim> v' : instantiate \<epsilon> \<tau>s \<tau> \<langle>r'c', w'a\<rangle>" in revcut_rl)
       apply (rule value_subtyping; fast elim: subtyping.cases)
      apply (elim exE conjE)
      apply (intro exI conjI, force, blast)
@@ -1551,44 +1583,44 @@ next
   next
     case (Con ts tag x)
 
-    have ts_inst_is: "ts_inst = map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts"
+    have ts_inst_is: "ts_inst = map (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<tau>s t, b)) ts"
       and tag'_is: "tag' = tag"
-      and x_spec_is: "x_spec = specialise \<tau>s x"
+      and x_spec_is: "x_spec = specialise \<epsilon> \<tau>s x"
       using u_sem_con.hyps(3) Con
       by simp+
 
     obtain xa
       where v'_is: "v' = VSum tag xa"
-        and vsem_specialised_x: "\<xi>' , \<gamma>' \<turnstile> specialise \<tau>s x \<Down> xa"
+        and vsem_specialised_x: "\<xi>' , \<gamma>' \<turnstile> specialise \<epsilon> \<tau>s x \<Down> xa"
       using u_sem_con.prems(1) Con by auto
 
     obtain t
       where typing_elims:
         "\<tau> = TSum ts"
-        "\<Xi>, K, \<Gamma> \<turnstile> x : t"
+        "\<Xi>, L, K, C, \<Gamma> \<turnstile> x : t"
         "(tag, t, Unchecked) \<in> set ts"
         "distinct (map fst ts)"
-        "K \<turnstile> TSum ts wellformed"
+        "L, K, C \<turnstile> TSum ts wellformed"
       using typing_conE u_sem_con.prems(2) Con
       by auto
 
     obtain r' w'
-      where "\<Xi>, \<sigma>' \<turnstile> x'' \<sim> xa : instantiate \<tau>s t \<langle>r', w'\<rangle>"
+      where "\<Xi>, \<sigma>' \<turnstile> x'' \<sim> xa : instantiate \<epsilon> \<tau>s t \<langle>r', w'\<rangle>"
         and r'_sub_r: "r' \<subseteq> r"
         and frame_w_w': "upd.frame \<sigma> w \<sigma>' w'"
       using u_sem_con.hyps(2) x_spec_is vsem_specialised_x typing_elims u_sem_con.prems
       by blast
-    then have "\<Xi>, \<sigma>' \<turnstile> USum tag x'' (map ((\<lambda>(n, t, _). (n, type_repr t)) \<circ> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts)
-                        \<sim> VSum tag xa : TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) \<langle>r', w'\<rangle>"
+    then have "\<Xi>, \<sigma>' \<turnstile> USum tag x'' (map ((\<lambda>(n, t, _). (n, type_repr t)) \<circ> (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<tau>s t, b))) ts)
+                        \<sim> VSum tag xa : TSum (map (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<tau>s t, b)) ts) \<langle>r', w'\<rangle>"
       using typing_elims instantiate_over_variants_subvariants
     proof (intro upd_val_rel_upd_val_rel_record.u_v_sum)
       have "(tag, t, Unchecked) \<in> set ts"
         using typing_elims variant_elem_preservation[where ts=ts]
           antisym less_eq_variant_state.simps(1) by blast
-      then show "(tag, instantiate \<tau>s t, Unchecked) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)"
+      then show "(tag, instantiate \<epsilon> \<tau>s t, Unchecked) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<tau>s t, b)) ts)"
         using image_iff by fastforce
     next
-      show "[] \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) wellformed"
+      show "0, [], {} \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<tau>s t, b)) ts) wellformed"
         using u_sem_con.prems typing_elims
         by (metis instantiate.simps(6) kinding_iff_wellformed(1) substitutivity_single)
     qed simp+
@@ -1678,22 +1710,22 @@ next
   proof (cases e)
     case (Esac x)
 
-    have spec_simps: "spec_x = specialise \<tau>s x"
+    have spec_simps: "spec_x = specialise \<epsilon> \<tau>s x"
       using u_sem_esac.hyps(3) Esac by simp
 
     obtain tag  where utsem_elims:
-      "\<xi>' , \<gamma>' \<turnstile> specialise \<tau>s x \<Down> VSum tag v'"
+      "\<xi>' , \<gamma>' \<turnstile> specialise \<epsilon> \<tau>s x \<Down> VSum tag v'"
       using u_sem_esac.prems Esac by auto
 
     obtain tsty tag'
       where typing_elims:
-        "\<Xi>, K, \<Gamma> \<turnstile> x : TSum tsty"
+        "\<Xi>, L, K, C, \<Gamma> \<turnstile> x : TSum tsty"
         "[(tag', \<tau>, Unchecked)] = filter ((=) Unchecked \<circ> snd \<circ> snd) tsty"
       using typing_esacE u_sem_esac.prems Esac
       by auto
 
   obtain r' w'
-      where "\<Xi>, \<sigma>' \<turnstile> USum tagu v tsu' \<sim> VSum tag v' : instantiate \<tau>s (TSum tsty) \<langle>r', w'\<rangle>"
+      where "\<Xi>, \<sigma>' \<turnstile> USum tagu v tsu' \<sim> VSum tag v' : instantiate \<epsilon> \<tau>s (TSum tsty) \<langle>r', w'\<rangle>"
         and r'_sub_r: "r' \<subseteq> r"
         and frame_w_w': "upd.frame \<sigma> w \<sigma>' w'"
       using u_sem_esac.hyps(2) u_sem_esac.prems spec_simps utsem_elims typing_elims
@@ -1701,7 +1733,7 @@ next
     then obtain instt
         where u_v_sem_v_v'_ta: "\<Xi>, \<sigma>' \<turnstile> v \<sim> v' : instt \<langle>r', w'\<rangle>"
         and
-          "(tag, instt, Unchecked) \<in> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ` set tsty"
+          "(tag, instt, Unchecked) \<in> (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<tau>s t, b)) ` set tsty"
           "distinct (map fst tsty)"
       by auto
     moreover obtain us vs
@@ -1711,9 +1743,9 @@ next
         "\<forall>u\<in>set vs. Unchecked \<noteq> snd (snd u)"
       using typing_elims
       by (force simp add: filter_eq_singleton_iff2)
-    ultimately have "(tag, instt, Unchecked) = (tag', instantiate \<tau>s \<tau>, Unchecked)"
+    ultimately have "(tag, instt, Unchecked) = (tag', instantiate \<epsilon> \<tau>s \<tau>, Unchecked)"
       using typing_elims by auto
-    then have " \<Xi>, \<sigma>' \<turnstile> v \<sim> v' : instantiate \<tau>s \<tau> \<langle>r', w'\<rangle>"
+    then have " \<Xi>, \<sigma>' \<turnstile> v \<sim> v' : instantiate \<epsilon> \<tau>s \<tau> \<langle>r', w'\<rangle>"
       using u_v_sem_v_v'_ta by simp
     then show ?thesis
       using r'_sub_r frame_w_w' by blast
@@ -1724,45 +1756,51 @@ next
   proof (cases e)
     case (Case x' tag' m' n')
 
-    have x_is: "x = specialise \<tau>s x'"
+    have x_is: "x = specialise \<epsilon> \<tau>s x'"
       and tag''_is: "tag'' = tag'"
-      and m_is: "m = specialise \<tau>s m'"
-      and n_is: "n = specialise \<tau>s n'"
+      and m_is: "m = specialise \<epsilon> \<tau>s m'"
+      and n_is: "n = specialise \<epsilon> \<tau>s n'"
       using Case u_sem_case_nm.hyps(6)
       by simp+
-    then have vsem_case: "\<xi>' , \<gamma>' \<turnstile> Case (specialise \<tau>s x') tag' (specialise \<tau>s m') (specialise \<tau>s n') \<Down> v'"
+    then have vsem_case: "\<xi>' , \<gamma>' \<turnstile> Case (specialise \<epsilon> \<tau>s x') tag' (specialise \<epsilon> \<tau>s m') (specialise \<epsilon> \<tau>s n') \<Down> v'"
       using u_sem_case_nm.prems(1) u_sem_case_nm.hyps(6) by simp
 
-    have "\<Xi>, K, \<Gamma> \<turnstile> Case x' tag' m' n' : \<tau>"
+    have "\<Xi>, L, K, C, \<Gamma> \<turnstile> Case x' tag' m' n' : \<tau>"
       using Case u_sem_case_nm.prems
       by simp
     then obtain \<Gamma>1 \<Gamma>2 ts t
-      where split_\<Gamma>: "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
-        and typing_x': "\<Xi>, K, \<Gamma>1 \<turnstile> x' : TSum ts"
+      where split_\<Gamma>: "L, K, C \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+        and typing_x': "\<Xi>, L, K, C, \<Gamma>1 \<turnstile> x' : TSum ts"
         and tag'_in_ts: "(tag', t, Unchecked) \<in> set ts"
-        and "\<Xi>, K, Some t # \<Gamma>2 \<turnstile> m' : \<tau>"
-        and typing_n': "\<Xi>, K, Some (TSum (tagged_list_update tag' (t, Checked) ts)) # \<Gamma>2 \<turnstile> n' : \<tau>"
+        and "\<Xi>, L, K, C, Some t # \<Gamma>2 \<turnstile> m' : \<tau>"
+        and typing_n': "\<Xi>, L, K, C, Some (TSum (tagged_list_update tag' (t, Checked) ts)) # \<Gamma>2 \<turnstile> n' : \<tau>"
       by auto
-    then obtain r1 w1 r2 w2
-      where matches1: "\<Xi>, \<sigma>a \<turnstile> \<gamma> \<sim> \<gamma>' matches instantiate_ctx \<tau>s \<Gamma>1 \<langle>r1, w1\<rangle>"
-        and matches2: "\<Xi>, \<sigma>a \<turnstile> \<gamma> \<sim> \<gamma>' matches instantiate_ctx \<tau>s \<Gamma>2 \<langle>r2, w2\<rangle>"
+    
+    (* then *)
+    
+    obtain r1 w1 r2 w2
+      where matches1: "\<Xi>, \<sigma>a \<turnstile> \<gamma> \<sim> \<gamma>' matches instantiate_ctx \<epsilon> \<tau>s \<Gamma>1 \<langle>r1, w1\<rangle>"
+        and matches2: "\<Xi>, \<sigma>a \<turnstile> \<gamma> \<sim> \<gamma>' matches instantiate_ctx \<epsilon> \<tau>s \<Gamma>2 \<langle>r2, w2\<rangle>"
         and r_as_un: "r = r1 \<union> r2"
         and w_as_un: "w = w1 \<union> w2"
         and w1_w2_disjoint: "w1 \<inter> w2 = {}"
-      using u_sem_case_nm.prems(3,5) u_v_matches_split by blast
+      using u_v_matches_split
+    proof qed
+      (cut_tac split_\<Gamma> u_sem_case_nm.prems(3,5), blast )+
+
     then have w1_r2_disjoint: "w1 \<inter> r2 = {}"
       and w2_r1_disjoint: "w2 \<inter> r1 = {}"
       using u_sem_case_nm.prems(5) u_v_matches_noalias
       by blast+
 
     obtain vx
-      where vsem_specialise_x': "\<xi>' , \<gamma>' \<turnstile> specialise \<tau>s x' \<Down> VSum tag vx"
-        and vsem_specialise_n': "\<xi>' , VSum tag vx # \<gamma>' \<turnstile> specialise \<tau>s n' \<Down> v'"
+      where vsem_specialise_x': "\<xi>' , \<gamma>' \<turnstile> specialise \<epsilon> \<tau>s x' \<Down> VSum tag vx"
+        and vsem_specialise_n': "\<xi>' , VSum tag vx # \<gamma>' \<turnstile> specialise \<epsilon> \<tau>s n' \<Down> v'"
       using vsem_case
     proof (cases rule: v_sem.cases)
       case (v_sem_case_m v)
       then obtain r' w'
-        where "\<Xi>, \<sigma>a' \<turnstile> USum tag va rs \<sim> VSum tag' v : instantiate \<tau>s (TSum ts) \<langle>r', w'\<rangle>"
+        where "\<Xi>, \<sigma>a' \<turnstile> USum tag va rs \<sim> VSum tag' v : instantiate \<epsilon> \<tau>s (TSum ts) \<langle>r', w'\<rangle>"
         using u_sem_case_nm.hyps(2) u_sem_case_nm.prems x_is typing_x' matches1
         by blast
       then have "tag = tag'"
@@ -1775,41 +1813,41 @@ next
       moreover then have taga_is: "taga = tag"
         using u_sem_case_nm.hyps(2) u_sem_case_nm.prems x_is v_sem_case_nm typing_x' matches1
         by fastforce
-      moreover assume "\<And>v. \<lbrakk> \<xi>' , \<gamma>' \<turnstile> specialise \<tau>s x' \<Down> VSum tag v; \<xi>' , VSum tag v # \<gamma>' \<turnstile> specialise \<tau>s n' \<Down> v' \<rbrakk> \<Longrightarrow> thesis"
+      moreover assume "\<And>v. \<lbrakk> \<xi>' , \<gamma>' \<turnstile> specialise \<epsilon> \<tau>s x' \<Down> VSum tag v; \<xi>' , VSum tag v # \<gamma>' \<turnstile> specialise \<epsilon> \<tau>s n' \<Down> v' \<rbrakk> \<Longrightarrow> thesis"
       ultimately show ?thesis
         by blast
     qed
     then obtain w1' r1'
-      where u_v_rel_sum_tag: "\<Xi>, \<sigma>a' \<turnstile> USum tag va rs \<sim> VSum tag vx : instantiate \<tau>s (TSum ts) \<langle>r1', w1'\<rangle>"
+      where u_v_rel_sum_tag: "\<Xi>, \<sigma>a' \<turnstile> USum tag va rs \<sim> VSum tag vx : instantiate \<epsilon> \<tau>s (TSum ts) \<langle>r1', w1'\<rangle>"
         and r_sub1: "r1' \<subseteq> r1"
         and frame1: "upd.frame \<sigma>a w1 \<sigma>a' w1'"
       using u_sem_case_nm.hyps(2) u_sem_case_nm.prems x_is v_sem_case_nm typing_x' matches1
       by blast
 
-    have "\<Xi>, \<sigma>a' \<turnstile> USum tag va rs # \<gamma> \<sim> VSum tag vx # \<gamma>' matches instantiate_ctx \<tau>s (Some (TSum (tagged_list_update tag' (t, Checked) ts)) # \<Gamma>2) \<langle>r1' \<union> r2, w1' \<union> w2 \<rangle>"
+    have "\<Xi>, \<sigma>a' \<turnstile> USum tag va rs # \<gamma> \<sim> VSum tag vx # \<gamma>' matches instantiate_ctx \<epsilon> \<tau>s (Some (TSum (tagged_list_update tag' (t, Checked) ts)) # \<Gamma>2) \<langle>r1' \<union> r2, w1' \<union> w2 \<rangle>"
       using frame1 frame_noalias_u_v_matches matches2 w1_w2_disjoint w1_r2_disjoint r_sub1 w2_r1_disjoint
     proof (simp add: r_as_un w_as_un, intro u_v_matches_some)
       obtain t'
-        where rs_is: "rs = (map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts))"
+        where rs_is: "rs = (map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) (map (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<tau>s t, b)) ts))"
           and u_v_rel_va_vx: "\<Xi>, \<sigma>a' \<turnstile> va \<sim> vx : t' \<langle>r1', w1'\<rangle>"
-          and tag_in_instantiated_ts: "(tag, t', Unchecked) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)"
+          and tag_in_instantiated_ts: "(tag, t', Unchecked) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<tau>s t, b)) ts)"
           and distinct_fst_ts: "distinct (map fst ts)"
-          and wellformed_instantiated_ts: "[] \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) wellformed"
+          and wellformed_instantiated_ts: "0, [], {} \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<tau>s t, b)) ts) wellformed"
         using u_v_rel_sum_tag
         by auto
 
       obtain i
         where updated_ts_is: "tagged_list_update tag' (t, Checked) ts = ts[i := (tag', t, Checked)]"
           and ts_at_i: "ts ! i = (tag', t, Unchecked)"
-          and inst_ts_at_i: "(map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) ! i = (tag', instantiate \<tau>s t, Unchecked)"
+          and inst_ts_at_i: "(map (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<tau>s t, b)) ts) ! i = (tag', instantiate \<epsilon> \<tau>s t, Unchecked)"
         using tag'_in_ts distinct_fst_ts tagged_list_update_distinct
         by (force simp add: in_set_conv_nth)
 
-      show "\<Xi>, \<sigma>a' \<turnstile> USum tag va rs \<sim> VSum tag vx : TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) (tagged_list_update tag' (t, Checked) ts)) \<langle>r1', w1'\<rangle>"
+      show "\<Xi>, \<sigma>a' \<turnstile> USum tag va rs \<sim> VSum tag vx : TSum (map (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<tau>s t, b)) (tagged_list_update tag' (t, Checked) ts)) \<langle>r1', w1'\<rangle>"
         using u_v_rel_va_vx
       proof (intro u_v_sum)
         obtain j
-          where inst_ts_at_j: "(map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) ! j = (tag, t', Unchecked)"
+          where inst_ts_at_j: "(map (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<tau>s t, b)) ts) ! j = (tag, t', Unchecked)"
             and j_bounded_len_ts: "j < length ts"
           using tag_in_instantiated_ts
           by (metis (no_types, lifting) in_set_conv_nth length_map)
@@ -1818,41 +1856,41 @@ next
           using inst_ts_at_i inst_ts_at_j tag''_is u_sem_case_nm.hyps(3)
           by auto
 
-        show "(tag, t', Unchecked) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) (tagged_list_update tag' (t, Checked) ts))"
+        show "(tag, t', Unchecked) \<in> set (map (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<tau>s t, b)) (tagged_list_update tag' (t, Checked) ts))"
           apply (simp add: wellformed_instantiated_ts)
           apply (metis (mono_tags, lifting) i_neq_j image_iff inst_ts_at_j j_bounded_len_ts
               length_list_update nth_list_update_neq nth_map nth_mem updated_ts_is)
           done
       next
-        show "distinct (map fst (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) (tagged_list_update tag' (t, Checked) ts)))"
+        show "distinct (map fst (map (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<tau>s t, b)) (tagged_list_update tag' (t, Checked) ts)))"
           by (simp, metis distinct_fst_ts tagged_list_update_preserves_tags)
       next
-        have "[] \<turnstile> TSum (tagged_list_update tag' (instantiate \<tau>s t, Checked) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts)) wellformed"
+        have "0, [], {} \<turnstile> TSum (tagged_list_update tag' (instantiate \<epsilon> \<tau>s t, Checked) (map (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<tau>s t, b)) ts)) wellformed"
           using wellformed_instantiated_ts tag'_in_ts
           by (intro variant_tagged_list_update_wellformedI; force simp add: list_all_iff)
 
-        then show "[] \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) (tagged_list_update tag' (t, Checked) ts)) wellformed"
-          using tagged_list_update_map_over2[where f="\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)" and g="\<lambda>(t, b). (instantiate \<tau>s t, b)"]
+        then show "0, [], {} \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<tau>s t, b)) (tagged_list_update tag' (t, Checked) ts)) wellformed"
+          using tagged_list_update_map_over2[where f="\<lambda>(c, t, b). (c, instantiate \<epsilon> \<tau>s t, b)" and g="\<lambda>(t, b). (instantiate \<epsilon> \<tau>s t, b)"]
           by (metis case_prod_conv prod.case_distrib)
       next
-        have "map ((\<lambda>(cs, t, b). (cs, type_repr t)) \<circ> (\<lambda>(cs, t, b). (cs, instantiate \<tau>s t, b))) ts
-            = (map ((\<lambda>(cs, t, b). (cs, type_repr t)) \<circ> (\<lambda>(cs, t, b). (cs, instantiate \<tau>s t, b))) ts)[i := ((\<lambda>(cs, t, b). (cs, type_repr t)) \<circ> (\<lambda>(cs, t, b). (cs, instantiate \<tau>s t, b))) (tag', t, Unchecked)]"
+        have "map ((\<lambda>(cs, t, b). (cs, type_repr t)) \<circ> (\<lambda>(cs, t, b). (cs, instantiate \<epsilon> \<tau>s t, b))) ts
+            = (map ((\<lambda>(cs, t, b). (cs, type_repr t)) \<circ> (\<lambda>(cs, t, b). (cs, instantiate \<epsilon> \<tau>s t, b))) ts)[i := ((\<lambda>(cs, t, b). (cs, type_repr t)) \<circ> (\<lambda>(cs, t, b). (cs, instantiate \<epsilon> \<tau>s t, b))) (tag', t, Unchecked)]"
           by (metis (no_types) list_update_id map_update ts_at_i)
-        then have "map ((\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) \<circ> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) ts
-                  = map ((\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) \<circ> (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b))) (tagged_list_update tag' (t, Checked) ts)"
+        then have "map ((\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) \<circ> (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<tau>s t, b))) ts
+                  = map ((\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) \<circ> (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<tau>s t, b))) (tagged_list_update tag' (t, Checked) ts)"
           by (simp add: map_update updated_ts_is)
-        then show "rs = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) (tagged_list_update tag' (t, Checked) ts))"
+        then show "rs = map (\<lambda>(c, \<tau>, _). (c, type_repr \<tau>)) (map (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<tau>s t, b)) (tagged_list_update tag' (t, Checked) ts))"
           using rs_is by simp
       qed
     next
-      show "\<Xi>, \<sigma>a' \<turnstile> \<gamma> \<sim> \<gamma>' matches instantiate_ctx \<tau>s \<Gamma>2 \<langle>r2, w2\<rangle>"
+      show "\<Xi>, \<sigma>a' \<turnstile> \<gamma> \<sim> \<gamma>' matches instantiate_ctx \<epsilon> \<tau>s \<Gamma>2 \<langle>r2, w2\<rangle>"
         using u_sem_case_nm.prems(5) frame1 matches2 r_as_un
           u_v_matches_frame u_v_matches_noalias
           w1_w2_disjoint w_as_un
         by blast
     qed fast+
     then obtain r12' w12'
-      where "\<Xi>, \<sigma>' \<turnstile> v \<sim> v' : instantiate \<tau>s \<tau> \<langle>r12', w12'\<rangle>"
+      where "\<Xi>, \<sigma>' \<turnstile> v \<sim> v' : instantiate \<epsilon> \<tau>s \<tau> \<langle>r12', w12'\<rangle>"
         and r_sub12: "r12' \<subseteq> r1' \<union> r2"
         and frame12: "upd.frame \<sigma>a' (w1' \<union> w2) \<sigma>' w12'"
       using u_sem_case_nm.hyps(5) n_is vsem_specialise_n' typing_n' u_sem_case_nm.prems
@@ -1906,7 +1944,7 @@ next case (u_sem_if _ _ _ _ _ b)
 next case u_sem_struct    then show ?case by ( cases e, simp_all
                                              , fastforce intro!: upd_val_rel_upd_val_rel_record.intros
                                                          intro:  upd_val_rel_record
-                                                                 [where ts = "map (instantiate \<tau>s) ts"
+                                                                 [where ts = "map (instantiate \<epsilon> \<tau>s) ts"
                                                                     for ts, simplified])
 next case u_sem_member
  then show ?case
@@ -1942,14 +1980,14 @@ next case (u_sem_take \<xi> \<gamma> \<sigma> x \<sigma>'' p ra fs f e)
   and  IH2  = this(5)
   and  rest = this(1,3-4,6-)
   have HELP: "\<forall> ts f \<tau> n. (f < length ts \<and> (ts ! f = (n, \<tau>, Present))
-          \<longrightarrow> (map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts ! f = (n, instantiate \<tau>s \<tau>, Present)))"
+          \<longrightarrow> (map (\<lambda>(n, t, y). (n, instantiate \<epsilon> \<tau>s t, y)) ts ! f = (n, instantiate \<epsilon> \<tau>s \<tau>, Present)))"
     apply (rule allI, induct_tac ts, simp)
     apply (simp split: prod.split)
     apply (clarsimp)
     apply (case_tac f, simp, simp)
   done
-  have HELP2: "\<forall> \<tau>s. ((type_repr \<circ> fst \<circ> snd) \<circ> (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)))
-                   = (\<lambda>(n,t,y). type_repr (instantiate \<tau>s t))"
+  have HELP2: "\<forall> \<tau>s. ((type_repr \<circ> fst \<circ> snd) \<circ> (\<lambda>(n, t, y). (n, instantiate \<epsilon> \<tau>s t, y)))
+                   = (\<lambda>(n,t,y). type_repr (instantiate \<epsilon> \<tau>s t))"
   by (force split: prod.split)
   from rest show ?case
     apply (cases e, simp_all)
@@ -1957,15 +1995,19 @@ next case (u_sem_take \<xi> \<gamma> \<sigma> x \<sigma>'' p ra fs f e)
     apply (frule u_v_matches_noalias)
     apply (frule(2) u_v_matches_split,clarsimp)
     apply (frule(6) IH1, clarsimp)
-    apply (erule u_v_p_recE, simp_all)
+    apply (erule u_v_p_recE, simp_all)    
+     apply(fastforce simp add:instantiate_sigil_boxed_invert)
     apply (frule(2) frame_noalias_u_v_matches)
-    apply (frule(1) frame_noalias_u_v_matches(2), blast)
-    apply (frule list_all2_kinding_wellformedD)
+     apply (frule(1) frame_noalias_u_v_matches(2), blast)
+     apply (frule subst_wellformed_list_all2_kindingD)
+     apply (frule list_all2_kinding_wellformedD)
     apply (frule kinding_to_wellformedD)
-    apply (frule upd_val_rel_record_take [ where \<tau>s = "map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts" for ts
+    apply (frule upd_val_rel_record_take [ where \<tau>s = "map (\<lambda>(n, t, y). (n, instantiate \<epsilon> \<tau>s t, y)) ts" for ts
           , simplified
-          , OF _ HELP [rule_format]],
-        force, force intro: instantiate_wellformed, force)
+          , OF _ HELP [rule_format]
+          , of _ _ _ ts for ts
+],
+        force, force intro!: instantiate_wellformed, force)
     apply (elim exE conjE)
     apply (frule(2) u_v_matches_frame, blast)
     apply (simp, erule disjE)
@@ -2017,7 +2059,7 @@ next case u_sem_take_ub
   and  IH2  = this(4)
   and  rest = this(1,3,5-)
   have HELP: "\<forall> ts f \<tau> n. (f < length ts \<and> (ts ! f = (n, \<tau>, Present))
-          \<longrightarrow> (map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts ! f = (n, instantiate \<tau>s \<tau>, Present)))"
+          \<longrightarrow> (map (\<lambda>(n, t, y). (n, instantiate \<epsilon> \<tau>s t, y)) ts ! f = (n, instantiate \<epsilon> \<tau>s \<tau>, Present)))"
     apply (rule allI, induct_tac ts, simp)
     apply (simp split: prod.split)
     apply (clarsimp)
@@ -2029,15 +2071,17 @@ next case u_sem_take_ub
     apply (frule u_v_matches_noalias)
     apply (frule(2) u_v_matches_split,clarsimp)
     apply (frule(6) IH1, clarsimp)
-    apply (erule u_v_recE, simp_all)
+    apply (erule u_v_recE, simp_all) 
+
     apply (frule(2) frame_noalias_u_v_matches)
     apply (frule(1) frame_noalias_u_v_matches(2), blast)
     apply (clarsimp)
+    apply (frule subst_wellformed_list_all2_kindingD)
     apply (frule list_all2_kinding_wellformedD)
     apply (frule kinding_to_wellformedD)
-    apply (frule upd_val_rel_record_take [ where \<tau>s = "map (\<lambda>(n,t,y). (n, instantiate \<tau>s t, y)) ts" for ts
+    apply (frule upd_val_rel_record_take [ where \<tau>s = "map (\<lambda>(n,t,y). (n, instantiate \<epsilon> \<tau>s t, y)) ts" for ts
                                          , simplified
-                                         , OF _ HELP [rule_format]], force, force intro: instantiate_wellformed, force)
+                                         , OF _ HELP [rule_format]], force, force intro!: instantiate_wellformed, force)
     apply (elim exE conjE)
     apply (frule(2) u_v_matches_frame, blast)
     apply (simp, erule disjE)
@@ -2090,14 +2134,14 @@ next case u_sem_put
   and  IH2  = this(5)
   and  rest = this(1,3-4,6-)
   have HELP: "\<forall> ts f \<tau> taken n. (f < length ts \<longrightarrow> (ts ! f = (n, \<tau>, taken)
-              \<longrightarrow> (map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts ! f = (n, instantiate \<tau>s \<tau>, taken))))"
+              \<longrightarrow> (map (\<lambda>(n, t, y). (n, instantiate \<epsilon> \<tau>s t, y)) ts ! f = (n, instantiate \<epsilon> \<tau>s \<tau>, taken))))"
     apply (rule allI, induct_tac ts, simp)
     apply (simp split: prod.split)
     apply (clarsimp)
     apply (case_tac f, simp, simp)
   done
-  have HELP2: "\<forall> \<tau>s. ((type_repr \<circ> fst \<circ> snd) \<circ> (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)))
-                   = (\<lambda>(n,t,y). type_repr (instantiate \<tau>s t))"
+  have HELP2: "\<forall> \<tau>s. ((type_repr \<circ> fst \<circ> snd) \<circ> (\<lambda>(n, t, y). (n, instantiate \<epsilon> \<tau>s t, y)))
+                   = (\<lambda>(n,t,y). type_repr (instantiate \<epsilon> \<tau>s t))"
   by (force split: prod.split)
   from rest show ?case
     apply (cases e, simp_all)
@@ -2112,13 +2156,14 @@ next case u_sem_put
     apply (frule(6) IH2, clarsimp)
     apply (frule(1) frame_noalias_upd_val_rel, blast)
     apply (frule(1) frame_noalias_upd_val_rel(2), blast)
-    apply (erule u_v_p_recE, simp,clarsimp)
+    apply (erule u_v_p_recE; simp add:instantiate_sigil_boxed_invert; clarsimp)
     apply (drule(1) upd.frame_app)
-    apply (drule(2) upd_val_rel_frame(2) [rotated -1], blast)
+    apply (drule(2) upd_val_rel_frame(2) [rotated -1])
+    apply blast
     apply (drule(1) upd_val_rel_frame(1) [OF upd.frame_single_update, simplified, rotated -1], blast)
     apply (drule(2) upd_val_rel_frame(2) [OF upd.frame_single_update, simplified, rotated -1])
 
-    apply (frule(5) upd_val_rel_record_put [ where ts = "map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts" for ts
+    apply (frule(5) upd_val_rel_record_put [ where ts = "map (\<lambda>(n, t, y). (n, instantiate \<epsilon> \<tau>s t, y)) ts" for ts
                                            , OF _ _ HELP [rule_format]
                                            , simplified
                                            ])
@@ -2127,21 +2172,23 @@ next case u_sem_put
       apply (fast)
      apply (fastforce intro: substitutivity)
     apply (clarsimp, intro conjI exI, rule u_v_p_rec_w')
-           apply (simp add: map_update)
-          apply simp
-         apply force
-        apply (clarsimp intro!: upd.list_helper[symmetric] simp: HELP2 map_update upd.frame_def)
-       apply blast
-      apply (force simp add: distinct_map map_update intro: distinct_list_update)
-    apply auto[1]
+            apply (simp add: map_update)
+           apply simp
+          apply force
+         apply (clarsimp intro!: upd.list_helper[symmetric] simp: HELP2 map_update upd.frame_def)
+        apply blast
+        apply (force simp add: distinct_map map_update intro: distinct_list_update)   
+     apply(simp add:map_nth_same )
+     apply auto[1]
     apply (clarsimp simp add: upd.frame_def)
     done
+
 next case u_sem_put_ub
   note IH1  = this(2)
   and  IH2  = this(4)
   and  rest = this(1,3,5-)
   have HELP: "\<forall> ts f \<tau> taken n. (f < length ts \<longrightarrow> (ts ! f = (n, \<tau>, taken)
-              \<longrightarrow> (map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts ! f = (n, instantiate \<tau>s \<tau>, taken))))"
+              \<longrightarrow> (map (\<lambda>(n, t, y). (n, instantiate \<epsilon> \<tau>s t, y)) ts ! f = (n, instantiate \<epsilon> \<tau>s \<tau>, taken))))"
     apply (rule allI, induct_tac ts, simp)
     apply (simp split: prod.split)
     apply (clarsimp)
@@ -2164,7 +2211,7 @@ next case u_sem_put_ub
     apply (drule(1) upd.frame_app)
     apply (drule(2) upd_val_rel_frame(2) [rotated -1], blast)
 
-    apply (frule(5) upd_val_rel_record_put [ where ts = "map (\<lambda>(n, t, y). (n, instantiate \<tau>s t, y)) ts" for ts
+    apply (frule(5) upd_val_rel_record_put [ where ts = "map (\<lambda>(n, t, y). (n, instantiate \<epsilon> \<tau>s t, y)) ts" for ts
                                            , OF _ _ HELP [rule_format]
                                            , simplified
                                            ])
@@ -2216,8 +2263,9 @@ next
     apply (erule v_sem.cases; clarsimp)
     apply (frule(6) IH)
     apply (elim exE conjE)
-    apply (frule value_subtyping(1)[where t'="instantiate \<tau>s \<tau>"])
-    using specialisation_subtyping subtyping_wellformed_preservation(1) typing_to_wellformed(1) apply blast
+    apply (frule value_subtyping(1)[where t'="instantiate \<epsilon> \<tau>s \<tau>"])
+    using specialisation_subtyping subtyping_wellformed_preservation(1) typing_to_wellformed(1) 
+     apply fast
     apply fast
     done
 next case u_sem_all_empty then show ?case by ( cases es, simp_all
@@ -2244,17 +2292,17 @@ next case u_sem_all_cons
 
 
 qed
-lemmas mono_correspondence = correspondence [where \<tau>s = "[]" and K = "[]", simplified]
+lemmas mono_correspondence = correspondence [OF subst_wellformed_nothing, simplified]
 
 lemma val_executes_from_upd_executes:
 assumes "proc_ctx_wellformed \<Xi>"
 and     "\<Xi>, \<sigma> \<turnstile> \<gamma> \<sim> \<gamma>' matches \<Gamma> \<langle>r, w\<rangle>"
 and     "\<xi> \<sim> \<xi>' matches-u-v \<Xi>"
 shows   "\<lbrakk> \<xi> , \<gamma>  \<turnstile> (\<sigma>, e) \<Down>! (\<sigma>', v)
-         ; \<Xi>, [], \<Gamma> \<turnstile> e : \<tau>
+         ; \<Xi>, 0, [], {}, \<Gamma> \<turnstile> e : \<tau>
          \<rbrakk> \<Longrightarrow> \<exists>v'. \<xi>', \<gamma>' \<turnstile> e \<Down> v'"
 and     "\<lbrakk> \<xi> , \<gamma>  \<turnstile>* (\<sigma>, es) \<Down>! (\<sigma>', vs)
-         ; \<Xi>, [], \<Gamma> \<turnstile>* es : \<tau>s'
+         ; \<Xi>, 0, [], {}, \<Gamma> \<turnstile>* es : \<tau>s'
          \<rbrakk> \<Longrightarrow> \<exists>vs'. \<xi>', \<gamma>' \<turnstile>* es \<Down> vs' "
   using assms proof (induct "(\<sigma>,e)" "(\<sigma>',v)"
     and "(\<sigma>,es)" "(\<sigma>', vs)" arbitrary: \<Gamma> r w \<sigma> e v \<tau> \<sigma>' \<gamma>' and \<Gamma> r w  \<sigma> es vs \<tau>s' \<sigma>'  \<gamma>'
@@ -2264,7 +2312,7 @@ and     "\<lbrakk> \<xi> , \<gamma>  \<turnstile>* (\<sigma>, es) \<Down>! (\<si
   and  rest = this(1,3-)
   from rest show ?case
     apply (clarsimp elim!: typing_castE)
-    apply (frule(3) IH, clarsimp)
+    apply (frule(3) IH, clarsimp)    
     apply (frule(2) mono_correspondence)
     apply (auto elim: upd_val_rel.cases intro!: v_sem_v_sem_all.intros)
   done
@@ -2312,7 +2360,7 @@ next case (u_sem_abs_app _ _ _ _ _ f)
     apply (clarsimp)
     apply (frule value_subtyping, fast elim: subtyping.cases)
     apply (elim exE conjE)
-    apply (elim allE impE, simp+)
+    apply(elim allE impE, (simp add:subst_wellformed_def)+)
     apply (clarsimp)
     apply (rule,erule(2) v_sem_abs_app)
     done
@@ -2460,11 +2508,11 @@ next
   case (u_sem_case_nm \<xi> \<gamma> \<sigma> x \<sigma>'' tag' va rs tag n m)
 
   obtain \<Gamma>1 \<Gamma>2 ts ta
-    where split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
-      and typing_x: "\<Xi>, [], \<Gamma>1 \<turnstile> x : TSum ts"
+    where split\<Gamma>: "0, [], {} \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+      and typing_x: "\<Xi>, 0, [], {}, \<Gamma>1 \<turnstile> x : TSum ts"
       and tag_in_ts: "(tag, ta, Unchecked) \<in> set ts"
-      and typing_m: "\<Xi>, [], Some ta # \<Gamma>2 \<turnstile> m : \<tau>"
-      and typing_n: "\<Xi>, [], Some (TSum (tagged_list_update tag (ta, Checked) ts)) # \<Gamma>2 \<turnstile> n : \<tau>"
+      and typing_m: "\<Xi>, 0, [], {}, Some ta # \<Gamma>2 \<turnstile> m : \<tau>"
+      and typing_n: "\<Xi>, 0, [], {}, Some (TSum (tagged_list_update tag (ta, Checked) ts)) # \<Gamma>2 \<turnstile> n : \<tau>"
     using u_sem_case_nm.prems by auto
 
   have w_r_disjoint: "w \<inter> r = {}"
@@ -2497,7 +2545,7 @@ next
       and u_v_rel_va_vv: "\<Xi>, \<sigma>'' \<turnstile> va \<sim> vv : t \<langle>r1', w1'\<rangle>"
       and tag'_in_ts: "(tag', t, Unchecked) \<in> set ts"
       and distinct_fst_ts: "distinct (map fst ts)"
-      and wellformed_ts: "[] \<turnstile> TSum ts wellformed"
+      and wellformed_ts: "0, [], {} \<turnstile> TSum ts wellformed"
     by auto
 
   have "\<Xi>, \<sigma>'' \<turnstile> USum tag' va rs \<sim> VSum tag' vv : TSum (tagged_list_update tag (ta, Checked) ts) \<langle>r1', w1'\<rangle>"
@@ -2506,7 +2554,7 @@ next
     show "(tag', t, Unchecked) \<in> set (tagged_list_update tag (ta, Checked) ts)"
       by (meson tag'_in_ts tagged_list_update_different_tag_preserves_values2 u_sem_case_nm.hyps(3))
   next
-    show "[] \<turnstile> TSum (tagged_list_update tag (ta, Checked) ts) wellformed"
+    show "0, [], {} \<turnstile> TSum (tagged_list_update tag (ta, Checked) ts) wellformed"
       using wellformed_ts tag_in_ts prod_in_set(1)
       by (fastforce intro!: variant_tagged_list_update_wellformedI simp add: list_all_iff)
   next
@@ -2569,7 +2617,8 @@ next case u_sem_take
                   apply simp
                  apply (fastforce simp: HELP)
                 apply simp
-               apply (force simp add: distinct_map map_update intro: distinct_list_update)
+                apply (force simp add: distinct_map map_update intro: distinct_list_update)
+               apply(simp add:map_nth_same)
               apply fast
              apply fast
             apply force
