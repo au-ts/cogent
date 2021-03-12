@@ -163,7 +163,7 @@ mkPropBody' n ds
           binds' =  [ genStmt (pvar $ mkName "oc") oc
                     , genStmt (pvar $ mkName "oa") (app (function "return") oa)
                     , qualStmt body ]
-          body  = appFun (function $ (if isPure then "corres" else "corresM")++(if not isNond then "'" else ""))
+          body  = appFun (function $ (if isPure then "corres" else "corresM")++(if isNond then "" else "'"))
                          [ function $ "rel_"++n , var $ mkName "oa" , var $ mkName "oc" ]
           f  = if isPure then function "forAll" else function "forAllM"
           fs = [ function $ "gen_"++n

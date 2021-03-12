@@ -80,6 +80,8 @@ pExpr'' lhs = do
     op <- lookAhead $ try mapOp 
                       <|> typOp 
                       <|> endOp -- check for end of exp, i.e. no RHS
+
+    _ <- trace ("++>"++show op)  $ seeNext 20
     let (ident, v) = if trim lhs `elem` keyidents
                         then ( trim lhs
                              , find (`isInfixOf` lhs) keyidents )
@@ -89,7 +91,7 @@ pExpr'' lhs = do
                              , Just lhs )
     case v of
        Just x -> if | op == typStr -> trace (show "92") $ pTypExpr x
-                    | op == mapStr -> pMapExpr x
+                    | op == mapStr -> trace (show "93") $pMapExpr x
                     | otherwise -> trace (show "96") $ pJustExpr x
        Nothing ->  pJustExpr lhs
 
@@ -97,7 +99,7 @@ pExpr'' lhs = do
 pExpr' :: Parser PbtDescExpr
 pExpr' = do
     e <- pHsExp
-    -- _ <- trace (show e) $ seeNext 3
+    _ <- trace (show e) $ seeNext 3
     let ident = case find (`isInfixOf` e) keyidents of
                   Just x -> x
                   Nothing -> __impossible $ "Predicate must contain a key identifier: one of " ++ show keyidents
@@ -113,8 +115,9 @@ pTypExpr lhs = do
 
 pMapExpr lhs = do
     e <- mapOp *> pHsExp
-    _ <- trace (show e) $ seeNext 3
-    return $ PbtDescExpr (Just (toPbtTyp' lhs)) $ Just $ Right (parseHsExp e)
+    let x = PbtDescExpr (Just (toPbtTyp' lhs)) $ Just $ Right (parseHsExp e)
+    _ <- trace (show x) $ seeNext 3
+    return $ x
 
 {-
 pEqlExpr ident lhs = do
@@ -269,8 +272,8 @@ exampleFile = unlines $
         , "    absf {                       \r"
         , "         ic : R4 Word32 Word32;  \r"
         , "         ia : Int;        \r"
-        , "         ia :=                    \r"
-        , "               ic ^. count;               \r"
+        , "         ia := ic ^. count . _1 ;                    \r"
+        -- , "               ic ^. count;               \r"
         , "    }                            \r"
         , "    rrel {                       \r"
         , "         oc : V0 () Word32;      \r"

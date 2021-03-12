@@ -159,6 +159,26 @@ packConWithLayout layout fieldKey
                                                   , M.toList fld )
                       in appFun (mkVar name) $ map (\(k,v) -> packConWithLayout v (Just k)) $ flds
 
+-- scan user predicate -> must be infix -> must have lens view as base of expression
+scanUserInfixExp :: Exp () -> Maybe (Exp ()) -> (String, Exp ())
+scanUserInfixExp (InfixApp () lhs op rhs) prev 
+    = case op of 
+        (QVarOp () (UnQual () (Symbol () symStr)))
+            -> if | symStr /= "^." -> 
+                  | otherwise -> (
+
+
+-- scan (^.) expressions -> always follow rhs b/c we want to extract the
+-- fields names and discover the depth of it in the layout of the type
+-- i.e. name ++ replicate depth $ P.head "'"
+scanUserInfixView :: Exp () -> Int -> [String]
+scanUserInfixView (Paren () e) depth = scanUserInfixView e 
+scanUserInfixView (InfixApp () _ op rhs) depth 
+    = case op of 
+        (QVarOp () (UnQual () (Symbol () symStr)))
+            -> if | symStr == "^." -> scanUserInfixView rhs (depth+1)
+                  | symStr == "." -> scanUserInfixView rhs (depth+1)
+                  | otherwise -> scanUserInfixView rhs (depth+1)
 
 
 {-
@@ -178,31 +198,6 @@ mkGenBody icTyp predExp = case predExp of
           -}
 
 
-
-
-packConcCon :: Type () -> [String] -> Int -> Exp ()
-packConcCon (TyParen _ insideTy) varsToPut pos = packConcCon insideTy varsToPut pos
-packConcCon (TyTuple _ _ ftys) varsToPut pos
-    = tuple $ let vs = if P.length ftys == P.length varsToPut then varsToPut else take (P.length ftys) varsToPut
-                in [ packConcCon (ftys!!i) vs i | i <- [0..P.length ftys-1] ]
-packConcCon (TyCon _ name) varsToPut pos
-    = case checkIsPrim name of
-        -- transform if needs coercion
-        Just x -> if isInt' name then app (function "fromIntegral") $ mkVar $ varsToPut!!pos else mkVar $ varsToPut!!pos
-        Nothing -> mkVar $ varsToPut!!pos
-packConcCon iaTyp varsToPut pos
-    | (TyApp _ lTy rTy) <- iaTyp
-    = let (name, fieldTypes) = let (conHead:conParams) = unfoldAppCon iaTyp
-                                 in ( case conHead of
-                                            (TyCon _ (UnQual _ (Ident _ n))) -> n
-                                            _ -> "Unknown"
-                                    , conParams
-                                    )
-        in appFun (mkVar name) $ let vs = if P.length fieldTypes == P.length varsToPut then varsToPut else take (P.length fieldTypes) varsToPut
-                                               in [ packConcCon (fieldTypes!!i) vs i | i <- [0..P.length fieldTypes-1] ]
-                where
-packConcCon (TyList _ ty) varsToPut pos = mkVar $ varsToPut!!pos
-packConcCon iaTyp varsToPut prev | _ <- iaTyp = __impossible $ "Bad Abstraction"++" --> "++"Hs: "++show iaTyp
 
 
 
