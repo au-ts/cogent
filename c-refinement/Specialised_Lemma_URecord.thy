@@ -55,20 +55,20 @@ ML\<open> fun mk_specialised_corres_take (field_num:int) uval file_nm ctxt =
 
   (* define meta-assumptions in specialised corres lemmas.*)
   val ass1 = @{mk_term "\<Gamma>' ! x = Some (TRecord typ ?isa_sigil)" isa_sigil} isa_sigil;
-  val ass2 = @{term    "[] \<turnstile> \<Gamma>' \<leadsto> \<Gamma>x | \<Gamma>e"};
+  val ass2 = @{term    "0, [], {} \<turnstile> \<Gamma>' \<leadsto> \<Gamma>x | \<Gamma>e"};
   val ass3 = @{mk_term "val_rel (\<gamma>!x) ?x'" x'} (Free ("x'", ty));
   val ass4 = strip_atype @{term "\<lambda> isa_sigil ty . type_rel (type_repr (TRecord typ isa_sigil)) ty"}
             $ isa_sigil $ (Const ("Pure.type", Term.itselfT ty) |> strip_atype);
   val ass5 = strip_atype @{term "\<lambda> field_num ty . type_rel (type_repr (fst (snd (typ ! field_num)))) ty"}
             $ isa_field_num $ (Const ("Pure.type", Term.itselfT field_ty) |> strip_atype);
-  val ass6 = strip_atype @{term "\<lambda> field_num . \<Xi>', [], \<Gamma>' \<turnstile> Take (Var x) field_num e : te"} $ isa_field_num;
-  val ass7 = strip_atype @{term "\<lambda> isa_sigil . \<Xi>', [], \<Gamma>x \<turnstile> (Var x) : TRecord typ isa_sigil"} $ isa_sigil;
+  val ass6 = strip_atype @{term "\<lambda> field_num . \<Xi>', 0, [], {}, \<Gamma>' \<turnstile> Take (Var x) field_num e : te"} $ isa_field_num;
+  val ass7 = strip_atype @{term "\<lambda> isa_sigil . \<Xi>', 0, [], {}, \<Gamma>x \<turnstile> (Var x) : TRecord typ isa_sigil"} $ isa_sigil;
   val ass8 = strip_atype @{term "\<lambda> isa_sigil field_num .
-             (\<Xi>', [], Some (fst (snd (typ ! field_num))) #
+             (\<Xi>', 0, [], {}, Some (fst (snd (typ ! field_num))) #
               Some (TRecord (typ[field_num := (fst (typ ! field_num), fst (snd (typ ! field_num)), taken)]) isa_sigil) # \<Gamma>e \<turnstile> e : te)"}
             $ isa_sigil $ isa_field_num;
   (* For some reason, I cannot use the mk-term antiquotation for ass9.*)
-  val ass9 = strip_atype @{term "\<lambda> field_num . [] \<turnstile> fst (snd (typ ! field_num)) :\<kappa> k"} $ isa_field_num;
+  val ass9 = strip_atype @{term "\<lambda> field_num . 0, [], {} \<turnstile> fst (snd (typ ! field_num)) :\<kappa> k"} $ isa_field_num;
   val ass10= @{term "(S \<in> k \<or> taken = Taken)"};
   (* ass11 involves a bit ugly hacks. Maybe I can use \<lambda> for field_num instead of \<And>.*)
   val ass11 = let
@@ -142,7 +142,7 @@ ML\<open> fun mk_specialised_corres_put (field_num:int) uval file_nm ctxt =
   val state_rel           = get_clean_term "state_rel";
 
   (* define assumptions *)
-  val ass1 = @{term "[] \<turnstile> \<Gamma>' \<leadsto> \<Gamma>x | \<Gamma>e"};
+  val ass1 = @{term "0, [], {} \<turnstile> \<Gamma>' \<leadsto> \<Gamma>x | \<Gamma>e"};
   val ass2 = @{term "\<Gamma>' ! x = Some (TRecord typ (Boxed Writable ptrl))"};
   val ass3 = (strip_atype @{term "\<lambda> struct_C_ptr_ty .
              type_rel (type_repr (TRecord typ (Boxed Writable ptrl))) struct_C_ptr_ty"}) $
@@ -150,7 +150,7 @@ ML\<open> fun mk_specialised_corres_put (field_num:int) uval file_nm ctxt =
   val ass4 = strip_atype @{term "\<lambda> x' . val_rel (\<gamma>!x) x'"} $ Free ("x'", struct_C_ptr_ty);
   val ass5 = strip_atype @{term "\<lambda> v' . val_rel (\<gamma>!v) v'"} $ Free ("v'", field_ty);
   val ass6 = strip_atype @{term "\<lambda> field_num .
-             \<Xi>', [], \<Gamma>' \<turnstile> Put (Var x) field_num (Var v) :
+             \<Xi>', 0, [], {}, \<Gamma>' \<turnstile> Put (Var x) field_num (Var v) :
                          TRecord (typ[field_num := (fst (typ ! field_num), fst (snd (typ ! field_num)), Present)]) (Boxed Writable ptrl)"} $ isa_int;
   val ass7 = strip_atype @{term "\<lambda> leng . length typ = leng"} $ isa_int_struct_leng;
   val prms = map (HOLogic.mk_Trueprop o strip_atype)
@@ -204,7 +204,7 @@ ML\<open> fun mk_specialised_corres_let_put (field_num:int) uval file_nm ctxt =
   val state_rel           = get_clean_term "state_rel";
 
   (* define assumptions *)
-  val ass1 = @{term "[] \<turnstile> \<Gamma>' \<leadsto> \<Gamma>x | \<Gamma>e"};
+  val ass1 = @{term "0, [], {} \<turnstile> \<Gamma>' \<leadsto> \<Gamma>x | \<Gamma>e"};
   val ass2 = @{term "\<Gamma>' ! x = Some (TRecord typ (Boxed Writable ptrl))"};
   val ass3 = (strip_atype @{term "\<lambda> struct_C_ptr_ty .
              type_rel (type_repr (TRecord typ (Boxed Writable ptrl))) struct_C_ptr_ty"}) $
@@ -212,9 +212,9 @@ ML\<open> fun mk_specialised_corres_let_put (field_num:int) uval file_nm ctxt =
   val ass4 = strip_atype @{term "\<lambda> x' . val_rel (\<gamma>!x) x'"} $ Free ("x'", struct_C_ptr_ty);
   val ass5 = strip_atype @{term "\<lambda> v' . val_rel (\<gamma>!v) v'"} $ Free ("v'", field_ty);
   val ass6 = strip_atype @{term "\<lambda> field_num .
-             \<Xi>', [], \<Gamma>' \<turnstile> expr.Let (Put (Var x) field_num (Var v)) e : ts"} $ isa_int;
+             \<Xi>', 0, [], {}, \<Gamma>' \<turnstile> expr.Let (Put (Var x) field_num (Var v)) e : ts"} $ isa_int;
   val ass7 = strip_atype @{term "\<lambda> field_num .
-             \<Xi>', [], \<Gamma>x \<turnstile> Put (Var x) field_num (Var v) :
+             \<Xi>', 0, [], {}, \<Gamma>x \<turnstile> Put (Var x) field_num (Var v) :
                          TRecord (typ[field_num := (fst (typ ! field_num), fst (snd (typ ! field_num)), Present)]) (Boxed Writable ptrl)"} $ isa_int;
   val ass8 = strip_atype @{term "\<lambda> leng . length typ = leng"} $ isa_int_struct_leng;
   val ass9 = let
@@ -287,8 +287,8 @@ ML\<open> fun mk_specialised_corres_member (field_num:int) uval file_nm ctxt =
              $ (Const ("Pure.type", Term.itselfT ty));
   val ass5 = @{term "\<lambda> ty isa_field_num. type_rel (type_repr (fst (snd (typ ! isa_field_num)))) ty"}
              $ (Const ("Pure.type", Term.itselfT field_ty)) $ isa_field_num;
-  val ass6 = @{term "\<lambda> isa_field_num . \<Xi>', [], \<Gamma>' \<turnstile> Member (Var x) isa_field_num : te"} $ isa_field_num;
-  val ass7 = @{term " \<Xi>', [], \<Gamma>' \<turnstile> Var x : TRecord typ (Boxed ReadOnly ptrl)"};
+  val ass6 = @{term "\<lambda> isa_field_num . \<Xi>', 0, [], {}, \<Gamma>' \<turnstile> Member (Var x) isa_field_num : te"} $ isa_field_num;
+  val ass7 = @{term " \<Xi>', 0, [], {}, \<Gamma>' \<turnstile> Var x : TRecord typ (Boxed ReadOnly ptrl)"};
   val prms = map (HOLogic.mk_Trueprop o strip_atype) [ass1, ass3, ass4, ass5, ass6, ass7];
 
   (* define the conclusion of the lemma.*)
