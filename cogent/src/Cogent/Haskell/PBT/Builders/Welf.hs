@@ -159,6 +159,16 @@ packConWithLayout layout fieldKey
                                                   , M.toList fld )
                       in appFun (mkVar name) $ map (\(k,v) -> packConWithLayout v (Just k)) $ flds
 
+
+
+-- TODO: 
+--      - want to scan user exp and get field name ++ depth
+--          - might be useful for shorthand direct mappings (e.g. count'') -> leverage the algorithm
+--          - assume only infix exp in which we transverse down rhs until we reach the last field
+--      - then look at user predicate -> want to just replace lens view with just fieldname ++depth tag
+
+
+{-
 -- scan user predicate -> must be infix -> must have lens view as base of expression
 scanUserInfixExp :: Exp () -> Maybe (Exp ()) -> (String, Exp ())
 scanUserInfixExp (InfixApp () lhs op rhs) prev 
@@ -166,11 +176,13 @@ scanUserInfixExp (InfixApp () lhs op rhs) prev
         (QVarOp () (UnQual () (Symbol () symStr)))
             -> if | symStr /= "^." -> 
                   | otherwise -> (
+                  -}
 
 
 -- scan (^.) expressions -> always follow rhs b/c we want to extract the
 -- fields names and discover the depth of it in the layout of the type
 -- i.e. name ++ replicate depth $ P.head "'"
+{-
 scanUserInfixView :: Exp () -> Int -> [String]
 scanUserInfixView (Paren () e) depth = scanUserInfixView e 
 scanUserInfixView (InfixApp () _ op rhs) depth 
@@ -179,6 +191,7 @@ scanUserInfixView (InfixApp () _ op rhs) depth
             -> if | symStr == "^." -> scanUserInfixView rhs (depth+1)
                   | symStr == "." -> scanUserInfixView rhs (depth+1)
                   | otherwise -> scanUserInfixView rhs (depth+1)
+                  -}
 
 
 {-

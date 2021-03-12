@@ -5,7 +5,9 @@ module Cogent.Haskell.PBT.DSL.Parser (parsePbtDescFile) where
 import Cogent.Haskell.PBT.DSL.Types
 import Cogent.Compiler (__cogent_pbt_info, __impossible)
 import qualified Language.Haskell.Exts.Syntax as HSS (Exp(..), Type(..))
-import qualified Language.Haskell.Exts.Parser as HSP (parseType, parseExp, fromParseResult)
+import qualified Language.Haskell.Exts.Parser as HSP (parseType, parseExp, parseExpWithMode, fromParseResult, ParseMode(..))
+import qualified Language.Haskell.Exts.Extension as HSE (Language(..))
+import qualified Language.Haskell.Exts.Fixity as HSF (infixr_, preludeFixities, baseFixities)
 import qualified Language.Haskell.Names.SyntaxUtils as HSN (dropAnn)
 import Text.Parsec
 import Text.Parsec.Char
@@ -91,7 +93,7 @@ pExpr'' lhs = do
                              , Just lhs )
     case v of
        Just x -> if | op == typStr -> trace (show "92") $ pTypExpr x
-                    | op == mapStr -> trace (show "93") $pMapExpr x
+                    | op == mapStr -> trace (show "93") $ pMapExpr x
                     | otherwise -> trace (show "96") $ pJustExpr x
        Nothing ->  pJustExpr lhs
 
@@ -115,6 +117,7 @@ pTypExpr lhs = do
 
 pMapExpr lhs = do
     e <- mapOp *> pHsExp
+    _ <- trace ("-->"++show e) $ seeNext 3
     let x = PbtDescExpr (Just (toPbtTyp' lhs)) $ Just $ Right (parseHsExp e)
     _ <- trace (show x) $ seeNext 3
     return $ x
@@ -232,7 +235,10 @@ parseHsTyp :: String -> HSS.Type ()
 parseHsTyp = HSN.dropAnn . HSP.fromParseResult . HSP.parseType
 
 parseHsExp :: String -> HSS.Exp ()
-parseHsExp = HSN.dropAnn . HSP.fromParseResult . HSP.parseExp
+parseHsExp = HSN.dropAnn . HSP.fromParseResult . (HSP.parseExpWithMode parseMode)
+
+parseMode = HSP.ParseMode "unknown" HSE.Haskell2010 [] True True (Just $ fixes) True
+    where fixes = HSF.infixr_ 0 ["^.", "^?"] ++ HSF.preludeFixities ++ HSF.baseFixities
 
 -- Debugging/Testing
 -- -----------------------------------------
@@ -270,9 +276,9 @@ exampleFile = unlines $
         , "    pure { True }                \r"
         , "    nond { False }               \r"
         , "    absf {                       \r"
-        , "         ic : R4 Word32 Word32;  \r"
+        , "         ic : (Word32, R4 Word32 Word32);  \r"
         , "         ia : Int;        \r"
-        , "         ia := ic ^. count . _1 ;                    \r"
+        , "         ia := ic ^. _2 . sum . count ;                    \r"
         -- , "               ic ^. count;               \r"
         , "    }                            \r"
         , "    rrel {                       \r"
