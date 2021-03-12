@@ -25,6 +25,7 @@ data GroupTag = HsTuple | HsRecord | HsVariant | HsList | HsPrim | Unknown deriv
 data HsEmbedLayout = HsEmbedLayout
     { _hsTyp :: HS.Type ()
     , _grTag :: GroupTag
+    , _prevGrTag :: GroupTag
     , _fieldMap :: M.Map String (Either Int HsEmbedLayout)
     } deriving (Show)
 

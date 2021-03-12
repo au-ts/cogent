@@ -97,8 +97,8 @@ mkRrelExp' def oaT | (CC.TypeDef tn _ _) <- def
 -- | @oaTyp@ is the Haskell type of the abstract output
 mkRrelBody :: CC.Type t a -> Type () -> Type () -> SG (Exp (), [String])
 mkRrelBody cogOcTyp ocTyp oaTyp
-    = let ocLy = determineUnpack cogOcTyp ocTyp 0 "None"
-          oaLy = determineUnpack' oaTyp 0 "None"
+    = let ocLy = determineUnpack cogOcTyp ocTyp Unknown 0 "None"
+          oaLy = determineUnpack' oaTyp Unknown 0 "None"
           ocLens' = mkLensView ocLy "oc" Unknown Nothing
           oaLens' = mkLensView oaLy "oa" Unknown Nothing
           ocLens = map fst ocLens'
@@ -140,20 +140,20 @@ mkEqExp (oa, oc, (ty, grp))
 -- | @depth@ depth of recursion
 -- | @fieldName@ name of field we are in, since we recurse until we reach a prim, this will tell us the
 -- |             field that prim is bound to.
-determineUnpack' :: Type () -> Int -> String -> HsEmbedLayout
-determineUnpack' (TyParen _ t   ) depth fieldName = determineUnpack' t depth fieldName
-determineUnpack' hsTyp depth fieldName | (TyTuple _ _ tfs) <- hsTyp
-    = HsEmbedLayout hsTyp HsTuple $
+determineUnpack' :: Type () -> GroupTag -> Int -> String -> HsEmbedLayout
+determineUnpack' (TyParen _ t   ) prevGroup depth fieldName = determineUnpack' t prevGroup depth fieldName
+determineUnpack' hsTyp prevGroup depth fieldName | (TyTuple _ _ tfs) <- hsTyp
+    = HsEmbedLayout hsTyp HsTuple prevGroup $
         M.fromList [ let k = "_"++show (i+1)
-                       in (k , Right (determineUnpack' (tfs!!i) (depth+1) k))
+                       in (k , Right (determineUnpack' (tfs!!i) HsTuple (depth+1) k))
                    | i <- [0..P.length tfs-1]
                    ]
-determineUnpack' hsTyp depth fieldName | (TyCon _ cn) <- hsTyp
-    = HsEmbedLayout hsTyp HsPrim $
+determineUnpack' hsTyp prevGroup depth fieldName | (TyCon _ cn) <- hsTyp
+    = HsEmbedLayout hsTyp HsPrim prevGroup $
         M.fromList $ case checkIsPrim cn of
                           Just x -> [(fieldName, Left depth)]
                           Nothing -> []
-determineUnpack' hsTyp depth fieldName | (TyApp _ l r) <- hsTyp
+determineUnpack' hsTyp prevGroup depth fieldName | (TyApp _ l r) <- hsTyp
     = let (maybeConName:fieldTypes) = unfoldAppCon hsTyp
           conName = case maybeConName of
                       (TyCon _ (UnQual _ (Ident _ n))) -> n
@@ -163,13 +163,13 @@ determineUnpack' hsTyp depth fieldName | (TyApp _ l r) <- hsTyp
           --       Makes more sense to restrict oa to either a prim or a built in hs type rather then allowing
           --       them to define there own records
           fldNames = getAccessor conName groupTag fieldTypes Nothing
-        in HsEmbedLayout l groupTag $
+        in HsEmbedLayout l groupTag prevGroup $
             M.fromList [ (  fldNames!!i
-                         , Right (determineUnpack' (fieldTypes!!i) (depth+1) (fldNames!!i))
+                         , Right (determineUnpack' (fieldTypes!!i) groupTag (depth+1) (fldNames!!i))
                          )
                        | i <- [0..P.length fieldTypes-1]
                        ]
-determineUnpack' hsTyp depth fieldName | (TyList _ ty) <- hsTyp
-    = HsEmbedLayout hsTyp HsList $
-        M.fromList [ ( "1" , Right (determineUnpack' hsTyp (depth+1) "1")) ]
-determineUnpack' hsTyp depth fieldName | _ <- hsTyp = __impossible $ "Bad Abstraction"++" --> "++"Hs: "++show hsTyp
+determineUnpack' hsTyp prevGroup depth fieldName | (TyList _ ty) <- hsTyp
+    = HsEmbedLayout hsTyp HsList prevGroup $
+        M.fromList [ ( "1" , Right (determineUnpack' hsTyp HsList (depth+1) "1")) ]
+determineUnpack' hsTyp prevGroup depth fieldName | _ <- hsTyp = __impossible $ "Bad Abstraction"++" --> "++"Hs: "++show hsTyp

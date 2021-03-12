@@ -118,7 +118,7 @@ mkAbsFExp' def iaT | (CC.TypeDef tn _ _) <- def
 -- | @iaTyp@ is the Haskell type of the abstract input (what we are trying to abstract to)
 mkAbsFBody :: CC.Type t a -> Type () -> Type () -> SG (Exp (), [String])
 mkAbsFBody cogIcTyp icTyp iaTyp
-    = let icLayout = determineUnpack cogIcTyp icTyp 0 "None"
+    = let icLayout = determineUnpack cogIcTyp icTyp Unknown 0 "None"
           lens = map fst $ mkLensView icLayout "ic" Unknown Nothing
           binds = map ((\x -> pvar . mkName . fst $ x) &&& snd) lens
           body = packAbsCon iaTyp (map fst lens) 0
@@ -202,22 +202,22 @@ mkLensView layout varToView prevGroup prev
 -- | @depth@ depth of recursion
 -- | @fieldName@ name of field we are in, since we recurse until we reach a prim, this will tell us the
 -- |             field that prim is bound to.
-determineUnpack :: CC.Type t a -> Type () -> Int -> String -> HsEmbedLayout
-determineUnpack cogIcTyp (TyParen _ t   ) depth fieldName = determineUnpack cogIcTyp t depth fieldName
-determineUnpack cogIcTyp icTyp depth fieldName
-    | (TyTuple _ _ tfs) <- icTyp = HsEmbedLayout icTyp HsTuple $ getTupFields cogIcTyp tfs
+determineUnpack :: CC.Type t a -> Type () -> GroupTag -> Int -> String -> HsEmbedLayout
+determineUnpack cogIcTyp (TyParen _ t   ) prevGroup depth fieldName = determineUnpack cogIcTyp t prevGroup depth fieldName
+determineUnpack cogIcTyp icTyp prevGroup depth fieldName
+    | (TyTuple _ _ tfs) <- icTyp = HsEmbedLayout icTyp HsTuple prevGroup $ getTupFields cogIcTyp tfs
     where getTupFields cogTy tfs
             = let fs = getFields cogTy
                 in M.fromList [ let k = "_"++show (i+1)
-                                  in (k , Right (determineUnpack (fst (snd (fs!!i))) (tfs!!i) (depth+1) k))
+                                  in (k , Right (determineUnpack (fst (snd (fs!!i))) (tfs!!i) HsTuple (depth+1) k))
                               | i <- [0..P.length tfs-1]
                               ]
-determineUnpack cogIcTyp icTyp depth fieldName
-    | (TyCon _ cn) <- icTyp = HsEmbedLayout icTyp HsPrim (getConFields cn)
+determineUnpack cogIcTyp icTyp prevGroup depth fieldName
+    | (TyCon _ cn) <- icTyp = HsEmbedLayout icTyp HsPrim prevGroup (getConFields cn)
     where getConFields cn = M.fromList $ case checkIsPrim cn of
                           Just x -> [(fieldName, Left depth)]
                           Nothing -> []
-determineUnpack cogIcTyp icTyp depth fieldName
+determineUnpack cogIcTyp icTyp prevGroup depth fieldName
     | (TyApp _ l r) <- icTyp
     = let (maybeConName:fieldTypes) = unfoldAppCon icTyp
           cogFields = getFields cogIcTyp
@@ -228,21 +228,21 @@ determineUnpack cogIcTyp icTyp depth fieldName
                        (CC.TRecord _ fs _) -> HsRecord
                        (CC.TSum alts) -> HsVariant
           accessors = getAccessor conName groupTag fieldTypes (Just (map fst cogFields))
-        in HsEmbedLayout l groupTag $
+        in HsEmbedLayout l groupTag prevGroup $
             M.fromList [ let a = accessors!!i
                              f = cogFields!!i
                            in ( a
-                              , Right (determineUnpack (fst (snd f)) (fieldTypes!!i) (depth+1) a)
+                              , Right (determineUnpack (fst (snd f)) (fieldTypes!!i) groupTag (depth+1) a)
                               )
                        | i <- [0..P.length cogFields-1]
                        ]
-determineUnpack cogIcTyp icTyp depth fieldName
+determineUnpack cogIcTyp icTyp prevGroup depth fieldName
     | (TyList _ ty) <- icTyp
     = let elemCogTy = case cogIcTyp of
                      (CC.TArray t _ _ _) -> t
                      _ -> __impossible $ "Bad Abstraction"++" --> "++"Hs: "++show icTyp
-        in HsEmbedLayout icTyp HsList $ M.fromList [ ( "1" , Right (determineUnpack elemCogTy ty (depth+1) "1")) ]
-determineUnpack cogIcTyp icTyp depth fieldName
+        in HsEmbedLayout icTyp HsList prevGroup $ M.fromList [ ( "1" , Right (determineUnpack elemCogTy ty HsList (depth+1) "1")) ]
+determineUnpack cogIcTyp icTyp prevGroup depth fieldName
     | _ <- icTyp
     = __impossible $ "Bad Abstraction"++" --> "++"Hs: "++show icTyp
 -- TODO: For the sake of completeness ... ensure these can never really occur

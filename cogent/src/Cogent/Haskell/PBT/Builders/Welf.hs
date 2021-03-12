@@ -54,42 +54,173 @@ import Cogent.Isabelle.Shallow (isRecTuple)
 -- -----------------------------------------------------------------------
 genDecls'' :: PbtDescStmt -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
 genDecls'' stmt defs = do
-        icTy <- getFnIcTy (stmt ^. funcname) defs
         let (_, _, predExp) = findKvarsInDecl Welf Pred $ stmt ^. decls
-            fnName = "gen_" ++ stmt ^. funcname
+        (icT, genfExp) <- mkGenFExp (stmt ^. funcname) defs predExp
+        let fnName = "gen_" ++ stmt ^. funcname
             genCon = TyCon () (mkQName "Gen")
-            tyOut = TyApp () genCon $ TyParen () icTy
-            e = mkGenBody predExp
-            
+            tyOut = TyApp () genCon $ TyParen () icT
             sig    = TypeSig () [mkName fnName] tyOut
             -- TODO: better gen_* body
             --       - what else do you need for arbitrary?
-            dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $ e) Nothing]
+            dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $ genfExp) Nothing]
             -- TODO: this is a dummy HS spec function def -> replace with something better
             hs_dec    = FunBind () [Match () (mkName $ "hs_"++(stmt ^. funcname)) [] (UnGuardedRhs () $
                            function "undefined") Nothing]
           in return [sig, dec, hs_dec]
+
+-- gen function only has output type (wrapped in Gen monad)
+mkGenFExp :: String -> [CC.Definition TypedExpr VarName b] -> Maybe (Exp ()) -> SG (Type (), Exp ())
+mkGenFExp fname defs predE = do
+    let def = fromMaybe (__impossible "function name (of function under test) cannot be found in cogent program"
+              ) $ find (\x -> CC.getDefinitionId x == fname) defs
+    mkGenFExp' def predE
+
+mkGenFExp' :: CC.Definition TypedExpr VarName b -> Maybe (Exp ()) -> SG (Type (), Exp ())
+mkGenFExp' def predE | (CC.FunDef _ fn ps _ ti to _) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
+    ti' <- shallowType ti
+    (genfExp) <- mkGenFBody ti ti' predE
+    pure (ti', genfExp)
+mkGenFExp' def predE | (CC.AbsDecl _ fn ps _ ti to) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
+    ti' <- shallowType ti
+    (genfExp) <- mkGenFBody ti ti' predE
+    pure (ti', genfExp)
+mkGenFExp' def _ | (CC.TypeDef tn _ _) <- def = pure (TyCon () (mkQName "Unknown"), function "undefined")
+
+mkGenFBody :: CC.Type t a -> Type () -> Maybe (Exp ()) -> SG (Exp ())
+mkGenFBody cogIcTyp icTyp predExp = 
+    let icLayout = determineUnpack cogIcTyp icTyp Unknown 0 "None"
+        genStmts = mkArbitraryGenStmt icLayout Unknown
+        binds = map (snd . fst) genStmts
+        body = packConWithLayout (Right icLayout) Nothing
+        -- packAbsCon icTyp (map (fst . fst) genStmts) 0
+      in return $ doE $ binds ++ [qualStmt (app (function "return") body)]
+
+
+-- TODO: will need to match user built lens with generated lens
+
+{-
+
+          e = case predExp of 
+                      Just x -> infixApp genfn predOp $ predFunc x
+                      Nothing -> genfn
+        in pure (e, [])
+        where genfn = function "arbitrary" -- "arbitrary"
+              predOp = op $ mkName "suchThat"
+              predFunc x = lamE [pvar $ mkName "ic"] x
+              -}
+
+{-
+          lens = map fst $ mkLensView icLayout "ic" Unknown Nothing
+          binds = map ((\x -> pvar . mkName . fst $ x) &&& snd) lens
+          body = packAbsCon iaTyp (map fst lens) 0
+       in pure (mkLetE binds body, getConNames icLayout [])
+       -}
+
+
+
+mkArbitraryGenStmt :: HsEmbedLayout -> GroupTag -> [((String, Stmt ()), (Type (), GroupTag))]
+mkArbitraryGenStmt layout prevGroup
+    = let hsTy = layout ^. hsTyp
+          group = layout ^. grTag
+          prevGroup = layout ^. prevGrTag
+          fld = layout ^. fieldMap
+       in concatMap ( \(k, v) -> case group of
+            HsPrim -> case v of
+               (Left depth) -> [ ( let n = k ++ replicate depth (P.head "'")
+                                     in ( n
+                                        , genStmt (pvar (mkName n)) $ function "arbitrary" )
+                                 , (hsTy, prevGroup) )
+                               ]
+               (Right next) -> __impossible $ show k ++ " " ++ show v
+            _ -> case v of
+               (Left depth) -> __impossible $ show k ++ " " ++ show v
+               (Right next) -> mkArbitraryGenStmt next group -- $ Just $ mkViewInfixE varToView group prev k
+       ) $ M.toList fld
+
+
+packConWithLayout :: Either Int HsEmbedLayout -> Maybe String -> Exp ()
+packConWithLayout layout fieldKey
+    = case layout of 
+    Left depth -> var $ mkName $ (fromMaybe (__impossible "no field key!") fieldKey) ++ replicate depth (P.head "'")
+    Right nextLayout -> let hsTy = nextLayout ^. hsTyp
+                            group = nextLayout ^. grTag
+                            prevGroup = nextLayout ^. prevGrTag
+                            fld = nextLayout ^. fieldMap 
+                          in case group of
+        HsPrim -> let (k,v) = P.head $ M.toList fld
+                    in packConWithLayout v (Just k)
+        HsList -> __impossible "should not be a list"
+        Unknown -> __impossible "unknown type found!"
+        HsTuple -> tuple $ map (\(k,v) -> packConWithLayout v (Just k)) $ M.toList fld 
+        _ -> let (name, flds) = let (conHead:conParams) = unfoldAppCon hsTy
+                                               in ( case conHead of
+                                                          (TyCon _ (UnQual _ (Ident _ n))) -> n
+                                                          _ -> "Unknown"
+                                                  , M.toList fld )
+                      in appFun (mkVar name) $ map (\(k,v) -> packConWithLayout v (Just k)) $ flds
+
+
+
+{-
 
 -- this needs to take a predicate and turn it into a generator
 -- this is naive method so far
 -- TODO: advanced method
 --  -> convert predicate into functions, this is refinement in a way
 --  -> see figuring out
-mkGenBody :: Maybe (Exp ()) -> Exp ()
-mkGenBody predExp = case predExp of 
+mkGenBody :: Type () -> Maybe (Exp ()) -> Exp ()
+mkGenBody icTyp predExp = case predExp of 
                       Just x -> infixApp genfn predOp $ predFunc x
                       Nothing -> genfn
     where genfn = function "arbitrary" -- "arbitrary"
           predOp = op $ mkName "suchThat"
           predFunc x = lamE [pvar $ mkName "ic"] x
+          -}
 
 
-getFnIcTy :: String -> [CC.Definition TypedExpr VarName b] -> SG (Type ())
-getFnIcTy funcname defs =
+
+
+packConcCon :: Type () -> [String] -> Int -> Exp ()
+packConcCon (TyParen _ insideTy) varsToPut pos = packConcCon insideTy varsToPut pos
+packConcCon (TyTuple _ _ ftys) varsToPut pos
+    = tuple $ let vs = if P.length ftys == P.length varsToPut then varsToPut else take (P.length ftys) varsToPut
+                in [ packConcCon (ftys!!i) vs i | i <- [0..P.length ftys-1] ]
+packConcCon (TyCon _ name) varsToPut pos
+    = case checkIsPrim name of
+        -- transform if needs coercion
+        Just x -> if isInt' name then app (function "fromIntegral") $ mkVar $ varsToPut!!pos else mkVar $ varsToPut!!pos
+        Nothing -> mkVar $ varsToPut!!pos
+packConcCon iaTyp varsToPut pos
+    | (TyApp _ lTy rTy) <- iaTyp
+    = let (name, fieldTypes) = let (conHead:conParams) = unfoldAppCon iaTyp
+                                 in ( case conHead of
+                                            (TyCon _ (UnQual _ (Ident _ n))) -> n
+                                            _ -> "Unknown"
+                                    , conParams
+                                    )
+        in appFun (mkVar name) $ let vs = if P.length fieldTypes == P.length varsToPut then varsToPut else take (P.length fieldTypes) varsToPut
+                                               in [ packConcCon (fieldTypes!!i) vs i | i <- [0..P.length fieldTypes-1] ]
+                where
+packConcCon (TyList _ ty) varsToPut pos = mkVar $ varsToPut!!pos
+packConcCon iaTyp varsToPut prev | _ <- iaTyp = __impossible $ "Bad Abstraction"++" --> "++"Hs: "++show iaTyp
+
+
+
+{-
+getCogFunInputTyp :: String -> [CC.Definition TypedExpr VarName b] -> SG (CC.Type t b, Type ())
+getCogFunInputTyp funcname defs =
     let fnDef = fromJust $ find (\x -> CC.getDefinitionId x == funcname) defs
-      in getFnIcTy' fnDef
+      in getCogFunInputTyp' fnDef
 
-getFnIcTy' :: CC.Definition TypedExpr VarName b -> SG (Type ())
-getFnIcTy' (CC.FunDef _ fn ps _ ti to _) = shallowType ti
-getFnIcTy' (CC.AbsDecl _ fn ps _ ti to) = shallowType ti
-getFnIcTy' _ = __impossible "could not get input type"
+getCogFunInputTyp' :: CC.Definition TypedExpr VarName b -> SG (CC.Type t b, Type ())
+getCogFunInputTyp' (CC.FunDef _ fn ps _ ti to _) = do
+    s <- shallowType ti
+    let ti' = ti
+    return $ (ti', s)
+getCogFunInputTyp' (CC.AbsDecl _ fn ps _ ti to) = do
+    s <- shallowType ti
+    let ti' = ti
+    return $ (ti', s)
+getCogFunInputTyp' _ = __impossible "could not get input type"
+
+-}
