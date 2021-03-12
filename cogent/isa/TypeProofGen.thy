@@ -17,24 +17,24 @@ begin
 
 (* Convert ttyping subproofs to standard typing subproofs. *)
 lemma ttsplit_imp_split':
-  "ttsplit k \<Gamma> splits xs \<Gamma>1 ys \<Gamma>2 \<Longrightarrow>
-    k \<turnstile> snd \<Gamma> \<leadsto> drop (length xs) (snd \<Gamma>1) | drop (length ys) (snd \<Gamma>2)"
+  "ttsplit l k c \<Gamma> splits xs \<Gamma>1 ys \<Gamma>2 \<Longrightarrow>
+    l, k, c \<turnstile> snd \<Gamma> \<leadsto> drop (length xs) (snd \<Gamma>1) | drop (length ys) (snd \<Gamma>2)"
   by (fastforce dest: ttsplit_imp_split)
 
 
 lemma ttsplit_inner_imp_split:
   assumes
-    "ttsplit_inner K splits \<Gamma>b \<Gamma>1 \<Gamma>2"
+    "ttsplit_inner L K C splits \<Gamma>b \<Gamma>1 \<Gamma>2"
     "list_all ((\<noteq>) (Some TSK_NS)) splits"
   shows
-    "K \<turnstile> snd (TyTrSplit splits xs T1 ys T2, \<Gamma>b) \<leadsto>
+    "L, K, C \<turnstile> snd (TyTrSplit splits xs T1 ys T2, \<Gamma>b) \<leadsto>
       drop (length xs) (snd (T1, xs @ \<Gamma>1)) | drop (length ys) (snd (T2, ys @ \<Gamma>2))"
   using assms
   by (blast dest: ttsplitI ttsplit_imp_split')
 
 lemma ttsplit_bang_imp_split_bang':
-  "ttsplit_bang is splits k \<Gamma> xs \<Gamma>1 ys \<Gamma>2 \<Longrightarrow>
-    split_bang k is (snd \<Gamma>) (drop (length xs) (snd \<Gamma>1)) (drop (length ys) (snd \<Gamma>2))"
+  "ttsplit_bang is splits l k c \<Gamma> xs \<Gamma>1 ys \<Gamma>2 \<Longrightarrow>
+    split_bang l k c is (snd \<Gamma>) (drop (length xs) (snd \<Gamma>1)) (drop (length ys) (snd \<Gamma>2))"
   by (fastforce dest: ttsplit_bang_imp_split_bang)
 
 (* simplification rules for type-tree cleanup *)

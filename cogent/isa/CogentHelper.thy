@@ -17,75 +17,75 @@ begin
 
 (* Rewrite rules to get expressions in the assumptions *)
 
-lemma typing_lit': "\<lbrakk> K \<turnstile> \<Gamma> consumed; t = lit_type l \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Lit l : TPrim t"
+lemma typing_lit': "\<lbrakk> L, K, C \<turnstile> \<Gamma> consumed; t = lit_type l \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Lit l : TPrim t"
   by (simp only: typing_lit)
 
-lemma typing_put':  "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
-                     ; \<Xi>, K, \<Gamma>1 \<turnstile> e : TRecord ts s
+lemma typing_put':  "\<lbrakk> L, K, C \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
+                     ; \<Xi>, L, K, C, \<Gamma>1 \<turnstile> e : TRecord ts s
                      ; sigil_perm s \<noteq> Some ReadOnly
                      ; f < length ts
                      ; ts ! f = (n,t, taken)
-                     ; K \<turnstile> t :\<kappa> k
+                     ; L, K, C \<turnstile> t :\<kappa> k
                      ; D \<in> k \<or> taken = Taken
-                     ; \<Xi>, K, \<Gamma>2 \<turnstile> e' : t
+                     ; \<Xi>, L, K, C, \<Gamma>2 \<turnstile> e' : t
                      ; ts' = (ts [f := (n,t,Present)])
-                     \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Put e f e' : TRecord ts' s"
+                     \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Put e f e' : TRecord ts' s"
   by (fastforce intro!: typing_put simp add: kinding_defs)
 
 lemma typing_prim' : "\<lbrakk> prim_op_type oper = (ts,t)
                       ; ts' = map TPrim ts
-                      ; \<Xi>, K, \<Gamma> \<turnstile>* args : ts'
-                      \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Prim oper args : TPrim t"
+                      ; \<Xi>, L, K, C, \<Gamma> \<turnstile>* args : ts'
+                      \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Prim oper args : TPrim t"
   by (simp only: typing_prim)
 
 
-lemma typing_con' : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t
+lemma typing_con' : "\<lbrakk> \<Xi>, L, K, C, \<Gamma> \<turnstile> x : t
                      ; (tag, t, Unchecked) \<in> set ts
-                     ; K \<turnstile> TSum ts wellformed
+                     ; L, K, C \<turnstile> TSum ts wellformed
                      ; ts = ts'
-                     \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Con ts tag x : TSum ts'"
+                     \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Con ts tag x : TSum ts'"
   by (simp add: typing_con)
 
-lemma typing_struct': "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile>* es : ts
+lemma typing_struct': "\<lbrakk> \<Xi>, L, K, C, \<Gamma> \<turnstile>* es : ts
                        ; ns = map fst ts'
                        ; distinct ns
                        ; map (fst \<circ> snd) ts' = ts
                        ; list_all (\<lambda>p. snd (snd p) = Present) ts'
-                       \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Struct ts es : TRecord ts' Unboxed"
+                       \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Struct ts es : TRecord ts' Unboxed"
   by (force intro: typing_struct simp add: zip_eq_conv_sym replicate_eq_map_conv_nth list_all_length)
 
 lemma typing_afun': "\<lbrakk> \<Xi> f = (ks, t, u)
-                     ; list_all2 (kinding K) ts ks
-                     ; t' = instantiate ts t
-                     ; u' = instantiate ts u
-                     ; ks \<turnstile> TFun t u wellformed
-                     ; K \<turnstile> \<Gamma> consumed
-                     \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> AFun f ts : TFun t' u'"
+                     ; L, K, C \<turnstile> [], ts :s 0 , ks, {}
+                     ; t' = instantiate [] ts t
+                     ; u' = instantiate [] ts u
+                     ; 0, ks, {} \<turnstile> TFun t u wellformed
+                     ; L, K, C \<turnstile> \<Gamma> consumed
+                     \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> AFun f ts : TFun t' u'"
   by (simp only: typing_afun)
 
-lemma typing_fun': "\<lbrakk> \<Xi>, K', (TT, [Some t]) T\<turnstile> f : u
-                    ; list_all2 (kinding K) ts K'
-                    ; t' = instantiate ts t
-                    ; u' = instantiate ts u
-                    ; K' \<turnstile> t wellformed
-                    ; K \<turnstile> \<Gamma> consumed
-                    \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Fun f ts : TFun t' u'"
+lemma typing_fun': "\<lbrakk> \<Xi>, L', K', C', (TT, [Some t]) T\<turnstile> f : u
+                    ; L, K, C \<turnstile> ls, ts :s L', K', C'
+                    ; t' = instantiate ls ts t
+                    ; u' = instantiate ls ts u
+                    ; L', K', C' \<turnstile> t wellformed
+                    ; L, K, C \<turnstile> \<Gamma> consumed
+                    \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Fun f ts ls : TFun t' u'"
   by (auto simp only: typing_fun snd_conv dest: ttyping_imp_typing)
 
-lemma typing_var_weak: "\<lbrakk> K \<turnstile> t :\<kappa> k
-                        ; K \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i t
+lemma typing_var_weak: "\<lbrakk> L, K, C \<turnstile> t :\<kappa> k
+                        ; L, K, C \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i t
                         ; i < length \<Gamma>
-                        \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Var i : t"
+                        \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Var i : t"
   (* weaker than typing_var - the kinding assumption lets
      us easily instantiate t *)
   by (simp only: typing_var)
 
-lemma typing_all_empty': "\<Gamma> = empty n \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile>* [] : []"
+lemma typing_all_empty': "\<Gamma> = empty n \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile>* [] : []"
   by (simp only: typing_all_empty)
 
 lemma typing_all_empty'':
   "set \<Gamma> \<subseteq> {None}
-    \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile>* [] : []"
+    \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile>* [] : []"
   apply (rule typing_all_empty'[where n="length \<Gamma>"])
   apply (clarsimp simp: Cogent.empty_def list_eq_iff_nth_eq)
   apply (frule subsetD, erule nth_mem)
@@ -95,18 +95,18 @@ lemma typing_all_empty'':
 lemma split_bang_bang' :"\<lbrakk> 0 \<in> is
                       ; x' = bang x
                       ; is' = pred ` (Set.remove 0 is)
-                      ; split_bang K is' xs as bs
-                      ; type_wellformed (length K) x
-                      \<rbrakk>  \<Longrightarrow> split_bang K is (Some x # xs) (Some x' # as) (Some x # bs)"
+                      ; split_bang L K C is' xs as bs
+                      ; type_wellformed L (length K) C x
+                      \<rbrakk>  \<Longrightarrow> split_bang L K C is (Some x # xs) (Some x' # as) (Some x # bs)"
   by (clarsimp intro!: split_bang_cons simp add: split_bang_comp.simps)
 
-lemma type_wellformed_prettyI: "type_wellformed (length K) t \<Longrightarrow> K \<turnstile> t wellformed"
+lemma type_wellformed_prettyI: "type_wellformed L (length K) C t \<Longrightarrow> L, K, C \<turnstile> t wellformed"
   by simp
 
 definition
-  type_ctx_wellformed :: "kind env \<Rightarrow> ctx \<Rightarrow> bool"
+  type_ctx_wellformed :: "lay_env \<Rightarrow> kind env \<Rightarrow> lay_constraints \<Rightarrow> ctx \<Rightarrow> bool"
 where
-  "type_ctx_wellformed K \<Gamma> = (\<forall>t. Some t \<in> set \<Gamma> \<longrightarrow> K \<turnstile> t wellformed)"
+  "type_ctx_wellformed L K C \<Gamma> = (\<forall>t. Some t \<in> set \<Gamma> \<longrightarrow> L, K, C \<turnstile> t wellformed)"
 
 (* TODO this seems redundant now / 2018.11.27 ~ v.jackson
 definition ttsplit_weak :: "kind env \<Rightarrow> tree_ctx \<Rightarrow> type_split_op option list
@@ -121,9 +121,9 @@ where
 
 lemma ttsplit_weak_lemma:
   "ttsplit_weak K \<Gamma> sps xs \<Gamma>1 ys \<Gamma>2
-    \<Longrightarrow> type_ctx_wellformed K (snd \<Gamma>1)
-    \<Longrightarrow> type_ctx_wellformed K (snd \<Gamma>2)
-    \<Longrightarrow> ttsplit K \<Gamma> sps xs \<Gamma>1 ys \<Gamma>2"
+    \<Longrightarrow> type_ctx_wellformed L K C (snd \<Gamma>1)
+    \<Longrightarrow> type_ctx_wellformed L K C (snd \<Gamma>2)
+    \<Longrightarrow> ttsplit L K C \<Gamma> sps xs \<Gamma>1 ys \<Gamma>2"
   apply (clarsimp simp: ttsplit_def ttsplit_weak_def type_ctx_wellformed_def)
   apply (clarsimp simp add: ttsplit_inner_def)
   apply (clarsimp simp: ttsplit_inner_def in_set_conv_nth all_conj_distrib)
@@ -144,28 +144,28 @@ lemmas ttyping_type_ctx_wellformed = ttyping_type_wellformed[folded type_ctx_wel
 
 lemma ttsplit_triv_type_ctxt_wellformed:
   "ttsplit_triv \<Gamma> x \<Gamma>1 y \<Gamma>2
-    \<Longrightarrow> type_ctx_wellformed K (snd \<Gamma>1) \<or> type_ctx_wellformed K (snd \<Gamma>2)
-    \<Longrightarrow> type_ctx_wellformed K (snd \<Gamma>)"
+    \<Longrightarrow> type_ctx_wellformed L K C (snd \<Gamma>1) \<or> type_ctx_wellformed L K C (snd \<Gamma>2)
+    \<Longrightarrow> type_ctx_wellformed L K C (snd \<Gamma>)"
   by (auto simp: ttsplit_triv_def type_ctx_wellformed_def)
 
-lemma ttyping_case':  "\<lbrakk> ttsplit K \<Gamma> ijs [] \<Gamma>1 [] \<Gamma>2
-                   ; \<Xi>, K, \<Gamma>1 T\<turnstile> x : TSum ts
+lemma ttyping_case':  "\<lbrakk> ttsplit L K C \<Gamma> ijs [] \<Gamma>1 [] \<Gamma>2
+                   ; \<Xi>, L, K, C, \<Gamma>1 T\<turnstile> x : TSum ts
                    ; (tag, t, Unchecked) \<in> set ts
                    ; ttsplit_triv \<Gamma>2 [Some t] \<Gamma>3 [Some (TSum (tagged_list_update tag (t, Checked) ts))] \<Gamma>4
-                   ; \<Xi>, K, \<Gamma>3 T\<turnstile> a : u
-                   ; \<Xi>, K, \<Gamma>4 T\<turnstile> b : u
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> T\<turnstile> Case x tag a b : u"
+                   ; \<Xi>, L, K, C, \<Gamma>3 T\<turnstile> a : u
+                   ; \<Xi>, L, K, C, \<Gamma>4 T\<turnstile> b : u
+                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> T\<turnstile> Case x tag a b : u"
   by (simp only: ttyping_case[rotated])
 
-lemma ttyping_take': "\<lbrakk> ttsplit K \<Gamma> ijs [] \<Gamma>1 [Some t, Some (TRecord ts' s)] \<Gamma>2
-                   ; \<Xi>, K, \<Gamma>1 T\<turnstile> e : TRecord ts s
+lemma ttyping_take': "\<lbrakk> ttsplit L K C \<Gamma> ijs [] \<Gamma>1 [Some t, Some (TRecord ts' s)] \<Gamma>2
+                   ; \<Xi>, L, K, C, \<Gamma>1 T\<turnstile> e : TRecord ts s
                    ; sigil_perm s \<noteq> Some ReadOnly
                    ; f < length ts
                    ; ts ! f = (n, t, Present)
-                   ; K \<turnstile> t :\<kappa> k
+                   ; L, K, C \<turnstile> t :\<kappa> k
                    ; ts = ts'[f := (n, t, Present)] \<and> fst (ts' ! f) = n \<and> fst (snd (ts' ! f)) = t \<and> (S \<in> k \<or> snd (snd (ts' ! f)) = Taken)
-                   ; \<Xi>, K, \<Gamma>2 T\<turnstile> e' : u
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> T\<turnstile> Take e f e' : u"
+                   ; \<Xi>, L, K, C, \<Gamma>2 T\<turnstile> e' : u
+                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> T\<turnstile> Take e f e' : u"
   apply clarify
   apply (rule ttyping_take[rotated], assumption+)
   apply simp
@@ -198,18 +198,18 @@ lemma list_update_eq_id:
 lemma list_all2_record_kind_subty_cons_nodrop:
   assumes
     "snd (snd p1) = snd (snd p2)"
-    "list_all2 (record_kind_subty K) fs1 fs2"
-  shows "list_all2 (record_kind_subty K) (p1 # fs1) (p2 # fs2)"
+    "list_all2 (record_kind_subty L K C) fs1 fs2"
+  shows "list_all2 (record_kind_subty L K C) (p1 # fs1) (p2 # fs2)"
   using assms
   by clarsimp
 
 lemma list_all2_record_kind_subty_cons_drop:
   assumes
-    "K \<turnstile> (fst (snd p1)) :\<kappa> k"
+    "L, K, C \<turnstile> (fst (snd p1)) :\<kappa> k"
     "D \<in> k"
     "snd (snd p1) < snd (snd p2)"
-    "list_all2 (record_kind_subty K) fs1 fs2"
-  shows "list_all2 (record_kind_subty K) (p1 # fs1) (p2 # fs2)"
+    "list_all2 (record_kind_subty L K C) fs1 fs2"
+  shows "list_all2 (record_kind_subty L K C) (p1 # fs1) (p2 # fs2)"
   using assms
   by (simp add: list_all2_cons supersumption(1))
 

@@ -109,7 +109,7 @@ lemma corres_lit:
 
 
 lemma corres_cast_8_16:
-  assumes typing_cast: "\<Xi>, [], \<Gamma>' \<turnstile> Cast U16 (Var x) : TPrim (Num U16)"
+  assumes typing_cast: "\<Xi>, 0, [], {}, \<Gamma>' \<turnstile> Cast U16 (Var x) : TPrim (Num U16)"
   assumes val_rel_var: "val_rel (\<gamma>!x) (x'::word8)"
   shows "corres srel (Cast U16 (Var x)) (gets (\<lambda>_. (ucast x' :: word16))) \<xi> \<gamma> \<Xi> \<Gamma>' \<sigma> s"
   apply (insert val_rel_var)
@@ -132,7 +132,7 @@ lemma corres_cast_8_16:
   done
 
 lemma corres_cast_8_32:
-  assumes typing_cast: "\<Xi>, [], \<Gamma>' \<turnstile> Cast U32 (Var x) : TPrim (Num U32)"
+  assumes typing_cast: "\<Xi>, 0, [], {}, \<Gamma>' \<turnstile> Cast U32 (Var x) : TPrim (Num U32)"
   assumes val_rel_var: "val_rel (\<gamma>!x) (x':: word8)"
   shows "corres srel (Cast U32 (Var x)) (gets (\<lambda>_. (ucast x' :: word32))) \<xi> \<gamma> \<Xi> \<Gamma>' \<sigma> s"
   apply (insert val_rel_var)
@@ -155,7 +155,7 @@ lemma corres_cast_8_32:
   done
 
 lemma corres_cast_16_32:
-  assumes typing_cast: "\<Xi>, [], \<Gamma>' \<turnstile> Cast U32 (Var x) : TPrim (Num U32)"
+  assumes typing_cast: "\<Xi>, 0, [], {}, \<Gamma>' \<turnstile> Cast U32 (Var x) : TPrim (Num U32)"
   assumes val_rel_var: "val_rel (\<gamma>!x) (x':: word16)"
   shows "corres srel (Cast U32 (Var x)) (gets (\<lambda>_. (ucast x' :: word32))) \<xi> \<gamma> \<Xi> \<Gamma>' \<sigma> s"
   apply (insert val_rel_var)
@@ -178,7 +178,7 @@ lemma corres_cast_16_32:
   done
 
 lemma corres_cast_8_64:
-  assumes typing_cast: "\<Xi>, [], \<Gamma>' \<turnstile> Cast U64 (Var x) : TPrim (Num U64)"
+  assumes typing_cast: "\<Xi>, 0, [], {}, \<Gamma>' \<turnstile> Cast U64 (Var x) : TPrim (Num U64)"
   assumes val_rel_var: "val_rel (\<gamma>!x) (x':: word8)"
   shows "corres srel (Cast U64 (Var x)) (gets (\<lambda>_. (ucast x' :: word64))) \<xi> \<gamma> \<Xi> \<Gamma>' \<sigma> s"
   apply (insert val_rel_var)
@@ -201,7 +201,7 @@ lemma corres_cast_8_64:
   done
 
 lemma corres_cast_16_64:
-  assumes typing_cast: "\<Xi>, [], \<Gamma>' \<turnstile> Cast U64 (Var x) : TPrim (Num U64)"
+  assumes typing_cast: "\<Xi>, 0, [], {}, \<Gamma>' \<turnstile> Cast U64 (Var x) : TPrim (Num U64)"
   assumes val_rel_var: "val_rel (\<gamma>!x) (x':: word16)"
   shows "corres srel (Cast U64 (Var x)) (gets (\<lambda>_. (ucast x' :: word64))) \<xi> \<gamma> \<Xi> \<Gamma>' \<sigma> s"
   apply (insert val_rel_var)
@@ -224,7 +224,7 @@ lemma corres_cast_16_64:
   done
 
 lemma corres_cast_32_64:
-  assumes typing_cast: "\<Xi>, [], \<Gamma>' \<turnstile> Cast U64 (Var x) : TPrim (Num U64)"
+  assumes typing_cast: "\<Xi>, 0, [], {}, \<Gamma>' \<turnstile> Cast U64 (Var x) : TPrim (Num U64)"
   assumes val_rel_var: "val_rel (\<gamma>!x) (x':: word32)"
   shows "corres srel (Cast U64 (Var x)) (gets (\<lambda>_. (ucast x' :: word64))) \<xi> \<gamma> \<Xi> \<Gamma>' \<sigma> s"
   apply (insert val_rel_var)
@@ -264,8 +264,8 @@ lemma in_unknown_bind:
   by (clarsimp simp: unknown_def bind_def select_def)
 
 lemma corres_let:
-  assumes split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
-  assumes typing_x: "\<Xi>, [], \<Gamma>1 \<turnstile> x : t"
+  assumes split\<Gamma>: "0, [], {} \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+  assumes typing_x: "\<Xi>, 0, [], {}, \<Gamma>1 \<turnstile> x : t"
   assumes corres_x: "corres srel x x' \<xi> \<gamma> \<Xi> \<Gamma>1 \<sigma> s"
   assumes corres_cont: "\<And>v v' \<sigma>' s'. val_rel v (v'::'a::cogent_C_val) \<Longrightarrow>
                       corres srel y (y' v') \<xi> (v # \<gamma>) \<Xi> (Some t # \<Gamma>2) \<sigma>' s'"
@@ -329,8 +329,8 @@ lemma corres_let:
 
 lemma corres_nested_let_base:
   assumes let_const_def: "LET_CONST \<equiv> (1 :: ('c :: len) word)"
-  assumes split\<Gamma>: "[] \<turnstile> \<Gamma>' \<leadsto> \<Gamma>1 | \<Gamma>2"
-  assumes typing_x: "\<Xi>', [], \<Gamma>1 \<turnstile> x : t"
+  assumes split\<Gamma>: "0, [], {} \<turnstile> \<Gamma>' \<leadsto> \<Gamma>1 | \<Gamma>2"
+  assumes typing_x: "\<Xi>', 0, [], {}, \<Gamma>1 \<turnstile> x : t"
   assumes corres_x: "corres srel x x' \<xi> \<gamma> \<Xi>' \<Gamma>1 \<sigma> s"
   assumes corres_cont: "\<And>v v' \<sigma>' s'. val_rel v (v'::'a::cogent_C_val) \<Longrightarrow>
                       corres srel y (y' v') \<xi> (v # \<gamma>) \<Xi>' (Some t # \<Gamma>2) \<sigma>' s'"
@@ -343,8 +343,8 @@ lemma corres_nested_let_base:
 (* Like corres_let, but remembers the bound value in corres_cont.
  * It is restricted to "gets" expressions, where a concrete value (x') is always available. *)
 lemma corres_let_gets_propagate:
-  assumes split\<Gamma>: "[] \<turnstile> \<Gamma>' \<leadsto> \<Gamma>1 | \<Gamma>2"
-  assumes typing_x: "\<Xi>', [], \<Gamma>1 \<turnstile> x : t"
+  assumes split\<Gamma>: "0, [], {} \<turnstile> \<Gamma>' \<leadsto> \<Gamma>1 | \<Gamma>2"
+  assumes typing_x: "\<Xi>', 0, [], {}, \<Gamma>1 \<turnstile> x : t"
   assumes corres_x: "corres srel x (gets (\<lambda>_. x')) \<xi>' \<gamma> \<Xi>' \<Gamma>1 \<sigma> s"
   assumes corres_cont: "\<And>v v' \<sigma>' s'. val_rel v (v'::'a::cogent_C_val) \<Longrightarrow> v' = x'
                          \<Longrightarrow> corres srel y (y' v') \<xi>' (v # \<gamma>) \<Xi>' (Some t # \<Gamma>2) \<sigma>' s'"
@@ -384,9 +384,9 @@ lemma corres_let_gets_propagate:
 
 
 lemma corres_letbang':
-  assumes split\<Gamma>: "split_bang [] is \<Gamma>' \<Gamma>1 \<Gamma>2"
-  assumes typing_x: "\<Xi>', [], \<Gamma>1 \<turnstile> x : t"
-  assumes has_kind: " [] \<turnstile>  t :\<kappa>  k"
+  assumes split\<Gamma>: "split_bang 0 [] {} is \<Gamma>' \<Gamma>1 \<Gamma>2"
+  assumes typing_x: "\<Xi>', 0, [], {}, \<Gamma>1 \<turnstile> x : t"
+  assumes has_kind: " 0, [], {} \<turnstile>  t :\<kappa>  k"
   assumes kind_escapable: "E \<in> k"
   assumes corres_x: "corres srel x x' \<xi>' \<gamma> \<Xi>' \<Gamma>1 \<sigma> s"
   assumes corres_cont: "\<And>v v' \<sigma>' s'. val_rel v (v'::'a::cogent_C_val) \<Longrightarrow>
@@ -455,9 +455,9 @@ lemma corres_letbang':
 
 (* The Cogent compiler wraps x' in a dummy condition to ease pattern matching. *)
 lemma corres_letbang:
-  assumes split\<Gamma>: "split_bang [] is \<Gamma>' \<Gamma>1 \<Gamma>2"
-  assumes typing_x: "\<Xi>', [], \<Gamma>1 \<turnstile> x : t"
-  assumes has_kind: " [] \<turnstile>  t :\<kappa>  k"
+  assumes split\<Gamma>: "split_bang 0 [] {} is \<Gamma>' \<Gamma>1 \<Gamma>2"
+  assumes typing_x: "\<Xi>', 0, [], {}, \<Gamma>1 \<turnstile> x : t"
+  assumes has_kind: " 0, [], {} \<turnstile>  t :\<kappa>  k"
   assumes kind_escapable: "E \<in> k"
   assumes corres_x: "corres srel x x' \<xi>' \<gamma> \<Xi>' \<Gamma>1 \<sigma> s"
   assumes corres_cont: "\<And>v v' \<sigma>' s'. val_rel v (v'::'a::cogent_C_val) \<Longrightarrow>
@@ -501,11 +501,11 @@ shows "corres srel (Con typ tag (Var x)) (gets (\<lambda>_. p)) \<xi> \<gamma> \
   by (fastforce simp add: assms corres_def snd_return in_return intro: u_sem_con u_sem_var)
 
 lemma corres_split:
-  assumes split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+  assumes split\<Gamma>: "0, [], {} \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
   assumes \<gamma>_x: "\<gamma>!x = UProduct a b"
   assumes \<Gamma>_x: "\<Gamma>!x = Some (TProduct ta tb)"
-  assumes typing_x: "\<Xi>, [], \<Gamma>1 \<turnstile> Var x : TProduct ta tb"
-  assumes typing_cont: "(\<Xi>, [], Some ta # Some tb # \<Gamma>2 \<turnstile> e : te)"
+  assumes typing_x: "\<Xi>, 0, [], {}, \<Gamma>1 \<turnstile> Var x : TProduct ta tb"
+  assumes typing_cont: "(\<Xi>, 0, [], {}, Some ta # Some tb # \<Gamma>2 \<turnstile> e : te)"
   assumes val_rel_fst: "val_rel a (x1::'a1::cogent_C_val)"
   assumes val_rel_snd: "val_rel b (x2::'a2::cogent_C_val)"
   assumes corres_cont: "\<And>a' b' x1' x2'.
@@ -548,11 +548,11 @@ lemma corres_split:
 
 lemma corres_split_lazy:
   "\<lbrakk> val_rel (\<gamma> ! x) x';
-     [] \<turnstile> \<Gamma>' \<leadsto> \<Gamma>1 | \<Gamma>2;
+     0, [], {} \<turnstile> \<Gamma>' \<leadsto> \<Gamma>1 | \<Gamma>2;
      \<exists>a b. \<gamma> ! x = UProduct a b \<and> val_rel a (p1 x') \<and> val_rel b (p2 x');
      \<Gamma>' ! x = Some (TProduct ta tb);
-     \<Xi>', [], \<Gamma>1 \<turnstile> Var x : TProduct ta tb;
-     \<Xi>', [], Some ta # Some tb # \<Gamma>2 \<turnstile> e : te;
+     \<Xi>', 0, [], {}, \<Gamma>1 \<turnstile> Var x : TProduct ta tb;
+     \<Xi>', 0, [], {}, Some ta # Some tb # \<Gamma>2 \<turnstile> e : te;
      \<And>a' b' x1' x2'.
        \<lbrakk> val_rel a' x1';
          val_rel b' x2' \<rbrakk> \<Longrightarrow>
@@ -565,11 +565,11 @@ lemma corres_split_lazy:
 lemma corres_take_unboxed':
   assumes x_sigil: "\<Gamma>!x = Some (TRecord typ Unboxed)"
   assumes \<gamma>_x: "\<gamma>!x = URecord fs"
-  assumes split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
-  assumes typing_stat: "\<Xi>, [], \<Gamma> \<turnstile> Take (Var x) f e : te"
-  assumes typing_x:  "\<Xi>, [], \<Gamma>1 \<turnstile> (Var x) : TRecord typ Unboxed"
-  assumes e_typ: "\<Xi>, [], Some (fst (snd (typ!f))) # Some (TRecord (typ[f := (fst (typ!f), fst (snd (typ!f)), taken)]) Unboxed) # \<Gamma>2 \<turnstile> e : te"
-  assumes has_kind: "[] \<turnstile>  fst (snd (typ!f)) :\<kappa>  k"
+  assumes split\<Gamma>: "0, [], {} \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+  assumes typing_stat: "\<Xi>, 0, [], {}, \<Gamma> \<turnstile> Take (Var x) f e : te"
+  assumes typing_x:  "\<Xi>, 0, [], {}, \<Gamma>1 \<turnstile> (Var x) : TRecord typ Unboxed"
+  assumes e_typ: "\<Xi>, 0, [], {}, Some (fst (snd (typ!f))) # Some (TRecord (typ[f := (fst (typ!f), fst (snd (typ!f)), taken)]) Unboxed) # \<Gamma>2 \<turnstile> e : te"
+  assumes has_kind: "0, [], {} \<turnstile>  fst (snd (typ!f)) :\<kappa>  k"
   assumes shareable_or_taken: "(S \<in> k \<or> taken = Taken)"
   assumes x_unboxed: "corres srel e (e' (f' s)) \<xi> (fst (fs!f)# (\<gamma>!x)# \<gamma>) \<Xi> (Some (fst (snd (typ!f)))# Some (TRecord (typ [f := (fst (typ!f), fst (snd (typ!f)),taken)]) Unboxed)# \<Gamma>2) \<sigma> s"
 shows "corres srel (Take (Var x) f e) (do z \<leftarrow> gets f'; e' z od) \<xi> \<gamma> \<Xi> \<Gamma> \<sigma> s"
@@ -641,11 +641,11 @@ shows "corres srel (Take (Var x) f e) (do z \<leftarrow> gets f'; e' z od) \<xi>
 lemma corres_take_unboxed:
   assumes x_sigil: "\<Gamma>!x = Some (TRecord typ Unboxed)"
   assumes \<gamma>_x: "\<gamma>!x = URecord fs"
-  assumes split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
-  assumes typing_stat: "\<Xi>, [], \<Gamma> \<turnstile> Take (Var x) f e : te"
-  assumes typing_x:  "\<Xi>, [], \<Gamma>1 \<turnstile> (Var x) : TRecord typ Unboxed" (* needed? *)
-  assumes e_typ: "\<Xi>, [], Some (fst (snd (typ!f))) # Some (TRecord (typ[f := (fst (typ!f), fst (snd (typ!f)), taken)]) Unboxed) # \<Gamma>2 \<turnstile> e : te"
-  assumes has_kind: "[] \<turnstile> fst (snd (typ!f)) :\<kappa> k"
+  assumes split\<Gamma>: "0, [], {} \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+  assumes typing_stat: "\<Xi>, 0, [], {}, \<Gamma> \<turnstile> Take (Var x) f e : te"
+  assumes typing_x:  "\<Xi>, 0, [], {}, \<Gamma>1 \<turnstile> (Var x) : TRecord typ Unboxed" (* needed? *)
+  assumes e_typ: "\<Xi>, 0, [], {}, Some (fst (snd (typ!f))) # Some (TRecord (typ[f := (fst (typ!f), fst (snd (typ!f)), taken)]) Unboxed) # \<Gamma>2 \<turnstile> e : te"
+  assumes has_kind: "0, [], {} \<turnstile> fst (snd (typ!f)) :\<kappa> k"
   assumes shareable_or_taken: "(S \<in> k \<or> taken = Taken)"
   assumes val_rel_f: "val_rel (fst (fs!f)) ((f' s)::'bb::cogent_C_val)"
   assumes type_rel_f: "type_rel (type_repr (fst (snd (typ!f)))) TYPE('bb)"
@@ -682,12 +682,12 @@ lemma corres_take_boxed':
   assumes sigil_wr: "sgl = Boxed Writable l"
   assumes x_sigil: "\<Gamma>!x = Some (TRecord typ sgl)"
   assumes \<gamma>_x: "\<gamma>!x = UPtr p repr"
-  assumes split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+  assumes split\<Gamma>: "0, [], {} \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
   assumes val_rel_x: "val_rel (\<gamma>!x) (x'::('a::cogent_C_val))"
-  assumes typing_stat: "\<Xi>, [], \<Gamma> \<turnstile> Take (Var x) f e : te"
-  assumes typing_x:  "\<Xi>, [], \<Gamma>1 \<turnstile> (Var x) : TRecord typ sgl" (* needed? *)
-  assumes e_typ: "\<Xi>, [], Some (fst (snd (typ!f))) # Some (TRecord (typ[f := (fst (typ!f), fst (snd (typ!f)), taken)]) sgl) # \<Gamma>2 \<turnstile> e : te"
-  assumes has_kind: "[] \<turnstile>  fst (snd (typ!f)) :\<kappa>  k"
+  assumes typing_stat: "\<Xi>, 0, [], {}, \<Gamma> \<turnstile> Take (Var x) f e : te"
+  assumes typing_x:  "\<Xi>, 0, [], {}, \<Gamma>1 \<turnstile> (Var x) : TRecord typ sgl" (* needed? *)
+  assumes e_typ: "\<Xi>, 0, [], {}, Some (fst (snd (typ!f))) # Some (TRecord (typ[f := (fst (typ!f), fst (snd (typ!f)), taken)]) sgl) # \<Gamma>2 \<turnstile> e : te"
+  assumes has_kind: "0, [], {} \<turnstile>  fst (snd (typ!f)) :\<kappa>  k"
   assumes shareable_or_taken: "(S \<in> k \<or> taken = Taken)"
   assumes x_boxed:
     "\<And> fs r w.
@@ -748,10 +748,9 @@ proof -
       apply (rule matches_ptrs_some, simp)
          apply (rule matches_ptrs_some)
              apply (rule u_t_p_rec_w', (simp+)[3])
-              apply (simp add: map_update)
-              apply (subst map_list_update_id)
-                 apply (simp+)[4]
-             apply (force simp add: distinct_fst_tags_update)
+               apply(simp add:map_nth_same)
+              apply(simp add:map_nth_same)
+             apply(simp add:map_nth_same)
             apply blast
            apply blast
           apply auto[1]
@@ -770,7 +769,7 @@ proof -
         apply (rule matches_ptrs_some)
             apply (simp add: list_helper)
             apply (rule u_t_p_rec_w)
-               apply (blast+)[11]
+                apply (blast+)[12]
     apply clarsimp
     apply (rename_tac s' ev')
     apply (erule_tac x=s' in allE)
@@ -787,12 +786,12 @@ lemma corres_take_boxed:
   assumes sigil_wr: "sgl = Boxed Writable l"
   assumes x_sigil: "\<Gamma>!x = Some (TRecord typ sgl)"
   assumes \<gamma>_x: "\<gamma>!x = UPtr p repr"
-  assumes split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+  assumes split\<Gamma>: "0, [], {} \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
   assumes val_rel_x: "val_rel (\<gamma>!x) (x'::('a::cogent_C_val) ptr)"
-  assumes typing_stat: "\<Xi>, [], \<Gamma> \<turnstile> Take (Var x) f e : te"
-  assumes typing_x:  "\<Xi>, [], \<Gamma>1 \<turnstile> (Var x) : TRecord typ sgl" (* needed? *)
-  assumes e_typ: "\<Xi>, [], Some (fst (snd (typ!f))) # Some (TRecord (typ[f := (fst (typ!f), fst (snd (typ!f)), taken)]) sgl) # \<Gamma>2 \<turnstile> e : te"
-  assumes has_kind: "[] \<turnstile> fst (snd (typ!f)) :\<kappa> k"
+  assumes typing_stat: "\<Xi>, 0, [], {}, \<Gamma> \<turnstile> Take (Var x) f e : te"
+  assumes typing_x:  "\<Xi>, 0, [], {}, \<Gamma>1 \<turnstile> (Var x) : TRecord typ sgl" (* needed? *)
+  assumes e_typ: "\<Xi>, 0, [], {}, Some (fst (snd (typ!f))) # Some (TRecord (typ[f := (fst (typ!f), fst (snd (typ!f)), taken)]) sgl) # \<Gamma>2 \<turnstile> e : te"
+  assumes has_kind: "0, [], {} \<turnstile> fst (snd (typ!f)) :\<kappa> k"
   assumes shareable_or_taken: "S \<in> k \<or> taken = Taken"
   assumes x_boxed:
   "\<And> fs r w. \<lbrakk>(\<sigma>, s)\<in> srel; \<sigma> p = Some (URecord fs); \<Xi>, \<sigma> \<turnstile> UPtr p repr :u TRecord typ sgl \<langle>r, w\<rangle>\<rbrakk> \<Longrightarrow>
@@ -811,8 +810,8 @@ lemma corres_take_boxed:
 lemma corres_let_put_unboxed:
   assumes x_sigil: "\<Gamma>'!x = Some (TRecord typ Unboxed)"
   assumes x_len: "x < length \<Gamma>'"
-  assumes split\<Gamma>: "[] \<turnstile> \<Gamma>' \<leadsto> \<Gamma>1 | \<Gamma>2"
-  assumes typing_put:  "\<Xi>', [], \<Gamma>1 \<turnstile> Put (Var x) f (Var e) : TRecord (typ[f := (fst (typ!f), fst (snd (typ!f)), Present)]) Unboxed" (* needed? *)
+  assumes split\<Gamma>: "0, [], {} \<turnstile> \<Gamma>' \<leadsto> \<Gamma>1 | \<Gamma>2"
+  assumes typing_put:  "\<Xi>', 0, [], {}, \<Gamma>1 \<turnstile> Put (Var x) f (Var e) : TRecord (typ[f := (fst (typ!f), fst (snd (typ!f)), Present)]) Unboxed" (* needed? *)
   assumes corres_cont:
    "\<And>fs. \<gamma>!x = URecord fs \<Longrightarrow> corres srel y (y' (nx' x')) \<xi> ((URecord (fs[f:= ((\<gamma>!e),  snd (fs ! f))])) # \<gamma>) \<Xi>' (Some (TRecord (typ[f := (fst (typ!f), fst (snd (typ!f)), Present)]) Unboxed) # \<Gamma>2) \<sigma> s"
   shows "corres srel
@@ -872,9 +871,9 @@ lemma corres_let_put_boxed:
   assumes sigil_wr: "sgl = Boxed Writable ptrl"
   assumes x_sigil: "\<Gamma> ! x = Some (TRecord typ sgl)"
   assumes \<gamma>_x: "\<gamma> ! x = UPtr p repr"
-  assumes split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
-  assumes typing_stat: "\<Xi>, [], \<Gamma> \<turnstile> expr.Let (Put (Var x) f (Var e)) y : ts"
-  assumes typing_put: "\<Xi>, [], \<Gamma>1 \<turnstile> Put (Var x) f (Var e) : TRecord (typ[f := (fst (typ!f), fst (snd (typ!f)), Present)]) sgl"
+  assumes split\<Gamma>: "0, [], {} \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+  assumes typing_stat: "\<Xi>, 0, [], {}, \<Gamma> \<turnstile> expr.Let (Put (Var x) f (Var e)) y : ts"
+  assumes typing_put: "\<Xi>, 0, [], {}, \<Gamma>1 \<turnstile> Put (Var x) f (Var e) : TRecord (typ[f := (fst (typ!f), fst (snd (typ!f)), Present)]) sgl"
   assumes corres_cont: "\<And>\<sigma> s. corres srel y y' \<xi> ((\<gamma>!x) # \<gamma>) \<Xi> (Some (TRecord (typ[f := (fst (typ!f), fst (snd (typ!f)), Present)]) sgl) # \<Gamma>2) \<sigma> s"
   assumes x_boxed:
   "\<And>fs r w r' w'.
@@ -896,27 +895,27 @@ proof (clarsimp simp: corres_def in_monad snd_bind snd_modify snd_state_assert, 
 
   obtain \<Gamma>1' \<Gamma>2' t
     where typing_stat_elim_lemmas:
-      "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1' | \<Gamma>2'"
-      "\<Xi>, [], \<Gamma>1' \<turnstile> Put (Var x) f (Var e) : t"
-      "\<Xi>, [], Some t # \<Gamma>2' \<turnstile> y : ts"
+      "0, [], {} \<turnstile> \<Gamma> \<leadsto> \<Gamma>1' | \<Gamma>2'"
+      "\<Xi>, 0, [], {}, \<Gamma>1' \<turnstile> Put (Var x) f (Var e) : t"
+      "\<Xi>, 0, [], {}, Some t # \<Gamma>2' \<turnstile> y : ts"
     using typing_stat by blast
 
   obtain \<Gamma>3' \<Gamma>4' taken k ftag' fty' typ'
     where typing_put_elim_lems':
       "typ[f := (fst (typ ! f), fst (snd (typ ! f)), Present)] = typ'[f := (ftag', fty', Present)]"
-      "[] \<turnstile> \<Gamma>1 \<leadsto> \<Gamma>3' | \<Gamma>4'"
-      "\<Xi>, [], \<Gamma>3' \<turnstile> Var x : TRecord typ' sgl"
+      "0, [], {} \<turnstile> \<Gamma>1 \<leadsto> \<Gamma>3' | \<Gamma>4'"
+      "\<Xi>, 0, [], {}, \<Gamma>3' \<turnstile> Var x : TRecord typ' sgl"
       "sigil_perm sgl \<noteq> Some ReadOnly"
       "f < length typ'"
       "typ' ! f = (ftag', fty', taken)"
-      "[] \<turnstile> fty' :\<kappa> k"
+      "0, [], {} \<turnstile> fty' :\<kappa> k"
       "D \<in> k \<or> taken = Taken"
-      "\<Xi>, [], \<Gamma>4' \<turnstile> Var e : fty'"
+      "\<Xi>, 0, [], {}, \<Gamma>4' \<turnstile> Var e : fty'"
     using typing_put
     by blast
 
   have typing_var_elim_lems':
-    "[] \<turnstile> \<Gamma>3' \<leadsto>w (Cogent.empty (length \<Gamma>3'))[x := Some (TRecord typ' sgl)]"
+    "0, [], {} \<turnstile> \<Gamma>3' \<leadsto>w (Cogent.empty (length \<Gamma>3'))[x := Some (TRecord typ' sgl)]"
     "x < length \<Gamma>3'"
     using typing_put_elim_lems' by blast+
 
@@ -995,6 +994,7 @@ proof (clarsimp simp: corres_def in_monad snd_bind snd_modify snd_state_assert, 
         "sgl = Boxed Writable ptrl"
         "p \<notin> w1'"
         "p \<notin> r1'"
+        "matches_type_sigil 0 {} (LRRecord (map (\<lambda>(n, t, _). (n, type_lrepr t))(typ[f := (fst (typ ! f), fst (snd (typ ! f)), Present)]))) (Boxed Writable ptrl)"
     using sigil_wr u_t_p_recE[OF preserve_mono_on_put_lemmas(1)]
     by (clarsimp, metis)
 
@@ -1019,7 +1019,11 @@ proof (clarsimp simp: corres_def in_monad snd_bind snd_modify snd_state_assert, 
     show "distinct (map fst typ)"
       using rec_elim1_lemmas
       by (metis fst_conv list_update_id map_update)
-  qed auto
+  next
+    show "matches_type_sigil 0 {} (LRRecord (map (\<lambda>(n, t, _). (n, type_lrepr t)) typ)) (Boxed Writable ptrl)"
+      using rec_elim1_lemmas typing_put_elim_lems
+      by (simp add:map_nth_same split:prod.split)
+  qed (auto  )
 
   then have x_boxed_lemmas:
     "is_valid s x'"
@@ -1099,8 +1103,8 @@ lemma corres_put_boxed:
   assumes sigil_wr: "sgl = Boxed Writable ptrl"
   assumes x_sigil: "\<Gamma>!x = Some (TRecord typ sgl)"
   assumes \<gamma>_x: "\<gamma>!x = UPtr p repr"
-  assumes split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
-  assumes typing_put: "\<Xi>, [], \<Gamma> \<turnstile> Put (Var x) f (Var e) : TRecord (typ[f := (fst (typ ! f), fst (snd (typ ! f)), Present)]) sgl"
+  assumes split\<Gamma>: "0, [], {} \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+  assumes typing_put: "\<Xi>, 0, [], {}, \<Gamma> \<turnstile> Put (Var x) f (Var e) : TRecord (typ[f := (fst (typ ! f), fst (snd (typ ! f)), Present)]) sgl"
   assumes x_boxed:
   "\<And>fs r w r' w'.
     \<lbrakk>(\<sigma>,s)\<in> srel; \<sigma> p = Some (URecord fs);
@@ -1147,7 +1151,9 @@ lemma corres_put_boxed:
       apply force
      apply force
     apply argo
-   apply force
+    apply force
+
+   apply clarsimp
   apply clarsimp
   apply (rule_tac x="\<sigma>(p := Some (URecord (fs [f := (\<gamma>!e, snd (fs ! f))])))" in exI)
   apply (rule_tac x="\<gamma> ! x" in exI)
@@ -1163,8 +1169,8 @@ lemma corres_put_boxed:
 lemma corres_let_put_unboxed':
   assumes x_sigil: "\<Gamma>!x = Some (TRecord typ Unboxed)"
   assumes x_len: "x < length \<Gamma>"
-  assumes split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
-  assumes typing_put:  "\<Xi>, [], \<Gamma>1 \<turnstile> Put (Var x) f (Var e) : TRecord (typ[f := (fst (typ ! f), fst (snd (typ ! f)), Present)]) Unboxed" (* needed? *)
+  assumes split\<Gamma>: "0, [], {} \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+  assumes typing_put:  "\<Xi>, 0, [], {}, \<Gamma>1 \<turnstile> Put (Var x) f (Var e) : TRecord (typ[f := (fst (typ ! f), fst (snd (typ ! f)), Present)]) Unboxed" (* needed? *)
   assumes val_rel_upd_x : "\<And>fs. \<gamma>!x = URecord fs \<Longrightarrow> val_rel (URecord (fs[f:= ((\<gamma>!e),  snd (fs ! f))])) (nx' x')"
   assumes corres_cont:
    "\<And>v. val_rel v (nx' x') \<Longrightarrow>
@@ -1192,8 +1198,8 @@ lemma corres_add_let:
   done
 
 lemma split_all_left:
-  "\<forall>t. Some t \<in> set \<Gamma> \<longrightarrow> K' \<turnstile> t wellformed
-    \<Longrightarrow> K' \<turnstile> \<Gamma> \<leadsto> \<Gamma> | replicate (length \<Gamma>) None"
+  "\<forall>t. Some t \<in> set \<Gamma> \<longrightarrow> L', K', C' \<turnstile> t wellformed
+    \<Longrightarrow> L', K', C' \<turnstile> \<Gamma> \<leadsto> \<Gamma> | replicate (length \<Gamma>) None"
   apply (induct \<Gamma>)
    apply (simp add: split_empty)
   apply (fastforce intro!: split_cons simp add: kinding_iff_wellformed split_comp.simps)
@@ -1202,7 +1208,7 @@ lemma split_all_left:
 lemma corres_no_let_put_unboxed':
   assumes x_sigil: "\<Gamma>'!x = Some (TRecord typ Unboxed)"
   assumes x_len: "x < length \<Gamma>'"
-  assumes typing_put:  "\<Xi>', [], \<Gamma>' \<turnstile> Put (Var x) f (Var e) : TRecord (typ[f := (fst (typ ! f), fst (snd (typ ! f)), Present)]) Unboxed" (* needed? *)
+  assumes typing_put:  "\<Xi>', 0, [], {}, \<Gamma>' \<turnstile> Put (Var x) f (Var e) : TRecord (typ[f := (fst (typ ! f), fst (snd (typ ! f)), Present)]) Unboxed" (* needed? *)
   assumes val_rel_upd_x : "\<And>fs. \<gamma>!x = URecord fs \<Longrightarrow> val_rel (URecord (fs[f:= ((\<gamma>!e),  snd (fs ! f))])) (nx' x')"
   shows "corres srel
   ((Put (Var x) f (Var e)))
@@ -1263,16 +1269,15 @@ lemma corres_app_abstract:
 lemma corres_app_concrete:
   "\<lbrakk> \<Gamma>' ! n = Some t; n < length \<Gamma>';
      corres srel f (f' x') \<xi>' [\<gamma> ! n] \<Xi>' [Some t] \<sigma> s \<rbrakk> \<Longrightarrow>
-   corres srel (App (Fun f []) (Var n)) (do retval \<leftarrow> f' x'; gets (\<lambda>_. retval) od) \<xi>' \<gamma> \<Xi>' (\<Gamma>') \<sigma> s"
+   corres srel (App (Fun f [] []) (Var n)) (do retval \<leftarrow> f' x'; gets (\<lambda>_. retval) od) \<xi>' \<gamma> \<Xi>' (\<Gamma>') \<sigma> s"
   apply (clarsimp simp: corres_def)
   apply (erule impE)
    apply (drule(2) matches_ptrs_proj_single')
    apply clarsimp
    apply (rule exI)
    apply (rule exI)
-   apply (rule matches_ptrs_cons[where \<tau>s="[]" and r'="{}" and w'="{}", simplified])
-     apply simp
-    apply (rule matches_ptrs_empty[where \<tau>s="[]", simplified])
+   apply (rule matches_ptrs_cons[where \<epsilon>="[]" and \<tau>s="[]" and r'="{}" and w'="{}", simplified, OF subst_wellformed_nothing])
+    apply (rule matches_ptrs_empty[where \<epsilon>="[]" and \<tau>s="[]", simplified])
    apply assumption
   apply clarsimp
   apply (erule_tac x=r' in allE)
@@ -1290,7 +1295,7 @@ lemma corres_app_concrete:
 
 lemma sum_tag_is_same:
  "\<lbrakk> \<Xi>', \<sigma> \<turnstile> \<gamma> ! x :u t \<langle>r', w'\<rangle>;
-     \<Xi>', [], \<Gamma>' \<turnstile> Esac (Var x) n : ret;  
+     \<Xi>', 0, [], {}, \<Gamma>' \<turnstile> Esac (Var x) n : ret;  
     \<gamma> ! x = USum tag val ts;
     t = TSum typs;
      x < length \<Gamma>';
@@ -1312,7 +1317,7 @@ lemma corres_esac:(* CHANGED: fourth assumption added *)
   "\<lbrakk> val_rel (\<gamma> ! x) x';
      x < length \<Gamma>';
      \<Gamma>' ! x = Some (TSum typs);
-    \<Xi>', [], \<Gamma>' \<turnstile> Esac (Var x) n : ret;  
+    \<Xi>', 0, [], {}, \<Gamma>' \<turnstile> Esac (Var x) n : ret;  
      \<And> val rtyps. \<gamma> ! x = USum  n val rtyps \<Longrightarrow> val_rel val (get_val' x')
    \<rbrakk> \<Longrightarrow>
    corres srel (Esac (Var x) n) (gets (\<lambda>_. get_val' x')) \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
@@ -1426,16 +1431,16 @@ lemma corres_case:
   assumes
     "x < length \<Gamma>'"
     "\<Gamma>'!x = Some (TSum \<tau>s)"
-    "[] \<turnstile> \<Gamma>' \<leadsto> \<Gamma>1 | \<Gamma>2"
+    "0, [], {} \<turnstile> \<Gamma>' \<leadsto> \<Gamma>1 | \<Gamma>2"
     "get_tag' x' = tag' \<longrightarrow> val_rel (\<gamma>!x) x'"
     "case (\<gamma>!x) of USum vtag vval vtyps \<Rightarrow>
        if get_tag' x' = tag'
          then tag = vtag \<and> val_rel vval (get_A' x')
          else tag \<noteq> vtag \<and> val_rel (USum vtag vval vtyps) x'"
-    "\<Xi>', [], \<Gamma>1 \<turnstile> Var x : TSum \<tau>s"
+    "\<Xi>', 0, [], {}, \<Gamma>1 \<turnstile> Var x : TSum \<tau>s"
     "(tag, tag_t, Unchecked) \<in> set \<tau>s"
-    "\<Xi>', [], Some tag_t # \<Gamma>2 \<turnstile> match : t"
-    "\<Xi>', [], Some (TSum (tagged_list_update tag (tag_t,Checked) \<tau>s)) # \<Gamma>2 \<turnstile> not_match : t"
+    "\<Xi>', 0, [], {}, Some tag_t # \<Gamma>2 \<turnstile> match : t"
+    "\<Xi>', 0, [], {}, Some (TSum (tagged_list_update tag (tag_t,Checked) \<tau>s)) # \<Gamma>2 \<turnstile> not_match : t"
     "\<And>a a'. val_rel a a' \<Longrightarrow> corres srel match (match' a') \<xi>' (a # \<gamma>) \<Xi>' (Some tag_t # \<Gamma>2) \<sigma> s"
     "\<And>r. r = (\<gamma>!x) \<Longrightarrow> val_rel r x' \<Longrightarrow> corres srel not_match (not_match' x') \<xi>' (r # \<gamma>) \<Xi>' (Some (TSum (tagged_list_update tag (tag_t, Checked) \<tau>s)) # \<Gamma>2) \<sigma> s"
   shows "corres srel (Case (Var x) tag match not_match)
@@ -1491,7 +1496,8 @@ lemma corres_case:
           apply blast
          apply (meson kinding_iff_wellformed(1) kinding_simps(6) kinding_variant_wellformed_elem typing_to_wellformed(1))
   using kinding_iff_wellformed(1) kinding_simps(6) kinding_to_wellformedD(3) typing_to_wellformed(1)
-        apply blast
+  
+        apply metis
        apply (rule type_rep_tagged_update; simp)
       apply simp
      apply (drule (2) frame_noalias_matches_ptrs(1)[where \<Gamma>=\<Gamma>2])
@@ -1535,7 +1541,7 @@ lemma corres_member_boxed:
     "val_rel (\<gamma>!x) (x'::('a::cogent_C_val) ptr)"
     "\<Gamma>'!x = Some (TRecord typ sigil)"
     "\<gamma> ! x = UPtr (ptr_val x') repr"
-    "\<Xi>', [], \<Gamma>' \<turnstile> Member (Var x) f : te'"
+    "\<Xi>', 0, [], {}, \<Gamma>' \<turnstile> Member (Var x) f : te'"
     "\<And>fs r w. \<lbrakk>(\<sigma>, s)\<in> srel; \<sigma> (ptr_val x') = Some (URecord fs);
                \<Xi>', \<sigma> \<turnstile> UPtr (ptr_val x') repr :u TRecord typ sigil \<langle>r, w\<rangle>\<rbrakk> \<Longrightarrow>
               is_valid' s x' \<and> val_rel (fst(fs!f)) ((f' s)::'bb::cogent_C_val)"
@@ -1567,8 +1573,8 @@ lemma corres_member_boxed:
   done
 
 lemma corres_fun:
-  "val_rel (UFunction f []) (fun_tag' :: 32 signed word) \<Longrightarrow>
-   corres srel (Fun f []) (gets (\<lambda>_. fun_tag')) \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
+  "val_rel (UFunction f [] []) (fun_tag' :: 32 signed word) \<Longrightarrow>
+   corres srel (Fun f [] []) (gets (\<lambda>_. fun_tag')) \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
   apply (monad_eq simp: corres_def)
   apply (rule exI)+
   apply (rule conjI)
@@ -1594,8 +1600,8 @@ lemma corres_promote:
 
 
 lemma corres_if_base:
-  assumes split\<Gamma>: "[] \<turnstile> \<Gamma>' \<leadsto> \<Gamma>1 | \<Gamma>2"
-  assumes typing_cond: "\<Xi>', [], \<Gamma>1 \<turnstile> Var c : TPrim Bool"
+  assumes split\<Gamma>: "0, [], {} \<turnstile> \<Gamma>' \<leadsto> \<Gamma>1 | \<Gamma>2"
+  assumes typing_cond: "\<Xi>', 0, [], {}, \<Gamma>1 \<turnstile> Var c : TPrim Bool"
   assumes val_rel_cond: "(bool_val' c' = 0 \<or> bool_val' c' = 1) \<and>
      \<gamma>!c = UPrim (LBool (bool_val' c' \<noteq> 0))"
   assumes corres_true: "corres srel a a' \<xi> \<gamma> \<Xi>' \<Gamma>2 \<sigma> s"
