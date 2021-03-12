@@ -226,7 +226,9 @@ Section Interpretation.
     let l3 := interp handle_failure l2 in
     translate inject_signature l3.
 
-  Definition run_cogent (p : cogent_prog) : failT (itree void1) (memory * (locals * uval)) :=
-    interp_cogent (prog_to_module p) (UFunction "main") UUnit empty_locals dummy_memory.
+  Definition run_cogent (p : cogent_prog) 
+                        (entry_f : uval) (entry_a : uval) 
+                      : failT (itree void1) (memory * (locals * uval)) :=
+    interp_cogent (prog_to_module p) entry_f entry_a empty_locals dummy_memory.
 
 End Interpretation.

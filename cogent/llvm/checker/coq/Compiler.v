@@ -246,6 +246,7 @@ Section Compiler.
     | FunDef n t rt b => TLE_Definition <$> compile_fun n t rt b
     end.
 
-  Definition compile_cogent := map_monad compile_def.
+  Definition compile_cogent : cogent_prog -> err (toplevel_entities typ (block typ * list (block typ))) :=
+    map_monad compile_def.
 
 End Compiler.
