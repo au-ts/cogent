@@ -146,36 +146,12 @@ mkArbitraryGenStmt layout prevGroup userPredMap
           prevGroup = layout ^. prevGrTag
           fld = layout ^. fieldMap
           fs = sortOn fst $ M.toList fld
-          {-
-          (preds, nextPreds) = partition (\(k,v) -> case (M.lookup (removeTicks k) fld) of 
-                                                     Just x -> False
-                                                     Nothing ->  True
-                                         ) (M.toList userPredMap)  -- sortOn fst $ take (P.length fs) $ 
-          removeTicks xs = [ x | x <- xs, x `notElem` "'" ]
-                                         -}
-       in trace ("dddd "++ show fs) $
+          (preds, nextPreds) = partition (\(k,v) -> case (M.lookup k fld) of 
+                                                     Just x -> True
+                                                     Nothing ->  False
+                                            ) (M.toList userPredMap)
 
-        {-`
-       $ (concatMap (\(k,v) -> case group of
-            HsPrim -> case v of
-               (Left depth) -> [ ( let n = k ++ replicate depth (P.head "'")
-                                     in ( n
-                                        , genStmt (pvar (mkName n)) 
-                                            (function "arbitrary")
-                                        )
-
-                                 , (hsTy, prevGroup) )
-                               ]
-               (Right next) -> __impossible $ show k ++ " " ++ show v
-            _ -> case v of
-               (Left depth) -> __impossible $ show k ++ " " ++ show v
-               (Right next) -> mkArbitraryGenStmt next group userPredMap
-
-               -- $ Just $ mkViewInfixE varToView group prev k
-       ) (P.init fs) ) ++
-
--}
-       (concatMap (\(k,v) -> case group of
+       in reverse $ (concatMap (\(k,v) -> case group of
             HsPrim -> case v of
                (Left depth) -> [ ( let n = k ++ replicate depth (P.head "'")
                                      in ( n
@@ -192,7 +168,7 @@ mkArbitraryGenStmt layout prevGroup userPredMap
                (Right next) -> __impossible $ show k ++ " " ++ show v
             _ -> case v of
                (Left depth) -> __impossible $ show k ++ " " ++ show v
-               (Right next) -> mkArbitraryGenStmt next group userPredMap
+               (Right next) -> mkArbitraryGenStmt next group (M.fromList $ preds++[P.head nextPreds])
 
                -- $ Just $ mkViewInfixE varToView group prev k
        ) fs)
