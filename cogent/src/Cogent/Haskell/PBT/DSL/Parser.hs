@@ -238,7 +238,10 @@ parseHsExp :: String -> HSS.Exp ()
 parseHsExp = HSN.dropAnn . HSP.fromParseResult . (HSP.parseExpWithMode parseMode)
 
 parseMode = HSP.ParseMode "unknown" HSE.Haskell2010 [] True True (Just $ fixes) True
-    where fixes = HSF.infixr_ 0 ["^.", "^?"] ++ HSF.preludeFixities ++ HSF.baseFixities
+    -- note:
+    --      must be less fixity than cmp ops --> infix_  4  ["==","/=","<","<=",">=",">","`elem`","`notElem`"]
+    --      and, must be stronger fixity than compose op -> infixr_ 9  ["."] 
+    where fixes = HSF.infixr_ 5 ["^.", "^?"] ++ HSF.preludeFixities ++ HSF.baseFixities
 
 -- Debugging/Testing
 -- -----------------------------------------
@@ -278,7 +281,7 @@ exampleFile = unlines $
         , "    absf {                       \r"
         , "         ic : (Word32, R4 Word32 Word32);  \r"
         , "         ia : Int;        \r"
-        , "         ia := ic ^. _2 . sum . count ;                    \r"
+        , "         ia := ic ^. _2 . sum ;                    \r"
         -- , "               ic ^. count;               \r"
         , "    }                            \r"
         , "    rrel {                       \r"
@@ -287,7 +290,7 @@ exampleFile = unlines $
         -- , "         oa := oc ;               \r"
         , "    }                            \r"
         , "    welf {                       \r"
-        , "        :| ic ^. sum < ic ^. count; \r"
+        , "        :| ic ^. _1 >= 0 && ic ^. _2 . sum >= ic ^. _2 . count; \r"
         , "    }                            \r"
         , "}                                \r"
         ]

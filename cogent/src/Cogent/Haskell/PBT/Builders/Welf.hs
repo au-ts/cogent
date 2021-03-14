@@ -1,5 +1,6 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE MultiWayIf #-}
 
 
 
@@ -89,7 +90,12 @@ mkGenFExp' def _ | (CC.TypeDef tn _ _) <- def = pure (TyCon () (mkQName "Unknown
 mkGenFBody :: CC.Type t a -> Type () -> Maybe (Exp ()) -> SG (Exp ())
 mkGenFBody cogIcTyp icTyp predExp = 
     let icLayout = determineUnpack cogIcTyp icTyp Unknown 0 "None"
-        genStmts = mkArbitraryGenStmt icLayout Unknown
+        userPred = predExp <&> (\x -> replaceVarsInUserInfixE x 0 $ scanUserInfixViewE x 0)
+            -- TODO: one final transform -> for each of the vars extracted 
+            --  create a map of that var(ticked version) string to a exp that 
+            --      replaces the var with anon input (and turn that exp into a anon function)
+            
+        genStmts = mkArbitraryGenStmt icLayout Unknown userPred
         binds = map (snd . fst) genStmts
         body = packConWithLayout (Right icLayout) Nothing
         -- packAbsCon icTyp (map (fst . fst) genStmts) 0
@@ -118,8 +124,8 @@ mkGenFBody cogIcTyp icTyp predExp =
 
 
 
-mkArbitraryGenStmt :: HsEmbedLayout -> GroupTag -> [((String, Stmt ()), (Type (), GroupTag))]
-mkArbitraryGenStmt layout prevGroup
+mkArbitraryGenStmt :: HsEmbedLayout -> GroupTag -> Maybe (Exp ()) -> [((String, Stmt ()), (Type (), GroupTag))]
+mkArbitraryGenStmt layout prevGroup predExp
     = let hsTy = layout ^. hsTyp
           group = layout ^. grTag
           prevGroup = layout ^. prevGrTag
@@ -134,7 +140,7 @@ mkArbitraryGenStmt layout prevGroup
                (Right next) -> __impossible $ show k ++ " " ++ show v
             _ -> case v of
                (Left depth) -> __impossible $ show k ++ " " ++ show v
-               (Right next) -> mkArbitraryGenStmt next group -- $ Just $ mkViewInfixE varToView group prev k
+               (Right next) -> mkArbitraryGenStmt next group predExp  -- $ Just $ mkViewInfixE varToView group prev k
        ) $ M.toList fld
 
 
@@ -159,6 +165,136 @@ packConWithLayout layout fieldKey
                                                   , M.toList fld )
                       in appFun (mkVar name) $ map (\(k,v) -> packConWithLayout v (Just k)) $ flds
 
+replaceVarsInUserInfixE :: Exp () -> Int -> M.Map String String -> Exp ()
+replaceVarsInUserInfixE (Paren () e) depth vars = replaceVarsInUserInfixE e depth vars
+replaceVarsInUserInfixE exp depth vars
+    | (InfixApp () lhs op rhs) <- exp 
+    = let opname = getOpStr op
+        in if | any (==opname) ["^.", "^?"] -> replaceInfixViewE exp depth vars
+              | otherwise -> InfixApp () (replaceVarsInUserInfixE lhs depth vars) op (replaceVarsInUserInfixE rhs depth vars)
+replaceVarsInUserInfixE exp depth vars = exp
+
+replaceInfixViewE :: Exp () -> Int -> M.Map String String -> Exp ()
+replaceInfixViewE (Paren () e) depth vars 
+    = Paren () $ replaceInfixViewE e depth vars
+replaceInfixViewE (InfixApp () lhs op rhs) depth vars 
+    = replaceInfixViewE rhs (depth+1) vars
+replaceInfixViewE (Var _ (UnQual _ (Ident _ name))) depth vars
+    = let (newName, _) = P.head $ filter (\(k,v) -> v == name) $ M.toList vars
+        in Var () (UnQual () (Ident () newName))
+replaceInfixViewE exp depth vars = exp
+
+-- scan user any infix expression -> for predicates
+scanUserInfixE :: Exp () -> Int -> M.Map String String
+scanUserInfixE (Paren () e) depth = scanUserInfixViewE e depth
+scanUserInfixE exp depth 
+    | (InfixApp () lhs op rhs) <- exp 
+    = let opname = getOpStr op
+        in if | any (==opname) ["^.", "^?"] -> scanUserInfixViewE exp depth
+              | otherwise -> M.union (scanUserInfixE lhs depth) (scanUserInfixE rhs depth)
+scanUserInfixE exp depth = scanUserInfixViewE exp depth
+
+getOpStr :: QOp () -> String
+getOpStr (QVarOp _ (UnQual _ (Symbol _ name))) = name
+getOpStr _ = ""
+
+
+-- scan (^.|^?) expressions 
+-- want to extract fieldname & depth as this is enought to build the 
+-- fieldname pattern for view binds i.e. name ++ replicate depth $ P.head "'"
+-- in the map, fieldname ++ postfix maps to depth in expression
+-- depth only increases when recursing down RHS
+scanUserInfixViewE :: Exp () -> Int -> M.Map String String
+scanUserInfixViewE (Paren () e) depth = scanUserInfixViewE e depth
+scanUserInfixViewE (InfixApp () lhs _ rhs) depth 
+    = M.union (scanUserInfixViewE lhs (depth)) (scanUserInfixViewE rhs (depth+1))
+scanUserInfixViewE (Var _ (UnQual _ (Ident _ name))) depth 
+    = M.singleton (mkViewBindVarN name depth) (name)
+scanUserInfixViewE _ depth = M.empty
+
+mkViewBindVarN :: String -> Int -> String
+mkViewBindVarN fieldname depth = fieldname ++ (replicate depth $ P.head "'")
+
+{-
+
+getVarStr (Var _ (UnQual _ (Ident _ name))) = name
+
+ - o
+    let opname = getVarStr op
+        in if | opname == 
+
+    case op of 
+        (QVarOp () (UnQual () (Symbol () symStr)))
+            -> if | symStr == "^." -> scanUserInfixViewE rhs (depth+1)
+                  | symStr == "." -> scanUserInfixViewE rhs (depth+1)
+                  | otherwise -> scanUserInfixViewE rhs (depth+1)
+                  -}
+
+
+testScanUserInfix :: IO ()
+testScanUserInfix = do
+    putStrLn $ show $ scanUserInfixE exampleUserInfixPred' 0
+    putStrLn $ show $ replaceVarsInUserInfixE exampleUserInfixPred' 0 $ scanUserInfixE exampleUserInfixPred' 0
+
+
+-- --> might need a prev expression if there is a type coercison on the end of the exp
+
+exampleUserInfix = (InfixApp () (Var () (UnQual () (Ident () "ic"))) 
+                    (QVarOp () (UnQual () (Symbol () "^."))) (InfixApp ()
+                        (Var () (UnQual () (Ident () "_2")))  
+                            (QVarOp () (UnQual () (Symbol () ".")))
+                                (Var () (UnQual () (Ident () "sum")))))
+
+exampleUserInfixPred = (InfixApp ()
+                        (InfixApp ()
+                          (Var () (UnQual () (Ident () "ic")))
+                          (QVarOp () (UnQual () (Symbol () "^.")))
+                          (Var () (UnQual () (Ident () "sum"))))
+                          (QVarOp
+                            () (UnQual () (Symbol () "<")))
+                    (InfixApp ()
+                      (Var () (UnQual () (Ident () "ic")))
+                      (QVarOp () (UnQual () (Symbol () "^.")))
+                      (Var () (UnQual () (Ident () "count")))))
+
+
+exampleUserInfixPred' = (InfixApp ()
+                    (InfixApp ()
+                      (InfixApp ()
+                        (Var () (UnQual () (Ident () "ic")))
+                        (QVarOp () (UnQual () (Symbol () "^.")))
+                        (Var () (UnQual () (Ident () "_1"))))
+                      (QVarOp () (UnQual () (Symbol () ">=")))
+                        (Lit () (Int () 0 "0")))
+                    (QVarOp () (UnQual () (Symbol () "&&")))
+                    (InfixApp ()
+                      (InfixApp ()
+                        (Var () (UnQual () (Ident () "ic")))
+                        (QVarOp () (UnQual () (Symbol () "^.")))
+                        (InfixApp ()
+                          (Var () (UnQual () (Ident () "_2")))
+                          (QVarOp () (UnQual () (Symbol () ".")))
+                          (Var () (UnQual () (Ident () "sum")))))
+                      (QVarOp () (UnQual () (Symbol () ">=")))
+                      (InfixApp ()
+                        (Var () (UnQual () (Ident () "ic")))
+                        (QVarOp () (UnQual () (Symbol () "^.")))
+                        (InfixApp ()
+                          (Var () (UnQual () (Ident () "_2")))
+                          (QVarOp () (UnQual () (Symbol () ".")))
+                          (Var () (UnQual () (Ident () "count")))))))
+
+exampleUserInfixPred'' = InfixApp () 
+        (InfixApp () 
+            (Var () (UnQual () (Ident () "_1'"))) 
+            (QVarOp () (UnQual () (Symbol () ">="))) 
+            (Lit () (Int () 0 "0"))
+        )
+        (QVarOp () (UnQual () (Symbol () "&&"))) 
+        (InfixApp () 
+            (Var () (UnQual () (Ident () "sum''"))) 
+            (QVarOp () (UnQual () (Symbol () ">="))) 
+            (Var () (UnQual () (Ident () "count''"))))
 
 
 -- TODO: 
@@ -179,19 +315,6 @@ scanUserInfixExp (InfixApp () lhs op rhs) prev
                   -}
 
 
--- scan (^.) expressions -> always follow rhs b/c we want to extract the
--- fields names and discover the depth of it in the layout of the type
--- i.e. name ++ replicate depth $ P.head "'"
-{-
-scanUserInfixView :: Exp () -> Int -> [String]
-scanUserInfixView (Paren () e) depth = scanUserInfixView e 
-scanUserInfixView (InfixApp () _ op rhs) depth 
-    = case op of 
-        (QVarOp () (UnQual () (Symbol () symStr)))
-            -> if | symStr == "^." -> scanUserInfixView rhs (depth+1)
-                  | symStr == "." -> scanUserInfixView rhs (depth+1)
-                  | otherwise -> scanUserInfixView rhs (depth+1)
-                  -}
 
 
 {-
