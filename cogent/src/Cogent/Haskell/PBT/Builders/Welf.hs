@@ -91,7 +91,8 @@ mkGenFBody :: CC.Type t a -> Type () -> Maybe (Exp ()) -> SG (Exp ())
 mkGenFBody cogIcTyp icTyp predExp = 
     let icLayout = determineUnpack cogIcTyp icTyp Unknown 0 "None"
         userPred = case predExp of 
-                    Just x -> let vars = scanUserInfixViewE x 0
+                    Just x -> let vars = scanUserInfixE x 0
+                                  -- TODO: this is rough
                                   v' = (replaceVarsInUserInfixE x 0 vars)
                                 in trace (show vars++">>>"++show v') $ mkVarToExpWithLam v' vars
                                                                         -- (M.fromList $ [P.last $ M.toList vars])
@@ -112,6 +113,11 @@ mkGenFBody cogIcTyp icTyp predExp =
 -- sort by just arbitrary -- no such that 
 mkVarToExpWithLam :: Exp () -> M.Map String String -> M.Map String (Exp ())
 mkVarToExpWithLam e vars = M.fromList $ map (\(k,v) -> (k, lamE [pvar (mkName "x")] (replaceWithX e 0 k))) $ M.toList vars
+
+{-
+let (k,v) = trace ("00000"++show vars) $ P.head $ M.toList vars
+                             in M.fromList [(k, lamE [pvar (mkName "x")] (replaceWithX e 0 k)) | e <- es ]
+                             -}
 
 {-
 
@@ -139,16 +145,23 @@ mkArbitraryGenStmt layout prevGroup userPredMap
           group = layout ^. grTag
           prevGroup = layout ^. prevGrTag
           fld = layout ^. fieldMap
-       in reverse $ concatMap ( \( (k,v) , (k',v') ) -> case group of
+          fs = sortOn fst $ M.toList fld
+          {-
+          (preds, nextPreds) = partition (\(k,v) -> case (M.lookup (removeTicks k) fld) of 
+                                                     Just x -> False
+                                                     Nothing ->  True
+                                         ) (M.toList userPredMap)  -- sortOn fst $ take (P.length fs) $ 
+          removeTicks xs = [ x | x <- xs, x `notElem` "'" ]
+                                         -}
+       in trace ("dddd "++ show fs) $
+
+        {-`
+       $ (concatMap (\(k,v) -> case group of
             HsPrim -> case v of
                (Left depth) -> [ ( let n = k ++ replicate depth (P.head "'")
                                      in ( n
                                         , genStmt (pvar (mkName n)) 
-                                            $ if n /= k'
-                                               then (function "arbitrary")
-                                               else infixApp (function "arbitrary") 
-                                                             (op $ mkName "suchThat")   
-                                                             v'
+                                            (function "arbitrary")
                                         )
 
                                  , (hsTy, prevGroup) )
@@ -156,8 +169,88 @@ mkArbitraryGenStmt layout prevGroup userPredMap
                (Right next) -> __impossible $ show k ++ " " ++ show v
             _ -> case v of
                (Left depth) -> __impossible $ show k ++ " " ++ show v
-               (Right next) -> mkArbitraryGenStmt next group userPredMap  -- $ Just $ mkViewInfixE varToView group prev k
-       ) $ P.zip (sortOn fst (M.toList fld)) (sortOn fst (M.toList userPredMap))
+               (Right next) -> mkArbitraryGenStmt next group userPredMap
+
+               -- $ Just $ mkViewInfixE varToView group prev k
+       ) (P.init fs) ) ++
+
+-}
+       (concatMap (\(k,v) -> case group of
+            HsPrim -> case v of
+               (Left depth) -> [ ( let n = k ++ replicate depth (P.head "'")
+                                     in ( n
+                                        , genStmt (pvar (mkName n)) 
+                                            (case (M.lookup n userPredMap) of
+                                               Just x -> infixApp (function "arbitrary") 
+                                                             (op $ mkName "suchThat")   
+                                                             x
+                                               Nothing -> function "arbitrary")
+                                        )
+
+                                 , (hsTy, prevGroup) )
+                               ]
+               (Right next) -> __impossible $ show k ++ " " ++ show v
+            _ -> case v of
+               (Left depth) -> __impossible $ show k ++ " " ++ show v
+               (Right next) -> mkArbitraryGenStmt next group userPredMap
+
+               -- $ Just $ mkViewInfixE varToView group prev k
+       ) fs)
+
+
+                                                 
+
+
+
+
+
+{-
+case (M.lookup n userPredMap) of 
+       concat $ [ let (k,v) = fs!!i
+                      in case v of
+                       (Left depth) -> let n = k ++ replicate depth (P.head "'")
+                                           e = if  of 
+                                                        Just x -> infixApp (function "arbitrary") 
+                                                                     (op $ mkName "suchThat")   
+                                                                     x
+                                                        Nothing -> (function "arbitrary")
+                                         in [( (n, genStmt (pvar (mkName n)) e)
+                                             , (hsTy, prevGroup) )]
+                       (Right next) -> mkArbitraryGenStmt next group userPredMap
+          | i <- [0..(P.length fs-1)]
+          ]
+          -}
+
+{-
+       reverse $ concatMap ( \(k,v) 
+            ->         ) fs
+            -}
+
+               {-
+               __impossible $ show k ++ " " ++ show v
+
+       case group of
+            HsPrim -> case v of
+               (Left depth) -> [ ( let n = k ++ replicate depth (P.head "'")
+                                     in ( n
+                                        , genStmt (pvar (mkName n)) 
+                                            $ case (M.lookup n userPredMap) of 
+                                                Just x -> infixApp (function "arbitrary") 
+                                                             (op $ mkName "suchThat")   
+                                                             x
+                                                Nothing -> (function "arbitrary")
+                                        )
+
+                                 , (hsTy, prevGroup) )
+                               ]
+               (Right next) -> __impossible $ show k ++ " " ++ show v
+            _ -> case v of
+               (Left depth) -> __impossible $ show k ++ " " ++ show v
+               (Right next) -> mkArbitraryGenStmt next group userPredMap
+
+               -- $ Just $ mkViewInfixE varToView group prev k
+       ) fs
+       -}
 
 
 packConWithLayout :: Either Int HsEmbedLayout -> Maybe String -> Exp ()
@@ -187,7 +280,7 @@ replaceVarsInUserInfixE exp depth vars
     | (InfixApp () lhs op rhs) <- exp 
     = let opname = getOpStr op
         in if | any (==opname) ["^.", "^?"] -> replaceInfixViewE exp depth vars
-              | otherwise -> InfixApp () (replaceVarsInUserInfixE lhs depth vars) op (replaceVarsInUserInfixE rhs depth vars)
+              | otherwise -> trace (":::::"++show op) $ InfixApp () (replaceVarsInUserInfixE lhs depth vars) op (replaceVarsInUserInfixE rhs depth vars)
 replaceVarsInUserInfixE exp depth vars = exp
 
 replaceInfixViewE :: Exp () -> Int -> M.Map String String -> Exp ()
@@ -236,8 +329,9 @@ getOpStr _ = ""
 scanUserInfixViewE :: Exp () -> Int -> M.Map String String
 scanUserInfixViewE (Paren () e) depth = scanUserInfixViewE e depth
 scanUserInfixViewE (InfixApp () lhs op rhs) depth 
-    = let d = if getOpStr op == "." then depth+1 else depth
-        in M.union (scanUserInfixViewE lhs (d)) (scanUserInfixViewE rhs (d))
+    = if getOpStr op == "." 
+       then M.union (scanUserInfixViewE lhs (depth)) (scanUserInfixViewE rhs (depth+1))
+       else M.union (scanUserInfixViewE lhs (depth)) (scanUserInfixViewE rhs (depth))
 scanUserInfixViewE (Var _ (UnQual _ (Ident _ name))) depth 
     = M.singleton (mkViewBindVarN name (depth+1)) (name)
 scanUserInfixViewE _ depth = M.empty
