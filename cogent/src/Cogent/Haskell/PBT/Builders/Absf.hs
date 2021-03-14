@@ -165,7 +165,7 @@ packAbsCon (TyList _ ty) varsToPut pos = mkVar $ varsToPut!!pos
 packAbsCon iaTyp varsToPut prev | _ <- iaTyp = __impossible $ "Bad Abstraction"++" --> "++"Hs: "++show iaTyp
 
 
--- | Builder the lens view expression that extracts the fields from complex types
+-- | Builder for the lens view expression that extracts the fields from complex types
 -- -----------------------------------------------------------------------
 -- | @layout@ is a tree like structure containing info about the layout of fields in a constructor
 -- | @varToView@ is the var that the view transform is being applied to

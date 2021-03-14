@@ -91,54 +91,24 @@ mkGenFBody :: CC.Type t a -> Type () -> Maybe (Exp ()) -> SG (Exp ())
 mkGenFBody cogIcTyp icTyp predExp = 
     let icLayout = determineUnpack cogIcTyp icTyp Unknown 0 "None"
         userPred = case predExp of 
-                    Just x -> let vars = scanUserInfixE x 0
-                                  -- TODO: this is rough
-                                  v' = (replaceVarsInUserInfixE x 0 vars)
-                                in trace (show vars++">>>"++show v') $ mkVarToExpWithLam v' vars
-                                                                        -- (M.fromList $ [P.last $ M.toList vars])
-                    Nothing -> M.empty
-            -- TODO: one final transform -> for each of the vars extracted 
-            --  create a map of that var(ticked version) string to a exp that 
-            --      replaces the var with anon input (and turn that exp into a anon function)
-            
+                     -- here we turn the user predicate for welf into a lambda function 
+                     -- with infix views replaced with vars that are bound to arbitrary
+                     Just x -> let vars = scanUserInfixE x 0
+                                 in mkVarToExpWithLam (replaceVarsInUserInfixE x 0 vars) vars
+                     Nothing -> M.empty
         genStmts = mkArbitraryGenStmt icLayout Unknown userPred
         binds = map (snd . fst) genStmts
         body = packConWithLayout (Right icLayout) Nothing
-        -- packAbsCon icTyp (map (fst . fst) genStmts) 0
       in return $ doE $ binds ++ [qualStmt (app (function "return") body)]
 
 
--- TODO: will need to match user built lens with generated lens
-
--- sort by just arbitrary -- no such that 
+-- | builder for map of vars to lambda expressions
+-- -----------------------------------------------------------------------
 mkVarToExpWithLam :: Exp () -> M.Map String String -> M.Map String (Exp ())
 mkVarToExpWithLam e vars = M.fromList $ map (\(k,v) -> (k, lamE [pvar (mkName "x")] (replaceWithX e 0 k))) $ M.toList vars
 
-{-
-let (k,v) = trace ("00000"++show vars) $ P.head $ M.toList vars
-                             in M.fromList [(k, lamE [pvar (mkName "x")] (replaceWithX e 0 k)) | e <- es ]
-                             -}
-
-{-
-
-          e = case predExp of 
-                      Just x -> infixApp genfn predOp $ predFunc x
-                      Nothing -> genfn
-        in pure (e, [])
-        where genfn = function "arbitrary" -- "arbitrary"
-              predOp = op $ mkName "suchThat"
-              predFunc x = lamE [pvar $ mkName "ic"] x
-              -}
-
-{-
-          lens = map fst $ mkLensView icLayout "ic" Unknown Nothing
-          binds = map ((\x -> pvar . mkName . fst $ x) &&& snd) lens
-          body = packAbsCon iaTyp (map fst lens) 0
-       in pure (mkLetE binds body, getConNames icLayout [])
-       -}
-
-
-
+-- | builder for arbitrary stmts used in the do expression of the Gen function
+-- -----------------------------------------------------------------------
 mkArbitraryGenStmt :: HsEmbedLayout -> GroupTag -> M.Map String (Exp ()) -> [((String, Stmt ()), (Type (), GroupTag))]
 mkArbitraryGenStmt layout prevGroup userPredMap
     = let hsTy = layout ^. hsTyp
@@ -146,89 +116,20 @@ mkArbitraryGenStmt layout prevGroup userPredMap
           prevGroup = layout ^. prevGrTag
           fld = layout ^. fieldMap
           fs = sortOn fst $ M.toList fld
-          (preds, nextPreds) = partition (\(k,v) -> case (M.lookup k fld) of 
-                                                     Just x -> True
-                                                     Nothing ->  False
-                                            ) (M.toList userPredMap)
-
-       in reverse $ (concatMap (\(k,v) -> case group of
-            HsPrim -> case v of
-               (Left depth) -> [ ( let n = k ++ replicate depth (P.head "'")
-                                     in ( n
-                                        , genStmt (pvar (mkName n)) 
-                                            (case (M.lookup n userPredMap) of
-                                               Just x -> infixApp (function "arbitrary") 
-                                                             (op $ mkName "suchThat")   
-                                                             x
-                                               Nothing -> function "arbitrary")
-                                        )
-
-                                 , (hsTy, prevGroup) )
-                               ]
-               (Right next) -> __impossible $ show k ++ " " ++ show v
-            _ -> case v of
-               (Left depth) -> __impossible $ show k ++ " " ++ show v
-               (Right next) -> mkArbitraryGenStmt next group (M.fromList $ preds++[P.head nextPreds])
-
-               -- $ Just $ mkViewInfixE varToView group prev k
+          (preds, nextPreds) = partition (\(k,v) -> isJust $ (M.lookup k fld)) 
+                                           (sortOn fst $ M.toList userPredMap)
+       in reverse $ (concatMap (\(k,v) -> case v of
+           (Left depth) -> [ ( let n = k ++ replicate depth (P.head "'")
+                                   e = case (M.lookup n userPredMap) of
+                                         Just x -> infixApp (function "arbitrary") (op $ mkName "suchThat") x
+                                         Nothing -> function "arbitrary"
+                                 in ( n, genStmt (pvar (mkName n)) e )
+                             , (hsTy, prevGroup) ) ]
+           (Right next) -> mkArbitraryGenStmt next group (M.fromList $ preds++[P.head nextPreds])
        ) fs)
 
-
-                                                 
-
-
-
-
-
-{-
-case (M.lookup n userPredMap) of 
-       concat $ [ let (k,v) = fs!!i
-                      in case v of
-                       (Left depth) -> let n = k ++ replicate depth (P.head "'")
-                                           e = if  of 
-                                                        Just x -> infixApp (function "arbitrary") 
-                                                                     (op $ mkName "suchThat")   
-                                                                     x
-                                                        Nothing -> (function "arbitrary")
-                                         in [( (n, genStmt (pvar (mkName n)) e)
-                                             , (hsTy, prevGroup) )]
-                       (Right next) -> mkArbitraryGenStmt next group userPredMap
-          | i <- [0..(P.length fs-1)]
-          ]
-          -}
-
-{-
-       reverse $ concatMap ( \(k,v) 
-            ->         ) fs
-            -}
-
-               {-
-               __impossible $ show k ++ " " ++ show v
-
-       case group of
-            HsPrim -> case v of
-               (Left depth) -> [ ( let n = k ++ replicate depth (P.head "'")
-                                     in ( n
-                                        , genStmt (pvar (mkName n)) 
-                                            $ case (M.lookup n userPredMap) of 
-                                                Just x -> infixApp (function "arbitrary") 
-                                                             (op $ mkName "suchThat")   
-                                                             x
-                                                Nothing -> (function "arbitrary")
-                                        )
-
-                                 , (hsTy, prevGroup) )
-                               ]
-               (Right next) -> __impossible $ show k ++ " " ++ show v
-            _ -> case v of
-               (Left depth) -> __impossible $ show k ++ " " ++ show v
-               (Right next) -> mkArbitraryGenStmt next group userPredMap
-
-               -- $ Just $ mkViewInfixE varToView group prev k
-       ) fs
-       -}
-
-
+-- | builder for Constructor packing with just structure layout type
+-- -----------------------------------------------------------------------
 packConWithLayout :: Either Int HsEmbedLayout -> Maybe String -> Exp ()
 packConWithLayout layout fieldKey
     = case layout of 
@@ -250,18 +151,22 @@ packConWithLayout layout fieldKey
                                                   , M.toList fld )
                       in appFun (mkVar name) $ map (\(k,v) -> packConWithLayout v (Just k)) $ flds
 
+-- | Replace lens/prisms ((^.)|(^?)) nodes in the Exp AST with vars
+-- | that are bound such that the expression is semantically equivalent
+-- -----------------------------------------------------------------------
 replaceVarsInUserInfixE :: Exp () -> Int -> M.Map String String -> Exp ()
 replaceVarsInUserInfixE (Paren () e) depth vars = replaceVarsInUserInfixE e depth vars
 replaceVarsInUserInfixE exp depth vars
     | (InfixApp () lhs op rhs) <- exp 
     = let opname = getOpStr op
         in if | any (==opname) ["^.", "^?"] -> replaceInfixViewE exp depth vars
-              | otherwise -> trace (":::::"++show op) $ InfixApp () (replaceVarsInUserInfixE lhs depth vars) op (replaceVarsInUserInfixE rhs depth vars)
+              | otherwise -> InfixApp () (replaceVarsInUserInfixE lhs depth vars) op (replaceVarsInUserInfixE rhs depth vars)
 replaceVarsInUserInfixE exp depth vars = exp
 
+-- | Actual transform of AST (lens/prisms -> var) occurs here
+-- -----------------------------------------------------------------------
 replaceInfixViewE :: Exp () -> Int -> M.Map String String -> Exp ()
-replaceInfixViewE (Paren () e) depth vars 
-    = Paren () $ replaceInfixViewE e depth vars
+replaceInfixViewE (Paren () e) depth vars = Paren () $ replaceInfixViewE e depth vars
 replaceInfixViewE (InfixApp () lhs op rhs) depth vars 
     --   ok just to handle rhs because of fixity
     = replaceInfixViewE rhs (depth+1) vars
@@ -271,6 +176,8 @@ replaceInfixViewE (Var _ (UnQual _ (Ident _ name))) depth vars
         in Var () (UnQual () (Ident () newName))
 replaceInfixViewE exp depth vars = exp
 
+-- | Transform Exp AST by changing @var@ name to just "x" (for anon functions)
+-- -----------------------------------------------------------------------
 replaceWithX :: Exp () -> Int -> String -> Exp ()
 replaceWithX (Paren () e) depth var
     = Paren () $ replaceWithX e depth var
@@ -282,26 +189,27 @@ replaceWithX exp depth var | (Var _ (UnQual _ (Ident _ name))) <- exp
     = if (name == var) then Var () (UnQual () (Ident () ("x"))) else exp
 replaceWithX exp depth vars = exp
 
--- scan user any infix expression -> for predicates
+-- | scan user infix expression -> looking for lens/prisms in exp,
+-- | and use the structure of the lens/prism to create the unique identifier var
+-- | and place it in a map.
+-- | We know it will produce the same var as if the type was scanned with 
+-- | HsEmbedLayout type. 
+-- -----------------------------------------------------------------------
 scanUserInfixE :: Exp () -> Int -> M.Map String String
 scanUserInfixE (Paren () e) depth = scanUserInfixViewE e depth
 scanUserInfixE exp depth 
     | (InfixApp () lhs op rhs) <- exp 
     = let opname = getOpStr op
-        in if | any (==opname) ["^.", "^?"] -> trace ("***"++show exp) $ scanUserInfixViewE exp depth
+        in if | any (==opname) ["^.", "^?"] -> scanUserInfixViewE exp depth
               | otherwise -> M.union (scanUserInfixE lhs depth) (scanUserInfixE rhs depth)
-scanUserInfixE exp depth = trace ("***"++show exp) $ scanUserInfixViewE exp depth
+scanUserInfixE exp depth =  scanUserInfixViewE exp depth
 
-getOpStr :: QOp () -> String
-getOpStr (QVarOp _ (UnQual _ (Symbol _ name))) = name
-getOpStr _ = ""
-
-
--- scan (^.|^?) expressions 
--- want to extract fieldname & depth as this is enought to build the 
--- fieldname pattern for view binds i.e. name ++ replicate depth $ P.head "'"
--- in the map, fieldname ++ postfix maps to depth in expression
--- depth only increases when recursing down RHS
+-- | scan (^.|^?) expressions 
+-- | want to extract fieldname & depth as this is enought to build the 
+-- | fieldname pattern for view binds i.e. name ++ replicate depth $ P.head "'"
+-- | in the map, fieldname ++ postfix maps to depth in expression
+-- | depth only increases when recursing down RHS
+-- -----------------------------------------------------------------------
 scanUserInfixViewE :: Exp () -> Int -> M.Map String String
 scanUserInfixViewE (Paren () e) depth = scanUserInfixViewE e depth
 scanUserInfixViewE (InfixApp () lhs op rhs) depth 
@@ -312,24 +220,16 @@ scanUserInfixViewE (Var _ (UnQual _ (Ident _ name))) depth
     = M.singleton (mkViewBindVarN name (depth+1)) (name)
 scanUserInfixViewE _ depth = M.empty
 
+-- | Builder for unique var identifier - this pattern is also follow by HsEmbedLayout
+-- -----------------------------------------------------------------------
 mkViewBindVarN :: String -> Int -> String
-mkViewBindVarN fieldname depth = let n = fieldname ++ (replicate depth $ P.head "'")
-                                   in trace ("~~~~~~~~~>"++show n) $ n
+mkViewBindVarN fieldname depth = fieldname ++ (replicate depth $ P.head "'")
 
-{-
-
-getVarStr (Var _ (UnQual _ (Ident _ name))) = name
-
- - o
-    let opname = getVarStr op
-        in if | opname == 
-
-    case op of 
-        (QVarOp () (UnQual () (Symbol () symStr)))
-            -> if | symStr == "^." -> scanUserInfixViewE rhs (depth+1)
-                  | symStr == "." -> scanUserInfixViewE rhs (depth+1)
-                  | otherwise -> scanUserInfixViewE rhs (depth+1)
-                  -}
+-- | Return operator string value
+-- -----------------------------------------------------------------------
+getOpStr :: QOp () -> String
+getOpStr (QVarOp _ (UnQual _ (Symbol _ name))) = name
+getOpStr _ = ""
 
 
 testScanUserInfix :: IO ()
@@ -337,8 +237,6 @@ testScanUserInfix = do
     putStrLn $ show $ scanUserInfixE exampleUserInfixPred 0
     putStrLn $ show $ replaceVarsInUserInfixE exampleUserInfixPred 0 $ scanUserInfixE exampleUserInfixPred 0
 
-
--- --> might need a prev expression if there is a type coercison on the end of the exp
 
 exampleUserInfix = (InfixApp () (Var () (UnQual () (Ident () "ic"))) 
                     (QVarOp () (UnQual () (Symbol () "^."))) (InfixApp ()
@@ -396,63 +294,3 @@ exampleUserInfixPred'' = InfixApp ()
             (Var () (UnQual () (Ident () "sum''"))) 
             (QVarOp () (UnQual () (Symbol () ">="))) 
             (Var () (UnQual () (Ident () "count''"))))
-
-
--- TODO: 
---      - want to scan user exp and get field name ++ depth
---          - might be useful for shorthand direct mappings (e.g. count'') -> leverage the algorithm
---          - assume only infix exp in which we transverse down rhs until we reach the last field
---      - then look at user predicate -> want to just replace lens view with just fieldname ++depth tag
-
-
-{-
--- scan user predicate -> must be infix -> must have lens view as base of expression
-scanUserInfixExp :: Exp () -> Maybe (Exp ()) -> (String, Exp ())
-scanUserInfixExp (InfixApp () lhs op rhs) prev 
-    = case op of 
-        (QVarOp () (UnQual () (Symbol () symStr)))
-            -> if | symStr /= "^." -> 
-                  | otherwise -> (
-                  -}
-
-
-
-
-{-
-
--- this needs to take a predicate and turn it into a generator
--- this is naive method so far
--- TODO: advanced method
---  -> convert predicate into functions, this is refinement in a way
---  -> see figuring out
-mkGenBody :: Type () -> Maybe (Exp ()) -> Exp ()
-mkGenBody icTyp predExp = case predExp of 
-                      Just x -> infixApp genfn predOp $ predFunc x
-                      Nothing -> genfn
-    where genfn = function "arbitrary" -- "arbitrary"
-          predOp = op $ mkName "suchThat"
-          predFunc x = lamE [pvar $ mkName "ic"] x
-          -}
-
-
-
-
-
-{-
-getCogFunInputTyp :: String -> [CC.Definition TypedExpr VarName b] -> SG (CC.Type t b, Type ())
-getCogFunInputTyp funcname defs =
-    let fnDef = fromJust $ find (\x -> CC.getDefinitionId x == funcname) defs
-      in getCogFunInputTyp' fnDef
-
-getCogFunInputTyp' :: CC.Definition TypedExpr VarName b -> SG (CC.Type t b, Type ())
-getCogFunInputTyp' (CC.FunDef _ fn ps _ ti to _) = do
-    s <- shallowType ti
-    let ti' = ti
-    return $ (ti', s)
-getCogFunInputTyp' (CC.AbsDecl _ fn ps _ ti to) = do
-    s <- shallowType ti
-    let ti' = ti
-    return $ (ti', s)
-getCogFunInputTyp' _ = __impossible "could not get input type"
-
--}
