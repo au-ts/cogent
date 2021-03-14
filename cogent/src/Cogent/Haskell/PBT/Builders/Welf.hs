@@ -40,7 +40,7 @@ import Data.Tuple
 import Data.Function
 import Data.Maybe
 import Data.Either
-import Data.List (find, partition, group, sort)
+import Data.List (find, partition, group, sort, sortOn)
 import Data.Generics.Schemes (everything)
 import Control.Arrow (second, (***), (&&&))
 import Control.Applicative
@@ -90,7 +90,12 @@ mkGenFExp' def _ | (CC.TypeDef tn _ _) <- def = pure (TyCon () (mkQName "Unknown
 mkGenFBody :: CC.Type t a -> Type () -> Maybe (Exp ()) -> SG (Exp ())
 mkGenFBody cogIcTyp icTyp predExp = 
     let icLayout = determineUnpack cogIcTyp icTyp Unknown 0 "None"
-        userPred = predExp <&> (\x -> replaceVarsInUserInfixE x 0 $ scanUserInfixViewE x 0)
+        userPred = case predExp of 
+                    Just x -> let vars = scanUserInfixViewE x 0
+                                  v' = (replaceVarsInUserInfixE x 0 vars)
+                                in trace (show vars++">>>"++show v') $ mkVarToExpWithLam v' vars
+                                                                        -- (M.fromList $ [P.last $ M.toList vars])
+                    Nothing -> M.empty
             -- TODO: one final transform -> for each of the vars extracted 
             --  create a map of that var(ticked version) string to a exp that 
             --      replaces the var with anon input (and turn that exp into a anon function)
@@ -103,6 +108,10 @@ mkGenFBody cogIcTyp icTyp predExp =
 
 
 -- TODO: will need to match user built lens with generated lens
+
+-- sort by just arbitrary -- no such that 
+mkVarToExpWithLam :: Exp () -> M.Map String String -> M.Map String (Exp ())
+mkVarToExpWithLam e vars = M.fromList $ map (\(k,v) -> (k, lamE [pvar (mkName "x")] (replaceWithX e 0 k))) $ M.toList vars
 
 {-
 
@@ -124,24 +133,31 @@ mkGenFBody cogIcTyp icTyp predExp =
 
 
 
-mkArbitraryGenStmt :: HsEmbedLayout -> GroupTag -> Maybe (Exp ()) -> [((String, Stmt ()), (Type (), GroupTag))]
-mkArbitraryGenStmt layout prevGroup predExp
+mkArbitraryGenStmt :: HsEmbedLayout -> GroupTag -> M.Map String (Exp ()) -> [((String, Stmt ()), (Type (), GroupTag))]
+mkArbitraryGenStmt layout prevGroup userPredMap
     = let hsTy = layout ^. hsTyp
           group = layout ^. grTag
           prevGroup = layout ^. prevGrTag
           fld = layout ^. fieldMap
-       in concatMap ( \(k, v) -> case group of
+       in reverse $ concatMap ( \( (k,v) , (k',v') ) -> case group of
             HsPrim -> case v of
                (Left depth) -> [ ( let n = k ++ replicate depth (P.head "'")
                                      in ( n
-                                        , genStmt (pvar (mkName n)) $ function "arbitrary" )
+                                        , genStmt (pvar (mkName n)) 
+                                            $ if n /= k'
+                                               then (function "arbitrary")
+                                               else infixApp (function "arbitrary") 
+                                                             (op $ mkName "suchThat")   
+                                                             v'
+                                        )
+
                                  , (hsTy, prevGroup) )
                                ]
                (Right next) -> __impossible $ show k ++ " " ++ show v
             _ -> case v of
                (Left depth) -> __impossible $ show k ++ " " ++ show v
-               (Right next) -> mkArbitraryGenStmt next group predExp  -- $ Just $ mkViewInfixE varToView group prev k
-       ) $ M.toList fld
+               (Right next) -> mkArbitraryGenStmt next group userPredMap  -- $ Just $ mkViewInfixE varToView group prev k
+       ) $ P.zip (sortOn fst (M.toList fld)) (sortOn fst (M.toList userPredMap))
 
 
 packConWithLayout :: Either Int HsEmbedLayout -> Maybe String -> Exp ()
@@ -178,11 +194,24 @@ replaceInfixViewE :: Exp () -> Int -> M.Map String String -> Exp ()
 replaceInfixViewE (Paren () e) depth vars 
     = Paren () $ replaceInfixViewE e depth vars
 replaceInfixViewE (InfixApp () lhs op rhs) depth vars 
+    --   ok just to handle rhs because of fixity
     = replaceInfixViewE rhs (depth+1) vars
 replaceInfixViewE (Var _ (UnQual _ (Ident _ name))) depth vars
+    -- TODO: how to handle multiple
     = let (newName, _) = P.head $ filter (\(k,v) -> v == name) $ M.toList vars
         in Var () (UnQual () (Ident () newName))
 replaceInfixViewE exp depth vars = exp
+
+replaceWithX :: Exp () -> Int -> String -> Exp ()
+replaceWithX (Paren () e) depth var
+    = Paren () $ replaceWithX e depth var
+replaceWithX (InfixApp () lhs op rhs) depth var
+    --   ok just to handle rhs because of fixity
+    = InfixApp () (replaceWithX lhs (depth+1) var) op (replaceWithX rhs (depth+1) var)
+replaceWithX exp depth var | (Var _ (UnQual _ (Ident _ name))) <- exp
+    -- TODO: how to handle multiple
+    = if (name == var) then Var () (UnQual () (Ident () ("x"))) else exp
+replaceWithX exp depth vars = exp
 
 -- scan user any infix expression -> for predicates
 scanUserInfixE :: Exp () -> Int -> M.Map String String
@@ -190,9 +219,9 @@ scanUserInfixE (Paren () e) depth = scanUserInfixViewE e depth
 scanUserInfixE exp depth 
     | (InfixApp () lhs op rhs) <- exp 
     = let opname = getOpStr op
-        in if | any (==opname) ["^.", "^?"] -> scanUserInfixViewE exp depth
+        in if | any (==opname) ["^.", "^?"] -> trace ("***"++show exp) $ scanUserInfixViewE exp depth
               | otherwise -> M.union (scanUserInfixE lhs depth) (scanUserInfixE rhs depth)
-scanUserInfixE exp depth = scanUserInfixViewE exp depth
+scanUserInfixE exp depth = trace ("***"++show exp) $ scanUserInfixViewE exp depth
 
 getOpStr :: QOp () -> String
 getOpStr (QVarOp _ (UnQual _ (Symbol _ name))) = name
@@ -206,14 +235,16 @@ getOpStr _ = ""
 -- depth only increases when recursing down RHS
 scanUserInfixViewE :: Exp () -> Int -> M.Map String String
 scanUserInfixViewE (Paren () e) depth = scanUserInfixViewE e depth
-scanUserInfixViewE (InfixApp () lhs _ rhs) depth 
-    = M.union (scanUserInfixViewE lhs (depth)) (scanUserInfixViewE rhs (depth+1))
+scanUserInfixViewE (InfixApp () lhs op rhs) depth 
+    = let d = if getOpStr op == "." then depth+1 else depth
+        in M.union (scanUserInfixViewE lhs (d)) (scanUserInfixViewE rhs (d))
 scanUserInfixViewE (Var _ (UnQual _ (Ident _ name))) depth 
-    = M.singleton (mkViewBindVarN name depth) (name)
+    = M.singleton (mkViewBindVarN name (depth+1)) (name)
 scanUserInfixViewE _ depth = M.empty
 
 mkViewBindVarN :: String -> Int -> String
-mkViewBindVarN fieldname depth = fieldname ++ (replicate depth $ P.head "'")
+mkViewBindVarN fieldname depth = let n = fieldname ++ (replicate depth $ P.head "'")
+                                   in trace ("~~~~~~~~~>"++show n) $ n
 
 {-
 
@@ -233,8 +264,8 @@ getVarStr (Var _ (UnQual _ (Ident _ name))) = name
 
 testScanUserInfix :: IO ()
 testScanUserInfix = do
-    putStrLn $ show $ scanUserInfixE exampleUserInfixPred' 0
-    putStrLn $ show $ replaceVarsInUserInfixE exampleUserInfixPred' 0 $ scanUserInfixE exampleUserInfixPred' 0
+    putStrLn $ show $ scanUserInfixE exampleUserInfixPred 0
+    putStrLn $ show $ replaceVarsInUserInfixE exampleUserInfixPred 0 $ scanUserInfixE exampleUserInfixPred 0
 
 
 -- --> might need a prev expression if there is a type coercison on the end of the exp
