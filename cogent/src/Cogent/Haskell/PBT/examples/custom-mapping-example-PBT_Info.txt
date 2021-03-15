@@ -1,0 +1,32 @@
+`averageBag` {
+   pure { True }
+   nond { False }
+   absf { ic : Bag{count,sum} ;
+          ia : (Int, Int)     ;  
+          ia := (ic ^. sum & fromIntegral , ic ^. count & fromIntegral) ;
+   }
+   rrel { oc : < Failure | Success U32 > ;
+          oa : Maybe Int                 ;
+          :| (oa ^? _Just) == (oc ^? _V0_Success <&> fromIntegral) ;
+   }
+   welf {
+       :| ic ^. count <= ic ^. sum ;
+   }
+}
+`addToBag` {
+   pure { True }
+   nond { False }
+   absf { ic : (U32, Bag)      ;
+          ia : (Int, Int, Int) ;
+          ia := ( ic ^. _1 & fromIntegral
+                , ic ^. _2 . sum & fromIntegral
+                , ic ^. _2 . count & fromIntegral ) ;
+   }
+   rrel { oc : Bag        ;
+          oa : (Int, Int) ;
+          :| (oa ^. _1) == (oc ^. sum & fromIntegral) ;
+   }
+   welf {
+       :| ic ^. _1 >= 0 ;
+   }
+}
