@@ -16,14 +16,14 @@
 `addToBag` {
    pure { True }
    nond { False }
-   absf { ic : (U32, Bag)      ;
+   absf { ic : (U32, Bag{count,sum})      ;
           ia : (Int, Int, Int) ;
           ia := ( ic ^. _1 & fromIntegral
                 , ic ^. _2 . sum & fromIntegral
                 , ic ^. _2 . count & fromIntegral ) ;
    }
-   rrel { oc : Bag        ;
-          oa : (Int, Int) ;
+   rrel { oc : Bag{count,sum} ;
+          oa : (Int, Int)     ;
           :| (oa ^. _1) == (oc ^. sum & fromIntegral) ;
    }
    welf {

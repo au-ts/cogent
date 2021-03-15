@@ -14,11 +14,11 @@
 `addToBag` {
    pure { True }
    nond { False }
-   absf { ic : (U32, Bag)      ;
-          ia : (Int, Int, Int) ;
+   absf { ic : (U32, Bag{count,sum}) ;
+          ia : (Int, Int, Int)       ;
    }
-   rrel { oc : Bag        ;
-          oa : (Int, Int) ;
+   rrel { oc : Bag{count,sum} ;
+          oa : (Int, Int)     ;
    }
    welf {
        :| ic ^. _1 >= 0 ;
