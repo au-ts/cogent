@@ -33,7 +33,7 @@ import Language.Haskell.Exts.SrcLoc
 import Text.PrettyPrint
 import Debug.Trace
 import Cogent.Haskell.PBT.DSL.Types
-import Cogent.Haskell.PBT.Types
+import Cogent.Haskell.PBT.Util
 import Cogent.Haskell.Shallow as SH
 import Prelude as P
 import Data.Tuple
@@ -102,7 +102,7 @@ propModule name hscname pbtinfos decls =
                     P.map importVar ["complement", "xor", "shiftL", "shiftR"]
       import_word = P.map importAbs ["Word8", "Word16", "Word32", "Word64"]
       import_prelude = P.map importVar ["not", "div", "mod", "fromIntegral", "undefined", "return"] ++
-                       P.map importSym [".", "+", "-", "*", "&&", "||", ">", ">=", "<", "<=", "==", "/="] ++
+                       P.map importSym ["$", ".", "+", "-", "*", "&&", "||", ">", ">=", "<", "<=", "==", "/="] ++
                        P.map importAbs ["Char", "String", "Int", "Show", "Maybe"] ++
                        [IThingAll () $ Ident () "Bool"]
       imps = [ ImportDecl () (ModuleName () "Test.QuickCheck" ) False False False Nothing Nothing Nothing
@@ -120,6 +120,7 @@ propModule name hscname pbtinfos decls =
              -- , ImportDecl () (ModuleName () (hscname ++ "_Abs")) False False False Nothing (Just (ModuleName () "FFI")) Nothing
              , ImportDecl () (ModuleName () "Prelude"  ) False False False Nothing Nothing (Just $ ImportSpecList () False import_prelude)
              , ImportDecl () (ModuleName () "Data.Bits") False False False Nothing Nothing (Just $ ImportSpecList () False import_bits)
+             , ImportDecl () (ModuleName () "Data.Maybe") False False False Nothing Nothing Nothing
              , ImportDecl () (ModuleName () "Data.Tuple.Select") True False False Nothing (Just $ ModuleName () "Tup") Nothing
              , ImportDecl () (ModuleName () "Data.Tuple.Update") True False False Nothing (Just $ ModuleName () "Tup") Nothing
              , ImportDecl () (ModuleName () "Data.Word") False False False Nothing Nothing (Just $ ImportSpecList () False import_word)
@@ -128,7 +129,7 @@ propModule name hscname pbtinfos decls =
       (ls, cogD) = partition (\x -> case x of
                                       (SpliceDecl _ _) -> True
                                       _ -> False) cogDecls
-      hs_decls = rmdups ls ++ P.concatMap propDecls' pbtinfos ++ cogD
+      hs_decls = rmdups ls ++ (P.concatMap propDecls' pbtinfos) ++ (P.concatMap specDecls pbtinfos) ++ cogD
                                 -- ++ (P.concatMap (\x -> genDecls x decls) pbtinfos)
   in
   Module () (Just moduleHead) exts imps hs_decls
@@ -170,3 +171,24 @@ mkPropBody' n ds
                , lamE [pvar $ mkName "ic"] (if isPure then letE binds body else doE binds') ]
         in if isPure then appFun f fs
            else app (function "monadicIO") $ appFun f fs
+
+
+-- | builder for haskell specification function
+-- -----------------------------------------------------------------------
+specDecls :: PbtDescStmt -> [Decl ()]
+specDecls desc 
+    = let iaTy = (findKvarsInDecl Spec Ia $ desc ^. decls) ^. _2
+          (_, oaTy, exp) = findKvarsInDecl Spec Oa $ desc ^. decls
+          iaT = fromMaybe ( fromMaybe (__impossible "ia type not specified!") $
+                    (findKvarsInDecl Absf Ia $ desc ^. decls) ^. _2
+                ) iaTy
+          oaT = fromMaybe ( fromMaybe (__impossible "oa type not specified!") $
+                    (findKvarsInDecl Rrel Oa $ desc ^. decls) ^. _2
+                ) iaTy
+          e = fromMaybe (function "undefined") exp
+          fname = mkName $ "hs_"++(desc ^. funcname)
+          sig  = TypeSig () [fname] (TyFun () iaT oaT)
+          dec = FunBind () [Match () fname [pvar $ mkName "ia"] (UnGuardedRhs () $ e) Nothing]
+        in [sig, dec]
+
+

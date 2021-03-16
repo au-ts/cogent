@@ -1,7 +1,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Cogent.Haskell.PBT.Types where
+module Cogent.Haskell.PBT.Util where
 
 import Cogent.Haskell.PBT.DSL.Types
 import Cogent.Compiler (__impossible)
@@ -36,23 +36,39 @@ makeLenses ''HsEmbedLayout
 -- | Helper functions for accessing structure
 -- -----------------------------------------------------------------------
 findExprsInDecl :: PbtKeyword -> [PbtDescDecl] -> [PbtDescExpr]
-findExprsInDecl x ds = let res = fromMaybe (__impossible "No expression found!") $ find (\d -> case d ^. kword of x -> True; _ -> False) ds
+findExprsInDecl x ds = let res = fromMaybe (__impossible "No expression found!") $ find (\d -> d ^. kword == x) ds
                          in res ^. kexprs
 
 -- find ic/ia/oc/oa type and expression
 findKvarsInDecl :: PbtKeyword -> PbtKeyidents -> [PbtDescDecl] -> (PbtKeyidents, Maybe (HS.Type ()), Maybe (HS.Exp ()))
 findKvarsInDecl x y ds
-    = let decl = case find (\d -> (d ^. kword) == x) ds of
-                   Just x -> x
-                   Nothing -> __impossible $ "The decl: "++show x++ " was not specified"
+    = let declExprs = fromMaybe [] $ (find (\d -> (d ^. kword) == x) ds) <&> (^. kexprs)
           exprs = filter (\e -> case e ^. kident of
                              Just y' -> y' == y; _ -> False
-                  ) $ decl ^. kexprs
+                  ) $ declExprs
           in ( y
                -- find ty
              , (exprs ^.. each . kexp . _Just . _Left) ^? ix 0
                -- find mapping exp associated with this keyvar
              , (exprs ^.. each . kexp . _Just . _Right) ^? ix 0 )
+
+{-
+-- find ia/oa in spec block
+findAbsTysInDecl :: PbtKeyword -> PbtKeyidents -> [PbtDescDecl] -> (Maybe (HS.Type ()), Maybe (HS.Type ()), Maybe (HS.Exp ()))
+findAbsTysInDecl x y ds
+    = let decl = fromMaybe (__impossible $ "The decl: "++show x++ " was not specified") $ 
+                    find (\d -> (d ^. kword) == x) ds
+          exprs = filter (\e -> case e ^. kident of
+                             Just y' -> y' == y; _ -> False
+                  ) $ decl ^. kexprs
+          tys = (exprs ^.. each . kexp . _Just . _Left) ^? ix 0 
+          exp =  (exprs ^.. each . kexp . _Just . _Right) ^? ix 0
+          in ( y
+               -- find ty
+             , 
+               -- find mapping exp associated with this keyvar
+             , exp )
+             -}
 
 checkBoolE :: [PbtDescExpr] -> Bool
 checkBoolE a = case (a ^.. each . kexp . _Just . _Left) ^? ix 0 of

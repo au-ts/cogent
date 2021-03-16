@@ -7,7 +7,7 @@ import Cogent.Compiler (__cogent_pbt_info, __impossible)
 import qualified Language.Haskell.Exts.Syntax as HSS (Exp(..), Type(..))
 import qualified Language.Haskell.Exts.Parser as HSP (parseType, parseExp, parseExpWithMode, fromParseResult, ParseMode(..))
 import qualified Language.Haskell.Exts.Extension as HSE (Language(..))
-import qualified Language.Haskell.Exts.Fixity as HSF (infixr_, preludeFixities, baseFixities)
+import qualified Language.Haskell.Exts.Fixity as HSF (infixl_, preludeFixities, baseFixities)
 import qualified Language.Haskell.Names.SyntaxUtils as HSN (dropAnn)
 import Text.Parsec
 import Text.Parsec.Char
@@ -72,6 +72,7 @@ pExprs = pExpr `sepEndBy` pspaces semi
 pExpr :: Parser PbtDescExpr
 pExpr = do
     _ <- seeNext 10
+    -- TODO: check for comment here 
     lhs <- try (pspaces predOp) <|> pstrId
     _ <- trace ("++"++show lhs)  $ seeNext 10
     if (lhs == predStr) 
@@ -222,6 +223,7 @@ toPbtTyp "rrel" = Rrel
 toPbtTyp "welf" = Welf
 toPbtTyp "pure" = Pure
 toPbtTyp "nond" = Nond
+toPbtTyp "spec" = Spec
 toPbtTyp s = toPbtTyp . trim $ s
 
 toPbtTyp' "ic" = Ic
@@ -238,10 +240,8 @@ parseHsExp :: String -> HSS.Exp ()
 parseHsExp = HSN.dropAnn . HSP.fromParseResult . (HSP.parseExpWithMode parseMode)
 
 parseMode = HSP.ParseMode "unknown" HSE.Haskell2010 [] True True (Just $ fixes) True
-    -- note:
-    --      must be less fixity than cmp ops --> infix_  4  ["==","/=","<","<=",">=",">","`elem`","`notElem`"]
-    --      and, must be stronger fixity than compose op -> infixr_ 9  ["."] 
-    where fixes = HSF.infixr_ 5 ["^.", "^?"] ++ HSF.preludeFixities ++ HSF.baseFixities
+    -- note: have to give lens/prism operators their correct fixity to successfully parse
+    where fixes = HSF.infixl_ 8 ["^.", "^?"] ++ HSF.preludeFixities ++ HSF.baseFixities
 
 -- Debugging/Testing
 -- -----------------------------------------
@@ -261,6 +261,11 @@ exampleFile = unlines $
         [ "`averageBag` {                 \r"
         , "    pure { True }                \r"
         , "    nond { False }               \r"
+        , "    spec {                       \r"
+        , "         ia : (Int, Int);        \r"
+        , "         oa : R4 Word32 Word32;  \r"
+        , "         oa := ia ^. _1 `div` ia ^. _2;               \r"
+        , "    }                            \r"
         , "    absf {                       \r"
         --, "         ic : R4 Word32 Word32;  \r"
         , "         ia : (Int, Int);        \r"

@@ -204,7 +204,7 @@ library
                    , Cogent.Haskell.Shallow
 
                    , Cogent.Haskell.PBT.Gen
-                   , Cogent.Haskell.PBT.Types
+                   , Cogent.Haskell.PBT.Util
                    , Cogent.Haskell.PBT.Builders.Absf
                    , Cogent.Haskell.PBT.Builders.Rrel
                    , Cogent.Haskell.PBT.Builders.Welf

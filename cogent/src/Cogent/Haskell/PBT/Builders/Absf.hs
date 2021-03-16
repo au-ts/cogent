@@ -15,7 +15,7 @@ module Cogent.Haskell.PBT.Builders.Absf
 -- ) 
 where
 
-import Cogent.Haskell.PBT.Types
+import Cogent.Haskell.PBT.Util
 
 
 
@@ -61,7 +61,8 @@ absFDecl' stmt defs = do
             fnName = "abs_" ++ stmt ^. funcname
             iaT = case iaTy of
                       Just x -> x
-                      Nothing -> __impossible "specify ia type please"
+                      Nothing -> fromMaybe (__impossible "not ia type given in PBT file") $ 
+                                    (findKvarsInDecl Spec Ia $ stmt ^. decls) ^. _2
         (icT, _, absE, conNames) <- mkAbsFExp (stmt ^. funcname) iaT defs
         let e = case iaExp of
                   Just x -> x

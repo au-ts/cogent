@@ -31,7 +31,7 @@ import Language.Haskell.Exts.SrcLoc
 import Text.PrettyPrint
 import Debug.Trace
 import Cogent.Haskell.PBT.DSL.Types
-import Cogent.Haskell.PBT.Types
+import Cogent.Haskell.PBT.Util
 import Cogent.Haskell.Shallow as SH
 import Prelude as P
 import Data.Tuple
@@ -58,7 +58,8 @@ rrelDecl' stmt defs = do
             fnName = "rel_" ++ stmt ^. funcname
             oaT = case oaTy of
                       Just x -> x
-                      Nothing -> __impossible $ "specify oa type please, stmt: "++ show stmt
+                      Nothing -> fromMaybe (__impossible "no oa type given in PBT file") $ 
+                                    (findKvarsInDecl Spec Oa $ stmt ^. decls) ^. _2
         (ocT, _, rrelE, conNames) <- mkRrelExp (stmt ^. funcname) oaT defs
         let (_, _, predExp) = findKvarsInDecl Rrel Pred $ stmt ^. decls
             e = fromMaybe rrelE predExp

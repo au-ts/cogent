@@ -33,7 +33,7 @@ import Language.Haskell.Exts.SrcLoc
 import Text.PrettyPrint
 import Debug.Trace
 import Cogent.Haskell.PBT.DSL.Types
-import Cogent.Haskell.PBT.Types
+import Cogent.Haskell.PBT.Util
 import Cogent.Haskell.Shallow as SH
 import Prelude as P
 import Data.Tuple
@@ -65,9 +65,9 @@ genDecls'' stmt defs = do
             --       - what else do you need for arbitrary?
             dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $ genfExp) Nothing]
             -- TODO: this is a dummy HS spec function def -> replace with something better
-            hs_dec    = FunBind () [Match () (mkName $ "hs_"++(stmt ^. funcname)) [] (UnGuardedRhs () $
-                           function "undefined") Nothing]
-          in return [sig, dec, hs_dec]
+            -- hs_dec    = FunBind () [Match () (mkName $ "hs_"++(stmt ^. funcname)) [] (UnGuardedRhs () $
+              --              function "undefined") Nothing]
+          in return [sig, dec]
 
 -- gen function only has output type (wrapped in Gen monad)
 mkGenFExp :: String -> [CC.Definition TypedExpr VarName b] -> Maybe (Exp ()) -> SG (Type (), Exp ())
@@ -118,11 +118,12 @@ mkArbitraryGenStmt layout prevGroup userPredMap
           fs = sortOn fst $ M.toList fld
           (preds, nextPreds) = partition (\(k,v) -> isJust $ (M.lookup k fld)) 
                                            (sortOn fst $ M.toList userPredMap)
+          genFn = function "chooseAny"
+          predFilter = op $ mkName "suchThat"
        in reverse $ (concatMap (\(k,v) -> case v of
            (Left depth) -> [ ( let n = k ++ replicate depth (P.head "'")
-                                   e = case (M.lookup n userPredMap) of
-                                         Just x -> infixApp (function "arbitrary") (op $ mkName "suchThat") x
-                                         Nothing -> function "arbitrary"
+                                   e = fromMaybe (genFn) $ 
+                                         (M.lookup n userPredMap) <&> (\x -> infixApp genFn predFilter x)
                                  in ( n, genStmt (pvar (mkName n)) e )
                              , (hsTy, prevGroup) ) ]
            (Right next) -> mkArbitraryGenStmt next group (M.fromList $ preds++[P.head nextPreds])
@@ -231,66 +232,29 @@ getOpStr :: QOp () -> String
 getOpStr (QVarOp _ (UnQual _ (Symbol _ name))) = name
 getOpStr _ = ""
 
-
 testScanUserInfix :: IO ()
 testScanUserInfix = do
-    putStrLn $ show $ scanUserInfixE exampleUserInfixPred 0
-    putStrLn $ show $ replaceVarsInUserInfixE exampleUserInfixPred 0 $ scanUserInfixE exampleUserInfixPred 0
+    putStrLn $ show $ scanUserInfixE exampleUserInfix''' 0
+    putStrLn $ show $ replaceVarsInUserInfixE exampleUserInfix''' 0 $ scanUserInfixE exampleUserInfix''' 0
 
-
-exampleUserInfix = (InfixApp () (Var () (UnQual () (Ident () "ic"))) 
-                    (QVarOp () (UnQual () (Symbol () "^."))) (InfixApp ()
-                        (Var () (UnQual () (Ident () "_2")))  
-                            (QVarOp () (UnQual () (Symbol () ".")))
-                                (Var () (UnQual () (Ident () "sum")))))
-
-exampleUserInfixPred = (InfixApp ()
-                        (InfixApp ()
-                          (Var () (UnQual () (Ident () "ic")))
-                          (QVarOp () (UnQual () (Symbol () "^.")))
-                          (Var () (UnQual () (Ident () "sum"))))
-                          (QVarOp
-                            () (UnQual () (Symbol () "<")))
-                    (InfixApp ()
-                      (Var () (UnQual () (Ident () "ic")))
-                      (QVarOp () (UnQual () (Symbol () "^.")))
-                      (Var () (UnQual () (Ident () "count")))))
-
-
-exampleUserInfixPred' = (InfixApp ()
-                    (InfixApp ()
-                      (InfixApp ()
-                        (Var () (UnQual () (Ident () "ic")))
-                        (QVarOp () (UnQual () (Symbol () "^.")))
-                        (Var () (UnQual () (Ident () "_1"))))
-                      (QVarOp () (UnQual () (Symbol () ">=")))
-                        (Lit () (Int () 0 "0")))
-                    (QVarOp () (UnQual () (Symbol () "&&")))
-                    (InfixApp ()
-                      (InfixApp ()
-                        (Var () (UnQual () (Ident () "ic")))
-                        (QVarOp () (UnQual () (Symbol () "^.")))
-                        (InfixApp ()
-                          (Var () (UnQual () (Ident () "_2")))
-                          (QVarOp () (UnQual () (Symbol () ".")))
-                          (Var () (UnQual () (Ident () "sum")))))
-                      (QVarOp () (UnQual () (Symbol () ">=")))
-                      (InfixApp ()
-                        (Var () (UnQual () (Ident () "ic")))
-                        (QVarOp () (UnQual () (Symbol () "^.")))
-                        (InfixApp ()
-                          (Var () (UnQual () (Ident () "_2")))
-                          (QVarOp () (UnQual () (Symbol () ".")))
-                          (Var () (UnQual () (Ident () "count")))))))
-
-exampleUserInfixPred'' = InfixApp () 
-        (InfixApp () 
-            (Var () (UnQual () (Ident () "_1'"))) 
-            (QVarOp () (UnQual () (Symbol () ">="))) 
-            (Lit () (Int () 0 "0"))
-        )
-        (QVarOp () (UnQual () (Symbol () "&&"))) 
-        (InfixApp () 
-            (Var () (UnQual () (Ident () "sum''"))) 
-            (QVarOp () (UnQual () (Symbol () ">="))) 
-            (Var () (UnQual () (Ident () "count''"))))
+exampleUserInfix''' = (InfixApp
+                  ()
+                    (InfixApp
+                    ()
+                      (Var
+                      () (UnQual () (Ident () "ia")))
+                      (QVarOp
+                      () (UnQual () (Symbol () "^.")))
+                      (Var
+                      () (UnQual () (Ident () "_1"))))
+                    (QVarOp
+                    () (UnQual () (Ident () "div")))
+                    (InfixApp
+                    ()
+                      (Var
+                      () (UnQual () (Ident () "ia")))
+                      (QVarOp
+                      () (UnQual () (Symbol () "^.")))
+                      (Var
+                      ()
+                        (UnQual () (Ident () "_2")))))
