@@ -101,9 +101,10 @@ propModule name hscname pbtinfos decls =
       import_bits = P.map importSym [".&.", ".|."] ++
                     P.map importVar ["complement", "xor", "shiftL", "shiftR"]
       import_word = P.map importAbs ["Word8", "Word16", "Word32", "Word64"]
+      import_ints = P.map importAbs ["Int8", "Int16", "Int32", "Int64"]
       import_prelude = P.map importVar ["not", "div", "mod", "fromIntegral", "undefined", "return"] ++
                        P.map importSym ["$", ".", "+", "-", "*", "&&", "||", ">", ">=", "<", "<=", "==", "/="] ++
-                       P.map importAbs ["Char", "String", "Int", "Show", "Maybe"] ++
+                       P.map importAbs ["Char", "String", "Int", "Integer", "Show", "Maybe"] ++
                        [IThingAll () $ Ident () "Bool"]
       imps = [ ImportDecl () (ModuleName () "Test.QuickCheck" ) False False False Nothing Nothing Nothing
              , ImportDecl () (ModuleName () "Test.QuickCheck.Monadic" ) False False False Nothing Nothing Nothing
@@ -120,6 +121,7 @@ propModule name hscname pbtinfos decls =
              -- , ImportDecl () (ModuleName () (hscname ++ "_Abs")) False False False Nothing (Just (ModuleName () "FFI")) Nothing
              , ImportDecl () (ModuleName () "Prelude"  ) False False False Nothing Nothing (Just $ ImportSpecList () False import_prelude)
              , ImportDecl () (ModuleName () "Data.Bits") False False False Nothing Nothing (Just $ ImportSpecList () False import_bits)
+             , ImportDecl () (ModuleName () "Data.Int") False False False Nothing Nothing (Just $ ImportSpecList () False import_ints)
              , ImportDecl () (ModuleName () "Data.Maybe") False False False Nothing Nothing Nothing
              , ImportDecl () (ModuleName () "Data.Tuple.Select") True False False Nothing (Just $ ModuleName () "Tup") Nothing
              , ImportDecl () (ModuleName () "Data.Tuple.Update") True False False Nothing (Just $ ModuleName () "Tup") Nothing
@@ -184,11 +186,9 @@ specDecls desc
                 ) iaTy
           oaT = fromMaybe ( fromMaybe (__impossible "oa type not specified!") $
                     (findKvarsInDecl Rrel Oa $ desc ^. decls) ^. _2
-                ) iaTy
+                ) oaTy
           e = fromMaybe (function "undefined") exp
           fname = mkName $ "hs_"++(desc ^. funcname)
           sig  = TypeSig () [fname] (TyFun () iaT oaT)
           dec = FunBind () [Match () fname [pvar $ mkName "ia"] (UnGuardedRhs () $ e) Nothing]
         in [sig, dec]
-
-

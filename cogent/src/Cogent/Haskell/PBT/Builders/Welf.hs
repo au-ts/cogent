@@ -41,6 +41,7 @@ import Data.Function
 import Data.Maybe
 import Data.Either
 import Data.List (find, partition, group, sort, sortOn)
+import Data.List.Extra (trim)
 import Data.Generics.Schemes (everything)
 import Control.Arrow (second, (***), (&&&))
 import Control.Applicative
@@ -56,7 +57,8 @@ import Cogent.Isabelle.Shallow (isRecTuple)
 genDecls'' :: PbtDescStmt -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
 genDecls'' stmt defs = do
         let (_, _, predExp) = findKvarsInDecl Welf Pred $ stmt ^. decls
-        (icT, genfExp) <- mkGenFExp (stmt ^. funcname) defs predExp
+            userMapOpExp = findKIdentExp Welf Ic $ stmt ^. decls
+        (icT, genfExp) <- mkGenFExp (stmt ^. funcname) defs predExp userMapOpExp
         let fnName = "gen_" ++ stmt ^. funcname
             genCon = TyCon () (mkQName "Gen")
             tyOut = TyApp () genCon $ TyParen () icT
@@ -70,25 +72,25 @@ genDecls'' stmt defs = do
           in return [sig, dec]
 
 -- gen function only has output type (wrapped in Gen monad)
-mkGenFExp :: String -> [CC.Definition TypedExpr VarName b] -> Maybe (Exp ()) -> SG (Type (), Exp ())
-mkGenFExp fname defs predE = do
+mkGenFExp :: String -> [CC.Definition TypedExpr VarName b] -> Maybe (Exp ()) -> (Maybe (Exp ()), Maybe (Exp ())) -> SG (Type (), Exp ())
+mkGenFExp fname defs predE userE = do
     let def = fromMaybe (__impossible "function name (of function under test) cannot be found in cogent program"
               ) $ find (\x -> CC.getDefinitionId x == fname) defs
-    mkGenFExp' def predE
+    mkGenFExp' def predE userE
 
-mkGenFExp' :: CC.Definition TypedExpr VarName b -> Maybe (Exp ()) -> SG (Type (), Exp ())
-mkGenFExp' def predE | (CC.FunDef _ fn ps _ ti to _) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
+mkGenFExp' :: CC.Definition TypedExpr VarName b -> Maybe (Exp ()) -> (Maybe (Exp ()), Maybe (Exp ())) -> SG (Type (), Exp ())
+mkGenFExp' def predE userE | (CC.FunDef _ fn ps _ ti to _) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
     ti' <- shallowType ti
-    (genfExp) <- mkGenFBody ti ti' predE
+    (genfExp) <- mkGenFBody ti ti' predE userE
     pure (ti', genfExp)
-mkGenFExp' def predE | (CC.AbsDecl _ fn ps _ ti to) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
+mkGenFExp' def predE userE | (CC.AbsDecl _ fn ps _ ti to) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
     ti' <- shallowType ti
-    (genfExp) <- mkGenFBody ti ti' predE
+    (genfExp) <- mkGenFBody ti ti' predE userE
     pure (ti', genfExp)
-mkGenFExp' def _ | (CC.TypeDef tn _ _) <- def = pure (TyCon () (mkQName "Unknown"), function "undefined")
+mkGenFExp' def _ _ | (CC.TypeDef tn _ _) <- def = pure (TyCon () (mkQName "Unknown"), function "undefined")
 
-mkGenFBody :: CC.Type t a -> Type () -> Maybe (Exp ()) -> SG (Exp ())
-mkGenFBody cogIcTyp icTyp predExp = 
+mkGenFBody :: CC.Type t a -> Type () -> Maybe (Exp ()) -> (Maybe (Exp ()), Maybe (Exp ())) -> SG (Exp ())
+mkGenFBody cogIcTyp icTyp predExp (userLhsE, userRhsE) = 
     let icLayout = determineUnpack cogIcTyp icTyp Unknown 0 "None"
         userPred = case predExp of 
                      -- here we turn the user predicate for welf into a lambda function 
@@ -96,8 +98,21 @@ mkGenFBody cogIcTyp icTyp predExp =
                      Just x -> let vars = scanUserInfixE x 0
                                  in mkVarToExpWithLam (replaceVarsInUserInfixE x 0 vars) vars
                      Nothing -> M.empty
+        userMapOp = case userLhsE of 
+                        Just lhs -> case userRhsE of 
+                            Just rhs -> let vars = scanUserInfixE lhs 0
+                                            lhs' = replaceVarsInUserInfixE lhs 0 vars
+                                          in M.fromList $ map (\(k,v) -> (k,(lhs', rhs))) $ M.toList vars
+                            Nothing -> M.empty
+                        Nothing -> M.empty
         genStmts = mkArbitraryGenStmt icLayout Unknown userPred
-        binds = map (snd . fst) genStmts
+        bindsMap = (map fst genStmts)
+        binds' = map (\(x,y) -> case M.lookup x userMapOp of 
+                                  Just (lhs, rhs) -> ( x
+                                                     , genStmt (pvar (mkName x)) rhs )
+                                  Nothing -> (x,y)) bindsMap
+        binds = (map snd binds') 
+        -- TODO: find matching var user is refering to and drop that in
         body = packConWithLayout (Right icLayout) Nothing
       in return $ doE $ binds ++ [qualStmt (app (function "return") body)]
 
@@ -126,7 +141,9 @@ mkArbitraryGenStmt layout prevGroup userPredMap
                                          (M.lookup n userPredMap) <&> (\x -> infixApp genFn predFilter x)
                                  in ( n, genStmt (pvar (mkName n)) e )
                              , (hsTy, prevGroup) ) ]
-           (Right next) -> mkArbitraryGenStmt next group (M.fromList $ preds++[P.head nextPreds])
+           (Right next) -> mkArbitraryGenStmt next group (M.fromList $ preds++(
+                    if P.length nextPreds /= 0 then [P.head nextPreds] else [])
+                )
        ) fs)
 
 -- | builder for Constructor packing with just structure layout type
@@ -218,7 +235,8 @@ scanUserInfixViewE (InfixApp () lhs op rhs) depth
        then M.union (scanUserInfixViewE lhs (depth)) (scanUserInfixViewE rhs (depth+1))
        else M.union (scanUserInfixViewE lhs (depth)) (scanUserInfixViewE rhs (depth))
 scanUserInfixViewE (Var _ (UnQual _ (Ident _ name))) depth 
-    = M.singleton (mkViewBindVarN name (depth+1)) (name)
+    = if (any (==trim name ) ["ic","ia","oc","oa"]) then M.empty
+      else M.singleton (mkViewBindVarN name (depth+1)) (name)
 scanUserInfixViewE _ depth = M.empty
 
 -- | Builder for unique var identifier - this pattern is also follow by HsEmbedLayout

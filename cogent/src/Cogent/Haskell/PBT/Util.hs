@@ -11,6 +11,7 @@ import qualified Language.Haskell.Exts as HS
 import qualified Data.Map as M
 import Data.List (find)
 import Data.Maybe (fromMaybe)
+import Debug.Trace
 
 import Lens.Micro
 import Lens.Micro.TH
@@ -50,6 +51,16 @@ findKvarsInDecl x y ds
                -- find ty
              , (exprs ^.. each . kexp . _Just . _Left) ^? ix 0
                -- find mapping exp associated with this keyvar
+             , (exprs ^.. each . kexp . _Just . _Right) ^? ix 0 )
+
+
+findKIdentExp :: PbtKeyword -> PbtKeyidents -> [PbtDescDecl] -> (Maybe (HS.Exp ()), Maybe (HS.Exp ()))
+findKIdentExp x y ds
+    = let declExprs = fromMaybe [] $ (find (\d -> (d ^. kword) == x) ds) <&> (^. kexprs)
+          exprs = filter (\e -> case e ^. kident of
+                             Just y' -> y' == y; _ -> False
+                  ) $ declExprs
+          in ( (exprs ^.. each . rhsExp . _Just) ^? ix 0
              , (exprs ^.. each . kexp . _Just . _Right) ^? ix 0 )
 
 {-

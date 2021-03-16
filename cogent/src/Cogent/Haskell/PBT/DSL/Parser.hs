@@ -106,20 +106,24 @@ pExpr' = do
     let ident = case find (`isInfixOf` e) keyidents of
                   Just x -> x
                   Nothing -> __impossible $ "Predicate must contain a key identifier: one of " ++ show keyidents
-    return $ PbtDescExpr (Just (toPbtTyp' "pred"))  $ Just $ Right (parseHsExp e)
+    return $ PbtDescExpr (Just (toPbtTyp' "pred")) Nothing $ Just $ Right (parseHsExp e)
 
 pTypExpr lhs = do
     e <- typOp *> pHsExp
     let t = toPbtTyp' lhs
     _ <- trace (show e ++ show t) $ seeNext 2
-    return $ PbtDescExpr (Just t) $
+    return $ PbtDescExpr (Just t) Nothing $
         -- prevent cogent syntax from being parsed as HS syntax
         if t == Ic || t == Oc then Nothing else Just $ Left (parseHsTyp e)
 
 pMapExpr lhs = do
     e <- mapOp *> pHsExp
     _ <- trace ("-->"++show e) $ seeNext 3
-    let x = PbtDescExpr (Just (toPbtTyp' lhs)) $ Just $ Right (parseHsExp e)
+    let (lhsId, lhsExp) = if (any (==trim lhs) keyidents) then (trim lhs, Nothing)
+                          else ( fromMaybe (__impossible $ "RHS transform must contain a key identifier: one of " ++ show keyidents
+                                 ) $ find (`isInfixOf` lhs) keyidents
+                               , Just (parseHsExp lhs))
+    let x = PbtDescExpr (Just (toPbtTyp' lhsId)) lhsExp $ Just $ Right (parseHsExp e)
     _ <- trace (show x) $ seeNext 3
     return $ x
 
@@ -131,6 +135,7 @@ pEqlExpr ident lhs = do
         Right (parseHsExp (lhs++eqlStr++e))
         -}
 
+{-
 pRelationExpr :: (Parser a) -> String -> String -> String -> Parser PbtDescExpr
 pRelationExpr opParser opStr ident lhs = do
     e <- opParser *> pHsExp
@@ -138,8 +143,9 @@ pRelationExpr opParser opStr ident lhs = do
     return $ PbtDescExpr (Just (toPbtTyp' ident)) $ Just $ Right (parseHsExp (
        if | opStr == predStr -> e
           | otherwise -> lhs++opStr++e ))
+          -}
     
-pJustExpr lhs = return $ PbtDescExpr Nothing $ Just $ Left (parseHsTyp lhs)
+pJustExpr lhs = return $ PbtDescExpr Nothing Nothing $ Just $ Left (parseHsTyp lhs)
 
 {-
 pSomeExpr :: Maybe (Parser a) -> Parser a -> Parser a
@@ -295,7 +301,8 @@ exampleFile = unlines $
         -- , "         oa := oc ;               \r"
         , "    }                            \r"
         , "    welf {                       \r"
-        , "        :| ic ^. _1 >= 0 && ic ^. _2 . sum >= ic ^. _2 . count; \r"
+        , "        ic ^. _1 := choose(0, 1000) ;                       \r"
+        -- , "        :| ic ^. _1 >= 0 && ic ^. _2 . sum >= ic ^. _2 . count; \r"
         , "    }                            \r"
         , "}                                \r"
         ]

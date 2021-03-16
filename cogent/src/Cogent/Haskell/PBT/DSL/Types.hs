@@ -21,6 +21,7 @@ data PbtDescDecl = PbtDescDecl { _kword :: PbtKeyword
                                } deriving (Show)
 
 data PbtDescExpr = PbtDescExpr { _kident :: Maybe PbtKeyidents 
+                               , _rhsExp :: Maybe (HS.Exp ())
                                , _kexp :: Maybe (Either (HS.Type ()) (HS.Exp ()))
                                } deriving Show
 

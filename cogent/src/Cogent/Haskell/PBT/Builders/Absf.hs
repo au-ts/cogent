@@ -310,7 +310,8 @@ getAccessor conName groupTag ts fieldNames
                             | otherwise -> map (\x -> "_" ++ conName ++ "_" ++ x) fs
 
 prims = ["Word8","Word16","Word32","Word64","Bool","String"]
-        ++ ["Int"]
+        ++ intPrims
+intPrims = ["Int", "Int8", "Int16", "Int32", "Int64", "Integer"]
 
 hsSumTypes = ["Maybe","Either"]
 
@@ -320,11 +321,11 @@ checkIsPrim x = case x of
     _ -> Nothing
 
 isInt' :: QName () -> Bool
-isInt' (UnQual _ (Ident _ n)) = checkTy n ["Int"]
+isInt' (UnQual _ (Ident _ n)) = checkTy n intPrims
 isInt' _ = False
 
 isInt :: Type () -> Bool
-isInt (TyCon _ (UnQual _ (Ident _ n))) = checkTy n ["Int"]
+isInt (TyCon _ (UnQual _ (Ident _ n))) = checkTy n intPrims
 
 isBool :: Type () -> Bool
 isBool (TyCon _ (UnQual _ (Ident _ n))) = checkTy n ["Bool"]
