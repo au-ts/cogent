@@ -211,6 +211,7 @@ Section Compiler.
         instr (return_type (deref_type (fst f'))) (INSTR_Call f' [a'])
     end.
 
+  (* eventually will need to share this state between functions *)
   Definition start_state (t : typ) : CodegenState := {|
     entry := empty_block (Name "entry_0")
   ; blocks := []

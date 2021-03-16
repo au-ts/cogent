@@ -19,8 +19,8 @@ Definition semantics_llvm_mcfg p : itree E_mcfg _ := model_to_L3 DTYPE_Void "mai
 Definition semantics_llvm (p : vellvm_prog) : itree E_mcfg _ :=
   semantics_llvm_mcfg (convert_types (mcfg_of_tle p)).
 
-Definition semantics_cogent (p : cogent_prog) : failT (itree E_mcfg) (memory * (locals * uval)) := 
-  interp_cogent (prog_to_module p) (UFunction "main") UUnit empty_locals dummy_memory.
+Definition semantics_cogent (p : cogent_prog) : failT (itree E_mcfg) (memory * uval) := 
+  interp_cogent (prog_to_module p) (UFunction "main") UUnit dummy_memory.
 
 Section TopLevel.
 
@@ -34,6 +34,12 @@ Section TopLevel.
   Abort.
 
 End TopLevel.
+
+Section Expressions.
+
+(* we want something like Lemma genNExpr_correct *)
+
+End Expressions.
 
 (* Definition vellvm_env : Type := memory_stack * (local_env * global_env).
 Definition interp_vellvm (t : itree L0 uvalue) (e : vellvm_env) : itree L3 res_L3 :=

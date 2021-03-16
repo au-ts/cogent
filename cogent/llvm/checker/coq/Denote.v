@@ -20,13 +20,10 @@ Inductive uval : Set :=
 | UPtr (a : addr) (r : repr)
 | UFunction (f : name).
 
+Definition ctx : Type := list uval.
+
 Variant CallE : Type -> Type :=
 | Call (f : uval) (a : uval) : CallE uval.
-
-Variant VarE : Type -> Type :=
-| PeekVar (i : index) : VarE uval
-| PushVar (u : uval) : VarE unit
-| PopVar : VarE unit.
 
 Variant MemE : Type -> Type :=
 | LoadMem (a : addr) : MemE (option uval)
@@ -34,9 +31,8 @@ Variant MemE : Type -> Type :=
 
 Definition FailE := exceptE string.
 
-Definition CogentE := CallE +' VarE +' MemE +' FailE.
+Definition CogentE := CallE +' MemE +' FailE.
 
-Definition CogentL0 := VarE +' MemE +' FailE.
 Definition CogentL1 := MemE +' FailE.
 Definition CogentL2 := FailE.
 
@@ -60,12 +56,6 @@ Section Denote.
 
   Definition access_member (fs : list (uval * repr)) (f : nat) : itree CogentE uval :=
     option_bind (nth_error fs f) fst "invalid member access".
-  
-  Definition denote_bind {A} (v : uval) (b : itree CogentE A) : itree CogentE A :=
-    trigger (PushVar v) ;;
-    b' <- b ;;
-    trigger PopVar ;; (* do we actually need to do this? *)
-    ret b'.
 
   (* is this built-in somewhere? *)
   Fixpoint list_upd {T} (l : list T) (n : nat) (r : T) : list T :=
@@ -75,11 +65,11 @@ Section Denote.
     | _, _ => l
     end.
 
-  Fixpoint denote_expr (e : expr) : itree CogentE uval :=
+  Fixpoint denote_expr (γ : ctx) (e : expr) : itree CogentE uval :=
     (* define some nested functions that are mutually recursive with denote_expr *)
-    let fix denote_member (e : expr) (f : nat) : itree CogentE (uval * uval) :=
-      e' <- denote_expr e ;;
-      f' <- match e' with
+    let fix denote_member (γ : ctx) (e : expr) (f : nat) {struct e} : itree CogentE (uval * uval) :=
+      r <- denote_expr γ e ;;
+      m <- match r with
       | URecord fs => access_member fs f
       | UPtr p r =>
           m <- trigger (LoadMem p) ;;
@@ -89,35 +79,39 @@ Section Denote.
           end
       | _ => throw "expression is not a record"
       end ;;
-      ret (e', f') in
+      ret (r, m) in
     match e with
-    | Prim op os =>
-        os' <- map_monad denote_expr os ;;
-        denote_prim op os'
+    | Prim p xs =>
+        xs' <- map_monad (denote_expr γ) xs ;;
+        denote_prim p xs'
     | Lit l => ret (UPrim l)
-    | Var i => trigger (PeekVar i)
-    | Let e b => denote_expr e >>= flip denote_bind (denote_expr b)
+    | Var i => option_bind (nth_error γ i) id "unknown variable"
+    | Let a b =>
+        a' <- denote_expr γ a ;;
+        denote_expr (a' :: γ) b
     | Unit => ret UUnit
-    | If c t e =>
-        c' <- denote_expr c ;;
-        match c' with
-        | UPrim (LBool b) => denote_expr (if b then t else e)
+    | If x t e =>
+        x' <- denote_expr γ x ;;
+        match x' with
+        | UPrim (LBool b) => denote_expr γ (if b then t else e)
         | _ => throw "expression is not a boolean"
         end
-    | Cast t e =>
-        e' <- denote_expr e ;;
+    | Cast τ e =>
+        e' <- denote_expr γ e ;;
         match e' with
-        | UPrim l => option_bind (cast_to t l) UPrim "invalid cast"
+        | UPrim l => option_bind (cast_to τ l) UPrim "invalid cast"
         | _ => throw "invalid cast"
         end
-    | Struct ts es =>
-        es' <- map_monad denote_expr es ;;
-        ret (URecord (combine es' (map type_repr ts)))
-    | Member e f => snd <$> denote_member e f
-    | Take x f e => denote_member x f >>= fold denote_bind (denote_expr e)
+    | Struct ts xs =>
+        vs <- map_monad (denote_expr γ) xs ;;
+        ret (URecord (combine vs (map type_repr ts)))
+    | Member e f => snd <$> denote_member γ e f
+    | Take x f e => 
+        '(r, m) <- denote_member γ x f ;;
+        denote_expr (m :: r :: γ) e
     | Put x f e =>
-        x' <- denote_expr x ;;
-        e' <- denote_expr e ;;
+        x' <- denote_expr γ x ;;
+        e' <- denote_expr γ e ;;
         (* can we avoid code repetition between this and denote_member? *)
         match x' with
         | URecord fs =>
@@ -135,20 +129,16 @@ Section Denote.
         | _ => throw "expression is not a record"
         end
     | Fun n ft => ret (UFunction n)
-    | App f a =>
-        f' <- denote_expr f ;;
-        a' <- denote_expr a ;;
-        trigger (Call f' a')
+    | App x y =>
+        f <- denote_expr γ x ;;
+        a <- denote_expr γ y ;;
+        trigger (Call f a)
     end.
 
   Definition function_denotation := uval -> itree CogentE uval.
 
   Definition denote_fun (b : expr) : function_denotation :=
-    fun a =>
-      trigger (PushVar a) ;;
-      b' <- denote_expr b ;;
-      trigger PopVar ;;
-      ret b'.
+    fun a => denote_expr [a] b.
 
   Definition module := alist name function_denotation.
 
@@ -173,26 +163,8 @@ Section Interpretation.
       | _ => throw "expression is not a function"
       end.
 
-  Definition interp_call (m : module) (entry_f : uval) (entry_a : uval) : itree CogentL0 uval :=
+  Definition interp_call (m : module) (entry_f : uval) (entry_a : uval) : itree CogentL1 uval :=
     mrec (handle_call m) (Call entry_f entry_a).
-
-  Definition locals := list uval.
-  Definition empty_locals : locals := [].
-  
-  Definition handle_var : VarE ~> stateT locals (itree CogentL1) :=
-    fun _ e γ =>
-      match e with
-      | PeekVar i =>
-          match nth_error γ i with
-          | Some v => ret (γ, v)
-          | None => throw "unknown variable"
-          end
-      | PushVar u => ret (u :: γ, tt)
-      | PopVar => ret (tl γ, tt)
-      end.
-
-  Definition interp_var : itree CogentL0 ~> stateT locals (itree CogentL1) :=
-    interp_state (case_ handle_var pure_state).
 
   Definition memory := alist addr uval.
   Definition empty_memory : memory := empty.
@@ -218,17 +190,16 @@ Section Interpretation.
 
   Definition interp_cogent {E} (m : module) 
                                (entry_f : uval) (entry_a : uval)
-                               (vars : locals) (mem : memory) 
-                             : failT (itree E) (memory * (locals * uval)) :=
-    let l0 := interp_call m entry_f entry_a in
-    let l1 := interp_var _ l0 vars in
+                               (mem : memory) 
+                             : failT (itree E) (memory * uval) :=
+    let l1 := interp_call m entry_f entry_a in
     let l2 := interp_mem _ l1 mem in
     let l3 := interp handle_failure l2 in
     translate inject_signature l3.
 
   Definition run_cogent (p : cogent_prog) 
                         (entry_f : uval) (entry_a : uval) 
-                      : failT (itree void1) (memory * (locals * uval)) :=
-    interp_cogent (prog_to_module p) entry_f entry_a empty_locals dummy_memory.
+                      : failT (itree void1) (memory * uval) :=
+    interp_cogent (prog_to_module p) entry_f entry_a dummy_memory.
 
 End Interpretation.
