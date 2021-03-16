@@ -10,7 +10,7 @@
 module Cogent.Haskell.PBT.Builders.Absf
 
 -- (
-   --  absFDecl'
+   --  absFDecl
 
 -- ) 
 where
@@ -55,29 +55,19 @@ import Cogent.Isabelle.Shallow (isRecTuple)
 
 -- | Top level Builder for Abstraction Function
 -- -----------------------------------------------------------------------
-absFDecl' :: PbtDescStmt -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
-absFDecl' stmt defs = do
-        let (_, iaTy, iaExp) = findKvarsInDecl Absf Ia $ stmt ^. decls
+absFDecl :: PbtDescStmt -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
+absFDecl stmt defs = do
+        let (iaTy, iaExp) = findKIdentTyExp Absf Ia $ stmt ^. decls
             fnName = "abs_" ++ stmt ^. funcname
             iaT = case iaTy of
                       Just x -> x
                       Nothing -> fromMaybe (__impossible "not ia type given in PBT file") $ 
-                                    (findKvarsInDecl Spec Ia $ stmt ^. decls) ^. _2
-        (icT, _, absE, conNames) <- mkAbsFExp (stmt ^. funcname) iaT defs
-        let e = case iaExp of
-                  Just x -> x
-                  -- TODO: ^^ any automation we can add in here? e.g. fromIntegral
-                  --          --> just allow any haskell func defn
-                  {-
-                   let upack = determineUnpack' icT 0 "None"
-                                tyns = getAllTypeNames upack []
-                              in if | any (\x -> x `elem` ["Word8","Word16","Word32","Word64"])
-                              -}
-                  Nothing -> absE
+                                    (findKIdentTyExp Spec Ia $ stmt ^. decls) ^. _1
+        (icT, _, absE, conNames) <- mkAbsFExp (stmt ^. funcname) iaT defs iaExp
         let ti     = icT
             to     = iaT
             sig    = TypeSig () [mkName fnName] (TyFun () ti to)
-            dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "ic"] (UnGuardedRhs () e) Nothing]
+            dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "ic"] (UnGuardedRhs () absE) Nothing]
         return $ map mkLens (takeWhile (`notElem` hsSumTypes) conNames)++[sig, dec]
 
 mkLens :: String -> Decl ()
@@ -92,22 +82,23 @@ mkLens t
 -- | @fname@ is the name of the function
 -- | @iaTyp@ is the abstract input type
 -- | @defs@ is the list of Cogent definitions
-mkAbsFExp :: String -> Type () -> [CC.Definition TypedExpr VarName b] -> SG (Type (), Type (), Exp (), [String])
-mkAbsFExp fname iaTyp defs = do
+mkAbsFExp :: String -> Type () -> [CC.Definition TypedExpr VarName b] -> Maybe (Exp ()) -> SG (Type (), Type (), Exp (), [String])
+mkAbsFExp fname iaTyp defs userE = do
     let def = fromJust $ find (\x -> CC.getDefinitionId x == fname) defs
-    (icT, iaT, absE, conNames) <- mkAbsFExp' def iaTyp
+    (icT, iaT, absE, conNames) <- mkAbsFExp' def iaTyp userE
     pure (icT, iaT, absE, conNames)
-mkAbsFExp' :: CC.Definition TypedExpr VarName b -> Type () -> SG (Type (), Type (), Exp (), [String])
-mkAbsFExp' def iaT | (CC.FunDef _ fn ps _ ti to _) <- def
+
+mkAbsFExp' :: CC.Definition TypedExpr VarName b -> Type () -> Maybe (Exp ()) -> SG (Type (), Type (), Exp (), [String])
+mkAbsFExp' def iaT userE | (CC.FunDef _ fn ps _ ti to _) <- def
     = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
         ti' <- shallowType ti
-        (absE, conNames) <- mkAbsFBody ti ti' iaT
+        (absE, conNames) <- mkAbsFBody ti ti' iaT userE
         pure (ti', iaT, absE, conNames)
-mkAbsFExp' def iaT | (CC.AbsDecl _ fn ps _ ti to) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
+mkAbsFExp' def iaT userE | (CC.AbsDecl _ fn ps _ ti to) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
     ti' <- shallowType ti
-    (absE, conNames) <- mkAbsFBody ti ti' iaT
+    (absE, conNames) <- mkAbsFBody ti ti' iaT userE
     pure ( ti', iaT, absE, conNames)
-mkAbsFExp' def iaT | (CC.TypeDef tn _ _) <- def
+mkAbsFExp' def iaT _ | (CC.TypeDef tn _ _) <- def
     = pure (TyCon () (mkQName "Unknown"), iaT, function "undefined", [])
 
 -- | Builder for abstraction function body. For direct abstraction (default), builds a 
@@ -117,12 +108,12 @@ mkAbsFExp' def iaT | (CC.TypeDef tn _ _) <- def
 -- | @cogIcTyp@ is the cogent type of the concrete input
 -- | @icTyp@ is the Haskell type of the concrete input
 -- | @iaTyp@ is the Haskell type of the abstract input (what we are trying to abstract to)
-mkAbsFBody :: CC.Type t a -> Type () -> Type () -> SG (Exp (), [String])
-mkAbsFBody cogIcTyp icTyp iaTyp
+mkAbsFBody :: CC.Type t a -> Type () -> Type () -> Maybe (Exp ()) -> SG (Exp (), [String])
+mkAbsFBody cogIcTyp icTyp iaTyp userIaExp
     = let icLayout = determineUnpack cogIcTyp icTyp Unknown 0 "None"
           lens = map fst $ mkLensView icLayout "ic" Unknown Nothing
           binds = map ((\x -> pvar . mkName . fst $ x) &&& snd) lens
-          body = packAbsCon iaTyp (map fst lens) 0
+          body = fromMaybe (packAbsCon iaTyp (map fst lens) 0) $ userIaExp
        in pure (mkLetE binds body, getConNames icLayout [])
 
 -- | Builder for packing the constructor of the abstract type.
@@ -181,11 +172,9 @@ mkLensView layout varToView prevGroup prev
        in concatMap ( \(k, v) -> case group of
         HsPrim -> case v of
            (Left depth) -> [ (( k ++ replicate depth (P.head "'")
-                             , case prev of Just x -> x
-                                            Nothing -> mkVar varToView
+                             , fromMaybe (mkVar varToView) prev & (mkFromIntegral hsTy prevGroup)
                              )
-                             , (hsTy, prevGroup)
-                             )
+                             , (hsTy, prevGroup) )
                            ]
            (Right next) -> __impossible $ show k ++ " " ++ show v
         _ -> case v of
@@ -273,6 +262,15 @@ mkViewInfixE varToView tag prev accessor
 mkFromIntE :: Type () -> Exp () -> Exp ()
 mkFromIntE ty prev =
     if isFromIntegral ty then infixApp prev (mkOp "$") (function "fromIntegral") else prev
+
+mkFromIntegral :: Type () -> GroupTag -> Exp () -> Exp ()
+mkFromIntegral ty group prev =
+    if isFromIntegral ty 
+    then infixApp prev (mkRevAppOp group) (function "fromIntegral") 
+    else prev
+    where mkRevAppOp x = case x of 
+                        HsVariant -> mkOp "<&>"
+                        _ -> mkOp "&"
 
 mkVar :: String -> Exp ()
 mkVar = var . mkName

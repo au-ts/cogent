@@ -10,7 +10,7 @@
 -- Generates Hs functions which are used in Property-Based Testing
 
 module Cogent.Haskell.PBT.Builders.Welf (
-    genDecls''
+    genDecls
 ) where
 
 import Cogent.Haskell.PBT.Builders.Absf
@@ -54,9 +54,9 @@ import Cogent.Isabelle.Shallow (isRecTuple)
 
 -- | top level builder for gen_* :: Gen function 
 -- -----------------------------------------------------------------------
-genDecls'' :: PbtDescStmt -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
-genDecls'' stmt defs = do
-        let (_, _, predExp) = findKvarsInDecl Welf Pred $ stmt ^. decls
+genDecls :: PbtDescStmt -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
+genDecls stmt defs = do
+        let (_, predExp) = findKIdentTyExp Welf Pred $ stmt ^. decls
             userMapOpExp = findKIdentExp Welf Ic $ stmt ^. decls
         (icT, genfExp) <- mkGenFExp (stmt ^. funcname) defs predExp userMapOpExp
         let fnName = "gen_" ++ stmt ^. funcname

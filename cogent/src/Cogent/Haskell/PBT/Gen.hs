@@ -75,9 +75,9 @@ propModule :: String -> String -> [PbtDescStmt] -> [CC.Definition TypedExpr VarN
 propModule name hscname pbtinfos decls =
   let (cogDecls, w) = evalRWS (runSG $ do
                                           shallowTypesFromTable
-                                          genDs <- concatMapM (`genDecls''` decls) pbtinfos
-                                          absDs <- concatMapM (`absFDecl'` decls) pbtinfos
-                                          rrelDs <- concatMapM (`rrelDecl'` decls) pbtinfos
+                                          genDs <- concatMapM (`genDecls` decls) pbtinfos
+                                          absDs <- concatMapM (`absFDecl` decls) pbtinfos
+                                          rrelDs <- concatMapM (`rrelDecl` decls) pbtinfos
                                           -- genDecls x decls shallowTypesFromTable
                                           --cs <- concatMapM shallowConst consts
                                           --ds <- shallowDefinitions decls
@@ -131,17 +131,19 @@ propModule name hscname pbtinfos decls =
       (ls, cogD) = partition (\x -> case x of
                                       (SpliceDecl _ _) -> True
                                       _ -> False) cogDecls
-      hs_decls = rmdups ls ++ (P.concatMap propDecls' pbtinfos) ++ (P.concatMap specDecls pbtinfos) ++ cogD
+      hs_decls = rmdups ls ++ (P.concatMap propDecls pbtinfos) 
+                    ++ (P.concatMap specDecls pbtinfos) ++ cogD
+                    ++ mkQCAll
                                 -- ++ (P.concatMap (\x -> genDecls x decls) pbtinfos)
   in
   Module () (Just moduleHead) exts imps hs_decls
 
 -- | top level builder for prop_* :: Property function 
 -- -----------------------------------------------------------------------
-propDecls' :: PbtDescStmt -> [Decl ()]
-propDecls' desc
+propDecls :: PbtDescStmt -> [Decl ()]
+propDecls desc
     = let fn    = desc ^. funcname
-          ds    = mkPropBody' fn $ desc ^. decls
+          ds    = mkPropBody fn $ desc ^. decls
           fnName = "prop_" ++ fn
           toName = "Property"
           to     = TyCon   () (mkQName toName)
@@ -149,13 +151,25 @@ propDecls' desc
           dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () ds ) Nothing]
         in [sig, dec]
 
+mkQCAll :: [Decl ()]
+mkQCAll 
+    = let thReturn = SpliceDecl () $ app (function "return") eList
+          qcAllE = function "$quickCheckAll"
+        in [ thReturn
+           , FunBind () [Match () (mkName "main") [] (UnGuardedRhs () qcAllE ) Nothing]
+           ]
+
+-- return []
+-- main = $quickCheckAll
+
+
 -- | Helpers
 -- -----------------------------------------------------------------------
 
 -- | builder for function body of prop_* :: Property
 -- -----------------------------------------------------------------------
-mkPropBody' :: String -> [PbtDescDecl] -> Exp ()
-mkPropBody' n ds
+mkPropBody :: String -> [PbtDescDecl] -> Exp ()
+mkPropBody n ds
     = let isPure = checkBoolE $ findExprsInDecl Pure ds
           isNond = checkBoolE $ findExprsInDecl Nond ds
           ia = app (function $ "abs_"++n) (var $ mkName "ic")
@@ -179,13 +193,13 @@ mkPropBody' n ds
 -- -----------------------------------------------------------------------
 specDecls :: PbtDescStmt -> [Decl ()]
 specDecls desc 
-    = let iaTy = (findKvarsInDecl Spec Ia $ desc ^. decls) ^. _2
-          (_, oaTy, exp) = findKvarsInDecl Spec Oa $ desc ^. decls
+    = let iaTy = (findKIdentTyExp Spec Ia $ desc ^. decls) ^. _1
+          (oaTy, exp) = findKIdentTyExp Spec Oa $ desc ^. decls
           iaT = fromMaybe ( fromMaybe (__impossible "ia type not specified!") $
-                    (findKvarsInDecl Absf Ia $ desc ^. decls) ^. _2
+                    (findKIdentTyExp Absf Ia $ desc ^. decls) ^. _1
                 ) iaTy
           oaT = fromMaybe ( fromMaybe (__impossible "oa type not specified!") $
-                    (findKvarsInDecl Rrel Oa $ desc ^. decls) ^. _2
+                    (findKIdentTyExp Rrel Oa $ desc ^. decls) ^. _1
                 ) oaTy
           e = fromMaybe (function "undefined") exp
           fname = mkName $ "hs_"++(desc ^. funcname)

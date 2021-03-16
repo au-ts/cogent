@@ -9,7 +9,7 @@
 -- Generates Hs functions which are used in Property-Based Testing
 
 module Cogent.Haskell.PBT.Builders.Rrel (
-    rrelDecl'
+    rrelDecl
 ) where
 
 import Cogent.Haskell.PBT.Builders.Absf
@@ -52,41 +52,41 @@ import Cogent.Isabelle.Shallow (isRecTuple)
 
 -- | Top level Builder for Refinement Relation
 -- -----------------------------------------------------------------------
-rrelDecl' :: PbtDescStmt -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
-rrelDecl' stmt defs = do
-        let (_, oaTy, _) = findKvarsInDecl Rrel Oa $ stmt ^. decls
+rrelDecl :: PbtDescStmt -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
+rrelDecl stmt defs = do
+        let (oaTy, _) = findKIdentTyExp Rrel Oa $ stmt ^. decls
             fnName = "rel_" ++ stmt ^. funcname
             oaT = case oaTy of
                       Just x -> x
                       Nothing -> fromMaybe (__impossible "no oa type given in PBT file") $ 
-                                    (findKvarsInDecl Spec Oa $ stmt ^. decls) ^. _2
-        (ocT, _, rrelE, conNames) <- mkRrelExp (stmt ^. funcname) oaT defs
-        let (_, _, predExp) = findKvarsInDecl Rrel Pred $ stmt ^. decls
-            e = fromMaybe rrelE predExp
+                                    (findKIdentTyExp Spec Oa $ stmt ^. decls) ^. _1
+            (_, userE) = findKIdentTyExp Rrel Pred $ stmt ^. decls
+        (ocT, _, rrelE, conNames) <- mkRrelExp (stmt ^. funcname) oaT defs userE
         let to     = mkTyConT $ mkName "Bool"
             ti     = TyFun () oaT $ TyFun () ocT to
             sig    = TypeSig () [mkName fnName] ti
-            dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "oa", pvar $ mkName "oc"] (UnGuardedRhs () e) Nothing]
+            dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "oa", pvar $ mkName "oc"] (UnGuardedRhs () rrelE) Nothing]
         return $ map mkLens (takeWhile (`notElem` hsSumTypes) conNames)++[sig, dec]
 
 -- | Builder for Refinement Relation body expression, also returns function input/output type
 -- -----------------------------------------------------------------------
-mkRrelExp :: String -> Type () -> [CC.Definition TypedExpr VarName b] -> SG (Type (), Type (), Exp (), [String])
-mkRrelExp fname oaTyp defs = do
+mkRrelExp :: String -> Type () -> [CC.Definition TypedExpr VarName b] -> Maybe (Exp ()) -> SG (Type (), Type (), Exp (), [String])
+mkRrelExp fname oaTyp defs userE = do
     let def = fromJust $ find (\x -> CC.getDefinitionId x == fname) defs
-    (ocT, oaT, rrelE, conNames) <- mkRrelExp' def oaTyp
+    (ocT, oaT, rrelE, conNames) <- mkRrelExp' def oaTyp userE
     pure (ocT, oaT, rrelE, conNames)
-mkRrelExp' :: CC.Definition TypedExpr VarName b -> Type () -> SG (Type (), Type (), Exp (), [String])
-mkRrelExp' def oaT | (CC.FunDef _ fn ps _ ti to _) <- def
+
+mkRrelExp' :: CC.Definition TypedExpr VarName b -> Type () -> Maybe (Exp ()) -> SG (Type (), Type (), Exp (), [String])
+mkRrelExp' def oaT userE | (CC.FunDef _ fn ps _ ti to _) <- def
     = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
         to' <- shallowType to
-        (rrel, conNames) <- mkRrelBody to to' oaT
+        (rrel, conNames) <- mkRrelBody to to' oaT userE
         pure (to', oaT, rrel, conNames)
-mkRrelExp' def oaT | (CC.AbsDecl _ fn ps _ ti to) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
+mkRrelExp' def oaT userE | (CC.AbsDecl _ fn ps _ ti to) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
     to' <- shallowType to
-    (absE, conNames) <- mkRrelBody to to' oaT
+    (absE, conNames) <- mkRrelBody to to' oaT userE
     pure ( to', oaT, absE, conNames)
-mkRrelExp' def oaT | (CC.TypeDef tn _ _) <- def
+mkRrelExp' def oaT _ | (CC.TypeDef tn _ _) <- def
     = pure (TyCon () (mkQName "Unknown"), oaT, function "undefined", [])
 
 -- | Builder for refinement relation body. For pointwise equality (default), builds a 
@@ -96,8 +96,8 @@ mkRrelExp' def oaT | (CC.TypeDef tn _ _) <- def
 -- | @cogOcTyp@ is the cogent type of the concrete output
 -- | @ocTyp@ is the Haskell type of the concrete output
 -- | @oaTyp@ is the Haskell type of the abstract output
-mkRrelBody :: CC.Type t a -> Type () -> Type () -> SG (Exp (), [String])
-mkRrelBody cogOcTyp ocTyp oaTyp
+mkRrelBody :: CC.Type t a -> Type () -> Type () -> Maybe (Exp ()) -> SG (Exp (), [String])
+mkRrelBody cogOcTyp ocTyp oaTyp userE
     = let ocLy = determineUnpack cogOcTyp ocTyp Unknown 0 "None"
           oaLy = determineUnpack' oaTyp Unknown 0 "None"
           ocLens' = mkLensView ocLy "oc" Unknown Nothing
@@ -110,7 +110,7 @@ mkRrelBody cogOcTyp ocTyp oaTyp
           tys = map snd ocLens'
           ocVars = map fst ocLens
           oaVars = map fst oaLens
-          body = mkCmpExp (zip3 oaVars ocVars tys) Nothing
+          body = fromMaybe (mkCmpExp (zip3 oaVars ocVars tys) Nothing) userE
        in pure (mkLetE binds body, cNames)
 
 -- | Builder for comparison expression used in refinement relation
@@ -130,9 +130,12 @@ mkEqExp (oa, oc, (ty, grp))
                  HsVariant -> "<&>"
                  _ -> "&"
           mkInfixEq x y = infixApp x (mkOp "==") y
-        in if isFromIntegral ty
-            then mkInfixEq (mkVar oa) $ paren $ infixApp (mkVar oc) (mkOp op) (function "fromIntegral")
-            else mkInfixEq (mkVar oa) (mkVar oc)
+        in mkInfixEq (mkVar oa) (mkVar oc)
+
+        -- now done in lens view itself
+--        if isFromIntegral ty
+--            then mkInfixEq (mkVar oa) $ paren $ infixApp (mkVar oc) (mkOp op) (function "fromIntegral")
+--            else 
 
 -- | Builder for the layout type that is used for building the lens view. Similar to determineUnpack
 -- | but without the cogent type supplied.
