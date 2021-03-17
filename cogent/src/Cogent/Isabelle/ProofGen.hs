@@ -141,7 +141,7 @@ data Type'
 deepType' :: Type' -> Term
 deepType' (TVar' v) = mkApp (mkId "TVar") [mkInt $ toInteger v]
 deepType' (TVarBang' v) = mkApp (mkId "TVarBang") [mkInt $ toInteger v]
-deepType' (TCon' tn ts s) = mkApp (mkId "TCon") [mkString tn, mkList (map deepType' ts), deepSigil s]
+deepType' (TCon' tn ts s) = mkApp (mkId "TCon") [mkString tn, mkList (map deepType' ts), deepSigil $ fmap (const CLayout) s]
 deepType' (TFun' ti to) = mkApp (mkId "TFun") [deepType' ti, deepType' to]
 deepType' (TPrim' pt) = mkApp (mkId "TPrim") [deepPrimType pt]
 deepType' (TString') = mkApp (mkId "TPrim") [mkId "String"]
@@ -580,7 +580,7 @@ kindingRaw k t = do
   kmap <- use subproofKinding
   case M.lookup (k', t', gk) kmap of
     Nothing -> do mod <- use nameMod
-                  let prop = mkApp (mkId "kinding") [mkList (map deepKind k'), deepType mod ta t, deepKind gk]
+                  let prop = mkApp (mkId "kinding") [mkInt 0, mkList (map deepKind k'), AntiTerm "{}", deepType mod ta t, deepKind gk]
                   tac <- tacSequence
                     [return [force_simp ["kinding_def", "kinding_all_def", "kinding_variant_def", "kinding_record_def"]]]
                   proofId <- newSubproofId
@@ -596,7 +596,7 @@ kinding' ks t k = do
   kmap <- use subproofKinding
   case M.lookup (ks', t', k) kmap of
     Nothing -> do mod <- use nameMod
-                  let prop = mkApp (mkId "kinding") [mkList (map deepKind ks'), deepType mod ta t, deepKind k]
+                  let prop = mkApp (mkId "kinding") [mkInt 0, mkList (map deepKind ks'), AntiTerm "{}", deepType mod ta t, deepKind k]
                   tac <- tacSequence
                     [return [simp_add ["kinding_def", "kinding_all_def", "kinding_variant_def", "kinding_record_def"]]]
                   proofId <- newSubproofId
@@ -637,7 +637,7 @@ allKindCorrect k ts ks = do
   case M.lookup (k', ts', ks') akmap of
     Nothing -> do mod <- use nameMod
                   let prop = mkApp (mkId "list_all2")
-                               [mkApp (mkId "kinding") [mkList (map deepKind k')], mkList (map (deepType mod ta) ts), mkList (map deepKind ks')]
+                               [mkApp (mkId "kinding") [mkInt 0, mkList (map deepKind k'), AntiTerm "{}"], mkList (map (deepType mod ta) ts), mkList (map deepKind ks')]
                   tac <- tacSequence [return [Simplifier (ThmList []) (ThmList [NthThm "HOL.simp_thms" 25, NthThm "HOL.simp_thms" 26])],
                                       allKindCorrect' k ts ks]
                   proofId <- newSubproofId
@@ -719,7 +719,7 @@ wellformedRaw k t = do
   wlmap <- use subproofWellformed
   case M.lookup (n', t') wlmap of
     Nothing -> do mod <- use nameMod
-                  let prop = mkApp (mkId "type_wellformed") [mkInt n', deepType mod ta t]
+                  let prop = mkApp (mkId "type_wellformed") [mkInt 0, mkInt n', AntiTerm "{}", deepType mod ta t]
                   tac <- tacSequence [return $ [force_simp []]]
                   proofId <- newSubproofId
                   subproofWellformed %= M.insert (n', t') (proofId, (False, prop), tac)

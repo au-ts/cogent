@@ -149,7 +149,7 @@ formatTypecorrectProof :: String -> [TheoryDecl I.Type I.Term]
 formatTypecorrectProof fn =
   let safeFn = unIsabelleName $ mkIsabelleName fn
   in [ LemmaDecl (Lemma False (Just $ TheoremDecl (Just (safeFn ++ "_typecorrect")) [])
-          [mkId $ "\\<Xi>, prod.fst " ++ safeFn ++ "_type, (" ++ safeFn ++ "_typetree, [Some (prod.fst (prod.snd " ++ safeFn ++ "_type))]) T\\<turnstile> " ++
+          [mkId $ "\\<Xi>, 0, prod.fst " ++ safeFn ++ "_type, {}, (" ++ safeFn ++ "_typetree, [Some (prod.fst (prod.snd " ++ safeFn ++ "_type))]) T\\<turnstile> " ++
                   safeFn ++ " : prod.snd (prod.snd " ++ safeFn ++ "_type)"]
     (Proof (if __cogent_fml_typing_tree then [Method "tactic" ["\\<open> resolve_future_typecorrect @{context} " ++ safeFn ++ "_ttyping_details_future \\<close>"]]
       else [Method "simp" ["add: " ++ safeFn ++ "_type_def " ++ safeFn ++ "_def " ++
@@ -171,7 +171,7 @@ proveSorry (FunDef _ fn k _ ti to e) = do
   mod <- use nameMod
   let safeFn = unIsabelleName $ mkIsabelleName fn
   let prf = [ LemmaDecl (Lemma False (Just $ TheoremDecl (Just (mod safeFn ++ "_typecorrect")) [])
-          [mkId $ "\\<Xi>, prod.fst " ++ safeFn ++ "_type, (" ++ safeFn ++ "_typetree, [Some (prod.fst (prod.snd " ++ safeFn ++ "_type))]) T\\<turnstile> " ++
+          [mkId $ "\\<Xi>, 0, prod.fst " ++ safeFn ++ "_type, {}, (" ++ safeFn ++ "_typetree, [Some (prod.fst (prod.snd " ++ safeFn ++ "_type))]) T\\<turnstile> " ++
                   safeFn ++ " : prod.snd (prod.snd " ++ safeFn ++ "_type)"]
               (Proof [] ProofSorry)) ]
   return prf

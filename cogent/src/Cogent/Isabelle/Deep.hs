@@ -18,6 +18,8 @@ module Cogent.Isabelle.Deep where
 
 import Cogent.Common.Syntax as CS
 import Cogent.Common.Types
+import Cogent.Dargent.Core (DataLayout)
+import Cogent.Dargent.Allocation (BitRange)
 import Cogent.Compiler
 import Cogent.Core as CC
 import Cogent.Isabelle.IsabelleName
@@ -44,10 +46,17 @@ deepIndex = mkInt . fromIntegral . finInt
 
 -- TODO these undefineds should be swapped out for representations of the layout, once we work out what the C refinement framework
 -- is going to do with them ~ v.jackson / 2018-08-27
-deepSigil :: Sigil s -> Term
-deepSigil (Boxed True  _) = mkApp (mkId "Boxed") [(mkId "ReadOnly"), (mkId "undefined")]
-deepSigil (Boxed False _) = mkApp (mkId "Boxed") [(mkId "Writable"), (mkId "undefined")]
+deepSigil :: Sigil (DataLayout BitRange) -> Term
+deepSigil (Boxed True  l) = mkApp (mkId "Boxed") [(mkId "ReadOnly"), deepDataLayout l]
+deepSigil (Boxed False l) = mkApp (mkId "Boxed") [(mkId "Writable"), deepDataLayout l]
 deepSigil Unboxed         = mkId "Unboxed"
+
+deepDataLayout :: DataLayout BitRange -> Term
+deepDataLayout CLayout = mkId "None"
+deepDataLayout (Layout l) = mkApp (mkId "Some") [deepDataLayout' l]
+
+deepDataLayout' :: DataLayout' BitRange -> Term
+deepDataLayout' _ = mkId "undefined"
 
 type TypeAbbrevs = (Map.Map Term Int, Int)
 
@@ -62,7 +71,7 @@ deepRecordState True  = mkId "Taken"
 deepTypeInner :: (Ord b, Pretty b) => NameMod -> TypeAbbrevs -> CC.Type t b -> Term
 deepTypeInner mod ta (TVar v) = mkApp (mkId "TVar") [deepIndex v]
 deepTypeInner mod ta (TVarBang v) = mkApp (mkId "TVarBang") [deepIndex v]
-deepTypeInner mod ta (TCon tn ts s) = mkApp (mkId "TCon") [mkString tn, mkList (map (deepType mod ta) ts), deepSigil s]
+deepTypeInner mod ta (TCon tn ts s) = mkApp (mkId "TCon") [mkString tn, mkList (map (deepType mod ta) ts), deepSigil $ fmap (const CLayout) s]
 deepTypeInner mod ta (TFun ti to) = mkApp (mkId "TFun") [deepType mod ta ti, deepType mod ta to]
 deepTypeInner mod ta (TPrim pt) = mkApp (mkId "TPrim") [deepPrimType pt]
 deepTypeInner mod ta (TString) = mkApp (mkId "TPrim") [mkId "String"]

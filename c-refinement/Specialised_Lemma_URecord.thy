@@ -44,8 +44,8 @@ ML\<open> fun mk_specialised_corres_take (field_num:int) uval file_nm ctxt =
   val field_getter    = #getter nth_field;
   val ml_sigil        = get_uval_sigil uval;
   val isa_sigil = case ml_sigil of
-                ReadOnly => @{term "Boxed ReadOnly undefined"}
-              | Writable => @{term "Boxed Writable undefined"}
+                ReadOnly => @{term "Boxed ReadOnly ptrl"}
+              | Writable => @{term "Boxed Writable ptrl"}
               | Unboxed  => @{term "Unboxed"}
   (* Unboxed-Take and Boxed-Take use different types.*)
   val ty = case ml_sigil of

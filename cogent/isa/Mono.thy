@@ -25,7 +25,7 @@ fun
   rename_expr :: "('b \<Rightarrow> 'c) \<Rightarrow> 'b expr \<Rightarrow> 'c expr"
 where
   "rename_expr rename (AFun f ts)       = AFun (rename f) ts"
-| "rename_expr rename (Fun f ts)        = Fun (rename_expr rename f) ts"
+| "rename_expr rename (Fun f ts ls)        = Fun (rename_expr rename f) ts ls"
 | "rename_expr rename (Var i)           = Var i"
 | "rename_expr rename (Prim p es)       = Prim p (map (rename_expr rename) es)"
 | "rename_expr rename (App a b)         = App (rename_expr rename a) (rename_expr rename b)"
@@ -56,7 +56,7 @@ where
 | "rename_val rename (VRecord vs)      = VRecord (map (rename_val rename) vs)"
 | "rename_val rename (VAbstract t)     = VAbstract t"
 | "rename_val rename (VAFunction f ts) = VAFunction (rename f) ts"
-| "rename_val rename (VFunction f ts)  = VFunction (rename_expr rename f) ts"
+| "rename_val rename (VFunction f ts ls)  = VFunction (rename_expr rename f) ts ls"
 | "rename_val rename VUnit             = VUnit"
 
 
@@ -92,10 +92,10 @@ lemma rename_monoexpr_correct:
   and     "rename_mono_prog rename \<Xi> \<xi>\<^sub>r\<^sub>m \<xi>\<^sub>p"
   and     "\<Xi> \<turnstile> map (rename_val rename \<circ> monoval) \<gamma> matches \<Gamma>"
   shows   "\<xi>\<^sub>r\<^sub>m, map (rename_val rename \<circ> monoval) \<gamma> \<turnstile> rename_expr rename (monoexpr e) \<Down> v' \<Longrightarrow>
-             \<Xi>, [], \<Gamma> \<turnstile> rename_expr rename (monoexpr e) : \<tau>  \<Longrightarrow>
+             \<Xi>, 0, [], {}, \<Gamma> \<turnstile> rename_expr rename (monoexpr e) : \<tau>  \<Longrightarrow>
              \<exists>v. \<xi>\<^sub>p, \<gamma> \<turnstile> e \<Down>  v \<and> v' = rename_val rename (monoval v)"
   and     "\<xi>\<^sub>r\<^sub>m, map (rename_val rename \<circ> monoval) \<gamma> \<turnstile>* map (rename_expr rename \<circ> monoexpr) es \<Down> vs' \<Longrightarrow>
-             \<Xi>, [], \<Gamma> \<turnstile>* map (rename_expr rename \<circ> monoexpr) es : \<tau>s \<Longrightarrow>
+             \<Xi>, 0, [], {}, \<Gamma> \<turnstile>* map (rename_expr rename \<circ> monoexpr) es : \<tau>s \<Longrightarrow>
              \<exists>vs. (\<xi>\<^sub>p , \<gamma> \<turnstile>* es \<Down> vs) \<and> vs' = (map (rename_val rename \<circ> monoval) vs)"
   using assms
   proof (induct \<xi>\<^sub>r\<^sub>m "map (rename_val rename \<circ> monoval) \<gamma>" "rename_expr rename (monoexpr e)" v'
@@ -110,7 +110,7 @@ next
   case (v_sem_lit \<xi> l \<gamma> e  \<tau> \<Gamma>) then show ?case
     by (cases e) (auto intro: v_sem_v_sem_all.v_sem_lit)
 next
-  case (v_sem_fun \<xi> f ts \<gamma> e \<tau> \<Gamma>) then show ?case
+  case (v_sem_fun \<xi> f ts ls \<gamma> e \<tau> \<Gamma>) then show ?case
     by (cases e) (auto intro: v_sem_v_sem_all.v_sem_fun)
 next
   case (v_sem_afun \<xi> f ts \<gamma> e \<tau> \<Gamma>) then show ?case
@@ -180,7 +180,7 @@ next
 
     apply (cut_tac IH, simp_all)
     apply clarsimp
-    apply (frule(4) preservation(2) [where \<tau>s = "[]" and K = "[]", simplified])
+    apply (frule(4) preservation(2) [where \<epsilon> = "[]" and \<tau>s = "[]" and K = "[]", simplified, OF subst_wellformed_nothing])
     apply (frule v_t_map_TPrimD)
     apply clarsimp
     apply (frule eval_prim_preservation)
@@ -218,7 +218,7 @@ next case (v_sem_let \<xi> e1 rv1 e2 rv2 \<gamma> e \<tau> \<Gamma>)
     apply (cut_tac IH1[OF _ _ _ _ _ _ matches_split'(1)], simp_all)
     apply clarsimp
     apply (rename_tac v1)
-    apply (frule(4) preservation [where \<tau>s = "[]" and K = "[]", simplified])
+    apply (frule(4) preservation [where \<epsilon> = "[]" and \<tau>s = "[]" and K = "[]", simplified, OF subst_wellformed_nothing])
     apply (drule(2) matches_cons'[OF matches_split'(2)])
     apply (subgoal_tac "\<exists>v. \<xi>\<^sub>p , v1 # \<gamma> \<turnstile> exp2 \<Down> v \<and> rv2 = rename_val rename (monoval v)")
      apply (force intro!: v_sem_v_sem_all.v_sem_let)
@@ -238,7 +238,7 @@ next
     apply (cut_tac IH1[OF _ _ _ _ _ _ matches_split_bang'(1)], simp_all)
     apply clarsimp
     apply (rename_tac v1)
-    apply (frule(4) preservation [where \<tau>s = "[]" and K = "[]", simplified])
+    apply (frule(4) preservation [where \<epsilon> = "[]" and \<tau>s = "[]" and K = "[]", simplified, OF subst_wellformed_nothing])
     apply (drule(2) matches_cons'[OF matches_split_bang'(2)])
       (* cut_tac, but we want to select \<gamma> *)
     apply (subgoal_tac "\<exists>v. \<xi>\<^sub>p , v1 # \<gamma> \<turnstile> exp2 \<Down> v \<and> rv2 = rename_val rename (monoval v)")
@@ -262,7 +262,7 @@ next
     apply (rename_tac v1)
     apply (case_tac v1, simp_all)
     apply (rename_tac t' v1')
-    apply (frule(4) preservation [where \<tau>s = "[]" and K = "[]", simplified, rotated -3])
+    apply (frule(4) preservation [where \<epsilon> = "[]" and \<tau>s = "[]" and K = "[]", simplified, OF subst_wellformed_nothing, rotated -3])
     apply (erule v_t_sumE')
     apply (drule(2) matches_cons'[OF matches_split'(2)])
     apply (subgoal_tac "\<exists>v. \<xi>\<^sub>p , v1' # \<gamma> \<turnstile> exp2 \<Down> v \<and> mrv = rename_val rename (monoval v)")
@@ -282,11 +282,11 @@ next
       by simp+
 
       obtain \<Gamma>1 \<Gamma>2 ts t
-        where split\<Gamma>: "[] \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
-          and typing_renamed_ea: "\<Xi>, [], \<Gamma>1 \<turnstile> rename_expr rename (monoexpr ea) : TSum ts"
+        where split\<Gamma>: "0, [], {} \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
+          and typing_renamed_ea: "\<Xi>, 0, [], {}, \<Gamma>1 \<turnstile> rename_expr rename (monoexpr ea) : TSum ts"
           and f'_in_ts: "(f', t, Unchecked) \<in> set ts"
-          and "\<Xi>, [], Some t # \<Gamma>2 \<turnstile> rename_expr rename (monoexpr me) : \<tau>"
-          and typing_renamed_ne: "\<Xi>, [], Some (TSum (tagged_list_update f' (t, Checked) ts)) # \<Gamma>2 \<turnstile> rename_expr rename (monoexpr ne) : \<tau>"
+          and "\<Xi>, 0, [], {}, Some t # \<Gamma>2 \<turnstile> rename_expr rename (monoexpr me) : \<tau>"
+          and typing_renamed_ne: "\<Xi>, 0, [], {}, Some (TSum (tagged_list_update f' (t, Checked) ts)) # \<Gamma>2 \<turnstile> rename_expr rename (monoexpr ne) : \<tau>"
         using v_sem_case_nm.prems Case f''_is by auto
       have matches1: "\<Xi> \<turnstile> map (rename_val rename \<circ> monoval) \<gamma> matches \<Gamma>1"
         and matches2: "\<Xi> \<turnstile> map (rename_val rename \<circ> monoval) \<gamma> matches \<Gamma>2"
@@ -303,7 +303,7 @@ next
         by (case_tac v1', simp+)
 
       have "\<Xi> \<turnstile> rename_val rename (monoval (VSum f v1)) :v TSum ts"
-        using preservation(1)[where \<tau>s="[]" and K="[]", simplified]
+        using preservation(1)[where \<epsilon> = "[]" and \<tau>s = "[]" and K = "[]", simplified, OF subst_wellformed_nothing]
           v_sem_case_nm.prems(2-3) v_sem_case_nm.hyps(1)
           matches1 typing_renamed_ea rea_is rv_is
         by auto
@@ -336,7 +336,7 @@ next
   apply clarsimp
   apply (rename_tac rv)
   apply (case_tac rv, simp_all)
-  apply (frule(4) preservation [where \<tau>s = "[]" and K = "[]", simplified])
+  apply (frule(4) preservation [where \<epsilon> = "[]" and \<tau>s = "[]" and K = "[]", simplified, OF subst_wellformed_nothing])
   apply (erule v_t_recordE)
   apply (frule vval_typing_record_length)
   by (fastforce intro: v_sem_v_sem_all.v_sem_member)
@@ -352,7 +352,7 @@ next
     apply clarsimp
     apply (rename_tac v)
     apply (case_tac v, simp_all)
-    apply (frule(5) preservation [where \<tau>s = "[]" and K = "[]", OF _ _ matches_split'(1), simplified])
+    apply (frule(5) preservation [where \<tau>s = "[]" and K = "[]", OF subst_wellformed_nothing _ matches_split'(1), simplified])
     apply (rename_tac va vb)
     apply (erule v_t_productE)
     apply (drule(1) matches_split'(2)[rotated])
@@ -377,13 +377,13 @@ next
     apply (rename_tac v)
     apply (case_tac v, simp_all)
     apply (rename_tac fs')
-    apply (frule(5) preservation [where \<tau>s = "[]" and K = "[]", OF _ _ matches_split'(1), simplified])
+    apply (frule(5) preservation [where \<tau>s = "[]" and K = "[]", OF subst_wellformed_nothing _ matches_split'(1), simplified])
     apply (drule(1) matches_split'(2)[rotated])
     apply (drule_tac x="VRecord (map (rename_val rename \<circ> monoval) fs')" and \<tau>="TRecord (ts[f := (n, t, taken)]) s" and \<Gamma>=\<Gamma>2
         in matches_cons')
      apply (clarsimp simp add: map_update)
      apply (erule v_t_recordE)
-     apply (fastforce intro: v_t_record dest: vval_typing_record_take simp add: map_fst_update)
+     apply (fastforce intro: v_t_record dest: vval_typing_record_take simp add: map_fst_update map_nth_same)
     apply (drule_tac x="(map (rename_val rename \<circ> monoval) fs')!f" in matches_cons')
      apply (fastforce dest: vval_typing_record_nth)
     apply (subgoal_tac "\<exists>v. \<xi>\<^sub>p , fs' ! f # VRecord fs' # \<gamma> \<turnstile> exp2 \<Down> v \<and> rv = rename_val rename (monoval v)")
@@ -394,7 +394,7 @@ next
     apply (force simp add: matches_Cons dest: vval_typing_record_length)
     done
   next
-  case (v_sem_app \<xi> re f ts e' rv rsv \<gamma> e \<tau> \<Gamma>)
+  case (v_sem_app \<xi> re f ts ls e' rv rsv \<gamma> e \<tau> \<Gamma>)
   note IH1 = this(2)
   and  IH2 = this(4)
   and  IH3 = this(6)
@@ -408,16 +408,16 @@ next
   apply (rename_tac fv)
   apply (case_tac fv, simp_all)
   apply clarsimp
-  apply (rename_tac expr ts')
+  apply (rename_tac expr ts' ls')
   apply (cut_tac IH2[OF _ _ _ _ _ _ matches_split'(2)], simp_all)
   apply clarsimp
   apply (rename_tac v)
-  apply (frule(5) preservation(1) [where \<tau>s = "[]" and K = "[]", OF _ _ matches_split'(1), simplified])
-  apply (frule(5) preservation(1) [where \<tau>s = "[]" and K = "[]", OF _ _ matches_split'(2), simplified])
+  apply (frule(5) preservation(1) [where \<tau>s = "[]" and K = "[]", OF subst_wellformed_nothing _ matches_split'(1), simplified])
+  apply (frule(5) preservation(1) [where \<tau>s = "[]" and K = "[]", OF subst_wellformed_nothing _ matches_split'(2), simplified])
   apply (erule v_t_funE)
-  apply (subgoal_tac "\<exists>r. \<xi>\<^sub>p , [v] \<turnstile> specialise ts' expr \<Down> r \<and> rsv = rename_val rename (monoval r)")
-   apply (fastforce intro: v_sem_v_sem_all.v_sem_app)
-  apply (force intro!: IH3 dest: value_subtyping simp: subtyping_simps matches_def)
+  apply (subgoal_tac "\<exists>r. \<xi>\<^sub>p , [v] \<turnstile> specialise ls' ts' expr \<Down> r \<and> rsv = rename_val rename (monoval r)")
+     apply (fastforce intro: v_sem_v_sem_all.v_sem_app)
+  apply (force intro!: IH3 dest: value_subtyping specialisation simp: subtyping_simps matches_def)
   done
 next
   case (v_sem_abs_app \<xi> re f ts e' rv rv' \<gamma> e \<tau> \<Gamma>)

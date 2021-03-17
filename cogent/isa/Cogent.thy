@@ -63,17 +63,30 @@ fun size_prim_layout :: "prim_type \<Rightarrow> nat" where
 | "size_prim_layout String = undefined"
 
 datatype ptr_layout = LayBitRange BitRange 
-  | LayVar index
+  | LayVar index nat (* offset *)
   | LayProduct ptr_layout ptr_layout
   | LayVariant BitRange (* size and offset of the tag  *) "(name \<times> nat \<times> ptr_layout) list"
   | LayRecord "(name \<times> ptr_layout) list"
+
+fun bitrange_offset :: "nat \<Rightarrow> BitRange \<Rightarrow> BitRange" where
+ "bitrange_offset n (s, off) = (s, off + n)"
+
+fun layout_offset :: "nat \<Rightarrow> ptr_layout \<Rightarrow> ptr_layout" where
+    "layout_offset n (LayVar v off) = LayVar v (off + n)"
+  | "layout_offset n (LayProduct p1 p2) = LayProduct (layout_offset n p1) (layout_offset n p2)"
+  | "layout_offset n (LayBitRange b) = LayBitRange (bitrange_offset n b)"
+  | "layout_offset n (LayVariant b l) = LayVariant (bitrange_offset n b) 
+                        (map (\<lambda>(name, i, p). (name, i, layout_offset n p)) l)"
+  | "layout_offset n (LayRecord l) = LayRecord  
+                        (map (\<lambda>(name, p). (name, layout_offset n p)) l)"
+
 
 fun bitrange_taken_bits :: "BitRange \<Rightarrow> nat \<Rightarrow> bool" where
   "bitrange_taken_bits (s, off) n = (n \<ge> off \<and> n < off + s)"
 
 
 fun layout_taken_bits :: "ptr_layout \<Rightarrow> nat \<Rightarrow> bool" where
-  "layout_taken_bits (LayVar _) _ = False"
+  "layout_taken_bits (LayVar _ _) _ = False"
 | "layout_taken_bits (LayVariant b ls) n = 
        (bitrange_taken_bits b n \<or> 
          list_ex (\<lambda> (_, _, l) \<Rightarrow>
@@ -94,7 +107,7 @@ definition at_most_one :: "('a \<Rightarrow> bool) \<Rightarrow> 'a list \<Right
 
 
 fun layout_wellformed :: "nat \<Rightarrow> ptr_layout \<Rightarrow> bool" where
-  "layout_wellformed n (LayVar i) = (i < n)"
+  "layout_wellformed n (LayVar i _) = (i < n)"
 | "layout_wellformed _ (LayBitRange _) = True"
 | "layout_wellformed m (LayVariant b ls) = 
   (list_all (\<lambda> (_, _, l) . layout_wellformed m l) ls
@@ -709,7 +722,7 @@ fun instantiate_lay :: "ptr_layout substitution \<Rightarrow> ptr_layout \<Right
   where
 (* TODO: use an environment to keep track of the constraints of the layout variables, as
 in the dargent write-up *)
-  "instantiate_lay \<delta> (LayVar i) = (if i < length \<delta> then \<delta> ! i else LayVar i)"
+  "instantiate_lay \<delta> (LayVar i offset) = (if i < length \<delta> then layout_offset offset (\<delta> ! i) else LayVar i offset)"
 | "instantiate_lay \<delta> (LayProduct l1 l2) = LayProduct (instantiate_lay \<delta> l1) (instantiate_lay \<delta> l2)"
 | "instantiate_lay \<delta> (LayVariant b ls) = LayVariant b (map (\<lambda>(n, tag, l). (n, tag, instantiate_lay \<delta> l)) ls)"
 | "instantiate_lay \<delta> (LayRecord ls) = LayRecord (map (\<lambda>(n, l). (n, instantiate_lay \<delta> l)) ls)"
@@ -2038,6 +2051,23 @@ lemma instantiate_bang [simp]:
   shows "instantiate \<epsilon> \<delta> (bang \<tau>) = bang (instantiate \<epsilon> \<delta> \<tau>)"
   by (force intro: bang.induct [where P = "\<lambda> \<tau>. instantiate \<epsilon> \<delta> (bang \<tau>) = bang (instantiate \<epsilon> \<delta> \<tau>)"]
           simp:  bang_idempotent bang_lrepr  prod.case_distrib)+
+
+
+lemma layout_offset_layout_offset[simp] : "layout_offset n1 (layout_offset n2 ptrl) = layout_offset (n1 + n2) ptrl" 
+  by(induct ptrl) (fastforce simp add: list_all_iff )+
+  
+
+
+lemma instantiate_lay_layout_offset[simp] : "instantiate_lay \<epsilon> (layout_offset offset ptrl) = layout_offset offset (instantiate_lay \<epsilon> ptrl)"
+proof(induct ptrl)
+  case (LayBitRange b)
+  then show ?case
+    by(induct b)simp
+  next  case (LayVar x1a x2)
+    then show ?case
+      
+      by (simp add: add.commute)
+qed (fastforce simp add: list_all_iff )+
 
 
 lemma instantiate_lay_instantiate_lay[simp] :

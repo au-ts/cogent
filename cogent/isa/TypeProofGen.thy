@@ -80,7 +80,7 @@ fun get_typing_tree ctxt f proof : thm tree list =
   in extract_subproofs
        (* The typing goal for `f` *)
        (Syntax.read_term ctxt
-         ("Trueprop (\<Xi>, fst " ^ f ^ "_type, (" ^ f ^ "_typetree, [Some (fst (snd " ^ f ^ "_type))])" ^
+         ("Trueprop (\<Xi>, 0, fst " ^ f ^ "_type, {}, (" ^ f ^ "_typetree, [Some (fst (snd " ^ f ^ "_type))])" ^
           "            T\<turnstile> " ^ f ^ " : snd (snd " ^ f ^ "_type))")
         |> Thm.cterm_of ctxt)
        (let val hinted_tacs = map (fn (tag, t) => (SOME tag, t ctxt)) proof

@@ -299,7 +299,7 @@ fun Cogent_type_contains_TFun (Const (@{const_name TFun}, _)) = true
 
 (* Matches within a typing judgement. *)
 fun Cogent_typing_returns_TFun (@{term Trueprop} $
-                                (Const (@{const_name typing}, _) $ tenv $ kind $ env $ expr $ typ)) =
+                                (Const (@{const_name typing}, _) $ tenv $ _ $ kind $ _ $ env $ expr $ typ)) =
       Cogent_type_contains_TFun typ
   | Cogent_typing_returns_TFun t = raise TERM ("Cogent_typing_returns_TFun: not a typing rule", [t])
 

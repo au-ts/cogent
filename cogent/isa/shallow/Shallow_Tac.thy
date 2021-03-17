@@ -70,7 +70,7 @@ fun gen_scorres_lemma skip Aname Dname generic_step fn_name (result_thms, callee
 let
   val str = "valRel \<xi> v v' \<Longrightarrow> " ^
             "scorres (" ^ Aname ^ "." ^ fn_name ^ " (shallow_tac__var v)) " ^
-                    "(specialise ts " ^ Dname ^ "." ^ fn_name ^ ") [v'] \<xi>"
+                    "(specialise ls ts " ^ Dname ^ "." ^ fn_name ^ ") [v'] \<xi>"
   val nm = mk_scorres_nm fn_name
   val _ = tracing (nm ^ ": \"" ^ str ^ "\"")
   val (ctxt, prop) = mk_goal lthy str
@@ -101,7 +101,7 @@ let
 
   val (ctxt, callee_prop) = mk_goal lthy
         ("Trueprop (scorres " ^ Aname ^ "." ^ fn_name ^ " " ^
-            "(Fun " ^ Dname ^ "." ^ fn_name ^ " ts) \<gamma> \<xi>)")
+            "(Fun " ^ Dname ^ "." ^ fn_name ^ " ts ls) \<gamma> \<xi>)")
   val callee_thm = Goal.prove ctxt [] [] callee_prop
                    (K (rtac @{thm scorres_fun} 1
                        THEN asm_full_simp_tac (lthy delsimprocs [Simplifier.the_simproc lthy "Product_Type.unit_eq"] addsimps [thm']) 1))

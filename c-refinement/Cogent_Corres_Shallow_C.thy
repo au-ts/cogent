@@ -120,7 +120,7 @@ lemma corres_shallow_C_intro:
        "val.rename_mono_prog rename \<Xi> \<xi>\<^sub>m \<xi>\<^sub>p"
     (* Procedure typing *)
       assumes typingP:
-       "\<Xi>, [], [Some \<tau>i] \<turnstile> prog\<^sub>m : \<tau>o"
+       "\<Xi>, 0, [], {}, [Some \<tau>i] \<turnstile> prog\<^sub>m : \<tau>o"
     (* C-refinement *)
       assumes corresP:
        "corres srel prog\<^sub>m (prog\<^sub>C uv\<^sub>C) \<xi>\<^sub>u\<^sub>m [uv\<^sub>m] \<Xi> [Some \<tau>i] \<sigma> s"
@@ -235,7 +235,11 @@ fun make_corres_shallow_C desugar_thy deep_thy ctxt f = let
   val proc_ctx_def_thm = Proof_Context.get_thm ctxt ("\<Xi>_def")
 
   (* Also instantiate scorres_thm to monomorphic type *)
-  val scorres_thm = Drule.infer_instantiate ctxt [(("ts", 0), @{cterm "[] :: type list"})] scorres_thm
+  val scorres_thm = Drule.infer_instantiate ctxt 
+                     [(("ts", 0), @{cterm "[] :: type list"}),
+                      (("ls", 0), @{cterm "[] :: ptr_layout list"})
+                     ]
+                   scorres_thm
                     |> Simplifier.rewrite_rule ctxt @{thms specialise_nothing[THEN eq_reflection]}
 
   (* Abstract function assumptions for CorresProof *)
