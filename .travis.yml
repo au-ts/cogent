@@ -31,7 +31,8 @@ env:
 
 jobs:
   include:
-    - env: CABALVER=3.2 GHCVER=8.10.4 COGENT_BUILD_FLAGS=$COGENT_FULL_FEATURE
+    - env: CABALVER=3.2 GHCVER=8.10.4 COGENT_BUILD_FLAGS="$COGENT_FULL_FEATURE -llvm-backend"
+      # llvm-hs doesn't yet support new ghc versions.
       compiler: "ghc-8.10.4"
       addons:
         apt:

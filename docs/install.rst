@@ -133,7 +133,9 @@ Build with Stack (simple, more robust)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Stack_ is a cross-platform program for developing Haskell projects.
-To build Cogent with Stack, simply run ``stack build``.
+To build Cogent with Stack, simply run ``stack build`` in the ``cogent`` directory in
+which ``stack.yaml`` is located. We provide such config files (``stack-<ghc-version>.yaml``) for several different
+stack snapshots.
 
 .. _Stack: https://docs.haskellstack.org/
 
@@ -203,7 +205,7 @@ A solution:
      of ``gcc``.
   3. Provided ``ls /usr/local/bin/cpp`` outputs
      ``No such file or directory``, it should be safe to run
-     ``ln -s /usr/local/bin/cpp-8 /usr/local/bin/cpp``.
+     ``ln -s /usr/local/bin/cpp-8 /usr/local/bin/cpp`` (remember to adapt the command to the ``cpp`` version you installed).
   4. If ``which cpp`` doesn't print ``/usr/local/bin/cpp``, then running
      ``export PATH=/usr/local/bin:$PATH`` in any shell where you want run the
      examples will ensure that the correct version of ``cpp`` is used.
