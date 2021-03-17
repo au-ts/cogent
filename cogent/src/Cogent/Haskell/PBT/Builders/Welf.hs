@@ -58,6 +58,8 @@ genDecls :: PbtDescStmt -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
 genDecls stmt defs = do
         let (_, predExp) = findKIdentTyExp Welf Pred $ stmt ^. decls
             userMapOpExp = findKIdentExp Welf Ic $ stmt ^. decls
+            -- TODO: this contains all predicates in this block -> use this
+            allPreds = findAllPreds Welf $ stmt ^. decls
         (icT, genfExp) <- mkGenFExp (stmt ^. funcname) defs predExp userMapOpExp
         let fnName = "gen_" ++ stmt ^. funcname
             genCon = TyCon () (mkQName "Gen")

@@ -80,10 +80,10 @@ pExpr = do
      else trace (show "76") pExpr'' lhs
 
 pExpr'' lhs = do
-    op <- lookAhead $ try mapOp 
-                      <|> typOp 
+    op <- lookAhead $     try mapOp 
+                      <|> try predOp
+                      <|> try typOp 
                       <|> endOp -- check for end of exp, i.e. no RHS
-
     _ <- trace ("++>"++show op)  $ seeNext 20
     let (ident, v) = if trim lhs `elem` keyidents
                         then ( trim lhs
@@ -95,6 +95,7 @@ pExpr'' lhs = do
     case v of
        Just x -> if | op == typStr -> trace (show "92") $ pTypExpr x
                     | op == mapStr -> trace (show "93") $ pMapExpr x
+                    | op == predStr -> pPredExpr x
                     | otherwise -> trace (show "96") $ pJustExpr x
        Nothing ->  pJustExpr lhs
 
@@ -118,6 +119,17 @@ pTypExpr lhs = do
 
 pMapExpr lhs = do
     e <- mapOp *> pHsExp
+    _ <- trace ("-->"++show e) $ seeNext 3
+    let (lhsId, lhsExp) = if (any (==trim lhs) keyidents) then (trim lhs, Nothing)
+                          else ( fromMaybe (__impossible $ "RHS transform must contain a key identifier: one of " ++ show keyidents
+                                 ) $ find (`isInfixOf` lhs) keyidents
+                               , Just (parseHsExp lhs))
+    let x = PbtDescExpr (Just (toPbtTyp' lhsId)) lhsExp $ Just $ Right (parseHsExp e)
+    _ <- trace (show x) $ seeNext 3
+    return $ x
+
+pPredExpr lhs = do
+    e <- predOp *> pHsExp
     _ <- trace ("-->"++show e) $ seeNext 3
     let (lhsId, lhsExp) = if (any (==trim lhs) keyidents) then (trim lhs, Nothing)
                           else ( fromMaybe (__impossible $ "RHS transform must contain a key identifier: one of " ++ show keyidents
@@ -302,7 +314,7 @@ exampleFile = unlines $
         , "    }                            \r"
         , "    welf {                       \r"
         , "        ic ^. _1 := choose(0, 1000) ;                       \r"
-        -- , "        :| ic ^. _1 >= 0 && ic ^. _2 . sum >= ic ^. _2 . count; \r"
+        , "        :| ic ^. _2 . sum >= ic ^. _2 . count; \r"
         , "    }                            \r"
         , "}                                \r"
         ]

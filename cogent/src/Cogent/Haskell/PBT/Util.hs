@@ -61,6 +61,22 @@ findKIdentExp kw kid ds
           in ( (exprs ^.. each . rhsExp . _Just) ^? ix 0
              , (exprs ^.. each . kexp . _Just . _Right) ^? ix 0 )
 
+-- find ic/ia/oc/oa pred expression -> :| operator, lhs is optional
+findAllPreds :: PbtKeyword -> [PbtDescDecl] -> M.Map PbtKeyidents [(Maybe (HS.Exp ()), (HS.Exp ()))]
+findAllPreds kw ds
+    = let declExprs = fromMaybe [] $ (find (\d -> (d ^. kword) == kw) ds) <&> (^. kexprs)
+          exprsIc = filter (\e -> fromMaybe (False) $ 
+                                    (e ^. kident) <&> (==Ic)
+                         ) $ declExprs
+          exprsPred = filter (\e -> fromMaybe (False) $ 
+                                    (e ^. kident) <&> (==Pred)
+                         ) $ declExprs 
+          ics = zip (exprsIc ^.. each . rhsExp) 
+                     (exprsIc ^.. each . kexp . _Just . _Right) 
+          justPreds = zip ( exprsPred ^.. each . rhsExp) 
+                           ( exprsPred ^.. each . kexp . _Just . _Right )
+        in M.union (M.singleton Ic ics) (M.singleton Pred justPreds)
+
 checkBoolE :: [PbtDescExpr] -> Bool
 checkBoolE a = case (a ^.. each . kexp . _Just . _Left) ^? ix 0 of
                      Just x -> boolResult x

@@ -26,9 +26,9 @@ data PbtDescExpr = PbtDescExpr { _kident :: Maybe PbtKeyidents
                                } deriving Show
 
 data PbtKeyword = Absf | Rrel | Welf | Pure | Nond | Spec 
-                deriving (Show, Eq)
+                deriving (Show, Eq, Ord)
 data PbtKeyidents = Ic | Ia | Oc | Oa | Pred 
-                  deriving (Show, Eq)
+                  deriving (Show, Eq, Ord)
 
 makeLenses ''PbtDescStmt
 makeLenses ''PbtDescDecl
