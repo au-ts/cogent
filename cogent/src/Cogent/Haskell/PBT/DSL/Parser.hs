@@ -135,7 +135,7 @@ pPredExpr lhs = do
                           else ( fromMaybe (__impossible $ "RHS transform must contain a key identifier: one of " ++ show keyidents
                                  ) $ find (`isInfixOf` lhs) keyidents
                                , Just (parseHsExp lhs))
-    let x = PbtDescExpr (Just (toPbtTyp' lhsId)) lhsExp $ Just $ Right (parseHsExp e)
+    let x = PbtDescExpr (Just (toPbtTyp' "pred")) lhsExp $ Just $ Right (parseHsExp e)
     _ <- trace (show x) $ seeNext 3
     return $ x
 
@@ -314,7 +314,7 @@ exampleFile = unlines $
         , "    }                            \r"
         , "    welf {                       \r"
         , "        ic ^. _1 := choose(0, 1000) ;                       \r"
-        , "        :| ic ^. _2 . sum >= ic ^. _2 . count; \r"
+        , "        ic ^. _2 . sum :| ic ^. _2 . sum >= ic ^. _2 . count; \r"
         , "    }                            \r"
         , "}                                \r"
         ]

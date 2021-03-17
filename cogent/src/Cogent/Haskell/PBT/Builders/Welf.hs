@@ -60,7 +60,7 @@ genDecls stmt defs = do
             userMapOpExp = findKIdentExp Welf Ic $ stmt ^. decls
             -- TODO: this contains all predicates in this block -> use this
             allPreds = findAllPreds Welf $ stmt ^. decls
-        (icT, genfExp) <- mkGenFExp (stmt ^. funcname) defs predExp userMapOpExp
+        (icT, genfExp) <- mkGenFExp (stmt ^. funcname) defs allPreds
         let fnName = "gen_" ++ stmt ^. funcname
             genCon = TyCon () (mkQName "Gen")
             tyOut = TyApp () genCon $ TyParen () icT
@@ -74,45 +74,54 @@ genDecls stmt defs = do
           in return [sig, dec]
 
 -- gen function only has output type (wrapped in Gen monad)
-mkGenFExp :: String -> [CC.Definition TypedExpr VarName b] -> Maybe (Exp ()) -> (Maybe (Exp ()), Maybe (Exp ())) -> SG (Type (), Exp ())
-mkGenFExp fname defs predE userE = do
+mkGenFExp :: String 
+          -> [CC.Definition TypedExpr VarName b] 
+          -> M.Map PbtKeyidents [(Maybe (HS.Exp ()), (HS.Exp ()))] 
+          -> SG (Type (), Exp ())
+mkGenFExp fname defs userGenExps = do
     let def = fromMaybe (__impossible "function name (of function under test) cannot be found in cogent program"
               ) $ find (\x -> CC.getDefinitionId x == fname) defs
-    mkGenFExp' def predE userE
+    mkGenFExp' def userGenExps
 
-mkGenFExp' :: CC.Definition TypedExpr VarName b -> Maybe (Exp ()) -> (Maybe (Exp ()), Maybe (Exp ())) -> SG (Type (), Exp ())
-mkGenFExp' def predE userE | (CC.FunDef _ fn ps _ ti to _) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
+mkGenFExp' :: CC.Definition TypedExpr VarName b -> M.Map PbtKeyidents [(Maybe (HS.Exp ()), (HS.Exp ()))] -> SG (Type (), Exp ())
+mkGenFExp' def userGenExps | (CC.FunDef _ fn ps _ ti to _) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
     ti' <- shallowType ti
-    (genfExp) <- mkGenFBody ti ti' predE userE
+    (genfExp) <- mkGenFBody ti ti' userGenExps
     pure (ti', genfExp)
-mkGenFExp' def predE userE | (CC.AbsDecl _ fn ps _ ti to) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
+mkGenFExp' def userGenExps | (CC.AbsDecl _ fn ps _ ti to) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
     ti' <- shallowType ti
-    (genfExp) <- mkGenFBody ti ti' predE userE
+    (genfExp) <- mkGenFBody ti ti' userGenExps
     pure (ti', genfExp)
-mkGenFExp' def _ _ | (CC.TypeDef tn _ _) <- def = pure (TyCon () (mkQName "Unknown"), function "undefined")
+mkGenFExp' def _ | (CC.TypeDef tn _ _) <- def = pure (TyCon () (mkQName "Unknown"), function "undefined")
 
-mkGenFBody :: CC.Type t a -> Type () -> Maybe (Exp ()) -> (Maybe (Exp ()), Maybe (Exp ())) -> SG (Exp ())
-mkGenFBody cogIcTyp icTyp predExp (userLhsE, userRhsE) = 
+mkGenFBody :: CC.Type t a -> Type () -> M.Map PbtKeyidents [(Maybe (HS.Exp ()), (HS.Exp ()))] -> SG (Exp ())
+mkGenFBody cogIcTyp icTyp userGenExps  = 
     let icLayout = determineUnpack cogIcTyp icTyp Unknown 0 "None"
-        userPred = case predExp of 
-                     -- here we turn the user predicate for welf into a lambda function 
-                     -- with infix views replaced with vars that are bound to arbitrary
-                     Just x -> let vars = scanUserInfixE x 0
-                                 in mkVarToExpWithLam (replaceVarsInUserInfixE x 0 vars) vars
-                     Nothing -> M.empty
-        userMapOp = case userLhsE of 
-                        Just lhs -> case userRhsE of 
-                            Just rhs -> let vars = scanUserInfixE lhs 0
-                                            lhs' = replaceVarsInUserInfixE lhs 0 vars
-                                          in M.fromList $ map (\(k,v) -> (k,(lhs', rhs))) $ M.toList vars
-                            Nothing -> M.empty
-                        Nothing -> M.empty
+        userPred = fromMaybe M.empty $ (M.lookup Pred userGenExps) <&> 
+                   (\es-> M.unions $ map (\(lhs',rhs) -> case lhs' of 
+                        Just lhs -> let vars = scanUserInfixE rhs 0
+                                        lams = mkVarToExpWithLam (replaceVarsInUserInfixE rhs 0 vars) vars
+                                      in lams
+                        Nothing -> let vars = scanUserInfixE rhs 0
+                                     in mkVarToExpWithLam (replaceVarsInUserInfixE rhs 0 vars) vars
+                       ) es
+                   )
+                 -- here we turn the user predicate for welf into a lambda function 
+                 -- with infix views replaced with vars that are bound to arbitrary
+        userMapOp = fromMaybe M.empty $ (M.lookup Ic userGenExps) <&> 
+                    (\es-> M.unions $ map (
+                       \(lhs',rhs) -> fromMaybe M.empty $ lhs' <&> 
+                                       (\lhs -> let vars = scanUserInfixE lhs 0
+                                                    lhs'' = replaceVarsInUserInfixE lhs 0 vars
+                                                   in M.fromList $ map (\(k,v) -> (k,(lhs'', rhs))) $ M.toList vars
+                                       )
+                        ) es
+                    )
         genStmts = mkArbitraryGenStmt icLayout Unknown userPred
         bindsMap = (map fst genStmts)
-        binds' = map (\(x,y) -> case M.lookup x userMapOp of 
-                                  Just (lhs, rhs) -> ( x
-                                                     , genStmt (pvar (mkName x)) rhs )
-                                  Nothing -> (x,y)) bindsMap
+        binds' = map (\(varN,exp) -> fromMaybe (varN,exp) $ (M.lookup varN userMapOp) <&>
+                                  (\(lhs, rhs) -> (varN, genStmt (pvar (mkName varN)) rhs))
+                 ) bindsMap
         binds = (map snd binds') 
         -- TODO: find matching var user is refering to and drop that in
         body = packConWithLayout (Right icLayout) Nothing
@@ -139,8 +148,8 @@ mkArbitraryGenStmt layout prevGroup userPredMap
           predFilter = op $ mkName "suchThat"
        in reverse $ (concatMap (\(k,v) -> case v of
            (Left depth) -> [ ( let n = k ++ replicate depth (P.head "'")
-                                   e = fromMaybe (genFn) $ 
-                                         (M.lookup n userPredMap) <&> (\x -> infixApp genFn predFilter x)
+                                   e = fromMaybe (genFn) $ (M.lookup n userPredMap) <&> 
+                                        (\x -> infixApp genFn predFilter x)
                                  in ( n, genStmt (pvar (mkName n)) e )
                              , (hsTy, prevGroup) ) ]
            (Right next) -> mkArbitraryGenStmt next group (M.fromList $ preds++(
