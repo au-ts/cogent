@@ -22,39 +22,35 @@ Inductive uval : Set :=
 
 Definition ctx : Type := list uval.
 
-Variant CallE : Type -> Type :=
-| Call (f : uval) (a : uval) : CallE uval.
-
 Variant MemE : Type -> Type :=
 | LoadMem (a : addr) : MemE (option uval)
 | StoreMem (a : addr) (u : uval) : MemE unit.
 
 Definition FailE := exceptE string.
 
-Definition CogentE := CallE +' MemE +' FailE.
+Definition CogentL0 := MemE +' FailE.
 
-Definition CogentL1 := MemE +' FailE.
-Definition CogentL2 := FailE.
+Definition CogentL1 := FailE.
 
 Section Denote.
 
-  Definition option_bind {A T} (x : option A) (f : A -> T) (m : string) : itree CogentE T := 
+  Definition option_bind {A T} (x : option A) (f : A -> T) (m : string) : itree CogentL0 T := 
     match x with
     | Some y => ret (f y)
     | None => throw m
     end.
 
-  Definition extract_prim (x : uval) : itree CogentE lit :=
+  Definition extract_prim (x : uval) : itree CogentL0 lit :=
     match x with
     | UPrim v => ret v
     | _ => throw "not a prim"
     end.
   
-  Definition denote_prim (op : prim_op) (xs : list uval) : itree CogentE uval :=
+  Definition denote_prim (op : prim_op) (xs : list uval) : itree CogentL0 uval :=
     xs' <- map_monad extract_prim xs ;;
     option_bind (eval_prim_op op xs') UPrim "op error".
 
-  Definition access_member (fs : list (uval * repr)) (f : nat) : itree CogentE uval :=
+  Definition access_member (fs : list (uval * repr)) (f : nat) : itree CogentL0 uval :=
     option_bind (nth_error fs f) fst "invalid member access".
 
   (* is this built-in somewhere? *)
@@ -65,9 +61,9 @@ Section Denote.
     | _, _ => l
     end.
 
-  Fixpoint denote_expr (γ : ctx) (e : expr) : itree CogentE uval :=
+  Fixpoint denote_expr (γ : ctx) (e : expr) : itree CogentL0 uval :=
     (* define some nested functions that are mutually recursive with denote_expr *)
-    let fix denote_member (γ : ctx) (e : expr) (f : nat) {struct e} : itree CogentE (uval * uval) :=
+    let fix denote_member (γ : ctx) (e : expr) (f : nat) {struct e} : itree CogentL0 (uval * uval) :=
       r <- denote_expr γ e ;;
       m <- match r with
       | URecord fs => access_member fs f
@@ -90,7 +86,7 @@ Section Denote.
         a' <- denote_expr γ a ;;
         denote_expr (a' :: γ) b
     | Unit => ret UUnit
-    | If x t e =>
+    (* | If x t e =>
         x' <- denote_expr γ x ;;
         match x' with
         | UPrim (LBool b) => denote_expr γ (if b then t else e)
@@ -132,18 +128,18 @@ Section Denote.
     | App x y =>
         f <- denote_expr γ x ;;
         a <- denote_expr γ y ;;
-        trigger (Call f a)
+        trigger (Call f a) *)
     end.
 
-  Definition function_denotation := uval -> itree CogentE uval.
+  Definition function_denotation := uval -> itree CogentL0 uval.
 
-  Definition denote_fun (b : expr) : function_denotation :=
+  Definition denote_function (b : expr) : function_denotation :=
     fun a => denote_expr [a] b.
 
-  Definition module := alist name function_denotation.
+  Definition program_denotation := alist name function_denotation.
 
-  Definition prog_to_module (p : cogent_prog) : module :=
-    map (fun '(FunDef n t rt b) => (n, denote_fun b)) p.
+  Definition denote_program (p : cogent_prog) : program_denotation :=
+    map (fun '(FunDef n t rt b) => (n, denote_function b)) p.
 
 End Denote.
 
@@ -151,34 +147,19 @@ From ExtLib Require Import Structures.Maps.
 
 Section Interpretation.
 
-  Definition handle_call (m : module) : CallE ~> itree CogentE :=
-    fun _ '(Call f a) =>
-      match f with
-      | UFunction fn => 
-          match alist_find _ fn m with
-          | Some f' => f' a
-          | None => throw ("unknown function " ++ fn)
-          (* or maybe it's an abstract function? *)
-          end
-      | _ => throw "expression is not a function"
-      end.
-
-  Definition interp_call (m : module) (entry_f : uval) (entry_a : uval) : itree CogentL1 uval :=
-    mrec (handle_call m) (Call entry_f entry_a).
-
   Definition memory := alist addr uval.
   Definition empty_memory : memory := empty.
   Definition dummy_memory : memory := 
     alist_add _ 23 (URecord [(UPrim (LU8 5), RPrim (Num U8))]) empty_memory.
 
-  Definition handle_mem : MemE ~> stateT memory (itree CogentL2) :=
+  Definition handle_mem {E} : MemE ~> stateT memory (itree E) :=
     fun _ e σ =>
       match e with
       | LoadMem a => ret (σ, alist_find _ a σ)
       | StoreMem a u => ret (alist_add _ a u σ, tt)
       end.
   
-  Definition interp_mem : itree CogentL1 ~> stateT memory (itree CogentL2) :=
+  Definition interp_mem : itree CogentL0 ~> stateT memory (itree CogentL1) :=
     interp_state (case_ handle_mem pure_state).
 
   Definition handle_failure : FailE ~> failT (itree void1) :=
@@ -188,18 +169,21 @@ Section Interpretation.
   Definition inject_signature {E} : void1 ~> E := fun _ (x : void1 _) => match x with end.
   Hint Unfold inject_signature : core.
 
-  Definition interp_cogent {E} (m : module) 
-                               (entry_f : uval) (entry_a : uval)
-                               (mem : memory) 
-                             : failT (itree E) (memory * uval) :=
-    let l1 := interp_call m entry_f entry_a in
-    let l2 := interp_mem _ l1 mem in
-    let l3 := interp handle_failure l2 in
-    translate inject_signature l3.
+  Definition interp_expr {E} (l0 : itree CogentL0 uval) (mem : memory)
+                               : failT (itree E) (memory * uval) :=
+    let l1 := interp_mem _ l0 mem in
+    let l2 := interp handle_failure l1 in
+    translate inject_signature l2.
 
-  Definition run_cogent (p : cogent_prog) 
-                        (entry_f : uval) (entry_a : uval) 
+  Definition interp_cogent {E} (p : program_denotation) (fn : name) (a : uval) (mem : memory) 
+                         : failT (itree E) (memory * uval) :=
+    match alist_find _ fn p with
+    | Some f => interp_expr (f a) mem
+    | None => ret (inl ("unknown function " ++ fn))
+    end.
+
+  Definition run_cogent (p : cogent_prog) (fn : name) (a : uval)
                       : failT (itree void1) (memory * uval) :=
-    interp_cogent (prog_to_module p) entry_f entry_a dummy_memory.
+    interp_cogent (denote_program p) fn a dummy_memory.
 
 End Interpretation.

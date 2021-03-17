@@ -4,14 +4,15 @@
 -Q coq-record-update/src RecordUpdate
 -R coq Checker
 -R input Input
-./coq/Cogent.v
-./coq/Main.v
-./coq/Compiler.v
-./coq/Types.v
-./coq/Denote.v
 ./coq/Utils/ErrorWithState.v
 ./coq/Utils/Instances.v
 ./coq/Utils/Fail.v
+./coq/Utils/Codegen.v
+./coq/Cogent.v
+./coq/Compiler.v
+./coq/Types.v
+./coq/Denote.v
 ./coq/Corres.v
 ./input/LLVM.v
 ./input/Source.v
+./coq/Main.v

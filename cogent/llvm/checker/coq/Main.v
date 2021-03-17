@@ -60,4 +60,4 @@ Compute (burn 100 (denote_expr prog)). *)
 
 Compute compile_cogent CogentInput.
 
-Compute burn 50 (run_cogent CogentInput (UFunction "main") UUnit).
+Compute burn 50 (run_cogent CogentInput "main" UUnit).
