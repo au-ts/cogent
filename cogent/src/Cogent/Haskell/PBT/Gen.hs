@@ -103,7 +103,7 @@ propModule name hscname pbtinfos decls =
       import_word = P.map importAbs ["Word8", "Word16", "Word32", "Word64"]
       import_ints = P.map importAbs ["Int8", "Int16", "Int32", "Int64"]
       import_prelude = P.map importVar ["not", "div", "mod", "fromIntegral", "undefined", "return"] ++
-                       P.map importSym ["$", ".", "+", "-", "*", "&&", "||", ">", ">=", "<", "<=", "==", "/="] ++
+                       P.map importSym ["$", ".", "+", "-", "*", "^", "&&", "||", ">", ">=", "<", "<=", "==", "/="] ++
                        P.map importAbs ["Char", "String", "Int", "Integer", "Show", "Maybe"] ++
                        [IThingAll () $ Ident () "Bool"]
       imps = [ ImportDecl () (ModuleName () "Test.QuickCheck" ) False False False Nothing Nothing Nothing

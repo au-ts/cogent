@@ -61,25 +61,25 @@ pDecls = pDecl `manyTillLookAhead` rcurly
 pDecl :: Parser PbtDescDecl
 pDecl = do
     k <- pstrId <* lookAhead lcurly
-    exprs <- pspaces $ pbetweenCurlys pExprs
+    exprs <- pspaces $ pbetweenCurlys (pExprs (toPbtTyp k))
     return $ PbtDescDecl (toPbtTyp k) exprs
 
 -- PBT DSL expressions
 -- -----------------------------------------
-pExprs :: Parser [PbtDescExpr]
-pExprs = pExpr `sepEndBy` pspaces semi
+pExprs :: PbtKeyword -> Parser [PbtDescExpr]
+pExprs b = (pExpr b) `sepEndBy` pspaces semi
 
-pExpr :: Parser PbtDescExpr
-pExpr = do
+pExpr :: PbtKeyword -> Parser PbtDescExpr
+pExpr block = do
     _ <- seeNext 10
     -- TODO: check for comment here 
     lhs <- try (pspaces predOp) <|> pstrId
     _ <- trace ("++"++show lhs)  $ seeNext 10
     if (lhs == predStr) 
      then trace (show "75") pExpr'
-     else trace (show "76") pExpr'' lhs
+     else trace (show "76") pExpr'' lhs block
 
-pExpr'' lhs = do
+pExpr'' lhs block = do
     op <- lookAhead $     try mapOp 
                       <|> try predOp
                       <|> try typOp 
@@ -94,7 +94,7 @@ pExpr'' lhs = do
                              , Just lhs )
     case v of
        Just x -> if | op == typStr -> trace (show "92") $ pTypExpr x
-                    | op == mapStr -> trace (show "93") $ pMapExpr x
+                    | op == mapStr -> trace (show "93") $ pMapExpr x block
                     | op == predStr -> pPredExpr x
                     | otherwise -> trace (show "96") $ pJustExpr x
        Nothing ->  pJustExpr lhs
@@ -117,11 +117,15 @@ pTypExpr lhs = do
         -- prevent cogent syntax from being parsed as HS syntax
         if t == Ic || t == Oc then Nothing else Just $ Left (parseHsTyp e)
 
-pMapExpr lhs = do
+pMapExpr lhs block = do
     e <- mapOp *> pHsExp
     _ <- trace ("-->"++show e) $ seeNext 3
     let (lhsId, lhsExp) = if (any (==trim lhs) keyidents) then (trim lhs, Nothing)
-                          else ( fromMaybe (__impossible $ "RHS transform must contain a key identifier: one of " ++ show keyidents
+                          else ( fromMaybe (
+                                    if | block == Welf -> "ic"
+                                       | block == Rrel -> "pred"
+                                       | block == Absf -> "ia"
+                                       | otherwise -> "pred"
                                  ) $ find (`isInfixOf` lhs) keyidents
                                , Just (parseHsExp lhs))
     let x = PbtDescExpr (Just (toPbtTyp' lhsId)) lhsExp $ Just $ Right (parseHsExp e)
@@ -295,7 +299,7 @@ exampleFile = unlines $
         , "       :| (oa ^? _Just) == (oc ^? _V0_Success <&> fromIntegral) ;              \r"
         , "    }                            \r"
         , "    welf {                       \r"
-        , "       :| (ic ^. sum) > (ic ^. count) ; \r"
+        , "       (ic ^. sum) :| (ic ^. sum) > (ic ^. count) ; \r"
         , "    }                            \r"
         , "}                                \r"
         , "`addToBag` {                 \r"

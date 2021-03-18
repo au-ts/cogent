@@ -40,7 +40,7 @@ import Data.Tuple
 import Data.Function
 import Data.Maybe
 import Data.Either
-import Data.List (find, partition, group, sort, sortOn)
+import Data.List (isInfixOf, find, partition, group, sort, sortOn)
 import Data.List.Extra (trim)
 import Data.Generics.Schemes (everything)
 import Control.Arrow (second, (***), (&&&))
@@ -99,11 +99,20 @@ mkGenFBody cogIcTyp icTyp userGenExps  =
     let icLayout = determineUnpack cogIcTyp icTyp Unknown 0 "None"
         userPred = fromMaybe M.empty $ (M.lookup Pred userGenExps) <&> 
                    (\es-> M.unions $ map (\(lhs',rhs) -> case lhs' of 
-                        Just lhs -> let vars = scanUserInfixE rhs 0
-                                        lams = mkVarToExpWithLam (replaceVarsInUserInfixE rhs 0 vars) vars
-                                      in lams
+                        Just lhs -> let shCheck = scanUserShortE lhs 0
+                                        varBindLhs = if (null shCheck) then scanUserInfixE lhs 0 else shCheck
+                                        varB = M.fromList $ {-[P.head $ -} sortOn (\(k,v) -> P.length (filter (==(P.head "'")) k)) $ M.toList varBindLhs
+                                        c = mkVarToExpWithLam (replaceVarsInUserInfixE rhs 0 (scanUserInfixE rhs 0)) varB 
+                                      in trace ("varB "++ show varB) $ c
+
+                        -- TODO: want to run scanUserInfixE on lhs to get the var bind 
+                        --       then that var bind in the expression with x 
+                        --       then convert to lambda expression
+                        --       append to constructure already done
+                        --       we don't have to guess the var bind so should be easier
+
                         Nothing -> let vars = scanUserInfixE rhs 0
-                                     in mkVarToExpWithLam (replaceVarsInUserInfixE rhs 0 vars) vars
+                                     in trace ("hey") $ mkVarToExpWithLam (replaceVarsInUserInfixE rhs 0 vars) vars
                        ) es
                    )
                  -- here we turn the user predicate for welf into a lambda function 
@@ -111,7 +120,8 @@ mkGenFBody cogIcTyp icTyp userGenExps  =
         userMapOp = fromMaybe M.empty $ (M.lookup Ic userGenExps) <&> 
                     (\es-> M.unions $ map (
                        \(lhs',rhs) -> fromMaybe M.empty $ lhs' <&> 
-                                       (\lhs -> let vars = scanUserInfixE lhs 0
+                                       (\lhs -> let shCheck = scanUserShortE lhs 0
+                                                    vars = if (null shCheck) then scanUserInfixE lhs 0 else shCheck
                                                     lhs'' = replaceVarsInUserInfixE lhs 0 vars
                                                    in M.fromList $ map (\(k,v) -> (k,(lhs'', rhs))) $ M.toList vars
                                        )
@@ -122,7 +132,7 @@ mkGenFBody cogIcTyp icTyp userGenExps  =
         binds' = map (\(varN,exp) -> fromMaybe (varN,exp) $ (M.lookup varN userMapOp) <&>
                                   (\(lhs, rhs) -> (varN, genStmt (pvar (mkName varN)) rhs))
                  ) bindsMap
-        binds = (map snd binds') 
+        binds = sortOn (\x -> "suchThat" `isInfixOf` (show x)) (map snd binds') 
         -- TODO: find matching var user is refering to and drop that in
         body = packConWithLayout (Right icLayout) Nothing
       in return $ doE $ binds ++ [qualStmt (app (function "return") body)]
@@ -142,8 +152,8 @@ mkArbitraryGenStmt layout prevGroup userPredMap
           prevGroup = layout ^. prevGrTag
           fld = layout ^. fieldMap
           fs = sortOn fst $ M.toList fld
-          (preds, nextPreds) = partition (\(k,v) -> isJust $ (M.lookup k fld)) 
-                                           (sortOn fst $ M.toList userPredMap)
+          --c (preds, nextPreds) = partition (\(k,v) -> isJust $ (M.lookup k fld)) 
+             --c                               (sortOn fst $ M.toList userPredMap)
           genFn = function "chooseAny"
           predFilter = op $ mkName "suchThat"
        in reverse $ (concatMap (\(k,v) -> case v of
@@ -152,9 +162,9 @@ mkArbitraryGenStmt layout prevGroup userPredMap
                                         (\x -> infixApp genFn predFilter x)
                                  in ( n, genStmt (pvar (mkName n)) e )
                              , (hsTy, prevGroup) ) ]
-           (Right next) -> mkArbitraryGenStmt next group (M.fromList $ preds++(
-                    if P.length nextPreds /= 0 then [P.head nextPreds] else [])
-                )
+           (Right next) -> mkArbitraryGenStmt next group userPredMap
+           -- ++(
+             --        if P.length nextPreds /= 0 then [P.head nextPreds] else [])
        ) fs)
 
 -- | builder for Constructor packing with just structure layout type
@@ -188,7 +198,7 @@ replaceVarsInUserInfixE (Paren () e) depth vars = replaceVarsInUserInfixE e dept
 replaceVarsInUserInfixE exp depth vars
     | (InfixApp () lhs op rhs) <- exp 
     = let opname = getOpStr op
-        in if | any (==opname) ["^.", "^?"] -> replaceInfixViewE exp depth vars
+        in if | any (==opname) ["^.", "^?", ".~"] -> replaceInfixViewE exp depth vars
               | otherwise -> InfixApp () (replaceVarsInUserInfixE lhs depth vars) op (replaceVarsInUserInfixE rhs depth vars)
 replaceVarsInUserInfixE exp depth vars = exp
 
@@ -199,10 +209,10 @@ replaceInfixViewE (Paren () e) depth vars = Paren () $ replaceInfixViewE e depth
 replaceInfixViewE (InfixApp () lhs op rhs) depth vars 
     --   ok just to handle rhs because of fixity
     = replaceInfixViewE rhs (depth+1) vars
-replaceInfixViewE (Var _ (UnQual _ (Ident _ name))) depth vars
+replaceInfixViewE exp depth vars | (Var _ (UnQual _ (Ident _ name))) <- exp
     -- TODO: how to handle multiple
-    = let (newName, _) = P.head $ filter (\(k,v) -> v == name) $ M.toList vars
-        in Var () (UnQual () (Ident () newName))
+    = let ns = filter (\(k,v) -> v == name) $ M.toList vars
+        in if P.length ns == 0 then exp else Var () (UnQual () (Ident () ((P.head ns) ^. _1)))
 replaceInfixViewE exp depth vars = exp
 
 -- | Transform Exp AST by changing @var@ name to just "x" (for anon functions)
@@ -232,6 +242,18 @@ scanUserInfixE exp depth
         in if | any (==opname) ["^.", "^?"] -> scanUserInfixViewE exp depth
               | otherwise -> M.union (scanUserInfixE lhs depth) (scanUserInfixE rhs depth)
 scanUserInfixE exp depth =  scanUserInfixViewE exp depth
+
+scanUserShortE :: Exp () -> Int -> M.Map String String
+scanUserShortE (Paren () e) depth = scanUserShortE e depth
+scanUserShortE (Var _ (UnQual _ (Ident _ name))) depth 
+    = if ("'" `isInfixOf` (trim name)) then M.singleton (trim name) ([x | x <- (trim name), x `notElem` "'"])
+      else M.empty
+scanUserShortE _ depth = M.empty 
+
+                        {- - ) 
+                         -
+                                                        then 
+                                                        else-}
 
 -- | scan (^.|^?) expressions 
 -- | want to extract fieldname & depth as this is enought to build the 
