@@ -65,7 +65,7 @@ data DataLayoutExpr' e
 #endif
   | Offset  e DataLayoutSize
   | RepRef  RepName [e]
-  | After   e FieldName
+  | After   e FieldName  -- only valid inside a record layout
   | LVar    DLVarName
   | Ptr
   deriving (Show, Data, Eq, Ord)

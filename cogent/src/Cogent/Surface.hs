@@ -38,6 +38,7 @@ import Data.Traversable
 #endif
 import Data.IntMap as IM (IntMap)
 import qualified Data.Map as M
+import Lens.Micro
 import Text.Parsec.Pos
 
 
@@ -609,8 +610,8 @@ lvL :: DataLayoutExpr -> [DLVarName]
 lvL (DLVar n) = [n]
 lvL (DLOffset e _) = lvL e
 lvL (DLAfter e _) = lvL e
-lvL (DLRecord fs) = foldMap (\(_, _, x) -> lvL x) fs
-lvL (DLVariant t alt) = lvL t <> foldMap (\(_, _, _, x) -> lvL x) alt
+lvL (DLRecord fs) = foldMap (lvL . (^._3)) fs
+lvL (DLVariant t alt) = lvL t <> foldMap (lvL . (^._4)) alt
 #ifdef BUILTIN_ARRAYS
 lvL (DLArray e _) = lvL e
 #endif
