@@ -267,9 +267,10 @@ scanUserInfixViewE (InfixApp () lhs op rhs) depth
     = if getOpStr op == "." 
        then M.union (scanUserInfixViewE lhs (depth)) (scanUserInfixViewE rhs (depth+1))
        else M.union (scanUserInfixViewE lhs (depth)) (scanUserInfixViewE rhs (depth))
-scanUserInfixViewE (Var _ (UnQual _ (Ident _ name))) depth 
-    = if (any (==trim name ) ["ic","ia","oc","oa"]) then M.empty
-      else M.singleton (mkViewBindVarN name (depth+1)) (name)
+scanUserInfixViewE exp depth | (Var _ (UnQual _ (Ident _ name))) <- exp
+    = if | (any (==trim name ) ["ic","ia","oc","oa"]) -> M.empty
+         | null (scanUserShortE exp 0) -> M.singleton (mkViewBindVarN name (depth+1)) (name)
+         | otherwise -> scanUserShortE exp 0
 scanUserInfixViewE _ depth = M.empty
 
 -- | Builder for unique var identifier - this pattern is also follow by HsEmbedLayout
