@@ -10,6 +10,7 @@
 
 module Cogent.Haskell.PBT.Builders.Rrel (
     rrelDecl
+  , determineUnpack'
 ) where
 
 import Cogent.Haskell.PBT.Builders.Absf

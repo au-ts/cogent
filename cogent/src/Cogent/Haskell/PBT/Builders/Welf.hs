@@ -100,9 +100,9 @@ mkGenFBody cogIcTyp icTyp userGenExps  =
         userPred = fromMaybe M.empty $ (M.lookup Pred userGenExps) <&> 
                    (\es-> M.unions $ map (\(lhs',rhs) -> case lhs' of 
                         Just lhs -> let shCheck = scanUserShortE lhs 0
-                                        varBindLhs = if (null shCheck) then scanUserInfixE lhs 0 else shCheck
+                                        varBindLhs = if (null shCheck) then scanUserInfixE lhs 0 "ic" else shCheck
                                         varB = M.fromList $ {-[P.head $ -} sortOn (\(k,v) -> P.length (filter (==(P.head "'")) k)) $ M.toList varBindLhs
-                                        c = mkVarToExpWithLam (replaceVarsInUserInfixE rhs 0 (scanUserInfixE rhs 0)) varB 
+                                        c = mkVarToExpWithLam (replaceVarsInUserInfixE rhs 0 (scanUserInfixE rhs 0 "ic")) varB 
                                       in trace ("varB "++ show varB) $ c
 
                         -- TODO: want to run scanUserInfixE on lhs to get the var bind 
@@ -111,7 +111,7 @@ mkGenFBody cogIcTyp icTyp userGenExps  =
                         --       append to constructure already done
                         --       we don't have to guess the var bind so should be easier
 
-                        Nothing -> let vars = scanUserInfixE rhs 0
+                        Nothing -> let vars = scanUserInfixE rhs 0 "ic"
                                      in trace ("hey") $ mkVarToExpWithLam (replaceVarsInUserInfixE rhs 0 vars) vars
                        ) es
                    )
@@ -121,7 +121,7 @@ mkGenFBody cogIcTyp icTyp userGenExps  =
                     (\es-> M.unions $ map (
                        \(lhs',rhs) -> fromMaybe M.empty $ lhs' <&> 
                                        (\lhs -> let shCheck = scanUserShortE lhs 0
-                                                    vars = if (null shCheck) then scanUserInfixE lhs 0 else shCheck
+                                                    vars = if (null shCheck) then scanUserInfixE lhs 0 "ic" else shCheck
                                                     lhs'' = replaceVarsInUserInfixE lhs 0 vars
                                                    in M.fromList $ map (\(k,v) -> (k,(lhs'', rhs))) $ M.toList vars
                                        )
@@ -157,7 +157,7 @@ mkArbitraryGenStmt layout prevGroup userPredMap
           genFn = function "chooseAny"
           predFilter = op $ mkName "suchThat"
        in reverse $ (concatMap (\(k,v) -> case v of
-           (Left depth) -> [ ( let n = k ++ replicate depth (P.head "'")
+           (Left depth) -> [ ( let n = mkKIdentVarBind "ic" k depth
                                    e = fromMaybe (genFn) $ (M.lookup n userPredMap) <&> 
                                         (\x -> infixApp genFn predFilter x)
                                  in ( n, genStmt (pvar (mkName n)) e )
@@ -172,7 +172,8 @@ mkArbitraryGenStmt layout prevGroup userPredMap
 packConWithLayout :: Either Int HsEmbedLayout -> Maybe String -> Exp ()
 packConWithLayout layout fieldKey
     = case layout of 
-    Left depth -> var $ mkName $ (fromMaybe (__impossible "no field key!") fieldKey) ++ replicate depth (P.head "'")
+    Left depth -> var $ mkName $ (fromMaybe (__impossible "no field key!") $ fieldKey <&>
+                                   (\k -> mkKIdentVarBind "ic" k depth))
     Right nextLayout -> let hsTy = nextLayout ^. hsTyp
                             group = nextLayout ^. grTag
                             prevGroup = nextLayout ^. prevGrTag
@@ -234,14 +235,14 @@ replaceWithX exp depth vars = exp
 -- | We know it will produce the same var as if the type was scanned with 
 -- | HsEmbedLayout type. 
 -- -----------------------------------------------------------------------
-scanUserInfixE :: Exp () -> Int -> M.Map String String
-scanUserInfixE (Paren () e) depth = scanUserInfixViewE e depth
-scanUserInfixE exp depth 
+scanUserInfixE :: Exp () -> Int -> String -> M.Map String String
+scanUserInfixE (Paren () e) depth kid = scanUserInfixViewE e depth kid
+scanUserInfixE exp depth kid
     | (InfixApp () lhs op rhs) <- exp 
     = let opname = getOpStr op
-        in if | any (==opname) ["^.", "^?"] -> scanUserInfixViewE exp depth
-              | otherwise -> M.union (scanUserInfixE lhs depth) (scanUserInfixE rhs depth)
-scanUserInfixE exp depth =  scanUserInfixViewE exp depth
+        in if | any (==opname) ["^.", "^?"] -> scanUserInfixViewE exp depth kid
+              | otherwise -> M.union (scanUserInfixE lhs depth kid) (scanUserInfixE rhs depth kid)
+scanUserInfixE exp depth kid =  scanUserInfixViewE exp depth kid
 
 scanUserShortE :: Exp () -> Int -> M.Map String String
 scanUserShortE (Paren () e) depth = scanUserShortE e depth
@@ -261,22 +262,20 @@ scanUserShortE _ depth = M.empty
 -- | in the map, fieldname ++ postfix maps to depth in expression
 -- | depth only increases when recursing down RHS
 -- -----------------------------------------------------------------------
-scanUserInfixViewE :: Exp () -> Int -> M.Map String String
-scanUserInfixViewE (Paren () e) depth = scanUserInfixViewE e depth
-scanUserInfixViewE (InfixApp () lhs op rhs) depth 
+scanUserInfixViewE :: Exp () -> Int -> String -> M.Map String String
+scanUserInfixViewE (Paren () e) depth kid = scanUserInfixViewE e depth kid
+scanUserInfixViewE (InfixApp () lhs op rhs) depth kid  
     = if getOpStr op == "." 
-       then M.union (scanUserInfixViewE lhs (depth)) (scanUserInfixViewE rhs (depth+1))
-       else M.union (scanUserInfixViewE lhs (depth)) (scanUserInfixViewE rhs (depth))
-scanUserInfixViewE exp depth | (Var _ (UnQual _ (Ident _ name))) <- exp
+       then M.union (scanUserInfixViewE lhs (depth) kid ) (scanUserInfixViewE rhs (depth+1) kid )
+       else M.union (scanUserInfixViewE lhs (depth) kid ) (scanUserInfixViewE rhs (depth) kid )
+scanUserInfixViewE exp depth kid | (Var _ (UnQual _ (Ident _ name))) <- exp
     = if | (any (==trim name ) ["ic","ia","oc","oa"]) -> M.empty
-         | null (scanUserShortE exp 0) -> M.singleton (mkViewBindVarN name (depth+1)) (name)
+         | null (scanUserShortE exp 0) -> M.singleton (mkKIdentVarBind kid name (depth+1)) (name)
          | otherwise -> scanUserShortE exp 0
-scanUserInfixViewE _ depth = M.empty
+scanUserInfixViewE _ depth kid = M.empty
 
 -- | Builder for unique var identifier - this pattern is also follow by HsEmbedLayout
 -- -----------------------------------------------------------------------
-mkViewBindVarN :: String -> Int -> String
-mkViewBindVarN fieldname depth = fieldname ++ (replicate depth $ P.head "'")
 
 -- | Return operator string value
 -- -----------------------------------------------------------------------
@@ -284,10 +283,12 @@ getOpStr :: QOp () -> String
 getOpStr (QVarOp _ (UnQual _ (Symbol _ name))) = name
 getOpStr _ = ""
 
+{-
 testScanUserInfix :: IO ()
 testScanUserInfix = do
     putStrLn $ show $ scanUserInfixE exampleUserInfix''' 0
-    putStrLn $ show $ replaceVarsInUserInfixE exampleUserInfix''' 0 $ scanUserInfixE exampleUserInfix''' 0
+    putStrLn $ show $ replaceVarsInUserInfixE exampleUserInfix''' 0 $ (scanUserInfixE exampleUserInfix''' 0 "ic")
+    -}
 
 exampleUserInfix''' = (InfixApp
                   ()

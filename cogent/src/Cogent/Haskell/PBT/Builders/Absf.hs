@@ -171,9 +171,8 @@ mkLensView layout varToView prevGroup prev
           -- field map is a tree with int leaves -> only build vars for leaves
        in concatMap ( \(k, v) -> case group of
         HsPrim -> case v of
-           (Left depth) -> [ (( k ++ replicate depth (P.head "'")
-                             , fromMaybe (mkVar varToView) prev & (mkFromIntegral hsTy prevGroup)
-                             )
+           (Left depth) -> [ ( ( mkKIdentVarBind (varToView) k depth
+                               , fromMaybe (mkVar varToView) prev & (mkFromIntegral hsTy prevGroup) )
                              , (hsTy, prevGroup) )
                            ]
            (Right next) -> __impossible $ show k ++ " " ++ show v

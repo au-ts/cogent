@@ -9,7 +9,7 @@ import Cogent.Compiler (__impossible)
 import Language.Haskell.Exts.SrcLoc
 import qualified Language.Haskell.Exts as HS
 import qualified Data.Map as M
-import Data.List (find)
+import Data.List (find, isInfixOf)
 import Data.Maybe (fromMaybe)
 import Debug.Trace
 
@@ -85,3 +85,6 @@ checkBoolE a = case (a ^.. each . kexp . _Just . _Left) ^? ix 0 of
 boolResult :: HS.Type () -> Bool
 boolResult (HS.TyCon _ (HS.UnQual _ (HS.Ident _ n))) = read n
 boolResult _ = False
+
+mkKIdentVarBind :: String -> String -> Int -> String
+mkKIdentVarBind kid name depth = kid++(if "_" `isInfixOf` name then "" else "_")++name++ replicate depth (head "'")

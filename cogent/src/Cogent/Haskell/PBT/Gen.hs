@@ -201,8 +201,25 @@ specDecls desc
           oaT = fromMaybe ( fromMaybe (__impossible "oa type not specified!") $
                     (findKIdentTyExp Rrel Oa $ desc ^. decls) ^. _1
                 ) oaTy
-          e = fromMaybe (function "undefined") exp
+          e = specExpr iaT oaT exp
           fname = mkName $ "hs_"++(desc ^. funcname)
           sig  = TypeSig () [fname] (TyFun () iaT oaT)
-          dec = FunBind () [Match () fname [pvar $ mkName "ia"] (UnGuardedRhs () $ e) Nothing]
+          dec = FunBind () [Match () fname [(pvar . mkName) "ia"] (UnGuardedRhs () $ e) Nothing]
         in [sig, dec]
+
+specExpr :: Type () -> Type () -> Maybe (Exp ()) -> Exp ()
+specExpr iaTyp oaTyp userE
+    = let iaLy = determineUnpack' iaTyp Unknown 0 "None"
+          -- oaLy = determineUnpack' oaTyp Unknown 0 "None"
+          iaLens' = mkLensView iaLy "ia" Unknown Nothing
+          -- oaLens' = mkLensView oaLy "oa" Unknown Nothing
+          iaLens = map fst iaLens'
+          -- oaLens = map fst oaLens'
+          ls = iaLens --oaLens ++
+          cNames = getConNames iaLy [] -- ++ getConNames oaLy []
+          binds = map ((\x -> pvar . mkName . fst $ x) &&& snd) ls
+          tys = map snd iaLens'
+          iaVars = map fst iaLens
+          -- oaVars = map fst oaLens
+          body = fromMaybe (function "undefined") userE
+       in mkLetE binds body
