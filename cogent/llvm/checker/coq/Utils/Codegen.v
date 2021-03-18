@@ -74,7 +74,16 @@ Section HelixInspired.
       |} ;;
     ret (Name (prefix ++ string_of_nat (block_count st))).
 
-  (* Definition incBlock := incBlockNamed "b". *)
+  Definition incBlock : (cerr block_id) :=
+    st <- get  ;;
+    put
+      {|
+        block_count := S (block_count st);
+        local_count := local_count st ;
+        void_count := void_count st ;
+        Γ := Γ st
+      |} ;;
+    ret (Anon (Z.of_nat (block_count st))).
 
   Definition incLocalNamed (prefix : string) : (cerr raw_id) :=
     st <- get ;;

@@ -143,7 +143,7 @@ Section Compiler.
         match os with
         | [a; b] => 
             let (op', rt) := compile_prim_op op in
-              prim_blk <- incBlockNamed "Prim" ;;
+              prim_blk <- incBlock ;;
               '((_, b_val), b_blk, b_blks) <- compile_expr b prim_blk ;;
               '((_, a_val), a_blk, a_blks) <- compile_expr a b_blk ;;
               new_local <- incLocal ;;
@@ -161,7 +161,7 @@ Section Compiler.
         v <- getStateVar "unknown variable" i ;;
         ret (v, next_blk, [])
     | Let e b =>
-        let_blk <- incBlockNamed "Let" ;;
+        let_blk <- incBlock ;;
         '(e', e_blk, e_blks) <- compile_expr e let_blk ;;
         addVars [e'] ;;
         '(b', b_blk, b_blks) <- compile_expr b next_blk ;;

@@ -9,3 +9,4 @@ Makefile.conf
 *.v.ast
 input/LLVM.v
 input/Source.v
+.lia.cache

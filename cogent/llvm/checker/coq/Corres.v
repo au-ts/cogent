@@ -4,7 +4,7 @@ From ITree Require Import ITree ITreeFacts.
 
 From Vellvm Require Import LLVMAst LLVMEvents TopLevel Handlers InterpreterMCFG TopLevelRefinements
   DynamicTypes CFG TypToDtyp InterpretationStack SymbolicInterpreter DenotationTheory ScopeTheory
-  DynamicValues ExpLemmas Scope.
+  DynamicValues ExpLemmas Coqlib Scope.
 
 From Checker Require Import Denote Cogent Compiler Utils.Codegen Utils.Fail Utils.Tactics.
 
@@ -89,18 +89,35 @@ Section Expressions.
 
   Definition compile_expr_res (v : texp typ) (γ : ctx) (s1 s2 : CodegenState) 
                             : Rel_cfg_T uval (block_id * block_id + uvalue) :=
-    fun '(_, u) '(m,(l,(g,_))) =>
+    fun '(_, u) '(m, (l, (g, _))) =>
       interp_cfg
         (translate exp_to_instr (denote_exp (Some (typ_to_dtyp [] (fst v))) (convert_typ [] (snd v))))
         g l m ≈ Ret (m, (l, (g, convert_uval u))).
-    
+  
+  Local Open Scope nat_scope.
+  
+  Definition block_bound (s1 s2 : CodegenState) (blks : ocfg typ) : Prop :=
+    forall (n : nat), 
+      In (Anon (Z.of_nat n)) (inputs blks) -> 
+        block_count s1 <= n < block_count s2.
+  
+  Lemma block_bound_nil :
+    forall (s1 s2 : CodegenState),
+      block_bound s1 s2 [].
+  Proof.
+    unfold block_bound, inputs, map, In.
+    contradiction.
+  Qed.
 
   Record compile_expr_post (v : texp typ) (γ : ctx) (s1 s2 : CodegenState)
+                           (blk : block_id) (blks : ocfg typ)
                            (cogent_i: state_cogent) (vellvm_i : state_cfg)
                            (cogent_f : state_cogent_T uval)
                            (vellvm_f : state_cfg_T (block_id * block_id + uvalue)) : Prop :=
   {
     correct_result : compile_expr_res v γ s1 s2 cogent_f vellvm_f
+  ; blks_monotonic : block_count s1 <= block_count s2
+  ; blks_bound : block_bound s1 s2 blks 
   }.
 
   Lemma compile_expr_correct :
@@ -113,7 +130,7 @@ Section Expressions.
         eutt (
           succ_cfg (
             lift_Rel_cfg (state_invariant γ s1) ⩕ 
-            compile_expr_post v γ s1 s2 cogent_mem (vellvm_mem, (l, g))
+            compile_expr_post v γ s1 s2 blk blks cogent_mem (vellvm_mem, (l, g))
           ))
           (interp_expr (denote_expr γ e) cogent_mem)
           (interp_cfg (denote_ocfg (convert_typ [] blks) (prev_blk, next_blk)) g l vellvm_mem).
@@ -139,6 +156,7 @@ Section Expressions.
       typ_to_dtyp_simplify.
       unfold denote_exp; cbn.
       go; reflexivity.
+      apply block_bound_nil.
       apply find_block_nil.
     -
       cbn* in COMPILE; simp.
@@ -152,28 +170,33 @@ Section Expressions.
         typ_to_dtyp_simplify;
         unfold denote_exp; cbn;
         go; reflexivity.
+      apply block_bound_nil.
       apply find_block_nil.
     - 
       cbn* in COMPILE; simp.
+      rename s1 into pre_state, c into mid_state, c1 into post_state.
       rename e1 into bind, e2 into body.
       rename l0 into bind_blks, l1 into body_blks.
       rename b0 into body_entry.
+      
       unfold code_block.
       rewrite convert_typ_ocfg_app.
       rewrite denote_ocfg_app; eauto.
       2: {
         unfold no_reentrance.
-
-        
-        
-
-        
-
+        rewrite convert_typ_outputs, inputs_convert_typ, outputs_cons.
+        unfold successors, terminator_outputs, blk_term.
+        simpl.
+        apply list_disjoint_cons_l.
+        pose proof Heqs as COMPILE_BIND.
+        pose proof Heqs1 as COMPILE_BODY.
+        specialize (IHe1 _ _ _ _ _ _ _ _ _ Heqs).
+        forward IHe1.
+        admit.
       }
 
       admit.
-  Qed.
-
-(* we want something like Lemma genNExpr_correct mixed with DSHAssign_correct *)
+      
+  Admitted.
 
 End Expressions.
