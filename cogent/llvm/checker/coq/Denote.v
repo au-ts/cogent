@@ -1,10 +1,10 @@
 From Coq Require Import List ZArith String.
 
 From ExtLib Require Import Structures.Monads Structures.Functor Structures.Reducible Data.Map.FMapAList.
-From ITree Require Import ITree Events.State Events.Exception.
+From ITree Require Import ITree Events.State Events.Exception Events.FailFacts.
 From Vellvm Require Import Util Utils.Error.
 
-From Checker Require Import Cogent Utils.Instances Utils.Fail.
+From Checker Require Import Cogent Utils.Instances.
 
 Import Monads.
 Import ListNotations.
@@ -13,12 +13,15 @@ Import FunctorNotation.
 Local Open Scope monad_scope.
 Local Open Scope string_scope.
 
+Set Implicit Arguments.
+
 Inductive uval : Set :=
 | UPrim (l : lit)
-| URecord (us : list (uval * repr))
+(* | URecord (us : list (uval * repr)) *)
 | UUnit
-| UPtr (a : addr) (r : repr)
-| UFunction (f : name).
+(* | UPtr (a : addr) (r : repr) *)
+(* | UFunction (f : name). *)
+.
 
 Definition ctx : Type := list uval.
 
@@ -63,7 +66,7 @@ Section Denote.
 
   Fixpoint denote_expr (γ : ctx) (e : expr) : itree CogentL0 uval :=
     (* define some nested functions that are mutually recursive with denote_expr *)
-    let fix denote_member (γ : ctx) (e : expr) (f : nat) {struct e} : itree CogentL0 (uval * uval) :=
+    (* let fix denote_member (γ : ctx) (e : expr) (f : nat) {struct e} : itree CogentL0 (uval * uval) :=
       r <- denote_expr γ e ;;
       m <- match r with
       | URecord fs => access_member fs f
@@ -75,7 +78,7 @@ Section Denote.
           end
       | _ => throw "expression is not a record"
       end ;;
-      ret (r, m) in
+      ret (r, m) in *)
     match e with
     | Prim p xs =>
         xs' <- map_monad (denote_expr γ) xs ;;
@@ -149,8 +152,8 @@ Section Interpretation.
 
   Definition memory := alist addr uval.
   Definition empty_memory : memory := empty.
-  Definition dummy_memory : memory := 
-    alist_add _ 23 (URecord [(UPrim (LU8 5), RPrim (Num U8))]) empty_memory.
+  (* Definition dummy_memory : memory := 
+    alist_add _ 23 (URecord [(UPrim (LU8 5), RPrim (Num U8))]) empty_memory. *)
 
   Definition handle_mem {E} : MemE ~> stateT memory (itree E) :=
     fun _ e σ =>
@@ -162,8 +165,11 @@ Section Interpretation.
   Definition interp_mem : itree CogentL0 ~> stateT memory (itree CogentL1) :=
     interp_state (case_ handle_mem pure_state).
 
+  (* Definition handle_failure : FailE ~> failT (itree void1) :=
+    fun _ '(Throw m) => ret (inl m). *)
+
   Definition handle_failure : FailE ~> failT (itree void1) :=
-    fun _ '(Throw m) => ret (inl m).
+    fun _ '(Throw m) => ret None.
 
   (* from Helix *)
   Definition inject_signature {E} : void1 ~> E := fun _ (x : void1 _) => match x with end.
@@ -171,19 +177,85 @@ Section Interpretation.
 
   Definition interp_expr {E} (l0 : itree CogentL0 uval) (mem : memory)
                                : failT (itree E) (memory * uval) :=
-    let l1 := interp_mem _ l0 mem in
-    let l2 := interp handle_failure l1 in
+    let l1 := interp_mem l0 mem in
+    let l2 := interp_fail handle_failure l1 in
     translate inject_signature l2.
 
   Definition interp_cogent {E} (p : program_denotation) (fn : name) (a : uval) (mem : memory) 
                          : failT (itree E) (memory * uval) :=
     match alist_find _ fn p with
     | Some f => interp_expr (f a) mem
-    | None => ret (inl ("unknown function " ++ fn))
+    | None => ret None
+    (* | None => ret (inl ("unknown function " ++ fn)) *)
     end.
 
   Definition run_cogent (p : cogent_prog) (fn : name) (a : uval)
                       : failT (itree void1) (memory * uval) :=
-    interp_cogent (denote_program p) fn a dummy_memory.
+    interp_cogent (denote_program p) fn a empty_memory.
 
 End Interpretation.
+
+Require Export ITree.Interp.TranslateFacts.
+Require Export ITree.Basics.CategoryFacts.
+Require Export ITree.Events.State.
+Require Export ITree.Events.StateFacts.
+Require Export ITree.ITree.
+Require Export ITree.Eq.Eq.
+Require Export ITree.Basics.Basics.
+Require Export ITree.Events.Exception.
+Require Export ITree.Interp.InterpFacts.
+
+Local Open Scope itree_scope.
+
+Section InterpTheory.
+
+  Lemma interp_mem_Ret :
+    forall T mem x,
+      @interp_mem T (Ret x) mem ≅ Ret (mem, x).
+  Proof.
+    intros T mem x.
+    unfold interp_mem.
+    apply interp_state_ret.
+  Qed.
+
+  Lemma interp_mem_bind :
+    forall T U mem (t : itree CogentL0 T) (k : T -> itree CogentL0 U),
+      interp_mem (ITree.bind t k) mem ≈ 
+        ITree.bind (interp_mem t mem) (fun '(mem', v) => interp_mem (k v) mem').
+  Proof.
+    intros; unfold interp_mem.
+    rewrite interp_state_bind.
+    apply eutt_eq_bind; intros []; reflexivity.
+  Qed.
+
+  Lemma interp_expr_Ret :
+    forall E mem x,
+      @interp_expr E (Ret x) mem ≅ Ret (Some (mem, x)).
+  Proof.
+    intros.
+    unfold interp_expr.
+    rewrite interp_mem_Ret, interp_fail_Ret, translate_ret.
+    reflexivity.
+  Qed.
+
+  Lemma interp_expr_bind :
+    forall E mem (t : itree CogentL0 uval) (k : uval -> itree CogentL0 uval),
+      @interp_expr E (ITree.bind t k) mem ≈ 
+        ITree.bind (interp_expr t mem) (fun mx => 
+          match mx with 
+          (* | (a, b) => Ret None *)
+          | None => Ret None
+          | Some x => 
+              let '(mem',v) := x in 
+                interp_expr (k v) mem'
+          end).
+  Proof.
+    intros; unfold interp_expr.
+    rewrite interp_mem_bind, interp_fail_bind, translate_bind.
+    eapply eutt_eq_bind; intros [[]|]; cbn.
+    reflexivity.
+    rewrite translate_ret; reflexivity.
+  Qed.
+
+
+End InterpTheory.

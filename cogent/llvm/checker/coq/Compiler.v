@@ -122,7 +122,7 @@ Section Compiler.
     | TRecord ts s => 
         let t' := TYPE_Struct (map (fun '(_, (f, _)) => compile_type f) ts) in
           match s with Boxed => TYPE_Pointer t' | Unboxed => t' end
-    | TUnit => TYPE_I 2
+    | TUnit => TYPE_I 8
     end.
 
   Fixpoint compile_expr (e : expr) (next_blk : block_id) : cerr segment :=
@@ -153,7 +153,7 @@ Section Compiler.
     | Lit l => ret (match l with
       | LBool b => (TYPE_I 1, EXP_Integer (if b then 1 else 0))
       | LU8 w => (TYPE_I 8, EXP_Integer w)
-      | LU16 w => (TYPE_I 16, EXP_Integer w)
+      (* | LU16 w => (TYPE_I 16, EXP_Integer w) *)
       | LU32 w => (TYPE_I 32, EXP_Integer w)
       | LU64 w => (TYPE_I 64, EXP_Integer w)
       end, next_blk, [])
@@ -167,7 +167,7 @@ Section Compiler.
         '(b', b_blk, b_blks) <- compile_expr b next_blk ;;
         dropVars 1 ;;
         ret (b', e_blk, e_blks ++ [code_block let_blk b_blk []] ++ b_blks)
-    | Unit => ret ((TYPE_I 2, EXP_Integer 0), next_blk, [])
+    | Unit => ret ((TYPE_I 8, EXP_Integer 0), next_blk, [])
     (* | If c t e =>
         c' <- compile_expr c ;;
         '(br_true, br_false, br_exit) <- branch_blocks ;;

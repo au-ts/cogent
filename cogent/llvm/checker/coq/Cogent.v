@@ -9,7 +9,12 @@ Section Syntax.
   Definition field := nat.
   Definition addr := nat. (* doesn't actually matter *)
 
-  Variant num_type : Set := U8 | U16 | U32 | U64.
+  Variant num_type : Set := 
+  | U8 
+  (* | U16  *)
+  | U32 
+  | U64.
+
   Variant prim_type : Set := Num (n : num_type) | Bool | String.
 
   Variant prim_op : Set :=
@@ -71,7 +76,7 @@ Section Syntax.
   Variant lit : Set :=
     | LBool (b : bool)
     | LU8 (w : Z)
-    | LU16 (w : Z)
+    (* | LU16 (w : Z) *)
     | LU32 (w : Z)
     | LU64 (w : Z).
   (* NOTE: not represented as n-bit words *)
@@ -118,7 +123,7 @@ Section Primitive.
   Definition prim_word_op (f : Z -> Z -> Z) (xs : list lit) : option lit :=
     match (firstn 2 xs) with
     | [LU8 x; LU8 y] => Some (LU8 (f x y))
-    | [LU16 x; LU16 y] => Some (LU16 (f x y))
+    (* | [LU16 x; LU16 y] => Some (LU16 (f x y)) *)
     | [LU32 x; LU32 y] => Some (LU32 (f x y))
     | [LU64 x; LU64 y] => Some (LU64 (f x y))
     | _ => None
@@ -127,7 +132,7 @@ Section Primitive.
   Definition prim_word_comp (f : Z -> Z -> bool) (xs : list lit) : option lit :=
     match (firstn 2 xs) with
     | [LU8 x; LU8 y] => Some (LBool (f x y))
-    | [LU16 x; LU16 y] => Some (LBool (f x y))
+    (* | [LU16 x; LU16 y] => Some (LBool (f x y)) *)
     | [LU32 x; LU32 y] => Some (LBool (f x y))
     | [LU64 x; LU64 y] => Some (LBool (f x y))
     | _ => None
@@ -163,13 +168,13 @@ Section Primitive.
   Definition cast_to (n : num_type) (l : lit) : option lit :=
     match n, l with
     | U8, (LU8  x)  => Some (LU8 x)
-    | U16, (LU8  x) => Some (LU16 x)
-    | U16, (LU16 x) => Some (LU16 x)
+    (* | U16, (LU8  x) => Some (LU16 x) *)
+    (* | U16, (LU16 x) => Some (LU16 x) *)
     | U32, (LU8  x) => Some (LU32 x)
-    | U32, (LU16 x) => Some (LU32 x)
+    (* | U32, (LU16 x) => Some (LU32 x) *)
     | U32, (LU32 x) => Some (LU32 x)
     | U64, (LU8  x) => Some (LU64 x)
-    | U64, (LU16 x) => Some (LU64 x)
+    (* | U64, (LU16 x) => Some (LU64 x) *)
     | U64, (LU32 x) => Some (LU64 x)
     | U64, (LU64 x) => Some (LU64 x)
     | _, _ => None
