@@ -1,0 +1,7 @@
+type R = {f1 : U8, f2 : Bool, f3 : U32}
+
+layout L = record {f1 : 1B, f2 : 1b at 15b, f3 : 4B after f2}
+
+
+foo : R layout L -> R layout L
+foo r{f3} = let x = 32 in r {f3 = x}

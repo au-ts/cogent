@@ -1,0 +1,1 @@
+foo : all (t, l :~ t). t layout l -> t layout l
