@@ -196,7 +196,8 @@ validateType (RT t) = do
     TLayout l t -> do
       (cl,l') <- validateLayout l
       (ct,t') <- validateType t
-      pure (cl <> ct <> LayoutOk t', T $ TLayout l' t')
+      let t'' = T $ TLayout l' t'
+      pure (cl <> ct <> LayoutOk t'', t'')
 
     -- vvv The uninteresting cases; but we still have to match each of them to convince the typechecker / zilinc
     TRPar v b ctxt -> (second T) <$> fmapFoldM validateType (TRPar v b ctxt)
