@@ -10,8 +10,8 @@
 
 theory OstoreInvS
 imports
-  "../impl/BilbyFs_Shallow_Desugar_Tuples"
-  "../impl/BilbyFs_ShallowConsts_Desugar_Tuples"
+  "BilbyFsConsts.BilbyFs_Shallow_Desugar_Tuples"
+  "BilbyFsConsts.BilbyFs_ShallowConsts_Desugar_Tuples"
   "../spec/OstoreS"
   "../spec/SerialS"
   "../spec/UbiS"
@@ -49,7 +49,7 @@ where
  "pTrans [] = ([],[])"
 |pTrans_Cons: "pTrans data =
     (let obj = pObj data 0
-    (* We stop at the first obviously invalid object. *)
+    \<comment> \<open> We stop at the first obviously invalid object. \<close>
      in if \<not>is_valid_ObjHeader obj data then
        (drop (max (unat bilbyFsObjHeaderSize) (unat (Obj.len\<^sub>f obj))) data, [])
      else if Obj.trans\<^sub>f obj = bilbyFsTransIn then
@@ -116,12 +116,12 @@ function
 where
 "list_trans data = 
     (case pTrans data of
-      (_, []) \<Rightarrow> (data, []) (* We return the beginning of an invalid transaction as it's obviously non-empty *)
+      (_, []) \<Rightarrow> (data, []) \<comment> \<open> We return the beginning of an invalid transaction as it's obviously non-empty \<close>
     | ([],objs) \<Rightarrow> ([], [objs])
     | (newdata, objs) \<Rightarrow>
-      (*let objs = if length objs = 1 \<and>
-                    otype\<^sub>f (objs!0) = bilbyFsObjTypePad then [] else objs
-       in*) (\<lambda>(d,txs). (d,objs#txs)) (list_trans (nopad newdata)))"
+      \<comment> \<open> let objs = if length objs = 1 \<and>
+                    otype<^sub>f (objs!0) = bilbyFsObjTypePad then [] else objs
+       in \<close> (\<lambda>(d,txs). (d,objs#txs)) (list_trans (nopad newdata)))"
   by pat_completeness auto
   termination
   apply (relation "measure length")
@@ -458,10 +458,10 @@ definition
 where
  "inv_sum_consistent sumobj ostore_st \<equiv>
    True
-   (* ignore summary consistency for now:
-   otype\<^sub>f sumobj = bilbyFsObjTypeSum \<and>
+   \<comment> \<open> ignore summary consistency for now:
+   otype<^sub>f sumobj = bilbyFsObjTypeSum \<and>
    let sum = obj_osummary sumobj
-   in summary_map sum ostore_st = fold id (\<alpha>_summary_updates ostore_st) Map.empty*)"
+   in summary_map sum ostore_st = fold id (\<alpha>_summary_updates ostore_st) Map.empty \<close>"
 
 definition
   room_for_summary :: "MountState\<^sub>T \<Rightarrow> OstoreState\<^sub>T \<Rightarrow> bool"
@@ -486,7 +486,8 @@ definition
 where
  "inv_ostore_summary mount_st ostore_st \<equiv>
  True
- (* No summary invariant for now.
+  "
+(* No summary invariant for now.
    let eb_size = eb_size\<^sub>f (super\<^sub>f mount_st)
    in nb_sum_entry\<^sub>f (summary\<^sub>f ostore_st) < (eb_size div bilbyFsMinObjSize) \<and>
    room_for_summary mount_st ostore_st \<and>
@@ -496,8 +497,7 @@ where
      used\<^sub>f ostore_st < used\<^sub>f ostore_st + os_sum_sz ostore_st \<and> 
      used\<^sub>f ostore_st + os_sum_sz ostore_st \<le> eb_size \<and>
      inv_sum_consistent ((sum_obj\<^sub>f ostore_st)\<lparr> ounion\<^sub>f:= TObjSummary (summary\<^sub>f ostore_st) \<rparr>) ostore_st)
-     *)
-  "
+*)
 
 text {*
  inv_ostore_obj_meta: is the invariant of object meta data in
@@ -531,7 +531,7 @@ definition
 where
  "list_eb_log_wbuf ostore_st \<equiv>
   let eblogs = list_eb_log (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st));
-      wbuflog = prod.snd (list_trans_no_pad ((* pollute_buf *)buf_slice (wbuf\<^sub>f ostore_st) 0 (used\<^sub>f ostore_st)))
+      wbuflog = prod.snd (list_trans_no_pad (\<comment> \<open> pollute_buf \<close> buf_slice (wbuf\<^sub>f ostore_st) 0 (used\<^sub>f ostore_st)))
   in eblogs[unat (wbuf_eb\<^sub>f ostore_st) - unat bilbyFsFirstLogEbNum:=wbuflog]"
 
 text {* Attempt at on-flash invariant.
@@ -583,19 +583,20 @@ where
 
 definition
   inv_flash :: "EbLog list \<Rightarrow> bool"
-where
+  where
  "inv_flash flash \<equiv> True
+"
 (*
-  let all = ostore_log_objects flash in
-  (* The root inode exists, we don't really need to know that for the object store *)
-  (* (\<exists>obj\<in>set all. get_obj_oid obj = obj_id_inode_mk bilbyFsRootIno \<and> obj_is_alive obj (set all)) \<and> *) 
-  (* all sqnums are uniq *)
+  let all = ostore_log_objects flash in \<close>
+  \<comment> \<open> The root inode exists, we don't really need to know that for the object store \<close>
+  \<comment> \<open> (\<exists>obj\<in>set all. get_obj_oid obj = obj_id_inode_mk bilbyFsRootIno \<and> obj_is_alive obj (set all)) \<and> \<close> 
+  \<comment> \<open> all sqnums are uniq \<close>
   (card (Obj.sqnum\<^sub>f ` set all) = length (map Obj.sqnum\<^sub>f all)) \<and>
   (\<forall>eblog\<in>set flash. inv_eb_log eblog (set all)) \<and>
-  (* There is maximum 1 erase-block with garbage, (stripping out unmapped erase-blocks) *)
+  \<comment> \<open> There is maximum 1 erase-block with garbage, (stripping out unmapped erase-blocks) \<close>
   length ((filter (op \<noteq> []) $ map (prod.fst o the) $ filter (op \<noteq> option.None) flash)) \<le> 1
-  (*rel dentarr inode and inode data blocks? no cyclic dependencies in graph? *)
-  *)"
+  \<comment> \<open>rel dentarr inode and inode data blocks? no cyclic dependencies in graph? \<close>
+  *)
 
 definition
  is_obj_addr_consistent :: "Obj\<^sub>T \<Rightarrow> ObjAddr\<^sub>T \<Rightarrow> bool"
@@ -634,29 +635,29 @@ definition
 where
  "inv_ostore_fsm mount_st ostore_st \<equiv>
  (\<alpha>wa $ used_eb\<^sub>f $ fsm_st\<^sub>f ostore_st) ! unat (wbuf_eb\<^sub>f ostore_st) \<noteq> 0 \<and>
-(* Count on each gimnode is equal to the number of objects with the same oid
-   in the log *)
+\<comment> \<open> Count on each gimnode is equal to the number of objects with the same oid
+   in the log \<close>
   (\<forall>oid \<in> dom(\<alpha>_fsm_gim $ gim\<^sub>f $ fsm_st\<^sub>f ostore_st).
    let gimnode = the $ (\<alpha>_fsm_gim $ gim\<^sub>f $ fsm_st\<^sub>f ostore_st) oid
    in unat (GimNode.count\<^sub>f gimnode) =
      card {x. x \<in> (set $ ostore_log_objects $ list_eb_log_wbuf ostore_st)  \<and>
               oid_is_deleted_by (get_obj_oid x) oid}) \<and>
 
-(* All Ubi erase-block with data are marked as used in the FSM used_eb\<^sub>f bit map *)
+\<comment> \<open> All Ubi erase-block with data are marked as used in the FSM used_eb<^sub>f bit map \<close>
   (\<forall>ebnum\<in> {bilbyFsFirstLogEbNum..<nb_eb\<^sub>f (super\<^sub>f mount_st)}.
      (unat ebnum \<noteq> unat (wbuf_eb\<^sub>f ostore_st) \<longrightarrow>
      ((\<alpha>wubi $ OstoreState.ubi_vol\<^sub>f ostore_st)  ! (unat ebnum) = [] \<longleftrightarrow>
      ((\<alpha>wa $ used_eb\<^sub>f $ fsm_st\<^sub>f ostore_st) ! (unat ebnum) \<noteq> 0))))
 
-(* Dirty space book-keeping (commented out for now) *)
+\<comment> \<open> Dirty space book-keeping (commented out for now) \<close>
+"
   (* let ebnum = wbuf_eb\<^sub>f ostore_st in
   ((\<alpha>wa $ used_eb\<^sub>f $ fsm_st\<^sub>f ostore_st) ! (unat ebnum) \<noteq> 0)  \<longrightarrow>
    (let eb_log = list_eb_log_wbuf ostore_st ! (unat ebnum);
        eb_size =  unat (eb_size\<^sub>f (super\<^sub>f mount_st));
        nondirt = listsum (map (unat o Obj.len\<^sub>f) (concat eb_log)) ;
        nonused = (if ebnum = wbuf_eb\<^sub>f ostore_st then eb_size - unat (used\<^sub>f ostore_st) else 0) in
-  (unat ((\<alpha>wa $ dirty_space\<^sub>f $ fsm_st\<^sub>f ostore_st) ! unat ebnum) = eb_size - nondirt - nonused))*)
-"
+  (unat ((\<alpha>wa $ dirty_space\<^sub>f $ fsm_st\<^sub>f ostore_st) ! unat ebnum) = eb_size - nondirt - nonused)) *)
 
 definition
  inv_bufs :: "MountState\<^sub>T \<Rightarrow> OstoreState\<^sub>T \<Rightarrow> bool"
@@ -673,13 +674,14 @@ where
    (used\<^sub>f ostore_st > 0 \<longrightarrow> valid_list_trans_no_pad synced) \<and>
    sort_key trans_order (prod.snd (list_trans_no_pad sync_to_used)) =
      prod.snd (list_trans_no_pad sync_to_used))
+"
 (*
   (let nb_eb = nb_eb\<^sub>f (super\<^sub>f mount_st) in
    (\<forall>ebnum\<in>{bilbyFsFirstLogEbNum..nb_eb}.
       (case ubi_to_buf (OstoreState.ubi_vol\<^sub>f ostore_st) ebnum of
          option.None \<Rightarrow> True |
          option.Some buf \<Rightarrow> valid_list_trans buf)))
-*)"
+*)
 
 definition
   inv_log :: "Trans list list \<Rightarrow> Trans list \<Rightarrow> bool"

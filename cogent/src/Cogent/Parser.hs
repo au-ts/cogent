@@ -510,8 +510,8 @@ polytype = polytype' <|> PT [] [] <$> monotype
     flt2 (x, y) | Right v <- y = pure (x, v)
                 | otherwise    = mempty
 
-klSignature = (,) <$> variableName <*> (Left <$> (reservedOp ":<" *> kind <?> "kind")
-                  <|> Right <$> (reservedOp ":~" *> atomtype <?> "typeid")
+klSignature = (,) <$> variableName <*> (Left <$> (reservedOp ":<" *> kind <?> "uniqueness constraint")
+                  <|> Right <$> (reservedOp ":~" *> monotype <?> "layout-type matching constraint")
                   <|> Left <$> (pure $ K False False False))
   where kind = do x <- identifier
                   determineKind x (K False False False)

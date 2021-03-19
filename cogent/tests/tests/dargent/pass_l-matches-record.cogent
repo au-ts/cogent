@@ -1,0 +1,2 @@
+main : all (l :~ #{a : U8} ). {a : U8} layout l -> {a : U8} layout l
+main x = x

@@ -18,6 +18,9 @@ import Data.List
 import Data.Typeable
 import Text.Parsec.Expr (Assoc(..))
 import Text.PrettyPrint.ANSI.Leijen
+#if __GLASGOW_HASKELL__ >= 709
+import Prelude hiding ((<$>))
+#endif
 import Data.Char (ord)
 import Text.Printf (printf)
 
@@ -241,11 +244,11 @@ prettyTerm :: Precedence -> Term -> Doc
 prettyTerm p t = case t of
   TermIdent i           -> pretty i
   -- highest precedence and left associative
-  TermApp t t'          -> prettyParen (p > termAppPrec) $ prettyTerm termAppPrec t <+>
-                             prettyTerm (termAppPrec+1) t'
+  TermApp t t'          -> prettyApp p t t'
   TermWithType t typ    -> prettyParen True $ pretty t <+> string "::" <+> pretty typ
   QuantifiedTerm q is t -> prettyQuantifier p q is t
   TermBinOp b t t'      -> (case b of
+                              Equiv   -> prettyEquiv p t t'
                               MetaImp -> prettyMetaImp p t t'
                               _       -> prettyBinOpTerm p b t t')
   TermUnOp u t          -> prettyUnOpTerm p u t
@@ -253,6 +256,49 @@ prettyTerm p t = case t of
   ConstTerm const       -> pretty const
   AntiTerm str          -> pretty str  -- FIXME: zilinc
   CaseOf e alts         -> parens (string "case" <+> pretty e <+> string "of" <+> sep (punctuate (text "|") (map prettyAlt alts)))
+
+termIfPrec = 10  -- taken from HOL
+termLetPrec = 10 -- taken from HOL
+termUpdatePrec = 90 -- in HOL it is 900, here we can use 90 to stay below termAppPrec, because no other precedence is higher than 90.
+
+prettyApp :: Precedence -> Term -> Term -> Doc
+prettyApp p t t' = case t of
+  TermApp (TermApp (TermIdent (Id s)) cnd) thn | s == "nestIf" || s == "HOL.If" ->
+      prettyParen (p > termIfPrec) $ sep
+        [string "if" <+> nest 2 (pretty cnd),
+         string "then" <+> nest 2 (pretty thn),
+         string "else" <+> nest 2 (prettyTerm termIfPrec t')]
+  TermApp (TermIdent (Id s)) bnd | s == "HOL.Let" -> prettyLet p [] [bnd] t'
+  TermApp (TermIdent (Id s)) (QuantifiedTerm Lambda [v] val) | ("_update" `isSuffixOf` s) && (v == (Id "_") || v == Wildcard)
+        -> prettyUpdate p [(s,val)] t'
+  _ -> prettyParen (p > termAppPrec) $ prettyTerm termAppPrec t <+> prettyTerm (termAppPrec+1) t'
+
+prettyLet :: Precedence -> [Ident] -> [Term] -> Term -> Doc
+prettyLet p vs ts (QuantifiedTerm Lambda [vnam] bdy) =
+    case bdy of
+         TermApp (TermApp (TermIdent (Id s)) bnd) t' | s == "HOL.Let" -> prettyLet p (vnam:vs) (bnd:ts) t'
+         _ -> dolet $ reverse $ zip (vnam:vs) ts
+    where
+        dolet bnds =
+            prettyParen (p > termLetPrec) $ string "let" <+>
+            (nest 2 . sep . punctuate semi . map (\(v,t) -> pretty v <+> string "=" <+> nest 2 (pretty t)) $ bnds) <$>
+            string "in" <+> nest 2 (prettyTerm termLetPrec bdy)
+
+prettyUpdate :: Precedence -> [(String,Term)] -> Term -> Doc
+prettyUpdate p uds rec =
+    case rec of
+         TermApp (TermApp (TermIdent (Id s)) (QuantifiedTerm Lambda [v] val)) t' | ("_update" `isSuffixOf` s) && (v == (Id "_") || v == Wildcard)
+             -> prettyUpdate p ((s,val):uds) t'
+         _ -> doupd $ reverse $ map (\(f,v) -> (reverse $ drop 7 $ reverse f, v)) uds
+    where
+        doupd updts =
+            prettyParen (p > termUpdatePrec) $
+            if length updts == 1
+                then prettyrec </> nest 2 (enclose (string "\\<lparr>") (string "\\<rparr>") $ prettyupd $ head updts)
+                else prettyrec <+> nest 2 (sep (((string "\\<lparr>"):(punctuate comma $ map prettyupd updts)) ++ [nest (-2) $ string "\\<rparr>"]))
+        prettyupd (f,t) = string f <+> string ":=" <+> pretty t
+        prettyrec = prettyTerm termUpdatePrec rec
+
 
 prettyAlt :: (Term, Term) -> Doc
 prettyAlt (p, e) = pretty p <+> pretty "\\<Rightarrow>" <+> pretty e
@@ -262,6 +308,16 @@ prettyBinOpTerm p b = prettyBinOp p prettyTerm (termBinOpRec b) prettyTerm
 
 prettyUnOpTerm :: Precedence -> TermUnOp -> Term -> Doc
 prettyUnOpTerm p u = prettyUnOp p (termUnOpRec u) prettyTerm
+
+-- Insert a newline after the equiv operator
+prettyEquiv :: Precedence -> Term -> Term -> Doc
+prettyEquiv p t t' = prettyParen (p > p') $ prettyTerm lp t <+> string (binOpRecSym b) <$> indent 2 (prettyTerm rp t')
+    where
+      b = termBinOpRec Equiv
+      p' = binOpRecPrec b
+      (lp,rp) = case binOpRecAssoc b of
+                  AssocLeft -> (p',p'+1)
+                  AssocRight -> (p'+1, p')
 
 --
 -- [| P_1; ...; P_n |] ==> Q is syntactic sugar for P_1 ==> ... ==> P_n ==> Q

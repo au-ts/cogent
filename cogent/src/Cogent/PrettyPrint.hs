@@ -982,8 +982,10 @@ instance Pretty DataLayoutTcError where
      =  err "Undeclared data layout" <+> reprname r <$$> pretty ctx
 
   pretty (BadDataLayout l p) = err "Bad data layout" <+> pretty l
-  pretty (TagNotSingleBlock ctx) 
-     = err "Variant tag must be a single block of bits" <$$> pretty ctx
+  pretty (TagSizeTooLarge ctx) =
+    err "Variant tag allocated more bits than necessary" <$$> pretty ctx
+  pretty (TagNotSingleBlock ctx) =
+    err "Variant tag must be a single block of bits" <$$> pretty ctx
   pretty (SameTagValues context name1 name2 value) =
     err "Alternatives" <+> tagname name1 <+> err "and" <+> tagname name2 <+> err "of same variant cannot have the same tag value" <+> literal (pretty value) <$$>
     indent (pretty context)

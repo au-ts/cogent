@@ -23,7 +23,7 @@ bug-reports:         https://github.com/NICTA/cogent/issues
 -- copyright:
 -- category:
 build-type:          Custom
-tested-with:         GHC==8.4.3, GHC==8.6.5, GHC==8.8.3
+tested-with:         GHC==8.4.3, GHC==8.6.5, GHC==8.8.3, GHC==8.10.4
 
 
 data-files:

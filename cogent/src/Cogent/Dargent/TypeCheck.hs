@@ -23,7 +23,7 @@ import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Maybe (fromJust)
 
-import Control.Monad (guard, foldM)
+import Control.Monad (guard, when, foldM)
 import Control.Monad.Trans.Except
 
 import Cogent.Common.Syntax (FieldName, TagName, DataLayoutName, Size, DLVarName)
@@ -38,6 +38,7 @@ import qualified Cogent.TypeCheck.LRow as LRow
 
 import Data.Data
 import Data.Bifunctor (bimap, first, second)
+import Lens.Micro ((<&>), (^.), _3)
 import Text.Parsec.Pos (SourcePos)
 
 import Debug.Trace
@@ -130,9 +131,12 @@ tcDataLayoutExpr env vs (DLVariant tagExpr alternatives) =
     Just tagBits | isZeroSizedBR tagBits -> throwE [ZeroSizedBitRange (InTag PathEnd)]
                  | otherwise ->
       do
+        when (2 ^ (bitSizeBR tagBits) - 1 > maximum (alternatives <&> (^. _3))) $  -- we don't allow a variant without any alternatives
+          throwE [TagSizeTooLarge (InTag PathEnd)]
         altsAlloc <- fst <$> foldM (tcAlternative tagBits) (emptyAllocation, M.empty) alternatives
         except $ first (fmap OverlappingBlocks) $ singletonAllocation (tagBits, InTag PathEnd) /\ altsAlloc
     Nothing      -> throwE [TagNotSingleBlock (InTag PathEnd)]
+
   where
     tcAlternative
       :: BitRange -- Of the variant's tag
@@ -255,6 +259,7 @@ data DataLayoutTcErrorP p
   | BadDataLayout           DataLayoutName p
   -- ^ Have referenced a data layout which isn't correct
 
+  | TagSizeTooLarge         p
   | TagNotSingleBlock       p
 
   | SameTagValues           p TagName TagName Size

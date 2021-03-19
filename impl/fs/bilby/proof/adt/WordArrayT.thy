@@ -57,7 +57,7 @@ lemma slice_length:
 lemma length_mapAccum_slice_helper':
   "length (take frm xs @ fst (let (xs', acc) = fold (\<lambda>x (ys,a'). let  (elem, acc) = loopbody x a'
                                   in  (ys@[elem],acc)) (slice frm to xs) (ys,a)
-           in (xs',acc))  @ drop (max frm to) xs) = length ys + length xs"
+           in (xs',acc))  @ List.drop (max frm to) xs) = length ys + length xs"
   unfolding Let_def  prod.case_eq_if
   using length_mapAccum_slice_helper[unfolded prod.case_eq_if Let_def, where xs=xs and ys=ys and frm=frm and to=to and loopbody=loopbody and a=a]
   by (simp add: slice_length)
@@ -96,7 +96,7 @@ where
   and wordarray_modify_ret:
    "\<And>P. \<lbrakk> unat index < List.length (\<alpha>wa varr);
        let r = modifier (ElemAO.make ((\<alpha>wa varr)!unat index) vacc obs) in
-       P (ArrA.make (WordArrayT.make (\<alpha>wa varr[unat index:=ElemA.elem\<^sub>f r])) (ElemA.acc\<^sub>f r)) \<rbrakk> \<Longrightarrow>
+       P (ArrA.make (WordArrayT.make ((\<alpha>wa varr)[unat index:=ElemA.elem\<^sub>f r])) (ElemA.acc\<^sub>f r)) \<rbrakk> \<Longrightarrow>
         P (wordarray_modify (ArrayUseValueP.make varr index modifier vacc obs))"
 (* Alternative that does not use WordArray.make
   and wordarray_modify_ret:
