@@ -6,6 +6,7 @@
     - pass_inner-synonym.cogent
     - pass_layout-poly.cogent
     - pass_dargent-unspec.cogent
+    - pass_l-matches-record.cogent
   expected_result: pass
   flags:
     - -g

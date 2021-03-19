@@ -234,10 +234,6 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
   TLArray e1 _     :~< TLArray e2 _ -> hoistMaybe $ Just [e1 :~< e2]
 #endif
 
-  l1               :~< l2 | TLU _ <- l1 -> hoistMaybe Nothing
-                          | TLU _ <- l2 -> hoistMaybe Nothing
-                          | otherwise   -> unsat $ LayoutsNotCompatible l1 l2  -- FIXME!
-
   t1 :~~ t2 | isBoxedType t1, isBoxedType t2 -> hoistMaybe $ Just []  -- If both are pointers, then their layouts will be compatible
 
   T (TVar n1 _ _) :~~ T (TVar n2 _ _) | n1 == n2 -> hoistMaybe $ Just []
@@ -259,7 +255,7 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
             | isPrimType t1 && isPrimType t2
             , primTypeSize t1 <= primTypeSize t2
             -> hoistMaybe $ Just []
-            | otherwise -> unsat $ TypesNotFit t1 t2
+            | otherwise -> hoistMaybe Nothing
 
   T (TFun t1 t2) :=: T (TFun r1 r2) -> hoistMaybe $ Just [r1 :=: t1, t2 :=: r2]
   T (TFun t1 t2) :<  T (TFun r1 r2) -> hoistMaybe $ Just [r1 :<  t1, t2 :<  r2]
