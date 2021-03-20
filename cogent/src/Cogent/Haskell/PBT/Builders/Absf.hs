@@ -110,10 +110,13 @@ mkAbsFExp' def iaT _ | (CC.TypeDef tn _ _) <- def
 -- | @iaTyp@ is the Haskell type of the abstract input (what we are trying to abstract to)
 mkAbsFBody :: CC.Type t a -> Type () -> Type () -> Maybe (Exp ()) -> SG (Exp (), [String])
 mkAbsFBody cogIcTyp icTyp iaTyp userIaExp
-    = let icLayout = determineUnpack cogIcTyp icTyp Unknown 0 "None"
-          lens = map fst $ mkLensView icLayout "ic" Unknown Nothing
-          binds = map ((\x -> pvar . mkName . fst $ x) &&& snd) lens
-          body = fromMaybe (packAbsCon iaTyp (map fst lens) 0) $ userIaExp
+    = let icLayout' =  determineUnpack cogIcTyp icTyp Unknown 0 "None"
+          icLayout = trace ("1 --> "++show icLayout') $ icLayout'
+          lens' =  map fst $ mkLensView icLayout "ic" Unknown Nothing
+          lens = trace ("2 --> "++show lens') $ lens'
+          binds =  map ((\x -> pvar . mkName . fst $ x) &&& snd) lens
+          body' = fromMaybe (packAbsCon iaTyp (map fst lens) 0) $ userIaExp
+          body = trace ("3 --> "++show body') $ body'
        in pure (mkLetE binds body, getConNames icLayout [])
 
 -- | Builder for packing the constructor of the abstract type.
@@ -169,78 +172,22 @@ mkLensView layout varToView prevGroup prev
           group = layout ^. grTag
           fld = layout ^. fieldMap
           -- field map is a tree with int leaves -> only build vars for leaves
-       in concatMap ( \(k, v) -> case group of
-        HsPrim -> case v of
+       in concatMap ( \(k, v) -> case v of
            (Left depth) -> [ ( ( mkKIdentVarBind (varToView) k depth
                                , fromMaybe (mkVar varToView) prev & (mkFromIntegral hsTy prevGroup) )
                              , (hsTy, prevGroup) )
                            ]
-           (Right next) -> __impossible $ show k ++ " " ++ show v
-        _ -> case v of
-           (Left depth) -> __impossible $ show k ++ " " ++ show v
            (Right next) -> mkLensView next varToView group $ Just $ mkViewInfixE varToView group prev k
        ) $ M.toList fld
+           {-
+        _ -> case v of
+           (Left depth) -> __impossible $ show k ++ "<==>" ++ show v
+           (Right next) -> mkLensView next varToView group $ Just $ mkViewInfixE varToView group prev k
 
--- | Builder for the layout type that is used for building the lens view, which encodes structure
--- | and other info used in building the view.
--- | Recurse through both @cogIcTyp@ and @icTyp@ at the same time until we reach a primitive, means
--- | we can gather info on every field in the type.
--- -----------------------------------------------------------------------
--- | @cogIcTyp@ cogent type of the concrete input
--- | @icTyp@ haskell shallow embedding of cogent type
--- | @depth@ depth of recursion
--- | @fieldName@ name of field we are in, since we recurse until we reach a prim, this will tell us the
--- |             field that prim is bound to.
-determineUnpack :: CC.Type t a -> Type () -> GroupTag -> Int -> String -> HsEmbedLayout
-determineUnpack cogIcTyp (TyParen _ t   ) prevGroup depth fieldName = determineUnpack cogIcTyp t prevGroup depth fieldName
-determineUnpack cogIcTyp icTyp prevGroup depth fieldName
-    | (TyTuple _ _ tfs) <- icTyp = HsEmbedLayout icTyp HsTuple prevGroup $ getTupFields cogIcTyp tfs
-    where getTupFields cogTy tfs
-            = let fs = getFields cogTy
-                in M.fromList [ let k = "_"++show (i+1)
-                                  in (k , Right (determineUnpack (fst (snd (fs!!i))) (tfs!!i) HsTuple (depth+1) k))
-                              | i <- [0..P.length tfs-1]
-                              ]
-determineUnpack cogIcTyp icTyp prevGroup depth fieldName
-    | (TyCon _ cn) <- icTyp = HsEmbedLayout icTyp HsPrim prevGroup (getConFields cn)
-    where getConFields cn = M.fromList $ case checkIsPrim cn of
-                          Just x -> [(fieldName, Left depth)]
-                          Nothing -> []
-determineUnpack cogIcTyp icTyp prevGroup depth fieldName
-    | (TyApp _ l r) <- icTyp
-    = let (maybeConName:fieldTypes) = unfoldAppCon icTyp
-          cogFields = getFields cogIcTyp
-          conName = case maybeConName of
-                      (TyCon _ (UnQual _ (Ident _ n))) -> n
-                      _ -> __impossible $ "Bad Constructor name"++show l++"--"++show r
-          groupTag = case cogIcTyp of
-                       (CC.TRecord _ fs _) -> HsRecord
-                       (CC.TSum alts) -> HsVariant
-          accessors = getAccessor conName groupTag fieldTypes (Just (map fst cogFields))
-        in HsEmbedLayout l groupTag prevGroup $
-            M.fromList [ let a = accessors!!i
-                             f = cogFields!!i
-                           in ( a
-                              , Right (determineUnpack (fst (snd f)) (fieldTypes!!i) groupTag (depth+1) a)
-                              )
-                       | i <- [0..P.length cogFields-1]
-                       ]
-determineUnpack cogIcTyp icTyp prevGroup depth fieldName
-    | (TyList _ ty) <- icTyp
-    = let elemCogTy = case cogIcTyp of
-                     (CC.TArray t _ _ _) -> t
-                     _ -> __impossible $ "Bad Abstraction"++" --> "++"Hs: "++show icTyp
-        in HsEmbedLayout icTyp HsList prevGroup $ M.fromList [ ( "1" , Right (determineUnpack elemCogTy ty HsList (depth+1) "1")) ]
-determineUnpack cogIcTyp icTyp prevGroup depth fieldName
-    | _ <- icTyp
-    = __impossible $ "Bad Abstraction"++" --> "++"Hs: "++show icTyp
--- TODO: For the sake of completeness ... ensure these can never really occur
-{-
-    (TyFun _ iTy oTy) ->
-    (TyVar _ name) -> 
-    (TyInfix _ lTy name rTy) ->
-    (TyUnboxedSum _ tfs) -> 
--}
+
+       case group of
+        HsPrim ->        
+        -}
 
 -- | Builder the actual lens view infix expression 
 -- -----------------------------------------------------------------------
@@ -278,44 +225,6 @@ mkOp :: String -> QOp ()
 mkOp = op . mkName
 
 
-getFields :: CC.Type t a -> [(String, (CC.Type t a, Bool))]
-getFields (CC.TRecord _ fs _) = fs
-getFields (CC.TSum alts) = alts
-getFields (CC.TProduct l r) = [("1", (l,False)), ("2", (r,False))]
-getFields _ = __impossible "TODO"
-
--- unfolding Constructor Application
-unfoldAppCon :: Type () -> [Type ()]
-unfoldAppCon t = case t of
-                   (TyApp _ l r) -> unfoldAppCon l ++ unfoldAppCon r
-                   (TyCon _ n) -> [t]
-                   _ -> [t]
-
-getAccessor :: String -> GroupTag -> [Type ()] -> Maybe [String] -> [String]
-getAccessor conName groupTag ts fieldNames
-    = let fs = case fieldNames of
-                 Just x -> x
-                 Nothing -> filter (/="None") .
-                    map (\x -> case x of
-                                (TyCon _ (UnQual _ (Ident _ n))) -> n
-                                _ -> "None"
-                         ) $ ts
-        in case groupTag of
-            HsRecord -> fs
-            HsVariant -> if | conName == "Maybe" && P.length fs == 1 -> map (const "_Just") fs
-                            | conName == "Either" && P.length fs == 2 -> ["_Left", "_Right"]
-                            | otherwise -> map (\x -> "_" ++ conName ++ "_" ++ x) fs
-
-prims = ["Word8","Word16","Word32","Word64","Bool","String"]
-        ++ intPrims
-intPrims = ["Int", "Int8", "Int16", "Int32", "Int64", "Integer"]
-
-hsSumTypes = ["Maybe","Either"]
-
-checkIsPrim :: QName () -> Maybe String
-checkIsPrim x = case x of
-    (UnQual _ (Ident _ n)) -> find (== n) prims
-    _ -> Nothing
 
 isInt' :: QName () -> Bool
 isInt' (UnQual _ (Ident _ n)) = checkTy n intPrims
@@ -334,6 +243,7 @@ boolResult _ = False
 isFromIntegral :: Type () -> Bool
 isFromIntegral (TyCon _ (UnQual _ (Ident _ n)))
     = n `elem` ["Word8","Word16","Word32","Word64"]
+isFromIntegral _ = False
 
 --isFromIntegral' :: [Type ()] -> Bool
 --isFromIntegral' ts = foldl isFromIntegral ts

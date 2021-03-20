@@ -152,12 +152,10 @@ propDecls desc
         in [sig, dec]
 
 mkQCAll :: [Decl ()]
-mkQCAll 
-    = let thReturn = SpliceDecl () $ app (function "return") eList
-          qcAllE = function "$quickCheckAll"
-        in [ thReturn
-           , FunBind () [Match () (mkName "main") [] (UnGuardedRhs () qcAllE ) Nothing]
-           ]
+mkQCAll = let thReturn = SpliceDecl () $ app (function "return") eList
+              qcAllE = function "$quickCheckAll"
+            in [ thReturn
+               , FunBind () [Match () (mkName "main") [] (UnGuardedRhs () qcAllE ) Nothing] ]
 
 -- return []
 -- main = $quickCheckAll
@@ -170,8 +168,8 @@ mkQCAll
 -- -----------------------------------------------------------------------
 mkPropBody :: String -> [PbtDescDecl] -> Exp ()
 mkPropBody n ds
-    = let isPure = checkBoolE $ findExprsInDecl Pure ds
-          isNond = checkBoolE $ findExprsInDecl Nond ds
+    = let isPure = checkBoolE Pure ds
+          isNond = checkBoolE Nond ds
           ia = app (function $ "abs_"++n) (var $ mkName "ic")
           oc = app (function n)           (var $ mkName "ic")
           oa = app (function $ "hs_"++n)  ia
