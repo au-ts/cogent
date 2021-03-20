@@ -4,7 +4,7 @@ From ExtLib Require Import Structures.Monads Structures.Functor Structures.Reduc
 From RecordUpdate Require Import RecordSet.
 From Vellvm Require Import LLVMAst Util Utils.Error.
 
-From Checker Require Import Cogent Types Utils.ErrorWithState Utils.Instances Utils.Codegen.
+From Checker Require Import Cogent Types Utils.ErrorWithState Utils.Instances.
 
 Import ListNotations.
 Import RecordSetNotations.
@@ -14,93 +14,65 @@ Local Open Scope monad_scope.
 
 Section Compiler.
 
-  Definition segment : Type := texp typ * block_id * list (block typ).
-
-  (* Definition CodegenValue : Type := texp typ.
-   
-
-  (* use similar strategy to helix *)
-  Definition segment : Type := block_id * list (block typ).
+  Definition im : Type := texp typ.
+  Definition fragment : Type := im * code typ.
 
   Record CodegenState : Type := mk_state {
     fresh_void : Z
-  ; fresh_anon : Z
-  ; fresh_block : Z
-  ; vars : list (texp typ)
+  ; fresh_local : Z
+  ; vars : list im
   }.
 
   Global Instance etaCodegenState : Settable _ := settable! mk_state <
     fresh_void
-  ; fresh_anon
-  ; fresh_block
+  ; fresh_local
   ; vars
   >.
 
-  Global Instance etaBlock : Settable _ := settable! (@mk_block typ) <blk_id;blk_phis; blk_code; blk_term; blk_comments>.
-
-  Definition empty_block (n : block_id) : block typ :=
-    mk_block n [] [] TERM_Ret_void None.
+  Definition start_state (t : typ) : CodegenState := {|
+    fresh_void := 0
+  ; fresh_local := 0
+  ; vars  := [(t, EXP_Ident (ID_Local (Name "a0")))]
+  |}.
 
   Definition cerr := errS CodegenState.
 
-  Definition update_block (f : block typ -> block typ) (s : CodegenState) : CodegenState :=
-    match blocks s with
-    | [] => s <|entry := f (entry s)|>
-    | x :: xs => s <|blocks := f x :: xs|>
-    end.
-  
-  Definition new_block (n : block_id) : cerr unit :=
+  Definition local : cerr raw_id := 
     s <- get ;;
-    put (s <|blocks := empty_block n :: blocks s|>).
-  
-  Definition branch_blocks : cerr (block_id * block_id * block_id) :=
-    s <- get ;;
-    let n := fresh_block s in
-      put (s <|fresh_block := n + 1|>) ;;
-      ret (
-        Name ("if_" ++ string_of_Z n)
-      , Name ("then_" ++ string_of_Z n)
-      , Name ("done_" ++ string_of_Z n)
-      ).
+    put (s <|fresh_local := fresh_local s + 1|>) ;;
+    ret (Anon (fresh_local s)).
 
-  Definition instr (t : typ) (i : instr typ) : cerr CodegenValue :=
+  (* Definition instr (t : typ) (i : instr typ) : cerr im :=
     s <- get ;;
-    let n := fresh_anon s in
+    let n := fresh_local s in
       put (
         update_block (
           fun x => x <|blk_code := blk_code x ++ [(IId (Anon n), i)]|>
-        ) s <|fresh_anon := n + 1|>
+        ) s <|fresh_local := n + 1|>
       ) ;;
-      ret (t, EXP_Ident (ID_Local (Anon n))).
+      ret (t, EXP_Ident (ID_Local (Anon n))). *)
 
-  Definition term (t : terminator typ) : cerr unit :=
-    s <- get ;;
-    put (update_block (fun x => x <|blk_term := t|>) s) ;;
-    ret tt.
-  
-  Definition phi (t : typ) (args : list (block_id * exp typ)) : cerr CodegenValue :=
-    s <- get ;;
-    let n := fresh_anon s in
-      put (
-        update_block (
-          fun x => x <|blk_phis := blk_phis x ++ [(Anon n, Phi t args)]|>
-        ) s <|fresh_anon := n + 1|>
-      ) ;;
-      ret (t, EXP_Ident (ID_Local (Anon n))).
-  
-  Definition set_vars (vs : list (texp typ)) : cerr unit :=
+  Definition set_vars (vs : list im) : cerr unit :=
     s <- get ;;
     put (s <|vars := vs|>).
-
-  Definition bind {A} (var : CodegenValue) (action : cerr A) : cerr A :=
+  
+  Definition get_var (n : nat) : cerr im :=
     s <- get ;;
-    set_vars (var :: vars s) ;;
-    res <- action ;;
-    set_vars (vars s) ;;
-    ret res. *)
+    option2errS "unknown variable" (nth_error (vars s) n).
 
-  (* Definition int32 (n : int) : texp typ := (TYPE_I 32, EXP_Integer n). *)
+  Definition int_n (sz : N) (n : int) : texp typ := (TYPE_I sz, EXP_Integer n).
+  Definition int1  := int_n 1.
+  Definition int8  := int_n 8.
+  Definition int32 := int_n 32.
+  Definition int64 := int_n 64.
 
+  Definition compile_lit (l : lit) : im := 
+    match l with
+    | LBool b => int1 (if b then 1 else 0)
+    | LU8 w => int8 w
+    | LU32 w => int32 w
+    | LU64 w => int64 w
+    end.
 
   Definition compile_prim_op (o : prim_op) : (exp typ -> exp typ -> exp typ) * typ :=
     match o with
@@ -115,7 +87,7 @@ Section Compiler.
     match t with
     | TPrim p => match p with
       | Num n => convert_num_type n
-      | Bool => TYPE_I 8
+      | Bool => TYPE_I 1
       | String => TYPE_Pointer (TYPE_I 8)
       end
     | TFun t rt => TYPE_Pointer (TYPE_Function (compile_type rt) [compile_type t])
@@ -125,7 +97,7 @@ Section Compiler.
     | TUnit => TYPE_I 8
     end.
 
-  Fixpoint compile_expr (e : expr) (next_blk : block_id) : cerr segment :=
+  Fixpoint compile_expr (e : expr) : cerr fragment :=
     (* define some nested functions that are mutually recursive with compile_expr *)
     (* let fix load_member e f : cerr (CodegenValue * CodegenValue) :=
       e' <- compile_expr e ;;
@@ -139,35 +111,23 @@ Section Compiler.
       end ;;
       ret (e', f') in *)
     match e with
-    | Prim op os =>
-        match os with
-        | [a; b] => 
-            let (op', rt) := compile_prim_op op in
-              prim_blk <- incBlock ;;
-              '((_, b_val), b_blk, b_blks) <- compile_expr b prim_blk ;;
-              '((_, a_val), a_blk, a_blks) <- compile_expr a b_blk ;;
-              new_local <- incLocal ;;
-              ret ((rt, EXP_Ident (ID_Local (new_local))), a_blk, a_blks ++ b_blks ++ [code_block prim_blk next_blk [(IId new_local, INSTR_Op (op' a_val b_val))]])
-        | _ => raise "wrong number of primitive arguments"
-        end
-    | Lit l => ret (match l with
-      | LBool b => (TYPE_I 1, EXP_Integer (if b then 1 else 0))
-      | LU8 w => (TYPE_I 8, EXP_Integer w)
-      (* | LU16 w => (TYPE_I 16, EXP_Integer w) *)
-      | LU32 w => (TYPE_I 32, EXP_Integer w)
-      | LU64 w => (TYPE_I 64, EXP_Integer w)
-      end, next_blk, [])
-    | Var i => 
-        v <- getStateVar "unknown variable" i ;;
-        ret (v, next_blk, [])
+    | BPrim op a b =>
+        let (op', rt) := compile_prim_op op in
+        '((_, a_val), a_code) <- compile_expr a ;;
+        '((_, b_val), b_code) <- compile_expr b ;;
+        r_id <- local ;;
+        ret ((rt, EXP_Ident (ID_Local (r_id))), a_code ++ b_code ++ [(IId r_id, INSTR_Op (op' a_val b_val))])
+    | Lit l => ret (compile_lit l, [])
+    | Var i =>
+        v <- get_var i ;;
+        ret (v, [])
     | Let e b =>
-        let_blk <- incBlock ;;
-        '(e', e_blk, e_blks) <- compile_expr e let_blk ;;
-        addVars [e'] ;;
-        '(b', b_blk, b_blks) <- compile_expr b next_blk ;;
-        dropVars 1 ;;
-        ret (b', e_blk, e_blks ++ [code_block let_blk b_blk []] ++ b_blks)
-    | Unit => ret ((TYPE_I 8, EXP_Integer 0), next_blk, [])
+        '(e_res, e_code) <- compile_expr e ;;
+        s <- get ;;
+        set_vars (e_res :: vars s) ;;
+        '(b_res, b_code) <- compile_expr b ;;
+        ret (b_res, e_code ++ b_code)
+    | Unit => ret (int8 0, [])
     (* | If c t e =>
         c' <- compile_expr c ;;
         '(br_true, br_false, br_exit) <- branch_blocks ;;
@@ -220,15 +180,14 @@ Section Compiler.
     execErrS (v <- compile_expr p ;; term (TERM_Ret v)) (start_state (compile_type t)). *)
 
   Definition compile_fun n t rt b : cerr (definition typ (block typ * list (block typ))) :=
-    ret_blk <- incBlockNamed "Return" ;;
-    '(result, _, body) <- compile_expr b ret_blk ;;
-    body' <- body_non_empty_cast (body ++ [{|
-      blk_id    := ret_blk ;
-      blk_phis  := [];
-      blk_code  := [];
-      blk_term  := TERM_Ret result;
-      blk_comments := None
-    |}]) ;;
+    '(res, body) <- compile_expr b ;;
+    let entry : block typ := {|
+      blk_id := Anon 0
+    ; blk_phis := []
+    ; blk_code := body
+    ; blk_term := TERM_Ret res
+    ; blk_comments := None
+    |} in
     ret {|
       df_prototype := {|
         dc_name := Name n
@@ -243,7 +202,7 @@ Section Compiler.
       ; dc_align := None
       ; dc_gc := None|}
     ; df_args := [(Name "a0")]
-    ; df_instrs := body'
+    ; df_instrs := (entry, [])
     |}.
 
   Definition compile_def (d : def) : err (toplevel_entity typ (block typ * list (block typ))) :=

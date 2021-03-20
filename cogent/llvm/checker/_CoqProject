@@ -7,7 +7,6 @@
 ./coq/Utils/ErrorWithState.v
 ./coq/Utils/Instances.v
 ./coq/Utils/Fail.v
-./coq/Utils/Codegen.v
 ./coq/Utils/Tactics.v
 ./coq/Cogent.v
 ./coq/Compiler.v

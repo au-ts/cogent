@@ -80,9 +80,10 @@ Section Denote.
       end ;;
       ret (r, m) in *)
     match e with
-    | Prim p xs =>
-        xs' <- map_monad (denote_expr γ) xs ;;
-        denote_prim p xs'
+    | BPrim p a b =>
+        a' <- denote_expr γ a ;;
+        b' <- denote_expr γ b ;;
+        denote_prim p [a'; b']
     | Lit l => ret (UPrim l)
     | Var i => option_bind (nth_error γ i) id "unknown variable"
     | Let a b =>

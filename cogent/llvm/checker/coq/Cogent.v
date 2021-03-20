@@ -84,7 +84,7 @@ Section Syntax.
   Inductive expr : Type :=
     | Var (i : index)
     (* | Fun (n : name) (ft : type) *)
-    | Prim (op : prim_op) (os : list expr)
+    | BPrim (op : prim_op) (a b : expr)
     (* | App (f : expr) (a : expr) *)
     (* | Struct (ts : list type) (es : list expr) *)
     (* | Member (e : expr) (f : field) *)
@@ -181,16 +181,3 @@ Section Primitive.
     end.
 
 End Primitive.
-
-Section CogentNotation.
-
-  Declare Scope cogent_scope.
-
-  Notation "x `+ y" := (Prim (Plus U32) [x; y]) (at level 50) : cogent_scope.
-  Notation "x `- y" := (Prim (Minus U32) [x; y]) (at level 50) : cogent_scope.
-  Notation "x `* y" := (Prim (Times U32) [x; y]) (at level 25) : cogent_scope.
-  Notation "x `/ y" := (Prim (Divide U32) [x; y]) (at level 25) : cogent_scope.
-  Notation "x `% y" := (Prim (Mod U32) [x; y]) (at level 25) : cogent_scope.
-  Notation "` n" := (Lit (LU32 n)) (at level 0) : cogent_scope.
-
-End CogentNotation.

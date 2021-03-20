@@ -1,14 +1,16 @@
 From Coq Require Import List String ZArith.
 
 From ITree Require Import ITree ITreeFacts.
-
+From RecordUpdate Require Import RecordSet.
 From Vellvm Require Import LLVMAst LLVMEvents TopLevel Handlers InterpreterMCFG TopLevelRefinements
   DynamicTypes CFG TypToDtyp InterpretationStack SymbolicInterpreter DenotationTheory ScopeTheory
-  DynamicValues ExpLemmas Coqlib Scope.
+  DynamicValues ExpLemmas Coqlib NoFailure AListFacts.
 
-From Checker Require Import Denote Cogent Compiler Utils.Codegen Utils.Fail Utils.Tactics.
+From Checker Require Import Denote Cogent Compiler Utils.Fail Utils.Tactics.
 
 Import ListNotations.
+Import RecordSetNotations.
+Import AlistNotations.
 
 Definition vellvm_prog : Type := toplevel_entities typ (block typ * list (block typ)).
 
@@ -24,7 +26,7 @@ Notation "'interp_mcfg'" := interp_mcfg3.
 Definition semantics_cogent (p : cogent_prog) : failT (itree E_mcfg) (memory * uval) := 
   interp_cogent (denote_program p) "main" UUnit empty_memory.
 
-Section StateRel.
+Section Relations.
 
   (* do things the helix way *)
   Local Open Scope type_scope.
@@ -36,7 +38,6 @@ Section StateRel.
 
   Definition state_cfg := memory_stack * (local_env * global_env).
   Definition state_cfg_T (T : Type) := memory_stack * (local_env * (global_env * T)).
-  Definition state_cfg_res := state_cfg_T (block_id + uvalue).  
   
   Definition Rel_cfg : Type := state_cogent -> state_cfg -> Prop.
   Definition Rel_cfg_T (A B : Type) : Type := state_cogent_T A -> state_cfg_T B -> Prop.
@@ -52,31 +53,12 @@ Section StateRel.
   Definition conj_rel {A B : Type} (R S: A -> B -> Prop): A -> B -> Prop :=
     fun a b => R a b /\ S a b.
 
-  Record state_invariant (γ : ctx) (s : CodegenState) (cogent_mem : memory)
-                         (vellvm : state_cfg) : Prop :=
-  {}.
+End Relations.
 
-End StateRel.
-
+Coercion succ_cfg : Rel_cfg_T >-> Rel_cfg_OT.
 Infix "⩕" := conj_rel (at level 85, right associativity).
 
-Section TopLevel.
-
-  (* placeholder *)
-  Definition TT {A B} (x: A) (y: B):= True.
-
-  Lemma compiler_correct :
-    forall (c : cogent_prog) (ll : vellvm_prog),
-      compile_cogent c = inr ll ->
-        eutt TT (semantics_cogent c) (semantics_llvm ll).
-  Proof.
-  Abort.
-
-End TopLevel.
-
-Import ExpTactics.
-
-Section Expressions.
+Section Values.
 
   Definition convert_uval (u : uval) : uvalue :=
     match u with
@@ -87,53 +69,126 @@ Section Expressions.
     | UUnit => UVALUE_I8 (Int8.repr 0)
     end.
 
-  Definition compile_expr_res (v : texp typ) (γ : ctx) (s1 s2 : CodegenState) 
-                            : Rel_cfg_T uval (block_id * block_id + uvalue) :=
-    fun '(_, u) '(m, (l, (g, _))) =>
+  Definition equivalent_values (i : im) (u : uval) (vellvm : state_cfg) : Prop :=
+    let '(m, (l, g)) := vellvm in
       interp_cfg
-        (translate exp_to_instr (denote_exp (Some (typ_to_dtyp [] (fst v))) (convert_typ [] (snd v))))
+        (translate exp_to_instr (denote_exp (Some (typ_to_dtyp [] (fst i))) (convert_typ [] (snd i))))
         g l m ≈ Ret (m, (l, (g, convert_uval u))).
+
+End Values.
+
+Section State.
+
+  (* eventually will need more here which will make state_invariant_new_var nontrivial *)
+  Definition state_wf (γ : ctx) (s : CodegenState) : Prop := True.
   
-  Local Open Scope nat_scope.
-  
-  Definition block_bound (s1 s2 : CodegenState) (blks : ocfg typ) : Prop :=
-    forall (n : nat), 
-      In (Anon (Z.of_nat n)) (inputs blks) -> 
-        block_count s1 <= n < block_count s2.
-  
-  Lemma block_bound_nil :
-    forall (s1 s2 : CodegenState),
-      block_bound s1 s2 [].
+  Record state_invariant (γ : ctx) (s : CodegenState) (cogent : state_cogent)
+                         (vellvm : state_cfg) : Prop :=
+  {
+    state_is_wf : state_wf γ s
+  }.
+
+  Lemma state_invariant_new_var :
+    forall (γ : ctx) (s : CodegenState) (cogent : state_cogent) (vellvm : state_cfg)
+           (u : uval) (i : im),
+      state_invariant γ s cogent vellvm ->
+      equivalent_values i u vellvm ->
+      state_invariant (u :: γ) (s<|vars := i :: vars s|>) cogent vellvm.
   Proof.
-    unfold block_bound, inputs, map, In.
-    contradiction.
+    intros * STATE EQ.
+    destruct STATE as [WF]; split.
+    unfold state_wf in *.
+    reflexivity.
   Qed.
 
-  Record compile_expr_post (v : texp typ) (γ : ctx) (s1 s2 : CodegenState)
-                           (blk : block_id) (blks : ocfg typ)
+  (* ideas from helix *)
+  Definition in_vars (γ : ctx) (s : CodegenState) (id : raw_id) : Prop :=
+    state_wf γ s /\
+    forall t n v,
+      nth_error γ n = Some v /\
+      nth_error (vars s) n = Some (t, EXP_Ident (ID_Local id)).
+  
+  Lemma in_vars_eq :
+    forall (γ : ctx) (s1 s2 : CodegenState) (id : raw_id),
+      vars s1 = vars s2 ->
+      in_vars γ s1 id ->
+      in_vars γ s2 id.
+  Proof.
+    intros * EQ IN; inv IN.
+    constructor; auto.
+    rewrite <- EQ.
+    auto.
+  Qed.
+
+  Definition local_scope_preserved (s1 s2 : CodegenState) (l l' : local_env) : Prop :=
+    l = l'.
+
+  Definition vars_preserved (γ : ctx) (s : CodegenState) (l l' : local_env) : Prop :=
+    forall id, in_vars γ s id -> l @ id = l' @ id.
+
+  Lemma vars_preserved_eq :
+    forall (γ : ctx) (s1 s2 : CodegenState) (l l' : local_env),
+      vars s1 = vars s2 ->
+      vars_preserved γ s1 l l' ->
+      vars_preserved γ s2 l l'.
+  Proof.
+    intros * EQ PRE.
+    unfold vars_preserved in *.
+    eauto using in_vars_eq.
+  Qed.
+  (* end ideas from helix *)
+    
+
+End State.
+
+Section TopLevel.
+
+  (* placeholder *)
+  Definition TT {A B} (x: A) (y: B):= True.
+
+  Lemma compiler_correct :
+    forall (c : cogent_prog) (ll : vellvm_prog),
+      compile_cogent c = inr ll ->
+      eutt TT (semantics_cogent c) (semantics_llvm ll).
+  Proof.
+  Abort.
+
+End TopLevel.
+
+Import ExpTactics.
+
+Section Expressions.
+
+  Definition compile_expr_res (i : im) (γ : ctx) (s1 s2 : CodegenState) 
+                            : Rel_cfg_T uval unit :=
+    fun '(_, u) '(m, (l, (g, _))) => 
+      forall l',
+        local_scope_preserved s1 s2 l l' ->
+        vars_preserved γ s1 l l' ->
+        equivalent_values i u (m, (l', g)).
+  
+  Local Open Scope nat_scope.
+
+  Record compile_expr_post (i : im) (γ : ctx) (s1 s2 : CodegenState)
                            (cogent_i: state_cogent) (vellvm_i : state_cfg)
                            (cogent_f : state_cogent_T uval)
-                           (vellvm_f : state_cfg_T (block_id * block_id + uvalue)) : Prop :=
+                           (vellvm_f : state_cfg_T unit) : Prop :=
   {
-    correct_result : compile_expr_res v γ s1 s2 cogent_f vellvm_f
-  ; blks_monotonic : block_count s1 <= block_count s2
-  ; blks_bound : block_bound s1 s2 blks 
+    correct_result : compile_expr_res i γ s1 s2 cogent_f vellvm_f
   }.
 
   Lemma compile_expr_correct :
-    forall (s1 s2 : CodegenState) (v : texp typ)
-           (e : expr) (γ : ctx) (cogent_mem : memory)
-           (next_blk blk prev_blk : block_id) (blks : ocfg typ)
-           (g : global_env) (l : local_env) (vellvm_mem : memory_stack),
-      compile_expr e next_blk s1 = inr (s2, (v, blk, blks)) ->
+    forall (e : expr) (γ : ctx) (s1 s2 : CodegenState) (v : im) (c : code typ)
+           (cogent_mem : memory) (g : global_env) (l : local_env) (vellvm_mem : memory_stack),
+      compile_expr e s1 = inr (s2, (v, c)) ->
       state_invariant γ s1 cogent_mem (vellvm_mem, (l, g)) ->
-        eutt (
-          succ_cfg (
-            lift_Rel_cfg (state_invariant γ s1) ⩕ 
-            compile_expr_post v γ s1 s2 blk blks cogent_mem (vellvm_mem, (l, g))
-          ))
-          (interp_expr (denote_expr γ e) cogent_mem)
-          (interp_cfg (denote_ocfg (convert_typ [] blks) (prev_blk, next_blk)) g l vellvm_mem).
+      eutt (
+        succ_cfg (
+          lift_Rel_cfg (state_invariant γ s2) ⩕ 
+          compile_expr_post v γ s1 s2 cogent_mem (vellvm_mem, (l, g))
+        ))
+        (interp_expr (denote_expr γ e) cogent_mem)
+        (interp_cfg (denote_code (convert_typ [] c)) g l vellvm_mem).
   Proof.
     induction e; intros * COMPILE PRE.
     -
@@ -145,57 +200,111 @@ Section Expressions.
       +
     admit.
     -
-    admit.
+      cbn* in *; simp.
+      rename s1 into pre_state, c0 into mid_state, c2 into post_state.
+      rename Heqs into COMPILE_e1, Heqs0 into COMPILE_e2.
+      vred.
+
+      specialize (IHe1 γ _ _ _ _ cogent_mem g l vellvm_mem COMPILE_e1).
+      forward IHe1; auto.
+      rewrite interp_expr_bind.
+      eapply eutt_clo_bind_returns ; [eassumption | clear IHe1].
+      introR; destruct_unit.
+      intros RET _; clear RET.
+      cbn in PRE0.
+      destruct PRE0 as (PRE1 & [EXP1]).
+      cbn in *.
+
+      specialize (IHe2 γ _ _ _ _ memC g0 l0 memV COMPILE_e2).
+      forward IHe2; auto.
+      rewrite interp_expr_bind.
+      vred.
+      eapply eutt_clo_bind_returns ; [eassumption | clear IHe2].
+      introR; destruct_unit.
+      intros RET _; clear RET.
+      destruct PRE0 as (PRE2 & [EXP2]).
+      cbn* in *.
+
+      specialize (EXP1 l1).
+      specialize (EXP2 l1).
+      forward EXP2.
+      red; reflexivity.
+      forward EXP2.
+      red; reflexivity.
+      forward EXP1.
+      {
+        admit.
+      }
+      forward EXP1.
+      {
+        admit.
+      }
+
+
+      
+
+      admit.
+      
+
     -
       cbn* in COMPILE; simp.
       unfold denote_expr in *; cbn*.
       rewrite interp_expr_Ret.
-      rewrite denote_ocfg_unfold_not_in.
+      rewrite denote_code_nil.
       vred.
-      apply eutt_Ret; split; [| split]; cbn; eauto.
+      apply eutt_Ret; split; [ | split]; cbn; eauto.
+      intros.
       typ_to_dtyp_simplify.
       unfold denote_exp; cbn.
       go; reflexivity.
-      apply block_bound_nil.
-      apply find_block_nil.
     -
       cbn* in COMPILE; simp.
       unfold denote_expr in *; cbn*.
       rewrite interp_expr_Ret.
-      rewrite denote_ocfg_unfold_not_in.
+      rewrite denote_code_nil.
       vred.
-      apply eutt_Ret; split; [| split]; cbn; eauto.
+      apply eutt_Ret; split; [ | split]; cbn; eauto.
+      intros.
       destruct l;
         simpl;
         typ_to_dtyp_simplify;
         unfold denote_exp; cbn;
         go; reflexivity.
-      apply block_bound_nil.
-      apply find_block_nil.
     - 
-      cbn* in COMPILE; simp.
-      rename s1 into pre_state, c into mid_state, c1 into post_state.
-      rename e1 into bind, e2 into body.
-      rename l0 into bind_blks, l1 into body_blks.
-      rename b0 into body_entry.
-      
-      unfold code_block.
-      rewrite convert_typ_ocfg_app.
-      rewrite denote_ocfg_app; eauto.
-      2: {
-        unfold no_reentrance.
-        rewrite convert_typ_outputs, inputs_convert_typ, outputs_cons.
-        unfold successors, terminator_outputs, blk_term.
-        simpl.
-        apply list_disjoint_cons_l.
-        pose proof Heqs as COMPILE_BIND.
-        pose proof Heqs1 as COMPILE_BODY.
-        specialize (IHe1 _ _ _ _ _ _ _ _ _ Heqs).
-        forward IHe1.
-        admit.
-      }
+      cbn* in *; simp.
+      rename s1 into pre_state, c0 into mid_state, s2 into post_state.
+      rename Heqs into COMPILE_e1, Heqs0 into COMPILE_e2.
+      vred.
 
-      admit.
+      specialize (IHe1 γ _ _ _ _ cogent_mem g l vellvm_mem COMPILE_e1).
+      forward IHe1; auto.
+      rewrite interp_expr_bind.
+      (* might not need the following 3 *)
+      eapply eutt_clo_bind_returns ; [eassumption | clear IHe1].
+      introR; destruct_unit.
+      intros RET1 _; clear RET1.
+      cbn in PRE0.
+      destruct PRE0 as (PRE1 & [EXP1]).
+      cbn in *.
+
+      specialize (IHe2 (vC :: γ) _ _ _ _ memC g0 l0 memV COMPILE_e2).
+      forward IHe2.
+      apply state_invariant_new_var; auto.
+      
+      
+      
+      
+      
+      
+      
+      
+      
+
+      
+
+      
+
+      
       
   Admitted.
 
