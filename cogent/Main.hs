@@ -820,6 +820,7 @@ parseArgs args = case getOpt' Permute options args of
 
     cg cmds monoed ctygen insts source tced tcst typedefs fts buildinfo log = do
 #ifdef WITH_HASKELL
+      -- TODO: Should this be done elsewhere? (low priority)
       -- PBT description file parse
       pbtdescs <- do 
           putProgressLn "Parsing PBT info file..."
@@ -869,6 +870,7 @@ parseArgs args = case getOpt' Permute options args of
         let hsf = mkHsFileName source __cogent_suffix_of_ffi
         writeFileMsg hsf
         output hsf $ flip hPutStrLn hs
+        -- TODO: Should I introduce a cmd for PBT? (low priority)
         -- PBT gen
         let pbtSourceName = mkOutputName' toHsModName source (Just $ __cogent_suffix_of_pbt)
             hsPbtFile = mkHsFileName pbtSourceName __cogent_ext_of_hs

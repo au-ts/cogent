@@ -52,28 +52,19 @@ import Control.Monad.RWS hiding (Product, Sum, mapM)
 import Data.Vec as Vec hiding (sym)
 import Cogent.Isabelle.Shallow (isRecTuple)
 
--- type FFIFuncs = M.Map FunName (CType, CType)
--- FFIFuncs       -- FFI functions, mapping func name to input/output type
--- -> String         -- Hsc file name
-      -- -> [CExtDecl]     -- C decls (UNUSED ATM)
-
--- type Gen a = ReaderT (FFIFuncs, [FunName]) Identity a
-
-pbtHs :: String         -- Module Name
-      -> String         -- Hsc Module Name (for imports)
-      -> [PbtDescStmt]      -- List of PBT info for the Cogent Functions
+pbtHs :: String         -- HS Module Name
+      -> String         -- HSC Module Name 
+      -> [PbtDescStmt]  -- List of PBT info for the Cogent Functions
       -> [CC.Definition TypedExpr VarName b]  -- A list of Cogent definitions
       -- -> [CC.CoreConst TypedExpr]             -- A list of Cogent constants
-      -> Module ()
-      -> Hsc.HscModule
+      -> Module ()      -- FFI HS module 
+      -> Hsc.HscModule  -- FFI HSC module
       -> String         -- Log header 
       -> String
 pbtHs name hscname pbtinfos decls hsmod hscmod log = render $
   let mod = propModule name hscname pbtinfos decls
-    -- flip runReader (m, map ("prop_" ++) $ M.keys m) $ propModule name hscname decls pbtinfos
     in text "{-" $+$ text log $+$ text "-}" $+$ prettyPrim mod
 
--- -> Gen (Module ()) 
 propModule :: String -> String -> [PbtDescStmt] -> [CC.Definition TypedExpr VarName b] -> Module ()
 propModule name hscname pbtinfos decls =
   let (cogDecls, w) = evalRWS (runSG $ do
@@ -159,13 +150,6 @@ mkQCAll = let thReturn = SpliceDecl () $ app (function "return") eList
               qcAllE = function "$quickCheckAll"
             in [ thReturn
                , FunBind () [Match () (mkName "main") [] (UnGuardedRhs () qcAllE ) Nothing] ]
-
--- return []
--- main = $quickCheckAll
-
-
--- | Helpers
--- -----------------------------------------------------------------------
 
 -- | builder for function body of prop_* :: Property
 -- -----------------------------------------------------------------------
