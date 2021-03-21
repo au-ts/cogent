@@ -15,6 +15,10 @@ module Cogent.Haskell.PBT.Gen (
 import Cogent.Haskell.PBT.Builders.Absf
 import Cogent.Haskell.PBT.Builders.Rrel
 import Cogent.Haskell.PBT.Builders.Welf
+import Cogent.Haskell.PBT.DSL.Types
+import Cogent.Haskell.PBT.Util
+import Cogent.Haskell.Shallow as SH
+import qualified Cogent.Haskell.HscSyntax as Hsc
 
 import Cogent.Isabelle.ShallowTable (TypeStr(..), st)
 import qualified Cogent.Core as CC
@@ -24,7 +28,7 @@ import Cogent.Common.Syntax
 import Cogent.Haskell.HscGen
 import Cogent.Util ( concatMapM, Stage(..), delimiter, secondM, toHsTypeName, concatMapM, (<<+=) )
 import Cogent.Compiler (__impossible)
-import qualified Cogent.Haskell.HscSyntax as Hsc
+
 import qualified Data.Map as M
 import Language.Haskell.Exts.Build
 import Language.Haskell.Exts.Pretty
@@ -32,9 +36,6 @@ import Language.Haskell.Exts.Syntax as HS
 import Language.Haskell.Exts.SrcLoc
 import Text.PrettyPrint
 import Debug.Trace
-import Cogent.Haskell.PBT.DSL.Types
-import Cogent.Haskell.PBT.Util
-import Cogent.Haskell.Shallow as SH
 import Prelude as P
 import Data.Tuple
 import Data.Function
@@ -62,10 +63,12 @@ pbtHs :: String         -- Module Name
       -> String         -- Hsc Module Name (for imports)
       -> [PbtDescStmt]      -- List of PBT info for the Cogent Functions
       -> [CC.Definition TypedExpr VarName b]  -- A list of Cogent definitions
-      -> [CC.CoreConst TypedExpr]             -- A list of Cogent constants
+      -- -> [CC.CoreConst TypedExpr]             -- A list of Cogent constants
+      -> Module ()
+      -> Hsc.HscModule
       -> String         -- Log header 
       -> String
-pbtHs name hscname pbtinfos decls consts log = render $
+pbtHs name hscname pbtinfos decls hsmod hscmod log = render $
   let mod = propModule name hscname pbtinfos decls
     -- flip runReader (m, map ("prop_" ++) $ M.keys m) $ propModule name hscname decls pbtinfos
     in text "{-" $+$ text log $+$ text "-}" $+$ prettyPrim mod
@@ -123,8 +126,8 @@ propModule name hscname pbtinfos decls =
              , ImportDecl () (ModuleName () "Data.Bits") False False False Nothing Nothing (Just $ ImportSpecList () False import_bits)
              , ImportDecl () (ModuleName () "Data.Int") False False False Nothing Nothing (Just $ ImportSpecList () False import_ints)
              , ImportDecl () (ModuleName () "Data.Maybe") False False False Nothing Nothing Nothing
-             , ImportDecl () (ModuleName () "Data.Tuple.Select") True False False Nothing (Just $ ModuleName () "Tup") Nothing
-             , ImportDecl () (ModuleName () "Data.Tuple.Update") True False False Nothing (Just $ ModuleName () "Tup") Nothing
+             -- , ImportDecl () (ModuleName () "Data.Tuple.Select") True False False Nothing (Just $ ModuleName () "Tup") Nothing
+             -- , ImportDecl () (ModuleName () "Data.Tuple.Update") True False False Nothing (Just $ ModuleName () "Tup") Nothing
              , ImportDecl () (ModuleName () "Data.Word") False False False Nothing Nothing (Just $ ImportSpecList () False import_word)
              ]
             -- TODO: need to have a list of record names

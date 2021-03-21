@@ -110,13 +110,10 @@ mkAbsFExp' def iaT _ | (CC.TypeDef tn _ _) <- def
 -- | @iaTyp@ is the Haskell type of the abstract input (what we are trying to abstract to)
 mkAbsFBody :: CC.Type t a -> Type () -> Type () -> Maybe (Exp ()) -> SG (Exp (), [String])
 mkAbsFBody cogIcTyp icTyp iaTyp userIaExp
-    = let icLayout' =  determineUnpack cogIcTyp icTyp Unknown 0 "None"
-          icLayout = trace ("1 --> "++show icLayout') $ icLayout'
-          lens' =  map fst $ mkLensView icLayout "ic" Unknown Nothing
-          lens = trace ("2 --> "++show lens') $ lens'
+    = let icLayout =  determineUnpack cogIcTyp icTyp Unknown 0 "1"
+          lens =  map fst $ mkLensView icLayout "ic" Unknown Nothing
           binds =  map ((\x -> pvar . mkName . fst $ x) &&& snd) lens
-          body' = fromMaybe (packAbsCon iaTyp (map fst lens) 0) $ userIaExp
-          body = trace ("3 --> "++show body') $ body'
+          body = fromMaybe (packAbsCon iaTyp (map fst lens) 0) $ userIaExp
        in pure (mkLetE binds body, getConNames icLayout [])
 
 -- | Builder for packing the constructor of the abstract type.
@@ -169,7 +166,7 @@ packAbsCon iaTyp varsToPut prev | _ <- iaTyp = __impossible $ "Bad Abstraction"+
 mkLensView :: HsEmbedLayout -> String -> GroupTag -> Maybe (Exp ()) -> [((String, Exp ()), (Type (), GroupTag))]
 mkLensView layout varToView prevGroup prev
     = let hsTy = layout ^. hsTyp
-          group = layout ^. grTag
+          group =  layout ^. grTag
           fld = layout ^. fieldMap
           -- field map is a tree with int leaves -> only build vars for leaves
        in concatMap ( \(k, v) -> case v of
@@ -178,7 +175,7 @@ mkLensView layout varToView prevGroup prev
                              , (hsTy, prevGroup) )
                            ]
            (Right next) -> mkLensView next varToView group $ Just $ mkViewInfixE varToView group prev k
-       ) $ M.toList fld
+       ) $ M.toList $ fld
            {-
         _ -> case v of
            (Left depth) -> __impossible $ show k ++ "<==>" ++ show v
@@ -200,10 +197,16 @@ mkViewInfixE :: String -> GroupTag -> Maybe (Exp ()) -> String -> Exp ()
 mkViewInfixE varToView tag prev accessor
     = let viewE = case tag of
                     HsVariant -> mkOp "^?"
+                    HsCollection -> mkOp "^.."
+                    HsList -> mkOp "^.."
                     _ -> mkOp "^."
         in case prev of
-             Just x -> infixApp x (mkOp ".") $ mkVar accessor
-             Nothing -> infixApp (mkVar varToView) viewE $ mkVar accessor
+             Just x -> let (op, x') = case tag of 
+                                HsCollection -> ("^..", paren x)
+                                HsList -> ("^..",  paren x)
+                                _ -> (".", x)
+                        in infixApp x' (mkOp op) $ mkVar accessor
+             Nothing -> trace (show tag ) $ infixApp (mkVar varToView) viewE $ mkVar accessor
 
 mkFromIntE :: Type () -> Exp () -> Exp ()
 mkFromIntE ty prev =

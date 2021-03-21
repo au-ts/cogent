@@ -42,10 +42,10 @@ type FFIFuncs = M.Map FunName (CType, CType)
 
 type Gen a = ReaderT (FFIFuncs, [FunName]) Identity a
 
-ffiHs :: FFIFuncs -> String -> String -> [CExtDecl] -> String -> String
-ffiHs m name hscname decls log = render $
-  let mod = flip runReader (m, map ("ffi_" ++) $ M.keys m) $ ffiModule name hscname decls
-   in text "{-" $+$ text log $+$ text "-}" $+$ prettyPrim mod
+ffiHs :: FFIFuncs -> String -> String -> [CExtDecl] -> String -> (String, Module ())
+ffiHs m name hscname decls log 
+    = let mod = flip runReader (m, map ("ffi_" ++) $ M.keys m) $ ffiModule name hscname decls
+        in (render $ text "{-" $+$ text log $+$ text "-}" $+$ prettyPrim mod, mod)
 
 
 ffiModule :: String -> String -> [CExtDecl] -> Gen (Module ())

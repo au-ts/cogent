@@ -34,7 +34,9 @@ data HsEmbedLayout = HsEmbedLayout
     , _fieldMap :: M.Map String (Either Int HsEmbedLayout)
     } deriving (Show)
 
-data GroupTag = HsTuple | HsRecord | HsVariant | HsList | HsPrim | HsTyVar | HsTyAbs | Unknown deriving (Show)
+data GroupTag = HsTuple | HsRecord | HsVariant | HsList | 
+                HsPrim | HsTyVar | HsTyAbs | HsCollection | Unknown 
+              deriving (Show, Eq)
 
 makeLenses ''HsEmbedLayout
 
@@ -114,6 +116,7 @@ boolResult _ = False
 -- | @depth@ depth of recursion
 -- | @fieldName@ name of field we are in, since we recurse until we reach a prim, this will tell us the
 -- |             field that prim is bound to.
+-- TODO: this can be merged with determineUnpack'
 determineUnpack :: CC.Type t a -> HS.Type () -> GroupTag -> Int -> String -> HsEmbedLayout
 determineUnpack cogTyp hsTyp@(HS.TyParen _ t) prevGroup depth fieldName 
     = determineUnpack cogTyp t prevGroup depth fieldName
@@ -132,15 +135,23 @@ determineUnpack cogTyp hsTyp@(HS.TyCon _ cn) prevGroup depth fieldName
     = flip (fromMaybe)
         (checkIsPrim cn <&> (\x -> HsEmbedLayout hsTyp HsPrim prevGroup (M.singleton fieldName (Left depth)))) 
         -- TODO: how to handle other Con?
-        (HsEmbedLayout hsTyp HsTyAbs prevGroup M.empty) -- (M.singleton (getConIdentName hsTyp) (Left depth)))
+        -- TODO: Abs Types cannot be dealt with so easily
+        (if {- | any (\x -> x `isInfixOf` (getName cn)) hsCollectionTypes 
+                           ->  HsEmbedLayout hsTyp HsCollection prevGroup $ M.singleton "each" (Left depth) -}
+            | prevGroup == HsVariant -> HsEmbedLayout hsTyp HsVariant prevGroup M.empty
+            | prevGroup == HsCollection -> HsEmbedLayout hsTyp HsCollection prevGroup M.empty
+            | prevGroup == HsList -> HsEmbedLayout hsTyp HsList prevGroup M.empty
+            | otherwise -> HsEmbedLayout hsTyp HsTyAbs prevGroup $ M.singleton fieldName (Left depth))
 determineUnpack cogTyp hsTyp@(HS.TyApp _ l r) prevGroup depth fieldName
     = let (maybeConName:fieldTypes) = unfoldAppCon hsTyp
           cogFields = getFields cogTyp
           conName = getConIdentName maybeConName
-          groupTag = toGroupTag cogTyp
+          groupTag = if any (\x -> x `isInfixOf` conName) hsCollectionTypes 
+                           then HsCollection 
+                           else toGroupTag cogTyp
           accessors = getAccessor conName groupTag fieldTypes (Just (map fst cogFields))
         in HsEmbedLayout l groupTag prevGroup $
-            M.fromList $ if (length cogFields /= 0 && length accessors /= 0 && length fieldTypes /= 0) 
+            M.fromList $ if not (null cogFields) && not (null accessors) && not (null fieldTypes) 
                          then [ (let a = accessors!!i
                                      f =  cogFields!!i
                                     in ( a
@@ -155,16 +166,67 @@ determineUnpack cogTyp hsTyp@(HS.TyList _ ty) prevGroup depth fieldName
 determineUnpack cogTyp hsTyp prevGroup depth fieldName
     = __impossible $ "Unknown Shallow Embedding "++show hsTyp
 
+
+-- | Builder for the layout type that is used for building the lens view. Similar to determineUnpack
+-- | but without the cogent type supplied.
+-- -- -----------------------------------------------------------------------
+-- | @hsTyp@ haskell type
+-- | @depth@ depth of recursion
+-- | @fieldName@ name of field we are in, since we recurse until we reach a prim, this will tell us the
+-- |             field that prim is bound to.
+determineUnpack' :: HS.Type () -> GroupTag -> Int -> String -> HsEmbedLayout
+determineUnpack' hsTyp@(HS.TyParen _ t) prevGroup depth fieldName 
+    = determineUnpack' t prevGroup depth fieldName
+determineUnpack' hsTyp@(HS.TyUnboxedSum _ tfs) prevGroup depth fieldName 
+    = determineUnpack' (HS.TyTuple () HS.Unboxed tfs) prevGroup depth fieldName
+determineUnpack' hsTyp@(HS.TyTuple _ _ tfs) prevGroup depth fieldName 
+    = HsEmbedLayout hsTyp HsTuple prevGroup $
+        M.fromList [ let k = "_"++show (i+1)
+                       in (k , Right (determineUnpack' (tfs!!i) HsTuple (depth+1) k))
+                   | i <- [0..length tfs-1] ]
+determineUnpack' hsTyp@(HS.TyCon _ cn) prevGroup depth fieldName
+    = flip (fromMaybe)
+        (checkIsPrim cn <&> (\x -> HsEmbedLayout hsTyp HsPrim prevGroup (M.singleton fieldName (Left depth))))
+        -- TODO: how to handle other Con?
+        -- TODO: Abs Types cannot be dealt with so easily
+        (if {- | any (\x -> x `isInfixOf` (getName cn)) hsCollectionTypes 
+                           ->  HsEmbedLayout hsTyp HsCollection prevGroup $ M.singleton "each" (Left depth) -}
+            | prevGroup == HsVariant -> HsEmbedLayout hsTyp HsVariant prevGroup M.empty
+            | prevGroup == HsCollection -> HsEmbedLayout hsTyp HsCollection prevGroup M.empty
+            | prevGroup == HsList -> HsEmbedLayout hsTyp HsList prevGroup M.empty
+            | otherwise -> HsEmbedLayout hsTyp HsTyAbs prevGroup $ M.singleton fieldName (Left depth))
+determineUnpack' hsTyp@(HS.TyApp _ l r) prevGroup depth fieldName
+    = let (maybeConName:fieldTypes) = unfoldAppCon hsTyp
+          conName = getConIdentName maybeConName
+          groupTag = toGroupTag' conName
+          -- TODO: unsure if ^^ works - when would oa be a custom record?
+          --       Makes more sense to restrict oa to either a prim or a built in hs type rather then allowing
+          --       them to define there own records
+          accessors = getAccessor conName groupTag fieldTypes Nothing
+        in HsEmbedLayout l groupTag prevGroup $
+            M.fromList $ if not (null accessors) && not (null fieldTypes) then 
+                           [ ( accessors!!i
+                             , Right (determineUnpack' (fieldTypes!!i) groupTag (depth+1) (accessors!!i)))
+                           | i <- [0..length fieldTypes-1] ]
+                       else [(fieldName, Left depth)]
+determineUnpack' hsTyp@(HS.TyList _ ty) prevGroup depth fieldName
+    = HsEmbedLayout hsTyp HsList prevGroup $
+        M.singleton "list" $ Right (determineUnpack' hsTyp HsList (depth+1) "1")
+determineUnpack' hsTyp prevGroup depth fieldName 
+    = __impossible $ "Unknown Shallow Embedding "++show hsTyp
+
+
+-- | Unpacking Helpers
+-- -----------------------------------------------------------------------
 getFields :: CC.Type t a -> [(String, (CC.Type t a, Bool))]
 getFields (CC.TRecord _ fs _) = fs
 getFields (CC.TSum alts) = alts
-getFields (CC.TProduct l r) = [("1", (l,False)), ("2", (r,False))]
-getFields (CC.TCon _ ts _) = if length ts == 0 then []
-                             else [((show (i+1)), (ts!!i, False)) | i <- [0..length ts-1]]
-getFields (CC.TFun l r) = [("1", (l,False)), ("2", (r,False))]
-getFields (CC.TArray t _ _ _) = [("1", (t,False))]
-getFields _ = []
-       -- TODO: handle C types ???
+getFields (CC.TProduct l r) = [("_1", (l,False)), ("_2", (r,False))]
+getFields (CC.TCon _ ts _) = if null ts then []
+                             else [(("_"++show (i+1)), (ts!!i, False)) | i <- [0..length ts-1]]
+getFields (CC.TFun l r) = [("_1", (l,False)), ("_2", (r,False))]
+getFields (CC.TArray t _ _ _) = [("_1", (t,False))]
+getFields _ = __impossible "unknown fields"
 
 toGroupTag :: CC.Type t a -> GroupTag
 toGroupTag cogTyp 
@@ -174,7 +236,7 @@ toGroupTag cogTyp
        (CC.TVar _) -> HsTyVar
        (CC.TVarBang _) -> HsTyVar
        (CC.TVarUnboxed  _ ) -> HsTyVar
-       (CC.TCon _ _ _) -> HsPrim
+       (CC.TCon _ _ _) -> HsTyAbs
        (CC.TFun _ _) -> Unknown
        (CC.TPrim _) -> HsPrim
        (CC.TString) -> HsPrim
@@ -186,6 +248,11 @@ toGroupTag cogTyp
        (CC.TRefine _ _ ) -> Unknown
        -- TODO: handle C types
 
+toGroupTag' :: String -> GroupTag
+toGroupTag' conName = if | isSumType conName -> HsVariant 
+                         | isCollection conName -> HsCollection
+                         | otherwise -> HsRecord 
+
 -- unfolding Constructor Application
 unfoldAppCon :: HS.Type () -> [HS.Type ()]
 unfoldAppCon t = case t of
@@ -195,13 +262,16 @@ unfoldAppCon t = case t of
 
 getAccessor :: String -> GroupTag -> [HS.Type ()] -> Maybe [String] -> [String]
 getAccessor conName groupTag ts fieldNames
-    = let fs = case fieldNames of
-                 Just x -> x
-                 Nothing -> filter (/=unknownCon) . map getConIdentName $ ts
-        in case groupTag of
+    = let fs = fromMaybe (filter (/=unknownCon) . map getConIdentName $ ts
+               ) $ fieldNames
+        in trace (show fieldNames) $ case groupTag of
             HsVariant -> if | conName == "Maybe" && length fs == 1 -> map (const "_Just") fs
                             | conName == "Either" && length fs == 2 -> ["_Left", "_Right"]
                             | otherwise -> map (\x -> "_" ++ conName ++ "_" ++ x) fs
+            HsCollection -> ["each"]
+            HsList -> ["each"]
+            HsTyAbs -> if any (\x -> x `isInfixOf` conName) hsCollectionTypes then ["each"]
+                       else ["unknown"]
             _ -> fs
 
 checkIsPrim :: HS.QName () -> Maybe String
@@ -209,18 +279,30 @@ checkIsPrim x = case x of
     (HS.UnQual _ (HS.Ident _ n)) -> find (== n) prims
     _ -> Nothing
 
+getName :: HS.QName () -> String
+getName x = case x of
+    (HS.UnQual _ (HS.Ident _ n)) -> n
+    _ -> "unknown"
+
 getConIdentName :: HS.Type () -> String
 getConIdentName (HS.TyCon _ (HS.UnQual _ (HS.Ident _ n))) = n
                        -- TODO: handle other types of Con
 getConIdentName _ = unknownCon
 
+isCollection :: String -> Bool
+isCollection x = x `elem` hsCollectionTypes
+
+isSumType :: String -> Bool
+isSumType x = x `elem` hsSumTypes
+
 unknownCon :: String
 unknownCon = "Unknown"
-
 
 unknownConTy :: HS.Type ()
 unknownConTy = HS.TyCon () $ HS.UnQual () $ HS.Ident () unknownCon
 
 prims = ["Word8","Word16","Word32","Word64","Bool","String"] ++ intPrims
 intPrims = ["Int", "Int8", "Int16", "Int32", "Int64", "Integer"]
-hsSumTypes = ["Maybe","Either"]
+
+hsSumTypes = ["Maybe", "Either"]
+hsCollectionTypes = ["List", "Array", "Set", "Map"]

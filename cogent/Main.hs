@@ -40,7 +40,7 @@ import           Cogent.Glue                      as GL (GlState, GlueMode (..),
                                                          glue, mkGlState, parseFile, readEntryFuncs)
 #ifdef WITH_HASKELL
 import Cogent.Haskell.Shallow          as HS
-import Cogent.Haskell.PBT.DSL.Parser         as PBTParser
+import Cogent.Haskell.PBT.DSL.Parser         as PbtParser
 import Cogent.Haskell.PBT.Gen           as PBTGen
 #endif
 import           Cogent.Inference                 as IN (retype, tc, tcConsts, tc_)
@@ -819,6 +819,15 @@ parseArgs args = case getOpt' Permute options args of
 #endif
 
     cg cmds monoed ctygen insts source tced tcst typedefs fts buildinfo log = do
+#ifdef WITH_HASKELL
+      -- PBT description file parse
+      pbtdescs <- do 
+          putProgressLn "Parsing PBT info file..."
+          res <- runExceptT $ PbtParser.parsePbtDescFile (fromJust __cogent_pbt_info) 
+          case res of 
+            Left err -> hPutStrLn stderr (ppShow err) >> exitFailure
+            Right defs -> return defs
+#endif
       let hName = mkOutputName source Nothing <.> __cogent_ext_of_h
           hscName = mkOutputName' toHsModName source (Just __cogent_suffix_of_ffi_types)
           hsName  = mkOutputName' toHsModName source (Just __cogent_suffix_of_ffi)
@@ -834,7 +843,7 @@ parseArgs args = case getOpt' Permute options args of
                     case decodeResult of
                       Left (_, err) -> hPutStrLn stderr ("Decoding name cache file failed: " ++ err ++ ".\nNot using name cache.") >> return (Nothing, True)
                       Right cache -> return (Just cache, False)
-      let (h,c,atm,ct,ct',hsc,hs,genst) = cgen hName cNames hscName hsName monoed mcache ctygen log
+      let (h,c,atm,ct,ct',hsc,hs,pbt,genst) = cgen hName cNames hscName hsName monoed mcache ctygen pbtdescs log
       when (TableAbsTypeMono `elem` cmds) $ do
         let atmfile = mkFileName source Nothing __cogent_ext_of_atm
         putProgressLn "Generating table for monomorphised asbtract types..."
@@ -860,11 +869,12 @@ parseArgs args = case getOpt' Permute options args of
         let hsf = mkHsFileName source __cogent_suffix_of_ffi
         writeFileMsg hsf
         output hsf $ flip hPutStrLn hs
---         -- PBT gen
---         putProgressLn "Generating PBT Hs file..."
---         let pbthsf = mkHsFileName source __cogent_suffix_of_pbt 
---         writeFileMsg pbthsf
---         output pbthsf $ flip hPutStrLn pbt
+        -- PBT gen
+        let pbtSourceName = mkOutputName' toHsModName source (Just $ __cogent_suffix_of_pbt)
+            hsPbtFile = mkHsFileName pbtSourceName __cogent_ext_of_hs
+        putProgressLn "Generating PBT Hs file..."
+        writeFileMsg hsPbtFile
+        output hsPbtFile $ flip hPutStrLn pbt
 #endif
       when (CodeGen `elem` cmds) $ do
         putProgressLn "Generating C code..."
@@ -966,15 +976,6 @@ parseArgs args = case getOpt' Permute options args of
 
     genShallow cmds source stg defns typedefs fts log (False,False,False,False,False,False,False,False) = return empty
     genShallow cmds source stg defns typedefs fts log (sh,sc,ks,sh_tup,ks_tup,tup_proof,shhs,shhs_tup) = do
-#ifdef WITH_HASKELL
-      -- PBT info parse
-      pbtinfos <- do 
-          putProgressLn "Parsing PBT info file..."
-          res <- runExceptT $ PBTParser.parsePbtDescFile (fromJust __cogent_pbt_info) 
-          case res of 
-            Left err -> hPutStrLn stderr (ppShow err) >> exitFailure
-            Right defs -> return defs
-#endif
           -- Isabelle files
       let shfile = mkThyFileName source (__cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg)
           ssfile = mkThyFileName source (__cogent_suffix_of_shallow_shared)
@@ -997,11 +998,11 @@ parseArgs args = case getOpt' Permute options args of
 
           hsShalFile         = nameToFileName hsShalName    __cogent_ext_of_hs
           hsShalTupFile      = nameToFileName hsShalTupName __cogent_ext_of_hs
-          hsPBTTupFile  = nameToFileName hsPBTTupName __cogent_ext_of_hs
+          -- hsPBTTupFile  = nameToFileName hsPBTTupName __cogent_ext_of_hs
 
           hsShal    = \consts -> HS.shallow False hsShalName    stg defns consts log
           hsShalTup = \consts -> HS.shallow True  hsShalTupName stg defns consts log
-          hsPBTTup  = \consts -> PBTGen.pbtHs hsPBTTupName hsShalTupName pbtinfos  defns consts log 
+          -- hsPBTTup  = \(consts, hsmod, hscmod) -> PBTGen.pbtHs hsPBTTupName hsShalTupName pbtinfos defns consts hsmod hscmod log 
            
            -- HsPBT.pbtHs -- True  hsShalTupName stg defns consts log
      -- pbt = pbtHs (st^.ffiFuncs) pbtName hscName fndecls pbtinfos log
@@ -1059,11 +1060,11 @@ parseArgs args = case getOpt' Permute options args of
           Right (cs,_) -> do writeFileMsg hsShalTupFile
                              output hsShalTupFile $ flip hPutStrLn (hsShalTup cs)
         -- PBT gen
-        putProgressLn "Generating PBT Hs file..."
-        case constsTypeCheck of
-          Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
-          Right (cs,_) -> do writeFileMsg hsPBTTupFile
-                             output hsPBTTupFile $ flip hPutStrLn (hsPBTTup cs)
+        -- putProgressLn "Generating PBT Hs file..."
+        -- case constsTypeCheck of
+        --   Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
+        --   Right (cs,_) -> do writeFileMsg hsPBTTupFile
+        --                      output hsPBTTupFile $ flip hPutStrLn (hsPBTTup cs hsmod hscmod)
 
 --         let pbthsf = mkHsFileName source __cogent_suffix_of_pbt 
 --             hsPBT 

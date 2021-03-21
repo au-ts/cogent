@@ -96,7 +96,7 @@ mkGenFExp' def _ | (CC.TypeDef tn _ _) <- def = pure (TyCon () (mkQName "Unknown
 
 mkGenFBody :: CC.Type t a -> Type () -> M.Map PbtKeyidents [(Maybe (HS.Exp ()), (HS.Exp ()))] -> SG (Exp ())
 mkGenFBody cogIcTyp icTyp userGenExps  = 
-    let icLayout = determineUnpack cogIcTyp icTyp Unknown 0 "None"
+    let icLayout = determineUnpack cogIcTyp icTyp Unknown 0 "1"
         userPred = fromMaybe M.empty $ (M.lookup Pred userGenExps) <&> 
                    (\es-> M.unions $ map (\(lhs',rhs) -> case lhs' of 
                         Just lhs -> let shCheck = scanUserShortE lhs 0

@@ -46,10 +46,11 @@ ffiHsc :: String
        -> [(TypeName, S.Set [CId])]
        -> [TypeName]
        -> String
-       -> Doc
-ffiHsc name cnames ctys cenums absts fclsts log =
-  text "{-" P.<$> text log P.<$> text "-}" P.<$>
-  pretty (hscModule name cnames ctys cenums absts fclsts)
+       -> (Doc, Hsc.HscModule)
+ffiHsc name cnames ctys cenums absts fclsts log 
+    = let hsc = hscModule name cnames ctys cenums absts fclsts
+        in (text "{-" P.<$> text log P.<$> text "-}" P.<$>
+            pretty (hsc), hsc)
 
 hscModule :: String
           -> [FilePath]
