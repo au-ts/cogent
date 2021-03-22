@@ -15,7 +15,7 @@ import qualified Cogent.Core as CC
 import Language.Haskell.Exts.SrcLoc
 import qualified Language.Haskell.Exts as HS
 import qualified Data.Map as M
-import Data.List (find, isInfixOf, isPrefixOf)
+import Data.List (find, isInfixOf, isSuffixOf)
 import Data.Maybe (fromMaybe)
 import Debug.Trace
 
@@ -313,7 +313,7 @@ hsCollectionTypes = ["List", "Array", "Set", "Map"]
 findHsFFIFunc :: HS.Module () -> String -> (String, HS.Type (), HS.Type ())
 findHsFFIFunc (HS.Module _ _ _  _ decls) fname 
     = fromMaybe (__impossible "cant find matching FFI!") $
-         (find (\d -> case d of (HS.ForImp _ _ _ _ (HS.Ident _ n) tys) -> fname `isPrefixOf` n; _ -> False) decls <&> 
+         (find (\d -> case d of (HS.ForImp _ _ _ _ (HS.Ident _ n) tys) -> fname `isSuffixOf` n; _ -> False) decls <&> 
             (\(HS.ForImp _ _ _ _ name@(HS.Ident _ n) x) -> let t = getTiTo x in (n, fst t, snd t)))
     where getTiTo (HS.TyFun _ ti to) = (ti, to)
           getTiTo _ = __impossible "cant find ffi types"
