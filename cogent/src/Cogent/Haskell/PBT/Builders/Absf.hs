@@ -16,18 +16,17 @@ module Cogent.Haskell.PBT.Builders.Absf
 where
 
 import Cogent.Haskell.PBT.Util
-
-
+import qualified Cogent.Haskell.HscSyntax as Hsc
 
 import Cogent.Isabelle.ShallowTable (TypeStr(..), st)
 import qualified Cogent.Core as CC
 import Cogent.Core (TypedExpr(..))
 import Cogent.C.Syntax
 import Cogent.Common.Syntax
-import Cogent.Haskell.HscGen
+import qualified Cogent.Haskell.HscGen as Hsc
 import Cogent.Util ( concatMapM, Stage(..), delimiter, secondM, toHsTypeName, concatMapM, (<<+=) )
 import Cogent.Compiler (__impossible)
-import qualified Cogent.Haskell.HscSyntax as Hsc
+
 import qualified Data.Map as M
 import Language.Haskell.Exts.Build
 import Language.Haskell.Exts.Pretty
@@ -55,8 +54,8 @@ import Cogent.Isabelle.Shallow (isRecTuple)
 
 -- | Top level Builder for Abstraction Function
 -- -----------------------------------------------------------------------
-absFDecl :: PbtDescStmt -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
-absFDecl stmt defs = do
+absFDecl :: PbtDescStmt -> (Module (), Hsc.HscModule) -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
+absFDecl stmt ffimods defs = do
         let (iaTy, iaExp) = findKIdentTyExp Absf Ia $ stmt ^. decls
             fnName = "abs_" ++ stmt ^. funcname
             iaT = case iaTy of

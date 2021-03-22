@@ -8,15 +8,14 @@
 module Cogent.Haskell.PBT.Util where
 
 import Cogent.Haskell.PBT.DSL.Types
+import qualified Cogent.Haskell.HscSyntax as Hsc
 import Cogent.Compiler (__impossible)
 import qualified Cogent.Core as CC
-import qualified Cogent.Common.Types as CT
-import qualified Data.Fin as CD
 
 import Language.Haskell.Exts.SrcLoc
 import qualified Language.Haskell.Exts as HS
 import qualified Data.Map as M
-import Data.List (find, isInfixOf)
+import Data.List (find, isInfixOf, isPrefixOf)
 import Data.Maybe (fromMaybe)
 import Debug.Trace
 
@@ -306,3 +305,28 @@ intPrims = ["Int", "Int8", "Int16", "Int32", "Int64", "Integer"]
 
 hsSumTypes = ["Maybe", "Either"]
 hsCollectionTypes = ["List", "Array", "Set", "Map"]
+
+
+-- | find FFI function
+-- -----------------------------------------------------------------------
+
+findHsFFIFunc :: HS.Module () -> String -> (String, HS.Type (), HS.Type ())
+findHsFFIFunc (HS.Module _ _ _  _ decls) fname 
+    = fromMaybe (__impossible "cant find matching FFI!") $
+         (find (\d -> case d of (HS.ForImp _ _ _ _ (HS.Ident _ n) tys) -> fname `isPrefixOf` n; _ -> False) decls <&> 
+            (\(HS.ForImp _ _ _ _ name@(HS.Ident _ n) x) -> let t = getTiTo x in (n, fst t, snd t)))
+    where getTiTo (HS.TyFun _ ti to) = (ti, to)
+          getTiTo _ = __impossible "cant find ffi types"
+
+-- seach for data type decl with constructor name matching given name
+-- map of Data con names to map of field names to their Type 
+-- should be a singleton since Ctypes are just simple records.
+findFFITypeByName :: Hsc.HscModule -> String -> M.Map String (M.Map String Hsc.Type)
+findFFITypeByName (Hsc.HscModule _ _ decls) name 
+    = fromMaybe (M.empty) $
+         (find (\d -> case d of (Hsc.HsDecl (Hsc.DataDecl cname _ cs)) -> show cname == name; _ -> False) decls <&>
+            (\(Hsc.HsDecl (Hsc.DataDecl cname _ cs)) 
+                -> M.fromList $ map (\(Hsc.DataCon n x) -> (show n, M.fromList (map (\(cn,t) -> (show cn, t)) x))) cs))
+
+
+

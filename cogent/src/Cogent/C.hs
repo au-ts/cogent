@@ -63,7 +63,7 @@ cgen hName cNames hscName hsName hsPbtNames defs mcache ctygen pbtdescs log =
 #ifdef WITH_HASKELL
       (hsc,hscmod) = ffiHsc hscName cNames tydefns enums absts fclsts log
       (hs,hsmod) = ffiHs (st^.ffiFuncs) hsName hscName fndecls log
-      pbt = PbtGen.pbtHs hsPbtNames hsName hscName pbtdescs defs hsmod hscmod log 
+      pbt = PbtGen.pbtHs hsPbtNames hsName hscName pbtdescs defs (hsmod,hscmod) log 
 #else
       hsc = mempty
       hs = mempty

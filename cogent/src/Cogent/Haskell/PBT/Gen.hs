@@ -56,22 +56,27 @@ pbtHs :: (String, String, String)   -- (HS PBT Module Name, HS Shallow Module Na
       -> String         -- HS FFI Module Name 
       -> String         -- HSC FFI Module Name 
       -> [PbtDescStmt]  -- List of PBT info for the Cogent Functions
-      -> [CC.Definition TypedExpr VarName b]  -- A list of Cogent definitions
+      -> [CC.Definition TypedExpr VarName b]     -- A list of Cogent definitions
       -- -> [CC.CoreConst TypedExpr]             -- A list of Cogent constants
-      -> Module ()      -- FFI HS module 
-      -> Hsc.HscModule  -- FFI HSC module
+      -> (Module (), Hsc.HscModule)              -- FFI HS module & FFI HSC module
       -> String         -- Log header 
       -> String
-pbtHs names hsffiName hscffiName pbtinfos decls hsmod hscmod log = render $
-  let mod = propModule names hsffiName hscffiName pbtinfos decls
+pbtHs names hsffiName hscffiName pbtinfos decls ffimods log = render $
+  let mod = propModule names hsffiName hscffiName pbtinfos decls ffimods
     in text "{-" $+$ text log $+$ text "-}" $+$ prettyPrim mod
 
-propModule :: (String, String, String) -> String -> String -> [PbtDescStmt] -> [CC.Definition TypedExpr VarName b] -> Module ()
-propModule (name, shallowName, shallowNameTup) hsffiName hscffiName pbtinfos decls =
+propModule :: (String, String, String) 
+           -> String 
+           -> String 
+           -> [PbtDescStmt] 
+           -> [CC.Definition TypedExpr VarName b] 
+           -> (Module (), Hsc.HscModule) 
+           -> Module ()
+propModule (name, shallowName, shallowNameTup) hsffiName hscffiName pbtinfos decls ffimods =
   let (cogDecls, w) = evalRWS (runSG $ do
                                           shallowTypesFromTable
                                           genDs <- concatMapM (`genDecls` decls) pbtinfos
-                                          absDs <- concatMapM (`absFDecl` decls) pbtinfos
+                                          absDs <- concatMapM (\x -> absFDecl x ffimods decls) pbtinfos
                                           rrelDs <- concatMapM (`rrelDecl` decls) pbtinfos
                                           -- genDecls x decls shallowTypesFromTable
                                           --cs <- concatMapM shallowConst consts
