@@ -50,21 +50,20 @@ cgen :: FilePath
      -> [FilePath]
      -> FilePath
      -> FilePath
-     -- -> FilePath
+     -> (FilePath, FilePath, FilePath)
      -> [Definition TypedExpr VarName VarName]
      -> Maybe GenState
      -> [(Type 'Zero VarName, String)]
-     -- -> [PBTInfo]
      -> [PbtDsl.PbtDescStmt]
      -> String
      -> ([C.Definition], [C.Definition], [(TypeName, S.Set [CId])], [TableCTypes], [NewTableCTypes], Leijen.Doc, String, String, GenState)
-cgen hName cNames hscName hsName defs mcache ctygen pbtdescs log =
+cgen hName cNames hscName hsName hsPbtNames defs mcache ctygen pbtdescs log =
   let (enums,tydefns,fndecls,disps,tysyms,fndefns,absts,corres,corres',fclsts,st) = compile defs mcache ctygen
       (h,c) = render hName (enums++tydefns++fndecls++disps++tysyms) fndefns log
 #ifdef WITH_HASKELL
       (hsc,hscmod) = ffiHsc hscName cNames tydefns enums absts fclsts log
       (hs,hsmod) = ffiHs (st^.ffiFuncs) hsName hscName fndecls log
-      pbt = PbtGen.pbtHs hsName hscName pbtdescs defs hsmod hscmod log 
+      pbt = PbtGen.pbtHs hsPbtNames hsName hscName pbtdescs defs hsmod hscmod log 
 #else
       hsc = mempty
       hs = mempty

@@ -52,8 +52,9 @@ import Control.Monad.RWS hiding (Product, Sum, mapM)
 import Data.Vec as Vec hiding (sym)
 import Cogent.Isabelle.Shallow (isRecTuple)
 
-pbtHs :: String         -- HS Module Name
-      -> String         -- HSC Module Name 
+pbtHs :: (String, String, String)   -- (HS PBT Module Name, HS Shallow Module Name, HS Shallow Module Name w/ Tuples)
+      -> String         -- HS FFI Module Name 
+      -> String         -- HSC FFI Module Name 
       -> [PbtDescStmt]  -- List of PBT info for the Cogent Functions
       -> [CC.Definition TypedExpr VarName b]  -- A list of Cogent definitions
       -- -> [CC.CoreConst TypedExpr]             -- A list of Cogent constants
@@ -61,12 +62,12 @@ pbtHs :: String         -- HS Module Name
       -> Hsc.HscModule  -- FFI HSC module
       -> String         -- Log header 
       -> String
-pbtHs name hscname pbtinfos decls hsmod hscmod log = render $
-  let mod = propModule name hscname pbtinfos decls
+pbtHs names hsffiName hscffiName pbtinfos decls hsmod hscmod log = render $
+  let mod = propModule names hsffiName hscffiName pbtinfos decls
     in text "{-" $+$ text log $+$ text "-}" $+$ prettyPrim mod
 
-propModule :: String -> String -> [PbtDescStmt] -> [CC.Definition TypedExpr VarName b] -> Module ()
-propModule name hscname pbtinfos decls =
+propModule :: (String, String, String) -> String -> String -> [PbtDescStmt] -> [CC.Definition TypedExpr VarName b] -> Module ()
+propModule (name, shallowName, shallowNameTup) hsffiName hscffiName pbtinfos decls =
   let (cogDecls, w) = evalRWS (runSG $ do
                                           shallowTypesFromTable
                                           genDs <- concatMapM (`genDecls` decls) pbtinfos
@@ -108,7 +109,12 @@ propModule name hscname pbtinfos decls =
              --, ImportDecl () (ModuleName () "Data.Word" ) False False False Nothing Nothing Nothing
              -- custom corres
              , ImportDecl () (ModuleName () "Corres" ) False False False Nothing Nothing Nothing
-             , ImportDecl () (ModuleName () hscname) False False False Nothing Nothing Nothing
+             -- TODO: does not set fields with underscore 
+             -- , ImportDecl () (ModuleName () shallowName) False False False Nothing (Just $ ModuleName () "Sh") Nothing
+             , ImportDecl () (ModuleName () shallowNameTup) False False False Nothing (Just $ ModuleName () "ShT") Nothing
+             -- TODO: only import types that are being used in testing
+             -- , ImportDecl () (ModuleName () hscffiName) False False False Nothing (Just $ ModuleName () "FFIT") Nothing
+             , ImportDecl () (ModuleName () hsffiName) False False False Nothing (Just $ ModuleName () "FFII") Nothing
              , ImportDecl () (ModuleName () "Lens.Micro") False False False Nothing Nothing Nothing
              , ImportDecl () (ModuleName () "Lens.Micro.TH") False False False Nothing Nothing (Just $ ImportSpecList () False (map importVar ["makeLenses"]))
              , ImportDecl () (ModuleName () "Control.Lens.Combinators") False False False Nothing Nothing (Just $ ImportSpecList () False (map importVar ["makePrisms"]))

@@ -832,6 +832,9 @@ parseArgs args = case getOpt' Permute options args of
       let hName = mkOutputName source Nothing <.> __cogent_ext_of_h
           hscName = mkOutputName' toHsModName source (Just __cogent_suffix_of_ffi_types)
           hsName  = mkOutputName' toHsModName source (Just __cogent_suffix_of_ffi)
+          hsPbtNames = ( mkOutputName' toHsModName source (Just $ __cogent_suffix_of_pbt)
+                       , mkOutputName' toHsModName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage STGDesugar)
+                       , mkOutputName' toHsModName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage STGDesugar ++ __cogent_suffix_of_recover_tuples) )
           cNames  = map (\n -> takeBaseName n ++ __cogent_suffix_of_pp ++ __cogent_suffix_of_inferred <.> __cogent_ext_of_c) __cogent_infer_c_func_files
       (mcache, decodingFailed) <- case __cogent_name_cache of
         Nothing -> return (Nothing, False)
@@ -844,7 +847,7 @@ parseArgs args = case getOpt' Permute options args of
                     case decodeResult of
                       Left (_, err) -> hPutStrLn stderr ("Decoding name cache file failed: " ++ err ++ ".\nNot using name cache.") >> return (Nothing, True)
                       Right cache -> return (Just cache, False)
-      let (h,c,atm,ct,ct',hsc,hs,pbt,genst) = cgen hName cNames hscName hsName monoed mcache ctygen pbtdescs log
+      let (h,c,atm,ct,ct',hsc,hs,pbt,genst) = cgen hName cNames hscName hsName hsPbtNames monoed mcache ctygen pbtdescs log
       when (TableAbsTypeMono `elem` cmds) $ do
         let atmfile = mkFileName source Nothing __cogent_ext_of_atm
         putProgressLn "Generating table for monomorphised asbtract types..."
@@ -872,8 +875,7 @@ parseArgs args = case getOpt' Permute options args of
         output hsf $ flip hPutStrLn hs
         -- TODO: Should I introduce a cmd for PBT? (low priority)
         -- PBT gen
-        let pbtSourceName = mkOutputName' toHsModName source (Just $ __cogent_suffix_of_pbt)
-            hsPbtFile = mkHsFileName pbtSourceName __cogent_ext_of_hs
+        let hsPbtFile = mkHsFileName source __cogent_suffix_of_pbt
         putProgressLn "Generating PBT Hs file..."
         writeFileMsg hsPbtFile
         output hsPbtFile $ flip hPutStrLn pbt
@@ -996,7 +998,7 @@ parseArgs args = case getOpt' Permute options args of
           -- Haskell shallow embedding
           hsShalName    = mkOutputName' toHsModName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg)
           hsShalTupName = mkOutputName' toHsModName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage STGDesugar ++ __cogent_suffix_of_recover_tuples)
-          hsPBTTupName = mkOutputName' toHsModName source (Just $ __cogent_suffix_of_pbt)
+          -- hsPBTTupName = mkOutputName' toHsModName source (Just $ __cogent_suffix_of_pbt)
 
           hsShalFile         = nameToFileName hsShalName    __cogent_ext_of_hs
           hsShalTupFile      = nameToFileName hsShalTupName __cogent_ext_of_hs
