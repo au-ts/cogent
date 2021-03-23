@@ -58,9 +58,8 @@ genDecls :: PbtDescStmt -> (Module (), Hsc.HscModule) -> [CC.Definition TypedExp
 genDecls stmt (ffiDefs, ffiTypes) defs = do
         let allPreds = findAllPreds Welf $ stmt ^. decls
             isPure = checkBoolE Pure $ stmt ^. decls
-            -- (ffiName, ffiTi, ffiTo) = findHsFFIFunc ffiDefs $ stmt ^. funcname
         (icT, genfExp) <- mkGenFExp (stmt ^. funcname) defs allPreds $ 
-                if isPure then Nothing else Just $ (ffiDefs, ffiTypes)
+                if isPure then Nothing else Just $ (stmt ^. funcname, ffiDefs, ffiTypes)
         let fnName = "gen_" ++ stmt ^. funcname
             genCon = TyCon () (mkQName "Gen")
             tyOut = TyApp () genCon $ TyParen () $ if isPure then icT 
@@ -75,7 +74,7 @@ genDecls stmt (ffiDefs, ffiTypes) defs = do
 mkGenFExp :: String 
           -> [CC.Definition TypedExpr VarName b] 
           -> M.Map PbtKeyidents [(Maybe (HS.Exp ()), (HS.Exp ()))] 
-          -> Maybe (Module (), Hsc.HscModule)
+          -> Maybe (String, Module (), Hsc.HscModule)
           -> SG (Type (), Exp ())
 mkGenFExp fname defs userGenExps ffimods = do
     let def = fromMaybe (__impossible "function name (of function under test) cannot be found in cogent program"
@@ -84,7 +83,7 @@ mkGenFExp fname defs userGenExps ffimods = do
 
 mkGenFExp' :: CC.Definition TypedExpr VarName b 
            -> M.Map PbtKeyidents [(Maybe (HS.Exp ()), (HS.Exp ()))] 
-           -> Maybe (Module (), Hsc.HscModule)
+           -> Maybe (String, Module (), Hsc.HscModule)
            -> SG (Type (), Exp ())
 mkGenFExp' def userGenExps ffimods | (CC.FunDef _ fn ps _ ti to _) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
     ti' <- shallowType ti
@@ -99,10 +98,16 @@ mkGenFExp' def _ _ | (CC.TypeDef tn _ _) <- def = pure (TyCon () (mkQName "Unkno
 mkGenFBody :: CC.Type t a 
            -> Type () 
            -> M.Map PbtKeyidents [(Maybe (HS.Exp ()), (HS.Exp ()))] 
-           -> Maybe (Module (), Hsc.HscModule)
+           -> Maybe (String, Module (), Hsc.HscModule)
            -> SG (Exp ())
 mkGenFBody cogIcTyp icTyp userGenExps ffimods = 
     let icLayout = determineUnpack cogIcTyp icTyp Unknown 0 "1"
+        icCTyLy = ffimods <&>
+               (\x -> let unp = determineUnpack cogIcTyp icTyp Unknown 0 "1"
+                          (n, ti, to) = findHsFFIFunc (x ^. _2) (x ^. _1) 
+                          ti' = P.head $ filter (\x -> all (/= getConIdentName x) ["Ptr", "IO"]) $ unfoldFFITy ti
+                          ffiTyMap = findFFITypeByName (x ^. _3) $ getConIdentName ti'
+                        in determineUnpackFFI unp "ic" "None" "None" ti ffiTyMap )
         userPred = fromMaybe M.empty $ (M.lookup Pred userGenExps) <&> 
                    (\es-> M.unions $ map (\(lhs',rhs) -> case lhs' of 
                         Just lhs -> let shCheck = scanUserShortE lhs 0
@@ -126,7 +131,7 @@ mkGenFBody cogIcTyp icTyp userGenExps ffimods =
                                        )
                         ) es
                     )
-        genStmts = mkArbitraryGenStmt icLayout Unknown userPred
+        genStmts = trace (show (fromMaybe (__impossible "boom") icCTyLy)) $ mkArbitraryGenStmt icLayout Unknown userPred
         bindsMap = (map fst genStmts)
         binds' = map (\(varN,exp) -> fromMaybe (varN,exp) $ (M.lookup varN userMapOp) <&>
                                   (\(lhs, rhs) -> (varN, genStmt (pvar (mkName varN)) rhs))
@@ -165,6 +170,45 @@ mkArbitraryGenStmt layout prevGroup userPredMap
            -- ++(
              --        if P.length nextPreds /= 0 then [P.head nextPreds] else [])
        ) fs)
+
+-- | builder for arbitrary stmts used in the do expression of the Gen function
+-- -----------------------------------------------------------------------
+-- TODO: make this so that we recurse through icCTyLy and when we reach a left lookup k in user preds 
+--       and then check type -> have to put new for Ptr and unsafeLocalState (maybe dummy cstate if matches
+--       -> do this whenever we see Ptr
+--       first level of layout has the return 
+--       then rest is the fields
+--       how to handle dummy constructors? (new <dummy> $ CChar 0)
+--       how to handle prims -> just chooseAny with suchThat or user gen function
+--       how to handle collections -> create a random list and fold new across it
+--          user map have to specify list rec here so we can inspect it if need be
+--       for nested types -> all fields each have gen bind and have a chooseAny + pred or gen function
+--       building binds follows layout
+--       and packing also follows layout then is placed in a return
+--
+{-
+mkArbitraryGenStmt' :: HsFFILayout -> GroupTag -> M.Map String (Exp ()) -> [((String, Stmt ()), (Type (), GroupTag))]
+mkArbitraryGenStmt' layout prevGroup userPredMap
+    = let hsTy = layout ^. cTyp
+          group = layout ^. groupTag
+          prevGroup = layout ^. prevGroupTag
+          fld = layout ^. cFieldMap
+          fs = sortOn fst $ M.toList fld
+          --c (preds, nextPreds) = partition (\(k,v) -> isJust $ (M.lookup k fld)) 
+             --c                               (sortOn fst $ M.toList userPredMap)
+          genFn = function "chooseAny"
+          predFilter = op $ mkName "suchThat"
+       in reverse $ (concatMap (\(k,v) -> case v of
+           (Left depth) -> [ ( let n = mkKIdentVarBind "ic" k depth
+                                   e = fromMaybe (genFn) $ (M.lookup n userPredMap) <&> 
+                                        (\x -> infixApp genFn predFilter x)
+                                 in ( n, genStmt (pvar (mkName n)) e )
+                             , (hsTy, prevGroup) ) ]
+           (Right next) -> mkArbitraryGenStmt' next group userPredMap ffilayout
+           -- ++(
+             --        if P.length nextPreds /= 0 then [P.head nextPreds] else [])
+       ) fs)
+       -}
 
 -- | builder for Constructor packing with just structure layout type
 -- -----------------------------------------------------------------------
