@@ -105,9 +105,7 @@ mkGenFBody cogIcTyp icTyp userGenExps ffimods =
         icCTyLy = ffimods <&>
                (\x -> let unp = determineUnpack cogIcTyp icTyp Unknown 0 "1"
                           (n, ti, to) = findHsFFIFunc (x ^. _2) (x ^. _1) 
-                          ti' = P.head $ filter (\x -> all (/= getConIdentName x) ["Ptr", "IO"]) $ unfoldFFITy ti
-                          ffiTyMap = findFFITypeByName (x ^. _3) $ getConIdentName ti'
-                        in determineUnpackFFI unp "ic" "None" ti ffiTyMap )
+                        in determineUnpackFFI unp "ic" "None" ti (x ^. _3) )
         userPred = fromMaybe M.empty $ (M.lookup Pred userGenExps) <&> 
                    (\es-> M.unions $ map (\(lhs',rhs) -> case lhs' of 
                         Just lhs -> let shCheck = scanUserShortE lhs 0
@@ -132,15 +130,26 @@ mkGenFBody cogIcTyp icTyp userGenExps ffimods =
                         ) es
                     )
         genStmts = fromMaybe (mkArbitraryGenStmt icLayout Unknown userPred) $
-                        icCTyLy <&> (\x -> mkArbitraryGenStmt' x Unknown userPred)
+                        icCTyLy <&> (\x -> sortOn (\x -> let s = snd . fst $ x
+                                                           in case s of 
+                                                                (LetStmt _ _) -> 0
+                                                                (Generator _ _ _) -> 1
+                                                                _ -> 2
+                                           ) $ mkArbitraryGenStmt' x Unknown userPred)
         bindsMap = (map fst genStmts)
         binds' = map (\(varN,exp) -> fromMaybe (varN,exp) $ (M.lookup varN userMapOp) <&>
                                   (\(lhs, rhs) -> (varN, genStmt (pvar (mkName varN)) rhs))
                  ) bindsMap
         binds = sortOn (\x -> "suchThat" `isInfixOf` (show x)) (map snd binds') 
-        -- TODO: find matching var user is refering to and drop that in
-        body = fromMaybe (packConWithLayout (Right icLayout) Nothing) $
-                        icCTyLy <&> (\x -> packConWithLayout' (Right x) Nothing)
+        -- DONE???: find matching var user is refering to and drop that in
+        body = trace (show icCTyLy) $ fromMaybe (packConWithLayout (Right icLayout) Nothing) $
+                        icCTyLy <&> 
+                            (\x -> let hsTy = x ^. cTyp 
+                                       next = x  ^. cFieldMap
+                                       (cTyCon:_,ptrCon) = partition (\x -> all (/= getConIdentName x) ["Ptr", "IO"]) $ unfoldFFITy hsTy
+                                       name = getConIdentName cTyCon
+                                     in if null ptrCon then packConWithLayout' (Right x) Nothing
+                                        else unsafeNewE $ packConWithLayout' (Right x) Nothing)
       in return $ doE $ binds ++ [qualStmt (app (function "return") body)]
 
 
@@ -197,22 +206,51 @@ mkArbitraryGenStmt' layout prevGroup userPredMap
           fs = sortOn fst $ M.toList fld
           --c (preds, nextPreds) = partition (\(k,v) -> isJust $ (M.lookup k fld)) 
              --c                               (sortOn fst $ M.toList userPredMap)
-          genFn = function "chooseAny"
+          genFn = function "arbitrary"
           predFilter = op $ mkName "suchThat"
        in reverse $ (concatMap (\(k,v) -> case v of
            (Left depth) -> [ ( let n = k
-                                   -- (cTyCon:cTyParams,ptrCon) = partition (\x -> all (/= getConIdentName x) ["Ptr", "IO"]) $ unfoldFFITy hsTy
-                                   -- name = getConIdentName cTyCon
+                                   (cTyCon:cTyParams,ptrCon) = partition (\x -> all (/= getConIdentName x) ["Ptr", "IO"]) $ unfoldFFITy hsTy
+                                   name = getConIdentName cTyCon
+               -- if ptr wrap in unsafeLocalState ( new 
+               -- if state feed into constructor and CChar 0
+               -- alt way -> every gen bind associate with Ptr gets usafe+new wrap + Constructor exp
+               -- DONE???: whenever Ptr con is wrapping -> let bind with unsafe+new wrap + con exp, then following do stmt 
+               --      
+               --      so ^^ this block here should be part of making binds
+               --      so top level type gets a bind, then the inhabitants are bound -> any that have pointers must be bound with let
+               --      and prims can be in the do block 
+               --      last return will just return the top level bind
+                                    
                                    e = fromMaybe (genFn) $ (M.lookup n userPredMap) <&> 
                                         (\x -> infixApp genFn predFilter x)
-                                 in ( n, genStmt (pvar (mkName n)) e )
+                                 in ( n
+                                      -- No Ptr -> must be prim which can just use arbitrary gen stmt b/c
+                                    , if null ptrCon then genStmt (pvar (mkName n)) e
+                                      -- if Ptr -> must wrap with unsafe/new and then mk constructor and give it args
+                                      else mkPtrStmt name n $ map fst fs) 
                              , (hsTy, prevGroup) ) ]
            (Right next) -> mkArbitraryGenStmt' next group userPredMap
-           -- ++(
-             --        if P.length nextPreds /= 0 then [P.head nextPreds] else [])
        ) fs)
 
--- mkNewPtrE :: Exp () -> Exp ()
+-- Ptr stmt does not contain gen stmts but rather expect them to be done else where (Ptr means
+-- not prim and should contain inhabitants
+mkPtrStmt :: String -> String -> [String] -> Stmt ()
+mkPtrStmt conName bindName args
+                 -- any State constructors are recognised -> use dummy constructor in Util.hs
+                 -- other dummy constructor to expect -> leverage Util file
+    = let e = if | "State" `isInfixOf` conName -> mkPtrCon conName [app (function "CChar") (intE 0)]
+                 | otherwise -> mkPtrCon conName $ map mkVar args
+        in letStmt $ [nameBind (mkName bindName) e]
+
+mkPtrCon :: String -> [Exp ()] -> Exp ()
+mkPtrCon conName argsE
+    = unsafeNewE $ appFun (function conName) argsE
+
+unsafeNewE :: Exp () -> Exp ()
+unsafeNewE e = app (function "unsafeLocalState") $ app (function "new") e
+
+
 
 -- | builder for Constructor packing with just structure layout type
 -- -----------------------------------------------------------------------
@@ -243,8 +281,7 @@ packConWithLayout layout fieldKey
 packConWithLayout' :: Either String HsFFILayout -> Maybe String -> Exp ()
 packConWithLayout' layout fieldKey
     = case layout of 
-    Left depth -> var $ mkName $ (fromMaybe (__impossible "no field key!") $ fieldKey <&>
-                                   (\k -> k))
+    Left depth -> var $ mkName $ fromMaybe ("ic") fieldKey
     Right nextLayout -> let hsTy = nextLayout ^. cTyp
                             group = nextLayout ^. groupTag
                             prevGroup = nextLayout ^. prevGroupTag
@@ -253,29 +290,24 @@ packConWithLayout' layout fieldKey
                           case group of
         HsPrim -> let (k,v) = P.head $ M.toList fld
                     in packConWithLayout' v (Just k)
-        -- HsList -> __impossible "should not be a list"
-        -- Unknown -> __impossible "unknown type found!"
-        -- TODO: check for Ptr
-        --HsTyAbs -> let (k,v) = P.head $ M.toList fld
-         --           in packConWithLayout' v (Just k)
-
-          --c (preds, nextPreds) = partition (\(k,v) -> isJust $ (M.lookup k fld)) 
-             --c                               (sortOn fst $ M.toList userPredMap)
-        _ -> let (cTyCon:cTyParams,ptrCon) = partition (\x -> all (/= getConIdentName x) ["Ptr", "IO"]) $ unfoldFFITy hsTy
+        -- DONE?: abs ty must be Ptr -> leave the work to be done in the let bind in mkArbitraryGenStmt
+        --        should only every take one arg b/c how we construct Ptr w/ letStmt
+        HsTyAbs -> let (k,v) = P.head $ M.toList fld in  packConWithLayout' v (Just k)
+                     
+        _ -> let (cTyCon:_,ptrCon) = partition (\x -> all (/= getConIdentName x) ["Ptr", "IO"]) $ unfoldFFITy hsTy
                  name = getConIdentName cTyCon
                  flds = M.toList fld
+               in appFun (mkVar name) $ map (\(k,v) -> packConWithLayout' v (Just k)) $ flds
+
                -- if ptr wrap in unsafeLocalState ( new 
                -- if state feed into constructor and CChar 0
                -- alt way -> every gen bind associate with Ptr gets usafe+new wrap + Constructor exp
-               -- TODO: whenever Ptr con is wrapping -> let bind with unsafe+new wrap + con exp, then following do stmt 
+               -- DONE?: whenever Ptr con is wrapping -> let bind with unsafe+new wrap + con exp, then following do stmt 
                --      
                --      so ^^ this block here should be part of making binds
                --      so top level type gets a bind, then the inhabitants are bound -> any that have pointers must be bound with let
                --      and prims can be in the do block 
                --      last return will just return the top level bind
-               in if ("State" `isInfixOf` name) then
-                            let (k,v) = P.head flds in packConWithLayout' v (Just k)
-                     else appFun (mkVar name) $ map (\(k,v) -> packConWithLayout' v (Just k)) $ flds
 
 -- | Replace lens/prisms ((^.)|(^?)) nodes in the Exp AST with vars
 -- | that are bound such that the expression is semantically equivalent

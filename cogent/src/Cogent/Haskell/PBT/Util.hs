@@ -344,22 +344,30 @@ findFFITypeByName (Hsc.HscModule _ _ decls) name
 
 -- replace pure hs embedding layout record with C type layout details (but keeping bind names)
 -- expects unfolded ty
-determineUnpackFFI :: HsEmbedLayout -> String -> String -> HS.Type () -> M.Map String (M.Map String (HS.Type ())) -> HsFFILayout
-determineUnpackFFI layout varToUnpack fieldName ffiTy ffiFields
+determineUnpackFFI :: HsEmbedLayout 
+                   -> String 
+                   -> String 
+                   -> HS.Type () 
+                   -> Hsc.HscModule
+                   -- -> M.Map String (M.Map String (HS.Type ())) 
+                   -> HsFFILayout
+determineUnpackFFI layout varToUnpack fieldName ffiTy ffiTypes
     = let hsTy = layout ^. hsTyp
           group = layout ^. grTag
           prevGroup = layout ^. prevGrTag
           fld' = M.toList $ layout ^. fieldMap
           cTy = let ts = filter (\x -> all (/= getConIdentName x) ["Ptr", "IO"]) $ unfoldFFITy ffiTy
-                  in if length ts /= 1 then __impossible "boom!" else head ts
-          cFields = M.toList $ let cn = getConIdentName cTy
-                      in fromMaybe M.empty $ M.lookup cn ffiFields
+                  in if length ts /= 1 then __impossible $ "Bad FFI Type"++show ts
+                     else head ts
+          cn = getConIdentName cTy
+          ffiFields = findFFITypeByName ffiTypes $ cn
+          cFields = M.toList $ fromMaybe M.empty $ M.lookup cn ffiFields
           fld = if length fld' == length cFields
                     then fld'
-                    -- must be variant -> append tag field from cFields
+                    -- must be variant -> append tag field from cFields (by looking for tag in type)
                     -- these odd extra fields in variants can just be referred to by these name without any ticks e.g. oc_tag
                     -- perhaps allow user to supply the list of odd fields
-                    else ( map (\(k,v) -> (k, Left 0)) $ filter (\(k,v) -> "tag" `isInfixOf` getConIdentName v) cFields) ++ fld'
+                    else ( map (\(k,v) -> (k, Left 0)) $ filter (\(k,v) -> "Tag" `isInfixOf` getConIdentName v) cFields) ++ fld'
         in HsFFILayout ffiTy group prevGroup $ M.fromList $ 
             [ let (k,v) = fld!!i
                   (ck,cv) = cFields!!i
@@ -367,7 +375,7 @@ determineUnpackFFI layout varToUnpack fieldName ffiTy ffiFields
                (Left depth) -> ( mkKIdentVarBind varToUnpack k depth
                                , Left $ fieldName)
                (Right next) -> ( ck
-                               , Right $ determineUnpackFFI next varToUnpack ck cv ffiFields )
+                               , Right $ determineUnpackFFI next varToUnpack ck cv ffiTypes )
             | i <- [0..length fld-1] ]
         
 unfoldFFITy :: HS.Type () -> [HS.Type ()]
