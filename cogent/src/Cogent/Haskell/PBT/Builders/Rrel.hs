@@ -53,17 +53,21 @@ import Cogent.Isabelle.Shallow (isRecTuple)
 
 -- | Top level Builder for Refinement Relation
 -- -----------------------------------------------------------------------
-rrelDecl :: PbtDescStmt -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
-rrelDecl stmt defs = do
+rrelDecl :: PbtDescStmt -> (Module (), Hsc.HscModule) -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
+rrelDecl stmt (ffiDefs, ffiTypes) defs = do
         let (oaTy, _) = findKIdentTyExp Rrel Oa $ stmt ^. decls
+            isPure = checkBoolE Pure $ stmt ^. decls
             fnName = "rel_" ++ stmt ^. funcname
             oaT = case oaTy of
                       Just x -> x
                       Nothing -> fromMaybe (__impossible "no oa type given in PBT file") $ 
                                     (findKIdentTyExp Spec Oa $ stmt ^. decls) ^. _1
             (_, userE) = findKIdentTyExp Rrel Pred $ stmt ^. decls
-        (ocT, _, rrelE, conNames) <- mkRrelExp (stmt ^. funcname) oaT defs userE
+        (ocT, _, rrelE, conNames) <- mkRrelExp (stmt ^. funcname) oaT defs userE 
+            -- TODO: Pass this down
+            -- $ if isPure then Nothing else Just $ (ffiDefs, ffiTypes)
         let to     = mkTyConT $ mkName "Bool"
+            -- TODO: replace oc with C types if not pure
             ti     = TyFun () oaT $ TyFun () ocT to
             sig    = TypeSig () [mkName fnName] ti
             dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "oa", pvar $ mkName "oc"] (UnGuardedRhs () rrelE) Nothing]
@@ -71,7 +75,11 @@ rrelDecl stmt defs = do
 
 -- | Builder for Refinement Relation body expression, also returns function input/output type
 -- -----------------------------------------------------------------------
-mkRrelExp :: String -> Type () -> [CC.Definition TypedExpr VarName b] -> Maybe (Exp ()) -> SG (Type (), Type (), Exp (), [String])
+mkRrelExp :: String 
+          -> Type () 
+          -> [CC.Definition TypedExpr VarName b] 
+          -> Maybe (Exp ()) 
+          -> SG (Type (), Type (), Exp (), [String])
 mkRrelExp fname oaTyp defs userE = do
     let def = fromJust $ find (\x -> CC.getDefinitionId x == fname) defs
     (ocT, oaT, rrelE, conNames) <- mkRrelExp' def oaTyp userE

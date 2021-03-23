@@ -54,65 +54,64 @@ import Cogent.Isabelle.Shallow (isRecTuple)
 
 -- | top level builder for gen_* :: Gen function 
 -- -----------------------------------------------------------------------
-genDecls :: PbtDescStmt -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
-genDecls stmt defs = do
-        let (_, predExp) = findKIdentTyExp Welf Pred $ stmt ^. decls
-            userMapOpExp = findKIdentExp Welf Ic $ stmt ^. decls
-            -- TODO: this contains all predicates in this block -> use this
-            allPreds = findAllPreds Welf $ stmt ^. decls
-        (icT, genfExp) <- mkGenFExp (stmt ^. funcname) defs allPreds
+genDecls :: PbtDescStmt -> (Module (), Hsc.HscModule) -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
+genDecls stmt (ffiDefs, ffiTypes) defs = do
+        let allPreds = findAllPreds Welf $ stmt ^. decls
+            isPure = checkBoolE Pure $ stmt ^. decls
+            -- (ffiName, ffiTi, ffiTo) = findHsFFIFunc ffiDefs $ stmt ^. funcname
+        (icT, genfExp) <- mkGenFExp (stmt ^. funcname) defs allPreds $ 
+                if isPure then Nothing else Just $ (ffiDefs, ffiTypes)
         let fnName = "gen_" ++ stmt ^. funcname
             genCon = TyCon () (mkQName "Gen")
-            tyOut = TyApp () genCon $ TyParen () icT
+            tyOut = TyApp () genCon $ TyParen () $ if isPure then icT 
+                                   else (findHsFFIFunc ffiDefs (stmt ^. funcname)) ^. _2
             sig    = TypeSig () [mkName fnName] tyOut
             -- TODO: better gen_* body
             --       - what else do you need for arbitrary?
             dec    = FunBind () [Match () (mkName fnName) [] (UnGuardedRhs () $ genfExp) Nothing]
-            -- TODO: this is a dummy HS spec function def -> replace with something better
-            -- hs_dec    = FunBind () [Match () (mkName $ "hs_"++(stmt ^. funcname)) [] (UnGuardedRhs () $
-              --              function "undefined") Nothing]
           in return [sig, dec]
 
 -- gen function only has output type (wrapped in Gen monad)
 mkGenFExp :: String 
           -> [CC.Definition TypedExpr VarName b] 
           -> M.Map PbtKeyidents [(Maybe (HS.Exp ()), (HS.Exp ()))] 
+          -> Maybe (Module (), Hsc.HscModule)
           -> SG (Type (), Exp ())
-mkGenFExp fname defs userGenExps = do
+mkGenFExp fname defs userGenExps ffimods = do
     let def = fromMaybe (__impossible "function name (of function under test) cannot be found in cogent program"
               ) $ find (\x -> CC.getDefinitionId x == fname) defs
-    mkGenFExp' def userGenExps
+    mkGenFExp' def userGenExps ffimods
 
-mkGenFExp' :: CC.Definition TypedExpr VarName b -> M.Map PbtKeyidents [(Maybe (HS.Exp ()), (HS.Exp ()))] -> SG (Type (), Exp ())
-mkGenFExp' def userGenExps | (CC.FunDef _ fn ps _ ti to _) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
+mkGenFExp' :: CC.Definition TypedExpr VarName b 
+           -> M.Map PbtKeyidents [(Maybe (HS.Exp ()), (HS.Exp ()))] 
+           -> Maybe (Module (), Hsc.HscModule)
+           -> SG (Type (), Exp ())
+mkGenFExp' def userGenExps ffimods | (CC.FunDef _ fn ps _ ti to _) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
     ti' <- shallowType ti
-    (genfExp) <- mkGenFBody ti ti' userGenExps
+    (genfExp) <- mkGenFBody ti ti' userGenExps ffimods
     pure (ti', genfExp)
-mkGenFExp' def userGenExps | (CC.AbsDecl _ fn ps _ ti to) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
+mkGenFExp' def userGenExps ffimods | (CC.AbsDecl _ fn ps _ ti to) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
     ti' <- shallowType ti
-    (genfExp) <- mkGenFBody ti ti' userGenExps
+    (genfExp) <- mkGenFBody ti ti' userGenExps ffimods
     pure (ti', genfExp)
-mkGenFExp' def _ | (CC.TypeDef tn _ _) <- def = pure (TyCon () (mkQName "Unknown"), function "undefined")
+mkGenFExp' def _ _ | (CC.TypeDef tn _ _) <- def = pure (TyCon () (mkQName "Unknown"), function "undefined")
 
-mkGenFBody :: CC.Type t a -> Type () -> M.Map PbtKeyidents [(Maybe (HS.Exp ()), (HS.Exp ()))] -> SG (Exp ())
-mkGenFBody cogIcTyp icTyp userGenExps  = 
+mkGenFBody :: CC.Type t a 
+           -> Type () 
+           -> M.Map PbtKeyidents [(Maybe (HS.Exp ()), (HS.Exp ()))] 
+           -> Maybe (Module (), Hsc.HscModule)
+           -> SG (Exp ())
+mkGenFBody cogIcTyp icTyp userGenExps ffimods = 
     let icLayout = determineUnpack cogIcTyp icTyp Unknown 0 "1"
         userPred = fromMaybe M.empty $ (M.lookup Pred userGenExps) <&> 
                    (\es-> M.unions $ map (\(lhs',rhs) -> case lhs' of 
                         Just lhs -> let shCheck = scanUserShortE lhs 0
                                         varBindLhs = if (null shCheck) then scanUserInfixE lhs 0 "ic" else shCheck
-                                        varB = M.fromList $ {-[P.head $ -} sortOn (\(k,v) -> P.length (filter (==(P.head "'")) k)) $ M.toList varBindLhs
-                                        c = mkVarToExpWithLam (replaceVarsInUserInfixE rhs 0 (scanUserInfixE rhs 0 "ic")) varB 
-                                      in trace ("varB "++ show varB) $ c
-
-                        -- TODO: want to run scanUserInfixE on lhs to get the var bind 
-                        --       then that var bind in the expression with x 
-                        --       then convert to lambda expression
-                        --       append to constructure already done
-                        --       we don't have to guess the var bind so should be easier
+                                        varB = M.fromList $ sortOn (\(k,v) -> P.length (filter (==(P.head "'")) k)) $ M.toList varBindLhs
+                                      in mkVarToExpWithLam (replaceVarsInUserInfixE rhs 0 (scanUserInfixE rhs 0 "ic")) varB 
 
                         Nothing -> let vars = scanUserInfixE rhs 0 "ic"
-                                     in trace ("hey") $ mkVarToExpWithLam (replaceVarsInUserInfixE rhs 0 vars) vars
+                                     in mkVarToExpWithLam (replaceVarsInUserInfixE rhs 0 vars) vars
                        ) es
                    )
                  -- here we turn the user predicate for welf into a lambda function 

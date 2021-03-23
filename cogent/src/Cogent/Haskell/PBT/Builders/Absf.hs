@@ -57,12 +57,15 @@ import Cogent.Isabelle.Shallow (isRecTuple)
 absFDecl :: PbtDescStmt -> (Module (), Hsc.HscModule) -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
 absFDecl stmt ffimods defs = do
         let (iaTy, iaExp) = findKIdentTyExp Absf Ia $ stmt ^. decls
+            -- TODO: is pure query
             fnName = "abs_" ++ stmt ^. funcname
             iaT = case iaTy of
                       Just x -> x
                       Nothing -> fromMaybe (__impossible "not ia type given in PBT file") $ 
                                     (findKIdentTyExp Spec Ia $ stmt ^. decls) ^. _1
+            -- TODO: pass down ffimods
         (icT, _, absE, conNames) <- mkAbsFExp (stmt ^. funcname) iaT defs iaExp
+            -- TODO: replace icT with C types if not pure
         let ti     = icT
             to     = iaT
             sig    = TypeSig () [mkName fnName] (TyFun () ti to)

@@ -19,7 +19,8 @@
 
 
 module Cogent.Haskell.FFIGen (
-  ffiHs
+    ffiHs
+  , hsc2hsType
 ) where
 
 import Cogent.C.Syntax
@@ -98,4 +99,3 @@ mkTyCon t xs = foldl (TyApp ()) t xs
 
 inIO :: Type () -> Type ()
 inIO t = mkTyCon (TyCon () (UnQual () (Ident () "IO"))) [t]
-

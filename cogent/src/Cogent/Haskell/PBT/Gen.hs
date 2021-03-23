@@ -75,9 +75,9 @@ propModule :: (String, String, String)
 propModule (name, shallowName, shallowNameTup) hsffiName hscffiName pbtinfos decls ffimods =
   let (cogDecls, w) = evalRWS (runSG $ do
                                           shallowTypesFromTable
-                                          genDs <- concatMapM (`genDecls` decls) pbtinfos
+                                          genDs <- concatMapM (\x -> genDecls x ffimods decls) pbtinfos
                                           absDs <- concatMapM (\x -> absFDecl x ffimods decls) pbtinfos
-                                          rrelDs <- concatMapM (`rrelDecl` decls) pbtinfos
+                                          rrelDs <- concatMapM (\x -> rrelDecl x ffimods decls) pbtinfos
                                           -- genDecls x decls shallowTypesFromTable
                                           --cs <- concatMapM shallowConst consts
                                           --ds <- shallowDefinitions decls

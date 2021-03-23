@@ -11,6 +11,7 @@ import Cogent.Haskell.PBT.DSL.Types
 import qualified Cogent.Haskell.HscSyntax as Hsc
 import Cogent.Compiler (__impossible)
 import qualified Cogent.Core as CC
+import Cogent.Haskell.FFIGen (hsc2hsType)
 
 import Language.Haskell.Exts.SrcLoc
 import qualified Language.Haskell.Exts as HS
@@ -33,11 +34,19 @@ data HsEmbedLayout = HsEmbedLayout
     , _fieldMap :: M.Map String (Either Int HsEmbedLayout)
     } deriving (Show)
 
+data HsFFILayout = HsFFILayout
+    { _cTyp :: HS.Type ()
+    , _groupTag :: GroupTag
+    , _prevGroupTag  :: GroupTag
+    , _cFieldMap :: M.Map String (Either String HsFFILayout)
+    } deriving (Show)
+
 data GroupTag = HsTuple | HsRecord | HsVariant | HsList | 
                 HsPrim | HsTyVar | HsTyAbs | HsCollection | Unknown 
               deriving (Show, Eq)
 
 makeLenses ''HsEmbedLayout
+makeLenses ''HsFFILayout
 
 -- | Helper functions for accessing structure
 -- -----------------------------------------------------------------------
@@ -309,24 +318,74 @@ hsCollectionTypes = ["List", "Array", "Set", "Map"]
 
 -- | find FFI function
 -- -----------------------------------------------------------------------
-
 findHsFFIFunc :: HS.Module () -> String -> (String, HS.Type (), HS.Type ())
 findHsFFIFunc (HS.Module _ _ _  _ decls) fname 
     = fromMaybe (__impossible "cant find matching FFI!") $
          (find (\d -> case d of (HS.ForImp _ _ _ _ (HS.Ident _ n) tys) -> fname `isSuffixOf` n; _ -> False) decls <&> 
-            (\(HS.ForImp _ _ _ _ name@(HS.Ident _ n) x) -> let t = getTiTo x in (n, fst t, snd t)))
+            (\(HS.ForImp _ _ _ _ (HS.Ident _ n) x) -> let t = getTiTo x in (n, fst t, snd t)))
     where getTiTo (HS.TyFun _ ti to) = (ti, to)
           getTiTo _ = __impossible "cant find ffi types"
 
 -- seach for data type decl with constructor name matching given name
 -- map of Data con names to map of field names to their Type 
 -- should be a singleton since Ctypes are just simple records.
-findFFITypeByName :: Hsc.HscModule -> String -> M.Map String (M.Map String Hsc.Type)
+findFFITypeByName :: Hsc.HscModule -> String -> M.Map String (M.Map String (HS.Type ()))
 findFFITypeByName (Hsc.HscModule _ _ decls) name 
     = fromMaybe (M.empty) $
          (find (\d -> case d of (Hsc.HsDecl (Hsc.DataDecl cname _ cs)) -> show cname == name; _ -> False) decls <&>
             (\(Hsc.HsDecl (Hsc.DataDecl cname _ cs)) 
-                -> M.fromList $ map (\(Hsc.DataCon n x) -> (show n, M.fromList (map (\(cn,t) -> (show cn, t)) x))) cs))
+                -> M.fromList $
+                map (\(Hsc.DataCon n x) -> (show n, M.fromList (map (\(cn,t) -> (show cn, (hsc2hsType t))) x))) cs))
+
+
+-- replace pure hs embedding layout record with C type layout details (but keeping bind names)
+-- expects unfolded ty
+determineUnpackFFI :: HsEmbedLayout -> String -> HS.Type () -> M.Map String (M.Map String (HS.Type ())) -> HsFFILayout
+determineUnpackFFI layout varToUnpack ffiTy ffiFields
+    = let hsTy = layout ^. hsTyp
+          group = layout ^. grTag
+          prevGroup = layout ^. prevGrTag
+          fld = layout ^. fieldMap
+          (cTy, cFields) = fromMaybe (__impossible "can't find type!") $
+                    (find (\x -> all (/= getConIdentName x) ["Ptr", "IO"]) (unfoldFFITy ffiTy)) <&>
+                        (\x -> let cn = getConIdentName x
+                                 in fromMaybe (x, M.empty) $ M.lookup cn ffiFields <&> 
+                                    (\y -> (x,y)))
+        -- (State, U32)
+        -- Ct7 , [(p1, State), (p2, U32)]
+        in HsFFILayout ffiTy group prevGroup $ M.fromList $
+            map (\((k,v), (cK, cV)) -> case v of
+               (Left depth) -> ( cK
+                               , Left $ mkKIdentVarBind varToUnpack k depth )
+               (Right next) -> ( cK
+                               , Right $ determineUnpackFFI next varToUnpack cV ffiFields )
+        ) $ if (M.size fld == M.size cFields) then zip (M.toList fld) (M.toList cFields) 
+            -- must be variant -> remove tag field from cFields
+            else zip (M.toList fld) (filter (\(k,v) -> "tag" `isInfixOf` getConIdentName v) $ M.toList $ cFields)
+
+unfoldFFITy :: HS.Type () -> [HS.Type ()]
+unfoldFFITy t@(HS.TyTuple _ _ tys) = tys
+unfoldFFITy t@(HS.TyVar _ _) = [t]
+unfoldFFITy t = unfoldAppCon t
 
 
 
+
+{-
+exampleHsEmbLay = HsEmbedLayout 
+    (HS.TyTuple () HS.Boxed [HS.TyCon () (HS.UnQual () (HS.Ident () "SysState")),HS.TyCon () (HS.UnQual () (HS.Ident () "Word32"))] )
+        HsTuple
+        Unknown
+        ( M.fromList 
+        [ ("_1", Right (
+            HsEmbedLayout (HS.TyCon () (HS.UnQual () (HS.Ident () "SysState")))
+              HsTyAbs
+              HsTuple
+              (M.fromList [("_1",Left 1)])
+            ))
+        , ("_2", Right (
+             HsEmbedLayout (HS.TyCon () (HS.UnQual () (HS.Ident () "Word32"))) HsPrim HsTuple
+                 (M.fromList [("_2",Left 1)]))
+          )
+        ] )
+        -}
