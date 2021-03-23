@@ -58,50 +58,16 @@ End Relations.
 Coercion succ_cfg : Rel_cfg_T >-> Rel_cfg_OT.
 Infix "⩕" := conj_rel (at level 85, right associativity).
 
-Section Values.
-
-  Definition convert_uval (u : uval) : uvalue :=
-    match u with
-    | UPrim (LBool b) => UVALUE_I1 (Int1.repr (if b then 1 else 0))
-    | UPrim (LU8 w) => UVALUE_I8 (Int8.repr w)
-    | UPrim (LU32 w) => UVALUE_I32 (Int32.repr w)
-    | UPrim (LU64 w) => UVALUE_I64 (Int64.repr w)
-    | UUnit => UVALUE_I8 (Int8.repr 0)
-    end.
-
-  Definition equivalent_values (i : im) (u : uval) (vellvm : state_cfg) : Prop :=
-    let '(m, (l, g)) := vellvm in
-      interp_cfg
-        (translate exp_to_instr (denote_exp (Some (typ_to_dtyp [] (fst i))) (convert_typ [] (snd i))))
-        g l m ≈ Ret (m, (l, (g, convert_uval u))).
-
-End Values.
-
 Section State.
 
   (* eventually will need more here which will make state_invariant_new_var nontrivial *)
   Definition state_wf (γ : ctx) (s : CodegenState) : Prop := True.
-  
-  Record state_invariant (γ : ctx) (s : CodegenState) (cogent : state_cogent)
-                         (vellvm : state_cfg) : Prop :=
-  {
-    state_is_wf : state_wf γ s
-  }.
 
-  Lemma state_invariant_new_var :
-    forall (γ : ctx) (s : CodegenState) (cogent : state_cogent) (vellvm : state_cfg)
-           (u : uval) (i : im),
-      state_invariant γ s cogent vellvm ->
-      equivalent_values i u vellvm ->
-      state_invariant (u :: γ) (s<|vars := i :: vars s|>) cogent vellvm.
-  Proof.
-    intros * STATE EQ.
-    destruct STATE as [WF]; split.
-    unfold state_wf in *.
-    reflexivity.
-  Qed.
+End State.
 
+Section Scope.
   (* ideas from helix *)
+
   Definition in_vars (γ : ctx) (s : CodegenState) (id : raw_id) : Prop :=
     state_wf γ s /\
     forall t n v,
@@ -121,7 +87,17 @@ Section State.
   Qed.
 
   Definition local_scope_preserved (s1 s2 : CodegenState) (l l' : local_env) : Prop :=
-    l = l'.
+    True. (* TODO *)
+  
+  Lemma local_scope_preserved_empty :
+    forall (s : CodegenState) (l l' : local_env),
+     local_scope_preserved s s l l'.
+  Proof.
+    intros.
+    unfold local_scope_preserved.
+    trivial.
+  Qed.
+  
 
   Definition vars_preserved (γ : ctx) (s : CodegenState) (l l' : local_env) : Prop :=
     forall id, in_vars γ s id -> l @ id = l' @ id.
@@ -136,10 +112,94 @@ Section State.
     unfold vars_preserved in *.
     eauto using in_vars_eq.
   Qed.
-  (* end ideas from helix *)
-    
 
-End State.
+End Scope.
+
+Section Values.
+
+  Definition convert_uval (u : uval) : uvalue :=
+    match u with
+    | UPrim (LBool b) => UVALUE_I1 (Int1.repr (if b then 1 else 0))
+    | UPrim (LU8 w) => UVALUE_I8 (Int8.repr w)
+    | UPrim (LU32 w) => UVALUE_I32 (Int32.repr w)
+    | UPrim (LU64 w) => UVALUE_I64 (Int64.repr w)
+    | UUnit => UVALUE_I8 (Int8.repr 0)
+    end.
+
+  Definition equivalent_values (γ : ctx) (s1 s2 : CodegenState)
+                               (i : im) (u : uval) (vellvm : state_cfg) : Prop :=
+    let '(m, (l, g)) := vellvm in
+      forall l',
+        local_scope_preserved s1 s2 l l' ->
+        vars_preserved γ s1 l l' ->
+        interp_cfg
+          (translate exp_to_instr (denote_exp (Some (typ_to_dtyp [] (fst i))) (convert_typ [] (snd i))))
+          g l' m ≈ Ret (m, (l', (g, convert_uval u))).
+  
+  Lemma equivalent_values_new_var :
+    forall (γ : ctx) (s : CodegenState) (i : im) (u : uval) (vellvm : state_cfg)
+           (i' : im) (u' : uval),
+      let s' := (s<|vars := i' :: vars s|>) in
+        equivalent_values γ s s i u vellvm ->
+        equivalent_values γ s s i' u' vellvm ->
+        equivalent_values (u' :: γ) s' s' i u vellvm.
+  Proof.
+  Admitted.
+
+End Values.
+
+Section Memory.
+
+  Definition memory_invariant (γ : ctx) (s : CodegenState) (cogent : state_cogent)
+                              (vellvm : state_cfg) : Prop :=
+    forall (n : nat) (i : im) (u : uval),
+      nth_error γ n = Some u ->
+      nth_error (vars s) n = Some i ->
+      equivalent_values γ s s i u vellvm.
+
+  Lemma memory_invariant_new_var : 
+    forall (γ : ctx) (s : CodegenState) (cogent : state_cogent) (vellvm : state_cfg)
+          (u : uval) (i : im),
+      memory_invariant γ s cogent vellvm ->
+      equivalent_values γ s s i u vellvm ->
+      memory_invariant (u :: γ) (s<|vars := i :: vars s|>) cogent vellvm.
+  Proof.
+    intros * MEM EQ.
+    unfold memory_invariant in *.
+    simpl.
+    induction n; simpl; intros; apply equivalent_values_new_var.
+    inversion H. inversion H0. subst i0 u0.
+    all: try assumption.
+    specialize (MEM _ i0 _ H H0).
+    assumption.
+  Qed.
+
+End Memory.
+
+Section StateInvariant.
+
+  Record state_invariant (γ : ctx) (s : CodegenState) (cogent : state_cogent)
+                         (vellvm : state_cfg) : Prop :=
+  {
+    memory_agrees : memory_invariant γ s cogent vellvm
+  ; state_is_wf : state_wf γ s
+  }.
+
+  Lemma state_invariant_new_var :
+    forall (γ : ctx) (s : CodegenState) (cogent : state_cogent) (vellvm : state_cfg)
+           (u : uval) (i : im),
+      state_invariant γ s cogent vellvm ->
+      equivalent_values γ s s i u vellvm ->
+      state_invariant (u :: γ) (s<|vars := i :: vars s|>) cogent vellvm.
+  Proof.
+    intros * STATE EQ.
+    destruct STATE as [MEM WF]; split.
+    unfold state_wf in *.
+    apply memory_invariant_new_var.
+    all: assumption.
+  Qed.
+
+End StateInvariant.
 
 Section TopLevel.
 
@@ -162,10 +222,7 @@ Section Expressions.
   Definition compile_expr_res (i : im) (γ : ctx) (s1 s2 : CodegenState) 
                             : Rel_cfg_T uval unit :=
     fun '(_, u) '(m, (l, (g, _))) => 
-      forall l',
-        local_scope_preserved s1 s2 l l' ->
-        vars_preserved γ s1 l l' ->
-        equivalent_values i u (m, (l', g)).
+      equivalent_values γ s1 s2 i u (m, (l, g)).
   
   Local Open Scope nat_scope.
 
@@ -182,6 +239,7 @@ Section Expressions.
            (cogent_mem : memory) (g : global_env) (l : local_env) (vellvm_mem : memory_stack),
       compile_expr e s1 = inr (s2, (v, c)) ->
       state_invariant γ s1 cogent_mem (vellvm_mem, (l, g)) ->
+      no_failure (interp_expr (E := E_cfg) (denote_expr γ e) cogent_mem) ->
       eutt (
         succ_cfg (
           lift_Rel_cfg (state_invariant γ s2) ⩕ 
@@ -190,38 +248,50 @@ Section Expressions.
         (interp_expr (denote_expr γ e) cogent_mem)
         (interp_cfg (denote_code (convert_typ [] c)) g l vellvm_mem).
   Proof.
-    induction e; intros * COMPILE PRE.
+    induction e; intros * COMPILE PRE NOFAIL.
     -
       cbn* in COMPILE; simp.
-      unfold denote_expr in *; cbn*.
-      unfold option_bind.
-      destruct (nth_error γ i).
-      + admit.
-      +
-    admit.
+      unfold denote_expr, option_bind in *; cbn*; simp.
+      2 : apply failure_expr_throw in NOFAIL; contradiction.
+      rewrite interp_expr_Ret.
+      rewrite denote_code_nil.
+      vred.
+      apply eutt_Ret; split; [ | split]; cbn; eauto.
+      intros.
+      unfold id in *; cbn* in *.
+      destruct PRE as [MEM WF]; unfold memory_invariant in MEM.
+      specialize (MEM _ _ _ Heqo0 Heqo).
+      unfold equivalent_values in MEM.
+      specialize (MEM l' H H0).
+      assumption.
     -
       cbn* in *; simp.
       rename s1 into pre_state, c0 into mid_state, c2 into post_state.
-      rename Heqs into COMPILE_e1, Heqs0 into COMPILE_e2.
+      rename e0 into res_e1, e3 into res_e2, c1 into code_e1, c3 into code_e2.
+      rename Heqs into COMPILE_e1, Heqs0 into COMPILE_e2, e into op'.
       vred.
 
       specialize (IHe1 γ _ _ _ _ cogent_mem g l vellvm_mem COMPILE_e1).
       forward IHe1; auto.
+      forward IHe1.
+      eapply no_failure_expr_bind_prefix; exact NOFAIL.
       rewrite interp_expr_bind.
       eapply eutt_clo_bind_returns ; [eassumption | clear IHe1].
       introR; destruct_unit.
-      intros RET _; clear RET.
+      intros RET _; eapply no_failure_expr_bind_continuation in NOFAIL; [|eassumption]; clear RET.
       cbn in PRE0.
       destruct PRE0 as (PRE1 & [EXP1]).
       cbn in *.
 
       specialize (IHe2 γ _ _ _ _ memC g0 l0 memV COMPILE_e2).
       forward IHe2; auto.
+      forward IHe2.
+      eapply no_failure_expr_bind_prefix; exact NOFAIL.
       rewrite interp_expr_bind.
       vred.
       eapply eutt_clo_bind_returns ; [eassumption | clear IHe2].
       introR; destruct_unit.
-      intros RET _; clear RET.
+      intros RET _; eapply no_failure_expr_bind_continuation in NOFAIL; [| eassumption];  clear RET.
       destruct PRE0 as (PRE2 & [EXP2]).
       cbn* in *.
 
@@ -239,13 +309,7 @@ Section Expressions.
       {
         admit.
       }
-
-
-      
-
       admit.
-      
-
     -
       cbn* in COMPILE; simp.
       unfold denote_expr in *; cbn*.
@@ -278,11 +342,14 @@ Section Expressions.
 
       specialize (IHe1 γ _ _ _ _ cogent_mem g l vellvm_mem COMPILE_e1).
       forward IHe1; auto.
+      forward IHe1.
+      eapply no_failure_expr_bind_prefix; exact NOFAIL.
       rewrite interp_expr_bind.
+
       (* might not need the following 3 *)
       eapply eutt_clo_bind_returns ; [eassumption | clear IHe1].
       introR; destruct_unit.
-      intros RET1 _; clear RET1.
+      intros RET1 _; eapply no_failure_expr_bind_continuation in NOFAIL; [| eassumption]; clear RET1.
       cbn in PRE0.
       destruct PRE0 as (PRE1 & [EXP1]).
       cbn in *.
@@ -290,6 +357,9 @@ Section Expressions.
       specialize (IHe2 (vC :: γ) _ _ _ _ memC g0 l0 memV COMPILE_e2).
       forward IHe2.
       apply state_invariant_new_var; auto.
+      unfold equivalent_values.
+      intros.
+      specialize (EXP1 l').
       
       
       
