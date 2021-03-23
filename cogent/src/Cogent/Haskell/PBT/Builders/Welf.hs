@@ -107,7 +107,7 @@ mkGenFBody cogIcTyp icTyp userGenExps ffimods =
                           (n, ti, to) = findHsFFIFunc (x ^. _2) (x ^. _1) 
                           ti' = P.head $ filter (\x -> all (/= getConIdentName x) ["Ptr", "IO"]) $ unfoldFFITy ti
                           ffiTyMap = findFFITypeByName (x ^. _3) $ getConIdentName ti'
-                        in determineUnpackFFI unp "ic" "None" "None" ti ffiTyMap )
+                        in determineUnpackFFI unp "ic" "None" ti ffiTyMap )
         userPred = fromMaybe M.empty $ (M.lookup Pred userGenExps) <&> 
                    (\es-> M.unions $ map (\(lhs',rhs) -> case lhs' of 
                         Just lhs -> let shCheck = scanUserShortE lhs 0
@@ -131,14 +131,16 @@ mkGenFBody cogIcTyp icTyp userGenExps ffimods =
                                        )
                         ) es
                     )
-        genStmts = trace (show (fromMaybe (__impossible "boom") icCTyLy)) $ mkArbitraryGenStmt icLayout Unknown userPred
+        genStmts = fromMaybe (mkArbitraryGenStmt icLayout Unknown userPred) $
+                        icCTyLy <&> (\x -> mkArbitraryGenStmt' x Unknown userPred)
         bindsMap = (map fst genStmts)
         binds' = map (\(varN,exp) -> fromMaybe (varN,exp) $ (M.lookup varN userMapOp) <&>
                                   (\(lhs, rhs) -> (varN, genStmt (pvar (mkName varN)) rhs))
                  ) bindsMap
         binds = sortOn (\x -> "suchThat" `isInfixOf` (show x)) (map snd binds') 
         -- TODO: find matching var user is refering to and drop that in
-        body = packConWithLayout (Right icLayout) Nothing
+        body = fromMaybe (packConWithLayout (Right icLayout) Nothing) $
+                        icCTyLy <&> (\x -> packConWithLayout' (Right x) Nothing)
       in return $ doE $ binds ++ [qualStmt (app (function "return") body)]
 
 
@@ -186,7 +188,6 @@ mkArbitraryGenStmt layout prevGroup userPredMap
 --       building binds follows layout
 --       and packing also follows layout then is placed in a return
 --
-{-
 mkArbitraryGenStmt' :: HsFFILayout -> GroupTag -> M.Map String (Exp ()) -> [((String, Stmt ()), (Type (), GroupTag))]
 mkArbitraryGenStmt' layout prevGroup userPredMap
     = let hsTy = layout ^. cTyp
@@ -199,16 +200,19 @@ mkArbitraryGenStmt' layout prevGroup userPredMap
           genFn = function "chooseAny"
           predFilter = op $ mkName "suchThat"
        in reverse $ (concatMap (\(k,v) -> case v of
-           (Left depth) -> [ ( let n = mkKIdentVarBind "ic" k depth
+           (Left depth) -> [ ( let n = k
+                                   -- (cTyCon:cTyParams,ptrCon) = partition (\x -> all (/= getConIdentName x) ["Ptr", "IO"]) $ unfoldFFITy hsTy
+                                   -- name = getConIdentName cTyCon
                                    e = fromMaybe (genFn) $ (M.lookup n userPredMap) <&> 
                                         (\x -> infixApp genFn predFilter x)
                                  in ( n, genStmt (pvar (mkName n)) e )
                              , (hsTy, prevGroup) ) ]
-           (Right next) -> mkArbitraryGenStmt' next group userPredMap ffilayout
+           (Right next) -> mkArbitraryGenStmt' next group userPredMap
            -- ++(
              --        if P.length nextPreds /= 0 then [P.head nextPreds] else [])
        ) fs)
-       -}
+
+-- mkNewPtrE :: Exp () -> Exp ()
 
 -- | builder for Constructor packing with just structure layout type
 -- -----------------------------------------------------------------------
@@ -233,6 +237,45 @@ packConWithLayout layout fieldKey
                                                           _ -> "Unknown"
                                                   , M.toList fld )
                       in appFun (mkVar name) $ map (\(k,v) -> packConWithLayout v (Just k)) $ flds
+
+-- | builder for Constructor packing with just structure layout type
+-- -----------------------------------------------------------------------
+packConWithLayout' :: Either String HsFFILayout -> Maybe String -> Exp ()
+packConWithLayout' layout fieldKey
+    = case layout of 
+    Left depth -> var $ mkName $ (fromMaybe (__impossible "no field key!") $ fieldKey <&>
+                                   (\k -> k))
+    Right nextLayout -> let hsTy = nextLayout ^. cTyp
+                            group = nextLayout ^. groupTag
+                            prevGroup = nextLayout ^. prevGroupTag
+                            fld = nextLayout ^. cFieldMap 
+                          in
+                          case group of
+        HsPrim -> let (k,v) = P.head $ M.toList fld
+                    in packConWithLayout' v (Just k)
+        -- HsList -> __impossible "should not be a list"
+        -- Unknown -> __impossible "unknown type found!"
+        -- TODO: check for Ptr
+        --HsTyAbs -> let (k,v) = P.head $ M.toList fld
+         --           in packConWithLayout' v (Just k)
+
+          --c (preds, nextPreds) = partition (\(k,v) -> isJust $ (M.lookup k fld)) 
+             --c                               (sortOn fst $ M.toList userPredMap)
+        _ -> let (cTyCon:cTyParams,ptrCon) = partition (\x -> all (/= getConIdentName x) ["Ptr", "IO"]) $ unfoldFFITy hsTy
+                 name = getConIdentName cTyCon
+                 flds = M.toList fld
+               -- if ptr wrap in unsafeLocalState ( new 
+               -- if state feed into constructor and CChar 0
+               -- alt way -> every gen bind associate with Ptr gets usafe+new wrap + Constructor exp
+               -- TODO: whenever Ptr con is wrapping -> let bind with unsafe+new wrap + con exp, then following do stmt 
+               --      
+               --      so ^^ this block here should be part of making binds
+               --      so top level type gets a bind, then the inhabitants are bound -> any that have pointers must be bound with let
+               --      and prims can be in the do block 
+               --      last return will just return the top level bind
+               in if ("State" `isInfixOf` name) then
+                            let (k,v) = P.head flds in packConWithLayout' v (Just k)
+                     else appFun (mkVar name) $ map (\(k,v) -> packConWithLayout' v (Just k)) $ flds
 
 -- | Replace lens/prisms ((^.)|(^?)) nodes in the Exp AST with vars
 -- | that are bound such that the expression is semantically equivalent

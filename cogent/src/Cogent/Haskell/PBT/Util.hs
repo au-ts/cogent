@@ -42,7 +42,8 @@ data HsFFILayout = HsFFILayout
     } deriving (Show)
 
 data GroupTag = HsTuple | HsRecord | HsVariant | HsList | 
-                HsPrim | HsTyVar | HsTyAbs | HsCollection | Unknown 
+                HsPrim | HsTyVar | HsTyAbs | HsCollection |
+                Unknown 
               deriving (Show, Eq)
 
 makeLenses ''HsEmbedLayout
@@ -343,8 +344,8 @@ findFFITypeByName (Hsc.HscModule _ _ decls) name
 
 -- replace pure hs embedding layout record with C type layout details (but keeping bind names)
 -- expects unfolded ty
-determineUnpackFFI :: HsEmbedLayout -> String -> String -> String -> HS.Type () -> M.Map String (M.Map String (HS.Type ())) -> HsFFILayout
-determineUnpackFFI layout varToUnpack oldK fieldName ffiTy ffiFields
+determineUnpackFFI :: HsEmbedLayout -> String -> String -> HS.Type () -> M.Map String (M.Map String (HS.Type ())) -> HsFFILayout
+determineUnpackFFI layout varToUnpack fieldName ffiTy ffiFields
     = let hsTy = layout ^. hsTyp
           group = layout ^. grTag
           prevGroup = layout ^. prevGrTag
@@ -358,7 +359,7 @@ determineUnpackFFI layout varToUnpack oldK fieldName ffiTy ffiFields
                     -- must be variant -> append tag field from cFields
                     -- these odd extra fields in variants can just be referred to by these name without any ticks e.g. oc_tag
                     -- perhaps allow user to supply the list of odd fields
-                    else fld' ++ ( map (\(k,v) -> (k, Left 0)) $ filter (\(k,v) -> "tag" `isInfixOf` getConIdentName v) cFields)
+                    else ( map (\(k,v) -> (k, Left 0)) $ filter (\(k,v) -> "tag" `isInfixOf` getConIdentName v) cFields) ++ fld'
         in HsFFILayout ffiTy group prevGroup $ M.fromList $ 
             [ let (k,v) = fld!!i
                   (ck,cv) = cFields!!i
@@ -366,48 +367,10 @@ determineUnpackFFI layout varToUnpack oldK fieldName ffiTy ffiFields
                (Left depth) -> ( mkKIdentVarBind varToUnpack k depth
                                , Left $ fieldName)
                (Right next) -> ( ck
-                               , Right $ determineUnpackFFI next varToUnpack k ck cv ffiFields )
+                               , Right $ determineUnpackFFI next varToUnpack ck cv ffiFields )
             | i <- [0..length fld-1] ]
         
-{-
-
-            concatMap (\(k,v) -> case v of
-               (Left depth) -> [( fieldName
-                               , Left $ mkKIdentVarBind varToUnpack oldK depth )]
-               (Right next) -> -- TODO: instead, map over c fields here 
-                                [ ( ck
-                                  , Right $ determineUnpackFFI next varToUnpack k ck cv ffiFields )
-                                | (ck, cv) <- M.toList cFields ]
-                                
-
-        ) $ M.toList fld -}{-if (M.size fld == M.size cFields) then zip (M.toList fld) (M.toList cFields) 
-            -- must be variant -> remove tag field from cFields
-            else 
-            -}
-
 unfoldFFITy :: HS.Type () -> [HS.Type ()]
 unfoldFFITy t@(HS.TyTuple _ _ tys) = tys
 unfoldFFITy t@(HS.TyVar _ _) = [t]
 unfoldFFITy t = unfoldAppCon t
-
-
-
-
-{-
-exampleHsEmbLay = HsEmbedLayout 
-    (HS.TyTuple () HS.Boxed [HS.TyCon () (HS.UnQual () (HS.Ident () "SysState")),HS.TyCon () (HS.UnQual () (HS.Ident () "Word32"))] )
-        HsTuple
-        Unknown
-        ( M.fromList 
-        [ ("_1", Right (
-            HsEmbedLayout (HS.TyCon () (HS.UnQual () (HS.Ident () "SysState")))
-              HsTyAbs
-              HsTuple
-              (M.fromList [("_1",Left 1)])
-            ))
-        , ("_2", Right (
-             HsEmbedLayout (HS.TyCon () (HS.UnQual () (HS.Ident () "Word32"))) HsPrim HsTuple
-                 (M.fromList [("_2",Left 1)]))
-          )
-        ] )
-        -}
