@@ -55,26 +55,28 @@ import Cogent.Isabelle.Shallow (isRecTuple)
 -- | Top level Builder for Abstraction Function
 -- -----------------------------------------------------------------------
 absFDecl :: PbtDescStmt -> (Module (), Hsc.HscModule) -> [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
-absFDecl stmt ffimods defs = do
+absFDecl stmt (ffiDefs, ffiTypes) defs = do
         let (iaTy, iaExp) = findKIdentTyExp Absf Ia $ stmt ^. decls
-            -- TODO: is pure query
+            isPure = checkBoolE Pure $ stmt ^. decls
             fnName = "abs_" ++ stmt ^. funcname
             iaT = case iaTy of
                       Just x -> x
                       Nothing -> fromMaybe (__impossible "not ia type given in PBT file") $ 
                                     (findKIdentTyExp Spec Ia $ stmt ^. decls) ^. _1
-            -- TODO: pass down ffimods
-        (icT, _, absE, conNames) <- mkAbsFExp (stmt ^. funcname) iaT defs iaExp
+        (icT, _, absE, conNames) <- mkAbsFExp (stmt ^. funcname) iaT defs iaExp $ 
+                if isPure then Nothing else Just $ (stmt ^. funcname, ffiDefs, ffiTypes)
             -- TODO: replace icT with C types if not pure
-        let ti     = icT
-            to     = iaT
+        let ti     = if isPure then icT 
+                     else (findHsFFIFunc ffiDefs (stmt ^. funcname)) ^. _2
+            to     = if isPure then iaT
+                     else TyApp () (TyCon () (mkQName "IO")) $ TyParen () $ iaT
             sig    = TypeSig () [mkName fnName] (TyFun () ti to)
             dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "ic"] (UnGuardedRhs () absE) Nothing]
         return $ map mkLens (takeWhile (`notElem` hsSumTypes) conNames)++[sig, dec]
 
 mkLens :: String -> Decl ()
 mkLens t
-    = let fname = if | P.head t == 'R' -> "makeLenses"
+    = let fname = if | any (==P.head t) ['R', 'C'] -> "makeLenses"
                      | P.head t == 'V' -> "makePrisms"
                      | otherwise -> "undefined"
        in SpliceDecl () $ app (function fname) (TypQuote () (UnQual () (mkName t)))
@@ -84,23 +86,32 @@ mkLens t
 -- | @fname@ is the name of the function
 -- | @iaTyp@ is the abstract input type
 -- | @defs@ is the list of Cogent definitions
-mkAbsFExp :: String -> Type () -> [CC.Definition TypedExpr VarName b] -> Maybe (Exp ()) -> SG (Type (), Type (), Exp (), [String])
-mkAbsFExp fname iaTyp defs userE = do
+mkAbsFExp :: String 
+          -> Type () 
+          -> [CC.Definition TypedExpr VarName b] 
+          -> Maybe (Exp ()) 
+          -> Maybe (String, Module (), Hsc.HscModule)
+          -> SG (Type (), Type (), Exp (), [String])
+mkAbsFExp fname iaTyp defs userE ffimods = do
     let def = fromJust $ find (\x -> CC.getDefinitionId x == fname) defs
-    (icT, iaT, absE, conNames) <- mkAbsFExp' def iaTyp userE
+    (icT, iaT, absE, conNames) <- mkAbsFExp' def iaTyp userE ffimods
     pure (icT, iaT, absE, conNames)
 
-mkAbsFExp' :: CC.Definition TypedExpr VarName b -> Type () -> Maybe (Exp ()) -> SG (Type (), Type (), Exp (), [String])
-mkAbsFExp' def iaT userE | (CC.FunDef _ fn ps _ ti to _) <- def
+mkAbsFExp' :: CC.Definition TypedExpr VarName b 
+           -> Type () 
+           -> Maybe (Exp ()) 
+          -> Maybe (String, Module (), Hsc.HscModule)
+           -> SG (Type (), Type (), Exp (), [String])
+mkAbsFExp' def iaT userE ffimods | (CC.FunDef _ fn ps _ ti to _) <- def
     = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
         ti' <- shallowType ti
-        (absE, conNames) <- mkAbsFBody ti ti' iaT userE
+        (absE, conNames) <- mkAbsFBody ti ti' iaT userE ffimods
         pure (ti', iaT, absE, conNames)
-mkAbsFExp' def iaT userE | (CC.AbsDecl _ fn ps _ ti to) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
+mkAbsFExp' def iaT userE ffimods | (CC.AbsDecl _ fn ps _ ti to) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
     ti' <- shallowType ti
-    (absE, conNames) <- mkAbsFBody ti ti' iaT userE
+    (absE, conNames) <- mkAbsFBody ti ti' iaT userE ffimods
     pure ( ti', iaT, absE, conNames)
-mkAbsFExp' def iaT _ | (CC.TypeDef tn _ _) <- def
+mkAbsFExp' def iaT _ _ | (CC.TypeDef tn _ _) <- def
     = pure (TyCon () (mkQName "Unknown"), iaT, function "undefined", [])
 
 -- | Builder for abstraction function body. For direct abstraction (default), builds a 
@@ -110,13 +121,30 @@ mkAbsFExp' def iaT _ | (CC.TypeDef tn _ _) <- def
 -- | @cogIcTyp@ is the cogent type of the concrete input
 -- | @icTyp@ is the Haskell type of the concrete input
 -- | @iaTyp@ is the Haskell type of the abstract input (what we are trying to abstract to)
-mkAbsFBody :: CC.Type t a -> Type () -> Type () -> Maybe (Exp ()) -> SG (Exp (), [String])
-mkAbsFBody cogIcTyp icTyp iaTyp userIaExp
+mkAbsFBody :: CC.Type t a 
+           -> Type () 
+           -> Type () 
+           -> Maybe (Exp ()) 
+           -> Maybe (String, Module (), Hsc.HscModule)
+           -> SG (Exp (), [String])
+mkAbsFBody cogIcTyp icTyp iaTyp userIaExp ffimods
     = let icLayout =  determineUnpack cogIcTyp icTyp Unknown 0 "1"
-          lens =  map fst $ mkLensView icLayout "ic" Unknown Nothing
-          binds =  map ((\x -> pvar . mkName . fst $ x) &&& snd) lens
-          body = fromMaybe (packAbsCon iaTyp (map fst lens) 0) $ userIaExp
-       in pure (mkLetE binds body, getConNames icLayout [])
+          ic = if isNothing ffimods then "ic" else "ic"
+          icCTyLy = ffimods <&>
+               (\x -> let (n, ti, to) = findHsFFIFunc (x ^. _2) (x ^. _1) 
+                        in determineUnpackFFI icLayout ic "None" ti (x ^. _3) )
+          lens = map fst $ fromMaybe (mkLensView icLayout ic Unknown Nothing) $ 
+                                icCTyLy <&> (\x -> mkLensView' x "ic" Unknown Nothing)
+          binds = map ((\x -> pvar . mkName . fst $ x) &&& snd) lens
+          binds' = map (\(k, v) -> letStmt [nameBind (mkName k) v] ) $ lens
+          peeks = fromMaybe [] $ icCTyLy <&> (\x -> mkPeekStmts x ic Nothing)
+          body = fromMaybe (packAbsCon iaTyp (map fst lens) 0) $ userIaExp <&>
+                                 (\x -> replaceVarsInUserInfixE x 0 $ scanUserInfixViewE x 0 "ic") -- M.fromList $ map (\(a,b) -> (a, show b)) lens)
+       in pure ( if isNothing ffimods then mkLetE binds body
+                 -- TODO: prepend peek for each Ptr type
+                 else doE ( (map snd peeks)++binds'++[qualStmt (app (function "return") body)])
+               , (getConNames icLayout []) ++ 
+                    (fromMaybe [] $ icCTyLy <&> (\x -> getConNames' x [])) )
 
 -- | Builder for packing the constructor of the abstract type.
 -- | Given the type of the constructor and a list of vars to put in the constructor,
@@ -178,16 +206,49 @@ mkLensView layout varToView prevGroup prev
                            ]
            (Right next) -> mkLensView next varToView group $ Just $ mkViewInfixE varToView group prev k
        ) $ M.toList $ fld
-           {-
-        _ -> case v of
-           (Left depth) -> __impossible $ show k ++ "<==>" ++ show v
-           (Right next) -> mkLensView next varToView group $ Just $ mkViewInfixE varToView group prev k
 
+mkLensView' :: HsFFILayout -> String -> GroupTag -> Maybe (Exp ()) -> [((String, Exp ()), (Type (), GroupTag))]
+mkLensView' layout varToView prevGroup prev
+    = let hsTy = layout ^. cTyp
+          group =  layout ^. groupTag
+          fld = layout ^. cFieldMap
+       in concatMap ( \(k, v) 
+            -> let n = k
+                   (cTyCon:cTyParams,ptrCon) = partition (\x -> all (/= getConIdentName x) ["Ptr", "IO"]) $ unfoldFFITy hsTy
+                   name = getConIdentName cTyCon
+                   vv = if null ptrCon then varToView else mkKIdentVarBind varToView name 0
+                 in case v of
+           (Left depth) -> let e = fromMaybe (mkVar vv) prev 
+                             in [ ( ( n
+                                    , e & (mkFromIntegral hsTy prevGroup) ) 
+                                  , (hsTy, prevGroup) ) ]
+           (Right next) -> mkLensView' next varToView group $ Just $ mkViewInfixE vv group prev k
+       ) $ M.toList $ fld
 
-       case group of
-        HsPrim ->        
-        -}
+mkPeekStmts :: HsFFILayout -> String -> Maybe String -> [(String, Stmt ())]
+mkPeekStmts layout varToView prevConName
+    = let hsTy = layout ^. cTyp
+          group =  layout ^. groupTag
+          fld = layout ^. cFieldMap
+       in concatMap ( \(k, v)
+            -> let n = k
+                   (cTyCon:cTyParams,ptrCon) = partition (\x -> all (/= getConIdentName x) ["Ptr", "IO"]) $ unfoldFFITy hsTy
+                   name = getConIdentName cTyCon
+                   vv = fromMaybe varToView $ prevConName <&>
+                            (\x -> mkKIdentVarBind varToView x 0)
+                 in case v of 
+           (Left depth) -> if null ptrCon then []
+                           else [ (vv, mkPtrPeekStmt varToView vv) ] 
+           (Right next) -> mkPeekStmts next varToView $ if null ptrCon then Nothing else Just name
+       ) $ M.toList $ fld
 
+mkPtrPeekStmt :: String -> String -> Stmt ()
+mkPtrPeekStmt toPeek toBind = genStmt (pvar . mkName $ toBind) $ mkPeekCon toPeek
+
+mkPeekCon :: String -> Exp ()
+mkPeekCon s = app (function "peek") $ function s
+
+        
 -- | Builder the actual lens view infix expression 
 -- -----------------------------------------------------------------------
 -- | @varToView@ is the var that the view transform is being applied to
@@ -275,6 +336,20 @@ getConNames tyL acc
                                         in case c of
                                              (TyCon _ (UnQual _ (Ident _ n))) -> [n]
                                              _ -> []
+        ) $ M.toList fld
+
+getConNames' :: HsFFILayout -> [String] -> [String]
+getConNames' tyL acc
+    = let hsTy = tyL ^. cTyp
+          ty = tyL ^. groupTag
+          fld = tyL ^. cFieldMap
+        in concatMap (\(k,v)
+            -> let n = k
+                   (cTyCon:cTyParams,ptrCon) = partition (\x -> all (/= getConIdentName x) ["Ptr", "IO"]) $ unfoldFFITy hsTy
+                   name = getConIdentName cTyCon
+                 in case v of
+            Left _ -> acc
+            Right next -> getConNames' next $ acc ++ if null ptrCon then [] else [name]
         ) $ M.toList fld
 
 {-

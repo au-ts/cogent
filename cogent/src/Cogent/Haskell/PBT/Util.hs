@@ -17,6 +17,7 @@ import Language.Haskell.Exts.SrcLoc
 import qualified Language.Haskell.Exts as HS
 import qualified Data.Map as M
 import Data.List (find, isInfixOf, isSuffixOf)
+import Data.List.Extra (trim)
 import Data.Maybe (fromMaybe)
 import Debug.Trace
 
@@ -374,7 +375,7 @@ determineUnpackFFI layout varToUnpack fieldName ffiTy ffiTypes
                 in case v of 
                (Left depth) -> ( mkKIdentVarBind varToUnpack k depth
                                , Left $ fieldName)
-               (Right next) -> ( ck
+               (Right next) -> ( if (head ck == '_') then tail ck else ck
                                , Right $ determineUnpackFFI next varToUnpack ck cv ffiTypes )
             | i <- [0..length fld-1] ]
         
@@ -382,3 +383,79 @@ unfoldFFITy :: HS.Type () -> [HS.Type ()]
 unfoldFFITy t@(HS.TyTuple _ _ tys) = tys
 unfoldFFITy t@(HS.TyVar _ _) = [t]
 unfoldFFITy t = unfoldAppCon t
+
+
+-- | scan user infix expression -> looking for lens/prisms in exp,
+-- | and use the structure of the lens/prism to create the unique identifier var
+-- | and place it in a map.
+-- | We know it will produce the same var as if the type was scanned with 
+-- | HsEmbedLayout type. 
+-- -----------------------------------------------------------------------
+scanUserInfixE :: HS.Exp () -> Int -> String -> M.Map String String
+scanUserInfixE (HS.Paren () e) depth kid = scanUserInfixViewE e depth kid
+scanUserInfixE exp depth kid
+    | (HS.InfixApp () lhs op rhs) <- exp 
+    = let opname = getOpStr op
+        in if | any (==opname) ["^.", "^?"] -> scanUserInfixViewE exp depth kid
+              | otherwise -> M.union (scanUserInfixE lhs depth kid) (scanUserInfixE rhs depth kid)
+scanUserInfixE exp depth kid =  scanUserInfixViewE exp depth kid
+
+scanUserShortE :: HS.Exp () -> Int -> M.Map String String
+scanUserShortE (HS.Paren () e) depth = scanUserShortE e depth
+scanUserShortE (HS.Var _ (HS.UnQual _ (HS.Ident _ name))) depth 
+    = if ("'" `isInfixOf` (trim name)) then M.singleton (trim name) ([x | x <- (trim name), x `notElem` "'"])
+      else M.empty
+scanUserShortE _ depth = M.empty 
+
+-- | scan (^.|^?) expressions 
+-- | want to extract fieldname & depth as this is enought to build the 
+-- | fieldname pattern for view binds i.e. name ++ replicate depth $ P.head "'"
+-- | in the map, fieldname ++ postfix maps to depth in expression
+-- | depth only increases when recursing down RHS
+-- -----------------------------------------------------------------------
+scanUserInfixViewE :: HS.Exp () -> Int -> String -> M.Map String String
+scanUserInfixViewE (HS.Paren () e) depth kid = scanUserInfixViewE e depth kid
+scanUserInfixViewE (HS.InfixApp () lhs op rhs) depth kid  
+    = if getOpStr op == "." 
+       then M.union (scanUserInfixViewE lhs (depth) kid ) (scanUserInfixViewE rhs (depth+1) kid )
+       else M.union (scanUserInfixViewE lhs (depth) kid ) (scanUserInfixViewE rhs (depth) kid )
+scanUserInfixViewE exp depth kid | (HS.Var _ (HS.UnQual _ (HS.Ident _ name))) <- exp
+    = if | (any (==trim name ) ["ic","ia","oc","oa"]) -> M.empty
+         | null (scanUserShortE exp 0) -> M.singleton (mkKIdentVarBind kid name (depth+1)) (name)
+         | otherwise -> scanUserShortE exp 0
+scanUserInfixViewE _ depth kid = M.empty
+
+-- | Builder for unique var identifier - this pattern is also follow by HsEmbedLayout
+-- -----------------------------------------------------------------------
+
+-- | Return operator string value
+-- -----------------------------------------------------------------------
+getOpStr :: HS.QOp () -> String
+getOpStr (HS.QVarOp _ (HS.UnQual _ (HS.Symbol _ name))) = name
+getOpStr _ = ""
+
+-- | Replace lens/prisms ((^.)|(^?)) nodes in the Exp AST with vars
+-- | that are bound such that the expression is semantically equivalent
+-- -----------------------------------------------------------------------
+replaceVarsInUserInfixE :: HS.Exp () -> Int -> M.Map String String -> HS.Exp ()
+replaceVarsInUserInfixE (HS.Paren () e) depth vars = replaceVarsInUserInfixE e depth vars
+replaceVarsInUserInfixE exp depth vars
+    | (HS.InfixApp () lhs op rhs) <- exp 
+    = let opname = getOpStr op
+        in if | any (==opname) ["^.", "^?", ".~"] -> replaceInfixViewE exp depth vars
+              | otherwise -> HS.InfixApp () (replaceVarsInUserInfixE lhs depth vars) op (replaceVarsInUserInfixE rhs depth vars)
+replaceVarsInUserInfixE exp depth vars = exp
+
+-- | Actual transform of AST (lens/prisms -> var) occurs here
+-- -----------------------------------------------------------------------
+replaceInfixViewE :: HS.Exp () -> Int -> M.Map String String -> HS.Exp ()
+replaceInfixViewE (HS.Paren () e) depth vars = HS.Paren () $ replaceInfixViewE e depth vars
+replaceInfixViewE (HS.InfixApp () lhs op rhs) depth vars 
+    --   ok just to handle rhs because of fixity
+    = replaceInfixViewE rhs (depth+1) vars
+replaceInfixViewE exp depth vars | (HS.Var _ (HS.UnQual _ (HS.Ident _ name))) <- exp
+    -- TODO: how to handle multiple
+    = let ns = filter (\(k,v) -> v == name) $ M.toList vars
+        in if length ns == 0 then exp else HS.Var () (HS.UnQual () (HS.Ident () ((head ns) ^. _1)))
+replaceInfixViewE exp depth vars = exp
+

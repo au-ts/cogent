@@ -103,9 +103,8 @@ mkGenFBody :: CC.Type t a
 mkGenFBody cogIcTyp icTyp userGenExps ffimods = 
     let icLayout = determineUnpack cogIcTyp icTyp Unknown 0 "1"
         icCTyLy = ffimods <&>
-               (\x -> let unp = determineUnpack cogIcTyp icTyp Unknown 0 "1"
-                          (n, ti, to) = findHsFFIFunc (x ^. _2) (x ^. _1) 
-                        in determineUnpackFFI unp "ic" "None" ti (x ^. _3) )
+               (\x -> let (n, ti, to) = findHsFFIFunc (x ^. _2) (x ^. _1) 
+                        in determineUnpackFFI icLayout "ic" "None" ti (x ^. _3) )
         userPred = fromMaybe M.empty $ (M.lookup Pred userGenExps) <&> 
                    (\es-> M.unions $ map (\(lhs',rhs) -> case lhs' of 
                         Just lhs -> let shCheck = scanUserShortE lhs 0
@@ -206,49 +205,57 @@ mkArbitraryGenStmt' layout prevGroup userPredMap
           fs = sortOn fst $ M.toList fld
           --c (preds, nextPreds) = partition (\(k,v) -> isJust $ (M.lookup k fld)) 
              --c                               (sortOn fst $ M.toList userPredMap)
-          genFn = function "arbitrary"
+          genFn = function "chooseAny"
+          genFn' = function "arbitrary"
           predFilter = op $ mkName "suchThat"
        in reverse $ (concatMap (\(k,v) -> case v of
-           (Left depth) -> [ ( let n = k
-                                   (cTyCon:cTyParams,ptrCon) = partition (\x -> all (/= getConIdentName x) ["Ptr", "IO"]) $ unfoldFFITy hsTy
-                                   name = getConIdentName cTyCon
-               -- if ptr wrap in unsafeLocalState ( new 
-               -- if state feed into constructor and CChar 0
-               -- alt way -> every gen bind associate with Ptr gets usafe+new wrap + Constructor exp
-               -- DONE???: whenever Ptr con is wrapping -> let bind with unsafe+new wrap + con exp, then following do stmt 
-               --      
-               --      so ^^ this block here should be part of making binds
-               --      so top level type gets a bind, then the inhabitants are bound -> any that have pointers must be bound with let
-               --      and prims can be in the do block 
-               --      last return will just return the top level bind
-                                    
-                                   e = fromMaybe (genFn) $ (M.lookup n userPredMap) <&> 
-                                        (\x -> infixApp genFn predFilter x)
-                                 in ( n
-                                      -- No Ptr -> must be prim which can just use arbitrary gen stmt b/c
-                                    , if null ptrCon then genStmt (pvar (mkName n)) e
-                                      -- if Ptr -> must wrap with unsafe/new and then mk constructor and give it args
-                                      else mkPtrStmt name n $ map fst fs) 
-                             , (hsTy, prevGroup) ) ]
+           (Left depth) -> let n = k
+                               (cTyCon:cTyParams,ptrCon) = partition (\x -> all (/= getConIdentName x) ["Ptr", "IO"]) $ unfoldFFITy hsTy
+                               name = getConIdentName cTyCon
+           -- if ptr wrap in unsafeLocalState ( new 
+           -- if state feed into constructor and CChar 0
+           -- alt way -> every gen bind associate with Ptr gets usafe+new wrap + Constructor exp
+           -- DONE???: whenever Ptr con is wrapping -> let bind with unsafe+new wrap + con exp, then following do stmt 
+           --      
+           --      so ^^ this block here should be part of making binds
+           --      so top level type gets a bind, then the inhabitants are bound -> any that have pointers must be bound with let
+           --      and prims can be in the do block 
+           --      last return will just return the top level bind
+                                
+                               e = fromMaybe (genFn) $ (M.lookup n userPredMap) <&> 
+                                    (\x -> infixApp genFn predFilter x)
+                             in if null ptrCon 
+                                -- No Ptr -> must be prim which can just use arbitrary gen stmt b/c
+                                then [ (( n , genStmt (pvar (mkName n)) e), (hsTy, prevGroup))]
+                                -- if Ptr -> must wrap with unsafe/new and then mk constructor and give it args
+                                -- this is a abs type that need to be defined by the user - we just call arbitrary and they
+                                -- need to write the instance and ffi type defn.
+                                else [(( "ic_"++name, genStmt (pvar (mkName ("ic_"++name))) genFn' ), (hsTy, prevGroup))] ++ 
+                                          [ ((n, mkPtrStmt ("ic_"++name) n ) , (hsTy, prevGroup) ) ]
            (Right next) -> mkArbitraryGenStmt' next group userPredMap
        ) fs)
 
 -- Ptr stmt does not contain gen stmts but rather expect them to be done else where (Ptr means
 -- not prim and should contain inhabitants
-mkPtrStmt :: String -> String -> [String] -> Stmt ()
-mkPtrStmt conName bindName args
-                 -- any State constructors are recognised -> use dummy constructor in Util.hs
-                 -- other dummy constructor to expect -> leverage Util file
-    = let e = if | "State" `isInfixOf` conName -> mkPtrCon conName [app (function "CChar") (intE 0)]
-                 | otherwise -> mkPtrCon conName $ map mkVar args
-        in letStmt $ [nameBind (mkName bindName) e]
+mkPtrStmt :: String -> String -> Stmt ()
+mkPtrStmt conName bindName
+    -- want to check conName -> just has to start with C (then we know its a C version of the abstract type)
+    -- then -> make a new bind arbitrary
+    -- do this outside this function -> modifying conName to the new bind
+    = let e = mkPtrCon conName 
+        in genStmt (pvar (mkName (bindName))) e
 
-mkPtrCon :: String -> [Exp ()] -> Exp ()
-mkPtrCon conName argsE
-    = unsafeNewE $ appFun (function conName) argsE
+mkPtrCon :: String -> Exp ()
+mkPtrCon conName = app (function "return") $ unsafeNewE $ (function conName)
 
 unsafeNewE :: Exp () -> Exp ()
 unsafeNewE e = app (function "unsafeLocalState") $ app (function "new") e
+
+                 -- any State constructors are recognised -> use dummy constructor in Util.hs
+                 -- other dummy constructor to expect -> leverage Util file
+    -- if | "State" `isInfixOf` conName -> mkPtrCon conName [app (function "CChar") (intE 0)]
+              {-   | otherwise -> -} 
+        -- TODO: con has args and is not 
 
 
 
@@ -309,31 +316,6 @@ packConWithLayout' layout fieldKey
                --      and prims can be in the do block 
                --      last return will just return the top level bind
 
--- | Replace lens/prisms ((^.)|(^?)) nodes in the Exp AST with vars
--- | that are bound such that the expression is semantically equivalent
--- -----------------------------------------------------------------------
-replaceVarsInUserInfixE :: Exp () -> Int -> M.Map String String -> Exp ()
-replaceVarsInUserInfixE (Paren () e) depth vars = replaceVarsInUserInfixE e depth vars
-replaceVarsInUserInfixE exp depth vars
-    | (InfixApp () lhs op rhs) <- exp 
-    = let opname = getOpStr op
-        in if | any (==opname) ["^.", "^?", ".~"] -> replaceInfixViewE exp depth vars
-              | otherwise -> InfixApp () (replaceVarsInUserInfixE lhs depth vars) op (replaceVarsInUserInfixE rhs depth vars)
-replaceVarsInUserInfixE exp depth vars = exp
-
--- | Actual transform of AST (lens/prisms -> var) occurs here
--- -----------------------------------------------------------------------
-replaceInfixViewE :: Exp () -> Int -> M.Map String String -> Exp ()
-replaceInfixViewE (Paren () e) depth vars = Paren () $ replaceInfixViewE e depth vars
-replaceInfixViewE (InfixApp () lhs op rhs) depth vars 
-    --   ok just to handle rhs because of fixity
-    = replaceInfixViewE rhs (depth+1) vars
-replaceInfixViewE exp depth vars | (Var _ (UnQual _ (Ident _ name))) <- exp
-    -- TODO: how to handle multiple
-    = let ns = filter (\(k,v) -> v == name) $ M.toList vars
-        in if P.length ns == 0 then exp else Var () (UnQual () (Ident () ((P.head ns) ^. _1)))
-replaceInfixViewE exp depth vars = exp
-
 -- | Transform Exp AST by changing @var@ name to just "x" (for anon functions)
 -- -----------------------------------------------------------------------
 replaceWithX :: Exp () -> Int -> String -> Exp ()
@@ -346,86 +328,3 @@ replaceWithX exp depth var | (Var _ (UnQual _ (Ident _ name))) <- exp
     -- TODO: how to handle multiple
     = if (name == var) then Var () (UnQual () (Ident () ("x"))) else exp
 replaceWithX exp depth vars = exp
-
--- | scan user infix expression -> looking for lens/prisms in exp,
--- | and use the structure of the lens/prism to create the unique identifier var
--- | and place it in a map.
--- | We know it will produce the same var as if the type was scanned with 
--- | HsEmbedLayout type. 
--- -----------------------------------------------------------------------
-scanUserInfixE :: Exp () -> Int -> String -> M.Map String String
-scanUserInfixE (Paren () e) depth kid = scanUserInfixViewE e depth kid
-scanUserInfixE exp depth kid
-    | (InfixApp () lhs op rhs) <- exp 
-    = let opname = getOpStr op
-        in if | any (==opname) ["^.", "^?"] -> scanUserInfixViewE exp depth kid
-              | otherwise -> M.union (scanUserInfixE lhs depth kid) (scanUserInfixE rhs depth kid)
-scanUserInfixE exp depth kid =  scanUserInfixViewE exp depth kid
-
-scanUserShortE :: Exp () -> Int -> M.Map String String
-scanUserShortE (Paren () e) depth = scanUserShortE e depth
-scanUserShortE (Var _ (UnQual _ (Ident _ name))) depth 
-    = if ("'" `isInfixOf` (trim name)) then M.singleton (trim name) ([x | x <- (trim name), x `notElem` "'"])
-      else M.empty
-scanUserShortE _ depth = M.empty 
-
-                        {- - ) 
-                         -
-                                                        then 
-                                                        else-}
-
--- | scan (^.|^?) expressions 
--- | want to extract fieldname & depth as this is enought to build the 
--- | fieldname pattern for view binds i.e. name ++ replicate depth $ P.head "'"
--- | in the map, fieldname ++ postfix maps to depth in expression
--- | depth only increases when recursing down RHS
--- -----------------------------------------------------------------------
-scanUserInfixViewE :: Exp () -> Int -> String -> M.Map String String
-scanUserInfixViewE (Paren () e) depth kid = scanUserInfixViewE e depth kid
-scanUserInfixViewE (InfixApp () lhs op rhs) depth kid  
-    = if getOpStr op == "." 
-       then M.union (scanUserInfixViewE lhs (depth) kid ) (scanUserInfixViewE rhs (depth+1) kid )
-       else M.union (scanUserInfixViewE lhs (depth) kid ) (scanUserInfixViewE rhs (depth) kid )
-scanUserInfixViewE exp depth kid | (Var _ (UnQual _ (Ident _ name))) <- exp
-    = if | (any (==trim name ) ["ic","ia","oc","oa"]) -> M.empty
-         | null (scanUserShortE exp 0) -> M.singleton (mkKIdentVarBind kid name (depth+1)) (name)
-         | otherwise -> scanUserShortE exp 0
-scanUserInfixViewE _ depth kid = M.empty
-
--- | Builder for unique var identifier - this pattern is also follow by HsEmbedLayout
--- -----------------------------------------------------------------------
-
--- | Return operator string value
--- -----------------------------------------------------------------------
-getOpStr :: QOp () -> String
-getOpStr (QVarOp _ (UnQual _ (Symbol _ name))) = name
-getOpStr _ = ""
-
-{-
-testScanUserInfix :: IO ()
-testScanUserInfix = do
-    putStrLn $ show $ scanUserInfixE exampleUserInfix''' 0
-    putStrLn $ show $ replaceVarsInUserInfixE exampleUserInfix''' 0 $ (scanUserInfixE exampleUserInfix''' 0 "ic")
-    -}
-
-exampleUserInfix''' = (InfixApp
-                  ()
-                    (InfixApp
-                    ()
-                      (Var
-                      () (UnQual () (Ident () "ia")))
-                      (QVarOp
-                      () (UnQual () (Symbol () "^.")))
-                      (Var
-                      () (UnQual () (Ident () "_1"))))
-                    (QVarOp
-                    () (UnQual () (Ident () "div")))
-                    (InfixApp
-                    ()
-                      (Var
-                      () (UnQual () (Ident () "ia")))
-                      (QVarOp
-                      () (UnQual () (Symbol () "^.")))
-                      (Var
-                      ()
-                        (UnQual () (Ident () "_2")))))

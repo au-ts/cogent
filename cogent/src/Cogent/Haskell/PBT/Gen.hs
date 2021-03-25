@@ -72,19 +72,17 @@ propModule :: (String, String, String)
            -> [CC.Definition TypedExpr VarName b] 
            -> (Module (), Hsc.HscModule) 
            -> Module ()
-propModule (name, shallowName, shallowNameTup) hsffiName hscffiName pbtinfos decls ffimods =
+propModule (name, shallowName, shallowNameTup) hsffiName hscffiName pbtinfos cogentdecls ffimods =
   let (cogDecls, w) = evalRWS (runSG $ do
                                           shallowTypesFromTable
-                                          genDs <- concatMapM (\x -> genDecls x ffimods decls) pbtinfos
-                                          absDs <- concatMapM (\x -> absFDecl x ffimods decls) pbtinfos
-                                          rrelDs <- concatMapM (\x -> rrelDecl x ffimods decls) pbtinfos
-                                          -- genDecls x decls shallowTypesFromTable
-                                          --cs <- concatMapM shallowConst consts
-                                          --ds <- shallowDefinitions decls
+                                          genDs <- concatMapM (\x -> genDecls x ffimods cogentdecls) pbtinfos
+                                          absDs <- concatMapM (\x -> absFDecl x ffimods cogentdecls) pbtinfos
+                                          rrelDs <- concatMapM (\x -> rrelDecl x ffimods cogentdecls) pbtinfos
                                           return $ absDs ++ rrelDs ++ genDs  -- cs ++ ds
                               )
-                              (ReaderGen (st decls) [] True [])
+                              (ReaderGen (st cogentdecls) [] True [])
                               (StateGen 0 M.empty)
+      isImpure = any (==False) $ map (\x -> checkBoolE Pure x) $ map (\x -> x ^. decls) $ pbtinfos
       moduleHead = ModuleHead () (ModuleName () name) Nothing Nothing
       exts = P.map (\s -> LanguagePragma () [Ident () s])
                    [ "DisambiguateRecordFields"
@@ -106,6 +104,11 @@ propModule (name, shallowName, shallowNameTup) hsffiName hscffiName pbtinfos dec
                        P.map importSym ["$", ".", "+", "-", "*", "^", "&&", "||", ">", ">=", "<", "<=", "==", "/="] ++
                        P.map importAbs ["Char", "String", "Int", "Integer", "Show", "Maybe"] ++
                        [IThingAll () $ Ident () "Bool"]
+      import_ffiutil = P.map importVar ["new"]
+      import_ffiunsafe = P.map importVar ["unsafeLocalState"] 
+      import_ffistorable = P.map importVar ["peek"] 
+      import_ffiarray = P.map importVar ["peekArray", "newArray", "pokeArray", "mallocArray"] 
+      import_ffialloc = P.map importVar ["free"]
       imps = [ ImportDecl () (ModuleName () "Test.QuickCheck" ) False False False Nothing Nothing Nothing
              , ImportDecl () (ModuleName () "Test.QuickCheck.Monadic" ) False False False Nothing Nothing Nothing
               -- ImportDecl () (ModuleName () "Prelude") True False False Nothing (Just (ModuleName () "P")) Nothing
@@ -131,7 +134,19 @@ propModule (name, shallowName, shallowNameTup) hsffiName hscffiName pbtinfos dec
              -- , ImportDecl () (ModuleName () "Data.Tuple.Select") True False False Nothing (Just $ ModuleName () "Tup") Nothing
              -- , ImportDecl () (ModuleName () "Data.Tuple.Update") True False False Nothing (Just $ ModuleName () "Tup") Nothing
              , ImportDecl () (ModuleName () "Data.Word") False False False Nothing Nothing (Just $ ImportSpecList () False import_word)
-             ]
+             ] ++ if not isImpure then []
+                  else [ ImportDecl () (ModuleName () "Foreign.Marshal.Utils") False False False Nothing Nothing 
+                            (Just $ ImportSpecList () False import_ffiutil)
+                       ,  ImportDecl () (ModuleName () "Foreign.Marshal.Unsafe") False False False Nothing Nothing 
+                            (Just $ ImportSpecList () False import_ffiunsafe) 
+                       ,  ImportDecl () (ModuleName () "Foreign.Storable") False False False Nothing Nothing 
+                            (Just $ ImportSpecList () False import_ffistorable)
+                       ,  ImportDecl () (ModuleName () "Foreign.Marshal.Array") False False False Nothing Nothing 
+                            (Just $ ImportSpecList () False import_ffiarray)
+                       ,  ImportDecl () (ModuleName () "Foreign.Marshal.Alloc") False False False Nothing Nothing 
+                            (Just $ ImportSpecList () False import_ffialloc)
+                       ,  ImportDecl () (ModuleName () "Foreign.C.Types") False False False Nothing Nothing Nothing
+                       ,  ImportDecl () (ModuleName () "Foreign.Ptr") False False False Nothing Nothing Nothing ] 
             -- TODO: need to have a list of record names
       (ls, cogD) = partition (\x -> case x of
                                       (SpliceDecl _ _) -> True
