@@ -4,15 +4,32 @@
 -Q coq-record-update/src RecordUpdate
 -R coq Checker
 -R input Input
-./coq/Utils/ErrorWithState.v
-./coq/Utils/Instances.v
-./coq/Utils/Fail.v
-./coq/Utils/Tactics.v
+
 ./coq/Cogent.v
+
+./coq/HelixLib/ErrorWithState.v
+./coq/HelixLib/Codegen.v
+./coq/HelixLib/Vellvm_Utils.v
+./coq/HelixLib/IdLemmas.v
+./coq/HelixLib/VariableBinding.v
+./coq/HelixLib/Correctness_Prelude.v
+./coq/HelixLib/StateCounters.v
+./coq/HelixLib/BidBound.v
+./coq/HelixLib/LidBound.v
+
+./coq/Utils/Instances.v
+./coq/Utils/Tactics.v
+
 ./coq/Compiler.v
 ./coq/Types.v
-./coq/Denote.v
-./coq/Corres.v
+./coq/Denotation.v
+./coq/Invariants.v
+./coq/DenotationTheory.v
+./coq/Correctness.v
+
 ./input/LLVM.v
 ./input/Source.v
-./coq/Main.v
+
+./coq/Test.v
+
+-arg "-w '-notation-overridden'"

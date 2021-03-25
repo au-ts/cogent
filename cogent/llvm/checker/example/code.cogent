@@ -1,5 +1,2 @@
-f : U8 -> U8
-f x = x + 1
-
-main : () -> U8
-main _ = f 6
+main : U8 -> U8
+main x = let y = 1 in y

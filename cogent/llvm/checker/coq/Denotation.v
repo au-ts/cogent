@@ -1,12 +1,10 @@
 From Coq Require Import List ZArith String.
 
-From ExtLib Require Import Structures.Monads Structures.Functor Structures.Reducible
-  Data.Map.FMapAList.
-From ITree Require Import ITree Events.State Events.Exception Events.FailFacts Events.StateFacts
-  Interp.TranslateFacts Eq.Eq.
-From Vellvm Require Import Util Utils.Error Utils.NoFailure Utils.PropT.
+From ExtLib Require Import Structures.Monads Structures.Functor Structures.Reducible Data.Map.FMapAList.
+From ITree Require Import ITree Events.State Events.Exception.
+From Vellvm Require Import Util.
 
-From Checker Require Import Cogent Utils.Instances.
+From Checker Require Import Cogent Utils.Instances HelixLib.Correctness_Prelude.
 
 Import Monads.
 Import ListNotations.
@@ -39,7 +37,7 @@ Definition CogentL1 := FailE.
 
 Section Denote.
 
-  Definition option_bind {A T} (x : option A) (f : A -> T) (m : string) : itree CogentL0 T := 
+  Definition option_throw {A T} (x : option A) (f : A -> T) (m : string) : itree CogentL0 T := 
     match x with
     | Some y => ret (f y)
     | None => throw m
@@ -53,10 +51,10 @@ Section Denote.
   
   Definition denote_prim (op : prim_op) (xs : list uval) : itree CogentL0 uval :=
     xs' <- map_monad extract_prim xs ;;
-    option_bind (eval_prim_op op xs') UPrim "op error".
+    option_throw (eval_prim_op op xs') UPrim "op error".
 
-  Definition access_member (fs : list (uval * repr)) (f : nat) : itree CogentL0 uval :=
-    option_bind (nth_error fs f) fst "invalid member access".
+  Definition access_member (fs : list (uval * Cogent.repr)) (f : nat) : itree CogentL0 uval :=
+    option_throw (nth_error fs f) fst "invalid member access".
 
   (* is this built-in somewhere? *)
   Fixpoint list_upd {T} (l : list T) (n : nat) (r : T) : list T :=
@@ -66,7 +64,7 @@ Section Denote.
     | _, _ => l
     end.
 
-  Fixpoint denote_expr (γ : ctx) (e : expr) : itree CogentL0 uval :=
+  Fixpoint denote_expr (γ : ctx) (e : expr) {struct e} : itree CogentL0 uval :=
     (* define some nested functions that are mutually recursive with denote_expr *)
     (* let fix denote_member (γ : ctx) (e : expr) (f : nat) {struct e} : itree CogentL0 (uval * uval) :=
       r <- denote_expr γ e ;;
@@ -82,16 +80,16 @@ Section Denote.
       end ;;
       ret (r, m) in *)
     match e with
-    | BPrim p a b =>
+    | Unit => ret UUnit
+    | Lit l => ret (UPrim l)
+    | LVar i => option_throw (nth_error γ i) id "unknown variable"
+    (* | BPrim p a b =>
         a' <- denote_expr γ a ;;
         b' <- denote_expr γ b ;;
         denote_prim p [a'; b']
-    | Lit l => ret (UPrim l)
-    | Var i => option_bind (nth_error γ i) id "unknown variable"
     | Let a b =>
         a' <- denote_expr γ a ;;
-        denote_expr (a' :: γ) b
-    | Unit => ret UUnit
+        denote_expr (a' :: γ) b *)
     (* | If x t e =>
         x' <- denote_expr γ x ;;
         match x' with
@@ -101,7 +99,7 @@ Section Denote.
     | Cast τ e =>
         e' <- denote_expr γ e ;;
         match e' with
-        | UPrim l => option_bind (cast_to τ l) UPrim "invalid cast"
+        | UPrim l => option_throw (cast_to τ l) UPrim "invalid cast"
         | _ => throw "invalid cast"
         end
     | Struct ts xs =>
@@ -117,13 +115,13 @@ Section Denote.
         (* can we avoid code repetition between this and denote_member? *)
         match x' with
         | URecord fs =>
-            rep <- option_bind (nth_error fs f) snd "invalid member access" ;;
+            rep <- option_throw (nth_error fs f) snd "invalid member access" ;;
             ret (URecord (list_upd fs f (e', rep)))
         | UPtr p r =>
             m <- trigger (LoadMem p) ;;
             match m with
             | Some (URecord fs) =>
-                rep <- option_bind (nth_error fs f) snd "invalid member access" ;;
+                rep <- option_throw (nth_error fs f) snd "invalid member access" ;;
                 trigger (StoreMem p (URecord (list_upd fs f (e', rep)))) ;;
                 ret (UPtr p r)
             | _ => throw "invalid memory access"
@@ -161,8 +159,8 @@ Section Interpretation.
   Definition handle_mem {E} : MemE ~> stateT memory (itree E) :=
     fun _ e σ =>
       match e with
-      | LoadMem a => ret (σ, alist_find _ a σ)
-      | StoreMem a u => ret (alist_add _ a u σ, tt)
+      | LoadMem a => ret (σ, alist_find a σ)
+      | StoreMem a u => ret (alist_add a u σ, tt)
       end.
   
   Definition interp_mem : itree CogentL0 ~> stateT memory (itree CogentL1) :=
@@ -174,10 +172,6 @@ Section Interpretation.
   Definition handle_failure : FailE ~> failT (itree void1) :=
     fun _ '(Throw m) => ret None.
 
-  (* from Helix *)
-  Definition inject_signature {E} : void1 ~> E := fun _ (x : void1 _) => match x with end.
-  Hint Unfold inject_signature : core.
-
   Definition interp_expr {E} (l0 : itree CogentL0 uval) (mem : memory)
                                : failT (itree E) (memory * uval) :=
     let l1 := interp_mem l0 mem in
@@ -186,7 +180,7 @@ Section Interpretation.
 
   Definition interp_cogent {E} (p : program_denotation) (fn : name) (a : uval) (mem : memory) 
                          : failT (itree E) (memory * uval) :=
-    match alist_find _ fn p with
+    match alist_find fn p with
     | Some f => interp_expr (f a) mem
     | None => ret None
     (* | None => ret (inl ("unknown function " ++ fn)) *)
@@ -197,123 +191,3 @@ Section Interpretation.
     interp_cogent (denote_program p) fn a empty_memory.
 
 End Interpretation.
-
-Local Open Scope itree_scope.
-
-Section InterpTheory.
-
-  Lemma interp_mem_Ret :
-    forall T mem x,
-      @interp_mem T (Ret x) mem ≅ Ret (mem, x).
-  Proof.
-    intros T mem x.
-    unfold interp_mem.
-    apply interp_state_ret.
-  Qed.
-
-  Lemma interp_mem_bind :
-    forall T U mem (t : itree CogentL0 T) (k : T -> itree CogentL0 U),
-      interp_mem (ITree.bind t k) mem ≈ 
-        ITree.bind (interp_mem t mem) (fun '(mem', v) => interp_mem (k v) mem').
-  Proof.
-    intros; unfold interp_mem.
-    rewrite interp_state_bind.
-    apply eutt_eq_bind; intros []; reflexivity.
-  Qed.
-
-  Lemma interp_Mem_vis_eqit :
-    forall T R mem (e : CogentL0 T) (k : T -> itree CogentL0 R),
-      interp_mem (vis e k) mem ≅ ITree.bind ((case_ handle_mem pure_state) T e mem) (fun sx => Tau (interp_mem (k (snd sx)) (fst sx))).
-  Proof.
-    intros T R mem e k.
-    unfold interp_mem.
-    apply interp_state_vis.
-  Qed.
-
-  Lemma interp_expr_Ret :
-    forall E mem x,
-      @interp_expr E (Ret x) mem ≅ Ret (Some (mem, x)).
-  Proof.
-    intros.
-    unfold interp_expr.
-    rewrite interp_mem_Ret, interp_fail_Ret, translate_ret.
-    reflexivity.
-  Qed.
-
-  Lemma interp_expr_bind :
-    forall E mem (t : itree CogentL0 uval) (k : uval -> itree CogentL0 uval),
-      @interp_expr E (ITree.bind t k) mem ≈ 
-        ITree.bind (interp_expr t mem) (fun mx => 
-          match mx with 
-          (* | (a, b) => Ret None *)
-          | None => Ret None
-          | Some x => 
-              let '(mem',v) := x in 
-                interp_expr (k v) mem'
-          end).
-  Proof.
-    intros; unfold interp_expr.
-    rewrite interp_mem_bind, interp_fail_bind, translate_bind.
-    eapply eutt_eq_bind; intros [[]|]; cbn.
-    reflexivity.
-    rewrite translate_ret; reflexivity.
-  Qed.
-
-End InterpTheory.
-
-Section NoFailure.
-
-  Lemma no_failure_expr_Ret : forall E x m,
-    no_failure (interp_expr (E := E) (Ret x) m).
-  Proof.
-    intros.
-    rewrite interp_expr_Ret. apply eutt_Ret; intros abs; inv abs.
-  Qed.
-
-  Lemma failure_expr_throw : forall E s m,
-    ~ no_failure (interp_expr (E := E) (throw s) m).
-  Proof.
-    intros * abs.
-    unfold Exception.throw in *.
-    unfold interp_expr in *.
-    setoid_rewrite interp_Mem_vis_eqit in abs.
-    unfold pure_state in *; cbn in *.
-    rewrite interp_fail_bind in abs.
-    rewrite interp_fail_vis in abs.
-    cbn in *.
-    rewrite Eq.bind_bind, !bind_ret_l in abs.
-    rewrite translate_ret in abs.
-    eapply eutt_Ret in abs.
-    apply abs; auto.
-  Qed.
-
-  Lemma failure_expr_throw' : forall E s (k : uval -> _) m,
-    ~ no_failure (interp_expr (E := E) (ITree.bind (throw s) k) m).
-  Proof.
-    intros * abs.
-    rewrite interp_expr_bind in abs.
-    eapply no_failure_bind_prefix, failure_expr_throw in abs; auto.
-  Qed.
-
-  Lemma no_failure_expr_bind_prefix : forall {E} (t : itree _ uval) (k : uval -> itree _ uval) m,
-    no_failure (interp_expr (E := E) (ITree.bind t k) m) ->
-    no_failure (interp_expr (E := E) t m).
-  Proof.
-    intros * NOFAIL.
-    rewrite interp_expr_bind in NOFAIL.
-    eapply no_failure_bind_prefix; eapply NOFAIL.
-  Qed.
-  
-  Lemma no_failure_expr_bind_continuation :
-    forall {E} (t : itree _ uval) (k : uval -> itree _ uval) m,
-      no_failure (interp_expr (E := E) (ITree.bind t k) m) ->
-      forall u m', Returns (E := E) (Some (m',u)) (interp_expr t m) -> 
-        no_failure (interp_expr (E := E) (k u) m').
-  Proof.
-    intros * NOFAIL * ISRET.
-    rewrite interp_expr_bind in NOFAIL.
-    eapply no_failure_bind_cont in NOFAIL; eauto.
-    apply NOFAIL.
-  Qed.
-
-End NoFailure.

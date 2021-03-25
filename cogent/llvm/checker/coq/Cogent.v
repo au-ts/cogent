@@ -82,26 +82,29 @@ Section Syntax.
   (* NOTE: not represented as n-bit words *)
 
   Inductive expr : Type :=
-    | Var (i : index)
-    (* | Fun (n : name) (ft : type) *)
-    | BPrim (op : prim_op) (a b : expr)
-    (* | App (f : expr) (a : expr) *)
-    (* | Struct (ts : list type) (es : list expr) *)
-    (* | Member (e : expr) (f : field) *)
     | Unit
     | Lit (l : lit)
-    (* | Cast (t : num_type) (e : expr) *)
-    (* | Put (e : expr) (f : field) (v : expr) *)
-    | Let (e : expr) (b : expr)
-    (* | If (c : expr) (b1 : expr) (b2 : expr) *)
-    (* | Take (e : expr) (f : field) (b : expr) *)
-    (* | LetBang (is : set index) (e : expr) (b : expr) *)
     (* | SLit (s : string) *)
-    (* | AFun (funtyp : 'f)  (ts : list type) *)
-    (* | Case (e : expr) (n : name) (b1 : expr) (b2 : expr) *)
+    | LVar (i : index)
+    (* | Let (e : expr) (b : expr) *)
+    (* | LetBang (is : set index) (e : expr) (b : expr) *)
+    (* | BPrim (op : prim_op) (a b : expr) *)
+    (* | If (c : expr) (b1 : expr) (b2 : expr) *)
+    (* | Cast (t : num_type) (e : expr) *)
+
+    (* | Struct (ts : list type) (es : list expr) *)
+    (* | Member (e : expr) (f : field) *)
+    (* | Take (e : expr) (f : field) (b : expr) *)
+    (* | Put (e : expr) (f : field) (v : expr) *)
+
     (* | Con (ts : list (name * type * variant_state)) (n : name) (e : expr) *)
-    (* | Esac (e : expr) (n : name) *)
     (* | Promote (t : type) (e : expr) *)
+    (* | Esac (e : expr) (n : name) *)
+    (* | Case (e : expr) (n : name) (b1 : expr) (b2 : expr) *)
+  
+    (* | Fun (n : name) (ft : type) *)
+    (* | App (f : expr) (a : expr) *)
+    (* | AFun (funtyp : 'f)  (ts : list type) *)
     .
 
   Variant def : Type :=

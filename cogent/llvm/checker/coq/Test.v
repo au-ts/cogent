@@ -3,7 +3,7 @@ From Coq Require Import List String ZArith.
 From ITree Require Import ITree. 
 From Vellvm Require Import LLVMAst.
 
-From Checker Require Import Cogent Compiler Denote.
+From Checker Require Import Cogent Compiler Denotation.
 From Input Require Import LLVM Source.
 
 Import ListNotations.

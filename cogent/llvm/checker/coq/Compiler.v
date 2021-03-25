@@ -4,7 +4,7 @@ From ExtLib Require Import Structures.Monads Structures.Functor Structures.Reduc
 From RecordUpdate Require Import RecordSet.
 From Vellvm Require Import LLVMAst Util Utils.Error.
 
-From Checker Require Import Cogent Types Utils.ErrorWithState Utils.Instances.
+From Checker Require Import HelixLib.Codegen HelixLib.ErrorWithState Cogent Types Utils.Instances.
 
 Import ListNotations.
 Import RecordSetNotations.
@@ -15,52 +15,8 @@ Local Open Scope monad_scope.
 Section Compiler.
 
   Definition im : Type := texp typ.
-  Definition fragment : Type := im * code typ.
 
-  Record CodegenState : Type := mk_state {
-    fresh_void : Z
-  ; fresh_local : Z
-  ; vars : list im
-  }.
-
-  Global Instance etaCodegenState : Settable _ := settable! mk_state <
-    fresh_void
-  ; fresh_local
-  ; vars
-  >.
-
-  Definition start_state (t : typ) : CodegenState := {|
-    fresh_void := 0
-  ; fresh_local := 0
-  ; vars  := [(t, EXP_Ident (ID_Local (Name "a0")))]
-  |}.
-
-  Definition cerr := errS CodegenState.
-
-  Definition local : cerr raw_id := 
-    s <- get ;;
-    put (s <|fresh_local := fresh_local s + 1|>) ;;
-    ret (Anon (fresh_local s)).
-
-  (* Definition instr (t : typ) (i : instr typ) : cerr im :=
-    s <- get ;;
-    let n := fresh_local s in
-      put (
-        update_block (
-          fun x => x <|blk_code := blk_code x ++ [(IId (Anon n), i)]|>
-        ) s <|fresh_local := n + 1|>
-      ) ;;
-      ret (t, EXP_Ident (ID_Local (Anon n))). *)
-
-  Definition set_vars (vs : list im) : cerr unit :=
-    s <- get ;;
-    put (s <|vars := vs|>).
-  
-  Definition get_var (n : nat) : cerr im :=
-    s <- get ;;
-    option2errS "unknown variable" (nth_error (vars s) n).
-
-  Definition int_n (sz : N) (n : int) : texp typ := (TYPE_I sz, EXP_Integer n).
+  Definition int_n (sz : N) (n : int) : im := (TYPE_I sz, EXP_Integer n).
   Definition int1  := int_n 1.
   Definition int8  := int_n 8.
   Definition int32 := int_n 32.
@@ -97,7 +53,7 @@ Section Compiler.
     | TUnit => TYPE_I 8
     end.
 
-  Fixpoint compile_expr (e : expr) : cerr fragment :=
+  Fixpoint compile_expr (e : expr) (nextblock: block_id) : cerr segment :=
     (* define some nested functions that are mutually recursive with compile_expr *)
     (* let fix load_member e f : cerr (CodegenValue * CodegenValue) :=
       e' <- compile_expr e ;;
@@ -111,23 +67,23 @@ Section Compiler.
       end ;;
       ret (e', f') in *)
     match e with
-    | BPrim op a b =>
+    | Unit => ret (int8 0, nextblock, [])
+    | Lit l => ret (compile_lit l, nextblock, [])
+    | LVar i =>
+        v <- getStateVar "unknown variable" i ;;
+        ret (v, nextblock, [])
+    (* | Let e b =>
+        '(e_res, e_code) <- compile_expr e ;;
+        s <- get ;;
+        setVars s (e_res :: Γ s) ;;
+        '(b_res, b_code) <- compile_expr b ;;
+        ret (b_res, e_code ++ b_code) *)
+    (* | BPrim op a b =>
         let (op', rt) := compile_prim_op op in
         '((_, a_val), a_code) <- compile_expr a ;;
         '((_, b_val), b_code) <- compile_expr b ;;
         r_id <- local ;;
-        ret ((rt, EXP_Ident (ID_Local (r_id))), a_code ++ b_code ++ [(IId r_id, INSTR_Op (op' a_val b_val))])
-    | Lit l => ret (compile_lit l, [])
-    | Var i =>
-        v <- get_var i ;;
-        ret (v, [])
-    | Let e b =>
-        '(e_res, e_code) <- compile_expr e ;;
-        s <- get ;;
-        set_vars (e_res :: vars s) ;;
-        '(b_res, b_code) <- compile_expr b ;;
-        ret (b_res, e_code ++ b_code)
-    | Unit => ret (int8 0, [])
+        ret ((rt, EXP_Ident (ID_Local (r_id))), a_code ++ b_code ++ [(IId r_id, INSTR_Op (op' a_val b_val))]) *)
     (* | If c t e =>
         c' <- compile_expr c ;;
         '(br_true, br_false, br_exit) <- branch_blocks ;;
@@ -180,14 +136,16 @@ Section Compiler.
     execErrS (v <- compile_expr p ;; term (TERM_Ret v)) (start_state (compile_type t)). *)
 
   Definition compile_fun n t rt b : cerr (definition typ (block typ * list (block typ))) :=
-    '(res, body) <- compile_expr b ;;
-    let entry : block typ := {|
-      blk_id := Anon 0
+    rid <- incBlockNamed "Return" ;;
+    '(res, _, body) <- compile_expr b rid ;;
+    let retblock := {|
+      blk_id := rid
     ; blk_phis := []
-    ; blk_code := body
+    ; blk_code := []
     ; blk_term := TERM_Ret res
     ; blk_comments := None
     |} in
+    body' <- body_non_empty_cast (body ++ [retblock]) ;;
     ret {|
       df_prototype := {|
         dc_name := Name n
@@ -201,13 +159,13 @@ Section Compiler.
       ; dc_section := None
       ; dc_align := None
       ; dc_gc := None|}
-    ; df_args := [(Name "a0")]
-    ; df_instrs := (entry, [])
+    ; df_args := [Name "a0"]
+    ; df_instrs := body'
     |}.
 
   Definition compile_def (d : def) : err (toplevel_entity typ (block typ * list (block typ))) :=
     match d with
-    | FunDef n t rt b => evalErrS (TLE_Definition <$> compile_fun n t rt b) (start_state (compile_type t))
+    | FunDef n t rt b => evalErrS (TLE_Definition <$> compile_fun n t rt b) (newState (compile_type t, EXP_Ident (ID_Local (Name "a0"))))
     end.
 
   Definition compile_cogent : cogent_prog -> err (toplevel_entities typ (block typ * list (block typ))) :=
