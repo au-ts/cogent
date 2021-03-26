@@ -13,9 +13,10 @@ module Cogent.Haskell.PBT.Builders.Welf (
     genDecls
 ) where
 
-import Cogent.Haskell.PBT.Builders.Absf
-import Cogent.Haskell.PBT.Builders.Rrel
+import Cogent.Haskell.PBT.Util
+import Cogent.Haskell.PBT.DSL.Types
 
+import Cogent.Haskell.Shallow (SG(..), mkName, mkQName, shallowType, typarUpd )
 import Cogent.Isabelle.ShallowTable (TypeStr(..), st)
 import qualified Cogent.Core as CC
 import Cogent.Core (TypedExpr(..))
@@ -25,17 +26,15 @@ import Cogent.Haskell.HscGen
 import Cogent.Util ( concatMapM, Stage(..), delimiter, secondM, toHsTypeName, concatMapM, (<<+=) )
 import Cogent.Compiler (__impossible)
 import qualified Cogent.Haskell.HscSyntax as Hsc
-import qualified Data.Map as M
+
 import Language.Haskell.Exts.Build
 import Language.Haskell.Exts.Pretty
 import Language.Haskell.Exts.Syntax as HS
 import Language.Haskell.Exts.SrcLoc
 import Text.PrettyPrint
-import Debug.Trace
-import Cogent.Haskell.PBT.DSL.Types
-import Cogent.Haskell.PBT.Util
-import Cogent.Haskell.Shallow as SH
+
 import Prelude as P
+import qualified Data.Map as M
 import Data.Tuple
 import Data.Function
 import Data.Maybe
@@ -50,7 +49,8 @@ import Lens.Micro.TH
 import Lens.Micro.Mtl
 import Control.Monad.RWS hiding (Product, Sum, mapM)
 import Data.Vec as Vec hiding (sym)
-import Cogent.Isabelle.Shallow (isRecTuple)
+
+import Debug.Trace
 
 -- | top level builder for gen_* :: Gen function 
 -- -----------------------------------------------------------------------
@@ -103,7 +103,7 @@ mkGenFBody :: CC.Type t a
 mkGenFBody cogIcTyp icTyp userGenExps ffimods = 
     let icLayout = determineUnpack cogIcTyp icTyp Unknown 0 "1"
         icCTyLy = ffimods <&>
-               (\x -> let (n, ti, to) = findHsFFIFunc (x ^. _2) (x ^. _1) 
+               (\x -> let (_, ti, _) = findHsFFIFunc (x ^. _2) (x ^. _1) 
                         in determineUnpackFFI icLayout "ic" "None" ti (x ^. _3) )
         userPred = fromMaybe M.empty $ (M.lookup Pred userGenExps) <&> 
                    (\es-> M.unions $ map (\(lhs',rhs) -> case lhs' of 

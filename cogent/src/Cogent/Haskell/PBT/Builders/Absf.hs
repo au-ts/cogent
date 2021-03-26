@@ -50,7 +50,6 @@ import Lens.Micro.TH
 import Lens.Micro.Mtl
 import Control.Monad.RWS hiding (Product, Sum, mapM)
 import Data.Vec as Vec hiding (sym)
-import Cogent.Isabelle.Shallow (isRecTuple)
 
 -- | Top level Builder for Abstraction Function
 -- -----------------------------------------------------------------------
@@ -65,7 +64,6 @@ absFDecl stmt (ffiDefs, ffiTypes) defs = do
                                     (findKIdentTyExp Spec Ia $ stmt ^. decls) ^. _1
         (icT, _, absE, conNames) <- mkAbsFExp (stmt ^. funcname) iaT defs iaExp $ 
                 if isPure then Nothing else Just $ (stmt ^. funcname, ffiDefs, ffiTypes)
-            -- TODO: replace icT with C types if not pure
         let ti     = if isPure then icT 
                      else (findHsFFIFunc ffiDefs (stmt ^. funcname)) ^. _2
             to     = if isPure then iaT
@@ -74,12 +72,6 @@ absFDecl stmt (ffiDefs, ffiTypes) defs = do
             dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "ic"] (UnGuardedRhs () absE) Nothing]
         return $ map mkLens (takeWhile (`notElem` hsSumTypes) conNames)++[sig, dec]
 
-mkLens :: String -> Decl ()
-mkLens t
-    = let fname = if | any (==P.head t) ['R', 'C'] -> "makeLenses"
-                     | P.head t == 'V' -> "makePrisms"
-                     | otherwise -> "undefined"
-       in SpliceDecl () $ app (function fname) (TypQuote () (UnQual () (mkName t)))
 
 -- | Builder for abstraction function body expression, also returns function input/output type
 -- -----------------------------------------------------------------------
@@ -100,7 +92,7 @@ mkAbsFExp fname iaTyp defs userE ffimods = do
 mkAbsFExp' :: CC.Definition TypedExpr VarName b 
            -> Type () 
            -> Maybe (Exp ()) 
-          -> Maybe (String, Module (), Hsc.HscModule)
+           -> Maybe (String, Module (), Hsc.HscModule)
            -> SG (Type (), Type (), Exp (), [String])
 mkAbsFExp' def iaT userE ffimods | (CC.FunDef _ fn ps _ ti to _) <- def
     = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
@@ -131,7 +123,7 @@ mkAbsFBody cogIcTyp icTyp iaTyp userIaExp ffimods
     = let icLayout =  determineUnpack cogIcTyp icTyp Unknown 0 "1"
           ic = if isNothing ffimods then "ic" else "ic"
           icCTyLy = ffimods <&>
-               (\x -> let (n, ti, to) = findHsFFIFunc (x ^. _2) (x ^. _1) 
+               (\x -> let (_, ti, _) = findHsFFIFunc (x ^. _2) (x ^. _1) 
                         in determineUnpackFFI icLayout ic "None" ti (x ^. _3) )
           lens = map fst $ fromMaybe (mkLensView icLayout ic Unknown Nothing) $ 
                                 icCTyLy <&> (\x -> mkLensView' x "ic" Unknown Nothing)
@@ -187,44 +179,6 @@ packAbsCon (TyList _ ty) varsToPut pos = mkVar $ varsToPut!!pos
 packAbsCon iaTyp varsToPut prev | _ <- iaTyp = __impossible $ "Bad Abstraction"++" --> "++"Hs: "++show iaTyp
 
 
--- | Builder for the lens view expression that extracts the fields from complex types
--- -----------------------------------------------------------------------
--- | @layout@ is a tree like structure containing info about the layout of fields in a constructor
--- | @varToView@ is the var that the view transform is being applied to
--- | @prevGroup@ is the previous kind of type, which is essentially what type are we in right now in the recursion
--- | @prev@ previous expression, which is the tail rec var being built up
-mkLensView :: HsEmbedLayout -> String -> GroupTag -> Maybe (Exp ()) -> [((String, Exp ()), (Type (), GroupTag))]
-mkLensView layout varToView prevGroup prev
-    = let hsTy = layout ^. hsTyp
-          group =  layout ^. grTag
-          fld = layout ^. fieldMap
-          -- field map is a tree with int leaves -> only build vars for leaves
-       in concatMap ( \(k, v) -> case v of
-           (Left depth) -> [ ( ( mkKIdentVarBind (varToView) k depth
-                               , fromMaybe (mkVar varToView) prev & (mkFromIntegral hsTy prevGroup) )
-                             , (hsTy, prevGroup) )
-                           ]
-           (Right next) -> mkLensView next varToView group $ Just $ mkViewInfixE varToView group prev k
-       ) $ M.toList $ fld
-
-mkLensView' :: HsFFILayout -> String -> GroupTag -> Maybe (Exp ()) -> [((String, Exp ()), (Type (), GroupTag))]
-mkLensView' layout varToView prevGroup prev
-    = let hsTy = layout ^. cTyp
-          group =  layout ^. groupTag
-          fld = layout ^. cFieldMap
-       in concatMap ( \(k, v) 
-            -> let n = k
-                   (cTyCon:cTyParams,ptrCon) = partition (\x -> all (/= getConIdentName x) ["Ptr", "IO"]) $ unfoldFFITy hsTy
-                   name = getConIdentName cTyCon
-                   vv = if null ptrCon then varToView else mkKIdentVarBind varToView name 0
-                 in case v of
-           (Left depth) -> let e = fromMaybe (mkVar vv) prev 
-                             in [ ( ( n
-                                    , e & (mkFromIntegral hsTy prevGroup) ) 
-                                  , (hsTy, prevGroup) ) ]
-           (Right next) -> mkLensView' next varToView group $ Just $ mkViewInfixE vv group prev k
-       ) $ M.toList $ fld
-
 mkPeekStmts :: HsFFILayout -> String -> Maybe String -> [(String, Stmt ())]
 mkPeekStmts layout varToView prevConName
     = let hsTy = layout ^. cTyp
@@ -249,48 +203,9 @@ mkPeekCon :: String -> Exp ()
 mkPeekCon s = app (function "peek") $ function s
 
         
--- | Builder the actual lens view infix expression 
--- -----------------------------------------------------------------------
--- | @varToView@ is the var that the view transform is being applied to
--- | @tag@ is the kind of type the view is being built for
--- | @prev@ previous expression, which is the tail rec var being built up
--- | @accessor@ the actual variable we want to view 
--- ----------------------------------------------------------------------------------------------------
-mkViewInfixE :: String -> GroupTag -> Maybe (Exp ()) -> String -> Exp ()
-mkViewInfixE varToView tag prev accessor
-    = let viewE = case tag of
-                    HsVariant -> mkOp "^?"
-                    HsCollection -> mkOp "^.."
-                    HsList -> mkOp "^.."
-                    _ -> mkOp "^."
-        in case prev of
-             Just x -> let (op, x') = case tag of 
-                                HsCollection -> ("^..", paren x)
-                                HsList -> ("^..",  paren x)
-                                _ -> (".", x)
-                        in infixApp x' (mkOp op) $ mkVar accessor
-             Nothing -> trace (show tag ) $ infixApp (mkVar varToView) viewE $ mkVar accessor
-
 mkFromIntE :: Type () -> Exp () -> Exp ()
 mkFromIntE ty prev =
     if isFromIntegral ty then infixApp prev (mkOp "$") (function "fromIntegral") else prev
-
-mkFromIntegral :: Type () -> GroupTag -> Exp () -> Exp ()
-mkFromIntegral ty group prev =
-    if isFromIntegral ty 
-    then infixApp prev (mkRevAppOp group) (function "fromIntegral") 
-    else prev
-    where mkRevAppOp x = case x of 
-                        HsVariant -> mkOp "<&>"
-                        _ -> mkOp "&"
-
-mkVar :: String -> Exp ()
-mkVar = var . mkName
-
-mkOp :: String -> QOp ()
-mkOp = op . mkName
-
-
 
 isInt' :: QName () -> Bool
 isInt' (UnQual _ (Ident _ n)) = checkTy n intPrims
@@ -306,68 +221,8 @@ boolResult :: Type () -> Bool
 boolResult (TyCon _ (UnQual _ (Ident _ n))) = read n
 boolResult _ = False
 
-isFromIntegral :: Type () -> Bool
-isFromIntegral (TyCon _ (UnQual _ (Ident _ n)))
-    = n `elem` ["Word8","Word16","Word32","Word64"]
-isFromIntegral _ = False
-
---isFromIntegral' :: [Type ()] -> Bool
---isFromIntegral' ts = foldl isFromIntegral ts
-
 checkTy :: String -> [String] -> Bool
 checkTy n xs = n `elem` xs
 
 rmdups :: (Ord a) => [a] -> [a]
 rmdups = map P.head . group . sort
-
-getConNames :: HsEmbedLayout -> [String] -> [String]
-getConNames tyL acc
-    = let hsTy = tyL ^. hsTyp
-          ty = tyL ^. grTag
-          fld = tyL ^. fieldMap
-        in concatMap (\(_,f) -> case f of
-            Left _ -> acc
-            Right next -> case ty of
-                               HsPrim -> acc
-                               HsRecord -> getConNames next acc++conNames hsTy
-                               HsVariant -> getConNames next acc++conNames hsTy
-                               _ -> getConNames next acc
-                where conNames hsTy = let (c:cs) = unfoldAppCon hsTy
-                                        in case c of
-                                             (TyCon _ (UnQual _ (Ident _ n))) -> [n]
-                                             _ -> []
-        ) $ M.toList fld
-
-getConNames' :: HsFFILayout -> [String] -> [String]
-getConNames' tyL acc
-    = let hsTy = tyL ^. cTyp
-          ty = tyL ^. groupTag
-          fld = tyL ^. cFieldMap
-        in concatMap (\(k,v)
-            -> let n = k
-                   (cTyCon:cTyParams,ptrCon) = partition (\x -> all (/= getConIdentName x) ["Ptr", "IO"]) $ unfoldFFITy hsTy
-                   name = getConIdentName cTyCon
-                 in case v of
-            Left _ -> acc
-            Right next -> getConNames' next $ acc ++ if null ptrCon then [] else [name]
-        ) $ M.toList fld
-
-{-
-getAllTypeNames :: HsEmbedLayout -> [(String,String)] -> [(String, String)]
-getAllTypeNames tyL acc
-    = let hsTy = tyL ^. hsTyp
-          ty = tyL ^. grTag
-          fld = tyL ^. fieldMap
-        in concatMap (\(k,f) -> case f of
-            Left _ -> acc
-            Right next -> case ty of
-                               HsPrim -> acc++tyName hsTy
-                               HsRecord -> getAllTypeNames next acc++tyName hsTy
-                               HsVariant -> getAllTypeNames next acc++tyName hsTy
-                               _ -> getAllTypeNames next acc
-                where tyName hsTy = map (\x -> case x of
-                                                 (TyCon _ (UnQual _ (Ident _ n))) -> [(k,n)]
-                                                 _ -> []
-                                                 ) P.tail $ unfoldAppCon hsTy
-        ) $ M.toList fld
-        -}

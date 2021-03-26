@@ -1,6 +1,6 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE DataKinds #-}
-
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE PatternGuards #-}
 
 
@@ -13,7 +13,8 @@ module Cogent.Haskell.PBT.Builders.Rrel (
   , determineUnpack'
 ) where
 
-import Cogent.Haskell.PBT.Builders.Absf
+import Cogent.Haskell.PBT.DSL.Types
+import Cogent.Haskell.PBT.Util
 
 import Cogent.Isabelle.ShallowTable (TypeStr(..), st)
 import qualified Cogent.Core as CC
@@ -24,22 +25,21 @@ import Cogent.Haskell.HscGen
 import Cogent.Util ( concatMapM, Stage(..), delimiter, secondM, toHsTypeName, concatMapM, (<<+=) )
 import Cogent.Compiler (__impossible)
 import qualified Cogent.Haskell.HscSyntax as Hsc
-import qualified Data.Map as M
+
 import Language.Haskell.Exts.Build
 import Language.Haskell.Exts.Pretty
 import Language.Haskell.Exts.Syntax as HS
 import Language.Haskell.Exts.SrcLoc
 import Text.PrettyPrint
 import Debug.Trace
-import Cogent.Haskell.PBT.DSL.Types
-import Cogent.Haskell.PBT.Util
 import Cogent.Haskell.Shallow as SH
 import Prelude as P
+import qualified Data.Map as M
 import Data.Tuple
 import Data.Function
 import Data.Maybe
 import Data.Either
-import Data.List (find, partition, group, sort)
+import Data.List (find, partition, group, sort, sortOn, isInfixOf)
 import Data.Generics.Schemes (everything)
 import Control.Arrow (second, (***), (&&&))
 import Control.Applicative
@@ -48,7 +48,6 @@ import Lens.Micro.TH
 import Lens.Micro.Mtl
 import Control.Monad.RWS hiding (Product, Sum, mapM)
 import Data.Vec as Vec hiding (sym)
-import Cogent.Isabelle.Shallow (isRecTuple)
 
 
 -- | Top level Builder for Refinement Relation
@@ -63,12 +62,13 @@ rrelDecl stmt (ffiDefs, ffiTypes) defs = do
                       Nothing -> fromMaybe (__impossible "no oa type given in PBT file") $ 
                                     (findKIdentTyExp Spec Oa $ stmt ^. decls) ^. _1
             (_, userE) = findKIdentTyExp Rrel Pred $ stmt ^. decls
-        (ocT, _, rrelE, conNames) <- mkRrelExp (stmt ^. funcname) oaT defs userE 
-            -- TODO: Pass this down
-            -- $ if isPure then Nothing else Just $ (ffiDefs, ffiTypes)
-        let to     = mkTyConT $ mkName "Bool"
-            -- TODO: replace oc with C types if not pure
-            ti     = TyFun () oaT $ TyFun () ocT to
+        (ocT, _, rrelE, conNames) <- mkRrelExp (stmt ^. funcname) oaT defs userE $
+                if isPure then Nothing else Just $ (stmt ^. funcname, ffiDefs, ffiTypes)
+        let to     = if isPure then mkTyConT . mkName $ "Bool"
+                     else TyApp () (mkTyConT . mkName $ "IO") $ mkTyConT . mkName $ "Bool"
+            ti     = TyFun () oaT $ TyFun ()
+                       ( if isPure then ocT
+                         else (findHsFFIFunc ffiDefs (stmt ^. funcname)) ^. _3 ) to
             sig    = TypeSig () [mkName fnName] ti
             dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "oa", pvar $ mkName "oc"] (UnGuardedRhs () rrelE) Nothing]
         return $ map mkLens (takeWhile (`notElem` hsSumTypes) conNames)++[sig, dec]
@@ -79,23 +79,28 @@ mkRrelExp :: String
           -> Type () 
           -> [CC.Definition TypedExpr VarName b] 
           -> Maybe (Exp ()) 
+          -> Maybe (String, Module (), Hsc.HscModule)
           -> SG (Type (), Type (), Exp (), [String])
-mkRrelExp fname oaTyp defs userE = do
+mkRrelExp fname oaTyp defs userE ffimods = do
     let def = fromJust $ find (\x -> CC.getDefinitionId x == fname) defs
-    (ocT, oaT, rrelE, conNames) <- mkRrelExp' def oaTyp userE
+    (ocT, oaT, rrelE, conNames) <- mkRrelExp' def oaTyp userE ffimods
     pure (ocT, oaT, rrelE, conNames)
 
-mkRrelExp' :: CC.Definition TypedExpr VarName b -> Type () -> Maybe (Exp ()) -> SG (Type (), Type (), Exp (), [String])
-mkRrelExp' def oaT userE | (CC.FunDef _ fn ps _ ti to _) <- def
+mkRrelExp' :: CC.Definition TypedExpr VarName b 
+           -> Type () 
+           -> Maybe (Exp ()) 
+           -> Maybe (String, Module (), Hsc.HscModule)
+           -> SG (Type (), Type (), Exp (), [String])
+mkRrelExp' def oaT userE ffimods | (CC.FunDef _ fn ps _ ti to _) <- def
     = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
         to' <- shallowType to
-        (rrel, conNames) <- mkRrelBody to to' oaT userE
+        (rrel, conNames) <- mkRrelBody to to' oaT userE ffimods
         pure (to', oaT, rrel, conNames)
-mkRrelExp' def oaT userE | (CC.AbsDecl _ fn ps _ ti to) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
+mkRrelExp' def oaT userE ffimods | (CC.AbsDecl _ fn ps _ ti to) <- def = local (typarUpd (map fst $ Vec.cvtToList ps)) $ do
     to' <- shallowType to
-    (absE, conNames) <- mkRrelBody to to' oaT userE
+    (absE, conNames) <- mkRrelBody to to' oaT userE ffimods
     pure ( to', oaT, absE, conNames)
-mkRrelExp' def oaT _ | (CC.TypeDef tn _ _) <- def
+mkRrelExp' def oaT _ _ | (CC.TypeDef tn _ _) <- def
     = pure (TyCon () (mkQName "Unknown"), oaT, function "undefined", [])
 
 -- | Builder for refinement relation body. For pointwise equality (default), builds a 
@@ -105,20 +110,39 @@ mkRrelExp' def oaT _ | (CC.TypeDef tn _ _) <- def
 -- | @cogOcTyp@ is the cogent type of the concrete output
 -- | @ocTyp@ is the Haskell type of the concrete output
 -- | @oaTyp@ is the Haskell type of the abstract output
-mkRrelBody :: CC.Type t a -> Type () -> Type () -> Maybe (Exp ()) -> SG (Exp (), [String])
-mkRrelBody cogOcTyp ocTyp oaTyp userE
+mkRrelBody :: CC.Type t a 
+           -> Type () 
+           -> Type () 
+           -> Maybe (Exp ()) 
+           -> Maybe (String, Module (), Hsc.HscModule)
+           -> SG (Exp (), [String])
+mkRrelBody cogOcTyp ocTyp oaTyp userE ffimods
     = let ocLy = determineUnpack cogOcTyp ocTyp Unknown 0 "1"
+          ocCTyLy = ffimods <&>
+               (\x -> let (_, _, to) = findHsFFIFunc (x ^. _2) (x ^. _1) 
+                        in determineUnpackFFI ocLy "ic" "None" to (x ^. _3) )
           oaLy = determineUnpack' oaTyp Unknown 0 "1"
-          ocLens' = trace (show ocLy) $ mkLensView ocLy "oc" Unknown Nothing
-          oaLens' = trace (show oaLy) $ mkLensView oaLy "oa" Unknown Nothing
+          -- DONT need this b/c oa is abstract (no ptrs)
+          {- 
+          oaCTyLy = ffimods <&>
+               (\x -> let (n, ti, to) = findHsFFIFunc (x ^. _2) (x ^. _1) 
+                        in determineUnpackFFI oaLy "oa" "None" ti (x ^. _3) )
+          -}
+          ocLens' = trace (show ocLy++" "++show oaLy) $ mkLensView ocLy "oc" Unknown Nothing
+          oaLens' = trace ("here: "++show ocCTyLy) $ mkLensView oaLy "oa" Unknown Nothing
           ocLens = map fst ocLens'
           oaLens = map fst oaLens'
           ls = oaLens ++ ocLens
           cNames = getConNames ocLy [] ++ getConNames oaLy []
           binds = map ((\x -> pvar . mkName . fst $ x) &&& snd) ls
           tys = map snd ocLens'
-          ocVars = map fst ocLens
-          oaVars = map fst oaLens
+          -- sort to ensure vars bound to success variants are compared first
+          ocVars = sortOn (\x -> if | "Success" `isInfixOf` x -> 0 
+                                    | otherwise -> 1 
+                   ) $ map fst ocLens
+          oaVars = sortOn (\x -> if | "Just" `isInfixOf` x -> 0 
+                                    | otherwise -> 1 
+                   ) $ map fst oaLens
           body = fromMaybe (mkCmpExp (zip3 oaVars ocVars tys) Nothing) userE
        in pure (mkLetE binds body, cNames)
 
@@ -137,6 +161,7 @@ mkEqExp :: (String, String, (Type (), GroupTag)) -> Exp ()
 mkEqExp (oa, oc, (ty, grp))
     = let op = case grp of
                  HsVariant -> "<&>"
+                 HsMaybe -> "<&>"
                  _ -> "&"
           mkInfixEq x y = infixApp x (mkOp "==") y
         in mkInfixEq (mkVar oa) (mkVar oc)
