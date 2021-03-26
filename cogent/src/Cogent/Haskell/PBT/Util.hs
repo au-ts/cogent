@@ -12,7 +12,7 @@ import qualified Cogent.Core as CC
 import Cogent.Haskell.PBT.DSL.Types
 import Cogent.Haskell.FFIGen (hsc2hsType)
 import qualified Cogent.Haskell.HscSyntax as Hsc
-import Cogent.Haskell.Shallow (mkName)
+import Cogent.Haskell.Shallow (mkName, mkQName)
 
 import Language.Haskell.Exts.Build
 import Language.Haskell.Exts.SrcLoc
@@ -21,7 +21,7 @@ import qualified Language.Haskell.Exts as HS
 import Lens.Micro
 import Lens.Micro.TH
 
-import Data.List (find, isInfixOf, isSuffixOf, partition)
+import Data.List (find, isInfixOf, isSuffixOf, partition, sortOn)
 import Data.List.Extra (trim)
 import Data.Maybe (fromMaybe)
 import qualified Data.Map as M
@@ -263,17 +263,23 @@ determineUnpackFFI layout varToUnpack fieldName ffiTy ffiTypes
                      else head ts
           cn = getConIdentName cTy
           ffiFields = findFFITypeByName ffiTypes $ cn
-          cFields = M.toList $ fromMaybe M.empty $ M.lookup cn ffiFields
-          fld = -- if prevGroup == HsVariant 
-                if length fld' == length cFields
-                    then fld'
+          cFields' = M.toList $ fromMaybe M.empty $ M.lookup cn ffiFields
+          (fld,cFields) = -- if prevGroup == HsVariant 
+                if | length fld' == length cFields'
+                    -> (fld', cFields')
                     -- TODO: tag field must be handled 
                     -- there is not left/right constructor but rather a tag
                     -- that say either success or error
                     -- must be variant -> append tag field from cFields (by looking for tag in type)
                     -- these odd extra fields in variants can just be referred to by these name without any ticks e.g. oc_tag
                     -- perhaps allow user to supply the list of odd fields
-                    else ( map (\(k,v) -> (k, Left 0)) $ filter (\(k,v) -> "Tag" `isInfixOf` getConIdentName v) cFields) ++ fld'
+                    | otherwise -> let cs = sortOn (\(k,v) -> if "tag" `isInfixOf` k then 1 else 0) cFields' 
+                                       cs' = sortOn (\(k,v) -> if "tag" `isInfixOf` k then 0 else 1) cFields' 
+                                     in (fld' ++ map (\(k,v) -> (k, Left 0)) cs' , cs)  
+                    -- __impossible $ "boom"++ show fld' ++ show cFields
+
+
+                    -- ( map (\(k,v) -> (k, Left 0)) $ filter (\(k,v) -> "Tag" `isInfixOf` getConIdentName v) cFields) ++ fld'
         in HsFFILayout ffiTy group prevGroup $ M.fromList $ 
             [ let (k,v) = fld!!i
                   (ck,cv) = cFields!!i
@@ -341,7 +347,7 @@ getAccessor conName groupTag ts fieldNames
                             | otherwise -> map (\x -> "_" ++ conName ++ "_" ++ x) fs
             HsCollection -> ["each" | t <- ts]
             HsList -> ["each" | t <- ts]
-            HsTyAbs -> ["unknown" | t <- ts]
+            HsTyAbs -> ["unknown"]
             _ -> fs
 
 checkIsPrim :: HS.QName () -> Maybe String
