@@ -1,2 +1,2 @@
-main : U8 -> U8
-main x = let y = 1 in y
+main : Bool -> U8
+main x = if x then 37 else 42

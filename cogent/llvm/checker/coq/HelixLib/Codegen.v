@@ -32,7 +32,7 @@ Set Strict Implicit.
    To avoid implicit scoping, we re-define one for String *)
 Notation "x @@ y" := (String.append x y) (right associativity, at level 60) : string_scope.
 
-Notation Var := (texp typ).
+Notation VarT := (texp typ).
 
 Section withErrorStateMonad.
 
@@ -42,10 +42,10 @@ Section withErrorStateMonad.
         block_count: nat ;
         local_count: nat ;
         void_count : nat ;
-        Γ: list Var
+        Γ: list VarT
       }.
 
-  Definition newState (arg:Var): IRState :=
+  Definition newState (arg:VarT): IRState :=
     {|
       block_count := 0 ;
       local_count := 0 ;
@@ -55,7 +55,7 @@ Section withErrorStateMonad.
 
   Definition cerr := errS IRState.
 
-  Definition setVars (s:IRState) (newvars:list Var): IRState :=
+  Definition setVars (s:IRState) (newvars:list VarT): IRState :=
     {|
       block_count := block_count s ;
       local_count := local_count s ;
@@ -64,7 +64,7 @@ Section withErrorStateMonad.
     |}.
 
   (* Returns n-th varable from state or error if [n] index oob *)
-  Definition getStateVar (msg:string) (n:nat): cerr Var :=
+  Definition getStateVar (msg:string) (n:nat): cerr VarT :=
     st <- get ;;
     option2errS msg (List.nth_error (Γ st) n).
 
@@ -131,7 +131,7 @@ Definition incVoid: (cerr int) :=
     |} ;;
   ret (Z.of_nat (void_count st)).
 
-Definition addVars (newvars: list Var): cerr unit :=
+Definition addVars (newvars: list VarT): cerr unit :=
   st <- get ;;
   put
     {|
@@ -180,7 +180,7 @@ Definition swapVars : cerr unit :=
     |}.
 
 (* Result and list of blocks with entry point *)
-Definition segment:Type := Var * block_id * list (block typ).
+Definition segment:Type := VarT * block_id * list (block typ).
 
 Definition body_non_empty_cast (body : list (block typ)) : cerr (block typ * list (block typ)) :=
   match body with

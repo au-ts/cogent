@@ -85,11 +85,11 @@ Section Syntax.
     | Unit
     | Lit (l : lit)
     (* | SLit (s : string) *)
-    | LVar (i : index)
-    (* | Let (e : expr) (b : expr) *)
+    | Var (i : index)
+    | Let (e : expr) (b : expr)
     (* | LetBang (is : set index) (e : expr) (b : expr) *)
-    (* | BPrim (op : prim_op) (a b : expr) *)
-    (* | If (c : expr) (b1 : expr) (b2 : expr) *)
+    | BPrim (op : prim_op) (a b : expr)
+    | If (c : expr) (b1 : expr) (b2 : expr)
     (* | Cast (t : num_type) (e : expr) *)
 
     (* | Struct (ts : list type) (es : list expr) *)

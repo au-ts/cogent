@@ -82,21 +82,21 @@ Section Denote.
     match e with
     | Unit => ret UUnit
     | Lit l => ret (UPrim l)
-    | LVar i => option_throw (nth_error γ i) id "unknown variable"
-    (* | BPrim p a b =>
+    | Var i => option_throw (nth_error γ i) id "unknown variable"
+    | Let a b =>
+        a' <- denote_expr γ a ;;
+        denote_expr (a' :: γ) b 
+    | BPrim p a b =>
         a' <- denote_expr γ a ;;
         b' <- denote_expr γ b ;;
         denote_prim p [a'; b']
-    | Let a b =>
-        a' <- denote_expr γ a ;;
-        denote_expr (a' :: γ) b *)
-    (* | If x t e =>
+    | If x t e =>
         x' <- denote_expr γ x ;;
         match x' with
         | UPrim (LBool b) => denote_expr γ (if b then t else e)
         | _ => throw "expression is not a boolean"
         end
-    | Cast τ e =>
+    (* | Cast τ e =>
         e' <- denote_expr γ e ;;
         match e' with
         | UPrim l => option_throw (cast_to τ l) UPrim "invalid cast"

@@ -53,7 +53,36 @@ Section Compiler.
     | TUnit => TYPE_I 8
     end.
 
-  Fixpoint compile_expr (e : expr) (nextblock: block_id) : cerr segment :=
+  Definition code_block (bid next_bid : block_id) (c : code typ) : list (block typ) := [
+    {|blk_id    := bid
+    ; blk_phis  := []
+    ; blk_code  := c
+    ; blk_term  := TERM_Br_1 next_bid
+    ; blk_comments := None
+    |}].
+  
+  Definition nop_block (bid next_bid : block_id) : list (block typ) := code_block bid next_bid [].
+  
+  Definition cond_block (bid true_bid false_bid : block_id) (c : im) : list (block typ) := [
+    {|blk_id    := bid
+    ; blk_phis  := []
+    ; blk_code  := []
+    ; blk_term  := TERM_Br c true_bid false_bid
+    ; blk_comments := None
+    |}].
+  
+  Definition phi_block (bid next_bid : block_id) (p : list (local_id * phi typ)) := [
+    {|blk_id    := bid
+    ; blk_phis  := p
+    ; blk_code  := []
+    ; blk_term  := TERM_Br_1 next_bid
+    ; blk_comments := None
+    |}].
+
+  (* Definition  := . *)
+  
+  
+  Fixpoint compile_expr (e : expr) (next_bid: block_id) : cerr segment :=
     (* define some nested functions that are mutually recursive with compile_expr *)
     (* let fix load_member e f : cerr (CodegenValue * CodegenValue) :=
       e' <- compile_expr e ;;
@@ -67,41 +96,40 @@ Section Compiler.
       end ;;
       ret (e', f') in *)
     match e with
-    | Unit => ret (int8 0, nextblock, [])
-    | Lit l => ret (compile_lit l, nextblock, [])
-    | LVar i =>
+    | Unit => ret (int8 0, next_bid, [])
+    | Lit l => ret (compile_lit l, next_bid, [])
+    | Var i =>
         v <- getStateVar "unknown variable" i ;;
-        ret (v, nextblock, [])
-    (* | Let e b =>
-        '(e_res, e_code) <- compile_expr e ;;
-        s <- get ;;
-        setVars s (e_res :: Γ s) ;;
-        '(b_res, b_code) <- compile_expr b ;;
-        ret (b_res, e_code ++ b_code) *)
-    (* | BPrim op a b =>
+        ret (v, next_bid, [])
+    | Let e b =>
+        let_bid <- incBlockNamed "Let" ;;
+        '(e', e_bid, e_blks) <- compile_expr e let_bid ;;
+        addVars [e'] ;;
+        '(b', b_bid, b_blks) <- compile_expr b next_bid ;;
+        dropVars 1 ;;
+        ret (b', e_bid, e_blks ++ nop_block let_bid b_bid ++ b_blks)
+    | BPrim op a b =>
         let (op', rt) := compile_prim_op op in
-        '((_, a_val), a_code) <- compile_expr a ;;
-        '((_, b_val), b_code) <- compile_expr b ;;
-        r_id <- local ;;
-        ret ((rt, EXP_Ident (ID_Local (r_id))), a_code ++ b_code ++ [(IId r_id, INSTR_Op (op' a_val b_val))]) *)
-    (* | If c t e =>
-        c' <- compile_expr c ;;
-        '(br_true, br_false, br_exit) <- branch_blocks ;;
-        term (TERM_Br c' br_true br_false) ;;
-
-        new_block br_true ;;
-        t' <- compile_expr t ;;
-        br_true' <- current_block ;;
-        term (TERM_Br_1 br_exit) ;;
-
-        new_block br_false;;
-        e' <- compile_expr e ;;
-        br_false' <- current_block ;;
-        term (TERM_Br_1 br_exit) ;;
-
-        new_block br_exit ;;
-        phi (fst t') [(br_true', snd t'); (br_false', snd e')]
-    | Cast t e =>
+        prim_bid <- incBlockNamed "Prim" ;;
+        '(b', b_bid, b_blks) <- compile_expr b prim_bid ;;
+        '(a', a_bid, a_blks) <- compile_expr a b_bid ;;
+        new_local <- incLocal ;;
+        let prim_blks := code_block prim_bid next_bid [(IId new_local, INSTR_Op (op' (snd a') (snd b')))] in
+        ret ((rt, EXP_Ident (ID_Local new_local)), a_bid, a_blks ++ b_blks ++ prim_blks)
+    | If c t e =>
+        if_bid <- incBlockNamed "If" ;;
+        '(c', c_bid, c_blks) <- compile_expr c if_bid ;;
+        tp_bid <- incBlockNamed "Then_Post" ;;
+        '(t', t_bid, t_blks) <- compile_expr t tp_bid ;;
+        ep_bid <- incBlockNamed "Else_Post" ;;
+        '(e', e_bid, e_blks) <- compile_expr e ep_bid ;;
+        fi_bid <- incBlockNamed "Fi" ;;
+        let post_blks := nop_block tp_bid fi_bid ++ nop_block ep_bid fi_bid in
+        let if_blks := cond_block if_bid t_bid e_bid c' in
+        new_local <- incLocal ;;
+        let fi_blks := phi_block fi_bid next_bid [(new_local, Phi (fst t') [(tp_bid, snd t'); (ep_bid, snd e')])] in
+        ret ((fst t', EXP_Ident (ID_Local new_local)), c_bid, c_blks ++ if_blks ++ t_blks ++ e_blks ++ post_blks ++ fi_blks)
+    (* | Cast t e =>
         '(from_t, v) <- compile_expr e ;;
         let t' := convert_num_type t in
         instr t' (INSTR_Op (OP_Conversion Zext from_t v t'))

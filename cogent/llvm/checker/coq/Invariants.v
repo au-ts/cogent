@@ -135,4 +135,25 @@ Section State.
   ; IRState_is_WF : WF_IRState γ s
   }.
 
+  Lemma state_invariant_new_block :
+    forall (γ : ctx) (s : IRState) (cogent : config_cogent) (vellvm : config_cfg),
+      let s' := {|
+        block_count := S (block_count s)
+      ; local_count := local_count s
+      ; void_count := void_count s
+      ; Γ := Γ s |} in
+        state_invariant γ s cogent vellvm -> state_invariant γ s' cogent vellvm.
+  Proof.
+    intros * PRE.
+    destruct PRE as [MEM WF].
+    split.
+    unfold memory_invariant in *.
+    cbn in *.
+    intros.
+    specialize (MEM _ _ _ H H0).
+    unfold correct_result in *.
+    simp.
+    intros.
+  Admitted.
+
 End State.
