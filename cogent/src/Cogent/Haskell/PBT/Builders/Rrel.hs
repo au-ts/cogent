@@ -48,6 +48,7 @@ import Lens.Micro.TH
 import Lens.Micro.Mtl
 import Control.Monad.RWS hiding (Product, Sum, mapM)
 import Data.Vec as Vec hiding (sym)
+import Text.Show.Pretty 
 
 
 -- | Top level Builder for Refinement Relation
@@ -128,10 +129,11 @@ mkRrelBody cogOcTyp ocTyp oaTyp userE ffimods
                (\x -> let (n, ti, to) = findHsFFIFunc (x ^. _2) (x ^. _1) 
                         in determineUnpackFFI oaLy "oa" "None" ti (x ^. _3) )
           -}
-          ocLens' = trace (show ocLy++" "++show oaLy) $ mkLensView ocLy "oc" Unknown Nothing
-          oaLens' = trace ("here: "++show ocCTyLy) $ mkLensView oaLy "oa" Unknown Nothing
+          ocLens' = fromMaybe (mkLensView ocLy "oc" Unknown Nothing) $
+                        ocCTyLy <&> (\x -> mkLensView' x "oc" Unknown Nothing)
+          oaLens' = mkLensView oaLy "oa" Unknown Nothing
           ocLens = map fst ocLens'
-          oaLens = map fst oaLens'
+          oaLens = trace ("here"++ppShow ocLens) $ map fst oaLens'
           ls = oaLens ++ ocLens
           cNames = getConNames ocLy [] ++ getConNames oaLy []
           binds = map ((\x -> pvar . mkName . fst $ x) &&& snd) ls

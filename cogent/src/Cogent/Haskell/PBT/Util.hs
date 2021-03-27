@@ -12,7 +12,7 @@ import qualified Cogent.Core as CC
 import Cogent.Haskell.PBT.DSL.Types
 import Cogent.Haskell.FFIGen (hsc2hsType)
 import qualified Cogent.Haskell.HscSyntax as Hsc
-import Cogent.Haskell.Shallow (mkName, mkQName)
+import Cogent.Haskell.Shallow (mkName, mkQName, mkTyConT)
 
 import Language.Haskell.Exts.Build
 import Language.Haskell.Exts.SrcLoc
@@ -21,7 +21,7 @@ import qualified Language.Haskell.Exts as HS
 import Lens.Micro
 import Lens.Micro.TH
 
-import Data.List (find, isInfixOf, isSuffixOf, partition, sortOn)
+import Data.List (find, isInfixOf, isSuffixOf, partition, sortOn, stripPrefix)
 import Data.List.Extra (trim)
 import Data.Maybe (fromMaybe)
 import qualified Data.Map as M
@@ -231,7 +231,7 @@ determineUnpack' hsTyp@(HS.TyApp _ l r) prevGroup depth fieldName
           --       Makes more sense to restrict oa to either a prim or a built in hs type rather then allowing
           --       them to define there own records
           accessors = getAccessor conName groupTag fieldTypes Nothing
-        in trace ("hello "++show accessors) $ HsEmbedLayout hsTyp groupTag prevGroup $
+        in HsEmbedLayout hsTyp groupTag prevGroup $
             M.fromList $ if not (null accessors) && not (null fieldTypes) then 
                            [ ( accessors!!i
                              , Right (determineUnpack' (fieldTypes!!i) groupTag (depth+1) (accessors!!i)))
@@ -257,40 +257,44 @@ determineUnpackFFI layout varToUnpack fieldName ffiTy ffiTypes
     = let hsTy = layout ^. hsTyp
           group = layout ^. grTag
           prevGroup = layout ^. prevGrTag
-          fld' = M.toList $ layout ^. fieldMap
+          fld = M.toList $ layout ^. fieldMap
           cTy = let ts = filter (\x -> all (/= getConIdentName x) ["Ptr", "IO"]) $ unfoldFFITy ffiTy
                   in if length ts /= 1 then __impossible $ "Bad FFI Type"++show ts
                      else head ts
           cn = getConIdentName cTy
           ffiFields = findFFITypeByName ffiTypes $ cn
-          cFields' = M.toList $ fromMaybe M.empty $ M.lookup cn ffiFields
-          (fld,cFields) = -- if prevGroup == HsVariant 
-                if | length fld' == length cFields'
-                    -> (fld', cFields')
-                    -- TODO: tag field must be handled 
-                    -- there is not left/right constructor but rather a tag
-                    -- that say either success or error
-                    -- must be variant -> append tag field from cFields (by looking for tag in type)
-                    -- these odd extra fields in variants can just be referred to by these name without any ticks e.g. oc_tag
-                    -- perhaps allow user to supply the list of odd fields
-                    | otherwise -> let cs = sortOn (\(k,v) -> if "tag" `isInfixOf` k then 1 else 0) cFields' 
-                                       cs' = sortOn (\(k,v) -> if "tag" `isInfixOf` k then 0 else 1) cFields' 
-                                     in (fld' ++ map (\(k,v) -> (k, Left 0)) cs' , cs)  
-                    -- __impossible $ "boom"++ show fld' ++ show cFields
-
-
-                    -- ( map (\(k,v) -> (k, Left 0)) $ filter (\(k,v) -> "Tag" `isInfixOf` getConIdentName v) cFields) ++ fld'
+          cFields = M.toList $ fromMaybe M.empty $ M.lookup cn ffiFields
         in HsFFILayout ffiTy group prevGroup $ M.fromList $ 
-            [ let (k,v) = fld!!i
-                  (ck,cv) = cFields!!i
-                in trace ("Unpack "++show hsTy++" "++show group++" "++show prevGroup) $ case v of 
-               (Left depth) -> ( mkKIdentVarBind varToUnpack k depth
-                               , Left $ fieldName)
-               (Right next) -> ( if (head ck == '_') then tail ck else ck
-                               , Right $ determineUnpackFFI next varToUnpack ck cv ffiTypes )
-            | i <- [0..length fld-1] ]
-
-
+         if group /= HsVariant 
+         then [ let (k,v) = fld!!i
+                    (ck,cv) = if i >= length cFields then (fieldName, cTy)
+                              else cFields!!i
+                  in case v of 
+                  (Left depth) -> ( mkKIdentVarBind varToUnpack k depth
+                                  , Left $ fieldName)
+                  (Right next) -> ( if (head ck == '_') then tail ck else ck
+                                  , Right $ determineUnpackFFI next varToUnpack ck cv ffiTypes )
+              | i <- [0..length fld-1] ]
+         else [ let (ck,cv) = cFields!!i
+                    -- Have to create ad-hoc "Tag" field to match up with the C type fields
+                    -- where Variants are Enums and the Tag field is the enumeration.
+                    -- Assumes Variants always are represented by Enums on the C level
+                    -- and that the names of the variant's alternatives match the enums names 
+                    -- (minus all the generated stuff prepended on)
+                    (k,v) = let ck' = fromMaybe "unknown" $ stripPrefix "ct" $
+                                        [x | x <- ck, x `notElem` ("_"++[head . show $ y | y <- [0..9]])]
+                              in fromMaybe (if "tag" `isInfixOf` ck 
+                                 then let nn = "_"++cn++"Tag"
+                                        in ( nn
+                                           , Right $ HsEmbedLayout (mkTyConT . mkName $ "Int") HsPrim HsVariant $ M.singleton nn $ Left 0)
+                                 else ("unknown", Left 0)) $
+                                find (\(k,v) -> ck' `isInfixOf` k) fld
+                  in case v of 
+                  (Left depth) -> ( mkKIdentVarBind varToUnpack k depth
+                                  , Left $ fieldName)
+                  (Right next) -> ( if (head ck == '_') then tail ck else ck
+                                  , Right $ determineUnpackFFI next varToUnpack ck cv ffiTypes )
+              | i <- [0..length cFields-1] ]
 
 -- | Unpacking Helpers
 -- -----------------------------------------------------------------------
@@ -498,7 +502,7 @@ mkViewInfixE varToView tag prev accessor
                                 HsList -> ("^..",  paren x)
                                 _ -> (".", x)
                         in infixApp x' (mkOp op) $ mkVar accessor
-             Nothing -> trace (show tag ) $ infixApp (mkVar varToView) viewE $ mkVar accessor
+             Nothing -> infixApp (mkVar varToView) viewE $ mkVar accessor
 
 mkLens :: String -> HS.Decl ()
 mkLens t
