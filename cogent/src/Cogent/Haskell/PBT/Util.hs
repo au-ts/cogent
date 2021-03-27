@@ -23,6 +23,7 @@ import Lens.Micro.TH
 
 import Data.List (find, isInfixOf, isSuffixOf, partition, sortOn, stripPrefix)
 import Data.List.Extra (trim)
+import Data.Char (toLower)
 import Data.Maybe (fromMaybe)
 import qualified Data.Map as M
 import Debug.Trace
@@ -282,19 +283,22 @@ determineUnpackFFI layout varToUnpack fieldName ffiTy ffiTypes
                     -- and that the names of the variant's alternatives match the enums names 
                     -- (minus all the generated stuff prepended on)
                     (k,v) = let ck' = fromMaybe "unknown" $ stripPrefix "ct" $
-                                        [x | x <- ck, x `notElem` ("_"++[head . show $ y | y <- [0..9]])]
+                                        [toLower x | x <- ck, x `notElem` ("_"++[head . show $ y | y <- [0..9]])]
                               in fromMaybe (if "tag" `isInfixOf` ck 
                                  then let nn = "_"++cn++"Tag"
                                         in ( nn
                                            , Right $ HsEmbedLayout (mkTyConT . mkName $ "Int") HsPrim HsVariant $ M.singleton nn $ Left 0)
                                  else ("unknown", Left 0)) $
-                                find (\(k,v) -> ck' `isInfixOf` k) fld
+                                find (\(k,v) -> ck' `isInfixOf` (allLower k)) fld
                   in case v of 
                   (Left depth) -> ( mkKIdentVarBind varToUnpack k depth
                                   , Left $ fieldName)
                   (Right next) -> ( if (head ck == '_') then tail ck else ck
                                   , Right $ determineUnpackFFI next varToUnpack ck cv ffiTypes )
               | i <- [0..length cFields-1] ]
+
+allLower :: String -> String 
+allLower xs = [toLower x | x <- xs]
 
 -- | Unpacking Helpers
 -- -----------------------------------------------------------------------
