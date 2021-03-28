@@ -412,7 +412,8 @@ def main():
     )
     ap.add_argument("--only", "-o", dest="only_test",
                     help="only run specified tests", 
-                    metavar="TEST_NAME")
+                    metavar="TEST_NAME",
+                    nargs='*')
     ap.add_argument("--verbose", "-v", 
                     dest="verbose",
                     help="print output for given tests even if they pass (none supplied = all tests)",
@@ -498,13 +499,14 @@ def main():
     results = []
     # If we're only running specific tests
     if args.only_test is not None:
-        test_name = args.only_test
-        conf = configs.get_cfg_from_test_name(test_name)
-        if conf is None:
-            print(colored("Cannot find config file containing test name {}".format(test_name), "red"))
-            sys.exit(1)
-        test = Test(conf)
-        results = test.run_one(context, test_name)
+        test_names = args.only_test
+        for test_name in test_names:
+            conf = configs.get_cfg_from_test_name(test_name)
+            if conf is None:
+                print(colored("Cannot find config file containing test name {}".format(test_name), "red"))
+                sys.exit(1)
+            test = Test(conf)
+            results = test.run_one(context, test_name)
     # Otherwise, run all possible tests
     else:
         tests = list(map(lambda config: Test(config), configs.get_configs()))
