@@ -88,7 +88,6 @@ validateType :: (?loc :: SourcePos) => RawType -> CG (Constraint, TCType)
 validateType (RT t) = do
   vs <- use knownTypeVars
   ts <- lift $ use knownTypes
-  layouts <- lift $ use knownDataLayouts
   lvs <- use knownDataLayoutVars
   traceTc "gen" (text "validate type" <+> pretty t)
   case t of
@@ -223,68 +222,17 @@ validateTypes = fmapFoldM validateType
 
 -- --------------------------------------------------------------------------
 
-validateLayout :: DataLayoutExpr -> CG (Constraint, TCDataLayout)
-validateLayout = let unsat = Unsat . DataLayoutError in \case
-  DLRepRef n s   -> do
-    (c, s') <- validateLayouts s
-    ls <- lift $ use knownDataLayouts
-    let e' = TLRepRef n s'
-    case M.lookup n ls of
-      Just (vs, exp) | length vs == length s -> return (c, e')
-                     | otherwise, en <- length vs, an <- length s
-                     -> return (unsat $ dataLayoutArgsNotMatch n en an, e')
-      _ -> return (unsat $ unknownDataLayout n, e')
-  DLRecord fs    -> do
-    (c, s') <- validateLayouts $ fmap thd3 fs
-    let expr' = TLRecord $ zipWith (\(a,b,_) c -> (a,b,c)) fs s'
-    return (WellformedLayout expr' <> c, expr')
-  DLVariant e fs -> do
-    (c, s') <- validateLayouts $ fmap (\(_,_,_,d) -> d) fs
-    (tc, e') <- validateLayout e
-    let expr' = TLVariant e' $ zipWith (\(a,b,c,_) d -> (a,b,c,d)) fs s'
-    return (WellformedLayout expr' <> c <> tc, expr')
-#ifdef BUILTIN_ARRAYS
-  DLArray e p    -> do
-    (c, e') <- validateLayout e
-    return (c, TLArray e' p)
-#endif
-  -- it should be impossible to have negative prim size
-  DLOffset e s   -> do
-    (c, e') <- validateLayout e
-    return (c, TLOffset e' s)
-  DLAfter e f    -> do
-    (c, e') <- validateLayout e
-    return (c, TLAfter e' f)
-  DLPrim n       -> return (Sat, TLPrim n)
-  DLVar n        -> do
-    lvs <- use knownDataLayoutVars
-    if n `elem` lvs
-       then return (Sat, TLVar n)
-       else return (unsat $ unknownDataLayoutVar n, TLVar n)
-  DLPtr          -> return (Sat, TLPtr)
+validateLayout :: (?loc :: SourcePos) => DataLayoutExpr -> CG (Constraint, TCDataLayout)
+validateLayout l = do
+  env <- lift $ use knownDataLayouts
+  vs  <- use knownDataLayoutVars
+  case runExcept $ tcDataLayoutExpr env vs l of
+    Left err -> freshLVar >>= \l' -> return (Unsat $ DataLayoutError err, l')
+    Right (l',_) -> return (Sat, l')
 
-validateLayouts :: Traversable t => t DataLayoutExpr -> CG (Constraint, t TCDataLayout)
+validateLayouts :: (?loc :: SourcePos, Traversable t) => t DataLayoutExpr -> CG (Constraint, t TCDataLayout)
 validateLayouts = fmapFoldM validateLayout
 
-cgSubstedType :: TCType -> CG Constraint
-cgSubstedType (T (TLayout l t)) = cgDataLayout l
-cgSubstedType (T t) = foldMapM cgSubstedType t
-cgSubstedType (U x) = pure Sat
-cgSubstedType (V x) = foldMapM cgSubstedType x
-cgSubstedType (R _ x s) = (<>) <$> foldMapM cgSubstedType x <*> cgSubstedSigil s
-#ifdef BUILTIN_ARRAYS
-cgSubstedType (A t l s tkns) = (<>) <$> cgSubstedType t <*> cgSubstedSigil s
-#endif
-cgSubstedType (Synonym n ts) = foldMapM cgSubstedType ts
-
-cgSubstedSigil :: Either (Sigil (Maybe TCDataLayout)) Int -> CG Constraint
-cgSubstedSigil (Left (Boxed _ (Just l))) = cgDataLayout l
-cgSubstedSigil _ = pure Sat
-
-cgDataLayout :: TCDataLayout -> CG Constraint
-cgDataLayout l@(TLVariant e fs) = return $ WellformedLayout l
-cgDataLayout l@(TLRecord fs) = return $ WellformedLayout l
-cgDataLayout l = return Sat  -- TODO how to deal with TLRepRef?
 
 -- -----------------------------------------------------------------------------
 -- Term-level constraints

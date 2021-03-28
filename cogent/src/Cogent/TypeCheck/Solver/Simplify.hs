@@ -186,7 +186,6 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
 #endif
 
   TLOffset e _   :~ tau -> hoistMaybe $ Just [e :~ tau]
-  TLAfter  e _   :~ tau -> hoistMaybe $ Just [e :~ tau]
 
   TLPrim n       :~ T TUnit | evalSize n >= 0 -> hoistMaybe $ Just []
   TLPrim n       :~ tau
@@ -219,7 +218,6 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
   TLVar v1         :~< TLVar v2      | v1 == v2 -> hoistMaybe $ Just []
   TLPrim n1        :~< TLPrim n2     | n1 <= n2 -> hoistMaybe $ Just []
   TLOffset e1 _    :~< TLOffset e2 _ -> hoistMaybe $ Just [e1 :~< e2]
-  TLAfter e1 _     :~< TLAfter e2 _  -> hoistMaybe $ Just [e1 :~< e2]
 
   TLRecord fs1     :~< TLRecord fs2
     | r1 <- LRow.fromList $ map (\(a,b,c) -> (a,c,())) fs1
@@ -361,13 +359,6 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
 
   NotReadOnly (Left (Boxed False _)) -> hoistMaybe $ Just []
   NotReadOnly (Left (Unboxed      )) -> hoistMaybe $ Just []
-
-  WellformedLayout l -> do
-    guard (null (unifLVars l))
-    guard (null (repRefTL l))
-    case runExcept $ checkAlloc l of
-      Left (e:_) -> unsat $ DataLayoutError e
-      Right r -> hoistMaybe $ Just []
 
   t -> hoistMaybe $ Nothing
 

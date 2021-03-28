@@ -135,33 +135,11 @@ whnf input = do
         _                -> pure input
     fromMaybe step <$> runMaybeT (runRewriteT (untilFixedPoint $ debug "Normalise Type" printPretty normaliseRWT) step)
 
-normaliseRWL :: RewriteT TcSolvM TCDataLayout
-normaliseRWL = rewrite' $ \case
-  TLRepRef n s -> do
-    ls <- view knownDataLayouts
-    case M.lookup n ls of
-      Just (vars, expr) | length vars == length s -> MaybeT $ Just <$> normL (substTCDataLayout (zip vars s) expr)
-                        | otherwise -> __impossible "normaliseRWL: data layout args mismatch"
-      _ -> __impossible "normaliseRWL: missing layout synonym"
-  _ -> empty
-
-normL :: TCDataLayout -> TcSolvM TCDataLayout
-normL l = do
-  step <- case l of
-#ifdef BUILTIN_ARRAYS
-    TLArray e p -> TLArray <$> normL e <*> pure p
-#endif
-    TLRecord fs -> TLRecord <$> mapM (third3M normL) fs
-    TLVariant l fs -> TLVariant <$> normL l <*> mapM (fourth4M normL) fs
-    TLOffset l n -> TLOffset <$> normL l <*> pure n
-    TLAfter l f -> TLAfter <$> normL l <*> pure f
-    _ -> pure l
-  fromMaybe step <$> runMaybeT (runRewriteT (untilFixedPoint $ debug "Normalise Layout" printPretty normaliseRWL) step)
 
 -- | Normalise both types and layouts within a set of constraints
 normalise :: [Goal] -> TcSolvM [Goal]
 normalise = mapM $ \g -> do
-  c' <- bimapM whnf normL (g ^. goal)
+  c' <- bimapM whnf pure (g ^. goal)
   pure $ set goal c' g
 
 normaliseSExpr :: TCSExpr -> Int

@@ -392,6 +392,17 @@ instance Bifoldable Alt where
 instance Bitraversable Alt where
   bitraverse f g (Alt p l e) = Alt <$> f p <*> pure l <*> g e
 
+instance Tritraversable IrrefutablePattern where
+  tritraverse fa fb fc (PVar pv)             = PVar <$> fa pv
+  tritraverse fa fb fc (PTuple ips)          = PTuple <$> traverse fb ips
+  tritraverse fa fb fc (PUnboxedRecord mfs)  = PUnboxedRecord <$> traverse (traverse $ traverse fb) mfs
+  tritraverse fa fb fc (PUnderscore)         = pure $ PUnderscore
+  tritraverse fa fb fc (PUnitel)             = pure $ PUnitel
+  tritraverse fa fb fc (PTake pv mfs)        = PTake <$> fa pv <*> traverse (traverse $ traverse fb) mfs
+#ifdef BUILTIN_ARRAYS
+  tritraverse fa fb fc (PArray ips)          = PArray <$> traverse fb ips
+  tritraverse fa fb fc (PArrayTake pv eps)   = PArrayTake <$> fa pv <*> traverse (bitraverse fc fb) eps
+#endif
 
 instance Quadritraversable Binding where
   quadritraverse fa fb fc fd (Binding ip mt e vs) = Binding <$> fc ip <*> traverse fa mt <*> fd e <*> pure vs

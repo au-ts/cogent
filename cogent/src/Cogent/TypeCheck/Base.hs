@@ -14,6 +14,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -194,7 +195,6 @@ data Constraint' t l = (:<) t t
                      | (:~<) l l
                      | (:~~) t t  -- t1 :~~ t2 means that t1 can fit in any layout that t2 can fit in
                      | LayoutOk t
-                     | WellformedLayout l
                      | (:@) (Constraint' t l) ErrorContext
                      | Unsat TypeError
                      | SemiSat TypeWarning
@@ -277,7 +277,6 @@ instance Bifunctor Constraint' where
   bimap f g (l  :~  t)         = (g l) :~ (f t)
   bimap f g (l1 :~< l2)        = (g l1) :~< (g l2)
   bimap f g (t1 :~~ t2)        = (f t1) :~~ (f t2)
-  bimap f g (WellformedLayout l) = WellformedLayout (g l)
   bimap f g (c  :@  e)         = (bimap f g c) :@ e
   bimap f g (Exhaustive t ps)  = Exhaustive (f t) ps
   bimap f g (Solved t)         = Solved (f t)
@@ -305,7 +304,6 @@ instance Bitraversable Constraint' where
   bitraverse f g (l  :~  t)         = (:~)  <$> g l <*> f t
   bitraverse f g (l1 :~< l2)        = (:~<) <$> g l1 <*> g l2
   bitraverse f g (t1 :~~ t2)        = (:~~) <$> f t1 <*> f t2
-  bitraverse f g (WellformedLayout l) = WellformedLayout <$> g l
   bitraverse f g (c  :@  e)         = (:@)  <$> bitraverse f g c <*> pure e
   bitraverse f g (Exhaustive t ps)  = Exhaustive <$> f t <*> pure ps
   bitraverse f g (Solved t)         = Solved <$> f t
@@ -348,7 +346,7 @@ data TCType         = T (Type TCSExpr TCDataLayout TCType)
                     | Synonym TypeName [TCType]
                     deriving (Show, Eq, Ord)
 
-data SExpr t l      = SE { getTypeSE :: t, getExprSE :: Expr t (TPatn t) (TIrrefPatn t) l (SExpr t l) }
+data SExpr t l      = SE { getTypeSE :: t, getExprSE :: Expr t (TPatn t l) (TIrrefPatn t l) l (SExpr t l) }
                     | SU t Int
                     deriving (Show, Eq, Ord)
 
@@ -390,12 +388,12 @@ typeOfSE (SU t _) = t
 type TCSExpr = SExpr TCType TCDataLayout
 
 instance Bifunctor SExpr where
-  bimap f g (SE t e) = SE (f t) (fffffmap f $ ffffmap (fmap f) $ fffmap (fmap f) $ ffmap g $ fmap (bimap f g) e)
+  bimap f g (SE t e) = SE (f t) (fffffmap f $ ffffmap (bimap f g) $ fffmap (bimap f g) $ ffmap g $ fmap (bimap f g) e)
   bimap f g (SU t x) = SU (f t) x
 instance Bifoldable SExpr where
   bifoldMap f g e = getConst $ bitraverse (Const . f) (Const . g) e
 instance Bitraversable SExpr where
-  bitraverse f g (SE t e) = SE <$> f t <*> pentatraverse f (traverse f) (traverse f) g (bitraverse f g) e
+  bitraverse f g (SE t e) = SE <$> f t <*> pentatraverse f (bitraverse f g) (bitraverse f g) g (bitraverse f g) e
   bitraverse f g (SU t x) = SU <$> f t <*> pure x
 
 ifBang :: Banged -> TCType -> TCType
@@ -412,75 +410,104 @@ funcOrVar (T (TBang  _)) = FuncOrVar
 funcOrVar (T (TFun {})) = MustFunc
 funcOrVar _ = MustVar
 
-data TExpr      t = TE { getTypeTE :: t, getExpr :: Expr t (TPatn t) (TIrrefPatn t) TCDataLayout (TExpr t), getLocTE :: SourcePos }
-deriving instance Eq   t => Eq   (TExpr t)
-deriving instance Ord  t => Ord  (TExpr t)
-deriving instance Show t => Show (TExpr t)
-deriving instance Data t => Data (TExpr t)
+data TExpr t l = TE { getTypeTE :: t, getExpr :: Expr t (TPatn t l) (TIrrefPatn t l) l (TExpr t l), getLocTE :: SourcePos }
+deriving instance (Eq   t, Eq   l) => Eq   (TExpr t l)
+deriving instance (Ord  t, Ord  l) => Ord  (TExpr t l)
+deriving instance (Show t, Show l) => Show (TExpr t l)
+deriving instance (Data t, Data l) => Data (TExpr t l)
 
-data TPatn      t = TP { getPatn :: Pattern (TIrrefPatn t), getLocTP :: SourcePos }
-deriving instance Eq   t => Eq   (TPatn t)
-deriving instance Ord  t => Ord  (TPatn t)
-deriving instance Show t => Show (TPatn t)
-deriving instance Data t => Data (TPatn t)
+data TPatn t l = TP { getPatn :: Pattern (TIrrefPatn t l), getLocTP :: SourcePos }
+deriving instance (Eq   t, Eq   l) => Eq   (TPatn t l)
+deriving instance (Ord  t, Ord  l) => Ord  (TPatn t l)
+deriving instance (Show t, Show l) => Show (TPatn t l)
+deriving instance (Data t, Data l) => Data (TPatn t l)
 
-data TIrrefPatn t = TIP { getIrrefPatn :: IrrefutablePattern (VarName, t) (TIrrefPatn t) (TExpr t), getLocTIP :: SourcePos }
-deriving instance Eq   t => Eq   (TIrrefPatn t)
-deriving instance Ord  t => Ord  (TIrrefPatn t)
-deriving instance Show t => Show (TIrrefPatn t)
-deriving instance Data t => Data (TIrrefPatn t)
+data TIrrefPatn t l = TIP { getIrrefPatn :: IrrefutablePattern (VarName, t) (TIrrefPatn t l) (TExpr t l), getLocTIP :: SourcePos }
+deriving instance (Eq   t, Eq   l) => Eq   (TIrrefPatn t l)
+deriving instance (Ord  t, Ord  l) => Ord  (TIrrefPatn t l)
+deriving instance (Show t, Show l) => Show (TIrrefPatn t l)
+deriving instance (Data t, Data l) => Data (TIrrefPatn t l)
 
-instance Functor TExpr where
-  fmap f (TE t e l) = TE (f t) (fffffmap f $ ffffmap (fmap f) $ fffmap (fmap f) $ fmap (fmap f) e) l  -- Hmmmm!
-instance Functor TPatn where
-  fmap f (TP p l) = TP (fmap (fmap f) p) l
-instance Functor TIrrefPatn where
-  fmap f (TIP ip l) = TIP (fffmap (second f) $ ffmap (fmap f) $ fmap (fmap f) ip) l
+instance Bifunctor TExpr where
+  bimap f g (TE t e l) = TE (f t) (fffffmap f $ ffffmap (bimap f g) $ fffmap (bimap f g) $ ffmap g $ fmap (bimap f g) e) l
+instance Bifunctor TPatn where
+  bimap f g (TP p l) = TP (fmap (bimap f g) p) l
+instance Bifunctor TIrrefPatn where
+  bimap f g (TIP ip l) = TIP (fffmap (second f) $ ffmap (bimap f g) $ fmap (bimap f g) ip) l
 
-instance Traversable TExpr where
-  traverse f (TE t e l) = TE <$> f t <*> pentatraverse f (traverse f) (traverse f) pure (traverse f) e <*> pure l
-instance Traversable TPatn where
-  traverse f (TP p l) = TP <$> traverse (traverse f) p <*> pure l
-instance Traversable TIrrefPatn where
-  traverse f (TIP ip l) = TIP <$> tritraverse f ip <*> pure l
-    where tritraverse :: Applicative f
-                      => (a -> f b)
-                      -> IrrefutablePattern (VarName, a) (TIrrefPatn a) (TExpr a)
-                      -> f (IrrefutablePattern (VarName, b) (TIrrefPatn b) (TExpr b))
-          tritraverse f (PVar v)            = PVar <$> traverse f v
-          tritraverse f (PTuple ips)        = PTuple <$> traverse (traverse f) ips
-          tritraverse f (PUnboxedRecord fs) = PUnboxedRecord <$> traverse (traverse (traverse (traverse f))) fs
-          tritraverse f (PUnderscore)       = pure $ PUnderscore
-          tritraverse f (PUnitel)           = pure $ PUnitel
-          tritraverse f (PTake pv fs)       = PTake <$> traverse f pv <*> traverse (traverse (traverse (traverse f))) fs
-#ifdef BUILTIN_ARRAYS
-          tritraverse f (PArray ips)        = PArray <$> traverse (traverse f) ips
-          tritraverse f (PArrayTake pv is)  = PArrayTake <$> traverse f pv <*> traverse (bitraverse (traverse f) (traverse f)) is
-#endif
+instance Bitraversable TExpr where
+  bitraverse f g (TE t e l) = TE <$> f t <*> pentatraverse f (bitraverse f g) (bitraverse f g) g (bitraverse f g) e <*> pure l
+instance Bitraversable TPatn where
+  bitraverse f g (TP p l) = TP <$> traverse (bitraverse f g) p <*> pure l
+instance Bitraversable TIrrefPatn where
+  bitraverse f g (TIP ip l) = TIP <$> tritraverse (secondM f) (bitraverse f g) (bitraverse f g) ip <*> pure l
+
+instance Bifoldable TExpr where
+  bifoldMap f g = getConst . bitraverse (Const . f) (Const . g)
+instance Bifoldable TPatn where
+  bifoldMap f g = getConst . bitraverse (Const . f) (Const . g)
+instance Bifoldable TIrrefPatn where
+  bifoldMap f g = getConst . bitraverse (Const . f) (Const . g)
 
 
-instance Foldable TExpr where
-  foldMap f e  = getConst $ traverse (Const . f) e
-instance Foldable TPatn where
-  foldMap f p  = getConst $ traverse (Const . f) p
-instance Foldable TIrrefPatn where
-  foldMap f ip = getConst $ traverse (Const . f) ip
+instance Functor (TExpr t) where  -- over l
+  fmap f e = bimap id f e
+instance Functor (TPatn t) where  -- over l
+  fmap f p = bimap id f p
+instance Functor (TIrrefPatn l) where  -- over l
+  fmap f ip = bimap id f ip
+
+instance Traversable (TExpr t) where  -- over l
+  traverse f = bitraverse pure f
+instance Traversable (TPatn t) where  -- over l
+  traverse f = bitraverse pure f
+instance Traversable (TIrrefPatn t) where  -- over l
+  traverse f = bitraverse pure f
+
+instance Foldable (TExpr t) where  -- over l
+  foldMap f = bifoldMap mempty f
+instance Foldable (TPatn t) where  -- over l
+  foldMap f = bifoldMap mempty f
+instance Foldable (TIrrefPatn t) where  -- over l
+  foldMap f = bifoldMap mempty f
+
+
+instance Functor (Flip TExpr l) where  -- over t
+  fmap f (Flip e)  = Flip $ bimap f id e
+instance Functor (Flip TPatn l) where  -- over t
+  fmap f (Flip p)  = Flip $ bimap f id p
+instance Functor (Flip TIrrefPatn l) where  -- over t
+  fmap f (Flip ip) = Flip $ bimap f id ip
+
+instance Traversable (Flip TExpr l) where  -- over t
+  traverse f (Flip e)  = Flip <$> bitraverse f pure e
+instance Traversable (Flip TPatn l) where  -- over t
+  traverse f (Flip p)  = Flip <$> bitraverse f pure p
+instance Traversable (Flip TIrrefPatn l) where  -- over t
+  traverse f (Flip ip) = Flip <$> bitraverse f pure ip
+
+instance Foldable (Flip TExpr l) where  -- over t
+  foldMap f (Flip e)  = bifoldMap f mempty e
+instance Foldable (Flip TPatn l) where  -- over t
+  foldMap f (Flip p)  = bifoldMap f mempty p
+instance Foldable (Flip TIrrefPatn l) where  -- over t
+  foldMap f (Flip ip) = bifoldMap f mempty ip
 
 type TCName = (VarName, TCType)
-type TCExpr = TExpr TCType
-type TCPatn = TPatn TCType
-type TCIrrefPatn = TIrrefPatn TCType
+type TCExpr = TExpr TCType TCDataLayout
+type TCPatn = TPatn TCType TCDataLayout
+type TCIrrefPatn = TIrrefPatn TCType TCDataLayout
 
-data DepType = DT { unDT :: Type RawTypedExpr TCDataLayout DepType } deriving (Data, Eq, Ord, Show)
+data DepType = DT { unDT :: Type RawTypedExpr DataLayoutExpr DepType } deriving (Data, Eq, Ord, Show)
 
 type TypedName = (VarName, DepType)
-type TypedExpr = TExpr DepType
-type TypedPatn = TPatn DepType
-type TypedIrrefPatn = TIrrefPatn DepType
+type TypedExpr = TExpr DepType DataLayoutExpr
+type TypedPatn = TPatn DepType DataLayoutExpr
+type TypedIrrefPatn = TIrrefPatn DepType DataLayoutExpr
 
-type RawTypedExpr = TExpr RawType
-type RawTypedPatn = TPatn RawType
-type RawTypedIrrefPatn = TIrrefPatn RawType
+type RawTypedExpr = TExpr RawType DataLayoutExpr
+type RawTypedPatn = TPatn RawType DataLayoutExpr
+type RawTypedIrrefPatn = TIrrefPatn RawType DataLayoutExpr
 
 -- --------------------------------
 -- And their conversion functions
@@ -488,29 +515,30 @@ type RawTypedIrrefPatn = TIrrefPatn RawType
 
 -- Precondition: No unification variables left in the type
 toLocType :: SourcePos -> TCType -> LocType
-toLocType l (T x) = LocType l (fmap (toLocType l) $ ffmap toDLExpr $ fffmap (toLocExpr toLocType . toTCExpr) x)
+toLocType l (T x) = LocType l (fmap (toLocType l) $ ffmap toDLExpr $ fffmap (toLocExpr toLocType toDLExpr . toTCExpr) x)
 toLocType l _ = __impossible "toLocType: unification variable found"
 
-toLocExpr :: (SourcePos -> t -> LocType) -> TExpr t -> LocExpr
-toLocExpr f (TE t e l) = LocExpr l (fffffmap (f l)
-                                  $ ffffmap (toLocPatn f)
-                                  $ fffmap (toLocIrrefPatn f)
-                                  $ ffmap toDLExpr $ fmap (toLocExpr f) e)
+toLocExpr :: (SourcePos -> t -> LocType) -> (l -> DataLayoutExpr) -> TExpr t l -> LocExpr
+toLocExpr f g (TE t e l) = LocExpr l $ fffffmap (f l)
+                                     . ffffmap (toLocPatn f g)
+                                     . fffmap (toLocIrrefPatn f g)
+                                     . ffmap g
+                                     . fmap (toLocExpr f g) $ e
 
-toLocPatn :: (SourcePos -> t -> LocType) -> TPatn t -> LocPatn
-toLocPatn f (TP p l) = LocPatn l (fmap (toLocIrrefPatn f) p)
+toLocPatn :: (SourcePos -> t -> LocType) -> (l -> DataLayoutExpr) -> TPatn t l -> LocPatn
+toLocPatn f g (TP p l) = LocPatn l (fmap (toLocIrrefPatn f g) p)
 
-toLocIrrefPatn :: (SourcePos -> t -> LocType) -> TIrrefPatn t -> LocIrrefPatn
-toLocIrrefPatn f (TIP p l) = LocIrrefPatn l (fffmap fst $ ffmap (toLocIrrefPatn f) $ fmap (toLocExpr f) p)
+toLocIrrefPatn :: (SourcePos -> t -> LocType) -> (l -> DataLayoutExpr) -> TIrrefPatn t l -> LocIrrefPatn
+toLocIrrefPatn f g (TIP p l) = LocIrrefPatn l (fffmap fst $ ffmap (toLocIrrefPatn f g) $ fmap (toLocExpr f g) p)
 
 toTypedExpr :: TCExpr -> TypedExpr
-toTypedExpr = fmap toDepType
+toTypedExpr = ffmap toDepType . fmap toDLExpr
 
 toTypedAlts :: [Alt TCPatn TCExpr] -> [Alt TypedPatn TypedExpr]
-toTypedAlts = fmap (ffmap (fmap toDepType) . fmap toTypedExpr)
+toTypedAlts = fmap (ffmap (ffmap toDepType . fmap toDLExpr) . fmap toTypedExpr)
 
 toDepType :: TCType -> DepType
-toDepType (T x) = DT (fffmap (fmap toRawType . toTCExpr) $ fmap toDepType x)
+toDepType (T x) = DT (fffmap (ffmap toRawType . fmap toDLExpr . toTCExpr) $ ffmap toDLExpr $ fmap toDepType x)
 toDepType _ = __impossible "toDepType: unification variable found"
 
 toRawType :: TCType -> RawType
@@ -518,19 +546,18 @@ toRawType (T x) = RT (fffmap (toRawExpr' . toTCExpr) $ ffmap toDLExpr $ fmap toR
 toRawType _ = __impossible "toRawType: unification variable found"
 
 toRawType' :: DepType -> RawType
-toRawType' (DT t) = RT (fffmap toRawExpr'' $ ffmap toDLExpr $ fmap toRawType' t)
+toRawType' (DT t) = RT (fffmap toRawExpr'' $ fmap toRawType' t)
 
 -- This function although is partial, it should be ok, as we statically know that 
 -- we won't run into those undefined cases. / zilinc
 rawToDepType :: RawType -> DepType
 rawToDepType (RT t) = DT $ go t
-  where go :: Type RawExpr DataLayoutExpr RawType -> Type RawTypedExpr TCDataLayout DepType
+  where go :: Type RawExpr DataLayoutExpr RawType -> Type RawTypedExpr DataLayoutExpr DepType
         go t = let f = rawToDepType
-                   g = toTCDL
                 in case t of
-                     TCon tn ts s    -> TCon tn (fmap f ts) (fmap (fmap g) s)
+                     TCon tn ts s    -> TCon tn (fmap f ts) s
                      TVar v b u      -> TVar v b u
-                     TRecord rp fs s -> TRecord rp (fmap (second $ first f) fs) (fmap (fmap g) s)
+                     TRecord rp fs s -> TRecord rp (fmap (second $ first f) fs) s
                      TVariant alts   -> TVariant (fmap (first $ fmap f) alts)
                      TTuple ts       -> TTuple $ fmap f ts
                      TUnit           -> TUnit
@@ -538,14 +565,15 @@ rawToDepType (RT t) = DT $ go t
                      TBang t         -> TBang $ f t
                      TTake mfs t     -> TTake mfs $ f t
                      TPut mfs t      -> TPut mfs $ f t
-                     TLayout l t     -> TLayout (g l) $ f t
+                     TLayout l t     -> TLayout l $ f t
                      _               -> __impossible "rawToDepType: we don't allow higher-order refinement types"
 
 toRawTypedExpr :: TypedExpr -> RawTypedExpr
-toRawTypedExpr (TE t e l) = TE (toRawType' t) (fffffmap toRawType' $ ffffmap (fmap toRawType') $ fffmap (fmap toRawType') $ fmap (fmap toRawType') e) l
+toRawTypedExpr (TE t e l) = TE (toRawType' t)
+                               (fffffmap toRawType' $ ffffmap (ffmap toRawType') $ fffmap (ffmap toRawType') $ fmap (ffmap toRawType') e) l
 
 toRawExpr'' :: RawTypedExpr -> RawExpr
-toRawExpr'' (TE _ e _) = RE (ffffmap toRawPatn' $ fffmap toRawIrrefPatn' $ ffmap toDLExpr $ fmap toRawExpr'' e)
+toRawExpr'' (TE _ e _) = RE (ffffmap toRawPatn' $ fffmap toRawIrrefPatn' $ fmap toRawExpr'' e)
 
 toRawExpr' :: TCExpr -> RawExpr
 toRawExpr' = toRawExpr . toTypedExpr
@@ -784,8 +812,8 @@ unifLVarsT (T x) = foldMap unifLVarsT x
 #ifdef BUILTIN_ARRAYS
 unifVarsE :: TCSExpr -> [Int]
 unifVarsE (SE t e) = unifVars t ++ foldMap unifVarsE e
-                                ++ fffoldMap (foldMap unifVars) e
-                                ++ ffffoldMap (foldMap unifVars) e
+                                ++ fffoldMap (ffoldMap unifVars) e
+                                ++ ffffoldMap (ffoldMap unifVars) e
                                 ++ fffffoldMap unifVars e
 unifVarsE (SU t _) = unifVars t
 
@@ -816,7 +844,7 @@ isTrivialSE (SE t e) = go e
         go (Let {})   = False
         go e          = all isTrivialSE e
 
-simpleTE :: TExpr t -> Bool
+simpleTE :: TExpr t l -> Bool
 simpleTE (TE _ e _) = case e of
                  ArrayLit   {} -> False
                  ArrayIndex {} -> False
@@ -843,49 +871,4 @@ rigid _ = True
 
 floppy :: TCType -> Bool
 floppy = not . rigid
-
---
--- Dargent
---
-
-isTypeLayoutExprCompatible :: NamedDataLayouts -> TCType -> TCDataLayout -> Bool
-isTypeLayoutExprCompatible env (T (TCon n [] Boxed{})) (TLPtr) = True
-isTypeLayoutExprCompatible env (T (TCon n [] Unboxed)) (TLPrim rs) =
-  let s  = evalSize rs
-      s' = (case n of
-            "U8"  -> 8
-            "U16" -> 16
-            "U32" -> 32
-            "U64" -> 64
-            "Bool" -> 1)
-   in s' <= s
-isTypeLayoutExprCompatible env (T TUnit) (TLPrim rs) = evalSize rs >= 0
-isTypeLayoutExprCompatible env (T (TRecord _ fs1 Boxed{})) (TLPtr) = True
-isTypeLayoutExprCompatible env (T (TRecord _ fs1 Unboxed)) (TLRecord fs2) =
-  all
-    (\((n1,(t,_)),(n2,_,l)) -> n1 == n2 && isTypeLayoutExprCompatible env t l)
-    (zip (sortOn fst fs1) (sortOn fst3 fs2))
-isTypeLayoutExprCompatible env (T (TTuple fs1)) (TLRecord fs2) =
-  all (\(t,(_,_,l)) -> isTypeLayoutExprCompatible env t l) (zip fs1 fs2)
-isTypeLayoutExprCompatible env (T (TVariant ts1)) (TLVariant _ ts2) =
-  all
-    (\((n1,(ts,_)),(n2,_,_,l)) ->
-      n1 == n2 && isTypeLayoutExprCompatible env (tuplise ts) l)
-    (zip (M.assocs ts1) (sortOn fst4 ts2))
-  where
-    tuplise [] = T TUnit
-    tuplise [t] = t
-    tuplise ts = T (TTuple ts)
-#ifdef BUILTIN_ARRAYS
-isTypeLayoutExprCompatible env (T (TArray t _ (Boxed {}) _)) (TLPtr) = True
-isTypeLayoutExprCompatible env (T (TArray t _ Unboxed _)) (TLArray l _) = isTypeLayoutExprCompatible env t l
-#endif
-isTypeLayoutExprCompatible env t (TLOffset l _) = isTypeLayoutExprCompatible env t l
-isTypeLayoutExprCompatible env t (TLAfter l _) = isTypeLayoutExprCompatible env t l
-isTypeLayoutExprCompatible env t (TLRepRef n s) =
-  case M.lookup n env of
-    Just (v, l) -> isTypeLayoutExprCompatible env t (substTCDataLayout (zip v s) l)
-    Nothing     -> False  -- TODO(dargent): this really shoud be an exceptional state
-isTypeLayoutExprCompatible _ t (TLVar n) = True -- FIXME
-isTypeLayoutExprCompatible _ t l = trace ("t = " ++ show t ++ "\nl = " ++ show l) False
 

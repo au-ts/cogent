@@ -31,7 +31,7 @@ import Cogent.Surface
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Errors
 import Cogent.TypeCheck.Generator
-import Cogent.TypeCheck.Post (postT, postE, postA, postL)
+import Cogent.TypeCheck.Post (postT, postE, postA)
 import Cogent.TypeCheck.Solver
 import Cogent.TypeCheck.Subst (apply, applyE, applyL, applyAlts)
 import Cogent.TypeCheck.Util
@@ -174,8 +174,8 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     traceTc "tc" (text "substs for rep decl" <+> pretty name <+> text "is"
                   L.<$> pretty subst)
     exitOnErr $ toErrors os gs
-    lift . lift $ knownDataLayouts %= M.insert name (vars, l)
-    l' <- postL $ applyL subst l
+    lift . lift $ knownDataLayouts %= M.insert name (vars, expr)
+    let l' = toDLExpr $ applyL subst l
     return $ RepDef (DataLayoutDecl pos name vars l')
 
   (ConstDef n (stripLocT -> t) e) -> do

@@ -138,7 +138,7 @@ applyAlts :: Subst -> [Alt TCPatn TCExpr] -> [Alt TCPatn TCExpr]
 applyAlts = map . applyAlt
 
 applyAlt :: Subst -> Alt TCPatn TCExpr -> Alt TCPatn TCExpr
-applyAlt s = fmap (applyE s) . ffmap (fmap (apply s))
+applyAlt s = fmap (applyE s) . ffmap (ffmap (apply s))
 
 applyCtx :: Subst -> ErrorContext -> ErrorContext
 applyCtx s (SolvingConstraint c) = SolvingConstraint (applyC s c)
@@ -212,8 +212,8 @@ applySE (Subst f) (SU t x)
   = SU t x
 applySE s (SE t e) = SE (apply s t)
                           ( fmap (applySE s)
-                          $ fffmap (fmap (apply s))
-                          $ ffffmap (fmap (apply s))
+                          $ fffmap (ffmap (apply s))
+                          $ ffffmap (ffmap (apply s))
                           $ fffffmap (apply s) e)
 #endif
 
@@ -221,7 +221,7 @@ applyE :: Subst -> TCExpr -> TCExpr
 applyE s (TE t e l) = TE (apply s t)
                          ( fmap (applyE s)
                          $ ffmap (applyL s)
-                         $ fffmap (fmap (apply s))
-                         $ ffffmap (fmap (apply s))
+                         $ fffmap (ffmap (apply s))
+                         $ ffffmap (ffmap (apply s))
                          $ fffffmap (apply s) e)
                          l

@@ -59,7 +59,7 @@ data DataLayoutDecl
 data DataLayoutExpr' e
   = Prim    DataLayoutSize
   | Record  [(FieldName, SourcePos, e)]
-  | Variant e [(TagName, SourcePos, Size, e)]
+  | Variant e [(TagName, SourcePos, Integer, e)]
 #ifdef BUILTIN_ARRAYS
   | Array   e SourcePos
 #endif
