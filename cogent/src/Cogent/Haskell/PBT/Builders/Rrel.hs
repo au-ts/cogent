@@ -133,7 +133,7 @@ mkRrelBody cogOcTyp ocTyp oaTyp userE ffimods
                         ocCTyLy <&> (\x -> mkLensView' x "oc" Unknown Nothing)
           oaLens' = mkLensView oaLy "oa" Unknown Nothing
           ocLens = map fst ocLens'
-          oaLens = trace ("here"++ppShow ocLens) $ map fst oaLens'
+          oaLens = trace ("here" ++ppShow ocLy++ppShow ocCTyLy) $ map fst oaLens'
           ls = oaLens ++ ocLens
           cNames = getConNames ocLy [] ++ getConNames oaLy []
           binds = map ((\x -> pvar . mkName . fst $ x) &&& snd) ls

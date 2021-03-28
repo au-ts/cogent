@@ -169,7 +169,7 @@ determineUnpack cogTyp hsTyp@(HS.TyVar _ (HS.Ident _ _)) prevGroup depth fieldNa
     = HsEmbedLayout hsTyp HsTyVar prevGroup $ M.singleton fieldName $ Left depth
 determineUnpack cogTyp hsTyp@(HS.TyCon _ cn) prevGroup depth fieldName
     = flip (fromMaybe)
-        (checkIsPrim cn <&> (\x -> HsEmbedLayout hsTyp HsPrim prevGroup (M.singleton fieldName (Left depth)))) 
+        (checkIsPrim cn <&> (\x -> trace (":: "++show (getConIdentName hsTyp)) $ HsEmbedLayout hsTyp HsPrim prevGroup (M.singleton fieldName (Left depth)))) 
         -- TODO: how to handle other Con?
         -- TODO: Abs Types cannot be dealt with so easily
         -- Cannot make any assumptions here b/c it is a hs embedding of the cogent type 
@@ -180,7 +180,7 @@ determineUnpack cogTyp hsTyp@(HS.TyApp _ l r) prevGroup depth fieldName
           cogFields = getFields cogTyp
           conName = getConIdentName maybeConName
           groupTag = toGroupTag cogTyp
-          accessors = getAccessor conName groupTag fieldTypes (Just (map fst cogFields))
+          accessors = getAccessor conName groupTag fieldName fieldTypes (Just (map fst cogFields))
         in HsEmbedLayout hsTyp groupTag prevGroup $
             M.fromList $ if not (null cogFields) && not (null accessors) && not (null fieldTypes) 
                          then [ (let a = accessors!!i
@@ -221,9 +221,7 @@ determineUnpack' hsTyp@(HS.TyCon _ cn) prevGroup depth fieldName
         -- TODO: how to handle other Con?
         -- TODO: Abs Types cannot be dealt with so easily
         -- note: fine to check here -> as we expect a haskell type (abstracted away from concrete function)
-        ({-if | prevGroup == HsMaybe -> HsEmbedLayout hsTyp HsTyAbs prevGroup $ M.singleton fieldName (Left depth)
-
-            | otherwise -> -} HsEmbedLayout hsTyp HsTyAbs prevGroup $ M.singleton fieldName (Left depth))
+        (HsEmbedLayout hsTyp HsTyAbs prevGroup $ M.singleton fieldName (Left depth))
 determineUnpack' hsTyp@(HS.TyApp _ l r) prevGroup depth fieldName
     = let (maybeConName:fieldTypes) = unfoldAppCon hsTyp
           conName = getConIdentName maybeConName
@@ -231,11 +229,12 @@ determineUnpack' hsTyp@(HS.TyApp _ l r) prevGroup depth fieldName
           -- TODO: unsure if ^^ works - when would oa be a custom record?
           --       Makes more sense to restrict oa to either a prim or a built in hs type rather then allowing
           --       them to define there own records
-          accessors = getAccessor conName groupTag fieldTypes Nothing
+          accessors = getAccessor conName groupTag fieldName fieldTypes Nothing
         in HsEmbedLayout hsTyp groupTag prevGroup $
             M.fromList $ if not (null accessors) && not (null fieldTypes) then 
                            [ ( accessors!!i
-                             , Right (determineUnpack' (fieldTypes!!i) groupTag (depth+1) (accessors!!i)))
+                             , Right (determineUnpack' (fieldTypes!!i) groupTag 
+                                    (if all (/=groupTag) [HsCollection, HsList, HsTyAbs] then depth+1 else depth) (accessors!!i)))
                            | i <- [0..length fieldTypes-1] ]
                          else [(fieldName, Left depth)]
 determineUnpack' hsTyp@(HS.TyList _ ty) prevGroup depth fieldName
@@ -264,38 +263,38 @@ determineUnpackFFI layout varToUnpack fieldName ffiTy ffiTypes
                      else head ts
           cn = getConIdentName cTy
           ffiFields = findFFITypeByName ffiTypes $ cn
+          -- if cant find in lookup then HsTyAbs
           cFields = M.toList $ fromMaybe M.empty $ M.lookup cn ffiFields
-        in HsFFILayout ffiTy group prevGroup $ M.fromList $ 
-         if group /= HsVariant 
-         then [ let (k,v) = fld!!i
-                    (ck,cv) = if i >= length cFields then (fieldName, cTy)
-                              else cFields!!i
-                  in case v of 
+        in if | null cFields -> HsFFILayout ffiTy HsTyAbs prevGroup $ M.singleton fieldName $ Left fieldName
+              | group /= HsVariant -> HsFFILayout ffiTy group prevGroup $ M.fromList $ 
+                  [ let (k,v) = fld!!i
+                        (ck,cv) = if i >= length cFields then (fieldName, cTy)
+                                  else cFields!!i
+                      in mkBindPair v varToUnpack k ck cv fieldName ffiTypes
+
+                  | i <- [0..length fld-1] ]
+              | otherwise -> HsFFILayout ffiTy group prevGroup $ M.fromList $ 
+                  -- Have to create ad-hoc "Tag" field to match up with the C type fields
+                  -- where Variants are Enums and the Tag field is the enumeration.
+                  -- Assumes Variants always are represented by Enums on the C level
+                  -- and that the names of the variant's alternatives match the enums names 
+                  -- (minus all the generated stuff prepended on)
+                  [ let (ck,cv) = cFields!!i
+                        (k,v) = let ck' = fromMaybe fieldName $ stripPrefix "ct" $
+                                            [toLower x | x <- ck, x `notElem` ("_"++[head . show $ y | y <- [0..9]])]
+                                  in fromMaybe (if "tag" `isInfixOf` ck 
+                                     then let nn = "_"++cn++"Tag"
+                                            in ( nn
+                                               , Right $ HsEmbedLayout (mkTyConT . mkName $ "Int") HsPrim HsVariant $ M.singleton nn $ Left 0)
+                                     else (fieldName, Left 0)) $
+                                    find (\(k,v) -> ck' `isInfixOf` (allLower k)) fld
+                      in mkBindPair v varToUnpack k ck cv fieldName ffiTypes 
+                  | i <- [0..length cFields-1] ]
+    where mkBindPair node varToUnpack k ck cv fieldName ffiTypes = case node of 
                   (Left depth) -> ( mkKIdentVarBind varToUnpack k depth
                                   , Left $ fieldName)
                   (Right next) -> ( if (head ck == '_') then tail ck else ck
-                                  , Right $ determineUnpackFFI next varToUnpack ck cv ffiTypes )
-              | i <- [0..length fld-1] ]
-         else [ let (ck,cv) = cFields!!i
-                    -- Have to create ad-hoc "Tag" field to match up with the C type fields
-                    -- where Variants are Enums and the Tag field is the enumeration.
-                    -- Assumes Variants always are represented by Enums on the C level
-                    -- and that the names of the variant's alternatives match the enums names 
-                    -- (minus all the generated stuff prepended on)
-                    (k,v) = let ck' = fromMaybe "unknown" $ stripPrefix "ct" $
-                                        [toLower x | x <- ck, x `notElem` ("_"++[head . show $ y | y <- [0..9]])]
-                              in fromMaybe (if "tag" `isInfixOf` ck 
-                                 then let nn = "_"++cn++"Tag"
-                                        in ( nn
-                                           , Right $ HsEmbedLayout (mkTyConT . mkName $ "Int") HsPrim HsVariant $ M.singleton nn $ Left 0)
-                                 else ("unknown", Left 0)) $
-                                find (\(k,v) -> ck' `isInfixOf` (allLower k)) fld
-                  in case v of 
-                  (Left depth) -> ( mkKIdentVarBind varToUnpack k depth
-                                  , Left $ fieldName)
-                  (Right next) -> ( if (head ck == '_') then tail ck else ck
-                                  , Right $ determineUnpackFFI next varToUnpack ck cv ffiTypes )
-              | i <- [0..length cFields-1] ]
+                                  , Right $ determineUnpackFFI next varToUnpack ck cv ffiTypes ) 
 
 allLower :: String -> String 
 allLower xs = [toLower x | x <- xs]
@@ -345,17 +344,17 @@ unfoldAppCon t = case t of
                    (HS.TyCon _ n) -> [t]
                    _ -> [t]
 
-getAccessor :: String -> GroupTag -> [HS.Type ()] -> Maybe [String] -> [String]
-getAccessor conName groupTag ts fieldNames
+getAccessor :: String -> GroupTag -> String -> [HS.Type ()] -> Maybe [String] -> [String]
+getAccessor conName groupTag fieldName ts fieldNames 
     = let fs = fromMaybe (filter (/=unknownCon) . map getConIdentName $ ts
                ) $ fieldNames
         in case groupTag of
             HsMaybe -> ["_Just"]
             HsVariant -> if | conName == "Either" && length fs == 2 -> ["_Left", "_Right"]
                             | otherwise -> map (\x -> "_" ++ conName ++ "_" ++ x) fs
-            HsCollection -> ["each" | t <- ts]
-            HsList -> ["each" | t <- ts]
-            HsTyAbs -> ["unknown"]
+            HsCollection -> [fieldName | t <- ts]
+            HsList -> [fieldName | t <- ts]
+            HsTyAbs -> [fieldName]
             _ -> fs
 
 checkIsPrim :: HS.QName () -> Maybe String
@@ -374,7 +373,7 @@ getConIdentName (HS.TyCon _ (HS.UnQual _ (HS.Ident _ n))) = n
 getConIdentName _ = unknownCon
 
 isCollection :: String -> Bool
-isCollection x = x `elem` hsCollectionTypes
+isCollection xs = any (==True) [ y `isInfixOf` xs | y <- hsCollectionTypes ] 
 
 isSumType :: String -> Bool
 isSumType x = x `elem` hsSumTypes
@@ -485,28 +484,6 @@ mkOp :: String -> HS.QOp ()
 mkOp = op . mkName
 
 
--- | Builder the actual lens view infix expression 
--- -----------------------------------------------------------------------
--- | @varToView@ is the var that the view transform is being applied to
--- | @tag@ is the kind of type the view is being built for
--- | @prev@ previous expression, which is the tail rec var being built up
--- | @accessor@ the actual variable we want to view 
--- ----------------------------------------------------------------------------------------------------
-mkViewInfixE :: String -> GroupTag -> Maybe (HS.Exp ()) -> String -> HS.Exp ()
-mkViewInfixE varToView tag prev accessor
-    = let viewE = case tag of
-                    HsVariant -> mkOp "^?"
-                    HsMaybe -> mkOp "^?"
-                    HsCollection -> mkOp "^.."
-                    HsList -> mkOp "^.."
-                    _ -> mkOp "^."
-        in case prev of
-             Just x -> let (op, x') = case tag of 
-                                HsCollection -> ("^..", paren x)
-                                HsList -> ("^..",  paren x)
-                                _ -> (".", x)
-                        in infixApp x' (mkOp op) $ mkVar accessor
-             Nothing -> infixApp (mkVar varToView) viewE $ mkVar accessor
 
 mkLens :: String -> HS.Decl ()
 mkLens t
@@ -554,10 +531,33 @@ mkLensView' layout varToView prevGroup prev
            (Right next) -> mkLensView' next varToView group $ Just $ mkViewInfixE vv group prev k
        ) $ M.toList $ fld
 
+-- | Builder the actual lens view infix expression 
+-- -----------------------------------------------------------------------
+-- | @varToView@ is the var that the view transform is being applied to
+-- | @tag@ is the kind of type the view is being built for
+-- | @prev@ previous expression, which is the tail rec var being built up
+-- | @accessor@ the actual variable we want to view 
+-- ----------------------------------------------------------------------------------------------------
+mkViewInfixE :: String -> GroupTag -> Maybe (HS.Exp ()) -> String -> HS.Exp ()
+mkViewInfixE varToView tag prev accessor
+    = let viewE = case tag of
+                    HsVariant -> mkOp "^?"
+                    HsMaybe -> mkOp "^?"
+                    HsCollection -> mkOp "^.."
+                    HsList -> mkOp "^.."
+                    _ -> mkOp "^."
+        in case prev of
+             Just x -> if any (==tag) [HsCollection, HsList, HsTyAbs] then x
+                       else let (op, x') = case tag of 
+                                            HsCollection -> ("^..", paren x)
+                                            HsList -> ("^..",  paren x)
+                                            _ -> (".", x)
+                              in infixApp x' (mkOp op) $ mkVar accessor
+             Nothing -> infixApp (mkVar varToView) viewE $ mkVar accessor
 
 mkFromIntegral :: HS.Type () -> GroupTag -> HS.Exp () -> HS.Exp ()
 mkFromIntegral ty group prev =
-    if isFromIntegral ty 
+    if isFromIntegral ty && all (/=group) [HsTyVar, HsCollection]
     then infixApp prev (mkRevAppOp group) (function "fromIntegral") 
     else prev
     where mkRevAppOp x = case x of 
