@@ -11,7 +11,7 @@
 --
 {-# LANGUAGE OverloadedStrings #-}
 
-module Cogent.LLVM.Compile (toLLVM) where
+module Cogent.LLVM.Compile (toLLVM, writeLLVM) where
 
 -- This module provides the external interface to the LLVM backend for Cogent
 

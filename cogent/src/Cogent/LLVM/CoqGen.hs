@@ -1,7 +1,9 @@
 {-# LANGUAGE DataKinds #-}
 
-module Cogent.LLVM.Coq (toCoq) where
+module Cogent.LLVM.CoqGen (toCoq) where
 
+-- Generate Coq files corresponding to a Cogent AST.
+-- eventually can be replaced with CoqInterface.hs
 import Cogent.Common.Syntax (CoreFunName (..), Op, VarName)
 import qualified Cogent.Common.Syntax as S (Op (..))
 import Cogent.Common.Types (PrimInt)
@@ -128,13 +130,12 @@ genDefinition _ = error "not implemented"
 
 genType :: Show b => C.Type t b -> Type
 genType C.TUnit = TUnit
--- genType (C.TFun t rt) = TFun (genType t) (genType rt)
+genType (C.TFun t rt) = TFun (genType t) (genType rt)
 genType t@(C.TPrim _) = TPrim (genPrimType t)
 genType C.TString = TPrim String
 genType (C.TRecord _ flds s) =
     let flds' = ([(f, (genType t, if b then Taken else Present)) | (f, (t, b)) <- flds])
      in TRecord (CoqList flds') (genSigil s)
-genType (C.TFun t rt) = TFun (genType t) (genType rt)
 genType t = error $ show t
 
 genExpr :: (Show a, Show b) => TypedExpr t v a b -> Expr

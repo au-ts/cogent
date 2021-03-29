@@ -31,5 +31,6 @@
 ./input/Source.v
 
 ./coq/Test.v
+./coq/Extract.v
 
 -arg "-w '-notation-overridden'"

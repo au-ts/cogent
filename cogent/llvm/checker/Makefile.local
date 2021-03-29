@@ -1,0 +1,3 @@
+post-all::
+	@echo "Fixing extracted Haskell module name"
+	sed -i 's/^module Compiler where$$/module ExtractedCoq.Compiler where/' extracted/Compiler.hs 

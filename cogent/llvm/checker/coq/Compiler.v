@@ -196,7 +196,9 @@ Section Compiler.
     | FunDef n t rt b => evalErrS (TLE_Definition <$> compile_fun n t rt b) (newState (compile_type t, EXP_Ident (ID_Local (Name "a0"))))
     end.
 
-  Definition compile_cogent : cogent_prog -> err (toplevel_entities typ (block typ * list (block typ))) :=
+  Definition vellvm_prog : Type := toplevel_entities typ (block typ * list (block typ)).
+
+  Definition compile_cogent : cogent_prog -> err vellvm_prog :=
     map_monad compile_def.
 
   (* Definition compile_cogent (e : expr) := compile_expr e (Name "exit") (newState (TYPE_I 8)). *)

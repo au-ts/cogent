@@ -206,13 +206,15 @@ library
     build-depends: haskell-src-exts >= 1.19, pretty
   if flag(llvm-backend)
     exposed-modules: Cogent.LLVM.Compile
-                   , Cogent.LLVM.Coq
+                   , Cogent.LLVM.CoqGen
+                   , Cogent.LLVM.WithCoq
     other-modules: Cogent.LLVM.CodeGen
                  , Cogent.LLVM.Overrides
                  , Cogent.LLVM.Expr
                  , Cogent.LLVM.Types
                  , Cogent.LLVM.CCompat
                  , Cogent.LLVM.CHeader
+                 , ExtractedCoq.Compiler
     cpp-options: -DWITH_LLVM
     build-depends: llvm-hs >= 9.0.1, llvm-hs-pure >= 9.0.0
   if flag(builtin-arrays) || flag(refinement-types)
