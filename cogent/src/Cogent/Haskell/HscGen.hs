@@ -104,7 +104,7 @@ hscExpr (CConst (CNumConst i _ DEC)) = Hsc.ELit $ Hsc.LitInt i
 hscExpr _ = __todo "hscExpr: other expressions have not been implemented"
 
 hscTyDecl :: CExtDecl -> Maybe Hsc.Declaration
-hscTyDecl (CDecl (CStructDecl n flds)) = trace (show flds) $ Just . Hsc.HsDecl $ Hsc.DataDecl (toHscName n) [] [Hsc.DataCon (toHscName n) $ flds']
+hscTyDecl (CDecl (CStructDecl n flds)) = Just . Hsc.HsDecl $ Hsc.DataDecl (toHscName n) [] [Hsc.DataCon (toHscName n) $ flds']
   where flds' = map (\(t, Just f) -> (lensFld n f, hscType t)) flds
         lensFld x y = "_"++decap (toHscName x)++"_"++ decap y
   -- \ ^ TODO: it does not support --funion-for-variants yet

@@ -126,13 +126,13 @@ mkAbsFBody cogIcTyp icTyp iaTyp userIaExp ffimods
                (\x -> let (_, ti, _) = findHsFFIFunc (x ^. _2) (x ^. _1) 
                         in determineUnpackFFI icLayout ic "None" ti (x ^. _3) )
           lens = map fst $ fromMaybe (mkLensView icLayout ic Unknown Nothing) $ 
-                                icCTyLy <&> (\x -> mkLensView' x "ic" Unknown Nothing)
+                                icCTyLy <&> (\x -> mkLensView' x "ic" Unknown "unknown" Nothing)
           binds = map ((\x -> pvar . mkName . fst $ x) &&& snd) lens
           binds' = map (\(k, v) -> letStmt [nameBind (mkName k) v] ) $ lens
           peeks = fromMaybe [] $ icCTyLy <&> (\x -> mkPeekStmts x ic Nothing)
           body = fromMaybe (packAbsCon iaTyp (map fst lens) 0) $ userIaExp <&>
-                                 (\x -> replaceVarsInUserInfixE x 0 $ scanUserInfixViewE x 0 "ic") -- M.fromList $ map (\(a,b) -> (a, show b)) lens)
-       in pure ( if isNothing ffimods then mkLetE binds body
+                                 (\x -> replaceVarsInUserInfixE x 0 $ scanUserInfixE x 0 "ic")
+       in pure $ ( if isNothing ffimods then mkLetE binds body
                  -- TODO: prepend peek for each Ptr type
                  else doE ( (map snd peeks)++binds'++[qualStmt (app (function "return") body)])
                , (getConNames icLayout []) ++ 
@@ -177,31 +177,6 @@ packAbsCon iaTyp varsToPut pos
                 where
 packAbsCon (TyList _ ty) varsToPut pos = mkVar $ varsToPut!!pos
 packAbsCon iaTyp varsToPut prev | _ <- iaTyp = __impossible $ "Bad Abstraction"++" --> "++"Hs: "++show iaTyp
-
-
-mkPeekStmts :: HsFFILayout -> String -> Maybe String -> [(String, Stmt ())]
-mkPeekStmts layout varToView prevConName
-    = let hsTy = layout ^. cTyp
-          group =  layout ^. groupTag
-          fld = layout ^. cFieldMap
-       in concatMap ( \(k, v)
-            -> let n = k
-                   (cTyCon:cTyParams,ptrCon) = partition (\x -> all (/= getConIdentName x) ["Ptr", "IO"]) $ unfoldFFITy hsTy
-                   name = getConIdentName cTyCon
-                   vv = fromMaybe varToView $ prevConName <&>
-                            (\x -> mkKIdentVarBind varToView x 0)
-                 in case v of 
-           (Left depth) -> if null ptrCon then []
-                           else [ (vv, mkPtrPeekStmt varToView vv) ] 
-           (Right next) -> mkPeekStmts next varToView $ if null ptrCon then Nothing else Just name
-       ) $ M.toList $ fld
-
-mkPtrPeekStmt :: String -> String -> Stmt ()
-mkPtrPeekStmt toPeek toBind = genStmt (pvar . mkName $ toBind) $ mkPeekCon toPeek
-
-mkPeekCon :: String -> Exp ()
-mkPeekCon s = app (function "peek") $ function s
-
         
 mkFromIntE :: Type () -> Exp () -> Exp ()
 mkFromIntE ty prev =
@@ -224,5 +199,3 @@ boolResult _ = False
 checkTy :: String -> [String] -> Bool
 checkTy n xs = n `elem` xs
 
-rmdups :: (Ord a) => [a] -> [a]
-rmdups = map P.head . group . sort

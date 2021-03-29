@@ -21,12 +21,13 @@ import qualified Language.Haskell.Exts as HS
 import Lens.Micro
 import Lens.Micro.TH
 
-import Data.List (find, isInfixOf, isSuffixOf, partition, sortOn, stripPrefix)
-import Data.List.Extra (trim)
+import Data.List (find, group, sort, isInfixOf, isSuffixOf, partition, sortOn, stripPrefix)
+import Data.List.Extra (trim, groupOn)
 import Data.Char (toLower)
 import Data.Maybe (fromMaybe)
 import qualified Data.Map as M
 import Debug.Trace
+import Text.Show.Pretty 
 
 -- | Cogent HS embedding Layout type
 -- -----------------------------------------------------------------------
@@ -169,7 +170,7 @@ determineUnpack cogTyp hsTyp@(HS.TyVar _ (HS.Ident _ _)) prevGroup depth fieldNa
     = HsEmbedLayout hsTyp HsTyVar prevGroup $ M.singleton fieldName $ Left depth
 determineUnpack cogTyp hsTyp@(HS.TyCon _ cn) prevGroup depth fieldName
     = flip (fromMaybe)
-        (checkIsPrim cn <&> (\x -> trace (":: "++show (getConIdentName hsTyp)) $ HsEmbedLayout hsTyp HsPrim prevGroup (M.singleton fieldName (Left depth)))) 
+        (checkIsPrim cn <&> (\x -> HsEmbedLayout hsTyp HsPrim prevGroup (M.singleton fieldName (Left depth)))) 
         -- TODO: how to handle other Con?
         -- TODO: Abs Types cannot be dealt with so easily
         -- Cannot make any assumptions here b/c it is a hs embedding of the cogent type 
@@ -409,13 +410,16 @@ unfoldFFITy t = unfoldAppCon t
 -- | HsEmbedLayout type. 
 -- -----------------------------------------------------------------------
 scanUserInfixE :: HS.Exp () -> Int -> String -> M.Map String String
-scanUserInfixE (HS.Paren () e) depth kid = scanUserInfixViewE e depth kid
-scanUserInfixE exp depth kid
-    | (HS.InfixApp () lhs op rhs) <- exp 
+scanUserInfixE (HS.Paren () e) depth kid = scanUserInfixE e depth kid
+scanUserInfixE (HS.App () lhs rhs) depth kid = scanUserInfixE rhs depth kid
+scanUserInfixE exp@(HS.InfixApp () lhs op rhs) depth kid
     = let opname = getOpStr op
-        in if | any (==opname) ["^.", "^?"] -> scanUserInfixViewE exp depth kid
+        in if | any (==opname) ["^.", "^?"] -> let kid' = case lhs of   
+                                                            (HS.Var _ (HS.UnQual _ (HS.Ident _ name))) -> name
+                                                            _ -> kid
+                                                 in scanUserInfixViewE exp depth kid'
               | otherwise -> M.union (scanUserInfixE lhs depth kid) (scanUserInfixE rhs depth kid)
-scanUserInfixE exp depth kid =  scanUserInfixViewE exp depth kid
+scanUserInfixE exp depth kid = scanUserInfixViewE exp depth kid
 
 scanUserShortE :: HS.Exp () -> Int -> M.Map String String
 scanUserShortE (HS.Paren () e) depth = scanUserShortE e depth
@@ -431,12 +435,13 @@ scanUserShortE _ depth = M.empty
 -- | depth only increases when recursing down RHS
 -- -----------------------------------------------------------------------
 scanUserInfixViewE :: HS.Exp () -> Int -> String -> M.Map String String
-scanUserInfixViewE (HS.Paren () e) depth kid = scanUserInfixViewE e depth kid
-scanUserInfixViewE (HS.InfixApp () lhs op rhs) depth kid  
+scanUserInfixViewE exp@(HS.Paren () e) depth kid = scanUserInfixViewE e depth kid
+scanUserInfixViewE exp@(HS.App () lhs rhs) depth kid = scanUserInfixViewE rhs depth kid
+scanUserInfixViewE exp@(HS.InfixApp () lhs op rhs) depth kid  
     = if getOpStr op == "." 
        then M.union (scanUserInfixViewE lhs (depth) kid ) (scanUserInfixViewE rhs (depth+1) kid )
        else M.union (scanUserInfixViewE lhs (depth) kid ) (scanUserInfixViewE rhs (depth) kid )
-scanUserInfixViewE exp depth kid | (HS.Var _ (HS.UnQual _ (HS.Ident _ name))) <- exp
+scanUserInfixViewE exp@(HS.Var _ (HS.UnQual _ (HS.Ident _ name))) depth kid 
     = if | (any (==trim name ) ["ic","ia","oc","oa"]) -> M.empty
          | null (scanUserShortE exp 0) -> M.singleton (mkKIdentVarBind kid name (depth+1)) (name)
          | otherwise -> scanUserShortE exp 0
@@ -455,9 +460,9 @@ getOpStr _ = ""
 -- | that are bound such that the expression is semantically equivalent
 -- -----------------------------------------------------------------------
 replaceVarsInUserInfixE :: HS.Exp () -> Int -> M.Map String String -> HS.Exp ()
-replaceVarsInUserInfixE (HS.Paren () e) depth vars = replaceVarsInUserInfixE e depth vars
-replaceVarsInUserInfixE exp depth vars
-    | (HS.InfixApp () lhs op rhs) <- exp 
+replaceVarsInUserInfixE exp@(HS.Paren () e) depth vars = HS.Paren () $ replaceVarsInUserInfixE e depth vars
+replaceVarsInUserInfixE exp@(HS.App () lhs rhs) depth vars = HS.App () lhs $ replaceVarsInUserInfixE rhs depth vars
+replaceVarsInUserInfixE exp@(HS.InfixApp () lhs op rhs) depth vars
     = let opname = getOpStr op
         in if | any (==opname) ["^.", "^?", ".~"] -> replaceInfixViewE exp depth vars
               | otherwise -> HS.InfixApp () (replaceVarsInUserInfixE lhs depth vars) op (replaceVarsInUserInfixE rhs depth vars)
@@ -471,19 +476,18 @@ replaceInfixViewE (HS.InfixApp () lhs op rhs) depth vars
     --   ok just to handle rhs because of fixity
     = replaceInfixViewE rhs (depth+1) vars
 replaceInfixViewE exp depth vars | (HS.Var _ (HS.UnQual _ (HS.Ident _ name))) <- exp
-    -- TODO: how to handle multiple
     = let ns = filter (\(k,v) -> v == name) $ M.toList vars
-        in if length ns == 0 then exp else HS.Var () (HS.UnQual () (HS.Ident () ((head ns) ^. _1)))
+        in if null ns then exp else HS.Var () (HS.UnQual () (HS.Ident () ((head ns) ^. _1)))
 replaceInfixViewE exp depth vars = exp
-
 
 mkVar :: String -> HS.Exp ()
 mkVar = var . mkName
 
+mkPVar :: String -> HS.Pat ()
+mkPVar = pvar . mkName
+
 mkOp :: String -> HS.QOp ()
 mkOp = op . mkName
-
-
 
 mkLens :: String -> HS.Decl ()
 mkLens t
@@ -513,8 +517,8 @@ mkLensView layout varToView prevGroup prev
            (Right next) -> mkLensView next varToView group $ Just $ mkViewInfixE varToView group prev k
        ) $ M.toList $ fld
 
-mkLensView' :: HsFFILayout -> String -> GroupTag -> Maybe (HS.Exp ()) -> [((String, HS.Exp ()), (HS.Type (), GroupTag))]
-mkLensView' layout varToView prevGroup prev
+mkLensView' :: HsFFILayout -> String -> GroupTag -> String -> Maybe (HS.Exp ()) -> [((String, HS.Exp ()), (HS.Type (), GroupTag))]
+mkLensView' layout varToView prevGroup prevFieldName prev
     = let hsTy = layout ^. cTyp
           group =  layout ^. groupTag
           fld = layout ^. cFieldMap
@@ -528,8 +532,69 @@ mkLensView' layout varToView prevGroup prev
                              in [ ( ( n
                                     , e & (mkFromIntegral hsTy prevGroup) ) 
                                   , (hsTy, prevGroup) ) ]
-           (Right next) -> mkLensView' next varToView group $ Just $ mkViewInfixE vv group prev k
+           (Right next) -> if prevGroup /= HsVariant 
+                            then mkLensView' next varToView group k $ Just $ mkViewInfixE vv group prev k
+                            else let e = fromMaybe (mkVar vv) prev 
+                                   in [( (mkBindName prevFieldName, e), (hsTy, prevGroup) )] ++ 
+                                        (mkLensView' next varToView group k $ Just $ mkViewInfixE vv group prev k)
        ) $ M.toList $ fld
+
+mkBindName :: String -> String
+mkBindName s = "_"++s
+
+mkBindName' :: String -> String -> String
+mkBindName' x y = "_"++allLower y++"_"++x
+
+-- Variants in C are Enums
+-- Take in that C Type layout (that was transformed from a variant) and build expressions
+-- that transform enum tag into a Maybe and bind the expressions to expected binding (if it was
+-- just a cogent variant)
+mkCTyVariantLike :: HsFFILayout -> String -> Int -> M.Map String (HS.Exp ()) -> [(String, HS.Exp ())]
+mkCTyVariantLike layout prefix depth binds
+    = let hsTy = layout ^. cTyp
+          group =  layout ^. groupTag
+          fld = layout ^. cFieldMap
+       in if group /= HsVariant 
+          then concatMap ( \(k, v) -> case v of
+                   (Left _) -> []; (Right next) -> mkCTyVariantLike next prefix depth binds;
+               ) $ M.toList fld
+          else let tag = mkBindName' "tag" $ getCTyConName hsTy
+                   suc = mkBindName' "success" $ getCTyConName hsTy
+                   err = mkBindName' "error" $ getCTyConName hsTy
+                 in if all (`M.member` binds) [tag,suc,err] then
+                        [ ( mkKIdentVarBind prefix "Error" depth
+                          , function err )
+                        , ( mkKIdentVarBind prefix "Success" depth
+                          , mkTagTransform tag suc ) ]
+                    else []
+
+mkTagTransform :: String -> String -> HS.Exp ()
+mkTagTransform ctag sucbind = infixApp (mkVar ctag) (mkOp "<&>") $ mkLambIf sucbind
+    where mkLambIf x = lamE [mkPVar "x"] $ mkIf x
+          mkIf x = HS.MultiIf () $ (map (mkRhs x) builtInTagEnums) ++ [otherwiseRhs]
+          mkRhs x y = HS.GuardedRhs () [qualStmt (infixApp (mkFromEnum "x") (mkOp "==") (mkFromEnum y))]
+                        (if "Success" `isInfixOf` y 
+                          then app (HS.Con () $ mkQName "Just") (mkVar x)
+                          else HS.Con () $ mkQName "Nothing")
+          mkFromEnum z = app (function "fromEnum") $ mkVar z
+          otherwiseRhs = HS.GuardedRhs () [qualStmt (function "otherwise")] $ HS.Con () $ mkQName "Nothing"
+
+builtInTagEnums = ["tagEnumSuccess", "tagEnumError"]
+
+
+        -- if i make it so binds for variants produce bind for variant alts 
+        -- as well as a bind right to the bottom of the recursion then 
+        -- this will be easier
+        -- as there will exists a bind in the binds map to associate each alternative to
+        -- then mkTagTransform will only need to take the tag and then the bind associated 
+        -- with this alternative
+
+
+getCTyConName :: HS.Type () -> String
+getCTyConName hsTy 
+    = let (cTyCon:cTyParams,ptrCon) = partition 
+            (\x -> all (/= getConIdentName x) ["Ptr", "IO"]) $ unfoldFFITy hsTy
+        in getConIdentName cTyCon
 
 -- | Builder the actual lens view infix expression 
 -- -----------------------------------------------------------------------
@@ -600,3 +665,33 @@ getConNames' tyL acc
             Left _ -> acc
             Right next -> getConNames' next $ acc ++ if null ptrCon then [] else [name]
         ) $ M.toList fld
+
+rmdups :: (Ord a) => [a] -> [a]
+rmdups = map head . group . sort
+
+rmDupBinds :: (Ord a) => [(a,b)] -> [(a,b)]
+rmDupBinds = map head . groupOn fst . sortOn fst
+
+
+mkPeekStmts :: HsFFILayout -> String -> Maybe String -> [(String, HS.Stmt ())]
+mkPeekStmts layout varToView prevConName
+    = let hsTy = layout ^. cTyp
+          group =  layout ^. groupTag
+          fld = layout ^. cFieldMap
+       in concatMap ( \(k, v)
+            -> let n = k
+                   (cTyCon:cTyParams,ptrCon) = partition (\x -> all (/= getConIdentName x) ["Ptr", "IO"]) $ unfoldFFITy hsTy
+                   name = getConIdentName cTyCon
+                   vv = fromMaybe varToView $ prevConName <&>
+                            (\x -> mkKIdentVarBind varToView x 0)
+                 in case v of 
+           (Left depth) -> if null ptrCon || vv == varToView then []
+                           else [ (vv, mkPtrPeekStmt varToView vv) ] 
+           (Right next) -> mkPeekStmts next varToView $ if null ptrCon then Nothing else Just name
+       ) $ M.toList $ fld
+
+mkPtrPeekStmt :: String -> String -> HS.Stmt ()
+mkPtrPeekStmt toPeek toBind = genStmt (pvar . mkName $ toBind) $ mkPeekCon toPeek
+
+mkPeekCon :: String -> HS.Exp ()
+mkPeekCon s = app (function "peek") $ function s

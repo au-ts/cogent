@@ -141,7 +141,7 @@ mkGenFBody cogIcTyp icTyp userGenExps ffimods =
                  ) bindsMap
         binds = sortOn (\x -> "suchThat" `isInfixOf` (show x)) (map snd binds') 
         -- DONE???: find matching var user is refering to and drop that in
-        body = trace (show icCTyLy) $ fromMaybe (packConWithLayout (Right icLayout) Nothing) $
+        body = fromMaybe (packConWithLayout (Right icLayout) Nothing) $
                         icCTyLy <&> 
                             (\x -> let hsTy = x ^. cTyp 
                                        next = x  ^. cFieldMap

@@ -123,21 +123,22 @@ mkRrelBody cogOcTyp ocTyp oaTyp userE ffimods
                (\x -> let (_, _, to) = findHsFFIFunc (x ^. _2) (x ^. _1) 
                         in determineUnpackFFI ocLy "ic" "None" to (x ^. _3) )
           oaLy = determineUnpack' oaTyp Unknown 0 "1"
-          -- DONT need this b/c oa is abstract (no ptrs)
-          {- 
-          oaCTyLy = ffimods <&>
-               (\x -> let (n, ti, to) = findHsFFIFunc (x ^. _2) (x ^. _1) 
-                        in determineUnpackFFI oaLy "oa" "None" ti (x ^. _3) )
-          -}
-          ocLens' = fromMaybe (mkLensView ocLy "oc" Unknown Nothing) $
-                        ocCTyLy <&> (\x -> mkLensView' x "oc" Unknown Nothing)
+          (ocLens', tys', peeks) = fromMaybe 
+                    (let l = mkLensView ocLy "oc" Unknown Nothing in (map fst l, map snd l, [])) $
+                        ocCTyLy <&> (\x -> let l = mkLensView' x "oc" Unknown "unknown" Nothing
+                                               t = map snd l
+                                               l' = rmDupBinds . (map fst) $ l
+                                             in ( l' ++ (mkCTyVariantLike x "oc" 1 (M.fromList l'))
+                                                , t
+                                                , rmDupBinds (mkPeekStmts x "oc" Nothing) ) )
           oaLens' = mkLensView oaLy "oa" Unknown Nothing
-          ocLens = map fst ocLens'
-          oaLens = trace ("here" ++ppShow ocLy++ppShow ocCTyLy) $ map fst oaLens'
+          ocLens = ocLens'
+          oaLens = map fst oaLens'
           ls = oaLens ++ ocLens
-          cNames = getConNames ocLy [] ++ getConNames oaLy []
+          cNames = (fromMaybe (getConNames ocLy []) (ocCTyLy <&> (\x -> getConNames' x [])) ) ++ getConNames oaLy []
           binds = map ((\x -> pvar . mkName . fst $ x) &&& snd) ls
-          tys = map snd ocLens'
+          binds' = map (\(k, v) -> letStmt [nameBind (mkName k) v] ) $ ls
+          tys = tys'
           -- sort to ensure vars bound to success variants are compared first
           ocVars = sortOn (\x -> if | "Success" `isInfixOf` x -> 0 
                                     | otherwise -> 1 
@@ -145,8 +146,11 @@ mkRrelBody cogOcTyp ocTyp oaTyp userE ffimods
           oaVars = sortOn (\x -> if | "Just" `isInfixOf` x -> 0 
                                     | otherwise -> 1 
                    ) $ map fst oaLens
-          body = fromMaybe (mkCmpExp (zip3 oaVars ocVars tys) Nothing) userE
-       in pure (mkLetE binds body, cNames)
+          body = fromMaybe (mkCmpExp (zip3 oaVars ocVars tys) Nothing) $ userE <&>
+                    (\x -> replaceVarsInUserInfixE x 0 $ scanUserInfixE x 0 "oc")
+       in pure ( if isNothing ffimods then mkLetE binds body
+                 else doE ( (map snd peeks)++binds'++[qualStmt (app (function "return") body)])
+               , cNames)
 
 -- | Builder for comparison expression used in refinement relation
 -- -----------------------------------------------------------------------

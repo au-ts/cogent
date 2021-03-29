@@ -71,20 +71,15 @@ pExprs b = (pExpr b) `sepEndBy` pspaces semi
 
 pExpr :: PbtKeyword -> Parser PbtDescExpr
 pExpr block = do
-    _ <- seeNext 10
     -- TODO: check for comment here 
     lhs <- try (pspaces predOp) <|> pstrId
-    _ <- trace ("++"++show lhs)  $ seeNext 10
-    if (lhs == predStr) 
-     then trace (show "75") pExpr'
-     else trace (show "76") pExpr'' lhs block
+    if (lhs == predStr) then pExpr' else pExpr'' lhs block
 
 pExpr'' lhs block = do
     op <- lookAhead $     try mapOp 
                       <|> try predOp
                       <|> try typOp 
                       <|> endOp -- check for end of exp, i.e. no RHS
-    _ <- trace ("++>"++show op)  $ seeNext 20
     let (ident, v) = if trim lhs `elem` keyidents
                         then ( trim lhs
                              , find (`isInfixOf` lhs) keyidents )
@@ -93,17 +88,16 @@ pExpr'' lhs block = do
                                  Nothing -> __impossible $ "LHS must contain a key identifier: one of " ++ show keyidents
                              , Just lhs )
     case v of
-       Just x -> if | op == typStr -> trace (show "92") $ pTypExpr x
-                    | op == mapStr -> trace (show "93") $ pMapExpr x block
+       Just x -> if | op == typStr -> pTypExpr x
+                    | op == mapStr -> pMapExpr x block
                     | op == predStr -> pPredExpr x
-                    | otherwise -> trace (show "96") $ pJustExpr x
+                    | otherwise -> pJustExpr x
        Nothing ->  pJustExpr lhs
 
 
 pExpr' :: Parser PbtDescExpr
 pExpr' = do
     e <- pHsExp
-    _ <- trace (show e) $ seeNext 3
     let ident = case find (`isInfixOf` e) keyidents of
                   Just x -> x
                   Nothing -> __impossible $ "Predicate must contain a key identifier: one of " ++ show keyidents
@@ -112,14 +106,12 @@ pExpr' = do
 pTypExpr lhs = do
     e <- typOp *> pHsExp
     let t = toPbtTyp' lhs
-    _ <- trace (show e ++ show t) $ seeNext 2
     return $ PbtDescExpr (Just t) Nothing $
         -- prevent cogent syntax from being parsed as HS syntax
         if t == Ic || t == Oc then Nothing else Just $ Left (parseHsTyp e)
 
 pMapExpr lhs block = do
     e <- mapOp *> pHsExp
-    _ <- trace ("-->"++show e) $ seeNext 3
     let (lhsId, lhsExp) = if (any (==trim lhs) keyidents) then (trim lhs, Nothing)
                           else ( fromMaybe (
                                     if | block == Welf -> "ic"
@@ -129,47 +121,18 @@ pMapExpr lhs block = do
                                  ) $ find (`isInfixOf` lhs) keyidents
                                , Just (parseHsExp lhs))
     let x = PbtDescExpr (Just (toPbtTyp' lhsId)) lhsExp $ Just $ Right (parseHsExp e)
-    _ <- trace (show x) $ seeNext 3
     return $ x
 
 pPredExpr lhs = do
     e <- predOp *> pHsExp
-    _ <- trace ("-->"++show e) $ seeNext 3
     let (lhsId, lhsExp) = if (any (==trim lhs) keyidents) then (trim lhs, Nothing)
                           else ( fromMaybe (__impossible $ "RHS transform must contain a key identifier: one of " ++ show keyidents
                                  ) $ find (`isInfixOf` lhs) keyidents
                                , Just (parseHsExp lhs))
     let x = PbtDescExpr (Just (toPbtTyp' "pred")) lhsExp $ Just $ Right (parseHsExp e)
-    _ <- trace (show x) $ seeNext 3
     return $ x
 
-{-
-pEqlExpr ident lhs = do
-    e <- eqlOp *> pHsExp
-    return $ PbtDescExpr (Just (toPbtTyp' ident)) $ Just $
-        -- concat entire exp and parse a HS exp -> since it is effectively a predicate
-        Right (parseHsExp (lhs++eqlStr++e))
-        -}
-
-{-
-pRelationExpr :: (Parser a) -> String -> String -> String -> Parser PbtDescExpr
-pRelationExpr opParser opStr ident lhs = do
-    e <- opParser *> pHsExp
-    _ <- trace ("hi: " ++ show lhs ++ show opStr ++ show e) $ seeNext 10
-    return $ PbtDescExpr (Just (toPbtTyp' ident)) $ Just $ Right (parseHsExp (
-       if | opStr == predStr -> e
-          | otherwise -> lhs++opStr++e ))
-          -}
-    
 pJustExpr lhs = return $ PbtDescExpr Nothing Nothing $ Just $ Left (parseHsTyp lhs)
-
-{-
-pSomeExpr :: Maybe (Parser a) -> Parser a -> Parser a
-pSomeExpr op e = 
-    e' <- op *> pstrId
-    return $ PbtDescExpr (Just t) $ if | t == Ic || t == Oc -> Nothing 
-                                        | otherwise -> Just $ Left (parseHsTyp e)
-                                        -}
 
 -- Parsing Identifiers/Hs Exps transforming identifiers
 -- ----------------------------------------------------
