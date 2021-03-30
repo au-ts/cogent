@@ -606,10 +606,3 @@ prop_wordarray_get_put =
 listWordArray :: [a] -> WordArray a
 listWordArray arr = listArray (0, fromIntegral (length arr - 1)) arr
 
-
--- /////////////////////////////////////////////////////////////////////////////
---
--- * Main function
-
-return []
-main = $quickCheckAll

@@ -5,10 +5,9 @@
 
 _Assume `$PWD` is this directory._
 
-1. Setup a cabal sandbox and install dependencies:
+1. Make sure cabal-install-3.0 or above is used. To check, run
 ```
-> cabal sandbox init
-> cabal install --only-dependencies
+> cabal --version
 ```
 
 2. Build QuickCheck Utils:
@@ -20,9 +19,16 @@ _Assume `$PWD` is this directory._
 
 1. `cd wa_example; make; cd ../` which generates the C code and binary files.
 
-2. `cabal build wa-example --ghc-options=" wa_example/build/wa.o"`
+2. `cabal new-build wa-example --ghc-options="`pwd`/wa_example/build/wa.o"`
 
-3. `cabal repl wa-example --ghc-options=" wa_example/build/wa.o"` which gives you a ghc REPL.
+3. To run the tests, run
+```
+> cabal new-build exe:wa-example-exe --ghc-options="`pwd`/wa_example/build/wa.o"
+> cabal new-exec wa-example-exe
+```
+_NOTE: I cannot get cabal new-repl to work with linking. Hope someone can work it out. [zilinc]_
+
+[If someone can manage to launch the REPL:]
 
 4. Inside the REPL, `$ GHCi > main` which runs all the tests.
 
@@ -33,9 +39,9 @@ _Assume `$PWD` is this directory._
 
 _Assume you have cabal-built `wa-example` as described above._
 
-1. `cabal build readpage-example`
+1. `cabal new-build readpage-example`
 
-2. `cabal repl readpage-example` which gives you a ghc REPL.
+2. `cabal new-repl readpage-example` which gives you a ghc REPL.
 
 3. Inside the REPL, `$ GHCi > Readpage.main` which runs the test using a default configuration.
 
