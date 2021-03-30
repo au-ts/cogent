@@ -1,2 +1,8 @@
 main : Bool -> U8
-main x = if x then 37 else 42
+main x = if x then 2 else f 2
+
+f : U8 -> U8
+f x = 2 * (g x)
+
+g : U8 -> U8
+g x = 1 + x

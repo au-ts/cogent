@@ -4,8 +4,6 @@ From ExtLib Require Import Structures.Monads Structures.Functor Structures.Reduc
 From ITree Require Import ITree Events.State Events.Exception.
 From Vellvm Require Import Util.
 
-From Checker Require Import Cogent Utils.Instances HelixLib.Correctness_Prelude.
-
 Import Monads.
 Import ListNotations.
 Import MonadNotation.
@@ -15,25 +13,37 @@ Local Open Scope string_scope.
 
 Set Implicit Arguments.
 
-Inductive uval : Set :=
-| UPrim (l : lit)
-(* | URecord (us : list (uval * repr)) *)
-| UUnit
-(* | UPtr (a : addr) (r : repr) *)
-(* | UFunction (f : name). *)
-.
+From Vellvm Require Import Handlers.Handlers.
 
-Definition ctx : Type := list uval.
+Notation addr := (Addr.addr).
 
-Variant MemE : Type -> Type :=
-| LoadMem (a : addr) : MemE (option uval)
-| StoreMem (a : addr) (u : uval) : MemE unit.
+From Checker Require Import Cogent Utils.Instances.
 
-Definition FailE := exceptE string.
+Section UpdateValues.
 
-Definition CogentL0 := MemE +' FailE.
+  Inductive uval : Set :=
+  | UPrim (l : lit)
+  | URecord (us : list (uval * repr))
+  | UUnit
+  | UPtr (a : addr) (r : repr).
 
-Definition CogentL1 := FailE.
+  Definition ctx : Type := list uval.
+
+End UpdateValues.
+
+Section Events.
+
+  Variant MemE : Type -> Type :=
+  | LoadMem (a : addr) : MemE (option uval)
+  | StoreMem (a : addr) (u : uval) : MemE unit.
+
+  Definition FailE := exceptE string.
+
+  Definition CogentL0 := MemE +' FailE.
+
+  Definition CogentL1 := FailE.
+
+End Events.
 
 Section Denote.
 
@@ -53,7 +63,7 @@ Section Denote.
     xs' <- map_monad extract_prim xs ;;
     option_throw (eval_prim_op op xs') UPrim "op error".
 
-  Definition access_member (fs : list (uval * Cogent.repr)) (f : nat) : itree CogentL0 uval :=
+  Definition access_member (fs : list (uval * repr)) (f : nat) : itree CogentL0 uval :=
     option_throw (nth_error fs f) fst "invalid member access".
 
   (* is this built-in somewhere? *)
@@ -66,7 +76,7 @@ Section Denote.
 
   Fixpoint denote_expr (γ : ctx) (e : expr) {struct e} : itree CogentL0 uval :=
     (* define some nested functions that are mutually recursive with denote_expr *)
-    (* let fix denote_member (γ : ctx) (e : expr) (f : nat) {struct e} : itree CogentL0 (uval * uval) :=
+    let fix denote_member (γ : ctx) (e : expr) (f : nat) {struct e} : itree CogentL0 (uval * uval) :=
       r <- denote_expr γ e ;;
       m <- match r with
       | URecord fs => access_member fs f
@@ -78,14 +88,14 @@ Section Denote.
           end
       | _ => throw "expression is not a record"
       end ;;
-      ret (r, m) in *)
+      ret (r, m) in
     match e with
     | Unit => ret UUnit
     | Lit l => ret (UPrim l)
     | Var i => option_throw (nth_error γ i) id "unknown variable"
     | Let a b =>
         a' <- denote_expr γ a ;;
-        denote_expr (a' :: γ) b 
+        denote_expr (a' :: γ) b
     | BPrim p a b =>
         a' <- denote_expr γ a ;;
         b' <- denote_expr γ b ;;
@@ -96,7 +106,7 @@ Section Denote.
         | UPrim (LBool b) => denote_expr γ (if b then t else e)
         | _ => throw "expression is not a boolean"
         end
-    (* | Cast τ e =>
+    | Cast τ e =>
         e' <- denote_expr γ e ;;
         match e' with
         | UPrim l => option_throw (cast_to τ l) UPrim "invalid cast"
@@ -128,11 +138,11 @@ Section Denote.
             end
         | _ => throw "expression is not a record"
         end
-    | Fun n ft => ret (UFunction n)
-    | App x y =>
-        f <- denote_expr γ x ;;
-        a <- denote_expr γ y ;;
-        trigger (Call f a) *)
+    | App (Fun b) a =>
+        a' <- denote_expr γ a ;;
+        denote_expr [a'] b
+    | Fun _ => throw "naked function"
+    | App _ _ => throw "expression is not a function"
     end.
 
   Definition function_denotation := uval -> itree CogentL0 uval.
@@ -147,6 +157,8 @@ Section Denote.
 
 End Denote.
 
+From Checker Require Import HelixLib.Correctness_Prelude.
+
 From ExtLib Require Import Structures.Maps.
 
 Section Interpretation.
@@ -154,7 +166,7 @@ Section Interpretation.
   Definition memory := alist addr uval.
   Definition empty_memory : memory := empty.
   (* Definition dummy_memory : memory := 
-    alist_add _ 23 (URecord [(UPrim (LU8 5), RPrim (Num U8))]) empty_memory. *)
+    alist_add 23 (URecord [(UPrim (LU8 5), RPrim (Num U8))]) empty_memory. *)
 
   Definition handle_mem {E} : MemE ~> stateT memory (itree E) :=
     fun _ e σ =>
@@ -165,9 +177,6 @@ Section Interpretation.
   
   Definition interp_mem : itree CogentL0 ~> stateT memory (itree CogentL1) :=
     interp_state (case_ handle_mem pure_state).
-
-  (* Definition handle_failure : FailE ~> failT (itree void1) :=
-    fun _ '(Throw m) => ret (inl m). *)
 
   Definition handle_failure : FailE ~> failT (itree void1) :=
     fun _ '(Throw m) => ret None.
@@ -183,7 +192,6 @@ Section Interpretation.
     match alist_find fn p with
     | Some f => interp_expr (f a) mem
     | None => ret None
-    (* | None => ret (inl ("unknown function " ++ fn)) *)
     end.
 
   Definition run_cogent (p : cogent_prog) (fn : name) (a : uval)

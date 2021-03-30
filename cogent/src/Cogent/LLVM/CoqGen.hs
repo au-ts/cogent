@@ -4,7 +4,9 @@ module Cogent.LLVM.CoqGen (toCoq) where
 
 -- Generate Coq files corresponding to a Cogent AST.
 -- eventually can be replaced with CoqInterface.hs
-import Cogent.Common.Syntax (CoreFunName (..), Op, VarName)
+-- Generate Coq files corresponding to a Cogent AST.
+-- eventually can be replaced with CoqInterface.hs
+import Cogent.Common.Syntax (CoreFunName (..), FunName, Op, VarName)
 import qualified Cogent.Common.Syntax as S (Op (..))
 import Cogent.Common.Types (PrimInt)
 import qualified Cogent.Common.Types as T (PrimInt (..), Sigil (..))
@@ -13,6 +15,7 @@ import qualified Cogent.Core as C (Definition (..), Expr (..), Type (..))
 import Control.Monad (void)
 import Data.Fin (finInt)
 import Data.List (intercalate)
+import Data.Nat (Nat (..))
 import System.FilePath (replaceExtension)
 import Text.Show.Pretty (ppShow)
 
@@ -81,7 +84,7 @@ data Lit
     deriving (Show)
 
 data Expr
-    = Prim PrimOp (CoqList Expr)
+    = BPrim PrimOp Expr Expr
     | App Expr Expr
     | Unit
     | Lit Lit
@@ -92,7 +95,7 @@ data Expr
     | Member Expr Field
     | Take Expr Field Expr
     | Put Expr Field Expr
-    | Fun Name Type
+    | Fun Expr
     | -- | Con (CoqList (Name, Type, VariantState)) Name Expr
       -- | SLit String
       -- | LetBang (Set Index) Expr Expr
@@ -121,12 +124,16 @@ fileHeader =
         , "Definition CogentInput :="
         ]
 
-genModule :: [Definition TypedExpr VarName VarName] -> String
-genModule defs = fileHeader ++ ppShow (mkCoqList genDefinition defs) ++ "."
+type FunBodies = [(FunName, Expr)]
 
-genDefinition :: Definition TypedExpr VarName VarName -> Def
-genDefinition (C.FunDef _ name _ _ t rt body) = FunDef name (genType t) (genType rt) (genExpr body)
-genDefinition _ = error "not implemented"
+genModule :: [Definition TypedExpr VarName VarName] -> String
+genModule defs =
+    let defs' = [(name, genExpr defs' body) | C.FunDef _ name _ _ t rt body <- defs]
+     in fileHeader ++ ppShow (mkCoqList (genDefinition defs') defs) ++ "."
+
+genDefinition :: FunBodies -> Definition TypedExpr VarName VarName -> Def
+genDefinition defs (C.FunDef _ name _ _ t rt body) = FunDef name (genType t) (genType rt) (genExpr defs body)
+genDefinition _ _ = error "not implemented"
 
 genType :: Show b => C.Type t b -> Type
 genType C.TUnit = TUnit
@@ -138,21 +145,21 @@ genType (C.TRecord _ flds s) =
      in TRecord (CoqList flds') (genSigil s)
 genType t = error $ show t
 
-genExpr :: (Show a, Show b) => TypedExpr t v a b -> Expr
-genExpr (TE _ (C.ILit int p)) = Lit $ genLit int p
-genExpr (TE _ (C.Op op os@((TE t' _) : _))) = Prim (genOp t' op) $ mkCoqList genExpr os
-genExpr (TE _ (C.Let _ val body)) = Let (genExpr val) (genExpr body)
-genExpr (TE _ (C.Variable (idx, _))) = Var (finInt idx)
-genExpr (TE _ C.Unit) = Unit
-genExpr (TE _ (C.If c b1 b2)) = If (genExpr c) (genExpr b1) (genExpr b2)
-genExpr (TE _ (C.Cast t e)) = Cast (genNumType t) (genExpr e)
-genExpr (TE _ (C.Struct flds)) = Struct (mkCoqList (genType . exprType . snd) flds) (mkCoqList (genExpr . snd) flds)
-genExpr (TE _ (C.Member recd fld)) = Member (genExpr recd) fld
-genExpr (TE _ (C.Take _ recd fld body)) = Take (genExpr recd) fld (genExpr body)
-genExpr (TE _ (C.Put recd fld val)) = Put (genExpr recd) fld (genExpr val)
-genExpr (TE t (C.Fun f _ _ _)) = Fun (unCoreFunName f) (genType t)
-genExpr (TE _ (C.App f a)) = App (genExpr f) (genExpr a)
-genExpr e = error $ show e
+genExpr :: (Show a, Show b) => FunBodies -> TypedExpr t v a b -> Expr
+genExpr fb (TE _ (C.ILit int p)) = Lit $ genLit int p
+genExpr fb (TE _ (C.Op op [a, b])) = BPrim (genOp (exprType a) op) (genExpr fb a) (genExpr fb b)
+genExpr fb (TE _ (C.Let _ val body)) = Let (genExpr fb val) (genExpr fb body)
+genExpr fb (TE _ (C.Variable (idx, _))) = Var (finInt idx)
+genExpr fb (TE _ C.Unit) = Unit
+genExpr fb (TE _ (C.If c b1 b2)) = If (genExpr fb c) (genExpr fb b1) (genExpr fb b2)
+genExpr fb (TE _ (C.Cast t e)) = Cast (genNumType t) (genExpr fb e)
+genExpr fb (TE _ (C.Struct flds)) = Struct (mkCoqList (genType . exprType . snd) flds) (mkCoqList (genExpr fb . snd) flds)
+genExpr fb (TE _ (C.Member recd fld)) = Member (genExpr fb recd) fld
+genExpr fb (TE _ (C.Take _ recd fld body)) = Take (genExpr fb recd) fld (genExpr fb body)
+genExpr fb (TE _ (C.Put recd fld val)) = Put (genExpr fb recd) fld (genExpr fb val)
+genExpr fb (TE _ (C.Fun f _ _ _)) = maybe (error "unknown function") Fun (lookup (unCoreFunName f) fb)
+genExpr fb (TE _ (C.App f a)) = App (genExpr fb f) (genExpr fb a)
+genExpr _ e = error $ show e
 
 genLit :: Integer -> PrimInt -> Lit
 genLit w T.U8 = LU8 w

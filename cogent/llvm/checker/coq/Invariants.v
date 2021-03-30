@@ -1,7 +1,5 @@
 From Checker Require Import Cogent Compiler Denotation HelixLib.Correctness_Prelude HelixLib.LidBound.
 
-(* From ITree Require Import ITree ITreeFacts. *)
-
 From Vellvm Require Import DynamicValues.
 
 Set Implicit Arguments.
@@ -99,6 +97,9 @@ Section ValueRelation.
     | UPrim (LU32 w) => UVALUE_I32 (Int32.repr w)
     | UPrim (LU64 w) => UVALUE_I64 (Int64.repr w)
     | UUnit => UVALUE_I8 (Int8.repr 0)
+    | UPtr a r => UVALUE_Addr a
+    (* TODO: aggregate conversion *)
+    | URecord us => UVALUE_I8 (Int8.repr 0)
     end.
 
   Definition correct_result (γ : ctx) (s1 s2 : IRState) (u : uval) (i : im) : config_cfg -> Prop :=
@@ -109,7 +110,7 @@ Section ValueRelation.
         interp_cfg
           (translate exp_to_instr (denote_exp (Some (typ_to_dtyp [] (fst i))) (convert_typ [] (snd i))))
           g l' memV ≈
-          Ret (memV, (l',(g, convert_uval u))).
+          Ret (memV, (l', (g, convert_uval u))).
 
   (* correct means: does i evaluate to something equivalent to u *)
   Definition correct_result_T {T} (γ : ctx) (s1 s2 : IRState) (i : im) : Rel_cfg_T uval T :=

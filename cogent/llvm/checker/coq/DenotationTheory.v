@@ -1,6 +1,5 @@
 From ITree Require Import ITree Events.State Events.Exception Events.FailFacts Events.StateFacts
   Interp.TranslateFacts Eq.Eq.
-
 From Vellvm Require Import Utils.NoFailure Utils.PropT.
 
 From Checker Require Import Denotation.

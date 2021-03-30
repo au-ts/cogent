@@ -1,26 +1,57 @@
 From Coq Require Import List ZArith String.
 
 From ExtLib Require Import Structures.Monads Structures.Functor Structures.Reducible Data.List.
-From RecordUpdate Require Import RecordSet.
 From Vellvm Require Import LLVMAst Util Utils.Error.
 
 From Checker Require Import HelixLib.Codegen HelixLib.ErrorWithState Cogent Types Utils.Instances.
 
 Import ListNotations.
-Import RecordSetNotations.
 Import MonadNotation.
 Import FunctorNotation.
 Local Open Scope monad_scope.
 
-Section Compiler.
+Section Utils.
 
+  (* Intermediate values / registers *)
   Definition im : Type := texp typ.
 
+  (* LLVM types *)
   Definition int_n (sz : N) (n : int) : im := (TYPE_I sz, EXP_Integer n).
   Definition int1  := int_n 1.
   Definition int8  := int_n 8.
   Definition int32 := int_n 32.
   Definition int64 := int_n 64.
+
+  (* Block generation helpers *)
+  Definition code_block (bid next_bid : block_id) (c : code typ) : list (block typ) := [
+    {|blk_id    := bid
+    ; blk_phis  := []
+    ; blk_code  := c
+    ; blk_term  := TERM_Br_1 next_bid
+    ; blk_comments := None
+    |}].
+  
+  Definition nop_block (bid next_bid : block_id) : list (block typ) := code_block bid next_bid [].
+  
+  Definition cond_block (bid true_bid false_bid : block_id) (c : im) : list (block typ) := [
+    {|blk_id    := bid
+    ; blk_phis  := []
+    ; blk_code  := []
+    ; blk_term  := TERM_Br c true_bid false_bid
+    ; blk_comments := None
+    |}].
+  
+  Definition phi_block (bid next_bid : block_id) (p : list (local_id * phi typ)) := [
+    {|blk_id    := bid
+    ; blk_phis  := p
+    ; blk_code  := []
+    ; blk_term  := TERM_Br_1 next_bid
+    ; blk_comments := None
+    |}].
+
+End Utils.
+
+Section Compiler.
 
   Definition compile_lit (l : lit) : im := 
     match l with
@@ -52,35 +83,6 @@ Section Compiler.
           match s with Boxed => TYPE_Pointer t' | Unboxed => t' end
     | TUnit => TYPE_I 8
     end.
-
-  Definition code_block (bid next_bid : block_id) (c : code typ) : list (block typ) := [
-    {|blk_id    := bid
-    ; blk_phis  := []
-    ; blk_code  := c
-    ; blk_term  := TERM_Br_1 next_bid
-    ; blk_comments := None
-    |}].
-  
-  Definition nop_block (bid next_bid : block_id) : list (block typ) := code_block bid next_bid [].
-  
-  Definition cond_block (bid true_bid false_bid : block_id) (c : im) : list (block typ) := [
-    {|blk_id    := bid
-    ; blk_phis  := []
-    ; blk_code  := []
-    ; blk_term  := TERM_Br c true_bid false_bid
-    ; blk_comments := None
-    |}].
-  
-  Definition phi_block (bid next_bid : block_id) (p : list (local_id * phi typ)) := [
-    {|blk_id    := bid
-    ; blk_phis  := p
-    ; blk_code  := []
-    ; blk_term  := TERM_Br_1 next_bid
-    ; blk_comments := None
-    |}].
-
-  (* Definition  := . *)
-  
   
   Fixpoint compile_expr (e : expr) (next_bid: block_id) : cerr segment :=
     (* define some nested functions that are mutually recursive with compile_expr *)
@@ -132,8 +134,8 @@ Section Compiler.
     (* | Cast t e =>
         '(from_t, v) <- compile_expr e ;;
         let t' := convert_num_type t in
-        instr t' (INSTR_Op (OP_Conversion Zext from_t v t'))
-    | Struct ts es =>
+        instr t' (INSTR_Op (OP_Conversion Zext from_t v t')) *)
+    (* | Struct ts es =>
         let t := TYPE_Struct (map compile_type ts) in
         let undef := (t, EXP_Undef) in
         es' <- map_monad compile_expr es ;;
@@ -152,16 +154,20 @@ Section Compiler.
             instr t (INSTR_Store false v' p None) ;;
             ret e'
         | Invalid => raise "invalid member access"
-        end
-    | Fun n ft => ret (compile_type ft, EXP_Ident (ID_Global (Name n)))
-    | App f a =>
-        a' <- compile_expr a ;;
-        f' <- compile_expr f ;;
-        instr (return_type (deref_type (fst f'))) (INSTR_Call f' [a']) *)
+        end *)
+    | App (Fun f) a => 
+        app_bid <- incBlockNamed "App" ;;
+        '(a', a_bid, a_blks) <- compile_expr a app_bid ;;
+        s <- get ;;
+        put (setVars s [a']) ;;
+        '(f', f_bid, f_blks) <- compile_expr f next_bid ;;
+        s' <- get ;;
+        put (setVars s' (Γ s)) ;;
+        ret (f', a_bid, a_blks ++ nop_block app_bid f_bid ++ f_blks)
+    | Fun f => raise "naked function"
+    | App f a => raise "expression is not a function"
+    | _ => raise "unsupported"
     end.
-
-  (* Definition build_expr (p : expr) (t : type) : err CodegenState :=
-    execErrS (v <- compile_expr p ;; term (TERM_Ret v)) (start_state (compile_type t)). *)
 
   Definition compile_fun n t rt b : cerr (definition typ (block typ * list (block typ))) :=
     rid <- incBlockNamed "Return" ;;
@@ -198,10 +204,8 @@ Section Compiler.
 
   Definition vellvm_prog : Type := toplevel_entities typ (block typ * list (block typ)).
 
+  (* Top-level compilation function *)
   Definition compile_cogent : cogent_prog -> err vellvm_prog :=
     map_monad compile_def.
-
-  (* Definition compile_cogent (e : expr) := compile_expr e (Name "exit") (newState (TYPE_I 8)). *)
-  
 
 End Compiler.

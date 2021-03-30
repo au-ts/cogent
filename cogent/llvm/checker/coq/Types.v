@@ -1,5 +1,7 @@
 From Coq Require Import ZArith List.
+
 From Vellvm Require Import LLVMAst.
+
 From Checker Require Import Cogent.
 
 Open Scope Z_scope.

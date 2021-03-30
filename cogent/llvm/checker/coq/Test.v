@@ -23,5 +23,8 @@ From Vellvm Require Import ShowAST.
 
 Local Open Scope string.
 
-Compute match (compile_cogent CogentInput) with inl m => m | inr tles => newline ++ (show tles) end.
-
+Compute
+  match (compile_cogent CogentInput) with 
+  | inl m => m
+  | inr tles => newline ++ (show tles)
+  end.

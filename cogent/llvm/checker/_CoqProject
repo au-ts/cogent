@@ -1,7 +1,6 @@
 -Q vellvm/src/coq Vellvm
 -Q vellvm/lib/InteractionTrees/theories ITree
 -Q vellvm/lib/QuickChick/src QuickChick
--Q coq-record-update/src RecordUpdate
 -R coq Checker
 -R input Input
 

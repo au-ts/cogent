@@ -7,15 +7,18 @@ Section Syntax.
   Definition name := string.
   Definition index := nat.
   Definition field := nat.
-  Definition addr := nat. (* doesn't actually matter *)
 
   Variant num_type : Set := 
   | U8 
-  (* | U16  *)
+  (* Vellvm doesn't seem to have formalised i16 directly in its semantics *)
+  (* | U16 *)
   | U32 
   | U64.
 
-  Variant prim_type : Set := Num (n : num_type) | Bool | String.
+  Variant prim_type : Set := 
+    | Num (n : num_type)
+    | Bool
+    | String.
 
   Variant prim_op : Set :=
     | Plus (t : num_type)
@@ -45,9 +48,9 @@ Section Syntax.
   Variant record_state : Set := Taken | Present.
 
   Inductive type : Set :=
-    (* | TVar (i : index)
-    | TVarBang (i : index)
-    | TCon (n : name) (ts : list type) (s : sigil) *)
+    (* | TVar (i : index) *)
+    (* | TVarBang (i : index) *)
+    (* | TCon (n : name) (ts : list type) (s : sigil) *)
     | TFun (t : type) (rt : type)
     | TPrim (t : prim_type)
     (* | TSum (vs : list (name * (type * variant_state))) *)
@@ -90,20 +93,20 @@ Section Syntax.
     (* | LetBang (is : set index) (e : expr) (b : expr) *)
     | BPrim (op : prim_op) (a b : expr)
     | If (c : expr) (b1 : expr) (b2 : expr)
-    (* | Cast (t : num_type) (e : expr) *)
+    | Cast (t : num_type) (e : expr)
 
-    (* | Struct (ts : list type) (es : list expr) *)
-    (* | Member (e : expr) (f : field) *)
-    (* | Take (e : expr) (f : field) (b : expr) *)
-    (* | Put (e : expr) (f : field) (v : expr) *)
+    | Struct (ts : list type) (es : list expr)
+    | Member (e : expr) (f : field)
+    | Take (e : expr) (f : field) (b : expr)
+    | Put (e : expr) (f : field) (v : expr)
 
     (* | Con (ts : list (name * type * variant_state)) (n : name) (e : expr) *)
     (* | Promote (t : type) (e : expr) *)
     (* | Esac (e : expr) (n : name) *)
     (* | Case (e : expr) (n : name) (b1 : expr) (b2 : expr) *)
   
-    (* | Fun (n : name) (ft : type) *)
-    (* | App (f : expr) (a : expr) *)
+    | Fun (f : expr)
+    | App (f : expr) (a : expr)
     (* | AFun (funtyp : 'f)  (ts : list type) *)
     .
 
@@ -148,24 +151,7 @@ Section Primitive.
     | Times _ => prim_word_op Z.mul xs
     | Divide _ => prim_word_op Z.div xs
     | Mod _ => prim_word_op Z.modulo xs
-    (* | Not = LBool (negb (prim_lbool (hd default xs)))
-    | And = LBool (prim_lbool (hd xs) && prim_lbool (xs ! 1))
-    | Or = LBool (prim_lbool (hd xs) || prim_lbool (xs ! 1))
-    | Eq _ = LBool (hd xs = xs ! 1)
-    | NEq _ = LBool (hd xs \<noteq> xs ! 1)
-    | (Gt _) = prim_word_comp (>) xs
-    | (Lt _) = prim_word_comp (<) xs
-    | (Le _) = prim_word_comp (<=) xs
-    | (Ge _) = prim_word_comp (>=) xs
-    | (BitAnd _) = prim_word_op bitAND bitAND bitAND bitAND xs
-    | (BitOr _)s = prim_word_op bitOR bitOR bitOR bitOR xs
-    | (BitXor _) = prim_word_op bitXOR bitXOR bitXOR bitXOR xs
-    | (LShift _) = prim_word_op (checked_shift shiftl) (checked_shift shiftl)
-          (checked_shift shiftl) (checked_shift shiftl) xs
-    | (RShift _) = prim_word_op (checked_shift shiftr) (checked_shift shiftr)
-          (checked_shift shiftr) (checked_shift shiftr) xs
-    | (Complement _) = prim_word_op (\<lambda>x y. bitNOT x) (\<lambda>x y. bitNOT x)
-          (\<lambda>x y. bitNOT x) (\<lambda>x y. bitNOT x) [hd xs, hd xs] *)
+    (* yet to handle other operators *)
     end.
 
   Definition cast_to (n : num_type) (l : lit) : option lit :=

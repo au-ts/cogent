@@ -667,6 +667,10 @@ newState arg =
 
 type Cerr a = ErrS IRState a
 
+setVars :: IRState -> (([]) (Texp Typ)) -> IRState
+setVars s newvars =
+  MkIRState (block_count s) (local_count s) (void_count s) newvars
+
 getStateVar :: Prelude.String -> Nat -> Cerr (Texp Typ)
 getStateVar msg n =
   bind (unsafeCoerce monad_errS) (get (unsafeCoerce state_errS)) (\st ->
@@ -732,6 +736,8 @@ type Name0 = Prelude.String
 
 type Index = Nat
 
+type Field = Nat
+
 data Num_type =
    U8
  | U32
@@ -776,6 +782,13 @@ data Expr =
  | Let Expr Expr
  | BPrim Prim_op Expr Expr
  | If Expr Expr Expr
+ | Cast Num_type Expr
+ | Struct (([]) Type) (([]) Expr)
+ | Member Expr Field
+ | Take Expr Field Expr
+ | Put Expr Field Expr
+ | Fun Expr
+ | App Expr Expr
 
 data Def =
    FunDef Name0 Type Type Expr
@@ -821,6 +834,24 @@ int64 =
   int_n (Npos ((\x -> 2 Prelude.* x) ((\x -> 2 Prelude.* x)
     ((\x -> 2 Prelude.* x) ((\x -> 2 Prelude.* x) ((\x -> 2 Prelude.* x)
     ((\x -> 2 Prelude.* x) 1)))))))
+
+code_block :: Block_id -> Block_id -> (Code Typ) -> ([]) (Block Typ)
+code_block bid next_bid c =
+  (:) (Mk_block bid ([]) c (TERM_Br_1 next_bid) Prelude.Nothing) ([])
+
+nop_block :: Block_id -> Block_id -> ([]) (Block Typ)
+nop_block bid next_bid =
+  code_block bid next_bid ([])
+
+cond_block :: Block_id -> Block_id -> Block_id -> Im -> ([]) (Block Typ)
+cond_block bid true_bid false_bid c =
+  (:) (Mk_block bid ([]) ([]) (TERM_Br c true_bid false_bid) Prelude.Nothing)
+    ([])
+
+phi_block :: Block_id -> Block_id -> (([]) ((,) Local_id (Phi0 Typ))) -> ([])
+             (Block Typ)
+phi_block bid next_bid p =
+  (:) (Mk_block bid p ([]) (TERM_Br_1 next_bid) Prelude.Nothing) ([])
 
 compile_lit :: Lit -> Im
 compile_lit l =
@@ -871,24 +902,6 @@ compile_type t =
      Unboxed -> t'};
    TUnit -> TYPE_I (Npos ((\x -> 2 Prelude.* x) ((\x -> 2 Prelude.* x)
     ((\x -> 2 Prelude.* x) 1))))}
-
-code_block :: Block_id -> Block_id -> (Code Typ) -> ([]) (Block Typ)
-code_block bid next_bid c =
-  (:) (Mk_block bid ([]) c (TERM_Br_1 next_bid) Prelude.Nothing) ([])
-
-nop_block :: Block_id -> Block_id -> ([]) (Block Typ)
-nop_block bid next_bid =
-  code_block bid next_bid ([])
-
-cond_block :: Block_id -> Block_id -> Block_id -> Im -> ([]) (Block Typ)
-cond_block bid true_bid false_bid c =
-  (:) (Mk_block bid ([]) ([]) (TERM_Br c true_bid false_bid) Prelude.Nothing)
-    ([])
-
-phi_block :: Block_id -> Block_id -> (([]) ((,) Local_id (Phi0 Typ))) -> ([])
-             (Block Typ)
-phi_block bid next_bid p =
-  (:) (Mk_block bid p ([]) (TERM_Br_1 next_bid) Prelude.Nothing) ([])
 
 compile_expr :: Expr -> Block_id -> Cerr Segment
 compile_expr e next_bid =
@@ -992,7 +1005,39 @@ compile_expr e next_bid =
                                   (app c_blks
                                     (app if_blks
                                       (app t_blks
-                                        (app e_blks (app post_blks fi_blks))))))))}}))}}))}}))}
+                                        (app e_blks (app post_blks fi_blks))))))))}}))}}))}}));
+   Fun _ -> raise (unsafeCoerce exception_errS) "naked function";
+   App f a ->
+    case f of {
+     Fun f0 ->
+      bind (unsafeCoerce monad_errS) (unsafeCoerce incBlockNamed "App")
+        (\app_bid ->
+        bind (unsafeCoerce monad_errS) (compile_expr a app_bid) (\x ->
+          case x of {
+           (,) p a_blks ->
+            case p of {
+             (,) a' a_bid ->
+              bind (unsafeCoerce monad_errS) (get (unsafeCoerce state_errS))
+                (\s ->
+                bind (unsafeCoerce monad_errS)
+                  (put (unsafeCoerce state_errS) (setVars s ((:) a' ([]))))
+                  (\_ ->
+                  bind (unsafeCoerce monad_errS) (compile_expr f0 next_bid)
+                    (\x0 ->
+                    case x0 of {
+                     (,) p0 f_blks ->
+                      case p0 of {
+                       (,) f' f_bid ->
+                        bind (unsafeCoerce monad_errS)
+                          (get (unsafeCoerce state_errS)) (\s' ->
+                          bind (unsafeCoerce monad_errS)
+                            (put (unsafeCoerce state_errS)
+                              (setVars s' (_UU0393_ s))) (\_ ->
+                            ret (unsafeCoerce monad_errS) ((,) ((,) f' a_bid)
+                              (app a_blks
+                                (app (nop_block app_bid f_bid) f_blks)))))}})))}}));
+     _ -> raise (unsafeCoerce exception_errS) "expression is not a function"};
+   _ -> raise (unsafeCoerce exception_errS) "unsupported"}
 
 compile_fun :: Prelude.String -> Type -> Type -> Expr -> Cerr
                (Definition Typ ((,) (Block Typ) (([]) (Block Typ))))

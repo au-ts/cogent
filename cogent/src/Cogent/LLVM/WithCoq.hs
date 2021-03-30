@@ -8,7 +8,10 @@ module Cogent.LLVM.WithCoq (compileWithCoq) where
 -- extracted Coq implementation for a compiler.
 -- Also includes functions to convert a VIR AST to a llvm-hs AST.
 
-import Cogent.Common.Syntax (CoreFunName (..), Op, VarName)
+-- Acts as a layer between the core Cogent Haskell compiler and the
+-- extracted Coq implementation for a compiler.
+-- Also includes functions to convert a VIR AST to a llvm-hs AST.
+import Cogent.Common.Syntax (CoreFunName (..), FunName, Op, VarName)
 import qualified Cogent.Common.Syntax as S (Op (..))
 import Cogent.Common.Types (PrimInt)
 import qualified Cogent.Common.Types as T (PrimInt (..), Sigil (..))
@@ -23,10 +26,10 @@ import qualified LLVM.AST as LL
 import LLVM.AST.CallingConvention as LLCC (CallingConvention (..))
 import qualified LLVM.AST.Constant as LLC
 import LLVM.AST.Global (Global (..))
-import LLVM.AST.Type hiding (Type)
+import LLVM.AST.Type (double, float, fp128, half, ppc_fp128, ptr, void, x86_fp80)
 import LLVM.Target (getDefaultTargetTriple)
 import System.FilePath (replaceExtension)
-import System.IO (IOMode (..), hClose, openFile)
+import System.IO (IOMode (..), hClose, hPutStrLn, openFile, stderr)
 
 finNat :: Fin n -> Nat
 finNat FZero = O
@@ -38,12 +41,16 @@ nWord (Npos n) = fromInteger n
 
 -- Top level compilation function
 compileWithCoq :: [C.Definition TypedExpr VarName VarName] -> FilePath -> IO ()
-compileWithCoq monoed source = do
+compileWithCoq monoed source =
+    case compile_cogent (convCogentAST monoed) of
+        Left error -> hPutStrLn stderr error
+        Right output -> generateOutput output source
+
+generateOutput :: Vellvm_prog -> FilePath -> IO ()
+generateOutput vir source = do
     target <- getDefaultTargetTriple
     let sourceFilename = toShort $ packChars source
-        source' = convCogentAST monoed
-        Right output = compile_cogent source'
-        output' = convVellvmAST output
+        output' = convVellvmAST vir
         ast =
             LL.Module
                 { LL.moduleName = sourceFilename
@@ -58,15 +65,19 @@ compileWithCoq monoed source = do
     hClose outFile
     return ()
 
+type FunBodies = [(FunName, Expr)]
+
 -- Convert the Cogent AST into a form the Coq-based compiler understands
 convCogentAST :: [C.Definition TypedExpr VarName VarName] -> Cogent_prog
-convCogentAST = map convCogentDefinition
+convCogentAST defs =
+    let defs' = [(name, convCogentExpr defs' body) | C.FunDef _ name _ _ t rt body <- defs]
+     in convCogentDefinition defs' <$> defs
 
-convCogentDefinition :: C.Definition TypedExpr VarName VarName -> Def
-convCogentDefinition (C.FunDef _ name _ _ t rt body) =
-    FunDef name (convCogentType t) (convCogentType rt) (convCogentExpr body)
-convCogentDefinition C.AbsDecl {} = error "AbsDecl is not supported"
-convCogentDefinition C.TypeDef {} = error "TypeDef is not supported"
+convCogentDefinition :: FunBodies -> C.Definition TypedExpr VarName VarName -> Def
+convCogentDefinition fb (C.FunDef _ name _ _ t rt body) =
+    FunDef name (convCogentType t) (convCogentType rt) (convCogentExpr fb body)
+convCogentDefinition fb C.AbsDecl {} = error "AbsDecl is not supported"
+convCogentDefinition fb C.TypeDef {} = error "TypeDef is not supported"
 
 convCogentType :: Show b => C.Type t b -> Type
 convCogentType C.TUnit = TUnit
@@ -78,15 +89,17 @@ convCogentType (C.TRecord _ flds s) =
      in TRecord flds' (convCogentSigil s)
 convCogentType t = error $ show t
 
-convCogentExpr :: (Show a, Show b) => TypedExpr t v a b -> Expr
-convCogentExpr (TE _ (C.ILit int p)) = Lit0 $ convCogentLit int p
-convCogentExpr (TE _ (C.Op op [a, b])) =
-    BPrim (convCogentOp (exprType a) op) (convCogentExpr a) (convCogentExpr b)
-convCogentExpr (TE _ (C.Let _ val body)) = Let (convCogentExpr val) (convCogentExpr body)
-convCogentExpr (TE _ (C.Variable (idx, _))) = Var (finNat idx)
-convCogentExpr (TE _ C.Unit) = Unit
-convCogentExpr (TE _ (C.If c b1 b2)) = If (convCogentExpr c) (convCogentExpr b1) (convCogentExpr b2)
-convCogentExpr e = error $ show e
+convCogentExpr :: (Show a, Show b) => FunBodies -> TypedExpr t v a b -> Expr
+convCogentExpr fb (TE _ (C.ILit int p)) = Lit0 $ convCogentLit int p
+convCogentExpr fb (TE _ (C.Op op [a, b])) =
+    BPrim (convCogentOp (exprType a) op) (convCogentExpr fb a) (convCogentExpr fb b)
+convCogentExpr fb (TE _ (C.Let _ val body)) = Let (convCogentExpr fb val) (convCogentExpr fb body)
+convCogentExpr fb (TE _ (C.Variable (idx, _))) = Var (finNat idx)
+convCogentExpr fb (TE _ C.Unit) = Unit
+convCogentExpr fb (TE _ (C.If c b1 b2)) = If (convCogentExpr fb c) (convCogentExpr fb b1) (convCogentExpr fb b2)
+convCogentExpr fb (TE _ (C.Fun f _ _ _)) = maybe (error "unknown function") Fun (lookup (unCoreFunName f) fb)
+convCogentExpr fb (TE _ (C.App f a)) = App (convCogentExpr fb f) (convCogentExpr fb a)
+convCogentExpr fb e = error $ show e
 
 convCogentLit :: Integer -> PrimInt -> Lit
 convCogentLit w T.U8 = LU8 w

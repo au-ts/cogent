@@ -1,7 +1,6 @@
 From Coq Require Import List String ZArith.
 
 From ITree Require Import ITree ITreeFacts.
-From RecordUpdate Require Import RecordSet.
 From Vellvm Require Import LLVMAst LLVMEvents TopLevel Handlers InterpreterMCFG TopLevelRefinements
   DynamicTypes CFG TypToDtyp InterpretationStack SymbolicInterpreter DenotationTheory ScopeTheory
   DynamicValues ExpLemmas Coqlib NoFailure AListFacts.
@@ -10,7 +9,6 @@ From Checker Require Import Denotation DenotationTheory Cogent Compiler Utils.Ta
   HelixLib.Correctness_Prelude HelixLib.BidBound HelixLib.IdLemmas.
 
 Import ListNotations.
-Import RecordSetNotations.
 Import AlistNotations.
 
 Import ExpTactics.
