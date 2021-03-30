@@ -101,7 +101,7 @@ propModule (name, shallowName, shallowNameTup) hsffiName hscffiName pbtinfos cog
                     P.map importVar ["complement", "xor", "shiftL", "shiftR"]
       import_word = P.map importAbs ["Word8", "Word16", "Word32", "Word64"]
       import_ints = P.map importAbs ["Int8", "Int16", "Int32", "Int64"]
-      import_prelude = P.map importVar ["not", "div", "mod", "fromIntegral", "undefined", "return", "fromEnum", "otherwise"] ++
+      import_prelude = P.map importVar ["not", "div", "mod", "fromIntegral", "undefined", "return", "fromEnum", "otherwise", "repeat"] ++
                        P.map importSym ["$", ".", "+", "-", "*", "^", "&&", "||", ">", ">=", "<", "<=", "==", "/="] ++
                        P.map importAbs ["Char", "String", "Int", "Integer", "Show", "Maybe", "IO"] ++
                        [IThingAll () $ Ident () "Bool"]
