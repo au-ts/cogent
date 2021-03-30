@@ -20,8 +20,8 @@ import qualified Cogent.Core as C (Definition (..), Expr (..), Type (..))
 import Cogent.LLVM.Compile (writeLLVM)
 import Data.ByteString.Internal (packChars)
 import Data.ByteString.Short.Internal (toShort)
-import Data.Fin (Fin (..))
-import ExtractedCoq.Compiler hiding (map)
+import Data.Fin (Fin (..), finInt)
+import ExtractedCoq.Compiler hiding (map, snd)
 import qualified LLVM.AST as LL
 import LLVM.AST.CallingConvention as LLCC (CallingConvention (..))
 import qualified LLVM.AST.Constant as LLC
@@ -30,10 +30,6 @@ import LLVM.AST.Type (double, float, fp128, half, ppc_fp128, ptr, void, x86_fp80
 import LLVM.Target (getDefaultTargetTriple)
 import System.FilePath (replaceExtension)
 import System.IO (IOMode (..), hClose, hPutStrLn, openFile, stderr)
-
-finNat :: Fin n -> Nat
-finNat FZero = O
-finNat (FSuc f) = S $ finNat f
 
 nWord :: Num a => N -> a
 nWord N0 = 0
@@ -94,9 +90,14 @@ convCogentExpr fb (TE _ (C.ILit int p)) = Lit0 $ convCogentLit int p
 convCogentExpr fb (TE _ (C.Op op [a, b])) =
     BPrim (convCogentOp (exprType a) op) (convCogentExpr fb a) (convCogentExpr fb b)
 convCogentExpr fb (TE _ (C.Let _ val body)) = Let (convCogentExpr fb val) (convCogentExpr fb body)
-convCogentExpr fb (TE _ (C.Variable (idx, _))) = Var (finNat idx)
+convCogentExpr fb (TE _ (C.Variable (idx, _))) = Var (finInt idx)
 convCogentExpr fb (TE _ C.Unit) = Unit
 convCogentExpr fb (TE _ (C.If c b1 b2)) = If (convCogentExpr fb c) (convCogentExpr fb b1) (convCogentExpr fb b2)
+convCogentExpr fb (TE _ (C.Cast t e)) = Cast (convCogentNumType t) (convCogentExpr fb e)
+convCogentExpr fb (TE _ (C.Struct flds)) = Struct (convCogentType . exprType . snd <$> flds) (convCogentExpr fb . snd <$> flds)
+convCogentExpr fb (TE _ (C.Member recd fld)) = Member (convCogentExpr fb recd) fld
+convCogentExpr fb (TE _ (C.Take _ recd fld body)) = Take (convCogentExpr fb recd) fld (convCogentExpr fb body)
+convCogentExpr fb (TE _ (C.Put recd fld val)) = Put (convCogentExpr fb recd) fld (convCogentExpr fb val)
 convCogentExpr fb (TE _ (C.Fun f _ _ _)) = maybe (error "unknown function") Fun (lookup (unCoreFunName f) fb)
 convCogentExpr fb (TE _ (C.App f a)) = App (convCogentExpr fb f) (convCogentExpr fb a)
 convCogentExpr fb e = error $ show e

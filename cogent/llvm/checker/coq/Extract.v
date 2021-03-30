@@ -1,4 +1,4 @@
-From Coq Require Import ExtrHaskellString ExtrHaskellZInteger.
+From Coq Require Import ExtrHaskellString ExtrHaskellZInteger ExtrHaskellNatInt.
 
 From Checker Require Import Compiler.
 
