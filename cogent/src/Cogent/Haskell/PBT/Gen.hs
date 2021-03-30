@@ -88,6 +88,7 @@ propModule (name, shallowName, shallowNameTup) hsffiName hscffiName pbtinfos cog
                    [ "DisambiguateRecordFields"
                    , "DuplicateRecordFields"
                    , "NamedFieldPuns"
+                   , "MultiWayIf"
                    , "NoImplicitPrelude"
                    , "PartialTypeSignatures"
                    , "PartialTypeSignatures"
@@ -100,9 +101,9 @@ propModule (name, shallowName, shallowNameTup) hsffiName hscffiName pbtinfos cog
                     P.map importVar ["complement", "xor", "shiftL", "shiftR"]
       import_word = P.map importAbs ["Word8", "Word16", "Word32", "Word64"]
       import_ints = P.map importAbs ["Int8", "Int16", "Int32", "Int64"]
-      import_prelude = P.map importVar ["not", "div", "mod", "fromIntegral", "undefined", "return"] ++
+      import_prelude = P.map importVar ["not", "div", "mod", "fromIntegral", "undefined", "return", "fromEnum", "otherwise"] ++
                        P.map importSym ["$", ".", "+", "-", "*", "^", "&&", "||", ">", ">=", "<", "<=", "==", "/="] ++
-                       P.map importAbs ["Char", "String", "Int", "Integer", "Show", "Maybe"] ++
+                       P.map importAbs ["Char", "String", "Int", "Integer", "Show", "Maybe", "IO"] ++
                        [IThingAll () $ Ident () "Bool"]
       import_ffiutil = P.map importVar ["new"]
       import_ffiunsafe = P.map importVar ["unsafeLocalState"] 
@@ -122,7 +123,8 @@ propModule (name, shallowName, shallowNameTup) hsffiName hscffiName pbtinfos cog
              , ImportDecl () (ModuleName () shallowNameTup) False False False Nothing (Just $ ModuleName () "ShT") Nothing
              -- TODO: only import types that are being used in testing
              -- , ImportDecl () (ModuleName () hscffiName) False False False Nothing (Just $ ModuleName () "FFIT") Nothing
-             , ImportDecl () (ModuleName () hsffiName) False False False Nothing (Just $ ModuleName () "FFII") Nothing
+             , ImportDecl () (ModuleName () hsffiName) False False False Nothing Nothing Nothing
+             , ImportDecl () (ModuleName () (hsffiName++"_Types")) False False False Nothing Nothing Nothing
              , ImportDecl () (ModuleName () "Lens.Micro") False False False Nothing Nothing Nothing
              , ImportDecl () (ModuleName () "Lens.Micro.TH") False False False Nothing Nothing (Just $ ImportSpecList () False (map importVar ["makeLenses"]))
              , ImportDecl () (ModuleName () "Control.Lens.Combinators") False False False Nothing Nothing (Just $ ImportSpecList () False (map importVar ["makePrisms"]))
@@ -131,6 +133,7 @@ propModule (name, shallowName, shallowNameTup) hsffiName hscffiName pbtinfos cog
              , ImportDecl () (ModuleName () "Data.Bits") False False False Nothing Nothing (Just $ ImportSpecList () False import_bits)
              , ImportDecl () (ModuleName () "Data.Int") False False False Nothing Nothing (Just $ ImportSpecList () False import_ints)
              , ImportDecl () (ModuleName () "Data.Maybe") False False False Nothing Nothing Nothing
+             , ImportDecl () (ModuleName () "Data.Array.IArray") False False False Nothing Nothing Nothing
              -- , ImportDecl () (ModuleName () "Data.Tuple.Select") True False False Nothing (Just $ ModuleName () "Tup") Nothing
              -- , ImportDecl () (ModuleName () "Data.Tuple.Update") True False False Nothing (Just $ ModuleName () "Tup") Nothing
              , ImportDecl () (ModuleName () "Data.Word") False False False Nothing Nothing (Just $ ImportSpecList () False import_word)
@@ -183,19 +186,20 @@ mkPropBody :: String -> [PbtDescDecl] -> Exp ()
 mkPropBody n ds
     = let isPure = checkBoolE Pure ds
           isNond = checkBoolE Nond ds
+          oc = app (function $ if isPure then n else "cogent_"++n) (var $ mkName "ic")
           ia = app (function $ "abs_"++n) (var $ mkName "ic")
-          oc = app (function n)           (var $ mkName "ic")
-          oa = app (function $ "hs_"++n)  ia
+          oa = app (function $ "hs_"++n)  (var . mkName $ "ia")
           binds = [ FunBind () [Match () (mkName "oc") [] (UnGuardedRhs () oc  ) Nothing]
                   , FunBind () [Match () (mkName "oa") [] (UnGuardedRhs () oa  ) Nothing] ]
           binds' =  [ genStmt (pvar $ mkName "oc") oc
+                    , genStmt (pvar $ mkName "ia") ia
                     , genStmt (pvar $ mkName "oa") (app (function "return") oa)
                     , qualStmt body ]
           body  = appFun (function $ (if isPure then "corres" else "corresM")++(if isNond then "" else "'"))
                          [ function $ "rel_"++n , var $ mkName "oa" , var $ mkName "oc" ]
           f  = if isPure then function "forAll" else function "forAllM"
           fs = [ function $ "gen_"++n
-               , lamE [pvar $ mkName "ic"] (if isPure then letE binds body else doE binds') ]
+               , lamE [pvar $ mkName "ic"] (if isPure then letE binds body else app (function "run") (doE binds')) ]
         in if isPure then appFun f fs
            else app (function "monadicIO") $ appFun f fs
 

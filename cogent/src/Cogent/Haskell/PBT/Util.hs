@@ -671,7 +671,7 @@ getConNames' tyL acc
                    name = getConIdentName cTyCon
                  in case v of
             Left _ -> acc
-            Right next -> getConNames' next $ acc ++ if null ptrCon then [] else [name]
+            Right next -> getConNames' next $ acc ++ {-if null ptrCon then [] else -} [name]
         ) $ M.toList fld
 
 rmdups :: (Ord a) => [a] -> [a]
@@ -703,3 +703,9 @@ mkPtrPeekStmt toPeek toBind = genStmt (pvar . mkName $ toBind) $ mkPeekCon toPee
 
 mkPeekCon :: String -> HS.Exp ()
 mkPeekCon s = app (function "peek") $ function s
+
+
+
+stripIO :: HS.Type () -> HS.Type ()
+stripIO t@(HS.TyApp _ l r) = if getConIdentName l == "IO" then r
+                             else t

@@ -69,7 +69,7 @@ rrelDecl stmt (ffiDefs, ffiTypes) defs = do
                      else TyApp () (mkTyConT . mkName $ "IO") $ mkTyConT . mkName $ "Bool"
             ti     = TyFun () oaT $ TyFun ()
                        ( if isPure then ocT
-                         else (findHsFFIFunc ffiDefs (stmt ^. funcname)) ^. _3 ) to
+                         else stripIO $ (findHsFFIFunc ffiDefs (stmt ^. funcname)) ^. _3 ) to
             sig    = TypeSig () [mkName fnName] ti
             dec    = FunBind () [Match () (mkName fnName) [pvar $ mkName "oa", pvar $ mkName "oc"] (UnGuardedRhs () rrelE) Nothing]
         return $ map mkLens (takeWhile (`notElem` hsSumTypes) conNames)++[sig, dec]

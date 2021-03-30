@@ -129,7 +129,9 @@ import Language.Haskell.Exts.Syntax as HS
 -- import Language.Haskell.HS.PprLib as PP
 import Prelude as P
 
--- import Debug.Trace
+
+import Debug.Trace (trace)
+import Text.Show.Pretty (ppShow)
 
 
 -- * Contexts
@@ -692,7 +694,7 @@ shallowGetter :: TypedExpr t v VarName b -> [FieldName] -> FieldIndex -> Exp () 
 shallowGetter rec fnms idx rec' = do
   tuples <- view recoverTuples
   return $ if | tuples, isRecTuple fnms -> appFun (mkQVarE "Tup" . mkName $ "sel" ++ show (idx+1)) [rec']
-              | otherwise -> appFun (var . mkName . (\x -> "_"++x) . snm $ getRecordFieldName rec idx) [rec']
+              | otherwise -> appFun (var . mkName . (\x -> "_"++ snm x) $ getRecordFieldName rec idx) [rec']
 
 -- | Another way to extract a field from a record. E.g.:
 --
@@ -732,9 +734,9 @@ shallowGetter' rec fnms idx rec' = do
 shallowSetter :: TypedExpr t v VarName b -> [FieldName] -> FieldIndex -> Exp () -> HS.Type () -> Exp () -> SG (Exp ())
 shallowSetter rec fnms idx rec' rect' e' = do
   tuples <- view recoverTuples
-  return $ if | tuples, isRecTuple fnms -> appFun (mkQVarE "Tup" . mkName $ "upd" ++ show (idx+1)) [e', rec']
-              | otherwise -> RecUpdate () (Paren () $ ExpTypeSig () rec' rect')
-                               [FieldUpdate () (UnQual () . mkName . (\x -> "_"++x) . snm $ getRecordFieldName rec idx) e']
+  return $ if | tuples, isRecTuple fnms -> trace ("tup" ++ppShow e') $ appFun (mkQVarE "Tup" . mkName $ "upd" ++ show (idx+1)) [e', rec']
+              | otherwise -> trace ("other" ++ppShow e') $ RecUpdate () (Paren () $ ExpTypeSig () rec' rect')
+                               [FieldUpdate () (UnQual () (mkName . (\x -> "_"++snm x) $ getRecordFieldName rec idx)) e']
 
 
 -- | prefix for internally introduced variables
