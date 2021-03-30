@@ -44,6 +44,8 @@ data HsFFILayout = HsFFILayout
     { _cTyp :: HS.Type ()
     , _groupTag :: GroupTag
     , _prevGroupTag  :: GroupTag
+    , _oldKey :: String
+    , _oldDepth :: Int
     , _cFieldMap :: M.Map String (Either String HsFFILayout)
     } deriving (Show)
 
@@ -250,11 +252,13 @@ determineUnpack' hsTyp prevGroup depth fieldName
 determineUnpackFFI :: HsEmbedLayout 
                    -> String 
                    -> String 
+                   -> String
+                   -> Int
                    -> HS.Type () 
                    -> Hsc.HscModule
                    -- -> M.Map String (M.Map String (HS.Type ())) 
                    -> HsFFILayout
-determineUnpackFFI layout varToUnpack fieldName ffiTy ffiTypes
+determineUnpackFFI layout varToUnpack fieldName prevKey oldDepth ffiTy ffiTypes
     = let hsTy = layout ^. hsTyp
           group = layout ^. grTag
           prevGroup = layout ^. prevGrTag
@@ -266,15 +270,15 @@ determineUnpackFFI layout varToUnpack fieldName ffiTy ffiTypes
           ffiFields = findFFITypeByName ffiTypes $ cn
           -- if cant find in lookup then HsTyAbs
           cFields = M.toList $ fromMaybe M.empty $ M.lookup cn ffiFields
-        in if | null cFields -> HsFFILayout ffiTy HsTyAbs prevGroup $ M.singleton fieldName $ Left fieldName
-              | group /= HsVariant -> HsFFILayout ffiTy group prevGroup $ M.fromList $ 
+        in if | null cFields -> HsFFILayout ffiTy HsTyAbs prevGroup prevKey oldDepth $ M.singleton fieldName $ Left fieldName
+              | group /= HsVariant -> HsFFILayout ffiTy group prevGroup prevKey oldDepth $ M.fromList $ 
                   [ let (k,v) = fld!!i
                         (ck,cv) = if i >= length cFields then (fieldName, cTy)
                                   else cFields!!i
                       in mkBindPair v varToUnpack k ck cv fieldName ffiTypes
 
                   | i <- [0..length fld-1] ]
-              | otherwise -> HsFFILayout ffiTy group prevGroup $ M.fromList $ 
+              | otherwise -> HsFFILayout ffiTy group prevGroup prevKey oldDepth $ M.fromList $ 
                   -- Have to create ad-hoc "Tag" field to match up with the C type fields
                   -- where Variants are Enums and the Tag field is the enumeration.
                   -- Assumes Variants always are represented by Enums on the C level
@@ -295,7 +299,7 @@ determineUnpackFFI layout varToUnpack fieldName ffiTy ffiTypes
                   (Left depth) -> ( mkKIdentVarBind varToUnpack k depth
                                   , Left $ fieldName)
                   (Right next) -> ( if (head ck == '_') then tail ck else ck
-                                  , Right $ determineUnpackFFI next varToUnpack ck cv ffiTypes ) 
+                                  , Right $ determineUnpackFFI next varToUnpack ck k (oldDepth+1) cv ffiTypes ) 
 
 allLower :: String -> String 
 allLower xs = [toLower x | x <- xs]
@@ -436,7 +440,6 @@ scanUserShortE _ depth = M.empty
 -- -----------------------------------------------------------------------
 scanUserInfixViewE :: HS.Exp () -> Int -> String -> M.Map String String
 scanUserInfixViewE exp@(HS.Paren () e) depth kid = scanUserInfixViewE e depth kid
-scanUserInfixViewE exp@(HS.App () lhs rhs) depth kid = scanUserInfixViewE rhs depth kid
 scanUserInfixViewE exp@(HS.InfixApp () lhs op rhs) depth kid  
     = if getOpStr op == "." 
        then M.union (scanUserInfixViewE lhs (depth) kid ) (scanUserInfixViewE rhs (depth+1) kid )
@@ -445,6 +448,7 @@ scanUserInfixViewE exp@(HS.Var _ (HS.UnQual _ (HS.Ident _ name))) depth kid
     = if | (any (==trim name ) ["ic","ia","oc","oa"]) -> M.empty
          | null (scanUserShortE exp 0) -> M.singleton (mkKIdentVarBind kid name (depth+1)) (name)
          | otherwise -> scanUserShortE exp 0
+scanUserInfixViewE exp@(HS.App () lhs rhs) depth kid = scanUserInfixViewE rhs depth kid
 scanUserInfixViewE _ depth kid = M.empty
 
 -- | Builder for unique var identifier - this pattern is also follow by HsEmbedLayout
@@ -527,11 +531,14 @@ mkLensView' layout varToView prevGroup prevFieldName prev
                    (cTyCon:cTyParams,ptrCon) = partition (\x -> all (/= getConIdentName x) ["Ptr", "IO"]) $ unfoldFFITy hsTy
                    name = getConIdentName cTyCon
                    vv = if null ptrCon then varToView else mkKIdentVarBind varToView name 0
+                   n' = mkKIdentVarBind "ic" (layout ^. oldKey) (layout ^. oldDepth)
                  in case v of
            (Left depth) -> let e = fromMaybe (mkVar vv) prev 
                              in [ ( ( n
                                     , e & (mkFromIntegral hsTy prevGroup) ) 
-                                  , (hsTy, prevGroup) ) ]
+                                  , (hsTy, prevGroup) ) ] ++
+                                  if prevGroup /= HsVariant then [((n', var . mkName $ n), (hsTy, prevGroup))]
+                                  else []
            (Right next) -> if prevGroup /= HsVariant 
                             then mkLensView' next varToView group k $ Just $ mkViewInfixE vv group prev k
                             else let e = fromMaybe (mkVar vv) prev 
@@ -556,7 +563,8 @@ mkCTyVariantLike layout prefix depth binds
           fld = layout ^. cFieldMap
        in if group /= HsVariant 
           then concatMap ( \(k, v) -> case v of
-                   (Left _) -> []; (Right next) -> mkCTyVariantLike next prefix depth binds;
+                   (Left _) -> []; 
+                   (Right next) -> mkCTyVariantLike next prefix depth binds;
                ) $ M.toList fld
           else let tag = mkBindName' "tag" $ getCTyConName hsTy
                    suc = mkBindName' "success" $ getCTyConName hsTy

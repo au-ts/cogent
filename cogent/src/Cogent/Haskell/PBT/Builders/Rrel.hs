@@ -121,7 +121,7 @@ mkRrelBody cogOcTyp ocTyp oaTyp userE ffimods
     = let ocLy = determineUnpack cogOcTyp ocTyp Unknown 0 "1"
           ocCTyLy = ffimods <&>
                (\x -> let (_, _, to) = findHsFFIFunc (x ^. _2) (x ^. _1) 
-                        in determineUnpackFFI ocLy "ic" "None" to (x ^. _3) )
+                        in determineUnpackFFI ocLy "ic" "None" "None" 0 to (x ^. _3) )
           oaLy = determineUnpack' oaTyp Unknown 0 "1"
           (ocLens', tys', peeks) = fromMaybe 
                     (let l = mkLensView ocLy "oc" Unknown Nothing in (map fst l, map snd l, [])) $
@@ -148,7 +148,7 @@ mkRrelBody cogOcTyp ocTyp oaTyp userE ffimods
                    ) $ map fst oaLens
           body = fromMaybe (mkCmpExp (zip3 oaVars ocVars tys) Nothing) $ userE <&>
                     (\x -> replaceVarsInUserInfixE x 0 $ scanUserInfixE x 0 "oc")
-       in pure ( if isNothing ffimods then mkLetE binds body
+       in pure $ trace (ppShow ocLy++ppShow ocCTyLy) $ ( if isNothing ffimods then mkLetE binds body
                  else doE ( (map snd peeks)++binds'++[qualStmt (app (function "return") body)])
                , cNames)
 

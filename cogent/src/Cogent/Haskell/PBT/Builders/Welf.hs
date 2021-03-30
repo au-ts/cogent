@@ -104,7 +104,7 @@ mkGenFBody cogIcTyp icTyp userGenExps ffimods =
     let icLayout = determineUnpack cogIcTyp icTyp Unknown 0 "1"
         icCTyLy = ffimods <&>
                (\x -> let (_, ti, _) = findHsFFIFunc (x ^. _2) (x ^. _1) 
-                        in determineUnpackFFI icLayout "ic" "None" ti (x ^. _3) )
+                        in determineUnpackFFI icLayout "ic" "None" "None" 0 ti (x ^. _3) )
         userPred = fromMaybe M.empty $ (M.lookup Pred userGenExps) <&> 
                    (\es-> M.unions $ map (\(lhs',rhs) -> case lhs' of 
                         Just lhs -> let shCheck = scanUserShortE lhs 0
@@ -124,15 +124,15 @@ mkGenFBody cogIcTyp icTyp userGenExps ffimods =
                                        (\lhs -> let shCheck = scanUserShortE lhs 0
                                                     vars = if (null shCheck) then scanUserInfixE lhs 0 "ic" else shCheck
                                                     lhs'' = replaceVarsInUserInfixE lhs 0 vars
-                                                   in M.fromList $ map (\(k,v) -> (k,(lhs'', rhs))) $ M.toList vars
+                                                   in  M.fromList $ map (\(k,v) -> (k,(lhs'', rhs))) $ M.toList vars
                                        )
                         ) es
                     )
         genStmts = fromMaybe (mkArbitraryGenStmt icLayout Unknown userPred) $
                         icCTyLy <&> (\x -> sortOn (\x -> let s = snd . fst $ x
                                                            in case s of 
-                                                                (LetStmt _ _) -> 0
-                                                                (Generator _ _ _) -> 1
+                                                                (Generator _ _ _) -> 0
+                                                                (LetStmt _ _) -> 1
                                                                 _ -> 2
                                            ) $ mkArbitraryGenStmt' x Unknown userPred)
         bindsMap = (map fst genStmts)
@@ -141,7 +141,7 @@ mkGenFBody cogIcTyp icTyp userGenExps ffimods =
                  ) bindsMap
         binds = sortOn (\x -> "suchThat" `isInfixOf` (show x)) (map snd binds') 
         -- DONE???: find matching var user is refering to and drop that in
-        body = fromMaybe (packConWithLayout (Right icLayout) Nothing) $
+        body = trace ("hellooo "++show genStmts) $ fromMaybe (packConWithLayout (Right icLayout) Nothing) $
                         icCTyLy <&> 
                             (\x -> let hsTy = x ^. cTyp 
                                        next = x  ^. cFieldMap
@@ -222,16 +222,23 @@ mkArbitraryGenStmt' layout prevGroup userPredMap
            --      and prims can be in the do block 
            --      last return will just return the top level bind
                                 
-                               e = fromMaybe (genFn) $ (M.lookup n userPredMap) <&> 
-                                    (\x -> infixApp genFn predFilter x)
+                               n' = mkKIdentVarBind "ic" (layout ^. oldKey) (layout ^. oldDepth)
+                               e = fromMaybe (fromMaybe (genFn) (M.lookup n' userPredMap)) $ (M.lookup n userPredMap) <&> 
+                                                (\x -> infixApp genFn predFilter x)
+                               g = genStmt (pvar (mkName n)) e
                              in if null ptrCon 
                                 -- No Ptr -> must be prim which can just use arbitrary gen stmt b/c
-                                then [ (( n , genStmt (pvar (mkName n)) e), (hsTy, prevGroup))]
+                                then -- [((n', 
+
+                                -- genStmt (pvar . mkName $ n) (fromMaybe (genFn) (M.lookup n' userPredMap))),(hsTy, prevGroup))] ++
+                                            [ ((n', g), (hsTy, prevGroup))]
+                                            ++ [((n, letStmt $ [nameBind (mkName n) (var . mkName $ n')]), (hsTy, prevGroup))]
                                 -- if Ptr -> must wrap with unsafe/new and then mk constructor and give it args
                                 -- this is a abs type that need to be defined by the user - we just call arbitrary and they
                                 -- need to write the instance and ffi type defn.
-                                else [(( "ic_"++name, genStmt (pvar (mkName ("ic_"++name))) genFn' ), (hsTy, prevGroup))] ++ 
-                                          [ ((n, mkPtrStmt ("ic_"++name) n ) , (hsTy, prevGroup) ) ]
+                                else [((n, letStmt $ [nameBind (mkName n) (var . mkName $ n')]), (hsTy, prevGroup))] ++
+                                        [(( "ic_"++name, genStmt (pvar (mkName ("ic_"++name))) genFn' ), (hsTy, prevGroup))] ++ 
+                                          [ ((n', mkPtrStmt ("ic_"++name) n' ) , (hsTy, prevGroup) ) ]
            (Right next) -> mkArbitraryGenStmt' next group userPredMap
        ) fs)
 

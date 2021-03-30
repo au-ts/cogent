@@ -124,7 +124,7 @@ mkAbsFBody cogIcTyp icTyp iaTyp userIaExp ffimods
           ic = if isNothing ffimods then "ic" else "ic"
           icCTyLy = ffimods <&>
                (\x -> let (_, ti, _) = findHsFFIFunc (x ^. _2) (x ^. _1) 
-                        in determineUnpackFFI icLayout ic "None" ti (x ^. _3) )
+                        in determineUnpackFFI icLayout ic "None" "None" 0 ti (x ^. _3) )
           lens = map fst $ fromMaybe (mkLensView icLayout ic Unknown Nothing) $ 
                                 icCTyLy <&> (\x -> mkLensView' x "ic" Unknown "unknown" Nothing)
           binds = map ((\x -> pvar . mkName . fst $ x) &&& snd) lens
