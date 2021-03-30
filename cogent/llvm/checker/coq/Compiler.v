@@ -17,10 +17,10 @@ Section Utils.
 
   (* LLVM types *)
   Definition int_n (sz : N) (n : int) : im := (TYPE_I sz, EXP_Integer n).
-  Definition int1  := int_n 1.
-  Definition int8  := int_n 8.
-  Definition int32 := int_n 32.
-  Definition int64 := int_n 64.
+  Definition i1  := (int_n 1).
+  Definition i8  := (int_n 8).
+  Definition i32 := (int_n 32).
+  Definition i64 := (int_n 64).
 
   (* Block generation helpers *)
   Definition code_block (bid next_bid : block_id) (c : code typ) : list (block typ) := [
@@ -48,17 +48,22 @@ Section Utils.
     ; blk_term  := TERM_Br_1 next_bid
     ; blk_comments := None
     |}].
-
+  
 End Utils.
+
+Local Notation "l %= op" := (IId l, op) (at level 99).
+Local Notation "t %% l" := ((t, EXP_Ident (ID_Local l))) (at level 10).
+Local Notation "t * % l" := (TYPE_Pointer t %% l) (at level 10).
+Local Notation "b1 ~> b2" := (nop_block b1 b2) (at level 10).
 
 Section Compiler.
 
   Definition compile_lit (l : lit) : im := 
     match l with
-    | LBool b => int1 (if b then 1 else 0)
-    | LU8 w => int8 w
-    | LU32 w => int32 w
-    | LU64 w => int64 w
+    | LBool b => i1 (if b then 1 else 0)
+    | LU8 w => i8 w
+    | LU32 w => i32 w
+    | LU64 w => i64 w
     end.
 
   Definition compile_prim_op (o : prim_op) : (exp typ -> exp typ -> exp typ) * typ :=
@@ -86,19 +91,28 @@ Section Compiler.
   
   Fixpoint compile_expr (e : expr) (next_bid: block_id) : cerr segment :=
     (* define some nested functions that are mutually recursive with compile_expr *)
-    (* let fix load_member e f : cerr (CodegenValue * CodegenValue) :=
-      e' <- compile_expr e ;;
-      f' <- match field_type (fst e') f with
-      | UnboxField t => instr t (INSTR_Op (OP_ExtractValue e' [Z.of_nat f]))
-      | BoxField t => 
-          let idxs := map int32 [0; Z.of_nat f] in
-          p <- instr (TYPE_Pointer t) (INSTR_Op (OP_GetElementPtr (deref_type (fst e')) e' idxs)) ;;
-          instr t (INSTR_Load false t p None)
-      | Invalid => raise "invalid member access"
-      end ;;
-      ret (e', f') in *)
+    let fix load_member e f next_bid : cerr (@segment (im * im)) :=
+      load_bid <- incBlockNamed "Field" ;;
+      '(e', e_bid, e_blks) <- compile_expr e load_bid ;;
+      '(f', load_code) <-
+        match field_type (fst e') f with
+        | UnboxField t =>
+            l <- incLocal ;;
+            ret (t %% l, [
+              l %= INSTR_Op (OP_ExtractValue e' [Z.of_nat f])
+            ])
+        | BoxField t => 
+            p <- incLocal ;;
+            l <- incLocal ;;
+            ret (t %% l, [
+              p %= INSTR_Op (OP_GetElementPtr (deref_type (fst e')) e' [i32 0; i32 (Z.of_nat f)]);
+              l %= INSTR_Load false t (t* %p) None
+            ])
+        | Invalid => raise "invalid member access"
+        end ;;
+      ret ((e', f'), e_bid, e_blks ++ code_block load_bid next_bid load_code) in
     match e with
-    | Unit => ret (int8 0, next_bid, [])
+    | Unit => ret (i8 0, next_bid, [])
     | Lit l => ret (compile_lit l, next_bid, [])
     | Var i =>
         v <- getStateVar "unknown variable" i ;;
@@ -109,15 +123,17 @@ Section Compiler.
         addVars [e'] ;;
         '(b', b_bid, b_blks) <- compile_expr b next_bid ;;
         dropVars 1 ;;
-        ret (b', e_bid, e_blks ++ nop_block let_bid b_bid ++ b_blks)
+        ret (b', e_bid, e_blks ++ let_bid ~> b_bid ++ b_blks)
     | BPrim op a b =>
         let (op', rt) := compile_prim_op op in
         prim_bid <- incBlockNamed "Prim" ;;
         '(b', b_bid, b_blks) <- compile_expr b prim_bid ;;
         '(a', a_bid, a_blks) <- compile_expr a b_bid ;;
-        new_local <- incLocal ;;
-        let prim_blks := code_block prim_bid next_bid [(IId new_local, INSTR_Op (op' (snd a') (snd b')))] in
-        ret ((rt, EXP_Ident (ID_Local new_local)), a_bid, a_blks ++ b_blks ++ prim_blks)
+        l <- incLocal ;;
+        let prim_blks := code_block prim_bid next_bid [
+          l %= INSTR_Op(op' (snd a') (snd b'))
+        ] in
+        ret (rt %%l, a_bid, a_blks ++ b_blks ++ prim_blks)
     | If c t e =>
         if_bid <- incBlockNamed "If" ;;
         '(c', c_bid, c_blks) <- compile_expr c if_bid ;;
@@ -126,35 +142,68 @@ Section Compiler.
         ep_bid <- incBlockNamed "Else_Post" ;;
         '(e', e_bid, e_blks) <- compile_expr e ep_bid ;;
         fi_bid <- incBlockNamed "Fi" ;;
-        let post_blks := nop_block tp_bid fi_bid ++ nop_block ep_bid fi_bid in
+        let post_blks := tp_bid ~> fi_bid ++ ep_bid ~> fi_bid in
         let if_blks := cond_block if_bid t_bid e_bid c' in
-        new_local <- incLocal ;;
-        let fi_blks := phi_block fi_bid next_bid [(new_local, Phi (fst t') [(tp_bid, snd t'); (ep_bid, snd e')])] in
-        ret ((fst t', EXP_Ident (ID_Local new_local)), c_bid, c_blks ++ if_blks ++ t_blks ++ e_blks ++ post_blks ++ fi_blks)
-    (* | Cast t e =>
-        '(from_t, v) <- compile_expr e ;;
+        l <- incLocal ;;
+        let fi_blks := phi_block fi_bid next_bid [
+          (l, Phi (fst t') [(tp_bid, snd t'); (ep_bid, snd e')])
+        ] in
+        ret (fst t' %%l, c_bid, c_blks ++ if_blks ++ t_blks ++ e_blks ++ post_blks ++ fi_blks)
+    | Cast t e =>
         let t' := convert_num_type t in
-        instr t' (INSTR_Op (OP_Conversion Zext from_t v t')) *)
-    (* | Struct ts es =>
+        cast_bid <- incBlockNamed "Cast" ;;
+        '(e', e_bid, e_blks) <- compile_expr e cast_bid ;;
+        l <- incLocal ;;
+        let cast_blks := code_block cast_bid next_bid [
+          l %= INSTR_Op (OP_Conversion Zext (fst e') (snd e') t')
+        ] in
+        ret (t' %%l, e_bid, e_blks ++ cast_blks)
+    | Struct ts es =>
         let t := TYPE_Struct (map compile_type ts) in
-        let undef := (t, EXP_Undef) in
-        es' <- map_monad compile_expr es ;;
-        let zipped := (combine (seq 0 (length es')) es') in
-        foldM (fun '(i, v) s => instr t (INSTR_Op (OP_InsertValue s v [Z.of_nat i]))) (ret undef) zipped
-    | Member e f => snd <$> load_member e f
-    | Take e f b => load_member e f >>= fold bind (compile_expr b)
+        let undef := (t, @EXP_Undef typ) in
+        struct_bid <- incBlockNamed "Struct" ;;
+        '(es', es_bid, es_blks) <- foldM
+          (fun e '(es', es_bid, es_blks) =>
+            '(e', e_bid, e_blks) <- compile_expr e es_bid ;;
+            ret (e' :: es', e_bid, e_blks ++ es_blks)) 
+          (ret ([], struct_bid, [])) es ;;
+        '(struct, struct_code) <- foldM
+          (fun '(i, e) '(s, c) =>
+            l <- incLocal ;;
+            ret (t %% l, (l %= INSTR_Op (OP_InsertValue s e [Z.of_nat i])) :: c))
+          (ret (undef, [])) (combine (seq 0 (length es')) es') ;;
+        ret (struct, es_bid, es_blks ++ code_block struct_bid next_bid struct_code)
+    | Member e f =>
+        '((e', f'), l_bid, l_blks) <- load_member e f next_bid ;;
+        ret (f', l_bid, l_blks)
+    | Take e f b => 
+        take_bid <- incBlockNamed "Take" ;;
+        '((e', f'), l_bid, l_blks) <- load_member e f take_bid ;;
+        addVars [f'; e'] ;;
+        '(b', b_bid, b_blks) <- compile_expr b next_bid ;;
+        dropVars 2 ;;
+        ret (b', l_bid, l_blks ++ take_bid ~> b_bid ++ b_blks)
     | Put e f v =>
-        e' <- compile_expr e ;;
-        v' <- compile_expr v ;;
-        match field_type (fst e') f with
-        | UnboxField t => instr t (INSTR_Op (OP_InsertValue e' v' [Z.of_nat f]))
-        | BoxField t => 
-            let idxs := map int32 [0; Z.of_nat f] in
-            p <- instr (TYPE_Pointer t) (INSTR_Op (OP_GetElementPtr (deref_type (fst e')) e' idxs)) ;;
-            instr t (INSTR_Store false v' p None) ;;
-            ret e'
-        | Invalid => raise "invalid member access"
-        end *)
+        put_bid <- incBlockNamed "Put" ;;
+        '(v', v_bid, v_blks) <- compile_expr v put_bid ;;
+        '(e', e_bid, e_blks) <- compile_expr e v_bid ;;
+        '(struct, put_code) <-
+          match field_type (fst e') f with
+          | UnboxField t =>
+              l <- incLocal ;;
+              ret (t %% l, [
+                l %= INSTR_Op (OP_InsertValue e' v' [Z.of_nat f])
+              ])
+          | BoxField t =>
+              p <- incLocal ;;
+              vd <- incVoid ;;
+              ret (e', [
+                p %= INSTR_Op (OP_GetElementPtr (deref_type (fst e')) e' [i32 0; i32 (Z.of_nat f)]);
+                (IVoid vd, INSTR_Store false v' (t* %p) None)
+              ])
+          | Invalid => raise "invalid member access"
+          end ;;
+        ret (struct, e_bid, e_blks ++ v_blks ++ code_block put_bid next_bid put_code)
     | App (Fun f) a => 
         app_bid <- incBlockNamed "App" ;;
         '(a', a_bid, a_blks) <- compile_expr a app_bid ;;
@@ -163,10 +212,9 @@ Section Compiler.
         '(f', f_bid, f_blks) <- compile_expr f next_bid ;;
         s' <- get ;;
         put (setVars s' (Γ s)) ;;
-        ret (f', a_bid, a_blks ++ nop_block app_bid f_bid ++ f_blks)
+        ret (f', a_bid, a_blks ++ app_bid ~> f_bid ++ f_blks)
     | Fun f => raise "naked function"
     | App f a => raise "expression is not a function"
-    | _ => raise "unsupported"
     end.
 
   Definition compile_fun n t rt b : cerr (definition typ (block typ * list (block typ))) :=

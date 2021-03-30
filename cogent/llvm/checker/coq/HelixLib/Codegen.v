@@ -180,7 +180,7 @@ Definition swapVars : cerr unit :=
     |}.
 
 (* Result and list of blocks with entry point *)
-Definition segment:Type := VarT * block_id * list (block typ).
+Definition segment {T : Type} : Type := T * block_id * list (block typ).
 
 Definition body_non_empty_cast (body : list (block typ)) : cerr (block typ * list (block typ)) :=
   match body with

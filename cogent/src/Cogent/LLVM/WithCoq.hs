@@ -7,10 +7,6 @@ module Cogent.LLVM.WithCoq (compileWithCoq) where
 -- Acts as a layer between the core Cogent Haskell compiler and the
 -- extracted Coq implementation for a compiler.
 -- Also includes functions to convert a VIR AST to a llvm-hs AST.
-
--- Acts as a layer between the core Cogent Haskell compiler and the
--- extracted Coq implementation for a compiler.
--- Also includes functions to convert a VIR AST to a llvm-hs AST.
 import Cogent.Common.Syntax (CoreFunName (..), FunName, Op, VarName)
 import qualified Cogent.Common.Syntax as S (Op (..))
 import Cogent.Common.Types (PrimInt)
@@ -23,9 +19,11 @@ import Data.ByteString.Short.Internal (toShort)
 import Data.Fin (Fin (..), finInt)
 import ExtractedCoq.Compiler hiding (map, snd)
 import qualified LLVM.AST as LL
-import LLVM.AST.CallingConvention as LLCC (CallingConvention (..))
+import qualified LLVM.AST.CallingConvention as LLCC (CallingConvention (..))
 import qualified LLVM.AST.Constant as LLC
+import qualified LLVM.AST.FloatingPointPredicate as LLFP (FloatingPointPredicate (..))
 import LLVM.AST.Global (Global (..))
+import qualified LLVM.AST.IntegerPredicate as LLP (IntegerPredicate (..))
 import LLVM.AST.Type (double, float, fp128, half, ppc_fp128, ptr, void, x86_fp80)
 import LLVM.Target (getDefaultTargetTriple)
 import System.FilePath (replaceExtension)
@@ -186,7 +184,8 @@ convVellvmTerm (TERM_Ret e) = LL.Ret (Just (convVellvmTExp e)) []
 convVellvmTerm TERM_Ret_void = LL.Ret Nothing []
 convVellvmTerm (TERM_Br e b1 b2) = LL.CondBr (convVellvmTExp e) (convVellvmId b1) (convVellvmId b2) []
 convVellvmTerm (TERM_Br_1 b) = LL.Br (convVellvmId b) []
-convVellvmTerm (TERM_Switch e d bs) = LL.Switch (convVellvmTExp e) (convVellvmId d) [(convVellvmIntLit i, convVellvmId b) | (i, b) <- bs] []
+convVellvmTerm (TERM_Switch e d bs) =
+    LL.Switch (convVellvmTExp e) (convVellvmId d) [(convVellvmIntLit i, convVellvmId b) | (i, b) <- bs] []
 convVellvmTerm (TERM_IndirectBr e bs) = LL.IndirectBr (convVellvmTExp e) (convVellvmId <$> bs) []
 convVellvmTerm (TERM_Resume e) = LL.Resume (convVellvmTExp e) []
 convVellvmTerm TERM_Invoke {} = error "unsupported terminator"
@@ -202,10 +201,37 @@ convVellvmInstr :: Instr Typ -> LL.Instruction
 convVellvmInstr (INSTR_Comment m) = error "unsupported instruction"
 convVellvmInstr (INSTR_Op (OP_IBinop op t v1 v2)) =
     convVellvmIBinop op (convVellvmTExp (t, v1)) (convVellvmTExp (t, v2)) []
-convVellvmInstr (INSTR_Call fn args) = LL.Call Nothing LLCC.C [] (Right (convVellvmTExp fn)) [(convVellvmTExp a, []) | a <- args] [] []
-convVellvmInstr (INSTR_Alloca t nb align) = LL.Alloca (convVellvmTyp t) (convVellvmTExp <$> nb) (maybe 0 fromInteger align) []
-convVellvmInstr (INSTR_Load volatile _ ptr align) = LL.Load volatile (convVellvmTExp ptr) Nothing (maybe 0 fromInteger align) []
-convVellvmInstr (INSTR_Store volatile val ptr align) = LL.Store volatile (convVellvmTExp ptr) (convVellvmTExp val) Nothing (maybe 0 fromInteger align) []
+convVellvmInstr (INSTR_Op (OP_ICmp cmp t v1 v2)) =
+    LL.ICmp (convVellvmICmp cmp) (convVellvmTExp (t, v1)) (convVellvmTExp (t, v2)) []
+convVellvmInstr (INSTR_Op (OP_FBinop op fms t v1 v2)) =
+    convVellvmFBinop op (foldr convVellvmFM LL.noFastMathFlags fms) (convVellvmTExp (t, v1)) (convVellvmTExp (t, v2)) []
+convVellvmInstr (INSTR_Op (OP_FCmp cmp t v1 v2)) =
+    LL.FCmp (convVellvmFCmp cmp) (convVellvmTExp (t, v1)) (convVellvmTExp (t, v2)) []
+convVellvmInstr (INSTR_Op (OP_Conversion conv t_from v t_to)) =
+    convVellvmConversion conv (convVellvmTExp (t_from, v)) (convVellvmTyp t_to) []
+convVellvmInstr (INSTR_Op (OP_GetElementPtr t ptrval idxs)) =
+    LL.GetElementPtr False (convVellvmTExp ptrval) (convVellvmTExp <$> idxs) []
+convVellvmInstr (INSTR_Op (OP_ExtractElement vec idx)) =
+    LL.ExtractElement (convVellvmTExp vec) (convVellvmTExp idx) []
+convVellvmInstr (INSTR_Op (OP_InsertElement vec elt idx)) =
+    LL.InsertElement (convVellvmTExp vec) (convVellvmTExp elt) (convVellvmTExp idx) []
+convVellvmInstr (INSTR_Op (OP_ShuffleVector vec1 vec2 im)) = error "unsupported instruction"
+convVellvmInstr (INSTR_Op (OP_ExtractValue vec idxs)) =
+    LL.ExtractValue (convVellvmTExp vec) (fromInteger <$> idxs) []
+convVellvmInstr (INSTR_Op (OP_InsertValue vec elt idxs)) =
+    LL.InsertValue (convVellvmTExp vec) (convVellvmTExp elt) (fromInteger <$> idxs) []
+convVellvmInstr (INSTR_Op (OP_Select cnd v1 v2)) =
+    LL.Select (convVellvmTExp cnd) (convVellvmTExp v1) (convVellvmTExp v2) []
+convVellvmInstr (INSTR_Op (OP_Freeze v)) = error "unsupported instruction"
+convVellvmInstr (INSTR_Op _) = error "not an operation"
+convVellvmInstr (INSTR_Call fn args) =
+    LL.Call Nothing LLCC.C [] (Right (convVellvmTExp fn)) [(convVellvmTExp a, []) | a <- args] [] []
+convVellvmInstr (INSTR_Alloca t nb align) =
+    LL.Alloca (convVellvmTyp t) (convVellvmTExp <$> nb) (maybe 0 fromInteger align) []
+convVellvmInstr (INSTR_Load volatile _ ptr align) =
+    LL.Load volatile (convVellvmTExp ptr) Nothing (maybe 0 fromInteger align) []
+convVellvmInstr (INSTR_Store volatile val ptr align) =
+    LL.Store volatile (convVellvmTExp ptr) (convVellvmTExp val) Nothing (maybe 0 fromInteger align) []
 convVellvmInstr INSTR_Fence = error "unsupported instruction"
 convVellvmInstr INSTR_AtomicCmpXchg = error "unsupported instruction"
 convVellvmInstr INSTR_AtomicRMW = error "unsupported instruction"
@@ -231,6 +257,73 @@ convVellvmIBinop SRem = LL.SRem
 convVellvmIBinop And = LL.And
 convVellvmIBinop Or = LL.Or
 convVellvmIBinop Xor = LL.Xor
+
+convVellvmICmp :: Icmp -> LLP.IntegerPredicate
+convVellvmICmp Eq = LLP.EQ
+convVellvmICmp Ne = LLP.NE
+convVellvmICmp Ugt = LLP.UGT
+convVellvmICmp Uge = LLP.UGE
+convVellvmICmp Ult = LLP.ULT
+convVellvmICmp Ule = LLP.ULE
+convVellvmICmp Sgt = LLP.SGT
+convVellvmICmp Sge = LLP.SGE
+convVellvmICmp Slt = LLP.SLT
+convVellvmICmp Sle = LLP.SLE
+
+convVellvmFBinop :: Fbinop -> LL.FastMathFlags -> LL.Operand -> LL.Operand -> LL.InstructionMetadata -> LL.Instruction
+convVellvmFBinop FAdd = LL.FAdd
+convVellvmFBinop FSub = LL.FSub
+convVellvmFBinop FMul = LL.FMul
+convVellvmFBinop FDiv = LL.FDiv
+convVellvmFBinop FRem = LL.FRem
+
+convVellvmFM :: Fast_math -> LL.FastMathFlags -> LL.FastMathFlags
+convVellvmFM Nnan fm = fm {LL.noNaNs = True}
+convVellvmFM Ninf fm = fm {LL.noInfs = True}
+convVellvmFM Nsz fm = fm {LL.noSignedZeros = True}
+convVellvmFM Arcp fm = fm {LL.allowReciprocal = True}
+convVellvmFM Fast fm =
+    fm
+        { LL.allowReassoc = True
+        , LL.noNaNs = True
+        , LL.noInfs = True
+        , LL.noSignedZeros = True
+        , LL.allowReciprocal = True
+        , LL.allowContract = True
+        , LL.approxFunc = True
+        }
+
+convVellvmFCmp :: Fcmp -> LLFP.FloatingPointPredicate
+convVellvmFCmp FFalse = LLFP.False
+convVellvmFCmp FOeq = LLFP.OEQ
+convVellvmFCmp FOgt = LLFP.OGT
+convVellvmFCmp FOge = LLFP.OGE
+convVellvmFCmp FOlt = LLFP.OLT
+convVellvmFCmp FOle = LLFP.OLE
+convVellvmFCmp FOne = LLFP.ONE
+convVellvmFCmp FOrd = LLFP.ORD
+convVellvmFCmp FUno = LLFP.UNO
+convVellvmFCmp FUeq = LLFP.UEQ
+convVellvmFCmp FUgt = LLFP.UGT
+convVellvmFCmp FUge = LLFP.UGE
+convVellvmFCmp FUlt = LLFP.ULT
+convVellvmFCmp FUle = LLFP.ULE
+convVellvmFCmp FUne = LLFP.UNE
+convVellvmFCmp FTrue = LLFP.True
+
+convVellvmConversion :: Conversion_type -> LL.Operand -> LL.Type -> LL.InstructionMetadata -> LL.Instruction
+convVellvmConversion Trunc = LL.Trunc
+convVellvmConversion Zext = LL.ZExt
+convVellvmConversion Sext = LL.SExt
+convVellvmConversion Fptrunc = LL.FPTrunc
+convVellvmConversion Fpext = LL.FPExt
+convVellvmConversion Uitofp = LL.UIToFP
+convVellvmConversion Sitofp = LL.SIToFP
+convVellvmConversion Fptoui = LL.FPToUI
+convVellvmConversion Fptosi = LL.FPToSI
+convVellvmConversion Inttoptr = LL.IntToPtr
+convVellvmConversion Ptrtoint = LL.PtrToInt
+convVellvmConversion Bitcast = LL.BitCast
 
 convVellvmTExp :: (Typ, Exp Typ) -> LL.Operand
 convVellvmTExp (t, EXP_Ident (ID_Local id)) = LL.LocalReference (convVellvmTyp t) (convVellvmId id)
