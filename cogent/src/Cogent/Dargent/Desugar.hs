@@ -14,10 +14,8 @@
 {- OPTIONS_GHC -Wall -Werror -}
 
 module Cogent.Dargent.Desugar
- ( desugarAbstractTypeSigil
- , desugarSize
- -- Remaining exports for testing only
- , constructDataLayout
+ ( -- exports for testing only
+   constructDataLayout
  ) where
 
 import Data.Map (Map)
@@ -37,6 +35,7 @@ import Cogent.Common.Syntax         ( DataLayoutName
                                     , FieldName
                                     )
 import Cogent.Common.Types          ( Sigil(Unboxed, Boxed), PrimInt(..))
+import Cogent.Core                  ( Type(..) )
 import Cogent.Dargent.Allocation
 import Cogent.Dargent.Core
 import Cogent.Dargent.Surface       ( DataLayoutSize(Bytes, Bits, Add)
@@ -45,23 +44,8 @@ import Cogent.Dargent.Surface       ( DataLayoutSize(Bytes, Bits, Add)
                                     , evalSize
                                     )
 import Cogent.Dargent.Util
-import Cogent.Core                  ( Type(..) )
 
 {- * Helper functions used in Core.Desugar -}
-
--- | After WH-normalisation, @TCon _ _ _@ values only represent primitive and abstract types.
---   Primitive types have no sigil, and abstract types may be boxed or unboxed but have no layout.
---   'desugarAbstractTypeSigil' should only be used when desugaring the sigils of abstract types, to eliminate the @Maybe DataLayoutExpr@.
-desugarAbstractTypeSigil
-  :: Sigil (Maybe DataLayoutExpr)
-  -> Sigil ()
-desugarAbstractTypeSigil = fmap desugarMaybeLayout
-  where
-    desugarMaybeLayout Nothing = ()
-    desugarMaybeLayout _       = __impossible $ "desugarAbstractTypeSigil (Called on TCon after normalisation, only for case when it is an abstract type)"
-
-desugarSize :: DataLayoutSize -> Size
-desugarSize = evalSize
 
 
 {- * CONSTRUCTING 'DataLayout's -}
@@ -124,9 +108,4 @@ constructDataLayout' _ = __impossible "constructDataLayout': unhandled type"
 -- constructs a default layout
 constructDataLayout :: Show a => Type t a -> DataLayout BitRange
 constructDataLayout = Layout . constructDataLayout'
-
-dummyPos = __fixme $ newPos "Dummy Pos" 0 0 -- FIXME: Not sure what SourcePos to give for layouts generated automatically.
-
-
-
 

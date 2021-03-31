@@ -38,6 +38,7 @@ import           Cogent.Util (hoistMaybe)
 import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad.Trans.Except (runExcept)
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.Trans.Class (lift)
 import           Data.List as L (elemIndex, isSubsequenceOf, null, (\\))

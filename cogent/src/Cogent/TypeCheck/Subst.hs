@@ -138,7 +138,7 @@ applyAlts :: Subst -> [Alt TCPatn TCExpr] -> [Alt TCPatn TCExpr]
 applyAlts = map . applyAlt
 
 applyAlt :: Subst -> Alt TCPatn TCExpr -> Alt TCPatn TCExpr
-applyAlt s = fmap (applyE s) . ffmap (fmap (apply s))
+applyAlt s = fmap (applyE s) . ffmap (ffmap (apply s))
 
 applyCtx :: Subst -> ErrorContext -> ErrorContext
 applyCtx s (SolvingConstraint c) = SolvingConstraint (applyC s c)
@@ -171,6 +171,7 @@ applyL s (TLVariant e fs) = TLVariant (applyL s e) $
 applyL s (TLArray e p) = TLArray (applyL s e) p
 #endif
 applyL s (TLOffset e n) = TLOffset (applyL s e) n
+applyL s (TLAfter e f) = TLAfter (applyL s e) f
 applyL s (TLRepRef n es) = TLRepRef n $ fmap (applyL s) es
 applyL s l = l
 
@@ -211,8 +212,8 @@ applySE (Subst f) (SU t x)
   = SU t x
 applySE s (SE t e) = SE (apply s t)
                           ( fmap (applySE s)
-                          $ fffmap (fmap (apply s))
-                          $ ffffmap (fmap (apply s))
+                          $ fffmap (ffmap (apply s))
+                          $ ffffmap (ffmap (apply s))
                           $ fffffmap (apply s) e)
 #endif
 
@@ -220,7 +221,7 @@ applyE :: Subst -> TCExpr -> TCExpr
 applyE s (TE t e l) = TE (apply s t)
                          ( fmap (applyE s)
                          $ ffmap (applyL s)
-                         $ fffmap (fmap (apply s))
-                         $ ffffmap (fmap (apply s))
+                         $ fffmap (ffmap (apply s))
+                         $ ffffmap (ffmap (apply s))
                          $ fffffmap (apply s) e)
                          l

@@ -38,6 +38,7 @@ import Data.Traversable
 #endif
 import Data.IntMap as IM (IntMap)
 import qualified Data.Map as M
+import Lens.Micro
 import Text.Parsec.Pos
 
 
@@ -391,6 +392,17 @@ instance Bifoldable Alt where
 instance Bitraversable Alt where
   bitraverse f g (Alt p l e) = Alt <$> f p <*> pure l <*> g e
 
+instance Tritraversable IrrefutablePattern where
+  tritraverse fa fb fc (PVar pv)             = PVar <$> fa pv
+  tritraverse fa fb fc (PTuple ips)          = PTuple <$> traverse fb ips
+  tritraverse fa fb fc (PUnboxedRecord mfs)  = PUnboxedRecord <$> traverse (traverse $ traverse fb) mfs
+  tritraverse fa fb fc (PUnderscore)         = pure $ PUnderscore
+  tritraverse fa fb fc (PUnitel)             = pure $ PUnitel
+  tritraverse fa fb fc (PTake pv mfs)        = PTake <$> fa pv <*> traverse (traverse $ traverse fb) mfs
+#ifdef BUILTIN_ARRAYS
+  tritraverse fa fb fc (PArray ips)          = PArray <$> traverse fb ips
+  tritraverse fa fb fc (PArrayTake pv eps)   = PArrayTake <$> fa pv <*> traverse (bitraverse fc fb) eps
+#endif
 
 instance Quadritraversable Binding where
   quadritraverse fa fb fc fd (Binding ip mt e vs) = Binding <$> fc ip <*> traverse fa mt <*> fd e <*> pure vs
@@ -608,8 +620,9 @@ lvT (RT _) = []
 lvL :: DataLayoutExpr -> [DLVarName]
 lvL (DLVar n) = [n]
 lvL (DLOffset e _) = lvL e
-lvL (DLRecord fs) = foldMap (\(_, _, x) -> lvL x) fs
-lvL (DLVariant t alt) = lvL t <> foldMap (\(_, _, _, x) -> lvL x) alt
+lvL (DLAfter e _) = lvL e
+lvL (DLRecord fs) = foldMap (lvL . (^._3)) fs
+lvL (DLVariant t alt) = lvL t <> foldMap (lvL . (^._4)) alt
 #ifdef BUILTIN_ARRAYS
 lvL (DLArray e _) = lvL e
 #endif
@@ -645,7 +658,8 @@ allRepRefs (DL d) = allRepRefs' d
     allRepRefs' (Array e _) = allRepRefs e
 #endif
     allRepRefs' (Offset e _) = allRepRefs e
-    allRepRefs' (RepRef n s) = [n] ++ concatMap allRepRefs s
+    allRepRefs' (After e _) = allRepRefs e
+    allRepRefs' (RepRef n s) = n : concatMap allRepRefs s
     allRepRefs' (LVar _) = []
     allRepRefs' Ptr = []
 

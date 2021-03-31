@@ -59,12 +59,13 @@ data DataLayoutDecl
 data DataLayoutExpr' e
   = Prim    DataLayoutSize
   | Record  [(FieldName, SourcePos, e)]
-  | Variant e [(TagName, SourcePos, Size, e)]
+  | Variant e [(TagName, SourcePos, Integer, e)]
 #ifdef BUILTIN_ARRAYS
   | Array   e SourcePos
 #endif
   | Offset  e DataLayoutSize
   | RepRef  RepName [e]
+  | After   e FieldName  -- only valid inside a record layout
   | LVar    DLVarName
   | Ptr
   deriving (Show, Data, Eq, Ord)
@@ -81,6 +82,7 @@ pattern DLArray e s    = DL (Array e s)
 #endif
 pattern DLOffset e s   = DL (Offset e s)
 pattern DLRepRef n s   = DL (RepRef n s)
+pattern DLAfter e f    = DL (After e f)
 pattern DLVar n        = DL (LVar n)
 pattern DLPtr          = DL Ptr
 

@@ -7,6 +7,8 @@
     - pass_layout-poly.cogent
     - pass_dargent-unspec.cogent
     - pass_l-matches-record.cogent
+    - pass_after.cogent
+    - pass_record-fields-order.cogent
   expected_result: pass
   flags:
     - -g
@@ -20,6 +22,9 @@
     - fail_layout-too-small-prim.cogent    
     - fail_layout-unboxed.cogent
     - fail_ticket-381.cogent
+    - fail_invalid-after.cogent
+    - fail_after-nonexisting-field-1.cogent
+    - fail_after-nonexisting-field-2.cogent
   expected_result: fail
   flags:
     - -t
@@ -30,3 +35,10 @@
   expected_result: wip
   flags:
     - -g
+
+- test_name: todo-dargent
+  files:
+    - todo_record-fields-duplicate.cogent
+  expected_result: wip-fail 
+  flags:
+    - -t

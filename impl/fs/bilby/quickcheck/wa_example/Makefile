@@ -94,14 +94,14 @@ all: c-gen o-gen
 #       So we use c99 mode here and when building the generated C code(make modules), we
 #       use `gnu99` mode.
 c-gen:
-	$(Q)cogent $(SRC) -Q $(COGENT_FLAGS) \
+	cogent $(SRC) -Q $(COGENT_FLAGS) \
 				--cpp-args="-std=c99 \$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
 				--dist-dir=$(DIST_DIR) \
 				--infer-c-funcs="$(ACFILES)" \
 				--ext-types="$(LINUX_TYPES)"
 
 o-gen:
-	$(Q)$(CC) -c $(DIST_DIR)/wa_wrapper_pp_inferred.c -o $(DIST_DIR)/wa.o -I$(DIST_DIR) -I$(PWD) -fPIC
+	$(CC) -c $(DIST_DIR)/wa_wrapper_pp_inferred.c -o $(DIST_DIR)/wa.o -I$(DIST_DIR) -I$(PWD) -fPIC
 
 hs-gen:
 	$(Q)cogent $(SRC) --hs-shallow-desugar $(COGENT_FLAGS) \

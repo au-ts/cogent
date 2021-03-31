@@ -182,7 +182,7 @@ instance Prec RawExpr where
 instance Prec LocExpr where
   prec (LocExpr _ e) = prec e
 
-instance Prec (TExpr t) where
+instance Prec (TExpr t l) where
   prec (TE _ e _) = prec e
 
 instance Prec (SExpr t l) where
@@ -220,7 +220,7 @@ instance ExprType RawExpr where
 instance ExprType LocExpr where
   isVar (LocExpr _ e) = isVar e
 
-instance ExprType (TExpr t) where
+instance ExprType (TExpr t l) where
   isVar (TE _ e _) = isVar e
 
 instance ExprType (SExpr t l) where
@@ -258,7 +258,7 @@ instance PatnType LocIrrefPatn where
   prettyP (LocIrrefPatn _ p) = prettyP p
   prettyB (LocIrrefPatn _ p,mt,e) = prettyB (p,mt,e)
 
-instance (Pretty t) => PatnType (TIrrefPatn t) where
+instance (Pretty t, Pretty l) => PatnType (TIrrefPatn t l) where
   isPVar  (TIP p _) = isPVar p
   prettyP (TIP p _) = prettyP p
   prettyB (TIP p _,mt,e) = prettyB (p,mt,e)
@@ -285,7 +285,7 @@ instance PatnType LocPatn where
   prettyP (LocPatn _ p) = prettyP p
   prettyB (LocPatn _ p,mt,e) = prettyB (p,mt,e)
 
-instance (Pretty t) => PatnType (TPatn t) where
+instance (Pretty t, Pretty l) => PatnType (TPatn t l) where
   isPVar  (TP p _) = isPVar p
   prettyP (TP p _) = prettyP p
   prettyB (TP p _,mt,e) = prettyB (p,mt,e)
@@ -386,7 +386,7 @@ instance Pretty RawIrrefPatn where
 instance Pretty LocIrrefPatn where
   pretty (LocIrrefPatn _ ip) = pretty ip
 
-instance Pretty t => Pretty (TIrrefPatn t) where
+instance (Pretty t, Pretty l) => Pretty (TIrrefPatn t l) where
   pretty (TIP ip _) = pretty ip
 
 instance (PatnType ip, Pretty ip) => Pretty (Pattern ip) where
@@ -404,7 +404,7 @@ instance Pretty RawPatn where
 instance Pretty LocPatn where
   pretty (LocPatn _ p) = pretty p
 
-instance Pretty t => Pretty (TPatn t) where
+instance (Pretty t, Pretty l) => Pretty (TPatn t l) where
   pretty (TP p _) = pretty p
 
 instance (Pretty t, PatnType ip, PatnType p, Pretty p, Pretty e, Prec e) => Pretty (Binding t p ip e) where
@@ -503,7 +503,7 @@ instance Pretty RawExpr where
 instance Pretty LocExpr where
   pretty (LocExpr _ e) = pretty e
 
-instance Pretty t => Pretty (TExpr t) where
+instance (Pretty t, Pretty l) => Pretty (TExpr t l) where
   pretty (TE t e _) | __cogent_fshow_types_in_pretty = parens $ pretty e <+> comment "::" <+> pretty t
                     | otherwise = pretty e
 
@@ -684,6 +684,7 @@ instance Pretty d => Pretty (DataLayoutExpr' d) where
   pretty (RepRef n s) = if null s then reprname n else parens $ reprname n <+> hsep (fmap pretty s)
   pretty (Prim sz) = pretty sz
   pretty (Offset e s) = pretty e <+> keyword "at" <+> pretty s
+  pretty (After e f) = pretty e <+> keyword "after" <+> pretty f
   pretty (Record fs) = keyword "record" <+> record (map (\(f,_,e) -> fieldname f <+> symbol ":" <+> pretty e ) fs)
   pretty (Variant e vs) = keyword "variant" <+> parens (pretty e)
                                                  <+> record (map (\(f,_,i,e) -> tagname f <+> tupled [literal $ string $ show i] <> symbol ":" <+> pretty e) vs)
@@ -907,6 +908,7 @@ prettyCPrec l x | prec x < l = prettyC x
 instance Pretty SourceObject where
   pretty (TypeName n) = typename n
   pretty (ValName  n) = varname n
+  pretty (RepName  n) = reprname n
   pretty (DocBlock' _) = __fixme empty  -- FIXME: not implemented
 
 instance Pretty ReorganizeError where
@@ -974,12 +976,13 @@ instance Pretty a => Pretty (I.IntMap a) where
 
 instance Pretty DataLayoutTcError where
   pretty (OverlappingBlocks blks)
-    = let ((range1, c1),(range2, c2)) = unOverlappingAllocationBlocks blks
-       in err "Declared data blocks" <+> parens (pretty range1) <+> err "and" <+> parens (pretty range2) <+> err " which cannot overlap" <$$>
-          indent (pretty c1) <$$>
-          indent (pretty c2)
+    = err "The following pairs of declared data blocks cannot overlap:" <$$>
+      vcat (map (\((r1,c1),(r2,c2)) -> indent' (pretty r1 <+> pretty c1 <$>
+                                                err "and" <$>
+                                                pretty r2 <+> pretty c2))
+           (fmap unOverlappingAllocationBlocks blks))
   pretty (UnknownDataLayout r ctx) 
-     =  err "Undeclared data layout" <+> reprname r <$$> pretty ctx
+    =  err "Undeclared data layout" <+> reprname r <$$> pretty ctx
 
   pretty (BadDataLayout l p) = err "Bad data layout" <+> pretty l
   pretty (TagSizeTooLarge ctx) =
@@ -997,10 +1000,18 @@ instance Pretty DataLayoutTcError where
     indent (pretty context)
   pretty (UnknownDataLayoutVar n ctx) =
     err "Undeclared data layout variable" <+> dlvarname n <$$> indent (pretty ctx)
-  pretty (TooFewDataLayoutArgs n ctx) =
-    err "Too few arguments data layout synonym" <+> reprname n <$$> indent (pretty ctx)
-  pretty (TooManyDataLayoutArgs n ctx) =
-    err "Too many arguments for data layout synonym" <+> reprname n <$$> indent (pretty ctx)
+  pretty (DataLayoutArgsNotMatch n exp act ctx) =
+    err "Number of arguments for data layout synonym" <+> reprname n <+> err "not matched,"
+    </> err "expected" <+> int exp <+> err "args, but actual" <+> int act <+> err "args"
+    <$$> indent (pretty ctx)
+  pretty (OverlappingFields fs ctx) =
+    err "Overlapping fields" <+> foldr1 (<+>) (fmap fieldname fs) <$$> indent (pretty ctx)
+  pretty (CyclicFieldDepedency fs ctx) =
+    err "Cyclic dependency of fields" <+> foldr1 (<+>) (fmap fieldname fs) <$$> indent (pretty ctx)
+  pretty (NonExistingField f ctx) =
+    err "Non-existing field" <+> symbol "after" <+> fieldname f <$$> indent (pretty ctx)
+  pretty (InvalidUseOfAfter f ctx) =
+    err "The use of" <+> symbol "after" <+> fieldname f <+> err "layout expression is invalid" <$$> indent (pretty ctx)
 
 instance Pretty DataLayoutPath where
   pretty (InField n po ctx) = context' "for field" <+> fieldname n <+> context' "(" <> pretty po <> context' ")" </> pretty ctx
