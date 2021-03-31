@@ -332,7 +332,6 @@ keywords = ["data", "type", "newtype", "if", "then", "else", "case", "of", "wher
 -- | name modifier --- map Cogent namespace to Haskell namespace
 --
 --   __FIXME:__ it's not very robust / zilinc
---   Crude fix: for Lens in generated file need a "_" infront
 snm :: String -> String
 snm s | s `elem` keywords = s ++ "_"
 snm s = s
@@ -560,7 +559,7 @@ shallowExpr (TE t (CC.Struct fs)) = do
     HS.Tuple () Boxed <$> mapM shallowExpr (map snd fs)
   else
     RecConstr () (UnQual () $ mkName tn) <$>
-      mapM (\(f,e) -> FieldUpdate () (UnQual () . mkName $ snm f) <$> shallowExpr e) fs
+      mapM (\(f,e) -> FieldUpdate () (UnQual () . mkName . (\x -> "_"++snm x) $ f) <$> shallowExpr e) fs
 
 shallowExpr (TE _ (CC.If c th el)) = do
   c'  <- shallowExpr c
@@ -608,14 +607,15 @@ shallowExpr (TE _ (CC.Take (n1,n2) rec fld e)) = do
       rect@(CC.TRecord _ fs _) = exprType rec
   f' <- shallowGetter' rec (map fst fs) fld rec'
   e' <- local (addBindings [(n1,n1'),(n2,n2')]) $ shallowExpr e
-  pure $ mkLetE [(pr,rec'), (pf,f')] e'
+  pure $ trace ("here "++ppShow f') $ mkLetE [(pr,rec'), (pf,f')] e'
 
 shallowExpr (TE _ (CC.Put rec fld e)) = do
   rec' <- shallowExpr rec
   let rect@(CC.TRecord _ fs _) = exprType rec
   rect' <- shallowType rect
   e' <- shallowExpr e
-  shallowSetter rec (map fst fs) fld rec' rect' e'
+  a <- shallowSetter rec (map fst fs) fld rec' rect' e'
+  return $ trace ("here "++ppShow a) $ a
 
 shallowExpr (TE _ (CC.Promote _ e)) = shallowExpr e
 -- \ ^^^ NOTE: We guarantee that `Promote' doesn't change the underlying presentation, thus
@@ -734,9 +734,9 @@ shallowGetter' rec fnms idx rec' = do
 shallowSetter :: TypedExpr t v VarName b -> [FieldName] -> FieldIndex -> Exp () -> HS.Type () -> Exp () -> SG (Exp ())
 shallowSetter rec fnms idx rec' rect' e' = do
   tuples <- view recoverTuples
-  return $ if | tuples, isRecTuple fnms -> trace ("tup" ++ppShow e') $ appFun (mkQVarE "Tup" . mkName $ "upd" ++ show (idx+1)) [e', rec']
-              | otherwise -> trace ("other" ++ppShow e') $ RecUpdate () (Paren () $ ExpTypeSig () rec' rect')
-                               [FieldUpdate () (UnQual () (mkName . (\x -> "_"++snm x) $ getRecordFieldName rec idx)) e']
+  return $ if | tuples, isRecTuple fnms -> appFun (mkQVarE "Tup" . mkName $ "upd" ++ show (idx+1)) [e', rec']
+              | otherwise -> RecUpdate () (Paren () $ ExpTypeSig () rec' rect')
+                                        [FieldUpdate () (UnQual () (mkName . (\x -> "_"++snm x) $ getRecordFieldName rec idx)) e']
 
 
 -- | prefix for internally introduced variables
