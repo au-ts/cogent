@@ -52,9 +52,11 @@ Section Utils.
 End Utils.
 
 Local Notation "l %= op" := (IId l, op) (at level 99).
+Local Notation "v %~ op" := (IVoid v, op) (at level 99).
 Local Notation "t %% l" := ((t, EXP_Ident (ID_Local l))) (at level 10).
 Local Notation "t * % l" := (TYPE_Pointer t %% l) (at level 10).
 Local Notation "b1 ~> b2" := (nop_block b1 b2) (at level 10).
+Local Notation "b1 : c ~> b2" := (code_block b1 b2 c) (at level 10).
 
 Section Compiler.
 
@@ -86,10 +88,49 @@ Section Compiler.
     | TRecord ts s => 
         let t' := TYPE_Struct (map (fun '(_, (f, _)) => compile_type f) ts) in
           match s with Boxed => TYPE_Pointer t' | Unboxed => t' end
+    | TSum ts => TYPE_Struct (TYPE_I 32 :: (map (fun '(_, t, _) => compile_type t) ts))
     | TUnit => TYPE_I 8
     end.
   
-  Fixpoint compile_expr (e : expr) (next_bid: block_id) : cerr segment :=
+  (* Definition unsafe_cast (i : im) (t : type) (next_bid : block_id) : cerr segment :=
+    let t' := compile_type t in
+    load_bid <- incBlockNamed "UnsafeCast" ;;
+    p <- incLocal ;;
+    v <- incVoid ;;
+    c <- incLocal ;;
+    r <- incLocal ;;
+    let cast_blks := code_block load_bid next_bid [
+      p %= INSTR_Alloca (fst i) None None;
+      v %~ INSTR_Store false i (fst i* %p) None;
+      c %= INSTR_Op (OP_Conversion Bitcast (fst i) (snd i) (TYPE_Pointer t'));
+      r %= INSTR_Load false t' (t'* %c) None
+    ] in
+    ret (r, load_bid, cast_blks).
+   *)
+
+  Fixpoint find_tag (ts : tags) (n : name) : cerr nat :=
+    match ts with
+    | [] => raise "unknown tag"
+    | (t, _, _) :: tl =>
+        if eqb t n
+          then ret 1%nat
+          else r <- find_tag tl n ;; ret (r + 1)%nat
+    end.
+
+  Fixpoint unchecked_tag (ts : tags) : cerr nat :=
+    match ts with
+    | [] => raise "all tags checked"
+    | (_, _, Unchecked) :: tl => ret 1%nat
+    | _ :: tl => r <- unchecked_tag tl ;; ret (r + 1)%nat
+    end.
+
+  Definition tag_type (e : im) (i : nat) : cerr typ :=
+    match field_type (fst e) i with
+    | UnboxField t => ret t
+    | _ => raise "invalid variant representation"
+    end.
+  
+  Fixpoint compile_expr (e : expr) (next_bid : block_id) : cerr segment :=
     (* define some nested functions that are mutually recursive with compile_expr *)
     let fix load_member e f next_bid : cerr (@segment (im * im)) :=
       load_bid <- incBlockNamed "Field" ;;
@@ -141,14 +182,14 @@ Section Compiler.
         '(t', t_bid, t_blks) <- compile_expr t tp_bid ;;
         ep_bid <- incBlockNamed "Else_Post" ;;
         '(e', e_bid, e_blks) <- compile_expr e ep_bid ;;
-        fi_bid <- incBlockNamed "Fi" ;;
-        let post_blks := tp_bid ~> fi_bid ++ ep_bid ~> fi_bid in
+        ip_bid <- incBlockNamed "If_Post" ;;
+        let post_blks := tp_bid ~> ip_bid ++ ep_bid ~> ip_bid in
         let if_blks := cond_block if_bid t_bid e_bid c' in
         l <- incLocal ;;
-        let fi_blks := phi_block fi_bid next_bid [
+        let ip_blks := phi_block ip_bid next_bid [
           (l, Phi (fst t') [(tp_bid, snd t'); (ep_bid, snd e')])
         ] in
-        ret (fst t' %%l, c_bid, c_blks ++ if_blks ++ t_blks ++ e_blks ++ post_blks ++ fi_blks)
+        ret (fst t' %%l, c_bid, c_blks ++ if_blks ++ t_blks ++ e_blks ++ post_blks ++ ip_blks)
     | Cast t e =>
         let t' := convert_num_type t in
         cast_bid <- incBlockNamed "Cast" ;;
@@ -160,7 +201,7 @@ Section Compiler.
         ret (t' %%l, e_bid, e_blks ++ cast_blks)
     | Struct ts es =>
         let t := TYPE_Struct (map compile_type ts) in
-        let undef := (t, @EXP_Undef typ) in
+        let undef := (t, EXP_Undef) in
         struct_bid <- incBlockNamed "Struct" ;;
         '(es', es_bid, es_blks) <- foldM
           (fun e '(es', es_bid, es_blks) =>
@@ -199,11 +240,65 @@ Section Compiler.
               vd <- incVoid ;;
               ret (e', [
                 p %= INSTR_Op (OP_GetElementPtr (deref_type (fst e')) e' [i32 0; i32 (Z.of_nat f)]);
-                (IVoid vd, INSTR_Store false v' (t* %p) None)
+                vd%~ INSTR_Store false v' (t* %p) None
               ])
           | Invalid => raise "invalid member access"
           end ;;
         ret (struct, e_bid, e_blks ++ v_blks ++ code_block put_bid next_bid put_code)
+    | Con ts tag x =>
+        let t := compile_type (TSum ts) in
+        i <- find_tag ts tag ;;
+        let undef := (t, EXP_Undef) in
+        con_bid <- incBlockNamed "Con" ;;
+        '(x', x_bid, x_blks) <- compile_expr x con_bid ;;
+        l <- incLocal ;;
+        l' <- incLocal ;;
+        let con_blks := code_block con_bid next_bid [
+          l %= INSTR_Op (OP_InsertValue undef (i32 (Z.of_nat i)) [0]);
+          l' %= INSTR_Op (OP_InsertValue (t %% l) x' [Z.of_nat i])
+        ] in
+        ret (t %% l', x_bid, x_blks ++ con_blks)
+    | Promote _ e => compile_expr e next_bid
+    | Esac ts x =>
+        i <- unchecked_tag ts ;;
+        esac_bid <- incBlockNamed "Esac" ;;
+        '(x', x_bid, x_blks) <- compile_expr x esac_bid ;;
+        l <- incLocal ;;
+        let esac_blks := code_block esac_bid next_bid [
+          l %= INSTR_Op (OP_ExtractValue x' [Z.of_nat i])
+        ] in
+        t <- tag_type x' i ;;
+        ret (t %% l, x_bid, x_blks ++ esac_blks)
+    | Case ts x tag m n =>
+        i <- find_tag ts tag ;;
+        case_bid <- incBlockNamed "Case" ;;
+        '(x', x_bid, x_blks) <- compile_expr x case_bid ;;
+        match_bid <- incBlockNamed "Match" ;;
+        t <- incLocal ;;
+        v <- incLocal ;;
+        c <- incLocal ;;
+        let case_blks := code_block case_bid match_bid [
+          t %= INSTR_Op (OP_ExtractValue x' [0]);
+          v %= INSTR_Op (OP_ExtractValue x' [Z.of_nat i]);
+          c %= INSTR_Op (OP_ICmp Eq (TYPE_I 32) (EXP_Integer (Z.of_nat i)) (EXP_Ident (ID_Local t)))
+        ] in
+        mp_bid <- incBlockNamed "Match_Post" ;;
+        t <- tag_type x' i ;;
+        addVars [t %% v] ;;
+        '(m', m_bid, m_blks) <- compile_expr m mp_bid ;;
+        dropVars 1 ;;
+        np_bid <- incBlockNamed "NoMatch_Post" ;;
+        addVars [x'] ;;
+        '(n', n_bid, n_blks) <- compile_expr n np_bid ;;
+        dropVars 1 ;;
+        cp_bid <- incBlockNamed "Case_Post" ;;
+        let post_blks := mp_bid ~> cp_bid ++ np_bid ~> cp_bid in
+        let match_blks := cond_block match_bid m_bid n_bid (TYPE_I 1 %% c) in
+        l <- incLocal ;;
+        let cp_blks := phi_block cp_bid next_bid [
+          (l, Phi (fst m') [(mp_bid, snd m'); (np_bid, snd n')])
+        ] in
+        ret (fst m' %%l, x_bid, x_blks ++ case_blks ++ match_blks ++ m_blks ++ n_blks ++ post_blks ++ cp_blks)
     | App (Fun f) a => 
         app_bid <- incBlockNamed "App" ;;
         '(a', a_bid, a_blks) <- compile_expr a app_bid ;;

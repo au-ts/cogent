@@ -65,13 +65,15 @@ data Sigil = Boxed | Unboxed deriving (Show)
 data VariantState = Checked | Unchecked deriving (Show)
 data RecordState = Taken | Present deriving (Show)
 
+type Tags = CoqList (Name, Type, VariantState)
+
 data Type
     = TVar Index
     | TVarBang Index
     | TCon Name [Type] Sigil
     | TFun Type Type
     | TPrim PrimType
-    | TSum [(Name, (Type, VariantState))]
+    | TSum Tags
     | TRecord (CoqList (Name, (Type, RecordState))) Sigil
     | TUnit
     deriving (Show)
@@ -88,21 +90,21 @@ data Expr
     | App Expr Expr
     | Unit
     | Lit Lit
+    | SLit String
+    | If Expr Expr Expr
     | Cast NumType Expr
     | Let Expr Expr
+    | LetBang -- (Set Index) Expr Expr
     | Var Index
     | Struct (CoqList Type) (CoqList Expr)
     | Member Expr Field
     | Take Expr Field Expr
     | Put Expr Field Expr
     | Fun Expr
-    | -- | Con (CoqList (Name, Type, VariantState)) Name Expr
-      -- | SLit String
-      -- | LetBang (Set Index) Expr Expr
-      -- | Case Expr Name Expr Expr
-      -- | Esac Expr Name
-      -- | Promote Type Expr
-      If Expr Expr Expr
+    | Con Tags Name Expr
+    | Case Tags Expr Name Expr Expr
+    | Esac Tags Expr
+    | Promote Type Expr
     deriving (Show)
 
 data Def = FunDef Name Type Type Expr deriving (Show)
@@ -129,11 +131,16 @@ type FunBodies = [(FunName, Expr)]
 genModule :: [Definition TypedExpr VarName VarName] -> String
 genModule defs =
     let defs' = [(name, genExpr defs' body) | C.FunDef _ name _ _ t rt body <- defs]
-     in fileHeader ++ ppShow (mkCoqList (genDefinition defs') defs) ++ "."
+     in fileHeader ++ ppShow (CoqList (concatMap (genDefinition defs') defs)) ++ "."
 
-genDefinition :: FunBodies -> Definition TypedExpr VarName VarName -> Def
-genDefinition defs (C.FunDef _ name _ _ t rt body) = FunDef name (genType t) (genType rt) (genExpr defs body)
-genDefinition _ _ = error "not implemented"
+genDefinition :: FunBodies -> Definition TypedExpr VarName VarName -> [Def]
+genDefinition defs (C.FunDef _ name _ _ t rt body) =
+    [FunDef name (genType t) (genType rt) (genExpr defs body)]
+genDefinition defs C.AbsDecl {} = error "AbsDecl is not supported"
+genDefinition defs (C.TypeDef _ _ t) =
+    case t of
+        Just _ -> [] -- ignore type synonyms
+        Nothing -> error "Abstract TypeDef is not supported"
 
 genType :: Show b => C.Type t b -> Type
 genType C.TUnit = TUnit
@@ -143,6 +150,7 @@ genType C.TString = TPrim String
 genType (C.TRecord _ flds s) =
     let flds' = ([(f, (genType t, if b then Taken else Present)) | (f, (t, b)) <- flds])
      in TRecord (CoqList flds') (genSigil s)
+genType t@(C.TSum ts) = TSum (genTags t)
 genType t = error $ show t
 
 genExpr :: (Show a, Show b) => FunBodies -> TypedExpr t v a b -> Expr
@@ -159,7 +167,15 @@ genExpr fb (TE _ (C.Take _ recd fld body)) = Take (genExpr fb recd) fld (genExpr
 genExpr fb (TE _ (C.Put recd fld val)) = Put (genExpr fb recd) fld (genExpr fb val)
 genExpr fb (TE _ (C.Fun f _ _ _)) = maybe (error "unknown function") Fun (lookup (unCoreFunName f) fb)
 genExpr fb (TE _ (C.App f a)) = App (genExpr fb f) (genExpr fb a)
+genExpr fb (TE _ (C.Con tag e t)) = Con (genTags t) tag (genExpr fb e)
+genExpr fb (TE _ (C.Case e tag (_, _, b1) (_, _, b2))) = Case (genTags (exprType e)) (genExpr fb e) tag (genExpr fb b1) (genExpr fb b2)
+genExpr fb (TE _ (C.Promote t e)) = Promote (genType t) (genExpr fb e)
+genExpr fb (TE _ (C.Esac e)) = Esac (genTags (exprType e)) (genExpr fb e)
 genExpr _ e = error $ show e
+
+genTags :: Show b => C.Type t b -> Tags
+genTags (C.TSum ts) = mkCoqList (\(x, (y, z)) -> (x, genType y, if z then Checked else Unchecked)) ts
+genTags _ = error "not a variant"
 
 genLit :: Integer -> PrimInt -> Lit
 genLit w T.U8 = LU8 w

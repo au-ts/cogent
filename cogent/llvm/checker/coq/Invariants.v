@@ -99,6 +99,7 @@ Section ValueRelation.
     | UUnit => UVALUE_I8 (Int8.repr 0)
     | UPtr a r => UVALUE_Addr a
     (* TODO: aggregate conversion *)
+    | USum _ _ _ => UVALUE_I8 (Int8.repr 0)
     | URecord us => UVALUE_I8 (Int8.repr 0)
     end.
 

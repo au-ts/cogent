@@ -7,7 +7,10 @@ module Cogent.LLVM.WithCoq (compileWithCoq) where
 -- Acts as a layer between the core Cogent Haskell compiler and the
 -- extracted Coq implementation for a compiler.
 -- Also includes functions to convert a VIR AST to a llvm-hs AST.
-import Cogent.Common.Syntax (CoreFunName (..), FunName, Op, VarName)
+-- Acts as a layer between the core Cogent Haskell compiler and the
+-- extracted Coq implementation for a compiler.
+-- Also includes functions to convert a VIR AST to a llvm-hs AST.
+import Cogent.Common.Syntax (CoreFunName (..), FunName, Op, TagName, VarName)
 import qualified Cogent.Common.Syntax as S (Op (..))
 import Cogent.Common.Types (PrimInt)
 import qualified Cogent.Common.Types as T (PrimInt (..), Sigil (..))
@@ -65,13 +68,16 @@ type FunBodies = [(FunName, Expr)]
 convCogentAST :: [C.Definition TypedExpr VarName VarName] -> Cogent_prog
 convCogentAST defs =
     let defs' = [(name, convCogentExpr defs' body) | C.FunDef _ name _ _ t rt body <- defs]
-     in convCogentDefinition defs' <$> defs
+     in concatMap (convCogentDefinition defs') defs
 
-convCogentDefinition :: FunBodies -> C.Definition TypedExpr VarName VarName -> Def
+convCogentDefinition :: FunBodies -> C.Definition TypedExpr VarName VarName -> [Def]
 convCogentDefinition fb (C.FunDef _ name _ _ t rt body) =
-    FunDef name (convCogentType t) (convCogentType rt) (convCogentExpr fb body)
+    [FunDef name (convCogentType t) (convCogentType rt) (convCogentExpr fb body)]
 convCogentDefinition fb C.AbsDecl {} = error "AbsDecl is not supported"
-convCogentDefinition fb C.TypeDef {} = error "TypeDef is not supported"
+convCogentDefinition fb (C.TypeDef _ _ t) =
+    case t of
+        Just _ -> [] -- ignore type synonyms
+        Nothing -> error "Abstract TypeDef is not supported"
 
 convCogentType :: Show b => C.Type t b -> Type
 convCogentType C.TUnit = TUnit
@@ -81,6 +87,7 @@ convCogentType C.TString = TPrim String
 convCogentType (C.TRecord _ flds s) =
     let flds' = ([(f, (convCogentType t, if b then Taken else Present)) | (f, (t, b)) <- flds])
      in TRecord flds' (convCogentSigil s)
+convCogentType t@(C.TSum ts) = TSum (convCogentTags t)
 convCogentType t = error $ show t
 
 convCogentExpr :: (Show a, Show b) => FunBodies -> TypedExpr t v a b -> Expr
@@ -90,15 +97,29 @@ convCogentExpr fb (TE _ (C.Op op [a, b])) =
 convCogentExpr fb (TE _ (C.Let _ val body)) = Let (convCogentExpr fb val) (convCogentExpr fb body)
 convCogentExpr fb (TE _ (C.Variable (idx, _))) = Var (finInt idx)
 convCogentExpr fb (TE _ C.Unit) = Unit
-convCogentExpr fb (TE _ (C.If c b1 b2)) = If (convCogentExpr fb c) (convCogentExpr fb b1) (convCogentExpr fb b2)
+convCogentExpr fb (TE _ (C.If c b1 b2)) =
+    If (convCogentExpr fb c) (convCogentExpr fb b1) (convCogentExpr fb b2)
 convCogentExpr fb (TE _ (C.Cast t e)) = Cast (convCogentNumType t) (convCogentExpr fb e)
-convCogentExpr fb (TE _ (C.Struct flds)) = Struct (convCogentType . exprType . snd <$> flds) (convCogentExpr fb . snd <$> flds)
+convCogentExpr fb (TE _ (C.Struct flds)) =
+    Struct (convCogentType . exprType . snd <$> flds) (convCogentExpr fb . snd <$> flds)
 convCogentExpr fb (TE _ (C.Member recd fld)) = Member (convCogentExpr fb recd) fld
-convCogentExpr fb (TE _ (C.Take _ recd fld body)) = Take (convCogentExpr fb recd) fld (convCogentExpr fb body)
-convCogentExpr fb (TE _ (C.Put recd fld val)) = Put (convCogentExpr fb recd) fld (convCogentExpr fb val)
-convCogentExpr fb (TE _ (C.Fun f _ _ _)) = maybe (error "unknown function") Fun (lookup (unCoreFunName f) fb)
+convCogentExpr fb (TE _ (C.Take _ recd fld body)) =
+    Take (convCogentExpr fb recd) fld (convCogentExpr fb body)
+convCogentExpr fb (TE _ (C.Put recd fld val)) =
+    Put (convCogentExpr fb recd) fld (convCogentExpr fb val)
+convCogentExpr fb (TE _ (C.Fun f _ _ _)) =
+    maybe (error "unknown function") Fun (lookup (unCoreFunName f) fb)
 convCogentExpr fb (TE _ (C.App f a)) = App (convCogentExpr fb f) (convCogentExpr fb a)
+convCogentExpr fb (TE _ (C.Con tag e t)) = Con (convCogentTags t) tag (convCogentExpr fb e)
+convCogentExpr fb (TE _ (C.Case e tag (_, _, b1) (_, _, b2))) =
+    Case (convCogentTags (exprType e)) (convCogentExpr fb e) tag (convCogentExpr fb b1) (convCogentExpr fb b2)
+convCogentExpr fb (TE _ (C.Promote t e)) = Promote (convCogentType t) (convCogentExpr fb e)
+convCogentExpr fb (TE _ (C.Esac e)) = Esac (convCogentTags (exprType e)) (convCogentExpr fb e)
 convCogentExpr fb e = error $ show e
+
+convCogentTags :: Show b => C.Type t b -> Tags
+convCogentTags (C.TSum ts) = map (\(x, (y, z)) -> ((x, convCogentType y), if z then Checked else Unchecked)) ts
+convCogentTags _ = error "not a variant"
 
 convCogentLit :: Integer -> PrimInt -> Lit
 convCogentLit w T.U8 = LU8 w

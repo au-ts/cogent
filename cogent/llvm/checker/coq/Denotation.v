@@ -24,6 +24,7 @@ Section UpdateValues.
   Inductive uval : Set :=
   | UPrim (l : lit)
   | URecord (us : list (uval * repr))
+  | USum (t : name) (u : uval) (rs : list (name * repr))
   | UUnit
   | UPtr (a : addr) (r : repr).
 
@@ -137,6 +138,25 @@ Section Denote.
             | _ => throw "invalid memory access"
             end
         | _ => throw "expression is not a record"
+        end
+    | Con ts t x =>
+        x' <- denote_expr γ x ;;
+        ret (USum t x' (map (fun '(n, t, _) => (n, type_repr t)) ts))
+    | Promote t e => denote_expr γ e
+    | Esac _ x =>
+        x' <- denote_expr γ x ;;
+        match x' with
+        | USum t v rs => ret v
+        | _ => throw "expression is not a variant"
+        end
+    | Case _ x t m n =>
+        x' <- denote_expr γ x ;;
+        match x' with
+        | USum t' v rs =>
+            if t =? t'
+              then denote_expr (v :: γ) m
+              else denote_expr (x' :: γ) n
+        | _ => throw "expression is not a variant"
         end
     | App (Fun b) a =>
         a' <- denote_expr γ a ;;

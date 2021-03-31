@@ -7,23 +7,22 @@
 ./coq/Cogent.v
 
 ./coq/HelixLib/ErrorWithState.v
+./coq/HelixLib/Correctness_Prelude.v
 ./coq/HelixLib/Codegen.v
 ./coq/HelixLib/Vellvm_Utils.v
 ./coq/HelixLib/IdLemmas.v
 ./coq/HelixLib/VariableBinding.v
-./coq/HelixLib/Correctness_Prelude.v
 ./coq/HelixLib/StateCounters.v
 ./coq/HelixLib/BidBound.v
 ./coq/HelixLib/LidBound.v
 
 ./coq/Utils/Instances.v
-./coq/Utils/Tactics.v
-
 ./coq/Compiler.v
 ./coq/Types.v
 ./coq/Denotation.v
 ./coq/Invariants.v
 ./coq/DenotationTheory.v
+./coq/Utils/Tactics.v
 ./coq/Correctness.v
 
 ./input/LLVM.v

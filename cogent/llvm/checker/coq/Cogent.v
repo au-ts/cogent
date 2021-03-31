@@ -53,7 +53,7 @@ Section Syntax.
     (* | TCon (n : name) (ts : list type) (s : sigil) *)
     | TFun (t : type) (rt : type)
     | TPrim (t : prim_type)
-    (* | TSum (vs : list (name * (type * variant_state))) *)
+    | TSum (vs : list (name * type * variant_state))
     | TRecord (fs : list (name * (type * record_state))) (s : sigil)
     | TUnit.
 
@@ -62,7 +62,7 @@ Section Syntax.
     (* | RCon (n : name) (rs : list repr) *)
     | RFun
     | RPrim (t : prim_type)
-    (* | RSum (ts : list (name * repr)) *)
+    | RSum (ts : list (name * repr))
     | RRecord (rs : list repr)
     | RUnit.
 
@@ -73,6 +73,7 @@ Section Syntax.
     | TRecord ts s => 
         let r := RRecord (map (fun '(_, (f, _)) => type_repr f) ts) in
           match s with Boxed => RPtr r | Unboxed => r end
+    | TSum ts => RSum (map (fun '(a, b, _) => (a, type_repr b)) ts)
     | TUnit => RUnit
     end.
   
@@ -83,6 +84,8 @@ Section Syntax.
     | LU32 (w : Z)
     | LU64 (w : Z).
   (* NOTE: not represented as n-bit words *)
+
+  Definition tags := list (name * type * variant_state).
 
   Inductive expr : Type :=
     | Unit
@@ -100,10 +103,10 @@ Section Syntax.
     | Take (e : expr) (f : field) (b : expr)
     | Put (e : expr) (f : field) (v : expr)
 
-    (* | Con (ts : list (name * type * variant_state)) (n : name) (e : expr) *)
-    (* | Promote (t : type) (e : expr) *)
-    (* | Esac (e : expr) (n : name) *)
-    (* | Case (e : expr) (n : name) (b1 : expr) (b2 : expr) *)
+    | Con (ts : tags) (n : name) (e : expr)
+    | Promote (t : type) (e : expr)
+    | Esac (ts : tags) (e : expr)
+    | Case (ts : tags) (e : expr) (n : name) (b1 : expr) (b2 : expr)
   
     | Fun (f : expr)
     | App (f : expr) (a : expr)
