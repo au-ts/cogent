@@ -110,6 +110,61 @@ Section Syntax.
     (* | AFun (funtyp : 'f)  (ts : list type) *)
     .
 
+    Print expr_ind.
+
+    (* I copied and pasted the term printed above, and changed the type so that
+it matches what we want.
+     *)
+
+      Definition expr_ind' :
+    
+      forall P : expr -> Prop,
+       P Unit ->
+       (forall l : lit, P (Lit l)) ->
+       (forall i : index, P (Var i)) ->
+       (forall e : expr, P e -> forall b : expr, P b -> P (Let e b)) ->
+       (forall (op : prim_op) (a : expr), P a -> forall b : expr, P b -> P (BPrim op a b)) ->
+       (forall c : expr, P c -> forall b1 : expr, P b1 -> forall b2 : expr, P b2 -> P (If c b1 b2)) ->
+       (forall (t : num_type) (e : expr), P e -> P (Cast t e)) ->
+       (* in the Struct case, we add the assumption Forall P es *)
+       (forall (ts : list type) (es : list expr), Forall P es -> P (Struct ts es)) ->
+       (forall e : expr, P e -> forall f7 : field, P (Member e f7)) ->
+       (forall e : expr, P e -> forall (f8 : field) (b : expr), P b -> P (Take e f8 b)) ->
+       (forall e : expr, P e -> forall (f9 : field) (v : expr), P v -> P (Put e f9 v)) ->
+       (forall f10 : expr, P f10 -> P (Fun f10)) ->
+       (forall f11 : expr, P f11 -> forall a : expr, P a -> P (App f11 a)) -> forall e : expr, P e :=
+    fun (P : expr -> Prop) (f : P Unit) (f0 : forall l : lit, P (Lit l)) (f1 : forall i : index, P (Var i))
+  (f2 : forall e : expr, P e -> forall b : expr, P b -> P (Let e b))
+  (f3 : forall (op : prim_op) (a : expr), P a -> forall b : expr, P b -> P (BPrim op a b))
+  (f4 : forall c : expr, P c -> forall b1 : expr, P b1 -> forall b2 : expr, P b2 -> P (If c b1 b2))
+  (f5 : forall (t : num_type) (e : expr), P e -> P (Cast t e))
+  (f6 : forall (ts : list type)(es : list expr), Forall P es -> P (Struct ts es))
+  (f7 : forall e : expr, P e -> forall f7 : field, P (Member e f7))
+  (f8 : forall e : expr, P e -> forall (f8 : field) (b : expr), P b -> P (Take e f8 b))
+  (f9 : forall e : expr, P e -> forall (f9 : field) (v : expr), P v -> P (Put e f9 v))
+  (f10 : forall f10 : expr, P f10 -> P (Fun f10))
+  (f11 : forall f11 : expr, P f11 -> forall a : expr, P a -> P (App f11 a)) =>
+fix F (e : expr) : P e :=
+  match e as e0 return (P e0) with
+  | Unit => f
+  | Lit l => f0 l
+  | Var i => f1 i
+  | Let e0 b => f2 e0 (F e0) b (F b)
+  | BPrim op a b => f3 op a (F a) b (F b)
+  | If c b1 b2 => f4 c (F c) b1 (F b1) b2 (F b2)
+  | Cast t e0 => f5 t e0 (F e0)
+  | Struct ts es => f6 ts es
+            (* applying the induction hypothesis requires a proof that Forall P es.
+             This is done by a list recursion *)
+           (list_ind _ (Forall_nil P)   (fun a _ H  =>  Forall_cons a (F a) H) _)
+  | Member e0 f12 => f7 e0 (F e0) f12
+  | Take e0 f12 b => f8 e0 (F e0) f12 b (F b)
+  | Put e0 f12 v => f9 e0 (F e0) f12 v (F v)
+  | Fun f12 => f10 f12 (F f12)
+  | App f12 a => f11 f12 (F f12) a (F a)
+  end.
+
+
   Variant def : Type :=
     | FunDef (n : name) (t : type) (rt : type) (b : expr).
     (* AbsDecl, TypeDef *)
