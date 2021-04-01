@@ -38,7 +38,7 @@ import Control.Monad.Trans.Maybe
 import Lens.Micro.Mtl
 import Lens.Micro
 
--- import Debug.Trace
+import Debug.Trace
 
 normaliseRWT :: RewriteT TcSolvM TCType
 normaliseRWT = rewrite' $ \case
@@ -112,8 +112,8 @@ normaliseRWT = rewrite' $ \case
     T (TLayout l (A t n (Right i) tkns)) ->
       __impossible "normaliseRWT: TLayout over a sigil variable (A)"
 #endif
-    T (TLayout l _) -> -- TODO(dargent): maybe handle this later
-      empty
+    T (TLayout l (T (TCon n ts (Boxed p _)))) | n `notElem` primTypeCons ->
+      pure $ T (TCon n ts (Boxed p (Just l)))
     _ -> empty
 
   where

@@ -47,6 +47,8 @@ import           Data.Maybe
 import qualified Data.Set as S
 import           Lens.Micro
 
+import Text.PrettyPrint.ANSI.Leijen (plain, pretty)
+
 import           Debug.Trace
 
 onGoal :: (Monad m) => (Constraint -> MaybeT m [Constraint]) -> Goal -> MaybeT m [Goal]
@@ -188,6 +190,7 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
   TLOffset e _   :~ tau -> hoistMaybe $ Just [e :~ tau]
 
   TLPrim n       :~ T TUnit | evalSize n >= 0 -> hoistMaybe $ Just []
+  TLPrim n       :~ T (TCon c ts Unboxed) | c `notElem` primTypeCons -> hoistMaybe $ Just []
   TLPrim n       :~ tau
     | isPrimType tau
     , primTypeSize tau == evalSize n
@@ -196,21 +199,24 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
     , evalSize n == pointerSizeBits
     -> hoistMaybe $ Just []
 
-  TLPtr          :~ R rp r (Left (Boxed _ (Just l))) -> hoistMaybe $ Just [l :~ R rp r (Left Unboxed)]
-  TLPtr          :~ R rp r (Left (Boxed _ Nothing )) -> hoistMaybe $ Just [LayoutOk (R rp r (Left Unboxed))]
+  TLPtr :~ R rp r (Left (Boxed _ (Just l))) -> hoistMaybe $ Just [l :~ R rp r (Left Unboxed)]
+  TLPtr :~ R rp r (Left (Boxed _ Nothing )) -> hoistMaybe $ Just [LayoutOk (R rp r (Left Unboxed))]
+  
+  TLPtr :~ T (TCon n ts (Boxed _ (Just l))) -> hoistMaybe $ Just [l :~ T (TCon n ts Unboxed)] 
+  TLPtr :~ T (TCon n ts (Boxed _ Nothing )) -> hoistMaybe $ Just []
 #ifdef BUILTIN_ARRAYS
-  TLPtr          :~ A t e (Left (Boxed _ (Just l))) h -> hoistMaybe $ Just [l :~ A t e (Left Unboxed) h]
-  TLPtr          :~ A t e (Left (Boxed _ Nothing )) h -> hoistMaybe $ Just [LayoutOk (A t e (Left Unboxed) h)]
+  TLPtr :~ A t e (Left (Boxed _ (Just l))) h -> hoistMaybe $ Just [l :~ A t e (Left Unboxed) h]
+  TLPtr :~ A t e (Left (Boxed _ Nothing )) h -> hoistMaybe $ Just [LayoutOk (A t e (Left Unboxed) h)]
 #endif
-  l              :~ T (TBang tau)    -> hoistMaybe $ Just [l :~ tau]
-  l              :~ T (TTake _ tau)  -> hoistMaybe $ Just [l :~ tau]
-  l              :~ T (TPut  _ tau)  -> hoistMaybe $ Just [l :~ tau]
+  l     :~ T (TBang tau)    -> hoistMaybe $ Just [l :~ tau]
+  l     :~ T (TTake _ tau)  -> hoistMaybe $ Just [l :~ tau]
+  l     :~ T (TPut  _ tau)  -> hoistMaybe $ Just [l :~ tau]
 #ifdef BUILTIN_ARRAYS
-  l              :~ T (TATake _ tau) -> hoistMaybe $ Just [l :~ tau]
-  l              :~ T (TAPut  _ tau) -> hoistMaybe $ Just [l :~ tau]
+  l     :~ T (TATake _ tau) -> hoistMaybe $ Just [l :~ tau]
+  l     :~ T (TAPut  _ tau) -> hoistMaybe $ Just [l :~ tau]
 #endif
-  _              :~ Synonym _ _      -> hoistMaybe Nothing
-  l              :~ tau | TLU _ <- l -> hoistMaybe Nothing
+  _     :~ Synonym _ _      -> hoistMaybe Nothing
+  l     :~ tau | TLU _ <- l -> hoistMaybe Nothing
 
   TLRepRef _ _     :~< TLRepRef _ _  -> hoistMaybe Nothing
   TLRepRef _ _     :~< _             -> hoistMaybe Nothing

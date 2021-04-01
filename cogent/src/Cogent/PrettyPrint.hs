@@ -524,10 +524,10 @@ prettyT' t | not $ isAtomic t = parens (pretty t)
 instance (Pretty t, TypeType t, Pretty e, Pretty l, Eq l) => Pretty (Type e l t) where
   pretty (TCon n [] s) = (if | readonly s -> (<> typesymbol "!")
                              | s == Unboxed && n `notElem` primTypeCons -> (typesymbol "#" <>)
-                             | otherwise -> id) $ typename n
+                             | otherwise -> id) . (case s of Boxed _ (Just l) -> (<+> typesymbol "layout" <+> pretty l); _ -> id) $ typename n
   pretty (TCon n as s) = (if | readonly s -> (<> typesymbol "!") . parens
                              | s == Unboxed -> ((typesymbol "#" <>) . parens)
-                             | otherwise -> id) $
+                             | otherwise -> id) . (case s of Boxed _ (Just l) -> (<+> typesymbol "layout" <+> pretty l); _ -> id) $
                          typename n <+> hsep (map prettyT' as)
   pretty (TVar n b u) = (if u then typesymbol "#" else empty) <> typevar n <> (if b then typesymbol "!" else empty)
   pretty (TTuple ts) = tupled (map pretty ts)
@@ -536,7 +536,7 @@ instance (Pretty t, TypeType t, Pretty e, Pretty l, Eq l) => Pretty (Type e l t)
   pretty (TArray t l s tkns) =
     let (sigilPretty, layoutPretty) = case s of
           Unboxed     -> ((typesymbol "#" <>), id)
-          Boxed ro ml -> (if ro then (<> typesymbol "!") else id, case ml of Just l -> (<+> pretty l); _ -> id)
+          Boxed ro ml -> (if ro then (<> typesymbol "!") else id, case ml of Just l -> (<+> typesymbol "layout" <+> pretty l); _ -> id)
         (takes,puts) = partition snd tkns
         pTakens = if null takes then id else
                 (<+> typesymbol "@take" <+> tupled (map (pretty . fst) takes))
@@ -564,7 +564,7 @@ instance (Pretty t, TypeType t, Pretty e, Pretty l, Eq l) => Pretty (Type e l t)
                           else id)
           (sigilPretty, layoutPretty) = case s of
             Unboxed     -> ((typesymbol "#" <>), id)
-            Boxed rw ml -> (if rw then (<> typesymbol "!") else id, case ml of Just l -> (<+> pretty l); _ -> id)
+            Boxed rw ml -> (if rw then (<> typesymbol "!") else id, case ml of Just l -> (<+> typesymbol "layout" <+> pretty l); _ -> id)
        in pretty rp <+> (layoutPretty . tkUntkPretty . sigilPretty $ recordPretty)
   pretty (TVariant ts) | any snd ts = let
      names = map fst $ filter (snd . snd) $ M.toList ts
