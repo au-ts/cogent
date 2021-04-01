@@ -313,7 +313,11 @@ prettyAlt (p, e) = pretty p <+> pretty "\\<Rightarrow>" </> prettyTerm (termCase
 
 prettyListTerm :: String -> [Term] -> String -> Doc
 prettyListTerm l ts r =
-    nest 2 (fillSep ((string l):(punctuate comma $ map (prettyTerm elPrec) ts))) </> string r
+    if null ts 
+       then -- make sure that there is no whitespace in empty lists, since that breaks Isabelle's parsing of [] lists
+         string l <> string r
+       else
+         nest 2 (fillSep ((string l):(punctuate comma $ map (prettyTerm elPrec) ts))) </> string r
     where elPrec = if l == "\\<lparr>" then 0 else termAppPrec -- do not parenthesize elements in record term
 
 prettyBinOpTerm :: Precedence -> TermBinOp -> Term -> Term -> Doc
