@@ -190,6 +190,7 @@ mkPropBody n ds
           ia = app (function $ "abs_"++n) (var $ mkName "ic")
           oa = app (function $ "hs_"++n)  (var . mkName $ "ia")
           binds = [ FunBind () [Match () (mkName "oc") [] (UnGuardedRhs () oc  ) Nothing]
+                  , FunBind () [Match () (mkName "ia") [] (UnGuardedRhs () ia  ) Nothing]
                   , FunBind () [Match () (mkName "oa") [] (UnGuardedRhs () oa  ) Nothing] ]
           binds' =  [ genStmt (pvar $ mkName "oc") oc
                     , genStmt (pvar $ mkName "ia") ia
