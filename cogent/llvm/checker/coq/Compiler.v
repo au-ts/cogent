@@ -165,16 +165,21 @@ Section Compiler.
         '(b', b_bid, b_blks) <- compile_expr b next_bid ;;
         dropVars 1 ;;
         ret (b', e_bid, e_blks ++ let_bid ~> b_bid ++ b_blks)
-    | BPrim op a b =>
-        let (op', rt) := compile_prim_op op in
-        prim_bid <- incBlockNamed "Prim" ;;
-        '(b', b_bid, b_blks) <- compile_expr b prim_bid ;;
-        '(a', a_bid, a_blks) <- compile_expr a b_bid ;;
-        l <- incLocal ;;
-        let prim_blks := code_block prim_bid next_bid [
-          l %= INSTR_Op(op' (snd a') (snd b'))
-        ] in
-        ret (rt %%l, a_bid, a_blks ++ b_blks ++ prim_blks)
+    | Prim op os =>
+        match os with
+        | [a; b] =>
+          let (op', rt) := compile_prim_op op in
+          prim_bid <- incBlockNamed "Prim" ;;
+          '(b', b_bid, b_blks) <- compile_expr b prim_bid ;;
+          '(a', a_bid, a_blks) <- compile_expr a b_bid ;;
+          l <- incLocal ;;
+          let prim_blks := code_block prim_bid next_bid [
+            l %= INSTR_Op(op' (snd a') (snd b'))
+          ] in
+          ret (rt %%l, a_bid, a_blks ++ b_blks ++ prim_blks)
+        | [a] => raise "unsupported"
+        | _ => raise "wrong number of primitive arguments"
+        end
     | If c t e =>
         if_bid <- incBlockNamed "If" ;;
         '(c', c_bid, c_blks) <- compile_expr c if_bid ;;

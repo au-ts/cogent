@@ -92,8 +92,8 @@ convCogentType t = error $ show t
 
 convCogentExpr :: (Show a, Show b) => FunBodies -> TypedExpr t v a b -> Expr
 convCogentExpr fb (TE _ (C.ILit int p)) = Lit0 $ convCogentLit int p
-convCogentExpr fb (TE _ (C.Op op [a, b])) =
-    BPrim (convCogentOp (exprType a) op) (convCogentExpr fb a) (convCogentExpr fb b)
+convCogentExpr fb (TE _ (C.Op op os@(a : _))) =
+    Prim (convCogentOp (exprType a) op) (convCogentExpr fb <$> os)
 convCogentExpr fb (TE _ (C.Let _ val body)) = Let (convCogentExpr fb val) (convCogentExpr fb body)
 convCogentExpr fb (TE _ (C.Variable (idx, _))) = Var (finInt idx)
 convCogentExpr fb (TE _ C.Unit) = Unit

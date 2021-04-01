@@ -42,7 +42,7 @@ Section Expressions.
         (interp_expr (denote_expr γ e) memC)
         (interp_cfg (denote_ocfg (convert_typ [] blks) (prev_bid, entry_bid)) g l memV).
   Proof.
-    induction e; intros * COMPILE NOFAIL NEXT PRE.
+    induction e using expr_ind'; intros * COMPILE NOFAIL NEXT PRE.
     - (* Unit *)
       cbn* in *; simp.
       cbn*.
@@ -119,87 +119,33 @@ Section Expressions.
       } *)
       admit.
       admit.
-    - (*BPrim op e1 e2*)
+    - (* Prim op os *)
       cbn* in *; simp.
       admit.
-    - (*If e1 e2 e3 *)
+    - (* If e1 e2 e3 *)
       admit.
-    (*
-    - 
-      cbn* in *; simp.
-      rename s1 into pre_state, c0 into mid_state, s2 into post_state.
-      rename Heqs into COMPILE_e1, Heqs0 into COMPILE_e2.
-      vred.
-
-      specialize (IHe1 γ _ _ _ _ cogent_mem g l vellvm_mem COMPILE_e1).
-      forward IHe1; auto.
-      forward IHe1.
-      eapply no_failure_expr_bind_prefix; exact NOFAIL.
-      rewrite interp_expr_bind.
-
-      (* might not need the following 3 *)
-      eapply eutt_clo_bind_returns ; [eassumption | clear IHe1].
-      introR; destruct_unit.
-      intros RET1 _; eapply no_failure_expr_bind_continuation in NOFAIL; [| eassumption]; clear RET1.
-      cbn in PRE0.
-      destruct PRE0 as (PRE1 & [EXP1]).
-      cbn in *.
-
-      specialize (IHe2 (vC :: γ) _ _ _ _ memC g0 l0 memV COMPILE_e2).
-      forward IHe2.
-      apply state_invariant_new_var; auto.
-      unfold equivalent_values.
-      intros.
-      specialize (EXP1 l'). 
-      
-     -
-      cbn* in *; simp.
-      rename s1 into pre_state, c0 into mid_state, c2 into post_state.
-      rename e0 into res_e1, e3 into res_e2, c1 into code_e1, c3 into code_e2.
-      rename Heqs into COMPILE_e1, Heqs0 into COMPILE_e2, e into op'.
-      vred.
-
-      specialize (IHe1 γ _ _ _ _ cogent_mem g l vellvm_mem COMPILE_e1).
-      forward IHe1; auto.
-      forward IHe1.
-      eapply no_failure_expr_bind_prefix; exact NOFAIL.
-      rewrite interp_expr_bind.
-      eapply eutt_clo_bind_returns ; [eassumption | clear IHe1].
-      introR; destruct_unit.
-      intros RET _; eapply no_failure_expr_bind_continuation in NOFAIL; [|eassumption]; clear RET.
-      cbn in PRE0.
-      destruct PRE0 as (PRE1 & [EXP1]).
-      cbn in *.
-
-      specialize (IHe2 γ _ _ _ _ memC g0 l0 memV COMPILE_e2).
-      forward IHe2; auto.
-      forward IHe2.
-      eapply no_failure_expr_bind_prefix; exact NOFAIL.
-      rewrite interp_expr_bind.
-      vred.
-      eapply eutt_clo_bind_returns ; [eassumption | clear IHe2].
-      introR; destruct_unit.
-      intros RET _; eapply no_failure_expr_bind_continuation in NOFAIL; [| eassumption];  clear RET.
-      destruct PRE0 as (PRE2 & [EXP2]).
-      cbn* in *.
-
-      specialize (EXP1 l1).
-      specialize (EXP2 l1).
-      forward EXP2.
-      red; reflexivity.
-      forward EXP2.
-      red; reflexivity.
-      forward EXP1.
-      {
-        admit.
-      }
-      forward EXP1.
-      {
-        admit.
-      }
+    - (* Cast t e*)
       admit.
-      *)
-      
+    - (* Struct ts es *)
+      admit.
+    - (* Member e f *)
+      admit.
+    - (* Take e1 f e2 *)
+      admit.
+    - (* Put e1 f e2 *)
+      admit.
+    - (* Con ts n e *)
+      admit.
+    - (* Promote t e *)
+      admit.
+    - (* Esac ts e *)
+      admit.
+    - (* Case ts e1 n e2 e3 *)
+      admit.
+    - (* Fun e *)
+      admit.
+    - (* App e1 e2 *)
+      admit.
   Admitted.
 
 End Expressions.

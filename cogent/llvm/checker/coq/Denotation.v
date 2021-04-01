@@ -97,10 +97,9 @@ Section Denote.
     | Let a b =>
         a' <- denote_expr γ a ;;
         denote_expr (a' :: γ) b
-    | BPrim p a b =>
-        a' <- denote_expr γ a ;;
-        b' <- denote_expr γ b ;;
-        denote_prim p [a'; b']
+    | Prim p xs =>
+        xs' <- map_monad (denote_expr γ) xs ;;
+        denote_prim p xs'
     | If x t e =>
         x' <- denote_expr γ x ;;
         match x' with
