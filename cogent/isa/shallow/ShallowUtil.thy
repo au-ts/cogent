@@ -16,6 +16,16 @@ theory ShallowUtil
     "Cogent.Util"
 begin
 
+fun array_map2 :: "('a \<Rightarrow> 'b \<Rightarrow> 'a \<times> 'b) \<Rightarrow> 'a list \<Rightarrow> 'b list \<Rightarrow> ('a list \<times> 'b list)"
+  where
+  "array_map2 f [] [] = ([], [])"
+| "array_map2 f (t # q) (t' # q') = (let (a,b) = f t t' in
+                                     let (la, lb) = array_map2 f q q' in
+                                     (a # la, b # lb))"
+
+definition nth' :: "nat \<Rightarrow> 'a list \<Rightarrow> 'a"
+  where "nth' n l = l ! n"
+
 definition
   fun_app :: "('a \<Rightarrow> 'b) \<Rightarrow> 'a \<Rightarrow> 'b" (infixr "$" 10)
 where
