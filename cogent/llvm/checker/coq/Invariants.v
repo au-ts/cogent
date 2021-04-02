@@ -90,7 +90,7 @@ Coercion succ_cfg : Rel_cfg_T >-> Rel_cfg_OT.
 
 Section ValueRelation.
 
-  Definition convert_uval (u : uval) : uvalue :=
+  Fixpoint convert_uval (u : uval) : uvalue :=
     match u with
     | UPrim (LBool b) => UVALUE_I1 (Int1.repr (if b then 1 else 0))
     | UPrim (LU8 w) => UVALUE_I8 (Int8.repr w)
@@ -98,9 +98,8 @@ Section ValueRelation.
     | UPrim (LU64 w) => UVALUE_I64 (Int64.repr w)
     | UUnit => UVALUE_I8 (Int8.repr 0)
     | UPtr a r => UVALUE_Addr a
-    (* TODO: aggregate conversion *)
-    | USum _ _ _ => UVALUE_I8 (Int8.repr 0)
-    | URecord us => UVALUE_I8 (Int8.repr 0)
+    | USum _ _ _ => UVALUE_I8 (Int8.repr 0) (*TODO: sum equiv *)
+    | URecord us => UVALUE_Struct (map (fun '(u, r) => convert_uval u) us)
     end.
 
   Definition correct_result (γ : ctx) (s1 s2 : IRState) (u : uval) (i : im) : config_cfg -> Prop :=

@@ -6,13 +6,42 @@ From Vellvm Require Import LLVMAst LLVMEvents TopLevel Handlers InterpreterMCFG 
   DynamicValues ExpLemmas Coqlib NoFailure AListFacts.
 
 From Checker Require Import Denotation DenotationTheory Cogent Compiler Utils.Tactics Invariants
-  HelixLib.Correctness_Prelude HelixLib.BidBound HelixLib.IdLemmas.
+  HelixLib.Correctness_Prelude HelixLib.BidBound HelixLib.IdLemmas HelixLib.VariableBinding.
 
 Import ListNotations.
 Import AlistNotations.
 
 Import ExpTactics.
 Import ProofMode.
+
+Section BidBoundExtra.
+
+  (* From Helix *)
+
+  Lemma inputs_bound_between :
+    forall (e : expr) (s1 s2 : IRState) (v : im)
+           (next_bid entry_bid : block_id) (blks : ocfg typ),
+      compile_expr e next_bid s1 ≡ inr (s2, (v, entry_bid, blks)) ->
+      Forall (bid_bound_between s1 s2) (inputs (convert_typ [] blks)).
+  Admitted.
+
+  Lemma inputs_not_earlier_bound :
+    forall (e : expr) (s1 s2 s3 : IRState) (v : im)
+           (bid next_bid entry_bid : block_id) (blks : ocfg typ),
+      bid_bound s1 bid ->
+      (block_count s1 <= block_count s2)%nat ->
+      compile_expr e next_bid s2 ≡ inr (s3, (v, entry_bid, blks)) ->
+      Forall (fun x => x ≢ bid) (inputs (convert_typ [] blks)).
+  Admitted.
+
+  Lemma outputs_bound_between :
+    forall (e : expr) (s1 s2 : IRState) (v : im)
+           (next_bid entry_bid : block_id) (blks : ocfg typ),
+      compile_expr e next_bid s1 ≡ inr (s2, (v, entry_bid, blks)) ->
+      Forall (fun bid => bid_bound_between s1 s2 bid \/ bid ≡ next_bid) (outputs (convert_typ [] blks)).
+  Admitted.
+
+End BidBoundExtra.
 
 Section Expressions.
 
@@ -42,7 +71,7 @@ Section Expressions.
         (interp_expr (denote_expr γ e) memC)
         (interp_cfg (denote_ocfg (convert_typ [] blks) (prev_bid, entry_bid)) g l memV).
   Proof.
-    induction e using expr_ind'; intros * COMPILE NOFAIL NEXT PRE.
+    induction e using expr_ind'; intros * COMP NOFAIL NEXT PRE.
     - (* Unit *)
       cbn* in *; simp.
       cbn*.
@@ -89,35 +118,69 @@ Section Expressions.
       contradiction.
       apply find_block_nil.
     - (* Let e1 e2 *)
-      pose proof COMPILE as COMPILE'.
-      cbn* in COMPILE'; simp.
+      pose proof COMP as COMP'.
+      cbn* in COMP'; simp.
       rename s1 into pre_state, i into mid_state, i1 into post_state.
-      rename Heqs into COMPILE_e1, Heqs1 into COMPILE_e2.
-      
-      specialize (IHe1 γ _ _ _ _ _ entry_bid _ memC g l memV COMPILE_e1).
-      forward IHe1.
-      eapply no_failure_expr_bind_prefix; exact NOFAIL.
-      forward IHe1.
-      (* don't like manual instantiation here *)
-      apply bid_bound_incBlockNamed with (name := "Let") (s1 := pre_state).
-      solve_prefix.
-      reflexivity.
-      forward IHe1.
-      apply state_invariant_new_block. (* unproven lemma *)
-      assumption.
-      
+      rename l0 into e1_blks, l1 into e2_blks.
+      rename b0 into e2_entry, entry_bid into e1_entry.
+      rename t into e1_im_t, e into e1_im, t0 into e2_im_t, e0 into e2_im.
+      rename t1 into new_var, l2 into cur_vars.
+      rename Heqs into COMP_e1, Heqs1 into COMP_e2, Heql3 into BIND.
+      cbn.
+      clean_goal.
+
+      (* deal with the first blocks *)
       rewrite convert_typ_ocfg_app.
-      rewrite denote_ocfg_app.
-      (* 2 : {
-        idtac.
+      rewrite denote_ocfg_app; eauto.
+      2 : {
         unfold no_reentrance.
-        rewrite convert_typ_outputs, inputs_convert_typ, outputs_cons.
-        unfold successors, terminator_outputs, blk_term.
+        pose proof COMP_e1 as COMP_e1'.
+        apply (inputs_not_earlier_bound _ _ _ _ _ _ _ _ _ NEXT) in COMP_e1'.
+        apply inputs_bound_between in COMP_e1.
+        apply outputs_bound_between in COMP_e2.
+        pose proof (Forall_and COMP_e1 COMP_e1') as INPUTS.
+        cbn in INPUTS.
+        eapply Forall_disjoint.
+        rewrite convert_typ_outputs in *.
+        rewrite outputs_cons.
         simpl.
-        apply list_disjoint_cons_l.
-        admit.
-      } *)
-      admit.
+        apply Forall_cons; [ | exact COMP_e2].
+        cbn.
+        admit. (* add to post-condition of COMP_e1 somehow? *)
+        exact INPUTS.
+        intros x OUT_PRED [IN_BOUND IN_NEXT].
+        destruct OUT_PRED as [OUT_PRED | OUT_PRED]; auto.
+        admit. (* x can't be bound between pre-mid and mid-post *)
+        solve_block_count.
+      }
+      cvred.
+      cbn in *.
+      pose proof PRE as PRE'.
+      eapply eutt_clo_bind_returns.
+      {
+        eapply IHe1; eauto.
+        - eapply no_failure_expr_bind_prefix; exact NOFAIL.
+        - eapply bid_bound_incBlockNamed with (name := "Let"); solve_prefix.
+        - admit. (* do like GenIR line 209 *)
+      }
+      clear IHe1.
+      introR.
+      intros RET _; eapply no_failure_expr_bind_continuation in NOFAIL; [| eassumption]; clear RET.
+      cbn in PRE0; destruct PRE0 as [INV2 [COR [[from2 BRANCH2] POST]]].
+      cbn in INV2.
+      subst.
+
+      (* middle block *)
+      unfold fmap, Fmap_block; cbn.
+
+      vjmp.
+      apply find_block_eq; auto.
+      repeat vred.
+
+      (* need to split the middle block away *)
+
+      (* then use IHe2 with ctx = (vH :: γ) *)
+
       admit.
     - (* Prim op os *)
       cbn* in *; simp.
@@ -127,6 +190,7 @@ Section Expressions.
     - (* Cast t e*)
       admit.
     - (* Struct ts es *)
+      cbn* in *; simp.
       admit.
     - (* Member e f *)
       admit.
@@ -137,15 +201,60 @@ Section Expressions.
     - (* Con ts n e *)
       admit.
     - (* Promote t e *)
-      admit.
+      eauto.
     - (* Esac ts e *)
       admit.
     - (* Case ts e1 n e2 e3 *)
       admit.
     - (* Fun e *)
-      admit.
+      cbn* in *; simp.
     - (* App e1 e2 *)
-      admit.
+      pose proof COMP as COMP'.
+      cbn* in COMP'; simp.
+      rename e into body_expr, e2 into arg_expr.
+      rename s1 into pre_state, i into mid_state, i0 into post_state.
+      rename l0 into arg_code, l1 into body_code.
+      rename b0 into body_entry.
+      rename Heqs into COMP_arg, Heqs1 into COMP_body.
+      rename IHe1 into IH_fun, IHe2 into IH_arg.
+
+      rewrite convert_typ_ocfg_app.
+      rewrite denote_ocfg_app.
+      2 : {
+        (* try do similar to Let *)
+        admit.
+      }
+      cvred.
+      cbn in *.
+      pose proof PRE as SINV.
+      simp.
+      rewrite interp_expr_bind.
+      eapply eutt_clo_bind_returns.
+      {
+        (* line 204 in GenIR for a better way *)
+        eapply IH_arg; eauto.
+        eapply no_failure_expr_bind_prefix; exact NOFAIL.
+        apply bid_bound_incBlockNamed with (name := "App") (s1 := pre_state).
+        solve_prefix.
+        reflexivity.
+        apply state_invariant_new_block. (* lemma might be false *)
+        assumption.
+      }
+      clear IH_arg.
+      introR.
+      intros RET _; eapply no_failure_expr_bind_continuation in NOFAIL; [| eassumption]; clear RET.
+      cbn in PRE0; destruct PRE0 as [INV2 [COR [[from2 BRANCH2] POST]]].
+      cbn in INV2.
+      subst.
+      eapply eqit_mon; auto.
+      2: {
+        (* need some IH about body of function *)
+        admit.
+      }
+      clear IH_fun.
+      intros [[memC1 ?]|] (memV1 & l1 & g1 & res1) PR.
+      exact PR.
+      inv PR.
   Admitted.
 
 End Expressions.
