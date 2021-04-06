@@ -25,8 +25,9 @@ Section Syntax.
     | Minus (t : num_type)
     | Times (t : num_type)
     | Divide (t : num_type)
-    | Mod (t : num_type).
-    (* | Not | And | Or
+    | Mod (t : num_type)
+    | And
+    | Or
     | Gt (t : num_type)
     | Lt (t : num_type)
     | Le (t : num_type)
@@ -38,7 +39,9 @@ Section Syntax.
     | BitXor (t : num_type)
     | LShift (t : num_type)
     | RShift (t : num_type)
-    | Complement (t : num_type). *)
+    (* | Not *)
+    (* | Complement (t : num_type) *)
+    .
 
   Variant sigil : Set :=
     | Boxed (* Ignore access_perm, ptr_layout *)
@@ -84,6 +87,7 @@ Section Syntax.
     | LU32 (w : Z)
     | LU64 (w : Z).
   (* NOTE: not represented as n-bit words *)
+  Scheme Equality for lit.
 
   Definition tags := list (name * type * variant_state).
 
@@ -206,7 +210,13 @@ Section Primitive.
     | [LU64 x; LU64 y] => Some (LU64 (f x y))
     | _ => None
     end.
-
+  
+  Definition prim_bool_op (f : bool -> bool -> bool) (xs : list lit) : option lit :=
+    match (firstn 2 xs) with
+    | [LBool x; LBool y] => Some (LBool (f x y))
+    | _ => None
+    end.
+  
   Definition prim_word_comp (f : Z -> Z -> bool) (xs : list lit) : option lit :=
     match (firstn 2 xs) with
     | [LU8 x; LU8 y] => Some (LBool (f x y))
@@ -215,15 +225,33 @@ Section Primitive.
     | [LU64 x; LU64 y] => Some (LBool (f x y))
     | _ => None
     end.
+  
+  Definition prim_lit_comp (f : lit -> lit -> bool) (xs : list lit) : option lit :=
+    match (firstn 2 xs) with
+    | [x; y] => Some (LBool (f x y))
+    | _ => None
+    end.
 
-  Definition eval_prim_op (op : prim_op) (xs : list lit) : option lit :=
+  Definition eval_prim_op (op : prim_op) : list lit -> option lit :=
     match op with
-    | Plus _ => prim_word_op Z.add xs
-    | Minus _ => prim_word_op Z.sub xs
-    | Times _ => prim_word_op Z.mul xs
-    | Divide _ => prim_word_op Z.div xs
-    | Mod _ => prim_word_op Z.modulo xs
-    (* yet to handle other operators *)
+    | Plus _ => prim_word_op Z.add
+    | Minus _ => prim_word_op Z.sub
+    | Times _ => prim_word_op Z.mul
+    | Divide _ => prim_word_op Z.div
+    | Mod _ => prim_word_op Z.modulo
+    | And => prim_bool_op andb
+    | Or => prim_bool_op orb
+    | Gt _ => prim_word_comp Z.gtb
+    | Lt _ => prim_word_comp Z.ltb
+    | Le _ => prim_word_comp Z.leb
+    | Ge _ => prim_word_comp Z.geb
+    | Eq _ => prim_lit_comp lit_beq
+    | NEq _ => prim_lit_comp (fun x y => negb (lit_beq x y))
+    | BitAnd _ => prim_word_op Z.land
+    | BitOr _ => prim_word_op Z.lor
+    | BitXor _ => prim_word_op Z.lxor
+    | LShift _ => prim_word_op Z.shiftl
+    | RShift _ => prim_word_op Z.shiftr
     end.
 
   Definition cast_to (n : num_type) (l : lit) : option lit :=

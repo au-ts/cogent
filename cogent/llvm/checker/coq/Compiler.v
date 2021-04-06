@@ -68,6 +68,24 @@ Section Compiler.
     | LU64 w => i64 w
     end.
 
+  Definition compile_prim_type (p : prim_type) : typ :=
+    match p with
+    | Num n => convert_num_type n
+    | Bool => TYPE_I 1
+    | String => TYPE_Pointer (TYPE_I 8)
+    end.
+
+  Fixpoint compile_type (t : type) : typ :=
+    match t with
+    | TPrim p => compile_prim_type p
+    | TFun t rt => TYPE_Pointer (TYPE_Function (compile_type rt) [compile_type t])
+    | TRecord ts s => 
+        let t' := TYPE_Struct (map (fun '(_, (f, _)) => compile_type f) ts) in
+          match s with Boxed => TYPE_Pointer t' | Unboxed => t' end
+    | TSum ts => TYPE_Struct (TYPE_I 32 :: (map (fun '(_, t, _) => compile_type t) ts))
+    | TUnit => TYPE_I 8
+    end.
+
   Definition compile_prim_op (o : prim_op) : (exp typ -> exp typ -> exp typ) * typ :=
     match o with
     | Plus t => (OP_IBinop (Add false false) (convert_num_type t), convert_num_type t)
@@ -75,21 +93,19 @@ Section Compiler.
     | Times t => (OP_IBinop (Mul false false) (convert_num_type t), convert_num_type t)
     | Divide t => (OP_IBinop (UDiv false) (convert_num_type t), convert_num_type t)
     | Mod t => (OP_IBinop URem (convert_num_type t), convert_num_type t)
-    end.
-
-  Fixpoint compile_type (t : type) : typ :=
-    match t with
-    | TPrim p => match p with
-      | Num n => convert_num_type n
-      | Bool => TYPE_I 1
-      | String => TYPE_Pointer (TYPE_I 8)
-      end
-    | TFun t rt => TYPE_Pointer (TYPE_Function (compile_type rt) [compile_type t])
-    | TRecord ts s => 
-        let t' := TYPE_Struct (map (fun '(_, (f, _)) => compile_type f) ts) in
-          match s with Boxed => TYPE_Pointer t' | Unboxed => t' end
-    | TSum ts => TYPE_Struct (TYPE_I 32 :: (map (fun '(_, t, _) => compile_type t) ts))
-    | TUnit => TYPE_I 8
+    | And => (OP_IBinop LLVMAst.And (TYPE_I 1), TYPE_I 1)
+    | Or => (OP_IBinop LLVMAst.Or (TYPE_I 1), TYPE_I 1)
+    | Gt t => (OP_ICmp Ugt (convert_num_type t),TYPE_I 1)
+    | Lt t => (OP_ICmp Ult (convert_num_type t), TYPE_I 1)
+    | Le t => (OP_ICmp Ule (convert_num_type t), TYPE_I 1)
+    | Ge t => (OP_ICmp Uge (convert_num_type t), TYPE_I 1)
+    | Eq p => (OP_ICmp LLVMAst.Eq (compile_prim_type p), TYPE_I 1)
+    | NEq p => (OP_ICmp Ne (compile_prim_type p), TYPE_I 1)
+    | BitAnd t => (OP_IBinop LLVMAst.And (convert_num_type t), convert_num_type t)
+    | BitOr t => (OP_IBinop LLVMAst.Or (convert_num_type t), convert_num_type t)
+    | BitXor t => (OP_IBinop Xor (convert_num_type t), convert_num_type t)
+    | LShift t => (OP_IBinop (Shl false false) (convert_num_type t), convert_num_type t)
+    | RShift t => (OP_IBinop (LShr false) (convert_num_type t), convert_num_type t)
     end.
   
   (* Definition unsafe_cast (i : im) (t : type) (next_bid : block_id) : cerr segment :=
@@ -285,7 +301,7 @@ Section Compiler.
         let case_blks := code_block case_bid match_bid [
           t %= INSTR_Op (OP_ExtractValue x' [0]);
           v %= INSTR_Op (OP_ExtractValue x' [Z.of_nat i]);
-          c %= INSTR_Op (OP_ICmp Eq (TYPE_I 32) (EXP_Integer (Z.of_nat i)) (EXP_Ident (ID_Local t)))
+          c %= INSTR_Op (OP_ICmp LLVMAst.Eq (TYPE_I 32) (EXP_Integer (Z.of_nat i)) (EXP_Ident (ID_Local t)))
         ] in
         mp_bid <- incBlockNamed "Match_Post" ;;
         t <- tag_type x' i ;;

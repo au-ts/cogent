@@ -133,6 +133,19 @@ convCogentOp t S.Minus = Minus $ convCogentNumType t
 convCogentOp t S.Times = Times $ convCogentNumType t
 convCogentOp t S.Divide = Divide $ convCogentNumType t
 convCogentOp t S.Mod = Mod $ convCogentNumType t
+convCogentOp _ S.And = And0
+convCogentOp _ S.Or = Or0
+convCogentOp t S.Gt = Gt $ convCogentNumType t
+convCogentOp t S.Lt = Lt $ convCogentNumType t
+convCogentOp t S.Le = Le $ convCogentNumType t
+convCogentOp t S.Ge = Ge $ convCogentNumType t
+convCogentOp t S.Eq = Eq0 $ convCogentPrimType t
+convCogentOp t S.NEq = NEq $ convCogentPrimType t
+convCogentOp t S.BitAnd = BitAnd $ convCogentNumType t
+convCogentOp t S.BitOr = BitOr $ convCogentNumType t
+convCogentOp t S.BitXor = BitXor $ convCogentNumType t
+convCogentOp t S.LShift = LShift $ convCogentNumType t
+convCogentOp t S.RShift = RShift $ convCogentNumType t
 
 convCogentPrimType :: C.Type t b -> Prim_type
 convCogentPrimType (C.TPrim T.Boolean) = Bool
