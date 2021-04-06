@@ -126,6 +126,7 @@ data Command = AstC
              | CodeGen
              | LLVMGen
              | LLVMCoq
+             | CoqInterp
              | CoqGen
              | ACInstall
              | CorresSetup
@@ -222,6 +223,7 @@ getMode Version        = ModeAbout
 getMode LLVMGen        = ModeLLVM
 getMode CoqGen         = ModeLLVM
 getMode LLVMCoq        = ModeLLVM
+getMode CoqInterp      = ModeLLVM
 getMode _              = ModeCompiler
 
 ccStandalone :: Command -> [Command] -> Maybe Command
@@ -242,6 +244,7 @@ setActions c@(StackUsage x) = [c]
 setActions c@LLVMGen = setActions (Compile STGMono) ++ [c]
 setActions c@CoqGen  = setActions (Compile STGMono) ++ [c]
 setActions c@LLVMCoq  = setActions (Compile STGMono) ++ [c]
+setActions c@CoqInterp  = setActions (Compile STGMono) ++ [c]
 -- Cogent
 setActions c@(Compile STGParse) = [c]
 setActions c@(CodeGen      ) = setActions (Compile STGCodeGen) ++ [c]
@@ -374,10 +377,12 @@ options = [
   , Option []         ["llvm"]            0 (NoArg LLVMGen)                 "use the experimental LLVM backend"
   , Option []         ["coq-gen"]         0 (NoArg CoqGen)                  "generate Coq representation of program AST"
   , Option []         ["llvm-coq"]        0 (NoArg LLVMCoq)                 "use the Coq implementation of the LLVM backend"
+  , Option []         ["coq-interp"]      0 (NoArg CoqInterp)               "use the Coq semantics and interpret main"
 #else
   , Option []         ["llvm"]            0 (NoArg LLVMGen)                 "use the experimental LLVM backend [disabled in this build]"
   , Option []         ["coq-gen"]         0 (NoArg CoqGen)                  "generate Coq representation of program AST [disabled in this build]"
   , Option []         ["llvm-coq"]        0 (NoArg LLVMCoq)                 "use the Coq implementation of the LLVM backend [disabled in this build]"
+  , Option []         ["coq-interp"]      0 (NoArg CoqInterp)               "use the Coq semantics and interpret main [disabled in this build]"
 #endif
   -- documentation
 #ifdef WITH_DOCGENT
@@ -804,6 +809,7 @@ parseArgs args = case getOpt' Permute options args of
           when (LLVMGen `elem` cmds) $ llvmg cmds monoed' ctygen' insts source tced tcst typedefs fts buildinfo log
           when (CoqGen `elem` cmds) $ coqg monoed' source
           when (LLVMCoq `elem` cmds) $ llvmcoq monoed' source
+          when (CoqInterp `elem` cmds) $ coqinterp monoed' source
 #endif
           when (Compile (succ stg) `elem` cmds) $ cg cmds monoed' ctygen' insts source tced tcst typedefs fts buildinfo log
           c_refinement source monoed' insts log (ACInstall `elem` cmds, CorresSetup `elem` cmds, CorresProof `elem` cmds)
@@ -837,6 +843,9 @@ parseArgs args = case getOpt' Permute options args of
     llvmcoq monoed source = do
       putProgressLn "Generating LLVM IR using Coq implementation..."
       WithCoq.compileWithCoq monoed source
+    coqinterp monoed source = do
+      putProgressLn "Interpreting main using Coq semantics with empty memory..."
+      WithCoq.interpWithCoq monoed
 #endif
 
     cg cmds monoed ctygen insts source tced tcst typedefs fts buildinfo log = do

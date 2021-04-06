@@ -1,3 +1,4 @@
 post-all::
-	@echo "Fixing extracted Haskell module name"
+	@echo "Fixing extracted Haskell module"
 	sed -i 's/^module Compiler where$$/module ExtractedCoq.Compiler where/' extracted/Compiler.hs 
+	sed -i 's/^import qualified Prelude$$/import qualified Prelude;import qualified Data.Bits;import qualified Data.Char/' extracted/Compiler.hs 

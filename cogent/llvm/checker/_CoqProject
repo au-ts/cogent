@@ -31,4 +31,4 @@
 ./coq/Test.v
 ./coq/Extract.v
 
--arg "-w '-notation-overridden'"
+-arg "-w '-notation-overridden -extraction-logical-axiom -extraction-opaque-accessed'"

@@ -1,8 +1,9 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
-module Cogent.LLVM.WithCoq (compileWithCoq) where
+module Cogent.LLVM.WithCoq (compileWithCoq, interpWithCoq) where
 
 -- Acts as a layer between the core Cogent Haskell compiler and the
 -- extracted Coq implementation for a compiler.
@@ -20,7 +21,7 @@ import Cogent.LLVM.Compile (writeLLVM)
 import Data.ByteString.Internal (packChars)
 import Data.ByteString.Short.Internal (toShort)
 import Data.Fin (Fin (..), finInt)
-import ExtractedCoq.Compiler hiding (map, snd)
+import ExtractedCoq.Compiler hiding (double, lookup, map, snd, uncurry)
 import qualified LLVM.AST as LL
 import qualified LLVM.AST.CallingConvention as LLCC (CallingConvention (..))
 import qualified LLVM.AST.Constant as LLC
@@ -62,13 +63,34 @@ generateOutput vir source = do
     hClose outFile
     return ()
 
-type FunBodies = [(FunName, Expr)]
+-- Top level interpreter (because we can)
+deriving instance Show Lit
+deriving instance Show Num_type
+deriving instance Show Prim_type
+deriving instance Show Repr
+deriving instance Show Uval
+
+interpWithCoq :: [C.Definition TypedExpr VarName VarName] -> IO ()
+interpWithCoq monoed =
+    case step (run_cogent (convCogentAST monoed) "main" UUnit) of
+        Just (mem, res) -> do
+            putStrLn ("Memory: " ++ show mem)
+            putStrLn ("Result: " ++ show res)
+        Nothing -> hPutStrLn stderr "Invalid semantics"
+
+step :: Itree () (Maybe t) -> Maybe t
+step t = case observe t of
+    TauF t -> step t
+    RetF r -> r
+    VisF e k -> error "uninterpreted call"
 
 -- Convert the Cogent AST into a form the Coq-based compiler understands
 convCogentAST :: [C.Definition TypedExpr VarName VarName] -> Cogent_prog
 convCogentAST defs =
     let defs' = [(name, convCogentExpr defs' body) | C.FunDef _ name _ _ t rt body <- defs]
      in concatMap (convCogentDefinition defs') defs
+
+type FunBodies = [(FunName, Expr)]
 
 convCogentDefinition :: FunBodies -> C.Definition TypedExpr VarName VarName -> [Def]
 convCogentDefinition fb (C.FunDef _ name _ _ t rt body) =
@@ -112,7 +134,7 @@ convCogentExpr fb (TE _ (C.Fun f _ _ _)) =
 convCogentExpr fb (TE _ (C.App f a)) = App (convCogentExpr fb f) (convCogentExpr fb a)
 convCogentExpr fb (TE _ (C.Con tag e t)) = Con (convCogentTags t) tag (convCogentExpr fb e)
 convCogentExpr fb (TE _ (C.Case e tag (_, _, b1) (_, _, b2))) =
-    Case (convCogentTags (exprType e)) (convCogentExpr fb e) tag (convCogentExpr fb b1) (convCogentExpr fb b2)
+    Case0 (convCogentTags (exprType e)) (convCogentExpr fb e) tag (convCogentExpr fb b1) (convCogentExpr fb b2)
 convCogentExpr fb (TE _ (C.Promote t e)) = Promote (convCogentType t) (convCogentExpr fb e)
 convCogentExpr fb (TE _ (C.Esac e)) = Esac (convCogentTags (exprType e)) (convCogentExpr fb e)
 convCogentExpr fb e = error $ show e
@@ -135,11 +157,11 @@ convCogentOp t S.Divide = Divide $ convCogentNumType t
 convCogentOp t S.Mod = Mod $ convCogentNumType t
 convCogentOp _ S.And = And0
 convCogentOp _ S.Or = Or0
-convCogentOp t S.Gt = Gt $ convCogentNumType t
-convCogentOp t S.Lt = Lt $ convCogentNumType t
+convCogentOp t S.Gt = Gt0 $ convCogentNumType t
+convCogentOp t S.Lt = Lt0 $ convCogentNumType t
 convCogentOp t S.Le = Le $ convCogentNumType t
 convCogentOp t S.Ge = Ge $ convCogentNumType t
-convCogentOp t S.Eq = Eq0 $ convCogentPrimType t
+convCogentOp t S.Eq = Eq1 $ convCogentPrimType t
 convCogentOp t S.NEq = NEq $ convCogentPrimType t
 convCogentOp t S.BitAnd = BitAnd $ convCogentNumType t
 convCogentOp t S.BitOr = BitOr $ convCogentNumType t
@@ -149,7 +171,7 @@ convCogentOp t S.RShift = RShift $ convCogentNumType t
 
 convCogentPrimType :: C.Type t b -> Prim_type
 convCogentPrimType (C.TPrim T.Boolean) = Bool
-convCogentPrimType t@(C.TPrim _) = Num $ convCogentNumType t
+convCogentPrimType t@(C.TPrim _) = Num0 $ convCogentNumType t
 convCogentPrimType C.TString = String
 convCogentPrimType _ = error "not a PrimType"
 
@@ -293,7 +315,7 @@ convVellvmIBinop Or = LL.Or
 convVellvmIBinop Xor = LL.Xor
 
 convVellvmICmp :: Icmp -> LLP.IntegerPredicate
-convVellvmICmp Eq = LLP.EQ
+convVellvmICmp Eq0 = LLP.EQ
 convVellvmICmp Ne = LLP.NE
 convVellvmICmp Ugt = LLP.UGT
 convVellvmICmp Uge = LLP.UGE

@@ -1,5 +1,7 @@
 From Coq Require Import List ListSet String ZArith.
 
+From Vellvm Require Import DynamicValues Numeric.Integers.
+
 Import ListNotations.
 
 Section Syntax.
@@ -202,12 +204,16 @@ Section Primitive.
     | _ => false
     end.
 
-  Definition prim_word_op (f : Z -> Z -> Z) (xs : list lit) : option lit :=
+  Definition prim_word_op (f8 : Int8.int -> Int8.int -> Int8.int)
+                          (* (f16 : Int16.int -> Int16.int -> Int16.int) *)
+                          (f32 : Int32.int -> Int32.int -> Int32.int)
+                          (f64 : Int64.int -> Int64.int -> Int64.int)
+                          (xs : list lit) : option lit :=
     match (firstn 2 xs) with
-    | [LU8 x; LU8 y] => Some (LU8 (f x y))
-    (* | [LU16 x; LU16 y] => Some (LU16 (f x y)) *)
-    | [LU32 x; LU32 y] => Some (LU32 (f x y))
-    | [LU64 x; LU64 y] => Some (LU64 (f x y))
+    | [LU8 x; LU8 y] => Some (LU8 (Int8.unsigned (f8 (Int8.repr x) (Int8.repr y))))
+    (* | [LU16 x; LU16 y] => Some (LU16 (Int16.unsigned (f16 (Int16.repr x) (Int16.repr y)))) *)
+    | [LU32 x; LU32 y] => Some (LU32 (Int32.unsigned (f32 (Int32.repr x) (Int32.repr y))))
+    | [LU64 x; LU64 y] => Some (LU64 (Int64.unsigned (f64 (Int64.repr x) (Int64.repr y))))
     | _ => None
     end.
   
@@ -217,12 +223,16 @@ Section Primitive.
     | _ => None
     end.
   
-  Definition prim_word_comp (f : Z -> Z -> bool) (xs : list lit) : option lit :=
+  Definition prim_word_comp (f8 : Int8.int -> Int8.int -> bool)
+                            (* (f16 : Int16.int -> Int16.int -> bool) *)
+                            (f32 : Int32.int -> Int32.int -> bool)
+                            (f64 : Int64.int -> Int64.int -> bool)
+                            (xs : list lit) : option lit :=
     match (firstn 2 xs) with
-    | [LU8 x; LU8 y] => Some (LBool (f x y))
-    (* | [LU16 x; LU16 y] => Some (LBool (f x y)) *)
-    | [LU32 x; LU32 y] => Some (LBool (f x y))
-    | [LU64 x; LU64 y] => Some (LBool (f x y))
+    | [LU8 x; LU8 y] => Some (LBool (f8 (Int8.repr x) (Int8.repr y)))
+    (* | [LU16 x; LU16 y] => Some (LBool (f16 (Int16.repr x) (Int16.repr y))) *)
+    | [LU32 x; LU32 y] => Some (LBool (f32 (Int32.repr x) (Int32.repr y)))
+    | [LU64 x; LU64 y] => Some (LBool (f64 (Int64.repr x) (Int64.repr y)))
     | _ => None
     end.
   
@@ -234,24 +244,24 @@ Section Primitive.
 
   Definition eval_prim_op (op : prim_op) : list lit -> option lit :=
     match op with
-    | Plus _ => prim_word_op Z.add
-    | Minus _ => prim_word_op Z.sub
-    | Times _ => prim_word_op Z.mul
-    | Divide _ => prim_word_op Z.div
-    | Mod _ => prim_word_op Z.modulo
+    | Plus _ => prim_word_op Int8.add Int32.add Int64.add
+    | Minus _ => prim_word_op Int8.sub Int32.sub Int64.sub
+    | Times _ => prim_word_op Int8.mul Int32.mul Int64.mul
+    | Divide _ => prim_word_op Int8.divu Int32.divu Int64.divu
+    | Mod _ => prim_word_op Int8.modu Int32.modu Int64.modu
     | And => prim_bool_op andb
     | Or => prim_bool_op orb
-    | Gt _ => prim_word_comp Z.gtb
-    | Lt _ => prim_word_comp Z.ltb
-    | Le _ => prim_word_comp Z.leb
-    | Ge _ => prim_word_comp Z.geb
+    | Gt _ => prim_word_comp (Int8.cmpu Cgt) (Int32.cmpu Cgt) (Int64.cmpu Cgt)
+    | Lt _ => prim_word_comp (Int8.cmpu Clt) (Int32.cmpu Clt) (Int64.cmpu Clt)
+    | Le _ => prim_word_comp (Int8.cmpu Cle) (Int32.cmpu Cle) (Int64.cmpu Cle)
+    | Ge _ => prim_word_comp (Int8.cmpu Cge) (Int32.cmpu Cge) (Int64.cmpu Cge)
     | Eq _ => prim_lit_comp lit_beq
     | NEq _ => prim_lit_comp (fun x y => negb (lit_beq x y))
-    | BitAnd _ => prim_word_op Z.land
-    | BitOr _ => prim_word_op Z.lor
-    | BitXor _ => prim_word_op Z.lxor
-    | LShift _ => prim_word_op Z.shiftl
-    | RShift _ => prim_word_op Z.shiftr
+    | BitAnd _ => prim_word_op Int8.and Int32.and Int64.and
+    | BitOr _ => prim_word_op Int8.or Int32.or Int64.or
+    | BitXor _ => prim_word_op Int8.xor Int32.xor Int64.xor
+    | LShift _ => prim_word_op Int8.shl Int32.shl Int64.shl
+    | RShift _ => prim_word_op Int8.shru Int32.shru Int64.shru
     end.
 
   Definition cast_to (n : num_type) (l : lit) : option lit :=
