@@ -3,6 +3,7 @@ include <gum/common/common.cogent>
 include <gum/common/wordarray.cogent>
 include <gum/fs/linux/vfs.cogent>
 include <gum/kernel/linux/errno.cogent>
+include <gum/common/log.cogent>
 
 type FsInode = { a: U32 }
 

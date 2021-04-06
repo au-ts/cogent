@@ -46,3 +46,10 @@ _Assume you have cabal-built `wa-example` as described above._
 3. Inside the REPL, `$ GHCi > Readpage.main` which runs the test using a default configuration.
 
 4. If you want to run the test manually, then the property you are after is called `prop_corres_fsop_readpage`.
+
+5. The Haskell embedding is pre-generated and manually modified, so you normally wouldn't want to regenerate it.
+   But for whatever reason if you do want to generate your own, run
+```
+> export COGENT_LIBGUM_DIR=<your libgum location>
+> cogent --hs-shallow-desugar-tuples readpage.cogent --flax-take-put
+```
