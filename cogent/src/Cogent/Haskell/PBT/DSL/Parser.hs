@@ -5,8 +5,8 @@ module Cogent.Haskell.PBT.DSL.Parser (parsePbtDescFile) where
 import Cogent.Haskell.PBT.DSL.Types
 import Cogent.Compiler (__cogent_pbt_info, __impossible)
 import qualified Language.Haskell.Exts.Syntax as HSS (Exp(..), Type(..))
-import qualified Language.Haskell.Exts.Parser as HSP (parseType, parseExp, parseExpWithMode, fromParseResult, ParseMode(..))
-import qualified Language.Haskell.Exts.Extension as HSE (Language(..))
+import qualified Language.Haskell.Exts.Parser as HSP (parseTypeWithComments, fromParseResult, ParseMode(..), parseExpWithComments)
+import qualified Language.Haskell.Exts.Extension as HSE (Language(..), knownExtensions)
 import qualified Language.Haskell.Exts.Fixity as HSF (infixl_, preludeFixities, baseFixities)
 import qualified Language.Haskell.Names.SyntaxUtils as HSN (dropAnn)
 import Text.Parsec
@@ -20,6 +20,7 @@ import Control.Applicative hiding ((<|>), optional, many)
 import Data.List (find, isInfixOf)
 import Data.List.Extra (trim)
 import Data.Maybe
+import Data.Functor
 import Debug.Trace
 
 -- Parser type
@@ -219,12 +220,12 @@ toPbtTyp' "pred" = Pred
 toPbtTyp' s = toPbtTyp' . trim $ s
 
 parseHsTyp :: String -> HSS.Type ()
-parseHsTyp = HSN.dropAnn . HSP.fromParseResult . HSP.parseType
+parseHsTyp = HSN.dropAnn . HSP.fromParseResult . (\x -> fst <$> HSP.parseTypeWithComments parseMode x)
 
 parseHsExp :: String -> HSS.Exp ()
-parseHsExp = HSN.dropAnn . HSP.fromParseResult . (HSP.parseExpWithMode parseMode)
+parseHsExp = HSN.dropAnn . HSP.fromParseResult . (\x -> fst <$> HSP.parseExpWithComments parseMode x)
 
-parseMode = HSP.ParseMode "unknown" HSE.Haskell2010 [] True True (Just $ fixes) True
+parseMode = HSP.ParseMode "unknown" HSE.Haskell2010 HSE.knownExtensions True True (Just $ fixes) True
     -- note: have to give lens/prism operators their correct fixity to successfully parse
     where fixes = HSF.infixl_ 8 ["^.", "^?"] ++ HSF.preludeFixities ++ HSF.baseFixities
 
