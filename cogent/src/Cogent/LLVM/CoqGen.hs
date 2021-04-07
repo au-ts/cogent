@@ -157,6 +157,7 @@ genExpr :: (Show a, Show b) => FunBodies -> TypedExpr t v a b -> Expr
 genExpr fb (TE _ (C.ILit int p)) = Lit $ genLit int p
 genExpr fb (TE _ (C.Op op os@(a : _))) = Prim (genOp (exprType a) op) (mkCoqList (genExpr fb) os)
 genExpr fb (TE _ (C.Let _ val body)) = Let (genExpr fb val) (genExpr fb body)
+genExpr fb (TE _ (C.LetBang _ _ val body)) = Let (genExpr fb val) (genExpr fb body)
 genExpr fb (TE _ (C.Variable (idx, _))) = Var (finInt idx)
 genExpr fb (TE _ C.Unit) = Unit
 genExpr fb (TE _ (C.If c b1 b2)) = If (genExpr fb c) (genExpr fb b1) (genExpr fb b2)
