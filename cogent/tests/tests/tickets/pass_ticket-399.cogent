@@ -1,0 +1,5 @@
+type A = { f : U32 }
+
+foo : A -> (A, U32)
+foo a = let x = a.f !a
+         in (a, x)

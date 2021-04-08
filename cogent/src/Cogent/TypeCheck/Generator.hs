@@ -563,6 +563,7 @@ cg' (UnboxedRecord fes) t = do
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c)
   return (c' <> c, e)
+
 cg' (Seq e1 e2) t = do
   alpha <- freshTVar
   (c1, e1') <- cg e1 alpha
@@ -986,8 +987,11 @@ letBang bs f t = do
 validateVariable :: VarName -> CG Constraint
 validateVariable v = do
   x <- use context
-  return $ if C.contains x v then Sat else Unsat (NotInScope MustVar v)
-
+  let c = case C.lookup v x of
+            Nothing -> Unsat (NotInScope MustVar v)
+            Just (_, _, Seq.Empty) -> Sat
+            Just (t, p, ps) -> Share t (Reused v p ps)
+  return c
 
 -- ----------------------------------------------------------------------------
 -- pp for debugging

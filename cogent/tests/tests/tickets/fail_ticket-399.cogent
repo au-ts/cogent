@@ -1,0 +1,4 @@
+type A = { m : U32 }
+
+f : A -> (A, U32)
+f a = (a, if (0 == a.m) !a then 0 else 1)

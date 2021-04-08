@@ -1,0 +1,7 @@
+type A = { f : U32 }
+freeA : A -> ()
+
+foo : A -> U32
+foo a = let _ = freeA a
+        and x = a.f !a
+         in x
