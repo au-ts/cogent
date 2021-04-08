@@ -102,7 +102,7 @@ fun valRel_fun :: "(funtyp,'b) vabsfuns \<Rightarrow> ('x \<Rightarrow> 'y) \<Ri
   "valRel_fun \<xi> f f' =
 ((\<exists>e ts ls. f' = VFunction e ts ls \<and>
           (\<forall>x x' v'. valRel \<xi> x x' \<longrightarrow> (\<xi>, [x'] \<turnstile> specialise ls ts e \<Down> v') \<longrightarrow> valRel \<xi> (f x) v')) \<or>
-  (\<exists>afun ts. f' = VAFunction afun ts \<and> (\<forall>x x' v'. valRel \<xi> x x' \<longrightarrow> \<xi> afun x' v' \<longrightarrow> valRel \<xi> (f x) v')))"
+  (\<exists>afun ts ls. f' = VAFunction afun ts ls \<and> (\<forall>x x' v'. valRel \<xi> x x' \<longrightarrow> \<xi> afun x' v' \<longrightarrow> valRel \<xi> (f x) v')))"
 
 end
 

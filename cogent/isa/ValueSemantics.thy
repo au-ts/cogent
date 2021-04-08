@@ -21,7 +21,7 @@ datatype ('f, 'a) vval = VPrim lit
                        | VRecord "('f, 'a) vval list"
                        | VAbstract "'a"
                        | VFunction "'f expr" "type list" "ptr_layout list"
-                       | VAFunction "'f" "type list"
+                       | VAFunction "'f" "type list"  "ptr_layout list"
                        | VUnit
 
 (* All polymorphic instantiations must have the _same_ value semantics. This means even if the C
@@ -64,9 +64,9 @@ where
 
 | v_sem_fun     : "\<xi> , \<gamma> \<turnstile> Fun f ts ls \<Down> VFunction f ts ls"
 
-| v_sem_afun     : "\<xi> , \<gamma> \<turnstile> AFun f ts \<Down> VAFunction f ts"
+| v_sem_afun     : "\<xi> , \<gamma> \<turnstile> AFun f ts ls \<Down> VAFunction f ts ls"
 
-| v_sem_abs_app : "\<lbrakk> \<xi> , \<gamma> \<turnstile> x \<Down> VAFunction f ts
+| v_sem_abs_app : "\<lbrakk> \<xi> , \<gamma> \<turnstile> x \<Down> VAFunction f ts ls
                    ; \<xi> , \<gamma> \<turnstile> y \<Down> a
                    ; \<xi> f a r
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (App x y) \<Down> r"
@@ -143,7 +143,7 @@ where
 
 inductive_cases v_sem_varE  [elim] : "\<xi> , \<gamma> \<turnstile> Var i \<Down> v"
 inductive_cases v_sem_funE  [elim] : "\<xi> , \<gamma> \<turnstile> Fun f ts ls \<Down> v"
-inductive_cases v_sem_afunE [elim] : "\<xi> , \<gamma> \<turnstile> AFun f ts \<Down> v"
+inductive_cases v_sem_afunE [elim] : "\<xi> , \<gamma> \<turnstile> AFun f ts ls \<Down> v"
 inductive_cases v_sem_appE  [elim] : "\<xi> , \<gamma> \<turnstile> App a b \<Down> v"
 
 
@@ -192,12 +192,12 @@ and vval_typing_record :: "('f \<Rightarrow> poly_type) \<Rightarrow> ('f, 'a) v
   These rules still associate values with a concrete type constructor (TFun), which makes reasoning about canonical forms trivial.
 *)
 
-| v_t_afun     : "\<lbrakk> \<Xi> f = (ks, a, b)
+| v_t_afun     : "\<lbrakk> \<Xi> f = (nl, ks, cs, a, b)
                  
-                  ; 0, [], {} \<turnstile> [], ts :s 0, ks, {}
-                  ; 0, ks, {} \<turnstile> TFun a b wellformed
-                  ; 0, [], {} \<turnstile> TFun (instantiate [] ts a) (instantiate [] ts b) \<sqsubseteq> TFun t' u'
-                  \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile> VAFunction f ts :v TFun t' u'"
+                  ; 0, [], {} \<turnstile> ls, ts :s nl, ks, cs
+                  ; nl, ks, cs \<turnstile> TFun a b wellformed
+                  ; 0, [], {} \<turnstile> TFun (instantiate ls ts a) (instantiate ls ts b) \<sqsubseteq> TFun t' u'
+                  \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile> VAFunction f ts ls :v TFun t' u'"
 
 
 | v_t_function : "\<lbrakk> \<Xi> , L, K, C, [ Some t ] \<turnstile> f : u
@@ -223,7 +223,7 @@ shows   "\<Xi> \<turnstile> VPrim l :v TPrim \<tau>"
 using assms by (auto intro: v_t_prim)
 
 inductive_cases v_t_funE      [elim]: "\<Xi> \<turnstile> VFunction f ts ls :v t"
-inductive_cases v_t_afunE     [elim]: "\<Xi> \<turnstile> VAFunction f ts :v t"
+inductive_cases v_t_afunE     [elim]: "\<Xi> \<turnstile> VAFunction f ts ls :v t"
 inductive_cases v_t_recordE   [elim]: "\<Xi> \<turnstile> VRecord fs :v \<tau>"
 inductive_cases v_t_productE  [elim]: "\<Xi> \<turnstile> VProduct a b :v \<tau>"
 inductive_cases v_t_sumE'     [elim]: "\<Xi> \<turnstile> e :v TSum ts"
@@ -245,11 +245,11 @@ lemmas matches_Cons = list_all2_Cons[where P="(\<lambda>x m. \<forall>\<tau>. m 
 
 definition proc_env_matches :: "('f \<Rightarrow> ('f, 'a) vval \<Rightarrow> ('f, 'a) vval \<Rightarrow> bool) \<Rightarrow> ('f \<Rightarrow> poly_type) \<Rightarrow> bool"
            ("_ matches _" [30,20] 60) where
-  "\<xi> matches \<Xi> \<equiv> (\<forall> f. let (K, \<tau>i, \<tau>o) = \<Xi> f
-                        in (\<forall> \<tau>s v v'. list_all2 (kinding 0 [] {}) \<tau>s K
-                                  \<longrightarrow> (\<Xi> \<turnstile> v  :v instantiate [] \<tau>s \<tau>i)
+  "\<xi> matches \<Xi> \<equiv> (\<forall> f. let (L, K, C, \<tau>i, \<tau>o) = \<Xi> f
+                        in (\<forall> ls \<tau>s v v'. 0, [], {} \<turnstile> ls, \<tau>s :s L, K, C
+                                  \<longrightarrow> (\<Xi> \<turnstile> v  :v instantiate ls \<tau>s \<tau>i)
                                   \<longrightarrow> \<xi> f v v'
-                                  \<longrightarrow> (\<Xi> \<turnstile> v' :v instantiate [] \<tau>s \<tau>o)))"
+                                  \<longrightarrow> (\<Xi> \<turnstile> v' :v instantiate ls \<tau>s \<tau>o)))"
 
 section {* vval_typing lemmas *}
 
@@ -267,7 +267,7 @@ proof (induct rule: vval_typing_vval_typing_record.inducts)
 subtyping_wellformed_preservation(1)
 instantiate_wellformed typing_to_wellformed(1)[simplified type_wellformed_pretty_def] )
     
-next case (v_t_afun \<Xi> f ks a b ts  t' u') 
+next case (v_t_afun \<Xi> f nl ks cs a b ts  t' u') 
   
   then  show ?case
     by(fastforce intro: 
@@ -547,7 +547,7 @@ next
   then show ?case
     using v_t_abstract vval_typing_vval_typing_record.v_t_abstract by blast
 next
-  case (v_t_afun \<Xi> f ks ta tb ts tfun')
+  case (v_t_afun \<Xi> f nl ks cs ta tb ts tfun')
   then obtain tx ux where "t' = TFun tx ux"
     by (auto elim: subtyping.cases)
   then show ?case
@@ -616,27 +616,27 @@ text {* An alternative introduction rule used for showing a value is a function 
 
 lemma v_t_afun_instantiate:
   assumes (* "list_all2 (kinding L' K' C') ts K" *)
-      "L', K', C' \<turnstile> [] , ts :s 0, K, {}"
+      "L', K', C' \<turnstile> ls, ts :s L, K, C"
 and    (* "list_all2 (kinding 0 [] {}) \<delta> K'" *)
        "0, [], {} \<turnstile> \<epsilon> , \<delta> :s L', K', C'"
-and     "0, K, {} \<turnstile> t wellformed"
-and     "0, K, {} \<turnstile> u wellformed"
-and     "\<Xi> f = (K, t, u)"
-shows   "\<Xi> \<turnstile> VAFunction f (map (instantiate \<epsilon> \<delta>) ts) :v TFun (instantiate \<epsilon> \<delta> (instantiate [] ts t))
-                                                           (instantiate \<epsilon> \<delta> (instantiate [] ts u))"
+and     "L, K, C \<turnstile> t wellformed"
+and     "L, K, C \<turnstile> u wellformed"
+and     "\<Xi> f = (L, K, C, t, u)"
+shows   "\<Xi> \<turnstile> VAFunction f (map (instantiate \<epsilon> \<delta>) ts) (map (instantiate_lay \<epsilon>) ls) :v TFun (instantiate \<epsilon> \<delta> (instantiate ls ts t))
+                                                           (instantiate \<epsilon> \<delta> (instantiate ls ts u))"
 proof -
   from assms
   have tfun_eq:
-      "TFun (instantiate \<epsilon> \<delta> (instantiate [] ts t))
-             (instantiate \<epsilon> \<delta> (instantiate [] ts u))
-      = TFun (instantiate (map (instantiate_lay \<epsilon>) []) (map (instantiate \<epsilon> \<delta>) ts) t)
-             (instantiate (map (instantiate_lay \<epsilon>) []) (map (instantiate \<epsilon> \<delta>) ts) u)"
+      "TFun (instantiate \<epsilon> \<delta> (instantiate ls ts t))
+             (instantiate \<epsilon> \<delta> (instantiate ls ts u))
+      = TFun (instantiate (map (instantiate_lay \<epsilon>) ls) (map (instantiate \<epsilon> \<delta>) ts) t)
+             (instantiate (map (instantiate_lay \<epsilon>) ls) (map (instantiate \<epsilon> \<delta>) ts) u)"
 
 by (fastforce intro: instantiate_instantiate simp add:subst_wellformed_def dest: list_all2_lengthD)
 (*
   have tfun_sub:
     "0, [], {} \<turnstile> TFun (instantiate (map (instantiate_lay \<epsilon>) []) (map (instantiate \<epsilon> \<delta>) ts) t) (instantiate (map (instantiate_lay \<epsilon>) []) (map (instantiate \<epsilon> \<delta>) ts) u)
-        \<sqsubseteq> TFun (instantiate \<epsilon> \<delta> (instantiate [] ts t)) (instantiate \<epsilon> \<delta> (instantiate [] ts u))"
+        \<sqsubseteq> TFun (instantiate \<epsilon> \<delta> (instantiate ls ts t)) (instantiate \<epsilon> \<delta> (instantiate ls ts u))"
     using assms tfun_eq
     by (metis (mono_tags, lifting) (* list_all2_substitutivity *) specialisation_subtyping subty_tfun subtyping_refl)
 *)
@@ -827,11 +827,11 @@ using assms by (auto intro: matches_proj' simp: instantiate_ctx_def)
 section {* procedure environment matches *}
 lemma proc_env_matches_abstract:
 assumes "\<xi> matches \<Xi>"
-and     "\<Xi> f = (K, \<tau>i, \<tau>o)"
-and     "0, [], {} \<turnstile> [], \<tau>s :s 0, K, {}"
-and     "\<Xi> \<turnstile> v    :v instantiate [] \<tau>s \<tau>i"
+and     "\<Xi> f = (L, K, C, \<tau>i, \<tau>o)"
+and     "0, [], {} \<turnstile> ls, \<tau>s :s L, K, C"
+and     "\<Xi> \<turnstile> v    :v instantiate ls \<tau>s \<tau>i"
 and     "\<xi> f v v'"
-shows   "\<Xi> \<turnstile> v' :v instantiate [] \<tau>s \<tau>o"
+shows   "\<Xi> \<turnstile> v' :v instantiate ls \<tau>s \<tau>o"
   using assms 
   by ( clarsimp simp: proc_env_matches_def subst_wellformed_def
                , drule_tac x = f in spec
@@ -904,15 +904,12 @@ next case v_sem_cast    then show ?case by ( case_tac e, simp_all
                                            , fastforce elim!: upcast_valid_cast_to)
 next case v_sem_afun    then show ?case 
     apply ( case_tac e, simp_all)
-    apply( fastforce intro: v_t_afun_instantiate simp add: kinding_simps)
+    apply(fastforce intro: v_t_afun_instantiate)
     done
-
 next case v_sem_fun     then show ?case 
-    apply ( case_tac e, simp_all)
-
+    apply ( case_tac e, simp_all)  
     apply(fastforce intro: v_t_function_instantiate)
     done
-
 next case (v_sem_con \<xi> \<gamma> x_spec x' ts_inst tag)
   then show ?case
   proof (cases e)
@@ -1195,7 +1192,7 @@ next case (v_sem_app \<xi> \<gamma> x ea ts ls y a r e \<epsilon> \<tau>s L K C)
     using app_elims e_def v_sem_app vfun_ty_elims vres_ty_sub
     by (metis subtyping_simps(4) value_subtyping(1))
 
-next case (v_sem_abs_app \<xi> \<gamma> x f ts y a r)
+next case (v_sem_abs_app \<xi> \<gamma> x f ts ls y a r)
   obtain efun earg where e_def: "e = App efun earg"
       "x = specialise \<epsilon> \<tau>s efun"
       "y = specialise \<epsilon> \<tau>s earg"
@@ -1207,7 +1204,7 @@ next case (v_sem_abs_app \<xi> \<gamma> x f ts y a r)
     "\<Xi>, L, K, C, \<Gamma>2 \<turnstile> earg : targ"
     using v_sem_abs_app e_def by blast
 
-  have vafun_ty: "\<Xi> \<turnstile> VAFunction f ts :v instantiate \<epsilon> \<tau>s (TFun targ \<tau>)"
+  have vafun_ty: "\<Xi> \<turnstile> VAFunction f ts ls :v instantiate \<epsilon> \<tau>s (TFun targ \<tau>)"
     using app_elims e_def v_sem_abs_app matches_split
     by fast
 
@@ -1215,16 +1212,17 @@ next case (v_sem_abs_app \<xi> \<gamma> x f ts y a r)
     using app_elims e_def v_sem_abs_app matches_split
     by fast
 
-  obtain ks t u t' u' where vafun_ty_elims:
+  obtain nl ks cs t u t' u' where vafun_ty_elims:
       "instantiate \<epsilon> \<tau>s (TFun targ \<tau>) = TFun t' u'"
-      "\<Xi> f = (ks, t, u)"
-"0, [], {} \<turnstile> [], ts :s 0, ks, {}"
+      "\<Xi> f = (nl, ks, cs, t, u)"
+      "0, [], {} \<turnstile> ls, ts :s nl, ks, cs"
 (*      "list_all2 (kinding []) ts ks" *)
-      "0, ks, {} \<turnstile> TFun t u wellformed"
-      "0, [], {} \<turnstile> TFun (instantiate [] ts t) (instantiate [] ts u) \<sqsubseteq> TFun t' u'"
-    using vafun_ty by (auto elim: vval_typing.cases)
+      "nl, ks, cs \<turnstile> TFun t u wellformed"
+      "0, [], {} \<turnstile> TFun (instantiate ls ts t) (instantiate ls ts u) \<sqsubseteq> TFun t' u'"
+    using vafun_ty 
+    by (auto elim: vval_typing.cases)
 
-  have vres_ty_sub: "\<Xi> \<turnstile> r :v instantiate [] ts u"
+  have vres_ty_sub: "\<Xi> \<turnstile> r :v instantiate ls ts u"
     using vafun_ty_elims varg_ty v_sem_abs_app
     using subtyping_simps(4) value_subtyping(1)  instantiate.simps(4) proc_env_matches_abstract
 (* TODO: speedup *)
@@ -1253,8 +1251,8 @@ qed
 lemma order_sum_list: "x \<in> set es \<Longrightarrow> x < Suc (sum_list es)"
   by (simp add: le_imp_less_Suc member_le_sum_list)
 
-function monoexpr :: "'f expr \<Rightarrow> ('f \<times> type list) expr" where
-  "monoexpr (AFun f ts)       = AFun (f, ts) []"
+function monoexpr :: "'f expr \<Rightarrow> ('f \<times> type list \<times> ptr_layout list) expr" where
+  "monoexpr (AFun f ts ls)    = AFun (f, ts, ls) [] []"
 | "monoexpr (Fun f ts ls)     = Fun (monoexpr (specialise ls ts f)) [] []"
 | "monoexpr (Var i)           = Var i"
 | "monoexpr (Prim p es)       = Prim p (map (monoexpr) es)"
@@ -1280,18 +1278,18 @@ function monoexpr :: "'f expr \<Rightarrow> ('f \<times> type list) expr" where
              by (case_tac x, auto)
 termination by (relation "measure expr_size", (simp add: order_sum_list)+)
 
-fun monoval :: "('f, 'a) vval \<Rightarrow> ('f \<times> type list, 'a) vval"
+fun monoval :: "('f, 'a) vval \<Rightarrow> ('f \<times> type list \<times> ptr_layout list, 'a) vval"
 where "monoval (VPrim lit) = VPrim lit"
     | "monoval (VProduct t u) = VProduct (monoval t) (monoval u)"
     | "monoval (VSum name v) = VSum name (monoval v)"
     | "monoval (VRecord vs) = VRecord (map monoval vs)"
     | "monoval (VAbstract t) = VAbstract t"
-    | "monoval (VAFunction f ts) = VAFunction (f, ts) []"
+    | "monoval (VAFunction f ts ls) = VAFunction (f, ts, ls) [] []"
     | "monoval (VFunction f ts ls) = VFunction (monoexpr (specialise ls ts f)) [] []"
     | "monoval VUnit = VUnit"
 
 
-definition monoprog :: "('f, 'a) vabsfuns \<Rightarrow> (('f \<times> type list), 'a) vabsfuns \<Rightarrow> bool"
+definition monoprog :: "('f, 'a) vabsfuns \<Rightarrow> (('f \<times> type list \<times> ptr_layout list), 'a) vabsfuns \<Rightarrow> bool"
 where "monoprog \<xi> \<xi>' \<equiv> \<forall>f \<tau>s. (\<forall>v v'. \<xi> f v v' \<longleftrightarrow> \<xi>' (f, \<tau>s) (monoval v) (monoval v'))"
 
 lemma member_nth_map: "f < length fs \<Longrightarrow> \<xi>', map monoval \<gamma> \<turnstile> Member (monoexpr e) f \<Down> monoval (fs ! f) =  \<xi>' , map monoval \<gamma> \<turnstile> Member (monoexpr e) f \<Down> (map monoval fs) ! f"

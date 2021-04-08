@@ -82,7 +82,11 @@ fun check_function_order functions max_order ctxt = let
                val fT = Proof_Context.get_thm ctxt (f ^ "_type_def")
                         |> Simplifier.rewrite_rule ctxt type_abbrevs
                         |> Thm.prop_of |> rhs_of_eq
-               val fArgT = HOLogic.dest_prod fT |> snd |> HOLogic.dest_prod |> fst
+               val fArgT = fT 
+                         |> HOLogic.dest_prod |> snd 
+                         |> HOLogic.dest_prod |> snd 
+                         |> HOLogic.dest_prod |> snd
+                         |> HOLogic.dest_prod |> fst
                val ord = Cogent_function_order fArgT
                in if ord <= max_order then [] else [(f, ord)] end)
      |> map (fn (f, ord) => "Not supported: function " ^ f ^ " is order-" ^ string_of_int ord ^

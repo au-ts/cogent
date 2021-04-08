@@ -909,9 +909,9 @@ fun funtype_is_first_order (funtype:term) =
 (* scrape all direct function calls *)
 val get_simple_function_calls = let
   fun search (Const (@{const_name App}, _) $
-        (Const (@{const_name Fun}, _) $ Const (callee, _) $ _) $ _) = [Long_Name.base_name callee]
+        (Const (@{const_name Fun}, _) $ Const (callee, _) $ _ $ _) $ _) = [Long_Name.base_name callee]
     | search (Const (@{const_name App}, _) $
-        (Const (@{const_name AFun}, _) $ callee $ _) $ _) = [Utils.decode_isa_string callee]
+        (Const (@{const_name AFun}, _) $ callee $ _ $ _) $ _) = [Utils.decode_isa_string callee]
     | search (f $ x) = search f @ search x
     | search _ = []
   in search end
@@ -1045,13 +1045,13 @@ fun generate_HO_absfun_corres (xi:term) ctxt (fname:string) (callees:(term * str
   val cfun = Syntax.read_term ctxt (fname ^ "'")
   val prop = if isAutoCorresFunRec ctxt fname
     then @{mk_term "\<lbrakk> i < length \<gamma>; val_rel (\<gamma> ! i) v'; \<Gamma> ! i = Some (fst (snd (?Xi ?fname))); m \<ge> ?min_m \<rbrakk> \<Longrightarrow>
-                    ?corres ?state_rel (App (AFun ?fname []) (Var i))
+                    ?corres ?state_rel (App (AFun ?fname [] []) (Var i))
                             (do x \<leftarrow> ?cfun m v'; gets (\<lambda>s. x) od) ?xi \<gamma> ?Xi \<Gamma> \<sigma> s"
                (corres, Xi, state_rel, fname, xi, cfun, min_m)}
                (corres, Xi, state_rel, Utils.encode_isa_string fname, xi, cfun,
                 Int.toString min_measure |> Syntax.read_term ctxt)
     else @{mk_term "\<lbrakk> i < length \<gamma>; val_rel (\<gamma> ! i) v'; \<Gamma> ! i = Some (fst (snd (?Xi ?fname))) \<rbrakk> \<Longrightarrow>
-                    ?corres ?state_rel (App (AFun ?fname []) (Var i))
+                    ?corres ?state_rel (App (AFun ?fname [] []) (Var i))
                             (do x \<leftarrow> ?cfun v'; gets (\<lambda>s. x) od) ?xi \<gamma> ?Xi \<Gamma> \<sigma> s"
                (corres, Xi, state_rel, fname, xi, cfun)}
                (corres, Xi, state_rel, Utils.encode_isa_string fname, xi, cfun)
@@ -1081,13 +1081,13 @@ fun make_FO_fun_corres_prop xi_index ctxt fname min_measure = let
   val cfun = read (fname ^ "'")
   val prop = if isAutoCorresFunRec ctxt fname
     then @{mk_term "\<And>a a' \<sigma> s m. val_rel a a' \<Longrightarrow> m \<ge> ?min_m \<Longrightarrow>
-                   ?corres ?state_rel ?cogent (?cfun m a') ?\<xi> [a] ?\<Xi> [Some (fst (snd ?cogent_type))] \<sigma> s"
+                   ?corres ?state_rel ?cogent (?cfun m a') ?\<xi> [a] ?\<Xi> [Some (fst (snd (snd (snd ?cogent_type))))] \<sigma> s"
                (corres, state_rel, cogent, cfun, \<xi>, \<Xi>, cogent_type, min_m)}
                (read "corres", read "state_rel", read fname, cfun,
                 read ("\<xi>_" ^ Int.toString xi_index), Xi, read (fname ^ "_type"),
                 Int.toString min_measure |> Syntax.read_term ctxt)
     else @{mk_term "\<And>a a' \<sigma> s. val_rel a a' \<Longrightarrow>
-                   ?corres ?state_rel ?cogent (?cfun a') ?\<xi> [a] ?\<Xi> [Some (fst (snd ?cogent_type))] \<sigma> s"
+                   ?corres ?state_rel ?cogent (?cfun a') ?\<xi> [a] ?\<Xi> [Some (fst (snd (snd (snd ?cogent_type))))] \<sigma> s"
                (corres, state_rel, cogent, cfun, \<xi>, \<Xi>, cogent_type)}
                (read "corres", read "state_rel", read fname, cfun,
                 read ("\<xi>_" ^ Int.toString xi_index), Xi, read (fname ^ "_type"))

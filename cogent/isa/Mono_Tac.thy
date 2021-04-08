@@ -40,7 +40,7 @@ fun gen_mono_rename
   in if null assocs
      then Local_Theory.define ((Binding.name mapping_name, NoSyn),
                               ((Thm.def_binding (Binding.name mapping_name), []),
-                                @{term "(\<lambda>_. []) :: (string \<times> type list) \<Rightarrow> string"})) #> snd
+                                @{term "(\<lambda>_. []) :: (string \<times> type list \<times> ptr_layout list) \<Rightarrow> string"})) #> snd
      else AssocLookup.make_assoc_fun assocs @{term "[] :: string"}
              mapping_name (replicate (length assocs) (mapping_name ^ "_simps"))
   end

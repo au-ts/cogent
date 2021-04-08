@@ -275,7 +275,10 @@ data UntypedExpr t v a b = E  (Expr t v a b UntypedExpr) deriving (Show, Eq, Ord
 data TypedExpr   t v a b = TE { exprType :: Type t b , exprExpr :: Expr t v a b TypedExpr }
                          deriving (Show, Eq, Ord)
 
-data FunctionType b = forall t l. FT (Vec t Kind) (Vec l (Type t b)) (Type t b) (Type t b)
+data FunctionType b = forall t l. FT 
+        (Vec t Kind) -- Int [(DataLayout, Type t b)] 
+         (Vec l (Type t b)) -- layout types
+        (Type t b) (Type t b)
 deriving instance Show a => Show (FunctionType a)
 
 data Attr = Attr { inlineDef :: Bool, fnMacro :: Bool } deriving (Eq, Ord, Show, Generic)

@@ -19,7 +19,7 @@ module Cogent.Isabelle.Deep where
 import Cogent.Common.Syntax as CS
 import Cogent.Common.Types
 import Cogent.Dargent.Core (DataLayout)
-import Cogent.Dargent.Allocation (BitRange)
+import Cogent.Dargent.Allocation (BitRange(..))
 import Cogent.Compiler
 import Cogent.Core as CC
 import Cogent.Isabelle.IsabelleName
@@ -27,6 +27,8 @@ import Cogent.Isabelle.Shallow (snm)
 import Cogent.Util (NameMod, Stage(..))
 import Data.Fin (Fin, finInt)
 import Data.Vec (cvtToList)
+import qualified Data.Vec as Vec
+import Data.Nat as Nat
 import Isabelle.ExprTH
 import Isabelle.InnerAST as I
 import Isabelle.OuterAST as O
@@ -56,7 +58,25 @@ deepDataLayout CLayout = mkId "None"
 deepDataLayout (Layout l) = mkApp (mkId "Some") [deepDataLayout' l]
 
 deepDataLayout' :: DataLayout' BitRange -> Term
-deepDataLayout' _ = mkId "undefined"
+deepDataLayout' UnitLayout = deepBitRange (BitRange 0 0)
+deepDataLayout' (PrimLayout b) = mkApp (mkId "LayBitRange") [deepBitRange b]
+deepDataLayout' (RecordLayout fs) = 
+  mkApp (mkId "LayRecord") $
+    map (\ (name, d) -> mkTuple [mkId name, deepDataLayout' d]) 
+    $ Map.toList fs
+deepDataLayout' (SumLayout tag alts) = 
+  mkApp (mkId "LayVariant") [ deepBitRange tag ,
+     mkList $ map (\ (name, (t, l)) -> 
+            mkTuple [mkId name, mkInt t, deepDataLayout' l]
+         ) $ Map.toList alts
+     ] 
+deepDataLayout' (VarLayout v offset) = mkApp (mkId "LayVar") [mkInt (toInteger (Nat.natToInt v)), mkInt offset]
+#ifdef BUILTIN_ARRAYS
+deepDataLayout' (ArrayLayout _) = mkId "undefined"
+#endif
+
+deepBitRange :: BitRange -> Term
+deepBitRange (BitRange size offset) = mkTuple [mkInt size, mkInt offset]
 
 type TypeAbbrevs = (Map.Map Term Int, Int)
 
@@ -205,8 +225,11 @@ deepKind :: Kind -> Term
 deepKind (K e s d) = ListTerm "{" [ mkId str | (sig, str) <- [(e, "E"), (s, "S"), (d, "D")], sig ] "}"
 
 deepPolyType :: (Ord b, Pretty b) => NameMod -> TypeAbbrevs -> FunctionType b -> Term
-deepPolyType mod ta (FT ks ts ti to) = mkPair (mkList $ map deepKind $ cvtToList ks)  -- FIXME
-                                              (mkPair (deepType mod ta ti) (deepType mod ta to))
+deepPolyType mod ta (FT ks ts ti to) = mkTuple [mkInt $ toInteger $ Nat.toInt $ Vec.length ts,
+                                                mkList $ map deepKind $ cvtToList ks,  -- FIXME
+                                                ListTerm "{" [] "}",  
+                                                deepType mod ta ti,
+                                                deepType mod ta to]
 
 imports :: TheoryImports
 imports = TheoryImports $ ["Cogent.Cogent"]
@@ -223,7 +246,8 @@ deepDefinition mod ta defs (FunDef _ fn ks ts ti to e) decls =
       tn = case editIsabelleName (mkIsabelleName fn) (++ "_type")  of
             Just n  -> unIsabelleName n
             Nothing -> error ("Error - unable to generate name for isabelle function '" ++ fn ++ "'")
-      tysig = [isaType| Cogent.kind list \<times> Cogent.type \<times> Cogent.type |]
+      tysig = [isaType| poly_type |]
+       -- Cogent.kind list \<times> Cogent.type \<times> Cogent.type |]
       tydecl = [isaDecl| definition $tn :: "$tysig" where "$(mkId tn) \<equiv> $ty" |]
       e' = deepExpr mod ta defs e
       fntysig = AntiType "string Cogent.expr"

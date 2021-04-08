@@ -76,11 +76,11 @@ and upd_val_rel_record :: "('f \<Rightarrow> poly_type)
                   ; 0, [], {} \<turnstile> TFun (instantiate ls ts a) (instantiate ls ts b) \<sqsubseteq> TFun a' b'
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UFunction f ts ls \<sim> VFunction f ts ls : TFun a' b' \<langle>{}, {}\<rangle>"
 
-| u_v_afun     : "\<lbrakk> \<Xi> f = (ks, a, b)
-                  ; 0, [], {} \<turnstile> [], ts :s 0, ks, {}
-                  ; 0, ks, {} \<turnstile> TFun a b wellformed
-                  ; 0, [], {} \<turnstile> TFun (instantiate [] ts a) (instantiate [] ts b) \<sqsubseteq> TFun a' b'
-                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UAFunction f ts \<sim> VAFunction f ts : TFun a' b' \<langle>{}, {}\<rangle>"
+| u_v_afun     : "\<lbrakk> \<Xi> f = (nl, ks, cs, a, b)
+                  ; 0, [], {} \<turnstile> ls, ts :s nl, ks, cs
+                  ; nl, ks, cs \<turnstile> TFun a b wellformed
+                  ; 0, [], {} \<turnstile> TFun (instantiate ls ts a) (instantiate ls ts b) \<sqsubseteq> TFun a' b'
+                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UAFunction f ts ls \<sim> VAFunction f ts ls : TFun a' b' \<langle>{}, {}\<rangle>"
 
 | u_v_unit     : "\<Xi>, \<sigma> \<turnstile> UUnit \<sim> VUnit : TUnit \<langle>{}, {}\<rangle>"
 
@@ -171,7 +171,7 @@ lemma u_v_prim' : "\<tau> = lit_type l \<Longrightarrow> l = l' \<Longrightarrow
 
 inductive_cases u_v_primE     [elim] : "\<Xi>, \<sigma> \<turnstile> UPrim l \<sim> VPrim l' : TPrim \<tau> \<langle>r, w\<rangle>"
 inductive_cases u_v_functionE [elim] : "\<Xi>, \<sigma> \<turnstile> UFunction f ts ls \<sim> VFunction f' ts' ls' : TFun \<tau> \<rho> \<langle>r, w\<rangle>"
-inductive_cases u_v_afunE     [elim] : "\<Xi>, \<sigma> \<turnstile> UAFunction f ts \<sim> VAFunction f' ts' : TFun \<tau> \<rho> \<langle>r, w\<rangle>"
+inductive_cases u_v_afunE     [elim] : "\<Xi>, \<sigma> \<turnstile> UAFunction f ts ls \<sim> VAFunction f' ts' ls' : TFun \<tau> \<rho> \<langle>r, w\<rangle>"
 inductive_cases u_v_sumE      [elim] : "\<Xi>, \<sigma> \<turnstile> u \<sim> v : TSum \<tau>s \<langle>r, w\<rangle>"
 inductive_cases u_v_productE  [elim] : "\<Xi>, \<sigma> \<turnstile> UProduct a b \<sim> VProduct a' b' : TProduct \<tau> \<rho> \<langle>r, w\<rangle>"
 inductive_cases u_v_recE      [elim] : "\<Xi>, \<sigma> \<turnstile> URecord fs \<sim> VRecord fs' : \<tau> \<langle>r, w\<rangle>"
@@ -280,13 +280,13 @@ definition proc_env_u_v_matches :: "(('f, 'au, 'l) uabsfuns)
                                   \<Rightarrow> bool"
            ("_ \<sim> _ matches-u-v _" [30,20] 60) where
   "\<xi> \<sim> \<xi>' matches-u-v \<Xi>
-          \<equiv> (\<forall> f. let (K, \<tau>i, \<tau>o) = \<Xi> f
-                  in (\<forall> \<sigma> \<sigma>' \<tau>s a a' v v' r w.
-                         list_all2 (kinding 0 [] {}) \<tau>s K
-                      \<longrightarrow> (\<Xi> , \<sigma> \<turnstile> a \<sim> a' : instantiate [] \<tau>s \<tau>i \<langle>r, w\<rangle>)
+          \<equiv> (\<forall> f. let (L, K, C, \<tau>i, \<tau>o) = \<Xi> f
+                  in (\<forall> \<sigma> \<sigma>' ls \<tau>s a a' v v' r w.
+                          0, [], {} \<turnstile> ls, \<tau>s :s L, K, C
+                      \<longrightarrow> (\<Xi> , \<sigma> \<turnstile> a \<sim> a' : instantiate ls \<tau>s \<tau>i \<langle>r, w\<rangle>)
                       \<longrightarrow> \<xi> f (\<sigma>, a) (\<sigma>', v)
                       \<longrightarrow> (\<xi>' f a' v'
-                           \<longrightarrow> (\<exists>r' w'. (\<Xi> , \<sigma>' \<turnstile> v \<sim> v' : instantiate [] \<tau>s \<tau>o \<langle>r', w'\<rangle>)
+                           \<longrightarrow> (\<exists>r' w'. (\<Xi> , \<sigma>' \<turnstile> v \<sim> v' : instantiate ls \<tau>s \<tau>o \<langle>r', w'\<rangle>)
                                     \<and> r' \<subseteq> r \<and> upd.frame \<sigma> w \<sigma>' w'))
                        \<and> (\<exists> v'. \<xi>' f a' v')))"
 
@@ -506,28 +506,28 @@ qed
 
 lemma u_v_afun_instantiate:
   assumes (* "list_all2 (kinding K') ts K" *)
- "L', K', C' \<turnstile> [] , ts :s 0, K, {}"
+ "L', K', C' \<turnstile> ls, ts :s L, K, C"
 and     (* "list_all2 (kinding []) \<delta> K'" *)
 "0, [], {} \<turnstile> \<epsilon> , \<delta> :s L', K', C'"
-and     "0, K, {} \<turnstile> t wellformed"
-and     "0, K, {} \<turnstile> u wellformed"
-and     "\<Xi> f = (K, t, u)"
-shows   "\<Xi>, \<sigma> \<turnstile> UAFunction f (map (instantiate \<epsilon> \<delta>) ts) 
-              \<sim> VAFunction f (map (instantiate \<epsilon> \<delta>) ts) 
-                 : TFun (instantiate \<epsilon> \<delta> (instantiate [] ts t))
-                                                            (instantiate \<epsilon> \<delta> (instantiate [] ts u)) \<langle>{}, {}\<rangle>"
+and     "L, K, C \<turnstile> t wellformed"
+and     "L, K, C \<turnstile> u wellformed"
+and     "\<Xi> f = (L, K, C, t, u)"
+shows   "\<Xi>, \<sigma> \<turnstile> UAFunction f (map (instantiate \<epsilon> \<delta>) ts)  (map (instantiate_lay \<epsilon>) ls)
+              \<sim> VAFunction f (map (instantiate \<epsilon> \<delta>) ts)  (map (instantiate_lay \<epsilon>) ls)
+                 : TFun (instantiate \<epsilon> \<delta> (instantiate ls ts t))
+                                                            (instantiate \<epsilon> \<delta> (instantiate ls ts u)) \<langle>{}, {}\<rangle>"
 proof -
   from assms have tfun_eq:
-    "TFun (instantiate \<epsilon> \<delta> (instantiate [] ts t))
-          (instantiate \<epsilon> \<delta> (instantiate [] ts u))
-   = TFun (instantiate  (map (instantiate_lay \<epsilon>) []) (map (instantiate \<epsilon> \<delta>) ts) t)
-          (instantiate  (map (instantiate_lay \<epsilon>) []) (map (instantiate \<epsilon> \<delta>) ts) u)"
+    "TFun (instantiate \<epsilon> \<delta> (instantiate ls ts t))
+          (instantiate \<epsilon> \<delta> (instantiate ls ts u))
+   = TFun (instantiate  (map (instantiate_lay \<epsilon>) ls) (map (instantiate \<epsilon> \<delta>) ts) t)
+          (instantiate  (map (instantiate_lay \<epsilon>) ls) (map (instantiate \<epsilon> \<delta>) ts) u)"
 by (fastforce intro: instantiate_instantiate simp add:subst_wellformed_def dest: list_all2_lengthD)
 
 (*
   have tfun_sub:
     "0, [], {} \<turnstile> TFun (instantiate  (map (instantiate_lay \<epsilon>) []) (map (instantiate \<epsilon> \<delta>) ts) t) (instantiate  (map (instantiate_lay \<epsilon>) []) (map (instantiate \<epsilon> \<delta>) ts) u)
-        \<sqsubseteq> TFun (instantiate \<epsilon>      \<delta> (instantiate [] ts t)) (instantiate   \<epsilon>    \<delta> (instantiate [] ts u))"
+        \<sqsubseteq> TFun (instantiate \<epsilon>      \<delta> (instantiate ls ts t)) (instantiate   \<epsilon>    \<delta> (instantiate ls ts u))"
     using assms tfun_eq
     by (metis (mono_tags, lifting) list_all2_substitutivity specialisation_subtyping subty_tfun subtyping_refl)
 *)
@@ -951,13 +951,13 @@ section {* procedure environment matches *}
 
 lemma proc_env_u_v_matches_abstract:
 assumes "\<xi> \<sim> \<xi>' matches-u-v \<Xi>"
-and     "\<Xi> f = (K, \<tau>i, \<tau>o)"
-and     "0, [], {} \<turnstile> [], \<tau>s :s 0, K, {}"
-and     "\<Xi> , \<sigma> \<turnstile> a \<sim> a'   : instantiate [] \<tau>s \<tau>i \<langle>r, w\<rangle>"
+and     "\<Xi> f = (L, K, C, \<tau>i, \<tau>o)"
+and     "0, [], {} \<turnstile> ls, \<tau>s :s L, K, C"
+and     "\<Xi> , \<sigma> \<turnstile> a \<sim> a'   : instantiate ls \<tau>s \<tau>i \<langle>r, w\<rangle>"
 and     "\<xi> f (\<sigma>, a) (\<sigma>', v)"
 and     "\<xi>' f a' v'"
 shows   "\<exists>r' w'.
-             \<Xi> , \<sigma>' \<turnstile> v \<sim> v' : instantiate [] \<tau>s \<tau>o \<langle>r', w'\<rangle>
+             \<Xi> , \<sigma>' \<turnstile> v \<sim> v' : instantiate ls \<tau>s \<tau>o \<langle>r', w'\<rangle>
             \<and> r' \<subseteq> r \<and> upd.frame \<sigma> w \<sigma>' w'"
   using assms 
   by ( clarsimp simp: proc_env_u_v_matches_def 
@@ -1334,7 +1334,7 @@ next
     apply simp+
     using subty_tfun subtyping_trans by blast
 next
-  case (u_v_afun \<Xi> f ks a b ts a' b' \<sigma>)
+  case (u_v_afun \<Xi> f nl ks cs a b ts a' b' \<sigma>)
   then show ?case
     apply -
     apply (erule subtyping.cases; clarsimp)
@@ -1550,7 +1550,7 @@ next case (u_sem_app \<xi> \<gamma> \<sigma> x \<sigma>' f ts y \<sigma>'' a)
                           dest:   upd.frame_app [where w' = "{}", simplified])
     by blast
 
-next case (u_sem_abs_app \<xi> \<gamma> \<sigma> x \<sigma>' f ts y \<sigma>'' a \<sigma>''' ra)
+next case (u_sem_abs_app \<xi> \<gamma> \<sigma> x \<sigma>' f ts ls y \<sigma>'' a \<sigma>''' ra)
   note IH1  = this(2)
   and  IH2  = this(4)
   and  rest = this(1,3,5-)
@@ -1569,6 +1569,7 @@ next case (u_sem_abs_app \<xi> \<gamma> \<sigma> x \<sigma>' f ts y \<sigma>'' a
      apply (frule(5) proc_env_u_v_matches_abstract)
      apply (elim exE conjE)
      apply (rule_tac V="\<exists>r'c' \<subseteq> r'c. \<Xi>, \<sigma>''' \<turnstile> ra \<sim> v' : instantiate \<epsilon> \<tau>s \<tau> \<langle>r'c', w'a\<rangle>" in revcut_rl)
+
       apply (rule value_subtyping; fast elim: subtyping.cases)
      apply (elim exE conjE)
      apply (intro exI conjI, force, blast)

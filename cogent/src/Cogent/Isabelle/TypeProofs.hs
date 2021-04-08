@@ -38,6 +38,7 @@ import Data.Fin
 import Data.LeafTree
 import Data.Vec hiding (splitAt, length, zipWith, zip, unzip, head)
 import qualified Data.Vec as V
+import qualified Data.Nat as Nat
 
 import Control.Arrow (second)
 import Control.Monad.State.Strict
@@ -147,10 +148,14 @@ formatMLTreeFinalise name =
 
 formatTypecorrectProof :: String -> [TheoryDecl I.Type I.Term]
 formatTypecorrectProof fn =
-  let safeFn = unIsabelleName $ mkIsabelleName fn
+  let safeFn = unIsabelleName $ mkIsabelleName fn in
+  let fnType = safeFn ++ "_type"
   in [ LemmaDecl (Lemma False (Just $ TheoremDecl (Just (safeFn ++ "_typecorrect")) [])
-          [mkId $ "\\<Xi>, 0, prod.fst " ++ safeFn ++ "_type, {}, (" ++ safeFn ++ "_typetree, [Some (prod.fst (prod.snd " ++ safeFn ++ "_type))]) T\\<turnstile> " ++
-                  safeFn ++ " : prod.snd (prod.snd " ++ safeFn ++ "_type)"]
+          [mkId $ "\\<Xi>, prod.fst " ++ fnType ++ 
+                    ", prod.fst (prod.snd " ++ fnType ++
+                    "), prod.fst (prod.snd (prod.snd " ++ fnType ++ ")), (" ++ safeFn ++ 
+                    "_typetree, [Some (prod.fst (prod.snd (prod.snd (prod.snd " ++ fnType ++ "))))]) T\\<turnstile> " ++
+                  safeFn ++ " : prod.snd (prod.snd (prod.snd (prod.snd " ++ fnType ++ ")))"]
     (Proof (if __cogent_fml_typing_tree then [Method "tactic" ["\\<open> resolve_future_typecorrect @{context} " ++ safeFn ++ "_ttyping_details_future \\<close>"]]
       else [Method "simp" ["add: " ++ safeFn ++ "_type_def " ++ safeFn ++ "_def " ++
                            safeFn ++ "_typetree_def replicate_unfold"
@@ -170,19 +175,23 @@ proveSorry :: (Pretty a) => Definition TypedExpr a VarName -> State TypingSubpro
 proveSorry (FunDef _ fn k _ ti to e) = do
   mod <- use nameMod
   let safeFn = unIsabelleName $ mkIsabelleName fn
+  let fnType = safeFn ++ "_type"
   let prf = [ LemmaDecl (Lemma False (Just $ TheoremDecl (Just (mod safeFn ++ "_typecorrect")) [])
-          [mkId $ "\\<Xi>, 0, prod.fst " ++ safeFn ++ "_type, {}, (" ++ safeFn ++ "_typetree, [Some (prod.fst (prod.snd " ++ safeFn ++ "_type))]) T\\<turnstile> " ++
-                  safeFn ++ " : prod.snd (prod.snd " ++ safeFn ++ "_type)"]
+          [mkId $ "\\<Xi>, prod.fst " ++ fnType ++ ", prod.fst (prod.snd " ++ fnType ++ 
+             "), prod.fst (prod.snd (prod.snd " ++ fnType ++ ")), (" ++ safeFn ++ 
+             "_typetree, [Some (prod.fst (prod.snd (prod.snd (prod.snd " ++ fnType ++ "))))]) T\\<turnstile> " ++
+                  safeFn ++ " : prod.snd (prod.snd (prod.snd (prod.snd" ++ fnType ++ ")))"]
               (Proof [] ProofSorry)) ]
   return prf
 proveSorry _ = return []
 
 prove :: (Pretty a) => [Definition TypedExpr a VarName] -> Definition TypedExpr a VarName
       -> State TypingSubproofs ([TheoryDecl I.Type I.Term], [TheoryDecl I.Type I.Term])
-prove decls (FunDef _ fn k _ ti to e) = do
+prove decls (FunDef _ fn k l ti to e) = do
   mod <- use nameMod
   let eexpr = pushDown (Cons (Just ti) Nil) (splitEnv (Cons (Just ti) Nil) e)
-  proofSteps' <- proofSteps decls (fmap snd k) ti eexpr
+  let nl = toInteger $ Nat.toInt $ V.length l
+  proofSteps' <- proofSteps decls nl (fmap snd k) ti eexpr
   ta <- use tsTypeAbbrevs
   let typecorrect_script = formatMLProof (mod (unIsabelleName $ mkIsabelleName fn) ++ "_typecorrect_script") "hints treestep" (map show $ flattenHintTree proofSteps')
   let fn_typecorrect_proof = typecorrect_script ++ (if __cogent_fml_typing_tree then formatMLTreeGen (mod fn) else []) ++ formatTypecorrectProof (mod fn)
@@ -274,10 +283,11 @@ funTypeCase _ _ = Nothing
 funTypeEnv :: NameMod -> [Definition TypedExpr a VarName] -> [TheoryDecl I.Type I.Term]
 funTypeEnv mod fs = funTypeEnv' $ mkList $ mapMaybe (funTypeCase mod) fs
 
-funTypeEnv' upds = let unit = mkId "([], TUnit, TUnit)"
+funTypeEnv' upds = let unit = mkId "(0, [], {}, TUnit, TUnit)"
                        -- NOTE: as the isa-parser's antiQ doesn't handle terms well and it doesn't
                        -- keep parens, we have to fall back on strings / zilinc
-                       tysig = [isaType| string \<Rightarrow> Cogent.kind list \<times> Cogent.type \<times> Cogent.type |]
+                       tysig = [isaType| string \<Rightarrow> poly_type|]
+                       -- Cogent.kind list \<times> Cogent.type \<times> Cogent.type |]
                     in [[isaDecl| definition \<Xi> :: "$tysig"
                                   where "\<Xi> \<equiv> assoc_lookup $upds $unit" |]]
 

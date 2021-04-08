@@ -393,7 +393,7 @@ section {* Expressions *}
 
 datatype 'f expr = Var index
                  (* TODO: polymorphic layouts for abstract functions *)
-                 | AFun 'f  "type list"
+                 | AFun 'f  "type list" "ptr_layout list"
                  | Fun "'f expr" "type list" "ptr_layout list"
                  | Prim prim_op "'f expr list"
                  | App "'f expr" "'f expr"
@@ -503,7 +503,12 @@ datatype kind_comp
 
 type_synonym kind = "kind_comp set"
 
-type_synonym poly_type = "kind list \<comment> \<open>\<times> nat number of dargent layout variables\<close> 
+(* number of layout variables *)
+type_synonym lay_env = nat
+(* in practice, lrepr is a record *)
+type_synonym lay_constraints = "(ptr_layout \<times> lrepr) set"
+
+type_synonym poly_type = "lay_env \<times> kind list \<times> lay_constraints  
                         \<times> type \<times> type"
 
 type_synonym 'v env  = "'v list"
@@ -548,32 +553,14 @@ lemma match_repr_layout_simps:
   "\<And>p. match_repr_layout LRUnit (LayBitRange p) \<longleftrightarrow> fst p = 0"
   by (force intro: match_repr_layout.intros
       elim: match_repr_layout.cases)+
-(*
-lemma match_repr_layout_all_simps:
-  "match_repr_layout_all [] []"
-  "\<And>t l ts ls. match_repr_layout_all (t # ts) (l # ls) \<longleftrightarrow> match_repr_layout t l \<and> match_repr_layout_all ts ls"
-  by (force intro: match_repr_layout_match_repr_layout_all.intros
-      elim: match_repr_layout_all.cases)+
-*)
-(*
-lemma match_repr_layout_all_simps_list_all2:
- "match_repr_layout_all ts ls  \<longleftrightarrow>  list_all2 match_repr_layout ts ls"
-  apply rule
-   apply (rule match_repr_layout_match_repr_layout_all.inducts(2)[of _ _ "\<lambda> _ _ . True", simplified]; simp)
-  apply(induct rule: list_all2_induct; simp add:match_repr_layout_all_simps)
-  done  
-*)
 
 
-
-type_synonym lay_env = nat
 type_synonym field_types = "(char list \<times> Cogent.type \<times> record_state) list"
 (*  (fst t, f (fst (snd t)), snd (snd t) *)
 abbreviation map_field_type where
   "map_field_type f \<equiv> map (\<lambda> (n, t, b).(n, f t, b))"
 
-(* in practice, lrepr is a record *)
-type_synonym lay_constraints = "(ptr_layout \<times> lrepr) set"
+
 
 definition match_constraint :: "lay_constraints \<Rightarrow> ptr_layout \<Rightarrow> lrepr \<Rightarrow> bool"
 
@@ -668,7 +655,7 @@ definition type_wellformed_all_pretty :: "lay_env \<Rightarrow> kind env \<Right
 declare type_wellformed_all_pretty_def[simp]
 
 definition proc_ctx_wellformed :: "('f \<Rightarrow> poly_type) \<Rightarrow> bool" where
-  "proc_ctx_wellformed \<Xi> = (\<forall> f. let (K, \<tau>i, \<tau>o) = \<Xi> f in 0, K, {} \<turnstile> TFun \<tau>i \<tau>o wellformed)"
+  "proc_ctx_wellformed \<Xi> = (\<forall> f. let (L, K, C, \<tau>i, \<tau>o) = \<Xi> f in L, K, C \<turnstile> TFun \<tau>i \<tau>o wellformed)"
 
 
 fun kinding_fn :: "kind env \<Rightarrow> type \<Rightarrow> kind" where
@@ -759,7 +746,7 @@ fun instantiate :: "ptr_layout substitution \<Rightarrow> type substitution \<Ri
 fun specialise :: "ptr_layout substitution \<Rightarrow> type substitution \<Rightarrow> 'f expr \<Rightarrow> 'f expr" where
   "specialise \<epsilon> \<delta> (Var i)           = Var i"
 | "specialise \<epsilon> \<delta> (Fun f ts ls)     = Fun f (map (instantiate \<epsilon> \<delta>) ts) (map (instantiate_lay \<epsilon>) ls)"
-| "specialise \<epsilon> \<delta> (AFun f ts)       = AFun f (map (instantiate \<epsilon> \<delta>) ts)"
+| "specialise \<epsilon> \<delta> (AFun f ts ls)    = AFun f (map (instantiate \<epsilon> \<delta>) ts) (map (instantiate_lay \<epsilon>) ls)"
 | "specialise \<epsilon> \<delta> (Prim p es)       = Prim p (map (specialise \<epsilon> \<delta>) es)"
 | "specialise \<epsilon> \<delta> (App a b)         = App (specialise \<epsilon> \<delta> a) (specialise \<epsilon> \<delta> b)"
 | "specialise \<epsilon> \<delta> (Con as t e)      = Con (map (\<lambda> (c,t,b). (c, instantiate \<epsilon> \<delta> t, b)) as) t (specialise \<epsilon> \<delta> e)"
@@ -1026,13 +1013,13 @@ typing_var    : "\<lbrakk> L, K, C \<turnstile> \<Gamma> \<leadsto>w singleton (
                    ; i < length \<Gamma>
                    \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Var i : t"
 
-| typing_afun   : "\<lbrakk> \<Xi> f = (K', t, u)
-                   ; t' = instantiate [] ts t
-                   ; u' = instantiate [] ts u
+| typing_afun   : "\<lbrakk> \<Xi> f = (L', K', C', t, u)
+                   ; t' = instantiate ls ts t
+                   ; u' = instantiate ls ts u
                    ; L, K, C \<turnstile> \<Gamma> consumed
-                   ; 0, K', {} \<turnstile> TFun t u wellformed
-                   ; L, K, C \<turnstile> [], ts :s 0 , K', {}
-                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> AFun f ts : TFun t' u'"
+                   ; L', K', C' \<turnstile> TFun t u wellformed
+                   ; L, K, C \<turnstile> ls, ts :s L', K', C'
+                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> AFun f ts ls : TFun t' u'"
 
 | typing_fun    : "\<lbrakk> \<Xi>, L', K', C', [Some t] \<turnstile> f : u                 
                    ; t' = instantiate \<epsilon> \<delta> t
@@ -1180,7 +1167,7 @@ inductive_cases typing_appE    [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Ap
 inductive_cases typing_litE    [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Lit l : \<tau>"
 inductive_cases typing_slitE   [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> SLit l : \<tau>"
 inductive_cases typing_funE    [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Fun f ts ls : \<tau>"
-inductive_cases typing_afunE   [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> AFun f ts : \<tau>"
+inductive_cases typing_afunE   [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> AFun f ts ls : \<tau>"
 inductive_cases typing_ifE     [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> If c t e : \<tau>"
 inductive_cases typing_conE    [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Con ts t e : \<tau>"
 inductive_cases typing_unitE   [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Unit : \<tau>"
@@ -1207,7 +1194,7 @@ subsection {* A-normal form *}
 inductive atom ::"'f expr \<Rightarrow> bool" where
   "atom (Var x)"
 | "atom (Fun f ts ls)"
-| "atom (AFun f ts)"
+| "atom (AFun f ts ls)"
 | "atom (Prim p (map Var is))"
 | "atom (Con ts n (Var x))"
 | "atom (Struct ts (map Var is))"
@@ -1220,7 +1207,7 @@ inductive atom ::"'f expr \<Rightarrow> bool" where
 | "atom (Esac (Var x) t)"
 | "atom (App (Var a) (Var b))"
 | "atom (App (Fun f ts ls) (Var b))"
-| "atom (App (AFun f ts) (Var b))"
+| "atom (App (AFun f ts ls) (Var b))"
 | "atom (Put (Var x) f (Var y))"
 
 inductive a_normal :: "'f expr \<Rightarrow> bool" where
@@ -2870,12 +2857,11 @@ proof (induct rule: typing_typing_all.inducts)
       by clarsimp
   qed (force intro: instantiate_ctx_split)+
   then show ?case by simp
-next case (typing_afun \<Xi> f ks t u t' ts u' L K C \<Gamma>  )
-  moreover have "instantiate \<epsilon> \<delta> (instantiate [] ts t) = instantiate [] (map (instantiate \<epsilon> \<delta>) ts) t"
-    and "instantiate \<epsilon> \<delta> (instantiate [] ts u) = instantiate [] (map (instantiate \<epsilon> \<delta>) ts) u"
-    using typing_afun
-     
-    by(fastforce  intro!: instantiate_instantiate[where \<epsilon>' = "[]", simplified, rotated 1]
+next case (typing_afun \<Xi> f nl ks cs t u t' ls ts u' L K C \<Gamma>  )
+  moreover have "instantiate \<epsilon> \<delta> (instantiate ls ts t) = instantiate (map (instantiate_lay \<epsilon>) ls) (map (instantiate \<epsilon> \<delta>) ts) t"
+    and "instantiate \<epsilon> \<delta> (instantiate ls ts u) = instantiate (map (instantiate_lay \<epsilon>) ls) (map (instantiate \<epsilon> \<delta>) ts) u"
+    using typing_afun    
+    by(fastforce  intro!: instantiate_instantiate[where \<epsilon>' = "ls", simplified, rotated 1]
 simp add: list_all2_lengthD subst_wellformed_def)+
   ultimately show ?case 
     
@@ -2978,7 +2964,7 @@ fun expr_size :: "'f expr \<Rightarrow> nat" where
 | "expr_size (App a b) = Suc ((expr_size a) + (expr_size b))"
 | "expr_size (Prim p as) = Suc (sum_list (map expr_size as))"
 | "expr_size (Var v) = 0"
-| "expr_size (AFun v va) = 0"
+| "expr_size (AFun v va _) = 0"
 | "expr_size (Struct v va) = Suc (sum_list (map expr_size va))"
 | "expr_size (Lit v) = 0"
 | "expr_size (SLit s) = 0"

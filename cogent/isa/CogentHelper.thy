@@ -54,13 +54,13 @@ lemma typing_struct': "\<lbrakk> \<Xi>, L, K, C, \<Gamma> \<turnstile>* es : ts
                        \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Struct ts es : TRecord ts' Unboxed"
   by (force intro: typing_struct simp add: zip_eq_conv_sym replicate_eq_map_conv_nth list_all_length)
 
-lemma typing_afun': "\<lbrakk> \<Xi> f = (ks, t, u)
-                     ; L, K, C \<turnstile> [], ts :s 0 , ks, {}
-                     ; t' = instantiate [] ts t
-                     ; u' = instantiate [] ts u
-                     ; 0, ks, {} \<turnstile> TFun t u wellformed
+lemma typing_afun': "\<lbrakk> \<Xi> f = (nl, ks, cs, t, u)
+                     ; L, K, C \<turnstile> ls, ts :s nl, ks, cs
+                     ; t' = instantiate ls ts t
+                     ; u' = instantiate ls ts u
+                     ; nl, ks, cs \<turnstile> TFun t u wellformed
                      ; L, K, C \<turnstile> \<Gamma> consumed
-                     \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> AFun f ts : TFun t' u'"
+                     \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> AFun f ts ls : TFun t' u'"
   by (simp only: typing_afun)
 
 lemma typing_fun': "\<lbrakk> \<Xi>, L', K', C', (TT, [Some t]) T\<turnstile> f : u
@@ -322,19 +322,19 @@ and guided_splits_tac ctxt (SOME splt :: script) =
     THEN guided_splits_tac ctxt script
 | guided_splits_tac ctxt [] = rtac @{thm split_empty} 1
 
-fun kind_proof_single (@{term SomeT} $ t) k ctxt hint = let
+fun kind_proof_single (@{term SomeT} $ t) nl k c ctxt hint = let
     val tac = (case hint of
             (KindingTacs tac) => tac
             | _ => raise ERROR ("kind_proof_single: not a kinding tac"))
-    val t = betapplys (@{term "kinding"}, [@{term "0::nat"}, k, @{term "{} :: (ptr_layout \<times> lrepr) set"}, t, (@{schematic_term "?k :: kind"})])
+    val t = betapplys (@{term "kinding"}, [nl, k, c, t, (@{schematic_term "?k :: kind"})])
     val ct = Thm.cterm_of ctxt (@{term Trueprop} $ t)
     val rs = EVERY (map (fn t => interpret_tac t ctxt 1) tac) (Thm.trivial ct)
     val t = (case Seq.pull rs of
           NONE => raise TERM ("kind_proof_single: failed", [k, t])
         | SOME (t, _) => t)
     in SOME t end
-  | kind_proof_single @{term NoneT} k ctxt hints = NONE
-  | kind_proof_single _ _ _ _ = raise ERROR ("kind_proof_single: thm not a Some or a None")
+  | kind_proof_single @{term NoneT} _ k _ ctxt hints = NONE
+  | kind_proof_single _ _ _  _ _ _ = raise ERROR ("kind_proof_single: thm not a Some or a None")
 
 fun kind_proofs ((@{term SomeT} $ t) :: ts) k ctxt hints = let
     val (hintshd, hints) = (case hints of
@@ -605,7 +605,7 @@ fun ttyping (Const (@{const_name Split}, a) $ x $ y) tt k ctxt hint_tree : (tac*
   end
   | ttyping t _ _ _ _ = raise TERM ("ttyping", [t])
 
-fun mk_ttsplit_tacs nm k ctxt hint_tree = let
+fun mk_ttsplit_tacs nm nl k c ctxt hint_tree = let
     (* construct a simpset that knows about the definitions we find in a ttyping *)
     val ss = put_simpset HOL_basic_ss ctxt
         addsimps @{thms replicate_unfold}
@@ -619,12 +619,15 @@ fun mk_ttsplit_tacs nm k ctxt hint_tree = let
     val tt   = tt_def |> simplify ss |> safe_mk_meta_eq |> Thm.concl_of |> Logic.dest_equals |> snd
     val ty   = ty_def |> simplify ss |> safe_mk_meta_eq |> Thm.concl_of |> Logic.dest_equals |> snd
     (* the unsimplified definition of the typetree *)
-    val ity  = ty |> HOLogic.dest_prod |> snd |> HOLogic.dest_prod |> fst
+    val ity  = ty |> HOLogic.dest_prod |> snd |>
+                     HOLogic.dest_prod |> snd |>
+                     HOLogic.dest_prod |> snd |>
+                     HOLogic.dest_prod |> fst
     (* get the first kinding hint *)
     val (kinding_hint, hint_tree) = (case hint_tree of
                                                 Branch [Leaf kindh, ttyph] => (kindh, ttyph)
                                               | _ => raise HINTS ("mk_ttsplit_tac: hints don't start with a kinding", hint_tree))
-    val ps = kind_proof_single (@{term SomeT} $ ity) k ctxt kinding_hint
+    val ps = kind_proof_single (@{term SomeT} $ ity) nl k c ctxt kinding_hint
     (* generate the tactics *)
     val tacs = (ttyping body (tt, [ps]) k ctxt hint_tree)
   in tacs end
@@ -663,22 +666,22 @@ fun termName (Const (@{const_name AFun}, _) $ _ $ _)          = "AFun"
   | termName (Const (@{const_name Promote}, _) $ _ $ _)       = "Promote"
   | termName _ = "Unknown"
 
-fun mk_ttsplit_tacs_final nm k ctxt hint_tree
-    = map (fn (tac, _) => (tac, interpret_tac tac)) (mk_ttsplit_tacs nm k ctxt hint_tree)
+fun mk_ttsplit_tacs_final nm nl k c ctxt hint_tree
+    = map (fn (tac, _) => (tac, interpret_tac tac)) (mk_ttsplit_tacs nm nl k c ctxt hint_tree)
 
 
 (* The same as mk_ttsplit_tacs_final, but it logs the timing of tactics *)
-fun mk_ttsplit_tacs_timing_debug nm k ctxt hint_tree
+fun mk_ttsplit_tacs_timing_debug nm nl k c ctxt hint_tree
     = let
         val runTac = fn term => fn tac => fn a => fn b => fn c =>
                               logTacticOnUse (tacName tac ^ ":" ^ termName term) 
                                      (fn () => (interpret_tac tac) a b c)
       in
-        map (fn (tac,term) => (tac, runTac term tac)) (mk_ttsplit_tacs nm k ctxt hint_tree)
+        map (fn (tac,term) => (tac, runTac term tac)) (mk_ttsplit_tacs nm nl k c ctxt hint_tree)
       end
 
 fun apply_ttsplit_tacs_simple nm ctxt hints
-    = mk_ttsplit_tacs_final nm @{term "[] :: kind env"} ctxt hints
+    = mk_ttsplit_tacs_final nm  @{term "0 :: nat"} @{term "[] :: kind env"}  @{term "{} :: ptr_layout set"}ctxt hints
     |> map (fn (_, t) => DETERM (t ctxt 1))
     |> EVERY
 

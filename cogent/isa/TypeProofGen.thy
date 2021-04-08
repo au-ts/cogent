@@ -77,11 +77,14 @@ fun get_typing_tree ctxt f proof : thm tree list =
       val defs = maps (Proof_Context.get_thms ctxt)
                    (map (prefix f) ["_def", "_type_def", "_typetree_def"])
                  @ abbrev_defs;
+      val ftype = f ^ "_type"
   in extract_subproofs
        (* The typing goal for `f` *)
        (Syntax.read_term ctxt
-         ("Trueprop (\<Xi>, 0, fst " ^ f ^ "_type, {}, (" ^ f ^ "_typetree, [Some (fst (snd " ^ f ^ "_type))])" ^
-          "            T\<turnstile> " ^ f ^ " : snd (snd " ^ f ^ "_type))")
+         ("Trueprop (\<Xi>, fst " ^ ftype ^
+           ", fst (snd " ^ ftype ^ "), fst (snd (snd " ^ ftype ^ "))"
+          ^ ", (" ^ f ^ "_typetree, [Some (fst (snd ( snd (snd " ^ ftype ^ "))))])" ^
+          "            T\<turnstile> " ^ f ^ " : snd ( snd (snd (snd " ^ ftype ^ "))))")
         |> Thm.cterm_of ctxt)
        (let val hinted_tacs = map (fn (tag, t) => (SOME tag, t ctxt)) proof
             val all_tacs = (NONE, asm_full_simp_tac (ctxt addsimps defs) 1) :: hinted_tacs
@@ -172,8 +175,9 @@ fun get_all_typing_details timing_debug ctxt name script : details = let
     val tacfun = if timing_debug 
                 then TTyping_Tactics.mk_ttsplit_tacs_timing_debug
                 else TTyping_Tactics.mk_ttsplit_tacs_final
-
-    val tacs = tacfun name @{term "[] :: kind env"} ctxt script_tree
+    val tacs = tacfun name @{term "0 :: lay_env"}  @{term "[] :: kind env"}
+                  @{term "{} :: lay_constraints"}
+                  ctxt script_tree
     val tacs' = map (fn (tac, f) => (tac, fn ctxt => f ctxt 1)) tacs
     val time_res = Timing.result time
     val _ = (@{print tracing} (name ^ "|phase: make tacs"); @{print tracing} time_res)

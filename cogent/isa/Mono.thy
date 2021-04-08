@@ -24,8 +24,8 @@ begin
 fun
   rename_expr :: "('b \<Rightarrow> 'c) \<Rightarrow> 'b expr \<Rightarrow> 'c expr"
 where
-  "rename_expr rename (AFun f ts)       = AFun (rename f) ts"
-| "rename_expr rename (Fun f ts ls)        = Fun (rename_expr rename f) ts ls"
+  "rename_expr rename (AFun f ts ls)    = AFun (rename f) ts ls"
+| "rename_expr rename (Fun f ts ls)     = Fun (rename_expr rename f) ts ls"
 | "rename_expr rename (Var i)           = Var i"
 | "rename_expr rename (Prim p es)       = Prim p (map (rename_expr rename) es)"
 | "rename_expr rename (App a b)         = App (rename_expr rename a) (rename_expr rename b)"
@@ -55,7 +55,7 @@ where
 | "rename_val rename (VSum name v)     = VSum name (rename_val rename v)"
 | "rename_val rename (VRecord vs)      = VRecord (map (rename_val rename) vs)"
 | "rename_val rename (VAbstract t)     = VAbstract t"
-| "rename_val rename (VAFunction f ts) = VAFunction (rename f) ts"
+| "rename_val rename (VAFunction f ts ls) = VAFunction (rename f) ts ls"
 | "rename_val rename (VFunction f ts ls)  = VFunction (rename_expr rename f) ts ls"
 | "rename_val rename VUnit             = VUnit"
 
@@ -63,16 +63,16 @@ where
 (* Proof of semantic preservation across rename_expr and monoexpr. *)
 definition
   rename_mono_prog ::
-  "(('f \<times> type list) \<Rightarrow> 'f) \<Rightarrow> ('f \<Rightarrow> poly_type) \<Rightarrow> ('f, 'a) vabsfuns \<Rightarrow> ('f, 'a) vabsfuns \<Rightarrow> bool"
+  "(('f \<times> type list \<times> ptr_layout list) \<Rightarrow> 'f) \<Rightarrow> ('f \<Rightarrow> poly_type) \<Rightarrow> ('f, 'a) vabsfuns \<Rightarrow> ('f, 'a) vabsfuns \<Rightarrow> bool"
 where
   "rename_mono_prog rename \<Xi> \<xi>\<^sub>r\<^sub>m \<xi>\<^sub>p \<equiv>
      \<xi>\<^sub>r\<^sub>m matches \<Xi> \<longrightarrow>
      proc_ctx_wellformed \<Xi> \<longrightarrow>
-     (\<forall>f ts v v'. \<xi>\<^sub>r\<^sub>m (rename (f, ts)) (rename_val rename (monoval v)) v' \<longrightarrow>
+     (\<forall>f ts ls v v'. \<xi>\<^sub>r\<^sub>m (rename (f, ts, ls)) (rename_val rename (monoval v)) v' \<longrightarrow>
         (\<exists> v''. v' = rename_val rename (monoval v'') \<and>  \<xi>\<^sub>p f v v''))"
 
 fun
-  rename_monoval_prog :: "(('f \<times> type list) \<Rightarrow> 'f) \<Rightarrow> ('f, 'a) vabsfuns \<Rightarrow> ('f \<times> type list) \<Rightarrow>
+  rename_monoval_prog :: "(('f \<times> type list \<times> ptr_layout list) \<Rightarrow> 'f) \<Rightarrow> ('f, 'a) vabsfuns \<Rightarrow> ('f \<times> type list \<times> ptr_layout list) \<Rightarrow>
                   ('f, 'a) vval \<Rightarrow> ('f, 'a) vval \<Rightarrow> bool"
 where
   "rename_monoval_prog rename \<xi> n v1 v2 =
@@ -113,7 +113,7 @@ next
   case (v_sem_fun \<xi> f ts ls \<gamma> e \<tau> \<Gamma>) then show ?case
     by (cases e) (auto intro: v_sem_v_sem_all.v_sem_fun)
 next
-  case (v_sem_afun \<xi> f ts \<gamma> e \<tau> \<Gamma>) then show ?case
+  case (v_sem_afun \<xi> f ts ls \<gamma> e \<tau> \<Gamma>) then show ?case
     by (cases e) (auto intro: v_sem_v_sem_all.v_sem_afun)
 next
   case (v_sem_cast \<xi> re l \<tau> l'  \<gamma> e \<tau>' \<Gamma>)
@@ -420,7 +420,7 @@ next
   apply (force intro!: IH3 dest: value_subtyping specialisation simp: subtyping_simps matches_def)
   done
 next
-  case (v_sem_abs_app \<xi> re f ts e' rv rv' \<gamma> e \<tau> \<Gamma>)
+  case (v_sem_abs_app \<xi> re f ts ls e' rv rv' \<gamma> e \<tau> \<Gamma>)
   note IH1  = this(2)
   and  IH2  = this(4)
   and  rest = this(1,3,5-)

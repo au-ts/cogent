@@ -1241,7 +1241,7 @@ lemma corres_app_abstract:
              (r', s') \<in> fst (f' x' s) \<Longrightarrow>
              (\<sigma>,s)\<in>srel \<Longrightarrow>
              \<exists>\<sigma>' r. f (\<sigma>, x) (\<sigma>', r) \<and> (\<sigma>', s') \<in> srel \<and> val_rel r r')\<rbrakk> \<Longrightarrow>
-   corres srel (App (AFun f_name []) (Var 0))
+   corres srel (App (AFun f_name [] []) (Var 0))
     (do retval \<leftarrow> f' x';
         gets (\<lambda>_. retval)
     od) \<xi>' (x # \<gamma>) \<Xi>' (Some t # \<Gamma>') \<sigma> s"
@@ -1583,8 +1583,8 @@ lemma corres_fun:
   done
 
 lemma corres_afun:
-  "val_rel (UAFunction f []) (fun_tag' :: 32 signed word) \<Longrightarrow>
-   corres srel (AFun f []) (gets (\<lambda>_. fun_tag')) \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
+  "val_rel (UAFunction f [] []) (fun_tag' :: 32 signed word) \<Longrightarrow>
+   corres srel (AFun f [] []) (gets (\<lambda>_. fun_tag')) \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"
   apply (monad_eq simp: corres_def)
   apply (rule exI)+
   apply (rule conjI)
@@ -1726,7 +1726,7 @@ lemma all_heap_rel_updE:
 definition
   "abs_rel \<Xi>' srel afun_name \<xi>' afun_mon
     = (\<forall>\<sigma> st x x' r' w'. (\<sigma>, st) \<in> srel \<and> val_rel x x'
-        \<and> \<Xi>', \<sigma> \<turnstile> x :u fst (snd (\<Xi>' afun_name)) \<langle>r', w'\<rangle>
+        \<and> \<Xi>', \<sigma> \<turnstile> x :u fst (snd (snd (snd (\<Xi>' afun_name)))) \<langle>r', w'\<rangle>
         \<longrightarrow> \<not> snd (afun_mon x' st)
             \<and> (\<forall>st' y'. (y', st') \<in> fst (afun_mon x' st)
                 \<longrightarrow> (\<exists>\<sigma>' y. \<xi>' afun_name (\<sigma>, x) (\<sigma>', y)
@@ -1735,9 +1735,9 @@ definition
 lemma afun_corres:
   "abs_rel \<Xi>' srel s \<xi>' afun'
   \<Longrightarrow> i < length \<gamma> \<Longrightarrow> val_rel (\<gamma> ! i) v'
-  \<Longrightarrow> \<Gamma>' ! i = Some (fst (snd (\<Xi>' s)))
+  \<Longrightarrow> \<Gamma>' ! i = Some (fst (snd (snd (snd (\<Xi>' s)))))
   \<Longrightarrow> corres srel
-     (App (AFun s []) (Var i))
+     (App (AFun s [] []) (Var i))
      (do x \<leftarrow> afun' v'; gets (\<lambda>s. x) od)
      \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> st"
   apply (clarsimp simp: corres_def abs_rel_def)
