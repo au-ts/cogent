@@ -41,7 +41,27 @@ Section BidBoundExtra.
       Forall (fun bid => bid_bound_between s1 s2 bid \/ bid ≡ next_bid) (outputs (convert_typ [] blks)).
   Admitted.
 
+  Lemma incBlockNamed_count_gen_mono :
+    count_gen_mono block_count incBlockNamed.
+  Proof.
+    unfold count_gen_mono, incBlockNamed.
+    intros.
+    inv H. 
+    auto.
+  Qed.
+
 End BidBoundExtra.
+
+Section Block.
+
+  Lemma cons_app :
+    forall {A} (x : A) (xs : list A),
+      x :: xs ≡ app [x] xs.
+  Proof.
+      unfold app; reflexivity.
+  Qed.
+
+End Block.
 
 Section Expressions.
 
@@ -150,7 +170,13 @@ Section Expressions.
         exact INPUTS.
         intros x OUT_PRED [IN_BOUND IN_NEXT].
         destruct OUT_PRED as [OUT_PRED | OUT_PRED]; auto.
-        admit. (* x can't be bound between pre-mid and mid-post *)
+        unfold bid_bound_between in OUT_PRED, IN_BOUND.
+        eapply state_bound_between_id_separate with (s4 := post_state).
+        apply incBlockNamed_count_gen_injective.
+        apply incBlockNamed_count_gen_mono.
+        eassumption.
+        eassumption.
+        solve_block_count.
         solve_block_count.
       }
       cvred.
@@ -161,7 +187,7 @@ Section Expressions.
         eapply IHe1; eauto.
         - eapply no_failure_expr_bind_prefix; exact NOFAIL.
         - eapply bid_bound_incBlockNamed with (name := "Let"); solve_prefix.
-        - admit. (* do like GenIR line 209 *)
+        - apply state_invariant_new_block; assumption.
       }
       clear IHe1.
       introR.
@@ -172,16 +198,49 @@ Section Expressions.
 
       (* middle block *)
       unfold fmap, Fmap_block; cbn.
-
       vjmp.
       apply find_block_eq; auto.
       repeat vred.
+      rewrite (cons_app _ (convert_typ [] e2_blks)).
+      rewrite denote_ocfg_app_no_edges.
+      3: {
+        unfold no_reentrance.
+        simpl.
+        eapply Forall_disjoint.
+        apply outputs_bound_between in COMP_e2.
+        exact COMP_e2.
+        apply Forall_cons; auto.
+        eapply bid_bound_incBlockNamed with (name := "Let"); solve_prefix.
+        cbn.
+        admit. (* a bit different to how it was above *)
+      }
+      2: {
+        cbn.
+        admit. (* need to prove e2_entry != let block's id *)
+      }
 
-      (* need to split the middle block away *)
-
-      (* then use IHe2 with ctx = (vH :: γ) *)
-
-      admit.
+      (* last blocks *)
+      eapply eqit_mon; auto.
+      2: {
+        eapply IHe2.
+        exact COMP_e2.
+        auto.
+        eapply bid_bound_mono.
+        eassumption.
+        cbn.
+        admit. (* prove bid_bound pre_state => bid_bound mid_state *)
+        admit. (* prove state_invariant s => state_invariant with new variable *)
+      }
+      clear IHe2.
+      intros [[memC1 ?]|] (memV1 & l1 & g1 & res1) PR; [| inv PR].
+      destruct PR as [S1 [C1 [B1 L1]]].
+      cbn in S1.
+      split; cbn.
+      admit. (* state_invariant *)
+      split; cbn.
+      admit. (* correct result *)
+      split; auto.
+      admit. (* local scope modif *)
     - (* Prim op os *)
       cbn* in *; simp.
       admit.
