@@ -51,7 +51,7 @@ import Cogent.Dargent.Core
 import Cogent.PrettyPrint hiding (associativity, primop)
 import Cogent.Util
 import Data.Fin
-import Data.Nat (Nat(Zero, Suc), natToInt)
+import Data.Nat (Nat(Zero, Suc), SNat, natToInt)
 import qualified Data.Nat as Nat
 import Data.Vec hiding (splitAt, length, zipWith, zip, unzip)
 import qualified Data.Vec as Vec
@@ -275,10 +275,11 @@ data UntypedExpr t v a b = E  (Expr t v a b UntypedExpr) deriving (Show, Eq, Ord
 data TypedExpr   t v a b = TE { exprType :: Type t b , exprExpr :: Expr t v a b TypedExpr }
                          deriving (Show, Eq, Ord)
 
-data FunctionType b = forall t l. FT 
-        (Vec t Kind) -- Int [(DataLayout, Type t b)] 
-         (Vec l (Type t b)) -- layout types
-        (Type t b) (Type t b)
+data FunctionType b = forall t l. FT (Vec t Kind) 
+                                     (SNat l)
+                                     [(DataLayout' BitRange, Type t b)] 
+                                     (Type t b)
+                                     (Type t b)
 deriving instance Show a => Show (FunctionType a)
 
 data Attr = Attr { inlineDef :: Bool, fnMacro :: Bool } deriving (Eq, Ord, Show, Generic)

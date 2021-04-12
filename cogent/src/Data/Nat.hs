@@ -2,6 +2,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE NPlusKPatterns #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -17,6 +18,11 @@ import qualified Text.PrettyPrint.ANSI.Leijen as L
 
 data Nat = Zero | Suc Nat
   deriving (Show, Eq, Ord, Generic)
+
+instance Enum Nat where
+  toEnum 0 = Zero
+  toEnum (n + 1) = Suc $ toEnum n
+  fromEnum = natToInt
 
 instance Binary Nat
 

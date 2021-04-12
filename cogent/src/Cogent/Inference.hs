@@ -23,6 +23,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE Rank2Types #-}
@@ -67,8 +68,8 @@ import Data.Monoid
 #if __GLASGOW_HASKELL__ < 709
 import Data.Traversable(traverse)
 #endif
-import Lens.Micro (_2)
-import Lens.Micro.Mtl (view)
+import Lens.Micro hiding (at)
+import Lens.Micro.Mtl (view, use, (%=))
 import Text.PrettyPrint.ANSI.Leijen (Pretty, pretty)
 import qualified Unsafe.Coerce as Unsafe (unsafeCoerce)  -- NOTE: used safely to coerce phantom types only
 
@@ -291,7 +292,8 @@ adjust k f = map (\(a,b) -> (a,) $ if a == k then f b else b)
 newtype TC (t :: Nat) (v :: Nat) b x
   = TC {unTC :: ExceptT String
                         (ReaderT (Vec t Kind, Map FunName (FunctionType b))
-                                 (State (Vec v (Maybe (Type t b)))))
+                                 (State ( Vec v (Maybe (Type t b))
+                                        , [(DataLayout' BitRange, Type t b)] )))
                         x}
   deriving (Functor, Applicative, Alternative, Monad, MonadPlus,
             MonadReader (Vec t Kind, Map FunName (FunctionType b)))
@@ -341,21 +343,21 @@ opType Complement [TPrim p] | p /= Boolean = Just $ TPrim p
 opType opr ts = __impossible "opType"
 
 useVariable :: Fin v -> TC t v b (Maybe (Type t b))
-useVariable v = TC $ do ret <- (`at` v) <$> get
+useVariable v = TC $ do ret <- (`at` v) <$> use _1
                         case ret of
                           Nothing -> return ret
                           Just t  -> do
                             ok <- canShare <$> unTC (kindcheck t)
-                            unless ok $ modify (\s -> update s v Nothing)
+                            unless ok $ modify (\(s1,s2) -> (,s2) $ update s1 v Nothing)
                             return ret
 
 funType :: CoreFunName -> TC t v b (Maybe (FunctionType b))
-funType v = TC $ (M.lookup (unCoreFunName v) . snd) <$> ask
+funType v = TC $ M.lookup (unCoreFunName v) . snd <$> ask
 
 runTC :: TC t v b x
       -> (Vec t Kind, Map FunName (FunctionType b))
-      -> Vec v (Maybe (Type t b))
-      -> Either String (Vec v (Maybe (Type t b)), x)
+      -> (Vec v (Maybe (Type t b)), [(DataLayout' BitRange, Type t b)])
+      -> Either String ((Vec v (Maybe (Type t b)), [(DataLayout' BitRange, Type t b)]) , x)
 runTC (TC a) readers st = case runState (runReaderT (runExceptT a) readers) st of
                             (Left x, s)  -> Left x
                             (Right x, s) -> Right (s,x)
@@ -389,12 +391,15 @@ tc = flip tc' M.empty
     tc' [] reader = return ([], reader)
     tc' ((FunDef attr fn ks ls t rt e):ds) reader =
       -- Enable recursion by inserting this function's type into the function type dictionary
-      let ft = FT (snd <$> ks) (snd <$> ls) t rt in
-      case runTC (infer e >>= flip typecheck rt) (fmap snd ks, M.insert fn ft reader) (Cons (Just t) Nil) of
+      let c0 = zip (fmap (`VarLayout` 0) [Zero ..]) $ Vec.cvtToList ls <&> (^._2)
+          ft = FT (snd <$> ks) (Vec.length ls) c0 t rt in
+      case runTC (infer e >>= flip typecheck rt) (fmap snd ks, M.insert fn ft reader) (Cons (Just t) Nil, c0) of
         Left x -> Left x
-        Right (_, e') -> (first (FunDef attr fn ks ls t rt e':)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader)
-    tc' (d@(AbsDecl _ fn ks ls t rt):ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader)
-    tc' (d:ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds reader
+        Right ((_,c), e') -> first (FunDef attr fn ks ls t rt e':) <$> tc' ds (M.insert fn (FT (fmap snd ks) (Vec.length ls) c t rt) reader)
+    tc' (d@(AbsDecl _ fn ks ls t rt):ds) reader = 
+      first (Unsafe.unsafeCoerce d:) <$>
+        tc' ds (M.insert fn (FT (fmap snd ks) (Vec.length ls) (zip (fmap (`VarLayout` 0) [Zero ..]) $ Vec.cvtToList ls <&> (^._2)) t rt) reader)
+    tc' (d:ds) reader = first (Unsafe.unsafeCoerce d:) <$> tc' ds reader
 
 tc_ :: (Show b, Eq b, Pretty b, a ~ b)
     => [Definition UntypedExpr a b]
@@ -406,20 +411,20 @@ tcConsts :: [CoreConst UntypedExpr]
          -> Either String ([CoreConst TypedExpr], Map FunName (FunctionType VarName))
 tcConsts [] reader = return ([], reader)
 tcConsts ((v,e):ds) reader =
-  case runTC (infer e) (Nil, reader) Nil of
+  case runTC (infer e) (Nil, reader) (Nil, []) of
     Left x -> Left x
-    Right (_,e') -> (first ((v,e'):)) <$> tcConsts ds reader
+    Right (_,e') -> first ((v,e'):) <$> tcConsts ds reader
 
 withBinding :: Type t b -> TC t ('Suc v) b x -> TC t v b x
 withBinding t x
   = TC $ do readers <- ask
             st      <- get
-            case runTC x readers (Cons (Just t) st) of
+            case runTC x readers (first (Cons $ Just t) st) of
               Left e -> throwError e
-              Right (Cons Nothing s,r)   -> do put s; return r
-              Right (Cons (Just t) s, r) -> do
+              Right ((Cons Nothing  s, c), r) -> do put (s,c); return r
+              Right ((Cons (Just t) s, c), r) -> do
                 ok <- canDiscard <$> unTC (kindcheck t)
-                if ok then put s >> return r
+                if ok then put (s,c) >> return r
                       else throwError "Didn't use linear variable"
 
 withBindings :: Vec k (Type t b) -> TC t (v :+: k) b x -> TC t v b x
@@ -427,10 +432,10 @@ withBindings Nil tc = tc
 withBindings (Cons x xs) tc = withBindings xs (withBinding x tc)
 
 withBang :: [Fin v] -> TC t v b x -> TC t v b x
-withBang vs (TC x) = TC $ do st <- get
-                             mapM_ (\v -> modify (modifyAt v (fmap bang))) vs
+withBang vs (TC x) = TC $ do st <- use _1
+                             mapM_ (\v -> _1 %= modifyAt v (fmap bang)) vs
                              ret <- x
-                             mapM_ (\v -> modify (modifyAt v (const $ st `at` v))) vs
+                             mapM_ (\v -> _1 %= modifyAt v (const $ st `at` v)) vs
                              return ret
 
 lookupKind :: Fin t -> TC t v b Kind
@@ -555,11 +560,10 @@ infer (E (Variable v))
 infer (E (Fun f ts ls note))
    | ExI (Flip ts') <- Vec.fromList ts
    , ExI (Flip ls') <- Vec.fromList ls
-   = do myMap <- ask
-        x <- funType f
+   = do x <- funType f
         case x of
-          Just (FT ks lts ti to) ->
-            case (Vec.length ts' =? Vec.length ks, Vec.length ls' =? Vec.length lts)
+          Just (FT ks nl lts ti to) ->
+            case (Vec.length ts' =? Vec.length ks, Vec.length ls' =? nl)
               of (Just Refl, Just Refl) -> let ti' = substitute ts' $ substituteL ls ti
                                                to' = substitute ts' $ substituteL ls to
                                             in do forM_ (Vec.zip ts' ks) $ \(t, k) -> do
