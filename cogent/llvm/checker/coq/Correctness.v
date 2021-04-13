@@ -97,6 +97,25 @@ Section Expressions.
         end
     end.
 
+  (* should be an easier way to do this case analysis *)
+  Lemma unbox_field_type :
+    forall t f x,
+      field_type t f ≡ UnboxField x ->
+      exists flds,
+        t ≡ TYPE_Struct flds /\ nth_error flds f ≡ Some x.
+  Proof.
+    intros.
+    unfold field_type in H.
+    destruct t; try discriminate.
+    destruct t; try discriminate.
+    destruct nth_error; try discriminate.
+    eexists.
+    split.
+    reflexivity.
+    destruct nth_error eqn:?; inversion H.
+    reflexivity.
+  Qed.
+
   Lemma compile_expr_correct :
     forall (e : expr) (γ : ctx) (s1 s2 : IRState)
            (v : im) (next_bid entry_bid prev_bid : block_id) (blks : ocfg typ)
@@ -350,9 +369,26 @@ Section Expressions.
       subst.
 
       (* might need to do same Heqf1 things as above *)
-
-      (* then split middle block like in Let *)
-      
+      simp; cbn in Heqf0.
+      2 : rewrite Heqf1 in Heqf0; discriminate.
+      2 : rewrite Heqf1 in Heqf0; discriminate.
+      all: unfold fmap, Fmap_block; cbn; cvred.
+      +
+        admit.
+      +
+        idtac.
+        apply unbox_field_type in Heqf0.
+        destruct Heqf0 as [t2_flds [TYPING ACCESS]].
+        rewrite TYPING.
+        cbn.
+        vjmp.
+        repeat vred.
+        vstep.
+        {
+          admit. (* need lemma for OP_ExtractValue *)
+        }
+        vred.
+        vjmp_out.
 
       
       admit.
