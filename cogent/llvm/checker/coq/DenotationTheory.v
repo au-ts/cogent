@@ -27,7 +27,7 @@ Section InterpTheory.
     apply eutt_eq_bind; intros []; reflexivity.
   Qed.
 
-  Lemma interp_Mem_vis_eqit :
+  Lemma interp_mem_vis_eqit :
     forall T R mem (e : CogentL0 T) (k : T -> itree CogentL0 R),
       interp_mem (vis e k) mem ≅ ITree.bind ((case_ handle_mem pure_state) T e mem) (fun sx => Tau (interp_mem (k (snd sx)) (fst sx))).
   Proof.
@@ -37,8 +37,8 @@ Section InterpTheory.
   Qed.
 
   Lemma interp_expr_Ret :
-    forall E mem x,
-      @interp_expr E (Ret x) mem ≅ Ret (Some (mem, x)).
+    forall E T mem x,
+      @interp_expr E T (Ret x) mem ≅ Ret (Some (mem, x)).
   Proof.
     intros.
     unfold interp_expr.
@@ -47,8 +47,8 @@ Section InterpTheory.
   Qed.
 
   Lemma interp_expr_bind :
-    forall E mem (t : itree CogentL0 uval) (k : uval -> itree CogentL0 uval),
-      @interp_expr E (ITree.bind t k) mem ≈ 
+    forall E T U mem (t : itree CogentL0 T) (k : T -> itree CogentL0 U),
+      @interp_expr E U (ITree.bind t k) mem ≈ 
         ITree.bind (interp_expr t mem) (fun mx => 
           match mx with 
           (* | (a, b) => Ret None *)
@@ -69,20 +69,20 @@ End InterpTheory.
 
 Section NoFailure.
 
-  Lemma no_failure_expr_Ret : forall E x m,
-    no_failure (interp_expr (E := E) (Ret x) m).
+  Lemma no_failure_expr_Ret : forall E T x m,
+    no_failure (@interp_expr E T (Ret x) m).
   Proof.
     intros.
     rewrite interp_expr_Ret. apply eutt_Ret; intros abs; inv abs.
   Qed.
 
-  Lemma failure_expr_throw : forall E s m,
-    ~ no_failure (interp_expr (E := E) (throw s) m).
+  Lemma failure_expr_throw : forall E T s m,
+    ~ no_failure (@interp_expr E T (throw s) m).
   Proof.
     intros * abs.
     unfold Exception.throw in *.
     unfold interp_expr in *.
-    setoid_rewrite interp_Mem_vis_eqit in abs.
+    setoid_rewrite interp_mem_vis_eqit in abs.
     unfold pure_state in *; cbn in *.
     rewrite interp_fail_bind in abs.
     rewrite interp_fail_vis in abs.
@@ -93,17 +93,17 @@ Section NoFailure.
     apply abs; auto.
   Qed.
 
-  Lemma failure_expr_throw' : forall E s (k : uval -> _) m,
-    ~ no_failure (interp_expr (E := E) (ITree.bind (throw s) k) m).
+  Lemma failure_expr_throw' : forall E T s (k : uval -> _) m,
+    ~ no_failure (@interp_expr E T (ITree.bind (throw s) k) m).
   Proof.
     intros * abs.
     rewrite interp_expr_bind in abs.
     eapply no_failure_bind_prefix, failure_expr_throw in abs; auto.
   Qed.
 
-  Lemma no_failure_expr_bind_prefix : forall {E} (t : itree _ uval) (k : uval -> itree _ uval) m,
-    no_failure (interp_expr (E := E) (ITree.bind t k) m) ->
-    no_failure (interp_expr (E := E) t m).
+  Lemma no_failure_expr_bind_prefix : forall {E T U} (t : itree _ T) (k : T -> itree _ U) m,
+    no_failure (@interp_expr E U (ITree.bind t k) m) ->
+    no_failure (@interp_expr E T t m).
   Proof.
     intros * NOFAIL.
     rewrite interp_expr_bind in NOFAIL.
@@ -111,15 +111,31 @@ Section NoFailure.
   Qed.
   
   Lemma no_failure_expr_bind_continuation :
-    forall {E} (t : itree _ uval) (k : uval -> itree _ uval) m,
-      no_failure (interp_expr (E := E) (ITree.bind t k) m) ->
+    forall {E T U} (t : itree _ T) (k : T -> itree _ U) m,
+      no_failure (@interp_expr E U (ITree.bind t k) m) ->
       forall u m', Returns (E := E) (Some (m',u)) (interp_expr t m) -> 
-        no_failure (interp_expr (E := E) (k u) m').
+        no_failure (@interp_expr E U (k u) m').
   Proof.
     intros * NOFAIL * ISRET.
     rewrite interp_expr_bind in NOFAIL.
     eapply no_failure_bind_cont in NOFAIL; eauto.
     apply NOFAIL.
+  Qed.
+
+  Lemma Returns_fail_throw :
+    forall E T m s, Returns None (@interp_expr E T (throw s) m).
+  Proof.
+    intros.
+    unfold interp_expr.
+    setoid_rewrite interp_mem_vis_eqit.
+    unfold pure_state; cbn.
+    rewrite interp_fail_bind.
+    rewrite interp_fail_vis.
+    cbn.
+    rewrite Eq.bind_bind, !bind_ret_l.
+    rewrite translate_ret.
+    apply ReturnsRet.
+    reflexivity.
   Qed.
 
 End NoFailure.

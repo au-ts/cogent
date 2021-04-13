@@ -155,6 +155,6 @@ Section State.
     unfold correct_result in *.
     simp.
     intros.
-  Admitted. (* should be true, see helix genIR line 209 *)
+  Admitted. (* TODO: really should prove this, it should be true, see helix genIR line 209 *)
 
 End State.

@@ -6,7 +6,7 @@ From Vellvm Require Import LLVMAst LLVMEvents TopLevel Handlers InterpreterMCFG 
   DynamicValues ExpLemmas Coqlib NoFailure AListFacts.
 
 From Checker Require Import Denotation DenotationTheory Cogent Compiler Utils.Tactics Invariants
-  HelixLib.Correctness_Prelude HelixLib.BidBound HelixLib.IdLemmas HelixLib.VariableBinding.
+  HelixLib.Correctness_Prelude HelixLib.BidBound HelixLib.IdLemmas HelixLib.VariableBinding Types.
 
 Import ListNotations.
 Import AlistNotations.
@@ -16,7 +16,7 @@ Import ProofMode.
 
 Section BidBoundExtra.
 
-  (* From Helix *)
+  (* From Helix, but adjusted for Cogent - are these definitely still true? *)
 
   Lemma inputs_bound_between :
     forall (e : expr) (s1 s2 : IRState) (v : im)
@@ -32,6 +32,13 @@ Section BidBoundExtra.
       (block_count s1 <= block_count s2)%nat ->
       compile_expr e next_bid s2 ≡ inr (s3, (v, entry_bid, blks)) ->
       Forall (fun x => x ≢ bid) (inputs (convert_typ [] blks)).
+  Admitted.
+
+  Lemma entry_bound_between :
+    forall (e : expr) (s1 s2 : IRState) (v : im)
+          (next_bid entry_bid : block_id) (blks : ocfg typ),
+      compile_expr e next_bid s1 ≡ inr (s2, (v, entry_bid, blks)) ->
+      bid_bound_between s1 s2 entry_bid \/ entry_bid ≡ next_bid.
   Admitted.
 
   Lemma outputs_bound_between :
@@ -54,6 +61,7 @@ End BidBoundExtra.
 
 Section Block.
 
+  (* wasn't sure how to do this rewrite *)
   Lemma cons_app :
     forall {A} (x : A) (xs : list A),
       x :: xs ≡ app [x] xs.
@@ -77,6 +85,17 @@ Section Expressions.
     correct_result_T γ s1 s2 i ⩕
     branches to ⩕
     (fun _ '(_, (l', _)) => local_scope_modif s1 s2 l l').
+
+  (* like break_match_hyp but don't destruct field type matches *)
+  Ltac break_match_hyp_defer_ft :=
+    match goal with
+      | [ H : context [ match ?X with _ => _ end ] |- _] =>
+        match type of X with
+          | sumbool _ _ => destruct X
+          | FieldType => idtac
+          | _ => destruct X eqn:?
+        end
+    end.
 
   Lemma compile_expr_correct :
     forall (e : expr) (γ : ctx) (s1 s2 : IRState)
@@ -156,6 +175,8 @@ Section Expressions.
         unfold no_reentrance.
         pose proof COMP_e1 as COMP_e1'.
         apply (inputs_not_earlier_bound _ _ _ _ _ _ _ _ _ NEXT) in COMP_e1'.
+        pose proof COMP_e2 as COMP_e2'.
+        apply entry_bound_between in COMP_e2'.
         apply inputs_bound_between in COMP_e1.
         apply outputs_bound_between in COMP_e2.
         pose proof (Forall_and COMP_e1 COMP_e1') as INPUTS.
@@ -166,7 +187,7 @@ Section Expressions.
         simpl.
         apply Forall_cons; [ | exact COMP_e2].
         cbn.
-        admit. (* add to post-condition of COMP_e1 somehow? *)
+        auto.
         exact INPUTS.
         intros x OUT_PRED [IN_BOUND IN_NEXT].
         destruct OUT_PRED as [OUT_PRED | OUT_PRED]; auto.
@@ -212,11 +233,14 @@ Section Expressions.
         apply Forall_cons; auto.
         eapply bid_bound_incBlockNamed with (name := "Let"); solve_prefix.
         cbn.
-        admit. (* a bit different to how it was above *)
+        admit. (* TODO: Doesn't look true - this is a bit different to how it was above *)
       }
       2: {
         cbn.
-        admit. (* need to prove e2_entry != let block's id *)
+        apply entry_bound_between in COMP_e2.
+        destruct COMP_e2 as [OUT_PRED | OUT_PRED].
+        - admit. (* TODO: because e2_entry bound after mid_state, can't be = pre_state *)
+        - admit. (* TODO: becayse e2_entry = next_bid, can't be pre_state *)
       }
 
       (* last blocks *)
@@ -228,19 +252,19 @@ Section Expressions.
         eapply bid_bound_mono.
         eassumption.
         cbn.
-        admit. (* prove bid_bound pre_state => bid_bound mid_state *)
-        admit. (* prove state_invariant s => state_invariant with new variable *)
+        admit. (* TODO: prove bid_bound pre_state => bid_bound mid_state *)
+        admit. (* TODO: prove state_invariant s => state_invariant with new variable *)
       }
       clear IHe2.
       intros [[memC1 ?]|] (memV1 & l1 & g1 & res1) PR; [| inv PR].
       destruct PR as [S1 [C1 [B1 L1]]].
       cbn in S1.
       split; cbn.
-      admit. (* state_invariant *)
+      admit. (* TODO: state_invariant *)
       split; cbn.
-      admit. (* correct result *)
+      admit. (* TODO: correct result *)
       split; auto.
-      admit. (* local scope modif *)
+      admit. (* TODO: local scope modif *)
     - (* Prim op os *)
       cbn* in *; simp.
       admit.
@@ -251,7 +275,86 @@ Section Expressions.
     - (* Struct ts es *)
       cbn* in *; simp.
       admit.
-    - (* Member e f *)
+    - (* Member e f *) 
+      pose proof COMP as COMP'.
+      cbn* in COMP.
+      Opaque field_type.
+      repeat (inv_sum || inv_option || break_and || break_match_hyp_defer_ft).
+      rename Heqs0 into COMP_e.
+      cbn in *.
+      clean_goal.
+      unfold ITree.map in *.
+      rewrite convert_typ_ocfg_app.
+      rewrite denote_ocfg_app; eauto.
+      2: {
+        unfold no_reentrance.
+        pose proof COMP_e as COMP_e'.
+        apply (inputs_not_earlier_bound _ _ _ _ _ _ _ _ _ NEXT) in COMP_e'.
+        apply inputs_bound_between in COMP_e.
+        pose proof (Forall_and COMP_e COMP_e') as INPUTS.
+        cbn in INPUTS.
+        eapply Forall_disjoint.
+        rewrite convert_typ_outputs in *.
+        unfold code_block.
+        rewrite outputs_cons.
+        unfold outputs.
+        simpl.
+        apply Forall_cons; [ | apply Forall_nil].
+        exact NEXT.
+        exact INPUTS.
+        intros x OUT_PRED [IN_BOUND IN_NEXT].
+        unfold bid_bound in OUT_PRED.
+        eapply state_bound_before_not_bound_between in OUT_PRED.
+        unfold bid_bound_between in IN_BOUND.
+        apply OUT_PRED.
+        exact IN_BOUND.
+        apply incBlockNamed_count_gen_injective.
+        apply incBlockNamed_count_gen_mono.
+        solve_block_count.
+        solve_block_count.
+      }
+      cvred.
+      rewrite bind_bind.
+      cbn in *.
+      eapply eutt_clo_bind_returns.
+      {
+        eapply IHe; eauto.
+        - eapply no_failure_expr_bind_prefix.
+          eapply no_failure_expr_bind_prefix in NOFAIL.
+          exact NOFAIL.
+        - eapply bid_bound_incBlockNamed with (name := "Field"); solve_prefix.
+        - apply state_invariant_new_block; assumption.
+      }
+      clear IHe.
+      introR.
+      intros RET _; eapply no_failure_expr_bind_continuation in NOFAIL.
+      2: {
+        rewrite interp_expr_bind.
+        eapply Returns_bind.
+        eassumption.
+        cbn.
+        rewrite interp_expr_bind.
+        eapply Returns_bind.
+        simp; cbn in Heqf0.
+          - (* TODO: boxed case*)
+            admit.
+          - rewrite Heqf1 in Heqf0; discriminate.
+          - rewrite Heqf1 in Heqf0; discriminate.
+          - (* TODO: unboxed case*)
+            admit.
+          - (* TODO: should fall out*)
+            admit.
+      }
+      cbn in PRE0; destruct PRE0 as [INV2 [COR [[from2 BRANCH2] POST]]].
+      cbn in INV2.
+      subst.
+
+      (* might need to do same Heqf1 things as above *)
+
+      (* then split middle block like in Let *)
+      
+
+      
       admit.
     - (* Take e1 f e2 *)
       admit.
@@ -296,7 +399,7 @@ Section Expressions.
         apply bid_bound_incBlockNamed with (name := "App") (s1 := pre_state).
         solve_prefix.
         reflexivity.
-        apply state_invariant_new_block. (* lemma might be false *)
+        apply state_invariant_new_block.
         assumption.
       }
       clear IH_arg.

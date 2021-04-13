@@ -77,7 +77,7 @@ Section Denote.
 
   Fixpoint denote_expr (γ : ctx) (e : expr) {struct e} : itree CogentL0 uval :=
     (* define some nested functions that are mutually recursive with denote_expr *)
-    let fix denote_member (γ : ctx) (e : expr) (f : nat) {struct e} : itree CogentL0 (uval * uval) :=
+    let denote_member (γ : ctx) (e : expr) (f : nat) : itree CogentL0 (uval * uval) :=
       r <- denote_expr γ e ;;
       m <- match r with
       | URecord fs => access_member fs f
@@ -200,8 +200,8 @@ Section Interpretation.
   Definition handle_failure : FailE ~> failT (itree void1) :=
     fun _ '(Throw m) => ret None.
 
-  Definition interp_expr {E} (l0 : itree CogentL0 uval) (mem : memory)
-                               : failT (itree E) (memory * uval) :=
+  Definition interp_expr {E T} (l0 : itree CogentL0 T) (mem : memory)
+                               : failT (itree E) (memory * T) :=
     let l1 := interp_mem l0 mem in
     let l2 := interp_fail handle_failure l1 in
     translate inject_signature l2.

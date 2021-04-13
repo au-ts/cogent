@@ -148,7 +148,7 @@ Section Compiler.
   
   Fixpoint compile_expr (e : expr) (next_bid : block_id) : cerr segment :=
     (* define some nested functions that are mutually recursive with compile_expr *)
-    let fix load_member e f next_bid : cerr (@segment (im * im)) :=
+    let load_member e f next_bid : cerr (@segment (im * im)) :=
       load_bid <- incBlockNamed "Field" ;;
       '(e', e_bid, e_blks) <- compile_expr e load_bid ;;
       '(f', load_code) <-
