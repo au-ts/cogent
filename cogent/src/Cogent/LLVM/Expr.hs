@@ -105,7 +105,7 @@ exprToLLVM (TE t (Con tag e (TSum ts))) = do
         -- Don't bother doing anything for constructors with no arguments
         TE TUnit _ -> pure tagged
         _ -> do
-            casted <- toLLVMType (maxMember ts) >>= castVal v
+            casted <- toLLVMType (maxMember ts) >>= upcastVal v
             insertValue tagged casted [1]
 -- The binary case expression compares the tag of a variant with the desired tag
 -- Branching is used for each alternative:
@@ -203,10 +203,18 @@ toLLVMOp _ = error "not a binary operator"
 -- Cast a value by temporarily storing it on the stack and casting the pointer
 castVal :: Operand -> AST.Type -> Codegen Operand
 castVal o t = do
-    tmp <- alloca (typeOf o) Nothing 4
-    store tmp 4 o
-    casted <- bitcast tmp (ptr t)
-    load casted 4
+    ptr_o <- alloca (typeOf o) Nothing 4
+    ptr_t <- bitcast ptr_o (ptr t)
+    store ptr_o 1 o
+    load ptr_t 1
+
+-- Version of the above safe for upcasts
+upcastVal :: Operand -> AST.Type -> Codegen Operand
+upcastVal o t = do
+    ptr_t <- alloca t Nothing 0
+    ptr_o <- bitcast ptr_t (ptr (typeOf o))
+    store ptr_o 1 o
+    load ptr_t 1
 
 -- Load a field from a record, and yield both the record and the field value
 -- For unboxed records, this is just an extractvalue instruction, for boxed it
