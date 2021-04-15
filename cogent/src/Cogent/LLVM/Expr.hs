@@ -25,7 +25,7 @@ import Cogent.Dargent.Util (primIntSizeBits)
 import Cogent.LLVM.CodeGen (Codegen, bind, tagIndex, var)
 import Cogent.LLVM.Types (maxMember, tagType, toLLVMType, typeSize)
 import Cogent.Util (toCName)
-import Data.Foldable (foldrM)
+import Data.Foldable (foldlM, foldrM)
 import LLVM.AST as AST (Instruction (LShr), Operand (ConstantOperand), Type, mkName)
 import qualified LLVM.AST.Constant as C
 import LLVM.AST.IntegerPredicate as P (IntegerPredicate (EQ, NE, UGE, UGT, ULE, ULT))
@@ -155,8 +155,8 @@ exprToLLVM (TE _ (If cd tb fb)) = mdo
 -- A struct expression is constructed by iteratively inserting field values
 exprToLLVM (TE t (Struct flds)) = do
     t' <- toLLVMType t
-    foldrM
-        (\(i, v) struct -> exprToLLVM v >>= \value -> insertValue struct value [i])
+    foldlM
+        (\struct (i, v) -> exprToLLVM v >>= \value -> insertValue struct value [i])
         (constUndef t')
         [(i, snd fld) | (i, fld) <- zip [0 ..] flds]
 -- Use the variable index to look it up in the current variable context
