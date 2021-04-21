@@ -33,7 +33,7 @@ See :ref:`install-more-details` below for a more elaborate guide.
    and the tests should pass.
 6. To run verification, install `Isabelle-2019 <https://isabelle.in.tum.de/>`_ either from their
    website, or you can simply checkout the ``isabelle`` submodule in the Cogent repository.
-   You also need to download `AutoCorres (v1.6) <http://ts.data61.csiro.au/projects/TS/autocorres/>`_.
+   You also need to download `AutoCorres (v1.6.1) <http://ts.data61.csiro.au/projects/TS/autocorres.html>`_.
 
 
 .. _install-more-details:
