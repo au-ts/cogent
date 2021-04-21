@@ -115,6 +115,7 @@ names of the respective flags in parentheses):
    1. built-in static arrays (``builtin-arrays``)
    2. documentation generation (``docgent``)
    3. property-based testing in Haskell (``haskell-backend``)
+   4. LLVM backend (``llvm-backend``)
 
 Depending on which (combination of) features are needed, the
 dependencies will be different. By default, none of them are enabled. If
