@@ -167,17 +167,18 @@ to your ``$PATH``.
 Test your installation
 ----------------------
 
-1. Test files are in `cogent/tests <https://github.com/NICTA/cogent/tree/master/cogent/tests>`__.
-   Run ``make`` with relevant targets.
+1. Run ``make`` with relevant targets in the ``cogent`` directory.
 
 -  ``make tests`` runs the entire test suite, which is **not** what you
    would like to do in most cases, as it also tests some Isabelle/HOL proofs, which
    will take very long time.
 -  ``make test-compiler`` tests many of the compiler phases without involving Isabelle.
 -  There are individual tests that can be triggered by ``make test-*``.
-   See ``make help`` for details.
+   See ``make help`` for details. The test files are grouped in sub-directories under
+   `cogent/tests/tests <https://github.com/NICTA/cogent/tree/master/cogent/tests/tests>`_.
 -  ``make examples`` builds a group of small but complete Cogent
-   examples.
+   examples. The examples are located in `cogent/examples <https://github.com/NICTA/cogent/tree/master/cogent/examples>`_. You
+   can run ``make`` in each example's directory to build them individually.
 
 2. Cogent compiler also comes with a small unit-test module. To run
    that, do this:

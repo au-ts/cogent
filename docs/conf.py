@@ -20,13 +20,13 @@
 # -- Project information -----------------------------------------------------
 
 project = u'Cogent'
-copyright = u'2020, CSIRO\'s Data61'
+copyright = u'2021, CSIRO\'s Data61'
 author = u'The Cogent Team'
 
 # The short X.Y version
-version = u'2.9'
+version = u'3.0.1'
 # The full version, including alpha/beta/rc tags
-release = u'2.9'
+release = u'3.0.1'
 
 
 # -- General configuration ---------------------------------------------------
