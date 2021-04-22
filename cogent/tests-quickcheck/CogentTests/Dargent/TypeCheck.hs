@@ -50,8 +50,8 @@ prop_typeCheckValidGivesNoErrors :: Property
 prop_typeCheckValidGivesNoErrors =
   forAll (genDataLayout size) $ \(Layout layout, alloc) ->  -- FIXME: not considering CLayout for now / zilinc
     case runExcept $ tcDataLayoutExpr M.empty [] (undesugarDataLayout layout) of
-      Right alloc' -> toSet alloc == toSet alloc'
-      _            -> False
+      Right (_,alloc') -> toSet alloc == toSet alloc'
+      _                -> False
   where size = 30
 
 {-+ INVERSE FUNCTIONS

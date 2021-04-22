@@ -30,7 +30,7 @@ import Data.Vec
 prop_returnTrip :: Property
 prop_returnTrip =
   forAll (genDataLayout size) $ \(Layout layout, _) ->  -- FIXME: CLayout / zilinc
-    fst (flip3 evalRWS state reader (runDS $ desugarLayout (toTCDL $ undesugarDataLayout layout))) == Layout layout
+    fst (flip3 evalRWS state reader (runDS $ desugarLayout (undesugarDataLayout layout))) == Layout layout
   where size = 30
         reader = (M.empty, M.empty, [])
         state = DsState Nil Nil Nil 0 0 []
