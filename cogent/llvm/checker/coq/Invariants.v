@@ -120,12 +120,18 @@ End ValueRelation.
 
 Section Memory.
 
-  Definition memory_invariant (γ : ctx) (s : IRState) (cogent : config_cogent)
-                              (vellvm : state_cfg) : Prop :=
-    forall (n : nat) (i : im) (u : uval),
-      nth_error γ n ≡ Some u ->
-      nth_error (Γ s) n ≡ Some i ->
-      correct_result γ s s u i vellvm.
+  Definition convert_repr (r : Cogent.repr) : dtyp :=
+    DTYPE_Double. (* TODO: implement *)
+
+  Definition memory_invariant (γ : ctx) (s : IRState) : Rel_cfg :=
+    fun (memC : config_cogent) '(memV, (l, g)) =>
+      forall (n : nat) (i : im) (u : uval),
+        nth_error γ n ≡ Some u ->
+        nth_error (Γ s) n ≡ Some i ->
+        correct_result γ s s u i (memV, (l, g)) /\
+        (forall a r, u ≡ UPtr a r -> exists v,
+          alist_find a memC ≡ Some v /\
+          forall i, get_array_cell memV a i (convert_repr r) ≡ inr (convert_uval v)).
 
 End Memory.
 
@@ -151,10 +157,11 @@ Section State.
     unfold memory_invariant in *.
     cbn in *.
     intros.
-    specialize (MEM _ _ _ H H0).
+    admit.
+    (* specialize (MEM _ _ _ H H0).
     unfold correct_result in *.
     simp.
-    intros.
+    intros. *)
   Admitted. (* TODO: really should prove this, it should be true, see helix genIR line 209 *)
 
 End State.

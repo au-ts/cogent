@@ -155,7 +155,7 @@ Section Expressions.
         go; reflexivity.
       apply local_scope_modif_refl.
       apply find_block_nil.
-    - (* LVar i *)
+    - (* Var i *)
       cbn* in *; simp.
       rewrite denote_ocfg_unfold_not_in.
       cvred.
@@ -168,8 +168,9 @@ Section Expressions.
       destruct PRE as [MEM WF].
       unfold memory_invariant in MEM.
       specialize (MEM _ _ _ Heqo0 Heqo).
-      unfold correct_result in MEM.
-      specialize (MEM l' H H0).
+      destruct MEM as [COR MEM].
+      unfold correct_result in COR.
+      specialize (COR l' H H0).
       assumption.
       apply local_scope_modif_refl.
       apply failure_expr_throw in NOFAIL.
@@ -389,9 +390,8 @@ Section Expressions.
         }
         vred.
         vjmp_out.
-
-      
-      admit.
+        admit.
+        admit.
     - (* Take e1 f e2 *)
       admit.
     - (* Put e1 f e2 *)
@@ -464,12 +464,12 @@ Section TopLevel.
     interp_cogent (denote_program p) "main" UUnit empty_memory.
 
   (* placeholder *)
-  Definition TT {A B} (x: A) (y: B):= True.
+  Definition R {A B} (x: A) (y: B):= True.
 
-  Lemma compiler_correct :
+  Theorem compiler_correct :
     forall (c : cogent_prog) (ll : vellvm_prog),
       compile_cogent c ≡ inr ll ->
-      eutt TT (semantics_cogent c) (semantics_llvm ll).
+      eutt R (semantics_cogent c) (semantics_llvm ll).
   Proof.
   Abort.
 

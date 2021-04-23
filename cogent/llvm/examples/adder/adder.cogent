@@ -3,6 +3,6 @@ type R a b = < Success a | Error b >
 add : (U32, U32) -> R U32 ()
 add (x, y) =
   let sum = x + y
-   in sum < x || sum < y
-      | True -> Error ()
-      | False -> Success sum
+   in if sum < x || sum < y
+      then Error ()
+      else Success sum

@@ -1,7 +1,7 @@
 From Coq Require Import List ZArith String.
 
 From ExtLib Require Import Structures.Monads Structures.Functor Structures.Reducible Data.Map.FMapAList.
-From ITree Require Import ITree Events.State Events.Exception.
+From ITree Require Import ITree Events.Exception.
 From Vellvm Require Import Util.
 
 Import Monads.
