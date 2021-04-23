@@ -120,8 +120,19 @@ End ValueRelation.
 
 Section Memory.
 
-  Definition convert_repr (r : Cogent.repr) : dtyp :=
-    DTYPE_Double. (* TODO: implement *)
+  Fixpoint convert_repr (r : Cogent.repr) : dtyp :=
+    match r with
+    | RPtr _ => DTYPE_Pointer
+    | RPrim (Num U8) => DTYPE_I (Npos 8) (* why won't %N work *)
+    | RPrim (Num U32) => DTYPE_I (Npos 32)
+    | RPrim (Num U64) => DTYPE_I (Npos 64)
+    | RPrim Bool => DTYPE_I (Npos 1)
+    | RPrim Cogent.String => DTYPE_Pointer
+    | RUnit => DTYPE_I (Npos 8)
+    | RSum ts => DTYPE_Void (* TODO: sum *)
+    | RRecord rs => DTYPE_Struct (map convert_repr rs)
+    | RFun => DTYPE_Pointer (* is this right? *)
+    end.
 
   Definition memory_invariant (γ : ctx) (s : IRState) : Rel_cfg :=
     fun (memC : config_cogent) '(memV, (l, g)) =>
