@@ -10,6 +10,7 @@
     - pass_after.cogent
     - pass_record-fields-order.cogent
     - pass_abstract-type.cogent
+    - pass_deserial.cogent
   expected_result: pass
   flags:
     - -g
