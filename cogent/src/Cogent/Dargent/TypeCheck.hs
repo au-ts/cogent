@@ -194,7 +194,9 @@ tcDataLayoutExpr _ _ DLPtr = return (TLPtr, singletonAllocation (pointerBitRange
 tcDataLayoutExpr _ vs (DLVar n) = if n `elem` vs then return (TLVar n, undeterminedAllocation)
                                                  else throwE $ UnknownDataLayoutVar n PathEnd
 tcDataLayoutExpr _ _ (DLAfter _ f) = throwE $ InvalidUseOfAfter f PathEnd
-tcDataLayoutExpr env vs (DLEndian expr _) = tcDataLayoutExpr env vs expr
+tcDataLayoutExpr env vs (DLEndian expr end) = do
+  (expr', alloc) <- tcDataLayoutExpr env vs expr
+  return (TLEndian expr' end, alloc)
 tcDataLayoutExpr _ _ l = __impossible $ "tcDataLayoutExpr: tried to typecheck unexpected layout: " ++ show l
 
 

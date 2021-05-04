@@ -7,10 +7,10 @@ type XY = { x: U32, y: U32 }
 type AVariant = { a: <X U16 | Y U32> }
   layout
     record {
-      a : variant (1b at 0B) {
+      a : variant (1b) {
             X(0) : 2B at 1B using BE,
-            Y(1) : 4B at 3B using LE
-        } at 0B
+            Y(1) : 4B at 1B using LE
+        }
     }
 
 init : XY -> XY
