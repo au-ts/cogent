@@ -127,11 +127,12 @@ repExpr = do avoidInitial
                         <|> (Ptr  <$  reserved "pointer")
                         <|> (LVar <$> variableName)
                         <|> (RepRef <$> typeConName <*> many repExpr'))
-             l' <- option l (endian l)
-             option l' (offset l')
+             -- in either order, but for each at most once.
+             option l ((offset l >>= \l' -> option l' (endian l')) <|>
+                       (endian l >>= \l' -> option l' (offset l')))
 
   where
-    -- atomatic layout expressions
+    -- atomic layout expressions
     repExpr' = avoidInitial >> (
                    parens repExpr
                <|> (DL <$> (Prim <$> repSize'))
