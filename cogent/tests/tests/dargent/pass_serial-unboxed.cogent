@@ -1,0 +1,10 @@
+type T = { x : #R, y : #Y }
+type Y
+type R = { m : U8, n : U32 }
+
+layout L = record { x : LX, y : LY after x }
+layout LY = 4B
+layout LX = record { m : 1B, n : 4B after m }
+
+serial_T : ((T take (..)) layout L, T!) -> T layout L
+serial_T (buf, t) = buf { x = t.x, y = t.y }
