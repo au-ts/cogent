@@ -64,7 +64,7 @@ language = haskellStyle
 #endif
                                  ,"->","=>","~>","<=","|","|>"]
            , T.reservedNames   = ["let","in","type","include","all","take","put","inline","upcast"
-                                 ,"variant","record","at","rec","layout","pointer","using","LE","BE"
+                                 ,"variant","record","at","after","rec","layout","pointer","using","LE","BE"
                                  ,"if","then","else","not","complement","and","True","False","o"
 #ifdef BUILTIN_ARRAYS
                                  ,"array","map2","@take","@put"]
@@ -455,7 +455,7 @@ typeA1' = do avoidInitial
            -- XXX | <|> (reservedOp "@put"  >> parens (commaSep (expr 1)) >>= \idxs -> return (\x -> LocType (posOfT x) (TAPut  idxs x))))
 #endif
     -- either we have an actual layout, or the name of a layout synonym
-    layout = avoidInitial >> reservedOp "layout" >> repExpr
+    layout = avoidInitial >> reservedOp "layout" >> (repExpr <|> parens repExpr)
       >>= \l -> return (\x -> LocType (posOfT x) (TLayout l x))
     fList = (Just . (:[])) <$> identifier
         <|> parens ((reservedOp ".." >> return Nothing) <|> (commaSep identifier >>= return . Just))
