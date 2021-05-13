@@ -1,0 +1,6 @@
+type R = { x : Bool, y : Bool }
+layout L = record { x : 1b at 2b using BE, y : 1b at 6b using BE }
+
+
+foo : (R layout L)! -> (Bool, Bool)
+foo r = (r.x, r.y)

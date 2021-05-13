@@ -46,8 +46,6 @@ import Cogent.Dargent.Surface       ( DataLayoutSize(Bytes, Bits, Add)
                                     )
 import Cogent.Dargent.Util
 
-{- * Helper functions used in Core.Desugar -}
-
 
 {- * CONSTRUCTING 'DataLayout's -}
 

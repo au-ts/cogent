@@ -1,0 +1,6 @@
+type R = {x : U8, y : U32}
+
+layout L = record {x : 1B, y : 4B at 1B}
+
+foo : (R layout L using BE)! -> (U8, U32)
+foo r = (r.x, r.y)

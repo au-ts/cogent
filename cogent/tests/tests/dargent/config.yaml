@@ -28,6 +28,8 @@
     - fail_invalid-after.cogent
     - fail_after-nonexisting-field-1.cogent
     - fail_after-nonexisting-field-2.cogent
+    - fail_record-endianness.cogent
+    - fail_bits-endianness.cogent
   expected_result: fail
   flags:
     - -t

@@ -35,12 +35,9 @@ import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core
-import qualified Cogent.Dargent.Allocation as DA
-import Cogent.Dargent.Core
-import qualified Cogent.Dargent.Desugar as DD
+import Cogent.Dargent.Allocation (BitRange, newBitRangeBaseSize, pointerBitRange )
 import Cogent.Dargent.Surface
-import Cogent.Dargent.TypeCheck
-import Cogent.Dargent.Util
+import Cogent.Dargent.Util (offset)
 import Cogent.PrettyPrint ()
 import qualified Cogent.Surface as S
 import qualified Cogent.TypeCheck.Base as B
@@ -619,14 +616,15 @@ desugarType = \case
 #endif
   notInWHNF -> __impossible $ "desugarType (type " ++ show (pretty notInWHNF) ++ " is not in WHNF)"
 
-desugarLayout :: DataLayoutExpr -> DS t l v (DataLayout DA.BitRange)
+-- This function is easier to be defined here, at it needs access to the Desugar monad.
+desugarLayout :: DataLayoutExpr -> DS t l v (DataLayout BitRange)
 desugarLayout = (Layout <$>) . go
   where
     go = \case
       DLRepRef _ _ -> __impossible "desugarLayout: TLRepRef should have been substituted out"
       DLPrim n
         | sz <- evalSize n
-        , sz > 0 -> pure $ PrimLayout (fromJust $ DA.newBitRangeBaseSize 0 sz) ME
+        , sz > 0 -> pure $ PrimLayout (fromJust $ newBitRangeBaseSize 0 sz) ME
         | evalSize n < 0 -> __impossible "desugarLayout: TLPrim has a negative size"
         | otherwise            -> pure UnitLayout
       DLOffset e n -> do
@@ -651,7 +649,7 @@ desugarLayout = (Layout <$>) . go
             f (n,_,s,l) = (n,) . (s,) <$> go l
         alts' <- mapM f alts
         pure $ SumLayout tr (M.fromList alts')
-      DLPtr -> pure $ PrimLayout DA.pointerBitRange ME
+      DLPtr -> pure $ PrimLayout pointerBitRange ME
 #ifdef BUILTIN_ARRAYS
       DLArray e _ -> ArrayLayout <$> go e
 #endif
@@ -659,7 +657,8 @@ desugarLayout = (Layout <$>) . go
         Just v -> pure $ VarLayout (finNat v) 0
         Nothing -> __impossible "desugarLayout: unexpected layout variable - check typecheck"
 
-desugarSigil :: Sigil (Maybe DataLayoutExpr) -> DS t l v (Sigil (DataLayout DA.BitRange))
+
+desugarSigil :: Sigil (Maybe DataLayoutExpr) -> DS t l v (Sigil (DataLayout BitRange))
 desugarSigil (Boxed b Nothing)  = pure $ Boxed b CLayout
 desugarSigil (Boxed b (Just l)) = Boxed b <$> desugarLayout l
 desugarSigil Unboxed            = pure Unboxed
