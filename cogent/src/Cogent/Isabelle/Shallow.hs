@@ -1112,7 +1112,7 @@ shallow recoverTuples thy stg defs log =
                                                (SGTables (st defs) (stsyn defs) [] recoverTuples)
                                                (StateGen 0 M.empty [])
       header = (string ("(*\n" ++ log ++ "\n*)\n") L.<$$>)
-  in (header $ pretty shal, header $ pretty shrd, header $ pretty scor, typeMap)
+  in (header (if recoverTuples then I.prettyPlus shal else pretty shal), header $ pretty shrd, header $ pretty scor, typeMap)
 
 genConstDecl :: CC.CoreConst TypedExpr -> SG (TheoryDecl I.Type I.Term)
 genConstDecl (vn, te@(TE ty expr)) = do
