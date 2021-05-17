@@ -21,7 +21,7 @@ import Text.PrettyPrint.ANSI.Leijen
 import Prelude hiding ((<$>))
 #endif
 
-import Isabelle.InnerAST (Arity, prettyTypeVars, Type(TyVar))
+import Isabelle.InnerAST (Arity, prettyTypeVars, Type(TyVar), PrettyPlus, prettyPlus)
 import Isabelle.PrettyHelper (BinOpRec(..), prettyBinOp)
 
 --
@@ -371,6 +371,43 @@ instance (Pretty terms, Pretty types) => Pretty (Abbrev types terms) where
 
 instance Pretty TheoryImports where
   pretty (TheoryImports is) = string "imports" <+> fillSep (map (quote . string) is)
+
+-- improved PrettyPlus for theories
+
+instance (PrettyPlus terms, Pretty types) =>  PrettyPlus (Theory types terms) where
+  prettyPlus thy = (string "theory" <+> string (thyName thy)) <$$>
+                         pretty (thyImports thy) <$$>
+                         string "begin" <$$>
+                         prettyPlusThyDecls (thyBody thy) <>
+                         string "end" <$$> empty
+
+prettyPlusThyDecls :: (PrettyPlus terms, Pretty types) => [TheoryDecl types terms] -> Doc
+prettyPlusThyDecls [] = empty
+prettyPlusThyDecls thyDecls = (vsepPad . map prettyPlus $ thyDecls) <$$> empty
+
+-- only the printing of terms in definitions is modified
+
+instance (PrettyPlus terms, Pretty types) => PrettyPlus (TheoryDecl types terms) where
+  prettyPlus d = case d of
+    Definition def      -> prettyPlus def
+    OverloadedDef def sig -> prettyOv def sig
+    Abbreviation abbrev -> pretty abbrev
+    ContextDecl c       -> pretty c
+    LemmaDecl d'        -> pretty d'
+    LemmasDecl ld       -> pretty ld
+    TypeSynonym ts      -> pretty ts
+    TypeDeclDecl td     -> pretty td
+    ConstsDecl c        -> pretty c
+    RecordDecl fs       -> pretty fs
+    DataTypeDecl dt     -> pretty dt
+    FunFunction ff f    -> (if ff then string "fun" else string "function") <+> pretty f
+    TheoryString s      -> string s
+
+instance (PrettyPlus terms, Pretty types) => PrettyPlus (Def types terms) where
+  prettyPlus def = string "definition" <> mbSig <$$> indent 2 (quote (prettyPlus (defTerm def)))
+    where mbSig = case defSig def of 
+                    Just sig -> empty <$$> indent 2 (pretty sig) <$$> string "where" 
+                    Nothing  -> empty
 
 -- smart constructor
 
