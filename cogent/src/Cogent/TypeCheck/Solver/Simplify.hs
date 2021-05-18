@@ -188,7 +188,7 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
 #endif
 
   TLOffset e _   :~ tau -> hoistMaybe $ Just [e :~ tau]
-  TLEndian e _   :~ tau -> hoistMaybe $ Just [e :~ tau]
+  TLEndian e _   :~ tau -> hoistMaybe $ Just [e :~ tau, Upcastable (T u8) tau]
 
   TLPrim n       :~ T TUnit | evalSize n >= 0 -> hoistMaybe $ Just []
   TLPrim n       :~ T (TCon c ts Unboxed) | c `notElem` primTypeCons -> hoistMaybe $ Just []

@@ -1,0 +1,6 @@
+type R = { f1 : U32 , f2 : U16 }
+
+layout L = record { f1 : 4B using BE, f2 : 2B at 4B using LE }
+
+foo : (R layout L)! -> U32
+foo r = r.f1
