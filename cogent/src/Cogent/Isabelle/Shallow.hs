@@ -133,11 +133,11 @@ shallowType t@(TRecord rp fs s) = do
      then
        if __cogent_ffold_poly_types
           then do
-                st <- findShortType False t
+                st <- findShortType True t
                 case st of
                      (TCon _ _ _) -> shallowType st
                      _ -> shallowRecTupleType fs
-          else shallowRecTupleType fs
+            else shallowRecTupleType fs
   else
     shallowTypeWithName (TRecord rp fs s)
 shallowType (TUnit) = return $ I.AntiType "unit"
@@ -149,7 +149,7 @@ shallowType t@(TArray el _ _ _) =
              case st of
                   (TCon _ _ _) -> shallowType st
                   _ -> I.TyDatatype "list" <$> mapM shallowType [el]
-       else I.TyDatatype "list" <$> mapM shallowType [t]
+       else I.TyDatatype "list" <$> mapM shallowType [el]
 #endif
 
 shallowPrimType :: PrimInt -> I.Type
