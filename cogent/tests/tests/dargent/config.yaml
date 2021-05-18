@@ -54,3 +54,11 @@
   expected_result: wip-fail 
   flags:
     - -t
+
+- test_name: dargent-endianness
+  files:
+    - wip_bits-endianness.cogent
+    - wip_record-endianness.cogent
+  expected_result: wip-fail
+  flags:
+    - -t
