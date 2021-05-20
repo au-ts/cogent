@@ -133,7 +133,7 @@ shallowType t@(TRecord rp fs s) = do
      then
        if __cogent_ffold_poly_types
           then do
-                st <- findShortType True t
+                st <- findShortType False t
                 case st of
                      (TCon _ _ _) -> shallowType st
                      _ -> shallowRecTupleType fs
