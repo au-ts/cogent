@@ -1018,6 +1018,8 @@ instance Pretty DataLayoutTcError where
     err "Non-existing field" <+> symbol "after" <+> fieldname f <$$> indent (pretty ctx)
   pretty (InvalidUseOfAfter f ctx) =
     err "The use of" <+> symbol "after" <+> fieldname f <+> err "layout expression is invalid" <$$> indent (pretty ctx)
+  pretty (InvalidEndianness end ctx) =
+    err "Endianness" <+> pretty end <+> err "can only be applied to int sizes"
 
 instance Pretty DataLayoutPath where
   pretty (InField n po ctx) = context' "for field" <+> fieldname n <+> context' "(" <> pretty po <> context' ")" </> pretty ctx

@@ -196,7 +196,9 @@ tcDataLayoutExpr _ vs (DLVar n) = if n `elem` vs then return (TLVar n, undetermi
 tcDataLayoutExpr _ _ (DLAfter _ f) = throwE $ InvalidUseOfAfter f PathEnd
 tcDataLayoutExpr env vs (DLEndian expr end) = do
   (expr', alloc) <- tcDataLayoutExpr env vs expr
-  return (TLEndian expr' end, alloc)
+  case alloc of
+    Allocation [(br,_)] | bitSizeBR br `elem` [8,16,32,64] -> return (TLEndian expr' end, alloc)
+    _ -> throwE $ InvalidEndianness end PathEnd
 tcDataLayoutExpr _ _ l = __impossible $ "tcDataLayoutExpr: tried to typecheck unexpected layout: " ++ show l
 
 
@@ -257,31 +259,8 @@ data DataLayoutTcErrorP p
   | CyclicFieldDepedency    [FieldName] p
   | NonExistingField        FieldName p
   | InvalidUseOfAfter       FieldName p
+  | InvalidEndianness       Endianness p
   deriving (Eq, Show, Ord, Functor)
-
-
-{-
--- The type parameter p is the type of the path to the error (DataLayoutPath)
--- We parameterise by p so we can use the functor instance to map changes to the path
-data DataLayoutTypeMatchErrorP p
-  = TypeUnsupported p RawType
-  -- Path to where we found a non-layoutable type and the type which wasn't layoutable
-  | FieldMissing          p FieldName
-  -- Path to the record with a missing field, and expected name of the field
-  | FieldUnknown          p FieldName
-  -- Path to the record with an unknown field and the field name
-  | AltMissing            p TagName
-  -- Path to the variant with the missing alternative, and expected name of the alternative
-  | AltUnknown            p TagName
-  -- Path to the variant with the unknown alternative
-  | RecordLayoutExpected  p
-  -- Path to where we expect to find a record layout
-  | SumLayoutExpected     p
-  -- Path to where we expect to find a sum layout
-  | PrimLayoutExpected    p
-  -- Path to where we expect to find a bit layout
-  deriving (Eq, Show, Ord)
--}
 
 
 {- * Other exported functions -}
