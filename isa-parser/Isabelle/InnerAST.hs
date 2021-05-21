@@ -401,7 +401,7 @@ prettyPlusUpdate p uds rec =
     case rec of
          TermApp (TermApp (TermIdent (Id s)) (QuantifiedTerm Lambda [v] val)) t' | ("_update" `isSuffixOf` s) && (v == (Id "_") || v == Wildcard)
              -> prettyPlusUpdate p ((s,val):uds) t'
-         _ -> doupd $ reverse $ map (\(f,v) -> (reverse $ drop 7 $ reverse f, v)) uds
+         _ -> doupd $ map (\(f,v) -> (reverse $ drop 7 $ reverse f, v)) uds
     where
         doupd updts =
             prettyParen (p > termUpdatePrec) $
