@@ -35,12 +35,9 @@ import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core
-import qualified Cogent.Dargent.Allocation as DA
-import Cogent.Dargent.Core
+import Cogent.Dargent.Allocation (BitRange, newBitRangeBaseSize, pointerBitRange )
 import Cogent.Dargent.Surface
-import qualified Cogent.Dargent.Desugar as DD
-import Cogent.Dargent.TypeCheck
-import Cogent.Dargent.Util
+import Cogent.Dargent.Util (offset)
 import Cogent.PrettyPrint ()
 import qualified Cogent.Surface as S
 import qualified Cogent.TypeCheck.Base as B
@@ -561,7 +558,7 @@ desugarType = \case
   B.DT (S.TCon "U64"    [] Unboxed) -> return $ TPrim U64
   B.DT (S.TCon "Bool"   [] Unboxed) -> return $ TPrim Boolean
   B.DT (S.TCon "String" [] Unboxed) -> return $ TString
-  B.DT (S.TCon tn tvs s) -> TCon tn <$> mapM desugarType tvs <*> pure (DD.desugarAbstractTypeSigil s)
+  B.DT (S.TCon tn tvs sigil) -> TCon tn <$> mapM desugarType tvs <*> (fmap (fmap $ const ()) $ desugarSigil sigil)
   B.DT (S.TVar vn b u)   ->
     (findIx vn <$> use typCtx) >>= \(Just v) -> return $
       case (b,u) of
@@ -591,7 +588,7 @@ desugarType = \case
   B.DT (S.TUnit)     -> return TUnit
   B.DT (S.TRPar v b m) -> do
     m' <- mapM id (fmap (\x -> mapM id (M.map desugarType x)) m)
-    return $ 
+    return $
       if b then
         TRParBang v m'
       else
@@ -599,10 +596,10 @@ desugarType = \case
 #ifdef BUILTIN_ARRAYS
   B.DT (S.TArray t l Unboxed tkns) -> do
     t' <- desugarType t
-    l' <- uexprToLExpr id <$> desugarExpr (fmap B.rawToDepType l)
+    l' <- uexprToLExpr id <$> desugarExpr (ffmap B.rawToDepType l)
     mhole <- case tkns of
                [] -> return Nothing
-               [(idx,True)] -> Just . uexprToLExpr id <$> desugarExpr (fmap B.rawToDepType idx)
+               [(idx,True)] -> Just . uexprToLExpr id <$> desugarExpr (ffmap B.rawToDepType idx)
                _ -> __impossible "desugarType: TArray should not have more than 1 element taken"
     return $ TArray t' l' Unboxed mhole
   B.DT (S.TArray t l sigil tkns) -> do
@@ -610,7 +607,7 @@ desugarType = \case
     -- NOTE: if the user specify boxed array containing boxed types with layout defined as pointer,
     --       we simply turn that into CLayout to avoid generating extra getters & setters
     ds <- case sigil of
-            Boxed ro (Just (S.DLArray S.DLPtr _)) -> pure $ Boxed ro CLayout
+            Boxed ro (Just (DLArray DLPtr _)) -> pure $ Boxed ro CLayout
             _ -> desugarSigil sigil
     TArray <$> pure t'
            <*> pure l'
@@ -619,44 +616,51 @@ desugarType = \case
 #endif
   notInWHNF -> __impossible $ "desugarType (type " ++ show (pretty notInWHNF) ++ " is not in WHNF)"
 
-desugarLayout :: TCDataLayout -> DS t l v (DataLayout DA.BitRange)
-desugarLayout l = Layout <$> desugarLayout' l
+-- This function is easier to be defined here, at it needs access to the Desugar monad.
+desugarLayout :: DataLayoutExpr -> DS t l v (DataLayout BitRange)
+desugarLayout = (Layout <$>) . go
   where
-    desugarLayout' :: TCDataLayout -> DS t l v (DataLayout' DA.BitRange)
-    desugarLayout' = \case
-      TLRepRef _ _ -> __impossible "desugarLayout: TLRepRef should be normalised before"
-      TLPrim n
-        | sz <- DD.desugarSize n
-        , sz > 0 -> pure $ PrimLayout (fromJust $ DA.newBitRangeBaseSize 0 sz)
-        | DD.desugarSize n < 0 -> __impossible "desugarLayout: TLPrim has a negative size"
+    go = \case
+      DLRepRef _ _ -> __impossible "desugarLayout: TLRepRef should have been substituted out"
+      DLPrim n
+        | sz <- evalSize n
+        , sz > 0 -> pure $ PrimLayout (fromJust $ newBitRangeBaseSize 0 sz) ME
+        | evalSize n < 0 -> __impossible "desugarLayout: TLPrim has a negative size"
         | otherwise            -> pure UnitLayout
-      TLOffset e n -> do
-        e' <- desugarLayout' e
-        pure $ offset (DD.desugarSize n) e'
-      TLRecord fs -> do
-        let f (n,_,l) = desugarLayout' l >>= pure . (n,)
+      DLOffset e n -> do
+        e' <- go e
+        pure $ offset (evalSize n) e'
+      DLEndian e n -> do
+        e' <- go e
+        case e' of
+          pl@(PrimLayout _ _) -> pure $ pl {endianness = n}
+          _ -> __impossible "desugarLayout: DLEndian descendent not prim"
+      DLAfter e f -> __impossible "desugarLayout: TLAfter should have been substituted out"
+      DLRecord fs -> do
+        let f (n,_,l) = (n,) <$> go l
         fs' <- mapM f fs
         pure $ RecordLayout (M.fromList fs')
-      TLVariant te alts -> do
-        te' <- desugarLayout' te
+      DLVariant te alts -> do
+        te' <- go te
         let tr = case te' of
-                   PrimLayout range -> range
-                   UnitLayout       -> __impossible $ "desugarLayout: zero sized bit range for variant tag"
-                   _                -> __impossible $ "desugarLayout: tag layout known to be a single range"
-        let f (n,_,s,l) = desugarLayout' l >>= pure . (n,) . (s,)
+                   PrimLayout range _ -> range
+                   UnitLayout         -> __impossible "desugarLayout: zero sized bit range for variant tag"
+                   _                  -> __impossible "desugarLayout: tag layout known to be a single range"
+            f (n,_,s,l) = (n,) . (s,) <$> go l
         alts' <- mapM f alts
         pure $ SumLayout tr (M.fromList alts')
-      TLPtr -> pure $ PrimLayout DA.pointerBitRange
+      DLPtr -> pure $ PrimLayout pointerBitRange ME
 #ifdef BUILTIN_ARRAYS
-      TLArray e _ -> ArrayLayout <$> desugarLayout' e
+      DLArray e _ -> ArrayLayout <$> go e
 #endif
-      TLVar n -> (findIx n <$> use layCtx) >>= \case
+      DLVar n -> (findIx n <$> use layCtx) >>= \case
         Just v -> pure $ VarLayout (finNat v) 0
         Nothing -> __impossible "desugarLayout: unexpected layout variable - check typecheck"
 
-desugarSigil :: Sigil (Maybe DataLayoutExpr) -> DS t l v (Sigil (DataLayout DA.BitRange))
+
+desugarSigil :: Sigil (Maybe DataLayoutExpr) -> DS t l v (Sigil (DataLayout BitRange))
 desugarSigil (Boxed b Nothing)  = pure $ Boxed b CLayout
-desugarSigil (Boxed b (Just l)) = Boxed b <$> desugarLayout (toTCDL l)
+desugarSigil (Boxed b (Just l)) = Boxed b <$> desugarLayout l
 desugarSigil Unboxed            = pure Unboxed
 
 desugarNote :: S.Inline -> FunNote

@@ -11,7 +11,7 @@ Dependencies
 Compiled Cogent theory files have several dependencies:
 
 * `Isabelle/HOL 2019`_, the proof assistant used for generated theory files (.thy)
-* AutoCorres_, an Isabelle/HOL tool to extract C code into an Isabelle/HOL embedding
+* AutoCorres_ (v1.6.1), an Isabelle/HOL tool to extract C code into an Isabelle/HOL embedding
 * `Cogent theories`_, included in the Cogent repository
 * `C refinement theories`_, included in the Cogent repository
 
@@ -272,7 +272,7 @@ This can be due to several reasons:
 
 
 
-.. _AutoCorres: https://ts.data61.csiro.au/projects/TS/autocorres/
+.. _AutoCorres: https://ts.data61.csiro.au/projects/TS/autocorres.html
 .. _`Isabelle/HOL 2019`: https://isabelle.in.tum.de/
 .. _`Cogent theories`: https://github.com/NICTA/cogent/tree/master/cogent/isa/
 .. _`C refinement theories`: https://github.com/NICTA/cogent/tree/master/c-refinement

@@ -60,7 +60,7 @@ where
        
 definition sObjDel :: "ObjDel\<^sub>T \<Rightarrow> U8 list"
 where
-  "sObjDel odel \<equiv> (sle64 $ ObjDel.id\<^sub>f odel) (* id *) (* End 8 bytes *)"
+  "sObjDel odel \<equiv> (sle64 $ ObjDel.id\<^sub>f odel)"  (* id *) (* End 8 bytes *)
 
 lemma objDel_inverse:
  "pObjDel (sObjDel odel) 0 = odel"
@@ -72,7 +72,7 @@ lemma objDel_inverse:
 definition pObjData :: "U8 list \<Rightarrow> U32 \<Rightarrow> U32 \<Rightarrow> ObjData\<^sub>T"
 where
   "pObjData data offs olen \<equiv>
-   ObjData.make (ple64 data offs) (* id *)
+   ObjData.make (ple64 data offs) \<comment> \<open> id \<close>
      (WordArrayT.make $ slice (unat (offs + 8)) (unat (offs + 8) + unat (olen - bilbyFsObjHeaderSize - bilbyFsObjDataHeaderSize)) data)"
 
 definition sObjData :: "ObjData\<^sub>T \<Rightarrow> U32 \<Rightarrow> U8 list"
@@ -110,11 +110,11 @@ where
  "pObjDentry data offs \<equiv>
    let nlen = ple16 data (offs+6)
    in ObjDentry.make
-    (ple32 data (offs+0)) (* ino *)
-    (pu8 data (offs+4))  (* dtype *)
-    (* 1 byte padding *)
-    nlen  (* nlen *)
-    (WordArrayT.make $ slice (unat (offs+ 8)) (unat (offs + 8) + unat nlen) data)  (* name *)"
+    (ple32 data (offs+0)) \<comment> \<open> ino \<close>
+    (pu8 data (offs+4))   \<comment> \<open> dtype \<close>
+    \<comment> \<open> 1 byte padding \<close>
+    nlen  \<comment> \<open> nlen \<close>
+    (WordArrayT.make $ slice (unat (offs+ 8)) (unat (offs + 8) + unat nlen) data) \<comment> \<open> name \<close>"
 
 definition pArrObjDentry :: "U8 list \<Rightarrow> U32 \<Rightarrow> U32 \<Rightarrow> (ObjDentry\<^sub>T Array \<times> 32 word \<times> 32 word list)"
 where
@@ -131,8 +131,8 @@ where
 "pObjDentarr data offs olen \<equiv>
  let nb_dentry = ple32 data (offs+8)
  in ObjDentarr.make
-     (ple64 data offs) (* id *)
-     (nb_dentry) (* nb_dentry *)
+     (ple64 data offs) \<comment> \<open> id \<close>
+     (nb_dentry) \<comment> \<open> nb_dentry \<close>
      (prod.fst (pArrObjDentry (take (unat (offs+olen-bilbyFsObjHeaderSize)) data) (offs+bilbyFsObjDentarrHeaderSize) nb_dentry))
      "
 
@@ -147,15 +147,15 @@ definition pObjSuper :: "U8 list \<Rightarrow> U32 \<Rightarrow> ObjSuper\<^sub>
 where
   "pObjSuper data offs \<equiv>
    ObjSuper.make
-     (ple32 data offs) (* nb_eb *)
-     (ple32 data (offs+4)) (* eb_size *)
-     (ple32 data (offs+8)) (* io_size *)
-     (ple32 data (offs+12)) (* nb_reserved_gc *)
-     (ple32 data (offs+16)) (* nb_reserved_del *)
-     (ple32 data (offs+20)) (* cur_eb *)
-     (ple32 data (offs+24)) (* cur_offs *)
-     (ple32 data (offs+28)) (* last_inum *)
-     (ple64 data (offs+32)) (* next_sqnum *)
+     (ple32 data offs) \<comment> \<open> nb_eb \<close>
+     (ple32 data (offs+4)) \<comment> \<open> eb_size \<close>
+     (ple32 data (offs+8)) \<comment> \<open> io_size \<close>
+     (ple32 data (offs+12)) \<comment> \<open> nb_reserved_gc \<close>
+     (ple32 data (offs+16)) \<comment> \<open> nb_reserved_del \<close>
+     (ple32 data (offs+20)) \<comment> \<open> cur_eb \<close>
+     (ple32 data (offs+24)) \<comment> \<open> cur_offs \<close>
+     (ple32 data (offs+28)) \<comment> \<open> last_inum \<close>
+     (ple64 data (offs+32)) \<comment> \<open> next_sqnum \<close>
      "
 
 (* TODO: we do not have pObjSumEntry . Probably we need it.*)
@@ -380,17 +380,17 @@ definition pObjInode :: "U8 list \<Rightarrow> U32 \<Rightarrow> ObjInode\<^sub>
 where
  "pObjInode data offs \<equiv>
      ObjInode.make
-       (((ple64 data offs) AND (NOT (bilbyFsOidMaskAll OR ucast word32Max))) OR bilbyFsOidMaskInode) (* id *)
-       (ple64 data (offs+8)) (* size *)
-       (ple64 data (offs+16)) (* atime *)
-       (ple64 data (offs+24)) (* ctime *)
-       (ple64 data (offs+32)) (* mtime *)
-       (ple32 data (offs+40)) (* nlink *)
-       (ple32 data (offs+44)) (* uid *)
-       (ple32 data (offs+48)) (* gid *)
-       (ple32 data (offs+52)) (* mode *)
-       (ple32 data (offs+56)) (* flags *)
-       (* End 60 bytes *)"
+       (((ple64 data offs) AND (NOT (bilbyFsOidMaskAll OR ucast word32Max))) OR bilbyFsOidMaskInode) \<comment> \<open> id \<close>
+       (ple64 data (offs+8)) \<comment> \<open> size \<close>
+       (ple64 data (offs+16)) \<comment> \<open> atime \<close>
+       (ple64 data (offs+24)) \<comment> \<open> ctime \<close>
+       (ple64 data (offs+32)) \<comment> \<open> mtime \<close>
+       (ple32 data (offs+40)) \<comment> \<open> nlink \<close>
+       (ple32 data (offs+44)) \<comment> \<open> uid \<close>
+       (ple32 data (offs+48)) \<comment> \<open> gid \<close>
+       (ple32 data (offs+52)) \<comment> \<open> mode \<close>
+       (ple32 data (offs+56)) \<comment> \<open> flags \<close>
+       \<comment> \<open> End 60 bytes \<close>"
 
 definition sObjInode :: "ObjInode\<^sub>T \<Rightarrow> U8 list"
 where
@@ -404,22 +404,22 @@ where
  @ (sle32 $ ObjInode.uid\<^sub>f odata)
  @ (sle32 $ ObjInode.gid\<^sub>f odata)
  @ (sle32 $ ObjInode.mode\<^sub>f odata)
- @ (sle32 $ ObjInode.flags\<^sub>f odata)  (* End 60 bytes *)"
+ @ (sle32 $ ObjInode.flags\<^sub>f odata)  \<comment> \<open> End 60 bytes \<close>"
 
 definition pObjHeader :: "U8 list \<Rightarrow> U32 \<Rightarrow> Obj\<^sub>T"
 where
  "pObjHeader data offs \<equiv>
      Obj.make
-       (ple32 data offs)      (* magic *)
-       (ple32 data (offs+4))  (* crc *)
-       (ple64 data (offs+8))  (* sqnum *)
-       (offs)                    (* offs not stored on medium *) (* changed back to offs, otherwise this doesnt correspond to the code*)
-       (ple32 data (offs+16)) (* len *)
-       (* 2 padding bytes *)
-       (data!unat (offs+22))  (* trans *)
-       (data!unat (offs+23))  (* otype *)
-       undefined               (* ounion *)
-       (* End 24 bytes *)"
+       (ple32 data offs)      \<comment> \<open> magic \<close>
+       (ple32 data (offs+4))  \<comment> \<open> crc \<close>
+       (ple64 data (offs+8))  \<comment> \<open> sqnum \<close>
+       (offs)                    \<comment> \<open> offs not stored on medium \<close> \<comment> \<open> changed back to offs, otherwise this doesnt correspond to the code\<close>
+       (ple32 data (offs+16)) \<comment> \<open> len \<close>
+       \<comment> \<open> 2 padding bytes \<close>
+       (data!unat (offs+22))  \<comment> \<open> trans \<close>
+       (data!unat (offs+23))  \<comment> \<open> otype \<close>
+       undefined               \<comment> \<open> ounion \<close>
+       \<comment> \<open> End 24 bytes \<close>"
 
 definition sObjHeader :: "Obj\<^sub>T \<Rightarrow> U8 list"
 where
@@ -431,7 +431,7 @@ where
  @ [bilbyFsPadByte]
  @ [bilbyFsPadByte]
  @ [Obj.trans\<^sub>f obj]
- @ [Obj.otype\<^sub>f obj] (* End 24 bytes *)"
+ @ [Obj.otype\<^sub>f obj] \<comment> \<open> End 24 bytes \<close>"
 
 lemma ObjHeader_inverse:
   "pObjHeader (sObjHeader obj@xs) 0 = (obj\<lparr> Obj.ounion\<^sub>f := undefined, Obj.offs\<^sub>f := 0\<rparr>) "
@@ -585,8 +585,8 @@ where
     TObjDel (pObjDel data offs)
    else if otype = bilbyFsObjTypeSuper then
     TObjSuper (pObjSuper data offs)
-   else (*if otype = bilbyFsObjTypeSum then
-    TObjSummary (pObjSummary data offs) *) (* see comments in: serial.cogent for deserialise_ObjUnion:*)
+   else \<comment> \<open>if otype = bilbyFsObjTypeSum then
+    TObjSummary (pObjSummary data offs) \<close> \<comment> \<open> see comments in: serial.cogent for deserialise_ObjUnion:\<close>
     TObjPad ()"
 
 definition pObj :: "U8 list \<Rightarrow> U32 \<Rightarrow> Obj\<^sub>T"
@@ -724,12 +724,12 @@ definition
 where
  "sObjUnion (ou::ObjUnion\<^sub>T) (otype::U8) (olen::U32) \<equiv> 
   case ou of
-    TObjDentarr odent \<Rightarrow> undefined (* TODO: no dentarr support for now *)
+    TObjDentarr odent \<Rightarrow> undefined \<comment> \<open> TODO: no dentarr support for now \<close>
   | TObjInode oinod \<Rightarrow> sObjInode oinod
   | TObjData odata \<Rightarrow> sObjData odata olen
   | TObjDel odel \<Rightarrow> sObjDel odel
   | TObjSuper osup \<Rightarrow> sObjSuper osup
-  | TObjSummary g \<Rightarrow> undefined (* TODO: sObjSummary is undefined*)
+  | TObjSummary g \<Rightarrow> undefined \<comment> \<open> TODO: sObjSummary is undefined\<close>
   | TObjPad opad \<Rightarrow>  sObjPad olen"
 
 lemmas bilbyFsObjTypes = 
@@ -2427,7 +2427,7 @@ lemma deserialise_ObjUnion_ret:
   assumes err:
   "\<And>ex e. e \<in> {eInval, eNoMem} \<Longrightarrow> P (Error (e, ex))"
   assumes suc:
-  "\<And>ex ounion offs'. ounion = pObjUnion ((*take (unat (offs + olen))*) (\<alpha>wa (data\<^sub>f buf))) otype olen offs  \<Longrightarrow>
+  "\<And>ex ounion offs'. ounion = pObjUnion (\<comment> \<open>take (unat (offs + olen))\<close> (\<alpha>wa (data\<^sub>f buf))) otype olen offs  \<Longrightarrow>
    offs' \<le> (offs + olen - bilbyFsObjHeaderSize) \<Longrightarrow>
   let end_offs = offs + olen - bilbyFsObjHeaderSize;
   data = take (unat end_offs) (\<alpha>wa (data\<^sub>f buf));
@@ -2438,7 +2438,7 @@ lemma deserialise_ObjUnion_ret:
    P (Success (ex, ounion, offs'))"
   notes suc_simps = len_otype_ok Let_def  pObjUnion_def' suc add.commute bilbyFsObjHeaderSize_def
           otype_simps dentarr_end_offs_simps  dentarr_drop_end_offs_simps
-  shows "P (deserialise_ObjUnion (ex, buf, offs, (otype, olen)))"
+        shows "P (deserialise_ObjUnion (ex, buf, offs, (otype, olen)))"
   unfolding deserialise_ObjUnion_def[unfolded tuple_simps, simplified sanitizers]
   using is_len_and_type_ok_hdr_szD[OF len_otype_rel] 
   apply (clarsimp simp: Let_def)

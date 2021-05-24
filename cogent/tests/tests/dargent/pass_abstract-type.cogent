@@ -1,0 +1,14 @@
+type Heap
+type X
+type LX = X layout 4B
+
+allocX : Heap -> (Heap, LX)
+
+modifyX : LX -> LX
+
+freeX : (Heap, LX) -> Heap
+
+foo : Heap -> Heap
+foo h = let (h',x) = allocX h
+        and x' = modifyX x
+         in freeX (h',x')

@@ -40,25 +40,25 @@ prop_allocationConj :: Allocation -> Allocation -> Bool
 prop_allocationConj a b = case a /\ b of
   Right c ->
     (toSet a) `disjoint` (toSet b) &&
-    (toSet a) `union`    (toSet b) == toSet c 
+    (toSet a) `union`    (toSet b) == toSet c
   _ -> not (toSet a `disjoint` toSet b)
-    
+
 prop_overlaps :: BitRange -> BitRange -> Bool
 prop_overlaps a b = overlaps a b == not (toSet a `disjoint` toSet b)
 
 prop_typeCheckValidGivesNoErrors :: Property
 prop_typeCheckValidGivesNoErrors =
   forAll (genDataLayout size) $ \(Layout layout, alloc) ->  -- FIXME: not considering CLayout for now / zilinc
-    case runExcept $ tcDataLayoutExpr M.empty [] (undesugarDataLayout layout) of
-      Right alloc' -> toSet alloc == toSet alloc'
-      _            -> False
+    case runExcept $ tcDataLayoutExpr M.empty [] (sugarDataLayout layout) of
+      Right (_,alloc') -> toSet alloc == toSet alloc'
+      _                -> False
   where size = 30
 
 {-+ INVERSE FUNCTIONS
   |
   | Convert core DataLayout values back to surface DataLayoutExprs for round trip testing.
   +-}
-  
+
 bitSizeToDataLayoutSize :: Size -> DataLayoutSize
 bitSizeToDataLayoutSize size =
   if bytes == 0
@@ -69,25 +69,28 @@ bitSizeToDataLayoutSize size =
   where
     bytes = size `div` 8
     bits  = size `mod` 8
-    
-undesugarBitRange :: BitRange -> DataLayoutExpr
-undesugarBitRange (BitRange size offset) =
+
+sugarBitRange :: BitRange -> DataLayoutExpr
+sugarBitRange (BitRange size offset) =
   DL $ Offset (DLPrim (bitSizeToDataLayoutSize size)) (bitSizeToDataLayoutSize offset)
-    
-undesugarDataLayout  :: DataLayout' BitRange -> DataLayoutExpr
-undesugarDataLayout UnitLayout = DL $ Prim (Bits 0)
-undesugarDataLayout (PrimLayout bitRange) = undesugarBitRange bitRange
-undesugarDataLayout (RecordLayout fields) =
-  DL . Record $ fmap (\(name, layout) -> (name, noPos, (undesugarDataLayout  layout))) (M.toList fields)
-undesugarDataLayout (SumLayout tagBitRange alternatives) =
+
+sugarDataLayout  :: DataLayout' BitRange -> DataLayoutExpr
+sugarDataLayout UnitLayout = DL $ Prim (Bits 0)
+sugarDataLayout (PrimLayout bitRange endianness) = 
+  case endianness of
+    ME -> sugarBitRange bitRange
+    _  -> DL $ Endian (sugarBitRange bitRange) endianness
+sugarDataLayout (RecordLayout fields) =
+  DL . Record $ fmap (\(name, layout) -> (name, noPos, (sugarDataLayout  layout))) (M.toList fields)
+sugarDataLayout (SumLayout tagBitRange alternatives) =
   DL $ Variant
-    (undesugarBitRange tagBitRange)
-    (fmap (\(tagName, (tagValue, altLayout)) -> (tagName, noPos, tagValue, (undesugarDataLayout  altLayout))) (M.toList alternatives))
-    
+    (sugarBitRange tagBitRange)
+    (fmap (\(tagName, (tagValue, altLayout)) -> (tagName, noPos, tagValue, (sugarDataLayout  altLayout))) (M.toList alternatives))
+
 {- ARBITRARY INSTANCES -}
 instance Arbitrary DataLayoutPath where
   arbitrary = InDecl <$> arbitrary <*> arbitrary
-    
+
 instance Arbitrary p => Arbitrary (Allocation' p) where
   arbitrary = Allocation <$> arbitrary
 
@@ -104,6 +107,6 @@ instance SetLike BitRange where
 
 instance SetLike Allocation where
   toSet (Allocation a) = foldr union empty $ fmap (toSet . fst) a
-    
+
 return []
 testAll = $quickCheckAll

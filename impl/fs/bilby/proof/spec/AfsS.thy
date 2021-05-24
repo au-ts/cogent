@@ -316,7 +316,7 @@ where
        Error (e, afs) \<Rightarrow> return ((afs, parentdir, vnode), Error e)
      | Success afs \<Rightarrow> do
      (afs, time) \<leftarrow> afs_get_current_time afs;
-     (* We need to use updated afs because inode might contain data blocks *)
+     \<comment> \<open>We need to use updated afs because inode might contain data blocks\<close>
      inode  \<leftarrow> return ((the $ updated_afs afs (v_ino vnode))\<lparr>i_nlink:= v_nlink vnode - 1, i_ctime:= time\<rparr>) ;
      newsize \<leftarrow> select {sz. sz < v_size parentdir};
      dir_ino \<leftarrow> return (v_ino parentdir);
@@ -341,7 +341,7 @@ where
       r \<leftarrow> read_afs_inode afs inum;
       case r of
        Success inode \<Rightarrow>
-        (* update vnode with inode *)
+        \<comment> \<open> update vnode with inode \<close>
         return (afs_inode_to_vnode inode, Success ())
       | Error e \<Rightarrow>
        return (vnode, Error e)
@@ -388,7 +388,7 @@ where
     | Success newsz \<Rightarrow> do
    time \<leftarrow> return (v_ctime vnode);
    dir \<leftarrow> return (dir\<lparr>i_ctime:=time, i_mtime:=time, i_size := newsz\<rparr>);
-   (* We need to use updated_afs because vnode might contain data blocks *)
+   \<comment> \<open> We need to use updated_afs because vnode might contain data blocks \<close>
    inode  \<leftarrow> return (the $ updated_afs afs (v_ino vnode));
    (afs, r) \<leftarrow> afs_update afs (\<lambda>f. f(i_ino inode \<mapsto> inode, i_ino dir \<mapsto> dir));
    case r of
@@ -456,7 +456,7 @@ where
      do
      (afs, time) \<leftarrow> afs_get_current_time afs;
      vnode' \<leftarrow> return (vnode \<lparr> v_nlink := 0 \<rparr>);
-     (* no need to use updated afs since vnode must be an empty dir *)
+     \<comment> \<open> no need to use updated afs since vnode must be an empty dir \<close>
      inode  \<leftarrow> return (afs_inode_from_vnode vnode);
      newsize \<leftarrow> select {sz. sz < v_size parentdir};
      dir_ino \<leftarrow> return (v_ino parentdir);

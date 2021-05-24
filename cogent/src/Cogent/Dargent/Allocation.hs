@@ -38,6 +38,7 @@ module Cogent.Dargent.Allocation
   , (/\)
   , overlaps
   , isZeroSizedAllocation
+  , endOfAllocation
   , AlignedBitRange (..)
   , alignSize
   , alignOffsettable
@@ -56,6 +57,7 @@ import GHC.Generics (Generic)
 import Cogent.Common.Types
 import Cogent.Common.Syntax
 import Cogent.Compiler
+import Cogent.Dargent.Surface
 import Cogent.Dargent.Util
 import Cogent.Util
 
@@ -137,10 +139,9 @@ singletonAllocation :: AllocationBlock p -> Allocation' p
 singletonAllocation b = Allocation [b]
 
 undeterminedAllocation :: Allocation' p
-undeterminedAllocation = __fixme $ Allocation [] -- FIXME: we may need different rep
+undeterminedAllocation = emptyAllocation
 
 -- | Disjunction of allocations
---
 (\/) :: forall p. Ord p => Allocation' p -> Allocation' p -> Allocation' p
 (Allocation a1) \/ (Allocation a2) = Allocation (a1 ++ a2)
 
@@ -178,6 +179,8 @@ overlaps (BitRange s1 o1) (BitRange s2 o2) =
 isZeroSizedAllocation :: Allocation' p -> Bool
 isZeroSizedAllocation = all (isZeroSizedBR . fst) . unAllocation
 
+endOfAllocation :: Allocation -> Integer  -- calculates the last bit of an allocation
+endOfAllocation (Allocation abs) = maximum $ fmap (\(BitRange s o, _) -> s + o) abs
 
 type Allocation = Allocation' DataLayoutPath
 

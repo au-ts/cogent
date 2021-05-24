@@ -33,7 +33,7 @@ import Cogent.TypeCheck.Errors
 import Cogent.TypeCheck.Generator
 import Cogent.TypeCheck.Post (postT, postE, postA)
 import Cogent.TypeCheck.Solver
-import Cogent.TypeCheck.Subst (apply, applyE, applyAlts)
+import Cogent.TypeCheck.Subst (apply, applyE, applyL, applyAlts)
 import Cogent.TypeCheck.Util
 import Cogent.Util (firstM, secondM)
 
@@ -67,6 +67,7 @@ typecheck :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
 typecheck = mapM (uncurry checkOne)
 
 -- TODO: Check for prior definition
+-- NOTE: we may make a choice between VariableNotDeclared and UnknownVariable
 checkOne :: SourcePos -> TopLevel LocType LocPatn LocExpr
          -> TcM (TopLevel DepType TypedPatn TypedExpr)
 checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
@@ -157,15 +158,25 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
 
   (RepDef decl@(DataLayoutDecl pos name vars expr)) -> do
     traceTc "tc" (text "typecheck rep decl" <+> pretty name)
-    namedLayouts            <- lift . lift $ use knownDataLayouts
-    allocation <- case runExcept $ tcDataLayoutDecl namedLayouts decl of
-                    Left es     -> (logErr . DataLayoutError . head $ es) >> return Nothing
-                    Right alloc -> return $ Just alloc
-    -- We add the decl to the knownDataLayouts regarldess of error, so we can continue
-    -- typechecking DataLayoutExprs which might contain the decl.
-    lift . lift $ knownDataLayouts %= M.insert name (vars, expr, allocation)
-    let decl' = normaliseDataLayoutDecl namedLayouts decl
-    return $ RepDef decl'
+    let xs = vars \\ nub vars
+    unless (null xs) $ logErrExit $ DuplicateLayoutVariable xs
+    let elvs = nub (lvL expr)
+        ys = vars \\ elvs
+    unless (null ys) $ logErrExit $ SuperfluousLayoutVariable ys
+    base <- lift . lift $ use knownConsts
+    let ctx = C.addScope (fmap (\(t,_,p) -> (t, p, Seq.singleton p)) base) C.empty
+    let ?loc = loc
+    -- currently no recursive data layout
+    ((c,l), flx, os) <- runCG ctx [] vars (validateLayout expr)
+    traceTc "tc" (text "constraint for rep decl" <+> pretty name <+> text "is"
+                  L.<$> prettyC c)
+    (gs, subst) <- runSolver (solve [] [] c) flx
+    traceTc "tc" (text "substs for rep decl" <+> pretty name <+> text "is"
+                  L.<$> pretty subst)
+    exitOnErr $ toErrors os gs
+    lift . lift $ knownDataLayouts %= M.insert name (vars, expr)
+    let l' = toDLExpr $ applyL subst l
+    return $ RepDef (DataLayoutDecl pos name vars l')
 
   (ConstDef n (stripLocT -> t) e) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')

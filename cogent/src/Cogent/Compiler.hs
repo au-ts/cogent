@@ -163,6 +163,7 @@ set_flag_fnormalisation (Just s) | s' <- map toLower s =
 set_flag_fnoShareLinearVars = writeIORef __cogent_fshare_linear_vars_ref False
 set_flag_fnoShowTypesInPretty = writeIORef __cogent_fshow_types_in_pretty_ref False
 set_flag_fnoSimplifier = writeIORef __cogent_fsimplifier_ref False
+set_flag_fnoSimplifyShallowTuples = writeIORef __cogent_fsimplify_shallow_tuples_ref False
 set_flag_fnoStaticInline = writeIORef __cogent_fstatic_inline_ref False
 set_flag_fnoTcCtxConstraints = writeIORef __cogent_ftc_ctx_constraints_ref False
 set_flag_fnoTpWithBodies = writeIORef __cogent_ftp_with_bodies_ref False
@@ -179,6 +180,7 @@ set_flag_fshareLinearVars = writeIORef __cogent_fshare_linear_vars_ref True
 set_flag_fshowTypesInPretty = writeIORef __cogent_fshow_types_in_pretty_ref True
 set_flag_fsimplifier = writeIORef __cogent_fsimplifier_ref True
 set_flag_fsimplifierIterations = writeIORef __cogent_fsimplifier_iterations_ref
+set_flag_fsimplifyShallowTuples = writeIORef __cogent_fsimplify_shallow_tuples_ref True
 set_flag_fstaticInline = writeIORef __cogent_fstatic_inline_ref True
 set_flag_ftcCtxConstraints = writeIORef __cogent_ftc_ctx_constraints_ref True
 set_flag_ftcCtxLen = writeIORef __cogent_ftc_ctx_len_ref
@@ -572,6 +574,13 @@ __cogent_fsimplifier_iterations = unsafePerformIO $ readIORef __cogent_fsimplifi
 __cogent_fsimplifier_iterations_ref :: IORef Int
 {-# NOINLINE __cogent_fsimplifier_iterations_ref #-}
 __cogent_fsimplifier_iterations_ref = unsafePerformIO $ newIORef 4
+
+__cogent_fsimplify_shallow_tuples :: Bool
+__cogent_fsimplify_shallow_tuples = unsafePerformIO $ readIORef __cogent_fsimplify_shallow_tuples_ref
+
+__cogent_fsimplify_shallow_tuples_ref :: IORef Bool
+{-# NOINLINE __cogent_fsimplify_shallow_tuples_ref #-}
+__cogent_fsimplify_shallow_tuples_ref = unsafePerformIO $ newIORef True
 
 __cogent_fstatic_inline :: Bool
 __cogent_fstatic_inline = unsafePerformIO $ readIORef __cogent_fstatic_inline_ref

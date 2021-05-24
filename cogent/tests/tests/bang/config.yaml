@@ -1,4 +1,4 @@
-- test_name: let-bang
+- test_name: let-bang-pass
   files:
     - pass_banged-condition.cogent
     - pass_bang_kinding.cogent
@@ -9,3 +9,10 @@
   expected_result: pass
   flags:
     - "-g"
+
+- test_name: let-bang-fail
+  files:
+    - fail_used-bang.cogent
+  expected_result: fail
+  flags:
+    - "-t"

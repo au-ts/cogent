@@ -1,0 +1,7 @@
+layout L = record { f1 : record { g1 : 4B, g2 : 1b after g1}, f2 : 1b after f1, f3 : 1B after f2 }
+
+type R = {f1 : #{g1 : U32, g2 : Bool} , f2 : Bool, f3 : U8} layout L
+
+
+f : R -> R
+f x {f1} = x {f1 = #{g1 = 42, g2 = True}, f2 = False, f3 = 123}

@@ -1,0 +1,7 @@
+layout L = record { f1 : 1b after f2, f2 : 1b at 1B }
+
+type R = {f1 : Bool, f2 : Bool} layout L
+
+
+f : R -> R
+f x {f1} = x {f1 = False}

@@ -1,0 +1,10 @@
+type R = { x : U16, y : Bool }
+
+layout LS = record {x : 2B, y : 1b after x}  -- the serialised layout
+layout LD = record {x : 2B, y : 1b at 3B}    -- the deserialised layout
+
+-- As a native function, it works but less efficient (well, depending
+-- on how much gcc can optimise away). 
+foo : ((R layout LS)!, R take (..) layout LD) -> R layout LD
+foo (r, r') = r' {x = r.x, y = r.y}
+

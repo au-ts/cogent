@@ -1253,6 +1253,7 @@ lemma wellformed_sum_wellformed_elem:
   shows "L, K, C \<turnstile> t wellformed"
   by (metis assms fst_conv in_set_conv_nth list_all_length snd_conv type_wellformed.simps(6) type_wellformed_pretty_def)
 
+
 lemma type_lrepr_wellformed : "type_wellformed L n C t \<Longrightarrow> 
   lrepr_wellformed n (type_lrepr t)"
   by(induct t rule:type_lrepr.induct) (fastforce simp add:list_all_iff)+

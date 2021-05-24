@@ -129,6 +129,13 @@ instance Bifoldable (Rotate3 (,,,) b c) where
 instance Bitraversable (Rotate3 (,,,) b c) where
   bitraverse f g (Rotate3 (a,b,c,d)) = Rotate3 <$> ((,,,) <$> g a <*> pure b <*> pure c <*> f d)
 
+class Tritraversable t where
+  tritraverse :: Applicative f
+              => (a -> f a')
+              -> (b -> f b')
+              -> (c -> f c')
+              -> t a b c
+              -> f (t a' b' c')
 
 class Quadritraversable t where
   quadritraverse :: Applicative f

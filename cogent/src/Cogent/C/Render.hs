@@ -52,7 +52,8 @@ render hName hdefns cdefns log =
               C.EscDef "" noLoc :
               C.EscDef ("#ifndef " ++ guard) noLoc :
               C.EscDef ("#define " ++ guard ++ "\n") noLoc :
-              C.EscDef ("#include <cogent-defns.h>\n") noLoc :
+              C.EscDef ("#include <cogent-defns.h>") noLoc :
+              C.EscDef ("#include <cogent-endianness.h>\n") noLoc :
               map cExtDecl hdefns ++
               -- \ ^^^ Type synonyms shouldn't be referenced to by gen'ed C code;
               -- Gen'ed C only uses machine gen'ed type names and abstract type names

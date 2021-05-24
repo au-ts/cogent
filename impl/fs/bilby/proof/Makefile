@@ -13,14 +13,14 @@ include ../../../../build-env.mk
 COGENT_FLAGS ?=
 
 all: cogent
-	L4V_ARCH=ARM $(ISABELLE) build -v -d . -d $(BUILD_ENV_MK_DIR) -d $(BUILD_ENV_MK_DIR)/autocorres -b BilbyFs
+	L4V_ARCH=$(L4V_ARCH) $(ISABELLE) build -v -d . -d $(BUILD_ENV_MK_DIR) -d $(AC_DIR) -b BilbyFs
 
 cogent:
 	cogent --shallow-consts-desugar-tuples --shallow-desugar-tuples --proof-name=BilbyFs \
 				--dist-dir="impl" --root-dir="$(BUILD_ENV_MK_DIR)" $(COGENT_FLAGS) \
 				../cogent/src/fsop.cogent
 sync: cogent
-	L4V_ARCH=$(L4V_ARCH) $(ISABELLE) build -v -d . -d $(AC_DIR) -b BilbyFsSync
+	L4V_ARCH=$(L4V_ARCH) $(ISABELLE) build -v -d . -d $(AC_DIR) -d $(BUILD_ENV_MK_DIR) -b BilbyFsSync
 
 iget: cogent
-	L4V_ARCH=$(L4V_ARCH) $(ISABELLE) build -v -d . -d $(AC_DIR) -b BilbyFsIget
+	L4V_ARCH=$(L4V_ARCH) $(ISABELLE) build -v -d . -d $(AC_DIR) -d $(BUILD_ENV_MK_DIR) -b BilbyFsIget

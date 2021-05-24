@@ -25,6 +25,8 @@ module Cogent.TypeCheck.Generator
   , freshTVar
   , validateType
   , validateTypes
+  , validateLayout
+  , validateLayouts
   ) where
 
 import Cogent.Common.Syntax
@@ -86,7 +88,6 @@ validateType :: (?loc :: SourcePos) => RawType -> CG (Constraint, TCType)
 validateType (RT t) = do
   vs <- use knownTypeVars
   ts <- lift $ use knownTypes
-  layouts <- lift $ use knownDataLayouts
   lvs <- use knownDataLayoutVars
   traceTc "gen" (text "validate type" <+> pretty t)
   case t of
@@ -101,24 +102,24 @@ validateType (RT t) = do
                -> freshTVar >>= \t' -> return (Unsat $ TypeArgumentMismatch t provided required, t')
                 | Just (vs, Just x) <- lookup t ts
                -> second (Synonym t) <$> fmapFoldM validateType as
-                | otherwise -> (second T) <$> fmapFoldM validateType (TCon t as (fmap (fmap toTCDL) s))
+                | otherwise -> do
+                  (c, s') <- cgSigil s
+                  (cs, t') <- fmapFoldM validateType (TCon t as s')
+                  return (c <> cs, T t')
 
     TRecord rp fs s | fields  <- map fst fs
                     , fields' <- nub fields
                    -> let toRow (T (TRecord rp fs s)) = R (coerceRP rp) (Row.complete $ Row.toEntryList fs) (Left s)
                       in if fields' == fields
-                         then do
-                           (ct, t') <- case s of
-                             Boxed _ (Just dlexpr) -> do
-                                (cl, l') <- validateLayout dlexpr
-                                (ct, t') <- fmapFoldM validateType t
-                                return (cl <> ct, t')
-                             _ -> fmapFoldM validateType t
-                           case t' of
-                             TRecord rp' fs' s' -> return (ct, toRow . T $ TRecord rp' fs' (fmap (fmap toTCDL) s'))
-                             _ -> freshTVar >>= \t'' -> return (ct, t'')  -- something must have gone wrong; @ct <> cl@ should already contains the unsats / zilinc
-                         else freshTVar >>= \t' -> return (Unsat $ DuplicateRecordFields (fields \\ fields'), t')
-                    | otherwise -> (second T) <$> fmapFoldM validateType (TRecord rp fs (fmap (fmap toTCDL) s))
+                           then do
+                             (cs, s') <- cgSigil s
+                             (ct, TRecord rp' fs' _) <- fmapFoldM validateType t 
+                             return (cs <> ct, toRow . T $ TRecord rp' fs' s')
+                           else freshTVar >>= \t' -> return (Unsat $ DuplicateRecordFields (fields \\ fields'), t')
+                    | otherwise -> do
+                      (c, s') <- cgSigil s
+                      (cs, t') <- fmapFoldM validateType (TRecord rp fs s')
+                      return (c <> cs, T t')
 
     TVariant fs  -> do let tuplize [] = T TUnit
                            tuplize [x] = x
@@ -149,8 +150,9 @@ validateType (RT t) = do
              <> Arith (SE (T bool) (PrimOp "==" [toTCSExpr l', x]))
       traceTc "gen" (text "cg for array length" <+> pretty x L.<$>
                      text "generate constraint" <+> prettyC (cl <> cl'))
+      (cs, s') <- cgSigil s
       (c,te') <- validateType te
-      return (cl <> cl' <> ctkn <> c, A te' x (Left $ fmap (fmap toTCDL) s) (Left mhole))
+      return (cl <> cl' <> ctkn <> cs <> c, A te' x (Left s') (Left mhole))
 
     TATake es t -> do
       blob <- forM es $ \e -> do
@@ -190,14 +192,11 @@ validateType (RT t) = do
       return (c, T $ TRefine v t' (toTCSExpr e'))
 #endif
 
-    TLayout l tau -> do
-      let cl = case runExcept $ tcDataLayoutExpr layouts lvs l of
-                 Left (e:_) -> Unsat $ DataLayoutError e
-                 Right _    -> Sat
-      (ct,tau') <- validateType tau
-      let l' = toTCDL l
-          t' = T $ TLayout l' tau'
-      pure (cl <> ct <> LayoutOk t', t')
+    TLayout l t -> do
+      (cl,l') <- validateLayout l
+      (ct,t') <- validateType t
+      let t'' = T $ TLayout l' t'
+      pure (cl <> ct <> LayoutOk t'', t'')
 
     -- vvv The uninteresting cases; but we still have to match each of them to convince the typechecker / zilinc
     TRPar v b ctxt -> (second T) <$> fmapFoldM validateType (TRPar v b ctxt)
@@ -223,16 +222,15 @@ validateTypes = fmapFoldM validateType
 
 -- --------------------------------------------------------------------------
 
-validateLayout :: DataLayoutExpr -> CG (Constraint, TCDataLayout)
+validateLayout :: (?loc :: SourcePos) => DataLayoutExpr -> CG (Constraint, TCDataLayout)
 validateLayout l = do
-  ls <- lift $ use knownDataLayouts
-  vs <- use knownDataLayoutVars
-  let l' = toTCDL l
-  case runExcept $ tcDataLayoutExpr ls vs l of
-    Left (e:_) -> pure (Unsat $ DataLayoutError e, l')
-    Right _    -> pure (Sat, l')
+  env <- lift $ use knownDataLayouts
+  vs  <- use knownDataLayoutVars
+  case runExcept $ tcDataLayoutExpr env vs l of
+    Left err -> freshLVar >>= \l' -> return (Unsat $ DataLayoutError err, l')
+    Right (l',_) -> return (Sat, l')
 
-validateLayouts :: Traversable t => t DataLayoutExpr -> CG (Constraint, t TCDataLayout)
+validateLayouts :: (?loc :: SourcePos, Traversable t) => t DataLayoutExpr -> CG (Constraint, t TCDataLayout)
 validateLayouts = fmapFoldM validateLayout
 
 
@@ -565,6 +563,7 @@ cg' (UnboxedRecord fes) t = do
            L.<$> text "of type" <+> pretty t <> semi
            L.<$> text "generate constraint" <+> prettyC c)
   return (c' <> c, e)
+
 cg' (Seq e1 e2) t = do
   alpha <- freshTVar
   (c1, e1') <- cg e1 alpha
@@ -866,6 +865,14 @@ match' (PArrayTake arr _) t = __todo "match': taking multiple elements from arra
 -- Auxiliaries
 -- -----------------------------------------------------------------------------
 
+cgSigil :: (?loc :: SourcePos) => Sigil (Maybe DataLayoutExpr) -> CG (Constraint, Sigil (Maybe TCDataLayout))
+cgSigil = \case
+  Unboxed -> return (Sat, Unboxed)
+  Boxed b Nothing -> return (Sat, Boxed b Nothing)
+  Boxed b (Just l) -> do
+    (c, l') <- validateLayout l
+    return (c, Boxed b (Just l'))
+
 freshVar :: (?loc :: SourcePos) => CG Int
 freshVar = fresh (ExpressionAt ?loc)
   where
@@ -980,8 +987,11 @@ letBang bs f t = do
 validateVariable :: VarName -> CG Constraint
 validateVariable v = do
   x <- use context
-  return $ if C.contains x v then Sat else Unsat (NotInScope MustVar v)
-
+  let c = case C.lookup v x of
+            Nothing -> Unsat (NotInScope MustVar v)
+            Just (_, _, Seq.Empty) -> Sat
+            Just (t, p, ps) -> Share t (Reused v p ps)
+  return c
 
 -- ----------------------------------------------------------------------------
 -- pp for debugging
