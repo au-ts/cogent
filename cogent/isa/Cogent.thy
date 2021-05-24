@@ -80,6 +80,8 @@ fun layout_offset :: "nat \<Rightarrow> ptr_layout \<Rightarrow> ptr_layout" whe
   | "layout_offset n (LayRecord l) = LayRecord  
                         (map (\<lambda>(name, p). (name, layout_offset n p)) l)"
 
+fun bitrange_taken_bit_list :: "BitRange \<Rightarrow> nat list" where
+ "bitrange_taken_bit_list (s, off) = [off..<off+s]"
 
 fun bitrange_taken_bits :: "BitRange \<Rightarrow> nat \<Rightarrow> bool" where
   "bitrange_taken_bits (s, off) n = (n \<ge> off \<and> n < off + s)"
@@ -97,8 +99,19 @@ fun layout_taken_bits :: "ptr_layout \<Rightarrow> nat \<Rightarrow> bool" where
    (layout_taken_bits p1 n \<or>
    layout_taken_bits p2 n )"
 
-| "layout_taken_bits (LayBitRange b) n =
-bitrange_taken_bits b n"
+fun layout_taken_bit_list :: "ptr_layout \<Rightarrow> nat list" where
+  "layout_taken_bit_list (LayVar _ _) = []"
+| "layout_taken_bit_list (LayVariant b ls) = 
+      (bitrange_taken_bit_list b @ 
+        concat (map (\<lambda> (_, _, l) .
+                   layout_taken_bit_list l) ls)) "
+| "layout_taken_bit_list (LayRecord ls) =
+      concat (map (\<lambda> (_, l) \<Rightarrow> layout_taken_bit_list l) ls)"
+| "layout_taken_bit_list (LayProduct p1 p2) =
+      (layout_taken_bit_list p1 @
+         layout_taken_bit_list p2 )"
+| "layout_taken_bit_list (LayBitRange b) =
+            bitrange_taken_bit_list b "
 
 
 definition at_most_one :: "('a \<Rightarrow> bool) \<Rightarrow> 'a list \<Rightarrow> bool"
@@ -110,26 +123,23 @@ fun layout_wellformed :: "nat \<Rightarrow> ptr_layout \<Rightarrow> bool" where
   "layout_wellformed n (LayVar i _) = (i < n)"
 | "layout_wellformed _ (LayBitRange _) = True"
 | "layout_wellformed m (LayVariant b ls) = 
-  (list_all (\<lambda> (_, _, l) . layout_wellformed m l) ls
-\<and> (\<forall> n. bitrange_taken_bits b n \<longrightarrow> 
-  list_all (\<lambda> (_, idx, l) . \<not> (layout_taken_bits l n) \<and>
-    idx < 2 ^ fst b
-    ) ls)
-
-\<and> distinct (map (\<lambda>(_, idx, _). idx) ls)
-)
-"
+    (list_all (\<lambda> (_, _, l) . layout_wellformed m l) ls
+  \<and> (list_all   
+       (\<lambda> n. list_all (\<lambda> (_, idx, l) . n \<notin> set (layout_taken_bit_list l) ) ls)
+       (bitrange_taken_bit_list b)
+    )
+  \<and> list_all (\<lambda> (_, idx, l) . idx < 2 ^ fst b) ls
+  \<and> distinct (map (\<lambda>(_, idx, _). idx) ls))"
 | "layout_wellformed m (LayRecord ls) =
-  (list_all (\<lambda> (_, l) . layout_wellformed m l) ls
- \<and> (\<forall> n. at_most_one (\<lambda> (_, l) . layout_taken_bits l n) ls))"
+    (list_all (\<lambda> (_, l) . layout_wellformed m l) ls
+  \<and> (list_all
+       (\<lambda>n . length (filter (\<lambda> (_, l). n \<in> set (layout_taken_bit_list l)) ls) = 1))
+       (concat (map (layout_taken_bit_list o snd) ls)))"
 
 | "layout_wellformed m (LayProduct p1 p2) = 
-(layout_wellformed m p1 \<and> layout_wellformed m p2
-\<and> (\<forall> n. \<not> layout_taken_bits p1 n \<or> \<not> layout_taken_bits p2 n))
-"
-
-
-  
+     (layout_wellformed m p1 \<and> layout_wellformed m p2
+   \<and> (set (layout_taken_bit_list p1) \<inter> set (layout_taken_bit_list p2)) = {})
+"  
 
 datatype access_perm = ReadOnly | Writable
 

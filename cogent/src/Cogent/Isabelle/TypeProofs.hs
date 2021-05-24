@@ -46,8 +46,11 @@ import Data.Char
 import Data.Foldable
 import Data.List
 import qualified Data.Map as M
+import Data.Map (Map)
+import Data.Nat ( (=?) )
 import Data.Maybe (mapMaybe)
 import Data.Ord (comparing)
+import Data.PropEq
 import Isabelle.ExprTH
 import qualified Isabelle.InnerAST as I
 import Isabelle.InnerAST hiding (Type)
@@ -70,8 +73,8 @@ data TypingTree t = TyTrLeaf
                   | TyTrSplit [Maybe TypeSplitKind] (TreeCtx t) (TreeCtx t)
 type TreeCtx t = ([Maybe (Type t VarName)], TypingTree t)
 
-deepTypeProof :: (Pretty a) => NameMod -> Bool -> Bool -> String -> [Definition TypedExpr a VarName] -> String -> Doc
-deepTypeProof mod withDecls withBodies thy decls log =
+deepTypeProof :: (Pretty a) => NameMod -> Bool -> Bool -> String -> [Definition TypedExpr a VarName] -> Map FunName (FunctionType VarName) -> String -> Doc
+deepTypeProof mod withDecls withBodies thy decls fts log =
   let header = (string ("(*\n" ++ log ++ "\n*)\n") <$>)
       ta = getTypeAbbrevs mod decls
       imports = if __cogent_fml_typing_tree
@@ -79,7 +82,7 @@ deepTypeProof mod withDecls withBodies thy decls log =
                   ["Cogent.TypeProofGen",
                    "Cogent.AssocLookup"]
                 else ["Cogent.CogentHelper"]
-      proofDecls | withDecls  = deepTypeAbbrevs mod ta ++ deepDefinitions mod ta decls
+      proofDecls | withDecls  = deepTypeAbbrevs mod ta ++ deepDefinitions mod ta decls fts
                                 ++ funTypeEnv mod decls ++ funDefEnv decls
                                 ++ funTypeTrees mod ta decls
                  | otherwise = []
@@ -88,10 +91,10 @@ deepTypeProof mod withDecls withBodies thy decls log =
                                               formatSubproof ta (typingSubproofPrefix ++ show proofId) prop script) subproofs ++
                                  proofScript
                   | otherwise = []
-        where (proofScript, st) = runState (proofs decls) (typingSubproofsInit mod ta)
+        where (proofScript, st) = runState (proofs decls fts) (typingSubproofsInit mod ta)
               subproofs = sortOn ((\(proofId, _, _) -> proofId)) $
-                            M.elems (st ^. subproofKinding) ++
-                            M.elems (st ^. subproofAllKindCorrect) ++
+                            M.elems (st ^. subproofKinding) ++                            
+                            M.elems (st ^. subproofWfSubstitutions) ++
                             M.elems (st ^. subproofSplits) ++
                             M.elems (st ^. subproofWeakens) ++
                             M.elems (st ^. subproofWellformed)
@@ -122,10 +125,25 @@ formatSubproof :: TypeAbbrevs -> String -> (Bool, I.Term) -> [Tactic] -> [Theory
 formatSubproof ta name (schematic, prop) steps =
   formatMLProof (name ++ "_script") "tac" (map show steps) ++
   [ LemmaDecl (Lemma schematic (Just $ TheoremDecl (Just name)
-                                         [Attribute "unfolded" ["abbreviated_type_defs"]]) [prop]
+                                         [ 
+                                         -- e.g., to simplify kinding _ (set []) _ into
+                                         -- kinding _ {} _, otherwise the ML procedure
+                                         -- kinding_proof_single would fail
+                                         -- as the statement needs to match exactly   
+                                           Attribute "simplified" [],                                     
+                                           Attribute "unfolded" ["abbreviated_type_defs"]]) [prop]
                (Proof ([MethodModified (Method "unfold" ["abbreviated_type_defs"]) MMOptional] ++
-                       [ Method "tactic" ["\\<open> map (fn t => DETERM (interpret_tac t @{context} 1)) " ++
-                                          name ++ "_script |> EVERY \\<close>"]])
+                       [ --  Method "rule" ["typing_subst"]
+                           -- this creates two subgoals
+                           -- 1. list_all (kinding ..) ..
+                         --, 
+                         Method "tactic" ["\\<open> map (fn t => DETERM (interpret_tac t @{context} 1)) " ++
+                                          name ++ "_script |> EVERY \\<close>"]
+                           -- 2. Some stuff about layout constraints, which
+                           -- should be resolved directly by simp
+                         --, Method "simp" []
+                         ])
+
                 ProofDone)) ]
 
 formatMLTreeGen :: String -> [TheoryDecl I.Type I.Term]
@@ -185,25 +203,41 @@ proveSorry (FunDef _ fn k _ ti to e) = do
   return prf
 proveSorry _ = return []
 
-prove :: (Pretty a) => [Definition TypedExpr a VarName] -> Definition TypedExpr a VarName
+prove :: (Pretty a) => [Definition TypedExpr a VarName] 
+      -> Map FunName (FunctionType VarName) -> Definition TypedExpr a VarName
       -> State TypingSubproofs ([TheoryDecl I.Type I.Term], [TheoryDecl I.Type I.Term])
-prove decls (FunDef _ fn k l ti to e) = do
+prove decls fts (FunDef _ fn k l ti to e) = 
+  let (nl, cs) = 
+           -- is it a (possibly generated) monomorphised function?
+           case (k, l) of
+             (V.Nil, V.Nil) -> (0, [])
+             _ -> case M.lookup fn fts of
+                    Nothing -> error("Error - unable to retrieve the inferred constraints for isabelle function '" ++ fn ++ "'" )                     
+                    Just (FT ks nl cs _ _) ->
+                    -- this case is to match the type variable of e with the one of ks
+                      case V.length ks =? V.length k of
+                         Nothing -> __impossible "lengths don't match"
+                         Just Refl -> (toInteger $ Nat.toInt nl, cs)
+  in
+  let ks = fmap snd k in
+  do
   mod <- use nameMod
   let eexpr = pushDown (Cons (Just ti) Nil) (splitEnv (Cons (Just ti) Nil) e)
-  let nl = toInteger $ Nat.toInt $ V.length l
-  proofSteps' <- proofSteps decls nl (fmap snd k) ti eexpr
+      xi = (makeXi fts decls)            
+  proofSteps' <- proofSteps xi nl ks cs ti eexpr
   ta <- use tsTypeAbbrevs
   let typecorrect_script = formatMLProof (mod (unIsabelleName $ mkIsabelleName fn) ++ "_typecorrect_script") "hints treestep" (map show $ flattenHintTree proofSteps')
   let fn_typecorrect_proof = typecorrect_script ++ (if __cogent_fml_typing_tree then formatMLTreeGen (mod fn) else []) ++ formatTypecorrectProof (mod fn)
   return (fn_typecorrect_proof, if __cogent_fml_typing_tree then formatMLTreeFinalise (mod fn) else [])
-prove _ _ = return ([], [])
+prove _ _ _ = return ([], [])
 
 proofs :: (Pretty a) => [Definition TypedExpr a VarName]
+       -> Map FunName (FunctionType VarName) 
        -> State TypingSubproofs [TheoryDecl I.Type I.Term]
-proofs decls = do
+proofs decls fts = do
     let (predecls,postdecls) = badHackSplitOnSorryBefore decls
     bsorry <- mapM proveSorry predecls
-    bodies <- mapM (prove decls) postdecls
+    bodies <- mapM (prove decls fts) postdecls
     return $ concat $ bsorry ++ map fst bodies ++ map snd bodies
 
 funTypeTree :: (Pretty a) => NameMod -> TypeAbbrevs -> Definition TypedExpr a VarName -> [TheoryDecl I.Type I.Term]

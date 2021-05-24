@@ -17,6 +17,19 @@ begin
 
 (* Rewrite rules to get expressions in the assumptions *)
 
+lemma typing_subst : "\<lbrakk>
+length \<epsilon> = L \<and>  (\<forall>(l,t) \<in> C. 
+  layout_wellformed L l \<longrightarrow>
+  lrepr_wellformed (length K) t \<longrightarrow>
+  matches_fields_layout L' C' 
+    (instantiate_lrepr (map type_lrepr \<delta>) t) (instantiate_lay \<epsilon> l)
+    ) 
+; list_all2 (kinding L' K' C') \<delta> K 
+\<rbrakk> \<Longrightarrow>
+L', K', C' \<turnstile> \<epsilon>, \<delta> :s L, K, C "
+  by (simp add:subst_wellformed_def)
+
+
 lemma typing_lit': "\<lbrakk> L, K, C \<turnstile> \<Gamma> consumed; t = lit_type l \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Lit l : TPrim t"
   by (simp only: typing_lit)
 

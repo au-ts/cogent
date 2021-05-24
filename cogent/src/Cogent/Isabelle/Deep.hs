@@ -13,6 +13,7 @@
 {-# OPTIONS_GHC -Wwarn #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Cogent.Isabelle.Deep where
 
@@ -27,6 +28,8 @@ import Cogent.Isabelle.Shallow (snm)
 import Cogent.Util (NameMod, Stage(..))
 import Data.Fin (Fin, finInt)
 import Data.Vec (cvtToList)
+import Data.Map (Map)
+import Data.Maybe (fromMaybe)
 import qualified Data.Vec as Vec
 import Data.Nat as Nat
 import Isabelle.ExprTH
@@ -61,9 +64,10 @@ deepDataLayout' :: DataLayout' BitRange -> Term
 deepDataLayout' UnitLayout = deepBitRange (BitRange 0 0)
 deepDataLayout' (PrimLayout b) = mkApp (mkId "LayBitRange") [deepBitRange b]
 deepDataLayout' (RecordLayout fs) = 
-  mkApp (mkId "LayRecord") $
-    map (\ (name, d) -> mkTuple [mkId name, deepDataLayout' d]) 
-    $ Map.toList fs
+  mkApp (mkId "LayRecord") [
+    mkList $
+    map (\ (name, d) -> mkTuple [mkString name, deepDataLayout' d]) 
+    $ Map.toList fs ]
 deepDataLayout' (SumLayout tag alts) = 
   mkApp (mkId "LayVariant") [ deepBitRange tag ,
      mkList $ map (\ (name, (t, l)) -> 
@@ -163,11 +167,14 @@ deepPrimOp CS.Complement t = mkApp (mkId "Complement") [deepNumType t]
 deepExpr :: (Pretty a, Ord b, Pretty b) => NameMod -> TypeAbbrevs -> [Definition TypedExpr a b] -> TypedExpr t v a b -> Term
 deepExpr mod ta defs (TE _ (Variable v)) = mkApp (mkId "Var") [deepIndex (fst v)]
 deepExpr mod ta defs (TE _ (Fun fn ts ls _))  -- FIXME
-  | concreteFun fn = mkApp (mkId "Fun")  [mkId (mod (unIsabelleName $ mkIsabelleName $ unCoreFunName fn)), mkList (map (deepType mod ta) ts)]
-  | otherwise      = mkApp (mkId "AFun") [mkString (unIsabelleName $ mkIsabelleName $ unCoreFunName fn), mkList (map (deepType mod ta) ts)]
+  | concreteFun fn = mkApp (mkId "Fun")  [mkId (mod (unIsabelleName $ mkIsabelleName $ unCoreFunName fn)), mkList (map (deepType mod ta) ts), mkList (map deepDL ls)]
+  | otherwise      = mkApp (mkId "AFun") [mkString (unIsabelleName $ mkIsabelleName $ unCoreFunName fn), mkList (map (deepType mod ta) ts), mkList (map deepDL ls)]
   where
     concreteFun :: CoreFunName -> Bool
     concreteFun f = any (\def -> isFuncId f def && case def of FunDef{} -> True; _ -> False) defs
+    deepDL :: DataLayout BitRange -> Term
+    deepDL CLayout = error "error - cannot deeply embed C layout application"
+    deepDL (Layout l) = deepDataLayout' l
 deepExpr mod ta defs (TE _ (Op opr es))
   = mkApp (mkId "Prim") [deepPrimOp opr (let TPrim pt = exprType $ head es in pt),
                          mkList (map (deepExpr mod ta defs) es)]
@@ -224,10 +231,16 @@ deepExpr mod ta defs (TE _ e) = __todo $ "deepExpr: " ++ show (pretty e)
 deepKind :: Kind -> Term
 deepKind (K e s d) = ListTerm "{" [ mkId str | (sig, str) <- [(e, "E"), (s, "S"), (d, "D")], sig ] "}"
 
+deepConstraint :: (Ord b, Pretty b) => NameMod -> TypeAbbrevs -> (DataLayout' BitRange, CC.Type t b) -> Term
+deepConstraint mod ta (d, t) = mkTuple [deepDataLayout' d, mkApp (mkId "type_lrepr") [ deepType mod ta t ]]
+
+deepConstraints ::  (Ord b, Pretty b) => NameMod -> TypeAbbrevs -> [(DataLayout' BitRange, CC.Type t b)] -> Term
+deepConstraints mod ta lts = mkApp (mkId "set") [mkList $ map (deepConstraint mod ta) lts]
+
 deepPolyType :: (Ord b, Pretty b) => NameMod -> TypeAbbrevs -> FunctionType b -> Term
-deepPolyType mod ta (FT ks ts ti to) = mkTuple [mkInt $ toInteger $ Nat.toInt $ Vec.length ts,
+deepPolyType mod ta (FT ks nl lts ti to) = mkTuple [mkInt $ toInteger $ Nat.toInt nl,
                                                 mkList $ map deepKind $ cvtToList ks,  -- FIXME
-                                                ListTerm "{" [] "}",  
+                                                deepConstraints mod ta lts,  
                                                 deepType mod ta ti,
                                                 deepType mod ta to]
 
@@ -238,11 +251,19 @@ deepDefinition :: (Pretty a, Ord b, Pretty b)
                => NameMod
                -> TypeAbbrevs
                -> [Definition TypedExpr a b]
+               -> Map FunName (FunctionType b)
                -> Definition TypedExpr a b
                -> [TheoryDecl I.Type I.Term]
                -> [TheoryDecl I.Type I.Term]
-deepDefinition mod ta defs (FunDef _ fn ks ts ti to e) decls =
-  let ty = deepPolyType mod ta $ FT (fmap snd ks) (fmap snd ts) ti to
+deepDefinition mod ta defs fts (FunDef _ fn ks ts ti to e) decls =
+  let ty = deepPolyType mod ta $
+           -- is it a (possibly generated) monomorphised function?
+           case (ks, ts) of
+             (Vec.Nil, Vec.Nil) -> FT Vec.Nil SZero [] ti to
+             _ ->
+                 fromMaybe                
+                   (error("Error - unable to retrieve the inferred constraints for isabelle function '" ++ fn ++ "'" ))              
+                 $ Map.lookup fn fts 
       tn = case editIsabelleName (mkIsabelleName fn) (++ "_type")  of
             Just n  -> unIsabelleName n
             Nothing -> error ("Error - unable to generate name for isabelle function '" ++ fn ++ "'")
@@ -254,18 +275,25 @@ deepDefinition mod ta defs (FunDef _ fn ks ts ti to e) decls =
       fn' = unIsabelleName (mkIsabelleName fn)
       decl = [isaDecl| definition $fn' :: "$fntysig" where "$(mkId fn') \<equiv> $e'" |]
      in tydecl:decl:decls
-deepDefinition mod ta _ (AbsDecl _ fn ks ts ti to) decls =
-    let ty = deepPolyType mod ta $ FT (fmap snd ks) (fmap snd ts) ti to
+deepDefinition mod ta _ fts (AbsDecl _ fn ks ts ti to) decls =
+    let ty = deepPolyType mod ta $
+              -- is it a (possibly generated) monomorphised function?
+             case (ks, ts) of
+               (Vec.Nil, Vec.Nil) -> FT Vec.Nil SZero [] ti to
+               _ ->
+                   fromMaybe                
+                     (error("Error - unable to retrieve the inferred constraints for isabelle function '" ++ fn ++ "'" ))              
+                   $ Map.lookup fn fts 
         tn = case editIsabelleName (mkIsabelleName fn) (++ "_type") of 
             Just n  -> unIsabelleName n
             Nothing -> error ("Error - unable to generate name for isabelle function '" ++ fn ++ "'")
         tysig = [isaType| Cogent.kind list \<times> Cogent.type \<times> Cogent.type |]
         tydecl = [isaDecl| definition $tn :: "$tysig" where "$(mkId tn) \<equiv> $ty" |]
      in tydecl:decls
-deepDefinition _ _ _ _ decls = decls
+deepDefinition _ _ _ _ _ decls = decls
 
-deepDefinitions :: (Pretty a, Ord b, Pretty b) => NameMod -> TypeAbbrevs -> [Definition TypedExpr a b] -> [TheoryDecl I.Type I.Term]
-deepDefinitions mod ta defs = foldr (deepDefinition mod ta defs) [] defs ++
+deepDefinitions :: (Pretty a, Ord b, Pretty b) => NameMod -> TypeAbbrevs -> [Definition TypedExpr a b] -> Map FunName (FunctionType b) -> [TheoryDecl I.Type I.Term]
+deepDefinitions mod ta defs fts = foldr (deepDefinition mod ta defs fts) [] defs ++
                               [TheoryString $
                                "ML \\<open>\n" ++
                                "val Cogent_functions = [" ++ showStrings (map (unIsabelleName . mkIsabelleName) $ cogentFuns defs) ++ "]\n" ++
@@ -328,13 +356,13 @@ deepTypeAbbrevs mod ta = map (deepTypeAbbrev mod) defs ++ [typeAbbrevDefsLemma m
   where
     defs = sort $ map (\(x, y) -> (y, x)) $ Map.toList (fst ta)
 
-deepDefinitionsAbb :: (Pretty a, Ord b, Pretty b) => NameMod -> [Definition TypedExpr a b] -> (TypeAbbrevs, [TheoryDecl I.Type I.Term])
-deepDefinitionsAbb mod defs = (ta, deepTypeAbbrevs mod ta ++ deepDefinitions mod ta defs)
+deepDefinitionsAbb :: (Pretty a, Ord b, Pretty b) => NameMod -> [Definition TypedExpr a b] -> Map FunName (FunctionType b) -> (TypeAbbrevs, [TheoryDecl I.Type I.Term])
+deepDefinitionsAbb mod defs fts = (ta, deepTypeAbbrevs mod ta ++ deepDefinitions mod ta defs fts)
   where ta = getTypeAbbrevs mod defs
 
-deepFile :: (Pretty a, Ord b, Pretty b) => NameMod -> String -> [Definition TypedExpr a b] -> Theory I.Type I.Term
-deepFile mod thy defs = Theory thy imports (snd (deepDefinitionsAbb mod defs))
+deepFile :: (Pretty a, Ord b, Pretty b) => NameMod -> String -> [Definition TypedExpr a b] -> Map FunName (FunctionType b) -> Theory I.Type I.Term
+deepFile mod thy defs fts = Theory thy imports (snd (deepDefinitionsAbb mod defs fts))
 
-deep :: (Pretty a, Ord b, Pretty b) => String -> Stage -> [Definition TypedExpr a b] -> String -> Doc
-deep thy stg defs log = string ("(*\n" ++ log ++ "\n*)\n") <$>
-                        pretty (deepFile snm thy defs)
+deep :: (Pretty a, Ord b, Pretty b) => String -> Stage -> [Definition TypedExpr a b] -> Map FunName (FunctionType b) -> String -> Doc
+deep thy stg defs fts log = string ("(*\n" ++ log ++ "\n*)\n") <$>
+                        pretty (deepFile snm thy defs fts)
