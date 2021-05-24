@@ -508,6 +508,7 @@ flags =
   , Option []         ["fno-share-linear-vars"]  2 (NoArg set_flag_fnoShareLinearVars)     "(default) reverse of --fshare-linear-vars"
   , Option []         ["fno-show-types-in-pretty"] 2 (NoArg set_flag_fnoShowTypesInPretty) "(default) reverse of --fshow-types-in-pretty"
   , Option []         ["fno-simplifier"]      2 (NoArg set_flag_fnoSimplifier)             "(default) reverse of --fsimplifier"
+  , Option []         ["fno-simplify-shallow-tuples"] 2 (NoArg set_flag_fnoSimplifyShallowTuples)  "reverse of --fsimplify-shallow-tuples"
   , Option []         ["fno-static-inline"]   1 (NoArg set_flag_fnoStaticInline)           "reverse of --fstatic-inline"
   , Option []         ["fno-tc-ctx-constraints"] 3 (NoArg set_flag_ftcCtxConstraints)      "(default) reverse of --ftc-ctx-constraints"
   , Option []         ["fno-tp-with-bodies"]  1   (NoArg set_flag_fnoTpWithBodies)         "reverse of --ftp-with-bodies"
@@ -524,6 +525,7 @@ flags =
   , Option []         ["fshow-types-in-pretty"] 2 (NoArg set_flag_fshowTypesInPretty)      "show inferred types of each AST node when doing pretty-printing"
   , Option []         ["fsimplifier"]         1 (NoArg set_flag_fsimplifier)               "enable simplifier on core language"
   , Option []         ["fsimplifier-level"]   1 (ReqArg (set_flag_fsimplifierIterations . read) "NUMBER")  "number of iterations simplifier does (default=4)"
+  , Option []         ["fsimplify-shallow-tuples"] 1 (NoArg set_flag_fsimplifyShallowTuples)    "(default) simplify shallow embedding for readability"
   , Option []         ["fstatic-inline"]      2 (NoArg set_flag_fstaticInline)             "(default) generate static-inlined functions in C"
   , Option []         ["ftuples-as-sugar"]    2 (NoArg set_flag_ftuplesAsSugar)            "(default) treat tuples as syntactic sugar to unboxed records, which gives better performance"
   , Option []         ["ftc-ctx-constraints"] 3 (NoArg set_flag_ftcCtxConstraints)         "display constraints in type errors"
@@ -725,7 +727,7 @@ parseArgs args = case getOpt' Permute options args of
             tpthy  = thy ++ suf
         writeFileMsg tpfile
         output tpfile $ flip LJ.hPutDoc $
-          deepTypeProof id __cogent_ftp_with_decls __cogent_ftp_with_bodies tpthy nfed' log
+          deepTypeProof id __cogent_ftp_with_decls __cogent_ftp_with_bodies tpthy nfed' fts log
       shallowTypeNames <-
         genShallow cmds source stg nfed' typedefs fts log (Shallow stg `elem` cmds,
                                                            SCorres stg `elem` cmds,
@@ -796,7 +798,7 @@ parseArgs args = case getOpt' Permute options args of
             let tpfile = mkThyFileName source __cogent_suffix_of_type_proof
                 tpthy  = mkProofName source (Just __cogent_suffix_of_type_proof)
             writeFileMsg tpfile
-            output tpfile $ flip LJ.hPutDoc $ deepTypeProof id __cogent_ftp_with_decls __cogent_ftp_with_bodies tpthy monoed' log
+            output tpfile $ flip LJ.hPutDoc $ deepTypeProof id __cogent_ftp_with_decls __cogent_ftp_with_bodies tpthy monoed' fts log
           when (AllRefine `elem` cmds) $ do
             let arfile = mkThyFileName source __cogent_suffix_of_all_refine
             writeFileMsg arfile
@@ -950,7 +952,7 @@ parseArgs args = case getOpt' Permute options args of
     genDeep cmds source stg defns typedefs fts log = do
       let dpfile = mkThyFileName source (__cogent_suffix_of_deep ++ __cogent_suffix_of_stage stg)
           thy = mkProofName source (Just $ __cogent_suffix_of_deep ++ __cogent_suffix_of_stage stg)
-          de = deep thy stg defns log
+          de = deep thy stg defns fts log
       putProgressLn ("Generating deep embedding (" ++ stgMsg stg ++ ")...")
       writeFileMsg dpfile
       output dpfile $ flip LJ.hPutDoc de

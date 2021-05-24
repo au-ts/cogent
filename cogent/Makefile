@@ -53,7 +53,7 @@ full-clean: clean
 	$(Q) rm -rf dist-newstyle/ ../isa-parser/dist-newstyle
 
 
-dev: .cabal-update .build
+dev: .cabal-update build
 	$(E) "Cogent Compiler successfully built for $(OS)."
 	$(E)
 	$(E) "Add 'cogent' compiler to your path by running (substitute the placeholders with your configuration):"

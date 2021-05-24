@@ -36,6 +36,11 @@ definition
 
 section \<open> Tuple lemmas \<close>
 
+lemma compose_triple:
+  "(\<lambda>(a,b,c). f a b c) \<circ> (\<lambda>(a,b,c). g a b c) = 
+(\<lambda>(a,b,c). f (fst (g a b c)) (fst (snd (g a b c))) (snd (snd (g a b c))))"
+  by (force simp add: comp_def split:prod.split)
+
 lemma map_snd_app [simp]:
   shows "map (snd \<circ> (\<lambda> (a , b). (a , f b))) l  =  map (f \<circ> snd) l"
   by (induct l, auto)
@@ -129,15 +134,21 @@ lemma map2_mapL: "List.map2 h (map f xs) xs = map (\<lambda>x. h (f x) x) xs"
 lemma map2_mapR: "List.map2 h xs (map g xs) = map (\<lambda>x. h x (g x)) xs"
   by (induction xs) (auto)
 
+lemma map_nth_same  :"i < length ts \<Longrightarrow> f (ts ! i) = f t \<Longrightarrow>  map f (ts [i := t]) = map f ts"
+  by(simp add:map_update list_update_same_conv)
+
 lemma map_fst_update:
   assumes "ts ! f = (t, x)"
-    and     "f < length ts"
+    and     "f < length ts" 
   shows "map fst (ts[f := (t,x')]) = map fst ts"
+  using assms
+  by(simp add: map_nth_same)
+(*
 proof -
   from assms have  "map fst ts ! f = t" by (clarsimp)
   then show ?thesis by (auto simp add: map_update)
 qed
-
+*)
 lemma map_zip [simp]:
   shows "map (\<lambda> (a , b). (f a, g b)) (zip as bs) = zip (map f as) (map g bs)"
   by (induct as arbitrary:bs, simp, case_tac bs, simp_all)

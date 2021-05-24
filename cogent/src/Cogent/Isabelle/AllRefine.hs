@@ -10,6 +10,7 @@
 
 module Cogent.Isabelle.AllRefine where
 
+import Cogent.Common.Types (primIntSizeBits, machineWordType)
 import Cogent.Compiler
 import Cogent.Util
 
@@ -50,10 +51,14 @@ typeProof thy = TheoryString $ unlines
   , "    val tt_thm = Proof_Context.get_thm ctxt (typeproof_thy ^ \".\" ^ f ^ \"_typecorrect\")"
   , "    val f_type = Syntax.read_term ctxt (typeproof_thy ^ \".\" ^ f ^ \"_type\")"
   , "    val f_type_def = Proof_Context.get_thm ctxt (typeproof_thy ^ \".\" ^ f ^ \"_type_def\")"
-  , "    val k_empty = Goal.prove ctxt [] [] (@{mk_term \"prod.fst ?t \\<equiv> []\" t} f_type)"
+  , "    val nl_empty = Goal.prove ctxt [] [] (@{mk_term \"prod.fst ?t \\<equiv> 0\" t} f_type)"
+  , "                    (K (simp_tac (ctxt addsimps [f_type_def]) 1))"
+  , "    val k_empty = Goal.prove ctxt [] [] (@{mk_term \"prod.fst (prod.snd ?t) \\<equiv> []\" t} f_type)"
+  , "                    (K (simp_tac (ctxt addsimps [f_type_def]) 1))"
+  , "    val c_empty = Goal.prove ctxt [] [] (@{mk_term \"prod.fst (prod.snd (prod.snd ?t)) \\<equiv> {}\" t} f_type)"
   , "                    (K (simp_tac (ctxt addsimps [f_type_def]) 1))"
   , "    val t_thm = (tt_thm RS @{thm ttyping_imp_typing})"
-  , "                |> rewrite_rule ctxt [@{thm snd_conv[THEN eq_reflection]}, k_empty]"
+  , "                |> rewrite_rule ctxt [@{thm snd_conv[THEN eq_reflection]}, nl_empty, k_empty, c_empty]"
   , "    in Local_Theory.note ((Binding.name (f ^ \"_typecorrect'\"), []), [t_thm]) ctxt |> snd"
   , "    end)"
   , "    (filter (member op= Cogent_functions) entry_func_names)"
@@ -111,8 +116,10 @@ initFinalLocale thy output = TheoryString $ unlines
   , "  constrains val_abs_typing :: \"'b \\<Rightarrow> name \\<Rightarrow> type list \\<Rightarrow> bool\""
   , "         and upd_abs_typing :: \"abstyp \\<Rightarrow> name \\<Rightarrow> type list \\<Rightarrow> sigil \\<Rightarrow> ptrtyp set \\<Rightarrow> ptrtyp set \\<Rightarrow> bool\""
   , "         and abs_repr       :: \"abstyp \\<Rightarrow> name \\<times> repr list\""
-  , "         and abs_upd_val    :: \"abstyp \\<Rightarrow> 'b \\<Rightarrow> char list \\<Rightarrow> Cogent.type list \\<Rightarrow> sigil \\<Rightarrow> 32 word set \\<Rightarrow> 32 word set \\<Rightarrow> bool\""
+  , "         and abs_upd_val    :: \"abstyp \\<Rightarrow> 'b \\<Rightarrow> char list \\<Rightarrow> Cogent.type list \\<Rightarrow> sigil \\<Rightarrow> " ++ wordSize ++ " word set \\<Rightarrow> " ++ wordSize ++ " word set \\<Rightarrow> bool\""
   ]
+ where wordSize = show $ primIntSizeBits machineWordType
+
 
 sublocales :: String -> TheoryDecl I.Type I.Term
 sublocales thy = TheoryString $ unlines

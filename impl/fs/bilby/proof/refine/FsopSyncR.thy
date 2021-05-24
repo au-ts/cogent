@@ -69,7 +69,7 @@ using [[goals_limit=5]]
    apply (simp only:  FsopFsP.defs)
    apply (fold ostoreWriteNone_def)
 
-   apply (rule ostore_sync_ret)
+  apply (rule ostore_sync_ret)
        using rel apply (simp add: rsync_simp)
       using rel apply (simp add: rsync_simp)
      using rel apply (simp add: rsync_simp)

@@ -27,7 +27,6 @@ session CogentCRefinement = CogentShallow +
     Specialised_Lemma_USum
     Specialised_Lemma_Utils
     Tidy
-    Type_Args
     Type_Relation_Generation
     Utils
     Value_Relation

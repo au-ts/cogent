@@ -1,0 +1,32 @@
+type XY = { x: U32, y: U32 }
+  layout
+    record { x: 4B using LE
+           , y: 4B using BE at 4B 
+           }
+
+type AVariant = { a: <X U16 | Y U32> }
+  layout
+    record {
+      a : variant (1b) {
+            X(0) : 2B at 1B using BE,
+            Y(1) : 4B at 1B using LE
+        }
+    }
+
+init : XY -> XY
+init xy = xy {x = 1, y = 1}
+
+initA: AVariant take (a) -> AVariant
+initA av = av {a = X 0x00AA}
+
+multiplyA: AVariant -> (AVariant take (a))
+multiplyA av {a=a'} = a'
+  | X x -> av {a = X (x * 2)}
+  | Y y -> av {a = Y (y * 3)}
+
+doubleX : XY -> XY
+doubleX xy {x} = xy {x = x * 2}
+
+flipY : XY -> XY
+flipY xy {y} = y | 1 -> xy {y = 0}
+                 | _ -> xy {y = 1}

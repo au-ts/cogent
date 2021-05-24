@@ -10,8 +10,8 @@
 
 theory TransS
 imports
-  "../impl/BilbyFs_Shallow_Desugar_Tuples"
-  "../impl/BilbyFs_ShallowConsts_Desugar_Tuples"
+  "BilbyFsConsts.BilbyFs_Shallow_Desugar_Tuples"
+  "BilbyFsConsts.BilbyFs_ShallowConsts_Desugar_Tuples"
   "../spec/OstoreInvS"
 begin
 

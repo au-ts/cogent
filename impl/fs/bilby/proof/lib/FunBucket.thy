@@ -29,7 +29,7 @@ beginning of the list *}
 definition
   slice :: "nat \<Rightarrow> nat \<Rightarrow> 'a list \<Rightarrow> 'a list"
 where
- "slice frm to xs  \<equiv> drop frm $ take to xs"
+ "slice frm to xs  \<equiv> List.drop frm $ take to xs"
 
 lemma length_slice:
  "length (slice f t xs) = min (length xs) t - f"

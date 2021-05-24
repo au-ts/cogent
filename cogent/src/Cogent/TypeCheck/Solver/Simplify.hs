@@ -38,6 +38,7 @@ import           Cogent.Util (hoistMaybe)
 import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad.Trans.Except (runExcept)
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.Trans.Class (lift)
 import           Data.List as L (elemIndex, isSubsequenceOf, null, (\\))
@@ -45,6 +46,8 @@ import qualified Data.Map as M
 import           Data.Maybe
 import qualified Data.Set as S
 import           Lens.Micro
+
+import Text.PrettyPrint.ANSI.Leijen (plain, pretty)
 
 import           Debug.Trace
 
@@ -124,10 +127,10 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
   Exhaustive t ps | any isIrrefutable ps -> hoistMaybe $ Just []
   Exhaustive (V r) []
     | Row.isComplete r ->
-      null (Row.presentPayloads r) 
-        `elseDie` PatternsNotExhaustive (V r) (Row.presentLabels r) 
-  Exhaustive (V r) (RP (PCon t _):ps) 
-    | isNothing (Row.var r) -> 
+      null (Row.presentPayloads r)
+        `elseDie` PatternsNotExhaustive (V r) (Row.presentLabels r)
+  Exhaustive (V r) (RP (PCon t _):ps)
+    | isNothing (Row.var r) ->
       hoistMaybe $ Just [Exhaustive (V (Row.take t r)) ps]
 
   Exhaustive tau@(T (TCon "Bool" [] Unboxed)) [RP (PBoolLit t), RP (PBoolLit f)]
@@ -144,9 +147,9 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
   -- [amos] New simplify rule:
   -- If both sides of an equality constraint are equal, we can't completely discharge it;
   -- we need to make sure all unification variables in the type are instantiated at some point
-  t :=: u | t == u -> 
-    hoistMaybe $ if isSolved t then 
-      Just [] 
+  t :=: u | t == u ->
+    hoistMaybe $ if isSolved t then
+      Just []
     else
       Just [Solved t]
 
@@ -185,8 +188,11 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
 #endif
 
   TLOffset e _   :~ tau -> hoistMaybe $ Just [e :~ tau]
+  TLEndian e _   :~ tau -> hoistMaybe $ Just [e :~ tau]
+    -- \ ^^^ we no longer need `Upcastable (T u8) tau]', as we have checked endianness against the allocation / zilinc
 
   TLPrim n       :~ T TUnit | evalSize n >= 0 -> hoistMaybe $ Just []
+  TLPrim n       :~ T (TCon c ts Unboxed) | c `notElem` primTypeCons -> hoistMaybe $ Just []
   TLPrim n       :~ tau
     | isPrimType tau
     , primTypeSize tau == evalSize n
@@ -195,21 +201,24 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
     , evalSize n == pointerSizeBits
     -> hoistMaybe $ Just []
 
-  TLPtr          :~ R rp r (Left (Boxed _ (Just l))) -> hoistMaybe $ Just [l :~ R rp r (Left Unboxed)]
-  TLPtr          :~ R rp r (Left (Boxed _ Nothing )) -> hoistMaybe $ Just [LayoutOk (R rp r (Left Unboxed))]
+  TLPtr :~ R rp r (Left (Boxed _ (Just l))) -> hoistMaybe $ Just [l :~ R rp r (Left Unboxed)]
+  TLPtr :~ R rp r (Left (Boxed _ Nothing )) -> hoistMaybe $ Just [LayoutOk (R rp r (Left Unboxed))]
+  
+  TLPtr :~ T (TCon n ts (Boxed _ (Just l))) -> hoistMaybe $ Just [l :~ T (TCon n ts Unboxed)] 
+  TLPtr :~ T (TCon n ts (Boxed _ Nothing )) -> hoistMaybe $ Just []
 #ifdef BUILTIN_ARRAYS
-  TLPtr          :~ A t e (Left (Boxed _ (Just l))) h -> hoistMaybe $ Just [l :~ A t e (Left Unboxed) h]
-  TLPtr          :~ A t e (Left (Boxed _ Nothing )) h -> hoistMaybe $ Just [LayoutOk (A t e (Left Unboxed) h)]
+  TLPtr :~ A t e (Left (Boxed _ (Just l))) h -> hoistMaybe $ Just [l :~ A t e (Left Unboxed) h]
+  TLPtr :~ A t e (Left (Boxed _ Nothing )) h -> hoistMaybe $ Just [LayoutOk (A t e (Left Unboxed) h)]
 #endif
-  l              :~ T (TBang tau)    -> hoistMaybe $ Just [l :~ tau]
-  l              :~ T (TTake _ tau)  -> hoistMaybe $ Just [l :~ tau]
-  l              :~ T (TPut  _ tau)  -> hoistMaybe $ Just [l :~ tau]
+  l     :~ T (TBang tau)    -> hoistMaybe $ Just [l :~ tau]
+  l     :~ T (TTake _ tau)  -> hoistMaybe $ Just [l :~ tau]
+  l     :~ T (TPut  _ tau)  -> hoistMaybe $ Just [l :~ tau]
 #ifdef BUILTIN_ARRAYS
-  l              :~ T (TATake _ tau) -> hoistMaybe $ Just [l :~ tau]
-  l              :~ T (TAPut  _ tau) -> hoistMaybe $ Just [l :~ tau]
+  l     :~ T (TATake _ tau) -> hoistMaybe $ Just [l :~ tau]
+  l     :~ T (TAPut  _ tau) -> hoistMaybe $ Just [l :~ tau]
 #endif
-  _              :~ Synonym _ _      -> hoistMaybe Nothing
-  l              :~ tau | TLU _ <- l -> hoistMaybe Nothing
+  _     :~ Synonym _ _      -> hoistMaybe Nothing
+  l     :~ tau | TLU _ <- l -> hoistMaybe Nothing
 
   TLRepRef _ _     :~< TLRepRef _ _  -> hoistMaybe Nothing
   TLRepRef _ _     :~< _             -> hoistMaybe Nothing
@@ -217,6 +226,7 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
   TLVar v1         :~< TLVar v2      | v1 == v2 -> hoistMaybe $ Just []
   TLPrim n1        :~< TLPrim n2     | n1 <= n2 -> hoistMaybe $ Just []
   TLOffset e1 _    :~< TLOffset e2 _ -> hoistMaybe $ Just [e1 :~< e2]
+  TLEndian e1 _    :~< TLEndian e2 _ -> hoistMaybe $ Just [e1 :~< e2]
 
   TLRecord fs1     :~< TLRecord fs2
     | r1 <- LRow.fromList $ map (\(a,b,c) -> (a,c,())) fs1
@@ -233,10 +243,6 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
 #ifdef BUILTIN_ARRAYS
   TLArray e1 _     :~< TLArray e2 _ -> hoistMaybe $ Just [e1 :~< e2]
 #endif
-
-  l1               :~< l2 | TLU _ <- l1 -> hoistMaybe Nothing
-                          | TLU _ <- l2 -> hoistMaybe Nothing
-                          | otherwise   -> unsat $ LayoutsNotCompatible l1 l2  -- FIXME!
 
   t1 :~~ t2 | isBoxedType t1, isBoxedType t2 -> hoistMaybe $ Just []  -- If both are pointers, then their layouts will be compatible
 
@@ -259,7 +265,7 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
             | isPrimType t1 && isPrimType t2
             , primTypeSize t1 <= primTypeSize t2
             -> hoistMaybe $ Just []
-            | otherwise -> unsat $ TypesNotFit t1 t2
+            | otherwise -> hoistMaybe Nothing
 
   T (TFun t1 t2) :=: T (TFun r1 r2) -> hoistMaybe $ Just [r1 :=: t1, t2 :=: r2]
   T (TFun t1 t2) :<  T (TFun r1 r2) -> hoistMaybe $ Just [r1 :<  t1, t2 :<  r2]
@@ -326,7 +332,7 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
     hoistMaybe $ Just (c <> [Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [l1,l2])), t1 :=: t2, drop])
 
   a :-> b -> __fixme $ hoistMaybe $ Just [b]  -- FIXME: cuerently we ignore the impls. / zilinc
-  
+
   -- TODO: Here we will call a SMT procedure to simplify all the Arith constraints.
   -- The only things left will be non-trivial predicates. / zilinc
   Arith e | isTrivialSE e -> do

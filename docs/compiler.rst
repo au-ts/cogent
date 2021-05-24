@@ -210,8 +210,12 @@ All Flags
     specify path to all output files (default is ``./``)
 --fake-header-dir=PATH  \
     specify path to fake C header files
+-I PATH, --include=PATH  \
+    specify directories to search for included cogent files
 --root-dir=PATH  \
     specify path to top-level directory (for imports in theory files only, default is ``./``)
+--arch=ARCH  \
+    set the target architecture; ARCH could be one of ``arm32`` (default), ``x86_64``, ``x86``
 --cust-ty-gen=FILE  \
     config file to customise type generation
 --entry-funcs=FILE  \
@@ -252,6 +256,8 @@ All Flags
     dump debugging output to specific file instead of terminal
 --ddump-pretty-ds-no-tc  \
     dump the pretty printed desugared expression before typechecking
+--ddump-pretty-normal-no-tc  \
+    dump the pretty printed normalised expression before typechecking
 --fcheck-undefined, --fno-check-undefined  \
     check for undefined behaviours in C (default enabled)
 -B, --fdisambiguate-pp  \

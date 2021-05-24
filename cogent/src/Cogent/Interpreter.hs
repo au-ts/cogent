@@ -386,11 +386,11 @@ coreTcExpr :: [Definition TypedExpr VarName VarName]
            -> UntypedExpr 'Zero 'Zero VarName VarName
            -> IO (TypedExpr 'Zero 'Zero VarName VarName)
 coreTcExpr ds e = do
-  let mkFunMap (FunDef  _ fn ps ts ti to _) = (fn, FT (fmap snd ps) (fmap snd ts) ti to)
-      mkFunMap (AbsDecl _ fn ps ts ti to  ) = (fn, FT (fmap snd ps) (fmap snd ts) ti to)
+  let mkFunMap (FunDef  _ fn ps lts ti to _) = (fn, FT (fmap snd ps) (V.length lts) [] ti to)  -- TODO: the [] should be initial constraint set; but it doesn't matter here. / zilinc
+      mkFunMap (AbsDecl _ fn ps lts ti to  ) = (fn, FT (fmap snd ps) (V.length lts) [] ti to)  -- ditto
       mkFunMap _ = __impossible "coreTcExpr: mkFunMap: not a function definition"
   let funmap = M.fromList $ fmap mkFunMap $ filter (not . isTypeDef) ds
-  case fmap snd $ Core.runTC (Core.infer e) (V.Nil, funmap) V.Nil of
+  case fmap snd $ Core.runTC (Core.infer e) (V.Nil, funmap) V.Nil of  -- ditto
     Left err -> __impossible "coreTcExpr: there shouldn't be any error here"
     Right e  -> return e
 

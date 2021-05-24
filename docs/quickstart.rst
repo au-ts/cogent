@@ -18,7 +18,7 @@ guide.
 Installation
 ============
 
-See `README.md <https://github.com/NICTA/cogent/blob/master/README.md>`_ for instructions.
+See :doc:`install` for instructions.
 
 .. _first-program:
 

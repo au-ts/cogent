@@ -805,14 +805,14 @@ test_examples()
 
     for ex in */
     do
-        pushd $ex
+        pushd $ex > /dev/null
         echo $ex
         total+=1
         if check_output make
         then passed+=1; echo $pass_msg
         else echo $fail_msg
         fi
-        popd
+        popd > /dev/null
     done
 
     echo "Passed $passed out of $total."

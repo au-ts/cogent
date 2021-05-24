@@ -38,7 +38,7 @@ import Control.Monad.Trans.Maybe
 import Lens.Micro.Mtl
 import Lens.Micro
 
--- import Debug.Trace
+import Debug.Trace
 
 normaliseRWT :: RewriteT TcSolvM TCType
 normaliseRWT = rewrite' $ \case
@@ -91,12 +91,12 @@ normaliseRWT = rewrite' $ \case
 
 #ifdef BUILTIN_ARRAYS
     T (TATake [idx] (A t l s (Right _))) ->
-      __impossible "normaliseRW: TATake over a hole variable"
+      __impossible "normaliseRWT: TATake over a hole variable"
     T (TATake [idx] (A t l s (Left Nothing))) ->
       let l' = normaliseSExpr l
        in pure $ A t l s (Left $ Just idx)
     T (TAPut [idx] (A t l s (Right _))) ->
-      __impossible "normaliseRW: TAPut over a hole variable"
+      __impossible "normaliseRWT: TAPut over a hole variable"
     T (TAPut [idx] (A t l s (Left (Just idx')))) | idx == idx' -> 
       let l' = normaliseSExpr l
        in pure $ A t l s (Left Nothing)
@@ -105,15 +105,15 @@ normaliseRWT = rewrite' $ \case
     T (TLayout l (R rp row (Left (Boxed p _)))) ->
       pure $ R rp row $ Left $ Boxed p (Just l)
     T (TLayout l (R _ row (Right i))) ->
-      __impossible "normaliseRW: TLayout over a sigil variable (R)"
+      __impossible "normaliseRWT: TLayout over a sigil variable (R)"
 #ifdef BUILTIN_ARRAYS
     T (TLayout l (A t n (Left (Boxed p _)) tkns)) ->
       pure $ A t n (Left (Boxed p (Just l))) tkns
     T (TLayout l (A t n (Right i) tkns)) ->
       __impossible "normaliseRWT: TLayout over a sigil variable (A)"
 #endif
-    T (TLayout l _) -> -- TODO(dargent): maybe handle this later
-      empty
+    T (TLayout l (T (TCon n ts (Boxed p _)))) | n `notElem` primTypeCons ->
+      pure $ T (TCon n ts (Boxed p (Just l)))
     _ -> empty
 
   where
@@ -135,31 +135,11 @@ whnf input = do
         _                -> pure input
     fromMaybe step <$> runMaybeT (runRewriteT (untilFixedPoint $ debug "Normalise Type" printPretty normaliseRWT) step)
 
-normaliseRWL :: RewriteT TcSolvM TCDataLayout
-normaliseRWL = rewrite' $ \case
-  TLRepRef n s -> do
-    ls <- view knownDataLayouts
-    case M.lookup n ls of
-      Just (vars, expr, _) -> pure $ normaliseTCDataLayout ls (substTCDataLayout (zip vars s) (toTCDL expr))
-      _ -> __impossible "normaliseRWL: missing layout synonym"
-  _ -> empty
-
-normL :: TCDataLayout -> TcSolvM TCDataLayout
-normL l = do
-  step <- case l of
-#ifdef BUILTIN_ARRAYS
-    TLArray e p -> TLArray <$> normL e <*> pure p
-#endif
-    TLRecord fs -> TLRecord <$> mapM (third3M normL) fs
-    TLVariant l fs -> TLVariant <$> normL l <*> mapM (fourth4M normL) fs
-    TLOffset l n -> TLOffset <$> normL l <*> pure n
-    _ -> pure l
-  fromMaybe step <$> runMaybeT (runRewriteT (untilFixedPoint $ debug "Normalise Layout" printPretty normaliseRWL) step)
 
 -- | Normalise both types and layouts within a set of constraints
 normalise :: [Goal] -> TcSolvM [Goal]
 normalise = mapM $ \g -> do
-  c' <- bimapM whnf normL (g ^. goal)
+  c' <- bimapM whnf pure (g ^. goal)
   pure $ set goal c' g
 
 normaliseSExpr :: TCSExpr -> Int

@@ -59,6 +59,7 @@ import Control.Monad.State hiding (fmap, forM_)
 import Control.Monad.Trans.Maybe
 import Data.Foldable (forM_)
 import Data.Function (on)
+import Data.List (nub)
 import qualified Data.IntMap as IM
 import Data.Map (Map)
 import Data.Maybe (isJust)
@@ -67,8 +68,8 @@ import Data.Monoid
 #if __GLASGOW_HASKELL__ < 709
 import Data.Traversable(traverse)
 #endif
-import Lens.Micro (_2)
-import Lens.Micro.Mtl (view)
+import Lens.Micro hiding (at)
+import Lens.Micro.Mtl (view, use, (%=))
 import Text.PrettyPrint.ANSI.Leijen (Pretty, pretty)
 import qualified Unsafe.Coerce as Unsafe (unsafeCoerce)  -- NOTE: used safely to coerce phantom types only
 
@@ -232,28 +233,28 @@ substituteL _  t                 = t
 substituteS :: [DataLayout BitRange] -> Sigil (DataLayout BitRange) -> Sigil (DataLayout BitRange)
 substituteS ls Unboxed = Unboxed
 substituteS ls (Boxed b CLayout) = Boxed b CLayout
-substituteS ls (Boxed b (Layout l)) = Boxed b . Layout $ substituteS' ls l
-  where
-    substituteS' :: [DataLayout BitRange] -> DataLayout' BitRange -> DataLayout' BitRange
-    substituteS' ls l = case l of
-      VarLayout n s -> case ls !! (natToInt n) of
-                       CLayout -> __impossible "substituteS in Inference: CLayout shouldn't be here"
-                       Layout l -> offset s l
-      SumLayout tag alts ->
-        let altl = M.toList alts
-            fns = fmap fst altl
-            fis = fmap fst $ fmap snd altl
-            fes = fmap snd $ fmap snd altl
-         in SumLayout tag $ M.fromList (zip fns $ zip fis (fmap (substituteS' ls) fes))
-      RecordLayout fs ->
-        let fsl = M.toList fs
-            fns = fmap fst fsl
-            fes = fmap snd fsl
-         in RecordLayout $ M.fromList (zip fns (fmap (substituteS' ls) fes))
+substituteS ls (Boxed b (Layout l)) = Boxed b . Layout $ substituteDL ls l
+  
+substituteDL :: [DataLayout BitRange] -> DataLayout' BitRange -> DataLayout' BitRange
+substituteDL ls l = case l of
+  VarLayout n s -> case ls !! (natToInt n) of
+                   CLayout -> __impossible "substituteS in Inference: CLayout shouldn't be here"
+                   Layout l -> offset s l
+  SumLayout tag alts ->
+    let altl = M.toList alts
+        fns = fmap fst altl
+        fis = fmap fst $ fmap snd altl
+        fes = fmap snd $ fmap snd altl
+     in SumLayout tag $ M.fromList (zip fns $ zip fis (fmap (substituteDL ls) fes))
+  RecordLayout fs ->
+    let fsl = M.toList fs
+        fns = fmap fst fsl
+        fes = fmap snd fsl
+     in RecordLayout $ M.fromList (zip fns (fmap (substituteDL ls) fes))
 #ifdef BUILTIN_ARRAYS
-      ArrayLayout e -> ArrayLayout $ substituteS' ls e
+  ArrayLayout e -> ArrayLayout $ substituteDL ls e
 #endif
-      _ -> l
+  _ -> l
 
 substituteLE :: Vec t (Type u b) -> LExpr t b -> LExpr u b
 substituteLE vs = \case
@@ -389,17 +390,135 @@ tc = flip tc' M.empty
     tc' [] reader = return ([], reader)
     tc' ((FunDef attr fn ks ls t rt e):ds) reader =
       -- Enable recursion by inserting this function's type into the function type dictionary
-      let ft = FT (snd <$> ks) (snd <$> ls) t rt in
+      let ft = FT (snd <$> ks) (Vec.length ls) [] t rt in
       case runTC (infer e >>= flip typecheck rt) (fmap snd ks, M.insert fn ft reader) (Cons (Just t) Nil) of
         Left x -> Left x
-        Right (_, e') -> (first (FunDef attr fn ks ls t rt e':)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader)
-    tc' (d@(AbsDecl _ fn ks ls t rt):ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader)
+        Right (_, e') ->
+           let c0 = zip (fmap (`VarLayout` 0) [Zero ..]) $ Vec.cvtToList ls <&> (^._2) in
+           let cls = nub $ inferLayConstraints t ++ inferLayConstraints rt ++ inferLayConstraintsTE reader e' ++ c0 in
+           let m = (M.insert fn (FT (fmap snd ks) (Vec.length ls) cls t rt) reader) in
+           
+             (first (FunDef attr fn ks ls t rt e':)) <$> tc' ds m
+    tc' (d@(AbsDecl _ fn ks ls t rt):ds) reader =
+      let cls = nub $ 
+            (zip (fmap (`VarLayout` 0) [Zero ..]) $ Vec.cvtToList ls <&> (^._2))
+            ++ inferLayConstraints t ++  inferLayConstraints rt 
+      in      
+      first (Unsafe.unsafeCoerce d:) <$>
+        tc' ds (M.insert fn (FT (fmap snd ks) (Vec.length ls) cls t rt) reader)
     tc' (d:ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds reader
 
 tc_ :: (Show b, Eq b, Pretty b, a ~ b)
     => [Definition UntypedExpr a b]
     -> Either String [Definition TypedExpr a b]
 tc_ = fmap fst . tc
+
+isMonoType :: Type t b -> Bool
+isMonoType (TVar _) = False
+isMonoType (TVarBang _) = False
+isMonoType (TVarUnboxed _) = False
+isMonoType (TCon _ l _) = all isMonoType l
+isMonoType (TFun t rt) = isMonoType t && isMonoType rt
+isMonoType (TPrim _) = True
+isMonoType TString = True
+isMonoType (TSum l) = all (isMonoType . fst . snd) l
+isMonoType (TProduct t1 t2) = isMonoType t1 && isMonoType t2
+isMonoType (TRecord _ fs _) = all (isMonoType . fst . snd) fs     
+isMonoType TUnit = True
+isMonoType (TRPar _ _)  = True -- TODO (not sure if something must be done)
+isMonoType (TRParBang _ _) = True -- TODO (not sure if something must be done)
+-- #ifdef BUILTIN_ARRAYS
+isMonoType (TArray t _ s _) = isMonoType t -- TODO
+isMonoType (TRefine t _) = isMonoType t -- TODO
+-- #endif
+
+isMonoDataLayout' :: DataLayout' BitRange -> Bool
+isMonoDataLayout' UnitLayout = True
+isMonoDataLayout' (PrimLayout _ _) = True
+isMonoDataLayout' (RecordLayout fs) = all isMonoDataLayout' fs  
+isMonoDataLayout' (SumLayout tag alts) = all (isMonoDataLayout' . snd) alts
+isMonoDataLayout' (VarLayout v offset) = False
+#ifdef BUILTIN_ARRAYS
+isMonoDataLayout' (ArrayLayout l) = isMonoDataLayout' l
+#endif
+
+
+-- TODO ne garder que les types/data layouts pas clos
+inferLayConstraints :: Type t b -> [(DataLayout' BitRange, Type t b)]
+inferLayConstraints (TVar _) = []
+inferLayConstraints (TVarBang _) = []
+inferLayConstraints (TVarUnboxed _) = []
+inferLayConstraints (TCon _ l _) = concatMap inferLayConstraints l
+inferLayConstraints (TFun t rt) = inferLayConstraints t ++ inferLayConstraints rt
+inferLayConstraints (TPrim _) = []
+inferLayConstraints TString = []
+inferLayConstraints (TSum l) = concatMap (inferLayConstraints . fst . snd) l
+inferLayConstraints (TProduct t1 t2) = inferLayConstraints t1 ++ inferLayConstraints t2
+inferLayConstraints (TRecord r fs s) =    
+    let cs = concatMap (inferLayConstraints . fst . snd) fs in
+    case s of
+      Boxed _ (Layout l) ->
+            if isMonoDataLayout' l && all (isMonoType . fst . snd) fs then 
+                cs
+            else
+                (l, TRecord r fs Unboxed) : cs
+      _ -> cs
+inferLayConstraints TUnit = []
+inferLayConstraints (TRPar _ _)  = [] -- TODO (not sure if something must be done)
+inferLayConstraints (TRParBang _ _) = [] -- TODO (not sure if something must be done)
+-- #ifdef BUILTIN_ARRAYS
+inferLayConstraints (TArray t _ s _) = [] -- TODO
+inferLayConstraints (TRefine t _) = inferLayConstraints t
+-- #endif
+
+inferLayConstraintsTE :: Map FunName (FunctionType a) -> TypedExpr t v a a -> [(DataLayout' BitRange, Type t a)]
+inferLayConstraintsTE m (TE t e) = inferLayConstraintsTE' m e ++ inferLayConstraints t
+
+
+
+inferLayConstraintsTE' :: Map FunName (FunctionType a) -> Expr t v a a TypedExpr -> [(DataLayout' BitRange, Type t a)]
+inferLayConstraintsTE' m (Variable _) = []
+inferLayConstraintsTE' m (Fun f ts ls note) 
+   | ExI (Flip ts') <- Vec.fromList ts  
+   = 
+        case M.lookup (unCoreFunName f) m of
+          Just (FT ks nl lts _ _) ->
+             case Vec.length ts' =? Vec.length ks
+               of Just Refl ->
+                     concatMap inferLayConstraints ts ++                         
+                          map (substituteDL ls *** (substitute ts' . substituteL ls)) lts            
+          _        -> error $ "Something went wrong in lookup of function type: '" ++ unCoreFunName f ++ "'"
+inferLayConstraintsTE' m (Op _ l) = concatMap (inferLayConstraintsTE m) l
+inferLayConstraintsTE' m (Con _ _ t) = inferLayConstraints t
+inferLayConstraintsTE' m Unit = []
+inferLayConstraintsTE' m (ILit _ _) = []
+inferLayConstraintsTE' m (SLit _) = []
+#ifdef BUILTIN_ARRAYS
+inferLayConstraintsTE' m (ALit l) = concatMap (inferLayConstraintsTE m) l
+inferLayConstraintsTE' m (ArrayIndex t u) = concatMap (inferLayConstraintsTE m) [t, u]
+inferLayConstraintsTE' m (Pop _ t u) = concatMap (inferLayConstraintsTE m) [t, u]
+inferLayConstraintsTE' m (Singleton t) = inferLayConstraintsTE t
+-- TODO check de Bruijn indices
+inferLayConstraintsTE' m (ArrayMap2 (_, e1) (e2, e3) = concatMap (inferLayConstraintsTE m) [e1, e2, e3]
+inferLayConstraintsTE' m (ArrayTake _ e1 e2 e3) =  concatMap (inferLayConstraintsTE m) [e1, e2, e3]
+inferLayConstraintsTE' m (ArrayPut _ e2 e3) =  concatMap (inferLayConstraintsTE m) [e1, e2, e3]
+#endif
+-- TODO check de Bruijn indices
+inferLayConstraintsTE' m (Let _ t u) = inferLayConstraintsTE m t ++ inferLayConstraintsTE m u
+inferLayConstraintsTE' m (LetBang _ _ t u) = inferLayConstraintsTE m t ++ inferLayConstraintsTE m u
+inferLayConstraintsTE' m (Tuple t u) = inferLayConstraintsTE m t ++ inferLayConstraintsTE m u 
+inferLayConstraintsTE' m (Struct l) = concatMap (inferLayConstraintsTE m . snd) l
+inferLayConstraintsTE' m (If e1 e2 e3) =  concatMap (inferLayConstraintsTE m) [e1, e2, e3]
+inferLayConstraintsTE' m (Case e1 _ (_, _, e2) (_, _, e3)) = 
+      inferLayConstraintsTE m e1 ++ inferLayConstraintsTE m e2 ++ inferLayConstraintsTE m e3
+inferLayConstraintsTE' m (Esac t) = inferLayConstraintsTE m t
+inferLayConstraintsTE' m (Split _ e1 e2) = inferLayConstraintsTE m e1 ++ inferLayConstraintsTE m e2
+inferLayConstraintsTE' m (Member e _) =  inferLayConstraintsTE m e
+inferLayConstraintsTE' m (Take _ e1 _ e2) = inferLayConstraintsTE m e1 ++ inferLayConstraintsTE m e2
+inferLayConstraintsTE' m (Put e1 _ e2) =  concatMap (inferLayConstraintsTE m) [e1, e2]
+inferLayConstraintsTE' m (Promote t e) = inferLayConstraints t ++ inferLayConstraintsTE m e
+inferLayConstraintsTE' m (Cast t e) = inferLayConstraints t ++ inferLayConstraintsTE m e
+inferLayConstraintsTE' m (App t u) =  inferLayConstraintsTE m t ++ inferLayConstraintsTE m u 
 
 tcConsts :: [CoreConst UntypedExpr]
          -> Map FunName (FunctionType VarName)
@@ -558,8 +677,8 @@ infer (E (Fun f ts ls note))
    = do myMap <- ask
         x <- funType f
         case x of
-          Just (FT ks lts ti to) ->
-            case (Vec.length ts' =? Vec.length ks, Vec.length ls' =? Vec.length lts)
+          Just (FT ks nl lts ti to) ->
+            case (Vec.length ts' =? Vec.length ks, Vec.length ls' =? nl)
               of (Just Refl, Just Refl) -> let ti' = substitute ts' $ substituteL ls ti
                                                to' = substitute ts' $ substituteL ls to
                                             in do forM_ (Vec.zip ts' ks) $ \(t, k) -> do

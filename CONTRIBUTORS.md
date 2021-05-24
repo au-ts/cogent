@@ -19,6 +19,7 @@ repository (in alphabetical order).
 * Vincent Jackson, UNSW
 * Jashank Jeremy, UNSW
 * Gabriele Keller, Universiteit Utrecht (was at Data61 & UNSW)
+* Luka Kerr, UNSW
 * Gerwin Klein, Data61 (was at NICTA) & UNSW
 * Ambroise Lafont, UNSW
 * Edward Lee, NICTA & UNSW
@@ -35,6 +36,7 @@ repository (in alphabetical order).
 * Nick Robson, UNSW
 * Leonid Ryzhyk, NICTA & UNSW
 * Carter Tazio Schonwald
+* Harrison Scott, UNSW
 * Sean Seefried, NICTA
 * Thomas Sewell, Data61 (was at NICTA) & UNSW
 * Sean Shang, UNSW

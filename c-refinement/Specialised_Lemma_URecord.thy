@@ -148,7 +148,7 @@ fun take_member_assumptions isa_sigil ty field_ty isa_field_num =
 fun put_let_put_assumptions ty field_ty isa_int_struct_leng =
  let
   val (ass2, ass4, ass3) = common_assumptions @{term "Boxed Writable"} ty
-  val ass1 = @{term "[] \<turnstile> \<Gamma>' \<leadsto> \<Gamma>x | \<Gamma>e"};
+  val ass1 = @{term "0, [], {} \<turnstile> \<Gamma>' \<leadsto> \<Gamma>x | \<Gamma>e"};
   val ass5 = strip_atype @{term "\<lambda> v' . val_rel (\<gamma>!v) v'"} $ Free ("v'", field_ty);
 
   val ass78 = strip_atype @{term "\<lambda> leng . length typ = leng"} $ isa_int_struct_leng;
@@ -165,15 +165,56 @@ fun take_assumptions
    =
   let
   val (ass1, ass3, ass4, ass5) = take_member_assumptions isa_sigil ty field_ty isa_field_num;
-  val ass2 = @{term    "[] \<turnstile> \<Gamma>' \<leadsto> \<Gamma>x | \<Gamma>e"};
-  val ass6 = strip_atype @{term "\<lambda> field_num . \<Xi>', [], \<Gamma>' \<turnstile> Take (Var x) field_num e : te"} $ isa_field_num;
-  val ass7 = strip_atype @{term "\<lambda> isa_sigil . \<Xi>', [], \<Gamma>x \<turnstile> (Var x) : TRecord typ isa_sigil"} $ isa_sigil;
+  val ass2 = @{term    "0, [], {} \<turnstile> \<Gamma>' \<leadsto> \<Gamma>x | \<Gamma>e"};
+  val ass6 = strip_atype @{term "\<lambda> field_num . \<Xi>', 0, [], {}, \<Gamma>' \<turnstile> Take (Var x) field_num e : te"} $ isa_field_num;
+  val ass7 = strip_atype @{term "\<lambda> isa_sigil . \<Xi>', 0, [], {}, \<Gamma>x \<turnstile> (Var x) : TRecord typ isa_sigil"} $ isa_sigil;
+(*
+=======
+  (* define auxiliary values and functions.*)
+  val struct_C_nm     = get_ty_nm_C uval;
+  val struct_ty       = Syntax.read_typ ctxt struct_C_nm;
+  val struct_C_ptr_ty = Syntax.read_typ ctxt (struct_C_nm ^ " ptr");
+  val heap            = Symtab.lookup (HeapInfo.get (Proof_Context.theory_of ctxt)) file_nm
+                        |> Utils.the' "heap in mk_specialised_corres_take failed."
+                        |> #heap_info;
+  val field_info      = Symtab.lookup (#structs heap) struct_C_nm
+                        |> Utils.the' "field_info in mk_specialised_corres_take failed."
+                        |> #field_info;
+  val nth_field       = List.nth (field_info, field_num);
+  val field_ty        = #field_type nth_field;
+  val isa_field_num   = encode_isa_int ctxt field_num;
+  val get_clean_term  = fn str:string => Syntax.read_term ctxt str |> strip_atype;
+  val state_rel       = get_clean_term "state_rel";
+  val field_getter    = #getter nth_field;
+  val ml_sigil        = get_uval_sigil uval;
+  val isa_sigil = case ml_sigil of
+                ReadOnly => @{term "Boxed ReadOnly ptrl"}
+              | Writable => @{term "Boxed Writable ptrl"}
+              | Unboxed  => @{term "Unboxed"}
+  (* Unboxed-Take and Boxed-Take use different types.*)
+  val ty = case ml_sigil of
+            Writable => struct_C_ptr_ty
+          | Unboxed  => struct_ty
+          | _        => error "ty in mk_specialised_corres_take failed.";
+
+  (* define meta-assumptions in specialised corres lemmas.*)
+  val ass1 = @{mk_term "\<Gamma>' ! x = Some (TRecord typ ?isa_sigil)" isa_sigil} isa_sigil;
+  val ass2 = @{term    "0, [], {} \<turnstile> \<Gamma>' \<leadsto> \<Gamma>x | \<Gamma>e"};
+  val ass3 = @{mk_term "val_rel (\<gamma>!x) ?x'" x'} (Free ("x'", ty));
+  val ass4 = strip_atype @{term "\<lambda> isa_sigil ty . type_rel (type_repr (TRecord typ isa_sigil)) ty"}
+            $ isa_sigil $ (Const ("Pure.type", Term.itselfT ty) |> strip_atype);
+  val ass5 = strip_atype @{term "\<lambda> field_num ty . type_rel (type_repr (fst (snd (typ ! field_num)))) ty"}
+            $ isa_field_num $ (Const ("Pure.type", Term.itselfT field_ty) |> strip_atype);
+  val ass6 = strip_atype @{term "\<lambda> field_num . \<Xi>', 0, [], {}, \<Gamma>' \<turnstile> Take (Var x) field_num e : te"} $ isa_field_num;
+  val ass7 = strip_atype @{term "\<lambda> isa_sigil . \<Xi>', 0, [], {}, \<Gamma>x \<turnstile> (Var x) : TRecord typ isa_sigil"} $ isa_sigil;
+>>>>>>> origin/dargenttyping
+*)
   val ass8 = strip_atype @{term "\<lambda> isa_sigil field_num .
-             (\<Xi>', [], Some (fst (snd (typ ! field_num))) #
+             (\<Xi>', 0, [], {}, Some (fst (snd (typ ! field_num))) #
               Some (TRecord (typ[field_num := (fst (typ ! field_num), fst (snd (typ ! field_num)), taken)]) isa_sigil) # \<Gamma>e \<turnstile> e : te)"}
             $ isa_sigil $ isa_field_num;
   (* For some reason, I cannot use the mk-term antiquotation for ass9.*)
-  val ass9 = strip_atype @{term "\<lambda> field_num . [] \<turnstile> fst (snd (typ ! field_num)) :\<kappa> k"} $ isa_field_num;
+  val ass9 = strip_atype @{term "\<lambda> field_num . 0, [], {} \<turnstile> fst (snd (typ ! field_num)) :\<kappa> k"} $ isa_field_num;
   val ass10= @{term "(S \<in> k \<or> taken = Taken)"};
   (* ass11 involves a bit ugly hacks. Maybe I can use \<lambda> for field_num instead of \<And>.*)
   val ass11 = let
@@ -201,8 +242,8 @@ fun member_assumptions
    =
   let
     val (ass1, ass3, ass4, ass5) = take_member_assumptions isa_sigil ty field_ty isa_field_num;
-    val ass6 = @{term "\<lambda> isa_field_num . \<Xi>', [], \<Gamma>' \<turnstile> Member (Var x) isa_field_num : te"} $ isa_field_num;
-    val ass7 = @{term " \<Xi>', [], \<Gamma>' \<turnstile> Var x : TRecord typ (Boxed ReadOnly )"};
+    val ass6 = @{term "\<lambda> isa_field_num . \<Xi>', 0, [], {}, \<Gamma>' \<turnstile> Member (Var x) isa_field_num : te"} $ isa_field_num;
+    val ass7 = @{term " \<Xi>', 0, [], {}, \<Gamma>' \<turnstile> Var x : TRecord typ (Boxed ReadOnly ptrl)"};
     val prms = map (HOLogic.mk_Trueprop o strip_atype) [ass1, ass3, ass4, ass5, ass6, ass7];
   in
     prms
@@ -214,17 +255,17 @@ fun let_put_assumptions
   let
     val (ass1, ass2, ass3, ass4, ass5, ass8) =  put_let_put_assumptions ty field_ty isa_struct_leng;
     val ass6 = strip_atype @{term "\<lambda> field_num .
-             \<Xi>', [], \<Gamma>' \<turnstile> expr.Let (Put (Var x) field_num (Var v)) e : ts"} $ isa_field_num;
+             \<Xi>', 0, [], {}, \<Gamma>' \<turnstile> expr.Let (Put (Var x) field_num (Var v)) e : ts"} $ isa_field_num;
     val ass7 = strip_atype @{term "\<lambda> field_num .
-             \<Xi>', [], \<Gamma>x \<turnstile> Put (Var x) field_num (Var v) :
-                         TRecord (typ[field_num := (fst (typ ! field_num), fst (snd (typ ! field_num)), Present)]) (Boxed Writable )"} $ isa_field_num;
+             \<Xi>', 0, [], {}, \<Gamma>x \<turnstile> Put (Var x) field_num (Var v) :
+                         TRecord (typ[field_num := (fst (typ ! field_num), fst (snd (typ ! field_num)), Present)]) (Boxed Writable ptrl)"} $ isa_field_num;
     val ass9 = let
               fun rep_Bound_n_with n new = strip_1qnt o
                    (Term.map_aterms (fn trm => if trm = Bound n then new else trm));
              in
               strip_atype @{term "\<And> state_rel field_num \<sigma> s.
                corres state_rel e (e' x') \<xi> ((\<gamma>!x) # \<gamma>) \<Xi>'
-               (Some (TRecord (typ[field_num := (fst (typ ! field_num), fst (snd (typ ! field_num)), Present)]) (Boxed Writable )) # \<Gamma>e) \<sigma> s"}
+               (Some (TRecord (typ[field_num := (fst (typ ! field_num), fst (snd (typ ! field_num)), Present)]) (Boxed Writable ptrl)) # \<Gamma>e) \<sigma> s"}
                |> rep_Bound_n_with 3 state_rel |> rep_Bound_n_with 2 isa_field_num
              end;
 
@@ -242,8 +283,8 @@ fun put_assumptions
   let
     val (ass1, ass2, ass3, ass4, ass5, ass7) =  put_let_put_assumptions ty field_ty isa_struct_leng;
     val ass6 = strip_atype @{term "\<lambda> field_num .
-             \<Xi>', [], \<Gamma>' \<turnstile> Put (Var x) field_num (Var v) :
-                         TRecord (typ[field_num := (fst (typ ! field_num), fst (snd (typ ! field_num)), Present)]) (Boxed Writable )"} $ isa_field_num;
+             \<Xi>', 0, [], {}, \<Gamma>' \<turnstile> Put (Var x) field_num (Var v) :
+                         TRecord (typ[field_num := (fst (typ ! field_num), fst (snd (typ ! field_num)), Present)]) (Boxed Writable ptrl)"} $ isa_field_num;
     val prms = map (HOLogic.mk_Trueprop o strip_atype)
             [ass1, ass2, ass3, ass4, ass5, ass6, ass7];
   in
@@ -284,8 +325,8 @@ let
   val struct_C_nm     = get_ty_nm_C uval;
   val ml_sigil        = get_uval_sigil uval;  
   val isa_sigil = case ml_sigil of
-                Boxed (ReadOnly, _) => @{term "Boxed ReadOnly "}
-              | Boxed (Writable, _) => @{term "Boxed Writable "}
+                Boxed (ReadOnly, _) => @{term "Boxed ReadOnly ptrl"}
+              | Boxed (Writable, _) => @{term "Boxed Writable ptrl"}
               | Unboxed  => @{term "Unboxed"}
   val ty = case ml_sigil of
             Boxed(_, _) => Syntax.read_typ ctxt (struct_C_nm ^ " ptr")
@@ -352,8 +393,25 @@ fun mk_specialised_corres_member_aux (field_num:int) uval args ctxt =
     mk_specialised_corres_statement member_assumptions uval field_num cogent_expr args 
        ctxt
  end
+(*
+=======
+  (* define assumptions *)
+  val ass1 = @{term "0, [], {} \<turnstile> \<Gamma>' \<leadsto> \<Gamma>x | \<Gamma>e"};
+  val ass2 = @{term "\<Gamma>' ! x = Some (TRecord typ (Boxed Writable ptrl))"};
+  val ass3 = (strip_atype @{term "\<lambda> struct_C_ptr_ty .
+             type_rel (type_repr (TRecord typ (Boxed Writable ptrl))) struct_C_ptr_ty"}) $
+             (Const ("Pure.type", Term.itselfT struct_C_ptr_ty) |> strip_atype);
+  val ass4 = strip_atype @{term "\<lambda> x' . val_rel (\<gamma>!x) x'"} $ Free ("x'", struct_C_ptr_ty);
+  val ass5 = strip_atype @{term "\<lambda> v' . val_rel (\<gamma>!v) v'"} $ Free ("v'", field_ty);
+  val ass6 = strip_atype @{term "\<lambda> field_num .
+             \<Xi>', 0, [], {}, \<Gamma>' \<turnstile> Put (Var x) field_num (Var v) :
+                         TRecord (typ[field_num := (fst (typ ! field_num), fst (snd (typ ! field_num)), Present)]) (Boxed Writable ptrl)"} $ isa_int;
+  val ass7 = strip_atype @{term "\<lambda> leng . length typ = leng"} $ isa_int_struct_leng;
+  val prms = map (HOLogic.mk_Trueprop o strip_atype)
+            [ass1, ass2, ass3, ass4, ass5, ass6, ass7];
+>>>>>>> origin/dargenttyping
 
-
+*)
 \<close>
 
 
@@ -363,8 +421,35 @@ fun mk_specialised_corres_member_aux (field_num:int) uval args ctxt =
 
 
 ML \<open>
-
-
+(*
+=======
+  (* define assumptions *)
+  val ass1 = @{term "0, [], {} \<turnstile> \<Gamma>' \<leadsto> \<Gamma>x | \<Gamma>e"};
+  val ass2 = @{term "\<Gamma>' ! x = Some (TRecord typ (Boxed Writable ptrl))"};
+  val ass3 = (strip_atype @{term "\<lambda> struct_C_ptr_ty .
+             type_rel (type_repr (TRecord typ (Boxed Writable ptrl))) struct_C_ptr_ty"}) $
+             (Const ("Pure.type", Term.itselfT struct_C_ptr_ty) |> strip_atype);
+  val ass4 = strip_atype @{term "\<lambda> x' . val_rel (\<gamma>!x) x'"} $ Free ("x'", struct_C_ptr_ty);
+  val ass5 = strip_atype @{term "\<lambda> v' . val_rel (\<gamma>!v) v'"} $ Free ("v'", field_ty);
+  val ass6 = strip_atype @{term "\<lambda> field_num .
+             \<Xi>', 0, [], {}, \<Gamma>' \<turnstile> expr.Let (Put (Var x) field_num (Var v)) e : ts"} $ isa_int;
+  val ass7 = strip_atype @{term "\<lambda> field_num .
+             \<Xi>', 0, [], {}, \<Gamma>x \<turnstile> Put (Var x) field_num (Var v) :
+                         TRecord (typ[field_num := (fst (typ ! field_num), fst (snd (typ ! field_num)), Present)]) (Boxed Writable ptrl)"} $ isa_int;
+  val ass8 = strip_atype @{term "\<lambda> leng . length typ = leng"} $ isa_int_struct_leng;
+  val ass9 = let
+              fun rep_Bound_n_with n new = strip_1qnt o
+                   (Term.map_aterms (fn trm => if trm = Bound n then new else trm));
+             in
+              strip_atype @{term "\<And> state_rel field_num \<sigma> s.
+               corres state_rel e (e' x') \<xi> ((\<gamma>!x) # \<gamma>) \<Xi>'
+               (Some (TRecord (typ[field_num := (fst (typ ! field_num), fst (snd (typ ! field_num)), Present)]) (Boxed Writable ptrl)) # \<Gamma>e) \<sigma> s"}
+               |> rep_Bound_n_with 3 state_rel |> rep_Bound_n_with 2 isa_int
+             end;
+  val prms = map (HOLogic.mk_Trueprop o strip_atype)
+            [ass1, ass2, ass3, ass4, ass5, ass6, ass7, ass8] @ [ass9];
+>>>>>>> origin/dargenttyping
+*)
 
 fun put_let_put_default_mk_prog term (heap :  HeapLiftBase.heap_info) struct_ty 
    (nth_field : HeapLiftBase.field_info) 
@@ -579,7 +664,52 @@ fun mk_specialised_corres_member (field_num:int) uval (file_nm : string) ctxt : 
   in
    term  
   end
+(*
+<<<<<<< HEAD
+=======
+  (* define meta-assumptions in specialised corres lemmas.*)
+  val ass1 = @{term "\<Gamma>' ! x = Some (TRecord typ (Boxed ReadOnly ptrl))"} ;
+  val ass3 = @{term "\<lambda> x'. val_rel (\<gamma>!x) x'"} $ (Free ("x'", ty));
+  val ass4 = @{term "\<lambda> ty. type_rel (type_repr (TRecord typ (Boxed ReadOnly ptrl))) ty"}
+             $ (Const ("Pure.type", Term.itselfT ty));
+  val ass5 = @{term "\<lambda> ty isa_field_num. type_rel (type_repr (fst (snd (typ ! isa_field_num)))) ty"}
+             $ (Const ("Pure.type", Term.itselfT field_ty)) $ isa_field_num;
+  val ass6 = @{term "\<lambda> isa_field_num . \<Xi>', 0, [], {}, \<Gamma>' \<turnstile> Member (Var x) isa_field_num : te"} $ isa_field_num;
+  val ass7 = @{term " \<Xi>', 0, [], {}, \<Gamma>' \<turnstile> Var x : TRecord typ (Boxed ReadOnly ptrl)"};
+  val prms = map (HOLogic.mk_Trueprop o strip_atype) [ass1, ass3, ass4, ass5, ass6, ass7];
 
+  (* define the conclusion of the lemma.*)
+  val cncl_body =
+       let
+         val is_valid_struct = Typtab.lookup (#heap_valid_getters heap) struct_ty
+            |> Utils.the' "is_valid_struct in mk_specialised_corres_member failed."
+            |> Const;
+         val heap_getter = Typtab.lookup (#heap_getters heap) struct_ty
+            |> Utils.the' "heap_getter in mk_specialised_corres_member failed."
+            |> Const;
+       in
+       @{term "\<lambda> state_rel is_valid getter heap field_num field_getter.
+         corres
+          state_rel
+          (Member (Var x) field_num)
+          (do _ \<leftarrow> guard (\<lambda>s. is_valid s x');
+              gets (\<lambda>s. field_getter (heap s x')) od)
+           \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> s"} $
+        state_rel $ is_valid_struct $ field_getter $ heap_getter $ isa_field_num $ field_getter
+        |> strip_atype
+        |> HOLogic.mk_Trueprop
+       end;
+  val cncl =
+   case ml_sigil of
+      Writable => cncl_body
+    | ReadOnly => cncl_body
+    | _ => error "Member is supported for Read_Only only.";
+  val member_term = mk_meta_imps prms cncl ctxt |> Syntax.check_term ctxt;
+  val _ = tracing ("    finished mk_spec_corres_member for struct " ^ get_uval_name uval ^ " " ^
+   Int.toString field_num);
+ in member_term end;
+>>>>>>> origin/dargenttyping
+*)
 \<close>
 
 

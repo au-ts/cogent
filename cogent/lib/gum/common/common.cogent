@@ -56,8 +56,9 @@ first (f, (a, b)) = (f a, b)
 second : all (a, b, b'). (b -> b', (a, b)) -> (a, b')
 second (f, (a, b)) = (a, f b)
 
-drop : all (a :< D). a -> ()
-drop x = ()
+-- changed from "drop", as "drop" conflicts with the list "drop" operation. / zilinc
+discard : all (a :< D). a -> ()
+discard x = ()
 
 -- type synonyms
 

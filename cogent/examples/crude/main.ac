@@ -1,0 +1,97 @@
+/*
+ * Copyright 2020, Data61
+ *
+ * This software may be distributed and modified according to the terms of
+ * the GNU General Public License version 2. Note that NO WARRANTY is provided.
+ * See "LICENSE_GPLv2.txt" for details.
+ *
+ * @TAG(DATA61_GPL)
+ */
+
+$esc:(#include <stdio.h>)
+$esc:(#include <string.h>)
+$esc:(#include <stdint.h>)
+$esc:(#include <stddef.h>)
+
+typedef char EntryBlock;
+typedef char CString;
+typedef void *SysState;
+
+#define SIZE 4096
+
+#include "generated.c"
+#include <gum/anti/iterator.ac>
+#include <gum/anti/common.ac>
+
+typedef struct {
+  int id; // what cogent:
+  Stuff stuff; // (i) knows nothing of
+  int value; // (ii) cares about
+} CEntry;
+
+char block[SIZE]; // Contains Entry's jammed together; terminated by
+                  // len==0.
+
+$ty:((SysState, EntryBlock!)) $id:get_block ($ty:(SysState) args) {
+   $ty:((SysState, EntryBlock!)) ret;
+   ret.p1 = args;
+   ret.p2 = block;
+   return ret;
+}
+
+$ty:(Entry!) $id:get_entry_at_offset ($ty:((EntryBlock!, U64)) args) {
+   $ty:(EntryBlock!) block = args.p1;
+   $ty:(U64) offset = args.p2;
+   return ($ty:(Entry))((uintptr_t)block + offset);
+}
+
+$ty:(Bool) $id:is_entry ($ty:((EntryBlock!, Entry!)) args) {
+   $ty:(Bool) ret;
+   $ty:(Entry!) e = args.p2;
+   $ty:(EntryBlock!) block = args.p1;
+   ret.boolean = ((uintptr_t)e - (uintptr_t)block) < SIZE;
+}
+
+$ty:(Stuff!) stuff_ptr($ty:(Entry!) e) {
+   return &((CEntry*)e)->stuff;
+}
+
+/* Initialise our block of entries. */
+/* Not translated into Cogent. */
+void init(void) {
+  FILE *fp;
+  CEntry *e;
+  int a, b, c, id, v;
+  char buf[80];
+
+  memset(block, 0, SIZE);
+
+  if ((fp = fopen("entries.txt", "r")) != NULL) {
+    e = (CEntry *)block;
+    id = 0;
+    while (fscanf(fp, "%d%d%d%d\n", &a, &b, &c, &v) == 4) {
+      if (((uintptr_t)e - (uintptr_t)block) >= SIZE)
+        break;
+      e->id = id++;
+      e->stuff.a = a;
+      e->stuff.b = b;
+      e->stuff.c = c;
+      e->value = v;
+      e = (CEntry *) ((uintptr_t)e + sizeof(*e));
+    }
+    fclose(fp);
+  }
+}
+
+int main(void){
+  $ty:((SysState, Option Stuff!)) ret;
+  init();
+  $ty:((SysState, U32)) args = {.p1 = NULL , .p2 = 42};
+  ret = findStuff(args);
+  if (ret.p2.tag == TAG_ENUM_Some) {
+    printf("Entry's b is %d.\n", ret.p2.Some->b);
+  } else {
+    printf("Entry with 42 was not found.\n");
+  }
+  return 0;
+}

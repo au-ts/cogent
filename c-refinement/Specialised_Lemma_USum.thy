@@ -139,20 +139,20 @@ ML\<open> fun mk_case_prop from_uval to_uval variant_ctor_num file_nm ctxt =
    end;
 
   fun mk_ass2 tag_list    = @{mk_term "\<Gamma>' ! x = Some ?tag_list" tag_list} tag_list;
-  fun mk_ass6 tag_list    = @{mk_term "\<Xi>', [], \<Gamma>1 \<turnstile> Var x : ?tag_list" tag_list} tag_list;
-  fun mk_ass9 other_tags  = @{mk_term "\<Xi>', [], Some ?other_tags # \<Gamma>2 \<turnstile> not_match : t" other_tags} other_tags;
+  fun mk_ass6 tag_list    = @{mk_term "\<Xi>', 0, [], {}, \<Gamma>1 \<turnstile> Var x : ?tag_list" tag_list} tag_list;
+  fun mk_ass9 other_tags  = @{mk_term "\<Xi>', 0, [], {}, Some ?other_tags # \<Gamma>2 \<turnstile> not_match : t" other_tags} other_tags;
   fun mk_ass11 other_tags =
    @{mk_term "\<And>r. r = (\<gamma>!x) \<Longrightarrow> val_rel r x' \<Longrightarrow> ?corres srel not_match (not_match' x') \<xi>' (r # \<gamma>) \<Xi>'
     (Some (?other_tags) # \<Gamma>2) \<sigma> s" (corres, other_tags)} (corres, other_tags);
 
   val ass1 = @{term "x < length \<Gamma>'"};
   val ass2 = mk_ass2 from_sumT;
-  val ass3 = @{term "[] \<turnstile> \<Gamma>' \<leadsto> \<Gamma>1 | \<Gamma>2"};
+  val ass3 = @{term "0, [], {} \<turnstile> \<Gamma>' \<leadsto> \<Gamma>1 | \<Gamma>2"};
   val ass4 = @{term "val_rel (\<gamma> ! x) x'"};
   (* Ass 5 discharged by instantiating at concrete type *)
   val ass6 = mk_ass6 from_sumT
   (* Ass 7 discharged by instantiating at concrete type *)
-  val ass8 = @{term "\<lambda>taken_typ. \<Xi>', [], Some taken_typ # \<Gamma>2 \<turnstile> match : t"} $ taken_typ;
+  val ass8 = @{term "\<lambda>taken_typ. \<Xi>', 0, [], {}, Some taken_typ # \<Gamma>2 \<turnstile> match : t"} $ taken_typ;
   val ass9 = mk_ass9 to_sumT;
   val ass10 = @{mk_term "\<And>a a'. val_rel a a' \<Longrightarrow>
    ?corres srel match (match' a') \<xi>' (a # \<gamma>) \<Xi>' (Some ?match_typ # \<Gamma>2) \<sigma> s"(corres, match_typ)}

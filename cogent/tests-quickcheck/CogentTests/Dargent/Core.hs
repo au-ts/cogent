@@ -24,7 +24,7 @@ import Test.QuickCheck
 import Cogent.Common.Syntax (FieldName, TagName, RepName, Size)
 import Cogent.Dargent.Allocation
 import Cogent.Dargent.Core
--- import Cogent.Dargent.Surface
+import Cogent.Dargent.Surface (Endianness(..))
 import Cogent.Dargent.TypeCheck
 import Cogent.Dargent.Util
 
@@ -81,7 +81,7 @@ instance Arbitrary BitRange where
 genDataLayout
   :: Size -- For sizing
   -> Gen (DataLayout BitRange, Allocation)
-genDataLayout n = first Layout <$> genDataLayout' (fromIntegral n) n (Allocation [])
+genDataLayout n = first Layout <$> genDataLayout' n n (Allocation [])
 
 genDataLayout'
   :: Size -- max allowed allocated bit index
@@ -118,7 +118,7 @@ genPrimLayout maxBitIndex maxSize alloc = do
       (\n -> n <= fromIntegral maxSize &&
          List.elem n possiblePrimBitSizes )       
       alloc
-  return (PrimLayout range, alloc')
+  return (PrimLayout range ME, alloc')
 
 genSumLayout
   :: Size -- max allowed allocated bit index
@@ -138,18 +138,17 @@ genSumLayout maxBitIndex maxSize alloc =
       return (SumLayout tagBitRange alts, alloc''')
   where
     genAlts
-      :: Size -- max allowed total bit size for remaining fields
-      -> Size -- tag value for alternative
-      -> Size -- max number of alternatives
+      :: Size     -- max allowed total bit size for remaining fields
+      -> Integer  -- tag value for alternative
+      -> Size     -- max number of alternatives
       -> Allocation -- existing allocation
       -> Gen (Map TagName (Size, DataLayout' BitRange), Allocation)
 
-    genAlts 0 _ _ alloc          = return (M.empty, alloc)
     genAlts _ m n alloc | m == n = return (M.empty, alloc)
 
     genAlts maxSize tagValue maxTagValue alloc = do
       sourcePos <- arbitrary
-      altSize <- choose (1, maxSize)
+      altSize <- if 1 <= maxSize then choose (1, maxSize) else return 0
       (remainingAlts, remainingAlloc) <- genAlts (maxSize - altSize) (tagValue + 1) maxTagValue alloc
       let altName = "Con" ++ show tagValue
       (altLayout, altAlloc) <- genDataLayout' maxBitIndex altSize alloc

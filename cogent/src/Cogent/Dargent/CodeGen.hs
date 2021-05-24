@@ -30,6 +30,7 @@ import Cogent.Compiler
   )
 import Cogent.Core (Type (..))
 import Cogent.Dargent.Allocation
+import Cogent.Dargent.Surface (Endianness(..))
 import Cogent.Dargent.Core
   ( DataLayout' (..)
   , DataLayout (..)
@@ -40,6 +41,7 @@ import Cogent.Dargent.Core
 import Cogent.Dargent.Util
 import Data.Nat
 import qualified Data.OMap as OMap
+import Data.Char
 
 import Control.Monad.Writer.Class (tell)
 import Data.List (foldl', scanl')
@@ -79,7 +81,7 @@ genBoxedGetSetField
   -> GetOrSet
      -- ^ The type of function to generate
 
-  -> Gen v FunName 
+  -> Gen v FunName
      -- ^
      -- The 'FunName' which is the name of the getter/setter function
      -- for the field of the record.
@@ -144,19 +146,19 @@ genBoxedGetterSetter
      -- The 'FunName' is the name of the generated getter function
      -- for the field of the record.
 
-genBoxedGetterSetter isStruct boxType embeddedType@(TCon _ _ _) PrimLayout{bitsDL = bitRanges} path getOrSet =
-  genComposedAlignedRangeGetterSetter isStruct bitRanges boxType embeddedType path getOrSet
+genBoxedGetterSetter isStruct boxType embeddedType@(TCon _ _ _) PrimLayout{bitsDL = bitRanges, endianness = e} path getOrSet =
+  genComposedAlignedRangeGetterSetter isStruct bitRanges e boxType embeddedType path getOrSet
 
-genBoxedGetterSetter isStruct boxType embeddedType@(TPrim _) (PrimLayout bitRanges) path getOrSet =
-  genComposedAlignedRangeGetterSetter isStruct bitRanges boxType embeddedType path getOrSet
+genBoxedGetterSetter isStruct boxType embeddedType@(TPrim _) PrimLayout{bitsDL = bitRanges, endianness = e} path getOrSet =
+  genComposedAlignedRangeGetterSetter isStruct bitRanges e boxType embeddedType path getOrSet
 
-genBoxedGetterSetter isStruct boxType embeddedType@(TRecord _ fields Boxed{}) (PrimLayout bitRanges) path getOrSet =
-  genComposedAlignedRangeGetterSetter isStruct bitRanges boxType embeddedType path getOrSet
+genBoxedGetterSetter isStruct boxType embeddedType@(TRecord _ fields Boxed{}) PrimLayout{bitsDL = bitRanges, endianness = e} path getOrSet =
+  genComposedAlignedRangeGetterSetter isStruct bitRanges e boxType embeddedType path getOrSet
 
 genBoxedGetterSetter isStruct boxType embeddedTypeCogent@(TSum alternatives) SumLayout{tagDL, alternativesDL} path getOrSet = do
   embeddedTypeC               <- genType embeddedTypeCogent
   functionName                <- genGetterSetterName path getOrSet
-  tagGetterSetter             <- genComposedAlignedRangeGetterSetter' isStruct tagDL boxType unsignedIntType (path ++ ["tag"]) getOrSet -- Must add check to restrict number of alternatives to MAX_INT)
+  tagGetterSetter             <- genComposedAlignedRangeGetterSetter' isStruct tagDL ME boxType unsignedIntType (path ++ ["tag"]) getOrSet -- Must add check to restrict number of alternatives to MAX_INT)
   alternativesGettersSetters  <-
       mapM
       (\(alternativeName, (alternativeType, _)) -> do
@@ -188,8 +190,8 @@ genBoxedGetterSetter isStruct boxType TUnit UnitLayout path getOrSet = do
   return functionName
 
 #ifdef BUILTIN_ARRAYS
-genBoxedGetterSetter isStruct box tau@(TArray t l (Boxed {}) _) (PrimLayout ranges) path getOrSet =
-  genComposedAlignedRangeGetterSetter isStruct ranges box tau path getOrSet
+genBoxedGetterSetter isStruct box tau@(TArray t l (Boxed {}) _) PrimLayout{bitsDL = ranges, endianness = e} path getOrSet =
+  genComposedAlignedRangeGetterSetter isStruct ranges e box tau path getOrSet
 #endif
 
 genBoxedGetterSetter isStruct boxType tau range _ _ = do
@@ -260,16 +262,16 @@ a value of the given embedded type.
 
 Calls the function `composedAlignedRangeGetterSetter` to generate the function.
 -}
-genComposedAlignedRangeGetterSetter :: IsStruct -> [AlignedBitRange] -> CType -> CogentType -> [String] -> GetOrSet -> Gen v FunName
-genComposedAlignedRangeGetterSetter isStruct bitRanges boxType embeddedTypeCogent path getOrSet = do
+genComposedAlignedRangeGetterSetter :: IsStruct -> [AlignedBitRange] -> Endianness -> CType -> CogentType -> [String] -> GetOrSet -> Gen v FunName
+genComposedAlignedRangeGetterSetter isStruct bitRanges endianness boxType embeddedTypeCogent path getOrSet = do
   embeddedTypeC   <- genType embeddedTypeCogent
-  genComposedAlignedRangeGetterSetter' isStruct bitRanges boxType embeddedTypeC path getOrSet
+  genComposedAlignedRangeGetterSetter' isStruct bitRanges endianness boxType embeddedTypeC path getOrSet
 
-genComposedAlignedRangeGetterSetter' :: IsStruct -> [AlignedBitRange] -> CType -> CType -> [String] -> GetOrSet -> Gen v FunName
-genComposedAlignedRangeGetterSetter' isStruct bitRanges boxType embeddedTypeC path getOrSet = do
+genComposedAlignedRangeGetterSetter' :: IsStruct -> [AlignedBitRange] -> Endianness -> CType -> CType -> [String] -> GetOrSet -> Gen v FunName
+genComposedAlignedRangeGetterSetter' isStruct bitRanges endianness boxType embeddedTypeC path getOrSet = do
   functionName    <- genGetterSetterName path getOrSet
   rangesGetters   <- mapM (\(range, index) -> genAlignedRangeGetterSetter isStruct boxType (path ++ ["part" ++ show index]) getOrSet range) (zip bitRanges [0..])
-  declareSetterOrGetter $ composedAlignedRangeGetterSetter (zip bitRanges rangesGetters) boxType embeddedTypeC functionName getOrSet
+  declareSetterOrGetter $ composedAlignedRangeGetterSetter (zip bitRanges rangesGetters) endianness boxType embeddedTypeC functionName getOrSet
   return functionName
 
 
@@ -547,6 +549,8 @@ composedAlignedRangeGetterSetter
       -- The bit ranges and the 'FunName' which is
       -- the name of the getter/setter function for the corresponding
       -- bit range.
+  -> Endianness
+      -- ^ The endianness of the embedded data.
   -> CType
       -- ^ The C type of the box.
   -> CType
@@ -560,6 +564,7 @@ composedAlignedRangeGetterSetter
 
 composedAlignedRangeGetterSetter
   bitRanges@((firstRange, firstGetterFunction) : bitRangesTail)
+  endianness
   boxType
   embeddedType
   functionName
@@ -592,6 +597,13 @@ composedAlignedRangeGetterSetter
     -- If it is a boolean type, we extract the boolean value
     valueExpression = toIntValue embeddedType valueVariable
 
+    -- If called, `endianness` should not be `ME`, as no conversion functions are defined for machine endianness
+    endiannessConversionFunctionName :: FunName
+    endiannessConversionFunctionName = case intTypeForType embeddedType of
+      (CIdent cid) -> map toLower $ show endianness ++ "_" ++ cid ++ "_swap"
+      (CInt _ _)   -> map toLower $ show endianness ++ "_" ++ "u8" ++ "_swap"
+      _            -> __impossible "endiannessConversionFunctionName called with invalid embedded type"
+
     {-
     @genGetAlignedRangeAtBitOffset getRangeFunction offset@ will return the 'CExpr'
 
@@ -601,9 +613,12 @@ composedAlignedRangeGetterSetter
     -}
     genGetAlignedRangeAtBitOffset :: FunName -> Integer -> CExpr
     genGetAlignedRangeAtBitOffset getRangeFunction offset =
-      CBinOp Lsh
-        ( CTypeCast (intTypeForType embeddedType) (CEFnCall (variable getRangeFunction) [boxVariable]) )
-        ( unsignedIntLiteral offset )
+      case endianness of
+            ME -> expression
+            _  -> CEFnCall (variable endiannessConversionFunctionName) [expression]
+      where expression = CBinOp Lsh
+                          ( CTypeCast (intTypeForType embeddedType) (CEFnCall (variable getRangeFunction) [boxVariable]) )
+                          ( unsignedIntLiteral offset )
 
     {-
     @genSetAlignedRangeAtBitOffset setRangeFunction offset size@ will return the 'CExpr'
@@ -614,17 +629,20 @@ composedAlignedRangeGetterSetter
     -}
     genSetAlignedRangeAtBitOffset :: FunName -> Integer -> Integer -> CStmt
     genSetAlignedRangeAtBitOffset setRangeFunction offset size =
-      CAssignFnCall Nothing (variable setRangeFunction)
+      let expression = case endianness of
+            ME -> valueExpression
+            _  -> CEFnCall (variable endiannessConversionFunctionName) [valueExpression]
+      in CAssignFnCall Nothing (variable setRangeFunction)
         [ boxVariable
         , CTypeCast
             unsignedIntType
             ( CBinOp And
-              ( CBinOp Rsh valueExpression (unsignedIntLiteral offset) )
+              ( CBinOp Rsh expression (unsignedIntLiteral offset) )
               ( unsignedIntLiteral (sizeToMask size) )
             )
         ]
 
-composedAlignedRangeGetterSetter _ _ _ _ _ = __impossible $ "composedAlignedRangeGetter should never be called on an empty list of ranges!"
+composedAlignedRangeGetterSetter _ _ _ _ _ _ = __impossible $ "composedAlignedRangeGetter should never be called on an empty list of ranges!"
 
 
 {-|

@@ -33,7 +33,7 @@ See :ref:`install-more-details` below for a more elaborate guide.
    and the tests should pass.
 6. To run verification, install `Isabelle-2019 <https://isabelle.in.tum.de/>`_ either from their
    website, or you can simply checkout the ``isabelle`` submodule in the Cogent repository.
-   You also need to download `AutoCorres (v1.6) <http://ts.data61.csiro.au/projects/TS/autocorres/>`_.
+   You also need to download `AutoCorres (v1.6.1) <http://ts.data61.csiro.au/projects/TS/autocorres.html>`_.
 
 
 .. _install-more-details:
@@ -115,6 +115,7 @@ names of the respective flags in parentheses):
    1. built-in static arrays (``builtin-arrays``)
    2. documentation generation (``docgent``)
    3. property-based testing in Haskell (``haskell-backend``)
+   4. LLVM backend (``llvm-backend``)
 
 Depending on which (combination of) features are needed, the
 dependencies will be different. By default, none of them are enabled. If
@@ -133,7 +134,9 @@ Build with Stack (simple, more robust)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Stack_ is a cross-platform program for developing Haskell projects.
-To build Cogent with Stack, simply run ``stack build``.
+To build Cogent with Stack, simply run ``stack build`` in the ``cogent`` directory in
+which ``stack.yaml`` is located. We provide such config files (``stack-<ghc-version>.yaml``) for several different
+stack snapshots.
 
 .. _Stack: https://docs.haskellstack.org/
 
@@ -164,17 +167,18 @@ to your ``$PATH``.
 Test your installation
 ----------------------
 
-1. Test files are in `cogent/tests <https://github.com/NICTA/cogent/tree/master/cogent/tests>`__.
-   Run ``make`` with relevant targets.
+1. Run ``make`` with relevant targets in the ``cogent`` directory.
 
 -  ``make tests`` runs the entire test suite, which is **not** what you
    would like to do in most cases, as it also tests some Isabelle/HOL proofs, which
    will take very long time.
 -  ``make test-compiler`` tests many of the compiler phases without involving Isabelle.
 -  There are individual tests that can be triggered by ``make test-*``.
-   See ``make help`` for details.
+   See ``make help`` for details. The test files are grouped in sub-directories under
+   `cogent/tests/tests <https://github.com/NICTA/cogent/tree/master/cogent/tests/tests>`_.
 -  ``make examples`` builds a group of small but complete Cogent
-   examples.
+   examples. The examples are located in `cogent/examples <https://github.com/NICTA/cogent/tree/master/cogent/examples>`_. You
+   can run ``make`` in each example's directory to build them individually.
 
 2. Cogent compiler also comes with a small unit-test module. To run
    that, do this:
@@ -203,7 +207,7 @@ A solution:
      of ``gcc``.
   3. Provided ``ls /usr/local/bin/cpp`` outputs
      ``No such file or directory``, it should be safe to run
-     ``ln -s /usr/local/bin/cpp-8 /usr/local/bin/cpp``.
+     ``ln -s /usr/local/bin/cpp-8 /usr/local/bin/cpp`` (remember to adapt the command to the ``cpp`` version you installed).
   4. If ``which cpp`` doesn't print ``/usr/local/bin/cpp``, then running
      ``export PATH=/usr/local/bin:$PATH`` in any shell where you want run the
      examples will ensure that the correct version of ``cpp`` is used.

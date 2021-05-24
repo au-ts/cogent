@@ -64,7 +64,7 @@ language = haskellStyle
 #endif
                                  ,"->","=>","~>","<=","|","|>"]
            , T.reservedNames   = ["let","in","type","include","all","take","put","inline","upcast"
-                                 ,"variant","record","at","rec","layout","pointer"
+                                 ,"variant","record","at","after","rec","layout","pointer","using","LE","BE"
                                  ,"if","then","else","not","complement","and","True","False","o"
 #ifdef BUILTIN_ARRAYS
                                  ,"array","map2","@take","@put"]
@@ -108,28 +108,46 @@ repDecl :: Parser DataLayoutDecl
 repDecl = DataLayoutDecl <$> getPosition <*> typeConName <*> many variableName <* reservedOp "=" <*> repExpr
 
 repSize :: Parser DataLayoutSize
-repSize = avoidInitial >> buildExpressionParser [[Infix (reservedOp "+" *> pure Add) AssocLeft]] (do
-               x <- fromIntegral <$> natural
-               (Bits <$ reserved "b" <*> pure x <|> Bytes <$ reserved "B" <*> pure x))
+repSize = avoidInitial >> buildExpressionParser [[Infix (reservedOp "+" *> pure Add) AssocLeft]] repSize'
+
+-- atomic expression: bits or bytes
+repSize' = avoidInitial >> natural >>= \n -> (Bits n <$ reserved "b") <|> (Bytes n <$ reserved "B")
+
+repEndianness :: Parser Endianness
+repEndianness = (LE <$ reserved "LE" <|> BE <$ reserved "BE" <?> "endianness kind")
 
 repExpr :: Parser DataLayoutExpr
-repExpr = repExpr' repRefM <|> parens repExpr
-  where
-    repRefM = many repExprS
-    repRefS = pure []
-    repExprS = repExpr' repRefS <|> parens repExpr
-    repExpr' p = avoidInitial >> buildExpressionParser [[Postfix (flip DLOffset <$ reserved "at" <*> repSize)]] (DL <$>
-         ((Record <$ reserved "record" <*> braces (commaSep recordRepr))
-      <|> (Variant <$ reserved "variant" <*> parens repExpr <*> braces (commaSep variantRepr))
+repExpr = do avoidInitial
+             l <- DL <$> (  (Record  <$ reserved "record"                     <*> braces (commaSep recordRepr ))
+                        <|> (Variant <$ reserved "variant" <*> parens repExpr <*> braces (commaSep variantRepr))
 #ifdef BUILTIN_ARRAYS
-      <|> (Array <$ reserved "array" <*> brackets repExpr <*> getPosition)
+                        <|> (Array   <$ reserved "array"   <*> brackets repExpr <*> getPosition)
 #endif
-      <|> (Prim <$> repSize)
-      <|> (Ptr <$ reserved "pointer")
-      <|> (LVar <$> variableName)
-      <|> (RepRef <$> typeConName <*> p)))
-    recordRepr = (,,) <$> variableName <*> getPosition <* reservedOp ":" <*> repExpr
-    variantRepr = (,,,) <$> typeConName <*> getPosition <*> parens (fromIntegral <$> natural) <* reservedOp ":" <*> repExpr
+                        <|> (Prim <$> repSize)
+                        <|> (Ptr  <$  reserved "pointer")
+                        <|> (LVar <$> variableName)
+                        <|> (RepRef <$> typeConName <*> many repExpr'))
+             -- in either order, but for each at most once.
+             option l ((offset l >>= \l' -> option l' (endian l')) <|>
+                       (endian l >>= \l' -> option l' (offset l')))
+
+  where
+    -- atomic layout expressions
+    repExpr' = avoidInitial >> (
+                   parens repExpr
+               <|> (DL <$> (Prim <$> repSize'))
+               <|> (DL <$> (LVar <$> variableName))
+               <|> (DL <$> (RepRef <$> typeConName <*> pure [])))
+
+    offset p = avoidInitial >> (at p <|> after p)
+    at p     = DLOffset p <$ reserved "at"    <*> repSize
+    after  p = DLAfter  p <$ reserved "after" <*> variableName 
+    endian p = DLEndian p <$ reserved "using" <*> repEndianness
+
+
+    recordRepr  = avoidInitial >> ((,,)  <$> variableName <*> getPosition                    <* reservedOp ":" <*> repExpr)
+    variantRepr = avoidInitial >> ((,,,) <$> typeConName  <*> getPosition <*> parens natural <* reservedOp ":" <*> repExpr)
+
 
 -- TODO: add support for patterns like `_ {f1, f2}', where the record name is anonymous / zilinc
 irrefutablePattern :: Parser LocIrrefPatn
@@ -437,7 +455,7 @@ typeA1' = do avoidInitial
            -- XXX | <|> (reservedOp "@put"  >> parens (commaSep (expr 1)) >>= \idxs -> return (\x -> LocType (posOfT x) (TAPut  idxs x))))
 #endif
     -- either we have an actual layout, or the name of a layout synonym
-    layout = avoidInitial >> reservedOp "layout" >> repExpr
+    layout = avoidInitial >> reservedOp "layout" >> (repExpr <|> parens repExpr)
       >>= \l -> return (\x -> LocType (posOfT x) (TLayout l x))
     fList = (Just . (:[])) <$> identifier
         <|> parens ((reservedOp ".." >> return Nothing) <|> (commaSep identifier >>= return . Just))
@@ -458,7 +476,7 @@ typeA2' = avoidInitial >>
   where
     unbox = avoidInitial >> reservedOp "#" >> return (\x -> LocType (posOfT x) (TUnbox x))
     bang  = avoidInitial >> reservedOp "!" >> return (\x -> LocType (posOfT x) (TBang x))
- 
+
 
 atomtype = avoidInitial >> LocType <$> getPosition <*> (
       TVar <$> variableName <*> pure False <*> pure False
@@ -510,8 +528,8 @@ polytype = polytype' <|> PT [] [] <$> monotype
     flt2 (x, y) | Right v <- y = pure (x, v)
                 | otherwise    = mempty
 
-klSignature = (,) <$> variableName <*> (Left <$> (reservedOp ":<" *> kind <?> "kind")
-                  <|> Right <$> (reservedOp ":~" *> atomtype <?> "typeid")
+klSignature = (,) <$> variableName <*> (Left <$> (reservedOp ":<" *> kind <?> "uniqueness constraint")
+                  <|> Right <$> (reservedOp ":~" *> monotype <?> "layout-type matching constraint")
                   <|> Left <$> (pure $ K False False False))
   where kind = do x <- identifier
                   determineKind x (K False False False)

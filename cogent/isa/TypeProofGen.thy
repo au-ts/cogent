@@ -17,24 +17,24 @@ begin
 
 (* Convert ttyping subproofs to standard typing subproofs. *)
 lemma ttsplit_imp_split':
-  "ttsplit k \<Gamma> splits xs \<Gamma>1 ys \<Gamma>2 \<Longrightarrow>
-    k \<turnstile> snd \<Gamma> \<leadsto> drop (length xs) (snd \<Gamma>1) | drop (length ys) (snd \<Gamma>2)"
+  "ttsplit l k c \<Gamma> splits xs \<Gamma>1 ys \<Gamma>2 \<Longrightarrow>
+    l, k, c \<turnstile> snd \<Gamma> \<leadsto> drop (length xs) (snd \<Gamma>1) | drop (length ys) (snd \<Gamma>2)"
   by (fastforce dest: ttsplit_imp_split)
 
 
 lemma ttsplit_inner_imp_split:
   assumes
-    "ttsplit_inner K splits \<Gamma>b \<Gamma>1 \<Gamma>2"
+    "ttsplit_inner L K C splits \<Gamma>b \<Gamma>1 \<Gamma>2"
     "list_all ((\<noteq>) (Some TSK_NS)) splits"
   shows
-    "K \<turnstile> snd (TyTrSplit splits xs T1 ys T2, \<Gamma>b) \<leadsto>
+    "L, K, C \<turnstile> snd (TyTrSplit splits xs T1 ys T2, \<Gamma>b) \<leadsto>
       drop (length xs) (snd (T1, xs @ \<Gamma>1)) | drop (length ys) (snd (T2, ys @ \<Gamma>2))"
   using assms
   by (blast dest: ttsplitI ttsplit_imp_split')
 
 lemma ttsplit_bang_imp_split_bang':
-  "ttsplit_bang is splits k \<Gamma> xs \<Gamma>1 ys \<Gamma>2 \<Longrightarrow>
-    split_bang k is (snd \<Gamma>) (drop (length xs) (snd \<Gamma>1)) (drop (length ys) (snd \<Gamma>2))"
+  "ttsplit_bang is splits l k c \<Gamma> xs \<Gamma>1 ys \<Gamma>2 \<Longrightarrow>
+    split_bang l k c is (snd \<Gamma>) (drop (length xs) (snd \<Gamma>1)) (drop (length ys) (snd \<Gamma>2))"
   by (fastforce dest: ttsplit_bang_imp_split_bang)
 
 (* simplification rules for type-tree cleanup *)
@@ -77,11 +77,14 @@ fun get_typing_tree ctxt f proof : thm tree list =
       val defs = maps (Proof_Context.get_thms ctxt)
                    (map (prefix f) ["_def", "_type_def", "_typetree_def"])
                  @ abbrev_defs;
+      val ftype = f ^ "_type"
   in extract_subproofs
        (* The typing goal for `f` *)
        (Syntax.read_term ctxt
-         ("Trueprop (\<Xi>, fst " ^ f ^ "_type, (" ^ f ^ "_typetree, [Some (fst (snd " ^ f ^ "_type))])" ^
-          "            T\<turnstile> " ^ f ^ " : snd (snd " ^ f ^ "_type))")
+         ("Trueprop (\<Xi>, fst " ^ ftype ^
+           ", fst (snd " ^ ftype ^ "), fst (snd (snd " ^ ftype ^ "))"
+          ^ ", (" ^ f ^ "_typetree, [Some (fst (snd ( snd (snd " ^ ftype ^ "))))])" ^
+          "            T\<turnstile> " ^ f ^ " : snd ( snd (snd (snd " ^ ftype ^ "))))")
         |> Thm.cterm_of ctxt)
        (let val hinted_tacs = map (fn (tag, t) => (SOME tag, t ctxt)) proof
             val all_tacs = (NONE, asm_full_simp_tac (ctxt addsimps defs) 1) :: hinted_tacs
@@ -172,8 +175,9 @@ fun get_all_typing_details timing_debug ctxt name script : details = let
     val tacfun = if timing_debug 
                 then TTyping_Tactics.mk_ttsplit_tacs_timing_debug
                 else TTyping_Tactics.mk_ttsplit_tacs_final
-
-    val tacs = tacfun name @{term "[] :: kind env"} ctxt script_tree
+    val tacs = tacfun name @{term "0 :: lay_env"}  @{term "[] :: kind env"}
+                  @{term "{} :: lay_constraints"}
+                  ctxt script_tree
     val tacs' = map (fn (tac, f) => (tac, fn ctxt => f ctxt 1)) tacs
     val time_res = Timing.result time
     val _ = (@{print tracing} (name ^ "|phase: make tacs"); @{print tracing} time_res)

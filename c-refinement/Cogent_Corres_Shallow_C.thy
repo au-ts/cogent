@@ -57,7 +57,7 @@ begin
 
 definition val_rel_shallow_C where
 "val_rel_shallow_C
-     (rename :: funtyp \<times> type list \<Rightarrow> funtyp)
+     (rename :: funtyp \<times> type list \<times> ptr_layout list \<Rightarrow> funtyp)
      (v\<^sub>s :: 'sv)
      (v\<^sub>C :: 'cv :: cogent_C_val)
      (v\<^sub>p :: (funtyp, 'b) vval)
@@ -66,7 +66,7 @@ definition val_rel_shallow_C where
      (\<sigma> :: (funtyp, abstyp, ptrtyp) store)
      (\<Xi>\<^sub>m :: funtyp \<Rightarrow> poly_type) \<equiv>
   \<exists>\<tau> r w.
-    valRel \<xi>\<^sub>p v\<^sub>s v\<^sub>p \<and>
+    valRel \<xi>\<^sub>p v\<^sub>s v\<^sub>p \<and>                         
     \<Xi>\<^sub>m, \<sigma> \<turnstile> v\<^sub>u\<^sub>m \<sim> val.rename_val rename (val.monoval v\<^sub>p) : \<tau> \<langle>r, w\<rangle> \<and>
     val_rel v\<^sub>u\<^sub>m v\<^sub>C"
 
@@ -78,7 +78,7 @@ lemma val_rel_shallow_C_elim:
 
 definition corres_shallow_C where
   "corres_shallow_C
-     (rename :: funtyp \<times> type list \<Rightarrow> funtyp)
+     (rename :: funtyp \<times> type list \<times> ptr_layout list \<Rightarrow> funtyp)
      (srel :: ((funtyp, abstyp, ptrtyp) store \<times> 's) set)
      (v\<^sub>s :: 'sv)
      (prog\<^sub>m :: funtyp expr)
@@ -120,7 +120,7 @@ lemma corres_shallow_C_intro:
        "val.rename_mono_prog rename \<Xi> \<xi>\<^sub>m \<xi>\<^sub>p"
     (* Procedure typing *)
       assumes typingP:
-       "\<Xi>, [], [Some \<tau>i] \<turnstile> prog\<^sub>m : \<tau>o"
+       "\<Xi>, 0, [], {}, [Some \<tau>i] \<turnstile> prog\<^sub>m : \<tau>o"
     (* C-refinement *)
       assumes corresP:
        "corres srel prog\<^sub>m (prog\<^sub>C uv\<^sub>C) \<xi>\<^sub>u\<^sub>m [uv\<^sub>m] \<Xi> [Some \<tau>i] \<sigma> s"
@@ -201,12 +201,12 @@ fun make_corres_shallow_C desugar_thy deep_thy ctxt f = let
              val_rel_shallow_C ?rename vv\<^sub>s uv\<^sub>C vv\<^sub>p uv\<^sub>m \<xi>\<^sub>p \<sigma> ?\<Xi>;
              proc_ctx_wellformed ?\<Xi>;
              value_sem.proc_env_matches val_abs_typing \<xi>\<^sub>m ?\<Xi>;
-             value_sem.matches val_abs_typing ?\<Xi> [vv\<^sub>m] [option.Some (fst (snd ?f_deep_type))]
+             value_sem.matches val_abs_typing ?\<Xi> [vv\<^sub>m] [option.Some (fst (snd (snd (snd ?f_deep_type))))]
            \<rbrakk> \<Longrightarrow>
            corres_shallow_C ?rename ?state_rel
               (?f_desugar vv\<^sub>s) ?f_deep (?f_C uv\<^sub>C)
               \<comment> \<open> \<xi> is schematic; instantiated by resolving corres_thm \<close>
-              ?\<xi> \<xi>\<^sub>m \<xi>\<^sub>p [uv\<^sub>m] [vv\<^sub>m] ?\<Xi> [option.Some (fst (snd ?f_deep_type))] \<sigma> s"
+              ?\<xi> \<xi>\<^sub>m \<xi>\<^sub>p [uv\<^sub>m] [vv\<^sub>m] ?\<Xi> [option.Some (fst (snd (snd (snd ?f_deep_type))))] \<sigma> s"
       (f_desugar,
            f_deep,
              f_deep_type,
@@ -235,7 +235,11 @@ fun make_corres_shallow_C desugar_thy deep_thy ctxt f = let
   val proc_ctx_def_thm = Proof_Context.get_thm ctxt ("\<Xi>_def")
 
   (* Also instantiate scorres_thm to monomorphic type *)
-  val scorres_thm = Drule.infer_instantiate ctxt [(("ts", 0), @{cterm "[] :: type list"})] scorres_thm
+  val scorres_thm = Drule.infer_instantiate ctxt 
+                     [(("ts", 0), @{cterm "[] :: type list"}),
+                      (("ls", 0), @{cterm "[] :: ptr_layout list"})
+                     ]
+                   scorres_thm
                     |> Simplifier.rewrite_rule ctxt @{thms specialise_nothing[THEN eq_reflection]}
 
   (* Abstract function assumptions for CorresProof *)

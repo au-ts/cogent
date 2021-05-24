@@ -10,8 +10,8 @@
 
 theory TypBucket
   imports Main
-      "../impl/BilbyFs_Shallow_Desugar_Tuples"
-      "../impl/BilbyFs_ShallowConsts_Desugar_Tuples"
+      "BilbyFsConsts.BilbyFs_Shallow_Desugar_Tuples"
+      "BilbyFsConsts.BilbyFs_ShallowConsts_Desugar_Tuples"
 begin
 
 text {* Override Cogent defined constructors so that 

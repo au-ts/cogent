@@ -77,12 +77,12 @@ definition "BadType = undefined" (* type mismatch detected *)
  *)
 fun funcall_sem :: "'f InValue env \<Rightarrow> 'f expr \<Rightarrow> ('f FunCall \<times> 'f InValue) list \<times> 'f InValue" where
   "funcall_sem \<gamma> (Var v) = ([], \<gamma> ! v)"
-| "funcall_sem \<gamma> (AFun absfun _) = ([], [[IsFunction (Inl absfun)]])"
-| "funcall_sem \<gamma> (Fun f _) = ([], [[IsFunction (Inr f)]])"
-| "funcall_sem \<gamma> (App (AFun absfun _) x) =
+| "funcall_sem \<gamma> (AFun absfun _ _) = ([], [[IsFunction (Inl absfun)]])"
+| "funcall_sem \<gamma> (Fun f _ _) = ([], [[IsFunction (Inr f)]])"
+| "funcall_sem \<gamma> (App (AFun absfun _ _) x) =
      (let (calls, ptrs) = funcall_sem \<gamma> x
       in (calls @ [(Inl absfun, ptrs)], []))"
-| "funcall_sem \<gamma> (App (Fun f _) x) =
+| "funcall_sem \<gamma> (App (Fun f _ _) x) =
      (let (calls, ptrs) = funcall_sem \<gamma> x
       in (calls @ [(Inr f, ptrs)], []))"
 | "funcall_sem \<gamma> (App f x) = (fst (funcall_sem \<gamma> f) @ fst (funcall_sem \<gamma> x), [])"

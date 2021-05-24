@@ -32,6 +32,7 @@
     - pass_ticket-e47-1.cogent
     - pass_ticket-e47.cogent
     - pass_ticket-378.cogent
+    - pass_ticket-399.cogent
   expected_result: pass
   flags:
     - -g
@@ -49,6 +50,7 @@
     - fail_ticket-333-reorder-fields.cogent
     - fail_ticket-356.cogent
     - fail_ticket-374.cogent
+    - fail_ticket-399.cogent
   expected_result: fail
   flags:
     - -t

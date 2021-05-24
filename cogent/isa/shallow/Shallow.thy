@@ -100,9 +100,9 @@ fun valRel_pair :: "(funtyp,'b) vabsfuns \<Rightarrow> 'x \<times> 'y \<Rightarr
 
 fun valRel_fun :: "(funtyp,'b) vabsfuns \<Rightarrow> ('x \<Rightarrow> 'y) \<Rightarrow> (funtyp,'b) vval \<Rightarrow> bool" where
   "valRel_fun \<xi> f f' =
-((\<exists>e ts. f' = VFunction e ts \<and>
-          (\<forall>x x' v'. valRel \<xi> x x' \<longrightarrow> (\<xi>, [x'] \<turnstile> specialise ts e \<Down> v') \<longrightarrow> valRel \<xi> (f x) v')) \<or>
-  (\<exists>afun ts. f' = VAFunction afun ts \<and> (\<forall>x x' v'. valRel \<xi> x x' \<longrightarrow> \<xi> afun x' v' \<longrightarrow> valRel \<xi> (f x) v')))"
+((\<exists>e ts ls. f' = VFunction e ts ls \<and>
+          (\<forall>x x' v'. valRel \<xi> x x' \<longrightarrow> (\<xi>, [x'] \<turnstile> specialise ls ts e \<Down> v') \<longrightarrow> valRel \<xi> (f x) v')) \<or>
+  (\<exists>afun ts ls. f' = VAFunction afun ts ls \<and> (\<forall>x x' v'. valRel \<xi> x x' \<longrightarrow> \<xi> afun x' v' \<longrightarrow> valRel \<xi> (f x) v')))"
 
 end
 
@@ -184,9 +184,9 @@ lemma scorres_if:
 
 lemma scorres_fun:
   (* Must match format for callee theorems. *)
-  assumes "\<And>v v'. valRel \<xi> v v' \<Longrightarrow> scorres (f v) (specialise ts f') [v'] \<xi>"
+  assumes "\<And>v v'. valRel \<xi> v v' \<Longrightarrow> scorres (f v) (specialise ls ts f') [v'] \<xi>"
 
-  shows "scorres f (Fun f' ts) \<gamma> \<xi>"
+  shows "scorres f (Fun f' ts ls) \<gamma> \<xi>"
   using assms
   by (auto simp: scorres_def elim!: v_sem_elims)
 

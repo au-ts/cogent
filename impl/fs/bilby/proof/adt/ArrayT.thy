@@ -38,7 +38,7 @@ where
        | Option.Some tval \<Rightarrow>
        (case lr of Break xrbrk \<Rightarrow> (ys@[Option.Some tval],Break xrbrk)
          | Iterate accx \<Rightarrow> 
-          (case fx (tval,accx,obs) of (* This is wrong break returns a truncated array *)
+          (case fx (tval,accx,obs) of  \<comment> \<open>This is wrong break returns a truncated array\<close>
            Break (tval,xrbrk) \<Rightarrow> (ys@[Option.Some tval], Break xrbrk)
            | Iterate (tval,accx) \<Rightarrow> (ys@[Option.Some tval], Iterate accx)))))
        xs ([],Iterate xacc)"
@@ -104,11 +104,9 @@ axiomatization where
   array_modify_ret:
    "\<And>P r arr'. \<lbrakk> unat index < length (\<alpha>a arr);
        r = modifier (OptElemA.make ((\<alpha>a arr)!unat index)  acc);
-       arr' = ArrayT.make ((\<alpha>a arr)[unat index:= OptElemA.oelem\<^sub>f r]); 
-(*       \<alpha>a arr' = ((\<alpha>a arr)[unat index:= OptElemA.oelem\<^sub>f r]); *)
+       arr' = ArrayT.make ((\<alpha>a arr)[unat index:= OptElemA.oelem\<^sub>f r]);
        P (ArrA.make arr' (OptElemA.acc\<^sub>f r)) \<rbrakk> \<Longrightarrow>
         P (array_modify (ArrayModifyP.make arr index modifier acc))"
-
       (* arr' = snd (select (arr,{v. \<alpha>a v = (\<alpha>a arr)[unat index:=Some (OptElemA.oelem\<^sub>f r)]})); *)
 (*
 axiomatization where array_iterate_existing_ret:

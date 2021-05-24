@@ -55,7 +55,7 @@ cogent_main _ =
     | Some numbers ->
       let is_empty = list_empty numbers !numbers in
       if is_empty then
-        list_free (numbers, drop);
+        list_free (numbers, discard);
         print_string "Please enter more than one number\n"
       else
         let sum      = list_r_foldl[U32,U32] ((\(x,y) => x + y), 0, numbers) !numbers
@@ -64,5 +64,5 @@ cogent_main _ =
         and min      = list_r_foldl[U32,U32] (min_u32, word32Max, numbers)   !numbers
         and max      = list_r_foldl[U32,U32] (max_u32, 0, numbers)           !numbers
         in
-          list_free (numbers, drop);
+          list_free (numbers, discard);
           print_statistics (sum, amount, mean, min, max)

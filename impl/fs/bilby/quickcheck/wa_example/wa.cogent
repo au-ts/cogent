@@ -40,7 +40,7 @@ wordarray_copy_u8 : (WordArray U8, (WordArray U8)!, WordArrayIndex, WordArrayInd
 wordarray_copy_u8 arg = wordarray_copy [U8] arg
 
 wordarray_map_u8 : (WordArray U8, U8 -> U8) -> WordArray U8
-wordarray_map_u8 arg = wordarray_map_ [U8] arg
+wordarray_map_u8 arg = wordarray_map_simple [U8] arg
 
 map_body_f : U8 -> U8
 map_body_f x = x + 1

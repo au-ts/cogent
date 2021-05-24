@@ -182,7 +182,7 @@ instance Prec RawExpr where
 instance Prec LocExpr where
   prec (LocExpr _ e) = prec e
 
-instance Prec (TExpr t) where
+instance Prec (TExpr t l) where
   prec (TE _ e _) = prec e
 
 instance Prec (SExpr t l) where
@@ -220,7 +220,7 @@ instance ExprType RawExpr where
 instance ExprType LocExpr where
   isVar (LocExpr _ e) = isVar e
 
-instance ExprType (TExpr t) where
+instance ExprType (TExpr t l) where
   isVar (TE _ e _) = isVar e
 
 instance ExprType (SExpr t l) where
@@ -258,7 +258,7 @@ instance PatnType LocIrrefPatn where
   prettyP (LocIrrefPatn _ p) = prettyP p
   prettyB (LocIrrefPatn _ p,mt,e) = prettyB (p,mt,e)
 
-instance (Pretty t) => PatnType (TIrrefPatn t) where
+instance (Pretty t, Pretty l) => PatnType (TIrrefPatn t l) where
   isPVar  (TIP p _) = isPVar p
   prettyP (TIP p _) = prettyP p
   prettyB (TIP p _,mt,e) = prettyB (p,mt,e)
@@ -285,7 +285,7 @@ instance PatnType LocPatn where
   prettyP (LocPatn _ p) = prettyP p
   prettyB (LocPatn _ p,mt,e) = prettyB (p,mt,e)
 
-instance (Pretty t) => PatnType (TPatn t) where
+instance (Pretty t, Pretty l) => PatnType (TPatn t l) where
   isPVar  (TP p _) = isPVar p
   prettyP (TP p _) = prettyP p
   prettyB (TP p _,mt,e) = prettyB (p,mt,e)
@@ -386,7 +386,7 @@ instance Pretty RawIrrefPatn where
 instance Pretty LocIrrefPatn where
   pretty (LocIrrefPatn _ ip) = pretty ip
 
-instance Pretty t => Pretty (TIrrefPatn t) where
+instance (Pretty t, Pretty l) => Pretty (TIrrefPatn t l) where
   pretty (TIP ip _) = pretty ip
 
 instance (PatnType ip, Pretty ip) => Pretty (Pattern ip) where
@@ -404,7 +404,7 @@ instance Pretty RawPatn where
 instance Pretty LocPatn where
   pretty (LocPatn _ p) = pretty p
 
-instance Pretty t => Pretty (TPatn t) where
+instance (Pretty t, Pretty l) => Pretty (TPatn t l) where
   pretty (TP p _) = pretty p
 
 instance (Pretty t, PatnType ip, PatnType p, Pretty p, Pretty e, Prec e) => Pretty (Binding t p ip e) where
@@ -447,7 +447,7 @@ instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Prett
   pretty (ArrayMap2 ((p1,p2),f) (e1,e2)) = keyword "map2"
                                        <+> parens (string "\\" <> pretty p1 <+> pretty p2 <+> symbol "=>" <+> pretty f)
                                        <+> prettyPrec 1 e1 <+> prettyPrec 1 e2
-  pretty (ArrayPut e es)     = prettyPrec 10 e <+> symbol "@" 
+  pretty (ArrayPut e es)     = prettyPrec 10 e <+> symbol "@"
                             <> record (map (\(i,e) -> symbol "@" <> pretty i <+> symbol "=" <+> pretty e) es)
 #endif
   pretty (Unitel)            = string "()"
@@ -503,7 +503,7 @@ instance Pretty RawExpr where
 instance Pretty LocExpr where
   pretty (LocExpr _ e) = pretty e
 
-instance Pretty t => Pretty (TExpr t) where
+instance (Pretty t, Pretty l) => Pretty (TExpr t l) where
   pretty (TE t e _) | __cogent_fshow_types_in_pretty = parens $ pretty e <+> comment "::" <+> pretty t
                     | otherwise = pretty e
 
@@ -524,10 +524,10 @@ prettyT' t | not $ isAtomic t = parens (pretty t)
 instance (Pretty t, TypeType t, Pretty e, Pretty l, Eq l) => Pretty (Type e l t) where
   pretty (TCon n [] s) = (if | readonly s -> (<> typesymbol "!")
                              | s == Unboxed && n `notElem` primTypeCons -> (typesymbol "#" <>)
-                             | otherwise -> id) $ typename n
+                             | otherwise -> id) . (case s of Boxed _ (Just l) -> (<+> typesymbol "layout" <+> pretty l); _ -> id) $ typename n
   pretty (TCon n as s) = (if | readonly s -> (<> typesymbol "!") . parens
                              | s == Unboxed -> ((typesymbol "#" <>) . parens)
-                             | otherwise -> id) $
+                             | otherwise -> id) . (case s of Boxed _ (Just l) -> (<+> typesymbol "layout" <+> pretty l); _ -> id) $
                          typename n <+> hsep (map prettyT' as)
   pretty (TVar n b u) = (if u then typesymbol "#" else empty) <> typevar n <> (if b then typesymbol "!" else empty)
   pretty (TTuple ts) = tupled (map pretty ts)
@@ -536,7 +536,7 @@ instance (Pretty t, TypeType t, Pretty e, Pretty l, Eq l) => Pretty (Type e l t)
   pretty (TArray t l s tkns) =
     let (sigilPretty, layoutPretty) = case s of
           Unboxed     -> ((typesymbol "#" <>), id)
-          Boxed ro ml -> (if ro then (<> typesymbol "!") else id, case ml of Just l -> (<+> pretty l); _ -> id)
+          Boxed ro ml -> (if ro then (<> typesymbol "!") else id, case ml of Just l -> (<+> typesymbol "layout" <+> pretty l); _ -> id)
         (takes,puts) = partition snd tkns
         pTakens = if null takes then id else
                 (<+> typesymbol "@take" <+> tupled (map (pretty . fst) takes))
@@ -564,7 +564,7 @@ instance (Pretty t, TypeType t, Pretty e, Pretty l, Eq l) => Pretty (Type e l t)
                           else id)
           (sigilPretty, layoutPretty) = case s of
             Unboxed     -> ((typesymbol "#" <>), id)
-            Boxed rw ml -> (if rw then (<> typesymbol "!") else id, case ml of Just l -> (<+> pretty l); _ -> id)
+            Boxed rw ml -> (if rw then (<> typesymbol "!") else id, case ml of Just l -> (<+> typesymbol "layout" <+> pretty l); _ -> id)
        in pretty rp <+> (layoutPretty . tkUntkPretty . sigilPretty $ recordPretty)
   pretty (TVariant ts) | any snd ts = let
      names = map fst $ filter (snd . snd) $ M.toList ts
@@ -618,7 +618,7 @@ instance Pretty TCType where
                        Left Nothing  -> empty
                        Left (Just e) -> space <> keyword "@take" <+> parens (pretty e)
                        Right n       -> space <> warn ('?' : show n)
-                       
+
      in symbol "A" <+> pretty t <+> brackets (pretty l) <+> sigilPretty <> holePretty
 #endif
   pretty (U v) = warn ('?':show v)
@@ -680,10 +680,17 @@ instance Pretty DataLayoutSize where
   pretty (Bytes b) = literal (string (show b ++ "B"))
   pretty (Add a b) = pretty a <+> symbol "+" <+> pretty b
 
+instance Pretty Endianness where
+  pretty LE = keyword "LE"
+  pretty BE = keyword "BE"
+  pretty ME = err "Invalid endianness" <+> keyword "ME"
+
 instance Pretty d => Pretty (DataLayoutExpr' d) where
   pretty (RepRef n s) = if null s then reprname n else parens $ reprname n <+> hsep (fmap pretty s)
   pretty (Prim sz) = pretty sz
   pretty (Offset e s) = pretty e <+> keyword "at" <+> pretty s
+  pretty (After e f) = pretty e <+> keyword "after" <+> pretty f
+  pretty (Endian e n) = pretty e <+> keyword "using" <+> pretty n
   pretty (Record fs) = keyword "record" <+> record (map (\(f,_,e) -> fieldname f <+> symbol ":" <+> pretty e ) fs)
   pretty (Variant e vs) = keyword "variant" <+> parens (pretty e)
                                                  <+> record (map (\(f,_,i,e) -> tagname f <+> tupled [literal $ string $ show i] <> symbol ":" <+> pretty e) vs)
@@ -814,7 +821,7 @@ instance Pretty TypeError where
   pretty (LayoutsNotCompatible l1 l2) = err "Layout " <$$> indent' (pretty l1)
                                           <$$> err " is not compatible with layout " <$$> indent' (pretty l2)
   pretty (TypesNotFit t1 t2)          = err "The layout of type " <$$> indent' (pretty t1)
-                                          <$$> err " does not fit the layout of type " <$$> indent' (pretty t2) 
+                                          <$$> err " does not fit the layout of type " <$$> indent' (pretty t2)
   pretty (TypeWarningAsError w)       = pretty w
 
 instance Pretty TypeWarning where
@@ -871,7 +878,7 @@ instance Pretty Constraint where
   pretty (Unsat e)        = err  "Unsat"
   pretty (SemiSat w)      = warn "SemiSat"
   pretty (Sat)            = warn "Sat"
-  pretty (UnboxedNotRecursive t) 
+  pretty (UnboxedNotRecursive t)
                           = warn "UnboxedNotRecursive" <+> pretty t
   pretty (NotReadOnly s)  = warn "NotReadOnly" <+> prettyS s
     where prettyS (Left  l) = pretty l
@@ -907,6 +914,7 @@ prettyCPrec l x | prec x < l = prettyC x
 instance Pretty SourceObject where
   pretty (TypeName n) = typename n
   pretty (ValName  n) = varname n
+  pretty (RepName  n) = reprname n
   pretty (DocBlock' _) = __fixme empty  -- FIXME: not implemented
 
 instance Pretty ReorganizeError where
@@ -920,9 +928,9 @@ instance Pretty ReorganizeError where
 instance Pretty Subst where
   pretty (Subst m) = pretty m
 
-instance Pretty AssignResult where 
-  pretty (Type t) = pretty t 
-  pretty (Sigil s) = pretty s 
+instance Pretty AssignResult where
+  pretty (Type t) = pretty t
+  pretty (Sigil s) = pretty s
   pretty (Row (Left r)) = pretty r
   pretty (Row (Right sh)) = pretty sh
   pretty (Layout' l) = pretty l
@@ -974,16 +982,19 @@ instance Pretty a => Pretty (I.IntMap a) where
 
 instance Pretty DataLayoutTcError where
   pretty (OverlappingBlocks blks)
-    = let ((range1, c1),(range2, c2)) = unOverlappingAllocationBlocks blks
-       in err "Declared data blocks" <+> parens (pretty range1) <+> err "and" <+> parens (pretty range2) <+> err " which cannot overlap" <$$>
-          indent (pretty c1) <$$>
-          indent (pretty c2)
+    = err "The following pairs of declared data blocks cannot overlap:" <$$>
+      vcat (map (\((r1,c1),(r2,c2)) -> indent' (pretty r1 <+> pretty c1 <$>
+                                                err "and" <$>
+                                                pretty r2 <+> pretty c2))
+           (fmap unOverlappingAllocationBlocks blks))
   pretty (UnknownDataLayout r ctx) 
-     =  err "Undeclared data layout" <+> reprname r <$$> pretty ctx
+    =  err "Undeclared data layout" <+> reprname r <$$> pretty ctx
 
   pretty (BadDataLayout l p) = err "Bad data layout" <+> pretty l
-  pretty (TagNotSingleBlock ctx) 
-     = err "Variant tag must be a single block of bits" <$$> pretty ctx
+  pretty (TagSizeTooLarge ctx) =
+    err "Variant tag allocated more bits than necessary" <$$> pretty ctx
+  pretty (TagNotSingleBlock ctx) =
+    err "Variant tag must be a single block of bits" <$$> pretty ctx
   pretty (SameTagValues context name1 name2 value) =
     err "Alternatives" <+> tagname name1 <+> err "and" <+> tagname name2 <+> err "of same variant cannot have the same tag value" <+> literal (pretty value) <$$>
     indent (pretty context)
@@ -995,10 +1006,20 @@ instance Pretty DataLayoutTcError where
     indent (pretty context)
   pretty (UnknownDataLayoutVar n ctx) =
     err "Undeclared data layout variable" <+> dlvarname n <$$> indent (pretty ctx)
-  pretty (TooFewDataLayoutArgs n ctx) =
-    err "Too few arguments data layout synonym" <+> reprname n <$$> indent (pretty ctx)
-  pretty (TooManyDataLayoutArgs n ctx) =
-    err "Too many arguments for data layout synonym" <+> reprname n <$$> indent (pretty ctx)
+  pretty (DataLayoutArgsNotMatch n exp act ctx) =
+    err "Number of arguments for data layout synonym" <+> reprname n <+> err "not matched,"
+    </> err "expected" <+> int exp <+> err "args, but actual" <+> int act <+> err "args"
+    <$$> indent (pretty ctx)
+  pretty (OverlappingFields fs ctx) =
+    err "Overlapping fields" <+> foldr1 (<+>) (fmap fieldname fs) <$$> indent (pretty ctx)
+  pretty (CyclicFieldDepedency fs ctx) =
+    err "Cyclic dependency of fields" <+> foldr1 (<+>) (fmap fieldname fs) <$$> indent (pretty ctx)
+  pretty (NonExistingField f ctx) =
+    err "Non-existing field" <+> symbol "after" <+> fieldname f <$$> indent (pretty ctx)
+  pretty (InvalidUseOfAfter f ctx) =
+    err "The use of" <+> symbol "after" <+> fieldname f <+> err "layout expression is invalid" <$$> indent (pretty ctx)
+  pretty (InvalidEndianness end ctx) =
+    err "Endianness" <+> pretty end <+> err "can only be applied to int sizes"
 
 instance Pretty DataLayoutPath where
   pretty (InField n po ctx) = context' "for field" <+> fieldname n <+> context' "(" <> pretty po <> context' ")" </> pretty ctx
@@ -1018,8 +1039,8 @@ instance Pretty a => Pretty (DataLayout' a) where
   pretty UnitLayout =
     parens (literal (symbol "unit"))
 
-  pretty PrimLayout {bitsDL} =
-    parens (pretty bitsDL)
+  pretty PrimLayout {bitsDL, endianness} =
+    parens (pretty bitsDL <+> keyword "using" <+> pretty endianness)
 
   pretty SumLayout {tagDL, alternativesDL} =
     parens (pretty tagDL) <> variant (map prettyAlt $ M.toList alternativesDL)

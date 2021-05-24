@@ -2,9 +2,9 @@
                                  Cogent
 ========================================================================
 
-:Version:	3.0.0
+:Version:	3.0.1
 :License:	GPL-2.0-only
-:Homepage:	<https://ts.data61.csiro.au/projects/TS/cogent.pml>
+:Homepage:	<https://ts.data61.csiro.au/projects/TS/filesystems.pml.html>
 :Repository:	<https://github.com/NICTA/cogent>
 
 Welcome to Cogent's documentation!
@@ -69,7 +69,7 @@ and what Cogent brings you.
 If you don't, you may want to first read about
 the `Cogent project`_.
 
-.. _Cogent project: http://ts.data61.csiro.au/projects/TS/cogent.pml
+.. _Cogent project: https://ts.data61.csiro.au/projects/TS/filesystems.pml.html
 
 .. toctree::
    :caption: Table of contents
