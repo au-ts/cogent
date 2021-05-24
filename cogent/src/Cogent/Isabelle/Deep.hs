@@ -62,7 +62,7 @@ deepDataLayout (Layout l) = mkApp (mkId "Some") [deepDataLayout' l]
 
 deepDataLayout' :: DataLayout' BitRange -> Term
 deepDataLayout' UnitLayout = deepBitRange (BitRange 0 0)
-deepDataLayout' (PrimLayout b) = mkApp (mkId "LayBitRange") [deepBitRange b]
+deepDataLayout' (PrimLayout b _) = mkApp (mkId "LayBitRange") [deepBitRange b]
 deepDataLayout' (RecordLayout fs) = 
   mkApp (mkId "LayRecord") [
     mkList $

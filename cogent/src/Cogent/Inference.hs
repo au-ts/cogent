@@ -434,7 +434,7 @@ isMonoType (TRefine t _) = isMonoType t -- TODO
 
 isMonoDataLayout' :: DataLayout' BitRange -> Bool
 isMonoDataLayout' UnitLayout = True
-isMonoDataLayout' (PrimLayout b) = True
+isMonoDataLayout' (PrimLayout _ _) = True
 isMonoDataLayout' (RecordLayout fs) = all isMonoDataLayout' fs  
 isMonoDataLayout' (SumLayout tag alts) = all (isMonoDataLayout' . snd) alts
 isMonoDataLayout' (VarLayout v offset) = False
