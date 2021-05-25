@@ -74,7 +74,7 @@ setupFunctionValRel thy =
   , "    This will fail if there is a function called x_fresh_cogent. *) "
   , "       then [@{mk_term \"x_fresh_cogent = sint (?tag :: 32 signed word) \\<and> uv_fresh_cogent = UFunction (?fun :: string expr) [] []\""
   , "               (tag, fun)} (tag_term, Syntax.read_term @{context} (\"" ++ thy ++ "_TypeProof.\" ^ fun_name))]"
-  , "       else [@{mk_term \"x_fresh_cogent = sint (?tag :: 32 signed word) \\<and> uv_fresh_cogent = UAFunction (?fun :: string) []\""
+  , "       else [@{mk_term \"x_fresh_cogent = sint (?tag :: 32 signed word) \\<and> uv_fresh_cogent = UAFunction (?fun :: string) [] []\""
   , "               (tag, fun)} (tag_term, HOLogic.mk_string fun_name)]"
   , "    end"
   , "  | _ => raise TERM (\"cogent_function_val_rel gen: couldn't parse FUN_ENUM def\", [Thm.prop_of t])"
