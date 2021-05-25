@@ -308,8 +308,7 @@ funTypeEnv mod fs = funTypeEnv' $ mkList $ mapMaybe (funTypeCase mod) fs
 funTypeEnv' upds = let unit = mkId "(0, [], {}, TUnit, TUnit)"
                        -- NOTE: as the isa-parser's antiQ doesn't handle terms well and it doesn't
                        -- keep parens, we have to fall back on strings / zilinc
-                       tysig = [isaType| string \<Rightarrow> poly_type|]
-                       -- Cogent.kind list \<times> Cogent.type \<times> Cogent.type |]
+                       tysig = [isaType| string \<Rightarrow> poly_type|]                       
                     in [[isaDecl| definition \<Xi> :: "$tysig"
                                   where "\<Xi> \<equiv> assoc_lookup $upds $unit" |]]
 

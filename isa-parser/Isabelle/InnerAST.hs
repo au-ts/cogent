@@ -114,6 +114,8 @@ mkId = TermIdent . Id
 mkTru = ConstTerm TrueC
 mkFls = ConstTerm FalseC
 
+-- this replaces 1 with Suc 0 which is a pervasive simplifying rule of Isabelle
+mkInt1S0 n = if n == 1 then mkApp (mkId "Suc") [mkInt 0] else mkInt n
 mkInt    = ConstTerm . IntLiteral
 mkBool b = if b then mkTru else mkFls
 mkChar   = ConstTerm . CharLiteral

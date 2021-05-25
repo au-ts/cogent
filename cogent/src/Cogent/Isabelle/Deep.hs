@@ -72,13 +72,13 @@ deepDataLayout' (SumLayout tag alts) =
             mkTuple [mkId name, mkInt t, deepDataLayout' l]
          ) $ Map.toList alts
      ] 
-deepDataLayout' (VarLayout v offset) = mkApp (mkId "LayVar") [mkInt (toInteger (Nat.natToInt v)), mkInt offset]
+deepDataLayout' (VarLayout v offset) = mkApp (mkId "LayVar") [mkInt1S0 (toInteger (Nat.natToInt v)), mkInt offset]
 #ifdef BUILTIN_ARRAYS
 deepDataLayout' (ArrayLayout _) = mkId "undefined"
 #endif
 
 deepBitRange :: BitRange -> Term
-deepBitRange (BitRange size offset) = mkTuple [mkInt size, mkInt offset]
+deepBitRange (BitRange size offset) = mkTuple [mkInt1S0 size, mkInt1S0 offset]
 
 type TypeAbbrevs = (Map.Map Term Int, Int)
 
@@ -265,8 +265,7 @@ deepDefinition mod ta defs fts (FunDef _ fn ks ts ti to e) decls =
       tn = case editIsabelleName (mkIsabelleName fn) (++ "_type")  of
             Just n  -> unIsabelleName n
             Nothing -> error ("Error - unable to generate name for isabelle function '" ++ fn ++ "'")
-      tysig = [isaType| poly_type |]
-       -- Cogent.kind list \<times> Cogent.type \<times> Cogent.type |]
+      tysig = [isaType| poly_type |]       
       tydecl = [isaDecl| definition $tn :: "$tysig" where "$(mkId tn) \<equiv> $ty" |]
       e' = deepExpr mod ta defs e
       fntysig = AntiType "string Cogent.expr"
@@ -285,7 +284,7 @@ deepDefinition mod ta _ fts (AbsDecl _ fn ks ts ti to) decls =
         tn = case editIsabelleName (mkIsabelleName fn) (++ "_type") of 
             Just n  -> unIsabelleName n
             Nothing -> error ("Error - unable to generate name for isabelle function '" ++ fn ++ "'")
-        tysig = [isaType| Cogent.kind list \<times> Cogent.type \<times> Cogent.type |]
+        tysig = [isaType| poly_type |]
         tydecl = [isaDecl| definition $tn :: "$tysig" where "$(mkId tn) \<equiv> $ty" |]
      in tydecl:decls
 deepDefinition _ _ _ _ _ decls = decls

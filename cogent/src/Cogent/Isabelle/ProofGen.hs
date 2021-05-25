@@ -613,7 +613,7 @@ kinding nl k cs t = do
   thm <- thmTypeAbbrev $ typingSubproofPrefix ++ show proofId
   return [RuleTac thm]
 
-layoutThms = ["matches_fields_layout_def", "match_repr_layout_simps", "match_constraint_def"]
+layoutThms = ["matches_fields_layout_def", "upt_def", "match_repr_layout_simps", "match_constraint_def"]
 
 -- nl: number of layout variables
 kindingRaw :: (Ord b, Pretty b) => Integer -> Vec t Kind -> [(DataLayout' BitRange, Type t b)] -> Type t b -> State TypingSubproofs SubproofId
