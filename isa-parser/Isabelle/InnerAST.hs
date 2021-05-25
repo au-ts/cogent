@@ -135,6 +135,10 @@ mkList xs = ListTerm "[" xs "]"
 mkTuple :: [Term] -> Term
 mkTuple xs = ListTerm "(" xs ")"
 
+mkSet :: [Term] -> Term
+mkSet xs = ListTerm "{" xs "}"
+
+
 lamTerm :: [Ident] -> Term -> Term
 lamTerm ids t = QuantifiedTerm Lambda ids t
 

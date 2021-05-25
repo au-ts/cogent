@@ -227,13 +227,13 @@ deepExpr mod ta defs (TE _ (Cast t e))
 deepExpr mod ta defs (TE _ e) = __todo $ "deepExpr: " ++ show (pretty e)
 
 deepKind :: Kind -> Term
-deepKind (K e s d) = ListTerm "{" [ mkId str | (sig, str) <- [(e, "E"), (s, "S"), (d, "D")], sig ] "}"
+deepKind (K e s d) = mkSet [ mkId str | (sig, str) <- [(e, "E"), (s, "S"), (d, "D")], sig ]
 
 deepConstraint :: (Ord b, Pretty b) => NameMod -> TypeAbbrevs -> (DataLayout' BitRange, CC.Type t b) -> Term
 deepConstraint mod ta (d, t) = mkTuple [deepDataLayout' d, mkApp (mkId "type_lrepr") [ deepType mod ta t ]]
 
 deepConstraints ::  (Ord b, Pretty b) => NameMod -> TypeAbbrevs -> [(DataLayout' BitRange, CC.Type t b)] -> Term
-deepConstraints mod ta lts = mkApp (mkId "set") [mkList $ map (deepConstraint mod ta) lts]
+deepConstraints mod ta lts = mkSet $ map (deepConstraint mod ta) lts
 
 deepPolyType :: (Ord b, Pretty b) => NameMod -> TypeAbbrevs -> FunctionType b -> Term
 deepPolyType mod ta (FT ks nl lts ti to) = mkTuple [mkInt $ toInteger $ Nat.toInt nl,

@@ -125,23 +125,11 @@ formatSubproof :: TypeAbbrevs -> String -> (Bool, I.Term) -> [Tactic] -> [Theory
 formatSubproof ta name (schematic, prop) steps =
   formatMLProof (name ++ "_script") "tac" (map show steps) ++
   [ LemmaDecl (Lemma schematic (Just $ TheoremDecl (Just name)
-                                         [ 
-                                         -- e.g., to simplify kinding _ (set []) _ into
-                                         -- kinding _ {} _, otherwise the ML procedure
-                                         -- kinding_proof_single would fail
-                                         -- as the statement needs to match exactly   
-                                           Attribute "simplified" [],                                     
+                                         [                                          
                                            Attribute "unfolded" ["abbreviated_type_defs"]]) [prop]
                (Proof ([MethodModified (Method "unfold" ["abbreviated_type_defs"]) MMOptional] ++
-                       [ --  Method "rule" ["typing_subst"]
-                           -- this creates two subgoals
-                           -- 1. list_all (kinding ..) ..
-                         --, 
-                         Method "tactic" ["\\<open> map (fn t => DETERM (interpret_tac t @{context} 1)) " ++
-                                          name ++ "_script |> EVERY \\<close>"]
-                           -- 2. Some stuff about layout constraints, which
-                           -- should be resolved directly by simp
-                         --, Method "simp" []
+                       [ Method "tactic" ["\\<open> map (fn t => DETERM (interpret_tac t @{context} 1)) " ++
+                                          name ++ "_script |> EVERY \\<close>"]                         
                          ])
 
                 ProofDone)) ]
