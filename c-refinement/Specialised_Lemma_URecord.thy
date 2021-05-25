@@ -147,7 +147,7 @@ fun take_member_assumptions isa_sigil ty field_ty isa_field_num =
 (* Assumptions common to Put and LetPut lemmas *)
 fun put_let_put_assumptions ty field_ty isa_int_struct_leng =
  let
-  val (ass2, ass4, ass3) = common_assumptions @{term "Boxed Writable"} ty
+  val (ass2, ass4, ass3) = common_assumptions @{term "Boxed Writable ptrl"} ty
   val ass1 = @{term "0, [], {} \<turnstile> \<Gamma>' \<leadsto> \<Gamma>x | \<Gamma>e"};
   val ass5 = strip_atype @{term "\<lambda> v' . val_rel (\<gamma>!v) v'"} $ Free ("v'", field_ty);
 
