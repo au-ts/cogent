@@ -42,6 +42,13 @@
   flags:
     - --parse
 
+- test_name: dargent-antiquoted
+  files:
+    - pass_abstract-bitfields
+  expected_result: pass
+  run:
+    - bash BUILD
+
 - test_name: wip-dargent
   files:
     - wip_zero-sized-record.cogent
