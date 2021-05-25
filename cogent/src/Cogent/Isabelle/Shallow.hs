@@ -115,31 +115,41 @@ shallowType :: forall t b. (Show b,Eq b) => CC.Type t b -> SG I.Type
 shallowType (TVar v) = I.TyVar <$> ((!!) <$> asks typeVars <*> pure (finInt v))
 shallowType (TVarBang v) = shallowType (TVar v :: CC.Type t b)
 shallowType (TCon tn ts _) = I.TyDatatype tn <$> mapM shallowType ts
-shallowType t@(TFun t1 t2) = do
-  st <- findShortType False t
-  case st of
-       (TCon _ _ _) -> shallowType st
-       _ -> I.TyArrow <$> shallowType t1 <*> shallowType t2
+shallowType t@(TFun t1 t2) = 
+    if __cogent_ffold_poly_types
+       then do
+              st <- findShortType False t
+              case st of
+                   (TCon _ _ _) -> shallowType st
+                   _ -> I.TyArrow <$> shallowType t1 <*> shallowType t2
+       else I.TyArrow <$> shallowType t1 <*> shallowType t2
 shallowType (TPrim pt) = pure $ shallowPrimType pt
 shallowType (TString) = pure $ I.AntiType "string"
 shallowType (TSum alts) = shallowTypeWithName (TSum alts)
 shallowType (TProduct t1 t2) = I.TyTuple <$> shallowType t1 <*> shallowType t2
 shallowType t@(TRecord rp fs s) = do
   tuples <- asks recoverTuples
-  if tuples && isRecTuple (map fst fs) then do
-      st <- findShortType False t
-      case st of
-           (TCon _ _ _) -> shallowType st
-           _ -> shallowRecTupleType fs
+  if tuples && isRecTuple (map fst fs) 
+     then
+       if __cogent_ffold_poly_types
+          then do
+                st <- findShortType False t
+                case st of
+                     (TCon _ _ _) -> shallowType st
+                     _ -> shallowRecTupleType fs
+            else shallowRecTupleType fs
   else
     shallowTypeWithName (TRecord rp fs s)
 shallowType (TUnit) = return $ I.AntiType "unit"
 #ifdef BUILTIN_ARRAYS
-shallowType t@(TArray el _ _ _) = do
-  st <- findShortType False t
-  case st of
-       (TCon _ _ _) -> shallowType st
-       _ -> I.TyDatatype "list" <$> mapM shallowType [el]
+shallowType t@(TArray el _ _ _) = 
+    if __cogent_ffold_poly_types
+       then do
+             st <- findShortType False t
+             case st of
+                  (TCon _ _ _) -> shallowType st
+                  _ -> I.TyDatatype "list" <$> mapM shallowType [el]
+       else I.TyDatatype "list" <$> mapM shallowType [el]
 #endif
 
 shallowPrimType :: PrimInt -> I.Type
@@ -204,16 +214,19 @@ findType t = getStrlType <$> asks typeNameMap <*> asks typeStrs <*> pure t
 
 -- | Reverse engineer the type synonym of a algebraic data type
 --   First argument must be True for Records and Variants so that
---   the record/datatype is returned when not type synonym is found.
+--   the record/datatype is returned when no type synonym is found.
 findShortType :: (Show b,Eq b) => Bool -> CC.Type t b -> SG (CC.Type t b)
 findShortType rv t = do
   map <- use concTypeSyns
   case M.lookup (hashType t) map of
-   Nothing -> do
-       polys <- use polyTypeSyns
-       case lookupPolySyn t polys of
-            Nothing -> if rv then findType t else pure t
-            Just (tn,args) -> pure $ TCon tn args (__impossible "findShortType")
+   Nothing -> 
+     if __cogent_ffold_poly_types
+        then do
+               polys <- use polyTypeSyns
+               case lookupPolySyn t polys of
+                    Nothing -> if rv then findType t else pure t
+                    Just (tn,args) -> pure $ TCon tn args (__impossible "findShortType")
+        else findType t 
    Just tn -> pure $ TCon tn [] (__impossible "findShortType")
 
 lookupPolySyn :: (Show b,Eq b) => CC.Type t b -> [PolyTypeSyn] -> Maybe (TypeName, [CC.Type t b])
@@ -1112,7 +1125,7 @@ shallow recoverTuples thy stg defs log =
                                                (SGTables (st defs) (stsyn defs) [] recoverTuples)
                                                (StateGen 0 M.empty [])
       header = (string ("(*\n" ++ log ++ "\n*)\n") L.<$$>)
-  in (header $ pretty shal, header $ pretty shrd, header $ pretty scor, typeMap)
+  in (header (if recoverTuples then I.prettyPlus shal else pretty shal), header $ pretty shrd, header $ pretty scor, typeMap)
 
 genConstDecl :: CC.CoreConst TypedExpr -> SG (TheoryDecl I.Type I.Term)
 genConstDecl (vn, te@(TE ty expr)) = do
