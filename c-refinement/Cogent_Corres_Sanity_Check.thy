@@ -28,8 +28,8 @@ fun check_indirect_calls Cogent_functions ctxt =
   |> filter (fn f => let
        val def = Proof_Context.get_thm ctxt (f ^ "_def")
        in exists_subterm (fn t => case t of
-              Const (@{const_name App}, _) $ (Const (@{const_name  Fun}, _) $ _ $ _) => false
-            | Const (@{const_name App}, _) $ (Const (@{const_name AFun}, _) $ _ $ _) => false
+              Const (@{const_name App}, _) $ (Const (@{const_name  Fun}, _) $ _ $ _ $ _) => false
+            | Const (@{const_name App}, _) $ (Const (@{const_name AFun}, _) $ _ $ _ $ _) => false
             | Const (@{const_name App}, _) $ _ => true
             | _ => false)
             (Thm.prop_of def) end)

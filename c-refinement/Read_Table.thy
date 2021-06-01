@@ -116,9 +116,9 @@ fun read_table (file_name:string) thy =
          handle ListPair.UnequalLengths => error (report pos ^ "The number of custom getters/setters differs from the number of fields"))
       | build_layout_info _ NONE _ = DefaultLayout
 
-    fun decode_sigil names pos   ((Const (@{const_name Boxed}, _)) $ (Const (@{const_name Writable}, _)) ) l = 
+    fun decode_sigil names pos   ((Const (@{const_name Boxed}, _)) $ (Const (@{const_name Writable}, _)) $ _ ) l = 
          Boxed(Writable, build_layout_info pos l names)
-      | decode_sigil names pos   ((Const (@{const_name Boxed}, _)) $ (Const (@{const_name ReadOnly}, _)) ) l = 
+      | decode_sigil names pos   ((Const (@{const_name Boxed}, _)) $ (Const (@{const_name ReadOnly}, _)) $ _ ) l = 
          Boxed(ReadOnly, build_layout_info pos l names)
       | decode_sigil _ _   (Const (@{const_name Unboxed},  _)) _ = Unboxed
       | decode_sigil _ pos t _ = raise TERM (report pos ^ "bad sigil", [t]);
