@@ -32,7 +32,7 @@ fun mk_rhs_pro _ (field_info:HeapLiftBase.field_info list) =
     val_rel p2 (p2_C x))"} $ p1 $ p2
  end;
 
-fun mk_rhs_rec_generic (field_getters : term list)(field_names : string list) =
+fun mk_rhs_rec_generic (field_getters : term list)(field_names : string list)(layout_opt : term) =
  (* val_rel generation for URecord *)
  let
   fun mk_nth_conjct n getter = @{term "val_rel"} $ (Const ("Product_Type.prod.fst", dummyT) $ Bound n) $ (getter $ @{term "x"}) |> strip_type;
@@ -46,7 +46,7 @@ fun mk_rhs_rec_generic (field_getters : term list)(field_names : string list) =
 
   fun mk_fst_conjct n =
    Const ("HOL.eq",dummyT) $ Free ("uv", dummyT) $
-   (Const ("UpdateSemantics.uval.URecord", dummyT) $ mk_Bound_list n);
+   (Const ("UpdateSemantics.uval.URecord", dummyT) $ mk_Bound_list n $ layout_opt);
  in
   mk_exists field_names
   (HOLogic.mk_conj
@@ -54,10 +54,10 @@ fun mk_rhs_rec_generic (field_getters : term list)(field_names : string list) =
  end;
 
 fun mk_rhs_rec_default _ (field_info:HeapLiftBase.field_info list) =
-  mk_rhs_rec_generic (get_getters field_info) (get_field_names field_info)
+  mk_rhs_rec_generic (get_getters field_info) (get_field_names field_info) @{term None}
 
-fun mk_rhs_rec_custom _ (field_info : field_layout list) =
-  mk_rhs_rec_generic (map # isa_getter field_info) (map # name field_info)
+fun mk_rhs_rec_custom _ (field_info : field_layout list) layout_opt =
+  mk_rhs_rec_generic (map # isa_getter field_info) (map # name field_info) layout_opt
 
 
 
@@ -98,7 +98,7 @@ fun gen_mk_rhs ctxt file_name uval =
   | URecord (ty_name,sigil) => 
    (case get_sigil_layout sigil of
        DefaultLayout =>  mk_rhs_rec_default ctxt (field_info ty_name)
-     | CustomLayout l => mk_rhs_rec_custom ctxt l)
+     | CustomLayout (l, lo) => mk_rhs_rec_custom ctxt l lo)
   | UAbstract _         => mk_rhs_abs
  end;
 

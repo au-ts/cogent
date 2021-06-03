@@ -45,7 +45,7 @@ fun abs_thm_name abs_name = mk_scorres_nm abs_name ^ "_assm"
 fun gen_scorres_abs_thm lthy Aname abs_name =
 let
   val prop = betapply (Syntax.read_term lthy
-                          ("\<lambda>(n::string). scorres " ^ Aname ^ "." ^ abs_name ^ " (AFun n ts) \<gamma> \<xi>"),
+                          ("\<lambda>(n::string). scorres " ^ Aname ^ "." ^ abs_name ^ " (AFun n ts ls) \<gamma> \<xi>"),
                        HOLogic.mk_string abs_name)
   val ctxt = Variable.auto_fixes prop lthy
   val thm = Goal.prove ctxt [] [] (HOLogic.mk_Trueprop prop)

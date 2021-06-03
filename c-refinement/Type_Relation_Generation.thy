@@ -24,6 +24,7 @@ local
 fun mk_rhs_of_type_rel_rec_generic 
    (field_typs : typ list)
    (field_names : string list)
+   (layout_opt : term)
    =
 (* type_rel generation for TRecord
  * We assume that there are (length field_info) bound variables
@@ -35,7 +36,8 @@ fun mk_rhs_of_type_rel_rec_generic
   val mk_hd_conjct =
    let
     val ml_list_for_TRecord = map_index (fn (n, _) => Bound (num_fields - n - 1)) field_typs;
-    val RRecord = Const (@{const_name RRecord}, dummyT) $ mk_isa_list ml_list_for_TRecord
+    val RRecord = Const (@{const_name RRecord}, dummyT) $ mk_isa_list ml_list_for_TRecord $
+                  layout_opt
    in
     HOLogic.mk_eq (Free ("ty", dummyT), RRecord)
    end;
@@ -59,7 +61,7 @@ fun mk_rhs_of_type_rel_rec_generic
 
 
 (* type relation for records with custom layouts *)
-fun mk_rhs_of_type_rel_rec_custom ctxt (field_info : field_layout list) file_nm =
+fun mk_rhs_of_type_rel_rec_custom ctxt (field_info : field_layout list) (layout_opt : term) file_nm =
  let
    fun field_ty info =
      let
@@ -69,12 +71,13 @@ fun mk_rhs_of_type_rel_rec_custom ctxt (field_info : field_layout list) file_nm 
         # return_type getter_info
      end
  in
-   mk_rhs_of_type_rel_rec_generic (map field_ty field_info) (map # name field_info)
+   mk_rhs_of_type_rel_rec_generic (map field_ty field_info) (map # name field_info) layout_opt
  end;
 
 
 fun mk_rhs_of_type_rel_rec_default _ (field_info:HeapLiftBase.field_info list) =
-  mk_rhs_of_type_rel_rec_generic (map (# field_type) field_info) (get_field_names field_info)
+  mk_rhs_of_type_rel_rec_generic (map (# field_type) field_info) (get_field_names field_info) 
+   @{term None}
 
 fun mk_rhs_of_type_rel_sum _ (field_info:HeapLiftBase.field_info list) =
  let
@@ -129,7 +132,7 @@ fun gen_mk_rhs_of_type_rel ctxt file_name uval =
   | (URecord (ty_name,sigil)) => 
     (case get_sigil_layout sigil of
        DefaultLayout =>  mk_rhs_of_type_rel_rec_default ctxt (field_info ty_name)
-     | CustomLayout l => mk_rhs_of_type_rel_rec_custom ctxt l file_name)
+     | CustomLayout (l,lo) => mk_rhs_of_type_rel_rec_custom ctxt l lo file_name)
   | (UAbstract _)         => mk_rhs_of_type_rel_abs
  end;
 

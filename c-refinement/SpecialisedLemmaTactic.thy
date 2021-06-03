@@ -43,7 +43,7 @@ ML\<open> fun corres_take_boxed_tac ctxt = let
         THEN_ALL_NEW asm_full_simp_tac ctxt
         THEN_ALL_NEW clarsimp_tac (ctxt addsimps facts)
         THEN_ALL_NEW (rtac (get "u_t_p_recE") THEN' atac)
-        THEN_ALL_NEW clarsimp_tac (ctxt addSDs (gets "type_repr_uval_repr"))
+        THEN_ALL_NEW (TRY o (dresolve_tac ctxt [get "boxedeq"]) THEN' clarsimp_tac (ctxt addSDs (gets "type_repr_uval_repr")))
         THEN_ALL_NEW (ftac (get "all_heap_rel_ptrD") THEN' atac)
         THEN_ALL_NEW clarsimp_tac (ctxt addsimps type_rels addsimps val_rels 
                                         addsimps getset_simps)
@@ -74,7 +74,8 @@ ML\<open> fun corres_put_boxed_tac ctxt = let
         THEN' atac THEN' atac THEN' atac)
         THEN_ALL_NEW asm_full_simp_tac ctxt),
     clarsimp_tac (ctxt addsimps facts3),
-    (rtac (get "u_t_p_recE") THEN' atac) THEN_ALL_NEW asm_full_simp_tac ctxt,
+    (rtac (get "u_t_p_recE") THEN' atac) THEN_ALL_NEW
+    (TRY o (dresolve_tac ctxt [get "boxedeq"])  THEN' asm_full_simp_tac ctxt),
     clarsimp_tac (ctxt addSDs (gets "type_repr_uval_repr")
         addsimps type_rels),
     (ftac (get "all_heap_rel_ptrD") THEN' atac)
@@ -109,7 +110,8 @@ ML\<open> fun corres_put_boxed_tac ctxt = let
         THEN' atac THEN' atac THEN' atac)
         THEN_ALL_NEW asm_full_simp_tac ctxt),
     clarsimp_tac (ctxt addsimps facts3),
-    (rtac (get "u_t_p_recE") THEN' atac) THEN_ALL_NEW asm_full_simp_tac ctxt,
+    (rtac (get "u_t_p_recE") THEN' atac) 
+     THEN_ALL_NEW (TRY o (dresolve_tac ctxt [get "boxedeq"]) THEN' asm_full_simp_tac ctxt),
     clarsimp_tac (ctxt addSDs (gets "type_repr_uval_repr")
         addsimps type_rels),
     (ftac (get "all_heap_rel_ptrD") THEN' atac)
@@ -152,7 +154,8 @@ ML\<open> fun corres_let_put_boxed_tac ctxt = let
     ((rtac (get "corres_let_put_boxed") THEN' simp_tac ctxt THEN' atac THEN' atac THEN' atac)
         THEN_ALL_NEW asm_full_simp_tac ctxt),
     clarsimp_tac (ctxt addsimps facts3),
-    (rtac (get "u_t_p_recE") THEN' atac) THEN_ALL_NEW asm_full_simp_tac ctxt,
+    (rtac (get "u_t_p_recE") THEN' atac) 
+      THEN_ALL_NEW (TRY o (dresolve_tac ctxt [get "boxedeq"]) THEN' asm_full_simp_tac ctxt),
     clarsimp_tac (ctxt addSDs (gets "type_repr_uval_repr")
         addsimps type_rels),
     (ftac (get "all_heap_rel_ptrD") THEN' atac)
@@ -185,7 +188,8 @@ ML\<open> fun corres_let_put_boxed_tac ctxt = let
     ((rtac (get "corres_let_put_boxed") THEN' simp_tac ctxt THEN' atac THEN' atac THEN' atac)
         THEN_ALL_NEW asm_full_simp_tac ctxt),
     clarsimp_tac (ctxt addsimps facts3),
-    (rtac (get "u_t_p_recE") THEN' atac) THEN_ALL_NEW asm_full_simp_tac ctxt,
+    (rtac (get "u_t_p_recE") THEN' atac) 
+     THEN_ALL_NEW (TRY o (dresolve_tac ctxt [get "boxedeq"]) THEN' asm_full_simp_tac ctxt),
     clarsimp_tac (ctxt addSDs (gets "type_repr_uval_repr")
         addsimps type_rels),
     (ftac (get "all_heap_rel_ptrD") THEN' atac)

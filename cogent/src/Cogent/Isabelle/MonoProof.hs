@@ -19,6 +19,7 @@ import Cogent.Common.Syntax
 import Cogent.Compiler
 import Cogent.Core as CC
 import Cogent.Isabelle.Deep hiding (imports)
+import Cogent.Dargent.Allocation ( BitRange )
 import Cogent.Mono
 import Cogent.Util
 import Data.Nat (Nat(Zero, Suc))
@@ -96,19 +97,22 @@ rename :: (Ord b, Pretty b) => FunMono b -> TheoryDecl I.Type I.Term
 rename funMono = [isaDecl| definition $alist_name :: "$sig" where "$(mkId alist_name) \<equiv> $def" |]
   where
     alist_name = __fixme "rename__assocs" -- should be parameter
-    sig = [isaType| ((string \<times> Cogent.type list) \<times> string) list |]
-    def = mkList $ map (\(f, inst, f') -> mkPair (mkPair f inst) f') monoTable
+    sig = [isaType| ((string \<times> Cogent.type list  \<times> Cogent.ptr_layout list) \<times> string) list |]
+    def = mkList $ map (\(f, inst, instdl, f') -> mkPair (mkTuple [f, inst, instdl]) f') monoTable
 
-    monoTable :: [(Term, Term, Term)]
+    monoTable :: [(Term, Term, Term, Term)]
     monoTable = concatMap mkInst . map (second toList) . toList $ funMono
 
     subscript fn num =  fn ++ "_" ++ show num
 
-    mkInst :: (Ord b, Pretty b) => (FunName, [(Instance b, Int)]) -> [(Term, Term, Term)]
+    mkInst :: (Ord b, Pretty b) => (FunName, [(Instance b, Int)]) -> [(Term, Term, Term, Term)]
     mkInst (fn,insts) = let safeName = unIsabelleName $ mkIsabelleName fn
       in  if null insts
-            then [([isaTerm| $(mkString safeName) |], [isaTerm| Nil |], [isaTerm| $(mkString safeName) |])]
-            else __fixme $ map (\((tys,_),num) -> ([isaTerm| $(mkString safeName) |], mkTyList tys, [isaTerm| $(mkString (subscript safeName num)) |])) insts  -- FIXME: currently second part of instance (data layouts) is ignored
+            then [([isaTerm| $(mkString safeName) |], [isaTerm| Nil |], [isaTerm| Nil |], [isaTerm| $(mkString safeName) |])]
+            else __fixme $ map (\((tys,dls),num) -> ([isaTerm| $(mkString safeName) |], mkTyList tys, mkDlList dls, [isaTerm| $(mkString (subscript safeName num)) |])) insts  -- FIXME: currently second part of instance (data layouts) is ignored
 
     mkTyList :: (Ord b, Pretty b) => [CC.Type 'Zero b] -> Term
     mkTyList = I.mkList . map (deepType id (empty, 0))
+
+    mkDlList :: [CC.DataLayout BitRange] -> Term
+    mkDlList = I.mkList . map deepDataLayout

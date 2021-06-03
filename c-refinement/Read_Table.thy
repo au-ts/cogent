@@ -110,16 +110,17 @@ fun read_table (file_name:string) thy =
                     in (pos, cogentT, cT, infos) end)
                 : (int * term * string * {getter : string, setter : string} list option) list; 
 
-    fun build_layout_info pos (SOME infos) names =
-         (ListPair.mapEq (fn ({getter, setter}, name) => {getter = getter, setter = setter, name = name})
-          (infos, names) |> CustomLayout
+    fun build_layout_info pos layout_opt (SOME infos) names =
+      CustomLayout 
+        ( (ListPair.mapEq (fn ({getter, setter}, name) => {getter = getter, setter = setter, name = name})
+          (infos, names) , layout_opt)
          handle ListPair.UnequalLengths => error (report pos ^ "The number of custom getters/setters differs from the number of fields"))
-      | build_layout_info _ NONE _ = DefaultLayout
+      | build_layout_info _ _ NONE _ = DefaultLayout
 
-    fun decode_sigil names pos   ((Const (@{const_name Boxed}, _)) $ (Const (@{const_name Writable}, _)) $ _ ) l = 
-         Boxed(Writable, build_layout_info pos l names)
-      | decode_sigil names pos   ((Const (@{const_name Boxed}, _)) $ (Const (@{const_name ReadOnly}, _)) $ _ ) l = 
-         Boxed(ReadOnly, build_layout_info pos l names)
+    fun decode_sigil names pos   ((Const (@{const_name Boxed}, _)) $ (Const (@{const_name Writable}, _)) $ lo ) l = 
+         Boxed(Writable, build_layout_info pos lo l names)
+      | decode_sigil names pos   ((Const (@{const_name Boxed}, _)) $ (Const (@{const_name ReadOnly}, _)) $ lo ) l = 
+         Boxed(ReadOnly, build_layout_info pos lo l names)
       | decode_sigil _ _   (Const (@{const_name Unboxed},  _)) _ = Unboxed
       | decode_sigil _ pos t _ = raise TERM (report pos ^ "bad sigil", [t]);
    

@@ -64,14 +64,15 @@ fun gen_monoexpr_thm
       (rename_inv: (string * term) Symtab.table) (* mono name -> poly inst *)
       (callees: thm list) (f: string)
       (extra_simps: thm list) ctxt = let
-  val (poly_name, type_inst) = case Symtab.lookup rename_inv f of
+  val (poly_name, type_dl_inst) = case Symtab.lookup rename_inv f of
               SOME x => x
             | NONE => raise ERROR ("gen_monoexpr_thm: " ^ f ^ ": couldn't find polymorphic source")
   val poly_f = Syntax.read_term ctxt (poly_thy ^ "." ^ poly_name)
   val mono_f = Syntax.read_term ctxt (mono_thy ^ "." ^ f)
   val poly_def = Proof_Context.get_thm ctxt (poly_thy ^ "." ^ poly_name ^ "_def")
   val mono_def = Proof_Context.get_thm ctxt (mono_thy ^ "." ^ f ^ "_def")
-  val poly_f_spec = if null (HOLogic.dest_list type_inst) then poly_f else @{term specialise} $ type_inst $ poly_f
+  val (type_inst, dl_inst) = HOLogic.dest_prod type_dl_inst
+  val poly_f_spec = if null (HOLogic.dest_list type_inst) andalso null (HOLogic.dest_list dl_inst) then poly_f else @{term specialise} $ type_inst $ dl_inst $ poly_f
   val prop = @{term "(=)"} $ (@{term "rename_expr"} $ rename_fn $ (@{term "monoexpr"} $ poly_f_spec))
                             $ mono_f
              |> map_types (K dummyT) |> Syntax.check_term ctxt

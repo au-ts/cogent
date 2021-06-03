@@ -68,13 +68,13 @@ where
 | u_tt_sem_pres_take    : "\<lbrakk> s = Boxed Writable l
                            ; ttsplit L K C \<Gamma> sps [] \<Gamma>1 [Some f_ty, Some (TRecord tak_fs s)] \<Gamma>2
                            ; \<Xi>, \<xi> , \<gamma>, L, K, C, \<Gamma>1, TRecord ts s T\<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', UPtr p rp)
-                           ; \<sigma>' p = Some (URecord fs)
+                           ; \<sigma>' p = Some (URecord fs ptrl)
                            ; \<Xi>, \<xi> , (fst (fs ! f) # UPtr p rp # \<gamma>), L, K, C, \<Gamma>2, \<tau> T\<turnstile> (\<sigma>', e) \<Down>! st
                            \<rbrakk> \<Longrightarrow> \<Xi>, \<xi> , \<gamma>, L, K, C, \<Gamma>, \<tau> T\<turnstile> (\<sigma>, Take x f e) \<Down>! st"
 
 | u_tt_sem_pres_take_ub : "\<lbrakk> ttsplit L K C \<Gamma> sps [] \<Gamma>1 [Some f_ty, Some (TRecord tak_ts Unboxed)] \<Gamma>2
-                           ; \<Xi>, \<xi> , \<gamma>, L, K, C, \<Gamma>1, TRecord ts Unboxed T\<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', URecord fs)
-                           ; \<Xi>, \<xi> , (fst (fs ! f) # URecord fs # \<gamma>), L, K, C, \<Gamma>2, \<tau> T\<turnstile> (\<sigma>', e) \<Down>! st
+                           ; \<Xi>, \<xi> , \<gamma>, L, K, C, \<Gamma>1, TRecord ts Unboxed T\<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', URecord fs None)
+                           ; \<Xi>, \<xi> , (fst (fs ! f) # URecord fs None # \<gamma>), L, K, C, \<Gamma>2, \<tau> T\<turnstile> (\<sigma>', e) \<Down>! st
                            \<rbrakk> \<Longrightarrow> \<Xi>, \<xi> , \<gamma>, L, K, C, \<Gamma>, \<tau> T\<turnstile> (\<sigma>, Take x f e) \<Down>! st"
 
 | u_tt_sem_pres_split   : "\<lbrakk> ttsplit L K C \<Gamma> sps [] \<Gamma>1 [Some t, Some u] \<Gamma>2
@@ -296,7 +296,7 @@ next
     qed simp+
   qed (simp add: composite_anormal_expr_def)
 next
-  case (u_sem_take \<xi> \<gamma> \<sigma> x \<sigma>'' p r'  fs f e)
+  case (u_sem_take \<xi> \<gamma> \<sigma> x \<sigma>'' p r'  fs ptrl f e)
 
   show ?case
     using u_sem_take.prems(1)
@@ -334,12 +334,12 @@ next
       using matches2 frame1 matches_ptrs_frame w1_w2_disjoint w1_r2_noalias
       by blast
 
-    obtain ptrl w1'' 
+    obtain w1'' 
       where uptr_p_elim_lemmas:
         "w1' = insert p w1''"
         "\<Xi>, \<sigma>'' \<turnstile>* fs :ur ts \<langle>r1', w1''\<rangle>"
-        "\<sigma>'' p = Some (URecord fs)"
-        "r' = RRecord (map (type_repr \<circ> fst \<circ> snd) ts)"
+        "\<sigma>'' p = Some (URecord fs ptrl)"
+        "r' = RRecord (map (type_repr \<circ> fst \<circ> snd) ts) ptrl"
         "distinct (map fst ts)"
         "s = Boxed Writable ptrl"
         "p \<notin> w1''"
@@ -392,7 +392,7 @@ next
         proof (simp only: snd_t\<Gamma>4_is append_Cons append.left_neutral, intro matches_ptrs_some[OF _ matches_ptrs_some])
           have "\<Xi>, \<sigma>'' \<turnstile>* fs :ur ts[f := (n, t, taken)] \<langle>r1a, w1a\<rangle>"
             by (simp add: ut_fs_taken_f Taken)
-          moreover have "r' = RRecord (map (type_repr \<circ> fst \<circ> snd) (ts[f := (n, t, taken)]))"
+          moreover have "r' = RRecord (map (type_repr \<circ> fst \<circ> snd) (ts[f := (n, t, taken)])) ptrl"
               using Taken type_repr_uval_repr uptr_p_elim_lemmas ut_fs_taken_f
               by (metis (full_types))
           ultimately show "\<Xi>, \<sigma>'' \<turnstile> UPtr p r' :u TRecord (ts[f := (n, t, taken)]) s \<langle>r1a, insert p w1a\<rangle>"
@@ -427,7 +427,7 @@ next
       by (force intro!: u_tt_sem_pres_take)
   qed (simp add: composite_anormal_expr_def)
 next
-  case (u_sem_take_ub \<xi> \<gamma> \<sigma> x \<sigma>'' fs f e)
+  case (u_sem_take_ub \<xi> \<gamma> \<sigma> x \<sigma>'' fs ptrl f e)
   show ?case using u_sem_take_ub.prems u_sem_take_ub.hyps(1,3)
     apply -
     apply (erule ttyping.cases, simp_all)

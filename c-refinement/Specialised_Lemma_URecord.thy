@@ -606,7 +606,7 @@ fun mk_specialised_corres_generic
         mk_term_default
          field_num uval file_nm ctxt
         
-    | CustomLayout l => 
+    | CustomLayout (l, _) => 
         mk_specialised_corres_custom mk_term_custom field_num l file_nm ctxt 
   in
    mk_lemma field_num uval args ctxt
@@ -735,7 +735,7 @@ ML\<open> fun mk_urecord_lems_for_uval file_nm ctxt (uval:field_layout uval) =
         in
           (List.length field_info, List.map #name field_info)
         end
-    | CustomLayout l => (List.length l, List.map #name l)
+    | CustomLayout (l, _) => (List.length l, List.map #name l)
 
   (* specialised_lemmas for each fields.
    * Three lemmas are generated if uval is of Writable.*)

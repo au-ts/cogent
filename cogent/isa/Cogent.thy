@@ -465,7 +465,7 @@ datatype repr = RPtr repr
               | RPrim prim_type
               | RSum "(name \<times> repr) list"
               | RProduct "repr" "repr"
-              | RRecord "repr list"
+              | RRecord "repr list" "ptr_layout option"
               | RUnit
 
 fun type_repr :: "type \<Rightarrow> repr" where
@@ -475,9 +475,8 @@ fun type_repr :: "type \<Rightarrow> repr" where
 | "type_repr (TProduct a b)       = RProduct (type_repr a) (type_repr b)"
 | "type_repr (TCon n ts Unboxed)  = RCon n (map type_repr ts)"
 | "type_repr (TCon n ts _)        = RPtr (RCon n (map type_repr ts))"
-| "type_repr (TRecord ts Unboxed) = RRecord (map (\<lambda>(_,b,_). type_repr b) ts)"
-(* Here, the layout is droped, but it should play an important role *)
-| "type_repr (TRecord ts _)       = RPtr (RRecord (map (\<lambda>(_,b,_). type_repr b) ts))"
+| "type_repr (TRecord ts Unboxed) = RRecord (map (\<lambda>(_,b,_). type_repr b) ts) None"
+| "type_repr (TRecord ts (Boxed _ ptrl))       = RPtr (RRecord (map (\<lambda>(_,b,_). type_repr b) ts) ptrl)"
 | "type_repr (TUnit)              = RUnit"
 
 section {* Representation Types (for use in layout) *}

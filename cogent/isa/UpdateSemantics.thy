@@ -17,7 +17,7 @@ begin
 datatype ('f, 'a, 'l) uval = UPrim lit
                            | UProduct "('f,'a,'l) uval" "('f,'a,'l) uval"
                            | USum name "('f,'a,'l) uval" "(name \<times> repr) list"
-                           | URecord "(('f,'a,'l) uval \<times> repr) list"
+                           | URecord "(('f,'a,'l) uval \<times> repr) list" "ptr_layout option"
                            | UAbstract "'a"
                            | UFunction "'f expr" "type list" "ptr_layout list"
                            | UAFunction "'f" "type list" "ptr_layout list"
@@ -83,11 +83,11 @@ where
 | u_sem_con     : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', x')
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Con ts t x) \<Down>! (\<sigma>', USum t x' (map (\<lambda>(n,t,_). (n,type_repr t)) ts))"
 
-| u_sem_member  : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, e) \<Down>! (\<sigma>', URecord fs)
+| u_sem_member  : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, e) \<Down>! (\<sigma>', URecord fs ptrl)
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Member e f) \<Down>! (\<sigma>', fst (fs ! f))"
 
 | u_sem_memb_b  : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, e) \<Down>! (\<sigma>', UPtr p r)
-                   ; \<sigma>' p = Some (URecord fs)
+                   ; \<sigma>' p = Some (URecord fs ptrl)
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Member e f) \<Down>! (\<sigma>', fst (fs ! f))"
 
 | u_sem_unit    : "\<xi> , \<gamma> \<turnstile> (\<sigma>, Unit) \<Down>! (\<sigma>, UUnit)"
@@ -121,26 +121,27 @@ where
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, If x t e) \<Down>! st"
 
 | u_sem_struct  : "\<lbrakk> \<xi> , \<gamma> \<turnstile>* (\<sigma>, xs) \<Down>! (\<sigma>', vs)
-                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Struct ts xs) \<Down>! (\<sigma>', URecord (zip vs (map type_repr ts)))"
+                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Struct ts xs) \<Down>! (\<sigma>', URecord (zip vs (map type_repr ts)) None)"
 
 | u_sem_take    : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', UPtr p r)
-                   ; \<sigma>' p = Some (URecord fs)
+                   ; \<sigma>' p = Some (URecord fs ptrl)
                    ; \<xi> , (fst (fs ! f) # UPtr p r # \<gamma>) \<turnstile> (\<sigma>', e) \<Down>! st
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Take x f e) \<Down>! st"
-
-| u_sem_take_ub : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', URecord fs)
-                   ; \<xi> , (fst (fs ! f) # URecord fs # \<gamma>) \<turnstile> (\<sigma>', e) \<Down>! st
+| u_sem_take_ub : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', URecord fs None)
+                   ; \<xi> , (fst (fs ! f) # URecord fs None # \<gamma>) \<turnstile> (\<sigma>', e) \<Down>! st
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Take x f e) \<Down>! st"
 
 | u_sem_put     : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', UPtr p r)
-                   ; \<sigma>' p = Some (URecord fs)
+                   ; \<sigma>' p = Some (URecord fs ptrl)
                    ; \<xi> , \<gamma> \<turnstile> (\<sigma>', e) \<Down>! (\<sigma>'', e')
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Put x f e)
-                      \<Down>! (\<sigma>'' (p := Some (URecord (fs [ f := (e', snd (fs ! f) )]))), UPtr p r)"
+                      \<Down>! (\<sigma>'' (p := Some (URecord (fs [ f := (e', snd (fs ! f) )]) ptrl)), UPtr p r)"
 
-| u_sem_put_ub  : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', URecord fs)
+(* we could enforce the layout to be None since unboxed records may not
+be assigned a custom layout *)
+| u_sem_put_ub  : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', URecord fs ptrl)
                    ; \<xi> , \<gamma> \<turnstile> (\<sigma>', e) \<Down>! (\<sigma>'', e')
-                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Put x f e) \<Down>! (\<sigma>'', URecord (fs [ f := (e', snd (fs ! f)) ]))"
+                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Put x f e) \<Down>! (\<sigma>'', URecord (fs [ f := (e', snd (fs ! f)) ]) ptrl)"
 
 
 | u_sem_split   : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, x) \<Down>! (\<sigma>', UProduct a b)
@@ -177,7 +178,7 @@ fun uval_repr :: "('f, 'a, 'l) uval \<Rightarrow> repr" where
   "uval_repr (UPrim lit) = RPrim (lit_type lit)"
 | "uval_repr (UProduct a b) = RProduct (uval_repr a) (uval_repr b)"
 | "uval_repr (USum a b reprs) = RSum reprs"
-| "uval_repr (URecord fs) = RRecord (map snd fs)"
+| "uval_repr (URecord fs ptrl) = RRecord (map snd fs) ptrl"
 | "uval_repr (UAbstract a) = (let (x,y) = abs_repr a in RCon x y)"
 | "uval_repr (UFunction _ _ _) = RFun"
 | "uval_repr (UAFunction _ _ _) = RFun"
@@ -188,7 +189,7 @@ fun uval_repr_deep :: "('f, 'a, 'l) uval \<Rightarrow> repr" where
   "uval_repr_deep (UPrim lit) = RPrim (lit_type lit)"
 | "uval_repr_deep (UProduct a b) = RProduct (uval_repr_deep a) (uval_repr_deep b)"
 | "uval_repr_deep (USum a b reprs) = RSum reprs"
-| "uval_repr_deep (URecord fs) = RRecord (map uval_repr_deep (map fst fs))"
+| "uval_repr_deep (URecord fs ptrl) = RRecord (map uval_repr_deep (map fst fs)) ptrl"
 | "uval_repr_deep (UAbstract a) = (let (x,y) = abs_repr a in RCon x y)"
 | "uval_repr_deep (UFunction _ _ _) = RFun"
 | "uval_repr_deep (UAFunction _ _ _) = RFun"
@@ -229,7 +230,7 @@ and uval_typing_record :: "('f \<Rightarrow> poly_type)
 
 | u_t_struct   : "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle>
                   ; distinct (map fst ts)
-                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> URecord fs :u TRecord ts Unboxed \<langle>r, w\<rangle>"
+                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> URecord fs None :u TRecord ts Unboxed \<langle>r, w\<rangle>"
 
 | u_t_abstract : "\<lbrakk> abs_typing a n ts Unboxed r w
                   ; 0, [], {} \<turnstile>* ts wellformed
@@ -250,19 +251,19 @@ and uval_typing_record :: "('f \<Rightarrow> poly_type)
 | u_t_unit     : "\<Xi>, \<sigma> \<turnstile> UUnit :u TUnit \<langle>{}, {}\<rangle>"
 
 | u_t_p_rec_ro : "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r, {}\<rangle>
-                  ; \<sigma> l = Some (URecord fs)
+                  ; \<sigma> l = Some (URecord fs ptrl)
                   ; distinct (map fst ts)
                   ; matches_type_sigil 0 {} (LRRecord (map (\<lambda>(n, t, _). (n, type_lrepr t)) ts))
      (Boxed ReadOnly ptrl)
-                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (type_repr \<circ> fst \<circ> snd) ts)) :u TRecord ts (Boxed ReadOnly ptrl) \<langle>insert l r, {}\<rangle>"
+                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (type_repr \<circ> fst \<circ> snd) ts) ptrl) :u TRecord ts (Boxed ReadOnly ptrl) \<langle>insert l r, {}\<rangle>"
 
 | u_t_p_rec_w  : "\<lbrakk> \<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle>
-                  ; \<sigma> l = Some (URecord fs)
+                  ; \<sigma> l = Some (URecord fs ptrl)
                   ; l \<notin> (w \<union> r)
                   ; distinct (map fst ts)
                   ; matches_type_sigil 0 {} (LRRecord (map (\<lambda>(n, t, _). (n, type_lrepr t)) ts))
      (Boxed Writable ptrl)
-                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (type_repr \<circ> fst \<circ> snd) ts)) :u TRecord ts (Boxed Writable ptrl) \<langle>r, insert l w\<rangle>"
+                  \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (type_repr \<circ> fst \<circ> snd) ts) ptrl) :u TRecord ts (Boxed Writable ptrl) \<langle>r, insert l w\<rangle>"
 
 | u_t_p_abs_ro : "\<lbrakk> s = Boxed ReadOnly ptrl
                   ; abs_typing a n ts s r {}
@@ -301,7 +302,7 @@ inductive_cases u_t_functionE [elim] : "\<Xi>, \<sigma> \<turnstile> UFunction f
 inductive_cases u_t_afunE     [elim] : "\<Xi>, \<sigma> \<turnstile> UAFunction f ts ls :u TFun \<tau> \<rho> \<langle>r, w\<rangle>"
 inductive_cases u_t_sumE      [elim] : "\<Xi>, \<sigma> \<turnstile> v :u TSum \<tau>s \<langle>r, w\<rangle>"
 inductive_cases u_t_productE  [elim] : "\<Xi>, \<sigma> \<turnstile> UProduct a b :u TProduct \<tau> \<rho> \<langle>r, w\<rangle>"
-inductive_cases u_t_recE      [elim] : "\<Xi>, \<sigma> \<turnstile> URecord fs :u \<tau> \<langle>r, w\<rangle>"
+inductive_cases u_t_recE      [elim] : "\<Xi>, \<sigma> \<turnstile> URecord fs ptrl :u \<tau> \<langle>r, w\<rangle>"
 inductive_cases u_t_p_recE    [elim] : "\<Xi>, \<sigma> \<turnstile> UPtr p rp :u TRecord fs s \<langle>r, w\<rangle>"
 inductive_cases u_t_r_emptyE  [elim] : "\<Xi>, \<sigma> \<turnstile>* [] :ur \<tau>s \<langle>r, w\<rangle>"
 inductive_cases u_t_r_consE   [elim] : "\<Xi>, \<sigma> \<turnstile>* (x # xs) :ur \<tau>s \<langle>r, w\<rangle>"
@@ -560,7 +561,7 @@ next
     by (force intro: uval_typing_uval_typing_record.intros bang_wellformed abs_typing_bang[where s = Unboxed, simplified])
 next
   case (u_t_p_rec_ro \<Xi> \<sigma> fs ts r l ptrl)
-  moreover have "\<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (type_repr \<circ> fst \<circ> snd \<circ> apsnd (apfst bang)) ts)) :u TRecord (map (apsnd (apfst bang)) ts) (Boxed ReadOnly ptrl) \<langle>insert l r, {}\<rangle>"
+  moreover have "\<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (type_repr \<circ> fst \<circ> snd \<circ> apsnd (apfst bang)) ts) ptrl) :u TRecord (map (apsnd (apfst bang)) ts) (Boxed ReadOnly ptrl) \<langle>insert l r, {}\<rangle>"
     using u_t_p_rec_ro uval_typing_uval_typing_record.u_t_p_rec_ro
     by(fastforce simp add:compose_triple bang_lrepr 
 simp flip:map_snd3_keep)
@@ -570,7 +571,7 @@ simp flip:map_snd3_keep)
     by (force dest: uval_typing_to_wellformed(2) simp add: fst_apfst_compcomp snd_apsnd_compcomp map_snd3_keep)
 next
   case (u_t_p_rec_w \<Xi> \<sigma> fs ts r w l ptrl)
-  moreover have "\<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (type_repr \<circ> fst \<circ> snd \<circ> apsnd (apfst bang)) ts)) :u TRecord (map (apsnd (apfst bang)) ts) (Boxed ReadOnly ptrl) \<langle>insert l (r \<union> w), {}\<rangle>"
+  moreover have "\<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (type_repr \<circ> fst \<circ> snd \<circ> apsnd (apfst bang)) ts) ptrl) :u TRecord (map (apsnd (apfst bang)) ts) (Boxed ReadOnly ptrl) \<langle>insert l (r \<union> w), {}\<rangle>"
 using u_t_p_rec_w uval_typing_uval_typing_record.u_t_p_rec_ro
   by(fastforce simp add:compose_triple bang_lrepr 
 matches_type_sigil_boxed
@@ -1367,8 +1368,8 @@ using assms(2,1) by ( induct "map snd tsa" "map snd rs"
 lemma type_repr_uval_repr:
 shows"\<Xi>, \<sigma> \<turnstile> v :u t \<langle>r, w\<rangle> \<Longrightarrow> uval_repr v = type_repr t"
 and  "\<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle> \<Longrightarrow> map snd fs = map (type_repr \<circ> fst \<circ> snd) ts"
-  by (induct rule: uval_typing_uval_typing_record.inducts,
-      (force dest: abs_typing_repr intro: list_all2_helper2 [symmetric])+)
+  by (induct rule: uval_typing_uval_typing_record.inducts)  
+      (force dest: abs_typing_repr intro: list_all2_helper2 [symmetric])+
 
 lemma type_repr_uval_repr_deep:
 shows"\<Xi>, \<sigma> \<turnstile> v :u t \<langle>r, w\<rangle> \<Longrightarrow> uval_repr_deep v = type_repr t"
@@ -1825,9 +1826,9 @@ by (induct list, (simp+, (case_tac a)?)+)
 
 lemma u_t_p_rec_w':
   assumes "\<Xi>, \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle>"
-    and "\<sigma> l = Some (URecord fs)"
+    and "\<sigma> l = Some (URecord fs ptrl)"
     and "l \<notin> w \<union> r"
-    and "rp = (RRecord (map (type_repr \<circ> fst \<circ> snd) ts)) "
+    and "rp = (RRecord (map (type_repr \<circ> fst \<circ> snd) ts) ptrl) "
     and "distinct (map fst ts)"
 
     and "matches_type_sigil 0 {} (LRRecord (map (\<lambda>(n, t, _). (n, type_lrepr t)) ts)) (Boxed Writable ptrl)"
@@ -2391,8 +2392,9 @@ next case u_sem_memb_b
          , fastforce )
  done
 next
-  
-  case (u_sem_take \<xi> \<gamma> \<sigma> x_spec \<sigma>'' pa ra fs f ea_spec)
+
+
+  case (u_sem_take \<xi> \<gamma> \<sigma> x_spec \<sigma>'' pa ra fs ptrl f ea_spec)
   then show ?case
   proof (cases e)
     case (Take x f' ea)
@@ -2435,18 +2437,19 @@ next
       using u_sem_take.hyps(2) u_sem_take.prems ptrs_split_lemmas typing_e_elim_lemmas case_simps
       by blast
 
-    obtain ptrl w1' 
+    obtain ptrla w1' 
       where IH1_uptr_elim_lemmas:
         "w1pa' = insert pa w1'"
         "\<Xi>, \<sigma>'' \<turnstile>* fs :ur map (\<lambda>(n, t, y). (n, instantiate \<epsilon> \<tau>s t, y)) ts \<langle>r1', w1'\<rangle>"
-        "\<sigma>'' pa = Some (URecord fs)"
+        "\<sigma>'' pa = Some (URecord fs ptrl)"
         "distinct (map fst ts)"
-        "ra = RRecord (map (type_repr \<circ> fst \<circ> snd \<circ> (\<lambda>(n, t, b). (n, instantiate \<epsilon> \<tau>s t, b))) ts)"
-        "s = Boxed Writable ptrl"
+        "ra = RRecord (map (type_repr \<circ> fst \<circ> snd \<circ> (\<lambda>(n, t, b). (n, instantiate \<epsilon> \<tau>s t, b))) ts) ptrl"
+        "s = Boxed Writable ptrla"
         "pa \<notin> w1'"
         "pa \<notin> r1'"
         "matches_type_sigil 0 {} (LRRecord (map (\<lambda>(n, t, _). (n, type_lrepr t)) ((map_field_type (instantiate \<epsilon> \<tau>s) ts)))) 
-           (instantiate_sigil \<epsilon> s)" 
+           (instantiate_sigil \<epsilon> s)"  
+        "ptrl = (map_option (instantiate_lay \<epsilon>) ptrla)"
       using IH1_lemmas typing_e_elim_lemmas
 by (force elim!: u_t_p_recE simp add: u_sem_take.hyps instantiate_sigil_boxed_invert)
 
@@ -2496,13 +2499,13 @@ by (force elim!: u_t_p_recE simp add: u_sem_take.hyps instantiate_sigil_boxed_in
       have "\<Xi>, \<sigma>'' \<turnstile> fst (fs ! f') # UPtr pa ra # \<gamma>
             matches Some (instantiate \<epsilon> \<tau>s t)
               # Some (TRecord ((map (\<lambda>(n, t, y). (n, instantiate \<epsilon> \<tau>s t, y)) ts)[f' := (n, instantiate \<epsilon> \<tau>s t, Taken)]) 
-    (Boxed Writable (map_option (instantiate_lay \<epsilon>) ptrl)))
+    (Boxed Writable (map_option (instantiate_lay \<epsilon>) ptrla)))
               # instantiate_ctx \<epsilon> \<tau>s \<Gamma>2
 
             \<langle>r1'' \<union> (r1''' \<union> r2), w1'' \<union> (insert pa w1''' \<union> w2)\<rangle>"
         using utype_record_take_lemmas u_sem_take.hyps(3) \<sigma>''_matches2
       proof (intro matches_ptrs_some[OF _ matches_ptrs_some[OF u_t_p_rec_w']])
-        show "ra = RRecord (map (type_repr \<circ> fst \<circ> snd) ((map (\<lambda>(n, t, y). (n, instantiate \<epsilon> \<tau>s t, y)) ts)[f' := (n, instantiate \<epsilon> \<tau>s t, Taken)]))"
+        show "ra = RRecord (map (type_repr \<circ> fst \<circ> snd) ((map (\<lambda>(n, t, y). (n, instantiate \<epsilon> \<tau>s t, y)) ts)[f' := (n, instantiate \<epsilon> \<tau>s t, Taken)])) (map_option (instantiate_lay \<epsilon>) ptrla)"
           using type_repr_inst_ts_taken_same IH1_uptr_elim_lemmas
           by (simp add: map_update)
       next
@@ -2524,13 +2527,13 @@ by (force elim!: u_t_p_recE simp add: u_sem_take.hyps instantiate_sigil_boxed_in
           by (auto simp add: distinct_map map_update intro: distinct_list_update)
       next
         show "matches_type_sigil 0 {} (LRRecord (map (\<lambda>(n, t, _). (n, type_lrepr t)) ((map_field_type (instantiate \<epsilon> \<tau>s) ts)[f' := (n, instantiate \<epsilon> \<tau>s t, Taken)]))) (Boxed Writable 
-(map_option (instantiate_lay \<epsilon>) ptrl))"
+(map_option (instantiate_lay \<epsilon>) ptrla))"
           using IH1_uptr_elim_lemmas typing_e_elim_lemmas
-          by (fastforce simp add:map_nth_same)          
-      qed clarsimp+
+          by (fastforce simp add:map_nth_same)         
+      qed (simp add:IH1_uptr_elim_lemmas)+
       then have "\<exists>r' w'. \<Xi>, \<sigma>' \<turnstile> v :u instantiate \<epsilon> \<tau>s \<tau> \<langle>r', w'\<rangle> \<and> r' \<subseteq> r1'' \<union> (r1''' \<union> r2) \<and> frame \<sigma>'' (insert pa (w1'' \<union> (w1''' \<union> w2))) \<sigma>' w'"
         using u_sem_take.hyps(5) typing_e_elim_lemmas(8) u_sem_take.prems Taken IH1_uptr_elim_lemmas case_simps
-        by (simp add: map_update)
+        by (simp add: map_update )
       then obtain r' w'
         where
           "\<Xi>, \<sigma>' \<turnstile> v :u instantiate \<epsilon> \<tau>s \<tau> \<langle>r', w'\<rangle>"
@@ -2557,7 +2560,7 @@ by (force elim!: u_t_p_recE simp add: u_sem_take.hyps instantiate_sigil_boxed_in
       have "\<Xi>, \<sigma>'' \<turnstile> fst (fs ! f') # UPtr pa ra # \<gamma>
             matches Some (instantiate \<epsilon> \<tau>s t)
               # Some (TRecord (map (\<lambda>(n, t, y). (n, instantiate \<epsilon> \<tau>s t, y)) ts) (Boxed Writable 
-   (map_option (instantiate_lay \<epsilon>) ptrl)))
+   (map_option (instantiate_lay \<epsilon>) ptrla)))
               # instantiate_ctx \<epsilon> \<tau>s \<Gamma>2
             \<langle>r1'' \<union> (r1' \<union> r2), {} \<union> (insert pa w1' \<union> w2)\<rangle>"
         using utype_record_take_lemmas u_sem_take.hyps(3) \<sigma>''_matches2 w1''_empty IH1_uptr_elim_lemmas

@@ -15,6 +15,12 @@ theory CogentHelper
 keywords "ML_quiet" :: thy_decl % "ML"
 begin
 
+(* this is used in tactics as a drule to prevent
+   simp from looping
+*)
+lemma boxedeq : "(Boxed x a = Boxed x b) \<Longrightarrow> (a = b)"
+  by simp
+
 (* Rewrite rules to get expressions in the assumptions *)
 
 lemma typing_subst : "\<lbrakk>

@@ -212,7 +212,7 @@ fun make_field_layout
   { name = name, getter = getter, setter = setter, 
   isa_getter = isa_getter, isa_setter = isa_setter}
 
-datatype 'a layout_info = CustomLayout of 'a list
+datatype 'a layout_info = CustomLayout of 'a list * term
  | DefaultLayout
 (* type definition on the ML-level.*)
 datatype access_perm = ReadOnly | Writable
@@ -224,7 +224,7 @@ datatype 'a uval = UProduct of string
 ;
 type 'a uvals = ('a uval) list;
 
-fun sigil_map f (Boxed (a, CustomLayout l)) = Boxed (a, CustomLayout (map f l))
+fun sigil_map f (Boxed (a, CustomLayout (l, t))) = Boxed (a, CustomLayout ((map f l), t))
  |  sigil_map _ (Boxed (a, DefaultLayout)) = Boxed (a, DefaultLayout)
  |  sigil_map _ Unboxed = Unboxed
 
@@ -307,7 +307,7 @@ ML \<open>
   fun get_uval_custom_layout u =
     case u |> get_uval_sigil |> get_sigil_layout of
      DefaultLayout =>  error "get_uval_custom_layout failed. The argument has no custom layout."
-    | CustomLayout l => l
+    | CustomLayout (l, _) => l
 \<close>
 
 ML\<open> fun get_uval_custom_layout_records uvals =
