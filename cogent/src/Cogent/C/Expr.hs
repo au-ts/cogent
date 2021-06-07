@@ -281,7 +281,7 @@ maybeDecl (Just v) t = return (v,[],[])
 
 -- If assigned to a new var, then recycle
 aNewVar :: CType -> CExpr -> VarPool -> Gen v (CExpr, [CBlockItem], [CBlockItem], VarPool)
-aNewVar t e p | not __cogent_simpl_cg && not (isTrivialCExpr e)
+aNewVar t e p | __cogent_simpl_cg && not (isTrivialCExpr e)
   = (extTup3r M.empty) . (first3 variable) <$> declareInit t e p
               | otherwise = return (e,[],[],p)
 
