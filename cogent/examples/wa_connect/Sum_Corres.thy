@@ -119,96 +119,23 @@ lemma wordarray_fold_no_break_u32_corres:
                   gets (\<lambda>s. x)
                od)
          \<xi>1 \<gamma> \<Xi> \<Gamma> \<sigma> s"
-  thm upd_C_wordarray_fold_no_break_corres_gen
-  apply (subgoal_tac "\<exists>fs. (\<gamma> ! i) = URecord fs")
-   apply (erule exE)
-   apply (rule_tac k = "kinding_fn [] (foldmap_obsv_type ''wordarray_fold_no_break_0'')" and
-      \<xi>0' = \<xi>0 and K' = "[]" and num = U32
-      in upd_C_wordarray_fold_no_break_corres_gen; simp?)
-          apply (rule upd_proc_env_matches_ptrs_\<xi>0_\<Xi>)
-         apply (rule disjI1)
-         apply (clarsimp simp: \<Xi>_def wordarray_fold_no_break_0_type_def)
-        apply (clarsimp simp: \<Xi>_def wordarray_fold_no_break_0_type_def)
-       apply (rule kindingI; simp)
-      apply (clarsimp simp: \<Xi>_def  wordarray_fold_no_break_0_type_def val_rel_simp
-      abbreviated_type_defs cogent_function_val_rel untyped_func_enum_defs)
-    apply (rule typing_app[of _ 
-      "[option.Some (TRecord [(''elem'', TPrim (Num U32), Present),
-        (''acc'', TPrim (Num U32), Present), (''obsv'', TUnit, Present)] Unboxed)]"
-      "[option.Some (TRecord [(''elem'', TPrim (Num U32), Present),
-        (''acc'', TPrim (Num U32), Present), (''obsv'', TUnit, Present)] Unboxed)]"
-      "[option.Some (TRecord [(''elem'', TPrim (Num U32), Present),
-        (''acc'', TPrim (Num U32), Present), (''obsv'', TUnit, Present)] Unboxed)]"
-      _ _
-      "TRecord [(''elem'', TPrim (Num U32), Present), (''acc'', TPrim (Num U32), Present),
-        (''obsv'', TUnit, Present)] Unboxed"] ; simp?)
-      apply (clarsimp simp: split_def)
-      apply (rule_tac k = "{D, S}" in share, rule kindingI; simp?)
-     apply (rule typing_fun; simp?)
-       apply (subst abbreviated_type_defs[symmetric])+
-       apply (subst wordarray_fold_no_break_0_type_def[symmetric])
-       apply (subst \<Xi>_def[symmetric])
-       apply (rule sum_typecorrect'[simplified sum_type_def snd_conv fst_conv])
-      apply (clarsimp simp: empty_def weakening_def)
-      apply (rule_tac k = "{D, S}" in drop, rule kindingI; simp?)
-     apply clarsimp
-    apply (subst abbreviated_type_defs[symmetric])+
-    apply (subst wordarray_fold_no_break_0_type_def[symmetric])
-    apply (subst \<Xi>_def[symmetric])
-    apply (rule typing_var)
-     apply (clarsimp simp: weakening_def empty_def)
-     apply (rule keep)
-     apply (clarsimp simp: abbreviated_type_defs)
-      apply clarsimp
-     apply (clarsimp simp: val_rel_simp cogent_function_val_rel untyped_func_enum_defs)
-     apply (subst dispatch_t4'_def; simp)
-     apply (subst unknown_bind_ignore)
-     apply (simp add: untyped_func_enum_defs)
-     apply (rule corres_app_concrete[simplified]; (simp del: \<xi>0.simps)?)
-     apply (simp add: \<Xi>_def wordarray_fold_no_break_0_type_def del: \<xi>0.simps)
-     apply (subst wordarray_fold_no_break_0_type_def[symmetric])
-     apply (subst \<Xi>_def[symmetric])
-     apply (rule sum_corres[simplified sum_type_def snd_conv fst_conv])
+  apply (subst (asm) val_rel_simp)+
+  apply (elim exE conjE)
+  apply (rule_tac num = U32 and k = "kinding_fn [] (foldmap_obsv_type ''wordarray_fold_no_break_0'')" and
+        K' = "[]" in upd_C_wordarray_fold_no_break_corres_cog[OF _ _ _ 
+        upd_proc_env_matches_ptrs_\<xi>0_\<Xi> _ _ _ _ _ _ _
+        sum_typecorrect'[simplified sum_type_def]]; 
+      (simp add: fun_eq_iff \<Xi>_wordarray_fold_no_break_0 wordarray_fold_no_break_0_type_def )?;
+      (rule kindingI)?; clarsimp?)
      apply (clarsimp simp: val_rel_simp)
-    apply (clarsimp simp: fun_eq_iff)
-   apply (clarsimp simp: \<Xi>_def wordarray_fold_no_break_0_type_def abbreviated_type_defs)
+    apply (simp add: abbreviated_type_defs)
+   apply (clarsimp simp: cogent_function_val_rel untyped_func_enum_defs)
+  apply (subst dispatch_t4'_def[simplified, simplified unknown_bind_ignore untyped_func_enum_defs]; simp)
+  apply (rule corres_app_concrete[simplified]; (simp del: \<xi>0.simps add: untyped_func_enum_defs)?)
+  apply (rule sum_corres[simplified sum_type_def snd_conv fst_conv])
   apply (clarsimp simp: val_rel_simp)
   done
-(*
-lemma wordarray_length_u32_scorres:
-  "\<And>i \<gamma> v ts.
-   \<lbrakk>i < length \<gamma>; valRel \<xi>p1 (v::32 word WordArray) (\<gamma> ! i)\<rbrakk> 
-    \<Longrightarrow> val.scorres (wordarray_length v) (App (AFun ''wordarray_length'' ts) (Var i)) \<gamma> \<xi>p1"
-  apply (rule scorres_wordarray_length; clarsimp simp: fun_eq_iff)
-  done
 
-lemma wordarray_fold_no_break_u32_scorres:
-  "\<And>i \<gamma> v ts.
-   \<lbrakk>i < length \<gamma>; valRel \<xi>p1 (v::((32 word) WordArray, 32 word, 32 word,
-      (32 word, 32 word, unit) ElemAO \<Rightarrow> 32 word, 32 word, unit) WordArrayMapP) (\<gamma> ! i);
-    WordArrayMapP.f\<^sub>f v = Generated_Shallow_Normal.sum;
-    \<exists>fs. \<gamma> ! i = VRecord fs \<and> fs ! 3 = VFunction Generated_Deep_Normal.sum []\<rbrakk>
-    \<Longrightarrow> val.scorres (wordarray_fold_no_break v) (App (AFun ''wordarray_fold_no_break'' ts) (Var i)) \<gamma> \<xi>p1"
-  apply (subgoal_tac "\<exists>arr frm to f acc obsv. v = \<lparr>WordArrayMapP.arr\<^sub>f = arr, frm\<^sub>f = frm, to\<^sub>f = to,
-    f\<^sub>f = f, acc\<^sub>f = acc, obsv\<^sub>f = obsv\<rparr>")
-   apply clarsimp
-   apply (rule_tac \<xi>p' = \<xi>p in scorres_wordarray_fold_no_break_u32; simp?)
-  apply (clarsimp simp: fun_eq_iff )
-   apply (clarsimp simp: valRel_records valRel_WordArray_simps)
-   apply (rename_tac x v')
-   apply (cut_tac v = x and ts = "[]" and \<xi>' = \<xi>p and 
-      v' = "VRecord [VPrim (LU32 (ElemAO.elem\<^sub>f x)), VPrim (LU32 (ElemAO.acc\<^sub>f x)), VUnit]" in sum_scorres)
-    apply (clarsimp simp: valRel_records)
-   apply (clarsimp simp: val.scorres_def)
-  apply (clarsimp simp: valRel_records valRel_WordArray_simps)
-  apply (rule_tac x = "WordArrayMapP.arr\<^sub>f v" in exI)
-  apply (rule_tac x = "WordArrayMapP.frm\<^sub>f v" in exI)
-  apply (rule_tac x = "WordArrayMapP.to\<^sub>f v" in exI)
-  apply (rule_tac x = "Generated_Shallow_Normal.sum" in exI)
-  apply (rule_tac x = "WordArrayMapP.acc\<^sub>f v" in exI)
-  apply clarsimp
-  done
-*)
 section "Putting It All Together"
 
 text

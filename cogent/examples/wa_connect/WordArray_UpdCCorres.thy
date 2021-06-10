@@ -769,5 +769,99 @@ gets (\<lambda>s. x)
   apply (clarsimp simp: not_le)
   done
 
+section "Specialised Lemmas for Cogent Functions"
+
+lemma typing_mono_app_cogent_fun:
+  "\<Xi>', [], [option.Some a] \<turnstile> f : b \<Longrightarrow> \<Xi>', [], [option.Some a] \<turnstile> App (Fun f []) (Var 0) : b"
+  apply (frule typing_to_kinding_env(1); simp?)
+  apply (rule typing_app[where x = a and y = b and ?\<Gamma>1.0 = "[option.None]" and ?\<Gamma>2.0 = "[option.Some a]"]; simp?)
+    apply (clarsimp simp: split_conv_all_nth)
+    apply (rule right; simp)
+    apply (rule typing_fun[where ts = "[]", OF _ _ _ _]; (simp add: Cogent.empty_def weakening_conv_all_nth)?)
+   apply (rule none)
+  apply (rule typing_var; simp add: Cogent.empty_def weakening_conv_all_nth)
+  apply (rule keep; simp)
+  done
+
+lemma typing_mono_fun_cogent_fun:
+  "\<Xi>', [], [option.Some a] \<turnstile> f : b \<Longrightarrow> \<Xi>', [], [option.None] \<turnstile> Fun f [] : TFun a b"
+  apply (frule typing_to_kinding_env(1); simp?)
+  apply (rule typing_fun[where ts = "[]", OF _ _ _ _]; (simp add: Cogent.empty_def weakening_conv_all_nth)?)
+  apply (rule none)
+  done
+
+lemma typing_mono_fun_imp_appfun:
+  "\<Xi>', [], [option.None] \<turnstile> Fun f [] : TFun a b \<Longrightarrow> \<Xi>', [], [option.Some a] \<turnstile> App (Fun f []) (Var 0) : b"
+  apply (frule typing_to_wellformed(1))
+  apply (rule typing_app[where x = a and y = b and ?\<Gamma>1.0 = "[option.None]" and ?\<Gamma>2.0 = "[option.Some a]"]; simp?)
+   apply (clarsimp simp: split_conv_all_nth)
+   apply (rule right; simp)
+  apply (rule typing_var; simp add: Cogent.empty_def weakening_conv_all_nth)
+  apply (rule keep; simp)
+  done
+
+lemma upd_C_wordarray_fold_no_break_corres_cog:
+  "\<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v'; 
+    \<Gamma>' ! i = option.Some (prod.fst (prod.snd (\<Xi> ''wordarray_fold_no_break_0'')));
+    upd.proc_env_matches_ptrs \<xi>0' \<Xi>;
+    \<Xi> ''wordarray_fold_no_break_0'' = ([], \<tau>, \<tau>acc);
+    \<tau> = TRecord [(''arr'', TCon ''WordArray'' [TPrim (Num num)] (Boxed ReadOnly undefined), Present),
+      (''frm'', TPrim (Num U32), Present), (''to'', TPrim (Num U32), Present),
+      (''f'', TFun \<tau>f  \<tau>acc, Present), (''acc'', \<tau>acc, Present), (''obsv'', \<tau>obsv, Present)] Unboxed;
+    \<tau>f = TRecord [(''elem'', TPrim (Num num), Present), (''acc'', \<tau>acc, Present), 
+      (''obsv'', \<tau>obsv, Present)] Unboxed;
+    D \<in> k \<or> S \<in> k; K' \<turnstile> \<tau>obsv :\<kappa> k;
+    \<gamma> ! i = URecord fs; UFunction f [] = prod.fst (fs ! 3);  
+    \<Xi>, [], [option.Some \<tau>f] \<turnstile> f : \<tau>acc;
+    \<forall>x x' \<sigma> s. val_rel x x' \<longrightarrow> update_sem_init.corres wa_abs_typing_u wa_abs_repr (Generated.state_rel wa_abs_repr) 
+      (App (Fun f []) (Var 0)) (do ret <- dispatch_t4' (t5_C.f_C v') x'; gets (\<lambda>s. ret) od) 
+      \<xi>0' [x] \<Xi> [option.Some \<tau>f] \<sigma> s;
+    \<xi>1' ''wordarray_fold_no_break_0'' = upd_wa_foldnb \<Xi> \<xi>0' \<tau>f\<rbrakk>
+    \<Longrightarrow> update_sem_init.corres wa_abs_typing_u wa_abs_repr (Generated.state_rel wa_abs_repr)
+         (App (AFun ''wordarray_fold_no_break_0'' []) (Var i)) (do x <- main_pp_inferred.wordarray_fold_no_break_0' v';
+gets (\<lambda>s. x)
+                                                                od)
+         \<xi>1' \<gamma> \<Xi>  \<Gamma>' \<sigma> s"
+  apply (drule typing_mono_app_cogent_fun)
+  apply (rule upd_C_wordarray_fold_no_break_corres_gen; simp?)
+   apply (clarsimp simp: val_rel_simp)
+  apply (clarsimp simp: val_rel_simp)
+  done
+
+section "Specialised Lemmas for Abstract Functions"
+lemma typing_mono_app_cogent_absfun:
+  "\<lbrakk>proc_ctx_wellformed \<Xi>'; \<Xi>' f = ([], a, b)\<rbrakk> \<Longrightarrow> \<Xi>', [], [option.Some a] \<turnstile> App (AFun f []) (Var 0) : b"
+  apply (unfold  proc_ctx_wellformed_def)
+  apply (erule_tac x = f in allE; clarsimp)
+  apply (rule typing_app[where x = a and y = b and ?\<Gamma>1.0 = "[option.None]" and ?\<Gamma>2.0 = "[option.Some a]"]; simp?)
+    apply (clarsimp simp: split_conv_all_nth)
+    apply (rule right; simp)
+   apply (rule typing_afun[where ts = "[]", OF _ _ _ _]; (simp add: Cogent.empty_def weakening_conv_all_nth)?)
+    apply clarsimp
+   apply (rule none)
+  apply (rule typing_var; simp add: Cogent.empty_def weakening_conv_all_nth)
+  apply (rule keep; simp)
+  done
+
+lemma typing_mono_afun_cogent_absfun:
+  "\<lbrakk>proc_ctx_wellformed \<Xi>'; \<Xi>' f = ([], a, b)\<rbrakk> \<Longrightarrow> \<Xi>', [], [option.None] \<turnstile> AFun f [] : TFun a b"
+  apply (unfold  proc_ctx_wellformed_def)
+  apply (erule_tac x = f in allE; clarsimp)
+  apply (rule typing_afun[where ts = "[]", OF _ _ _ _]; (simp add: Cogent.empty_def weakening_conv_all_nth)?)
+   apply clarsimp
+  apply (rule none)
+  done
+
+lemma typing_mono_afun_imp_appafun:
+  "\<Xi>', [], [option.None] \<turnstile> AFun f [] : TFun a b \<Longrightarrow> \<Xi>', [], [option.Some a] \<turnstile> App (AFun f []) (Var 0) : b"
+  apply (frule typing_to_wellformed(1))
+  apply (rule typing_app[where x = a and y = b and ?\<Gamma>1.0 = "[option.None]" and ?\<Gamma>2.0 = "[option.Some a]"]; simp?)
+   apply (clarsimp simp: split_conv_all_nth)
+   apply (rule right; simp)
+  apply (rule typing_var; simp add: Cogent.empty_def weakening_conv_all_nth)
+  apply (rule keep; simp)
+  done
+
 end (* of context *)
+
 end
