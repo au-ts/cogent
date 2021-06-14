@@ -42,6 +42,29 @@ fun \<xi>p1 :: "(funtyp, vabstyp) vabsfuns"
       then val_wa_mapAccumnbp \<xi>p y z
      else \<xi>p x y z)" 
 
+lemma \<xi>_simps : 
+  "\<xi>m ''wordarray_put2_0''   = val_wa_put2" 
+  "\<xi>m ''wordarray_get_0''    = val_wa_get"
+  "\<xi>m ''wordarray_length_0'' = val_wa_length"
+  "\<xi>p ''wordarray_put2''   = val_wa_put2" 
+  "\<xi>p ''wordarray_get''    = val_wa_get"
+  "\<xi>p ''wordarray_length'' = val_wa_length"
+  "\<xi>m1 ''wordarray_fold_no_break_0'' =  
+     val_wa_foldnb \<Xi> \<xi>m (foldmap_funarg_type ''wordarray_fold_no_break_0'')"
+  "\<xi>m1 ''wordarray_map_no_break_0'' = 
+     val_wa_mapAccumnb \<Xi> \<xi>m 
+        (foldmap_funarg_type ''wordarray_map_no_break_0'') 
+        (foldmap_funret_type ''wordarray_map_no_break_0'')"
+  "\<xi>m1 ''wordarray_put2_0''   = val_wa_put2" 
+  "\<xi>m1 ''wordarray_get_0''    = val_wa_get"
+  "\<xi>m1 ''wordarray_length_0'' = val_wa_length"
+  "\<xi>p1 ''wordarray_fold_no_break'' = val_wa_foldnbp \<xi>p"
+  "\<xi>p1 ''wordarray_map_no_break'' = val_wa_mapAccumnbp \<xi>p"
+  "\<xi>p1 ''wordarray_put2''   = val_wa_put2" 
+  "\<xi>p1 ''wordarray_get''    = val_wa_get"
+  "\<xi>p1 ''wordarray_length'' = val_wa_length"
+  by force+
+
 end (* of context *)
 
 end
