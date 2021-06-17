@@ -116,7 +116,10 @@ genGS :: IsStruct  -- ^ Whether the C type of the box is of struct or of byte-ar
 
 -- vvv FIXME(?): This might be the cause of the problem when generating a getter/setter for
 -- an unboxed abstract type with layout. / zilinc
-genGS s root t@(TCon _ _ _) (PrimLayout br ω) path m = do
+genGS s root t@(TCon _ _ Unboxed) (PrimLayout br ω) path m = do
+  undefined
+
+genGS s root t@(TCon _ _ Boxed {}) (PrimLayout br ω) path m = do
   t' <- genType t
   genGSBlock s br ω root t' path m
 
@@ -514,7 +517,7 @@ mkGsDeclABR b root (AlignedBitRange sz boff woff) fn m =
    in mkGsDecl root uintCTy fn stmts m
   where
     boff' = uint boff
-    mask  = uint $ sizeToMask sz
+    mask  = CConst $ CNumConst (sizeToMask sz) uintCTy HEX
     expr = case b of
              True  -> CArrayDeref (CStructDot (CDeref boxVar) boxFieldName) (uint woff)
              False -> CArrayDeref boxVar (uint woff)

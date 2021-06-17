@@ -76,7 +76,7 @@ data CType = CInt Bool CIntType      -- ^ 'True' is signed
 
 instance Binary CType
 
-data Radix = BIN | OCT | DEC | HEX
+data Radix = OCT | DEC | HEX
               deriving (Eq, Ord, Show, Generic)
 
 instance Binary Radix

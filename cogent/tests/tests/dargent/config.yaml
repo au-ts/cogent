@@ -13,6 +13,7 @@
     - pass_deserial.cogent
     - pass_serial-unboxed.cogent
     - pass_endianness.cogent
+    - pass_layout-prims.cogent
   expected_result: pass
   flags:
     - -g
