@@ -49,9 +49,9 @@ import           Cogent.Common.Syntax  as Syn
 import           Cogent.Common.Types   as Typ
 import           Cogent.Core           as CC
 #ifdef BUILTIN_ARRAYS
-import           Cogent.Dargent.CodeGen       (genBoxedGetSetField, genBoxedArrayGetSet, GetOrSet(..))
+import           Cogent.Dargent.CodeGen       (genGSRecord, genBoxedArrayGetSet, GetOrSet(..))
 #else
-import           Cogent.Dargent.CodeGen       (genBoxedGetSetField, GetOrSet(..))
+import           Cogent.Dargent.CodeGen       (genGSRecord, GetOrSet(..))
 #endif
 import           Cogent.Inference             (kindcheck_)
 import           Cogent.Isabelle.Deep
@@ -567,7 +567,7 @@ genExpr mv (TE t (Take _ rec fld e)) = do
     Unboxed -> return $ strDot rec'' fieldName
     Boxed _ CLayout -> return $ strArrow rec'' fieldName
     Boxed _ _ -> do
-      fieldGetter <- genBoxedGetSetField rect fieldName Get
+      fieldGetter <- genGSRecord rect fieldName Get
       return $ CEFnCall (variable fieldGetter) [rec'']
 
   ft <- genType . fst . snd $ fs !! fld
@@ -604,7 +604,7 @@ genExpr mv (TE t (Put rec fld val)) = do
     Boxed _ CLayout -> assign fldt (strArrow (variable rec'') fieldName) val'
     Boxed _ (Layout l) -> do
       let recordType = exprType rec
-      fieldSetter <- genBoxedGetSetField recordType fieldName Set
+      fieldSetter <- genGSRecord recordType fieldName Set
       return $ ([], [CBIStmt $ CAssignFnCall Nothing (variable fieldSetter) [variable rec'', val']])
 
   recycleVars valp
@@ -704,7 +704,7 @@ genExpr mv (TE t (Member rec fld)) = do
     Unboxed -> return $ strDot rec' fieldName
     Boxed _ CLayout -> return $ strArrow rec' fieldName
     Boxed _ (Layout l) -> do
-      fieldGetter <- genBoxedGetSetField (exprType rec) fieldName Get
+      fieldGetter <- genGSRecord (exprType rec) fieldName Get
       return $ CEFnCall (variable fieldGetter) [rec']
 
   t' <- genType t
