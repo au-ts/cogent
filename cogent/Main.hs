@@ -682,7 +682,8 @@ parseArgs args = case getOpt' Permute options args of
           when (Compile (succ stg) `elem` cmds) $ desugar cmds tced ctygen' tcst source (map pragmaOfLP pragmas) buildinfo log
           exitSuccessWithBuildInfo cmds buildinfo
 
-    desugar cmds tced ctygen tcst source pragmas buildinfo log = do
+    desugar cmds tced' ctygen tcst source pragmas buildinfo log = do
+      let tced = map snd tced'
       let stg = STGDesugar
       putProgressLn "Desugaring and typing..."
       let ((desugared,ctygen'),typedefs) = DS.desugar tced ctygen pragmas

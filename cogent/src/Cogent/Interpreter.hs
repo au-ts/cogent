@@ -329,8 +329,8 @@ checkPreload r prog src = do
         __assert (null errs) "no errors, only warnings"
         case src of
           FromFile f -> putStrLn ("File " ++ f ++ " is loaded.") >>
-                        writeIORef r (PreloadS tced tcst (Just f))
-          FromStdin  -> modifyIORef r (<> PreloadS tced tcst Nothing)
+                        writeIORef r (PreloadS (map snd tced) tcst (Just f))
+          FromStdin  -> modifyIORef r (<> PreloadS (map snd tced) tcst Nothing)
 
 data Query = QValue | QType
 
