@@ -68,6 +68,8 @@ import Prelude as P
 import Data.Traversable (forM)
 import Text.PrettyPrint.ANSI.Leijen (pretty)
 -- import qualified Traversable as Trav (mapM)
+-- import qualified Traversable as Trav (mapM)
+import Text.Parsec.Pos ( SourcePos, initialPos )
 
 import Debug.Trace
 
@@ -88,7 +90,7 @@ data DsState t l v = DsState { _typCtx :: TypeVars t
                              , _varCtx :: TermVars v
                              , _oracleLcl :: Enumerator
                              , _oracleGbl :: Enumerator
-                             , _lftFun :: [S.TopLevel B.DepType B.TypedPatn B.TypedExpr]  -- reversed
+                             , _lftFun :: [(SourcePos, S.TopLevel B.DepType B.TypedPatn B.TypedExpr)]  -- reversed
                              }
 
 makeLenses ''DsState
@@ -110,17 +112,17 @@ instance MonadFail (DS t l v) where
 #endif
 
 
-desugar :: [S.TopLevel B.DepType B.TypedPatn B.TypedExpr]
+desugar :: [(SourcePos, S.TopLevel B.DepType B.TypedPatn B.TypedExpr)]
         -> [(B.DepType, String)]
         -> [Pragma]
         -> ( ([Definition UntypedExpr VarName VarName], [(SupposedlyMonoType VarName, String)])
            , Last (Typedefs, Constants, [CoreConst UntypedExpr]) )
 desugar tls ctygen pragmas =
-  let fundefs    = filter isFunDef     tls where isFunDef     S.FunDef     {} = True; isFunDef     _ = False
-      absdecs    = filter isAbsDec     tls where isAbsDec     S.AbsDec     {} = True; isAbsDec     _ = False
-      typedecs   = filter isTypeDec    tls where isTypeDec    S.TypeDec    {} = True; isTypeDec    _ = False
-      abstydecs  = filter isAbsTypeDec tls where isAbsTypeDec S.AbsTypeDec {} = True; isAbsTypeDec _ = False
-      constdefs  = filter isConstDef   tls where isConstDef   S.ConstDef   {} = True; isConstDef   _ = False
+  let fundefs    = filter isFunDef     tls where isFunDef     (_, S.FunDef     {}) = True; isFunDef     _ = False
+      absdecs    = filter isAbsDec     tls where isAbsDec     (_, S.AbsDec     {}) = True; isAbsDec     _ = False
+      typedecs   = filter isTypeDec    tls where isTypeDec    (_, S.TypeDec    {}) = True; isTypeDec    _ = False
+      abstydecs  = filter isAbsTypeDec tls where isAbsTypeDec (_, S.AbsTypeDec {}) = True; isAbsTypeDec _ = False
+      constdefs  = filter isConstDef   tls where isConstDef   (_, S.ConstDef   {}) = True; isConstDef   _ = False
 
       initialReader = ( M.fromList $ P.map fromTypeDec  typedecs
                       , M.fromList $ P.map fromConstDef constdefs
@@ -129,15 +131,15 @@ desugar tls ctygen pragmas =
    in flip3 evalRWS initialState initialReader . runDS $
         desugar' (abstydecs ++ typedecs ++ absdecs ++ fundefs) constdefs ctygen pragmas
   where
-    fromTypeDec  (S.TypeDec tn vs t) = (tn,(vs,t))
+    fromTypeDec  (_, S.TypeDec tn vs t) = (tn,(vs,t))
     fromTypeDec  _ = __impossible "fromTypeDec (in desugarProgram)"
 
-    fromConstDef (S.ConstDef vn t e) = (vn,e)
+    fromConstDef (_, S.ConstDef vn t e) = (vn,e)
     fromConstDef _ = __impossible "fromConstDef (in desugarProgram)"
 
 
-desugar' :: [S.TopLevel B.DepType B.TypedPatn B.TypedExpr]
-         -> [S.TopLevel B.DepType B.TypedPatn B.TypedExpr]  -- constants
+desugar' :: [(SourcePos, S.TopLevel B.DepType B.TypedPatn B.TypedExpr)]
+         -> [(SourcePos, S.TopLevel B.DepType B.TypedPatn B.TypedExpr)]  -- constants
          -> [(B.DepType, String)]
          -> [Pragma]
          -> DS 'Zero 'Zero 'Zero ([Definition UntypedExpr VarName VarName], [(SupposedlyMonoType VarName, String)])
@@ -152,21 +154,21 @@ desugar' tls constdefs ctygen pragmas = do
   where
     initialState  = DsState Nil Nil Nil 0 0 []
 
-    go :: S.TopLevel B.DepType B.TypedPatn B.TypedExpr
+    go :: (SourcePos, S.TopLevel B.DepType B.TypedPatn B.TypedExpr)
        -> DS 'Zero 'Zero 'Zero [Definition UntypedExpr VarName VarName]
-    go x = do gbl <- use oracleGbl
-              put initialState
-              oracleGbl .= gbl
-              -- \ ^^^ NOTE: We need to set the local oracle to 0 for every top-level definition, as in the
-              -- ShallowHaskell module we assume each top-level function have bound variable 0 (de Bruijn)
-              -- of name `freshVarPrefix ++ "0"'. The global oracle must __not__ be reset, as it's global.
-              -- / zilinc
-              x' <- lamLftTlv x
-              typCtx .= Nil; varCtx .= Nil;
-              def' <- desugarTlv x' pragmas  -- it generates a few more lifted functions
-              lfdefs <- reverse <$> use lftFun
-              lfdefs' <- concat <$> mapM go lfdefs
-              return $ lfdefs' ++ [def']
+    go (_,x) = do gbl <- use oracleGbl
+                  put initialState
+                  oracleGbl .= gbl
+                  -- \ ^^^ NOTE: We need to set the local oracle to 0 for every top-level definition, as in the
+                  -- ShallowHaskell module we assume each top-level function have bound variable 0 (de Bruijn)
+                  -- of name `freshVarPrefix ++ "0"'. The global oracle must __not__ be reset, as it's global.
+                  -- / zilinc
+                  x' <- lamLftTlv x
+                  typCtx .= Nil; varCtx .= Nil;
+                  def' <- desugarTlv x' pragmas  -- it generates a few more lifted functions
+                  lfdefs <- reverse <$> use lftFun
+                  lfdefs' <- concat <$> mapM go lfdefs
+                  return $ lfdefs' ++ [def']
 
 
 -- -----------------------------------------------------------------------------
@@ -259,7 +261,7 @@ lamLftExpr tvs f (B.TE t (S.Lam p mt e) l) = do
   -- sigma <- sel1 <$> get
   e' <- lamLftExpr tvs f e
   let fn = S.FunDef f' (S.PT tvs [] t) [S.Alt (B.TP (S.PIrrefutable p) noPos) Regular e']  -- no let-generalisation
-  lftFun %= (fn:)
+  lftFun %= ((initialPos  "dummy position", fn):)
   let tvs' = map (Just . B.DT . flip3 S.TVar False False . fst) tvs
   return $ B.TE t (S.TLApp f' tvs' [] S.NoInline) l
 lamLftExpr sigma f (B.TE t e l) = B.TE t <$> traverse (lamLftExpr sigma f) e <*> pure l
@@ -836,8 +838,8 @@ desugarConst :: (VarName, B.TypedExpr) -> DS 'Zero 'Zero 'Zero (CoreConst Untype
 desugarConst (n,e) = (n,) <$> desugarExpr e
 
 -- NOTE: assume the first argument consists of constants only
-desugarConsts :: [S.TopLevel B.DepType B.TypedPatn B.TypedExpr] -> DS 'Zero 'Zero 'Zero [CoreConst UntypedExpr]
-desugarConsts = mapM desugarConst . P.map (\(S.ConstDef v _ e) -> (v,e))
+desugarConsts :: [(SourcePos, S.TopLevel B.DepType B.TypedPatn B.TypedExpr)] -> DS 'Zero 'Zero 'Zero [CoreConst UntypedExpr]
+desugarConsts = mapM desugarConst . P.map (\(_, S.ConstDef v _ e) -> (v,e))
 
 
 -- ----------------------------------------------------------------------------
