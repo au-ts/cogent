@@ -59,8 +59,8 @@ import Debug.Trace
 tc :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
    -> [(LocType, String)]
    -> [LocPragma]
-   -> IO ((Maybe ([TopLevel DepType TypedPatn TypedExpr], [(DepType, String)], [Pragma DepType]), TcLogState), TcState)
-tc ds cts ps = runTc (TcState M.empty knownTypes M.empty M.empty)
+   -> IO ((Maybe ([(SourcePos, TopLevel DepType TypedPatn TypedExpr)], [(DepType, String)], [Pragma DepType]), TcLogState), TcState)
+   tc ds cts ps = runTc (TcState M.empty knownTypes M.empty M.empty)
                      ((,,) <$> typecheck ds <*> typecheckCustTyGen cts <*> typecheckPragmas ps)
   -- \ ^^^ Note: It may be important that we do 'typecheckPragmas' after 'typecheck', as it relies on the updated state
   -- which includes the type synonyms / zilinc
@@ -68,17 +68,17 @@ tc ds cts ps = runTc (TcState M.empty knownTypes M.empty M.empty)
     knownTypes = map (, ([], Nothing)) $ words "U8 U16 U32 U64 String Bool"
 
 typecheck :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
-          -> TcM [TopLevel DepType TypedPatn TypedExpr]
+          -> TcM [(SourcePos, TopLevel DepType TypedPatn TypedExpr)]
 typecheck = mapM (uncurry checkOne)
 
 -- TODO: Check for prior definition
 -- NOTE: we may make a choice between VariableNotDeclared and UnknownVariable
 checkOne :: SourcePos -> TopLevel LocType LocPatn LocExpr
-         -> TcM (TopLevel DepType TypedPatn TypedExpr)
+         -> TcM (SourcePos, TopLevel DepType TypedPatn TypedExpr)
 checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
   (Include _) -> __impossible "checkOne"
   (IncludeStd _) -> __impossible "checkOne"
-  (DocBlock s) -> return $ DocBlock s
+  (DocBlock s) -> return (loc, DocBlock s)
   (TypeDec n vs (stripLocT -> t)) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
     traceTc "tc" (text "typecheck type definition" <+> pretty n)
@@ -98,7 +98,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let t'' = apply subst t'
     lift . lift $ knownTypes %= (<> [(n, (vs, Just t''))])
     t''' <- postT t''
-    return $ TypeDec n vs t'''
+    return (loc, TypeDec n vs t''')
 
   (AbsTypeDec n vs (map stripLocT -> ts)) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
@@ -120,7 +120,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let ts'' = fmap (apply subst) ts'
     ts''' <- mapM postT ts''
     lift . lift $ knownTypes %= (<> [(n, (vs, Nothing))])
-    return $ AbsTypeDec n vs ts'''
+    return (loc, AbsTypeDec n vs ts''')
 
   (AbsDec n (PT ps ls (stripLocT -> t))) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
@@ -159,7 +159,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     t''' <- postT t''
     lts' <- mapM postT (snd <$> ls')
     let ls'' = zip (fst <$> ls') lts'
-    return $ AbsDec n (PT ps ls'' t''')
+    return (loc, AbsDec n (PT ps ls'' t'''))
 
   (RepDef decl@(DataLayoutDecl pos name vars expr)) -> do
     traceTc "tc" (text "typecheck rep decl" <+> pretty name)
@@ -181,7 +181,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     exitOnErr $ toErrors os' gs
     lift . lift $ knownDataLayouts %= M.insert name (vars, expr)
     let l' = toDLExpr $ applyL subst l
-    return $ RepDef (DataLayoutDecl pos name vars l')
+    return (loc, RepDef (DataLayoutDecl pos name vars l'))
 
   (ConstDef n (stripLocT -> t) e) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
@@ -204,7 +204,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     lift . lift $ knownConsts %= M.insert n (t'', e', loc)
     e'' <- postE $ applyE subst e'
     t''' <- postT t''
-    return (ConstDef n t''' e'')
+    return (loc, ConstDef n t''' e'')
 
   (FunDef f (PT ps ls (stripLocT -> t)) alts) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
@@ -255,7 +255,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     t'''   <- postT t''
     lts' <- mapM postT (snd <$> ls')
     let ls'' = zip (fst <$> ls') lts'
-    return (FunDef f (PT ps ls'' t''') alts'')
+    return (loc, FunDef f (PT ps ls'' t''') alts'')
 
 
 -- ----------------------------------------------------------------------------
