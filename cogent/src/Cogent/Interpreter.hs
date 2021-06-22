@@ -197,7 +197,7 @@ continueGetLines l
   | ";"  `isSuffixOf` l = False
 continueGetLines l = True
 
-data PreloadS = PreloadS { surface  :: [S.TopLevel Tc.DepType Tc.TypedPatn Tc.TypedExpr]
+data PreloadS = PreloadS { surface  :: [(SourcePos, S.TopLevel Tc.DepType Tc.TypedPatn Tc.TypedExpr)]
                          , tcState  :: Tc.TcState
                          , lastFile :: Maybe FilePath
                          }
@@ -329,8 +329,8 @@ checkPreload r prog src = do
         __assert (null errs) "no errors, only warnings"
         case src of
           FromFile f -> putStrLn ("File " ++ f ++ " is loaded.") >>
-                        writeIORef r (PreloadS (map snd tced) tcst (Just f))
-          FromStdin  -> modifyIORef r (<> PreloadS (map snd tced) tcst Nothing)
+                        writeIORef r (PreloadS tced tcst (Just f))
+          FromStdin  -> modifyIORef r (<> PreloadS tced tcst Nothing)
 
 data Query = QValue | QType
 
@@ -399,8 +399,8 @@ dsExpr :: IORef PreloadS
        -> IO ([Definition UntypedExpr VarName VarName], UntypedExpr 'Zero 'Zero VarName VarName)
 dsExpr r e = do
   preldS <- readIORef r
-  let (tls, constdefs) = partition (not . isConstDef) (surface preldS)
-      tls' = filter isDefn tls
+  let (tls, constdefs) = partition (not . isConstDef . snd) (surface preldS)
+      tls' = filter (isDefn . snd) tls
   return . fst
          . flip3 evalRWS (Ds.DsState V.Nil V.Nil V.Nil 0 0 [] [])
                          (M.empty, M.empty)
