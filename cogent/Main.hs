@@ -682,8 +682,7 @@ parseArgs args = case getOpt' Permute options args of
           when (Compile (succ stg) `elem` cmds) $ desugar cmds tced ctygen' tcst source (map pragmaOfLP pragmas) buildinfo log
           exitSuccessWithBuildInfo cmds buildinfo
 
-    desugar cmds tced' ctygen tcst source pragmas buildinfo log = do
-      let tced = map snd tced'
+    desugar cmds tced ctygen tcst source pragmas buildinfo log = do
       let stg = STGDesugar
       putProgressLn "Desugaring and typing..."
       let ((desugared,ctygen'),typedefs) = DS.desugar tced ctygen pragmas
@@ -706,7 +705,8 @@ parseArgs args = case getOpt' Permute options args of
           when (Compile (succ stg) `elem` cmds) $ normal cmds desugared' ctygen' source tced tcst typedefs fts buildinfo log
           exitSuccessWithBuildInfo cmds buildinfo
 
-    normal cmds desugared ctygen source tced tcst typedefs fts buildinfo log = do
+    normal cmds desugared ctygen source tced' tcst typedefs fts buildinfo log = do
+      let tced = map snd tced'
       let stg = STGNormal
       putProgress "Normalising..."
       nfed' <- case __cogent_fnormalisation of
