@@ -104,6 +104,7 @@ fun layout_taken_bits :: "ptr_layout \<Rightarrow> nat \<Rightarrow> bool" where
 | "layout_taken_bits (LayProduct p1 p2) n =
    (layout_taken_bits p1 n \<or>
    layout_taken_bits p2 n )"
+| "layout_taken_bits (LayBitRange v) n = bitrange_taken_bits v n "
 
 fun layout_taken_bit_list :: "ptr_layout \<Rightarrow> nat list" where
   "layout_taken_bit_list (LayVar _ _) = []"
@@ -546,7 +547,7 @@ fun sigil_kind :: "sigil \<Rightarrow> kind" where
 
 inductive match_repr_layout :: "lrepr \<Rightarrow> ptr_layout \<Rightarrow> bool"
   where
-  match_lrvar :  "match_repr_layout (LRVar i) l"
+  match_lrtvar :  "match_repr_layout (LRVar i) l"
 | match_lrprim : "(s = size_prim_layout t) \<Longrightarrow> match_repr_layout (LRPrim t) (LayBitRange (s, x))"
 | match_lrsum : "\<lbrakk> (map fst ts :: name list) = map fst ls
    ; list_all2 match_repr_layout (map snd ts) (map (snd \<circ> snd) ls)
@@ -560,6 +561,7 @@ inductive match_repr_layout :: "lrepr \<Rightarrow> ptr_layout \<Rightarrow> boo
 ; list_all2 match_repr_layout (map snd ts) (map snd ls)
    \<rbrakk> \<Longrightarrow> match_repr_layout (LRRecord ts) (LayRecord ls)"
 | match_lrunit : "s = 0 \<Longrightarrow> match_repr_layout LRUnit (LayBitRange (s, n))"
+| match_lrlvar : "match_repr_layout t (LayVar i off)"
 
 
 lemma match_repr_layout_simps:
@@ -570,10 +572,11 @@ lemma match_repr_layout_simps:
       map fst ts = map fst ls \<and> list_all2 match_repr_layout (map snd ts) (map (snd \<circ> snd) ls)"
   "\<And>t1 t2 p1 p2. match_repr_layout (LRProduct t1 t2) (LayProduct p1 p2) \<longleftrightarrow>
       match_repr_layout t1 p1 \<and> match_repr_layout t2 p2"
-  "\<And>ts x0 x1 p. match_repr_layout LRPtr (LayBitRange p) \<longleftrightarrow> fst p = size_ptr"
+  "\<And>ts p. match_repr_layout LRPtr (LayBitRange p) \<longleftrightarrow> fst p = size_ptr"
   "\<And>ts ls. match_repr_layout (LRRecord ts ) (LayRecord ls) \<longleftrightarrow>
       map fst ts = map fst ls \<and> list_all2 match_repr_layout (map snd ts) (map snd ls)"
   "\<And>p. match_repr_layout LRUnit (LayBitRange p) \<longleftrightarrow> fst p = 0"
+  "\<And>t i off. match_repr_layout t (LayVar i off)"
   by (force intro: match_repr_layout.intros
       elim: match_repr_layout.cases)+
 
