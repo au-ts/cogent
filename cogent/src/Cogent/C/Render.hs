@@ -11,6 +11,7 @@
 --
 
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE QuasiQuotes #-}
@@ -35,6 +36,7 @@ import Data.Monoid ((<>))
 import qualified "language-c-quote" Language.C as C
 import Language.C.Quote.C
 import "language-c-quote" Language.C.Syntax ()
+import Numeric (showInt, showHex, showOct)
 import Text.PrettyPrint.Mainland
 #if MIN_VERSION_mainland_pretty(0,6,0)
 import Text.PrettyPrint.Mainland.Class
@@ -98,13 +100,20 @@ isCTypeSigned _ = True  -- FIXME
 
 -- We don't generate bytes or shorts for performance reasons
 cLitConst :: CLitConst -> C.Exp
-cLitConst (CNumConst n (isCTypeSigned -> False) DEC) | n < 2^32 = [cexp| $uint:n |]
-                                                     | n < 2^64 = [cexp| $ulint:n |]
-                                                     | otherwise = [cexp| $ullint:n |]
-cLitConst (CNumConst n s DEC) | n < 2^16 = [cexp| $int:n |]
-                              | n < 2^32 = [cexp| $lint:n |]
-                              | otherwise = [cexp| $llint:n |]
-cLitConst (CNumConst {}) = __impossible "cLitConst"  -- NOTE: currently we parse everything to its decimal form / zilinc
+cLitConst (CNumConst n s b) =
+  let (s',u) = if isCTypeSigned s then (C.Signed, "") else (C.Unsigned, "U")
+      pre = case b of
+              DEC -> ""
+              HEX -> "0X"
+              OCT -> "0"
+      suf = if | n < 2^32  -> u 
+               | n < 2^64  -> u ++ "L"
+               | otherwise -> u ++ "LL"
+      showNum = case b of
+                  DEC -> showInt
+                  HEX -> (fmap toUpper .) . showHex
+                  OCT -> showOct
+   in C.Const (C.IntConst (pre ++ showNum n suf) s' n noLoc) noLoc
 cLitConst (CCharConst c) = [cexp| $char:c |]
 cLitConst (CStringConst s) = [cexp| $string:s |]
 

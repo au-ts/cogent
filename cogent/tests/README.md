@@ -38,9 +38,14 @@ Each configuration file is a YAML file that starts with one root field called `t
 - { ... }
 ```
 
-There are 3 testing methods the script supports; Observing compiler output, verification output, and running an arbitrary command. Each test supports only ONE of these commands at once.
+There are 3 testing methods the script supports:
+  1. directly running the cogent compiler by specifying the command-line flags;
+  2. running a "phase", usually verification, according to a phase script file;
+  3. running arbitrary commands.
 
-### Testing compiler output
+Each test supports only ONE of these commands at once.
+
+### Testing Compiler By Flags
 
 To test compiler output, include the `flags` field in a test dictionary, which is a list of flags to pass to the compiler.
 
@@ -55,8 +60,26 @@ If we wanted to test a single Cogent file up to typechecking with pretty error m
   flags:
     - "--fpretty-errmsgs"
     - "--typecheck"
-  expected_result: "yes"
+  expected_result: pass
 ```
+
+### Testing An Extra Phase of The Compiler
+
+When running the test script, a `--extra-phases` flag needs to be passed,
+designating where the extra phase description files are located.
+For each test group, all test files will run against the "phase" to be tested. For example:
+```
+- test_name: type-proof
+  files:
+    - pass_simple-1.cogent
+    - pass_complex-1.cogent
+  expected_result: pass
+  phase: type_proof
+```
+This relies on that fact that in the `phases` directory, which will be passed in
+via `--extra-phases`, there is a script called `type_proof.sh`. This script
+intructs the test driver what needs to run.
+
 
 ### Testing Verification Output
 
@@ -101,13 +124,14 @@ Here's an example configuration that runs verification on the generated AllRefin
   expected_result: "fail"
 ```
 
-### Running Arbitrary Tests
+### Running Arbitrary Commands
 
-**CURRENTLY NOT SUPPORTED**
-
-To run an arbitrary script as a test, supply the field `command` which contains a string
+To run an arbitrary script as a test, supply the field `run` which contains a list of strings
 that will be executed in the shell. If the command returns `0` as it's exit code, the test
-succeeds. Otherwise, the test fails.
+succeeds. Otherwise, the test fails. It's a lighter form of "phase" test.
+
+If the file name in `files` is a directory, the commands will be antomatically
+run inside that directory; otherwise it will be run from the current directory which contains the config.yaml file.
 
 The `error` value in the field `expected_result` is not supported for this method of testing.
 
@@ -115,7 +139,10 @@ The following example runs a provided script, which is expected to fail (i.e. ex
 
 ```yaml
 - test_name: script-test
-  command: "L4V_ARCH=ARM ./testScript.sh"
+  files:
+      - pass_antiquoted-c
+  run: 
+      - bash BUILD
   expected_result: "fail"
 ```
 
@@ -125,6 +152,9 @@ Run the script with `-h` or `--help` for a more detailed explanation.
 
 * `--verbose [FILES]` gives verbose output for the tests provided, or all tests if no files are supplied
 * `--only [FILES]` runs the tests for the files provided
+* `--ignore-phases` removes particular "phases" from a test run. In particular, if
+the phase is "cogent", it will ignore all tests that are compiler-centric, i.e. those
+specified using the `flags` field.
 
 ## Dependancies
 

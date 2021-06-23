@@ -62,11 +62,14 @@ def setup_dist():
     os.mkdir(TEST_DIST_DIR)
 
 
-# Dodgy: A global list of test names that should be verbose
-# if it is None, then verbose is off
-# if it is empty, that means all tests should be verbose
+# A global list of test names that should be verbose
+# if it is empty, then verbose is off
+# if it is None, that means all tests should be verbose
 # if it is nonempty, only the test names inside should be verbose
-verbose_test_names = None
+verbose_test_names = []
+
+# all possible results of a test
+valid_results = ["error", "pass", "fail", "wip", "wip-pass", "wip-fail"]
 
 # Represents the result of a test
 # Takes in a function which returns
@@ -123,9 +126,8 @@ class TestResult:
         print("{}: ".format(os.path.relpath(self.fullname)), end="")
         (status, output, expected) = self.test
 
-        be_verbose = (verbose_test_names is not None and 
-                                (verbose_test_names == [] or
-                                 self.test_name in verbose_test_names))
+        be_verbose = (verbose_test_names is None or
+                      self.test_name in verbose_test_names)
 
 
         if expected == "wip-pass":
@@ -182,7 +184,7 @@ class InvalidConfigError(Exception):
 
 class TestConfiguration:
 
-    valid_test_fields = ["files", "flags", "expected_result", "test_name", "phase"]
+    valid_test_fields = ["files", "expected_result", "test_name", "flags", "phase", "run"]
 
     header_block_len = 20
 
@@ -201,43 +203,55 @@ class TestConfiguration:
             raise InvalidConfigError(
                 "{}: Config files must be a list of test objects".format(self.relpath))
 
-        i = 1
+        i = 1  # the number id of the test
+
         for f in self.settings:
-            if not "test_name" in f.keys():
-                raise InvalidConfigError(
-                    "Test {0} in {1} must contain mandatory field 'test_name', specifying the (unique) name of the test".format(i, self.relpath))
-            if not "files" in f.keys():
-                raise InvalidConfigError(
-                    "Test {0} in {1} must contain mandatory field 'files', a list with at least 1 test".format(i, self.relpath))
-            if not "expected_result" in f.keys():
-                raise InvalidConfigError(
-                    "Test {0} in {1} must contain mandatory field 'expected_result'".format(i, self.relpath))
-
-            if len(f["files"]) == 0:
-                raise InvalidConfigError(
-                    "Test {0} in {1} must have at least 1 test file".format(i, self.relpath))
-            try:
-                if len(f["flags"]) == 0:
-                    raise InvalidConfigError(
-                        "Test {0} in {1} must have at least 1 compiler flag".format(i, self.relpath))
-            except KeyError:
-                pass
-            if f["expected_result"] not in ["error", "pass", "fail", "wip", "wip-pass", "wip-fail"]:
-                raise InvalidConfigError("""Field 'expected_result' must be one of 'pass', 'fail', 'error' or 'wip' in test {0} in {1}\n. Actual value: {2}"""
-                                         .format(i, self.relpath, str(f["expected_result"])))
-
+            # all keys must be valid keys
             for k in f.keys():
                 if k not in self.valid_test_fields:
                     raise InvalidConfigError(
                         "Field '{0}' not a valid field in test {1} in {2}".format(k, i, self.relpath))
 
-            try:
+            # no mandatory keys are missing
+            if not "test_name" in f.keys():
+                raise InvalidConfigError(
+                    "Test {0} in {1} must contain mandatory field 'test_name', specifying the (unique) name of the test".format(i, self.relpath))
+
+            if not "files" in f.keys():
+                raise InvalidConfigError(
+                    "Test {0} in {1} must contain mandatory field 'files', a list with at least 1 test".format(i, self.relpath))
+            if len(f["files"]) == 0:
+                raise InvalidConfigError(
+                    "Test {0} in {1} must have at least 1 test file".format(i, self.relpath))
+
+            if not "expected_result" in f.keys():
+                raise InvalidConfigError(
+                    "Test {0} in {1} must contain mandatory field 'expected_result'".format(i, self.relpath))
+            if f["expected_result"] not in valid_results:
+                raise InvalidConfigError("""Field 'expected_result' must be one of {0} in test {1} in {2}\n. Actual value: {3}"""
+                                         .format(valid_results, i, self.relpath, str(f["expected_result"])))
+
+            # only one of "flags", "phase", "run" can appear.
+            if "flags" in f:
+                if len(f["flags"]) == 0:
+                    raise InvalidConfigError(
+                        "Test {0} in {1} must have at least 1 compiler flag".format(i, self.relpath))
+                if "phase" in f or "run" in f:
+                    raise InvalidConfigError(
+                        "Test {0} in {1} can only have one of 'flags', 'phase' or 'run' scheme".format(i, self.relpath))
+
                 for flag in f["flags"]:
                     if re.compile(r'^\s*--dist-dir').match(flag):
                         raise InvalidConfigError(
                             "The use of the '--dist-dir' flag is prohibited in test flags (test {}, in {})".format(i, self.relpath))
-            except KeyError:
-                pass
+
+            elif "phase" in f:
+                pass # the checks are performed when the phase is run
+            elif "run" in f:
+                pass # no checks are performed
+            else:
+                raise InvalidConfigError(
+                    "Test {0} in {1} doesn't have any test scheme specified".format(i, self.relpath))
 
             i += 1
 
@@ -248,7 +262,7 @@ class Test:
     def __init__(self, testConfig):
         self.config = testConfig
 
-    # Run the cogent compiler with the given flags, under test schema d
+    # Run the cogent compiler with the given flags, under test schema
     def run_cogent(self, context, filename, test_info):
         fname = os.path.join(self.config.dir, filename)
         # Check file exists and error gracefully
@@ -262,10 +276,8 @@ class Test:
         # run our test
         setup_dist()
 
-        try:
-            flags = test_info['flags']
-        except KeyError:
-            flags = []
+        # flags must exist
+        flags = test_info['flags']
 
         res = subprocess.run([context.cogent] + flags + ["--dist-dir={}".format(TEST_DIST_DIR)] + [fname],
                                 stderr=subprocess.STDOUT,
@@ -285,6 +297,7 @@ class Test:
 
         return TestResult(result, fname, test_info['test_name'])
 
+    # Run a specific phase, according to the phase config file.
     def run_phase(self, context, filename, phase, test_info):
         fname = os.path.join(self.config.dir, filename)
         # Check file exists and error gracefully
@@ -320,6 +333,32 @@ class Test:
 
         return TestResult(result, fname, test_info['test_name'])
 
+    # Run shell commands as specified
+    def run_cmds(self, context, filename, test_info):
+        fname = os.path.join(self.config.dir, filename)
+        cmds = test_info['run']
+
+        if os.path.isdir(fname):
+            test_dir = fname
+        else:
+            test_dir = self.config.dir
+
+        # run the commands
+        status = "pass"
+        output = []
+        for cmd in cmds:
+            cmd_res = subprocess.run(cmd.split(), 
+                                     cwd = test_dir,
+                                     stderr = subprocess.STDOUT,
+                                     stdout = subprocess.PIPE)
+            if cmd_res.returncode != 0:
+                status = "fail"
+                output.append(cmd_res.stdout.decode("utf-8"))
+                break
+        result = (status, "\n".join(output), test_info["expected_result"])
+
+        return TestResult(result, fname, test_info['test_name'])
+
     def print_test_header(self, test_name):
         print("-" * self.config.header_block_len,
               " {} ".format(test_name),
@@ -338,26 +377,28 @@ class Test:
         for test in tests:
             self.print_test_header(test['test_name'])
             for f in test['files']:
-                try:
-                    phasename = test['phase']
-                except KeyError:
-                    phasename = "cogent"
-                
-                if phasename == "cogent" and phasename not in context.ignore_phases:
+                if "flags" in test and "cogent" not in context.ignore_phases:
                     results.append( self.run_cogent(context, f, test) )
 
-                elif context.phases is None or phasename in context.ignore_phases:
-                    continue
+                elif "phase" in test:
+                    phasename = test['phase']
+                    if phasename in context.ignore_phases or context.phases is None:
+                        pass
+                    else:
+                        try:
+                            results.append( self.run_phase(context, f, context.phases[phasename], test) )
+                        except KeyError:
+                            results.append( TestResult(
+                                ("error", "phase not found: {}\n".format(phasename), test['expected_result']),
+                                f,
+                                test['test_name']
+                            ))
+
+                elif "run" in test:
+                    results.append( self.run_cmds(context, f, test) )
 
                 else:
-                    try:
-                        results.append( self.run_phase(context, f, context.phases[phasename], test) )
-                    except KeyError:
-                        results.append( TestResult(
-                            ("error", "phase not found: {}\n".format(phasename), test['expected_result']),
-                            f,
-                            test['test_name']
-                        ))
+                    pass
             print()
         return results
 
@@ -493,7 +534,11 @@ def main():
         print(colored("  call with --validate for more info", "red"))
         sys.exit(1)
 
-    if args.verbose is not None:
+    if args.verbose is None:
+        verbose_test_names = []
+    elif not args.verbose:
+        verbose_test_names = None  # every test will be verbose
+    else:
         verbose_test_names = args.verbose
 
     results = []

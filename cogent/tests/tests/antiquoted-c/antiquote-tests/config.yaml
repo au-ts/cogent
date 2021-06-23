@@ -1,0 +1,28 @@
+
+- test_name: pass-antiquoted-c
+  files:
+   - pass_iterator
+   - pass_wordarray
+   - pass_seq32
+   - pass_serialisation
+   - pass_toplevel-polyfunc
+   - pass_array
+   - pass_typecast
+  expected_result: pass
+  run:
+    - bash BUILD
+
+- test_name: fail-antiqtuoed-c
+  files:
+    - fail_toplevel-polyfunc
+  expected_result: fail
+  run:
+    - bash BUILD
+
+- test_name: wip-antiquoted-c
+  files:
+    - wip_static-array
+    - fixme_char
+  expected_result: wip
+  run:
+    - bash BUILD

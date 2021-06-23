@@ -1,0 +1,19 @@
+type R = { f1 : U8, f2 : U8 } layout record { f1 : 1B, f2 : 1B after f1 }
+
+foo : R! -> U8
+foo r = r.f2
+
+type P = { f1 : U16, f2 : U16 } layout record { f1 : 2B, f2 : 2B after f1 }
+
+quux : P! -> U16
+quux r = r.f2
+
+type S = { f1 : U32, f2 : U32 } layout record { f1 : 4B, f2 : 4B after f1 }
+
+bar : S! -> U32
+bar r = r.f2
+
+type T = { f1 : U64, f2 : U64 } layout record { f1 : 8B, f2 : 8B after f1 }
+
+baz : T! -> U64
+baz r = r.f2

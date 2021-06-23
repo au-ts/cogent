@@ -76,7 +76,7 @@ data CType = CInt Bool CIntType      -- ^ 'True' is signed
 
 instance Binary CType
 
-data Radix = BIN | OCT | DEC | HEX
+data Radix = OCT | DEC | HEX
               deriving (Eq, Ord, Show, Generic)
 
 instance Binary Radix
@@ -256,6 +256,21 @@ instance Ord StrlCogentType where
 u32 :: CType
 u32 = CogentPrim U32
 
+ulongCTy, uintCTy, sintCTy, charCTy :: CType
+ulongCTy = CInt False CLongT
+uintCTy  = CInt False CIntT
+sintCTy  = CInt True CIntT
+charCTy  = CInt False CCharT
+
+unitCTy, tagCTy, boolCTy :: CType
+unitCTy = CIdent unitT
+tagCTy  = CIdent tagsT
+boolCTy = CIdent boolT
+
+archCTy :: CType
+archCTy = case __cogent_arch of X86_64 -> ulongCTy; X86_32 -> uintCTy; ARM32 -> uintCTy
+
+
 -- FIXME: more might be true / zilinc
 -- isAddressableCExpr :: CExpr -> Bool
 -- isAddressableCExpr (CVar {}) = True
@@ -289,6 +304,14 @@ mkBoolLit e = CCompLit (CIdent boolT) [([CDesignFld boolField], CInitE e)]
 
 true :: CExpr
 true = mkConst Boolean 1
+
+-- | Produces a C expression for an unsigned integer literal with the given integer value.
+uint :: Integer -> CExpr
+uint n = CConst $ CNumConst n uintCTy DEC
+
+-- | Produces a C expression for a signed integer literal with the given integer value.
+sint :: Integer -> CExpr
+sint n = CConst $ CNumConst n sintCTy DEC
 
 mkConst :: (Integral n) => PrimInt -> n -> CExpr
 mkConst pt (fromIntegral -> n)
