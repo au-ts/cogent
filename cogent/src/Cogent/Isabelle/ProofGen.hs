@@ -48,9 +48,9 @@ import Cogent.Isabelle.IsabelleName
 import Text.PrettyPrint.ANSI.Leijen hiding ((<$>))
 
 
-type Xi a b = [Definition TypedExpr a b]
+type Xi a b = [Definition PosTypedExpr a b]
 data EnvExpr t v a b = EE { eexprType :: Type t b
-                          , eexprExpr :: Expr t v a b EnvExpr
+                          , eexprExpr :: PosExpr t v a b EnvExpr
                           , eexprEnv  :: Vec v (Maybe (Type t b))
                           } deriving (Show)
 
@@ -280,7 +280,7 @@ typingWrapper xi k (EE (TPrim t) (Op o es) env)
     | allVars (map eexprExpr es) = tacSequence [ ]
 typingWrapper xi k e = typing xi k e
 
-allVars :: [Expr t v a b e] -> Bool
+allVars :: [PosExpr t v a b e] -> Bool
 allVars (Variable _ : vs) = allVars vs
 allVars [] = True
 allVars _ = False

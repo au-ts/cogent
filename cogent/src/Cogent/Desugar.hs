@@ -99,13 +99,13 @@ makeLenses ''DsState
 
 newtype DS (t :: Nat) (l :: Nat) (v :: Nat) a =
   DS { runDS :: RWS (Typedefs, Constants)
-                    (Last (Typedefs, Constants, [CoreConst UntypedExpr]))
+                    (Last (Typedefs, Constants, [CoreConst PosUntypedExpr]))
                     -- \^ NOTE: it's a hack to export the reader! / zilinc
                     (DsState t l v)
                     a }
   deriving (Functor, Applicative, Monad,
             MonadReader (Typedefs, Constants),
-            MonadWriter (Last (Typedefs, Constants, [CoreConst UntypedExpr])),
+            MonadWriter (Last (Typedefs, Constants, [CoreConst PosUntypedExpr])),
             MonadState  (DsState t l v))
 
 #if MIN_VERSION_base(4,13,0)
@@ -117,8 +117,8 @@ instance MonadFail (DS t l v) where
 desugar :: [(SourcePos, S.TopLevel B.DepType B.TypedPatn B.TypedExpr)]
         -> [(B.DepType, String)]
         -> [S.Pragma B.DepType]
-        -> ( ([Definition UntypedExpr VarName VarName], [(SupposedlyMonoType VarName, String)], [Pragma VarName])
-           , Last (Typedefs, Constants, [CoreConst UntypedExpr]) )
+        -> ( ([Definition PosUntypedExpr VarName VarName], [(SupposedlyMonoType VarName, String)], [Pragma VarName])
+           , Last (Typedefs, Constants, [CoreConst PosUntypedExpr]) )
 desugar tls ctygen pragmas =
   let fundefs    = filter isFunDef     tls where isFunDef     (_, S.FunDef     {}) = True; isFunDef     _ = False
       absdecs    = filter isAbsDec     tls where isAbsDec     (_, S.AbsDec     {}) = True; isAbsDec     _ = False
@@ -143,7 +143,7 @@ desugar' :: [(SourcePos, S.TopLevel B.DepType B.TypedPatn B.TypedExpr)]
          -> [(SourcePos, S.TopLevel B.DepType B.TypedPatn B.TypedExpr)]  -- constants
          -> [(B.DepType, String)]
          -> [S.Pragma B.DepType]
-         -> DS 'Zero 'Zero 'Zero ([Definition UntypedExpr VarName VarName], [(SupposedlyMonoType VarName, String)], [Pragma VarName])
+         -> DS 'Zero 'Zero 'Zero ([Definition PosUntypedExpr VarName VarName], [(SupposedlyMonoType VarName, String)], [Pragma VarName])
 desugar' tls constdefs ctygen prgms = do
   prgms' <- mapM desugarPragma prgms
   defs' <- concat <$> mapM (flip go prgms') tls
@@ -156,21 +156,20 @@ desugar' tls constdefs ctygen prgms = do
   where
     go :: (SourcePos, S.TopLevel B.DepType B.TypedPatn B.TypedExpr)
        -> [Pragma VarName]
-       -> DS 'Zero 'Zero 'Zero [Definition UntypedExpr VarName VarName]
-    go x ps = do gbl <- use oracleGbl
-                 put $ DsState Nil Nil Nil 0 0 [] ps
-                 oracleGbl .= gbl
-                 -- \ ^^^ NOTE: We need to set the local oracle to 0 for every top-level definition, as in the
-                 -- ShallowHaskell module we assume each top-level function have bound variable 0 (de Bruijn)
-                 -- of name `freshVarPrefix ++ "0"'. The global oracle must __not__ be reset, as it's global.
-                 -- / zilinc
-                 x' <- lamLftTlv x
-                 typCtx .= Nil; varCtx .= Nil;
-                 def' <- desugarTlv x'  -- it generates a few more lifted functions
-                 lfdefs <- reverse <$> use lftFun
-                 lfdefs' <- concat <$> mapM (flip go ps) lfdefs
-                 return $ lfdefs' ++ [def']
-    initialState  = DsState Nil Nil Nil 0 0 []
+       -> DS 'Zero 'Zero 'Zero [Definition PosUntypedExpr VarName VarName]
+    go (_,x) ps = do gbl <- use oracleGbl
+                     put $ DsState Nil Nil Nil 0 0 [] ps
+                     oracleGbl .= gbl
+                     -- \ ^^^ NOTE: We need to set the local oracle to 0 for every top-level definition, as in the
+                     -- ShallowHaskell module we assume each top-level function have bound variable 0 (de Bruijn)
+                     -- of name `freshVarPrefix ++ "0"'. The global oracle must __not__ be reset, as it's global.
+                     -- / zilinc
+                     x' <- lamLftTlv x
+                     typCtx .= Nil; varCtx .= Nil;
+                     def' <- desugarTlv x'  -- it generates a few more lifted functions
+                     lfdefs <- reverse <$> use lftFun
+                     lfdefs' <- concat <$> mapM (flip go ps) lfdefs
+                     return $ lfdefs' ++ [def']
 
 
 -- -----------------------------------------------------------------------------
@@ -295,7 +294,7 @@ desugarPragma (FnMacroPragma f) = return $ FnMacroPragma f
 desugarPragma (UnrecPragma p s) = return $ UnrecPragma p s
 
 desugarTlv :: S.TopLevel B.DepType B.TypedPatn B.TypedExpr
-           -> DS 'Zero 'Zero 'Zero (Definition UntypedExpr VarName VarName)
+           -> DS 'Zero 'Zero 'Zero (Definition PosUntypedExpr VarName VarName)
 desugarTlv (S.Include    _) = __impossible "desugarTlv"
 desugarTlv (S.IncludeStd _) = __impossible "desugarTlv"
 desugarTlv (S.TypeDec tn vs t) | ExI (Flip vs') <- Vec.fromList vs
@@ -339,7 +338,7 @@ desugarTlv (S.ConstDef {}) = __impossible "desugarTlv"
 desugarTlv (S.DocBlock _ ) = __impossible "desugarTlv"
 
 
-desugarAlts :: B.TypedExpr -> [S.Alt B.TypedPatn B.TypedExpr] -> DS t l v (UntypedExpr t v VarName VarName)
+desugarAlts :: B.TypedExpr -> [S.Alt B.TypedPatn B.TypedExpr] -> DS t l v (PosUntypedExpr t v VarName VarName)
 desugarAlts e0 [] = __impossible "desugarAlts"
 desugarAlts e0 [S.Alt p l e] = desugarAlt e0 p e  -- Note: Likelihood is ignored here / zilinc
                                                   --       This also serves as the base case for PCon
@@ -387,11 +386,11 @@ desugarAlts e0 alts@(S.Alt _ _ e1:_) = do  -- e0 is not a var, so lift it
       m = B.TE t1 (S.Match (B.TE t0 (S.Var v) noPos) [] alts) noPos
   desugarExpr $ B.TE t1 (S.Let [b] m) noPos
 
-desugarAlt :: B.TypedExpr -> B.TypedPatn -> B.TypedExpr -> DS t l v (UntypedExpr t v VarName VarName)
+desugarAlt :: B.TypedExpr -> B.TypedPatn -> B.TypedExpr -> DS t l v (PosUntypedExpr t v VarName VarName)
 desugarAlt e0 (B.TP p pos) = desugarAlt' e0 p
 
 -- FIXME: this function should take a position
-desugarAlt' :: B.TypedExpr -> S.Pattern B.TypedIrrefPatn -> B.TypedExpr -> DS t l v (UntypedExpr t v VarName VarName)
+desugarAlt' :: B.TypedExpr -> S.Pattern B.TypedIrrefPatn -> B.TypedExpr -> DS t l v (PosUntypedExpr t v VarName VarName)
 desugarAlt' e0 (S.PCon tag [B.TIP (S.PVar tn) _]) e =
   E <$> (Let (fst tn) <$> (E . Esac <$> desugarExpr e0) <*> withBinding (fst tn) (desugarExpr e))
   -- Idea:
@@ -466,7 +465,7 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple ps) _)) e | __cogent_ftuples_as_
   mkTake e0' vs e 0
   where isPVar (B.TIP (S.PVar _) _) = True; isPVar _ = False
         getPVar (B.TIP (S.PVar v) _) = v; getPVar _ = __impossible "getPVar (in desugarAlt')"
-        mkTake :: UntypedExpr t v VarName VarName -> [VarName] -> B.TypedExpr -> Int -> DS t l v (UntypedExpr t v VarName VarName)
+        mkTake :: PosUntypedExpr t v VarName VarName -> [VarName] -> B.TypedExpr -> Int -> DS t l v (PosUntypedExpr t v VarName VarName)
         mkTake _ [] _ _ = __impossible "mkTake (in desugarAlt')"
         mkTake e0 [v] e idx = do
           e0' <- freshVar
@@ -700,7 +699,7 @@ desugarNote :: S.Inline -> FunNote
 desugarNote S.NoInline = NoInline
 desugarNote S.Inline   = InlinePlease
 
-desugarExpr :: B.TypedExpr -> DS t l v (UntypedExpr t v VarName VarName)
+desugarExpr :: B.TypedExpr -> DS t l v (PosUntypedExpr t v VarName VarName)
 desugarExpr (B.TE _ (S.PrimOp opr es) _) = E . Op (symbolOp opr) <$> mapM desugarExpr es
 desugarExpr (B.TE _ (S.Var vn) _) = (findIx vn <$> use varCtx) >>= \case
   Just v  -> return $ E $ Variable (v, vn)
@@ -866,11 +865,11 @@ desugarExpr (B.TE t (S.Con c es) p) = __impossible "desugarExpr (Con)"
 --   E . Con c <$> desugarExpr (B.TE tes (S.Tuple es) p)
 desugarExpr (B.TE _ (S.Put _ _) _) = __impossible "desugarExpr (Put)"
 
-desugarConst :: (VarName, B.TypedExpr) -> DS 'Zero 'Zero 'Zero (CoreConst UntypedExpr)
+desugarConst :: (VarName, B.TypedExpr) -> DS 'Zero 'Zero 'Zero (CoreConst PosUntypedExpr)
 desugarConst (n,e) = (n,) <$> desugarExpr e
 
 -- NOTE: assume the first argument consists of constants only
-desugarConsts :: [(SourcePos, S.TopLevel B.DepType B.TypedPatn B.TypedExpr)] -> DS 'Zero 'Zero 'Zero [CoreConst UntypedExpr]
+desugarConsts :: [(SourcePos, S.TopLevel B.DepType B.TypedPatn B.TypedExpr)] -> DS 'Zero 'Zero 'Zero [CoreConst PosUntypedExpr]
 desugarConsts = mapM desugarConst . P.map (\(_, S.ConstDef v _ e) -> (v,e))
 
 

@@ -48,7 +48,7 @@ cgen :: FilePath
      -> [FilePath]
      -> FilePath
      -> FilePath
-     -> [Definition TypedExpr VarName VarName]
+     -> [Definition PosTypedExpr VarName VarName]
      -> Maybe GenState
      -> [(Type 'Zero VarName, String)]
      -> [Pragma_ VarName]

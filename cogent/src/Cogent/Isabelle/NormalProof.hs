@@ -28,7 +28,7 @@ import qualified Data.Set as S
 import System.FilePath ((</>))
 import Text.PrettyPrint.ANSI.Leijen as L (Doc, pretty, string, (<$>))
 
-normalProof :: String -> MapTypeName -> [Definition TypedExpr VarName b] -> String -> Doc
+normalProof :: String -> MapTypeName -> [Definition PosTypedExpr VarName b] -> String -> Doc
 normalProof thy typeMap defs log =
   let sdthy = thy ++ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage STGDesugar
       snthy = thy ++ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage STGNormal
@@ -63,7 +63,7 @@ imports thy =
  - So, these rules provide the inlining for normalised code also. -}
 
 -- S.Set (srcType, destType, tagName)
-getInlinedShallowPromotes :: MapTypeName -> TypedExpr t v a b -> S.Set (String, String, String)
+getInlinedShallowPromotes :: MapTypeName -> PosTypedExpr t v a b -> S.Set (String, String, String)
 getInlinedShallowPromotes typeMap e =
   let get' (TE (TSum ts) (Promote _ (TE (TSum ts0) _))) =
         let tname = typeMap M.! VariantStr (map fst ts)
@@ -96,7 +96,7 @@ promoteRules promotes = let
  - The $ operator is used by the proof procedure to enforce first-order matching. -}
 
 -- S.Set (typeName, tagCount)
-getShallowCases :: MapTypeName -> TypedExpr t v a b -> S.Set (String, Int)
+getShallowCases :: MapTypeName -> PosTypedExpr t v a b -> S.Set (String, Int)
 getShallowCases typeMap e =
   let get' (TE _ (Case (TE (TSum tags) _) _ _ _)) =
         let tname = typeMap M.! VariantStr (map fst tags)
@@ -142,7 +142,7 @@ anormalCaseRules variants = let
        Just (thmName, O.LemmaDecl (O.Lemma False (Just (O.TheoremDecl (Just thmName) [])) props $ Proof [method] ProofDone))
 
 
-genDesugarNormalProof :: String -> String -> MapTypeName -> [Definition TypedExpr VarName b] -> [O.TheoryDecl I.Type I.Term]
+genDesugarNormalProof :: String -> String -> MapTypeName -> [Definition PosTypedExpr VarName b] -> [O.TheoryDecl I.Type I.Term]
 genDesugarNormalProof sdthy snthy typeMap defs =
   let getPromotes (FunDef _ _ _ _ _ _ e) = getInlinedShallowPromotes typeMap e
       getPromotes _ = S.empty

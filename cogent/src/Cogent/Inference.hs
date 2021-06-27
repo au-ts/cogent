@@ -504,20 +504,20 @@ runTC (TC a) readers st = case runState (runReaderT (runExceptT a) readers) st o
 -- XXX |     tc_debug' (_:ds) reader = tc_debug' ds reader
 
 retype :: (Show b, Eq b, Pretty b, a ~ b)
-       => [Definition TypedExpr a b]
-       -> Either String [Definition TypedExpr a b]
+       => [Definition PosTypedExpr a b]
+       -> Either String [Definition PosTypedExpr a b]
 retype ds = fmap fst $ tc $ map untypeD ds
 
 tc :: (Show b, Eq b, Pretty b, a ~ b)
-   => [Definition UntypedExpr a b]
-   -> Either String ([Definition TypedExpr a b], Map FunName (FunctionType b))
+   => [Definition PosUntypedExpr a b]
+   -> Either String ([Definition PosTypedExpr a b], Map FunName (FunctionType b))
 tc tls = tc' tls M.empty $ coerceTypeDefs tls
   where
     tc' :: (Show b, Eq b, Pretty b, a ~ b)
-        => [Definition UntypedExpr a b]
+        => [Definition PosUntypedExpr a b]
         -> Map FunName (FunctionType b)  -- the reader
-        -> [Definition TypedExpr a b]
-        -> Either String ([Definition TypedExpr a b], Map FunName (FunctionType b))
+        -> [Definition PosTypedExpr a b]
+        -> Either String ([Definition PosTypedExpr a b], Map FunName (FunctionType b))
     tc' [] reader tdfs = return ([], reader)
     tc' ((FunDef attr fn ks ls t rt e):ds) reader tdfs =
       -- Enable recursion by inserting this function's type into the function type dictionary
@@ -530,14 +530,14 @@ tc tls = tc' tls M.empty $ coerceTypeDefs tls
     tc' (d:ds) reader tdfs = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds reader tdfs
 
 tc_ :: (Show b, Eq b, Pretty b, a ~ b)
-    => [Definition UntypedExpr a b]
-    -> Either String [Definition TypedExpr a b]
+    => [Definition PosUntypedExpr a b]
+    -> Either String [Definition PosTypedExpr a b]
 tc_ = fmap fst . tc
 
-tcConsts :: [CoreConst UntypedExpr]
+tcConsts :: [CoreConst PosUntypedExpr]
          -> Map FunName (FunctionType VarName)
-         -> [Definition TypedExpr VarName VarName]  -- type synonym definitions
-         -> Either String ([CoreConst TypedExpr], Map FunName (FunctionType VarName))
+         -> [Definition PosTypedExpr VarName VarName]  -- type synonym definitions
+         -> Either String ([CoreConst PosTypedExpr], Map FunName (FunctionType VarName))
 tcConsts [] reader tdfs = return ([], reader)
 tcConsts ((v,e):ds) reader tdfs =
   case runTC (infer e) (Nil, reader, tdfs) Nil of
@@ -593,7 +593,7 @@ kindcheck_ f (TArray t l s _) = mappend <$> kindcheck_ f t <*> pure (sigilKind s
 kindcheck = kindcheck_ lookupKind
 
 
-typecheck :: (Pretty a, Show a, Eq a) => TypedExpr t v a a -> Type t a -> TC t v a (TypedExpr t v a a)
+typecheck :: (Pretty a, Show a, Eq a) => PosTypedExpr t v a a -> Type t a -> TC t v a (PosTypedExpr t v a a)
 typecheck e t = do
   t' <- unfoldSynsDeepM $ exprType e
   t'' <- unfoldSynsDeepM t
@@ -608,7 +608,7 @@ typecheck e t = do
                                    "\nGiven type:\n" ++
                                    show (indent' $ pretty t'') ++ "\n"
 
-infer :: (Pretty a, Show a, Eq a) => UntypedExpr t v a a -> TC t v a (TypedExpr t v a a)
+infer :: (Pretty a, Show a, Eq a) => PosUntypedExpr t v a a -> TC t v a (PosTypedExpr t v a a)
 infer (E (Op o es))
    = do es' <- mapM infer es
         ts <- mapM (unfoldSynsShallowM . exprType) es'
@@ -872,7 +872,7 @@ infer (E (Promote ty e))
 -- A-normalisation results in a similar structure, but when squashing case expressions for the
 -- shallow embedding, we want this to apply to desugared as well as normalised.
 --
-promote :: Type t b -> TypedExpr t v a b -> TypedExpr t v a b
+promote :: Type t b -> PosTypedExpr t v a b -> PosTypedExpr t v a b
 promote t (TE t' e) = case e of
   -- For continuation forms, push the promote into the continuations
   Let a e1 e2         -> TE t $ Let a e1 $ promote t e2

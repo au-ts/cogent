@@ -51,9 +51,9 @@ import Prelude as P
 --
 -- > Just (scrut, fromList [(tag1, (n1, when_tag1)), (tag2, (n2, when_tag2)), (tag3, (n3, when_tag3))])
 --
-takeFlatCase :: TypedExpr t v VarName b
-             -> Maybe ( TypedExpr t v VarName b
-                      , M.Map TagName (VarName, TypedExpr t ('Suc v) VarName b))
+takeFlatCase :: PosTypedExpr t v VarName b
+             -> Maybe ( PosTypedExpr t v VarName b
+                      , M.Map TagName (VarName, PosTypedExpr t ('Suc v) VarName b))
 takeFlatCase (TE _ e) = case e of
  -- Take top-level case separately as we need the scrutinee here,
  -- while the nested levels must have a scrutinee of (Var 0).
@@ -71,9 +71,9 @@ takeFlatCase (TE _ e) = case e of
 
  where
   goAlts :: forall t u b. VarName
-         -> TypedExpr t u VarName b
-         -> (M.Map TagName (VarName, TypedExpr t u VarName b))
-         -> Maybe (M.Map TagName (VarName, TypedExpr t u VarName b))
+         -> PosTypedExpr t u VarName b
+         -> (M.Map TagName (VarName, PosTypedExpr t u VarName b))
+         -> Maybe (M.Map TagName (VarName, PosTypedExpr t u VarName b))
   -- Match a nested Case on the same scrutinee
   goAlts nscrut (TE _ (Case (TE _ (Variable (FZero, nscrut'))) tag (_, na1,ea1) (_, na2, ea2))) m
    | nscrut == nscrut'
@@ -102,12 +102,12 @@ takeFlatCase (TE _ e) = case e of
 -- If the variable is mentioned, return Nothing.
 --
 -- This function is pretty trivial, but it's a bit tedious because of the de Bruijn indices.
-expDiscardVar :: Fin ('Suc v) -> TypedExpr t ('Suc v) a b -> Maybe (TypedExpr t v a b)
+expDiscardVar :: Fin ('Suc v) -> PosTypedExpr t ('Suc v) a b -> Maybe (PosTypedExpr t v a b)
 expDiscardVar rm0 (TE t0 e0) = TE <$> typDiscardVar (finNat rm0) t0 <*> expDiscardVar' rm0 expDiscardVar e0
 
 expDiscardVar' :: Fin ('Suc v)
                -> (forall v. Fin ('Suc v) -> e t ('Suc v) a b -> Maybe (e t v a b))
-               -> Expr t ('Suc v) a b e -> Maybe (Expr t v a b e)
+               -> PosExpr t ('Suc v) a b e -> Maybe (PosExpr t v a b e)
 expDiscardVar' rm0 f e = case e of
   Variable (v, a)        -> Variable <$> ((,) <$> discardVar rm0 v <*> pure a)
   Fun fn ts ls notes     -> Fun fn <$> traverse (typDiscardVar $ finNat rm0) ts <*> pure ls <*> pure notes
