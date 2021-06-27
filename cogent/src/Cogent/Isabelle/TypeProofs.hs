@@ -69,7 +69,7 @@ data TypingTree t = TyTrLeaf
                   | TyTrSplit [Maybe TypeSplitKind] (TreeCtx t) (TreeCtx t)
 type TreeCtx t = ([Maybe (Type t VarName)], TypingTree t)
 
-deepTypeProof :: (Pretty a) => NameMod -> Bool -> Bool -> String -> [Definition TypedExpr a VarName] -> String -> Doc
+deepTypeProof :: (Pretty a) => NameMod -> Bool -> Bool -> String -> [Definition PosTypedExpr a VarName] -> String -> Doc
 deepTypeProof mod withDecls withBodies thy decls log =
   let header = (string ("(*\n" ++ log ++ "\n*)\n") <$>)
       ta = getTypeAbbrevs mod decls
@@ -166,7 +166,7 @@ flattenHintTree :: LeafTree Hints -> [TreeSteps Hints]
 flattenHintTree (Branch ths) = StepDown : concatMap flattenHintTree ths ++ [StepUp]
 flattenHintTree (Leaf h) = [Val h]
 
-proveSorry :: (Pretty a) => Definition TypedExpr a VarName -> State TypingSubproofs [TheoryDecl I.Type I.Term]
+proveSorry :: (Pretty a) => Definition PosTypedExpr a VarName -> State TypingSubproofs [TheoryDecl I.Type I.Term]
 proveSorry (FunDef _ fn k _ ti to e) = do
   mod <- use nameMod
   let safeFn = unIsabelleName $ mkIsabelleName fn
@@ -177,7 +177,7 @@ proveSorry (FunDef _ fn k _ ti to e) = do
   return prf
 proveSorry _ = return []
 
-prove :: (Pretty a) => [Definition TypedExpr a VarName] -> Definition TypedExpr a VarName
+prove :: (Pretty a) => [Definition PosTypedExpr a VarName] -> Definition PosTypedExpr a VarName
       -> State TypingSubproofs ([TheoryDecl I.Type I.Term], [TheoryDecl I.Type I.Term])
 prove decls (FunDef _ fn k _ ti to e) = do
   mod <- use nameMod
@@ -189,7 +189,7 @@ prove decls (FunDef _ fn k _ ti to e) = do
   return (fn_typecorrect_proof, if __cogent_fml_typing_tree then formatMLTreeFinalise (mod fn) else [])
 prove _ _ = return ([], [])
 
-proofs :: (Pretty a) => [Definition TypedExpr a VarName]
+proofs :: (Pretty a) => [Definition PosTypedExpr a VarName]
        -> State TypingSubproofs [TheoryDecl I.Type I.Term]
 proofs decls = do
     let (predecls,postdecls) = badHackSplitOnSorryBefore decls
@@ -197,17 +197,17 @@ proofs decls = do
     bodies <- mapM (prove decls) postdecls
     return $ concat $ bsorry ++ map fst bodies ++ map snd bodies
 
-funTypeTree :: (Pretty a) => NameMod -> TypeAbbrevs -> Definition TypedExpr a VarName -> [TheoryDecl I.Type I.Term]
+funTypeTree :: (Pretty a) => NameMod -> TypeAbbrevs -> Definition PosTypedExpr a VarName -> [TheoryDecl I.Type I.Term]
 funTypeTree mod ta (FunDef _ fn _ _ ti _ e) = [deepTyTreeDef mod ta fn (typeTree eexpr)]
   where eexpr = pushDown (Cons (Just ti) Nil) (splitEnv (Cons (Just ti) Nil) e)
 funTypeTree _ _ _ = []
 
-funTypeTrees :: (Pretty a) => NameMod -> TypeAbbrevs -> [Definition TypedExpr a VarName] -> [TheoryDecl I.Type I.Term]
+funTypeTrees :: (Pretty a) => NameMod -> TypeAbbrevs -> [Definition PosTypedExpr a VarName] -> [TheoryDecl I.Type I.Term]
 funTypeTrees mod ta decls =
   let (_, decls') = badHackSplitOnSorryBefore decls
   in concatMap (funTypeTree mod ta) decls
 
-badHackSplitOnSorryBefore :: [Definition TypedExpr a VarName] -> ([Definition TypedExpr a VarName], [Definition TypedExpr a VarName])
+badHackSplitOnSorryBefore :: [Definition PosTypedExpr a VarName] -> ([Definition PosTypedExpr a VarName], [Definition PosTypedExpr a VarName])
 badHackSplitOnSorryBefore decls =
   if __cogent_type_proof_sorry_before == Nothing
   then ([], decls)
@@ -264,14 +264,14 @@ isaTypeName n =
 
 isaName = unIsabelleName . mkIsabelleName
 
-funTypeCase :: NameMod -> Definition TypedExpr a VarName -> Maybe Term
+funTypeCase :: NameMod -> Definition PosTypedExpr a VarName -> Maybe Term
 funTypeCase mod (FunDef  _ fn _ _ _ _ _) =
   Just $ mkPair (mkId (escapedFunName (isaName fn))) (mkId (mod (isaTypeName fn)))
 funTypeCase mod (AbsDecl _ fn _ _ _ _  ) =
   Just $ mkPair (mkId (escapedFunName (isaName fn))) (mkId (mod (isaTypeName fn)))
 funTypeCase _ _ = Nothing
 
-funTypeEnv :: NameMod -> [Definition TypedExpr a VarName] -> [TheoryDecl I.Type I.Term]
+funTypeEnv :: NameMod -> [Definition PosTypedExpr a VarName] -> [TheoryDecl I.Type I.Term]
 funTypeEnv mod fs = funTypeEnv' $ mkList $ mapMaybe (funTypeCase mod) fs
 
 funTypeEnv' upds = let unit = mkId "([], TUnit, TUnit)"
@@ -281,12 +281,12 @@ funTypeEnv' upds = let unit = mkId "([], TUnit, TUnit)"
                     in [[isaDecl| definition \<Xi> :: "$tysig"
                                   where "\<Xi> \<equiv> assoc_lookup $upds $unit" |]]
 
-funDefCase :: Definition TypedExpr a VarName -> Maybe Term
+funDefCase :: Definition PosTypedExpr a VarName -> Maybe Term
 funDefCase (AbsDecl _ fn _ _ _ _  ) =
     Just $ mkPair (mkId $ escapedFunName fn) (mkId "(\\<lambda>_ _. False)")
 funDefCase _ = Nothing
 
-funDefEnv :: [Definition TypedExpr a VarName] -> [TheoryDecl I.Type I.Term]
+funDefEnv :: [Definition PosTypedExpr a VarName] -> [TheoryDecl I.Type I.Term]
 funDefEnv fs = funDefEnv' $ mkList $ mapMaybe funDefCase fs
 
 funDefEnv' upds = let unit = mkId "(\\<lambda>_ _. False)"
@@ -322,7 +322,7 @@ selectEnv [] env = cleared env
 selectEnv ((v,_):vs) env = update (selectEnv vs env) v (env `at` v)
 
 -- Annotates a typed expression with the environment required to successfully execute it
-splitEnv :: (Pretty a) => Vec v (Maybe (Type t VarName)) -> TypedExpr t v a VarName -> EnvExpr t v a VarName
+splitEnv :: (Pretty a) => Vec v (Maybe (Type t VarName)) -> PosTypedExpr t v a VarName -> EnvExpr t v a VarName
 splitEnv env (TE t Unit)             = EE t Unit          $ cleared env
 splitEnv env (TE t (ILit i t'))      = EE t (ILit i t')   $ cleared env
 splitEnv env (TE t (SLit s))         = EE t (SLit s)      $ cleared env

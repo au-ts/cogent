@@ -131,7 +131,7 @@ deepPrimOp CS.LShift t = mkApp (mkId "LShift") [deepNumType t]
 deepPrimOp CS.RShift t = mkApp (mkId "RShift") [deepNumType t]
 deepPrimOp CS.Complement t = mkApp (mkId "Complement") [deepNumType t]
 
-deepExpr :: (Pretty a, Ord b, Pretty b) => NameMod -> TypeAbbrevs -> [Definition TypedExpr a b] -> TypedExpr t v a b -> Term
+deepExpr :: (Pretty a, Ord b, Pretty b) => NameMod -> TypeAbbrevs -> [Definition PosTypedExpr a b] -> PosTypedExpr t v a b -> Term
 deepExpr mod ta defs (TE _ (Variable v)) = mkApp (mkId "Var") [deepIndex (fst v)]
 deepExpr mod ta defs (TE _ (Fun fn ts ls _))  -- FIXME
   | concreteFun fn = mkApp (mkId "Fun")  [mkId (mod (unIsabelleName $ mkIsabelleName $ unCoreFunName fn)), mkList (map (deepType mod ta) ts)]
@@ -205,8 +205,8 @@ imports = TheoryImports $ ["Cogent.Cogent"]
 deepDefinition :: (Pretty a, Ord b, Pretty b)
                => NameMod
                -> TypeAbbrevs
-               -> [Definition TypedExpr a b]
-               -> Definition TypedExpr a b
+               -> [Definition PosTypedExpr a b]
+               -> Definition PosTypedExpr a b
                -> [TheoryDecl I.Type I.Term]
                -> [TheoryDecl I.Type I.Term]
 deepDefinition mod ta defs (FunDef _ fn ks ts ti to e) decls =
@@ -231,7 +231,7 @@ deepDefinition mod ta _ (AbsDecl _ fn ks ts ti to) decls =
      in tydecl:decls
 deepDefinition _ _ _ _ decls = decls
 
-deepDefinitions :: (Pretty a, Ord b, Pretty b) => NameMod -> TypeAbbrevs -> [Definition TypedExpr a b] -> [TheoryDecl I.Type I.Term]
+deepDefinitions :: (Pretty a, Ord b, Pretty b) => NameMod -> TypeAbbrevs -> [Definition PosTypedExpr a b] -> [TheoryDecl I.Type I.Term]
 deepDefinitions mod ta defs = foldr (deepDefinition mod ta defs) [] defs ++
                               [TheoryString $
                                "ML \\<open>\n" ++
@@ -266,12 +266,12 @@ addTypeAbbrev mod t ta = case Map.lookup term (fst ta) of
   where
     term = deepTypeInner mod ta t
 
-getDefTypeAbbrevs :: (Ord b) => NameMod -> Definition TypedExpr a b -> TypeAbbrevs -> TypeAbbrevs
+getDefTypeAbbrevs :: (Ord b) => NameMod -> Definition PosTypedExpr a b -> TypeAbbrevs -> TypeAbbrevs
 getDefTypeAbbrevs mod (FunDef _ _ _ _ ti to e) ta = foldr (addTypeAbbrev mod) ta
     (scanAggregates ti ++ scanAggregates to)
 getDefTypeAbbrevs _ _ ta = ta
 
-getTypeAbbrevs :: (Ord b) => NameMod -> [Definition TypedExpr a b] -> TypeAbbrevs
+getTypeAbbrevs :: (Ord b) => NameMod -> [Definition PosTypedExpr a b] -> TypeAbbrevs
 getTypeAbbrevs mod defs = foldr (getDefTypeAbbrevs mod) (Map.empty, 1) defs
 
 deepTypeAbbrev :: NameMod -> (Int, Term) -> TheoryDecl I.Type I.Term
@@ -295,13 +295,13 @@ deepTypeAbbrevs mod ta = map (deepTypeAbbrev mod) defs ++ [typeAbbrevDefsLemma m
   where
     defs = sort $ map (\(x, y) -> (y, x)) $ Map.toList (fst ta)
 
-deepDefinitionsAbb :: (Pretty a, Ord b, Pretty b) => NameMod -> [Definition TypedExpr a b] -> (TypeAbbrevs, [TheoryDecl I.Type I.Term])
+deepDefinitionsAbb :: (Pretty a, Ord b, Pretty b) => NameMod -> [Definition PosTypedExpr a b] -> (TypeAbbrevs, [TheoryDecl I.Type I.Term])
 deepDefinitionsAbb mod defs = (ta, deepTypeAbbrevs mod ta ++ deepDefinitions mod ta defs)
   where ta = getTypeAbbrevs mod defs
 
-deepFile :: (Pretty a, Ord b, Pretty b) => NameMod -> String -> [Definition TypedExpr a b] -> Theory I.Type I.Term
+deepFile :: (Pretty a, Ord b, Pretty b) => NameMod -> String -> [Definition PosTypedExpr a b] -> Theory I.Type I.Term
 deepFile mod thy defs = Theory thy imports (snd (deepDefinitionsAbb mod defs))
 
-deep :: (Pretty a, Ord b, Pretty b) => String -> Stage -> [Definition TypedExpr a b] -> String -> Doc
+deep :: (Pretty a, Ord b, Pretty b) => String -> Stage -> [Definition PosTypedExpr a b] -> String -> Doc
 deep thy stg defs log = string ("(*\n" ++ log ++ "\n*)\n") <$>
                         pretty (deepFile snm thy defs)

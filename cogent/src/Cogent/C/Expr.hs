@@ -294,7 +294,7 @@ withBindings vec = Gen . withRWS (\r s -> (r <++> vec, s)) . runGen
 -- * Expr generation
 
 
-genExpr_ :: TypedExpr 'Zero v VarName VarName -> Gen v (CExpr, [CBlockItem], [CBlockItem], VarPool)
+genExpr_ :: PosTypedExpr 'Zero v VarName VarName -> Gen v (CExpr, [CBlockItem], [CBlockItem], VarPool)
 genExpr_ = genExpr Nothing
 
 
@@ -316,7 +316,7 @@ genExpr
      -- Otherwise, the generated C expression
      -- is returned directly.
 
-  -> TypedExpr 'Zero v VarName VarName
+  -> PosTypedExpr 'Zero v VarName VarName
      -- ^ The cogent expression to generate C code for.
 
   -> Gen v (CExpr, [CBlockItem], [CBlockItem], VarPool)
@@ -848,14 +848,14 @@ genFfiFunc rt fn [t]
 genFfiFunc _ _ _ = __impossible "genFfiFunc: generated C functions should always have 1 argument"
 
  -- NOTE: This function excessively uses `unsafeCoerce' because of existentials / zilinc
-genDefinition :: Definition TypedExpr VarName VarName -> Gen 'Zero [CExtDecl]
+genDefinition :: Definition PosTypedExpr VarName VarName -> Gen 'Zero [CExtDecl]
 genDefinition (FunDef attr fn Nil Nil t rt e) = do
   localOracle .= 0
   varPool .= M.empty
   arg <- freshLocalCId 'a'
   t' <- addSynonym genTypeA (unsafeCoerce t :: CC.Type 'Zero VarName) (argOf fn)
   (e',edecl,estm,_) <- withBindings (Cons (variable arg & if __cogent_funboxed_arg_by_ref then CDeref else id) Nil)
-                         (genExpr Nothing (unsafeCoerce e :: TypedExpr 'Zero ('Suc 'Zero) VarName VarName))
+                         (genExpr Nothing (unsafeCoerce e :: PosTypedExpr 'Zero ('Suc 'Zero) VarName VarName))
   rt' <- addSynonym genType (unsafeCoerce rt :: CC.Type 'Zero VarName) (retOf fn)
   funClasses %= M.alter (insertSetMap (fn,attr)) (Function t' rt')
   body <- case __cogent_fintermediate_vars of
@@ -902,7 +902,7 @@ genDefinition _ = return []
 -- ----------------------------------------------------------------------------
 -- * top-level function
 
-compile :: [Definition TypedExpr VarName VarName]
+compile :: [Definition PosTypedExpr VarName VarName]
         -> Maybe GenState      -- cached state
         -> [(Type 'Zero VarName, String)]
         -> ( [CExtDecl]  -- enum definitions

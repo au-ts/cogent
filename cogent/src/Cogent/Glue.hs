@@ -575,7 +575,7 @@ tcFnCall e = do
          otherwise -> throwError $ "Error: Not a function in $exp antiquote"
   f `seq` tcExp e Nothing
 
-genFn :: CC.TypedExpr 'Zero 'Zero VarName VarName -> Gl CS.Exp
+genFn :: CC.PosTypedExpr 'Zero 'Zero VarName VarName -> Gl CS.Exp
 genFn = genAnti $ \case
   CC.TE t (CC.Fun fn _ _ _) -> return (CS.Var (CS.Id (CG.funEnum (unCoreFunName fn)) noLoc) noLoc)
   _ -> __impossible "genFn"
@@ -604,16 +604,16 @@ tcExp e mt = do
        -- TC.exitOnErr $ mapM_ TC.logTc logs
        TC.postE $ TC.applyE subst e'
 
-desugarExp :: TC.TypedExpr -> GlDefn t (CC.UntypedExpr t 'Zero VarName VarName)
+desugarExp :: TC.TypedExpr -> GlDefn t (CC.PosUntypedExpr t 'Zero VarName VarName)
 desugarExp = desugarAnti DS.desugarExpr
 
-coreTcExp :: CC.UntypedExpr t 'Zero VarName VarName -> GlDefn t (CC.TypedExpr t 'Zero VarName VarName)
+coreTcExp :: CC.PosUntypedExpr t 'Zero VarName VarName -> GlDefn t (CC.PosTypedExpr t 'Zero VarName VarName)
 coreTcExp = coreTcAnti IN.infer
 
-monoExp :: CC.TypedExpr t 'Zero VarName VarName -> GlMono t (CC.TypedExpr 'Zero 'Zero VarName VarName)
+monoExp :: CC.PosTypedExpr t 'Zero VarName VarName -> GlMono t (CC.PosTypedExpr 'Zero 'Zero VarName VarName)
 monoExp = monoAnti MN.monoExpr
 
-genExp :: CC.TypedExpr 'Zero 'Zero VarName VarName -> Gl CS.Exp
+genExp :: CC.PosTypedExpr 'Zero 'Zero VarName VarName -> Gl CS.Exp
 genExp = genAnti $ \e -> do (v,vdecl,vstm,_) <- CG.genExpr Nothing e
                             let bis' = L.map CG.cBlockItem (vdecl ++ vstm)
                                 v'   = CG.cExpr v
@@ -785,7 +785,7 @@ glue s typnames mode filenames = liftA (M.toList . M.fromListWith (flip (++)) . 
 
 mkGlState :: [SF.TopLevel TC.DepType TC.TypedPatn TC.TypedExpr]
           -> TC.TcState
-          -> Last (DS.Typedefs, DS.Constants, [CC.CoreConst CC.UntypedExpr])
+          -> Last (DS.Typedefs, DS.Constants, [CC.CoreConst CC.PosUntypedExpr])
           -> M.Map FunName (CC.FunctionType VarName)
           -> (MN.FunMono VarName, MN.InstMono VarName)
           -> CG.GenState
@@ -832,7 +832,7 @@ tyVars _ = __impossible "tyVars"
 
 readEntryFuncs :: [SF.TopLevel TC.DepType TC.TypedPatn TC.TypedExpr]
                -> TC.TcState
-               -> Last (DS.Typedefs, DS.Constants, [CC.CoreConst CC.UntypedExpr])
+               -> Last (DS.Typedefs, DS.Constants, [CC.CoreConst CC.PosUntypedExpr])
                -> M.Map FunName (CC.FunctionType VarName)
                -> [String]
                -> IO (Maybe (MN.FunMono VarName))

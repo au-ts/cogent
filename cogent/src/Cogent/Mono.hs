@@ -66,16 +66,16 @@ type InstMono b = M.Map TypeName (S.Set (Instance b))      -- as above
                   --  ^^^ NOTE: do we really need data layouts in instance now?
 
 newtype Mono b x = Mono { runMono :: RWS (Instance b)
-                                         ([Warning], [Definition TypedExpr VarName b], [(Type 'Zero b, String)])
+                                         ([Warning], [Definition PosTypedExpr VarName b], [(Type 'Zero b, String)])
                                          (FunMono b, InstMono b)
                                          x }
                  deriving (Functor, Applicative, Monad,
                            MonadReader (Instance b),
-                           MonadWriter ([Warning], [Definition TypedExpr VarName b], [(Type 'Zero b, String)]),
+                           MonadWriter ([Warning], [Definition PosTypedExpr VarName b], [(Type 'Zero b, String)]),
                            MonadState  (FunMono b, InstMono b))
 
 -- Returns: (monomorphic abstract functions, poly-abs-funcs)
-absFuns :: [Definition TypedExpr VarName b] -> ([FunName], [FunName])
+absFuns :: [Definition PosTypedExpr VarName b] -> ([FunName], [FunName])
 absFuns = (P.map getDefinitionId *** P.map getDefinitionId)
         . L.partition (\(AbsDecl _ _ ts _ _ _) -> case Vec.length ts of SZero -> True; _ -> False)
         . P.filter isAbsDecl
@@ -85,30 +85,30 @@ absFuns = (P.map getDefinitionId *** P.map getDefinitionId)
 -- With --entry-funcs flag, unused functions won't appear in the list
 -- Without this flag, unused functions will be numbered 0
 -- Mono-functions are always numbered -1
-absFunMono :: FunMono b -> [Definition TypedExpr VarName b] -> M.Map FunName Int
+absFunMono :: FunMono b -> [Definition PosTypedExpr VarName b] -> M.Map FunName Int
 absFunMono (M.toList -> l) (absFuns -> (ms,ps))
   = M.fromList . catMaybes $ flip P.map l $ \(fn, M.size -> num) ->
       if | fn `elem` ps -> Just (fn, num)
          | fn `elem` ms -> Just (fn, -1)
          | otherwise -> Nothing
 
-printAFM :: FunMono b -> [Definition TypedExpr VarName b] -> String
+printAFM :: FunMono b -> [Definition PosTypedExpr VarName b] -> String
 printAFM = ((unlines . P.map (\(n,i) -> n ++ ", " ++ show i) . M.toList) .) . absFunMono
 
 mono :: forall b. (Ord b)
-     => [Definition TypedExpr VarName b]
+     => [Definition PosTypedExpr VarName b]
      -> [(SupposedlyMonoType b, String)]
      -> Maybe (FunMono b, InstMono b)
-     -> ((FunMono b, InstMono b), ([Warning], [Definition TypedExpr VarName b], [(Type 'Zero b, String)]))
+     -> ((FunMono b, InstMono b), ([Warning], [Definition PosTypedExpr VarName b], [(Type 'Zero b, String)]))
 mono ds ctygen initmap = (second . second3 $ reverse) . flip3 execRWS initmap' ([], []) . runMono $ monoDefinitions (reverse ds) >> monoCustTyGen ctygen
   where initmap' :: (FunMono b, InstMono b)  -- a map consists of all function names, each of which has no instances
         initmap' = fromMaybe ( M.fromList $ P.zip (catMaybes $ P.map getFuncId ds) (P.repeat M.empty)  -- [] can never appear in the map
                              , M.empty ) initmap
 
-monoDefinitions :: (Ord b) => [Definition TypedExpr VarName b] -> Mono b ()
+monoDefinitions :: (Ord b) => [Definition PosTypedExpr VarName b] -> Mono b ()
 monoDefinitions = mapM_ monoDefinition
 
-monoDefinition :: (Ord b) => Definition TypedExpr VarName b -> Mono b ()
+monoDefinition :: (Ord b) => Definition PosTypedExpr VarName b -> Mono b ()
 -- monoDefinition d@(TypeDef {}) = censor (second3 $ (d:)) (return ())  -- types are all structural, no need to monomorphise
 monoDefinition d@(TypeDef _ Vec.Nil _) = censor (second3 $ (d:)) $ return ()  -- Only add non-parametric types to CG
   -- FIXME: It seems that this problem have been subsumed and fixed by #84 / zilinc (03/09/15)
@@ -132,7 +132,7 @@ monoDefinition d =
         Just is -> monoDefinitionInsts d $ M.keys is
 
 -- given instances, instantiate a function
-monoDefinitionInsts :: (Ord b) => Definition TypedExpr VarName b -> [Instance b] -> Mono b ()
+monoDefinitionInsts :: (Ord b) => Definition PosTypedExpr VarName b -> [Instance b] -> Mono b ()
 monoDefinitionInsts d [] =
   if getTypeVarNum d == 0 && getLayoutVarNum d == 0
     then monoDefinitionInst d ([], [])  -- monomorphic function
@@ -145,7 +145,7 @@ monoName n Nothing  = unCoreFunName n
 monoName n (Just i) = unCoreFunName n ++ "_" ++ show i
 
 -- given one instance
-monoDefinitionInst :: (Ord b) => Definition TypedExpr VarName b -> Instance b -> Mono b ()
+monoDefinitionInst :: (Ord b) => Definition PosTypedExpr VarName b -> Instance b -> Mono b ()
 monoDefinitionInst (FunDef attr fn tvs lvs t rt e) i = do
   idx <- if i == ([], []) then return Nothing else M.lookup i . fromJust . M.lookup fn . fst <$> get
   d' <- Mono $ local (const i) (runMono $ FunDef attr (monoName (unsafeCoreFunName fn) idx) Nil Nil <$> monoType t <*> monoType rt <*> monoExpr e)
@@ -156,11 +156,11 @@ monoDefinitionInst (AbsDecl attr fn tvs lvs t rt) i = do
   censor (second3 $ (d':)) (return ())
 monoDefinitionInst (TypeDef tn tvs t) i = __impossible "monoDefinitionInst"
 
-getPrimInt :: TypedExpr t v VarName b -> PrimInt
+getPrimInt :: PosTypedExpr t v VarName b -> PrimInt
 getPrimInt (TE t _) | TPrim p <- t = p
                     | otherwise = __impossible "getPrimInt"
 
-monoExpr :: (Ord b) => TypedExpr t v VarName b -> Mono b (TypedExpr 'Zero v VarName b)
+monoExpr :: (Ord b) => PosTypedExpr t v VarName b -> Mono b (PosTypedExpr 'Zero v VarName b)
 monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
   where
     monoExpr' (Variable var        ) = pure $ Variable var

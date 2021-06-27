@@ -29,7 +29,7 @@ import Cogent.C.Syntax
 import Cogent.C.Type
 import Cogent.Common.Syntax
 import Cogent.Compiler
-import Cogent.Core (Definition, Type, TypedExpr)
+import Cogent.Core (Definition, Type, PosTypedExpr)
 #ifdef WITH_HASKELL
 import Cogent.Haskell.FFIGen (ffiHs)
 import Cogent.Haskell.HscGen (ffiHsc)
@@ -48,7 +48,7 @@ cgen :: FilePath
      -> [FilePath]
      -> FilePath
      -> FilePath
-     -> [Definition TypedExpr VarName VarName]
+     -> [Definition PosTypedExpr VarName VarName]
      -> Maybe GenState
      -> [(Type 'Zero VarName, String)]
      -> String

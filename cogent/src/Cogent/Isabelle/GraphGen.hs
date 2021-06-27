@@ -115,7 +115,7 @@ getExprType (GOp _ typ _) = typ
 getExprType (GBool _) = GBoolT
 getExprType (GNum typ _) = typ
 
-graphGen :: (Show a, Show b) => [Definition TypedExpr a b] -> String -> IO ()
+graphGen :: (Show a, Show b) => [Definition PosTypedExpr a b] -> String -> IO ()
 graphGen defs log = putStrLn $ (concatMap prettyFunctionGraph d)
       ++ "\n# ==Failed functions==\n" ++ f
       ++ "\n# ==Failed Typed Functions==\n" ++ f2
@@ -125,10 +125,10 @@ graphGen defs log = putStrLn $ (concatMap prettyFunctionGraph d)
           f2 = concatMap prettyFailedTypeFunction d
           report = prettyFailureReport d
 
-graphDefinitions :: (Show a, Show b) => [Definition TypedExpr a b] -> [FunctionGraph]
+graphDefinitions :: (Show a, Show b) => [Definition PosTypedExpr a b] -> [FunctionGraph]
 graphDefinitions = foldr graphDefinition []
 
-graphDefinition :: (Show a, Show b) => Definition TypedExpr a b -> [FunctionGraph] -> [FunctionGraph]
+graphDefinition :: (Show a, Show b) => Definition PosTypedExpr a b -> [FunctionGraph] -> [FunctionGraph]
 graphDefinition te@(FunDef _ fn _ _ ti to _) gs = fg : gs
     where
         fg = case graphHelper te of
@@ -149,7 +149,7 @@ graphTypeHelper ti to = do
     output <- getFieldVariables (v, gto)
     return (input, output)
 
-graphHelper :: (Show a, Show b) => Definition TypedExpr a b -> GM FunctionGraph
+graphHelper :: (Show a, Show b) => Definition PosTypedExpr a b -> GM FunctionGraph
 graphHelper (FunDef _ fn _ _ ti to e) = do
     let v = "a@0"
     gti <- graphType ti
@@ -202,7 +202,7 @@ mkBasic s nn v xs exUpds = mkBasicVs s nn [v] xs exUpds
 mystery :: String -> Integer
 mystery s = 0 -- error ("mystery: " ++ s)
 
-graph :: (Show a, Show b) => Graph -> TypedExpr t v a b -> Int -> NextNode -> VarEnv -> GM (Graph, Int)
+graph :: (Show a, Show b) => Graph -> PosTypedExpr t v a b -> Int -> NextNode -> VarEnv -> GM (Graph, Int)
 
 graph g (TE _ (Let _ (TE appTy (App (TE _ (Fun fn _ _ _)) arg)) e)) n ret vs = do
     let v = (freshNames !! (Prelude.length vs)) ++ "@" ++ show n
@@ -408,7 +408,7 @@ getFieldsFromConcat groups n fields = do
     let takeN = Prelude.length list2
     return (take takeN $ drop dropN fields)
 
-atom :: (Show a, Show b) => TypedExpr t v a b -> VarEnv -> GM ([GExpr], [(String, GTyp, GExpr)])
+atom :: (Show a, Show b) => PosTypedExpr t v a b -> VarEnv -> GM ([GExpr], [(String, GTyp, GExpr)])
 atom (TE ty (Variable v)) vs = do
     when (finInt (fst v) >= Prelude.length vs) $ abort $ "atom: " ++ show (v, vs)
     let (nm, ggTyp) = vs !! (finInt $ fst v)
@@ -513,7 +513,7 @@ atom te@(TE _ (SLit _)) vs     = failure ("atom SLit: " ++ show te)
 
 atom (TE _ x) vs = failure ("atom: couldn't handle: " ++ show x)
 
-atomCheck :: (Show a, Show b) => TypedExpr t v a b -> VarEnv -> GM ([GExpr], [(String, GTyp, GExpr)])
+atomCheck :: (Show a, Show b) => PosTypedExpr t v a b -> VarEnv -> GM ([GExpr], [(String, GTyp, GExpr)])
 atomCheck te vs = do
     res <- atom te vs
     gty <- graphType (exprType te)
@@ -522,14 +522,14 @@ atomCheck te vs = do
         $ abort $ "atomCheck: " ++ show te ++ ", " ++ show res
     return res
 
-atomNoUpds :: (Show a, Show b) => TypedExpr t v a b -> VarEnv -> GM [GExpr]
+atomNoUpds :: (Show a, Show b) => PosTypedExpr t v a b -> VarEnv -> GM [GExpr]
 atomNoUpds te ve = do
     res <- atomCheck te ve
     case res of
         (xs, [])   -> return xs
         (xs, upds) -> failure ("atomNoUpds: got upds: " ++ show upds)
 
-singleAtom :: (Show a, Show b) => TypedExpr t v a b -> VarEnv -> GM GExpr
+singleAtom :: (Show a, Show b) => PosTypedExpr t v a b -> VarEnv -> GM GExpr
 singleAtom te ve = do
     res <- atom te ve
     case res of

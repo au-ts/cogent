@@ -69,6 +69,8 @@ import GHC.Generics (Generic)
 import Text.PrettyPrint.ANSI.Leijen as L hiding (tupled, indent, (<$>))
 import qualified Text.PrettyPrint.ANSI.Leijen as L ((<$>))
 
+import Text.Parsec.Pos (SourcePos)
+
 data Type t b
   = TVar (Fin t)
   | TVarBang (Fin t)
@@ -153,7 +155,8 @@ unroll v _ = __impossible "unroll in core given an empty context - this usually 
 data FunNote = NoInline | InlineMe | MacroCall | InlinePlease  -- order is important, larger value has stronger precedence
              deriving (Bounded, Eq, Ord, Show)
 
-data Expr t v a b e
+type PosExpr = Expr SourcePos
+data Expr loc t v a b e
   = Variable (Fin v, a)
   | Fun CoreFunName [Type t b] [DataLayout BitRange] FunNote  -- here do we want to keep partial application and infer again? / zilinc
   | Op Op [e t v a b]
@@ -188,11 +191,11 @@ data Expr t v a b e
   | Cast (Type t b) (e t v a b)  -- only for integer casts. rep. changed
 -- \ vvv constraint no smaller than header, thus UndecidableInstances
 deriving instance (Show a, Show b, Show (e t v a b), Show (e t ('Suc v) a b), Show (e t ('Suc ('Suc v)) a b))
-  => Show (Expr t v a b e)
+  => Show (Expr loc t v a b e)
 deriving instance (Eq a, Eq b, Eq (e t v a b), Eq (e t ('Suc v) a b), Eq (e t ('Suc ('Suc v)) a b))
-  => Eq  (Expr t v a b e)
+  => Eq  (Expr loc t v a b e)
 deriving instance (Ord a, Ord b, Ord (e t v a b), Ord (e t ('Suc v) a b), Ord (e t ('Suc ('Suc v)) a b))
-  => Ord (Expr t v a b e)
+  => Ord (Expr loc t v a b e)
 
 -- NOTE: We leave these logic expressions here even when the --builtin-arrays
 -- flag is off. The reason is that, without it, the type class instance
@@ -226,10 +229,10 @@ instance (Binary b, Generic b) => Binary (LExpr 'Zero b)
 
 #ifdef BUILTIN_ARRAYS
 exprToLExpr :: (a -> b)
-            -> ((a -> b) -> e t v a b -> LExpr t b)
-            -> ((a -> b) -> e t ('Suc v) a b -> LExpr t b)
-            -> ((a -> b) -> e t ('Suc ('Suc v)) a b -> LExpr t b)
-            -> Expr t v a b e -> LExpr t b
+            -> ((a -> b) -> e loc t v a b -> LExpr t b)
+            -> ((a -> b) -> e loc t ('Suc v) a b -> LExpr t b)
+            -> ((a -> b) -> e loc t ('Suc ('Suc v)) a b -> LExpr t b)
+            -> Expr loc t v a b e -> LExpr t b
 exprToLExpr fab f f1 f2 = \case
   Variable v         -> LVariable (second fab $ first finNat v)
   Fun fn ts ls nt    -> LFun fn ts ls
@@ -271,8 +274,11 @@ uexprToLExpr :: (a -> b) -> UntypedExpr t v a b -> LExpr t b
 uexprToLExpr f (E e) = exprToLExpr f uexprToLExpr uexprToLExpr uexprToLExpr e
 #endif
 
-data UntypedExpr t v a b = E  (Expr t v a b UntypedExpr) deriving (Show, Eq, Ord)
-data TypedExpr   t v a b = TE { exprType :: Type t b , exprExpr :: Expr t v a b TypedExpr }
+type PosUntypedExpr = UntypedExpr SourcePos
+data UntypedExpr loc t v a b = E  (Expr loc t v a b (UntypedExpr loc)) deriving (Show, Eq, Ord)
+
+type PosTypedExpr = TypedExpr SourcePos
+data TypedExpr   loc t v a b = TE { exprType :: Type t b , exprExpr :: Expr loc t v a b (TypedExpr loc) }
                          deriving (Show, Eq, Ord)
 
 data FunctionType b = forall t l. FT (Vec t Kind) (Vec l (Type t b)) (Type t b) (Type t b)
@@ -299,8 +305,8 @@ data Definition e a b
              => FunDef  Attr FunName (Vec t (TyVarName, Kind)) (Vec l (DLVarName, Type t b)) (Type t b) (Type t b) (e t ('Suc 'Zero) a b)
   | forall t l. AbsDecl Attr FunName (Vec t (TyVarName, Kind)) (Vec l (DLVarName, Type t b)) (Type t b) (Type t b)
   | forall t. TypeDef TypeName (Vec t TyVarName) (Maybe (Type t b))
-deriving instance (Show a, Show b) => Show (Definition TypedExpr   a b)
-deriving instance (Show a, Show b) => Show (Definition UntypedExpr a b)
+deriving instance (Show a, Show b) => Show (Definition (TypedExpr loc)   a b)
+deriving instance (Show a, Show b) => Show (Definition (UntypedExpr loc) a b)
 
 type CoreConst e = (VarName, e 'Zero 'Zero VarName VarName)
 
@@ -351,15 +357,15 @@ isAbsTyp _ = False
 insertIdxAtType :: Nat -> Type t b -> Type t b
 insertIdxAtType cut t = __fixme t
 
-insertIdxAtUntypedExpr :: Fin ('Suc v) -> UntypedExpr t v a b -> UntypedExpr t ('Suc v) a b
+insertIdxAtUntypedExpr :: Fin ('Suc v) -> UntypedExpr loc t v a b -> UntypedExpr loc t ('Suc v) a b
 insertIdxAtUntypedExpr cut (E e) = E $ insertIdxAtE cut insertIdxAtUntypedExpr e
 
-insertIdxAtTypedExpr :: Fin ('Suc v) -> TypedExpr t v a b -> TypedExpr t ('Suc v) a b
+insertIdxAtTypedExpr :: Fin ('Suc v) -> TypedExpr loc t v a b -> TypedExpr loc t ('Suc v) a b
 insertIdxAtTypedExpr cut (TE t e) = TE (insertIdxAtType (finNat cut) t) (insertIdxAtE cut insertIdxAtTypedExpr e)
 
 insertIdxAtE :: Fin ('Suc v)
              -> (forall v. Fin ('Suc v) -> e t v a b -> e t ('Suc v) a b)
-             -> (Expr t v a b e -> Expr t ('Suc v) a b e)
+             -> (Expr loc t v a b e -> Expr loc t ('Suc v) a b e)
 insertIdxAtE cut f (Variable v) = Variable $ first (liftIdx cut) v
 insertIdxAtE cut f (Fun fn ts ls nt) = Fun fn ts ls nt
 insertIdxAtE cut f (Op opr es) = Op opr $ map (f cut) es
@@ -394,9 +400,9 @@ insertIdxAtE cut f (Cast ty e) = Cast ty (f cut e)
 
 -- pre-order fold over Expr wrapper
 foldEPre :: (Monoid m)
-         => (forall t v. e1 t v a b -> Expr t v a b e1)
-         -> (forall t v. e1 t v a b -> m)
-         -> e1 t v a b
+         => (forall t v. e1 loc t v a b -> Expr loc t v a b (e1 loc))
+         -> (forall t v. e1 loc t v a b -> m)
+         -> e1 loc t v a b
          -> m
 foldEPre unwrap f e = case unwrap e of
   Variable{}          -> f e
@@ -431,7 +437,7 @@ foldEPre unwrap f e = case unwrap e of
   (Cast _ e1)         -> f e `mappend` foldEPre unwrap f e1
 
 
-fmapE :: (forall t v. e1 t v a b -> e2 t v a b) -> Expr t v a b e1 -> Expr t v a b e2
+fmapE :: (forall t v. e1 loc t v a b -> e2 loc t v a b) -> Expr loc t v a b (e1 loc) -> Expr loc t v a b (e2 loc)
 fmapE f (Variable v)         = Variable v
 fmapE f (Fun fn ts ls nt)    = Fun fn ts ls nt
 fmapE f (Op opr es)          = Op opr (map f es)
@@ -464,10 +470,10 @@ fmapE f (Promote ty e)       = Promote ty (f e)
 fmapE f (Cast ty e)          = Cast ty (f e)
 
 
-untypeE :: TypedExpr t v a b -> UntypedExpr t v a b
+untypeE :: TypedExpr loc t v a b -> UntypedExpr loc t v a b
 untypeE (TE _ e) = E $ fmapE untypeE e
 
-untypeD :: Definition TypedExpr a b -> Definition UntypedExpr a b
+untypeD :: Definition (TypedExpr loc) a b -> Definition (UntypedExpr loc) a b
 untypeD (FunDef  attr fn ts ls ti to e) = FunDef  attr fn ts ls ti to (untypeE e)
 untypeD (AbsDecl attr fn ts ls ti to  ) = AbsDecl attr fn ts ls ti to
 untypeD (TypeDef tn ts mt) = TypeDef tn ts mt
@@ -475,7 +481,7 @@ untypeD (TypeDef tn ts mt) = TypeDef tn ts mt
 instance (Functor (e t v a),
           Functor (e t ('Suc v) a),
           Functor (e t ('Suc ('Suc v)) a))
-       => Functor (Flip (Expr t v a) e) where  -- map over @b@
+       => Functor (Flip (Expr l t v a) e) where  -- map over @b@
   fmap f (Flip (Variable v)         )      = Flip $ Variable v
   fmap f (Flip (Fun fn ts ls nt)    )      = Flip $ Fun fn (fmap (fmap f) ts) ls nt
   fmap f (Flip (Op opr es)          )      = Flip $ Op opr (fmap (fmap f) es)
@@ -510,7 +516,7 @@ instance (Functor (e t v a),
 instance (Functor (Flip (e t v) b),
           Functor (Flip (e t ('Suc v)) b),
           Functor (Flip (e t ('Suc ('Suc v))) b))
-       => Functor (Flip2 (Expr t v) e b) where  -- map over @a@
+       => Functor (Flip2 (Expr l t v) e b) where  -- map over @a@
   fmap f (Flip2 (Variable v)         )      = Flip2 $ Variable (second f v)
   fmap f (Flip2 (Fun fn ts ls nt)    )      = Flip2 $ Fun fn ts ls nt
   fmap f (Flip2 (Op opr es)          )      = Flip2 $ Op opr (fmap (ffmap f) es)
@@ -542,7 +548,7 @@ instance (Functor (Flip (e t v) b),
   fmap f (Flip2 (Promote ty e)       )      = Flip2 $ Promote ty (ffmap f e)
   fmap f (Flip2 (Cast ty e)          )      = Flip2 $ Cast ty (ffmap f e)
 
-instance Functor (Flip (TypedExpr t v) b) where  -- over @a@
+instance Functor (Flip (TypedExpr loc t v) b) where  -- over @a@
   fmap f (Flip (TE t e)) = Flip $ TE t (fffmap f e)
 
 
@@ -563,7 +569,7 @@ fieldIndex = magenta . string . ('.':) . show
 
 -- NOTE: the precedence levels are somewhat different to those of the surface lang / zilinc
 
-instance Prec (Expr t v a b e) where
+instance Prec (Expr loc t v a b e) where
   prec (Op opr [_,_]) = prec (associativity opr)
   prec (ILit {}) = 0
   prec (SLit {}) = 0
@@ -583,10 +589,10 @@ instance Prec (Expr t v a b e) where
   prec (Cast {}) = 0
   prec _ = 100
 
-instance Prec (TypedExpr t v a b) where
+instance Prec (TypedExpr loc t v a b) where
   prec (TE _ e) = prec e
 
-instance Prec (UntypedExpr t v a b) where
+instance Prec (UntypedExpr loc t v a b) where
   prec (E e) = prec e
 
 #ifdef BUILTIN_ARRAYS
@@ -611,15 +617,15 @@ instance Prec (LExpr t b) where
 prettyV = dullblue  . string . ("_v" ++) . show . finInt
 prettyT = dullgreen . string . ("_t" ++) . show . finInt
 
-instance (Pretty a, Pretty b) => Pretty (TypedExpr t v a b) where
+instance (Pretty a, Pretty b) => Pretty (TypedExpr loc t v a b) where
   pretty (TE t e) | not __cogent_fshow_types_in_pretty = pretty e
                   | otherwise = parens (pretty e <+> symbol ":" <+> pretty t)
 
-instance (Pretty a, Pretty b) => Pretty (UntypedExpr t v a b) where
+instance (Pretty a, Pretty b) => Pretty (UntypedExpr loc t v a b) where
   pretty (E e) = pretty e
 
 instance (Pretty a, Pretty b, Prec (e t v a b), Pretty (e t v a b), Pretty (e t ('Suc v) a b), Pretty (e t ('Suc ('Suc v)) a b))
-         => Pretty (Expr t v a b e) where
+         => Pretty (Expr loc t v a b e) where
   pretty (Op opr [a,b])
      | LeftAssoc  l <- associativity opr = prettyPrec (l+1) a <+> primop opr <+> prettyPrec l b
      | RightAssoc l <- associativity opr = prettyPrec l a <+> primop opr <+> prettyPrec (l+1)  b

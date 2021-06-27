@@ -98,20 +98,20 @@ getStrlType _ _ t = t
 type ST = State [TypeStr]
 
 -- | Collects all the types used in a Cogent program.
-st :: [Definition TypedExpr VarName b] -> [TypeStr]
+st :: [Definition PosTypedExpr VarName b] -> [TypeStr]
 st ds = execState (stDefinitions ds) []
 
-stDefinitions :: [Definition TypedExpr VarName b] -> ST ()
+stDefinitions :: [Definition PosTypedExpr VarName b] -> ST ()
 stDefinitions = mapM_ stDefinition
 
 -- Since desugaring, the RHSes have been unfolded already
-stDefinition :: Definition TypedExpr VarName b -> ST ()
+stDefinition :: Definition PosTypedExpr VarName b -> ST ()
 stDefinition (FunDef  _ fn ts ls ti to e) = stExpr e  -- NOTE: `ti' and `to' will be included in `e', so no need to scan them / zilinc
 stDefinition (AbsDecl _ fn ts ls ti to) = stType ti >> stType to
 stDefinition (TypeDef tn ts (Just t)) = stType t
 stDefinition (TypeDef tn ts Nothing) = return ()
 
-stExpr :: TypedExpr t v VarName b -> ST ()
+stExpr :: PosTypedExpr t v VarName b -> ST ()
 stExpr (TE t e) = stExpr' e >> stType t
   where
     stExpr' (Variable v)   = return ()

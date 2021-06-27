@@ -60,8 +60,8 @@ import Lens.Micro.TH
 -- import Debug.Trace
 import Unsafe.Coerce
 
-type InExpr  t v b = TypedExpr t v (VarName, OccInfo) b
-type OutExpr t v b = TypedExpr t v VarName            b
+type InExpr  t v b = PosTypedExpr t v (VarName, OccInfo) b
+type OutExpr t v b = PosTypedExpr t v VarName            b
 
 type InVar  = Fin
 type OutVar = Fin
@@ -121,7 +121,7 @@ data OccInfo = Dead
              | LetBanged
              deriving (Eq, Ord, Show)
 
-markOcc :: SNat v -> TypedExpr t v VarName b -> Occ v b (InExpr t v b)
+markOcc :: SNat v -> PosTypedExpr t v VarName b -> Occ v b (InExpr t v b)
 markOcc sv (TE tau (Variable (v, n))) = do
   modify $ second $ modifyAt v (OnceSafe <>)
   return . TE tau $ Variable (v, (n, OnceSafe))
@@ -223,7 +223,7 @@ getVOcc2 ma = do (a,(_,Cons occ1 (Cons occ2 Nil))) <- getVOccs s2 ma
 -- ////////////////////////////////////////////////////////////////////////////
 -- Top level
 
-type FuncEnv b = M.Map FunName (Definition TypedExpr VarName b, OccInfo)  -- funcname |-> (def, occ)
+type FuncEnv b = M.Map FunName (Definition PosTypedExpr VarName b, OccInfo)  -- funcname |-> (def, occ)
 
 data SimpEnv t b = SimpEnv { _funcEnv  :: FuncEnv b
                            , _kindEnv  :: Vec t Kind
@@ -245,11 +245,11 @@ execSimp = (. unSimp) . flip execState
 runSimp :: SimpEnv t b -> Simp t b x -> (x, SimpEnv t b)
 runSimp = (. unSimp) . flip runState
 
-simplify :: [Definition TypedExpr VarName b] -> [Definition TypedExpr VarName b]
+simplify :: [Definition PosTypedExpr VarName b] -> [Definition PosTypedExpr VarName b]
 simplify ds = let fenv = fmap (,Dead) . M.fromList . catMaybes $ L.map (\d -> (,d) <$> getFuncId d) ds
                in flip evalState (fenv, 0) $ mapM simplify1 ds
 
-simplify1 :: Definition TypedExpr VarName b -> State (FuncEnv b, Int) (Definition TypedExpr VarName b)
+simplify1 :: Definition PosTypedExpr VarName b -> State (FuncEnv b, Int) (Definition PosTypedExpr VarName b)
 simplify1 (FunDef attr fn tvs lvs ti to e) = do
   fenv <- use _1
   vcnt <- use _2
@@ -260,7 +260,7 @@ simplify1 (FunDef attr fn tvs lvs ti to e) = do
   return d'
 simplify1 d = pure d
 
-simplifyExpr :: Int -> TypedExpr t ('Suc 'Zero) VarName b -> Simp t b (TypedExpr t ('Suc 'Zero) VarName b)
+simplifyExpr :: Int -> PosTypedExpr t ('Suc 'Zero) VarName b -> Simp t b (PosTypedExpr t ('Suc 'Zero) VarName b)
 simplifyExpr 0 e = pure e
 simplifyExpr n e = do fenv <- use funcEnv
                       let (e',(fenv',_)) = runOcc (fenv, emptyOccVec s1) $ markOcc s1 e
@@ -411,7 +411,7 @@ inline _ _ _ = __impossible "inline"
 
 -- FIXME: these heuristics are now taking the most conservative decisions
 
-noLinear :: TypedExpr t v a b -> Simp t b Bool
+noLinear :: PosTypedExpr t v a b -> Simp t b Bool
 noLinear (TE tau e) = (&&) <$> typeNotLinear tau <*> noLinear' e
   where
     noLinear' (Variable (v,a)) = return True
@@ -459,7 +459,7 @@ smallEnough _ _ = __fixme False
 -- ////////////////////////////////////////////////////////////////////////////
 -- misc.
 
-lowerExpr0 :: (Show a, v ~ 'Suc v') => SNat v -> TypedExpr t ('Suc v) a b -> TypedExpr t v a b
+lowerExpr0 :: (Show a, v ~ 'Suc v') => SNat v -> PosTypedExpr t ('Suc v) a b -> PosTypedExpr t v a b
 lowerExpr0 v = lowerExpr v f0
 
 -- lowerFin (|var|-1) idx var: if var < idx, then var; otherwise var - 1 (idx /= var)
@@ -473,7 +473,7 @@ lowerFin (SSuc (SSuc n)) (FSuc i) (FSuc v) = FSuc $ lowerFin (SSuc n) i v
 lowerFin _ _ _ = __ghc_t3927 "lowerFin"
 #endif
 
-lowerExpr :: (Show a, v ~ 'Suc v') => SNat v -> Fin ('Suc v) -> TypedExpr t ('Suc v) a b -> TypedExpr t v a b
+lowerExpr :: (Show a, v ~ 'Suc v') => SNat v -> Fin ('Suc v) -> PosTypedExpr t ('Suc v) a b -> PosTypedExpr t v a b
 lowerExpr w i (TE tau (Variable (v,a)))     = TE tau $ Variable (lowerFin w i v, a)
 lowerExpr w i (TE tau (Fun fn ts ls note))  = TE tau $ Fun fn ts ls note
 lowerExpr w i (TE tau (Op opr es))          = TE tau $ Op opr (L.map (lowerExpr w i) es)
@@ -496,7 +496,7 @@ lowerExpr w i (TE tau (Put rec fld e))      = TE tau $ Put (lowerExpr w i rec) f
 lowerExpr w i (TE tau (Promote ty e))       = TE tau $ Promote ty (lowerExpr w i e)
 lowerExpr w i (TE tau (Cast ty e))       = TE tau $ Cast ty (lowerExpr w i e)
 
-liftExpr :: Show a => Fin ('Suc v) -> TypedExpr t v a b -> TypedExpr t ('Suc v) a b
+liftExpr :: Show a => Fin ('Suc v) -> PosTypedExpr t v a b -> PosTypedExpr t ('Suc v) a b
 liftExpr i (TE tau (Variable (v,a)))     = TE tau $ Variable (liftIdx i v,a)
 liftExpr i (TE tau (Fun fn ts ls note))  = TE tau $ Fun fn ts ls note
 liftExpr i (TE tau (Op opr es))          = TE tau $ Op opr (L.map (liftExpr i) es)
@@ -519,7 +519,7 @@ liftExpr i (TE tau (Put rec fld e))      = TE tau $ Put (liftExpr i rec) fld (li
 liftExpr i (TE tau (Promote ty e))       = TE tau $ Promote ty (liftExpr i e)
 liftExpr i (TE tau (Cast ty e))          = TE tau $ Cast ty (liftExpr i e)
 
-upshiftExpr :: Show a => SNat n -> SNat v -> Fin ('Suc v) -> TypedExpr t v a b -> TypedExpr t (v :+: n) a b
+upshiftExpr :: Show a => SNat n -> SNat v -> Fin ('Suc v) -> PosTypedExpr t v a b -> PosTypedExpr t (v :+: n) a b
 upshiftExpr SZero _ v e = e
 upshiftExpr (SSuc n) sv v e | Refl <- addSucLeft sv n
   = let a = upshiftExpr n sv v e in liftExpr (widenN v n) a
@@ -552,7 +552,7 @@ liftContext _ = __todo "liftContext: not implemented yet"
 -- substFin var (|var_body|-1==idx) |var_arg| arg
 -- It performs substitution [var |-> arg], the substituted variable must be the one of largest index.
 -- Returned env is constituted by `init (var_body) ++ var_arg'
-substFin :: Fin ('Suc v') -> SNat v' -> SNat v -> TypedExpr t v VarName b -> Either (Fin (v :+: v')) (TypedExpr t (v :+: v') VarName b)
+substFin :: Fin ('Suc v') -> SNat v' -> SNat v -> PosTypedExpr t v VarName b -> Either (Fin (v :+: v')) (PosTypedExpr t (v :+: v') VarName b)
 substFin FZero SZero _ arg = Right arg
 substFin FZero (SSuc _) _ _ = Left FZero
 substFin (FSuc _) SZero _ _ = __impossible "substFin"  -- idx must be the largest var
@@ -561,7 +561,7 @@ substFin (FSuc v) (SSuc n') n arg = case substFin v n' n arg of
   Right e -> Right $ liftExpr f0 e
 
 -- betaR body (|var_body|-1==idx) |var_arg| arg ts
-betaR :: (v ~ 'Suc v0) => TypedExpr t' ('Suc v') VarName b -> SNat v' -> SNat v -> TypedExpr t v VarName b -> Vec t' (Type t b) -> Simp t b (TypedExpr t (v :+: v') VarName b)
+betaR :: (v ~ 'Suc v0) => PosTypedExpr t' ('Suc v') VarName b -> SNat v' -> SNat v -> PosTypedExpr t v VarName b -> Vec t' (Type t b) -> Simp t b (PosTypedExpr t (v :+: v') VarName b)
 betaR (TE tau (Variable (v,a)))  idx n arg ts
   = case substFin v idx n arg of
       Left v' -> pure $ TE (substitute ts tau) $ Variable (v',a)
