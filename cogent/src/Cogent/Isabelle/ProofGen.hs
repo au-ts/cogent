@@ -426,7 +426,7 @@ typing xi k (EE _ (SLit t) env) = tacSequence [
   consumed k env                -- K ⊢ Γ consumed
   ]
 
-typing xi k (EE _ Unit env) = tacSequence [
+typing xi k (EE _ (Unit _) env) = tacSequence [
   return [rule "typing_unit"],  -- Ξ, K, Γ ⊢ Unit : TUnit if
   consumed k env                -- K ⊢ Γ consumed
   ]

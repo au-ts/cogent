@@ -114,7 +114,7 @@ expDiscardVar' rm0 f e = case e of
   Op o ls loc               -> Op o <$> mapM go ls <*> pure loc
   App e1 e2 loc             -> App <$> go e1 <*> go e2 <*> pure loc
   Con tag e ty loc          -> Con <$> pure tag <*> go e <*> typDiscardVar (finNat rm0) ty <*> pure loc
-  Unit                   -> pure Unit
+  Unit loc                  -> pure $ Unit loc
   ILit i j               -> pure $ ILit i j
   SLit s                 -> pure $ SLit s
   Let a e1 e2            -> Let a <$> go e1 <*> goSuc e2

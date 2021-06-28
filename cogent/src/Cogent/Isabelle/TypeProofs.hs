@@ -323,7 +323,7 @@ selectEnv ((v,_):vs) env = update (selectEnv vs env) v (env `at` v)
 
 -- Annotates a typed expression with the environment required to successfully execute it
 splitEnv :: (Pretty a) => Vec v (Maybe (Type t VarName)) -> PosTypedExpr t v a VarName -> EnvExpr t v a VarName
-splitEnv env (TE t Unit)             = EE t Unit          $ cleared env
+splitEnv env (TE t (Unit loc))             = EE t (Unit loc)          $ cleared env
 splitEnv env (TE t (ILit i t'))      = EE t (ILit i t')   $ cleared env
 splitEnv env (TE t (SLit s))         = EE t (SLit s)      $ cleared env
 splitEnv env (TE t (Fun f ts ls nt loc)) = EE t (Fun f ts ls nt loc) $ cleared env  -- FIXME
@@ -415,7 +415,7 @@ splitEnv env (TE t (Take a e f e2)) =
 -- Ensures that the environment of an expression is equal to the sum of the
 -- environments of the subexpressions.
 pushDown :: (Pretty a) => Vec v (Maybe (Type t VarName)) -> EnvExpr t v a VarName -> EnvExpr t v a VarName
-pushDown unused (EE ty e@Unit      _) = EE ty e unused
+pushDown unused (EE ty e@(Unit _)      _) = EE ty e unused
 pushDown unused (EE ty e@(ILit {}) _) = EE ty e unused
 pushDown unused (EE ty e@(SLit {}) _) = EE ty e unused
 pushDown unused (EE ty e@(Fun  {}) _) = EE ty e unused
