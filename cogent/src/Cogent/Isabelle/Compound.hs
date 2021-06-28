@@ -112,7 +112,7 @@ expDiscardVar' rm0 f e = case e of
   Variable (v, a) loc    -> Variable <$> ((,) <$> discardVar rm0 v <*> pure a) <*> pure loc
   Fun fn ts ls notes loc    -> Fun fn <$> traverse (typDiscardVar $ finNat rm0) ts <*> pure ls <*> pure notes <*> pure loc
   Op o ls loc               -> Op o <$> mapM go ls <*> pure loc
-  App e1 e2              -> App <$> go e1 <*> go e2
+  App e1 e2 loc             -> App <$> go e1 <*> go e2 <*> pure loc
   Con tag e ty           -> Con <$> pure tag <*> go e <*> typDiscardVar (finNat rm0) ty
   Unit                   -> pure Unit
   ILit i j               -> pure $ ILit i j

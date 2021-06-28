@@ -353,10 +353,10 @@ splitEnv env (TE t (Op o es loc))
     = let vs = map (splitEnv env) es
        in EE t (Op o vs loc) $ foldl (<|>) (cleared env) (map envOf vs)
 
-splitEnv env (TE t (App e1 e2))
+splitEnv env (TE t (App e1 e2 loc))
     = let e1' = splitEnv env e1
           e2' = splitEnv env e2
-       in EE t (App e1' e2')   $ envOf e1' <|> envOf e2'
+       in EE t (App e1' e2' loc)   $ envOf e1' <|> envOf e2'
 
 splitEnv env (TE t (Tuple e1 e2))
     = let e1' = splitEnv env e1
@@ -434,10 +434,10 @@ pushDown unused (EE ty (Struct fs) env)
                   []     -> error "TypeProofs: empty Struct" -- [] -- This case may be impossible to prove if unused is non-empty (!!)
        in EE ty (Struct $ zip (map fst fs) fs') $ unused <|> env
 
-pushDown unused (EE ty (App e1 e2) env)
+pushDown unused (EE ty (App e1 e2 loc) env)
     = let e1' = pushDown (unused <\> env) e1
           e2' = pushDown (cleared env)    e2
-       in EE ty (App e1' e2') $ unused <|> env
+       in EE ty (App e1' e2' loc) $ unused <|> env
 
 pushDown unused (EE ty (Let a e1 e2) env)
     = let e1'@(EE t _ _) = pushDown (unused <\> env) e1

@@ -507,7 +507,7 @@ genExpr mv (TE t (Fun f _ _ _ loc)) = do  -- it is a function identifier
   t' <- genType t
   maybeAssign t' mv (variable $ funEnum (unCoreFunName f)) M.empty
 
-genExpr mv (TE t (App e1@(TE _ (Fun f _ _ MacroCall loc)) e2)) | __cogent_ffncall_as_macro = do  -- first-order function application
+genExpr mv (TE t (App e1@(TE _ (Fun f _ _ MacroCall locFun)) e2 locApp)) | __cogent_ffncall_as_macro = do  -- first-order function application
   (e2',e2decl,e2stm,e2p) <- genExpr_ e2
   t' <- genType t
   (v,vdecl,vstm) <- maybeDecl mv t'
@@ -515,13 +515,13 @@ genExpr mv (TE t (App e1@(TE _ (Fun f _ _ MacroCall loc)) e2)) | __cogent_ffncal
   recycleVars e2p
   return (variable v, e2decl ++ vdecl, e2stm ++ vstm ++ call, M.empty)
 
-genExpr mv (TE t (App e1@(TE _ (Fun f _ _ _ loc)) e2)) = do  -- first-order function application
+genExpr mv (TE t (App e1@(TE _ (Fun f _ _ _ locFun)) e2 locApp)) = do  -- first-order function application
   (e2',e2decl,e2stm,e2p) <- genExpr_ e2
   t' <- genType t
   (v,adecl,astm,vp) <- maybeAssign t' mv (CEFnCall (variable (unCoreFunName f)) [e2']) e2p
   return (v, e2decl++adecl, e2stm++astm, vp)
 
-genExpr mv (TE t (App e1 e2)) | __cogent_ffncall_as_macro = do
+genExpr mv (TE t (App e1 e2 loc)) | __cogent_ffncall_as_macro = do
   enumt <- typeCId $ exprType e1
   (e1',e1decl,e1stm,e1p) <- genExpr_ e1
   (e2',e2decl,e2stm,e2p) <- genExpr_ e2
@@ -532,7 +532,7 @@ genExpr mv (TE t (App e1 e2)) | __cogent_ffncall_as_macro = do
   recycleVars (mergePools [e1p,e2p])
   return (variable v, e1decl ++ e2decl ++ vdecl, e1stm ++ e2stm ++ vstm ++ call, M.empty)
 
-genExpr mv (TE t (App e1 e2)) = do   -- change `e1' to its dispatch function, with `e1' being the first argument
+genExpr mv (TE t (App e1 e2 loc)) = do   -- change `e1' to its dispatch function, with `e1' being the first argument
   enumt <- typeCId $ exprType e1
   (e1',e1decl,e1stm,e1p) <- genExpr_ e1
   (e2',e2decl,e2stm,e2p) <- genExpr_ e2

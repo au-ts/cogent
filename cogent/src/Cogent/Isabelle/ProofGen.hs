@@ -334,7 +334,7 @@ typing xi k (EE t' (Fun f ts _ _ _) env) = case findfun (unCoreFunName f) xi of
           fn ++ "_typecorrect[simplified " ++ fn ++ "_type_def " ++
                               fn ++ "_typetree_def" ++ unabbrev ++ ", simplified]"
 
-typing xi k (EE y (App a b) env) = tacSequence [
+typing xi k (EE y (App a b _) env) = tacSequence [
   return [rule "typing_app"],        -- Ξ, K, Γ ⊢ App a b : y if
   splits k env (envOf a) (envOf b),  -- K ⊢ Γ ↝ Γ1 | Γ2
   typing xi k a,                     -- Ξ, K, Γ1 ⊢ a : TFun x y

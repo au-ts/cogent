@@ -709,7 +709,7 @@ desugarExpr (B.TE _ (S.Seq e1 e2) _) = do
   v <- freshVar
   E <$> (Let v <$> desugarExpr e1 <*> withBinding v (desugarExpr e2))
 desugarExpr (B.TE _ (S.Lam p mt e) _) = __impossible "desugarExpr (Lam)"
-desugarExpr (B.TE _ (S.App e1 e2 _) _) = E <$> (App <$> desugarExpr e1 <*> desugarExpr e2)
+desugarExpr (B.TE _ (S.App e1 e2 _) loc) = E <$> (App <$> desugarExpr e1 <*> desugarExpr e2 <*> pure loc)
 desugarExpr (B.TE t (S.Comp f g) l) = do
   v <- freshVar
   compf <- freshVar

@@ -204,7 +204,7 @@ mystery s = 0 -- error ("mystery: " ++ s)
 
 graph :: (Show a, Show b) => Graph -> PosTypedExpr t v a b -> Int -> NextNode -> VarEnv -> GM (Graph, Int)
 
-graph g (TE _ (Let _ (TE appTy (App (TE _ (Fun fn _ _ _ _)) arg)) e)) n ret vs = do
+graph g (TE _ (Let _ (TE appTy (App (TE _ (Fun fn _ _ _ _)) arg _)) e)) n ret vs = do
     let v = (freshNames !! (Prelude.length vs)) ++ "@" ++ show n
     ty <- graphType appTy
     lhs <- getFieldVariables (v, ty)
@@ -308,7 +308,7 @@ graph g te@(TE _ (Case x tag (_, _, m) (_, _, nom))) n ret vs = do
     g5 <- graph g4 nom n' ret ((v2, smallerGTy) : vs)
     return g5
 
-graph g te@(TE ty (App fn arg)) n ret vs =
+graph g te@(TE ty (App fn arg _)) n ret vs =
   graph g (TE ty (Let undefined te (TE ty (Variable (FZero, undefined) __dummyPos)))) n ret vs
 graph g te@(TE ty (Put rec fld v)) n ret vs =
   graph g (TE ty (Let undefined te (TE ty (Variable (FZero, undefined) __dummyPos)))) n ret vs
@@ -508,7 +508,7 @@ atom te@(TE _ (Esac x)) vs = do
     return (Prelude.tail sumFields, [])
 
 atom te@(TE _ (Fun _ _ _ _ _)) vs  = failure ("atom Fun")
-atom te@(TE _ (App _ _)) vs    = failure ("atom App: " ++ show te)
+atom te@(TE _ (App _ _ _)) vs    = failure ("atom App: " ++ show te)
 atom te@(TE _ (SLit _)) vs     = failure ("atom SLit: " ++ show te)
 
 atom (TE _ x) vs = failure ("atom: couldn't handle: " ++ show x)

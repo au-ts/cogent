@@ -172,7 +172,7 @@ monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
       idx <- M.lookup (ts', ls') . fromJust . M.lookup (unCoreFunName fn) . fst <$> get
       return $ Fun (unsafeCoreFunName $ monoName fn idx) [] [] nt loc
     monoExpr' (Op      opr es loc  ) = Op opr <$> mapM monoExpr es <*> pure loc
-    monoExpr' (App     e1 e2       ) = App <$> monoExpr e1 <*> monoExpr e2
+    monoExpr' (App     e1 e2 loc   ) = App <$> monoExpr e1 <*> monoExpr e2 <*> pure loc
     monoExpr' (Con     tag e t     ) = Con tag <$> monoExpr e <*> monoType t
     monoExpr' (Unit                ) = pure Unit
     monoExpr' (ILit    n   pt      ) = pure $ ILit n pt
