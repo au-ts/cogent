@@ -114,10 +114,13 @@ genGS :: IsStruct  -- ^ Whether the C type of the box is of struct or of byte-ar
       -> Gen v FunName  -- ^ The 'FunName' is the name of the generated getter function
                         --   for the field of the record.
 
--- vvv FIXME(?): This might be the cause of the problem when generating a getter/setter for
--- an unboxed abstract type with layout. / zilinc
+-- vvv FIXME(?): This is the cause of the problem when generating a getter/setter for
+-- an unboxed abstract type with layout. What we want to do is to ask the users to provide
+-- their own getters and setters. / zilinc
 genGS s root t@(TCon _ _ Unboxed) (PrimLayout br ω) path m = do
-  undefined
+  -- genGSName path m
+  t' <- genType t
+  genGSBlock s br ω root t' path m
 
 genGS s root t@(TCon _ _ Boxed {}) (PrimLayout br ω) path m = do
   t' <- genType t
@@ -289,7 +292,7 @@ mkGsDeclRecord
   -> CExtDecl          -- ^ The C syntax tree for a function which puts/extracts the embedded data from the box.
 mkGsDeclRecord fs root t fn m =
   let stmts = case m of
-        Get -> [CBIStmt $ CReturn $ Just $ CCompLit root $ 
+        Get -> [CBIStmt $ CReturn $ Just $ CCompLit t $ 
                  fmap (\(f,g) -> ([CDesignFld f], CInitE $ CEFnCall (variable g) [boxVar])) fs]
         Set -> fmap (\(f,s) -> CBIStmt $ CAssignFnCall Nothing (variable s) [boxVar, CStructDot valueVar f]) fs
    in mkGsDecl root t fn stmts m
@@ -562,7 +565,7 @@ arrayGetterSetter arrType elemType elemSize functionName elemGetterSetter Set =
 
 -- | Returns a getter/setter function declaration
 mkGsDecl :: CType -> CType -> CId -> [CBlockItem] -> GetOrSet -> CExtDecl
-mkGsDecl root t f stmts Get = CFnDefn (root , f) [(t   , boxId)]               stmts staticInlineFnSpec
+mkGsDecl root t f stmts Get = CFnDefn (t    , f) [(root, boxId)]               stmts staticInlineFnSpec
 mkGsDecl root t f stmts Set = CFnDefn (CVoid, f) [(root, boxId), (t, valueId)] stmts staticInlineFnSpec
 
 

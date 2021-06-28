@@ -173,6 +173,7 @@ set_flag_fnoTpWithDecls = writeIORef __cogent_ftp_with_decls_ref False
 set_flag_fnoTuplesAsSugar = writeIORef __cogent_ftuples_as_sugar_ref False
 set_flag_fnoUnionForVariants = writeIORef __cogent_funion_for_variants_ref False
 set_flag_fnoUntypedFuncEnum = writeIORef __cogent_funtyped_func_enum_ref False
+set_flag_fnoUnusedDargentAccessors = writeIORef __cogent_funused_dargent_accessors_ref False
 set_flag_fnoUseCompoundLiterals = writeIORef __cogent_fuse_compound_literals_ref False
 set_flag_fnoWrapPutInLet = writeIORef __cogent_fwrap_put_in_let_ref False
 set_flag_fpragmas = writeIORef __cogent_fpragmas_ref True
@@ -191,6 +192,7 @@ set_flag_ftpWithDecls = writeIORef __cogent_ftp_with_decls_ref True
 set_flag_ftuplesAsSugar = writeIORef __cogent_ftuples_as_sugar_ref True
 set_flag_funionForVariants = writeIORef __cogent_funion_for_variants_ref True
 set_flag_funtypedFuncEnum = writeIORef __cogent_funtyped_func_enum_ref True
+set_flag_funusedDargentAccessors = writeIORef __cogent_funused_dargent_accessors_ref True
 set_flag_fuseCompoundLiterals = writeIORef __cogent_fuse_compound_literals_ref True
 set_flag_fwrapPutInLet = writeIORef __cogent_fwrap_put_in_let_ref True
 add_flag_include p = modifyIORef __cogent_include_ref (++[p])
@@ -671,6 +673,13 @@ __cogent_funtyped_func_enum = unsafePerformIO $ readIORef __cogent_funtyped_func
 __cogent_funtyped_func_enum_ref :: IORef Bool
 {-# NOINLINE __cogent_funtyped_func_enum_ref #-}
 __cogent_funtyped_func_enum_ref = unsafePerformIO $ newIORef True
+
+__cogent_funused_dargent_accessors :: Bool
+__cogent_funused_dargent_accessors = unsafePerformIO $ readIORef __cogent_funused_dargent_accessors_ref
+
+__cogent_funused_dargent_accessors_ref :: IORef Bool
+{-# NOINLINE __cogent_funused_dargent_accessors_ref #-}
+__cogent_funused_dargent_accessors_ref = unsafePerformIO $ newIORef False
 
 __cogent_fuse_compound_literals :: Bool
 __cogent_fuse_compound_literals = unsafePerformIO $ readIORef __cogent_fuse_compound_literals_ref
