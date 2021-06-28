@@ -114,10 +114,13 @@ genGS :: IsStruct  -- ^ Whether the C type of the box is of struct or of byte-ar
       -> Gen v FunName  -- ^ The 'FunName' is the name of the generated getter function
                         --   for the field of the record.
 
--- vvv FIXME(?): This might be the cause of the problem when generating a getter/setter for
--- an unboxed abstract type with layout. / zilinc
+-- vvv FIXME(?): This is the cause of the problem when generating a getter/setter for
+-- an unboxed abstract type with layout. What we want to do is to ask the users to provide
+-- their own getters and setters. / zilinc
 genGS s root t@(TCon _ _ Unboxed) (PrimLayout br ω) path m = do
-  undefined
+  -- genGSName path m
+  t' <- genType t
+  genGSBlock s br ω root t' path m
 
 genGS s root t@(TCon _ _ Boxed {}) (PrimLayout br ω) path m = do
   t' <- genType t
