@@ -503,11 +503,11 @@ genExpr mv (TE t (Variable v _)) = do  -- NOTE: this `v' could be a higher-order
   -- --------------------------------------------------------------------------
   maybeAssign t' mv e' p
 
-genExpr mv (TE t (Fun f _ _ _)) = do  -- it is a function identifier
+genExpr mv (TE t (Fun f _ _ _ loc)) = do  -- it is a function identifier
   t' <- genType t
   maybeAssign t' mv (variable $ funEnum (unCoreFunName f)) M.empty
 
-genExpr mv (TE t (App e1@(TE _ (Fun f _ _ MacroCall)) e2)) | __cogent_ffncall_as_macro = do  -- first-order function application
+genExpr mv (TE t (App e1@(TE _ (Fun f _ _ MacroCall loc)) e2)) | __cogent_ffncall_as_macro = do  -- first-order function application
   (e2',e2decl,e2stm,e2p) <- genExpr_ e2
   t' <- genType t
   (v,vdecl,vstm) <- maybeDecl mv t'
@@ -515,7 +515,7 @@ genExpr mv (TE t (App e1@(TE _ (Fun f _ _ MacroCall)) e2)) | __cogent_ffncall_as
   recycleVars e2p
   return (variable v, e2decl ++ vdecl, e2stm ++ vstm ++ call, M.empty)
 
-genExpr mv (TE t (App e1@(TE _ (Fun f _ _ _)) e2)) = do  -- first-order function application
+genExpr mv (TE t (App e1@(TE _ (Fun f _ _ _ loc)) e2)) = do  -- first-order function application
   (e2',e2decl,e2stm,e2p) <- genExpr_ e2
   t' <- genType t
   (v,adecl,astm,vp) <- maybeAssign t' mv (CEFnCall (variable (unCoreFunName f)) [e2']) e2p

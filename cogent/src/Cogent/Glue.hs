@@ -582,7 +582,7 @@ tcFnCall e = do
 
 genFn :: CC.PosTypedExpr 'Zero 'Zero VarName VarName -> Gl CS.Exp
 genFn = genAnti $ \case
-  CC.TE t (CC.Fun fn _ _ _) -> return (CS.Var (CS.Id (CG.funEnum (unCoreFunName fn)) noLoc) noLoc)
+  CC.TE t (CC.Fun fn _ _ _ _) -> return (CS.Var (CS.Id (CG.funEnum (unCoreFunName fn)) noLoc) noLoc)
   _ -> __impossible "genFn"
 
 genFnCall :: CC.Type 'Zero VarName -> Gl CS.Exp
@@ -704,7 +704,7 @@ traverseOneFunc fn d loc = do
               -- Then we can continue the normal compilation process.
               let SrcLoc (Loc (Pos filepath line col _) _) = loc
                   pos = newPos filepath line col
-              CC.TE _ (CC.Fun _ coreTargs _ _) <- (flip tcExp (Nothing) >=>
+              CC.TE _ (CC.Fun _ coreTargs _ _ _) <- (flip tcExp (Nothing) >=>
                                                    desugarExp >=>
                                                    coreTcExp >=> expandExp) $
                                                   (SF.LocExpr pos (SF.TLApp fnName targs' [] SF.NoInline))

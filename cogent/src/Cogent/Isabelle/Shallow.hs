@@ -288,7 +288,7 @@ matchTypes tdfs vs ts rs =
 
 shallowExpr :: (Show b,Eq b) => PosTypedExpr t v VarName b -> SG Term
 shallowExpr (TE _ (Variable (_,v) loc)) = pure $ mkId (snm v)
-shallowExpr (TE t (Fun fn ts ls _)) =
+shallowExpr (TE t (Fun fn ts ls _ _)) =
     if null ts
        then pure $ mkId $ snm $ unCoreFunName fn
        else -- for polymorphic functions add its type

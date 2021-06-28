@@ -691,7 +691,7 @@ infer (E (ArrayPut arr i e))
 infer (E (Variable v loc))
    = do Just t <- useVariable (fst v)
         return (TE t (Variable v loc))
-infer (E (Fun f ts ls note))
+infer (E (Fun f ts ls note loc))
    | ExI (Flip ts') <- Vec.fromList ts
    , ExI (Flip ls') <- Vec.fromList ls
    = do x <- funType f
@@ -704,7 +704,7 @@ infer (E (Fun f ts ls note))
                                                     t' <- unfoldSynsDeepM t
                                                     k' <- kindcheck t'
                                                     when ((k <> k') /= k) $ __impossible "kind not matched in type instantiation"
-                                                  return $ TE (TFun ti' to') (Fun f ts ls note)
+                                                  return $ TE (TFun ti' to') (Fun f ts ls note loc)
                  _ -> __impossible "lengths don't match"
           _        -> error $ "Something went wrong in lookup of function type: '" ++ unCoreFunName f ++ "'"
 infer (E (App e1 e2))

@@ -170,13 +170,13 @@ monoExpr :: (Ord b) => PosTypedExpr t v VarName b -> Mono b (PosTypedExpr 'Zero 
 monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
   where
     monoExpr' (Variable var loc    ) = pure $ Variable var loc
-    monoExpr' (Fun      fn [] [] nt) = modify (first $ M.insert (unCoreFunName fn) M.empty) >> return (Fun fn [] [] nt)
-    monoExpr' (Fun      fn ts ls nt) = do
+    monoExpr' (Fun      fn [] [] nt loc) = modify (first $ M.insert (unCoreFunName fn) M.empty) >> return (Fun fn [] [] nt loc)
+    monoExpr' (Fun      fn ts ls nt loc) = do
       ts' <- mapM monoType ts
       ls' <- mapM monoLayout ls
       modify (first $ M.insertWith (\_ m -> insertWith (flip const) (ts', ls') (M.size m) m) (unCoreFunName fn) (M.singleton (ts', ls') 0))  -- add one more instance to the env
       idx <- M.lookup (ts', ls') . fromJust . M.lookup (unCoreFunName fn) . fst <$> get
-      return $ Fun (unsafeCoreFunName $ monoName fn idx) [] [] nt
+      return $ Fun (unsafeCoreFunName $ monoName fn idx) [] [] nt loc
     monoExpr' (Op      opr es      ) = Op opr <$> mapM monoExpr es
     monoExpr' (App     e1 e2       ) = App <$> monoExpr e1 <*> monoExpr e2
     monoExpr' (Con     tag e t     ) = Con tag <$> monoExpr e <*> monoType t

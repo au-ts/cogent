@@ -326,7 +326,7 @@ splitEnv :: (Pretty a) => Vec v (Maybe (Type t VarName)) -> PosTypedExpr t v a V
 splitEnv env (TE t Unit)             = EE t Unit          $ cleared env
 splitEnv env (TE t (ILit i t'))      = EE t (ILit i t')   $ cleared env
 splitEnv env (TE t (SLit s))         = EE t (SLit s)      $ cleared env
-splitEnv env (TE t (Fun f ts ls nt)) = EE t (Fun f ts ls nt) $ cleared env  -- FIXME
+splitEnv env (TE t (Fun f ts ls nt loc)) = EE t (Fun f ts ls nt loc) $ cleared env  -- FIXME
 splitEnv env (TE t (Variable v loc))     = EE t (Variable v loc)  $ singleton (fst v) env
 
 splitEnv env (TE t (Esac e))

@@ -719,7 +719,7 @@ desugarExpr (B.TE _ (S.Match e vs alts) l) = do
 desugarExpr (B.TE _ (S.TLApp v ts ls note) _) = do
   prgms <- use pragmas
   E <$> (Fun (funNameToCoreFunName v) <$> mapM (desugarType . fromJust) ts
-    <*> mapM (desugarLayout . fromJust) ls <*> pure (pragmaToNote prgms v $ desugarNote note))  -- FIXME: fromJust
+    <*> mapM (desugarLayout . fromJust) ls <*> pure (pragmaToNote pragmas v $ desugarNote note) <*> pure __dummyPos)  -- FIXME: fromJust
 desugarExpr (B.TE t (S.Con c [e]) _) = do
   te <- unfoldSynsShallowM t
   t'@(TSum ts) <- desugarType te
