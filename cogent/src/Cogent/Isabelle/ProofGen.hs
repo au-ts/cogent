@@ -341,7 +341,7 @@ typing xi k (EE y (App a b _) env) = tacSequence [
   typing xi k b                      -- Ξ, K, Γ2 ⊢ b : x
   ]
 
-typing xi k (EE tc@(TSum ts) (Con tag e t) env) = tacSequence [
+typing xi k (EE tc@(TSum ts) (Con tag e t _) env) = tacSequence [
   return [rule "typing_con"],            -- Ξ, K, Γ ⊢ Con ts tag x : TSum ts if
   typing xi k e,                         -- Ξ, K, Γ ⊢ x : t
   return [simp_solve],                   -- (tag, t, Unchecked) ∈ set ts

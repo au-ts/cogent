@@ -144,10 +144,10 @@ deepExpr mod ta defs (TE _ (Op opr es _))
                          mkList (map (deepExpr mod ta defs) es)]
 deepExpr mod ta defs (TE _ (App f arg _))
   = mkApp (mkId "App") [deepExpr mod ta defs f, deepExpr mod ta defs arg]
-deepExpr mod ta defs (TE (TSum alts) (Con cn e _))
+deepExpr mod ta defs (TE (TSum alts) (Con cn e _ _))
   = mkApp (mkId "Con") [mkList t', mkString cn, deepExpr mod ta defs e]
   where t' = map (\(c,(t,b)) -> mkPair (mkString c) (mkPair (deepType mod ta t) (deepVariantState b))) alts
-deepExpr _ _ _ (TE _ (Con _ _ _)) = __impossible "deepExpr: Con"
+deepExpr _ _ _ (TE _ (Con _ _ _ _)) = __impossible "deepExpr: Con"
 deepExpr mod ta defs (TE _ (Promote ty e))
   = mkApp (mkId "Promote") [deepType mod ta ty, deepExpr mod ta defs e]
   -- = deepExpr mod ta defs e

@@ -387,9 +387,9 @@ splitEnv env (TE t (LetBang vs a e1 e2))
           e2' = splitEnv (Cons (Just $ typeOf e1'') env) e2
        in EE t (LetBang vs a e1'' e2') $ unbangEnv (envOf e1'') env' <|> peel (envOf e2')
 
-splitEnv env (TE t (Con tag e tau)) =
+splitEnv env (TE t (Con tag e tau loc)) =
     let e' = splitEnv env e
-     in EE t (Con tag e' tau) $ envOf e'
+     in EE t (Con tag e' tau loc) $ envOf e'
 
 splitEnv env (TE t (If ec et ee))
     = let ec' = splitEnv env ec
@@ -455,9 +455,9 @@ pushDown unused (EE ty (Tuple e1 e2) env)
           e2' = pushDown (cleared env) e2
        in EE ty (Tuple e1' e2') $ unused <|> env
 
-pushDown unused (EE ty (Con tag e t) env)
+pushDown unused (EE ty (Con tag e t loc) env)
     = let e' = pushDown unused e
-       in EE ty (Con tag e' t) $ unused <|> env
+       in EE ty (Con tag e' t loc) $ unused <|> env
 
 pushDown unused (EE ty (If ec et ee) env)
     = let ec' = pushDown (unused <\> env) ec

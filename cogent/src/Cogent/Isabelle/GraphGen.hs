@@ -485,7 +485,7 @@ atom (TE (TRecord _ flds s) (Put rec fld v)) vs = do
     let n = sum $ map (\z -> Prelude.length z) list
     return (take n recFields ++ vFields ++ drop (n + Prelude.length vFields) recFields,[])
 
-atom (TE ty (Con tag x _)) vs = do
+atom (TE ty (Con tag x _ _)) vs = do
     let tagN = mystery tag
     let tagX = GNum (GWordT 32) tagN
     altFields <- atomNoUpds x vs

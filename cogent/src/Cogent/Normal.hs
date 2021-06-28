@@ -58,7 +58,7 @@ isAtom (E (Fun _ _ _ _ _)) = True
 isAtom (E (Op opr es _)) | all isVar es = True
 isAtom (E (App (E (Fun _ _ _ _ _)) arg _)) | isVar arg = True
 isAtom (E (App f arg _)) | isVar f && isVar arg = True
-isAtom (E (Con cn x _)) | isVar x = True
+isAtom (E (Con cn x _ _)) | isVar x = True
 isAtom (E (Unit)) = True
 isAtom (E (ILit {})) = True
 isAtom (E (SLit _)) = True
@@ -154,7 +154,7 @@ normalise v e@(E (App f arg loc)) k
       normaliseName (sadd v n) (upshiftExpr n v f0 arg) $ \n' arg' ->
         withAssoc v n n' $ \Refl ->
           k (sadd n n') (E $ App (upshiftExpr n' (sadd v n) f0 f') arg' loc)
-normalise v   (E (Con cn e t)) k = normaliseName v e $ \n e' -> k n (E $ Con cn e' (upshiftType n (finNat f0) t))
+normalise v   (E (Con cn e t loc)) k = normaliseName v e $ \n e' -> k n (E $ Con cn e' (upshiftType n (finNat f0) t) loc)
 normalise v e@(E (Unit)) k = k s0 e
 normalise v e@(E (ILit {})) k = k s0 e
 normalise v e@(E (SLit {})) k = k s0 e

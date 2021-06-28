@@ -179,7 +179,7 @@ monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
       return $ Fun (unsafeCoreFunName $ monoName fn idx) [] [] nt loc
     monoExpr' (Op      opr es loc  ) = Op opr <$> mapM monoExpr es <*> pure loc
     monoExpr' (App     e1 e2 loc   ) = App <$> monoExpr e1 <*> monoExpr e2 <*> pure loc
-    monoExpr' (Con     tag e t     ) = Con tag <$> monoExpr e <*> monoType t
+    monoExpr' (Con     tag e t loc ) = Con tag <$> monoExpr e <*> monoType t <*> pure loc
     monoExpr' (Unit                ) = pure Unit
     monoExpr' (ILit    n   pt      ) = pure $ ILit n pt
     monoExpr' (SLit    s           ) = pure $ SLit s

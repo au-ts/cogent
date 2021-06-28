@@ -505,7 +505,7 @@ specialiseExpr (TE t e) = TE <$> monoType t <*> specialiseExpr' e
     specialiseExpr' (Fun fn ts ls notes loc) = Fun fn <$> mapM monoType ts <*> pure ls <*> pure notes <*> pure loc
     specialiseExpr' (Op      opr es loc ) = Op opr <$> mapM specialiseExpr es <*> pure loc
     specialiseExpr' (App     e1 e2 loc  ) = App <$> specialiseExpr e1 <*> specialiseExpr e2 <*> pure loc
-    specialiseExpr' (Con     tag e t    ) = Con tag <$> specialiseExpr e <*> monoType t
+    specialiseExpr' (Con     tag e t loc) = Con tag <$> specialiseExpr e <*> monoType t <*> pure loc
     specialiseExpr' (Unit               ) = pure Unit
     specialiseExpr' (ILit    n   pt     ) = pure $ ILit n pt
     specialiseExpr' (SLit    s          ) = pure $ SLit s
@@ -547,7 +547,7 @@ eval (TE _ (App f e _)) = do
   case vf of
     VFunction  _  f' ts -> withNewBindings (V.Cons ve V.Nil) (eval f')
     VThunk _  -> return (VThunk $ VApp vf ve)
-eval (TE _ (Con tn e t)) = VVariant tn <$> eval e
+eval (TE _ (Con tn e t _)) = VVariant tn <$> eval e
 eval (TE _ (Unit)) = return VUnit
 eval (TE _ (ILit n t))
   | U8  <- t = return $ VInt (LU8  $ fromIntegral n)
