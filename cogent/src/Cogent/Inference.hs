@@ -590,14 +590,14 @@ infer (E (Tuple e1 e2))
    = do e1' <- infer e1
         e2' <- infer e2
         return $ TE (TProduct (exprType e1') (exprType e2')) (Tuple e1' e2')
-infer (E (Con tag e tfull))
+infer (E (Con tag e tfull loc))
    = do e' <- infer e
         -- Find type of payload for given tag
         let TSum ts          = tfull
             Just (t, False) = lookup tag ts
         -- Make sure to promote the payload to type t if necessary
         e'' <- typecheck e' t
-        return $ TE tfull (Con tag e'' tfull)
+        return $ TE tfull (Con tag e'' tfull loc)
 infer (E (If ec et ee))
    = do ec' <- infer ec
         guardShow "if-1" $ exprType ec' == TPrim Boolean

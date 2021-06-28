@@ -675,7 +675,7 @@ genExpr mv (TE t (Struct fs)) = do
           concat stms ++ vstm, p')
 #endif
 
-genExpr mv (TE t (Con tag e tau)) = do  -- `tau' and `t' should be compatible
+genExpr mv (TE t (Con tag e tau _)) = do  -- `tau' and `t' should be compatible
   (e',edecl,estm,ep) <- genExpr_ e
   te' <- genType (exprType e)
   t'  <- genType t

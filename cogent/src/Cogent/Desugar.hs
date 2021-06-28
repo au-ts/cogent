@@ -694,11 +694,11 @@ desugarExpr (B.TE _ (S.TLApp v ts ls note) _) = do
   pragmas <- view _3
   E <$> (Fun (funNameToCoreFunName v) <$> mapM (desugarType . fromJust) ts
     <*> mapM (desugarLayout . fromJust) ls <*> pure (pragmaToNote pragmas v $ desugarNote note) <*> pure __dummyPos)  -- FIXME: fromJust
-desugarExpr (B.TE t (S.Con c [e]) _) = do
+desugarExpr (B.TE t (S.Con c [e]) loc) = do
   t'@(TSum ts) <- desugarType t
   e' <- desugarExpr e
   let ts' = map (\(c',(t,b)) -> if c' == c then (c',(t,b)) else (c',(t,True))) ts
-  return (E $ Con c e' (TSum ts'))  -- the smallest type for `Con c [e]', which should be a subtype of `t'
+  return (E $ Con c e' (TSum ts') loc)  -- the smallest type for `Con c [e]', which should be a subtype of `t'
 desugarExpr (B.TE t@(B.DT (S.TVariant ts)) (S.Con c es) l) = do
     let Just (tes, False) = M.lookup c ts
     desugarExpr (B.TE t (S.Con c [B.TE (group tes) (S.Tuple es) l]) l)

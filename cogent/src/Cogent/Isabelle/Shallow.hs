@@ -311,7 +311,7 @@ shallowExpr (TE t (Fun fn ts ls _ _)) =
             TermWithType (mkId $ snm $ unCoreFunName fn) <$> shallowType t
 shallowExpr (TE _ (Op opr es _)) = shallowPrimOp <$> pure opr <*> (mapM shallowExpr es)
 shallowExpr (TE _ (App f arg _)) = mkApp <$> shallowExpr f <*> (mapM shallowExpr [arg])
-shallowExpr (TE t (Con cn e _))  = do
+shallowExpr (TE t (Con cn e _ _))  = do
   tn <- findTypeSyn t
   econ <- mkApp <$> pure (mkStr [tn,".",cn]) <*> (mapM shallowExpr [e])
   TermWithType econ <$> shallowType t
@@ -869,7 +869,7 @@ scorresCaseExpr m = CC.foldEPre unwrap scorresCaseExpr'
       , (tstr@(VariantStr vs):_) <- toTypeStr bt
       , Just bt' <- M.lookup tstr m
       = S.singleton $ SCED bt' vs tag
-    scorresCaseExpr' (TE bt e'@(Con tag e _))
+    scorresCaseExpr' (TE bt e'@(Con tag e _ _))
       | (tstr@(VariantStr vs):_) <- toTypeStr bt
       , Just bt' <- M.lookup tstr m
       = S.singleton $ SCCN tag bt'
