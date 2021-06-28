@@ -122,9 +122,9 @@ data OccInfo = Dead
              deriving (Eq, Ord, Show)
 
 markOcc :: SNat v -> PosTypedExpr t v VarName b -> Occ v b (InExpr t v b)
-markOcc sv (TE tau (Variable (v, n))) = do
+markOcc sv (TE tau (Variable (v, n) loc)) = do
   modify $ second $ modifyAt v (OnceSafe <>)
-  return . TE tau $ Variable (v, (n, OnceSafe))
+  return . TE tau $ Variable (v, (n, OnceSafe)) loc
 markOcc sv (TE tau (Fun fn ts ls note)) = do
   modify (first $ M.adjust (second $ (OnceSafe <>)) (unCoreFunName fn))
   return . TE tau $ Fun fn ts ls note
@@ -300,7 +300,7 @@ data Context t v b = Stop
 -- FIXME: basically ignore Context for now, and just do recursion on this function, instead of mutual recursion / zilinc
 -- needs a stats as well (IO)
 simplExpr :: (v ~ 'Suc v') => SNat v -> Subst t v b -> InScopeSet t v b -> InExpr t v b -> Context t v b -> Simp t b (OutExpr t v b)
-simplExpr sv subst ins (TE tau (Variable (v,(n,o)))) cont = case subst `V.at` v of  -- `v' here is an in-var
+simplExpr sv subst ins (TE tau (Variable (v,(n,o)) loc)) cont = case subst `V.at` v of  -- `v' here is an in-var
   Nothing           -> considerInline sv ins (v,n,tau) cont  -- `v' here is an out-var
   Just (SuspEx e s) -> simplExpr sv s ins e cont
   Just (DoneEx e)   -> do fenv <- use funcEnv
@@ -381,8 +381,8 @@ considerInline sv ins (v,n,tau) cont = case ins `V.at` v of
     ifM (inline rhs occ cont)
       (do fenv <- use funcEnv
           simplExpr sv (emptySubst sv) ins (evalOcc (fenv, emptyOccVec sv) $ markOcc sv rhs) cont)
-      (rebuild (TE tau $ Variable (v,n)) cont)
-  Just _ -> rebuild (TE tau $ Variable (v,n)) cont
+      (rebuild (TE tau $ Variable (v,n) __dummyPos) cont)
+  Just _ -> rebuild (TE tau $ Variable (v,n) __dummyPos) cont
 
 rebuild :: OutExpr t v b -> Context t v b -> Simp t b (OutExpr t v b)
 rebuild e Stop = return e
@@ -394,7 +394,7 @@ rebuild _ _ = __todo "rebuild: not implemented yet"
 -- NOTE: This function has also to guarantee that linearity is preverved if the expression
 --   in question is duplicated / zilinc
 isTrivial :: OutExpr t v b -> Bool
-isTrivial (TE _ (Variable _)) = True  -- If this var is linear, then the binder has to be linear as well
+isTrivial (TE _ (Variable _ _)) = True  -- If this var is linear, then the binder has to be linear as well
 isTrivial (TE _ (Unit)) = True
 isTrivial (TE _ (ILit {})) = True
 isTrivial (TE _ (SLit {})) = True
@@ -414,7 +414,7 @@ inline _ _ _ = __impossible "inline"
 noLinear :: PosTypedExpr t v a b -> Simp t b Bool
 noLinear (TE tau e) = (&&) <$> typeNotLinear tau <*> noLinear' e
   where
-    noLinear' (Variable (v,a)) = return True
+    noLinear' (Variable (v,a) _) = return True
     noLinear' (Fun {}) = return True
     noLinear' (Op _ es) = and <$> mapM noLinear es
     noLinear' (App e1 e2) = (&&) <$> noLinear e1 <*> noLinear e2
@@ -474,7 +474,7 @@ lowerFin _ _ _ = __ghc_t3927 "lowerFin"
 #endif
 
 lowerExpr :: (Show a, v ~ 'Suc v') => SNat v -> Fin ('Suc v) -> PosTypedExpr t ('Suc v) a b -> PosTypedExpr t v a b
-lowerExpr w i (TE tau (Variable (v,a)))     = TE tau $ Variable (lowerFin w i v, a)
+lowerExpr w i (TE tau (Variable (v,a) loc))     = TE tau $ Variable (lowerFin w i v, a) loc
 lowerExpr w i (TE tau (Fun fn ts ls note))  = TE tau $ Fun fn ts ls note
 lowerExpr w i (TE tau (Op opr es))          = TE tau $ Op opr (L.map (lowerExpr w i) es)
 lowerExpr w i (TE tau (App e1 e2))          = TE tau $ App (lowerExpr w i e1) (lowerExpr w i e2)
@@ -497,7 +497,7 @@ lowerExpr w i (TE tau (Promote ty e))       = TE tau $ Promote ty (lowerExpr w i
 lowerExpr w i (TE tau (Cast ty e))       = TE tau $ Cast ty (lowerExpr w i e)
 
 liftExpr :: Show a => Fin ('Suc v) -> PosTypedExpr t v a b -> PosTypedExpr t ('Suc v) a b
-liftExpr i (TE tau (Variable (v,a)))     = TE tau $ Variable (liftIdx i v,a)
+liftExpr i (TE tau (Variable (v,a) loc))     = TE tau $ Variable (liftIdx i v,a) loc
 liftExpr i (TE tau (Fun fn ts ls note))  = TE tau $ Fun fn ts ls note
 liftExpr i (TE tau (Op opr es))          = TE tau $ Op opr (L.map (liftExpr i) es)
 liftExpr i (TE tau (App e1 e2))          = TE tau $ App (liftExpr i e1) (liftExpr i e2)
@@ -562,9 +562,9 @@ substFin (FSuc v) (SSuc n') n arg = case substFin v n' n arg of
 
 -- betaR body (|var_body|-1==idx) |var_arg| arg ts
 betaR :: (v ~ 'Suc v0) => PosTypedExpr t' ('Suc v') VarName b -> SNat v' -> SNat v -> PosTypedExpr t v VarName b -> Vec t' (Type t b) -> Simp t b (PosTypedExpr t (v :+: v') VarName b)
-betaR (TE tau (Variable (v,a)))  idx n arg ts
+betaR (TE tau (Variable (v,a) loc))  idx n arg ts
   = case substFin v idx n arg of
-      Left v' -> pure $ TE (substitute ts tau) $ Variable (v',a)
+      Left v' -> pure $ TE (substitute ts tau) $ Variable (v',a) loc
       Right e -> pure e
 betaR (TE tau (Fun fn tvs lvs nt)) idx n arg ts = pure . TE (substitute ts tau) $ Fun fn (L.map (substitute ts) tvs) lvs nt
 betaR (TE tau (Op opr es))       idx n arg ts = TE (substitute ts tau) <$> (Op opr <$> mapM (\x -> betaR x idx n arg ts) es)
@@ -582,7 +582,7 @@ betaR e@(TE tau (LetBang vs a e1 e2)) idx n@(SSuc n0) arg ts
       varCount += 1
       let vn = "simp_var_" ++ show vc
       case sym (addSucLeft n idx) of
-        Refl -> do varg  <- pure $ TE (exprType arg) (Variable (f0,vn))
+        Refl -> do varg  <- pure $ TE (exprType arg) (Variable (f0,vn) __dummyPos)
                    arg'  <- pure $ upshiftExpr idx n f0 arg
                    body' <- betaR e idx (SSuc n) varg ts
                    return $ TE (substitute ts tau) $ (Let vn arg' body')

@@ -119,7 +119,7 @@ stDefinition (TypeDef tn ts Nothing) = return ()
 stExpr :: PosTypedExpr t v VarName b -> ST ()
 stExpr (TE t e) = stExpr' e >> stType t
   where
-    stExpr' (Variable v)   = return ()
+    stExpr' (Variable v _)   = return ()
     stExpr' (Fun fn ts _ _) = __fixme $ mapM_ stType ts
     stExpr' (Op opr es)    = mapM_ stExpr es
     stExpr' (App e1 e2)    = stExpr e1 >> stExpr e2

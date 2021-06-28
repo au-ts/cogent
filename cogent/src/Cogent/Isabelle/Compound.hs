@@ -75,7 +75,7 @@ takeFlatCase (TE _ e) = case e of
          -> (M.Map TagName (VarName, PosTypedExpr t u VarName b))
          -> Maybe (M.Map TagName (VarName, PosTypedExpr t u VarName b))
   -- Match a nested Case on the same scrutinee
-  goAlts nscrut (TE _ (Case (TE _ (Variable (FZero, nscrut'))) tag (_, na1,ea1) (_, na2, ea2))) m
+  goAlts nscrut (TE _ (Case (TE _ (Variable (FZero, nscrut') loc)) tag (_, na1,ea1) (_, na2, ea2))) m
    | nscrut == nscrut'
    = do -- The nested case structure binds a lot of variables that all refer to the scrutinee,
         -- because the failure continuation of each nested case has a binding.
@@ -87,7 +87,7 @@ takeFlatCase (TE _ e) = case e of
         goAlts na2 ea2' (M.insert tag (na1,ea1') m)
 
   -- Match an Esac
-  goAlts nscrut (TE _ (Let nalt (TE _ (Esac (TE tscrut (Variable (FZero, nscrut'))))) erest)) m
+  goAlts nscrut (TE _ (Let nalt (TE _ (Esac (TE tscrut (Variable (FZero, nscrut') loc)))) erest)) m
    | nscrut == nscrut'
    , TSum alts <- tscrut
    , [tag]     <- map fst $ filter (\(_,(_,b)) -> not b) alts
@@ -109,7 +109,7 @@ expDiscardVar' :: Fin ('Suc v)
                -> (forall v. Fin ('Suc v) -> e t ('Suc v) a b -> Maybe (e t v a b))
                -> PosExpr t ('Suc v) a b e -> Maybe (PosExpr t v a b e)
 expDiscardVar' rm0 f e = case e of
-  Variable (v, a)        -> Variable <$> ((,) <$> discardVar rm0 v <*> pure a)
+  Variable (v, a) loc    -> Variable <$> ((,) <$> discardVar rm0 v <*> pure a) <*> pure loc
   Fun fn ts ls notes     -> Fun fn <$> traverse (typDiscardVar $ finNat rm0) ts <*> pure ls <*> pure notes
   Op o ls                -> Op o <$> mapM go ls
   App e1 e2              -> App <$> go e1 <*> go e2

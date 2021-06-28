@@ -286,8 +286,8 @@ matchTypes tdfs vs ts rs =
        else Just $ concat $ catMaybes pmatch
     where pmatch = map (\(t,r) -> matchType tdfs vs t r) $ P.zip ts rs
 
-shallowExpr :: (Show b,Eq b) => PosTypedExpr t v VarName b -> SG b Term
-shallowExpr (TE _ (Variable (_,v))) = pure $ mkId (snm v)
+shallowExpr :: (Show b,Eq b) => PosTypedExpr t v VarName b -> SG Term
+shallowExpr (TE _ (Variable (_,v) loc)) = pure $ mkId (snm v)
 shallowExpr (TE t (Fun fn ts ls _)) =
     if null ts
        then pure $ mkId $ snm $ unCoreFunName fn

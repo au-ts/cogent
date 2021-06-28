@@ -688,9 +688,9 @@ infer (E (ArrayPut arr i e))
         let tarr' = TArray telm len s Nothing
         return (TE tarr' (ArrayPut arr' i' e'))
 #endif
-infer (E (Variable v))
+infer (E (Variable v loc))
    = do Just t <- useVariable (fst v)
-        return (TE t (Variable v))
+        return (TE t (Variable v loc))
 infer (E (Fun f ts ls note))
    | ExI (Flip ts') <- Vec.fromList ts
    , ExI (Flip ls') <- Vec.fromList ls
