@@ -501,8 +501,8 @@ specialiseExpr :: PosTypedExpr t v VarName VarName -> Mono VarName (PosTypedExpr
 specialiseExpr (TE t e) = TE <$> monoType t <*> specialiseExpr' e
   where
     specialiseExpr' (Variable var loc   ) = pure $ Variable var loc
-    specialiseExpr' (Fun fn [] ls notes ) = pure $ Fun fn [] ls notes
-    specialiseExpr' (Fun fn ts ls notes ) = Fun fn <$> mapM monoType ts <*> pure ls <*> pure notes
+    specialiseExpr' (Fun fn [] ls notes loc) = pure $ Fun fn [] ls notes loc
+    specialiseExpr' (Fun fn ts ls notes loc) = Fun fn <$> mapM monoType ts <*> pure ls <*> pure notes <*> pure loc
     specialiseExpr' (Op      opr es     ) = Op opr <$> mapM specialiseExpr es
     specialiseExpr' (App     e1 e2      ) = App <$> specialiseExpr e1 <*> specialiseExpr e2
     specialiseExpr' (Con     tag e t    ) = Con tag <$> specialiseExpr e <*> monoType t
@@ -531,7 +531,7 @@ specialiseExpr (TE t e) = TE <$> monoType t <*> specialiseExpr' e
 
 eval :: PosTypedExpr 'Zero v VarName VarName -> ReplM v () () (Value () ())
 eval (TE _ (Variable (v,_) _)) = use gamma >>= return . (`V.at` v)
-eval (TE _ (Fun fn ts ls _)) = do
+eval (TE _ (Fun fn ts ls _ _)) = do
   funmap <- use fundefs
   absfunmap <- use absfuns
   case M.lookup fn funmap of

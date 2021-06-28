@@ -115,7 +115,7 @@ stExpr :: PosTypedExpr t v VarName b -> ST ()
 stExpr (TE t e) = stExpr' e >> stType t
   where
     stExpr' (Variable v _)   = return ()
-    stExpr' (Fun fn ts _ _) = __fixme $ mapM_ stType ts
+    stExpr' (Fun fn ts _ _ _) = __fixme $ mapM_ stType ts
     stExpr' (Op opr es)    = mapM_ stExpr es
     stExpr' (App e1 e2)    = stExpr e1 >> stExpr e2
     stExpr' (Con cn e _)   = stExpr e
