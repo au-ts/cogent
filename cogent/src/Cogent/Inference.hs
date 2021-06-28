@@ -585,7 +585,7 @@ infer (E (LetBang vs a e1 e2))
         guardShow "let!" $ canEscape k
         e2' <- withBinding (exprType e1') (infer e2)
         return $ TE (exprType e2') (LetBang vs a e1' e2')
-infer (E Unit) = return $ TE TUnit Unit
+infer (E (Unit loc)) = return $ TE TUnit $ Unit loc
 infer (E (Tuple e1 e2))
    = do e1' <- infer e1
         e2' <- infer e2

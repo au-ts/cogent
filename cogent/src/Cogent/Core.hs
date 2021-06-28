@@ -164,7 +164,7 @@ data Expr loc t v a b e
   | Op Op [e t v a b] loc
   | App (e t v a b) (e t v a b) loc
   | Con TagName (e t v a b) (Type t b) loc
-  | Unit
+  | Unit loc
   | ILit Integer PrimInt
   | SLit String
 #ifdef BUILTIN_ARRAYS
@@ -373,7 +373,7 @@ insertIdxAtE cut f (Fun fn ts ls nt loc) = Fun fn ts ls nt loc
 insertIdxAtE cut f (Op opr es loc) = Op opr (map (f cut) es) loc
 insertIdxAtE cut f (App e1 e2 loc) = App (f cut e1) (f cut e2) loc
 insertIdxAtE cut f (Con tag e t loc) = Con tag (f cut e) t loc
-insertIdxAtE cut f (Unit) = Unit
+insertIdxAtE cut f (Unit loc) = Unit loc
 insertIdxAtE cut f (ILit n pt) = ILit n pt
 insertIdxAtE cut f (SLit s) = SLit s
 #ifdef BUILTIN_ARRAYS
@@ -412,7 +412,7 @@ foldEPre unwrap f e = case unwrap e of
   (Op _ es _)         -> mconcat $ f e : map (foldEPre unwrap f) es
   (App e1 e2 _)         -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (Con _ e1 _ _)        -> f e `mappend` foldEPre unwrap f e1
-  Unit                -> f e
+  Unit _               -> f e
   ILit {}             -> f e
   SLit {}             -> f e
 #ifdef BUILTIN_ARRAYS
@@ -445,7 +445,7 @@ fmapE f (Fun fn ts ls nt loc)    = Fun fn ts ls nt loc
 fmapE f (Op opr es loc)          = Op opr (map f es) loc
 fmapE f (App e1 e2 loc)          = App (f e1) (f e2) loc
 fmapE f (Con cn e t loc)         = Con cn (f e) t loc
-fmapE f (Unit)               = Unit
+fmapE f (Unit loc)               = Unit loc
 fmapE f (ILit i pt)          = ILit i pt
 fmapE f (SLit s)             = SLit s
 #ifdef BUILTIN_ARRAYS
@@ -489,7 +489,7 @@ instance (Functor (e t v a),
   fmap f (Flip (Op opr es loc)          )      = Flip $ Op opr (fmap (fmap f) es) loc
   fmap f (Flip (App e1 e2 loc)          )      = Flip $ App (fmap f e1) (fmap f e2) loc
   fmap f (Flip (Con cn e t loc)         )      = Flip $ Con cn (fmap f e) (fmap f t) loc
-  fmap f (Flip (Unit)               )      = Flip $ Unit
+  fmap f (Flip (Unit loc)               )      = Flip $ Unit loc
   fmap f (Flip (ILit i pt)          )      = Flip $ ILit i pt
   fmap f (Flip (SLit s)             )      = Flip $ SLit s
 #ifdef BUILTIN_ARRAYS
@@ -524,7 +524,7 @@ instance (Functor (Flip (e t v) b),
   fmap f (Flip2 (Op opr es loc)          )      = Flip2 $ Op opr (fmap (ffmap f) es) loc
   fmap f (Flip2 (App e1 e2 loc)          )      = Flip2 $ App (ffmap f e1) (ffmap f e2) loc
   fmap f (Flip2 (Con cn e t loc)         )      = Flip2 $ Con cn (ffmap f e) t loc
-  fmap f (Flip2 (Unit)               )      = Flip2 $ Unit
+  fmap f (Flip2 (Unit loc)               )      = Flip2 $ Unit loc
   fmap f (Flip2 (ILit i pt)          )      = Flip2 $ ILit i pt
   fmap f (Flip2 (SLit s)             )      = Flip2 $ SLit s
 #ifdef BUILTIN_ARRAYS
@@ -656,7 +656,7 @@ instance (Pretty a, Pretty b, Prec (e t v a b), Pretty (e t v a b), Pretty (e t 
                                 keyword "in" <+> pretty e2)
   pretty (LetBang bs a e1 e2) = align (keyword "let!" <+> tupled (map (prettyV . fst) bs) <+> pretty a <+> symbol "=" <+> pretty e1 L.<$>
                                        keyword "in" <+> pretty e2)
-  pretty (Unit) = tupled []
+  pretty (Unit _) = tupled []
   pretty (Tuple e1 e2) = tupled (map pretty [e1, e2])
   pretty (Struct fs) = symbol "#" L.<> record (map (\(n,e) -> fieldname n <+> symbol "=" <+> pretty e) fs)
   pretty (Con tn e t _) = parens (tagname tn <+> prettyPrec 1 e) <+> symbol "::" <+> pretty t

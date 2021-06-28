@@ -484,7 +484,7 @@ genExpr mv (TE t (ArrayTake _ arr i e)) = do  -- FIXME: varpool - as above
   return (e', arrdecl++idecl++vdecl++edecl, arrstm++istm++vstm++estm, M.empty)
 #endif
 
-genExpr mv (TE t (Unit)) = do
+genExpr mv (TE t (Unit _)) = do
   t' <- genType t
   let e' = CCompLit t' [([CDesignFld dummyField], CInitE (CConst $ CNumConst 0 (CInt True CIntT) DEC))]
   maybeAssign t' mv e' M.empty

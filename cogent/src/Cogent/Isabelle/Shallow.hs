@@ -315,7 +315,7 @@ shallowExpr (TE t (Con cn e _ _))  = do
   tn <- findTypeSyn t
   econ <- mkApp <$> pure (mkStr [tn,".",cn]) <*> (mapM shallowExpr [e])
   TermWithType econ <$> shallowType t
-shallowExpr (TE _ (Unit)) = pure $ mkId "()"
+shallowExpr (TE _ (Unit _)) = pure $ mkId "()"
 shallowExpr (TE _ (ILit n pt)) = pure $ shallowILit n pt
 shallowExpr (TE _ (SLit s)) = pure $ mkString s
 #ifdef BUILTIN_ARRAYS

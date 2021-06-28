@@ -741,7 +741,7 @@ desugarExpr (B.TE _ (S.Member e fld) _) = do
   let TRecord _ fs _ = t
       Just f' = elemIndex fld (P.map fst fs)
   E <$> (Member <$> desugarExpr e <*> pure f')
-desugarExpr (B.TE _ (S.Unitel) _) = return $ E Unit
+desugarExpr (B.TE _ (S.Unitel) loc) = return $ E $ Unit loc
 desugarExpr (B.TE t (S.IntLit n) _) = return $ E . ILit n $ desugarPrimInt t
 desugarExpr (B.TE _ (S.BoolLit b) _) = return $ E $ ILit (if b then 1 else 0) Boolean
 desugarExpr (B.TE _ (S.CharLit c) _) = return $ E $ ILit (fromIntegral $ ord c) U8
@@ -776,7 +776,7 @@ desugarExpr (B.TE t (S.ArrayPut arr (e:es)) l) =
       arr' = B.TE t' (S.ArrayPut arr [e]) l
    in desugarExpr $ B.TE t (S.ArrayPut arr' es) l
 #endif
-desugarExpr (B.TE _ (S.Tuple []) _) = return $ E Unit
+desugarExpr (B.TE _ (S.Tuple []) loc) = return $ E $ Unit loc
 desugarExpr (B.TE _ (S.Tuple [e]) _) = __impossible "desugarExpr (Tuple)"
 desugarExpr (B.TE _ (S.Tuple es@(_:_:_)) _) | not __cogent_ftuples_as_sugar = do
   foldr1 (liftA2 $ E .* Tuple) $ map desugarExpr es  -- right associative product repr of a list
