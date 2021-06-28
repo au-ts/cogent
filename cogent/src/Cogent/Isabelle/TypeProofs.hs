@@ -327,7 +327,7 @@ splitEnv env (TE t Unit)             = EE t Unit          $ cleared env
 splitEnv env (TE t (ILit i t'))      = EE t (ILit i t')   $ cleared env
 splitEnv env (TE t (SLit s))         = EE t (SLit s)      $ cleared env
 splitEnv env (TE t (Fun f ts ls nt)) = EE t (Fun f ts ls nt) $ cleared env  -- FIXME
-splitEnv env (TE t (Variable v))     = EE t (Variable v)  $ singleton (fst v) env
+splitEnv env (TE t (Variable v loc))     = EE t (Variable v loc)  $ singleton (fst v) env
 
 splitEnv env (TE t (Esac e))
     = let e' = splitEnv env e
@@ -419,7 +419,7 @@ pushDown unused (EE ty e@Unit      _) = EE ty e unused
 pushDown unused (EE ty e@(ILit {}) _) = EE ty e unused
 pushDown unused (EE ty e@(SLit {}) _) = EE ty e unused
 pushDown unused (EE ty e@(Fun  {}) _) = EE ty e unused
-pushDown unused (EE ty e@(Variable _) env) = EE ty e $ unused <|> env
+pushDown unused (EE ty e@(Variable _ _) env) = EE ty e $ unused <|> env
 
 -- This case may be impossible to prove if unused is non-empty (!!)
 pushDown unused (EE ty (Op o []) env) = error "TypeProofs: empty Op" -- EE ty (Op o []) $ unused <|> env

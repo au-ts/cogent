@@ -69,7 +69,7 @@ import GHC.Generics (Generic)
 import Text.PrettyPrint.ANSI.Leijen as L hiding (tupled, indent, (<$>))
 import qualified Text.PrettyPrint.ANSI.Leijen as L ((<$>))
 
-import Text.Parsec.Pos (SourcePos)
+import Text.Parsec.Pos (SourcePos, initialPos)
 
 data Type t b
   = TVar (Fin t)
@@ -155,9 +155,11 @@ unroll v _ = __impossible "unroll in core given an empty context - this usually 
 data FunNote = NoInline | InlineMe | MacroCall | InlinePlease  -- order is important, larger value has stronger precedence
              deriving (Bounded, Eq, Ord, Show)
 
+__dummyPos = initialPos "dummy"
+
 type PosExpr = Expr SourcePos
 data Expr loc t v a b e
-  = Variable (Fin v, a)
+  = Variable (Fin v, a) loc
   | Fun CoreFunName [Type t b] [DataLayout BitRange] FunNote  -- here do we want to keep partial application and infer again? / zilinc
   | Op Op [e t v a b]
   | App (e t v a b) (e t v a b)
@@ -190,12 +192,12 @@ data Expr loc t v a b e
   | Promote (Type t b) (e t v a b)  -- only for guiding the tc. rep. unchanged.
   | Cast (Type t b) (e t v a b)  -- only for integer casts. rep. changed
 -- \ vvv constraint no smaller than header, thus UndecidableInstances
-deriving instance (Show a, Show b, Show (e t v a b), Show (e t ('Suc v) a b), Show (e t ('Suc ('Suc v)) a b))
-  => Show (Expr loc t v a b e)
-deriving instance (Eq a, Eq b, Eq (e t v a b), Eq (e t ('Suc v) a b), Eq (e t ('Suc ('Suc v)) a b))
-  => Eq  (Expr loc t v a b e)
-deriving instance (Ord a, Ord b, Ord (e t v a b), Ord (e t ('Suc v) a b), Ord (e t ('Suc ('Suc v)) a b))
-  => Ord (Expr loc t v a b e)
+deriving instance (Show a, Show b, Show loc, Show (e loc t v a b), Show (e loc t ('Suc v) a b), Show (e loc t ('Suc ('Suc v)) a b))
+  => Show (Expr loc t v a b (e loc))
+deriving instance (Eq a, Eq b, Eq loc, Eq (e loc t v a b), Eq (e loc t ('Suc v) a b), Eq (e loc t ('Suc ('Suc v)) a b))
+  => Eq  (Expr loc t v a b (e loc))
+deriving instance (Ord a, Ord b, Ord loc, Ord (e loc t v a b), Ord (e loc t ('Suc v) a b), Ord (e loc t ('Suc ('Suc v)) a b))
+  => Ord (Expr loc t v a b (e loc))
 
 -- NOTE: We leave these logic expressions here even when the --builtin-arrays
 -- flag is off. The reason is that, without it, the type class instance
@@ -305,8 +307,8 @@ data Definition e a b
              => FunDef  Attr FunName (Vec t (TyVarName, Kind)) (Vec l (DLVarName, Type t b)) (Type t b) (Type t b) (e t ('Suc 'Zero) a b)
   | forall t l. AbsDecl Attr FunName (Vec t (TyVarName, Kind)) (Vec l (DLVarName, Type t b)) (Type t b) (Type t b)
   | forall t. TypeDef TypeName (Vec t TyVarName) (Maybe (Type t b))
-deriving instance (Show a, Show b) => Show (Definition (TypedExpr loc)   a b)
-deriving instance (Show a, Show b) => Show (Definition (UntypedExpr loc) a b)
+deriving instance (Show a, Show b, Show loc) => Show (Definition (TypedExpr loc)   a b)
+deriving instance (Show a, Show b, Show loc) => Show (Definition (UntypedExpr loc) a b)
 
 type CoreConst e = (VarName, e 'Zero 'Zero VarName VarName)
 
@@ -366,7 +368,7 @@ insertIdxAtTypedExpr cut (TE t e) = TE (insertIdxAtType (finNat cut) t) (insertI
 insertIdxAtE :: Fin ('Suc v)
              -> (forall v. Fin ('Suc v) -> e t v a b -> e t ('Suc v) a b)
              -> (Expr loc t v a b e -> Expr loc t ('Suc v) a b e)
-insertIdxAtE cut f (Variable v) = Variable $ first (liftIdx cut) v
+insertIdxAtE cut f (Variable v loc) = Variable (first (liftIdx cut) v) loc
 insertIdxAtE cut f (Fun fn ts ls nt) = Fun fn ts ls nt
 insertIdxAtE cut f (Op opr es) = Op opr $ map (f cut) es
 insertIdxAtE cut f (App e1 e2) = App (f cut e1) (f cut e2)
@@ -438,7 +440,7 @@ foldEPre unwrap f e = case unwrap e of
 
 
 fmapE :: (forall t v. e1 loc t v a b -> e2 loc t v a b) -> Expr loc t v a b (e1 loc) -> Expr loc t v a b (e2 loc)
-fmapE f (Variable v)         = Variable v
+fmapE f (Variable v loc)         = Variable v loc
 fmapE f (Fun fn ts ls nt)    = Fun fn ts ls nt
 fmapE f (Op opr es)          = Op opr (map f es)
 fmapE f (App e1 e2)          = App (f e1) (f e2)
@@ -482,7 +484,7 @@ instance (Functor (e t v a),
           Functor (e t ('Suc v) a),
           Functor (e t ('Suc ('Suc v)) a))
        => Functor (Flip (Expr l t v a) e) where  -- map over @b@
-  fmap f (Flip (Variable v)         )      = Flip $ Variable v
+  fmap f (Flip (Variable v loc)         )      = Flip $ Variable v loc
   fmap f (Flip (Fun fn ts ls nt)    )      = Flip $ Fun fn (fmap (fmap f) ts) ls nt
   fmap f (Flip (Op opr es)          )      = Flip $ Op opr (fmap (fmap f) es)
   fmap f (Flip (App e1 e2)          )      = Flip $ App (fmap f e1) (fmap f e2)
@@ -517,7 +519,7 @@ instance (Functor (Flip (e t v) b),
           Functor (Flip (e t ('Suc v)) b),
           Functor (Flip (e t ('Suc ('Suc v))) b))
        => Functor (Flip2 (Expr l t v) e b) where  -- map over @a@
-  fmap f (Flip2 (Variable v)         )      = Flip2 $ Variable (second f v)
+  fmap f (Flip2 (Variable v loc)         )      = Flip2 $ Variable (second f v) loc
   fmap f (Flip2 (Fun fn ts ls nt)    )      = Flip2 $ Fun fn ts ls nt
   fmap f (Flip2 (Op opr es)          )      = Flip2 $ Op opr (fmap (ffmap f) es)
   fmap f (Flip2 (App e1 e2)          )      = Flip2 $ App (ffmap f e1) (ffmap f e2)
@@ -647,7 +649,7 @@ instance (Pretty a, Pretty b, Prec (e t v a b), Pretty (e t v a b), Pretty (e t 
   pretty (ArrayTake (o, ca) pa i e) = align (keyword "take" <+> pretty ca <+> symbol "@" <> record [symbol "@" <> pretty i <+>
                                              symbol "=" <+> pretty o] <+> symbol "=" <+> (prettyPrec 1 pa) L.<$> keyword "in" <+> pretty e)
 #endif
-  pretty (Variable x) = pretty (snd x) L.<> angles (prettyV $ fst x)
+  pretty (Variable x loc) = pretty (snd x) L.<> angles (prettyV $ fst x)
   pretty (Fun fn ts ls nt) = pretty nt L.<> funname (unCoreFunName fn) <+> pretty ts <+> pretty ls
   pretty (App a b) = prettyPrec 2 a <+> prettyPrec 1 b
   pretty (Let a e1 e2) = align (keyword "let" <+> pretty a <+> symbol "=" <+> pretty e1 L.<$>

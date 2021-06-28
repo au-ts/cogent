@@ -132,7 +132,7 @@ deepPrimOp CS.RShift t = mkApp (mkId "RShift") [deepNumType t]
 deepPrimOp CS.Complement t = mkApp (mkId "Complement") [deepNumType t]
 
 deepExpr :: (Pretty a, Ord b, Pretty b) => NameMod -> TypeAbbrevs -> [Definition PosTypedExpr a b] -> PosTypedExpr t v a b -> Term
-deepExpr mod ta defs (TE _ (Variable v)) = mkApp (mkId "Var") [deepIndex (fst v)]
+deepExpr mod ta defs (TE _ (Variable v loc)) = mkApp (mkId "Var") [deepIndex (fst v)]
 deepExpr mod ta defs (TE _ (Fun fn ts ls _))  -- FIXME
   | concreteFun fn = mkApp (mkId "Fun")  [mkId (mod (unIsabelleName $ mkIsabelleName $ unCoreFunName fn)), mkList (map (deepType mod ta) ts)]
   | otherwise      = mkApp (mkId "AFun") [mkString (unIsabelleName $ mkIsabelleName $ unCoreFunName fn), mkList (map (deepType mod ta) ts)]

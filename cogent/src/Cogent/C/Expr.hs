@@ -489,7 +489,7 @@ genExpr mv (TE t (Unit)) = do
   let e' = CCompLit t' [([CDesignFld dummyField], CInitE (CConst $ CNumConst 0 (CInt True CIntT) DEC))]
   maybeAssign t' mv e' M.empty
 
-genExpr mv (TE t (Variable v)) = do  -- NOTE: this `v' could be a higher-order function
+genExpr mv (TE t (Variable v _)) = do  -- NOTE: this `v' could be a higher-order function
   e' <- ((`at` fst v) <$> ask)
   -- --------------------------------------------------------------------------
   -- XXX | NOTE: We need to establish C scope in order to determine the life time of linear C variables.

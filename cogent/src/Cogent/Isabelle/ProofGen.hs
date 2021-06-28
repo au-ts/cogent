@@ -52,7 +52,7 @@ type Xi a b = [Definition PosTypedExpr a b]
 data EnvExpr t v a b = EE { eexprType :: Type t b
                           , eexprExpr :: PosExpr t v a b EnvExpr
                           , eexprEnv  :: Vec v (Maybe (Type t b))
-                          } deriving (Show)
+                          } {- FIXME: deriving (Show)-}
 
 instance Functor (EnvExpr t v a) where  -- over @b@
   fmap f (EE t e env) = EE (fmap f t) (ffmap f e) (fmap (fmap $ fmap f) env)
@@ -273,7 +273,7 @@ ttyping xi k e = pure . TypingTacs <$> typingWrapper xi k e
 
 typingWrapper :: (Ord b, Show b, Pretty b) => Xi a b -> Vec t Kind -> EnvExpr t v a b
               -> State TypingSubproofs [Tactic]
-typingWrapper xi k (EE t (Variable i) env) = tacSequence [ ]
+typingWrapper xi k (EE t (Variable i loc) env) = tacSequence [ ]
 typingWrapper xi k (EE t (Struct fs) env)
     | allVars (map (eexprExpr . snd) fs) = tacSequence [ ]
 typingWrapper xi k (EE (TPrim t) (Op o es) env)
@@ -281,12 +281,12 @@ typingWrapper xi k (EE (TPrim t) (Op o es) env)
 typingWrapper xi k e = typing xi k e
 
 allVars :: [PosExpr t v a b e] -> Bool
-allVars (Variable _ : vs) = allVars vs
+allVars (Variable _ _ : vs) = allVars vs
 allVars [] = True
 allVars _ = False
 
 typing :: (Eq b, Ord b, Show b, Pretty b) => Xi a b -> Vec t Kind -> EnvExpr t v a b -> State TypingSubproofs [Tactic]
-typing xi k (EE t (Variable i) env) = tacSequence [
+typing xi k (EE t (Variable i loc) env) = tacSequence [
   return $ [rule "typing_var"],           -- Ξ, K, Γ ⊢ Var i : t if
   weakens k env (singleton (fst i) env),  -- K ⊢ Γ ↝w singleton (length Γ) i t
   return [simp_solve]                     -- i < length Γ

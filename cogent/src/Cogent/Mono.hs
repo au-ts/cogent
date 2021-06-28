@@ -163,7 +163,7 @@ getPrimInt (TE t _) | TPrim p <- t = p
 monoExpr :: (Ord b) => PosTypedExpr t v VarName b -> Mono b (PosTypedExpr 'Zero v VarName b)
 monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
   where
-    monoExpr' (Variable var        ) = pure $ Variable var
+    monoExpr' (Variable var loc    ) = pure $ Variable var loc
     monoExpr' (Fun      fn [] [] nt) = modify (first $ M.insert (unCoreFunName fn) M.empty) >> return (Fun fn [] [] nt)
     monoExpr' (Fun      fn ts ls nt) = do
       ts' <- mapM monoType ts

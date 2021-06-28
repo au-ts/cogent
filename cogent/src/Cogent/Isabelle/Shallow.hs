@@ -303,7 +303,7 @@ findTypeSyn :: CC.Type t b -> SG String
 findTypeSyn t = findType t >>= \(TCon nm _ _) -> pure nm
 
 shallowExpr :: (Show b,Eq b) => PosTypedExpr t v VarName b -> SG Term
-shallowExpr (TE _ (Variable (_,v))) = pure $ mkId (snm v)
+shallowExpr (TE _ (Variable (_,v) loc)) = pure $ mkId (snm v)
 shallowExpr (TE t (Fun fn ts ls _)) =
     if null ts
        then pure $ mkId $ snm $ unCoreFunName fn

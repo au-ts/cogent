@@ -500,7 +500,7 @@ specialise inst e = __fixme $ fst . fst $ flip3 evalRWS initmap (inst, []) $ run
 specialiseExpr :: PosTypedExpr t v VarName VarName -> Mono VarName (PosTypedExpr 'Zero v VarName VarName)
 specialiseExpr (TE t e) = TE <$> monoType t <*> specialiseExpr' e
   where
-    specialiseExpr' (Variable var       ) = pure $ Variable var
+    specialiseExpr' (Variable var loc   ) = pure $ Variable var loc
     specialiseExpr' (Fun fn [] ls notes ) = pure $ Fun fn [] ls notes
     specialiseExpr' (Fun fn ts ls notes ) = Fun fn <$> mapM monoType ts <*> pure ls <*> pure notes
     specialiseExpr' (Op      opr es     ) = Op opr <$> mapM specialiseExpr es
@@ -530,7 +530,7 @@ specialiseExpr (TE t e) = TE <$> monoType t <*> specialiseExpr' e
     specialiseExpr' (Cast    ty e       ) = Cast <$> monoType ty <*> specialiseExpr e
 
 eval :: PosTypedExpr 'Zero v VarName VarName -> ReplM v () () (Value () ())
-eval (TE _ (Variable (v,_))) = use gamma >>= return . (`V.at` v)
+eval (TE _ (Variable (v,_) _)) = use gamma >>= return . (`V.at` v)
 eval (TE _ (Fun fn ts ls _)) = do
   funmap <- use fundefs
   absfunmap <- use absfuns

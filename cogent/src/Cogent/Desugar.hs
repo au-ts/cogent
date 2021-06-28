@@ -447,7 +447,7 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple ps) _)) e | __cogent_ftuples_as_
           E . Take (v,e0') e0 idx <$> withBindings (Cons v (Cons e0' Nil)) (desugarExpr e)
         mkTake e0 (v:vs) e idx = do
           e0' <- freshVar
-          E . Take (v,e0') e0 idx <$> withBindings (Cons v (Cons e0' Nil)) (mkTake (E $ Variable (f1, e0')) vs e (idx + 1))
+          E . Take (v,e0') e0 idx <$> withBindings (Cons v (Cons e0' Nil)) (mkTake (E $ Variable (f1, e0') __dummyPos) vs e (idx + 1))
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple ps) _)) e | __cogent_ftuples_as_sugar = do
   let B.DT (S.TTuple ts) = B.getTypeTE e0
   __assert (P.length ps == P.length ts) $ "desugarAlt': |ps| /= |ts|\nps = " ++ show ps ++ "\nts = " ++ show ts
@@ -672,7 +672,7 @@ desugarNote S.Inline   = InlinePlease
 desugarExpr :: B.TypedExpr -> DS t l v (PosUntypedExpr t v VarName VarName)
 desugarExpr (B.TE _ (S.PrimOp opr es) _) = E . Op (symbolOp opr) <$> mapM desugarExpr es
 desugarExpr (B.TE _ (S.Var vn) _) = (findIx vn <$> use varCtx) >>= \case
-  Just v  -> return $ E $ Variable (v, vn)
+  Just v  -> return $ E $ Variable (v, vn) __dummyPos
   Nothing -> do constdefs <- view _2
                 let Just e = M.lookup vn constdefs
                 desugarExpr e
@@ -725,7 +725,7 @@ desugarExpr (B.TE _ (S.If c vs th el) _) = do
   let vs' = P.map (fromJust . flip findIx venv &&& id) vs
   th' <- withBinding v $ desugarExpr th
   el' <- withBinding v $ desugarExpr el
-  let e' = E $ If (E $ Variable (f0, v)) th' el'
+  let e' = E $ If (E $ Variable (f0, v) __dummyPos) th' el'
   E <$> (LetBang vs' v <$> desugarExpr c <*> pure e')
 desugarExpr (B.TE _ (S.MultiWayIf [] el) _) = __impossible "desugarExpr: MultiWayIf with only one branch"
 desugarExpr (B.TE t (S.MultiWayIf es el) pos) =  -- FIXME: likelihood is ignored here

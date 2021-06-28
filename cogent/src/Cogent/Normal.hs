@@ -38,7 +38,7 @@ import Prelude as P
 
 
 isVar :: PosUntypedExpr t v a b -> Bool
-isVar (E (Variable _)) = True
+isVar (E (Variable _ _)) = True
 isVar _ = False
 
 
@@ -53,7 +53,7 @@ isVar _ = False
 -- something that gcc has a better chance to see optimisation candidates. / zilinc (24-Oct-19)
 
 isAtom :: PosUntypedExpr t v a b -> Bool
-isAtom (E (Variable x)) = True
+isAtom (E (Variable x _)) = True
 isAtom (E (Fun _ _ _ _)) = True
 isAtom (E (Op opr es)) | all isVar es = True
 isAtom (E (App (E (Fun _ _ _ _)) arg)) | isVar arg = True
@@ -143,7 +143,7 @@ normalise :: SNat v
           -> PosUntypedExpr t v VarName b
           -> (forall n. SNat n -> PosUntypedExpr t (v :+: n) VarName b -> AN (PosUntypedExpr t (v :+: n) VarName b))
           -> AN (PosUntypedExpr t v VarName b)
-normalise v e@(E (Variable var)) k = k s0 (E (Variable var))
+normalise v e@(E (Variable var loc)) k = k s0 (E (Variable var loc))
 normalise v e@(E (Fun{})) k = k s0 e
 normalise v   (E (Op opr es)) k = normaliseNames v es $ \n es' -> k n (E $ Op opr es')
 normalise v e@(E (App (E (Fun fn ts ls nt)) arg)) k
@@ -227,7 +227,7 @@ normalise v (E (If c th el)) k | LNF <- __cogent_fnormalisation =
   normaliseExpr v th >>= \th' ->
   normaliseExpr v el >>= \el' ->
   normaliseName v c $ \n c' ->
-  E <$> (Let a (E $ If c' (upshiftExpr n v f0 th') (upshiftExpr n v f0 el')) <$> k (SSuc n) (E $ Variable (f0, a)))
+  E <$> (Let a (E $ If c' (upshiftExpr n v f0 th') (upshiftExpr n v f0 el')) <$> k (SSuc n) (E $ Variable (f0, a) __dummyPos ))
 normalise v (E (If c th el)) k = normaliseName v c $ \n c' ->
   E <$> (If c' <$> normalise (sadd v n) (upshiftExpr n v f0 th) (\n' -> withAssoc v n n' $ \Refl -> k (sadd n n'))
                <*> normalise (sadd v n) (upshiftExpr n v f0 el) (\n' -> withAssoc v n n' $ \Refl -> k (sadd n n')))
@@ -237,7 +237,7 @@ normalise v (E (Case e tn (l1,a1,e1) (l2,a2,e2))) k | LNF <- __cogent_fnormalisa
   normaliseExpr (SSuc v) e2 >>= \e2' ->
   normaliseName v e $ \n e' ->
   case sym $ addSucLeft v n of
-    Refl -> E <$> (Let a (E $ Case e' tn (l1,a1,upshiftExpr n (SSuc v) f0 e1') (l2,a2,upshiftExpr n (SSuc v) f0 e2')) <$> k (SSuc n) (E $ Variable (f0, a)))
+    Refl -> E <$> (Let a (E $ Case e' tn (l1,a1,upshiftExpr n (SSuc v) f0 e1') (l2,a2,upshiftExpr n (SSuc v) f0 e2')) <$> k (SSuc n) (E $ Variable (f0, a) __dummyPos))
 normalise v (E (Case e tn (l1,a1,e1) (l2,a2,e2))) k =
   normaliseName v e $ \n e' -> case addSucLeft v n of
     Refl -> let [e1u,e2u] = map (upshiftExpr n (SSuc v) f1) [e1,e2]
@@ -268,9 +268,9 @@ normaliseAtom :: SNat v -> PosUntypedExpr t v VarName b
               -> AN (PosUntypedExpr t v VarName b)
 normaliseAtom v e k = normalise v e $ \n e' -> if isAtom e' then k n e' else case e' of
   (E (Let a e1 e2)) -> freshVar >>= \a' -> E <$> (Let a e1 <$> (normaliseAtom (SSuc (sadd v n)) e2 $
-     \n' e2' -> withAssocS v n n' $ \Refl -> E <$> (Let a' e2' <$> (k (SSuc (sadd n (SSuc n'))) $ E $ Variable (f0, a')))))
+     \n' e2' -> withAssocS v n n' $ \Refl -> E <$> (Let a' e2' <$> (k (SSuc (sadd n (SSuc n'))) $ E $ Variable (f0, a') __dummyPos))))
   (E (LetBang vs a e1 e2)) -> freshVar >>= \a' -> E <$> (LetBang vs a e1 <$> (normaliseAtom (SSuc (sadd v n)) e2 $
-     \n' e2'  -> withAssocS v n n' $ \Refl -> E <$> (Let a' e2' <$> (k (SSuc (sadd n (SSuc n'))) $ E $ Variable (f0, a')))))
+     \n' e2'  -> withAssocS v n n' $ \Refl -> E <$> (Let a' e2' <$> (k (SSuc (sadd n (SSuc n'))) $ E $ Variable (f0, a') __dummyPos))))
   (E (Case e tn (l1,a1,e1) (l2,a2,e2))) ->
      E <$> (Case e tn <$> ((l1,a1,) <$> normaliseAtom (SSuc (sadd v n)) e1 (\n' -> withAssocS v n n' $ \Refl -> k (sadd n (SSuc n'))))
                                     <*> ((l2,a2,) <$> normaliseAtom (SSuc (sadd v n)) e2 (\n' -> withAssocS v n n' $ \Refl -> k (sadd n (SSuc n')))))
@@ -285,7 +285,7 @@ normaliseAtom v e k = normalise v e $ \n e' -> if isAtom e' then k n e' else cas
 
 wrapPut :: PosUntypedExpr t v VarName b -> AN (PosUntypedExpr t v VarName b)
 wrapPut e | not __cogent_fwrap_put_in_let = return e
-wrapPut put@(E (Put rec f e)) = freshVar >>= \a -> return $ E (Let a put (E $ Variable (f0,a)))
+wrapPut put@(E (Put rec f e)) = freshVar >>= \a -> return $ E (Let a put (E $ Variable (f0,a) __dummyPos))
 wrapPut (E (Let a e1 e2)) = E <$> (Let a e1 <$> wrapPut e2)
 wrapPut (E (LetBang vs a e1 e2)) = E <$> (LetBang vs a <$> wrapPut e1 <*> wrapPut e2)
 wrapPut (E (Case e tn (l1,a1,e1) (l2,a2,e2))) = E <$> (Case e tn <$> ((l1,a1,) <$> wrapPut e1) <*> ((l2,a2,) <$> wrapPut e2))
@@ -297,7 +297,7 @@ wrapPut e = return e  -- non-normal, thus put cannot occur
 normaliseName :: SNat v -> PosUntypedExpr t v VarName b
               -> (forall n. SNat n -> PosUntypedExpr t (v :+: n) VarName b -> AN (PosUntypedExpr t (v :+: n) VarName b))
               -> AN (PosUntypedExpr t v VarName b)
-normaliseName v e k = freshVar >>= \a -> normaliseAtom v e $ \n e' -> if isVar e' then k n e' else E <$> (Let a e' <$> k (SSuc n) (E (Variable (f0,a))))
+normaliseName v e k = freshVar >>= \a -> normaliseAtom v e $ \n e' -> if isVar e' then k n e' else E <$> (Let a e' <$> k (SSuc n) (E (Variable (f0,a) __dummyPos)))
 
 normaliseNames :: SNat v -> [PosUntypedExpr t v VarName b]
                -> (forall n. SNat n -> [PosUntypedExpr t (v :+: n) VarName b] -> AN (PosUntypedExpr t (v :+: n) VarName b))

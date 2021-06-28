@@ -231,7 +231,7 @@ graph g (TE _ (If e e1 e2)) n ret vs = do
     let g' = addGraphNode g n gnode
     return (g', n2)
 
-graph g (TE tp (Take _ (TE recTy (Variable v)) fld e)) n ret vs = do
+graph g (TE tp (Take _ (TE recTy (Variable v loc)) fld e)) n ret vs = do
     when (finInt (fst v) >= Prelude.length vs) $ abort $ "atom: " ++ show (v, vs)
     let (prevNm', aggTy) = vs !! (finInt $ fst v)
     let newNm = namePrefix prevNm' ++ "_fld" ++ show fld ++ "@" ++ show n
@@ -257,7 +257,7 @@ graph g (TE tp (Take _ (TE recTy (Variable v)) fld e)) n ret vs = do
     g'' <- graph g' e (n + 1) ret ((newNm, newTy) : (prevNm, aggTy) : vs)
     return g''
 
-graph g (TE _ (Split _ e1@(TE _ (Variable v)) e2)) n ret vs = do
+graph g (TE _ (Split _ e1@(TE _ (Variable v loc)) e2)) n ret vs = do
     when (finInt (fst v) >= Prelude.length vs) $ abort $ "atom: " ++ show (v, vs)
     let (prevNm', _) = vs !! (finInt $ fst v)
     let v1 = namePrefix prevNm' ++ "_fst@" ++ show n
@@ -309,9 +309,9 @@ graph g te@(TE _ (Case x tag (_, _, m) (_, _, nom))) n ret vs = do
     return g5
 
 graph g te@(TE ty (App fn arg)) n ret vs =
-  graph g (TE ty (Let undefined te (TE ty (Variable (FZero, undefined))))) n ret vs
+  graph g (TE ty (Let undefined te (TE ty (Variable (FZero, undefined) __dummyPos)))) n ret vs
 graph g te@(TE ty (Put rec fld v)) n ret vs =
-  graph g (TE ty (Let undefined te (TE ty (Variable (FZero, undefined))))) n ret vs
+  graph g (TE ty (Let undefined te (TE ty (Variable (FZero, undefined) __dummyPos)))) n ret vs
 
 graph g te n ret vs = case isAtom (untypeE te) of
     True -> do
@@ -409,7 +409,7 @@ getFieldsFromConcat groups n fields = do
     return (take takeN $ drop dropN fields)
 
 atom :: (Show a, Show b) => PosTypedExpr t v a b -> VarEnv -> GM ([GExpr], [(String, GTyp, GExpr)])
-atom (TE ty (Variable v)) vs = do
+atom (TE ty (Variable v loc)) vs = do
     when (finInt (fst v) >= Prelude.length vs) $ abort $ "atom: " ++ show (v, vs)
     let (nm, ggTyp) = vs !! (finInt $ fst v)
     xGTyp <- graphType ty
