@@ -609,11 +609,11 @@ typecheck e t = do
                                    show (indent' $ pretty t'') ++ "\n"
 
 infer :: (Pretty a, Show a, Eq a) => PosUntypedExpr t v a a -> TC t v a (PosTypedExpr t v a a)
-infer (E (Op o es))
+infer (E (Op o es loc))
    = do es' <- mapM infer es
         ts <- mapM (unfoldSynsShallowM . exprType) es'
         let Just t = opType o ts
-        return (TE t (Op o es'))
+        return (TE t (Op o es' loc))
 infer (E (ILit i t)) = return (TE (TPrim t) (ILit i t))
 infer (E (SLit s)) = return (TE TString (SLit s))
 #ifdef BUILTIN_ARRAYS

@@ -177,7 +177,7 @@ monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
       modify (first $ M.insertWith (\_ m -> insertWith (flip const) (ts', ls') (M.size m) m) (unCoreFunName fn) (M.singleton (ts', ls') 0))  -- add one more instance to the env
       idx <- M.lookup (ts', ls') . fromJust . M.lookup (unCoreFunName fn) . fst <$> get
       return $ Fun (unsafeCoreFunName $ monoName fn idx) [] [] nt loc
-    monoExpr' (Op      opr es      ) = Op opr <$> mapM monoExpr es
+    monoExpr' (Op      opr es loc  ) = Op opr <$> mapM monoExpr es <*> pure loc
     monoExpr' (App     e1 e2       ) = App <$> monoExpr e1 <*> monoExpr e2
     monoExpr' (Con     tag e t     ) = Con tag <$> monoExpr e <*> monoType t
     monoExpr' (Unit                ) = pure Unit

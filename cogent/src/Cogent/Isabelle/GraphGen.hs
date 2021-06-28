@@ -417,17 +417,17 @@ atom (TE ty (Variable v loc)) vs = do
     list <- fmap (\z -> map (\(nm2, gTyp) -> GVariable nm2 gTyp) z) (getFieldVariables (nm, ggTyp))
     return $ (list, [])
 
-atom (TE ty (Op opr es)) vs = case opr of
+atom (TE ty (Op opr es loc)) vs = case opr of
     CS.Gt -> do
-        ares <- atom (TE ty (Op CS.Le es)) vs
+        ares <- atom (TE ty (Op CS.Le es loc)) vs
         gt <- graphType ty
         return ([GOp Not (singleType gt) (fst ares)],[])
     CS.Ge -> do
-        ares <- atom (TE ty (Op CS.Lt es)) vs
+        ares <- atom (TE ty (Op CS.Lt es loc)) vs
         gt <- graphType ty
         return ([GOp Not (singleType gt) (fst ares)],[])
     CS.NEq -> do
-        ares <- atom (TE ty (Op CS.Eq es)) vs
+        ares <- atom (TE ty (Op CS.Eq es loc)) vs
         gt <- graphType ty
         return ([GOp Not (singleType gt) (fst ares)],[])
     otherwise -> do
