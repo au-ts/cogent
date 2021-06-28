@@ -139,7 +139,7 @@ deepExpr mod ta defs (TE _ (Fun fn ts ls _ _))  -- FIXME
   where
     concreteFun :: CoreFunName -> Bool
     concreteFun f = any (\def -> isFuncId f def && case def of FunDef{} -> True; _ -> False) defs
-deepExpr mod ta defs (TE _ (Op opr es))
+deepExpr mod ta defs (TE _ (Op opr es _))
   = mkApp (mkId "Prim") [deepPrimOp opr (let TPrim pt = exprType $ head es in pt),
                          mkList (map (deepExpr mod ta defs) es)]
 deepExpr mod ta defs (TE _ (App f arg))

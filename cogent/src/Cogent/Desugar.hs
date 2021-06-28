@@ -345,12 +345,12 @@ desugarAlts e0@(B.TE t v@(S.Var _) _) (S.Alt (B.TP p1 pos1) l1 e1 : alts) =  -- 
     S.PCon cn1 ps ->  -- This is C) for PCon
       desugarAlts (B.TE t v noPos) (S.Alt (B.TP (S.PCon cn1 [B.TIP (S.PTuple ps) (B.getLocTIP $ P.head ps)]) pos1) l1 e1 : alts)
     S.PIntLit  i -> let pt = desugarPrimInt (B.getTypeTE e0)
-                    in E <$> (If <$> (E <$> (Op Eq <$> ((:) <$> desugarExpr e0 <*> pure [E $ ILit i pt])))
+                    in E <$> (If <$> (E <$> (Op Eq <$> ((:) <$> desugarExpr e0 <*> pure [E $ ILit i pt]) <*> pure __dummyPos))
                                  <*> desugarExpr e1 <*> desugarAlts e0 alts)
     -- FIXME: could do better for PBoolLit because this one is easy to exhaust
-    S.PBoolLit b -> E <$> (If <$> (E <$> (Op Eq <$> ((:) <$> desugarExpr e0 <*> pure [E $ ILit (if b then 1 else 0) Boolean])))
+    S.PBoolLit b -> E <$> (If <$> (E <$> (Op Eq <$> ((:) <$> desugarExpr e0 <*> pure [E $ ILit (if b then 1 else 0) Boolean]) <*> pure __dummyPos))
                               <*> desugarExpr e1 <*> desugarAlts e0 alts)
-    S.PCharLit c -> E <$> (If <$> (E <$> (Op Eq <$> ((:) <$> desugarExpr e0 <*> pure [E $ ILit (fromIntegral $ ord c) U8])))
+    S.PCharLit c -> E <$> (If <$> (E <$> (Op Eq <$> ((:) <$> desugarExpr e0 <*> pure [E $ ILit (fromIntegral $ ord c) U8]) <*> pure __dummyPos))
                               <*> desugarExpr e1 <*> desugarAlts e0 alts)
     S.PIrrefutable _ -> __impossible "desugarAlts"
 desugarAlts e0 alts@(S.Alt _ _ e1:_) = do  -- e0 is not a var, so lift it
@@ -670,7 +670,11 @@ desugarNote S.NoInline = NoInline
 desugarNote S.Inline   = InlinePlease
 
 desugarExpr :: B.TypedExpr -> DS t l v (PosUntypedExpr t v VarName VarName)
-desugarExpr (B.TE _ (S.PrimOp opr es) _) = E . Op (symbolOp opr) <$> mapM desugarExpr es
+desugarExpr (B.TE _ (S.PrimOp opr es) loc) =
+  let
+    opr' = flip $ Op (symbolOp opr)
+  in
+    E . opr' loc <$> mapM desugarExpr es
 desugarExpr (B.TE _ (S.Var vn) _) = (findIx vn <$> use varCtx) >>= \case
   Just v  -> return $ E $ Variable (v, vn) __dummyPos
   Nothing -> do constdefs <- view _2

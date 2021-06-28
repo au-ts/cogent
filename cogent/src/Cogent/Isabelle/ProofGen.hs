@@ -276,7 +276,7 @@ typingWrapper :: (Ord b, Show b, Pretty b) => Xi a b -> Vec t Kind -> EnvExpr t 
 typingWrapper xi k (EE t (Variable i loc) env) = tacSequence [ ]
 typingWrapper xi k (EE t (Struct fs) env)
     | allVars (map (eexprExpr . snd) fs) = tacSequence [ ]
-typingWrapper xi k (EE (TPrim t) (Op o es) env)
+typingWrapper xi k (EE (TPrim t) (Op o es _) env)
     | allVars (map eexprExpr es) = tacSequence [ ]
 typingWrapper xi k e = typing xi k e
 
@@ -408,7 +408,7 @@ typing xi k (EE t (If x a b) env) = tacSequence [
   typing xi k b                                  -- Ξ, K, Γ2 ⊢ b : t
   ]
 
-typing xi k (EE (TPrim t) (Op o es) env) = tacSequence [
+typing xi k (EE (TPrim t) (Op o es _) env) = tacSequence [
   return [rule "typing_prim'"],  -- Ξ, K, Γ ⊢ Prim oper args : TPrim t if
   return [simp_solve,            -- prim_op_type oper = (ts,t)
           simp_solve],           -- ts' = map TPrim ts;

@@ -55,7 +55,7 @@ isVar _ = False
 isAtom :: PosUntypedExpr t v a b -> Bool
 isAtom (E (Variable x _)) = True
 isAtom (E (Fun _ _ _ _ _)) = True
-isAtom (E (Op opr es)) | all isVar es = True
+isAtom (E (Op opr es _)) | all isVar es = True
 isAtom (E (App (E (Fun _ _ _ _ _)) arg)) | isVar arg = True
 isAtom (E (App f arg)) | isVar f && isVar arg = True
 isAtom (E (Con cn x _)) | isVar x = True
@@ -145,7 +145,7 @@ normalise :: SNat v
           -> AN (PosUntypedExpr t v VarName b)
 normalise v e@(E (Variable var loc)) k = k s0 (E (Variable var loc))
 normalise v e@(E (Fun{})) k = k s0 e
-normalise v   (E (Op opr es)) k = normaliseNames v es $ \n es' -> k n (E $ Op opr es')
+normalise v   (E (Op opr es loc)) k = normaliseNames v es $ \n es' -> k n (E $ Op opr es' loc)
 normalise v e@(E (App (E (Fun fn ts ls nt loc)) arg)) k
   = normaliseName v arg $ \n arg' ->
       k n (E $ App (E (Fun fn (fmap (upshiftType n $ finNat f0) ts) ls nt loc)) arg')

@@ -335,9 +335,9 @@ genExpr
      --   All the generated statements
 
 
-genExpr _ (TE t (Op opr [])) = __impossible "genExpr"
+genExpr _ (TE t (Op opr [] _)) = __impossible "genExpr"
 
-genExpr mv (TE t (Op opr es@(e1:_))) = do
+genExpr mv (TE t (Op opr es@(e1:_) loc)) = do
   (es',decls,stms,ps) <- L.unzip4 <$> mapM genExpr_ es
   let e' = genOp opr (exprType e1) es'
   t' <- genType t

@@ -161,7 +161,7 @@ type PosExpr = Expr SourcePos
 data Expr loc t v a b e
   = Variable (Fin v, a) loc
   | Fun CoreFunName [Type t b] [DataLayout BitRange] FunNote loc  -- here do we want to keep partial application and infer again? / zilinc
-  | Op Op [e t v a b]
+  | Op Op [e t v a b] loc
   | App (e t v a b) (e t v a b)
   | Con TagName (e t v a b) (Type t b)
   | Unit
@@ -370,7 +370,7 @@ insertIdxAtE :: Fin ('Suc v)
              -> (Expr loc t v a b e -> Expr loc t ('Suc v) a b e)
 insertIdxAtE cut f (Variable v loc) = Variable (first (liftIdx cut) v) loc
 insertIdxAtE cut f (Fun fn ts ls nt loc) = Fun fn ts ls nt loc
-insertIdxAtE cut f (Op opr es) = Op opr $ map (f cut) es
+insertIdxAtE cut f (Op opr es loc) = Op opr (map (f cut) es) loc
 insertIdxAtE cut f (App e1 e2) = App (f cut e1) (f cut e2)
 insertIdxAtE cut f (Con tag e t) = Con tag (f cut e) t
 insertIdxAtE cut f (Unit) = Unit
@@ -409,7 +409,7 @@ foldEPre :: (Monoid m)
 foldEPre unwrap f e = case unwrap e of
   Variable{}          -> f e
   Fun{}               -> f e
-  (Op _ es)           -> mconcat $ f e : map (foldEPre unwrap f) es
+  (Op _ es _)         -> mconcat $ f e : map (foldEPre unwrap f) es
   (App e1 e2)         -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (Con _ e1 _)        -> f e `mappend` foldEPre unwrap f e1
   Unit                -> f e
@@ -442,7 +442,7 @@ foldEPre unwrap f e = case unwrap e of
 fmapE :: (forall t v. e1 loc t v a b -> e2 loc t v a b) -> Expr loc t v a b (e1 loc) -> Expr loc t v a b (e2 loc)
 fmapE f (Variable v loc)         = Variable v loc
 fmapE f (Fun fn ts ls nt loc)    = Fun fn ts ls nt loc
-fmapE f (Op opr es)          = Op opr (map f es)
+fmapE f (Op opr es loc)          = Op opr (map f es) loc
 fmapE f (App e1 e2)          = App (f e1) (f e2)
 fmapE f (Con cn e t)         = Con cn (f e) t
 fmapE f (Unit)               = Unit
@@ -486,7 +486,7 @@ instance (Functor (e t v a),
        => Functor (Flip (Expr l t v a) e) where  -- map over @b@
   fmap f (Flip (Variable v loc)         )      = Flip $ Variable v loc
   fmap f (Flip (Fun fn ts ls nt loc)    )      = Flip $ Fun fn (fmap (fmap f) ts) ls nt loc
-  fmap f (Flip (Op opr es)          )      = Flip $ Op opr (fmap (fmap f) es)
+  fmap f (Flip (Op opr es loc)          )      = Flip $ Op opr (fmap (fmap f) es) loc
   fmap f (Flip (App e1 e2)          )      = Flip $ App (fmap f e1) (fmap f e2)
   fmap f (Flip (Con cn e t)         )      = Flip $ Con cn (fmap f e) (fmap f t)
   fmap f (Flip (Unit)               )      = Flip $ Unit
@@ -521,7 +521,7 @@ instance (Functor (Flip (e t v) b),
        => Functor (Flip2 (Expr l t v) e b) where  -- map over @a@
   fmap f (Flip2 (Variable v loc)         )      = Flip2 $ Variable (second f v) loc
   fmap f (Flip2 (Fun fn ts ls nt loc)    )      = Flip2 $ Fun fn ts ls nt loc
-  fmap f (Flip2 (Op opr es)          )      = Flip2 $ Op opr (fmap (ffmap f) es)
+  fmap f (Flip2 (Op opr es loc)          )      = Flip2 $ Op opr (fmap (ffmap f) es) loc
   fmap f (Flip2 (App e1 e2)          )      = Flip2 $ App (ffmap f e1) (ffmap f e2)
   fmap f (Flip2 (Con cn e t)         )      = Flip2 $ Con cn (ffmap f e) t
   fmap f (Flip2 (Unit)               )      = Flip2 $ Unit
@@ -572,7 +572,7 @@ fieldIndex = magenta . string . ('.':) . show
 -- NOTE: the precedence levels are somewhat different to those of the surface lang / zilinc
 
 instance Prec (Expr loc t v a b e) where
-  prec (Op opr [_,_]) = prec (associativity opr)
+  prec (Op opr [_,_] _) = prec (associativity opr)
   prec (ILit {}) = 0
   prec (SLit {}) = 0
 #ifdef BUILTIN_ARRAYS
@@ -628,12 +628,12 @@ instance (Pretty a, Pretty b) => Pretty (UntypedExpr loc t v a b) where
 
 instance (Pretty a, Pretty b, Prec (e t v a b), Pretty (e t v a b), Pretty (e t ('Suc v) a b), Pretty (e t ('Suc ('Suc v)) a b))
          => Pretty (Expr loc t v a b e) where
-  pretty (Op opr [a,b])
+  pretty (Op opr [a,b] _)
      | LeftAssoc  l <- associativity opr = prettyPrec (l+1) a <+> primop opr <+> prettyPrec l b
      | RightAssoc l <- associativity opr = prettyPrec l a <+> primop opr <+> prettyPrec (l+1)  b
      | NoAssoc    l <- associativity opr = prettyPrec l a <+> primop opr <+> prettyPrec l  b
-  pretty (Op opr [e]) = primop opr <+> prettyPrec 1 e
-  pretty (Op opr es)  = primop opr <+> tupled (map pretty es)
+  pretty (Op opr [e] _) = primop opr <+> prettyPrec 1 e
+  pretty (Op opr es _)  = primop opr <+> tupled (map pretty es)
   pretty (ILit i pt) = literal (string $ show i) <+> symbol "::" <+> pretty pt
   pretty (SLit s) = literal $ string s
 #ifdef BUILTIN_ARRAYS
