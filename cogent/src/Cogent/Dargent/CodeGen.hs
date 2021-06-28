@@ -292,7 +292,7 @@ mkGsDeclRecord
   -> CExtDecl          -- ^ The C syntax tree for a function which puts/extracts the embedded data from the box.
 mkGsDeclRecord fs root t fn m =
   let stmts = case m of
-        Get -> [CBIStmt $ CReturn $ Just $ CCompLit root $ 
+        Get -> [CBIStmt $ CReturn $ Just $ CCompLit t $ 
                  fmap (\(f,g) -> ([CDesignFld f], CInitE $ CEFnCall (variable g) [boxVar])) fs]
         Set -> fmap (\(f,s) -> CBIStmt $ CAssignFnCall Nothing (variable s) [boxVar, CStructDot valueVar f]) fs
    in mkGsDecl root t fn stmts m
@@ -565,7 +565,7 @@ arrayGetterSetter arrType elemType elemSize functionName elemGetterSetter Set =
 
 -- | Returns a getter/setter function declaration
 mkGsDecl :: CType -> CType -> CId -> [CBlockItem] -> GetOrSet -> CExtDecl
-mkGsDecl root t f stmts Get = CFnDefn (root , f) [(t   , boxId)]               stmts staticInlineFnSpec
+mkGsDecl root t f stmts Get = CFnDefn (t    , f) [(root, boxId)]               stmts staticInlineFnSpec
 mkGsDecl root t f stmts Set = CFnDefn (CVoid, f) [(root, boxId), (t, valueId)] stmts staticInlineFnSpec
 
 
