@@ -504,7 +504,7 @@ specialiseExpr (TE t e) = TE <$> monoType t <*> specialiseExpr' e
     specialiseExpr' (Fun fn [] ls notes loc) = pure $ Fun fn [] ls notes loc
     specialiseExpr' (Fun fn ts ls notes loc) = Fun fn <$> mapM monoType ts <*> pure ls <*> pure notes <*> pure loc
     specialiseExpr' (Op      opr es loc ) = Op opr <$> mapM specialiseExpr es <*> pure loc
-    specialiseExpr' (App     e1 e2      ) = App <$> specialiseExpr e1 <*> specialiseExpr e2
+    specialiseExpr' (App     e1 e2 loc  ) = App <$> specialiseExpr e1 <*> specialiseExpr e2 <*> pure loc
     specialiseExpr' (Con     tag e t    ) = Con tag <$> specialiseExpr e <*> monoType t
     specialiseExpr' (Unit               ) = pure Unit
     specialiseExpr' (ILit    n   pt     ) = pure $ ILit n pt
@@ -541,7 +541,7 @@ eval (TE _ (Fun fn ts ls _ _)) = do
       Nothing -> __impossible $ "eval: function name " ++ show fn ++ " not found"
 eval (TE _ (Op op [e] _)) = evalUnOp op <$> eval e
 eval (TE _ (Op op [e1,e2] _)) = evalBinOp op <$> eval e1 <*> eval e2
-eval (TE _ (App f e)) = do
+eval (TE _ (App f e _)) = do
   vf <- eval f
   ve <- eval e
   case vf of

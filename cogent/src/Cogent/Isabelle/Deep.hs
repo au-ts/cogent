@@ -142,7 +142,7 @@ deepExpr mod ta defs (TE _ (Fun fn ts ls _ _))  -- FIXME
 deepExpr mod ta defs (TE _ (Op opr es _))
   = mkApp (mkId "Prim") [deepPrimOp opr (let TPrim pt = exprType $ head es in pt),
                          mkList (map (deepExpr mod ta defs) es)]
-deepExpr mod ta defs (TE _ (App f arg))
+deepExpr mod ta defs (TE _ (App f arg _))
   = mkApp (mkId "App") [deepExpr mod ta defs f, deepExpr mod ta defs arg]
 deepExpr mod ta defs (TE (TSum alts) (Con cn e _))
   = mkApp (mkId "Con") [mkList t', mkString cn, deepExpr mod ta defs e]

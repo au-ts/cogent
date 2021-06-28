@@ -707,7 +707,7 @@ infer (E (Fun f ts ls note loc))
                                                   return $ TE (TFun ti' to') (Fun f ts ls note loc)
                  _ -> __impossible "lengths don't match"
           _        -> error $ "Something went wrong in lookup of function type: '" ++ unCoreFunName f ++ "'"
-infer (E (App e1 e2))
+infer (E (App e1 e2 loc))
    = do e1'@(TE tf _) <- infer e1
         TFun ti to <- unfoldSynsShallowM tf
         e2'@(TE ti' _) <- infer e2
@@ -715,8 +715,8 @@ infer (E (App e1 e2))
         tie  <- unfoldSynsDeepM ti
         isSub <- tie' `isSubtype` tie
         guardShow ("app (actual: " ++ show tie' ++ "; formal: " ++ show tie ++ ")") $ isSub
-        if tie' /= tie then return $ TE to (App e1' (promote ti e2'))
-                       else return $ TE to (App e1' e2')
+        if tie' /= tie then return $ TE to (App e1' (promote ti e2') loc)
+                       else return $ TE to (App e1' e2' loc)
 infer (E (Let a e1 e2))
    = do e1' <- infer e1
         e2' <- withBinding (exprType e1') (infer e2)

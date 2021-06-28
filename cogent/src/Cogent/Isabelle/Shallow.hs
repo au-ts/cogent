@@ -294,7 +294,7 @@ shallowExpr (TE t (Fun fn ts ls _ _)) =
        else -- for polymorphic functions add its type
             TermWithType (mkId $ snm $ unCoreFunName fn) <$> shallowType t
 shallowExpr (TE _ (Op opr es _)) = shallowPrimOp <$> pure opr <*> (mapM shallowExpr es)
-shallowExpr (TE _ (App f arg)) = mkApp <$> shallowExpr f <*> (mapM shallowExpr [arg])
+shallowExpr (TE _ (App f arg _)) = mkApp <$> shallowExpr f <*> (mapM shallowExpr [arg])
 shallowExpr (TE t (Con cn e _))  = do
   tn <- findTypeSyn t
   econ <- mkApp <$> pure (mkStr [tn,".",cn]) <*> (mapM shallowExpr [e])

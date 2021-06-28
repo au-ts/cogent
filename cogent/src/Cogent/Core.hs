@@ -176,7 +176,7 @@ data Expr loc t v a b e
   = Variable (Fin v, a) loc
   | Fun CoreFunName [Type t b] [DataLayout BitRange] FunNote loc  -- here do we want to keep partial application and infer again? / zilinc
   | Op Op [e t v a b] loc
-  | App (e t v a b) (e t v a b)
+  | App (e t v a b) (e t v a b) loc
   | Con TagName (e t v a b) (Type t b)
   | Unit
   | ILit Integer PrimInt
@@ -385,7 +385,7 @@ insertIdxAtE :: Fin ('Suc v)
 insertIdxAtE cut f (Variable v loc) = Variable (first (liftIdx cut) v) loc
 insertIdxAtE cut f (Fun fn ts ls nt loc) = Fun fn ts ls nt loc
 insertIdxAtE cut f (Op opr es loc) = Op opr (map (f cut) es) loc
-insertIdxAtE cut f (App e1 e2) = App (f cut e1) (f cut e2)
+insertIdxAtE cut f (App e1 e2 loc) = App (f cut e1) (f cut e2) loc
 insertIdxAtE cut f (Con tag e t) = Con tag (f cut e) t
 insertIdxAtE cut f (Unit) = Unit
 insertIdxAtE cut f (ILit n pt) = ILit n pt
@@ -424,7 +424,7 @@ foldEPre unwrap f e = case unwrap e of
   Variable{}          -> f e
   Fun{}               -> f e
   (Op _ es _)         -> mconcat $ f e : map (foldEPre unwrap f) es
-  (App e1 e2)         -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
+  (App e1 e2 _)         -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (Con _ e1 _)        -> f e `mappend` foldEPre unwrap f e1
   Unit                -> f e
   ILit {}             -> f e
@@ -457,7 +457,7 @@ fmapE :: (forall t v. e1 loc t v a b -> e2 loc t v a b) -> Expr loc t v a b (e1 
 fmapE f (Variable v loc)         = Variable v loc
 fmapE f (Fun fn ts ls nt loc)    = Fun fn ts ls nt loc
 fmapE f (Op opr es loc)          = Op opr (map f es) loc
-fmapE f (App e1 e2)          = App (f e1) (f e2)
+fmapE f (App e1 e2 loc)          = App (f e1) (f e2) loc
 fmapE f (Con cn e t)         = Con cn (f e) t
 fmapE f (Unit)               = Unit
 fmapE f (ILit i pt)          = ILit i pt
@@ -501,7 +501,7 @@ instance (Functor (e t v a),
   fmap f (Flip (Variable v loc)         )      = Flip $ Variable v loc
   fmap f (Flip (Fun fn ts ls nt loc)    )      = Flip $ Fun fn (fmap (fmap f) ts) ls nt loc
   fmap f (Flip (Op opr es loc)          )      = Flip $ Op opr (fmap (fmap f) es) loc
-  fmap f (Flip (App e1 e2)          )      = Flip $ App (fmap f e1) (fmap f e2)
+  fmap f (Flip (App e1 e2 loc)          )      = Flip $ App (fmap f e1) (fmap f e2) loc
   fmap f (Flip (Con cn e t)         )      = Flip $ Con cn (fmap f e) (fmap f t)
   fmap f (Flip (Unit)               )      = Flip $ Unit
   fmap f (Flip (ILit i pt)          )      = Flip $ ILit i pt
@@ -536,7 +536,7 @@ instance (Functor (Flip (e t v) b),
   fmap f (Flip2 (Variable v loc)         )      = Flip2 $ Variable (second f v) loc
   fmap f (Flip2 (Fun fn ts ls nt loc)    )      = Flip2 $ Fun fn ts ls nt loc
   fmap f (Flip2 (Op opr es loc)          )      = Flip2 $ Op opr (fmap (ffmap f) es) loc
-  fmap f (Flip2 (App e1 e2)          )      = Flip2 $ App (ffmap f e1) (ffmap f e2)
+  fmap f (Flip2 (App e1 e2 loc)          )      = Flip2 $ App (ffmap f e1) (ffmap f e2) loc
   fmap f (Flip2 (Con cn e t)         )      = Flip2 $ Con cn (ffmap f e) t
   fmap f (Flip2 (Unit)               )      = Flip2 $ Unit
   fmap f (Flip2 (ILit i pt)          )      = Flip2 $ ILit i pt
@@ -665,7 +665,7 @@ instance (Pretty a, Pretty b, Prec (e t v a b), Pretty (e t v a b), Pretty (e t 
 #endif
   pretty (Variable x loc) = pretty (snd x) L.<> angles (prettyV $ fst x)
   pretty (Fun fn ts ls nt loc) = pretty nt L.<> funname (unCoreFunName fn) <+> pretty ts <+> pretty ls
-  pretty (App a b) = prettyPrec 2 a <+> prettyPrec 1 b
+  pretty (App a b loc) = prettyPrec 2 a <+> prettyPrec 1 b
   pretty (Let a e1 e2) = align (keyword "let" <+> pretty a <+> symbol "=" <+> pretty e1 L.<$>
                                 keyword "in" <+> pretty e2)
   pretty (LetBang bs a e1 e2) = align (keyword "let!" <+> tupled (map (prettyV . fst) bs) <+> pretty a <+> symbol "=" <+> pretty e1 L.<$>
