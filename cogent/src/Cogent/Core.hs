@@ -192,7 +192,7 @@ data Expr loc t v a b e
   | ArrayPut (e t v a b) (e t v a b) (e t v a b)
 #endif
   | Let a (e loc t v a b) (e loc t ('Suc v) a b) loc
-  | LetBang [(Fin v, a)] a (e loc t v a b) (e loc t ('Suc v) a b)
+  | LetBang [(Fin v, a)] a (e loc t v a b) (e loc t ('Suc v) a b) loc
   | Tuple (e loc t v a b) (e loc t v a b)
   | Struct [(FieldName, e loc t v a b)]  -- unboxed record
   | If (e loc t v a b) (e loc t v a b) (e loc t v a b)   -- technically no longer needed as () + () == Bool
@@ -399,7 +399,7 @@ insertIdxAtE cut f (ArrayPut arr i e) = ArrayPut (f cut arr) (f cut i) (f cut e)
 insertIdxAtE cut f (ArrayTake (o, ca) pa i e) = ArrayTake (o, ca) (f cut pa) (f cut i) (f (FSuc (FSuc cut)) e)
 #endif
 insertIdxAtE cut f (Let a e1 e2 loc) = Let a (f cut e1) (f (FSuc cut) e2) loc
-insertIdxAtE cut f (LetBang vs a e1 e2) = LetBang (map (first $ liftIdx cut) vs) a (f cut e1) (f (FSuc cut) e2)
+insertIdxAtE cut f (LetBang vs a e1 e2 loc) = LetBang (map (first $ liftIdx cut) vs) a (f cut e1) (f (FSuc cut) e2) loc
 insertIdxAtE cut f (Tuple e1 e2) = Tuple (f cut e1) (f cut e2)
 insertIdxAtE cut f (Struct fs) = Struct $ map (second $ f cut) fs
 insertIdxAtE cut f (If c e1 e2) = If (f cut c) (f cut e1) (f cut e2)
@@ -439,7 +439,7 @@ foldEPre unwrap f e = case unwrap e of
   ArrayPut    arr fld e   -> mconcat [f arr, f fld, f e]
 #endif
   (Let _ e1 e2 _)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
-  (LetBang _ _ e1 e2) -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
+  (LetBang _ _ e1 e2 _) -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (Tuple e1 e2)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (Struct fs)         -> mconcat $ f e : map (foldEPre unwrap f . snd) fs
   (If e1 e2 e3)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2, foldEPre unwrap f e3]
@@ -472,7 +472,7 @@ fmapE f (ArrayTake as arr fld e) = ArrayTake as (f arr) (f fld) (f e)
 fmapE f (ArrayPut arr fld e) = ArrayPut (f arr) (f fld) (f e)
 #endif
 fmapE f (Let a e1 e2 loc)        = Let a (f e1) (f e2) loc
-fmapE f (LetBang vs a e1 e2) = LetBang vs a (f e1) (f e2)
+fmapE f (LetBang vs a e1 e2 loc) = LetBang vs a (f e1) (f e2) loc
 fmapE f (Tuple e1 e2)        = Tuple (f e1) (f e2)
 fmapE f (Struct fs)          = Struct (map (second f) fs)
 fmapE f (If e1 e2 e3)        = If (f e1) (f e2) (f e3)
@@ -516,7 +516,7 @@ instance (Functor (e loc t v a),
   fmap f (Flip (ArrayPut     arr fld e))   = Flip $ ArrayPut (fmap f arr) (fmap f fld) (fmap f e)
 #endif
   fmap f (Flip (Let a e1 e2 loc)        )      = Flip $ Let a (fmap f e1) (fmap f e2) loc
-  fmap f (Flip (LetBang vs a e1 e2) )      = Flip $ LetBang vs a (fmap f e1) (fmap f e2)
+  fmap f (Flip (LetBang vs a e1 e2 loc) )      = Flip $ LetBang vs a (fmap f e1) (fmap f e2) loc
   fmap f (Flip (Tuple e1 e2)        )      = Flip $ Tuple (fmap f e1) (fmap f e2)
   fmap f (Flip (Struct fs)          )      = Flip $ Struct (map (second $ fmap f) fs)
   fmap f (Flip (If e1 e2 e3)        )      = Flip $ If (fmap f e1) (fmap f e2) (fmap f e3)
@@ -551,7 +551,7 @@ instance (Functor (Flip (e loc t v) b),
   fmap f (Flip2 (ArrayPut     arr fld e))   = Flip2 $ ArrayPut (ffmap f arr) (ffmap f fld) (ffmap f e)
 #endif
   fmap f (Flip2 (Let a e1 e2 loc)        )      = Flip2 $ Let (f a) (ffmap f e1) (ffmap f e2) loc
-  fmap f (Flip2 (LetBang vs a e1 e2) )      = Flip2 $ LetBang (map (second f) vs) (f a) (ffmap f e1) (ffmap f e2)
+  fmap f (Flip2 (LetBang vs a e1 e2 loc) )      = Flip2 $ LetBang (map (second f) vs) (f a) (ffmap f e1) (ffmap f e2) loc
   fmap f (Flip2 (Tuple e1 e2)        )      = Flip2 $ Tuple (ffmap f e1) (ffmap f e2)
   fmap f (Flip2 (Struct fs)          )      = Flip2 $ Struct (map (second $ ffmap f) fs)
   fmap f (Flip2 (If e1 e2 e3)        )      = Flip2 $ If (ffmap f e1) (ffmap f e2) (ffmap f e3)
@@ -668,7 +668,7 @@ instance (Pretty a, Pretty b, Prec (e loc t v a b), Pretty (e loc t v a b), Pret
   pretty (App a b loc) = prettyPrec 2 a <+> prettyPrec 1 b
   pretty (Let a e1 e2 _) = align (keyword "let" <+> pretty a <+> symbol "=" <+> pretty e1 L.<$>
                                 keyword "in" <+> pretty e2)
-  pretty (LetBang bs a e1 e2) = align (keyword "let!" <+> tupled (map (prettyV . fst) bs) <+> pretty a <+> symbol "=" <+> pretty e1 L.<$>
+  pretty (LetBang bs a e1 e2 _) = align (keyword "let!" <+> tupled (map (prettyV . fst) bs) <+> pretty a <+> symbol "=" <+> pretty e1 L.<$>
                                        keyword "in" <+> pretty e2)
   pretty (Unit _) = tupled []
   pretty (Tuple e1 e2) = tupled (map pretty [e1, e2])

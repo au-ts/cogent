@@ -244,7 +244,7 @@ ttyping xi k (EE u (Let a x y _) env) = hintListSequence [ -- Ξ, K, Γ ⊢ Let 
   ttyping xi k x,                           -- Ξ, K, Γ1 ⊢ x : t
   ttyping xi k y                            -- Ξ, K, Some t # Γ2 ⊢ y : u
   ]
-ttyping xi k (EE u (LetBang is a x y) env) = hintListSequence [ -- Ξ, K, Γ ⊢ LetBang is x y : u if
+ttyping xi k (EE u (LetBang is a x y _) env) = hintListSequence [ -- Ξ, K, Γ ⊢ LetBang is x y : u if
   Branch <$> ttsplit_bang k 0 (map (finInt . fst) is) env (envOf x),
   follow_tt k env (envOf x) (envOf y),
   ttyping xi k x,                                   -- Ξ, K, Γ1 ⊢ x : t
@@ -376,7 +376,7 @@ typing xi k (EE u (Let a x y _) env) = tacSequence [
   typing xi k y                             -- Ξ, K, (Some t # Γ2) ⊢ y : u
   ]
 
-typing xi k (EE u (LetBang is a x y) env) = tacSequence [
+typing xi k (EE u (LetBang is a x y _) env) = tacSequence [
   return [rule "typing_letb"],                    -- Ξ, K, Γ ⊢ LetBang is x y : u if
   error "split_bang: should be ttyping LetBang",  -- split_bang K is Γ Γ1 Γ2
   typing xi k x,                                  -- Ξ, K, Γ1 ⊢ x : t

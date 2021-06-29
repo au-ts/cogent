@@ -323,7 +323,7 @@ shallowExpr (TE _ (ArrayTake _ arr idx e)) = __todo "shallowExpr: array take"
 shallowExpr (TE _ (ArrayPut arr idx val)) = __todo "shallowExpr: array put"
 #endif
 shallowExpr (TE _ (Let nm e1 e2 _)) = shallowLet nm e1 e2
-shallowExpr (TE _ (LetBang vs nm e1 e2)) = shallowLet nm e1 e2
+shallowExpr (TE _ (LetBang vs nm e1 e2 _)) = shallowLet nm e1 e2
 shallowExpr (TE _ (Tuple e1 e2)) = mkApp <$> (pure $ mkId "Pair") <*> (mapM shallowExpr [e1, e2])
 shallowExpr (TE t (Struct fs)) = shallowMaker t fs
 shallowExpr (TE _ (If c th el)) = mkApp <$> (pure $ mkId "HOL.If") <*> mapM shallowExpr [c, th, el]

@@ -271,7 +271,7 @@ graph g (TE _ (Split _ e1@(TE _ (Variable v loc)) e2)) n ret vs = do
         return g''
       _ -> abort "graph: Split"
 
-graph g te@(TE _ (LetBang _ _ e1 e2)) n ret vs = do
+graph g te@(TE _ (LetBang _ _ e1 e2 _)) n ret vs = do
     let g' = addGraphNode g n (GBasic (NextNode (n + 2)) [])
     (g'', n1) <- graph g' e1 (n + 2) (NextNode (n + 1)) vs
     let v = (freshNames !! (Prelude.length vs)) ++ "@" ++ show (n + 1)

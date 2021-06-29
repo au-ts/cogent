@@ -721,13 +721,13 @@ infer (E (Let a e1 e2 loc))
    = do e1' <- infer e1
         e2' <- withBinding (exprType e1') (infer e2)
         return $ TE (exprType e2') (Let a e1' e2' loc)
-infer (E (LetBang vs a e1 e2))
+infer (E (LetBang vs a e1 e2 loc))
    = do e1' <- withBang (map fst vs) (infer e1)
         t1 <- unfoldSynsDeepM $ exprType e1'
         k <- kindcheck t1
         guardShow "let!" $ canEscape k
         e2' <- withBinding (exprType e1') (infer e2)
-        return $ TE (exprType e2') (LetBang vs a e1' e2')
+        return $ TE (exprType e2') (LetBang vs a e1' e2' loc)
 infer (E (Unit loc)) = return $ TE TUnit $ Unit loc
 infer (E (Tuple e1 e2))
    = do e1' <- infer e1
@@ -876,7 +876,7 @@ promote :: Type t b -> PosTypedExpr t v a b -> PosTypedExpr t v a b
 promote t (TE t' e) = case e of
   -- For continuation forms, push the promote into the continuations
   Let a e1 e2 loc        -> TE t $ Let a e1 (promote t e2) loc
-  LetBang vs a e1 e2  -> TE t $ LetBang vs a e1 $ promote t e2
+  LetBang vs a e1 e2 loc -> TE t $ LetBang vs a e1 (promote t e2) loc
   If ec et ee         -> TE t $ If ec (promote t et) (promote t ee)
   Case e tag (l1,a1,e1) (l2,a2,e2)
                       -> TE t $ Case e tag

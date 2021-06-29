@@ -171,7 +171,7 @@ deepExpr mod ta defs (TE _ (Put rec fld e))
   = mkApp (mkId "Put") [deepExpr mod ta defs rec, mkInt (fromIntegral fld), deepExpr mod ta defs e]
 deepExpr mod ta defs (TE _ (Let _ e1 e2 _))
   = mkApp (mkId "Let") [deepExpr mod ta defs e1, deepExpr mod ta defs e2]
-deepExpr mod ta defs (TE _ (LetBang vs _ e1 e2))
+deepExpr mod ta defs (TE _ (LetBang vs _ e1 e2 _))
   = let vs' = mkApp (mkId "set") [mkList $ map (deepIndex . fst) vs]
      in mkApp (mkId "LetBang") [vs', deepExpr mod ta defs e1, deepExpr mod ta defs e2]
 deepExpr mod ta defs (TE _ (Case e tag (l1,_,e1) (l2,_,e2)))
