@@ -14,6 +14,7 @@
     - pass_serial-unboxed.cogent
     - pass_endianness.cogent
     - pass_layout-prims.cogent
+    - pass_lrec-reorder.cogent
   expected_result: pass
   flags:
     - -g
