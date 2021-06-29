@@ -251,7 +251,7 @@ ttyping xi k (EE u (LetBang is a x y _) env) = hintListSequence [ -- Ξ, K, Γ �
   ttyping xi k y,                                   -- Ξ, K, Some t # Γ2 ⊢ y : u
   kindingHint k (typeOf x)                          -- K ⊢ t :κ k
   ]
-ttyping xi k (EE t (If x a b) env) = hintListSequence [ -- Ξ, K, Γ ⊢ If x a b : t if
+ttyping xi k (EE t (If x a b _) env) = hintListSequence [ -- Ξ, K, Γ ⊢ If x a b : t if
   ttyping xi k x,                                -- Ξ, K, Γ1 ⊢ x : TPrim Bool
   follow_tt k (envOf x) (envOf a) (envOf b),
   ttyping xi k a,                                -- Ξ, K, Γ2 ⊢ a : t
@@ -400,7 +400,7 @@ typing xi k (EE _ (Esac x) _) = tacSequence [
   return [simp_solve]           -- [(_, (t,False))] = filter (HOL.Not ∘ snd ∘ snd) ts
   ]
 
-typing xi k (EE t (If x a b) env) = tacSequence [
+typing xi k (EE t (If x a b _) env) = tacSequence [
   return [rule "typing_if"],                     -- Ξ, K, Γ ⊢ If x a b : t if
   splits k env (envOf x) (envOf a <|> envOf b),  -- K ⊢ Γ ↝ Γ1 | Γ2
   typing xi k x,                                 -- Ξ, K, Γ1 ⊢ x : TPrim Bool

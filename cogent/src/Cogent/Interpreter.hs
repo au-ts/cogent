@@ -519,7 +519,7 @@ specialiseExpr (TE t e) = TE <$> monoType t <*> specialiseExpr' e
     specialiseExpr' (LetBang vs a e1 e2 loc ) = LetBang vs a <$> specialiseExpr e1 <*> specialiseExpr e2 <*> pure loc
     specialiseExpr' (Tuple   e1 e2 loc      ) = Tuple <$> specialiseExpr e1 <*> specialiseExpr e2 <*> pure loc
     specialiseExpr' (Struct  fs loc         ) = let (ns,ts) = Prelude.unzip fs in Struct <$> zipWithM (\n t -> (n,) <$> specialiseExpr t) ns ts <*> pure loc
-    specialiseExpr' (If      c e1 e2    ) = If <$> specialiseExpr c <*> specialiseExpr e1 <*> specialiseExpr e2
+    specialiseExpr' (If      c e1 e2 loc    ) = If <$> specialiseExpr c <*> specialiseExpr e1 <*> specialiseExpr e2 <*> pure loc
     specialiseExpr' (Case    c tag (l1,a1,e1) (l2,a2,e2)) = Case <$> specialiseExpr c <*> pure tag <*> ((l1,a1,) <$> specialiseExpr e1) <*> ((l2,a2,) <$> specialiseExpr e2)
     specialiseExpr' (Esac    e          ) = Esac <$> specialiseExpr e
     specialiseExpr' (Split   a tp e     ) = Split a <$> specialiseExpr tp <*> specialiseExpr e
@@ -576,7 +576,7 @@ eval (TE t (Struct fs _)) = do
                if b then (fn, Nothing)
                     else let Just v = lookup fn fvs in (fn, Just v)
   return $ VRecord fvs'
-eval (TE _ (If c e1 e2)) = do
+eval (TE _ (If c e1 e2 _)) = do
   vc <- eval c
   case vc of
     VBool  b -> if b then eval e1 else eval e2

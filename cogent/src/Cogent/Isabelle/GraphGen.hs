@@ -223,7 +223,7 @@ graph g (TE _ (Let _ e1 e2 _)) n ret vs = do
     g'' <- graph g' e2 (n+1) ret ((v, ty) : vs)
     return g''
 
-graph g (TE _ (If e e1 e2)) n ret vs = do
+graph g (TE _ (If e e1 e2 _)) n ret vs = do
     (g, n1) <- graph g e1 (n + 1) ret vs
     (g, n2) <- graph g e2 n1 ret vs
     sa <- singleAtom e vs

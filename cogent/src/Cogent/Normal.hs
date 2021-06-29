@@ -90,7 +90,7 @@ isNormal (E (LetBang vs _ e1 e2 _)) | isNormal e1 && isNormal e2 = True
 isNormal (E (Case e tn (l1,_,e1) (l2,_,e2))) | isVar e && isNormal e1 && isNormal e2 = True
   -- \| ANF <- __cogent_fnormalisation, isVar  e && isNormal e1 && isNormal e2 = True
   -- \| KNF <- __cogent_fnormalisation, isAtom e && isNormal e1 && isNormal e2 = True
-isNormal (E (If  c th el)) | isVar c  && isNormal th && isNormal el = True
+isNormal (E (If  c th el _)) | isVar c  && isNormal th && isNormal el = True
 #ifdef BUILTIN_ARRAYS
 isNormal (E (Pop _ e1 e2)) | isVar e1 && isNormal e2 = True
 isNormal (E (ArrayTake _ arr i e)) | isVar arr && isVar i && isNormal e = True
@@ -222,15 +222,16 @@ normalise v (E (Tuple e1 e2 loc)) k
     withAssoc v n n' $ \Refl ->
     k (sadd n n') (E $ Tuple (upshiftExpr n' (sadd v n) f0 e1') e2' loc)
 normalise v (E (Struct fs loc)) k = let (ns,es) = P.unzip fs in normaliseNames v es $ \n es' -> k n (E $ Struct (P.zip ns es') loc)
-normalise v (E (If c th el)) k | LNF <- __cogent_fnormalisation =
+normalise v (E (If c th el loc)) k | LNF <- __cogent_fnormalisation =
   freshVar >>= \a ->
   normaliseExpr v th >>= \th' ->
   normaliseExpr v el >>= \el' ->
   normaliseName v c $ \n c' ->
-  E <$> (Let a (E $ If c' (upshiftExpr n v f0 th') (upshiftExpr n v f0 el')) <$> k (SSuc n) (E $ Variable (f0, a) __dummyPos ) <*> pure __dummyPos)
-normalise v (E (If c th el)) k = normaliseName v c $ \n c' ->
+  E <$> (Let a (E $ If c' (upshiftExpr n v f0 th') (upshiftExpr n v f0 el') loc) <$> k (SSuc n) (E $ Variable (f0, a) __dummyPos ) <*> pure __dummyPos)
+normalise v (E (If c th el loc)) k = normaliseName v c $ \n c' ->
   E <$> (If c' <$> normalise (sadd v n) (upshiftExpr n v f0 th) (\n' -> withAssoc v n n' $ \Refl -> k (sadd n n'))
-               <*> normalise (sadd v n) (upshiftExpr n v f0 el) (\n' -> withAssoc v n n' $ \Refl -> k (sadd n n')))
+               <*> normalise (sadd v n) (upshiftExpr n v f0 el) (\n' -> withAssoc v n n' $ \Refl -> k (sadd n n'))
+               <*> pure loc)
 normalise v (E (Case e tn (l1,a1,e1) (l2,a2,e2))) k | LNF <- __cogent_fnormalisation =
   freshVar >>= \a ->
   normaliseExpr (SSuc v) e1 >>= \e1' ->
@@ -275,8 +276,9 @@ normaliseAtom v e k = normalise v e $ \n e' -> if isAtom e' then k n e' else cas
      E <$> (Case e tn <$> ((l1,a1,) <$> normaliseAtom (SSuc (sadd v n)) e1 (\n' -> withAssocS v n n' $ \Refl -> k (sadd n (SSuc n'))))
                                     <*> ((l2,a2,) <$> normaliseAtom (SSuc (sadd v n)) e2 (\n' -> withAssocS v n n' $ \Refl -> k (sadd n (SSuc n')))))
   -- FIXME: does this one also need to be changed for LNF? / zilinc
-  (E (If c th el)) -> E <$> (If c <$> normaliseAtom (sadd v n) th (\n' -> withAssoc v n n' $ \Refl -> k (sadd n n'))
-                                  <*> normaliseAtom (sadd v n) el (\n' -> withAssoc v n n' $ \Refl -> k (sadd n n')))
+  (E (If c th el loc)) -> E <$> (If c <$> normaliseAtom (sadd v n) th (\n' -> withAssoc v n n' $ \Refl -> k (sadd n n'))
+                                      <*> normaliseAtom (sadd v n) el (\n' -> withAssoc v n n' $ \Refl -> k (sadd n n'))
+                                      <*> pure loc)
   (E (Split a p e)) -> E <$> (Split a p <$> (normaliseAtom (SSuc (SSuc (sadd v n))) e $ \n' ->
      withAssocSS v n n' $ \Refl -> k (sadd n (SSuc (SSuc n')))))
   (E (Take a rec fld e)) -> E <$> (Take a rec fld <$> (normaliseAtom (SSuc (SSuc (sadd v n))) e $ \n' ->
@@ -289,7 +291,7 @@ wrapPut put@(E (Put rec f e)) = freshVar >>= \a -> return $ E (Let a put (E $ Va
 wrapPut (E (Let a e1 e2 loc)) = E <$> (Let a e1 <$> wrapPut e2 <*> pure loc)
 wrapPut (E (LetBang vs a e1 e2 loc)) = E <$> (LetBang vs a <$> wrapPut e1 <*> wrapPut e2 <*> pure loc)
 wrapPut (E (Case e tn (l1,a1,e1) (l2,a2,e2))) = E <$> (Case e tn <$> ((l1,a1,) <$> wrapPut e1) <*> ((l2,a2,) <$> wrapPut e2))
-wrapPut (E (If c th el)) = E <$> (If c <$> wrapPut th <*> wrapPut el)
+wrapPut (E (If c th el loc)) = E <$> (If c <$> wrapPut th <*> wrapPut el <*> pure loc)
 wrapPut (E (Split a p e)) = E <$> (Split a p <$> wrapPut e)
 wrapPut (E (Take a rec fld e)) = E <$> (Take a rec fld <$> wrapPut e)
 wrapPut e = return e  -- non-normal, thus put cannot occur

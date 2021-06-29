@@ -371,12 +371,12 @@ desugarAlts e0@(B.TE t v@(S.Var _) loc) (S.Alt (B.TP p1 pos1) l1 e1 : alts) =  -
       te <- unfoldSynsShallowM $ B.getTypeTE e0
       let pt = desugarPrimInt te
       E <$> (If <$> (E <$> (Op Eq <$> ((:) <$> desugarExpr e0 <*> pure [E $ ILit i pt loc]) <*> pure __dummyPos))
-                                 <*> desugarExpr e1 <*> desugarAlts e0 alts)
+                                 <*> desugarExpr e1 <*> desugarAlts e0 alts <*> pure loc)
     -- FIXME: could do better for PBoolLit because this one is easy to exhaust
-    S.PBoolLit b -> E <$> (If <$> (E <$> (Op Eq <$> ((:) <$> desugarExpr e0 <*> pure [E $ ILit (if b then 1 else 0) Boolean loc]) <*> pure __dummyPos))
-                              <*> desugarExpr e1 <*> desugarAlts e0 alts)
-    S.PCharLit c -> E <$> (If <$> (E <$> (Op Eq <$> ((:) <$> desugarExpr e0 <*> pure [E $ ILit (fromIntegral $ ord c) U8 loc]) <*> pure __dummyPos))
-                              <*> desugarExpr e1 <*> desugarAlts e0 alts)
+    S.PBoolLit b -> E <$> (If <$> (E <$> (Op Eq <$> ((:) <$> desugarExpr e0 <*> pure [E $ ILit (if b then 1 else 0) Boolean loc]) <*> pure loc))
+                              <*> desugarExpr e1 <*> desugarAlts e0 alts <*> pure loc)
+    S.PCharLit c -> E <$> (If <$> (E <$> (Op Eq <$> ((:) <$> desugarExpr e0 <*> pure [E $ ILit (fromIntegral $ ord c) U8 loc]) <*> pure loc))
+                              <*> desugarExpr e1 <*> desugarAlts e0 alts <*> pure loc)
     S.PIrrefutable _ -> __impossible "desugarAlts"
 desugarAlts e0 alts@(S.Alt _ _ e1:_) = do  -- e0 is not a var, so lift it
   v <- freshVar
@@ -753,14 +753,14 @@ desugarExpr (B.TE t (S.Comp f g) l) = do
       e = B.TE t3 (S.App f g' False) l
   e' <- lamLftExpr [] compf (B.TE t (S.Lam p Nothing e) l)
   desugarExpr e'
-desugarExpr (B.TE _ (S.If c [] th el) _) = E <$> (If <$> desugarExpr c <*> desugarExpr th <*> desugarExpr el)
+desugarExpr (B.TE _ (S.If c [] th el) loc) = E <$> (If <$> desugarExpr c <*> desugarExpr th <*> desugarExpr el <*> pure loc)
 desugarExpr (B.TE _ (S.If c vs th el) loc) = do
   venv <- use varCtx
   v <- freshVar
   let vs' = P.map (fromJust . flip findIx venv &&& id) vs
   th' <- withBinding v $ desugarExpr th
   el' <- withBinding v $ desugarExpr el
-  let e' = E $ If (E $ Variable (f0, v) loc) th' el'
+  let e' = E $ If (E $ Variable (f0, v) loc) th' el' loc
   E <$> (LetBang vs' v <$> desugarExpr c <*> pure e' <*> pure loc)
 desugarExpr (B.TE _ (S.MultiWayIf [] el) _) = __impossible "desugarExpr: MultiWayIf with only one branch"
 desugarExpr (B.TE t (S.MultiWayIf es el) pos) =  -- FIXME: likelihood is ignored here

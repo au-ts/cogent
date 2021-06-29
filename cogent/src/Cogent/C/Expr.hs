@@ -712,7 +712,7 @@ genExpr mv (TE t (Member rec fld)) = do
   (v',adecl,astm,vp) <- maybeAssign t' mv e' recp
   return (v', recdecl++adecl, recstm++astm, vp)
 
-genExpr mv (TE t (If c e1 e2)) = do
+genExpr mv (TE t (If c e1 e2 _)) = do
   (v,vdecl,vstm) <- case mv of
     Nothing -> declare =<< genType t
     Just v  -> return (v,[],[])

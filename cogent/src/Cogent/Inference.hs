@@ -741,7 +741,7 @@ infer (E (Con tag e tfull loc))
         -- Make sure to promote the payload to type t if necessary
         e'' <- typecheck e' t
         return $ TE tfull (Con tag e'' tfull loc)
-infer (E (If ec et ee))
+infer (E (If ec et ee loc))
    = do ec' <- infer ec
         tec <- unfoldSynsShallowM $ exprType ec'
         guardShow "if-1" $ tec == TPrim Boolean
@@ -754,7 +754,7 @@ infer (E (If ec et ee))
         let et'' = if tt /= tlub then promote tlub et' else et'
             ee'' = if te /= tlub then promote tlub ee' else ee'
             tl = if tt == tlub then exprType et' else if te == tlub then exprType ee' else tlub
-        return $ TE tl (If ec' et'' ee'')
+        return $ TE tl (If ec' et'' ee'' loc)
 infer (E (Case e tag (lt,at,et) (le,ae,ee)))
    = do e' <- infer e
         TSum ts <- unfoldSynsShallowM $ exprType e'
@@ -877,7 +877,7 @@ promote t (TE t' e) = case e of
   -- For continuation forms, push the promote into the continuations
   Let a e1 e2 loc        -> TE t $ Let a e1 (promote t e2) loc
   LetBang vs a e1 e2 loc -> TE t $ LetBang vs a e1 (promote t e2) loc
-  If ec et ee         -> TE t $ If ec (promote t et) (promote t ee)
+  If ec et ee loc        -> TE t $ If ec (promote t et) (promote t ee) loc
   Case e tag (l1,a1,e1) (l2,a2,e2)
                       -> TE t $ Case e tag
                                   (l1, a1, promote t e1)

@@ -391,11 +391,11 @@ splitEnv env (TE t (Con tag e tau loc)) =
     let e' = splitEnv env e
      in EE t (Con tag e' tau loc) $ envOf e'
 
-splitEnv env (TE t (If ec et ee))
+splitEnv env (TE t (If ec et ee loc))
     = let ec' = splitEnv env ec
           et' = splitEnv env et
           ee' = splitEnv env ee
-       in EE t (If ec' et' ee') $ envOf ec' <|> envOf et' <|> envOf ee'
+       in EE t (If ec' et' ee' loc) $ envOf ec' <|> envOf et' <|> envOf ee'
 
 splitEnv env (TE t (Case e tag (lt,at,et) (le,ae,ee)))
     = let et' = splitEnv (Cons (fmap fst $ lookup tag ts) env) et
@@ -459,11 +459,11 @@ pushDown unused (EE ty (Con tag e t loc) env)
     = let e' = pushDown unused e
        in EE ty (Con tag e' t loc) $ unused <|> env
 
-pushDown unused (EE ty (If ec et ee) env)
+pushDown unused (EE ty (If ec et ee loc) env)
     = let ec' = pushDown (unused <\> env) ec
           et' = pushDown (envOf ee <\> envOf et) et
           ee' = pushDown (envOf et <\> envOf ee) ee
-       in EE ty (If ec' et' ee') $ unused <|> env
+       in EE ty (If ec' et' ee' loc) $ unused <|> env
 
 pushDown unused (EE ty (Case e tag (lt,at,et) (le,ae,ee)) env)
     = let e'@(EE (TSum ts) _ _) = pushDown (unused <\> env) e
@@ -534,7 +534,7 @@ typeTree (EE ty (Take a e1 f e2) env) = TyTrSplit (treeSplits env (envOf e1) (pe
 
 typeTree (EE ty (Case e tag (lt,at,et) (le,ae,ee)) env) = TyTrSplit (treeSplits env (envOf e) (peel $ envOf et <|> envOf ee)) ([], typeTree e) ([],
                                                                     TyTrSplit (treeSplits (peel $ envOf ee <|> envOf et) (peel $ envOf et) (peel $ envOf ee)) ([V.head $ envOf et], typeTree et) ([V.head $ envOf ee], typeTree ee))
-typeTree (EE ty (If ec et ee) env) = TyTrSplit (treeSplits env (envOf ec) (envOf et <|> envOf ee)) ([], typeTree ec) ([],
+typeTree (EE ty (If ec et ee _) env) = TyTrSplit (treeSplits env (envOf ec) (envOf et <|> envOf ee)) ([], typeTree ec) ([],
                                                                     TyTrSplit (treeSplits (envOf ee <|> envOf et) (envOf et) (envOf ee)) ([], typeTree et) ([], typeTree ee))
 typeTree (EE _ (Promote _ e) _) = typeTree e
 typeTree _ = TyTrLeaf
