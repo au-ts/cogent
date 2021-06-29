@@ -810,8 +810,8 @@ desugarExpr (B.TE t (S.ArrayPut arr (e:es)) l) =
 #endif
 desugarExpr (B.TE _ (S.Tuple []) loc) = return $ E $ Unit loc
 desugarExpr (B.TE _ (S.Tuple [e]) _) = __impossible "desugarExpr (Tuple)"
-desugarExpr (B.TE _ (S.Tuple es@(_:_:_)) _) | not __cogent_ftuples_as_sugar = do
-  foldr1 (liftA2 $ E .* Tuple) $ map desugarExpr es  -- right associative product repr of a list
+desugarExpr (B.TE _ (S.Tuple es@(_:_:_)) loc) | not __cogent_ftuples_as_sugar = do
+  foldr1 (liftA2 $ E .* (\a b -> Tuple a b loc)) $ map desugarExpr es  -- right associative product repr of a list
 desugarExpr (B.TE _ (S.Tuple es) _) = do
   fs <- P.zip (P.map (('p':) . show) [1 :: Integer ..]) <$> mapM desugarExpr es
   return . E $ Struct fs  -- \| __cogent_ftuples_as_sugar

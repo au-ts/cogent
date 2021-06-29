@@ -355,7 +355,7 @@ typing xi k (EE u (Cast t e) env) | EE (TPrim pt) _ _ <- e, TPrim pt' <- t, pt /
   return [simp_solve]            -- upcast_valid τ τ'
   ]
 
-typing xi k (EE _ (Tuple t u) env) = tacSequence [
+typing xi k (EE _ (Tuple t u _) env) = tacSequence [
   return [rule "typing_tuple"],      -- Ξ, K, Γ ⊢ Tuple t u : TProduct T U if
   splits k env (envOf t) (envOf u),  -- K ⊢ Γ ↝ Γ1 | Γ2
   typing xi k t,                     -- Ξ, K, Γ1 ⊢ t : T

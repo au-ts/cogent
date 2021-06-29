@@ -729,10 +729,10 @@ infer (E (LetBang vs a e1 e2 loc))
         e2' <- withBinding (exprType e1') (infer e2)
         return $ TE (exprType e2') (LetBang vs a e1' e2' loc)
 infer (E (Unit loc)) = return $ TE TUnit $ Unit loc
-infer (E (Tuple e1 e2))
+infer (E (Tuple e1 e2 loc))
    = do e1' <- infer e1
         e2' <- infer e2
-        return $ TE (TProduct (exprType e1') (exprType e2')) (Tuple e1' e2')
+        return $ TE (TProduct (exprType e1') (exprType e2')) (Tuple e1' e2' loc)
 infer (E (Con tag e tfull loc))
    = do e' <- infer e
         -- Find type of payload for given tag

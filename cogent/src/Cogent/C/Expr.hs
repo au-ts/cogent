@@ -641,7 +641,7 @@ genExpr mv (TE t (LetBang vs v e1 e2 loc))
     (e2',e2decl,e2stm,e2p) <- withBindings (Cons (variable v) Nil) $ genExpr mv e2
     return (e2', vdecl ++ e1decl ++ adecl ++ e2decl, vstm ++ binding ++ e2stm, e2p)
 
-genExpr mv (TE t (Tuple e1 e2)) = do
+genExpr mv (TE t (Tuple e1 e2 _)) = do
   (e1',e1decl,e1stm,e1p) <- genExpr_ e1
   (e2',e2decl,e2stm,e2p) <- genExpr_ e2
   t' <- genType t

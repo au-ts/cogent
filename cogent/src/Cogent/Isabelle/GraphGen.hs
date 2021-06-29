@@ -453,7 +453,7 @@ atom (TE (ty @ (TSum _)) (Promote _ e)) vs = do
 
 atom (TE ty2 (Promote ty e)) _ = abort ("Promote: broken type " ++ show (ty, ty2))
 
-atom (TE _ (Tuple a b)) vs = do
+atom (TE _ (Tuple a b _)) vs = do
     atomA <- atomNoUpds a vs
     atomB <- atomNoUpds b vs
     return (atomA ++ atomB, [])
