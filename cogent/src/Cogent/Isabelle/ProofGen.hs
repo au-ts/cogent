@@ -421,7 +421,7 @@ typing xi k (EE _ (ILit _ t _) env) = tacSequence [
   return [simp_solve]           -- t = lit_type l
   ]
 
-typing xi k (EE _ (SLit t) env) = tacSequence [
+typing xi k (EE _ (SLit t _) env) = tacSequence [
   return [rule "typing_slit"],  -- Ξ, K, Γ ⊢ SLit s : TPrim String
   consumed k env                -- K ⊢ Γ consumed
   ]

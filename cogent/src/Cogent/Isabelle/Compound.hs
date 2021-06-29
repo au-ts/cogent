@@ -117,8 +117,8 @@ expDiscardVar' rm0 f e = case e of
   App e1 e2 loc             -> App <$> go e1 <*> go e2 <*> pure loc
   Con tag e ty loc          -> Con <$> pure tag <*> go e <*> typDiscardVar (finNat rm0) ty <*> pure loc
   Unit loc                  -> pure $ Unit loc
-  ILit i j loc           -> pure $ ILit i j loc
-  SLit s                 -> pure $ SLit s
+  ILit i j loc              -> pure $ ILit i j loc
+  SLit s loc                -> pure $ SLit s loc
   Let a e1 e2            -> Let a <$> go e1 <*> goSuc e2
   LetBang fs a e1 e2     -> LetBang <$> mapM (mfirst $ discardVar rm0) fs <*> pure a <*> go e1 <*> goSuc e2
   Tuple e1 e2            -> Tuple <$> go e1 <*> go e2

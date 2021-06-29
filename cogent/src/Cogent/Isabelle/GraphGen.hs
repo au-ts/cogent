@@ -509,7 +509,7 @@ atom te@(TE _ (Esac x)) vs = do
 
 atom te@(TE _ (Fun _ _ _ _ _)) vs  = failure ("atom Fun")
 atom te@(TE _ (App _ _ _)) vs    = failure ("atom App: " ++ show te)
-atom te@(TE _ (SLit _)) vs     = failure ("atom SLit: " ++ show te)
+atom te@(TE _ (SLit _ _)) vs     = failure ("atom SLit: " ++ show te)
 
 atom (TE _ x) vs = failure ("atom: couldn't handle: " ++ show x)
 

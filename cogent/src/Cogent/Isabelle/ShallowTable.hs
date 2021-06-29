@@ -121,7 +121,7 @@ stExpr (TE t e) = stExpr' e >> stType t
     stExpr' (Con cn e _ _)   = stExpr e
     stExpr' (Unit _)         = return ()
     stExpr' (ILit i pt _)    = return ()
-    stExpr' (SLit s)       = return ()
+    stExpr' (SLit s _)       = return ()
 #ifdef BUILTIN_ARRAYS
     stExpr' (ALit es)      = mapM_ stExpr es
     stExpr' (ArrayIndex e1 e2) = mapM_ stExpr [e1,e2]

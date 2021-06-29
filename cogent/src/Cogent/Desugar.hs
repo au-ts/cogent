@@ -745,7 +745,7 @@ desugarExpr (B.TE _ (S.Unitel) loc) = return $ E $ Unit loc
 desugarExpr (B.TE t (S.IntLit n) loc) = return $ E . flip (ILit n) loc $ desugarPrimInt t
 desugarExpr (B.TE _ (S.BoolLit b) loc) = return $ E $ ILit (if b then 1 else 0) Boolean loc
 desugarExpr (B.TE _ (S.CharLit c) loc) = return $ E $ ILit (fromIntegral $ ord c) U8 loc
-desugarExpr (B.TE _ (S.StringLit s) _) = return $ E $ SLit s
+desugarExpr (B.TE _ (S.StringLit s) loc) = return $ E $ SLit s loc
 #ifdef BUILTIN_ARRAYS
 desugarExpr (B.TE _ (S.ArrayLit es) _) = E . ALit <$> mapM desugarExpr es
 desugarExpr (B.TE _ (S.ArrayIndex e i) _) = do
