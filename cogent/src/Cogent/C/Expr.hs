@@ -612,7 +612,7 @@ genExpr mv (TE t (Put rec fld val)) = do
   return (v, recdecl ++ recdecl' ++ valdecl ++ fdecl ++ adecl,
           recstm ++ recstm' ++ valstm ++ fstm ++ astm, vp)
 
-genExpr mv (TE t (Let _ e1 e2))
+genExpr mv (TE t (Let _ e1 e2 _))
   | not __cogent_flet_in_if || isAtom (untypeE e1) = do
     t1' <- genType $ exprType e1
     (e1',e1decl,e1stm,e1p) <- genExpr_ e1
@@ -629,7 +629,7 @@ genExpr mv (TE t (Let _ e1 e2))
     (e2',e2decl,e2stm,e2p) <- withBindings (Cons (variable v) Nil) $ genExpr mv e2
     return (e2', vdecl ++ e1decl ++ adecl ++ e2decl, vstm ++ binding ++ e2stm, e2p)
 
-genExpr mv (TE t (LetBang vs v e1 e2)) | not __cogent_fletbang_in_if = genExpr mv (TE t (Let v e1 e2))
+genExpr mv (TE t (LetBang vs v e1 e2)) | not __cogent_fletbang_in_if = genExpr mv (TE t (Let v e1 e2 __dummyPos))
                                        | otherwise = do
     t1' <- genType $ exprType e1
     (v,vdecl,vstm) <- declare t1'

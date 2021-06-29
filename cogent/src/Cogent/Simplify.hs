@@ -134,10 +134,10 @@ markOcc sv (TE tau (Con tag e t loc)) = TE tau <$> (Con tag <$> markOcc sv e <*>
 markOcc sv (TE tau (Unit loc)) = return $ TE tau $ Unit loc
 markOcc sv (TE tau (ILit n pt loc)) = return $ TE tau (ILit n pt loc)
 markOcc sv (TE tau (SLit s loc)) = return $ TE tau (SLit s loc)
-markOcc sv (TE tau (Let n e1 e2)) = do
+markOcc sv (TE tau (Let n e1 e2 loc)) = do
   e1' <- markOcc sv e1
   (e2',occ) <- getVOcc1 $ markOcc (SSuc sv) e2
-  return $ TE tau $ Let (n,occ) e1' e2'
+  return $ TE tau $ Let (n,occ) e1' e2' loc
 markOcc sv (TE tau (LetBang bs n e1 e2)) = do
   e1' <- markOcc sv e1
   mapM_ (\(b,_) -> modify . second $ V.modifyAt b (seqOcc LetBanged)) bs  -- !'ed vars cannot be inlined
@@ -325,7 +325,7 @@ simplExpr sv subst ins (TE tau (Con cn e t loc)) cont = TE tau <$> (Con cn <$> s
 simplExpr sv subst ins (TE tau (Unit loc))       cont = return . TE tau $ Unit loc
 simplExpr sv subst ins (TE tau (ILit i pt loc))  cont = return . TE tau $ ILit i pt loc
 simplExpr sv subst ins (TE tau (SLit s loc))     cont = return . TE tau $ SLit s loc
-simplExpr sv subst ins (TE tau (Let (n,o) e1 e2)) cont = do
+simplExpr sv subst ins (TE tau (Let (n,o) e1 e2 loc)) cont = do
   nle1 <- noLinear e1
   if | o == Dead && nle1 -> lowerExpr0 sv <$> simplExpr (SSuc sv) (extSubst subst) (extInScopeSet ins) e2 (liftContext cont)
      -- Pre-inline unconditionally
@@ -340,7 +340,7 @@ simplExpr sv subst ins (TE tau (Let (n,o) e1 e2)) cont = do
                in  lowerExpr0 sv <$> simplExpr (SSuc sv) (liftSubst subst') (extInScopeSet ins) e2 (liftContext cont)
           -- Call-site inline, decided by heuristics
           else let ins' = Cons (Just $ BoundTo e1' o) ins
-               in TE tau . Let n e1' <$> simplExpr (SSuc sv) (extSubst subst) (liftInScopeSet ins') e2 (liftContext cont)
+               in TE tau . flip (Let n e1') loc <$> simplExpr (SSuc sv) (extSubst subst) (liftInScopeSet ins') e2 (liftContext cont)
 simplExpr sv subst ins (TE tau (LetBang vs (n,o) e1 e2)) cont = do
   e1'  <- simplExpr sv subst ins e1 cont
   let ins' = Cons (Just $ BoundTo e1' o) ins
@@ -422,7 +422,7 @@ noLinear (TE tau e) = (&&) <$> typeNotLinear tau <*> noLinear' e
     noLinear' (Unit _) = return True
     noLinear' (ILit {}) = return True
     noLinear' (SLit {}) = return True
-    noLinear' (Let a e1 e2) = (&&) <$> noLinear e1 <*> noLinear e2
+    noLinear' (Let a e1 e2 _) = (&&) <$> noLinear e1 <*> noLinear e2
     noLinear' (LetBang _ a e1 e2) = (&&) <$> noLinear e1 <*> noLinear e2
     noLinear' (Tuple e1 e2) = (&&) <$> noLinear e1 <*> noLinear e2
     noLinear' (Struct fs) = and <$> mapM (noLinear . snd) fs
@@ -482,7 +482,7 @@ lowerExpr w i (TE tau (Con cn e t loc))         = TE tau $ Con cn (lowerExpr w i
 lowerExpr w i (TE tau (Unit loc))               = TE tau $ Unit loc
 lowerExpr w i (TE tau (ILit n pt loc))          = TE tau $ ILit n pt loc
 lowerExpr w i (TE tau (SLit s loc))             = TE tau $ SLit s loc
-lowerExpr w i (TE tau (Let a e1 e2))        = TE tau $ Let a (lowerExpr w i e1) (lowerExpr (SSuc w) (FSuc i) e2)
+lowerExpr w i (TE tau (Let a e1 e2 loc))        = TE tau $ Let a (lowerExpr w i e1) (lowerExpr (SSuc w) (FSuc i) e2) loc
 lowerExpr w i (TE tau (LetBang vs a e1 e2)) = TE tau $ LetBang (L.map (first $ lowerFin w i) vs) a (lowerExpr w i e1) (lowerExpr (SSuc w) (FSuc i) e2)
 lowerExpr w i (TE tau (Tuple e1 e2))        = TE tau $ Tuple (lowerExpr w i e1) (lowerExpr w i e2)
 lowerExpr w i (TE tau (Struct fs))          = TE tau $ Struct (L.map (second $ lowerExpr w i) fs)
@@ -505,7 +505,7 @@ liftExpr i (TE tau (Con cn e t loc))         = TE tau $ Con cn (liftExpr i e) t 
 liftExpr i (TE tau (Unit loc))               = TE tau $ Unit loc
 liftExpr i (TE tau (ILit n pt loc))          = TE tau $ ILit n pt loc
 liftExpr i (TE tau (SLit s loc))             = TE tau $ SLit s loc
-liftExpr i (TE tau (Let a e1 e2))        = TE tau $ Let a (liftExpr i e1) (liftExpr (FSuc i) e2)
+liftExpr i (TE tau (Let a e1 e2 loc))        = TE tau $ Let a (liftExpr i e1) (liftExpr (FSuc i) e2) loc
 liftExpr i (TE tau (LetBang vs a e1 e2)) = TE tau $ LetBang (L.map (first $ liftIdx i) vs) a (liftExpr i e1) (liftExpr (FSuc i) e2)
 liftExpr i (TE tau (Tuple e1 e2))        = TE tau $ Tuple (liftExpr i e1) (liftExpr i e2)
 liftExpr i (TE tau (Struct fs))          = TE tau $ Struct (L.map (second $ liftExpr i) fs)
@@ -574,7 +574,7 @@ betaR (TE tau (Con cn e t loc))      idx n arg ts = TE (substitute ts tau) <$> (
 betaR (TE tau (Unit loc))            idx n arg ts = pure . TE (substitute ts tau) $ Unit loc
 betaR (TE tau (ILit i pt loc))       idx n arg ts = pure . TE (substitute ts tau) $ ILit i pt loc
 betaR (TE tau (SLit s loc))          idx n arg ts = pure . TE (substitute ts tau) $ SLit s loc
-betaR (TE tau (Let a e1 e2))     idx n arg ts = TE (substitute ts tau) <$> (Let a <$> betaR e1 idx n arg ts <*> betaR e2 (SSuc idx) n arg ts)
+betaR (TE tau (Let a e1 e2 loc))     idx n arg ts = TE (substitute ts tau) <$> (Let a <$> betaR e1 idx n arg ts <*> betaR e2 (SSuc idx) n arg ts <*> pure loc)
 betaR e@(TE tau (LetBang vs a e1 e2)) idx n@(SSuc n0) arg ts
   | (maxFin idx) `elem` (L.map fst vs) = do  -- NOTE: arg is in the let!'ed set, which means it hasn't been used and is safe to be lifted out / zilinc
   -- XXX | (\x -> let e1 !vs e2) arg ===> let x' = arg in (\x -> let e1 !vs e2) x' ===> let x' = arg in (let e1[x'/x] !vs[x'/x] in e2[x'/x])
@@ -585,7 +585,7 @@ betaR e@(TE tau (LetBang vs a e1 e2)) idx n@(SSuc n0) arg ts
         Refl -> do varg  <- pure $ TE (exprType arg) (Variable (f0,vn) __dummyPos)
                    arg'  <- pure $ upshiftExpr idx n f0 arg
                    body' <- betaR e idx (SSuc n) varg ts
-                   return $ TE (substitute ts tau) $ (Let vn arg' body')
+                   return $ TE (substitute ts tau) $ (Let vn arg' body' __dummyPos )
   | Refl <- sym (addSucLeft' n idx) = TE (substitute ts tau) <$> (LetBang (L.map (first $ flip widenN n0) vs) a <$> betaR e1 idx n arg ts <*> betaR e2 (SSuc idx) n arg ts)
 betaR (TE tau (Tuple e1 e2)) idx n arg ts = TE (substitute ts tau) <$> (Tuple <$> betaR e1 idx n arg ts <*> betaR e2 idx n arg ts)
 betaR (TE tau (Struct fs))   idx n arg ts = TE (substitute ts tau) <$> (Struct <$> mapM (secondM (\x -> betaR x idx n arg ts)) fs)

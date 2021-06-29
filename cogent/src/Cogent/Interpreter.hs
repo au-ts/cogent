@@ -515,7 +515,7 @@ specialiseExpr (TE t e) = TE <$> monoType t <*> specialiseExpr' e
     specialiseExpr' (Pop     a e1 e2    ) = Pop a <$> specialiseExpr e1 <*> specialiseExpr e2
     specialiseExpr' (Singleton e        ) = Singleton <$> specialiseExpr e
 #endif
-    specialiseExpr' (Let     a e1 e2    ) = Let a <$> specialiseExpr e1 <*> specialiseExpr e2
+    specialiseExpr' (Let     a e1 e2 loc) = Let a <$> specialiseExpr e1 <*> specialiseExpr e2 <*> pure loc
     specialiseExpr' (LetBang vs a e1 e2 ) = LetBang vs a <$> specialiseExpr e1 <*> specialiseExpr e2
     specialiseExpr' (Tuple   e1 e2      ) = Tuple <$> specialiseExpr e1 <*> specialiseExpr e2
     specialiseExpr' (Struct  fs         ) = let (ns,ts) = Prelude.unzip fs in Struct <$> zipWithM (\n t -> (n,) <$> specialiseExpr t) ns ts
@@ -562,7 +562,7 @@ eval (TE _ (ArrayIndex arr idx)) = undefined
 eval (TE _ (Pop (a1, a2) e e')) = undefined
 eval (TE _ (Singleton e)) = undefined
 #endif
-eval (TE _ (Let a e e')) = do
+eval (TE _ (Let a e e' _)) = do
   v  <- eval e
   withBinding v (eval e')
 eval (TE _ (LetBang _ a e e')) = do

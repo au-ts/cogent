@@ -204,7 +204,7 @@ mystery s = 0 -- error ("mystery: " ++ s)
 
 graph :: (Show a, Show b) => Graph -> PosTypedExpr t v a b -> Int -> NextNode -> VarEnv -> GM (Graph, Int)
 
-graph g (TE _ (Let _ (TE appTy (App (TE _ (Fun fn _ _ _ _)) arg _)) e)) n ret vs = do
+graph g (TE _ (Let _ (TE appTy (App (TE _ (Fun fn _ _ _ _)) arg _)) e _)) n ret vs = do
     let v = (freshNames !! (Prelude.length vs)) ++ "@" ++ show n
     ty <- graphType appTy
     lhs <- getFieldVariables (v, ty)
@@ -214,7 +214,7 @@ graph g (TE _ (Let _ (TE appTy (App (TE _ (Fun fn _ _ _ _)) arg _)) e)) n ret vs
     g'' <- graph g' e (n+1) ret ((v, ty) : vs)
     return g''
 
-graph g (TE _ (Let _ e1 e2)) n ret vs = do
+graph g (TE _ (Let _ e1 e2 _)) n ret vs = do
     let v = (freshNames !! (Prelude.length vs)) ++ "@" ++ show n
     (gexprs, exUpds) <- atom e1 vs
     ty <- graphType (exprType e1)
@@ -308,10 +308,10 @@ graph g te@(TE _ (Case x tag (_, _, m) (_, _, nom))) n ret vs = do
     g5 <- graph g4 nom n' ret ((v2, smallerGTy) : vs)
     return g5
 
-graph g te@(TE ty (App fn arg _)) n ret vs =
-  graph g (TE ty (Let undefined te (TE ty (Variable (FZero, undefined) __dummyPos)))) n ret vs
+graph g te@(TE ty (App fn arg loc)) n ret vs =
+  graph g (TE ty (Let undefined te (TE ty (Variable (FZero, undefined) loc)) loc)) n ret vs
 graph g te@(TE ty (Put rec fld v)) n ret vs =
-  graph g (TE ty (Let undefined te (TE ty (Variable (FZero, undefined) __dummyPos)))) n ret vs
+  graph g (TE ty (Let undefined te (TE ty (Variable (FZero, undefined) __dummyPos)) __dummyPos)) n ret vs
 
 graph g te n ret vs = case isAtom (untypeE te) of
     True -> do

@@ -374,10 +374,10 @@ splitEnv env (TE t (Split a e1 e2))
           TProduct t1 t1' = typeOf e1'
        in EE t (Split a e1' e2') $ envOf e1' <|> peel2 (envOf e2')
 
-splitEnv env (TE t (Let a e1 e2))
+splitEnv env (TE t (Let a e1 e2 loc))
     = let e1' = splitEnv env e1
           e2' = splitEnv (Cons (Just $ typeOf e1') env) e2
-       in EE t (Let a e1' e2') $ envOf e1' <|> peel (envOf e2')
+       in EE t (Let a e1' e2' loc) $ envOf e1' <|> peel (envOf e2')
 
 splitEnv env (TE t (LetBang vs a e1 e2))
     = let env' = bangEnv vs env
@@ -439,10 +439,10 @@ pushDown unused (EE ty (App e1 e2 loc) env)
           e2' = pushDown (cleared env)    e2
        in EE ty (App e1' e2' loc) $ unused <|> env
 
-pushDown unused (EE ty (Let a e1 e2) env)
+pushDown unused (EE ty (Let a e1 e2 loc) env)
     = let e1'@(EE t _ _) = pushDown (unused <\> env) e1
           e2' = pushDown (Cons (Just t) (cleared env)) e2
-       in EE ty (Let a e1' e2') $ unused <|> env
+       in EE ty (Let a e1' e2' loc) $ unused <|> env
 
 pushDown unused (EE ty (LetBang vs a e1 e2) env)
     = let -- e1 already pushed down in splitEnv
@@ -527,7 +527,7 @@ treeBang i is [] = []
 
 typeTree :: EnvExpr loc t v a VarName -> TypingTree t
 typeTree (EE ty (Split a e1 e2) env) = TyTrSplit (treeSplits env (envOf e1) (peel2 $ envOf e2)) ([], typeTree e1) ([envOf e2 `at` FZero, envOf e2 `at` FSuc FZero], typeTree e2)
-typeTree (EE ty (Let a e1 e2) env) = TyTrSplit (treeSplits env (envOf e1) (peel $ envOf e2)) ([], typeTree e1) ([envOf e2 `at` FZero], typeTree e2)
+typeTree (EE ty (Let a e1 e2 _) env) = TyTrSplit (treeSplits env (envOf e1) (peel $ envOf e2)) ([], typeTree e1) ([envOf e2 `at` FZero], typeTree e2)
 
 typeTree (EE ty (LetBang vs a e1 e2) env) = TyTrSplit (treeBang 0 (map (finInt . fst) vs) $ treeSplits env (envOf e1) (peel $ envOf e2)) ([], typeTree e1) ([envOf e2 `at` FZero], typeTree e2)
 typeTree (EE ty (Take a e1 f e2) env) = TyTrSplit (treeSplits env (envOf e1) (peel2 $ envOf e2)) ([], typeTree e1) ([envOf e2 `at` FZero, envOf e2 `at` FSuc FZero], typeTree e2)

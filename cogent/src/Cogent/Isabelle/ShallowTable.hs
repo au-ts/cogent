@@ -136,7 +136,7 @@ stExpr (TE t e) = stExpr' e >> stType t
     stExpr' (ArrayTake _ e1 _ e2)     = stExpr e1 >> stExpr e2
     stExpr' (ArrayPut e1 e2 e3)       = mapM_ stExpr [e1,e2,e3]
 #endif
-    stExpr' (Let a e1 e2) = stExpr e1 >> stExpr e2
+    stExpr' (Let a e1 e2 _) = stExpr e1 >> stExpr e2
     stExpr' (LetBang vs a e1 e2) = stExpr e1 >> stExpr e2
     stExpr' (Tuple e1 e2) = stExpr e1 >> stExpr e2
     stExpr' (Struct fs)   = mapM_ (stExpr . snd) fs

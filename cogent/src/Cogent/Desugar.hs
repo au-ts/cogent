@@ -391,8 +391,8 @@ desugarAlt e0 (B.TP p pos) = desugarAlt' e0 p
 
 -- FIXME: this function should take a position
 desugarAlt' :: B.TypedExpr -> S.Pattern B.TypedIrrefPatn -> B.TypedExpr -> DS t l v (PosUntypedExpr t v VarName VarName)
-desugarAlt' e0 (S.PCon tag [B.TIP (S.PVar tn) _]) e =
-  E <$> (Let (fst tn) <$> (E . Esac <$> desugarExpr e0) <*> withBinding (fst tn) (desugarExpr e))
+desugarAlt' e0 (S.PCon tag [B.TIP (S.PVar tn) loc]) e =
+  E <$> (Let (fst tn) <$> (E . Esac <$> desugarExpr e0) <*> withBinding (fst tn) (desugarExpr e) <*> pure loc)
   -- Idea:
   --   Base case: e0 | PCon cn [PVar v] in e ~~> let v = esac e0 in e
   --   Ind. step: A) e0 | PCon vn [p] in e ==> e0 | PCon cn [PVar v] in (let p = v in e)
@@ -413,8 +413,8 @@ desugarAlt' (B.TE t e0 l) (S.PCon tag ps) e =  -- B2)
   desugarAlt' (B.TE t e0 l) (S.PCon tag [B.TIP (S.PTuple ps) (B.getLocTIP $ P.head ps)]) e
                                                           -- At this point, t and e0 do not match!
                                                           -- but hopefully they will after e0 gets desugared
-desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PVar v) _)) e =
-  E <$> (Let (fst v) <$> desugarExpr e0 <*> (withBinding (fst v) $ desugarExpr e))
+desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PVar v) loc)) e =
+  E <$> (Let (fst v) <$> desugarExpr e0 <*> (withBinding (fst v) $ desugarExpr e) <*> pure loc)
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple []) p)) e = desugarAlt' e0 (S.PIrrefutable (B.TIP S.PUnitel p)) e
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple [irf]) _)) e = __impossible "desugarAlt' (singleton tuple)"
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple [B.TIP (S.PVar tn1) _, B.TIP (S.PVar tn2) _]) _)) e
@@ -487,9 +487,9 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PUnboxedRecord fs) pos)) e = do
   -- #{a, b, c} ~~> x {a,b,c}  -- since we take all the fields out, the unboxed x is useless and can be discarded
   rec <- (, B.getTypeTE e0) <$> freshVar
   desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec fs) pos)) e
-desugarAlt' e0 (S.PIrrefutable (B.TIP S.PUnderscore _)) e = do
+desugarAlt' e0 (S.PIrrefutable (B.TIP S.PUnderscore loc)) e = do
   v <- freshVar
-  E <$> (Let v <$> desugarExpr e0 <*> withBinding v (desugarExpr e))
+  E <$> (Let v <$> desugarExpr e0 <*> withBinding v (desugarExpr e) <*> pure loc)
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PUnitel) pos)) e = desugarAlt' e0 (S.PIrrefutable $ B.TIP S.PUnderscore pos) e
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec []) pos)) e = desugarAlt' e0 (S.PIrrefutable $ B.TIP (S.PVar rec) pos) e
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec [Nothing]) _)) e = __impossible "desugarAlt'"
@@ -736,9 +736,9 @@ desugarExpr (B.TE t@(B.DT (S.TVariant ts)) (S.Con c es) l) = do
   where group [] = B.DT S.TUnit
         group (t:[]) = t
         group ts = B.DT $ S.TTuple ts
-desugarExpr (B.TE _ (S.Seq e1 e2) _) = do
+desugarExpr (B.TE _ (S.Seq e1 e2) loc) = do
   v <- freshVar
-  E <$> (Let v <$> desugarExpr e1 <*> withBinding v (desugarExpr e2))
+  E <$> (Let v <$> desugarExpr e1 <*> withBinding v (desugarExpr e2) <*> pure loc)
 desugarExpr (B.TE _ (S.Lam p mt e) _) = __impossible "desugarExpr (Lam)"
 desugarExpr (B.TE _ (S.App e1 e2 _) loc) = E <$> (App <$> desugarExpr e1 <*> desugarExpr e2 <*> pure loc)
 desugarExpr (B.TE t (S.Comp f g) l) = do

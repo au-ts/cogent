@@ -239,7 +239,7 @@ ttyping xi k (EE t' (Split a x y) env) = hintListSequence [ -- Ξ, K, Γ ⊢ Spl
   ttyping xi k x,                            -- Ξ, K, Γ1 ⊢ x : TProduct t u
   ttyping xi k y                             -- Ξ, K, Some t # Some u # Γ2 ⊢ y : t'
   ]
-ttyping xi k (EE u (Let a x y) env) = hintListSequence [ -- Ξ, K, Γ ⊢ Let x y : u if
+ttyping xi k (EE u (Let a x y _) env) = hintListSequence [ -- Ξ, K, Γ ⊢ Let x y : u if
   follow_tt k env (envOf x) (envOf y),
   ttyping xi k x,                           -- Ξ, K, Γ1 ⊢ x : t
   ttyping xi k y                            -- Ξ, K, Some t # Γ2 ⊢ y : u
@@ -369,7 +369,7 @@ typing xi k (EE t' (Split a x y) env) = tacSequence [
   typing xi k y                              -- Ξ, K, (Some t)#(Some u)#Γ2 ⊢ y : t'
   ]
 
-typing xi k (EE u (Let a x y) env) = tacSequence [
+typing xi k (EE u (Let a x y _) env) = tacSequence [
   return [rule "typing_let"],               -- Ξ, K, Γ ⊢ Let x y : u if
   splits k env (envOf x) (peel $ envOf y),  -- K ⊢ Γ ↝ Γ1 | Γ2
   typing xi k x,                            -- Ξ, K, Γ1 ⊢ x : t

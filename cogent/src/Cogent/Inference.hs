@@ -717,10 +717,10 @@ infer (E (App e1 e2 loc))
         guardShow ("app (actual: " ++ show tie' ++ "; formal: " ++ show tie ++ ")") $ isSub
         if tie' /= tie then return $ TE to (App e1' (promote ti e2') loc)
                        else return $ TE to (App e1' e2' loc)
-infer (E (Let a e1 e2))
+infer (E (Let a e1 e2 loc))
    = do e1' <- infer e1
         e2' <- withBinding (exprType e1') (infer e2)
-        return $ TE (exprType e2') (Let a e1' e2')
+        return $ TE (exprType e2') (Let a e1' e2' loc)
 infer (E (LetBang vs a e1 e2))
    = do e1' <- withBang (map fst vs) (infer e1)
         t1 <- unfoldSynsDeepM $ exprType e1'
@@ -875,7 +875,7 @@ infer (E (Promote ty e))
 promote :: Type t b -> PosTypedExpr t v a b -> PosTypedExpr t v a b
 promote t (TE t' e) = case e of
   -- For continuation forms, push the promote into the continuations
-  Let a e1 e2         -> TE t $ Let a e1 $ promote t e2
+  Let a e1 e2 loc        -> TE t $ Let a e1 (promote t e2) loc
   LetBang vs a e1 e2  -> TE t $ LetBang vs a e1 $ promote t e2
   If ec et ee         -> TE t $ If ec (promote t et) (promote t ee)
   Case e tag (l1,a1,e1) (l2,a2,e2)

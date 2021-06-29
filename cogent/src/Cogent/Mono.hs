@@ -196,7 +196,7 @@ monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
     monoExpr' (ArrayPut arr i e    ) = ArrayPut <$> monoExpr arr <*> monoExpr i <*> monoExpr e
     monoExpr' (ArrayTake a arr i e ) = ArrayTake a <$> monoExpr arr <*> monoExpr i <*> monoExpr e
 #endif
-    monoExpr' (Let     a e1 e2    ) = Let a <$> monoExpr e1 <*> monoExpr e2
+    monoExpr' (Let     a e1 e2 loc) = Let a <$> monoExpr e1 <*> monoExpr e2 <*> pure loc
     monoExpr' (LetBang vs a e1 e2 ) = LetBang vs a <$> monoExpr e1 <*> monoExpr e2
     monoExpr' (Tuple   e1 e2      ) = Tuple <$> monoExpr e1 <*> monoExpr e2
     monoExpr' (Struct  fs         ) = let (ns,ts) = P.unzip fs in Struct <$> zipWithM (\n t -> (n,) <$> monoExpr t) ns ts
