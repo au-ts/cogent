@@ -348,7 +348,7 @@ genExpr mv (TE t (ILit n pt _)) = do
   t' <- genType t
   maybeAssign t' mv (mkConst pt n) M.empty
 
-genExpr mv (TE t (SLit s)) = do
+genExpr mv (TE t (SLit s _)) = do
   t' <- genType t
   maybeAssign t' mv (CConst $ CStringConst s) M.empty
 #ifdef BUILTIN_ARRAYS

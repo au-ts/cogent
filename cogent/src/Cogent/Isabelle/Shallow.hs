@@ -301,7 +301,7 @@ shallowExpr (TE t (Con cn e _ _))  = do
   TermWithType econ <$> shallowType t
 shallowExpr (TE _ (Unit _)) = pure $ mkId "()"
 shallowExpr (TE _ (ILit n pt _)) = pure $ shallowILit n pt
-shallowExpr (TE _ (SLit s)) = pure $ mkString s
+shallowExpr (TE _ (SLit s _)) = pure $ mkString s
 #ifdef BUILTIN_ARRAYS
 shallowExpr (TE _ (ALit es)) = mkList <$> mapM shallowExpr es
 shallowExpr (TE _ (ArrayIndex arr idx)) = do

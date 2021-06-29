@@ -180,7 +180,7 @@ data Expr loc t v a b e
   | Con TagName (e loc t v a b) (Type t b) loc
   | Unit loc
   | ILit Integer PrimInt loc
-  | SLit String
+  | SLit String loc
 #ifdef BUILTIN_ARRAYS
   | ALit [e t v a b]
   | ArrayIndex (e t v a b) (e t v a b)
@@ -389,7 +389,7 @@ insertIdxAtE cut f (App e1 e2 loc) = App (f cut e1) (f cut e2) loc
 insertIdxAtE cut f (Con tag e t loc) = Con tag (f cut e) t loc
 insertIdxAtE cut f (Unit loc) = Unit loc
 insertIdxAtE cut f (ILit n pt loc) = ILit n pt loc
-insertIdxAtE cut f (SLit s) = SLit s
+insertIdxAtE cut f (SLit s loc) = SLit s loc
 #ifdef BUILTIN_ARRAYS
 insertIdxAtE cut f (ALit es) = ALit $ map (f cut) es
 insertIdxAtE cut f (ArrayIndex e l) = ArrayIndex (f cut e) (f cut l)
@@ -461,7 +461,7 @@ fmapE f (App e1 e2 loc)          = App (f e1) (f e2) loc
 fmapE f (Con cn e t loc)         = Con cn (f e) t loc
 fmapE f (Unit loc)               = Unit loc
 fmapE f (ILit i pt loc)          = ILit i pt loc
-fmapE f (SLit s)             = SLit s
+fmapE f (SLit s loc)             = SLit s loc
 #ifdef BUILTIN_ARRAYS
 fmapE f (ALit es)            = ALit (map f es)
 fmapE f (ArrayIndex e i)     = ArrayIndex (f e) (f i)
@@ -505,7 +505,7 @@ instance (Functor (e loc t v a),
   fmap f (Flip (Con cn e t loc)         )      = Flip $ Con cn (fmap f e) (fmap f t) loc
   fmap f (Flip (Unit loc)               )      = Flip $ Unit loc
   fmap f (Flip (ILit i pt loc)          )      = Flip $ ILit i pt loc
-  fmap f (Flip (SLit s)             )      = Flip $ SLit s
+  fmap f (Flip (SLit s loc)             )      = Flip $ SLit s loc
 #ifdef BUILTIN_ARRAYS
   fmap f (Flip (ALit es)            )      = Flip $ ALit (fmap (fmap f) es)
   fmap f (Flip (ArrayIndex e i)     )      = Flip $ ArrayIndex (fmap f e) (fmap f i)
@@ -540,7 +540,7 @@ instance (Functor (Flip (e loc t v) b),
   fmap f (Flip2 (Con cn e t loc)         )      = Flip2 $ Con cn (ffmap f e) t loc
   fmap f (Flip2 (Unit loc)               )      = Flip2 $ Unit loc
   fmap f (Flip2 (ILit i pt loc)          )      = Flip2 $ ILit i pt loc
-  fmap f (Flip2 (SLit s)             )      = Flip2 $ SLit s
+  fmap f (Flip2 (SLit s loc)             )      = Flip2 $ SLit s loc
 #ifdef BUILTIN_ARRAYS
   fmap f (Flip2 (ALit es)            )      = Flip2 $ ALit (fmap (ffmap f) es)
   fmap f (Flip2 (ArrayIndex e i)     )      = Flip2 $ ArrayIndex (ffmap f e) (ffmap f i)
@@ -649,7 +649,7 @@ instance (Pretty a, Pretty b, Prec (e loc t v a b), Pretty (e loc t v a b), Pret
   pretty (Op opr [e] _) = primop opr <+> prettyPrec 1 e
   pretty (Op opr es _)  = primop opr <+> tupled (map pretty es)
   pretty (ILit i pt _) = literal (string $ show i) <+> symbol "::" <+> pretty pt
-  pretty (SLit s) = literal $ string s
+  pretty (SLit s _) = literal $ string s
 #ifdef BUILTIN_ARRAYS
   pretty (ALit es) = array $ map pretty es
   pretty (ArrayIndex arr idx) = prettyPrec 2 arr <+> symbol "@" <+> prettyPrec 2 idx
