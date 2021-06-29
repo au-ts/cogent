@@ -144,7 +144,7 @@ markOcc sv (TE tau (LetBang bs n e1 e2 loc)) = do
   (e2',occ) <- getVOcc1 $ markOcc (SSuc sv) e2
   return $ TE tau $ LetBang (L.map (second $ (,OnceSafe)) bs) (n,LetBanged) e1' e2' loc
 markOcc sv (TE tau (Tuple e1 e2 loc)) = TE tau <$> (Tuple <$> markOcc sv e1 <*> markOcc sv e2 <*> pure loc)
-markOcc sv (TE tau (Struct fs)) = TE tau <$> (Struct <$> mapM (secondM $ markOcc sv) fs)
+markOcc sv (TE tau (Struct fs loc)) = TE tau <$> (Struct <$> mapM (secondM $ markOcc sv) fs <*> pure loc)
 markOcc sv (TE tau (If c th el)) = do
   c' <- markOcc sv c
   (th',el') <- flip (sequential sv) concatEnv $ parallel (markOcc sv th) (markOcc sv el) branchEnv
@@ -346,7 +346,7 @@ simplExpr sv subst ins (TE tau (LetBang vs (n,o) e1 e2 loc)) cont = do
   let ins' = Cons (Just $ BoundTo e1' o) ins
   TE tau . flip (LetBang (L.map (second fst) vs) n e1') loc <$> simplExpr (SSuc sv) (extSubst subst) (liftInScopeSet ins') e2 (liftContext cont)
 simplExpr sv subst ins (TE tau (Tuple e1 e2 loc)) cont = TE tau <$> (Tuple <$> simplExpr sv subst ins e1 cont <*> simplExpr sv subst ins e2 cont <*> pure loc)
-simplExpr sv subst ins (TE tau (Struct fs)) cont = TE tau . Struct <$> mapM (secondM $ flip (simplExpr sv subst ins) cont) fs
+simplExpr sv subst ins (TE tau (Struct fs loc)) cont = TE tau . (\fs' -> Struct fs' loc) <$> mapM (secondM $ flip (simplExpr sv subst ins) cont) fs
 simplExpr sv subst ins (TE tau (If c th el)) cont = do
   c'  <- simplExpr sv subst ins c cont
   th' <- simplExpr sv subst ins th cont
@@ -425,7 +425,7 @@ noLinear (TE tau e) = (&&) <$> typeNotLinear tau <*> noLinear' e
     noLinear' (Let a e1 e2 _) = (&&) <$> noLinear e1 <*> noLinear e2
     noLinear' (LetBang _ a e1 e2 _) = (&&) <$> noLinear e1 <*> noLinear e2
     noLinear' (Tuple e1 e2 _) = (&&) <$> noLinear e1 <*> noLinear e2
-    noLinear' (Struct fs) = and <$> mapM (noLinear . snd) fs
+    noLinear' (Struct fs _) = and <$> mapM (noLinear . snd) fs
     noLinear' (If e1 e2 e3) = andM [noLinear e1, noLinear e2, noLinear e3]
     noLinear' (Case e _ (_,_,e1) (_,_,e2)) = andM [noLinear e, noLinear e1, noLinear e2]
     noLinear' (Esac e) = noLinear e
@@ -485,7 +485,7 @@ lowerExpr w i (TE tau (SLit s loc))             = TE tau $ SLit s loc
 lowerExpr w i (TE tau (Let a e1 e2 loc))        = TE tau $ Let a (lowerExpr w i e1) (lowerExpr (SSuc w) (FSuc i) e2) loc
 lowerExpr w i (TE tau (LetBang vs a e1 e2 loc)) = TE tau $ LetBang (L.map (first $ lowerFin w i) vs) a (lowerExpr w i e1) (lowerExpr (SSuc w) (FSuc i) e2) loc
 lowerExpr w i (TE tau (Tuple e1 e2 loc))        = TE tau $ Tuple (lowerExpr w i e1) (lowerExpr w i e2) loc
-lowerExpr w i (TE tau (Struct fs))          = TE tau $ Struct (L.map (second $ lowerExpr w i) fs)
+lowerExpr w i (TE tau (Struct fs loc))          = TE tau $ Struct (L.map (second $ lowerExpr w i) fs) loc
 lowerExpr w i (TE tau (If e1 e2 e3))        = TE tau $ If (lowerExpr w i e1) (lowerExpr w i e2) (lowerExpr w i e3)
 lowerExpr w i (TE tau (Case e tn (l1,a1,e1) (l2,a2,e2))) = TE tau $ Case (lowerExpr w i e) tn (l1, a1, lowerExpr (SSuc w) (FSuc i) e1) (l2, a2, lowerExpr (SSuc w) (FSuc i) e2)
 lowerExpr w i (TE tau (Esac e))             = TE tau $ Esac (lowerExpr w i e)
@@ -508,7 +508,7 @@ liftExpr i (TE tau (SLit s loc))             = TE tau $ SLit s loc
 liftExpr i (TE tau (Let a e1 e2 loc))        = TE tau $ Let a (liftExpr i e1) (liftExpr (FSuc i) e2) loc
 liftExpr i (TE tau (LetBang vs a e1 e2 loc)) = TE tau $ LetBang (L.map (first $ liftIdx i) vs) a (liftExpr i e1) (liftExpr (FSuc i) e2) loc
 liftExpr i (TE tau (Tuple e1 e2 loc))        = TE tau $ Tuple (liftExpr i e1) (liftExpr i e2) loc
-liftExpr i (TE tau (Struct fs))          = TE tau $ Struct (L.map (second $ liftExpr i) fs)
+liftExpr i (TE tau (Struct fs loc))          = TE tau $ Struct (L.map (second $ liftExpr i) fs) loc
 liftExpr i (TE tau (If e1 e2 e3))        = TE tau $ If (liftExpr i e1) (liftExpr i e2) (liftExpr i e3)
 liftExpr i (TE tau (Case e tn (l1,a1,e1) (l2,a2,e2))) = TE tau $ Case (liftExpr i e) tn (l1, a1, liftExpr (FSuc i) e1) (l2, a2, liftExpr (FSuc i) e2)
 liftExpr i (TE tau (Esac e))             = TE tau $ Esac (liftExpr i e)
@@ -589,7 +589,7 @@ betaR e@(TE tau (LetBang vs a e1 e2 loc)) idx n@(SSuc n0) arg ts
   | Refl <- sym (addSucLeft' n idx)
     = TE (substitute ts tau) <$> (LetBang (L.map (first $ flip widenN n0) vs) a <$> betaR e1 idx n arg ts <*> betaR e2 (SSuc idx) n arg ts <*> pure loc)
 betaR (TE tau (Tuple e1 e2 loc)) idx n arg ts = TE (substitute ts tau) <$> (Tuple <$> betaR e1 idx n arg ts <*> betaR e2 idx n arg ts <*> pure loc)
-betaR (TE tau (Struct fs))   idx n arg ts = TE (substitute ts tau) <$> (Struct <$> mapM (secondM (\x -> betaR x idx n arg ts)) fs)
+betaR (TE tau (Struct fs loc))   idx n arg ts = TE (substitute ts tau) <$> (Struct <$> mapM (secondM (\x -> betaR x idx n arg ts)) fs <*> pure loc)
 betaR (TE tau (If e1 e2 e3)) idx n arg ts = TE (substitute ts tau) <$> (If <$> betaR e1 idx n arg ts <*> betaR e2 idx n arg ts <*> betaR e3 idx n arg ts)
 betaR (TE tau (Case e tn (l1,a1,e1) (l2,a2,e2))) idx n arg ts = do
   e'  <- betaR e  idx n arg ts

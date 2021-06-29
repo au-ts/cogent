@@ -460,7 +460,7 @@ atom (TE _ (Tuple a b _)) vs = do
 
 atom (TE _ (Unit _)) vs = return (zeroFields GEGUnit, [])
 
-atom (TE _ (Struct flds)) vs = do
+atom (TE _ (Struct flds _)) vs = do
     gexprs <- mapM (flip atomNoUpds vs) (map snd flds)
     return (concat gexprs, [])
 

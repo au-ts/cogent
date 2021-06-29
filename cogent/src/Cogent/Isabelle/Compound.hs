@@ -122,7 +122,7 @@ expDiscardVar' rm0 f e = case e of
   Let a e1 e2 loc           -> Let a <$> go e1 <*> goSuc e2 <*> pure loc
   LetBang fs a e1 e2 loc    -> LetBang <$> mapM (mfirst $ discardVar rm0) fs <*> pure a <*> go e1 <*> goSuc e2 <*> pure loc
   Tuple e1 e2 loc           -> Tuple <$> go e1 <*> go e2 <*> pure loc
-  Struct fes             -> Struct <$> mapM (msecond go) fes
+  Struct fes loc            -> Struct <$> mapM (msecond go) fes <*> pure loc
   If ep et ef            -> If <$> go ep <*> go et <*> go ef
   Case es tag (l1,n1,e1) (l2,n2,e2)
                          -> Case <$> go es <*> pure tag

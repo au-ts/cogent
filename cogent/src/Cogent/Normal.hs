@@ -73,7 +73,7 @@ isAtom (E (Singleton e)) | isVar e = True
 isAtom (E (ArrayPut arr i e)) | isVar arr && isVar i && isVar e = True
 #endif
 isAtom (E (Tuple e1 e2 _)) | isVar e1 && isVar e2 = True
-isAtom (E (Struct fs)) | all (isVar . snd) fs = True
+isAtom (E (Struct fs _)) | all (isVar . snd) fs = True
 isAtom (E (Esac e)) | isVar e = True
 isAtom (E (Member rec f)) | isVar rec = True
 isAtom (E (Put rec f v)) | isVar rec && isVar v = True
@@ -221,7 +221,7 @@ normalise v (E (Tuple e1 e2 loc)) k
     normaliseName (sadd v n) (upshiftExpr n v f0 e2) $ \n' e2' ->
     withAssoc v n n' $ \Refl ->
     k (sadd n n') (E $ Tuple (upshiftExpr n' (sadd v n) f0 e1') e2' loc)
-normalise v (E (Struct fs)) k = let (ns,es) = P.unzip fs in normaliseNames v es $ \n es' -> k n (E $ Struct $ P.zip ns es')
+normalise v (E (Struct fs loc)) k = let (ns,es) = P.unzip fs in normaliseNames v es $ \n es' -> k n (E $ Struct (P.zip ns es') loc)
 normalise v (E (If c th el)) k | LNF <- __cogent_fnormalisation =
   freshVar >>= \a ->
   normaliseExpr v th >>= \th' ->

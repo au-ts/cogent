@@ -274,7 +274,7 @@ ttyping xi k e = pure . TypingTacs <$> typingWrapper xi k e
 typingWrapper :: (Ord b, Show b, Pretty b) => Xi a b -> Vec t Kind -> EnvExpr loc t v a b
               -> State TypingSubproofs [Tactic]
 typingWrapper xi k (EE t (Variable i loc) env) = tacSequence [ ]
-typingWrapper xi k (EE t (Struct fs) env)
+typingWrapper xi k (EE t (Struct fs _) env)
     | allVars (map (eexprExpr . snd) fs) = tacSequence [ ]
 typingWrapper xi k (EE (TPrim t) (Op o es _) env)
     | allVars (map eexprExpr es) = tacSequence [ ]
@@ -431,7 +431,7 @@ typing xi k (EE _ (Unit _) env) = tacSequence [
   consumed k env                -- K ⊢ Γ consumed
   ]
 
-typing xi k (EE t (Struct fs) env) = tacSequence [
+typing xi k (EE t (Struct fs _) env) = tacSequence [
   return [rule "typing_struct'"],    -- Ξ, K, Γ ⊢ Struct ts es : TRecord ts' Unboxed
   typingAll xi k env (map snd fs),   -- Ξ, K, Γ ⊢* es : ts
   return [simp_solve],               -- ns = map fst ts'

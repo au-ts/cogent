@@ -518,7 +518,7 @@ specialiseExpr (TE t e) = TE <$> monoType t <*> specialiseExpr' e
     specialiseExpr' (Let     a e1 e2 loc    ) = Let a <$> specialiseExpr e1 <*> specialiseExpr e2 <*> pure loc
     specialiseExpr' (LetBang vs a e1 e2 loc ) = LetBang vs a <$> specialiseExpr e1 <*> specialiseExpr e2 <*> pure loc
     specialiseExpr' (Tuple   e1 e2 loc      ) = Tuple <$> specialiseExpr e1 <*> specialiseExpr e2 <*> pure loc
-    specialiseExpr' (Struct  fs         ) = let (ns,ts) = Prelude.unzip fs in Struct <$> zipWithM (\n t -> (n,) <$> specialiseExpr t) ns ts
+    specialiseExpr' (Struct  fs loc         ) = let (ns,ts) = Prelude.unzip fs in Struct <$> zipWithM (\n t -> (n,) <$> specialiseExpr t) ns ts <*> pure loc
     specialiseExpr' (If      c e1 e2    ) = If <$> specialiseExpr c <*> specialiseExpr e1 <*> specialiseExpr e2
     specialiseExpr' (Case    c tag (l1,a1,e1) (l2,a2,e2)) = Case <$> specialiseExpr c <*> pure tag <*> ((l1,a1,) <$> specialiseExpr e1) <*> ((l2,a2,) <$> specialiseExpr e2)
     specialiseExpr' (Esac    e          ) = Esac <$> specialiseExpr e
@@ -569,7 +569,7 @@ eval (TE _ (LetBang _ a e e' _)) = do
   v  <- eval e
   withBinding v (eval e')
 eval (TE _ (Tuple e1 e2 _)) = VProduct <$> eval e1 <*> eval e2
-eval (TE t (Struct fs)) = do
+eval (TE t (Struct fs _)) = do
   let TRecord _ fts _ = t
   fvs <- mapM (secondM eval) fs
   let fvs' = for fts $ \(fn,(t,b)) ->

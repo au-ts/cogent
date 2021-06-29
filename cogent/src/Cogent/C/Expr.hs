@@ -653,7 +653,7 @@ genExpr mv (TE t (Tuple e1 e2 _)) = do
   return (variable v, e1decl ++ e2decl ++ vdecl ++ a1decl ++ a2decl,
           e1stm ++ e2stm ++ vstm ++ a2stm ++ a2stm, mergePools [e1p,e2p])
 
-genExpr mv (TE t (Struct fs)) = do
+genExpr mv (TE t (Struct fs _)) = do
   let (ns,es) = P.unzip fs
   (es',decls,stms,eps) <- L.unzip4 <$> mapM genExpr_ es
   t' <- genType t

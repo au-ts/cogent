@@ -157,7 +157,7 @@ deepExpr mod ta defs (TE _ (Promote ty e))
 --   = mkApp (mkId "Con") [mkList $ map (\(an,(at,_)) -> mkPair (mkString an) (deepType mod ta at)) as, mkString cn, deepExpr mod ta defs v]  -- inlined Con
 --   | TSum as <- ty = mkApp (mkId "Promote") [mkList $ map (\(an,(at,_)) -> mkPair (mkString an) (deepType mod ta at)) as, deepExpr mod ta defs e]  -- FIMXE: cogent.1
 --   | otherwise = __impossible "deepExpr"
-deepExpr mod ta defs (TE _ (Struct fs))
+deepExpr mod ta defs (TE _ (Struct fs _))
   = mkApp (mkId "Struct") [mkList (map (deepType mod ta . exprType . snd) fs),
                            mkList (map (deepExpr mod ta defs . snd) fs)]
 deepExpr mod ta defs (TE _ (Member e fld))

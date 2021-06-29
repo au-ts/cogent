@@ -812,10 +812,10 @@ desugarExpr (B.TE _ (S.Tuple []) loc) = return $ E $ Unit loc
 desugarExpr (B.TE _ (S.Tuple [e]) _) = __impossible "desugarExpr (Tuple)"
 desugarExpr (B.TE _ (S.Tuple es@(_:_:_)) loc) | not __cogent_ftuples_as_sugar = do
   foldr1 (liftA2 $ E .* (\a b -> Tuple a b loc)) $ map desugarExpr es  -- right associative product repr of a list
-desugarExpr (B.TE _ (S.Tuple es) _) = do
+desugarExpr (B.TE _ (S.Tuple es) loc) = do
   fs <- P.zip (P.map (('p':) . show) [1 :: Integer ..]) <$> mapM desugarExpr es
-  return . E $ Struct fs  -- \| __cogent_ftuples_as_sugar
-desugarExpr (B.TE _ (S.UnboxedRecord fs) _) = E . Struct <$> mapM (\(f,e) -> (f,) <$> desugarExpr e) fs
+  return . E $ Struct fs loc  -- \| __cogent_ftuples_as_sugar
+desugarExpr (B.TE _ (S.UnboxedRecord fs) loc) = E . flip (Struct) loc <$> mapM (\(f,e) -> (f,) <$> desugarExpr e) fs
 desugarExpr (B.TE _ (S.Let [] e) _) = __impossible "desugarExpr (Let)"
 desugarExpr (B.TE _ (S.Let [S.Binding p mt e0 []] e) _) = desugarAlt' e0 (S.PIrrefutable p) e
 desugarExpr (B.TE _ (S.Let [S.Binding (B.TIP (S.PVar v) _) mt e0 bs] e) loc) = do

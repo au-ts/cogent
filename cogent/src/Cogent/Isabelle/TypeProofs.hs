@@ -345,9 +345,9 @@ splitEnv env (TE t (Member e f))
     = let e' = splitEnv env e
        in EE t (Member e' f) $ envOf e'
 
-splitEnv env (TE t (Struct fs))
+splitEnv env (TE t (Struct fs loc))
     = let fs' = map (splitEnv env . snd) fs
-       in EE t (Struct (zip (map fst fs) fs')) $ foldl (<|>) (cleared env) (map envOf fs')
+       in EE t (Struct (zip (map fst fs) fs') loc) $ foldl (<|>) (cleared env) (map envOf fs')
 
 splitEnv env (TE t (Op o es loc))
     = let vs = map (splitEnv env) es
@@ -428,11 +428,11 @@ pushDown unused (EE ty (Op o (t:ts) loc) env)
     = let es = pushDown (unused <\> env) t:map (pushDown (cleared env)) ts
        in EE ty (Op o es loc) $ unused <|> env
 
-pushDown unused (EE ty (Struct fs) env)
+pushDown unused (EE ty (Struct fs loc) env)
     = let fs' = case map snd fs of
                   (t:ts) -> pushDown (unused <\> env) t:map (pushDown (cleared env)) ts
                   []     -> error "TypeProofs: empty Struct" -- [] -- This case may be impossible to prove if unused is non-empty (!!)
-       in EE ty (Struct $ zip (map fst fs) fs') $ unused <|> env
+       in EE ty (Struct (zip (map fst fs) fs') loc) $ unused <|> env
 
 pushDown unused (EE ty (App e1 e2 loc) env)
     = let e1' = pushDown (unused <\> env) e1

@@ -795,11 +795,11 @@ infer (E (Member e f))
         let (_,(tau,c)) = fs !! f
         guardShow "member-3" $ not c  -- not taken
         return $ TE tau (Member e' f)
-infer (E (Struct fs))
+infer (E (Struct fs loc))
    = do let (ns,es) = unzip fs
         es' <- mapM infer es
         let ts' = zipWith (\n e' -> (n, (exprType e', False))) ns es'
-        return $ TE (TRecord NonRec ts' Unboxed) $ Struct $ zip ns es'
+        return $ TE (TRecord NonRec ts' Unboxed) $ Struct (zip ns es') loc
 infer (E (Take a e f e2))
    = do e'@(TE t _) <- infer e
         -- trace ("@@@@t is " ++ show t) $ return ()
