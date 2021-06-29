@@ -300,7 +300,7 @@ shallowExpr (TE t (Con cn e _ _))  = do
   econ <- mkApp <$> pure (mkStr [tn,".",cn]) <*> (mapM shallowExpr [e])
   TermWithType econ <$> shallowType t
 shallowExpr (TE _ (Unit _)) = pure $ mkId "()"
-shallowExpr (TE _ (ILit n pt)) = pure $ shallowILit n pt
+shallowExpr (TE _ (ILit n pt _)) = pure $ shallowILit n pt
 shallowExpr (TE _ (SLit s)) = pure $ mkString s
 #ifdef BUILTIN_ARRAYS
 shallowExpr (TE _ (ALit es)) = mkList <$> mapM shallowExpr es
@@ -394,7 +394,7 @@ shallowExpr (TE _ (Take (n1,n2) rec fld e)) = do
   mkLet pp take <$> shallowExpr e
 shallowExpr (TE _ (Put rec fld e)) = shallowSetter rec fld e
 shallowExpr (TE _ (Promote ty e)) = shallowExpr e
-shallowExpr (TE _ (Cast    (TPrim pt) (TE _ (ILit n _)))) = pure $ shallowILit n pt
+shallowExpr (TE _ (Cast    (TPrim pt) (TE _ (ILit n _ _)))) = pure $ shallowILit n pt
 shallowExpr (TE _ (Cast    (TPrim pt) e)) =
   TermWithType <$> (mkApp (mkId "ucast") <$> ((:[]) <$> shallowExpr e)) <*> pure (shallowPrimType pt)
 shallowExpr (TE te (Cast  t e)) = do

@@ -435,7 +435,7 @@ atom (TE ty (Op opr es loc)) vs = case opr of
         es' <- mapM (flip singleAtom vs) es
         return ([GOp (opConvert opr) (singleType gt) es'], [])
 
-atom (TE ty (ILit i pt)) vs = do
+atom (TE ty (ILit i pt _)) vs = do
     gt <- graphType ty
     return ([GNum (singleType gt) i],[])
 

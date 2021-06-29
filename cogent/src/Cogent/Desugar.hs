@@ -348,7 +348,7 @@ desugarAlts e0 [S.Alt p l e] = desugarAlt e0 p e  -- Note: Likelihood is ignored
   --                 case e0 of tagname -> e1; e0' -> e0' | alts
   --              B) e0 | (PCon tagname [p]) in e; alts ==> e0 | (PCon tagname (PVar v)) in (let p = v in e); alts
   --              C) e0 | (PCon tagname ps) in e; alts ==> e0 | (PCon tagname [TTuple ps]) in e; alts
-desugarAlts e0@(B.TE t v@(S.Var _) _) (S.Alt (B.TP p1 pos1) l1 e1 : alts) =  -- More than one Alt, which means the pattern cannot be IrrefPattern
+desugarAlts e0@(B.TE t v@(S.Var _) loc) (S.Alt (B.TP p1 pos1) l1 e1 : alts) =  -- More than one Alt, which means the pattern cannot be IrrefPattern
   case p1 of
     S.PCon cn1 [B.TIP (S.PVar v1) _] -> do  -- this is A) for PCon
       e0' <- freshVar
@@ -370,12 +370,12 @@ desugarAlts e0@(B.TE t v@(S.Var _) _) (S.Alt (B.TP p1 pos1) l1 e1 : alts) =  -- 
     S.PIntLit  i -> do
       te <- unfoldSynsShallowM $ B.getTypeTE e0
       let pt = desugarPrimInt te
-      E <$> (If <$> (E <$> (Op Eq <$> ((:) <$> desugarExpr e0 <*> pure [E $ ILit i pt]) <*> pure __dummyPos))
+      E <$> (If <$> (E <$> (Op Eq <$> ((:) <$> desugarExpr e0 <*> pure [E $ ILit i pt loc]) <*> pure __dummyPos))
                                  <*> desugarExpr e1 <*> desugarAlts e0 alts)
     -- FIXME: could do better for PBoolLit because this one is easy to exhaust
-    S.PBoolLit b -> E <$> (If <$> (E <$> (Op Eq <$> ((:) <$> desugarExpr e0 <*> pure [E $ ILit (if b then 1 else 0) Boolean]) <*> pure __dummyPos))
+    S.PBoolLit b -> E <$> (If <$> (E <$> (Op Eq <$> ((:) <$> desugarExpr e0 <*> pure [E $ ILit (if b then 1 else 0) Boolean loc]) <*> pure __dummyPos))
                               <*> desugarExpr e1 <*> desugarAlts e0 alts)
-    S.PCharLit c -> E <$> (If <$> (E <$> (Op Eq <$> ((:) <$> desugarExpr e0 <*> pure [E $ ILit (fromIntegral $ ord c) U8]) <*> pure __dummyPos))
+    S.PCharLit c -> E <$> (If <$> (E <$> (Op Eq <$> ((:) <$> desugarExpr e0 <*> pure [E $ ILit (fromIntegral $ ord c) U8 loc]) <*> pure __dummyPos))
                               <*> desugarExpr e1 <*> desugarAlts e0 alts)
     S.PIrrefutable _ -> __impossible "desugarAlts"
 desugarAlts e0 alts@(S.Alt _ _ e1:_) = do  -- e0 is not a var, so lift it
@@ -772,11 +772,11 @@ desugarExpr (B.TE _ (S.Member e fld) _) = do
   let Just f' = elemIndex fld (P.map fst fs)
   E <$> (Member <$> desugarExpr e <*> pure f')
 desugarExpr (B.TE _ (S.Unitel) loc) = return $ E $ Unit loc
-desugarExpr (B.TE t (S.IntLit n) _) = do
+desugarExpr (B.TE t (S.IntLit n) loc) = do
   te <- unfoldSynsShallowM t
-  return $ E . ILit n $ desugarPrimInt te
-desugarExpr (B.TE _ (S.BoolLit b) _) = return $ E $ ILit (if b then 1 else 0) Boolean
-desugarExpr (B.TE _ (S.CharLit c) _) = return $ E $ ILit (fromIntegral $ ord c) U8
+  return $ E . (ILit n (desugarPrimInt te) loc)
+desugarExpr (B.TE _ (S.BoolLit b) loc) = return $ E $ ILit (if b then 1 else 0) Boolean loc
+desugarExpr (B.TE _ (S.CharLit c) loc) = return $ E $ ILit (fromIntegral $ ord c) U8 loc
 desugarExpr (B.TE _ (S.StringLit s) _) = return $ E $ SLit s
 #ifdef BUILTIN_ARRAYS
 desugarExpr (B.TE _ (S.ArrayLit es) _) = E . ALit <$> mapM desugarExpr es

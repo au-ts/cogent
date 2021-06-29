@@ -415,7 +415,7 @@ typing xi k (EE (TPrim t) (Op o es _) env) = tacSequence [
   typingAll xi k env es          -- Ξ, K, Γ ⊢* args : ts'
   ]
 
-typing xi k (EE _ (ILit _ t) env) = tacSequence [
+typing xi k (EE _ (ILit _ t _) env) = tacSequence [
   return [rule "typing_lit'"],  -- Ξ, K, Γ ⊢ Lit l : TPrim t if
   consumed k env,               -- K ⊢ Γ consumed
   return [simp_solve]           -- t = lit_type l

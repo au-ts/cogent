@@ -507,7 +507,7 @@ specialiseExpr (TE t e) = TE <$> monoType t <*> specialiseExpr' e
     specialiseExpr' (App     e1 e2 loc  ) = App <$> specialiseExpr e1 <*> specialiseExpr e2 <*> pure loc
     specialiseExpr' (Con     tag e t loc) = Con tag <$> specialiseExpr e <*> monoType t <*> pure loc
     specialiseExpr' (Unit    loc        ) = pure $ Unit loc
-    specialiseExpr' (ILit    n   pt     ) = pure $ ILit n pt
+    specialiseExpr' (ILit    n   pt loc ) = pure $ ILit n pt loc
     specialiseExpr' (SLit    s          ) = pure $ SLit s
 #ifdef BUILTIN_ARRAYS
     specialiseExpr' (ALit    es         ) = ALit <$> mapM specialiseExpr es
@@ -549,7 +549,7 @@ eval (TE _ (App f e _)) = do
     VThunk _  -> return (VThunk $ VApp vf ve)
 eval (TE _ (Con tn e t _)) = VVariant tn <$> eval e
 eval (TE _ (Unit _)) = return VUnit
-eval (TE _ (ILit n t))
+eval (TE _ (ILit n t _))
   | U8  <- t = return $ VInt (LU8  $ fromIntegral n)
   | U16 <- t = return $ VInt (LU16 $ fromIntegral n)
   | U32 <- t = return $ VInt (LU32 $ fromIntegral n)

@@ -181,7 +181,7 @@ monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
     monoExpr' (App     e1 e2 loc   ) = App <$> monoExpr e1 <*> monoExpr e2 <*> pure loc
     monoExpr' (Con     tag e t loc ) = Con tag <$> monoExpr e <*> monoType t <*> pure loc
     monoExpr' (Unit    loc         ) = pure $ Unit loc
-    monoExpr' (ILit    n   pt      ) = pure $ ILit n pt
+    monoExpr' (ILit    n   pt loc  ) = pure $ ILit n pt loc
     monoExpr' (SLit    s           ) = pure $ SLit s
 #ifdef BUILTIN_ARRAYS
     monoExpr' (ALit    es          ) = ALit <$> mapM monoExpr es

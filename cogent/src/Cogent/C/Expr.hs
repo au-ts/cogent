@@ -344,7 +344,7 @@ genExpr mv (TE t (Op opr es@(e1:_) loc)) = do
   (v,adecl,astm,vp) <- maybeAssign t' mv e' (mergePools ps)
   return (v, concat decls ++ adecl, concat stms ++ astm, vp)
 
-genExpr mv (TE t (ILit n pt)) = do
+genExpr mv (TE t (ILit n pt _)) = do
   t' <- genType t
   maybeAssign t' mv (mkConst pt n) M.empty
 
