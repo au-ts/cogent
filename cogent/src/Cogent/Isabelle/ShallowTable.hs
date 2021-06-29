@@ -120,7 +120,7 @@ stExpr (TE t e) = stExpr' e >> stType t
     stExpr' (App e1 e2 _)    = stExpr e1 >> stExpr e2
     stExpr' (Con cn e _ _)   = stExpr e
     stExpr' (Unit _)         = return ()
-    stExpr' (ILit i pt)    = return ()
+    stExpr' (ILit i pt _)    = return ()
     stExpr' (SLit s)       = return ()
 #ifdef BUILTIN_ARRAYS
     stExpr' (ALit es)      = mapM_ stExpr es

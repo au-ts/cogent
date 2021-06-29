@@ -132,7 +132,7 @@ markOcc sv (TE tau (Op opr es loc)) = TE tau . flip (Op opr) loc <$> mapM (markO
 markOcc sv (TE tau (App f e loc)) = TE tau <$> (App <$> markOcc sv f <*> markOcc sv e <*> pure loc)
 markOcc sv (TE tau (Con tag e t loc)) = TE tau <$> (Con tag <$> markOcc sv e <*> pure t <*> pure loc)
 markOcc sv (TE tau (Unit loc)) = return $ TE tau $ Unit loc
-markOcc sv (TE tau (ILit n pt)) = return $ TE tau (ILit n pt)
+markOcc sv (TE tau (ILit n pt loc)) = return $ TE tau (ILit n pt loc)
 markOcc sv (TE tau (SLit s)) = return $ TE tau (SLit s)
 markOcc sv (TE tau (Let n e1 e2)) = do
   e1' <- markOcc sv e1
@@ -323,7 +323,7 @@ simplExpr sv subst ins (TE tau (App (TE tau1 (Fun fn tys lvs note locFun)) e2 lo
 simplExpr sv subst ins (TE tau (App e1 e2 loc))  cont = TE tau <$> (App <$> simplExpr sv subst ins e1 cont <*> simplExpr sv subst ins e2 cont <*> pure loc)
 simplExpr sv subst ins (TE tau (Con cn e t loc)) cont = TE tau <$> (Con cn <$> simplExpr sv subst ins e cont <*> pure t <*> pure loc)
 simplExpr sv subst ins (TE tau (Unit loc))       cont = return . TE tau $ Unit loc
-simplExpr sv subst ins (TE tau (ILit i pt))  cont = return . TE tau $ ILit i pt
+simplExpr sv subst ins (TE tau (ILit i pt loc))  cont = return . TE tau $ ILit i pt loc
 simplExpr sv subst ins (TE tau (SLit s))     cont = return . TE tau $ SLit s
 simplExpr sv subst ins (TE tau (Let (n,o) e1 e2)) cont = do
   nle1 <- noLinear e1
@@ -480,7 +480,7 @@ lowerExpr w i (TE tau (Op opr es loc))          = TE tau $ Op opr (L.map (lowerE
 lowerExpr w i (TE tau (App e1 e2 loc))          = TE tau $ App (lowerExpr w i e1) (lowerExpr w i e2) loc
 lowerExpr w i (TE tau (Con cn e t loc))         = TE tau $ Con cn (lowerExpr w i e) t loc
 lowerExpr w i (TE tau (Unit loc))               = TE tau $ Unit loc
-lowerExpr w i (TE tau (ILit n pt))          = TE tau $ ILit n pt
+lowerExpr w i (TE tau (ILit n pt loc))          = TE tau $ ILit n pt loc
 lowerExpr w i (TE tau (SLit s))             = TE tau $ SLit s
 lowerExpr w i (TE tau (Let a e1 e2))        = TE tau $ Let a (lowerExpr w i e1) (lowerExpr (SSuc w) (FSuc i) e2)
 lowerExpr w i (TE tau (LetBang vs a e1 e2)) = TE tau $ LetBang (L.map (first $ lowerFin w i) vs) a (lowerExpr w i e1) (lowerExpr (SSuc w) (FSuc i) e2)
@@ -503,7 +503,7 @@ liftExpr i (TE tau (Op opr es loc))          = TE tau $ Op opr (L.map (liftExpr 
 liftExpr i (TE tau (App e1 e2 loc))          = TE tau $ App (liftExpr i e1) (liftExpr i e2) loc
 liftExpr i (TE tau (Con cn e t loc))         = TE tau $ Con cn (liftExpr i e) t loc
 liftExpr i (TE tau (Unit loc))               = TE tau $ Unit loc
-liftExpr i (TE tau (ILit n pt))          = TE tau $ ILit n pt
+liftExpr i (TE tau (ILit n pt loc))          = TE tau $ ILit n pt loc
 liftExpr i (TE tau (SLit s))             = TE tau $ SLit s
 liftExpr i (TE tau (Let a e1 e2))        = TE tau $ Let a (liftExpr i e1) (liftExpr (FSuc i) e2)
 liftExpr i (TE tau (LetBang vs a e1 e2)) = TE tau $ LetBang (L.map (first $ liftIdx i) vs) a (liftExpr i e1) (liftExpr (FSuc i) e2)
@@ -572,7 +572,7 @@ betaR (TE tau (Op opr es loc))       idx n arg ts = TE (substitute ts tau) <$> (
 betaR (TE tau (App e1 e2 loc))       idx n arg ts = TE (substitute ts tau) <$> (App <$> betaR e1 idx n arg ts <*> betaR e2 idx n arg ts <*> pure loc)
 betaR (TE tau (Con cn e t loc))      idx n arg ts = TE (substitute ts tau) <$> (Con cn <$> betaR e idx n arg ts <*> pure (substitute ts t) <*> pure loc)
 betaR (TE tau (Unit loc))            idx n arg ts = pure . TE (substitute ts tau) $ Unit loc
-betaR (TE tau (ILit i pt))       idx n arg ts = pure . TE (substitute ts tau) $ ILit i pt
+betaR (TE tau (ILit i pt loc))       idx n arg ts = pure . TE (substitute ts tau) $ ILit i pt loc
 betaR (TE tau (SLit s))          idx n arg ts = pure . TE (substitute ts tau) $ SLit s
 betaR (TE tau (Let a e1 e2))     idx n arg ts = TE (substitute ts tau) <$> (Let a <$> betaR e1 idx n arg ts <*> betaR e2 (SSuc idx) n arg ts)
 betaR e@(TE tau (LetBang vs a e1 e2)) idx n@(SSuc n0) arg ts
