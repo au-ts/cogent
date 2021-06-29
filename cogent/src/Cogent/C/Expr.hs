@@ -76,7 +76,7 @@ import           Data.IntMap         as IM    (delete, mapKeys)
 import qualified Data.List           as L
 import           Data.Loc                     (noLoc)  -- FIXME: remove
 import qualified Data.Map            as M
-import           Data.Maybe                   (catMaybes, fromJust)
+import           Data.Maybe                   (catMaybes, fromJust, fromMaybe)
 import           Data.Monoid                  ((<>))
 -- import           Data.Semigroup.Monad
 -- import           Data.Semigroup.Reducer       (foldReduce)
@@ -973,12 +973,10 @@ compile defs mcache ctygen =
         updateWithGSs st typeCorres = for typeCorres $ \(cid,t) ->
           let gss = if not (isTRecord t && recordHasLayout t) then []
                       else -- FIXME: only generate getter/setters for records for now / zilinc
-                           let recordGetters = M.toList $ st^.boxedRecordGetters
-                               recordSetters = M.toList $ st^.boxedRecordSetters
-                               getters = map (first snd) $ filter (\x -> fst (fst x) == StrlCogentType t) recordGetters
-                               setters = map (first snd) $ filter (\x -> fst (fst x) == StrlCogentType t) recordSetters
+                           let getters = fromMaybe M.empty $ M.lookup (StrlCogentType t) $ st^.boxedRecordGetters
+                               setters = fromMaybe M.empty $ M.lookup (StrlCogentType t) $ st^.boxedRecordSetters
                                fields = recordFields t
-                            in P.map (\f -> (P.lookup f getters, P.lookup f setters)) fields
+                            in P.map (\f -> (M.lookup f getters, M.lookup f setters)) fields
            in (cid,t,gss)
 
 

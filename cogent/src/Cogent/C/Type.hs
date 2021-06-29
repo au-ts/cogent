@@ -55,7 +55,7 @@ import           Cogent.Util                  (behead, decap, extTup2l, extTup3r
 import qualified Data.DList          as DList
 import           Data.Nat            as Nat
 import qualified Data.OMap           as OMap
-import           Data.Vec            as Vec   hiding (repeat, zipWith)
+import           Data.Vec            as Vec   hiding (at, repeat, zipWith)
 
 import           Control.Applicative          hiding (empty)
 import           Control.Arrow                       ((***), (&&&), first, second)
@@ -86,7 +86,7 @@ import           Prelude             as P     hiding (mapM)
 #endif
 import           System.IO (Handle, hPutChar)
 import qualified Text.PrettyPrint.ANSI.Leijen as PP hiding ((<$>), (<>))
-import           Lens.Micro                   hiding (at)
+import           Lens.Micro
 import           Lens.Micro.Mtl               hiding (assign)
 import           Lens.Micro.TH
 import           Control.Monad.Identity (runIdentity)
@@ -355,7 +355,9 @@ absTypeCId _ = __impossible "absTypeCId"
 
 -- Returns the right C type
 genType :: CC.Type 'Zero VarName -> Gen v CType
-genType t@(TRecord _ _ s)  | s /= Unboxed = CPtr . CIdent <$> typeCId t
+genType t@(TRecord _ _ s)  | s /= Unboxed = do
+  when __cogent_funused_dargent_accessors $ registerGS t
+  CPtr . CIdent <$> typeCId t
   -- c.f. genTypeA
   -- This puts the pointer around boxed cogent-types
 genType t@(TString)                     = CPtr . CIdent <$> typeCId t
@@ -370,6 +372,18 @@ genType t@(TArray elt l s _)
   | otherwise              = CIdent <$> typeCId t  -- if the array is unboxed, it's wrapped in a struct
 #endif
 genType t                               = CIdent <$> typeCId t
+
+-- ASSUME: the input type is a boxed record.
+registerGS :: CC.Type 'Zero VarName -> Gen v ()
+registerGS t = do g <- use (boxedRecordGetters . at (StrlCogentType t))
+                  s <- use (boxedRecordSetters . at (StrlCogentType t))
+                  case g of
+                    Nothing -> (boxedRecordGetters . at (StrlCogentType t)) ?= M.empty
+                    Just _  -> return ()
+                  case s of
+                    Nothing -> (boxedRecordSetters . at (StrlCogentType t)) ?= M.empty
+                    Just _  -> return ()
+
 
 -- Helper function for remove unnecessary info for cogent types
 simplifyType :: CC.Type 'Zero VarName -> CC.Type 'Zero VarName
