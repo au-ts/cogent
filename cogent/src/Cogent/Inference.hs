@@ -477,7 +477,7 @@ infer (E (Op o es loc))
         let Just t = opType o (map exprType es')
         return (TE t (Op o es' loc))
 infer (E (ILit i t loc)) = return (TE (TPrim t) (ILit i t loc))
-infer (E (SLit s loc)) = return (TE TString (SLit s loc))
+infer (E (SLit s)) = return (TE TString (SLit s))
 #ifdef BUILTIN_ARRAYS
 infer (E (ALit [])) = __impossible "We don't allow 0-size array literals"
 infer (E (ALit es))

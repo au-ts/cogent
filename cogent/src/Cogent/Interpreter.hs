@@ -508,7 +508,7 @@ specialiseExpr (TE t e) = TE <$> monoType t <*> specialiseExpr' e
     specialiseExpr' (Con     tag e t loc) = Con tag <$> specialiseExpr e <*> monoType t <*> pure loc
     specialiseExpr' (Unit    loc        ) = pure $ Unit loc
     specialiseExpr' (ILit    n   pt loc ) = pure $ ILit n pt loc
-    specialiseExpr' (SLit    s loc      ) = pure $ SLit s loc
+    specialiseExpr' (SLit    s          ) = pure $ SLit s
 #ifdef BUILTIN_ARRAYS
     specialiseExpr' (ALit    es         ) = ALit <$> mapM specialiseExpr es
     specialiseExpr' (ArrayIndex e i     ) = ArrayIndex <$> specialiseExpr e <*> specialiseExpr i
@@ -555,7 +555,7 @@ eval (TE _ (ILit n t _))
   | U32 <- t = return $ VInt (LU32 $ fromIntegral n)
   | U64 <- t = return $ VInt (LU64 $ fromIntegral n)
   | Boolean <- t = return $ VBool (if n == 0 then False else True)
-eval (TE _ (SLit s _)) = return $ VString s
+eval (TE _ (SLit s)) = return $ VString s
 #ifdef BUILTIN_ARRAYS
 eval (TE _ (ALit es)) = undefined
 eval (TE _ (ArrayIndex arr idx)) = undefined

@@ -61,7 +61,7 @@ isAtom (E (App f arg _)) | isVar f && isVar arg = True
 isAtom (E (Con cn x _ _)) | isVar x = True
 isAtom (E (Unit _)) = True
 isAtom (E (ILit {})) = True
-isAtom (E (SLit _ _)) = True
+isAtom (E (SLit _)) = True
 #ifdef BUILTIN_ARRAYS
 isAtom (E (ALit es)) | all isVar es = True
 isAtom (E (ArrayIndex e i)) | isVar e && isVar i = True
