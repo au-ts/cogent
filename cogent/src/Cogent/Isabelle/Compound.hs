@@ -39,6 +39,8 @@ import qualified Data.Map as M
 import Data.Maybe
 import Prelude as P
 
+import Text.Parsec.Pos (SourcePos)
+
 -- | Try to flatten a nested case into a map of alternatives
 --
 -- A Core program like:
@@ -106,7 +108,7 @@ expDiscardVar :: Fin ('Suc v) -> PosTypedExpr t ('Suc v) a b -> Maybe (PosTypedE
 expDiscardVar rm0 (TE t0 e0) = TE <$> typDiscardVar (finNat rm0) t0 <*> expDiscardVar' rm0 expDiscardVar e0
 
 expDiscardVar' :: Fin ('Suc v)
-               -> (forall v. Fin ('Suc v) -> e t ('Suc v) a b -> Maybe (e t v a b))
+               -> (forall v. Fin ('Suc v) -> e SourcePos t ('Suc v) a b -> Maybe (e SourcePos t v a b)) -- FIXME: use loc typevar instead of SourcePos
                -> PosExpr t ('Suc v) a b e -> Maybe (PosExpr t v a b e)
 expDiscardVar' rm0 f e = case e of
   Variable (v, a) loc    -> Variable <$> ((,) <$> discardVar rm0 v <*> pure a) <*> pure loc

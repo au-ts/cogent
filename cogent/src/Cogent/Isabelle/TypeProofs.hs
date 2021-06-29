@@ -322,7 +322,7 @@ selectEnv [] env = cleared env
 selectEnv ((v,_):vs) env = update (selectEnv vs env) v (env `at` v)
 
 -- Annotates a typed expression with the environment required to successfully execute it
-splitEnv :: (Pretty a) => Vec v (Maybe (Type t VarName)) -> PosTypedExpr t v a VarName -> EnvExpr t v a VarName
+splitEnv :: (Pretty a) => Vec v (Maybe (Type t VarName)) -> PosTypedExpr t v a VarName -> EnvExpr loc t v a VarName
 splitEnv env (TE t (Unit loc))             = EE t (Unit loc)          $ cleared env
 splitEnv env (TE t (ILit i t'))      = EE t (ILit i t')   $ cleared env
 splitEnv env (TE t (SLit s))         = EE t (SLit s)      $ cleared env
@@ -414,7 +414,7 @@ splitEnv env (TE t (Take a e f e2)) =
 
 -- Ensures that the environment of an expression is equal to the sum of the
 -- environments of the subexpressions.
-pushDown :: (Pretty a) => Vec v (Maybe (Type t VarName)) -> EnvExpr t v a VarName -> EnvExpr t v a VarName
+pushDown :: (Pretty a) => Vec v (Maybe (Type t VarName)) -> EnvExpr loc t v a VarName -> EnvExpr loc t v a VarName
 pushDown unused (EE ty e@(Unit _)      _) = EE ty e unused
 pushDown unused (EE ty e@(ILit {}) _) = EE ty e unused
 pushDown unused (EE ty e@(SLit {}) _) = EE ty e unused
@@ -525,7 +525,7 @@ treeBang i is (x:xs) | i `elem` is = Just TSK_NS:treeBang (i+1) is xs
                      | otherwise   = x:treeBang (i+1) is xs
 treeBang i is [] = []
 
-typeTree :: EnvExpr t v a VarName -> TypingTree t
+typeTree :: EnvExpr loc t v a VarName -> TypingTree t
 typeTree (EE ty (Split a e1 e2) env) = TyTrSplit (treeSplits env (envOf e1) (peel2 $ envOf e2)) ([], typeTree e1) ([envOf e2 `at` FZero, envOf e2 `at` FSuc FZero], typeTree e2)
 typeTree (EE ty (Let a e1 e2) env) = TyTrSplit (treeSplits env (envOf e1) (peel $ envOf e2)) ([], typeTree e1) ([envOf e2 `at` FZero], typeTree e2)
 

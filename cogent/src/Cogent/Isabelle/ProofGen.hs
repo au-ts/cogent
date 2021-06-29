@@ -49,21 +49,21 @@ import Text.PrettyPrint.ANSI.Leijen hiding ((<$>))
 
 
 type Xi a b = [Definition PosTypedExpr a b]
-data EnvExpr t v a b = EE { eexprType :: Type t b
+data EnvExpr loc t v a b = EE { eexprType :: Type t b
                           , eexprExpr :: PosExpr t v a b EnvExpr
                           , eexprEnv  :: Vec v (Maybe (Type t b))
                           } {- FIXME: deriving (Show)-}
 
-instance Functor (EnvExpr t v a) where  -- over @b@
+instance Functor (EnvExpr loc t v a) where  -- over @b@
   fmap f (EE t e env) = EE (fmap f t) (ffmap f e) (fmap (fmap $ fmap f) env)
 
-instance Functor (Flip (EnvExpr t v) b) where  -- over @a@
+instance Functor (Flip (EnvExpr loc t v) b) where  -- over @a@
   fmap f (Flip (EE t e env)) = Flip $ EE t (fffmap f e) env
 
-instance Prec (EnvExpr t v a b) where
+instance Prec (EnvExpr loc t v a b) where
   prec (EE _ e _) = prec e
 
-instance (Pretty a, Pretty b) => Pretty (EnvExpr t v a b) where
+instance (Pretty a, Pretty b) => Pretty (EnvExpr loc t v a b) where
   pretty (EE t e env) = pretty e
 
 data MLOption a = SOME a
@@ -229,11 +229,11 @@ follow_tt k env env_x env_y = hintListSequence $ map (kindingHint k) new
     n_y = take (Nat.toInt (Vec.length env_y) - l) (cvtToList env_y)
     new = catMaybes (n_x ++ n_y)
 
-proofSteps :: (Ord b, Show b, Pretty b) => Xi a b -> Vec t Kind -> Type t b -> EnvExpr t v a b
+proofSteps :: (Ord b, Show b, Pretty b) => Xi a b -> Vec t Kind -> Type t b -> EnvExpr loc t v a b
            -> State TypingSubproofs (LeafTree Hints)
 proofSteps xi k ti x = hintListSequence [ kindingHint k ti, ttyping xi k x ]
 
-ttyping :: (Ord b, Show b, Pretty b) => Xi a b -> Vec t Kind -> EnvExpr t v a b -> State TypingSubproofs (LeafTree Hints)
+ttyping :: (Ord b, Show b, Pretty b) => Xi a b -> Vec t Kind -> EnvExpr loc t v a b -> State TypingSubproofs (LeafTree Hints)
 ttyping xi k (EE t' (Split a x y) env) = hintListSequence [ -- Ξ, K, Γ ⊢ Split x y : t' if
   follow_tt k env (envOf x) (envOf y),
   ttyping xi k x,                            -- Ξ, K, Γ1 ⊢ x : TProduct t u
@@ -271,7 +271,7 @@ ttyping xi k (EE u (Take a e@(EE (TRecord _ ts _) _ _) f e') env) = hintListSequ
   ]
 ttyping xi k e = pure . TypingTacs <$> typingWrapper xi k e
 
-typingWrapper :: (Ord b, Show b, Pretty b) => Xi a b -> Vec t Kind -> EnvExpr t v a b
+typingWrapper :: (Ord b, Show b, Pretty b) => Xi a b -> Vec t Kind -> EnvExpr loc t v a b
               -> State TypingSubproofs [Tactic]
 typingWrapper xi k (EE t (Variable i loc) env) = tacSequence [ ]
 typingWrapper xi k (EE t (Struct fs) env)
@@ -285,7 +285,7 @@ allVars (Variable _ _ : vs) = allVars vs
 allVars [] = True
 allVars _ = False
 
-typing :: (Eq b, Ord b, Show b, Pretty b) => Xi a b -> Vec t Kind -> EnvExpr t v a b -> State TypingSubproofs [Tactic]
+typing :: (Eq b, Ord b, Show b, Pretty b) => Xi a b -> Vec t Kind -> EnvExpr loc t v a b -> State TypingSubproofs [Tactic]
 typing xi k (EE t (Variable i loc) env) = tacSequence [
   return $ [rule "typing_var"],           -- Ξ, K, Γ ⊢ Var i : t if
   weakens k env (singleton (fst i) env),  -- K ⊢ Γ ↝w singleton (length Γ) i t
@@ -487,7 +487,7 @@ typingAll :: (Ord b, Show b, Pretty b)
           => Xi a b
           -> Vec t Kind
           -> Vec v (Maybe (Type t b))
-          -> [EnvExpr t v a b]
+          -> [EnvExpr loc t v a b]
           -> State TypingSubproofs [Tactic]
 -- Γ = empty n ⟹  Ξ, K, Γ ⊢* [] : []
 typingAll xi k g [] = return [rule_tac "typing_all_empty'" [("n", show . Nat.toInt $ Vec.length g)],

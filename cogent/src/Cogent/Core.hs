@@ -175,9 +175,9 @@ type PosExpr = Expr SourcePos
 data Expr loc t v a b e
   = Variable (Fin v, a) loc
   | Fun CoreFunName [Type t b] [DataLayout BitRange] FunNote loc  -- here do we want to keep partial application and infer again? / zilinc
-  | Op Op [e t v a b] loc
-  | App (e t v a b) (e t v a b) loc
-  | Con TagName (e t v a b) (Type t b) loc
+  | Op Op [e loc t v a b] loc
+  | App (e loc t v a b) (e loc t v a b) loc
+  | Con TagName (e loc t v a b) (Type t b) loc
   | Unit loc
   | ILit Integer PrimInt
   | SLit String
@@ -191,27 +191,27 @@ data Expr loc t v a b e
           -- \ ^^^ The first is the taken object, and the second is the array
   | ArrayPut (e t v a b) (e t v a b) (e t v a b)
 #endif
-  | Let a (e t v a b) (e t ('Suc v) a b)
-  | LetBang [(Fin v, a)] a (e t v a b) (e t ('Suc v) a b)
-  | Tuple (e t v a b) (e t v a b)
-  | Struct [(FieldName, e t v a b)]  -- unboxed record
-  | If (e t v a b) (e t v a b) (e t v a b)   -- technically no longer needed as () + () == Bool
-  | Case (e t v a b) TagName (Likelihood, a, e t ('Suc v) a b) (Likelihood, a, e t ('Suc v) a b)
-  | Esac (e t v a b)
-  | Split (a, a) (e t v a b) (e t ('Suc ('Suc v)) a b)
-  | Member (e t v a b) FieldIndex
-  | Take (a, a) (e t v a b) FieldIndex (e t ('Suc ('Suc v)) a b)
+  | Let a (e loc t v a b) (e loc t ('Suc v) a b)
+  | LetBang [(Fin v, a)] a (e loc t v a b) (e loc t ('Suc v) a b)
+  | Tuple (e loc t v a b) (e loc t v a b)
+  | Struct [(FieldName, e loc t v a b)]  -- unboxed record
+  | If (e loc t v a b) (e loc t v a b) (e loc t v a b)   -- technically no longer needed as () + () == Bool
+  | Case (e loc t v a b) TagName (Likelihood, a, e loc t ('Suc v) a b) (Likelihood, a, e loc t ('Suc v) a b)
+  | Esac (e loc t v a b)
+  | Split (a, a) (e loc t v a b) (e loc t ('Suc ('Suc v)) a b)
+  | Member (e loc t v a b) FieldIndex
+  | Take (a, a) (e loc t v a b) FieldIndex (e loc t ('Suc ('Suc v)) a b)
      -- \ ^^^ The first is the taken field, and the second is the record
-  | Put (e t v a b) FieldIndex (e t v a b)
-  | Promote (Type t b) (e t v a b)  -- only for guiding the tc. rep. unchanged.
-  | Cast (Type t b) (e t v a b)  -- only for integer casts. rep. changed
+  | Put (e loc t v a b) FieldIndex (e loc t v a b)
+  | Promote (Type t b) (e loc t v a b)  -- only for guiding the tc. rep. unchanged.
+  | Cast (Type t b) (e loc t v a b)  -- only for integer casts. rep. changed
 -- \ vvv constraint no smaller than header, thus UndecidableInstances
 deriving instance (Show a, Show b, Show loc, Show (e loc t v a b), Show (e loc t ('Suc v) a b), Show (e loc t ('Suc ('Suc v)) a b))
-  => Show (Expr loc t v a b (e loc))
+  => Show (Expr loc t v a b e)
 deriving instance (Eq a, Eq b, Eq loc, Eq (e loc t v a b), Eq (e loc t ('Suc v) a b), Eq (e loc t ('Suc ('Suc v)) a b))
-  => Eq  (Expr loc t v a b (e loc))
+  => Eq  (Expr loc t v a b e)
 deriving instance (Ord a, Ord b, Ord loc, Ord (e loc t v a b), Ord (e loc t ('Suc v) a b), Ord (e loc t ('Suc ('Suc v)) a b))
-  => Ord (Expr loc t v a b (e loc))
+  => Ord (Expr loc t v a b e)
 
 -- NOTE: We leave these logic expressions here even when the --builtin-arrays
 -- flag is off. The reason is that, without it, the type class instance
@@ -291,10 +291,10 @@ uexprToLExpr f (E e) = exprToLExpr f uexprToLExpr uexprToLExpr uexprToLExpr e
 #endif
 
 type PosUntypedExpr = UntypedExpr SourcePos
-data UntypedExpr loc t v a b = E  (Expr loc t v a b (UntypedExpr loc)) deriving (Show, Eq, Ord)
+data UntypedExpr loc t v a b = E  (Expr loc t v a b UntypedExpr) deriving (Show, Eq, Ord)
 
 type PosTypedExpr = TypedExpr SourcePos
-data TypedExpr   loc t v a b = TE { exprType :: Type t b , exprExpr :: Expr loc t v a b (TypedExpr loc) }
+data TypedExpr   loc t v a b = TE { exprType :: Type t b , exprExpr :: Expr loc t v a b TypedExpr }
                          deriving (Show, Eq, Ord)
 
 data FunctionType b = forall t l. FT (Vec t Kind) (Vec l (Type t b)) (Type t b) (Type t b)
@@ -380,7 +380,7 @@ insertIdxAtTypedExpr :: Fin ('Suc v) -> TypedExpr loc t v a b -> TypedExpr loc t
 insertIdxAtTypedExpr cut (TE t e) = TE (insertIdxAtType (finNat cut) t) (insertIdxAtE cut insertIdxAtTypedExpr e)
 
 insertIdxAtE :: Fin ('Suc v)
-             -> (forall v. Fin ('Suc v) -> e t v a b -> e t ('Suc v) a b)
+             -> (forall v. Fin ('Suc v) -> e loc t v a b -> e loc t ('Suc v) a b)
              -> (Expr loc t v a b e -> Expr loc t ('Suc v) a b e)
 insertIdxAtE cut f (Variable v loc) = Variable (first (liftIdx cut) v) loc
 insertIdxAtE cut f (Fun fn ts ls nt loc) = Fun fn ts ls nt loc
@@ -416,7 +416,7 @@ insertIdxAtE cut f (Cast ty e) = Cast ty (f cut e)
 
 -- pre-order fold over Expr wrapper
 foldEPre :: (Monoid m)
-         => (forall t v. e1 loc t v a b -> Expr loc t v a b (e1 loc))
+         => (forall t v. e1 loc t v a b -> Expr loc t v a b e1)
          -> (forall t v. e1 loc t v a b -> m)
          -> e1 loc t v a b
          -> m
@@ -453,7 +453,7 @@ foldEPre unwrap f e = case unwrap e of
   (Cast _ e1)         -> f e `mappend` foldEPre unwrap f e1
 
 
-fmapE :: (forall t v. e1 loc t v a b -> e2 loc t v a b) -> Expr loc t v a b (e1 loc) -> Expr loc t v a b (e2 loc)
+fmapE :: (forall t v. e1 loc t v a b -> e2 loc t v a b) -> Expr loc t v a b e1 -> Expr loc t v a b e2
 fmapE f (Variable v loc)         = Variable v loc
 fmapE f (Fun fn ts ls nt loc)    = Fun fn ts ls nt loc
 fmapE f (Op opr es loc)          = Op opr (map f es) loc
@@ -494,10 +494,10 @@ untypeD (FunDef  attr fn ts ls ti to e) = FunDef  attr fn ts ls ti to (untypeE e
 untypeD (AbsDecl attr fn ts ls ti to  ) = AbsDecl attr fn ts ls ti to
 untypeD (TypeDef tn ts mt) = TypeDef tn ts mt
 
-instance (Functor (e t v a),
-          Functor (e t ('Suc v) a),
-          Functor (e t ('Suc ('Suc v)) a))
-       => Functor (Flip (Expr l t v a) e) where  -- map over @b@
+instance (Functor (e loc t v a),
+          Functor (e loc t ('Suc v) a),
+          Functor (e loc t ('Suc ('Suc v)) a))
+       => Functor (Flip (Expr loc t v a) e) where  -- map over @b@
   fmap f (Flip (Variable v loc)         )      = Flip $ Variable v loc
   fmap f (Flip (Fun fn ts ls nt loc)    )      = Flip $ Fun fn (fmap (fmap f) ts) ls nt loc
   fmap f (Flip (Op opr es loc)          )      = Flip $ Op opr (fmap (fmap f) es) loc
@@ -529,10 +529,10 @@ instance (Functor (e t v a),
   fmap f (Flip (Promote ty e)       )      = Flip $ Promote (fmap f ty) (fmap f e)
   fmap f (Flip (Cast ty e)          )      = Flip $ Cast (fmap f ty) (fmap f e)
 
-instance (Functor (Flip (e t v) b),
-          Functor (Flip (e t ('Suc v)) b),
-          Functor (Flip (e t ('Suc ('Suc v))) b))
-       => Functor (Flip2 (Expr l t v) e b) where  -- map over @a@
+instance (Functor (Flip (e loc t v) b),
+          Functor (Flip (e loc t ('Suc v)) b),
+          Functor (Flip (e loc t ('Suc ('Suc v))) b))
+       => Functor (Flip2 (Expr loc t v) e b) where  -- map over @a@
   fmap f (Flip2 (Variable v loc)         )      = Flip2 $ Variable (second f v) loc
   fmap f (Flip2 (Fun fn ts ls nt loc)    )      = Flip2 $ Fun fn ts ls nt loc
   fmap f (Flip2 (Op opr es loc)          )      = Flip2 $ Op opr (fmap (ffmap f) es) loc
@@ -640,7 +640,7 @@ instance (Pretty a, Pretty b) => Pretty (TypedExpr loc t v a b) where
 instance (Pretty a, Pretty b) => Pretty (UntypedExpr loc t v a b) where
   pretty (E e) = pretty e
 
-instance (Pretty a, Pretty b, Prec (e t v a b), Pretty (e t v a b), Pretty (e t ('Suc v) a b), Pretty (e t ('Suc ('Suc v)) a b))
+instance (Pretty a, Pretty b, Prec (e loc t v a b), Pretty (e loc t v a b), Pretty (e loc t ('Suc v) a b), Pretty (e loc t ('Suc ('Suc v)) a b))
          => Pretty (Expr loc t v a b e) where
   pretty (Op opr [a,b] _)
      | LeftAssoc  l <- associativity opr = prettyPrec (l+1) a <+> primop opr <+> prettyPrec l b
