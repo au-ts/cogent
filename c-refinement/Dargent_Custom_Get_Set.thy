@@ -36,11 +36,11 @@ lemma gets_comp : "do x <- gets f ;
                      =
                   gets (\<lambda> s . f' (f s) s)"
   by monad_eq
-
+(*
 lemma gets_return : "do x <- gets f ;
                      return (g x) od = gets (g o f)"
   by monad_eq
-
+*)
 
 lemma modify_comp: "do _ <- modify f ; modify f' od = modify (f' o f )"
   by (monad_eq)
@@ -214,14 +214,19 @@ fun generate_getter_term ctxt getter_name heap_getter get_def_thm =
 get_def_thm
 |>
 Rule_Insts.of_rule ctxt ([SOME "ptr"], []) [] |>
-thm_simp ctxt
+thm_simp
+(* rewrites return into gets 
+(happened to be useful for variant constructors without argument)
+*)
+(Raw_Simplifier.flip_simp @{thm NonDetMonadLemmas.gets_to_return }ctxt)
+
 ([
 (* We add this rewrite rule to remove the guards *)
   (Proof_Context.read_term_pattern ctxt 
    "\<And> (e :: lifted_globals \<Rightarrow> _). guard e = gets (\<lambda>_  . ())"
   |> Thm.cterm_of ctxt  |> Thm.assume)
   ] 
-  @ @{thms gets_return gets_comp NonDetMonadEx.condition_gets }  )
+  @ @{thms (* gets_return *) gets_comp NonDetMonadEx.condition_gets }  )
 |> thm_simp 
 (* rewrite in the then and else statements *)
 (Simplifier.add_cong @{thm if_cong} ctxt)
