@@ -142,8 +142,8 @@ data GenState  = GenState
     --   The map is from the original function names (before prefixing with @\"ffi_\"@ to a pair of @(marshallable_arg_type, marshallable_ret_type)@.
     --   This map is needed when we generate the Haskell side of the FFI.
 
-  , _boxedRecordSetters :: M.Map (StrlCogentType, FieldName) FunName
-  , _boxedRecordGetters :: M.Map (StrlCogentType, FieldName) FunName
+  , _boxedRecordSetters :: M.Map StrlCogentType (M.Map FieldName FunName)
+  , _boxedRecordGetters :: M.Map StrlCogentType (M.Map FieldName FunName)
     -- ^ The expressions to call the generated setter and getter functions for the fields of boxed cogent records.
   , _boxedArraySetters :: M.Map (CC.Type 'Zero VarName) FunName
   , _boxedArrayGetters :: M.Map (CC.Type 'Zero VarName) FunName

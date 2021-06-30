@@ -43,14 +43,17 @@ import Data.Nat
 import qualified Data.OMap as OMap
 import Data.Char
 
-import Control.Monad (forM)
+import Control.Monad (forM, when)
 import Control.Monad.Writer.Class (tell)
 import Data.List (foldl', scanl')
-import Data.Map
+import Data.Map as M
   ( (!)
   , fromList
+  , empty
   , insert
+  , lookup
   )
+import Data.Maybe (fromMaybe)
 import Lens.Micro
   ( (^.)
   , at
@@ -77,8 +80,11 @@ genGSRecord
   -> GetOrSet            -- ^ The type of function to generate (i.e. the mode).
   -> Gen v FunName       -- ^ The name of the getter/setter function for the field of the record.
 genGSRecord t fld m = do
-  gsetter <- use ((case m of Get -> boxedRecordGetters; Set -> boxedRecordSetters) . at (StrlCogentType t, fld))
-  case gsetter of
+  let glens = case m of Get -> boxedRecordGetters; Set -> boxedRecordSetters
+      slens = case m of Get -> boxedRecordGetters; Set -> boxedRecordSetters
+  entry <- use (glens . at (StrlCogentType t))
+  let entry' = fromMaybe M.empty entry
+  case M.lookup fld entry' of
     Just fn -> return fn
     Nothing -> case t of
       TRecord _ fts (Boxed _ (Layout (RecordLayout fls))) -> do
@@ -87,7 +93,7 @@ genGSRecord t fld m = do
         t' <- genType t
         cid <- typeCId t
         fn <- genGS True t' ft fl [fld] m
-        ((case m of Get -> boxedRecordGetters; Set -> boxedRecordSetters) . at (StrlCogentType t, fld)) ?= fn
+        (slens . at (StrlCogentType t)) ?= M.insert fld fn entry'
         let updGS Get f (Nothing, s) = (Just f, s)
             updGS Get f (Just g , s) = __assert_ (f == g) "genGSRecord: different getter for the same field" (Just g, s)
             updGS Set f (g, Nothing) = (g, Just f)
