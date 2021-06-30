@@ -847,6 +847,26 @@ genFfiFunc rt fn [t]
               | otherwise = t
 genFfiFunc _ _ _ = __impossible "genFfiFunc: generated C functions should always have 1 argument"
 
+
+genAllGSetters :: Gen 'Zero ()
+genAllGSetters | not __cogent_funused_dargent_accessors = return ()
+               | otherwise = do
+  mg <- M.toList <$> use boxedRecordGetters
+  ms <- M.toList <$> use boxedRecordSetters
+  forM_ mg $ \(StrlCogentType t,v) -> do
+    let TRecord _ fts _ = t
+    forM_ fts $ \(fld,_) ->
+      case M.lookup fld v of
+        Just fn -> return ()
+        Nothing -> genGSRecord t fld Get >> return ()
+  forM_ ms $ \(StrlCogentType t,v) -> do
+    let TRecord _ fts _ = t
+    forM_ fts $ \(fld,_) ->
+      case M.lookup fld v of
+        Just fn -> return ()
+        Nothing -> genGSRecord t fld Set >> return ()
+
+
  -- NOTE: This function excessively uses `unsafeCoerce' because of existentials / zilinc
 genDefinition :: Definition TypedExpr VarName VarName -> Gen 'Zero [CExtDecl]
 genDefinition (FunDef attr fn Nil Nil t rt e) = do
@@ -942,8 +962,10 @@ compile defs mcache ctygen =
                                     , _boxedArrayElemSetters = M.empty
                                     , _boxedArrayElemGetters = M.empty
                                     }
+      -- vvv The writer stores the Dargent getter/setter definitions.
       (extDecls, st, gsDecls) = runRWS (runGen $
-        concat <$> mapM genDefinition (fdefs ++ tdefs)  -- `fdefs' will collect the types that are used in the program, and `tdefs' can generate synonyms
+        (concat <$> mapM genDefinition (fdefs ++ tdefs)) <*  -- `fdefs' will collect the types that are used in the program, and `tdefs' can generate synonyms
+        genAllGSetters
         ) Nil state
       (enum, st', _) = runRWS (runGen $ (mappend <$> genLetTrueEnum <*> genEnum)) Nil st  -- `LET_TRUE', `LETBANG_TRUE' & `_tag' enums
       ((funclasses,tns), st'', _) = runRWS (runGen genFunClasses) Nil st'  -- fun_enums & dispatch functions

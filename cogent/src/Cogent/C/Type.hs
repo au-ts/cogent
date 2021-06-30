@@ -59,6 +59,7 @@ import           Data.Vec            as Vec   hiding (at, repeat, zipWith)
 
 import           Control.Applicative          hiding (empty)
 import           Control.Arrow                       ((***), (&&&), first, second)
+import           Control.Monad.Identity       (runIdentity)
 import           Control.Monad.RWS.Strict     hiding (mapM, mapM_, Dual, (<>), Product, Sum)
 import           Data.Binary
 import           Data.Char                    (isAlphaNum, toUpper)
@@ -79,6 +80,9 @@ import qualified Data.Set            as S
 import           Data.String
 import           Data.Traversable             (mapM)
 import           Data.Tuple                   (swap)
+import           Lens.Micro
+import           Lens.Micro.Mtl               hiding (assign)
+import           Lens.Micro.TH
 #if __GLASGOW_HASKELL__ < 709
 import           Prelude             as P     hiding (mapM, mapM_)
 #else
@@ -86,10 +90,6 @@ import           Prelude             as P     hiding (mapM)
 #endif
 import           System.IO (Handle, hPutChar)
 import qualified Text.PrettyPrint.ANSI.Leijen as PP hiding ((<$>), (<>))
-import           Lens.Micro
-import           Lens.Micro.Mtl               hiding (assign)
-import           Lens.Micro.TH
-import           Control.Monad.Identity (runIdentity)
 
 -- import Debug.Trace
 -- import Unsafe.Coerce (unsafeCoerce)
@@ -373,17 +373,17 @@ genType t@(TArray elt l s _)
 #endif
 genType t                               = CIdent <$> typeCId t
 
--- ASSUME: the input type is a boxed record.
 registerGS :: CC.Type 'Zero VarName -> Gen v ()
-registerGS t = do g <- use (boxedRecordGetters . at (StrlCogentType t))
-                  s <- use (boxedRecordSetters . at (StrlCogentType t))
-                  case g of
-                    Nothing -> (boxedRecordGetters . at (StrlCogentType t)) ?= M.empty
-                    Just _  -> return ()
-                  case s of
-                    Nothing -> (boxedRecordSetters . at (StrlCogentType t)) ?= M.empty
-                    Just _  -> return ()
-
+registerGS t@(TRecord _ _ (Boxed _ (Layout {}))) = do
+  g <- use (boxedRecordGetters . at (StrlCogentType t))
+  s <- use (boxedRecordSetters . at (StrlCogentType t))
+  case g of
+    Nothing -> (boxedRecordGetters . at (StrlCogentType t)) ?= M.empty
+    Just _  -> return ()
+  case s of
+    Nothing -> (boxedRecordSetters . at (StrlCogentType t)) ?= M.empty
+    Just _  -> return ()
+registerGS _ = return ()
 
 -- Helper function for remove unnecessary info for cogent types
 simplifyType :: CC.Type 'Zero VarName -> CC.Type 'Zero VarName
