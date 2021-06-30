@@ -59,8 +59,8 @@ deepDataLayout CLayout = mkId "None"
 deepDataLayout (Layout l) = mkApp (mkId "Some") [deepDataLayout' l]
 
 deepDataLayout' :: DataLayout' BitRange -> Term
-deepDataLayout' UnitLayout = deepBitRange (BitRange 0 0)
-deepDataLayout' (PrimLayout b _) = mkApp (mkId "LayBitRange") [deepBitRange b]
+deepDataLayout' UnitLayout = deepDLBitRange (BitRange 0 0)
+deepDataLayout' (PrimLayout b _) = deepDLBitRange b
 deepDataLayout' (RecordLayout fs) = 
   mkApp (mkId "LayRecord") [
     mkList $
@@ -69,13 +69,16 @@ deepDataLayout' (RecordLayout fs) =
 deepDataLayout' (SumLayout tag alts) = 
   mkApp (mkId "LayVariant") [ deepBitRange tag ,
      mkList $ map (\ (name, (t, l)) -> 
-            mkTuple [mkId name, mkInt t, deepDataLayout' l]
+            mkTuple [mkString name, mkInt1S0 t, deepDataLayout' l]
          ) $ Map.toList alts
      ] 
 deepDataLayout' (VarLayout v offset) = mkApp (mkId "LayVar") [mkInt1S0 (toInteger (Nat.natToInt v)), mkInt offset]
 #ifdef BUILTIN_ARRAYS
 deepDataLayout' (ArrayLayout _) = mkId "undefined"
 #endif
+
+deepDLBitRange :: BitRange -> Term
+deepDLBitRange b = mkApp (mkId "LayBitRange")  [ deepBitRange b ]
 
 deepBitRange :: BitRange -> Term
 deepBitRange (BitRange size offset) = mkTuple [mkInt1S0 size, mkInt1S0 offset]
