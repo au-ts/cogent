@@ -549,16 +549,24 @@ inductive match_repr_layout :: "lrepr \<Rightarrow> ptr_layout \<Rightarrow> boo
   where
   match_lrtvar :  "match_repr_layout (LRVar i) l"
 | match_lrprim : "(s = size_prim_layout t) \<Longrightarrow> match_repr_layout (LRPrim t) (LayBitRange (s, x))"
-| match_lrsum : "\<lbrakk> (map fst ts :: name list) = map fst ls
-   ; list_all2 match_repr_layout (map snd ts) (map (snd \<circ> snd) ls)
+| match_lrsum : "\<lbrakk> 
+\<comment> \<open>the order does not matter\<close>
+ set (map fst ts) = set (map fst ls) ;
+   list_all2 match_repr_layout      
+       (map snd (sort_key (String.implode o fst) ts))
+       (map (snd o snd) (sort_key (String.implode o fst) ls))
    \<rbrakk> \<Longrightarrow> match_repr_layout (LRSum ts) (LayVariant x ls)"
 | match_lrproduct : "\<lbrakk> match_repr_layout t1 p1
    ; match_repr_layout t2 p2
    \<rbrakk> \<Longrightarrow> match_repr_layout (LRProduct t1 t2) (LayProduct p1 p2)"
 | match_lrptr : "(s = size_ptr) \<Longrightarrow> match_repr_layout LRPtr (LayBitRange (s, n))"
-| match_lrrecord : "\<lbrakk> (map fst ts :: name list) = map fst ls
-   \<comment> \<open>; match_repr_layout_all (map snd ts) (map snd ls)\<close>
-; list_all2 match_repr_layout (map snd ts) (map snd ls)
+| match_lrrecord : "\<lbrakk>
+    set (map fst ts) = set (map fst ls) ;
+   list_all2 match_repr_layout      
+\<comment> \<open>the order does not matter\<close>
+       (map snd (sort_key (String.implode o fst) ts))
+       (map snd (sort_key (String.implode o fst) ls))
+ \<comment> \<open>(* ;list_all (\<lambda> (name, l). match_repr_layout (the (map_of ts name)) l) ls  *)\<close>
    \<rbrakk> \<Longrightarrow> match_repr_layout (LRRecord ts) (LayRecord ls)"
 | match_lrunit : "s = 0 \<Longrightarrow> match_repr_layout LRUnit (LayBitRange (s, n))"
 | match_lrlvar : "match_repr_layout t (LayVar i off)"
@@ -569,15 +577,21 @@ lemma match_repr_layout_simps:
   
   "\<And>t p. match_repr_layout (LRPrim t) (LayBitRange p) \<longleftrightarrow> fst p = size_prim_layout t"
   "\<And>ts ls x. match_repr_layout (LRSum ts) (LayVariant x ls) \<longleftrightarrow>
-      map fst ts = map fst ls \<and> list_all2 match_repr_layout (map snd ts) (map (snd \<circ> snd) ls)"
+      set (map fst ts) = set (map fst ls)  \<and> 
+       list_all2 match_repr_layout      
+       (map snd (sort_key (String.implode o fst) ts))
+       (map (snd o snd) (sort_key (String.implode o fst) ls))" 
   "\<And>t1 t2 p1 p2. match_repr_layout (LRProduct t1 t2) (LayProduct p1 p2) \<longleftrightarrow>
       match_repr_layout t1 p1 \<and> match_repr_layout t2 p2"
-  "\<And>ts p. match_repr_layout LRPtr (LayBitRange p) \<longleftrightarrow> fst p = size_ptr"
-  "\<And>ts ls. match_repr_layout (LRRecord ts ) (LayRecord ls) \<longleftrightarrow>
-      map fst ts = map fst ls \<and> list_all2 match_repr_layout (map snd ts) (map snd ls)"
+  "\<And>p. match_repr_layout LRPtr (LayBitRange p) \<longleftrightarrow> fst p = size_ptr"
+  "\<And>ts ls. match_repr_layout (LRRecord ts) (LayRecord ls) \<longleftrightarrow>
+     set (map fst ts) = set (map fst ls)  \<and>
+     list_all2 match_repr_layout (map snd (sort_key (String.implode o fst) ts)) 
+ (map snd (sort_key (String.implode o fst) ls))
+" 
   "\<And>p. match_repr_layout LRUnit (LayBitRange p) \<longleftrightarrow> fst p = 0"
   "\<And>t i off. match_repr_layout t (LayVar i off)"
-  by (force intro: match_repr_layout.intros
+  by (fastforce intro: match_repr_layout.intros
       elim: match_repr_layout.cases)+
 
 
