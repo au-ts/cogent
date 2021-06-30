@@ -119,7 +119,7 @@ locale thy cfile =
   , "ML \\<open>val lems = mk_getset_lems \"" ++ cfile ++ "\" @{context} \\<close>"
   , "ML \\<open>lems  |> map (string_of_getset_lem @{context})|> map tracing\\<close>"
   , ""
-  , "(* This proves the get/set lemmas (currently by cheating!) *)"
+  , "(* This proves the get/set lemmas *)"
   , "local_setup \\<open>local_setup_getset_lemmas \"" ++ cfile ++ "\" \\<close>" 
   , ""
   , ""
