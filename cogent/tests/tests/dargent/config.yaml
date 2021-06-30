@@ -15,6 +15,7 @@
     - pass_endianness.cogent
     - pass_layout-prims.cogent
     - pass_lrec-reorder.cogent
+    - pass_variant-tag-size.cogent
   expected_result: pass
   flags:
     - -g
