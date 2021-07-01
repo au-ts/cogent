@@ -12,7 +12,112 @@
 
 theory Util
   imports Main "HOL-Word.Word"
+
+"HOL-Library.Char_ord"
 begin
+
+section \<open> Ordered strings using lexical order \<close>
+(* If List_Lexorder were imported, strings (as list of chars) would 
+automatically inherit from the lexical order we want.
+Unfortunately, we can't import it because it clashes with the prefix
+order on lists imported by the word lib, so we are left with
+defining or own order. 
+As it is not possible to instantiate a class for a compound type such
+as string (as a list of chars), we need to define a stupid datatype.
+*)
+
+datatype sortable_string = SString string
+fun string_from_sstring :: "sortable_string \<Rightarrow> string" where
+"string_from_sstring (SString s) = s"
+(* 
+The remaining of this section is copied from List_Lexorder
+*)
+instantiation sortable_string ::  ord
+begin
+
+definition
+  sstring_less_def: "xs < ys \<longleftrightarrow> (string_from_sstring xs, string_from_sstring ys) \<in> lexord {(u, v). u < v}"
+
+definition
+ sstring_le_def: "(xs :: sortable_string) \<le> ys \<longleftrightarrow> xs < ys \<or> xs = ys"
+
+instance ..
+
+end
+
+instance sortable_string :: order
+proof
+  fix xs :: "sortable_string"
+  show "xs \<le> xs" by (simp add: sstring_le_def)
+next
+  fix xs ys zs :: "sortable_string"
+  assume "xs \<le> ys" and "ys \<le> zs"
+  then show "xs \<le> zs"
+    apply (auto simp add: sstring_le_def sstring_less_def)
+    apply (rule lexord_trans)
+    apply (auto intro: transI)
+    done
+next
+  fix xs ys :: "sortable_string"
+  assume "xs \<le> ys" and "ys \<le> xs"
+  then show "xs = ys"
+    apply (auto simp add: sstring_le_def sstring_less_def)
+    apply (rule lexord_irreflexive [THEN notE])
+    defer
+    apply (rule lexord_trans)
+    apply (auto intro: transI)
+    done
+next
+  fix xs ys :: "sortable_string"
+  show "xs < ys \<longleftrightarrow> xs \<le> ys \<and> \<not> ys \<le> xs"
+    apply (auto simp add: sstring_less_def sstring_le_def)
+    defer
+    apply (rule lexord_irreflexive [THEN notE])
+    apply auto
+    apply (rule lexord_irreflexive [THEN notE])
+    defer
+    apply (rule lexord_trans)
+    apply (auto intro: transI)
+    done
+qed
+
+lemma not_less_Nil [simp]: "\<not> x < SString []"
+  by (simp add: sstring_less_def)
+
+lemma Nil_less_Cons [simp]: "SString [] < SString (a # x)"
+  by (simp add: sstring_less_def)
+
+lemma Cons_less_Cons [simp]: "SString (a # x) < SString (b # y) \<longleftrightarrow> 
+    a <  b \<or>  a =  b \<and> SString x < SString y"
+  by (simp add: sstring_less_def)
+
+lemma le_Nil [simp]: "x \<le> SString [] \<longleftrightarrow> x = SString []"
+  unfolding sstring_le_def by (cases x) auto
+
+lemma Nil_le_Cons [simp]: "SString [] \<le> x"
+  unfolding sstring_le_def 
+  by (cases x,rename_tac x', case_tac x') auto
+  
+
+lemma Cons_le_Cons [simp]: "SString (a # x) \<le> SString (b # y) \<longleftrightarrow> a < b \<or> a = b \<and> SString x \<le> SString y"
+  unfolding sstring_le_def by auto
+
+
+instance sortable_string :: linorder
+proof
+  fix xss yss :: "sortable_string"
+  let "?xs"  = "string_from_sstring xss"
+  let "?ys"  = "string_from_sstring yss"
+
+  have "(?xs, ?ys) \<in> lexord {(u, v). u < v} \<or> ?xs = ?ys \<or> (?ys, ?xs) \<in> lexord {(u, v). u < v}"
+    by (rule lexord_linear) auto
+  then show "xss \<le> yss \<or> yss \<le> xss"
+   apply (cases xss ) 
+    apply(cases yss)
+    by (auto simp add: sstring_le_def sstring_less_def)
+ 
+qed
+
 
 section \<open> Word related lemmas \<close>
 

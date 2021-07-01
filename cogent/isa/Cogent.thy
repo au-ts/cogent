@@ -553,8 +553,8 @@ inductive match_repr_layout :: "lrepr \<Rightarrow> ptr_layout \<Rightarrow> boo
 \<comment> \<open>the order does not matter\<close>
  set (map fst ts) = set (map fst ls) ;
    list_all2 match_repr_layout      
-       (map snd (sort_key (String.implode o fst) ts))
-       (map (snd o snd) (sort_key (String.implode o fst) ls))
+       (map snd (sort_key (SString o fst) ts))
+       (map (snd o snd) (sort_key (SString o fst) ls))
    \<rbrakk> \<Longrightarrow> match_repr_layout (LRSum ts) (LayVariant x ls)"
 | match_lrproduct : "\<lbrakk> match_repr_layout t1 p1
    ; match_repr_layout t2 p2
@@ -564,8 +564,8 @@ inductive match_repr_layout :: "lrepr \<Rightarrow> ptr_layout \<Rightarrow> boo
     set (map fst ts) = set (map fst ls) ;
    list_all2 match_repr_layout      
 \<comment> \<open>the order does not matter\<close>
-       (map snd (sort_key (String.implode o fst) ts))
-       (map snd (sort_key (String.implode o fst) ls))
+       (map snd (sort_key (SString o fst) ts))
+       (map snd (sort_key (SString o fst) ls))
  \<comment> \<open>(* ;list_all (\<lambda> (name, l). match_repr_layout (the (map_of ts name)) l) ls  *)\<close>
    \<rbrakk> \<Longrightarrow> match_repr_layout (LRRecord ts) (LayRecord ls)"
 | match_lrunit : "s = 0 \<Longrightarrow> match_repr_layout LRUnit (LayBitRange (s, n))"
@@ -579,15 +579,15 @@ lemma match_repr_layout_simps:
   "\<And>ts ls x. match_repr_layout (LRSum ts) (LayVariant x ls) \<longleftrightarrow>
       set (map fst ts) = set (map fst ls)  \<and> 
        list_all2 match_repr_layout      
-       (map snd (sort_key (String.implode o fst) ts))
-       (map (snd o snd) (sort_key (String.implode o fst) ls))" 
+       (map snd (sort_key (SString o fst) ts))
+       (map (snd o snd) (sort_key (SString o fst) ls))" 
   "\<And>t1 t2 p1 p2. match_repr_layout (LRProduct t1 t2) (LayProduct p1 p2) \<longleftrightarrow>
       match_repr_layout t1 p1 \<and> match_repr_layout t2 p2"
   "\<And>p. match_repr_layout LRPtr (LayBitRange p) \<longleftrightarrow> fst p = size_ptr"
   "\<And>ts ls. match_repr_layout (LRRecord ts) (LayRecord ls) \<longleftrightarrow>
      set (map fst ts) = set (map fst ls)  \<and>
-     list_all2 match_repr_layout (map snd (sort_key (String.implode o fst) ts)) 
- (map snd (sort_key (String.implode o fst) ls))
+     list_all2 match_repr_layout (map snd (sort_key (SString o fst) ts)) 
+ (map snd (sort_key (SString o fst) ls))
 " 
   "\<And>p. match_repr_layout LRUnit (LayBitRange p) \<longleftrightarrow> fst p = 0"
   "\<And>t i off. match_repr_layout t (LayVar i off)"
@@ -825,7 +825,10 @@ inductive subtyping :: "lay_env \<Rightarrow> kind env \<Rightarrow> lay_constra
                   \<rbrakk> \<Longrightarrow> L, K, C \<turnstile> TFun t1 u1 \<sqsubseteq> TFun t2 u2"
 | subty_tprim  : "\<lbrakk> p1 = p2
                   \<rbrakk> \<Longrightarrow> L, K, C \<turnstile> TPrim p1 \<sqsubseteq> TPrim p2"
-(* TODO: adapt with dargent *)
+(* Records differing only by the field order are not consider equal, but layouts are.
+   However, we don't check that custom layouts are equal up to reordering because
+   we implicitly assume that they are always ordered according to the field names.
+ *)
 | subty_trecord: "\<lbrakk> list_all2 (\<lambda>p1 p2. subtyping L K C (fst (snd p1)) (fst (snd p2))) ts1 ts2
                   ; map fst ts1 = map fst ts2
                   ; list_all2 (record_kind_subty L K C) ts1 ts2
