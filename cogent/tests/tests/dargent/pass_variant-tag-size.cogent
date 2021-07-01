@@ -1,0 +1,4 @@
+type A = {a : < X | Y | Z> } layout L
+layout L = record { a : variant (2b) { X(0) : 0b, Y(1) : 0b, Z(2) : 0b } }
+
+
