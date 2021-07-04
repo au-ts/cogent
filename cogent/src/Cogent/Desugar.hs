@@ -840,10 +840,10 @@ desugarExpr (B.TE t (S.Let (b:bs) e) l) = desugarExpr $ B.TE t (S.Let [b] e') l
   where e' = B.TE t (S.Let bs e) l
 desugarExpr (B.TE _ (S.Put e []) _) = desugarExpr e
 desugarExpr (B.TE t (S.Put e [Nothing]) _) = __impossible "desugarExpr (Put)"
-desugarExpr (B.TE t (S.Put e [Just (f,a)]) _) = do
+desugarExpr (B.TE t (S.Put e [Just (f,a)]) loc) = do
   B.DT (S.TRecord _ fs _) <- unfoldSynsShallowM t
   let Just f' = elemIndex f (P.map fst fs)
-  E <$> (Put <$> desugarExpr e <*> pure f' <*> desugarExpr a)
+  E <$> (Put <$> desugarExpr e <*> pure f' <*> desugarExpr a <*> pure loc)
 desugarExpr (B.TE t (S.Put e (fa@(Just (f0,_)):fas)) l) = do
   B.DT (S.TRecord rp fs s) <- unfoldSynsShallowM t
   let fs' = map (\ft@(f,(t,b)) -> if f == f0 then (f,(t,False)) else ft) fs

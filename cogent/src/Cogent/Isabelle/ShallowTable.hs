@@ -146,7 +146,7 @@ stExpr (TE t e) = stExpr' e >> stType t
     stExpr' (Split a e1 e2 _)  = stExpr e1 >> stExpr e2
     stExpr' (Member rec fld _) = stExpr rec
     stExpr' (Take a rec fld e _) = stExpr rec >> stExpr e
-    stExpr' (Put rec fld v)  = stExpr rec >> stExpr v
+    stExpr' (Put rec fld v _)  = stExpr rec >> stExpr v
     stExpr' (Promote ty e)   = stExpr e
     stExpr' (Cast    ty e)   = stExpr e
 

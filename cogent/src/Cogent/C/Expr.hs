@@ -586,7 +586,7 @@ genExpr mv (TE t (Take _ rec fld e _)) = do
   return (e', recdecl ++ recdecl' ++ fdecl ++ fdecl' ++ edecl,
           recstm ++ recstm' ++ fstm ++ fstm' ++ estm, mergePools [fp',recp',ep])
 
-genExpr mv (TE t (Put rec fld val)) = do
+genExpr mv (TE t (Put rec fld val _)) = do
   t' <- genType t
   fldt <- genType (exprType val)
   -- NOTE: always copy a new record and leave rec unchanged. This prevents the following problem:

@@ -812,7 +812,7 @@ infer (E (Take a e f e2 loc))
         k <- kindcheck tau'
         e2' <- withBindings (Cons tau (Cons (TRecord rp (init ++ (fn,(tau,True)):rest) s) Nil)) (infer e2)  -- take that field regardless of its shareability
         return $ TE (exprType e2') (Take a e' f e2' loc)
-infer (E (Put e1 f e2))
+infer (E (Put e1 f e2 loc))
    = do e1'@(TE t1 _) <- infer e1
         TRecord rp ts s <- unfoldSynsShallowM t1
         guardShow "put: sigil not readonly" $ not (readonly s)
@@ -827,7 +827,7 @@ infer (E (Put e1 f e2))
         isSub <- t2' `isSubtype` tau'
         guardShow "put-3" isSub
         let e2'' = if t2' /= tau' then promote tau e2' else e2'
-        return $ TE (TRecord rp (init ++ (fn,(tau,False)):rest) s) (Put e1' f e2'')  -- put it regardless
+        return $ TE (TRecord rp (init ++ (fn,(tau,False)):rest) s) (Put e1' f e2'' loc)  -- put it regardless
 infer (E (Cast ty e))
    = do (TE t e') <- infer e
         t' <- unfoldSynsDeepM t

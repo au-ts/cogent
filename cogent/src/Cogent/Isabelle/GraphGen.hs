@@ -310,8 +310,8 @@ graph g te@(TE _ (Case x tag (_, _, m) (_, _, nom) _)) n ret vs = do
 
 graph g te@(TE ty (App fn arg loc)) n ret vs =
   graph g (TE ty (Let undefined te (TE ty (Variable (FZero, undefined) loc)) loc)) n ret vs
-graph g te@(TE ty (Put rec fld v)) n ret vs =
-  graph g (TE ty (Let undefined te (TE ty (Variable (FZero, undefined) __dummyPos)) __dummyPos)) n ret vs
+graph g te@(TE ty (Put rec fld v loc)) n ret vs =
+  graph g (TE ty (Let undefined te (TE ty (Variable (FZero, undefined) loc)) loc)) n ret vs
 
 graph g te n ret vs = case isAtom (untypeE te) of
     True -> do
@@ -477,7 +477,7 @@ atom te@(TE fldTy (Member rec ix _)) vs = do
     accs <-getFieldAccesses ptr
     return (accs, [])
 
-atom (TE (TRecord _ flds s) (Put rec fld v)) vs = do
+atom (TE (TRecord _ flds s) (Put rec fld v _)) vs = do
     recFields <- atomNoUpds rec vs
     vFields <- atomNoUpds v vs
     tys <- mapM (\(_,(t,_)) -> graphType t) (take fld flds)
@@ -494,7 +494,7 @@ atom (TE ty (Con tag x _ _)) vs = do
     fields <- sumFieldsMash (GEGSum [(tag, altTy)]) gTy (tagX : altFields)
     return (fields, [])
 
-atom (TE recTy (Put rec fld v)) vs = do
+atom (TE recTy (Put rec fld v _)) vs = do
     recPtr <- singleAtom rec vs
     gt <- graphType recTy
     ptr <- mkFieldOffset (recPtr, gt) fld

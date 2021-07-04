@@ -363,10 +363,10 @@ splitEnv env (TE t (Tuple e1 e2 loc))
           e2' = splitEnv env e2
        in EE t (Tuple e1' e2' loc) $ envOf e1' <|> envOf e2'
 
-splitEnv env (TE t (Put e1 f e2))
+splitEnv env (TE t (Put e1 f e2 loc))
     = let e1' = splitEnv env e1
           e2' = splitEnv env e2
-       in EE t (Put e1' f e2') $ envOf e1' <|> envOf e2'
+       in EE t (Put e1' f e2' loc) $ envOf e1' <|> envOf e2'
 
 splitEnv env (TE t (Split a e1 e2 loc))
     = let e1' = splitEnv env e1
@@ -491,10 +491,10 @@ pushDown unused (EE ty (Take a e f e2 loc) env)
           e2' = pushDown (Cons (Just $ recType $ ts!!f) (Cons (Just $ TRecord rp (setAt ts f (fst (ts!!f), (recType $ ts!!f, True))) s) (cleared env))) e2
        in EE ty (Take a e' f e2' loc) $ unused <|> env
 
-pushDown unused (EE ty (Put e1 f e2) env)
+pushDown unused (EE ty (Put e1 f e2 loc) env)
     = let e1' = pushDown (unused <\> env) e1
           e2' = pushDown (cleared env) e2
-       in EE ty (Put e1' f e2') $ unused <|> env
+       in EE ty (Put e1' f e2' loc) $ unused <|> env
 
 pushDown unused (EE ty (Promote ty' e) env)
     = let e' = pushDown unused e

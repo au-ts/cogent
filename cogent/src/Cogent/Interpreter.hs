@@ -525,7 +525,7 @@ specialiseExpr (TE t e) = TE <$> monoType t <*> specialiseExpr' e
     specialiseExpr' (Split   a tp e loc     ) = Split a <$> specialiseExpr tp <*> specialiseExpr e <*> pure loc
     specialiseExpr' (Member  rec fld loc    ) = flip Member fld <$> specialiseExpr rec <*> pure loc
     specialiseExpr' (Take    a rec fld e loc) = Take a <$> specialiseExpr rec <*> pure fld <*> specialiseExpr e <*> pure loc
-    specialiseExpr' (Put     rec fld e  ) = Put  <$> specialiseExpr rec <*> pure fld <*> specialiseExpr e
+    specialiseExpr' (Put     rec fld e loc  ) = Put  <$> specialiseExpr rec <*> pure fld <*> specialiseExpr e <*> pure loc
     specialiseExpr' (Promote ty e       ) = Promote <$> monoType ty <*> specialiseExpr e
     specialiseExpr' (Cast    ty e       ) = Cast <$> monoType ty <*> specialiseExpr e
 
@@ -624,7 +624,7 @@ eval (TE t (Take bs rec f e _)) = do
       let vrec' = VThunk $ VAbstract ()
           vfld  = VThunk $ VAbstract ()
        in withBindings (V.Cons vfld (V.Cons vrec' V.Nil)) $ eval e
-eval (TE _ (Put rec f e)) = do
+eval (TE _ (Put rec f e _)) = do
   let TRecord _ fs _ = exprType rec
       fn = fst $ fs !! f
   vrec <- eval rec

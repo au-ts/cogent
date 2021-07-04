@@ -76,7 +76,7 @@ isAtom (E (Tuple e1 e2 _)) | isVar e1 && isVar e2 = True
 isAtom (E (Struct fs _)) | all (isVar . snd) fs = True
 isAtom (E (Esac e _)) | isVar e = True
 isAtom (E (Member rec f _)) | isVar rec = True
-isAtom (E (Put rec f v)) | isVar rec && isVar v = True
+isAtom (E (Put rec f v _)) | isVar rec && isVar v = True
 isAtom (E (Promote t e)) | isVar e = True
 isAtom (E (Cast t e)) | isVar e = True
 isAtom _ = False
@@ -257,11 +257,11 @@ normalise v (E (Take a rec fld e loc)) k
       Refl -> case addSucLeft (SSuc v) n of
         Refl -> E <$> (Take a rec' fld <$> (normalise (sadd (SSuc (SSuc v)) n) (upshiftExpr n (SSuc $ SSuc v) f2 e) $ \n' ->
          withAssocSS v n n' $ \Refl -> k (SSuc (SSuc (sadd n n')))) <*> pure loc)
-normalise v (E (Put rec fld e)) k
+normalise v (E (Put rec fld e loc)) k
   = normaliseName v rec $ \n rec' ->
     normaliseName (sadd v n) (upshiftExpr n v f0 e) $ \n' e' ->
     withAssoc v n n' $ \Refl ->
-    k (sadd n n') (E $ Put (upshiftExpr n' (sadd v n) f0 rec') fld e')
+    k (sadd n n') (E $ Put (upshiftExpr n' (sadd v n) f0 rec') fld e' loc)
 normalise v (E (Promote ty e)) k = normaliseName v e $ \n e' -> k n (E $ Promote (upshiftType n (finNat f0) ty) e')
 normalise v (E (Cast ty e)) k = normaliseName v e $ \n e' -> k n (E $ Cast (upshiftType n (finNat f0) ty) e')
 
@@ -289,7 +289,7 @@ normaliseAtom v e k = normalise v e $ \n e' -> if isAtom e' then k n e' else cas
 
 wrapPut :: PosUntypedExpr t v VarName b -> AN (PosUntypedExpr t v VarName b)
 wrapPut e | not __cogent_fwrap_put_in_let = return e
-wrapPut put@(E (Put rec f e)) = freshVar >>= \a -> return $ E (Let a put (E $ Variable (f0,a) __dummyPos) __dummyPos)
+wrapPut put@(E (Put rec f e loc)) = freshVar >>= \a -> return $ E (Let a put (E $ Variable (f0,a) loc) loc)
 wrapPut (E (Let a e1 e2 loc)) = E <$> (Let a e1 <$> wrapPut e2 <*> pure loc)
 wrapPut (E (LetBang vs a e1 e2 loc)) = E <$> (LetBang vs a <$> wrapPut e1 <*> wrapPut e2 <*> pure loc)
 wrapPut (E (Case e tn (l1,a1,e1) (l2,a2,e2) loc)) = E <$> (Case e tn <$> ((l1,a1,) <$> wrapPut e1) <*> ((l2,a2,) <$> wrapPut e2) <*> pure loc)

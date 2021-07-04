@@ -392,7 +392,7 @@ shallowExpr (TE _ (Take (n1,n2) rec fld e _)) = do
   let take = mkApp (mkId $ "take" ++ subSymStr "cogent") [erec, efield]
       pp = mkPrettyPair n1 n2
   mkLet pp take <$> shallowExpr e
-shallowExpr (TE _ (Put rec fld e)) = shallowSetter rec fld e
+shallowExpr (TE _ (Put rec fld e _)) = shallowSetter rec fld e
 shallowExpr (TE _ (Promote ty e)) = shallowExpr e
 shallowExpr (TE _ (Cast    (TPrim pt) (TE _ (ILit n _ _)))) = pure $ shallowILit n pt
 shallowExpr (TE _ (Cast    (TPrim pt) e)) =

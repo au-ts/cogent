@@ -462,7 +462,7 @@ typing xi k (EE u (Take a e@(EE (TRecord _ ts _) _ _) f e' _) env) = tacSequence
   typing xi k e'                              -- Ξ, K, (Some t # Some (TRecord (ts [f := (t,taken)]) s) # Γ2) ⊢ e' : u
   ]
 
-typing xi k (EE ty (Put e1@(EE (TRecord _ ts _) _ _) f e2@(EE t _ _)) env) = tacSequence [
+typing xi k (EE ty (Put e1@(EE (TRecord _ ts _) _ _) f e2@(EE t _ _) _) env) = tacSequence [
   return [rule "typing_put'"],                          -- Ξ, K, Γ ⊢ Put e f e' : TRecord ts' s if
   splits k env (envOf e1) (envOf e2),                   -- K ⊢ Γ ↝ Γ1 | Γ2
   typing xi k e1,                                       -- Ξ, K, Γ1 ⊢ e : TRecord ts s
