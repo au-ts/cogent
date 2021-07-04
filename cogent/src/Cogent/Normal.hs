@@ -78,7 +78,7 @@ isAtom (E (Esac e _)) | isVar e = True
 isAtom (E (Member rec f _)) | isVar rec = True
 isAtom (E (Put rec f v _)) | isVar rec && isVar v = True
 isAtom (E (Promote t e _)) | isVar e = True
-isAtom (E (Cast t e)) | isVar e = True
+isAtom (E (Cast t e _)) | isVar e = True
 isAtom _ = False
 
 isNormal :: PosUntypedExpr t v a b -> Bool
@@ -263,7 +263,7 @@ normalise v (E (Put rec fld e loc)) k
     withAssoc v n n' $ \Refl ->
     k (sadd n n') (E $ Put (upshiftExpr n' (sadd v n) f0 rec') fld e' loc)
 normalise v (E (Promote ty e loc)) k = normaliseName v e $ \n e' -> k n (E $ Promote (upshiftType n (finNat f0) ty) e' loc)
-normalise v (E (Cast ty e)) k = normaliseName v e $ \n e' -> k n (E $ Cast (upshiftType n (finNat f0) ty) e')
+normalise v (E (Cast ty e loc)) k = normaliseName v e $ \n e' -> k n (E $ Cast (upshiftType n (finNat f0) ty) e' loc)
 
 normaliseAtom :: SNat v -> PosUntypedExpr t v VarName b
               -> (forall n. SNat n -> PosUntypedExpr t (v :+: n) VarName b -> AN (PosUntypedExpr t (v :+: n) VarName b))

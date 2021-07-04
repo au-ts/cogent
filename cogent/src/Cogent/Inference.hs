@@ -828,12 +828,12 @@ infer (E (Put e1 f e2 loc))
         guardShow "put-3" isSub
         let e2'' = if t2' /= tau' then promote tau e2' else e2'
         return $ TE (TRecord rp (init ++ (fn,(tau,False)):rest) s) (Put e1' f e2'' loc)  -- put it regardless
-infer (E (Cast ty e))
+infer (E (Cast ty e loc))
    = do (TE t e') <- infer e
         t' <- unfoldSynsDeepM t
         ty' <- unfoldSynsDeepM ty
         guardShow ("cast: " ++ show t' ++ " <<< " ++ show ty') =<< t' `isUpcastable` ty'
-        return $ TE ty (Cast ty $ TE t e')
+        return $ TE ty (Cast ty (TE t e') loc)
 infer (E (Promote ty e _))
    = do (TE t e') <- infer e
         t' <- unfoldSynsDeepM t

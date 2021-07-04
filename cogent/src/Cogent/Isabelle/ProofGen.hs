@@ -349,7 +349,7 @@ typing xi k (EE tc@(TSum ts) (Con tag e t _) env) = tacSequence [
   return [simp_solve]                    -- ts = ts'
   ]
 
-typing xi k (EE u (Cast t e) env) | EE (TPrim pt) _ _ <- e, TPrim pt' <- t, pt /= Boolean = tacSequence [
+typing xi k (EE u (Cast t e _) env) | EE (TPrim pt) _ _ <- e, TPrim pt' <- t, pt /= Boolean = tacSequence [
   return [rule "typing_cast"],   -- Ξ, K, Γ ⊢ Cast τ' e : TPrim (Num τ')
   typing xi k e,                 -- Ξ, K, Γ ⊢ e : TPrim (Num τ)
   return [simp_solve]            -- upcast_valid τ τ'

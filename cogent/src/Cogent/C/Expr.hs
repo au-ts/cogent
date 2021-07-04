@@ -797,7 +797,7 @@ genExpr mv (TE t (Split _ e1 e2 _)) = do
 
 genExpr mv (TE t (Promote _ e _)) = genExpr mv e
 
-genExpr mv (TE t (Cast _ e)) = do   -- int promotion
+genExpr mv (TE t (Cast _ e _)) = do   -- int promotion
   (e',edecl,estm,ep) <- genExpr_ e
   t' <- genType t
   (v,adecl,astm,vp) <- flip (maybeAssign t' mv) ep $ CTypeCast t' e'

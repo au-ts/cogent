@@ -849,7 +849,7 @@ desugarExpr (B.TE t (S.Put e (fa@(Just (f0,_)):fas)) l) = do
   let fs' = map (\ft@(f,(t,b)) -> if f == f0 then (f,(t,False)) else ft) fs
       t' = B.DT (S.TRecord rp fs' s)
   desugarExpr $ B.TE t (S.Put (B.TE t' (S.Put e [fa]) l) fas) l
-desugarExpr (B.TE t (S.Upcast e) _) = E <$> (Cast <$> desugarType t <*> desugarExpr e)
+desugarExpr (B.TE t (S.Upcast e) loc) = E <$> (Cast <$> desugarType t <*> desugarExpr e <*> pure loc)
 -- desugarExpr (B.TE t (S.Widen  e) _) = E <$> (Cast <$> desugarType t <*> desugarExpr e)
 desugarExpr (B.TE t (S.Annot e tau) loc) = E <$> (Promote <$> desugarType tau <*> desugarExpr e <*> pure loc)
   -- \ ^^^ NOTE [How to handle type annotations?]

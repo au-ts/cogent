@@ -527,7 +527,7 @@ specialiseExpr (TE t e) = TE <$> monoType t <*> specialiseExpr' e
     specialiseExpr' (Take    a rec fld e loc) = Take a <$> specialiseExpr rec <*> pure fld <*> specialiseExpr e <*> pure loc
     specialiseExpr' (Put     rec fld e loc  ) = Put  <$> specialiseExpr rec <*> pure fld <*> specialiseExpr e <*> pure loc
     specialiseExpr' (Promote ty e loc       ) = Promote <$> monoType ty <*> specialiseExpr e <*> pure loc
-    specialiseExpr' (Cast    ty e       ) = Cast <$> monoType ty <*> specialiseExpr e
+    specialiseExpr' (Cast    ty e loc       ) = Cast <$> monoType ty <*> specialiseExpr e <*> pure loc
 
 eval :: PosTypedExpr 'Zero v VarName VarName -> ReplM v () () (Value () ())
 eval (TE _ (Variable (v,_) _)) = use gamma >>= return . (`V.at` v)
@@ -635,5 +635,5 @@ eval (TE _ (Put rec f e _)) = do
       return $ VRecord $ fvs1 ++ (fn, Just v) : tail fvs2
     VThunk _ -> return $ VThunk $ VPut vrec fn v
 eval (TE _ (Promote _ e _)) = eval e
-eval (TE _ (Cast _ e)) = eval e
+eval (TE _ (Cast _ e _)) = eval e
 

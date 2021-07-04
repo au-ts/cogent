@@ -187,7 +187,7 @@ deepExpr mod ta defs (TE _ (Take _ rec fld e _))
   = mkApp (mkId "Take") [deepExpr mod ta defs rec, mkInt (fromIntegral fld), deepExpr mod ta defs e]
 deepExpr mod ta defs (TE _ (Split _ e1 e2 _))
   = mkApp (mkId "Split") [deepExpr mod ta defs e1, deepExpr mod ta defs e2]
-deepExpr mod ta defs (TE _ (Cast t e))
+deepExpr mod ta defs (TE _ (Cast t e _))
   | TE (TPrim pt) _ <- e, TPrim pt' <- t, pt /= Boolean
   = mkApp (mkId "Cast") [deepNumType pt', deepExpr mod ta defs e]
 deepExpr mod ta defs (TE _ e) = __todo $ "deepExpr: " ++ show (pretty e)

@@ -166,7 +166,7 @@ markOcc sv (TE tau (Take (fn, recn) rec fld e loc)) = do
   return $ TE tau $ Take ((fn,occf), (recn,occr)) rec' fld e' loc
 markOcc sv (TE tau (Put rec fld e loc)) = TE tau <$> (Put <$> markOcc sv rec <*> pure fld <*> markOcc sv e <*> pure loc)
 markOcc sv (TE tau (Promote t e loc)) = TE tau . flip (Promote t) loc <$> markOcc sv e
-markOcc sv (TE tau (Cast t e)) = TE tau . Cast t <$> markOcc sv e
+markOcc sv (TE tau (Cast t e loc)) = TE tau . flip (Cast t) loc <$> markOcc sv e
 
 branchEnv, concatEnv :: OccEnv v b -> OccEnv v b -> OccEnv v b
 branchEnv (fe, v) (fe', v') = (branchFuncEnv fe fe', V.zipWith parOcc v v')
@@ -371,7 +371,7 @@ simplExpr sv subst ins (TE tau (Take nn rec fld e loc)) cont = do  -- FIXME
   return . TE tau $ Take (join (***) fst nn) rec' fld e' loc
 simplExpr sv subst ins (TE tau (Put rec fld e loc)) cont = TE tau <$> (Put <$> simplExpr sv subst ins rec cont <*> pure fld <*> simplExpr sv subst ins e cont <*> pure loc)
 simplExpr sv subst ins (TE tau (Promote ty e loc)) cont = TE tau . flip (Promote ty) loc <$> simplExpr sv subst ins e cont
-simplExpr sv subst ins (TE tau (Cast ty e)) cont = TE tau . Cast ty <$> simplExpr sv subst ins e cont
+simplExpr sv subst ins (TE tau (Cast ty e loc)) cont = TE tau . flip (Cast ty) loc <$> simplExpr sv subst ins e cont
 
 -- Ininlining at occurrence site
 considerInline :: (v ~ 'Suc v') => SNat v -> InScopeSet t v b -> (OutVar v, VarName, Type t b) -> Context t v b -> Simp t b (OutExpr t v b)
@@ -434,7 +434,7 @@ noLinear (TE tau e) = (&&) <$> typeNotLinear tau <*> noLinear' e
     noLinear' (Take a rec _ e _) = (&&) <$> noLinear rec <*> noLinear e
     noLinear' (Put rec _ e _) = (&&) <$> noLinear rec <*> noLinear e
     noLinear' (Promote ty e _) = noLinear e
-    noLinear' (Cast ty e) = noLinear e
+    noLinear' (Cast ty e _) = noLinear e
 
 noWorkDup :: OutExpr t v b -> Bool
 noWorkDup _ = __fixme False
@@ -494,7 +494,7 @@ lowerExpr w i (TE tau (Member rec fld loc))     = TE tau $ Member (lowerExpr w i
 lowerExpr w i (TE tau (Take a rec fld e loc))   = TE tau $ Take a (lowerExpr w i rec) fld (lowerExpr (SSuc (SSuc w)) (FSuc (FSuc i)) e) loc
 lowerExpr w i (TE tau (Put rec fld e loc))      = TE tau $ Put (lowerExpr w i rec) fld (lowerExpr w i e) loc
 lowerExpr w i (TE tau (Promote ty e loc))       = TE tau $ Promote ty (lowerExpr w i e) loc
-lowerExpr w i (TE tau (Cast ty e))       = TE tau $ Cast ty (lowerExpr w i e)
+lowerExpr w i (TE tau (Cast ty e loc))          = TE tau $ Cast ty (lowerExpr w i e) loc
 
 liftExpr :: Show a => Fin ('Suc v) -> PosTypedExpr t v a b -> PosTypedExpr t ('Suc v) a b
 liftExpr i (TE tau (Variable (v,a) loc))     = TE tau $ Variable (liftIdx i v,a) loc
@@ -517,7 +517,7 @@ liftExpr i (TE tau (Member rec fld loc))     = TE tau $ Member (liftExpr i rec) 
 liftExpr i (TE tau (Take a rec fld e loc))   = TE tau $ Take a (liftExpr i rec) fld (liftExpr (FSuc $ FSuc i) e) loc
 liftExpr i (TE tau (Put rec fld e loc))      = TE tau $ Put (liftExpr i rec) fld (liftExpr i e) loc
 liftExpr i (TE tau (Promote ty e loc))       = TE tau $ Promote ty (liftExpr i e) loc
-liftExpr i (TE tau (Cast ty e))          = TE tau $ Cast ty (liftExpr i e)
+liftExpr i (TE tau (Cast ty e loc))          = TE tau $ Cast ty (liftExpr i e) loc
 
 upshiftExpr :: Show a => SNat n -> SNat v -> Fin ('Suc v) -> PosTypedExpr t v a b -> PosTypedExpr t (v :+: n) a b
 upshiftExpr SZero _ v e = e
@@ -602,7 +602,7 @@ betaR (TE tau (Member rec fld loc))   idx n arg ts = TE (substitute ts tau) <$> 
 betaR (TE tau (Take a rec fld e loc)) idx n arg ts = TE (substitute ts tau) <$> (Take a <$> betaR rec idx n arg ts <*> pure fld <*> betaR e (SSuc (SSuc idx)) n arg ts <*> pure loc)
 betaR (TE tau (Put rec fld e loc))    idx n arg ts = TE (substitute ts tau) <$> (Put <$> betaR rec idx n arg ts <*> pure fld <*> betaR e idx n arg ts <*> pure loc)
 betaR (TE tau (Promote ty e loc))     idx n arg ts = TE (substitute ts tau) <$> (Promote (substitute ts ty) <$> betaR e idx n arg ts <*> pure loc)
-betaR (TE tau (Cast ty e))        idx n arg ts = TE (substitute ts tau) <$> (Cast (substitute ts ty) <$> betaR e idx n arg ts)
+betaR (TE tau (Cast ty e loc))        idx n arg ts = TE (substitute ts tau) <$> (Cast (substitute ts ty) <$> betaR e idx n arg ts <*> pure loc)
 #if __GLASGOW_HASKELL__ < 711
 betaR _ _ _ _ _ = __ghc_t4139 "betaR"
 #endif
