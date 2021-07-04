@@ -503,7 +503,7 @@ atom (TE recTy (Put rec fld v)) vs = do
     let updGMem = foldr (\(addr, var) m -> GOp MemUpdate GMem [m, addr, var]) globalMem (Data.List.zip (map fst addresses) vars)
     return ([recPtr], [(globalMemNm, GMem, updGMem)])
 
-atom te@(TE _ (Esac x)) vs = do
+atom te@(TE _ (Esac x _)) vs = do
     sumFields <- atomNoUpds x vs
     return (Prelude.tail sumFields, [])
 

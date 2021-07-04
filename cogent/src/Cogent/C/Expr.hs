@@ -769,7 +769,7 @@ genExpr mv (TE t (Case e tag (l1,_,e1) (_,_,e2) _)) = do  -- NOTE: likelihood `l
   return (variable v, vdecl ++ edecl ++ edecl' ++ v1decl ++ e1decl ++ e2decl ++ a1decl ++ a2decl,
           vstm ++ estm ++ estm' ++ [ifstm], M.empty)
 
-genExpr mv (TE t (Esac e)) = do
+genExpr mv (TE t (Esac e _)) = do
   (e',edecl,estm,ep) <- genExpr_ e
   let TSum alts = exprType e
       [(tag,(_,False))] = filter (not . snd . snd) alts

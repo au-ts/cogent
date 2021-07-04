@@ -521,7 +521,7 @@ specialiseExpr (TE t e) = TE <$> monoType t <*> specialiseExpr' e
     specialiseExpr' (Struct  fs loc         ) = let (ns,ts) = Prelude.unzip fs in Struct <$> zipWithM (\n t -> (n,) <$> specialiseExpr t) ns ts <*> pure loc
     specialiseExpr' (If      c e1 e2 loc    ) = If <$> specialiseExpr c <*> specialiseExpr e1 <*> specialiseExpr e2 <*> pure loc
     specialiseExpr' (Case    c tag (l1,a1,e1) (l2,a2,e2) loc) = Case <$> specialiseExpr c <*> pure tag <*> ((l1,a1,) <$> specialiseExpr e1) <*> ((l2,a2,) <$> specialiseExpr e2) <*> pure loc
-    specialiseExpr' (Esac    e          ) = Esac <$> specialiseExpr e
+    specialiseExpr' (Esac    e loc          ) = Esac <$> specialiseExpr e <*> pure loc
     specialiseExpr' (Split   a tp e     ) = Split a <$> specialiseExpr tp <*> specialiseExpr e
     specialiseExpr' (Member  rec fld    ) = flip Member fld <$> specialiseExpr rec
     specialiseExpr' (Take    a rec fld e) = Take a <$> specialiseExpr rec <*> pure fld <*> specialiseExpr e
@@ -591,7 +591,7 @@ eval (TE _ (Case e tag (_, a1, e1) (_, a2, e2) _)) = do
       v1 <- withBinding abs (eval e1)
       v2 <- withBinding vv  (eval e2)
       return $ VThunk $ VCase vv tag (a1,v1) (a2,v2)
-eval (TE _ (Esac e)) = do
+eval (TE _ (Esac e _)) = do
   vv <- eval e
   case vv of
     VVariant _ v -> return v

@@ -392,7 +392,7 @@ desugarAlt e0 (B.TP p pos) = desugarAlt' e0 p
 -- FIXME: this function should take a position
 desugarAlt' :: B.TypedExpr -> S.Pattern B.TypedIrrefPatn -> B.TypedExpr -> DS t l v (PosUntypedExpr t v VarName VarName)
 desugarAlt' e0 (S.PCon tag [B.TIP (S.PVar tn) loc]) e =
-  E <$> (Let (fst tn) <$> (E . Esac <$> desugarExpr e0) <*> withBinding (fst tn) (desugarExpr e) <*> pure loc)
+  E <$> (Let (fst tn) <$> (E . flip Esac loc <$> desugarExpr e0) <*> withBinding (fst tn) (desugarExpr e) <*> pure loc)
   -- Idea:
   --   Base case: e0 | PCon cn [PVar v] in e ~~> let v = esac e0 in e
   --   Ind. step: A) e0 | PCon vn [p] in e ==> e0 | PCon cn [PVar v] in (let p = v in e)

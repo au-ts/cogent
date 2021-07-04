@@ -774,12 +774,12 @@ infer (E (Case e tag (lt,at,et) (le,ae,ee) loc))
             ee'' = if te /= tlub then promote tlub ee' else ee'
             tl = if tt == tlub then exprType et' else if te == tlub then exprType ee' else tlub
         return $ TE tl (Case e'' tag (lt,at,et'') (le,ae,ee'') loc)
-infer (E (Esac e))
+infer (E (Esac e loc))
    = do e'@(TE te _) <- infer e
         TSum ts <- unfoldSynsShallowM te
         let t1 = filter (not . snd . snd) ts
         case t1 of
-          [(_, (t, False))] -> return $ TE t (Esac e')
+          [(_, (t, False))] -> return $ TE t (Esac e' loc)
           _ -> __impossible $ "infer: esac (t1 = " ++ show t1 ++ ", ts = " ++ show ts ++ ")"
 infer (E (Split a e1 e2))
    = do e1' <- infer e1

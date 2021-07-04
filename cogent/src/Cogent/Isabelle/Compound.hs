@@ -89,7 +89,7 @@ takeFlatCase (TE _ e) = case e of
         goAlts na2 ea2' (M.insert tag (na1,ea1') m)
 
   -- Match an Esac
-  goAlts nscrut (TE _ (Let nalt (TE _ (Esac (TE tscrut (Variable (FZero, nscrut') _)))) erest _)) m
+  goAlts nscrut (TE _ (Let nalt (TE _ (Esac (TE tscrut (Variable (FZero, nscrut') _)) _)) erest _)) m
    | nscrut == nscrut'
    , TSum alts <- tscrut
    , [tag]     <- map fst $ filter (\(_,(_,b)) -> not b) alts
@@ -125,11 +125,11 @@ expDiscardVar' rm0 f e = case e of
   Struct fes loc            -> Struct <$> mapM (msecond go) fes <*> pure loc
   If ep et ef loc           -> If <$> go ep <*> go et <*> go ef <*> pure loc
   Case es tag (l1,n1,e1) (l2,n2,e2) loc
-                         -> Case <$> go es <*> pure tag
-                         <*> ((l1,n1,) <$> goSuc e1)
-                         <*> ((l2,n2,) <$> goSuc e2)
-                         <*> pure loc
-  Esac es                -> Esac <$> go es
+                            -> Case <$> go es <*> pure tag
+                                    <*> ((l1,n1,) <$> goSuc e1)
+                                    <*> ((l2,n2,) <$> goSuc e2)
+                                    <*> pure loc
+  Esac es loc               -> Esac <$> go es <*> pure loc
   Split (n,n') es et     -> Split (n,n') <$> go es <*> goSuc2 et
   Member e1 f            -> Member <$> go e1 <*> pure f
   Take (n,n') es f et    -> Take (n,n') <$> go es <*> pure f <*> goSuc2 et

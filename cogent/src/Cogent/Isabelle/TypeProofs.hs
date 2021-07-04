@@ -329,9 +329,9 @@ splitEnv env (TE t (SLit s loc))         = EE t (SLit s loc)         $ cleared e
 splitEnv env (TE t (Fun f ts ls nt loc)) = EE t (Fun f ts ls nt loc) $ cleared env  -- FIXME
 splitEnv env (TE t (Variable v loc))     = EE t (Variable v loc)     $ singleton (fst v) env
 
-splitEnv env (TE t (Esac e))
+splitEnv env (TE t (Esac e loc))
     = let e' = splitEnv env e
-       in EE t (Esac e') $ envOf e'
+       in EE t (Esac e' loc) $ envOf e'
 
 splitEnv env (TE t (Promote ty e))
     = let e' = splitEnv env e
@@ -472,9 +472,9 @@ pushDown unused (EE ty (Case e tag (lt,at,et) (le,ae,ee) loc) env)
           ee' = pushDown (Cons (Just restt) (peel (envOf et) <\> peel (envOf ee))) ee
       in (EE ty (Case e' tag (lt,at,et') (le,ae,ee') loc) $ unused <|> env)
 
-pushDown unused (EE ty (Esac e) env)
+pushDown unused (EE ty (Esac e loc) env)
     = let e' = pushDown unused e
-       in EE ty (Esac e') $ unused <|> env
+       in EE ty (Esac e' loc) $ unused <|> env
 
 pushDown unused (EE ty (Split a e1 e2) env)
     = let e1'@(EE (TProduct x y) _ _) = pushDown (unused <\> env) e1

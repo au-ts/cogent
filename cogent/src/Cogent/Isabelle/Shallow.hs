@@ -375,7 +375,7 @@ shallowExpr ec@(TE _ (Case e tag (_,n1,e1) (_,n2,e2) _)) = do
 -- \ ^^^ NOTE: We can't use the @case _ of@ syntax as our @case@s are binary (and nested).
 -- It seems that Isabelle spends exponential time on processing the @case _ of@ syntax depending
 -- on the level of nestings. / zilinc
-shallowExpr (TE t (Esac e)) = do
+shallowExpr (TE t (Esac e _)) = do
   tn <- findTypeSyn $ exprType e
   e' <- shallowExpr e
   TSum alts <- unfoldSynsShallowM $ exprType e
@@ -903,7 +903,7 @@ scorresCaseExpr m = CC.foldEPre unwrap scorresCaseExpr'
       | (tstr@(VariantStr vs):_) <- toTypeStr bt
       , Just bt' <- M.lookup tstr m
       = S.fromList [SCCD bt' vs tag, SCFD bt' vs]
-    scorresCaseExpr' (TE t e@(Esac (TE bt@(TSum alts) _)))
+    scorresCaseExpr' (TE t e@(Esac (TE bt@(TSum alts) _) _))
       | tag <- fst (P.head (filter (not . snd . snd) alts))
       , (tstr@(VariantStr vs):_) <- toTypeStr bt
       , Just bt' <- M.lookup tstr m

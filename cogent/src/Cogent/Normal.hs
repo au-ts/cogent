@@ -74,7 +74,7 @@ isAtom (E (ArrayPut arr i e)) | isVar arr && isVar i && isVar e = True
 #endif
 isAtom (E (Tuple e1 e2 _)) | isVar e1 && isVar e2 = True
 isAtom (E (Struct fs _)) | all (isVar . snd) fs = True
-isAtom (E (Esac e)) | isVar e = True
+isAtom (E (Esac e _)) | isVar e = True
 isAtom (E (Member rec f)) | isVar rec = True
 isAtom (E (Put rec f v)) | isVar rec && isVar v = True
 isAtom (E (Promote t e)) | isVar e = True
@@ -245,7 +245,7 @@ normalise v (E (Case e tn (l1,a1,e1) (l2,a2,e2) loc)) k =
              in E <$> (Case e' tn <$> ((l1, a1,) <$> (normalise (sadd (SSuc v) n) e1u $ \n' -> withAssocS v n n' $ \Refl -> k (SSuc (sadd n n'))))
                                   <*> ((l2, a2,) <$> (normalise (sadd (SSuc v) n) e2u $ \n' -> withAssocS v n n' $ \Refl -> k (SSuc (sadd n n'))))
                                   <*> pure loc)
-normalise v (E (Esac e)) k = normaliseName v e $ \n e' -> k n (E $ Esac e')
+normalise v (E (Esac e loc)) k = normaliseName v e $ \n e' -> k n (E $ Esac e' loc)
 normalise v (E (Split a p e)) k
   = normaliseName v p $ \n p' -> case addSucLeft v n of
       Refl -> case addSucLeft (SSuc v) n of

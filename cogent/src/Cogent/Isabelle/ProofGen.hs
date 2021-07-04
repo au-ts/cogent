@@ -394,7 +394,7 @@ typing xi k (EE u (Case x _ (_,_,a) (_,_,b) _) env) = tacSequence [
   typing xi k b                 -- Ξ, K, (Some (TSum (tagged_list_update tag (t, True) ts)) # Γ2) ⊢ b : u
   ]
 
-typing xi k (EE _ (Esac x) _) = tacSequence [
+typing xi k (EE _ (Esac x _) _) = tacSequence [
   return [rule "typing_esac"],  -- Ξ, K, Γ ⊢ Esac x : t if
   typing xi k x,                -- Ξ, K, Γ ⊢ x : TSum ts
   return [simp_solve]           -- [(_, (t,False))] = filter (HOL.Not ∘ snd ∘ snd) ts
