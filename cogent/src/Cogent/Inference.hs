@@ -781,11 +781,11 @@ infer (E (Esac e loc))
         case t1 of
           [(_, (t, False))] -> return $ TE t (Esac e' loc)
           _ -> __impossible $ "infer: esac (t1 = " ++ show t1 ++ ", ts = " ++ show ts ++ ")"
-infer (E (Split a e1 e2))
+infer (E (Split a e1 e2 loc))
    = do e1' <- infer e1
         TProduct t1 t2 <- unfoldSynsShallowM $ exprType e1'
         e2' <- withBindings (Cons t1 (Cons t2 Nil)) (infer e2)
-        return $ TE (exprType e2') (Split a e1' e2')
+        return $ TE (exprType e2') (Split a e1' e2' loc)
 infer (E (Member e f))
    = do e'@(TE t _) <- infer e  -- canShare
         TRecord _ fs _ <- unfoldSynsShallowM t

@@ -130,7 +130,7 @@ expDiscardVar' rm0 f e = case e of
                                     <*> ((l2,n2,) <$> goSuc e2)
                                     <*> pure loc
   Esac es loc               -> Esac <$> go es <*> pure loc
-  Split (n,n') es et     -> Split (n,n') <$> go es <*> goSuc2 et
+  Split (n,n') es et loc    -> Split (n,n') <$> go es <*> goSuc2 et <*> pure loc
   Member e1 f            -> Member <$> go e1 <*> pure f
   Take (n,n') es f et    -> Take (n,n') <$> go es <*> pure f <*> goSuc2 et
   Put e1 f e2            -> Put <$> go e1 <*> pure f <*> go e2

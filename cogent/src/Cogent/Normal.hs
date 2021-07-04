@@ -95,7 +95,7 @@ isNormal (E (If  c th el _)) | isVar c  && isNormal th && isNormal el = True
 isNormal (E (Pop _ e1 e2)) | isVar e1 && isNormal e2 = True
 isNormal (E (ArrayTake _ arr i e)) | isVar arr && isVar i && isNormal e = True
 #endif
-isNormal (E (Split _ p e)) | isVar p  && isNormal e  = True
+isNormal (E (Split _ p e _)) | isVar p  && isNormal e  = True
   -- \| ANF <- __cogent_fnormalisation, isVar  p && isNormal e = True
   -- \| KNF <- __cogent_fnormalisation, isAtom p && isNormal e = True
 isNormal (E (Take _ rec fld e)) | isVar rec && isNormal e = True
@@ -246,11 +246,11 @@ normalise v (E (Case e tn (l1,a1,e1) (l2,a2,e2) loc)) k =
                                   <*> ((l2, a2,) <$> (normalise (sadd (SSuc v) n) e2u $ \n' -> withAssocS v n n' $ \Refl -> k (SSuc (sadd n n'))))
                                   <*> pure loc)
 normalise v (E (Esac e loc)) k = normaliseName v e $ \n e' -> k n (E $ Esac e' loc)
-normalise v (E (Split a p e)) k
+normalise v (E (Split a p e loc)) k
   = normaliseName v p $ \n p' -> case addSucLeft v n of
       Refl -> case addSucLeft (SSuc v) n of
         Refl -> E <$> (Split a p' <$> (normalise (sadd (SSuc (SSuc v)) n) (upshiftExpr n (SSuc $ SSuc v) f2 e) $ \n' ->
-          withAssocSS v n n' $ \Refl -> k (SSuc (SSuc (sadd n n')))))
+          withAssocSS v n n' $ \Refl -> k (SSuc (SSuc (sadd n n')))) <*> pure loc)
 normalise v (E (Member rec fld)) k = normaliseName v rec $ \n rec' -> k n (E $ Member rec' fld)
 normalise v (E (Take a rec fld e)) k
   = normaliseName v rec $ \n rec' -> case addSucLeft v n of
@@ -281,8 +281,8 @@ normaliseAtom v e k = normalise v e $ \n e' -> if isAtom e' then k n e' else cas
   (E (If c th el loc)) -> E <$> (If c <$> normaliseAtom (sadd v n) th (\n' -> withAssoc v n n' $ \Refl -> k (sadd n n'))
                                       <*> normaliseAtom (sadd v n) el (\n' -> withAssoc v n n' $ \Refl -> k (sadd n n'))
                                       <*> pure loc)
-  (E (Split a p e)) -> E <$> (Split a p <$> (normaliseAtom (SSuc (SSuc (sadd v n))) e $ \n' ->
-     withAssocSS v n n' $ \Refl -> k (sadd n (SSuc (SSuc n')))))
+  (E (Split a p e loc)) -> E <$> (Split a p <$> (normaliseAtom (SSuc (SSuc (sadd v n))) e $ \n' ->
+     withAssocSS v n n' $ \Refl -> k (sadd n (SSuc (SSuc n')))) <*> pure loc)
   (E (Take a rec fld e)) -> E <$> (Take a rec fld <$> (normaliseAtom (SSuc (SSuc (sadd v n))) e $ \n' ->
      withAssocSS v n n' $ \Refl -> k (sadd n (SSuc (SSuc n')))))
   _ -> __impossible "normaliseAtom"
@@ -294,7 +294,7 @@ wrapPut (E (Let a e1 e2 loc)) = E <$> (Let a e1 <$> wrapPut e2 <*> pure loc)
 wrapPut (E (LetBang vs a e1 e2 loc)) = E <$> (LetBang vs a <$> wrapPut e1 <*> wrapPut e2 <*> pure loc)
 wrapPut (E (Case e tn (l1,a1,e1) (l2,a2,e2) loc)) = E <$> (Case e tn <$> ((l1,a1,) <$> wrapPut e1) <*> ((l2,a2,) <$> wrapPut e2) <*> pure loc)
 wrapPut (E (If c th el loc)) = E <$> (If c <$> wrapPut th <*> wrapPut el <*> pure loc)
-wrapPut (E (Split a p e)) = E <$> (Split a p <$> wrapPut e)
+wrapPut (E (Split a p e loc)) = E <$> (Split a p <$> wrapPut e <*> pure loc)
 wrapPut (E (Take a rec fld e)) = E <$> (Take a rec fld <$> wrapPut e)
 wrapPut e = return e  -- non-normal, thus put cannot occur
 

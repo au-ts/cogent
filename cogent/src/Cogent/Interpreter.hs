@@ -522,7 +522,7 @@ specialiseExpr (TE t e) = TE <$> monoType t <*> specialiseExpr' e
     specialiseExpr' (If      c e1 e2 loc    ) = If <$> specialiseExpr c <*> specialiseExpr e1 <*> specialiseExpr e2 <*> pure loc
     specialiseExpr' (Case    c tag (l1,a1,e1) (l2,a2,e2) loc) = Case <$> specialiseExpr c <*> pure tag <*> ((l1,a1,) <$> specialiseExpr e1) <*> ((l2,a2,) <$> specialiseExpr e2) <*> pure loc
     specialiseExpr' (Esac    e loc          ) = Esac <$> specialiseExpr e <*> pure loc
-    specialiseExpr' (Split   a tp e     ) = Split a <$> specialiseExpr tp <*> specialiseExpr e
+    specialiseExpr' (Split   a tp e loc     ) = Split a <$> specialiseExpr tp <*> specialiseExpr e <*> pure loc
     specialiseExpr' (Member  rec fld    ) = flip Member fld <$> specialiseExpr rec
     specialiseExpr' (Take    a rec fld e) = Take a <$> specialiseExpr rec <*> pure fld <*> specialiseExpr e
     specialiseExpr' (Put     rec fld e  ) = Put  <$> specialiseExpr rec <*> pure fld <*> specialiseExpr e
@@ -596,7 +596,7 @@ eval (TE _ (Esac e _)) = do
   case vv of
     VVariant _ v -> return v
     VThunk _     -> return $ VThunk $ VEsac vv
-eval (TE _ (Split (a1,a2) e e')) = do
+eval (TE _ (Split (a1,a2) e e' _)) = do
   pair <- eval e
   case pair of
     VProduct v1 v2 -> withBindings (V.Cons v1 (V.Cons v2 V.Nil)) (eval e')

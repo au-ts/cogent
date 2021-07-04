@@ -777,7 +777,7 @@ genExpr mv (TE t (Esac e _)) = do
   (v,adecl,astm,vp) <- flip (maybeAssign t' mv) ep $ strDot e' tag
   return (v, edecl++adecl, estm++astm, vp)
 
-genExpr mv (TE t (Split _ e1 e2)) = do
+genExpr mv (TE t (Split _ e1 e2 _)) = do
   (e1',e1decl,e1stm,e1p) <- genExpr_ e1
   let e1t@(TProduct t1 t2) = exprType e1
   (e1'',e1decl',e1stm',e1p') <- flip3 aNewVar e1p e1' =<< genType e1t

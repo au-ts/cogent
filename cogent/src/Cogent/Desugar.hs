@@ -417,7 +417,7 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PVar v) loc)) e =
   E <$> (Let (fst v) <$> desugarExpr e0 <*> (withBinding (fst v) $ desugarExpr e) <*> pure loc)
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple []) p)) e = desugarAlt' e0 (S.PIrrefutable (B.TIP S.PUnitel p)) e
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple [irf]) _)) e = __impossible "desugarAlt' (singleton tuple)"
-desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple [B.TIP (S.PVar tn1) _, B.TIP (S.PVar tn2) _]) _)) e
+desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple [B.TIP (S.PVar tn1) _, B.TIP (S.PVar tn2) _]) loc)) e
   | not __cogent_ftuples_as_sugar =
   -- NOTE: This does not work! / zilinc
   --   XXX | Idea: (p0,p1) = e0 in e ==> split (v0,v1) = e0 in let p1 = v0 and p0' = v0 and p1' = v1 in e
@@ -437,7 +437,7 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple [B.TIP (S.PVar tn1) _, B.TIP (S.
   --                 and p1 = v1 and p2 = v2 in e
   --              B) PTuple (p1:p2:ps) = e0 in e ==>
   --                 PTuple [p1, PTuple (p2:ps)] = e0 in e
-  E <$> (Split (fst tn1, fst tn2) <$> desugarExpr e0 <*> (withBindings (Cons (fst tn1) (Cons (fst tn2) Nil)) $ desugarExpr e))
+  E <$> (Split (fst tn1, fst tn2) <$> desugarExpr e0 <*> (withBindings (Cons (fst tn1) (Cons (fst tn2) Nil)) $ desugarExpr e) <*> pure loc)
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple [p1,p2]) _)) e | not __cogent_ftuples_as_sugar = do
   v1 <- freshVar
   v2 <- freshVar

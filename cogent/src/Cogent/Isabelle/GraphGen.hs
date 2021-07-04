@@ -257,7 +257,7 @@ graph g (TE tp (Take _ (TE recTy (Variable v loc)) fld e)) n ret vs = do
     g'' <- graph g' e (n + 1) ret ((newNm, newTy) : (prevNm, aggTy) : vs)
     return g''
 
-graph g (TE _ (Split _ e1@(TE _ (Variable v loc)) e2)) n ret vs = do
+graph g (TE _ (Split _ e1@(TE _ (Variable v loc)) e2 _)) n ret vs = do
     when (finInt (fst v) >= Prelude.length vs) $ abort $ "atom: " ++ show (v, vs)
     let (prevNm', _) = vs !! (finInt $ fst v)
     let v1 = namePrefix prevNm' ++ "_fst@" ++ show n

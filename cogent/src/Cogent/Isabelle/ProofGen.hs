@@ -234,7 +234,7 @@ proofSteps :: (Ord b, Show b, Pretty b) => Xi a b -> Vec t Kind -> Type t b -> E
 proofSteps xi k ti x = hintListSequence [ kindingHint k ti, ttyping xi k x ]
 
 ttyping :: (Ord b, Show b, Pretty b) => Xi a b -> Vec t Kind -> EnvExpr loc t v a b -> State TypingSubproofs (LeafTree Hints)
-ttyping xi k (EE t' (Split a x y) env) = hintListSequence [ -- Ξ, K, Γ ⊢ Split x y : t' if
+ttyping xi k (EE t' (Split a x y _) env) = hintListSequence [ -- Ξ, K, Γ ⊢ Split x y : t' if
   follow_tt k env (envOf x) (envOf y),
   ttyping xi k x,                            -- Ξ, K, Γ1 ⊢ x : TProduct t u
   ttyping xi k y                             -- Ξ, K, Some t # Some u # Γ2 ⊢ y : t'
@@ -362,7 +362,7 @@ typing xi k (EE _ (Tuple t u _) env) = tacSequence [
   typing xi k u                      -- Ξ, K, Γ2 ⊢ u : U
   ]
 
-typing xi k (EE t' (Split a x y) env) = tacSequence [
+typing xi k (EE t' (Split a x y _) env) = tacSequence [
   return [rule "typing_split"],              -- Ξ, K, Γ ⊢ Split x y : t' if
   splits k env (envOf x) (peel2 $ envOf y),  -- K ⊢ Γ ↝ Γ1 | Γ2
   typing xi k x,                             -- Ξ, K, Γ1 ⊢ x : TProduct t u

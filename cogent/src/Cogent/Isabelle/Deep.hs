@@ -185,7 +185,7 @@ deepExpr mod ta defs (TE _ (Esac e@(TE (TSum alts) _) _))
 deepExpr mod ta defs (TE _ (If c th el _)) = mkApp (mkId "If") $ map (deepExpr mod ta defs) [c, th, el]
 deepExpr mod ta defs (TE _ (Take _ rec fld e))
   = mkApp (mkId "Take") [deepExpr mod ta defs rec, mkInt (fromIntegral fld), deepExpr mod ta defs e]
-deepExpr mod ta defs (TE _ (Split _ e1 e2))
+deepExpr mod ta defs (TE _ (Split _ e1 e2 _))
   = mkApp (mkId "Split") [deepExpr mod ta defs e1, deepExpr mod ta defs e2]
 deepExpr mod ta defs (TE _ (Cast t e))
   | TE (TPrim pt) _ <- e, TPrim pt' <- t, pt /= Boolean
