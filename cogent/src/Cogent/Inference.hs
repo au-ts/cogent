@@ -834,7 +834,7 @@ infer (E (Cast ty e))
         ty' <- unfoldSynsDeepM ty
         guardShow ("cast: " ++ show t' ++ " <<< " ++ show ty') =<< t' `isUpcastable` ty'
         return $ TE ty (Cast ty $ TE t e')
-infer (E (Promote ty e))
+infer (E (Promote ty e _))
    = do (TE t e') <- infer e
         t' <- unfoldSynsDeepM t
         ty' <- unfoldSynsDeepM ty
@@ -884,7 +884,7 @@ promote t (TE t' e) = case e of
                                   (l2, a2, promote t e2)
                                   loc
   -- Collapse consecutive promotes
-  Promote _ e'        -> promote t e'
+  Promote _ e' _        -> promote t e'
   -- Otherwise, no simplification is necessary; construct a Promote expression as usual.
-  _                   -> TE t $ Promote t (TE t' e)
+  _                   -> TE t $ Promote t (TE t' e) __dummyPos
 

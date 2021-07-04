@@ -393,7 +393,7 @@ shallowExpr (TE _ (Take (n1,n2) rec fld e _)) = do
       pp = mkPrettyPair n1 n2
   mkLet pp take <$> shallowExpr e
 shallowExpr (TE _ (Put rec fld e _)) = shallowSetter rec fld e
-shallowExpr (TE _ (Promote ty e)) = shallowExpr e
+shallowExpr (TE _ (Promote ty e _)) = shallowExpr e
 shallowExpr (TE _ (Cast    (TPrim pt) (TE _ (ILit n _ _)))) = pure $ shallowILit n pt
 shallowExpr (TE _ (Cast    (TPrim pt) e)) =
   TermWithType <$> (mkApp (mkId "ucast") <$> ((:[]) <$> shallowExpr e)) <*> pure (shallowPrimType pt)

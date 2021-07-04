@@ -207,7 +207,7 @@ monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
     monoExpr' (Member  rec fld loc    ) = (\r -> Member r fld loc) <$> monoExpr rec
     monoExpr' (Take    a rec fld e loc) = Take a <$> monoExpr rec <*> pure fld <*> monoExpr e <*> pure loc
     monoExpr' (Put     rec fld e loc  ) = Put  <$> monoExpr rec <*> pure fld <*> monoExpr e <*> pure loc
-    monoExpr' (Promote ty e       ) = Promote <$> monoType ty <*> monoExpr e
+    monoExpr' (Promote ty e loc       ) = Promote <$> monoType ty <*> monoExpr e <*> pure loc
     monoExpr' (Cast    ty e       ) = Cast <$> monoType ty <*> monoExpr e
 
 monoType :: (Ord b) => Type t b -> Mono b (Type 'Zero b)

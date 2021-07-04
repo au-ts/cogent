@@ -203,7 +203,7 @@ data Expr loc t v a b e
   | Take (a, a) (e loc t v a b) FieldIndex (e loc t ('Suc ('Suc v)) a b) loc
      -- \ ^^^ The first is the taken field, and the second is the record
   | Put (e loc t v a b) FieldIndex (e loc t v a b) loc
-  | Promote (Type t b) (e loc t v a b)  -- only for guiding the tc. rep. unchanged.
+  | Promote (Type t b) (e loc t v a b) loc  -- only for guiding the tc. rep. unchanged.
   | Cast (Type t b) (e loc t v a b)  -- only for integer casts. rep. changed
 -- \ vvv constraint no smaller than header, thus UndecidableInstances
 deriving instance (Show a, Show b, Show loc, Show (e loc t v a b), Show (e loc t ('Suc v) a b), Show (e loc t ('Suc ('Suc v)) a b))
@@ -409,7 +409,7 @@ insertIdxAtE cut f (Split a e1 e2 loc) = Split a (f cut e1) (f (FSuc (FSuc cut))
 insertIdxAtE cut f (Member e fld loc) = Member (f cut e) fld loc
 insertIdxAtE cut f (Take a rec fld e loc) = Take a (f cut rec) fld (f (FSuc (FSuc cut)) e) loc
 insertIdxAtE cut f (Put rec fld e loc) = Put (f cut rec) fld (f cut e) loc
-insertIdxAtE cut f (Promote ty e) = Promote ty (f cut e)
+insertIdxAtE cut f (Promote ty e loc) = Promote ty (f cut e) loc
 insertIdxAtE cut f (Cast ty e) = Cast ty (f cut e)
 
 
@@ -449,7 +449,7 @@ foldEPre unwrap f e = case unwrap e of
   (Member e1 _ _)       -> f e `mappend` foldEPre unwrap f e1
   (Take _ e1 _ e2 _)    -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (Put e1 _ e2 _)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
-  (Promote _ e1)      -> f e `mappend` foldEPre unwrap f e1
+  (Promote _ e1 _)      -> f e `mappend` foldEPre unwrap f e1
   (Cast _ e1)         -> f e `mappend` foldEPre unwrap f e1
 
 
@@ -482,7 +482,7 @@ fmapE f (Split a e1 e2 loc)      = Split a (f e1) (f e2) loc
 fmapE f (Member rec fld loc)     = Member (f rec) fld loc
 fmapE f (Take a rec fld e loc)   = Take a (f rec) fld (f e) loc
 fmapE f (Put rec fld v loc)      = Put (f rec) fld (f v) loc
-fmapE f (Promote ty e)       = Promote ty (f e)
+fmapE f (Promote ty e loc)       = Promote ty (f e) loc
 fmapE f (Cast ty e)          = Cast ty (f e)
 
 
@@ -526,7 +526,7 @@ instance (Functor (e loc t v a),
   fmap f (Flip (Member rec fld loc)     )      = Flip $ Member (fmap f rec) fld loc
   fmap f (Flip (Take a rec fld e loc)   )      = Flip $ Take a (fmap f rec) fld (fmap f e) loc
   fmap f (Flip (Put rec fld v loc)      )      = Flip $ Put (fmap f rec) fld (fmap f v) loc
-  fmap f (Flip (Promote ty e)       )      = Flip $ Promote (fmap f ty) (fmap f e)
+  fmap f (Flip (Promote ty e loc)       )      = Flip $ Promote (fmap f ty) (fmap f e) loc
   fmap f (Flip (Cast ty e)          )      = Flip $ Cast (fmap f ty) (fmap f e)
 
 instance (Functor (Flip (e loc t v) b),
@@ -561,7 +561,7 @@ instance (Functor (Flip (e loc t v) b),
   fmap f (Flip2 (Member rec fld loc)     )      = Flip2 $ Member (ffmap f rec) fld loc
   fmap f (Flip2 (Take a rec fld e loc)   )      = Flip2 $ Take (both f a) (ffmap f rec) fld (ffmap f e) loc
   fmap f (Flip2 (Put rec fld v loc)      )      = Flip2 $ Put (ffmap f rec) fld (ffmap f v) loc
-  fmap f (Flip2 (Promote ty e)       )      = Flip2 $ Promote ty (ffmap f e)
+  fmap f (Flip2 (Promote ty e loc)       )      = Flip2 $ Promote ty (ffmap f e) loc
   fmap f (Flip2 (Cast ty e)          )      = Flip2 $ Cast ty (ffmap f e)
 
 instance Functor (Flip (TypedExpr loc t v) b) where  -- over @a@
@@ -688,7 +688,7 @@ instance (Pretty a, Pretty b, Prec (e loc t v a b), Pretty (e loc t v a b), Pret
                                                       <+> prettyPrec 1 rec <+> record (fieldIndex f:[]) L.<$>
                                        keyword "in" <+> pretty e)
   pretty (Put rec f v _) = prettyPrec 1 rec <+> record [fieldIndex f <+> symbol "=" <+> pretty v]
-  pretty (Promote t e) = prettyPrec 1 e <+> symbol ":^:" <+> pretty t
+  pretty (Promote t e _) = prettyPrec 1 e <+> symbol ":^:" <+> pretty t
   pretty (Cast t e) = prettyPrec 1 e <+> symbol ":::" <+> pretty t
 
 instance Pretty FunNote where

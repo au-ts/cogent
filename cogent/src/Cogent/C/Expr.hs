@@ -795,7 +795,7 @@ genExpr mv (TE t (Split _ e1 e2 _)) = do
   -- XXX | (e2',e2stm) <- withBindings (fromJust $ cvtFromList Nat.s2 [strDot e1' p1, strDot e1' p2]) $ genExpr mv e2
   -- XXX | return (e2', e1stm ++ e2stm)
 
-genExpr mv (TE t (Promote _ e)) = genExpr mv e
+genExpr mv (TE t (Promote _ e _)) = genExpr mv e
 
 genExpr mv (TE t (Cast _ e)) = do   -- int promotion
   (e',edecl,estm,ep) <- genExpr_ e

@@ -851,7 +851,7 @@ desugarExpr (B.TE t (S.Put e (fa@(Just (f0,_)):fas)) l) = do
   desugarExpr $ B.TE t (S.Put (B.TE t' (S.Put e [fa]) l) fas) l
 desugarExpr (B.TE t (S.Upcast e) _) = E <$> (Cast <$> desugarType t <*> desugarExpr e)
 -- desugarExpr (B.TE t (S.Widen  e) _) = E <$> (Cast <$> desugarType t <*> desugarExpr e)
-desugarExpr (B.TE t (S.Annot e tau) _) = E <$> (Promote <$> desugarType tau <*> desugarExpr e)
+desugarExpr (B.TE t (S.Annot e tau) loc) = E <$> (Promote <$> desugarType tau <*> desugarExpr e <*> pure loc)
   -- \ ^^^ NOTE [How to handle type annotations?]
   -- We need to insert a `Promote' node here, even the type of `e' is the same
   -- as the annotated type `tau'. The reason is, the core-tc will infer `e''s type

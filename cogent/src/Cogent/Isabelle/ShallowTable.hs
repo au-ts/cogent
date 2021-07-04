@@ -147,7 +147,7 @@ stExpr (TE t e) = stExpr' e >> stType t
     stExpr' (Member rec fld _) = stExpr rec
     stExpr' (Take a rec fld e _) = stExpr rec >> stExpr e
     stExpr' (Put rec fld v _)  = stExpr rec >> stExpr v
-    stExpr' (Promote ty e)   = stExpr e
+    stExpr' (Promote ty e _)   = stExpr e
     stExpr' (Cast    ty e)   = stExpr e
 
 -- | Add types to the table if not existing.

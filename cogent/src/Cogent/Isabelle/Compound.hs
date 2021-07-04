@@ -134,7 +134,7 @@ expDiscardVar' rm0 f e = case e of
   Member e1 f loc           -> Member <$> go e1 <*> pure f <*> pure loc
   Take (n,n') es f et loc   -> Take (n,n') <$> go es <*> pure f <*> goSuc2 et <*> pure loc
   Put e1 f e2 loc           -> Put <$> go e1 <*> pure f <*> go e2 <*> pure loc
-  Promote t e1           -> Promote <$> typDiscardVar (finNat rm0) t <*> go e1
+  Promote t e1 loc          -> Promote <$> typDiscardVar (finNat rm0) t <*> go e1 <*> pure loc
   Cast t e1              -> Cast <$> typDiscardVar (finNat rm0) t <*> go e1
 #ifdef BUILTIN_ARRAYS
   ALit es                -> ALit <$> mapM go es

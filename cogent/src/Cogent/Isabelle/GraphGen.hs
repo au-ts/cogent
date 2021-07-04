@@ -439,19 +439,19 @@ atom (TE ty (ILit i pt _)) vs = do
     gt <- graphType ty
     return ([GNum (singleType gt) i],[])
 
-atom (TE (TPrim _) (Promote ty e)) vs = do
+atom (TE (TPrim _) (Promote ty e _)) vs = do
     gt <- graphType ty
     atm <- singleAtom e vs
     return ([GOp WordCast (singleType gt) [atm]],[])
 
-atom (TE (ty @ (TSum _)) (Promote _ e)) vs = do
+atom (TE (ty @ (TSum _)) (Promote _ e _)) vs = do
     gTy <- graphType (exprType e)
     gTy2 <- graphType ty
     fields <- atomNoUpds e vs
     new_fields <- sumFieldsMash gTy gTy2 fields
     return (new_fields, [])
 
-atom (TE ty2 (Promote ty e)) _ = abort ("Promote: broken type " ++ show (ty, ty2))
+atom (TE ty2 (Promote ty e _)) _ = abort ("Promote: broken type " ++ show (ty, ty2))
 
 atom (TE _ (Tuple a b _)) vs = do
     atomA <- atomNoUpds a vs

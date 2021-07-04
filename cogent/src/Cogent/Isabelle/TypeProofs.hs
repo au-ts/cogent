@@ -333,9 +333,9 @@ splitEnv env (TE t (Esac e loc))
     = let e' = splitEnv env e
        in EE t (Esac e' loc) $ envOf e'
 
-splitEnv env (TE t (Promote ty e))
+splitEnv env (TE t (Promote ty e loc))
     = let e' = splitEnv env e
-       in EE t (Promote ty e') $ envOf e'
+       in EE t (Promote ty e' loc) $ envOf e'
 
 splitEnv env (TE t (Cast ty e))
     = let e' = splitEnv env e
@@ -496,9 +496,9 @@ pushDown unused (EE ty (Put e1 f e2 loc) env)
           e2' = pushDown (cleared env) e2
        in EE ty (Put e1' f e2' loc) $ unused <|> env
 
-pushDown unused (EE ty (Promote ty' e) env)
+pushDown unused (EE ty (Promote ty' e loc) env)
     = let e' = pushDown unused e
-       in EE ty (Promote ty' e') $ unused <|> env
+       in EE ty (Promote ty' e' loc) $ unused <|> env
 
 pushDown unused (EE ty (Cast ty' e) env)
     = let e' = pushDown unused e
@@ -536,6 +536,6 @@ typeTree (EE ty (Case e tag (lt,at,et) (le,ae,ee) _) env) = TyTrSplit (treeSplit
                                                                     TyTrSplit (treeSplits (peel $ envOf ee <|> envOf et) (peel $ envOf et) (peel $ envOf ee)) ([V.head $ envOf et], typeTree et) ([V.head $ envOf ee], typeTree ee))
 typeTree (EE ty (If ec et ee _) env) = TyTrSplit (treeSplits env (envOf ec) (envOf et <|> envOf ee)) ([], typeTree ec) ([],
                                                                     TyTrSplit (treeSplits (envOf ee <|> envOf et) (envOf et) (envOf ee)) ([], typeTree et) ([], typeTree ee))
-typeTree (EE _ (Promote _ e) _) = typeTree e
+typeTree (EE _ (Promote _ e _) _) = typeTree e
 typeTree _ = TyTrLeaf
 

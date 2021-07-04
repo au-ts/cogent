@@ -475,7 +475,7 @@ typing xi k (EE ty (Put e1@(EE (TRecord _ ts _) _ _) f e2@(EE t _ _) _) env) = t
   return [simp_solve]                                   -- ts' = (ts [f := (t,False)])
   ]
 
-typing xi k (EE _ (Promote t e@(EE t' _ _)) env) = tacSequence [
+typing xi k (EE _ (Promote t e@(EE t' _ _) _) env) = tacSequence [
   return [rule "typing_promote"], -- Ξ, K, Γ ⊢ Promote t x : t
   typing xi k e,                  -- Ξ, K, Γ ⊢ x : t'
   pure <$> subtyping k t' t       -- K ⊢ t' ⊑ t

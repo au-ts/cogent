@@ -65,7 +65,7 @@ imports thy =
 -- S.Set (srcType, destType, tagName)
 getInlinedShallowPromotes :: MapTypeName -> PosTypedExpr t v a b -> S.Set (String, String, String)
 getInlinedShallowPromotes typeMap e =
-  let get' (TE (TSum ts) (Promote _ (TE (TSum ts0) _))) =
+  let get' (TE (TSum ts) (Promote _ (TE (TSum ts0) _) _)) =
         let tname = typeMap M.! VariantStr (map fst ts)
             tname0 = typeMap M.! VariantStr (map fst ts0)
         in case ts0 of -- only need promote rule from singleton variants
