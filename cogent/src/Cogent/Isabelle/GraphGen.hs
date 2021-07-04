@@ -231,7 +231,7 @@ graph g (TE _ (If e e1 e2 _)) n ret vs = do
     let g' = addGraphNode g n gnode
     return (g', n2)
 
-graph g (TE tp (Take _ (TE recTy (Variable v loc)) fld e)) n ret vs = do
+graph g (TE tp (Take _ (TE recTy (Variable v _)) fld e _)) n ret vs = do
     when (finInt (fst v) >= Prelude.length vs) $ abort $ "atom: " ++ show (v, vs)
     let (prevNm', aggTy) = vs !! (finInt $ fst v)
     let newNm = namePrefix prevNm' ++ "_fld" ++ show fld ++ "@" ++ show n

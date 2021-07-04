@@ -132,7 +132,7 @@ expDiscardVar' rm0 f e = case e of
   Esac es loc               -> Esac <$> go es <*> pure loc
   Split (n,n') es et loc    -> Split (n,n') <$> go es <*> goSuc2 et <*> pure loc
   Member e1 f loc           -> Member <$> go e1 <*> pure f <*> pure loc
-  Take (n,n') es f et    -> Take (n,n') <$> go es <*> pure f <*> goSuc2 et
+  Take (n,n') es f et loc   -> Take (n,n') <$> go es <*> pure f <*> goSuc2 et <*> pure loc
   Put e1 f e2            -> Put <$> go e1 <*> pure f <*> go e2
   Promote t e1           -> Promote <$> typDiscardVar (finNat rm0) t <*> go e1
   Cast t e1              -> Cast <$> typDiscardVar (finNat rm0) t <*> go e1

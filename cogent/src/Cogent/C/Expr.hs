@@ -541,7 +541,7 @@ genExpr mv (TE t (App e1 e2 loc)) = do   -- change `e1' to its dispatch function
   (v',adecl,astm,vp) <- maybeAssign t' mv (CEFnCall fname [e1',e2']) (mergePools [e1p,e2p])
   return (v', e1decl ++ e2decl ++ adecl, e1stm ++ e2stm ++ astm, vp)
 
-genExpr mv (TE t (Take _ rec fld e)) = do
+genExpr mv (TE t (Take _ rec fld e _)) = do
   -- NOTE: New `rec' and old `rec' CAN be the same at this point, as long as they get copied while being
   --       updated. Similarly, the field can be `rec.f' instead of a new one / zilinc
 

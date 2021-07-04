@@ -405,11 +405,11 @@ splitEnv env (TE t (Case e tag (lt,at,et) (le,ae,ee) loc))
           TSum ts = typeOf e'
        in EE t (Case e' tag (lt,at,et') (le,ae,ee') loc) $ envOf e' <|> peel (envOf ee') <|> peel (envOf et')
 
-splitEnv env (TE t (Take a e f e2)) =
+splitEnv env (TE t (Take a e f e2 loc)) =
     let e' = splitEnv env e
         TRecord rp ts s = typeOf e'
         e2' = splitEnv (Cons (Just $ recType (ts!!f)) (Cons (Just $ TRecord rp (setAt ts f (fst (ts!!f), (recType (ts!!f), True))) s) env)) e2
-     in EE t (Take a e' f e2') $ envOf e' <|> peel2 (envOf e2')
+     in EE t (Take a e' f e2' loc) $ envOf e' <|> peel2 (envOf e2')
 
 
 -- Ensures that the environment of an expression is equal to the sum of the
@@ -485,11 +485,11 @@ pushDown unused (EE ty (Member e f loc) env)
     = let e' = pushDown unused e
        in EE ty (Member e' f loc) $ unused <|> env
 
-pushDown unused (EE ty (Take a e f e2) env)
+pushDown unused (EE ty (Take a e f e2 loc) env)
     = let e'@(EE rt _ _) = pushDown (unused <\> env) e
           TRecord rp ts s = rt
           e2' = pushDown (Cons (Just $ recType $ ts!!f) (Cons (Just $ TRecord rp (setAt ts f (fst (ts!!f), (recType $ ts!!f, True))) s) (cleared env))) e2
-       in EE ty (Take a e' f e2') $ unused <|> env
+       in EE ty (Take a e' f e2' loc) $ unused <|> env
 
 pushDown unused (EE ty (Put e1 f e2) env)
     = let e1' = pushDown (unused <\> env) e1
@@ -530,7 +530,7 @@ typeTree (EE ty (Split a e1 e2 _) env) = TyTrSplit (treeSplits env (envOf e1) (p
 typeTree (EE ty (Let a e1 e2 _) env) = TyTrSplit (treeSplits env (envOf e1) (peel $ envOf e2)) ([], typeTree e1) ([envOf e2 `at` FZero], typeTree e2)
 
 typeTree (EE ty (LetBang vs a e1 e2 _) env) = TyTrSplit (treeBang 0 (map (finInt . fst) vs) $ treeSplits env (envOf e1) (peel $ envOf e2)) ([], typeTree e1) ([envOf e2 `at` FZero], typeTree e2)
-typeTree (EE ty (Take a e1 f e2) env) = TyTrSplit (treeSplits env (envOf e1) (peel2 $ envOf e2)) ([], typeTree e1) ([envOf e2 `at` FZero, envOf e2 `at` FSuc FZero], typeTree e2)
+typeTree (EE ty (Take a e1 f e2 _) env) = TyTrSplit (treeSplits env (envOf e1) (peel2 $ envOf e2)) ([], typeTree e1) ([envOf e2 `at` FZero, envOf e2 `at` FSuc FZero], typeTree e2)
 
 typeTree (EE ty (Case e tag (lt,at,et) (le,ae,ee) _) env) = TyTrSplit (treeSplits env (envOf e) (peel $ envOf et <|> envOf ee)) ([], typeTree e) ([],
                                                                     TyTrSplit (treeSplits (peel $ envOf ee <|> envOf et) (peel $ envOf et) (peel $ envOf ee)) ([V.head $ envOf et], typeTree et) ([V.head $ envOf ee], typeTree ee))

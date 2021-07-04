@@ -385,7 +385,7 @@ shallowExpr (TE t (Esac e _)) = do
   pure $ mkApp (mkStr ["case_",tn]) $ es ++ [e']
 shallowExpr (TE _ (Split (n1,n2) e1 e2 _)) = mkApp <$> mkLambdaE [mkPrettyPair n1 n2] e2 <*> mapM shallowExpr [e1]
 shallowExpr (TE _ (Member rec fld _)) = shallowExpr rec >>= \e -> shallowGetter rec fld e
-shallowExpr (TE _ (Take (n1,n2) rec fld e)) = do
+shallowExpr (TE _ (Take (n1,n2) rec fld e _)) = do
   erec <- shallowExpr rec
   trec <- unfoldSynsShallowM $ exprType rec
   efield <- mkId <$> getRecordFieldName trec fld

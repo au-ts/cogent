@@ -200,7 +200,7 @@ data Expr loc t v a b e
   | Esac (e loc t v a b) loc
   | Split (a, a) (e loc t v a b) (e loc t ('Suc ('Suc v)) a b) loc
   | Member (e loc t v a b) FieldIndex loc
-  | Take (a, a) (e loc t v a b) FieldIndex (e loc t ('Suc ('Suc v)) a b)
+  | Take (a, a) (e loc t v a b) FieldIndex (e loc t ('Suc ('Suc v)) a b) loc
      -- \ ^^^ The first is the taken field, and the second is the record
   | Put (e loc t v a b) FieldIndex (e loc t v a b)
   | Promote (Type t b) (e loc t v a b)  -- only for guiding the tc. rep. unchanged.
@@ -407,7 +407,7 @@ insertIdxAtE cut f (Case c tag (l1,a1,alt) (l2,a2,alts) loc) = Case (f cut c) ta
 insertIdxAtE cut f (Esac e loc) = Esac (f cut e) loc
 insertIdxAtE cut f (Split a e1 e2 loc) = Split a (f cut e1) (f (FSuc (FSuc cut)) e2) loc
 insertIdxAtE cut f (Member e fld loc) = Member (f cut e) fld loc
-insertIdxAtE cut f (Take a rec fld e) = Take a (f cut rec) fld (f (FSuc (FSuc cut)) e)
+insertIdxAtE cut f (Take a rec fld e loc) = Take a (f cut rec) fld (f (FSuc (FSuc cut)) e) loc
 insertIdxAtE cut f (Put rec fld e) = Put (f cut rec) fld (f cut e)
 insertIdxAtE cut f (Promote ty e) = Promote ty (f cut e)
 insertIdxAtE cut f (Cast ty e) = Cast ty (f cut e)
@@ -447,7 +447,7 @@ foldEPre unwrap f e = case unwrap e of
   (Esac e1 _)           -> f e `mappend` foldEPre unwrap f e1
   (Split _ e1 e2 _)     -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (Member e1 _ _)       -> f e `mappend` foldEPre unwrap f e1
-  (Take _ e1 _ e2)    -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
+  (Take _ e1 _ e2 _)    -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (Put e1 _ e2)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (Promote _ e1)      -> f e `mappend` foldEPre unwrap f e1
   (Cast _ e1)         -> f e `mappend` foldEPre unwrap f e1
@@ -480,7 +480,7 @@ fmapE f (Case e tn (l1,a1,e1) (l2,a2,e2) loc) = Case (f e) tn (l1, a1, f e1) (l2
 fmapE f (Esac e loc)             = Esac (f e) loc
 fmapE f (Split a e1 e2 loc)      = Split a (f e1) (f e2) loc
 fmapE f (Member rec fld loc)     = Member (f rec) fld loc
-fmapE f (Take a rec fld e)   = Take a (f rec) fld (f e)
+fmapE f (Take a rec fld e loc)   = Take a (f rec) fld (f e) loc
 fmapE f (Put rec fld v)      = Put (f rec) fld (f v)
 fmapE f (Promote ty e)       = Promote ty (f e)
 fmapE f (Cast ty e)          = Cast ty (f e)
@@ -524,7 +524,7 @@ instance (Functor (e loc t v a),
   fmap f (Flip (Esac e loc)             )      = Flip $ Esac (fmap f e) loc
   fmap f (Flip (Split a e1 e2 loc)      )      = Flip $ Split a (fmap f e1) (fmap f e2) loc
   fmap f (Flip (Member rec fld loc)     )      = Flip $ Member (fmap f rec) fld loc
-  fmap f (Flip (Take a rec fld e)   )      = Flip $ Take a (fmap f rec) fld (fmap f e)
+  fmap f (Flip (Take a rec fld e loc)   )      = Flip $ Take a (fmap f rec) fld (fmap f e) loc
   fmap f (Flip (Put rec fld v)      )      = Flip $ Put (fmap f rec) fld (fmap f v)
   fmap f (Flip (Promote ty e)       )      = Flip $ Promote (fmap f ty) (fmap f e)
   fmap f (Flip (Cast ty e)          )      = Flip $ Cast (fmap f ty) (fmap f e)
@@ -559,7 +559,7 @@ instance (Functor (Flip (e loc t v) b),
   fmap f (Flip2 (Esac e loc)             )      = Flip2 $ Esac (ffmap f e) loc
   fmap f (Flip2 (Split a e1 e2 loc)      )      = Flip2 $ Split (both f a) (ffmap f e1) (ffmap f e2) loc
   fmap f (Flip2 (Member rec fld loc)     )      = Flip2 $ Member (ffmap f rec) fld loc
-  fmap f (Flip2 (Take a rec fld e)   )      = Flip2 $ Take (both f a) (ffmap f rec) fld (ffmap f e)
+  fmap f (Flip2 (Take a rec fld e loc)   )      = Flip2 $ Take (both f a) (ffmap f rec) fld (ffmap f e) loc
   fmap f (Flip2 (Put rec fld v)      )      = Flip2 $ Put (ffmap f rec) fld (ffmap f v)
   fmap f (Flip2 (Promote ty e)       )      = Flip2 $ Promote ty (ffmap f e)
   fmap f (Flip2 (Cast ty e)          )      = Flip2 $ Cast ty (ffmap f e)
@@ -684,7 +684,7 @@ instance (Pretty a, Pretty b, Prec (e loc t v a b), Pretty (e loc t v a b), Pret
   pretty (Split (v1,v2) e1 e2 _) = align (keyword "split" <+> parens (pretty v1 <> comma <> pretty v2) <+> symbol "=" <+> pretty e1 L.<$>
                                   keyword "in" <+> pretty e2)
   pretty (Member x f _) = prettyPrec 1 x L.<> symbol "." L.<> fieldIndex f
-  pretty (Take (a,b) rec f e) = align (keyword "take" <+> tupled [pretty a, pretty b] <+> symbol "="
+  pretty (Take (a,b) rec f e _) = align (keyword "take" <+> tupled [pretty a, pretty b] <+> symbol "="
                                                       <+> prettyPrec 1 rec <+> record (fieldIndex f:[]) L.<$>
                                        keyword "in" <+> pretty e)
   pretty (Put rec f v) = prettyPrec 1 rec <+> record [fieldIndex f <+> symbol "=" <+> pretty v]

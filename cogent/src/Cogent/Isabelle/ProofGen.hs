@@ -263,7 +263,7 @@ ttyping xi k (EE u (Case x _ (_,_,a) (_,_,b) _) env) = hintListSequence [ -- Ξ,
   ttyping xi k a,                                       -- Ξ, K, (Some t # Γ) ⊢ a : u
   ttyping xi k b                                        -- Ξ, K, (Some (TSum (tagged_list_update tag (t, True) ts)) # Γ2) ⊢ b : u
   ]
-ttyping xi k (EE u (Take a e@(EE (TRecord _ ts _) _ _) f e') env) = hintListSequence [ -- Ξ, K, Γ T⊢ Take e f e' : u if
+ttyping xi k (EE u (Take a e@(EE (TRecord _ ts _) _ _) f e' _) env) = hintListSequence [ -- Ξ, K, Γ T⊢ Take e f e' : u if
   follow_tt k env (envOf e) (envOf e'),
   ttyping xi k e,                             -- Ξ, K, Γ1 T⊢ e : TRecord ts s
   kindingHint k (fst $ snd $ ts !! f),        -- K ⊢ t :κ k
@@ -449,7 +449,7 @@ typing xi k (EE t (Member e f _) env) = tacSequence [
           simp_solve]              -- ts ! f = (t, False)
   ]
 
-typing xi k (EE u (Take a e@(EE (TRecord _ ts _) _ _) f e') env) = tacSequence [
+typing xi k (EE u (Take a e@(EE (TRecord _ ts _) _ _) f e' _) env) = tacSequence [
   return [rule "typing_take"],                -- Ξ, K, Γ ⊢ Take e f e' : u if
   splits k env (envOf e) (peel2 $ envOf e'),  -- K ⊢ Γ ↝ Γ1 | Γ2
   typing xi k e,                              -- Ξ, K, Γ1 ⊢ e : TRecord ts s

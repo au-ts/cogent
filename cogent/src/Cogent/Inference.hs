@@ -800,7 +800,7 @@ infer (E (Struct fs loc))
         es' <- mapM infer es
         let ts' = zipWith (\n e' -> (n, (exprType e', False))) ns es'
         return $ TE (TRecord NonRec ts' Unboxed) $ Struct (zip ns es') loc
-infer (E (Take a e f e2))
+infer (E (Take a e f e2 loc))
    = do e'@(TE t _) <- infer e
         -- trace ("@@@@t is " ++ show t) $ return ()
         TRecord rp ts s <- unfoldSynsShallowM t
@@ -811,7 +811,7 @@ infer (E (Take a e f e2))
         tau' <- unfoldSynsDeepM tau
         k <- kindcheck tau'
         e2' <- withBindings (Cons tau (Cons (TRecord rp (init ++ (fn,(tau,True)):rest) s) Nil)) (infer e2)  -- take that field regardless of its shareability
-        return $ TE (exprType e2') (Take a e' f e2')
+        return $ TE (exprType e2') (Take a e' f e2' loc)
 infer (E (Put e1 f e2))
    = do e1'@(TE t1 _) <- infer e1
         TRecord rp ts s <- unfoldSynsShallowM t1

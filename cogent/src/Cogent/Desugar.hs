@@ -450,7 +450,7 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple (p1:p2:ps)) pos)) e | not __coge
   let p2' = B.TIP (S.PTuple (p2:ps)) pos
       p'  = S.PIrrefutable $ B.TIP (S.PTuple [p1, p2']) pos
   in desugarAlt' e0 p' e
-desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple ps) _)) e | __cogent_ftuples_as_sugar, all isPVar ps = do
+desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple ps) loc)) e | __cogent_ftuples_as_sugar, all isPVar ps = do
   -- Idea: PTuple ps = e0 in e
   --   Base case: PTuple [PVar v1, PVar v2, ..., PVar vn] = e0 in e ~~>
   --              let e0'' = e0' {p1=v1, ..., pn=vn} in e'  -- nested take's in sugarfree
@@ -469,10 +469,10 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple ps) _)) e | __cogent_ftuples_as_
         mkTake _ [] _ _ = __impossible "mkTake (in desugarAlt')"
         mkTake e0 [v] e idx = do
           e0' <- freshVar
-          E . Take (v,e0') e0 idx <$> withBindings (Cons v (Cons e0' Nil)) (desugarExpr e)
+          E . flip (Take (v,e0') e0 idx) loc <$> withBindings (Cons v (Cons e0' Nil)) (desugarExpr e)
         mkTake e0 (v:vs) e idx = do
           e0' <- freshVar
-          E . Take (v,e0') e0 idx <$> withBindings (Cons v (Cons e0' Nil)) (mkTake (E $ Variable (f1, e0') __dummyPos) vs e (idx + 1))
+          E . flip (Take (v,e0') e0 idx) loc <$> withBindings (Cons v (Cons e0' Nil)) (mkTake (E $ Variable (f1, e0') __dummyPos) vs e (idx + 1))
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple ps) _)) e | __cogent_ftuples_as_sugar = do
   B.DT (S.TTuple ts) <- unfoldSynsShallowM $ B.getTypeTE e0
   __assert (P.length ps == P.length ts) $ "desugarAlt': |ps| /= |ts|\nps = " ++ show ps ++ "\nts = " ++ show ts
@@ -493,14 +493,14 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP S.PUnderscore loc)) e = do
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PUnitel) pos)) e = desugarAlt' e0 (S.PIrrefutable $ B.TIP S.PUnderscore pos) e
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec []) pos)) e = desugarAlt' e0 (S.PIrrefutable $ B.TIP (S.PVar rec) pos) e
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec [Nothing]) _)) e = __impossible "desugarAlt'"
-desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec [Just (f, B.TIP (S.PVar v) _)]) _)) e = do
+desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec [Just (f, B.TIP (S.PVar v) _)]) loc)) e = do
   -- Idea:
   --   Base case: e0 | rec {f = PVar v} in e ~~> Take f' (rec,v) = e0 in e
   --   Ind. step: A) e0 | rec {f = p} in e ==> let rec {f = PVar v} = e0 and p = v in e
   --              B) e0 | rec (fp:fps) in e ==> let e1 {f = p} = e0 and rec = e1 {fps} in e
   B.DT (S.TRecord _ fts _) <- unfoldSynsShallowM $ B.getTypeTE e0
   let Just fldIdx = elemIndex f (P.map fst fts)
-  E <$> (Take (fst v, fst rec) <$> desugarExpr e0 <*> pure fldIdx <*> (withBindings (Cons (fst v) (Cons (fst rec) Nil)) $ desugarExpr e))
+  E <$> (Take (fst v, fst rec) <$> desugarExpr e0 <*> pure fldIdx <*> (withBindings (Cons (fst v) (Cons (fst rec) Nil)) $ desugarExpr e) <*> pure loc)
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec [Just (f,p)]) pos)) e = do
   v <- freshVar
   B.DT (S.TRecord _ fts _) <- unfoldSynsShallowM $ snd rec
