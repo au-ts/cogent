@@ -440,7 +440,7 @@ typing xi k (EE t (Struct fs _) env) = tacSequence [
           simp_solve]                -- list_all (λp. snd (snd p) = Present) ts'
   ]
 
-typing xi k (EE t (Member e f) env) = tacSequence [
+typing xi k (EE t (Member e f _) env) = tacSequence [
   return [rule "typing_member"],   -- Ξ, K, Γ ⊢ Member e f : t if
   typing xi k e,                   -- Ξ, K, Γ ⊢ e : TRecord ts s
   kinding k (eexprType e),         -- K ⊢ TRecord ts s :κ k (* k introduced *)

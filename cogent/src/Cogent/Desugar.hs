@@ -767,10 +767,10 @@ desugarExpr (B.TE t (S.MultiWayIf es el) pos) =  -- FIXME: likelihood is ignored
   desugarExpr $ B.TE t (go es el) pos
   where go [(c,bs,_,e)] el = S.If c bs e el
         go ((c,bs,_,e):es) el = S.If c bs e (B.TE t (go es el) pos)
-desugarExpr (B.TE _ (S.Member e fld) _) = do
+desugarExpr (B.TE _ (S.Member e fld) loc) = do
   B.DT (S.TRecord _ fs _) <- unfoldSynsShallowM $ B.getTypeTE e
   let Just f' = elemIndex fld (P.map fst fs)
-  E <$> (Member <$> desugarExpr e <*> pure f')
+  E <$> (Member <$> desugarExpr e <*> pure f' <*> pure loc)
 desugarExpr (B.TE _ (S.Unitel) loc) = return $ E $ Unit loc
 desugarExpr (B.TE t (S.IntLit n) loc) = do
   te <- unfoldSynsShallowM t

@@ -341,9 +341,9 @@ splitEnv env (TE t (Cast ty e))
     = let e' = splitEnv env e
        in EE t (Cast ty e') $ envOf e'
 
-splitEnv env (TE t (Member e f))
+splitEnv env (TE t (Member e f loc))
     = let e' = splitEnv env e
-       in EE t (Member e' f) $ envOf e'
+       in EE t (Member e' f loc) $ envOf e'
 
 splitEnv env (TE t (Struct fs loc))
     = let fs' = map (splitEnv env . snd) fs
@@ -481,9 +481,9 @@ pushDown unused (EE ty (Split a e1 e2 loc) env)
           e2' = pushDown (Cons (Just x) (Cons (Just y) (cleared env))) e2
        in EE ty (Split a e1' e2' loc) $ unused <|> env
 
-pushDown unused (EE ty (Member e f) env)
+pushDown unused (EE ty (Member e f loc) env)
     = let e' = pushDown unused e
-       in EE ty (Member e' f) $ unused <|> env
+       in EE ty (Member e' f loc) $ unused <|> env
 
 pushDown unused (EE ty (Take a e f e2) env)
     = let e'@(EE rt _ _) = pushDown (unused <\> env) e

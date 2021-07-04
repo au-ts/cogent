@@ -786,7 +786,7 @@ infer (E (Split a e1 e2 loc))
         TProduct t1 t2 <- unfoldSynsShallowM $ exprType e1'
         e2' <- withBindings (Cons t1 (Cons t2 Nil)) (infer e2)
         return $ TE (exprType e2') (Split a e1' e2' loc)
-infer (E (Member e f))
+infer (E (Member e f loc))
    = do e'@(TE t _) <- infer e  -- canShare
         TRecord _ fs _ <- unfoldSynsShallowM t
         t' <- unfoldSynsDeepM t
@@ -794,7 +794,7 @@ infer (E (Member e f))
         guardShow "member-2" $ f < length fs
         let (_,(tau,c)) = fs !! f
         guardShow "member-3" $ not c  -- not taken
-        return $ TE tau (Member e' f)
+        return $ TE tau (Member e' f loc)
 infer (E (Struct fs loc))
    = do let (ns,es) = unzip fs
         es' <- mapM infer es

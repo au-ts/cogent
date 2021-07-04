@@ -160,7 +160,7 @@ deepExpr mod ta defs (TE _ (Promote ty e))
 deepExpr mod ta defs (TE _ (Struct fs _))
   = mkApp (mkId "Struct") [mkList (map (deepType mod ta . exprType . snd) fs),
                            mkList (map (deepExpr mod ta defs . snd) fs)]
-deepExpr mod ta defs (TE _ (Member e fld))
+deepExpr mod ta defs (TE _ (Member e fld _))
   = mkApp (mkId "Member") [deepExpr mod ta defs e, mkInt (fromIntegral fld)]
 deepExpr mod ta defs (TE _ (Unit _)) = mkId "Unit"
 deepExpr mod ta defs (TE _ (ILit n pt _)) = mkApp (mkId "Lit") [deepILit n pt]

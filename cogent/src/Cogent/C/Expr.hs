@@ -696,7 +696,7 @@ genExpr mv (TE t (Con tag e tau _)) = do  -- `tau' and `t' should be compatible
 #endif
   return (variable v, edecl ++ vdecl ++ a1decl ++ a2decl, estm ++ vstm ++ a1stm ++ a2stm, ep)
 
-genExpr mv (TE t (Member rec fld)) = do
+genExpr mv (TE t (Member rec fld _)) = do
   let TRecord _ fs s = exprType rec
   (rec',recdecl,recstm,recp) <- genExpr_ rec
 

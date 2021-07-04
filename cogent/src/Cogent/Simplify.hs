@@ -159,7 +159,7 @@ markOcc sv (TE tau (Split (n1, n2) e1 e2 loc)) = do
   e1' <- markOcc sv e1
   (e2',occ1,occ2) <- getVOcc2 $ markOcc (SSuc (SSuc sv)) e2
   return $ TE tau $ Split ((n1,occ1), (n2,occ2)) e1' e2' loc
-markOcc sv (TE tau (Member rec fld)) = TE tau <$> (Member <$> markOcc sv rec <*> pure fld)
+markOcc sv (TE tau (Member rec fld loc)) = TE tau <$> (Member <$> markOcc sv rec <*> pure fld <*> pure loc)
 markOcc sv (TE tau (Take (fn, recn) rec fld e)) = do
   rec' <- markOcc sv rec
   (e',occf,occr) <- getVOcc2 $ markOcc (SSuc (SSuc sv)) e
@@ -363,7 +363,7 @@ simplExpr sv subst ins (TE tau (Split nn e1 e2 loc)) cont = do
   let ins' = liftInScopeSet $ Cons (Just Unknown) $ liftInScopeSet $ Cons (Just Unknown) ins
   e2'  <- simplExpr (SSuc (SSuc sv)) (extSubst $ extSubst subst) ins' e2 (liftContext $ liftContext cont)
   return . TE tau $ Split (join (***) fst nn) e1' e2' loc
-simplExpr sv subst ins (TE tau (Member rec fld)) cont = TE tau <$> (Member <$> simplExpr sv subst ins rec cont <*> pure fld)
+simplExpr sv subst ins (TE tau (Member rec fld loc)) cont = TE tau <$> (Member <$> simplExpr sv subst ins rec cont <*> pure fld <*> pure loc)
 simplExpr sv subst ins (TE tau (Take nn rec fld e)) cont = do  -- FIXME
   rec' <- simplExpr sv subst ins rec cont
   let ins' = liftInScopeSet $ Cons (Just Unknown) $ liftInScopeSet $ Cons (Just Unknown) ins
@@ -430,7 +430,7 @@ noLinear (TE tau e) = (&&) <$> typeNotLinear tau <*> noLinear' e
     noLinear' (Case e _ (_,_,e1) (_,_,e2) _) = andM [noLinear e, noLinear e1, noLinear e2]
     noLinear' (Esac e _) = noLinear e
     noLinear' (Split a e1 e2 _) = (&&) <$> noLinear e1 <*> noLinear e2
-    noLinear' (Member rec _) = noLinear rec
+    noLinear' (Member rec _ _) = noLinear rec
     noLinear' (Take a rec _ e) = (&&) <$> noLinear rec <*> noLinear e
     noLinear' (Put rec _ e) = (&&) <$> noLinear rec <*> noLinear e
     noLinear' (Promote ty e) = noLinear e
@@ -490,7 +490,7 @@ lowerExpr w i (TE tau (If e1 e2 e3 loc))        = TE tau $ If (lowerExpr w i e1)
 lowerExpr w i (TE tau (Case e tn (l1,a1,e1) (l2,a2,e2) loc)) = TE tau $ Case (lowerExpr w i e) tn (l1, a1, lowerExpr (SSuc w) (FSuc i) e1) (l2, a2, lowerExpr (SSuc w) (FSuc i) e2) loc
 lowerExpr w i (TE tau (Esac e loc))             = TE tau $ Esac (lowerExpr w i e) loc
 lowerExpr w i (TE tau (Split a e1 e2 loc))      = TE tau $ Split a (lowerExpr w i e1) (lowerExpr (SSuc (SSuc w)) (FSuc (FSuc i)) e2) loc
-lowerExpr w i (TE tau (Member rec fld))     = TE tau $ Member (lowerExpr w i rec) fld
+lowerExpr w i (TE tau (Member rec fld loc))     = TE tau $ Member (lowerExpr w i rec) fld loc
 lowerExpr w i (TE tau (Take a rec fld e))   = TE tau $ Take a (lowerExpr w i rec) fld (lowerExpr (SSuc (SSuc w)) (FSuc (FSuc i)) e)
 lowerExpr w i (TE tau (Put rec fld e))      = TE tau $ Put (lowerExpr w i rec) fld (lowerExpr w i e)
 lowerExpr w i (TE tau (Promote ty e))       = TE tau $ Promote ty (lowerExpr w i e)
@@ -513,7 +513,7 @@ liftExpr i (TE tau (If e1 e2 e3 loc))        = TE tau $ If (liftExpr i e1) (lift
 liftExpr i (TE tau (Case e tn (l1,a1,e1) (l2,a2,e2) loc)) = TE tau $ Case (liftExpr i e) tn (l1, a1, liftExpr (FSuc i) e1) (l2, a2, liftExpr (FSuc i) e2) loc
 liftExpr i (TE tau (Esac e loc))             = TE tau $ Esac (liftExpr i e) loc
 liftExpr i (TE tau (Split a e1 e2 loc))      = TE tau $ Split a (liftExpr i e1) (liftExpr (FSuc $ FSuc i) e2) loc
-liftExpr i (TE tau (Member rec fld))     = TE tau $ Member (liftExpr i rec) fld
+liftExpr i (TE tau (Member rec fld loc))     = TE tau $ Member (liftExpr i rec) fld loc
 liftExpr i (TE tau (Take a rec fld e))   = TE tau $ Take a (liftExpr i rec) fld (liftExpr (FSuc $ FSuc i) e)
 liftExpr i (TE tau (Put rec fld e))      = TE tau $ Put (liftExpr i rec) fld (liftExpr i e)
 liftExpr i (TE tau (Promote ty e))       = TE tau $ Promote ty (liftExpr i e)
@@ -598,7 +598,7 @@ betaR (TE tau (Case e tn (l1,a1,e1) (l2,a2,e2) loc)) idx n arg ts = do
   pure . TE (substitute ts tau) $ Case e' tn (l1, a1, e1') (l2, a2, e2') loc
 betaR (TE tau (Esac e loc))           idx n arg ts = TE (substitute ts tau) <$> (Esac <$> betaR e idx n arg ts <*> pure loc)
 betaR (TE tau (Split a e1 e2 loc))    idx n arg ts = TE (substitute ts tau) <$> (Split a <$> betaR e1 idx n arg ts <*> betaR e2 (SSuc (SSuc idx)) n arg ts <*> pure loc)
-betaR (TE tau (Member rec fld))   idx n arg ts = TE (substitute ts tau) <$> (Member <$> betaR rec idx n arg ts <*> pure fld)
+betaR (TE tau (Member rec fld loc))   idx n arg ts = TE (substitute ts tau) <$> (Member <$> betaR rec idx n arg ts <*> pure fld <*> pure loc)
 betaR (TE tau (Take a rec fld e)) idx n arg ts = TE (substitute ts tau) <$> (Take a <$> betaR rec idx n arg ts <*> pure fld <*> betaR e (SSuc (SSuc idx)) n arg ts)
 betaR (TE tau (Put rec fld e))    idx n arg ts = TE (substitute ts tau) <$> (Put <$> betaR rec idx n arg ts <*> pure fld <*> betaR e idx n arg ts)
 betaR (TE tau (Promote ty e))     idx n arg ts = TE (substitute ts tau) <$> (Promote (substitute ts ty) <$> betaR e idx n arg ts)

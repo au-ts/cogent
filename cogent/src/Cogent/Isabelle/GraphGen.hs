@@ -464,13 +464,13 @@ atom (TE _ (Struct flds _)) vs = do
     gexprs <- mapM (flip atomNoUpds vs) (map snd flds)
     return (concat gexprs, [])
 
-atom te@(TE _ (Member (rec @ (TE (TRecord _ flds s) _)) ix)) vs = do
+atom te@(TE _ (Member (rec @ (TE (TRecord _ flds s) _)) ix _)) vs = do
     recFields <- atomNoUpds rec vs
     tys <- mapM (\(_,(t,_)) -> graphType t) flds
     flds <- getFieldsFromConcat tys ix recFields
     return (flds, [])
 
-atom te@(TE fldTy (Member rec ix)) vs = do
+atom te@(TE fldTy (Member rec ix _)) vs = do
     recPtr <- singleAtom rec vs
     gt <- graphType (exprType rec)
     ptr <- mkFieldOffset (recPtr, gt) ix

@@ -523,7 +523,7 @@ specialiseExpr (TE t e) = TE <$> monoType t <*> specialiseExpr' e
     specialiseExpr' (Case    c tag (l1,a1,e1) (l2,a2,e2) loc) = Case <$> specialiseExpr c <*> pure tag <*> ((l1,a1,) <$> specialiseExpr e1) <*> ((l2,a2,) <$> specialiseExpr e2) <*> pure loc
     specialiseExpr' (Esac    e loc          ) = Esac <$> specialiseExpr e <*> pure loc
     specialiseExpr' (Split   a tp e loc     ) = Split a <$> specialiseExpr tp <*> specialiseExpr e <*> pure loc
-    specialiseExpr' (Member  rec fld    ) = flip Member fld <$> specialiseExpr rec
+    specialiseExpr' (Member  rec fld loc    ) = flip Member fld <$> specialiseExpr rec <*> pure loc
     specialiseExpr' (Take    a rec fld e) = Take a <$> specialiseExpr rec <*> pure fld <*> specialiseExpr e
     specialiseExpr' (Put     rec fld e  ) = Put  <$> specialiseExpr rec <*> pure fld <*> specialiseExpr e
     specialiseExpr' (Promote ty e       ) = Promote <$> monoType ty <*> specialiseExpr e
@@ -603,7 +603,7 @@ eval (TE _ (Split (a1,a2) e e' _)) = do
     VThunk _ -> let abs1 = VThunk $ VAbstract ()
                     abs2 = VThunk $ VAbstract ()
                  in withBindings (V.Cons abs1 (V.Cons abs2 V.Nil)) (eval e')
-eval (TE _ (Member e f)) = do
+eval (TE _ (Member e f _)) = do
   let TRecord _ fs _ = exprType e
       fn = fst $ fs !! f
   rec <- eval e
