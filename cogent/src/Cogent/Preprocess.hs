@@ -16,10 +16,12 @@ module Cogent.Preprocess where
 
 import Cogent.Compiler
 import Cogent.Common.Syntax hiding (Prefix)
+import Cogent.Surface (LocPragma (..))
 
 import Control.Arrow ((+++))
 import Control.Monad.IO.Class
 import Data.Char
+import Data.Maybe (catMaybes)
 import Language.Preprocessor.Cpphs hiding (pragma)
 import Text.Parsec.Char
 import Text.Parsec.Combinator
@@ -36,48 +38,25 @@ language = haskellStyle { T.commentStart = ""
                         , T.reservedOpNames = ["{-#", "#-}"]
                         }
 
-data LocPragma = LP { locOfLP    :: SourcePos
-                    , pragmaOfLP :: Pragma
-                    } deriving (Eq, Show)
-
 T.TokenParser {..} = T.makeTokenParser language
 
-genericName :: Parsec String u String
-genericName = try (do (x:xs) <- identifier
-                      (if isLower x || (x == '_' && not (null xs)) then return else unexpected) $ x:xs)
+pragma :: Parsec String u (Maybe LocPragma)  -- We don't allow nested comments for pragmas
+pragma = (try (reservedOp "{-#") >> (Just <$> inPragmaSingle))
+         <|> (lexeme anyChar >> return Nothing)
 
-variableName :: Parsec String u VarName
-variableName = genericName
-
-functionName :: Parsec String u FunName
-functionName = genericName
-
-pragma :: Parsec String u [LocPragma]  -- We don't allow nested comments for pragmas
-pragma = (try (reservedOp "{-#") >> inPragmaSingle)
-         <|> (lexeme anyChar >> return [])
-
-inPragmaSingle :: Parsec String u [LocPragma]
+inPragmaSingle :: Parsec String u LocPragma
 inPragmaSingle = do
   l <- getPosition
   p <- identifier -- pragma name
-  fs <- sepBy1 functionName comma
-  reservedOp "#-}"
-  mkPragmas p l fs
+  rest <- manyTill anyChar (try (reservedOp "#-}"))
+  return $ LP l $ UnrecPragma p rest
   <?> "end of pragma"
-
-mkPragmas :: String -> SourcePos -> [FunName] -> Parsec String u [LocPragma]
-mkPragmas p l fs = let p' = map toLower p
-                    in case p' of
-                         "inline"  -> return $ map (LP l . InlinePragma ) fs
-                         "cinline" -> return $ map (LP l . CInlinePragma) fs
-                         "fnmacro" -> return $ if __cogent_ffncall_as_macro then map (LP l . FnMacroPragma) fs else []
-                         _ -> unexpected ("unrecognised pragma " ++ p) -- LP l (UnrecPragma p) : []
 
 program :: Parsec String u [LocPragma]
 program | __cogent_fpragmas = do whiteSpace
                                  ps <- many pragma
                                  eof
-                                 return $ concat ps
+                                 return $ catMaybes ps
         | otherwise = return []
 
 preprocess :: FilePath -> IO (Either String (String, [LocPragma]))

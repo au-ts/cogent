@@ -493,7 +493,7 @@ desugarAnti :: (a -> DS.DS t 'Zero 'Zero b) -> a -> GlDefn t b
 desugarAnti m a = view kenv >>= \(fmap fst -> ts) -> lift . lift $
   StateT $ \s -> let tdefs = view (dsState.typedefs ) s
                      cdefs = view (dsState.constdefs) s
-                  in return (fst (flip3 evalRWS (DS.DsState ts Nil Nil 0 0 []) (tdefs, cdefs, []) $ DS.runDS $ m a), s)  -- FIXME: pragmas / zilinc
+                  in return (fst (flip3 evalRWS (DS.DsState ts Nil Nil 0 0 [] []) (tdefs, cdefs) $ DS.runDS $ m a), s)  -- FIXME: pragmas / zilinc
 
 coreTcAnti :: (a -> IN.TC t 'Zero VarName b) -> a -> GlDefn t b
 coreTcAnti m a = view kenv >>= \(fmap snd -> ts) -> lift . lift $

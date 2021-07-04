@@ -117,6 +117,10 @@ fffoldMap   f = foldMap f . Flip2
 ffffoldMap  f = foldMap f . Flip3
 fffffoldMap f = foldMap f . Flip4
 
+instance Functor (Flip Either b) where
+  fmap f (Flip (Left  a)) = Flip $ Left  (f a)
+  fmap f (Flip (Right b)) = Flip $ Right b
+
 
 -- bifunctors
 

@@ -22,6 +22,7 @@ module Cogent.TypeCheck (
 , typecheck
 ) where
 
+import Cogent.Common.Syntax (Pragma(..))
 import Cogent.Common.Types (k2)
 import Cogent.Compiler
 import qualified Cogent.Context as C
@@ -57,8 +58,12 @@ import Debug.Trace
 
 tc :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
    -> [(LocType, String)]
-   -> IO ((Maybe ([TopLevel DepType TypedPatn TypedExpr], [(DepType, String)]), TcLogState), TcState)
-tc ds cts = runTc (TcState M.empty knownTypes M.empty M.empty) ((,) <$> typecheck ds <*> typecheckCustTyGen cts)
+   -> [LocPragma]
+   -> IO ((Maybe ([TopLevel DepType TypedPatn TypedExpr], [(DepType, String)], [Pragma DepType]), TcLogState), TcState)
+tc ds cts ps = runTc (TcState M.empty knownTypes M.empty M.empty)
+                     ((,,) <$> typecheck ds <*> typecheckCustTyGen cts <*> typecheckPragmas ps)
+  -- ^^^ Note: It may be important that we do 'typecheckPragmas' after 'typecheck', as it relies on the updated state
+  -- which includes the type synonyms / zilinc
   where
     knownTypes = map (, ([], Nothing)) $ words "U8 U16 U32 U64 String Bool"
 
@@ -91,7 +96,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
                   L.<$> pretty subst)
     exitOnErr $ toErrors os gs
     let t'' = apply subst t'
-    lift . lift $ knownTypes %= ( <> [(n, (vs, Just t''))])
+    lift . lift $ knownTypes %= (<> [(n, (vs, Just t''))])
     t''' <- postT t''
     return $ TypeDec n vs t'''
 
@@ -252,6 +257,30 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     lts' <- mapM postT (snd <$> ls')
     let ls'' = zip (fst <$> ls') lts'
     return (FunDef f (PT ps ls'' t''') alts'')
+
+
+-- ----------------------------------------------------------------------------
+-- Pragma
+
+
+typecheckPragmas :: [LocPragma] -> TcM [Pragma DepType]
+typecheckPragmas = mapM go
+  where
+    go :: LocPragma -> TcM (Pragma DepType)
+    go (LP loc (GSetterPragma m (stripLocT -> t) fld fn)) = do
+      traceTc "tc" $ bold (text $ replicate 80 '=')
+      traceTc "tc" (text "typecheck pragma" <+> text (show m ++ "ter"))
+      let ?loc = loc
+      ((ct,t'), flx, os) <- runCG C.empty [] [] $ validateType t
+      (gs, subst) <- runSolver (solve [] [] ct) flx
+      exitOnErr $ toErrors os gs
+      t'' <- postT $ apply subst t'
+      return $ GSetterPragma m t'' fld fn
+    go (LP _ (InlinePragma  f)) = return $ InlinePragma  f
+    go (LP _ (CInlinePragma f)) = return $ CInlinePragma f
+    go (LP _ (FnMacroPragma f)) = return $ FnMacroPragma f
+    go (LP _ (UnrecPragma p s)) = return $ UnrecPragma p s
+
 
 -- ----------------------------------------------------------------------------
 -- custTyGen

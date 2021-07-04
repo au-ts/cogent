@@ -44,6 +44,10 @@ import Text.Parsec.Pos
 
 type DocString = String
 
+data LocPragma = LP { locOfLP    :: SourcePos
+                    , pragmaOfLP :: Pragma LocType
+                    } deriving (Eq, Show)
+
 data IrrefutablePattern pv ip e = PVar pv
                                 | PTuple [ip]
                                 | PUnboxedRecord [Maybe (FieldName, ip)]

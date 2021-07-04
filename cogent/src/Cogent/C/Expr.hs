@@ -49,9 +49,9 @@ import           Cogent.Common.Syntax  as Syn
 import           Cogent.Common.Types   as Typ
 import           Cogent.Core           as CC
 #ifdef BUILTIN_ARRAYS
-import           Cogent.Dargent.CodeGen       (genGSRecord, genBoxedArrayGetSet, GetOrSet(..))
+import           Cogent.Dargent.CodeGen       (genGSRecord, genBoxedArrayGetSet)
 #else
-import           Cogent.Dargent.CodeGen       (genGSRecord, GetOrSet(..))
+import           Cogent.Dargent.CodeGen       (genGSRecord)
 #endif
 import           Cogent.Inference             (kindcheck_)
 import           Cogent.Isabelle.Deep
@@ -925,6 +925,7 @@ genDefinition _ = return []
 compile :: [Definition TypedExpr VarName VarName]
         -> Maybe GenState      -- cached state
         -> [(Type 'Zero VarName, String)]
+        -> [CC.Pragma_ VarName]
         -> ( [CExtDecl]  -- enum definitions
            , [CExtDecl]  -- type definitions
            , [CExtDecl]  -- function declarations
@@ -937,8 +938,11 @@ compile :: [Definition TypedExpr VarName VarName]
            , [TypeName]
            , GenState
            )
-compile defs mcache ctygen =
+compile defs mcache ctygen pragmas =
   let (tdefs, fdefs) = L.partition isTypeDef defs
+      -- Retrieve the names of the customised getters/setters from the pragmas
+      (prgmGetters, prgmSetters) = accessorsPragmas pragmas
+
       state = case mcache of
                 Just cache -> cache & custTypeGen <>~ (M.fromList $ P.map (second $ (,CTGI)) ctygen)
                 Nothing -> GenState { _cTypeDefs    = []
@@ -955,8 +959,8 @@ compile defs mcache ctygen =
                                     , _globalOracle = 0
                                     , _varPool      = M.empty
                                     , _ffiFuncs     = M.empty
-                                    , _boxedRecordSetters = M.empty
-                                    , _boxedRecordGetters = M.empty
+                                    , _boxedRecordSetters = prgmSetters
+                                    , _boxedRecordGetters = prgmGetters
                                     , _boxedArraySetters = M.empty
                                     , _boxedArrayGetters = M.empty
                                     , _boxedArrayElemSetters = M.empty
@@ -1000,6 +1004,13 @@ compile defs mcache ctygen =
                                fields = recordFields t
                             in P.map (\f -> (M.lookup f getters, M.lookup f setters)) fields
            in (cid,t,gss)
+
+        accessorsPragmas = flip go (M.empty, M.empty)
+          where go [] (mg,ms) = (mg,ms)
+                go ((GSetterPragma Get t fld fn):ps) (mg,ms) = go ps (M.insertWith M.union (StrlCogentType t) (M.singleton fld fn) mg, ms)
+                go ((GSetterPragma Set t fld fn):ps) (mg,ms) = go ps (mg, M.insertWith M.union (StrlCogentType t) (M.singleton fld fn) ms)
+                go (p:ps) mgs = go ps mgs
+
 
 
 -- ----------------------------------------------------------------------------

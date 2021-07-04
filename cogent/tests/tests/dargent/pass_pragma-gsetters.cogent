@@ -1,0 +1,9 @@
+type A
+
+type R = { f1 : #A, f2 : U32, f3 : #A } layout record { f1 : 5B, f2 : 4B at 5B, f3 : 6B after f2 }
+
+foo : R! -> (#A, #A)
+foo r = (r.f1, r.f3)
+
+{-# GETTER R, f1, my_getter_f1 #-}
+{-# GETTER {f1 : #A, f2 : U32, f3 : #A } layout record { f1 : 5B, f2 : 4B at 5B, f3 : 6B after f2 }, f3, my_getter_f3 #-}

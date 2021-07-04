@@ -20,7 +20,7 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import qualified Cogent.Preprocess as PP
 import Cogent.Surface
-import Cogent.Util (getStdIncFullPath, (.*), (.**))
+import Cogent.Util (ffmap, getStdIncFullPath, (.*), (.**))
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative hiding (many, (<|>), optional)
@@ -29,6 +29,7 @@ import Data.Monoid (mconcat)
 import qualified Control.Applicative as App
 import Control.Arrow (left, second)
 import Control.Monad
+import Control.Monad.Except (throwError)
 import Control.Monad.Identity
 import Data.Char
 import Data.Foldable as F (fold)
@@ -579,6 +580,26 @@ toplevel' = do
 program :: Parser [(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)]
 program = whiteSpace *> many1 toplevel <* eof
 
+parsePragma :: FilePath -> LocPragma -> Either String [LocPragma]
+parsePragma src (LP l (UnrecPragma p rest)) =
+  let p' = map toLower p
+      listOfFuns  = setPosition l >> sepBy1 variableName comma
+      pListOfFuns = ffmap show . runP listOfFuns (ParserState True) src
+      gsetter  = do setPosition l; t <- monotype; comma; fld <- variableName; comma; fn <- variableName; return (t,fld,fn)
+      pGsetter = ffmap show . runP gsetter (ParserState True) src
+   in case p' of
+        "inline"  -> pListOfFuns rest >>= \fs -> return $ map (LP l . InlinePragma ) fs
+        "cinline" -> pListOfFuns rest >>= \fs -> return $ map (LP l . CInlinePragma) fs
+        "fnmacro" -> pListOfFuns rest >>= \fs -> return $ if __cogent_ffncall_as_macro
+                                                            then map (LP l . FnMacroPragma) fs else []
+        "getter"  -> pGsetter rest >>= \(t,fld,g) -> return [LP l $ GSetterPragma Get t fld g]
+        "setter"  -> pGsetter rest >>= \(t,fld,s) -> return [LP l $ GSetterPragma Set t fld s]
+        _ -> throwError ("unrecognised pragma " ++ p) -- LP l (UnrecPragma p) : []
+parsePragma _ l = return [l]
+
+parsePragmas :: FilePath -> [LocPragma] -> Either String [LocPragma]
+parsePragmas src ps = concat <$> (forM ps $ parsePragma src)
+
 -- NOTE: It will search for the path provided in the files. If it cannot find anything, it will
 --   check for directories given in the -I arguments, relative to the current working dir.
 --   A path (B) in an include clauses is relative to the file (A) containing the include.
@@ -599,7 +620,7 @@ program = whiteSpace *> many1 toplevel <* eof
 --   We can conclude that the search path for b is independent of where a was found
 
 parseWithIncludes :: FilePath -> [FilePath]
-                  -> IO (Either String ([(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)], [PP.LocPragma]))
+                  -> IO (Either String ([(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)], [LocPragma]))
 parseWithIncludes f paths = do
   r <- newIORef S.empty
   loadTransitive' r f paths "."  -- relative to orig, we're in orig
@@ -609,7 +630,7 @@ parseWithIncludes f paths = do
 -- paths: search paths, relative to origin
 -- ro: the path of the current file, relative to original dir
 loadTransitive' :: IORef (S.Set FilePath) -> FilePath -> [FilePath] -> FilePath
-                -> IO (Either String ([(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)], [PP.LocPragma]))
+                -> IO (Either String ([(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)], [LocPragma]))
 loadTransitive' r fp paths ro = do
   let fps = map (flip combine fp) (ro:paths)  -- all file paths need to search
       fpdir = takeDirectory (combine ro fp)
@@ -621,15 +642,17 @@ loadTransitive' r fp paths ro = do
                   PP.preprocess fp' >>= \case
                     Left err -> return $ Left $ "Preprocessor failed: " ++ err
                     Right (cpped,pragmas) -> do
-                      case runIdentity $ runParserT program (ParserState True) fp' cpped of
-                        Left err -> return $ Left $ "Parser failed: " ++ show err
-                        Right defs -> do
-                           defs' <- mapM (flip transitive fpdir) defs
-                           return $ fmap (second (pragmas ++) . mconcat) . sequence $ defs'
+                      case parsePragmas fp' pragmas of
+                        Left err -> return $ Left $ "Preprocessor failed: " ++ err
+                        Right pragmas' -> case runIdentity $ runParserT program (ParserState True) fp' cpped of
+                          Left err -> return $ Left $ "Parser failed: " ++ show err
+                          Right defs -> do
+                             defs' <- mapM (flip transitive fpdir) defs
+                             return $ fmap (second (pragmas' ++) . mconcat) . sequence $ defs'
   where
     transitive :: (SourcePos, DocString, TopLevel LocType LocPatn LocExpr)
                -> FilePath
-               -> IO (Either String ([(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)], [PP.LocPragma]))
+               -> IO (Either String ([(SourcePos, DocString, TopLevel LocType LocPatn LocExpr)], [LocPragma]))
     transitive (p,d,Include x) curr = loadTransitive' r x (map (combine curr) paths) curr
     transitive (p,d,IncludeStd x) curr = do filepath <- (getStdIncFullPath x); loadTransitive' r filepath (map (combine curr) paths) curr
     transitive x _ = return (Right ([x],[]))
