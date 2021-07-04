@@ -282,7 +282,7 @@ graph g te@(TE _ (LetBang _ _ e1 e2 _)) n ret vs = do
     g'''' <- graph g''' e2 n1 ret ((v, gty) : vs)
     return g''''
 
-graph g te@(TE _ (Case x tag (_, _, m) (_, _, nom))) n ret vs = do
+graph g te@(TE _ (Case x tag (_, _, m) (_, _, nom) _)) n ret vs = do
     let tagN = mystery tag
     flds <- atomNoUpds x vs
     let tagF = Prelude.head flds

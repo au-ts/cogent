@@ -98,7 +98,7 @@ promoteRules promotes = let
 -- S.Set (typeName, tagCount)
 getShallowCases :: MapTypeName -> PosTypedExpr t v a b -> S.Set (String, Int)
 getShallowCases typeMap e =
-  let get' (TE _ (Case (TE (TSum tags) _) _ _ _)) =
+  let get' (TE _ (Case (TE (TSum tags) _) _ _ _ _)) =
         let tname = typeMap M.! VariantStr (map fst tags)
         in S.singleton (tname, length tags)
       get' _ = S.empty

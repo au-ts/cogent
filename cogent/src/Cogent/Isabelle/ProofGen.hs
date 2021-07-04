@@ -257,7 +257,7 @@ ttyping xi k (EE t (If x a b _) env) = hintListSequence [ -- Ξ, K, Γ ⊢ If x 
   ttyping xi k a,                                -- Ξ, K, Γ2 ⊢ a : t
   ttyping xi k b                                 -- Ξ, K, Γ2 ⊢ b : t
   ]
-ttyping xi k (EE u (Case x _ (_,_,a) (_,_,b)) env) = hintListSequence [ -- Ξ, K, Γ ⊢ Case x tag a b : u if
+ttyping xi k (EE u (Case x _ (_,_,a) (_,_,b) _) env) = hintListSequence [ -- Ξ, K, Γ ⊢ Case x tag a b : u if
   ttyping xi k x,                                       -- Ξ, K, Γ1 ⊢ x : TSum ts
   follow_tt k (envOf x) (envOf a) (envOf b),
   ttyping xi k a,                                       -- Ξ, K, (Some t # Γ) ⊢ a : u
@@ -385,7 +385,7 @@ typing xi k (EE u (LetBang is a x y _) env) = tacSequence [
   return [simp_solve]                             -- E ∈ k
   ]
 
-typing xi k (EE u (Case x _ (_,_,a) (_,_,b)) env) = tacSequence [
+typing xi k (EE u (Case x _ (_,_,a) (_,_,b) _) env) = tacSequence [
   return [rule "typing_case"],  -- Ξ, K, Γ ⊢ Case x tag a b : u if
   splits k env (envOf x) (peel $ envOf b <|> envOf a),  -- K ⊢ Γ ↝ Γ1 | Γ2
   typing xi k x,                -- Ξ, K, Γ1 ⊢ x : TSum ts

@@ -736,7 +736,7 @@ genExpr mv (TE t (If c e1 e2 _)) = do
   return (variable v, vdecl ++ cdecl ++ e1decl ++ e2decl ++ a1decl ++ a2decl,
           vstm ++ cstm ++ [ifstm], M.empty)
 
-genExpr mv (TE t (Case e tag (l1,_,e1) (_,_,e2))) = do  -- NOTE: likelihood `l2' unused because it has become binary / zilinc
+genExpr mv (TE t (Case e tag (l1,_,e1) (_,_,e2) _)) = do  -- NOTE: likelihood `l2' unused because it has become binary / zilinc
   (v,vdecl,vstm) <- case mv of
     Nothing -> (declare =<< genType t)
     Just v  -> return (v,[],[])

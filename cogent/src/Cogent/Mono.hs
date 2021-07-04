@@ -201,7 +201,7 @@ monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
     monoExpr' (Tuple   e1 e2 loc      ) = Tuple <$> monoExpr e1 <*> monoExpr e2 <*> pure loc
     monoExpr' (Struct  fs loc         ) = let (ns,ts) = P.unzip fs in Struct <$> zipWithM (\n t -> (n,) <$> monoExpr t) ns ts <*> pure loc
     monoExpr' (If      c e1 e2 loc    ) = If <$> monoExpr c <*> monoExpr e1 <*> monoExpr e2 <*> pure loc
-    monoExpr' (Case    c tag (l1,a1,e1) (l2,a2,e2)) = Case <$> monoExpr c <*> pure tag <*> ((l1,a1,) <$> monoExpr e1) <*> ((l2,a2,) <$> monoExpr e2)
+    monoExpr' (Case    c tag (l1,a1,e1) (l2,a2,e2) loc) = Case <$> monoExpr c <*> pure tag <*> ((l1,a1,) <$> monoExpr e1) <*> ((l2,a2,) <$> monoExpr e2) <*> pure loc
     monoExpr' (Esac    e          ) = Esac <$> monoExpr e
     monoExpr' (Split   a tp e     ) = Split a <$> monoExpr tp <*> monoExpr e
     monoExpr' (Member  rec fld    ) = flip Member fld <$> monoExpr rec

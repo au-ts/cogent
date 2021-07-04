@@ -356,7 +356,7 @@ desugarAlts e0@(B.TE t v@(S.Var _) loc) (S.Alt (B.TP p1 pos1) l1 e1 : alts) =  -
       let t0' = B.DT $ S.TVariant (M.delete cn1 talts)  -- type of e0 without alternative cn
       e1' <- withBinding (fst v1) $ desugarExpr e1
       e2' <- withBinding e0' $ desugarAlts (B.TE t0' (S.Var e0') noPos) alts
-      E <$> (Case <$> desugarExpr e0 <*> pure cn1 <*> pure (l1,fst v1,e1') <*> pure (mempty,e0',e2'))
+      E <$> (Case <$> desugarExpr e0 <*> pure cn1 <*> pure (l1,fst v1,e1') <*> pure (mempty,e0',e2') <*> pure loc)
     S.PCon cn1 [p1'] -> do  -- This is B) for PCon
       v1 <- freshVar
       B.DT (S.TVariant talts) <- unfoldSynsShallowM t

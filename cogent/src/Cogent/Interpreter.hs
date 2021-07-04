@@ -520,7 +520,7 @@ specialiseExpr (TE t e) = TE <$> monoType t <*> specialiseExpr' e
     specialiseExpr' (Tuple   e1 e2 loc      ) = Tuple <$> specialiseExpr e1 <*> specialiseExpr e2 <*> pure loc
     specialiseExpr' (Struct  fs loc         ) = let (ns,ts) = Prelude.unzip fs in Struct <$> zipWithM (\n t -> (n,) <$> specialiseExpr t) ns ts <*> pure loc
     specialiseExpr' (If      c e1 e2 loc    ) = If <$> specialiseExpr c <*> specialiseExpr e1 <*> specialiseExpr e2 <*> pure loc
-    specialiseExpr' (Case    c tag (l1,a1,e1) (l2,a2,e2)) = Case <$> specialiseExpr c <*> pure tag <*> ((l1,a1,) <$> specialiseExpr e1) <*> ((l2,a2,) <$> specialiseExpr e2)
+    specialiseExpr' (Case    c tag (l1,a1,e1) (l2,a2,e2) loc) = Case <$> specialiseExpr c <*> pure tag <*> ((l1,a1,) <$> specialiseExpr e1) <*> ((l2,a2,) <$> specialiseExpr e2) <*> pure loc
     specialiseExpr' (Esac    e          ) = Esac <$> specialiseExpr e
     specialiseExpr' (Split   a tp e     ) = Split a <$> specialiseExpr tp <*> specialiseExpr e
     specialiseExpr' (Member  rec fld    ) = flip Member fld <$> specialiseExpr rec
@@ -581,7 +581,7 @@ eval (TE _ (If c e1 e2 _)) = do
   case vc of
     VBool  b -> if b then eval e1 else eval e2
     VThunk _ -> VThunk <$> (VIf vc <$> eval e1 <*> eval e2)
-eval (TE _ (Case e tag (_, a1, e1) (_, a2, e2))) = do
+eval (TE _ (Case e tag (_, a1, e1) (_, a2, e2) _)) = do
   vv <- eval e
   case vv of
     VVariant tag' v -> if tag == tag' then withBinding v (eval e1)

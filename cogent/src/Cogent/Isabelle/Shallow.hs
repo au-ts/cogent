@@ -327,7 +327,7 @@ shallowExpr (TE _ (LetBang vs nm e1 e2 _)) = shallowLet nm e1 e2
 shallowExpr (TE _ (Tuple e1 e2 _)) = mkApp <$> (pure $ mkId "Pair") <*> (mapM shallowExpr [e1, e2])
 shallowExpr (TE t (Struct fs _)) = shallowMaker t fs
 shallowExpr (TE _ (If c th el _)) = mkApp <$> (pure $ mkId "HOL.If") <*> mapM shallowExpr [c, th, el]
-shallowExpr ec@(TE _ (Case e tag (_,n1,e1) (_,n2,e2))) = do
+shallowExpr ec@(TE _ (Case e tag (_,n1,e1) (_,n2,e2) _)) = do
   ec' <- expandSynsInCase ec
   case takeFlatCase ec' of
     Just (escrut,ealts) -> do
@@ -899,7 +899,7 @@ data SCorresCaseData = SCCD { bigType :: String
 scorresCaseExpr :: MapTypeName -> PosTypedExpr t v VarName b -> S.Set SCorresCaseData
 scorresCaseExpr m = CC.foldEPre unwrap scorresCaseExpr'
   where
-    scorresCaseExpr' (TE t e@(Case (TE bt _) tag (_,_,e1) (_,_,e2)))
+    scorresCaseExpr' (TE t e@(Case (TE bt _) tag (_,_,e1) (_,_,e2) _))
       | (tstr@(VariantStr vs):_) <- toTypeStr bt
       , Just bt' <- M.lookup tstr m
       = S.fromList [SCCD bt' vs tag, SCFD bt' vs]

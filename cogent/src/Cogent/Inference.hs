@@ -755,7 +755,7 @@ infer (E (If ec et ee loc))
             ee'' = if te /= tlub then promote tlub ee' else ee'
             tl = if tt == tlub then exprType et' else if te == tlub then exprType ee' else tlub
         return $ TE tl (If ec' et'' ee'' loc)
-infer (E (Case e tag (lt,at,et) (le,ae,ee)))
+infer (E (Case e tag (lt,at,et) (le,ae,ee) loc))
    = do e' <- infer e
         TSum ts <- unfoldSynsShallowM $ exprType e'
         let Just (t, taken) = lookup tag ts
@@ -773,7 +773,7 @@ infer (E (Case e tag (lt,at,et) (le,ae,ee)))
         let et'' = if tt /= tlub then promote tlub et' else et'
             ee'' = if te /= tlub then promote tlub ee' else ee'
             tl = if tt == tlub then exprType et' else if te == tlub then exprType ee' else tlub
-        return $ TE tl (Case e'' tag (lt,at,et'') (le,ae,ee''))
+        return $ TE tl (Case e'' tag (lt,at,et'') (le,ae,ee'') loc)
 infer (E (Esac e))
    = do e'@(TE te _) <- infer e
         TSum ts <- unfoldSynsShallowM te
@@ -878,10 +878,11 @@ promote t (TE t' e) = case e of
   Let a e1 e2 loc        -> TE t $ Let a e1 (promote t e2) loc
   LetBang vs a e1 e2 loc -> TE t $ LetBang vs a e1 (promote t e2) loc
   If ec et ee loc        -> TE t $ If ec (promote t et) (promote t ee) loc
-  Case e tag (l1,a1,e1) (l2,a2,e2)
+  Case e tag (l1,a1,e1) (l2,a2,e2) loc
                       -> TE t $ Case e tag
                                   (l1, a1, promote t e1)
                                   (l2, a2, promote t e2)
+                                  loc
   -- Collapse consecutive promotes
   Promote _ e'        -> promote t e'
   -- Otherwise, no simplification is necessary; construct a Promote expression as usual.

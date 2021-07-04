@@ -196,7 +196,7 @@ data Expr loc t v a b e
   | Tuple (e loc t v a b) (e loc t v a b) loc
   | Struct [(FieldName, e loc t v a b)] loc  -- unboxed record
   | If (e loc t v a b) (e loc t v a b) (e loc t v a b) loc  -- technically no longer needed as () + () == Bool
-  | Case (e loc t v a b) TagName (Likelihood, a, e loc t ('Suc v) a b) (Likelihood, a, e loc t ('Suc v) a b)
+  | Case (e loc t v a b) TagName (Likelihood, a, e loc t ('Suc v) a b) (Likelihood, a, e loc t ('Suc v) a b) loc
   | Esac (e loc t v a b)
   | Split (a, a) (e loc t v a b) (e loc t ('Suc ('Suc v)) a b)
   | Member (e loc t v a b) FieldIndex
@@ -403,7 +403,7 @@ insertIdxAtE cut f (LetBang vs a e1 e2 loc) = LetBang (map (first $ liftIdx cut)
 insertIdxAtE cut f (Tuple e1 e2 loc) = Tuple (f cut e1) (f cut e2) loc
 insertIdxAtE cut f (Struct fs loc) = Struct (map (second $ f cut) fs) loc
 insertIdxAtE cut f (If c e1 e2  loc) = If (f cut c) (f cut e1) (f cut e2) loc
-insertIdxAtE cut f (Case c tag (l1,a1,alt) (l2,a2,alts)) = Case (f cut c) tag (l1, a1, f (FSuc cut) alt) (l2, a2, f (FSuc cut) alts)
+insertIdxAtE cut f (Case c tag (l1,a1,alt) (l2,a2,alts) loc) = Case (f cut c) tag (l1, a1, f (FSuc cut) alt) (l2, a2, f (FSuc cut) alts) loc
 insertIdxAtE cut f (Esac e) = Esac (f cut e)
 insertIdxAtE cut f (Split a e1 e2) = Split a (f cut e1) (f (FSuc (FSuc cut)) e2)
 insertIdxAtE cut f (Member e fld) = Member (f cut e) fld
@@ -443,7 +443,7 @@ foldEPre unwrap f e = case unwrap e of
   (Tuple e1 e2 _)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (Struct fs _)         -> mconcat $ f e : map (foldEPre unwrap f . snd) fs
   (If e1 e2 e3 _)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2, foldEPre unwrap f e3]
-  (Case e1 _ (_,_,e2) (_,_,e3)) -> mconcat $ [f e, foldEPre unwrap f e1, foldEPre unwrap f e2, foldEPre unwrap f e3]
+  (Case e1 _ (_,_,e2) (_,_,e3) _) -> mconcat $ [f e, foldEPre unwrap f e1, foldEPre unwrap f e2, foldEPre unwrap f e3]
   (Esac e1)           -> f e `mappend` foldEPre unwrap f e1
   (Split _ e1 e2)     -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (Member e1 _)       -> f e `mappend` foldEPre unwrap f e1
@@ -476,7 +476,7 @@ fmapE f (LetBang vs a e1 e2 loc) = LetBang vs a (f e1) (f e2) loc
 fmapE f (Tuple e1 e2 loc)        = Tuple (f e1) (f e2) loc
 fmapE f (Struct fs loc)          = Struct (map (second f) fs) loc
 fmapE f (If e1 e2 e3 loc)        = If (f e1) (f e2) (f e3) loc
-fmapE f (Case e tn (l1,a1,e1) (l2,a2,e2)) = Case (f e) tn (l1, a1, f e1) (l2, a2, f e2)
+fmapE f (Case e tn (l1,a1,e1) (l2,a2,e2) loc) = Case (f e) tn (l1, a1, f e1) (l2, a2, f e2) loc
 fmapE f (Esac e)             = Esac (f e)
 fmapE f (Split a e1 e2)      = Split a (f e1) (f e2)
 fmapE f (Member rec fld)     = Member (f rec) fld
@@ -520,7 +520,7 @@ instance (Functor (e loc t v a),
   fmap f (Flip (Tuple e1 e2 loc)        )      = Flip $ Tuple (fmap f e1) (fmap f e2) loc
   fmap f (Flip (Struct fs loc)          )      = Flip $ Struct (map (second $ fmap f) fs) loc
   fmap f (Flip (If e1 e2 e3 loc)        )      = Flip $ If (fmap f e1) (fmap f e2) (fmap f e3) loc
-  fmap f (Flip (Case e tn (l1,a1,e1) (l2,a2,e2))) = Flip $ Case (fmap f e) tn (l1, a1, fmap f e1) (l2, a2, fmap f e2)
+  fmap f (Flip (Case e tn (l1,a1,e1) (l2,a2,e2) loc)) = Flip $ Case (fmap f e) tn (l1, a1, fmap f e1) (l2, a2, fmap f e2) loc
   fmap f (Flip (Esac e)             )      = Flip $ Esac (fmap f e)
   fmap f (Flip (Split a e1 e2)      )      = Flip $ Split a (fmap f e1) (fmap f e2)
   fmap f (Flip (Member rec fld)     )      = Flip $ Member (fmap f rec) fld
@@ -555,7 +555,7 @@ instance (Functor (Flip (e loc t v) b),
   fmap f (Flip2 (Tuple e1 e2 loc)        )      = Flip2 $ Tuple (ffmap f e1) (ffmap f e2) loc
   fmap f (Flip2 (Struct fs loc)          )      = Flip2 $ Struct (map (second $ ffmap f) fs) loc
   fmap f (Flip2 (If e1 e2 e3 loc)        )      = Flip2 $ If (ffmap f e1) (ffmap f e2) (ffmap f e3) loc
-  fmap f (Flip2 (Case e tn (l1,a1,e1) (l2,a2,e2))) = Flip2 $ Case (ffmap f e) tn (l1, f a1, ffmap f e1) (l2, f a2, ffmap f e2)
+  fmap f (Flip2 (Case e tn (l1,a1,e1) (l2,a2,e2) loc)) = Flip2 $ Case (ffmap f e) tn (l1, f a1, ffmap f e1) (l2, f a2, ffmap f e2) loc
   fmap f (Flip2 (Esac e)             )      = Flip2 $ Esac (ffmap f e)
   fmap f (Flip2 (Split a e1 e2)      )      = Flip2 $ Split (both f a) (ffmap f e1) (ffmap f e2)
   fmap f (Flip2 (Member rec fld)     )      = Flip2 $ Member (ffmap f rec) fld
@@ -677,7 +677,7 @@ instance (Pretty a, Pretty b, Prec (e loc t v a b), Pretty (e loc t v a b), Pret
   pretty (If c t e _) = group . align $ (keyword "if" <+> pretty c
                                        L.<$> indent (keyword "then" </> align (pretty t))
                                        L.<$> indent (keyword "else" </> align (pretty e)))
-  pretty (Case e tn (l1,v1,a1) (l2,v2,a2)) = align (keyword "case" <+> pretty e <+> keyword "of"
+  pretty (Case e tn (l1,v1,a1) (l2,v2,a2) _) = align (keyword "case" <+> pretty e <+> keyword "of"
                                                   L.<$> indent (tagname tn <+> pretty v1 <+> pretty l1 <+> align (pretty a1))
                                                   L.<$> indent (pretty v2 <+> pretty l2 <+> align (pretty a2)))
   pretty (Esac e) = keyword "esac" <+> parens (pretty e)

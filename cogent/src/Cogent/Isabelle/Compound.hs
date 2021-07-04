@@ -59,7 +59,7 @@ takeFlatCase :: PosTypedExpr t v VarName b
 takeFlatCase (TE _ e) = case e of
  -- Take top-level case separately as we need the scrutinee here,
  -- while the nested levels must have a scrutinee of (Var 0).
- (Case escrut tag (_,n1,e1) (_,n2,e2))
+ (Case escrut tag (_,n1,e1) (_,n2,e2) _)
   | TSum talts <- exprType escrut
   -> do let m0 = M.singleton tag (n1,e1)
         -- Descend into failure case to match remaining alternatives
@@ -77,7 +77,7 @@ takeFlatCase (TE _ e) = case e of
          -> (M.Map TagName (VarName, PosTypedExpr t u VarName b))
          -> Maybe (M.Map TagName (VarName, PosTypedExpr t u VarName b))
   -- Match a nested Case on the same scrutinee
-  goAlts nscrut (TE _ (Case (TE _ (Variable (FZero, nscrut') loc)) tag (_, na1,ea1) (_, na2, ea2))) m
+  goAlts nscrut (TE _ (Case (TE _ (Variable (FZero, nscrut') _)) tag (_, na1,ea1) (_, na2, ea2) _)) m
    | nscrut == nscrut'
    = do -- The nested case structure binds a lot of variables that all refer to the scrutinee,
         -- because the failure continuation of each nested case has a binding.
@@ -124,10 +124,11 @@ expDiscardVar' rm0 f e = case e of
   Tuple e1 e2 loc           -> Tuple <$> go e1 <*> go e2 <*> pure loc
   Struct fes loc            -> Struct <$> mapM (msecond go) fes <*> pure loc
   If ep et ef loc           -> If <$> go ep <*> go et <*> go ef <*> pure loc
-  Case es tag (l1,n1,e1) (l2,n2,e2)
+  Case es tag (l1,n1,e1) (l2,n2,e2) loc
                          -> Case <$> go es <*> pure tag
                          <*> ((l1,n1,) <$> goSuc e1)
                          <*> ((l2,n2,) <$> goSuc e2)
+                         <*> pure loc
   Esac es                -> Esac <$> go es
   Split (n,n') es et     -> Split (n,n') <$> go es <*> goSuc2 et
   Member e1 f            -> Member <$> go e1 <*> pure f

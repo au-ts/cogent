@@ -397,13 +397,13 @@ splitEnv env (TE t (If ec et ee loc))
           ee' = splitEnv env ee
        in EE t (If ec' et' ee' loc) $ envOf ec' <|> envOf et' <|> envOf ee'
 
-splitEnv env (TE t (Case e tag (lt,at,et) (le,ae,ee)))
+splitEnv env (TE t (Case e tag (lt,at,et) (le,ae,ee) loc))
     = let et' = splitEnv (Cons (fmap fst $ lookup tag ts) env) et
           restt = TSum $ adjust tag (second $ const True) ts
           ee' = splitEnv (Cons (Just restt) env) ee
           e'  = splitEnv env e
           TSum ts = typeOf e'
-       in EE t (Case e' tag (lt,at,et') (le,ae,ee')) $ envOf e' <|> peel (envOf ee') <|> peel (envOf et')
+       in EE t (Case e' tag (lt,at,et') (le,ae,ee') loc) $ envOf e' <|> peel (envOf ee') <|> peel (envOf et')
 
 splitEnv env (TE t (Take a e f e2)) =
     let e' = splitEnv env e
@@ -465,12 +465,12 @@ pushDown unused (EE ty (If ec et ee loc) env)
           ee' = pushDown (envOf et <\> envOf ee) ee
        in EE ty (If ec' et' ee' loc) $ unused <|> env
 
-pushDown unused (EE ty (Case e tag (lt,at,et) (le,ae,ee)) env)
+pushDown unused (EE ty (Case e tag (lt,at,et) (le,ae,ee) loc) env)
     = let e'@(EE (TSum ts) _ _) = pushDown (unused <\> env) e
           et' = pushDown (Cons (fmap fst $ lookup tag ts) (peel (envOf ee) <\> peel (envOf et))) et
           restt = TSum $ adjust tag (second $ const True) ts
           ee' = pushDown (Cons (Just restt) (peel (envOf et) <\> peel (envOf ee))) ee
-      in (EE ty (Case e' tag (lt,at,et') (le,ae,ee')) $ unused <|> env)
+      in (EE ty (Case e' tag (lt,at,et') (le,ae,ee') loc) $ unused <|> env)
 
 pushDown unused (EE ty (Esac e) env)
     = let e' = pushDown unused e
@@ -532,7 +532,7 @@ typeTree (EE ty (Let a e1 e2 _) env) = TyTrSplit (treeSplits env (envOf e1) (pee
 typeTree (EE ty (LetBang vs a e1 e2 _) env) = TyTrSplit (treeBang 0 (map (finInt . fst) vs) $ treeSplits env (envOf e1) (peel $ envOf e2)) ([], typeTree e1) ([envOf e2 `at` FZero], typeTree e2)
 typeTree (EE ty (Take a e1 f e2) env) = TyTrSplit (treeSplits env (envOf e1) (peel2 $ envOf e2)) ([], typeTree e1) ([envOf e2 `at` FZero, envOf e2 `at` FSuc FZero], typeTree e2)
 
-typeTree (EE ty (Case e tag (lt,at,et) (le,ae,ee)) env) = TyTrSplit (treeSplits env (envOf e) (peel $ envOf et <|> envOf ee)) ([], typeTree e) ([],
+typeTree (EE ty (Case e tag (lt,at,et) (le,ae,ee) _) env) = TyTrSplit (treeSplits env (envOf e) (peel $ envOf et <|> envOf ee)) ([], typeTree e) ([],
                                                                     TyTrSplit (treeSplits (peel $ envOf ee <|> envOf et) (peel $ envOf et) (peel $ envOf ee)) ([V.head $ envOf et], typeTree et) ([V.head $ envOf ee], typeTree ee))
 typeTree (EE ty (If ec et ee _) env) = TyTrSplit (treeSplits env (envOf ec) (envOf et <|> envOf ee)) ([], typeTree ec) ([],
                                                                     TyTrSplit (treeSplits (envOf ee <|> envOf et) (envOf et) (envOf ee)) ([], typeTree et) ([], typeTree ee))

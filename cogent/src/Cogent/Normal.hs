@@ -87,7 +87,7 @@ isNormal (E (Let _ e1 e2 _)) | __cogent_fnormalisation == ANF && isAtom e1 && is
                             -- XXX | ANF <- __cogent_fnormalisation, __cogent_fcondition_knf && isNormal e1 && isNormal e2 = True
                            | __cogent_fnormalisation `elem` [KNF, LNF] && isNormal e1 && isNormal e2 = True
 isNormal (E (LetBang vs _ e1 e2 _)) | isNormal e1 && isNormal e2 = True
-isNormal (E (Case e tn (l1,_,e1) (l2,_,e2))) | isVar e && isNormal e1 && isNormal e2 = True
+isNormal (E (Case e tn (l1,_,e1) (l2,_,e2) _)) | isVar e && isNormal e1 && isNormal e2 = True
   -- \| ANF <- __cogent_fnormalisation, isVar  e && isNormal e1 && isNormal e2 = True
   -- \| KNF <- __cogent_fnormalisation, isAtom e && isNormal e1 && isNormal e2 = True
 isNormal (E (If  c th el _)) | isVar c  && isNormal th && isNormal el = True
@@ -232,18 +232,19 @@ normalise v (E (If c th el loc)) k = normaliseName v c $ \n c' ->
   E <$> (If c' <$> normalise (sadd v n) (upshiftExpr n v f0 th) (\n' -> withAssoc v n n' $ \Refl -> k (sadd n n'))
                <*> normalise (sadd v n) (upshiftExpr n v f0 el) (\n' -> withAssoc v n n' $ \Refl -> k (sadd n n'))
                <*> pure loc)
-normalise v (E (Case e tn (l1,a1,e1) (l2,a2,e2))) k | LNF <- __cogent_fnormalisation =
+normalise v (E (Case e tn (l1,a1,e1) (l2,a2,e2) loc)) k | LNF <- __cogent_fnormalisation =
   freshVar >>= \a ->
   normaliseExpr (SSuc v) e1 >>= \e1' ->
   normaliseExpr (SSuc v) e2 >>= \e2' ->
   normaliseName v e $ \n e' ->
   case sym $ addSucLeft v n of
-    Refl -> E <$> (Let a (E $ Case e' tn (l1,a1,upshiftExpr n (SSuc v) f0 e1') (l2,a2,upshiftExpr n (SSuc v) f0 e2')) <$> k (SSuc n) (E $ Variable (f0, a) __dummyPos) <*> pure __dummyPos)
-normalise v (E (Case e tn (l1,a1,e1) (l2,a2,e2))) k =
+    Refl -> E <$> (Let a (E $ Case e' tn (l1,a1,upshiftExpr n (SSuc v) f0 e1') (l2,a2,upshiftExpr n (SSuc v) f0 e2') loc) <$> k (SSuc n) (E $ Variable (f0, a) __dummyPos) <*> pure __dummyPos)
+normalise v (E (Case e tn (l1,a1,e1) (l2,a2,e2) loc)) k =
   normaliseName v e $ \n e' -> case addSucLeft v n of
     Refl -> let [e1u,e2u] = map (upshiftExpr n (SSuc v) f1) [e1,e2]
              in E <$> (Case e' tn <$> ((l1, a1,) <$> (normalise (sadd (SSuc v) n) e1u $ \n' -> withAssocS v n n' $ \Refl -> k (SSuc (sadd n n'))))
-                                  <*> ((l2, a2,) <$> (normalise (sadd (SSuc v) n) e2u $ \n' -> withAssocS v n n' $ \Refl -> k (SSuc (sadd n n')))))
+                                  <*> ((l2, a2,) <$> (normalise (sadd (SSuc v) n) e2u $ \n' -> withAssocS v n n' $ \Refl -> k (SSuc (sadd n n'))))
+                                  <*> pure loc)
 normalise v (E (Esac e)) k = normaliseName v e $ \n e' -> k n (E $ Esac e')
 normalise v (E (Split a p e)) k
   = normaliseName v p $ \n p' -> case addSucLeft v n of
@@ -272,9 +273,10 @@ normaliseAtom v e k = normalise v e $ \n e' -> if isAtom e' then k n e' else cas
      \n' e2' -> withAssocS v n n' $ \Refl -> E <$> (Let a' e2' <$> (k (SSuc (sadd n (SSuc n'))) $ E $ Variable (f0, a') loc) <*> pure loc)) <*> pure loc)  
   (E (LetBang vs a e1 e2 loc)) -> freshVar >>= \a' -> E <$> (LetBang vs a e1 <$> (normaliseAtom (SSuc (sadd v n)) e2 $
      \n' e2'  -> withAssocS v n n' $ \Refl -> E <$> (Let a' e2' <$> (k (SSuc (sadd n (SSuc n'))) $ E $ Variable (f0, a') loc) <*> pure loc)) <*> pure loc)
-  (E (Case e tn (l1,a1,e1) (l2,a2,e2))) ->
+  (E (Case e tn (l1,a1,e1) (l2,a2,e2) loc)) ->
      E <$> (Case e tn <$> ((l1,a1,) <$> normaliseAtom (SSuc (sadd v n)) e1 (\n' -> withAssocS v n n' $ \Refl -> k (sadd n (SSuc n'))))
-                                    <*> ((l2,a2,) <$> normaliseAtom (SSuc (sadd v n)) e2 (\n' -> withAssocS v n n' $ \Refl -> k (sadd n (SSuc n')))))
+                                    <*> ((l2,a2,) <$> normaliseAtom (SSuc (sadd v n)) e2 (\n' -> withAssocS v n n' $ \Refl -> k (sadd n (SSuc n'))))
+                                    <*> pure loc)
   -- FIXME: does this one also need to be changed for LNF? / zilinc
   (E (If c th el loc)) -> E <$> (If c <$> normaliseAtom (sadd v n) th (\n' -> withAssoc v n n' $ \Refl -> k (sadd n n'))
                                       <*> normaliseAtom (sadd v n) el (\n' -> withAssoc v n n' $ \Refl -> k (sadd n n'))
@@ -290,7 +292,7 @@ wrapPut e | not __cogent_fwrap_put_in_let = return e
 wrapPut put@(E (Put rec f e)) = freshVar >>= \a -> return $ E (Let a put (E $ Variable (f0,a) __dummyPos) __dummyPos)
 wrapPut (E (Let a e1 e2 loc)) = E <$> (Let a e1 <$> wrapPut e2 <*> pure loc)
 wrapPut (E (LetBang vs a e1 e2 loc)) = E <$> (LetBang vs a <$> wrapPut e1 <*> wrapPut e2 <*> pure loc)
-wrapPut (E (Case e tn (l1,a1,e1) (l2,a2,e2))) = E <$> (Case e tn <$> ((l1,a1,) <$> wrapPut e1) <*> ((l2,a2,) <$> wrapPut e2))
+wrapPut (E (Case e tn (l1,a1,e1) (l2,a2,e2) loc)) = E <$> (Case e tn <$> ((l1,a1,) <$> wrapPut e1) <*> ((l2,a2,) <$> wrapPut e2) <*> pure loc)
 wrapPut (E (If c th el loc)) = E <$> (If c <$> wrapPut th <*> wrapPut el <*> pure loc)
 wrapPut (E (Split a p e)) = E <$> (Split a p <$> wrapPut e)
 wrapPut (E (Take a rec fld e)) = E <$> (Take a rec fld <$> wrapPut e)
