@@ -151,6 +151,10 @@ lemma frame_expand:
 
 section "WordArray Locale Definition"
 
+text "Embedding of values of abstract types in the Value semantics"
+datatype vatyp = VWA type "(funtyp, vatyp) vval list" | VTOther "unit"
+type_synonym vabstyp = vatyp
+
 locale WordArray = main_pp_inferred begin
 
   text

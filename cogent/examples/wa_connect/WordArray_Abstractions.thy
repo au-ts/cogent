@@ -151,6 +151,9 @@ lemma frame_expand:
 
 section "WordArray Locale Definition"
 
+datatype vatyp = VWA type "(funtyp, vatyp) vval list" | VTOther "unit"
+type_synonym vabstyp = vatyp
+
 locale WordArray = main_pp_inferred begin
   definition "wa_abs_repr a \<equiv> case a of
       UWA (TPrim (Num t)) _ _ \<Rightarrow> (''WordArray'', [RPrim (Num t)])

@@ -18,9 +18,6 @@ begin
 
 type_synonym funtyp = "char list"
 
-datatype vatyp = VWA type "(funtyp, vatyp) vval list" | VTOther "unit"
-type_synonym vabstyp = vatyp
-
 inductive_cases v_sem_letE: "\<xi> , \<gamma> \<turnstile> Let a b \<Down> b'"
 inductive_cases v_sem_letBangE: "\<xi> , \<gamma> \<turnstile> LetBang vs a b \<Down> b'"
 inductive_cases v_sem_litE: "\<xi> , \<gamma> \<turnstile> Lit l \<Down> v"
