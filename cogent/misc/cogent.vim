@@ -10,9 +10,9 @@
 
 " Vim syntax file
 " Language:		Cogent
-" Maintainer:		Zilin Chen <Zilin.Chen@data61.csiro.au>
+" Maintainer:		Zilin Chen <z3350478@unsw.edu.au>
 " Last Change:		10 Apr 2017
-" Original Author:	Zilin Chen <Zilin.Chen@data61.csiro.au>
+" Original Author:	Zilin Chen <z3350478@unsw.edu.au>
 "
 "
 

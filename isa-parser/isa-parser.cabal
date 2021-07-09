@@ -8,7 +8,7 @@ version:             0.1.0.0
 -- license:             
 -- license-file:        LICENSE
 author:              Sean Seefried
-maintainer:          Zilin.Chen@data61.csiro.au
+maintainer:          Zilin Chen <z3350478@unsw.edu.au>
 -- copyright:           
 category:            Language
 build-type:          Simple
