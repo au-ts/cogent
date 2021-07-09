@@ -12,6 +12,6 @@
 <!-- artificial dependency on isabelle to fail fast if 
      isabelle setup doesn't work -->
 <testsuite depends="isabelle" timeout="7200">
-    <test name="bilbyfs_sync" depends="bilbyfs_typecheck">make sync</test>
-    <test name="bilbyfs_iget" depends="bilbyfs_typecheck">make iget</test>
+    <test name="bilbyfs_sync">make sync</test>
+    <test name="bilbyfs_iget">make iget</test>
 </testsuite>
