@@ -169,18 +169,18 @@ genFunDispatch tn (ti, to) (S.toList -> fs) = do
   r' <- freshLocalCId 'a'  -- return
   f' <- freshLocalCId 'a'  -- function
   x' <- freshLocalCId 'a'  -- arg
-  let body fm = case fs of
+  let body fm loc = case fs of
                   []  -> __impossible "genFunDispatch"
-                  [(f,a)] -> [CBIStmt $ genInnerFnCall fm a f r' x']
+                  [(f,a)] -> [CBIStmt (genInnerFnCall fm a f r' x') loc]
                   _   -> let alts' = flip map (init fs) $ \(f,a) ->
                                        let fncall = genInnerFnCall fm a f r' x'
                                         in (Just (variable $ funEnum f), genBreakWithFnCall fm fncall)
                              deft' = let (f,a) = last fs
                                          fncall = genInnerFnCall fm a f r' x'
                                       in (Nothing, genBreakWithFnCall fm fncall)  -- the last alt will be the `default' case
-                          in [CBIStmt $ CSwitch (variable f') (alts'++[deft'])]
-  return [CFnMacro (funDispMacro disp) [r',f',x'] [CBIStmt $ CBlock (body True)],  -- macro version
-          CFnDefn (to,disp) [(CIdent tn',f'), (ti,x')] (body False) staticInlineFnSpec]  -- funct version
+                          in [CBIStmt (CSwitch (variable f') (alts'++[deft'])) loc]
+  return [CFnMacro (funDispMacro disp) [r',f',x'] [CBIStmt (CBlock $ body True C.__dummyPos) C.__dummyPos],  -- macro version
+          CFnDefn (to,disp) [(CIdent tn',f'), (ti,x')] (body False C.__dummyPos ) staticInlineFnSpec]  -- funct version
   where
     genInnerFnCall :: Bool -> Attr -> CId -> CId -> CId -> CStmt
     genInnerFnCall fm a f r x = if not fm
@@ -189,7 +189,7 @@ genFunDispatch tn (ti, to) (S.toList -> fs) = do
         then CAssignFnCall Nothing (variable $ funMacro f) [variable r, variable x]
         else CAssignFnCall (Just $ variable r) (variable f) [variable x]
     genBreakWithFnCall :: Bool -> CStmt -> CStmt
-    genBreakWithFnCall fm s = if fm then CBlock [CBIStmt s, CBIStmt CBreak] else s
+    genBreakWithFnCall fm s = if fm then CBlock [CBIStmt s C.__dummyPos, CBIStmt CBreak C.__dummyPos] else s
 
 
 -- Add a type synonym
@@ -206,9 +206,9 @@ assign (CArray t (CArraySize l)) lhs rhs = do
   (adecl,astm) <- assign t (CArrayDeref lhs (variable i)) (CArrayDeref rhs (variable i))
   let cond = CBinOp C.Lt (variable i) l
       inc  = CAssign (variable i) (CBinOp C.Add (variable i) (mkConst U32 1))  -- i++
-      loop = CWhile cond (CBlock $ astm ++ [CBIStmt inc])
-  return (idecl ++ adecl, istm ++ [CBIStmt loop])
-assign t lhs rhs = return ([], [CBIStmt $ CAssign lhs rhs])
+      loop = CWhile cond (CBlock $ astm ++ [CBIStmt inc C.__dummyPos])
+  return (idecl ++ adecl, istm ++ [CBIStmt loop C.__dummyPos])
+assign t lhs rhs = return ([], [CBIStmt (CAssign lhs rhs) C.__dummyPos])
 
 
 -- Given a C type, returns a fresh local variable e
@@ -245,7 +245,7 @@ declareG ty minit | __cogent_fshare_linear_vars = do
   case M.lookup ty pool of
     Nothing -> do
       v <- freshLocalCId 'r'
-      let decl = [CBIDecl $ CVarDecl ty v True Nothing]
+      let decl = [CBIDecl (CVarDecl ty v True Nothing) C.__dummyPos]
       (adecl,astm) <- case minit of
                         Nothing -> return ([],[])
                         Just (CInitE e) -> assign ty (variable v) e
@@ -255,13 +255,13 @@ declareG ty minit | __cogent_fshare_linear_vars = do
     Just (v:vs) -> do
       varPool .= M.update (const $ Just vs) ty pool
       case minit of
-        Nothing -> return (v, [], [CBIStmt CEmptyStmt])  -- FIXME: shouldn't have anything in p though / zilinc
+        Nothing -> return (v, [], [CBIStmt CEmptyStmt C.__dummyPos])  -- FIXME: shouldn't have anything in p though / zilinc
         Just (CInitE e) -> extTup2l v <$> assign ty (variable v) e
         Just (CInitList il) -> extTup2l v <$> assign ty (variable v) (CCompLit ty il)
 declareG ty minit = do
   v <- freshLocalCId 'r'
   let decl = CBIDecl $ CVarDecl ty v True minit
-  return (v,[],[decl])
+  return (v,[],[decl C.__dummyPos])
 
 -- XXX | similar to declareG, with a given name
 -- XXX | declareG' :: CType -> CId -> Maybe CInitializer -> Gen v CBlockItem
@@ -511,7 +511,7 @@ genExpr mv (TE t (App e1@(TE _ (Fun f _ _ MacroCall locFun)) e2 locApp)) | __cog
   (e2',e2decl,e2stm,e2p) <- genExpr_ e2
   t' <- genType t
   (v,vdecl,vstm) <- maybeDecl mv t'
-  let call = [CBIStmt $ CAssignFnCall Nothing (variable $ funMacro (unCoreFunName f)) [variable v, e2']]
+  let call = [CBIStmt (CAssignFnCall Nothing (variable $ funMacro (unCoreFunName f)) [variable v, e2']) C.__dummyPos]
   recycleVars e2p
   return (variable v, e2decl ++ vdecl, e2stm ++ vstm ++ call, M.empty)
 
@@ -528,7 +528,7 @@ genExpr mv (TE t (App e1 e2 loc)) | __cogent_ffncall_as_macro = do
   let fname = funDispatch enumt
   t' <- genType t
   (v,vdecl,vstm) <- maybeDecl mv t'
-  let call = [CBIStmt $ CAssignFnCall Nothing (variable $ funDispMacro fname) [variable v, e1', e2']]
+  let call = [CBIStmt (CAssignFnCall Nothing (variable $ funDispMacro fname) [variable v, e1', e2']) C.__dummyPos]
   recycleVars (mergePools [e1p,e2p])
   return (variable v, e1decl ++ e2decl ++ vdecl, e1stm ++ e2stm ++ vstm ++ call, M.empty)
 
@@ -605,7 +605,7 @@ genExpr mv (TE t (Put rec fld val _)) = do
     Boxed _ (Layout l) -> do
       let recordType = exprType rec
       fieldSetter <- genGSRecord recordType fieldName Set
-      return $ ([], [CBIStmt $ CAssignFnCall Nothing (variable fieldSetter) [variable rec'', val']])
+      return $ ([], [CBIStmt (CAssignFnCall Nothing (variable fieldSetter) [variable rec'', val']) C.__dummyPos])
 
   recycleVars valp
   (v,adecl,astm,vp) <- maybeAssign t' mv (variable rec'') M.empty
@@ -624,7 +624,7 @@ genExpr mv (TE t (Let _ e1 e2 _))
     (v,vdecl,vstm) <- declare t1'
     (e1',e1decl,e1stm,e1p) <- genExpr_ e1
     (adecl,astm) <- assign t1' (variable v) e1'
-    let binding = [CBIStmt $ CIfStmt (variable letTrue) (CBlock $ e1stm ++ astm) CEmptyStmt]
+    let binding = [CBIStmt (CIfStmt (variable letTrue) (CBlock $ e1stm ++ astm) CEmptyStmt) C.__dummyPos]
     recycleVars e1p
     (e2',e2decl,e2stm,e2p) <- withBindings (Cons (variable v) Nil) $ genExpr mv e2
     return (e2', vdecl ++ e1decl ++ adecl ++ e2decl, vstm ++ binding ++ e2stm, e2p)
@@ -636,7 +636,7 @@ genExpr mv (TE t (LetBang vs v e1 e2 loc))
     (v,vdecl,vstm) <- declare t1'
     (e1',e1decl,e1stm,e1p) <- genExpr_ e1
     (adecl,astm) <- assign t1' (variable v) e1'
-    let binding = [CBIStmt $ CIfStmt (variable letbangTrue) (CBlock $ e1stm ++ astm) CEmptyStmt]
+    let binding = [CBIStmt (CIfStmt (variable letbangTrue) (CBlock $ e1stm ++ astm) CEmptyStmt) C.__dummyPos]
     recycleVars e1p
     (e2',e2decl,e2stm,e2p) <- withBindings (Cons (variable v) Nil) $ genExpr mv e2
     return (e2', vdecl ++ e1decl ++ adecl ++ e2decl, vstm ++ binding ++ e2stm, e2p)
@@ -734,7 +734,7 @@ genExpr mv (TE t (If c e1 e2 _)) = do
                 else CBIStmt $ CIfStmt (strDot c' boolField) (CBlock e1stm) (CBlock e2stm)
   recycleVars (mergePools [cp, intersectPools e1p e2p])
   return (variable v, vdecl ++ cdecl ++ e1decl ++ e2decl ++ a1decl ++ a2decl,
-          vstm ++ cstm ++ [ifstm], M.empty)
+          vstm ++ cstm ++ [ifstm C.__dummyPos], M.empty)
 
 genExpr mv (TE t (Case e tag (l1,_,e1) (_,_,e2) _)) = do  -- NOTE: likelihood `l2' unused because it has become binary / zilinc
   (v,vdecl,vstm) <- case mv of
@@ -767,7 +767,7 @@ genExpr mv (TE t (Case e tag (l1,_,e1) (_,_,e2) _)) = do  -- NOTE: likelihood `l
                 else CBIStmt $ CIfStmt (macro1 cnd) (CBlock $ v1stm ++ e1stm) (CBlock e2stm)
   recycleVars (mergePools [ep', intersectPools (mergePools [v1p,e1p]) e2p])
   return (variable v, vdecl ++ edecl ++ edecl' ++ v1decl ++ e1decl ++ e2decl ++ a1decl ++ a2decl,
-          vstm ++ estm ++ estm' ++ [ifstm], M.empty)
+          vstm ++ estm ++ estm' ++ [ifstm C.__dummyPos], M.empty)
 
 genExpr mv (TE t (Esac e _)) = do
   (e',edecl,estm,ep) <- genExpr_ e
@@ -836,9 +836,10 @@ genFfiFunc rt fn [t]
                                              [if tm then CDeref (variable arg) else variable arg]
                    , CBIStmt $ CReturn (Just $ variable ret)
                    ]
+            body' = fmap (\x -> x C.__dummyPos) body
         ffiFuncs %= (M.insert fn (ref t, ref rt))
         return [ CDecl $ CExtFnDecl (ref rt) ("ffi_" ++ fn) [(ref t,Nothing)] noFnSpec
-               , CFnDefn (ref rt, "ffi_" ++ fn) [(ref t,arg)] body noFnSpec
+               , CFnDefn (ref rt, "ffi_" ++ fn) [(ref t,arg)] body' noFnSpec
                ]
     | otherwise = return []
   where isPotentiallyUnmarshallable (CStruct {}) = True
@@ -881,8 +882,8 @@ genDefinition (FunDef attr fn Nil Nil t rt e) = do
   funClasses %= M.alter (insertSetMap (fn,attr)) (Function t' rt')
   body <- case __cogent_fintermediate_vars of
     True  -> do (rv,rvdecl,rvstm) <- declareInit rt' e' M.empty
-                return $ edecl ++ rvdecl ++ estm ++ rvstm ++ [CBIStmt $ CReturn $ Just (variable rv)]
-    False -> return $ edecl ++ estm ++ [CBIStmt $ CReturn $ Just e']
+                return $ edecl ++ rvdecl ++ estm ++ rvstm ++ [CBIStmt (CReturn $ Just (variable rv)) C.__dummyPos]
+    False -> return $ edecl ++ estm ++ [CBIStmt (CReturn $ Just e') C.__dummyPos]
   ffifunc <- if __cogent_fffi_c_functions then genFfiFunc rt' fn [t'] else return []
   let fnspec = ((if __cogent_ffunc_purity_attr then fnSpecKind t rt else id) $ fnSpecAttr attr noFnSpec)
   return $ ffifunc ++ [ CDecl $ CExtFnDecl rt' fn [(t',Nothing)] fnspec

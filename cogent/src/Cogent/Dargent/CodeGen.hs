@@ -67,6 +67,8 @@ import Lens.Micro.Mtl
   )
 import Debug.Trace
 
+import Text.Parsec (SourcePos)
+
 -- * Getter/setter generation
 
 -- | Returns a getter/setter function name for a field of a boxed record.
@@ -301,7 +303,8 @@ mkGsDeclRecord fs root t fn m =
         Get -> [CBIStmt $ CReturn $ Just $ CCompLit t $ 
                  fmap (\(f,g) -> ([CDesignFld f], CInitE $ CEFnCall (variable g) [boxVar])) fs]
         Set -> fmap (\(f,s) -> CBIStmt $ CAssignFnCall Nothing (variable s) [boxVar, CStructDot valueVar f]) fs
-   in mkGsDecl root t fn stmts m
+      stmts' = map (\x -> x __dummyPos) stmts
+   in mkGsDecl root t fn stmts' m
 
 
 -- | Calling @mkGsDeclVariant tagFn [(c0,v0,g0), ...] root t fn Get@
@@ -350,17 +353,17 @@ mkGsDeclVariant
   -> CExtDecl  -- ^ The C syntax tree for a function which extracts the embedded data from the box.
 mkGsDeclVariant tagFn ((c0,v0,gs0):alts) root t fn m =
   let stmts = case m of
-        Get -> [CBIStmt $ CReturn $ Just $
+        Get -> [CBIStmt (CReturn $ Just $
                  foldl' (\acc (c,v,g) -> CCondExpr (CBinOp Eq (CEFnCall (variable tagFn) [boxVar]) (uint v))
                                                    (getUnboxedAlt c g) acc)
-                        (getUnboxedAlt c0 gs0) alts]
+                        (getUnboxedAlt c0 gs0) alts) __dummyPos]
 
-        Set | [] <- alts -> setUnboxedAlt c0 v0 gs0
-        Set -> [CBIStmt $
+        Set | [] <- alts -> setUnboxedAlt c0 v0 gs0 __dummyPos 
+        Set -> [CBIStmt (
                  foldl' (\acc (c,v,s) -> CIfStmt (CBinOp Eq (CStructDot valueVar fieldTag)
                                                             (variable $ tagEnum c))
-                                                 (CBlock $ setUnboxedAlt c v s) acc)
-                        (CBlock $ setUnboxedAlt c0 v0 gs0) alts]
+                                                 (CBlock $ setUnboxedAlt c v s __dummyPos) acc)
+                        (CBlock $ setUnboxedAlt c0 v0 gs0 __dummyPos) alts) __dummyPos]
    in mkGsDecl root t fn stmts m
   where
     getUnboxedAlt :: CId -> FunName -> CExpr
@@ -370,8 +373,8 @@ mkGsDeclVariant tagFn ((c0,v0,gs0):alts) root t fn m =
       , ([CDesignFld altName] , CInitE $ CEFnCall (variable altGetter) [boxVar])
       ]
 
-    setUnboxedAlt :: CId -> Integer -> FunName -> [CBlockItem]
-    setUnboxedAlt altName tagValue altSetter = fmap CBIStmt
+    setUnboxedAlt :: CId -> Integer -> FunName -> SourcePos -> [CBlockItem]
+    setUnboxedAlt altName tagValue altSetter loc = fmap (flip CBIStmt $ loc)
       [ CAssignFnCall Nothing (variable tagFn)     [boxVar, uint tagValue]
       , CAssignFnCall Nothing (variable altSetter) [boxVar, CStructDot valueVar altName]
       ]
@@ -386,7 +389,8 @@ mkGsDeclUnit root fn m =
         Get -> [CBIStmt $ CReturn $ Just $ CCompLit unitCTy [([CDesignFld dummyField], CInitE $ sint 0)]]
         Set -> []  -- Intentionally empty 
         -- Not sure if need to initialise field of unit values to a given number
-   in mkGsDecl root unitCTy fn stmts m
+      stmts' = map (\x -> x __dummyPos) stmts
+   in mkGsDecl root unitCTy fn stmts' m
 
 
 -- | Creates a C function which either:
@@ -442,7 +446,8 @@ mkGsDeclBlock brs@((br0,gs0):brrest) ω root t fn m
                    $ zip brs
                    $ scanl' (+) 0
                    $ fmap (bitSizeABR . fst) brs
-     in mkGsDecl root t fn stmts m
+        stmts' = map (\x -> x __dummyPos) stmts
+     in mkGsDecl root t fn stmts' m
   where
 
     -- If called, `ω` should not be `ME`, as no conversion functions are defined for machine endianness
@@ -523,7 +528,8 @@ mkGsDeclABR b root (AlignedBitRange sz boff woff) fn m =
         Get -> [CBIStmt $ CReturn $ Just (CBinOp And (CBinOp Rsh expr boff') mask)]
         Set -> [CBIStmt $ CAssign expr (CBinOp Or (CBinOp And expr (CUnOp Not (CBinOp Lsh mask boff')))
                                                   (CBinOp Lsh (CBinOp And mask valueVar) boff'))]
-   in mkGsDecl root uintCTy fn stmts m
+      stmts' = map (\x -> x __dummyPos) stmts
+   in mkGsDecl root uintCTy fn stmts' m
   where
     boff' = uint boff
     mask  = CConst $ CNumConst (sizeToMask sz) uintCTy HEX
@@ -540,13 +546,13 @@ arrayGetterSetter arrType elemType elemSize functionName elemGetterSetter Get =
     [ ( arrType, arrId)
     , ( uintCTy, idxId) -- NOTE: type unverified
     ]
-    [ CBIStmt $ CReturn $ Just
+    [ CBIStmt (CReturn $ Just
       ( CEFnCall (variable elemGetterSetter)
         [( CBinOp Add
           ( CTypeCast ( CPtr charCTy ) arrVar )
           ( CBinOp Mul idxVar ( uint elemSize ) )
         )]
-      )
+      )) __dummyPos
     ]
     staticInlineFnSpec
   )
@@ -555,7 +561,7 @@ arrayGetterSetter arrType elemType elemSize functionName elemGetterSetter Set =
     ( CVoid, functionName ) -- (return type, function name)
     -- [(param type, param name)]
     [(arrType, arrId), (uintCTy, idxId), (elemType, valueId)]
-    [ CBIStmt $ CReturn $ Just
+    [ CBIStmt (CReturn $ Just
       ( CEFnCall (variable elemGetterSetter)
         [ ( CBinOp Add
             ( CTypeCast ( CPtr charCTy ) arrVar )
@@ -563,7 +569,7 @@ arrayGetterSetter arrType elemType elemSize functionName elemGetterSetter Set =
           )
         , valueVar
         ]
-      )
+      )) __dummyPos
     ]
     staticInlineFnSpec
   )

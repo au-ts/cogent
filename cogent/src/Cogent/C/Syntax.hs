@@ -44,6 +44,8 @@ import Data.Map as M hiding (map)
 import GHC.Generics (Generic, Generic1)
 import qualified "language-c-quote" Language.C as C
 
+import Text.Parsec.Pos (SourcePos, initialPos)
+
 type CId = String
 
 data CIntType = CCharT | CShortT | CIntT | CLongT | CLongLongT
@@ -152,9 +154,11 @@ data CStmt = CAssign CExpr CExpr
            | CComment String CStmt  -- to accommodate comments
            deriving (Show)
 
-data CBlockItem = CBIStmt CStmt
-                | CBIDecl (CDeclaration IND)
+data CBlockItem = CBIStmt CStmt SourcePos
+                | CBIDecl (CDeclaration IND) SourcePos
                 deriving (Show)
+
+__dummyPos = initialPos "dummy"
 
 data FnSpec = FnSpec [Storage] [TypeQual] [GccAttrs] deriving (Eq, Show)
 
