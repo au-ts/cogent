@@ -3,8 +3,8 @@ theory WordArray_Update
 
 begin
 
-type_synonym ('f, 'a, 'l) ufoldmapdef = "(funtyp, abstyp, ptrtyp) uabsfuns \<Rightarrow> ('f, 'a, 'l) store \<Rightarrow>
-                                          ptrtyp \<Rightarrow> 32 word \<Rightarrow> 32 word \<Rightarrow> 'f expr \<Rightarrow> 
+type_synonym ('f, 'a, 'l) ufoldmapdef = "('f, 'a, 'l) uabsfuns \<Rightarrow> ('f, 'a, 'l) store \<Rightarrow>
+                                          'l \<Rightarrow> 32 word \<Rightarrow> 32 word \<Rightarrow> 'f expr \<Rightarrow> 
                                           type \<Rightarrow> ('f, 'a, 'l) uval \<Rightarrow> type \<Rightarrow> ('f, 'a, 'l) uval \<Rightarrow>
                                           (('f, 'a, 'l) store \<times> ('f, 'a, 'l) uval) \<Rightarrow> bool"
 

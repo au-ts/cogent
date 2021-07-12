@@ -3,7 +3,7 @@ theory WordArray_Value
 
 begin
 
-type_synonym ('f, 'a) vfoldmapdef = "(char list, vatyp) vabsfuns \<Rightarrow> type \<Rightarrow> ('f, 'a) vval list \<Rightarrow> nat \<Rightarrow> 
+type_synonym ('f, 'a) vfoldmapdef = "('f, 'a) vabsfuns \<Rightarrow> type \<Rightarrow> ('f, 'a) vval list \<Rightarrow> nat \<Rightarrow> 
                                       nat \<Rightarrow> 'f expr \<Rightarrow> ('f, 'a) vval \<Rightarrow> ('f, 'a) vval \<Rightarrow> 
                                       ('f, 'a) vval \<Rightarrow> bool"
 
