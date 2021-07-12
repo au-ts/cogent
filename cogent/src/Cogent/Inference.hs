@@ -886,5 +886,5 @@ promote t (TE t' e) = case e of
   -- Collapse consecutive promotes
   Promote _ e' _        -> promote t e'
   -- Otherwise, no simplification is necessary; construct a Promote expression as usual.
-  _                   -> TE t $ Promote t (TE t' e) __dummyPos
+  _                   -> TE t $ Promote t (TE t' e) (getLoc e)
 

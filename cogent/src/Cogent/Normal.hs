@@ -227,7 +227,7 @@ normalise v (E (If c th el loc)) k | LNF <- __cogent_fnormalisation =
   normaliseExpr v th >>= \th' ->
   normaliseExpr v el >>= \el' ->
   normaliseName v c $ \n c' ->
-  E <$> (Let a (E $ If c' (upshiftExpr n v f0 th') (upshiftExpr n v f0 el') loc) <$> k (SSuc n) (E $ Variable (f0, a) __dummyPos ) <*> pure __dummyPos)
+  E <$> (Let a (E $ If c' (upshiftExpr n v f0 th') (upshiftExpr n v f0 el') loc) <$> k (SSuc n) (E $ Variable (f0, a) loc ) <*> pure loc)
 normalise v (E (If c th el loc)) k = normaliseName v c $ \n c' ->
   E <$> (If c' <$> normalise (sadd v n) (upshiftExpr n v f0 th) (\n' -> withAssoc v n n' $ \Refl -> k (sadd n n'))
                <*> normalise (sadd v n) (upshiftExpr n v f0 el) (\n' -> withAssoc v n n' $ \Refl -> k (sadd n n'))
@@ -238,7 +238,7 @@ normalise v (E (Case e tn (l1,a1,e1) (l2,a2,e2) loc)) k | LNF <- __cogent_fnorma
   normaliseExpr (SSuc v) e2 >>= \e2' ->
   normaliseName v e $ \n e' ->
   case sym $ addSucLeft v n of
-    Refl -> E <$> (Let a (E $ Case e' tn (l1,a1,upshiftExpr n (SSuc v) f0 e1') (l2,a2,upshiftExpr n (SSuc v) f0 e2') loc) <$> k (SSuc n) (E $ Variable (f0, a) __dummyPos) <*> pure __dummyPos)
+    Refl -> E <$> (Let a (E $ Case e' tn (l1,a1,upshiftExpr n (SSuc v) f0 e1') (l2,a2,upshiftExpr n (SSuc v) f0 e2') loc) <$> k (SSuc n) (E $ Variable (f0, a) loc) <*> pure loc)
 normalise v (E (Case e tn (l1,a1,e1) (l2,a2,e2) loc)) k =
   normaliseName v e $ \n e' -> case addSucLeft v n of
     Refl -> let [e1u,e2u] = map (upshiftExpr n (SSuc v) f1) [e1,e2]
@@ -307,7 +307,7 @@ normaliseName v e k =
       normaliseAtom v e $ \n e' ->
         if isVar e'
           then k n e'
-          else E <$> (Let a e' <$> k (SSuc n) (E (Variable (f0,a) __dummyPos)) <*> pure __dummyPos)
+          else E <$> (Let a e' <$> k (SSuc n) (E (Variable (f0,a) (getLoc e))) <*> pure (getLoc e))
 
 normaliseNames :: SNat v -> [PosUntypedExpr t v VarName b]
                -> (forall n. SNat n -> [PosUntypedExpr t (v :+: n) VarName b] -> AN (PosUntypedExpr t (v :+: n) VarName b))

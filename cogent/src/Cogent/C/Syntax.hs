@@ -158,7 +158,7 @@ data CBlockItem = CBIStmt CStmt SourcePos
                 | CBIDecl (CDeclaration IND) SourcePos
                 deriving (Show)
 
-__dummyPos = initialPos "dummy"
+__dummyPos = initialPos "dummy position"
 
 data FnSpec = FnSpec [Storage] [TypeQual] [GccAttrs] deriving (Eq, Show)
 

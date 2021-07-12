@@ -70,7 +70,7 @@ import Data.Traversable (forM)
 import Text.PrettyPrint.ANSI.Leijen (pretty)
 -- import qualified Traversable as Trav (mapM)
 -- import qualified Traversable as Trav (mapM)
-import Text.Parsec.Pos ( SourcePos, initialPos )
+import Text.Parsec.Pos ( SourcePos )
 
 import Debug.Trace
 
@@ -273,7 +273,7 @@ lamLftExpr tvs f (B.TE t (S.Lam p mt e) l) = do
   -- sigma <- sel1 <$> get
   e' <- lamLftExpr tvs f e
   let fn = S.FunDef f' (S.PT tvs [] t) [S.Alt (B.TP (S.PIrrefutable p) noPos) Regular e']  -- no let-generalisation
-  lftFun %= ((initialPos  "dummy position", fn):)
+  lftFun %= ((l, fn):)
   let tvs' = map (Just . B.DT . flip3 S.TVar False False . fst) tvs
   return $ B.TE t (S.TLApp f' tvs' [] S.NoInline) l
 lamLftExpr sigma f (B.TE t e l) = B.TE t <$> traverse (lamLftExpr sigma f) e <*> pure l
@@ -472,7 +472,8 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple ps) loc)) e | __cogent_ftuples_a
           E . flip (Take (v,e0') e0 idx) loc <$> withBindings (Cons v (Cons e0' Nil)) (desugarExpr e)
         mkTake e0 (v:vs) e idx = do
           e0' <- freshVar
-          E . flip (Take (v,e0') e0 idx) loc <$> withBindings (Cons v (Cons e0' Nil)) (mkTake (E $ Variable (f1, e0') __dummyPos) vs e (idx + 1))
+          let loc = getLoc e0
+          E . flip (Take (v,e0') e0 idx) loc <$> withBindings (Cons v (Cons e0' Nil)) (mkTake (E $ Variable (f1, e0') loc) vs e (idx + 1))
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple ps) _)) e | __cogent_ftuples_as_sugar = do
   B.DT (S.TTuple ts) <- unfoldSynsShallowM $ B.getTypeTE e0
   __assert (P.length ps == P.length ts) $ "desugarAlt': |ps| /= |ts|\nps = " ++ show ps ++ "\nts = " ++ show ts
@@ -705,8 +706,8 @@ desugarExpr (B.TE _ (S.PrimOp opr es) loc) =
     opr' = flip $ Op (symbolOp opr)
   in
     E . opr' loc <$> mapM desugarExpr es
-desugarExpr (B.TE _ (S.Var vn) _) = (findIx vn <$> use varCtx) >>= \case
-  Just v  -> return $ E $ Variable (v, vn) __dummyPos
+desugarExpr (B.TE _ (S.Var vn) loc) = (findIx vn <$> use varCtx) >>= \case
+  Just v  -> return $ E $ Variable (v, vn) loc
   Nothing -> do constdefs <- view _2
                 let Just e = M.lookup vn constdefs
                 desugarExpr e
@@ -720,10 +721,10 @@ desugarExpr (B.TE _ (S.Match e vs alts) loc) = do
   let vs' = P.map (fromJust . flip findIx venv &&& id) vs
   e' <- withBinding v $ desugarAlts (B.TE (B.getTypeTE e) (S.Var v) loc) alts
   E <$> (LetBang vs' v <$> desugarExpr e <*> pure e' <*> pure loc)
-desugarExpr (B.TE _ (S.TLApp v ts ls note) _) = do
+desugarExpr (B.TE _ (S.TLApp v ts ls note) loc) = do
   prgms <- use pragmas
   E <$> (Fun (funNameToCoreFunName v) <$> mapM (desugarType . fromJust) ts
-    <*> mapM (desugarLayout . fromJust) ls <*> pure (pragmaToNote pragmas v $ desugarNote note) <*> pure __dummyPos)  -- FIXME: fromJust
+    <*> mapM (desugarLayout . fromJust) ls <*> pure (pragmaToNote pragmas v $ desugarNote note) <*> pure loc)  -- FIXME: fromJust
 desugarExpr (B.TE t (S.Con c [e]) loc) = do
   te <- unfoldSynsShallowM t
   t'@(TSum ts) <- desugarType te

@@ -582,10 +582,10 @@ betaR e@(TE tau (LetBang vs a e1 e2 loc)) idx n@(SSuc n0) arg ts
       varCount += 1
       let vn = "simp_var_" ++ show vc
       case sym (addSucLeft n idx) of
-        Refl -> do varg  <- pure $ TE (exprType arg) (Variable (f0,vn) __dummyPos)
+        Refl -> do varg  <- pure $ TE (exprType arg) (Variable (f0,vn) loc)
                    arg'  <- pure $ upshiftExpr idx n f0 arg
                    body' <- betaR e idx (SSuc n) varg ts
-                   return $ TE (substitute ts tau) $ (Let vn arg' body' __dummyPos )
+                   return $ TE (substitute ts tau) $ (Let vn arg' body' loc)
   | Refl <- sym (addSucLeft' n idx)
     = TE (substitute ts tau) <$> (LetBang (L.map (first $ flip widenN n0) vs) a <$> betaR e1 idx n arg ts <*> betaR e2 (SSuc idx) n arg ts <*> pure loc)
 betaR (TE tau (Tuple e1 e2 loc)) idx n arg ts = TE (substitute ts tau) <$> (Tuple <$> betaR e1 idx n arg ts <*> betaR e2 idx n arg ts <*> pure loc)

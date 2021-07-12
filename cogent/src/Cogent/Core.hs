@@ -297,6 +297,41 @@ type PosTypedExpr = TypedExpr SourcePos
 data TypedExpr   loc t v a b = TE { exprType :: Type t b , exprExpr :: Expr loc t v a b TypedExpr }
                          deriving (Show, Eq, Ord)
 
+class Located a where
+  getLoc :: a -> SourcePos
+
+instance Located (PosUntypedExpr t v a b) where
+  getLoc (E e) = getLoc e
+
+instance Located (PosTypedExpr t v a b) where
+  getLoc (TE {exprExpr = e}) = getLoc e
+
+instance Located (Expr SourcePos t v a b e) where
+  getLoc e =
+    case e of
+      Variable _ loc  -> loc
+      Fun _ _ _ _ loc -> loc
+      Op _ _ loc -> loc
+      App _ _ loc -> loc
+      Con _ _ _ loc -> loc
+      Unit loc -> loc
+      ILit _ _ loc -> loc
+      SLit _ loc -> loc
+      -- TODO: BUILTIN_ARRAYS constructors
+      Let _ _ _ loc -> loc
+      LetBang _ _ _ _ loc -> loc
+      Tuple _ _ loc -> loc
+      Struct _ loc -> loc
+      If _ _ _ loc -> loc
+      Case _ _ _ _ loc -> loc
+      Esac _ loc -> loc
+      Split _ _ _ loc -> loc
+      Member _ _ loc -> loc
+      Take _ _ _ _ loc -> loc
+      Put _ _ _ loc -> loc
+      Promote _ _ loc -> loc
+      Cast _ _ loc -> loc
+
 data FunctionType b = forall t l. FT (Vec t Kind) (Vec l (Type t b)) (Type t b) (Type t b)
 deriving instance Show a => Show (FunctionType a)
 
