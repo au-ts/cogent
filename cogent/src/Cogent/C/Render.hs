@@ -42,6 +42,8 @@ import Text.PrettyPrint.Mainland
 import Text.PrettyPrint.Mainland.Class
 #endif
 
+import Text.Parsec (SourcePos, sourceLine, sourceName)
+
 
 render :: FilePath
        -> [CExtDecl]
@@ -56,14 +58,14 @@ render hName hdefns cdefns log =
               C.EscDef ("#define " ++ guard ++ "\n") noLoc :
               C.EscDef ("#include <cogent-defns.h>") noLoc :
               C.EscDef ("#include <cogent-endianness.h>\n") noLoc :
-              map cExtDecl hdefns ++
+              map (cExtDecl HFile) hdefns ++
               -- \ ^^^ Type synonyms shouldn't be referenced to by gen'ed C code;
               -- Gen'ed C only uses machine gen'ed type names and abstract type names
               [C.EscDef ("#endif") noLoc]
       cfile = L.map (\l -> C.EscDef ("// " ++ l) noLoc) (lines log) ++
               C.EscDef "" noLoc :
               C.EscDef ("#include \"" ++ hName ++ "\"\n") noLoc :
-              map cExtDecl cdefns
+              map (cExtDecl CFile) cdefns
    in (hfile, cfile)
 
 #if MIN_VERSION_language_c_quote(0,11,2)
@@ -224,38 +226,58 @@ cParam' :: (CType, Maybe CId) -> C.Param
 cParam' (ty, Nothing) = [cparam| $ty:(cType ty) |]
 cParam' (ty, Just v) = cParam (ty, v)
 
-cStmt :: CStmt -> C.Stm
-cStmt (CAssign el er) = [cstm| $(cExpr el) = $(cExpr er); |]
-cStmt (CAssignFnCall mel er args) = case mel of Nothing -> [cstm| $(cExpr er) ($args:(map cExpr args)); |]
-                                                Just el -> [cstm| $(cExpr el) = $(cExpr er) ($args:(map cExpr args)); |]
-cStmt (CReturnFnCall f args) = [cstm| return $(cExpr f) ($args:(map cExpr args)); |]
-cStmt (CBlock bis) = [cstm| { $items:(map cBlockItem bis) } |]
-cStmt (CWhile e s) = [cstm| while ($(cExpr e)) $stm:(cStmt s) |]
-cStmt (CReturn me) = case me of Nothing -> [cstm| return; |]; Just e -> [cstm| return $(cExpr e); |]
-cStmt CBreak = [cstm| break; |]
-cStmt CContinue = [cstm| continue; |]
-cStmt (CIfStmt c th el) = [cstm| if ($(cExpr c)) $stm:(cStmt th) else $stm:(cStmt el) |]
-cStmt (CSwitch e alts) = [cstm| switch ($(cExpr e)) { $items:(map cAlt alts) } |]
-cStmt CEmptyStmt = [cstm| ; |]
-cStmt (CComment c s) = C.Comment c (cStmt s) noLoc
+cStmt :: Target -> CStmt -> C.Stm
+cStmt _ (CAssign el er) = [cstm| $(cExpr el) = $(cExpr er); |]
+cStmt _ (CAssignFnCall mel er args) = case mel of Nothing -> [cstm| $(cExpr er) ($args:(map cExpr args)); |]
+                                                  Just el -> [cstm| $(cExpr el) = $(cExpr er) ($args:(map cExpr args)); |]
+cStmt _ (CReturnFnCall f args) = [cstm| return $(cExpr f) ($args:(map cExpr args)); |]
+cStmt target (CBlock bis) = [cstm| { $items:(concatMap (cBlockItem target) bis) } |]
+cStmt target (CWhile e s) = [cstm| while ($(cExpr e)) $stm:(cStmt target s) |]
+cStmt _ (CReturn me) = case me of Nothing -> [cstm| return; |]; Just e -> [cstm| return $(cExpr e); |]
+cStmt _ CBreak = [cstm| break; |]
+cStmt _ CContinue = [cstm| continue; |]
+cStmt target (CIfStmt c th el) = [cstm| if ($(cExpr c)) $stm:(cStmt target th) else $stm:(cStmt target el) |]
+cStmt target (CSwitch e alts) = [cstm| switch ($(cExpr e)) { $items:(map (cAlt target) alts) } |]
+cStmt _ CEmptyStmt = [cstm| ; |]
+cStmt target (CComment c s) = C.Comment c (cStmt target s) noLoc
 
-cAlt :: (Maybe CExpr, CStmt) -> C.BlockItem
-cAlt (Nothing, s) = [citem| default: $stm:(cStmt s) |]
-cAlt (Just e , s) = [citem| case $(cExpr e): $stm:(cStmt s) |]
+cAlt :: Target -> (Maybe CExpr, CStmt) -> C.BlockItem
+cAlt target (Nothing, s) = [citem| default: $stm:(cStmt target s) |]
+cAlt target (Just e , s) = [citem| case $(cExpr e): $stm:(cStmt target s) |]
 
-cBlockItem :: CBlockItem -> C.BlockItem
-cBlockItem (CBIStmt stmt) = [citem| $stm:(cStmt stmt) |]
-cBlockItem (CBIDecl decl) = [citem| $decl:(cDeclaration decl); |]
+cBlockItem :: Target -> CBlockItem -> [C.BlockItem]
+cBlockItem target (CBIStmt stmt loc) =
+  withLoc target loc [citem| $stm:(cStmt target stmt) |]
+cBlockItem target (CBIDecl decl loc) = 
+  withLoc target loc [citem| $decl:(cDeclaration decl); |]
 
-cExtDecl :: CExtDecl -> C.Definition
-cExtDecl (CFnDefn (ty, fn) params bis fnsp) =
-  [cedecl| $ty:(cFnSpecOnType fnsp (cType ty)) $id:(cId fn) ($params:(map cParam params)) { $items:(map cBlockItem bis) }|]
-cExtDecl (CDecl decl) = [cedecl| $decl:(cDeclaration decl); |]
-cExtDecl (CMacro s) = C.EscDef s noLoc
-cExtDecl (CFnMacro fn as body) = C.EscDef (string1 ++ "\\\n" ++ string2) noLoc
+data Target = CFile | HFile
+
+cExtDecl :: Target -> CExtDecl -> C.Definition
+cExtDecl target (CFnDefn (ty, fn) params bis fnsp) =
+  [cedecl| $ty:(cFnSpecOnType fnsp (cType ty)) $id:(cId fn) ($params:(map cParam params)) { $items:(concatMap (cBlockItem target) bis) }|]
+cExtDecl target (CDecl decl) = [cedecl| $decl:(cDeclaration decl); |]
+cExtDecl target (CMacro s) = C.EscDef s noLoc
+cExtDecl target (CFnMacro fn as body) = C.EscDef (string1 ++ "\\\n" ++ string2) noLoc
   where macro1, macro2 :: Doc
         macro1 = string "#define" <+> string fn <> parens (commasep $ L.map string as)
-        macro2 = let body' = L.map cBlockItem body in ppr [citems| $items:(body') |]
+        macro2 = let body' = L.map (cBlockItem target) body in ppr [citems| $items:(body') |]
         string1, string2 :: String
         string1 = L.filter (/= '\n') $ pretty 100 macro1
         string2 = concat $ map (\c -> if c == '\n' then "\\\n" else [c]) $ pretty 100 macro2
+
+withLoc :: Target -> SourcePos -> C.BlockItem -> [C.BlockItem]
+withLoc HFile loc item =
+  [item]
+withLoc CFile loc item =
+  [ showLoc loc
+  , item
+  ]
+
+showLoc :: SourcePos -> C.BlockItem
+showLoc loc =
+  let
+    lineNum = show $ sourceLine loc
+    fileName = sourceName loc
+  in
+  C.BlockStm $ C.EscStm ("#line " ++ lineNum ++  " \"" ++ fileName ++ "\"") noLoc

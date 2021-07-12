@@ -624,7 +624,7 @@ monoExp = monoAnti MN.monoExpr
 
 genExp :: CC.PosTypedExpr 'Zero 'Zero VarName VarName -> Gl CS.Exp
 genExp = genAnti $ \e -> do (v,vdecl,vstm,_) <- CG.genExpr Nothing e
-                            let bis' = L.map CG.cBlockItem (vdecl ++ vstm)
+                            let bis' = L.concatMap (CG.cBlockItem CG.CFile) (vdecl ++ vstm)
                                 v'   = CG.cExpr v
                             return $ CS.StmExpr (bis' ++ [CS.BlockStm (CS.Exp (Just v') noLoc)]) noLoc
 
