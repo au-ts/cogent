@@ -57,7 +57,7 @@ import           Cogent.Inference             (kindcheck_)
 import           Cogent.Isabelle.Deep
 import           Cogent.Mono                  (Instance)
 import           Cogent.Normal                (isAtom)
-import           Cogent.Util                  (behead, decap, extTup2l, extTup3r, first3, for, secondM, toCName, whenM, flip3)
+import           Cogent.Util                  (behead, decap, extTup2l, extTup3r, first3, for, secondM, toCName, whenM, flip3, getLoc)
 import qualified Data.DList          as DList
 import           Data.Nat            as Nat
 import qualified Data.OMap           as OMap

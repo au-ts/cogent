@@ -62,6 +62,8 @@ import Lens.Micro.Mtl
 import Version_cogent (gitHash, configFlags)
 import Paths_cogent
 
+import Text.Parsec (SourcePos)
+
 (<<+=) l n = l <<%= (+ n)
 
 --
@@ -555,3 +557,5 @@ infixl 9 .>
 (.>) :: (a -> b) -> (b -> c) -> (a -> c)
 (.>) = flip (.)
 
+class Located a where
+  getLoc :: a -> SourcePos

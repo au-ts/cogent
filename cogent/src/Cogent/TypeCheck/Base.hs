@@ -446,6 +446,15 @@ deriving instance (Ord  t, Ord  l) => Ord  (TIrrefPatn t l)
 deriving instance (Show t, Show l) => Show (TIrrefPatn t l)
 deriving instance (Data t, Data l) => Data (TIrrefPatn t l)
 
+instance Located (TExpr t l) where
+  getLoc (TE { getLocTE = getLocTE }) = getLocTE
+
+instance Located (TPatn t l) where
+  getLoc (TP { getLocTP = getLocTP }) = getLocTP
+
+instance Located (TIrrefPatn t l) where
+  getLoc (TIP { getLocTIP = getLocTIP }) = getLocTIP
+
 instance Bifunctor TExpr where
   bimap f g (TE t e l) = TE (f t) (fffffmap f $ ffffmap (bimap f g) $ fffmap (bimap f g) $ ffmap g $ fmap (bimap f g) e) l
 instance Bifunctor TPatn where

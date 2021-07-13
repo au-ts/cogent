@@ -296,10 +296,6 @@ data UntypedExpr loc t v a b = E  (Expr loc t v a b UntypedExpr) deriving (Show,
 type PosTypedExpr = TypedExpr SourcePos
 data TypedExpr   loc t v a b = TE { exprType :: Type t b , exprExpr :: Expr loc t v a b TypedExpr }
                          deriving (Show, Eq, Ord)
-
-class Located a where
-  getLoc :: a -> SourcePos
-
 instance Located (PosUntypedExpr t v a b) where
   getLoc (E e) = getLoc e
 

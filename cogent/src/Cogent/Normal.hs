@@ -24,6 +24,7 @@ module Cogent.Normal where
 import Cogent.Common.Syntax (VarName)
 import Cogent.Compiler
 import Cogent.Core
+import Cogent.Util (getLoc)
 import Data.Fin
 import Data.Nat
 import Data.Vec

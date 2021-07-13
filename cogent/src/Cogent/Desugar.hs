@@ -272,7 +272,7 @@ lamLftExpr tvs f (B.TE t (S.Lam p mt e) l) = do
       -- p' = B.TP (S.PIrrefutable $ B.TIP (PTuple ps) noPos) noPos
   -- sigma <- sel1 <$> get
   e' <- lamLftExpr tvs f e
-  let fn = S.FunDef f' (S.PT tvs [] t) [S.Alt (B.TP (S.PIrrefutable p) noPos) Regular e']  -- no let-generalisation
+  let fn = S.FunDef f' (S.PT tvs [] t) [S.Alt (B.TP (S.PIrrefutable p) l) Regular e']  -- no let-generalisation
   lftFun %= ((l, fn):)
   let tvs' = map (Just . B.DT . flip3 S.TVar False False . fst) tvs
   return $ B.TE t (S.TLApp f' tvs' [] S.NoInline) l
@@ -355,22 +355,22 @@ desugarAlts e0@(B.TE t v@(S.Var _) loc) (S.Alt (B.TP p1 pos1) l1 e1 : alts) =  -
       B.DT (S.TVariant talts) <- unfoldSynsShallowM t
       let t0' = B.DT $ S.TVariant (M.delete cn1 talts)  -- type of e0 without alternative cn
       e1' <- withBinding (fst v1) $ desugarExpr e1
-      e2' <- withBinding e0' $ desugarAlts (B.TE t0' (S.Var e0') noPos) alts
+      e2' <- withBinding e0' $ desugarAlts (B.TE t0' (S.Var e0') loc) alts
       E <$> (Case <$> desugarExpr e0 <*> pure cn1 <*> pure (l1,fst v1,e1') <*> pure (mempty,e0',e2') <*> pure loc)
     S.PCon cn1 [p1'] -> do  -- This is B) for PCon
       v1 <- freshVar
       B.DT (S.TVariant talts) <- unfoldSynsShallowM t
-      let p1'' = B.TIP (S.PVar (v1,t1)) noPos
+      let p1'' = B.TIP (S.PVar (v1,t1)) loc
           Just ([t1], False)  = M.lookup cn1 talts  -- type of v1
-          b   = S.Binding p1' Nothing (B.TE t1 (S.Var v1) noPos) []
-          e1' = B.TE (B.getTypeTE e1) (S.Let [b] e1) noPos
+          b   = S.Binding p1' Nothing (B.TE t1 (S.Var v1) loc) []
+          e1' = B.TE (B.getTypeTE e1) (S.Let [b] e1) loc
       desugarAlts e0 (S.Alt (B.TP (S.PCon cn1 [p1'']) pos1) l1 e1':alts)
     S.PCon cn1 ps ->  -- This is C) for PCon
-      desugarAlts (B.TE t v noPos) (S.Alt (B.TP (S.PCon cn1 [B.TIP (S.PTuple ps) (B.getLocTIP $ P.head ps)]) pos1) l1 e1 : alts)
+      desugarAlts (B.TE t v loc) (S.Alt (B.TP (S.PCon cn1 [B.TIP (S.PTuple ps) (B.getLocTIP $ P.head ps)]) pos1) l1 e1 : alts)
     S.PIntLit  i -> do
       te <- unfoldSynsShallowM $ B.getTypeTE e0
       let pt = desugarPrimInt te
-      E <$> (If <$> (E <$> (Op Eq <$> ((:) <$> desugarExpr e0 <*> pure [E $ ILit i pt loc]) <*> pure __dummyPos))
+      E <$> (If <$> (E <$> (Op Eq <$> ((:) <$> desugarExpr e0 <*> pure [E $ ILit i pt loc]) <*> pure loc))
                                  <*> desugarExpr e1 <*> desugarAlts e0 alts <*> pure loc)
     -- FIXME: could do better for PBoolLit because this one is easy to exhaust
     S.PBoolLit b -> E <$> (If <$> (E <$> (Op Eq <$> ((:) <$> desugarExpr e0 <*> pure [E $ ILit (if b then 1 else 0) Boolean loc]) <*> pure loc))
@@ -378,13 +378,13 @@ desugarAlts e0@(B.TE t v@(S.Var _) loc) (S.Alt (B.TP p1 pos1) l1 e1 : alts) =  -
     S.PCharLit c -> E <$> (If <$> (E <$> (Op Eq <$> ((:) <$> desugarExpr e0 <*> pure [E $ ILit (fromIntegral $ ord c) U8 loc]) <*> pure loc))
                               <*> desugarExpr e1 <*> desugarAlts e0 alts <*> pure loc)
     S.PIrrefutable _ -> __impossible "desugarAlts"
-desugarAlts e0 alts@(S.Alt _ _ e1:_) = do  -- e0 is not a var, so lift it
+desugarAlts e0@(B.TE _ _ loc) alts@(S.Alt _ _ e1:_) = do  -- e0 is not a var, so lift it
   v <- freshVar
   let t0 = B.getTypeTE e0
       t1 = B.getTypeTE e1
-      b = S.Binding (B.TIP (S.PVar (v,t0)) noPos) Nothing e0 []
-      m = B.TE t1 (S.Match (B.TE t0 (S.Var v) noPos) [] alts) noPos
-  desugarExpr $ B.TE t1 (S.Let [b] m) noPos
+      b = S.Binding (B.TIP (S.PVar (v,t0)) loc) Nothing e0 []
+      m = B.TE t1 (S.Match (B.TE t0 (S.Var v) loc) [] alts) loc
+  desugarExpr $ B.TE t1 (S.Let [b] m) loc
 
 desugarAlt :: B.TypedExpr -> B.TypedPatn -> B.TypedExpr -> DS t l v (PosUntypedExpr t v VarName VarName)
 desugarAlt e0 (B.TP p pos) = desugarAlt' e0 p
@@ -402,12 +402,12 @@ desugarAlt' e0 (S.PCon tag [p]) e = do  -- Ind. step A)
   B.DT (S.TVariant alts) <-unfoldSynsShallowM $ B.getTypeTE e0
   let Just ([t], False) = M.lookup tag alts
       -- b0 = S.Binding (S.PVar (v,t)) Nothing (B.TE t $ Esac e0) []
-      b1 = S.Binding p Nothing (B.TE t (S.Var v) noPos) []
+      b1 = S.Binding p Nothing (B.TE t (S.Var v) (getLoc e)) []
   -- desugarExpr $ B.TE (B.getTypeTE e) $ S.Let [b0,b1] e
-      e' = B.TE (B.getTypeTE e) (S.Let [b1] e) noPos
-  desugarAlt' e0 (S.PCon tag [B.TIP (S.PVar (v,t)) noPos]) e'
+      e' = B.TE (B.getTypeTE e) (S.Let [b1] e) $ getLoc e
+  desugarAlt' e0 (S.PCon tag [B.TIP (S.PVar (v,t)) $ getLoc e]) e'
 desugarAlt' (B.TE t e0 l) (S.PCon tag []) e =  -- Ind. B1)
-  desugarAlt' (B.TE t e0 l) (S.PCon tag [B.TIP S.PUnitel noPos]) e
+  desugarAlt' (B.TE t e0 l) (S.PCon tag [B.TIP S.PUnitel $ getLoc e]) e
 desugarAlt' (B.TE t e0 l) (S.PCon tag ps) e =  -- B2)
   -- FIXME: zilinc
   desugarAlt' (B.TE t e0 l) (S.PCon tag [B.TIP (S.PTuple ps) (B.getLocTIP $ P.head ps)]) e
@@ -442,10 +442,10 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple [p1,p2]) _)) e | not __cogent_ft
   v1 <- freshVar
   v2 <- freshVar
   B.DT (S.TTuple [t1,t2]) <- unfoldSynsShallowM $ B.getTypeTE e0
-  let b0 = S.Binding (B.TIP (S.PTuple [B.TIP (S.PVar (v1,t1)) noPos, B.TIP (S.PVar (v2,t2)) noPos]) noPos) Nothing e0 []
+  let b0 = S.Binding (B.TIP (S.PTuple [B.TIP (S.PVar (v1,t1)) (getLoc p1), B.TIP (S.PVar (v2,t2)) (getLoc p2)]) (getLoc e)) Nothing e0 []
       b1 = S.Binding p1 Nothing (B.TE t1 (S.Var v1) (B.getLocTIP p1)) []
       b2 = S.Binding p2 Nothing (B.TE t2 (S.Var v2) (B.getLocTIP p2)) []
-  desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b0,b1,b2] e) noPos  -- Mutual recursion here
+  desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b0,b1,b2] e) $ getLoc e  -- Mutual recursion here
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple (p1:p2:ps)) pos)) e | not __cogent_ftuples_as_sugar =
   let p2' = B.TIP (S.PTuple (p2:ps)) pos
       p'  = S.PIrrefutable $ B.TIP (S.PTuple [p1, p2']) pos
@@ -480,9 +480,9 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple ps) _)) e | __cogent_ftuples_as_
   let pts = P.zip ps ts
   vpts <- forM pts $ \(p,t) -> case p of B.TIP (S.PVar (v,_)) _ -> return (v,p,t); _ -> (,p,t) <$> freshVar
   let vpts' = P.filter (\(v,p,t) -> not (isPVar p)) vpts
-      b0 = S.Binding (B.TIP (S.PTuple $ flip P.map vpts (\(v,p,t) -> B.TIP (S.PVar (v,t)) (B.getLocTIP p))) noPos) Nothing e0 []
-      bs = flip P.map vpts' $ \(v,p,t) -> S.Binding p Nothing (B.TE t (S.Var v) noPos) []
-  desugarExpr $ B.TE (B.getTypeTE e) (S.Let (b0:bs) e) noPos
+      b0 = S.Binding (B.TIP (S.PTuple $ flip P.map vpts (\(v,p,t) -> B.TIP (S.PVar (v,t)) (B.getLocTIP p))) $ getLoc e0) Nothing e0 []
+      bs = flip P.map vpts' $ \(v,p,t) -> S.Binding p Nothing (B.TE t (S.Var v) $ getLoc p) []
+  desugarExpr $ B.TE (B.getTypeTE e) (S.Let (b0:bs) e) $ getLoc e
   where isPVar (B.TIP (S.PVar _) _) = True; isPVar _ = False
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PUnboxedRecord fs) pos)) e = do
   -- #{a, b, c} ~~> x {a,b,c}  -- since we take all the fields out, the unboxed x is useless and can be discarded
@@ -506,16 +506,16 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec [Just (f,p)]) pos)) e = do
   v <- freshVar
   B.DT (S.TRecord _ fts _) <- unfoldSynsShallowM $ snd rec
   let Just (ft,_) = P.lookup f fts  -- the type of the taken field
-      b1 = S.Binding (B.TIP (S.PTake rec [Just (f, B.TIP (S.PVar (v,ft)) noPos)]) pos) Nothing e0 []
-      b2 = S.Binding p Nothing (B.TE ft (S.Var v) noPos) []  -- FIXME: someone wrote "wrong!" here. Why? check!
-  desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b1,b2] e) noPos
+      b1 = S.Binding (B.TIP (S.PTake rec [Just (f, B.TIP (S.PVar (v,ft)) pos)]) (getLoc e0)) Nothing e0 []
+      b2 = S.Binding p Nothing (B.TE ft (S.Var v) (getLoc p)) []  -- FIXME: someone wrote "wrong!" here. Why? check!
+  desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b1,b2] e) (getLoc e)
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec (fp:fps)) pos)) e = do
   e1 <- freshVar
   B.DT (S.TRecord rp fts s) <- unfoldSynsShallowM $ snd rec
   let t1 = B.DT $ S.TRecord rp (P.map (\ft@(f,(t,x)) -> if f == fst (fromJust fp) then (f,(t,True)) else ft) fts) s  -- type of e1
-      b0 = S.Binding (B.TIP (S.PTake (e1, t1) [fp]) noPos) Nothing e0 []
-      bs = S.Binding (B.TIP (S.PTake rec fps) pos) Nothing (B.TE t1 (S.Var e1) noPos) []
-  desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b0,bs] e) noPos
+      b0 = S.Binding (B.TIP (S.PTake (e1, t1) [fp]) pos) Nothing e0 []
+      bs = S.Binding (B.TIP (S.PTake rec fps) pos) Nothing (B.TE t1 (S.Var e1) (getLoc e0)) []
+  desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b0,bs] e) (getLoc e)
 #ifdef BUILTIN_ARRAYS
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray []) pos)) e = __impossible "desugarAlts' (PSequence [] p)"
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray [B.TIP (S.PVar (v,_)) _]) _)) e = do
@@ -543,7 +543,7 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray (B.TIP (S.PVar (v,_)) _ : ps)) p
   e1' <- withBindings (Cons v (Cons vs Nil)) $ desugarAlt' e10 p1 e
   return $ E (Pop (v,vs) e0' e1')
   where minus1 :: B.RawTypedExpr -> B.RawTypedExpr
-        minus1 e = B.TE u32 (S.PrimOp "-" [e, B.TE u32 (S.IntLit 1) noPos]) S.noPos
+        minus1 e = B.TE u32 (S.PrimOp "-" [e, B.TE u32 (S.IntLit 1) $ getLoc e]) $ getLoc e
         u32 = S.RT (S.TCon "U32" [] Unboxed)
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PArray (p:ps)) pos)) e = do
   v <- freshVar
@@ -830,7 +830,7 @@ desugarExpr (B.TE _ (S.Let [S.Binding (B.TIP (S.PVar v) _) mt e0 bs] e) loc) = d
 desugarExpr (B.TE t (S.Let [S.Binding p mt e0 bs] e) l) = do
   v <- freshVar
   let t0 = B.getTypeTE e0
-      b0 = S.Binding (B.TIP (S.PVar (v,t0)) noPos) Nothing e0 bs
+      b0 = S.Binding (B.TIP (S.PVar (v,t0)) $ getLoc e0) Nothing e0 bs
       b1 = S.Binding p mt (B.TE t0 (S.Var v) l) []
   desugarExpr $ B.TE t (S.Let [b0,b1] e) l
 desugarExpr (B.TE t (S.Let (S.BindingAlts p _ e0 vs alts : bs) e) l) = do
