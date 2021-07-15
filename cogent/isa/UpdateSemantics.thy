@@ -157,6 +157,11 @@ where
                      ; \<xi> , \<gamma> \<turnstile>* (\<sigma>', xs) \<Down>! (\<sigma>'', vs)
                      \<rbrakk> \<Longrightarrow>  \<xi> , \<gamma> \<turnstile>* (\<sigma>, x # xs) \<Down>! (\<sigma>'', v # vs)"
 
+definition frame :: "('f, 'a, 'l) store \<Rightarrow> 'l set \<Rightarrow> ('f, 'a, 'l) store \<Rightarrow> 'l set \<Rightarrow> bool"
+           where
+  "frame \<sigma> pi \<sigma>' po \<equiv> \<forall>p. (p \<in> pi \<and> p \<notin> po \<longrightarrow> \<sigma>' p = None)
+                       \<and>  (p \<notin> pi \<and> p \<in> po \<longrightarrow> \<sigma>  p = None)
+                       \<and>  (p \<notin> pi \<and> p \<notin> po \<longrightarrow> \<sigma>  p = \<sigma>' p)"
 
 
 locale update_sem =
@@ -339,13 +344,6 @@ inductive matches_ptrs :: "('f \<Rightarrow> poly_type)
                         \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> (x # xs) matches (Some t # ts) \<langle>r \<union> r', w \<union> w'\<rangle>"
 
 inductive_cases matches_ptrs_consE: "\<Xi>, \<sigma> \<turnstile> \<gamma> matches (\<tau> # \<tau>s) \<langle> r , w \<rangle>"
-
-
-definition frame :: "('f, 'a, 'l) store \<Rightarrow> 'l set \<Rightarrow> ('f, 'a, 'l) store \<Rightarrow> 'l set \<Rightarrow> bool"
-           where
-  "frame \<sigma> pi \<sigma>' po \<equiv> \<forall>p. (p \<in> pi \<and> p \<notin> po \<longrightarrow> \<sigma>' p = None)
-                       \<and>  (p \<notin> pi \<and> p \<in> po \<longrightarrow> \<sigma>  p = None)
-                       \<and>  (p \<notin> pi \<and> p \<notin> po \<longrightarrow> \<sigma>  p = \<sigma>' p)"
 
 definition proc_env_matches_ptrs :: "(('f,'a,'l) uabsfuns) \<Rightarrow> ('f \<Rightarrow> poly_type) \<Rightarrow> bool"
            ("_ matches-u _" [30,20] 60) where
@@ -2291,8 +2289,11 @@ next case (u_sem_if _ _ _ _ _ b)
     apply (frule(2) matches_ptrs_split, clarsimp)
     apply (frule(5) IH1, clarsimp)
     apply (erule u_t_primE, clarsimp)
-    apply (frule(4) IH2 [ rotated 2
-                        , where e17 (* FIXME: unstable name *) = "if b then e2 else e3" for e2 and e3
+    \<comment>\<open>Instantiate the expression in the specialisation of @{thm IH2} with
+      @{term \<open>if b then e2 else e3\<close>} for some term @{term e2} and @{term e3}.
+      Instantiated using ''of'' instead of ''where'' since the naming is unstable.\<close>
+    apply (frule(4) IH2 [ of _ "if b then e2 else e3" for e2 and e3
+                        , rotated 2
                         , OF _ _ matches_ptrs_frame ])
         apply (blast, simp, cases b, simp, simp, cases b, simp, simp)
     apply (fastforce intro: frame_let)
