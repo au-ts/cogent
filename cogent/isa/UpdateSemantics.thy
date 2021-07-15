@@ -176,7 +176,7 @@ locale update_sem =
   and     abs_typing_unique_repr   : "abs_typing av n \<tau>s s r w \<sigma> \<Longrightarrow> abs_typing av n' \<tau>s' s' r' w' \<sigma>
                                     \<Longrightarrow> type_repr (TCon n \<tau>s s) = type_repr (TCon n' \<tau>s' s')"
   and     abs_typing_repr : "abs_typing av n \<tau>s s r w \<sigma> \<Longrightarrow> abs_repr av = (n, map type_repr \<tau>s)"
-  and     abs_typing_frame: "frame \<sigma> u \<sigma>' u' \<Longrightarrow> abs_typing av n \<tau>s s r w \<sigma> \<Longrightarrow> f \<inter> u = {}
+  and     abs_typing_frame: "frame \<sigma> u \<sigma>' u' \<Longrightarrow> abs_typing av n \<tau>s s r w \<sigma> \<Longrightarrow> r \<inter> u = {}
                               \<Longrightarrow> w \<inter> u = {} \<Longrightarrow> abs_typing av n \<tau>s s r w \<sigma>'"
 
 context update_sem begin

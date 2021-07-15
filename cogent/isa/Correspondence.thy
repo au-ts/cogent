@@ -24,7 +24,7 @@ assumes abs_upd_val_to_vval_typing: "abs_upd_val u v n \<tau>s s r w \<sigma> \<
 and     abs_upd_val_to_uval_typing: "abs_upd_val u v n \<tau>s s r w \<sigma> \<Longrightarrow> upd_abs_typing u n \<tau>s s r w \<sigma>"
 and     abs_upd_val_bang : "\<lbrakk> abs_upd_val au av n \<tau>s s r w \<sigma>
                             \<rbrakk> \<Longrightarrow> abs_upd_val au av n (map bang \<tau>s) (bang_sigil s) (r \<union> w) {} \<sigma>"
-and     abs_upd_val_frame: "\<lbrakk>frame \<sigma> l \<sigma> l'; abs_upd_val au av n \<tau>s s r w \<sigma>; r \<inter> l = {}; w \<inter> l = {}\<rbrakk>
+and     abs_upd_val_frame: "\<lbrakk>frame \<sigma> l \<sigma>' l'; abs_upd_val au av n \<tau>s s r w \<sigma>; r \<inter> l = {}; w \<inter> l = {}\<rbrakk>
                               \<Longrightarrow> abs_upd_val au av n \<tau>s s r w \<sigma>'"
 
 context correspondence
@@ -100,7 +100,7 @@ and upd_val_rel_record :: "('f \<Rightarrow> poly_type)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (type_repr \<circ> fst \<circ> snd) ts)) \<sim> VRecord fs' : TRecord ts s \<langle>r, insert l w\<rangle>"
 
 | u_v_p_abs_ro : "\<lbrakk> s = Boxed ReadOnly ptrl
-                  ; abs_upd_val a a' n ts s r w \<sigma>
+                  ; abs_upd_val a a' n ts s r {} \<sigma>
                   ; [] \<turnstile>* ts wellformed
                   ; \<sigma> l = Some (UAbstract a)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr ts)) \<sim> VAbstract a' : TCon n ts s \<langle>insert l r, {}\<rangle>"
@@ -151,11 +151,9 @@ proof (induct rule: upd_val_rel_upd_val_rel_record.inducts)
   then show ?case
     by (auto intro!: upd.uval_typing_uval_typing_record.intros abs_upd_val_to_uval_typing)
 next
-  case (u_v_p_abs_ro s ptrl a a' n ts r w \<sigma> l \<Xi>)
-  moreover then have "upd_abs_typing a n ts s r w \<sigma>"
+  case (u_v_p_abs_ro s ptrl a a' n ts r \<sigma> l \<Xi>)
+  moreover then have "upd_abs_typing a n ts s r {} \<sigma>"
     using abs_upd_val_to_uval_typing by simp
-  moreover then have "w = {}"
-    using upd.abs_typing_readonly u_v_p_abs_ro by force
   ultimately show ?case
     using upd.u_t_p_abs_ro by blast
 next
@@ -181,7 +179,7 @@ inductive_cases u_v_r_consE   [elim] : "\<Xi>, \<sigma> \<turnstile>* (a # b) \<
 inductive_cases u_v_r_consE'  [elim] : "\<Xi>, \<sigma> \<turnstile>* (a # b) \<sim> xx :r \<tau>s \<langle>r, w\<rangle>"
 
 lemma u_v_p_abs_ro': "\<lbrakk> s = Boxed ReadOnly ptrl
-                      ; abs_upd_val a a' n ts s r w \<sigma>
+                      ; abs_upd_val a a' n ts s r {} \<sigma>
                       ; [] \<turnstile>* ts wellformed
                       ; \<sigma> l = Some (UAbstract a)
                       ; ts' = map type_repr ts
@@ -428,7 +426,7 @@ next case u_v_p_rec_w
         simp add: fst_apfst_compcomp snd_apsnd_compcomp map_snd3_keep)
     done
 next
-  case (u_v_p_abs_ro s ptrl a a' n ts r w \<sigma> l \<Xi>)
+  case (u_v_p_abs_ro s ptrl a a' n ts r \<sigma> l \<Xi>)
   have f1: "map (type_repr \<circ> bang) ts = map type_repr ts"
     using bang_type_repr u_v_p_abs_ro.hyps
     by force
@@ -436,12 +434,10 @@ next
   have "\<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr (map bang ts))) \<sim> VAbstract a' : TCon n (map bang ts) (bang_sigil s) \<langle>insert l r , {}\<rangle>"
     using u_v_p_abs_ro bang_wellformed
   proof (intro upd_val_rel_upd_val_rel_record.u_v_p_abs_ro)
-    have "upd_abs_typing a n ts s r w \<sigma>"
+    have "upd_abs_typing a n ts s r {} \<sigma>"
       using u_v_p_abs_ro abs_upd_val_to_uval_typing by blast
-    then have "w = {}"
-      using u_v_p_abs_ro upd.abs_typing_readonly[where w=w] by force
-    moreover have "abs_upd_val a a' n (map bang ts) (bang_sigil s) (r \<union> w) {} \<sigma>"
-      using u_v_p_abs_ro(2) abs_upd_val_bang by simp
+    moreover have "abs_upd_val a a' n (map bang ts) (bang_sigil s) r {} \<sigma>"
+      using u_v_p_abs_ro(2) abs_upd_val_bang by fastforce
     ultimately show "abs_upd_val a a' n (map bang ts) (bang_sigil s) r {} \<sigma>"
       by simp
   qed force+
