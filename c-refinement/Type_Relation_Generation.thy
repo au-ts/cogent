@@ -25,7 +25,6 @@ fun mk_rhs_of_type_rel_rec _ (field_info:HeapLiftBase.field_info list) =
  * We assume that there are (length field_info) bound variables
  * corresponding to the type repr for each field. *)
  let
-  val _ = @{print} field_info
   val num_fields = List.length field_info;
 
   (* mk_hd_conjct makes e.g. @{term "ty = TRecord [(''a'', a), (''b'', b)]"} in the body.*)
