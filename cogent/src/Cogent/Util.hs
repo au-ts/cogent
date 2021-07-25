@@ -28,6 +28,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 module Cogent.Util where
 
@@ -559,3 +560,12 @@ infixl 9 .>
 
 class Located a where
   getLoc :: a -> SourcePos
+
+class Coercible a b where
+  toA :: b -> a
+  toB :: a -> b
+
+-- type VarName = String
+instance Coercible (a, Maybe a) a where
+  toA varName = (varName, Nothing)
+  toB = fst

@@ -566,7 +566,7 @@ hasBlock (TE _ e) = hasBlock' e
     hasBlock' _ = True
 
 
-toLLVMDef :: Core.Definition Core.TypedExpr VarName VarName -> AST.Definition
+toLLVMDef :: Core.Definition Core.TypedExpr (VarName, Maybe VarName) VarName -> AST.Definition
 toLLVMDef (AbsDecl attr name ts ls t rt) =
   GlobalDefinition
     (functionDefaults { name = Name (toShort (packChars name))
@@ -591,7 +591,7 @@ toLLVMDef (TypeDef name tyargs mt) =
                  (fmap toLLVMType mt)
 
 
-to_mod :: [Core.Definition Core.TypedExpr VarName VarName] -> FilePath -> AST.Module
+to_mod :: [Core.Definition Core.TypedExpr (VarName, Maybe VarName) VarName] -> FilePath -> AST.Module
 to_mod ds source =
   mkModule (toShort (packChars source))
            (toShort (packChars source))
@@ -611,7 +611,7 @@ write_llvm mod file = (withContext (\ctx ->
                                           (BS.hPut file ir))))
 
 
-to_llvm :: [Core.Definition Core.TypedExpr VarName VarName] -> FilePath -> IO ()
+to_llvm :: [Core.Definition Core.TypedExpr (VarName, Maybe VarName) VarName] -> FilePath -> IO ()
 to_llvm monoed source = do
   let ast =  to_mod monoed source
   let resName = replaceExtension source "ll"

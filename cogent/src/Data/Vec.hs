@@ -143,6 +143,9 @@ modifyAt l f v = update v l (f (v `at` l))
 findIx :: (Eq t) => t -> Vec a t -> Maybe (Fin a)
 findIx x ls = fmap snd . find (\(y,_) -> x == y) . zip ls $ allFins $ length ls
 
+findBy :: (Eq t) => (t -> Bool) -> Vec a t -> Maybe (Fin a)
+findBy pred ls = fmap snd . find (pred . fst) . zip ls $ allFins $ length ls
+
 allFins :: SNat n -> Vec n (Fin n)
 allFins SZero = Nil
 allFins (SSuc n) = FZero `Cons` (FSuc <$> allFins n)

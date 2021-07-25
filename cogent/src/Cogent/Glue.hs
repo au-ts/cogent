@@ -580,7 +580,7 @@ tcFnCall e = do
          otherwise -> throwError $ "Error: Not a function in $exp antiquote"
   f `seq` tcExp e Nothing
 
-genFn :: CC.PosTypedExpr 'Zero 'Zero VarName VarName -> Gl CS.Exp
+genFn :: CC.PosTypedExpr 'Zero 'Zero (VarName, Maybe VarName) VarName -> Gl CS.Exp
 genFn = genAnti $ \case
   CC.TE t (CC.Fun fn _ _ _ _) -> return (CS.Var (CS.Id (CG.funEnum (unCoreFunName fn)) noLoc) noLoc)
   _ -> __impossible "genFn"
@@ -610,19 +610,19 @@ tcExp e mt = do
        -- TC.exitOnErr $ mapM_ TC.logTc logs
        TC.postE $ TC.applyE subst e'
 
-desugarExp :: TC.TypedExpr -> GlDefn t (CC.PosUntypedExpr t 'Zero VarName VarName)
+desugarExp :: TC.TypedExpr -> GlDefn t (CC.PosUntypedExpr t 'Zero (VarName, Maybe VarName) VarName)
 desugarExp = desugarAnti DS.desugarExpr
 
-coreTcExp :: CC.PosUntypedExpr t 'Zero VarName VarName -> GlDefn t (CC.PosTypedExpr t 'Zero VarName VarName)
+coreTcExp :: CC.PosUntypedExpr t 'Zero (VarName, Maybe VarName) VarName -> GlDefn t (CC.PosTypedExpr t 'Zero (VarName, Maybe VarName) VarName)
 coreTcExp = coreTcAnti IN.infer
 
-expandExp :: CC.PosTypedExpr t 'Zero VarName VarName -> GlDefn t (CC.PosTypedExpr t 'Zero VarName VarName)
+expandExp :: CC.PosTypedExpr t 'Zero (VarName, Maybe VarName) VarName -> GlDefn t (CC.PosTypedExpr t 'Zero (VarName, Maybe VarName) VarName)
 expandExp = coreTcAnti IN.unfoldSynsDeepInTEM
 
-monoExp :: CC.PosTypedExpr t 'Zero VarName VarName -> GlMono t (CC.PosTypedExpr 'Zero 'Zero VarName VarName)
+monoExp :: CC.PosTypedExpr t 'Zero (VarName, Maybe VarName) VarName -> GlMono t (CC.PosTypedExpr 'Zero 'Zero (VarName, Maybe VarName) VarName)
 monoExp = monoAnti MN.monoExpr
 
-genExp :: CC.PosTypedExpr 'Zero 'Zero VarName VarName -> Gl CS.Exp
+genExp :: CC.PosTypedExpr 'Zero 'Zero (VarName, Maybe VarName) VarName -> Gl CS.Exp
 genExp = genAnti $ \e -> do (v,vdecl,vstm,_) <- CG.genExpr Nothing e
                             let bis' = L.concatMap (CG.cBlockItem CG.CFile) (vdecl ++ vstm)
                                 v'   = CG.cExpr v

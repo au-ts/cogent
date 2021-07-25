@@ -286,8 +286,8 @@ matchTypes tdfs vs ts rs =
        else Just $ concat $ catMaybes pmatch
     where pmatch = map (\(t,r) -> matchType tdfs vs t r) $ P.zip ts rs
 
-shallowExpr :: (Show b,Eq b) => PosTypedExpr t v VarName b -> SG Term
-shallowExpr (TE _ (Variable (_,v) loc)) = pure $ mkId (snm v)
+shallowExpr :: (Show b,Eq b) => PosTypedExpr t v (VarName, Maybe VarName) b -> SG Term
+shallowExpr (TE _ (Variable (_,v) loc)) = pure $ mkId (snm $ fst v)
 shallowExpr (TE t (Fun fn ts ls _ _)) =
     if null ts
        then pure $ mkId $ snm $ unCoreFunName fn
@@ -322,8 +322,8 @@ shallowExpr (TE _ (ArrayMap2 ((v1, v2), fbody) (arr1,arr2))) = do
 shallowExpr (TE _ (ArrayTake _ arr idx e)) = __todo "shallowExpr: array take"
 shallowExpr (TE _ (ArrayPut arr idx val)) = __todo "shallowExpr: array put"
 #endif
-shallowExpr (TE _ (Let nm e1 e2 _)) = shallowLet nm e1 e2
-shallowExpr (TE _ (LetBang vs nm e1 e2 _)) = shallowLet nm e1 e2
+shallowExpr (TE _ (Let nm e1 e2 _)) = shallowLet (fst nm) e1 e2
+shallowExpr (TE _ (LetBang vs nm e1 e2 _)) = shallowLet (fst nm) e1 e2
 shallowExpr (TE _ (Tuple e1 e2 _)) = mkApp <$> (pure $ mkId "Pair") <*> (mapM shallowExpr [e1, e2])
 shallowExpr (TE t (Struct fs _)) = shallowMaker t fs
 shallowExpr (TE _ (If c th el _)) = mkApp <$> (pure $ mkId "HOL.If") <*> mapM shallowExpr [c, th, el]
@@ -383,14 +383,14 @@ shallowExpr (TE t (Esac e _)) = do
              if | b' -> mkId "undefined"
                 | otherwise -> mkId "Fun.id"
   pure $ mkApp (mkStr ["case_",tn]) $ es ++ [e']
-shallowExpr (TE _ (Split (n1,n2) e1 e2 _)) = mkApp <$> mkLambdaE [mkPrettyPair n1 n2] e2 <*> mapM shallowExpr [e1]
+shallowExpr (TE _ (Split (n1,n2) e1 e2 _)) = mkApp <$> mkLambdaE [mkPrettyPair (fst n1) (fst n2)] e2 <*> mapM shallowExpr [e1]
 shallowExpr (TE _ (Member rec fld _)) = shallowExpr rec >>= \e -> shallowGetter rec fld e
 shallowExpr (TE _ (Take (n1,n2) rec fld e _)) = do
   erec <- shallowExpr rec
   trec <- unfoldSynsShallowM $ exprType rec
   efield <- mkId <$> getRecordFieldName trec fld
   let take = mkApp (mkId $ "take" ++ subSymStr "cogent") [erec, efield]
-      pp = mkPrettyPair n1 n2
+      pp = mkPrettyPair (fst n1) (fst n2)
   mkLet pp take <$> shallowExpr e
 shallowExpr (TE _ (Put rec fld e _)) = shallowSetter rec fld e
 shallowExpr (TE _ (Promote ty e _)) = shallowExpr e
@@ -401,7 +401,7 @@ shallowExpr (TE te (Cast  t e)) = do
   t' <- unfoldSynsShallowM t
   shallowExpr $ TE te $ Cast t' e
 
-shallowAlt :: (Show b,Eq b) => (TagName,VarName,PosTypedExpr t v VarName b) -> SG b (Term,Term)
+shallowAlt :: (Show b,Eq b) => (TagName,(VarName, Maybe VarName),PosTypedExpr t v (VarName, Maybe VarName) b) -> SG b (Term,Term)
 shallowAlt (tag,n,e) = do
     e' <- shallowExpr e
     pure (TermApp (mkId tag) (mkId $ snm n),e')
@@ -441,7 +441,7 @@ mkLet nm t1 t2 =
  else
     mkApp (mkId "HOL.Let") [t1, mkLambda [snm nm] t2]
 
-shallowLet :: (Show b,Eq b) => VarName -> PosTypedExpr t v VarName b -> PosTypedExpr t ('Suc v) VarName b -> SG b Term
+shallowLet :: (Show b,Eq b) => VarName -> PosTypedExpr t v (VarName, Maybe VarName) b -> PosTypedExpr t ('Suc v) (VarName, Maybe VarName) b -> SG b Term
 shallowLet nm e1 e2 = do
     mkLet nm <$> shallowExpr e1 <*> shallowExpr e2
 
@@ -451,7 +451,7 @@ mkStr = mkId . concat
 mkPrettyPair :: VarName -> VarName -> String
 mkPrettyPair n1 n2 = "(" ++ snm n1 ++ "," ++ snm n2 ++ ")"
 
-mkLambdaE :: (Show b,Eq b) => [VarName] -> PosTypedExpr t v VarName b -> SG b Term
+mkLambdaE :: (Show b,Eq b) => [VarName] -> PosTypedExpr t v (VarName, Maybe VarName) b -> SG b Term
 mkLambdaE vs e = mkLambda vs <$> shallowExpr e
 
 -- | Reverse engineer whether a record type was a tuple by looking at the field names.
@@ -461,7 +461,7 @@ isRecTuple fs =
   P.length fs > 1 &&
   filter (\xs -> xs!!0 == 'p' && let ys = drop 1 xs in filter isDigit ys == ys) fs == fs
 
-shallowMaker :: (Show b,Eq b) => CC.Type t b -> [(FieldName, PosTypedExpr t v VarName b)] -> SG b Term
+shallowMaker :: (Show b,Eq b) => CC.Type t b -> [(FieldName, PosTypedExpr t v (VarName, Maybe VarName) b)] -> SG b Term
 shallowMaker t fs = do
   tn <- findTypeSyn t
   let fnms = map fst fs
@@ -472,21 +472,21 @@ shallowMaker t fs = do
        then mkRecord tn fs
        else mkApp <$> pure (mkStr [tn, ".make"]) <*> (mapM (shallowExpr . snd) fs)
 
-mkRecord :: (Show b,Eq b) => String -> [(FieldName, PosTypedExpr t v VarName b)] -> SG b Term
+mkRecord :: (Show b,Eq b) => String -> [(FieldName, PosTypedExpr t v (VarName, Maybe VarName) b)] -> SG b Term
 mkRecord tn fs = do
     fts <- mapM (shallowExpr . snd) fs
     pure $ ListTerm "\\<lparr>" (map (\(fn,t) -> (TermBinOp I.Eq (mkId fn) t)) $ P.zip ffs fts) "\\<rparr>"
     where ffs = addtn $ map (\(f,t) -> f ++ subSymStr "f") fs
           addtn (f1:ffs) = (tn++ "." ++ f1) : ffs
 
-shallowSetter :: (Show b,Eq b) => PosTypedExpr t v VarName b -> Int -> PosTypedExpr t v VarName b -> SG b Term
+shallowSetter :: (Show b,Eq b) => PosTypedExpr t v (VarName, Maybe VarName) b -> Int -> PosTypedExpr t v (VarName, Maybe VarName) b -> SG b Term
 shallowSetter rec idx e = do
   trec <- unfoldSynsShallowM $ exprType rec
   tn <- getRecordFieldName trec idx
   let setter = tn ++ "_update"
   mkApp (mkId setter) <$> (list2 <$> mkLambdaE ["_"] e <*> shallowExpr rec)
 
-shallowGetter :: PosTypedExpr t v VarName b -> Int -> Term -> SG b Term
+shallowGetter :: PosTypedExpr t v (VarName, Maybe VarName) b -> Int -> Term -> SG b Term
 shallowGetter rec idx rect = do
   trec <- unfoldSynsShallowM $ exprType rec
   mkApp <$> (mkId <$> getRecordFieldName trec idx) <*> pure [rect]
@@ -820,10 +820,10 @@ filterDuplicates xs =
       grpdsrtd = map (sortBy (compare `on` snd)) grouped
   in map (minimumBy (compare `on` (P.length . snd))) grpdsrtd
 
-stsyn :: [Definition PosTypedExpr VarName b] -> MapTypeName
+stsyn :: [Definition PosTypedExpr (VarName, Maybe VarName) b] -> MapTypeName
 stsyn decls = M.fromList . filterDuplicates . concat $ P.map synAllTypeStr decls
 
-synAllTypeStr :: Definition PosTypedExpr VarName b -> [(TypeStr, TypeName)]
+synAllTypeStr :: Definition PosTypedExpr (VarName, Maybe VarName) b -> [(TypeStr, TypeName)]
 synAllTypeStr (TypeDef tn _ (Just (TRecord _ fs _))) = [(RecordStr $ P.map fst fs, tn)]
 synAllTypeStr (TypeDef tn _ (Just (TSum alts))) = [(VariantStr $ P.map fst alts, tn)]
 synAllTypeStr _ = []
@@ -896,7 +896,7 @@ data SCorresCaseData = SCCD { bigType :: String
                             }
                      deriving (Show, Eq, Ord)
 
-scorresCaseExpr :: MapTypeName -> PosTypedExpr t v VarName b -> S.Set SCorresCaseData
+scorresCaseExpr :: MapTypeName -> PosTypedExpr t v (VarName, Maybe VarName) b -> S.Set SCorresCaseData
 scorresCaseExpr m = CC.foldEPre unwrap scorresCaseExpr'
   where
     scorresCaseExpr' (TE t e@(Case (TE bt _) tag (_,_,e1) (_,_,e2) _))
@@ -1040,7 +1040,7 @@ toCaseLemma (SCCN {..}) = let
  in do tell (CaseLemmaBuckets [] [] [] [thmName])
        return $ O.LemmaDecl (O.Lemma False (Just (TheoremDecl (Just thmName) [])) [thmProp] $ Proof methods ProofDone)
 
-scorresCaseDef :: MapTypeName -> Definition PosTypedExpr VarName b -> S.Set SCorresCaseData
+scorresCaseDef :: MapTypeName -> Definition PosTypedExpr (VarName, Maybe VarName) b -> S.Set SCorresCaseData
 scorresCaseDef m (FunDef _ fn ts ls ti to e) = scorresCaseExpr m e
 scorresCaseDef m (_) = S.empty
 
@@ -1096,7 +1096,7 @@ scorresFieldLemmas types tmap =
 
 
 -- Left is concrete funs, Right is shared
-shallowDefinition :: (Show b,Eq b) => Definition PosTypedExpr VarName b -> SG b ([Either (TheoryDecl I.Type I.Term) (TheoryDecl I.Type I.Term)], Maybe FunName)
+shallowDefinition :: (Show b,Eq b) => Definition PosTypedExpr (VarName, Maybe VarName) b -> SG b ([Either (TheoryDecl I.Type I.Term) (TheoryDecl I.Type I.Term)], Maybe FunName)
 shallowDefinition (FunDef _ fn ps _ ti to e) =
     local (typarUpd typar) $ do
     e' <- shallowExpr e
@@ -1120,11 +1120,11 @@ shallowDefinition (TypeDef tn ps (Just t)) =
     local (typarUpd typar) $ local noMatchSyns $ (, Nothing) <$> (map Right <$> shallowTypeDef tn typar t)
   where typar = Vec.cvtToList ps
 
-shallowDefinitions :: (Show b,Eq b) => [Definition PosTypedExpr VarName b] -> SG b ([Either (TheoryDecl I.Type I.Term) (TheoryDecl I.Type I.Term)], [FunName])
+shallowDefinitions :: (Show b,Eq b) => [Definition PosTypedExpr (VarName, Maybe VarName) b] -> SG b ([Either (TheoryDecl I.Type I.Term) (TheoryDecl I.Type I.Term)], [FunName])
 shallowDefinitions = (((concat *** catMaybes) . P.unzip) <$>) . mapM ((varNameGen .= 0 >>) . shallowDefinition)
 
 -- | Returns @(shallow, shallow_shared, scorres, type names)@
-shallowFile :: (Show b, Eq b) => String -> Stage -> [Definition PosTypedExpr VarName b]
+shallowFile :: (Show b, Eq b) => String -> Stage -> [Definition PosTypedExpr (VarName, Maybe VarName) b]
             -> SG b (Theory I.Type I.Term, Theory I.Type I.Term, Theory I.Type I.Term, MapTypeName)
 shallowFile thy stg defs = do
   t <- asks typeStrs
@@ -1158,7 +1158,7 @@ shallowFile thy stg defs = do
            )
 
 -- | Returns @(shallow, shallow_shared, scorres, type names)@
-shallow :: (Show b,Eq b) => Bool -> String -> Stage -> [Definition PosTypedExpr VarName b] -> String -> (Doc, Doc, Doc, MapTypeName)
+shallow :: (Show b,Eq b) => Bool -> String -> Stage -> [Definition PosTypedExpr (VarName, Maybe VarName) b] -> String -> (Doc, Doc, Doc, MapTypeName)
 shallow recoverTuples thy stg defs log =
   let (shal,shrd,scor,typeMap) = fst $ evalRWS (runSG (shallowFile thy stg defs))
                                                (SGTables (st defs) (stsyn defs) [] recoverTuples (filterTypeDefs defs) True)
@@ -1174,7 +1174,7 @@ genConstDecl (vn, te@(TE ty expr)) = do
       term = [isaTerm| $nm \<equiv> $e |]
   pure $ Definition (Def (Just (Sig (snm vn) (Just t))) term)
 
-shallowConsts :: Bool -> String -> Stage -> [CC.CoreConst PosTypedExpr] -> [Definition PosTypedExpr VarName VarName] -> String -> Doc
+shallowConsts :: Bool -> String -> Stage -> [CC.CoreConst PosTypedExpr] -> [Definition PosTypedExpr (VarName, Maybe VarName) VarName] -> String -> Doc
 shallowConsts recoverTuples thy stg consts defs log =
   header $ pretty (Theory (thy ++ __cogent_suffix_of_shallow_consts ++ __cogent_suffix_of_stage stg ++
                            (if recoverTuples then __cogent_suffix_of_recover_tuples else ""))
@@ -1201,7 +1201,7 @@ shallowConsts recoverTuples thy stg consts defs log =
 -}
 
 shallowTuplesProof :: String -> String -> String -> String -> String ->
-                      MapTypeName -> [Definition PosTypedExpr VarName b] -> String -> Doc
+                      MapTypeName -> [Definition PosTypedExpr (VarName, Maybe VarName) b] -> String -> Doc
 shallowTuplesProof baseName sharedDefThy defThy tupSharedDefThy tupDefThy typeMap defs log =
   header $ pretty (Theory (mkProofName baseName $ Just __cogent_suffix_of_shallow_tuples_proof)
                    (TheoryImports [defThy, tupDefThy,

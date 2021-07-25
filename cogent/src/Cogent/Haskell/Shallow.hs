@@ -135,7 +135,7 @@ pushScope :: ReaderGen -> ReaderGen
 pushScope = localBindings %~ (M.empty:)
 
 -- | add a list of @(cogent_var, haskell_var)@ to the context
-addBindings :: [(VarName, VarName)] -> ReaderGen -> ReaderGen
+addBindings :: [(VarName, Maybe VarName)] -> ReaderGen -> ReaderGen
 addBindings vs = localBindings %~ (\(h:t) -> (M.fromList vs `M.union` h):t)  -- left-biased union for shadowing
 
 data WriterGen = WriterGen
@@ -175,7 +175,7 @@ shallow :: Bool    -- ^ Whether we recover the tuple syntax for tuple types.
                    --   If 'False', we will use unboxed records for tuples.
         -> String  -- ^ The name of the Cogent module
         -> Stage   -- ^ The 'Stage' of the compilatation
-        -> [CC.Definition TypedExpr VarName b]  -- ^ A list of Cogent definitions
+        -> [CC.Definition TypedExpr (VarName, Maybe VarName) b]  -- ^ A list of Cogent definitions
         -> [CC.CoreConst TypedExpr]             -- ^ A list of Cogent constants
         -> String                               -- ^ The log header to be included in the generated code
         -> String
@@ -229,7 +229,7 @@ shallowTypeDef tn tvs t = do
   t' <- shallowType t
   pure $ TypeDecl () (mkDeclHead (mkName tn) (P.map (mkName . snm) tvs)) t'
 
-shallowDefinition :: CC.Definition TypedExpr VarName b -> SG [Decl ()]
+shallowDefinition :: CC.Definition TypedExpr (VarName, Maybe VarName) b -> SG [Decl ()]
 shallowDefinition (CC.FunDef _ fn ps _ ti to e) = __fixme $  -- FIXME: dlvars ignored here
   local (typarUpd typar) $ do
     ti' <- shallowType ti
@@ -280,7 +280,7 @@ shallowDefinition (CC.TypeDef tn ps (Just t)) = do
   where typar = Vec.cvtToList ps
 
 
-shallowDefinitions :: [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
+shallowDefinitions :: [CC.Definition TypedExpr (VarName, Maybe VarName) b] -> SG [Decl ()]
 shallowDefinitions = (concat <$>) . mapM shallowDefinition
 
 shallowConst :: CC.CoreConst TypedExpr -> SG [HS.Decl ()]
@@ -487,7 +487,7 @@ shallowPrimType Boolean = mkTyConT $ mkName "Bool"
 -- * Expression generators
 --
 
-shallowExpr :: TypedExpr t v VarName b -> SG (Exp ())
+shallowExpr :: TypedExpr t v (VarName, Maybe VarName) b -> SG (Exp ())
 shallowExpr (TE _ (CC.Variable (_,v))) = do
   bs <- view localBindings
   let v' = case M.lookup v (M.unions bs) of  -- also heap-top-biased unions
@@ -638,10 +638,10 @@ shallowILit n v = Paren () $ ExpTypeSig () (Lit () $ Int () n $ show n) (shallow
 
 -- | makes @let p = e1 in e2@
 shallowLet :: SNat n                           -- ^ a proof for @'SNat' n@
-           -> [(VarName, VarName)]             -- ^ Haskell variable bindings for Cogent variables
+           -> [(VarName, Maybe VarName)]             -- ^ Haskell variable bindings for Cogent variables
            -> Pat ()                           -- ^ pattern @p@
-           -> TypedExpr t v VarName b          -- ^ binding @e1@
-           -> TypedExpr t (v :+: n) VarName b  -- ^ body @e2@
+           -> TypedExpr t v (VarName, Maybe VarName) b          -- ^ binding @e1@
+           -> TypedExpr t (v :+: n) (VarName, Maybe VarName) b  -- ^ body @e2@
            -> SG (Exp ())
 shallowLet n vs p e1 e2 = do
   __assert (toInt n == P.length vs) "n == |vs|"
@@ -658,7 +658,7 @@ getSafeBinder v = do
     then getSafeBinder =<< (((v ++) . show) <$> (freshInt <<+= 1))
     else return v
 
-getRecordFieldName :: TypedExpr t v VarName b -> FieldIndex -> FieldName
+getRecordFieldName :: TypedExpr t v (VarName, Maybe VarName) b -> FieldIndex -> FieldName
 getRecordFieldName rec idx | CC.TRecord _ fs _ <- exprType rec = P.map fst fs !! idx
 getRecordFieldName _ _ = __impossible "input should be of record type"
 
@@ -671,7 +671,7 @@ getRecordFieldName _ _ = __impossible "input should be of record type"
 --   [@rec\'@]: the Haskell embedding of @rec@
 --
 --   For example: @rec { f = x } = ...@ becomes @f rec@
-shallowGetter :: TypedExpr t v VarName b -> [FieldName] -> FieldIndex -> Exp () -> SG (Exp ())
+shallowGetter :: TypedExpr t v (VarName, Maybe VarName) b -> [FieldName] -> FieldIndex -> Exp () -> SG (Exp ())
 shallowGetter rec fnms idx rec' = do
   tuples <- view recoverTuples
   return $ if | tuples, isRecTuple fnms -> appFun (mkQVarE "Tup" . mkName $ "sel" ++ show (idx+1)) [rec']
@@ -685,7 +685,7 @@ shallowGetter rec fnms idx rec' = do
 --   let R {f, g, h, ...} = rec  -- field puns are used
 --    in f
 -- @
-shallowGetter' :: TypedExpr t v VarName b -> [FieldName] -> FieldIndex -> Exp () -> SG (Exp ())  -- use puns
+shallowGetter' :: TypedExpr t v (VarName, Maybe VarName) b -> [FieldName] -> FieldIndex -> Exp () -> SG (Exp ())  -- use puns
 shallowGetter' rec fnms idx rec' = do
   tuples <- view recoverTuples
   if | tuples, isRecTuple fnms -> shallowGetter rec fnms idx rec'
@@ -712,7 +712,7 @@ shallowGetter' rec fnms idx rec' = do
 --
 --    __NOTE:__ the type signature is required due to
 --   [GHC T11343](https://ghc.haskell.org/trac/ghc/ticket/11343)
-shallowSetter :: TypedExpr t v VarName b -> [FieldName] -> FieldIndex -> Exp () -> HS.Type () -> Exp () -> SG (Exp ())
+shallowSetter :: TypedExpr t v (VarName, Maybe VarName) b -> [FieldName] -> FieldIndex -> Exp () -> HS.Type () -> Exp () -> SG (Exp ())
 shallowSetter rec fnms idx rec' rect' e' = do
   tuples <- view recoverTuples
   return $ if | tuples, isRecTuple fnms -> appFun (mkQVarE "Tup" . mkName $ "upd" ++ show (idx+1)) [e', rec']

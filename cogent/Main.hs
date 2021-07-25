@@ -30,7 +30,7 @@ module Main where
 import           Cogent.C                         as CG (cgen, printCTable, printATM)
 import           Cogent.Common.Syntax             as SY (CoreFunName (..))
 import           Cogent.Compiler
-import           Cogent.Core                      as CC (getDefinitionId, isConFun, untypeD)
+import           Cogent.Core                      as CC (getDefinitionId, isConFun, untypeD, Definition, PosUntypedExpr)
 import           Cogent.Desugar                   as DS (desugar)
 #ifdef WITH_DOCGENT
 import           Cogent.DocGent                   as DG (docGent)

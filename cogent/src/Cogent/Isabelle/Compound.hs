@@ -53,9 +53,9 @@ import Text.Parsec.Pos (SourcePos)
 --
 -- > Just (scrut, fromList [(tag1, (n1, when_tag1)), (tag2, (n2, when_tag2)), (tag3, (n3, when_tag3))])
 --
-takeFlatCase :: PosTypedExpr t v VarName b
-             -> Maybe ( PosTypedExpr t v VarName b
-                      , M.Map TagName (VarName, PosTypedExpr t ('Suc v) VarName b))
+takeFlatCase :: PosTypedExpr t v (VarName, Maybe VarName) b
+             -> Maybe ( PosTypedExpr t v (VarName, Maybe VarName) b
+                      , M.Map TagName ((VarName, Maybe VarName), PosTypedExpr t ('Suc v) (VarName, Maybe VarName) b))
 takeFlatCase (TE _ e) = case e of
  -- Take top-level case separately as we need the scrutinee here,
  -- while the nested levels must have a scrutinee of (Var 0).
@@ -63,22 +63,22 @@ takeFlatCase (TE _ e) = case e of
   | TSum talts <- exprType escrut
   -> do let m0 = M.singleton tag (n1,e1)
         -- Descend into failure case to match remaining alternatives
-        malts <- goAlts n2 e2 m0
+        malts <- goAlts (fst n2) e2 m0
         -- Only succeed if we have alternatives for all variant constructors
         case M.size malts == P.length talts of
-         True  -> Just (escrut,malts)
-         False -> Nothing
+          True  -> Just (escrut,malts)
+          False -> Nothing
 
  _ -> Nothing
 
  where
   goAlts :: forall t u b. VarName
-         -> PosTypedExpr t u VarName b
-         -> (M.Map TagName (VarName, PosTypedExpr t u VarName b))
-         -> Maybe (M.Map TagName (VarName, PosTypedExpr t u VarName b))
+         -> PosTypedExpr t u (VarName, Maybe VarName) b
+         -> (M.Map TagName ((VarName, Maybe VarName), PosTypedExpr t u (VarName, Maybe VarName) b))
+         -> Maybe (M.Map TagName ((VarName, Maybe VarName), PosTypedExpr t u (VarName, Maybe VarName) b))
   -- Match a nested Case on the same scrutinee
   goAlts nscrut (TE _ (Case (TE _ (Variable (FZero, nscrut') _)) tag (_, na1,ea1) (_, na2, ea2) _)) m
-   | nscrut == nscrut'
+   | nscrut == fst nscrut'
    = do -- The nested case structure binds a lot of variables that all refer to the scrutinee,
         -- because the failure continuation of each nested case has a binding.
         -- To flatten the case, we need all alternatives to have the same environment.
@@ -86,11 +86,11 @@ takeFlatCase (TE _ e) = case e of
         -- we need to make sure it isn't referred to, and remove it from the context.
         ea1' <- expDiscardVar (FSuc FZero) ea1
         ea2' <- expDiscardVar (FSuc FZero) ea2
-        goAlts na2 ea2' (M.insert tag (na1,ea1') m)
+        goAlts (fst na2) ea2' (M.insert tag (na1,ea1') m)
 
   -- Match an Esac
   goAlts nscrut (TE _ (Let nalt (TE _ (Esac (TE tscrut (Variable (FZero, nscrut') _)) _)) erest _)) m
-   | nscrut == nscrut'
+   | nscrut == fst nscrut'
    , TSum alts <- tscrut
    , [tag]     <- map fst $ filter (\(_,(_,b)) -> not b) alts
    = do erest' <- expDiscardVar (FSuc FZero) erest

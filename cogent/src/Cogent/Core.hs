@@ -295,7 +295,7 @@ data UntypedExpr loc t v a b = E  (Expr loc t v a b UntypedExpr) deriving (Show,
 
 type PosTypedExpr = TypedExpr SourcePos
 data TypedExpr   loc t v a b = TE { exprType :: Type t b , exprExpr :: Expr loc t v a b TypedExpr }
-                         deriving (Show, Eq, Ord)
+                             deriving (Show, Eq, Ord)
 instance Located (PosUntypedExpr t v a b) where
   getLoc (E e) = getLoc e
 
@@ -355,7 +355,7 @@ data Definition e a b
 deriving instance (Show a, Show b, Show loc) => Show (Definition (TypedExpr loc)   a b)
 deriving instance (Show a, Show b, Show loc) => Show (Definition (UntypedExpr loc) a b)
 
-type CoreConst e = (VarName, e 'Zero 'Zero VarName VarName)
+type CoreConst e = (VarName, e 'Zero 'Zero (VarName, Maybe VarName) VarName)
 
 getDefinitionId :: Definition e a b -> String
 getDefinitionId (FunDef  _ fn _ _ _ _ _) = fn
@@ -604,7 +604,7 @@ instance Functor (Flip (TypedExpr loc t v) b) where  -- over @a@
 --   fmap f (AbsDecl attr fn ts ti to)   = AbsDecl attr fn ts ti to
 --   fmap f (TypeDef tn ts mt)      = TypeDef tn ts mt
 --
--- stripNameTD :: Definition TypedExpr VarName -> Definition TypedExpr ()
+-- stripNameTD :: Definition TypedExpr (VarName, Maybe VarName) -> Definition TypedExpr ()
 -- stripNameTD = fmap $ const ()
 
 

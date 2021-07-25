@@ -28,7 +28,7 @@ import qualified Data.Set as S
 import System.FilePath ((</>))
 import Text.PrettyPrint.ANSI.Leijen as L (Doc, pretty, string, (<$>))
 
-normalProof :: String -> MapTypeName -> [Definition PosTypedExpr VarName b] -> String -> Doc
+normalProof :: String -> MapTypeName -> [Definition PosTypedExpr (VarName, Maybe VarName) b] -> String -> Doc
 normalProof thy typeMap defs log =
   let sdthy = thy ++ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage STGDesugar
       snthy = thy ++ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage STGNormal
@@ -142,7 +142,7 @@ anormalCaseRules variants = let
        Just (thmName, O.LemmaDecl (O.Lemma False (Just (O.TheoremDecl (Just thmName) [])) props $ Proof [method] ProofDone))
 
 
-genDesugarNormalProof :: String -> String -> MapTypeName -> [Definition PosTypedExpr VarName b] -> [O.TheoryDecl I.Type I.Term]
+genDesugarNormalProof :: String -> String -> MapTypeName -> [Definition PosTypedExpr (VarName, Maybe VarName) b] -> [O.TheoryDecl I.Type I.Term]
 genDesugarNormalProof sdthy snthy typeMap defs =
   let getPromotes (FunDef _ _ _ _ _ _ e) = getInlinedShallowPromotes typeMap e
       getPromotes _ = S.empty

@@ -61,7 +61,7 @@ import Lens.Micro.TH
 import Unsafe.Coerce
 
 type InExpr  t v b = PosTypedExpr t v (VarName, OccInfo) b
-type OutExpr t v b = PosTypedExpr t v VarName            b
+type OutExpr t v b = PosTypedExpr t v (VarName, Maybe VarName)            b
 
 type InVar  = Fin
 type OutVar = Fin
@@ -121,10 +121,10 @@ data OccInfo = Dead
              | LetBanged
              deriving (Eq, Ord, Show)
 
-markOcc :: SNat v -> PosTypedExpr t v VarName b -> Occ v b (InExpr t v b)
+markOcc :: SNat v -> PosTypedExpr t v (VarName, Maybe VarName) b -> Occ v b (InExpr t v b)
 markOcc sv (TE tau (Variable (v, n) loc)) = do
   modify $ second $ modifyAt v (OnceSafe <>)
-  return . TE tau $ Variable (v, (n, OnceSafe)) loc
+  return . TE tau $ Variable (v, (fst n, OnceSafe)) loc
 markOcc sv (TE tau (Fun fn ts ls note loc)) = do
   modify (first $ M.adjust (second $ (OnceSafe <>)) (unCoreFunName fn))
   return . TE tau $ Fun fn ts ls note loc
@@ -137,12 +137,12 @@ markOcc sv (TE tau (SLit s loc)) = return $ TE tau (SLit s loc)
 markOcc sv (TE tau (Let n e1 e2 loc)) = do
   e1' <- markOcc sv e1
   (e2',occ) <- getVOcc1 $ markOcc (SSuc sv) e2
-  return $ TE tau $ Let (n,occ) e1' e2' loc
+  return $ TE tau $ Let (fst n,occ) e1' e2' loc
 markOcc sv (TE tau (LetBang bs n e1 e2 loc)) = do
   e1' <- markOcc sv e1
   mapM_ (\(b,_) -> modify . second $ V.modifyAt b (seqOcc LetBanged)) bs  -- !'ed vars cannot be inlined
   (e2',occ) <- getVOcc1 $ markOcc (SSuc sv) e2
-  return $ TE tau $ LetBang (L.map (second $ (,OnceSafe)) bs) (n,LetBanged) e1' e2' loc
+  return $ TE tau $ LetBang (L.map (second $ (, OnceSafe) . fst) bs) (fst n,LetBanged) e1' e2' loc
 markOcc sv (TE tau (Tuple e1 e2 loc)) = TE tau <$> (Tuple <$> markOcc sv e1 <*> markOcc sv e2 <*> pure loc)
 markOcc sv (TE tau (Struct fs loc)) = TE tau <$> (Struct <$> mapM (secondM $ markOcc sv) fs <*> pure loc)
 markOcc sv (TE tau (If c th el loc)) = do
@@ -153,17 +153,17 @@ markOcc sv (TE tau (Case e tag (l1,a1,e1) (l2,a2,e2) loc)) = do
   e' <- markOcc sv e
   ((e1',occ1),(e2',occ2)) <- flip (sequential sv) concatEnv $
                                parallel (getVOcc1 $ markOcc (SSuc sv) e1) (getVOcc1 $ markOcc (SSuc sv) e2) branchEnv
-  return $ TE tau $ Case e' tag (l1,(a1,occ1),e1') (l2,(a2,occ2),e2') loc
+  return $ TE tau $ Case e' tag (l1,(fst a1,occ1),e1') (l2,(fst a2,occ2),e2') loc
 markOcc sv (TE tau (Esac e loc)) = TE tau <$> (Esac <$> markOcc sv e <*> pure loc)
 markOcc sv (TE tau (Split (n1, n2) e1 e2 loc)) = do
   e1' <- markOcc sv e1
   (e2',occ1,occ2) <- getVOcc2 $ markOcc (SSuc (SSuc sv)) e2
-  return $ TE tau $ Split ((n1,occ1), (n2,occ2)) e1' e2' loc
+  return $ TE tau $ Split ((fst n1,occ1), (fst n2,occ2)) e1' e2' loc
 markOcc sv (TE tau (Member rec fld loc)) = TE tau <$> (Member <$> markOcc sv rec <*> pure fld <*> pure loc)
 markOcc sv (TE tau (Take (fn, recn) rec fld e loc)) = do
   rec' <- markOcc sv rec
   (e',occf,occr) <- getVOcc2 $ markOcc (SSuc (SSuc sv)) e
-  return $ TE tau $ Take ((fn,occf), (recn,occr)) rec' fld e' loc
+  return $ TE tau $ Take ((fst fn,occf), (fst recn,occr)) rec' fld e' loc
 markOcc sv (TE tau (Put rec fld e loc)) = TE tau <$> (Put <$> markOcc sv rec <*> pure fld <*> markOcc sv e <*> pure loc)
 markOcc sv (TE tau (Promote t e loc)) = TE tau . flip (Promote t) loc <$> markOcc sv e
 markOcc sv (TE tau (Cast t e loc)) = TE tau . flip (Cast t) loc <$> markOcc sv e
@@ -223,7 +223,7 @@ getVOcc2 ma = do (a,(_,Cons occ1 (Cons occ2 Nil))) <- getVOccs s2 ma
 -- ////////////////////////////////////////////////////////////////////////////
 -- Top level
 
-type FuncEnv b = M.Map FunName (Definition PosTypedExpr VarName b, OccInfo)  -- funcname |-> (def, occ)
+type FuncEnv b = M.Map FunName (Definition PosTypedExpr (VarName, Maybe VarName) b, OccInfo)  -- funcname |-> (def, occ)
 
 data SimpEnv t b = SimpEnv { _funcEnv  :: FuncEnv b
                            , _kindEnv  :: Vec t Kind
@@ -245,11 +245,11 @@ execSimp = (. unSimp) . flip execState
 runSimp :: SimpEnv t b -> Simp t b x -> (x, SimpEnv t b)
 runSimp = (. unSimp) . flip runState
 
-simplify :: [Definition PosTypedExpr VarName b] -> [Definition PosTypedExpr VarName b]
+simplify :: [Definition PosTypedExpr (VarName, Maybe VarName) b] -> [Definition PosTypedExpr (VarName, Maybe VarName) b]
 simplify ds = let fenv = fmap (,Dead) . M.fromList . catMaybes $ L.map (\d -> (,d) <$> getFuncId d) ds
                in flip evalState (fenv, 0) $ mapM simplify1 ds
 
-simplify1 :: Definition PosTypedExpr VarName b -> State (FuncEnv b, Int) (Definition PosTypedExpr VarName b)
+simplify1 :: Definition PosTypedExpr (VarName, Maybe VarName) b -> State (FuncEnv b, Int) (Definition PosTypedExpr (VarName, Maybe VarName) b)
 simplify1 (FunDef attr fn tvs lvs ti to e) = do
   fenv <- use _1
   vcnt <- use _2
@@ -260,7 +260,7 @@ simplify1 (FunDef attr fn tvs lvs ti to e) = do
   return d'
 simplify1 d = pure d
 
-simplifyExpr :: Int -> PosTypedExpr t ('Suc 'Zero) VarName b -> Simp t b (PosTypedExpr t ('Suc 'Zero) VarName b)
+simplifyExpr :: Int -> PosTypedExpr t ('Suc 'Zero) (VarName, Maybe VarName) b -> Simp t b (PosTypedExpr t ('Suc 'Zero) (VarName, Maybe VarName) b)
 simplifyExpr 0 e = pure e
 simplifyExpr n e = do fenv <- use funcEnv
                       let (e',(fenv',_)) = runOcc (fenv, emptyOccVec s1) $ markOcc s1 e
@@ -340,11 +340,11 @@ simplExpr sv subst ins (TE tau (Let (n,o) e1 e2 loc)) cont = do
                in  lowerExpr0 sv <$> simplExpr (SSuc sv) (liftSubst subst') (extInScopeSet ins) e2 (liftContext cont)
           -- Call-site inline, decided by heuristics
           else let ins' = Cons (Just $ BoundTo e1' o) ins
-               in TE tau . flip (Let n e1') loc <$> simplExpr (SSuc sv) (extSubst subst) (liftInScopeSet ins') e2 (liftContext cont)
+               in TE tau . flip (Let (n, Nothing) e1') loc <$> simplExpr (SSuc sv) (extSubst subst) (liftInScopeSet ins') e2 (liftContext cont)
 simplExpr sv subst ins (TE tau (LetBang vs (n,o) e1 e2 loc)) cont = do
   e1'  <- simplExpr sv subst ins e1 cont
   let ins' = Cons (Just $ BoundTo e1' o) ins
-  TE tau . flip (LetBang (L.map (second fst) vs) n e1') loc <$> simplExpr (SSuc sv) (extSubst subst) (liftInScopeSet ins') e2 (liftContext cont)
+  TE tau . flip (LetBang (L.map (second (\x -> (fst x, Nothing))) vs) (n, Nothing) e1') loc <$> simplExpr (SSuc sv) (extSubst subst) (liftInScopeSet ins') e2 (liftContext cont)
 simplExpr sv subst ins (TE tau (Tuple e1 e2 loc)) cont = TE tau <$> (Tuple <$> simplExpr sv subst ins e1 cont <*> simplExpr sv subst ins e2 cont <*> pure loc)
 simplExpr sv subst ins (TE tau (Struct fs loc)) cont = TE tau . (\fs' -> Struct fs' loc) <$> mapM (secondM $ flip (simplExpr sv subst ins) cont) fs
 simplExpr sv subst ins (TE tau (If c th el loc)) cont = do
@@ -356,19 +356,21 @@ simplExpr sv subst ins (TE tau (Case e tn (l1,n1,e1) (l2,n2,e2) loc)) cont = do 
   e'  <- simplExpr sv subst ins e cont
   e1' <- simplExpr (SSuc sv) (extSubst subst) (liftInScopeSet $ Cons (Just Unknown) ins) e1 (liftContext cont)
   e2' <- simplExpr (SSuc sv) (extSubst subst) (liftInScopeSet $ Cons (Just Unknown) ins) e2 (liftContext cont)
-  return . TE tau $ Case e' tn (l1,fst n1,e1') (l2,fst n2,e2') loc
+  return . TE tau $ Case e' tn (l1,(fst n1, Nothing),e1') (l2,(fst n2, Nothing),e2') loc
 simplExpr sv subst ins (TE tau (Esac e loc)) cont = TE tau . flip Esac loc <$> simplExpr sv subst ins e cont
 simplExpr sv subst ins (TE tau (Split nn e1 e2 loc)) cont = do
   e1'  <- simplExpr sv subst ins e1 cont
   let ins' = liftInScopeSet $ Cons (Just Unknown) $ liftInScopeSet $ Cons (Just Unknown) ins
   e2'  <- simplExpr (SSuc (SSuc sv)) (extSubst $ extSubst subst) ins' e2 (liftContext $ liftContext cont)
-  return . TE tau $ Split (join (***) fst nn) e1' e2' loc
+  let split' ((x, _), (y, _)) = ((x, Nothing), (y, Nothing)) -- TODO: revisit
+  return . TE tau $ Split (split' nn) e1' e2' loc
 simplExpr sv subst ins (TE tau (Member rec fld loc)) cont = TE tau <$> (Member <$> simplExpr sv subst ins rec cont <*> pure fld <*> pure loc)
 simplExpr sv subst ins (TE tau (Take nn rec fld e loc)) cont = do  -- FIXME
   rec' <- simplExpr sv subst ins rec cont
   let ins' = liftInScopeSet $ Cons (Just Unknown) $ liftInScopeSet $ Cons (Just Unknown) ins
   e'   <- simplExpr (SSuc (SSuc sv)) (extSubst $ extSubst subst) ins' e (liftContext $ liftContext cont)
-  return . TE tau $ Take (join (***) fst nn) rec' fld e' loc
+  let split' ((x, _), (y, _)) = ((x, Nothing), (y, Nothing)) -- TODO: revisit
+  return . TE tau $ Take (split' nn) rec' fld e' loc
 simplExpr sv subst ins (TE tau (Put rec fld e loc)) cont = TE tau <$> (Put <$> simplExpr sv subst ins rec cont <*> pure fld <*> simplExpr sv subst ins e cont <*> pure loc)
 simplExpr sv subst ins (TE tau (Promote ty e loc)) cont = TE tau . flip (Promote ty) loc <$> simplExpr sv subst ins e cont
 simplExpr sv subst ins (TE tau (Cast ty e loc)) cont = TE tau . flip (Cast ty) loc <$> simplExpr sv subst ins e cont
@@ -381,8 +383,8 @@ considerInline sv ins (v,n,tau) cont = case ins `V.at` v of
     ifM (inline rhs occ cont)
       (do fenv <- use funcEnv
           simplExpr sv (emptySubst sv) ins (evalOcc (fenv, emptyOccVec sv) $ markOcc sv rhs) cont)
-      (rebuild (TE tau $ Variable (v,n) __dummyPos) cont)
-  Just _ -> rebuild (TE tau $ Variable (v,n) __dummyPos) cont
+      (rebuild (TE tau $ Variable (v,(n, Nothing)) __dummyPos) cont)
+  Just _ -> rebuild (TE tau $ Variable (v,(n, Nothing)) __dummyPos) cont
 
 rebuild :: OutExpr t v b -> Context t v b -> Simp t b (OutExpr t v b)
 rebuild e Stop = return e
@@ -552,7 +554,7 @@ liftContext _ = __todo "liftContext: not implemented yet"
 -- substFin var (|var_body|-1==idx) |var_arg| arg
 -- It performs substitution [var |-> arg], the substituted variable must be the one of largest index.
 -- Returned env is constituted by `init (var_body) ++ var_arg'
-substFin :: Fin ('Suc v') -> SNat v' -> SNat v -> PosTypedExpr t v VarName b -> Either (Fin (v :+: v')) (PosTypedExpr t (v :+: v') VarName b)
+substFin :: Fin ('Suc v') -> SNat v' -> SNat v -> PosTypedExpr t v (VarName, Maybe VarName) b -> Either (Fin (v :+: v')) (PosTypedExpr t (v :+: v') (VarName, Maybe VarName) b)
 substFin FZero SZero _ arg = Right arg
 substFin FZero (SSuc _) _ _ = Left FZero
 substFin (FSuc _) SZero _ _ = __impossible "substFin"  -- idx must be the largest var
@@ -561,7 +563,7 @@ substFin (FSuc v) (SSuc n') n arg = case substFin v n' n arg of
   Right e -> Right $ liftExpr f0 e
 
 -- betaR body (|var_body|-1==idx) |var_arg| arg ts
-betaR :: (v ~ 'Suc v0) => PosTypedExpr t' ('Suc v') VarName b -> SNat v' -> SNat v -> PosTypedExpr t v VarName b -> Vec t' (Type t b) -> Simp t b (PosTypedExpr t (v :+: v') VarName b)
+betaR :: (v ~ 'Suc v0) => PosTypedExpr t' ('Suc v') (VarName, Maybe VarName) b -> SNat v' -> SNat v -> PosTypedExpr t v (VarName, Maybe VarName) b -> Vec t' (Type t b) -> Simp t b (PosTypedExpr t (v :+: v') (VarName, Maybe VarName) b)
 betaR (TE tau (Variable (v,a) loc))  idx n arg ts
   = case substFin v idx n arg of
       Left v' -> pure $ TE (substitute ts tau) $ Variable (v',a) loc
@@ -582,10 +584,10 @@ betaR e@(TE tau (LetBang vs a e1 e2 loc)) idx n@(SSuc n0) arg ts
       varCount += 1
       let vn = "simp_var_" ++ show vc
       case sym (addSucLeft n idx) of
-        Refl -> do varg  <- pure $ TE (exprType arg) (Variable (f0,vn) loc)
+        Refl -> do varg  <- pure $ TE (exprType arg) (Variable (f0,(vn, Nothing)) loc)
                    arg'  <- pure $ upshiftExpr idx n f0 arg
                    body' <- betaR e idx (SSuc n) varg ts
-                   return $ TE (substitute ts tau) $ (Let vn arg' body' loc)
+                   return $ TE (substitute ts tau) $ (Let (vn, Nothing) arg' body' loc)
   | Refl <- sym (addSucLeft' n idx)
     = TE (substitute ts tau) <$> (LetBang (L.map (first $ flip widenN n0) vs) a <$> betaR e1 idx n arg ts <*> betaR e2 (SSuc idx) n arg ts <*> pure loc)
 betaR (TE tau (Tuple e1 e2 loc)) idx n arg ts = TE (substitute ts tau) <$> (Tuple <$> betaR e1 idx n arg ts <*> betaR e2 idx n arg ts <*> pure loc)

@@ -296,7 +296,7 @@ withBindings vec = Gen . withRWS (\r s -> (r <++> vec, s)) . runGen
 -- * Expr generation
 
 
-genExpr_ :: PosTypedExpr 'Zero v VarName VarName -> Gen v (CExpr, [CBlockItem], [CBlockItem], VarPool)
+genExpr_ :: PosTypedExpr 'Zero v (VarName, Maybe VarName) VarName -> Gen v (CExpr, [CBlockItem], [CBlockItem], VarPool)
 genExpr_ = genExpr Nothing
 
 
@@ -318,7 +318,7 @@ genExpr
      -- Otherwise, the generated C expression
      -- is returned directly.
 
-  -> PosTypedExpr 'Zero v VarName VarName
+  -> PosTypedExpr 'Zero v (VarName, Maybe VarName) VarName
      -- ^ The cogent expression to generate C code for.
 
   -> Gen v (CExpr, [CBlockItem], [CBlockItem], VarPool)
@@ -881,14 +881,14 @@ genAllGSetters | not __cogent_funused_dargent_accessors = return ()
 
 
  -- NOTE: This function excessively uses `unsafeCoerce' because of existentials / zilinc
-genDefinition :: Definition PosTypedExpr VarName VarName -> Gen 'Zero [CExtDecl]
+genDefinition :: Definition PosTypedExpr (VarName, Maybe VarName) VarName -> Gen 'Zero [CExtDecl]
 genDefinition (FunDef attr fn Nil Nil t rt e) = do
   localOracle .= 0
   varPool .= M.empty
   arg <- freshLocalCId 'a'
   t' <- addSynonym genTypeA (unsafeCoerce t :: CC.Type 'Zero VarName) (argOf fn)
   (e',edecl,estm,_) <- withBindings (Cons (variable arg & if __cogent_funboxed_arg_by_ref then CDeref else id) Nil)
-                         (genExpr Nothing (unsafeCoerce e :: PosTypedExpr 'Zero ('Suc 'Zero) VarName VarName))
+                         (genExpr Nothing (unsafeCoerce e :: PosTypedExpr 'Zero ('Suc 'Zero) (VarName, Maybe VarName) VarName))
   rt' <- addSynonym genType (unsafeCoerce rt :: CC.Type 'Zero VarName) (retOf fn)
   funClasses %= M.alter (insertSetMap (fn,attr)) (Function t' rt')
   let loc = getLoc e
@@ -936,7 +936,7 @@ genDefinition _ = return []
 -- ----------------------------------------------------------------------------
 -- * top-level function
 
-compile :: [Definition PosTypedExpr VarName VarName]
+compile :: [Definition PosTypedExpr (VarName, Maybe VarName) VarName]
         -> Maybe GenState      -- cached state
         -> [(Type 'Zero VarName, String)]
         -> [CC.Pragma_ VarName]

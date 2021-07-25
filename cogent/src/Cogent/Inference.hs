@@ -503,17 +503,17 @@ runTC (TC a) readers st = case runState (runReaderT (runExceptT a) readers) st o
 -- XXX |     tc_debug' ((AbsDecl _ fn ts t rt):ds) reader = tc_debug' ds (M.insert fn (FT (fmap snd ts) t rt) reader)
 -- XXX |     tc_debug' (_:ds) reader = tc_debug' ds reader
 
-retype :: (Show b, Eq b, Pretty b, a ~ b)
+retype :: (Show a, Eq a, Pretty a, Show b, Eq b, Pretty b, Coercible a b)
        => [Definition PosTypedExpr a b]
        -> Either String [Definition PosTypedExpr a b]
 retype ds = fmap fst $ tc $ map untypeD ds
 
-tc :: (Show b, Eq b, Pretty b, a ~ b)
+tc :: (Show a, Eq a, Pretty a, Show b, Eq b, Pretty b, Coercible a b)
    => [Definition PosUntypedExpr a b]
    -> Either String ([Definition PosTypedExpr a b], Map FunName (FunctionType b))
 tc tls = tc' tls M.empty $ coerceTypeDefs tls
   where
-    tc' :: (Show b, Eq b, Pretty b, a ~ b)
+    tc' :: (Show a, Eq a, Pretty a, Show b, Eq b, Pretty b, Coercible a b)
         => [Definition PosUntypedExpr a b]
         -> Map FunName (FunctionType b)  -- the reader
         -> [Definition PosTypedExpr a b]
@@ -529,7 +529,7 @@ tc tls = tc' tls M.empty $ coerceTypeDefs tls
       (first (Unsafe.unsafeCoerce d:)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader) tdfs
     tc' (d:ds) reader tdfs = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds reader tdfs
 
-tc_ :: (Show b, Eq b, Pretty b, a ~ b)
+tc_ :: (Show a, Eq a, Pretty a, Show b, Eq b, Pretty b, Coercible a b)
     => [Definition PosUntypedExpr a b]
     -> Either String [Definition PosTypedExpr a b]
 tc_ = fmap fst . tc
@@ -593,7 +593,7 @@ kindcheck_ f (TArray t l s _) = mappend <$> kindcheck_ f t <*> pure (sigilKind s
 kindcheck = kindcheck_ lookupKind
 
 
-typecheck :: (Pretty a, Show a, Eq a) => PosTypedExpr t v a a -> Type t a -> TC t v a (PosTypedExpr t v a a)
+typecheck :: (Pretty a, Show a, Eq a, Pretty b, Show b, Eq b) => PosTypedExpr t v a b -> Type t b -> TC t v b (PosTypedExpr t v a b)
 typecheck e t = do
   t' <- unfoldSynsDeepM $ exprType e
   t'' <- unfoldSynsDeepM t
@@ -608,7 +608,7 @@ typecheck e t = do
                                    "\nGiven type:\n" ++
                                    show (indent' $ pretty t'') ++ "\n"
 
-infer :: (Pretty a, Show a, Eq a) => PosUntypedExpr t v a a -> TC t v a (PosTypedExpr t v a a)
+infer :: (Pretty a, Show a, Eq a, Pretty b, Show b, Eq b) => PosUntypedExpr t v a b -> TC t v b (PosTypedExpr t v a b)
 infer (E (Op o es loc))
    = do es' <- mapM infer es
         ts <- mapM (unfoldSynsShallowM . exprType) es'

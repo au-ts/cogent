@@ -102,7 +102,7 @@ data Value a f
   | VRecord [(FieldName, Maybe (Value a f))]
   | VVariant TagName (Value a f)
   | VProduct (Value a f) (Value a f)
-  | VFunction  FunName (PosTypedExpr 'Zero ('Suc 'Zero) VarName VarName) [Type 'Zero VarName]
+  | VFunction  FunName (PosTypedExpr 'Zero ('Suc 'Zero) (VarName, Maybe VarName) VarName) [Type 'Zero VarName]
   | VThunk (HNF a f)
   deriving (Show)
 
@@ -176,7 +176,7 @@ newtype ReplM (v :: Nat) a f x = ReplM { unReplM :: StateT (ReplState v a f) IO 
 
 data ReplState v a f = ReplState { _gamma   :: V.Vec v (Value a f)
                                  , _absfuns :: M.Map CoreFunName (Value a f -> Value a f)
-                                 , _fundefs :: M.Map CoreFunName (Definition PosTypedExpr VarName VarName)
+                                 , _fundefs :: M.Map CoreFunName (Definition PosTypedExpr (VarName, Maybe VarName) VarName)
                                  }
 
 makeLenses ''ReplState
@@ -382,9 +382,9 @@ tcExpr r e = do
   where
     knownTypes = map (, ([], Nothing)) $ words "U8 U16 U32 U64 String Bool"
 
-coreTcExpr :: [Definition PosTypedExpr VarName VarName]
-           -> PosUntypedExpr 'Zero 'Zero VarName VarName
-           -> IO (PosTypedExpr 'Zero 'Zero VarName VarName)
+coreTcExpr :: [Definition PosTypedExpr (VarName, Maybe VarName) VarName]
+           -> PosUntypedExpr 'Zero 'Zero (VarName, Maybe VarName) VarName
+           -> IO (PosTypedExpr 'Zero 'Zero (VarName, Maybe VarName) VarName)
 coreTcExpr ds e = do
   let mkFunMap (FunDef  _ fn ps ts ti to _) = (fn, FT (fmap snd ps) (fmap snd ts) ti to)
       mkFunMap (AbsDecl _ fn ps ts ti to  ) = (fn, FT (fmap snd ps) (fmap snd ts) ti to)
@@ -396,7 +396,7 @@ coreTcExpr ds e = do
 
 dsExpr :: IORef PreloadS
        -> Tc.TypedExpr
-       -> IO ([Definition PosUntypedExpr VarName VarName], PosUntypedExpr 'Zero 'Zero VarName VarName)
+       -> IO ([Definition PosUntypedExpr (VarName, Maybe VarName) VarName], PosUntypedExpr 'Zero 'Zero (VarName, Maybe VarName) VarName)
 dsExpr r e = do
   preldS <- readIORef r
   let (tls, constdefs) = partition (not . isConstDef . snd) (surface preldS)
@@ -491,13 +491,13 @@ evalBinOp RShift (VInt  l1) v2@(VInt  l2)
 evalBinOp op v1@(VThunk {}) v2 = VThunk $ VOp op [v1,v2]
 evalBinOp op v1 v2@(VThunk {}) = VThunk $ VOp op [v1,v2]
 
-specialise :: [Type 'Zero VarName] -> PosTypedExpr t v VarName VarName -> PosTypedExpr 'Zero v VarName VarName
+specialise :: [Type 'Zero VarName] -> PosTypedExpr t v (VarName, Maybe VarName) VarName -> PosTypedExpr 'Zero v (VarName, Maybe VarName) VarName
 specialise inst e = __fixme $ fst . fst $ flip3 evalRWS initmap (inst, []) $ runMono (specialiseExpr e >>= pure . (,[]))
   where initmap = (M.empty, M.empty)
 
 -- Mostly a duplicate of 'Mono.monoExpr', but it doesn't try to fiddle with the names
 -- of monomorphised functions.
-specialiseExpr :: PosTypedExpr t v VarName VarName -> Mono VarName (PosTypedExpr 'Zero v VarName VarName)
+specialiseExpr :: PosTypedExpr t v (VarName, Maybe VarName) VarName -> Mono VarName (PosTypedExpr 'Zero v (VarName, Maybe VarName) VarName)
 specialiseExpr (TE t e) = TE <$> monoType t <*> specialiseExpr' e
   where
     specialiseExpr' (Variable var loc   ) = pure $ Variable var loc
@@ -529,7 +529,7 @@ specialiseExpr (TE t e) = TE <$> monoType t <*> specialiseExpr' e
     specialiseExpr' (Promote ty e loc       ) = Promote <$> monoType ty <*> specialiseExpr e <*> pure loc
     specialiseExpr' (Cast    ty e loc       ) = Cast <$> monoType ty <*> specialiseExpr e <*> pure loc
 
-eval :: PosTypedExpr 'Zero v VarName VarName -> ReplM v () () (Value () ())
+eval :: PosTypedExpr 'Zero v (VarName, Maybe VarName) VarName -> ReplM v () () (Value () ())
 eval (TE _ (Variable (v,_) _)) = use gamma >>= return . (`V.at` v)
 eval (TE _ (Fun fn ts ls _ _)) = do
   funmap <- use fundefs
@@ -590,7 +590,7 @@ eval (TE _ (Case e tag (_, a1, e1) (_, a2, e2) _)) = do
       let abs = VThunk $ VAbstract ()
       v1 <- withBinding abs (eval e1)
       v2 <- withBinding vv  (eval e2)
-      return $ VThunk $ VCase vv tag (a1,v1) (a2,v2)
+      return $ VThunk $ VCase vv tag (fst a1,v1) (fst a2,v2)
 eval (TE _ (Esac e _)) = do
   vv <- eval e
   case vv of

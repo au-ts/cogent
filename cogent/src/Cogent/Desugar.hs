@@ -81,7 +81,7 @@ import Debug.Trace
 
 type TypeVars t = Vec t TyVarName
 type LayoutVars l = Vec l DLVarName
-type TermVars v = Vec v VarName
+type TermVars v = Vec v (VarName, Maybe VarName)
 type Typedefs   = B.Typedefs  -- typenames |-> typeargs * strltype
 type Constants  = M.Map VarName  B.TypedExpr  -- This shares namespace with `TermVars'
 type Enumerator = Int
@@ -117,7 +117,7 @@ instance MonadFail (DS t l v) where
 desugar :: [(SourcePos, S.TopLevel B.DepType B.TypedPatn B.TypedExpr)]
         -> [(B.DepType, String)]
         -> [S.Pragma B.DepType]
-        -> ( ([Definition PosUntypedExpr VarName VarName], [(SupposedlyMonoType VarName, String)], [Pragma VarName])
+        -> ( ([Definition PosUntypedExpr (VarName, Maybe VarName) VarName], [(SupposedlyMonoType VarName, String)], [Pragma VarName])
            , Last (Typedefs, Constants, [CoreConst PosUntypedExpr]) )
 desugar tls ctygen pragmas =
   let fundefs    = filter isFunDef     tls where isFunDef     (_, S.FunDef     {}) = True; isFunDef     _ = False
@@ -143,7 +143,7 @@ desugar' :: [(SourcePos, S.TopLevel B.DepType B.TypedPatn B.TypedExpr)]
          -> [(SourcePos, S.TopLevel B.DepType B.TypedPatn B.TypedExpr)]  -- constants
          -> [(B.DepType, String)]
          -> [S.Pragma B.DepType]
-         -> DS 'Zero 'Zero 'Zero ([Definition PosUntypedExpr VarName VarName], [(SupposedlyMonoType VarName, String)], [Pragma VarName])
+         -> DS 'Zero 'Zero 'Zero ([Definition PosUntypedExpr (VarName, Maybe VarName) VarName], [(SupposedlyMonoType VarName, String)], [Pragma VarName])
 desugar' tls constdefs ctygen prgms = do
   prgms' <- mapM desugarPragma prgms
   defs' <- concat <$> mapM (flip go prgms') tls
@@ -156,7 +156,7 @@ desugar' tls constdefs ctygen prgms = do
   where
     go :: (SourcePos, S.TopLevel B.DepType B.TypedPatn B.TypedExpr)
        -> [Pragma VarName]
-       -> DS 'Zero 'Zero 'Zero [Definition PosUntypedExpr VarName VarName]
+       -> DS 'Zero 'Zero 'Zero [Definition PosUntypedExpr (VarName, Maybe VarName) VarName]
     go (_,x) ps = do gbl <- use oracleGbl
                      put $ DsState Nil Nil Nil 0 0 [] ps
                      oracleGbl .= gbl
@@ -218,7 +218,7 @@ withLayoutBindings (Cons x xs) ds = withLayoutBindings xs (withLayoutBinding x d
 withBinding :: VarName -> DS t l ('Suc v) a -> DS t l v a
 withBinding v ds = do readers <- ask
                       st <- get
-                      let (a, st', _) = flip3 runRWS (st & varCtx %~ Cons v) readers $ runDS ds
+                      let (a, st', _) = flip3 runRWS (st & varCtx %~ Cons (v, Nothing)) readers $ runDS ds
                       put $ st' & varCtx .~ st^.varCtx & oracleLcl .~ st^.oracleLcl
                       return a
 
@@ -294,7 +294,7 @@ desugarPragma (FnMacroPragma f) = return $ FnMacroPragma f
 desugarPragma (UnrecPragma p s) = return $ UnrecPragma p s
 
 desugarTlv :: S.TopLevel B.DepType B.TypedPatn B.TypedExpr
-           -> DS 'Zero 'Zero 'Zero (Definition PosUntypedExpr VarName VarName)
+           -> DS 'Zero 'Zero 'Zero (Definition PosUntypedExpr (VarName, Maybe VarName) VarName)
 desugarTlv (S.Include    _) = __impossible "desugarTlv"
 desugarTlv (S.IncludeStd _) = __impossible "desugarTlv"
 desugarTlv (S.TypeDec tn vs t) | ExI (Flip vs') <- Vec.fromList vs
@@ -338,7 +338,7 @@ desugarTlv (S.ConstDef {}) = __impossible "desugarTlv"
 desugarTlv (S.DocBlock _ ) = __impossible "desugarTlv"
 
 
-desugarAlts :: B.TypedExpr -> [S.Alt B.TypedPatn B.TypedExpr] -> DS t l v (PosUntypedExpr t v VarName VarName)
+desugarAlts :: B.TypedExpr -> [S.Alt B.TypedPatn B.TypedExpr] -> DS t l v (PosUntypedExpr t v (VarName, Maybe VarName) VarName)
 desugarAlts e0 [] = __impossible "desugarAlts"
 desugarAlts e0 [S.Alt p l e] = desugarAlt e0 p e  -- Note: Likelihood is ignored here / zilinc
                                                   --       This also serves as the base case for PCon
@@ -356,7 +356,13 @@ desugarAlts e0@(B.TE t v@(S.Var _) loc) (S.Alt (B.TP p1 pos1) l1 e1 : alts) =  -
       let t0' = B.DT $ S.TVariant (M.delete cn1 talts)  -- type of e0 without alternative cn
       e1' <- withBinding (fst v1) $ desugarExpr e1
       e2' <- withBinding e0' $ desugarAlts (B.TE t0' (S.Var e0') loc) alts
-      E <$> (Case <$> desugarExpr e0 <*> pure cn1 <*> pure (l1,fst v1,e1') <*> pure (mempty,e0',e2') <*> pure loc)
+      let a = desugarExpr e0
+          b = pure cn1
+          c = pure (l1,(fst v1, Nothing),e1')
+          d = pure (mempty,(e0', Nothing),e2')
+          e = pure loc
+          f = Case <$> a <*> b <*> c <*> d
+      E <$> (Case <$> a <*> b <*> c <*> d <*> e)
     S.PCon cn1 [p1'] -> do  -- This is B) for PCon
       v1 <- freshVar
       B.DT (S.TVariant talts) <- unfoldSynsShallowM t
@@ -386,13 +392,13 @@ desugarAlts e0@(B.TE _ _ loc) alts@(S.Alt _ _ e1:_) = do  -- e0 is not a var, so
       m = B.TE t1 (S.Match (B.TE t0 (S.Var v) loc) [] alts) loc
   desugarExpr $ B.TE t1 (S.Let [b] m) loc
 
-desugarAlt :: B.TypedExpr -> B.TypedPatn -> B.TypedExpr -> DS t l v (PosUntypedExpr t v VarName VarName)
+desugarAlt :: B.TypedExpr -> B.TypedPatn -> B.TypedExpr -> DS t l v (PosUntypedExpr t v (VarName, Maybe VarName) VarName)
 desugarAlt e0 (B.TP p pos) = desugarAlt' e0 p
 
 -- FIXME: this function should take a position
-desugarAlt' :: B.TypedExpr -> S.Pattern B.TypedIrrefPatn -> B.TypedExpr -> DS t l v (PosUntypedExpr t v VarName VarName)
+desugarAlt' :: B.TypedExpr -> S.Pattern B.TypedIrrefPatn -> B.TypedExpr -> DS t l v (PosUntypedExpr t v (VarName, Maybe VarName) VarName)
 desugarAlt' e0 (S.PCon tag [B.TIP (S.PVar tn) loc]) e =
-  E <$> (Let (fst tn) <$> (E . flip Esac loc <$> desugarExpr e0) <*> withBinding (fst tn) (desugarExpr e) <*> pure loc)
+  E <$> (Let (fst tn, Nothing) <$> (E . flip Esac loc <$> desugarExpr e0) <*> withBinding (fst tn) (desugarExpr e) <*> pure loc)
   -- Idea:
   --   Base case: e0 | PCon cn [PVar v] in e ~~> let v = esac e0 in e
   --   Ind. step: A) e0 | PCon vn [p] in e ==> e0 | PCon cn [PVar v] in (let p = v in e)
@@ -414,7 +420,7 @@ desugarAlt' (B.TE t e0 l) (S.PCon tag ps) e =  -- B2)
                                                           -- At this point, t and e0 do not match!
                                                           -- but hopefully they will after e0 gets desugared
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PVar v) loc)) e =
-  E <$> (Let (fst v) <$> desugarExpr e0 <*> (withBinding (fst v) $ desugarExpr e) <*> pure loc)
+  E <$> (Let (fst v, Nothing) <$> desugarExpr e0 <*> (withBinding (fst v) $ desugarExpr e) <*> pure loc)
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple []) p)) e = desugarAlt' e0 (S.PIrrefutable (B.TIP S.PUnitel p)) e
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple [irf]) _)) e = __impossible "desugarAlt' (singleton tuple)"
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple [B.TIP (S.PVar tn1) _, B.TIP (S.PVar tn2) _]) loc)) e
@@ -437,7 +443,11 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple [B.TIP (S.PVar tn1) _, B.TIP (S.
   --                 and p1 = v1 and p2 = v2 in e
   --              B) PTuple (p1:p2:ps) = e0 in e ==>
   --                 PTuple [p1, PTuple (p2:ps)] = e0 in e
-  E <$> (Split (fst tn1, fst tn2) <$> desugarExpr e0 <*> (withBindings (Cons (fst tn1) (Cons (fst tn2) Nil)) $ desugarExpr e) <*> pure loc)
+  let
+    tn1' = (fst tn1, Nothing)
+    tn2' = (fst tn2, Nothing)
+  in
+  E <$> (Split (tn1', tn2') <$> desugarExpr e0 <*> (withBindings (Cons (fst tn1) (Cons (fst tn2) Nil)) $ desugarExpr e) <*> pure loc)
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple [p1,p2]) _)) e | not __cogent_ftuples_as_sugar = do
   v1 <- freshVar
   v2 <- freshVar
@@ -465,15 +475,19 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple ps) loc)) e | __cogent_ftuples_a
   mkTake e0' vs e 0
   where isPVar (B.TIP (S.PVar _) _) = True; isPVar _ = False
         getPVar (B.TIP (S.PVar v) _) = v; getPVar _ = __impossible "getPVar (in desugarAlt')"
-        mkTake :: PosUntypedExpr t v VarName VarName -> [VarName] -> B.TypedExpr -> Int -> DS t l v (PosUntypedExpr t v VarName VarName)
+        mkTake :: PosUntypedExpr t v (VarName, Maybe VarName) VarName -> [VarName] -> B.TypedExpr -> Int -> DS t l v (PosUntypedExpr t v (VarName, Maybe VarName) VarName)
         mkTake _ [] _ _ = __impossible "mkTake (in desugarAlt')"
         mkTake e0 [v] e idx = do
           e0' <- freshVar
-          E . flip (Take (v,e0') e0 idx) loc <$> withBindings (Cons v (Cons e0' Nil)) (desugarExpr e)
+          let v' = (v, Nothing)
+              e0'' = (e0', Nothing)
+          E . flip (Take (v',e0'') e0 idx) loc <$> withBindings (Cons v (Cons e0' Nil)) (desugarExpr e)
         mkTake e0 (v:vs) e idx = do
           e0' <- freshVar
           let loc = getLoc e0
-          E . flip (Take (v,e0') e0 idx) loc <$> withBindings (Cons v (Cons e0' Nil)) (mkTake (E $ Variable (f1, e0') loc) vs e (idx + 1))
+              v' = (v, Nothing)
+              e0'' = (e0', Nothing)
+          E . flip (Take (v',e0'') e0 idx) loc <$> withBindings (Cons v (Cons e0' Nil)) (mkTake (E $ Variable (f1, e0'') loc) vs e (idx + 1))
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple ps) _)) e | __cogent_ftuples_as_sugar = do
   B.DT (S.TTuple ts) <- unfoldSynsShallowM $ B.getTypeTE e0
   __assert (P.length ps == P.length ts) $ "desugarAlt': |ps| /= |ts|\nps = " ++ show ps ++ "\nts = " ++ show ts
@@ -490,7 +504,8 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PUnboxedRecord fs) pos)) e = do
   desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec fs) pos)) e
 desugarAlt' e0 (S.PIrrefutable (B.TIP S.PUnderscore loc)) e = do
   v <- freshVar
-  E <$> (Let v <$> desugarExpr e0 <*> withBinding v (desugarExpr e) <*> pure loc)
+  let v' = (v, Nothing)
+  E <$> (Let v' <$> desugarExpr e0 <*> withBinding v (desugarExpr e) <*> pure loc)
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PUnitel) pos)) e = desugarAlt' e0 (S.PIrrefutable $ B.TIP S.PUnderscore pos) e
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec []) pos)) e = desugarAlt' e0 (S.PIrrefutable $ B.TIP (S.PVar rec) pos) e
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec [Nothing]) _)) e = __impossible "desugarAlt'"
@@ -501,7 +516,9 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec [Just (f, B.TIP (S.PVar v) _)
   --              B) e0 | rec (fp:fps) in e ==> let e1 {f = p} = e0 and rec = e1 {fps} in e
   B.DT (S.TRecord _ fts _) <- unfoldSynsShallowM $ B.getTypeTE e0
   let Just fldIdx = elemIndex f (P.map fst fts)
-  E <$> (Take (fst v, fst rec) <$> desugarExpr e0 <*> pure fldIdx <*> (withBindings (Cons (fst v) (Cons (fst rec) Nil)) $ desugarExpr e) <*> pure loc)
+      v' = (fst v, Nothing)
+      rec' = (fst rec, Nothing)
+  E <$> (Take (v', rec') <$> desugarExpr e0 <*> pure fldIdx <*> (withBindings (Cons (fst v) (Cons (fst rec) Nil)) $ desugarExpr e) <*> pure loc)
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec [Just (f,p)]) pos)) e = do
   v <- freshVar
   B.DT (S.TRecord _ fts _) <- unfoldSynsShallowM $ snd rec
@@ -700,14 +717,14 @@ desugarNote :: S.Inline -> FunNote
 desugarNote S.NoInline = NoInline
 desugarNote S.Inline   = InlinePlease
 
-desugarExpr :: B.TypedExpr -> DS t l v (PosUntypedExpr t v VarName VarName)
+desugarExpr :: B.TypedExpr -> DS t l v (PosUntypedExpr t v (VarName, Maybe VarName) VarName)
 desugarExpr (B.TE _ (S.PrimOp opr es) loc) =
   let
     opr' = flip $ Op (symbolOp opr)
   in
     E . opr' loc <$> mapM desugarExpr es
-desugarExpr (B.TE _ (S.Var vn) loc) = (findIx vn <$> use varCtx) >>= \case
-  Just v  -> return $ E $ Variable (v, vn) loc
+desugarExpr (B.TE _ (S.Var vn) loc) = (findBy (\(vn',_) -> vn == vn') <$> use varCtx) >>= \case
+  Just v  -> return $ E $ Variable (v, (vn, Nothing)) loc
   Nothing -> do constdefs <- view _2
                 let Just e = M.lookup vn constdefs
                 desugarExpr e
@@ -718,9 +735,10 @@ desugarExpr (B.TE _ (S.Match e vs alts) loc) = do
   -- FIXME: Not sure if this is going to work / zilinc
   venv <- use varCtx
   v <- freshVar
-  let vs' = P.map (fromJust . flip findIx venv &&& id) vs
+  let mapFn v = (fromJust . flip findIx venv &&& id) $ (v, Nothing) -- FIXME: would like to revisit
+  let vs' = P.map mapFn vs
   e' <- withBinding v $ desugarAlts (B.TE (B.getTypeTE e) (S.Var v) loc) alts
-  E <$> (LetBang vs' v <$> desugarExpr e <*> pure e' <*> pure loc)
+  E <$> (LetBang vs' (v, Nothing) <$> desugarExpr e <*> pure e' <*> pure loc)
 desugarExpr (B.TE _ (S.TLApp v ts ls note) loc) = do
   prgms <- use pragmas
   E <$> (Fun (funNameToCoreFunName v) <$> mapM (desugarType . fromJust) ts
@@ -739,7 +757,7 @@ desugarExpr (B.TE t@(B.DT (S.TVariant ts)) (S.Con c es) l) = do
         group ts = B.DT $ S.TTuple ts
 desugarExpr (B.TE _ (S.Seq e1 e2) loc) = do
   v <- freshVar
-  E <$> (Let v <$> desugarExpr e1 <*> withBinding v (desugarExpr e2) <*> pure loc)
+  E <$> (Let (v, Nothing) <$> desugarExpr e1 <*> withBinding v (desugarExpr e2) <*> pure loc)
 desugarExpr (B.TE _ (S.Lam p mt e) _) = __impossible "desugarExpr (Lam)"
 desugarExpr (B.TE _ (S.App e1 e2 _) loc) = E <$> (App <$> desugarExpr e1 <*> desugarExpr e2 <*> pure loc)
 desugarExpr (B.TE t (S.Comp f g) l) = do
@@ -758,11 +776,12 @@ desugarExpr (B.TE _ (S.If c [] th el) loc) = E <$> (If <$> desugarExpr c <*> des
 desugarExpr (B.TE _ (S.If c vs th el) loc) = do
   venv <- use varCtx
   v <- freshVar
-  let vs' = P.map (fromJust . flip findIx venv &&& id) vs
+  let mapFn v = (fromJust . flip findIx venv &&& id) $ (v, Nothing) -- FIXME: would like to revisit
+  let vs' = P.map mapFn vs
   th' <- withBinding v $ desugarExpr th
   el' <- withBinding v $ desugarExpr el
-  let e' = E $ If (E $ Variable (f0, v) loc) th' el' loc
-  E <$> (LetBang vs' v <$> desugarExpr c <*> pure e' <*> pure loc)
+  let e' = E $ If (E $ Variable (f0, (v, Nothing)) loc) th' el' loc
+  E <$> (LetBang vs' (v, Nothing) <$> desugarExpr c <*> pure e' <*> pure loc)
 desugarExpr (B.TE _ (S.MultiWayIf [] el) _) = __impossible "desugarExpr: MultiWayIf with only one branch"
 desugarExpr (B.TE t (S.MultiWayIf es el) pos) =  -- FIXME: likelihood is ignored here
   desugarExpr $ B.TE t (go es el) pos
@@ -825,8 +844,9 @@ desugarExpr (B.TE _ (S.Let [S.Binding (B.TIP (S.PVar v) _) mt e0 bs] e) loc) = d
   --   Ind. step: A) let p = e0 !bs in e ==> let v = e0 !bs and p = v in e
   --              B) let p1=e1 !bs1; ps=es !bss in e ==> let p1 = e1 !bs1 in let ps=es !bss in e
   venv <- use varCtx
-  let bs' = P.map (fromJust . flip findIx venv &&& id) bs
-  E <$> (LetBang bs' (fst v) <$> desugarExpr e0 <*> withBinding (fst v) (desugarExpr e) <*> pure loc)
+  let mapFn v = (fromJust . flip findIx venv &&& id) $ (v, Nothing) -- FIXME: would like to revisit
+  let bs' = P.map mapFn bs
+  E <$> (LetBang bs' (fst v, Nothing) <$> desugarExpr e0 <*> withBinding (fst v) (desugarExpr e) <*> pure loc)
 desugarExpr (B.TE t (S.Let [S.Binding p mt e0 bs] e) l) = do
   v <- freshVar
   let t0 = B.getTypeTE e0
