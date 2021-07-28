@@ -3,7 +3,7 @@
 This file deals with custom getters and setters in case of custom layouts.
 It also register uvals read from the table file in the theory.
 
-The two main functions are
+The three main functions are
 - generate_isa_getset_records_for_file: generates a direct and non monadic definition of custom
 getters and setters by inspecting the C (monadic) definition
 
@@ -16,6 +16,10 @@ ML \<open>lems  |> map (string_of_getset_lem @{context})|> map tracing\<close>
 
 These get/set lemmas should be proven before the Take, Put, .. lemmas.
 
+- local_setup_getset_sanity_lemmas which generates sanity checks for
+custom getters and setters (that they are only concerned with the bits 
+specified by the layouts). These lemmas are not necessary for the refinement
+proof.
 
 *)
 theory Dargent_Custom_Get_Set
@@ -26,6 +30,10 @@ imports AutoCorres.AutoCorres
   Value_Relation
 begin
 
+ML \<open>fun get_uval_custom_layout_records_no_redundancy uvals =
+(uvals |> get_uval_custom_layout_records 
+    |> List.map (fn x => (get_ty_nm_C x, get_uval_custom_layout x)) |> rm_redundancy)
+\<close>
 
 (* These lemmas help simplifying the monadic custom C getters and setters, that are inspected
 to devise a corresponding direct (non monadic) definition.
@@ -408,8 +416,8 @@ fun generate_isa_getset_records g heap_info uvals ctxt =
     (* the hard job is done here *)
     val (getsetl, ctxt) = 
      fold_map (generate_isa_getset_record g heap_info)
-     (uvals |> get_uval_custom_layout_records 
-   |> List.map (fn x => (get_ty_nm_C x, get_uval_custom_layout x)) |> rm_redundancy)
+     (uvals |> get_uval_custom_layout_records_no_redundancy)
+   
     ctxt
     val getsetMap = getsetl |> List.concat |>
        ListPair.unzip |> List.revAppend |>
@@ -939,8 +947,7 @@ ML\<open> fun mk_getset_lems_for_rec file_nm ctxt name (infos : field_layout lis
 ML\<open> fun mk_getset_lems file_nm ctxt (* : {name : string, prop : term} *) =
  let
   val uvals = get_uvals file_nm (Proof_Context.theory_of ctxt) |> Utils.the' "mk_getset_lems"
-  val names_infos =  (uvals |> get_uval_custom_layout_records 
-    |> List.map (fn x => (get_ty_nm_C x, get_uval_custom_layout x)) |> rm_redundancy)
+  val names_infos =  uvals |> get_uval_custom_layout_records_no_redundancy
  (*  val uvals                 = read_table file_nm thy; *)
   val num_of_uvals          = List.length names_infos;
   fun get_nth_name_infos nth      = List.nth (names_infos, nth);
@@ -1003,6 +1010,268 @@ fun local_setup_getset_lemmas file_nm lthy =
  let
   val lems:getset_lem list = mk_getset_lems file_nm  lthy;
   val lthy''  = fold prove_put_in_bucket_getset_lemma lems lthy;
+ in
+  lthy''
+ end;
+
+\<close>
+
+
+(* ***************
+
+
+ Sanity checks for custom get/set-ters
+
+
+************** *)
+
+
+lemma test_and : " n < LENGTH('a) \<Longrightarrow> 
+x && 2^n = y && 2^n \<Longrightarrow>
+(((x :: ('a :: len)  word) !! n) = (y :: ('a :: len)  word) !! n)"
+  apply(simp add:word_test_bit_def)
+  apply uint_arith
+  apply(simp add:uint_and uint_2p_alt bin_nth_eq_mod)
+  by (metis (full_types) bin_nth_eq_mod bin_nth_ops(1) nth_2p_bin)
+
+
+definition byKey :: "('a \<times> 'c) list \<Rightarrow> ('a \<times> 'c list) list"
+  where "byKey l = 
+ map (\<lambda> a. (a, map snd (filter (\<lambda>(a', _). a' = a) l)))
+(remdups (map fst l))"
+
+(* The first expression is more helpful when l is known since it can be computed.
+*)
+lemma list_ex_byKey : "list_ex (\<lambda> (a,b).p = a \<and> r \<notin> set b) (byKey l) = 
+((\<exists> b. (p, b) \<in> set l) \<and> (p, r)\<notin> set l)"
+  apply(simp flip:Bex_set)
+  apply (simp add:byKey_def)  
+  apply(simp add: Relation.fst_eq_Domain Relation.snd_eq_Range)
+by blast
+
+definition find_position :: "nat \<Rightarrow> nat \<Rightarrow> nat \<times> nat"
+  where "find_position si offset  = (offset div si, offset mod si)"
+
+(* Having twice the same definitions is useful to unfold specific occurences
+in the goal rather than all of them 
+*)
+definition find_position' where "find_position' = find_position"
+lemma find_position'_def' : "find_position' si offset  = (offset div si, offset mod si)"
+  by (simp add:find_position'_def find_position_def)
+
+
+lemma find_pos_le : "find_position n x = (p, r) \<Longrightarrow> 0 < n \<Longrightarrow> r < n "
+  by(auto simp add:find_position_def)
+
+
+lemma find_pos_case : "0 < q \<Longrightarrow> (\<And> p r. find_position q x = (p, r) \<Longrightarrow> r < q \<Longrightarrow> P (p,r)) \<Longrightarrow> P (find_position q x)"
+  apply (cases "find_position q x")
+  apply(simp add:find_position_def)  
+  by auto
+
+lemma find_pos_inj : " q > 0 \<Longrightarrow> x \<noteq> y \<Longrightarrow> find_position q x \<noteq> find_position q y"
+  apply (simp add:find_position_def)
+  apply(intro impI)  
+  by (metis mod_by_0 mod_mult2_eq mult_0_right)
+ 
+lemma find_pos_lt_notin :
+" (x :: nat) < n \<Longrightarrow> 
+x \<notin> set l \<Longrightarrow>
+find_position q x = (p, r) \<Longrightarrow>
+n mod q = 0 \<Longrightarrow>
+0 < q \<Longrightarrow>
+(p \<notin> set (map (fst o find_position' q) l) \<and> p < n div q) 
+\<or> list_ex (\<lambda> (a,b).p = a \<and> r \<notin> set b) (byKey (map (find_position' q) l)) 
+"
+  apply(simp add:list_ex_byKey)  
+  apply(rule excluded_middle[of "p \<notin> (\<lambda>x. fst (find_position' q x)) ` set l", THEN disjE])
+  apply simp
+
+apply(simp add: find_position'_def)   
+   apply(intro conjI)  
+  apply(simp add:find_position_def)
+    apply blast
+   apply (metis imageE find_pos_inj)
+  apply simp  
+
+  apply(simp add:find_position_def)
+  
+  by (metis diff_zero minus_mod_eq_div_mult td_gal_lt)
+
+
+definition get_bit :: "(('a::len0) word)['n::finite] \<Rightarrow> nat \<Rightarrow> bool"
+  where "get_bit arr pos = 
+                (let (byte, off) = find_position LENGTH('a) pos in
+                 arr.[byte] !! off )"
+
+lemma power2_test : "x < LENGTH('a) \<Longrightarrow> n < LENGTH('a) \<Longrightarrow> ((((2 ^ x) :: ('a :: len)  word) !! n) = (x = n))"
+  apply(simp add:nth_shiftl flip:shiftl_1)
+  by(unat_arith)
+
+definition size_of_arr_bits :: "(('a::len0) word)['n::finite] \<Rightarrow> nat"
+  where "size_of_arr_bits _ = LENGTH('a)*CARD('n)"
+
+
+
+
+
+ 
+
+
+
+
+
+
+
+ML \<open>
+fun getter_sanity_tac ctxt = 
+ let
+    val gets = Proof_Context.get_thms ctxt
+    val get  = Proof_Context.get_thm ctxt
+  in
+ K (print_tac ctxt "Getter sanity lemma")
+THEN' 
+ (asm_full_simp_tac (ctxt addsimps [get "find_position_def", get "get_bit_def"])
+THEN'
+ (fn i => 
+TRY (REPEAT_ALL_NEW (eresolve_tac ctxt @{thms exE conjE}) i))
+(* THEN' K (print_tac ctxt "coucou") *)
+THEN' custom_get_set_different_field_tac ctxt
+) end
+\<close>
+
+
+
+ML \<open>
+fun setter_sanity_tac ctxt = 
+ let
+    val gets = Proof_Context.get_thms ctxt
+    val get  = Proof_Context.get_thm ctxt
+  in
+  K (print_tac ctxt "Setter sanity lemma")
+THEN' asm_full_simp_tac ((clear_simpset ctxt) addsimps [get "get_bit_def"]) 
+THEN' rtac (get "find_pos_case")  THEN' asm_full_simp_tac ctxt 
+ THEN' dresolve_tac ctxt (gets "find_pos_lt_notin") 
+THEN' assume_tac ctxt THEN' assume_tac ctxt
+(* each one should discharge a goal *)
+THEN' asm_full_simp_tac (ctxt addsimps [get "size_of_arr_bits_def"]) 
+THEN' asm_full_simp_tac ctxt
+(* speed up : eliminate one assumption *)
+THEN' Rule_Insts.thin_tac ctxt "x \<notin> set _" [] 
+THEN' asm_full_simp_tac (ctxt addsimps [get "find_position'_def'", get "size_of_arr_bits_def", get "byKey_def"]) 
+THEN' rtac (get "test_and")
+THEN' asm_full_simp_tac ctxt (* discharge *)
+THEN'
+K (TRY ( Method.elim ctxt  [ get "disjE"]  []
+ |> Method.NO_CONTEXT_TACTIC ctxt))
+ THEN_ALL_NEW 
+( (* eliminate inconsistent contexts *)
+Lin_Arith.tac ctxt  ORELSE'
+custom_get_set_different_field_tac (ctxt addsimps [get "power2_test"]))
+
+ end
+\<close>  
+
+ML \<open>
+fun prove_thm ctxt assms concl tactic = 
+let
+val clean = HOLogic.mk_Trueprop o strip_atype
+val thm0 = mk_meta_imps (map clean assms) (concl |> clean) ctxt
+val names =  Variable.add_free_names ctxt thm0 []
+in
+Goal.prove ctxt names [] thm0
+( fn {context, prems} => tactic context 1)
+end
+\<close>
+
+ML \<open>
+fun make_getter_sanity_thm ctxt data_get layfield (field_info : field_layout) = 
+let
+val ass = 
+  @{term 
+  "\<lambda>  lay data. 
+   (\<forall> x\<in> set(layout_taken_bit_list lay). 
+  get_bit (data s) x = get_bit (data t) x)
+  "
+  } $ layfield $ data_get
+val concl = @{term "\<lambda> getter . getter s = getter t"  }
+        $ # isa_getter field_info
+in
+prove_thm ctxt [ass] concl getter_sanity_tac
+end
+
+\<close>
+ML \<open>
+fun make_setter_sanity_thm ctxt data_get layfield (field_info : field_layout) = 
+let
+
+val ass1 = 
+  @{term 
+  "\<lambda>  data .x < size_of_arr_bits (data s) 
+  "
+  } $ data_get
+val ass2 = 
+  @{term 
+  "\<lambda>  lay .x \<notin> set (layout_taken_bit_list lay) 
+  "
+  } $ layfield
+val concl = @{term "\<lambda> data setter . 
+   get_bit (data (setter s b)) x = get_bit (data s) x"  }
+        $ data_get
+        $ # isa_setter field_info
+in
+prove_thm ctxt [ass1, ass2] concl setter_sanity_tac 
+end
+\<close>
+
+ML \<open>
+fun make_getset_sanity_thms ctxt (Ctyp, lay) : ((string * thm) * (string * thm)) list =
+let
+val data_get = Ctyp ^ ".data_C" |> Syntax.read_term ctxt
+val (info, lays) = 
+case lay of
+CustomLayout (info, 
+Const ("Option.option.Some", _) $ 
+( Const ("Cogent.ptr_layout.LayRecord", _) $ 
+layout)) => 
+(info, 
+layout |> HOLogic.dest_list
+|> map HOLogic.dest_prod
+|> map (apfst HOLogic.dest_string)
+|> Symtab.make
+)
+in
+map (
+fn field => 
+let val lay = Symtab.lookup lays (# name field) |> the 
+val prefix = Ctyp ^ "_" ^ #name field 
+in
+((prefix ^ "_getter_sanity", make_getter_sanity_thm ctxt data_get lay field),
+(prefix ^ "_setter_sanity", make_setter_sanity_thm ctxt data_get lay field))
+end
+) 
+ info
+
+end
+\<close>
+
+
+ML \<open>
+
+fun local_setup_getset_sanity_lemmas file_nm lthy =
+ let
+  val uvals =  get_uvals file_nm (Proof_Context.theory_of lthy) |> Utils.the' "local_setup_getset_sanity_lemmas"
+    |> get_uval_custom_layout_records   
+    |> List.map (fn x => (get_ty_nm_C x, get_uval_layout x)) |> rm_redundancy
+  
+  val (get_thms, set_thms) = List.map (make_getset_sanity_thms lthy) uvals
+      |> List.concat |> ListPair.unzip
+  val thms = get_thms @ set_thms
+  
+  fun add_to_bucket (name, thm) lthy  = 
+  Local_Theory.note ((Binding.name name, []), [thm]) lthy |> snd |>
+                  GetSetSanity.add_local thm
+  val lthy''  = fold add_to_bucket thms lthy;
  in
   lthy''
  end;
