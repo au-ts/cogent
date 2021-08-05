@@ -1,0 +1,155 @@
+# This is a basic workflow to help you get started with Actions
+
+name: CI
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull requests to master
+  push:
+  pull_request:
+    branches: [ master ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  cogent-ci:
+    name: Cogent compiler CI
+    
+    env:
+      COGENT_FULL_FEATURE: '+builtin-arrays +refinement-types +docgent +haskell-backend +llvm-backend'
+      COGENT_NO_FEATURE: '-builtin-arrays -refinement-types -docgent -haskell-backend -llvm-backend'
+    
+    # The type of runner that the job will run on
+    runs-on: ubuntu-18.04
+    strategy:
+      fail-fast: false
+      matrix:
+        ghc-ver: [8.6.5, 8.8.4, 8.10.4]
+        feature-flags: [ full ]
+        include:
+        - ghc-ver: 8.10.4
+          feature-flags: no
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - name: Check out the repository
+        uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - name: Cache cabal package dependencies
+        id: cache-cabal-store
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cabal/packages
+            ~/.cabal/store
+          key: cabal-cache-${{ matrix.ghc-ver }}
+      
+      - name: Cache z3 build
+        id: cache-z3
+        uses: actions/cache@v2
+        with:
+          path: ~/z3
+          key: z3-cache-${{ hashFiles('.git/modules/z3/HEAD') }}
+
+      - name: Show git log
+        run: git log
+
+      - name: Install dependencies
+        run: |
+          sudo add-apt-repository -y ppa:hvr/ghc
+          sudo apt-get update
+          sudo apt-get install cabal-install-3.4 ghc-${{ matrix.ghc-ver }} alex-3.1.7 happy-1.19.5
+          sudo apt-get install python3-setuptools python3-dev python3-wheel -y
+          pip3 install ruamel.yaml termcolor
+          sudo apt-get install llvm-9-dev
+          wget https://trustworthy.systems/projects/TS/autocorres/autocorres-1.6.1.tar.gz
+          tar -xf autocorres-1.6.1.tar.gz -C $GITHUB_WORKSPACE
+          
+      - name: Set environement variables
+        run: |
+          echo "/opt/ghc/bin" >> $GITHUB_PATH
+          echo "$HOME/.cabal/bin" >> $GITHUB_PATH
+          echo "$HOME/z3/bin" >> $GITHUB_PATH
+          echo "AC_DIR=$GITHUB_WORKSPACE/autocorres-1.6.1" >> $GITHUB_ENV
+      
+      - name: Install z3
+        if: matrix.feature-flags == 'full' && steps.cache-z3.outputs.cache-hit != 'true'
+        run: |
+          cd z3
+          mkdir -p ~/z3
+          # build z3
+          python scripts/mk_make.py --prefix="$HOME/z3"
+          cd build
+          make
+          make install
+      
+      - name: Validate setup
+        run: |
+          echo "\$PATH=$PATH"
+          echo "\$AC_DIR=$AC_DIR"
+          
+          ghc-${{ matrix.ghc-ver }} --version
+          cabal --version
+          
+          if ${{matrix.feature-flags == 'full'}}; then
+            sudo ln -s `which llvm-config-9` /usr/bin/llvm-config
+            llvm-config --version
+            z3 --version
+          fi
+
+      - name: Initialise cabal
+        if: steps.cache-cabal-store.outputs.cache-hit != 'true'
+        run: cabal init
+
+      - name: Build Cogent compiler
+        run: |
+          cd $GITHUB_WORKSPACE/cogent
+          cabal new-update
+          if [[ ${{ matrix.feature-flags }} == "full" ]]; then
+            COGENT_FLAGS="${{ env.COGENT_FULL_FEATURE }}"
+          else
+            COGENT_FLAGS="${{ env.COGENT_NO_FEATURE }}"
+          fi
+          cabal new-configure --flags="$COGENT_FLAGS" --enable-tests -w ghc-${{ matrix.ghc-ver }}
+          echo "::group::[cabal.project.local]"
+          cat cabal.project.local
+          echo "::endgroup::"
+          cabal new-install --install-method=copy --installdir=$HOME/.cabal/bin --overwrite-policy=always
+
+      - name: Run Cogent tests
+        run: |
+          cd $GITHUB_WORKSPACE/cogent
+          
+          echo "::group::Cogent QuickCheck"
+          cabal new-test test-quickcheck  # the other test is rarely affacted, so not enabled / zilinc
+          echo "::endgroup::"
+          
+          echo "::group::Haddock"
+          cabal new-haddock
+          echo "::endgroup::"
+          
+          echo "::group::test-suite"
+          make test-compiler
+          echo "::endgroup::"
+          
+          echo "::group::libgum"
+          make test-libgum
+          echo "::endgroup::"
+          
+          echo "::group::examples"
+          make examples
+          echo "::endgroup::"
+          
+          echo "::group::ext2-linux"
+          cd $GITHUB_WORKSPACE/impl/fs/ext2/cogent && make .c-gen
+          echo "::endgroup::"
+          
+          echo "::group::bilby-linux"
+          cd $GITHUB_WORKSPACE/impl/fs/bilby/cogent && make .c-gen
+          echo "::endgroup::"

@@ -62,7 +62,7 @@ tc :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
    -> IO ((Maybe ([TopLevel DepType TypedPatn TypedExpr], [(DepType, String)], [Pragma DepType]), TcLogState), TcState)
 tc ds cts ps = runTc (TcState M.empty knownTypes M.empty M.empty)
                      ((,,) <$> typecheck ds <*> typecheckCustTyGen cts <*> typecheckPragmas ps)
-  -- ^^^ Note: It may be important that we do 'typecheckPragmas' after 'typecheck', as it relies on the updated state
+  -- \ ^^^ Note: It may be important that we do 'typecheckPragmas' after 'typecheck', as it relies on the updated state
   -- which includes the type synonyms / zilinc
   where
     knownTypes = map (, ([], Nothing)) $ words "U8 U16 U32 U64 String Bool"
