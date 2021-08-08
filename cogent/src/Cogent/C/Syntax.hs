@@ -152,6 +152,7 @@ data CStmt = CAssign CExpr CExpr
            -- elide `Auxupd' `Ghostupd' `Spec' and `AsmStmt'
            -- \ | CLocalInit CExpr
            | CComment String CStmt  -- to accommodate comments
+           | CEscapeComment String
            deriving (Show)
 
 data CBlockItem = CBIStmt CStmt SourcePos
@@ -177,7 +178,7 @@ data EXD
 
 data CDeclaration d where
   -- | elide @gcc_attribute list@; 'True' if __NOT__ @extern@
-  CVarDecl    :: CType -> CId -> Bool -> Maybe CInitializer -> CDeclaration d
+  CVarDecl    :: CType -> CId -> Maybe String -> Bool -> Maybe CInitializer -> CDeclaration d
   -- | add 'Maybe' for @--funion-for-variants@
   CStructDecl :: CId -> [(CType, Maybe CId)] -> CDeclaration EXD
   -- | change @[(t, v)] -> ...@ to @t -> [v] -> ...@

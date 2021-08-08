@@ -58,14 +58,14 @@ render hName hdefns cdefns log =
               C.EscDef ("#define " ++ guard ++ "\n") noLoc :
               C.EscDef ("#include <cogent-defns.h>") noLoc :
               C.EscDef ("#include <cogent-endianness.h>\n") noLoc :
-              map (cExtDecl HFile) hdefns ++
+              concatMap (cExtDecl HFile) hdefns ++
               -- \ ^^^ Type synonyms shouldn't be referenced to by gen'ed C code;
               -- Gen'ed C only uses machine gen'ed type names and abstract type names
               [C.EscDef ("#endif") noLoc]
       cfile = L.map (\l -> C.EscDef ("// " ++ l) noLoc) (lines log) ++
               C.EscDef "" noLoc :
               C.EscDef ("#include \"" ++ hName ++ "\"\n") noLoc :
-              map (cExtDecl CFile) cdefns
+              concatMap (cExtDecl CFile) cdefns
    in (hfile, cfile)
 
 #if MIN_VERSION_language_c_quote(0,11,2)
@@ -209,15 +209,17 @@ cAttrs (GccAttrs attrs) = L.map cAttr attrs
 cAttr :: GccAttr -> C.TypeQual
 cAttr (GccAttr n es) = C.TAttr (C.Attr (C.Id n noLoc) (L.map cExpr es) noLoc)
 
-cDeclaration :: CDeclaration d -> C.InitGroup
-cDeclaration (CVarDecl ty v ext (Just initr)) = [cdecl| $ty:(cType ty) $id:(cId v) = $init:(cInitializer initr); |]
-cDeclaration (CVarDecl ty v ext Nothing) = [cdecl| $ty:(cType ty) $id:(cId v); |]
-cDeclaration (CStructDecl tid flds) = [cdecl| struct $id:(cId tid) { $sdecls:(cFieldGroups flds) }; |]
+cDeclaration :: CDeclaration d -> (C.InitGroup, Maybe String)
+cDeclaration (CVarDecl ty v v' ext (Just initr)) =
+  ([cdecl| $ty:(cType ty) $id:(cId v) = $init:(cInitializer initr); |], fmap (\c -> "/* $VAR:" ++ c ++ " */") v')
+cDeclaration (CVarDecl ty v v' ext Nothing) =
+  ([cdecl| $ty:(cType ty) $id:(cId v); |], fmap (\c -> "/* $VAR:" ++ c ++ " */") v')
+cDeclaration (CStructDecl tid flds) = ([cdecl| struct $id:(cId tid) { $sdecls:(cFieldGroups flds) }; |], Nothing)
 cDeclaration (CTypeDecl ty vs) = let (dcsp, decl) = splitCType ty
-                                 in C.TypedefGroup dcsp [] (map (\v -> C.Typedef (cId v) decl [] noLoc) vs) noLoc
-cDeclaration (CExtFnDecl rt fn params fnsp) = [cdecl| $ty:(cFnSpecOnType fnsp (cType rt)) $id:(cId fn) ($params:(map cParam' params)); |]
+                                 in (C.TypedefGroup dcsp [] (map (\v -> C.Typedef (cId v) decl [] noLoc) vs) noLoc, Nothing)
+cDeclaration (CExtFnDecl rt fn params fnsp) = ([cdecl| $ty:(cFnSpecOnType fnsp (cType rt)) $id:(cId fn) ($params:(map cParam' params)); |], Nothing)
 cDeclaration (CEnumDecl mtid eis) =
-  C.InitGroup (mkDeclSpec $ C.Tenum (fmap cId mtid) (map (\(ei, me) -> C.CEnum (cId ei) (fmap cExpr me) noLoc) eis) [] noLoc) [] [] noLoc
+  (C.InitGroup (mkDeclSpec $ C.Tenum (fmap cId mtid) (map (\(ei, me) -> C.CEnum (cId ei) (fmap cExpr me) noLoc) eis) [] noLoc) [] [] noLoc, Nothing)
 
 cParam :: (CType, CId) -> C.Param
 cParam (ty, v) = [cparam| $ty:(cType ty) $id:(cId v) |]
@@ -240,6 +242,7 @@ cStmt target (CIfStmt c th el) = [cstm| if ($(cExpr c)) $stm:(cStmt target th) e
 cStmt target (CSwitch e alts) = [cstm| switch ($(cExpr e)) { $items:(map (cAlt target) alts) } |]
 cStmt _ CEmptyStmt = [cstm| ; |]
 cStmt target (CComment c s) = C.Comment c (cStmt target s) noLoc
+cStmt target (CEscapeComment c) = C.EscStm ("/* " ++ c ++ " */") noLoc 
 
 cAlt :: Target -> (Maybe CExpr, CStmt) -> C.BlockItem
 cAlt target (Nothing, s) = [citem| default: $stm:(cStmt target s) |]
@@ -248,17 +251,33 @@ cAlt target (Just e , s) = [citem| case $(cExpr e): $stm:(cStmt target s) |]
 cBlockItem :: Target -> CBlockItem -> [C.BlockItem]
 cBlockItem target (CBIStmt stmt loc) =
   withLoc target loc [citem| $stm:(cStmt target stmt) |]
-cBlockItem target (CBIDecl decl loc) = 
-  withLoc target loc [citem| $decl:(cDeclaration decl); |]
+cBlockItem target (CBIDecl decl loc) =
+  let
+    (decl', comment) = cDeclaration decl
+    decl'' = withLoc target loc [citem| $decl:(decl'); |]
+  in case comment of
+    Just c ->
+      [citem| $stm:(c') |] : decl'' where c' = C.EscStm c noLoc
+    Nothing ->
+      decl''
+  
 
 data Target = CFile | HFile
 
-cExtDecl :: Target -> CExtDecl -> C.Definition
+cExtDecl :: Target -> CExtDecl -> [C.Definition]
 cExtDecl target (CFnDefn (ty, fn) params bis fnsp) =
-  [cedecl| $ty:(cFnSpecOnType fnsp (cType ty)) $id:(cId fn) ($params:(map cParam params)) { $items:(concatMap (cBlockItem target) bis) }|]
-cExtDecl target (CDecl decl) = [cedecl| $decl:(cDeclaration decl); |]
-cExtDecl target (CMacro s) = C.EscDef s noLoc
-cExtDecl target (CFnMacro fn as body) = C.EscDef (string1 ++ "\\\n" ++ string2) noLoc
+  pure [cedecl| $ty:(cFnSpecOnType fnsp (cType ty)) $id:(cId fn) ($params:(map cParam params)) { $items:(concatMap (cBlockItem target) bis) }|]
+cExtDecl target (CDecl decl) =
+  let
+    (decl', comment) = cDeclaration decl
+    decl'' = [cedecl| $decl:(decl'); |]
+  in case comment of
+    Just c ->
+      [c', decl''] where c' = C.EscDef c noLoc
+    Nothing ->
+      [decl'']
+cExtDecl target (CMacro s) = pure $ C.EscDef s noLoc
+cExtDecl target (CFnMacro fn as body) = pure $ C.EscDef (string1 ++ "\\\n" ++ string2) noLoc
   where macro1, macro2 :: Doc
         macro1 = string "#define" <+> string fn <> parens (commasep $ L.map string as)
         macro2 = let body' = L.map (cBlockItem target) body in ppr [citems| $items:(body') |]

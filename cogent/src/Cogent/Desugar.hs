@@ -218,7 +218,7 @@ withLayoutBindings (Cons x xs) ds = withLayoutBindings xs (withLayoutBinding x d
 withBinding :: VarName -> DS t l ('Suc v) a -> DS t l v a
 withBinding v ds = do readers <- ask
                       st <- get
-                      let (a, st', _) = flip3 runRWS (st & varCtx %~ Cons (v, Nothing)) readers $ runDS ds
+                      let (a, st', _) = flip3 runRWS (st & varCtx %~ Cons (v, Just "abcd")) readers $ runDS ds
                       put $ st' & varCtx .~ st^.varCtx & oracleLcl .~ st^.oracleLcl
                       return a
 
@@ -356,13 +356,11 @@ desugarAlts e0@(B.TE t v@(S.Var _) loc) (S.Alt (B.TP p1 pos1) l1 e1 : alts) =  -
       let t0' = B.DT $ S.TVariant (M.delete cn1 talts)  -- type of e0 without alternative cn
       e1' <- withBinding (fst v1) $ desugarExpr e1
       e2' <- withBinding e0' $ desugarAlts (B.TE t0' (S.Var e0') loc) alts
-      let a = desugarExpr e0
-          b = pure cn1
-          c = pure (l1,(fst v1, Nothing),e1')
-          d = pure (mempty,(e0', Nothing),e2')
-          e = pure loc
-          f = Case <$> a <*> b <*> c <*> d
-      E <$> (Case <$> a <*> b <*> c <*> d <*> e)
+      E <$> (Case <$> desugarExpr e0
+                  <*> pure cn1
+                  <*> pure (l1,(fst v1, Nothing),e1')
+                  <*> pure (mempty,(e0', Nothing),e2')
+                  <*> pure loc)
     S.PCon cn1 [p1'] -> do  -- This is B) for PCon
       v1 <- freshVar
       B.DT (S.TVariant talts) <- unfoldSynsShallowM t
@@ -398,7 +396,7 @@ desugarAlt e0 (B.TP p pos) = desugarAlt' e0 p
 -- FIXME: this function should take a position
 desugarAlt' :: B.TypedExpr -> S.Pattern B.TypedIrrefPatn -> B.TypedExpr -> DS t l v (PosUntypedExpr t v (VarName, Maybe VarName) VarName)
 desugarAlt' e0 (S.PCon tag [B.TIP (S.PVar tn) loc]) e =
-  E <$> (Let (fst tn, Nothing) <$> (E . flip Esac loc <$> desugarExpr e0) <*> withBinding (fst tn) (desugarExpr e) <*> pure loc)
+  E <$> (Let (fst tn, Just $ fst tn) <$> (E . flip Esac loc <$> desugarExpr e0) <*> withBinding (fst tn) (desugarExpr e) <*> pure loc)
   -- Idea:
   --   Base case: e0 | PCon cn [PVar v] in e ~~> let v = esac e0 in e
   --   Ind. step: A) e0 | PCon vn [p] in e ==> e0 | PCon cn [PVar v] in (let p = v in e)
@@ -420,7 +418,7 @@ desugarAlt' (B.TE t e0 l) (S.PCon tag ps) e =  -- B2)
                                                           -- At this point, t and e0 do not match!
                                                           -- but hopefully they will after e0 gets desugared
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PVar v) loc)) e =
-  E <$> (Let (fst v, Nothing) <$> desugarExpr e0 <*> (withBinding (fst v) $ desugarExpr e) <*> pure loc)
+  E <$> (Let (fst v, Just $ fst v) <$> desugarExpr e0 <*> (withBinding (fst v) $ desugarExpr e) <*> pure loc)
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple []) p)) e = desugarAlt' e0 (S.PIrrefutable (B.TIP S.PUnitel p)) e
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple [irf]) _)) e = __impossible "desugarAlt' (singleton tuple)"
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple [B.TIP (S.PVar tn1) _, B.TIP (S.PVar tn2) _]) loc)) e
@@ -479,14 +477,14 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple ps) loc)) e | __cogent_ftuples_a
         mkTake _ [] _ _ = __impossible "mkTake (in desugarAlt')"
         mkTake e0 [v] e idx = do
           e0' <- freshVar
-          let v' = (v, Nothing)
-              e0'' = (e0', Nothing)
+          let v' = (v, Just v)
+              e0'' = (e0', Just v)
           E . flip (Take (v',e0'') e0 idx) loc <$> withBindings (Cons v (Cons e0' Nil)) (desugarExpr e)
         mkTake e0 (v:vs) e idx = do
           e0' <- freshVar
           let loc = getLoc e0
-              v' = (v, Nothing)
-              e0'' = (e0', Nothing)
+              v' = (v, Just v)
+              e0'' = (e0', Just v)
           E . flip (Take (v',e0'') e0 idx) loc <$> withBindings (Cons v (Cons e0' Nil)) (mkTake (E $ Variable (f1, e0'') loc) vs e (idx + 1))
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTuple ps) _)) e | __cogent_ftuples_as_sugar = do
   B.DT (S.TTuple ts) <- unfoldSynsShallowM $ B.getTypeTE e0
