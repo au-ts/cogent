@@ -69,16 +69,16 @@ compileSanityCheck = do
     putStrLn "Cogent aligned range:"
     putStrLn $ show alignedBitRange
     putStrLn "Pretty C getter:"
-    pprint $ cExtDecl $ alignedRangeGetterSetter True (CStruct "boxType") alignedBitRange "getFoo" Get
+    pprint $ cExtDecl $ mkGsDeclABR True (CStruct "boxType") alignedBitRange "getFoo" Get
     putStrLn "Pretty C setter:"
-    pprint $ cExtDecl $ alignedRangeGetterSetter True (CStruct "boxType") alignedBitRange "setFoo" Set
+    pprint $ cExtDecl $ mkGsDeclABR True (CStruct "boxType") alignedBitRange "setFoo" Set
     putStrLn ""
   putStrLn "List of cogent aligned ranges:"
   putStrLn $ show alignedBitRangeExamples
   putStrLn "Pretty C getter:"
-  pprint $ cExtDecl $ composedAlignedRangeGetterSetter (rangesToComposedRangeInput "get" alignedBitRangeExamples) ME (CStruct "boxType") (CIdent "embeddedType") "getFoo" Get
+  pprint $ cExtDecl $ mkGsDeclBlock (rangesToComposedRangeInput "get" alignedBitRangeExamples) ME (CStruct "boxType") (CIdent "embeddedType") "getFoo" Get
   putStrLn "Pretty C setter:"
-  pprint $ cExtDecl $ composedAlignedRangeGetterSetter (rangesToComposedRangeInput "set" alignedBitRangeExamples) ME (CStruct "boxType") (CIdent "embeddedType") "setFoo" Set
+  pprint $ cExtDecl $ mkGsDeclBlock (rangesToComposedRangeInput "set" alignedBitRangeExamples) ME (CStruct "boxType") (CIdent "embeddedType") "setFoo" Set
   putStrLn ""
   recordGetterSanityCheck
 
@@ -100,9 +100,9 @@ recordGetterSanityCheck = do
     putStrLn "Field names, getter/setter names:"
     putStrLn $ show recordFields
     putStrLn "Pretty C getter:"
-    pprint $ cExtDecl $ recordGetterSetter recordFields (CStruct "boxType") (CIdent "embeddedType") "getFoo" Get
+    pprint $ cExtDecl $ mkGsDeclRecord recordFields (CStruct "boxType") (CIdent "embeddedType") "getFoo" Get
     putStrLn "Pretty C setter:"
-    pprint $ cExtDecl $ recordGetterSetter recordFields (CStruct "boxType") (CIdent "embeddedType") "setFoo" Set
+    pprint $ cExtDecl $ mkGsDeclRecord recordFields (CStruct "boxType") (CIdent "embeddedType") "setFoo" Set
   putStrLn ""
 
 

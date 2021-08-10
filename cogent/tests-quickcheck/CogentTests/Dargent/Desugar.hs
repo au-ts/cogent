@@ -32,8 +32,8 @@ prop_returnTrip =
   forAll (genDataLayout size) $ \(Layout layout, _) ->  -- FIXME: CLayout / zilinc
     fst (flip3 evalRWS state reader (runDS $ desugarLayout (sugarDataLayout layout))) == Layout layout
   where size = 30
-        reader = (M.empty, M.empty, [])
-        state = DsState Nil Nil Nil 0 0 []
+        reader = (M.empty, M.empty)
+        state = DsState Nil Nil Nil 0 0 [] []
 
 return []
 testAll = $quickCheckAll
