@@ -48,14 +48,17 @@ jobs:
           path: |
             ~/.cabal/packages
             ~/.cabal/store
-          key: cabal-cache-${{ matrix.ghc-ver }}
+          key: cabal-cache-${{ matrix.ghc-ver }}-${{ matrix.feature-flags }}-${{ github.run_number }}
+          restore-keys: |
+            cabal-cache-${{ matrix.ghc-ver }}-${{ matrix.feature-flags }}
+            cabal-cache-${{ matrix.ghc-ver }}
       
       - name: Cache z3 build
         id: cache-z3
         uses: actions/cache@v2
         with:
           path: ~/z3
-          key: z3-cache-${{ hashFiles('.git/modules/z3/HEAD') }}
+          key: z3-cache-${{ matrix.ghc-ver }}-${{ matrix.feature-flags }}-${{ hashFiles('.git/modules/z3/HEAD') }}
 
       - name: Show git log
         run: git log
@@ -81,9 +84,9 @@ jobs:
       - name: Install z3
         if: matrix.feature-flags == 'full' && steps.cache-z3.outputs.cache-hit != 'true'
         run: |
-          cd z3
           mkdir -p ~/z3
           # build z3
+          cd $GITHUB_WORKSPACE/z3
           python scripts/mk_make.py --prefix="$HOME/z3"
           cd build
           make
@@ -100,6 +103,8 @@ jobs:
           if ${{matrix.feature-flags == 'full'}}; then
             sudo ln -s `which llvm-config-9` /usr/bin/llvm-config
             llvm-config --version
+            ls -l ~/z3
+            ls -l ~/z3/bin
             z3 --version
           fi
 
