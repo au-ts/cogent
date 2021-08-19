@@ -142,7 +142,7 @@ data Type e l t =
                 | TTake (Maybe [FieldName]) t
                 | TPut  (Maybe [FieldName]) t
                 | TLayout l t
-                | TBuffer Integer t
+                | TBuffer e t -- natural literal or variable expression bound to natural
                 | DArray FieldName t
                       -- ^ name of field array size depends on
                 | DRecord (FieldName, t) [(FieldName, t)]
@@ -153,6 +153,10 @@ data Type e l t =
 u8   = TCon "U8"   [] Unboxed
 u32  = TCon "U32"  [] Unboxed
 bool = TCon "Bool" [] Unboxed
+
+isNat :: Type t l b -> Bool
+isNat (TCon t [] Unboxed) = t `elem` natTypeCons
+isNat _ = False
 
 data Polytype t = PT [(TyVarName, Kind)] [(DLVarName, t)] t
   deriving (Data, Eq, Show, Functor, Foldable, Traversable, Ord)
@@ -320,7 +324,7 @@ instance Traversable (Flip2 Type t l) where  -- e
   traverse _ (Flip2 (TVariant alts))      = pure $ Flip2 (TVariant alts)
   traverse _ (Flip2 (TTuple ts))          = pure $ Flip2 (TTuple ts)
   traverse _ (Flip2 (TUnit))              = pure $ Flip2 (TUnit)
-  traverse _ (Flip2 (TBuffer n dt))       = pure $ Flip2 (TBuffer n dt)
+  traverse f (Flip2 (TBuffer e dt))       = Flip2 <$> (TBuffer <$> f e <*> pure dt)
   traverse _ (Flip2 (DRecord f fs))       = pure $ Flip2 (DRecord f fs)
   traverse _ (Flip2 (DArray f dt))        = pure $ Flip2 (DArray f dt)
 #ifdef BUILTIN_ARRAYS

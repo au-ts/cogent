@@ -30,6 +30,7 @@ import qualified Control.Applicative as App
 import Control.Arrow (left, second)
 import Control.Monad
 import Control.Monad.Identity
+import qualified Data.Bifunctor as Bi
 import Data.Char
 import Data.Foldable as F (fold)
 import Data.IORef
@@ -66,7 +67,7 @@ language = haskellStyle
            , T.reservedNames   = ["let","in","type","include","all","take","put","inline","upcast"
                                  ,"variant","record","at","rec","layout","pointer"
                                  ,"if","then","else","not","complement","and","True","False","o"
-                                 ,"Buffer","DArray"
+                                 ,"Buffer", "DArray"
 #ifdef BUILTIN_ARRAYS
                                  ,"array","map2","@take","@put"]
 #else
@@ -475,14 +476,13 @@ atomtype = avoidInitial >> LocType <$> getPosition <*> (
   -- <|> TCon <$> typeConName <*> pure [] <*> pure Writable
   <|> (do p <- getPosition
           reserved "Buffer"
-          n <- brackets natural
-          dr <- parens (do reservedOp "#"
-                           braces dRecord)
-          return $ TBuffer n $ LocType p dr)
+          e <- LocExpr <$> getPosition <*>
+                     (try (reservedOp "~" >> Var <$> variableName) <|>
+                      IntLit <$> natural)
+          t <- monotype
+          return $ TBuffer e t)
   <|> tuple <$> parens (commaSep monotype)
-  <|> (\rp -> (\fs -> TRecord rp fs (Boxed False Nothing)))
-      <$> recPar
-      <*> braces (commaSep1 ((\a b c -> (a,(b,c))) <$> variableName <* reservedOp ":" <*> monotype <*> pure False))
+  <|> parseRecord
   <|> TVariant . M.fromList <$> angles (((,) <$> typeConName <*> fmap ((,False)) (many typeA2)) `sepBy` reservedOp "|")
 #ifdef REFINEMENT_TYPES
   <|> (brackets (TRefine <$> variableName <* reservedOp ":" <*> monotype <* reservedOp "|" <*> expr 1)))
@@ -494,19 +494,26 @@ atomtype = avoidInitial >> LocType <$> getPosition <*> (
       tuple [e] = typeOfLT e
       tuple es  = TTuple es
 
-      dRecord = do
-        reservedOp ">"
-        f <- dRecordField
-        comma
-        fs <- commaSep dRecordField
-        return $ DRecord f fs
+      parseRecord =
+        do rv <- recPar
+           body <- recBody
+           case body of
+             Left fs -> return $ DRecord (head fs) (tail fs)
+             Right fs -> return $ TRecord rv fs (Boxed False Nothing)
+
+      recBody = braces $
+        do g <- (try (reservedOp ">") >> return Left) <|>
+                return (\fs -> Right $ map (Bi.second (,False)) fs)
+           fs <- commaSep1 recField
+           return $ g fs
+
+      recField = (,) <$> variableName <* reservedOp ":"
+                     <*> try (monotype <|> dRecordType)
 
       dRecordType = do
         p <- getPosition
         t <- dArray
         return $ LocType p t
-
-      dRecordField = (\a b -> (a, b)) <$> variableName <* reservedOp ":" <*> try (monotype <|> dRecordType)
 
       dArray = DArray <$ reserved "DArray" <*> variableName <*> monotype
 

@@ -617,7 +617,9 @@ desugarType = \case
            <*> pure ds
            <*> pure tkns'
 #endif
-  B.DT (S.TBuffer n dt) -> TBuffer n <$> desugarDType dt
+  B.DT (S.TBuffer e t) ->
+    do e' <- uexprToLExpr id <$> desugarExpr (fmap B.rawToDepType e)
+       TBuffer e' <$> desugarType t
   notInWHNF -> __impossible $ "desugarType (type " ++ show (pretty notInWHNF) ++ " is not in WHNF)"
 
 desugarDType :: B.DepType -> DS t l v (DType t VarName)

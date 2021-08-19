@@ -1,0 +1,16 @@
+-- A couple ways to declare a buffer type
+-- A literal size argument, or a variable with U32 type.
+-- Check also that we provide unboxed type as second component.
+type A
+
+type Buf = Buffer 4096 #A
+
+size : U32
+size = 4096
+
+sz : U64
+sz = 10384729103983
+
+type Buf2 = Buffer ~size #A
+
+type Buf3 = Buffer ~sz #A

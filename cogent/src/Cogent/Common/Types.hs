@@ -133,5 +133,8 @@ instance Monoid Kind where
 bangKind :: Kind -> Kind
 bangKind (K e s d) = K (e && s && d) True True
 
+natTypeCons :: [TypeName]
+natTypeCons = words "U8 U16 U32 U64"
+
 primTypeCons :: [TypeName]
-primTypeCons = words "U8 U16 U32 U64 Bool String"
+primTypeCons = "Bool" : "String" : natTypeCons

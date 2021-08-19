@@ -1,1 +1,2 @@
-type DirEntry = Buffer[2000](#{ >len: U8, name_len: U8, name: DArray name_len U8 })
+-- CMCL: Subject to change.
+type DirEntry = Buffer 2000 (#{ >len: U8, name_len: U8, name: DArray name_len U8 })

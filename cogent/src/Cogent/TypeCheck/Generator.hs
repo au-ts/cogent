@@ -126,14 +126,15 @@ validateType (RT t) = do
                        (c, TVariant fs') <- fmapFoldM validateType t
                        pure (c, V (Row.fromMap (fmap (first tuplize) fs')))
 
-    TBuffer n dt -> do
-      (ct, t') <- fmapFoldM validateType t
-      case t' of
-        TBuffer n dt' -> return (ct, T $ TBuffer n dt')
-        _ -> freshTVar >>= \t'' -> return (ct, t'')
+    TBuffer e t ->
+      do (ct, t') <- validateType t
+         alpha <- freshTVar
+         (ce, e') <- cg (rawToLocE ?loc e) alpha
+         return (ct <> ce <> integral alpha <> Drop t' BufferParam,
+                 T $ TBuffer (toTCSExpr e') t')
 
     DRecord f fs
-      | not $ isPrimType $ unRT $ snd f ->
+      | not $ isNat $ unRT $ snd f ->
           freshTVar >>= \t' -> return (Unsat $ OtherTypeError "DRecord size field must be a numeric primitive type", t')
       | fields  <- map fst fs
         , fields' <- nub fields
@@ -147,7 +148,7 @@ validateType (RT t) = do
                 case elemIndex df fields of
                   Just fIndex -> do
                     let fType = ts !! fIndex
-                    if isPrimType fType
+                    if isNat fType
                       then case t' of
                         DRecord f' fs' -> return (ct, T $ DRecord f' fs')
                         _ -> freshTVar >>= \t'' -> return (ct, t'')
@@ -161,9 +162,6 @@ validateType (RT t) = do
           isDArray DArray{} = True
           isDArray _ = False
 
-          isPrimType :: Type t l b -> Bool
-          isPrimType (TCon t [] Unboxed) = t `elem` ["U8", "U16", "U32", "U64"]
-          isPrimType _ = False
 
     DArray f dt -> do
       (ct, t') <- fmapFoldM validateType t

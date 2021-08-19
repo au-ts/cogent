@@ -236,7 +236,8 @@ monoType (TRParBang v m) =  do
 #ifdef BUILTIN_ARRAYS
 monoType (TArray t l s mhole) = TArray <$> monoType t <*> monoLExpr l <*> monoSigil s <*> mapM monoLExpr mhole
 #endif
-monoType (TBuffer n dt) = TBuffer n <$> monoDType dt
+monoType (TBuffer e t) = TBuffer <$> monoLExpr e <*> monoType t
+monoType _ = __impossible "monoType case unhandled; check coverage."
 
 monoDType :: (Ord b) => DType t b -> Mono b (DType 'Zero b)
 monoDType (DRecord f fs) = do

@@ -590,7 +590,8 @@ instance (Pretty t, TypeType t, Pretty e, Pretty l, Eq l) => Pretty (Type e l t)
                        & (if __cogent_fdisambiguate_pp then (<+> comment "{- put -}") else id)
   pretty (TLayout l t) = (prettyT' t <+> typesymbol "layout" <+> pretty l)
            & (if __cogent_fdisambiguate_pp then (<+> comment "{- layout -}") else id)
-  pretty (TBuffer n dt) = keyword "Buffer" <+> brackets (string $ show n) <> parens (pretty dt)
+  pretty (TBuffer e t) = keyword "Buffer" <+>
+    ((string "~") <> pretty e <+> (parens (pretty t)))
   pretty (DRecord f fs) = typesymbol "#" <> record (map (\(a, b) -> fieldname a <+> symbol ":" <+> pretty b) (f:fs))
   pretty (DArray f dt) = keyword "DArray" <+> fieldname f <+> pretty dt
 
@@ -735,6 +736,7 @@ instance Pretty Metadata where
   pretty (TypeParam {functionName, typeVarName }) = err "it is required by the type of" <+> funname functionName
                                                       <+> err "(type variable" <+> typevar typeVarName <+> err ")"
   pretty ImplicitlyTaken = err "it is implicitly taken via subtyping."
+  pretty BufferParam = err "it is the underlying type for buffer data."
   -- pretty (LayoutParam exp lv) = err "it is required by the expression" <+> pretty exp
                             -- <+> err "(layout variable" <+> dlvarname lv <+> err ")"
 

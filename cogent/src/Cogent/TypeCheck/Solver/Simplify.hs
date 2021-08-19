@@ -267,7 +267,7 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
   T (TTuple ts) :<  T (TTuple us) | length ts == length us -> hoistMaybe $ Just (zipWith (:< ) ts us)
   T (TTuple ts) :=: T (TTuple us) | length ts == length us -> hoistMaybe $ Just (zipWith (:=:) ts us)
 
-  T (TBuffer n dt) :<  T (TBuffer n' dt') | n == n' -> hoistMaybe $ Just [dt :< dt']
+  T (TBuffer _ t) :<  T (TBuffer _ t') -> hoistMaybe $ Just [t :< t']
   T (DRecord f fs) :<  T (DRecord f' fs')
     | length fs == length fs' || length fs == 0 -> hoistMaybe $ Just (zipWith (:< ) (map snd (f:fs)) (map snd (f':fs')))
 
@@ -398,7 +398,8 @@ isSolved t = L.null (unifVars t) && L.null (unifLVarsT t)
 
 isPrimType :: TCType -> Bool
 isPrimType (T (TCon n [] Unboxed))
-  | n `elem` primTypeCons = True
+  | n `elem` primTypeCons = True -- CMCL: String is in primTypeCons, I
+                                 -- think this is undesirable.
   | otherwise = False
 isPrimType (T (TBang t)) = isPrimType t
 isPrimType (T (TUnbox t)) = isPrimType t

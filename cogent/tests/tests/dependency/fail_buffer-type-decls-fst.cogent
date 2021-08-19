@@ -1,0 +1,6 @@
+type A
+
+x : Bool
+x = True
+
+type Buf2 = Buffer ~x #A -- must be U32 type

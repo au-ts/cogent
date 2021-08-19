@@ -178,6 +178,8 @@ data Metadata = Reused { varName :: VarName, boundAt :: SourcePos, usedAt :: Seq
               -- | LayoutParam { expression :: TCExpr, layoutVarName :: DLVarName }
               | ImplicitlyTaken
               | Constant { constName :: ConstName }
+              | BufferParam -- CMCL: Temporary measure to restrict
+                            -- buffer type's type argument.
               deriving (Eq, Show, Ord)
 
 (>:) = flip (:<)
@@ -535,7 +537,7 @@ rawToDepType (RT t) = DT $ go t
                      TTake mfs t     -> TTake mfs $ f t
                      TPut mfs t      -> TPut mfs $ f t
                      TLayout l t     -> TLayout l $ f t
-                     TBuffer n dt    -> TBuffer n $ f dt
+                     -- TBuffer n t     -> TBuffer n $ f t
                      _               -> __impossible $ "rawToDepType: we don't allow higher-order refinement types"
 
 toRawTypedExpr :: TypedExpr -> RawTypedExpr
