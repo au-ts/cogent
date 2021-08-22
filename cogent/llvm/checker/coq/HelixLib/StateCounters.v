@@ -8,6 +8,7 @@
 *)
 
 Require Import HelixLib.Correctness_Prelude.
+Require Import Compiler.
 
 Import ListNotations.
 
@@ -65,6 +66,12 @@ Section BlockCount.
   Opaque incLocal.
   Opaque incVoid.
   Opaque incBlockNamed.
+  Lemma compile_expr_block_count :
+    forall op s1 s2 nextblock b bk_op,
+      compile_expr op nextblock s1 ≡ inr (s2, (b, bk_op)) ->
+      block_count s2 ≥ block_count s1.
+  Proof.
+  Admitted.
 
 End BlockCount.
       
@@ -120,6 +127,11 @@ Section LocalCount.
         apply incBlockNamed_local_count in H
       end; cbn in *).
 
+  Lemma compile_expr_local_count:
+  ∀ (op : Cogent.expr) (s1 s2 : IRState) (nextblock b : block_id) (bk_op : list (LLVMAst.block typ)) o,
+    compile_expr op nextblock s1 ≡ inr (s2, (o, b, bk_op)) → local_count s2 ≥ local_count s1.
+  Admitted.
+
 End LocalCount.
 
   (* (* We define the obvious total order on IRStates *) *)
@@ -160,6 +172,8 @@ Ltac get_local_count_hyps :=
       apply incLocal_local_count in H; cbn in H
     | H: dropVars _ ?s1 ≡ inr (?s2, _) |- _ =>
       apply dropVars_local_count in H; cbn in H
+    | H:compile_expr ?op ?id ?s1 ≡ inr (?s2, _) |- _ =>
+      apply compile_expr_local_count in H; cbn in H
     end.
 
 Ltac get_block_count_hyps :=
@@ -175,6 +189,8 @@ Ltac get_block_count_hyps :=
       apply incLocal_block_count in H; cbn in H
     | H: dropVars _ ?s1 ≡ inr (?s2, _) |- _ =>
       apply dropVars_block_count in H; cbn in H
+    | H:compile_expr ?op ?id ?s1 ≡ inr (?s2, _) |- _ =>
+      apply compile_expr_block_count in H; cbn in H
     end.
 
 Ltac solve_local_count := try solve [ cbn; get_local_count_hyps; lia
