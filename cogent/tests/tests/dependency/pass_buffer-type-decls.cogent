@@ -1,9 +1,9 @@
 -- A couple ways to declare a buffer type
 -- A literal size argument, or a variable with U32 type.
 -- Check also that we provide unboxed type as second component.
-type A
+type A = {>size : U8, fst : U8, snd : DArray fst U8}
 
-type Buf = Buffer 4096 #A
+type Buf = Buffer 4096 A
 
 size : U32
 size = 4096
@@ -11,6 +11,7 @@ size = 4096
 sz : U64
 sz = 10384729103983
 
-type Buf2 = Buffer ~size #A
+type B = A
+type Buf2 = Buffer ~size B
 
-type Buf3 = Buffer ~sz #A
+type Buf3 = Buffer ~sz A

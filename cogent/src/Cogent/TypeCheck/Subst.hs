@@ -197,6 +197,7 @@ applyC (Subst f) (NotReadOnly (Right x))
 applyC s (NotReadOnly x) = NotReadOnly x
 applyC s (Solved t) = Solved (apply s t)
 applyC s (IsPrimType t) = IsPrimType (apply s t)
+applyC s (IsDRecord t) = IsDRecord (apply s t)
 applyC s (LayoutOk t) = LayoutOk $ apply s t
 applyC s (l :~  t) = applyL s l :~  apply s t
 applyC s (l :~< m) = applyL s l :~< applyL s m

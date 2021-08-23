@@ -1,0 +1,4 @@
+type Entry = { >len : U64
+             , fst : U8 }
+
+type DirEntry2 = Buffer 2000 Entry

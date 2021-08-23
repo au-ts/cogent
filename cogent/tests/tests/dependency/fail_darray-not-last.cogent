@@ -1,0 +1,6 @@
+type Entry = { >len : U64
+             , fst : U8
+             , one : DArray fst U8
+             , last : U32 }
+
+type DirEntry2 = Buffer 2000 Entry

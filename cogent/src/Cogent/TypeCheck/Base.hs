@@ -204,6 +204,7 @@ data Constraint' t l = (:<) t t
                      | NotReadOnly TCSigil
                      | Solved t
                      | IsPrimType t
+                     | IsDRecord t
 #ifdef BUILTIN_ARRAYS
                      | Arith (SExpr t l)
                      | (:->) (Constraint' t l) (Constraint' t l)
@@ -281,6 +282,7 @@ instance Bifunctor Constraint' where
   bimap f g (Exhaustive t ps)  = Exhaustive (f t) ps
   bimap f g (Solved t)         = Solved (f t)
   bimap f g (IsPrimType t)     = IsPrimType (f t)
+  bimap f g (IsDRecord t)      = IsDRecord (f t)
 #ifdef BUILTIN_ARRAYS
   bimap f g (Arith se)         = Arith (bimap f g se)
   bimap f g (c1 :-> c2)        = (bimap f g c1) :-> (bimap f g c2)
@@ -308,6 +310,7 @@ instance Bitraversable Constraint' where
   bitraverse f g (Exhaustive t ps)  = Exhaustive <$> f t <*> pure ps
   bitraverse f g (Solved t)         = Solved <$> f t
   bitraverse f g (IsPrimType t)     = IsPrimType <$> f t
+  bitraverse f g (IsDRecord t)      = IsDRecord <$> f t
   bitraverse f g (UnboxedNotRecursive t) = UnboxedNotRecursive <$> f t
   bitraverse f g (NotReadOnly s)    = pure $ NotReadOnly s
 #ifdef BUILTIN_ARRAYS

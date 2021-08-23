@@ -46,6 +46,7 @@ import Control.Monad.State
 import Control.Monad.Trans.Except
 import Data.Foldable (fold)
 import Data.Functor.Compose
+import qualified Data.Bifunctor as Bi
 import Data.List (elemIndex, find, nub, (\\))
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
@@ -130,36 +131,44 @@ validateType (RT t) = do
       do (ct, t') <- validateType t
          alpha <- freshTVar
          (ce, e') <- cg (rawToLocE ?loc e) alpha
-         return (ct <> ce <> integral alpha <> Drop t' BufferParam,
+         return (ct <> ce <> integral alpha <> IsDRecord t',
                  T $ TBuffer (toTCSExpr e') t')
 
     DRecord f fs
-      | not $ isNat $ unRT $ snd f ->
-          freshTVar >>= \t' -> return (Unsat $ OtherTypeError "DRecord size field must be a numeric primitive type", t')
       | fields  <- map fst fs
         , fields' <- nub fields
-      -> if fields' == fields
-          then do
-            (ct, t') <- fmapFoldM validateType t
-            let ts      = map unRT (map snd fs)
-                dArrayT = find isDArray ts
-            case dArrayT of
-              Just (DArray df _) ->
-                case elemIndex df fields of
-                  Just fIndex -> do
-                    let fType = ts !! fIndex
-                    if isNat fType
-                      then case t' of
-                        DRecord f' fs' -> return (ct, T $ DRecord f' fs')
-                        _ -> freshTVar >>= \t'' -> return (ct, t'')
-                      else freshTVar >>= \t' -> return (Unsat $ OtherTypeError "DArray dependent field must be a numeric primitive type", t')
-                  Nothing -> freshTVar >>= \t' -> return (Unsat $ UnknownTypeVariable df, t')
-              Nothing -> freshTVar >>= \t' -> return (Unsat $ OtherTypeError "Must have a DArray inside a DRecord", t')
-          else freshTVar >>= \t' -> return (Unsat $ DuplicateRecordFields (fields \\ fields'), t')
+          -> if fields' == fields
+             then do (ct, t') <- fmapFoldM validateType t
+                     case t' of
+                       DRecord f' fs' ->
+                         case filter (isDArray . snd) fs' of
+                           [] -> do t' <- freshTVar
+                                    return (Unsat $ OtherTypeError
+                                            "A dependent record must have a dependent array member", t')
+                           [(aid, T (DArray df _))] ->
+                             do cd <- genDepArrayCond aid df (reverse fs')
+                                return (ct <> cd <> integral (snd f'),
+                                        T $ DRecord f' fs')
+                           _      -> -- found multiple DArray occurrences.
+                             do t' <- freshTVar
+                                return (Unsat $ OtherTypeError
+                                        "Multiple dependent arrays inside dependent record not allowed", t')
+                       _ -> __impossible "drecord validation failed"
+             else do t' <- freshTVar
+                     return (Unsat $ DuplicateRecordFields (fields \\ fields'), t')
       | otherwise -> second T <$> fmapFoldM validateType (DRecord f fs)
         where
-          isDArray :: Type t l b -> Bool
-          isDArray DArray{} = True
+          genDepArrayCond :: FieldName -> FieldName ->
+            [(FieldName,TCType)] -> CG Constraint
+          genDepArrayCond fd df fs
+            | fd == fst (head fs) = case lookup df fs of
+                Nothing -> return (Unsat $ UnknownTypeVariable df)
+                Just t -> return $ integral t
+            | otherwise = return $ Unsat $ OtherTypeError
+                          "Dependent array must appear as final member"
+
+          isDArray :: TCType -> Bool
+          isDArray (T (DArray{})) = True
           isDArray _ = False
 
 

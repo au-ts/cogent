@@ -1,2 +1,12 @@
 -- CMCL: Subject to change.
-type DirEntry = Buffer 2000 (#{ >len: U8, name_len: U8, name: DArray name_len U8 })
+type A = U8
+
+type DirEntry = Buffer 2000 ({ >len: A, name_len: U8, name: DArray name_len U8 })
+
+type Entry = { >len : U64
+             , name_len : U8
+             , name : DArray name_len U8 }
+
+type DirEntry2 = Buffer 2000 Entry
+
+--type DirEntry3 = Buffer 2000 #A

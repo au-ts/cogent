@@ -1,0 +1,11 @@
+
+type A = U8
+type B = U64
+
+type Entry1 = { >len : U64
+              , len : A
+              , buf : DArray len U8 }
+
+type Entry2 = { >len : B
+              , len : U8
+              , buf : DArray len U8 }

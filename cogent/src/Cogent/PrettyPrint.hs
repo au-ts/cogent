@@ -885,6 +885,7 @@ instance Pretty Constraint where
   pretty (Exhaustive t p) = warn "Exhaustive" <+> pretty t <+> pretty p
   pretty (Solved t)       = warn "Solved" <+> pretty t
   pretty (IsPrimType t)   = warn "IsPrimType" <+> pretty t
+  pretty (IsDRecord t)    = warn "IsDRecord" <+> pretty t
   pretty (x :@ _)         = pretty x
 #ifdef BUILTIN_ARRAYS
   pretty (Arith e)        = pretty e

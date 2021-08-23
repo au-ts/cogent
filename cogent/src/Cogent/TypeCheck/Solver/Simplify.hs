@@ -367,6 +367,8 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
   NotReadOnly (Left (Boxed False _)) -> hoistMaybe $ Just []
   NotReadOnly (Left (Unboxed      )) -> hoistMaybe $ Just []
 
+  IsDRecord t | isDRecord t -> hoistMaybe $ Just []
+
   t -> hoistMaybe $ Nothing
 
 -- | Returns 'True' iff the given argument type is not subject to subtyping. That is, if @a :\< b@
@@ -415,6 +417,10 @@ isBoxedType (T (TCon _ _ (Boxed {}))) = True
 isBoxedType (A _ _ (Left (Boxed {})) _) = True
 #endif
 isBoxedType _ = False
+
+isDRecord :: TCType -> Bool
+isDRecord (T (DRecord _ _)) = True
+isDRecord _ = False
 
 primTypeSize :: TCType -> Size
 primTypeSize (T (TCon "U8"   [] Unboxed)) = 8
