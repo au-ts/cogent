@@ -1,0 +1,17 @@
+#include "repeat.cogent"
+
+log2stop: StopF (U64, U64) U64
+log2stop #{acc, obsv} =
+    let (a, b) = acc
+    in a >= obsv
+
+log2step: StepF (U64, U64) U64
+log2step #{acc, obsv} = 
+    let (a, b) = acc
+    in (a * 2, b + 1)
+
+mylog2: U64 -> U64
+mylog2 n =
+    let args = #{n = n, stop = log2stop, step = log2step, acc = (1, 0), obsv = n}
+    and (a, b) = repeat args
+    in b
