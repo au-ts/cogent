@@ -203,5 +203,13 @@ lemma repeat_bod_val_executes_from_upd_executes:
   apply clarsimp
   apply (erule u_v_primE; clarsimp)
   done
+
+lemma
+ "\<lbrakk>(\<xi>u, [u] \<turnstile> (\<sigma>, App f (Var 0)) \<Down>! (\<sigma>', UPrim (LBool True))) \<longrightarrow>
+    \<not>(\<xi>u, [u] \<turnstile> (\<sigma>, App f (Var 0)) \<Down>! (\<sigma>', UPrim (LBool False)))\<rbrakk>
+  \<Longrightarrow>
+    (\<xi>v , [v] \<turnstile> App f (Var 0) \<Down> VPrim (LBool True)) \<longrightarrow>
+        \<not> (\<xi>v , [v] \<turnstile> App f (Var 0) \<Down> VPrim (LBool False))"
+  oops
 end (* of context *)
 end
