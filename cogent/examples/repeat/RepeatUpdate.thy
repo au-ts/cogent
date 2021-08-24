@@ -37,6 +37,9 @@ definition \<xi>0 :: "(funtyp, abstyp, ptrtyp) uabsfuns"
 "\<xi>0 f x y = False"
 end
 
+\<comment>\<open>Need to add @{term "\<forall>v. (\<xi>' , [v] \<turnstile> (\<sigma>, App f (Var 0)) \<Down>! (\<sigma>, UPrim (LBool True))) \<longrightarrow> \<not>(\<xi>' , [v] \<turnstile> (\<sigma>, App f (Var 0)) \<Down>! (\<sigma>, UPrim (LBool False))) " }\<close>
+thm contrapos_imp
+
 fun repeat_bod
   where
 "repeat_bod _ 0 _ _ \<sigma> \<sigma>' _ acc _ _ ret = (\<sigma> = \<sigma>' \<and> acc = ret)" |
