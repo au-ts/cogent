@@ -1,34 +1,8 @@
 theory RepeatUpdate
-  imports "build/Generated_AllRefine"
+  imports RepeatAssm
 begin
 
-section "helper"
-
-lemma whileLoopE_add_invI:
-  assumes "\<lbrace> P \<rbrace> whileLoopE_inv c b init I (measure M) \<lbrace> Q \<rbrace>, \<lbrace> R \<rbrace>!"
-  shows "\<lbrace> P \<rbrace> whileLoopE c b init \<lbrace> Q \<rbrace>, \<lbrace> R \<rbrace>!"
-  by (metis assms whileLoopE_inv_def)
-
-lemma validNF_select_UNIV:
-  "\<lbrace>\<lambda>s. \<forall>x. Q x s\<rbrace> select UNIV \<lbrace>Q\<rbrace>!"
-  apply (subst select_UNIV_unknown)
-  apply (rule validNF_unknown)
-  done
-
-
-lemma typing_mono_app_cogent_fun:
-  "\<Xi>', [], [option.Some a] \<turnstile> f : b \<Longrightarrow> \<Xi>', [], [option.Some a] \<turnstile> App (Fun f []) (Var 0) : b"
-  apply (frule typing_to_kinding_env(1); simp?)
-  apply (rule typing_app[where x = a and y = b and ?\<Gamma>1.0 = "[option.None]" and ?\<Gamma>2.0 = "[option.Some a]"]; simp?)
-    apply (clarsimp simp: split_conv_all_nth)
-    apply (rule right; simp)
-    apply (rule typing_fun[where ts = "[]", OF _ _ _ _]; (simp add: Cogent.empty_def weakening_conv_all_nth)?)
-   apply (rule none)
-  apply (rule typing_var; simp add: Cogent.empty_def weakening_conv_all_nth)
-  apply (rule keep; simp)
-  done
-
-section "update" 
+section "definitions" 
 
 overloading \<xi>0 \<equiv> \<xi>_0
 begin
@@ -61,19 +35,19 @@ fun uvalfun_to_expr
 "uvalfun_to_expr (UAFunction f ts) = AFun f ts" |
 "uvalfun_to_expr _ = undefined"
 
-
-definition repeat
+definition urepeat
   where
-"repeat \<Xi>' \<xi>' \<tau>a \<tau>o x y =
+"urepeat \<Xi>' \<xi>' \<tau>a \<tau>o x y =
   (\<exists>\<sigma> \<sigma>' n f g acc obsv ret.
     x = (\<sigma>, URecord [(UPrim (LU64 n), RPrim (Num U64)), (f, RFun), (g, RFun),
       (acc, type_repr \<tau>a), (obsv, type_repr \<tau>o)]) \<and>
     y = (\<sigma>', ret) \<and>
     is_uvalfun f \<and>
     is_uvalfun g \<and>
-    (\<Xi>, [], [option.Some (TRecord [(''acc'', bang \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)]
+    bang \<tau>o = \<tau>o \<and>
+    (\<Xi>', [], [option.Some (TRecord [(''acc'', bang \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)]
       \<turnstile> (App (uvalfun_to_expr f) (Var 0)) : TPrim Bool) \<and>
-    (\<Xi>, [], [option.Some (TRecord [(''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)]
+    (\<Xi>', [], [option.Some (TRecord [(''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)]
       \<turnstile> (App (uvalfun_to_expr g) (Var 0)) : \<tau>a) \<and>
     urepeat_bod \<xi>' (unat n) (uvalfun_to_expr f) (uvalfun_to_expr g) \<sigma> \<sigma>' \<tau>a acc \<tau>o obsv ret)"
 
@@ -81,15 +55,12 @@ overloading \<xi>1 \<equiv> \<xi>_1
 begin
 definition \<xi>1 :: "(funtyp, abstyp, ptrtyp) uabsfuns"
   where
-"\<xi>1 f x y = (if f = ''repeat_0'' then repeat \<Xi> \<xi>_0 abbreviatedType1 (TPrim (Num U64)) x y  else \<xi>_0 f x y)"
+"\<xi>1 f x y = (if f = ''repeat_0'' then urepeat \<Xi> \<xi>_0 abbreviatedType1 (TPrim (Num U64)) x y  else \<xi>_0 f x y)"
 end
 
-lemma (in update_sem) frame_empty:
-  "frame \<sigma> {} \<sigma>' {} \<Longrightarrow> \<sigma> = \<sigma>'"
-  apply (clarsimp simp: frame_def fun_eq_iff)
-  done
+section "theorems"
 
-context Generated begin
+context update_sem begin
 
 lemma urepeat_bod_preservation:
   "\<lbrakk>proc_ctx_wellformed \<Xi>';
@@ -172,27 +143,61 @@ lemma urepeat_bod_step:
   done
 declare urepeat_bod.simps[simp]
 
+lemma urepeat_preservation:
+  "\<And>\<sigma> \<sigma>' v v' r w.
+       \<lbrakk>proc_ctx_wellformed \<Xi>';
+        \<xi>' matches-u \<Xi>';
+        \<Xi>', \<sigma> \<turnstile> v :u TRecord
+                     [(''n'', TPrim (Num U64), Present),
+                      (''stop'', TFun (TRecord [(''acc'', bang \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed) (TPrim Bool), Present),
+                      (''step'', TFun (TRecord [(''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed) \<tau>a, Present),
+                      (''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)]
+                     Unboxed \<langle>r, w\<rangle>;
+        urepeat \<Xi>' \<xi>' \<tau>a \<tau>o (\<sigma>, v) (\<sigma>', v')\<rbrakk>
+       \<Longrightarrow> \<exists>r' w'. \<Xi>', \<sigma>' \<turnstile> v' :u \<tau>a \<langle>r', w'\<rangle> \<and> r' \<subseteq> r \<and> frame \<sigma> w \<sigma>' w'"
+  unfolding urepeat_def
+  apply clarsimp
+  apply (erule u_t_recE; clarsimp)
+  apply (erule u_t_r_consE; clarsimp)+
+  apply (erule u_t_r_emptyE; clarsimp)
+  apply (frule tfun_no_pointers)
+  apply (drule tfun_no_pointers(2))
+  apply clarsimp
+  apply (frule tfun_no_pointers)
+  apply (drule tfun_no_pointers(2))
+  apply clarsimp
+  apply (frule tprim_no_pointers)
+  apply (drule tprim_no_pointers(2))
+  apply clarsimp
+  apply (rename_tac \<sigma> \<sigma>' v' n f g acc ra wa obsv ro wo)
+  apply (cut_tac \<Xi>' = \<Xi>' and \<sigma> = \<sigma> and \<tau> = \<tau>o and v = obsv and r = ro and w = wo in bang_not_writable(1); simp?)
+  apply (rule urepeat_bod_preservation; simp?)
+  apply blast
+  done
+
+end (* of context *)
+
+context update_sem_init begin
+
 lemma \<xi>_0_matchesu_\<Xi>:
   "\<xi>_0 matches-u \<Xi>'"
   unfolding proc_env_matches_ptrs_def \<xi>0_def
   by clarsimp
-
+ 
+lemma \<xi>_1_matchesu_\<Xi>:
+  "\<xi>_1 matches-u \<Xi>"
+  unfolding proc_env_matches_ptrs_def \<xi>1_def
+  apply clarsimp
+  apply (rule conjI)
+   apply clarsimp
+   apply (subst (asm) \<Xi>_def; clarsimp)
+   apply (clarsimp simp: repeat_0_type_def)
+   apply (rule urepeat_preservation[OF proc_ctx_wellformed_\<Xi> \<xi>_0_matchesu_\<Xi>]; (simp add: abbreviated_type_defs)?)
+  apply (clarsimp simp: \<xi>0_def)
+  done
 end (* of context *)
 
-lemma (in update_sem) discardable_or_shareable_not_writable:
-assumes "D \<in> k \<or> S \<in> k"
-shows "\<lbrakk> \<Xi>', \<sigma> \<turnstile>  v  :u  \<tau>  \<langle> r , w \<rangle>; K' \<turnstile>  \<tau>  :\<kappa>  k \<rbrakk> \<Longrightarrow> w = {}"
-and   "\<lbrakk> \<Xi>', \<sigma> \<turnstile>* fs :ur \<tau>s \<langle> r , w \<rangle>; K' \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> w = {}"
-  using assms
-  by (induct rule: uval_typing_uval_typing_record.inducts)
-    (force simp add: kinding_simps kinding_record_simps kinding_variant_set
-      dest: abs_typing_readonly[where s = Unboxed,simplified])+
 
-lemma (in update_sem) discardable_or_shareable_not_writable':
-shows "\<lbrakk> k = kinding_fn K' \<tau>; D \<in> k \<or> S \<in> k; \<Xi>', \<sigma> \<turnstile>  v  :u  \<tau>  \<langle> r , w \<rangle>; K' \<turnstile>  \<tau>  :\<kappa> k \<rbrakk> \<Longrightarrow> w = {}"
-and   "\<lbrakk> k = (\<Inter>(_,t,b)\<in>set \<tau>s. (case b of Taken \<Rightarrow> UNIV | Present \<Rightarrow> kinding_fn K' t));
-         D \<in> k \<or> S \<in> k; \<Xi>', \<sigma> \<turnstile>* fs :ur \<tau>s \<langle> r , w \<rangle>; K' \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> w = {}"
-  by (meson discardable_or_shareable_not_writable)+
 
 (*
 fun repeat_bod

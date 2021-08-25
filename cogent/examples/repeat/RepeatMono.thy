@@ -2,37 +2,27 @@ theory RepeatMono
   imports RepeatValue
 begin
 
+definition vrepeatp
+  where
+"vrepeatp \<xi>' x y =
+  (\<exists>n f g acc obsv ret.
+    x = VRecord [VPrim (LU64 n), f, g, acc, obsv] \<and>
+    y = ret \<and>
+    is_vvalfun f \<and>
+    is_vvalfun g \<and>
+    vrepeat_bod \<xi>' (unat n) (vvalfun_to_expr f) (vvalfun_to_expr g) acc obsv ret)"
+
+definition \<xi>p0 :: "'b \<Rightarrow> ('b, 'c) vval \<Rightarrow> ('b, 'c) vval \<Rightarrow> bool"
+  where
+"\<xi>p0 f x y = False"
+
+definition \<xi>p1 :: "funtyp \<Rightarrow> (funtyp, 'c) vval \<Rightarrow> (funtyp, 'c) vval \<Rightarrow> bool"
+  where
+"\<xi>p1 f x y = (if f = ''repeat'' then vrepeatp \<xi>p0 x y else \<xi>p0 f x y)"
+
 context value_sem begin
-definition
-  rename_mono_prog' ::
-  "(('f \<times> type list) \<Rightarrow> 'f) \<Rightarrow> ('f \<Rightarrow> poly_type) \<Rightarrow> ('f, 'a) vabsfuns \<Rightarrow> ('f, 'a) vabsfuns \<Rightarrow> bool"
-where
-  "rename_mono_prog' rename' \<Xi>' \<xi>\<^sub>r\<^sub>m \<xi>\<^sub>p \<equiv>
-     \<xi>\<^sub>r\<^sub>m matches \<Xi>' \<longrightarrow>
-     proc_ctx_wellformed \<Xi>' \<longrightarrow>
-     (\<forall>f ts v v' v''. \<xi>\<^sub>r\<^sub>m (rename' (f, ts)) (rename_val rename' (monoval v)) v'' \<longrightarrow>
-        (\<xi>\<^sub>p f v v' \<longrightarrow>  v'' = (rename_val rename' (monoval v'))) \<and> (\<exists>v'. \<xi>\<^sub>p f v v'))"
 
-lemma
-  "rename_mono_prog' rename' \<Xi>' \<xi>\<^sub>r\<^sub>m \<xi>\<^sub>p \<Longrightarrow> rename_mono_prog rename' \<Xi>' \<xi>\<^sub>r\<^sub>m \<xi>\<^sub>p"
-  unfolding rename_mono_prog_def rename_mono_prog'_def
-  apply clarsimp
-  apply (erule_tac x = f in allE)
-  apply (erule_tac x = ts in allE)
-  apply (subgoal_tac "\<exists>v'. \<xi>\<^sub>p f v v'")
-   apply (erule exE)
-   apply (erule_tac x = v in allE)
-   apply (erule_tac x = v'a in allE)
-   apply (erule_tac x = v' in allE)
-   apply clarsimp
-   apply (intro exI conjI; simp)
-  apply clarsimp
-  done
-end (* of context *)
-
-context shallow begin
-
-lemma vrepeat_bod_monocorrect:
+lemma vrepeat_bod_monoexpr_correct:
   "\<lbrakk>proc_ctx_wellformed \<Xi>';
     \<xi>' matches \<Xi>';
     rename_mono_prog rename' \<Xi>' \<xi>' \<xi>'';
@@ -107,8 +97,74 @@ lemma vrepeat_bod_monocorrect:
   apply (intro exI conjI; assumption)
   done
 
+lemma rename_mono_prog_\<xi>m0_\<xi>p0:
+  "rename_mono_prog rename' \<Xi>' \<xi>m0 \<xi>p0"
+  unfolding rename_mono_prog_def \<xi>m0_def \<xi>p0_def
+  by clarsimp
+
+lemma vrepeat_monoexpr_correct:
+  "\<And>v v'.
+       \<lbrakk>proc_ctx_wellformed \<Xi>';
+        \<xi>' matches \<Xi>';
+        rename_mono_prog rename' \<Xi>' \<xi>' \<xi>'';
+        vrepeat \<Xi>' \<xi>' \<tau>a \<tau>o (rename_val rename' (monoval v)) v'\<rbrakk>
+       \<Longrightarrow> \<exists>v''. v' = rename_val rename' (monoval v'') \<and> vrepeatp \<xi>'' v v''"
+  unfolding vrepeat_def vrepeatp_def
+  apply clarsimp
+  apply (case_tac v; clarsimp)
+  apply (case_tac z; clarsimp)
+  apply (drule_tac \<xi>'' = \<xi>'' in  vrepeat_bod_monoexpr_correct[rotated 7]; simp?)
+  done
+
+lemma rename_mono_prog_\<Xi>_\<xi>m0_\<xi>p0:
+  "rename_mono_prog rename' \<Xi>' \<xi>m0 \<xi>p0"
+  unfolding rename_mono_prog_def \<xi>m0_def \<xi>p0_def
+  by clarsimp
+
+lemma rename_mono_prog_\<Xi>_\<xi>m1_\<xi>p1:
+  "rename_mono_prog rename \<Xi> \<xi>m1 \<xi>p1"
+  unfolding rename_mono_prog_def
+  apply (clarsimp simp: \<xi>m1_def \<xi>p1_def)
+  apply (rule conjI; clarsimp)
+   apply (subst (asm) rename_def; clarsimp simp: assoc_lookup.simps split: if_splits)
+   apply (rule vrepeat_monoexpr_correct[OF _ \<xi>m0_matches_\<Xi> rename_mono_prog_\<xi>m0_\<xi>p0]; simp?)
+  apply (clarsimp simp: \<xi>m0_def)
+  done
+
+end (* of context *)
 
 (*
+
+
+context value_sem begin
+definition
+  rename_mono_prog' ::
+  "(('f \<times> type list) \<Rightarrow> 'f) \<Rightarrow> ('f \<Rightarrow> poly_type) \<Rightarrow> ('f, 'a) vabsfuns \<Rightarrow> ('f, 'a) vabsfuns \<Rightarrow> bool"
+where
+  "rename_mono_prog' rename' \<Xi>' \<xi>\<^sub>r\<^sub>m \<xi>\<^sub>p \<equiv>
+     \<xi>\<^sub>r\<^sub>m matches \<Xi>' \<longrightarrow>
+     proc_ctx_wellformed \<Xi>' \<longrightarrow>
+     (\<forall>f ts v v' v''. \<xi>\<^sub>r\<^sub>m (rename' (f, ts)) (rename_val rename' (monoval v)) v'' \<longrightarrow>
+        (\<xi>\<^sub>p f v v' \<longrightarrow>  v'' = (rename_val rename' (monoval v'))) \<and> (\<exists>v'. \<xi>\<^sub>p f v v'))"
+
+lemma
+  "rename_mono_prog' rename' \<Xi>' \<xi>\<^sub>r\<^sub>m \<xi>\<^sub>p \<Longrightarrow> rename_mono_prog rename' \<Xi>' \<xi>\<^sub>r\<^sub>m \<xi>\<^sub>p"
+  unfolding rename_mono_prog_def rename_mono_prog'_def
+  apply clarsimp
+  apply (erule_tac x = f in allE)
+  apply (erule_tac x = ts in allE)
+  apply (subgoal_tac "\<exists>v'. \<xi>\<^sub>p f v v'")
+   apply (erule exE)
+   apply (erule_tac x = v in allE)
+   apply (erule_tac x = v'a in allE)
+   apply (erule_tac x = v' in allE)
+   apply clarsimp
+   apply (intro exI conjI; simp)
+  apply clarsimp
+  done
+end (* of context *)
+
+context shallow begin
 lemma repeat_bod'_monocorrect:
   "\<lbrakk>proc_ctx_wellformed \<Xi>';
     \<xi>' matches \<Xi>';
@@ -411,6 +467,5 @@ lemma rename_monoexpr_correct':
 end (* of context *)
 *)
 
-end (* of context *)
 
 end

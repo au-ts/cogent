@@ -41,7 +41,7 @@ lemma dispatch_step:
   apply (clarsimp simp: corres_def)
   apply (erule impE, rule \<xi>_0_matchesu_\<Xi>)
   apply (frule_tac \<xi>' = \<xi>_0  and ro = ro and ra = ra and wa = wa and obsv = obsv and acc = acc
-      in urepeat_bod_preservation; simp?)
+      in upd.urepeat_bod_preservation; simp?)
      apply (rule \<xi>_0_matchesu_\<Xi>)
     apply blast
    apply (clarsimp simp: val_rel_fun_tag cogent_function_val_rel untyped_func_enum_defs)
@@ -74,19 +74,13 @@ lemma dispatch_step:
   apply (simp only: less_is_non_zero_p1[THEN  unatSuc2])
   apply (rule conjI)
    apply (intro exI conjI; assumption?)
-   apply (rule urepeat_bod_step; simp?)
+   apply (rule upd.urepeat_bod_step; simp?)
    apply (simp add: val_rel_fun_tag cogent_function_val_rel untyped_func_enum_defs)
    apply (rule u_sem_app[where ts ="[]" and y = "Var 0" and \<gamma> = "[_]",
         simplified,OF _ u_sem_var, simplified]; simp?)
    apply (intro u_sem_fun)
   apply unat_arith
   done
-
-inductive_cases u_sem_appE: "\<xi>',\<gamma> \<turnstile> (\<sigma>,App x y)\<Down>! (\<sigma>',v)"
-inductive_cases u_sem_funE: "\<xi>',\<gamma> \<turnstile> (\<sigma>,Fun x y)\<Down>! (\<sigma>',v)"
-inductive_cases u_sem_afunE: "\<xi>',\<gamma> \<turnstile> (\<sigma>,AFun x y)\<Down>! (\<sigma>',v)"
-inductive_cases u_sem_primE: "\<xi>',\<gamma> \<turnstile> (\<sigma>,Prim x y)\<Down>! (\<sigma>',v)"
-inductive_cases u_sem_consE: "\<xi>',\<gamma> \<turnstile>* (\<sigma>,xs)\<Down>! (\<sigma>',v)"
 
 lemma log2stop_deterministic:
   "\<lbrakk>\<xi>_0, [URecord [(a, f), (b, g)]] \<turnstile> (\<sigma>, Generated_TypeProof.log2stop) \<Down>! (\<sigma>', c); d \<noteq> c\<rbrakk>
@@ -152,7 +146,7 @@ lemma dispatch_stop:
   apply (clarsimp simp: corres_def)
   apply (erule impE, rule \<xi>_0_matchesu_\<Xi>)
  apply (frule_tac \<xi>' = \<xi>_0  and ro = ro and ra = ra and wa = wa and obsv = obsv and acc = acc
-      in urepeat_bod_preservation; simp?)
+      in upd.urepeat_bod_preservation; simp?)
      apply (rule \<xi>_0_matchesu_\<Xi>)
     apply blast
    apply (clarsimp simp: val_rel_fun_tag cogent_function_val_rel untyped_func_enum_defs)
@@ -209,7 +203,7 @@ lemma dispatch_stop:
      apply (intro u_sem_fun)
     apply (drule_tac d = "UPrim (LBool False)" and \<sigma>'' = \<sigma>'' in log2stop_deterministic(1);simp)
    apply (intro exI conjI; simp?)
-   apply (rule_tac i = n in urepeat_bod_early_termination; simp add: word_less_nat_alt)
+   apply (rule_tac i = n in upd.urepeat_bod_early_termination; simp add: word_less_nat_alt)
    apply (clarsimp simp: val_rel_fun_tag cogent_function_val_rel untyped_func_enum_defs abbreviated_type_defs)
    apply (rule u_sem_app[where ts ="[]" and y = "Var 0" and \<gamma> = "[_]",
         simplified,OF _ u_sem_var, simplified]; simp?)
@@ -228,7 +222,7 @@ lemma dispatch_stop:
   done
 
 
-lemma 
+lemma repeat_corres:
   "\<And>v' i \<gamma> \<Gamma> \<sigma> s.
     \<lbrakk>stop_C v' = FUN_ENUM_log2stop; step_C v' = FUN_ENUM_log2step; i < length \<gamma>; val_rel (\<gamma> ! i) v';
      \<Gamma> ! i = Some (fst (snd repeat_0_type))\<rbrakk>
@@ -263,7 +257,7 @@ lemma
   apply clarsimp
   unfolding repeat_0'_def
   apply (clarsimp simp: L2polish unknown_bind_ignore)
-  apply (subst \<xi>1_def; clarsimp simp: repeat_def)
+  apply (subst \<xi>1_def; clarsimp simp: urepeat_def)
   apply (subgoal_tac "is_uvalfun f \<and>
                is_uvalfun g \<and>
                \<Xi>, [], [Some (TRecord

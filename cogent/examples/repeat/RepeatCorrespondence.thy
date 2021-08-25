@@ -2,7 +2,7 @@ theory RepeatCorrespondence
   imports RepeatUpdate RepeatValue
 begin
 
-context correspondence_init begin
+context correspondence begin
 
 inductive_cases u_v_primE'     [elim] : "\<Xi>', \<sigma> \<turnstile> UPrim l \<sim> x : TPrim \<tau> \<langle>r, w\<rangle>"
 
@@ -161,6 +161,72 @@ lemma uvrepeat_bod_val_executes_from_upd_executes:
   apply (intro exI conjI; assumption)
   done
 
+lemma uvrepeat_monocorrespond_upward_propagation:
+  "\<And>\<sigma> \<sigma>' au av v v' r w.
+       \<lbrakk>proc_ctx_wellformed \<Xi>';
+        \<xi>u \<sim> \<xi>v matches-u-v \<Xi>';
+        \<Xi>', \<sigma> \<turnstile> au \<sim> av : TRecord
+                           [(''n'', TPrim (Num U64), Present),
+                            (''stop'', TFun (TRecord [(''acc'', bang \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed) (TPrim Bool), Present),
+                            (''step'', TFun (TRecord [(''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed) \<tau>a, Present),
+                            (''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)]
+                           Unboxed \<langle>r, w\<rangle>;
+        urepeat \<Xi>' \<xi>u \<tau>a \<tau>o (\<sigma>, au) (\<sigma>', v)\<rbrakk>
+       \<Longrightarrow> (val.vrepeat \<Xi>' \<xi>v \<tau>a \<tau>o av v' \<longrightarrow>
+            (\<exists>r' w'. \<Xi>', \<sigma>' \<turnstile> v \<sim> v' : \<tau>a \<langle>r', w'\<rangle> \<and> r' \<subseteq> r \<and> upd.frame \<sigma> w \<sigma>' w')) \<and>
+            (\<exists>v'. val.vrepeat \<Xi>' \<xi>v \<tau>a \<tau>o av v')"
+  unfolding urepeat_def val.vrepeat_def
+  apply clarsimp
+  apply (erule u_v_urecE; clarsimp)
+  apply (erule u_v_r_consE'; clarsimp)+
+  apply (erule u_v_uprimE)
+  apply (erule u_v_r_uemptyE)
+  apply clarsimp
+  apply (frule u_v_tfun_no_pointers)
+  apply (frule u_v_tfun_no_pointers(2))
+  apply clarsimp
+  apply (rename_tac \<sigma> \<sigma>' v v' n f f' g g' rg wg acc acc' ra wa obsv obsv' ro wo)
+  apply (frule_tac u = g in  u_v_tfun_no_pointers(1))
+  apply (frule_tac u = g in u_v_tfun_no_pointers(2))
+  apply clarsimp
+  apply (cut_tac \<Xi>' = \<Xi>' and \<sigma> = \<sigma> and \<tau> = \<tau>o and u  = obsv and r = ro and w = wo in u_v_bang_not_writable(1); simp?)
+  apply clarsimp
+  apply (rule conjI; clarsimp)
+   apply (drule uvrepeat_bod_monocorrespondence[rotated 5]; simp?)
+    apply (erule u_v_tfunE; clarsimp)+
+     apply blast
+    apply blast
+   apply blast
+  apply (drule_tac vacc = acc' and vobsv = obsv' and ra = ra and wa = wa
+      in uvrepeat_bod_val_executes_from_upd_executes[rotated 5]; simp?)
+   apply blast
+  apply (erule u_v_tfunE; clarsimp)+
+    apply (intro conjI exI upd_val_rel_to_vval_typing(1); assumption)+
+  apply (erule u_v_tfunE; clarsimp)+
+   apply (intro conjI exI upd_val_rel_to_vval_typing(1); assumption)+
+  done
+
+end (* of context *)
+
+context correspondence_init begin
+
+lemma \<xi>_0_\<xi>m0_matchesuv_\<Xi>:
+  "\<xi>_0 \<sim> val.\<xi>m0 matches-u-v \<Xi>'"
+  unfolding proc_env_u_v_matches_def \<xi>0_def val.\<xi>m0_def
+  by clarsimp
+
+lemma \<xi>_1_\<xi>m1_matchesuv_\<Xi>:
+  "\<xi>_1 \<sim> val.\<xi>m1 matches-u-v \<Xi>"
+  unfolding proc_env_u_v_matches_def \<xi>1_def val.\<xi>m1_def
+  apply clarsimp
+  apply (rule conjI; clarsimp)
+  apply (subst (asm) \<Xi>_def; clarsimp simp: repeat_0_type_def)
+   apply (rule uvrepeat_monocorrespond_upward_propagation[OF proc_ctx_wellformed_\<Xi> \<xi>_0_\<xi>m0_matchesuv_\<Xi>];
+      (simp add: abbreviated_type_defs)?)
+  apply (clarsimp simp: \<xi>0_def val.\<xi>m0_def)
+  done
+
+end (* of context *)
 (*
 lemma repeat_bod_monocorrespondence:
   "\<lbrakk>proc_ctx_wellformed \<Xi>';
