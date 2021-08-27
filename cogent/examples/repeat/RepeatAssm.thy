@@ -1,37 +1,14 @@
 theory RepeatAssm
   imports
-    UpdateSemHelper
-    ValueSemHelper
+    RepeatUpdate
+    RepeatValue
+    RepeatMono
+    RepeatCorrespondence
+    RepeatScorres
     "build/Generated_AllRefine"
 begin
 
-section "C helpers"
-
-lemma whileLoopE_add_invI:
-  assumes "\<lbrace> P \<rbrace> whileLoopE_inv c b init I (measure M) \<lbrace> Q \<rbrace>, \<lbrace> R \<rbrace>!"
-  shows "\<lbrace> P \<rbrace> whileLoopE c b init \<lbrace> Q \<rbrace>, \<lbrace> R \<rbrace>!"
-  by (metis assms whileLoopE_inv_def)
-
-lemma validNF_select_UNIV:
-  "\<lbrace>\<lambda>s. \<forall>x. Q x s\<rbrace> select UNIV \<lbrace>Q\<rbrace>!"
-  apply (subst select_UNIV_unknown)
-  apply (rule validNF_unknown)
-  done
-
-section "typing helpers"
-
-lemma typing_mono_app_cogent_fun:
-  "\<Xi>', [], [option.Some a] \<turnstile> f : b \<Longrightarrow> \<Xi>', [], [option.Some a] \<turnstile> App (Fun f []) (Var 0) : b"
-  apply (frule typing_to_kinding_env(1); simp?)
-  apply (rule typing_app[where x = a and y = b and ?\<Gamma>1.0 = "[option.None]" and ?\<Gamma>2.0 = "[option.Some a]"]; simp?)
-    apply (clarsimp simp: split_conv_all_nth)
-    apply (rule right; simp)
-    apply (rule typing_fun[where ts = "[]", OF _ _ _ _]; (simp add: Cogent.empty_def weakening_conv_all_nth)?)
-   apply (rule none)
-  apply (rule typing_var; simp add: Cogent.empty_def weakening_conv_all_nth)
-  apply (rule keep; simp)
-  done
-
+section "Function types wellformed"
 
 lemma proc_ctx_wellformed_\<Xi>:
   "proc_ctx_wellformed \<Xi>"
@@ -40,119 +17,154 @@ lemma proc_ctx_wellformed_\<Xi>:
             log2stop_type_def log2step_type_def mylog2_type_def
   by (clarsimp simp: assoc_lookup.simps)
 
+section "Abstract functions specification for the update semantics"
 
-section "correspondence helpers"
+overloading \<xi>1 \<equiv> \<xi>_1
+begin
+definition \<xi>1 :: "(funtyp, abstyp, ptrtyp) uabsfuns"
+  where
+"\<xi>1 f x y = (if f = ''repeat_0'' then urepeat \<Xi> \<xi>_0 abbreviatedType1 (TPrim (Num U64)) x y  else \<xi>_0 f x y)"
+end
 
-context correspondence begin
+overloading \<xi>0 \<equiv> \<xi>_0
+begin
+definition \<xi>0 :: "(funtyp, abstyp, ptrtyp) uabsfuns"
+  where
+"\<xi>0 f x y = False"
+end
 
-inductive_cases u_v_urecE      [elim] : "\<Xi>', \<sigma> \<turnstile> URecord fs \<sim> v : \<tau> \<langle>r, w\<rangle>"
-inductive_cases u_v_uprimE     [elim] : "\<Xi>', \<sigma> \<turnstile> UPrim l \<sim> v : TPrim \<tau> \<langle>r, w\<rangle>"
-inductive_cases u_v_r_uemptyE  [elim] : "\<Xi>', \<sigma> \<turnstile>* [] \<sim> vs :r \<tau>s \<langle>r, w\<rangle>"
-inductive_cases u_v_ufunctionE [elim] : "\<Xi>', \<sigma> \<turnstile> UFunction f ts \<sim> v : TFun \<tau> \<rho> \<langle>r, w\<rangle>"
-inductive_cases u_v_uafunE     [elim] : "\<Xi>', \<sigma> \<turnstile> UAFunction f ts \<sim> v : TFun \<tau> \<rho> \<langle>r, w\<rangle>"
-inductive_cases u_v_tfunE      [elim] : "\<Xi>', \<sigma> \<turnstile> u \<sim> v : TFun \<tau> \<rho> \<langle>r, w\<rangle>"
-
-lemma u_v_discardable_or_shareable_not_writable:
-assumes "D \<in> k \<or> S \<in> k"
-shows "\<lbrakk> \<Xi>', \<sigma> \<turnstile>  u \<sim> v  : \<tau>  \<langle> r , w \<rangle>; K' \<turnstile>  \<tau>  :\<kappa>  k \<rbrakk> \<Longrightarrow> w = {}"
-and   "\<lbrakk> \<Xi>', \<sigma> \<turnstile>* fs \<sim> fs' :r \<tau>s \<langle> r , w \<rangle>; K' \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> w = {}"
-  using assms
-  by (fastforce dest!:  upd_val_rel_to_uval_typing upd.discardable_or_shareable_not_writable[OF assms])+
-
-lemma u_v_discardable_or_shareable_not_writable':
-shows "\<lbrakk> k = kinding_fn K' \<tau>; D \<in> k \<or> S \<in> k; \<Xi>', \<sigma> \<turnstile>  u  \<sim> v  :  \<tau>  \<langle> r , w \<rangle>; K' \<turnstile>  \<tau>  :\<kappa> k \<rbrakk> \<Longrightarrow> w = {}"
-and   "\<lbrakk> k = (\<Inter>(_,t,b)\<in>set \<tau>s. (case b of Taken \<Rightarrow> UNIV | Present \<Rightarrow> kinding_fn K' t));
-         D \<in> k \<or> S \<in> k; \<Xi>', \<sigma> \<turnstile>* fs \<sim> fs' :r \<tau>s \<langle> r , w \<rangle>; K' \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> w = {}"
-  by (meson u_v_discardable_or_shareable_not_writable)+
-
-lemma u_v_bang_not_writable:
-shows "\<lbrakk> \<Xi>', \<sigma> \<turnstile>  u \<sim> v  :  bang \<tau>  \<langle> r , w \<rangle> \<rbrakk> \<Longrightarrow> w = {}"
-and   "\<lbrakk> \<Xi>', \<sigma> \<turnstile>* fs \<sim> fs' :r map (\<lambda>(n, t, b). (n, bang t, b)) \<tau>s \<langle> r , w \<rangle>  \<rbrakk> \<Longrightarrow> w = {}"
-   apply (frule u_v_discardable_or_shareable_not_writable'(1)[where K' = "[]", simplified, rotated -2]; simp?)
-    apply (rule kindingI[OF upd_val_rel_to_uval_typing(1)[THEN upd.uval_typing_to_wellformed(1)]]; simp?)
-   apply (cut_tac K = "[]" and t = \<tau> in bang_kinding_fn; clarsimp)
-  apply (frule u_v_discardable_or_shareable_not_writable'(2)[where K' = "[]", simplified, rotated -2]; simp?)
-  apply (frule upd_val_rel_to_uval_typing(2)[THEN upd.uval_typing_to_wellformed(2)])
-   apply (clarsimp simp: kinding_record_def)
-  apply (rename_tac a aa b)
-   apply (erule_tac x = "(a, aa, b)" in ballE; clarsimp)
-  apply (clarsimp split: record_state.splits)
-  apply (rename_tac a aa ab ac)
-  apply (cut_tac K = "[]" and t = ac in bang_kinding_fn; clarsimp)
-  done
-
-lemma \<xi>ule_matchesuv:
-  "\<lbrakk>\<xi>ub \<sim> \<xi>v matches-u-v \<Xi>'; \<xi>ule \<xi>ua \<xi>ub\<rbrakk> \<Longrightarrow> \<xi>ua \<sim> \<xi>v matches-u-v \<Xi>'"
-  unfolding proc_env_u_v_matches_def \<xi>ule_def
-  apply clarsimp
-  apply (erule_tac x = f in allE; clarsimp)
-  apply (erule_tac x = \<sigma> in allE)
-  apply (erule_tac x = \<sigma>' in allE)
-  apply (erule_tac x = \<tau>s in allE; clarsimp)
-  apply (erule_tac x = aa in allE)
-  apply (erule_tac x = a' in allE)
-  apply (erule_tac x = v in allE)
-  apply (erule_tac x = v' in allE)
-  apply (erule_tac x = r in allE)
-  apply (erule_tac x = w in allE; clarsimp)
-  apply (drule_tac c = "(f, (\<sigma>, aa), (\<sigma>', v))" in  subsetD; simp)
-  done
-
-definition proc_env_u_v_matches_alt :: "(('f, 'au, 'l) uabsfuns)
-
-                                  \<Rightarrow> (('f, 'av)    vabsfuns)
-                                  \<Rightarrow> ('f \<Rightarrow> poly_type)
-                                  \<Rightarrow> bool"
-           ("_ \<sim> _ altmatches-u-v _" [30,20] 60) where
-  "\<xi>u \<sim> \<xi>v altmatches-u-v \<Xi>'
-          \<equiv> (\<forall> f. let (K, \<tau>i, \<tau>o) = \<Xi>' f
-                  in (\<forall> \<sigma> \<sigma>' \<tau>s a a' v r w.
-                         list_all2 (kinding []) \<tau>s K
-                      \<longrightarrow> (\<Xi>' , \<sigma> \<turnstile> a \<sim> a' : instantiate \<tau>s \<tau>i \<langle>r, w\<rangle>)
-                      \<longrightarrow> \<xi>u f (\<sigma>, a) (\<sigma>', v)
-                      \<longrightarrow> (\<exists>v'. \<xi>v f a' v' \<and> 
-                            (\<exists>r' w'. (\<Xi>' , \<sigma>' \<turnstile> v \<sim> v' : instantiate \<tau>s \<tau>o \<langle>r', w'\<rangle>)
-                                    \<and> r' \<subseteq> r \<and> upd.frame \<sigma> w \<sigma>' w'))))"
-
-lemma 
-  "\<xi>u \<sim> \<xi>v matches-u-v \<Xi>' \<Longrightarrow> \<xi>u \<sim> \<xi>v altmatches-u-v \<Xi>'"
-  unfolding proc_env_u_v_matches_def proc_env_u_v_matches_alt_def
-  apply (clarsimp split: prod.splits)
-  apply (elim allE, erule impE, assumption)
-  apply (erule_tac x = \<sigma> in allE)
-  apply (erule_tac x = \<sigma>' in allE)
-  apply (elim allE, erule impE, assumption)
-  apply (erule allE, erule_tac x = a' in allE, elim allE, erule impE, assumption)
-  apply (subst (asm) all_comm)
-  apply (erule_tac x = r in allE)
-  apply (subst (asm) all_comm)
-  apply (erule_tac x = w in allE)
-  apply clarsimp
-  apply (elim allE impE, assumption)
-  apply clarsimp
-  apply (intro exI conjI; assumption)
-  done
-
-end (* of context *)
-
-section "monomorphisation helpers"
-
-section "corres helpers"
+subsection "Preservation for abstract functions"
 
 context update_sem_init begin
 
-lemma corres_\<xi>ule:
-  "\<lbrakk>corres srel c m \<xi>a \<gamma> \<Xi>' \<Gamma> \<sigma> s; \<xi>ule \<xi>a \<xi>b\<rbrakk> \<Longrightarrow> corres srel c m \<xi>b \<gamma> \<Xi>' \<Gamma> \<sigma> s"
-  unfolding corres_def
+lemma \<xi>_0_matchesu_\<Xi>:
+  "\<xi>_0 matches-u \<Xi>'"
+  unfolding proc_env_matches_ptrs_def \<xi>0_def
+  by clarsimp
+ 
+lemma \<xi>_1_matchesu_\<Xi>:
+  "\<xi>_1 matches-u \<Xi>"
+  unfolding proc_env_matches_ptrs_def \<xi>1_def
   apply clarsimp
-  apply (erule impE, rule \<xi>ule_matches, assumption, assumption)
-  apply (erule impE, intro exI, assumption)
-  apply clarsimp
-  apply (elim allE, erule impE, assumption)
-  apply clarsimp
-  apply (drule u_sem_u_sem_all_\<xi>ule; simp?)
-  apply (intro exI conjI; assumption)
+  apply (rule conjI)
+   apply clarsimp
+   apply (subst (asm) \<Xi>_def; clarsimp)
+   apply (clarsimp simp: repeat_0_type_def)
+   apply (rule urepeat_preservation[OF proc_ctx_wellformed_\<Xi> \<xi>_0_matchesu_\<Xi>]; (simp add: abbreviated_type_defs)?)
+  apply (clarsimp simp: \<xi>0_def)
   done
 end (* of context *)
+
+subsection "Partial ordering on abstract functions"
+
+lemma \<xi>_0_le_\<xi>_1:
+  "\<xi>ule \<xi>_0 \<xi>_1"
+  unfolding \<xi>0_def \<xi>ule_def
+  by simp
+
+section "Abstract functions specifications for the monomorphic value semantics"
+
+context value_sem begin
+
+definition \<xi>m0 :: "'b \<Rightarrow> ('b, 'a) vval \<Rightarrow> ('b, 'a) vval \<Rightarrow> bool "
+  where
+"\<xi>m0 f x y = False"
+
+definition \<xi>m1 :: "funtyp \<Rightarrow> (funtyp, 'a) vval \<Rightarrow> (funtyp, 'a) vval \<Rightarrow> bool "
+  where
+"\<xi>m1 f x y = (if f = ''repeat_0'' then vrepeat \<Xi> \<xi>m0 abbreviatedType1 (TPrim (Num U64)) x y else \<xi>m0 f x y)"
+
+subsection "Preservation for abstract functions"
+
+lemma \<xi>m0_matches_\<Xi>:
+  "\<xi>m0 matches \<Xi>'"
+  unfolding proc_env_matches_def \<xi>m0_def
+  by clarsimp
+
+lemma \<xi>m1_matches_\<Xi>:
+  "\<xi>m1 matches \<Xi>"
+  unfolding proc_env_matches_def \<xi>m1_def
+  apply clarsimp
+  apply (rule conjI; clarsimp)
+   apply (subst (asm) \<Xi>_def; clarsimp simp: repeat_0_type_def)
+   apply (rule vrepeat_preservation[OF proc_ctx_wellformed_\<Xi> \<xi>m0_matches_\<Xi>]; (simp add: abbreviated_type_defs)?)
+  apply (clarsimp simp: \<xi>m0_def)
+  done
+
+subsection "Partial ordering on abstract functions"
+
+lemma \<xi>m0_le_\<xi>m1:
+  "\<xi>vle \<xi>m0 \<xi>m1"
+  unfolding \<xi>m0_def \<xi>vle_def
+  by simp
+
+end (* of context *)
+
+section "Abstract functions specifications for the polymorphic value semantics"
+
+definition \<xi>p0 :: "'b \<Rightarrow> ('b, 'c) vval \<Rightarrow> ('b, 'c) vval \<Rightarrow> bool"
+  where
+"\<xi>p0 f x y = False"
+
+definition \<xi>p1 :: "funtyp \<Rightarrow> (funtyp, 'c) vval \<Rightarrow> (funtyp, 'c) vval \<Rightarrow> bool"
+  where
+"\<xi>p1 f x y = (if f = ''repeat'' then prepeat \<xi>p0 x y else \<xi>p0 f x y)"
+
+subsection "Partial ordering on abstract functions"
+
+lemma \<xi>p0_le_\<xi>p1:
+  "\<xi>vle \<xi>p0 \<xi>p1"
+  unfolding \<xi>p0_def \<xi>vle_def
+  by simp
+
+section "Correspondence between abstract functions in the update and value semantics"
+
+context correspondence_init begin
+
+lemma \<xi>_0_\<xi>m0_matchesuv_\<Xi>:
+  "\<xi>_0 \<sim> val.\<xi>m0 matches-u-v \<Xi>'"
+  unfolding proc_env_u_v_matches_def \<xi>0_def val.\<xi>m0_def
+  by clarsimp
+
+lemma \<xi>_1_\<xi>m1_matchesuv_\<Xi>:
+  "\<xi>_1 \<sim> val.\<xi>m1 matches-u-v \<Xi>"
+  unfolding proc_env_u_v_matches_def \<xi>1_def val.\<xi>m1_def
+  apply clarsimp
+  apply (rule conjI; clarsimp)
+  apply (subst (asm) \<Xi>_def; clarsimp simp: repeat_0_type_def)
+   apply (rule uvrepeat_monocorrespond_upward_propagation[OF proc_ctx_wellformed_\<Xi> \<xi>_0_\<xi>m0_matchesuv_\<Xi>];
+      (simp add: abbreviated_type_defs)?)
+  apply (clarsimp simp: \<xi>0_def val.\<xi>m0_def)
+  done
+
+end (* of context *)
+
+section "Monomorphisation of abstract functions"
+
+context value_sem begin
+
+lemma rename_mono_prog_\<xi>m0_\<xi>p0:
+  "rename_mono_prog rename' \<Xi>' \<xi>m0 \<xi>p0"
+  unfolding rename_mono_prog_def \<xi>m0_def \<xi>p0_def
+  by clarsimp
+
+lemma rename_mono_prog_\<Xi>_\<xi>m1_\<xi>p1:
+  "rename_mono_prog rename \<Xi> \<xi>m1 \<xi>p1"
+  unfolding rename_mono_prog_def
+  apply (clarsimp simp: \<xi>m1_def \<xi>p1_def)
+  apply (rule conjI; clarsimp)
+   apply (subst (asm) rename_def; clarsimp simp: assoc_lookup.simps split: if_splits)
+   apply (rule prepeat_monoexpr_correct[OF _ \<xi>m0_matches_\<Xi> rename_mono_prog_\<xi>m0_\<xi>p0]; simp?)
+  apply (clarsimp simp: \<xi>m0_def)
+  done
+
+end (* of context *)
+
+section "Correspondence between shallow and polymorphic value semantics"
+
+lemma (in shallow) scorres_repeat:
+  "scorres repeat (AFun ''repeat'' ts) \<gamma> \<xi>p1"
+  by (rule repeat_scorres[OF \<xi>p0_le_\<xi>p1]; simp add: \<xi>p1_def fun_eq_iff)
+
 
 end

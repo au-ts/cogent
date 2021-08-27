@@ -11,7 +11,7 @@ fun repeatatl :: "nat \<Rightarrow> ('a \<Rightarrow> 'b \<Rightarrow> bool) \<R
 
 declare repeatatl.simps[simp del]
 
-subsection "Step Lemmas"
+subsection "Step and early termination lemmas"
 
 lemma repeatatl_step_stop_Suc:
   "f (repeatatl n f g a b) b 

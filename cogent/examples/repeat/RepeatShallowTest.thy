@@ -2,7 +2,7 @@ theory RepeatShallowTest
   imports RepeatShallow
 begin
 
-section "@{term repeat} Validation"
+section "@{term repeatatl} Validation"
 
 subsection "Fold Break using @{term repeatatl}"
 

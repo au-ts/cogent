@@ -1,7 +1,22 @@
 theory UpdateSemHelper
-  imports "Cogent.UpdateSemantics"
+  imports Cogent.UpdateSemantics
 begin
-section "update semantics helpers"
+
+section "Function checking and extraction"
+
+fun is_uvalfun
+  where
+"is_uvalfun (UFunction _ _) = True" |
+"is_uvalfun (UAFunction _ _) = True" |
+"is_uvalfun _ = False"
+
+fun uvalfun_to_expr
+  where
+"uvalfun_to_expr (UFunction f ts) = Fun f ts" |
+"uvalfun_to_expr (UAFunction f ts) = AFun f ts" |
+"uvalfun_to_expr _ = undefined"
+
+section "Evaluation elimination rules"
 
 inductive_cases u_sem_appE: "\<xi>',\<gamma> \<turnstile> (\<sigma>,App x y)\<Down>! (\<sigma>',v)"
 inductive_cases u_sem_funE: "\<xi>',\<gamma> \<turnstile> (\<sigma>,Fun x y)\<Down>! (\<sigma>',v)"
@@ -9,6 +24,36 @@ inductive_cases u_sem_afunE: "\<xi>',\<gamma> \<turnstile> (\<sigma>,AFun x y)\<
 inductive_cases u_sem_primE: "\<xi>',\<gamma> \<turnstile> (\<sigma>,Prim x y)\<Down>! (\<sigma>',v)"
 inductive_cases u_sem_consE: "\<xi>',\<gamma> \<turnstile>* (\<sigma>,xs)\<Down>! (\<sigma>',v)"
 inductive_cases u_sem_varE: "\<xi>', \<gamma> \<turnstile> (\<sigma>, Var x) \<Down>! (\<sigma>', r)"
+
+inductive_cases u_sem_varE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, Var i) \<Down>! v'"
+inductive_cases u_sem_litE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, Lit l) \<Down>! v'"
+inductive_cases u_sem_primE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, Prim p as) \<Down>! v'"
+inductive_cases u_sem_castE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, Cast \<tau> e) \<Down>! v'"
+inductive_cases u_sem_funE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, Fun f ts) \<Down>! v'"
+inductive_cases u_sem_afunE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, AFun f ts) \<Down>! v'"
+inductive_cases u_sem_appE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, App x y) \<Down>! v'"
+inductive_cases u_sem_conE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, Con ts t x) \<Down>! v'"
+inductive_cases u_sem_memberE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, Member e f) \<Down>! v'"
+inductive_cases u_sem_unitE': "\<xi>' , \<gamma> \<turnstile> (\<sigma>, Unit) \<Down>! v'"
+inductive_cases u_sem_tupleE': "\<xi>' , \<gamma> \<turnstile> (\<sigma>, Tuple x y) \<Down>! v'"
+inductive_cases u_sem_esacE': "\<xi>' , \<gamma> \<turnstile> (\<sigma>, Esac t tag) \<Down>! v'"
+inductive_cases u_sem_letE': "\<xi>' , \<gamma> \<turnstile> (\<sigma>, Let a b) \<Down>! v'"
+inductive_cases u_sem_letbangE': "\<xi>' , \<gamma> \<turnstile> (\<sigma>, LetBang vs a b) \<Down>! v'"
+inductive_cases u_sem_caseE': "\<xi>' , \<gamma> \<turnstile> (\<sigma>, Case x t m n) \<Down>! v'"
+inductive_cases u_sem_ifE': "\<xi>' , \<gamma> \<turnstile> (\<sigma>, If x t e) \<Down>! v'"
+inductive_cases u_sem_structE': "\<xi>' , \<gamma> \<turnstile> (\<sigma>, Struct ts xs) \<Down>! v'"
+inductive_cases u_sem_takeE': "\<xi>' , \<gamma> \<turnstile> (\<sigma>, Take x f e) \<Down>! v'"
+inductive_cases u_sem_putE': "\<xi>' , \<gamma> \<turnstile> (\<sigma>, Put x f e) \<Down>! v'"
+inductive_cases u_sem_splitE': "\<xi>' , \<gamma> \<turnstile> (\<sigma>, Split x e) \<Down>! v'"
+inductive_cases u_sem_promoteE': "\<xi>' , \<gamma> \<turnstile> (\<sigma>, Promote t' e) \<Down>! v'"
+inductive_cases u_sem_all_emptyE': "\<xi>' , \<gamma> \<turnstile>* (\<sigma>, []) \<Down>! v'"
+inductive_cases u_sem_all_consE': "\<xi>' , \<gamma> \<turnstile>* (\<sigma>, x # xs) \<Down>! vs'"
+
+lemmas u_sem_u_sem_all_elims = u_sem_varE' u_sem_litE' u_sem_primE' u_sem_castE' u_sem_funE'
+  u_sem_afunE' u_sem_conE' u_sem_unitE' u_sem_tupleE' u_sem_esacE' u_sem_splitE' u_sem_promoteE'
+  u_sem_letE' u_sem_letbangE' u_sem_ifE' u_sem_structE' u_sem_all_emptyE' u_sem_all_consE'
+
+section "Ordering on abstract function specifications and its properties"
 
 definition \<xi>ule :: "('f, 'a, 'l) uabsfuns \<Rightarrow> ('f, 'a, 'l) uabsfuns \<Rightarrow> bool"
   where
@@ -38,52 +83,27 @@ next
     by (rule u_sem_u_sem_all.u_sem_app; simp?)
 qed (auto intro: u_sem_u_sem_all.intros)
 
+lemma (in update_sem) \<xi>ule_matches:
+  "\<lbrakk>\<xi>b matches-u \<Xi>'; \<xi>ule \<xi>a \<xi>b\<rbrakk> \<Longrightarrow> \<xi>a matches-u \<Xi>'"
+  unfolding proc_env_matches_ptrs_def \<xi>ule_def
+  apply clarsimp
+  apply (rename_tac f K a b \<sigma> \<sigma>' \<tau>s v v' r w)
+  apply (erule_tac x = f in allE; clarsimp)
+  apply (erule_tac x = \<sigma> in allE)
+  apply (erule_tac x = \<sigma>' in allE)
+  apply (erule_tac x = \<tau>s in allE; clarsimp)
+  apply (erule_tac x = v in allE)
+  apply (erule_tac x = v' in allE)
+  apply (erule_tac x = r in allE)
+  apply (erule_tac x = w in allE; clarsimp)
+  apply (drule_tac c = "(f, (\<sigma>, v), (\<sigma>', v'))" in  subsetD; simp)
+  done
+
+section "Determinism of evaluation"
+
 definition \<xi>u_determ :: "('f, 'a, 'l) uabsfuns \<Rightarrow> bool"
   where
 "\<xi>u_determ \<xi>u = (\<forall>f a b c. \<xi>u f a b \<and>  \<xi>u f a c \<longrightarrow> b = c)"
-
-lemma
-  "\<not> \<xi>u_determ (\<lambda>f a (_, b). (b = UPrim (LBool True)) \<or> (b = UPrim (LBool False)))"
-  unfolding \<xi>u_determ_def
-  apply clarsimp
-  apply (rule exI)
-  apply (rule_tac x = "UPrim (LBool True)" in exI; clarsimp)
-  apply (rule exI)
-  apply (rule_tac x = "UPrim (LBool False)" in exI; clarsimp)
-  done
-
-lemma
-  "\<xi>u_determ (\<lambda>f (s, a) (s', b). b = UUnit \<and> s = s')"
-  unfolding \<xi>u_determ_def
-  by clarsimp
-
-inductive_cases u_sem_varE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, Var i) \<Down>! v'"
-inductive_cases u_sem_litE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, Lit l) \<Down>! v'"
-inductive_cases u_sem_primE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, Prim p as) \<Down>! v'"
-inductive_cases u_sem_castE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, Cast \<tau> e) \<Down>! v'"
-inductive_cases u_sem_funE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, Fun f ts) \<Down>! v'"
-inductive_cases u_sem_afunE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, AFun f ts) \<Down>! v'"
-inductive_cases u_sem_appE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, App x y) \<Down>! v'"
-inductive_cases u_sem_conE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, Con ts t x) \<Down>! v'"
-inductive_cases u_sem_memberE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, Member e f) \<Down>! v'"
-inductive_cases u_sem_unitE': "\<xi>' , \<gamma> \<turnstile> (\<sigma>, Unit) \<Down>! v'"
-inductive_cases u_sem_tupleE': "\<xi>' , \<gamma> \<turnstile> (\<sigma>, Tuple x y) \<Down>! v'"
-inductive_cases u_sem_esacE': "\<xi>' , \<gamma> \<turnstile> (\<sigma>, Esac t tag) \<Down>! v'"
-inductive_cases u_sem_letE': "\<xi>' , \<gamma> \<turnstile> (\<sigma>, Let a b) \<Down>! v'"
-inductive_cases u_sem_letbangE': "\<xi>' , \<gamma> \<turnstile> (\<sigma>, LetBang vs a b) \<Down>! v'"
-inductive_cases u_sem_caseE': "\<xi>' , \<gamma> \<turnstile> (\<sigma>, Case x t m n) \<Down>! v'"
-inductive_cases u_sem_ifE': "\<xi>' , \<gamma> \<turnstile> (\<sigma>, If x t e) \<Down>! v'"
-inductive_cases u_sem_structE': "\<xi>' , \<gamma> \<turnstile> (\<sigma>, Struct ts xs) \<Down>! v'"
-inductive_cases u_sem_takeE': "\<xi>' , \<gamma> \<turnstile> (\<sigma>, Take x f e) \<Down>! v'"
-inductive_cases u_sem_putE': "\<xi>' , \<gamma> \<turnstile> (\<sigma>, Put x f e) \<Down>! v'"
-inductive_cases u_sem_splitE': "\<xi>' , \<gamma> \<turnstile> (\<sigma>, Split x e) \<Down>! v'"
-inductive_cases u_sem_promoteE': "\<xi>' , \<gamma> \<turnstile> (\<sigma>, Promote t' e) \<Down>! v'"
-inductive_cases u_sem_all_emptyE': "\<xi>' , \<gamma> \<turnstile>* (\<sigma>, []) \<Down>! v'"
-inductive_cases u_sem_all_consE': "\<xi>' , \<gamma> \<turnstile>* (\<sigma>, x # xs) \<Down>! vs'"
-
-lemmas u_sem_u_sem_all_elims = u_sem_varE' u_sem_litE' u_sem_primE' u_sem_castE' u_sem_funE'
-  u_sem_afunE' u_sem_conE' u_sem_unitE' u_sem_tupleE' u_sem_esacE' u_sem_splitE' u_sem_promoteE'
-  u_sem_letE' u_sem_letbangE' u_sem_ifE' u_sem_structE' u_sem_all_emptyE' u_sem_all_consE'
 
 lemma u_sem_u_sem_all_determ:
   shows "\<lbrakk>\<xi>a, \<gamma> \<turnstile> (\<sigma>, e)  \<Down>! v; \<xi>a, \<gamma> \<turnstile> (\<sigma>, e) \<Down>! v'; \<xi>u_determ \<xi>a\<rbrakk> \<Longrightarrow> v = v'"
@@ -270,6 +290,8 @@ next
   then show ?case by (fastforce elim!: u_sem_u_sem_all_elims)
 qed
 
+section "Heap footprint properties"
+
 context update_sem begin
 
 lemma frame_empty:
@@ -307,22 +329,6 @@ and   "\<lbrakk> \<Xi>', \<sigma> \<turnstile>* fs :ur map (\<lambda>(n, t, b). 
   apply (rename_tac a aa ab ac)
   apply (cut_tac K = "[]" and t = ac in bang_kinding_fn; clarsimp)
   done
-
-lemma \<xi>ule_matches:
-  "\<lbrakk>\<xi>b matches-u \<Xi>'; \<xi>ule \<xi>a \<xi>b\<rbrakk> \<Longrightarrow> \<xi>a matches-u \<Xi>'"
-  unfolding proc_env_matches_ptrs_def \<xi>ule_def
-  apply clarsimp
-  apply (erule_tac x = f in allE; clarsimp)
-  apply (erule_tac x = \<sigma> in allE)
-  apply (erule_tac x = \<sigma>' in allE)
-  apply (erule_tac x = \<tau>s in allE; clarsimp)
-  apply (erule_tac x = v in allE)
-  apply (erule_tac x = v' in allE)
-  apply (erule_tac x = r in allE)
-  apply (erule_tac x = w in allE; clarsimp)
-  apply (drule_tac c = "(f, (\<sigma>, v), (\<sigma>', v'))" in  subsetD; simp)
-  done
-
 
 end (* of context *)
 

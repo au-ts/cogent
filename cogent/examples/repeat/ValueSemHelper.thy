@@ -1,7 +1,50 @@
 theory ValueSemHelper
-  imports "Cogent.ValueSemantics"
+  imports Cogent.ValueSemantics
 begin
-section "value semantics helpers"
+
+section "Function checking and extraction"
+
+fun is_vvalfun
+  where
+"is_vvalfun (VFunction _ _) = True" |
+"is_vvalfun (VAFunction _ _) = True" |
+"is_vvalfun _  = False"
+
+fun vvalfun_to_expr
+  where
+"vvalfun_to_expr (VFunction f ts) = Fun f ts" |
+"vvalfun_to_expr (VAFunction f ts) = AFun f ts" |
+"vvalfun_to_expr _ = undefined"
+
+section "Evaluation elimination rules"
+
+inductive_cases v_sem_letE: "\<xi> , \<gamma> \<turnstile> Let a b \<Down> b'"
+inductive_cases v_sem_letBangE: "\<xi> , \<gamma> \<turnstile> LetBang vs a b \<Down> b'"
+inductive_cases v_sem_litE: "\<xi> , \<gamma> \<turnstile> Lit l \<Down> v"
+inductive_cases v_sem_primE: "\<xi> , \<gamma> \<turnstile> Prim p as \<Down> r"
+inductive_cases v_sem_memberE: "\<xi> , \<gamma> \<turnstile> Member x f \<Down> r"
+inductive_cases v_sem_tupleE: "\<xi> , \<gamma> \<turnstile> Tuple a b \<Down> r"
+inductive_cases v_sem_ifE: " \<xi> , \<gamma> \<turnstile> If x t e \<Down> r"
+inductive_cases v_sem_conE: "\<xi> , \<gamma> \<turnstile> Con i t x \<Down> r"
+inductive_cases v_sem_esacE: "\<xi>, \<gamma> \<turnstile> Esac v  n \<Down> r"
+inductive_cases v_sem_caseE:  "\<xi> , \<gamma> \<turnstile> Case x c m n \<Down> r"
+inductive_cases v_sem_splitE: "\<xi> , \<gamma> \<turnstile> Split x e \<Down> e'"
+inductive_cases v_sem_takeE: "\<xi> , \<gamma> \<turnstile> Take x f e \<Down> e'"
+inductive_cases v_sem_putE: "\<xi> , \<gamma> \<turnstile> Put x f e \<Down> e'"
+inductive_cases v_sem_castE: "\<xi> , \<gamma> \<turnstile> Cast \<tau> e \<Down> e'"
+inductive_cases v_sem_structE: "\<xi> , \<gamma> \<turnstile> Struct ts xs \<Down> e'"
+inductive_cases v_sem_AppE: "\<xi> , \<gamma> \<turnstile> App f v \<Down> e'"
+inductive_cases v_sem_allE: "\<xi> , \<gamma> \<turnstile>* es \<Down> es'"
+inductive_cases v_sem_all_NilE: "\<xi> , \<gamma> \<turnstile>* [] \<Down> es'"
+inductive_cases v_sem_all_ConsE: "\<xi> , \<gamma> \<turnstile>* (e#es) \<Down> es'"
+inductive_cases v_sem_unitE: "\<xi> , \<gamma> \<turnstile> Unit \<Down> r"
+inductive_cases v_sem_promoteE: "\<xi>, \<gamma> \<turnstile> Promote \<tau> e \<Down> r"
+
+lemmas v_sem_elims = v_sem_letE v_sem_letBangE v_sem_litE v_sem_primE v_sem_memberE v_sem_tupleE
+  v_sem_ifE v_sem_conE v_sem_esacE v_sem_caseE v_sem_splitE v_sem_takeE v_sem_putE v_sem_castE
+  v_sem_structE v_sem_AppE v_sem_allE v_sem_all_NilE v_sem_all_ConsE v_sem_unitE v_sem_promoteE
+
+section "Ordering of abstract function specifications and its properties"
 
 definition \<xi>vle :: "('f, 'a) vabsfuns \<Rightarrow> ('f, 'a) vabsfuns \<Rightarrow> bool"
   where
@@ -31,67 +74,23 @@ next
     by (rule v_sem_v_sem_all.v_sem_app; simp?)
 qed (auto intro: v_sem_v_sem_all.intros)
 
+lemma (in value_sem) \<xi>vle_matches:
+  "\<lbrakk>\<xi>b matches \<Xi>'; \<xi>vle \<xi>a \<xi>b\<rbrakk> \<Longrightarrow> \<xi>a matches \<Xi>'"
+  unfolding proc_env_matches_def \<xi>vle_def
+  apply clarsimp
+  apply (rename_tac f K a b \<tau>s v v')
+  apply (erule_tac x = f in allE; clarsimp)
+  apply (erule_tac x = \<tau>s in allE; clarsimp)
+  apply (erule_tac x = v in allE; clarsimp)
+  apply (erule_tac x = v' in allE; clarsimp)
+  apply (drule_tac c = "(f, v, v')" in  subsetD; simp)
+  done
+
+section "Determinism of evaluation"
+
 definition \<xi>v_determ :: "('f, 'a) vabsfuns \<Rightarrow> bool"
   where
 "\<xi>v_determ \<xi>v = (\<forall>f a b c. \<xi>v f a b \<and>  \<xi>v f a c \<longrightarrow> b = c)"
-
-lemma
-  "\<not> \<xi>v_determ (\<lambda>f a b. (b = VPrim (LBool True)) \<or> (b = VPrim (LBool False)))"
-  unfolding \<xi>v_determ_def
-  apply clarsimp
-  apply (rule_tac x = "VPrim (LBool True)" in exI; clarsimp)
-  apply (rule_tac x = "VPrim (LBool False)" in exI; clarsimp)
-  done
-
-lemma
-  "\<xi>v_determ (\<lambda>f a b. b = VUnit)"
-  unfolding \<xi>v_determ_def
-  by clarsimp
-
-inductive_cases v_sem_letE: "\<xi> , \<gamma> \<turnstile> Let a b \<Down> b'"
-inductive_cases v_sem_letBangE: "\<xi> , \<gamma> \<turnstile> LetBang vs a b \<Down> b'"
-inductive_cases v_sem_litE: "\<xi> , \<gamma> \<turnstile> Lit l \<Down> v"
-inductive_cases v_sem_primE: "\<xi> , \<gamma> \<turnstile> Prim p as \<Down> r"
-inductive_cases v_sem_memberE: "\<xi> , \<gamma> \<turnstile> Member x f \<Down> r"
-inductive_cases v_sem_tupleE: "\<xi> , \<gamma> \<turnstile> Tuple a b \<Down> r"
-inductive_cases v_sem_ifE: " \<xi> , \<gamma> \<turnstile> If x t e \<Down> r"
-inductive_cases v_sem_conE: "\<xi> , \<gamma> \<turnstile> Con i t x \<Down> r"
-inductive_cases v_sem_esacE: "\<xi>, \<gamma> \<turnstile> Esac v  n \<Down> r"
-inductive_cases v_sem_caseE:  "\<xi> , \<gamma> \<turnstile> Case x c m n \<Down> r"
-inductive_cases v_sem_splitE: "\<xi> , \<gamma> \<turnstile> Split x e \<Down> e'"
-inductive_cases v_sem_takeE: "\<xi> , \<gamma> \<turnstile> Take x f e \<Down> e'"
-inductive_cases v_sem_putE: "\<xi> , \<gamma> \<turnstile> Put x f e \<Down> e'"
-inductive_cases v_sem_castE: "\<xi> , \<gamma> \<turnstile> Cast \<tau> e \<Down> e'"
-inductive_cases v_sem_structE: "\<xi> , \<gamma> \<turnstile> Struct ts xs \<Down> e'"
-inductive_cases v_sem_AppE: "\<xi> , \<gamma> \<turnstile> App f v \<Down> e'"
-inductive_cases v_sem_allE: "\<xi> , \<gamma> \<turnstile>* es \<Down> es'"
-inductive_cases v_sem_all_NilE: "\<xi> , \<gamma> \<turnstile>* [] \<Down> es'"
-inductive_cases v_sem_all_ConsE: "\<xi> , \<gamma> \<turnstile>* (e#es) \<Down> es'"
-inductive_cases v_sem_unitE: "\<xi> , \<gamma> \<turnstile> Unit \<Down> r"
-inductive_cases v_sem_promoteE: "\<xi>, \<gamma> \<turnstile> Promote \<tau> e \<Down> r"
-
-lemmas v_sem_elims =
-  v_sem_letE
-  v_sem_letBangE
-  v_sem_litE
-  v_sem_primE
-  v_sem_memberE
-  v_sem_tupleE
-  v_sem_ifE
-  v_sem_conE
-  v_sem_esacE
-  v_sem_caseE
-  v_sem_splitE
-  v_sem_takeE
-  v_sem_putE
-  v_sem_castE
-  v_sem_structE
-  v_sem_AppE
-  v_sem_allE
-  v_sem_all_NilE
-  v_sem_all_ConsE
-  v_sem_unitE
-  v_sem_promoteE
 
 lemma v_sem_v_sem_all_determ:
   shows "\<lbrakk>\<xi>a, \<gamma> \<turnstile> e  \<Down> v; \<xi>a, \<gamma> \<turnstile> e \<Down> v'; \<xi>v_determ \<xi>a\<rbrakk> \<Longrightarrow> v = v'"
@@ -206,20 +205,4 @@ lemma v_sem_v_sem_all_determ_not:
   apply (rule v_sem_v_sem_all_determ(2); assumption)
   done
 
-
-context value_sem begin
-
-
-lemma \<xi>vle_matches:
-  "\<lbrakk>\<xi>b matches \<Xi>'; \<xi>vle \<xi>a \<xi>b\<rbrakk> \<Longrightarrow> \<xi>a matches \<Xi>'"
-  unfolding proc_env_matches_def \<xi>vle_def
-  apply clarsimp
-  apply (erule_tac x = f in allE; clarsimp)
-  apply (erule_tac x = \<tau>s in allE; clarsimp)
-  apply (erule_tac x = v in allE; clarsimp)
-  apply (erule_tac x = v' in allE; clarsimp)
-  apply (drule_tac c = "(f, v, v')" in  subsetD; simp)
-  done
-
-end (* of context *)
 end
