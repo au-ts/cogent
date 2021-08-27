@@ -428,5 +428,4 @@ lemma repeat_bod_val_executes_from_upd_executes:
   apply (erule u_v_primE; clarsimp)
   done
 *)
-end (* of context *)
 end
