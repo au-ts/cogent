@@ -7,6 +7,12 @@ definition \<xi>vle :: "('f, 'a) vabsfuns \<Rightarrow> ('f, 'a) vabsfuns \<Righ
   where
 "\<xi>vle f g = ({(n, a, b) | n a b. f n a b} \<subseteq> {(n, a, b) | n a b. g n a b})"
 
+lemma \<xi>vleD:
+  "\<lbrakk>\<xi>a f a b; \<xi>vle \<xi>a \<xi>b\<rbrakk> \<Longrightarrow> \<xi>b f a b"
+  unfolding \<xi>vle_def
+  apply (drule_tac c = "(f, a, b)" in subsetD; simp)
+  done
+
 lemma v_sem_v_sem_all_\<xi>vle:
   shows "\<lbrakk>\<xi>a, \<gamma> \<turnstile> e  \<Down> v; \<xi>vle \<xi>a \<xi>b\<rbrakk> \<Longrightarrow> \<xi>b, \<gamma> \<turnstile> e \<Down> v"
   and "\<lbrakk>\<xi>a , \<gamma> \<turnstile>* es \<Down> vs; \<xi>vle \<xi>a \<xi>b\<rbrakk> \<Longrightarrow> \<xi>b , \<gamma> \<turnstile>* es \<Down> vs"

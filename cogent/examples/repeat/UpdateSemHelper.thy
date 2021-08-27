@@ -14,6 +14,11 @@ definition \<xi>ule :: "('f, 'a, 'l) uabsfuns \<Rightarrow> ('f, 'a, 'l) uabsfun
   where
 "\<xi>ule f g = ({(n, a, b) | n a b. f n a b} \<subseteq> {(n, a, b) | n a b. g n a b})"
 
+lemma \<xi>uleD:
+  "\<lbrakk>\<xi>a f a b; \<xi>ule \<xi>a \<xi>b\<rbrakk> \<Longrightarrow> \<xi>b f a b"
+  unfolding \<xi>ule_def
+  apply (drule_tac c = "(f, a, b)" in subsetD; blast)
+  done
 
 lemma u_sem_u_sem_all_\<xi>ule:
   shows "\<lbrakk>\<xi>a, \<gamma> \<turnstile> (\<sigma>,c)  \<Down>! (\<sigma>',r); \<xi>ule \<xi>a \<xi>b\<rbrakk> \<Longrightarrow> \<xi>b, \<gamma> \<turnstile> (\<sigma>,c)  \<Down>! (\<sigma>',r)"
