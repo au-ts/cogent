@@ -2,8 +2,10 @@ theory RepeatScorres
   imports
     RepeatShallow
     RepeatMono
-    "build/Generated_ShallowShared"
+    "build/Generated_SCorres_Normal"
 begin
+
+section "Shallow repeat loop definition"
 
 overloading repeat' \<equiv> repeat
 begin
@@ -16,6 +18,8 @@ definition repeat' :: "(64 word, ('a, 'b) StepParam \<Rightarrow> bool, ('a, 'b)
             (RepParam.acc\<^sub>f x)
             (RepParam.obsv\<^sub>f x)"
 end (* of overloading *)
+
+section "Repeat loop scorres"
 
 context shallow begin
 
@@ -33,7 +37,7 @@ lemma vrepeat_bod_scorres:
    apply (subst repeatatl.simps)
    apply simp
   apply (drule unatSuc; clarsimp)
-  apply (rename_tac b)
+  apply (rename_tac n acc x b)
   apply (case_tac b; clarsimp)
    apply (clarsimp simp: valRel_RepParam)
    apply (subst repeatatl.simps; clarsimp)
@@ -94,15 +98,16 @@ lemma vrepeat_bod_scorres:
   done
 
 lemma repeat_scorres: 
-  "\<lbrakk>\<xi>vle \<xi>' \<xi>''; \<xi>'' ''repeat'' = vrepeatp \<xi>'\<rbrakk> \<Longrightarrow> scorres repeat (AFun ''repeat'' ts) \<gamma> \<xi>''"
+  "\<lbrakk>\<xi>vle \<xi>' \<xi>''; \<xi>'' ''repeat'' = prepeat \<xi>'\<rbrakk> \<Longrightarrow> scorres repeat (AFun ''repeat'' ts) \<gamma> \<xi>''"
   unfolding scorres_def
   apply clarsimp
   apply (erule v_sem_afunE; clarsimp)
   apply (erule notE)
-  unfolding repeat'_def vrepeatp_def
+  unfolding repeat'_def prepeat_def
   apply clarsimp
   apply (rule vrepeat_bod_scorres; simp?)
   done
+
 end (* of context *)
 
 end

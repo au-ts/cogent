@@ -1,5 +1,8 @@
 theory RepeatCorres
-  imports RepeatUpdate
+  imports
+    RepeatAssm
+    CorresHelper
+    CogentTypingHelper
 begin
 section "Corres"
 
