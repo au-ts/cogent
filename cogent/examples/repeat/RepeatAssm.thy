@@ -137,10 +137,6 @@ end (* of context *)
 
 section "monomorphisation helpers"
 
-context value_sem begin
-thm rename_mono_prog_def
-end
-
 section "corres helpers"
 
 context update_sem_init begin
