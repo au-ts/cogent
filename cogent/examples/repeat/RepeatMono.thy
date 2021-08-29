@@ -119,4 +119,27 @@ lemma prepeat_monoexpr_correct:
 
 end (* of context *)
 
+subsection "Determinism"
+
+lemma prepeat_deterministic:
+  "\<lbrakk>determ \<xi>;
+    prepeat \<xi> x y;
+    prepeat \<xi> x z\<rbrakk>
+    \<Longrightarrow> y = z"
+  unfolding prepeat_def
+  apply clarsimp
+  apply (drule (3) vrepeat_bod_deterministic)
+  done
+
+subsection "Ordering"
+
+lemma prepeat_rel_leqD:
+  "\<lbrakk>rel_leq \<xi>a \<xi>b;
+    prepeat \<xi>a x y\<rbrakk>
+    \<Longrightarrow> prepeat \<xi>b x y"
+  unfolding prepeat_def
+  apply clarsimp
+  apply (drule (2) vrepeat_bod_rel_leqD)
+  done
+
 end
