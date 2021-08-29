@@ -140,6 +140,8 @@ lemma urepeat_preservation:
   apply blast
   done
 
+end (* of context *)
+
 subsection "Early termination and step lemmas"
 
 lemma urepeat_bod_early_termination:
@@ -183,6 +185,71 @@ lemma urepeat_bod_step:
   done
 declare urepeat_bod.simps[simp]
 
-end (* of context *)
+subsection "Deterministic"
+
+lemma urepeat_bod_deterministic:
+  "\<lbrakk>determ \<xi>;
+    urepeat_bod \<xi> n f g \<sigma> \<sigma>' \<tau>a acc \<tau>o obsv ret;
+    urepeat_bod \<xi> n f g \<sigma> \<sigma>'' \<tau>a acc \<tau>o obsv ret'\<rbrakk>
+    \<Longrightarrow> \<sigma>' = \<sigma>'' \<and> ret = ret'"
+  apply (induct n arbitrary: \<sigma> acc)
+   apply simp
+  apply clarsimp
+  apply (drule (2) u_sem_u_sem_all_determ(1)[rotated 1]; simp)
+  apply clarsimp
+  apply (rename_tac n \<sigma> acc b)
+  apply (case_tac b; clarsimp)
+  apply (drule (2) u_sem_u_sem_all_determ(1)[rotated 1]; simp)
+  done
+
+lemma urepeat_deterministic:
+  "\<lbrakk>determ \<xi>;
+    urepeat \<Xi> \<xi> \<tau>a \<tau>o x y;
+    urepeat \<Xi> \<xi> \<tau>a \<tau>o x z\<rbrakk>
+    \<Longrightarrow> y = z"
+  unfolding urepeat_def
+  apply clarsimp
+  apply (drule (3) urepeat_bod_deterministic)
+  done
+
+lemma urepeat_bod_step_determ:
+  "\<lbrakk>\<xi>', [URecord [(ret, type_repr (bang \<tau>a)), (obsv, type_repr \<tau>o)]] \<turnstile> (\<sigma>', App f (Var 0)) \<Down>! (\<sigma>', UPrim (LBool False));
+    \<xi>', [URecord [(ret, type_repr \<tau>a), (obsv, type_repr \<tau>o)]] \<turnstile> (\<sigma>', App g (Var 0)) \<Down>! (\<sigma>'', ret');
+    urepeat_bod \<xi>' n f g \<sigma> \<sigma>' \<tau>a acc \<tau>o obsv ret;
+    determ \<xi>'\<rbrakk> 
+    \<Longrightarrow> urepeat_bod \<xi>' (Suc n) f g \<sigma> \<sigma>'' \<tau>a acc \<tau>o obsv ret'"
+  apply (rule urepeat_bod_step; simp?)
+  apply clarsimp
+  apply (drule (2) u_sem_u_sem_all_determ(1)[rotated 1]; simp)
+  done
+
+subsection "Ordering"
+
+lemma urepeat_bod_rel_leqD:
+  "\<lbrakk>rel_leq \<xi>a \<xi>b;
+    urepeat_bod \<xi>a n f g \<sigma> \<sigma>' \<tau>a acc \<tau>o obsv ret\<rbrakk>
+    \<Longrightarrow> urepeat_bod \<xi>b n f g \<sigma> \<sigma>' \<tau>a acc \<tau>o obsv ret"
+  apply (induct n arbitrary: \<sigma> acc)
+   apply simp
+  apply clarsimp
+  apply (rename_tac n \<sigma> acc b)
+  apply (case_tac b; clarsimp)
+   apply (drule (1) u_sem_u_sem_all_rel_leqD)
+   apply (rule_tac x = b in exI; clarsimp)
+  apply (drule (1) u_sem_u_sem_all_rel_leqD[rotated 1])
+  apply (drule (1) u_sem_u_sem_all_rel_leqD[rotated 1])
+  apply (rule_tac x = b in exI; clarsimp)
+  apply (elim meta_allE meta_impE, assumption)
+  apply (intro exI conjI; assumption)
+  done
+
+lemma urepeat_rel_leqD:
+  "\<lbrakk>rel_leq \<xi>a \<xi>b;
+    urepeat \<Xi> \<xi>a \<tau>a \<tau>o x y\<rbrakk>
+    \<Longrightarrow> urepeat \<Xi> \<xi>b \<tau>a \<tau>o x y"
+  unfolding urepeat_def
+  apply clarsimp
+  apply (drule (2) urepeat_bod_rel_leqD)
+  done
 
 end

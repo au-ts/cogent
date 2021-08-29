@@ -1,5 +1,7 @@
 theory UpdateSemHelper
-  imports Cogent.UpdateSemantics
+  imports
+    DeterministicRelation3
+    Cogent.UpdateSemantics
 begin
 
 section "Function checking and extraction"
@@ -15,6 +17,13 @@ fun uvalfun_to_expr
 "uvalfun_to_expr (UFunction f ts) = Fun f ts" |
 "uvalfun_to_expr (UAFunction f ts) = AFun f ts" |
 "uvalfun_to_expr _ = undefined"
+
+inductive_cases (in update_sem) u_t_tfunE: "\<Xi>, \<sigma> \<turnstile> u :u TFun a b \<langle>r, w\<rangle>"
+
+lemma (in update_sem) uval_typing_uvalfun:
+  "\<Xi>, \<sigma> \<turnstile> u :u TFun a b \<langle>r, w\<rangle> \<Longrightarrow> is_uvalfun u"
+  apply (erule u_t_tfunE; clarsimp)
+  done
 
 section "Evaluation elimination rules"
 
@@ -53,28 +62,20 @@ lemmas u_sem_u_sem_all_elims = u_sem_varE' u_sem_litE' u_sem_primE' u_sem_castE'
   u_sem_afunE' u_sem_conE' u_sem_unitE' u_sem_tupleE' u_sem_esacE' u_sem_splitE' u_sem_promoteE'
   u_sem_letE' u_sem_letbangE' u_sem_ifE' u_sem_structE' u_sem_all_emptyE' u_sem_all_consE'
 
-section "Ordering on abstract function specifications and its properties"
+section "Properties of partially ordered abstract function specifications"
 
-definition \<xi>ule :: "('f, 'a, 'l) uabsfuns \<Rightarrow> ('f, 'a, 'l) uabsfuns \<Rightarrow> bool"
-  where
-"\<xi>ule f g = ({(n, a, b) | n a b. f n a b} \<subseteq> {(n, a, b) | n a b. g n a b})"
-
-lemma \<xi>uleD:
-  "\<lbrakk>\<xi>a f a b; \<xi>ule \<xi>a \<xi>b\<rbrakk> \<Longrightarrow> \<xi>b f a b"
-  unfolding \<xi>ule_def
-  apply (drule_tac c = "(f, a, b)" in subsetD; blast)
-  done
-
-lemma u_sem_u_sem_all_\<xi>ule:
-  shows "\<lbrakk>\<xi>a, \<gamma> \<turnstile> (\<sigma>,c)  \<Down>! (\<sigma>',r); \<xi>ule \<xi>a \<xi>b\<rbrakk> \<Longrightarrow> \<xi>b, \<gamma> \<turnstile> (\<sigma>,c)  \<Down>! (\<sigma>',r)"
-  and "\<lbrakk>\<xi>a , \<gamma> \<turnstile>* (\<sigma>, xs) \<Down>! (\<sigma>', vs); \<xi>ule \<xi>a \<xi>b\<rbrakk> \<Longrightarrow> \<xi>b , \<gamma> \<turnstile>* (\<sigma>, xs) \<Down>! (\<sigma>', vs)"
+lemma u_sem_u_sem_all_rel_leqD:
+  assumes "rel_leq \<xi>a \<xi>b"
+  shows   "\<xi>a, \<gamma> \<turnstile> (\<sigma>,c)  \<Down>! (\<sigma>',r) \<Longrightarrow> \<xi>b, \<gamma> \<turnstile> (\<sigma>,c)  \<Down>! (\<sigma>',r)"
+  and     "\<xi>a , \<gamma> \<turnstile>* (\<sigma>, xs) \<Down>! (\<sigma>', vs) \<Longrightarrow> \<xi>b , \<gamma> \<turnstile>* (\<sigma>, xs) \<Down>! (\<sigma>', vs)"
+  using assms
 proof (induct arbitrary: \<xi>b and \<xi>b rule: u_sem_u_sem_all.inducts)
   case (u_sem_abs_app \<xi> \<gamma> \<sigma> x \<sigma>' f ts y \<sigma>'' a \<sigma>''' r)
   then show ?case 
     apply -
     apply (drule_tac x = \<xi>b in meta_spec; simp?)+
     apply (rule u_sem_u_sem_all.u_sem_abs_app; simp?)
-    unfolding \<xi>ule_def by blast
+    by (drule (2) rel_leqD)
 next
   case (u_sem_app \<xi> \<gamma> \<sigma> x \<sigma>' f ts y \<sigma>'' a st)
   then show ?case 
@@ -83,9 +84,9 @@ next
     by (rule u_sem_u_sem_all.u_sem_app; simp?)
 qed (auto intro: u_sem_u_sem_all.intros)
 
-lemma (in update_sem) \<xi>ule_matches:
-  "\<lbrakk>\<xi>b matches-u \<Xi>'; \<xi>ule \<xi>a \<xi>b\<rbrakk> \<Longrightarrow> \<xi>a matches-u \<Xi>'"
-  unfolding proc_env_matches_ptrs_def \<xi>ule_def
+lemma (in update_sem) rel_leq_matchesuD:
+  "\<lbrakk>rel_leq \<xi>a \<xi>b; \<xi>b matches-u \<Xi>'\<rbrakk> \<Longrightarrow> \<xi>a matches-u \<Xi>'"
+  unfolding proc_env_matches_ptrs_def
   apply clarsimp
   apply (rename_tac f K a b \<sigma> \<sigma>' \<tau>s v v' r w)
   apply (erule_tac x = f in allE; clarsimp)
@@ -96,18 +97,16 @@ lemma (in update_sem) \<xi>ule_matches:
   apply (erule_tac x = v' in allE)
   apply (erule_tac x = r in allE)
   apply (erule_tac x = w in allE; clarsimp)
-  apply (drule_tac c = "(f, (\<sigma>, v), (\<sigma>', v'))" in  subsetD; simp)
+  apply (drule (1) rel_leqD; simp)
   done
 
 section "Determinism of evaluation"
 
-definition \<xi>u_determ :: "('f, 'a, 'l) uabsfuns \<Rightarrow> bool"
-  where
-"\<xi>u_determ \<xi>u = (\<forall>f a b c. \<xi>u f a b \<and>  \<xi>u f a c \<longrightarrow> b = c)"
-
 lemma u_sem_u_sem_all_determ:
-  shows "\<lbrakk>\<xi>a, \<gamma> \<turnstile> (\<sigma>, e)  \<Down>! v; \<xi>a, \<gamma> \<turnstile> (\<sigma>, e) \<Down>! v'; \<xi>u_determ \<xi>a\<rbrakk> \<Longrightarrow> v = v'"
-  and "\<lbrakk>\<xi>a , \<gamma> \<turnstile>* (\<sigma>, es) \<Down>! vs; \<xi>a , \<gamma> \<turnstile>* (\<sigma>, es) \<Down>! vs'; \<xi>u_determ \<xi>a\<rbrakk> \<Longrightarrow> vs = vs'"
+  assumes "determ \<xi>a"
+  shows   "\<lbrakk>\<xi>a, \<gamma> \<turnstile> (\<sigma>, e)  \<Down>! v; \<xi>a, \<gamma> \<turnstile> (\<sigma>, e) \<Down>! v'\<rbrakk> \<Longrightarrow> v = v'"
+  and     "\<lbrakk>\<xi>a , \<gamma> \<turnstile>* (\<sigma>, es) \<Down>! vs; \<xi>a , \<gamma> \<turnstile>* (\<sigma>, es) \<Down>! vs'\<rbrakk> \<Longrightarrow> vs = vs'"
+  using assms
 proof (induct arbitrary: v' and vs' rule: u_sem_u_sem_all.inducts)
   case (u_sem_abs_app \<xi> \<gamma> \<sigma> x \<sigma>' f ts y \<sigma>'' a \<sigma>''' r)
   then show ?case
@@ -119,13 +118,8 @@ proof (induct arbitrary: v' and vs' rule: u_sem_u_sem_all.inducts)
      apply (subst (asm) prod.inject)
      apply (drule_tac x = "(s', a')" in meta_spec)
      apply clarsimp
-    unfolding \<xi>u_determ_def
-     apply (erule allE)
-     apply (erule allE)
-     apply (erule_tac x = "(\<sigma>''', r)" in allE)
-     apply (erule_tac x = "(s'', r')" in allE)
-     apply (elim impE, intro conjI; simp)
-     apply (rename_tac s f' ts' s' a')
+    apply (drule (2) determD[rotated 1]; simp)
+    apply (rename_tac s f' ts' s' a')
     apply (drule_tac x = "(s, UFunction f' ts')" in meta_spec)
     apply (elim meta_impE; assumption?)
     apply (subst (asm) prod.inject; simp)
@@ -289,6 +283,20 @@ next
   case (u_sem_all_cons \<xi> \<gamma> \<sigma> x \<sigma>' v xs \<sigma>'' vs)
   then show ?case by (fastforce elim!: u_sem_u_sem_all_elims)
 qed
+
+lemma u_sem_u_sem_all_determ_not:
+  assumes "determ \<xi>a"
+  shows   "\<lbrakk>\<xi>a, \<gamma> \<turnstile> (\<sigma>, e) \<Down>! v; v \<noteq> v'\<rbrakk> \<Longrightarrow> \<not> (\<xi>a, \<gamma> \<turnstile> (\<sigma>, e) \<Down>! v')"
+  and     "\<lbrakk>\<xi>a , \<gamma> \<turnstile>* (\<sigma>, es) \<Down>! vs; vs \<noteq> vs'\<rbrakk> \<Longrightarrow> \<not> (\<xi>a , \<gamma> \<turnstile>* (\<sigma>, es) \<Down>! vs')"
+  using assms
+   apply clarsimp
+   apply (erule notE)
+   apply (rule u_sem_u_sem_all_determ(1); assumption)
+  using assms
+  apply clarsimp
+  apply (erule notE)
+  apply (rule u_sem_u_sem_all_determ(2); assumption)
+  done
 
 section "Heap footprint properties"
 

@@ -67,16 +67,16 @@ end (* of context *)
 
 section "Ordering on abstract function specification properties for corres"
 
-lemma (in update_sem_init) corres_\<xi>ule:
-  "\<lbrakk>corres srel c m \<xi>a \<gamma> \<Xi>' \<Gamma> \<sigma> s; \<xi>ule \<xi>a \<xi>b\<rbrakk> \<Longrightarrow> corres srel c m \<xi>b \<gamma> \<Xi>' \<Gamma> \<sigma> s"
+lemma (in update_sem_init) corres_rel_leqD:
+  "\<lbrakk>rel_leq \<xi>a \<xi>b; corres srel c m \<xi>a \<gamma> \<Xi>' \<Gamma> \<sigma> s\<rbrakk> \<Longrightarrow> corres srel c m \<xi>b \<gamma> \<Xi>' \<Gamma> \<sigma> s"
   unfolding corres_def
   apply clarsimp
-  apply (erule impE, rule \<xi>ule_matches, assumption, assumption)
+  apply (erule impE, rule rel_leq_matchesuD, assumption, assumption)
   apply (erule impE, intro exI, assumption)
   apply clarsimp
   apply (elim allE, erule impE, assumption)
   apply clarsimp
-  apply (drule u_sem_u_sem_all_\<xi>ule; simp?)
+  apply (drule u_sem_u_sem_all_rel_leqD; simp?)
   apply (intro exI conjI; assumption)
   done
 

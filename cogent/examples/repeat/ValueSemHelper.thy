@@ -1,5 +1,7 @@
 theory ValueSemHelper
-  imports Cogent.ValueSemantics
+  imports
+    DeterministicRelation3
+    Cogent.ValueSemantics
 begin
 
 section "Function checking and extraction"
@@ -44,28 +46,20 @@ lemmas v_sem_elims = v_sem_letE v_sem_letBangE v_sem_litE v_sem_primE v_sem_memb
   v_sem_ifE v_sem_conE v_sem_esacE v_sem_caseE v_sem_splitE v_sem_takeE v_sem_putE v_sem_castE
   v_sem_structE v_sem_AppE v_sem_allE v_sem_all_NilE v_sem_all_ConsE v_sem_unitE v_sem_promoteE
 
-section "Ordering of abstract function specifications and its properties"
+section "Properties on partially ordered abstract function specifications"
 
-definition \<xi>vle :: "('f, 'a) vabsfuns \<Rightarrow> ('f, 'a) vabsfuns \<Rightarrow> bool"
-  where
-"\<xi>vle f g = ({(n, a, b) | n a b. f n a b} \<subseteq> {(n, a, b) | n a b. g n a b})"
-
-lemma \<xi>vleD:
-  "\<lbrakk>\<xi>a f a b; \<xi>vle \<xi>a \<xi>b\<rbrakk> \<Longrightarrow> \<xi>b f a b"
-  unfolding \<xi>vle_def
-  apply (drule_tac c = "(f, a, b)" in subsetD; simp)
-  done
-
-lemma v_sem_v_sem_all_\<xi>vle:
-  shows "\<lbrakk>\<xi>a, \<gamma> \<turnstile> e  \<Down> v; \<xi>vle \<xi>a \<xi>b\<rbrakk> \<Longrightarrow> \<xi>b, \<gamma> \<turnstile> e \<Down> v"
-  and "\<lbrakk>\<xi>a , \<gamma> \<turnstile>* es \<Down> vs; \<xi>vle \<xi>a \<xi>b\<rbrakk> \<Longrightarrow> \<xi>b , \<gamma> \<turnstile>* es \<Down> vs"
+lemma v_sem_v_sem_all_rel_leqD:
+  assumes "rel_leq \<xi>a \<xi>b"
+  shows   "\<xi>a, \<gamma> \<turnstile> e  \<Down> v \<Longrightarrow> \<xi>b, \<gamma> \<turnstile> e \<Down> v"
+  and     "\<xi>a , \<gamma> \<turnstile>* es \<Down> vs \<Longrightarrow> \<xi>b , \<gamma> \<turnstile>* es \<Down> vs"
+  using assms
 proof (induct arbitrary: \<xi>b and \<xi>b rule: v_sem_v_sem_all.inducts)
   case (v_sem_abs_app \<xi> \<gamma> x f ts y a r)
   then show ?case
     apply -
     apply (drule_tac x = \<xi>b in meta_spec; simp?)+
     apply (rule v_sem_v_sem_all.v_sem_abs_app; simp?)
-    unfolding \<xi>vle_def by blast
+    by (drule (2) rel_leqD)
 next
   case (v_sem_app \<xi> \<gamma> x e ts y a r)
   then show ?case
@@ -75,26 +69,24 @@ next
 qed (auto intro: v_sem_v_sem_all.intros)
 
 lemma (in value_sem) \<xi>vle_matches:
-  "\<lbrakk>\<xi>b matches \<Xi>'; \<xi>vle \<xi>a \<xi>b\<rbrakk> \<Longrightarrow> \<xi>a matches \<Xi>'"
-  unfolding proc_env_matches_def \<xi>vle_def
+  "\<lbrakk>rel_leq \<xi>a \<xi>b; \<xi>b matches \<Xi>'\<rbrakk> \<Longrightarrow> \<xi>a matches \<Xi>'"
+  unfolding proc_env_matches_def
   apply clarsimp
   apply (rename_tac f K a b \<tau>s v v')
   apply (erule_tac x = f in allE; clarsimp)
   apply (erule_tac x = \<tau>s in allE; clarsimp)
   apply (erule_tac x = v in allE; clarsimp)
   apply (erule_tac x = v' in allE; clarsimp)
-  apply (drule_tac c = "(f, v, v')" in  subsetD; simp)
+  apply (drule (1) rel_leqD; simp)
   done
 
 section "Determinism of evaluation"
 
-definition \<xi>v_determ :: "('f, 'a) vabsfuns \<Rightarrow> bool"
-  where
-"\<xi>v_determ \<xi>v = (\<forall>f a b c. \<xi>v f a b \<and>  \<xi>v f a c \<longrightarrow> b = c)"
-
 lemma v_sem_v_sem_all_determ:
-  shows "\<lbrakk>\<xi>a, \<gamma> \<turnstile> e  \<Down> v; \<xi>a, \<gamma> \<turnstile> e \<Down> v'; \<xi>v_determ \<xi>a\<rbrakk> \<Longrightarrow> v = v'"
-  and "\<lbrakk>\<xi>a , \<gamma> \<turnstile>* es \<Down> vs; \<xi>a , \<gamma> \<turnstile>* es \<Down> vs'; \<xi>v_determ \<xi>a\<rbrakk> \<Longrightarrow> vs = vs'"
+  assumes "determ \<xi>a"
+  shows   "\<lbrakk>\<xi>a, \<gamma> \<turnstile> e  \<Down> v; \<xi>a, \<gamma> \<turnstile> e \<Down> v'\<rbrakk> \<Longrightarrow> v = v'"
+  and     "\<lbrakk>\<xi>a , \<gamma> \<turnstile>* es \<Down> vs; \<xi>a , \<gamma> \<turnstile>* es \<Down> vs'\<rbrakk> \<Longrightarrow> vs = vs'"
+  using assms
 proof (induct arbitrary: v' and vs' rule: v_sem_v_sem_all.inducts)
   case (v_sem_abs_app \<xi> \<gamma> x f ts y a r)
   then show ?case 
@@ -103,14 +95,9 @@ proof (induct arbitrary: v' and vs' rule: v_sem_v_sem_all.inducts)
      apply (rename_tac f' ts' a')
      apply (drule_tac x = "VAFunction f' ts'" in meta_spec; clarsimp)
      apply (drule_tac x = a' in meta_spec; clarsimp)
-    unfolding \<xi>v_determ_def
-     apply (erule_tac x = f in allE)
-     apply (erule_tac x = a in allE)
-     apply (erule_tac x = r in allE)
-     apply (erule_tac x = v' in allE)
-     apply (erule impE; simp)
-     apply (rename_tac f' ts' a')
-     apply (drule_tac x = "VFunction f' ts'" in meta_spec; clarsimp)
+    apply (drule (2) determD[rotated 1]; simp)
+    apply (rename_tac f' ts' a')
+    apply (drule_tac x = "VFunction f' ts'" in meta_spec; clarsimp)
     done
 next
   case (v_sem_app \<xi> \<gamma> x e ts y a r)
@@ -195,11 +182,14 @@ case (v_sem_all_cons \<xi> \<gamma> x v xs vs)
 qed (fastforce elim!: v_sem_elims)+
 
 lemma v_sem_v_sem_all_determ_not:
-  "\<lbrakk>\<xi>a, \<gamma> \<turnstile> e  \<Down> v; v \<noteq> v'; \<xi>v_determ \<xi>a\<rbrakk> \<Longrightarrow> \<not> (\<xi>a, \<gamma> \<turnstile> e \<Down> v')" and
-  "\<lbrakk>\<xi>a , \<gamma> \<turnstile>* es \<Down> vs; vs \<noteq> vs'; \<xi>v_determ \<xi>a\<rbrakk> \<Longrightarrow> \<not> (\<xi>a, \<gamma> \<turnstile>* es \<Down> vs')"
+  assumes "determ \<xi>a"
+  shows   "\<lbrakk>\<xi>a, \<gamma> \<turnstile> e  \<Down> v; v \<noteq> v'\<rbrakk> \<Longrightarrow> \<not> (\<xi>a, \<gamma> \<turnstile> e \<Down> v')"
+  and     "\<lbrakk>\<xi>a , \<gamma> \<turnstile>* es \<Down> vs; vs \<noteq> vs'\<rbrakk> \<Longrightarrow> \<not> (\<xi>a, \<gamma> \<turnstile>* es \<Down> vs')"
+  using assms
    apply clarsimp
    apply (erule notE)
    apply (rule v_sem_v_sem_all_determ(1); assumption)
+  using assms
   apply clarsimp
   apply (erule notE)
   apply (rule v_sem_v_sem_all_determ(2); assumption)

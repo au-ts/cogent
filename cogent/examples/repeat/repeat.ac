@@ -6,14 +6,14 @@
 
 $ty:acc $id:repeat($ty:(RepParam acc obsv) args) {
     u64 i = 0;
-    $ty:(StopParam acc obsv) stop = {.acc = args.acc, .obsv = args.obsv};
-    $ty:(StepParam acc obsv) step = {.acc = args.acc, .obsv = args.obsv};
+    $ty:(StopParam acc obsv) a;
+    a.acc = args.acc;
+    a.obsv = args.obsv;
     for (i = 0; i < args.n; i++) {
-        bool_t b = (($spec:(StopF acc obsv)) args.stop)(stop);
+        bool_t b = (($spec:(StopF acc obsv)) args.stop)(a);
         if (b.boolean)
             break;
-        step.acc = (($spec:(StepF acc obsv)) args.step)(step);
-        stop.acc = step.acc;
+        a.acc = (($spec:(StepF acc obsv)) args.step)(a);
     }
-    return step.acc;
+    return a.acc;
 }

@@ -99,6 +99,8 @@ lemma vrepeat_preservation:
   apply (rule vrepeat_bod_preservation; simp)
   done
 
+end (* of context *)
+
 section "Early termination and step lemmas"
 
 lemma vrepeat_bod_early_termination:
@@ -143,6 +145,60 @@ lemma vrepeat_bod_step:
   done
 declare vrepeat_bod.simps[simp]
 
-end (* of context *)
+subsection "Deterministic"
+
+lemma vrepeat_bod_deterministic:
+  "\<lbrakk>determ \<xi>;
+    vrepeat_bod \<xi> n f g acc obsv ret;
+    vrepeat_bod \<xi> n f g acc obsv ret'\<rbrakk>
+    \<Longrightarrow> ret = ret'"
+  apply (induct n arbitrary: acc)
+   apply simp
+  apply clarsimp
+  apply (drule (2) v_sem_v_sem_all_determ(1)[rotated 1]; simp)
+  apply clarsimp
+  apply (rename_tac n acc b)
+  apply (case_tac b; clarsimp)
+  apply (drule (2) v_sem_v_sem_all_determ(1)[rotated 1]; simp)
+  done
+
+lemma (in value_sem) vrepeat_deterministic:
+  "\<lbrakk>determ \<xi>;
+    vrepeat \<Xi> \<xi> \<tau>a \<tau>o x y;
+    vrepeat \<Xi> \<xi> \<tau>a \<tau>o x z\<rbrakk>
+    \<Longrightarrow> y = z"
+  unfolding vrepeat_def
+  apply clarsimp
+  apply (drule (3) vrepeat_bod_deterministic)
+  done
+
+subsection "Ordering"
+
+lemma vrepeat_bod_rel_leqD:
+  "\<lbrakk>rel_leq \<xi>a \<xi>b;
+    vrepeat_bod \<xi>a n f g acc obsv ret\<rbrakk>
+    \<Longrightarrow> vrepeat_bod \<xi>b n f g acc obsv ret"
+  apply (induct n arbitrary: acc)
+   apply simp
+  apply clarsimp
+  apply (rename_tac n acc b)
+  apply (case_tac b; clarsimp)
+   apply (drule (1) v_sem_v_sem_all_rel_leqD(1)[rotated 1])
+   apply (rule_tac x = b in exI; clarsimp)
+  apply (drule (1) v_sem_v_sem_all_rel_leqD(1)[rotated 1])
+  apply (drule (1) v_sem_v_sem_all_rel_leqD(1)[rotated 1])
+  apply (rule_tac x = b in exI; clarsimp)
+  apply (elim meta_allE meta_impE, assumption)
+  apply (intro exI conjI; assumption)
+  done
+
+lemma (in value_sem) vrepeat_rel_leqD:
+  "\<lbrakk>rel_leq \<xi>a \<xi>b;
+    vrepeat \<Xi> \<xi>a \<tau>a \<tau>o x y\<rbrakk>
+    \<Longrightarrow> vrepeat \<Xi> \<xi>b \<tau>a \<tau>o x y"
+  unfolding vrepeat_def
+  apply clarsimp
+  apply (drule (2) vrepeat_bod_rel_leqD)
+  done
 
 end

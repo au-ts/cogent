@@ -24,7 +24,7 @@ section "Repeat loop scorres"
 context shallow begin
 
 lemma vrepeat_bod_scorres:
-  "\<lbrakk>\<xi>vle \<xi>' \<xi>'';
+  "\<lbrakk>rel_leq \<xi>' \<xi>'';
     valRel \<xi>'' (x ::(64 word, ('b, 'c) StepParam \<Rightarrow> bool,  ('b, 'c) StepParam \<Rightarrow> 'b, 'b, 'c) RepParam)
       (VRecord [VPrim (LU64 n), f, g, acc, obsv]); is_vvalfun f; is_vvalfun g;
     vrepeat_bod \<xi>' (unat n) (vvalfun_to_expr f) (vvalfun_to_expr g) acc obsv v'\<rbrakk>
@@ -48,14 +48,14 @@ lemma vrepeat_bod_scorres:
     apply (erule_tac x = "VRecord [v', obsv]" in allE)
     apply (erule impE, simp add: valRel_StepParam)
     apply (erule_tac x = "VPrim (LBool True)" in allE)
-    apply (drule_tac \<xi>b = \<xi>'' in  v_sem_v_sem_all_\<xi>vle(1); simp)
+    apply (drule_tac \<xi>b = \<xi>'' in  v_sem_v_sem_all_rel_leqD(1)[rotated 1]; simp)
    apply (elim v_sem_appE v_sem_afunE v_sem_varE; clarsimp)
    apply (erule_tac x = "\<lparr>StepParam.acc\<^sub>f = RepParam.acc\<^sub>f x, obsv\<^sub>f = RepParam.obsv\<^sub>f x\<rparr>" in allE)
    apply (erule_tac x = "VRecord [v', obsv]" in allE)
    apply (erule impE, simp add: valRel_StepParam)
    apply (erule_tac x = "VPrim (LBool True)" in allE)
    apply (erule impE; simp?)
-   apply (rule \<xi>vleD; assumption)
+   apply (rule rel_leqD[rotated 1]; assumption)
   apply (rename_tac acc')
   apply (drule_tac x = acc' in meta_spec)
   apply clarsimp
@@ -72,13 +72,13 @@ lemma vrepeat_bod_scorres:
     apply (erule_tac x = "VRecord [acc, obsv]" in allE)
     apply (erule impE, simp add: valRel_StepParam)
     apply (erule_tac x = acc' in allE)
-    apply (drule_tac \<xi>b = \<xi>'' in  v_sem_v_sem_all_\<xi>vle(1); simp)
+    apply (drule_tac \<xi>b = \<xi>'' in  v_sem_v_sem_all_rel_leqD(1)[rotated 1]; simp)
    apply (erule_tac x = "\<lparr>StepParam.acc\<^sub>f = RepParam.acc\<^sub>f x, obsv\<^sub>f = RepParam.obsv\<^sub>f x\<rparr>" in allE)
    apply (erule_tac x = "VRecord [acc, obsv]" in allE)
    apply (erule impE, simp add: valRel_StepParam)
    apply (erule_tac x = acc' in allE)
    apply (erule impE; simp?)
-   apply (rule \<xi>vleD; assumption)
+   apply (rule rel_leqD[rotated 1]; assumption)
   apply clarsimp
   apply (subst (asm) valRel_RepParam; clarsimp)
   apply (erule v_sem_appE; erule disjE; clarsimp; elim v_sem_funE v_sem_afunE v_sem_varE; clarsimp)
@@ -87,18 +87,18 @@ lemma vrepeat_bod_scorres:
    apply (erule impE, simp add: valRel_StepParam)
    apply (erule_tac x = "VPrim (LBool False)" in allE)
    apply (erule impE; simp?)
-   apply (rule \<xi>vleD; assumption)
+   apply (rule rel_leqD[rotated 1]; assumption)
    apply (subst repeatatl.simps; clarsimp)
   apply (erule_tac x = "\<lparr>StepParam.acc\<^sub>f = RepParam.acc\<^sub>f x, obsv\<^sub>f = RepParam.obsv\<^sub>f x\<rparr>" in allE)
   apply (erule_tac x = "VRecord [acc, obsv]" in allE)
   apply (erule impE, simp add: valRel_StepParam)
   apply (erule_tac x = "VPrim (LBool False)" in allE)
-  apply (erule impE, rule v_sem_v_sem_all_\<xi>vle(1); simp)
+  apply (erule impE, rule v_sem_v_sem_all_rel_leqD(1); simp)
   apply (subst repeatatl.simps; clarsimp)
   done
 
 lemma repeat_scorres: 
-  "\<lbrakk>\<xi>vle \<xi>' \<xi>''; \<xi>'' ''repeat'' = prepeat \<xi>'\<rbrakk> \<Longrightarrow> scorres repeat (AFun ''repeat'' ts) \<gamma> \<xi>''"
+  "\<lbrakk>rel_leq \<xi>' \<xi>''; \<xi>'' ''repeat'' = prepeat \<xi>'\<rbrakk> \<Longrightarrow> scorres repeat (AFun ''repeat'' ts) \<gamma> \<xi>''"
   unfolding scorres_def
   apply clarsimp
   apply (erule v_sem_afunE; clarsimp)

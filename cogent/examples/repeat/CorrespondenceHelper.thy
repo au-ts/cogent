@@ -50,8 +50,8 @@ and   "\<lbrakk> \<Xi>', \<sigma> \<turnstile>* fs \<sim> fs' :r map (\<lambda>(
 section "Ordering on abstract function specification properties for abstract function correspondence"
 
 lemma \<xi>ule_matchesuv:
-  "\<lbrakk>\<xi>ub \<sim> \<xi>v matches-u-v \<Xi>'; \<xi>ule \<xi>ua \<xi>ub\<rbrakk> \<Longrightarrow> \<xi>ua \<sim> \<xi>v matches-u-v \<Xi>'"
-  unfolding proc_env_u_v_matches_def \<xi>ule_def
+  "\<lbrakk>rel_leq \<xi>ua \<xi>ub; \<xi>ub \<sim> \<xi>v matches-u-v \<Xi>'\<rbrakk> \<Longrightarrow> \<xi>ua \<sim> \<xi>v matches-u-v \<Xi>'"
+  unfolding proc_env_u_v_matches_def
   apply clarsimp
   apply (rename_tac f K a b \<sigma> \<sigma>' \<tau>s aa a' v v' r w)
   apply (erule_tac x = f in allE; clarsimp)
@@ -64,7 +64,7 @@ lemma \<xi>ule_matchesuv:
   apply (erule_tac x = v' in allE)
   apply (erule_tac x = r in allE)
   apply (erule_tac x = w in allE; clarsimp)
-  apply (drule_tac c = "(f, (\<sigma>, aa), (\<sigma>', v))" in  subsetD; simp)
+  apply (drule (1) rel_leqD; simp)
   done
 
 section "Alternate definition of @{term proc_env_u_v_matches}"
