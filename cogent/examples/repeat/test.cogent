@@ -15,3 +15,14 @@ mylog2 n =
     let args = #{n = n, stop = log2stop, step = log2step, acc = (1, 0), obsv = n}
     and (a, b) = repeat args
     in b
+
+expstop: StopF U32 U32
+expstop x = False
+
+expstep: StepF U32 U32
+expstep #{acc, obsv} = acc * obsv
+
+myexp: (U32, U32) -> U32
+myexp (a, b) =
+	let args = #{n = upcast b, stop = expstop, step = expstep, acc = 1, obsv = a}
+	in repeat args
