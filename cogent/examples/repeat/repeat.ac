@@ -6,7 +6,7 @@
 
 $ty:acc $id:repeat($ty:(RepParam acc obsv) args) {
     u64 i = 0;
-    $ty:(StopParam acc obsv) a;
+    $ty:(StepParam acc obsv) a;
     a.acc = args.acc;
     a.obsv = args.obsv;
     for (i = 0; i < args.n; i++) {
