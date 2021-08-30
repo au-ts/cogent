@@ -27,6 +27,8 @@ lemma \<Xi>_simps:
 
 section "Abstract functions specification for the update semantics"
 
+text "If user defines \<xi>n, we can derive \<xi>i for i < n" 
+
 overloading \<xi>0 \<equiv> \<xi>_0
 begin
 definition \<xi>0 :: "(funtyp, abstyp, ptrtyp) uabsfuns"
@@ -54,6 +56,8 @@ subsection "Preservation for abstract functions"
 
 context update_sem_init begin
 
+text "If user proves for \<xi>n, we can derive \<xi>i for i < n" 
+
 lemma \<xi>_0_matchesu_\<Xi>:
   "\<xi>_0 matches-u \<Xi>'"
   unfolding proc_env_matches_ptrs_def \<xi>0_def
@@ -75,12 +79,16 @@ end (* of context *)
 
 subsection "Partial ordering on abstract functions"
 
+text "These should be automatable"
+
 lemma \<xi>_0_le_\<xi>_1:
   "rel_leq \<xi>_0 \<xi>_1"
   unfolding \<xi>0_def rel_leq_def
   by simp
 
 subsection "Abstract functions are deterministic"
+
+text "If user proves for \<xi>n, we can derive \<xi>i for i < n" 
 
 lemma \<xi>_0_determ:
   "determ \<xi>_0"
@@ -101,6 +109,8 @@ section "Abstract functions specifications for the monomorphic value semantics"
 
 context value_sem begin
 
+text "If user defines for \<xi>n, we can derive \<xi>i for i < n" 
+
 definition \<xi>m0 :: "'b \<Rightarrow> ('b, 'a) vval \<Rightarrow> ('b, 'a) vval \<Rightarrow> bool "
   where
 "\<xi>m0 f x y = False"
@@ -113,6 +123,8 @@ definition \<xi>m1 :: "funtyp \<Rightarrow> (funtyp, 'a) vval \<Rightarrow> (fun
    else \<xi>m0 f x y)"
 
 subsection "Preservation for abstract functions"
+
+text "If user proves for \<xi>n, we can derive \<xi>i for i < n" 
 
 lemma \<xi>m0_matches_\<Xi>:
   "\<xi>m0 matches \<Xi>'"
@@ -134,12 +146,16 @@ lemma \<xi>m1_matches_\<Xi>:
 
 subsection "Partial ordering on abstract functions"
 
+text "Should be automatable"
+
 lemma \<xi>m0_le_\<xi>m1:
   "rel_leq \<xi>m0 \<xi>m1"
   unfolding \<xi>m0_def rel_leq_def
   by simp
 
 subsection "Abstract functions are deterministic"
+
+text "If user proves for \<xi>n, we can derive \<xi>i for i < n" 
 
 lemma \<xi>m0_determ:
   "determ \<xi>m0"
@@ -159,6 +175,8 @@ end (* of context *)
 
 section "Abstract functions specifications for the polymorphic value semantics"
 
+text "If user defines \<xi>n, we can derive \<xi>i for i < n" 
+
 definition \<xi>p0 :: "'b \<Rightarrow> ('b, 'c) vval \<Rightarrow> ('b, 'c) vval \<Rightarrow> bool"
   where
 "\<xi>p0 f x y = False"
@@ -169,12 +187,16 @@ definition \<xi>p1 :: "funtyp \<Rightarrow> (funtyp, 'c) vval \<Rightarrow> (fun
 
 subsection "Partial ordering on abstract functions"
 
+text "Should be automatable"
+
 lemma \<xi>p0_le_\<xi>p1:
   "rel_leq \<xi>p0 \<xi>p1"
   unfolding \<xi>p0_def rel_leq_def
   by simp
 
 subsection "Abstract functions are deterministic"
+
+text "If user proves for \<xi>n, we can derive \<xi>i for i < n" 
 
 lemma \<xi>p0_determ:
   "determ \<xi>p0"
