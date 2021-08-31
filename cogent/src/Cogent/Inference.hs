@@ -57,7 +57,7 @@ import Control.Monad.Except hiding (fmap, forM_)
 import Control.Monad.Reader hiding (fmap, forM_)
 import Control.Monad.State hiding (fmap, forM_)
 import Control.Monad.Trans.Maybe
-import Data.Foldable (forM_)
+import Data.Foldable (forM_, find)
 import Data.Function (on)
 import qualified Data.IntMap as IM
 import Data.Map (Map)
@@ -196,6 +196,9 @@ unbox (TVarBang v)     = TVarUnboxed v
 unbox (TVarUnboxed v)  = TVarUnboxed v
 unbox (TCon n ts s)    = TCon n ts (unboxSigil s)
 unbox (TRecord rp ts s)= TRecord rp ts (unboxSigil s)
+#ifdef BUILTIN_ARRAYS
+unbox (TArray t l s tkns) = TArray t l (unboxSigil s) tkns
+#endif
 unbox t                = t  -- NOTE that @#@ type operator behaves differently to @!@.
                             -- The application of @#@ should NOT be pushed inside of a
                             -- data type. / zilinc
@@ -287,14 +290,22 @@ remove k = filter ((/= k) . fst)
 adjust :: (Eq a) => a -> (b -> b) -> [(a,b)] -> [(a,b)]
 adjust k f = map (\(a,b) -> (a,) $ if a == k then f b else b)
 
+coerceTypeDefs :: [Definition UntypedExpr a b] -> [Definition TypedExpr a b]
+coerceTypeDefs (d@(TypeDef _ _ (Just _)):ds) = (Unsafe.unsafeCoerce d:) $ coerceTypeDefs ds
+coerceTypeDefs (_:ds) = coerceTypeDefs ds
+
+filterTypeDefs :: [Definition TypedExpr a b] -> [Definition TypedExpr a b]
+filterTypeDefs = filter isTypeSynDef
+    where isTypeSynDef (TypeDef _ _ (Just _)) = True
+          isTypeSynDef _ = False
 
 newtype TC (t :: Nat) (v :: Nat) b x
   = TC {unTC :: ExceptT String
-                        (ReaderT (Vec t Kind, Map FunName (FunctionType b))
+                        (ReaderT (Vec t Kind, Map FunName (FunctionType b), [Definition TypedExpr b b])
                                  (State (Vec v (Maybe (Type t b)))))
                         x}
   deriving (Functor, Applicative, Alternative, Monad, MonadPlus,
-            MonadReader (Vec t Kind, Map FunName (FunctionType b)))
+            MonadReader (Vec t Kind, Map FunName (FunctionType b), [Definition TypedExpr b b]))
 
 #if MIN_VERSION_base(4,13,0)
 instance MonadFail (TC t v b) where
@@ -350,10 +361,31 @@ useVariable v = TC $ do ret <- (`at` v) <$> get
                             return ret
 
 funType :: CoreFunName -> TC t v b (Maybe (FunctionType b))
-funType v = TC $ (M.lookup (unCoreFunName v) . snd) <$> ask
+funType v = TC $ (M.lookup (unCoreFunName v) . (\(a,b,c)->b)) <$> ask
+
+isTypeSynDef :: Definition e a b -> Bool
+isTypeSynDef (TypeDef _ _ (Just _)) = True
+isTypeSynDef _ = False
+
+substTransSyn :: [Definition TypedExpr b b] -> Type t b -> Type t b
+substTransSyn d t@(TCon n ts s) | ExI (Flip ts') <- Vec.fromList ts =
+  case find (isDefFor n) d of
+    Just (TypeDef _ vs (Just tb)) -> 
+        case (Vec.length ts' =? Vec.length vs) of
+          Just Refl -> substTransSyn d (substitute ts' tb)
+          _ -> __impossible "lengths don't match"
+    _ -> t
+    where isDefFor n (TypeDef tn _ (Just _)) = (tn == n)
+          isDefFor n _ = False
+substTransSyn _ t = t
+
+expndSyn :: Type t b -> TC t' v b (Type t b)
+expndSyn t = do
+    tdfs <- (\(a,b,c)->c) <$> ask 
+    return $ substTransSyn tdfs t
 
 runTC :: TC t v b x
-      -> (Vec t Kind, Map FunName (FunctionType b))
+      -> (Vec t Kind, Map FunName (FunctionType b), [Definition TypedExpr b b])
       -> Vec v (Maybe (Type t b))
       -> Either String (Vec v (Maybe (Type t b)), x)
 runTC (TC a) readers st = case runState (runReaderT (runExceptT a) readers) st of
@@ -380,21 +412,23 @@ retype ds = fmap fst $ tc $ map untypeD ds
 tc :: (Show b, Eq b, Pretty b, a ~ b)
    => [Definition UntypedExpr a b]
    -> Either String ([Definition TypedExpr a b], Map FunName (FunctionType b))
-tc = flip tc' M.empty
+tc tls = tc' tls M.empty $ coerceTypeDefs tls
   where
     tc' :: (Show b, Eq b, Pretty b, a ~ b)
         => [Definition UntypedExpr a b]
         -> Map FunName (FunctionType b)  -- the reader
+        -> [Definition TypedExpr a b]
         -> Either String ([Definition TypedExpr a b], Map FunName (FunctionType b))
-    tc' [] reader = return ([], reader)
-    tc' ((FunDef attr fn ks ls t rt e):ds) reader =
+    tc' [] reader tdfs = return ([], reader)
+    tc' ((FunDef attr fn ks ls t rt e):ds) reader tdfs =
       -- Enable recursion by inserting this function's type into the function type dictionary
       let ft = FT (snd <$> ks) (snd <$> ls) t rt in
-      case runTC (infer e >>= flip typecheck rt) (fmap snd ks, M.insert fn ft reader) (Cons (Just t) Nil) of
+      case runTC (infer e >>= flip typecheck rt) (fmap snd ks, M.insert fn ft reader, tdfs) (Cons (Just t) Nil) of
         Left x -> Left x
-        Right (_, e') -> (first (FunDef attr fn ks ls t rt e':)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader)
-    tc' (d@(AbsDecl _ fn ks ls t rt):ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader)
-    tc' (d:ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds reader
+        Right (_, e') -> (first (FunDef attr fn ks ls t rt e':)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader) tdfs
+    tc' (d@(AbsDecl _ fn ks ls t rt):ds) reader tdfs = 
+      (first (Unsafe.unsafeCoerce d:)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader) tdfs
+    tc' (d:ds) reader tdfs = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds reader tdfs
 
 tc_ :: (Show b, Eq b, Pretty b, a ~ b)
     => [Definition UntypedExpr a b]
@@ -403,12 +437,37 @@ tc_ = fmap fst . tc
 
 tcConsts :: [CoreConst UntypedExpr]
          -> Map FunName (FunctionType VarName)
+         -> [Definition TypedExpr VarName VarName]  -- type synonym definitions
          -> Either String ([CoreConst TypedExpr], Map FunName (FunctionType VarName))
-tcConsts [] reader = return ([], reader)
-tcConsts ((v,e):ds) reader =
-  case runTC (infer e) (Nil, reader) Nil of
+tcConsts [] reader tdfs = return ([], reader)
+tcConsts ((v,e):ds) reader tdfs =
+  case runTC (infer e) (Nil, reader, tdfs) Nil of
     Left x -> Left x
-    Right (_,e') -> (first ((v,e'):)) <$> tcConsts ds reader
+    Right (_,e') -> (first ((v,e'):)) <$> tcConsts ds reader tdfs
+
+tcExpand :: (Show b, Eq b, Pretty b, a ~ b)
+         => [Definition TypedExpr a b] -> [Definition TypedExpr a b]
+tcExpand tls = tcExpand' tls $ filterTypeDefs tls
+  where
+    tcExpand' :: (Show b, Eq b, Pretty b, a ~ b)
+              => [Definition TypedExpr a b]
+              -> [Definition TypedExpr a b]  -- the type synonym definitions
+              -> [Definition TypedExpr a b]
+    tcExpand' [] tdfs = []
+    tcExpand' ((FunDef attr fn ks ls t rt e):ds) tdfs =
+      case runTC (expand e) (fmap snd ks, M.empty, tdfs) (Cons (Just t) Nil) of
+        Left _ -> __impossible "Error when expanding type synonyms"
+        Right (_, e') -> (FunDef attr fn ks ls t rt e') : (tcExpand' ds tdfs)
+    tcExpand' (d:ds) tdfs = d:(tcExpand' ds tdfs)
+
+tcConstExpand :: [CoreConst TypedExpr]
+              -> [Definition TypedExpr VarName VarName]  -- type synonym definitions
+              -> [CoreConst TypedExpr]
+tcConstExpand [] tdfs = []
+tcConstExpand ((v,e):ds) tdfs = 
+  case runTC (expand e) (Nil, M.empty, tdfs) Nil of
+    Left x -> __impossible "Error when expanding type synonyms"
+    Right (_,e') -> (v,e') : (tcConstExpand ds tdfs)
 
 withBinding :: Type t b -> TC t ('Suc v) b x -> TC t v b x
 withBinding t x
@@ -434,7 +493,7 @@ withBang vs (TC x) = TC $ do st <- get
                              return ret
 
 lookupKind :: Fin t -> TC t v b Kind
-lookupKind f = TC ((`at` f) . fst <$> ask)
+lookupKind f = TC ((`at` f) . (\(a,b,c)->a) <$> ask)
 
 kindcheck_ :: (Monad m) => (Fin t -> m Kind) -> Type t a -> m Kind
 kindcheck_ f (TVar v)         = f v
@@ -732,3 +791,5 @@ promote t (TE t' e) = case e of
   _                   -> TE t $ Promote t (TE t' e)
 
 
+expand :: TypedExpr t v a a -> TC t v a (TypedExpr t v a a)
+expand e = return e

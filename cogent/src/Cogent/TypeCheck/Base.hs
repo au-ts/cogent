@@ -757,6 +757,34 @@ substLayout vs (A t l s tkns) = A (substLayout vs t) l (bimap (fmap (fmap (subst
 #endif
 substLayout vs (Synonym n ts) = Synonym n $ substLayout vs <$> ts
 
+substDepType :: [(VarName, DepType)] -> DepType -> DepType
+substDepType vs (DT (TVar v b u)) | Just x <- lookup v vs =
+  case (b,u) of
+       (False, False) -> x
+       (True , False) -> applyBang x
+       (_    , True ) -> applyUnbox x
+substDepType vs (DT t) = DT (fmap (substDepType vs) t)
+
+applyBang :: DepType -> DepType
+applyBang (DT (TCon tn ts s)) = DT $ TCon tn (map applyBang ts) (bangSigil s)
+applyBang (DT (TVar v b u)) = DT $ TVar v True u
+applyBang ft@(DT (TFun _ _)) = ft
+applyBang (DT (TRecord rp l s)) = DT $ TRecord rp (map (\(fn,(t,tk)) -> (fn,(applyBang t,tk))) l) (bangSigil s)
+#ifdef BUILTIN_ARRAYS
+applyBang (DT (TArray t e (Boxed False l) h)) = DT $ TArray (applyBang t) e (Boxed True l) h
+#endif
+applyBang (DT o) = DT $ fmap applyBang o
+
+applyUnbox :: DepType -> DepType
+applyUnbox (DT (TCon tn ts _)) = DT $ TCon tn ts Unboxed
+applyUnbox (DT (TVar v b _)) = DT $ TVar v b True
+-- Cannot have an unboxed record with a recursive parameter
+applyUnbox (DT (TRecord NonRec l _)) = DT $ TRecord NonRec l Unboxed
+#ifdef BUILTIN_ARRAYS
+applyUnbox (DT (TArray t e _ h)) = DT $ TArray t e Unboxed h
+#endif
+applyUnbox t = t
+
 flexOf (U x) = Just x
 flexOf (T (TTake _ t))   = flexOf t
 flexOf (T (TPut  _ t))   = flexOf t
