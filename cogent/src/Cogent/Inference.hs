@@ -175,20 +175,15 @@ glb = bound GLB
 
 bang :: Type t b -> Type t b
 bang (TVar v)          = TVarBang v
-bang (TVarBang v)      = TVarBang v
-bang (TVarUnboxed v)   = TVarUnboxed v
 bang (TCon n ts s)     = TCon n (map bang ts) (bangSigil s)
-bang (TFun ti to)      = TFun ti to
-bang (TPrim i)         = TPrim i
-bang (TString)         = TString
 bang (TSum ts)         = TSum (map (second $ first bang) ts)
 bang (TProduct t1 t2)  = TProduct (bang t1) (bang t2)
 bang (TRecord rp ts s) = TRecord rp (map (second $ first bang) ts) (bangSigil s)
-bang (TRPar n ctxt)    = TRPar n ctxt
-bang (TUnit)           = TUnit
+bang (TRPar n ctxt)    = TRPar n ctxt  -- not banging in ctxt, is that correct? / gteege
 #ifdef BUILTIN_ARRAYS
 bang (TArray t l s tkns) = TArray (bang t) l (bangSigil s) tkns
 #endif
+bang t                 = t
 
 unbox :: Type t b -> Type t b
 unbox (TVar v)         = TVarUnboxed v
@@ -352,20 +347,28 @@ opType Complement [TPrim p] | p /= Boolean = Just $ TPrim p
 opType opr ts = __impossible "opType"
 
 useVariable :: Fin v -> TC t v b (Maybe (Type t b))
-useVariable v = TC $ do ret <- (`at` v) <$> get
+useVariable v = TC $ do readers <- ask
+                        ret <- (`at` v) <$> get
                         case ret of
                           Nothing -> return ret
                           Just t  -> do
-                            ok <- canShare <$> unTC (kindcheck t)
+                            let t' = substSyns ((\(a,b,c)->c) readers) t
+                            ok <- canShare <$> unTC (kindcheck t')
                             unless ok $ modify (\s -> update s v Nothing)
                             return ret
 
 funType :: CoreFunName -> TC t v b (Maybe (FunctionType b))
 funType v = TC $ (M.lookup (unCoreFunName v) . (\(a,b,c)->b)) <$> ask
 
-isTypeSynDef :: Definition e a b -> Bool
-isTypeSynDef (TypeDef _ _ (Just _)) = True
-isTypeSynDef _ = False
+expandAllSyns :: Type t b -> TC t' v b (Type t b)
+expandAllSyns t = do
+    tdfs <- (\(a,b,c)->c) <$> ask 
+    return $ substSyns tdfs t
+
+expandTransSyns :: Type t b -> TC t' v b (Type t b)
+expandTransSyns t = do
+    tdfs <- (\(a,b,c)->c) <$> ask 
+    return $ substTransSyn tdfs t
 
 substTransSyn :: [Definition TypedExpr b b] -> Type t b -> Type t b
 substTransSyn d t@(TCon n ts s) | ExI (Flip ts') <- Vec.fromList ts =
@@ -379,10 +382,46 @@ substTransSyn d t@(TCon n ts s) | ExI (Flip ts') <- Vec.fromList ts =
           isDefFor n _ = False
 substTransSyn _ t = t
 
-expndSyn :: Type t b -> TC t' v b (Type t b)
-expndSyn t = do
-    tdfs <- (\(a,b,c)->c) <$> ask 
-    return $ substTransSyn tdfs t
+substSyns :: [Definition TypedExpr b b] -> Type t b -> Type t b
+substSyns d t@(TCon n ts s) =
+  case substTransSyn d t of
+    TCon n' ts' s' -> TCon n' (map (substSyns d) ts') s'
+    t' -> substSyns d t'
+substSyns d (TFun t1 t2) = TFun (substSyns d t1) (substSyns d t2) 
+substSyns d (TSum vs) = TSum $ map (second $ first $ substSyns d) vs
+substSyns d (TProduct t1 t2) = TProduct (substSyns d t1) (substSyns d t2) 
+substSyns d (TRecord rp fs s) = TRecord rp (map (second $ first $ substSyns d) fs) s
+substSyns d (TRPar rp ctxt) = TRPar rp $ fmap (M.map (substSyns d)) ctxt
+substSyns d (TRParBang rp ctxt) = TRParBang rp $ fmap (M.map (substSyns d)) ctxt
+#ifdef BUILTIN_ARRAYS
+substSyns d (TArray t e s h) = TArray (substSyns d t) (substSynsLE d e) s (fmap (substSynsLE d) h)
+substSyns d (TRefine t e) = TRefine (substSyns d t) (substSynsLE d e)
+#endif
+substSyns _ t = t
+
+substSynsLE :: [Definition TypedExpr b b] -> LExpr t b -> LExpr t b
+substSynsLE d = \case
+  LFun fn ts ls      -> LFun fn (fmap (substSyns d) ts) ls
+  LOp op es          -> LOp op $ fmap go es
+  LApp e1 e2         -> LApp (go e1) (go e2)
+  LCon tn e t        -> LCon tn (go e) (substSyns d t)
+  LLet a e e'        -> LLet a (go e) (go e')
+  LLetBang bs a e e' -> LLetBang bs a (go e) (go e')
+  LTuple e1 e2       -> LTuple (go e1) (go e2)
+  LStruct fs         -> LStruct $ fmap (second go) fs
+  LIf c th el        -> LIf (go c) (go th) (go el)
+  LCase e tn (a1,e1) (a2,e2)
+                     -> LCase (go e) tn (a1,go e1) (a2,go e2)
+  LEsac e            -> LEsac $ go e
+  LSplit as e e'     -> LSplit as (go e) (go e')
+  LMember e f        -> LMember (go e) f
+  LTake as rec f e'  -> LTake as (go rec) f (go e')
+  LPut rec f e       -> LPut (go rec) f (go e)
+  LPromote t e       -> LPromote (substSyns d t) (go e)
+  LCast t e          -> LCast (substSyns d t) (go e)
+  e                  -> e
+ where go = substSynsLE d
+
 
 runTC :: TC t v b x
       -> (Vec t Kind, Map FunName (FunctionType b), [Definition TypedExpr b b])
@@ -477,7 +516,8 @@ withBinding t x
               Left e -> throwError e
               Right (Cons Nothing s,r)   -> do put s; return r
               Right (Cons (Just t) s, r) -> do
-                ok <- canDiscard <$> unTC (kindcheck t)
+                let t' = substSyns ((\(a,b,c)->c) readers) t
+                ok <- canDiscard <$> unTC (kindcheck t')
                 if ok then put s >> return r
                       else throwError "Didn't use linear variable"
 
@@ -518,9 +558,10 @@ kindcheck = kindcheck_ lookupKind
 
 typecheck :: (Pretty a, Show a, Eq a) => TypedExpr t v a a -> Type t a -> TC t v a (TypedExpr t v a a)
 typecheck e t = do
-  let t' = exprType e
-  isSub <- isSubtype t' t
-  if | t == t' -> return e
+  t' <- expandAllSyns $ exprType e
+  t'' <- expandAllSyns t
+  isSub <- isSubtype t' t''
+  if | t'' == t' -> return e
      | isSub -> return (promote t e)
      | otherwise -> __impossible $ "Inferred type of\n" ++
                                    show (indent' $ pretty e) ++
@@ -528,7 +569,7 @@ typecheck e t = do
                                    "Inferred type:\n" ++
                                    show (indent' $ pretty t') ++
                                    "\nGiven type:\n" ++
-                                   show (indent' $ pretty t) ++ "\n"
+                                   show (indent' $ pretty t'') ++ "\n"
 
 infer :: (Pretty a, Show a, Eq a) => UntypedExpr t v a a -> TC t v a (TypedExpr t v a a)
 infer (E (Op o es))
@@ -541,8 +582,8 @@ infer (E (SLit s)) = return (TE TString (SLit s))
 infer (E (ALit [])) = __impossible "We don't allow 0-size array literals"
 infer (E (ALit es))
    = do es' <- mapM infer es
-        let ts = map exprType es'
-            n = LILit (fromIntegral $ length es) U32
+        ts <- mapM (expandAllSyns . exprType) es'
+        let n = LILit (fromIntegral $ length es) U32
         t <- lubAll ts
         isSub <- allM (`isSubtype` t) ts
         return (TE (TArray t n Unboxed Nothing) (ALit es'))
@@ -554,16 +595,17 @@ infer (E (ALit es))
                            lubAll (t:ts)
 infer (E (ArrayIndex arr idx))
    = do arr'@(TE ta _) <- infer arr
-        let TArray te l _ _ = ta
+        TArray te l _ _ <- expandTransSyns ta
         idx' <- infer idx
+        ta' <- expandAllSyns ta
         -- guardShow ("arr-idx out of bound") $ idx >= 0 && idx < l  -- no way to check it. need ref types. / zilinc
-        guardShow ("arr-idx on non-linear") . canShare =<< kindcheck ta
+        guardShow ("arr-idx on non-linear") . canShare =<< kindcheck ta'
         return (TE te (ArrayIndex arr' idx'))
 infer (E (ArrayMap2 (as,f) (e1,e2)))
    = do e1'@(TE t1 _) <- infer e1
         e2'@(TE t2 _) <- infer e2
-        let TArray te1 l1 _ _ = t1
-            TArray te2 l2 _ _ = t2
+        TArray te1 l1 _ _ <- expandTransSyns t1
+        TArray te2 l2 _ _ <- expandTransSyns t2
         f' <- withBindings (Cons te2 (Cons te1 Nil)) $ infer f
         let t = case __cogent_ftuples_as_sugar of
                   False -> TProduct t1 t2
@@ -571,22 +613,22 @@ infer (E (ArrayMap2 (as,f) (e1,e2)))
         return $ TE t $ ArrayMap2 (as,f') (e1',e2')
 infer (E (Pop a e1 e2))
    = do e1'@(TE t1 _) <- infer e1
-        let TArray te l s tkns = t1
-            thd = te
+        TArray te l s tkns <- expandTransSyns t1
+        let thd = te
             ttl = TArray te (LOp Minus [l, LILit 1 U32]) s tkns
         -- guardShow "arr-pop on a singleton array" $ l > 1
         e2'@(TE t2 _) <- withBindings (Cons thd (Cons ttl Nil)) $ infer e2
         return (TE t2 (Pop a e1' e2'))
 infer (E (Singleton e))
    = do e'@(TE t _) <- infer e
-        let TArray te l _ _ = t
+        TArray te l _ _ <- expandTransSyns t
         -- guardShow "singleton on a non-singleton array" $ l == 1
         return (TE te (Singleton e'))
 infer (E (ArrayTake as arr i e))
    = do arr'@(TE tarr _) <- infer arr
         i' <- infer i
-        let TArray telt len s Nothing = tarr
-            tarr' = TArray telt len s (Just $ texprToLExpr id i')
+        TArray telt len s Nothing <- expandTransSyns tarr
+        let tarr' = TArray telt len s (Just $ texprToLExpr id i')
         e'@(TE te _) <- withBindings (Cons telt (Cons tarr' Nil)) $ infer e
         return (TE te $ ArrayTake as arr' i' e')
 infer (E (ArrayPut arr i e))
@@ -597,7 +639,7 @@ infer (E (ArrayPut arr i e))
         -- refinement type system. Also, we cannot know the exact index that
         -- is being put, thus there's no way that we can infer the precise type
         -- for the new array (tarr').
-        let TArray telm len s tkns = tarr
+        TArray telm len s tkns <- expandTransSyns tarr
         -- XXX | mi <- evalExpr i'
         -- XXX | guardShow "@put index not a integral constant" $ isJust mi
         -- XXX | let Just i'' = mi
@@ -614,33 +656,37 @@ infer (E (Variable v))
 infer (E (Fun f ts ls note))
    | ExI (Flip ts') <- Vec.fromList ts
    , ExI (Flip ls') <- Vec.fromList ls
-   = do myMap <- ask
-        x <- funType f
+   = do x <- funType f
         case x of
           Just (FT ks lts ti to) ->
             case (Vec.length ts' =? Vec.length ks, Vec.length ls' =? Vec.length lts)
               of (Just Refl, Just Refl) -> let ti' = substitute ts' $ substituteL ls ti
                                                to' = substitute ts' $ substituteL ls to
                                             in do forM_ (Vec.zip ts' ks) $ \(t, k) -> do
-                                                    k' <- kindcheck t
+                                                    t' <- expandAllSyns t
+                                                    k' <- kindcheck t'
                                                     when ((k <> k') /= k) $ __impossible "kind not matched in type instantiation"
                                                   return $ TE (TFun ti' to') (Fun f ts ls note)
                  _ -> __impossible "lengths don't match"
           _        -> error $ "Something went wrong in lookup of function type: '" ++ unCoreFunName f ++ "'"
 infer (E (App e1 e2))
-   = do e1'@(TE (TFun ti to) _) <- infer e1
+   = do e1'@(TE tf _) <- infer e1
+        TFun ti to <- expandTransSyns tf
         e2'@(TE ti' _) <- infer e2
-        isSub <- ti' `isSubtype` ti
-        guardShow ("app (actual: " ++ show ti' ++ "; formal: " ++ show ti ++ ")") $ isSub
-        if ti' /= ti then return $ TE to (App e1' (promote ti e2'))
-                     else return $ TE to (App e1' e2')
+        tie' <- expandAllSyns ti'
+        tie  <- expandAllSyns ti
+        isSub <- tie' `isSubtype` tie
+        guardShow ("app (actual: " ++ show tie' ++ "; formal: " ++ show tie ++ ")") $ isSub
+        if tie' /= tie then return $ TE to (App e1' (promote ti e2'))
+                       else return $ TE to (App e1' e2')
 infer (E (Let a e1 e2))
    = do e1' <- infer e1
         e2' <- withBinding (exprType e1') (infer e2)
         return $ TE (exprType e2') (Let a e1' e2')
 infer (E (LetBang vs a e1 e2))
    = do e1' <- withBang (map fst vs) (infer e1)
-        k <- kindcheck (exprType e1')
+        t1 <- expandAllSyns $ exprType e1'
+        k <- kindcheck t1
         guardShow "let!" $ canEscape k
         e2' <- withBinding (exprType e1') (infer e2)
         return $ TE (exprType e2') (LetBang vs a e1' e2')
@@ -652,56 +698,61 @@ infer (E (Tuple e1 e2))
 infer (E (Con tag e tfull))
    = do e' <- infer e
         -- Find type of payload for given tag
-        let TSum ts          = tfull
-            Just (t, False) = lookup tag ts
+        TSum ts <- expandTransSyns tfull
+        let Just (t, False) = lookup tag ts
         -- Make sure to promote the payload to type t if necessary
         e'' <- typecheck e' t
         return $ TE tfull (Con tag e'' tfull)
 infer (E (If ec et ee))
    = do ec' <- infer ec
-        guardShow "if-1" $ exprType ec' == TPrim Boolean
+        tec <- expandTransSyns $ exprType ec'
+        guardShow "if-1" $ tec == TPrim Boolean
         (et', ee') <- (,) <$> infer et <||> infer ee  -- have to use applicative functor, as they share the same initial env
-        let tt = exprType et'
-            te = exprType ee'
+        tt <- expandAllSyns $ exprType et'
+        te <- expandAllSyns $ exprType ee'
         Just tlub <- runMaybeT $ tt `lub` te
         isSub <- (&&) <$> tt `isSubtype` tlub <*> te `isSubtype` tlub
         guardShow' "if-2" ["Then type:", show (pretty tt) ++ ";", "else type:", show (pretty te)] isSub
         let et'' = if tt /= tlub then promote tlub et' else et'
             ee'' = if te /= tlub then promote tlub ee' else ee'
-        return $ TE tlub (If ec' et'' ee'')
+            tl = if tt == tlub then exprType et' else if te == tlub then exprType ee' else tlub
+        return $ TE tl (If ec' et'' ee'')
 infer (E (Case e tag (lt,at,et) (le,ae,ee)))
    = do e' <- infer e
-        let TSum ts = exprType e'
-            Just (t, taken) = lookup tag ts
+        TSum ts <- expandTransSyns $ exprType e'
+        let Just (t, taken) = lookup tag ts
             restt = TSum $ adjust tag (second $ const True) ts  -- set the tag to taken
         let e'' = case taken of
                     True  -> promote (TSum $ OM.toList $ OM.adjust (\(t,True) -> (t,False)) tag $ OM.fromList ts) e'
                     False -> e'
         (et',ee') <- (,) <$>  withBinding t     (infer et)
                          <||> withBinding restt (infer ee)
-        let tt = exprType et'
-            te = exprType ee'
+        tt <- expandAllSyns $ exprType et'
+        te <- expandAllSyns $ exprType ee'
         Just tlub <- runMaybeT $ tt `lub` te
         isSub <- (&&) <$> tt `isSubtype` tlub <*> te `isSubtype` tlub
         guardShow' "case" ["Match type:", show (pretty tt) ++ ";", "rest type:", show (pretty te)] isSub
         let et'' = if tt /= tlub then promote tlub et' else et'
             ee'' = if te /= tlub then promote tlub ee' else ee'
-        return $ TE tlub (Case e'' tag (lt,at,et'') (le,ae,ee''))
+            tl = if tt == tlub then exprType et' else if te == tlub then exprType ee' else tlub
+        return $ TE tl (Case e'' tag (lt,at,et'') (le,ae,ee''))
 infer (E (Esac e))
-   = do e'@(TE (TSum ts) _) <- infer e
+   = do e'@(TE te _) <- infer e
+        TSum ts <- expandTransSyns te
         let t1 = filter (not . snd . snd) ts
         case t1 of
           [(_, (t, False))] -> return $ TE t (Esac e')
           _ -> __impossible $ "infer: esac (t1 = " ++ show t1 ++ ", ts = " ++ show ts ++ ")"
 infer (E (Split a e1 e2))
    = do e1' <- infer e1
-        let (TProduct t1 t2) = exprType e1'
+        TProduct t1 t2 <- expandTransSyns $ exprType e1'
         e2' <- withBindings (Cons t1 (Cons t2 Nil)) (infer e2)
         return $ TE (exprType e2') (Split a e1' e2')
 infer (E (Member e f))
    = do e'@(TE t _) <- infer e  -- canShare
-        let TRecord _ fs _ = t
-        guardShow "member-1" . canShare =<< kindcheck t
+        TRecord _ fs _ <- expandTransSyns t
+        t' <- expandAllSyns t
+        guardShow "member-1" . canShare =<< kindcheck t'
         guardShow "member-2" $ f < length fs
         let (_,(tau,c)) = fs !! f
         guardShow "member-3" $ not c  -- not taken
@@ -714,36 +765,44 @@ infer (E (Struct fs))
 infer (E (Take a e f e2))
    = do e'@(TE t _) <- infer e
         -- trace ("@@@@t is " ++ show t) $ return ()
-        let TRecord rp ts s = t
+        TRecord rp ts s <- expandTransSyns t
         -- a common cause of this error is taking a field when you could have used member
         guardShow ("take: sigil cannot be readonly: " ++ show (pretty e)) $ not (readonly s)
         guardShow "take-1" $ f < length ts
         let (init, (fn,(tau,False)):rest) = splitAt f ts
-        k <- kindcheck tau
+        tau' <- expandAllSyns tau
+        k <- kindcheck tau'
         e2' <- withBindings (Cons tau (Cons (TRecord rp (init ++ (fn,(tau,True)):rest) s) Nil)) (infer e2)  -- take that field regardless of its shareability
         return $ TE (exprType e2') (Take a e' f e2')
 infer (E (Put e1 f e2))
    = do e1'@(TE t1 _) <- infer e1
-        let TRecord rp ts s = t1
+        TRecord rp ts s <- expandTransSyns t1
         guardShow "put: sigil not readonly" $ not (readonly s)
         guardShow "put-1" $ f < length ts
         let (init, (fn,(tau,taken)):rest) = splitAt f ts
-        k <- kindcheck tau
+        tau' <- expandAllSyns tau
+        k <- kindcheck tau'
         unless taken $ guardShow "put-2" $ canDiscard k  -- if it's not taken, then it has to be discardable; if taken, then just put
         e2'@(TE t2 _) <- infer e2
-        isSub <- t2 `isSubtype` tau
+        t2' <- expandAllSyns t2
+        tau' <- expandAllSyns tau
+        isSub <- t2' `isSubtype` tau'
         guardShow "put-3" isSub
-        let e2'' = if t2 /= tau then promote tau e2' else e2'
+        let e2'' = if t2' /= tau' then promote tau e2' else e2'
         return $ TE (TRecord rp (init ++ (fn,(tau,False)):rest) s) (Put e1' f e2'')  -- put it regardless
 infer (E (Cast ty e))
    = do (TE t e') <- infer e
-        guardShow ("cast: " ++ show t ++ " <<< " ++ show ty) =<< t `isUpcastable` ty
+        t' <- expandAllSyns t
+        ty' <- expandAllSyns ty
+        guardShow ("cast: " ++ show t' ++ " <<< " ++ show ty') =<< t' `isUpcastable` ty'
         return $ TE ty (Cast ty $ TE t e')
 infer (E (Promote ty e))
    = do (TE t e') <- infer e
-        guardShow ("promote: " ++ show t ++ " << " ++ show ty) =<< t `isSubtype` ty
-        return $ if t /= ty then promote ty $ TE t e'
-                            else TE t e'  -- see NOTE [How to handle type annotations?] in Desugar
+        t' <- expandAllSyns t
+        ty' <- expandAllSyns ty
+        guardShow ("promote: " ++ show t' ++ " << " ++ show ty') =<< t' `isSubtype` ty'
+        return $ if t' /= ty' then promote ty $ TE t e'
+                              else TE t e'  -- see NOTE [How to handle type annotations?] in Desugar
 
 
 -- | Promote an expression to a given type, pushing down the promote as far as possible.
