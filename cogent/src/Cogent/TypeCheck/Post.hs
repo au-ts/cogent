@@ -110,14 +110,14 @@ normaliseT :: TypeDict -> TCType -> Post TCType
 normaliseT d (T (TUnbox t)) = do
    t' <- normaliseT d t
    case t' of
-     (T (TCon x ps _))    -> normaliseT d (T (TCon x ps Unboxed))
-     (T (TVar v b u))     -> normaliseT d (T (TVar v b True))
+     (T (TCon x ps _))    -> return (T (TCon x ps Unboxed))
+     (T (TVar v b _))     -> return (T (TVar v b True))
      -- Cannot have an unboxed record with a recursive parameter
-     (T (TRecord NonRec l _)) -> normaliseT d (T (TRecord NonRec l Unboxed))
+     (T (TRecord NonRec l _)) -> return (T (TRecord NonRec l Unboxed))
 #ifdef BUILTIN_ARRAYS
-     (T (TArray t e _ h)) -> normaliseT d (T (TArray t e Unboxed h))
+     (T (TArray t e _ h)) -> return (T (TArray t e Unboxed h))
 #endif
-     (T o)                -> normaliseT d =<< normaliseT d (T $ fmap (T . TUnbox) o)
+     (T o)                -> normaliseT d (T $ fmap (T . TUnbox) o) -- recursive Unbox! Is this correct? /gteege
      _                    -> __impossible "normaliseT (TUnbox)"
 
 normaliseT d (T (TBang t)) = do
@@ -132,13 +132,13 @@ normaliseT d (T (TBang t)) = do
        t' <- normaliseT d $ T $ TBang t
        normaliseT d (T (TArray t' e (Boxed True l) h))
 #endif
-     (T (TVar v b u))  -> normaliseT d (T (TVar v True u))
+     (T (TVar v b u))  -> return (T (TVar v True u))
      (T (TFun a b))    -> T <$> (TFun <$> normaliseT d a <*> normaliseT d b)
      (T o)             -> normaliseT d =<< normaliseT d (T $ fmap (T . TBang) o)
      _                 -> __impossible "normaliseT (TBang)"
 
 normaliseT d (T (TTake fs t)) = do
-   t' <- normaliseT d t
+   t' <- substTransTypeSyn d <$> normaliseT d t
    case t' of
      (T (TRecord rp l s)) -> takeFields fs l t >>= \r -> normaliseT d (T (TRecord rp r s))
      (T (TVariant ts)) -> takeFields fs (M.toList ts) t' >>= \r -> normaliseT d (T (TVariant (M.fromList r)))
@@ -153,7 +153,7 @@ normaliseT d (T (TTake fs t)) = do
                                  return (f, (t, f `elem` fs || b))
 
 normaliseT d (T (TPut fs t)) = do
-   t' <- normaliseT d t
+   t' <- substTransTypeSyn d <$> normaliseT d t
    case t' of
      (T (TRecord rp l s)) -> putFields fs l t >>= \r -> normaliseT d (T (TRecord rp r s))
      (T (TVariant ts)) -> putFields fs (M.toList ts) t' >>= \r -> normaliseT d (T (TVariant (M.fromList r)))
@@ -170,7 +170,7 @@ normaliseT d (T (TPut fs t)) = do
 #ifdef BUILTIN_ARRAYS
 -- TODO: we also need to check that the taken indices are in bounds / zilinc
 normaliseT d (T (TATake is t)) = do
-  t' <- normaliseT d t
+  t' <- substTransTypeSyn d <$> normaliseT d t
   case t' of
     (T (TArray elt l s [])) -> normaliseT d (T (TArray elt l s $ map (,True) is))
     (T (TArray _ _ _ _)) -> __impossible "normaliseT: TArray can have at most one taken element"
@@ -178,7 +178,7 @@ normaliseT d (T (TATake is t)) = do
 
 normaliseT d (T (TAPut is t)) = do
   -- FIXME: dodgy implementation / zilinc
-  t' <- normaliseT d t
+  t' <- substTransTypeSyn d <$> normaliseT d t
   case t' of
     (T (TArray elt l s [])) -> normaliseT d t'  -- no hole. no-op.
     (T (TArray elt l s [(h, True)])) ->  -- one hole
@@ -192,22 +192,22 @@ normaliseT d (T (TLayout l t)) = do
   case t' of
     (T (TRecord rp fs (Boxed p Nothing))) ->
       normaliseT d . T $ TRecord rp fs (Boxed p $ Just l)
-    (T (TCon n ts (Boxed p Nothing))) ->
-      normaliseT d . T $ TCon n ts (Boxed p $ Just l)
+    (T (TCon n ts (Boxed p Nothing))) -> do
+        -- expand synonyms because we cannot have a layout in desugared type synonyms
+      case substTransTypeSyn d t' of
+        (T (TCon ne tse (Boxed pe _))) -> do -- abstract or primitive type
+          tse' <- mapM (normaliseT d) tse
+          return $ T $ TCon ne tse' (Boxed pe $ Just l)
+        teo -> normaliseT d . T $ TLayout l teo
 #ifdef BUILTIN_ARRAYS
     (T (TArray telt n (Boxed p Nothing) tkns)) ->
       normaliseT d . T $ TArray telt n (Boxed p $ Just l) tkns
 #endif
     _ -> logErrExit (LayoutOnNonRecordOrCon t)
 
-normaliseT d (T (TCon n ts b)) =
-  case lookup n d of
-    -- In the first case, the sigil `s` should be `Nothing`
-    -- because 
-    Just (ts', Just b) -> normaliseT d (substType (zip ts' ts) b)
-    _ -> do
-      ts' <- mapM (normaliseT d) ts
-      return $ T (TCon n ts' b)
+normaliseT d t@(T (TCon n ts b)) = do
+  ts' <- mapM (normaliseT d) ts
+  return $ T $ TCon n ts' b
 
 normaliseT d (T (TRecord rp l s)) = do
   l' <- mapM ((secondM . firstM) (normaliseT d)) l
@@ -219,10 +219,9 @@ normaliseT d (T (TArray t n s tkns)) = do
   return $ T $ TArray t' n s tkns
 #endif
 
-normaliseT d (Synonym n ts) = 
-  case lookup n d of
-    Just (ts', Just b) -> normaliseT d (substType (zip ts' ts) b)
-    _ -> __impossible ("normaliseT: unresolved synonym " ++ show n)
+normaliseT d t@(Synonym n ts) = do
+  ts' <- mapM (normaliseT d) ts
+  return $ T $ TCon n ts' $ Boxed False Nothing
 normaliseT d (V x) =
   T . TVariant . M.fromList .
   map (\e -> (Row.fname e, ([Row.payload e], Row.taken e))) .
@@ -245,4 +244,17 @@ normaliseT d (T x) = T <$> traverse (normaliseT d) x
 tkNorm :: Either Taken Int -> Taken
 tkNorm (Left tk) = tk
 tkNorm (Right _) = __impossible "normaliseT: taken variable unsolved at normisation"
+
+-- resolve transitive type synonyms until a non-synonym results
+-- synonyms in type arguments are not resolved
+substTransTypeSyn :: TypeDict -> TCType -> TCType
+substTransTypeSyn d (Synonym n ts) = 
+  case lookup n d of
+    Just (ts', Just b) -> substTransTypeSyn d (substType (zip ts' ts) b)
+    _ -> __impossible ("substTransTypeSyn: unresolved synonym " ++ show n)
+substTransTypeSyn d t@(T (TCon n ts b)) =
+  case lookup n d of
+    Just (ts', Just b) -> substTransTypeSyn d (substType (zip ts' ts) b)
+    _ -> t
+substTransTypeSyn _ t = t
 
