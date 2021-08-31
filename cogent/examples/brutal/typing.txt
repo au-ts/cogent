@@ -1,0 +1,34 @@
+Based on the design for the "brutal" minimal example, the following
+abstract interface has been developed for using dependently typed
+buffers.
+
+Given a buffer object with a fixed size (size:U64) in bytes and an
+unboxed type for the contents (assuming `a` is a record type), we can
+`focus` on a buffer using the following abstract function:
+
+focus_buffer : all a b c.(Buffer<size,#a>, #{ obj : (BItem a, BTail a), obsv : c!} -> (b, BItem a, BTail a)) ->
+   (b, Vector<size,#a>)
+
+where we provide a second functional argument that gets access to two
+components of the buffer: the contiguous block of entries referred to by
+`BItem a`, and a pointer to `one past` the occupied block to the
+uninitialised portion of the buffer; referred to as `BTail a`. The
+functional argument actually accepts a record with some observer data. A
+key property we require is that the components are returned as part of
+the result type of the function. Both `BItem a` and `BTail a` are
+regular abstract types
+
+type BItem a
+type BTail a
+
+which satisfy the following interface:
+
+next : all a.BItem a -> <None (BItem a) | Some (BItem a)>
+read : all a.((BItem a)!) -> a!
+write : all a.(BItem a, a -> a) -> BItem a
+append : all a.(BItem a, BTail a, a) ->
+  <Success (BItem a, BTail a) | Fail (BItem a, BTail a, a)>
+
+The typing rules required for the above interface are related to typing
+the dependently typed records extension, and the use of DArrays that may
+occur in abstract function signatures.

@@ -1,0 +1,144 @@
+-- A second attempt at translating the minimal C example: brutal.c
+-- We use abstract functions to hide the pointer arithmetic and
+-- iteration required by the example. The rest of the example can
+-- be expressed in Cogent.
+
+include <gum/common/common.cogent>
+include <gum/common/iterator.cogent>
+
+type Stuff = {
+  a : U32,
+  b : U32,
+  c : U32
+}
+
+type Entry = {
+  >len : U32,
+  stuff : #Stuff,
+  name : DArray ~len U8 -- an abstraction for flexible array member.
+}
+
+size : U64
+size = 4096
+
+-- Vector is a built-in type
+type EntryBlock = Vector ~size #Entry
+
+-- Regular abstract types
+type BItem a
+type BTail a
+type CString
+-- type DArray n a
+
+type EntryBlock = Buffer 4096 Entry
+with
+  type A
+  type B
+
+  item : A
+
+  tail : B
+
+  next : A -> <None A | Some A>
+
+end
+
+unpack/pack with EntryBlock
+
+addToBag : (Bag, U32) -> Bag -- ???
+
+unpack : Buffer 4096 Entry -> (item, tail)
+pack : (item, tail) -> Buffer 4096 Entry
+
+-- New construct to be used with focus/blur
+--view BView n A = (Buffer n A) as (BItem A, BTail A)
+-- as an abstract function
+-- b cannot be BItem a or BTail a
+-- focus : ((BItem a, BTail a) -> b) -> (Vector<size,#a> -> (Vector<size,#a>, b))
+focus_buffer : all a b.(Vector<size,#a>, (BItem a, BTail a) -> b) -> (b, Vector<size,#a>)
+
+focus_buffer : all a b c.(Vector<size,#a>, #{ obj : (BItem a, BTail a), obsv : c!} -> b) ->
+   (b, Vector<size,#a>)
+
+-- vc focus: all (x:Buffer ~size A) F, focus_buffer x F = F (head x) (tail x) /\
+---                                    points-to (head x) (size x) /\
+---                                    points-to (tail x) (capacity - (size x))
+--- x -> [--------------]
+--- h -> [----][-----]
+--- t ---------^
+-- F takes buffer head and buffer tail and returns buffer
+
+focus_buffer : all a b o.(Vector<size,#a>, (BItem a, BTail a, o) -> (b, BItem a, BTail a)) ->
+  (b, Vector<size,#a>)
+
+capacity : all a. Vector<size,#a>! -> U64
+
+size : all a.Vector<size,#a>! -> U64 -- current size of buffer
+
+-- Regular abstract functions
+has_next : all a. (BItem a)! -> Bool
+
+read : all a.((BItem a)!) -> a!
+length : BItem -> U64
+
+vc len: all x:BItem, length x = e.len where e = read x
+
+ghost cmp_item : (BItem, BItem) -> Bool -- ghost functions
+cmp_tail : (BItem, BTail) -> Bool
+
+Buffer ~size Entry
+next : all a.BItem a -> <None (BItem a) | Some (BItem a)>
+vc next_prop_none: all x y, next x = None y => x = y
+vc next_prop_some: all x y, next x = Some y => cmp_item x y
+
+vc next_prop: all x, exists y, next x = Some y \/ next x = None y => length y < size
+
+
+
+
+write : all a.(BItem a, a -> a) -> BItem a
+get : all a. BItem a -> a! -- get me the underlying data and destroy the item
+append : all a.(BTail a, a) -> <Success (BTail a) | Fail (BTail a)>
+
+-- get_block : (SysState) -> (SysState, EntryBlock)
+
+cstring_cmp : all n.(CString!, DArray ~n U8) -> Bool
+
+stuff_ptr : (Entry!) -> Stuff!
+
+gen_next_item : all a.#{ acc : BItem a , obsv : CString! } ->
+  GeneratorResult () (BItem a) () (BItem a)
+gen_next_item (r #{ acc = item }) =
+  next item
+  | None item -> (item, Stop ())
+  | Some item -> (item, Yield ())
+
+cons_next_item :
+  #{ obj : (), acc : BItem Entry, obsv : CString! } ->
+  ConsumerResult (BItem Entry) () (BItem Entry)
+cons_next_item (r #{acc = item , obsv = needle }) =
+  let e = read item !item in
+  if cstring_cmp(needle, e.name) then (item, Return (stuff_ptr e))
+  else (item, Next)
+
+sum_stuff : #{obj : (BItem Entry, BTail Entry) , obsv : CString! } ->
+            (U32, BItem Entry, BTail Entry)
+sum_stuff #{obj = (item, tail) , obsv = needle } =
+  let (item, ret) = iterate_do [(), BItem Entry, (), <None | BItem Entry>, CString!]
+                          #{ init = ()
+                          , gen = gen_next_item
+                          , cons = cons_next_item
+                          , acc = item
+                          , obsv = needle }
+  and res =
+    ret
+    | Stop () -> 0
+    | Return stuff -> compute_fields stuff
+  in (res, item, tail)
+                          
+-- Need to compare DArray's: this DArray occurs outside an enclosing
+-- dependently typed record (Entry)
+findStuff : (EntryBlock, CString!) -> (EntryBlock, Option Stuff!)
+findStuff (block, needle) =
+  let (res, block) = focus_buffer(block,find_entry) in
+  in (block, res)
