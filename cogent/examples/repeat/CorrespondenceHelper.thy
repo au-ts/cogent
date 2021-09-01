@@ -83,7 +83,7 @@ definition proc_env_u_v_matches_alt :: "(('f, 'au, 'l) uabsfuns)
                       \<longrightarrow> \<xi>u f (\<sigma>, a) (\<sigma>', v)
                       \<longrightarrow> (\<exists>v'. \<xi>v f a' v' \<and> 
                             (\<exists>r' w'. (\<Xi>' , \<sigma>' \<turnstile> v \<sim> v' : instantiate \<tau>s \<tau>o \<langle>r', w'\<rangle>)
-                                    \<and> r' \<subseteq> r \<and> upd.frame \<sigma> w \<sigma>' w'))))"
+                                    \<and> r' \<subseteq> r \<and> frame \<sigma> w \<sigma>' w'))))"
 
 lemma proc_env_u_v_matches_imp_alt:
   "\<xi>u \<sim> \<xi>v matches-u-v \<Xi>' \<Longrightarrow> \<xi>u \<sim> \<xi>v altmatches-u-v \<Xi>'"

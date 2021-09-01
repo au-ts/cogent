@@ -16,7 +16,7 @@ lemma uvrepeat_bod_monocorrespondence:
     vrepeat_bod \<xi>v n f g vacc vobsv vret;
     \<Xi>', [], [option.Some (TRecord [(''acc'', bang \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)] \<turnstile> (App f (Var 0)) : TPrim Bool;
     \<Xi>', [], [option.Some (TRecord [(''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)] \<turnstile> (App g (Var 0)) : \<tau>a\<rbrakk>
-      \<Longrightarrow>\<exists>r' w'.  \<Xi>', \<sigma>' \<turnstile> uret \<sim> vret : \<tau>a \<langle>r', w'\<rangle> \<and> r' \<subseteq> (ra \<union> ro) \<and> upd.frame \<sigma> wa \<sigma>' w'"
+      \<Longrightarrow>\<exists>r' w'.  \<Xi>', \<sigma>' \<turnstile> uret \<sim> vret : \<tau>a \<langle>r', w'\<rangle> \<and> r' \<subseteq> (ra \<union> ro) \<and> frame \<sigma> wa \<sigma>' w'"
   apply (induct n arbitrary: \<sigma> uacc ra wa vacc)
    apply clarsimp
    apply (intro exI conjI; simp?)
@@ -59,7 +59,7 @@ lemma uvrepeat_bod_monocorrespondence:
    apply blast
   apply clarsimp
   apply (rename_tac r' w')
-  apply (thin_tac "upd.frame _ {} _ {}")
+  apply (thin_tac "frame _ {} _ {}")
   apply (frule_tac u = uobsv and v = vobsv in upd_val_rel_frame(1)[rotated 3]; simp?; clarsimp?)
   apply (frule_tac v = uobsv and v' = vobsv in frame_noalias_upd_val_rel'(2); simp?)
   apply (elim meta_allE meta_impE, assumption, assumption, assumption, assumption, assumption)
@@ -130,7 +130,7 @@ lemma uvrepeat_bod_upward_propagation:
    apply (rule upd_val_rel_bang(1); simp)
   apply clarsimp
   apply (erule u_v_uprimE; clarsimp)
-  apply (thin_tac "upd.frame _ {} _ {}")
+  apply (thin_tac "frame _ {} _ {}")
   apply (frule_tac r = "ra \<union> ro"  and w = wa and
       \<gamma>' = "[VRecord [vacc, vobsv]]" and
       e = "App g (Var 0)" in val_executes_from_upd_executes(1)[rotated 3]; simp?)
@@ -179,7 +179,7 @@ lemma uvrepeat_monocorrespond_upward_propagation:
                            Unboxed \<langle>r, w\<rangle>;
         urepeat \<Xi>' \<xi>u \<tau>a \<tau>o (\<sigma>, au) (\<sigma>', v)\<rbrakk>
        \<Longrightarrow> (val.vrepeat \<Xi>' \<xi>v \<tau>a \<tau>o av v' \<longrightarrow>
-            (\<exists>r' w'. \<Xi>', \<sigma>' \<turnstile> v \<sim> v' : \<tau>a \<langle>r', w'\<rangle> \<and> r' \<subseteq> r \<and> upd.frame \<sigma> w \<sigma>' w')) \<and>
+            (\<exists>r' w'. \<Xi>', \<sigma>' \<turnstile> v \<sim> v' : \<tau>a \<langle>r', w'\<rangle> \<and> r' \<subseteq> r \<and> frame \<sigma> w \<sigma>' w')) \<and>
             (\<exists>v'. val.vrepeat \<Xi>' \<xi>v \<tau>a \<tau>o av v')"
   unfolding urepeat_def val.vrepeat_def
   apply clarsimp

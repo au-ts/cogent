@@ -107,7 +107,7 @@ lemma \<xi>_1_determ:
 
 section "Abstract functions specifications for the monomorphic value semantics"
 
-context value_sem begin
+context monomorph_sem begin
 
 text "If user defines for \<xi>n, we can derive \<xi>i for i < n" 
 
@@ -297,27 +297,27 @@ section "Correspondence between abstract functions in the update and value seman
 context correspondence_init begin
 
 lemma \<xi>_0_\<xi>m0_matchesuv_\<Xi>:
-  "\<xi>_0 \<sim> val.\<xi>m0 matches-u-v \<Xi>'"
-  unfolding proc_env_u_v_matches_def \<xi>0_def val.\<xi>m0_def
+  "\<xi>_0 \<sim> \<xi>m0 matches-u-v \<Xi>'"
+  unfolding proc_env_u_v_matches_def \<xi>0_def \<xi>m0_def
   by clarsimp
 
 lemma \<xi>_1_\<xi>m1_matchesuv_\<Xi>:
-  "\<xi>_1 \<sim> val.\<xi>m1 matches-u-v \<Xi>"
-  unfolding proc_env_u_v_matches_def \<xi>1_def val.\<xi>m1_def
+  "\<xi>_1 \<sim> \<xi>m1 matches-u-v \<Xi>"
+  unfolding proc_env_u_v_matches_def \<xi>1_def \<xi>m1_def
   apply clarsimp
   apply (intro conjI impI; clarsimp)
     apply (subst (asm) \<Xi>_def;
            clarsimp simp: repeat_1_type_def repeat_0_type_def;
            rule uvrepeat_monocorrespond_upward_propagation[OF proc_ctx_wellformed_\<Xi> \<xi>_0_\<xi>m0_matchesuv_\<Xi>];
            (simp add: abbreviated_type_defs)?)+
-  apply (clarsimp simp: \<xi>0_def val.\<xi>m0_def)
+  apply (clarsimp simp: \<xi>0_def \<xi>m0_def)
   done
 
 end (* of context *)
 
 section "Monomorphisation of abstract functions"
 
-context value_sem begin
+context monomorph_sem begin
 
 lemma rename_mono_prog_\<xi>m0_\<xi>p0:
   "rename_mono_prog rename' \<Xi>' \<xi>m0 \<xi>p0"
@@ -346,23 +346,23 @@ lemma (in shallow) scorres_repeat:
 section "All refine"
 
 lemmas (in Generated_cogent_shallow) corres_shallow_C_log2step_concrete = corres_shallow_C_log2step
-  [OF _ val.rename_mono_prog_\<xi>m0_\<xi>p0 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m0_matches_\<Xi>]
+  [OF _ rename_mono_prog_\<xi>m0_\<xi>p0 _ _ proc_ctx_wellformed_\<Xi> \<xi>m0_matches_\<Xi>]
 
 lemmas (in Generated_cogent_shallow) corres_shallow_C_log2stop_concrete = corres_shallow_C_log2stop
-  [OF _ val.rename_mono_prog_\<xi>m0_\<xi>p0 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m0_matches_\<Xi>]
+  [OF _ rename_mono_prog_\<xi>m0_\<xi>p0 _ _ proc_ctx_wellformed_\<Xi> \<xi>m0_matches_\<Xi>]
 
 lemmas (in Generated_cogent_shallow) corres_shallow_C_mylog2_concrete = corres_shallow_C_mylog2
-  [folded \<Xi>_def, OF _ _ val.rename_mono_prog_\<Xi>_\<xi>m1_\<xi>p1 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m1_matches_\<Xi>,
+  [folded \<Xi>_def, OF _ _ rename_mono_prog_\<Xi>_\<xi>m1_\<xi>p1 _ _ proc_ctx_wellformed_\<Xi> \<xi>m1_matches_\<Xi>,
    simplified, OF mylog2_repeat_corres[simplified]]
 
 lemmas (in Generated_cogent_shallow) corres_shallow_C_expstep_concrete = corres_shallow_C_expstep
-  [OF _ val.rename_mono_prog_\<xi>m0_\<xi>p0 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m0_matches_\<Xi>]
+  [OF _ rename_mono_prog_\<xi>m0_\<xi>p0 _ _ proc_ctx_wellformed_\<Xi> \<xi>m0_matches_\<Xi>]
 
 lemmas (in Generated_cogent_shallow) corres_shallow_C_expstop_concrete = corres_shallow_C_expstop
-  [OF _ val.rename_mono_prog_\<xi>m0_\<xi>p0 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m0_matches_\<Xi>]
+  [OF _ rename_mono_prog_\<xi>m0_\<xi>p0 _ _ proc_ctx_wellformed_\<Xi> \<xi>m0_matches_\<Xi>]
 
 lemmas (in Generated_cogent_shallow) corres_shallow_C_myexp_concrete = corres_shallow_C_myexp
-  [folded \<Xi>_def, OF _ _ val.rename_mono_prog_\<Xi>_\<xi>m1_\<xi>p1 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m1_matches_\<Xi>,
+  [folded \<Xi>_def, OF _ _ rename_mono_prog_\<Xi>_\<xi>m1_\<xi>p1 _ _ proc_ctx_wellformed_\<Xi> \<xi>m1_matches_\<Xi>,
    simplified, OF myexp_repeat_corres[simplified]]
 
 end

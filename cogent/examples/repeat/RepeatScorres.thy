@@ -25,7 +25,7 @@ context shallow begin
 
 lemma vrepeat_bod_scorres:
   "\<lbrakk>rel_leq \<xi>' \<xi>'';
-    valRel \<xi>'' (x ::(64 word, ('b, 'c) StepParam \<Rightarrow> bool,  ('b, 'c) StepParam \<Rightarrow> 'b, 'b, 'c) RepParam)
+    valRel \<xi>'' (x ::(64 word, ('c, 'd) StepParam \<Rightarrow> bool,  ('c, 'd) StepParam \<Rightarrow> 'c, 'c, 'd) RepParam)
       (VRecord [VPrim (LU64 n), f, g, acc, obsv]); is_vvalfun f; is_vvalfun g;
     vrepeat_bod \<xi>' (unat n) (vvalfun_to_expr f) (vvalfun_to_expr g) acc obsv v'\<rbrakk>
    \<Longrightarrow> valRel \<xi>''
