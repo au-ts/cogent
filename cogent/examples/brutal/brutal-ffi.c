@@ -34,7 +34,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#define SIZE 4096
+#define CAP 4096
 
 typedef struct stuff { // The data sought, item b in particular.
   int a,b,c;
@@ -47,7 +47,8 @@ typedef struct entry { // ... of varying length.
               // a flexible array member.
 } entry_t;
 
-char block[SIZE]; // Contains Entry’s jammed together; terminated by
+static unsigned long size = 2048;
+char block[CAP]; // Contains Entry’s jammed together; terminated by
                   // len==0.
 
 typedef char *buffer_t;
@@ -77,19 +78,19 @@ typedef struct gen_result {
   stuff_t *ret;
   unit_t stop;
   unit_t yield;
-} gen_result_t ;
+} gen_result_t;
 
-typedef struct con_result {
+typedef struct cons_result {
   tag_t tag;
   bitem_t acc;
   stuff_t *ret;
   unit_t stop;
-} con_result_t;
+} cons_result_t;
 
 typedef struct iter_result {
   tag_t tag;
   bitem_t acc;
-  stuff_t *ret;
+  stuff_t *stuff;
   unit_t stop;
 } iter_result_t;
 
@@ -99,9 +100,14 @@ typedef struct ret {
   btail_t tail;
 } ret_t;
 
+typedef struct option {
+  tag_t tag;
+  bitem_t item;
+} option_t;
+
 typedef struct arg {
-  bitem_t a;
-  btail_t b;
+  bitem_t item;
+  btail_t tail;
   char *obsv;
 } arg_t;
 
@@ -115,7 +121,7 @@ typedef struct focus_ret {
   buffer_t b;
 } focus_ret_t;
 
-typedef arg_t (*view_func_t)(arg_t);
+typedef ret_t (*view_func_t)(arg_t);
 typedef gen_result_t (*generator_t)(pair_t);
 typedef cons_result_t (*consumer_t)(pair_t);
 
@@ -133,7 +139,11 @@ static view_func_t views[] = {sum_stuff};
 
 /** Access to an EntryBlock is provided by the following abstract
  *  function where the index points to a view_func_t */
-focus_buffer(buffer_t b, unsigned int idx);
+focus_ret_t focus_buffer(buffer_t b, char *needle, unsigned int idx);
+
+option_t next(bitem_t b);
+
+entry_t *read(bitem_t b);
 
 iter_result_t iterate_do(iter_arg_t arg);
 
@@ -143,13 +153,29 @@ gen_result_t gen_next_item(pair_t p) {
   opt = next(p.acc);
   if (opt.tag == TAG_ENUM_None) {
     ret.tag = TAG_ENUM_Stop;
+    ret.acc = p.acc;
+  } else {
+    ret.tag = TAG_ENUM_Yield;
+    ret.acc = opt.item;
   }
   return ret;
 }
 
-cons_result_t (*consumer_t)(pair_t p) {
+cons_result_t cons_next_item(pair_t p) {
   cons_result_t ret = {0};
+  entry_t *e;
+  bitem_t item = p.acc;
+  char *needle = p.obsv;
 
+  ret.acc = item;
+  e = read(item);
+
+  if (strcmp(needle, e->name) == 0) {
+    ret.tag = TAG_ENUM_Return;
+    ret.ret = &e->stuff;
+  } else {
+    ret.tag = TAG_ENUM_Next;
+  }
   return ret;
 }
 
@@ -162,8 +188,8 @@ ret_t sum_stuff(arg_t x) {
     p.a = -1;
     p.item = ret.acc;
     p.tail = x.tail;
-  } else if (ret.tag TAG_ENUM_Return) {
-    p.a = ret.stuff->a + ret.stuff->b + ret.stuff->c;
+  } else if (ret.tag == TAG_ENUM_Return) {
+    p.a = ret.stuff->b;
     p.item = ret.acc;
     p.tail = x.tail;
   }
@@ -188,7 +214,7 @@ iter_result_t iterate_do(iter_arg_t arg) {
       break;
     } else if (cr.tag == TAG_ENUM_Return) {
       ret.tag = TAG_ENUM_Return;
-      ret.ret = cr.ret;
+      ret.stuff = cr.ret;
       break;
     }
 
@@ -198,50 +224,81 @@ iter_result_t iterate_do(iter_arg_t arg) {
     ret.acc = gr.acc;
 
     if (gr.tag == TAG_ENUM_Stop) {
-      ret.tag = Stop;
+      ret.tag = TAG_ENUM_Stop;
       ret.stop = gr.stop;
       break;
-    } else if (gr.tag = TAG_ENUM_Return) {
+    } else if (gr.tag == TAG_ENUM_Return) {
       ret.tag = TAG_ENUM_Return;
-      ret.ret = gr.ret;
+      ret.stuff = gr.ret;
       break;
     }
-
     p.acc = gr.acc;
   }
   return ret;
 }
 
+
+focus_ret_t focus_buffer(buffer_t b, char *needle, unsigned int idx) {
+  focus_ret_t ret = {0};
+  arg_t arg = { (bitem_t)b , (btail_t)(b + size), needle };
+  ret_t result;
+
+  view_func_t f = views[idx];
+
+  result = f(arg);
+
+  ret.result = result.a;
+  ret.b = b;
+  return ret;
+}
+
+option_t next(bitem_t item) {
+  option_t opt = {0};
+  bitem_t b = (bitem_t)((char *)item + item->len);
+  if (b->len == 0 || ((uintptr_t)b - (uintptr_t)block) >= size) {
+    opt.tag = TAG_ENUM_None;
+    opt.item = item;
+  } else {
+    opt.tag = TAG_ENUM_Some;
+    opt.item = b;
+  }
+  return opt;
+}
+
+entry_t *read(bitem_t b) {
+  return b;
+}
+
 /* Look for Entry with the specified name. */
-struct Stuff *find_stuff(char name[]) {
-  struct Entry *e = (struct Entry *)&block;
+stuff_t *find_stuff(char name[]) {
+  entry_t *e = (entry_t *)&block;
   for (;;) {
-    if (e->len == 0 || ((uintptr_t)e - (uintptr_t)block) >= SIZE)
+    if (e->len == 0 || ((uintptr_t)e - (uintptr_t)block) >= size)
       break;
     if (strcmp(name, e->name) == 0)
       return &e->stuff;
-    e = (struct Entry *) ((uintptr_t)e + e->len);
+    e = (entry_t *) ((char *)e + e->len);
   }
   return NULL;
 }
 
-int in_range(struct Entry *e, unsigned long nlen) {
-  unsigned long p = (uintptr_t)e + offsetof(struct Entry,name) + nlen;
-  return (p - (uintptr_t)block) < SIZE;
+int in_range(entry_t *e, unsigned long nlen) {
+  unsigned long p = (uintptr_t)e + offsetof(entry_t,name) + nlen;
+  return (p - (uintptr_t)block) < size;
 }
 
 /* Initialise our block of entries. */
 /* Not translated into Cogent. */
 void init(void) {
   FILE *fp;
-  struct Entry *e, *d;
+  entry_t *e, *d;
   int a, b, c, len;
   char buf[80];
 
-  memset(block, 0, SIZE);
+  memset(block, 0, CAP);
 
   if ((fp = fopen("entries.txt", "r")) != NULL) {
-    e = (struct Entry *)block;
+    e = (entry_t *)block;
     while (fscanf(fp, "%s%d%d%d\n", buf, &a, &b, &c) == 4) {
       len = strlen(buf)+1;
       if (!in_range(e, len)) {
@@ -252,18 +309,18 @@ void init(void) {
       e->stuff.b = b;
       e->stuff.c = c;
       e->len = ((uintptr_t)e->name + len) - (uintptr_t)e;
-      e = (struct Entry *) ((uintptr_t)e + e->len);
+      e = (entry_t *) ((char *)e + e->len);
     }
     fclose(fp);
   }
 }
 
 int main() { // Print "b" attribute of Entry "wombat", if it’s there.
-  struct Stuff *s;
+  focus_ret_t r;
   init();
-  s = find_stuff("wombat");
-  if (s)
-    printf("Wombat’s b is %d.\n", s->b);
+  r = focus_buffer(block, "wombat", 0);
+  if (r.result > 0)
+    printf("Wombat’s b is %lu.\n", r.result);
   else
     printf("Wombat was not found.\n");
   return 0;
