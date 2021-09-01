@@ -165,19 +165,19 @@ definition frame :: "('f, 'a, 'l) store \<Rightarrow> 'l set \<Rightarrow> ('f, 
 
 
 locale update_sem =
-  fixes abs_typing :: "'a \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> sigil \<Rightarrow> 'l set \<Rightarrow> 'l set \<Rightarrow> ('f, 'a, 'l) store \<Rightarrow> bool"
+  fixes abs_typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> 'a \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> sigil \<Rightarrow> 'l set \<Rightarrow> 'l set \<Rightarrow> ('f, 'a, 'l) store \<Rightarrow> bool"
   and   abs_repr   :: "'a \<Rightarrow> name \<times> repr list"
-  assumes abs_typing_bang : "abs_typing av n \<tau>s s r w \<sigma> \<Longrightarrow> abs_typing av n (map bang \<tau>s) (bang_sigil s) (r \<union> w) {} \<sigma>"
-  and     abs_typing_noalias : "abs_typing av n \<tau>s s r w \<sigma> \<Longrightarrow> r \<inter> w = {}"
-  and     abs_typing_readonly : "sigil_perm s \<noteq> Some Writable \<Longrightarrow> abs_typing av n \<tau>s s r w \<sigma> \<Longrightarrow> w = {}"
+  assumes abs_typing_bang : "abs_typing \<Xi> av n \<tau>s s r w \<sigma> \<Longrightarrow> abs_typing \<Xi> av n (map bang \<tau>s) (bang_sigil s) (r \<union> w) {} \<sigma>"
+  and     abs_typing_noalias : "abs_typing \<Xi> av n \<tau>s s r w \<sigma> \<Longrightarrow> r \<inter> w = {}"
+  and     abs_typing_readonly : "sigil_perm s \<noteq> Some Writable \<Longrightarrow> abs_typing \<Xi> av n \<tau>s s r w \<sigma> \<Longrightarrow> w = {}"
   and     abs_typing_escape   : "sigil_perm s \<noteq> Some ReadOnly \<Longrightarrow> [] \<turnstile>* \<tau>s :\<kappa> k \<Longrightarrow> E \<in> k
-                                  \<Longrightarrow> abs_typing av n \<tau>s s r w \<sigma> \<Longrightarrow> r = {}"
-  and     abs_typing_valid : "abs_typing av n \<tau>s s r w \<sigma> \<Longrightarrow> p \<in> r \<union> w \<Longrightarrow> \<sigma> p \<noteq> None"
-  and     abs_typing_unique_repr   : "abs_typing av n \<tau>s s r w \<sigma> \<Longrightarrow> abs_typing av n' \<tau>s' s' r' w' \<sigma>
+                                  \<Longrightarrow> abs_typing \<Xi> av n \<tau>s s r w \<sigma> \<Longrightarrow> r = {}"
+  and     abs_typing_valid : "abs_typing \<Xi> av n \<tau>s s r w \<sigma> \<Longrightarrow> p \<in> r \<union> w \<Longrightarrow> \<sigma> p \<noteq> None"
+  and     abs_typing_unique_repr   : "abs_typing \<Xi> av n \<tau>s s r w \<sigma> \<Longrightarrow> abs_typing \<Xi> av n' \<tau>s' s' r' w' \<sigma>
                                     \<Longrightarrow> type_repr (TCon n \<tau>s s) = type_repr (TCon n' \<tau>s' s')"
-  and     abs_typing_repr : "abs_typing av n \<tau>s s r w \<sigma> \<Longrightarrow> abs_repr av = (n, map type_repr \<tau>s)"
-  and     abs_typing_frame: "frame \<sigma> u \<sigma>' u' \<Longrightarrow> abs_typing av n \<tau>s s r w \<sigma> \<Longrightarrow> r \<inter> u = {}
-                              \<Longrightarrow> w \<inter> u = {} \<Longrightarrow> abs_typing av n \<tau>s s r w \<sigma>'"
+  and     abs_typing_repr : "abs_typing \<Xi> av n \<tau>s s r w \<sigma> \<Longrightarrow> abs_repr av = (n, map type_repr \<tau>s)"
+  and     abs_typing_frame: "frame \<sigma> u \<sigma>' u' \<Longrightarrow> abs_typing \<Xi> av n \<tau>s s r w \<sigma> \<Longrightarrow> r \<inter> u = {}
+                              \<Longrightarrow> w \<inter> u = {} \<Longrightarrow> abs_typing \<Xi> av n \<tau>s s r w \<sigma>'"
 
 context update_sem begin
 
@@ -239,7 +239,7 @@ and uval_typing_record :: "('f \<Rightarrow> poly_type)
                   ; distinct (map fst ts)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> URecord fs :u TRecord ts Unboxed \<langle>r, w\<rangle>"
 
-| u_t_abstract : "\<lbrakk> abs_typing a n ts Unboxed r w \<sigma>
+| u_t_abstract : "\<lbrakk> abs_typing \<Xi> a n ts Unboxed r w \<sigma>
                   ; [] \<turnstile>* ts wellformed
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UAbstract a :u TCon n ts Unboxed \<langle>r, w\<rangle>"
 
@@ -269,13 +269,13 @@ and uval_typing_record :: "('f \<Rightarrow> poly_type)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RRecord (map (type_repr \<circ> fst \<circ> snd) ts)) :u TRecord ts (Boxed Writable ptrl) \<langle>r, insert l w\<rangle>"
 
 | u_t_p_abs_ro : "\<lbrakk> s = Boxed ReadOnly ptrl
-                  ; abs_typing a n ts s r {} \<sigma>
+                  ; abs_typing \<Xi> a n ts s r {} \<sigma>
                   ; [] \<turnstile>* ts wellformed
                   ; \<sigma> l = Some (UAbstract a)
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr ts)) :u TCon n ts s \<langle>insert l r, {}\<rangle>"
 
 | u_t_p_abs_w  : "\<lbrakk> s = Boxed Writable ptrl
-                  ; abs_typing a n ts s r w \<sigma>
+                  ; abs_typing \<Xi> a n ts s r w \<sigma>
                   ; [] \<turnstile>* ts wellformed
                   ; \<sigma> l = Some (UAbstract a)
                   ; l \<notin> (w \<union> r)
@@ -569,13 +569,13 @@ next
   ultimately show ?case
     by (auto dest!: uval_typing_to_wellformed(2) simp add: fst_apfst_compcomp snd_apsnd_compcomp map_snd3_keep)
 next
-  case (u_t_p_abs_ro s ptrl a n ts r \<sigma> l \<Xi>)
+  case (u_t_p_abs_ro s ptrl \<Xi> a n ts r \<sigma> l)
   then have "\<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr (map bang ts))) :u TCon n (map bang ts) (Boxed ReadOnly ptrl) \<langle>insert l r, {}\<rangle>"
     by (fastforce intro!: uval_typing_uval_typing_record.intros dest: abs_typing_bang bang_kind(2) bang_wellformed)
   then show ?case
     using u_t_p_abs_ro by clarsimp
 next
-  case (u_t_p_abs_w s ptrl a n ts r w \<sigma> l \<Xi>)
+  case (u_t_p_abs_w s ptrl \<Xi> a n ts r w \<sigma> l)
   then have "\<Xi>, \<sigma> \<turnstile> UPtr l (RCon n (map type_repr (map bang ts))) :u TCon n (map bang ts) (Boxed ReadOnly ptrl) \<langle>insert l (r \<union> w), {}\<rangle>"
     by (fastforce intro!: uval_typing_uval_typing_record.intros dest: abs_typing_bang bang_kind(2) bang_wellformed)
   then show ?case
@@ -1752,13 +1752,13 @@ next
     using field_is field_rest u_t_r_cons2 field_taken t2_wf repr_same
     by (auto intro: uval_typing_uval_typing_record.u_t_r_cons2)
 next
-  case (u_t_p_abs_ro s ptrl a n ts r \<sigma> l \<Xi>)
+  case (u_t_p_abs_ro s ptrl \<Xi> a n ts r \<sigma> l)
   then show ?case
     apply -
     apply (rule exI[where x = "insert l r"], rule, blast)
     by (auto elim!: subtyping.cases intro: uval_typing_uval_typing_record.intros)
 next
-  case (u_t_p_abs_w s ptrl a n ts r w \<sigma> l \<Xi>)
+  case (u_t_p_abs_w s ptrl \<Xi> a n ts r w \<sigma> l)
   then show ?case
     apply -
     apply (rule exI[where x = "r"], rule, blast)

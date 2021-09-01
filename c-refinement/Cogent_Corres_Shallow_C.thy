@@ -29,13 +29,16 @@ begin
 
 locale correspondence_init =
   correspondence +
-  constrains upd_abs_typing :: "abstyp \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> sigil \<Rightarrow> ptrtyp set \<Rightarrow> ptrtyp set \<Rightarrow> (funtyp, abstyp, ptrtyp) store \<Rightarrow> bool"
+  constrains upd_abs_typing :: "(funtyp \<Rightarrow> poly_type) \<Rightarrow> abstyp \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> sigil \<Rightarrow> ptrtyp set \<Rightarrow> ptrtyp set \<Rightarrow> (funtyp, abstyp, ptrtyp) store \<Rightarrow> bool"
+       and val_abs_typing :: "(funtyp \<Rightarrow> poly_type) \<Rightarrow> 'b  \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> bool"
        and abs_repr :: "abstyp \<Rightarrow> name \<times> repr list"
-       and abs_upd_val :: "abstyp \<Rightarrow> 'b \<Rightarrow> char list \<Rightarrow> Cogent.type list \<Rightarrow> sigil \<Rightarrow> ptrtyp set \<Rightarrow> ptrtyp set \<Rightarrow> (funtyp, abstyp, ptrtyp) store \<Rightarrow> bool"
+       and abs_upd_val :: "(funtyp \<Rightarrow> poly_type) \<Rightarrow> abstyp \<Rightarrow> 'b \<Rightarrow> char list \<Rightarrow> Cogent.type list \<Rightarrow> sigil \<Rightarrow> ptrtyp set \<Rightarrow> ptrtyp set \<Rightarrow> (funtyp, abstyp, ptrtyp) store \<Rightarrow> bool"
 
 sublocale correspondence_init \<subseteq> update_sem_init upd_abs_typing abs_repr
   by (unfold_locales)
 
+sublocale correspondence_init \<subseteq> monomorph_sem val_abs_typing
+  by (unfold_locales)
 
 sublocale correspondence_init \<subseteq> correspondence
   by (unfold_locales)
@@ -228,11 +231,14 @@ fun make_corres_shallow_C desugar_thy deep_thy ctxt f = let
    *        If entry_func_names gets polymorphic functions, then this assumption breaks
    *        and we'd need to lookup the correct source name. *)
   val norm_thm = Proof_Context.get_thm ctxt (f ^ "_normalised")
-  val mono_thm = Proof_Context.get_thm ctxt ("value_sem." ^ f ^ "_monomorphic")
+  val mono_thm = Proof_Context.get_thm ctxt ("monomorph_sem." ^ f ^ "_monomorphic")
   val typing_thm = Proof_Context.get_thm ctxt (f ^ "_typecorrect'")
   val scorres_thm = Proof_Context.get_thm ctxt ("scorres_" ^ f)
   val corres_thm = Proof_Context.get_thm ctxt ("corres_" ^ f)
   val proc_ctx_def_thm = Proof_Context.get_thm ctxt ("\<Xi>_def")
+
+  val mono_def = Proof_Context.get_thm ctxt "monomorph_sem_def"
+  val mono_thm = Simplifier.rewrite_rule ctxt [mono_def] mono_thm
 
   (* Also instantiate scorres_thm to monomorphic type *)
   val scorres_thm = Drule.infer_instantiate ctxt [(("ts", 0), @{cterm "[] :: type list"})] scorres_thm
@@ -281,7 +287,7 @@ fun make_corres_shallow_C desugar_thy deep_thy ctxt f = let
            SOLVES (eresolve_tac ctxt @{thms val_rel_shallow_C_elim} 1),
            (* Monomorphisation; reverse it to match corres_shallow_C_intro *)
            (rtac (mono_thm RS @{thm sym}) 1 THEN
-               asm_full_simp_tac (context addsimps @{thms correspondence_init_def correspondence_def}) 1 THEN
+               asm_full_simp_tac (context addsimps @{thms correspondence_init_def correspondence_def }) 1 THEN
                etac @{thm conjE} 1 THEN
                asm_full_simp_tac context 1),
            (* Deep embedding type-correctness *)
