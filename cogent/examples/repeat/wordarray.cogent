@@ -1,0 +1,28 @@
+--
+-- Copyright 2016, NICTA
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(NICTA_GPL)
+--
+
+-- WordArray is the C primitive types arrays e.g. char[]
+type WordArray a
+
+{-# cinline wordarray_length #-}
+{-# fnmacro wordarray_length #-}
+wordarray_length: all(a :< DSE). (WordArray a)! -> U32
+
+type WordArrayGetP a = #{arr: (WordArray a)!, idx: U32, val: a}
+
+{-# cinline wordarray_get #-}
+{-# fnmacro wordarray_get #-}
+wordarray_get: all(a :< DSE). WordArrayGetP a -> a
+
+type WordArrayPutP a = #{arr: WordArray a, idx: U32, val: a}
+
+{-# cinline wordarray_put #-}
+{-# fnmacro wordarray_put2 #-}
+wordarray_put: all(a :< DSE). WordArrayPutP a -> WordArray a

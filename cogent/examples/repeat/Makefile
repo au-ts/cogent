@@ -5,6 +5,8 @@ OUTPUT=test
 COUTPUT=$(addsuffix .c, $(OUTPUT))
 HOUTPUT=$(addsuffix .h, $(OUTPUT))
 
+AHFILES=WordArray.ah
+
 ACFILES=main.ac
 
 LIBGUM=$(shell cogent --libgum-dir)
@@ -14,9 +16,10 @@ PPINFER=$(ACFILES:.ac=_pp_inferred.c)
 
 OBJ=$(PPINFER:.c=.o)
 
-CFLAGS+=-I. -I$(LIBGUM) -std=gnu99
+CFLAGS+=-I. -I$(LIBGUM) -I$(BUILDDIR) -std=gnu99
 
 BUILDDIR=build
+ABSDIR=abstract
 
 .PHONY: default cogent clean gen-anti test
 .SECONDARY:
@@ -25,7 +28,10 @@ default: all
 
 all:
 	mkdir -p $(BUILDDIR)
+	mkdir -p "$(BUILDDIR)/$(ABSDIR)"
 	cogent -A -g -Od -ogenerated \
+		--infer-c-types="$(AHFILES)" \
+		--abs-type-dir="$(BUILDDIR)" \
 		--Wno-warn --infer-c-funcs="$(ACFILES)" \
 		--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
 		--proof-input-c=$(PPINFER) \
