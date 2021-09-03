@@ -83,13 +83,8 @@ data SGTables = SGTables { typeStrs      :: [TypeStr]
                          , recoverTuples :: Bool         -- ^ not a table, but convenient to be included here
                          }
 
-type MapConcTypeSyn = M.Map String TypeName
-data PolyTypeSyn = forall t b. PTS TypeName [TyVarName] (CC.Type t b)
-
 data StateGen = StateGen {
-    _varNameGen   :: Int,            -- ^ counter for fresh variables
-    _concTypeSyns :: MapConcTypeSyn, -- ^ @type structure hash &#x21A6; Cogent type synonym name@
-    _polyTypeSyns :: [PolyTypeSyn]   -- ^ polymorphic type synonyms
+    _varNameGen   :: Int            -- ^ counter for fresh variables
 }
 
 makeLenses ''StateGen
@@ -106,7 +101,7 @@ shallowTVar :: Int -> String
 shallowTVar v = [chr $ ord 'a' + fromIntegral v]
 
 shallowTypeWithName :: (Show b,Eq b) => CC.Type t b -> SG I.Type
-shallowTypeWithName t = shallowType =<< findShortType True t
+shallowTypeWithName t = shallowType =<< findType t
 
 shallowRecTupleType :: (Show b,Eq b) => [(FieldName, (CC.Type t b, Bool))] -> SG I.Type
 shallowRecTupleType fs = shallowTupleType <$> mapM shallowType (map (fst . snd) fs)
@@ -115,14 +110,7 @@ shallowType :: forall t b. (Show b,Eq b) => CC.Type t b -> SG I.Type
 shallowType (TVar v) = I.TyVar <$> ((!!) <$> asks typeVars <*> pure (finInt v))
 shallowType (TVarBang v) = shallowType (TVar v :: CC.Type t b)
 shallowType (TCon tn ts _) = I.TyDatatype tn <$> mapM shallowType ts
-shallowType t@(TFun t1 t2) = 
-    if __cogent_ffold_poly_types
-       then do
-              st <- findShortType False t
-              case st of
-                   (TCon _ _ _) -> shallowType st
-                   _ -> I.TyArrow <$> shallowType t1 <*> shallowType t2
-       else I.TyArrow <$> shallowType t1 <*> shallowType t2
+shallowType (TFun t1 t2) = I.TyArrow <$> shallowType t1 <*> shallowType t2
 shallowType (TPrim pt) = pure $ shallowPrimType pt
 shallowType (TString) = pure $ I.AntiType "string"
 shallowType (TSum alts) = shallowTypeWithName (TSum alts)
@@ -130,26 +118,11 @@ shallowType (TProduct t1 t2) = I.TyTuple <$> shallowType t1 <*> shallowType t2
 shallowType t@(TRecord rp fs s) = do
   tuples <- asks recoverTuples
   if tuples && isRecTuple (map fst fs) 
-     then
-       if __cogent_ffold_poly_types
-          then do
-                st <- findShortType False t
-                case st of
-                     (TCon _ _ _) -> shallowType st
-                     _ -> shallowRecTupleType fs
-            else shallowRecTupleType fs
-  else
-    shallowTypeWithName (TRecord rp fs s)
+     then shallowRecTupleType fs
+     else shallowTypeWithName t
 shallowType (TUnit) = return $ I.AntiType "unit"
 #ifdef BUILTIN_ARRAYS
-shallowType t@(TArray el _ _ _) = 
-    if __cogent_ffold_poly_types
-       then do
-             st <- findShortType False t
-             case st of
-                  (TCon _ _ _) -> shallowType st
-                  _ -> I.TyDatatype "list" <$> mapM shallowType [el]
-       else I.TyDatatype "list" <$> mapM shallowType [el]
+shallowType t@(TArray el _ _ _) = I.TyDatatype "list" <$> mapM shallowType [el]
 #endif
 
 shallowPrimType :: PrimInt -> I.Type
@@ -211,93 +184,6 @@ shallowILit n v = TermWithType (mkId $ show n) (shallowPrimType v)
 
 findType :: CC.Type t b -> SG (CC.Type t b)
 findType t = getStrlType <$> asks typeNameMap <*> asks typeStrs <*> pure t
-
--- | Reverse engineer the type synonym of a algebraic data type
---   First argument must be True for Records and Variants so that
---   the record/datatype is returned when no type synonym is found.
-findShortType :: (Show b,Eq b) => Bool -> CC.Type t b -> SG (CC.Type t b)
-findShortType rv t = do
-  map <- use concTypeSyns
-  case M.lookup (hashType t) map of
-   Nothing -> 
-     if __cogent_ffold_poly_types
-        then do
-               polys <- use polyTypeSyns
-               case lookupPolySyn t polys of
-                    Nothing -> if rv then findType t else pure t
-                    Just (tn,args) -> pure $ TCon tn args (__impossible "findShortType")
-        else findType t 
-   Just tn -> pure $ TCon tn [] (__impossible "findShortType")
-
-lookupPolySyn :: (Show b,Eq b) => CC.Type t b -> [PolyTypeSyn] -> Maybe (TypeName, [CC.Type t b])
-lookupPolySyn t polys =
-    if (null matches)
-       then Nothing
-       else -- FIXME: simple strategy using only the first match found
-            Just $ P.head matches
-    where matches = catMaybes $ map (matchPolySyn t) polys
-
-matchPolySyn :: (Show b,Eq b) => CC.Type t b -> PolyTypeSyn -> Maybe (TypeName, [CC.Type t b])
-matchPolySyn t (PTS sn svs r) =
-    case matchType svs t r of
-         Nothing -> Nothing
-         Just binds ->
-            let
-                mbinds = nub binds
-            in if (P.length svs) /= (P.length mbinds)
-                  then Nothing
-                  else let
-                           mapbinds = M.fromList mbinds
-                       in if (P.length svs) /= (M.size mapbinds)
-                             then Nothing
-                             else Just (sn, map (\v -> M.findWithDefault TUnit v mapbinds) svs)
-
--- | Match a type to a polymorphic type.
--- The first argument is the list of type variables which may occur in the polymorphic type.
--- The second argument is the type to be matched, the third argument is the polymorphic type.
--- The result is Nothing, if there is no structural match.
--- Otherwise it is an association list of bindings for the type variables.
--- The same variable may have several entries in result list, for a match they must all bind the same type.
--- FIXME: recursive record parameters and refinement types are not handled yet.
-matchType :: [TyVarName] -> CC.Type t1 b1 -> CC.Type t2 b2 -> Maybe [(TyVarName, CC.Type t1 b1)]
-matchType vs (TCon tn targs _) (TCon rn rargs _) | tn == rn && (P.length targs) == (P.length rargs) =
-    matchTypes vs targs rargs
-matchType vs (TRecord tr tfs _) (TRecord rr rfs _) | tr == rr && (P.length tfs) == (P.length rfs) =
-    if (map fst tfs) /= (map fst rfs)
-       then Nothing
-       else matchTypes vs (map (fst . snd) tfs) (map (fst . snd) rfs)
-matchType vs (TSum tts) (TSum rts) | (P.length tts) == (P.length rts) =
-    if (map fst tts) /= (map fst rts)
-       then Nothing
-       else matchTypes vs (map (fst . snd) tts) (map (fst . snd) rts)
-matchType vs (TProduct t1 t2) (TProduct r1 r2) = matchTypes vs [t1,t2] [r1,r2]
-matchType vs (TFun tf1 tf2) (TFun rf1 rf2) = matchTypes vs [tf1,tf2] [rf1,rf2]
-matchType _ (TPrim tp) (TPrim rp) | tp == rp = Just []
-matchType _ TUnit TUnit = Just []
-matchType _ TString TString = Just []
-matchType vs t (TVar n) = matchTypeVar vs t n
-matchType vs t (TVarBang n) = matchTypeVar vs t n
-matchType vs t (TVarUnboxed n) = matchTypeVar vs t n
-#ifdef BUILTIN_ARRAYS
--- FIXME: array size is ignored upon matching
-matchType vs (TArray te _ _ _) (TArray re _ _ _) = matchType vs te re
-#endif
-matchType _ _ _ = Nothing
-
-matchTypeVar :: [TyVarName] -> CC.Type t1 b -> Fin t2 -> Maybe [(TyVarName, CC.Type t1 b)]
-matchTypeVar vs t n =
-    if i >= P.length vs
-       then Nothing
-       else Just [(vs!!i,t)]
-    where i = finInt n
-
--- | Pairwise match two type lists of the same length and concatenate the results.
-matchTypes :: [TyVarName] -> [CC.Type t1 b1] -> [CC.Type t2 b2] -> Maybe [(TyVarName, CC.Type t1 b1)]
-matchTypes vs ts rs =
-    if any isNothing pmatch
-       then Nothing
-       else Just $ concat $ catMaybes pmatch
-    where pmatch = map (\(t,r) -> matchType vs t r) $ P.zip ts rs
 
 findTypeSyn :: CC.Type t b -> SG String
 findTypeSyn t = findType t >>= \(TCon nm _ _) -> pure nm
@@ -637,17 +523,15 @@ hashType (TArray t sz s tk) = show (sanitizeType $ TArray t sz s tk)
 hashType _              = error "hashType: should only pass Variant, Record, Array or Function types"
 
 -- | A subscript @T@ will be added when generating type synonyms for records and variants.
---   Also adds an entry to the type synonyms table (if it's not parameterised) or the
---   polymorphic type synonyms table (if it is parameterized) so that
---   a shorter (and hence more readable) name can be retrieved when a type is used.
---   Uses hashType, so it may only be applied to Variant, Record, Array and Function types.
+typeSynName :: TypeName -> CC.Type t b -> String
+typeSynName tn (TSum _) = tn ++ subSymStr "T"
+typeSynName tn (TRecord _ _ _) = tn ++ subSymStr "T"
+typeSynName tn _ = tn
+
 shallowTypeDefSaveSyn:: (Show b,Eq b) => TypeName -> [TyVarName] -> CC.Type t b -> SG [TheoryDecl I.Type I.Term]
 shallowTypeDefSaveSyn tn ps r = do
   st <- shallowType r
   let syname = syName tn r
-      hash = hashType r
-  when (null ps) (concTypeSyns %= M.insert hash syname)
-  when (not $ null ps) (polyTypeSyns %= (:) (PTS syname ps r))
   pure [TypeSynonym (TypeSyn syname st ps)]
     where syName tn (TSum _) = tn ++ subSymStr "T"
           syName tn (TRecord _ _ _) = tn ++ subSymStr "T"
@@ -656,15 +540,9 @@ shallowTypeDefSaveSyn tn ps r = do
 -- | Generates @type_synonym@ definitions for types.
 shallowTypeDef :: (Show b,Eq b) => TypeName -> [TyVarName] -> CC.Type t b -> SG [TheoryDecl I.Type I.Term]
 shallowTypeDef tn ps (TPrim p)      = pure [TypeSynonym (TypeSyn tn (shallowPrimType p) ps)]
-shallowTypeDef tn ps t@(TRecord _ _ _)  = shallowTypeDefSaveSyn tn ps t
-shallowTypeDef tn ps t@(TSum _)         = shallowTypeDefSaveSyn tn ps t
-shallowTypeDef tn ps t@(TFun _ _)       = shallowTypeDefSaveSyn tn ps t
-#ifdef BUILTIN_ARRAYS
-shallowTypeDef tn ps t@(TArray _ _ _ _) = shallowTypeDefSaveSyn tn ps t
-#endif
 shallowTypeDef tn ps t = do
   st <- shallowType t
-  pure [TypeSynonym (TypeSyn tn st ps)]
+  pure [TypeSynonym (TypeSyn (typeSynName tn t) st ps)]
 
 typeNameFromIdx :: Int -> String
 typeNameFromIdx idx = 'T':show idx
@@ -1123,7 +1001,7 @@ shallow :: (Show b,Eq b) => Bool -> String -> Stage -> [Definition TypedExpr Var
 shallow recoverTuples thy stg defs log =
   let (shal,shrd,scor,typeMap) = fst $ evalRWS (runSG (shallowFile thy stg defs))
                                                (SGTables (st defs) (stsyn defs) [] recoverTuples)
-                                               (StateGen 0 M.empty [])
+                                               (StateGen 0)
       header = (string ("(*\n" ++ log ++ "\n*)\n") L.<$$>)
   in (header (if recoverTuples then I.prettyPlus shal else pretty shal), header $ pretty shrd, header $ pretty scor, typeMap)
 
@@ -1144,7 +1022,7 @@ shallowConsts recoverTuples thy stg consts defs log =
                    (genConstTheoryDecls consts defs))
  where genConstTheoryDecls cs defs = fst $ evalRWS (runSG $ shallowConsts cs)
                                      (SGTables (st defs) (stsyn defs) [] recoverTuples)
-                                     (StateGen 0 M.empty [])
+                                     (StateGen 0)
        shallowConsts = mapM genConstDecl
        header = (string ("(*\n" ++ log ++ "\n*)\n") L.<$$>)
 
