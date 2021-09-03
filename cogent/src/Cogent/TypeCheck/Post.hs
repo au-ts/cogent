@@ -117,7 +117,7 @@ normaliseT d (T (TUnbox t)) = do
 #ifdef BUILTIN_ARRAYS
      (T (TArray t e _ h)) -> return (T (TArray t e Unboxed h))
 #endif
-     (T o)                -> normaliseT d (T $ fmap (T . TUnbox) o) -- recursive Unbox! Is this correct? /gteege
+     (T o)                -> normaliseT d (T $ fmap (T . TUnbox) o) -- recursive Unbox! Is this correct? / gteege
      _                    -> __impossible "normaliseT (TUnbox)"
 
 normaliseT d (T (TBang t)) = do

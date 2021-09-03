@@ -286,6 +286,7 @@ adjust :: (Eq a) => a -> (b -> b) -> [(a,b)] -> [(a,b)]
 adjust k f = map (\(a,b) -> (a,) $ if a == k then f b else b)
 
 coerceTypeDefs :: [Definition UntypedExpr a b] -> [Definition TypedExpr a b]
+coerceTypeDefs [] = []
 coerceTypeDefs (d@(TypeDef _ _ (Just _)):ds) = (Unsafe.unsafeCoerce d:) $ coerceTypeDefs ds
 coerceTypeDefs (_:ds) = coerceTypeDefs ds
 
@@ -370,19 +371,20 @@ expandTransSyns t = do
     tdfs <- (\(a,b,c)->c) <$> ask 
     return $ substTransSyn tdfs t
 
-substTransSyn :: [Definition TypedExpr b b] -> Type t b -> Type t b
+substTransSyn :: [Definition TypedExpr a b] -> Type t b -> Type t b
 substTransSyn d t@(TCon n ts s) | ExI (Flip ts') <- Vec.fromList ts =
   case find (isDefFor n) d of
     Just (TypeDef _ vs (Just tb)) -> 
         case (Vec.length ts' =? Vec.length vs) of
-          Just Refl -> substTransSyn d (substitute ts' tb)
+          Just Refl -> let applySigil = if unboxed s then unbox else if readonly s then bang else id
+                       in substTransSyn d $ applySigil $ substitute ts' tb
           _ -> __impossible "lengths don't match"
     _ -> t
     where isDefFor n (TypeDef tn _ (Just _)) = (tn == n)
           isDefFor n _ = False
 substTransSyn _ t = t
 
-substSyns :: [Definition TypedExpr b b] -> Type t b -> Type t b
+substSyns :: [Definition TypedExpr a b] -> Type t b -> Type t b
 substSyns d t@(TCon n ts s) =
   case substTransSyn d t of
     TCon n' ts' s' -> TCon n' (map (substSyns d) ts') s'
@@ -399,9 +401,9 @@ substSyns d (TRefine t e) = TRefine (substSyns d t) (substSynsLE d e)
 #endif
 substSyns _ t = t
 
-substSynsLE :: [Definition TypedExpr b b] -> LExpr t b -> LExpr t b
+substSynsLE :: [Definition TypedExpr a b] -> LExpr t b -> LExpr t b
 substSynsLE d = \case
-  LFun fn ts ls      -> LFun fn (fmap (substSyns d) ts) ls
+  LFun fn ts ls      -> LFun fn (map (substSyns d) ts) ls
   LOp op es          -> LOp op $ fmap go es
   LApp e1 e2         -> LApp (go e1) (go e2)
   LCon tn e t        -> LCon tn (go e) (substSyns d t)
@@ -422,7 +424,37 @@ substSynsLE d = \case
   e                  -> e
  where go = substSynsLE d
 
+expandAllSynsTE :: TypedExpr t v b b -> TC t' v b (TypedExpr t v b b)
+expandAllSynsTE e = do
+    tdfs <- (\(a,b,c)->c) <$> ask 
+    return $ substSynsTE tdfs e
 
+substSynsTE :: [Definition TypedExpr a b] -> TypedExpr t v a b -> TypedExpr t v a b
+substSynsTE d (TE t e) = 
+    let e' = case e of
+               Fun fn ts l n -> Fun fn (map (substSyns d) ts) l n
+               Con tag e1 tt -> Con tag e1 (substSyns d tt)
+               Promote tt e1 -> Promote (substSyns d tt) e1
+               Cast tt e1 -> Cast (substSyns d tt) e1
+               _ -> e
+    in TE (substSyns d t) $ fmapE (substSynsTE d) e'
+
+expandDefs :: [Definition TypedExpr a b] -> [Definition TypedExpr a b]
+expandDefs tls = map (expand (filterTypeDefs tls)) tls
+  where
+    expand :: [Definition TypedExpr a b]  -- the type synonym definitions
+           -> Definition TypedExpr a b -> Definition TypedExpr a b
+    expand  tdfs (FunDef attr fn ks ls t rt e) =
+        FunDef attr fn ks ls (substSyns tdfs t) (substSyns tdfs rt) (substSynsTE tdfs e)
+    expand tdfs (AbsDecl attr fn ks ls t rt) =
+        AbsDecl attr fn ks ls (substSyns tdfs t) (substSyns tdfs rt)
+    expand tdfs (TypeDef tn vs mt) = TypeDef tn vs $ fmap (substSyns tdfs) mt
+
+expandConsts :: [CoreConst TypedExpr]
+             -> [Definition TypedExpr VarName VarName]  -- type synonym definitions
+             -> [CoreConst TypedExpr]
+expandConsts cs tdfs = map (\(vn,e) -> (vn, substSynsTE tdfs e)) cs
+ 
 runTC :: TC t v b x
       -> (Vec t Kind, Map FunName (FunctionType b), [Definition TypedExpr b b])
       -> Vec v (Maybe (Type t b))
@@ -483,30 +515,6 @@ tcConsts ((v,e):ds) reader tdfs =
   case runTC (infer e) (Nil, reader, tdfs) Nil of
     Left x -> Left x
     Right (_,e') -> (first ((v,e'):)) <$> tcConsts ds reader tdfs
-
-tcExpand :: (Show b, Eq b, Pretty b, a ~ b)
-         => [Definition TypedExpr a b] -> [Definition TypedExpr a b]
-tcExpand tls = tcExpand' tls $ filterTypeDefs tls
-  where
-    tcExpand' :: (Show b, Eq b, Pretty b, a ~ b)
-              => [Definition TypedExpr a b]
-              -> [Definition TypedExpr a b]  -- the type synonym definitions
-              -> [Definition TypedExpr a b]
-    tcExpand' [] tdfs = []
-    tcExpand' ((FunDef attr fn ks ls t rt e):ds) tdfs =
-      case runTC (expand e) (fmap snd ks, M.empty, tdfs) (Cons (Just t) Nil) of
-        Left _ -> __impossible "Error when expanding type synonyms"
-        Right (_, e') -> (FunDef attr fn ks ls t rt e') : (tcExpand' ds tdfs)
-    tcExpand' (d:ds) tdfs = d:(tcExpand' ds tdfs)
-
-tcConstExpand :: [CoreConst TypedExpr]
-              -> [Definition TypedExpr VarName VarName]  -- type synonym definitions
-              -> [CoreConst TypedExpr]
-tcConstExpand [] tdfs = []
-tcConstExpand ((v,e):ds) tdfs = 
-  case runTC (expand e) (Nil, M.empty, tdfs) Nil of
-    Left x -> __impossible "Error when expanding type synonyms"
-    Right (_,e') -> (v,e') : (tcConstExpand ds tdfs)
 
 withBinding :: Type t b -> TC t ('Suc v) b x -> TC t v b x
 withBinding t x
@@ -574,7 +582,8 @@ typecheck e t = do
 infer :: (Pretty a, Show a, Eq a) => UntypedExpr t v a a -> TC t v a (TypedExpr t v a a)
 infer (E (Op o es))
    = do es' <- mapM infer es
-        let Just t = opType o (map exprType es')
+        ts <- mapM (expandTransSyns . exprType) es'
+        let Just t = opType o ts
         return (TE t (Op o es'))
 infer (E (ILit i t)) = return (TE (TPrim t) (ILit i t))
 infer (E (SLit s)) = return (TE TString (SLit s))
@@ -849,6 +858,3 @@ promote t (TE t' e) = case e of
   -- Otherwise, no simplification is necessary; construct a Promote expression as usual.
   _                   -> TE t $ Promote t (TE t' e)
 
-
-expand :: TypedExpr t v a a -> TC t v a (TypedExpr t v a a)
-expand e = return e
