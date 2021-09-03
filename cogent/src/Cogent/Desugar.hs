@@ -80,7 +80,7 @@ import Debug.Trace
 type TypeVars t = Vec t TyVarName
 type LayoutVars l = Vec l DLVarName
 type TermVars v = Vec v VarName
-type Typedefs   = M.Map TypeName ([VarName], B.DepType)  -- typenames |-> typeargs * strltype
+type Typedefs   = B.Typedefs  -- typenames |-> typeargs * strltype
 type Constants  = M.Map VarName  B.TypedExpr  -- This shares namespace with `TermVars'
 type Enumerator = Int
 
@@ -234,17 +234,10 @@ pragmaToNote (InlinePragma  fn':pragmas) fn note | fn == fn' = max note InlineMe
 pragmaToNote (FnMacroPragma fn':pragmas) fn note | fn == fn' = max note MacroCall
 pragmaToNote (_:pragmas) fn note = pragmaToNote pragmas fn note
 
-substTransDepTypeSyn :: Typedefs -> B.DepType -> B.DepType
-substTransDepTypeSyn d t@(B.DT (S.TCon n ts b)) =
-  case M.lookup n d of
-    Just (ts', b) -> substTransDepTypeSyn d (B.substDepType (P.zip ts' ts) b)
-    _ -> t
-substTransDepTypeSyn _ t = t
-
 expndSyn :: B.DepType -> DS t l v B.DepType
 expndSyn t = do
     reader <- ask 
-    return $ substTransDepTypeSyn (reader^._1) t
+    return $ B.substTransDTSyn (reader^._1) t
 
 -- -----------------------------------------------------------------------------
 -- Lambda lifting
