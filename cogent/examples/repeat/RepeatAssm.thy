@@ -14,14 +14,17 @@ section "Function types wellformed"
 lemma proc_ctx_wellformed_\<Xi>:
   "proc_ctx_wellformed \<Xi>"
   unfolding proc_ctx_wellformed_def \<Xi>_def
-            abbreviated_type_defs repeat_0_type_def repeat_1_type_def
+            abbreviated_type_defs repeat_0_type_def repeat_1_type_def repeat_2_type_def
             log2stop_type_def log2step_type_def mylog2_type_def
             myexp_type_def expstep_type_def expstop_type_def
+            searchStop_type_def searchNext_type_def binarySearch_type_def
+            wordarray_get_0_type_def wordarray_length_0_type_def
   by (clarsimp simp: assoc_lookup.simps)
 
 lemma \<Xi>_simps:
   "\<Xi> ''repeat_0'' = repeat_0_type"
   "\<Xi> ''repeat_1'' = repeat_1_type"
+  "\<Xi> ''repeat_2'' = repeat_2_type"
   apply (clarsimp simp: \<Xi>_def)+
   done
 
@@ -35,20 +38,22 @@ definition \<xi>0 :: "(funtyp, abstyp, ptrtyp) uabsfuns"
   where
 "\<xi>0 f x y = False"
 end
-
+thm repeat_2_type_def
 overloading \<xi>1 \<equiv> \<xi>_1
 begin
 definition \<xi>1 :: "(funtyp, abstyp, ptrtyp) uabsfuns"
   where
 "\<xi>1 f x y = 
-  (if f = ''repeat_0'' then urepeat \<Xi> \<xi>_0 abbreviatedType2 (TPrim (Num U64)) x y 
+  (if f = ''repeat_0'' then urepeat \<Xi> \<xi>_0 abbreviatedType4 (TPrim (Num U64)) x y 
    else if f = ''repeat_1'' then urepeat \<Xi> \<xi>_0 (TPrim (Num U32)) (TPrim (Num U32)) x y
+   else if f = ''repeat_2'' then urepeat \<Xi> \<xi>_0 abbreviatedType1 abbreviatedType2 x y
    else \<xi>_0 f x y)"
 end
 
 lemma \<xi>_1_simps:
-  "\<xi>_1 ''repeat_0'' = urepeat \<Xi> \<xi>_0 abbreviatedType2 (TPrim (Num U64))"
+  "\<xi>_1 ''repeat_0'' = urepeat \<Xi> \<xi>_0 abbreviatedType4 (TPrim (Num U64))"
   "\<xi>_1 ''repeat_1'' = urepeat \<Xi> \<xi>_0 (TPrim (Num U32)) (TPrim (Num U32))"
+  "\<xi>_1 ''repeat_2'' = urepeat \<Xi> \<xi>_0 abbreviatedType1 abbreviatedType2"
   apply (clarsimp simp: \<xi>1_def fun_eq_iff)+
   done
 
@@ -70,7 +75,7 @@ lemma \<xi>_1_matchesu_\<Xi>:
   apply (intro conjI impI)
     apply (clarsimp;
            subst (asm) \<Xi>_def;
-           clarsimp simp: repeat_1_type_def repeat_0_type_def;
+           clarsimp simp: repeat_1_type_def repeat_0_type_def repeat_2_type_def;
            rule_tac urepeat_preservation[OF proc_ctx_wellformed_\<Xi> \<xi>_0_matchesu_\<Xi>];
            (simp add: abbreviated_type_defs)?)+
    apply (clarsimp simp: \<xi>0_def)+
@@ -118,8 +123,9 @@ definition \<xi>m0 :: "'b \<Rightarrow> ('b, 'a) vval \<Rightarrow> ('b, 'a) vva
 definition \<xi>m1 :: "funtyp \<Rightarrow> (funtyp, 'a) vval \<Rightarrow> (funtyp, 'a) vval \<Rightarrow> bool "
   where
 "\<xi>m1 f x y = 
-  (if f = ''repeat_0'' then vrepeat \<Xi> \<xi>m0 abbreviatedType2 (TPrim (Num U64)) x y 
+  (if f = ''repeat_0'' then vrepeat \<Xi> \<xi>m0 abbreviatedType4 (TPrim (Num U64)) x y 
    else if f = ''repeat_1'' then vrepeat \<Xi> \<xi>m0 (TPrim (Num U32)) (TPrim (Num U32)) x y
+   else if f = ''repeat_2'' then vrepeat \<Xi> \<xi>m0 abbreviatedType1 abbreviatedType2 x y
    else \<xi>m0 f x y)"
 
 subsection "Preservation for abstract functions"
@@ -138,7 +144,7 @@ lemma \<xi>m1_matches_\<Xi>:
   apply (intro conjI impI)
     apply (clarsimp;
            subst (asm) \<Xi>_def;
-           clarsimp simp: repeat_1_type_def repeat_0_type_def;
+           clarsimp simp: repeat_1_type_def repeat_0_type_def repeat_2_type_def;
            rule vrepeat_preservation[OF proc_ctx_wellformed_\<Xi> \<xi>m0_matches_\<Xi>];
            (simp add: abbreviated_type_defs)?)+
   apply (clarsimp simp: \<xi>m0_def)
@@ -217,14 +223,14 @@ section "Correspondence between abstract functions in the update semantics and C
 context Generated begin
 
 lemma repeat_0'_simp:
-  "repeat_0' = crepeat t5_C.n_C t5_C.stop_C t5_C.step_C t5_C.acc_C t5_C.obsv_C t2_C.acc_C t2_C.acc_C_update t2_C.obsv_C_update dispatch_t3' dispatch_t4'"
+  "repeat_0' = crepeat t6_C.n_C t6_C.stop_C t6_C.step_C t6_C.acc_C t6_C.obsv_C t3_C.acc_C t3_C.acc_C_update t3_C.obsv_C_update dispatch_t4' dispatch_t5'"
   unfolding crepeat_def[polish] repeat_0'_def[simplified L2polish, polish]
   apply clarsimp
   done
 
 lemma mylog2_repeat_corres:
   "\<And>v' i \<gamma> \<Gamma> \<sigma> s.
-    \<lbrakk>t5_C.stop_C v' = FUN_ENUM_log2stop; t5_C.step_C v' = FUN_ENUM_log2step; i < length \<gamma>; val_rel (\<gamma> ! i) v';
+    \<lbrakk>t6_C.stop_C v' = FUN_ENUM_log2stop; t6_C.step_C v' = FUN_ENUM_log2step; i < length \<gamma>; val_rel (\<gamma> ! i) v';
      \<Gamma> ! i = Some (fst (snd repeat_0_type))\<rbrakk>
     \<Longrightarrow> corres state_rel (App (AFun ''repeat_0'' []) (Var i)) (do x <- repeat_0' v';
  gets (\<lambda>s. x)
@@ -232,9 +238,9 @@ lemma mylog2_repeat_corres:
          \<xi>_1 \<gamma> \<Xi> \<Gamma> \<sigma> s"
   apply simp
   apply (subst (asm) \<Xi>_simps[symmetric])
-  apply (cut_tac uv = "\<gamma>!i" and x = v' in val_rel_t5_C_def)
+  apply (cut_tac uv = "\<gamma>!i" and x = v' in val_rel_t6_C_def)
   apply (rule crepeat_corres_bang_fun_fun[
-      where \<tau>f = abbreviatedType3 and \<tau>a = abbreviatedType2 and \<tau>o = "TPrim (Num U64)" and o1C = t2_C.obsv_C,
+      where \<tau>f = abbreviatedType5 and \<tau>a = abbreviatedType4 and \<tau>o = "TPrim (Num U64)" and o1C = t3_C.obsv_C,
       OF _ _ _ \<Xi>_simps(1)[unfolded repeat_0_type_def]  _ _ _  _  \<xi>_1_simps(1)
       \<xi>_0_le_\<xi>_1 \<xi>_1_determ _
       log2stop_typecorrect'[simplified log2stop_type_def fst_conv snd_conv]
@@ -243,25 +249,25 @@ lemma mylog2_repeat_corres:
       apply (clarsimp simp: cogent_function_val_rel untyped_func_enum_defs val_rel_simp)
      apply (subst abbreviated_type_defs[symmetric])+
      apply (rule corres_app_concrete[simplified]; simp?)
-     apply (simp add: dispatch_t3'_def unknown_bind_ignore)
+     apply (simp add: dispatch_t4'_def unknown_bind_ignore)
      apply (erule corres_log2stop[folded \<Xi>_def, simplified fst_conv snd_conv log2stop_type_def])
     apply (subst abbreviated_type_defs[symmetric])+
     apply (rule corres_app_concrete[simplified]; simp?)
-    apply (simp add: dispatch_t4'_def unknown_bind_ignore)
+    apply (simp add: dispatch_t5'_def unknown_bind_ignore)
     apply (erule corres_log2step[folded \<Xi>_def, simplified fst_conv snd_conv log2step_type_def])
    apply (clarsimp simp: val_rel_simp)
   apply (clarsimp simp: val_rel_simp)
   done
-
+thm repeat_1_type_def
 lemma repeat_1'_simp:
-  "repeat_1' = crepeat t9_C.n_C t9_C.stop_C t9_C.step_C t9_C.acc_C t9_C.obsv_C t6_C.acc_C t6_C.acc_C_update t6_C.obsv_C_update dispatch_t7' dispatch_t8'"
+  "repeat_1' = crepeat t16_C.n_C t16_C.stop_C t16_C.step_C t16_C.acc_C t16_C.obsv_C t13_C.acc_C t13_C.acc_C_update t13_C.obsv_C_update dispatch_t14' dispatch_t15'"
   unfolding crepeat_def[polish] repeat_1'_def[simplified L2polish, polish]
   apply clarsimp
   done
 
 lemma myexp_repeat_corres:
   "\<And>v' i \<gamma> \<Gamma> \<sigma> s.
-    \<lbrakk>t9_C.stop_C v' = FUN_ENUM_expstop; t9_C.step_C v' = FUN_ENUM_expstep; i < length \<gamma>; val_rel (\<gamma> ! i) v';
+    \<lbrakk>t16_C.stop_C v' = FUN_ENUM_expstop; t16_C.step_C v' = FUN_ENUM_expstep; i < length \<gamma>; val_rel (\<gamma> ! i) v';
      \<Gamma> ! i = Some (fst (snd repeat_1_type))\<rbrakk>
     \<Longrightarrow> corres state_rel (App (AFun ''repeat_1'' []) (Var i)) (do x <- repeat_1' v';
  gets (\<lambda>s. x)
@@ -269,9 +275,9 @@ lemma myexp_repeat_corres:
          \<xi>_1 \<gamma> \<Xi> \<Gamma> \<sigma> s"
   apply simp
   apply (subst (asm) \<Xi>_simps[symmetric])
-  apply (cut_tac uv = "\<gamma>!i" and x = v' in val_rel_t9_C_def)
+  apply (cut_tac uv = "\<gamma>!i" and x = v' in val_rel_t16_C_def)
   apply (rule crepeat_corres_bang_fun_fun[
-      where \<tau>f = abbreviatedType4 and \<tau>a = "TPrim (Num U32)" and \<tau>o = "TPrim (Num U32)" and o1C = t6_C.obsv_C,
+      where \<tau>f = abbreviatedType6 and \<tau>a = "TPrim (Num U32)" and \<tau>o = "TPrim (Num U32)" and o1C = t13_C.obsv_C,
       OF _ _ _ \<Xi>_simps(2)[unfolded repeat_1_type_def]  _ _ _  _  \<xi>_1_simps(2)
       \<xi>_0_le_\<xi>_1 \<xi>_1_determ _
       expstop_typecorrect'[simplified expstop_type_def fst_conv snd_conv]
@@ -280,11 +286,11 @@ lemma myexp_repeat_corres:
       apply (clarsimp simp: cogent_function_val_rel untyped_func_enum_defs val_rel_simp)
      apply (subst abbreviated_type_defs[symmetric])+
      apply (rule corres_app_concrete[simplified]; simp?)
-     apply (simp add: dispatch_t7'_def unknown_bind_ignore)
+     apply (simp add: dispatch_t14'_def unknown_bind_ignore)
      apply (erule corres_expstop[folded \<Xi>_def, simplified fst_conv snd_conv expstop_type_def])
     apply (subst abbreviated_type_defs[symmetric])+
     apply (rule corres_app_concrete[simplified]; simp?)
-    apply (simp add: dispatch_t8'_def unknown_bind_ignore)
+    apply (simp add: dispatch_t15'_def unknown_bind_ignore)
     apply (erule corres_expstep[folded \<Xi>_def, simplified fst_conv snd_conv expstep_type_def])
    apply (clarsimp simp: val_rel_simp)
   apply (clarsimp simp: val_rel_simp)
@@ -307,7 +313,7 @@ lemma \<xi>_1_\<xi>m1_matchesuv_\<Xi>:
   apply clarsimp
   apply (intro conjI impI; clarsimp)
     apply (subst (asm) \<Xi>_def;
-           clarsimp simp: repeat_1_type_def repeat_0_type_def;
+           clarsimp simp: repeat_1_type_def repeat_0_type_def repeat_2_type_def;
            rule uvrepeat_monocorrespond_upward_propagation[OF proc_ctx_wellformed_\<Xi> \<xi>_0_\<xi>m0_matchesuv_\<Xi>];
            (simp add: abbreviated_type_defs)?)+
   apply (clarsimp simp: \<xi>0_def \<xi>m0_def)

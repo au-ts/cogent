@@ -13,6 +13,7 @@ enum {
     LETBANG_TRUE = 1,
 };
 enum untyped_func_enum {
+    FUN_ENUM_binarySearch,
     FUN_ENUM_expstep,
     FUN_ENUM_expstop,
     FUN_ENUM_log2step,
@@ -21,52 +22,53 @@ enum untyped_func_enum {
     FUN_ENUM_mylog2,
     FUN_ENUM_repeat_0,
     FUN_ENUM_repeat_1,
+    FUN_ENUM_repeat_2,
     FUN_ENUM_searchNext,
     FUN_ENUM_searchStop,
     FUN_ENUM_wordarray_get_0,
     FUN_ENUM_wordarray_length_0,
 };
 typedef enum untyped_func_enum untyped_func_enum;
-typedef untyped_func_enum t14;
-#define FUN_DISP_MACRO_dispatch_t14(a1, a2, a3)\
-{\
-    {\
-        a1 = wordarray_length_0(a3);\
-    }\
-}
-typedef untyped_func_enum t15;
-#define FUN_DISP_MACRO_dispatch_t15(a1, a2, a3)\
-{\
-    {\
-        a1 = wordarray_get_0(a3);\
-    }\
-}
-typedef untyped_func_enum t16;
-#define FUN_DISP_MACRO_dispatch_t16(a1, a2, a3)\
-{\
-    {\
-        a1 = repeat_1(a3);\
-    }\
-}
 typedef untyped_func_enum t17;
 #define FUN_DISP_MACRO_dispatch_t17(a1, a2, a3)\
 {\
     {\
-        a1 = myexp(a3);\
+        a1 = wordarray_length_0(a3);\
     }\
 }
 typedef untyped_func_enum t18;
 #define FUN_DISP_MACRO_dispatch_t18(a1, a2, a3)\
 {\
     {\
-        a1 = searchStop(a3);\
+        a1 = wordarray_get_0(a3);\
     }\
 }
 typedef untyped_func_enum t19;
 #define FUN_DISP_MACRO_dispatch_t19(a1, a2, a3)\
 {\
     {\
-        a1 = searchNext(a3);\
+        a1 = repeat_2(a3);\
+    }\
+}
+typedef untyped_func_enum t14;
+#define FUN_DISP_MACRO_dispatch_t14(a1, a2, a3)\
+{\
+    {\
+        a1 = expstop(a3);\
+    }\
+}
+typedef untyped_func_enum t15;
+#define FUN_DISP_MACRO_dispatch_t15(a1, a2, a3)\
+{\
+    {\
+        a1 = expstep(a3);\
+    }\
+}
+typedef untyped_func_enum t20;
+#define FUN_DISP_MACRO_dispatch_t20(a1, a2, a3)\
+{\
+    {\
+        a1 = repeat_1(a3);\
     }\
 }
 typedef untyped_func_enum t4;
@@ -83,29 +85,43 @@ typedef untyped_func_enum t5;
         a1 = log2step(a3);\
     }\
 }
-typedef untyped_func_enum t20;
-#define FUN_DISP_MACRO_dispatch_t20(a1, a2, a3)\
+typedef untyped_func_enum t21;
+#define FUN_DISP_MACRO_dispatch_t21(a1, a2, a3)\
 {\
     {\
         a1 = repeat_0(a3);\
     }\
 }
-typedef untyped_func_enum t8;
-#define FUN_DISP_MACRO_dispatch_t8(a1, a2, a3)\
+typedef untyped_func_enum t22;
+#define FUN_DISP_MACRO_dispatch_t22(a1, a2, a3)\
 {\
     {\
-        a1 = expstop(a3);\
+        a1 = myexp(a3);\
     }\
 }
-typedef untyped_func_enum t9;
-#define FUN_DISP_MACRO_dispatch_t9(a1, a2, a3)\
+typedef untyped_func_enum t23;
+#define FUN_DISP_MACRO_dispatch_t23(a1, a2, a3)\
 {\
     {\
-        a1 = expstep(a3);\
+        a1 = binarySearch(a3);\
     }\
 }
-typedef untyped_func_enum t21;
-#define FUN_DISP_MACRO_dispatch_t21(a1, a2, a3)\
+typedef untyped_func_enum t10;
+#define FUN_DISP_MACRO_dispatch_t10(a1, a2, a3)\
+{\
+    {\
+        a1 = searchStop(a3);\
+    }\
+}
+typedef untyped_func_enum t11;
+#define FUN_DISP_MACRO_dispatch_t11(a1, a2, a3)\
+{\
+    {\
+        a1 = searchNext(a3);\
+    }\
+}
+typedef untyped_func_enum t24;
+#define FUN_DISP_MACRO_dispatch_t24(a1, a2, a3)\
 {\
     {\
         a1 = mylog2(a3);\
@@ -116,10 +132,11 @@ typedef struct t2 t2;
 typedef struct t3 t3;
 typedef struct t6 t6;
 typedef struct t7 t7;
-typedef struct t10 t10;
-typedef struct t11 t11;
+typedef struct t8 t8;
+typedef struct t9 t9;
 typedef struct t12 t12;
 typedef struct t13 t13;
+typedef struct t16 t16;
 #include <abstract/WordArray_u32.h>
 struct t1 {
     WordArray_u32 *arr;
@@ -142,63 +159,72 @@ struct t6 {
     u64 obsv;
 };
 struct t7 {
-    u32 acc;
-    u32 obsv;
-};
-struct t10 {
-    u64 n;
-    t8 stop;
-    t9 step;
-    u32 acc;
-    u32 obsv;
-};
-struct t11 {
     u32 p1;
     u32 p2;
 };
-struct t12 {
+struct t8 {
     WordArray_u32 *p1;
     u32 p2;
 };
+struct t9 {
+    t7 acc;
+    t8 obsv;
+};
+struct t12 {
+    u64 n;
+    t10 stop;
+    t11 step;
+    t7 acc;
+    t8 obsv;
+};
 struct t13 {
-    t11 acc;
-    t12 obsv;
+    u32 acc;
+    u32 obsv;
+};
+struct t16 {
+    u64 n;
+    t14 stop;
+    t15 step;
+    u32 acc;
+    u32 obsv;
 };
 static inline u32 wordarray_get_0(t1);
 static inline u32 wordarray_length_0(WordArray_u32 *);
 static inline t2 repeat_0(t6);
-static inline u32 repeat_1(t10);
-static inline bool_t expstop(t7);
+static inline t7 repeat_2(t12);
+static inline u32 repeat_1(t16);
+static inline bool_t expstop(t13);
 static inline bool_t log2stop(t3);
-static inline bool_t searchStop(t13);
-static inline u32 expstep(t7);
+static inline bool_t searchStop(t9);
+static inline u32 expstep(t13);
 static inline t2 log2step(t3);
-static inline t11 searchNext(t13);
-static inline u32 myexp(t11);
+static inline t7 searchNext(t9);
+static inline u32 binarySearch(t8);
+static inline u32 myexp(t7);
 static inline u64 mylog2(u64);
-static inline u32 dispatch_t14(untyped_func_enum a2, WordArray_u32 *a3)
+static inline u32 dispatch_t17(untyped_func_enum a2, WordArray_u32 *a3)
 {
     return wordarray_length_0(a3);
 }
-static inline u32 dispatch_t15(untyped_func_enum a2, t1 a3)
+static inline u32 dispatch_t18(untyped_func_enum a2, t1 a3)
 {
     return wordarray_get_0(a3);
 }
-static inline u32 dispatch_t16(untyped_func_enum a2, t10 a3)
+static inline t7 dispatch_t19(untyped_func_enum a2, t12 a3)
+{
+    return repeat_2(a3);
+}
+static inline bool_t dispatch_t14(untyped_func_enum a2, t13 a3)
+{
+    return expstop(a3);
+}
+static inline u32 dispatch_t15(untyped_func_enum a2, t13 a3)
+{
+    return expstep(a3);
+}
+static inline u32 dispatch_t20(untyped_func_enum a2, t16 a3)
 {
     return repeat_1(a3);
-}
-static inline u32 dispatch_t17(untyped_func_enum a2, t11 a3)
-{
-    return myexp(a3);
-}
-static inline bool_t dispatch_t18(untyped_func_enum a2, t13 a3)
-{
-    return searchStop(a3);
-}
-static inline t11 dispatch_t19(untyped_func_enum a2, t13 a3)
-{
-    return searchNext(a3);
 }
 static inline bool_t dispatch_t4(untyped_func_enum a2, t3 a3)
 {
@@ -208,41 +234,53 @@ static inline t2 dispatch_t5(untyped_func_enum a2, t3 a3)
 {
     return log2step(a3);
 }
-static inline t2 dispatch_t20(untyped_func_enum a2, t6 a3)
+static inline t2 dispatch_t21(untyped_func_enum a2, t6 a3)
 {
     return repeat_0(a3);
 }
-static inline bool_t dispatch_t8(untyped_func_enum a2, t7 a3)
+static inline u32 dispatch_t22(untyped_func_enum a2, t7 a3)
 {
-    return expstop(a3);
+    return myexp(a3);
 }
-static inline u32 dispatch_t9(untyped_func_enum a2, t7 a3)
+static inline u32 dispatch_t23(untyped_func_enum a2, t8 a3)
 {
-    return expstep(a3);
+    return binarySearch(a3);
 }
-static inline u64 dispatch_t21(untyped_func_enum a2, u64 a3)
+static inline bool_t dispatch_t10(untyped_func_enum a2, t9 a3)
+{
+    return searchStop(a3);
+}
+static inline t7 dispatch_t11(untyped_func_enum a2, t9 a3)
+{
+    return searchNext(a3);
+}
+static inline u64 dispatch_t24(untyped_func_enum a2, u64 a3)
 {
     return mylog2(a3);
 }
-typedef t7 expstep_arg;
+typedef t8 binarySearch_arg;
+typedef u32 binarySearch_ret;
+typedef t13 expstep_arg;
 typedef u32 expstep_ret;
-typedef t7 expstop_arg;
+typedef t13 expstop_arg;
 typedef bool_t expstop_ret;
 typedef t3 log2step_arg;
 typedef t2 log2step_ret;
 typedef t3 log2stop_arg;
 typedef bool_t log2stop_ret;
-typedef t11 myexp_arg;
+typedef t7 myexp_arg;
 typedef u32 myexp_ret;
 typedef u64 mylog2_arg;
 typedef u64 mylog2_ret;
 typedef t6 repeat_0_arg;
 typedef t2 repeat_0_ret;
-typedef t10 repeat_1_arg;
+typedef t16 repeat_1_arg;
 typedef u32 repeat_1_ret;
-typedef t13 searchNext_arg;
-typedef t11 searchNext_ret;
-typedef t13 searchStop_arg;
+typedef t12 repeat_2_arg;
+typedef t7 repeat_2_ret;
+typedef t9 searchNext_arg;
+typedef t7 searchNext_ret;
+typedef t9 searchStop_arg;
 typedef bool_t searchStop_ret;
 typedef t1 wordarray_get_0_arg;
 typedef u32 wordarray_get_0_ret;

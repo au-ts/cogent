@@ -2,9 +2,9 @@
 
 #include "generated.h"
 
-static inline bool_t expstop(t7 a1)
+static inline bool_t expstop(t13 a1)
 {
-    t7 r2 = a1;
+    t13 r2 = a1;
     bool_t r3 = (bool_t) {.boolean = 0U};
     
     return r3;
@@ -19,10 +19,10 @@ static inline bool_t log2stop(t3 a1)
     
     return r6;
 }
-static inline bool_t searchStop(t13 a1)
+static inline bool_t searchStop(t9 a1)
 {
-    t11 r2 = a1.acc;
-    t12 r3 = a1.obsv;
+    t7 r2 = a1.acc;
+    t8 r3 = a1.obsv;
     u32 r4 = r2.p1;
     u32 r5 = r2.p2;
     WordArray_u32 *r6 = r3.p1;
@@ -54,7 +54,7 @@ static inline bool_t searchStop(t13 a1)
     
     return r18;
 }
-static inline u32 expstep(t7 a1)
+static inline u32 expstep(t13 a1)
 {
     u32 r2 = a1.acc;
     u32 r3 = a1.obsv;
@@ -76,10 +76,10 @@ static inline t2 log2step(t3 a1)
     
     return r10;
 }
-static inline t11 searchNext(t13 a1)
+static inline t7 searchNext(t9 a1)
 {
-    t11 r2 = a1.acc;
-    t12 r3 = a1.obsv;
+    t7 r2 = a1.acc;
+    t8 r3 = a1.obsv;
     u32 r4 = r2.p1;
     u32 r5 = r2.p2;
     WordArray_u32 *r6 = r3.p1;
@@ -92,38 +92,57 @@ static inline t11 searchNext(t13 a1)
     t1 r13 = (t1) {.arr = r6, .idx = r11, .val = r12};
     u32 r14 = wordarray_get_0(r13);
     bool_t r15 = (bool_t) {.boolean = r14 < r7};
-    t11 r16;
+    t7 r16;
     
     if (r15.boolean) {
         u32 r17 = 1U;
         u32 r18 = r11 + r17;
         
-        r16 = (t11) {.p1 = r18, .p2 = r5};
+        r16 = (t7) {.p1 = r18, .p2 = r5};
     } else {
         bool_t r19 = (bool_t) {.boolean = r14 > r7};
-        t11 r20;
+        t7 r20;
         
         if (r19.boolean) {
-            r20 = (t11) {.p1 = r4, .p2 = r11};
+            r20 = (t7) {.p1 = r4, .p2 = r11};
         } else {
-            r20 = (t11) {.p1 = r11, .p2 = r5};
+            r20 = (t7) {.p1 = r11, .p2 = r5};
         }
         r16 = r20;
     }
     
-    t11 r21 = r16;
+    t7 r21 = r16;
     
     return r21;
 }
-static inline u32 myexp(t11 a1)
+static inline u32 binarySearch(t8 a1)
+{
+    WordArray_u32 *r2 = a1.p1;
+    u32 r3 = a1.p2;
+    u32 r4 = wordarray_length_0(r2);
+    u64 r5 = (u64) r4;
+    t10 r6 = FUN_ENUM_searchStop;
+    t11 r7 = FUN_ENUM_searchNext;
+    u32 r8 = 0U;
+    t7 r9 = (t7) {.p1 = r8, .p2 = r4};
+    t8 r10 = (t8) {.p1 = r2, .p2 = r3};
+    t12 r11 = (t12) {.n = r5, .stop = r6, .step = r7, .acc = r9, .obsv = r10};
+    t7 r12 = repeat_2(r11);
+    u32 r13 = r12.p1;
+    u32 r14 = r12.p2;
+    u32 r15 = r13;
+    
+    return r15;
+}
+static inline u32 myexp(t7 a1)
 {
     u32 r2 = a1.p1;
     u32 r3 = a1.p2;
     u64 r4 = (u64) r3;
-    t8 r5 = FUN_ENUM_expstop;
-    t9 r6 = FUN_ENUM_expstep;
+    t14 r5 = FUN_ENUM_expstop;
+    t15 r6 = FUN_ENUM_expstep;
     u32 r7 = 1U;
-    t10 r8 = (t10) {.n = r4, .stop = r5, .step = r6, .acc = r7, .obsv = r2};
+    t16 r8 = (t16) {.n = r4, .stop = r5, .step = r6, .acc = r7, .obsv = r2};
     u32 r9 = repeat_1(r8);
     
     return r9;

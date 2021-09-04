@@ -277,6 +277,16 @@ lemma shallow_tuples__searchNext [ShallowTuplesThms_Generated]:
            ShallowTuplesThms_Generated ShallowTuplesThms_Generated[THEN shallow_tuples_rel_funD])+
 
 
+lemma shallow_tuples__binarySearch [ShallowTuplesThms_Generated]:
+  "shallow_tuples_rel Generated_Shallow_Desugar.binarySearch Generated_Shallow_Desugar_Tuples.binarySearch"
+  apply (rule shallow_tuples_rel_funI)
+  apply (unfold Generated_Shallow_Desugar.binarySearch_def Generated_Shallow_Desugar_Tuples.binarySearch_def id_def)
+  apply ((unfold take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t_def Let\<^sub>d\<^sub>s_def Let_def split_def)?,(simp only: fst_conv snd_conv)?)
+  by (assumption |
+      rule shallow_tuples_basic_bucket ShallowTuplesRules_Generated
+           ShallowTuplesThms_Generated ShallowTuplesThms_Generated[THEN shallow_tuples_rel_funD])+
+
+
 lemma shallow_tuples__myexp [ShallowTuplesThms_Generated]:
   "shallow_tuples_rel Generated_Shallow_Desugar.myexp Generated_Shallow_Desugar_Tuples.myexp"
   apply (rule shallow_tuples_rel_funI)
