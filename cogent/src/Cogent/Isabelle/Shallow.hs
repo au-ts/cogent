@@ -37,6 +37,7 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core as CC
 import Cogent.Desugar as D (freshVarPrefix)
+import Cogent.Inference as IN (filterTypeDefs, substTransSyn)
 import Cogent.Isabelle.Compound (takeFlatCase)
 import Cogent.Isabelle.IsabelleName
 import Cogent.Isabelle.ShallowTable (TypeStr(..), st, getStrlType, toTypeStr)
@@ -77,11 +78,12 @@ _fixHighlighting = x where x = ()
 
 type MapTypeName = M.Map TypeStr TypeName
 
-data SGTables = SGTables { typeStrs      :: [TypeStr]
-                         , typeNameMap   :: MapTypeName
-                         , typeVars      :: [String]     -- ^ @Cogent var &#x21A6; Isabelle var@
-                         , recoverTuples :: Bool         -- ^ not a table, but convenient to be included here
-                         }
+data SGTables b = SGTables { typeStrs      :: [TypeStr]
+                           , typeNameMap   :: MapTypeName
+                           , typeVars      :: [String]     -- ^ @Cogent var &#x21A6; Isabelle var@
+                           , recoverTuples :: Bool         -- ^ not a table, but convenient to be included here
+                           , typeSynDefs   :: [CC.Definition TypedExpr VarName b]  -- ^ dito
+                           }
 
 data StateGen = StateGen {
     _varNameGen   :: Int            -- ^ counter for fresh variables
@@ -89,27 +91,38 @@ data StateGen = StateGen {
 
 makeLenses ''StateGen
 
-newtype SG a = SG { runSG :: RWS SGTables [Warning] StateGen a }
-               deriving (Functor, Applicative, Monad,
-                         MonadReader SGTables,
-                         MonadWriter [Warning],
-                         MonadState  StateGen)
+newtype SG b a = SG { runSG :: RWS (SGTables b) [Warning] StateGen a }
+                 deriving (Functor, Applicative, Monad,
+                           MonadReader (SGTables b),
+                           MonadWriter [Warning],
+                           MonadState  StateGen)
+
+expandTransSyns :: CC.Type t b -> SG b (CC.Type t b)
+expandTransSyns t = do
+    tdfs <- asks typeSynDefs
+    return $ IN.substTransSyn tdfs t
 
 isaReservedNames = ["o", "value", "from"]
 
 shallowTVar :: Int -> String
 shallowTVar v = [chr $ ord 'a' + fromIntegral v]
 
-shallowTypeWithName :: (Show b,Eq b) => CC.Type t b -> SG I.Type
+shallowTypeWithName :: (Show b,Eq b) => CC.Type t b -> SG b I.Type
 shallowTypeWithName t = shallowType =<< findType t
 
-shallowRecTupleType :: (Show b,Eq b) => [(FieldName, (CC.Type t b, Bool))] -> SG I.Type
+shallowRecTupleType :: (Show b,Eq b) => [(FieldName, (CC.Type t b, Bool))] -> SG b I.Type
 shallowRecTupleType fs = shallowTupleType <$> mapM shallowType (map (fst . snd) fs)
 
-shallowType :: forall t b. (Show b,Eq b) => CC.Type t b -> SG I.Type
+shallowType :: forall t b. (Show b,Eq b) => CC.Type t b -> SG b I.Type
 shallowType (TVar v) = I.TyVar <$> ((!!) <$> asks typeVars <*> pure (finInt v))
 shallowType (TVarBang v) = shallowType (TVar v :: CC.Type t b)
-shallowType (TCon tn ts _) = I.TyDatatype tn <$> mapM shallowType ts
+shallowType t@(TCon tn ts _) =
+    case stripPrefix "internal:" tn of
+         Just tn' -> -- name selected for a record or variant type. Use it after stripping the prefix.
+           I.TyDatatype tn' <$> mapM shallowType ts
+         Nothing -> do -- original Cogent type name. Append index T if it expands to a record or variant.
+           t' <- expandTransSyns t
+           I.TyDatatype (typeSynName tn t') <$> mapM shallowType ts
 shallowType (TFun t1 t2) = I.TyArrow <$> shallowType t1 <*> shallowType t2
 shallowType (TPrim pt) = pure $ shallowPrimType pt
 shallowType (TString) = pure $ I.AntiType "string"
@@ -182,13 +195,16 @@ shallowILit :: Integer -> PrimInt -> Term
 shallowILit n Boolean = if n > 0 then mkTru else mkFls
 shallowILit n v = TermWithType (mkId $ show n) (shallowPrimType v)
 
-findType :: CC.Type t b -> SG (CC.Type t b)
+findType :: CC.Type t b -> SG b (CC.Type t b)
 findType t = getStrlType <$> asks typeNameMap <*> asks typeStrs <*> pure t
 
-findTypeSyn :: CC.Type t b -> SG String
-findTypeSyn t = findType t >>= \(TCon nm _ _) -> pure nm
+findTypeSyn :: CC.Type t b -> SG b String
+findTypeSyn t = findType t >>= \(TCon nm _ _) -> 
+    case stripPrefix "internal:" nm of 
+         Just nm' -> pure nm'
+         _ -> __impossible "findTypeSyn"
 
-shallowExpr :: (Show b,Eq b) => TypedExpr t v VarName b -> SG Term
+shallowExpr :: (Show b,Eq b) => TypedExpr t v VarName b -> SG b Term
 shallowExpr (TE _ (Variable (_,v))) = pure $ mkId (snm v)
 shallowExpr (TE t (Fun fn ts ls _)) =
     if null ts
@@ -229,60 +245,59 @@ shallowExpr (TE _ (LetBang vs nm e1 e2)) = shallowLet nm e1 e2
 shallowExpr (TE _ (Tuple e1 e2)) = mkApp <$> (pure $ mkId "Pair") <*> (mapM shallowExpr [e1, e2])
 shallowExpr (TE t (Struct fs)) = shallowMaker t fs
 shallowExpr (TE _ (If c th el)) = mkApp <$> (pure $ mkId "HOL.If") <*> mapM shallowExpr [c, th, el]
-
-shallowExpr e
- | Just (escrut,ealts) <- takeFlatCase e
- , tscrut              <- exprType escrut
- , TSum talts          <- tscrut
- = do
-  tuples <- asks recoverTuples
-  escrut' <- shallowExpr escrut
-  if tuples 
-     then do
-         -- in tuples form use the case-of representation
-         let es   = flip map talts $ \(tag,_) ->
-              case M.lookup tag ealts of
-               Just (n,e) -> (tag,n,e) 
-               Nothing -> __impossible ("shallowExpr: takeFlatCase succeeded but returned map missing tag " ++ show tag)
-         es' <- mapM shallowAlt es
-         pure $ CaseOf escrut' es'
-     else do
-         -- otherwise use case_x application since the Let\^<sub>d\^<sub>s will interfere with case-of syntax
-         tn      <- findTypeSyn tscrut
-         ealts'  <- traverse (\(n,e) -> mkLambdaE [snm n] e) ealts
-         let es   = flip map talts $ \(tag',(t',b')) ->
-              case M.lookup tag' ealts' of
-               Just e' -> e'
-               Nothing -> __impossible ("shallowExpr: takeFlatCase succeeded but returned map missing tag " ++ show tag')
-         pure $ mkApp (mkStr ["case_",tn]) $ es ++ [escrut']
-
-shallowExpr (TE t (Case e tag (_,n1,e1) (_,n2,e2))) = do
-  e' <- shallowExpr e
-  let te@(TSum alts) = exprType e
-  tn  <- findTypeSyn te
-  te' <- shallowType te
-  e1' <- mkLambdaE [snm n1] e1
-  e2' <- mkLambdaE [snm n2] e2
-  vn <- varNameGen <<%= (+1)
-  vn2 <- varNameGen <<%= (+1)
-  let vgn = "v" ++ (subSymStr $ "G" ++ show vn)
-      vgn2 = "ccase" ++ (subSymStr $ "G" ++ show vn2)  -- This is the continuation @e2@
-      es = flip map alts $ \(tag',(t',b')) ->
-             if | tag == tag' -> e1'
-                | otherwise ->
-                    let cons = mkApp (mkStr [tn,".",tag']) [mkId vgn]
-                        typedCons = TermWithType cons te'
-                     in mkLambda [vgn] $ mkApp (mkId vgn2) [typedCons]
-      rcase = mkApp (mkStr ["case_",tn]) $ es ++ [e']
-  pure $ mkLet vgn2 e2' rcase
+shallowExpr ec@(TE _ (Case e tag (_,n1,e1) (_,n2,e2))) = do
+  ec' <- expandSynsInCase ec
+  case takeFlatCase ec' of
+    Just (escrut,ealts) -> do
+      let tscrut = exprType escrut
+          TSum talts = tscrut -- tscrut has been expanded by expandSynsInCase
+      tuples <- asks recoverTuples
+      escrut' <- shallowExpr escrut
+      if tuples 
+         then do
+             -- in tuples form use the case-of representation
+             let es   = flip map talts $ \(tag,_) ->
+                  case M.lookup tag ealts of
+                   Just (n,e) -> (tag,n,e) 
+                   Nothing -> __impossible ("shallowExpr: takeFlatCase succeeded but returned map missing tag " ++ show tag)
+             es' <- mapM shallowAlt es
+             pure $ CaseOf escrut' es'
+         else do
+             -- otherwise use case_x application since the Let\^<sub>d\^<sub>s will interfere with case-of syntax
+             tn      <- findTypeSyn tscrut
+             ealts'  <- traverse (\(n,e) -> mkLambdaE [snm n] e) ealts
+             let es   = flip map talts $ \(tag',(t',b')) ->
+                  case M.lookup tag' ealts' of
+                   Just e' -> e'
+                   Nothing -> __impossible ("shallowExpr: takeFlatCase succeeded but returned map missing tag " ++ show tag')
+             pure $ mkApp (mkStr ["case_",tn]) $ es ++ [escrut']
+    Nothing -> do
+      e' <- shallowExpr e
+      te@(TSum alts) <- expandTransSyns $ exprType e
+      tn  <- findTypeSyn te
+      te' <- shallowType te
+      e1' <- mkLambdaE [snm n1] e1
+      e2' <- mkLambdaE [snm n2] e2
+      vn <- varNameGen <<%= (+1)
+      vn2 <- varNameGen <<%= (+1)
+      let vgn = "v" ++ (subSymStr $ "G" ++ show vn)
+          vgn2 = "ccase" ++ (subSymStr $ "G" ++ show vn2)  -- This is the continuation @e2@
+          es = flip map alts $ \(tag',(t',b')) ->
+                 if | tag == tag' -> e1'
+                    | otherwise ->
+                        let cons = mkApp (mkStr [tn,".",tag']) [mkId vgn]
+                            typedCons = TermWithType cons te'
+                        in mkLambda [vgn] $ mkApp (mkId vgn2) [typedCons]
+          rcase = mkApp (mkStr ["case_",tn]) $ es ++ [e']
+      pure $ mkLet vgn2 e2' rcase
 -- \ ^^^ NOTE: We can't use the @case _ of@ syntax as our @case@s are binary (and nested).
 -- It seems that Isabelle spends exponential time on processing the @case _ of@ syntax depending
 -- on the level of nestings. / zilinc
 shallowExpr (TE t (Esac e)) = do
   tn <- findTypeSyn $ exprType e
   e' <- shallowExpr e
-  let TSum alts = exprType e
-      es = flip map alts $ \(tag',(t',b')) ->
+  TSum alts <- expandTransSyns $ exprType e
+  let es = flip map alts $ \(tag',(t',b')) ->
              if | b' -> mkId "undefined"
                 | otherwise -> mkId "Fun.id"
   pure $ mkApp (mkStr ["case_",tn]) $ es ++ [e']
@@ -290,7 +305,8 @@ shallowExpr (TE _ (Split (n1,n2) e1 e2)) = mkApp <$> mkLambdaE [mkPrettyPair n1 
 shallowExpr (TE _ (Member rec fld)) = shallowExpr rec >>= \e -> shallowGetter rec fld e
 shallowExpr (TE _ (Take (n1,n2) rec fld e)) = do
   erec <- shallowExpr rec
-  efield <- mkId <$> getRecordFieldName (exprType rec) fld
+  trec <- expandTransSyns $ exprType rec
+  efield <- mkId <$> getRecordFieldName trec fld
   let take = mkApp (mkId $ "take" ++ subSymStr "cogent") [erec, efield]
       pp = mkPrettyPair n1 n2
   mkLet pp take <$> shallowExpr e
@@ -299,11 +315,31 @@ shallowExpr (TE _ (Promote ty e)) = shallowExpr e
 shallowExpr (TE _ (Cast    (TPrim pt) (TE _ (ILit n _)))) = pure $ shallowILit n pt
 shallowExpr (TE _ (Cast    (TPrim pt) e)) =
   TermWithType <$> (mkApp (mkId "ucast") <$> ((:[]) <$> shallowExpr e)) <*> pure (shallowPrimType pt)
+shallowExpr (TE te (Cast  t e)) = do
+  t' <- expandTransSyns t
+  shallowExpr $ TE te $ Cast t' e
 
-shallowAlt :: (Show b,Eq b) => (TagName,VarName,TypedExpr t v VarName b) -> SG (Term,Term)
+shallowAlt :: (Show b,Eq b) => (TagName,VarName,TypedExpr t v VarName b) -> SG b (Term,Term)
 shallowAlt (tag,n,e) = do
     e' <- shallowExpr e
     pure (TermApp (mkId tag) (mkId n),e')
+
+-- | Expand type synonyms in all parts where it is required by takeFlatCase.
+-- This is the type of the outermost escrut and the type of the Esac.
+-- We prefer doing it here in a separate action instead of turning takeFlatCase into a monadic action.
+expandSynsInCase :: CC.TypedExpr t v VarName b -> SG b (CC.TypedExpr t v VarName b)
+expandSynsInCase (TE t (Case (TE tscrut escrut) tag alt1 (l2,n2,e2))) = do
+    tscrut' <- expandTransSyns tscrut
+    e2' <- go e2
+    return (TE t (Case (TE tscrut' escrut) tag alt1 (l2,n2,e2')))
+    where
+        go :: forall t u b. CC.TypedExpr t u VarName b -> SG b (CC.TypedExpr t u VarName b)
+        go (TE t (Case e tag alt1 (l2,n2,e2))) = do
+            e2' <- go e2
+            return (TE t (Case e tag alt1 (l2,n2,e2')))
+        go (TE t (Let nalt (TE t1 (Esac (TE tscrut e))) erest)) = do
+            tscrut' <- expandTransSyns tscrut
+            return (TE t (Let nalt (TE t1 (Esac (TE tscrut' e))) erest))
 
 -- | @'mkL' nm t1 t2@:
 --
@@ -322,7 +358,7 @@ mkLet nm t1 t2 =
  else
     mkApp (mkId "HOL.Let") [t1, mkLambda [snm nm] t2]
 
-shallowLet :: (Show b,Eq b) => VarName -> TypedExpr t v VarName b -> TypedExpr t ('Suc v) VarName b -> SG Term
+shallowLet :: (Show b,Eq b) => VarName -> TypedExpr t v VarName b -> TypedExpr t ('Suc v) VarName b -> SG b Term
 shallowLet nm e1 e2 = do
     mkLet nm <$> shallowExpr e1 <*> shallowExpr e2
 
@@ -332,7 +368,7 @@ mkStr = mkId . concat
 mkPrettyPair :: VarName -> VarName -> String
 mkPrettyPair n1 n2 = "(" ++ snm n1 ++ "," ++ snm n2 ++ ")"
 
-mkLambdaE :: (Show b,Eq b) => [VarName] -> TypedExpr t v VarName b -> SG Term
+mkLambdaE :: (Show b,Eq b) => [VarName] -> TypedExpr t v VarName b -> SG b Term
 mkLambdaE vs e = mkLambda vs <$> shallowExpr e
 
 -- | Reverse engineer whether a record type was a tuple by looking at the field names.
@@ -342,7 +378,7 @@ isRecTuple fs =
   P.length fs > 1 &&
   filter (\xs -> xs!!0 == 'p' && let ys = drop 1 xs in filter isDigit ys == ys) fs == fs
 
-shallowMaker :: (Show b,Eq b) => CC.Type t b -> [(FieldName, TypedExpr t v VarName b)] -> SG Term
+shallowMaker :: (Show b,Eq b) => CC.Type t b -> [(FieldName, TypedExpr t v VarName b)] -> SG b Term
 shallowMaker t fs = do
   tn <- findTypeSyn t
   let fnms = map fst fs
@@ -353,23 +389,26 @@ shallowMaker t fs = do
        then mkRecord tn fs
        else mkApp <$> pure (mkStr [tn, ".make"]) <*> (mapM (shallowExpr . snd) fs)
 
-mkRecord :: (Show b,Eq b) => String -> [(FieldName, TypedExpr t v VarName b)] -> SG Term
+mkRecord :: (Show b,Eq b) => String -> [(FieldName, TypedExpr t v VarName b)] -> SG b Term
 mkRecord tn fs = do
     fts <- mapM (shallowExpr . snd) fs
     pure $ ListTerm "\\<lparr>" (map (\(fn,t) -> (TermBinOp I.Eq (mkId fn) t)) $ P.zip ffs fts) "\\<rparr>"
     where ffs = addtn $ map (\(f,t) -> f ++ subSymStr "f") fs
           addtn (f1:ffs) = (tn++ "." ++ f1) : ffs
 
-shallowSetter :: (Show b,Eq b) => TypedExpr t v VarName b -> Int -> TypedExpr t v VarName b -> SG Term
+shallowSetter :: (Show b,Eq b) => TypedExpr t v VarName b -> Int -> TypedExpr t v VarName b -> SG b Term
 shallowSetter rec idx e = do
-  tn <- getRecordFieldName (exprType rec) idx
+  trec <- expandTransSyns $ exprType rec
+  tn <- getRecordFieldName trec idx
   let setter = tn ++ "_update"
   mkApp (mkId setter) <$> (list2 <$> mkLambdaE ["_"] e <*> shallowExpr rec)
 
-shallowGetter :: TypedExpr t v VarName b -> Int -> Term -> SG Term
-shallowGetter rec idx rect = mkApp <$> (mkId <$> getRecordFieldName (exprType rec) idx) <*> pure [rect]
+shallowGetter :: TypedExpr t v VarName b -> Int -> Term -> SG b Term
+shallowGetter rec idx rect = do
+  trec <- expandTransSyns $ exprType rec
+  mkApp <$> (mkId <$> getRecordFieldName trec idx) <*> pure [rect]
 
-getRecordFieldName :: CC.Type t b -> Int -> SG FieldName
+getRecordFieldName :: CC.Type t b -> Int -> SG b FieldName
 getRecordFieldName t@(TRecord _ fs _) ind = do
   tn <- findTypeSyn t
   let fnms = map fst fs
@@ -556,38 +595,19 @@ sanitizeType (TArray t _ _ _) = TArray (sanitizeType t) (LSLit "") Unboxed Nothi
 #endif
 sanitizeType t = t
 
--- | Produce a hash for a record or variant type. Only the structure of the type matters;
---   taken entries or sigils do not.
-hashType :: (Show b) => CC.Type t b -> String
-hashType (TSum ts)      = show (sanitizeType $ TSum ts)
-hashType (TRecord rp ts s) = show (sanitizeType $ TRecord rp ts s)
-hashType (TFun ti to) = show (sanitizeType $ TFun ti to)
-#ifdef BUILTIN_ARRAYS
-hashType (TArray t sz s tk) = show (sanitizeType $ TArray t sz s tk)
-#endif
-hashType _              = error "hashType: should only pass Variant, Record, Array or Function types"
-
 -- | A subscript @T@ will be added when generating type synonyms for records and variants.
 typeSynName :: TypeName -> CC.Type t b -> String
 typeSynName tn (TSum _) = tn ++ subSymStr "T"
 typeSynName tn (TRecord _ _ _) = tn ++ subSymStr "T"
 typeSynName tn _ = tn
 
-shallowTypeDefSaveSyn:: (Show b,Eq b) => TypeName -> [TyVarName] -> CC.Type t b -> SG [TheoryDecl I.Type I.Term]
-shallowTypeDefSaveSyn tn ps r = do
-  st <- shallowType r
-  let syname = syName tn r
-  pure [TypeSynonym (TypeSyn syname st ps)]
-    where syName tn (TSum _) = tn ++ subSymStr "T"
-          syName tn (TRecord _ _ _) = tn ++ subSymStr "T"
-          syName tn _ = tn
-
 -- | Generates @type_synonym@ definitions for types.
-shallowTypeDef :: (Show b,Eq b) => TypeName -> [TyVarName] -> CC.Type t b -> SG [TheoryDecl I.Type I.Term]
+shallowTypeDef :: (Show b,Eq b) => TypeName -> [TyVarName] -> CC.Type t b -> SG b [TheoryDecl I.Type I.Term]
 shallowTypeDef tn ps (TPrim p)      = pure [TypeSynonym (TypeSyn tn (shallowPrimType p) ps)]
 shallowTypeDef tn ps t = do
   st <- shallowType t
-  pure [TypeSynonym (TypeSyn (typeSynName tn t) st ps)]
+  t' <- expandTransSyns t
+  pure [TypeSynonym (TypeSyn (typeSynName tn t') st ps)]
 
 typeNameFromIdx :: Int -> String
 typeNameFromIdx idx = 'T':show idx
@@ -643,13 +663,13 @@ fieldConjValRel ((var,fld):r) = let rest = fieldConjValRel r in [isaTerm| valRel
 
 data DeclT = RecordT | VariantT
 
-shallowTT :: (Int, TypeStr)
-          -> SG ( [TheoryDecl I.Type I.Term]
-                , [(DeclT,TheoryDecl I.Type I.Term)]
-                , [TheoryDecl I.Type I.Term]
-                , [Name]
-                , MapTypeName
-                )
+shallowTT :: (Show b,Eq b) => (Int, TypeStr)
+          -> SG b ( [TheoryDecl I.Type I.Term]
+                  , [(DeclT,TheoryDecl I.Type I.Term)]
+                  , [TheoryDecl I.Type I.Term]
+                  , [Name]
+                  , MapTypeName
+                  )
 shallowTT (tidx, t) = do
   tnmap <- asks typeNameMap
   let mbsyn = M.lookup t tnmap
@@ -705,14 +725,18 @@ filterDuplicates xs =
   in map (minimumBy (compare `on` (P.length . snd))) grpdsrtd
 
 stsyn :: [Definition TypedExpr VarName b] -> MapTypeName
-stsyn decls = M.fromList . filterDuplicates . concat $ P.map synAllTypeStr decls
+stsyn decls = M.fromList . filterDuplicates . concat $ P.map (synAllTypeStr (filterTypeDefs decls)) decls
 
-synAllTypeStr :: Definition TypedExpr VarName b -> [(TypeStr, TypeName)]
-synAllTypeStr (TypeDef tn _ (Just (TRecord _ fs _))) = [(RecordStr $ P.map fst fs, tn)]
-synAllTypeStr (TypeDef tn _ (Just (TSum alts))) = [(VariantStr $ P.map fst alts, tn)]
-synAllTypeStr _ = []
+synAllTypeStr :: [Definition TypedExpr VarName b] -> Definition TypedExpr VarName b -> [(TypeStr, TypeName)]
+synAllTypeStr _ (TypeDef tn _ (Just (TRecord _ fs _))) = [(RecordStr $ P.map fst fs, tn)]
+synAllTypeStr _ (TypeDef tn _ (Just (TSum alts))) = [(VariantStr $ P.map fst alts, tn)]
+synAllTypeStr tdfs (TypeDef tn vs (Just t@(TCon _ _ _))) = 
+  case IN.substTransSyn tdfs t of 
+       TCon _ _ _ -> []
+       t' -> synAllTypeStr tdfs (TypeDef tn vs (Just t'))
+synAllTypeStr _ _ = []
 
-shallowTypeFromTable :: SG ([TheoryDecl I.Type I.Term], [TheoryDecl I.Type I.Term], MapTypeName)
+shallowTypeFromTable :: (Show b,Eq b) => SG b ([TheoryDecl I.Type I.Term], [TheoryDecl I.Type I.Term], MapTypeName)
 shallowTypeFromTable = do
   table <- asks typeStrs
   let itable = P.zip [0..] table
@@ -980,7 +1004,7 @@ scorresFieldLemmas types tmap =
 
 
 -- Left is concrete funs, Right is shared
-shallowDefinition :: (Show b,Eq b) => Definition TypedExpr VarName b -> SG ([Either (TheoryDecl I.Type I.Term) (TheoryDecl I.Type I.Term)], Maybe FunName)
+shallowDefinition :: (Show b,Eq b) => Definition TypedExpr VarName b -> SG b ([Either (TheoryDecl I.Type I.Term) (TheoryDecl I.Type I.Term)], Maybe FunName)
 shallowDefinition (FunDef _ fn ps _ ti to e) =
     local (typarUpd typar) $ do
     e' <- shallowExpr e
@@ -1004,12 +1028,12 @@ shallowDefinition (TypeDef tn ps (Just t)) =
     local (typarUpd typar) $ (, Nothing) <$> (map Right <$> shallowTypeDef tn typar t)
   where typar = Vec.cvtToList ps
 
-shallowDefinitions :: (Show b,Eq b) => [Definition TypedExpr VarName b] -> SG ([Either (TheoryDecl I.Type I.Term) (TheoryDecl I.Type I.Term)], [FunName])
+shallowDefinitions :: (Show b,Eq b) => [Definition TypedExpr VarName b] -> SG b ([Either (TheoryDecl I.Type I.Term) (TheoryDecl I.Type I.Term)], [FunName])
 shallowDefinitions = (((concat *** catMaybes) . P.unzip) <$>) . mapM ((varNameGen .= 0 >>) . shallowDefinition)
 
 -- | Returns @(shallow, shallow_shared, scorres, type names)@
 shallowFile :: (Show b, Eq b) => String -> Stage -> [Definition TypedExpr VarName b]
-            -> SG (Theory I.Type I.Term, Theory I.Type I.Term, Theory I.Type I.Term, MapTypeName)
+            -> SG b (Theory I.Type I.Term, Theory I.Type I.Term, Theory I.Type I.Term, MapTypeName)
 shallowFile thy stg defs = do
   t <- asks typeStrs
   tuples <- asks recoverTuples
@@ -1045,12 +1069,12 @@ shallowFile thy stg defs = do
 shallow :: (Show b,Eq b) => Bool -> String -> Stage -> [Definition TypedExpr VarName b] -> String -> (Doc, Doc, Doc, MapTypeName)
 shallow recoverTuples thy stg defs log =
   let (shal,shrd,scor,typeMap) = fst $ evalRWS (runSG (shallowFile thy stg defs))
-                                               (SGTables (st defs) (stsyn defs) [] recoverTuples)
+                                               (SGTables (st defs) (stsyn defs) [] recoverTuples (filterTypeDefs defs))
                                                (StateGen 0)
       header = (string ("(*\n" ++ log ++ "\n*)\n") L.<$$>)
   in (header (if recoverTuples then I.prettyPlus shal else pretty shal), header $ pretty shrd, header $ pretty scor, typeMap)
 
-genConstDecl :: CC.CoreConst TypedExpr -> SG (TheoryDecl I.Type I.Term)
+genConstDecl :: CC.CoreConst TypedExpr -> SG VarName (TheoryDecl I.Type I.Term)
 genConstDecl (vn, te@(TE ty expr)) = do
   e <- shallowExpr te
   t <- shallowType ty
@@ -1058,7 +1082,7 @@ genConstDecl (vn, te@(TE ty expr)) = do
       term = [isaTerm| $nm \<equiv> $e |]
   pure $ Definition (Def (Just (Sig (snm vn) (Just t))) term)
 
-shallowConsts :: Bool -> String -> Stage -> [CC.CoreConst TypedExpr] -> [Definition TypedExpr VarName b] -> String -> Doc
+shallowConsts :: Bool -> String -> Stage -> [CC.CoreConst TypedExpr] -> [Definition TypedExpr VarName VarName] -> String -> Doc
 shallowConsts recoverTuples thy stg consts defs log =
   header $ pretty (Theory (thy ++ __cogent_suffix_of_shallow_consts ++ __cogent_suffix_of_stage stg ++
                            (if recoverTuples then __cogent_suffix_of_recover_tuples else ""))
@@ -1066,7 +1090,7 @@ shallowConsts recoverTuples thy stg consts defs log =
                                    (if recoverTuples then __cogent_suffix_of_recover_tuples else "")])
                    (genConstTheoryDecls consts defs))
  where genConstTheoryDecls cs defs = fst $ evalRWS (runSG $ shallowConsts cs)
-                                     (SGTables (st defs) (stsyn defs) [] recoverTuples)
+                                     (SGTables (st defs) (stsyn defs) [] recoverTuples (filterTypeDefs defs))
                                      (StateGen 0)
        shallowConsts = mapM genConstDecl
        header = (string ("(*\n" ++ log ++ "\n*)\n") L.<$$>)
