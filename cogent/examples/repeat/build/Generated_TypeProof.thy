@@ -16,12 +16,12 @@ where
 definition
   abbreviatedType2 :: " Cogent.type"
 where
-  "abbreviatedType2 \<equiv> TRecord [(''acc'', (abbreviatedType1, Present)), (''obsv'', (TRecord [(''p1'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Present)), (''p2'', (TPrim (Num U32), Present))] Unboxed, Present))] Unboxed"
+  "abbreviatedType2 \<equiv> TRecord [(''p1'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Present)), (''p2'', (TPrim (Num U32), Present))] Unboxed"
 
 definition
   abbreviatedType3 :: " Cogent.type"
 where
-  "abbreviatedType3 \<equiv> TRecord [(''p1'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Present)), (''p2'', (TPrim (Num U32), Present))] Unboxed"
+  "abbreviatedType3 \<equiv> TRecord [(''acc'', (abbreviatedType1, Present)), (''obsv'', (abbreviatedType2, Present))] Unboxed"
 
 definition
   abbreviatedType4 :: " Cogent.type"
@@ -38,19 +38,13 @@ definition
 where
   "abbreviatedType6 \<equiv> TRecord [(''acc'', (TPrim (Num U32), Present)), (''obsv'', (TPrim (Num U32), Present))] Unboxed"
 
-definition
-  abbreviatedType7 :: " Cogent.type"
-where
-  "abbreviatedType7 \<equiv> TRecord [(''acc'', (abbreviatedType1, Present)), (''obsv'', (abbreviatedType3, Present))] Unboxed"
-
 lemmas abbreviated_type_defs =
-  abbreviatedType7_def
-  abbreviatedType2_def
+  abbreviatedType3_def
   abbreviatedType5_def
   abbreviatedType6_def
   abbreviatedType1_def
   abbreviatedType4_def
-  abbreviatedType3_def
+  abbreviatedType2_def
 
 definition
   wordarray_get_0_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
@@ -66,6 +60,11 @@ definition
   repeat_0_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
   "repeat_0_type \<equiv> ([], (TRecord [(''n'', (TPrim (Num U64), Present)), (''stop'', (TFun abbreviatedType5 (TPrim Bool), Present)), (''step'', (TFun abbreviatedType5 abbreviatedType4, Present)), (''acc'', (abbreviatedType4, Present)), (''obsv'', (TPrim (Num U64), Present))] Unboxed, abbreviatedType4))"
+
+definition
+  repeat_2_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
+where
+  "repeat_2_type \<equiv> ([], (TRecord [(''n'', (TPrim (Num U64), Present)), (''stop'', (TFun abbreviatedType3 (TPrim Bool), Present)), (''step'', (TFun abbreviatedType3 abbreviatedType1, Present)), (''acc'', (abbreviatedType1, Present)), (''obsv'', (abbreviatedType2, Present))] Unboxed, abbreviatedType1))"
 
 definition
   repeat_1_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
@@ -95,7 +94,7 @@ where
 definition
   searchStop_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
-  "searchStop_type \<equiv> ([], (abbreviatedType7, TPrim Bool))"
+  "searchStop_type \<equiv> ([], (abbreviatedType3, TPrim Bool))"
 
 definition
   searchStop :: "string Cogent.expr"
@@ -125,12 +124,22 @@ where
 definition
   searchNext_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
-  "searchNext_type \<equiv> ([], (abbreviatedType7, abbreviatedType1))"
+  "searchNext_type \<equiv> ([], (abbreviatedType3, abbreviatedType1))"
 
 definition
   searchNext :: "string Cogent.expr"
 where
   "searchNext \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Take (Var 2) 0 (Take (Var 1) 1 (Take (Var 4) 0 (Take (Var 1) 1 (Let (Prim (Minus U32) [Var 4, Var 6]) (Let (Lit (LU32 2)) (Let (Prim (Divide U32) [Var 1, Var 0]) (Let (Prim (Plus U32) [Var 9, Var 0]) (Let (Lit (LU32 0)) (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), TPrim (Num U32), TPrim (Num U32)] [Var 7, Var 1, Var 0]) (Let (App (AFun ''wordarray_get_0'' []) (Var 0)) (Let (Prim (Lt U32) [Var 0, Var 7]) (If (Var 0) (Let (Lit (LU32 1)) (Let (Prim (Plus U32) [Var 5, Var 0]) (Struct [TPrim (Num U32), TPrim (Num U32)] [Var 0, Var 14]))) (Let (Prim (Gt U32) [Var 1, Var 8]) (If (Var 0) (Struct [TPrim (Num U32), TPrim (Num U32)] [Var 15, Var 5]) (Struct [TPrim (Num U32), TPrim (Num U32)] [Var 5, Var 13])))))))))))))))))"
+
+definition
+  binarySearch_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
+where
+  "binarySearch_type \<equiv> ([], (abbreviatedType2, TPrim (Num U32)))"
+
+definition
+  binarySearch :: "string Cogent.expr"
+where
+  "binarySearch \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Let (App (AFun ''wordarray_length_0'' []) (Var 2)) (Let (Cast U64 (Var 0)) (Let (Fun searchStop []) (Let (Fun searchNext []) (Let (Lit (LU32 0)) (Let (Struct [TPrim (Num U32), TPrim (Num U32)] [Var 0, Var 4]) (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), TPrim (Num U32)] [Var 8, Var 6]) (Let (Struct [TPrim (Num U64), TFun abbreviatedType3 (TPrim Bool), TFun abbreviatedType3 abbreviatedType1, abbreviatedType1, abbreviatedType2] [Var 5, Var 4, Var 3, Var 1, Var 0]) (Let (App (AFun ''repeat_2'' []) (Var 0)) (Take (Var 0) 0 (Take (Var 1) 1 (Var 2)))))))))))))"
 
 definition
   myexp_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
@@ -153,17 +162,17 @@ where
   "mylog2 \<equiv> Let (Var 0) (Let (Fun log2stop []) (Let (Fun log2step []) (Let (Lit (LU64 1)) (Let (Lit (LU64 0)) (Let (Struct [TPrim (Num U64), TPrim (Num U64)] [Var 1, Var 0]) (Let (Struct [TPrim (Num U64), TFun abbreviatedType5 (TPrim Bool), TFun abbreviatedType5 abbreviatedType4, abbreviatedType4, TPrim (Num U64)] [Var 5, Var 4, Var 3, Var 0, Var 5]) (Let (App (AFun ''repeat_0'' []) (Var 0)) (Take (Var 0) 0 (Take (Var 1) 1 (Var 0))))))))))"
 
 ML \<open>
-val Cogent_functions = ["expstop", "log2stop", "searchStop", "expstep", "log2step", "searchNext", "myexp", "mylog2"]
-val Cogent_abstract_functions = ["wordarray_get_0", "wordarray_length_0", "repeat_0", "repeat_1"]
+val Cogent_functions = ["expstop", "log2stop", "searchStop", "expstep", "log2step", "searchNext", "binarySearch", "myexp", "mylog2"]
+val Cogent_abstract_functions = ["wordarray_get_0", "wordarray_length_0", "repeat_0", "repeat_2", "repeat_1"]
 \<close>
 
 definition
   \<Xi> :: " string \<Rightarrow>  Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
-  "\<Xi> \<equiv> assoc_lookup [(''wordarray_get_0'', wordarray_get_0_type), (''wordarray_length_0'', wordarray_length_0_type), (''repeat_0'', repeat_0_type), (''repeat_1'', repeat_1_type), (''expstop'', expstop_type), (''log2stop'', log2stop_type), (''searchStop'', searchStop_type), (''expstep'', expstep_type), (''log2step'', log2step_type), (''searchNext'', searchNext_type), (''myexp'', myexp_type), (''mylog2'', mylog2_type)] ([], TUnit, TUnit)"
+  "\<Xi> \<equiv> assoc_lookup [(''wordarray_get_0'', wordarray_get_0_type), (''wordarray_length_0'', wordarray_length_0_type), (''repeat_0'', repeat_0_type), (''repeat_2'', repeat_2_type), (''repeat_1'', repeat_1_type), (''expstop'', expstop_type), (''log2stop'', log2stop_type), (''searchStop'', searchStop_type), (''expstep'', expstep_type), (''log2step'', log2step_type), (''searchNext'', searchNext_type), (''binarySearch'', binarySearch_type), (''myexp'', myexp_type), (''mylog2'', mylog2_type)] ([], TUnit, TUnit)"
 
 definition
-  "\<xi> \<equiv> assoc_lookup [(''wordarray_get_0'', (\<lambda>_ _. False)), (''wordarray_length_0'', (\<lambda>_ _. False)), (''repeat_0'', (\<lambda>_ _. False)), (''repeat_1'', (\<lambda>_ _. False))]"
+  "\<xi> \<equiv> assoc_lookup [(''wordarray_get_0'', (\<lambda>_ _. False)), (''wordarray_length_0'', (\<lambda>_ _. False)), (''repeat_0'', (\<lambda>_ _. False)), (''repeat_2'', (\<lambda>_ _. False)), (''repeat_1'', (\<lambda>_ _. False))]"
 
 definition
   "expstop_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some abbreviatedType6] TyTrLeaf"
@@ -172,7 +181,7 @@ definition
   "log2stop_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some abbreviatedType4, Some (TRecord [(''acc'', (abbreviatedType4, Taken)), (''obsv'', (TPrim (Num U64), Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons None []))) [] TyTrLeaf [Some (TPrim (Num U64)), Some (TRecord [(''acc'', (abbreviatedType4, Taken)), (''obsv'', (TPrim (Num U64), Taken))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_L) (append (replicate 2 None) [])))) [] TyTrLeaf [Some (TPrim (Num U64)), Some (TRecord [(''p1'', (TPrim (Num U64), Taken)), (''p2'', (TPrim (Num U64), Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_R) (append (replicate 4 None) [])))) [] TyTrLeaf [Some (TPrim (Num U64)), Some (TRecord [(''p1'', (TPrim (Num U64), Taken)), (''p2'', (TPrim (Num U64), Taken))] Unboxed)] TyTrLeaf)))"
 
 definition
-  "searchStop_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some abbreviatedType1, Some (TRecord [(''acc'', (abbreviatedType1, Taken)), (''obsv'', (abbreviatedType3, Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons None []))) [] TyTrLeaf [Some abbreviatedType3, Some (TRecord [(''acc'', (abbreviatedType1, Taken)), (''obsv'', (abbreviatedType3, Taken))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_L) (append (replicate 2 None) [])))) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''p1'', (TPrim (Num U32), Taken)), (''p2'', (TPrim (Num U32), Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_R) (append (replicate 4 None) [])))) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''p1'', (TPrim (Num U32), Taken)), (''p2'', (TPrim (Num U32), Taken))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_L) (append (replicate 4 None) [])))))) [] TyTrLeaf [Some (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined)), Some (TRecord [(''p1'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Taken)), (''p2'', (TPrim (Num U32), Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) [])))))) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''p1'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Taken)), (''p2'', (TPrim (Num U32), Taken))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_S) (Cons None (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) [])))))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) []))))))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_L) (Cons None (Cons (Some TSK_R) (Cons None (Cons (Some TSK_S) (append (replicate 6 None) [])))))))))) [] TyTrLeaf [Some (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Present)), (''idx'', (TPrim (Num U32), Present)), (''val'', (TPrim (Num U32), Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_L) (Cons None (Cons (Some TSK_R) (Cons (Some TSK_R) (append (replicate 3 None) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) []))))))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (append (replicate 2 None) (Cons (Some TSK_R) (Cons (Some TSK_R) (append (replicate 3 None) (Cons (Some TSK_L) (Cons None (Cons (Some TSK_S) (append (replicate 6 None) []))))))))) [] TyTrLeaf [Some (TPrim Bool)] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_R) (append (replicate 2 None) (Cons (Some TSK_R) (Cons (Some TSK_R) (append (replicate 5 None) (Cons (Some TSK_R) (append (replicate 6 None) [])))))))) [] TyTrLeaf [] (TyTrSplit (Cons None (Cons (Some TSK_S) (append (replicate 2 None) (Cons (Some TSK_S) (Cons (Some TSK_S) (append (replicate 5 None) (Cons (Some TSK_S) (append (replicate 6 None) [])))))))) [] TyTrLeaf [] (TyTrSplit (Cons None (Cons (Some TSK_R) (append (replicate 2 None) (Cons (Some TSK_L) (Cons (Some TSK_R) (append (replicate 5 None) (Cons (Some TSK_L) (append (replicate 6 None) [])))))))) [] TyTrLeaf [Some (TPrim Bool)] (TyTrSplit (Cons (Some TSK_R) (Cons None (Cons (Some TSK_L) (append (replicate 3 None) (Cons (Some TSK_L) (append (replicate 12 None) [])))))) [] TyTrLeaf [Some (TPrim Bool)] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (append (replicate 18 None) []))) [] TyTrLeaf [Some (TPrim Bool)] (TyTrSplit (Cons (Some TSK_L) (append (replicate 20 None) [])) [] TyTrLeaf [] (TyTrSplit (append (replicate 21 None) []) [] TyTrLeaf [] TyTrLeaf)))))))))))))))))"
+  "searchStop_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some abbreviatedType1, Some (TRecord [(''acc'', (abbreviatedType1, Taken)), (''obsv'', (abbreviatedType2, Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons None []))) [] TyTrLeaf [Some abbreviatedType2, Some (TRecord [(''acc'', (abbreviatedType1, Taken)), (''obsv'', (abbreviatedType2, Taken))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_L) (append (replicate 2 None) [])))) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''p1'', (TPrim (Num U32), Taken)), (''p2'', (TPrim (Num U32), Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_R) (append (replicate 4 None) [])))) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''p1'', (TPrim (Num U32), Taken)), (''p2'', (TPrim (Num U32), Taken))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_L) (append (replicate 4 None) [])))))) [] TyTrLeaf [Some (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined)), Some (TRecord [(''p1'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Taken)), (''p2'', (TPrim (Num U32), Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) [])))))) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''p1'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Taken)), (''p2'', (TPrim (Num U32), Taken))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_S) (Cons None (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) [])))))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) []))))))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_L) (Cons None (Cons (Some TSK_R) (Cons None (Cons (Some TSK_S) (append (replicate 6 None) [])))))))))) [] TyTrLeaf [Some (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Present)), (''idx'', (TPrim (Num U32), Present)), (''val'', (TPrim (Num U32), Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_L) (Cons None (Cons (Some TSK_R) (Cons (Some TSK_R) (append (replicate 3 None) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) []))))))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (append (replicate 2 None) (Cons (Some TSK_R) (Cons (Some TSK_R) (append (replicate 3 None) (Cons (Some TSK_L) (Cons None (Cons (Some TSK_S) (append (replicate 6 None) []))))))))) [] TyTrLeaf [Some (TPrim Bool)] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_R) (append (replicate 2 None) (Cons (Some TSK_R) (Cons (Some TSK_R) (append (replicate 5 None) (Cons (Some TSK_R) (append (replicate 6 None) [])))))))) [] TyTrLeaf [] (TyTrSplit (Cons None (Cons (Some TSK_S) (append (replicate 2 None) (Cons (Some TSK_S) (Cons (Some TSK_S) (append (replicate 5 None) (Cons (Some TSK_S) (append (replicate 6 None) [])))))))) [] TyTrLeaf [] (TyTrSplit (Cons None (Cons (Some TSK_R) (append (replicate 2 None) (Cons (Some TSK_L) (Cons (Some TSK_R) (append (replicate 5 None) (Cons (Some TSK_L) (append (replicate 6 None) [])))))))) [] TyTrLeaf [Some (TPrim Bool)] (TyTrSplit (Cons (Some TSK_R) (Cons None (Cons (Some TSK_L) (append (replicate 3 None) (Cons (Some TSK_L) (append (replicate 12 None) [])))))) [] TyTrLeaf [Some (TPrim Bool)] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (append (replicate 18 None) []))) [] TyTrLeaf [Some (TPrim Bool)] (TyTrSplit (Cons (Some TSK_L) (append (replicate 20 None) [])) [] TyTrLeaf [] (TyTrSplit (append (replicate 21 None) []) [] TyTrLeaf [] TyTrLeaf)))))))))))))))))"
 
 definition
   "expstep_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''acc'', (TPrim (Num U32), Taken)), (''obsv'', (TPrim (Num U32), Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons None []))) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''acc'', (TPrim (Num U32), Taken)), (''obsv'', (TPrim (Num U32), Taken))] Unboxed)] TyTrLeaf)"
@@ -181,7 +190,10 @@ definition
   "log2step_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some abbreviatedType4, Some (TRecord [(''acc'', (abbreviatedType4, Taken)), (''obsv'', (TPrim (Num U64), Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons None []))) [] TyTrLeaf [Some (TPrim (Num U64)), Some (TRecord [(''acc'', (abbreviatedType4, Taken)), (''obsv'', (TPrim (Num U64), Taken))] Unboxed)] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (append (replicate 2 None) [])))) [] TyTrLeaf [Some (TPrim (Num U64)), Some (TRecord [(''p1'', (TPrim (Num U64), Taken)), (''p2'', (TPrim (Num U64), Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (append (replicate 5 None) []))) [] TyTrLeaf [Some (TPrim (Num U64)), Some (TRecord [(''p1'', (TPrim (Num U64), Taken)), (''p2'', (TPrim (Num U64), Taken))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_R) (append (replicate 6 None) [])))) [] TyTrLeaf [Some (TPrim (Num U64))] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_L) (append (replicate 6 None) []))))) [] TyTrLeaf [Some (TPrim (Num U64))] (TyTrSplit (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 8 None) [])))) [] TyTrLeaf [Some (TPrim (Num U64))] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_L) (append (replicate 8 None) []))))) [] TyTrLeaf [Some (TPrim (Num U64))] TyTrLeaf)))))))"
 
 definition
-  "searchNext_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some abbreviatedType1, Some (TRecord [(''acc'', (abbreviatedType1, Taken)), (''obsv'', (abbreviatedType3, Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons None []))) [] TyTrLeaf [Some abbreviatedType3, Some (TRecord [(''acc'', (abbreviatedType1, Taken)), (''obsv'', (abbreviatedType3, Taken))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_L) (append (replicate 2 None) [])))) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''p1'', (TPrim (Num U32), Taken)), (''p2'', (TPrim (Num U32), Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_R) (append (replicate 4 None) [])))) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''p1'', (TPrim (Num U32), Taken)), (''p2'', (TPrim (Num U32), Taken))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_L) (append (replicate 4 None) [])))))) [] TyTrLeaf [Some (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined)), Some (TRecord [(''p1'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Taken)), (''p2'', (TPrim (Num U32), Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) [])))))) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''p1'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Taken)), (''p2'', (TPrim (Num U32), Taken))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_S) (Cons None (Cons (Some TSK_S) (append (replicate 6 None) [])))))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) []))))))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) [])))))))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_L) (append (replicate 2 None) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (Cons None (Cons (Some TSK_S) (append (replicate 6 None) [])))))))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (append (replicate 3 None) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) [])))))))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_S) (append (replicate 3 None) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_L) (Cons None (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) []))))))))))) [] TyTrLeaf [Some (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Present)), (''idx'', (TPrim (Num U32), Present)), (''val'', (TPrim (Num U32), Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_L) (Cons None (Cons (Some TSK_R) (append (replicate 3 None) (Cons (Some TSK_R) (append (replicate 3 None) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) [])))))))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_S) (append (replicate 2 None) (Cons (Some TSK_R) (append (replicate 3 None) (Cons (Some TSK_S) (append (replicate 3 None) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) [])))))))))) [] TyTrLeaf [Some (TPrim Bool)] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_R) (append (replicate 2 None) (Cons (Some TSK_R) (append (replicate 3 None) (Cons (Some TSK_R) (append (replicate 3 None) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) []))))))))))) [] TyTrLeaf [] (TyTrSplit (Cons None (Cons (Some TSK_S) (append (replicate 2 None) (Cons (Some TSK_S) (append (replicate 3 None) (Cons (Some TSK_S) (append (replicate 3 None) (Cons (Some TSK_S) (Cons None (Cons (Some TSK_S) (append (replicate 6 None) []))))))))))) [] (TyTrSplit (Cons None (Cons (Some TSK_L) (append (replicate 2 None) (Cons (Some TSK_R) (append (replicate 3 None) (Cons (Some TSK_L) (append (replicate 3 None) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_L) (append (replicate 6 None) []))))))))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_L) (append (replicate 4 None) (Cons (Some TSK_L) (append (replicate 7 None) (Cons (Some TSK_R) (append (replicate 8 None) [])))))) [] TyTrLeaf [Some (TPrim (Num U32))] TyTrLeaf)) [] (TyTrSplit (Cons None (Cons (Some TSK_L) (append (replicate 2 None) (Cons (Some TSK_R) (append (replicate 3 None) (Cons (Some TSK_L) (append (replicate 3 None) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) []))))))))))) [] TyTrLeaf [Some (TPrim Bool)] (TyTrSplit (Cons (Some TSK_L) (append (replicate 4 None) (Cons (Some TSK_R) (append (replicate 7 None) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) [])))))))) [] TyTrLeaf [] (TyTrSplit (append (replicate 5 None) (Cons (Some TSK_S) (append (replicate 7 None) (Cons (Some TSK_S) (Cons None (Cons (Some TSK_S) (append (replicate 6 None) []))))))) [] TyTrLeaf [] TyTrLeaf))))))))))))))))))"
+  "searchNext_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some abbreviatedType1, Some (TRecord [(''acc'', (abbreviatedType1, Taken)), (''obsv'', (abbreviatedType2, Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons None []))) [] TyTrLeaf [Some abbreviatedType2, Some (TRecord [(''acc'', (abbreviatedType1, Taken)), (''obsv'', (abbreviatedType2, Taken))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_L) (append (replicate 2 None) [])))) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''p1'', (TPrim (Num U32), Taken)), (''p2'', (TPrim (Num U32), Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_R) (append (replicate 4 None) [])))) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''p1'', (TPrim (Num U32), Taken)), (''p2'', (TPrim (Num U32), Taken))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_L) (append (replicate 4 None) [])))))) [] TyTrLeaf [Some (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined)), Some (TRecord [(''p1'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Taken)), (''p2'', (TPrim (Num U32), Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) [])))))) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''p1'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Taken)), (''p2'', (TPrim (Num U32), Taken))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_S) (Cons None (Cons (Some TSK_S) (append (replicate 6 None) [])))))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) []))))))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) [])))))))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_L) (append (replicate 2 None) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (Cons None (Cons (Some TSK_S) (append (replicate 6 None) [])))))))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (append (replicate 3 None) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) [])))))))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_S) (append (replicate 3 None) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_L) (Cons None (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) []))))))))))) [] TyTrLeaf [Some (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Present)), (''idx'', (TPrim (Num U32), Present)), (''val'', (TPrim (Num U32), Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_L) (Cons None (Cons (Some TSK_R) (append (replicate 3 None) (Cons (Some TSK_R) (append (replicate 3 None) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) [])))))))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_S) (append (replicate 2 None) (Cons (Some TSK_R) (append (replicate 3 None) (Cons (Some TSK_S) (append (replicate 3 None) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) [])))))))))) [] TyTrLeaf [Some (TPrim Bool)] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_R) (append (replicate 2 None) (Cons (Some TSK_R) (append (replicate 3 None) (Cons (Some TSK_R) (append (replicate 3 None) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) []))))))))))) [] TyTrLeaf [] (TyTrSplit (Cons None (Cons (Some TSK_S) (append (replicate 2 None) (Cons (Some TSK_S) (append (replicate 3 None) (Cons (Some TSK_S) (append (replicate 3 None) (Cons (Some TSK_S) (Cons None (Cons (Some TSK_S) (append (replicate 6 None) []))))))))))) [] (TyTrSplit (Cons None (Cons (Some TSK_L) (append (replicate 2 None) (Cons (Some TSK_R) (append (replicate 3 None) (Cons (Some TSK_L) (append (replicate 3 None) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_L) (append (replicate 6 None) []))))))))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_L) (append (replicate 4 None) (Cons (Some TSK_L) (append (replicate 7 None) (Cons (Some TSK_R) (append (replicate 8 None) [])))))) [] TyTrLeaf [Some (TPrim (Num U32))] TyTrLeaf)) [] (TyTrSplit (Cons None (Cons (Some TSK_L) (append (replicate 2 None) (Cons (Some TSK_R) (append (replicate 3 None) (Cons (Some TSK_L) (append (replicate 3 None) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) []))))))))))) [] TyTrLeaf [Some (TPrim Bool)] (TyTrSplit (Cons (Some TSK_L) (append (replicate 4 None) (Cons (Some TSK_R) (append (replicate 7 None) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 6 None) [])))))))) [] TyTrLeaf [] (TyTrSplit (append (replicate 5 None) (Cons (Some TSK_S) (append (replicate 7 None) (Cons (Some TSK_S) (Cons None (Cons (Some TSK_S) (append (replicate 6 None) []))))))) [] TyTrLeaf [] TyTrLeaf))))))))))))))))))"
+
+definition
+  "binarySearch_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined)), Some (TRecord [(''p1'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Taken)), (''p2'', (TPrim (Num U32), Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons None []))) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''p1'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Taken)), (''p2'', (TPrim (Num U32), Taken))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_S) (append (replicate 2 None) [])))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_S) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 2 None) []))))) [] TyTrLeaf [Some (TPrim (Num U64))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 2 None) [])))))) [] TyTrLeaf [Some (TFun abbreviatedType3 (TPrim Bool))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 2 None) []))))))) [] TyTrLeaf [Some (TFun abbreviatedType3 abbreviatedType1)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 2 None) [])))))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 2 None) []))))))))) [] TyTrLeaf [Some abbreviatedType1] (TyTrSplit (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_L) (Cons None (Cons (Some TSK_L) (append (replicate 2 None) [])))))))))) [] TyTrLeaf [Some abbreviatedType2] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons None (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (append (replicate 6 None) []))))))) [] TyTrLeaf [Some (TRecord [(''n'', (TPrim (Num U64), Present)), (''stop'', (TFun abbreviatedType3 (TPrim Bool), Present)), (''step'', (TFun abbreviatedType3 abbreviatedType1, Present)), (''acc'', (abbreviatedType1, Present)), (''obsv'', (abbreviatedType2, Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_L) (append (replicate 12 None) [])) [] TyTrLeaf [Some abbreviatedType1] (TyTrSplit (Cons (Some TSK_L) (append (replicate 13 None) [])) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''p1'', (TPrim (Num U32), Taken)), (''p2'', (TPrim (Num U32), Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (append (replicate 14 None) []))) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''p1'', (TPrim (Num U32), Taken)), (''p2'', (TPrim (Num U32), Taken))] Unboxed)] TyTrLeaf))))))))))))"
 
 definition
   "myexp_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''p1'', (TPrim (Num U32), Taken)), (''p2'', (TPrim (Num U32), Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons None []))) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''p1'', (TPrim (Num U32), Taken)), (''p2'', (TPrim (Num U32), Taken))] Unboxed)] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_R) (append (replicate 2 None) [])))) [] TyTrLeaf [Some (TPrim (Num U64))] (TyTrSplit (Cons (Some TSK_R) (append (replicate 2 None) (Cons (Some TSK_R) (append (replicate 2 None) [])))) [] TyTrLeaf [Some (TFun abbreviatedType6 (TPrim Bool))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (append (replicate 2 None) (Cons (Some TSK_R) (append (replicate 2 None) []))))) [] TyTrLeaf [Some (TFun abbreviatedType6 (TPrim (Num U32)))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (append (replicate 2 None) (Cons (Some TSK_R) (append (replicate 2 None) [])))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (append (replicate 2 None) (Cons (Some TSK_L) (append (replicate 2 None) []))))))) [] TyTrLeaf [Some (TRecord [(''n'', (TPrim (Num U64), Present)), (''stop'', (TFun abbreviatedType6 (TPrim Bool), Present)), (''step'', (TFun abbreviatedType6 (TPrim (Num U32)), Present)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TPrim (Num U32), Present))] Unboxed)] TyTrLeaf))))))"
@@ -294,7 +306,7 @@ val typing_helper_9_script : tac list = [
 
 
 lemma typing_helper_9[unfolded abbreviated_type_defs] :
-  "kinding [] abbreviatedType7 {S, D}"
+  "kinding [] abbreviatedType3 {S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_9_script |> EVERY \<close>)
   done
@@ -318,7 +330,7 @@ val typing_helper_11_script : tac list = [
 
 
 lemma typing_helper_11[unfolded abbreviated_type_defs] :
-  "kinding [] (TRecord [(''acc'', (abbreviatedType1, Taken)), (''obsv'', (abbreviatedType3, Present))] Unboxed) {S, D}"
+  "kinding [] (TRecord [(''acc'', (abbreviatedType1, Taken)), (''obsv'', (abbreviatedType2, Present))] Unboxed) {S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_11_script |> EVERY \<close>)
   done
@@ -330,7 +342,7 @@ val typing_helper_12_script : tac list = [
 
 
 lemma typing_helper_12[unfolded abbreviated_type_defs] :
-  "kinding [] abbreviatedType3 {S, D}"
+  "kinding [] abbreviatedType2 {S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_12_script |> EVERY \<close>)
   done
@@ -342,7 +354,7 @@ val typing_helper_13_script : tac list = [
 
 
 lemma typing_helper_13[unfolded abbreviated_type_defs] :
-  "kinding [] (TRecord [(''acc'', (abbreviatedType1, Taken)), (''obsv'', (abbreviatedType3, Taken))] Unboxed) {E, S, D}"
+  "kinding [] (TRecord [(''acc'', (abbreviatedType1, Taken)), (''obsv'', (abbreviatedType2, Taken))] Unboxed) {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_13_script |> EVERY \<close>)
   done
@@ -546,7 +558,7 @@ val typing_helper_30_script : tac list = [
 
 
 lemma typing_helper_30[unfolded abbreviated_type_defs] :
-  "kinding [] (TFun abbreviatedType6 (TPrim Bool)) {E, S, D}"
+  "kinding [] (TFun abbreviatedType3 (TPrim Bool)) {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_30_script |> EVERY \<close>)
   done
@@ -558,7 +570,7 @@ val typing_helper_31_script : tac list = [
 
 
 lemma typing_helper_31[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 abbreviatedType6"
+  "type_wellformed 0 abbreviatedType3"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_31_script |> EVERY \<close>)
   done
@@ -570,7 +582,7 @@ val typing_helper_32_script : tac list = [
 
 
 lemma typing_helper_32[unfolded abbreviated_type_defs] :
-  "kinding [] (TFun abbreviatedType6 (TPrim (Num U32))) {E, S, D}"
+  "kinding [] (TFun abbreviatedType3 abbreviatedType1) {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_32_script |> EVERY \<close>)
   done
@@ -582,7 +594,7 @@ val typing_helper_33_script : tac list = [
 
 
 lemma typing_helper_33[unfolded abbreviated_type_defs] :
-  "kinding [] (TRecord [(''n'', (TPrim (Num U64), Present)), (''stop'', (TFun abbreviatedType6 (TPrim Bool), Present)), (''step'', (TFun abbreviatedType6 (TPrim (Num U32)), Present)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TPrim (Num U32), Present))] Unboxed) {E, S, D}"
+  "kinding [] (TRecord [(''n'', (TPrim (Num U64), Present)), (''stop'', (TFun abbreviatedType3 (TPrim Bool), Present)), (''step'', (TFun abbreviatedType3 abbreviatedType1, Present)), (''acc'', (abbreviatedType1, Present)), (''obsv'', (abbreviatedType2, Present))] Unboxed) {S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_33_script |> EVERY \<close>)
   done
@@ -594,7 +606,7 @@ val typing_helper_34_script : tac list = [
 
 
 lemma typing_helper_34[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 (TRecord [(''n'', (TPrim (Num U64), Present)), (''stop'', (TFun abbreviatedType6 (TPrim Bool), Present)), (''step'', (TFun abbreviatedType6 (TPrim (Num U32)), Present)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TPrim (Num U32), Present))] Unboxed)"
+  "type_wellformed 0 (TRecord [(''n'', (TPrim (Num U64), Present)), (''stop'', (TFun abbreviatedType3 (TPrim Bool), Present)), (''step'', (TFun abbreviatedType3 abbreviatedType1, Present)), (''acc'', (abbreviatedType1, Present)), (''obsv'', (abbreviatedType2, Present))] Unboxed)"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_34_script |> EVERY \<close>)
   done
@@ -606,7 +618,7 @@ val typing_helper_35_script : tac list = [
 
 
 lemma typing_helper_35[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 (TFun (TRecord [(''n'', (TPrim (Num U64), Present)), (''stop'', (TFun abbreviatedType6 (TPrim Bool), Present)), (''step'', (TFun abbreviatedType6 (TPrim (Num U32)), Present)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TPrim (Num U32), Present))] Unboxed) (TPrim (Num U32)))"
+  "type_wellformed 0 (TFun (TRecord [(''n'', (TPrim (Num U64), Present)), (''stop'', (TFun abbreviatedType3 (TPrim Bool), Present)), (''step'', (TFun abbreviatedType3 abbreviatedType1, Present)), (''acc'', (abbreviatedType1, Present)), (''obsv'', (abbreviatedType2, Present))] Unboxed) abbreviatedType1)"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_35_script |> EVERY \<close>)
   done
@@ -618,7 +630,7 @@ val typing_helper_36_script : tac list = [
 
 
 lemma typing_helper_36[unfolded abbreviated_type_defs] :
-  "kinding [] (TFun abbreviatedType5 (TPrim Bool)) {E, S, D}"
+  "kinding [] (TFun abbreviatedType6 (TPrim Bool)) {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_36_script |> EVERY \<close>)
   done
@@ -630,7 +642,7 @@ val typing_helper_37_script : tac list = [
 
 
 lemma typing_helper_37[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 abbreviatedType5"
+  "type_wellformed 0 abbreviatedType6"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_37_script |> EVERY \<close>)
   done
@@ -642,7 +654,7 @@ val typing_helper_38_script : tac list = [
 
 
 lemma typing_helper_38[unfolded abbreviated_type_defs] :
-  "kinding [] (TFun abbreviatedType5 abbreviatedType4) {E, S, D}"
+  "kinding [] (TFun abbreviatedType6 (TPrim (Num U32))) {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_38_script |> EVERY \<close>)
   done
@@ -654,7 +666,7 @@ val typing_helper_39_script : tac list = [
 
 
 lemma typing_helper_39[unfolded abbreviated_type_defs] :
-  "kinding [] (TRecord [(''n'', (TPrim (Num U64), Present)), (''stop'', (TFun abbreviatedType5 (TPrim Bool), Present)), (''step'', (TFun abbreviatedType5 abbreviatedType4, Present)), (''acc'', (abbreviatedType4, Present)), (''obsv'', (TPrim (Num U64), Present))] Unboxed) {E, S, D}"
+  "kinding [] (TRecord [(''n'', (TPrim (Num U64), Present)), (''stop'', (TFun abbreviatedType6 (TPrim Bool), Present)), (''step'', (TFun abbreviatedType6 (TPrim (Num U32)), Present)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TPrim (Num U32), Present))] Unboxed) {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_39_script |> EVERY \<close>)
   done
@@ -666,7 +678,7 @@ val typing_helper_40_script : tac list = [
 
 
 lemma typing_helper_40[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 (TRecord [(''n'', (TPrim (Num U64), Present)), (''stop'', (TFun abbreviatedType5 (TPrim Bool), Present)), (''step'', (TFun abbreviatedType5 abbreviatedType4, Present)), (''acc'', (abbreviatedType4, Present)), (''obsv'', (TPrim (Num U64), Present))] Unboxed)"
+  "type_wellformed 0 (TRecord [(''n'', (TPrim (Num U64), Present)), (''stop'', (TFun abbreviatedType6 (TPrim Bool), Present)), (''step'', (TFun abbreviatedType6 (TPrim (Num U32)), Present)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TPrim (Num U32), Present))] Unboxed)"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_40_script |> EVERY \<close>)
   done
@@ -678,9 +690,81 @@ val typing_helper_41_script : tac list = [
 
 
 lemma typing_helper_41[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 (TFun (TRecord [(''n'', (TPrim (Num U64), Present)), (''stop'', (TFun abbreviatedType5 (TPrim Bool), Present)), (''step'', (TFun abbreviatedType5 abbreviatedType4, Present)), (''acc'', (abbreviatedType4, Present)), (''obsv'', (TPrim (Num U64), Present))] Unboxed) abbreviatedType4)"
+  "type_wellformed 0 (TFun (TRecord [(''n'', (TPrim (Num U64), Present)), (''stop'', (TFun abbreviatedType6 (TPrim Bool), Present)), (''step'', (TFun abbreviatedType6 (TPrim (Num U32)), Present)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TPrim (Num U32), Present))] Unboxed) (TPrim (Num U32)))"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_41_script |> EVERY \<close>)
+  done
+
+ML_quiet \<open>
+val typing_helper_42_script : tac list = [
+(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+] \<close>
+
+
+lemma typing_helper_42[unfolded abbreviated_type_defs] :
+  "kinding [] (TFun abbreviatedType5 (TPrim Bool)) {E, S, D}"
+  apply (unfold abbreviated_type_defs)?
+  apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_42_script |> EVERY \<close>)
+  done
+
+ML_quiet \<open>
+val typing_helper_43_script : tac list = [
+(ForceTac [])
+] \<close>
+
+
+lemma typing_helper_43[unfolded abbreviated_type_defs] :
+  "type_wellformed 0 abbreviatedType5"
+  apply (unfold abbreviated_type_defs)?
+  apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_43_script |> EVERY \<close>)
+  done
+
+ML_quiet \<open>
+val typing_helper_44_script : tac list = [
+(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+] \<close>
+
+
+lemma typing_helper_44[unfolded abbreviated_type_defs] :
+  "kinding [] (TFun abbreviatedType5 abbreviatedType4) {E, S, D}"
+  apply (unfold abbreviated_type_defs)?
+  apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_44_script |> EVERY \<close>)
+  done
+
+ML_quiet \<open>
+val typing_helper_45_script : tac list = [
+(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+] \<close>
+
+
+lemma typing_helper_45[unfolded abbreviated_type_defs] :
+  "kinding [] (TRecord [(''n'', (TPrim (Num U64), Present)), (''stop'', (TFun abbreviatedType5 (TPrim Bool), Present)), (''step'', (TFun abbreviatedType5 abbreviatedType4, Present)), (''acc'', (abbreviatedType4, Present)), (''obsv'', (TPrim (Num U64), Present))] Unboxed) {E, S, D}"
+  apply (unfold abbreviated_type_defs)?
+  apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_45_script |> EVERY \<close>)
+  done
+
+ML_quiet \<open>
+val typing_helper_46_script : tac list = [
+(ForceTac [])
+] \<close>
+
+
+lemma typing_helper_46[unfolded abbreviated_type_defs] :
+  "type_wellformed 0 (TRecord [(''n'', (TPrim (Num U64), Present)), (''stop'', (TFun abbreviatedType5 (TPrim Bool), Present)), (''step'', (TFun abbreviatedType5 abbreviatedType4, Present)), (''acc'', (abbreviatedType4, Present)), (''obsv'', (TPrim (Num U64), Present))] Unboxed)"
+  apply (unfold abbreviated_type_defs)?
+  apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_46_script |> EVERY \<close>)
+  done
+
+ML_quiet \<open>
+val typing_helper_47_script : tac list = [
+(ForceTac [])
+] \<close>
+
+
+lemma typing_helper_47[unfolded abbreviated_type_defs] :
+  "type_wellformed 0 (TFun (TRecord [(''n'', (TPrim (Num U64), Present)), (''stop'', (TFun abbreviatedType5 (TPrim Bool), Present)), (''step'', (TFun abbreviatedType5 abbreviatedType4, Present)), (''acc'', (abbreviatedType4, Present)), (''obsv'', (TPrim (Num U64), Present))] Unboxed) abbreviatedType4)"
+  apply (unfold abbreviated_type_defs)?
+  apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_47_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
@@ -1148,6 +1232,112 @@ lemma searchNext_typecorrect :
   done
 
 ML_quiet \<open>
+val binarySearch_typecorrect_script : hints treestep list = [
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_12})]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_17})]),
+Val (KindingTacs [(RTac @{thm typing_helper_18})]),
+StepUp,
+Val (TypingTacs []),
+Val (KindingTacs [(RTac @{thm typing_helper_17})]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_14})]),
+Val (KindingTacs [(RTac @{thm typing_helper_19})]),
+StepUp,
+Val (TypingTacs []),
+Val (KindingTacs [(RTac @{thm typing_helper_14})]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_14})]),
+StepUp,
+Val (TypingTacs [(RTac @{thm typing_app}),(SplitsTac [NONE,SOME [(RTac @{thm split_comp.left}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_20})],SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_21})],NONE]),(RTac @{thm typing_afun'}),(SimpTac ([@{thm \<Xi>_def},@{thm wordarray_length_0_type_def[unfolded abbreviated_type_defs]}],[])),(RTac @{thm typing_helper_22}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_23}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_19}]),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_17}]),(SimpSolveTac ([],[]))]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_5})]),
+StepUp,
+Val (TypingTacs [(RTac @{thm typing_cast}),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_14}]),(SimpSolveTac ([],[])),(SimpSolveTac ([],[]))]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_30})]),
+StepUp,
+Val (TypingTacs [(RTac @{thm typing_fun'}),(RTac @{thm searchStop_typecorrect[simplified searchStop_type_def searchStop_typetree_def abbreviated_type_defs, simplified]}),(RTac @{thm typing_helper_22}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_31}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [])]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_32})]),
+StepUp,
+Val (TypingTacs [(RTac @{thm typing_fun'}),(RTac @{thm searchNext_typecorrect[simplified searchNext_type_def searchNext_typetree_def abbreviated_type_defs, simplified]}),(RTac @{thm typing_helper_22}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_31}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [])]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_14})]),
+StepUp,
+Val (TypingTacs [(RTac @{thm typing_lit'}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(SimpSolveTac ([],[]))]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_10})]),
+StepUp,
+Val (TypingTacs []),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_12})]),
+StepUp,
+Val (TypingTacs []),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_33})]),
+StepUp,
+Val (TypingTacs []),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_10})]),
+StepUp,
+Val (TypingTacs [(RTac @{thm typing_app}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_34})],NONE]),(RTac @{thm typing_afun'}),(SimpTac ([@{thm \<Xi>_def},@{thm repeat_2_type_def[unfolded abbreviated_type_defs]}],[])),(RTac @{thm typing_helper_22}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_35}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_33}]),(SimpSolveTac ([],[]))]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_14})]),
+Val (KindingTacs [(RTac @{thm typing_helper_15})]),
+StepUp,
+Val (TypingTacs []),
+Val (KindingTacs [(RTac @{thm typing_helper_14})]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_14})]),
+Val (KindingTacs [(RTac @{thm typing_helper_16})]),
+StepUp,
+Val (TypingTacs []),
+Val (KindingTacs [(RTac @{thm typing_helper_14})]),
+Val (TypingTacs []),
+StepUp,
+StepUp,
+StepUp,
+StepUp,
+StepUp,
+StepUp,
+StepUp,
+StepUp,
+StepUp,
+StepUp,
+StepUp,
+StepUp,
+StepUp,
+StepUp
+] \<close>
+
+
+ML_quiet \<open>
+val binarySearch_ttyping_details_future = get_all_typing_details_future false @{context} "binarySearch"
+   binarySearch_typecorrect_script
+\<close>
+
+
+lemma binarySearch_typecorrect :
+  "\<Xi>, prod.fst binarySearch_type, (binarySearch_typetree, [Some (prod.fst (prod.snd binarySearch_type))]) T\<turnstile> binarySearch : prod.snd (prod.snd binarySearch_type)"
+  apply (tactic \<open> resolve_future_typecorrect @{context} binarySearch_ttyping_details_future \<close>)
+  done
+
+ML_quiet \<open>
 val myexp_typecorrect_script : hints treestep list = [
 StepDown,
 Val (KindingTacs [(RTac @{thm typing_helper_10})]),
@@ -1172,14 +1362,14 @@ StepUp,
 Val (TypingTacs [(RTac @{thm typing_cast}),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_14},@{thm typing_helper_16}]),(SimpSolveTac ([],[])),(SimpSolveTac ([],[]))]),
 StepDown,
 StepDown,
-Val (KindingTacs [(RTac @{thm typing_helper_30})]),
+Val (KindingTacs [(RTac @{thm typing_helper_36})]),
 StepUp,
-Val (TypingTacs [(RTac @{thm typing_fun'}),(RTac @{thm expstop_typecorrect[simplified expstop_type_def expstop_typetree_def abbreviated_type_defs, simplified]}),(RTac @{thm typing_helper_22}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_31}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [])]),
+Val (TypingTacs [(RTac @{thm typing_fun'}),(RTac @{thm expstop_typecorrect[simplified expstop_type_def expstop_typetree_def abbreviated_type_defs, simplified]}),(RTac @{thm typing_helper_22}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_37}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [])]),
 StepDown,
 StepDown,
-Val (KindingTacs [(RTac @{thm typing_helper_32})]),
+Val (KindingTacs [(RTac @{thm typing_helper_38})]),
 StepUp,
-Val (TypingTacs [(RTac @{thm typing_fun'}),(RTac @{thm expstep_typecorrect[simplified expstep_type_def expstep_typetree_def abbreviated_type_defs, simplified]}),(RTac @{thm typing_helper_22}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_31}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [])]),
+Val (TypingTacs [(RTac @{thm typing_fun'}),(RTac @{thm expstep_typecorrect[simplified expstep_type_def expstep_typetree_def abbreviated_type_defs, simplified]}),(RTac @{thm typing_helper_22}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_37}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [])]),
 StepDown,
 StepDown,
 Val (KindingTacs [(RTac @{thm typing_helper_14})]),
@@ -1187,10 +1377,10 @@ StepUp,
 Val (TypingTacs [(RTac @{thm typing_lit'}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(SimpSolveTac ([],[]))]),
 StepDown,
 StepDown,
-Val (KindingTacs [(RTac @{thm typing_helper_33})]),
+Val (KindingTacs [(RTac @{thm typing_helper_39})]),
 StepUp,
 Val (TypingTacs []),
-Val (TypingTacs [(RTac @{thm typing_app}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_34})],NONE]),(RTac @{thm typing_afun'}),(SimpTac ([@{thm \<Xi>_def},@{thm repeat_1_type_def[unfolded abbreviated_type_defs]}],[])),(RTac @{thm typing_helper_22}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_35}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_33}]),(SimpSolveTac ([],[]))]),
+Val (TypingTacs [(RTac @{thm typing_app}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_40})],NONE]),(RTac @{thm typing_afun'}),(SimpTac ([@{thm \<Xi>_def},@{thm repeat_1_type_def[unfolded abbreviated_type_defs]}],[])),(RTac @{thm typing_helper_22}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_41}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_39}]),(SimpSolveTac ([],[]))]),
 StepUp,
 StepUp,
 StepUp,
@@ -1224,14 +1414,14 @@ StepUp,
 Val (TypingTacs []),
 StepDown,
 StepDown,
-Val (KindingTacs [(RTac @{thm typing_helper_36})]),
+Val (KindingTacs [(RTac @{thm typing_helper_42})]),
 StepUp,
-Val (TypingTacs [(RTac @{thm typing_fun'}),(RTac @{thm log2stop_typecorrect[simplified log2stop_type_def log2stop_typetree_def abbreviated_type_defs, simplified]}),(RTac @{thm typing_helper_22}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_37}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [])]),
+Val (TypingTacs [(RTac @{thm typing_fun'}),(RTac @{thm log2stop_typecorrect[simplified log2stop_type_def log2stop_typetree_def abbreviated_type_defs, simplified]}),(RTac @{thm typing_helper_22}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_43}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [])]),
 StepDown,
 StepDown,
-Val (KindingTacs [(RTac @{thm typing_helper_38})]),
+Val (KindingTacs [(RTac @{thm typing_helper_44})]),
 StepUp,
-Val (TypingTacs [(RTac @{thm typing_fun'}),(RTac @{thm log2step_typecorrect[simplified log2step_type_def log2step_typetree_def abbreviated_type_defs, simplified]}),(RTac @{thm typing_helper_22}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_37}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [])]),
+Val (TypingTacs [(RTac @{thm typing_fun'}),(RTac @{thm log2step_typecorrect[simplified log2step_type_def log2step_typetree_def abbreviated_type_defs, simplified]}),(RTac @{thm typing_helper_22}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_43}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [])]),
 StepDown,
 StepDown,
 Val (KindingTacs [(RTac @{thm typing_helper_5})]),
@@ -1249,14 +1439,14 @@ StepUp,
 Val (TypingTacs []),
 StepDown,
 StepDown,
-Val (KindingTacs [(RTac @{thm typing_helper_39})]),
+Val (KindingTacs [(RTac @{thm typing_helper_45})]),
 StepUp,
 Val (TypingTacs []),
 StepDown,
 StepDown,
 Val (KindingTacs [(RTac @{thm typing_helper_3})]),
 StepUp,
-Val (TypingTacs [(RTac @{thm typing_app}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_40})],NONE]),(RTac @{thm typing_afun'}),(SimpTac ([@{thm \<Xi>_def},@{thm repeat_0_type_def[unfolded abbreviated_type_defs]}],[])),(RTac @{thm typing_helper_22}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_41}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_39}]),(SimpSolveTac ([],[]))]),
+Val (TypingTacs [(RTac @{thm typing_app}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_46})],NONE]),(RTac @{thm typing_afun'}),(SimpTac ([@{thm \<Xi>_def},@{thm repeat_0_type_def[unfolded abbreviated_type_defs]}],[])),(RTac @{thm typing_helper_22}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_47}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_45}]),(SimpSolveTac ([],[]))]),
 StepDown,
 StepDown,
 Val (KindingTacs [(RTac @{thm typing_helper_5})]),
@@ -1330,6 +1520,12 @@ val (_, log2step_typing_tree, log2step_typing_bucket)
 ML_quiet \<open>
 val (_, searchNext_typing_tree, searchNext_typing_bucket)
 = Future.join searchNext_ttyping_details_future
+\<close>
+
+
+ML_quiet \<open>
+val (_, binarySearch_typing_tree, binarySearch_typing_bucket)
+= Future.join binarySearch_ttyping_details_future
 \<close>
 
 

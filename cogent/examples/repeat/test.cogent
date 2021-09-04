@@ -53,3 +53,10 @@ searchStop #{acc, obsv} =
         if | l >= r -> True
            | l < len && x == v -> True
            | else -> False
+
+binarySearch : ((WordArray U32)!, U32) -> U32
+binarySearch (arr, v) =
+	let len = wordarray_length arr
+	and args = #{n = upcast len, stop = searchStop, step = searchNext, acc = (0, len), obsv = (arr, v)}
+	and (l, r) = repeat args
+	in l

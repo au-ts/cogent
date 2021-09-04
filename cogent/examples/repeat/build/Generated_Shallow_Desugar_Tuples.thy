@@ -82,6 +82,23 @@ where
         else ( m, r )"
 
 definition
+  binarySearch :: "32 word WordArray \<times> 32 word \<Rightarrow> 32 word"
+where
+  "binarySearch ds\<^sub>0 \<equiv>
+    let (arr,v) = ds\<^sub>0;
+      len = (wordarray_length :: 32 word WordArray \<Rightarrow> 32 word) arr;
+      args = \<lparr>
+          RepParam.n\<^sub>f = (ucast len :: 64 word),
+          stop\<^sub>f = searchStop,
+          step\<^sub>f = searchNext,
+          acc\<^sub>f = ( (0 :: 32 word),
+            len ), obsv\<^sub>f = ( arr, v )
+        \<rparr>;
+      ds\<^sub>3 = (repeat :: (64 word, (32 word \<times> 32 word, 32 word WordArray \<times> 32 word) StepParam \<Rightarrow> bool, (32 word \<times> 32 word, 32 word WordArray \<times> 32 word) StepParam \<Rightarrow> 32 word \<times> 32 word, 32 word \<times> 32 word, 32 word WordArray \<times> 32 word) RepParam \<Rightarrow> 32 word \<times> 32 word) args;
+      (l,_) = ds\<^sub>3
+    in l"
+
+definition
   myexp :: "32 word \<times> 32 word \<Rightarrow> 32 word"
 where
   "myexp ds\<^sub>0 \<equiv>

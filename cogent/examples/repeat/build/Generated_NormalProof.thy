@@ -10,7 +10,7 @@ imports "CogentShallow.Shallow_Normalisation_Tac"
 begin
 
 ML \<open>
-val Cogent_functions = ["expstop","log2stop","searchStop","expstep","log2step","searchNext","myexp","mylog2"]
+val Cogent_functions = ["expstop","log2stop","searchStop","expstep","log2step","searchNext","binarySearch","myexp","mylog2"]
 \<close>
 
 ML \<open>

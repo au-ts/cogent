@@ -79,6 +79,7 @@ fun typing_tree_of "expstop" = expstop_typing_tree
   | typing_tree_of "expstep" = expstep_typing_tree
   | typing_tree_of "log2step" = log2step_typing_tree
   | typing_tree_of "searchNext" = searchNext_typing_tree
+  | typing_tree_of "binarySearch" = binarySearch_typing_tree
   | typing_tree_of "myexp" = myexp_typing_tree
   | typing_tree_of "mylog2" = mylog2_typing_tree
   | typing_tree_of f = error ("No typing tree for " ^ quote f)
@@ -150,7 +151,8 @@ val entry_func_names = [
       "expstep",
       "myexp",
       "searchStop",
-      "searchNext"
+      "searchNext",
+      "binarySearch"
 ]
 val entry_funcs = Symtab.dest Cogent_main_tree
       |> filter (fn (n, _) => member (op =) entry_func_names n) |> Symtab.make
