@@ -697,8 +697,7 @@ parseArgs args = case getOpt' Permute options args of
           case IN.tcConsts ((\(a,b,c) -> c) $ fromJust $ getLast typedefs) fts tsyndefs of
             Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
             Right (constdefs,_) -> do
-              let desugared'' = IN.expandDefs desugared'
-              _ <- genShallow cmds source stg desugared'' typedefs fts constdefs log (Shallow stg `elem` cmds,
+              _ <- genShallow cmds source stg desugared' typedefs fts constdefs log (Shallow stg `elem` cmds,
                                                                                      SCorres stg `elem` cmds,
                                                                                      ShallowConsts stg `elem` cmds,
                                                                                      ShallowTuples `elem` cmds,
