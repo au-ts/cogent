@@ -1,5 +1,5 @@
 theory CogentTypingHelper
-  imports Type_Proof.TypeTrackingTyping
+  imports Cogent.TypeTrackingTyping
 begin
 
 section "Typing helpers"
