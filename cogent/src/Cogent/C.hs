@@ -29,7 +29,7 @@ import Cogent.C.Syntax
 import Cogent.C.Type
 import Cogent.Common.Syntax
 import Cogent.Compiler
-import Cogent.Core (Definition, Type, TypedExpr)
+import Cogent.Core (Definition, Pragma_, Type, TypedExpr)
 #ifdef WITH_HASKELL
 import Cogent.Haskell.FFIGen (ffiHs)
 import Cogent.Haskell.HscGen (ffiHsc)
@@ -51,10 +51,11 @@ cgen :: FilePath
      -> [Definition TypedExpr VarName VarName]
      -> Maybe GenState
      -> [(Type 'Zero VarName, String)]
+     -> [Pragma_ VarName]
      -> String
      -> ([C.Definition], [C.Definition], [(TypeName, S.Set [CId])], [TableCTypes], [NewTableCTypes], Leijen.Doc, String, GenState)
-cgen hName cNames hscName hsName defs mcache ctygen log =
-  let (enums,tydefns,fndecls,disps,tysyms,fndefns,absts,corres,corres',fclsts,st) = compile defs mcache ctygen
+cgen hName cNames hscName hsName defs mcache ctygen pragmas log =
+  let (enums,tydefns,fndecls,disps,tysyms,fndefns,absts,corres,corres',fclsts,st) = compile defs mcache ctygen pragmas
       (h,c) = render hName (enums++tydefns++fndecls++disps++tysyms) fndefns log
 #ifdef WITH_HASKELL
       hsc = ffiHsc hscName cNames tydefns enums absts fclsts log

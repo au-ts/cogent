@@ -13,6 +13,10 @@
     - pass_deserial.cogent
     - pass_serial-unboxed.cogent
     - pass_endianness.cogent
+    - pass_layout-prims.cogent
+    - pass_lrec-reorder.cogent
+    - pass_variant-tag-size.cogent
+    - pass_pragma-gsetters.cogent
   expected_result: pass
   flags:
     - -g
@@ -41,6 +45,13 @@
   expected_result: fail
   flags:
     - --parse
+
+- test_name: dargent-antiquoted
+  files:
+    - pass_abstract-bitfields
+  expected_result: pass
+  run:
+    - bash BUILD
 
 - test_name: wip-dargent
   files:

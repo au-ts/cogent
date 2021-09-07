@@ -1,0 +1,7 @@
+
+type A = { f1 : U8, f2 : U32 }
+
+layout L = record { f2 : 4B, f1 : 1B at 4B }
+
+foo : A layout L -> A layout L
+foo r = r { f2 = 32 }

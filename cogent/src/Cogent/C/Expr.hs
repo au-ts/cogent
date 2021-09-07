@@ -49,9 +49,9 @@ import           Cogent.Common.Syntax  as Syn
 import           Cogent.Common.Types   as Typ
 import           Cogent.Core           as CC
 #ifdef BUILTIN_ARRAYS
-import           Cogent.Dargent.CodeGen       (genBoxedGetSetField, genBoxedArrayGetSet, GetOrSet(..))
+import           Cogent.Dargent.CodeGen       (genGSRecord, genBoxedArrayGetSet)
 #else
-import           Cogent.Dargent.CodeGen       (genBoxedGetSetField, GetOrSet(..))
+import           Cogent.Dargent.CodeGen       (genGSRecord)
 #endif
 import           Cogent.Inference             (kindcheck_)
 import           Cogent.Isabelle.Deep
@@ -76,7 +76,7 @@ import           Data.IntMap         as IM    (delete, mapKeys)
 import qualified Data.List           as L
 import           Data.Loc                     (noLoc)  -- FIXME: remove
 import qualified Data.Map            as M
-import           Data.Maybe                   (catMaybes, fromJust)
+import           Data.Maybe                   (catMaybes, fromJust, fromMaybe)
 import           Data.Monoid                  ((<>))
 -- import           Data.Semigroup.Monad
 -- import           Data.Semigroup.Reducer       (foldReduce)
@@ -281,7 +281,7 @@ maybeDecl (Just v) t = return (v,[],[])
 
 -- If assigned to a new var, then recycle
 aNewVar :: CType -> CExpr -> VarPool -> Gen v (CExpr, [CBlockItem], [CBlockItem], VarPool)
-aNewVar t e p | not __cogent_simpl_cg && not (isTrivialCExpr e)
+aNewVar t e p | __cogent_simpl_cg && not (isTrivialCExpr e)
   = (extTup3r M.empty) . (first3 variable) <$> declareInit t e p
               | otherwise = return (e,[],[],p)
 
@@ -567,7 +567,7 @@ genExpr mv (TE t (Take _ rec fld e)) = do
     Unboxed -> return $ strDot rec'' fieldName
     Boxed _ CLayout -> return $ strArrow rec'' fieldName
     Boxed _ _ -> do
-      fieldGetter <- genBoxedGetSetField rect fieldName Get
+      fieldGetter <- genGSRecord rect fieldName Get
       return $ CEFnCall (variable fieldGetter) [rec'']
 
   ft <- genType . fst . snd $ fs !! fld
@@ -604,7 +604,7 @@ genExpr mv (TE t (Put rec fld val)) = do
     Boxed _ CLayout -> assign fldt (strArrow (variable rec'') fieldName) val'
     Boxed _ (Layout l) -> do
       let recordType = exprType rec
-      fieldSetter <- genBoxedGetSetField recordType fieldName Set
+      fieldSetter <- genGSRecord recordType fieldName Set
       return $ ([], [CBIStmt $ CAssignFnCall Nothing (variable fieldSetter) [variable rec'', val']])
 
   recycleVars valp
@@ -704,7 +704,7 @@ genExpr mv (TE t (Member rec fld)) = do
     Unboxed -> return $ strDot rec' fieldName
     Boxed _ CLayout -> return $ strArrow rec' fieldName
     Boxed _ (Layout l) -> do
-      fieldGetter <- genBoxedGetSetField (exprType rec) fieldName Get
+      fieldGetter <- genGSRecord (exprType rec) fieldName Get
       return $ CEFnCall (variable fieldGetter) [rec']
 
   t' <- genType t
@@ -847,6 +847,26 @@ genFfiFunc rt fn [t]
               | otherwise = t
 genFfiFunc _ _ _ = __impossible "genFfiFunc: generated C functions should always have 1 argument"
 
+
+genAllGSetters :: Gen 'Zero ()
+genAllGSetters | not __cogent_funused_dargent_accessors = return ()
+               | otherwise = do
+  mg <- M.toList <$> use boxedRecordGetters
+  ms <- M.toList <$> use boxedRecordSetters
+  forM_ mg $ \(StrlCogentType t,v) -> do
+    let TRecord _ fts _ = t
+    forM_ fts $ \(fld,_) ->
+      case M.lookup fld v of
+        Just fn -> return ()
+        Nothing -> genGSRecord t fld Get >> return ()
+  forM_ ms $ \(StrlCogentType t,v) -> do
+    let TRecord _ fts _ = t
+    forM_ fts $ \(fld,_) ->
+      case M.lookup fld v of
+        Just fn -> return ()
+        Nothing -> genGSRecord t fld Set >> return ()
+
+
  -- NOTE: This function excessively uses `unsafeCoerce' because of existentials / zilinc
 genDefinition :: Definition TypedExpr VarName VarName -> Gen 'Zero [CExtDecl]
 genDefinition (FunDef attr fn Nil Nil t rt e) = do
@@ -905,6 +925,7 @@ genDefinition _ = return []
 compile :: [Definition TypedExpr VarName VarName]
         -> Maybe GenState      -- cached state
         -> [(Type 'Zero VarName, String)]
+        -> [CC.Pragma_ VarName]
         -> ( [CExtDecl]  -- enum definitions
            , [CExtDecl]  -- type definitions
            , [CExtDecl]  -- function declarations
@@ -917,8 +938,11 @@ compile :: [Definition TypedExpr VarName VarName]
            , [TypeName]
            , GenState
            )
-compile defs mcache ctygen =
+compile defs mcache ctygen pragmas =
   let (tdefs, fdefs) = L.partition isTypeDef defs
+      -- Retrieve the names of the customised getters/setters from the pragmas
+      (prgmGetters, prgmSetters) = accessorsPragmas pragmas
+
       state = case mcache of
                 Just cache -> cache & custTypeGen <>~ (M.fromList $ P.map (second $ (,CTGI)) ctygen)
                 Nothing -> GenState { _cTypeDefs    = []
@@ -935,15 +959,17 @@ compile defs mcache ctygen =
                                     , _globalOracle = 0
                                     , _varPool      = M.empty
                                     , _ffiFuncs     = M.empty
-                                    , _boxedRecordSetters = M.empty
-                                    , _boxedRecordGetters = M.empty
+                                    , _boxedRecordSetters = prgmSetters
+                                    , _boxedRecordGetters = prgmGetters
                                     , _boxedArraySetters = M.empty
                                     , _boxedArrayGetters = M.empty
                                     , _boxedArrayElemSetters = M.empty
                                     , _boxedArrayElemGetters = M.empty
                                     }
+      -- vvv The writer stores the Dargent getter/setter definitions.
       (extDecls, st, gsDecls) = runRWS (runGen $
-        concat <$> mapM genDefinition (fdefs ++ tdefs)  -- `fdefs' will collect the types that are used in the program, and `tdefs' can generate synonyms
+        (concat <$> mapM genDefinition (fdefs ++ tdefs)) <*  -- `fdefs' will collect the types that are used in the program, and `tdefs' can generate synonyms
+        genAllGSetters
         ) Nil state
       (enum, st', _) = runRWS (runGen $ (mappend <$> genLetTrueEnum <*> genEnum)) Nil st  -- `LET_TRUE', `LETBANG_TRUE' & `_tag' enums
       ((funclasses,tns), st'', _) = runRWS (runGen genFunClasses) Nil st'  -- fun_enums & dispatch functions
@@ -973,13 +999,18 @@ compile defs mcache ctygen =
         updateWithGSs st typeCorres = for typeCorres $ \(cid,t) ->
           let gss = if not (isTRecord t && recordHasLayout t) then []
                       else -- FIXME: only generate getter/setters for records for now / zilinc
-                           let recordGetters = M.toList $ st^.boxedRecordGetters
-                               recordSetters = M.toList $ st^.boxedRecordSetters
-                               getters = map (first snd) $ filter (\x -> fst (fst x) == StrlCogentType t) recordGetters
-                               setters = map (first snd) $ filter (\x -> fst (fst x) == StrlCogentType t) recordSetters
+                           let getters = fromMaybe M.empty $ M.lookup (StrlCogentType t) $ st^.boxedRecordGetters
+                               setters = fromMaybe M.empty $ M.lookup (StrlCogentType t) $ st^.boxedRecordSetters
                                fields = recordFields t
-                            in P.map (\f -> (P.lookup f getters, P.lookup f setters)) fields
+                            in P.map (\f -> (M.lookup f getters, M.lookup f setters)) fields
            in (cid,t,gss)
+
+        accessorsPragmas = flip go (M.empty, M.empty)
+          where go [] (mg,ms) = (mg,ms)
+                go ((GSetterPragma Get t fld fn):ps) (mg,ms) = go ps (M.insertWith M.union (StrlCogentType t) (M.singleton fld fn) mg, ms)
+                go ((GSetterPragma Set t fld fn):ps) (mg,ms) = go ps (mg, M.insertWith M.union (StrlCogentType t) (M.singleton fld fn) ms)
+                go (p:ps) mgs = go ps mgs
+
 
 
 -- ----------------------------------------------------------------------------

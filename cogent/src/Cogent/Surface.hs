@@ -44,6 +44,10 @@ import Text.Parsec.Pos
 
 type DocString = String
 
+data LocPragma = LP { locOfLP    :: SourcePos
+                    , pragmaOfLP :: Pragma LocType
+                    } deriving (Eq, Show)
+
 data IrrefutablePattern pv ip e = PVar pv
                                 | PTuple [ip]
                                 | PUnboxedRecord [Maybe (FieldName, ip)]
@@ -466,7 +470,7 @@ fvIP (RIP (PUnboxedRecord mfs)) = foldMap (fvIP . snd) (Compose mfs)
 fvIP (RIP (PTake pv mfs)) = pv : foldMap (fvIP . snd) (Compose mfs)
 #ifdef BUILTIN_ARRAYS
 fvIP (RIP (PArray ips)) = foldMap fvIP ips
-fvIP (RIP (PArrayTake pv hs)) = __todo "fvIP: PArrayTake unimplemented" -- TODO?
+fvIP (RIP (PArrayTake pv hs)) = pv : foldMap (fvIP . snd) hs
 #endif
 fvIP _ = []
 

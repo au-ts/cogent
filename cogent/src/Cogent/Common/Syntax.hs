@@ -1,6 +1,7 @@
 -- @LICENSE(NICTA_CORE)
 
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 
 module Cogent.Common.Syntax where
@@ -50,6 +51,16 @@ type Size = Integer -- Not sure why quickcheck tests infinite loop if Size = Wor
 
 type OpName = String
 
+
+data GetOrSet = Get | Set deriving (Data, Eq, Show)
+
+data Pragma t = InlinePragma FunName
+              | CInlinePragma FunName
+              | FnMacroPragma FunName
+              | GSetterPragma GetOrSet t FieldName FunName
+              | UnrecPragma String String  -- pragma name, the rest
+              deriving (Data, Eq, Show, Functor)
+
 data Op
   = Plus | Minus | Times | Divide | Mod
   | Not | And | Or
@@ -58,12 +69,6 @@ data Op
   deriving (Data, Eq, Ord, Show, Generic)
 
 instance Binary Op
-
-data Pragma = InlinePragma FunName
-            | CInlinePragma FunName
-            | FnMacroPragma FunName
-            | UnrecPragma String
-            deriving (Data, Eq, Show)
 
 data Associativity = LeftAssoc Int
                    | RightAssoc Int

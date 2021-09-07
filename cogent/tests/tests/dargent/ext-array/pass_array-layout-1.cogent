@@ -24,7 +24,7 @@ fuu a = let v = (a : R4''!)@1
 
 -- boxed array of unboxed records
 type B = { f1: U8, f2: Bool, f3: U16 }
-type B4 = (#B)[4] layout array [record { f2: 1b at 49b, f1: 1B at 2b, f3: 4B at 17b }]
+type B4 = (#B)[4] layout array [record { f2: 1b at 49b, f1: 1B at 2b, f3: 2B at 17b }]
 fbu : B4! -> U8
 fbu a = let v = (a : B4!)@1
         and u = v.f1

@@ -11,7 +11,7 @@
 
 <testsuite timeout="7200">
     <!-- artificial dependency on isabelle to fail fast if isabelle setup doesn't work -->
-    <test name="cogent_compiler">make dev</test>
+    <test name="cogent_compiler">INSTALL_FLAGS=--overwrite-policy=always make</test>
     <test name="cogent_typeproof" depends="isabelle">make test-tc-proof; make clean</test>
     <test name="cogent_autocorres" depends="cogent_compiler isabelle">make test-ac; make clean</test>
     <test name="cogent_c_refine" depends="cogent_compiler isabelle">make test-c-refine; make clean</test>

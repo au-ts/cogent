@@ -16,6 +16,10 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # Add repo version of Isabelle to our path.
 export PATH="${DIR}/isabelle/bin:$PATH"
 
+# Set up environment variables
+export AC_DIR=$DIR/autocorres-1.6.1
+
+
 # Run the tests from the script directory.
 cd ${DIR}
-python ./regression/run_tests.py "$@" -x autocorres -x isabelle -x c-refinement --limit 50
+python3 ./regression/run_tests.py "$@" -x autocorres-1.6.1 -x isabelle -x c-refinement --limit 50

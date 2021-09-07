@@ -1,0 +1,27 @@
+type R = { f1 : Bool, f2 : #U2, f3 : #U4 }
+
+type U2
+type U4
+
+layout L = record { f1 : 1b, f2 : 2b at 1b, f3 : 4b at 4b }
+-- NOTE that the first bit is the least significant bit in a byte
+
+
+bracket : all (t :< DSE). (t -> U8, U8 -> t, U8 -> U8, t) -> t
+bracket (fr, to, do, x) = to (do (fr x))
+
+u4_to_u8 : #U4 -> U8
+u8_to_u4 : U8 -> #U4
+
+u2_to_u8 : #U2 -> U8
+u8_to_u2 : U8 -> #U2
+
+foo : R layout L -> R layout L
+foo r = if r.f1 !r then
+          let r {f3 = v} = r
+          and v = bracket (u4_to_u8, u8_to_u4, \x => x .&. 0x0c, v)
+           in r {f3 = v}
+        else
+          let r {f2 = u} = r
+          and u = bracket (u2_to_u8, u8_to_u2, \x => x + 1, u)
+           in r {f2 = u}

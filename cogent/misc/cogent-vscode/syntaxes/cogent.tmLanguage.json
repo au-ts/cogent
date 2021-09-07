@@ -25,6 +25,22 @@
         }
     ],
     "repository": {
+    "block_comment": {
+      "applyEndPatternLast": 1,
+      "begin": "\\{-(?!#)",
+      "captures": {
+        "0": {
+          "name": "punctuation.definition.comment.cogent"
+        }
+      },
+      "end": "-\\}",
+      "name": "comment.block.cogent",
+      "patterns": [
+        {
+          "include": "#block_comment"
+        }
+      ]
+    },
         "comments": {
             "patterns": [
                 {
@@ -36,7 +52,9 @@
                     "begin": "--",
                     "end": "$",
                     "name": "comment.line.double-dash.cogent"
-				}
+				},
+	       { "include": "#block_comment" }
+
             ]
         },
         "string-double": {

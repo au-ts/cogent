@@ -518,6 +518,7 @@ flags =
   , Option []         ["fno-tuples-as-sugar"] 1 (NoArg set_flag_fnoTuplesAsSugar)          "reverse of --ftuples-as-sugar"
   , Option []         ["fno-union-for-variants"] 2 (NoArg set_flag_fnoUnionForVariants)    "(default) reverse of --funion-for-variants"
   , Option []         ["fno-untyped-func-enum"]  2 (NoArg set_flag_fnoUntypedFuncEnum)     "reverse of --funtyped-func-enum"
+  , Option []         ["fno-unused-dargent-accessors"] 2 (NoArg set_flag_fnoUnusedDargentAccessors)  "(default) only generate Dargent getter/setter functions when the relevant field is accessed (e.g. via take, put, member) in the program"
   , Option []         ["fno-use-compound-literals"] 1 (NoArg set_flag_fnoUseCompoundLiterals)   "reverse of --fuse-compound-literals, it instead creates new variables"
   , Option []         ["fno-wrap-put-in-let"] 2 (NoArg set_flag_fnoWrapPutInLet)           "(default) reverse of --fwrap-put-in-let"
   , Option []         ["fpragmas"]            2 (NoArg set_flag_fpragmas)                  "(default) preprocess pragmas"
@@ -536,6 +537,7 @@ flags =
   , Option []         ["ftp-with-decls"]      2 (NoArg set_flag_ftpWithDecls)              "(default) generate type proof with declarations"
   , Option []         ["funion-for-variants"] 2 (NoArg set_flag_funionForVariants)         "use union types for variants in C code (cannot be verified)"
   , Option []         ["funtyped-func-enum"]  2 (NoArg set_flag_funtypedFuncEnum)          "(default) use untyped function enum type"
+  , Option []         ["funused-dargent-accessors"] 2 (NoArg set_flag_funusedDargentAccessors)  "reverse of --fno-unused-dargent-accessors"
   , Option []         ["fuse-compound-literals"] 2 (NoArg set_flag_fuseCompoundLiterals)   "(default) use compound literals when possible in C code"
   , Option []         ["fwrap-put-in-let"]       1 (NoArg set_flag_fwrapPutInLet)          "Put always appears in a Let-binding when normalised"
   , Option ['O']      ["optimisation"]   0 (OptArg set_flag_O "LEVEL")                     "set optimisation level (0, 1, 2, d, n, s or u; default -Od)"
@@ -666,7 +668,7 @@ parseArgs args = case getOpt' Permute options args of
     typecheck cmds reorged ctygen source pragmas buildinfo log = do
       let stg = STGTypeCheck
       putProgressLn "Typechecking..."
-      ((mtc',tclog),tcst) <- TC.tc reorged ctygen
+      ((mtc',tclog),tcst) <- TC.tc reorged ctygen pragmas
       let (errs,warns) = partition (isLeft . snd) $ tclog^.errLog
       when (not $ null errs) $ do
         printError (prettyTWE __cogent_ftc_ctx_len) errs
@@ -674,18 +676,18 @@ parseArgs args = case getOpt' Permute options args of
         exitFailure
       case mtc' of
         Nothing -> __impossible "main: typecheck"
-        Just (tced,ctygen') -> do
+        Just (tced,ctygen',pragmas') -> do
           __assert (null errs) "no errors, only warnings"
           unless (null $ warns) $ printError (prettyTWE __cogent_ftc_ctx_len) $ warns
           when (Ast stg `elem` cmds) $ genAst stg tced
           when (Pretty stg `elem` cmds) $ genPretty stg tced
-          when (Compile (succ stg) `elem` cmds) $ desugar cmds tced ctygen' tcst source (map pragmaOfLP pragmas) buildinfo log
+          when (Compile (succ stg) `elem` cmds) $ desugar cmds tced ctygen' tcst source pragmas' buildinfo log
           exitSuccessWithBuildInfo cmds buildinfo
 
     desugar cmds tced ctygen tcst source pragmas buildinfo log = do
       let stg = STGDesugar
       putProgressLn "Desugaring and typing..."
-      let ((desugared,ctygen'),typedefs) = DS.desugar tced ctygen pragmas
+      let ((desugared,ctygen',pragmas'),typedefs) = DS.desugar tced ctygen pragmas
       when __cogent_ddump_pretty_ds_no_tc $ pretty stdout desugared
       case IN.tc desugared of
         Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
@@ -706,10 +708,10 @@ parseArgs args = case getOpt' Permute options args of
                                                                                      HsShallow `elem` cmds,
                                                                                      HsShallowTuples `elem` cmds)
               when (TableShallow `elem` cmds) $ putProgressLn ("Generating shallow table...") >> putStrLn (printTable $ st desugared')
-              when (Compile (succ stg) `elem` cmds) $ normal cmds desugared' ctygen' source tced tcst typedefs fts constdefs buildinfo log
+              when (Compile (succ stg) `elem` cmds) $ normal cmds desugared' ctygen' pragmas' source tced tcst typedefs fts constdefs buildinfo log
               exitSuccessWithBuildInfo cmds buildinfo
 
-    normal cmds desugared ctygen source tced tcst typedefs fts constdefs buildinfo log = do
+    normal cmds desugared ctygen pragmas source tced tcst typedefs fts constdefs buildinfo log = do
       let stg = STGNormal
       putProgress "Normalising..."
       let desugared' = IN.expandDefs desugared
@@ -745,10 +747,10 @@ parseArgs args = case getOpt' Permute options args of
         let npfile = mkThyFileName source __cogent_suffix_of_normal_proof
         writeFileMsg npfile
         output npfile $ flip LJ.hPutDoc $ normalProof thy shallowTypeNames nfed' log
-      when (Compile (succ stg) `elem` cmds) $ simpl cmds nfed' ctygen source tced tcst typedefs fts constdefs tsyndefs buildinfo log
+      when (Compile (succ stg) `elem` cmds) $ simpl cmds nfed' ctygen pragmas source tced tcst typedefs fts constdefs tsyndefs buildinfo log
       exitSuccessWithBuildInfo cmds buildinfo
 
-    simpl cmds nfed ctygen source tced tcst typedefs fts constdefs tsyndefs buildinfo log = do
+    simpl cmds nfed ctygen pragmas source tced tcst typedefs fts constdefs tsyndefs buildinfo log = do
       let stg = STGSimplify
       putProgressLn "Simplifying..."
       simpled' <- case __cogent_fsimplifier of
@@ -761,10 +763,10 @@ parseArgs args = case getOpt' Permute options args of
                       Right simpled' -> return simpled'
       when (Ast stg `elem` cmds) $ genAst stg simpled'
       when (Pretty stg `elem` cmds) $ genPretty stg simpled'
-      when (Compile (succ stg) `elem` cmds) $ mono cmds simpled' ctygen source tced tcst typedefs fts tsyndefs buildinfo log
+      when (Compile (succ stg) `elem` cmds) $ mono cmds simpled' ctygen pragmas source tced tcst typedefs fts tsyndefs buildinfo log
       exitSuccessWithBuildInfo cmds buildinfo
 
-    mono cmds simpled ctygen source tced tcst typedefs fts tsyndefs buildinfo log = do
+    mono cmds simpled ctygen pragmas source tced tcst typedefs fts tsyndefs buildinfo log = do
       let stg = STGMono
       putProgressLn "Monomorphising..."
       efuns <- T.forM __cogent_entry_funcs $
@@ -774,7 +776,7 @@ parseArgs args = case getOpt' Permute options args of
                       Just (Nothing, _) -> exitFailure
                       Just (Just f, i) -> return $ Just (f, i)
 
-      let (insts,(warnings,monoed,ctygen')) = MN.mono simpled ctygen entryFuncs
+      let (insts,(warnings,monoed,ctygen',pragmas')) = MN.mono simpled ctygen pragmas entryFuncs
       when (TableAbsFuncMono `elem` cmds) $ do
         let afmfile = mkFileName source Nothing __cogent_ext_of_afm
         putProgressLn "Generating table for monomorphised abstract functions..."
@@ -799,7 +801,7 @@ parseArgs args = case getOpt' Permute options args of
 #ifdef WITH_LLVM
               when (LLVMGen `elem` cmds) $ llvmg cmds monoed' ctygen' insts source tced tcst typedefs fts tsyndefs buildinfo log
 #endif
-              when (Compile (succ stg) `elem` cmds) $ cg cmds monoed' ctygen' insts source tced tcst typedefs fts tsyndefs buildinfo log
+              when (Compile (succ stg) `elem` cmds) $ cg cmds monoed' ctygen' pragmas' insts source tced tcst typedefs fts tsyndefs buildinfo log
               c_refinement source monoed' insts log (ACInstall `elem` cmds, CorresSetup `elem` cmds, CorresProof `elem` cmds)
               when (MonoProof `elem` cmds) $ do
                 let mpfile = mkThyFileName source __cogent_suffix_of_mono_proof
@@ -827,7 +829,7 @@ parseArgs args = case getOpt' Permute options args of
       LLVM.to_llvm monoed source
 #endif
 
-    cg cmds monoed ctygen insts source tced tcst typedefs fts tsyndefs buildinfo log = do
+    cg cmds monoed ctygen pragmas insts source tced tcst typedefs fts tsyndefs buildinfo log = do
       let hName = mkOutputName source Nothing <.> __cogent_ext_of_h
           hscName = mkOutputName' toHsModName source (Just __cogent_suffix_of_ffi_types)
           hsName  = mkOutputName' toHsModName source (Just __cogent_suffix_of_ffi)
@@ -843,7 +845,7 @@ parseArgs args = case getOpt' Permute options args of
                     case decodeResult of
                       Left (_, err) -> hPutStrLn stderr ("Decoding name cache file failed: " ++ err ++ ".\nNot using name cache.") >> return (Nothing, True)
                       Right cache -> return (Just cache, False)
-      let (h,c,atm,ct,ct',hsc,hs,genst) = cgen hName cNames hscName hsName monoed mcache ctygen log
+      let (h,c,atm,ct,ct',hsc,hs,genst) = cgen hName cNames hscName hsName monoed mcache ctygen pragmas log
       when (TableAbsTypeMono `elem` cmds) $ do
         let atmfile = mkFileName source Nothing __cogent_ext_of_atm
         putProgressLn "Generating table for monomorphised asbtract types..."

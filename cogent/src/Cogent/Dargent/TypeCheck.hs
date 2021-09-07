@@ -147,7 +147,7 @@ tcDataLayoutExpr env vs (DLVariant tagExpr alts) =
                  | otherwise ->
       do
         (tagExpr', tagAlloc) <- tcDataLayoutExpr env vs tagExpr
-        when (2 ^ (bitSizeBR tagBits) - 1 > maximum (alts <&> (^. _3))) $  -- we don't allow a variant without any alternatives
+        when (2 ^ (bitSizeBR tagBits - 1) > maximum (alts <&> (^. _3))) $  -- we don't allow a variant without any alternatives
           throwE $ TagSizeTooLarge (InTag PathEnd)
         (altsExprs, altsAlloc, _) <- foldM (tcAlternative tagBits) ([], emptyAllocation, M.empty) alts
         alloc <- except $ first OverlappingBlocks $ singletonAllocation (tagBits, InTag PathEnd) /\ altsAlloc

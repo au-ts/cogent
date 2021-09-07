@@ -32,12 +32,17 @@ import Cogent.Compiler
 import Cogent.Core
 import Cogent.Inference
 import Cogent.Isabelle.Deep (deepDefinitions, deepTypeAbbrevs, getTypeAbbrevs, TypeAbbrevs)
+import Cogent.Isabelle.IsabelleName
 import Cogent.Isabelle.ProofGen
 import Cogent.Util (NameMod)
 import Data.Fin
 import Data.LeafTree
 import Data.Vec hiding (splitAt, length, zipWith, zip, unzip, head)
 import qualified Data.Vec as V
+import Isabelle.ExprTH
+import qualified Isabelle.InnerAST as I
+import Isabelle.InnerAST hiding (Type)
+import Isabelle.OuterAST as O
 
 import Control.Arrow (second)
 import Control.Monad.State.Strict
@@ -47,11 +52,8 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe (mapMaybe)
 import Data.Ord (comparing)
-import Isabelle.ExprTH
-import qualified Isabelle.InnerAST as I
-import Isabelle.InnerAST hiding (Type)
-import Isabelle.OuterAST as O
-import Cogent.Isabelle.IsabelleName
+import Lens.Micro ((^.))
+import Lens.Micro.Mtl (use)
 import Numeric
 #if __GLASGOW_HASKELL__ >= 709
 import Prelude hiding ((<$>))
@@ -60,8 +62,6 @@ import System.FilePath ((</>))
 import Text.PrettyPrint.ANSI.Leijen hiding ((</>))
 import Text.Printf
 import Text.Show
-import Lens.Micro ((^.))
-import Lens.Micro.Mtl (use)
 
 data TypeSplitKind = TSK_R | TSK_L | TSK_S | TSK_NS
   deriving Eq

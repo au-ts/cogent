@@ -17,6 +17,8 @@ import subprocess
 import itertools
 import argparse
 import sys
+from typing import List
+
 
 from lxml import etree
 
@@ -31,7 +33,7 @@ class TestEnv():
         self.pwd = pwd
         self.cwd = "."
         self.timeout = 0
-        self.depends = set()
+        self.depends = set()  # type: set[str]
 
 class Test():
     def __init__(self, name, command, timeout=0, cwd="", depends=None):
@@ -42,7 +44,7 @@ class Test():
 
         if depends == None:
             depends = set([])
-        self.depends = depends
+        self.depends = depends  # type: set[str]
 
 def parse_attributes(tag, env, strict=True):
     """Parse attributes such as "timeout" in the given XML tag,
@@ -203,7 +205,7 @@ def validate_xml(filename):
                 "%s does not validate against DTD:\n\n" % filename
                 + str(dtd.error_log))
 
-def parse_testsuite_xml(filename, strict=True):
+def parse_testsuite_xml(filename: str, strict: bool = True) -> List[Test]:
 
     # Validate the XML if requested.
     if strict:
@@ -220,7 +222,7 @@ def parse_testsuite_xml(filename, strict=True):
     # Parse this tag as a set of tests.
     return parse_set(doc, env, strict=strict)
 
-def process_tests(tests, strict=False):
+def process_tests(tests: List[Test], strict: bool = False) -> List[Test]:
     """Given a list of tests (possibly from multiple XML file), check for
     errors and return a list of tests in dependency-satisfying order."""
 
@@ -238,33 +240,33 @@ def process_tests(tests, strict=False):
         seen_names.add(t.name)
 
     # Check dependencies.
-    valid_names = set()
+    valid_names : set[str] = set()
     for test in tests:
         valid_names.add(test.name)
     for test in tests:
-        test_depends = sorted(test.depends)
+        test_depends = sorted(test.depends)  # type: list[str]
         for dependency_name in test_depends:
             if not dependency_name in valid_names:
                 if strict:
                     raise TestSpecParseException(
-                            "Depedency '%s' invalid." % dependency_name)
+                            "Depedency {!r} invalid.".format(dependency_name))
                 test.depends.remove(dependency_name)
 
    # Toposort.
     test_ordering = {}
     for (n, t) in enumerate(tests):
         test_ordering[t.name] = n
-    test_depends = {}
+    test_depends = {}  # type: dict[str, set[str]]
     for t in tests:
         test_depends[t.name] = t.depends
     try:
         ordering = toposort([t.name for t in tests],
                 lambda x: test_ordering[x],
                 lambda x: test_depends[x])
-    except ValueError, e:
+    except ValueError as e:
         if strict:
             raise TestSpecParseException(
-                    "Cycle in dependencies: %s" % e.message)
+                    "Cycle in dependencies: {!s}".format(e))
         else:
             # There is a cycle, but we want to continue anyway.
             # Just ignore all deps and hope for the best.
@@ -274,6 +276,24 @@ def process_tests(tests, strict=False):
     tests = sorted(tests, key=lambda k: ordering[k.name])
 
     return tests
+
+def add_deps(tests: List[Test], all_tests: List[Test]) -> List[Test]:
+    """Given a list of tests to run, and a list of all available tests,
+    returns a list of tests to run that includes all the dependencies, sorted."""
+
+    tests_to_run = []  # type: List[Test]
+    for t in tests:  # type: Test
+        tests_to_run.append(t)
+        tests_to_run.extend(add_deps([get_dep_test(x, all_tests) for x in t.depends], all_tests))
+        
+    return process_tests(list(set(tests_to_run))) # remove duplicates
+
+def get_dep_test(dep: str, all_tests: List[Test]) -> Test:
+    try:
+        result = next(t for t in all_tests if dep == t.name) 
+    except StopIteration:
+        raise TestSpecParseException("Dependency %s is unknown." % dep)
+    return result
 
 def legacy_testspec(root):
     """Find tests inside makefiles."""
@@ -289,14 +309,14 @@ def legacy_testspec(root):
     # Run "isabelle make report-regression" on each.
     def report_regression(filename):
         filename = os.path.abspath(filename)
-        base_name = os.path.split(os.path.dirname(filename))[1]
+        base_name : str = os.path.split(os.path.dirname(filename))[1]
         try:
             with open("/dev/null", "w") as devnull:
                 results = subprocess.check_output(
                     [isabelle_bin, "make", "-f", filename, "report-regression"],
                     cwd=os.path.dirname(filename),
-                    stderr=devnull)
-            return [(base_name + "/" + x, x) for x in results.strip().split()]
+                    stderr=devnull, text=True)
+                return [(base_name + "/" + x, x) for x in results.strip().split()]
         except subprocess.CalledProcessError:
             return []
 
@@ -310,8 +330,8 @@ def legacy_testspec(root):
             tests.append(new_test)
     return tests
 
-def parse_test_files(xml_files, strict=False):
-    tests = []
+def parse_test_files(xml_files: List[str], strict: bool =False) -> List[Test]:
+    tests : list[Test] = []
     seen_files = set()
     for x in xml_files:
         # Some files may be symlinked; don't process them multiple times.
