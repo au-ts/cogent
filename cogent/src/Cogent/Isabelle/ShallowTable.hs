@@ -108,7 +108,9 @@ st ds = execState (stDefinitions ds) []
 stDefinitions :: [Definition TypedExpr VarName b] -> ST ()
 stDefinitions = mapM_ stDefinition
 
--- Since desugaring, the RHSes have been unfolded already
+-- (Since desugaring, the RHSes have been unfolded already)
+-- This is not true anymore, but since all TypeDefs are scanned, it does not matter.
+
 stDefinition :: Definition TypedExpr VarName b -> ST ()
 stDefinition (FunDef  _ fn ts ls ti to e) = stExpr e  -- NOTE: `ti' and `to' will be included in `e', so no need to scan them / zilinc
 stDefinition (AbsDecl _ fn ts ls ti to) = stType ti >> stType to
