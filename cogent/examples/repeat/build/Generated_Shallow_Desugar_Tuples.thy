@@ -27,21 +27,10 @@ definition
 where
   "searchStop ds\<^sub>0 \<equiv>
     let acc = StepParam.acc\<^sub>f ds\<^sub>0;
-      obsv = StepParam.obsv\<^sub>f ds\<^sub>0;
-      (l,r) = acc;
-      (arr,v) = obsv;
-      len = (wordarray_length :: 32 word WordArray \<Rightarrow> 32 word) arr;
-      args = \<lparr>
-          WordArrayGetP.arr\<^sub>f = arr,
-          idx\<^sub>f = l,
-          val\<^sub>f = (0 :: 32 word)
-        \<rparr>;
-      x = (wordarray_get :: (32 word WordArray, 32 word, 32 word) WordArrayGetP \<Rightarrow> 32 word) args
+      (l,r) = acc
     in if (>=) l r
       then True
-      else if (<) l len \<and> (=) x v
-        then True
-        else False"
+      else False"
 
 definition
   expstep :: "(32 word, 32 word) StepParam \<Rightarrow> 32 word"
@@ -77,9 +66,7 @@ where
       x = (wordarray_get :: (32 word WordArray, 32 word, 32 word) WordArrayGetP \<Rightarrow> 32 word) args
     in if (<) x v
       then ( (+) m (1 :: 32 word), r )
-      else if (>) x v
-        then ( l, m )
-        else ( m, r )"
+      else ( l, m )"
 
 definition
   binarySearch :: "32 word WordArray \<times> 32 word \<Rightarrow> 32 word"

@@ -93,7 +93,7 @@ where
 definition
   searchStop :: "string Cogent.expr"
 where
-  "searchStop \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Take (Var 2) 0 (Take (Var 1) 1 (Take (Var 4) 0 (Take (Var 1) 1 (Let (App (AFun ''wordarray_length'' [TPrim (Num U32)]) (Var 2)) (Let (Lit (LU32 0)) (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), TPrim (Num U32), TPrim (Num U32)] [Var 4, Var 8, Var 0]) (Let (App (AFun ''wordarray_get'' [TPrim (Num U32)]) (Var 0)) (Let (Prim (Ge U32) [Var 10, Var 8]) (If (Var 0) (Lit (LBool True)) (Let (Prim (Lt U32) [Var 11, Var 4]) (Let (Prim (Eq (Num U32)) [Var 2, Var 6]) (Let (Prim Cogent.And [Var 1, Var 0]) (If (Var 0) (Lit (LBool True)) (Lit (LBool False)))))))))))))))))"
+  "searchStop \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Take (Var 2) 0 (Take (Var 1) 1 (Take (Var 4) 0 (Take (Var 1) 1 (Let (App (AFun ''wordarray_length'' [TPrim (Num U32)]) (Var 2)) (Let (Lit (LU32 0)) (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), TPrim (Num U32), TPrim (Num U32)] [Var 4, Var 8, Var 0]) (Let (App (AFun ''wordarray_get'' [TPrim (Num U32)]) (Var 0)) (Let (Prim (Ge U32) [Var 10, Var 8]) (If (Var 0) (Lit (LBool True)) (Lit (LBool False)))))))))))))"
 
 definition
   expstep_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
@@ -123,7 +123,7 @@ where
 definition
   searchNext :: "string Cogent.expr"
 where
-  "searchNext \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Take (Var 2) 0 (Take (Var 1) 1 (Take (Var 4) 0 (Take (Var 1) 1 (Let (Prim (Minus U32) [Var 4, Var 6]) (Let (Lit (LU32 2)) (Let (Prim (Divide U32) [Var 1, Var 0]) (Let (Prim (Plus U32) [Var 9, Var 0]) (Let (Lit (LU32 0)) (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), TPrim (Num U32), TPrim (Num U32)] [Var 7, Var 1, Var 0]) (Let (App (AFun ''wordarray_get'' [TPrim (Num U32)]) (Var 0)) (Let (Prim (Lt U32) [Var 0, Var 7]) (If (Var 0) (Let (Lit (LU32 1)) (Let (Prim (Plus U32) [Var 5, Var 0]) (Struct [TPrim (Num U32), TPrim (Num U32)] [Var 0, Var 14]))) (Let (Prim (Gt U32) [Var 1, Var 8]) (If (Var 0) (Struct [TPrim (Num U32), TPrim (Num U32)] [Var 15, Var 5]) (Struct [TPrim (Num U32), TPrim (Num U32)] [Var 5, Var 13])))))))))))))))))"
+  "searchNext \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Take (Var 2) 0 (Take (Var 1) 1 (Take (Var 4) 0 (Take (Var 1) 1 (Let (Prim (Minus U32) [Var 4, Var 6]) (Let (Lit (LU32 2)) (Let (Prim (Divide U32) [Var 1, Var 0]) (Let (Prim (Plus U32) [Var 9, Var 0]) (Let (Lit (LU32 0)) (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), TPrim (Num U32), TPrim (Num U32)] [Var 7, Var 1, Var 0]) (Let (App (AFun ''wordarray_get'' [TPrim (Num U32)]) (Var 0)) (Let (Prim (Lt U32) [Var 0, Var 7]) (If (Var 0) (Let (Lit (LU32 1)) (Let (Prim (Plus U32) [Var 5, Var 0]) (Struct [TPrim (Num U32), TPrim (Num U32)] [Var 0, Var 14]))) (Struct [TPrim (Num U32), TPrim (Num U32)] [Var 14, Var 4])))))))))))))))"
 
 definition
   binarySearch_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
