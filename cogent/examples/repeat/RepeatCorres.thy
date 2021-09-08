@@ -3,7 +3,7 @@ theory RepeatCorres
     RepeatUpdate
     CorresHelper
     CogentTypingHelper
-    "build/Generated_AllRefine"
+    "build/Generated_CorresSetup"
 begin
 
 context update_sem_init begin

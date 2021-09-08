@@ -1,8 +1,73 @@
 theory ValueSemHelper
   imports
     DeterministicRelation3
+    CogentTypingHelper
     Cogent.ValueSemantics
 begin
+
+section "Value typing rules"
+
+inductive_cases (in value_sem) v_t_abstractE   [elim]: "\<Xi> \<turnstile> VAbstract a :v \<tau>"
+inductive_cases (in value_sem) v_t_sumE        : "\<Xi> \<turnstile> (VSum a b) :v \<tau>"
+inductive_cases (in value_sem) v_t_primE'     : "\<Xi> \<turnstile> VPrim l :v \<tau>"
+
+inductive_cases (in value_sem) v_t_tprimE     : "\<Xi> \<turnstile> v :v TPrim t"
+inductive_cases (in value_sem) v_t_tfunE      : "\<Xi> \<turnstile> v :v TFun a b"
+inductive_cases (in value_sem) v_t_tunitE     : "\<Xi> \<turnstile> v :v TUnit"
+inductive_cases (in value_sem) v_t_tconE      : "\<Xi> \<turnstile> v :v TCon n ts s"
+inductive_cases (in value_sem) v_t_tsumE      : "\<Xi> \<turnstile> v :v TSum a"
+inductive_cases (in value_sem) v_t_tproductE  : "\<Xi> \<turnstile> v :v TProduct a b"
+inductive_cases (in value_sem) v_t_trecordE   : "\<Xi> \<turnstile> v :v TRecord ts s"
+inductive_cases (in value_sem) v_t_r_temptyE  : "\<Xi>' \<turnstile>* fs :vr []"
+
+lemma (in value_sem) vval_typing_record_alt1:
+  "\<Xi>' \<turnstile>* fs :vr ts \<Longrightarrow> 
+      length fs = length ts \<and>
+      (\<forall>i<length fs. 
+        \<exists>x n t s. fs ! i = x \<and> ts ! i = (n, t, s) \<and>
+            (s = Taken \<longrightarrow> [] \<turnstile> t wellformed) \<and>
+            (s = Present \<longrightarrow> \<Xi>' \<turnstile> x :v t))"
+  apply (induct fs arbitrary: ts)
+   apply clarsimp
+   apply (erule v_t_r_emptyE; clarsimp)
+  apply clarsimp
+  apply (case_tac ts; clarsimp)
+   apply (erule v_t_r_temptyE; clarsimp)
+  apply (rename_tac a fs n t s ts)
+  apply (frule vval_typing_record_length)
+  apply simp
+  apply (drule_tac x = ts in meta_spec)
+  apply (case_tac s; clarsimp)
+   apply (erule v_t_r_consE; clarsimp)
+   apply (rename_tac i t ts n)
+   apply (case_tac i; clarsimp)
+  apply (erule v_t_r_consE; clarsimp)
+  apply (rename_tac i t ts n)
+  apply (case_tac i; clarsimp)
+  done
+
+lemma (in value_sem) vval_typing_record_alt2:
+  "length fs = length ts \<and>
+   (\<forall>i<length fs. 
+      \<exists>x n t s. fs ! i = x \<and> ts ! i = (n, t, s) \<and>
+          (s = Taken \<longrightarrow> [] \<turnstile> t wellformed) \<and>
+          (s = Present \<longrightarrow> \<Xi>' \<turnstile> x :v t))
+    \<Longrightarrow> \<Xi>' \<turnstile>* fs :vr ts"
+  apply (induct fs arbitrary: ts; clarsimp)
+   apply (rule v_t_r_empty)
+  apply (rename_tac a fs ts)
+  apply (case_tac ts; clarsimp)
+  apply (rename_tac n t s ts)
+  apply (drule_tac x = ts in meta_spec; clarsimp)
+  apply (erule meta_impE)
+  apply clarsimp
+   apply (rename_tac i)
+   apply (erule_tac x = "Suc i" in allE; clarsimp)
+  apply (erule_tac x = 0 in allE; clarsimp)
+  apply (case_tac s; clarsimp)
+   apply (rule v_t_r_cons2; simp?)
+  apply (rule v_t_r_cons1; simp?)
+  done
 
 section "Function checking and extraction"
 
@@ -17,6 +82,45 @@ fun vvalfun_to_expr
 "vvalfun_to_expr (VFunction f ts) = Fun f ts" |
 "vvalfun_to_expr (VAFunction f ts) = AFun f ts" |
 "vvalfun_to_expr _ = undefined"
+
+fun no_vfuns
+  where
+"no_vfuns (VPrim _) = True" |
+"no_vfuns VUnit  = True" |
+"no_vfuns (VSum a b) = no_vfuns b" |
+"no_vfuns (VAbstract _) = True" |
+"no_vfuns (VFunction _ _) = False" |
+"no_vfuns (VAFunction _ _) = False" |
+"no_vfuns (VProduct a b) = (if no_vfuns a then no_vfuns b else False)" |
+"no_vfuns (VRecord xs) = (find (\<lambda>x. \<not>x) (map no_vfuns xs) = option.None)"
+
+context value_sem begin
+
+lemma no_tfun_imp_no_vfuns:
+  "\<lbrakk>no_tvars t; no_tfun t; no_taken t;  \<Xi> \<turnstile> v :v t\<rbrakk> \<Longrightarrow> no_vfuns v"
+proof (induct t arbitrary: v)
+  case (TRecord x1a x2a)
+  then show ?case 
+    apply (clarsimp simp: find_None_iff_nth elim!: v_t_trecordE split: if_splits)
+    apply (frule vval_typing_record_length)
+    apply (rename_tac fs i)
+    apply (erule_tac x = i in allE; clarsimp)+
+    apply (clarsimp simp: set_conv_nth)
+    apply (elim meta_allE meta_impE; assumption?; simp?)
+     apply (intro exI conjI; simp?)
+    apply (rename_tac fs i x a b)
+    apply (case_tac b; clarsimp)
+    apply (drule (2) vval_typing_record_nth; simp?)
+    done
+qed (fastforce simp: find_None_iff elim: v_t_tunitE v_t_tprimE v_t_tconE v_t_sumE v_t_tproductE)+
+
+lemma no_vfuns_monoval:
+  "no_vfuns x \<longleftrightarrow> no_vfuns (monoval x)"
+  apply (induct x; clarsimp)
+  apply (clarsimp simp: find_None_iff)
+  done
+
+end (* of context *)
 
 section "Evaluation elimination rules"
 
@@ -45,6 +149,7 @@ inductive_cases v_sem_promoteE: "\<xi>, \<gamma> \<turnstile> Promote \<tau> e \
 lemmas v_sem_elims = v_sem_letE v_sem_letBangE v_sem_litE v_sem_primE v_sem_memberE v_sem_tupleE
   v_sem_ifE v_sem_conE v_sem_esacE v_sem_caseE v_sem_splitE v_sem_takeE v_sem_putE v_sem_castE
   v_sem_structE v_sem_AppE v_sem_allE v_sem_all_NilE v_sem_all_ConsE v_sem_unitE v_sem_promoteE
+
 
 section "Properties on partially ordered abstract function specifications"
 

@@ -8,7 +8,7 @@ imports "Cogent.Util"
 "CogentShallow.ShallowUtil"
 begin
 
-typedecl 'a WordArray
+type_synonym 'a WordArray = "'a list"
 
 record ('a, 'b) T0 =
   p1\<^sub>f :: "'a"

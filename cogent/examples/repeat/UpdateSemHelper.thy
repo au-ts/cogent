@@ -1,8 +1,108 @@
 theory UpdateSemHelper
   imports
     DeterministicRelation3
+    CogentTypingHelper
     Cogent.UpdateSemantics
+    AutoCorres.AutoCorres
 begin
+
+section "Value typing elimination rules"
+
+inductive_cases (in update_sem) u_t_tfunE: "\<Xi>, \<sigma> \<turnstile> u :u TFun a b \<langle>r, w\<rangle>"
+inductive_cases (in update_sem) u_t_tprimE: "\<Xi>, \<sigma> \<turnstile> u :u TPrim t \<langle>r, w\<rangle>"
+inductive_cases (in update_sem) u_t_tconE: "\<Xi>, \<sigma> \<turnstile> u :u TCon n ts s \<langle>r, w\<rangle>"
+inductive_cases (in update_sem) u_t_tunitE: "\<Xi>, \<sigma> \<turnstile> u :u TUnit \<langle>r, w\<rangle>"
+inductive_cases (in update_sem) u_t_tsumE: "\<Xi>, \<sigma> \<turnstile> u :u TSum a \<langle>r, w\<rangle>"
+inductive_cases (in update_sem) u_t_trecordE: "\<Xi>, \<sigma> \<turnstile> u :u TRecord ts s \<langle>r, w\<rangle>"
+inductive_cases (in update_sem) u_t_tproductE: "\<Xi>, \<sigma> \<turnstile> u :u TProduct a b \<langle>r, w\<rangle>"
+
+inductive_cases (in update_sem) u_t_r_temptyE : "\<Xi>', \<sigma> \<turnstile>* fs :ur [] \<langle>r, w\<rangle>"
+
+lemma (in update_sem) uval_typing_record_length:
+assumes "\<Xi>, \<sigma>  \<turnstile>* fs :ur \<tau>s \<langle>r, w\<rangle>"
+shows   "length fs = length \<tau>s"
+using assms proof (induct fs arbitrary: \<tau>s r w)
+qed (auto)
+
+
+lemma (in update_sem) uval_typing_record_alt1:
+  "\<Xi>', \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle> \<Longrightarrow> 
+      r \<inter> w = {} \<and> length fs = length ts \<and>
+      (\<exists>rs ws. r = \<Union>(set rs) \<and> w = \<Union>(set ws) \<and> length rs = length fs \<and> length ws = length fs \<and>
+        distinct_sets ws \<and>
+        (\<forall>i<length fs. 
+          \<exists>x rp n t s. fs ! i = (x, rp) \<and> ts ! i = (n, t, s) \<and> type_repr t = rp \<and>
+            (s = Taken \<longrightarrow> [] \<turnstile> t wellformed \<and> uval_repr x = rp \<and> uval_repr_deep x = rp \<and> rs ! i = {} \<and> ws ! i = {}) \<and>
+            (s = Present \<longrightarrow> \<Xi>', \<sigma> \<turnstile> x :u t \<langle>rs ! i, ws ! i\<rangle>)))"
+  apply (induct fs arbitrary: ts r w)
+   apply clarsimp
+   apply (erule u_t_r_emptyE; clarsimp)
+  apply clarsimp
+  apply (case_tac ts; clarsimp)
+   apply (erule u_t_r_temptyE; clarsimp)
+  apply (rename_tac a b fs r w n t s ts)
+  apply (clarsimp simp: uval_typing_pointers_noalias)
+  apply (frule uval_typing_record_length)
+  apply simp
+  apply (drule_tac x = ts in meta_spec)
+  apply (case_tac s; clarsimp)
+   apply (drule_tac x = r and y = w in meta_spec2)
+   apply (erule u_t_r_consE; clarsimp)
+   apply (rename_tac fs ts t x n rs ws)
+   apply (rule_tac x = "{} # rs" in exI; clarsimp)
+   apply (rule_tac x = "{} # ws" in exI; clarsimp)
+   apply (rename_tac i)
+   apply (case_tac i; clarsimp)
+  apply (erule u_t_r_consE; clarsimp)
+  apply (rename_tac fs x t r w ts r' w' n)
+  apply (drule_tac x = r' and y = w' in meta_spec2; clarsimp)
+  apply (rename_tac rs ws)
+  apply (rule_tac x = "r # rs" in exI; clarsimp)
+  apply (rule_tac x = "w # ws" in exI; clarsimp)
+  apply (rename_tac i)
+  apply (case_tac i; clarsimp)
+  done
+
+lemma (in update_sem) uval_typing_record_alt2:
+  "r \<inter> w = {} \<and> length fs = length ts \<and>
+   (\<exists>rs ws. r = \<Union>(set rs) \<and> w = \<Union>(set ws) \<and> length rs = length fs \<and> length ws = length fs \<and>
+   distinct_sets ws \<and>
+   (\<forall>i<length fs. 
+      \<exists>x rp n t s. fs ! i = (x, rp) \<and> ts ! i = (n, t, s) \<and> type_repr t = rp \<and>
+          (s = Taken \<longrightarrow> [] \<turnstile> t wellformed \<and> uval_repr x = rp \<and> uval_repr_deep x = rp \<and> rs ! i = {} \<and> ws ! i = {}) \<and>
+          (s = Present \<longrightarrow> \<Xi>', \<sigma> \<turnstile> x :u t \<langle>rs ! i, ws ! i\<rangle>)))
+    \<Longrightarrow> \<Xi>', \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle>"
+  apply (induct fs arbitrary: ts r w; clarsimp)
+   apply (rule u_t_r_empty)
+  apply (rename_tac a b fs ts rs ws)
+  apply (case_tac ts; clarsimp)
+  apply (rename_tac n t s ts)
+  apply (drule_tac x = ts in meta_spec; clarsimp)
+  apply (drule_tac x = " \<Union> (set (tl rs))" and y = " \<Union> (set (tl ws))" in meta_spec2)
+  apply (erule meta_impE)
+   apply (rule conjI)
+    apply (erule_tac x = 0 in allE; clarsimp)
+    apply (case_tac rs; clarsimp; case_tac ws; clarsimp)
+    apply blast 
+   apply (rule exI, rule conjI, simp)
+   apply (rule exI, rule conjI, simp)
+   apply (rule conjI; clarsimp)
+   apply (rule conjI)
+    apply (erule_tac x = 0 in allE; clarsimp)
+    apply (case_tac ws; clarsimp)
+    apply clarsimp
+    apply (rename_tac i)
+    apply (erule_tac x = "Suc i" in allE; clarsimp)
+    apply (rule conjI; clarsimp simp: nth_tl)
+   apply (frule_tac x = 0 in allE; simp?; clarsimp)
+  apply (case_tac s; clarsimp)
+   apply (rule u_t_r_cons2; simp?)
+   apply (case_tac rs; clarsimp; case_tac ws; clarsimp)
+  apply (case_tac rs; clarsimp; case_tac ws; clarsimp)
+  apply (rule u_t_r_cons1; simp?)
+   apply blast
+  apply blast
+  done
 
 section "Function checking and extraction"
 
@@ -18,12 +118,108 @@ fun uvalfun_to_expr
 "uvalfun_to_expr (UAFunction f ts) = AFun f ts" |
 "uvalfun_to_expr _ = undefined"
 
-inductive_cases (in update_sem) u_t_tfunE: "\<Xi>, \<sigma> \<turnstile> u :u TFun a b \<langle>r, w\<rangle>"
-
 lemma (in update_sem) uval_typing_uvalfun:
   "\<Xi>, \<sigma> \<turnstile> u :u TFun a b \<langle>r, w\<rangle> \<Longrightarrow> is_uvalfun u"
   apply (erule u_t_tfunE; clarsimp)
   done
+
+fun no_rfun
+  where
+"no_rfun (RPrim _) = True" |
+"no_rfun RUnit = True" |
+"no_rfun RFun = False" |
+"no_rfun (RCon n rs) = (find (\<lambda>x. \<not>x) (map no_rfun rs) = option.None)" |
+"no_rfun (RProduct a b) = (if no_rfun a then no_rfun b else False)" |
+"no_rfun (RSum a) = (find (\<lambda>x. \<not>x) (map (no_rfun \<circ> prod.snd) a) = option.None)" |
+"no_rfun (RRecord a) = (find (\<lambda>x. \<not>x) (map no_rfun a) = option.None)" |
+"no_rfun (RPtr a) = no_rfun a"
+
+
+lemma no_tfun_no_rfun:
+  "no_tvars t \<Longrightarrow> no_tfun t \<longleftrightarrow> no_rfun (type_repr t)"
+  apply (induct t; clarsimp simp: find_None_iff_nth list_eq_iff_nth_eq split: if_splits)
+    apply (rename_tac n ts s)
+    apply (case_tac s; clarsimp simp: find_None_iff_nth)
+   apply (rule iffI; clarsimp)
+    apply (rename_tac x i)
+    apply (erule_tac x = i in allE; clarsimp)+
+    apply (clarsimp simp: set_conv_nth)
+    apply (elim meta_allE meta_impE; simp?)
+     apply (intro exI conjI; simp?)
+    apply simp
+   apply (rename_tac x i a aa b)
+   apply (erule_tac x = i in allE; clarsimp)+
+   apply (clarsimp simp: set_conv_nth)
+   apply (elim meta_allE meta_impE; simp?)
+    apply (intro exI conjI; simp?)
+   apply simp
+  apply (rename_tac fs s)
+  apply (case_tac s; clarsimp simp: find_None_iff_nth)
+   apply (rule iffI; clarsimp)
+    apply (rename_tac i)
+    apply (erule_tac x = i in allE; clarsimp)+
+    apply (clarsimp simp: set_conv_nth)
+    apply (elim meta_allE meta_impE; simp?)
+     apply (intro exI conjI; simp?)
+    apply simp
+   apply (rename_tac x i a aa b)
+   apply (erule_tac x = i in allE; clarsimp)+
+   apply (clarsimp simp: set_conv_nth)
+   apply (elim meta_allE meta_impE; simp?)
+    apply (intro exI conjI; simp?)
+   apply simp
+  apply (rule iffI; clarsimp)
+   apply (rename_tac i)
+   apply (erule_tac x = i in allE; clarsimp)+
+   apply (clarsimp simp: set_conv_nth)
+   apply (elim meta_allE meta_impE; simp?)
+    apply (intro exI conjI; simp?)
+   apply simp
+  apply (rename_tac x i a aa b)
+  apply (erule_tac x = i in allE; clarsimp)+
+  apply (clarsimp simp: set_conv_nth)
+  apply (elim meta_allE meta_impE; simp?)
+   apply (intro exI conjI; simp?)
+  apply simp
+  done
+
+fun no_ufun
+  where
+"no_ufun (UPrim _) = True" |
+"no_ufun UUnit  = True" |
+"no_ufun (USum a b r) = no_ufun b" |
+"no_ufun (UAbstract _) = True" |
+"no_ufun (UFunction _ _) = False" |
+"no_ufun (UAFunction _ _) = False" |
+"no_ufun (UProduct a b) = (if no_ufun a then no_ufun b else False)" |
+"no_ufun (URecord xs) = (find (\<lambda>x. \<not>x) (map (no_ufun \<circ> prod.fst) xs) = option.None)" |
+"no_ufun (UPtr _ r) = no_rfun r"
+
+
+lemma (in update_sem) no_tfun_imp_no_vfuns:
+  "\<lbrakk>no_tvars t; no_tfun t; no_taken t; no_tcon t;  \<Xi>,  \<sigma> \<turnstile> v :u t \<langle>r, w\<rangle>\<rbrakk> \<Longrightarrow> no_ufun v"
+proof (induct t arbitrary: \<sigma> v r w)
+  case (TRecord x1a x2a)
+  then show ?case 
+    apply (clarsimp simp: find_None_iff_nth  split: if_splits)
+    apply (erule u_t_trecordE; clarsimp simp: find_None_iff_nth)
+      apply (frule uval_typing_record_length)
+      apply (rename_tac fs i)
+      apply (erule_tac x = i in allE; clarsimp)+
+      apply (clarsimp simp: set_conv_nth)
+      apply (rename_tac fs i x a b)
+      apply (case_tac b; clarsimp)
+      apply (drule (2) uval_typing_record_nth'; clarsimp)
+      apply (elim meta_allE meta_impE; assumption?; simp?)
+      apply (intro exI conjI; simp?)
+     apply (rename_tac fs r l ptrl i)
+     apply (erule_tac x = i in allE; clarsimp)+
+     apply (clarsimp simp: no_tfun_no_rfun)
+    apply (rename_tac fs w l ptrl i)
+    apply (erule_tac x = i in allE; clarsimp)+
+    apply (clarsimp simp: no_tfun_no_rfun)
+    done
+qed (fastforce simp: find_None_iff elim: u_t_tunitE u_t_tprimE u_t_tconE u_t_sumE u_t_tproductE)+
 
 section "Evaluation elimination rules"
 
@@ -307,6 +503,19 @@ lemma frame_empty:
   apply (clarsimp simp: frame_def fun_eq_iff)
   done
 
+lemma frame_expand:
+  "\<lbrakk>frame \<sigma> w \<sigma>' w'; \<sigma> p \<noteq> option.None\<rbrakk> \<Longrightarrow> frame \<sigma> (insert p w) \<sigma>' (insert p w')"
+  "\<lbrakk>frame \<sigma> w \<sigma>' w'; \<forall>p\<in>s. \<sigma> p \<noteq> option.None\<rbrakk> \<Longrightarrow> frame \<sigma> (s \<union> w) \<sigma>' (s \<union> w')"
+   apply (clarsimp simp: frame_def)
+   apply (rule conjI; clarsimp)
+  apply (clarsimp simp: frame_def)
+  apply (rule conjI; clarsimp)
+  done
+
+lemma frame_single_update_expand:
+  "l \<in> w \<Longrightarrow> frame \<sigma> w (\<sigma>(l \<mapsto> v)) w"
+  by (clarsimp simp: frame_def)
+
 lemma discardable_or_shareable_not_writable:
 assumes "D \<in> k \<or> S \<in> k"
 shows "\<lbrakk> \<Xi>', \<sigma> \<turnstile>  v  :u  \<tau>  \<langle> r , w \<rangle>; K' \<turnstile>  \<tau>  :\<kappa>  k \<rbrakk> \<Longrightarrow> w = {}"
@@ -336,6 +545,15 @@ and   "\<lbrakk> \<Xi>', \<sigma> \<turnstile>* fs :ur map (\<lambda>(n, t, b). 
   apply (clarsimp split: record_state.splits)
   apply (rename_tac a aa ab ac)
   apply (cut_tac K = "[]" and t = ac in bang_kinding_fn; clarsimp)
+  done
+
+lemma no_heap_no_pointers:
+  "\<lbrakk>no_tvars t; no_theap t; \<Xi>', \<sigma> \<turnstile> v :u t \<langle>r, w\<rangle>\<rbrakk> \<Longrightarrow> r = {} \<and> w = {}"
+  apply (frule uval_typing_to_wellformed)
+  apply (cut_tac K = "[]" and t= t in  no_heap_all_kind; simp?)
+  apply (frule_tac k = UNIV in escapable_no_readers(1); simp?)
+  apply (frule  discardable_or_shareable_not_writable(1)[rotated 1]; simp?)
+  apply blast
   done
 
 end (* of context *)

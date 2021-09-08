@@ -109,7 +109,7 @@ lemma uvrepeat_bod_upward_propagation:
                   u_v_r_empty; simp?)
     apply (rule upd_val_rel_bang(1); simp)
    apply clarsimp
-   apply (erule u_v_uprimE; clarsimp)
+   apply (erule u_v_uprimE; simp)
   apply (frule_tac r = "(ra \<union> wa) \<union> ro"  and w = "{}" and
       \<gamma>' = "[VRecord [vacc, vobsv]]" in val_executes_from_upd_executes(1)[rotated 3]; simp?)
     apply (intro u_v_matches_some[where r' = "{}" and w' = "{}", simplified]
