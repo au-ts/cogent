@@ -38,9 +38,7 @@ searchNext #{acc, obsv} =
     and x = wordarray_get args
     in 
         if | x < v -> (m + 1, r)
-           | x > v -> (l, m)
-           | else -> (m, r)
-
+           | else -> (l, m)
 
 searchStop : StopF (U32, U32) (WordArray U32, U32)
 searchStop #{acc, obsv} =
@@ -51,7 +49,6 @@ searchStop #{acc, obsv} =
     and x = wordarray_get args
     in 
         if | l >= r -> True
-           | l < len && x == v -> True
            | else -> False
 
 binarySearch : ((WordArray U32)!, U32) -> U32

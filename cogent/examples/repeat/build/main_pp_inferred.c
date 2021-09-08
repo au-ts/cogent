@@ -295,22 +295,12 @@ static inline bool_t searchStop(t9 a1)
     
     if (r12.boolean)
         r13 = (bool_t) {.boolean = 1U};
-    else {
-        bool_t r14 = (bool_t) {.boolean = r4 < r8};
-        bool_t r15 = (bool_t) {.boolean = r11 == r7};
-        bool_t r16 = (bool_t) {.boolean = r14.boolean && r15.boolean};
-        bool_t r17;
-        
-        if (r16.boolean)
-            r17 = (bool_t) {.boolean = 1U};
-        else
-            r17 = (bool_t) {.boolean = 0U};
-        r13 = r17;
-    }
+    else
+        r13 = (bool_t) {.boolean = 0U};
     
-    bool_t r18 = r13;
+    bool_t r14 = r13;
     
-    return r18;
+    return r14;
 }
 static inline u32 expstep(t13 a1)
 {
@@ -357,20 +347,12 @@ static inline t7 searchNext(t9 a1)
         u32 r18 = r11 + r17;
         
         r16 = (t7) {.p1 = r18, .p2 = r5};
-    } else {
-        bool_t r19 = (bool_t) {.boolean = r14 > r7};
-        t7 r20;
-        
-        if (r19.boolean)
-            r20 = (t7) {.p1 = r4, .p2 = r11};
-        else
-            r20 = (t7) {.p1 = r11, .p2 = r5};
-        r16 = r20;
-    }
+    } else
+        r16 = (t7) {.p1 = r4, .p2 = r11};
     
-    t7 r21 = r16;
+    t7 r19 = r16;
     
-    return r21;
+    return r19;
 }
 static inline u32 binarySearch(t8 a1)
 {

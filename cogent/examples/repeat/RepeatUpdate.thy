@@ -172,7 +172,6 @@ lemma urepeat_bod_step:
     \<Longrightarrow> urepeat_bod \<xi>' (Suc n) f g \<sigma> \<sigma>'' \<tau>a acc \<tau>o obsv ret'"
   apply (induct arbitrary: \<sigma>'' ret' rule: urepeat_bod.induct[of _ \<xi>' n f g \<sigma> \<sigma>' \<tau>a acc \<tau>o obsv ret])
    apply (clarsimp simp: urepeat_bod.simps)
-   apply blast
   apply clarsimp
   apply (erule urepeat_bod.elims; clarsimp)
   apply (rename_tac \<sigma>'' ret' \<xi> n f g \<sigma> \<sigma>' \<tau>a acc \<tau>o obsv ret b)

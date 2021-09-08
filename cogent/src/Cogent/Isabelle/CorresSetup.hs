@@ -79,7 +79,10 @@ cHeapTypeClass =
 
 localSetup :: String -> [String]
 localSetup cfile =
-  [ "local_setup \\<open> local_setup_val_rel_type_rel_put_them_in_buckets \"" ++ cfile ++ "\" [] \\<close>"
+  [ "(* Put manual type and value relations below here *)"
+  , "(* Put manual type and value relations above here *)"
+  , ""
+  ,	"local_setup \\<open> local_setup_val_rel_type_rel_put_them_in_buckets \"" ++ cfile ++ "\" [] \\<close>"
   , "local_setup \\<open> local_setup_instantiate_cogent_C_heaps_store_them_in_buckets \"" ++ cfile ++ "\" \\<close>"
   ]
 
@@ -118,6 +121,8 @@ locale thy cfile =
   , "  val_rel_unit_t_C_def"
   , "  val_rel_bool_t_C_def"
   , "  val_rel_fun_tag"
+  , "(* Put manual value relation definitions below here *)"  
+  , "(* Put manual value relation definitions above here *)"  
   , ""
   , "lemmas type_rel_simps[TypeRelSimp] ="
   , "  type_rel_word"
@@ -125,6 +130,8 @@ locale thy cfile =
   , "  type_rel_unit_def"
   , "  type_rel_unit_t_C_def"
   , "  type_rel_bool_t_C_def"
+  , "(* Put manual type relation definitions below here *)"  
+  , "(* Put manual type relation definitions above here *)"  
   , ""
   , "(* Generating the specialised take and put lemmas *)"
   , ""
