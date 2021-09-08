@@ -79,7 +79,7 @@ cHeapTypeClass =
 
 localSetup :: String -> [String]
 localSetup cfile =
-  [ "local_setup \\<open> local_setup_val_rel_type_rel_put_them_in_buckets \"" ++ cfile ++ "\" \\<close>"
+  [ "local_setup \\<open> local_setup_val_rel_type_rel_put_them_in_buckets \"" ++ cfile ++ "\" [] \\<close>"
   , "local_setup \\<open> local_setup_instantiate_cogent_C_heaps_store_them_in_buckets \"" ++ cfile ++ "\" \\<close>"
   ]
 
@@ -105,7 +105,7 @@ locale thy cfile =
   , "  \"heap_rel_ptr = heap_rel_meta is_valid heap\""
   , "  by (simp add: heap_rel_ptr_def[abs_def] heap_rel_meta_def[abs_def])"
   , ""
-  , "local_setup \\<open> local_setup_heap_rel \"" ++ cfile ++ "\" \\<close>"
+  , "local_setup \\<open> local_setup_heap_rel \"" ++ cfile ++ "\" [] [] \\<close>"
   , ""
   , "definition state_rel :: \"((funtyp, abstyp, ptrtyp) store \\<times> lifted_globals) set\""
   , "where"

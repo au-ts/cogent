@@ -17,7 +17,7 @@ begin
 ML\<open> (* local_setup_heap_rel *)
 local
 
-fun mk_heap_rel ctxt (uvals:uval list) =
+fun mk_heap_rel ctxt (uvals:uval list) other prims =
 
 (* mk_heap_rel makes the equation that defines heap relation for a given type.
  * For example, "heap_rel \<sigma> h \<equiv> (\<forall>(p :: t2_C ptr). heap_rel_ptr \<sigma> h p)". *)
@@ -32,10 +32,24 @@ fun mk_heap_rel ctxt (uvals:uval list) =
        Free ("\<sigma>", dummyT) $ Free ("h", dummyT) $ Bound 0));
   fun mk_conjcts [] = []
    |  mk_conjcts (ty_nm_C::ty_nm_Cs) = mk_a_conjct ty_nm_C :: mk_conjcts ty_nm_Cs;
+
+  fun mk_a_conjct' (ty, nm)  =
+   Const ("HOL.All", dummyT) $
+    Abs ("p", mk_pointer_ty ty,
+     (Syntax.read_term ctxt "heap_rel_meta" $
+       Syntax.read_term ctxt ("is_valid_" ^ nm) $
+       Syntax.read_term ctxt ("heap_" ^ nm) $ 
+       Free ("\<sigma>", dummyT) $ Free ("h", dummyT) $ Bound 0));
+  fun mk_conjcts' [] = []
+   |  mk_conjcts' (ty_nm_C::ty_nm_Cs) = mk_a_conjct' ty_nm_C :: mk_conjcts' ty_nm_Cs;
+  val rhs' = mk_conjcts' prims
+
   (* We have heap_rels for URecords only.*)
   val ty_nm_Cs = uvals |> get_urecords |> map get_ty_nm_C;
+  val rhs'' = mk_conjcts (ty_nm_Cs @ other)
+
   (* FIXME later: hey, Yutaka. rhs is a bit stupid.*)
-  val rhs= if mk_conjcts ty_nm_Cs = [] then @{term "True"} else mk_conjcts ty_nm_Cs |> mk_HOL_conjs ;
+  val rhs= if (rhs' = []) orelse (rhs'' = []) then @{term "True"} else rhs'' @ rhs' |>mk_HOL_conjs ;
   val heap_rel = Free ("heap_rel", dummyT);
   val lhs = strip_atype @{term "\<lambda> heap_rel . heap_rel \<sigma> h"} $ heap_rel |> strip_atype;
  in
@@ -44,7 +58,7 @@ fun mk_heap_rel ctxt (uvals:uval list) =
 
 in
 
-fun local_setup_heap_rel file_nm lthy =
+fun local_setup_heap_rel file_nm other other' lthy =
 (* local_setup_heap_rels defines and register a number of heap_rels
  * when called inside local_setup quotation.*)
  let
@@ -53,7 +67,7 @@ fun local_setup_heap_rel file_nm lthy =
              |> map (unify_usum_tys o unify_sigils)
              |> rm_redundancy
              |> get_uvals_for_which_ac_mk_heap_getters file_nm thy;
-  val heap_rel = mk_heap_rel lthy uvals;
+  val heap_rel = mk_heap_rel lthy uvals other other';
   val lthy' = Specification.definition NONE [] [] ((Binding.name ("heap_rel_def"), []), heap_rel) lthy |> snd;
  in lthy' end;
 

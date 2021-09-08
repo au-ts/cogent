@@ -38,8 +38,27 @@ end
 class cogent_C_heap = cogent_C_val +
   fixes is_valid    :: "lifted_globals \<Rightarrow> 'a ptr \<Rightarrow> bool"
   fixes heap        :: "lifted_globals \<Rightarrow> 'a ptr \<Rightarrow> 'a"
-local_setup \<open> local_setup_val_rel_type_rel_put_them_in_buckets "main_pp_inferred.c" \<close>
+
+(* ------------------- *)
+(*This is where the manual editing is taking place. 
+  Manually defining the type relation and value relation for word arrays *)
+
+instantiation WordArray_u32_C :: cogent_C_val
+begin
+definition type_rel_WordArray_u32_C_def: 
+  "type_rel typ (_ :: WordArray_u32_C itself) \<equiv> typ = RCon ''WordArray'' [RPrim (Num U32)]"
+definition val_rel_WordArray_u32_C_def:
+  "val_rel uv (x :: WordArray_u32_C) \<equiv> (\<exists>len arr. uv = UAbstract (UWA (TPrim (Num U32)) len arr) \<and> 
+                                                  len = (SCAST(32 signed \<rightarrow> 32)(len_C x)) \<and>
+                                                  arr = ptr_val (values_C x))"
+instance ..
+end
+
+(*----------*)
+
+local_setup \<open> local_setup_val_rel_type_rel_put_them_in_buckets "main_pp_inferred.c" [UAbstract "WordArray_u32"]\<close>
 local_setup \<open> local_setup_instantiate_cogent_C_heaps_store_them_in_buckets "main_pp_inferred.c" \<close>
+
 locale Generated = "main_pp_inferred" + update_sem_init
 begin
 
@@ -60,7 +79,7 @@ lemma heap_rel_ptr_meta:
   "heap_rel_ptr = heap_rel_meta is_valid heap"
   by (simp add: heap_rel_ptr_def[abs_def] heap_rel_meta_def[abs_def])
 
-local_setup \<open> local_setup_heap_rel "main_pp_inferred.c" \<close>
+local_setup \<open> local_setup_heap_rel "main_pp_inferred.c" ["WordArray_u32_C"] [("32 word", "w32")]\<close>
 
 definition state_rel :: "((funtyp, abstyp, ptrtyp) store \<times> lifted_globals) set"
 where
@@ -73,6 +92,7 @@ lemmas val_rel_simps[ValRelSimp] =
   val_rel_unit_t_C_def
   val_rel_bool_t_C_def
   val_rel_fun_tag
+  val_rel_WordArray_u32_C_def
 
 lemmas type_rel_simps[TypeRelSimp] =
   type_rel_word
@@ -80,6 +100,7 @@ lemmas type_rel_simps[TypeRelSimp] =
   type_rel_unit_def
   type_rel_unit_t_C_def
   type_rel_bool_t_C_def
+  type_rel_WordArray_u32_C_def
 
 (* Generating the specialised take and put lemmas *)
 
