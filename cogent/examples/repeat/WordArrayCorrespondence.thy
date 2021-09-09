@@ -7,7 +7,7 @@
   This file also contains the various abstractions for the word array functions.
 *)
 
-theory WordArray_Abstractions
+theory WordArrayCorrespondence
   imports 
     "build/Generated_AllRefine"
     WordArrayUpdate
@@ -16,36 +16,7 @@ theory WordArray_Abstractions
     CogentTypingHelper
 begin
 
-
-
 (*
-fun zero_num_lit :: "num_type \<Rightarrow> lit"
-  where
-"zero_num_lit U8 = LU8 0" |
-"zero_num_lit U16 = LU16 0" |
-"zero_num_lit U32 = LU32 0" |
-"zero_num_lit U64 = LU64 0"
-
-fun funarg_type :: "type \<Rightarrow> type"
-  where
-"funarg_type (TFun a b) = a" |
-"funarg_type _ = undefined"
-
-fun funret_type :: "type \<Rightarrow> type"
-  where
-"funret_type (TFun a b) = b" |
-"funret_type _ = undefined"
-
-fun present_type :: "name \<times> type \<times> record_state \<Rightarrow> type"
-  where
-"present_type (_, t, Present) = t" |
-"present_type (_, _, Taken) = undefined"
-
-fun rec_type_list :: "type \<Rightarrow> (name \<times> type \<times> record_state) list"
-  where
-"rec_type_list (TRecord ts _) = ts" |
-"rec_type_list _ = undefined"
-
 section "Abbreviations"
 
 abbreviation "foldmap_funarg_type \<Xi>' x 
@@ -60,27 +31,8 @@ abbreviation "foldmap_acc_type \<Xi>' x
 abbreviation "foldmap_obsv_type \<Xi>' x 
   \<equiv> (present_type \<circ> (\<lambda>xs. xs ! 5) \<circ> rec_type_list \<circ> prod.fst \<circ> prod.snd \<circ> \<Xi>') x"
 *)
-(*
-section "Helper Frame Lemmas"
 
-lemma valid_ptr_not_in_frame_same:
-  "\<lbrakk>frame \<sigma> w \<sigma>' w'; p \<notin> w; \<sigma> p = option.Some x\<rbrakk> \<Longrightarrow> \<sigma>' p = option.Some x"
-  apply (clarsimp simp: frame_def)
-  apply (erule_tac x = p in allE)
-  apply clarsimp
-  done
-
-lemma readonly_not_in_frame:
-  "\<lbrakk>frame \<sigma> w \<sigma>' w'; \<sigma> p = option.Some v; p \<notin> w\<rbrakk> \<Longrightarrow> p \<notin> w'"
-  apply (frule_tac p = p in valid_ptr_not_in_frame_same; simp?)
-  by (clarsimp simp: frame_def)
-
-
-*)
-
-
-
-
+section "Base Level Locale"
 
 locale level0 =
   upd: level0_update +
@@ -98,11 +50,6 @@ sublocale level0 \<subseteq> correspondence upd.l0u_repr val.l0v_typing upd.l0u_
   by simp+
 
 section "WordArray Locale Definition"
-
-
-
-
-
 
 locale WordArray = 
   l0 : level0 +
@@ -252,7 +199,6 @@ case (TRecord x1a x2a)
 qed (fastforce elim!: u_v_tfunE u_v_tprimE u_v_tsumE u_v_tproductE u_v_tunitE
               intro!: l0.upd_val_rel_upd_val_rel_record.intros
                 simp: find_None_iff)+
-
 
 section "Word Array Methods"
 

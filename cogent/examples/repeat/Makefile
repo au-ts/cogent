@@ -38,7 +38,7 @@ all:
 	    --dist-dir=$(BUILDDIR) \
 		--entry-funcs=entrypoints.cfg $(SRC) 
 	cp build/generated.table build/main_pp_inferred.table
-	sed -i "s/^typedecl 'a WordArray.*/type_synonym 'a WordArray = \"'a list \"/" "$(BUILDDIR)/Generated_ShallowShared.thy"
+	sed -i "s/^typedecl 'a WordArray.*/datatype 'a WordArray = SWA \"'a list \"/" "$(BUILDDIR)/Generated_ShallowShared.thy"
 	sed -i "/^(\* Put manual type and value relations below.*/a instantiation WordArray_u32_C :: cogent_C_val\nbegin\ndefinition type_rel_WordArray_u32_C_def:\n  \"type_rel typ (_ :: WordArray_u32_C itself) \\\<equiv> typ = RCon ''WordArray'' \[RPrim (Num U32)\]\"\ndefinition val_rel_WordArray_u32_C_def:\n  \"val_rel uv (x :: WordArray_u32_C) \\\<equiv> (\\\<exists>len arr. uv = UAbstract (UWA (TPrim (Num U32)) len arr) \\\<and> len = (SCAST(32 signed \\\<rightarrow> 32)(len_C x)) \\\<and> arr = ptr_val (values_C x))\"\ninstance ..\nend" "$(BUILDDIR)/Generated_CorresSetup.thy"
 	sed -i "s/^local_setup \\\<open> local_setup_val_rel_type_rel_put_them_in_buckets \"main_pp_inferred\.c\" \[\] \\\<close>.*/local_setup \\\<open> local_setup_val_rel_type_rel_put_them_in_buckets \"main_pp_inferred.c\" \[UAbstract \"WordArray_u32\"\] \\\<close>/" "$(BUILDDIR)/Generated_CorresSetup.thy"
 	sed -i "s/^local_setup \\\<open> local_setup_heap_rel \"main_pp_inferred\.c\" \[\] \[\] \\\<close>.*/local_setup \\\<open> local_setup_heap_rel \"main_pp_inferred.c\" \[\"WordArray_u32_C\"\] \[(\"32 word\", \"w32\")\] \\\<close>/" "$(BUILDDIR)/Generated_CorresSetup.thy"
