@@ -1,5 +1,8 @@
 theory RepeatMono
-  imports Cogent.Mono RepeatValue
+  imports 
+    Cogent.Mono
+    RepeatValue
+    MonoHelper
 begin
 
 section "Repeat loop definition"

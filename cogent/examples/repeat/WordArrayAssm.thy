@@ -1,6 +1,8 @@
 theory WordArrayAssm
   imports
-    WordArray_Abstractions
+    WordArrayCorrespondence
+    WordArrayMono
+    WordArrayScorres
     "build/Generated_AllRefine"
 begin
 

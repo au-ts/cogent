@@ -336,8 +336,7 @@ lemma rename_mono_prog_\<xi>m0_\<xi>p0:
 lemma rename_mono_prog_\<Xi>_\<xi>m1_\<xi>p1:
   "rename_mono_prog rename \<Xi> \<xi>m1 \<xi>p1"
   unfolding rename_mono_prog_def
-  apply (clarsimp simp: \<xi>m1_def \<xi>p1_def)
-  apply (intro conjI impI; clarsimp?)
+  apply (clarsimp simp: \<xi>m1_def \<xi>p1_def)  apply (intro conjI impI; clarsimp?)
     apply (subst (asm) rename_def;
            clarsimp simp: assoc_lookup.simps split: if_splits;
            rule prepeat_monoexpr_correct[OF _ \<xi>m0_matches_\<Xi> rename_mono_prog_\<xi>m0_\<xi>p0]; simp?)+
