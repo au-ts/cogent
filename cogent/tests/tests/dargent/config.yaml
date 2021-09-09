@@ -16,6 +16,7 @@
     - pass_layout-prims.cogent
     - pass_lrec-reorder.cogent
     - pass_variant-tag-size.cogent
+    - pass_pragma-gsetters.cogent
   expected_result: pass
   flags:
     - -g

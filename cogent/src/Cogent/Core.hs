@@ -43,7 +43,8 @@ module Cogent.Core
   , module Cogent.Dargent.Core
   ) where
 
-import Cogent.Common.Syntax
+import Cogent.Common.Syntax hiding (Pragma)
+import qualified Cogent.Common.Syntax as CS (Pragma)
 import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Dargent.Allocation (BitRange)
@@ -68,6 +69,10 @@ import Data.Traversable(traverse)
 import GHC.Generics (Generic)
 import Text.PrettyPrint.ANSI.Leijen as L hiding (tupled, indent, (<$>))
 import qualified Text.PrettyPrint.ANSI.Leijen as L ((<$>))
+
+
+type Pragma  b = CS.Pragma (SupposedlyMonoType b)
+type Pragma_ b = CS.Pragma (Type 'Zero b)
 
 data Type t b
   = TVar (Fin t)
@@ -97,6 +102,10 @@ instance (Generic b, Binary b) => Binary (Type 'Zero b)
 
 
 data SupposedlyMonoType b = forall (t :: Nat) (v :: Nat). SMT (Type t b)
+
+instance Show b => Show (SupposedlyMonoType b) where
+  show (SMT t) = show t
+
 
 isTVar :: Type t b -> Bool
 isTVar (TVar _) = True

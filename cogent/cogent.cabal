@@ -16,8 +16,7 @@ version:             3.0.1
 -- license-file:        LICENSE
 
 author:              The Cogent Team and Contributors
-maintainer:          Zilin Chen <zilin.chen@data61.csiro.au>
-                     Vincent Jackson <v.jackson@unsw.edu.au>
+maintainer:          Zilin Chen <z3350478@unsw.edu.au>
 homepage:            https://ts.data61.csiro.au/projects/TS/cogent.pml
 bug-reports:         https://github.com/NICTA/cogent/issues
 -- copyright:

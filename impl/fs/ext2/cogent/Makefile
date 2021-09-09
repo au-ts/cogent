@@ -172,7 +172,8 @@ all: .c-gen $(OBJ)
 		--dist-dir=$(DIST_DIR) \
 		--infer-c-funcs="$(ACFILES)" \
 		--proof-name=$(PROOF_ID) \
-		--proof-input-c="wrapper_pp_inferred.c"
+		--proof-input-c="wrapper_pp_inferred.c" \
+		--fno-simplify-shallow-tuples
 	$(Q)touch $@
 
 # compile Linux kernel module for file system

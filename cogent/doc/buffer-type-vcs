@@ -1,0 +1,46 @@
+The verification conditions for the abstract functions of the Buffer type.
+
+Assume given: Buffer, BItem and BTail as abstract types.
+
+We want to give side conditions for:
+
+focus_buffer : all (a,b).(Buffer, b!,
+                   #{ obj : (BItem, BTail), obsv : b!} -> (a, BItem, BTail)) ->
+  (a, Buffer)
+
+which decomposes a buffer object into:
+
+  1) an iterable item object initially pointing to the beginning of the
+     buffer and spanning the initialised portion of the buffer object
+
+  2) An object representing the uninitialised portion of the buffer
+     object
+
+Thus the combining 1) and 2) should represent the original buffer.
+
+Since focus_buffer is higher-order we need to state some guarantees
+about any calls to the function argument and the result returned by the
+overall focus operation.
+
+vc focus: all (x:Buffer ~capacity A) F i t sz, is_valid x sz i t =>
+   exists! i',t',x',sz'.F i t = (a,i',t') /\ focus_buffer x F = (a,x') /\ 
+   is_valid sz' x' i' t'
+
+is_valid (x:Buffer ~cap A) sz i t := x = i ++ t /\
+   length i = sz x /\ length t = capacity - sz
+
+A possible abstract specification for the buffer, item and tail objects
+could be lists which are related as specified in the is_valid predicate.
+
+Another abstract function to consider is:
+
+next : (BItem, BTail!) -> <None BItem | Some BItem>
+
+which retrieves the next item given both the current item and the
+tail. The function should return the next item on success (Some), or the
+given item if it is the last initialised item, leading to the following
+properties:
+
+vc next_prop_none: all x y t, next (x,t) = None y => x = y
+vc next_prop_some: all x y t, next (x,t) = Some y => x < y.
+

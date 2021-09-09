@@ -1,4 +1,4 @@
-[![Build Status](https://api.travis-ci.org/NICTA/cogent.svg?branch=master)](https://travis-ci.org/NICTA/cogent)
+[![Build Status](https://github.com/au-ts/cogent/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/au-ts/cogent/actions/workflows/ci.yml)
 [![Documentation Status](https://readthedocs.org/projects/cogent/badge/?version=latest)](https://cogent.readthedocs.io/en/latest/?badge=latest)
 
 # Cogent: Code and Proof Co-Generation

@@ -151,7 +151,8 @@ hs:
                 --infer-c-funcs="$(ACFILES)" \
 								--ext-types="$(VERIF_TYPES)" \
                 --proof-name=$(PROOF_ID) \
-                --proof-input-c="wrapper_pp_inferred.c"
+                --proof-input-c="wrapper_pp_inferred.c" \
+		--fno-simplify-shallow-tuples
 
 
 # compile Linux kernel module for file system

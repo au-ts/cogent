@@ -7,7 +7,7 @@
 if [[ ! -f "plat/verification/BilbyFs_AllRefine.thy" ]]
 then
     echo "Error - Cannot find BilbyFs_AllRefine.thy"
-    exit
+    exit 1
 fi
 
 export L4V_ARCH="ARM";

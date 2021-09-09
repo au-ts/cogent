@@ -18,8 +18,8 @@ module Cogent.Dargent.CodeGen where
 import Cogent.C.Monad
 import Cogent.C.Type (genType, typeCId, simplifyType)
 import Cogent.C.Syntax
-import Cogent.Common.Syntax (FieldName, FunName, VarName, Size)
-import Cogent.Common.Types (Sigil (..))
+import Cogent.Common.Syntax (FieldName, FunName, GetOrSet(..), VarName, Size)
+import Cogent.Common.Types (Sigil(..))
 import Cogent.Compiler
   ( __fixme
   , __impossible
@@ -628,5 +628,4 @@ intTypeForType (CIdent t)
   | t `elem` ["u8", "u16", "u32", "u64"]  = CIdent t
 intTypeForType _                          = archCTy  -- embedded boxed abstract type/record
 
-data GetOrSet = Get | Set
 type IsStruct = Bool

@@ -107,7 +107,7 @@ def kill_family(parent_pid):
 # Return a tuple of (success, log, time_taken, memory_usage).
 #
 # Log only contains the output if verbose is *false*; otherwise, the
-# log is output to stdout where we can't easily get  to it.
+# log is output to stdout where we can't easily get to it.
 #
 def run_test(test, verbose=False):
     # Construct the base command.
@@ -138,8 +138,8 @@ def run_test(test, verbose=False):
     try:
         process = subprocess.Popen(command,
                 stdout=output, stderr=subprocess.STDOUT, stdin=subprocess.PIPE,
-                cwd=test.cwd)
-        lines_iter = iter(process.stdout.readline, b"")
+                cwd=test.cwd, text=True)
+        lines_iter = iter(process.stdout.readline, "")  # pytype: disable=attribute-error
         if verbose:
             for line in lines_iter:
                 print(line, end='')
@@ -262,6 +262,8 @@ def main():
             help="print test output")
     parser.add_argument("--limit", action="store",
             help="set line limit for logs", default=40)
+    parser.add_argument("-t", "--transitive", action="store_true",
+            help="also run dependencies transitively (only effective when TESTS specified)")
     parser.add_argument("tests", metavar="TESTS",
             help="tests to run (defaults to all tests)",
             nargs="*")
@@ -275,22 +277,26 @@ def main():
         # Fetch legacy tests.
         tests = testspec.legacy_testspec(args.directory)
 
-    # List test names if requested.
-    if args.list:
-        for t in tests:
-            print(t.name)
-        sys.exit(0)
-
     # Calculate which tests should be run.
-    tests_to_run = []
+    tests_to_run = []  # type: list[testspec.Test] 
     if len(args.tests) == 0:
         tests_to_run = tests
     else:
-        desired_names = set(args.tests)
+        desired_names = set(args.tests)  # type: set[str]
         bad_names = desired_names - set([t.name for t in tests])
         if len(bad_names) > 0:
             parser.error("Unknown test names: %s" % (", ".join(sorted(bad_names))))
         tests_to_run = [t for t in tests if t.name in desired_names]
+
+    # Automatically include dependencies.
+    if args.transitive:
+        tests_to_run = testspec.add_deps(tests_to_run, tests)
+
+    # List test names if requested.
+    if args.list:
+        for t in tests_to_run:
+            print(t.name)
+        sys.exit(0)
 
     # If running at least one test, and psutil is not available, print a warning.
     if len(tests_to_run) > 0 and not PS_UTIL_AVAILABLE:
@@ -305,10 +311,10 @@ def main():
 
     # Run the tests.
     print("Running %d test(s)...\n" % len(tests_to_run))
-    failed_tests = set()
+    failed_tests = set()  #type: set[testspec.Test]
     failed_test_log = []
     for t in tests_to_run:
-        if len(t.depends & failed_tests) > 0:
+        if len(t.depends & failed_tests) > 0:  # tests that are in both
             print_test_line(t.name, ANSI_YELLOW, "skipped", None, None)
             failed_tests.add(t.name)
             continue
