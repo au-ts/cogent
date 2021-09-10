@@ -15,16 +15,14 @@ include "ostore.cogent"
 set_read_only_mode : FsopState -> FsopState
 set_read_only_mode(fsop_st {is_ro}) = fsop_st { is_ro = True }
 
-obj_dentry_new_init: (SysState, VfsIno, (WordArray U8)!, U8) -> RR SysState ObjDentry ErrCode
+obj_dentry_new_init: (SysState, VfsIno, CString!, U8) -> RR SysState ObjDentry ErrCode
 obj_dentry_new_init(ex, ino, name, dtype) =
-  newObjDentry(ex)
-  | Error ex -> (ex, Error eNoMem)
-  | Success (ex, odent) ->
-    wordarray_clone[U8] (ex, name)
-    | Error ex -> (freeObjDentry(ex, odent), Error eNoMem)
-    | Success (ex, name) ->
-      let nlen = u32_to_u16(wordarray_length[U8] name) !name
-      in (ex, Success (odent {dtype,ino,nlen,name}))
+  let nlen = wordarray_length[U8] name
+  in newObjDentry(ex, nlen)
+     | Error ex -> (ex, Error eNoMem)
+     | Success (ex, odent) ->
+         let odent = set_ObjDentry_name (odent, name, nlen)
+         in (ex, Success (odent {dtype,ino,nlen = u32_to_u16 nlen}))
 
 vnode_init_perm: (SysState, VfsInode!, VfsInode, VfsMode) -> (SysState, VfsInode)
 vnode_init_perm (ex, vdir, inode, mode) =
@@ -101,7 +99,7 @@ read_or_create_dentarr(ex, mount_st, ostore_st, oid) =
           newObjDentarr ex
           | Error ex ->
             let ex = freeObj(ex, obj)
-            and ex = array_free[ObjDentry] #{arr=entries, f=deep_freeObjDentry, ex}
+            and ex = array_free[ObjDentry] #{arr=entries, f=freeObjDentry, ex}
             in ((ex, ostore_st), Error eNoMem)
           | Success (ex, dentarr) ->
             let nb_dentry:U32 = 0
@@ -122,7 +120,7 @@ add_dentry_modifier #{oelem=old_entry, acc=(ex, opt_newentry)} =
 free_opt_ObjDentry : (SysState, Option ObjDentry) -> SysState
 free_opt_ObjDentry (ex, opt_entry) =
   opt_entry
-  | Some old -> deep_freeObjDentry(ex, old)
+  | Some old -> freeObjDentry(ex, old)
   | None -> ex
 
 dentarr_add_dentry: (SysState, ObjDentarr, VfsInode!, (WordArray U8)!, U8) -> RR (SysState, ObjDentarr) () ErrCode
@@ -148,11 +146,11 @@ dentarr_add_dentry(ex, odent, vnode, name, dtype) =
       and ex = free_opt_ObjDentry (ex, opt_entry)
       in ((ex, odent {id, nb_dentry, entries}), Success ())
 
-del_dentry_modifier: #{elem:ObjDentry, acc: SysState, obsv: (WordArray U8)!} -> RR SysState () ObjDentry
+del_dentry_modifier: #{elem:ObjDentry, acc: SysState, obsv: CString!} -> RR SysState () ObjDentry
 del_dentry_modifier #{elem=dentry, acc=ex, obsv=name} =
-  let same_names = wordarray_cmp(name, dentry.name) !dentry in
+  let same_names = wordarray_cmp(name, get_ObjDentry_name_bang dentry) !dentry in
   if same_names then
-    let ex = deep_freeObjDentry(ex, dentry)
+    let ex = freeObjDentry(ex, dentry)
     in (ex, Success ())
   else
     (ex, Error dentry)
@@ -766,7 +764,7 @@ fsop_lookup #{ex, fs_st = fs_st {mount_st, ostore_st}, vdir, name} =
 
 find_name: ArrayFoldF ObjDentry () CString VfsIno
 find_name #{elem=de, acc=_, obsv=name} =
-  if wordarray_cmp (de.name, name) then
+  if wordarray_cmp (get_ObjDentry_name_bang de, name) then
     Break (de.ino)
   else
     Iterate ()
@@ -865,7 +863,7 @@ get_rdctx(ex, opt_rdctx, vdir) =
         newObjDentarr ex
         | Error ex ->
           let ex = freeBilbyFsReaddirContext(ex, rdctx)
-          and ex = array_free[ObjDentry] #{arr=entries, f=deep_freeObjDentry, ex}
+          and ex = array_free[ObjDentry] #{arr=entries, f=freeObjDentry, ex}
           in Error (eNoMem, ex)
         | Success (ex, dentarr) ->
           let id:ObjId = obj_id_inode_mk (vfs_inode_get_ino vdir)
@@ -943,7 +941,7 @@ emit_dir #{elem=dentry, acc=(vctx, _), obsv=()} =
   cogent_debug "emit_dir " ;
   -- cogent_debug dentry.name ;
   cogent_debug "\n") ;
-  vfs_dir_emit #{dirctx=vctx , name=dentry.name, ino=dentry.ino, ftype=dtype_to_vtype(dentry.dtype)}
+  vfs_dir_emit #{dirctx=vctx , name=get_ObjDentry_name_bang dentry, ino=dentry.ino, ftype=dtype_to_vtype(dentry.dtype)}
   | Break #{dirctx=vctx} -> (vctx, True)
   | Iterate #{dirctx=vctx} -> (vctx, False)
 

@@ -72,7 +72,7 @@ solve ks ms c = let gs     = makeGoals [] c
                              <> debug  "Sink/Float" printC sinkfloat
                              <> debugL "Defaults"   printC defaults
 #ifdef BUILTIN_ARRAYS
-                             <> debug  "SMT"        printC smt
+                             -- <> debug  "SMT"        printC smt
 #endif
   -- [amos] Type-solver changes I made:
   -- - Simplify rule for `t :=: t` to `Solved t` (see Solver/Simplify.hs)

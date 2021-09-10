@@ -397,17 +397,11 @@ serialise_ObjUnion(buf, offs, ou, olen) =
   | TObjSummary obj -> serialise_ObjSummary(buf, offs, obj)
   | TObjPad _ -> serialise_ObjPad(buf, offs, olen)
 
-{-# cinline deep_freeObjDentry #-}
-deep_freeObjDentry: (SysState, ObjDentry) -> SysState
-deep_freeObjDentry(ex, obj {name}) =
-  let ex = freeObjDentry(ex, obj)
-  in wordarray_free[U8](ex, name)
-
 {-# cinline deep_freeObjDentarr #-}
 deep_freeObjDentarr: (SysState, ObjDentarr) -> SysState
 deep_freeObjDentarr(ex, obj {id,nb_dentry,entries}) =
   let ex = freeObjDentarr(ex, obj)
-  in array_free[ObjDentry] #{arr=entries, f=deep_freeObjDentry, ex}
+  in array_free[ObjDentry] #{arr=entries, f=freeObjDentry, ex}
 
 {-# cinline deep_freeObjUnion #-}
 deep_freeObjUnion: (SysState, ObjUnion) -> SysState
@@ -488,8 +482,12 @@ type ObjDentry = {
   dtype : U8,
   -- pad : U8,
   nlen : U16,
-  name : WordArray U8
+  name : U8#[0]
 }
+
+get_ObjDentry_name_bang : ObjDentry! -> CString!
+set_ObjDentry_name : (ObjDentry take (..), CString!, U32) -> (ObjDentry take (..)) put (name)
+
 
 bilbyFsObjDentryHeaderSize:U32
 bilbyFsObjDentryHeaderSize = 8
@@ -510,19 +508,15 @@ bilbyFsObjDentryHeaderSize = 8
    r = serialise_ObjDentry(buf, offs, dentry) /\
    PObjDentry (fst r) offs = dentry /\ snd r = offs + 8 + nlen
 -}
-serialise_ObjDentry:(Buffer, BufOffs, ObjDentry!) -> (Buffer, BufOffs)
-serialise_ObjDentry(buf, offs, dentry) =
-  print_ObjDentry dentry ;
-  let buf = serialise_le32(buf, offs, dentry.ino)
-  and buf = serialise_u8(buf, offs+4, dentry.dtype)
-  and buf = serialise_u8(buf, offs+5, bilbyFsPadByte)
-  and buf = serialise_le16(buf, offs+6, dentry.nlen)
-  and buf = serialise_wordarray_U8(buf, offs+8, dentry.name)
-  in (buf, offs + bilbyFsObjDentryHeaderSize + wordarray_length[U8] dentry.name)
 
-{-# cinline serialise_size_ObjDentry #-}
-serialise_size_ObjDentry: ObjDentry! -> U32
-serialise_size_ObjDentry dent = bilbyFsObjDentryHeaderSize + wordarray_length[U8] dent.name
+memcpy_s_ObjDentry :  (Buffer, BufOffs, ObjDentry!) -> Buffer
+memcpy_d_ObjDentry : (SysState, Buffer!, ObjDentry take (..), BufOffs, U32) -> (SysState, ObjDentry)
+
+serialise_ObjDentry : (Buffer, BufOffs, ObjDentry!) -> (Buffer, BufOffs)
+serialise_ObjDentry (buf, off, dentry) =
+  let off' = off + bilbyFsObjDentryHeaderSize + upcast (dentry.nlen)
+  and buf' = memcpy_s_ObjDentry (buf, off, dentry)
+   in (buf', off')
 
 {-
   precond:
@@ -539,9 +533,7 @@ serialise_size_ObjDentry dent = bilbyFsObjDentryHeaderSize + wordarray_length[U8
 -}
 deserialise_ObjDentry: (SysState, Buffer!, BufOffs, U32) -> R (SysState, ObjDentry, BufOffs) (ErrCode, SysState)
 deserialise_ObjDentry(ex, buf, offs, end_offs) =
-  let ino = deserialise_le32(buf, offs)
-  and dtype = deserialise_u8(buf, offs+4)
-  and nlen = deserialise_le16(buf, offs+6)
+  let nlen = deserialise_le16(buf, offs+6)
 
  -- There is a constrain on nlen to check that it is within the buffer bound.
  -- This has to be checked as we deserialise because nlen
@@ -569,17 +561,14 @@ deserialise_ObjDentry(ex, buf, offs, end_offs) =
     cogent_debug ")\n") ;
     Error (eInval, ex)
   else
+    let Success (ex, dentry) <= newObjDentry (ex, nlen32)
+          |> Error ex -> Error (eNoMem, ex)
     -- deserialise_wordarray_U8 guarantees that: length name = nlen
-    let Success (ex, name) <= deserialise_wordarray_U8(ex, buf, offs + bilbyFsObjDentryHeaderSize, nlen32)
-          |> Error (e, ex) -> WHEN_DEBUGGING(cogent_debug "Error deserialise_wordarray_U8 \n");
-                              Error (e, ex)
-    and Success (ex, dentry) <= newObjDentry ex
-          |> Error ex -> let ex = wordarray_free[U8](ex, name)
-                          in Error (eNoMem, ex)
-    and dentry = dentry {ino, dtype, nlen, name}
+    and (ex, dentry) = memcpy_d_ObjDentry (ex, buf, dentry, offs, bilbyFsObjDentryHeaderSize + nlen32)
      in Success (ex, dentry, offs + bilbyFsObjDentryHeaderSize + nlen32)
 
-newObjDentry: SysState -> R (SysState, ObjDentry take(..)) SysState
+-- it also takes the size of the flexible array member.
+newObjDentry: (SysState, U32) -> R (SysState, ObjDentry take(..)) SysState
 freeObjDentry: (SysState, ObjDentry take (..)) -> SysState
 
 type ObjDentarr = {
@@ -619,7 +608,7 @@ serialise_ObjDentarr(buf, offs, dentarr) =
 {-# cinline serialise_size_Arr_ObjDentry_f #-}
 serialise_size_Arr_ObjDentry_f: #{elem:ObjDentry!, acc:U32, obsv:()} -> U32
 serialise_size_Arr_ObjDentry_f #{elem=dentry,acc=sz, obsv=()} =
-  sz + serialise_size_ObjDentry(dentry)
+  sz + bilbyFsObjDentryHeaderSize + upcast dentry.nlen
 
 {-# cinline serialise_size_Array_ObjDentry #-}
 serialise_size_Array_ObjDentry: (Array ObjDentry)! -> U32
@@ -634,7 +623,7 @@ serialise_size_ObjDentarr dentarr = bilbyFsObjDentarrHeaderSize + serialise_size
 deep_freeOptionObjDentry: (SysState, Option ObjDentry) -> SysState
 deep_freeOptionObjDentry (ex, opt_dent) =
   opt_dent | None -> ex
-           | Some obj -> deep_freeObjDentry(ex, obj)
+           | Some obj -> freeObjDentry(ex, obj)
 
 -- #{oelem:Option ObjDentry, acc: (SysState, U32), obsv: Buffer!} -> LoopResult (Option ObjDentry, (SysState, U32)) (Option ObjDentry, (ErrCode, SysState))
 loop_deserialise_ObjDentry: ArrayMapF ObjDentry (SysState, U32) (Buffer!,U32) (ErrCode, SysState)
@@ -664,7 +653,7 @@ deserialise_Array_ObjDentry(ex, buf, offs, nb_dentry, end_offs) =
     array_map[ObjDentry, (SysState, U32), (Buffer!,U32), (ErrCode, SysState)]
       #{arr, frm=0, to=nb_dentry, f=loop_deserialise_ObjDentry, acc=(ex, offs), obsv=(buf,end_offs)}
     | Break (arr, (err, ex)) ->
-      let ex = array_free[ObjDentry] #{arr, f=deep_freeObjDentry, ex}
+      let ex = array_free[ObjDentry] #{arr, f=freeObjDentry, ex}
       in Error (err, ex)
     | Iterate (arr, (ex, offs)) ->
       Success (ex, arr, offs)
@@ -682,7 +671,7 @@ deserialise_ObjDentarr(ex, buf, offs, olen) =
   | Success (ex, entries, offs) ->
     newObjDentarr ex
     | Error ex ->
-      let ex = array_free[ObjDentry] #{arr=entries, f=deep_freeObjDentry, ex}
+      let ex = array_free[ObjDentry] #{arr=entries, f=freeObjDentry, ex}
       in Error (eNoMem, ex)
     | Success (ex, dentarr) ->
       let dentarr = dentarr {id,nb_dentry,entries}
