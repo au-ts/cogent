@@ -34,7 +34,7 @@ GEN_ALLOC(FsState)
 GEN_ALLOC(BilbyFsReaddirContext)
 GEN_ALLOC(FsmState)
 GEN_ALLOC(ObjSummary)
-GEN_ALLOC(ObjDentry)
+// GEN_ALLOC(ObjDentry)
 GEN_ALLOC(ObjDentarr)
 GEN_ALLOC(ObjSuper)
 GEN_ALLOC(ObjInode)
@@ -46,6 +46,28 @@ GEN_ALLOC(UbiVolInfo)
 GEN_ALLOC(UbiDevInfo)
 GEN_ALLOC(VfsInode)
 GEN_ALLOC(Buffer)
+
+$ty:(R (SysState, ObjDentry) SysState) newObjDentry ($ty:((SysState, U32)) args)
+{
+  $ty:(R (SysState, ObjDentry) SysState) ret;
+  ret.Success.p2 = kmalloc(sizeof(*ret.Success.p2) + args.p2);
+  if (ret.Success.p2 == NULL) {
+    ret.tag = TAG_ENUM_Error;
+    ret.Error = args.p1;
+  } else {
+    ret.tag = TAG_ENUM_Success;
+    ret.Success.p1 = args.p1;
+  }
+  return ret;
+}
+
+$ty:(SysState) freeObjDentry ($ty:((SysState, ObjDentry)) args)
+{
+  kfree(args.p2);
+  return args.p1;
+}
+
+
 /*
 $ty:(R (SysState, FsState') SysState) $id:(newFsState')($ty:(SysState) ex) 
 { 

@@ -138,30 +138,32 @@ validateType' t = do
 
 #ifdef BUILTIN_ARRAYS
     TArray te l s tkns -> do
-      x <- freshEVar (T u32) (TermInType l (RT t) ?loc)
-      traceTc "gen" (text "unifier for array length" <+> pretty l L.<$> 
-                     text "is" <+> pretty x)
+      -- x <- freshEVar (T u32) (TermInType l (RT t) ?loc)
+      -- traceTc "gen" (text "unifier for array length" <+> pretty l L.<$> 
+      --                text "is" <+> pretty x)
       (cl,l') <- cg (rawToLocE ?loc l) (T u32)
+      let l'' = toTCSExpr l'
       (ctkn,mhole) <- case tkns of
-                        [] -> return (Sat, Nothing)
-                        [(i,True)] -> do y <- freshEVar (T u32) (TermInType i (RT t) ?loc)
-                                         traceTc "gen" (text "unifier for array hole" <+> pretty i L.<$>
-                                                        text "is" <+> pretty y)
-                                         (ci,i') <- cg (rawToLocE ?loc i) (T u32)
-                                         let c = Arith (SE (T bool) (PrimOp "==" [toTCSExpr i', y]))
-                                              -- <> Arith (SE (T bool) (PrimOp ">=" [y, SE (T u32) (IntLit 0)]))
-                                              <> Arith (SE (T bool) (PrimOp "<" [y, x]))
-                                         traceTc "gen" (text "cg for array hole" <+> pretty i L.<$>
-                                                        text "generate constraint" <+> prettyC (c <> ci))
-                                         return (c <> ci, Just y)
-                        _  -> return (Unsat $ OtherTypeError "taking more than one element from arrays not supported", Nothing)
-      let cl' = Arith (SE (T bool) (PrimOp ">" [x, SE (T u32) (IntLit 0)]))
-             <> Arith (SE (T bool) (PrimOp "==" [toTCSExpr l', x]))
-      traceTc "gen" (text "cg for array length" <+> pretty x L.<$>
+        [] -> return (Sat, Nothing)
+        [(i,True)] -> do
+          y <- freshEVar (T u32) (TermInType i (RT t) ?loc)
+          traceTc "gen" (text "unifier for array hole" <+> pretty i L.<$>
+                         text "is" <+> pretty y)
+          (ci,i') <- cg (rawToLocE ?loc i) (T u32)
+          let c = Arith (SE (T bool) (PrimOp "==" [toTCSExpr i', y]))
+               -- <> Arith (SE (T bool) (PrimOp ">=" [y, SE (T u32) (IntLit 0)]))
+               <> Arith (SE (T bool) (PrimOp "<" [y, l'']))
+          traceTc "gen" (text "cg for array hole" <+> pretty i L.<$>
+                         text "generate constraint" <+> prettyC (c <> ci))
+          return (c <> ci, Just y)
+        _  -> return (Unsat $ OtherTypeError "taking more than one element from arrays not supported", Nothing)
+      let cl' = Arith (SE (T bool) (PrimOp ">=" [l'', SE (T u32) (IntLit 0)]))
+              --  <> Arith (SE (T bool) (PrimOp "==" [toTCSExpr l', x]))
+      traceTc "gen" (text "cg for array length" <+> pretty l' L.<$>
                      text "generate constraint" <+> prettyC (cl <> cl'))
       (cs, s') <- cgSigil s
       (c,te') <- validateType te
-      return (cl <> cl' <> ctkn <> cs <> c, A te' x (Left s') (Left mhole))
+      return (cl <> cl' <> ctkn <> cs <> c, A te' l'' (Left s') (Left mhole))
 
     TATake es tarr -> do
       blob <- forM es $ \e -> do

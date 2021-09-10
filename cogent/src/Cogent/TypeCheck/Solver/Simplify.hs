@@ -335,6 +335,7 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
 
   -- TODO: Here we will call a SMT procedure to simplify all the Arith constraints.
   -- The only things left will be non-trivial predicates. / zilinc
+  Arith e -> hoistMaybe $ Just []  -- FIXME: pretend they're all correct for now. / zilinc
   Arith e | isTrivialSE e -> do
               r <- lift $ smtSat e
               if r then hoistMaybe $ Just []

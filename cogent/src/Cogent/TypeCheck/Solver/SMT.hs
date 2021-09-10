@@ -63,7 +63,7 @@ smtSolve =
   (rewrite' $ \gs -> do
     ks <- M.map (\(a,b,c) -> (a,b)) <$> view knownConsts
     SmtState c <- get
-    let ks' = constEquations ks
+    let ks' = constEquations ks  -- FIXME: These equations are not normalised!!! / zilinc
     traceTc "sol/smt" (L.text "Constants" L.<> L.colon L.<$> L.prettyList ks')
     res <- liftIO $ smtSatResult $ implTCSExpr (andTCSExprs ks') (andTCSExprs c)
     case res of (_ , _, []) -> hoistMaybe $ Nothing
@@ -82,9 +82,8 @@ smtSolve =
 -- | Converts the store of known constants to equality constraints.
 constEquations :: M.Map VarName (TCType, TCExpr) -> [TCSExpr]
 constEquations = M.toList .>
-                 filter simpleExpr .>
+                 filter (simpleTE . snd . snd) .>
                  map (\(v,(t,e)) -> SE (T bool) (PrimOp "==" [SE t (Var v), toTCSExpr e]))
-  where simpleExpr (_,(_,e)) = simpleTE e
 
 -- | Finds and stores in 'StmM' *all* logical predicates from constraints, and remove them
 --   from the 'SolvM' store.

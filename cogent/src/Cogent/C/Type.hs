@@ -302,9 +302,15 @@ typeCId t = use custTypeGen >>= \ctg ->
 
     typeCId' (TUnit) = return unitT
 #ifdef BUILTIN_ARRAYS
+    -- When the unboxed array has size 0, it's a flexible array member!
+    typeCId' (TArray t (LILit 0 _) Unboxed _) = do
+      t' <- genType t
+      getStrlTypeCId (Array t' (Just $ sint 0))
+
     typeCId' (TArray t l Unboxed _) = do
       tarr <- CArray <$> genType t <*> (CArraySize <$> genLExpr l)
       getStrlTypeCId $ Record [(arrField, tarr)]
+
     typeCId' (TArray t l (Boxed _ al) _) =
       case al of
         Layout ArrayLayout {} -> getStrlTypeCId (ArrayL al)
@@ -369,9 +375,10 @@ genType t@(TArray elt l s _)
   | (Boxed _ CLayout) <- s = CPtr <$> genType elt  -- If it's heap-allocated without layout specified
   -- we get rid of unused info here, e.g. array length, hole location
   | (Boxed _ al)      <- s = CIdent <$> typeCId (simplifyType t) -- we are going to declare it as a type
-  | otherwise              = CIdent <$> typeCId t  -- if the array is unboxed, it's wrapped in a struct
+  | Unboxed <- s, LILit 0 _ <- l = CArray <$> genType elt <*> pure (CArraySize $ sint 0)
+  | otherwise                    = CIdent <$> typeCId t  -- if the array is unboxed, it's wrapped in a struct
 #endif
-genType t                               = CIdent <$> typeCId t
+genType t                        = CIdent <$> typeCId t
 
 registerGS :: CC.Type 'Zero VarName -> Gen v ()
 registerGS t@(TRecord _ _ (Boxed _ (Layout {}))) = do

@@ -38,7 +38,7 @@ import Control.Monad.Trans.Maybe
 import Lens.Micro.Mtl
 import Lens.Micro
 
-import Debug.Trace
+-- import Debug.Trace
 
 normaliseRWT :: RewriteT TcSolvM TCType
 normaliseRWT = rewrite' $ \case

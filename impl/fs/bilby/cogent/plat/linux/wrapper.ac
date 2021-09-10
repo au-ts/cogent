@@ -30,6 +30,7 @@ $esc:(#include <wrapper.h>)
 #include <plat/linux/stat.ac>
 #include <plat/linux/iattr.ac>
 #include <plat/linux/arrayobj.ac>
+#include <plat/linux/objdentry.ac>
 #include <linux/version.h>
 
 typedef $ty:(#VfsInode) BilbyFsVfsInode;
