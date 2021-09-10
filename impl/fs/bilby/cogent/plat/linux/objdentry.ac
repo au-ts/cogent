@@ -1,0 +1,34 @@
+
+$ty:(Buffer) memcpy_s_ObjDentry ($ty:((Buffer, BufOffs, ObjDentry!)) args)
+{
+    $ty:(Buffer) buf = args.p1;
+    memcpy((void*)buf, (void*)args.p3, args.p2);
+    return buf;
+}
+
+$ty:((SysState, ObjDentry))
+memcpy_d_ObjDentry ($ty:((SysState, Buffer!, ObjDentry take (..), BufOffs, U32)) args)
+{
+    $ty:((SysState, ObjDentry)) ret;
+    ret.p1 = args.p1;
+    ret.p2 = args.p3;
+    memcpy((void*)args.p3, (void*)args.p2 + args.p4, args.p5);
+    return ret;
+}
+
+$ty:(CString!) get_ObjDentry_name_bang ($ty:(ObjDentry!) args)
+{
+    $ty:(CString!) name;
+    name->values = args->name;
+    name->len = args->nlen;
+    return name;
+}
+
+$ty:((ObjDentry take (..)) put (name))
+set_ObjDentry_name ($ty:((ObjDentry take (..), CString!, U32)) args)
+{
+    $ty:(ObjDentry) dent = args.p1;
+    bilbyfs_assert (dent->nlen == args.p3);
+    memcpy((void*)dent->name, (void*)args.p2->values, args.p3);
+    return dent;
+}
