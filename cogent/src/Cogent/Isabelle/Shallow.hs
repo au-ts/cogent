@@ -97,6 +97,11 @@ newtype SG b a = SG { runSG :: RWS (SGTables b) [Warning] StateGen a }
                            MonadWriter [Warning],
                            MonadState  StateGen)
 
+#if MIN_VERSION_base(4,13,0)
+instance MonadFail (SG b a) where
+  fail = __impossible
+#endif
+
 expandTransSyns :: CC.Type t b -> SG b (CC.Type t b)
 expandTransSyns t = do
     tdfs <- asks typeSynDefs
@@ -742,10 +747,6 @@ stsyn decls = M.fromList . filterDuplicates . concat $ P.map (synAllTypeStr (fil
 synAllTypeStr :: [Definition TypedExpr VarName b] -> Definition TypedExpr VarName b -> [(TypeStr, TypeName)]
 synAllTypeStr _ (TypeDef tn _ (Just (TRecord _ fs _))) = [(RecordStr $ P.map fst fs, tn)]
 synAllTypeStr _ (TypeDef tn _ (Just (TSum alts))) = [(VariantStr $ P.map fst alts, tn)]
-synAllTypeStr tdfs (TypeDef tn vs (Just t@(TCon _ _ _))) = 
-  case IN.substTransSyn tdfs t of 
-       TCon _ _ _ -> []
-       t' -> synAllTypeStr tdfs (TypeDef tn vs (Just t'))
 synAllTypeStr _ _ = []
 
 shallowTypeFromTable :: (Show b,Eq b) => SG b ([TheoryDecl I.Type I.Term], [TheoryDecl I.Type I.Term], MapTypeName)

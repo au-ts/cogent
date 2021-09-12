@@ -385,7 +385,7 @@ substTransSyn d t@(TCon n ts s) | ExI (Flip ts') <- Vec.fromList ts =
 substTransSyn _ t = t
 
 substSyns :: [Definition TypedExpr a b] -> Type t b -> Type t b
-substSyns d t@(TCon n ts s) =
+substSyns d t@(TCon _ _ _) =
   case substTransSyn d t of
     TCon n' ts' s' -> TCon n' (map (substSyns d) ts') s'
     t' -> substSyns d t'
