@@ -97,6 +97,14 @@ lemma (in WordArrayValue) vwa_length_preservation:
     \<Longrightarrow> vval_typing \<Xi>' v' (TPrim (Num U32))"
   by (fastforce simp: vwa_length_def)
 
+lemma vwa_length_determ:
+  "\<lbrakk>vwa_length x y; vwa_length x z\<rbrakk>
+    \<Longrightarrow> y = z"
+  unfolding vwa_length_def
+  apply (clarsimp simp only: prod.inject)
+  apply (clarsimp split: if_splits)
+  done
+
 subsection "wordarray_get"
 
 definition vwa_get :: "(funtyp, vabstyp) vval \<Rightarrow> (funtyp, vabstyp) vval \<Rightarrow> bool"
@@ -120,6 +128,14 @@ lemma (in WordArrayValue) vwa_get_preservation:
   apply (elim allE impE, assumption)
   apply clarsimp
   apply (erule l0_imp_vval_typing)
+  done
+
+lemma vwa_get_determ:
+  "\<lbrakk>vwa_get x y; vwa_get x z\<rbrakk>
+    \<Longrightarrow> y = z"
+  unfolding vwa_get_def
+  apply (clarsimp simp only: prod.inject)
+  apply (clarsimp split: if_splits)
   done
 
 subsection "wordarray_put"
@@ -147,6 +163,14 @@ lemma (in WordArrayValue) vwa_put_preservation:
   apply (rule wa_abs_typing_v_update; simp?)
   apply (drule wa_abs_typing_v_elims(4); clarsimp)
   apply (erule (2) no_tcon_vval_typing_imp_l0)
+  done
+
+lemma vwa_put_determ:
+  "\<lbrakk>vwa_put x y; vwa_put x z\<rbrakk>
+    \<Longrightarrow> y = z"
+  unfolding vwa_put_def
+  apply (clarsimp simp only: prod.inject)
+  apply (clarsimp split: if_splits)
   done
 
 end

@@ -29,31 +29,31 @@ myexp (a, b) =
     in repeat args
 
 
-searchNext : StepF (U32, U32) (WordArray U32, U32)
+searchNext : StepF (U32, U32, Bool) (WordArray U32, U32)
 searchNext #{acc, obsv} =
-    let (l, r) = acc
+    let (l, r, b) = acc
     and (arr, v) = obsv
     and m = l + (r - l) / 2
     and args = #{arr = arr, idx = m, val = 0}
     and x = wordarray_get args
     in 
-        if | x < v -> (m + 1, r)
-           | else -> (l, m)
+        if | x < v -> (m + 1, r, b)
+           | x > v -> (l, m, b) 
+           | else -> (m, r, True)
 
-searchStop : StopF (U32, U32) (WordArray U32, U32)
+searchStop : StopF (U32, U32, Bool) (WordArray U32, U32)
 searchStop #{acc, obsv} =
-    let (l, r) = acc
-    and (arr, v) = obsv
-    and len = wordarray_length arr
-    and args = #{arr = arr, idx = l, val = 0}
-    and x = wordarray_get args
+    let (l, r, b) = acc
     in 
-        if | l >= r -> True
+        if | b -> True
+           | l >= r -> True
            | else -> False
 
 binarySearch : ((WordArray U32)!, U32) -> U32
 binarySearch (arr, v) =
 	let len = wordarray_length arr
-	and args = #{n = upcast len, stop = searchStop, step = searchNext, acc = (0, len), obsv = (arr, v)}
-	and (l, r) = repeat args
-	in l
+	and args = #{n = upcast len, stop = searchStop, step = searchNext, acc = (0, len, False), obsv = (arr, v)}
+	and (l, r, b) = repeat args
+	in
+		if | b -> l
+		   | else -> len

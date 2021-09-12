@@ -12,7 +12,13 @@ begin
 overloading
   valRel_T0 \<equiv> valRel
 begin
-  definition valRel_T0: "\<And>\<xi> x v. valRel_T0 \<xi> (x :: ('t_p1, 't_p2) T0) v \<equiv> \<exists>f_p1 f_p2. v = VRecord [f_p1, f_p2] \<and> valRel \<xi> (T0.p1\<^sub>f x) f_p1 \<and> valRel \<xi> (T0.p2\<^sub>f x) f_p2"
+  definition valRel_T0: "\<And>\<xi> x v. valRel_T0 \<xi> (x :: ('t_p1, 't_p2, 't_p3) T0) v \<equiv> \<exists>f_p1 f_p2 f_p3. v = VRecord [f_p1, f_p2, f_p3] \<and> valRel \<xi> (T0.p1\<^sub>f x) f_p1 \<and> valRel \<xi> (T0.p2\<^sub>f x) f_p2 \<and> valRel \<xi> (T0.p3\<^sub>f x) f_p3"
+end
+
+overloading
+  valRel_T1 \<equiv> valRel
+begin
+  definition valRel_T1: "\<And>\<xi> x v. valRel_T1 \<xi> (x :: ('t_p1, 't_p2) T1) v \<equiv> \<exists>f_p1 f_p2. v = VRecord [f_p1, f_p2] \<and> valRel \<xi> (T1.p1\<^sub>f x) f_p1 \<and> valRel \<xi> (T1.p2\<^sub>f x) f_p2"
 end
 
 overloading
@@ -36,6 +42,8 @@ end
 lemmas valRel_records =
   valRel_T0
   T0.defs
+  valRel_T1
+  T1.defs
   valRel_RepParam
   RepParam.defs
   valRel_StepParam
@@ -46,11 +54,20 @@ lemmas valRel_records =
 context shallow begin
 
 lemma scorres_struct_T0 :
+  "\<And>\<gamma> \<xi> s_p1 s_p2 s_p3 d_p1 d_p2 d_p3.
+  scorres s_p1 d_p1 \<gamma> \<xi> \<Longrightarrow>
+  scorres s_p2 d_p2 \<gamma> \<xi> \<Longrightarrow>
+  scorres s_p3 d_p3 \<gamma> \<xi> \<Longrightarrow>
+  scorres (T0.make s_p1 s_p2 s_p3) (Struct ts [d_p1, d_p2, d_p3]) \<gamma> \<xi>"
+  apply (clarsimp simp: scorres_def valRel_T0 T0.defs elim!: v_sem_elims)
+  done
+
+lemma scorres_struct_T1 :
   "\<And>\<gamma> \<xi> s_p1 s_p2 d_p1 d_p2.
   scorres s_p1 d_p1 \<gamma> \<xi> \<Longrightarrow>
   scorres s_p2 d_p2 \<gamma> \<xi> \<Longrightarrow>
-  scorres (T0.make s_p1 s_p2) (Struct ts [d_p1, d_p2]) \<gamma> \<xi>"
-  apply (clarsimp simp: scorres_def valRel_T0 T0.defs elim!: v_sem_elims)
+  scorres (T1.make s_p1 s_p2) (Struct ts [d_p1, d_p2]) \<gamma> \<xi>"
+  apply (clarsimp simp: scorres_def valRel_T1 T1.defs elim!: v_sem_elims)
   done
 
 lemma scorres_struct_RepParam :
@@ -83,18 +100,34 @@ lemma scorres_struct_WordArrayGetP :
 
 lemmas scorres_structs =
   scorres_struct_T0
+  scorres_struct_T1
   scorres_struct_RepParam
   scorres_struct_StepParam
   scorres_struct_WordArrayGetP
 
 lemma shallow_tac_rec_field_T0__p1 :
-  "shallow_tac_rec_field \<xi> (T0.p1\<^sub>f :: ('t_p1, 't_p2) T0 \<Rightarrow> 't_p1) T0.p1\<^sub>f_update 0"
+  "shallow_tac_rec_field \<xi> (T0.p1\<^sub>f :: ('t_p1, 't_p2, 't_p3) T0 \<Rightarrow> 't_p1) T0.p1\<^sub>f_update 0"
   apply (fastforce intro!: shallow_tac_rec_fieldI simp: valRel_T0)
   done
 
 lemma shallow_tac_rec_field_T0__p2 :
-  "shallow_tac_rec_field \<xi> (T0.p2\<^sub>f :: ('t_p1, 't_p2) T0 \<Rightarrow> 't_p2) T0.p2\<^sub>f_update 1"
+  "shallow_tac_rec_field \<xi> (T0.p2\<^sub>f :: ('t_p1, 't_p2, 't_p3) T0 \<Rightarrow> 't_p2) T0.p2\<^sub>f_update 1"
   apply (fastforce intro!: shallow_tac_rec_fieldI simp: valRel_T0)
+  done
+
+lemma shallow_tac_rec_field_T0__p3 :
+  "shallow_tac_rec_field \<xi> (T0.p3\<^sub>f :: ('t_p1, 't_p2, 't_p3) T0 \<Rightarrow> 't_p3) T0.p3\<^sub>f_update 2"
+  apply (fastforce intro!: shallow_tac_rec_fieldI simp: valRel_T0)
+  done
+
+lemma shallow_tac_rec_field_T1__p1 :
+  "shallow_tac_rec_field \<xi> (T1.p1\<^sub>f :: ('t_p1, 't_p2) T1 \<Rightarrow> 't_p1) T1.p1\<^sub>f_update 0"
+  apply (fastforce intro!: shallow_tac_rec_fieldI simp: valRel_T1)
+  done
+
+lemma shallow_tac_rec_field_T1__p2 :
+  "shallow_tac_rec_field \<xi> (T1.p2\<^sub>f :: ('t_p1, 't_p2) T1 \<Rightarrow> 't_p2) T1.p2\<^sub>f_update 1"
+  apply (fastforce intro!: shallow_tac_rec_fieldI simp: valRel_T1)
   done
 
 lemma shallow_tac_rec_field_RepParam__n :
@@ -150,6 +183,9 @@ lemma shallow_tac_rec_field_WordArrayGetP__val :
 lemmas scorres_rec_fields =
   shallow_tac_rec_field_T0__p1
   shallow_tac_rec_field_T0__p2
+  shallow_tac_rec_field_T0__p3
+  shallow_tac_rec_field_T1__p1
+  shallow_tac_rec_field_T1__p2
   shallow_tac_rec_field_RepParam__n
   shallow_tac_rec_field_RepParam__stop
   shallow_tac_rec_field_RepParam__step

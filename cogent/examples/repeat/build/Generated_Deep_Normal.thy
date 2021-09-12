@@ -20,29 +20,35 @@ where
 definition
   abbreviatedType3 :: " Cogent.type"
 where
-  "abbreviatedType3 \<equiv> TRecord [(''acc'', (abbreviatedType1, Present)), (''obsv'', (abbreviatedType2, Present))] Unboxed"
+  "abbreviatedType3 \<equiv> TRecord [(''p1'', (TPrim (Num U32), Present)), (''p2'', (TPrim (Num U32), Present)), (''p3'', (TPrim Bool, Present))] Unboxed"
 
 definition
   abbreviatedType4 :: " Cogent.type"
 where
-  "abbreviatedType4 \<equiv> TRecord [(''p1'', (TPrim (Num U64), Present)), (''p2'', (TPrim (Num U64), Present))] Unboxed"
+  "abbreviatedType4 \<equiv> TRecord [(''acc'', (abbreviatedType3, Present)), (''obsv'', (abbreviatedType2, Present))] Unboxed"
 
 definition
   abbreviatedType5 :: " Cogent.type"
 where
-  "abbreviatedType5 \<equiv> TRecord [(''acc'', (abbreviatedType4, Present)), (''obsv'', (TPrim (Num U64), Present))] Unboxed"
+  "abbreviatedType5 \<equiv> TRecord [(''p1'', (TPrim (Num U64), Present)), (''p2'', (TPrim (Num U64), Present))] Unboxed"
 
 definition
   abbreviatedType6 :: " Cogent.type"
 where
-  "abbreviatedType6 \<equiv> TRecord [(''acc'', (TPrim (Num U32), Present)), (''obsv'', (TPrim (Num U32), Present))] Unboxed"
+  "abbreviatedType6 \<equiv> TRecord [(''acc'', (abbreviatedType5, Present)), (''obsv'', (TPrim (Num U64), Present))] Unboxed"
+
+definition
+  abbreviatedType7 :: " Cogent.type"
+where
+  "abbreviatedType7 \<equiv> TRecord [(''acc'', (TPrim (Num U32), Present)), (''obsv'', (TPrim (Num U32), Present))] Unboxed"
 
 lemmas abbreviated_type_defs =
+  abbreviatedType4_def
+  abbreviatedType6_def
+  abbreviatedType7_def
+  abbreviatedType1_def
   abbreviatedType3_def
   abbreviatedType5_def
-  abbreviatedType6_def
-  abbreviatedType1_def
-  abbreviatedType4_def
   abbreviatedType2_def
 
 definition
@@ -68,7 +74,7 @@ where
 definition
   expstop_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
-  "expstop_type \<equiv> ([], (abbreviatedType6, TPrim Bool))"
+  "expstop_type \<equiv> ([], (abbreviatedType7, TPrim Bool))"
 
 definition
   expstop :: "string Cogent.expr"
@@ -78,7 +84,7 @@ where
 definition
   log2stop_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
-  "log2stop_type \<equiv> ([], (abbreviatedType5, TPrim Bool))"
+  "log2stop_type \<equiv> ([], (abbreviatedType6, TPrim Bool))"
 
 definition
   log2stop :: "string Cogent.expr"
@@ -88,17 +94,17 @@ where
 definition
   searchStop_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
-  "searchStop_type \<equiv> ([], (abbreviatedType3, TPrim Bool))"
+  "searchStop_type \<equiv> ([], (abbreviatedType4, TPrim Bool))"
 
 definition
   searchStop :: "string Cogent.expr"
 where
-  "searchStop \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Take (Var 2) 0 (Take (Var 1) 1 (Take (Var 4) 0 (Take (Var 1) 1 (Let (App (AFun ''wordarray_length'' [TPrim (Num U32)]) (Var 2)) (Let (Lit (LU32 0)) (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), TPrim (Num U32), TPrim (Num U32)] [Var 4, Var 8, Var 0]) (Let (App (AFun ''wordarray_get'' [TPrim (Num U32)]) (Var 0)) (Let (Prim (Ge U32) [Var 10, Var 8]) (If (Var 0) (Lit (LBool True)) (Lit (LBool False)))))))))))))"
+  "searchStop \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Take (Var 2) 0 (Take (Var 1) 1 (Take (Var 1) 2 (If (Var 0) (Lit (LBool True)) (Let (Prim (Ge U32) [Var 4, Var 2]) (If (Var 0) (Lit (LBool True)) (Lit (LBool False)))))))))"
 
 definition
   expstep_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
-  "expstep_type \<equiv> ([], (abbreviatedType6, TPrim (Num U32)))"
+  "expstep_type \<equiv> ([], (abbreviatedType7, TPrim (Num U32)))"
 
 definition
   expstep :: "string Cogent.expr"
@@ -108,7 +114,7 @@ where
 definition
   log2step_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
-  "log2step_type \<equiv> ([], (abbreviatedType5, abbreviatedType4))"
+  "log2step_type \<equiv> ([], (abbreviatedType6, abbreviatedType5))"
 
 definition
   log2step :: "string Cogent.expr"
@@ -118,12 +124,12 @@ where
 definition
   searchNext_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
 where
-  "searchNext_type \<equiv> ([], (abbreviatedType3, abbreviatedType1))"
+  "searchNext_type \<equiv> ([], (abbreviatedType4, abbreviatedType3))"
 
 definition
   searchNext :: "string Cogent.expr"
 where
-  "searchNext \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Take (Var 2) 0 (Take (Var 1) 1 (Take (Var 4) 0 (Take (Var 1) 1 (Let (Prim (Minus U32) [Var 4, Var 6]) (Let (Lit (LU32 2)) (Let (Prim (Divide U32) [Var 1, Var 0]) (Let (Prim (Plus U32) [Var 9, Var 0]) (Let (Lit (LU32 0)) (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), TPrim (Num U32), TPrim (Num U32)] [Var 7, Var 1, Var 0]) (Let (App (AFun ''wordarray_get'' [TPrim (Num U32)]) (Var 0)) (Let (Prim (Lt U32) [Var 0, Var 7]) (If (Var 0) (Let (Lit (LU32 1)) (Let (Prim (Plus U32) [Var 5, Var 0]) (Struct [TPrim (Num U32), TPrim (Num U32)] [Var 0, Var 14]))) (Struct [TPrim (Num U32), TPrim (Num U32)] [Var 14, Var 4])))))))))))))))"
+  "searchNext \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Take (Var 2) 0 (Take (Var 1) 1 (Take (Var 1) 2 (Take (Var 6) 0 (Take (Var 1) 1 (Let (Prim (Minus U32) [Var 6, Var 8]) (Let (Lit (LU32 2)) (Let (Prim (Divide U32) [Var 1, Var 0]) (Let (Prim (Plus U32) [Var 11, Var 0]) (Let (Lit (LU32 0)) (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), TPrim (Num U32), TPrim (Num U32)] [Var 7, Var 1, Var 0]) (Let (App (AFun ''wordarray_get'' [TPrim (Num U32)]) (Var 0)) (Let (Prim (Lt U32) [Var 0, Var 7]) (If (Var 0) (Let (Lit (LU32 1)) (Let (Prim (Plus U32) [Var 5, Var 0]) (Struct [TPrim (Num U32), TPrim (Num U32), TPrim Bool] [Var 0, Var 16, Var 14]))) (Let (Prim (Gt U32) [Var 1, Var 8]) (If (Var 0) (Struct [TPrim (Num U32), TPrim (Num U32), TPrim Bool] [Var 17, Var 5, Var 13]) (Let (Lit (LBool True)) (Struct [TPrim (Num U32), TPrim (Num U32), TPrim Bool] [Var 6, Var 16, Var 0])))))))))))))))))))"
 
 definition
   binarySearch_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
@@ -133,7 +139,7 @@ where
 definition
   binarySearch :: "string Cogent.expr"
 where
-  "binarySearch \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Let (App (AFun ''wordarray_length'' [TPrim (Num U32)]) (Var 2)) (Let (Cast U64 (Var 0)) (Let (Fun searchStop []) (Let (Fun searchNext []) (Let (Lit (LU32 0)) (Let (Struct [TPrim (Num U32), TPrim (Num U32)] [Var 0, Var 4]) (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), TPrim (Num U32)] [Var 8, Var 6]) (Let (Struct [TPrim (Num U64), TFun abbreviatedType3 (TPrim Bool), TFun abbreviatedType3 abbreviatedType1, abbreviatedType1, abbreviatedType2] [Var 5, Var 4, Var 3, Var 1, Var 0]) (Let (App (AFun ''repeat'' [abbreviatedType1, abbreviatedType2]) (Var 0)) (Take (Var 0) 0 (Take (Var 1) 1 (Var 2)))))))))))))"
+  "binarySearch \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Let (App (AFun ''wordarray_length'' [TPrim (Num U32)]) (Var 2)) (Let (Cast U64 (Var 0)) (Let (Fun searchStop []) (Let (Fun searchNext []) (Let (Lit (LU32 0)) (Let (Lit (LBool False)) (Let (Struct [TPrim (Num U32), TPrim (Num U32), TPrim Bool] [Var 1, Var 5, Var 0]) (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), TPrim (Num U32)] [Var 9, Var 7]) (Let (Struct [TPrim (Num U64), TFun abbreviatedType4 (TPrim Bool), TFun abbreviatedType4 abbreviatedType3, abbreviatedType3, abbreviatedType2] [Var 6, Var 5, Var 4, Var 1, Var 0]) (Let (App (AFun ''repeat'' [abbreviatedType3, abbreviatedType2]) (Var 0)) (Take (Var 0) 0 (Take (Var 1) 1 (Take (Var 1) 2 (If (Var 0) (Var 4) (Var 15))))))))))))))))"
 
 definition
   myexp_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
@@ -143,7 +149,7 @@ where
 definition
   myexp :: "string Cogent.expr"
 where
-  "myexp \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Let (Cast U64 (Var 0)) (Let (Fun expstop []) (Let (Fun expstep []) (Let (Lit (LU32 1)) (Let (Struct [TPrim (Num U64), TFun abbreviatedType6 (TPrim Bool), TFun abbreviatedType6 (TPrim (Num U32)), TPrim (Num U32), TPrim (Num U32)] [Var 3, Var 2, Var 1, Var 0, Var 6]) (App (AFun ''repeat'' [TPrim (Num U32), TPrim (Num U32)]) (Var 0))))))))"
+  "myexp \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Let (Cast U64 (Var 0)) (Let (Fun expstop []) (Let (Fun expstep []) (Let (Lit (LU32 1)) (Let (Struct [TPrim (Num U64), TFun abbreviatedType7 (TPrim Bool), TFun abbreviatedType7 (TPrim (Num U32)), TPrim (Num U32), TPrim (Num U32)] [Var 3, Var 2, Var 1, Var 0, Var 6]) (App (AFun ''repeat'' [TPrim (Num U32), TPrim (Num U32)]) (Var 0))))))))"
 
 definition
   mylog2_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
@@ -153,7 +159,7 @@ where
 definition
   mylog2 :: "string Cogent.expr"
 where
-  "mylog2 \<equiv> Let (Var 0) (Let (Fun log2stop []) (Let (Fun log2step []) (Let (Lit (LU64 1)) (Let (Lit (LU64 0)) (Let (Struct [TPrim (Num U64), TPrim (Num U64)] [Var 1, Var 0]) (Let (Struct [TPrim (Num U64), TFun abbreviatedType5 (TPrim Bool), TFun abbreviatedType5 abbreviatedType4, abbreviatedType4, TPrim (Num U64)] [Var 5, Var 4, Var 3, Var 0, Var 5]) (Let (App (AFun ''repeat'' [abbreviatedType4, TPrim (Num U64)]) (Var 0)) (Take (Var 0) 0 (Take (Var 1) 1 (Var 0))))))))))"
+  "mylog2 \<equiv> Let (Var 0) (Let (Fun log2stop []) (Let (Fun log2step []) (Let (Lit (LU64 1)) (Let (Lit (LU64 0)) (Let (Struct [TPrim (Num U64), TPrim (Num U64)] [Var 1, Var 0]) (Let (Struct [TPrim (Num U64), TFun abbreviatedType6 (TPrim Bool), TFun abbreviatedType6 abbreviatedType5, abbreviatedType5, TPrim (Num U64)] [Var 5, Var 4, Var 3, Var 0, Var 5]) (Let (App (AFun ''repeat'' [abbreviatedType5, TPrim (Num U64)]) (Var 0)) (Take (Var 0) 0 (Take (Var 1) 1 (Var 0))))))))))"
 
 ML \<open>
 val Cogent_functions = ["expstop", "log2stop", "searchStop", "expstep", "log2step", "searchNext", "binarySearch", "myexp", "mylog2"]

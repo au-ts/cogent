@@ -260,6 +260,15 @@ lemma (in WordArrayUpdate) uwa_length_preservation:
   apply (intro exI conjI, rule u_t_prim', simp, simp, rule frame_id)
   done
 
+lemma uwa_length_determ:
+  "\<lbrakk>uwa_length (\<sigma>, x) (\<sigma>', y); uwa_length (\<sigma>, x) (\<sigma>'', z)\<rbrakk>
+    \<Longrightarrow> \<sigma>' = \<sigma>'' \<and> y = z"
+  unfolding uwa_length_def
+  apply (elim exE conjE)
+  apply simp
+  done
+
+
 subsection "wordarray_get"
 
 definition uwa_get :: "(funtyp, abstyp, ptrtyp) ufundef"
@@ -305,6 +314,15 @@ lemma (in WordArrayUpdate) uwa_get_preservation:
    apply (drule (2) no_heap_no_pointers; clarsimp)
    apply (rule frame_id)
   apply (intro exI conjI, assumption, blast, rule frame_id)
+  done
+
+lemma uwa_get_determ:
+  "\<lbrakk>uwa_get (\<sigma>, x) (\<sigma>', y); uwa_get (\<sigma>, x) (\<sigma>'', z)\<rbrakk>
+    \<Longrightarrow> \<sigma>' = \<sigma>'' \<and> y = z"
+  unfolding uwa_get_def
+  apply (elim exE conjE)
+  apply simp
+  apply (clarsimp split: if_splits)
   done
 
 subsection "wordarray_put"
@@ -361,6 +379,14 @@ lemma (in WordArrayUpdate) uwa_put_preservation:
   apply (rule conjI)
    apply (rule_tac a = "UWA t len arr" in  u_t_p_abs_w[where ts = "[t]", simplified]; simp?)
   apply (rule frame_id)
+  done
+
+lemma uwa_put_determ:
+  "\<lbrakk>uwa_put (\<sigma>, x) (\<sigma>', y); uwa_put (\<sigma>, x) (\<sigma>'', z)\<rbrakk>
+    \<Longrightarrow> \<sigma>' = \<sigma>'' \<and> y = z"
+  unfolding uwa_put_def
+  apply (clarsimp simp only: prod.inject)
+  apply (clarsimp split: if_splits)
   done
 
 end
