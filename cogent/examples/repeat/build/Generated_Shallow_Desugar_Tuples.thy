@@ -23,14 +23,16 @@ where
     in (>=) a obsv"
 
 definition
-  searchStop :: "(32 word \<times> 32 word, 32 word WordArray \<times> 32 word) StepParam \<Rightarrow> bool"
+  searchStop :: "(32 word \<times> 32 word \<times> bool, 32 word WordArray \<times> 32 word) StepParam \<Rightarrow> bool"
 where
   "searchStop ds\<^sub>0 \<equiv>
     let acc = StepParam.acc\<^sub>f ds\<^sub>0;
-      (l,r) = acc
-    in if (>=) l r
+      (l,r,b) = acc
+    in if b
       then True
-      else False"
+      else if (>=) l r
+        then True
+        else False"
 
 definition
   expstep :: "(32 word, 32 word) StepParam \<Rightarrow> 32 word"
@@ -50,12 +52,12 @@ where
         (+) b (1 :: 64 word) )"
 
 definition
-  searchNext :: "(32 word \<times> 32 word, 32 word WordArray \<times> 32 word) StepParam \<Rightarrow> 32 word \<times> 32 word"
+  searchNext :: "(32 word \<times> 32 word \<times> bool, 32 word WordArray \<times> 32 word) StepParam \<Rightarrow> 32 word \<times> 32 word \<times> bool"
 where
   "searchNext ds\<^sub>0 \<equiv>
     let acc = StepParam.acc\<^sub>f ds\<^sub>0;
       obsv = StepParam.obsv\<^sub>f ds\<^sub>0;
-      (l,r) = acc;
+      (l,r,b) = acc;
       (arr,v) = obsv;
       m = (+) l (checked_div ((-) r l) (2 :: 32 word));
       args = \<lparr>
@@ -65,8 +67,11 @@ where
         \<rparr>;
       x = (wordarray_get :: (32 word WordArray, 32 word, 32 word) WordArrayGetP \<Rightarrow> 32 word) args
     in if (<) x v
-      then ( (+) m (1 :: 32 word), r )
-      else ( l, m )"
+      then ( (+) m (1 :: 32 word), r,
+          b )
+      else if (>) x v
+        then ( l, m, b )
+        else ( m, r, True )"
 
 definition
   binarySearch :: "32 word WordArray \<times> 32 word \<Rightarrow> 32 word"
@@ -79,11 +84,11 @@ where
           stop\<^sub>f = searchStop,
           step\<^sub>f = searchNext,
           acc\<^sub>f = ( (0 :: 32 word),
-            len ), obsv\<^sub>f = ( arr, v )
-        \<rparr>;
-      ds\<^sub>3 = (repeat :: (64 word, (32 word \<times> 32 word, 32 word WordArray \<times> 32 word) StepParam \<Rightarrow> bool, (32 word \<times> 32 word, 32 word WordArray \<times> 32 word) StepParam \<Rightarrow> 32 word \<times> 32 word, 32 word \<times> 32 word, 32 word WordArray \<times> 32 word) RepParam \<Rightarrow> 32 word \<times> 32 word) args;
-      (l,_) = ds\<^sub>3
-    in l"
+            len, False ), obsv\<^sub>f = (
+            arr, v ) \<rparr>;
+      ds\<^sub>3 = (repeat :: (64 word, (32 word \<times> 32 word \<times> bool, 32 word WordArray \<times> 32 word) StepParam \<Rightarrow> bool, (32 word \<times> 32 word \<times> bool, 32 word WordArray \<times> 32 word) StepParam \<Rightarrow> 32 word \<times> 32 word \<times> bool, 32 word \<times> 32 word \<times> bool, 32 word WordArray \<times> 32 word) RepParam \<Rightarrow> 32 word \<times> 32 word \<times> bool) args;
+      (l,_,b) = ds\<^sub>3
+    in if b then l else len"
 
 definition
   myexp :: "32 word \<times> 32 word \<Rightarrow> 32 word"

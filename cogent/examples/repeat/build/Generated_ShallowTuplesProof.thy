@@ -176,24 +176,51 @@ lemma shallow_tuples_rule__RepParam__obsv\<^sub>f__update [ShallowTuplesRules_Ge
   by (simp add: shallow_tuples_rel_RepParam_def)
 
 
+overloading shallow_tuples_rel_T1 \<equiv> shallow_tuples_rel begin
+  definition "shallow_tuples_rel_T1 (x :: ('x1, 'x2) Generated_ShallowShared.T1) (xt :: 'xt1 \<times> 'xt2) \<equiv>
+    shallow_tuples_rel (Generated_ShallowShared.T1.p1\<^sub>f x) (prod.fst xt) \<and>
+    shallow_tuples_rel (Generated_ShallowShared.T1.p2\<^sub>f x) (prod.snd xt)"
+end
+lemma shallow_tuples_rule__T1_make [ShallowTuplesRules_Generated]:
+  "\<lbrakk>
+     shallow_tuples_rel x1 xt1;
+     shallow_tuples_rel x2 xt2
+  \<rbrakk> \<Longrightarrow> shallow_tuples_rel (Generated_ShallowShared.T1.make x1 x2) (xt1, xt2)"
+  by (simp add: shallow_tuples_rel_T1_def Generated_ShallowShared.T1.defs Px_px)
+lemma shallow_tuples_rule__T1__p1\<^sub>f [ShallowTuplesThms_Generated]:
+  "shallow_tuples_rel (x :: ('x1, 'x2) Generated_ShallowShared.T1) (xt :: 'xt1 \<times> 'xt2) \<Longrightarrow>
+   shallow_tuples_rel (Generated_ShallowShared.T1.p1\<^sub>f x) (prod.fst xt)"
+  by (simp add: shallow_tuples_rel_T1_def)
+lemma shallow_tuples_rule__T1__p2\<^sub>f [ShallowTuplesThms_Generated]:
+  "shallow_tuples_rel (x :: ('x1, 'x2) Generated_ShallowShared.T1) (xt :: 'xt1 \<times> 'xt2) \<Longrightarrow>
+   shallow_tuples_rel (Generated_ShallowShared.T1.p2\<^sub>f x) (prod.snd xt)"
+  by (simp add: shallow_tuples_rel_T1_def)
+
+
 overloading shallow_tuples_rel_T0 \<equiv> shallow_tuples_rel begin
-  definition "shallow_tuples_rel_T0 (x :: ('x1, 'x2) Generated_ShallowShared.T0) (xt :: 'xt1 \<times> 'xt2) \<equiv>
+  definition "shallow_tuples_rel_T0 (x :: ('x1, 'x2, 'x3) Generated_ShallowShared.T0) (xt :: 'xt1 \<times> 'xt2 \<times> 'xt3) \<equiv>
     shallow_tuples_rel (Generated_ShallowShared.T0.p1\<^sub>f x) (prod.fst xt) \<and>
-    shallow_tuples_rel (Generated_ShallowShared.T0.p2\<^sub>f x) (prod.snd xt)"
+    shallow_tuples_rel (Generated_ShallowShared.T0.p2\<^sub>f x) (prod.fst (prod.snd xt)) \<and>
+    shallow_tuples_rel (Generated_ShallowShared.T0.p3\<^sub>f x) (prod.snd (prod.snd xt))"
 end
 lemma shallow_tuples_rule__T0_make [ShallowTuplesRules_Generated]:
   "\<lbrakk>
      shallow_tuples_rel x1 xt1;
-     shallow_tuples_rel x2 xt2
-  \<rbrakk> \<Longrightarrow> shallow_tuples_rel (Generated_ShallowShared.T0.make x1 x2) (xt1, xt2)"
+     shallow_tuples_rel x2 xt2;
+     shallow_tuples_rel x3 xt3
+  \<rbrakk> \<Longrightarrow> shallow_tuples_rel (Generated_ShallowShared.T0.make x1 x2 x3) (xt1, xt2, xt3)"
   by (simp add: shallow_tuples_rel_T0_def Generated_ShallowShared.T0.defs Px_px)
 lemma shallow_tuples_rule__T0__p1\<^sub>f [ShallowTuplesThms_Generated]:
-  "shallow_tuples_rel (x :: ('x1, 'x2) Generated_ShallowShared.T0) (xt :: 'xt1 \<times> 'xt2) \<Longrightarrow>
+  "shallow_tuples_rel (x :: ('x1, 'x2, 'x3) Generated_ShallowShared.T0) (xt :: 'xt1 \<times> 'xt2 \<times> 'xt3) \<Longrightarrow>
    shallow_tuples_rel (Generated_ShallowShared.T0.p1\<^sub>f x) (prod.fst xt)"
   by (simp add: shallow_tuples_rel_T0_def)
 lemma shallow_tuples_rule__T0__p2\<^sub>f [ShallowTuplesThms_Generated]:
-  "shallow_tuples_rel (x :: ('x1, 'x2) Generated_ShallowShared.T0) (xt :: 'xt1 \<times> 'xt2) \<Longrightarrow>
-   shallow_tuples_rel (Generated_ShallowShared.T0.p2\<^sub>f x) (prod.snd xt)"
+  "shallow_tuples_rel (x :: ('x1, 'x2, 'x3) Generated_ShallowShared.T0) (xt :: 'xt1 \<times> 'xt2 \<times> 'xt3) \<Longrightarrow>
+   shallow_tuples_rel (Generated_ShallowShared.T0.p2\<^sub>f x) (prod.fst (prod.snd xt))"
+  by (simp add: shallow_tuples_rel_T0_def)
+lemma shallow_tuples_rule__T0__p3\<^sub>f [ShallowTuplesThms_Generated]:
+  "shallow_tuples_rel (x :: ('x1, 'x2, 'x3) Generated_ShallowShared.T0) (xt :: 'xt1 \<times> 'xt2 \<times> 'xt3) \<Longrightarrow>
+   shallow_tuples_rel (Generated_ShallowShared.T0.p3\<^sub>f x) (prod.snd (prod.snd xt))"
   by (simp add: shallow_tuples_rel_T0_def)
 
 

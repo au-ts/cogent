@@ -10,7 +10,12 @@ begin
 
 datatype 'a WordArray = SWA "'a list "
 
-record ('a, 'b) T0 =
+record ('a, 'b, 'c) T0 =
+  p1\<^sub>f :: "'a"
+  p2\<^sub>f :: "'b"
+  p3\<^sub>f :: "'c"
+
+record ('a, 'b) T1 =
   p1\<^sub>f :: "'a"
   p2\<^sub>f :: "'b"
 

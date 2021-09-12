@@ -25,24 +25,26 @@ static inline bool_t searchStop(t9 a1)
     t8 r3 = a1.obsv;
     u32 r4 = r2.p1;
     u32 r5 = r2.p2;
-    WordArray_u32 *r6 = r3.p1;
-    u32 r7 = r3.p2;
-    u32 r8 = wordarray_length_0(r6);
-    u32 r9 = 0U;
-    t1 r10 = (t1) {.arr = r6, .idx = r4, .val = r9};
-    u32 r11 = wordarray_get_0(r10);
-    bool_t r12 = (bool_t) {.boolean = r4 >= r5};
-    bool_t r13;
+    bool_t r6 = r2.p3;
+    bool_t r7;
     
-    if (r12.boolean) {
-        r13 = (bool_t) {.boolean = 1U};
+    if (r6.boolean) {
+        r7 = (bool_t) {.boolean = 1U};
     } else {
-        r13 = (bool_t) {.boolean = 0U};
+        bool_t r8 = (bool_t) {.boolean = r4 >= r5};
+        bool_t r9;
+        
+        if (r8.boolean) {
+            r9 = (bool_t) {.boolean = 1U};
+        } else {
+            r9 = (bool_t) {.boolean = 0U};
+        }
+        r7 = r9;
     }
     
-    bool_t r14 = r13;
+    bool_t r10 = r7;
     
-    return r14;
+    return r10;
 }
 static inline u32 expstep(t13 a1)
 {
@@ -72,30 +74,41 @@ static inline t7 searchNext(t9 a1)
     t8 r3 = a1.obsv;
     u32 r4 = r2.p1;
     u32 r5 = r2.p2;
-    WordArray_u32 *r6 = r3.p1;
-    u32 r7 = r3.p2;
-    u32 r8 = r5 - r4;
-    u32 r9 = 2U;
-    u32 r10 = r9 ? r8 / r9 : 0U;
-    u32 r11 = r4 + r10;
-    u32 r12 = 0U;
-    t1 r13 = (t1) {.arr = r6, .idx = r11, .val = r12};
-    u32 r14 = wordarray_get_0(r13);
-    bool_t r15 = (bool_t) {.boolean = r14 < r7};
-    t7 r16;
+    bool_t r6 = r2.p3;
+    WordArray_u32 *r7 = r3.p1;
+    u32 r8 = r3.p2;
+    u32 r9 = r5 - r4;
+    u32 r10 = 2U;
+    u32 r11 = r10 ? r9 / r10 : 0U;
+    u32 r12 = r4 + r11;
+    u32 r13 = 0U;
+    t1 r14 = (t1) {.arr = r7, .idx = r12, .val = r13};
+    u32 r15 = wordarray_get_0(r14);
+    bool_t r16 = (bool_t) {.boolean = r15 < r8};
+    t7 r17;
     
-    if (r15.boolean) {
-        u32 r17 = 1U;
-        u32 r18 = r11 + r17;
+    if (r16.boolean) {
+        u32 r18 = 1U;
+        u32 r19 = r12 + r18;
         
-        r16 = (t7) {.p1 = r18, .p2 = r5};
+        r17 = (t7) {.p1 = r19, .p2 = r5, .p3 = r6};
     } else {
-        r16 = (t7) {.p1 = r4, .p2 = r11};
+        bool_t r20 = (bool_t) {.boolean = r15 > r8};
+        t7 r21;
+        
+        if (r20.boolean) {
+            r21 = (t7) {.p1 = r4, .p2 = r12, .p3 = r6};
+        } else {
+            bool_t r22 = (bool_t) {.boolean = 1U};
+            
+            r21 = (t7) {.p1 = r12, .p2 = r5, .p3 = r22};
+        }
+        r17 = r21;
     }
     
-    t7 r19 = r16;
+    t7 r23 = r17;
     
-    return r19;
+    return r23;
 }
 static inline u32 binarySearch(t8 a1)
 {
@@ -106,17 +119,27 @@ static inline u32 binarySearch(t8 a1)
     t10 r6 = FUN_ENUM_searchStop;
     t11 r7 = FUN_ENUM_searchNext;
     u32 r8 = 0U;
-    t7 r9 = (t7) {.p1 = r8, .p2 = r4};
-    t8 r10 = (t8) {.p1 = r2, .p2 = r3};
-    t12 r11 = (t12) {.n = r5, .stop = r6, .step = r7, .acc = r9, .obsv = r10};
-    t7 r12 = repeat_2(r11);
-    u32 r13 = r12.p1;
-    u32 r14 = r12.p2;
-    u32 r15 = r13;
+    bool_t r9 = (bool_t) {.boolean = 0U};
+    t7 r10 = (t7) {.p1 = r8, .p2 = r4, .p3 = r9};
+    t8 r11 = (t8) {.p1 = r2, .p2 = r3};
+    t12 r12 = (t12) {.n = r5, .stop = r6, .step = r7, .acc = r10, .obsv = r11};
+    t7 r13 = repeat_2(r12);
+    u32 r14 = r13.p1;
+    u32 r15 = r13.p2;
+    bool_t r16 = r13.p3;
+    u32 r17;
     
-    return r15;
+    if (r16.boolean) {
+        r17 = r14;
+    } else {
+        r17 = r4;
+    }
+    
+    u32 r18 = r17;
+    
+    return r18;
 }
-static inline u32 myexp(t7 a1)
+static inline u32 myexp(t17 a1)
 {
     u32 r2 = a1.p1;
     u32 r3 = a1.p2;
