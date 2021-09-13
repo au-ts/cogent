@@ -759,23 +759,28 @@ substLayout vs (A t l s tkns) = A (substLayout vs t) l (bimap (fmap (fmap (subst
 #endif
 substLayout vs (Synonym n ts) = Synonym n $ substLayout vs <$> ts
 
-substDepType :: [(VarName, DepType)] -> DepType -> DepType
-substDepType vs (DT (TVar v b u)) | Just x <- lookup v vs =
+substDepType :: Typedefs -> [(VarName, DepType)] -> DepType -> DepType
+substDepType d vs (DT (TVar v b u)) | Just x <- lookup v vs =
   case (b,u) of
        (False, False) -> x
-       (True , False) -> applyBang x
+       (True , False) -> applyBang d x
        (_    , True ) -> applyUnbox x
-substDepType vs (DT t) = DT (fmap (substDepType vs) t)
+substDepType d vs (DT t) = DT (fmap (substDepType d vs) t)
 
-applyBang :: DepType -> DepType
-applyBang (DT (TCon tn ts s)) = DT $ TCon tn (map applyBang ts) (bangSigil s)
-applyBang (DT (TVar v b u)) = DT $ TVar v True u
-applyBang ft@(DT (TFun _ _)) = ft
-applyBang (DT (TRecord rp l s)) = DT $ TRecord rp (map (\(fn,(t,tk)) -> (fn,(applyBang t,tk))) l) (bangSigil s)
+applyBang :: Typedefs -> DepType -> DepType
+applyBang d (DT (TCon tn ts Unboxed)) = 
+    case M.lookup tn d of
+         Just _ -> DT $ TBang res
+         _ -> res
+    where res = DT $ TCon tn (map (applyBang d) ts) Unboxed
+applyBang d (DT (TCon tn ts s)) = DT $ TCon tn (map (applyBang d) ts) (bangSigil s)
+applyBang _ (DT (TVar v b u)) = DT $ TVar v True u
+applyBang _ ft@(DT (TFun _ _)) = ft
+applyBang d (DT (TRecord rp l s)) = DT $ TRecord rp (map (\(fn,(t,tk)) -> (fn,(applyBang d t,tk))) l) (bangSigil s)
 #ifdef BUILTIN_ARRAYS
-applyBang (DT (TArray t e (Boxed False l) h)) = DT $ TArray (applyBang t) e (Boxed True l) h
+applyBang d (DT (TArray t e (Boxed False l) h)) = DT $ TArray (applyBang d t) e (Boxed True l) h
 #endif
-applyBang (DT o) = DT $ fmap applyBang o
+applyBang d (DT o) = DT $ fmap (applyBang d) o
 
 applyUnbox :: DepType -> DepType
 applyUnbox (DT (TCon tn ts _)) = DT $ TCon tn ts Unboxed
@@ -790,12 +795,15 @@ applyUnbox t = t
 substTransDTSyn :: Typedefs -> DepType -> DepType
 substTransDTSyn d t@(DT (TCon n ts b)) =
   case M.lookup n d of
-    Just (ts', bdy) -> let applySigil = if unboxed b then applyUnbox else if readonly b then applyBang else id
+    Just (ts', bdy) -> let applySigil = if unboxed b then applyUnbox else if readonly b then applyBang d else id
                            -- a layout is ignored here, but it seems that there never is one?
-                       in substTransDTSyn d $ applySigil $ substDepType (zip ts' ts) bdy
+                       in substTransDTSyn d $ applySigil $ substDepType d (zip ts' ts) bdy
     _ -> t
+substTransDTSyn d t@(DT (TBang (DT (TCon n ts Unboxed)))) =
+  case M.lookup n d of
+    Just (ts', bdy) -> substTransDTSyn d $ applyBang d $ applyUnbox $ substDepType d (zip ts' ts) bdy
+    _ -> __impossible "substTransDTSyn: no type synonym"
 substTransDTSyn _ t = t
-
 
 flexOf (U x) = Just x
 flexOf (T (TTake _ t))   = flexOf t

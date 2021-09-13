@@ -104,6 +104,7 @@ unroll v (Just ctxt) = erp (Just ctxt) (ctxt M.! v)
     -- Embed rec pars
     erp :: RecContext (Type t b) -> Type t b -> Type t b
     erp c (TCon n ts s) = TCon n (map (erp c) ts) s
+    erp c (TSyn _ _ _ _) = __impossible "unroll applied to type synonym. Please unfold type synonyms before applying unroll."
     erp c (TFun t1 t2) = TFun (erp c t1) (erp c t2)
     erp c (TSum r) = TSum $ map (\(a,(t,b)) -> (a, (erp c t, b))) r
     erp c (TProduct t1 t2) = TProduct (erp c t1) (erp c t2)
@@ -136,6 +137,8 @@ bound b (TSum s1) (TSum s2) | s1' <- M.fromList s1, s2' <- M.fromList s2, M.keys
   return $ TSum $ M.toList s
 bound b (TProduct t11 t12) (TProduct t21 t22) = TProduct <$> bound b t11 t21 <*> bound b t12 t22
 bound b (TCon c1 t1 s1) (TCon c2 t2 s2) | c1 == c2, s1 == s2 = TCon c1 <$> zipWithM (bound b) t1 t2 <*> pure s1
+bound b (TSyn _ _ _ _) _ = __impossible "bound applied to type synonym. Please unfold type synonyms before applying bound."
+bound b _ (TSyn _ _ _ _) = __impossible "bound applied to type synonym. Please unfold type synonyms before applying bound."
 bound b (TFun t1 s1) (TFun t2 s2) = TFun <$> bound (theOtherB b) t1 t2 <*> bound b s1 s2
 -- At this point, we can assume recursive parameters and records agree
 bound b t1@(TRecord rp fs s) t2@(TRPar v ctxt)    = return t2
@@ -176,6 +179,7 @@ glb = bound GLB
 bang :: Type t b -> Type t b
 bang (TVar v)          = TVarBang v
 bang (TCon n ts s)     = TCon n (map bang ts) (bangSigil s)
+bang (TSyn n ts s _)   = TSyn n (map bang ts) (bangSigil s) True
 bang (TSum ts)         = TSum (map (second $ first bang) ts)
 bang (TProduct t1 t2)  = TProduct (bang t1) (bang t2)
 bang (TRecord rp ts s) = TRecord rp (map (second $ first bang) ts) (bangSigil s)
@@ -190,6 +194,7 @@ unbox (TVar v)         = TVarUnboxed v
 unbox (TVarBang v)     = TVarUnboxed v
 unbox (TVarUnboxed v)  = TVarUnboxed v
 unbox (TCon n ts s)    = TCon n ts (unboxSigil s)
+unbox (TSyn n ts s r)  = TSyn n ts (unboxSigil s) r
 unbox (TRecord rp ts s)= TRecord rp ts (unboxSigil s)
 #ifdef BUILTIN_ARRAYS
 unbox (TArray t l s tkns) = TArray t l (unboxSigil s) tkns
@@ -204,6 +209,7 @@ substitute vs (TVar v)         = vs `at` v
 substitute vs (TVarBang v)     = bang (vs `at` v)
 substitute vs (TVarUnboxed v)  = unbox (vs `at` v)
 substitute vs (TCon n ts s)    = TCon n (map (substitute vs) ts) s
+substitute vs (TSyn n ts s r)  = TSyn n (map (substitute vs) ts) s r
 substitute vs (TFun ti to)     = TFun (substitute vs ti) (substitute vs to)
 substitute _  (TPrim i)        = TPrim i
 substitute _  (TString)        = TString
@@ -218,6 +224,7 @@ substitute vs (TArray t l s mhole) = TArray (substitute vs t) (substituteLE vs l
 
 substituteL :: [DataLayout BitRange] -> Type t b -> Type t b
 substituteL ls (TCon n ts s)     = TCon n (map (substituteL ls) ts) s
+substituteL ls (TSyn n ts s r)   = TSyn n (map (substituteL ls) ts) s r
 substituteL ls (TFun ti to)      = TFun (substituteL ls ti) (substituteL ls to)
 substituteL ls (TProduct t1 t2)  = TProduct (substituteL ls t1) (substituteL ls t2)
 substituteL ls (TRecord rp ts s) = TRecord rp (map (second (first $ substituteL ls)) ts) (substituteS ls s)
@@ -372,23 +379,24 @@ expandTransSyns t = do
     return $ substTransSyn tdfs t
 
 substTransSyn :: [Definition TypedExpr a b] -> Type t b -> Type t b
-substTransSyn d t@(TCon n ts s) | ExI (Flip ts') <- Vec.fromList ts =
+substTransSyn d t@(TSyn n ts s r) | ExI (Flip ts') <- Vec.fromList ts =
   case find (isDefFor n) d of
     Just (TypeDef _ vs (Just tb)) -> 
         case (Vec.length ts' =? Vec.length vs) of
-          Just Refl -> let applySigil = if unboxed s then unbox else if readonly s then bang else id
+          Just Refl -> let applySigil = 
+                            if unboxed s 
+                               then if r then bang . unbox else unbox 
+                               else if readonly s then bang else id
                        in substTransSyn d $ applySigil $ substitute ts' tb
-          _ -> __impossible "lengths don't match in substTransSyn"
-    _ -> t
+          _ -> __impossible "substTransSyn: lengths don't match"
+    _ -> __impossible ("substTransSyn: no type synonym: " ++ (show n))
     where isDefFor n (TypeDef tn _ (Just _)) = (tn == n)
           isDefFor n _ = False
 substTransSyn _ t = t
 
 substSyns :: [Definition TypedExpr a b] -> Type t b -> Type t b
-substSyns d t@(TCon _ _ _) =
-  case substTransSyn d t of
-    TCon n' ts' s' -> TCon n' (map (substSyns d) ts') s'
-    t' -> substSyns d t'
+substSyns d (TCon tn ts s) = TCon tn (map (substSyns d) ts) s
+substSyns d t@(TSyn _ _ _ _) = substSyns d $ substTransSyn d t
 substSyns d (TFun t1 t2) = TFun (substSyns d t1) (substSyns d t2) 
 substSyns d (TSum vs) = TSum $ map (second $ first $ substSyns d) vs
 substSyns d (TProduct t1 t2) = TProduct (substSyns d t1) (substSyns d t2) 
@@ -548,6 +556,7 @@ kindcheck_ f (TVar v)         = f v
 kindcheck_ f (TVarBang v)     = bangKind <$> f v
 kindcheck_ f (TVarUnboxed v)  = return mempty
 kindcheck_ f (TCon n vs s)    = return $ sigilKind s
+kindcheck_ f (TSyn _ _ _ _)   = __impossible "kindcheck applied to type synonym. Please unfold type synonyms before using kindcheck."
 kindcheck_ f (TFun ti to)     = return mempty
 kindcheck_ f (TPrim i)        = return mempty
 kindcheck_ f (TString)        = return mempty
