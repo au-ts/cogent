@@ -17,6 +17,7 @@
 include <gum/common/wordarray.cogent>
 include <gum/common/array.cogent>
 include <gum/common/buffer.cogent>
+include <gum/common/vector.cogent>
 include <gum/common/crc32.cogent>
 include <gum/kernel/linux/errno.cogent>
 include "../src/ubi.cogent"
@@ -401,7 +402,7 @@ serialise_ObjUnion(buf, offs, ou, olen) =
 deep_freeObjDentarr: (SysState, ObjDentarr) -> SysState
 deep_freeObjDentarr(ex, obj {id,nb_dentry,entries}) =
   let ex = freeObjDentarr(ex, obj)
-  in array_free[ObjDentry] #{arr=entries, f=freeObjDentry, ex}
+  in free_vector (ex, entries)
 
 {-# cinline deep_freeObjUnion #-}
 deep_freeObjUnion: (SysState, ObjUnion) -> SysState
@@ -578,7 +579,7 @@ freeObjDentry: (SysState, ObjDentry take (..)) -> SysState
 type ObjDentarr = {
   id : ObjId,
   nb_dentry : U32,
-  entries : Array ObjDentry
+  entries : Vector
 }
 newObjDentarr: SysState -> R (SysState, ObjDentarr take(..)) SysState
 freeObjDentarr: (SysState, ObjDentarr take (..)) -> SysState
@@ -662,24 +663,30 @@ deserialise_Array_ObjDentry(ex, buf, offs, nb_dentry, end_offs) =
     | Iterate (arr, (ex, offs)) ->
       Success (ex, arr, offs)
 
+memcpy_d_ObjDentryVector : (SysState, Buffer!, Vector, BufOffs, U32) -> (SysState, Vector)
+
+deserialise_vector_ObjDentry : (SysState, Buffer!, BufOffs, U32)
+                            -> R (SysState, Vector) (ErrCode, SysState)
+deserialise_vector_ObjDentry (ex, buf, offs, nb_dentry) = 
+  new_vector (ex, bilbyFsMaxDentarrEntriesSize)
+  | Error ex -> Error (eNoMem, ex)
+  | Success (ex, vector) ->
+      Success (memcpy_d_ObjDentryVector (ex, buf, vector, offs, bilbyFsMaxDentarrEntriesSize))
+
 deserialise_ObjDentarr: (SysState, Buffer!, BufOffs, U32) -> R (SysState, ObjDentarr, BufOffs) (ErrCode, SysState) 
 deserialise_ObjDentarr(ex, buf, offs, olen) =
   let id = deserialise_le64(buf, offs)
   and nb_dentry = deserialise_le32(buf, offs+8)
-  in deserialise_Array_ObjDentry(ex, buf, offs+bilbyFsObjDentarrHeaderSize, nb_dentry, offs+olen-bilbyFsObjHeaderSize)
-  | Error (e,ex) ->
-    WHEN_DEBUGGING(
-    cogent_debug "deserialise_Array_Objdentry, offs+16" ;
-    cogent_debug "\n") ;
-    Error (e, ex)
-  | Success (ex, entries, offs) ->
-    newObjDentarr ex
-    | Error ex ->
-      let ex = array_free[ObjDentry] #{arr=entries, f=freeObjDentry, ex}
-      in Error (eNoMem, ex)
-    | Success (ex, dentarr) ->
-      let dentarr = dentarr {id,nb_dentry,entries}
-      in Success (ex, dentarr, offs)
+  in deserialise_vector_ObjDentry(ex, buf, offs+bilbyFsObjDentarrHeaderSize, nb_dentry)
+     | Error (e,ex) -> Error (e, ex)
+     | Success (ex, entries) ->
+         newObjDentarr ex
+         | Error ex ->
+           let ex = free_vector (ex, entries)
+           in Error (eNoMem, ex)
+         | Success (ex, dentarr) ->
+           let dentarr = dentarr {id,nb_dentry,entries}
+           in Success (ex, dentarr, offs+bilbyFsObjDentarrHeaderSize+bilbyFsMaxDentarrEntriesSize)
 
 bilbyFsSumEntryDelFlagMask: U32
 bilbyFsSumEntryDelFlagMask = 0x80000000
