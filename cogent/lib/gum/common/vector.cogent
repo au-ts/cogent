@@ -10,6 +10,10 @@ focus_vector : all (a :< E, b :< DS).
                (Vector, b, (VectorUsed, VectorFree, b) -> (a, VectorUsed, VectorFree))
             -> (a, Vector)
 
+focus_vector_ro : all (a :< E, b :< DS).
+                 (Vector!, b, (VectorUsed!, VectorFree!, b) -> (a, VectorUsed!, VectorFree!))
+               -> a
+
 vector_next : (VectorUsed, VectorFree!) -> <This VectorUsed | Next VectorUsed>
 
 vector_loop : all (a :< E, b :< DS). (VectorUsed, VectorFree, b) -> (a, VectorUsed, VectorFree)
@@ -17,3 +21,5 @@ vector_loop : all (a :< E, b :< DS). (VectorUsed, VectorFree, b) -> (a, VectorUs
 vector_del : all t. (VectorUsed, VectorFree, t! -> Bool) -> (VectorUsed, VectorFree)
 
 vector_read : all t. VectorUsed! -> t!
+
+vector_append : all t. (VectorUsed, VectorFree, t!) -> (Bool, VectorUsed, VectorFree)
