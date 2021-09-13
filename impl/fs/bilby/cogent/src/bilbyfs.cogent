@@ -194,6 +194,14 @@ bilbyFsDefaultNbReservedDel = 3
 bilbyFsRootIno : U32
 bilbyFsRootIno = 24
 
+bilbyFsMaxDentrySize : U32
+bilbyFsMaxDentrySize = bilbyFsObjDentryHeaderSize + bilbyFsMaxNameLen + 1
+
+bilbyFsMaxDentarrEntriesSize : U32
+bilbyFsMaxDentarrEntriesSize =  bilbyFsMaxNbDentarrEntries * bilbyFsMaxDentrySize
+
+bilbyFsMaxDentarrSize : U32
+bilbyFsMaxDentarrSize = bilbyFsObjDentarrHeaderSize + bilbyFsMaxDentarrEntriesSize
 
 print_field_u32: (String, U32) -> ()
 #if DEBUG

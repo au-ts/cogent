@@ -79,7 +79,7 @@ read_or_create_dentarr(ex, mount_st, ostore_st, oid) =
     let obj {ounion} = obj
     in extract_dentarr_from_union(ex, ounion)
     | Error (ex) ->
-      let obj {crc,magic,sqnum,offs, len, trans, otype} = obj
+      let obj {crc,magic,sqnum,offs,len,trans,otype} = obj
       and ex = freeObj(ex, obj)
       in ((ex, ostore_st), Error eInval)
     | Success (ex, dentarr) ->
@@ -91,19 +91,19 @@ read_or_create_dentarr(ex, mount_st, ostore_st, oid) =
       newObj(ex)
       | Error ex -> ((ex, ostore_st), Error eNoMem)
       | Success (ex, obj) ->
-        array_create[ObjDentry] (ex, 1) --  Empty slot at the end
+        new_vector (ex, bilbyFsMaxDentarrEntriesSize)
         | Error ex ->
           let ex = freeObj(ex, obj)
           in ((ex, ostore_st), Error eNoMem)
-        | Success (ex, entries) ->
+        | Success (ex, vector) ->
           newObjDentarr ex
           | Error ex ->
             let ex = freeObj(ex, obj)
-            and ex = array_free[ObjDentry] #{arr=entries, f=freeObjDentry, ex}
+            and ex = free_vector (ex, vector)
             in ((ex, ostore_st), Error eNoMem)
           | Success (ex, dentarr) ->
             let nb_dentry:U32 = 0
-            and dentarr = dentarr {id=oid,nb_dentry,entries}
+            and dentarr = dentarr {id=oid,nb_dentry,entries=vector}
             and obj = obj_init_default(obj, bilbyFsObjTypeDentarr)
             and obj = obj {len=bilbyFsObjHeaderSize + bilbyFsObjDentarrHeaderSize}
             -- obj.len is updated everytime we touch dentarrs.
@@ -159,10 +159,12 @@ del_dentry_modifier #{elem=dentry, acc=ex, obsv=name} =
   else
     (ex, Error dentry)
 
+dentarr_del_dentry_vector : (VectorUsed, VectorFree, CString!) -> ((), VectorUsed, VectorFree)
+-- dentarr_del_dentry_vector (uvec, fvec, name) = ???
+
 dentarr_del_dentry: (SysState, ObjDentarr, CString!) -> (SysState, ObjDentarr)
 dentarr_del_dentry(ex, odent {entries}, name) =
-  let #{arr=entries, acc=ex} = array_filter[ObjDentry, SysState, WordArray U8]
-                                 #{arr=entries, f=del_dentry_modifier, acc=ex, obsv=name}
+  let (_, entries) = focus_vector[(), CString!] (entries, name, dentarr_del_dentry_vector)
   and nb_dentry = odent.nb_dentry - 1 !odent
   in (ex, odent {nb_dentry, entries})
 
@@ -860,7 +862,7 @@ get_rdctx(ex, opt_rdctx, vdir) =
     newBilbyFsReaddirContext(ex)
     | Error ex -> Error (eNoMem, ex)
     | Success (ex, rdctx) ->
-      array_create[ObjDentry] (ex, 1)
+        new_vector (ex, bilbyFsMaxDentarrEntriesSize)
       | Error ex ->
         let ex = freeBilbyFsReaddirContext(ex, rdctx)
         in Error (eNoMem, ex)
@@ -868,7 +870,7 @@ get_rdctx(ex, opt_rdctx, vdir) =
         newObjDentarr ex
         | Error ex ->
           let ex = freeBilbyFsReaddirContext(ex, rdctx)
-          and ex = array_free[ObjDentry] #{arr=entries, f=freeObjDentry, ex}
+          and ex = free_vector (ex, entries)
           in Error (eNoMem, ex)
         | Success (ex, dentarr) ->
           let id:ObjId = obj_id_inode_mk (vfs_inode_get_ino vdir)

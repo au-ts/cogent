@@ -1,40 +1,19 @@
---
--- Copyright 2021, Trustworthy Systems Group (UNSW)
---
--- This software may be distributed and modified according to the terms of
--- the GNU General Public License version 2. Note that NO WARRANTY is provided.
--- See "LICENSE_GPLv2.txt" for details.
---
--- @TAG(UNSW_GPL)
---
+type Vector
 
-type Vector -- The "Buffer" type
+new_vector : (SysState, U32) -> R (SysState, Vector) SysState
+free_vector : (SysState, Vector) -> SysState
 
--- We split a vector/buffer into two:
---
---  * BItem enumerates the initialised portion of a buffer;
---  * BTail points to the start of the uninitialised portion.
-type BItem
-type BTail
+type VectorUsed
+type VectorFree
 
--- The main abstract function for buffers. We can decompose a buffer
--- into its constituent parts, an item and a tail object.
--- Given a function which operates on the item and tail we can
--- internally call this function to modify the provided buffer.
-focus_buffer : all (a,b).(Vector, b!,
-                   #{ obj : (BItem, BTail), obsv : b!} -> (a, BItem, BTail)) ->
-  (a, Vector)
+focus_vector : all (a :< E, b :< DS).
+               (Vector, b, (VectorUsed, VectorFree, b) -> (a, VectorUsed, VectorFree))
+            -> (a, Vector)
 
--- Start BItem & BTail interface functions.
+vector_next : (VectorUsed, VectorFree!) -> <This VectorUsed | Next VectorUsed>
 
--- Retrieve the next item given both the current item and the tail. This
--- function should return the next item on success (Some), or the given
--- item if it is the last initialised item.
-next : (BItem, BTail!) -> <None BItem | Some BItem>
+vector_loop : all (a :< E, b :< DS). (VectorUsed, VectorFree, b) -> (a, VectorUsed, VectorFree)
 
--- BItem objects have a variable length or size. Clients must implement
--- this function using the particular underlying data structure.
---
-length : BItem! -> U32
+vector_del : all t. (VectorUsed, VectorFree, t! -> Bool) -> (VectorUsed, VectorFree)
 
--- End of BItem & BTail interface functions.
+vector_read : all t. VectorUsed! -> t!
