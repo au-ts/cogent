@@ -2,7 +2,7 @@
 $ty:(Buffer) memcpy_s_ObjDentry ($ty:((Buffer, BufOffs, ObjDentry!)) args)
 {
     $ty:(Buffer) buf = args.p1;
-    memcpy((void*)buf, (void*)args.p3, args.p2);
+    memcpy((void*)buf + args.p2, (void*)args.p3, sizeof (*args.p3) + (size_t) args.p3->nlen);
     return buf;
 }
 
