@@ -138,17 +138,18 @@ dentarr_add_dentry(ex, odent, vnode, name, dtype) =
     | Error e -> ((ex, odent), Error e)
     | Success newentry ->
       let odent {id, entries} = odent
-      -- Mark this as a bug found via verification.
-      and last_index = array_length[ObjDentry] entries - 1 !entries
-      and #{arr=entries, acc=(ex, opt_entry)} = array_modify[ObjDentry, (SysState, Option ObjDentry)]
-                                                  #{arr=entries, idx=last_index, f=add_dentry_modifier, acc=(ex, Some newentry)}
+      and (_, entries) = focus_vector[Bool, ObjDentry!] (entries, newentry, dentarr_append) !newentry
       and nb_dentry = nb_dentry + 1
-      and ex = free_opt_ObjDentry (ex, opt_entry)
+      and ex = freeObjDentry (ex, newentry)
       in ((ex, odent {id, nb_dentry, entries}), Success ())
 
 type CStr
 -- str_cmp : (CStr!, CStr!) -> Bool
 wordarray_str_cmp : (CString!, CStr!) -> Bool
+
+-- The input ObjDentry will be copied into the vector.
+dentarr_append : (VectorUsed, VectorFree, ObjDentry!) -> (Bool, VectorUsed, VectorFree)
+dentarr_append (uvec, fvec, dentry) = vector_append[ObjDentry] (uvec, fvec, dentry)
 
 del_dentry_modifier: #{elem:ObjDentry, acc: SysState, obsv: CString!} -> RR SysState () ObjDentry
 del_dentry_modifier #{elem=dentry, acc=ex, obsv=name} =
@@ -343,7 +344,7 @@ dentarr_calculate_sz_change(created, objdent) =
 
 dentarr_del_calculate_sz_change: (SysState, Obj take (ounion), ObjDentarr) -> RR (SysState, Obj) U32 ErrCode
 dentarr_del_calculate_sz_change(ex, obj, dentarr) =
-  let is_del = (array_nb_elem[ObjDentry] dentarr.entries) == 0 !dentarr
+  let is_del = dentarr.nb_dentry == 0 !dentarr
   and id = dentarr.id !dentarr
   and (ex, ounion):(SysState, ObjUnion) =
       if is_del then (deep_freeObjDentarr (ex, dentarr), let v:ObjDel = #{id} in TObjDel v) else (ex, TObjDentarr dentarr)
@@ -1027,7 +1028,7 @@ check_dir_empty #{mount_st, ostore_st, vdir} =
 
 obj_dentarr_or_del_new: (SysState, Obj take (ounion), ObjDentarr) -> R (SysState, Obj) (ErrCode, SysState)
 obj_dentarr_or_del_new(ex, odent, dent) =
-  let len = array_nb_elem[ObjDentry] dent.entries !dent
+  let len = dent.nb_dentry !dent
   in if len > 0 then
     let len = bilbyFsObjHeaderSize + serialise_size_ObjDentarr dent !dent
     in Success (ex, odent {len, ounion=TObjDentarr dent, otype = bilbyFsObjTypeDentarr})

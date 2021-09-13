@@ -78,6 +78,8 @@ $ty:((SysState, Vector) memcpy_d_ObjDentryVector ($ty:((SysState, Buffer!, Vecto
     return ret;
 }
 
+// TODO: memcpy_s_ObjDentryVector
+
 $ty:(((), VectorUsed, VectorFree))
 dentarr_del_dentry_vector ($ty:((VectorUsed, VectorFree, CString!)) args)
 {
@@ -85,5 +87,15 @@ dentarr_del_dentry_vector ($ty:((VectorUsed, VectorFree, CString!)) args)
     $ty:(((), VectorUsed, VectorFree)) ret;
     ret.p2 = args.p1;
     ret.p3 = args.p2;
+    return ret;
+}
+
+$ty:((U32, VectorUsed!, VectorFree!))
+size_ObjDentry_vector ($ty:((VectorUsed!, VectorFree!, ())) args)
+{
+    // TODO: implement me!!!
+    $ty:((U32, VectorUsed!, VectorFree!)) ret;
+
+
     return ret;
 }

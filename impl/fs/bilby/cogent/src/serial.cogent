@@ -608,7 +608,10 @@ serialise_ObjDentarr(buf, offs, dentarr) =
   cogent_debug "\n") ;
   let buf = serialise_le64(buf, offs, dentarr.id)
   and buf = serialise_le32(buf, offs+8, dentarr.nb_dentry)
-  in serialise_Array_ObjDentry(buf, offs+bilbyFsObjDentarrHeaderSize, dentarr.entries)
+  and buf = memcpy_s_ObjDentryVector (buf, offs+bilbyFsObjDentarrHeaderSize, dentarr.entries, bilbyFsMaxDentarrEntriesSize) 
+  in (buf, offs + bilbyFsObjDentarrHeaderSize + bilbyFsMaxDentarrEntriesSize)
+
+memcpy_s_ObjDentryVector : (Buffer, BufOffs, Vector!, U32) -> Buffer
 
 {-# cinline serialise_size_Arr_ObjDentry_f #-}
 serialise_size_Arr_ObjDentry_f: #{elem:ObjDentry!, acc:U32, obsv:()} -> U32
@@ -622,7 +625,15 @@ serialise_size_Array_ObjDentry arr =
 
 {-# cinline serialise_size_ObjDentarr #-}
 serialise_size_ObjDentarr: ObjDentarr! -> U32
-serialise_size_ObjDentarr dentarr = bilbyFsObjDentarrHeaderSize + serialise_size_Array_ObjDentry dentarr.entries
+serialise_size_ObjDentarr dentarr = bilbyFsObjDentarrHeaderSize + serialise_size_Vector_ObjDentry dentarr.entries
+
+{-# CINLINE serialise_size_Vector_ObjDentry #-}
+serialise_size_Vector_ObjDentry : Vector! -> U32
+serialise_size_Vector_ObjDentry vec = 
+  focus_vector_ro [U32, ()] (vec, (), size_ObjDentry_vector)
+
+size_ObjDentry_vector : (VectorUsed!, VectorFree!, ()) -> (U32, VectorUsed!, VectorFree!)
+
 
 {-# cinline deep_freeOptionObjDentry #-}
 deep_freeOptionObjDentry: (SysState, Option ObjDentry) -> SysState
@@ -665,9 +676,9 @@ deserialise_Array_ObjDentry(ex, buf, offs, nb_dentry, end_offs) =
 
 memcpy_d_ObjDentryVector : (SysState, Buffer!, Vector, BufOffs, U32) -> (SysState, Vector)
 
-deserialise_vector_ObjDentry : (SysState, Buffer!, BufOffs, U32)
+deserialise_ObjDentry_vector : (SysState, Buffer!, BufOffs, U32)
                             -> R (SysState, Vector) (ErrCode, SysState)
-deserialise_vector_ObjDentry (ex, buf, offs, nb_dentry) = 
+deserialise_ObjDentry_vector (ex, buf, offs, nb_dentry) = 
   new_vector (ex, bilbyFsMaxDentarrEntriesSize)
   | Error ex -> Error (eNoMem, ex)
   | Success (ex, vector) ->
@@ -677,7 +688,7 @@ deserialise_ObjDentarr: (SysState, Buffer!, BufOffs, U32) -> R (SysState, ObjDen
 deserialise_ObjDentarr(ex, buf, offs, olen) =
   let id = deserialise_le64(buf, offs)
   and nb_dentry = deserialise_le32(buf, offs+8)
-  in deserialise_vector_ObjDentry(ex, buf, offs+bilbyFsObjDentarrHeaderSize, nb_dentry)
+  in deserialise_ObjDentry_vector (ex, buf, offs+bilbyFsObjDentarrHeaderSize, nb_dentry)
      | Error (e,ex) -> Error (e, ex)
      | Success (ex, entries) ->
          newObjDentarr ex
