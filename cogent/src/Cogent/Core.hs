@@ -78,7 +78,10 @@ data Type t b
   = TVar (Fin t)
   | TVarBang (Fin t)
   | TVarUnboxed (Fin t)
-  | TCon TypeName [Type t b] (Sigil ()) -- Layout will be nothing for abstract types
+  | TCon TypeName [Type t b] (Sigil ()) -- Abstract type. Layout will be nothing.
+  | TSyn TypeName [Type t b] (Sigil (DataLayout BitRange)) ReadOnly -- Preserved type synonym with optional layout
+      -- the additional r/o specification is used for unboxed synonyms for a still linear type
+      -- for boxed synonyms it is same as in sigil
   | TFun (Type t b) (Type t b)
   | TPrim PrimInt
   | TString
@@ -130,6 +133,7 @@ recordFields _ = __impossible "recordsFields: not a record type"
 
 isUnboxed :: Type t b -> Bool
 isUnboxed (TCon _ _ Unboxed) = True
+isUnboxed (TSyn _ _ Unboxed _) = True
 isUnboxed (TRecord _ _ Unboxed) =  True
 #ifdef BUILTIN_ARRAYS
 isUnboxed (TArray _ _ Unboxed _) = True
@@ -145,6 +149,7 @@ unroll v (Just ctxt) = erp (Just ctxt) (ctxt M.! v)
     -- Embed rec pars
     erp :: RecContext (Type t b) -> Type t b -> Type t b
     erp c (TCon n ts s) = TCon n (map (erp c) ts) s
+    erp c (TSyn _ _ _ _) = __impossible "unroll applied to type synonym. Please unfold type synonyms before applying unroll."
     erp c (TFun t1 t2) = TFun (erp c t1) (erp c t2)
     erp c (TSum r) = TSum $ map (\(a,(t,b)) -> (a, (erp c t, b))) r
     erp c (TProduct t1 t2) = TProduct (erp c t1) (erp c t2)
@@ -700,6 +705,8 @@ instance (Pretty b) => Pretty (Type t b) where
                           <> pretty s
   pretty (TCon tn [] s) = typename tn <> pretty s
   pretty (TCon tn ts s) = typename tn <> pretty s <+> typeargs (map pretty ts)
+  pretty (TSyn tn [] s r) = typename tn <> pretty s <> (if r then typesymbol "!" else empty)
+  pretty (TSyn tn ts s r) = typename tn <> pretty s <> (if r then typesymbol "!" else empty) <+> typeargs (map pretty ts)
   pretty (TRPar v m) = keyword "rec" <+> typevar v
 #ifdef BUILTIN_ARRAYS
   pretty (TArray t l s mhole) = (pretty t <> brackets (pretty l) <+> pretty s) &

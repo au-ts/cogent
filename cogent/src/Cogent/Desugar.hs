@@ -239,6 +239,13 @@ expndSyn t = do
     reader <- ask 
     return $ B.substTransDTSyn (reader^._1) t
 
+isTypeSyn :: TypeName -> DS t l v Bool
+isTypeSyn n = do
+    reader <- ask
+    case M.lookup n (reader^._1) of
+         Just _ -> return True
+         _ -> return False
+
 -- -----------------------------------------------------------------------------
 -- Lambda lifting
 -- -----------------------------------------------------------------------------
@@ -578,7 +585,14 @@ desugarType = \case
   B.DT (S.TCon "U64"    [] Unboxed) -> return $ TPrim U64
   B.DT (S.TCon "Bool"   [] Unboxed) -> return $ TPrim Boolean
   B.DT (S.TCon "String" [] Unboxed) -> return $ TString
-  B.DT (S.TCon tn tvs sigil) -> TCon tn <$> mapM desugarType tvs <*> (fmap (fmap $ const ()) $ desugarSigil sigil)
+  B.DT (S.TBang (B.DT (S.TCon tn tvs Unboxed))) -> TSyn tn <$> mapM desugarType tvs <*> pure Unboxed <*> pure True
+  B.DT (S.TCon tn tvs sigil) -> do
+      tvs' <- mapM desugarType tvs 
+      sigil' <- desugarSigil sigil
+      syn <- isTypeSyn tn
+      if syn
+         then return $ TSyn tn tvs' sigil' $ readonly sigil
+         else return $ TCon tn tvs' $ fmap (const ()) sigil'
   B.DT (S.TVar vn b u)   ->
     (findIx vn <$> use typCtx) >>= \(Just v) -> return $
       case (b,u) of
