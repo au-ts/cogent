@@ -1,4 +1,4 @@
-$ty:(R (SysState, Vector) SysState) new_vector ($ty:((SysState, U32) args)
+$ty:(R (SysState, Vector) SysState) new_vector ($ty:((SysState, U32)) args)
 {
     $ty:(R (SysState, Vector) SysState) ret;
 
@@ -12,7 +12,7 @@ $ty:(R (SysState, Vector) SysState) new_vector ($ty:((SysState, U32) args)
     }
 }
 
-$ty:(SysState) free_vector ($ty:((SysState, Vector) args)
+$ty:(SysState) free_vector ($ty:((SysState, Vector)) args)
 {
     kfree (args.p2);
     return args.p1;
