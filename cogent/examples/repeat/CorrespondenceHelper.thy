@@ -15,6 +15,7 @@ inductive_cases u_v_r_uemptyE  [elim] : "\<Xi>', \<sigma> \<turnstile>* [] \<sim
 inductive_cases u_v_ufunctionE [elim] : "\<Xi>', \<sigma> \<turnstile> UFunction f ts \<sim> v : TFun \<tau> \<rho> \<langle>r, w\<rangle>"
 inductive_cases u_v_uafunE     [elim] : "\<Xi>', \<sigma> \<turnstile> UAFunction f ts \<sim> v : TFun \<tau> \<rho> \<langle>r, w\<rangle>"
 inductive_cases u_v_uptrE      [elim] : "\<Xi>', \<sigma> \<turnstile> UPtr p rp \<sim> v : \<tau> \<langle>r, w\<rangle>"
+inductive_cases u_v_uvprimE     [elim] : "\<Xi>', \<sigma> \<turnstile> UPrim l \<sim> VPrim l' : \<tau> \<langle>r, w\<rangle>"
 
 inductive_cases u_v_tfunE      : "\<Xi>', \<sigma> \<turnstile> u \<sim> v : TFun \<tau> \<rho> \<langle>r, w\<rangle>"
 inductive_cases u_v_tprimE     : "\<Xi>', \<sigma> \<turnstile> u \<sim> v : TPrim t \<langle>r, w\<rangle>"
