@@ -630,9 +630,10 @@ serialise_size_ObjDentarr dentarr = bilbyFsObjDentarrHeaderSize + serialise_size
 {-# CINLINE serialise_size_Vector_ObjDentry #-}
 serialise_size_Vector_ObjDentry : Vector! -> U32
 serialise_size_Vector_ObjDentry vec = 
-  focus_vector_ro [U32, ()] (vec, (), size_ObjDentry_vector)
+  focus_vector_ro [(), (), U32] #{vec, acc = (), obsv = (), f = size_ObjDentry_vector}
 
-size_ObjDentry_vector : (VectorUsed!, VectorFree!, ()) -> (U32, VectorUsed!, VectorFree!)
+size_ObjDentry_vector : #{uvec : VectorUsed!, fvec : VectorFree!, acc : (), obsv : ()}
+                     -> #{uvec : VectorUsed!, fvec : VectorFree!, res : U32}
 
 
 {-# cinline deep_freeOptionObjDentry #-}

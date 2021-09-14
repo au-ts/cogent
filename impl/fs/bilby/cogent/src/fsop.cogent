@@ -138,7 +138,9 @@ dentarr_add_dentry(ex, odent, vnode, name, dtype) =
     | Error e -> ((ex, odent), Error e)
     | Success newentry ->
       let odent {id, entries} = odent
-      and (_, entries) = focus_vector[Bool, ObjDentry!] (entries, newentry, dentarr_append) !newentry
+      -- FIXME: Do we need to check if append succeed? / zilinc
+      and (_, entries) = focus_vector[(), ObjDentry!, Bool]
+                           #{ vec = entries, acc = (), obsv = newentry, f = dentarr_append} !newentry
       and nb_dentry = nb_dentry + 1
       and ex = freeObjDentry (ex, newentry)
       in ((ex, odent {id, nb_dentry, entries}), Success ())
@@ -148,8 +150,11 @@ type CStr
 wordarray_str_cmp : (CString!, CStr!) -> Bool
 
 -- The input ObjDentry will be copied into the vector.
-dentarr_append : (VectorUsed, VectorFree, ObjDentry!) -> (Bool, VectorUsed, VectorFree)
-dentarr_append (uvec, fvec, dentry) = vector_append[ObjDentry] (uvec, fvec, dentry)
+dentarr_append : #{uvec : VectorUsed, fvec : VectorFree, acc : (), obsv : ObjDentry!}
+              -> #{uvec : VectorUsed, fvec : VectorFree, res : Bool}
+dentarr_append r {uvec, fvec, obsv = dentry} = 
+  let #{uvec, fvec, suc} = vector_append[ObjDentry] #{uvec, fvec, obj = dentry}
+  in #{uvec, fvec, res = suc}
 
 del_dentry_modifier: #{elem:ObjDentry, acc: SysState, obsv: CString!} -> RR SysState () ObjDentry
 del_dentry_modifier #{elem=dentry, acc=ex, obsv=name} =
@@ -160,12 +165,14 @@ del_dentry_modifier #{elem=dentry, acc=ex, obsv=name} =
   else
     (ex, Error dentry)
 
-dentarr_del_dentry_vector : (VectorUsed, VectorFree, CString!) -> ((), VectorUsed, VectorFree)
+dentarr_del_dentry_vector : #{ uvec : VectorUsed, fvec : VectorFree, acc : (), obsv : CString!}
+                         -> #{ uvec : VectorUsed, fvec : VectorFree, res : ()}
 -- dentarr_del_dentry_vector (uvec, fvec, name) = ???
 
 dentarr_del_dentry: (SysState, ObjDentarr, CString!) -> (SysState, ObjDentarr)
 dentarr_del_dentry(ex, odent {entries}, name) =
-  let (_, entries) = focus_vector[(), CString!] (entries, name, dentarr_del_dentry_vector)
+  let (_, entries) = focus_vector[(), CString!, ()] 
+                       #{vec = entries, acc = (), obsv = name, f = dentarr_del_dentry_vector}
   and nb_dentry = odent.nb_dentry - 1 !odent
   in (ex, odent {nb_dentry, entries})
 
@@ -760,8 +767,7 @@ fsop_lookup #{ex, fs_st = fs_st {mount_st, ostore_st}, vdir, name} =
         (#{ex, fs_st = fs_st {mount_st, ostore_st}, vdir}, Error eRoFs)
       | Success (ex, dentarr) ->
         let fs_st = fs_st {mount_st, ostore_st}
-        in array_fold[ObjDentry, (), CString, VfsIno]
-             #{arr=dentarr.entries, f=find_name, acc=(), obsv=name} !dentarr
+        in dentry_vector_lookup_nm (dentarr.entries, name) !dentarr
         | Iterate _ ->
           let ex = deep_freeObjDentarr(ex, dentarr)
           in (#{ex, fs_st, vdir}, Error eNoEnt) 
@@ -769,6 +775,8 @@ fsop_lookup #{ex, fs_st = fs_st {mount_st, ostore_st}, vdir, name} =
           let ex = deep_freeObjDentarr(ex, dentarr)
           in (#{ex, fs_st, vdir}, Success inum)
 
+
+dentry_vector_lookup_nm : (Vector!, CString!) -> <Iterate () | Break VfsIno>
 
 find_name: ArrayFoldF ObjDentry () CString VfsIno
 find_name #{elem=de, acc=_, obsv=name} =
@@ -892,7 +900,7 @@ next_inode_id(oid) =
 read_next_dentry: (SysState, MountState!, OstoreState, BilbyFsReaddirContext) -> RR (SysState, OstoreState, BilbyFsReaddirContext) Bool ErrCode
 read_next_dentry(ex, mount_st, ostore_st, rdctx) =
   let cur_dentry = rdctx.cur_dentry !rdctx
-  and len_dentarr = array_nb_elem[ObjDentry] rdctx.dentarr.entries !rdctx
+  and len_dentarr = rdctx.dentarr.nb_dentry !rdctx
   and did = rdctx.dentarr.id !rdctx -- FIXME only used in debug message below
   in if cur_dentry + 1 >= len_dentarr then
    -- We iterated through all dentries of rdctx.dentarr
@@ -974,13 +982,23 @@ readdir_loop #{acc=(ex, ostore_st, vctx, rdctx), obsv=mount_st, idx} =
       and _ = WHEN_DEBUGGING(cogent_debug "readdir_loop use ")
       and _ = WHEN_DEBUGGING(cogent_debug_u32 rdctx.cur_dentry !rdctx)
       and _ = WHEN_DEBUGGING(cogent_debug "\n")
-      and (vctx, over) = array_use_value[ObjDentry, (VfsDirContext, Bool), ()]
-                           #{arr=rdctx.dentarr.entries, idx=rdctx.cur_dentry, f=emit_dir, acc=(vctx, False), obsv=()} !rdctx
+      and (vctx, over) = focus_vector_ro[(VfsDirContext, Bool), U32, _]
+                           #{ vec = rdctx.dentarr.entries
+                            , acc = (vctx, False)
+                            , obsv = rdctx.cur_dentry
+                            , f = dentry_vector_lookup} !rdctx
       in if over then
         WHEN_DEBUGGING(cogent_debug "readdir emit dir said over\n") ;
         ((ex, ostore_st, vctx, rdctx), Break (Success no_more_dentry))
       else -- We can keep going
         ((ex, ostore_st, vctx, rdctx), Iterate ())
+
+dentry_vector_lookup : #{uvec : VectorUsed!, fvec : VectorFree!, acc : (VfsDirContext, Bool), obsv : U32}
+                    -> #{uvec : VectorUsed!, fvec : VectorFree!, res : (VfsDirContext, Bool)}
+dentry_vector_lookup #{uvec, fvec, acc, obsv} =
+  let (uvec', acc') = vector_idx[ObjDentry, (VfsDirContext, Bool), _, _]
+                        #{uvec, idx = obsv, acc, obsv = (), f = emit_dir}
+   in #{uvec = uvec', fvec, res = acc'}
 
 type ReadDirParams = #{ex:SysState, fs_st:FsState, vctx:VfsDirContext, opt_rdctx: Option BilbyFsReaddirContext}
 fsop_readdir: (ReadDirParams, VfsInode!) -> RR ReadDirParams () ErrCode
