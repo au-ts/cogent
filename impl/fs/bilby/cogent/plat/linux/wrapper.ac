@@ -12,7 +12,6 @@ $esc:(#include <adt.h>)
 $esc:(#include <wrapper.h>)
 #include <abstract.h>
 #include <c/linux/abstract-defns.h> /* In lib gum */
-#include <plat/linux/vector.ac>
 #include <bilbyfs.c>
 #include <gum/anti/common.ac>
 #include <gum/anti/log.ac>
@@ -32,6 +31,7 @@ $esc:(#include <wrapper.h>)
 #include <plat/linux/iattr.ac>
 #include <plat/linux/arrayobj.ac>
 #include <plat/linux/objdentry.ac>
+#include <plat/linux/vector.ac>
 #include <linux/version.h>
 
 typedef $ty:(#VfsInode) BilbyFsVfsInode;

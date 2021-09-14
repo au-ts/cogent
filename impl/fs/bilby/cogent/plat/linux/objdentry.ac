@@ -69,7 +69,7 @@ set_ObjDentry_name ($ty:((ObjDentry take (..), CString!, U32)) args)
 }
 
 
-$ty:((SysState, Vector) memcpy_d_ObjDentryVector ($ty:((SysState, Buffer!, Vector, BufOffs, U32)) args)
+$ty:((SysState, Vector)) memcpy_d_ObjDentryVector ($ty:((SysState, Buffer!, Vector, BufOffs, U32)) args)
 {
     $ty:((SysState, Vector)) ret;
     ret.p1 = args.p1;

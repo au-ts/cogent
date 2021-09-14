@@ -33,6 +33,10 @@ typedef struct page OSPageBuffer;
 typedef struct address_space VfsMemoryMap;
 typedef struct page OSPage;
 
+typedef char* Vector;
+typedef char* VectorUsed;
+typedef char* VectorFree;
+
 typedef struct ubi_volume_desc UbiVol;
 typedef struct ubi_volume_info UbiVolInfo;
 typedef struct ubi_device_info UbiDevInfo;
