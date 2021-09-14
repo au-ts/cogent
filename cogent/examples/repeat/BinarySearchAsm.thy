@@ -566,7 +566,7 @@ lemmas (in WordArray) corres_shallow_C_searchNext_concrete = corres_shallow_C_se
    simplified, OF upd.wordarray_get_0_corres[simplified], simplified, simplified \<Xi>_simps, simplified]
 
 lemmas (in WordArray) corres_shallow_C_binarySearch_concrete = corres_shallow_C_binarySearch
-  [folded \<Xi>_def, OF _ _ _ val.rename_mono_prog_\<xi>m0_\<xi>p0 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m0_matches_\<Xi>,
+  [folded \<Xi>_def, OF _ _ _ val.rename_mono_prog_\<Xi>_\<xi>m1_\<xi>p1 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m1_matches_\<Xi>,
    simplified, 
    OF _ upd.binarySearch_repeat_corres[simplified], simplified,
    OF upd.corres_rel_leqD[OF \<xi>_0_le_\<xi>_1 upd.wordarray_length_0_corres[simplified]],

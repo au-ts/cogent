@@ -390,9 +390,10 @@ lemma binary_search_completes_tight:
 section "binary search functional correctness theorem"
 
 theorem binary_search_correct:
-  "\<lbrakk>sorted xs; i = unat (Generated_Shallow_Desugar.binarySearch \<lparr>T1.p1\<^sub>f = list_to_swa xs, p2\<^sub>f = v\<rparr>);
-   length xs \<le> unat (max_word :: 32 word)\<rbrakk> 
-    \<Longrightarrow> (i < length xs \<longrightarrow> xs ! i = v) \<and> (\<not> i < length xs \<longrightarrow> v \<notin> set xs)"
+  "\<lbrakk>sorted xs; i = unat (Generated_Shallow_Desugar.binarySearch \<lparr>T1.p1\<^sub>f = SWA xs, p2\<^sub>f = v\<rparr>);
+    length xs \<le> unat (max_word :: 32 word)\<rbrakk> \<Longrightarrow> 
+   (i < length xs \<longrightarrow> xs ! i = v) \<and> 
+   (\<not> i < length xs \<longrightarrow> v \<notin> set xs)"
   unfolding Generated_Shallow_Desugar.binarySearch_def swa_length_def repeat'_def swa_get_def     
   apply (clarsimp simp: Let_def take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t_def valRel_records unat_ucast_of_nat
                         search_stop0_simp search_stop1_simp repeatatl_simps 
@@ -419,5 +420,338 @@ theorem binary_search_correct:
   apply (erule_tac x = k in allE; clarsimp)
   done
 
+thm corres_shallow_C_binarySearch_concrete[no_vars]
+
+
+lemma
+  "\<lbrakk>correspondence_init upd.wa_abs_repr val.wa_abs_typing_v upd.wa_abs_typing_u wa_abs_upd_val;
+    val_rel_shallow_C rename vv\<^sub>s uv\<^sub>C vv\<^sub>p uv\<^sub>m \<xi>p1 \<sigma> \<Xi>;
+    val.matches \<Xi> [vv\<^sub>m] [Some (fst (snd Generated_TypeProof.binarySearch_type))]\<rbrakk> \<Longrightarrow> 
+   corres_shallow_C rename upd.state_rel (Generated_Shallow_Desugar.binarySearch vv\<^sub>s) Generated_TypeProof.binarySearch
+     (upd.binarySearch' uv\<^sub>C) \<xi>_1 val.\<xi>m1 \<xi>p1 [uv\<^sub>m] [vv\<^sub>m] \<Xi> [Some (fst (snd Generated_TypeProof.binarySearch_type))] \<sigma> s"
+  oops
+
+  thm upd.binarySearch'_def
+  term t8_C
+
+
+  thm proc_env_u_v_matches_def
+  
+lemma
+" proc_ctx_wellformed \<Xi>\<^sub>m \<longrightarrow>
+   (proc_env_u_v_matches \<xi>\<^sub>u\<^sub>m \<xi>\<^sub>v\<^sub>m \<Xi>\<^sub>m) \<longrightarrow>
+   upd.proc_env_matches_ptrs \<xi>\<^sub>u\<^sub>m \<Xi>\<^sub>m \<longrightarrow>
+   (\<sigma>, s) \<in> srel \<longrightarrow>
+   (\<exists>r w. u_v_matches \<Xi>\<^sub>m \<sigma> \<gamma>\<^sub>u\<^sub>m \<gamma>\<^sub>v\<^sub>m \<Gamma>\<^sub>m r w) \<longrightarrow>
+   (\<not> snd (prog\<^sub>C s) \<and>
+   (\<forall>r' s'. (r', s') \<in> fst (prog\<^sub>C s) \<longrightarrow>
+     (\<exists>\<sigma>' v\<^sub>u\<^sub>m v\<^sub>p.
+      (\<xi>\<^sub>u\<^sub>m, \<gamma>\<^sub>u\<^sub>m \<turnstile> (\<sigma>, prog\<^sub>m) \<Down>! (\<sigma>', v\<^sub>u\<^sub>m)) \<and>
+       (\<xi>\<^sub>v\<^sub>m, \<gamma>\<^sub>v\<^sub>m \<turnstile> prog\<^sub>m \<Down> val.rename_val rename (val.monoval v\<^sub>p)) \<and>
+       (\<sigma>', s') \<in> srel \<and>
+       val_rel_shallow_C rename v\<^sub>s r' v\<^sub>p v\<^sub>u\<^sub>m \<xi>\<^sub>v\<^sub>p \<sigma>' \<Xi>\<^sub>m)))"
+  oops
+
+  thm upd.corres_def
+lemma
+  "(\<sigma>, s) \<in> srel \<longrightarrow>
+   (\<not> snd (prog\<^sub>C s) \<and>
+   (\<forall>r' s'. (r', s') \<in> fst (prog\<^sub>C s) \<longrightarrow>
+     ((\<xi>\<^sub>u\<^sub>m, \<gamma>\<^sub>u\<^sub>m \<turnstile> (\<sigma>, prog\<^sub>m) \<Down>! (\<sigma>, v\<^sub>u\<^sub>m)) \<and>
+       (\<xi>\<^sub>v\<^sub>m, \<gamma>\<^sub>v\<^sub>m \<turnstile> prog\<^sub>m \<Down> val.rename_val rename (val.monoval v\<^sub>p)) \<and>
+       (\<sigma>, s') \<in> srel \<and>
+       val_rel_shallow_C rename v\<^sub>s r' v\<^sub>p v\<^sub>u\<^sub>m \<xi>\<^sub>v\<^sub>p \<sigma> \<Xi>\<^sub>m)))"
+  oops
+
+lemma
+  "(\<sigma>, s) \<in> srel \<longrightarrow>
+   (\<not> snd (prog\<^sub>C s) \<and>
+   (\<forall>r' s'. (r', s') \<in> fst (prog\<^sub>C s) \<longrightarrow>
+     ((\<xi>\<^sub>u\<^sub>m, \<gamma>\<^sub>u\<^sub>m \<turnstile> (\<sigma>, prog\<^sub>m) \<Down>! (\<sigma>, v\<^sub>u\<^sub>m)) \<and>
+       (\<xi>\<^sub>v\<^sub>m, \<gamma>\<^sub>v\<^sub>m \<turnstile> prog\<^sub>m \<Down> val.rename_val rename (val.monoval v\<^sub>p)) \<and>
+       (\<sigma>, s') \<in> srel \<and>
+       val_rel_shallow_C rename v\<^sub>s r' v\<^sub>p v\<^sub>u\<^sub>m \<xi>\<^sub>v\<^sub>p \<sigma> \<Xi>\<^sub>m)))"
+  oops
+  find_theorems "\<not> prod.snd(_)" "prod.fst(_) \<noteq> {}"
+
+  thm empty_fail_not_snd
+  thm empty_fail_def
+
+definition
+  array :: "(lifted_globals \<times> WordArray_u32_C ptr) \<Rightarrow>
+              (WordArray_u32_C \<times>
+              abstyp \<times>
+              vabstyp \<times>
+              vabstyp \<times>
+              32 word WordArray)"
+where
+  "array sp = 
+    (let (s, p) = sp;
+         w = heap s p;
+         l = (SCAST(32 signed \<rightarrow> 32))(len_C w);
+         arr = values_C w;
+         xs = (map (\<lambda>i. heap_w32 s (arr +\<^sub>p int i)) [0..<(unat l)]);
+         vxs = (map (\<lambda>i. VPrim (LU32 i)) xs);
+         rp = RCon ''WordArray'' [RPrim (Num U32)]
+    in (w,
+        UWA (TPrim (Num U32)) l (ptr_val arr),
+        VWA (TPrim (Num U32)) vxs,
+        VWA (TPrim (Num U32)) vxs,
+        SWA xs))"
+
+abbreviation  "arr\<^sub>c \<equiv> prod.fst \<circ> array"
+abbreviation  "arr\<^sub>u \<equiv> prod.fst \<circ> prod.snd \<circ> array"
+abbreviation  "arr\<^sub>m \<equiv> prod.fst \<circ> prod.snd \<circ> prod.snd \<circ> array"
+abbreviation  "arr\<^sub>p \<equiv> prod.fst \<circ> prod.snd \<circ> prod.snd \<circ> prod.snd \<circ> array"
+abbreviation  "arr\<^sub>s \<equiv> prod.snd \<circ> prod.snd \<circ> prod.snd \<circ> prod.snd \<circ> array"
+abbreviation  "arrlist \<equiv> swa_to_list \<circ> arr\<^sub>s"
+abbreviation  "arrptrs s p \<equiv> map (\<lambda>i. ptr_val (values_C (arr\<^sub>c (s, p)) +\<^sub>p int i))[0..<unat((SCAST(32 signed \<rightarrow> 32))(len_C (arr\<^sub>c (s, p))))]"
+
+
+definition
+  inputs :: "(lifted_globals \<times> t8_C) \<Rightarrow>
+                ((funtyp, atyp, ptrtyp) uval \<times>
+                (funtyp, vabstyp) vval \<times>
+                (funtyp, vabstyp) vval \<times>
+                (32 word WordArray, 32 word) T1)"
+where
+  "inputs sx = 
+    (let (s, x) = sx;
+         p = t8_C.p1_C x;
+         v = t8_C.p2_C x;
+             rp = RCon ''WordArray'' [RPrim (Num U32)]
+    in (URecord [(UPtr (ptr_val p) rp, RPtr rp), (UPrim (LU32 v), RPrim (Num U32))],
+        VRecord [VAbstract (arr\<^sub>m (s, p)), VPrim (LU32 v)],
+        VRecord [VAbstract (arr\<^sub>p (s, p)), VPrim (LU32 v)],
+        \<lparr>T1.p1\<^sub>f = arr\<^sub>s (s, p), p2\<^sub>f = v\<rparr>))"
+
+definition
+  valid_array :: "lifted_globals \<Rightarrow>  WordArray_u32_C ptr \<Rightarrow> bool"
+where
+  "valid_array s p = 
+    (let w = heap s p;
+         l = (SCAST(32 signed \<rightarrow> 32))(len_C w);
+         arr = values_C w
+     in is_valid s p \<and> 
+        size_of (TYPE(32 word)) * unat l \<le> unat (max_word :: 32 word) \<and>
+        (\<forall>i < l. is_valid_w32 s (arr +\<^sub>p uint i)) \<and>
+         (\<forall>i < l. ptr_val p \<noteq> ptr_val (arr +\<^sub>p uint i)))"
+
+definition
+  same_array :: "lifted_globals \<Rightarrow> lifted_globals \<Rightarrow> WordArray_u32_C ptr \<Rightarrow> bool"
+where
+  "same_array s s' p = 
+    (let w = heap s p;
+         l = (SCAST(32 signed \<rightarrow> 32))(len_C w);
+         w' = heap s' p;
+         arr = values_C w
+     in w = w' \<and>
+        (\<forall>i < l. heap_w32 s (arr +\<^sub>p uint i) = heap_w32 s' (arr +\<^sub>p uint i)))"
+
+lemma 
+  "unat ((of_nat (size_of (TYPE(32 word)))) :: ptrtyp) = size_of (TYPE(32 word))"
+  apply simp
+  done
+
+abbreviation  "uv\<^sub>m \<equiv> prod.fst \<circ> inputs"
+
+abbreviation  "vv\<^sub>m \<equiv> prod.fst \<circ> prod.snd \<circ> inputs"
+
+abbreviation  "vv\<^sub>p \<equiv> prod.fst \<circ> prod.snd \<circ> prod.snd \<circ> inputs"
+
+abbreviation  "vv\<^sub>s \<equiv> prod.snd \<circ> prod.snd \<circ> prod.snd \<circ> inputs"
+
+lemma inputs_uv_matches:
+  "\<lbrakk>valid_array s p; \<sigma> (ptr_val p) = option.Some (UAbstract (arr\<^sub>u (s, p)));
+    \<forall>p \<in> set (arrptrs s p). \<sigma> p = option.Some (UPrim (LU32 (heap_w32 s (PTR(32 word)p))))\<rbrakk> \<Longrightarrow>
+   \<exists>r w. (u_v_matches \<Xi> \<sigma> [uv\<^sub>m (s, t8_C p v)] [vv\<^sub>m (s, t8_C p v)]
+                      [Some (fst (snd Generated_TypeProof.binarySearch_type))] r w)"
+  apply (rule_tac x = "insert (ptr_val p) (set (arrptrs s p))" in exI)
+  apply (rule_tac x = "{}" in exI)
+  apply (clarsimp simp: inputs_def
+                        array_def
+                        Let_def
+                        Generated_TypeProof.binarySearch_type_def
+                        Generated_TypeProof.abbreviated_type_defs)
+  apply (intro u_v_matches_some[where r' = "{}" and w' = "{}", simplified]
+               u_v_matches_empty[where \<tau>s = "[]", simplified]
+               u_v_struct
+               u_v_r_cons1[where r' = "{}" and w' = "{}", simplified]
+               u_v_p_abs_ro[where a = "arr\<^sub>u (s, p)" and ts = "[TPrim (Num U32)]", simplified]
+               u_v_prim'
+               u_v_r_empty; (simp add: array_def Let_def)?)
+  apply (clarsimp simp: wa_abs_upd_val_def)
+  apply (rule conjI)
+   apply (clarsimp simp: upd.wa_abs_typing_u_def valid_array_def Let_def)
+   apply (rule conjI)
+    apply (rule equalityI; clarsimp simp: word_less_nat_alt array_def Let_def)
+     apply (intro exI conjI; simp?)
+     apply (subst le_unat_uoi[OF order.strict_implies_order]; simp?)
+    apply (rule image_eqI; simp?)
+   apply clarsimp
+   apply (erule_tac x = "unat i" in ballE; simp?)
+    apply (rule l0.upd.u_t_prim'; simp?)
+   apply (clarsimp simp: word_less_nat_alt)
+  apply (rule conjI)
+   apply (clarsimp simp: val.wa_abs_typing_v_def valid_array_def Let_def)
+   apply (rule l0.val.v_t_prim'; simp?)
+  apply clarsimp
+  apply (erule_tac x = "unat i" in ballE; simp?)
+   apply (subst nth_map)
+    apply (simp add: word_less_nat_alt)
+   apply simp
+   apply (rule l0.u_v_prim'; simp?)
+   apply (simp add: word_less_nat_alt)
+   apply (rename_tac i)
+   apply (subgoal_tac "(PTR(32 word) (ptr_val (values_C (heap s p)) + 4 * i)) = (values_C (heap s p) +\<^sub>p int (unat i))")
+    apply simp
+   apply (cut_tac p = "values_C (heap s p)" and x = "of_nat x" in upd.ptr_val_add[where ?'a = "32 word"])
+   apply (subst ptr_val_inj[symmetric])
+   apply simp
+  apply (simp add: word_less_nat_alt)
+  done
+
+lemma inputs_staterel_valrel:
+  "\<lbrakk>valid_array s p\<rbrakk> \<Longrightarrow>
+   \<exists>\<sigma>. (\<sigma>, s) \<in> upd.state_rel \<and>
+      val_rel_shallow_C rename (vv\<^sub>s (s, (t8_C p v))) (t8_C p v) (vv\<^sub>p (s, (t8_C p v))) (uv\<^sub>m (s, (t8_C p v))) \<xi>p1 \<sigma> \<Xi>"
+  apply (clarsimp simp: val_rel_shallow_C_def
+                        valRel_records inputs_def
+                        Let_def
+                        upd.val_rel_simp
+                        valRel_WordArrayWord
+                        ucast_id)
+  apply (rule_tac x = "(\<lambda>l. if l = ptr_val p then option.Some (UAbstract (arr\<^sub>u (s, p))) 
+                            else if l \<in> set (arrptrs s p)
+                              then option.Some (UPrim (LU32 (heap_w32 s (PTR(32 word)l))))
+                            else None)" in exI)
+  apply (rule conjI)
+   apply (clarsimp simp: upd.state_rel_def upd.heap_rel_def)
+   apply (rule conjI;
+          clarsimp simp: upd.heap_rel_ptr_meta
+                         upd.heap_rel_meta_def
+                         array_def
+                         Let_def
+                         upd.type_rel_simp
+                         upd.wa_abs_repr_def
+                         valid_array_def
+                         upd.val_rel_simp)
+   apply (rename_tac i)
+   apply (erule_tac x = "of_nat i" in allE)
+   apply (clarsimp simp: word_less_nat_alt)
+   apply (cut_tac y = i and z = "(SCAST(32 signed \<rightarrow> 32) (len_C (heap s p)))" in le_unat_uoi; simp?)
+   apply (subgoal_tac "x = values_C (heap s p) +\<^sub>p uint (of_nat i)")
+    apply clarsimp
+    apply assumption
+   apply (cut_tac p = "values_C (heap s p)" and x = "of_nat i" in upd.ptr_val_add[where ?'a = "32 word"])
+   apply (simp add: ptr_add_def )
+   apply (subst ptr_val_inj[symmetric])
+   apply simp
+  apply (rule conjI; clarsimp simp: array_def Let_def)
+  apply (frule_tac \<sigma> = "(\<lambda>l. if l = ptr_val p then option.Some (UAbstract (arr\<^sub>u (s, p))) 
+                            else if l \<in> set (arrptrs s p)
+                              then option.Some (UPrim (LU32 (heap_w32 s (PTR(32 word)l))))
+                            else None)" in inputs_uv_matches; simp?)
+   apply (clarsimp simp: valid_array_def Let_def)
+   apply (rename_tac j)
+   apply (erule_tac x = "of_nat j" in allE)+
+   apply (clarsimp simp: word_less_nat_alt)
+   apply (cut_tac y = j and z = "(SCAST(32 signed \<rightarrow> 32) (len_C (heap s p)))" in le_unat_uoi; simp?)
+    apply (clarsimp simp: array_def Let_def)+
+  
+  apply (rule_tac x = "fst (snd Generated_TypeProof.binarySearch_type)" in exI)
+  apply (clarsimp simp: valid_array_def Let_def)
+  apply (rule_tac x = "insert (ptr_val p) (set (arrptrs s p))" in exI)
+  apply (rule_tac x = "{}" in exI)
+  apply (clarsimp simp: Generated_TypeProof.binarySearch_type_def Generated_TypeProof.abbreviated_type_defs)
+  apply (rule u_v_struct; simp?)
+  apply (rule u_v_r_cons1[where r' = "{}" and w' = "{}", simplified]; simp?)
+   apply (rule u_v_p_abs_ro[where ts = "[TPrim (Num U32)]", simplified]; simp?)
+   apply (clarsimp simp: wa_abs_upd_val_def)
+   apply (rule conjI)
+    apply (clarsimp simp: upd.wa_abs_typing_u_def)
+    apply (rule conjI; clarsimp?)
+     apply (rule equalityI; clarsimp simp: word_less_nat_alt array_def Let_def)
+      apply (intro exI conjI; simp?)
+      apply (subst le_unat_uoi[OF order.strict_implies_order]; simp?)
+     apply (rule image_eqI; simp?)
+    apply (rule conjI; clarsimp)
+     apply (rule conjI; clarsimp)
+      apply (rule FalseE)
+      apply auto[1]
+     apply (rule l0.upd.u_t_prim'; simp?)
+    apply (rule conjI; clarsimp)
+     apply (rule FalseE)
+     apply auto[1]
+    apply (erule notE)
+    apply (rule image_eqI; (simp add: word_less_nat_alt)?)
+   apply (rule conjI)
+    apply (clarsimp simp: val.wa_abs_typing_v_def)
+    apply (rule l0.val.v_t_prim'; simp?)
+   apply clarsimp
+   apply (rule conjI; clarsimp)+
+     apply (rule FalseE)
+     apply auto[1]
+    apply (subst nth_map)
+     apply (simp add: word_less_nat_alt)
+    apply simp
+    apply (rule l0.u_v_prim'; simp?)
+    apply (simp add: word_less_nat_alt)
+    apply (rename_tac i x)
+    apply (subgoal_tac "(PTR(32 word) (ptr_val (values_C (heap s p)) + 4 * of_nat x)) = (values_C (heap s p) +\<^sub>p int (unat i))")
+     apply simp
+    apply (cut_tac p = "values_C (heap s p)" and x = "of_nat x" in upd.ptr_val_add[where ?'a = "32 word"])
+    apply (subst ptr_val_inj[symmetric])
+    apply simp
+   apply (rule conjI; clarsimp)+
+    apply (rule FalseE)
+    apply auto[1]
+   apply (erule notE)
+   apply (rule image_eqI; (simp add: word_less_nat_alt)?)
+  apply (rule u_v_r_cons1[where r' = "{}" and w' = "{}", simplified]; simp?)
+   apply (rule u_v_prim'; simp?)
+  apply (rule u_v_r_empty)
+  done
+
+
+lemma inputs_rename_monoval:
+  "vv\<^sub>m sx = val.rename_val rename (val.monoval (vv\<^sub>p sx))"
+  apply (clarsimp simp: rename_def inputs_def Let_def array_def split: prod.splits)
+  done
+
+lemma inputs_val_matches:
+  "val.matches \<Xi> [vv\<^sub>m (s, t8_C p v)] [Some (fst (snd Generated_TypeProof.binarySearch_type))]"
+  apply (clarsimp simp: val.matches_def
+                        inputs_def
+                        Let_def
+                        array_def
+                        Generated_TypeProof.binarySearch_type_def
+                        Generated_TypeProof.abbreviated_type_defs)
+  apply (intro val.v_t_record val.v_t_r_cons1 val.v_t_r_empty val.v_t_prim' val.v_t_abstract; simp?)
+  apply (clarsimp simp: val.wa_abs_typing_v_def)
+  apply (rule l0.val.v_t_prim'; simp?)
+  done
+
+
+
+corollary 
+  "\<lbrakk>sorted (arrlist (s, p));
+    cc = upd.binarySearch' (t8_C p v);
+    valid_array s p\<rbrakk> \<Longrightarrow>
+   \<not> prod.snd (cc s) \<and> 
+   (\<forall>r s'. (r, s') \<in> prod.fst (cc s) \<longrightarrow>
+      valid_array s' p \<and>
+      same_array s s' p \<and>
+      (unat r < length (arrlist (s, p)) \<longrightarrow> (arr_vv\<^sub>s (s, t8_C p v)) ! unat r = v) \<and> 
+      (\<not> unat r < length (arrlist (s, p)) \<longrightarrow> v \<notin> set (arrlist (s, p))))"
+  apply (frule_tac v = v in inputs_staterel_valrel; clarsimp)
+  apply (frule_tac s = s in corres_shallow_C_binarySearch_concrete[OF local.correspondence_init_axioms, rotated 1, OF _ inputs_val_matches[where s = s and p = p and v = v]];
+      (simp add: inputs_rename_monoval[simplified])?)
+  apply (clarsimp simp: corres_shallow_C_def proc_ctx_wellformed_\<Xi> \<xi>_1_\<xi>m1_matchesuv_\<Xi> upd.\<xi>_1_matchesu_\<Xi>)
+  apply (erule impE)
+  apply (subst inputs_rename_monoval[simplified, symmetric])
+  oops
+(* only blue variables are s cc \<sigma>? *)
+                                                                                               
 end (* of context *)
 end
