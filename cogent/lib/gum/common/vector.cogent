@@ -6,20 +6,38 @@ free_vector : (SysState, Vector) -> SysState
 type VectorUsed
 type VectorFree
 
-focus_vector : all (a :< E, b :< DS).
-               (Vector, b, (VectorUsed, VectorFree, b) -> (a, VectorUsed, VectorFree))
-            -> (a, Vector)
+focus_vector : all (a :< E, b :< DS, r :< E).
+               #{ vec : Vector
+                , acc : a
+                , obsv : b
+                , f : #{uvec : VectorUsed, fvec : VectorFree, acc : a, obsv : b} -> #{uvec : VectorUsed, fvec : VectorFree, res : r}
+                } -> (r, Vector)
 
-focus_vector_ro : all (a :< E, b :< DS).
-                 (Vector!, b, (VectorUsed!, VectorFree!, b) -> (a, VectorUsed!, VectorFree!))
-               -> a
+focus_vector_ro : all (a :< E, b :< DS, r :< E).
+                  #{ vec : Vector!
+                   , acc : a
+                   , obsv : b
+                   , f : #{uvec : VectorUsed!, fvec : VectorFree!, acc : a, obsv : b} -> #{uvec : VectorUsed!, fvec : VectorFree!, res : r}
+                   } -> r
 
 vector_next : (VectorUsed, VectorFree!) -> <This VectorUsed | Next VectorUsed>
 
-vector_loop : all (a :< E, b :< DS). (VectorUsed, VectorFree, b) -> (a, VectorUsed, VectorFree)
+vector_loop : all (a :< E, b :< DS).
+              #{uvec : VectorUsed, fvec : VectorFree, acc : a, obsv : b}
+           -> #{uvec : VectorUsed, fvec : VectorFree, acc : a}
 
-vector_del : all t. (VectorUsed, VectorFree, t! -> Bool) -> (VectorUsed, VectorFree)
+vector_del : all t. #{uvec : VectorUsed, fvec : VectorFree, f : t! -> Bool}
+                 -> #{uvec : VectorUsed, fvec : VectorFree}
 
 vector_read : all t. VectorUsed! -> t!
 
-vector_append : all t. (VectorUsed, VectorFree, t!) -> (Bool, VectorUsed, VectorFree)
+vector_idx : all (t, a :< E, b :< DS, r :< E).
+             #{ uvec : VectorUsed!
+              , idx : U32
+              , acc : a
+              , obsv : b
+              , f : #{elem : t!, acc : a, obsv : b} -> r
+              } -> (VectorUsed!, r)
+
+vector_append : all t. #{uvec : VectorUsed, fvec : VectorFree, obj : t!}
+                    -> #{suc : Bool, uvec : VectorUsed, fvec : VectorFree}

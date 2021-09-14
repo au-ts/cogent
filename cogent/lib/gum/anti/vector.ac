@@ -1,1 +1,3 @@
 typedef Vector char*;
+typedef VectorUsed char*;
+typedef VectorFree char*;

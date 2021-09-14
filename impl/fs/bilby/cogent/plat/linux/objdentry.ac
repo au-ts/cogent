@@ -80,6 +80,8 @@ $ty:((SysState, Vector) memcpy_d_ObjDentryVector ($ty:((SysState, Buffer!, Vecto
 
 // TODO: memcpy_s_ObjDentryVector
 
+// TODO: dentry_vector_lookup_nm
+
 $ty:(((), VectorUsed, VectorFree))
 dentarr_del_dentry_vector ($ty:((VectorUsed, VectorFree, CString!)) args)
 {
