@@ -485,11 +485,14 @@ type ObjDentry = {
   name : U8#[0]
 }
 
+-- cstring_to_charstar : CString! -> CharStar!
+
+-- XXX: This is wrong, but for now, we pretend it's okay.
 get_ObjDentry_name_bang : ObjDentry! -> CString!
 set_ObjDentry_name : (ObjDentry take (..), CString!, U32) -> (ObjDentry take (..)) put (name)
 
 
-bilbyFsObjDentryHeaderSize:U32
+bilbyFsObjDentryHeaderSize : U32
 bilbyFsObjDentryHeaderSize = 8
 {-
   definition "PObjDentry data offs ==

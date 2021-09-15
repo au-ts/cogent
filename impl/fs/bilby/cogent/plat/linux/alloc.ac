@@ -49,6 +49,7 @@ GEN_ALLOC(Buffer)
 
 $ty:(R (SysState, ObjDentry) SysState) newObjDentry ($ty:((SysState, U32)) args)
 {
+  bilbyfs_debug ("newObjDentry");
   $ty:(R (SysState, ObjDentry) SysState) ret;
   ret.Success.p2 = kmalloc(sizeof(*ret.Success.p2) + args.p2);
   if (ret.Success.p2 == NULL) {
