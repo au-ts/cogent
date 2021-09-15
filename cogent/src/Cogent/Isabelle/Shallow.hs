@@ -98,7 +98,7 @@ newtype SG b a = SG { runSG :: RWS (SGTables b) [Warning] StateGen a }
                            MonadState  StateGen)
 
 #if MIN_VERSION_base(4,13,0)
-instance MonadFail (SG b a) where
+instance MonadFail (SG b) where
   fail = __impossible
 #endif
 
