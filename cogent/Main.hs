@@ -717,14 +717,10 @@ parseArgs args = case getOpt' Permute options args of
     normal cmds desugared ctygen pragmas source tced tcst typedefs fts constdefs buildinfo log = do
       let stg = STGNormal
       putProgress "Normalising..."
-      let desugared' = IN.unfoldSynsInDefs desugared
-          tsyndefs   = filterTypeDefs desugared'
-          constdefs' = IN.unfoldSynsInConsts constdefs tsyndefs
-          pragmas'   = IN.unfoldSynsInPragmas pragmas tsyndefs
       nfed' <- case __cogent_fnormalisation of
-        NoNF -> putProgressLn "Skipped." >> return desugared'
+        NoNF -> putProgressLn "Skipped." >> return desugared
         nf -> do putProgressLn (show nf)
-                 let nfed = NF.normal $ map untypeD desugared'
+                 let nfed = NF.normal $ map untypeD desugared
                  if not $ verifyNormal nfed
                    then hPutStrLn stderr "Normalisation failed!" >> exitFailure
                    else do when __cogent_ddump_pretty_normal_no_tc $ pretty stdout nfed
@@ -741,35 +737,41 @@ parseArgs args = case getOpt' Permute options args of
             tpfile = mkThyFileName source suf
             tpthy  = thy ++ suf
         writeFileMsg tpfile
+        let nfed'' = IN.unfoldSynsInDefs nfed'
         output tpfile $ flip LJ.hPutDoc $
-          deepTypeProof id __cogent_ftp_with_decls __cogent_ftp_with_bodies tpthy nfed' log
+          deepTypeProof id __cogent_ftp_with_decls __cogent_ftp_with_bodies tpthy nfed'' log
       shallowTypeNames <-
-        genShallow cmds source stg nfed' typedefs fts constdefs' log (Shallow stg `elem` cmds,
+        genShallow cmds source stg nfed' typedefs fts constdefs log (Shallow stg `elem` cmds,
                                                                       SCorres stg `elem` cmds,
                                                                       ShallowConsts stg `elem` cmds,
                                                                       False, False, False, False, False)
       when (NormalProof `elem` cmds) $ do
         let npfile = mkThyFileName source __cogent_suffix_of_normal_proof
         writeFileMsg npfile
-        output npfile $ flip LJ.hPutDoc $ normalProof thy shallowTypeNames nfed' log
+        let nfed'' = IN.unfoldSynsInDefs nfed'
+        output npfile $ flip LJ.hPutDoc $ normalProof thy shallowTypeNames nfed'' log
       when (Compile (succ stg) `elem` cmds) $
-        simpl cmds nfed' ctygen pragmas' source tced tcst typedefs fts constdefs' tsyndefs buildinfo log
+        simpl cmds nfed' ctygen pragmas' source tced tcst typedefs fts constdefs tsyndefs buildinfo log
       exitSuccessWithBuildInfo cmds buildinfo
 
-    simpl cmds nfed ctygen pragmas source tced tcst typedefs fts constdefs tsyndefs buildinfo log = do
+    simpl cmds nfed ctygen pragmas source tced tcst typedefs fts constdefs buildinfo log = do
       let stg = STGSimplify
+      let nfed' = IN.unfoldSynsInDefs nfed
+      let tsyndefs = filterTypeDefs nfed'
+      let constdefs' = IN.unfoldSynsInConsts constdefs tsyndefs
+      let pragmas' = IN.unfoldSynsInPragmas pragmas tsyndefs
       putProgressLn "Simplifying..."
       simpled' <- case __cogent_fsimplifier of
-        False -> putProgressLn "Skipped" >> return nfed
+        False -> putProgressLn "Skipped" >> return nfed'
         True  -> do putProgressLn ""
-                    let simpled = map untypeD $ SM.simplify nfed
+                    let simpled = map untypeD $ SM.simplify nfed'
                     putProgressLn "Re-typing simplified AST..."
                     case IN.tc_ simpled of
                       Left err -> hPutStrLn stderr ("Re-typing simplified AST failed: " ++ err) >> exitFailure
                       Right simpled' -> return simpled'
       when (Ast stg `elem` cmds) $ genAst stg simpled'
       when (Pretty stg `elem` cmds) $ genPretty stg simpled'
-      when (Compile (succ stg) `elem` cmds) $ mono cmds simpled' ctygen pragmas source tced tcst typedefs fts constdefs tsyndefs buildinfo log
+      when (Compile (succ stg) `elem` cmds) $ mono cmds simpled' ctygen pragmas' source tced tcst typedefs fts constdefs' tsyndefs buildinfo log
       exitSuccessWithBuildInfo cmds buildinfo
 
     mono cmds simpled ctygen pragmas source tced tcst typedefs fts constdefs tsyndefs buildinfo log = do
@@ -966,9 +968,10 @@ parseArgs args = case getOpt' Permute options args of
     genPretty stg defns = pretty stdout defns >> exitSuccess
 
     genDeep cmds source stg defns typedefs fts log = do
+      let defns' = if stg == STGDesugar || stg == STGNormal then IN.unfoldSynsInDefs defns else defns
       let dpfile = mkThyFileName source (__cogent_suffix_of_deep ++ __cogent_suffix_of_stage stg)
           thy = mkProofName source (Just $ __cogent_suffix_of_deep ++ __cogent_suffix_of_stage stg)
-          de = deep thy stg defns log
+          de = deep thy stg defns' log
       putProgressLn ("Generating deep embedding (" ++ stgMsg stg ++ ")...")
       writeFileMsg dpfile
       output dpfile $ flip LJ.hPutDoc de
