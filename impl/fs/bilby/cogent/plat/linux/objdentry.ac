@@ -1,6 +1,7 @@
 
 $ty:(Buffer) memcpy_s_ObjDentry ($ty:((Buffer, BufOffs, ObjDentry!)) args)
 {
+    bilbyfs_debug ("memcpy_s_ObjDentry");
     $ty:(Buffer) buf = args.p1;
     memcpy(buf->data->values + args.p2, (void*)args.p3, sizeof (*args.p3) + (size_t) args.p3->nlen);
     return buf;
@@ -9,6 +10,7 @@ $ty:(Buffer) memcpy_s_ObjDentry ($ty:((Buffer, BufOffs, ObjDentry!)) args)
 $ty:((SysState, ObjDentry))
 memcpy_d_ObjDentry ($ty:((SysState, Buffer!, ObjDentry take (..), BufOffs, U32)) args)
 {
+    bilbyfs_debug ("memcpy_d_ObjDentry");
     $ty:((SysState, ObjDentry)) ret;
     ret.p1 = args.p1;
     ret.p2 = args.p3;
@@ -16,20 +18,38 @@ memcpy_d_ObjDentry ($ty:((SysState, Buffer!, ObjDentry take (..), BufOffs, U32))
     return ret;
 }
 
+// $ty:(Bool) str_cmp ($ty:((CharStar!, CharStar!)) args)
+// {
+//     if (strcmp(args.p1, args.p2)) {
+//         return $exp:(True);
+//     } else {
+//         return $exp:(False);
+//     }
+// }
+// 
+// $ty:(CharStar!) cstring_to_charstar ($ty:(CString!) args)
+// {
+//     return args->values;
+// }
+
 $ty:(CString!) get_ObjDentry_name_bang ($ty:(ObjDentry!) args)
 {
-    $ty:(CString!) name;
-    name->values = args->name;
-    name->len = args->nlen;
-    return name;
+    $ty:(CString!) ret = kmalloc (sizeof (*ret));
+    char* val = kmalloc (sizeof (args->nlen));
+    if (!ret || !val) {
+        bilbyfs_debug ("get_ObjDentry_name_bang failed to malloc!");
+        return NULL;
+    }
+    ret->len = args->nlen;
+    ret->values = val;
+    memcpy(val, args->name, args->nlen);
+    return ret;
 }
 
 $ty:((ObjDentry take (..)) put (name))
 set_ObjDentry_name ($ty:((ObjDentry take (..), CString!, U32)) args)
 {
     $ty:(ObjDentry) dent = args.p1;
-    bilbyfs_debug ("set_ObjDentry_name: nlen = %u, arg_len = %u\n", dent->nlen, args.p3);
-    bilbyfs_assert (dent->nlen == args.p3);
     memcpy((void*)dent->name, (void*)args.p2->values, args.p3);
     return dent;
 }

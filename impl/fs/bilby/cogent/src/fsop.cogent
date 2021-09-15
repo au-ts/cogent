@@ -123,7 +123,7 @@ free_opt_ObjDentry (ex, opt_entry) =
   | Some old -> freeObjDentry(ex, old)
   | None -> ex
 
-dentarr_add_dentry: (SysState, ObjDentarr, VfsInode!, (WordArray U8)!, U8) -> RR (SysState, ObjDentarr) () ErrCode
+dentarr_add_dentry: (SysState, ObjDentarr, VfsInode!, CString!, U8) -> RR (SysState, ObjDentarr) () ErrCode
 dentarr_add_dentry(ex, odent, vnode, name, dtype) =
   let nb_dentry = odent.nb_dentry !odent
   and name_len = wordarray_length[U8](name)
@@ -155,7 +155,7 @@ del_dentry_modifier #{elem=dentry, acc=ex, obsv=name} =
   else
     (ex, Error dentry)
 
-dentarr_del_dentry: (SysState, ObjDentarr, (WordArray U8)!) -> (SysState, ObjDentarr)
+dentarr_del_dentry: (SysState, ObjDentarr, CString!) -> (SysState, ObjDentarr)
 dentarr_del_dentry(ex, odent {entries}, name) =
   let #{arr=entries, acc=ex} = array_filter[ObjDentry, SysState, WordArray U8]
                                  #{arr=entries, f=del_dentry_modifier, acc=ex, obsv=name}
@@ -761,6 +761,8 @@ fsop_lookup #{ex, fs_st = fs_st {mount_st, ostore_st}, vdir, name} =
         | Break inum ->
           let ex = deep_freeObjDentarr(ex, dentarr)
           in (#{ex, fs_st, vdir}, Success inum)
+
+-- str_cmp : (CharStar!, CharStar!) -> Bool
 
 find_name: ArrayFoldF ObjDentry () CString VfsIno
 find_name #{elem=de, acc=_, obsv=name} =

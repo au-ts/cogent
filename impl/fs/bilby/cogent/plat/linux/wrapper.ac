@@ -146,7 +146,7 @@ static struct inode *bilbyfs_new_inode(struct super_block *sb,
         struct inode *inode;
         int err;
 
-        bilbyfs_debug("bilbyfs_new_inode(mode = 0x%x)\n", mode);
+        bilbyfs_debug("bilbyfs_new_inode(mode = 0%o)\n", mode);
         inode = new_inode(sb);
         if (!inode) {
                 bilbyfs_err("BilbyFsError: new_inode() = -ENOMEM");
@@ -162,7 +162,7 @@ static struct inode *bilbyfs_new_inode(struct super_block *sb,
                 return inode;
         make_bad_inode(inode);
         iput(inode);
-        bilbyfs_err("BilbyFsError: bilbyfs_new_inode(mode = 0x%x) = %d\n", mode, err);
+        bilbyfs_err("BilbyFsError: bilbyfs_new_inode(mode = 0%o) = %d\n", mode, err);
         return ERR_PTR(err);
 }
 
@@ -467,7 +467,7 @@ static int bilbyfs_create(struct inode *dir, struct dentry *dentry,
         struct inode *inode;
         int err;
 
-        bilbyfs_debug("bilbyfs_create (dir.ino = %lu, name=%.*s, mode=%x)\n", dir->i_ino, dentry->d_name.len, dentry->d_name.name, mode);
+        bilbyfs_debug("bilbyfs_create (dir.ino = %lu, len=%u, name=%s, mode=0%o)\n", dir->i_ino, dentry->d_name.len, dentry->d_name.name, mode);
         inode = bilbyfs_new_inode(dir->i_sb, dir, S_IFREG | mode);
         if (IS_ERR(inode))
                 return PTR_ERR(inode);
