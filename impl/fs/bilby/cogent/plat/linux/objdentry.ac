@@ -35,7 +35,7 @@ memcpy_d_ObjDentry ($ty:((SysState, Buffer!, ObjDentry take (..), BufOffs, U32))
 $ty:(CString!) get_ObjDentry_name_bang ($ty:(ObjDentry!) args)
 {
     $ty:(CString!) ret = kmalloc (sizeof (*ret));
-    char* val = kmalloc (sizeof (args->nlen));
+    char* val = kmalloc (args->nlen);
     if (!ret || !val) {
         bilbyfs_debug ("get_ObjDentry_name_bang failed to malloc!");
         return NULL;
