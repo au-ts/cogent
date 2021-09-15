@@ -41,7 +41,7 @@ import           Cogent.Glue                      as GL (GlState, GlueMode (..),
 #ifdef WITH_HASKELL
 import           Cogent.Haskell.Shallow           as HS
 #endif
-import           Cogent.Inference                 as IN (retype, tc, tcConsts, tc_, expandDefs, filterTypeDefs, expandConsts, expandPragmas)
+import           Cogent.Inference                 as IN (retype, tc, tcConsts, tc_, unfoldSynsInDefs, filterTypeDefs, unfoldSynsInConsts, unfoldSynsInPragmas)
 import           Cogent.Interpreter               as Repl (replWithState)
 import           Cogent.Isabelle                  as Isa
 #ifdef WITH_LLVM
@@ -717,10 +717,10 @@ parseArgs args = case getOpt' Permute options args of
     normal cmds desugared ctygen pragmas source tced tcst typedefs fts constdefs buildinfo log = do
       let stg = STGNormal
       putProgress "Normalising..."
-      let desugared' = IN.expandDefs desugared
+      let desugared' = IN.unfoldSynsInDefs desugared
           tsyndefs   = filterTypeDefs desugared'
-          constdefs' = IN.expandConsts constdefs tsyndefs
-          pragmas'   = IN.expandPragmas pragmas tsyndefs
+          constdefs' = IN.unfoldSynsInConsts constdefs tsyndefs
+          pragmas'   = IN.unfoldSynsInPragmas pragmas tsyndefs
       nfed' <- case __cogent_fnormalisation of
         NoNF -> putProgressLn "Skipped." >> return desugared'
         nf -> do putProgressLn (show nf)

@@ -37,7 +37,7 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core as CC
 import Cogent.Desugar as D (freshVarPrefix)
-import Cogent.Inference as IN (filterTypeDefs, substTransSyn)
+import Cogent.Inference as IN (filterTypeDefs, unfoldSynsShallow)
 import Cogent.Isabelle.Compound (takeFlatCase)
 import Cogent.Isabelle.IsabelleName
 import Cogent.Isabelle.ShallowTable (TypeStr(..), st, getStrlType, toTypeStr)
@@ -102,10 +102,10 @@ instance MonadFail (SG b a) where
   fail = __impossible
 #endif
 
-expandTransSyns :: CC.Type t b -> SG b (CC.Type t b)
-expandTransSyns t = do
+unfoldSynsShallowM :: CC.Type t b -> SG b (CC.Type t b)
+unfoldSynsShallowM t = do
     tdfs <- asks typeSynDefs
-    return $ IN.substTransSyn tdfs t
+    return $ IN.unfoldSynsShallow tdfs t
 
 isaReservedNames = ["o", "value", "from"]
 
@@ -272,7 +272,7 @@ shallowExpr ec@(TE _ (Case e tag (_,n1,e1) (_,n2,e2))) = do
              pure $ mkApp (mkStr ["case_",tn]) $ es ++ [escrut']
     Nothing -> do
       e' <- shallowExpr e
-      te@(TSum alts) <- expandTransSyns $ exprType e
+      te@(TSum alts) <- unfoldSynsShallowM $ exprType e
       tn  <- findTypeSyn te
       te' <- shallowType te
       e1' <- mkLambdaE [snm n1] e1
@@ -295,7 +295,7 @@ shallowExpr ec@(TE _ (Case e tag (_,n1,e1) (_,n2,e2))) = do
 shallowExpr (TE t (Esac e)) = do
   tn <- findTypeSyn $ exprType e
   e' <- shallowExpr e
-  TSum alts <- expandTransSyns $ exprType e
+  TSum alts <- unfoldSynsShallowM $ exprType e
   let es = flip map alts $ \(tag',(t',b')) ->
              if | b' -> mkId "undefined"
                 | otherwise -> mkId "Fun.id"
@@ -304,7 +304,7 @@ shallowExpr (TE _ (Split (n1,n2) e1 e2)) = mkApp <$> mkLambdaE [mkPrettyPair n1 
 shallowExpr (TE _ (Member rec fld)) = shallowExpr rec >>= \e -> shallowGetter rec fld e
 shallowExpr (TE _ (Take (n1,n2) rec fld e)) = do
   erec <- shallowExpr rec
-  trec <- expandTransSyns $ exprType rec
+  trec <- unfoldSynsShallowM $ exprType rec
   efield <- mkId <$> getRecordFieldName trec fld
   let take = mkApp (mkId $ "take" ++ subSymStr "cogent") [erec, efield]
       pp = mkPrettyPair n1 n2
@@ -315,7 +315,7 @@ shallowExpr (TE _ (Cast    (TPrim pt) (TE _ (ILit n _)))) = pure $ shallowILit n
 shallowExpr (TE _ (Cast    (TPrim pt) e)) =
   TermWithType <$> (mkApp (mkId "ucast") <$> ((:[]) <$> shallowExpr e)) <*> pure (shallowPrimType pt)
 shallowExpr (TE te (Cast  t e)) = do
-  t' <- expandTransSyns t
+  t' <- unfoldSynsShallowM t
   shallowExpr $ TE te $ Cast t' e
 
 shallowAlt :: (Show b,Eq b) => (TagName,VarName,TypedExpr t v VarName b) -> SG b (Term,Term)
@@ -328,7 +328,7 @@ shallowAlt (tag,n,e) = do
 -- We prefer doing it here in a separate action instead of turning takeFlatCase into a monadic action.
 expandSynsInCase :: CC.TypedExpr t v VarName b -> SG b (CC.TypedExpr t v VarName b)
 expandSynsInCase (TE t (Case (TE tscrut escrut) tag alt1 (l2,n2,e2))) = do
-    tscrut' <- expandTransSyns tscrut
+    tscrut' <- unfoldSynsShallowM tscrut
     e2' <- go e2
     return (TE t (Case (TE tscrut' escrut) tag alt1 (l2,n2,e2')))
     where
@@ -337,7 +337,7 @@ expandSynsInCase (TE t (Case (TE tscrut escrut) tag alt1 (l2,n2,e2))) = do
             e2' <- go e2
             return (TE t (Case e tag alt1 (l2,n2,e2')))
         go (TE t (Let nalt (TE t1 (Esac (TE tscrut e))) erest)) = do
-            tscrut' <- expandTransSyns tscrut
+            tscrut' <- unfoldSynsShallowM tscrut
             return (TE t (Let nalt (TE t1 (Esac (TE tscrut' e))) erest))
         go e = return e
 
@@ -398,14 +398,14 @@ mkRecord tn fs = do
 
 shallowSetter :: (Show b,Eq b) => TypedExpr t v VarName b -> Int -> TypedExpr t v VarName b -> SG b Term
 shallowSetter rec idx e = do
-  trec <- expandTransSyns $ exprType rec
+  trec <- unfoldSynsShallowM $ exprType rec
   tn <- getRecordFieldName trec idx
   let setter = tn ++ "_update"
   mkApp (mkId setter) <$> (list2 <$> mkLambdaE ["_"] e <*> shallowExpr rec)
 
 shallowGetter :: TypedExpr t v VarName b -> Int -> Term -> SG b Term
 shallowGetter rec idx rect = do
-  trec <- expandTransSyns $ exprType rec
+  trec <- unfoldSynsShallowM $ exprType rec
   mkApp <$> (mkId <$> getRecordFieldName trec idx) <*> pure [rect]
 
 getRecordFieldName :: CC.Type t b -> Int -> SG b FieldName
@@ -607,7 +607,7 @@ adjustTypeName tn = do
   tdfs <- asks typeSynDefs
   case find (isDefFor tn) tdfs of
     Just (TypeDef _ _ (Just tb)) -> do
-        tb' <- expandTransSyns tb
+        tb' <- unfoldSynsShallowM tb
         return $ typeSynName tn tb'
     _ -> return tn
     where isDefFor n (TypeDef tn _ (Just _)) = (tn == n)
@@ -618,7 +618,7 @@ shallowTypeDef :: (Show b,Eq b) => TypeName -> [TyVarName] -> CC.Type t b -> SG 
 shallowTypeDef tn ps (TPrim p)      = pure [TypeSynonym (TypeSyn tn (shallowPrimType p) ps)]
 shallowTypeDef tn ps t = do
   st <- shallowType t
-  t' <- expandTransSyns t
+  t' <- unfoldSynsShallowM t
   pure [TypeSynonym (TypeSyn (typeSynName tn t') st ps)]
 
 typeNameFromIdx :: Int -> String
