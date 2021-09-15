@@ -121,11 +121,8 @@ shallowRecTupleType fs = shallowTupleType <$> mapM shallowType (map (fst . snd) 
 shallowType :: forall t b. (Show b,Eq b) => CC.Type t b -> SG b I.Type
 shallowType (TVar v) = I.TyVar <$> ((!!) <$> asks typeVars <*> pure (finInt v))
 shallowType (TVarBang v) = shallowType (TVar v :: CC.Type t b)
-shallowType t@(TCon tn ts _) =
-    case stripPrefix "internal:" tn of
-         Just tn' -> -- name selected for a record or variant type. Use it after stripping the prefix.
-           I.TyDatatype tn' <$> mapM shallowType ts
-         Nothing -> do -- original Cogent type name. Append index T if it expands to a record or variant.
+shallowType (TCon tn ts _) = I.TyDatatype tn <$> mapM shallowType ts
+shallowType (TSyn tn ts _ _) = do -- Append index T if it expands to a record or variant.
            tn' <- adjustTypeName tn
            I.TyDatatype tn' <$> mapM shallowType ts
 shallowType (TFun t1 t2) = I.TyArrow <$> shallowType t1 <*> shallowType t2
@@ -204,10 +201,7 @@ findType :: CC.Type t b -> SG b (CC.Type t b)
 findType t = getStrlType <$> asks typeNameMap <*> asks typeStrs <*> pure t
 
 findTypeSyn :: CC.Type t b -> SG b String
-findTypeSyn t = findType t >>= \(TCon nm _ _) -> 
-    case stripPrefix "internal:" nm of 
-         Just nm' -> pure nm'
-         _ -> pure nm
+findTypeSyn t = findType t >>= \(TCon nm _ _) -> pure nm
 
 shallowExpr :: (Show b,Eq b) => TypedExpr t v VarName b -> SG b Term
 shallowExpr (TE _ (Variable (_,v))) = pure $ mkId (snm v)
@@ -594,6 +588,7 @@ sanitizeType :: CC.Type t b -> CC.Type t b
 sanitizeType (TSum ts) = TSum (map (\(tn,(t,_)) -> (tn,(sanitizeType t,False))) ts)
 sanitizeType (TRecord rp ts _) = TRecord rp (map (\(tn, (t,_)) -> (tn, (sanitizeType t, False))) ts) Unboxed
 sanitizeType (TCon tn ts _) = TCon tn (map sanitizeType ts) Unboxed
+sanitizeType (TSyn tn ts _ _) = TSyn tn (map sanitizeType ts) Unboxed False
 sanitizeType (TFun ti to) = TFun (sanitizeType ti) (sanitizeType to)
 sanitizeType (TProduct t t') = TProduct (sanitizeType t) (sanitizeType t')
 #ifdef BUILTIN_ARRAYS
@@ -742,12 +737,12 @@ filterDuplicates xs =
   in map (minimumBy (compare `on` (P.length . snd))) grpdsrtd
 
 stsyn :: [Definition TypedExpr VarName b] -> MapTypeName
-stsyn decls = M.fromList . filterDuplicates . concat $ P.map (synAllTypeStr (filterTypeDefs decls)) decls
+stsyn decls = M.fromList . filterDuplicates . concat $ P.map synAllTypeStr decls
 
-synAllTypeStr :: [Definition TypedExpr VarName b] -> Definition TypedExpr VarName b -> [(TypeStr, TypeName)]
-synAllTypeStr _ (TypeDef tn _ (Just (TRecord _ fs _))) = [(RecordStr $ P.map fst fs, tn)]
-synAllTypeStr _ (TypeDef tn _ (Just (TSum alts))) = [(VariantStr $ P.map fst alts, tn)]
-synAllTypeStr _ _ = []
+synAllTypeStr :: Definition TypedExpr VarName b -> [(TypeStr, TypeName)]
+synAllTypeStr (TypeDef tn _ (Just (TRecord _ fs _))) = [(RecordStr $ P.map fst fs, tn)]
+synAllTypeStr (TypeDef tn _ (Just (TSum alts))) = [(VariantStr $ P.map fst alts, tn)]
+synAllTypeStr _ = []
 
 shallowTypeFromTable :: (Show b,Eq b) => SG b ([TheoryDecl I.Type I.Term], [TheoryDecl I.Type I.Term], MapTypeName)
 shallowTypeFromTable = do
