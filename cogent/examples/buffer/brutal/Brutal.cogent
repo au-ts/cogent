@@ -74,7 +74,7 @@ cstring_eq : (CString!, CString!) -> Bool
 gen_next_item : #{ acc : BItem , obsv : (BTail!, CString!) } ->
   GeneratorResult () U32 () BItem
 gen_next_item (r { acc = item , obsv = (tail, _) }) =
-  next (item, tail) !tail
+  next (item, tail)
   | None item -> (item, Stop ())
   | Some item -> (item, Yield ())
 

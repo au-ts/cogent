@@ -1,0 +1,195 @@
+/*
+ * Copyright 2021, Trustworthy Systems Group (UNSW)
+ *
+ * This software may be distributed and modified according to the terms of
+ * the GNU General Public License version 2. Note that NO WARRANTY is provided.
+ * See "LICENSE_GPLv2.txt" for details.
+ *
+ * @TAG(DATA61_GPL)
+ */
+
+$esc:(#include <stdio.h>)
+$esc:(#include <string.h>)
+$esc:(#include <stdint.h>)
+$esc:(#include <stddef.h>)
+
+typedef char Vector;
+typedef char CString;
+typedef void *SysState;
+typedef struct entry BItem;
+typedef struct entry Start;
+typedef struct entry Entry;
+typedef unsigned long Length;
+
+#define MAXCAP 4096
+
+#include "generated.c"
+#include <gum/anti/iterator.ac>
+#include <gum/anti/common.ac>
+
+typedef struct entry {
+  unsigned long len;
+  $ty:(#Stuff) stuff;
+  char name[];
+} entry_t;
+
+unsigned long size = 2048;
+char block[MAXCAP]; // Contains Entry's jammed together; terminated by
+                    // len==0.
+
+$ty:(U64) unwrap($ty:(#Length) arg) {
+   return arg;
+}
+
+$ty:((a, Vector))
+$id:focus_buffer($ty:((Vector, b!, #{ obj : (BItem, BTail), obsv : b!} -> (a, BItem, BTail))) arg) {
+   $ty:((a, Vector)) result;
+   $ty:((a, BItem, BTail)) ret;
+   $ty:(#{ obj : (BItem, BTail), obsv : b! }) vargs;
+   vargs.obj.p1 = (BItem*)arg.p1;
+   vargs.obj.p2.head = (Entry*)(arg.p1 + size);
+   vargs.obj.p2.length = MAXCAP - size;
+   vargs.obsv = arg.p2;
+   ret = (($spec:(#{ obj : (BItem, BTail), obsv : b!} -> (a, BItem, BTail)))arg.p3) (vargs);
+   result.p1 = ret.p1;
+   result.p2 = arg.p1;
+   return result;
+}
+
+$ty:(<None BItem | Some BItem>) next($ty:((BItem, BTail!)) arg) {
+   $ty:(<None BItem | Some BItem>) ret;
+   BItem *next = (BItem *)((char *)arg.p1 + arg.p1->len);
+   if ((uintptr_t)next < (uintptr_t)arg.p2.head && next->len != 0) {
+      ret.tag = TAG_ENUM_Some;
+      ret.Some = next;
+   } else {
+      ret.tag = TAG_ENUM_None;
+      ret.None = arg.p1;
+   }
+   return ret;
+}
+
+Entry *read(BItem *item) {
+   return item;
+}
+
+$ty:(<Failure BTail | Success (b, BTail)>)
+$id:append_in_place($ty:((BTail, U64, a!, (#{ e : Entry , obsv : a! } -> (b, Entry)))) args) {
+   $ty:(<Failure BTail | Success (b, BTail)>) result;
+   $ty:(#{ e : Entry , obsv : a! }) hargs; // Helper arguments
+   $ty:((b, Entry)) hret;
+   Entry *e = NULL;
+   $ty:(BTail) tail = args.p1;
+   unsigned long esz = args.p2;
+
+   if (tail.length < esz) {
+      result.tag = TAG_ENUM_Failure;
+      result.Failure = tail;
+   } else {
+      result.tag = TAG_ENUM_Success;
+
+      // Prepare the arguments for the call
+      hargs.obsv = args.p3;
+
+      e = (Entry *)tail.head;
+      tail.head = (Entry *)((char *)e + esz);
+      tail.length -= esz;
+
+      memset(e, 0, esz);
+      e->len = esz;
+      hargs.e = e;
+
+      hret = (($spec:(#{e : Entry, obsv : a!} -> (b, Entry)))args.p4) (hargs);
+
+      result.Success.p1 = hret.p1;
+      result.Success.p2 = tail;
+   }
+   return result;
+}
+
+$ty:(Bool) cstring_eq($ty:((CString!, CString!)) args) {
+   $ty:(Bool) ret;
+
+   if (!strcmp(args.p1, args.p2)) {
+      ret.boolean = 1;
+   } else {
+      ret.boolean = 0;
+   }
+
+   return ret;
+}
+
+$ty:(Entry) set_entry($ty:((Entry, #Stuff, CString!)) args) {
+  Entry *e = args.p1;
+  e->stuff.a = args.p2.a;
+  e->stuff.b = args.p2.b;
+  e->stuff.c = args.p2.c;
+  strcpy(e->name, args.p3);
+  return args.p1;
+}
+
+$ty:(U64) get_size($ty:(Entry!) e) {
+  return e->len;
+}
+
+$ty:(CString!) get_name($ty:(Entry!) e) {
+   return e->name;
+}
+
+$ty:(Stuff!) get_stuff($ty:(Entry!) e) {
+   return &e->stuff;
+}
+
+int in_range($ty:(Entry!) e, unsigned long nlen) {
+  unsigned long p;
+
+  p = (uintptr_t)e + offsetof(Entry,name) + nlen;
+
+  return (p - (uintptr_t)block) < size;
+}
+
+/* Initialise our block of entries. */
+/* Not translated into Cogent. */
+void init(void) {
+  FILE *fp;
+  $ty:(Entry) e;
+  int a, b, c;
+  unsigned long len;
+  char buf[80];
+
+  memset(block, 0, MAXCAP);
+
+  if ((fp = fopen("entries.txt", "r")) != NULL) {
+    e = (Entry *)block;
+    while (fscanf(fp, "%s%d%d%d\n", buf, &a, &b, &c) == 4) {
+      len = strlen(buf)+1;
+      if (!in_range(e, len)) {
+        break;
+      }
+      strcpy(e->name, buf);
+      e->stuff.a = a;
+      e->stuff.b = b;
+      e->stuff.c = c;
+      e->len = ((uintptr_t)e->name + len) - (uintptr_t)e;
+      e = (Entry *) ((uintptr_t)e + e->len);
+    }
+    fclose(fp);
+
+    if ((len = (uintptr_t)e - (uintptr_t)block) < size)
+       size = len; /* initialised portion of the block */
+  }
+}
+
+int main(void){
+  $ty:((Vector, <None | Some U32>)) ret;
+  init();
+  char *str = {"wombat"};
+  $ty:((Vector, CString!)) args = {.p1 = block , .p2 = str};
+  ret = findStuff(args);
+  if (ret.p2.tag == TAG_ENUM_Some) {
+    printf("Wombat's b is %d.\n", ret.p2.Some);
+  } else {
+    printf("Wombat was not found.\n");
+  }
+  return 0;
+}
