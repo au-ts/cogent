@@ -28,6 +28,7 @@ $ty:((ObjDentry take (..)) put (name))
 set_ObjDentry_name ($ty:((ObjDentry take (..), CString!, U32)) args)
 {
     $ty:(ObjDentry) dent = args.p1;
+    bilbyfs_debug ("set_ObjDentry_name: nlen = %u, arg_len = %u\n", dent->nlen, args.p3);
     bilbyfs_assert (dent->nlen == args.p3);
     memcpy((void*)dent->name, (void*)args.p2->values, args.p3);
     return dent;
