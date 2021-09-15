@@ -95,11 +95,11 @@ hs: DIST_DIR = plat/linux
 verification: DIST_DIR = plat/verification
 .verif-gen: DIST_DIR = plat/verification
 # EXTRA_CFLAGS
-linux: EXTRA_CFLAGS = $(LINUX_EXTRA_CFLAGS)
-.c-gen: EXTRA_CFLAGS = $(LINUX_EXTRA_CFLAGS)
-hs: EXTRA_CFLAGS = $(LINUX_EXTRA_CFLAGS)
-verification: EXTRA_CFLAGS = $(VERIF_EXTRA_CFLAGS)
-.verif-gen: EXTRA_CFLAGS = $(VERIF_EXTRA_CFLAGS)
+linux: EXTRA_CFLAGS += $(LINUX_EXTRA_CFLAGS)
+.c-gen: EXTRA_CFLAGS += $(LINUX_EXTRA_CFLAGS)
+hs: EXTRA_CFLAGS += $(LINUX_EXTRA_CFLAGS)
+verification: EXTRA_CFLAGS += $(VERIF_EXTRA_CFLAGS)
+.verif-gen: EXTRA_CFLAGS += $(VERIF_EXTRA_CFLAGS)
 
 
 # call from kernel build system
