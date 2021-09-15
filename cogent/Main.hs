@@ -41,7 +41,7 @@ import           Cogent.Glue                      as GL (GlState, GlueMode (..),
 #ifdef WITH_HASKELL
 import           Cogent.Haskell.Shallow           as HS
 #endif
-import           Cogent.Inference                 as IN (retype, tc, tcConsts, tc_, expandDefs, filterTypeDefs)
+import           Cogent.Inference                 as IN (retype, tc, tcConsts, tc_, expandDefs, filterTypeDefs, expandConsts, expandPragmas)
 import           Cogent.Interpreter               as Repl (replWithState)
 import           Cogent.Isabelle                  as Isa
 #ifdef WITH_LLVM
@@ -716,6 +716,8 @@ parseArgs args = case getOpt' Permute options args of
       putProgress "Normalising..."
       let desugared' = IN.expandDefs desugared
       let tsyndefs = filterTypeDefs desugared'
+      let constdefs' = IN.expandConsts constdefs tsyndefs
+      let pragmas' = IN.expandPragmas pragmas tsyndefs
       nfed' <- case __cogent_fnormalisation of
         NoNF -> putProgressLn "Skipped." >> return desugared'
         nf -> do putProgressLn (show nf)
@@ -739,15 +741,15 @@ parseArgs args = case getOpt' Permute options args of
         output tpfile $ flip LJ.hPutDoc $
           deepTypeProof id __cogent_ftp_with_decls __cogent_ftp_with_bodies tpthy nfed' log
       shallowTypeNames <-
-        genShallow cmds source stg nfed' typedefs fts constdefs log (Shallow stg `elem` cmds,
-                                                                     SCorres stg `elem` cmds,
-                                                                     ShallowConsts stg `elem` cmds,
-                                                                     False, False, False, False, False)
+        genShallow cmds source stg nfed' typedefs fts constdefs' log (Shallow stg `elem` cmds,
+                                                                      SCorres stg `elem` cmds,
+                                                                      ShallowConsts stg `elem` cmds,
+                                                                      False, False, False, False, False)
       when (NormalProof `elem` cmds) $ do
         let npfile = mkThyFileName source __cogent_suffix_of_normal_proof
         writeFileMsg npfile
         output npfile $ flip LJ.hPutDoc $ normalProof thy shallowTypeNames nfed' log
-      when (Compile (succ stg) `elem` cmds) $ simpl cmds nfed' ctygen pragmas source tced tcst typedefs fts constdefs tsyndefs buildinfo log
+      when (Compile (succ stg) `elem` cmds) $ simpl cmds nfed' ctygen pragmas' source tced tcst typedefs fts constdefs' tsyndefs buildinfo log
       exitSuccessWithBuildInfo cmds buildinfo
 
     simpl cmds nfed ctygen pragmas source tced tcst typedefs fts constdefs tsyndefs buildinfo log = do
@@ -763,10 +765,10 @@ parseArgs args = case getOpt' Permute options args of
                       Right simpled' -> return simpled'
       when (Ast stg `elem` cmds) $ genAst stg simpled'
       when (Pretty stg `elem` cmds) $ genPretty stg simpled'
-      when (Compile (succ stg) `elem` cmds) $ mono cmds simpled' ctygen pragmas source tced tcst typedefs fts tsyndefs buildinfo log
+      when (Compile (succ stg) `elem` cmds) $ mono cmds simpled' ctygen pragmas source tced tcst typedefs fts constdefs tsyndefs buildinfo log
       exitSuccessWithBuildInfo cmds buildinfo
 
-    mono cmds simpled ctygen pragmas source tced tcst typedefs fts tsyndefs buildinfo log = do
+    mono cmds simpled ctygen pragmas source tced tcst typedefs fts constdefs tsyndefs buildinfo log = do
       let stg = STGMono
       putProgressLn "Monomorphising..."
       efuns <- T.forM __cogent_entry_funcs $
@@ -790,38 +792,35 @@ parseArgs args = case getOpt' Permute options args of
           when (Ast stg `elem` cmds) $ lessPretty stdout monoed'
           when (Pretty stg `elem` cmds) $ pretty stdout monoed'
           when (Deep stg `elem` cmds) $ genDeep cmds source stg monoed' typedefs fts log
-          case IN.tcConsts ((\(a,b,c) -> c) $ fromJust $ getLast typedefs) fts $ filterTypeDefs monoed' of
-            Left err -> hPutStrLn stderr ("Re-typing constants failed: " ++ err) >> exitFailure
-            Right (constdefs',_) -> do
-              _ <- genShallow cmds source stg monoed' typedefs fts constdefs' log (Shallow stg `elem` cmds,
-                                                                                   SCorres stg `elem` cmds,
-                                                                                   ShallowConsts stg `elem` cmds,
-                                                                                   False, False, False, False, False)
-              -- LLVM Entrance
+          _ <- genShallow cmds source stg monoed' typedefs fts constdefs log (Shallow stg `elem` cmds,
+                                                                              SCorres stg `elem` cmds,
+                                                                              ShallowConsts stg `elem` cmds,
+                                                                              False, False, False, False, False)
+          -- LLVM Entrance
 #ifdef WITH_LLVM
-              when (LLVMGen `elem` cmds) $ llvmg cmds monoed' ctygen' insts source tced tcst typedefs fts tsyndefs buildinfo log
+          when (LLVMGen `elem` cmds) $ llvmg cmds monoed' ctygen' insts source tced tcst typedefs fts tsyndefs buildinfo log
 #endif
-              when (Compile (succ stg) `elem` cmds) $ cg cmds monoed' ctygen' pragmas' insts source tced tcst typedefs fts tsyndefs buildinfo log
-              c_refinement source monoed' insts log (ACInstall `elem` cmds, CorresSetup `elem` cmds, CorresProof `elem` cmds)
-              when (MonoProof `elem` cmds) $ do
-                let mpfile = mkThyFileName source __cogent_suffix_of_mono_proof
-                writeFileMsg mpfile
-                output mpfile $ flip LJ.hPutDoc $ monoProof source (fst insts) log
-              when (TypeProof STGMono `elem` cmds) $ do
-                let tpfile = mkThyFileName source __cogent_suffix_of_type_proof
-                    tpthy  = mkProofName source (Just __cogent_suffix_of_type_proof)
-                writeFileMsg tpfile
-                output tpfile $ flip LJ.hPutDoc $ deepTypeProof id __cogent_ftp_with_decls __cogent_ftp_with_bodies tpthy monoed' log
-              when (AllRefine `elem` cmds) $ do
-                let arfile = mkThyFileName source __cogent_suffix_of_all_refine
-                writeFileMsg arfile
-                output arfile $ flip LJ.hPutDoc $ allRefine source log
-              when (Root `elem` cmds) $ do
-                let rtfile = if __cogent_fdump_to_stdout then Nothing else Just $ __cogent_dist_dir `combine` __cogent_root_name
-                writeFileMsg rtfile
-                output rtfile $ flip hPutStrLn (unlines $ root source log)
-              when (GraphGen `elem` cmds) $ putProgressLn ("Generating graph...") >> graphGen monoed' log
-              exitSuccessWithBuildInfo cmds buildinfo
+          when (Compile (succ stg) `elem` cmds) $ cg cmds monoed' ctygen' pragmas' insts source tced tcst typedefs fts tsyndefs buildinfo log
+          c_refinement source monoed' insts log (ACInstall `elem` cmds, CorresSetup `elem` cmds, CorresProof `elem` cmds)
+          when (MonoProof `elem` cmds) $ do
+            let mpfile = mkThyFileName source __cogent_suffix_of_mono_proof
+            writeFileMsg mpfile
+            output mpfile $ flip LJ.hPutDoc $ monoProof source (fst insts) log
+          when (TypeProof STGMono `elem` cmds) $ do
+            let tpfile = mkThyFileName source __cogent_suffix_of_type_proof
+                tpthy  = mkProofName source (Just __cogent_suffix_of_type_proof)
+            writeFileMsg tpfile
+            output tpfile $ flip LJ.hPutDoc $ deepTypeProof id __cogent_ftp_with_decls __cogent_ftp_with_bodies tpthy monoed' log
+          when (AllRefine `elem` cmds) $ do
+            let arfile = mkThyFileName source __cogent_suffix_of_all_refine
+            writeFileMsg arfile
+            output arfile $ flip LJ.hPutDoc $ allRefine source log
+          when (Root `elem` cmds) $ do
+            let rtfile = if __cogent_fdump_to_stdout then Nothing else Just $ __cogent_dist_dir `combine` __cogent_root_name
+            writeFileMsg rtfile
+            output rtfile $ flip hPutStrLn (unlines $ root source log)
+          when (GraphGen `elem` cmds) $ putProgressLn ("Generating graph...") >> graphGen monoed' log
+          exitSuccessWithBuildInfo cmds buildinfo
 
 #ifdef WITH_LLVM
     llvmg cmds monoed ctygen insts source tced tcst typedefs fts tsyndefs buildinfo log = do

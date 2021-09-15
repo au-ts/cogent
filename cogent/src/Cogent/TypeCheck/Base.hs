@@ -752,8 +752,8 @@ substDepType d vs (DT t) = DT (fmap (substDepType d vs) t)
 applyBang :: Typedefs -> DepType -> DepType
 applyBang d (DT (TCon tn ts Unboxed)) = 
     case M.lookup tn d of
-         Just _ -> DT $ TBang res
-         _ -> res
+         Just _ -> DT $ TBang res  -- type synonym, preserve bang
+         _ -> res                  -- unboxed abstract or primitive type, ignore bang
     where res = DT $ TCon tn (map (applyBang d) ts) Unboxed
 applyBang d (DT (TCon tn ts s)) = DT $ TCon tn (map (applyBang d) ts) (bangSigil s)
 applyBang _ (DT (TVar v b u)) = DT $ TVar v True u
@@ -774,11 +774,24 @@ applyUnbox (DT (TArray t e _ h)) = DT $ TArray t e Unboxed h
 #endif
 applyUnbox t = t
 
+applyLayout :: DataLayoutExpr -> DepType -> DepType
+applyLayout l (DT (TCon tn ts (Boxed r Nothing))) = DT $ TCon tn ts $ Boxed r $ Just l
+applyLayout l (DT (TRecord rp fs (Boxed r Nothing))) = DT $ TRecord rp fs $ Boxed r $ Just l
+#ifdef BUILTIN_ARRAYS
+applyLayout l (DT (TArray t e (Boxed r Nothing) h)) = DT $ TArray t e (Boxed r $ Just l)  h
+#endif
+applyLayout _ t = t
+
 substTransDTSyn :: Typedefs -> DepType -> DepType
 substTransDTSyn d t@(DT (TCon n ts b)) =
   case M.lookup n d of
-    Just (ts', bdy) -> let applySigil = if unboxed b then applyUnbox else if readonly b then applyBang d else id
-                           -- a layout is ignored here, but it seems that there never is one?
+    Just (ts', bdy) -> let applySigil = 
+                             case b of 
+                                Unboxed -> applyUnbox
+                                Boxed True Nothing -> applyBang d
+                                Boxed False Nothing -> id
+                                Boxed True (Just l) -> applyLayout l . applyBang d
+                                Boxed False (Just l) -> applyLayout l
                        in substTransDTSyn d $ applySigil $ substDepType d (zip ts' ts) bdy
     _ -> t
 substTransDTSyn d t@(DT (TBang (DT (TCon n ts Unboxed)))) =
