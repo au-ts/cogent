@@ -782,8 +782,8 @@ applyLayout l (DT (TArray t e (Boxed r Nothing) h)) = DT $ TArray t e (Boxed r $
 #endif
 applyLayout _ t = t
 
-substTransDTSyn :: Typedefs -> DepType -> DepType
-substTransDTSyn d t@(DT (TCon n ts b)) =
+unfoldSynsShallow :: Typedefs -> DepType -> DepType
+unfoldSynsShallow d t@(DT (TCon n ts b)) =
   case M.lookup n d of
     Just (ts', bdy) -> let applySigil = 
                              case b of 
@@ -792,13 +792,13 @@ substTransDTSyn d t@(DT (TCon n ts b)) =
                                 Boxed False Nothing -> id
                                 Boxed True (Just l) -> applyLayout l . applyBang d
                                 Boxed False (Just l) -> applyLayout l
-                       in substTransDTSyn d $ applySigil $ substDepType d (zip ts' ts) bdy
+                       in unfoldSynsShallow d $ applySigil $ substDepType d (zip ts' ts) bdy
     _ -> t
-substTransDTSyn d t@(DT (TBang (DT (TCon n ts Unboxed)))) =
+unfoldSynsShallow d t@(DT (TBang (DT (TCon n ts Unboxed)))) =
   case M.lookup n d of
-    Just (ts', bdy) -> substTransDTSyn d $ applyBang d $ applyUnbox $ substDepType d (zip ts' ts) bdy
-    _ -> __impossible "substTransDTSyn: no type synonym"
-substTransDTSyn _ t = t
+    Just (ts', bdy) -> unfoldSynsShallow d $ applyBang d $ applyUnbox $ substDepType d (zip ts' ts) bdy
+    _ -> __impossible "unfoldSynsShallow: no type synonym"
+unfoldSynsShallow _ t = t
 
 flexOf (U x) = Just x
 flexOf (T (TTake _ t))   = flexOf t
