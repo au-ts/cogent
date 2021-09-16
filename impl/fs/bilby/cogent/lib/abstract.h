@@ -23,6 +23,8 @@ typedef struct inode VfsInodeAbstract;
 typedef struct kstat VfsStat;
 typedef struct iattr VfsIattr;
 
+typedef char CStr;
+
 typedef struct buffer_head OSBuffer;
 typedef struct WrapperState SysState;
 typedef struct WrapperState WrapperState;

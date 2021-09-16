@@ -489,6 +489,7 @@ type ObjDentry = {
 
 -- XXX: This is wrong, but for now, we pretend it's okay.
 get_ObjDentry_name_bang : ObjDentry! -> CString!
+get_ObjDentry_name_bang_str : ObjDentry! -> CStr!
 set_ObjDentry_name : (ObjDentry take (..), CString!, U32) -> (ObjDentry take (..)) put (name)
 
 
