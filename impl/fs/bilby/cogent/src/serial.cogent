@@ -514,63 +514,8 @@ bilbyFsObjDentryHeaderSize = 8
    PObjDentry (fst r) offs = dentry /\ snd r = offs + 8 + nlen
 -}
 
-memcpy_s_ObjDentry :  (Buffer, BufOffs, ObjDentry!) -> Buffer
-memcpy_d_ObjDentry : (SysState, Buffer!, ObjDentry take (..), BufOffs, U32) -> (SysState, ObjDentry)
-
-serialise_ObjDentry : (Buffer, BufOffs, ObjDentry!) -> (Buffer, BufOffs)
-serialise_ObjDentry (buf, off, dentry) =
-  let off' = off + bilbyFsObjDentryHeaderSize + upcast (dentry.nlen)
-  and buf' = memcpy_s_ObjDentry (buf, off, dentry)
-   in (buf', off')
-
-{-
-  precond:
-    dentry.nlen = u32_to_u16 (wordarray_length[U8] dentry.name)
-    dentry.nlen < 256
-    offs + 8 + u16_to_u32 (Ple16 data (offs+6)) <= buf.bound
-  postcond:
-!!h e.
-  let nlen32 = u16_to_u32 (Ple16 data (offs+6))
-  in if offs + 8 + nlen32 <= buf.bound then
-    Error (fst(select(h,{eNoMem,eInval})), h)
-  else
-    Success (h, PObjDentry buf.data offs, offs + 8 + nlen32)
--}
-deserialise_ObjDentry: (SysState, Buffer!, BufOffs, U32) -> R (SysState, ObjDentry, BufOffs) (ErrCode, SysState)
-deserialise_ObjDentry(ex, buf, offs, end_offs) =
-  let nlen = deserialise_le16(buf, offs+6)
-
- -- There is a constrain on nlen to check that it is within the buffer bound.
- -- This has to be checked as we deserialise because nlen
- -- is read from the buffer (as opposed to bound checks
- -- encoded in the preconditions
-  and nlen32 = upcast nlen 
-  and _ = WHEN_DEBUGGING(cogent_debug "deserialise_ObjDentry: nlen=")
-  and _ = WHEN_DEBUGGING(cogent_debug_u16 nlen)
-  and _ = WHEN_DEBUGGING(cogent_debug " -- nlen32 ")
-  and _ = WHEN_DEBUGGING(cogent_debug_u32 nlen32)
-  in if offs + bilbyFsObjDentryHeaderSize + nlen32 > buf.bound ||
-        nlen32 > bilbyFsMaxNameLen + 1 ||
-        nlen32 == 0 ||
-        offs + bilbyFsObjDentryHeaderSize + nlen32 > end_offs
-         then
-    WHEN_DEBUGGING(
-    cogent_debug "offs+8+nlen32 (";
-    cogent_debug_u32 (offs + bilbyFsObjDentryHeaderSize + nlen32) ;
-    cogent_debug  ") > buf_bound (" ;
-    cogent_debug_u32 (buf_bound buf);
-    cogent_debug ") or nlen32 (" ;
-    cogent_debug_u32 nlen32 ;
-    cogent_debug " > " ;
-    cogent_debug_u32 (bilbyFsMaxNameLen + 1) ;
-    cogent_debug ")\n") ;
-    Error (eInval, ex)
-  else
-    let Success (ex, dentry) <= newObjDentry (ex, nlen32)
-          |> Error ex -> Error (eNoMem, ex)
-    -- deserialise_wordarray_U8 guarantees that: length name = nlen
-    and (ex, dentry) = memcpy_d_ObjDentry (ex, buf, dentry, offs, bilbyFsObjDentryHeaderSize + nlen32)
-     in Success (ex, dentry, offs + bilbyFsObjDentryHeaderSize + nlen32)
+-- memcpy_s_ObjDentry :  (Buffer, BufOffs, ObjDentry!) -> Buffer
+-- memcpy_d_ObjDentry : (SysState, Buffer!, ObjDentry take (..), BufOffs, U32) -> (SysState, ObjDentry)
 
 -- it also takes the size of the flexible array member.
 newObjDentry: (SysState, U32) -> R (SysState, ObjDentry take(..)) SysState
@@ -583,17 +528,6 @@ type ObjDentarr = {
 }
 newObjDentarr: SysState -> R (SysState, ObjDentarr take(..)) SysState
 freeObjDentarr: (SysState, ObjDentarr take (..)) -> SysState
-
-{-# cinline serialise_Arr_ObjDentry_f #-}
-serialise_Arr_ObjDentry_f: #{elem:ObjDentry!, acc:(Buffer, BufOffs), obsv:()} -> (Buffer, BufOffs)
-serialise_Arr_ObjDentry_f #{elem=dentry,acc=(buf,offs), obsv=()} =
-  serialise_ObjDentry(buf, offs, dentry)
-
-{-# cinline serialise_Array_ObjDentry #-}
-serialise_Array_ObjDentry: (Buffer, BufOffs, (Array ObjDentry)!) -> (Buffer, BufOffs)
-serialise_Array_ObjDentry(buf, offs, arr) =
-  array_fold_no_break[ObjDentry, (Buffer, BufOffs), ()]
-    #{arr, f=serialise_Arr_ObjDentry_f, acc=(buf, offs), obsv=()}
 
 bilbyFsObjDentarrHeaderSize: U32
 bilbyFsObjDentarrHeaderSize = 12
@@ -613,16 +547,6 @@ serialise_ObjDentarr(buf, offs, dentarr) =
 
 memcpy_s_ObjDentryVector : (Buffer, BufOffs, Vector!, U32) -> Buffer
 
-{-# cinline serialise_size_Arr_ObjDentry_f #-}
-serialise_size_Arr_ObjDentry_f: #{elem:ObjDentry!, acc:U32, obsv:()} -> U32
-serialise_size_Arr_ObjDentry_f #{elem=dentry,acc=sz, obsv=()} =
-  sz + bilbyFsObjDentryHeaderSize + upcast dentry.nlen
-
-{-# cinline serialise_size_Array_ObjDentry #-}
-serialise_size_Array_ObjDentry: (Array ObjDentry)! -> U32
-serialise_size_Array_ObjDentry arr =
-  array_fold_no_break[ObjDentry, U32, ()] #{arr, f=serialise_size_Arr_ObjDentry_f, acc=0, obsv=()}
-
 {-# cinline serialise_size_ObjDentarr #-}
 serialise_size_ObjDentarr: ObjDentarr! -> U32
 serialise_size_ObjDentarr dentarr = bilbyFsObjDentarrHeaderSize + serialise_size_Vector_ObjDentry dentarr.entries
@@ -632,48 +556,13 @@ serialise_size_Vector_ObjDentry : Vector! -> U32
 serialise_size_Vector_ObjDentry vec = 
   focus_vector_ro [(), (), U32] #{vec, acc = (), obsv = (), f = size_ObjDentry_vector}
 
-size_ObjDentry_vector : #{uvec : VectorUsed!, fvec : VectorFree!, acc : (), obsv : ()}
-                     -> #{uvec : VectorUsed!, fvec : VectorFree!, res : U32}
-
+size_ObjDentry_vector : FocusVectorRoFArg () () -> FocusVectorRoFRet U32
 
 {-# cinline deep_freeOptionObjDentry #-}
 deep_freeOptionObjDentry: (SysState, Option ObjDentry) -> SysState
 deep_freeOptionObjDentry (ex, opt_dent) =
   opt_dent | None -> ex
            | Some obj -> freeObjDentry(ex, obj)
-
--- #{oelem:Option ObjDentry, acc: (SysState, U32), obsv: Buffer!} -> LoopResult (Option ObjDentry, (SysState, U32)) (Option ObjDentry, (ErrCode, SysState))
-loop_deserialise_ObjDentry: ArrayMapF ObjDentry (SysState, U32) (Buffer!,U32) (ErrCode, SysState)
-loop_deserialise_ObjDentry #{oelem, acc=(ex,offs), obsv=(buf,end_offs)} =
-  let ex = deep_freeOptionObjDentry(ex, oelem) 
-  in deserialise_ObjDentry(ex, buf, offs, end_offs)
-  | Error (err, ex) ->
-    WHEN_DEBUGGING(
-    cogent_debug "could not deserialise deserialise_ObjDentry at " ;
-    cogent_debug_u32 offs ;
-    cogent_debug "\n") ;
-    Break (None, (eInval, ex))
-  | Success (ex, dent, offs) ->
-    Iterate (Some dent, (ex, offs))
-
-deserialise_Array_ObjDentry: (SysState, Buffer!, BufOffs, U32, U32) -> R (SysState, Array ObjDentry, BufOffs) (ErrCode, SysState)
-deserialise_Array_ObjDentry(ex, buf, offs, nb_dentry, end_offs) =
-  -- we always allocate an extra slot for potentially adding an entry
-  array_create[ObjDentry] (ex, nb_dentry + 1)
-  | Error ex ->
-    WHEN_DEBUGGING(
-    cogent_debug "Error of array_create in deserialise_Array_ObjDentry (length=" ;
-    cogent_debug_u32 nb_dentry ;
-    cogent_debug ")\n") ;
-    Error (eNoMem, ex)
-  | Success (ex, arr) ->
-    array_map[ObjDentry, (SysState, U32), (Buffer!,U32), (ErrCode, SysState)]
-      #{arr, frm=0, to=nb_dentry, f=loop_deserialise_ObjDentry, acc=(ex, offs), obsv=(buf,end_offs)}
-    | Break (arr, (err, ex)) ->
-      let ex = array_free[ObjDentry] #{arr, f=freeObjDentry, ex}
-      in Error (err, ex)
-    | Iterate (arr, (ex, offs)) ->
-      Success (ex, arr, offs)
 
 memcpy_d_ObjDentryVector : (SysState, Buffer!, Vector, BufOffs, U32) -> (SysState, Vector)
 

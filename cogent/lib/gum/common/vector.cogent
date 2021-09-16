@@ -6,6 +6,12 @@ free_vector : (SysState, Vector) -> SysState
 type VectorUsed
 type VectorFree
 
+type FocusVectorFArg a b = #{uvec : VectorUsed, fvec : VectorFree, acc : a, obsv : b}
+type FocusVectorFRet r   = #{uvec : VectorUsed, fvec : VectorFree, res : r}
+
+type FocusVectorRoFArg a b = #{uvec : VectorUsed!, fvec : VectorFree!, acc : a, obsv : b}
+type FocusVectorRoFRet r   = #{uvec : VectorUsed!, fvec : VectorFree!, res : r}
+
 focus_vector : all (a :< E, b :< DS, r :< E).
                #{ vec : Vector
                 , acc : a

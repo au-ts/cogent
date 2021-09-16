@@ -1,21 +1,21 @@
-$ty:(Buffer) memcpy_s_ObjDentry ($ty:((Buffer, BufOffs, ObjDentry!)) args)
-{
-    bilbyfs_debug ("memcpy_s_ObjDentry");
-    $ty:(Buffer) buf = args.p1;
-    memcpy(buf->data->values + args.p2, (void*)args.p3, sizeof (*args.p3) + (size_t) args.p3->nlen);
-    return buf;
-}
+// $ty:(Buffer) memcpy_s_ObjDentry ($ty:((Buffer, BufOffs, ObjDentry!)) args)
+// {
+//     bilbyfs_debug ("memcpy_s_ObjDentry");
+//     $ty:(Buffer) buf = args.p1;
+//     memcpy(buf->data->values + args.p2, (void*)args.p3, sizeof (*args.p3) + (size_t) args.p3->nlen);
+//     return buf;
+// }
 
-$ty:((SysState, ObjDentry))
-memcpy_d_ObjDentry ($ty:((SysState, Buffer!, ObjDentry take (..), BufOffs, U32)) args)
-{
-    bilbyfs_debug ("memcpy_d_ObjDentry");
-    $ty:((SysState, ObjDentry)) ret;
-    ret.p1 = args.p1;
-    ret.p2 = args.p3;
-    memcpy((void*)args.p3, (void*)args.p2->data->values + args.p4, args.p5);
-    return ret;
-}
+// $ty:((SysState, ObjDentry))
+// memcpy_d_ObjDentry ($ty:((SysState, Buffer!, ObjDentry take (..), BufOffs, U32)) args)
+// {
+//     bilbyfs_debug ("memcpy_d_ObjDentry");
+//     $ty:((SysState, ObjDentry)) ret;
+//     ret.p1 = args.p1;
+//     ret.p2 = args.p3;
+//     memcpy((void*)args.p3, (void*)args.p2->data->values + args.p4, args.p5);
+//     return ret;
+// }
 
 // $ty:(Bool) str_cmp ($ty:((CStr!, CStr!)) args)
 // {
@@ -31,15 +31,15 @@ $ty:(CStr!) cstring_to_cstr ($ty:(CString!) args)
     return args->values;
 }
 
-$ty:(Bool) wordarray_str_cmp ($ty:((CString!, CStr!)) args)
-{
-    int res = strcmp (args.p1->values, args.p2);
-    if (res) {
-        return $exp:(True);
-    } else {
-        return $exp:(False);
-    }
-}
+// $ty:(Bool) wordarray_str_cmp ($ty:((CString!, CStr!)) args)
+// {
+//     int res = strcmp (args.p1->values, args.p2);
+//     if (res) {
+//         return $exp:(True);
+//     } else {
+//         return $exp:(False);
+//     }
+// }
 
 char* get_ObjDentry_name_bang_str ($ty:(ObjDentry) args)
 {
@@ -82,21 +82,21 @@ $ty:((SysState, Vector)) memcpy_d_ObjDentryVector ($ty:((SysState, Buffer!, Vect
 
 // TODO: dentry_vector_lookup_nm
 
-$ty:(((), VectorUsed, VectorFree))
-dentarr_del_dentry_vector ($ty:((VectorUsed, VectorFree, CString!)) args)
+$ty:(FocusVectorFRet ())
+dentarr_del_dentry_vector ($ty:(FocusVectorFArg () CString!) args)
 {
     // TODO: implement me!!!
-    $ty:(((), VectorUsed, VectorFree)) ret;
-    ret.p2 = args.p1;
-    ret.p3 = args.p2;
+    $ty:(FocusVectorFRet ()) ret;
+    ret.uvec = args.uvec;
+    ret.fvec = args.fvec;
     return ret;
 }
 
-$ty:((U32, VectorUsed!, VectorFree!))
-size_ObjDentry_vector ($ty:((VectorUsed!, VectorFree!, ())) args)
+$ty:(FocusVectorFRet U32)
+size_ObjDentry_vector ($ty:(FocusVectorFArg () ()) args)
 {
     // TODO: implement me!!!
-    $ty:((U32, VectorUsed!, VectorFree!)) ret;
+    $ty:(FocusVectorFRet U32) ret;
 
 
     return ret;

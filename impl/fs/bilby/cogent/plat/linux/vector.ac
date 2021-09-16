@@ -3,13 +3,14 @@ $ty:(R (SysState, Vector) SysState) new_vector ($ty:((SysState, U32)) args)
     $ty:(R (SysState, Vector) SysState) ret;
 
     ret.Success.p2 = kmalloc(args.p2);
-    if (ret.p2 == NULL) {
+    if (ret.Success.p2 == NULL) {
         ret.tag = TAG_ENUM_Error;
         ret.Error = args.p1;
     } else {
         ret.tag = TAG_ENUM_Success;
         ret.Success.p1 = args.p1;
     }
+    return ret;
 }
 
 $ty:(SysState) free_vector ($ty:((SysState, Vector)) args)
