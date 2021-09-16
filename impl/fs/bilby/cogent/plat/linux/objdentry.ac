@@ -18,7 +18,7 @@ memcpy_d_ObjDentry ($ty:((SysState, Buffer!, ObjDentry take (..), BufOffs, U32))
     return ret;
 }
 
-// $ty:(Bool) str_cmp ($ty:((CharStar!, CharStar!)) args)
+// $ty:(Bool) str_cmp ($ty:((CStr!, CStr!)) args)
 // {
 //     if (strcmp(args.p1, args.p2)) {
 //         return $exp:(True);
@@ -26,11 +26,26 @@ memcpy_d_ObjDentry ($ty:((SysState, Buffer!, ObjDentry take (..), BufOffs, U32))
 //         return $exp:(False);
 //     }
 // }
-// 
-// $ty:(CharStar!) cstring_to_charstar ($ty:(CString!) args)
-// {
-//     return args->values;
-// }
+
+$ty:(CStr!) cstring_to_cstr ($ty:(CString!) args)
+{
+    return args->values;
+}
+
+$ty:(Bool) wordarray_str_cmp ($ty:((CString!, CStr!)) args)
+{
+    int res = strcmp (args.p1->values, args.p2);
+    if (res) {
+        return $exp:(True);
+    } else {
+        return $exp:(False);
+    }
+}
+
+char* get_ObjDentry_name_bang_str ($ty:(ObjDentry) args)
+{
+    return args->name;
+}
 
 $ty:(CString!) get_ObjDentry_name_bang ($ty:(ObjDentry!) args)
 {

@@ -146,9 +146,13 @@ dentarr_add_dentry(ex, odent, vnode, name, dtype) =
       and ex = free_opt_ObjDentry (ex, opt_entry)
       in ((ex, odent {id, nb_dentry, entries}), Success ())
 
+type CStr
+-- str_cmp : (CStr!, CStr!) -> Bool
+wordarray_str_cmp : (CString!, CStr!) -> Bool
+
 del_dentry_modifier: #{elem:ObjDentry, acc: SysState, obsv: CString!} -> RR SysState () ObjDentry
 del_dentry_modifier #{elem=dentry, acc=ex, obsv=name} =
-  let same_names = wordarray_cmp(name, get_ObjDentry_name_bang dentry) !dentry in
+  let same_names = wordarray_str_cmp(name, get_ObjDentry_name_bang_str dentry) !dentry in
   if same_names then
     let ex = freeObjDentry(ex, dentry)
     in (ex, Success ())
@@ -762,7 +766,6 @@ fsop_lookup #{ex, fs_st = fs_st {mount_st, ostore_st}, vdir, name} =
           let ex = deep_freeObjDentarr(ex, dentarr)
           in (#{ex, fs_st, vdir}, Success inum)
 
--- str_cmp : (CharStar!, CharStar!) -> Bool
 
 find_name: ArrayFoldF ObjDentry () CString VfsIno
 find_name #{elem=de, acc=_, obsv=name} =
