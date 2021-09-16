@@ -78,7 +78,12 @@ $ty:((SysState, Vector)) memcpy_d_ObjDentryVector ($ty:((SysState, Buffer!, Vect
     return ret;
 }
 
-// TODO: memcpy_s_ObjDentryVector
+$ty:(Buffer) memcpy_s_ObjDentryVector ($ty:((Buffer, BufOffs, Vector!, U32)) args)
+{
+    memcpy ((void*) args.p1->data->values + args.p2, args.p3, args.p4);
+    return args.p1;
+}
+
 
 // TODO: dentry_vector_lookup_nm
 
@@ -92,12 +97,4 @@ dentarr_del_dentry_vector ($ty:(FocusVectorFArg () CString!) args)
     return ret;
 }
 
-$ty:(FocusVectorFRet U32)
-size_ObjDentry_vector ($ty:(FocusVectorFArg () ()) args)
-{
-    // TODO: implement me!!!
-    $ty:(FocusVectorFRet U32) ret;
 
-
-    return ret;
-}
