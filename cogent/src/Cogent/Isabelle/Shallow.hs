@@ -37,7 +37,7 @@ import Cogent.Common.Types
 import Cogent.Compiler
 import Cogent.Core as CC
 import Cogent.Desugar as D (freshVarPrefix)
-import Cogent.Inference as IN (filterTypeDefs, unfoldSynsShallow)
+import Cogent.Inference as IN (filterTypeDefs, unfoldSyn, unfoldSynsShallow)
 import Cogent.Isabelle.Compound (takeFlatCase)
 import Cogent.Isabelle.IsabelleName
 import Cogent.Isabelle.ShallowTable (TypeStr(..), st, getStrlType, toTypeStr)
@@ -83,6 +83,7 @@ data SGTables b = SGTables { typeStrs      :: [TypeStr]
                            , typeVars      :: [String]     -- ^ @Cogent var &#x21A6; Isabelle var@
                            , recoverTuples :: Bool         -- ^ not a table, but convenient to be included here
                            , typeSynDefs   :: [CC.Definition TypedExpr VarName b]  -- ^ dito
+                           , matchSyns     :: Bool
                            }
 
 data StateGen = StateGen {
@@ -113,7 +114,7 @@ shallowTVar :: Int -> String
 shallowTVar v = [chr $ ord 'a' + fromIntegral v]
 
 shallowTypeWithName :: (Show b,Eq b) => CC.Type t b -> SG b I.Type
-shallowTypeWithName t = shallowType =<< findType t
+shallowTypeWithName t = shallowType =<< trySynonym t =<< findType t
 
 shallowRecTupleType :: (Show b,Eq b) => [(FieldName, (CC.Type t b, Bool))] -> SG b I.Type
 shallowRecTupleType fs = shallowTupleType <$> mapM shallowType (map (fst . snd) fs)
@@ -202,6 +203,89 @@ findType t = getStrlType <$> asks typeNameMap <*> asks typeStrs <*> pure t
 
 findTypeSyn :: CC.Type t b -> SG b String
 findTypeSyn t = findType t >>= \(TCon nm _ _) -> pure nm
+
+-- | Try to replace a record/variant type with name ttt by a synonym ttt (which will be output as ttt⇩T).
+trySynonym :: (Show b,Eq b) => CC.Type t b -> CC.Type t b -> SG b (CC.Type t b)
+trySynonym t name@(TCon tn ts _) = do
+  ms <- asks matchSyns
+  if ms 
+     then do
+       tdfs <- asks typeSynDefs
+       case find isTnDef tdfs of
+         Just (TypeDef hn vs (Just tb)) -> do
+           case matchPolySyn tdfs (Vec.cvtToList vs) t tb of
+                Nothing -> return name
+                Just ts' -> return $ TSyn tn ts' Unboxed False -- sigil and r/o will be ignored
+         _ -> return name
+     else return name
+  where isTnDef (TypeDef n _ (Just _)) = (n == tn)
+        isTnDef _ = False
+    
+matchPolySyn :: (Show b,Eq b) => [CC.Definition TypedExpr VarName b] -> [TyVarName] -> CC.Type t1 b -> CC.Type t2 b -> Maybe [CC.Type t1 b]
+matchPolySyn tdfs svs t r =
+    case matchType tdfs svs t r of
+         Nothing -> Nothing
+         Just binds ->
+            let mbinds = nub binds
+            in if (P.length svs) /= (P.length mbinds)
+                  then Nothing
+                  else let mapbinds = M.fromList mbinds
+                       in if (P.length svs) /= (M.size mapbinds)
+                             then Nothing
+                             else Just $ map (\v -> M.findWithDefault TUnit v mapbinds) svs
+
+-- | Match a type to a polymorphic type.
+-- The first argument is the list of all type synonym definitions.
+-- The second argument is the list of type variables which may occur in the polymorphic type.
+-- The third argument is the type to be matched, the fourth argument is the polymorphic type.
+-- The result is Nothing, if there is no structural match.
+-- Otherwise it is an association list of bindings for the type variables.
+-- The same variable may have several entries in result list, for a match they must all bind the same type.
+-- Type synonyms in the polymorphic type are only unfolded after unfolding them in the type to be matched.
+-- FIXME: recursive record parameters and refinement types are not handled yet.
+matchType :: [CC.Definition TypedExpr VarName b] -> [TyVarName] -> CC.Type t1 b -> CC.Type t2 b -> Maybe [(TyVarName, CC.Type t1 b)]
+matchType _ vs t (TVar n) = matchTypeVar vs t n
+matchType _ vs t (TVarBang n) = matchTypeVar vs t n
+matchType _ vs t (TVarUnboxed n) = matchTypeVar vs t n
+matchType tdfs vs (TSyn tn targs _ _) (TSyn rn rargs _ _) | tn == rn && (P.length targs) == (P.length rargs) =
+    matchTypes tdfs vs targs rargs
+matchType tdfs vs t@(TSyn _ _ _ _) r = matchType tdfs vs (IN.unfoldSyn tdfs t) r
+matchType tdfs vs t r@(TSyn _ _ _ _) = matchType tdfs vs t (IN.unfoldSyn tdfs r)
+matchType tdfs vs (TCon tn targs _) (TCon rn rargs _) | tn == rn && (P.length targs) == (P.length rargs) =
+    matchTypes tdfs vs targs rargs
+matchType tdfs vs (TRecord tr tfs _) (TRecord rr rfs _) | tr == rr && (P.length tfs) == (P.length rfs) =
+    if (map fst tfs) /= (map fst rfs)
+       then Nothing
+       else matchTypes tdfs vs (map (fst . snd) tfs) (map (fst . snd) rfs)
+matchType tdfs vs (TSum tts) (TSum rts) | (P.length tts) == (P.length rts) =
+    if (map fst tts) /= (map fst rts)
+       then Nothing
+       else matchTypes tdfs vs (map (fst . snd) tts) (map (fst . snd) rts)
+matchType tdfs vs (TProduct t1 t2) (TProduct r1 r2) = matchTypes tdfs vs [t1,t2] [r1,r2]
+matchType tdfs vs (TFun tf1 tf2) (TFun rf1 rf2) = matchTypes tdfs vs [tf1,tf2] [rf1,rf2]
+matchType _ _ (TPrim tp) (TPrim rp) | tp == rp = Just []
+matchType _ _ TUnit TUnit = Just []
+matchType _ _ TString TString = Just []
+#ifdef BUILTIN_ARRAYS
+-- FIXME: array size is ignored upon matching
+matchType tdfs vs (TArray te _ _ _) (TArray re _ _ _) = matchType tdfs vs te re
+#endif
+matchType _ _ _ _ = Nothing
+
+matchTypeVar :: [TyVarName] -> CC.Type t1 b -> Fin t2 -> Maybe [(TyVarName, CC.Type t1 b)]
+matchTypeVar vs t n =
+    if i >= P.length vs
+       then Nothing
+       else Just [(vs!!i,t)]
+    where i = finInt n
+
+-- | Pairwise match two type lists of the same length and concatenate the results.
+matchTypes :: [CC.Definition TypedExpr VarName b] -> [TyVarName] -> [CC.Type t1 b] -> [CC.Type t2 b] -> Maybe [(TyVarName, CC.Type t1 b)]
+matchTypes tdfs vs ts rs =
+    if any isNothing pmatch
+       then Nothing
+       else Just $ concat $ catMaybes pmatch
+    where pmatch = map (\(t,r) -> matchType tdfs vs t r) $ P.zip ts rs
 
 shallowExpr :: (Show b,Eq b) => TypedExpr t v VarName b -> SG b Term
 shallowExpr (TE _ (Variable (_,v))) = pure $ mkId (snm v)
@@ -537,6 +621,7 @@ mkHOLLet :: Ident -> Term -> Term -> Term
 mkHOLLet v bnd bdy = mkApp (TermIdent (Id "HOL.Let")) [bnd, lamTerm [v] bdy]
 
 typarUpd typar v = v {typeVars = typar}
+noMatchSyns v = v {matchSyns = False}
 
 -- Clear out all taken annotations and mark all sigil as unboxed.
 sanitizeType :: CC.Type t b -> CC.Type t b
@@ -988,7 +1073,7 @@ shallowDefinition (TypeDef tn ps Nothing) =
     local (typarUpd typar) $ pure ([Right $ TypeDeclDecl $ TypeDecl tn typar], Nothing)
   where typar = Vec.cvtToList ps
 shallowDefinition (TypeDef tn ps (Just t)) =
-    local (typarUpd typar) $ (, Nothing) <$> (map Right <$> shallowTypeDef tn typar t)
+    local (typarUpd typar) $ local noMatchSyns $ (, Nothing) <$> (map Right <$> shallowTypeDef tn typar t)
   where typar = Vec.cvtToList ps
 
 shallowDefinitions :: (Show b,Eq b) => [Definition TypedExpr VarName b] -> SG b ([Either (TheoryDecl I.Type I.Term) (TheoryDecl I.Type I.Term)], [FunName])
@@ -1032,7 +1117,7 @@ shallowFile thy stg defs = do
 shallow :: (Show b,Eq b) => Bool -> String -> Stage -> [Definition TypedExpr VarName b] -> String -> (Doc, Doc, Doc, MapTypeName)
 shallow recoverTuples thy stg defs log =
   let (shal,shrd,scor,typeMap) = fst $ evalRWS (runSG (shallowFile thy stg defs))
-                                               (SGTables (st defs) (stsyn defs) [] recoverTuples (filterTypeDefs defs))
+                                               (SGTables (st defs) (stsyn defs) [] recoverTuples (filterTypeDefs defs) True)
                                                (StateGen 0)
       header = (string ("(*\n" ++ log ++ "\n*)\n") L.<$$>)
   in (header (if recoverTuples then I.prettyPlus shal else pretty shal), header $ pretty shrd, header $ pretty scor, typeMap)
@@ -1053,7 +1138,7 @@ shallowConsts recoverTuples thy stg consts defs log =
                                    (if recoverTuples then __cogent_suffix_of_recover_tuples else "")])
                    (genConstTheoryDecls consts defs))
  where genConstTheoryDecls cs defs = fst $ evalRWS (runSG $ shallowConsts cs)
-                                     (SGTables (st defs) (stsyn defs) [] recoverTuples (filterTypeDefs defs))
+                                     (SGTables (st defs) (stsyn defs) [] recoverTuples (filterTypeDefs defs) True)
                                      (StateGen 0)
        shallowConsts = mapM genConstDecl
        header = (string ("(*\n" ++ log ++ "\n*)\n") L.<$$>)

@@ -385,8 +385,8 @@ unfoldSynsShallowM t = do
     tdfs <- (\(a,b,c)->c) <$> ask 
     return $ unfoldSynsShallow tdfs t
 
-unfoldSynsShallow :: [Definition TypedExpr a b] -> Type t b -> Type t b
-unfoldSynsShallow d t@(TSyn n ts s r) | ExI (Flip ts') <- Vec.fromList ts =
+unfoldSyn :: [Definition TypedExpr a b] -> Type t b -> Type t b
+unfoldSyn d t@(TSyn n ts s r) | ExI (Flip ts') <- Vec.fromList ts =
   case find (isDefFor n) d of
     Just (TypeDef _ vs (Just tb)) -> 
         case (Vec.length ts' =? Vec.length vs) of
@@ -395,11 +395,15 @@ unfoldSynsShallow d t@(TSyn n ts s r) | ExI (Flip ts') <- Vec.fromList ts =
                                  Unboxed -> if r then bang . unbox else unbox 
                                  Boxed True l -> layout l . bang
                                  Boxed False l -> layout l
-                       in unfoldSynsShallow d $ applySigil $ substitute ts' tb
-          _ -> __impossible "unfoldSynsShallow: lengths don't match"
-    _ -> __impossible ("unfoldSynsShallow: no type synonym: " ++ (show n))
+                       in applySigil $ substitute ts' tb
+          _ -> __impossible "unfoldSyn: lengths don't match"
+    _ -> __impossible ("unfoldSyn: no type synonym: " ++ (show n))
     where isDefFor n (TypeDef tn _ (Just _)) = (tn == n)
           isDefFor n _ = False
+unfoldSyn _ t = t
+
+unfoldSynsShallow :: [Definition TypedExpr a b] -> Type t b -> Type t b
+unfoldSynsShallow d t@(TSyn _ _ _ _) = unfoldSynsShallow d $ unfoldSyn d t
 unfoldSynsShallow _ t = t
 
 unfoldSynsDeep :: [Definition TypedExpr a b] -> Type t b -> Type t b
