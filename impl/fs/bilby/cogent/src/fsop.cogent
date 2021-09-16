@@ -103,7 +103,8 @@ read_or_create_dentarr(ex, mount_st, ostore_st, oid) =
             in ((ex, ostore_st), Error eNoMem)
           | Success (ex, dentarr) ->
             let nb_dentry:U32 = 0
-            and dentarr = dentarr {id=oid,nb_dentry,entries=vector}
+            and size = 0
+            and dentarr = dentarr {id=oid,nb_dentry,size,entries=vector}
             and obj = obj_init_default(obj, bilbyFsObjTypeDentarr)
             and obj = obj {len=bilbyFsObjHeaderSize + bilbyFsObjDentarrHeaderSize}
             -- obj.len is updated everytime we touch dentarrs.
@@ -882,7 +883,8 @@ get_rdctx(ex, opt_rdctx, vdir) =
         | Success (ex, dentarr) ->
           let id:ObjId = obj_id_inode_mk (vfs_inode_get_ino vdir)
           and nb_dentry:U32 = 0
-          and dentarr = dentarr {id, nb_dentry, entries}
+          and size = 0
+          and dentarr = dentarr {id, nb_dentry, size, entries}
           and rdctx = rdctx {dentarr,cur_dentry=0}
           in Success (ex, rdctx)
   | Some rdctx -> Success (ex, rdctx)
