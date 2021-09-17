@@ -31,15 +31,15 @@ $ty:(CStr!) cstring_to_cstr ($ty:(CString!) args)
     return args->values;
 }
 
-// $ty:(Bool) wordarray_str_cmp ($ty:((CString!, CStr!)) args)
-// {
-//     int res = strcmp (args.p1->values, args.p2);
-//     if (res) {
-//         return $exp:(True);
-//     } else {
-//         return $exp:(False);
-//     }
-// }
+$ty:(Bool) wordarray_str_cmp ($ty:((CString!, CStr!)) args)
+{
+    int res = strcmp (args.p1->values, args.p2);
+    if (res) {
+        return $exp:(True);
+    } else {
+        return $exp:(False);
+    }
+}
 
 char* get_ObjDentry_name_bang_str ($ty:(ObjDentry) args)
 {
@@ -85,7 +85,7 @@ $ty:(Buffer) memcpy_s_ObjDentryVector ($ty:((Buffer, BufOffs, Vector!, U32)) arg
 }
 
 
-// TODO: dentry_vector_lookup_nm
+// TODO: do_dentry_vector_lookup_nm
 
 $ty:(FocusVectorFRet ())
 dentarr_del_dentry_vector ($ty:(FocusVectorFArg () CString!) args)
