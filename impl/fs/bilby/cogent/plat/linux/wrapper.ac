@@ -19,6 +19,7 @@ $esc:(#include <wrapper.h>)
 #include <gum/anti/crc32.ac>
 #include <gum/anti/wordarray.ac>
 #include <gum/anti/array.ac>
+#include <gum/anti/iterator.ac>
 #include <gum/anti/list.ac>
 #include <gum/anti/rbt.ac>
 #include <gum/anti/os.ac>

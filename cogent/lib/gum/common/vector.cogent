@@ -27,6 +27,8 @@ focus_vector_ro : all (a :< E, b :< DS, r :< E).
                    } -> r
 
 vector_next : (VectorUsed, VectorFree!) -> <This VectorUsed | Next VectorUsed>
+vector_next_ro : (VectorUsed!, VectorFree!) -> <NoMore | Next (VectorUsed!)>
+
 
 vector_loop : all (a :< E, b :< DS).
               #{uvec : VectorUsed, fvec : VectorFree, acc : a, obsv : b}

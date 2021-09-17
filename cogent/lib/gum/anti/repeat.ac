@@ -1,0 +1,15 @@
+$ty:acc $id:do_while($ty:(RepParam acc obsv) args)
+{
+    u64 i = 0;
+    $ty:(StepParam acc obsv) a;
+    a.acc = args.acc;
+    a.obsv = args.obsv;
+    do {
+        a.acc = (($spec:(StepF acc obsv)) args.step)(a);
+        bool_t b = (($spec:(StopF acc obsv)) args.stop)(a);
+        if (b.boolean)
+            break;
+        i++;
+    } while (i < args.n)
+    return a.acc;
+}
