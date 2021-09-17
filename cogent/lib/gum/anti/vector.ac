@@ -1,0 +1,67 @@
+
+$ty:((r, Vector))
+$id:focus_vector ($ty:(#{ vec : Vector
+                        , acc : a
+                        , obsv : b
+                        , f : FocusVectorFArg a b -> FocusVectorFRet r
+                        }) args)
+{
+    $ty:((r, Vector)) ret;
+    // TODO: implement me!!!
+    return ret;
+}
+
+$ty:r
+$id:focus_vector_ro ($ty:(#{ vec : Vector
+                           , acc : a
+                           , obsv : b
+                           , f : FocusVectorRoFArg a b -> FocusVectorRoFRet r
+                           }) args)
+{
+    $ty:r ret;
+    // TODO: implement me!!!
+    return ret;
+}
+
+$ty:(<This VectorUsed | Next VectorUsed>)
+$id:vector_next ($ty:((VectorUsed, VectorFree!)) args)
+{
+    $ty:(<This VectorUsed | Next VectorUsed>) ret;
+    // TODO: implement me!!!
+    return ret;
+}
+
+$ty:(<NoMore | Next (VectorUsed!)>)
+$id:vector_next_ro ($ty:((VectorUsed!, VectorFree!)) args)
+{
+    $ty:(<NoMore | Next (VectorUsed!)>) ret;
+    // TODO: implement me!!!
+    return ret;
+}
+
+$ty:t $id:vector_read ($ty:(VectorUsed!) args)
+{
+    return (($ty:t)args);
+}
+
+$ty:((VectorUsed!, r))
+$id:vector_idx ($ty:(#{ uvec : VectorUsed!
+                      , idx : U32
+                      , acc : a
+                      , obsv : b
+                      , f : #{elem : t!, acc : a, obsv : b} -> r
+                      }) args)
+{
+    $ty:((VectorUsed!, r)) ret;
+    // TODO: implement me!!!
+    return ret;
+} 
+
+$ty:(#{suc : Bool, uvec : VectorUsed, fvec : VectorFree})
+$id:vector_append ($ty:(#{uvec : VectorUsed, fvec : VectorFree, obj : t!}) args)
+{
+    $ty:(#{suc : Bool, uvec : VectorUsed, fvec : VectorFree}) ret;
+    // TODO: implement me!!!
+    return ret;
+}
+

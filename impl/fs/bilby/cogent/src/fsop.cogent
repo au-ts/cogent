@@ -1013,11 +1013,14 @@ readdir_loop #{acc=(ex, ostore_st, vctx, rdctx), obsv=mount_st, idx} =
       and _ = WHEN_DEBUGGING(cogent_debug "readdir_loop use ")
       and _ = WHEN_DEBUGGING(cogent_debug_u32 rdctx.cur_dentry !rdctx)
       and _ = WHEN_DEBUGGING(cogent_debug "\n")
-      and (vctx, over) = focus_vector_ro[(VfsDirContext, Bool), U32, _]
-                           #{ vec = rdctx.dentarr.entries
-                            , acc = (vctx, False)
-                            , obsv = rdctx.cur_dentry
-                            , f = dentry_vector_lookup} !rdctx
+      and (vctx, over) = if rdctx.dentarr.nb_dentry <= rdctx.cur_dentry !rdctx then
+                            (vctx, False)
+                         else
+                           focus_vector_ro[(VfsDirContext, Bool), U32, _]
+                             #{ vec = rdctx.dentarr.entries
+                              , acc = (vctx, False)
+                              , obsv = rdctx.cur_dentry
+                              , f = dentry_vector_lookup} !rdctx
       in if over then
         WHEN_DEBUGGING(cogent_debug "readdir emit dir said over\n") ;
         ((ex, ostore_st, vctx, rdctx), Break (Success no_more_dentry))
@@ -1026,10 +1029,31 @@ readdir_loop #{acc=(ex, ostore_st, vctx, rdctx), obsv=mount_st, idx} =
 
 dentry_vector_lookup : FocusVectorRoFArg (VfsDirContext, Bool) U32
                     -> FocusVectorRoFRet (VfsDirContext, Bool)
-dentry_vector_lookup #{uvec, fvec, acc, obsv} =
-  let (uvec', acc') = vector_idx[ObjDentry, (VfsDirContext, Bool), _, _]
-                        #{uvec, idx = obsv, acc, obsv = (), f = emit_dir}
+dentry_vector_lookup #{uvec, fvec, acc, obsv=idx} =
+  let ((uvec',_), r) = iterate_do[(), (), (), (VectorUsed!, U32), (VectorFree!, U32)]
+                         #{ init = ()
+                          , gen  = gen_dentry_vector_idx
+                          , cons = cons_dentry_vector_idx
+                          , acc  = (uvec,0)
+                          , obsv = (fvec,idx)
+                          }
+  and acc' = emit_dir #{elem=vector_read[ObjDentry] uvec', acc, obsv=()}
    in #{uvec = uvec', fvec, res = acc'}
+
+
+cons_dentry_vector_idx : Consumer () () () (VectorUsed!, U32) (VectorFree!, U32)
+cons_dentry_vector_idx #{obj, acc=(uvec,cur), obsv=(fvec,idx)} =
+  if cur == idx then
+     ((uvec,cur), Return ())
+  else
+     ((uvec,cur), Next ())
+
+gen_dentry_vector_idx : Generator () () () (VectorUsed!, U32) (VectorFree!, U32)
+gen_dentry_vector_idx #{acc=(uvec,cur), obsv=(fvec,idx)} =
+  vector_next_ro (uvec, fvec)
+  | NoMore     -> ((uvec ,cur  ), Return ())
+  | Next uvec' -> ((uvec',cur+1), Yield  ())
+
 
 type ReadDirParams = #{ex:SysState, fs_st:FsState, vctx:VfsDirContext, opt_rdctx: Option BilbyFsReaddirContext}
 fsop_readdir: (ReadDirParams, VfsInode!) -> RR ReadDirParams () ErrCode
