@@ -16,14 +16,14 @@ focus_vector : all (a :< E, b :< DS, r :< E).
                #{ vec : Vector
                 , acc : a
                 , obsv : b
-                , f : #{uvec : VectorUsed, fvec : VectorFree, acc : a, obsv : b} -> #{uvec : VectorUsed, fvec : VectorFree, res : r}
+                , f : FocusVectorFArg a b -> FocusVectorFRet r
                 } -> (r, Vector)
 
 focus_vector_ro : all (a :< E, b :< DS, r :< E).
                   #{ vec : Vector!
                    , acc : a
                    , obsv : b
-                   , f : #{uvec : VectorUsed!, fvec : VectorFree!, acc : a, obsv : b} -> #{uvec : VectorUsed!, fvec : VectorFree!, res : r}
+                   , f : FocusVectorRoFArg a b -> FocusVectorRoFRet r
                    } -> r
 
 vector_next : (VectorUsed, VectorFree!) -> <This VectorUsed | Next VectorUsed>
@@ -49,3 +49,4 @@ vector_idx : all (t, a :< E, b :< DS, r :< E).
 
 vector_append : all t. #{uvec : VectorUsed, fvec : VectorFree, obj : t!}
                     -> #{suc : Bool, uvec : VectorUsed, fvec : VectorFree}
+
