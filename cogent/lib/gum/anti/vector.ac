@@ -7,7 +7,19 @@ $id:focus_vector ($ty:(#{ vec : Vector
                         }) args)
 {
     $ty:((r, Vector)) ret;
-    // TODO: implement me!!!
+    
+    $ty:(FocusVectorFArg a b) farg;
+    farg.hd = $exp:vector_header (args.vec);
+    farg.uvec = (char*) args.vec + size_header ($exp:(()));
+    farg.fvec = farg.uvec + size_vector (farg.hd);
+    farg.acc = args.acc;
+    farg.obsv = args.obsv;
+
+    $ty:(FocusVectorFRet r) fret;
+    fret = (($spec:(FocusVectorFArg a b -> FocusVectorFRet r)) args.f) (farg);
+
+    ret.p1 = fret.res;
+    ret.p2 = args.vec;
     return ret;
 }
 
@@ -18,50 +30,79 @@ $id:focus_vector_ro ($ty:(#{ vec : Vector
                            , f : FocusVectorRoFArg a b -> FocusVectorRoFRet r
                            }) args)
 {
-    $ty:r ret;
-    // TODO: implement me!!!
-    return ret;
+    $ty:(FocusVectorRoFArg a b) farg;
+    farg.hd = $exp:vector_header (args.vec);
+    farg.uvec = (char*) args.vec + size_header ($exp:(()));
+    farg.fvec = farg.uvec + size_vector (farg.hd);
+    farg.acc = args.acc;
+    farg.obsv = args.obsv;
+
+    $ty:(FocusVectorRoFRet r) fret;
+    fret = (($spec:(FocusVectorRoFArg a b -> FocusVectorRoFRet r)) args.f) (farg);
+
+    return fret.res;
 }
 
 $ty:(<This VectorUsed | Next VectorUsed>)
-$id:vector_next ($ty:((VectorUsed, VectorFree!)) args)
+vector_next ($ty:((VectorUsed, VectorFree!)) args)
 {
     $ty:(<This VectorUsed | Next VectorUsed>) ret;
-    // TODO: implement me!!!
+    
+    void* uvec = args.p1;
+    void* fvec = args.p2;
+    $ty:(Entry) next;
+
+    next = uvec + size_entry (vector_read (uvec));
+    if (next == fvec) {
+        ret.tag = TAG_ENUM_This;
+        ret.This = uvec;
+    } else {
+        ret.tag = TAG_ENUM_Next;
+        ret.Next = uvec;
+    }
     return ret;
 }
 
 $ty:(<NoMore | Next (VectorUsed!)>)
-$id:vector_next_ro ($ty:((VectorUsed!, VectorFree!)) args)
+vector_next_ro ($ty:((VectorUsed!, VectorFree!)) args)
 {
     $ty:(<NoMore | Next (VectorUsed!)>) ret;
-    // TODO: implement me!!!
+    void* uvec = args.p1;
+    void* fvec = args.p2;
+    $ty:(Entry) next;
+
+    next = uvec + size_entry (vector_read (uvec));
+    if (next == fvec) {
+        ret.tag = TAG_ENUM_NoMore;
+        ret.NoMore = $exp:(());
+    } else {
+        ret.tag = TAG_ENUM_Next;
+        ret.Next = uvec;
+    }
     return ret;
 }
 
-$ty:t $id:vector_read ($ty:(VectorUsed!) args)
+$ty:(Entry!) vector_read ($ty:(VectorUsed!) args)
 {
-    return (($ty:t)args);
+    return (($ty:(Entry!))args);
 }
-
-$ty:((VectorUsed!, r))
-$id:vector_idx ($ty:(#{ uvec : VectorUsed!
-                      , idx : U32
-                      , acc : a
-                      , obsv : b
-                      , f : #{elem : t!, acc : a, obsv : b} -> r
-                      }) args)
-{
-    $ty:((VectorUsed!, r)) ret;
-    // TODO: implement me!!!
-    return ret;
-} 
 
 $ty:(#{suc : Bool, uvec : VectorUsed, fvec : VectorFree})
-$id:vector_append ($ty:(#{uvec : VectorUsed, fvec : VectorFree, obj : t!}) args)
+vector_append ($ty:(#{uvec : VectorUsed, fvec : VectorFree, obj : Entry!}) args)
 {
     $ty:(#{suc : Bool, uvec : VectorUsed, fvec : VectorFree}) ret;
-    // TODO: implement me!!!
+
+    void* fvec = args.fvec;
+
+    // XXX: How do we know that the vector still has free slots to accommodate another
+    // entry? I can't see the code neither in the C nor in the Cogent implementations of
+    // BilbyFs. / zilinc
+    memcpy (fvec, (void*) args.obj, size_entry (args.obj));
+
+    ret.suc = $exp:(True);
+    ret.uvec = args.uvec;
+    ret.fvec = fvec + size_entry (args.obj);
+
     return ret;
 }
 

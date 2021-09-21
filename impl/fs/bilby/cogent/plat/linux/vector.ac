@@ -2,7 +2,7 @@ $ty:(R (SysState, Vector) SysState) new_vector ($ty:((SysState, U32)) args)
 {
     $ty:(R (SysState, Vector) SysState) ret;
 
-    ret.Success.p2 = kmalloc(args.p2);
+    ret.Success.p2 = kmalloc($exp:bilbyFsObjDentarrHeaderSize + args.p2);
     if (ret.Success.p2 == NULL) {
         ret.tag = TAG_ENUM_Error;
         ret.Error = args.p1;
@@ -17,4 +17,47 @@ $ty:(SysState) free_vector ($ty:((SysState, Vector)) args)
 {
     kfree (args.p2);
     return args.p1;
+}
+
+$ty:(U32) size_vector ($ty:(VectorHeader!) args)
+{
+    $ty:(ObjDentarr!) dentarr = ($ty:(ObjDentarr!))args;
+    $ty:(U32) size = dentarr->size;
+    return size;
+}
+
+$ty:(U32) size_header ($ty:(()) args)
+{
+    return $exp:bilbyFsObjDentarrHeaderSize;
+}
+
+$ty:(VectorHeader!) vector_header ($ty:(Vector!) args)
+{
+    return args;
+}
+
+$ty:(U32) size_entry ($ty:(ObjDentry!) args)
+{
+    return (size_ObjDentry (args));
+}
+
+$ty:(FocusVectorFRet ()) dentarr_del_dentry_vector ($ty:(FocusVectorFArg () CString!) args)
+{
+    $ty:(FocusVectorFRet ()) ret;
+
+    char* name = args.obsv->values;
+    void* uvec = args.uvec;
+    void* fvec = args.fvec;
+
+    
+
+    // NOTE: We implement delete in an inefficient way that moves all the entries
+    // after the deleted one backwards to close the gap. This is also the
+    // way BilbyFs is implemented in C. / zilinc
+
+    ret.uvec = uvec;
+    ret.fvec = NULL;  // FIXME
+    ret.res = $exp:(());
+
+    return ret;
 }

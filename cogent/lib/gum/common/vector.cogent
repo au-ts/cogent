@@ -1,16 +1,24 @@
 type Vector
 
-new_vector : (SysState, U32) -> R (SysState, Vector) SysState
-free_vector : (SysState, Vector) -> SysState
-
+type VectorHeader
 type VectorUsed
 type VectorFree
 
-type FocusVectorFArg a b = #{uvec : VectorUsed, fvec : VectorFree, acc : a, obsv : b}
-type FocusVectorFRet r   = #{uvec : VectorUsed, fvec : VectorFree, res : r}
+type FocusVectorFArg a b = #{hd : VectorHeader, uvec : VectorUsed, fvec : VectorFree, acc : a, obsv : b}
+type FocusVectorFRet r   = #{hd : VectorHeader, uvec : VectorUsed, fvec : VectorFree, res : r}
 
-type FocusVectorRoFArg a b = #{uvec : VectorUsed!, fvec : VectorFree!, acc : a, obsv : b}
-type FocusVectorRoFRet r   = #{uvec : VectorUsed!, fvec : VectorFree!, res : r}
+type FocusVectorRoFArg a b = #{hd : VectorHeader!, uvec : VectorUsed!, fvec : VectorFree!, acc : a, obsv : b}
+type FocusVectorRoFRet r   = #{hd : VectorHeader!, uvec : VectorUsed!, fvec : VectorFree!, res : r}
+
+-- The second argument is the size of the flexible field.
+new_vector : (SysState, U32) -> R (SysState, Vector) SysState
+free_vector : (SysState, Vector) -> SysState
+
+size_vector : VectorHeader! -> U32
+size_header : () -> U32
+size_entry : Entry! -> U32
+
+vector_header : Vector! -> VectorHeader!
 
 focus_vector : all (a :< E, b :< DS, r :< E).
                #{ vec : Vector
@@ -29,24 +37,8 @@ focus_vector_ro : all (a :< E, b :< DS, r :< E).
 vector_next : (VectorUsed, VectorFree!) -> <This VectorUsed | Next VectorUsed>
 vector_next_ro : (VectorUsed!, VectorFree!) -> <NoMore | Next (VectorUsed!)>
 
+vector_read : VectorUsed! -> Entry!
 
-vector_loop : all (a :< E, b :< DS).
-              #{uvec : VectorUsed, fvec : VectorFree, acc : a, obsv : b}
-           -> #{uvec : VectorUsed, fvec : VectorFree, acc : a}
-
-vector_del : all t. #{uvec : VectorUsed, fvec : VectorFree, f : t! -> Bool}
-                 -> #{uvec : VectorUsed, fvec : VectorFree}
-
-vector_read : all t. VectorUsed! -> t!
-
-vector_idx : all (t, a :< E, b :< DS, r :< E).
-             #{ uvec : VectorUsed!
-              , idx : U32
-              , acc : a
-              , obsv : b
-              , f : #{elem : t!, acc : a, obsv : b} -> r
-              } -> (VectorUsed!, r)
-
-vector_append : all t. #{uvec : VectorUsed, fvec : VectorFree, obj : t!}
-                    -> #{suc : Bool, uvec : VectorUsed, fvec : VectorFree}
+vector_append : #{uvec : VectorUsed, fvec : VectorFree, obj : Entry!}
+             -> #{suc : Bool, uvec : VectorUsed, fvec : VectorFree}
 
