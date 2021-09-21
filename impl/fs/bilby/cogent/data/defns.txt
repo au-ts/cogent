@@ -26,3 +26,11 @@ fsop_symlink
 fsop_link
 os_spin_lock
 os_spin_unlock
+vector_next
+vector_next_ro
+vector_read
+vector_header
+size_vector
+size_header
+size_entry
+size_ObjDentry

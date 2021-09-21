@@ -25,6 +25,11 @@ typedef struct iattr VfsIattr;
 
 typedef char CStr;
 
+typedef void Vector;
+typedef void VectorHeader;
+typedef char VectorUsed;
+typedef char VectorFree;
+
 typedef struct buffer_head OSBuffer;
 typedef struct WrapperState SysState;
 typedef struct WrapperState WrapperState;
@@ -32,10 +37,6 @@ typedef struct dir_context OSDirContext;
 typedef struct page OSPageBuffer;
 typedef struct address_space VfsMemoryMap;
 typedef struct page OSPage;
-
-typedef char* Vector;
-typedef char* VectorUsed;
-typedef char* VectorFree;
 
 typedef struct ubi_volume_desc UbiVol;
 typedef struct ubi_volume_info UbiVolInfo;

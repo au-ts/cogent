@@ -84,17 +84,3 @@ $ty:(Buffer) memcpy_s_ObjDentryVector ($ty:((Buffer, BufOffs, Vector!, U32)) arg
     return args.p1;
 }
 
-
-// TODO: do_dentry_vector_lookup_nm
-
-$ty:(FocusVectorFRet ())
-dentarr_del_dentry_vector ($ty:(FocusVectorFArg () CString!) args)
-{
-    // TODO: implement me!!!
-    $ty:(FocusVectorFRet ()) ret;
-    ret.uvec = args.uvec;
-    ret.fvec = args.fvec;
-    return ret;
-}
-
-

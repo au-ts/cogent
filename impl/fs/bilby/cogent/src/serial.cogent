@@ -486,6 +486,9 @@ type ObjDentry = {
   name : U8#[0]
 }
 
+-- For the Vector interface!
+type Entry = ObjDentry
+
 -- cstring_to_charstar : CString! -> CharStar!
 
 -- XXX: This is wrong, but for now, we pretend it's okay.
@@ -493,6 +496,9 @@ get_ObjDentry_name_bang : ObjDentry! -> CString!
 get_ObjDentry_name_bang_str : ObjDentry! -> CStr!
 set_ObjDentry_name : (ObjDentry take (..), CString!, U32) -> (ObjDentry take (..)) put (name)
 
+
+size_ObjDentry : ObjDentry! -> U32
+size_ObjDentry dentry = bilbyFsObjDentryHeaderSize + upcast dentry.nlen + 1
 
 bilbyFsObjDentryHeaderSize : U32
 bilbyFsObjDentryHeaderSize = 8
@@ -548,6 +554,7 @@ serialise_ObjDentarr(buf, offs, dentarr) =
   and buf = serialise_le32(buf, offs+12, dentarr.size)
   and buf = memcpy_s_ObjDentryVector (buf, offs+bilbyFsObjDentarrHeaderSize, dentarr.entries, bilbyFsMaxDentarrEntriesSize) 
   in (buf, offs + bilbyFsObjDentarrHeaderSize + bilbyFsMaxDentarrEntriesSize)
+
 
 {-# cinline serialise_size_ObjDentarr #-}
 serialise_size_ObjDentarr: ObjDentarr! -> U32

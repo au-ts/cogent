@@ -152,10 +152,10 @@ type CStr
 wordarray_str_cmp : (CString!, CStr!) -> Bool
 
 -- The input ObjDentry will be copied into the vector.
-dentarr_append : FocusVectorFArg () ObjDentry! -> FocusVectorFRet Bool
-dentarr_append r {uvec, fvec, obsv = dentry} = 
-  let #{uvec, fvec, suc} = vector_append[ObjDentry] #{uvec, fvec, obj = dentry}
-  in #{uvec, fvec, res = suc}
+dentarr_append : FocusVectorFArg () (ObjDentry!) -> FocusVectorFRet Bool
+dentarr_append r {hd, uvec, fvec, obsv = dentry} = 
+  let #{uvec, fvec, suc} = vector_append #{uvec, fvec, obj = dentry}
+  in #{hd, uvec, fvec, res = suc}
 
 -- del_dentry_modifier: #{elem:ObjDentry, acc: SysState, obsv: CString!} -> RR SysState () ObjDentry
 -- del_dentry_modifier #{elem=dentry, acc=ex, obsv=name} =
@@ -167,7 +167,6 @@ dentarr_append r {uvec, fvec, obsv = dentry} =
 --     (ex, Error dentry)
 
 dentarr_del_dentry_vector : FocusVectorFArg () CString! -> FocusVectorFRet ()
--- dentarr_del_dentry_vector (uvec, fvec, name) = ???
 
 dentarr_del_dentry: (SysState, ObjDentarr, CString!) -> (SysState, ObjDentarr)
 dentarr_del_dentry(ex, odent {entries}, name) =
@@ -784,15 +783,15 @@ dentry_vector_lookup_nm (vector, name) =
 
 do_dentry_vector_lookup_nm : FocusVectorRoFArg () CString!
                           -> FocusVectorRoFRet (Option VfsIno)
-do_dentry_vector_lookup_nm #{uvec, fvec, acc, obsv=name} =
+do_dentry_vector_lookup_nm #{hd, uvec, fvec, acc, obsv=name} =
   let (acc, r) = iterate_do[(), VfsIno, (), VectorUsed!, (VectorFree!, CString!)]
                    #{ init = ()
                     , gen  = gen_dentry_vector_lookup_nm
                     , cons = cons_dentry_vector_lookup_nm
                     , acc  = uvec
                     , obsv = (fvec,name) }
-  in r | Return ino -> #{ uvec=acc, fvec, res=Some ino }
-       | Stop   _   -> #{ uvec=acc, fvec, res=None }
+  in r | Return ino -> #{ hd, uvec=acc, fvec, res=Some ino }
+       | Stop   _   -> #{ hd, uvec=acc, fvec, res=None }
 
 
 gen_dentry_vector_lookup_nm : Generator () VfsIno () VectorUsed! (VectorFree!, CString!)
@@ -803,7 +802,7 @@ gen_dentry_vector_lookup_nm #{acc=uvec, obsv=(fvec,_)} =
 
 cons_dentry_vector_lookup_nm : Consumer () VfsIno () VectorUsed! (VectorFree!, CString!)
 cons_dentry_vector_lookup_nm #{obj, acc=uvec, obsv=(_,name)} =
-  let dentry = vector_read[ObjDentry] uvec
+  let dentry = vector_read uvec
   and cmp = wordarray_str_cmp (name, get_ObjDentry_name_bang_str dentry)
   in if cmp then (uvec, Return (dentry.ino))
             else (uvec, Next)
@@ -1029,7 +1028,7 @@ readdir_loop #{acc=(ex, ostore_st, vctx, rdctx), obsv=mount_st, idx} =
 
 dentry_vector_lookup : FocusVectorRoFArg (VfsDirContext, Bool) U32
                     -> FocusVectorRoFRet (VfsDirContext, Bool)
-dentry_vector_lookup #{uvec, fvec, acc, obsv=idx} =
+dentry_vector_lookup #{hd, uvec, fvec, acc, obsv=idx} =
   let ((uvec',_), r) = iterate_do[(), (), (), (VectorUsed!, U32), (VectorFree!, U32)]
                          #{ init = ()
                           , gen  = gen_dentry_vector_idx
@@ -1037,8 +1036,8 @@ dentry_vector_lookup #{uvec, fvec, acc, obsv=idx} =
                           , acc  = (uvec,0)
                           , obsv = (fvec,idx)
                           }
-  and acc' = emit_dir #{elem=vector_read[ObjDentry] uvec', acc, obsv=()}
-   in #{uvec = uvec', fvec, res = acc'}
+  and acc' = emit_dir #{elem=vector_read uvec', acc, obsv=()}
+   in #{hd, uvec = uvec', fvec, res = acc'}
 
 
 cons_dentry_vector_idx : Consumer () () () (VectorUsed!, U32) (VectorFree!, U32)
