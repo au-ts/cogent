@@ -46,18 +46,39 @@ $ty:(FocusVectorFRet ()) dentarr_del_dentry_vector ($ty:(FocusVectorFArg () CStr
     $ty:(FocusVectorFRet ()) ret;
 
     char* name = args.obsv->values;
+    $ty:(ObjDentarr) hd = args.hd;
+    $ty:(U32) size = $exp:serialise_size_ObjDentarr (hd);
     void* uvec = args.uvec;
     void* fvec = args.fvec;
 
-    
+    // copy
+    $ty:(ObjDentarr) copy_dentarr = hd;
+    copy_dentarr = kmalloc (size);
+    if (!copy_dentarr) {
+        return ret;  // TODO: should signal failure.
+    }
 
-    // NOTE: We implement delete in an inefficient way that moves all the entries
-    // after the deleted one backwards to close the gap. This is also the
-    // way BilbyFs is implemented in C. / zilinc
+    memcpy (copy_dentarr, hd, size);  // copy the contents
 
+    // lookup
+    $ty:(ObjDentry) de = copy_dentarr->entries;
+    $ty:(ObjDentry) nde = ($ty:(ObjDentry))((void*) de + de->nlen);
+    while (strcmp(de->name, name)) {
+        de = nde;
+        nde = ($ty:(ObjDentry))((void*) de + de->nlen);
+    }
+
+    // delete
+    $ty:(U32) offs = (void*) nde - (void*) hd;  // the offset from the beginning of dentarr to nde
+    $ty:(U32) rest = size - offs;  // the length from nde to the end of dentarr
+    memcpy ((void*) uvec + offs, nde, rest);
+
+    kfree (copy_dentarr);
+
+    ret.hd = hd;
     ret.uvec = uvec;
-    ret.fvec = NULL;  // FIXME
+    ret.fvec = fvec;
     ret.res = $exp:(());
-
+    
     return ret;
 }
