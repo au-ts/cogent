@@ -67,6 +67,11 @@ enum {
 enum {
     LETBANG_TRUE = 1,
 };
+enum tag_t {
+    TAG_ENUM_Nothing,
+    TAG_ENUM_Something,
+};
+typedef enum tag_t tag_t;
 enum untyped_func_enum {
     FUN_ENUM_binarySearch,
     FUN_ENUM_expstep,
@@ -81,23 +86,29 @@ enum untyped_func_enum {
     FUN_ENUM_searchNext,
     FUN_ENUM_searchStop,
     FUN_ENUM_wordarray_get_0,
+    FUN_ENUM_wordarray_get_opt32,
+    FUN_ENUM_wordarray_get_opt_0,
     FUN_ENUM_wordarray_length_0,
+    FUN_ENUM_wordarray_put32,
+    FUN_ENUM_wordarray_put_0,
 };
 typedef enum untyped_func_enum untyped_func_enum;
-typedef untyped_func_enum t18;
-typedef untyped_func_enum t19;
 typedef untyped_func_enum t20;
-typedef untyped_func_enum t14;
-typedef untyped_func_enum t15;
 typedef untyped_func_enum t21;
 typedef untyped_func_enum t22;
+typedef untyped_func_enum t23;
+typedef untyped_func_enum t14;
+typedef untyped_func_enum t15;
+typedef untyped_func_enum t24;
+typedef untyped_func_enum t25;
+typedef untyped_func_enum t26;
 typedef untyped_func_enum t4;
 typedef untyped_func_enum t5;
-typedef untyped_func_enum t23;
-typedef untyped_func_enum t24;
+typedef untyped_func_enum t27;
+typedef untyped_func_enum t28;
 typedef untyped_func_enum t10;
 typedef untyped_func_enum t11;
-typedef untyped_func_enum t25;
+typedef untyped_func_enum t29;
 typedef struct t1 t1;
 typedef struct t2 t2;
 typedef struct t3 t3;
@@ -109,6 +120,8 @@ typedef struct t12 t12;
 typedef struct t13 t13;
 typedef struct t16 t16;
 typedef struct t17 t17;
+typedef struct t18 t18;
+typedef struct t19 t19;
 struct WordArray_u32 {
     int len;
     u32 *values;
@@ -166,14 +179,26 @@ struct t16 {
     u32 obsv;
 };
 struct t17 {
+    WordArray_u32 *arr;
+    u32 idx;
+};
+struct t18 {
+    tag_t tag;
+    unit_t Nothing;
+    u32 Something;
+};
+struct t19 {
     u32 p1;
     u32 p2;
 };
 static inline u32 wordarray_get_0(t1);
 static inline u32 wordarray_length_0(WordArray_u32 *);
+static inline WordArray_u32 *wordarray_put_0(t1);
 static inline t2 repeat_0(t6);
 static inline t7 repeat_2(t12);
 static inline u32 repeat_1(t16);
+static inline t18 wordarray_get_opt_0(t17);
+static inline WordArray_u32 *wordarray_put32(t1);
 static inline bool_t expstop(t13);
 static inline bool_t log2stop(t3);
 static inline bool_t searchStop(t9);
@@ -181,17 +206,29 @@ static inline u32 expstep(t13);
 static inline t2 log2step(t3);
 static inline t7 searchNext(t9);
 static inline u32 binarySearch(t8);
-static inline u32 myexp(t17);
+static inline u32 myexp(t19);
 static inline u64 mylog2(u64);
-static inline u32 dispatch_t18(untyped_func_enum a2, WordArray_u32 *a3)
+static inline t18 wordarray_get_opt32(t17);
+static inline u32 dispatch_t20(untyped_func_enum a2, WordArray_u32 *a3)
 {
     return wordarray_length_0(a3);
 }
-static inline u32 dispatch_t19(untyped_func_enum a2, t1 a3)
+static inline WordArray_u32 *dispatch_t21(untyped_func_enum a2, t1 a3)
+{
+    switch (a2) {
+        
+      case FUN_ENUM_wordarray_put32:
+        return wordarray_put32(a3);
+        
+      default:
+        return wordarray_put_0(a3);
+    }
+}
+static inline u32 dispatch_t22(untyped_func_enum a2, t1 a3)
 {
     return wordarray_get_0(a3);
 }
-static inline t7 dispatch_t20(untyped_func_enum a2, t12 a3)
+static inline t7 dispatch_t23(untyped_func_enum a2, t12 a3)
 {
     return repeat_2(a3);
 }
@@ -203,11 +240,22 @@ static inline u32 dispatch_t15(untyped_func_enum a2, t13 a3)
 {
     return expstep(a3);
 }
-static inline u32 dispatch_t21(untyped_func_enum a2, t16 a3)
+static inline u32 dispatch_t24(untyped_func_enum a2, t16 a3)
 {
     return repeat_1(a3);
 }
-static inline u32 dispatch_t22(untyped_func_enum a2, t17 a3)
+static inline t18 dispatch_t25(untyped_func_enum a2, t17 a3)
+{
+    switch (a2) {
+        
+      case FUN_ENUM_wordarray_get_opt32:
+        return wordarray_get_opt32(a3);
+        
+      default:
+        return wordarray_get_opt_0(a3);
+    }
+}
+static inline u32 dispatch_t26(untyped_func_enum a2, t19 a3)
 {
     return myexp(a3);
 }
@@ -219,11 +267,11 @@ static inline t2 dispatch_t5(untyped_func_enum a2, t3 a3)
 {
     return log2step(a3);
 }
-static inline t2 dispatch_t23(untyped_func_enum a2, t6 a3)
+static inline t2 dispatch_t27(untyped_func_enum a2, t6 a3)
 {
     return repeat_0(a3);
 }
-static inline u32 dispatch_t24(untyped_func_enum a2, t8 a3)
+static inline u32 dispatch_t28(untyped_func_enum a2, t8 a3)
 {
     return binarySearch(a3);
 }
@@ -235,7 +283,7 @@ static inline t7 dispatch_t11(untyped_func_enum a2, t9 a3)
 {
     return searchNext(a3);
 }
-static inline u64 dispatch_t25(untyped_func_enum a2, u64 a3)
+static inline u64 dispatch_t29(untyped_func_enum a2, u64 a3)
 {
     return mylog2(a3);
 }
@@ -249,7 +297,7 @@ typedef t3 log2step_arg;
 typedef t2 log2step_ret;
 typedef t3 log2stop_arg;
 typedef bool_t log2stop_ret;
-typedef t17 myexp_arg;
+typedef t19 myexp_arg;
 typedef u32 myexp_ret;
 typedef u64 mylog2_arg;
 typedef u64 mylog2_ret;
@@ -265,8 +313,23 @@ typedef t9 searchStop_arg;
 typedef bool_t searchStop_ret;
 typedef t1 wordarray_get_0_arg;
 typedef u32 wordarray_get_0_ret;
+typedef t17 wordarray_get_opt32_arg;
+typedef t18 wordarray_get_opt32_ret;
+typedef t17 wordarray_get_opt_0_arg;
+typedef t18 wordarray_get_opt_0_ret;
 typedef WordArray_u32 *wordarray_length_0_arg;
 typedef u32 wordarray_length_0_ret;
+typedef t1 wordarray_put32_arg;
+typedef WordArray_u32 *wordarray_put32_ret;
+typedef t1 wordarray_put_0_arg;
+typedef WordArray_u32 *wordarray_put_0_ret;
+static inline WordArray_u32 *wordarray_put32(t1 a1)
+{
+    t1 r2 = a1;
+    WordArray_u32 *r3 = wordarray_put_0(r2);
+    
+    return r3;
+}
 static inline bool_t expstop(t13 a1)
 {
     t13 r2 = a1;
@@ -402,7 +465,7 @@ static inline u32 binarySearch(t8 a1)
     
     return r18;
 }
-static inline u32 myexp(t17 a1)
+static inline u32 myexp(t19 a1)
 {
     u32 r2 = a1.p1;
     u32 r3 = a1.p2;
@@ -430,6 +493,13 @@ static inline u64 mylog2(u64 a1)
     u64 r12 = r11;
     
     return r12;
+}
+static inline t18 wordarray_get_opt32(t17 a1)
+{
+    t17 r2 = a1;
+    t18 r3 = wordarray_get_opt_0(r2);
+    
+    return r3;
 }
 u32 repeat_1(t16 args)
 {
@@ -488,6 +558,24 @@ u32 wordarray_get_0(t1 args)
 u32 wordarray_length_0(WordArray_u32 *array)
 {
     return array->len;
+}
+WordArray_u32 *wordarray_put_0(t1 args)
+{
+    if (__builtin_expect(!!(args.idx < args.arr->len), 1))
+        args.arr->values[args.idx] = args.val;
+    return args.arr;
+}
+t18 wordarray_get_opt_0(t17 args)
+{
+    t18 ret;
+    
+    if (args.idx >= args.arr->len)
+        ret.tag = TAG_ENUM_Nothing;
+    else {
+        ret.tag = TAG_ENUM_Something;
+        ret.Something = args.arr->values[args.idx];
+    }
+    return ret;
 }
 
 

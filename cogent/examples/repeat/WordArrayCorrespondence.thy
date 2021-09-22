@@ -320,6 +320,55 @@ lemma uvwa_put_monocorrespond_upward_propagation:
   apply (erule (3) val.no_tfun_imp_no_vfuns[OF _ _ _ upd_val_rel_to_vval_typing(1)])
   done
 
+subsection "wordarray_get_opt"
+
+lemma uvwa_get_opt_monocorrespond_upward_propagation:
+  "\<And>\<sigma> \<sigma>' au av v v' r w.
+       \<lbrakk>upd_val_rel \<Xi>' \<sigma> au av  (TRecord 
+                      [(''arr'', TCon ''WordArray'' [t] (Boxed ReadOnly ptrl), Present),
+                       (''idx'', TPrim (Num U32), Present)] Unboxed) r w;
+        uwa_get_opt (\<sigma>, au) (\<sigma>', v)\<rbrakk>
+       \<Longrightarrow> (vwa_get_opt av v' \<longrightarrow>
+            (\<exists>r' w'. upd_val_rel \<Xi>' \<sigma>' v v' (TSum [(''Nothing'', TUnit, Unchecked), (''Something'', t, Unchecked)]) r' w' \<and>
+              r' \<subseteq> r \<and> frame \<sigma> w \<sigma>' w')) \<and>
+            (\<exists>v'. vwa_get_opt av v')"
+  apply (clarsimp simp: uwa_get_opt_def)
+  apply (erule u_v_urecE; clarsimp)
+  apply (erule u_v_r_consE'; clarsimp)+
+  apply (erule u_v_r_uemptyE; clarsimp)
+  apply (erule u_v_uptrE; clarsimp)
+  apply (erule u_v_uprimE; clarsimp)
+  apply (drule_tac t = "type_repr _" in sym)
+  apply (frule wa_abs_upd_val_elims(1)[THEN upd.wa_abs_typing_u_elims(1)]; clarsimp)
+  apply (frule wa_abs_upd_val_elims(5); clarsimp)
+  apply (frule wa_abs_upd_val_elims(2)[THEN val.wa_abs_typing_v_elims(4)])
+  apply (frule wa_abs_upd_val_elims(3))
+  apply clarsimp
+  apply (rename_tac \<sigma> \<sigma>' v v' p len arr i rb xs)
+  apply (rule conjI; clarsimp)
+   apply (clarsimp simp: vwa_get_opt_def)
+   apply (case_tac "unat i < length xs"; clarsimp simp: word_less_nat_alt)
+    apply (drule wa_abs_upd_val_elims(4))
+    apply (clarsimp simp: word_less_nat_alt)
+    apply (elim allE impE, assumption)
+    apply clarsimp
+    apply (drule l0_imp_upd_val_rel)
+    apply (rule_tac x = "{}" in exI)
+    apply (rule_tac x = "{}" in exI)
+    apply (fastforce intro!: u_v_sum simp: upd.frame_id)
+   apply (rule_tac x = "{}" in exI)
+   apply (rule_tac x = "{}" in exI)
+   apply (fastforce intro!: u_v_sum u_v_unit simp: upd.frame_id)
+  apply (clarsimp split: if_splits simp: word_less_nat_alt)
+   apply (rule_tac x = "VSum ''Something'' (xs ! unat i)" in exI)
+   apply (clarsimp simp: vwa_get_opt_def)
+   apply (drule wa_abs_upd_val_elims(4))
+   apply (erule_tac x = i in allE; clarsimp simp: word_less_nat_alt)
+   apply (erule (3) val.no_tfun_imp_no_vfuns[OF _ _ _ upd_val_rel_to_vval_typing(1)[OF l0_imp_upd_val_rel(1)]])
+  apply (rule_tac x = "VSum ''Nothing'' VUnit" in exI)
+  apply (clarsimp simp: vwa_get_opt_def)
+  done
+
 end (* of context *)
 
 end

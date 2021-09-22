@@ -339,6 +339,7 @@ next
     using \<Gamma>i by simp
 qed
 
+section "Corres rules which are easier to use"
 
 lemma crepeat_corres:
   assumes \<gamma>len: "i < length \<gamma>"
@@ -468,7 +469,6 @@ shows
   apply (clarsimp simp: corres_def)
   done
 
-
 lemma crepeat_corres_bang:
   assumes \<gamma>len: "i < length \<gamma>"
   and     valrel: "val_rel (\<gamma> ! i) (v' :: ('a :: cogent_C_val))"
@@ -550,6 +550,224 @@ lemmas crepeat_corres_afun_fun = crepeat_corres_rel_leq
   [where fstop = "UAFunction _ _" and fstep = "UFunction _ _", simplified,
    OF _ _ _ _ _ _ _ _ _ _ _ typing_mono_app_cogent_absfun typing_mono_app_cogent_fun]
 lemmas crepeat_corres_afun_afun = crepeat_corres_rel_leq
+  [where fstop = "UAFunction _ _" and fstep = "UAFunction _ _", simplified,
+   OF _ _ _ _ _ _ _ _ _ _ _ typing_mono_app_cogent_absfun typing_mono_app_cogent_absfun]
+
+
+section "Alternate corres rules"
+
+lemma crepeat_corres_base_all:
+  assumes \<gamma>len: "i < length \<gamma>"
+  and     valrel: "val_rel (\<gamma> ! i) (v' :: ('a :: cogent_C_val))"
+  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (\<Xi>' name)))"
+  and     \<Xi>name: "\<Xi>' name = ([], \<tau>, \<tau>a)"
+  and     \<tau>def: "\<tau> = TRecord [(''n'', TPrim (Num U64), Present),
+                              (''stop'', TFun (bang \<tau>f) (TPrim Bool), Present),
+                              (''step'', TFun \<tau>f \<tau>a, Present),
+                              (''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed"
+  and     \<tau>fdef: "\<tau>f = TRecord [(''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed"
+  and     bang\<tau>o: "bang \<tau>o = \<tau>o"
+  and     \<xi>''name: "\<xi>'' name = urepeat \<Xi>' \<xi>' \<tau>a \<tau>o"
+  and     \<xi>'matchesu: "\<xi>' matches-u \<Xi>'"
+  and     determ: "determ \<xi>'"
+  and     \<gamma>i: "\<gamma> ! i = URecord [(UPrim (LU64 n), RPrim (Num U64)), (fstop, RFun), (fstep, RFun), (acc, type_repr \<tau>a), (obsv, type_repr \<tau>o)]"
+  and     fstoptype: "\<Xi>', [], [Some (bang \<tau>f)] \<turnstile> App (uvalfun_to_expr fstop) (Var 0) : TPrim Bool"
+  and     fsteptype: "\<Xi>', [], [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstep) (Var 0) : \<tau>a"
+  and     valrela:  "\<forall>x (x' :: ('a :: cogent_C_val)). val_rel x x' =
+                              (\<exists>n f g acc obsv. x = URecord [n, f, g, acc, obsv] \<and>
+                                val_rel (fst n) (nC x') \<and> val_rel (fst f) (stopC x') \<and>
+                                val_rel (fst g) (stepC x') \<and> val_rel (fst acc) (a0C x') \<and>
+                                val_rel (fst obsv) (o0C x'))"
+  and     valrelc:  "\<forall>x (x' :: ('c :: cogent_C_val)). val_rel x x' =
+                              (\<exists>acc obsv. x = URecord [acc, obsv] \<and> val_rel (fst acc) (a1C x') \<and>
+                                val_rel (fst obsv) (o1C x'))"
+  and     d0corres: "\<forall>x x' \<sigma> s. val_rel x x' \<longrightarrow>
+                                  corres state_rel (App (uvalfun_to_expr fstop) (Var 0))
+                                    (do ret <- d0 (stopC v') x'; gets (\<lambda>s. ret) od)
+                                    \<xi>' [x] \<Xi>' [option.Some (bang \<tau>f)] \<sigma> s"
+  and     d1corres: "\<forall>x x' \<sigma> s. val_rel x x' \<longrightarrow>
+                                  corres state_rel (App (uvalfun_to_expr fstep) (Var 0))
+                                    (do ret <- d1 (stepC v') x'; gets (\<lambda>s. ret) od)
+                                    \<xi>' [x] \<Xi>' [option.Some \<tau>f] \<sigma> s"
+  and     a1C_a1U: "\<forall>x y. a1C (a1U (\<lambda>_. y) x) = y"
+  and     a1C_o1U: "\<forall>x y. a1C (o1U y x) = a1C x"
+  and     o1C_o1U: "\<forall>x y. o1C (o1U (\<lambda>_. y) x) = y"
+  and     o1C_a1U: "\<forall>x y. o1C (a1U y x) = o1C x"
+  and     cfundef: "cfun = crepeat nC stopC stepC a0C o0C a1C a1U o1U d0 d1"
+shows
+  "corres state_rel (App (AFun name []) (Var i))
+    (do x <- cfun v'; gets (\<lambda>s. x) od)
+     \<xi>'' \<gamma> \<Xi>' \<Gamma> \<sigma> s"
+  apply (rule crepeat_corres_base[where o1C = o1C, 
+        OF \<gamma>len valrel _ _ \<tau>def \<tau>fdef bang\<tau>o _ \<xi>'matchesu determ \<gamma>i fstoptype fsteptype, rotated -1, OF cfundef];
+        (simp add: \<Gamma>i \<Xi>name \<xi>''name valrela valrelc a1C_a1U a1C_o1U o1C_o1U o1C_a1U d0corres[simplified] d1corres[simplified])?)
+  done
+
+lemma crepeat_corres_all:
+  assumes \<gamma>len: "i < length \<gamma>"
+  and     valrel: "val_rel (\<gamma> ! i) (v' :: ('a :: cogent_C_val))"
+  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (\<Xi>' name)))"
+  and     \<Xi>name: "\<Xi>' name = ([], \<tau>, \<tau>a)"
+  and     \<tau>def: "\<tau> = TRecord [(''n'', TPrim (Num U64), Present),
+                              (''stop'', TFun (bang \<tau>f) (TPrim Bool), Present),
+                              (''step'', TFun \<tau>f \<tau>a, Present),
+                              (''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed"
+  and     \<tau>fdef: "\<tau>f = TRecord [(''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed"
+  and     bang\<tau>o: "bang \<tau>o = \<tau>o"
+  and     \<xi>''name: "\<xi>'' name = urepeat \<Xi>' \<xi>' \<tau>a \<tau>o"
+  and     \<xi>'matchesu: "\<xi>' matches-u \<Xi>'"
+  and     determ: "determ \<xi>'"
+  and     \<gamma>i: "\<exists>n acc obsv a b. \<gamma> ! i = URecord [n, (fstop, a), (fstep, b), acc, obsv]"
+  and     fstoptype: "\<Xi>', [], [Some (bang \<tau>f)] \<turnstile> App (uvalfun_to_expr fstop) (Var 0) : TPrim Bool"
+  and     fsteptype: "\<Xi>', [], [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstep) (Var 0) : \<tau>a"
+  and     valrela:  "\<forall>x (x' :: ('a :: cogent_C_val)). val_rel x x' =
+                              (\<exists>n f g acc obsv. x = URecord [n, f, g, acc, obsv] \<and>
+                                val_rel (fst n) (nC x') \<and> val_rel (fst f) (stopC x') \<and>
+                                val_rel (fst g) (stepC x') \<and> val_rel (fst acc) (a0C x') \<and>
+                                val_rel (fst obsv) (o0C x'))"
+  and     valrelc:  "\<forall>x (x' :: ('c :: cogent_C_val)). val_rel x x' =
+                              (\<exists>acc obsv. x = URecord [acc, obsv] \<and> val_rel (fst acc) (a1C x') \<and>
+                                val_rel (fst obsv) (o1C x'))"
+  and     d0corres: "\<forall>x x' \<sigma> s. val_rel x x' \<longrightarrow>
+                                  corres state_rel (App (uvalfun_to_expr fstop) (Var 0))
+                                    (do ret <- d0 (stopC v') x'; gets (\<lambda>s. ret) od)
+                                    \<xi>' [x] \<Xi>' [option.Some (bang \<tau>f)] \<sigma> s"
+  and     d1corres: "\<forall>x x' \<sigma> s. val_rel x x' \<longrightarrow>
+                                  corres state_rel (App (uvalfun_to_expr fstep) (Var 0))
+                                    (do ret <- d1 (stepC v') x'; gets (\<lambda>s. ret) od)
+                                    \<xi>' [x] \<Xi>' [option.Some \<tau>f] \<sigma> s"
+  and     a1C_a1U: "\<forall>x y. a1C (a1U (\<lambda>_. y) x) = y"
+  and     a1C_o1U: "\<forall>x y. a1C (o1U y x) = a1C x"
+  and     o1C_o1U: "\<forall>x y. o1C (o1U (\<lambda>_. y) x) = y"
+  and     o1C_a1U: "\<forall>x y. o1C (a1U y x) = o1C x"
+  and     cfundef: "cfun = crepeat nC stopC stepC a0C o0C a1C a1U o1U d0 d1"
+shows
+  "corres state_rel (App (AFun name []) (Var i))
+    (do x <- cfun v'; gets (\<lambda>s. x) od)
+     \<xi>'' \<gamma> \<Xi>' \<Gamma> \<sigma> s"
+  apply (rule crepeat_corres[where o1C = o1C, 
+        OF \<gamma>len valrel _ _ \<tau>def \<tau>fdef bang\<tau>o _ \<xi>'matchesu determ \<gamma>i fstoptype fsteptype, rotated -1, OF cfundef];
+        (simp add: \<Gamma>i \<Xi>name \<xi>''name valrela valrelc a1C_a1U a1C_o1U o1C_o1U o1C_a1U d0corres[simplified] d1corres[simplified])?)
+  done
+
+lemma crepeat_corres_rel_leq_all:
+  assumes \<gamma>len: "i < length \<gamma>"
+  and     valrel: "val_rel (\<gamma> ! i) (v' :: ('a :: cogent_C_val))"
+  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (\<Xi>' name)))"
+  and     \<Xi>name: "\<Xi>' name = ([], \<tau>, \<tau>a)"
+  and     \<tau>def: "\<tau> = TRecord [(''n'', TPrim (Num U64), Present),
+                              (''stop'', TFun (bang \<tau>f) (TPrim Bool), Present),
+                              (''step'', TFun \<tau>f \<tau>a, Present),
+                              (''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed"
+  and     \<tau>fdef: "\<tau>f = TRecord [(''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed"
+  and     bang\<tau>o: "bang \<tau>o = \<tau>o"
+  and     \<xi>''name: "\<xi>'' name = urepeat \<Xi>' \<xi>' \<tau>a \<tau>o"
+  and     leq: "rel_leq \<xi>' \<xi>''"
+  and     determ: "determ \<xi>''"
+  and     \<gamma>i: "\<exists>n acc obsv a b. \<gamma> ! i = URecord [n, (fstop, a), (fstep, b), acc, obsv]"
+  and     fstoptype: "\<Xi>', [], [Some (bang \<tau>f)] \<turnstile> App (uvalfun_to_expr fstop) (Var 0) : TPrim Bool"
+  and     fsteptype: "\<Xi>', [], [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstep) (Var 0) : \<tau>a"
+  and     valrela:  "\<forall>x (x' :: ('a :: cogent_C_val)). val_rel x x' =
+                              (\<exists>n f g acc obsv. x = URecord [n, f, g, acc, obsv] \<and>
+                                val_rel (fst n) (nC x') \<and> val_rel (fst f) (stopC x') \<and>
+                                val_rel (fst g) (stepC x') \<and> val_rel (fst acc) (a0C x') \<and>
+                                val_rel (fst obsv) (o0C x'))"
+  and     valrelc:  "\<forall>x (x' :: ('c :: cogent_C_val)). val_rel x x' =
+                              (\<exists>acc obsv. x = URecord [acc, obsv] \<and> val_rel (fst acc) (a1C x') \<and>
+                                val_rel (fst obsv) (o1C x'))"
+  and     d0corres: "\<forall>x x' \<sigma> s. val_rel x x' \<longrightarrow>
+                                  corres state_rel (App (uvalfun_to_expr fstop) (Var 0))
+                                    (do ret <- d0 (stopC v') x'; gets (\<lambda>s. ret) od)
+                                    \<xi>' [x] \<Xi>' [option.Some (bang \<tau>f)] \<sigma> s"
+  and     d1corres: "\<forall>x x' \<sigma> s. val_rel x x' \<longrightarrow>
+                                  corres state_rel (App (uvalfun_to_expr fstep) (Var 0))
+                                    (do ret <- d1 (stepC v') x'; gets (\<lambda>s. ret) od)
+                                    \<xi>' [x] \<Xi>' [option.Some \<tau>f] \<sigma> s"
+  and     a1C_a1U: "\<forall>x y. a1C (a1U (\<lambda>_. y) x) = y"
+  and     a1C_o1U: "\<forall>x y. a1C (o1U y x) = a1C x"
+  and     o1C_o1U: "\<forall>x y. o1C (o1U (\<lambda>_. y) x) = y"
+  and     o1C_a1U: "\<forall>x y. o1C (a1U y x) = o1C x"
+  and     cfundef: "cfun = crepeat nC stopC stepC a0C o0C a1C a1U o1U d0 d1"
+shows
+  "corres state_rel (App (AFun name []) (Var i))
+    (do x <- cfun v'; gets (\<lambda>s. x) od)
+     \<xi>'' \<gamma> \<Xi>' \<Gamma> \<sigma> s"
+  apply (rule crepeat_corres_rel_leq[where o1C = o1C, 
+        OF \<gamma>len valrel _ _ \<tau>def \<tau>fdef bang\<tau>o _ leq determ \<gamma>i fstoptype fsteptype, rotated -1, OF cfundef];
+        (simp add: \<Gamma>i \<Xi>name \<xi>''name valrela valrelc a1C_a1U a1C_o1U o1C_o1U o1C_a1U d0corres[simplified] d1corres[simplified])?)
+  done
+
+lemma crepeat_corres_bang_all:
+  assumes \<gamma>len: "i < length \<gamma>"
+  and     valrel: "val_rel (\<gamma> ! i) (v' :: ('a :: cogent_C_val))"
+  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (\<Xi>' name)))"
+  and     \<Xi>name: "\<Xi>' name = ([], \<tau>, \<tau>a)"
+  and     \<tau>def: "\<tau> = TRecord [(''n'', TPrim (Num U64), Present),
+                              (''stop'', TFun \<tau>f (TPrim Bool), Present),
+                              (''step'', TFun \<tau>f \<tau>a, Present),
+                              (''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed"
+  and     \<tau>fdef: "\<tau>f = TRecord [(''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed"
+  and     bang\<tau>a: "bang \<tau>a = \<tau>a"
+  and     bang\<tau>o: "bang \<tau>o = \<tau>o"
+  and     \<xi>''name: "\<xi>'' name = urepeat \<Xi>' \<xi>' \<tau>a \<tau>o"
+  and     leq: "rel_leq \<xi>' \<xi>''"
+  and     determ: "determ \<xi>''"
+  and     \<gamma>i: "\<exists>n acc obsv a b. \<gamma> ! i = URecord [n, (fstop, a), (fstep, b), acc, obsv]"
+  and     fstoptype: "\<Xi>', [], [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstop) (Var 0) : TPrim Bool"
+  and     fsteptype: "\<Xi>', [], [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstep) (Var 0) : \<tau>a"
+  and     valrela:  "\<forall>x (x' :: ('a :: cogent_C_val)). val_rel x x' =
+                              (\<exists>n f g acc obsv. x = URecord [n, f, g, acc, obsv] \<and>
+                                val_rel (fst n) (nC x') \<and> val_rel (fst f) (stopC x') \<and>
+                                val_rel (fst g) (stepC x') \<and> val_rel (fst acc) (a0C x') \<and>
+                                val_rel (fst obsv) (o0C x'))"
+  and     valrelc:  "\<forall>x (x' :: ('c :: cogent_C_val)). val_rel x x' =
+                              (\<exists>acc obsv. x = URecord [acc, obsv] \<and> val_rel (fst acc) (a1C x') \<and>
+                                val_rel (fst obsv) (o1C x'))"
+  and     d0corres: "\<forall>x x' \<sigma> s. val_rel x x' \<longrightarrow>
+                                  corres state_rel (App (uvalfun_to_expr fstop) (Var 0))
+                                    (do ret <- d0 (stopC v') x'; gets (\<lambda>s. ret) od)
+                                    \<xi>' [x] \<Xi>' [option.Some (bang \<tau>f)] \<sigma> s"
+  and     d1corres: "\<forall>x x' \<sigma> s. val_rel x x' \<longrightarrow>
+                                  corres state_rel (App (uvalfun_to_expr fstep) (Var 0))
+                                    (do ret <- d1 (stepC v') x'; gets (\<lambda>s. ret) od)
+                                    \<xi>' [x] \<Xi>' [option.Some \<tau>f] \<sigma> s"
+  and     a1C_a1U: "\<forall>x y. a1C (a1U (\<lambda>_. y) x) = y"
+  and     a1C_o1U: "\<forall>x y. a1C (o1U y x) = a1C x"
+  and     o1C_o1U: "\<forall>x y. o1C (o1U (\<lambda>_. y) x) = y"
+  and     o1C_a1U: "\<forall>x y. o1C (a1U y x) = o1C x"
+  and     cfundef: "cfun = crepeat nC stopC stepC a0C o0C a1C a1U o1U d0 d1"
+shows
+  "corres state_rel (App (AFun name []) (Var i))
+    (do x <- cfun v'; gets (\<lambda>s. x) od)
+     \<xi>'' \<gamma> \<Xi>' \<Gamma> \<sigma> s"
+  apply (rule crepeat_corres_bang[where o1C = o1C, 
+        OF \<gamma>len valrel _ _ \<tau>def \<tau>fdef bang\<tau>a bang\<tau>o _ leq determ \<gamma>i fstoptype fsteptype, rotated -1, OF cfundef];
+        (simp add: \<Gamma>i \<Xi>name \<xi>''name valrela valrelc a1C_a1U a1C_o1U o1C_o1U o1C_a1U d0corres[simplified] d1corres[simplified])?)
+  done
+
+lemmas crepeat_corres_bang_fun_funall = crepeat_corres_bang_all
+  [where fstop = "UFunction _ _" and fstep = "UFunction _ _", simplified,
+   OF _ _ _ _ _ _ _ _ _ _ _ _ typing_mono_app_cogent_fun typing_mono_app_cogent_fun]
+lemmas crepeat_corres_bang_fun_afun_all = crepeat_corres_bang_all
+  [where fstop = "UFunction _ _" and fstep = "UAFunction _ _", simplified,
+   OF _ _ _ _ _ _ _ _ _ _ _ _ typing_mono_app_cogent_fun typing_mono_app_cogent_absfun]
+lemmas crepeat_corres_bang_afun_fun_all = crepeat_corres_bang_all
+  [where fstop = "UAFunction _ _" and fstep = "UFunction _ _", simplified,
+   OF _ _ _ _ _ _ _ _ _ _ _ _ typing_mono_app_cogent_absfun typing_mono_app_cogent_fun]
+lemmas crepeat_corres_bang_afun_afun_all = crepeat_corres_bang_all
+  [where fstop = "UAFunction _ _" and fstep = "UAFunction _ _", simplified,
+   OF _ _ _ _ _ _ _ _ _ _ _ _ typing_mono_app_cogent_absfun typing_mono_app_cogent_absfun]
+
+lemmas crepeat_corres_fun_fun_all = crepeat_corres_rel_leq_all
+  [where fstop = "UFunction _ _" and fstep = "UFunction _ _", simplified,
+   OF _ _ _ _ _ _ _ _ _ _ _  typing_mono_app_cogent_fun typing_mono_app_cogent_fun]
+lemmas crepeat_corres_fun_afun_all = crepeat_corres_rel_leq_all
+  [where fstop = "UFunction _ _" and fstep = "UAFunction _ _", simplified,
+   OF _ _ _ _ _ _ _ _ _ _ _ typing_mono_app_cogent_fun typing_mono_app_cogent_absfun]
+lemmas crepeat_corres_afun_fun_all = crepeat_corres_rel_leq_all
+  [where fstop = "UAFunction _ _" and fstep = "UFunction _ _", simplified,
+   OF _ _ _ _ _ _ _ _ _ _ _ typing_mono_app_cogent_absfun typing_mono_app_cogent_fun]
+lemmas crepeat_corres_afun_afun_all = crepeat_corres_rel_leq_all
   [where fstop = "UAFunction _ _" and fstep = "UAFunction _ _", simplified,
    OF _ _ _ _ _ _ _ _ _ _ _ typing_mono_app_cogent_absfun typing_mono_app_cogent_absfun]
 

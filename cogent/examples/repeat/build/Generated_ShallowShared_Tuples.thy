@@ -10,6 +10,10 @@ begin
 
 typedecl 'a WordArray
 
+datatype ('a, 'b) Opt =
+  Nothing "'a"|
+  Something "'b"
+
 record ('a, 'b, 'c, 'd, 'e) RepParam =
   n\<^sub>f :: "'a"
   stop\<^sub>f :: "'b"
@@ -26,6 +30,12 @@ record ('a, 'b, 'c) WordArrayGetP =
   idx\<^sub>f :: "'b"
   val\<^sub>f :: "'c"
 
+record ('a, 'b) WordArrayGetOP =
+  arr\<^sub>f :: "'a"
+  idx\<^sub>f :: "'b"
+
+type_synonym 'a WordArrayGetOP\<^sub>T = "('a WordArray, 32 word) WordArrayGetOP"
+
 type_synonym 'a WordArrayGetP\<^sub>T = "('a WordArray, 32 word, 'a) WordArrayGetP"
 
 type_synonym 'a WordArrayPutP\<^sub>T = "('a WordArray, 32 word, 'a) WordArrayGetP"
@@ -38,6 +48,8 @@ type_synonym ('acc, 'obsv) StepF = "('acc, 'obsv) StepParam \<Rightarrow> 'acc"
 
 type_synonym ('acc, 'obsv) RepParam\<^sub>T = "(64 word, ('acc, 'obsv) StepParam \<Rightarrow> bool, ('acc, 'obsv) StepParam \<Rightarrow> 'acc, 'acc, 'obsv) RepParam"
 
+type_synonym 'a Opt\<^sub>T = "(unit, 'a) Opt"
+
 consts wordarray_get :: "('a WordArray, 32 word, 'a) WordArrayGetP \<Rightarrow> 'a"
 
 consts wordarray_length :: "'a WordArray \<Rightarrow> 32 word"
@@ -45,5 +57,7 @@ consts wordarray_length :: "'a WordArray \<Rightarrow> 32 word"
 consts wordarray_put :: "('a WordArray, 32 word, 'a) WordArrayGetP \<Rightarrow> 'a WordArray"
 
 consts repeat :: "(64 word, ('acc, 'obsv) StepParam \<Rightarrow> bool, ('acc, 'obsv) StepParam \<Rightarrow> 'acc, 'acc, 'obsv) RepParam \<Rightarrow> 'acc"
+
+consts wordarray_get_opt :: "('a WordArray, 32 word) WordArrayGetOP \<Rightarrow> (unit, 'a) Opt"
 
 end

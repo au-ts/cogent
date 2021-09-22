@@ -45,6 +45,16 @@ definition swa_put :: "('a WordArray, 32 word, 'a) WordArrayGetP \<Rightarrow> '
    in list_to_swa (arr[i:= v]))"
 end (* of overloading *)
 
+overloading swa_get_opt \<equiv> wordarray_get_opt
+begin
+definition swa_get_opt :: "('a WordArray, 32 word) WordArrayGetOP \<Rightarrow> (unit, 'a) Opt"
+  where
+"swa_get_opt x = 
+  (let arr = swa_to_list (WordArrayGetOP.arr\<^sub>f x);
+         i = unat (WordArrayGetOP.idx\<^sub>f x)
+   in if i < length arr then Something (arr ! i) else Nothing ())"
+end (* of overloading *)
+
 overloading
   valRel_WordArrayWord \<equiv> valRel
 begin
@@ -160,7 +170,47 @@ lemma wordarray_put_u64_scorres:
   apply (clarsimp split: if_splits simp: Let_def ucast_id valRel_records)
   by (metis (no_types, hide_lams) nth_list_update_eq nth_list_update_neq)
 
-end
 
+lemma wordarray_get_opt_u8_scorres:
+  "\<xi> ''wordarray_get_opt'' =  vwa_get_opt 
+    \<Longrightarrow> scorres (wordarray_get_opt :: (8 word WordArray, 32 word) WordArrayGetOP \<Rightarrow> (unit, 8 word) Opt) (AFun ''wordarray_get_opt'' ts) \<gamma> \<xi>"
+  apply (clarsimp simp: scorres_def)
+  apply (erule v_sem_afunE; clarsimp)
+  apply (erule notE)
+  unfolding vwa_get_opt_def swa_get_opt_def valRel_WordArrayWord valRel_records
+  apply (clarsimp split: if_splits simp: Let_def ucast_id valRel_records)
+  done
+
+lemma wordarray_get_opt_u16_scorres:
+  "\<xi> ''wordarray_get_opt'' =  vwa_get_opt 
+    \<Longrightarrow> scorres (wordarray_get_opt :: (16 word WordArray, 32 word) WordArrayGetOP \<Rightarrow> (unit, 16 word) Opt) (AFun ''wordarray_get_opt'' ts) \<gamma> \<xi>"
+  apply (clarsimp simp: scorres_def)
+  apply (erule v_sem_afunE; clarsimp)
+  apply (erule notE)
+  unfolding vwa_get_opt_def swa_get_opt_def valRel_WordArrayWord valRel_records
+  apply (clarsimp split: if_splits simp: Let_def ucast_id valRel_records)
+  done
+
+lemma wordarray_get_opt_u32_scorres:
+  "\<xi> ''wordarray_get_opt'' =  vwa_get_opt 
+    \<Longrightarrow> scorres (wordarray_get_opt :: (32 word WordArray, 32 word) WordArrayGetOP \<Rightarrow> (unit, 32 word) Opt) (AFun ''wordarray_get_opt'' ts) \<gamma> \<xi>"
+  apply (clarsimp simp: scorres_def)
+  apply (erule v_sem_afunE; clarsimp)
+  apply (erule notE)
+  unfolding vwa_get_opt_def swa_get_opt_def valRel_WordArrayWord valRel_records
+  apply (clarsimp split: if_splits simp: Let_def ucast_id valRel_records)
+  done
+
+lemma wordarray_get_opt_u64_scorres:
+  "\<xi> ''wordarray_get_opt'' =  vwa_get_opt 
+    \<Longrightarrow> scorres (wordarray_get_opt :: (64 word WordArray, 32 word) WordArrayGetOP \<Rightarrow> (unit, 64 word) Opt) (AFun ''wordarray_get_opt'' ts) \<gamma> \<xi>"
+  apply (clarsimp simp: scorres_def)
+  apply (erule v_sem_afunE; clarsimp)
+  apply (erule notE)
+  unfolding vwa_get_opt_def swa_get_opt_def valRel_WordArrayWord valRel_records
+  apply (clarsimp split: if_splits simp: Let_def ucast_id valRel_records)
+  done
+
+end (* of context *)
 
 end

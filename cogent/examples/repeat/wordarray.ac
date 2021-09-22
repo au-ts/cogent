@@ -13,11 +13,10 @@
 $ty:a $id:wordarray_get($ty:(WordArrayGetP a) args)
 {
         if (args.idx >= (args.arr)->len) {
-                return args.val;
+			return args.val;
         }
         return (args.arr)->values[args.idx];
 }
-
 
 u32 $id:wordarray_length($ty:((WordArray a)!) array)
 {
@@ -33,3 +32,14 @@ $ty:(WordArray a) $id:wordarray_put($ty:(WordArrayPutP a) args)
 	return args.arr;
 }
 
+$ty:(Opt a) $id:wordarray_get_opt($ty:(WordArrayGetOP a) args)
+{
+		$ty:(Opt a) ret;
+        if (args.idx >= (args.arr)->len) {
+            ret.tag = TAG_ENUM_Nothing;
+        } else {
+			ret.tag = TAG_ENUM_Something;
+			ret.Something = (args.arr)->values[args.idx];
+		}
+		return ret;
+}
