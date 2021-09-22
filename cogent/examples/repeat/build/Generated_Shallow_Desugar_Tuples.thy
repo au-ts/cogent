@@ -8,6 +8,12 @@ imports "Generated_ShallowShared_Tuples"
 begin
 
 definition
+  wordarray_put32 :: "(32 word WordArray, 32 word, 32 word) WordArrayGetP \<Rightarrow> 32 word WordArray"
+where
+  "wordarray_put32 ds\<^sub>0 \<equiv>
+    (wordarray_put :: (32 word WordArray, 32 word, 32 word) WordArrayGetP \<Rightarrow> 32 word WordArray) ds\<^sub>0"
+
+definition
   expstop :: "(32 word, 32 word) StepParam \<Rightarrow> bool"
 where
   "expstop ds\<^sub>0 \<equiv>
@@ -118,5 +124,11 @@ where
       ds\<^sub>1 = (repeat :: (64 word, (64 word \<times> 64 word, 64 word) StepParam \<Rightarrow> bool, (64 word \<times> 64 word, 64 word) StepParam \<Rightarrow> 64 word \<times> 64 word, 64 word \<times> 64 word, 64 word) RepParam \<Rightarrow> 64 word \<times> 64 word) args;
       (_,b) = ds\<^sub>1
     in b"
+
+definition
+  wordarray_get_opt32 :: "(32 word WordArray, 32 word) WordArrayGetOP \<Rightarrow> (unit, 32 word) Opt"
+where
+  "wordarray_get_opt32 ds\<^sub>0 \<equiv>
+    (wordarray_get_opt :: (32 word WordArray, 32 word) WordArrayGetOP \<Rightarrow> (unit, 32 word) Opt) ds\<^sub>0"
 
 end

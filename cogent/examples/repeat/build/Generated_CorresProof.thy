@@ -73,7 +73,8 @@ ML \<open>
          verbose;
 \<close>
 ML \<open>
-fun typing_tree_of "expstop" = expstop_typing_tree
+fun typing_tree_of "wordarray_put32" = wordarray_put32_typing_tree
+  | typing_tree_of "expstop" = expstop_typing_tree
   | typing_tree_of "log2stop" = log2stop_typing_tree
   | typing_tree_of "searchStop" = searchStop_typing_tree
   | typing_tree_of "expstep" = expstep_typing_tree
@@ -82,6 +83,7 @@ fun typing_tree_of "expstop" = expstop_typing_tree
   | typing_tree_of "binarySearch" = binarySearch_typing_tree
   | typing_tree_of "myexp" = myexp_typing_tree
   | typing_tree_of "mylog2" = mylog2_typing_tree
+  | typing_tree_of "wordarray_get_opt32" = wordarray_get_opt32_typing_tree
   | typing_tree_of f = error ("No typing tree for " ^ quote f)
 \<close>
 ML \<open>
@@ -152,7 +154,9 @@ val entry_func_names = [
       "myexp",
       "searchStop",
       "searchNext",
-      "binarySearch"
+      "binarySearch",
+      "wordarray_get_opt32",
+      "wordarray_put32"
 ]
 val entry_funcs = Symtab.dest Cogent_main_tree
       |> filter (fn (n, _) => member (op =) entry_func_names n) |> Symtab.make

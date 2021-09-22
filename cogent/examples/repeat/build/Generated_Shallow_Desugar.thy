@@ -8,6 +8,11 @@ imports "Generated_ShallowShared"
 begin
 
 definition
+  wordarray_put32 :: "(32 word WordArray, 32 word, 32 word) WordArrayGetP \<Rightarrow> 32 word WordArray"
+where
+  "wordarray_put32 ds\<^sub>0 \<equiv> HOL.Let ds\<^sub>0 (\<lambda>args. (wordarray_put :: (32 word WordArray, 32 word, 32 word) WordArrayGetP \<Rightarrow> 32 word WordArray) args)"
+
+definition
   expstop :: "(32 word, 32 word) StepParam \<Rightarrow> bool"
 where
   "expstop ds\<^sub>0 \<equiv> HOL.Let ds\<^sub>0 (\<lambda>x. False)"
@@ -51,5 +56,10 @@ definition
   mylog2 :: "64 word \<Rightarrow> 64 word"
 where
   "mylog2 ds\<^sub>0 \<equiv> HOL.Let ds\<^sub>0 (\<lambda>n. HOL.Let (RepParam.make n log2stop log2step (T1.make (1 :: 64 word) (0 :: 64 word)) n) (\<lambda>args. HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ((repeat :: (64 word, ((64 word, 64 word) T1, 64 word) StepParam \<Rightarrow> bool, ((64 word, 64 word) T1, 64 word) StepParam \<Rightarrow> (64 word, 64 word) T1, (64 word, 64 word) T1, 64 word) RepParam \<Rightarrow> (64 word, 64 word) T1) args) T1.p1\<^sub>f) (\<lambda>(a,ds\<^sub>1). HOL.Let (take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t ds\<^sub>1 T1.p2\<^sub>f) (\<lambda>(b,ds\<^sub>2). b))))"
+
+definition
+  wordarray_get_opt32 :: "(32 word WordArray, 32 word) WordArrayGetOP \<Rightarrow> (unit, 32 word) Opt"
+where
+  "wordarray_get_opt32 ds\<^sub>0 \<equiv> HOL.Let ds\<^sub>0 (\<lambda>args. (wordarray_get_opt :: (32 word WordArray, 32 word) WordArrayGetOP \<Rightarrow> (unit, 32 word) Opt) args)"
 
 end

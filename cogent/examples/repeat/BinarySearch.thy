@@ -210,34 +210,34 @@ lemma search_next1_simp2:
 
 section "repeat simps"
 
-lemma repeatatl_simps:
-  "repeatatl n f1 f2 \<lparr>T0.p1\<^sub>f = a, p2\<^sub>f = b, p3\<^sub>f = c\<rparr> \<lparr>T1.p1\<^sub>f = d, p2\<^sub>f = e\<rparr> 
-    = t0_make (repeatatl n (\<lambda>a b. f1 (t0_make a) (t1_make b)) (\<lambda>a b. t0_unmake (f2 (t0_make a) (t1_make b))) (a,b,c) (d,e))"
+lemma repeatatm_simps:
+  "repeatatm n f1 f2 \<lparr>T0.p1\<^sub>f = a, p2\<^sub>f = b, p3\<^sub>f = c\<rparr> \<lparr>T1.p1\<^sub>f = d, p2\<^sub>f = e\<rparr> 
+    = t0_make (repeatatm n (\<lambda>a b. f1 (t0_make a) (t1_make b)) (\<lambda>a b. t0_unmake (f2 (t0_make a) (t1_make b))) (a,b,c) (d,e))"
   apply (induct n arbitrary: a b c)
-   apply (simp add: repeatatl.simps valRel_records)
-  apply (clarsimp simp: repeatatl.simps valRel_records)
+   apply (simp add: repeatatm.simps valRel_records)
+  apply (clarsimp simp: repeatatm.simps valRel_records)
   apply (erule_tac x = "T0.p1\<^sub>f (f2 \<lparr>T0.p1\<^sub>f = a, p2\<^sub>f = b, p3\<^sub>f = c\<rparr> \<lparr>T1.p1\<^sub>f = d, p2\<^sub>f = e\<rparr>)" in meta_allE)
   apply (erule_tac x = "T0.p2\<^sub>f (f2 \<lparr>T0.p1\<^sub>f = a, p2\<^sub>f = b, p3\<^sub>f = c\<rparr> \<lparr>T1.p1\<^sub>f = d, p2\<^sub>f = e\<rparr>)" in meta_allE)
   apply (erule_tac x = "T0.p3\<^sub>f (f2 \<lparr>T0.p1\<^sub>f = a, p2\<^sub>f = b, p3\<^sub>f = c\<rparr> \<lparr>T1.p1\<^sub>f = d, p2\<^sub>f = e\<rparr>)" in meta_allE)
   by (metis (mono_tags, lifting) T0.surjective old.unit.exhaust)
 
 
-lemma repeatatl_simps2:
-  "repeatatl n f g (a, b, c) (SWA xs, v) 
-    = repeatatl n (\<lambda>a (b, c). f a (list_to_swa b, c)) (\<lambda>a (b, c). g a (list_to_swa b, c)) (a, b, c) (xs, v)"
+lemma repeatatm_simps2:
+  "repeatatm n f g (a, b, c) (SWA xs, v) 
+    = repeatatm n (\<lambda>a (b, c). f a (list_to_swa b, c)) (\<lambda>a (b, c). g a (list_to_swa b, c)) (a, b, c) (xs, v)"
   apply (induct n arbitrary: a b c)
-   apply (simp add: repeatatl.simps)
-  apply (clarsimp simp: repeatatl.simps)
+   apply (simp add: repeatatm.simps)
+  apply (clarsimp simp: repeatatm.simps)
   by (metis WordArray.t0_make.cases)
 
 
-lemma repeatatl_nat_simp:
-  "\<lbrakk>repeatatl n search_stop3 search_next0 ((i :: 32 word), j, b) (xs, (v :: ('a :: len8) word)) = (l, h, b');
+lemma repeatatm_nat_simp:
+  "\<lbrakk>repeatatm n search_stop3 search_next0 ((i :: 32 word), j, b) (xs, (v :: ('a :: len8) word)) = (l, h, b');
     unat i < length xs; unat j \<le> length xs; length xs \<le> unat (max_word :: 32 word)\<rbrakk>
-    \<Longrightarrow> repeatatl n search_stop4 search_next1 (unat i, unat j, b) (xs, v) = (unat l, unat h, b')"
+    \<Longrightarrow> repeatatm n search_stop4 search_next1 (unat i, unat j, b) (xs, v) = (unat l, unat h, b')"
   apply (induct n arbitrary: i j b)
-   apply (simp add: repeatatl.simps)
-  apply (simp add: repeatatl.simps)
+   apply (simp add: repeatatm.simps)
+  apply (simp add: repeatatm.simps)
   apply (rule conjI; clarsimp)
    apply (rotate_tac 1; subst (asm) search_stop3_def)
    apply (clarsimp simp: search_stop2_def search_stop4_def not_le word_less_nat_alt)
@@ -251,7 +251,7 @@ lemma repeatatl_nat_simp:
    apply (drule search_next1_simp2[rotated -1]; simp?)
     apply (clarsimp simp: word_less_nat_alt not_le)
    apply (case_tac "unat x < length xs"; clarsimp?)
-   apply (case_tac n; clarsimp simp: repeatatl.simps)
+   apply (case_tac n; clarsimp simp: repeatatm.simps)
    apply (rule conjI; clarsimp)
     apply (subst (asm) search_stop3_def)
     apply (clarsimp simp: search_stop2_def search_stop4_def not_le word_less_nat_alt)
@@ -266,12 +266,12 @@ lemma repeatatl_nat_simp:
 section "binary search nat lemmas"
 
 lemma binary_search_range_shrink:
-  "\<lbrakk>repeatatl n search_stop4 search_next1 (i, j, b) (xs, v) = (l, h, b'); 
+  "\<lbrakk>repeatatm n search_stop4 search_next1 (i, j, b) (xs, v) = (l, h, b'); 
     i < j; j \<le> length xs\<rbrakk>
     \<Longrightarrow> i \<le> l \<and> h \<le> j"
   apply (induct n arbitrary: i j b)
-   apply (clarsimp simp: repeatatl.simps)
-  apply (clarsimp simp: repeatatl.simps)
+   apply (clarsimp simp: repeatatm.simps)
+  apply (clarsimp simp: repeatatm.simps)
   apply (rotate_tac 1; subst (asm) search_stop4_def; clarsimp split: if_splits)
   apply (rotate_tac -1; subst (asm) search_next1_def; subst (asm) search_next1_def)
   apply (subst (asm) search_next1_def[symmetric])
@@ -280,26 +280,26 @@ lemma binary_search_range_shrink:
      apply (elim meta_allE, erule meta_impE, assumption; simp?)
      apply clarsimp
      apply (rule_tac b = "Suc ((i + j) div 2)" in  order.trans; simp?)
-    apply (case_tac n; clarsimp simp: repeatatl.simps search_stop4_def split: if_splits)
+    apply (case_tac n; clarsimp simp: repeatatm.simps search_stop4_def split: if_splits)
    apply (elim meta_allE, erule meta_impE, assumption; simp?)
    apply (case_tac "i < (i + j) div 2"; clarsimp)
     apply (rule_tac b = "(i + j) div 2" in  order.trans; simp?)
-   apply (case_tac n; clarsimp simp: repeatatl.simps search_stop4_def split: if_splits)
-    apply (case_tac n; clarsimp simp: repeatatl.simps search_stop4_def split: if_splits)
+   apply (case_tac n; clarsimp simp: repeatatm.simps search_stop4_def split: if_splits)
+    apply (case_tac n; clarsimp simp: repeatatm.simps search_stop4_def split: if_splits)
    apply arith
   apply arith
   done
 
 lemma binary_search_correct_range:
-  "\<lbrakk>repeatatl n search_stop4 search_next1 (i, j, False) (xs, v) = (l, h, b'); 
+  "\<lbrakk>repeatatm n search_stop4 search_next1 (i, j, False) (xs, v) = (l, h, b'); 
     i < j; j \<le> length xs; sorted xs\<rbrakk>
     \<Longrightarrow> (b' \<longrightarrow> xs ! l = v \<and> l < length xs) \<and> (\<not>b' \<longrightarrow>
         (l < h \<longrightarrow> (\<forall>k. (i \<le> k \<and> k < l \<longrightarrow> xs ! k < v) \<and> (h \<le> k \<and> k < j \<longrightarrow> xs ! k > v))) \<and> 
         (\<not> l < h \<longrightarrow> (\<forall>k. i \<le>k \<and> k < j \<longrightarrow> xs ! k \<noteq> v)))"
   apply (induct n arbitrary: i j)
-   apply (clarsimp simp: repeatatl.simps)
+   apply (clarsimp simp: repeatatm.simps)
    apply (rule conjI; clarsimp)
-  apply (clarsimp simp: repeatatl.simps)
+  apply (clarsimp simp: repeatatm.simps)
   apply (rotate_tac -4; subst (asm) search_stop4_def; clarsimp split: if_splits)
   apply (subst (asm) search_next1_def; subst (asm) search_next1_def)
   apply (subst (asm) search_next1_def[symmetric])
@@ -317,7 +317,7 @@ lemma binary_search_correct_range:
       apply (drule binary_search_range_shrink; simp?)
       apply (clarsimp simp: not_le not_less)
      apply (drule_tac i = k and j = "((i + j) div 2)" in sorted_nth_mono; simp?)
-    apply (case_tac n; clarsimp simp: repeatatl.simps search_stop4_def split: if_splits)
+    apply (case_tac n; clarsimp simp: repeatatm.simps search_stop4_def split: if_splits)
      apply (clarsimp simp: not_le not_less)
      apply (drule_tac i = k and j = "((i + h) div 2)" in sorted_nth_mono; simp?)
     apply (drule_tac i = k and j = "((i + h) div 2)" in sorted_nth_mono; simp?)
@@ -333,31 +333,31 @@ lemma binary_search_correct_range:
     apply clarsimp
     apply (erule_tac x = k in allE; clarsimp)
     apply (drule_tac i = "((i + j) div 2)" and j = k in sorted_nth_mono; simp?)
-   apply (case_tac n; clarsimp simp: repeatatl.simps search_stop4_def split: if_splits)
+   apply (case_tac n; clarsimp simp: repeatatm.simps search_stop4_def split: if_splits)
     apply (drule_tac i = "((l + j) div 2)" and j = k in sorted_nth_mono; simp?)
    apply (drule_tac i = "((l + j) div 2)" and j = k in sorted_nth_mono; simp?)
-  apply (case_tac n; clarsimp simp: repeatatl.simps search_stop4_def split: if_splits)
+  apply (case_tac n; clarsimp simp: repeatatm.simps search_stop4_def split: if_splits)
   done
 
 lemma binary_search_completes:
-  "\<lbrakk>repeatatl n search_stop4 search_next1 (i, j, False) (xs, v) = (l, h, b'); 
+  "\<lbrakk>repeatatm n search_stop4 search_next1 (i, j, False) (xs, v) = (l, h, b'); 
     i < j; j \<le> length xs; n \<ge> j - i\<rbrakk>
     \<Longrightarrow> b' \<or> l \<ge> h"
   apply (induct n arbitrary: i j)
-   apply (clarsimp simp: repeatatl.simps)
-  apply (clarsimp simp: repeatatl.simps)
+   apply (clarsimp simp: repeatatm.simps)
+  apply (clarsimp simp: repeatatm.simps)
   apply (rotate_tac 1; subst (asm) search_stop4_def; clarsimp split: if_splits)
   apply (subst (asm) search_next1_def; subst (asm) search_next1_def)
   apply (subst (asm) search_next1_def[symmetric])
   apply (clarsimp split: if_splits)
    apply (case_tac "Suc ((i + j) div 2) < j")
      apply (elim meta_allE, erule meta_impE, assumption; simp?)
-       apply (case_tac n; clarsimp simp: repeatatl.simps search_stop4_def split: if_splits)
+       apply (case_tac n; clarsimp simp: repeatatm.simps search_stop4_def split: if_splits)
       apply simp
      apply (case_tac "i < (i + j) div 2")
       apply (elim meta_allE, erule meta_impE, assumption; simp?)
-     apply (case_tac n; clarsimp simp: repeatatl.simps search_stop4_def split: if_splits)
-    apply (case_tac n; clarsimp simp: repeatatl.simps search_stop4_def split: if_splits)
+     apply (case_tac n; clarsimp simp: repeatatm.simps search_stop4_def split: if_splits)
+    apply (case_tac n; clarsimp simp: repeatatm.simps search_stop4_def split: if_splits)
    apply simp
   apply simp
   done
@@ -365,24 +365,24 @@ lemma binary_search_completes:
 text "This provides a tighter bound for time complexity analysis"
 
 lemma binary_search_completes_tight:
-  "\<lbrakk>repeatatl n search_stop4 search_next1 (i, j, False) (xs, v) = (l, h, b'); 
+  "\<lbrakk>repeatatm n search_stop4 search_next1 (i, j, False) (xs, v) = (l, h, b'); 
     i < j; j \<le> length xs; 2 ^ n >  j - i\<rbrakk>
     \<Longrightarrow> b' \<or> l \<ge> h"
  apply (induct n arbitrary: i j)
-   apply (clarsimp simp: repeatatl.simps)
- apply (clarsimp simp: repeatatl.simps)
+   apply (clarsimp simp: repeatatm.simps)
+ apply (clarsimp simp: repeatatm.simps)
   apply (rotate_tac 1; subst (asm) search_stop4_def; clarsimp split: if_splits)
   apply (subst (asm) search_next1_def; subst (asm) search_next1_def)
   apply (subst (asm) search_next1_def[symmetric])
   apply (clarsimp split: if_splits)
        apply (case_tac "Suc ((i + j) div 2) < j")
         apply (elim meta_allE, erule meta_impE, assumption; simp?)
-       apply (case_tac n; clarsimp simp: repeatatl.simps search_stop4_def split: if_splits)
+       apply (case_tac n; clarsimp simp: repeatatm.simps search_stop4_def split: if_splits)
       apply simp
      apply (case_tac "i < (i + j) div 2")
       apply (elim meta_allE, erule meta_impE, assumption; simp?)
-     apply (case_tac n; clarsimp simp: repeatatl.simps search_stop4_def split: if_splits)
-    apply (case_tac n; clarsimp simp: repeatatl.simps search_stop4_def split: if_splits)
+     apply (case_tac n; clarsimp simp: repeatatm.simps search_stop4_def split: if_splits)
+    apply (case_tac n; clarsimp simp: repeatatm.simps search_stop4_def split: if_splits)
    apply simp
   apply simp
   done
@@ -396,14 +396,14 @@ theorem binary_search_correct:
    (\<not> i < length xs \<longrightarrow> v \<notin> set xs)"
   unfolding Generated_Shallow_Desugar.binarySearch_def swa_length_def repeat'_def swa_get_def     
   apply (clarsimp simp: Let_def take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t_def valRel_records unat_ucast_of_nat
-                        search_stop0_simp search_stop1_simp repeatatl_simps 
+                        search_stop0_simp search_stop1_simp repeatatm_simps 
                         search_stop2_simp t0_make_simps checked_div_def
-                        t1_make_simps repeatatl_simps2 le_unat_uoi[where z = "max_word :: 32 word"]
+                        t1_make_simps repeatatm_simps2 le_unat_uoi[where z = "max_word :: 32 word"]
                  split:  prod.splits;
          subst (asm) t0_unmake.simps[symmetric]; subst (asm) searchNext_simps; subst (asm) search_next_simp)
   apply (subst (asm) search_stop3_def[symmetric])
   apply (case_tac xs, clarsimp)
-  apply (drule repeatatl_nat_simp, simp)
+  apply (drule repeatatm_nat_simp, simp)
     apply (subst le_unat_uoi[where z = "max_word :: 32 word"]; simp)
    apply simp
   apply (frule binary_search_completes)
@@ -642,7 +642,6 @@ lemma WordArray_u32_C_eq_simps:
   apply clarsimp
   by (metis WordArray_u32_C_idupdates(1))
 
-
 corollary binary_search_C_correct:
   "\<lbrakk>sorted (arrlist (s, p));
     cc = upd.binarySearch' (t8_C p v);
@@ -654,8 +653,7 @@ corollary binary_search_C_correct:
       (\<not> unat r < length (arrlist (s, p)) \<longrightarrow> v \<notin> set (arrlist (s, p))))"
   apply (frule_tac v = v in inputs_staterel_valrel; clarsimp)
   apply (frule_tac s = s in 
-      corres_shallow_C_binarySearch_concrete[OF local.correspondence_init_axioms,
-                                             rotated 1,
+      corres_shallow_C_binarySearch_concrete[rotated 1,
                                              OF _ inputs_val_matches[where s = s and p = p and v = v]];
       (simp add: inputs_rename_monoval[simplified])?)
   apply (clarsimp simp: corres_shallow_C_def proc_ctx_wellformed_\<Xi> \<xi>_1_\<xi>m1_matchesuv_\<Xi> upd.\<xi>_1_matchesu_\<Xi>)

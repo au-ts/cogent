@@ -389,4 +389,63 @@ lemma uwa_put_determ:
   apply (clarsimp split: if_splits)
   done
 
+subsection "wordarray_get_opt"
+
+definition uwa_get_opt :: "(funtyp, abstyp, ptrtyp) ufundef"
+  where
+"uwa_get_opt x y = 
+  (\<exists>\<sigma> p t len arr i. 
+    x = (\<sigma>, URecord [(UPtr p (RCon ''WordArray'' [type_repr t]), RPtr (RCon ''WordArray'' [type_repr t])),
+                     (UPrim (LU32 i), RPrim (Num U32))]) \<and>
+    \<sigma> p = option.Some (UAbstract (UWA t len arr)) \<and>
+    (if i < len 
+      then \<exists>v'. \<sigma> (arr + size_of_type t * i) = option.Some v' \<and> 
+        y = (\<sigma>, USum ''Something'' v' [(''Nothing'', RUnit), (''Something'', type_repr t)])
+    else y = (\<sigma>, USum ''Nothing'' UUnit [(''Nothing'', RUnit), (''Something'', type_repr t)])))"
+
+lemma (in WordArrayUpdate) uwa_get_opt_preservation:
+  "\<lbrakk>uval_typing \<Xi>' \<sigma> v (TRecord 
+                      [(''arr'', TCon ''WordArray'' [t] (Boxed ReadOnly ptrl), Present),
+                       (''idx'', TPrim (Num U32), Present)] Unboxed) r w;
+    uwa_get_opt (\<sigma>, v) (\<sigma>', v')\<rbrakk>
+    \<Longrightarrow> \<exists>r' w'. uval_typing \<Xi>' \<sigma>' v' (TSum [(''Nothing'', TUnit, Unchecked), (''Something'', t, Unchecked)]) r' w' \<and> r' \<subseteq> r \<and> frame \<sigma> w \<sigma>' w'"
+  apply (clarsimp simp: uwa_get_opt_def)
+  apply (erule u_t_recE; clarsimp)
+  apply (erule u_t_r_consE; clarsimp)
+  apply (erule u_t_ptrE; clarsimp)
+  apply (frule wa_abs_typing_u_elims(1))
+  apply (elim exE conjE)
+  apply (drule_tac t = "type_repr  _" in sym)
+  apply (drule_tac t = "UWA _ _ _" in sym)
+  apply clarsimp
+  apply (erule u_t_r_consE; simp)+
+  apply (elim conjE)
+  apply (erule u_t_r_emptyE; simp)
+  apply (drule_tac t = "type_repr _" in sym)+
+  apply clarsimp
+  apply (erule u_t_primE)
+  apply (drule_tac t = "lit_type _" in sym; clarsimp)
+  apply (clarsimp split: if_splits)
+   apply (frule  wa_abs_typing_u_elims(5))
+   apply (elim allE impE, assumption, clarsimp)
+   apply (drule l0_imp_uval_typing)
+   apply (rule_tac x = "{}" in exI)+
+   apply simp?
+   apply (rule conjI)
+    apply (erule u_t_sum; simp?)
+   apply (rule frame_id)
+  apply (rule_tac x = "{}" in exI)+
+  apply simp?
+  apply (fastforce intro!: u_t_sum u_t_unit frame_id)
+  done
+
+lemma uwa_get_opt_determ:
+  "\<lbrakk>uwa_get_opt (\<sigma>, x) (\<sigma>', y); uwa_get_opt (\<sigma>, x) (\<sigma>'', z)\<rbrakk>
+    \<Longrightarrow> \<sigma>' = \<sigma>'' \<and> y = z"
+  unfolding uwa_get_opt_def
+  apply (elim exE conjE)
+  apply (clarsimp simp only: prod.inject)
+  apply (clarsimp split: if_splits) 
+  done
+
 end
