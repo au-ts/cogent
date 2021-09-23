@@ -93,15 +93,18 @@ vector_append ($ty:(#{uvec : VectorUsed, fvec : VectorFree, obj : Entry!}) args)
     $ty:(#{suc : Bool, uvec : VectorUsed, fvec : VectorFree}) ret;
 
     void* fvec = args.fvec;
+    $ty:(U32) size = size_entry (args.obj);
 
     // XXX: How do we know that the vector still has free slots to accommodate another
     // entry? I can't see the code neither in the C nor in the Cogent implementations of
     // BilbyFs. / zilinc
-    memcpy (fvec, (void*) args.obj, size_entry (args.obj));
+    bilbyfs_debug ("vector_append: memcpy(%p, %p, %u)\n",
+                   fvec, (void*) args.obj, size);
+    memcpy (fvec, (void*) args.obj, size);
 
     ret.suc = $exp:(True);
     ret.uvec = args.uvec;
-    ret.fvec = fvec + size_entry (args.obj);
+    ret.fvec = fvec + size;
 
     return ret;
 }

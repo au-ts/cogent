@@ -17,11 +17,11 @@ set_read_only_mode(fsop_st {is_ro}) = fsop_st { is_ro = True }
 
 obj_dentry_new_init: (SysState, VfsIno, CString!, U8) -> RR SysState ObjDentry ErrCode
 obj_dentry_new_init(ex, ino, name, dtype) =
-  let nlen = wordarray_length[U8] name
+  let nlen = wordarray_length[U8] name  -- nlen includes `\0'
   in newObjDentry(ex, nlen)
      | Error ex -> (ex, Error eNoMem)
      | Success (ex, odent) ->
-         let odent = set_ObjDentry_name (odent, name, nlen)
+         let odent = set_ObjDentry_name (odent, name)
          in (ex, Success (odent {dtype,ino,nlen = u32_to_u16 nlen}))
 
 vnode_init_perm: (SysState, VfsInode!, VfsInode, VfsMode) -> (SysState, VfsInode)

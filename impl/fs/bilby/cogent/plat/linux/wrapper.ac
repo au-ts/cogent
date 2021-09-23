@@ -1213,7 +1213,7 @@ static struct dentry *bilbyfs_lookup(struct inode *dir, struct dentry *dentry,
                 }
                 err = PTR_ERR(inode);
         }
-        bilbyfs_err("BilbyError: bilbyfs_lookup(dir.ino = %lu, name=%.*s, flags=%x)=%d\n", dir->i_ino, dentry->d_name.len, dentry->d_name.name, flags, err);
+        bilbyfs_err("BilbyFsError: bilbyfs_lookup(dir.ino = %lu, name=%.*s, flags=%x)=%d\n", dir->i_ino, dentry->d_name.len, dentry->d_name.name, flags, err);
         return ERR_PTR(err);
 }
 
