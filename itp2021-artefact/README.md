@@ -1,4 +1,4 @@
-# ARTIFACT
+# ARTEFACT
 
 [ITP 2021 Artefact](https://github.com/NICTA/cogent/tree/wordarray-example/itp2021-artefact)
 ---
