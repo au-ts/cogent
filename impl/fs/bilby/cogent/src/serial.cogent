@@ -482,9 +482,13 @@ type ObjDentry = {
   ino : U32,
   dtype : U8,
   -- pad : U8,
-  nlen : U16,
-  name : U8#[0]
+  nlen : U16,  -- nlen doesn't include any terminating `\0' in name.
+  name : U8#[0]  -- In ext2, `name' doesn't need to be `\0' terminated. But the bilby's C implementation
+                 -- requires it to be `\0' terminated. Which way should we go?
 }
+
+-- NOTE: The CString type in Cogent, the length contains the terminating `\0'
+
 
 -- For the Vector interface!
 type Entry = ObjDentry
@@ -494,11 +498,12 @@ type Entry = ObjDentry
 -- XXX: This is wrong, but for now, we pretend it's okay.
 get_ObjDentry_name_bang : ObjDentry! -> CString!
 get_ObjDentry_name_bang_str : ObjDentry! -> CStr!
-set_ObjDentry_name : (ObjDentry take (..), CString!, U32) -> (ObjDentry take (..)) put (name)
+set_ObjDentry_name : (ObjDentry take (..), CString!) -> (ObjDentry take (..)) put (name)
 
 
 size_ObjDentry : ObjDentry! -> U32
-size_ObjDentry dentry = bilbyFsObjDentryHeaderSize + upcast dentry.nlen + 1
+size_ObjDentry dentry = bilbyFsObjDentryHeaderSize + upcast dentry.nlen
+-- ^^^ FIXME: The C implementation has a (+ 1) there.
 
 bilbyFsObjDentryHeaderSize : U32
 bilbyFsObjDentryHeaderSize = 8

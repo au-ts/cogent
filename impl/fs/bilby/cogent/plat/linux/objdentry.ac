@@ -33,9 +33,9 @@ $ty:(CStr!) cstring_to_cstr ($ty:(CString!) args)
 
 $ty:(Bool) wordarray_str_cmp ($ty:((CString!, CStr!)) args)
 {
-    int res = strcmp (args.p1->values, args.p2);
-    if (res) {
-        return $exp:(True);
+    int res = strncmp (args.p1->values, args.p2, args.p1->len - 1);
+    if (!res) {
+        return $exp:(True);  // equal
     } else {
         return $exp:(False);
     }
@@ -49,7 +49,7 @@ char* get_ObjDentry_name_bang_str ($ty:(ObjDentry) args)
 $ty:(CString!) get_ObjDentry_name_bang ($ty:(ObjDentry!) args)
 {
     $ty:(CString!) ret = kmalloc (sizeof (*ret));
-    char* val = kmalloc (args->nlen);
+    char* val = kmalloc (args->nlen + 1);
     if (!ret || !val) {
         bilbyfs_debug ("get_ObjDentry_name_bang failed to malloc!");
         return NULL;
@@ -57,14 +57,15 @@ $ty:(CString!) get_ObjDentry_name_bang ($ty:(ObjDentry!) args)
     ret->len = args->nlen;
     ret->values = val;
     memcpy(val, args->name, args->nlen);
+    val[args->nlen] = '\0';
     return ret;
 }
 
 $ty:((ObjDentry take (..)) put (name))
-set_ObjDentry_name ($ty:((ObjDentry take (..), CString!, U32)) args)
+set_ObjDentry_name ($ty:((ObjDentry take (..), CString!)) args)
 {
     $ty:(ObjDentry) dent = args.p1;
-    memcpy((void*)dent->name, (void*)args.p2->values, args.p3);
+    memcpy((void*)dent->name, (void*)args.p2->values, args.p2->len - 1);
     return dent;
 }
 
