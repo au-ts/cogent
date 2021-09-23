@@ -17,7 +17,7 @@ set_read_only_mode(fsop_st {is_ro}) = fsop_st { is_ro = True }
 
 obj_dentry_new_init: (SysState, VfsIno, CString!, U8) -> RR SysState ObjDentry ErrCode
 obj_dentry_new_init(ex, ino, name, dtype) =
-  let nlen = wordarray_length[U8] name  -- nlen includes `\0'
+  let nlen = wordarray_length[U8] name - 1 -- nlen excludes `\0'
   in newObjDentry(ex, nlen)
      | Error ex -> (ex, Error eNoMem)
      | Success (ex, odent) ->
@@ -751,6 +751,9 @@ type FsopLookupP = #{ex:SysState, fs_st:FsState, vdir:VfsInode, name:CString!}
 type FsopLookupRR = #{ex:SysState, fs_st:FsState, vdir:VfsInode}
 fsop_lookup: FsopLookupP -> RR FsopLookupRR VfsIno ErrCode
 fsop_lookup #{ex, fs_st = fs_st {mount_st, ostore_st}, vdir, name} =
+  WHEN_DEBUGGING(
+    cogent_debug "fsop_lookup: name = ";
+    wordarray_print name);
   if wordarray_length[U8] name > bilbyFsMaxNameLen + 1 then -- wordarray_length counts the \0
     (#{ex, fs_st = fs_st {mount_st, ostore_st}, vdir}, Error eNameTooLong)
   else
@@ -778,6 +781,7 @@ fsop_lookup #{ex, fs_st = fs_st {mount_st, ostore_st}, vdir, name} =
 
 dentry_vector_lookup_nm : (Vector!, CString!) -> Option VfsIno
 dentry_vector_lookup_nm (vector, name) =
+  WHEN_DEBUGGING (cogent_debug "dentry_vector_lookup_nm");
   focus_vector_ro [(), CString!, Option VfsIno]
     #{vec=vector, acc=(), obsv=name, f=do_dentry_vector_lookup_nm}
 
@@ -806,13 +810,6 @@ cons_dentry_vector_lookup_nm #{obj, acc=uvec, obsv=(_,name)} =
   and cmp = wordarray_str_cmp (name, get_ObjDentry_name_bang_str dentry)
   in if cmp then (uvec, Return (dentry.ino))
             else (uvec, Next)
-
-find_name: ArrayFoldF ObjDentry () CString VfsIno
-find_name #{elem=de, acc=_, obsv=name} =
-  if wordarray_cmp (get_ObjDentry_name_bang de, name) then
-    Break (de.ino)
-  else
-    Iterate ()
 
 type FsopFillSuperP = #{ex:SysState, fs_st:FsState', vsup:VfsMountInfo, is_silent:Bool, root:VfsInode}
 type FsopFillSuperRR = #{ex:SysState, vsup:VfsMountInfo, root:VfsInode}
