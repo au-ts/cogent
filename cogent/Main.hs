@@ -51,7 +51,7 @@ import           Cogent.Mono                      as MN (mono, printAFM)
 import           Cogent.Normal                    as NF (normal, verifyNormal)
 import           Cogent.Parser                    as PA (parseCustTyGen, parseWithIncludes)
 import           Cogent.Preprocess                as PR
-import           Cogent.PrettyPrint               as PP (prettyPrint, prettyRE, prettyTWE)
+import           Cogent.PrettyPrint               as PP (prettyPrint, prettyRE, prettyTWE, prettyCtx)
 import           Cogent.Reorganizer               as RO (reorganize)
 import           Cogent.Simplify                  as SM
 import           Cogent.SuParser                  as SU (parse)

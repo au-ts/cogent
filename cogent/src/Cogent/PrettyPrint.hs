@@ -1092,6 +1092,11 @@ prettyCtx (InExpression e t) True = context "when checking that the expression a
                                       <$> context "has type" <$> (indent' (pretty t))
 prettyCtx (InExpression e t) False = context "when checking the expression at ("
                                        <> pretty (posOfE e) <> context ")"
+prettyCtx (InType l t) True  = context "when checking well-formedness of the type at ("
+                                 <> pretty l <> context ")"
+                                 <$> indent' (pretty t)
+prettyCtx (InType l t) False = context "when checking well-formedness of the type at ("
+                                 <> pretty l <> context ")"
 -- FIXME: more specific info for patterns
 prettyCtx (InPattern p) True = context "when checking the pattern at ("
                                  <> pretty (posOfP p) <> context ")"

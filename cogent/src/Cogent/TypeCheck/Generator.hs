@@ -86,6 +86,11 @@ runCG g tvs lvs ma = do
 
 validateType :: (?loc :: SourcePos) => RawType -> CG (Constraint, TCType)
 validateType (RT t) = do
+  (c, t') <- validateType' t
+  return (c :@ InType ?loc (RT t), t')
+
+validateType' :: (?loc :: SourcePos) => Type RawExpr DataLayoutExpr RawType -> CG (Constraint, TCType)
+validateType' t = do
   vs <- use knownTypeVars
   ts <- lift $ use knownTypes
   lvs <- use knownDataLayoutVars

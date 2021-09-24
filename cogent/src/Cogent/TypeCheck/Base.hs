@@ -134,6 +134,7 @@ type ContextualisedTcLog = ([ErrorContext], TcLog)  -- high-level context at the
 
 -- FIXME: More fine-grained context is appreciated. e.g., only show alternatives that don't unify / zilinc
 data ErrorContext = InExpression LocExpr TCType
+                  | InType SourcePos RawType
                   | InPattern LocPatn
                   | InIrrefutablePattern LocIrrefPatn
                   | ThenBranch | ElseBranch
@@ -671,11 +672,11 @@ type TcBaseM     a =              StateT TcState IO  a
 withTcConsM :: lcl -> TcConsM lcl a -> TcM a
 withTcConsM lcl ma = lift . lift $ evalStateT ma lcl
 
-logErr :: TypeError -> TcM ()
-logErr e = logTc =<< ((,Left e) <$> lift (use errCtx))
+logErr :: [ErrorContext] -> TypeError -> TcM ()
+logErr ctx e = logTc =<< ((\c -> (ctx++c, Left e)) <$> lift (use errCtx))
 
 logErrExit :: TypeError -> TcM a
-logErrExit e = logErr e >> exitErr
+logErrExit e = logErr [] e >> exitErr
 
 -- Even -Werror is enabled, we don't exit. Errors will be collected and thrown at the end.
 logWarn :: TypeWarning -> TcM ()
