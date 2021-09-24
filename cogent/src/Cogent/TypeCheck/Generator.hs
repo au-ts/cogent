@@ -96,20 +96,23 @@ validateType' t = do
   lvs <- use knownDataLayoutVars
   traceTc "gen" (text "validate type" <+> pretty t)
   case t of
-    TVar v b u  | v `notElem` vs -> freshTVar >>= \t' -> return (Unsat $ UnknownTypeVariable v, t')
+    TVar v b u  | v `notElem` vs -> freshTVar (BlockedByType (RT t) ?loc) >>=
+                                    \t' -> return (Unsat $ UnknownTypeVariable v, t')
                 | otherwise -> return (mempty, T $ TVar v b u)
 
-    TCon t as s | Nothing <- lookup t ts -> freshTVar >>= \t' -> return (Unsat $ UnknownTypeConstructor t, t')
-                | Just (vs', _) <- lookup t ts
+    TCon n as s | Nothing <- lookup n ts -> freshTVar (BlockedByType (RT t) ?loc) >>=
+                                            \t' -> return (Unsat $ UnknownTypeConstructor n, t')
+                | Just (vs', _) <- lookup n ts
                 , provided <- length as
                 , required <- length vs'
                 , provided /= required
-               -> freshTVar >>= \t' -> return (Unsat $ TypeArgumentMismatch t provided required, t')
-                | Just (vs, Just x) <- lookup t ts
-               -> second (Synonym t) <$> fmapFoldM validateType as
+               -> freshTVar (BlockedByType (RT t) ?loc) >>=
+                  \t' -> return (Unsat $ TypeArgumentMismatch n provided required, t')
+                | Just (vs, Just x) <- lookup n ts
+               -> second (Synonym n) <$> fmapFoldM validateType as
                 | otherwise -> do
                   (c, s') <- cgSigil s
-                  (cs, t') <- fmapFoldM validateType (TCon t as s')
+                  (cs, t') <- fmapFoldM validateType (TCon n as s')
                   return (c <> cs, T t')
 
     TRecord rp fs s | fields  <- map fst fs
@@ -120,7 +123,8 @@ validateType' t = do
                              (cs, s') <- cgSigil s
                              (ct, TRecord rp' fs' _) <- fmapFoldM validateType t 
                              return (cs <> ct, toRow . T $ TRecord rp' fs' s')
-                           else freshTVar >>= \t' -> return (Unsat $ DuplicateRecordFields (fields \\ fields'), t')
+                           else freshTVar (BlockedByType (RT t) ?loc) >>=
+                                \t' -> return (Unsat $ DuplicateRecordFields (fields \\ fields'), t')
                     | otherwise -> do
                       (c, s') <- cgSigil s
                       (cs, t') <- fmapFoldM validateType (TRecord rp fs s')
@@ -134,13 +138,13 @@ validateType' t = do
 
 #ifdef BUILTIN_ARRAYS
     TArray te l s tkns -> do
-      x <- freshEVar (T u32)
+      x <- freshEVar (T u32) (TermInType l (RT t) ?loc)
       traceTc "gen" (text "unifier for array length" <+> pretty l L.<$> 
                      text "is" <+> pretty x)
       (cl,l') <- cg (rawToLocE ?loc l) (T u32)
       (ctkn,mhole) <- case tkns of
                         [] -> return (Sat, Nothing)
-                        [(i,True)] -> do y <- freshEVar (T u32)
+                        [(i,True)] -> do y <- freshEVar (T u32) (TermInType i (RT t) ?loc)
                                          traceTc "gen" (text "unifier for array hole" <+> pretty i L.<$>
                                                         text "is" <+> pretty y)
                                          (ci,i') <- cg (rawToLocE ?loc i) (T u32)
@@ -159,27 +163,27 @@ validateType' t = do
       (c,te') <- validateType te
       return (cl <> cl' <> ctkn <> cs <> c, A te' x (Left s') (Left mhole))
 
-    TATake es t -> do
+    TATake es tarr -> do
       blob <- forM es $ \e -> do
-        x <- freshEVar (T u32)
+        x <- freshEVar (T u32) (TermInType e (RT t) ?loc)
         (ce,e') <- cg (rawToLocE ?loc e) (T u32)
         return (ce <> Arith (SE (T bool) (PrimOp "==" [toTCSExpr e', x])), e', x)
       let (ces,es',xs) = unzip3 blob
       traceTc "gen" (text "cg for @take" <+> parens (prettyList es) L.<$>
                      text "generate constraint" <+> prettyC (mconcat ces))
-      (ct,t') <- validateType t
-      return (mconcat ces <> ct, T $ TATake xs t')
+      (ct,tarr') <- validateType tarr
+      return (mconcat ces <> ct, T $ TATake xs tarr')
 
-    TAPut es t -> do
+    TAPut es tarr -> do
       blob <- forM es $ \e -> do
-        x <- freshEVar (T u32)
+        x <- freshEVar (T u32) (TermInType e (RT t) ?loc)
         (ce,e') <- cg (rawToLocE ?loc e) (T u32)
         return (ce <> Arith (SE (T bool) (PrimOp "==" [toTCSExpr e', x])), e', x)
       let (ces,es',xs) = unzip3 blob
       traceTc "gen" (text "cg for @put" <+> parens (prettyList es) L.<$>
                      text "generate constraint" <+> prettyC (mconcat ces))
-      (ct,t') <- validateType t
-      return (mconcat ces <> ct, T $ TAPut xs t')
+      (ct,tarr') <- validateType tarr
+      return (mconcat ces <> ct, T $ TAPut xs tarr')
 #endif
 
 #ifdef REFINEMENT_TYPES
@@ -232,7 +236,7 @@ validateLayout l = do
   env <- lift $ use knownDataLayouts
   vs  <- use knownDataLayoutVars
   case runExcept $ tcDataLayoutExpr env vs l of
-    Left err -> freshLVar >>= \l' -> return (Unsat $ DataLayoutError err, l')
+    Left err -> freshLVar (BlockedByLayout l ?loc) >>= \l' -> return (Unsat $ DataLayoutError err, l')
     Right (l',_) -> return (Sat, l')
 
 validateLayouts :: (?loc :: SourcePos, Traversable t) => t DataLayoutExpr -> CG (Constraint, t TCDataLayout)
@@ -245,8 +249,8 @@ validateLayouts = fmapFoldM validateLayout
 
 cgFunDef :: (?loc :: SourcePos) => [Alt LocPatn LocExpr] -> TCType -> CG (Constraint, [Alt TCPatn TCExpr])
 cgFunDef alts t = do
-  alpha1 <- freshTVar
-  alpha2 <- freshTVar
+  alpha1 <- freshTVar (ExpressionAt ?loc)
+  alpha2 <- freshTVar (ExpressionAt ?loc)
   (c, alts') <- cgAlts alts alpha2 alpha1
   return (c <> (T (TFun alpha1 alpha2)) :< t, alts')
 
@@ -282,7 +286,7 @@ cgAlts alts top alpha = do
 cgMany :: (?loc :: SourcePos) => [LocExpr] -> CG ([TCType], Constraint, [TCExpr])
 cgMany es = do
   let each (ts,c,es') e = do
-        alpha    <- freshTVar
+        alpha    <- freshTVar (TypeOfExpr (stripLocE e) [] ?loc)
         (c', e') <- cg e alpha
         return (alpha:ts, c <> c', e':es')
   (ts, c', es') <- foldM each ([], Sat, []) es  -- foldM is the same as foldlM
@@ -306,12 +310,13 @@ cg' (PrimOp o [e1, e2]) t
        (c2, e2') <- cg e2 t
        return (T bool :=: t <> c1 <> c2, PrimOp o [e1', e2'] )
   | o `elem` words "== /= >= <= > <"
-  = do alpha <- freshTVar
-       (c1, e1') <- cg e1 alpha
-       (c2, e2') <- cg e2 alpha
-       let c  = T bool :=: t
-           c' = IsPrimType alpha
-       return (c <> c' <> c1 <> c2, PrimOp o [e1', e2'] )
+  = do alpha1 <- freshTVar (TypeOfExpr (stripLocE e1) [] ?loc)
+       alpha2 <- freshTVar (TypeOfExpr (stripLocE e2) [] ?loc)
+       (c1, e1') <- cg e1 alpha1
+       (c2, e2') <- cg e2 alpha2
+       let c = T bool :=: t <> alpha1 :=: alpha2 <>
+               IsPrimType alpha1 <> IsPrimType alpha2
+       return (c <> c1 <> c2, PrimOp o [e1', e2'] )
 cg' (PrimOp o [e]) t
   | o == "complement"  = do
       (c, e') <- cg e t
@@ -347,7 +352,7 @@ cg' (Var n) t = do
       return (Share t' (Reused n p us) <> t' :< t, e)
 
 cg' (Upcast e) t = do
-  alpha <- freshTVar
+  alpha <- freshTVar (TypeOfExpr (stripLocE e) [] ?loc)
   (c1, e1') <- cg e alpha
   let c = integral alpha <> Upcastable alpha t <> c1
   return (c, Upcast e1')
@@ -383,7 +388,7 @@ cg' (IntLit i) t = do
 
 #ifdef BUILTIN_ARRAYS
 cg' (ArrayLit es) t = do
-  alpha <- freshTVar
+  alpha <- freshTVar (ExpressionAt ?loc)
   blob <- forM es $ flip cg alpha
   let (cs,es') = unzip blob
       n = SE (T u32) (IntLit . fromIntegral $ length es)
@@ -391,15 +396,14 @@ cg' (ArrayLit es) t = do
   traceTc "gen" (text "cg for array literal length" L.<$>
                  text "generate constraint" <+> prettyC cz L.<$>
                  text "which should always be trivially true")
-  beta <- freshVar
   return (mconcat cs <> cz <> (A alpha n (Left Unboxed) (Left Nothing)) :< t, ArrayLit es')
 
 cg' (ArrayIndex e i) t = do
-  alpha <- freshTVar        -- element type
-  n <- freshEVar (T u32)    -- length
-  s <- freshVar             -- sigil
-  idx <- freshEVar (T u32)  -- index
-  h <- freshVar             -- hole
+  alpha <- freshTVar (ExpressionAt ?loc)        -- element type
+  n <- freshEVar (T u32) (ExpressionAt ?loc)    -- length
+  s <- freshVar (ExpressionAt ?loc)             -- sigil
+  idx <- freshEVar (T u32) (ExpressionAt ?loc)  -- index
+  h <- freshVar (ExpressionAt ?loc)             -- hole
   let -- XXX | ta = A alpha n (Right s) (Left $ Just idx)  -- this is the biggest type 'e' can ever have -- with a hole
       -- XXX |                                             -- at a location other than 'i'
       ta = A alpha n (Right s) (Left Nothing)  -- For now we disallow holes to appear, due to the lack of symbolic execution
@@ -420,12 +424,12 @@ cg' (ArrayIndex e i) t = do
   return (ce <> ci <> c, ArrayIndex e' i')
 
 cg' (ArrayMap2 ((p1,p2), fbody) (arr1,arr2)) t = __fixme $ do  -- FIXME: more accurate constraints / zilinc
-  alpha1 <- freshTVar
-  alpha2 <- freshTVar
-  x1 <- freshVar
-  x2 <- freshVar
-  len1 <- freshEVar (T u32)
-  len2 <- freshEVar (T u32)
+  alpha1 <- freshTVar (TypeOfIrrefPatn (stripLocIP p1) ?loc)
+  alpha2 <- freshTVar (TypeOfIrrefPatn (stripLocIP p2) ?loc)
+  x1 <- freshVar (ExpressionAt ?loc)
+  x2 <- freshVar (ExpressionAt ?loc)
+  len1 <- freshEVar (T u32) (ExpressionAt ?loc)
+  len2 <- freshEVar (T u32) (ExpressionAt ?loc)
   (s1,cp1,p1') <- match p1 alpha1
   (s2,cp2,p2') <- match p2 alpha2
   context %= C.addScope (s1 `M.union` s2)  -- domains of s1 and s2 don't overlap
@@ -443,10 +447,10 @@ cg' (ArrayMap2 ((p1,p2), fbody) (arr1,arr2)) t = __fixme $ do  -- FIXME: more ac
   return (t' :< t <> cp1 <> cp2 <> cbody <> carr1 <> carr2 <> dropConstraintFor rs <> unused, e')
 
 cg' (ArrayPut arr [(idx,v)]) t = do
-  alpha <- freshTVar  -- the element type
-  sigma <- freshTVar  -- the original array type
-  l <- freshEVar (T u32)  -- the length of the array
-  s <- freshVar   -- the unifier for the sigil
+  alpha <- freshTVar (TypeOfExpr (stripLocE v)   [] ?loc)  -- the element type
+  sigma <- freshTVar (TypeOfExpr (stripLocE arr) [] ?loc)  -- the original array type
+  l <- freshEVar (T u32) (ExpressionAt ?loc)  -- the length of the array
+  s <- freshVar (ExpressionAt ?loc)   -- the unifier for the sigil
   (carr,arr') <- cg arr sigma
   (cidx,idx') <- cg idx $ T u32
   (cv,v') <- cg v alpha
@@ -464,10 +468,10 @@ cg' (ArrayPut arr [(idx,v)]) t = do
                  text "generate constraint" <+> prettyC (mconcat c))
   return (mconcat c, ArrayPut arr' [(idx',v')])
 cg' (ArrayPut arr ivs) t = do
-  alpha <- freshTVar  -- the elemenet type
-  sigma <- freshTVar  -- the original array type
-  l <- freshEVar (T u32)  -- the length of the array
-  s <- freshVar  -- sigil
+  alpha <- freshTVar (ExpressionAt ?loc)  -- the elemenet type
+  sigma <- freshTVar (TypeOfExpr (stripLocE arr) [] ?loc)  -- the original array type
+  l <- freshEVar (T u32) (ExpressionAt ?loc)  -- the length of the array
+  s <- freshVar (ExpressionAt ?loc)  -- sigil
   (carr,arr') <- cg arr sigma
   let (idxs,vs) = unzip ivs
   blob1 <- forM idxs $ \idx -> do
@@ -485,8 +489,8 @@ cg' (ArrayPut arr ivs) t = do
 #endif
 
 cg' exp@(Lam pat mt e) t = do
-  alpha <- freshTVar
-  beta  <- freshTVar
+  alpha <- freshTVar (ExpressionAt ?loc)
+  beta  <- freshTVar (TypeOfExpr (stripLocE e) [] ?loc)
   (ct, alpha') <- case mt of
     Nothing -> return (Sat, alpha)
     Just t' -> do
@@ -514,7 +518,7 @@ cg' exp@(Lam pat mt e) t = do
   return (c,lam)
 
 cg' (App e1 e2 _) t = do
-  alpha     <- freshTVar
+  alpha     <- freshTVar (TypeOfExpr (stripLocE e2) [] ?loc)
   (c1, e1') <- cg e1 (T (TFun alpha t))
   (c2, e2') <- cg e2 alpha
 
@@ -524,9 +528,9 @@ cg' (App e1 e2 _) t = do
   return (c,e)
 
 cg' (Comp f g) t = do
-  alpha1 <- freshTVar
-  alpha2 <- freshTVar
-  alpha3 <- freshTVar
+  alpha1 <- freshTVar (ExpressionAt ?loc)
+  alpha2 <- freshTVar (ExpressionAt ?loc)
+  alpha3 <- freshTVar (ExpressionAt ?loc)
 
   (c1, f') <- cg f (T (TFun alpha2 alpha3))
   (c2, g') <- cg g (T (TFun alpha1 alpha2))
@@ -536,9 +540,9 @@ cg' (Comp f g) t = do
   return (c,e)
 
 cg' (Con k [e]) t =  do
-  alpha <- freshTVar
+  alpha <- freshTVar (TypeOfExpr (stripLocE e) [] ?loc)
   (c', e') <- cg e alpha
-  U x <- freshTVar
+  U x <- freshTVar (ExpressionAt ?loc)
   let e = Con k [e']
       c = V (Row.incomplete [Row.mkEntry k alpha False] x) :< t
   traceTc "gen" (text "cg for constructor:" <+> prettyE e
@@ -570,7 +574,7 @@ cg' (UnboxedRecord fes) t = do
   return (c' <> c, e)
 
 cg' (Seq e1 e2) t = do
-  alpha <- freshTVar
+  alpha <- freshTVar (TypeOfExpr (stripLocE e1) [] ?loc)
   (c1, e1') <- cg e1 alpha
   (c2, e2') <- cg e2 t
 
@@ -587,16 +591,16 @@ cg' (TLApp f ts ls i) t = do
       let matchT :: [(TyVarName, Kind)] -> [Maybe TCType] -> CG (Constraint, [(TyVarName, TCType)])
           matchT [] [] = pure (Sat, [])
           matchT [] _  = pure (Unsat (TooManyTypeArguments f (PT tvs lvs tau)), [])
-          matchT vs [] = freshTVar >>= matchT vs . return . Just
-          matchT (v:vs) (Nothing:as) = freshTVar >>= \a -> matchT (v:vs) (Just a:as)
+          matchT vs [] = freshTVar (ImplicitTypeApp ?loc) >>= matchT vs . return . Just
+          matchT (v:vs) (Nothing:as) = freshTVar (TypeHole ?loc) >>= \a -> matchT (v:vs) (Just a:as)
           matchT ((v,k):vs) (Just a:as) = do
             (c, ps) <- matchT vs as
             return (kindToConstraint k a (TypeParam f v) <> c, (v,a):ps)
           matchL :: [(DLVarName, TCType)] -> [Maybe TCDataLayout] -> CG (Constraint, [(DLVarName, TCDataLayout)])
           matchL [] [] = pure (Sat, [])
           matchL [] _  = pure (Unsat $ TooManyLayoutArguments f (PT tvs lvs tau), [])
-          matchL ts [] = freshLVar >>= matchL ts . return . Just
-          matchL (t':t'') (Nothing:l') = freshLVar >>= matchL (t':t'') . (:l') . Just
+          matchL ts [] = freshLVar (ImplicitLayoutApp ?loc) >>= matchL ts . return . Just
+          matchL (t':t'') (Nothing:l') = freshLVar (LayoutHole ?loc) >>= matchL (t':t'') . (:l') . Just
           matchL ((v,t):t') (Just l:l') = do
             (c, ps) <- matchL t' l'
             return (c <> layoutMatchConstraint t l, (v, l):ps)
@@ -616,11 +620,11 @@ cg' (TLApp f ts ls i) t = do
       return (ct <> cl <> c, e)
 
 cg' (Member e f) t =  do
-  alpha <- freshTVar
+  alpha <- freshTVar (TypeOfExpr (stripLocE e) [] ?loc)
   (c', e') <- cg e alpha
-  U rest <- freshTVar
-  U sigil <- freshTVar
-  rp <- freshRPVar
+  U rest <- freshTVar (ExpressionAt ?loc)
+  U sigil <- freshTVar (ExpressionAt ?loc)
+  rp <- freshRPVar (ExpressionAt ?loc)
   let f' = Member e' f
       row = Row.incomplete [Row.mkEntry f t False] rest
       x = R rp row (Right sigil)
@@ -661,13 +665,13 @@ cg' (MultiWayIf es el) t = do
   return (c',e')
 
 cg' (Put e ls) t | not (any isNothing ls) = do
-  alpha <- freshTVar
+  alpha <- freshTVar (TypeOfExpr (stripLocE e) [] ?loc)
   let (fs, es) = unzip (catMaybes ls)
   (c', e') <- cg e alpha
   (ts, cs, es') <- cgMany es
-  U rest <- freshTVar
-  U sigil <- freshTVar
-  rp <- freshRPVar
+  U rest <- freshTVar (ExpressionAt ?loc)
+  U sigil <- freshTVar (ExpressionAt ?loc)
+  rp <- freshRPVar (ExpressionAt ?loc)
   let row  = R rp (Row.incomplete (zipWith3 mkEntry fs ts (repeat True)) rest) (Right sigil)
       row' = R rp (Row.incomplete (zipWith3 mkEntry fs ts (repeat False)) rest) (Right sigil) 
       c = row' :< t <> alpha :< row <> UnboxedNotRecursive row <>
@@ -685,7 +689,7 @@ cg' (Let bs e) t = do
   return (c, Let bs' e')
 
 cg' (Match e bs alts) t = do
-  alpha <- freshTVar
+  alpha <- freshTVar (TypeOfExpr (stripLocE e) bs ?loc)
   (c', e') <- letBang bs (cg e) alpha
   (c'', alts') <- cgAlts alts t alpha
 
@@ -723,9 +727,9 @@ matchA' (PIrrefutable i) t = do
   return (s, c, PIrrefutable i', t)
 
 matchA' (PCon k [i]) t = do
-  beta <- freshTVar
+  beta <- freshTVar (TypeOfIrrefPatn (stripLocIP i) ?loc)
   (s, c, i') <- match i beta
-  U rest <- freshTVar
+  U rest <- freshTVar (ExpressionAt ?loc)
   let row = Row.incomplete [Row.mkEntry k beta False] rest
       c' = t :< V row
       row' = Row.incomplete [Row.mkEntry k beta True] rest
@@ -775,7 +779,7 @@ match' (PUnderscore) t =
 match' (PUnitel) t = return (M.empty, t :< T TUnit, PUnitel)
 
 match' (PTuple ps) t = do
-  (vs, blob) <- unzip <$> mapM (\p -> do v <- freshTVar; (v,) <$> match p v) ps
+  (vs, blob) <- unzip <$> mapM (\p -> do v <- freshTVar (TypeOfIrrefPatn (stripLocIP p) ?loc); (v,) <$> match p v) ps
   let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
       p' = PTuple ps'
       co = case overlapping ss of
@@ -789,8 +793,8 @@ match' (PTuple ps) t = do
 
 match' (PUnboxedRecord fs) t | not (any isNothing fs) = do
   let (ns, ps) = unzip (catMaybes fs)
-  (vs, blob) <- unzip <$> mapM (\p -> do v <- freshTVar; (v,) <$> match p v) ps
-  U rest <- freshTVar
+  (vs, blob) <- unzip <$> mapM (\p -> do v <- freshTVar (TypeOfIrrefPatn (stripLocIP p) ?loc); (v,) <$> match p v) ps
+  U rest <- freshTVar (ExpressionAt ?loc)
   let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
       row = Row.incomplete (zipWith3 mkEntry ns vs (repeat False)) rest
       row' = Row.incomplete (zipWith3 mkEntry ns vs (repeat True)) rest
@@ -810,10 +814,10 @@ match' (PUnboxedRecord fs) t | not (any isNothing fs) = do
 
 match' (PTake r fs) t | not (any isNothing fs) = do
   let (ns, ps) = unzip (catMaybes fs)
-  (vs, blob) <- unzip <$> mapM (\p -> do v <- freshTVar; (v,) <$> match p v) ps
-  U rest <- freshTVar
-  U sigil <- freshTVar
-  rp <- freshRPVar
+  (vs, blob) <- unzip <$> mapM (\p -> do v <- freshTVar (TypeOfIrrefPatn (stripLocIP p) ?loc); (v,) <$> match p v) ps
+  U rest <- freshTVar (ExpressionAt ?loc)
+  U sigil <- freshTVar (ExpressionAt ?loc)
+  rp <- freshRPVar (ExpressionAt ?loc)
   let (ss, cs, ps') = (map fst3 blob, map snd3 blob, map thd3 blob)
       s  = M.fromList [(r, (R rp row' (Right sigil), ?loc, Seq.empty))]
       row = Row.incomplete (zipWith3 mkEntry ns vs (repeat False)) rest
@@ -833,7 +837,7 @@ match' (PTake r fs) t | not (any isNothing fs) = do
 
 #ifdef BUILTIN_ARRAYS
 match' (PArray ps) t = do
-  alpha <- freshTVar  -- element type
+  alpha <- freshTVar (ExpressionAt ?loc)  -- element type
   blob  <- mapM (`match` alpha) ps
   let (ss,cs,ps') = unzip3 blob
       l = SE (T u32) (IntLit . fromIntegral $ length ps) :: TCSExpr -- length of the array
@@ -845,9 +849,9 @@ match' (PArray ps) t = do
   return (M.unions ss, mconcat cs <> c, PArray ps')
 
 match' (PArrayTake arr [(idx,p)]) t = do
-  alpha <- freshTVar  -- array elmt type
-  len   <- freshEVar (T u32)  -- array length
-  sigil <- freshVar   -- sigil
+  alpha <- freshTVar (TypeOfIrrefPatn (stripLocIP p) ?loc)  -- array elmt type
+  len   <- freshEVar (T u32) (ExpressionAt ?loc)  -- array length
+  sigil <- freshVar (ExpressionAt ?loc)  -- sigil
   (cidx,idx') <- cg idx $ T u32
   (sp,cp,p') <- match p alpha
   let tarr = A alpha len (Right sigil) (Left . Just $ toTCSExpr idx')  -- type of the newly introduced @arr'@ variable
@@ -878,26 +882,23 @@ cgSigil = \case
     (c, l') <- validateLayout l
     return (c, Boxed b (Just l'))
 
-freshVar :: (?loc :: SourcePos) => CG Int
-freshVar = fresh (ExpressionAt ?loc)
-  where
-    fresh :: VarOrigin -> CG Int
-    fresh ctx = do
-      i <- flexes <<%= succ
-      flexOrigins %= IM.insert i ctx
-      return i
+freshVar :: VarOrigin -> CG Int
+freshVar ctx = do
+  i <- flexes <<%= succ
+  flexOrigins %= IM.insert i ctx
+  return i
 
-freshTVar :: (?loc :: SourcePos) => CG TCType
-freshTVar = U  <$> freshVar
+freshTVar :: VarOrigin -> CG TCType
+freshTVar ctx = U <$> freshVar ctx
 
-freshEVar :: (?loc :: SourcePos) => TCType -> CG TCSExpr
-freshEVar t = SU t <$> freshVar
+freshEVar :: TCType -> VarOrigin -> CG TCSExpr
+freshEVar t ctx = SU t <$> freshVar ctx
 
-freshLVar :: (?loc :: SourcePos) => CG TCDataLayout
-freshLVar = TLU <$> freshVar
+freshLVar :: VarOrigin -> CG TCDataLayout
+freshLVar ctx = TLU <$> freshVar ctx
 
-freshRPVar :: (?loc :: SourcePos) => CG RP
-freshRPVar = UP <$> freshVar
+freshRPVar :: VarOrigin -> CG RP
+freshRPVar ctx = UP <$> freshVar ctx
       
 integral :: TCType -> Constraint
 integral = Upcastable (T (TCon "U8" [] Unboxed))
@@ -937,7 +938,7 @@ withBindings [] e top = do
   (c, e') <- cg e top
   return (c, [], e')
 withBindings (Binding pat tau e0 bs : xs) e top = do
-  alpha <- freshTVar
+  alpha <- freshTVar (TypeOfExpr (stripLocE e0) bs ?loc)
   (c0, e0') <- letBang bs (cg e0) alpha
   (ct, alpha') <- case tau of
     Nothing -> return (Sat, alpha)
@@ -960,7 +961,7 @@ withBindings (Binding pat tau e0 bs : xs) e top = do
            L.<$> text "constraint for ascribed type:" <+> prettyC ct)
   return (c, b':xs', e')
 withBindings (BindingAlts pat tau e0 bs alts : xs) e top = do
-  alpha <- freshTVar
+  alpha <- freshTVar (TypeOfExpr (stripLocE e0) bs ?loc)
   (c0, e0') <- letBang bs (cg e0) alpha
   (ct, alpha') <- case tau of
     Nothing -> return (Sat, alpha)

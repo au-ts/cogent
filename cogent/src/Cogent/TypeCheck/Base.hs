@@ -156,8 +156,18 @@ isCtxConstraint (SolvingConstraint _) = True
 isCtxConstraint _ = False
 
 data VarOrigin = ExpressionAt SourcePos
+               | TermInType RawExpr RawType SourcePos
+               | TypeOfExpr RawExpr [VarName] SourcePos
+               | TypeOfPatn RawPatn SourcePos
+               | TypeOfIrrefPatn RawIrrefPatn SourcePos
+               | ImplicitTypeApp SourcePos
+               | ImplicitLayoutApp SourcePos
+               | TypeHole SourcePos
+               | LayoutHole SourcePos
                | BoundOf TCType TCType Bound
                | EqualIn TCExpr TCExpr TCType TCType
+               | BlockedByType RawType SourcePos
+               | BlockedByLayout DataLayoutExpr SourcePos
                deriving (Eq, Show, Ord)
 
 
@@ -212,6 +222,7 @@ data Constraint' t l = (:<) t t
                      deriving (Eq, Show, Ord)
 
 type Constraint = Constraint' TCType TCDataLayout
+
 
 arithTCType :: TCType -> Bool
 arithTCType (T (TCon n [] Unboxed)) | n `elem` ["U8", "U16", "U32", "U64", "Bool"] = True
