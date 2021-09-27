@@ -282,7 +282,7 @@ __cogent_cpp_args = unsafePerformIO $ readIORef __cogent_cpp_args_ref
 
 __cogent_cpp_args_ref :: IORef [String]
 {-# NOINLINE __cogent_cpp_args_ref #-}
-__cogent_cpp_args_ref = unsafePerformIO $ newIORef ["$CPPIN", "-o", "$CPPOUT", "-P"]
+__cogent_cpp_args_ref = unsafePerformIO $ newIORef ["$CPPIN", "-o", "$CPPOUT", "-P", "-C"]
 
 __cogent_cust_ty_gen :: Maybe FilePath
 __cogent_cust_ty_gen = unsafePerformIO $ readIORef __cogent_cust_ty_gen_ref

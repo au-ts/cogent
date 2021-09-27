@@ -257,7 +257,7 @@ cBlockItem target (CBIDecl decl loc) =
     decl'' = withLoc target loc [citem| $decl:(decl'); |]
   in case comment of
     Just c ->
-      [citem| $stm:(c') |] : decl'' where c' = C.EscStm c noLoc
+      [citem| $stm:(c') |] : decl'' where c' = C.AntiEscStm c noLoc
     Nothing ->
       decl''
   
@@ -273,7 +273,7 @@ cExtDecl target (CDecl decl) =
     decl'' = [cedecl| $decl:(decl'); |]
   in case comment of
     Just c ->
-      [c', decl''] where c' = C.EscDef c noLoc
+      [c', decl''] where c' = C.AntiEsc c noLoc
     Nothing ->
       [decl'']
 cExtDecl target (CMacro s) = pure $ C.EscDef s noLoc
