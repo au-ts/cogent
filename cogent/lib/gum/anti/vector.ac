@@ -16,7 +16,14 @@ $id:focus_vector ($ty:(#{ vec : Vector
     farg.obsv = args.obsv;
 
     $ty:(FocusVectorFRet r) fret;
+
+    bilbyfs_debug ("focus_vector: header=%p, uvec=%p, fvec=%p, size=%u\n",
+                   farg.hd, farg.uvec, farg.fvec, size_entry (($ty:(Entry))farg.hd));
+
     fret = (($spec:(FocusVectorFArg a b -> FocusVectorFRet r)) args.f) (farg);
+
+    bilbyfs_debug ("post:focus_vector: uvec=%p, fvec=%p, size=%u\n",
+                   fret.uvec, fret.fvec, size_entry (($ty:(Entry))fret.hd));
 
     ret.p1 = fret.res;
     ret.p2 = args.vec;
@@ -38,7 +45,14 @@ $id:focus_vector_ro ($ty:(#{ vec : Vector
     farg.obsv = args.obsv;
 
     $ty:(FocusVectorRoFRet r) fret;
+
+    bilbyfs_debug ("focus_vector_ro: header=%p, uvec=%p, fvec=%p, size=%u\n",
+                   farg.hd, farg.uvec, farg.fvec, size_entry (($ty:(Entry))farg.hd));
+
     fret = (($spec:(FocusVectorRoFArg a b -> FocusVectorRoFRet r)) args.f) (farg);
+
+    bilbyfs_debug ("post:focus_vector_ro: uvec=%p, fvec=%p, size=%u\n",
+                   fret.uvec, fret.fvec, size_entry (($ty:(Entry))fret.hd));
 
     return fret.res;
 }
