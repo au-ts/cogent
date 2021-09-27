@@ -1183,7 +1183,7 @@ static inline int wfsop_lookup(struct wrapper_data *wd, struct inode *dir, const
         fargs.name->values = (u8 *)name;
         fargs.name->len = strlen(name) + 1;
         fret = $exp:fsop_lookup(fargs);
-        bilbyfs_debug("bilbyfs_lookup(dir.ino = %lu, name=%.*s) = %d\n", dir->i_ino, (int)strlen(name), name,
+        bilbyfs_debug("wfsop_lookup(dir.ino = %lu, name=%.*s) = %d\n", dir->i_ino, (int)strlen(name), name,
 					  fret.p2.tag == TAG_ENUM_Error ? -fret.p2.Error : 0);
         if (fret.p2.tag == TAG_ENUM_Error)
                 return -fret.p2.Error;
