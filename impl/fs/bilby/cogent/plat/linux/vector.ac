@@ -22,8 +22,7 @@ $ty:(SysState) free_vector ($ty:((SysState, Vector)) args)
 $ty:(U32) size_vector ($ty:(VectorHeader!) args)
 {
     $ty:(ObjDentarr!) dentarr = ($ty:(ObjDentarr!))args;
-    $ty:(U32) size = dentarr->size;
-    return size;
+    return serialise_size_ObjDentarr (dentarr);
 }
 
 $ty:(U32) size_header ($ty:(()) args)

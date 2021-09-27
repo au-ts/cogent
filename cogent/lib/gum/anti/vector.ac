@@ -10,8 +10,9 @@ $id:focus_vector ($ty:(#{ vec : Vector
     
     $ty:(FocusVectorFArg a b) farg;
     farg.hd = $exp:vector_header (args.vec);
+    bilbyfs_debug ("focus_vector: vector size = %u\n", size_vector (farg.hd));
     farg.uvec = (char*) args.vec + size_header ($exp:(()));
-    farg.fvec = farg.uvec + size_vector (farg.hd);
+    farg.fvec = (char*) args.vec + size_vector (farg.hd);
     farg.acc = args.acc;
     farg.obsv = args.obsv;
 
