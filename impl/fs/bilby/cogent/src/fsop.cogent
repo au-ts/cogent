@@ -141,9 +141,9 @@ dentarr_add_dentry(ex, odent, vnode, name, dtype) =
       let odent {id, entries} = odent
       -- FIXME: Do we need to check if append succeed? / zilinc
       and (_, entries) = focus_vector[(), ObjDentry!, Bool]
-                           #{ vec = entries, acc = (), obsv = newentry, f = dentarr_append} !newentry
+                           #{vec = entries, acc = (), obsv = newentry, f = dentarr_append} !newentry
       and nb_dentry = nb_dentry + 1
-      and size = odent.size + name_len !odent
+      and size = bilbyFsObjDentarrHeaderSize + size_ObjDentry newentry !newentry
       and ex = freeObjDentry (ex, newentry)
       in ((ex, odent {id, nb_dentry, size, entries}), Success ())
 
