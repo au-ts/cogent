@@ -553,6 +553,8 @@ serialise_ObjDentarr(buf, offs, dentarr) =
   cogent_debug_u64_hex dentarr.id ;
   cogent_debug ",nb_dentry=" ;
   cogent_debug_u32 dentarr.nb_dentry ;
+  cogent_debug ",size=" ;
+  cogent_debug_u32 dentarr.size ;
   cogent_debug "\n") ;
   let buf = serialise_le64(buf, offs, dentarr.id)
   and buf = serialise_le32(buf, offs+8, dentarr.nb_dentry)

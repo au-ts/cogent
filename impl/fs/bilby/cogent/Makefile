@@ -47,7 +47,7 @@ ifeq ($(KERNELRELEASE),)
 PWD:= $(shell pwd)
 endif
 ifneq ($(DEBUG),)
-EXTRA_CFLAGS+= -DBILBYFS_DEBUG
+EXTRA_CFLAGS+= -DBILBYFS_DEBUG -DDEBUG
 COGENT_FLAGS+= --cogent-pp-args=-DDEBUG=1
 endif
 
