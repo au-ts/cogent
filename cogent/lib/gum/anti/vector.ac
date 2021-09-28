@@ -9,8 +9,7 @@ $id:focus_vector ($ty:(#{ vec : Vector
     $ty:((r, Vector)) ret;
     
     $ty:(FocusVectorFArg a b) farg;
-    farg.hd = $exp:vector_header (args.vec);
-    bilbyfs_debug ("focus_vector: vector size = %u\n", size_vector (farg.hd));
+    farg.hd = vector_header (args.vec);
     farg.uvec = (char*) args.vec + size_header ($exp:(()));
     farg.fvec = (char*) args.vec + size_vector (farg.hd);
     farg.acc = args.acc;
@@ -19,12 +18,12 @@ $id:focus_vector ($ty:(#{ vec : Vector
     $ty:(FocusVectorFRet r) fret;
 
     bilbyfs_debug ("focus_vector: header=%p, uvec=%p, fvec=%p, size=%u\n",
-                   farg.hd, farg.uvec, farg.fvec, size_entry (($ty:(Entry))farg.hd));
+                   farg.hd, farg.uvec, farg.fvec, size_vector (farg.hd));
 
     fret = (($spec:(FocusVectorFArg a b -> FocusVectorFRet r)) args.f) (farg);
 
-    bilbyfs_debug ("post:focus_vector: uvec=%p, fvec=%p, size=%u\n",
-                   fret.uvec, fret.fvec, size_entry (($ty:(Entry))fret.hd));
+    bilbyfs_debug ("post:focus_vector: header=%p, uvec=%p, fvec=%p, size=%u\n",
+                   fret.hd, fret.uvec, fret.fvec, size_vector (fret.hd));
 
     ret.p1 = fret.res;
     ret.p2 = args.vec;
@@ -39,7 +38,7 @@ $id:focus_vector_ro ($ty:(#{ vec : Vector
                            }) args)
 {
     $ty:(FocusVectorRoFArg a b) farg;
-    farg.hd = $exp:vector_header (args.vec);
+    farg.hd = vector_header (args.vec);
     farg.uvec = (char*) args.vec + size_header ($exp:(()));
     farg.fvec = farg.uvec + size_vector (farg.hd);
     farg.acc = args.acc;
@@ -48,12 +47,12 @@ $id:focus_vector_ro ($ty:(#{ vec : Vector
     $ty:(FocusVectorRoFRet r) fret;
 
     bilbyfs_debug ("focus_vector_ro: header=%p, uvec=%p, fvec=%p, size=%u\n",
-                   farg.hd, farg.uvec, farg.fvec, size_entry (($ty:(Entry))farg.hd));
+                   farg.hd, farg.uvec, farg.fvec, size_vector (farg.hd));
 
     fret = (($spec:(FocusVectorRoFArg a b -> FocusVectorRoFRet r)) args.f) (farg);
 
-    bilbyfs_debug ("post:focus_vector_ro: uvec=%p, fvec=%p, size=%u\n",
-                   fret.uvec, fret.fvec, size_entry (($ty:(Entry))fret.hd));
+    bilbyfs_debug ("post:focus_vector_ro: header=%p, uvec=%p, fvec=%p, size=%u\n",
+                   fret.hd, fret.uvec, fret.fvec, size_vector (fret.hd));
 
     return fret.res;
 }
