@@ -398,17 +398,11 @@ serialise_ObjUnion(buf, offs, ou, olen) =
   | TObjSummary obj -> serialise_ObjSummary(buf, offs, obj)
   | TObjPad _ -> serialise_ObjPad(buf, offs, olen)
 
-{-# cinline deep_freeObjDentarr #-}
-deep_freeObjDentarr: (SysState, ObjDentarr) -> SysState
-deep_freeObjDentarr(ex, obj {id,nb_dentry,entries}) =
-  let ex = freeObjDentarr(ex, obj)
-  in free_vector (ex, entries)
-
 {-# cinline deep_freeObjUnion #-}
 deep_freeObjUnion: (SysState, ObjUnion) -> SysState
 deep_freeObjUnion(ex, ounion) =
  ounion
- | TObjDentarr obj -> deep_freeObjDentarr(ex, obj)
+ | TObjDentarr obj -> free_vector (ex, obj)
  | TObjInode obj {id,size,atime_sec,ctime_sec,
                mtime_sec,nlink,uid,gid,mode, flags} ->
    freeObjInode(ex, obj)
@@ -525,26 +519,29 @@ bilbyFsObjDentryHeaderSize = 8
    PObjDentry (fst r) offs = dentry /\ snd r = offs + 8 + nlen
 -}
 
--- memcpy_s_ObjDentry :  (Buffer, BufOffs, ObjDentry!) -> Buffer
--- memcpy_d_ObjDentry : (SysState, Buffer!, ObjDentry take (..), BufOffs, U32) -> (SysState, ObjDentry)
-
 -- it also takes the size of the flexible array member.
 newObjDentry: (SysState, U32) -> R (SysState, ObjDentry take(..)) SysState
 freeObjDentry: (SysState, ObjDentry take (..)) -> SysState
+
+type Vector = ObjDentarr
 
 type ObjDentarr = {
   id : ObjId,
   nb_dentry : U32,
   size : U32,
-  entries : Vector
+  entries : U8#[0]
 }
-newObjDentarr: SysState -> R (SysState, ObjDentarr take(..)) SysState
-freeObjDentarr: (SysState, ObjDentarr take (..)) -> SysState
+
+-- always allocation to max capacity
+newObjDentarr: SysState -> R (SysState, ObjDentarr) SysState
+newObjDentarr ex = new_vector (ex, bilbyFsMaxDentarrEntriesSize)
+
+freeObjDentarr: (SysState, ObjDentarr) -> SysState
+freeObjDentarr x = free_vector x
+
 
 bilbyFsObjDentarrHeaderSize: U32
 bilbyFsObjDentarrHeaderSize = 16
-
-memcpy_s_ObjDentryVector : (Buffer, BufOffs, Vector!, U32) -> Buffer
 
 serialise_ObjDentarr:(Buffer, BufOffs, ObjDentarr!) -> (Buffer, BufOffs)
 serialise_ObjDentarr(buf, offs, dentarr) =
@@ -556,49 +553,23 @@ serialise_ObjDentarr(buf, offs, dentarr) =
   cogent_debug ",size=" ;
   cogent_debug_u32 dentarr.size ;
   cogent_debug "\n") ;
-  let buf = serialise_le64(buf, offs, dentarr.id)
-  and buf = serialise_le32(buf, offs+8, dentarr.nb_dentry)
-  and buf = serialise_le32(buf, offs+12, dentarr.size)
-  and buf = memcpy_s_ObjDentryVector (buf, offs+bilbyFsObjDentarrHeaderSize, dentarr.entries, bilbyFsMaxDentarrEntriesSize) 
-  in (buf, offs + bilbyFsObjDentarrHeaderSize + bilbyFsMaxDentarrEntriesSize)
+  let buf = serialise_vector (buf, offs, dentarr) 
+  in (buf, offs + dentarr.size)
 
 
-{-# cinline serialise_size_ObjDentarr #-}
-serialise_size_ObjDentarr: ObjDentarr! -> U32
-serialise_size_ObjDentarr dentarr =
+{-# cinline size_ObjDentarr #-}
+size_ObjDentarr: ObjDentarr! -> U32
+size_ObjDentarr dentarr =
   if dentarr.size == 0 then bilbyFsObjDentarrHeaderSize else dentarr.size
-
-{-# cinline deep_freeOptionObjDentry #-}
-deep_freeOptionObjDentry: (SysState, Option ObjDentry) -> SysState
-deep_freeOptionObjDentry (ex, opt_dent) =
-  opt_dent | None -> ex
-           | Some obj -> freeObjDentry(ex, obj)
-
-memcpy_d_ObjDentryVector : (SysState, Buffer!, Vector, BufOffs, U32) -> (SysState, Vector)
-
-deserialise_ObjDentry_vector : (SysState, Buffer!, BufOffs, U32)
-                            -> R (SysState, Vector) (ErrCode, SysState)
-deserialise_ObjDentry_vector (ex, buf, offs, nb_dentry) = 
-  new_vector (ex, bilbyFsMaxDentarrEntriesSize)
-  | Error ex -> Error (eNoMem, ex)
-  | Success (ex, vector) ->
-      Success (memcpy_d_ObjDentryVector (ex, buf, vector, offs, bilbyFsMaxDentarrEntriesSize))
 
 deserialise_ObjDentarr: (SysState, Buffer!, BufOffs, U32) -> R (SysState, ObjDentarr, BufOffs) (ErrCode, SysState) 
 deserialise_ObjDentarr(ex, buf, offs, olen) =
-  let id = deserialise_le64(buf, offs)
-  and nb_dentry = deserialise_le32(buf, offs+8)
-  and size = deserialise_le32(buf, offs+12)
-  in deserialise_ObjDentry_vector (ex, buf, offs+bilbyFsObjDentarrHeaderSize, nb_dentry)
-     | Error (e,ex) -> Error (e, ex)
-     | Success (ex, entries) ->
-         newObjDentarr ex
-         | Error ex ->
-           let ex = free_vector (ex, entries)
-           in Error (eNoMem, ex)
-         | Success (ex, dentarr) ->
-           let dentarr = dentarr {id,nb_dentry,size,entries}
-           in Success (ex, dentarr, offs+bilbyFsObjDentarrHeaderSize+bilbyFsMaxDentarrEntriesSize)
+  newObjDentarr ex  -- allocate full size
+  | Error ex -> Error (eNoMem, ex)
+  | Success (ex, dentarr) ->
+      let size = deserialise_le32 (buf, offs+8)  -- size of the entire dentarr
+      and dentarr' = deserialise_vector (dentarr, buf, offs, size)  -- only fill-up `size'-long with contents
+      in Success (ex, dentarr', offs+size)
 
 bilbyFsSumEntryDelFlagMask: U32
 bilbyFsSumEntryDelFlagMask = 0x80000000
@@ -1215,7 +1186,7 @@ serialise_size_ObjUnion ounion =
  ounion
  | TObjInode obj -> serialise_size_ObjInode obj
  | TObjData obj -> serialise_size_ObjData obj
- | TObjDentarr obj -> serialise_size_ObjDentarr obj
+ | TObjDentarr obj -> size_ObjDentarr obj
  | TObjDel obj -> serialise_size_ObjDel obj
  | TObjSuper obj -> serialise_size_ObjSuper obj
  | TObjSummary obj -> serialise_size_ObjSummary obj.nb_sum_entry

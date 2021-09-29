@@ -22,7 +22,7 @@ $ty:(SysState) free_vector ($ty:((SysState, Vector)) args)
 $ty:(U32) size_vector ($ty:(VectorHeader!) args)
 {
     $ty:(ObjDentarr!) dentarr = ($ty:(ObjDentarr!))args;
-    return serialise_size_ObjDentarr (dentarr);
+    return size_ObjDentarr (dentarr);
 }
 
 $ty:(U32) size_header ($ty:(()) args)
@@ -46,7 +46,7 @@ $ty:(FocusVectorFRet ()) dentarr_del_dentry_vector ($ty:(FocusVectorFArg () CStr
 
     char* name = args.obsv->values;
     $ty:(ObjDentarr) hd = args.hd;
-    $ty:(U32) size = $exp:serialise_size_ObjDentarr (hd);
+    $ty:(U32) size = size_ObjDentarr (hd);
     void* uvec = args.uvec;
     void* fvec = args.fvec;
 
@@ -60,7 +60,7 @@ $ty:(FocusVectorFRet ()) dentarr_del_dentry_vector ($ty:(FocusVectorFArg () CStr
     memcpy (copy_dentarr, hd, size);  // copy the contents
 
     // lookup
-    $ty:(ObjDentry) de = copy_dentarr->entries;
+    $ty:(ObjDentry) de = ($ty:(ObjDentry)) copy_dentarr->entries;
     $ty:(ObjDentry) nde = ($ty:(ObjDentry))((void*) de + de->nlen);
     while (strcmp(de->name, name)) {
         de = nde;
@@ -81,3 +81,16 @@ $ty:(FocusVectorFRet ()) dentarr_del_dentry_vector ($ty:(FocusVectorFArg () CStr
     
     return ret;
 }
+
+$ty:(Vector) deserialise_vector ($ty:((Vector, Buffer!, BufOffs, U32)) args)
+{
+    memcpy(args.p1, (void*)args.p2->data->values + args.p3, args.p4);
+    return args.p1;
+}
+
+$ty:(Buffer) serialise_vector ($ty:((Buffer, BufOffs, Vector!)) args)
+{
+    memcpy ((void*) args.p1->data->values + args.p2, args.p3, size_vector (vector_header (args.p3)));
+    return args.p1;
+}
+

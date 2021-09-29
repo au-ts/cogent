@@ -25,8 +25,9 @@ typedef struct iattr VfsIattr;
 
 typedef char CStr;
 
-typedef void Vector;
+// typedef void Vector;
 typedef void VectorHeader;
+typedef void VectorBody;
 typedef char VectorUsed;
 typedef char VectorFree;
 
