@@ -41,6 +41,11 @@ unit_t cogent_debug (char* str) {
         return ret;
 }
 
+unit_t cogent_debug_str ($ty:((CStr!, U32)) args) {
+        pr_debug("%.*s", args.p2, args.p1);
+        return $exp:(());
+}
+
 unit_t cogent_debug_u32 (u32 arg) {
         unit_t ret;
         pr_debug("%u", arg);
@@ -108,6 +113,11 @@ unit_t cogent_debug (char* str) {
         unit_t ret;
         printf("%s", str);
         return ret;
+}
+
+unit_t cogent_debug_str ($ty:((CStr!, U32)) args) {
+        printf("%.*s", args.p2, args.p1);
+        return $exp:(());
 }
 
 unit_t cogent_debug_u32 (u32 arg) {

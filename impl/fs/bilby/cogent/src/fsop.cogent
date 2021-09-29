@@ -139,7 +139,6 @@ dentarr_add_dentry(ex, odent, vnode, name, dtype) =
       and ex = freeObjDentry (ex, newentry)
       in ((ex, odent {nb_dentry, size}), Success ())
 
-type CStr
 -- str_cmp : (CStr!, CStr!) -> Bool
 wordarray_str_cmp : (CString!, CStr!) -> Bool
 
@@ -499,7 +498,9 @@ dentarr_read_and_del (ex, mount_st, ostore_st, vdir, name) =
   and Success (ex, dentarr) <= extract_dentarr_from_union (ex, ounion)
       |> Error ex ->
           -- invariant on ostore_read
-          cogent_assert False ;
+          WHEN_DEBUGGING(
+            cogent_debug "dentarr_read_and_del: extract dentarr failed";
+            cogent_assert False) ;
           let ex = freeObj (ex, dentarr_obj)
           in ((ex, ostore_st), Error eInval)
   and (ex, dentarr) = dentarr_del_dentry (ex, dentarr, name)
@@ -968,7 +969,7 @@ emit_dir: #{elem:ObjDentry!, acc:(VfsDirContext, Bool), obsv:()} -> (VfsDirConte
 emit_dir #{elem=dentry, acc=(vctx, _), obsv=()} =
   WHEN_DEBUGGING(
   cogent_debug "emit_dir " ;
-  -- cogent_debug dentry.name ;
+  cogent_debug_str (get_ObjDentry_name_bang_str dentry, upcast dentry.nlen) ;
   cogent_debug "\n") ;
   vfs_dir_emit #{dirctx=vctx , name=get_ObjDentry_name_bang dentry, ino=dentry.ino, ftype=dtype_to_vtype(dentry.dtype)}
   | Break #{dirctx=vctx} -> (vctx, True)
@@ -1052,7 +1053,9 @@ fsop_readdir (#{ex, fs_st, vctx, opt_rdctx}, vdir) =
               step=1, f=readdir_loop, acc=(ex, ostore_st, vctx, rdctx), obsv=fs_st.mount_st} !fs_st
     in r
     | Iterate () ->
-      cogent_assert False ;
+      WHEN_DEBUGGING(
+        cogent_debug "fsop_readdir: Iterate ()";
+        cogent_assert False) ;
       let fs_st = fs_st {ostore_st}
       in (#{ex, fs_st, vctx, opt_rdctx=Some rdctx}, Error eInval)
     | Break res ->
@@ -1790,7 +1793,9 @@ fsop_iget #{ex, fs_st = fs_st {ostore_st}, inum, vnode} =
     let fs_st = fs_st {ostore_st}
     in extract_inode_from_union (ex, ounion)
     | Error ex ->
-      cogent_assert False ;
+      WHEN_DEBUGGING(
+        cogent_debug "fsop_iget: extract inode failed";
+        cogent_assert False) ;
       let ex = freeObj(ex, obj)
       in (#{ex, fs_st, vnode}, Error eInval) 
     | Success (ex, oi) ->
@@ -1832,7 +1837,9 @@ read_block(ex, fs_st {ostore_st}, vnode, buf, block) =
   | Success (obj {ounion}) ->
     extract_data_from_union(ex, ounion)
     | Error ex ->
-      cogent_assert False ;
+        WHEN_DEBUGGING(
+          cogent_debug "read_block: extract data failed";
+          cogent_assert False) ;
       let ex = freeObj(ex, obj)
       in ((ex, fs_st, buf), Error eInval) 
     | Success (ex, od) ->
@@ -1891,7 +1898,9 @@ get_data_back: (SysState, WordArray U8, Option Obj) -> (SysState, WordArray U8)
 get_data_back (ex, dummy_data, opto) =
   opto
   | None ->
-    cogent_assert False ;
+    WHEN_DEBUGGING(
+      cogent_debug "get_data_back: no object";
+      cogent_assert False) ;
     (ex, dummy_data)
   | Some obj {ounion} ->
     extract_data_from_union (ex, ounion)
