@@ -1,6 +1,7 @@
-type Vector
+-- type Vector
 
 type VectorHeader
+type VectorBody
 type VectorUsed
 type VectorFree
 
@@ -42,3 +43,5 @@ vector_read : VectorUsed! -> Entry!
 vector_append : #{uvec : VectorUsed, fvec : VectorFree, obj : Entry!}
              -> #{suc : Bool, uvec : VectorUsed, fvec : VectorFree}
 
+serialise_vector : (Buffer, BufOffs, Vector!) -> Buffer
+deserialise_vector : (Vector, Buffer!, BufOffs, U32) -> Vector

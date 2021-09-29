@@ -1389,7 +1389,7 @@ extract_super_from_union(ex, ounion) =
   | TObjInode v     -> Error (deep_freeObjInode(ex,v))
   | TObjData v      -> Error (deep_freeObjData(ex,v))
   | TObjDel _       -> Error ex
-  | TObjDentarr v   -> Error (deep_freeObjDentarr(ex,v))
+  | TObjDentarr v   -> Error (free_vector(ex,v))
   | TObjSummary sum -> Error (summary_clean(ex, sum))
   | TObjSuper sup   -> Success (ex, sup)
 

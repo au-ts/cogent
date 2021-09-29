@@ -91,22 +91,16 @@ read_or_create_dentarr(ex, mount_st, ostore_st, oid) =
       newObj(ex)
       | Error ex -> ((ex, ostore_st), Error eNoMem)
       | Success (ex, obj) ->
-        new_vector (ex, bilbyFsMaxDentarrEntriesSize)
+        newObjDentarr ex
         | Error ex ->
-          let ex = freeObj(ex, obj)
-          in ((ex, ostore_st), Error eNoMem)
-        | Success (ex, vector) ->
-          newObjDentarr ex
-          | Error ex ->
             let ex = freeObj(ex, obj)
-            and ex = free_vector (ex, vector)
             in ((ex, ostore_st), Error eNoMem)
-          | Success (ex, dentarr) ->
+        | Success (ex, dentarr) ->
             let nb_dentry:U32 = 0
             and size = 0
-            and dentarr = dentarr {id=oid,nb_dentry,size,entries=vector}
+            and dentarr = dentarr {id=oid,nb_dentry,size}
             and obj = obj_init_default(obj, bilbyFsObjTypeDentarr)
-            and obj = obj {len=bilbyFsObjHeaderSize + bilbyFsObjDentarrHeaderSize}
+            and obj = obj {len=bilbyFsObjHeaderSize + bilbyFsObjDentarrHeaderSize + bilbyFsMaxDentarrEntriesSize}
             -- obj.len is updated everytime we touch dentarrs.
             in ((ex, ostore_st), Success (obj, dentarr, True))
 
@@ -131,21 +125,19 @@ dentarr_add_dentry(ex, odent, vnode, name, dtype) =
   -- Do we need the MaxNbDentarrEntries check?
   -- Probably yes, because we need evidences that dentarr will fit in a transaction.
   in if nb_dentry + 1 > bilbyFsMaxNbDentarrEntries ||
-        name_len > bilbyFsMaxNameLen+1 then -- name_len includes \0
+        name_len - 1 > bilbyFsMaxNameLen then -- name_len includes \0
     ((ex, odent), Error eNameTooLong)
   else
     let (ex, r) = obj_dentry_new_init(ex, vfs_inode_get_ino (vnode), name, dtype)
     in r
     | Error e -> ((ex, odent), Error e)
     | Success newentry ->
-      let odent {id, entries} = odent
-      -- FIXME: Do we need to check if append succeed? / zilinc
-      and (_, entries) = focus_vector[(), ObjDentry!, Bool]
-                           #{vec = entries, acc = (), obsv = newentry, f = dentarr_append} !newentry
+      let (_, odent) = focus_vector[(), ObjDentry!, Bool]
+                         #{vec = odent, acc = (), obsv = newentry, f = dentarr_append} !newentry
       and nb_dentry = nb_dentry + 1
-      and size = bilbyFsObjDentarrHeaderSize + size_ObjDentry newentry !newentry
+      and size = size_ObjDentarr odent + size_ObjDentry newentry !newentry !odent
       and ex = freeObjDentry (ex, newentry)
-      in ((ex, odent {id, nb_dentry, size, entries}), Success ())
+      in ((ex, odent {nb_dentry, size}), Success ())
 
 type CStr
 -- str_cmp : (CStr!, CStr!) -> Bool
@@ -169,12 +161,12 @@ dentarr_append r {hd, uvec, fvec, obsv = dentry} =
 dentarr_del_dentry_vector : FocusVectorFArg () CString! -> FocusVectorFRet ()
 
 dentarr_del_dentry: (SysState, ObjDentarr, CString!) -> (SysState, ObjDentarr)
-dentarr_del_dentry(ex, odent {entries}, name) =
-  let (_, entries) = focus_vector[(), CString!, ()] 
-                       #{vec = entries, acc = (), obsv = name, f = dentarr_del_dentry_vector}
+dentarr_del_dentry(ex, odent, name) =
+  let (_, odent) = focus_vector[(), CString!, ()] 
+                       #{vec = odent, acc = (), obsv = name, f = dentarr_del_dentry_vector}
   and nb_dentry = odent.nb_dentry - 1 !odent
-  and size = odent.size - wordarray_length name !odent
-  in (ex, odent {nb_dentry, size, entries})
+  and size = size_ObjDentarr odent - (wordarray_length name - 1) !odent
+  in (ex, odent {nb_dentry, size})
 
 set_obj: #{oelem: Option Obj, acc: (SysState, Option Obj)} -> #{oelem:Option Obj, acc:(SysState, Option Obj)}
 set_obj #{oelem=opt_obj, acc=(ex, newopt_obj)} =
@@ -354,7 +346,7 @@ dentarr_del_calculate_sz_change(ex, obj, dentarr) =
   let is_del = dentarr.nb_dentry == 0 !dentarr
   and id = dentarr.id !dentarr
   and (ex, ounion):(SysState, ObjUnion) =
-      if is_del then (deep_freeObjDentarr (ex, dentarr), let v:ObjDel = #{id} in TObjDel v) else (ex, TObjDentarr dentarr)
+      if is_del then (freeObjDentarr (ex, dentarr), let v:ObjDel = #{id} in TObjDel v) else (ex, TObjDentarr dentarr)
   and obj = obj {ounion}
   and len = serialise_size_Obj(obj) !obj
   in safe_sub32(obj.len, len) !obj
@@ -770,12 +762,12 @@ fsop_lookup #{ex, fs_st = fs_st {mount_st, ostore_st}, vdir, name} =
         (#{ex, fs_st = fs_st {mount_st, ostore_st}, vdir}, Error eRoFs)
       | Success (ex, dentarr) ->
         let fs_st = fs_st {mount_st, ostore_st}
-        in dentry_vector_lookup_nm (dentarr.entries, name) !dentarr
+        in dentry_vector_lookup_nm (dentarr, name) !dentarr
         | None ->
-          let ex = deep_freeObjDentarr(ex, dentarr)
+          let ex = freeObjDentarr (ex, dentarr)
           in (#{ex, fs_st, vdir}, Error eNoEnt) 
         | Some inum ->
-          let ex = deep_freeObjDentarr(ex, dentarr)
+          let ex = freeObjDentarr (ex, dentarr)
           in (#{ex, fs_st, vdir}, Success inum)
 
 
@@ -897,21 +889,15 @@ get_rdctx(ex, opt_rdctx, vdir) =
     newBilbyFsReaddirContext(ex)
     | Error ex -> Error (eNoMem, ex)
     | Success (ex, rdctx) ->
-        new_vector (ex, bilbyFsMaxDentarrEntriesSize)
-      | Error ex ->
-        let ex = freeBilbyFsReaddirContext(ex, rdctx)
-        in Error (eNoMem, ex)
-      | Success (ex, entries) ->
         newObjDentarr ex
-        | Error ex ->
+      | Error ex ->
           let ex = freeBilbyFsReaddirContext(ex, rdctx)
-          and ex = free_vector (ex, entries)
           in Error (eNoMem, ex)
-        | Success (ex, dentarr) ->
+      | Success (ex, dentarr) ->
           let id:ObjId = obj_id_inode_mk (vfs_inode_get_ino vdir)
           and nb_dentry:U32 = 0
           and size = 0
-          and dentarr = dentarr {id, nb_dentry, size, entries}
+          and dentarr = dentarr {id, nb_dentry, size}
           and rdctx = rdctx {dentarr,cur_dentry=0}
           in Success (ex, rdctx)
   | Some rdctx -> Success (ex, rdctx)
@@ -943,11 +929,11 @@ read_next_dentry(ex, mount_st, ostore_st, rdctx) =
       | Success (obj {crc,magic,sqnum,offs,len,trans,otype,ounion}) ->
         let ex = freeObj(ex, obj)
         in extract_dentarr_from_union(ex, ounion)
-        | Error (ex) -> -- medium invariant broken?
+        | Error ex -> -- medium invariant broken?
           ((ex, ostore_st, rdctx), Error eRoFs) 
         | Success (ex, dentarr) ->
           let rdctx {dentarr = dentarr', cur_dentry} = rdctx
-          and ex = deep_freeObjDentarr(ex, dentarr')
+          and ex = freeObjDentarr (ex, dentarr')
           and rdctx = rdctx {dentarr,cur_dentry=0}
           in ((ex, ostore_st, rdctx), Success False)
   else -- We simply get the next entry of rdctx.dentarr
@@ -1013,7 +999,7 @@ readdir_loop #{acc=(ex, ostore_st, vctx, rdctx), obsv=mount_st, idx} =
                             (vctx, False)
                          else
                            focus_vector_ro[(VfsDirContext, Bool), U32, _]
-                             #{ vec = rdctx.dentarr.entries
+                             #{ vec = rdctx.dentarr
                               , acc = (vctx, False)
                               , obsv = rdctx.cur_dentry
                               , f = dentry_vector_lookup} !rdctx
@@ -1081,7 +1067,7 @@ fsop_readdir (#{ex, fs_st, vctx, opt_rdctx}, vdir) =
 fsop_dir_release: (SysState, Option BilbyFsReaddirContext) -> SysState
 fsop_dir_release (ex, opt_rdctx) =
   let Some (v {dentarr}) <= opt_rdctx |> None -> ex
-  and ex = deep_freeObjDentarr(ex, dentarr)
+  and ex = freeObjDentarr (ex, dentarr)
   in freeBilbyFsReaddirContext(ex, v)
 
 check_dir_empty: #{mount_st:MountState!, ostore_st:OstoreState!, vdir: VfsInode!} -> Bool
@@ -1099,12 +1085,12 @@ obj_dentarr_or_del_new: (SysState, Obj take (ounion), ObjDentarr) -> R (SysState
 obj_dentarr_or_del_new(ex, odent, dent) =
   let len = dent.nb_dentry !dent
   in if len > 0 then
-    let len = bilbyFsObjHeaderSize + serialise_size_ObjDentarr dent !dent
+    let len = bilbyFsObjHeaderSize + size_ObjDentarr dent !dent
     in Success (ex, odent {len, ounion=TObjDentarr dent, otype = bilbyFsObjTypeDentarr})
   else
     let odel = #{id=dent.id} !dent
     and len = bilbyFsObjHeaderSize + serialise_size_ObjDel odel !odel
-    and ex = deep_freeObjDentarr(ex, dent)
+    and ex = freeObjDentarr (ex, dent)
     in Success (ex, odent {len, ounion=TObjDel odel, otype = bilbyFsObjTypeDel})
 
 type FsopDoMoveHelperP = #{ex:SysState, mount_st:MountState!, ostore_st:OstoreState, old_dent_size: U32, new_dent_size: U32, new_o:Obj, old_o:Obj, old_vdir:VfsInode, old_vnode: VfsInode, new_vdir: VfsInode, opt_new_vnode: Option VfsInode} 
@@ -1788,7 +1774,7 @@ extract_inode_from_union(ex, ounion) =
   | TObjDel v       -> Error ex
   | TObjSuper v     -> Error (deep_freeObjSuper(ex,v))
   | TObjSummary v   -> Error (summary_clean(ex,v))
-  | TObjDentarr v   -> Error (deep_freeObjDentarr(ex,v))
+  | TObjDentarr v   -> Error (free_vector(ex,v))
   | TObjInode v     -> Success (ex, v)
 
 type FsopIgetP = #{ex:SysState, fs_st: FsState, inum:VfsIno, vnode: VfsInode} 
@@ -1828,7 +1814,7 @@ extract_data_from_union(ex, ounion) =
   | TObjDel v       -> Error ex
   | TObjSuper v     -> Error (deep_freeObjSuper(ex,v))
   | TObjSummary v   -> Error (summary_clean(ex,v))
-  | TObjDentarr v   -> Error (deep_freeObjDentarr(ex,v))
+  | TObjDentarr v   -> Error (free_vector(ex,v))
   | TObjData v      -> Success (ex, v)
 
 read_block:(SysState, FsState, VfsInode!, Buffer, OSPageOffset) -> RR (SysState, FsState, Buffer) () ErrCode
