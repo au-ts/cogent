@@ -187,6 +187,7 @@ applyC s (Drop t m) = Drop (apply s t) m
 applyC s (Escape t m) = Escape (apply s t) m
 #ifdef BUILTIN_ARRAYS
 applyC s (Arith e) = Arith $ applySE s e
+applyC s (e1 :==: e2) = applySE s e1 :==: applySE s e2
 #endif
 applyC s (Unsat e) = Unsat $ applyErr s e
 applyC s (SemiSat w) = SemiSat (applyWarn s w)
