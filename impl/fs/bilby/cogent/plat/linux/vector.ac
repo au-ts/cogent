@@ -1,8 +1,11 @@
 $ty:(R (SysState, Vector) SysState) new_vector ($ty:((SysState, U32)) args)
 {
     $ty:(R (SysState, Vector) SysState) ret;
+    $ty:(U32) size = $exp:bilbyFsObjDentarrHeaderSize + args.p2;
 
-    ret.Success.p2 = kmalloc($exp:bilbyFsObjDentarrHeaderSize + args.p2);
+    bilbyfs_debug ("new_vector: size=%u\n", size);
+
+    ret.Success.p2 = kmalloc(size);
     if (ret.Success.p2 == NULL) {
         ret.tag = TAG_ENUM_Error;
         ret.Error = args.p1;
@@ -22,7 +25,9 @@ $ty:(SysState) free_vector ($ty:((SysState, Vector)) args)
 $ty:(U32) size_vector ($ty:(VectorHeader!) args)
 {
     $ty:(ObjDentarr!) dentarr = ($ty:(ObjDentarr!))args;
-    return size_ObjDentarr (dentarr);
+    $ty:(U32) size = size_ObjDentarr (dentarr);
+    bilbyfs_debug ("size_vector: size=%u\n", size);
+    return size;
 }
 
 $ty:(U32) size_header ($ty:(()) args)
@@ -32,7 +37,7 @@ $ty:(U32) size_header ($ty:(()) args)
 
 $ty:(VectorHeader!) vector_header ($ty:(Vector!) args)
 {
-    return args;
+    return ($ty:(VectorHeader!)) args;
 }
 
 $ty:(U32) size_entry ($ty:(ObjDentry!) args)
