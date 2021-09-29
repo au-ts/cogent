@@ -196,7 +196,7 @@ bilbyFsRootIno : U32
 bilbyFsRootIno = 24
 
 bilbyFsMaxDentrySize : U32
-bilbyFsMaxDentrySize = bilbyFsObjDentryHeaderSize + bilbyFsMaxNameLen + 1
+bilbyFsMaxDentrySize = bilbyFsObjDentryHeaderSize + bilbyFsMaxNameLen
 
 bilbyFsMaxDentarrEntriesSize : U32
 bilbyFsMaxDentarrEntriesSize =  bilbyFsMaxNbDentarrEntries * bilbyFsMaxDentrySize
