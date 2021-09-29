@@ -150,7 +150,7 @@ validateType' t = do
           traceTc "gen" (text "unifier for array hole" <+> pretty i L.<$>
                          text "is" <+> pretty y)
           (ci,i') <- cg (rawToLocE ?loc i) (T u32)
-          let c = Arith (SE (T bool) (PrimOp "==" [toTCSExpr i', y]))
+          let c = toTCSExpr i' :==: y
                -- <> Arith (SE (T bool) (PrimOp ">=" [y, SE (T u32) (IntLit 0)]))
                <> Arith (SE (T bool) (PrimOp "<" [y, l'']))
           traceTc "gen" (text "cg for array hole" <+> pretty i L.<$>
@@ -169,7 +169,7 @@ validateType' t = do
       blob <- forM es $ \e -> do
         x <- freshEVar (T u32) (TermInType e (RT t) ?loc)
         (ce,e') <- cg (rawToLocE ?loc e) (T u32)
-        return (ce <> Arith (SE (T bool) (PrimOp "==" [toTCSExpr e', x])), e', x)
+        return (ce <> toTCSExpr e' :==: x, e', x)
       let (ces,es',xs) = unzip3 blob
       traceTc "gen" (text "cg for @take" <+> parens (prettyList es) L.<$>
                      text "generate constraint" <+> prettyC (mconcat ces))
@@ -180,7 +180,7 @@ validateType' t = do
       blob <- forM es $ \e -> do
         x <- freshEVar (T u32) (TermInType e (RT t) ?loc)
         (ce,e') <- cg (rawToLocE ?loc e) (T u32)
-        return (ce <> Arith (SE (T bool) (PrimOp "==" [toTCSExpr e', x])), e', x)
+        return (ce <> toTCSExpr e' :==: x, e', x)
       let (ces,es',xs) = unzip3 blob
       traceTc "gen" (text "cg for @put" <+> parens (prettyList es) L.<$>
                      text "generate constraint" <+> prettyC (mconcat ces))

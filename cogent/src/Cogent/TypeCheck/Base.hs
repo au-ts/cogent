@@ -223,6 +223,7 @@ data Constraint' t l = (:<) t t
                      | IsPrimType t
 #ifdef BUILTIN_ARRAYS
                      | Arith (SExpr t l)
+                     | (:==:) (SExpr t l) (SExpr t l)  -- arithmetically equal
                      | (:->) (Constraint' t l) (Constraint' t l)
 #endif
                      deriving (Eq, Show, Ord)
@@ -301,6 +302,7 @@ instance Bifunctor Constraint' where
   bimap f g (IsPrimType t)     = IsPrimType (f t)
 #ifdef BUILTIN_ARRAYS
   bimap f g (Arith se)         = Arith (bimap f g se)
+  bimap f g (e1 :==: e2)       = bimap f g e1 :==: bimap f g e2
   bimap f g (c1 :-> c2)        = (bimap f g c1) :-> (bimap f g c2)
 #endif
   bimap f g Sat                = Sat
@@ -330,6 +332,7 @@ instance Bitraversable Constraint' where
   bitraverse f g (NotReadOnly s)    = pure $ NotReadOnly s
 #ifdef BUILTIN_ARRAYS
   bitraverse f g (Arith se)         = Arith <$> bitraverse f g se
+  bitraverse f g (e1 :==: e2)       = (:==:) <$> bitraverse f g e1 <*> bitraverse f g e2
   bitraverse f g (c1 :-> c2)        = (:->) <$> bitraverse f g c1 <*> bitraverse f g c2
 #endif
   bitraverse f g Sat                = pure Sat
