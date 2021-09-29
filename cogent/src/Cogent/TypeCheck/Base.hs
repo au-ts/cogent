@@ -29,7 +29,7 @@ import Cogent.Dargent.Allocation
 import Cogent.Dargent.TypeCheck
 import Cogent.Surface
 import Cogent.TypeCheck.ARow hiding (all, null)
-import Cogent.TypeCheck.Row (Row)
+import Cogent.TypeCheck.Row (Entry, Row)
 import qualified Cogent.TypeCheck.Row as Row
 -- import Cogent.TypeCheck.Util
 import Cogent.Util
@@ -164,10 +164,16 @@ data VarOrigin = ExpressionAt SourcePos
                | ImplicitLayoutApp SourcePos
                | TypeHole SourcePos
                | LayoutHole SourcePos
+               | UnifyingRows (Row TCType) (Row TCType)
+               | SinkFloat TCType TCType TCType      -- SinkFloat t1 t2 t3: s/f t1 to t2 due to t3
+               | SinkFloatRow Int (Row TCType) TCType TCType  -- SinkFloat2 x r t1 t2: s/f x to r when comparing t1 and t2
+               | SinkFloatEntry (Entry TCType) TCType TCType
+               | SinkFloatSigil TCType TCType
                | BoundOf TCType TCType Bound
                | EqualIn TCExpr TCExpr TCType TCType
                | BlockedByType RawType SourcePos
                | BlockedByLayout DataLayoutExpr SourcePos
+               | OtherOrigin String
                deriving (Eq, Show, Ord)
 
 

@@ -91,10 +91,10 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     traceTc "tc" (text "constraint for type decl" <+> pretty n <+> text "is"
                   L.<$> prettyC ct)
     let ps = zip vs (repeat k2)
-    (gs, subst) <- runSolver (solve ps [] ct) flx
+    (gs, subst, os') <- runSolver (solve ps [] ct) (flx, os)
     traceTc "tc" (text "substs for type decl" <+> pretty n <+> text "is"
                   L.<$> pretty subst)
-    exitOnErr $ toErrors os gs
+    exitOnErr $ toErrors os' gs
     let t'' = apply subst t'
     lift . lift $ knownTypes %= (<> [(n, (vs, Just t''))])
     t''' <- postT t''
@@ -113,10 +113,10 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     traceTc "tc" (text "constraint for abstract type decl" <+> pretty n <+> text "is"
                   L.<$> prettyC (mconcat cts))
     let ps = zip vs (repeat k2)
-    (gs, subst) <- runSolver (solve ps [] $ mconcat cts) flx
+    (gs, subst, os') <- runSolver (solve ps [] $ mconcat cts) (flx, os)
     traceTc "tc" (text "substs for abstract type decl" <+> pretty n <+> text "is"
                   L.<$> pretty subst)
-    exitOnErr $ toErrors os gs
+    exitOnErr $ toErrors os' gs
     let ts'' = fmap (apply subst) ts'
     ts''' <- mapM postT ts''
     lift . lift $ knownTypes %= (<> [(n, (vs, Nothing))])
@@ -150,10 +150,10 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     traceTc "tc" (text "constraint for abstract function" <+> pretty n <+> text "is"
                   L.<$> prettyC ct)
     let ls' = zip (fst <$> ls) lts
-    (gs, subst) <- runSolver (solve ps ls' $ clt <> ct) flx
+    (gs, subst, os') <- runSolver (solve ps ls' $ clt <> ct) (flx, os)
     traceTc "tc" (text "substs for abstract function" <+> pretty n <+> text "is"
                   L.<$> pretty subst)
-    exitOnErr $ toErrors os gs
+    exitOnErr $ toErrors os' gs
     let t'' = apply subst t'
     lift . lift $ knownFuns %= M.insert n (PT ps ls' t'')
     t''' <- postT t''
@@ -175,10 +175,10 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     ((c,l), flx, os) <- runCG ctx [] vars (validateLayout expr)
     traceTc "tc" (text "constraint for rep decl" <+> pretty name <+> text "is"
                   L.<$> prettyC c)
-    (gs, subst) <- runSolver (solve [] [] c) flx
+    (gs, subst, os') <- runSolver (solve [] [] c) (flx, os)
     traceTc "tc" (text "substs for rep decl" <+> pretty name <+> text "is"
                   L.<$> pretty subst)
-    exitOnErr $ toErrors os gs
+    exitOnErr $ toErrors os' gs
     lift . lift $ knownDataLayouts %= M.insert name (vars, expr)
     let l' = toDLExpr $ applyL subst l
     return $ RepDef (DataLayoutDecl pos name vars l')
@@ -196,9 +196,8 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let c' = ct <> c <> Share t' (Constant n)
     traceTc "tc" (text "constraint for const definition" <+> pretty n <+> text "is"
                   L.<$> prettyC c')
-    (gs, subst) <- runSolver (solve [] [] c') flx
-    exitOnErr $ toErrors os gs
-    -- mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx >>= \c' -> return (c++c',l))) logs
+    (gs, subst, os') <- runSolver (solve [] [] c') (flx, os)
+    exitOnErr $ toErrors os' gs
     traceTc "tc" (text "substs for const definition" <+> pretty n <+> text "is"
                   L.<$> pretty subst)
     let t'' = apply subst t'
@@ -241,12 +240,11 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     traceTc "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
                   L.<$> prettyC c)
     let ls' = zip (fst <$> ls) lts
-    (gs, subst) <- runSolver (solve ps ls' $ clt <> ct <> c) flx
-    --exitOnErr $ mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx) >>= \c' -> return (c++c',l)) logs
+    (gs, subst, os') <- runSolver (solve ps ls' $ clt <> ct <> c) (flx, os)
     traceTc "tc" (text "substs for fun definition" <+> pretty f <+> text "is"
                   L.<$> pretty subst)
     -- traceTc "tc" (text "goals are:" L.<$> vcat (fmap (text . show) gs))
-    exitOnErr $ toErrors os gs
+    exitOnErr $ toErrors os' gs
     let t'' = apply subst t'
 
     -- Replace our previous definition with the typechecker's updated type
@@ -273,8 +271,8 @@ typecheckPragmas = mapM go
       traceTc "tc" (text "typecheck pragma" <+> text (show m ++ "ter"))
       let ?loc = loc
       ((ct,t'), flx, os) <- runCG C.empty [] [] $ validateType t
-      (gs, subst) <- runSolver (solve [] [] ct) flx
-      exitOnErr $ toErrors os gs
+      (gs, subst, os') <- runSolver (solve [] [] ct) (flx, os)
+      exitOnErr $ toErrors os' gs
       t'' <- postT $ apply subst t'
       return $ GSetterPragma m t'' fld fn
     go (LP _ (InlinePragma  f)) = return $ InlinePragma  f
@@ -298,8 +296,8 @@ typecheckCustTyGen = mapM . firstM $ \t -> do
            _    -> do base <- lift . lift $ use knownConsts
                       let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
                       ((ct,t''), flx, os) <- runCG ctx [] [] $ validateType t'
-                      (gs, subst) <- runSolver (solve [] [] ct) flx
-                      exitOnErr $ toErrors os gs
+                      (gs, subst, os') <- runSolver (solve [] [] ct) (flx, os)
+                      exitOnErr $ toErrors os' gs
                       postT $ apply subst t''
 
 

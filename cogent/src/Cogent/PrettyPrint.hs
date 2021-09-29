@@ -837,23 +837,42 @@ instance Pretty TcLog where
 
 instance Pretty VarOrigin where
   pretty (ExpressionAt l) = warn ("the term at location " ++ show l)
-  pretty (TermInType e t l) = warn "the term" <+> pretty e <+> warn "of type" <+> pretty t
-                          <+> warn ("at location" ++ show l)
-  pretty (TypeOfExpr e bs l) = warn "the type of expression" <+> pretty e <+> bangs bs
-                            <> warn ("at location " ++ show l)
-    where bangs [] = empty; bangs ts = symbol "!" <> parens (spaceList $ fmap letbangvar bs) <+> empty
-  pretty (TypeOfPatn p l) = warn "the type of pattern" <+> pretty p <+> warn ("at location " ++ show l)
-  pretty (TypeOfIrrefPatn p l) = warn "the type of pattern" <+> pretty p <+> warn ("at location " ++ show l)
+  pretty (TermInType e t l) = warn "the term" <+> pretty e <$>
+                              warn "of type" <+> pretty t <$>
+                              warn ("at location" ++ show l)
+  pretty (TypeOfExpr e bs l) = warn "the type of expression" <+> pretty e <> bangs bs <$>
+                               warn ("at location " ++ show l)
+    where bangs [] = empty; bangs ts = empty <+> symbol "!" <> parens (spaceList $ fmap letbangvar bs)
+  pretty (TypeOfPatn p l) = warn "the type of pattern" <+> pretty p <$>
+                            warn ("at location " ++ show l)
+  pretty (TypeOfIrrefPatn p l) = warn "the type of pattern" <+> pretty p <$>
+                                 warn ("at location " ++ show l)
   pretty (ImplicitTypeApp l) = warn ("implicit type application at location " ++ show l) 
   pretty (ImplicitLayoutApp l) = warn ("implicit layout application at location " ++ show l) 
   pretty (TypeHole l) = warn ("type hole at location " ++ show l)
   pretty (LayoutHole l) = warn ("layout hole at location " ++ show l)
-  pretty (BoundOf a b d) = warn ("taking the " ++ show d ++ " of") <$> pretty a <$> warn "and" <$> pretty b
+  pretty (UnifyingRows r1 r2) = warn "the solver when trying to unify rows" <$>
+                                pretty r1 <+> warn "and" <+> pretty r2
+  pretty (SinkFloat u s t) = warn "the solver's sink/float phase when breaking up type" <+> pretty u <$>
+                             warn "to" <+> pretty s <$>
+                             warn "because it should have the same structure as type" <+> pretty t
+  pretty (SinkFloatRow u r t1 t2) = warn ("the solver's sink/float phase when breaking up row variable ?" ++ show u) <$>
+                                    warn "to" <+> pretty r <$>
+                                    warn "when comparing types" <+> pretty t1 <+> warn "and" <+> pretty t2
+  pretty (SinkFloatEntry e t1 t2) = warn "populating the entry" <+> pretty e <$>
+                                    warn "when comparing types" <+> pretty t1 <+> warn "and" <+> pretty t2 <$>
+                                    warn "in the solver's sink/float phase"
+  pretty (SinkFloatSigil t1 t2) = warn "the sigil in" <+> pretty t1 <$>
+                                  warn "when comparing it with" <+> pretty t2 <$>
+                                  warn "in the solver's sink/float phase"
+  pretty (BoundOf a b d) = warn ("taking the " ++ show d ++ " of") <$>
+                           pretty a <+> warn "and" <+> pretty b
   pretty (EqualIn e1 e2 t1 t2) = __todo "pretty (VarOrigin)"
   pretty (BlockedByType t l) = warn "other errors in type well-formedness of" <+> pretty t
-                           <+> warn ("at location " ++ show l)
+                           <$> warn ("at location " ++ show l)
   pretty (BlockedByLayout r l) = warn "other errors in layout well-formedness of" <+> pretty r
-                             <+> warn ("at location " ++ show l)
+                             <$> warn ("at location " ++ show l)
+  pretty (OtherOrigin s) = warn s
 
 analyseLeftover :: Constraint -> I.IntMap VarOrigin -> Doc
 {-
@@ -881,8 +900,11 @@ analyseLeftover c os =
     xs -> err "Constraint" <$> indent' (pretty c) <$> err "cannot be solved, or is unsatisfiable."
           <$$> indent' (context "with relevant unifiers:"
                <$$> indent' (vcat $ fmap (originInfo os) xs))
-  where originInfo os x = warn "• The unknown" <+> pretty (U x) <+> warn "originates from"
-                      <+> pretty (I.lookup x os)
+  where originInfo os x = warn "•" <+>
+                            align (warn "The unknown" <+> pretty (U x) <+> warn "originates from" <+>
+                            prettyOrigin (I.lookup x os))
+        prettyOrigin Nothing  = warn "unknown origin"
+        prettyOrigin (Just o) = pretty o
 
 instance Pretty Constraint where
   pretty (a :< b)         = pretty a </> warn ":<" </> pretty b
