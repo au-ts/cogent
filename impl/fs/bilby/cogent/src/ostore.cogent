@@ -248,7 +248,7 @@ ostore_new_wbuf(mount_st, ostore_st {fsm_st}, osw_flags) =
 -- It also, reinitialises ostore_st.summary
   let (fsm_st, r) = fsm_alloc_eb(mount_st, fsm_st, osw_flags)
   in r
-  | Error err -> cogent_assert False ; WHEN_DEBUGGING(bilbyfs_error "ostore_new_wbuf: fsm_alloc_eb failed\n") ; (ostore_st {fsm_st}, Error err)
+  | Error err -> WHEN_DEBUGGING(bilbyfs_error "ostore_new_wbuf: fsm_alloc_eb failed\n"; cogent_assert False) ; (ostore_st {fsm_st}, Error err)
   | Success wbuf_eb ->
     WHEN_DEBUGGING(
     cogent_debug "ostore_new_wbuf: Allocated eb=" ;
@@ -261,11 +261,14 @@ ostore_new_wbuf(mount_st, ostore_st {fsm_st}, osw_flags) =
 
 get_obj_trans: (U32, U32) -> ObjTrans
 get_obj_trans(i, nb_objs) =
- cogent_assert(nb_objs > 0) ;
- if i == nb_objs - 1 then
-   bilbyFsTransCommit
- else
-   bilbyFsTransIn
+  WHEN_DEBUGGING(
+    cogent_debug "get_obj_trans: nb_objs=";
+    cogent_debug_u32 nb_objs);
+  cogent_assert(nb_objs > 0) ;
+  if i == nb_objs - 1 then
+    bilbyFsTransCommit
+  else
+    bilbyFsTransIn
 
 ostore_update_padding_obj:(Obj, U64, U32) -> Obj
 ostore_update_padding_obj(obj {sqnum=_,len,trans}, sqnum, pad_sz) =
@@ -310,10 +313,12 @@ prepare_wbuf(ex, mount_st, ostore_st {wbuf}, pad_to) =
       and opad = ostore_update_padding_obj(opad, sqnum, pad_sz - bilbyFsObjHeaderSize)
       and used = ostore_st.used !ostore_st
       and (wbuf, offs) = serialise_Obj (wbuf, used, opad) !opad
-      and _ = WHEN_DEBUGGING(cogent_assert (offs == pad_to))
-      and _ = WHEN_DEBUGGING(cogent_debug "prepare_wbuf: Success (used=")
+      and _ = WHEN_DEBUGGING(cogent_debug "prepare_wbuf: Success (pad_to=")
       and _ = WHEN_DEBUGGING(cogent_debug_u32 pad_to)
+      and _ = WHEN_DEBUGGING(cogent_debug "; offs=")
+      and _ = WHEN_DEBUGGING(cogent_debug_u32 offs)
       and _ = WHEN_DEBUGGING(cogent_debug ")\n")
+      and _ = WHEN_DEBUGGING(cogent_assert (offs == pad_to))
       and ostore_st {summary,oaddr} = ostore_st {wbuf, opad, used=pad_to, next_sqnum}
       and oaddr = oaddr {ebnum = ostore_st.wbuf_eb, len=pad_sz, offs = used, sqnum} !ostore_st
       and (ex, ostore_st) = update_obj_pad(ex, mount_st, ostore_st, oaddr)
@@ -349,6 +354,14 @@ ostore_sync_summary_if_eb_new(ex, mount_st, ostore_st, osw_flags) =
       and ostore_st {summary} = ostore_st
       and summary = summary {sum_offs = used}
       and (sum_obj, wbuf, offs) = serialise_ObjSummary_crc(wbuf, used, sum_obj, summary) !summary
+      and _ = WHEN_DEBUGGING(
+                cogent_debug "ostore_sync_summary_if_eb_new: used=";
+                cogent_debug_u32 used;
+                cogent_debug "; len=";
+                cogent_debug_u32 len;
+                cogent_debug "; offs=";
+                cogent_debug_u32 offs;
+                cogent_debug ")")
       and _ = cogent_assert (used + len == offs)
       and ostore_st = ostore_st {next_sqnum = sqnum+1, wbuf, used=used+len, sum_obj, summary}
       in ((ex, ostore_st), Success ())
@@ -463,7 +476,15 @@ sync_if_trans_too_big(ex, mount_st, ostore_st, osw_flags, trans_size) =
    -- FIXME This only account for 1 extra summary entry, worst case should be 1 for each object in the
    -- trans
     let sum_size = serialise_size_summary_Obj_with_extra (ostore_st.summary, 0) !ostore_st
-    and _ = cogent_assert (used + sum_size <= mount_st.super.eb_size)
+    and _ = WHEN_DEBUGGING(
+      cogent_debug "sync_if_trans_too_big: used + sum_size <= mount_st.super.eb_size (used=" ;
+      cogent_debug_u32 used ;
+      cogent_debug "; sum_size=" ;
+      cogent_debug_u32 sum_size ;
+      cogent_debug "; mount_st.super.eb_size=" ;
+      cogent_debug_u32  mount_st.super.eb_size ;
+      cogent_debug ")\n" ;
+      cogent_assert (used + sum_size <= mount_st.super.eb_size))
     in if used + trans_size + sum_size + bilbyFsObjSumEntrySize > mount_st.super.eb_size then
       ostore_sync_new_eb(ex, mount_st, ostore_st, osw_flags .|. ostoreWriteNewEb)
     else if is_set (osw_flags, ostoreWriteForceSync) then
@@ -492,7 +513,15 @@ sync_if_no_trans_fit(ex, mount_st, ostore_st, osw_flags) =
 
   -- No extra summary entry accounted for because best case scenario, we reuse an existing entry.
     let sum_size = serialise_size_summary_Obj_with_extra (ostore_st.summary, 0) !ostore_st
-    and _ = cogent_assert (used + sum_size <= mount_st.super.eb_size)
+    and _ = WHEN_DEBUGGING(
+      cogent_debug "sync_if_trans_too_big: used + sum_size <= mount_st.super.eb_size (used=" ;
+      cogent_debug_u32 used ;
+      cogent_debug "; sum_size=" ;
+      cogent_debug_u32 sum_size ;
+      cogent_debug "; mount_st.super.eb_size=" ;
+      cogent_debug_u32  mount_st.super.eb_size ;
+      cogent_debug ")\n" ;
+      cogent_assert (used + sum_size <= mount_st.super.eb_size))
     in if used + min_useful_trans + sum_size > mount_st.super.eb_size then
       ostore_sync(ex, mount_st, ostore_st, osw_flags .|. ostoreWriteNewEb)
     else if is_set (osw_flags, ostoreWriteForceSync) then
@@ -912,6 +941,7 @@ ostore_read (ex, mount_st, ostore_st, oid) =
         ((ex, ostore_st), Success obj)
       else
         WHEN_DEBUGGING(
+        cogent_debug "ostore_read: oid == oid' violated";
         print_field_u64 ("oid" ,oid) ;
         print_field_u64 ("oid'" ,oid')) ;
         cogent_assert False ;
@@ -965,7 +995,9 @@ deep_opt_freeObj(ex, opt_obj) =
   opt_obj
   | None -> ex
   | Some obj ->
-    cogent_assert False ;
+    WHEN_DEBUGGING(
+      cogent_debug "deep_opt_freeObj: Some obj";
+      cogent_assert False) ;
     deep_freeObj(ex, obj)
 
 scan_trans_obj: #{oelem:Option Obj, acc:(SysState, U32), obsv:(MountState, Buffer)!} -> LoopResult (Option Obj, (SysState, U32)) (Option Obj, R (SysState, U32) (ErrCode, SysState))
@@ -1118,7 +1150,9 @@ mount_scan_rbuf(ex, mount_st, ostore_st, objsdel, objs, eb) =
           #{frm=0, to=max_nb_trans + 1, step=1, f=scan_transaction_loop, acc=(ex, ostore_st, objsdel, objs, offs), obsv=(mount_st, eb)}
   in r
   | Iterate () ->
-    cogent_assert False ; -- Cannot happen, too many transactions to fit in the buffer
+    WHEN_DEBUGGING(
+      cogent_debug "mount_scan_rbuf: scan failed";
+      cogent_assert False) ; -- Cannot happen, too many transactions to fit in the buffer
     ((ex, ostore_st, objsdel, objs), Error (eInval, offs))
   | Break res -> 
     res
@@ -1436,7 +1470,9 @@ mount_read_super(ex, mount_st, ostore_st {rbuf}) =
               #{frm=0, to=max_nb_trans + 1, step=1, f=read_super_loop, acc=(ex, obj, offs), obsv=(mount_st, ostore_st.rbuf)} !ostore_st !mount_st
       in r
       | Iterate () ->
-        cogent_assert False ; -- Cannot happen, too many transactions to fit in the buffer
+        WHEN_DEBUGGING(
+          cogent_debug "mount_read_super: read super failed";
+          cogent_assert False) ; -- Cannot happen, too many transactions to fit in the buffer
         let ex = deep_freeObj(ex, obj)
         in ((ex, mount_st, ostore_st), Error eInval)
       | Break () ->
@@ -1572,3 +1608,4 @@ ostore_umount(ex, mount_st, ostore_st) =
       ostore_write_super(ex, mount_st, ostore_st)
   else
     ((ex, mount_st, ostore_st), Success ())
+

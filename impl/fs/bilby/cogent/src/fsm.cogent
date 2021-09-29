@@ -93,8 +93,8 @@ fsm_alloc_eb(mount_st, fsm_st, osw_flags) =
     | Iterate _ ->
       WHEN_DEBUGGING(
       cogent_debug "\n" ;
+      cogent_debug "fsm_alloc_eb: All erase-blocks are used, cannot allocate a new one.") ;
       cogent_assert False ; -- FIXME remove this
-      cogent_debug "Error: All erase-blocks are used, cannot allocate a new one.") ;
       (fsm_st, Error eNoSpc)
     | Break ebnum ->
       WHEN_DEBUGGING(cogent_debug "fsm_alloc_eb Break\n") ;

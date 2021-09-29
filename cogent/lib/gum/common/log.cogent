@@ -35,6 +35,8 @@ cogent_warn_u16 x = cogent_warn_u32 (upcast x)
 
 cogent_debug: String -> ()
 
+cogent_debug_str: (CStr!, U32) -> ()  -- cogent_debug_str (str, n): "%.*s", n, str
+
 -- This can't be implemented in Cogent because the formalisation doesn't support string literals.
 -- Usually we would #ifdef it out, but because it's in the standard library #ifdef DEBUG doesn't work.
 cogent_debug_bool: Bool -> ()
