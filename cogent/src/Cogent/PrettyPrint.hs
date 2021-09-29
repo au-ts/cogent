@@ -932,6 +932,7 @@ instance Pretty Constraint where
   pretty (x :@ _)         = pretty x
 #ifdef BUILTIN_ARRAYS
   pretty (Arith e)        = pretty e
+  pretty (e1 :==: e2)     = pretty e1 </> warn ":==:" </> pretty e2
   pretty (a :-> b)        = prettyPrec 2 a </> warn ":->" </> prettyPrec 1 b
 #endif
   pretty (LayoutOk t)     = warn "LayoutOk" <+> pretty t
