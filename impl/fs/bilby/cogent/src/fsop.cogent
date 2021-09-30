@@ -159,12 +159,13 @@ dentarr_append r {hd, uvec, fvec, obsv = dentry} =
 
 dentarr_del_dentry_vector : FocusVectorFArg () CString! -> FocusVectorFRet ()
 
+-- It assumes that the entry with the name is in the dentarr and deletion must be successful.
 dentarr_del_dentry: (SysState, ObjDentarr, CString!) -> (SysState, ObjDentarr)
 dentarr_del_dentry(ex, odent, name) =
   let (_, odent) = focus_vector[(), CString!, ()] 
                        #{vec = odent, acc = (), obsv = name, f = dentarr_del_dentry_vector}
   and nb_dentry = odent.nb_dentry - 1 !odent
-  and size = size_ObjDentarr odent - (wordarray_length name - 1) !odent
+  and size = size_ObjDentarr odent - (bilbyFsObjDentryHeaderSize + wordarray_length name - 1) !odent
   in (ex, odent {nb_dentry, size})
 
 set_obj: #{oelem: Option Obj, acc: (SysState, Option Obj)} -> #{oelem:Option Obj, acc:(SysState, Option Obj)}
