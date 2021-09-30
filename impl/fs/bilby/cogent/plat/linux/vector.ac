@@ -51,37 +51,51 @@ $ty:(FocusVectorFRet ()) dentarr_del_dentry_vector ($ty:(FocusVectorFArg () CStr
 
     char* name = args.obsv->values;
     $ty:(ObjDentarr) hd = args.hd;
-    $ty:(U32) size = size_ObjDentarr (hd);
+    $ty:(U32) size = size_ObjDentarr (hd) - $exp:bilbyFsObjDentarrHeaderSize;
+    bilbyfs_debug ("dentarr_del_dentry_vector: size=%u\n", size);
     void* uvec = args.uvec;
     void* fvec = args.fvec;
 
+    if (size == 0) {
+       bilbyfs_debug ("dentarr_del_dentry_vector: size==0 should not happen!\n");
+       ret.hd = hd;
+       ret.uvec = uvec;
+       ret.fvec = fvec;
+       ret.res = $exp:(());
+       return ret;
+    }
+
     // copy
-    $ty:(ObjDentarr) copy_dentarr = hd;
-    copy_dentarr = kmalloc (size);
-    if (!copy_dentarr) {
+    char* copy_entries = kmalloc (size);  // only copy the body, not the header.
+    if (!copy_entries) {
+        bilbyfs_debug ("dentarr_del_dentry_vector: allocation failed!\n");
         return ret;  // TODO: should signal failure.
     }
 
-    memcpy (copy_dentarr, hd, size);  // copy the contents
+    memcpy (copy_entries, uvec, size);  // copy the contents
 
     // lookup
-    $ty:(ObjDentry) de = ($ty:(ObjDentry)) copy_dentarr->entries;
-    $ty:(ObjDentry) nde = ($ty:(ObjDentry))((void*) de + de->nlen);
-    while (strcmp(de->name, name)) {
+    $ty:(ObjDentry) de = ($ty:(ObjDentry)) copy_entries;  // point to the head of the copy
+    $ty:(ObjDentry) nde = ($ty:(ObjDentry))((void*) de + $exp:bilbyFsObjDentryHeaderSize + de->nlen); // point to the next dentry
+    $ty:(U32) rest = size - ($exp:bilbyFsObjDentryHeaderSize + de->nlen); // the size from the dentry after the deleted one to the end.
+    char* to_paste = uvec;  // a pointer to the original dentry vector where the tail will be copied back.
+    while (strncmp(de->name, name, de->nlen)) {
+        to_paste = to_paste + $exp:bilbyFsObjDentryHeaderSize + de->nlen;  // move by the size of this dentry
         de = nde;
-        nde = ($ty:(ObjDentry))((void*) de + de->nlen);
+        $ty:(U32) dentry_size = $exp:bilbyFsObjDentryHeaderSize + de->nlen;  // size of the next dentry
+        // there must be a next if the dentry with the name hasn't been found.
+        nde = ($ty:(ObjDentry))((void*) de + dentry_size);
+        rest -= dentry_size;
     }
 
-    // delete
-    $ty:(U32) offs = (void*) nde - (void*) hd;  // the offset from the beginning of dentarr to nde
-    $ty:(U32) rest = size - offs;  // the length from nde to the end of dentarr
-    memcpy ((void*) uvec + offs, nde, rest);
+    // copy the tail back
+    memcpy ((void*) to_paste, nde, rest);
 
-    kfree (copy_dentarr);
+    kfree (copy_entries);
 
     ret.hd = hd;
     ret.uvec = uvec;
-    ret.fvec = fvec;
+    ret.fvec = (void*) to_paste + rest;
     ret.res = $exp:(());
     
     return ret;
