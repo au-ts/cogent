@@ -906,6 +906,12 @@ ostore_read (ex, mount_st, ostore_st, oid) =
     ((ex, ostore_st), error[Obj] err) 
   | Success addr ->
     let wbuf_eb = ostore_st.wbuf_eb !ostore_st
+    and _ = WHEN_DEBUGGING(
+              cogent_debug "ostore_read: addr.ebnum=";
+              cogent_debug_u32 addr.ebnum;
+              cogent_debug "; wbuf_eb=";
+              cogent_debug_u32 wbuf_eb
+            )
     -- if we are trying to read an object that is in the current write-buffer
     and ((ex, ostore_st), r) = (if addr.ebnum == wbuf_eb then
       let ostore_st {wbuf} = ostore_st
@@ -942,6 +948,11 @@ ostore_read (ex, mount_st, ostore_st, oid) =
       else
         WHEN_DEBUGGING(
         cogent_debug "ostore_read: oid == oid' violated";
+        cogent_debug "; oid=";
+        cogent_debug_u64 oid;
+        cogent_debug "; oid'=";
+        cogent_debug_u64 oid';
+        -- XXX: don't know why the print_field functions don't work
         print_field_u64 ("oid" ,oid) ;
         print_field_u64 ("oid'" ,oid')) ;
         cogent_assert False ;

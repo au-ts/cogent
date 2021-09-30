@@ -554,7 +554,7 @@ serialise_ObjDentarr(buf, offs, dentarr) =
   cogent_debug_u32 dentarr.size ;
   cogent_debug "\n") ;
   let buf = serialise_vector (buf, offs, dentarr) 
-  in (buf, offs + dentarr.size)
+  in (buf, offs + size_ObjDentarr dentarr)
 
 
 {-# cinline size_ObjDentarr #-}
@@ -567,7 +567,12 @@ deserialise_ObjDentarr(ex, buf, offs, olen) =
   newObjDentarr ex  -- allocate full size
   | Error ex -> Error (eNoMem, ex)
   | Success (ex, dentarr) ->
-      let size = deserialise_le32 (buf, offs+8)  -- size of the entire dentarr
+      let size = deserialise_le32 (buf, offs+12)  -- size of the entire dentarr
+      -- XXX: can size be 0?
+      and _ = WHEN_DEBUGGING(
+                cogent_debug "deserialise_ObjDentarr: size= ";
+                cogent_debug_u32 size
+              )
       and dentarr' = deserialise_vector (dentarr, buf, offs, size)  -- only fill-up `size'-long with contents
       in Success (ex, dentarr', offs+size)
 
