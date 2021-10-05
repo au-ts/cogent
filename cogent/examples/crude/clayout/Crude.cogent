@@ -16,7 +16,7 @@ type Entry = {
 -- in the generation of the C code. But these setters/getters are
 -- later replaced (by the python file rep.py) by simple
 -- access to the full C struct CEntry
-layout record { id : 4B at 0B , value : 4B at 16B }
+  layout record { id : 4B at 0B , value : 4B at 16B }
 
 type EntryBlock
 
