@@ -10,6 +10,7 @@
 
 include "bilbyfs.cogent"
 include "ostore.cogent"
+include "vector.cogent"
 #include "../src/debug.cogent.h"
 
 set_read_only_mode : FsopState -> FsopState
@@ -145,7 +146,7 @@ wordarray_str_cmp : (CString!, CStr!) -> Bool
 -- The input ObjDentry will be copied into the vector.
 dentarr_append : FocusVectorFArg () (ObjDentry!) -> FocusVectorFRet Bool
 dentarr_append r {hd, uvec, fvec, obsv = dentry} = 
-  let #{uvec, fvec, suc} = vector_append #{uvec, fvec, obj = dentry}
+  let #{uvec, fvec, suc} = vector_append #{hd, uvec, fvec, obj = dentry} !hd
   in #{hd, uvec, fvec, res = suc}
 
 -- del_dentry_modifier: #{elem:ObjDentry, acc: SysState, obsv: CString!} -> RR SysState () ObjDentry

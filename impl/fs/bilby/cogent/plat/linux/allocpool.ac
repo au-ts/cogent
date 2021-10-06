@@ -13,7 +13,7 @@ $esc:(#include <lib/allocpool.h>)
 $ty:(R (SysState, AllocPool a) SysState) $id:allocpool_create($ty:(SysState) args)
 {
     $ty:(R (SysState, AllocPool a) SysState) ret;
-	$ty:(AllocPool a) apool = kzalloc(sizeof(*apool));
+    $ty:(AllocPool a) apool = kzalloc(sizeof(*apool));
     
     if (!apool) {
         ret.tag = TAG_ENUM_Error;

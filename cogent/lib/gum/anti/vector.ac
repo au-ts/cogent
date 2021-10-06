@@ -10,20 +10,20 @@ $id:focus_vector ($ty:(#{ vec : Vector
     
     $ty:(FocusVectorFArg a b) farg;
     farg.hd = vector_header (args.vec);
-    farg.uvec = (char*) args.vec + size_header ($exp:(()));
-    farg.fvec = (char*) args.vec + size_vector (farg.hd);
+    farg.uvec = (char*) args.vec + $exp:vector_header_size;
+    farg.fvec = (char*) args.vec + vector_size (farg.hd);
     farg.acc = args.acc;
     farg.obsv = args.obsv;
 
     $ty:(FocusVectorFRet r) fret;
 
     bilbyfs_debug ("focus_vector: header=%p, uvec=%p, fvec=%p, size=%u\n",
-                   farg.hd, farg.uvec, farg.fvec, size_vector (farg.hd));
+                   farg.hd, farg.uvec, farg.fvec, vector_size (farg.hd));
 
     fret = (($spec:(FocusVectorFArg a b -> FocusVectorFRet r)) args.f) (farg);
 
     bilbyfs_debug ("post:focus_vector: header=%p, uvec=%p, fvec=%p, size=%u\n",
-                   fret.hd, fret.uvec, fret.fvec, size_vector (fret.hd));
+                   fret.hd, fret.uvec, fret.fvec, vector_size (fret.hd));
 
     ret.p1 = fret.res;
     ret.p2 = args.vec;
@@ -39,20 +39,20 @@ $id:focus_vector_ro ($ty:(#{ vec : Vector
 {
     $ty:(FocusVectorRoFArg a b) farg;
     farg.hd = vector_header (args.vec);
-    farg.uvec = (char*) args.vec + size_header ($exp:(()));
-    farg.fvec = farg.uvec + size_vector (farg.hd);
+    farg.uvec = (char*) args.vec + $exp:vector_header_size;
+    farg.fvec = farg.uvec + vector_size (farg.hd);
     farg.acc = args.acc;
     farg.obsv = args.obsv;
 
     $ty:(FocusVectorRoFRet r) fret;
 
     bilbyfs_debug ("focus_vector_ro: header=%p, uvec=%p, fvec=%p, size=%u\n",
-                   farg.hd, farg.uvec, farg.fvec, size_vector (farg.hd));
+                   farg.hd, farg.uvec, farg.fvec, vector_size (farg.hd));
 
     fret = (($spec:(FocusVectorRoFArg a b -> FocusVectorRoFRet r)) args.f) (farg);
 
     bilbyfs_debug ("post:focus_vector_ro: header=%p, uvec=%p, fvec=%p, size=%u\n",
-                   fret.hd, fret.uvec, fret.fvec, size_vector (fret.hd));
+                   fret.hd, fret.uvec, fret.fvec, vector_size (fret.hd));
 
     return fret.res;
 }
@@ -66,7 +66,7 @@ vector_next ($ty:((VectorUsed, VectorFree!)) args)
     void* fvec = args.p2;
     $ty:(Entry) next;
 
-    next = uvec + size_entry (vector_read (uvec));
+    next = uvec + vector_entry_size (vector_read (uvec));
     if (next == fvec) {
         ret.tag = TAG_ENUM_This;
         ret.This = uvec;
@@ -85,7 +85,7 @@ vector_next_ro ($ty:((VectorUsed!, VectorFree!)) args)
     void* fvec = args.p2;
     $ty:(Entry) next;
 
-    next = uvec + size_entry (vector_read (uvec));
+    next = uvec + vector_entry_size (vector_read (uvec));
     if (next == fvec) {
         ret.tag = TAG_ENUM_NoMore;
         ret.NoMore = $exp:(());
@@ -102,16 +102,24 @@ $ty:(Entry!) vector_read ($ty:(VectorUsed!) args)
 }
 
 $ty:(#{suc : Bool, uvec : VectorUsed, fvec : VectorFree})
-vector_append ($ty:(#{uvec : VectorUsed, fvec : VectorFree, obj : Entry!}) args)
+vector_append ($ty:(#{hd : VectorHeader!, uvec : VectorUsed, fvec : VectorFree, obj : Entry!}) args)
 {
     $ty:(#{suc : Bool, uvec : VectorUsed, fvec : VectorFree}) ret;
 
     void* fvec = args.fvec;
-    $ty:(U32) size = size_entry (args.obj);
+    $ty:(U32) nb_entries = vector_nb_entries (args.hd);
+    $ty:(U32) size = vector_entry_size (args.obj);
 
-    // XXX: How do we know that the vector still has free slots to accommodate another
-    // entry? I can't see the code neither in the C nor in the Cogent implementations of
-    // BilbyFs. / zilinc
+    if (nb_entries >= $exp:vector_max_nb_entries) {
+        // no more space available.
+        bilbyfs_debug ("vector_append: no more space\n");
+        ret.suc = $exp:(False);
+        ret.uvec = args.uvec;
+        ret.fvec = args.fvec;
+        return ret;
+    }
+
+
     bilbyfs_debug ("vector_append: memcpy(%p, %p, %u)\n",
                    fvec, (void*) args.obj, size);
     memcpy (fvec, (void*) args.obj, size);

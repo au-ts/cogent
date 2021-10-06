@@ -30,7 +30,6 @@ vector_next
 vector_next_ro
 vector_read
 vector_header
-size_vector
-size_header
-size_entry
-size_ObjDentry
+vector_size
+vector_entry_size
+vector_nb_entries

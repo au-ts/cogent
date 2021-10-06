@@ -1,9 +1,9 @@
 -- type Vector
 
 type VectorHeader
-type VectorBody
-type VectorUsed
-type VectorFree
+-- type VectorBody
+type VectorUsed  -- start of the entries array (BItem)
+type VectorFree  -- where the free space starts (BTail)
 
 type FocusVectorFArg a b = #{hd : VectorHeader, uvec : VectorUsed, fvec : VectorFree, acc : a, obsv : b}
 type FocusVectorFRet r   = #{hd : VectorHeader, uvec : VectorUsed, fvec : VectorFree, res : r}
@@ -15,9 +15,13 @@ type FocusVectorRoFRet r   = #{hd : VectorHeader!, uvec : VectorUsed!, fvec : Ve
 new_vector : (SysState, U32) -> R (SysState, Vector) SysState
 free_vector : (SysState, Vector) -> SysState
 
-size_vector : VectorHeader! -> U32
-size_header : () -> U32
-size_entry : Entry! -> U32
+vector_size : VectorHeader! -> U32
+vector_nb_entries : VectorHeader! -> U32
+
+-- These following interface functions aren't abstract.
+-- vector_max_nb_entries : U32
+-- vector_header_size : U32
+-- vector_entry_size : Entry! -> U32
 
 vector_header : Vector! -> VectorHeader!
 
@@ -40,7 +44,9 @@ vector_next_ro : (VectorUsed!, VectorFree!) -> <NoMore | Next (VectorUsed!)>
 
 vector_read : VectorUsed! -> Entry!
 
-vector_append : #{uvec : VectorUsed, fvec : VectorFree, obj : Entry!}
+-- This function curretly doesn't not change the header to keep things in sync.
+-- It's left to be the responsibility of the user.
+vector_append : #{hd : VectorHeader!, uvec : VectorUsed, fvec : VectorFree, obj : Entry!}
              -> #{suc : Bool, uvec : VectorUsed, fvec : VectorFree}
 
 serialise_vector : (Buffer, BufOffs, Vector!) -> Buffer
