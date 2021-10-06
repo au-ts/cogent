@@ -859,7 +859,7 @@ readEntryFuncs tced tcState dsState ftypes lns
                 let nargs = SF.numTypeVars $
                       case find (isFnName fnName) tced of
                           Just f  -> f
-                          Nothing -> __impossible "Could not find function in top level declarations"
+                          Nothing -> __impossible $ "Could not find function " ++ fnName ++ " in top level declarations"
                 if nargs /= L.length targs then do
                   throwError ("Number of type arguments for function " ++
                               fnName ++ " (" ++ show nargs ++
