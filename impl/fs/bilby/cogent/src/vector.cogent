@@ -1,0 +1,11 @@
+type Vector = ObjDentarr
+type Entry = ObjDentry
+
+vector_header_size : U32
+vector_header_size = bilbyFsObjDentarrHeaderSize
+
+vector_max_nb_entries : U32
+vector_max_nb_entries = bilbyFsMaxNbDentarrEntries 
+
+vector_entry_size : Entry! -> U32
+vector_entry_size dentry = size_ObjDentry dentry
