@@ -858,7 +858,6 @@ ostore_write(ex, mount_st, ostore_st, arr, osw_flags) =
         | Error e  -> ((ex, ostore_st {next_sqnum}, arr), Error e)
         | Success () ->
           let (ex, ostore_st) = ostore_update(ex, mount_st, ostore_st, arr) !arr
-          and ostore_st {used=_} = ostore_st
           and ostore_st = ostore_st {used}
           and _ = WHEN_DEBUGGING(cogent_debug "ostore_update done\n")
           and (ex, ostore_st) = ostore_free_pools(ex, ostore_st)
@@ -921,7 +920,7 @@ ostore_read (ex, mount_st, ostore_st, oid) =
         WHEN_DEBUGGING(cogent_debug "ostore_read: deserialise_Obj_crc from buffer failed\n") ;
         let wbuf = wbuf {bound=mount_st.super.eb_size}
         in ((ex, ostore_st {wbuf}), error[Obj] e)
-      | Success (ex, obj, sz) ->
+      | Success (ex, obj, _) ->
         let wbuf = wbuf {bound=mount_st.super.eb_size}
         in ((ex, ostore_st {wbuf}), success[Obj, ErrCode] obj)
      else
@@ -937,7 +936,7 @@ ostore_read (ex, mount_st, ostore_st, oid) =
          | Error (e, ex) ->
            WHEN_DEBUGGING(cogent_debug "ostore_read: deserialise_Obj_crc from flash failed.\n") ;
            ((ex, ostore_st {rbuf}), error[Obj] e)
-         | Success (ex, obj, sz) -> ((ex, ostore_st {rbuf}), success[Obj, ErrCode] obj)
+         | Success (ex, obj, _) -> ((ex, ostore_st {rbuf}), success[Obj, ErrCode] obj)
     )
     in r
     | Success obj ->

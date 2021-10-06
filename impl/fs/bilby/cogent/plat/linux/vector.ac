@@ -1,7 +1,7 @@
 $ty:(R (SysState, Vector) SysState) new_vector ($ty:((SysState, U32)) args)
 {
     $ty:(R (SysState, Vector) SysState) ret;
-    $ty:(U32) size = $exp:bilbyFsObjDentarrHeaderSize + args.p2;
+    $ty:(U32) size = $exp:vector_header_size + args.p2;
 
     bilbyfs_debug ("new_vector: size=%u\n", size);
 
@@ -22,27 +22,23 @@ $ty:(SysState) free_vector ($ty:((SysState, Vector)) args)
     return args.p1;
 }
 
-$ty:(U32) size_vector ($ty:(VectorHeader!) args)
+$ty:(U32) vector_size ($ty:(VectorHeader!) args)
 {
     $ty:(ObjDentarr!) dentarr = ($ty:(ObjDentarr!))args;
     $ty:(U32) size = size_ObjDentarr (dentarr);
-    bilbyfs_debug ("size_vector: size=%u\n", size);
+    bilbyfs_debug ("vector_size: size=%u\n", size);
     return size;
 }
 
-$ty:(U32) size_header ($ty:(()) args)
+$ty:(U32) vector_nb_entries ($ty:(VectorHeader!) args)
 {
-    return $exp:bilbyFsObjDentarrHeaderSize;
+    $ty:(U32) nb = (($ty:(ObjDentarr!))args)->nb_dentry;
+    return nb;
 }
 
 $ty:(VectorHeader!) vector_header ($ty:(Vector!) args)
 {
     return ($ty:(VectorHeader!)) args;
-}
-
-$ty:(U32) size_entry ($ty:(ObjDentry!) args)
-{
-    return (size_ObjDentry (args));
 }
 
 $ty:(FocusVectorFRet ()) dentarr_del_dentry_vector ($ty:(FocusVectorFArg () CString!) args)
@@ -51,7 +47,7 @@ $ty:(FocusVectorFRet ()) dentarr_del_dentry_vector ($ty:(FocusVectorFArg () CStr
 
     char* name = args.obsv->values;
     $ty:(ObjDentarr) hd = args.hd;
-    $ty:(U32) size = size_ObjDentarr (hd) - $exp:bilbyFsObjDentarrHeaderSize;
+    $ty:(U32) size = vector_size (hd) - $exp:vector_header_size;
     bilbyfs_debug ("dentarr_del_dentry_vector: size=%u\n", size);
     void* uvec = args.uvec;
     void* fvec = args.fvec;
@@ -109,7 +105,7 @@ $ty:(Vector) deserialise_vector ($ty:((Vector, Buffer!, BufOffs, U32)) args)
 
 $ty:(Buffer) serialise_vector ($ty:((Buffer, BufOffs, Vector!)) args)
 {
-    memcpy ((void*) args.p1->data->values + args.p2, args.p3, size_vector (vector_header (args.p3)));
+    memcpy ((void*) args.p1->data->values + args.p2, args.p3, vector_size (vector_header (args.p3)));
     return args.p1;
 }
 

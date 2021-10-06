@@ -9,8 +9,8 @@
  */
 
 struct $id:(AllocPool a) {
-	int len;
-	$ty:a* pool;
+    int len;
+    $ty:a* pool;
     int i;
 };
 

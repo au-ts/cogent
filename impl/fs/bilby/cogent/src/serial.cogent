@@ -484,9 +484,6 @@ type ObjDentry = {
 -- NOTE: The CString type in Cogent, the length contains the terminating `\0'
 
 
--- For the Vector interface!
-type Entry = ObjDentry
-
 -- cstring_to_charstar : CString! -> CharStar!
 
 -- XXX: This is wrong, but for now, we pretend it's okay.
@@ -523,13 +520,11 @@ bilbyFsObjDentryHeaderSize = 8
 newObjDentry: (SysState, U32) -> R (SysState, ObjDentry take(..)) SysState
 freeObjDentry: (SysState, ObjDentry take (..)) -> SysState
 
-type Vector = ObjDentarr
-
 type ObjDentarr = {
   id : ObjId,
   nb_dentry : U32,
   size : U32,
-  entries : U8#[0]
+  entries : U8#[0]  -- max # of entries * max size of an entry 
 }
 
 -- always allocation to max capacity
