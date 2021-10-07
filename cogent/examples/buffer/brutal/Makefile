@@ -28,7 +28,7 @@ ABSDIR=./abstract
 
 OBJ=$(PPINFER:.c=.o)
 
-CFLAGS+=-g -I. -I../plat/console -I$(LIBGUM) -I$(LIBGUM)/gum/anti -std=gnu99
+CFLAGS+=-g -I. -I../plat/console -I$(LIBGUM) -I$(LIBGUM)gum/anti -std=gnu99
 
 .PHONY: default cogent clean gen-anti test
 .SECONDARY:
@@ -44,7 +44,7 @@ $(OBJ): $(PPINFER)
 
 gen-anti:
 	mkdir -p $(ABSDIR)
-	cogent $(SRC) -g -Od -ogenerated --fno-fncall-as-macro --ffunc-purity-attr \
+	cogent $(SRC) -g -Od -o$(OUTPUT) --fno-fncall-as-macro --ffunc-purity-attr \
 		--infer-c-types="$(AHFILES)" \
 		--Wno-warn --infer-c-funcs="$(ACFILES)" \
 		--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
@@ -53,6 +53,5 @@ gen-anti:
 
 clean:
 	rm -f $(COUTPUT) $(HOUTPUT) $(PP) $(PPINFER) $(OBJ)
-	@# rm -f *-gen.*
 	rm -f $(ABSDIR)/*.h
 	rm -f $(NAME)
