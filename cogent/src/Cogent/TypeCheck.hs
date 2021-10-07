@@ -245,6 +245,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     --exitOnErr $ mapM_ logTc =<< mapM (\(c,l) -> lift (use errCtx) >>= \c' -> return (c++c',l)) logs
     traceTc "tc" (text "substs for fun definition" <+> pretty f <+> text "is"
                   L.<$> pretty subst)
+    -- traceTc "tc" (text "goals are:" L.<$> vcat (fmap (text . show) gs))
     exitOnErr $ toErrors os gs
     let t'' = apply subst t'
 
