@@ -3,65 +3,137 @@ theory WordArrayValue
     ValueSemHelper
 begin
 
-section "Base Level Locale"
+section 
+"Cogent Value Typing with Arrays"
 
-locale level0_value begin
+text 
+"Short: 
+  For Arrays to be welltyped, they need to carry values of the specified types. As Arrays may carry 
+  Cogent values, the definition of typing for Arrays depends on Cogent's typing relation which in turn 
+  depend on the typing relation of abstract types. 
+  We define two locale interpretations to resolve this circularity: one for pure Cogent types which can 
+  be used for defining what it means for Arrays to be welltyped, then another for Cogent including Arrays.
 
-definition l0v_typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> 'av \<Rightarrow> name \<Rightarrow> Cogent.type list \<Rightarrow> bool"
-  where
-"l0v_typing \<Xi>' a v t = False"
+ Detailed:
+   In this section we define a typing relation for Arrays on hte value semantics level.
+   As Arrays carry Cogent values, they should only be welltyped if the Cogent values are also welltyped.
+   Therefore, the typing relation for Arrays relies on the value typing relation of Cogent expressions.
+   Recall that the value typing relation also relies on the typing of abstract types. 
+   Therefore, first we need to define a value_sem_pure locale that provides a value typing relation for pure Cogent 
+   values (with no additional abstract types). Then this is used to define Array typing which is used to 
+  define a typing relation for arrays, which in turn is used to define a second value_sem_with_arrays locale 
+  instanciating the typing relation of abstract types with that of arrays."
 
-end (* of context *)
-
-sublocale level0_value \<subseteq> value_sem l0v_typing
-  apply (unfold l0v_typing_def[abs_def])
-  apply (unfold_locales)
-  by simp
-
-section "Word Array Locale"
-
-type_synonym funtyp = "char list"
-datatype vatyp = VWA type "(funtyp, vatyp) vval list" | VTOther "unit"
+type_synonym funtyp = name
+datatype vatyp = VWA type "(name, vatyp) vval list" | VTOther "unit"
 type_synonym vabstyp = vatyp
 
-locale WordArrayValue =
-  l0: level0_value
-begin
+section 
+"Pure Cogent Value Semantics Locale"
 
-  definition "wa_abs_typing_v \<Xi>' a name \<tau>s \<equiv>
+
+abbreviation "l0v_typing \<equiv>
+       (\<lambda>f a v t. False) :: (name \<Rightarrow> poly_type) \<Rightarrow> vatyp \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> bool"
+
+interpretation l0 : 
+  value_sem  "l0v_typing :: (name \<Rightarrow> poly_type) \<Rightarrow> vatyp \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> bool"
+  by unfold_locales
+
+interpretation l0' : 
+  value_sem  constrains abs_typing :: "(name \<Rightarrow> poly_type) \<Rightarrow> vatyp \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> bool"
+  apply unfold_locales
+
+definition 
+  wa_abs_typing_v ::  
+    "(name \<Rightarrow> poly_type) \<Rightarrow> vatyp \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> bool"
+where
+  "wa_abs_typing_v \<Xi>' a name \<tau>s \<equiv>
     (case a of
       VWA t xs \<Rightarrow> name = ''WordArray'' \<and> \<tau>s = [t] \<and> 
       no_tvars t \<and> no_tfun t \<and> no_taken t \<and> no_tcon t \<and> no_theap t \<and>
       (\<forall>i < length xs. \<exists>x. xs ! i = x \<and>  l0.vval_typing \<Xi>' x t)
     | _ \<Rightarrow> name = ''Unknown Abstract Type'' \<and> \<tau>s = [])"
 
+
+interpretation value_sem_array :
+  value_sem  wa_abs_typing_v 
+  by (unfold_locales) (clarsimp split: vatyp.splits simp: no_heap_imp_bang wa_abs_typing_v_def)
+
+locale value_sem_init
+context value_sem_init
+begin
+abbreviation "l0v_typing \<equiv>
+       (\<lambda>f a v t. False) :: (funtyp \<Rightarrow> poly_type) \<Rightarrow> vabstyp \<Rightarrow> name \<Rightarrow> Cogent.type list \<Rightarrow> bool"
+
+context value_sem
+begin
+
+sublocale level0_value : value_sem l0v_typing
+   by (unfold_locales)
+  
+end
+
+
+
+context value_sem 
+begin
+definition "wa_abs_typing_v \<Xi>' a name \<tau>s \<equiv>
+    (case a of
+      VWA t xs \<Rightarrow> name = ''WordArray'' \<and> \<tau>s = [t] \<and> 
+      no_tvars t \<and> no_tfun t \<and> no_taken t \<and> no_tcon t \<and> no_theap t \<and>
+      (\<forall>i < length xs. \<exists>x. xs ! i = x \<and>  vval_typing \<Xi>' x t)
+    | _ \<Rightarrow> name = ''Unknown Abstract Type'' \<and> \<tau>s = [])"
+
+sublocale WordArrayValue: value_sem wa_abs_typing_v  
+   by (unfold_locales) (clarsimp split: vatyp.splits simp: no_heap_imp_bang wa_abs_typing_v_def)
+
+sublocale level0_value : value_sem wa_abs_typing_v
+  apply (unfold_locales)
+  
+
+end
+
+print_theorems
+
+
+section 
+"Cogent with Arrays Value Semantics Locale"
+
+definition "wa_abs_typing_v \<Xi>' a name \<tau>s \<equiv>
+    (case a of
+      VWA t xs \<Rightarrow> name = ''WordArray'' \<and> \<tau>s = [t] \<and> 
+      no_tvars t \<and> no_tfun t \<and> no_taken t \<and> no_tcon t \<and> no_theap t \<and>
+      (\<forall>i < length xs. \<exists>x. xs ! i = x \<and>  level0_value.vval_typing \<Xi>' x t)
+    | _ \<Rightarrow> name = ''Unknown Abstract Type'' \<and> \<tau>s = [])"
+
+
+
 lemma wa_abs_typing_v_elims:
   "wa_abs_typing_v \<Xi>' a ''WordArray'' \<tau>s \<Longrightarrow> \<exists>t xs. a = VWA t xs \<and> \<tau>s = [t]"
   "wa_abs_typing_v \<Xi>' (VWA t xs) n \<tau>s 
-    \<Longrightarrow> \<forall>i < length xs. \<exists>x. xs ! i = x \<and> l0.vval_typing \<Xi>' x t"
+    \<Longrightarrow> \<forall>i < length xs. \<exists>x. xs ! i = x \<and> level0_value.vval_typing \<Xi>' x t"
   "wa_abs_typing_v \<Xi>' (VWA t xs) n \<tau>s  \<Longrightarrow> n = ''WordArray''"
   "wa_abs_typing_v \<Xi>' (VWA t xs) n \<tau>s  \<Longrightarrow> no_tvars t \<and> no_tfun t \<and> no_taken t \<and> no_tcon t \<and> no_theap t"
   by (unfold wa_abs_typing_v_def[abs_def]; clarsimp split: vatyp.splits type.splits prim_type.splits)+
 
 lemma wa_abs_typing_v_update:
-  "\<lbrakk>wa_abs_typing_v \<Xi>' (VWA t xs) n \<tau>s; i < length xs; l0.vval_typing \<Xi>' v t\<rbrakk> 
+  "\<lbrakk>wa_abs_typing_v \<Xi>' (VWA t xs) n \<tau>s; i < length xs; level0_value.vval_typing \<Xi>' v t\<rbrakk> 
     \<Longrightarrow> wa_abs_typing_v \<Xi>' (VWA t (xs[i := v])) n \<tau>s"
   by (clarsimp simp: wa_abs_typing_v_def  nth_list_update)
 
-end (* of context *)
+interpretation WordArrayValue: value_sem wa_abs_typing_v  
+   by (unfold_locales) (clarsimp split: vatyp.splits simp: no_heap_imp_bang wa_abs_typing_v_def)
 
-sublocale WordArrayValue \<subseteq> value_sem wa_abs_typing_v
-  apply (unfold wa_abs_typing_v_def[abs_def])
-  apply (unfold_locales)
-  apply (clarsimp split: vatyp.splits simp: no_heap_imp_bang)
-  done
-
-lemma (in WordArrayValue) l0_imp_vval_typing:
-  shows "l0.vval_typing \<Xi>' v t \<Longrightarrow> vval_typing \<Xi>' v t"
-  and   "l0.vval_typing_record \<Xi>' vs ts \<Longrightarrow> vval_typing_record \<Xi>' vs ts"
-proof (induct rule: l0.vval_typing_vval_typing_record.inducts)
+context level0_value 
+begin 
+sublocale A "int B" end
+sublocale level0_value \<subseteq> lattice
+lemma  l0_imp_vval_typing:
+  shows "level0_value.vval_typing \<Xi>' v t \<Longrightarrow> WordArrayValue.vval_typing \<Xi>' v t"
+  and   "level0_value.vval_typing_record \<Xi>' vs ts \<Longrightarrow> WordArrayValue.vval_typing_record \<Xi>' vs ts"
+proof (induct rule: level0_value.vval_typing_vval_typing_record.inducts)
 qed (fastforce intro!: value_sem.vval_typing_vval_typing_record.intros[OF value_sem_axioms]
-                 simp: l0.l0v_typing_def)+
+                 simp: level0_value.l0v_typing_def)+
 
 lemma (in WordArrayValue) no_tcon_vval_typing_imp_l0:
   "\<lbrakk>no_tvars t; no_tcon t; vval_typing \<Xi>' v t\<rbrakk> \<Longrightarrow> l0.vval_typing \<Xi>' v t"
