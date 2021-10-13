@@ -32,6 +32,7 @@ lemma \<Xi>_simps:
   "\<Xi> ''wordarray_get_0'' = wordarray_get_0_type"
   apply (clarsimp simp: \<Xi>_def)+
   done
+thm assoc_lookup.simps
 
 abbreviation 
 "acctyp \<Xi>' name \<equiv> (\<lambda>(a,b,c). c) (\<Xi>' name)"
@@ -58,7 +59,7 @@ definition \<xi>0 :: "(funtyp, abstyp, ptrtyp) uabsfuns"
    else if f = ''wordarray_get_0'' then uwa_get x y
    else False)"
 end
-
+(*When we*)
 overloading \<xi>1 \<equiv> \<xi>_1
 begin
 definition \<xi>1 :: "(funtyp, abstyp, ptrtyp) uabsfuns"
@@ -69,6 +70,45 @@ definition \<xi>1 :: "(funtyp, abstyp, ptrtyp) uabsfuns"
    else if f = ''repeat_2'' then urepeat \<Xi> \<xi>_0 (acctyp \<Xi> f) (obsvtyp \<Xi> f) x y
    else \<xi>_0 f x y)"
 end
+
+term  repeat_type
+(*  
+   repeat_type ::                            
+     "Cogent.kind list \<times>       
+        a list of kinds of the type variables in the polymorphic type 
+         here accumulator acc and observer obs types are polymorphic respectively
+         the kinding set for both is empty as we assume nothing about sigil of these types at this stage.
+      Cogent.type \<times>            
+         the input type 
+          a number n, 
+          a function stop deciding whether to stop based on acc and obs,
+          a function step taking acc and obs and returning new accumlator
+      Cogent.type"
+         the output type 
+          here a type variable representing the type of the accumulator
+   ([{}, {}],
+
+   TRecord
+    [(''n'', 
+       TPrim (Num U64), Present),
+     (''stop'', 
+       TFun 
+        (TRecord 
+            [(''acc'', TVarBang 0, Present), 
+             (''obsv'', TVarBang 1, Present)] Unboxed) 
+        (TPrim Bool), Present),
+     (''step'', 
+       TFun 
+        (TRecord 
+            [(''acc'', TVar 0, Present), 
+             (''obsv'', TVarBang 1, Present)] Unboxed) 
+        (TVar 0), Present),
+     (''acc'', TVar 0, Present), 
+     (''obsv'', TVarBang 1, Present)] Unboxed, 
+   TVar 0)
+
+*)
+thm repeat_type_def repeat_0_type_def
 
 lemma \<xi>_1_simps:
   "\<xi>_1 ''repeat_0'' = urepeat \<Xi> \<xi>_0 (acctyp \<Xi> ''repeat_0'') (obsvtyp \<Xi> ''repeat_0'')"
