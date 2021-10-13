@@ -603,7 +603,8 @@ tcExp e mt = do
   flip tcAnti e $ \e ->
     do let ?loc = SF.posOfE e
        TC.errCtx %= (TC.AntiquotedExpr e :)
-       ((c,e'),flx,os) <- TC.runCG ctx (L.map fst vs) [] (TC.cg e =<< maybe TC.freshTVar return mt)
+       ((c,e'),flx,os) <- TC.runCG ctx (L.map fst vs) []
+                            (TC.cg e =<< maybe (TC.freshTVar (TC.TypeOfExpr (SF.stripLocE e) [] ?loc)) return mt)
        (cs, subst) <- TC.runSolver (TC.solve vs [] c) flx
        TC.exitOnErr $ TC.toErrors os cs
        -- TC.exitOnErr $ mapM_ TC.logTc logs

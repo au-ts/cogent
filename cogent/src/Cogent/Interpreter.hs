@@ -373,7 +373,7 @@ tcExpr r e = do
     do
       ((c,e'), flx, os) <- (Tc.runCG Ctx.empty [] [] (do
         let ?loc = S.posOfE e
-        t <- freshTVar
+        t <- freshTVar (Tc.TypeOfExpr (S.stripLocE e) [] (S.posOfE e))
         y <- Tc.cg e t
         pure y))
       (cs, subst) <- runSolver (solve [] [] c) flx

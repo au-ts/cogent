@@ -1,0 +1,61 @@
+include <gum/common/common.cogent>
+include <gum/common/iterator.cogent>
+
+
+type Stuff = {
+  a : U32,
+  b : U32,
+  c : U32
+}
+
+type Entry = {
+  id : U32,
+  value : U32
+} 
+-- the layout is just here to force the use of custom setters and getters
+-- in the generation of the C code. But these setters/getters are
+-- later replaced (by the python file rep.py) by simple
+-- access to the full C struct CEntry
+  layout record { id : 4B at 0B , value : 4B at 16B }
+
+type EntryBlock
+
+sizeof_entry : U64
+sizeof_entry = 20 -- bytes
+
+get_block : (SysState) -> (SysState, EntryBlock!)
+
+get_entry_at_offset : (EntryBlock!, U64) -> Entry!
+
+is_entry : (EntryBlock!, Entry!) -> Bool
+
+stuff_ptr : (Entry!) -> Stuff!
+
+
+
+gen_next_entry : #{ acc : U64, obsv : (EntryBlock!, U32) } ->
+  GeneratorResult Entry! Stuff! () U64
+gen_next_entry #{ acc = offset , obsv = (block, _) } =
+  let e = get_entry_at_offset(block, offset)
+  and new_offset = offset + sizeof_entry in
+  if is_entry (block, e) then (new_offset, Yield e)
+  else (offset, Stop ())
+
+cons_next_entry : #{ obj : Entry!, acc : U64, obsv : (EntryBlock!, U32) } ->
+  ConsumerResult Stuff! () U64
+cons_next_entry #{obj = e, acc = offset, obsv = (block, needle)} =
+  if needle == e.value then (offset, Return (stuff_ptr e))
+  else (offset, Next)
+
+findStuff : (SysState, U32) -> (SysState, Option Stuff!)
+findStuff (sys, needle) =
+  let (sys, block) = get_block(sys)
+  and (_, res) = iterate [Entry!, Stuff!, (), U64 , (EntryBlock!, U32)]
+                         #{ gen = gen_next_entry
+                          , cons = cons_next_entry
+                          , acc = 0
+                          , obsv = (block, needle) }
+  in res
+  | Return s -> (sys, Some s)
+  | Stop () -> (sys, None)
+
