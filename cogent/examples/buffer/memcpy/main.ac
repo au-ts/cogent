@@ -1,0 +1,115 @@
+/**
+ * Copyright 2021, Trustworthy Systems Group (UNSW)
+ *
+ * This software may be distributed and modified according to the terms of
+ * the GNU General Public License version 2. Note that NO WARRANTY is provided.
+ * See "LICENSE_GPLv2.txt" for details.
+ *
+ * @TAG(UNSW_GPL)
+*/
+$esc:(#include <stdio.h>)
+$esc:(#include <stddef.h>)
+$esc:(#include <stdint.h>)
+$esc:(#include <math.h>)
+
+typedef char Vector;
+typedef char CString;
+typedef void *SysState;
+typedef struct item BItem;
+typedef struct item BTail;
+
+#define MAXCAP 4096
+
+#include "generated.c"
+#include <gum/anti/iterator.ac>
+#include <gum/anti/common.ac>
+
+typedef struct item {
+  unsigned long len;
+} item_t;
+
+unsigned long size = 2048;
+char block[MAXCAP]; // Contains Objects jammed together; terminated by
+                    // len==0.
+
+$ty:((a, Vector))
+$id:focus_buffer($ty:((Vector, b!, #{ obj : (BItem, BTail), obsv : b!} -> (a, BItem, BTail))) arg) {
+   $ty:((a, Vector)) result;
+   $ty:((a, BItem, BTail)) ret;
+   $ty:(#{ obj : (BItem, BTail), obsv : b! }) vargs;
+   vargs.obj.p1 = (BItem*)arg.p1;
+   vargs.obj.p2 = (BTail*)(arg.p1 + size);
+   vargs.obsv = arg.p2;
+   ret = (($spec:(#{ obj : (BItem, BTail), obsv : b!} -> (a, BItem, BTail)))arg.p3) (vargs);
+   result.p1 = ret.p1;
+   result.p2 = arg.p1;
+   return result;
+}
+
+$ty:(<None BItem | Some BItem>) next($ty:((BItem, BTail!)) arg) {
+   $ty:(<None BItem | Some BItem>) ret;
+   BItem *next = (BItem *)((char *)arg.p1 + arg.p1->len);
+   if ((uintptr_t)next < (uintptr_t)arg.p2 && next->len != 0) {
+      ret.tag = TAG_ENUM_Some;
+      ret.Some = next;
+   } else {
+      ret.tag = TAG_ENUM_None;
+      ret.None = arg.p1;
+   }
+   return ret;
+}
+
+Hdr *read(BItem *item) {
+   return (Hdr *)item;
+}
+
+$ty:(U32) length($ty:(BItem!) item) {
+  return 0;
+}
+
+/* Primitive display functions */
+
+$ty:(()) display_bool($ty:(Bool) arg) {
+  if (arg.boolean)
+    printf("%s", "true");
+  else
+    printf("%s", "false");
+}
+
+$ty:(()) display_u8($ty:(U8) arg) {
+  printf("%hhu", arg);
+}
+
+$ty:(()) display_u16($ty:(U16) arg) {
+  printf("%hu", arg);
+}
+
+$ty:(()) display_u32($ty:(U32) arg) {
+  printf("%u", arg);
+}
+
+$ty:(()) display_u64($ty:(U64) arg) {
+  printf("%llu", arg);
+}
+
+$ty:(()) display_string($ty:(String) arg) {
+  printf("%s", arg);
+}
+
+$ty:(()) display_footer($ty:(U32) arg) {
+  int i, j;
+  printf("---==========");
+  j = 1;
+  if (arg != 0)
+     j = (int)(log10(arg)) + j;
+  for (i = 0; i < j; i++)
+    printf("=");
+  printf("=====---\n");
+}
+
+int main(void)
+{
+   sethdr((Hdr*)block);
+   comain(block);
+   return 0;
+}
