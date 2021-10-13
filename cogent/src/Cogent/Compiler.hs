@@ -135,7 +135,6 @@ set_flag_fdumpToStdout = writeIORef __cogent_fdump_to_stdout_ref True
 set_flag_fffiCFunctions = writeIORef __cogent_fffi_c_functions_ref True
 set_flag_fflattenNestings = writeIORef __cogent_fflatten_nestings_ref (__fixme False)  -- FIXME after fixing the impl'n
 set_flag_ffncallAsMacro = writeIORef __cogent_ffncall_as_macro_ref True
-set_flag_ffoldPolyTypes = writeIORef __cogent_ffold_poly_types_ref True
 set_flag_ffullSrcPath = writeIORef __cogent_ffull_src_path_ref True
 set_flag_ffuncPurityAttr = writeIORef __cogent_ffunc_purity_attr_ref True
 set_flag_fgenHeader = writeIORef __cogent_fgen_header_ref True
@@ -147,7 +146,6 @@ set_flag_fmlTypingTree = writeIORef __cogent_fml_typing_tree_ref True
 set_flag_fnoCheckUndefined = writeIORef __cogent_fcheck_undefined_ref False
 set_flag_fnoFlattenNestings = writeIORef __cogent_fflatten_nestings_ref False
 set_flag_fnoFncallAsMacro = writeIORef __cogent_ffncall_as_macro_ref False
-set_flag_fnoFoldPolyTypes = writeIORef __cogent_ffold_poly_types_ref False
 set_flag_fnoFuncPurityAttr = writeIORef __cogent_ffunc_purity_attr_ref False
 set_flag_fnoGenHeader = writeIORef __cogent_fgen_header_ref False
 set_flag_fnoIntermediateVars = writeIORef __cogent_fintermediate_vars_ref False
@@ -463,13 +461,6 @@ __cogent_ffncall_as_macro = unsafePerformIO $ readIORef __cogent_ffncall_as_macr
 __cogent_ffncall_as_macro_ref :: IORef Bool
 {-# NOINLINE __cogent_ffncall_as_macro_ref #-}
 __cogent_ffncall_as_macro_ref = unsafePerformIO $ newIORef False
-
-__cogent_ffold_poly_types :: Bool
-__cogent_ffold_poly_types = unsafePerformIO $ readIORef __cogent_ffold_poly_types_ref
-
-__cogent_ffold_poly_types_ref :: IORef Bool
-{-# NOINLINE __cogent_ffold_poly_types_ref #-}
-__cogent_ffold_poly_types_ref = unsafePerformIO $ newIORef False
 
 __cogent_ffull_src_path :: Bool
 __cogent_ffull_src_path = unsafePerformIO $ readIORef __cogent_ffull_src_path_ref
