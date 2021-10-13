@@ -32,8 +32,9 @@ $esc:(#include <wrapper.h>)
 #include <plat/linux/stat.ac>
 #include <plat/linux/iattr.ac>
 #include <plat/linux/arrayobj.ac>
-#include <plat/linux/objdentry.ac>
+#include <plat/linux/obj.ac>
 #include <plat/linux/vector.ac>
+#include <plat/linux/buffer.ac>
 #include <linux/version.h>
 
 typedef $ty:(#VfsInode) BilbyFsVfsInode;
@@ -653,11 +654,10 @@ static int wfsop_readpage(struct wrapper_data *wd, struct inode *inode, $ty:(OSP
     fargs.fs_st = wd->fs_st;
     fargs.vnode = ($ty:(VfsInode)) inode;
     fargs.block = index;
-    fargs.addr = wd->buf;
-    fargs.addr->data = wd->wa;
-    fargs.addr->bound = PAGE_CACHE_SIZE;
-    fargs.addr->data->values = addr;
-    fargs.addr->data->len = PAGE_CACHE_SIZE;
+    fargs.buf = wd->buf;
+    fargs.buf->bound = PAGE_CACHE_SIZE;
+    fargs.buf->length = PAGE_CACHE_SIZE;
+    memcpy (fargs.buf->data, addr, fargs.buf->length);
 
     fret = $exp:fsop_readpage(fargs);
     if (fret.p2.tag == TAG_ENUM_Error)
@@ -700,9 +700,9 @@ static int bilbyfs_readpage(struct file *filp, struct page *page)
 }
 
 /*
-type FsopWriteP = #{ex:SysState, fs_st: FsState, vnode: VfsInode, pos: OSPageOffset, len:U32, addr: Buffer}
-type FsopWriteR = #{ex:SysState, fs_st: FsState, vnode: VfsInode, addr: Buffer}
-type FsopWriteE = #{err:ErrCode, ex:SysState, fs_st: FsState, vnode: VfsInode, addr: Buffer}
+type FsopWriteP = #{ex:SysState, fs_st: FsState, vnode: VfsInode, pos: OSPageOffset, len:U32, buf: Buffer}
+type FsopWriteR = #{ex:SysState, fs_st: FsState, vnode: VfsInode, buf: Buffer}
+type FsopWriteE = #{err:ErrCode, ex:SysState, fs_st: FsState, vnode: VfsInode, buf: Buffer}
 fsop_write_begin: FsopWriteP -> RR FsopWriteRR () ErrCode
 */
 static inline int wfsop_write_begin(struct wrapper_data *wd, struct inode *inode, loff_t pos, unsigned len, void *addr)
@@ -715,11 +715,10 @@ static inline int wfsop_write_begin(struct wrapper_data *wd, struct inode *inode
         fargs.vnode = ($ty:(VfsInode))inode;
         fargs.pos = pos;
         fargs.len = len;
-        fargs.addr = wd->buf;
-        fargs.addr->data = wd->wa;
-        fargs.addr->bound = PAGE_CACHE_SIZE;
-        fargs.addr->data->values = addr;
-        fargs.addr->data->len = PAGE_CACHE_SIZE;
+        fargs.buf = wd->buf;
+        fargs.buf->bound = PAGE_CACHE_SIZE;
+        fargs.buf->length = PAGE_CACHE_SIZE;
+        memcpy (fargs.buf->data, addr, fargs.buf->length);
 
         fret = $exp:(fsop_write_begin)(fargs);
         if (fret.p2.tag == TAG_ENUM_Error)
@@ -817,11 +816,11 @@ $escstm:(#endif)
 }
 
 /*
-type FsopWriteP = #{ex:SysState, fs_st: FsState, vnode: VfsInode, pos: OSPageOffset, len:U32, addr: Buffer}
-type FsopWriteR = #{ex:SysState, fs_st: FsState, vnode: VfsInode, addr: Buffer}
-type FsopWriteE = #{err:ErrCode, ex:SysState, fs_st: FsState, vnode: VfsInode, addr: Buffer}
+type FsopWriteP = #{ex:SysState, fs_st: FsState, vnode: VfsInode, pos: OSPageOffset, len:U32, buf: Buffer}
+type FsopWriteR = #{ex:SysState, fs_st: FsState, vnode: VfsInode, buf: Buffer}
+type FsopWriteE = #{err:ErrCode, ex:SysState, fs_st: FsState, vnode: VfsInode, buf: Buffer}
 fsop_write_end: FsopWriteP -> RR FsopWriteRR () ErrCode
-fsop_write_end #{ex, fs_st, vnode, pos, len, addr} =
+fsop_write_end #{ex, fs_st, vnode, pos, len, buf} =
 */
 static int wfsop_write_end(struct wrapper_data *wd, struct inode *inode, loff_t pos, int len, void *kaddr)
 {
@@ -834,13 +833,12 @@ static int wfsop_write_end(struct wrapper_data *wd, struct inode *inode, loff_t 
         fargs.vnode = ($ty:(VfsInode))inode;
         fargs.pos = pos;
         fargs.len = len;
-        fargs.addr = wd->buf;
-        fargs.addr->data = wd->wa;
-        fargs.addr->bound = PAGE_CACHE_SIZE;
-        fargs.addr->data->values = kaddr;
-        fargs.addr->data->len = PAGE_CACHE_SIZE;
+        fargs.buf = wd->buf;
+        fargs.buf->bound = PAGE_CACHE_SIZE;
+        fargs.buf->length = PAGE_CACHE_SIZE;
+        memcpy (fargs.buf->data, kaddr, fargs.buf->length);
 
-        fret = $exp:(fsop_write_end)(fargs);
+        fret = $exp:fsop_write_end(fargs);
         if (fret.p2.tag == TAG_ENUM_Error)
             return -fret.p2.Error;
         return 0;

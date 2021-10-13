@@ -66,7 +66,7 @@ extract_dentarr_from_union(ex, ounion) =
   ounion
   | TObjPad _       -> Error ex
   | TObjInode v     -> Error (deep_freeObjInode(ex,v))
-  | TObjData v      -> Error (deep_freeObjData(ex,v))
+  | TObjData v      -> Error (freeObjData(ex,v))
   | TObjDel v       -> Error ex
   | TObjSuper v     -> Error (deep_freeObjSuper(ex,v))
   | TObjSummary v   -> Error (summary_clean(ex,v))
@@ -384,15 +384,22 @@ obj_inode_new(ex, vnode) =
       and obj = obj {len}
       in (ex, Success obj)
 
-obj_data_new: (SysState, ObjId, U32, WordArray U8) -> RR SysState Obj (ErrCode, WordArray U8)
+obj_data_new: (SysState, ObjId, U32, CString!) -> RR SysState Obj ErrCode
 obj_data_new(ex, id, len, odata) =
   newObj(ex)
-  | Error ex -> (ex, Error (eNoMem, odata))
+  | Error ex -> (ex, Error eNoMem)
   | Success (ex, obj) ->
-    let od = #{id, odata}
+    let Success (ex, od) <= newObjData (ex, len)
+        |> Error ex -> let ex = freeObj (ex, obj)
+                       in (ex, Error eNoMem)
+    and od = od {id, size=len}
+    and od = set_ObjData_odata (od, odata)
     and obj = obj_init_default(obj, bilbyFsObjTypeData)
-    and obj = obj {len = bilbyFsObjHeaderSize + 8 + len}
+    and obj = obj {len = bilbyFsObjHeaderSize + bilbyFsObjDataHeaderSize + len}
     in (ex, Success (obj {ounion = TObjData od}))
+
+obj_data_new_with_buf : (SysState, ObjId, U32, Buffer!) -> RR SysState Obj ErrCode
+-- TODO
 
 obj_del_new: (SysState, ObjId) -> RR SysState Obj ErrCode
 obj_del_new(ex, id) =
@@ -1775,7 +1782,7 @@ extract_inode_from_union:(SysState, ObjUnion) -> R (SysState, ObjInode) SysState
 extract_inode_from_union(ex, ounion) =
   ounion
   | TObjPad _       -> Error ex
-  | TObjData v      -> Error (deep_freeObjData(ex,v))
+  | TObjData v      -> Error (freeObjData(ex,v))
   | TObjDel v       -> Error ex
   | TObjSuper v     -> Error (deep_freeObjSuper(ex,v))
   | TObjSummary v   -> Error (summary_clean(ex,v))
@@ -1846,80 +1853,59 @@ read_block(ex, fs_st {ostore_st}, vnode, buf, block) =
       in ((ex, fs_st, buf), Error eInval) 
     | Success (ex, od) ->
       let ex = freeObj(ex, obj)
-      and size = wordarray_length[U8] (od.odata) !od
+      and size = size_ObjData od !od
       in if size > bilbyFsBlockSize then
         WHEN_DEBUGGING(cogent_debug "bad object data") ;
-        let ex = deep_freeObjData(ex, od)
+        let ex = freeObjData(ex, od)
         in ((ex, fs_st, buf), Error eInval)
       else
-        let buf {data} = buf
-        --and data = wordarray_copy_n[U8] #{dest=data, src=od.odata, size} !od
-        and data = wordarray_copy[U8] (data, od.odata, 0, 0, size) !od
-        and buf = buf {data}
+        let (buf, _) = serialise_ObjData (buf, 0, od) !od
         and buf = buf_memset (buf, size, bilbyFsBlockSize - size, 0)
-        and ex = deep_freeObjData(ex, od)
+        and ex = freeObjData(ex, od)
         in ((ex, fs_st, buf), Success ())
 
-type FsopReadPageP = #{ex:SysState, fs_st: FsState, vnode: VfsInode, block: OSPageOffset, addr: Buffer}
-type FsopReadPageRR = #{ex:SysState, fs_st: FsState, vnode: VfsInode, addr: Buffer}
+type FsopReadPageP = #{ex:SysState, fs_st: FsState, vnode: VfsInode, block: OSPageOffset, buf: Buffer}
+type FsopReadPageRR = #{ex:SysState, fs_st: FsState, vnode: VfsInode, buf: Buffer}
 
 fsop_readpage: FsopReadPageP -> RR FsopReadPageRR () ErrCode 
-fsop_readpage #{ex, fs_st, vnode, block, addr} =
+fsop_readpage #{ex, fs_st, vnode, block, buf} =
   -- block has to fit in u32
   let size = vfs_inode_get_size(vnode) !vnode
   and limit = size >> upcast bilbyFsBlockShift
-  in if block > limit then
-   let addr = buf_memset(addr, 0, bilbyFsBlockSize, 0)
-   in (#{ex, fs_st, vnode, addr}, Error eNoEnt)
-  else if block == limit && (size % upcast bilbyFsBlockSize == 0) then
-    (#{ex, fs_st, vnode, addr}, Success ())
-  else
-   let ((ex, fs_st, addr), r) = read_block(ex, fs_st, vnode, addr, block) !vnode
-   in (#{ex, fs_st, vnode, addr}, r) 
+  in if | block > limit ->
+            let buf = buf_memset(buf, 0, bilbyFsBlockSize, 0)
+            in (#{ex, fs_st, vnode, buf}, Error eNoEnt)
+        | block == limit && (size % upcast bilbyFsBlockSize == 0) ->
+            (#{ex, fs_st, vnode, buf}, Success ())
+        | else ->
+            let ((ex, fs_st, buf), r) = read_block(ex, fs_st, vnode, buf, block) !vnode
+            in (#{ex, fs_st, vnode, buf}, r) 
 
-type FsopWriteP = #{ex:SysState, fs_st: FsState, vnode: VfsInode, pos: OSPageOffset, len:U32, addr: Buffer}
-type FsopWriteRR = #{ex:SysState, fs_st: FsState, vnode: VfsInode, addr: Buffer}
+type FsopWriteP = #{ex:SysState, fs_st: FsState, vnode: VfsInode, pos: OSPageOffset, len:U32, buf: Buffer}
+type FsopWriteRR = #{ex:SysState, fs_st: FsState, vnode: VfsInode, buf: Buffer}
 fsop_write_begin: FsopWriteP -> RR FsopWriteRR () ErrCode
-fsop_write_begin #{ex, fs_st, vnode, pos, len, addr} =
+fsop_write_begin #{ex, fs_st, vnode, pos, len, buf} =
   let is_ro = fs_st.fsop_st.is_ro !fs_st
   in if is_ro then
-    (#{ex, fs_st, vnode, addr}, Error eRoFs) 
+    (#{ex, fs_st, vnode, buf}, Error eRoFs) 
   else
-    let (#{ex, fs_st, vnode, addr}, r) = fsop_readpage #{ex, fs_st, vnode, block=pos >> upcast bilbyFsBlockShift, addr}
+    let (#{ex, fs_st, vnode, buf}, r) = fsop_readpage #{ex, fs_st, vnode, block=pos >> upcast bilbyFsBlockShift, buf}
     in r
     | Error err ->
       if err == eNoEnt then
-        (#{ex, fs_st, vnode, addr}, Success ())
+        (#{ex, fs_st, vnode, buf}, Success ())
       else
         WHEN_DEBUGGING(bilbyfs_error "fsop_write_begin: Error\n") ;
-        (#{ex, fs_st, vnode, addr}, Error err)
+        (#{ex, fs_st, vnode, buf}, Error err)
     | Success () ->
-      (#{ex, fs_st, vnode, addr}, Success ())
+      (#{ex, fs_st, vnode, buf}, Success ())
 
-get_data_back: (SysState, WordArray U8, Option Obj) -> (SysState, WordArray U8)
-get_data_back (ex, dummy_data, opto) =
-  opto
-  | None ->
-    WHEN_DEBUGGING(
-      cogent_debug "get_data_back: no object";
-      cogent_assert False) ;
-    (ex, dummy_data)
-  | Some obj {ounion} ->
-    extract_data_from_union (ex, ounion)
-    | Error ex ->
-      let ex = freeObj(ex, obj)
-      in (ex, dummy_data)
-    | Success (ex, od {odata}) ->
-      let ex = freeObjData(ex, od)
-      and ex = freeObj(ex, obj)
-      and ex = wordarray_free[U8] (ex, dummy_data)
-      in (ex, odata)
 
 fsop_write_end: FsopWriteP -> RR FsopWriteRR () ErrCode
-fsop_write_end #{ex, fs_st, vnode, pos, len, addr} =
+fsop_write_end #{ex, fs_st, vnode, pos, len, buf} =
   let is_ro = fs_st.fsop_st.is_ro !fs_st
   in if is_ro then
-    (#{ex, fs_st, vnode, addr}, Error eRoFs)
+    (#{ex, fs_st, vnode, buf}, Error eRoFs)
   else
     let isize = vfs_inode_get_size vnode !vnode
     and v_size = if pos + upcast len > isize then pos + upcast len else isize
@@ -1930,50 +1916,34 @@ fsop_write_end #{ex, fs_st, vnode, pos, len, addr} =
     and (ex, r) = obj_inode_new(ex, vnode) !vnode
     in r
     | Error err ->
-       (#{ex, fs_st, vnode, addr}, Error err)
+       (#{ex, fs_st, vnode, buf}, Error err)
     | Success ovnode ->
-      -- We allocate a WordArray to convince the type
-      -- system that we have always return a valid page
-      -- even if extract_data_from_union returns an error
-      -- which we can prove never happens in practice
-      wordarray_create[U8] (ex, 1)
-      | Error ex ->
-        let ex = deep_freeObj(ex, ovnode)
-        in (#{ex, fs_st, vnode, addr}, Error eNoMem)
-      | Success (ex, dummy_data) ->
-        let block = u64_to_u32 (pos >> upcast bilbyFsBlockShift)
-        and oid = obj_id_data_mk (vfs_inode_get_ino vnode, block) !vnode
-        and start = pos .&. (os_PAGE_CACHE_SIZE - 1)
-        and end = u64_to_u32 start + len
-        -- get data out
-        and addr {data} = addr
-        and (ex, r) = obj_data_new(ex, oid, end, data)
-        in r
-        | Error (err, data) ->
-          let ex = deep_freeObj(ex, ovnode)
-          and ex = wordarray_free[U8](ex, dummy_data)
-          and addr = addr {data}
-          in (#{ex, fs_st, vnode, addr}, Error err)
-        | Success odata ->
-          arrayobj_create2(ex, ovnode, odata)
-          | Error (ex, odata) ->
-            let (ex, data) = get_data_back (ex, dummy_data, Some odata)
-            and addr = addr {data}
-            in (#{ex, fs_st, vnode, addr}, Error eNoMem)
-          | Success (ex, arr) ->
+       let block = u64_to_u32 (pos >> upcast bilbyFsBlockShift)
+       and oid = obj_id_data_mk (vfs_inode_get_ino vnode, block) !vnode
+       and start = pos .&. (os_PAGE_CACHE_SIZE - 1)
+       and end = u64_to_u32 start + len
+       -- get data out
+       and (ex, r) = obj_data_new_with_buf (ex, oid, end, buf) !buf
+       in r
+       | Error err ->
+         let ex = deep_freeObj(ex, ovnode)
+         in (#{ex, fs_st, vnode, buf}, Error err)
+       | Success odata ->
+         arrayobj_create2(ex, ovnode, odata)
+         | Error (ex, odata) ->
+            let ex = deep_freeObj(ex, odata)
+            in (#{ex, fs_st, vnode, buf}, Error eNoMem)
+         | Success (ex, arr) ->
             let fs_st {ostore_st} = fs_st
             and ((ex, ostore_st, arr), r) = ostore_write(ex, fs_st.mount_st, ostore_st, arr, ostoreWriteNone) !fs_st
-            and (arr, optobj) = array_remove[Obj] (arr, 1)
-            and (ex, data) = get_data_back (ex, dummy_data, optobj)
-            and addr = addr {data}
             and ex = array_free[Obj] #{arr=arr, f=deep_freeObj, ex}
             in r
             | Error err ->
               let vnode = vfs_inode_set_size(vnode, isize)
               and vnode = vfs_inode_set_mtime(vnode, mtime)
-              in (#{ex, fs_st = fs_st {ostore_st}, vnode, addr}, Error err)
+              in (#{ex, fs_st = fs_st {ostore_st}, vnode, buf}, Error err)
             | Success () ->
-              (#{ex, fs_st = fs_st {ostore_st}, vnode, addr}, Success ())
+              (#{ex, fs_st = fs_st {ostore_st}, vnode, buf}, Success ())
 
 type FsopVfsInodeP = #{ex: SysState, fs_st: FsState, vnode: VfsInode}
 type FsopVfsInodeE = #{err: ErrCode, ex: SysState, fs_st: FsState, vnode: VfsInode}
@@ -2212,8 +2182,8 @@ fsop_sync_fs #{ex, fs_st} =
     | Success () ->
       (#{ex, fs_st = fs_st {ostore_st,fsop_st} }, Success ())
 
-type FsopSymlinkP = #{ex:SysState, fs_st: FsState, vdir: VfsInode, name: (WordArray U8)!, symname: (WordArray U8), vnode: VfsInode}
-type FsopSymlinkRR = #{ex:SysState, fs_st:FsState, vdir:VfsInode, symname:WordArray U8, vnode:VfsInode}
+type FsopSymlinkP = #{ex:SysState, fs_st: FsState, vdir: VfsInode, name: CString!, symname: CString, vnode: VfsInode}
+type FsopSymlinkRR = #{ex:SysState, fs_st:FsState, vdir:VfsInode, symname:CString, vnode:VfsInode}
 fsop_symlink : FsopSymlinkP -> RR FsopSymlinkRR () ErrCode
 fsop_symlink #{ex, fs_st = fs_st {ostore_st}, vdir, name, symname, vnode} =
   let is_ro = fs_st.fsop_st.is_ro !fs_st
@@ -2234,71 +2204,59 @@ fsop_symlink #{ex, fs_st = fs_st {ostore_st}, vdir, name, symname, vnode} =
        (#{ex, fs_st = fs_st {ostore_st}, vdir, symname, vnode}, Error err)
      | Success (new_v_size, dentarr_obj) ->
        let fs_st = fs_st {ostore_st}
-       -- We allocate a WordArray to convince the type
-       -- system that we have always return a valid page
-       -- even if extract_data_from_union returns an error
-       -- which we can prove never happens in practice
-       in wordarray_create[U8] (ex, 1)
-       | Error ex ->
+       and oid = obj_id_data_mk (vfs_inode_get_ino vnode, 0) !vnode
+       and (ex, r) = obj_data_new(ex, oid, sz_sym, symname) !symname
+       in r
+       | Error err ->
          let ex = deep_freeObj(ex, dentarr_obj)
-         in (#{ex, fs_st, vdir, symname, vnode}, Error eNoMem)
-       | Success (ex, dummy_data) ->
-         let oid = obj_id_data_mk (vfs_inode_get_ino vnode, 0) !vnode
-         and (ex, r) = obj_data_new(ex, oid, sz_sym, symname)
+         in (#{ex, fs_st, vdir, symname, vnode}, Error err)
+       | Success odata ->
+         let (ex, r) = obj_inode_new(ex, vnode) !vnode
          in r
-         | Error (err, symname) ->
-           let ex = wordarray_free[U8](ex, dummy_data)
-           and ex = deep_freeObj(ex, dentarr_obj)
+         | Error err ->
+           let ex = deep_freeObj(ex, dentarr_obj)
+           and ex = deep_freeObj(ex, odata)
            in (#{ex, fs_st, vdir, symname, vnode}, Error err)
-         | Success odata ->
-           let (ex, r) = obj_inode_new(ex, vnode) !vnode
+         | Success inode ->
+           let v_size' = vfs_inode_get_size vdir !vdir
+           and v_mtime' = vfs_inode_get_mtime vdir !vdir
+           and v_ctime' = vfs_inode_get_ctime vdir !vdir
+           and (ex, time) = os_get_current_time(ex)
+           and vdir = vfs_inode_set_size(vdir, new_v_size)
+           and vdir = vfs_inode_set_mtime(vdir, time)
+           and vdir = vfs_inode_set_ctime(vdir, time)
+           and (ex, r) = obj_inode_new(ex, vdir) !vdir
            in r
            | Error err ->
              let ex = deep_freeObj(ex, dentarr_obj)
-             and (ex, symname) = get_data_back (ex, dummy_data, Some odata)
+             and ex = deep_freeObj(ex, odata)
+             and ex = deep_freeObj(ex, inode)
+             and vdir = vfs_inode_set_size(vdir, v_size')
+             and vdir = vfs_inode_set_mtime(vdir, v_mtime')
+             and vdir = vfs_inode_set_ctime(vdir, v_ctime')
              in (#{ex, fs_st, vdir, symname, vnode}, Error err)
-           | Success inode ->
-             let v_size' = vfs_inode_get_size vdir !vdir
-             and v_mtime' = vfs_inode_get_mtime vdir !vdir
-             and v_ctime' = vfs_inode_get_ctime vdir !vdir
-             and (ex, time) = os_get_current_time(ex)
-             and vdir = vfs_inode_set_size(vdir, new_v_size)
-             and vdir = vfs_inode_set_mtime(vdir, time)
-             and vdir = vfs_inode_set_ctime(vdir, time)
-             and (ex, r) = obj_inode_new(ex, vdir) !vdir
-             in r
-             | Error err ->
-               let ex = deep_freeObj(ex, dentarr_obj)
-               and ex = deep_freeObj(ex, inode)
-               and (ex, symname) = get_data_back (ex, dummy_data, Some odata)
-               and vdir = vfs_inode_set_size(vdir, v_size')
+           | Success dir ->
+             arrayobj_create4_ret2(ex, dentarr_obj, odata, inode, dir)
+             | Error (ex, odata) ->
+               let vdir = vfs_inode_set_size(vdir, v_size')
                and vdir = vfs_inode_set_mtime(vdir, v_mtime')
                and vdir = vfs_inode_set_ctime(vdir, v_ctime')
-               in (#{ex, fs_st, vdir, symname, vnode}, Error err)
-             | Success dir ->
-               arrayobj_create4_ret2(ex, dentarr_obj, odata, inode, dir)
-               | Error (ex, odata) ->
+               and ex = deep_freeObj(ex, odata)
+               in (#{ex, fs_st, vdir, symname, vnode}, Error eNoMem)
+             | Success (ex, arr) ->
+               let fs_st {ostore_st} = fs_st
+               and ((ex, ostore_st, arr), r) = ostore_write(ex, fs_st.mount_st, ostore_st, arr, ostoreWriteNone) !fs_st
+               and fs_st = fs_st {ostore_st}
+               in r
+               | Error err ->
                  let vdir = vfs_inode_set_size(vdir, v_size')
                  and vdir = vfs_inode_set_mtime(vdir, v_mtime')
                  and vdir = vfs_inode_set_ctime(vdir, v_ctime')
-                 and (ex, symname) = get_data_back (ex, dummy_data, Some odata)
-                 in (#{ex, fs_st, vdir, symname, vnode}, Error eNoMem)
-               | Success (ex, arr) ->
-                 let fs_st {ostore_st} = fs_st
-                 and ((ex, ostore_st, arr), r) = ostore_write(ex, fs_st.mount_st, ostore_st, arr, ostoreWriteNone) !fs_st
-                 and fs_st = fs_st {ostore_st}
-                 and (arr, opto) = array_remove[Obj] (arr, 1)
-                 and (ex, symname) = get_data_back (ex, dummy_data, opto)
-                 in r
-                 | Error err ->
-                   let vdir = vfs_inode_set_size(vdir, v_size')
-                   and vdir = vfs_inode_set_mtime(vdir, v_mtime')
-                   and vdir = vfs_inode_set_ctime(vdir, v_ctime')
-                   and ex = array_free[Obj] #{arr=arr, f=deep_freeObj, ex}
-                   in (#{ex, fs_st, vdir, symname, vnode}, Error err)
-                 | Success () ->
-                   let ex = array_free[Obj] #{arr=arr, f=deep_freeObj, ex}
-                   in (#{ex, fs_st, vdir, symname, vnode}, Success ())
+                 and ex = array_free[Obj] #{arr=arr, f=deep_freeObj, ex}
+                 in (#{ex, fs_st, vdir, symname, vnode}, Error err)
+               | Success () ->
+                 let ex = array_free[Obj] #{arr=arr, f=deep_freeObj, ex}
+                 in (#{ex, fs_st, vdir, symname, vnode}, Success ())
 
 type FsopLinkP = #{ex:SysState, fs_st: FsState, vdir: VfsInode, name: (WordArray U8)!, vnode: VfsInode}
 fsop_link : FsopLinkP -> RR FsopRR () ErrCode

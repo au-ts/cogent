@@ -99,13 +99,13 @@ $ty:(FocusVectorFRet ()) dentarr_del_dentry_vector ($ty:(FocusVectorFArg () CStr
 
 $ty:(Vector) deserialise_vector ($ty:((Vector, Buffer!, BufOffs, U32)) args)
 {
-    memcpy(args.p1, (void*)args.p2->data->values + args.p3, args.p4);
+    memcpy(args.p1, (void*)args.p2->data + args.p3, args.p4);
     return args.p1;
 }
 
 $ty:(Buffer) serialise_vector ($ty:((Buffer, BufOffs, Vector!)) args)
 {
-    memcpy ((void*) args.p1->data->values + args.p2, args.p3, vector_size (vector_header (args.p3)));
+    memcpy ((void*) args.p1->data + args.p2, args.p3, vector_size (vector_header (args.p3)));
     return args.p1;
 }
 

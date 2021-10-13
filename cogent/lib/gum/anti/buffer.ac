@@ -1,29 +1,29 @@
-/*
- * Copyright 2016, NICTA
- *
- * This software may be distributed and modified according to the terms of
- * the GNU General Public License version 2. Note that NO WARRANTY is provided.
- * See "LICENSE_GPLv2.txt" for details.
- *
- * @TAG(NICTA_GPL)
- */
+$ty:(Buffer) buf_memset ($ty:((Buffer, U32, U32, U8)) args)
+{
+    $ty:(U32) frm, len;
+    $ty:(Buffer) buf = args.p1;
+    frm = args.p2;
+    len = args.p3;
 
-// #include <bridge.h>
-// #include <generated.h>
+    frm = frm < buf->bound ? frm : buf->bound;
+    len = frm + len < buf->bound ? len : buf->bound - frm;
 
-$ty:(R (SysState, Buffer take (..)) SysState) newBuffer ($ty:(SysState) heap) {
-	$ty:(R (SysState, Buffer take (..)) SysState) ret;
-	ret.tag = TAG_ENUM_Error;
-	ret.Error = heap;
-
-	// TODO: implement
-
-	// printf ("!!! newBuffer called\n");
-
-	return ret;
+    memset (buf->data + frm, args.p4, len);
+    return buf;
 }
 
-$ty:(SysState) freeBuffer ($ty:((SysState, Buffer take (..))) args) {
-	// printf ("!!! freeBuffer called\n");
-	return args.p1;
+$ty:(U8) buf_get ($ty:((Buffer!, BufOffs)) args)
+{
+    if (args.p2 < args.p1->bound) {
+        return args.p1->data[args.p2]'
+    }
+    return 0;
+}
+
+$ty:(Buffer) buf_set ($ty:((Buffer, BufOffs, U8)) args)
+{
+    if (args.p2 < args.p1->bound) {
+        args.p1->data[args.p2] = args.p3;
+    }
+    return args.p1;
 }

@@ -18,6 +18,7 @@ include "index.cogent"
 include "fsm.cogent"
 include "wbuf.cogent"
 include "serial.cogent"
+-- include "buffer.cogent"
 #include "../src/debug.cogent.h"
 
 ostore_init: (SysState, MountState!, OstoreState take (..)) -> R (SysState, OstoreState take ubi_vol) (ErrCode, SysState, OstoreState take (..))
@@ -29,44 +30,44 @@ ostore_init (ex, mount_st, ostore_st) =
   and sync_offs:U32 = 0
   and leb_size = wubi_vol_usable_leb_size mount_st.vol
   -- rbuf
-  in buf_create(ex, leb_size)
+  in newBuffer (ex, leb_size)
   | Error ex ->
     Error (eNoMem, ex, ostore_st)
   | Success (ex, rbuf) ->
     -- wbuf
-    buf_create(ex, leb_size)
+    newBuffer (ex, leb_size)
     | Error ex ->
-      let ex = buf_free(ex, rbuf)
+      let ex = freeBuffer(ex, rbuf)
       in Error (eNoMem, ex, ostore_st)
     | Success (ex, wbuf) ->
       -- opad
       newObj ex
       | Error ex ->
-        let ex = buf_free(ex, rbuf)
-        and ex = buf_free(ex, wbuf)
+        let ex = freeBuffer(ex, rbuf)
+        and ex = freeBuffer(ex, wbuf)
         in Error (eNoMem, ex, ostore_st)
       | Success (ex, opad) ->
         -- idxpool
         allocpool_create[RbtIndexNode] ex
         | Error ex ->
-          let ex = buf_free(ex, rbuf)
-          and ex = buf_free(ex, wbuf)
+          let ex = freeBuffer(ex, rbuf)
+          and ex = freeBuffer(ex, wbuf)
           and ex = freeObj(ex, opad)
           in Error (eNoMem, ex, ostore_st)
         | Success (ex, idxpool) ->
           -- gimpool
           allocpool_create[RbtGimNode] ex
           | Error ex ->
-            let ex = buf_free(ex, rbuf)
-            and ex = buf_free(ex, wbuf)
+            let ex = freeBuffer(ex, rbuf)
+            and ex = freeBuffer(ex, wbuf)
             and ex = freeObj(ex, opad)
             and ex = allocpool_free[RbtIndexNode] (ex, idxpool)
             in Error (eNoMem, ex, ostore_st)
           | Success (ex, gimpool) ->
             newFsmState ex
             | Error ex ->
-              let ex = buf_free(ex, rbuf)
-              and ex = buf_free(ex, wbuf)
+              let ex = freeBuffer(ex, rbuf)
+              and ex = freeBuffer(ex, wbuf)
               and ex = freeObj(ex, opad)
               and ex = allocpool_free[RbtIndexNode] (ex, idxpool)
               and ex = allocpool_free[RbtGimNode] (ex, gimpool)
@@ -74,8 +75,8 @@ ostore_init (ex, mount_st, ostore_st) =
             | Success (ex, fsm_st) ->
               rbt_create[ObjId, ObjAddr] ex
               | Error ex ->
-                let ex = buf_free(ex, rbuf)
-                and ex = buf_free(ex, wbuf)
+                let ex = freeBuffer(ex, rbuf)
+                and ex = freeBuffer(ex, wbuf)
                 and ex = freeObj(ex, opad)
                 and ex = allocpool_free[RbtIndexNode] (ex, idxpool)
                 and ex = allocpool_free[RbtGimNode] (ex, gimpool)
@@ -85,8 +86,8 @@ ostore_init (ex, mount_st, ostore_st) =
                 let (ex, r) = fsm_init(ex, mount_st, fsm_st)
                 in r
                 | Error (err, fsm_st) ->
-                  let ex = buf_free(ex, rbuf)
-                  and ex = buf_free(ex, wbuf)
+                  let ex = freeBuffer(ex, rbuf)
+                  and ex = freeBuffer(ex, wbuf)
                   and ex = freeObj(ex, opad)
                   and ex = allocpool_free[RbtIndexNode] (ex, idxpool)
                   and ex = allocpool_free[RbtGimNode] (ex, gimpool)
@@ -103,8 +104,8 @@ ostore_init (ex, mount_st, ostore_st) =
                   and _ = WHEN_DEBUGGING(cogent_debug "\n")
                   in summary_init (ex, max_nb_sum_entry) -- minimum Obj size is ObjHeader + id
                   | Error ex ->
-                    let ex = buf_free(ex, rbuf)
-                    and ex = buf_free(ex, wbuf)
+                    let ex = freeBuffer(ex, rbuf)
+                    and ex = freeBuffer(ex, wbuf)
                     and ex = freeObj(ex, opad)
                     and ex = allocpool_free[RbtIndexNode] (ex, idxpool)
                     and ex = allocpool_free[RbtGimNode] (ex, gimpool)
@@ -188,8 +189,8 @@ ostore_read_sum(ex, mount_st, ostore_st {rbuf}, ebnum) =
 
 ostore_clean: (SysState, OstoreState) -> SysState
 ostore_clean(ex, ostore_st {rbuf,wbuf,opad,pools,fsm_st,index_st,ubi_vol,summary,sum_obj}) =
-  let ex = buf_free(ex, rbuf)
-  and ex = buf_free(ex, wbuf)
+  let ex = freeBuffer(ex, rbuf)
+  and ex = freeBuffer(ex, wbuf)
   and ex = deep_freeObj(ex, opad)
   and pools {idx=idxpool, gim=gimpool} = pools
   and ex = allocpool_free[RbtIndexNode] (ex, idxpool)
@@ -1315,15 +1316,7 @@ proc_objsdel(ex, mount_st, ostore_st, objsdel) =
   list_fold[DelNode, (SysState, OstoreState), MountState]
     #{list=objsdel, f=fold_delete_obj, acc=(ex, ostore_st), obsv=mount_st}
 
-is_0xff: #{elem:U8, acc:(), obsv:()} -> LoopResult () ()
-is_0xff #{elem=c, acc=_, obsv=_} =
-  if c == 0xff then Iterate () else Break ()
-
 eb_empty_pages_from: (Buffer!, U32) -> Bool
-eb_empty_pages_from(buf, offs) =
- wordarray_fold[U8, (), (), ()] #{arr=buf.data, frm=offs, to=buf.bound, f=is_0xff, acc=(), obsv=()}
- | Break () -> False
- | Iterate () -> True
 
 mount_recover: (SysState, MountState, OstoreState) -> RR (SysState, MountState, OstoreState) Bool ErrCode
 mount_recover(ex, mount_st, ostore_st) =
@@ -1431,7 +1424,7 @@ extract_super_from_union(ex, ounion) =
   ounion
   | TObjPad _       -> Error ex
   | TObjInode v     -> Error (deep_freeObjInode(ex,v))
-  | TObjData v      -> Error (deep_freeObjData(ex,v))
+  | TObjData v      -> Error (freeObjData(ex,v))
   | TObjDel _       -> Error ex
   | TObjDentarr v   -> Error (free_vector(ex,v))
   | TObjSummary sum -> Error (summary_clean(ex, sum))

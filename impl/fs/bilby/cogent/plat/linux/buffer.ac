@@ -1,0 +1,11 @@
+
+$ty:(Bool) eb_empty_pages_from ($ty:((Buffer!, U32)) args)
+{
+  $ty:(U32) i;
+  for (i = args.p2; i < args.p1->bound; i++) {
+    if (args.p1->data[i] != 0xff) {
+      return $exp:(False);
+    }
+  }
+  return $exp:(True);
+}

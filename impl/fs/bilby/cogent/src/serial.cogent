@@ -248,7 +248,7 @@ deserialise_ObjUnion(ex, buf, offs, (otype, olen)) =
     | Success (ex, obj, offs) ->
       Success (ex, TObjInode obj, offs)
   else if otype == bilbyFsObjTypeData then
-    deserialise_ObjData(ex, buf, offs, olen)
+    deserialise_ObjData(ex, buf, offs)
     | Error (e,ex) -> Error (e, ex)
     | Success (ex, obj, offs) ->
       Success (ex, TObjData obj, offs)
@@ -392,7 +392,7 @@ serialise_ObjUnion(buf, offs, ou, olen) =
   ou
   | TObjDentarr obj -> serialise_ObjDentarr(buf, offs, obj)
   | TObjInode obj -> serialise_ObjInode(buf, offs, obj)
-  | TObjData obj -> serialise_ObjData(buf, offs, obj, olen)
+  | TObjData obj -> serialise_ObjData(buf, offs, obj)
   | TObjDel obj -> serialise_ObjDel(buf, offs, obj)
   | TObjSuper obj -> serialise_ObjSuper(buf, offs, obj)
   | TObjSummary obj -> serialise_ObjSummary(buf, offs, obj)
@@ -406,9 +406,7 @@ deep_freeObjUnion(ex, ounion) =
  | TObjInode obj {id,size,atime_sec,ctime_sec,
                mtime_sec,nlink,uid,gid,mode, flags} ->
    freeObjInode(ex, obj)
- | TObjData obj {id,odata} ->
-   let ex = freeObjData(ex, obj)
-   in wordarray_free[U8](ex, odata)
+ | TObjData obj -> freeObjData(ex, obj)
  | TObjDel obj {id} -> ex
  | TObjSuper obj {nb_eb,eb_size,io_size,cur_eb,cur_offs,next_sqnum,
                last_inum, nb_reserved_gc, nb_reserved_del} ->
@@ -775,61 +773,31 @@ deserialise_ObjSummary(buf, offs, sum {entries}) =
   -- FIXME check that sum_offs == offs
   in (sum {nb_sum_entry, entries, sum_offs}, Success (offs'+4))
 
-type ObjData = #{
+type ObjData = {
   id : ObjId,
-  odata : WordArray U8
+  size : U32,  -- size of odata
+  padding : U32,  -- can be eliminated once we use Dargent
+  odata : U8#[0]
 }
 
-serialise_wordarray_U8: (Buffer, BufOffs, (WordArray U8)!) -> Buffer
-serialise_wordarray_U8(buf {data}, offs, wa) =
-  let len = wordarray_length[U8] wa
-  and end = if offs + len > buf.bound then buf.bound else offs + len !buf
+serialise_ObjData : (Buffer, BufOffs, ObjData!) -> (Buffer, BufOffs)
+serialise_ObjData (buf, offs, od) =
+  let buf = serialise_le64(buf, offs, od.id)
+  and buf = serialise_le32(buf, offs+8, od.size)
+  in serialise_ObjData_data(buf, offs+16, od)
 
-  -- return partially serialised array if the bound is too small.
-  and _ = WHEN_DEBUGGING(cogent_debug "serialise_wordarray_U8 ")
-  and _ = WHEN_DEBUGGING(cogent_debug_u32 offs)
-  and _ = WHEN_DEBUGGING(cogent_debug " to ")
-  and _ = WHEN_DEBUGGING(cogent_debug_u32 end)
-  and _ = WHEN_DEBUGGING(cogent_debug "\n")
+-- FIXME: this function is unsafe, and can write to the buffer beyond its bound.
+serialise_ObjData_data : (Buffer, BufOffs, ObjData!) -> (Buffer, BufOffs)
+deserialise_ObjData_data : ((ObjData take (..)) put padding, Buffer!, BufOffs, U32) -> ObjData
 
-  and data = wordarray_copy[U8] (data, wa, offs, 0, end)
-  in buf {data}
-
-serialise_ObjData:(Buffer, BufOffs, ObjData!, U32) -> (Buffer, BufOffs)
-serialise_ObjData(buf, offs, od, olen) =
-  let arrlen = olen - bilbyFsObjHeaderSize - 8
-  and buf = serialise_le64(buf, offs, od.id)
--- Shrinks the buffer bound to only write the required length
--- so that we can have an ObjData that has an array larger than
--- needed and reuse that array.
-  and bound = buf.bound !buf
-  and buf = buf {bound = offs + 8 + arrlen}
-  and buf = serialise_wordarray_U8(buf, offs+8, od.odata)
-  and offs = buf.bound !buf
-  and buf = buf {bound}
-  in (buf, offs)
+set_ObjData_odata : (ObjData take odata, CString!) -> ObjData
 
 bilbyFsObjDataHeaderSize : U32
-bilbyFsObjDataHeaderSize = 8
+bilbyFsObjDataHeaderSize = 16
 
--- NOTE This value is wrong if odata array is larger than it needs to be
-serialise_size_ObjData: ObjData! -> U32
-serialise_size_ObjData od = bilbyFsObjDataHeaderSize + wordarray_length[U8] od.odata
+size_ObjData: ObjData! -> U32
+size_ObjData od = bilbyFsObjDataHeaderSize + od.size
 
-deserialise_waU8_map: #{elem:U8,acc:BufOffs, obsv:(WordArray U8)!} -> (U8, BufOffs)
-deserialise_waU8_map #{elem=_, acc=offs, obsv=data} =
- (wordarray_get[U8](data, offs), offs + 1)
--- We can't make this function polymorphic because we
--- don't have a polymorphic function to deserialise
--- array elements
-deserialise_wordarray_U8: (SysState, Buffer!, BufOffs, U32) -> R (SysState, WordArray U8) (ErrCode, SysState)
-deserialise_wordarray_U8 (ex, buf, offs, len) =
-  wordarray_create[U8] (ex, len)
-  | Error ex -> Error (eNoMem, ex) 
-  | Success (ex, wa) ->
-    let wa = wordarray_copy[U8] (wa, buf.data, 0, offs, len)
-    in Success (ex, wa)
-  
 {-
 precondition:
     offs + 8 + len <= buf.bound
@@ -839,25 +807,21 @@ postcondition:
   else
     Success (h, PObjData buf.data offs, offs + 8 + len)
 -}
-deserialise_ObjData: (SysState, Buffer!, BufOffs, U32) -> R (SysState, ObjData, BufOffs) (ErrCode, SysState)
-deserialise_ObjData(ex, buf, offs, olen) =
-  let len = olen - bilbyFsObjHeaderSize - 8
-  in if len > olen then
-    Error (eInval, ex)
-  else
-    let id = deserialise_le64(buf, offs)
-    -- Ensure type of oid is ObjData
-    in if ((id .&. binNot bilbyFsOidMaskAll) .|. bilbyFsOidMaskData) /= id then
-        Error (eInval, ex)
-      else
-        deserialise_wordarray_U8(ex, buf, offs + 8, len)
-        | Error (e, ex) -> Error (e, ex)
-        | Success (ex, odata) ->
-          let od:ObjData = #{id,odata}
-          in Success (ex, od, offs + 8 + len)
+deserialise_ObjData: (SysState, Buffer!, BufOffs) -> R (SysState, ObjData, BufOffs) (ErrCode, SysState)
+deserialise_ObjData(ex, buf, offs) =
+  let id = deserialise_le64(buf, offs)
+  -- Ensure type of oid is ObjData
+  in if ((id .&. binNot bilbyFsOidMaskAll) .|. bilbyFsOidMaskData) /= id then
+      Error (eInval, ex)
+     else
+       let size = deserialise_le32 (buf, offs + 8)
+       and Success (ex, odata) <= newObjData (ex, size)
+          |> Error ex -> Error (eNoMem, ex)
+       and odata = deserialise_ObjData_data (odata, buf, offs + 16, size)
+       in Success (ex, odata {id, size}, offs + 16 + size)
 
-freeObjData: (SysState, ObjData take (..)) -> SysState
-freeObjData(ex, od) = ex
+newObjData : (SysState, U32) -> R (SysState, (ObjData take (..)) put padding) SysState
+freeObjData : (SysState, ObjData take (..)) -> SysState
 
 type ObjSuper = { nb_eb : U32
                 , eb_size : U32
@@ -1028,14 +992,13 @@ deserialise_ObjInode(ex, buf, offs) =
 -}
 {-# cinline deserialise_u8 #-}
 deserialise_u8: (Buffer!, BufOffs) -> U8
-deserialise_u8(buf, offs) =
-  wordarray_get[U8] (buf.data, offs)
+deserialise_u8(buf, offs) = buf_get (buf, offs)
 
 {-# cinline deserialise_le16 #-}
 deserialise_le16: (Buffer!, BufOffs) -> U16
 deserialise_le16(buf, offs) =
-  let b0 = wordarray_get[U8] (buf.data, offs)
-  and b1 = wordarray_get[U8] (buf.data, offs + 1)
+  let b0 = buf_get (buf, offs)
+  and b1 = buf_get (buf, offs + 1)
   in ((upcast b1 << 8) .|. upcast b0)
 
 {-
@@ -1053,24 +1016,24 @@ deserialise_le16(buf, offs) =
 {-# cinline deserialise_le32 #-}
 deserialise_le32: (Buffer!, BufOffs) -> U32
 deserialise_le32 (buf, offs) =
-  let b0 = wordarray_get[U8] (buf.data, offs)
-  and b1 = wordarray_get[U8] (buf.data, offs + 1)
-  and b2 = wordarray_get[U8] (buf.data, offs + 2)
-  and b3 = wordarray_get[U8] (buf.data, offs + 3)
+  let b0 = buf_get (buf, offs)
+  and b1 = buf_get (buf, offs + 1)
+  and b2 = buf_get (buf, offs + 2)
+  and b3 = buf_get (buf, offs + 3)
   in ((upcast b3 << 24) .|. (upcast b2 << 16) .|.
       (upcast b1 << 8 ) .|.  upcast b0)
 
 {-# cinline deserialise_le64 #-}
 deserialise_le64: (Buffer!, BufOffs) -> U64
 deserialise_le64(buf, offs) =
-  let b0 = wordarray_get[U8] (buf.data, offs)
-  and b1 = wordarray_get[U8] (buf.data, offs + 1)
-  and b2 = wordarray_get[U8] (buf.data, offs + 2)
-  and b3 = wordarray_get[U8] (buf.data, offs + 3)
-  and b4 = wordarray_get[U8] (buf.data, offs + 4)
-  and b5 = wordarray_get[U8] (buf.data, offs + 5)
-  and b6 = wordarray_get[U8] (buf.data, offs + 6)
-  and b7 = wordarray_get[U8] (buf.data, offs + 7)
+  let b0 = buf_get (buf, offs)
+  and b1 = buf_get (buf, offs + 1)
+  and b2 = buf_get (buf, offs + 2)
+  and b3 = buf_get (buf, offs + 3)
+  and b4 = buf_get (buf, offs + 4)
+  and b5 = buf_get (buf, offs + 5)
+  and b6 = buf_get (buf, offs + 6)
+  and b7 = buf_get (buf, offs + 7)
   in ((upcast b7 << 56) .|. (upcast b6 << 48) .|.
       (upcast b5 << 40) .|. (upcast b4 << 32) .|.
       (upcast b3 << 24) .|. (upcast b2 << 16) .|.
@@ -1112,19 +1075,9 @@ deserialise_Obj_crc(ex, buf, offs) =
       let ex = deep_freeObj(ex, obj)
       in Error (eInval, ex)
 
-{-# cinline setu8 #-}
-setu8:  #{elem: U8, acc: (), obsv: U8! } -> #{elem: U8, acc: () }
-setu8 #{elem=_, acc, obsv=elem} = #{elem,acc}
-
 {-# cinline serialise_u8 #-}
 serialise_u8: (Buffer, BufOffs, U8) -> Buffer
-serialise_u8(buf {bound,data}, offs, val) =
-  let #{arr=data, acc=_} = wordarray_modify[U8,(),U8] #{arr=data, idx=offs, f=setu8, acc=(), obsv=val}
-  in buf {bound,data}
-
-{-# cinline serialise_size_u8 #-}
-serialise_size_u8: U8 -> U32
-serialise_size_u8 _ = 1
+serialise_u8 x = buf_set x
 
 {-
  serialise_le32
@@ -1148,10 +1101,6 @@ serialise_le16: (Buffer, BufOffs, U16) -> Buffer
 serialise_le16(buf, offs, val) =
   let buf = serialise_u8(buf, offs, u16_to_u8(val))
   in serialise_u8(buf, offs+1, u16_to_u8(val >> 8))
-
-{-# cinline serialise_size_le32 #-}
-serialise_size_le32: U32 -> U32
-serialise_size_le32 _ = 4
 
 u64_to_u8: U64 -> U8
 
@@ -1185,7 +1134,7 @@ serialise_size_ObjUnion: ObjUnion! -> U32
 serialise_size_ObjUnion ounion =
  ounion
  | TObjInode obj -> serialise_size_ObjInode obj
- | TObjData obj -> serialise_size_ObjData obj
+ | TObjData obj -> size_ObjData obj
  | TObjDentarr obj -> size_ObjDentarr obj
  | TObjDel obj -> serialise_size_ObjDel obj
  | TObjSuper obj -> serialise_size_ObjSuper obj
@@ -1195,13 +1144,6 @@ serialise_size_ObjUnion ounion =
 {-# cinline deep_freeObjInode #-}
 deep_freeObjInode: (SysState, ObjInode) -> SysState
 deep_freeObjInode(ex, v) = freeObjInode(ex, v)
-
-{-# cinline deep_freeObjData #-}
-deep_freeObjData: (SysState, ObjData) -> SysState
-deep_freeObjData(ex, v) =
-  let v {odata} = v
-  and ex = wordarray_free[U8] (ex, odata) in
-  freeObjData(ex, v)
 
 {-# cinline deep_freeObjSuper #-}
 deep_freeObjSuper: (SysState, ObjSuper) -> SysState
