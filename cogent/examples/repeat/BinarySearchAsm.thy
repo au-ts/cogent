@@ -22,6 +22,8 @@ lemma proc_ctx_wellformed_\<Xi>:
             Generated_TypeProof.myexp_type_def Generated_TypeProof.expstep_type_def Generated_TypeProof.expstop_type_def
             Generated_TypeProof.searchStop_type_def Generated_TypeProof.searchNext_type_def Generated_TypeProof.binarySearch_type_def
             Generated_TypeProof.wordarray_get_0_type_def Generated_TypeProof.wordarray_length_0_type_def
+            Generated_TypeProof.wordarray_put_0_type_def Generated_TypeProof.wordarray_get_opt_0_type_def
+            Generated_TypeProof.wordarray_put32_type_def Generated_TypeProof.wordarray_get_opt32_type_def
   by (clarsimp simp: assoc_lookup.simps)
 
 lemma \<Xi>_simps:
@@ -30,6 +32,8 @@ lemma \<Xi>_simps:
   "\<Xi> ''repeat_2'' = repeat_2_type"
   "\<Xi> ''wordarray_length_0'' = wordarray_length_0_type"
   "\<Xi> ''wordarray_get_0'' = wordarray_get_0_type"
+  "\<Xi> ''wordarray_put_0'' = wordarray_put_0_type"
+  "\<Xi> ''wordarray_get_opt_0'' = wordarray_get_opt_0_type"
   apply (clarsimp simp: \<Xi>_def)+
   done
 thm assoc_lookup.simps
@@ -57,6 +61,8 @@ definition \<xi>0 :: "(funtyp, abstyp, ptrtyp) uabsfuns"
 "\<xi>0 f x y = 
   (if f = ''wordarray_length_0'' then uwa_length x y
    else if f = ''wordarray_get_0'' then uwa_get x y
+   else if f = ''wordarray_put_0'' then uwa_put x y
+   else if f = ''wordarray_get_opt_0'' then uwa_get_opt x y
    else False)"
 end
 (*When we*)
@@ -133,10 +139,14 @@ lemma \<xi>_0_matchesu_\<Xi>:
   apply clarsimp
   apply (intro conjI impI;
          simp add: \<Xi>_simps Generated_TypeProof.wordarray_get_0_type_def
-                   Generated_TypeProof.wordarray_length_0_type_def;
-         clarsimp)
-   apply (rule uwa_get_preservation; simp?)
-   apply (rule uwa_length_preservation; simp?)
+                   Generated_TypeProof.wordarray_length_0_type_def
+                   Generated_TypeProof.wordarray_put_0_type_def
+                   Generated_TypeProof.wordarray_get_opt_0_type_def
+                   Generated_TypeProof.abbreviated_type_defs;
+         clarsimp simp: uwa_get_opt_preservation
+                        uwa_put_preservation
+                        uwa_get_preservation
+                        uwa_length_preservation)
   done
  
 lemma \<xi>_1_matchesu_\<Xi>:
@@ -177,7 +187,7 @@ lemma \<xi>_0_determ:
   unfolding determ_def \<xi>0_def
   apply simp
   apply clarsimp
-  apply (rule conjI; clarsimp simp: uwa_get_determ uwa_length_determ)
+  apply (rule conjI; clarsimp simp: uwa_get_determ uwa_length_determ uwa_put_determ uwa_get_opt_determ)+
   done
 
 lemma \<xi>_1_determ:
@@ -204,6 +214,8 @@ definition \<xi>m0 :: "funtyp \<Rightarrow> (funtyp, vabstyp) vval \<Rightarrow>
 "\<xi>m0 f x y =
   (if f = ''wordarray_length_0'' then vwa_length x y
    else if f = ''wordarray_get_0'' then vwa_get x y
+   else if f = ''wordarray_put_0'' then vwa_put x y
+   else if f = ''wordarray_get_opt_0'' then vwa_get_opt x y
    else False)"
 
 definition \<xi>m1 :: "funtyp \<Rightarrow> (funtyp, vabstyp) vval \<Rightarrow> (funtyp, vabstyp) vval \<Rightarrow> bool "
@@ -224,8 +236,13 @@ lemma \<xi>m0_matches_\<Xi>:
   apply clarsimp
   apply (intro conjI impI;
          simp add: \<Xi>_simps Generated_TypeProof.wordarray_get_0_type_def
-                   Generated_TypeProof.wordarray_length_0_type_def;
+                   Generated_TypeProof.wordarray_length_0_type_def
+                   Generated_TypeProof.wordarray_put_0_type_def
+                   Generated_TypeProof.wordarray_get_opt_0_type_def
+                   Generated_TypeProof.abbreviated_type_defs;
          clarsimp)
+     apply (rule vwa_get_opt_preservation; simp?)
+    apply (rule vwa_put_preservation; simp?)
    apply (rule vwa_get_preservation; simp?)
   apply (rule vwa_length_preservation; simp?)
   done
@@ -263,7 +280,7 @@ lemma \<xi>m0_determ:
   "determ \<xi>m0"
   unfolding determ_def \<xi>m0_def
   apply clarsimp
-  apply (rule conjI; clarsimp simp: vwa_get_determ vwa_length_determ)
+  apply (rule conjI; clarsimp simp: vwa_get_determ vwa_length_determ vwa_get_opt_determ vwa_put_determ)+
   done
 
 lemma \<xi>m1_determ:
@@ -286,6 +303,8 @@ definition \<xi>p0 :: "funtyp \<Rightarrow> (funtyp, vabstyp) vval \<Rightarrow>
 "\<xi>p0 f x y =
   (if f = ''wordarray_length'' then vwa_length x y
    else if f = ''wordarray_get'' then vwa_get x y
+   else if f = ''wordarray_put'' then vwa_put x y
+   else if f = ''wordarray_get_opt'' then vwa_get_opt x y
    else False)"
 
 definition \<xi>p1 :: "funtyp \<Rightarrow> (funtyp, vabstyp) vval \<Rightarrow> (funtyp, vabstyp) vval \<Rightarrow> bool"
@@ -314,7 +333,7 @@ lemma \<xi>p0_determ:
   "determ \<xi>p0"
   unfolding determ_def \<xi>p0_def
   apply clarsimp
-  apply (rule conjI; clarsimp simp: vwa_get_determ vwa_length_determ)
+  apply (rule conjI; clarsimp simp: vwa_get_determ vwa_length_determ vwa_get_opt_determ vwa_put_determ)+
   done
 
 lemma \<xi>p1_determ:
@@ -433,8 +452,6 @@ lemma wordarray_length_0_corres:
       wordarray_length_0'_def cwa_length_def unknown_bind_ignore is_valid_simp heap_simp)
   done
 
-thm  corres_rel_leqD[OF \<xi>_0_le_\<xi>_1 wordarray_length_0_corres]
-
 lemma wordarray_get_0'_simp:
   "wordarray_get_0' = cwa_get is_valid_WordArray_u32_C heap_WordArray_u32_C is_valid_w32 heap_w32 t1_C.arr_C t1_C.idx_C t1_C.val_C WordArray_u32_C.len_C WordArray_u32_C.values_C"
   unfolding wordarray_get_0'_def[polish] cwa_get_def
@@ -459,8 +476,6 @@ lemma repeat_2'_simp:
   unfolding crepeat_def[polish] repeat_2'_def[simplified L2polish, polish]
   apply clarsimp
   done
-
-
 
 lemma binarySearch_repeat_corres:
   "\<And>v' i \<gamma> \<Gamma> \<sigma> s.
@@ -496,7 +511,52 @@ lemma binarySearch_repeat_corres:
   apply (clarsimp simp: val_rel_simp)
   done
 
+lemma wordarray_get_opt_0_simp:
+  "wordarray_get_opt_0' = cwa_get_opt is_valid heap is_valid_w32 heap_w32 t17_C.arr_C t17_C.idx_C len_C values_C tag_C_update TAG_ENUM_Nothing TAG_ENUM_Something Something_C_update"
+  unfolding wordarray_get_opt_0'_def cwa_get_opt_def
+  apply (clarsimp simp: unknown_bind_ignore heap_simp is_valid_simp)
+  done
 
+lemma wordarray_get_opt_0_corres:
+  "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
+        \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v';
+         \<Gamma>' ! i = Some (fst (snd wordarray_get_opt_0_type))\<rbrakk>
+        \<Longrightarrow> corres state_rel
+             (App (AFun ''wordarray_get_opt_0'' []) (Var i)) (do x <- wordarray_get_opt_0' v';
+                                                                 gets (\<lambda>s. x)
+                                                              od)
+             \<xi>_0 \<gamma> \<Xi> \<Gamma>' \<sigma> st"
+  apply (rule_tac tag_c = tag_C and n_c = Nothing_C and s_c = Something_C
+      in cwa_get_opt_corres_base[rotated -1, OF wordarray_get_opt_0_simp]; simp add:
+      \<Xi>_simps wordarray_get_opt_0_type_def fun_eq_iff Generated_TypeProof.abbreviated_type_defs uwa_get_opt_def \<xi>0_def;
+      clarsimp simp: val_rel_simp type_rel_simp state_rel_def heap_rel_def heap_rel_ptr_meta)
+  done
+
+lemma wordarray_put_0_simp:
+  "wordarray_put_0' = cwa_put is_valid heap is_valid_w32 heap_w32_update t1_C.arr_C t1_C.idx_C t1_C.val_C WordArray_u32_C.len_C WordArray_u32_C.values_C"
+  unfolding wordarray_put_0'_def cwa_put_def
+  apply (clarsimp simp: unknown_bind_ignore heap_simp is_valid_simp)
+  done
+
+lemma wordarray_put_0_corres:
+  "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
+        \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v';
+         \<Gamma>' ! i = Some (fst (snd wordarray_put_0_type))\<rbrakk>
+        \<Longrightarrow> corres state_rel
+             (App (AFun ''wordarray_put_0'' []) (Var i)) (do x <- wordarray_put_0' v';
+                                                                 gets (\<lambda>s. x)
+                                                              od)
+             \<xi>_0 \<gamma> \<Xi> \<Gamma>' \<sigma> st"
+  apply (rule_tac hw = heap_w32 and t= "TPrim (Num U32)"
+      in cwa_put_corres_base_all[rotated -1, OF wordarray_put_0_simp]; simp add:
+      \<Xi>_simps wordarray_put_0_type_def fun_eq_iff Generated_TypeProof.abbreviated_type_defs cwa_put_def \<xi>0_def;
+      clarsimp simp: val_rel_simp type_rel_simp state_rel_def heap_rel_def heap_rel_ptr_meta)
+  apply (rule conjI)
+   apply (erule all_heap_rel_updE; (simp add: heap_simp is_valid_simp type_rel_simp)?)
+    apply (drule  type_repr_uval_repr; simp)+
+  apply (erule all_heap_rel_updE; (simp add: heap_simp is_valid_simp type_rel_simp val_rel_simp)?)
+  apply (rule sym; assumption)
+  done
 end (* of context *)
 
 
@@ -511,9 +571,16 @@ lemma \<xi>_0_\<xi>m0_matchesuv_\<Xi>:
   "proc_env_u_v_matches \<xi>_0 val.\<xi>m0  \<Xi>"
   unfolding proc_env_u_v_matches_def \<xi>0_def val.\<xi>m0_def
   apply clarsimp
-  apply (rule conjI; clarsimp simp: \<Xi>_simps wordarray_get_0_type_def wordarray_length_0_type_def)
-   apply (rule uvwa_get_monocorrespond_upward_propagation; simp?)
-  apply (rule uvwa_length_monocorrespond_upward_propagation; simp?)
+  apply (rule conjI; clarsimp simp: \<Xi>_simps
+                                    wordarray_get_0_type_def
+                                    wordarray_length_0_type_def
+                                    wordarray_get_opt_0_type_def
+                                    wordarray_put_0_type_def
+                                    Generated_TypeProof.abbreviated_type_defs
+                                    uvwa_get_opt_monocorrespond_upward_propagation
+                                    uvwa_get_monocorrespond_upward_propagation
+                                    uvwa_put_monocorrespond_upward_propagation
+                                    uvwa_length_monocorrespond_upward_propagation)+
   done
 
 lemma \<xi>_1_\<xi>m1_matchesuv_\<Xi>:
@@ -543,7 +610,11 @@ lemma rename_mono_prog_\<xi>m0_\<xi>p0:
   apply clarsimp
   apply (intro conjI impI; clarsimp?)
     apply (subst (asm) rename_def,
-           clarsimp simp: assoc_lookup.simps vwa_get_monoexpr_correct vwa_length_monoexpr_correct
+           clarsimp simp: assoc_lookup.simps 
+                          vwa_get_monoexpr_correct
+                          vwa_length_monoexpr_correct
+                          vwa_get_opt_monoexpr_correct
+                          vwa_put_monoexpr_correct
                     split: if_splits)+
   done
 
@@ -573,43 +644,57 @@ lemma (in WordArrayValue) scorres_repeat:
   "scorres repeat (AFun ''repeat'' ts) \<gamma> \<xi>p1"
   by (rule repeat_scorres[OF \<xi>p0_le_\<xi>p1]; simp add: \<xi>p1_def fun_eq_iff)
 
+lemma (in WordArrayValue) scorres_wordarray_get32:
+  "scorres (wordarray_get :: (32 word WordArray, 32 word, 32 word ) WordArrayGetP \<Rightarrow> 32 word)(AFun ''wordarray_get'' ts) \<gamma> \<xi>p0"
+  by (rule wordarray_get_u32_scorres; simp add: \<xi>p0_def fun_eq_iff)
+
 section "All refine"
 
 sublocale WordArray \<subseteq> Generated_cogent_shallow _ upd.wa_abs_repr val.wa_abs_typing_v upd.wa_abs_typing_u wa_abs_upd_val
   by (unfold_locales)
 
 lemmas (in WordArray) corres_shallow_C_log2step_concrete = corres_shallow_C_log2step
-  [OF _ val.rename_mono_prog_\<xi>m0_\<xi>p0 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m0_matches_\<Xi>]
+  [OF correspondence_init_axioms val.rename_mono_prog_\<xi>m0_\<xi>p0 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m0_matches_\<Xi>]
 
 lemmas (in WordArray) corres_shallow_C_log2stop_concrete = corres_shallow_C_log2stop
-  [OF _ val.rename_mono_prog_\<xi>m0_\<xi>p0 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m0_matches_\<Xi>]
+  [OF correspondence_init_axioms val.rename_mono_prog_\<xi>m0_\<xi>p0 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m0_matches_\<Xi>]
 
 lemmas (in WordArray) corres_shallow_C_mylog2_concrete = corres_shallow_C_mylog2
-  [folded \<Xi>_def, OF _ _ val.rename_mono_prog_\<Xi>_\<xi>m1_\<xi>p1 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m1_matches_\<Xi>,
+  [folded \<Xi>_def, OF _ correspondence_init_axioms val.rename_mono_prog_\<Xi>_\<xi>m1_\<xi>p1 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m1_matches_\<Xi>,
    simplified, OF upd.mylog2_repeat_corres[simplified], simplified, simplified \<Xi>_simps, simplified]
 
 lemmas (in WordArray) corres_shallow_C_expstep_concrete = corres_shallow_C_expstep
-  [OF _ val.rename_mono_prog_\<xi>m0_\<xi>p0 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m0_matches_\<Xi>]
+  [OF correspondence_init_axioms val.rename_mono_prog_\<xi>m0_\<xi>p0 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m0_matches_\<Xi>]
 
 lemmas (in WordArray) corres_shallow_C_expstop_concrete = corres_shallow_C_expstop
-  [OF _ val.rename_mono_prog_\<xi>m0_\<xi>p0 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m0_matches_\<Xi>]
+  [OF correspondence_init_axioms val.rename_mono_prog_\<xi>m0_\<xi>p0 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m0_matches_\<Xi>]
 
 lemmas (in WordArray) corres_shallow_C_myexp_concrete = corres_shallow_C_myexp
-  [folded \<Xi>_def, OF _ _ val.rename_mono_prog_\<Xi>_\<xi>m1_\<xi>p1 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m1_matches_\<Xi>,
+  [folded \<Xi>_def, OF _ correspondence_init_axioms val.rename_mono_prog_\<Xi>_\<xi>m1_\<xi>p1 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m1_matches_\<Xi>,
    simplified, OF upd.myexp_repeat_corres[simplified], simplified, simplified \<Xi>_simps, simplified]
 
 lemmas (in WordArray) corres_shallow_C_searchStop_concrete = corres_shallow_C_searchStop
-  [OF _ val.rename_mono_prog_\<xi>m0_\<xi>p0 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m0_matches_\<Xi>]
+  [OF correspondence_init_axioms val.rename_mono_prog_\<xi>m0_\<xi>p0 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m0_matches_\<Xi>]
 
 lemmas (in WordArray) corres_shallow_C_searchNext_concrete = corres_shallow_C_searchNext
-  [folded \<Xi>_def, OF _ _ val.rename_mono_prog_\<xi>m0_\<xi>p0 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m0_matches_\<Xi>,
+  [folded \<Xi>_def, OF _ correspondence_init_axioms val.rename_mono_prog_\<xi>m0_\<xi>p0 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m0_matches_\<Xi>,
    simplified, OF upd.wordarray_get_0_corres[simplified], simplified, simplified \<Xi>_simps, simplified]
 
 lemmas (in WordArray) corres_shallow_C_binarySearch_concrete = corres_shallow_C_binarySearch
-  [folded \<Xi>_def, OF _ _ _ val.rename_mono_prog_\<Xi>_\<xi>m1_\<xi>p1 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m1_matches_\<Xi>,
+  [folded \<Xi>_def, OF _ _ correspondence_init_axioms val.rename_mono_prog_\<Xi>_\<xi>m1_\<xi>p1 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m1_matches_\<Xi>,
    simplified, 
    OF _ upd.binarySearch_repeat_corres[simplified], simplified,
    OF upd.corres_rel_leqD[OF \<xi>_0_le_\<xi>_1 upd.wordarray_length_0_corres[simplified]],
    simplified, simplified \<Xi>_simps, simplified]
+
+lemmas (in WordArray) corres_shallow_C_wordarray_put32 = corres_shallow_C_wordarray_put32
+  [folded \<Xi>_def, OF _ correspondence_init_axioms val.rename_mono_prog_\<xi>m0_\<xi>p0 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m0_matches_\<Xi>,
+   simplified,
+   OF upd.wordarray_put_0_corres[simplified], simplified, simplified \<Xi>_simps, simplified]
+
+lemmas (in WordArray) corres_shallow_C_wordarray_get_opt32 = corres_shallow_C_wordarray_get_opt32
+  [folded \<Xi>_def, OF _ correspondence_init_axioms val.rename_mono_prog_\<xi>m0_\<xi>p0 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m0_matches_\<Xi>,
+   simplified,
+   OF upd.wordarray_get_opt_0_corres[simplified], simplified, simplified \<Xi>_simps, simplified]
 
 end

@@ -22,6 +22,12 @@ begin
 end
 
 overloading
+  valRel_Opt \<equiv> valRel
+begin
+  definition valRel_Opt: "valRel_Opt \<xi> (v :: ('a, 'b) Opt) v' \<equiv> case_Opt (\<lambda>x. \<exists>x'. v' = VSum ''Nothing'' x' \<and> valRel \<xi> x x') (\<lambda>x. \<exists>x'. v' = VSum ''Something'' x' \<and> valRel \<xi> x x') v"
+end
+
+overloading
   valRel_RepParam \<equiv> valRel
 begin
   definition valRel_RepParam: "\<And>\<xi> x v. valRel_RepParam \<xi> (x :: ('t_n, 't_stop, 't_step, 't_acc, 't_obsv) RepParam) v \<equiv> \<exists>f_n f_stop f_step f_acc f_obsv. v = VRecord [f_n, f_stop, f_step, f_acc, f_obsv] \<and> valRel \<xi> (RepParam.n\<^sub>f x) f_n \<and> valRel \<xi> (RepParam.stop\<^sub>f x) f_stop \<and> valRel \<xi> (RepParam.step\<^sub>f x) f_step \<and> valRel \<xi> (RepParam.acc\<^sub>f x) f_acc \<and> valRel \<xi> (RepParam.obsv\<^sub>f x) f_obsv"
@@ -39,6 +45,22 @@ begin
   definition valRel_WordArrayGetP: "\<And>\<xi> x v. valRel_WordArrayGetP \<xi> (x :: ('t_arr, 't_idx, 't_val) WordArrayGetP) v \<equiv> \<exists>f_arr f_idx f_val. v = VRecord [f_arr, f_idx, f_val] \<and> valRel \<xi> (WordArrayGetP.arr\<^sub>f x) f_arr \<and> valRel \<xi> (WordArrayGetP.idx\<^sub>f x) f_idx \<and> valRel \<xi> (WordArrayGetP.val\<^sub>f x) f_val"
 end
 
+overloading
+  valRel_WordArrayGetOP \<equiv> valRel
+begin
+  definition valRel_WordArrayGetOP: "\<And>\<xi> x v. valRel_WordArrayGetOP \<xi> (x :: ('t_arr, 't_idx) WordArrayGetOP) v \<equiv> \<exists>f_arr f_idx. v = VRecord [f_arr, f_idx] \<and> valRel \<xi> (WordArrayGetOP.arr\<^sub>f x) f_arr \<and> valRel \<xi> (WordArrayGetOP.idx\<^sub>f x) f_idx"
+end
+
+lemma valRel_Opt_Nothing[simp] :
+  "valRel \<xi> (Opt.Nothing x) (VSum ''Nothing'' x') = valRel \<xi> x x'"
+  apply (simp add: valRel_Opt)
+  done
+
+lemma valRel_Opt_Something[simp] :
+  "valRel \<xi> (Opt.Something x) (VSum ''Something'' x') = valRel \<xi> x x'"
+  apply (simp add: valRel_Opt)
+  done
+
 lemmas valRel_records =
   valRel_T0
   T0.defs
@@ -50,6 +72,11 @@ lemmas valRel_records =
   StepParam.defs
   valRel_WordArrayGetP
   WordArrayGetP.defs
+  valRel_WordArrayGetOP
+  WordArrayGetOP.defs
+
+lemmas valRel_variants =
+  valRel_Opt
 
 context shallow begin
 
@@ -98,12 +125,21 @@ lemma scorres_struct_WordArrayGetP :
   apply (clarsimp simp: scorres_def valRel_WordArrayGetP WordArrayGetP.defs elim!: v_sem_elims)
   done
 
+lemma scorres_struct_WordArrayGetOP :
+  "\<And>\<gamma> \<xi> s_arr s_idx d_arr d_idx.
+  scorres s_arr d_arr \<gamma> \<xi> \<Longrightarrow>
+  scorres s_idx d_idx \<gamma> \<xi> \<Longrightarrow>
+  scorres (WordArrayGetOP.make s_arr s_idx) (Struct ts [d_arr, d_idx]) \<gamma> \<xi>"
+  apply (clarsimp simp: scorres_def valRel_WordArrayGetOP WordArrayGetOP.defs elim!: v_sem_elims)
+  done
+
 lemmas scorres_structs =
   scorres_struct_T0
   scorres_struct_T1
   scorres_struct_RepParam
   scorres_struct_StepParam
   scorres_struct_WordArrayGetP
+  scorres_struct_WordArrayGetOP
 
 lemma shallow_tac_rec_field_T0__p1 :
   "shallow_tac_rec_field \<xi> (T0.p1\<^sub>f :: ('t_p1, 't_p2, 't_p3) T0 \<Rightarrow> 't_p1) T0.p1\<^sub>f_update 0"
@@ -180,6 +216,16 @@ lemma shallow_tac_rec_field_WordArrayGetP__val :
   apply (fastforce intro!: shallow_tac_rec_fieldI simp: valRel_WordArrayGetP)
   done
 
+lemma shallow_tac_rec_field_WordArrayGetOP__arr :
+  "shallow_tac_rec_field \<xi> (WordArrayGetOP.arr\<^sub>f :: ('t_arr, 't_idx) WordArrayGetOP \<Rightarrow> 't_arr) WordArrayGetOP.arr\<^sub>f_update 0"
+  apply (fastforce intro!: shallow_tac_rec_fieldI simp: valRel_WordArrayGetOP)
+  done
+
+lemma shallow_tac_rec_field_WordArrayGetOP__idx :
+  "shallow_tac_rec_field \<xi> (WordArrayGetOP.idx\<^sub>f :: ('t_arr, 't_idx) WordArrayGetOP \<Rightarrow> 't_idx) WordArrayGetOP.idx\<^sub>f_update 1"
+  apply (fastforce intro!: shallow_tac_rec_fieldI simp: valRel_WordArrayGetOP)
+  done
+
 lemmas scorres_rec_fields =
   shallow_tac_rec_field_T0__p1
   shallow_tac_rec_field_T0__p2
@@ -196,6 +242,8 @@ lemmas scorres_rec_fields =
   shallow_tac_rec_field_WordArrayGetP__arr
   shallow_tac_rec_field_WordArrayGetP__idx
   shallow_tac_rec_field_WordArrayGetP__val
+  shallow_tac_rec_field_WordArrayGetOP__arr
+  shallow_tac_rec_field_WordArrayGetOP__idx
 
 local_setup \<open>
 gen_scorres_lemmas "Generated_ShallowShared" "Generated_Shallow_Normal" "Generated_Deep_Normal" Cogent_abstract_functions Cogent_functions

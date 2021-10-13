@@ -12,7 +12,7 @@ begin
 definition repeat' :: "(64 word, ('a, 'b) StepParam \<Rightarrow> bool, ('a, 'b) StepParam \<Rightarrow> 'a, 'a, 'b) RepParam \<Rightarrow> 'a"
   where
 "repeat x =
-  repeatatl (unat (RepParam.n\<^sub>f x))
+  repeatatm (unat (RepParam.n\<^sub>f x))
             (\<lambda>(a :: 'a) (b :: 'b). (RepParam.stop\<^sub>f x) \<lparr>StepParam.acc\<^sub>f = a, obsv\<^sub>f = b\<rparr>)
             (\<lambda>(a :: 'a) (b :: 'b). (RepParam.step\<^sub>f x) \<lparr>StepParam.acc\<^sub>f = a, obsv\<^sub>f = b\<rparr>)
             (RepParam.acc\<^sub>f x)
@@ -29,18 +29,18 @@ lemma vrepeat_bod_scorres:
       (VRecord [VPrim (LU64 n), f, g, acc, obsv]); is_vvalfun f; is_vvalfun g;
     vrepeat_bod \<xi>' (unat n) (vvalfun_to_expr f) (vvalfun_to_expr g) acc obsv v'\<rbrakk>
    \<Longrightarrow> valRel \<xi>''
-              (repeatatl (unat (n\<^sub>f x)) (\<lambda>a b. stop\<^sub>f x \<lparr>StepParam.acc\<^sub>f = a, obsv\<^sub>f = b\<rparr>)
+              (repeatatm (unat (n\<^sub>f x)) (\<lambda>a b. stop\<^sub>f x \<lparr>StepParam.acc\<^sub>f = a, obsv\<^sub>f = b\<rparr>)
                 (\<lambda>a b. step\<^sub>f x \<lparr>StepParam.acc\<^sub>f = a, obsv\<^sub>f = b\<rparr>) (RepParam.acc\<^sub>f x) (RepParam.obsv\<^sub>f x))
               v'"
   apply (induct n arbitrary: acc x)
    apply (clarsimp simp: valRel_RepParam)
-   apply (subst repeatatl.simps)
+   apply (subst repeatatm.simps)
    apply simp
   apply (drule unatSuc; clarsimp)
   apply (rename_tac n acc x b)
   apply (case_tac b; clarsimp)
    apply (clarsimp simp: valRel_RepParam)
-   apply (subst repeatatl.simps; clarsimp)
+   apply (subst repeatatm.simps; clarsimp)
    apply (erule notE)
    apply (erule disjE; clarsimp)
     apply (elim v_sem_appE v_sem_funE v_sem_varE; clarsimp)
@@ -88,13 +88,13 @@ lemma vrepeat_bod_scorres:
    apply (erule_tac x = "VPrim (LBool False)" in allE)
    apply (erule impE; simp?)
    apply (rule rel_leqD[rotated 1]; assumption)
-   apply (subst repeatatl.simps; clarsimp)
+   apply (subst repeatatm.simps; clarsimp)
   apply (erule_tac x = "\<lparr>StepParam.acc\<^sub>f = RepParam.acc\<^sub>f x, obsv\<^sub>f = RepParam.obsv\<^sub>f x\<rparr>" in allE)
   apply (erule_tac x = "VRecord [acc, obsv]" in allE)
   apply (erule impE, simp add: valRel_StepParam)
   apply (erule_tac x = "VPrim (LBool False)" in allE)
   apply (erule impE, rule v_sem_v_sem_all_rel_leqD(1); simp)
-  apply (subst repeatatl.simps; clarsimp)
+  apply (subst repeatatm.simps; clarsimp)
   done
 
 lemma repeat_scorres: 

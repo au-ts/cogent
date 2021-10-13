@@ -26,3 +26,10 @@ type WordArrayPutP a = #{arr: WordArray a, idx: U32, val: a}
 {-# cinline wordarray_put #-}
 {-# fnmacro wordarray_put2 #-}
 wordarray_put: all(a :< DSE). WordArrayPutP a -> WordArray a
+
+type Opt a = < Nothing | Something a >
+type WordArrayGetOP a = #{arr: (WordArray a)!, idx: U32}
+
+{-# cinline wordarray_get_opt #-}
+{-# fnmacro wordarray_get_opt #-}
+wordarray_get_opt: all(a :< DSE). WordArrayGetOP a -> Opt a

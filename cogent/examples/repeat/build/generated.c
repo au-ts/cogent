@@ -2,6 +2,13 @@
 
 #include "generated.h"
 
+static inline WordArray_u32 *wordarray_put32(t1 a1)
+{
+    t1 r2 = a1;
+    WordArray_u32 *r3 = wordarray_put_0(r2);
+    
+    return r3;
+}
 static inline bool_t expstop(t13 a1)
 {
     t13 r2 = a1;
@@ -139,7 +146,7 @@ static inline u32 binarySearch(t8 a1)
     
     return r18;
 }
-static inline u32 myexp(t17 a1)
+static inline u32 myexp(t19 a1)
 {
     u32 r2 = a1.p1;
     u32 r3 = a1.p2;
@@ -167,6 +174,13 @@ static inline u64 mylog2(u64 a1)
     u64 r12 = r11;
     
     return r12;
+}
+static inline t18 wordarray_get_opt32(t17 a1)
+{
+    t17 r2 = a1;
+    t18 r3 = wordarray_get_opt_0(r2);
+    
+    return r3;
 }
 
 

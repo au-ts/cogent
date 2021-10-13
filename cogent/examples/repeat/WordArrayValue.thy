@@ -245,4 +245,38 @@ lemma vwa_put_determ:
   apply (clarsimp split: if_splits)
   done
 
+subsection "wordarray_get_opt"
+
+definition vwa_get_opt :: "(funtyp, vabstyp) vval \<Rightarrow> (funtyp, vabstyp) vval \<Rightarrow> bool"
+  where
+"vwa_get_opt x y = 
+  (\<exists>t xs i. x = VRecord [VAbstract (VWA t xs), VPrim (LU32 i)] \<and> no_vfuns y \<and>
+    (if unat i < length xs then y = VSum ''Something'' (xs ! unat i) else y = VSum ''Nothing'' VUnit))"
+
+lemma (in WordArrayValue) vwa_get_opt_preservation:
+  "\<lbrakk>vval_typing \<Xi>' v (TRecord 
+                      [(''arr'', TCon ''WordArray'' [t] (Boxed ReadOnly ptrl), Present),
+                       (''idx'', TPrim (Num U32), Present)] Unboxed);
+    vwa_get_opt v v'\<rbrakk>
+    \<Longrightarrow> vval_typing \<Xi>' v' (TSum [(''Nothing'', TUnit, Unchecked), (''Something'', t, Unchecked)])"
+  apply (clarsimp simp: vwa_get_opt_def)
+  apply (elim v_t_recordE v_t_r_consE v_t_primE v_t_abstractE; clarsimp split: if_splits)
+   apply (erule notE)
+   apply (frule wa_abs_typing_v_elims(1))
+   apply (drule wa_abs_typing_v_elims(2))
+   apply (elim allE impE, assumption)
+   apply clarsimp
+   apply (drule l0_imp_vval_typing)
+   apply (erule v_t_sum; simp?)
+  apply (erule notE, fastforce intro!: v_t_sum v_t_unit)
+  done
+
+lemma vwa_get_opt_determ:
+  "\<lbrakk>vwa_get_opt x y; vwa_get_opt x z\<rbrakk>
+    \<Longrightarrow> y = z"
+  unfolding vwa_get_opt_def
+  apply (clarsimp simp only: prod.inject)
+  apply (clarsimp split: if_splits)
+  done
+
 end

@@ -62,6 +62,39 @@ lemma shallow_tuples_rule__StepParam__obsv\<^sub>f__update [ShallowTuplesRules_G
   by (simp add: shallow_tuples_rel_StepParam_def)
 
 
+overloading shallow_tuples_rel_WordArrayGetOP \<equiv> shallow_tuples_rel begin
+  definition "shallow_tuples_rel_WordArrayGetOP (x :: ('x1, 'x2) Generated_ShallowShared.WordArrayGetOP) (xt :: ('xt1, 'xt2) Generated_ShallowShared_Tuples.WordArrayGetOP) \<equiv>
+    shallow_tuples_rel (Generated_ShallowShared.WordArrayGetOP.arr\<^sub>f x) (Generated_ShallowShared_Tuples.WordArrayGetOP.arr\<^sub>f xt) \<and>
+    shallow_tuples_rel (Generated_ShallowShared.WordArrayGetOP.idx\<^sub>f x) (Generated_ShallowShared_Tuples.WordArrayGetOP.idx\<^sub>f xt)"
+end
+lemma shallow_tuples_rule_make__WordArrayGetOP [ShallowTuplesRules_Generated]:
+  "\<lbrakk>
+     shallow_tuples_rel x1 xt1;
+     shallow_tuples_rel x2 xt2
+  \<rbrakk> \<Longrightarrow> shallow_tuples_rel (Generated_ShallowShared.WordArrayGetOP.make x1 x2) \<lparr>Generated_ShallowShared_Tuples.WordArrayGetOP.arr\<^sub>f = xt1, idx\<^sub>f = xt2\<rparr>"
+  by (simp add: shallow_tuples_rel_WordArrayGetOP_def Generated_ShallowShared.WordArrayGetOP.defs Generated_ShallowShared_Tuples.WordArrayGetOP.defs)
+lemma shallow_tuples_rule__WordArrayGetOP__arr\<^sub>f [ShallowTuplesThms_Generated]:
+  "shallow_tuples_rel (x :: ('x1, 'x2) Generated_ShallowShared.WordArrayGetOP) (xt :: ('xt1, 'xt2) Generated_ShallowShared_Tuples.WordArrayGetOP) \<Longrightarrow>
+   shallow_tuples_rel (Generated_ShallowShared.WordArrayGetOP.arr\<^sub>f x) (Generated_ShallowShared_Tuples.WordArrayGetOP.arr\<^sub>f xt)"
+  by (simp add: shallow_tuples_rel_WordArrayGetOP_def)
+lemma shallow_tuples_rule__WordArrayGetOP__idx\<^sub>f [ShallowTuplesThms_Generated]:
+  "shallow_tuples_rel (x :: ('x1, 'x2) Generated_ShallowShared.WordArrayGetOP) (xt :: ('xt1, 'xt2) Generated_ShallowShared_Tuples.WordArrayGetOP) \<Longrightarrow>
+   shallow_tuples_rel (Generated_ShallowShared.WordArrayGetOP.idx\<^sub>f x) (Generated_ShallowShared_Tuples.WordArrayGetOP.idx\<^sub>f xt)"
+  by (simp add: shallow_tuples_rel_WordArrayGetOP_def)
+lemma shallow_tuples_rule__WordArrayGetOP__arr\<^sub>f__update [ShallowTuplesRules_Generated]:
+  "\<lbrakk> shallow_tuples_rel (x :: ('x1, 'x2) Generated_ShallowShared.WordArrayGetOP) (xt :: ('xt1, 'xt2) Generated_ShallowShared_Tuples.WordArrayGetOP);
+     shallow_tuples_rel v vt
+   \<rbrakk> \<Longrightarrow>
+   shallow_tuples_rel (Generated_ShallowShared.WordArrayGetOP.arr\<^sub>f_update (\<lambda>_. v) x) (Generated_ShallowShared_Tuples.WordArrayGetOP.arr\<^sub>f_update (\<lambda>_. vt) xt)"
+  by (simp add: shallow_tuples_rel_WordArrayGetOP_def)
+lemma shallow_tuples_rule__WordArrayGetOP__idx\<^sub>f__update [ShallowTuplesRules_Generated]:
+  "\<lbrakk> shallow_tuples_rel (x :: ('x1, 'x2) Generated_ShallowShared.WordArrayGetOP) (xt :: ('xt1, 'xt2) Generated_ShallowShared_Tuples.WordArrayGetOP);
+     shallow_tuples_rel v vt
+   \<rbrakk> \<Longrightarrow>
+   shallow_tuples_rel (Generated_ShallowShared.WordArrayGetOP.idx\<^sub>f_update (\<lambda>_. v) x) (Generated_ShallowShared_Tuples.WordArrayGetOP.idx\<^sub>f_update (\<lambda>_. vt) xt)"
+  by (simp add: shallow_tuples_rel_WordArrayGetOP_def)
+
+
 overloading shallow_tuples_rel_WordArrayGetP \<equiv> shallow_tuples_rel begin
   definition "shallow_tuples_rel_WordArrayGetP (x :: ('x1, 'x2, 'x3) Generated_ShallowShared.WordArrayGetP) (xt :: ('xt1, 'xt2, 'xt3) Generated_ShallowShared_Tuples.WordArrayGetP) \<equiv>
     shallow_tuples_rel (Generated_ShallowShared.WordArrayGetP.arr\<^sub>f x) (Generated_ShallowShared_Tuples.WordArrayGetP.arr\<^sub>f xt) \<and>
@@ -224,6 +257,29 @@ lemma shallow_tuples_rule__T0__p3\<^sub>f [ShallowTuplesThms_Generated]:
   by (simp add: shallow_tuples_rel_T0_def)
 
 
+overloading shallow_tuples_rel_Opt \<equiv> shallow_tuples_rel begin
+  definition "shallow_tuples_rel_Opt (x :: ('x1, 'x2) Generated_ShallowShared.Opt) (xt :: ('xt1, 'xt2) Generated_ShallowShared_Tuples.Opt) \<equiv>
+    (\<exists>v vt. shallow_tuples_rel v vt \<and> x = Generated_ShallowShared.Opt.Nothing v \<and> xt = Generated_ShallowShared_Tuples.Opt.Nothing vt) \<or>
+    (\<exists>v vt. shallow_tuples_rel v vt \<and> x = Generated_ShallowShared.Opt.Something v \<and> xt = Generated_ShallowShared_Tuples.Opt.Something vt)"
+end
+lemma shallow_tuples_rule_case__Opt [ShallowTuplesThms_Generated]:
+  "\<lbrakk> shallow_tuples_rel x xt;
+     \<And>v vt. shallow_tuples_rel v vt \<Longrightarrow> shallow_tuples_rel (f1 v) (ft1 vt);
+     \<And>v vt. shallow_tuples_rel v vt \<Longrightarrow> shallow_tuples_rel (f2 v) (ft2 vt)
+   \<rbrakk> \<Longrightarrow>
+   shallow_tuples_rel (Generated_ShallowShared.case_Opt f1 f2 x) (Generated_ShallowShared_Tuples.case_Opt ft1 ft2 xt)"
+  by (fastforce simp: shallow_tuples_rel_Opt_def
+        split: Generated_ShallowShared.Opt.splits Generated_ShallowShared_Tuples.Opt.splits)
+lemma shallow_tuples_rule__Opt__Nothing [ShallowTuplesRules_Generated]:
+  "shallow_tuples_rel x xt \<Longrightarrow>
+   shallow_tuples_rel (Generated_ShallowShared.Opt.Nothing x) (Generated_ShallowShared_Tuples.Opt.Nothing xt)"
+  by (simp add: shallow_tuples_rel_Opt_def)
+lemma shallow_tuples_rule__Opt__Something [ShallowTuplesRules_Generated]:
+  "shallow_tuples_rel x xt \<Longrightarrow>
+   shallow_tuples_rel (Generated_ShallowShared.Opt.Something x) (Generated_ShallowShared_Tuples.Opt.Something xt)"
+  by (simp add: shallow_tuples_rel_Opt_def)
+
+
 lemma shallow_tuples__wordarray_get [ShallowTuplesThms_Generated]:
   "shallow_tuples_rel Generated_ShallowShared.wordarray_get Generated_ShallowShared_Tuples.wordarray_get"
   sorry
@@ -242,6 +298,21 @@ lemma shallow_tuples__wordarray_put [ShallowTuplesThms_Generated]:
 lemma shallow_tuples__repeat [ShallowTuplesThms_Generated]:
   "shallow_tuples_rel Generated_ShallowShared.repeat Generated_ShallowShared_Tuples.repeat"
   sorry
+
+
+lemma shallow_tuples__wordarray_get_opt [ShallowTuplesThms_Generated]:
+  "shallow_tuples_rel Generated_ShallowShared.wordarray_get_opt Generated_ShallowShared_Tuples.wordarray_get_opt"
+  sorry
+
+
+lemma shallow_tuples__wordarray_put32 [ShallowTuplesThms_Generated]:
+  "shallow_tuples_rel Generated_Shallow_Desugar.wordarray_put32 Generated_Shallow_Desugar_Tuples.wordarray_put32"
+  apply (rule shallow_tuples_rel_funI)
+  apply (unfold Generated_Shallow_Desugar.wordarray_put32_def Generated_Shallow_Desugar_Tuples.wordarray_put32_def id_def)
+  apply ((unfold take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t_def Let\<^sub>d\<^sub>s_def Let_def split_def)?,(simp only: fst_conv snd_conv)?)
+  by (assumption |
+      rule shallow_tuples_basic_bucket ShallowTuplesRules_Generated
+           ShallowTuplesThms_Generated ShallowTuplesThms_Generated[THEN shallow_tuples_rel_funD])+
 
 
 lemma shallow_tuples__expstop [ShallowTuplesThms_Generated]:
@@ -328,6 +399,16 @@ lemma shallow_tuples__mylog2 [ShallowTuplesThms_Generated]:
   "shallow_tuples_rel Generated_Shallow_Desugar.mylog2 Generated_Shallow_Desugar_Tuples.mylog2"
   apply (rule shallow_tuples_rel_funI)
   apply (unfold Generated_Shallow_Desugar.mylog2_def Generated_Shallow_Desugar_Tuples.mylog2_def id_def)
+  apply ((unfold take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t_def Let\<^sub>d\<^sub>s_def Let_def split_def)?,(simp only: fst_conv snd_conv)?)
+  by (assumption |
+      rule shallow_tuples_basic_bucket ShallowTuplesRules_Generated
+           ShallowTuplesThms_Generated ShallowTuplesThms_Generated[THEN shallow_tuples_rel_funD])+
+
+
+lemma shallow_tuples__wordarray_get_opt32 [ShallowTuplesThms_Generated]:
+  "shallow_tuples_rel Generated_Shallow_Desugar.wordarray_get_opt32 Generated_Shallow_Desugar_Tuples.wordarray_get_opt32"
+  apply (rule shallow_tuples_rel_funI)
+  apply (unfold Generated_Shallow_Desugar.wordarray_get_opt32_def Generated_Shallow_Desugar_Tuples.wordarray_get_opt32_def id_def)
   apply ((unfold take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t_def Let\<^sub>d\<^sub>s_def Let_def split_def)?,(simp only: fst_conv snd_conv)?)
   by (assumption |
       rule shallow_tuples_basic_bucket ShallowTuplesRules_Generated

@@ -13,3 +13,5 @@ t12 :=: TRecord [Unboxed]
 t13 :=: TRecord [Unboxed]
 t16 :=: TRecord [Unboxed]
 t17 :=: TRecord [Unboxed]
+t18 :=: TVariant
+t19 :=: TRecord [Unboxed]
