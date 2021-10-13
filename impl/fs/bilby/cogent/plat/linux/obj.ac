@@ -42,3 +42,17 @@ set_ObjDentry_name ($ty:((ObjDentry take (..), CString!)) args)
     return dent;
 }
 
+$ty:((Buffer, BufOffs)) serialise_ObjData_data ($ty:((Buffer, BufOffs, ObjData!)) args)
+{
+    $ty:((Buffer, BufOffs)) ret;
+    memcpy (args.p1->data + args.p2, args.p3->odata, args.p3->size);
+    ret.p1 = args.p1;
+    ret.p2 = args.p2 + args.p3->length;
+    return ret;
+}
+
+$ty:(ObjData) deserialise_ObjData_data ($ty:(((ObjData take (..)) put padding, Buffer!, BufOffs, U32)) args)
+{
+    memcpy (args.p1->odata, args.p2->data + args.p3, args.p4);
+    return args.p1;
+}
