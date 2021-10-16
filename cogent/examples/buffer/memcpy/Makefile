@@ -8,9 +8,9 @@
 # @TAG(NICTA_GPL)
 #
 
-NAME=append
+NAME=object
 
-SRC=Brutal.cogent
+SRC=Obj.cogent
 OUTPUT=generated # $(SRC:.cogent=-gen)
 COUTPUT=$(addsuffix .c, $(OUTPUT))
 HOUTPUT=$(addsuffix .h, $(OUTPUT))
@@ -18,7 +18,7 @@ HOUTPUT=$(addsuffix .h, $(OUTPUT))
 LIBGUM=$(shell cogent --libgum-dir)
 PLATLIBGUM=../plat/console/libgum
 
-#AHFILES=./abstract/ReadOnly.ah
+#AHFILES=$(LIBGUM)/gum/anti/abstract/WordArray.ah
 ACFILES=main.ac
 
 PP=$(ACFILES:.ac=_pp.ac)
@@ -29,6 +29,7 @@ ABSDIR=./abstract
 OBJ=$(PPINFER:.c=.o)
 
 CFLAGS+=-g -I. -I../plat/console -I$(LIBGUM) -I$(LIBGUM)/gum/anti -std=gnu99
+LFLAGS=-lm
 
 .PHONY: default cogent clean gen-anti test
 .SECONDARY:
@@ -36,7 +37,7 @@ CFLAGS+=-g -I. -I../plat/console -I$(LIBGUM) -I$(LIBGUM)/gum/anti -std=gnu99
 default: all
 
 all: gen-anti $(OBJ)
-	$(CC) -o $(NAME) $(OBJ)
+	$(CC) -o $(NAME) $(OBJ) $(LFLAGS)
 
 test: gen-anti $(OBJ)
 
@@ -53,6 +54,5 @@ gen-anti:
 
 clean:
 	rm -f $(COUTPUT) $(HOUTPUT) $(PP) $(PPINFER) $(OBJ)
-	@# rm -f *-gen.*
 	rm -f $(ABSDIR)/*.h
 	rm -f $(NAME)

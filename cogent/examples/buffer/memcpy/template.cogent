@@ -1,0 +1,11 @@
+-- template
+
+type SysState
+-- ^^^ we have a version of `SysState' defined in libgum, so
+-- an include should be used to refer to that instead.
+
+helloworld : SysState -> SysState
+helloworld s = s
+
+fn : SysState -> SysState
+fn s = s
