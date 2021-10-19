@@ -1,0 +1,6 @@
+- test_name: pass-dargent-antiquoted
+  files:
+    - pass_abstract-bitfields
+  expected_result: pass
+  run:
+    - bash BUILD
