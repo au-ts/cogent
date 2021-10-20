@@ -895,7 +895,11 @@ analyseLeftover c@(F t :< F u) os
            <+> err "can't be solved because the RHS is unknown and uses non-injective operators (like !).")
              : map (\i -> warn "• The unknown" <+> pretty (U i) <+> warn "originates from" <+> pretty (I.lookup i os)) ([u']) -}
 analyseLeftover c os =
+#ifdef BUILTIN_ARRAYS
+  case bifoldMap (\t -> unifVars t ++ unknowns t) unifLVars c of
+#else
   case bifoldMap unifVars unifLVars c of
+#endif
     [] -> err "Constraint" <$> indent' (pretty c) <$> err "cannot be solved, or is unsatisfiable."
     xs -> err "Constraint" <$> indent' (pretty c) <$> err "cannot be solved, or is unsatisfiable."
           <$$> indent' (context "with relevant unifiers:"
