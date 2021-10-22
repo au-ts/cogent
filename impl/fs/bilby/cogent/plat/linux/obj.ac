@@ -56,3 +56,20 @@ $ty:(ObjData) deserialise_ObjData_data ($ty:(((ObjData take (..)) put padding, B
     memcpy (args.p1->odata, args.p2->data + args.p3, args.p4);
     return args.p1;
 }
+
+
+$ty:(ObjData) set_ObjData_odata ($ty:((ObjData take odata, CString!)) args)
+{
+    $ty:(ObjData) odata = args.p1;
+    $ty:(U32) len = args.p2->len;
+    memcpy (odata->odata, args.p2->values, len);
+    return odata;
+}
+
+
+$ty:(ObjData) set_ObjData_odata_buf ($ty:((ObjData take odata, Buffer!, BufOffs)) args)
+{
+    $ty:(ObjData) odata = args.p1;
+    memcpy (odata->odata, args.p2->data, args.p3);
+    return odata;
+}

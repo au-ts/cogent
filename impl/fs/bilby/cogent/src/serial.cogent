@@ -791,6 +791,7 @@ serialise_ObjData_data : (Buffer, BufOffs, ObjData!) -> (Buffer, BufOffs)
 deserialise_ObjData_data : ((ObjData take (..)) put padding, Buffer!, BufOffs, U32) -> ObjData
 
 set_ObjData_odata : (ObjData take odata, CString!) -> ObjData
+set_ObjData_odata_buf : (ObjData take odata, Buffer!, BufOffs) -> ObjData
 
 bilbyFsObjDataHeaderSize : U32
 bilbyFsObjDataHeaderSize = 16
