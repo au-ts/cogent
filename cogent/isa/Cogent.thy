@@ -282,9 +282,15 @@ lemma variant_un_bound: "length (variant_un f g xs ys) \<le> length xs + length 
 
 subsection {* types *}
 
+(* 
+focus_buffer : all (a,b).(Vector, b!,
+                   #{ obj : (BItem, BTail), obsv : b!} -> (a, BItem, BTail)) ->
+  (a, Vector)
+*)
 datatype type = TVar index
               | TVarBang index
               | TCon name "type list" sigil
+              | TDCon name name name "type list" sigil
               | TFun type type
               | TPrim prim_type
               | TSum "(name \<times> type \<times> variant_state) list"
@@ -361,6 +367,7 @@ fun type_wellformed :: "nat \<Rightarrow> type \<Rightarrow> bool" where
   "type_wellformed n (TVar i) = (i < n)"
 | "type_wellformed n (TVarBang i) = (i < n)"
 | "type_wellformed n (TCon _ ts _) = list_all (\<lambda>x. type_wellformed n x) ts"
+| "type_wellformed n (TDCon _ _ _ ts _) = list_all (\<lambda>x. type_wellformed n x) ts"
 | "type_wellformed n (TFun t1 t2) = (type_wellformed n t1 \<and> type_wellformed n t2)"
 | "type_wellformed n (TPrim _) = True"
 | "type_wellformed n (TSum ts) = (distinct (map fst ts) \<and> (list_all (\<lambda>x. type_wellformed n (fst (snd x))) ts))"
@@ -376,6 +383,7 @@ lemma type_wellformed_intros:
   "\<And>n i. i < n \<Longrightarrow> type_wellformed n (TVar i)"
   "\<And>n i. i < n \<Longrightarrow> type_wellformed n (TVarBang i)"
   "\<And>n name ts s. list_all (\<lambda>x. type_wellformed n x) ts \<Longrightarrow> type_wellformed n (TCon name ts s)"
+  "\<And>n name1 name2 name3 ts s. list_all (\<lambda>x. type_wellformed n x) ts \<Longrightarrow> type_wellformed n (TDCon name1 name2 name3 ts s)"
   "\<And>n t1 t2. \<lbrakk> type_wellformed n t1 ; type_wellformed n t2 \<rbrakk> \<Longrightarrow> type_wellformed n (TFun t1 t2)"
   "\<And>n p. type_wellformed n (TPrim p)"
   "\<And>n ts. \<lbrakk> distinct (map fst ts) ; list_all (\<lambda>x. type_wellformed n (fst (snd x))) ts \<rbrakk> \<Longrightarrow> type_wellformed n (TSum ts)"
@@ -388,6 +396,7 @@ lemma type_wellformed_pretty_intros:
   "\<And>K i. i < length K \<Longrightarrow> type_wellformed_pretty K (TVar i)"
   "\<And>K i. i < length K \<Longrightarrow> type_wellformed_pretty K (TVarBang i)"
   "\<And>K name ts s. list_all (\<lambda>x. type_wellformed_pretty K x) ts \<Longrightarrow> type_wellformed_pretty K (TCon name ts s)"
+  "\<And>n name1 name2 name3 ts s. list_all (\<lambda>x. type_wellformed_pretty n x) ts \<Longrightarrow> type_wellformed_pretty n (TDCon name1 name2 name3 ts s)"
   "\<And>K t1 t2. \<lbrakk> type_wellformed_pretty K t1 ; type_wellformed_pretty K t2 \<rbrakk> \<Longrightarrow> type_wellformed_pretty K (TFun t1 t2)"
   "\<And>K p. type_wellformed_pretty K (TPrim p)"
   "\<And>K ts. \<lbrakk> distinct (map fst ts) ; list_all (\<lambda>x. type_wellformed_pretty K (fst (snd x))) ts \<rbrakk> \<Longrightarrow> type_wellformed_pretty K (TSum ts)"
@@ -408,6 +417,7 @@ fun kinding_fn :: "kind env \<Rightarrow> type \<Rightarrow> kind" where
   "kinding_fn K (TVar i)         = (if i < length K then K ! i else undefined)"
 | "kinding_fn K (TVarBang i)     = {D,S}"
 | "kinding_fn K (TCon n ts s)    = Inter (set (map (kinding_fn K) ts)) \<inter> (sigil_kind s)"
+| "kinding_fn K (TDCon n1 n2 n3 ts s)    = Inter (set (map (kinding_fn K) ts)) \<inter> (sigil_kind s)"
 | "kinding_fn K (TFun ta tb)     = UNIV"
 | "kinding_fn K (TPrim p)        = UNIV"
 | "kinding_fn K (TSum ts)        = Inter (set (map (\<lambda>(_,t,b). case b of Unchecked \<Rightarrow> kinding_fn K t | Checked \<Rightarrow> UNIV) ts))"
@@ -415,7 +425,7 @@ fun kinding_fn :: "kind env \<Rightarrow> type \<Rightarrow> kind" where
 | "kinding_fn K (TRecord ts s)   = Inter (set (map (\<lambda>(_,t,b). case b of Present \<Rightarrow> kinding_fn K t | Taken \<Rightarrow> UNIV) ts)) \<inter> (sigil_kind s)"
 | "kinding_fn K TUnit            = UNIV"
 
-lemmas kinding_fn_induct = kinding_fn.induct[case_names kind_tvar kind_tvarb kind_tcon kind_tfun kind_tprim kind_tsum kind_tprod kind_trec kind_tunit]
+lemmas kinding_fn_induct = kinding_fn.induct[case_names kind_tvar kind_tvarb kind_tcon kind_tdcon kind_tfun kind_tprim kind_tsum kind_tprod kind_trec kind_tunit]
 
 
 definition kinding :: "kind env \<Rightarrow> type \<Rightarrow> kind \<Rightarrow> bool" ("_ \<turnstile> _ :\<kappa> _" [30,0,30] 60) where
@@ -448,6 +458,7 @@ fun bang :: "type \<Rightarrow> type" where
   "bang (TVar i)       = TVarBang i"
 | "bang (TVarBang i)   = TVarBang i"
 | "bang (TCon n ts s)  = TCon n (map bang ts) (bang_sigil s)"
+| "bang (TDCon n1 n2 n3 ts s)  = TDCon n1 n2 n3 (map bang ts) (bang_sigil s)"
 | "bang (TFun a b)     = TFun a b"
 | "bang (TPrim p)      = TPrim p"
 | "bang (TSum ps)      = TSum (map (\<lambda> (c, (t, b)). (c, (bang t, b))) ps)"
@@ -459,6 +470,7 @@ fun instantiate :: "type substitution \<Rightarrow> type \<Rightarrow> type" whe
   "instantiate \<delta> (TVar i)       = (if i < length \<delta> then \<delta> ! i else TVar i)"
 | "instantiate \<delta> (TVarBang i)   = (if i < length \<delta> then bang (\<delta> ! i) else TVarBang i)"
 | "instantiate \<delta> (TCon n ts s)  = TCon n (map (instantiate \<delta>) ts) s"
+| "instantiate \<delta> (TDCon n1 n2 n3 ts s)  = TDCon n1 n2 n3 (map (instantiate \<delta>) ts) s"
 | "instantiate \<delta> (TFun a b)     = TFun (instantiate \<delta> a) (instantiate \<delta> b)"
 | "instantiate \<delta> (TPrim p)      = TPrim p"
 | "instantiate \<delta> (TSum ps)      = TSum (map (\<lambda> (c, t, b). (c, instantiate \<delta> t, b)) ps)"
@@ -503,6 +515,9 @@ inductive subtyping :: "kind env \<Rightarrow> type \<Rightarrow> type \<Rightar
 | subty_tvarb  : "n1 = n2 \<Longrightarrow> K \<turnstile> TVarBang n1 \<sqsubseteq> TVarBang n2"
 | subty_tcon   : "\<lbrakk> n1 = n2 ; s1 = s2 ; ts1 = ts2
                   \<rbrakk> \<Longrightarrow> K \<turnstile> TCon n1 ts1 s1 \<sqsubseteq> TCon n2 ts2 s2"
+| subty_tdcon   : "\<lbrakk> n1 = n2 ; n1' = n2' ; n1'' = n2'' ; s1 = s2 ; ts1 = ts2
+                  \<rbrakk> \<Longrightarrow> K \<turnstile> TDCon n1 n1' n1'' ts1 s1 \<sqsubseteq> TDCon n2 n2' n2'' ts2 s2"
+
 | subty_tfun   : "\<lbrakk> K \<turnstile> t2 \<sqsubseteq> t1
                   ; K \<turnstile> u1 \<sqsubseteq> u2
                   \<rbrakk> \<Longrightarrow> K \<turnstile> TFun t1 u1 \<sqsubseteq> TFun t2 u2"
@@ -911,6 +926,7 @@ section {* Representation Types (for use in C-refinement) *}
 
 datatype repr = RPtr repr
               | RCon name "repr list"
+              | RDCon name name name "repr list" 
               | RFun
               | RPrim prim_type
               | RSum "(name \<times> repr) list"
@@ -925,6 +941,8 @@ fun type_repr :: "type \<Rightarrow> repr" where
 | "type_repr (TProduct a b)       = RProduct (type_repr a) (type_repr b)"
 | "type_repr (TCon n ts Unboxed)  = RCon n (map type_repr ts)"
 | "type_repr (TCon n ts _)        = RPtr (RCon n (map type_repr ts))"
+| "type_repr (TDCon n1 n2 n3 ts Unboxed)  = RDCon n1 n2 n3 (map type_repr ts)"
+| "type_repr (TDCon n1 n2 n3 ts _)        = RPtr (RDCon n1 n2 n3 (map type_repr ts))"
 | "type_repr (TRecord ts Unboxed) = RRecord (map (\<lambda>(_,b,_). type_repr b) ts)"
 | "type_repr (TRecord ts _)       = RPtr (RRecord (map (\<lambda>(_,b,_). type_repr b) ts))"
 | "type_repr (TUnit)              = RUnit"
@@ -935,14 +953,14 @@ section {* Wellformed lemmas *}
 lemma wellformed_record_wellformed_elem:
   assumes "K \<turnstile> TRecord ts s wellformed"
     and "(name, t, taken) \<in> set ts"
-  shows "K \<turnstile> t wellformed"
-  by (metis assms fst_conv in_set_conv_nth list_all_length snd_conv type_wellformed.simps(8) type_wellformed_pretty_def)
+  shows "K \<turnstile> t wellformed"  
+  by (metis assms fst_conv in_set_conv_nth list_all_length snd_conv type_wellformed.simps(9) type_wellformed_pretty_def)
 
 lemma wellformed_sum_wellformed_elem:
   assumes "K \<turnstile> TSum ts wellformed"
     and "(name, t, taken) \<in> set ts"
-  shows "K \<turnstile> t wellformed"
-  by (metis assms fst_conv in_set_conv_nth list_all_length snd_conv type_wellformed.simps(6) type_wellformed_pretty_def)
+  shows "K \<turnstile> t wellformed"  
+  by (metis assms fst_conv in_set_conv_nth list_all_length snd_conv type_wellformed.simps(7) type_wellformed_pretty_def)
 
 section {* Kinding lemmas *}
 
@@ -951,6 +969,7 @@ lemma kinding_simps:
   "\<And>K i k.      K \<turnstile> (TVar i) :\<kappa> k         \<longleftrightarrow> i < length K \<and> k \<subseteq> K ! i"
   "\<And>K i k.      K \<turnstile> (TVarBang i) :\<kappa> k     \<longleftrightarrow> i < length K \<and> k \<subseteq> {D,S}"
   "\<And>K n ts s k. K \<turnstile> (TCon n ts s) :\<kappa> k    \<longleftrightarrow> (K \<turnstile>* ts :\<kappa> k) \<and> k \<subseteq> sigil_kind s"
+  "\<And>K n1 n2 n3 ts s k. K \<turnstile> (TDCon n1 n2 n3 ts s) :\<kappa> k    \<longleftrightarrow> (K \<turnstile>* ts :\<kappa> k) \<and> k \<subseteq> sigil_kind s"
   "\<And>K ta tb k.  K \<turnstile> (TFun ta tb) :\<kappa> k     \<longleftrightarrow> k \<subseteq> UNIV \<and> (K \<turnstile> ta wellformed) \<and> (K \<turnstile> tb wellformed)"
   "\<And>K p k.      K \<turnstile> (TPrim p) :\<kappa> k        \<longleftrightarrow> k \<subseteq> UNIV"
   "\<And>K ts k.     K \<turnstile> (TSum ts) :\<kappa> k        \<longleftrightarrow> (K \<turnstile>* ts :\<kappa>v k) \<and> distinct (map fst ts)"
@@ -1259,6 +1278,10 @@ proof (induct K t rule: kinding_fn_induct)
   then show ?case
     using bang_sigil_kind by (simp add: list_all_iff)
 next
+  case (kind_tdcon K n1 n2 n3 ts s)
+  then show ?case
+    using bang_sigil_kind by (simp add: list_all_iff)
+next
   case (kind_tsum K ts)
   then show ?case
     by (fastforce simp add: list_all_iff simp del: insert_subset split: variant_state.split)
@@ -1280,11 +1303,14 @@ and   "K \<turnstile>* map (fst \<circ> snd) fs wellformed \<Longrightarrow> k \
 
 section {* Subtyping lemmas *}
 
+
 lemma subtyping_simps:
   shows
   "\<And>n1 n2. K \<turnstile> TVar n1 \<sqsubseteq> TVar n2 \<longleftrightarrow> n1 = n2"
   "\<And>n1 n2. K \<turnstile> TVarBang n1 \<sqsubseteq> TVarBang n2 \<longleftrightarrow> n1 = n2"
   "\<And>n1 ts1 s1 n2 ts2 s2. K \<turnstile> TCon n1 ts1 s1 \<sqsubseteq> TCon n2 ts2 s2 \<longleftrightarrow> n1 = n2 \<and> s1 = s2 \<and> ts1 = ts2"
+  "\<And>n1 n1' n1'' ts1 s1 n2 n2' n2'' ts2 s2. K \<turnstile> TDCon n1 n1' n1'' ts1 s1 \<sqsubseteq> TDCon n2 n2' n2'' ts2 s2 \<longleftrightarrow> 
+        n1 = n2 \<and> n1' = n2' \<and> n1'' = n2'' \<and> s1 = s2 \<and> ts1 = ts2"
   "\<And>t1 u1 t2 u2. K \<turnstile> TFun t1 u1 \<sqsubseteq> TFun t2 u2 \<longleftrightarrow> K \<turnstile> t2 \<sqsubseteq> t1 \<and> K \<turnstile> u1 \<sqsubseteq> u2"
   "\<And>p1 p2. K \<turnstile> TPrim p1 \<sqsubseteq> TPrim p2 \<longleftrightarrow> p1 = p2"
   "\<And>ts1 s1 ts2 s2. K \<turnstile> TRecord ts1 s1 \<sqsubseteq> TRecord ts2 s2
@@ -1328,6 +1354,13 @@ proof (induct rule: subtyping.inducts)
   then show
     "K \<turnstile> TCon n1 ts1 s1 wellformed \<Longrightarrow> K \<turnstile> TCon n2 ts2 s2 wellformed"
     "K \<turnstile> TCon n2 ts2 s2 wellformed \<Longrightarrow> K \<turnstile> TCon n1 ts1 s1 wellformed"
+    by (fastforce simp add: list_all2_conv_all_nth Ball_def in_set_conv_nth list_all_iff)+
+next
+  fix K
+  case (subty_tdcon n1 n2 n1' n2' n1'' n2'' s1 s2 ts1 ts2)
+  then show
+    "K \<turnstile> TDCon n1 n1' n1'' ts1 s1 wellformed \<Longrightarrow> K \<turnstile> TDCon n2 n2' n2'' ts2 s2 wellformed"
+    "K \<turnstile> TDCon n2 n2' n2'' ts2 s2 wellformed \<Longrightarrow> K \<turnstile> TDCon n1 n1' n1'' ts1 s1 wellformed"
     by (fastforce simp add: list_all2_conv_all_nth Ball_def in_set_conv_nth list_all_iff)+
 next
   case (subty_trecord K ts1 ts2 s1 s2)
@@ -1622,8 +1655,9 @@ shows   "K \<turnstile> x wellformed \<Longrightarrow> instantiate \<delta> (ins
   using assms
 proof (induct x arbitrary: \<delta>' rule: instantiate.induct)
 next case 3 then show ?case by (force dest: kinding_typelist_wellformed_elem simp add: list_all_iff kinding_simps)
-next case 8 then show ?case by (fastforce dest: kinding_record_wellformed_elem simp add: list_all_iff kinding_simps)
-next case 6 then show ?case by (fastforce dest: kinding_variant_wellformed_elem simp add: list_all_iff kinding_simps)
+next case 4 then show ?case by (force dest: kinding_typelist_wellformed_elem simp add: list_all_iff kinding_simps)
+next case 9 then show ?case by (fastforce dest: kinding_record_wellformed_elem simp add: list_all_iff kinding_simps)
+next case 7 then show ?case by (fastforce dest: kinding_variant_wellformed_elem simp add: list_all_iff kinding_simps)
 qed (auto simp add: kinding_def kinding_simps dest: list_all2_lengthD)
 
 lemma instantiate_tprim [simp]:
@@ -2115,6 +2149,10 @@ lemma wellformed_imp_bang_type_repr:
   using assms
 proof (induct t)
   case (TCon n ts s)
+  then show ?case
+    by (cases s, rename_tac p l, case_tac p; auto simp add: list_all_iff)
+next
+  case (TDCon n1 n2 n3 ts s)
   then show ?case
     by (cases s, rename_tac p l, case_tac p; auto simp add: list_all_iff)
 next

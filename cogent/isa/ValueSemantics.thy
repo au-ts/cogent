@@ -15,27 +15,29 @@ imports Cogent
 begin
 
 
-datatype ('f, 'a) vval = VPrim lit
-                       | VProduct "('f, 'a) vval" "('f, 'a) vval"
-                       | VSum name "('f, 'a) vval"
-                       | VRecord "('f, 'a) vval list"
+
+datatype ('f, 'a, 'b) vval = VPrim lit
+                       | VProduct "('f, 'a, 'b) vval" "('f, 'a, 'b) vval"
+                       | VSum name "('f, 'a, 'b) vval"
+                       | VRecord "('f, 'a, 'b) vval list"
                        | VAbstract "'a"
+                       | VDAbstract "'b"
                        | VFunction "'f expr" "type list"
                        | VAFunction "'f" "type list"
                        | VUnit
 
 (* All polymorphic instantiations must have the _same_ value semantics. This means even if the C
 implementations differ they must all refine the same specification *)
-type_synonym ('f, 'a) vabsfuns = "'f \<Rightarrow> ('f, 'a) vval \<Rightarrow> ('f,'a) vval \<Rightarrow> bool"
+type_synonym ('f, 'a, 'b) vabsfuns = "'f \<Rightarrow> ('f, 'a, 'b) vval \<Rightarrow> ('f, 'a, 'b) vval \<Rightarrow> bool"
 
 
-definition eval_prim :: "prim_op \<Rightarrow> ('f, 'a) vval list \<Rightarrow> ('f, 'a) vval"
+definition eval_prim :: "prim_op \<Rightarrow> ('f, 'a, 'b) vval list \<Rightarrow> ('f, 'a, 'b) vval"
 where
   "eval_prim pop xs = VPrim (eval_prim_op pop (map (\<lambda>vv. case vv of VPrim v \<Rightarrow> v | _ \<Rightarrow> LBool False) xs))"
 
 lemma eval_prim_type_change:
-assumes "(eval_prim :: prim_op \<Rightarrow> ('f1, 'a1) vval list \<Rightarrow> ('f1, 'a1) vval) p (map VPrim lits) = VPrim l"
-shows "(eval_prim :: prim_op \<Rightarrow> ('f2, 'a2) vval list \<Rightarrow> ('f2, 'a2) vval) p (map VPrim  lits) = VPrim l"
+assumes "(eval_prim :: prim_op \<Rightarrow> ('f1, 'a1, 'b1) vval list \<Rightarrow> ('f1, 'a1, 'b1) vval) p (map VPrim lits) = VPrim l"
+shows "(eval_prim :: prim_op \<Rightarrow> ('f2, 'a2, 'b2) vval list \<Rightarrow> ('f2, 'a2, 'b2) vval) p (map VPrim  lits) = VPrim l"
 proof -
 have helper: "(\<lambda>vv. case vv of VPrim v \<Rightarrow> v | _ \<Rightarrow> LBool False) \<circ> VPrim = id" by (rule ext, simp)
 then show ?thesis using assms by (simp add: eval_prim_def helper)
@@ -50,9 +52,9 @@ section {* Semantics *}
 *)
 
 
-inductive v_sem :: "('f,'a) vabsfuns \<Rightarrow> ('f, 'a) vval env \<Rightarrow> 'f expr \<Rightarrow> ('f, 'a) vval \<Rightarrow> bool"
+inductive v_sem :: "('f, 'a, 'b) vabsfuns \<Rightarrow> ('f, 'a, 'b) vval env \<Rightarrow> 'f expr \<Rightarrow> ('f, 'a, 'b) vval \<Rightarrow> bool"
           ("_ , _ \<turnstile> _ \<Down> _" [30,0,0,20] 60)
-and       v_sem_all  :: "('f,'a) vabsfuns \<Rightarrow> ('f, 'a) vval list \<Rightarrow> 'f expr list \<Rightarrow> ('f, 'a) vval list \<Rightarrow> bool"
+and       v_sem_all  :: "('f, 'a, 'b) vabsfuns \<Rightarrow> ('f, 'a, 'b) vval list \<Rightarrow> 'f expr list \<Rightarrow> ('f, 'a, 'b) vval list \<Rightarrow> bool"
           ("_ , _ \<turnstile>* _ \<Down> _" [30,0,0,20] 60)
 where
   v_sem_var     : "\<xi> , \<gamma> \<turnstile> (Var i) \<Down> (\<gamma> ! i)"
@@ -148,14 +150,17 @@ inductive_cases v_sem_appE  [elim] : "\<xi> , \<gamma> \<turnstile> App a b \<Do
 
 
 locale value_sem =
-  fixes abs_typing :: "'a \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> bool"
-  assumes abs_typing_bang : "abs_typing av n \<tau>s \<Longrightarrow> abs_typing av n (map bang \<tau>s)"
+ 
+ fixes abs_typing :: "'a \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> bool"
+ fixes abs_dtyping :: "'b \<Rightarrow> name \<Rightarrow> name \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> bool"
+ assumes abs_typing_bang : "abs_typing av n \<tau>s \<Longrightarrow> abs_typing av n (map bang \<tau>s)"
+ assumes abs_dtyping_bang : "abs_dtyping bv n1 n2 n3 \<tau>s \<Longrightarrow> abs_dtyping bv n1 n2 n3 (map bang \<tau>s)"
 
 context value_sem begin
 
-inductive vval_typing  :: "('f \<Rightarrow> poly_type) \<Rightarrow> ('f, 'a) vval \<Rightarrow> type \<Rightarrow> bool"
+inductive vval_typing  :: "('f \<Rightarrow> poly_type) \<Rightarrow> ('f, 'a, 'b) vval \<Rightarrow> type \<Rightarrow> bool"
           ("_ \<turnstile> _ :v _" [30,0,20] 80)
-and vval_typing_record :: "('f \<Rightarrow> poly_type) \<Rightarrow> ('f, 'a) vval list \<Rightarrow> (name \<times> type \<times> record_state) list \<Rightarrow> bool"
+and vval_typing_record :: "('f \<Rightarrow> poly_type) \<Rightarrow> ('f, 'a, 'b) vval list \<Rightarrow> (name \<times> type \<times> record_state) list \<Rightarrow> bool"
           ("_ \<turnstile>* _ :vr _" [30,0,20] 80) where
 
   v_t_prim     : "\<Xi> \<turnstile> VPrim l :v TPrim (lit_type l)"
@@ -177,6 +182,10 @@ and vval_typing_record :: "('f \<Rightarrow> poly_type) \<Rightarrow> ('f, 'a) v
 | v_t_abstract : "\<lbrakk> abs_typing a n ts
                   ; [] \<turnstile>* ts wellformed
                   \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile> VAbstract a :v TCon n ts s"
+
+| v_t_dabstract : "\<lbrakk> abs_dtyping b n1 n2 n3 ts
+                  ; [] \<turnstile>* ts wellformed
+                  \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile> VDAbstract b :v TDCon n1 n2 n3 ts s"
 
 (*
   The term language type system uses an explicit subtyping rule (Promote), but we want a subtyping-implies-subset relation for values
@@ -227,17 +236,17 @@ inductive_cases v_t_r_emptyE  [elim]: "\<Xi> \<turnstile>* [] :vr \<tau>s"
 inductive_cases v_t_r_consE   [elim]: "\<Xi> \<turnstile>* (x # xs) :vr \<tau>s"
 
 
-definition vval_typing_all :: "('f \<Rightarrow> poly_type) \<Rightarrow> ('f, 'a) vval list \<Rightarrow> type list \<Rightarrow> bool"
+definition vval_typing_all :: "('f \<Rightarrow> poly_type) \<Rightarrow> ('f, 'a, 'b) vval list \<Rightarrow> type list \<Rightarrow> bool"
            ("_  \<turnstile>* _ :v _" [30,0,20] 80) where
    "(\<Xi> \<turnstile>* vs :v ts) \<equiv> list_all2 (vval_typing \<Xi>) vs ts"
 
-definition matches :: "('f \<Rightarrow> poly_type) \<Rightarrow>  ('f, 'a) vval env \<Rightarrow> ctx \<Rightarrow> bool"
+definition matches :: "('f \<Rightarrow> poly_type) \<Rightarrow>  ('f, 'a, 'b) vval env \<Rightarrow> ctx \<Rightarrow> bool"
            ("_ \<turnstile> _ matches _" [30,0,20] 60) where
    "\<Xi> \<turnstile> \<gamma> matches \<Gamma> \<equiv> list_all2 (\<lambda> x m. \<forall> \<tau>. m = Some \<tau> \<longrightarrow> \<Xi> \<turnstile> x :v \<tau>) \<gamma> \<Gamma>"
 
 lemmas matches_Cons = list_all2_Cons[where P="(\<lambda>x m. \<forall>\<tau>. m = Some \<tau> \<longrightarrow> \<Xi> \<turnstile> x :v \<tau>)" for \<Xi>, simplified matches_def[symmetric]]
 
-definition proc_env_matches :: "('f \<Rightarrow> ('f, 'a) vval \<Rightarrow> ('f, 'a) vval \<Rightarrow> bool) \<Rightarrow> ('f \<Rightarrow> poly_type) \<Rightarrow> bool"
+definition proc_env_matches :: "('f \<Rightarrow> ('f, 'a, 'b) vval \<Rightarrow> ('f, 'a, 'b) vval \<Rightarrow> bool) \<Rightarrow> ('f \<Rightarrow> poly_type) \<Rightarrow> bool"
            ("_ matches _" [30,20] 60) where
   "\<xi> matches \<Xi> \<equiv> (\<forall> f. let (K, \<tau>i, \<tau>o) = \<Xi> f
                         in (\<forall> \<tau>s v v'. list_all2 (kinding []) \<tau>s K
@@ -253,9 +262,9 @@ lemma vval_typing_to_wellformed:
     and "\<Xi> \<turnstile>* vs :vr fs \<Longrightarrow> [] \<turnstile>* map (fst \<circ> snd) fs wellformed"
 proof (induct rule: vval_typing_vval_typing_record.inducts)
   case v_t_function then show ?case
-    by (metis instantiate_wellformed list_all2_kinding_wellformedD subtyping_wellformed_preservation(1) type_wellformed.simps(4) type_wellformed_pretty_def typing_to_wellformed(1))
+    by (metis instantiate_wellformed list_all2_kinding_wellformedD subtyping_wellformed_preservation(1) type_wellformed.simps(5) type_wellformed_pretty_def typing_to_wellformed(1))
 next case v_t_afun  then show ?case
-    by (metis instantiate_wellformed list_all2_kinding_wellformedD subtyping_wellformed_preservation(1) type_wellformed.simps(4) type_wellformed_pretty_def)
+    by (metis instantiate_wellformed list_all2_kinding_wellformedD subtyping_wellformed_preservation(1) type_wellformed.simps(5) type_wellformed_pretty_def)
 qed (auto intro: supersumption simp add: list_all_iff kinding_simps dest: kinding_all_record'[simplified o_def])
 
 lemma vval_typing_bang:
@@ -267,6 +276,8 @@ proof (induct rule: vval_typing_vval_typing_record.inducts)
                                                         bang_wellformed rev_image_eqI)
 next case v_t_abstract then show ?case by (force intro: vval_typing_vval_typing_record.intros
                                                         abs_typing_bang bang_wellformed)
+next case v_t_dabstract then show ?case by (force intro: vval_typing_vval_typing_record.intros
+                                                        abs_dtyping_bang bang_wellformed)
 next case v_t_r_cons2  then show ?case by (force intro: vval_typing_vval_typing_record.intros
                                                         bang_wellformed)
 next case v_t_afun
@@ -477,7 +488,7 @@ next
     using v_t_record by (auto elim: subtyping.cases intro: vval_typing_vval_typing_record.intros)
 
   have "\<Xi> \<turnstile>* fs :vr ts'"
-    using elims subty_trecord subtyping_simps(6) v_t_record by presburger
+    using elims subty_trecord subtyping_simps(7) v_t_record by presburger
 
   then show ?case
     using v_t_record elims  vval_typing_vval_typing_record.intros
@@ -488,6 +499,12 @@ next
     using subtyping.cases v_t_abstract by fastforce
   then show ?case
     using v_t_abstract vval_typing_vval_typing_record.v_t_abstract by blast
+next
+  case (v_t_dabstract a n1 n2 n3 ts \<Xi> s)
+  have "t' = TDCon n1 n2 n3 ts s"
+    using subtyping.cases v_t_dabstract by fastforce
+  then show ?case
+    using v_t_dabstract vval_typing_vval_typing_record.v_t_dabstract by blast
 next
   case (v_t_afun \<Xi> f ks ta tb ts tfun')
   then obtain tx ux where "t' = TFun tx ux"
@@ -578,7 +595,7 @@ proof -
 
   show ?thesis
     using assms tfun_sub
-    by (meson list_all2_substitutivity type_wellformed.simps(4) type_wellformed_pretty_def v_t_afun)
+    by (meson list_all2_substitutivity type_wellformed.simps(5) type_wellformed_pretty_def v_t_afun)
 qed
 
 lemma v_t_function_instantiate:
@@ -852,7 +869,7 @@ next case (v_sem_con \<xi> \<gamma> x_spec x' ts_inst tag)
     next
       show "[] \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) wellformed"
         using con_elims v_sem_con.prems
-        by (metis instantiate.simps(6) kinding_iff_wellformed(1) substitutivity_single)
+        by (metis instantiate.simps(7) kinding_iff_wellformed(1) substitutivity_single)
     qed auto
     then show ?thesis
       using con_elims by auto
@@ -1048,6 +1065,7 @@ next
 next case v_sem_split   then show ?case by ( case_tac e, simp_all
                                            , fastforce intro!: matches_cons
                                                        intro:  matches_split)
+
 next case (v_sem_app \<xi> \<gamma> x ea ts y a r e \<tau>s K \<tau> \<Gamma>)
   obtain efun earg where e_def: "e = App efun earg"
       "x = specialise \<tau>s efun"
@@ -1076,11 +1094,12 @@ next case (v_sem_app \<xi> \<gamma> x ea ts y a r e \<tau>s K \<tau> \<Gamma>)
 
   have vres_ty_sub: "\<Xi> \<turnstile> r :v instantiate ts u"
     using vfun_ty_elims v_sem_app(6)
-    using matches_cons' matches_empty subtyping_simps(4) v_sem_app.prems(3) v_sem_app.prems(5) value_subtyping(1) varg_ty by fastforce
+    using matches_cons' matches_empty subtyping_simps(5) v_sem_app.prems(3) v_sem_app.prems(5) value_subtyping(1) varg_ty 
+    by fastforce
 
   show ?case
     using app_elims e_def v_sem_app vfun_ty_elims vres_ty_sub
-    by (metis subtyping_simps(4) value_subtyping(1))
+    by (metis subtyping_simps(5) value_subtyping(1))
 
 next case (v_sem_abs_app \<xi> \<gamma> x f ts y a r)
   obtain efun earg where e_def: "e = App efun earg"
@@ -1112,12 +1131,13 @@ next case (v_sem_abs_app \<xi> \<gamma> x f ts y a r)
 
   have vres_ty_sub: "\<Xi> \<turnstile> r :v instantiate ts u"
     using vafun_ty_elims varg_ty v_sem_abs_app
-    using subtyping_simps(4) value_subtyping(1)  instantiate.simps(4) proc_env_matches_abstract
+    using subtyping_simps(5) value_subtyping(1)  instantiate.simps(5) proc_env_matches_abstract
     by metis
 
   show ?case
     using app_elims e_def v_sem_abs_app vafun_ty_elims vres_ty_sub
-    by (metis instantiate.simps(4) subtyping_simps(4) value_subtyping(1))
+    by (metis instantiate.simps(5) subtyping_simps(5) value_subtyping(1))
+    
 
 next case v_sem_all_empty then show ?case by ( case_tac es, simp_all
                                              , fastforce simp: vval_typing_all_def)
@@ -1165,18 +1185,19 @@ function monoexpr :: "'f expr \<Rightarrow> ('f \<times> type list) expr" where
              by (case_tac x, auto)
 termination by (relation "measure expr_size", (simp add: order_sum_list)+)
 
-fun monoval :: "('f, 'a) vval \<Rightarrow> ('f \<times> type list, 'a) vval"
+fun monoval :: "('f, 'a, 'b) vval \<Rightarrow> ('f \<times> type list, 'a, 'b) vval"
 where "monoval (VPrim lit) = VPrim lit"
     | "monoval (VProduct t u) = VProduct (monoval t) (monoval u)"
     | "monoval (VSum name v) = VSum name (monoval v)"
     | "monoval (VRecord vs) = VRecord (map monoval vs)"
     | "monoval (VAbstract t) = VAbstract t"
+    | "monoval (VDAbstract t) = VDAbstract t"
     | "monoval (VAFunction f ts) = VAFunction (f, ts) []"
     | "monoval (VFunction f ts) = VFunction (monoexpr (specialise ts f)) []"
     | "monoval VUnit = VUnit"
 
 
-definition monoprog :: "('f, 'a) vabsfuns \<Rightarrow> (('f \<times> type list), 'a) vabsfuns \<Rightarrow> bool"
+definition monoprog :: "('f, 'a, 'b) vabsfuns \<Rightarrow> (('f \<times> type list), 'a, 'b) vabsfuns \<Rightarrow> bool"
 where "monoprog \<xi> \<xi>' \<equiv> \<forall>f \<tau>s. (\<forall>v v'. \<xi> f v v' \<longleftrightarrow> \<xi>' (f, \<tau>s) (monoval v) (monoval v'))"
 
 lemma member_nth_map: "f < length fs \<Longrightarrow> \<xi>', map monoval \<gamma> \<turnstile> Member (monoexpr e) f \<Down> monoval (fs ! f) =  \<xi>' , map monoval \<gamma> \<turnstile> Member (monoexpr e) f \<Down> (map monoval fs) ! f"
