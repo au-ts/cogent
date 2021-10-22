@@ -13,5 +13,5 @@ $ty:(U32) $id:crc32_buf($ty:(Crc32bufP) args)
 {
     if (args.frm >= args.to)
         return CRCINIT;
-    return crc32(CRCINIT, args.buf->data[args.frm], args.to - args.frm);
+    return crc32(CRCINIT, &args.buf->data[args.frm], args.to - args.frm);
 }

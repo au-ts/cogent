@@ -216,7 +216,7 @@ $ty:(WubiLebReadR) $id:wubi_leb_read($ty:(WubiLebReadP) args)
         bilbyfs_assert(nbbytes == args.nb_bytes);
 
         bilbyfs_debug("ubi_leb_read: ubivol=%p, ebnum=%u, buffoffs=%u, nbbytes=%u, crc=%u\n", args.ubi_vol, args.ebnum, bufoffs, nbbytes, crc);
-        err = ubi_leb_read(args.ubi_vol, args.ebnum, args.buf->data + bufoffs, bufoffs, nbbytes, crc);
+        err = ubi_leb_read(args.ubi_vol, args.ebnum, &args.buf->data[bufoffs], bufoffs, nbbytes, crc);
         ret.p1.p1 = args.ex;
         ret.p1.p2 = args.buf;
         bilbyfs_debug("ubi_leb_read(ubivol=%p) = %d\n", ret.p1.p2, err);
@@ -248,7 +248,7 @@ $ty:(ResUbi) $id:wubi_leb_write($ty:(WubiLebWriteP) args)
         u32 arrlen = PAGE_CACHE_SIZE;
         u32 bufoffs = args.buf_offs > arrlen ? arrlen : args.buf_offs;
         u32 nbbytes = arrlen - bufoffs < args.nb_bytes ? arrlen - bufoffs : args.nb_bytes;
-        const void *buf = args.robuf->data + bufoffs;
+        const void *buf = &args.robuf->data[bufoffs];
         int err;
 
         /* Although this is allowed by the interface, BilbyFs implementation should never pass such invalid values */
