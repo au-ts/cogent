@@ -1,0 +1,2 @@
+`make verif` generates theory files, using the VERIF macro in main.ac. Then, AllRefine should pass.
+

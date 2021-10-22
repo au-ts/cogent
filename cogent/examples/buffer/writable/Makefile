@@ -39,6 +39,17 @@ all: gen-anti $(OBJ)
 	$(CC) -o $(NAME) $(OBJ)
 
 test: gen-anti $(OBJ)
+verif:
+	mkdir -p $(ABSDIR)
+	cogent -A $(SRC) -g -Od -o$(OUTPUT) --fno-fncall-as-macro --ffunc-purity-attr \
+		--infer-c-types="$(AHFILES)" \
+		--Wno-warn --infer-c-funcs="$(ACFILES)" \
+		--cpp-args="-DVERIF \$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
+		--ext-types=types.cfg \
+		--entry-funcs=entrypoints.cfg 
+	cp main_pp_inferred.c generated.c
+
+
 
 $(OBJ): $(PPINFER)
 
@@ -56,3 +67,8 @@ clean:
 	@# rm -f *-gen.*
 	rm -f $(ABSDIR)/*.h
 	rm -f $(NAME)
+	rm -f *.thy
+	rm -f *.table
+	rm -f *.table.new
+	rm -f ROOT
+	rm -f BUILD_INFO

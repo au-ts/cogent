@@ -48,7 +48,7 @@ focus_buffer : all (a,b).(Vector, b!,
 -- Retrieve the next item given both the current item and the tail. This
 -- function should return the next item on success (Some), or the given
 -- item if it is the last initialised item.
-next : (BItem, BTail!) -> <None BItem | Some BItem>
+next_item : (BItem, BTail!) -> <None BItem | Some BItem>
 
 -- Retrieve the read-only contents for the given item.
 read : (BItem!) -> Entry!
@@ -120,7 +120,7 @@ cstring_eq : (CString!, CString!) -> Bool
 gen_next_item : #{ acc : (BItem, BTail, Bool) , obsv : CString! } ->
   GeneratorResult () U32 () (BItem, BTail, Bool)
 gen_next_item (r { acc = (item, tail, exit) }) =
-  next (item, tail) !tail
+  next_item (item, tail) !tail
   | None item -> ((item, tail, exit), Stop ())
   | Some item -> ((item, tail, exit), Yield ())
 
