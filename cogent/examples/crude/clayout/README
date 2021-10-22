@@ -1,0 +1,2 @@
+A version to test AllRefine. It uses the desired C struct as "custom layout", rather than a byte array.
+Tested successfully on the dargentfull branch.

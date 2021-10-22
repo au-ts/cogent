@@ -500,36 +500,81 @@ getRecordFieldName _ _ = __impossible "getRecordFieldName"
 -- - eliminate tuple accessor functions by using tuple bindings
 -- This is only applied to the recoverTuples form and must be respected in the TuplesProof.
 simplifyTerm :: Term -> Term
-simplifyTerm = useTupleBindings . simplifyLets
+simplifyTerm = useTupleBindings . simplifyChains . simplifyUnused . simplifyLetDS . simplifyTakes
 
-simplifyLets :: Term -> Term
-simplifyLets (TermApp t t') =
-    case t of
-         TermApp hl@(TermIdent (Id s)) bnd 
-           | s == "HOL.Let" -> 
-             let (QuantifiedTerm Lambda [w@(Id ws)] bdy) = t'
-             in case bnd of
-                 TermApp (TermApp (TermIdent (Id tk)) rec) sel | tk == "take" ++ subSymStr "cogent" ->
-                   let (v1,v2) = parsePrettyPair ws
-                   in simplifyLets $ mkHOLLet (Id v2) rec $ mkHOLLet (Id v1) (mkApp sel [(mkId v2)]) bdy
-                 TermIdent v -> 
-                   let sbdy = simplifyLets bdy
-                   in if v == w || (not $ isFreeInTerm w sbdy) then sbdy else substVarInTerm v w $ sbdy
-                 _ -> let sbdy = simplifyLets bdy in if not $ isFreeInTerm w sbdy then sbdy else recurse
-           | s == ("Let" ++ subSymStr "ds") -> simplifyLets $ TermApp (TermApp (mkId "HOL.Let") bnd) t'
-         _ -> recurse
-    where recurse = (TermApp (simplifyLets t) (simplifyLets t'))
-simplifyLets (TermWithType t tp) = TermWithType (simplifyLets t) tp
-simplifyLets (QuantifiedTerm qnt ids t) = QuantifiedTerm qnt ids $ simplifyLets t
-simplifyLets (TermUnOp op t) = TermUnOp op $ simplifyLets t
-simplifyLets (TermBinOp op t t') = TermBinOp op (simplifyLets t) (simplifyLets t')
-simplifyLets (ListTerm opn ts cls) = ListTerm opn (map simplifyLets ts) cls
-simplifyLets (CaseOf t alts) = CaseOf (simplifyLets t) $ map (\(p,t) -> (p,simplifyLets t)) alts
-simplifyLets t = t
+simplifyTakes :: Term -> Term
+simplifyTakes (TermApp 
+                (TermApp (TermIdent (Id s)) (TermApp (TermApp (TermIdent (Id tk)) rec) sel))
+                (QuantifiedTerm Lambda [(Id ws)] bdy)) | s == "HOL.Let" && tk == "take" ++ subSymStr "cogent" = 
+    let (s1,s2) = parsePrettyPair ws
+        v1 = Id s1
+        v2 = Id s2
+    in case rec of
+        TermIdent v -> -- let (v1,v2) = take_cogent v sel in bdy -> let v1 = sel v in [v/v2] bdy
+            mkHOLLet v1 (mkApp sel [TermIdent v]) $ (if v == v2 then simplifyTakes bdy else substVarInTerm v v2 $ simplifyTakes bdy)
+        _ ->           -- let (v1,v2) = take_cogent rec sel in bdy -> let v2 = rec; v1 = sel v2 in bdy
+            mkHOLLet v2 (simplifyTakes rec) $ mkHOLLet v1 (mkApp sel [TermIdent v2]) $ simplifyTakes bdy
+simplifyTakes (TermApp t t') = TermApp (simplifyTakes t) (simplifyTakes t')
+simplifyTakes (TermWithType t tp) = TermWithType (simplifyTakes t) tp
+simplifyTakes (QuantifiedTerm qnt ids t) = QuantifiedTerm qnt ids $ simplifyTakes t
+simplifyTakes (TermUnOp op t) = TermUnOp op $ simplifyTakes t
+simplifyTakes (TermBinOp op t t') = TermBinOp op (simplifyTakes t) (simplifyTakes t')
+simplifyTakes (ListTerm opn ts cls) = ListTerm opn (map simplifyTakes ts) cls
+simplifyTakes (CaseOf t alts) = CaseOf (simplifyTakes t) $ map (\(p,t) -> (p,simplifyTakes t)) alts
+simplifyTakes t = t
+
+simplifyLetDS :: Term -> Term
+simplifyLetDS (TermApp (TermApp (TermIdent (Id s)) bnd) t') | s == ("Let" ++ subSymStr "ds") = 
+    -- let_ds v = bnd in bdy -> let v = bnd in bdy
+    TermApp (TermApp (mkId "HOL.Let") (simplifyLetDS bnd)) $ simplifyLetDS t'
+simplifyLetDS (TermApp t t') = TermApp (simplifyLetDS t) (simplifyLetDS t')
+simplifyLetDS (TermWithType t tp) = TermWithType (simplifyLetDS t) tp
+simplifyLetDS (QuantifiedTerm qnt ids t) = QuantifiedTerm qnt ids $ simplifyLetDS t
+simplifyLetDS (TermUnOp op t) = TermUnOp op $ simplifyLetDS t
+simplifyLetDS (TermBinOp op t t') = TermBinOp op (simplifyLetDS t) (simplifyLetDS t')
+simplifyLetDS (ListTerm opn ts cls) = ListTerm opn (map simplifyLetDS ts) cls
+simplifyLetDS (CaseOf t alts) = CaseOf (simplifyLetDS t) $ map (\(p,t) -> (p,simplifyLetDS t)) alts
+simplifyLetDS t = t
+
+simplifyUnused :: Term -> Term
+simplifyUnused (TermApp 
+                 (TermApp (TermIdent (Id s)) bnd) 
+                 (QuantifiedTerm Lambda [w@(Id ws)] bdy)) | s == "HOL.Let" =
+    let sbdy = simplifyUnused bdy
+    in if not $ isFreeInTerm w sbdy  -- let w = bnd in bdy --(not free(w,bdy))-> bdy
+          then sbdy
+          else mkHOLLet w bnd sbdy
+simplifyUnused (TermApp t t') = TermApp (simplifyUnused t) (simplifyUnused t')
+simplifyUnused (TermWithType t tp) = TermWithType (simplifyUnused t) tp
+simplifyUnused (QuantifiedTerm qnt ids t) = QuantifiedTerm qnt ids $ simplifyUnused t
+simplifyUnused (TermUnOp op t) = TermUnOp op $ simplifyUnused t
+simplifyUnused (TermBinOp op t t') = TermBinOp op (simplifyUnused t) (simplifyUnused t')
+simplifyUnused (ListTerm opn ts cls) = ListTerm opn (map simplifyUnused ts) cls
+simplifyUnused (CaseOf t alts) = CaseOf (simplifyUnused t) $ map (\(p,t) -> (p,simplifyUnused t)) alts
+simplifyUnused t = t
+
+simplifyChains :: Term -> Term
+simplifyChains (TermApp 
+                 (TermApp (TermIdent (Id s)) (TermIdent v)) 
+                 (QuantifiedTerm Lambda [w@(Id ws)] bdy)) | s == "HOL.Let" =
+    if v == w
+       then simplifyChains bdy                       -- let v = v in bdy -> bdy
+       else substVarInTerm v w $ simplifyChains bdy  -- let w = v in bdy -> [v/w] bdy
+        -- beware: simplifyChains $ substVarInTerm v w bdy
+        -- can cause a loop because substVarInTerm re-inserts the binding if bdy immediately binds v
+simplifyChains (TermApp t t') = TermApp (simplifyChains t) (simplifyChains t')
+simplifyChains (TermWithType t tp) = TermWithType (simplifyChains t) tp
+simplifyChains (QuantifiedTerm qnt ids t) = QuantifiedTerm qnt ids $ simplifyChains t
+simplifyChains (TermUnOp op t) = TermUnOp op $ simplifyChains t
+simplifyChains (TermBinOp op t t') = TermBinOp op (simplifyChains t) (simplifyChains t')
+simplifyChains (ListTerm opn ts cls) = ListTerm opn (map simplifyChains ts) cls
+simplifyChains (CaseOf t alts) = CaseOf (simplifyChains t) $ map (\(p,t) -> (p,simplifyChains t)) alts
+simplifyChains t = t
 
 useTupleBindings :: Term -> Term
 useTupleBindings (TermApp (TermApp (TermIdent (Id s)) (TermApp (TermIdent (Id tacc)) tup)) (QuantifiedTerm Lambda [(Id ws)] bdy))
     | (Just acc) <- parseTupleAcc tacc, s == "HOL.Let" = mkTupleBinding [(acc,ws)] tup bdy
+    -- let v1 = Pn_p1 tup in ... let vm = Pn_pm tup in bdy -> let (v1,...vm) = tup in bdy
 useTupleBindings (TermApp t t') = TermApp (useTupleBindings t) (useTupleBindings t')
 useTupleBindings (TermWithType t tp) = TermWithType (useTupleBindings t) tp
 useTupleBindings (QuantifiedTerm qnt ids t) = QuantifiedTerm qnt ids $ useTupleBindings t

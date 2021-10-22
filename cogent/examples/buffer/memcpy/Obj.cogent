@@ -1,0 +1,140 @@
+--
+-- Copyright 2021, Trustworthy Systems Group (UNSW)
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(UNSW_GPL)
+--
+
+include <gum/common/iterator.cogent>
+include <gum/common/vector.cogent>
+
+-- An abstract type of variable length
+type DataStream
+
+-- Common header object
+-- Designed akin to a "dependent record" with the first field
+-- being the length of the whole object.
+type Hdr = {
+  len : U32, -- the actual length of the object
+  id : U32,
+  value : U32, -- dummy field
+  obj : ObjKind
+} layout L
+
+-- The layout ensures the different object payloads start at the same
+-- offset.
+layout L = record { id : 4B
+                  , value : 4B after id
+                  , len   : 4B after value
+                  , obj : variant (2b at 12B) { TKindA(0) : LA at 13B
+                                       , TKindB(1) : LB at 13B
+                                       , TKindC(2) : LC at 13B } }
+
+-- The possible objects all with a common header
+-- All these objects are deliberately 4-byte aligned to ensure they do
+-- not cause issues with padding.
+type ObjKind = <TKindA #ObjA | TKindB #ObjB | TKindC #ObjC>
+
+type ObjA = { w : U16 }
+
+type ObjB = { x : Bool , y : U16 }
+
+type ObjC = { z : U64 }
+
+layout LA = record { w : 2B at 0B }
+layout LB = record { x : 1b at 0B , y : 2B at 1B }
+layout LC = record { z : 8B }
+
+-- Example-specific abstract functions
+
+-- Retrieve the read-only contents for the given item.
+read : (BItem!) -> Hdr!
+
+-- Primitive display functions
+
+display_bool : Bool -> ()
+display_u8 : U8 -> ()
+display_u16 : U16 -> ()
+display_u32 : U32 -> ()
+display_u64 : U64 -> ()
+display_string : String -> ()
+
+-- The footer bases its length on the number of digits in the object
+-- identifier. We use logarithms to compute this so just do it in C.
+--
+display_footer : U32 -> ()
+
+-- The display function for a header object which prints the object
+-- identifier, its value and its length.
+--
+display_hdr : (Hdr!) -> ()
+display_hdr h =
+  let _ = display_string "---==== HDR #"
+  and _ = display_u32 h.id
+  and _ = display_string " ====---\n[ "
+  and _ = display_string "value : "
+  and _ = display_u32 h.value
+  and _ = display_string ", length : "
+  and _ = display_u32 h.len
+  and _ = display_string " ]\n"
+  in display_footer h.id
+
+display_kind : (Hdr!) -> ()
+display_kind hdr =
+  let _ = display_string "  <Obj "
+  in hdr.obj
+  | TKindA a -> let _ = display_string "A { w ="
+                and _ = display_u16 a.w in
+                display_string " }>\n"
+  | TKindB b -> let _ = display_bool b.x in display_u16 b.y
+  | TKindC c -> display_u64 c.z
+
+sethdr : Hdr -> Hdr
+sethdr (h { id = i , value = v , obj = _}) =
+  h { id = i + 1 , value = v + 2 , obj = TKindA #{ w = 1234 } }
+
+-- We use the general iteration scheme in Cogent to scan the contents of
+-- a buffer, and display each object using our defined helper functions
+
+-- Given the current item, we may generate the next item,
+-- if any, and yield to the consumer. Otherwise, we are finished.
+--
+gen_next_item : #{ acc : BItem , obsv : BTail! } ->
+  GeneratorResult () () () BItem
+gen_next_item (r { acc = item , obsv = tail }) =
+  next (item, tail)
+  | None item -> (item, Stop ())
+  | Some item -> (item, Yield ())
+
+-- We display the current item: its header and underlying object.
+--
+cons_item :
+  #{ obj : (), acc : BItem, obsv : BTail! } ->
+  ConsumerResult () () BItem
+cons_item (r {acc = item }) =
+  let _ = display_hdr (read item) !item
+  and _ = display_kind (read item) !item in
+  (item, Next)
+
+-- Our main function for item and tail: we iterate using the FFI
+-- function which repeatedly calls the consumer followed by the
+-- generator until we have completed iteration of all items, or found
+-- a matching entry.
+--
+scan : #{obj : (BItem, BTail) , obsv : () } ->
+             ((), BItem, BTail)
+scan #{obj = (item, tail) } =
+  let (item, _) =
+     iterate_do [(), (), (), BItem, BTail!]
+                #{ init = ()
+                 , gen = gen_next_item
+                 , cons = cons_item
+                 , acc = item
+                 , obsv = tail } !tail
+  in ((), item, tail)
+
+comain : (Vector) -> Vector
+comain vec = let (_, vec) = focus_buffer (vec, (), scan) in vec

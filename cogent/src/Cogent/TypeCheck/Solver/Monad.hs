@@ -19,18 +19,20 @@ import qualified Control.Monad.State as S (get)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.RWS
 
-type TcSolvM = RWST TcState [Subst] Int IO
+import Data.IntMap
+import Lens.Micro
+import Lens.Micro.Mtl (use, (%=))
 
-solvFresh :: TcSolvM Int
-solvFresh = do
-  x <- get
-  modify (+1)
+type TcSolvM = RWST TcState [Subst] (Int, IntMap VarOrigin) IO
+
+solvFresh :: VarOrigin -> TcSolvM Int
+solvFresh o = do
+  x <- use _1
+  _1 %= (+1)
+  _2 %= insert x o
   return x
 
-solvFreshes :: Int -> TcSolvM [Int]
-solvFreshes 0 = pure []
-solvFreshes n = (:) <$> solvFresh <*> solvFreshes (n-1)
-
-runSolver :: TcSolvM a -> Int -> TcM (a, Subst)
-runSolver act i = do st <- lift (lift S.get)
-                     fmap mconcat <$> (lift . lift . lift $ evalRWST act st i)
+runSolver :: TcSolvM a -> (Int, IntMap VarOrigin) -> TcM (a, Subst, IntMap VarOrigin)
+runSolver act s = do st <- lift (lift S.get)
+                     (a, s', w) <- lift . lift . lift $ runRWST act st s
+                     return (a, mconcat w, snd s')

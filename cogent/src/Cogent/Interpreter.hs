@@ -373,11 +373,11 @@ tcExpr r e = do
     do
       ((c,e'), flx, os) <- (Tc.runCG Ctx.empty [] [] (do
         let ?loc = S.posOfE e
-        t <- freshTVar
+        t <- freshTVar (Tc.TypeOfExpr (S.stripLocE e) [] (S.posOfE e))
         y <- Tc.cg e t
         pure y))
-      (cs, subst) <- runSolver (solve [] [] c) flx
-      Tc.exitOnErr $ Tc.toErrors os cs
+      (cs, subst, os') <- runSolver (solve [] [] c) (flx, os)
+      Tc.exitOnErr $ Tc.toErrors os' cs
       Tc.postE $ Subst.applyE subst e'
   where
     knownTypes = map (, ([], Nothing)) $ words "U8 U16 U32 U64 String Bool"

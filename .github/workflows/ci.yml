@@ -116,7 +116,7 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE/cogent
           cabal new-update
-          if [[ ${{ matrix.feature-flags }} == "full" ]]; then
+          if ${{ matrix.feature-flags == 'full'}}; then
             COGENT_FLAGS="${{ env.COGENT_FULL_FEATURE }}"
           else
             COGENT_FLAGS="${{ env.COGENT_NO_FEATURE }}"
@@ -126,6 +126,9 @@ jobs:
           cat cabal.project.local
           echo "::endgroup::"
           cabal new-install --install-method=copy --installdir=$HOME/.cabal/bin --overwrite-policy=always
+          echo "::group::[cogent --version]"
+          cogent --version
+          echo "::endgroup::"
 
       - name: Run Cogent tests
         run: |

@@ -8,9 +8,9 @@
 # @TAG(NICTA_GPL)
 #
 
-NAME=rootle
+NAME=object
 
-SRC=Brutal.cogent
+SRC=Obj.cogent
 OUTPUT=generated # $(SRC:.cogent=-gen)
 COUTPUT=$(addsuffix .c, $(OUTPUT))
 HOUTPUT=$(addsuffix .h, $(OUTPUT))
@@ -29,6 +29,7 @@ ABSDIR=./abstract
 OBJ=$(PPINFER:.c=.o)
 
 CFLAGS+=-g -I. -I../plat/console -I$(LIBGUM) -I$(LIBGUM)/gum/anti -std=gnu99
+LFLAGS=-lm
 
 .PHONY: default cogent clean gen-anti test
 .SECONDARY:
@@ -36,7 +37,7 @@ CFLAGS+=-g -I. -I../plat/console -I$(LIBGUM) -I$(LIBGUM)/gum/anti -std=gnu99
 default: all
 
 all: gen-anti $(OBJ)
-	$(CC) -o $(NAME) $(OBJ)
+	$(CC) -o $(NAME) $(OBJ) $(LFLAGS)
 
 test: gen-anti $(OBJ)
 
@@ -44,7 +45,7 @@ $(OBJ): $(PPINFER)
 
 gen-anti:
 	mkdir -p $(ABSDIR)
-	cogent $(SRC) -g -Od -ogenerated --fno-fncall-as-macro --ffunc-purity-attr \
+	cogent $(SRC) -g -Od -o$(OUTPUT) --fno-fncall-as-macro --ffunc-purity-attr \
 		--infer-c-types="$(AHFILES)" \
 		--Wno-warn --infer-c-funcs="$(ACFILES)" \
 		--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
@@ -53,6 +54,5 @@ gen-anti:
 
 clean:
 	rm -f $(COUTPUT) $(HOUTPUT) $(PP) $(PPINFER) $(OBJ)
-	@# rm -f *-gen.*
 	rm -f $(ABSDIR)/*.h
 	rm -f $(NAME)

@@ -1,0 +1,25 @@
+type A = { s : U32, b : B }
+type B
+
+type R a b = <Success a | Error b>
+
+newA : () -> R (A take b) ()
+newB : () -> R B ()
+
+freeA : A take b -> ()
+
+create : U32 -> R A ()
+create size =
+  let Success a <= newA ()
+      |> Error () -> Error ()
+  and r = newB ()
+  and Success b <= r
+      |> Error () -> Error (freeA a)
+  in a {s = size, b = b}
+
+-- Used to test the handling of the biased pattern matching, in
+-- the case where there's no more let-bindings after the biased
+-- match. Before the fix the compiler will generate a `Let [] e'
+-- structure, and later reduce it to `e'. It was correct, but
+-- `Let [] e' is not allowed in the pretty-printer, resulting
+-- the compiler to crash.

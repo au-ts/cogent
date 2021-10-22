@@ -29,7 +29,7 @@ import Cogent.Dargent.Allocation
 import Cogent.Dargent.TypeCheck
 import Cogent.Surface
 import Cogent.TypeCheck.ARow hiding (all, null)
-import Cogent.TypeCheck.Row (Row)
+import Cogent.TypeCheck.Row (Entry, Row)
 import qualified Cogent.TypeCheck.Row as Row
 -- import Cogent.TypeCheck.Util
 import Cogent.Util
@@ -134,6 +134,7 @@ type ContextualisedTcLog = ([ErrorContext], TcLog)  -- high-level context at the
 
 -- FIXME: More fine-grained context is appreciated. e.g., only show alternatives that don't unify / zilinc
 data ErrorContext = InExpression LocExpr TCType
+                  | InType SourcePos RawType
                   | InPattern LocPatn
                   | InIrrefutablePattern LocIrrefPatn
                   | ThenBranch | ElseBranch
@@ -155,8 +156,24 @@ isCtxConstraint (SolvingConstraint _) = True
 isCtxConstraint _ = False
 
 data VarOrigin = ExpressionAt SourcePos
+               | TermInType RawExpr RawType SourcePos
+               | TypeOfExpr RawExpr [VarName] SourcePos
+               | TypeOfPatn RawPatn SourcePos
+               | TypeOfIrrefPatn RawIrrefPatn SourcePos
+               | ImplicitTypeApp SourcePos
+               | ImplicitLayoutApp SourcePos
+               | TypeHole SourcePos
+               | LayoutHole SourcePos
+               | UnifyingRows (Row TCType) (Row TCType)
+               | SinkFloat TCType TCType TCType      -- SinkFloat t1 t2 t3: s/f t1 to t2 due to t3
+               | SinkFloatRow Int (Row TCType) TCType TCType  -- SinkFloat2 x r t1 t2: s/f x to r when comparing t1 and t2
+               | SinkFloatEntry (Entry TCType) TCType TCType
+               | SinkFloatSigil TCType TCType
                | BoundOf TCType TCType Bound
                | EqualIn TCExpr TCExpr TCType TCType
+               | BlockedByType RawType SourcePos
+               | BlockedByLayout DataLayoutExpr SourcePos
+               | OtherOrigin String
                deriving (Eq, Show, Ord)
 
 
@@ -211,6 +228,7 @@ data Constraint' t l = (:<) t t
                      deriving (Eq, Show, Ord)
 
 type Constraint = Constraint' TCType TCDataLayout
+
 
 arithTCType :: TCType -> Bool
 arithTCType (T (TCon n [] Unboxed)) | n `elem` ["U8", "U16", "U32", "U64", "Bool"] = True
@@ -671,11 +689,11 @@ type TcBaseM     a =              StateT TcState IO  a
 withTcConsM :: lcl -> TcConsM lcl a -> TcM a
 withTcConsM lcl ma = lift . lift $ evalStateT ma lcl
 
-logErr :: TypeError -> TcM ()
-logErr e = logTc =<< ((,Left e) <$> lift (use errCtx))
+logErr :: [ErrorContext] -> TypeError -> TcM ()
+logErr ctx e = logTc =<< ((\c -> (ctx++c, Left e)) <$> lift (use errCtx))
 
 logErrExit :: TypeError -> TcM a
-logErrExit e = logErr e >> exitErr
+logErrExit e = logErr [] e >> exitErr
 
 -- Even -Werror is enabled, we don't exit. Errors will be collected and thrown at the end.
 logWarn :: TypeWarning -> TcM ()

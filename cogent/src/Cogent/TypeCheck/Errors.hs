@@ -9,5 +9,5 @@ import qualified Data.IntMap as IM
 toErrors :: IM.IntMap VarOrigin -> [Goal] -> TcM ()
 toErrors os = mapM_ $ \(Goal ctx c) -> case c of
     Sat -> return ()
-    Unsat e -> logErr e
-    c -> logErr (UnsolvedConstraint c os)
+    Unsat e -> logErr ctx e
+    c -> logErr ctx (UnsolvedConstraint c os)
